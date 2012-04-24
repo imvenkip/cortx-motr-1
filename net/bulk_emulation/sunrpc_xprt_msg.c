@@ -222,7 +222,7 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
  err_exit:
 	/* send the RPC response (note: not delivered yet, but enqueued) */
 	ex->smr_rc = rc;
-	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
+	c2_net_reply_post(ctx->fc_service, reply, ctx->fc_cookie);
 
 	return 0;
 }

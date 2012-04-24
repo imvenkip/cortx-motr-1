@@ -55,7 +55,8 @@ static void default_fom_fini(struct c2_fom *fom)
         return;
 }
 
-static int cons_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
+static int cons_fop_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
+                               struct c2_fom **m)
 {
         struct c2_fom *fom;
 	struct c2_fop *rep_fop;

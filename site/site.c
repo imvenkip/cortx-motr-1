@@ -36,7 +36,6 @@
 #include "fop/fop.h"
 #include "cob/cob.h"
 #include "mdstore/mdstore.h"
-#include "iostore/iostore.h"
 
 #include "site.h"
 
@@ -48,11 +47,9 @@
 static struct c2_list c2_sites;
  
 int c2_site_init(struct c2_site *s, 
-                 struct c2_md_store *md, 
-                 struct c2_io_store *io)
+                 struct c2_md_store *md)
 {
         s->s_mdstore = md;
-        s->s_iostore = io;
         c2_list_add(&c2_sites, &s->s_linkage);
         return 0;
 }

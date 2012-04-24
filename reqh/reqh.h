@@ -164,7 +164,7 @@ void c2_reqh_fini(struct c2_reqh *reqh);
    @pre reqh != null
    @pre fop != null
  */
-void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop);
+void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop, void *cookie);
 
 /**
    Standard fom state transition function.

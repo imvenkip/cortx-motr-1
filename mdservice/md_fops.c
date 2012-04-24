@@ -36,40 +36,40 @@ static size_t c2_md_fol_pack_size(struct c2_fol_rec_desc *desc)
 	size_t len = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
 	void *data = c2_fop_data(fop);
 
-	switch (fop->f_type->ft_code) {
-	case C2_FOP_CREATE:
+	switch (fop->f_type->ft_rpc_item_type.rit_opcode) {
+	case C2_MD_FOP_CREATE_OPCODE:
 	        len += ((struct c2_fop_create *)data)->c_name.s_len;
 		len += ((struct c2_fop_create *)data)->c_target.s_len;
 		len += ((struct c2_fop_create *)data)->c_path.s_len;
 		break;
-	case C2_FOP_LINK:
+	case C2_MD_FOP_LINK_OPCODE:
 	        len += ((struct c2_fop_link *)data)->l_name.s_len;
 	        len += ((struct c2_fop_link *)data)->l_spath.s_len;
 	        len += ((struct c2_fop_link *)data)->l_tpath.s_len;
 		break;
-	case C2_FOP_UNLINK:
+	case C2_MD_FOP_UNLINK_OPCODE:
 	        len += ((struct c2_fop_unlink *)data)->u_name.s_len;
 	        len += ((struct c2_fop_unlink *)data)->u_path.s_len;
 		break;
-	case C2_FOP_RENAME:
+	case C2_MD_FOP_RENAME_OPCODE:
 	        len += ((struct c2_fop_rename *)data)->r_sname.s_len;
 		len += ((struct c2_fop_rename *)data)->r_tname.s_len;
 	        len += ((struct c2_fop_rename *)data)->r_spath.s_len;
 		len += ((struct c2_fop_rename *)data)->r_tpath.s_len;
                 break;
-	case C2_FOP_SETATTR:
+	case C2_MD_FOP_SETATTR_OPCODE:
 		len += ((struct c2_fop_setattr *)data)->s_path.s_len;
 	        break;
-	case C2_FOP_GETATTR:
+	case C2_MD_FOP_GETATTR_OPCODE:
 		len += ((struct c2_fop_getattr *)data)->g_path.s_len;
 	        break;
-	case C2_FOP_OPEN:
+	case C2_MD_FOP_OPEN_OPCODE:
 		len += ((struct c2_fop_open *)data)->o_path.s_len;
 	        break;
-	case C2_FOP_CLOSE:
+	case C2_MD_FOP_CLOSE_OPCODE:
 		len += ((struct c2_fop_close *)data)->c_path.s_len;
 	        break;
-	case C2_FOP_READDIR:
+	case C2_MD_FOP_READDIR_OPCODE:
 		len += ((struct c2_fop_readdir *)data)->r_path.s_len;
 	        break;
         default:
@@ -96,40 +96,40 @@ static void c2_md_fol_pack(struct c2_fol_rec_desc *desc, void *buf)
 	memcpy(buf, data, size);
 	ptr = (char *)buf + size;
 
-	switch (fop->f_type->ft_code) {
-	case C2_FOP_CREATE:
+	switch (fop->f_type->ft_rpc_item_type.rit_opcode) {
+	case C2_MD_FOP_CREATE_OPCODE:
 	        copy(&ptr, &((struct c2_fop_create *)data)->c_name);
 	        copy(&ptr, &((struct c2_fop_create *)data)->c_target);
 	        copy(&ptr, &((struct c2_fop_create *)data)->c_path);
 		break;
-	case C2_FOP_LINK:
+	case C2_MD_FOP_LINK_OPCODE:
 	        copy(&ptr, &((struct c2_fop_link *)data)->l_name);
 	        copy(&ptr, &((struct c2_fop_link *)data)->l_spath);
 	        copy(&ptr, &((struct c2_fop_link *)data)->l_tpath);
 		break;
-	case C2_FOP_UNLINK:
+	case C2_MD_FOP_UNLINK_OPCODE:
 	        copy(&ptr, &((struct c2_fop_unlink *)data)->u_name);
 	        copy(&ptr, &((struct c2_fop_unlink *)data)->u_path);
 	        break;
-	case C2_FOP_RENAME:
+	case C2_MD_FOP_RENAME_OPCODE:
 	        copy(&ptr, &((struct c2_fop_rename *)data)->r_sname);
 		copy(&ptr, &((struct c2_fop_rename *)data)->r_tname);
 	        copy(&ptr, &((struct c2_fop_rename *)data)->r_spath);
 		copy(&ptr, &((struct c2_fop_rename *)data)->r_tpath);
 		break;
-	case C2_FOP_SETATTR:
+	case C2_MD_FOP_SETATTR_OPCODE:
 	        copy(&ptr, &((struct c2_fop_setattr *)data)->s_path);
 	        break;
-	case C2_FOP_GETATTR:
+	case C2_MD_FOP_GETATTR_OPCODE:
 	        copy(&ptr, &((struct c2_fop_getattr *)data)->g_path);
 	        break;
-	case C2_FOP_OPEN:
+	case C2_MD_FOP_OPEN_OPCODE:
 	        copy(&ptr, &((struct c2_fop_open *)data)->o_path);
 	        break;
-	case C2_FOP_CLOSE:
+	case C2_MD_FOP_CLOSE_OPCODE:
 	        copy(&ptr, &((struct c2_fop_close *)data)->c_path);
 	        break;
-	case C2_FOP_READDIR:
+	case C2_MD_FOP_READDIR_OPCODE:
 	        copy(&ptr, &((struct c2_fop_readdir *)data)->r_path);
 	        break;
 	default:
@@ -148,52 +148,52 @@ static void map(char **buf, struct c2_fop_str *str)
 static int c2_md_fol_open(const struct c2_fol_rec_type *type,
 			  struct c2_fol_rec_desc *desc)
 {
+	struct c2_fop *fop = desc->rd_type_private;
 	void *data = desc->rd_data;
 	char *ptr;
 
-	/* XXX: can we get sizeof() and init ptr using rt_opcode? */
-	switch (type->rt_opcode) {
-	case C2_FOP_CREATE:
+	switch (fop->f_type->ft_rpc_item_type.rit_opcode) {
+	case C2_MD_FOP_CREATE_OPCODE:
 	        ptr = (char *)((struct c2_fop_create *)data + 1);
 		map(&ptr, &((struct c2_fop_create *)data)->c_name);
 		map(&ptr, &((struct c2_fop_create *)data)->c_target);
 		map(&ptr, &((struct c2_fop_create *)data)->c_path);
 		break;
-	case C2_FOP_LINK:
+	case C2_MD_FOP_LINK_OPCODE:
 	        ptr = (char *)((struct c2_fop_link *)data + 1);
 		map(&ptr, &((struct c2_fop_link *)data)->l_name);
 		map(&ptr, &((struct c2_fop_link *)data)->l_spath);
 		map(&ptr, &((struct c2_fop_link *)data)->l_tpath);
 		break;
-	case C2_FOP_UNLINK:
+	case C2_MD_FOP_UNLINK_OPCODE:
 	        ptr = (char *)((struct c2_fop_unlink *)data + 1);
 		map(&ptr, &((struct c2_fop_unlink *)data)->u_name);
 		map(&ptr, &((struct c2_fop_unlink *)data)->u_path);
 		break;
-	case C2_FOP_RENAME:
+	case C2_MD_FOP_RENAME_OPCODE:
 	        ptr = (char *)((struct c2_fop_rename *)data + 1);
 		map(&ptr, &((struct c2_fop_rename *)data)->r_sname);
 		map(&ptr, &((struct c2_fop_rename *)data)->r_tname);
 		map(&ptr, &((struct c2_fop_rename *)data)->r_spath);
 		map(&ptr, &((struct c2_fop_rename *)data)->r_tpath);
 		break;
-	case C2_FOP_SETATTR:
+	case C2_MD_FOP_SETATTR_OPCODE:
 		ptr = (char *)((struct c2_fop_setattr *)data + 1);
 		map(&ptr, &((struct c2_fop_setattr *)data)->s_path);
 		break;
-	case C2_FOP_GETATTR:
+	case C2_MD_FOP_GETATTR_OPCODE:
 		ptr = (char *)((struct c2_fop_getattr *)data + 1);
 		map(&ptr, &((struct c2_fop_getattr *)data)->g_path);
 		break;
-	case C2_FOP_OPEN:
+	case C2_MD_FOP_OPEN_OPCODE:
 		ptr = (char *)((struct c2_fop_open *)data + 1);
 		map(&ptr, &((struct c2_fop_open *)data)->o_path);
 		break;
-	case C2_FOP_CLOSE:
+	case C2_MD_FOP_CLOSE_OPCODE:
 		ptr = (char *)((struct c2_fop_close *)data + 1);
 		map(&ptr, &((struct c2_fop_close *)data)->c_path);
 		break;
-	case C2_FOP_READDIR:
+	case C2_MD_FOP_READDIR_OPCODE:
 		ptr = (char *)((struct c2_fop_readdir *)data + 1);
 		map(&ptr, &((struct c2_fop_readdir *)data)->r_path);
 		break;
@@ -215,54 +215,82 @@ static const struct c2_fol_rec_type_ops c2_md_fop_fol_ops = {
 	.rto_pack       = c2_md_fol_pack
 };
 
-static struct c2_fop_type_ops c2_md_req_ops = {
-        .fto_fom_init   = c2_md_req_fom_init,
+const struct c2_fop_type_ops c2_md_item_ops = {
         .fto_rec_ops    = &c2_md_fop_fol_ops
 };
 
-static struct c2_fop_type_ops c2_md_rep_ops = {
-        .fto_fom_init = c2_md_rep_fom_init
+static struct c2_fom_type_ops c2_md_req_ops = {
+        .fto_create   = c2_md_req_fom_create
+};
+
+static struct c2_fom_type_ops c2_md_rep_ops = {
+        .fto_create = c2_md_rep_fom_create
 };
 
 /** Request fops. */
-C2_FOP_TYPE_DECLARE(c2_fop_create,  "Create request",
-                    C2_FOP_CREATE,  &c2_md_req_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_link,    "Hardlink request",
-                    C2_FOP_LINK,    &c2_md_req_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_unlink,  "Unlink request",
-                    C2_FOP_UNLINK,  &c2_md_req_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_open,    "Open request",
-                    C2_FOP_OPEN,    &c2_md_req_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_close,   "Close request",
-                    C2_FOP_CLOSE,   &c2_md_req_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_setattr, "Setattr request",
-                    C2_FOP_SETATTR, &c2_md_req_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_getattr, "Getattr request",   
-                    C2_FOP_GETATTR, &c2_md_req_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_rename,  "Rename request",
-                    C2_FOP_RENAME,  &c2_md_req_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_readdir, "Readdir request",
-                    C2_FOP_READDIR, &c2_md_req_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_create,  "Create request",
+                        &c2_md_item_ops, C2_MD_FOP_CREATE_OPCODE,
+                        C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+                        NULL, &c2_md_req_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_link,    "Hardlink request",
+                        &c2_md_item_ops, C2_MD_FOP_LINK_OPCODE,
+                        C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+                        NULL, &c2_md_req_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_unlink,  "Unlink request",
+                        &c2_md_item_ops, C2_MD_FOP_UNLINK_OPCODE, 
+                        C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+                        NULL, &c2_md_req_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_open,    "Open request",
+                        &c2_md_item_ops, C2_MD_FOP_OPEN_OPCODE,
+                        C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+                        NULL, &c2_md_req_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_close,   "Close request",
+                        &c2_md_item_ops, C2_MD_FOP_CLOSE_OPCODE,
+                        C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+                        NULL, &c2_md_req_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_setattr, "Setattr request",
+                        &c2_md_item_ops, C2_MD_FOP_SETATTR_OPCODE,
+                        C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+                        NULL, &c2_md_req_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_getattr, "Getattr request",
+                        &c2_md_item_ops, C2_MD_FOP_GETATTR_OPCODE,
+                        C2_RPC_ITEM_TYPE_REQUEST, NULL, &c2_md_req_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_rename,  "Rename request",
+                        &c2_md_item_ops, C2_MD_FOP_RENAME_OPCODE,
+                        C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+                        NULL, &c2_md_req_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_readdir, "Readdir request",
+                        &c2_md_item_ops, C2_MD_FOP_READDIR_OPCODE,
+                        C2_RPC_ITEM_TYPE_REQUEST, NULL, &c2_md_req_ops);
 
 /** Reply fops. */
-C2_FOP_TYPE_DECLARE(c2_fop_create_rep,  "Create reply",    
-                    C2_FOP_CREATE_REP,  &c2_md_rep_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_link_rep,    "Hardlink reply",  
-                    C2_FOP_LINK_REP,    &c2_md_rep_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_unlink_rep,  "Unlink reply",
-                    C2_FOP_UNLINK_REP,  &c2_md_rep_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_open_rep,    "Open reply",
-                    C2_FOP_OPEN_REP,    &c2_md_rep_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_close_rep,   "Close reply",     
-                    C2_FOP_CLOSE_REP,   &c2_md_rep_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_setattr_rep, "Setattr reply",   
-                    C2_FOP_SETATTR_REP, &c2_md_rep_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_getattr_rep, "Getattr reply",   
-                    C2_FOP_GETATTR_REP, &c2_md_rep_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_rename_rep,  "Rename reply",
-                    C2_FOP_RENAME_REP,  &c2_md_rep_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_readdir_rep, "Readdir reply",   
-                    C2_FOP_READDIR_REP, &c2_md_rep_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_create_rep,  "Create reply",
+                        &c2_md_item_ops, C2_MD_FOP_CREATE_REP_OPCODE,
+                        C2_RPC_ITEM_TYPE_REPLY, NULL, &c2_md_rep_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_link_rep,    "Hardlink reply",
+                        &c2_md_item_ops, C2_MD_FOP_LINK_REP_OPCODE,
+                        C2_RPC_ITEM_TYPE_REPLY, NULL, &c2_md_rep_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_unlink_rep,  "Unlink reply",
+                        &c2_md_item_ops, C2_MD_FOP_UNLINK_REP_OPCODE,
+                        C2_RPC_ITEM_TYPE_REPLY, NULL, &c2_md_rep_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_open_rep,    "Open reply",
+                        &c2_md_item_ops, C2_MD_FOP_OPEN_REP_OPCODE,
+                        C2_RPC_ITEM_TYPE_REPLY, NULL, &c2_md_rep_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_close_rep,   "Close reply",
+                        &c2_md_item_ops, C2_MD_FOP_CLOSE_REP_OPCODE,
+                        C2_RPC_ITEM_TYPE_REPLY, NULL, &c2_md_rep_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_setattr_rep, "Setattr reply",
+                        &c2_md_item_ops, C2_MD_FOP_SETATTR_REP_OPCODE,
+                        C2_RPC_ITEM_TYPE_REPLY, NULL, &c2_md_rep_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_getattr_rep, "Getattr reply",
+                        &c2_md_item_ops, C2_MD_FOP_GETATTR_REP_OPCODE,
+                        C2_RPC_ITEM_TYPE_REPLY, NULL, &c2_md_rep_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_rename_rep,  "Rename reply",
+                        &c2_md_item_ops, C2_MD_FOP_RENAME_REP_OPCODE,
+                        C2_RPC_ITEM_TYPE_REPLY, NULL, &c2_md_rep_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_readdir_rep, "Readdir reply",
+                        &c2_md_item_ops, C2_MD_FOP_READDIR_REP_OPCODE,
+                        C2_RPC_ITEM_TYPE_REPLY, NULL, &c2_md_rep_ops);
 
 static struct c2_fop_type *c2_md_fop_fops[] = {
         &c2_fop_create_fopt,

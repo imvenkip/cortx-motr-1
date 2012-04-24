@@ -154,7 +154,7 @@ int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 		ex->ar_rc = 0;
 	}
 
-	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
+	c2_net_reply_post(ctx->fc_service, reply, ctx->fc_cookie);
 	return 1;
 }
 #endif

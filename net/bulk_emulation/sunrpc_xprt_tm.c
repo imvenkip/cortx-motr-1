@@ -40,7 +40,7 @@ static int sunrpc_bulk_handler(struct c2_service *service, struct c2_fop *fop,
 			       void *cookie)
 {
 	struct c2_fop_ctx ctx = {
-		.ft_service = service,
+		.fc_service = service,
 		.fc_cookie = cookie
 	};
 	int rc;

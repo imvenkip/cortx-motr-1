@@ -2,7 +2,7 @@ mdservicedir                     = $(includedir)/colibri/mdservice
 mdservice_HEADERS                = md_foms.h md_fops.h
 
 md_fops_u.h md_fops_u.c: md_fops.ff \
-                  $(top_builddir)/fop/libc2rt.la \
+                  $(top_builddir)/fop/rt/libc2rt.la \
                   $(top_builddir)/fop/fop2c 
 	$(top_builddir)/fop/fop2c -u $<
 

@@ -23,6 +23,8 @@
 
 #include <rpc/rpc.h> /* xdrproc_t */
 
+#define __C2_FOM_OPS_WRAPPER(x) (x)
+
 /* __COLIBRI_FOP_FOP_USER_H__ */
 #endif
 

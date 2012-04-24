@@ -446,7 +446,7 @@ static int cob_oi_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
                  * to find most suitable position instead of exact location.
                  */
                 rc = c2_db_cursor_init(&cursor, 
-                                       &cob->co_dom->cd_object_index, tx);
+                                       &cob->co_dom->cd_object_index, tx, 0);
                 if (rc) {
                         c2_db_pair_fini(&cob->co_oipair);
                         return rc;
@@ -693,7 +693,7 @@ int c2_cob_iterator_init(struct c2_cob *cob,
 			 &it->ci_rec, sizeof it->ci_rec);
 
         rc = c2_db_cursor_init(&it->ci_cursor, 
-                               &cob->co_dom->cd_namespace, tx);
+                               &cob->co_dom->cd_namespace, tx, 0);
         if (rc) {
                 c2_db_pair_release(&it->ci_pair);
                 c2_db_pair_fini(&it->ci_pair);
@@ -807,7 +807,7 @@ int c2_cob_create(struct c2_cob_domain *dom,
         omgkey.cok_omgid = ~0ULL;
         
         rc = c2_db_cursor_init(&cursor, 
-                               &cob->co_dom->cd_fileattr_omg, tx);
+                               &cob->co_dom->cd_fileattr_omg, tx, 0);
         if (rc)
                 goto out;
 

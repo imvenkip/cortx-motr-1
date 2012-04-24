@@ -34,6 +34,8 @@ struct c2_fom_ping {
         struct c2_fop			*fp_fop;
 };
 
+extern const struct c2_fom_type_ops c2_fom_ping_type_ops;
+
 /**
  * <b> State Transition function for "ping" operation
  *     that executes on data server. </b>

@@ -196,11 +196,11 @@ static int c2_md_create_fom_state(struct c2_fom *fom)
 
         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
 
-        fop = fom_obj->fm_fop;
+        fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
         req = c2_fop_data(fop);
 
-        fop_rep = fom_obj->fm_fop_rep;
+        fop_rep = fom->fo_rep_fop;
         C2_ASSERT(fop_rep != NULL);
         rep = c2_fop_data(fop_rep);
 	
@@ -223,7 +223,7 @@ static int c2_md_create_fom_state(struct c2_fom *fom)
         c2_md_make_fid(&tfid, &body->b_tfid);
 
         rc = c2_md_create(site->s_mdstore, &pfid, &tfid,
-                          &attr, &ctx->fc_tx->tx_dbtx);
+                          &attr, &fom->fo_tx.tx_dbtx);
         if (rc == 0) {
                 svc = fom->fo_fop_ctx->fc_service;
 	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
@@ -231,8 +231,8 @@ static int c2_md_create_fom_state(struct c2_fom *fom)
 	ctx->fc_retval = rc;
         if (rc)
                 c2_fop_free(fop_rep);
-	fom->fo_phase = rc ? FOPH_FAILED : FOPH_DONE;
-        return FSO_AGAIN;
+	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
+        return C2_FSO_AGAIN;
 }
 
 static int c2_md_link_fom_state(struct c2_fom *fom)
@@ -253,11 +253,11 @@ static int c2_md_link_fom_state(struct c2_fom *fom)
 
         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
 
-        fop = fom_obj->fm_fop;
+        fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
         req = c2_fop_data(fop);
 
-        fop_rep = fom_obj->fm_fop_rep;
+        fop_rep = fom->fo_rep_fop;
         C2_ASSERT(fop_rep != NULL);
         rep = c2_fop_data(fop_rep);
 	
@@ -276,7 +276,7 @@ static int c2_md_link_fom_state(struct c2_fom *fom)
         c2_md_make_fid(&tfid, &body->b_tfid);
 
         rc = c2_md_create(site->s_mdstore, &pfid, &tfid,
-                          &attr, &ctx->fc_tx->tx_dbtx);
+                          &attr, &fom->fo_tx.tx_dbtx);
         if (rc == 0) {
                 svc = fom->fo_fop_ctx->fc_service;
 	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
@@ -284,8 +284,8 @@ static int c2_md_link_fom_state(struct c2_fom *fom)
 	ctx->fc_retval = rc;
         if (rc)
                 c2_fop_free(fop_rep);
-	fom->fo_phase = rc ? FOPH_FAILED : FOPH_DONE;
-        return FSO_AGAIN;
+	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
+        return C2_FSO_AGAIN;
 }
 
 static int c2_md_unlink_fom_state(struct c2_fom *fom)
@@ -309,11 +309,11 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
 
         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
 
-        fop = fom_obj->fm_fop;
+        fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
         req = c2_fop_data(fop);
 
-        fop_rep = fom_obj->fm_fop_rep;
+        fop_rep = fom->fo_rep_fop;
         C2_ASSERT(fop_rep != NULL);
         rep = c2_fop_data(fop_rep);
 	
@@ -324,7 +324,7 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
         C2_ASSERT(site != NULL);
 
         md = site->s_mdstore;
-        tx = &ctx->fc_tx->tx_dbtx;
+        tx = &fom->fo_tx.tx_dbtx;
 
         body = &req->u_body;
         c2_md_fop_cob2attr(&attr, body);
@@ -336,7 +336,7 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
 
         rc = c2_md_store_locate(md, &tfid, &scob, 
                                 C2_MD_LOCATE_STORED,
-                                &ctx->fc_tx->tx_dbtx);
+                                tx);
         if (rc)
                 goto out;
                 
@@ -354,8 +354,8 @@ out:
 	ctx->fc_retval = rc;
         if (rc)
                 c2_fop_free(fop_rep);
-	fom->fo_phase = rc ? FOPH_FAILED : FOPH_DONE;
-        return FSO_AGAIN;
+	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
+        return C2_FSO_AGAIN;
 }
 
 static int c2_md_rename(struct c2_md_store  *md,
@@ -421,10 +421,10 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
 
         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
 
-        fop = fom_obj->fm_fop;
+        fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
 
-        fop_rep = fom_obj->fm_fop_rep;
+        fop_rep = fom->fo_rep_fop;
         C2_ASSERT(fop_rep != NULL);
 	
         ctx = fom->fo_fop_ctx;
@@ -433,7 +433,7 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
         site = ctx->fc_site;
         C2_ASSERT(site != NULL);
 
-        tx = &ctx->fc_tx->tx_dbtx;
+        tx = &fom->fo_tx.tx_dbtx;
         md = site->s_mdstore;
 
         req = c2_fop_data(fop);
@@ -480,8 +480,8 @@ out:
 	ctx->fc_retval = rc;
         if (rc)
                 c2_fop_free(fop_rep);
-	fom->fo_phase = rc ? FOPH_FAILED : FOPH_DONE;
-        return FSO_AGAIN;
+	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
+        return C2_FSO_AGAIN;
 }
 
 static int c2_md_open_fom_state(struct c2_fom *fom)
@@ -502,11 +502,11 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
 
         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
 
-        fop = fom_obj->fm_fop;
+        fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
         req = c2_fop_data(fop);
 
-        fop_rep = fom_obj->fm_fop_rep;
+        fop_rep = fom->fo_rep_fop;
         C2_ASSERT(fop_rep != NULL);
         rep = c2_fop_data(fop_rep);
 	
@@ -523,11 +523,11 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
 
         rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
                                 C2_MD_LOCATE_STORED,
-                                &ctx->fc_tx->tx_dbtx);
+                                &fom->fo_tx.tx_dbtx);
         if (rc == 0) {
                 rc = c2_md_store_open(site->s_mdstore, cob, 
                                       body->b_flags, 
-                                      &ctx->fc_tx->tx_dbtx);
+                                      &fom->fo_tx.tx_dbtx);
                 if (rc == 0 &&
                     (!(attr.ca_flags & C2_MD_NLINK) || attr.ca_nlink > 0)) {
                         /*
@@ -537,7 +537,7 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
                         attr.ca_flags &= ~C2_MD_MODE;
                         rc = c2_md_store_setattr(site->s_mdstore,
                                                  cob, &attr, 
-                                                 &ctx->fc_tx->tx_dbtx);
+                                                 &fom->fo_tx.tx_dbtx);
                 }
                 c2_cob_put(cob);
         } else if (rc == -ENOENT) {
@@ -558,8 +558,8 @@ out:
 	ctx->fc_retval = rc;
         if (rc)
                 c2_fop_free(fop_rep);
-	fom->fo_phase = rc ? FOPH_FAILED : FOPH_DONE;
-        return FSO_AGAIN;
+	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
+        return C2_FSO_AGAIN;
 }
 
 static int c2_md_close_fom_state(struct c2_fom *fom)
@@ -580,11 +580,11 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
 
         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
 
-        fop = fom_obj->fm_fop;
+        fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
         req = c2_fop_data(fop);
 
-        fop_rep = fom_obj->fm_fop_rep;
+        fop_rep = fom->fo_rep_fop;
         C2_ASSERT(fop_rep != NULL);
         rep = c2_fop_data(fop_rep);
 	
@@ -607,12 +607,12 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
          */
         rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
                                 C2_MD_LOCATE_STORED/*OPENED*/,
-                                &ctx->fc_tx->tx_dbtx);
+                                &fom->fo_tx.tx_dbtx);
         if (rc)
                 goto out;
 
         rc = c2_md_store_close(site->s_mdstore, cob, 
-                               &ctx->fc_tx->tx_dbtx);
+                               &fom->fo_tx.tx_dbtx);
         if (rc == 0 && 
             (!(attr.ca_flags & C2_MD_NLINK) || attr.ca_nlink > 0)) {
                 /*
@@ -621,7 +621,7 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
                  */
                 attr.ca_flags &= ~C2_MD_MODE;
                 rc = c2_md_store_setattr(site->s_mdstore, cob,
-                                         &attr, &ctx->fc_tx->tx_dbtx);
+                                         &attr, &fom->fo_tx.tx_dbtx);
         }
         c2_cob_put(cob);
         if (rc == 0) {
@@ -632,8 +632,8 @@ out:
 	ctx->fc_retval = rc;
         if (rc)
                 c2_fop_free(fop_rep);
-	fom->fo_phase = rc ? FOPH_FAILED : FOPH_DONE;
-        return FSO_AGAIN;
+	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
+        return C2_FSO_AGAIN;
 }
 
 static int c2_md_setattr_fom_state(struct c2_fom *fom)
@@ -654,11 +654,11 @@ static int c2_md_setattr_fom_state(struct c2_fom *fom)
 
         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
 
-        fop = fom_obj->fm_fop;
+        fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
         req = c2_fop_data(fop);
 
-        fop_rep = fom_obj->fm_fop_rep;
+        fop_rep = fom->fo_rep_fop;
         C2_ASSERT(fop_rep != NULL);
         rep = c2_fop_data(fop_rep);
 	
@@ -680,12 +680,12 @@ static int c2_md_setattr_fom_state(struct c2_fom *fom)
          */
         rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
                                 C2_MD_LOCATE_STORED,
-                                &ctx->fc_tx->tx_dbtx);
+                                &fom->fo_tx.tx_dbtx);
         if (rc)
                 goto out;
 
         rc = c2_md_store_setattr(site->s_mdstore, cob, &attr,
-                                 &ctx->fc_tx->tx_dbtx);
+                                 &fom->fo_tx.tx_dbtx);
         c2_cob_put(cob);
 
         if (rc == 0) {
@@ -696,8 +696,8 @@ out:
 	ctx->fc_retval = rc;
         if (rc)
                 c2_fop_free(fop_rep);
-	fom->fo_phase = rc ? FOPH_FAILED : FOPH_DONE;
-        return FSO_AGAIN;
+	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
+        return C2_FSO_AGAIN;
 }
 
 static int c2_md_getattr_fom_state(struct c2_fom *fom)
@@ -718,12 +718,12 @@ static int c2_md_getattr_fom_state(struct c2_fom *fom)
 
         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
 
-        fop = fom_obj->fm_fop;
+        fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
         req = c2_fop_data(fop);
         body = &req->g_body;
 
-        fop_rep = fom_obj->fm_fop_rep;
+        fop_rep = fom->fo_rep_fop;
         C2_ASSERT(fop_rep != NULL);
         rep = c2_fop_data(fop_rep);
 	
@@ -737,12 +737,12 @@ static int c2_md_getattr_fom_state(struct c2_fom *fom)
 
         rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
                                 C2_MD_LOCATE_STORED,
-                                &ctx->fc_tx->tx_dbtx);
+                                &fom->fo_tx.tx_dbtx);
         if (rc)
                 goto out;
 
         rc = c2_md_store_getattr(site->s_mdstore, cob, &attr,
-                                 &ctx->fc_tx->tx_dbtx);
+                                 &fom->fo_tx.tx_dbtx);
         c2_cob_put(cob);
         if (rc == 0) {
                 c2_md_fop_attr2cob(&rep->g_body, &attr);
@@ -753,8 +753,8 @@ out:
 	ctx->fc_retval = rc;
         if (rc)
                 c2_fop_free(fop_rep);
-	fom->fo_phase = rc ? FOPH_FAILED : FOPH_DONE;
-        return FSO_AGAIN;
+	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
+        return C2_FSO_AGAIN;
 }
 
 #define C2_MD_READDIR_BUF_ALLOC 4096
@@ -778,11 +778,11 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
 
         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
 
-        fop = fom_obj->fm_fop;
+        fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
         req = c2_fop_data(fop);
 
-        fop_rep = fom_obj->fm_fop_rep;
+        fop_rep = fom->fo_rep_fop;
         C2_ASSERT(fop_rep != NULL);
         rep = c2_fop_data(fop_rep);
 	
@@ -797,7 +797,7 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
 
         rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
                                 C2_MD_LOCATE_STORED,
-                                &ctx->fc_tx->tx_dbtx);
+                                &fom->fo_tx.tx_dbtx);
         if (rc)
                 goto out;
 
@@ -826,7 +826,7 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
         c2_buf_init(&rdpg.r_buf, addr, C2_MD_READDIR_BUF_ALLOC);
 
         rc = c2_md_store_readdir(site->s_mdstore, cob, &rdpg,
-                                 &ctx->fc_tx->tx_dbtx);
+                                 &fom->fo_tx.tx_dbtx);
         c2_bitstring_free(rdpg.r_pos);
         c2_cob_put(cob);
         if (rc < 0) {
@@ -864,71 +864,103 @@ out:
 	ctx->fc_retval = rc;
         if (rc < 0)
                 c2_fop_free(fop_rep);
-	fom->fo_phase = rc < 0 ? FOPH_FAILED : FOPH_DONE;
-        return FSO_AGAIN;
+	fom->fo_phase = rc < 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
+        return C2_FSO_AGAIN;
 }
 
 static void c2_md_req_fom_fini(struct c2_fom *fom)
 {
         struct c2_fom_md        *fom_obj;
-        struct c2_fop           *fop;
         
         fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
-        C2_ASSERT(fom_obj->fm_fop != NULL);
-        fop = fom_obj->fm_fop;
+        c2_fom_fini(fom);
         c2_free(fom_obj);
 }
 
-static struct c2_fom_ops c2_md_fom_create_ops = {
+static size_t c2_md_req_fom_locality_get(const struct c2_fom *fom)
+{
+	C2_PRE(fom != NULL);
+	C2_PRE(fom->fo_fop != NULL);
+
+        return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
+}
+
+#define MDSERVICE_NAME "mdservice"
+
+const char *c2_md_req_fom_service_name(struct c2_fom *fom)
+{
+        C2_PRE(fom != NULL);
+        C2_PRE(fom->fo_fop != NULL);
+
+        return MDSERVICE_NAME;
+}
+
+static const struct c2_fom_ops c2_md_fom_create_ops = {
+	.fo_home_locality = c2_md_req_fom_locality_get,
+        .fo_service_name  = c2_md_req_fom_service_name,
 	.fo_state  = c2_md_create_fom_state,
 	.fo_fini   = c2_md_req_fom_fini
 };
 
-static struct c2_fom_ops c2_md_fom_link_ops = {
+static const struct c2_fom_ops c2_md_fom_link_ops = {
+	.fo_home_locality = c2_md_req_fom_locality_get,
+        .fo_service_name  = c2_md_req_fom_service_name,
 	.fo_state  = c2_md_link_fom_state,
 	.fo_fini   = c2_md_req_fom_fini
 };
 
-static struct c2_fom_ops c2_md_fom_unlink_ops = {
+static const struct c2_fom_ops c2_md_fom_unlink_ops = {
+	.fo_home_locality = c2_md_req_fom_locality_get,
+        .fo_service_name  = c2_md_req_fom_service_name,
 	.fo_state  = c2_md_unlink_fom_state,
 	.fo_fini   = c2_md_req_fom_fini
 };
 
-static struct c2_fom_ops c2_md_fom_rename_ops = {
+static const struct c2_fom_ops c2_md_fom_rename_ops = {
+	.fo_home_locality = c2_md_req_fom_locality_get,
+        .fo_service_name  = c2_md_req_fom_service_name,
 	.fo_state  = c2_md_rename_fom_state,
 	.fo_fini   = c2_md_req_fom_fini
 };
 
-static struct c2_fom_ops c2_md_fom_open_ops = {
+static const struct c2_fom_ops c2_md_fom_open_ops = {
+	.fo_home_locality = c2_md_req_fom_locality_get,
+        .fo_service_name  = c2_md_req_fom_service_name,
 	.fo_state  = c2_md_open_fom_state,
 	.fo_fini   = c2_md_req_fom_fini
 };
 
-static struct c2_fom_ops c2_md_fom_close_ops = {
+static const struct c2_fom_ops c2_md_fom_close_ops = {
+	.fo_home_locality = c2_md_req_fom_locality_get,
+        .fo_service_name  = c2_md_req_fom_service_name,
 	.fo_state = c2_md_close_fom_state,
 	.fo_fini  = c2_md_req_fom_fini
 };
 
-static struct c2_fom_ops c2_md_fom_setattr_ops = {
+static const struct c2_fom_ops c2_md_fom_setattr_ops = {
+	.fo_home_locality = c2_md_req_fom_locality_get,
+        .fo_service_name  = c2_md_req_fom_service_name,
 	.fo_state  = c2_md_setattr_fom_state,
 	.fo_fini   = c2_md_req_fom_fini
 };
 
-static struct c2_fom_ops c2_md_fom_getattr_ops = {
+static const struct c2_fom_ops c2_md_fom_getattr_ops = {
+	.fo_home_locality = c2_md_req_fom_locality_get,
+        .fo_service_name  = c2_md_req_fom_service_name,
 	.fo_state  = c2_md_getattr_fom_state,
 	.fo_fini   = c2_md_req_fom_fini
 };
 
-static struct c2_fom_ops c2_md_fom_readdir_ops = {
+static const struct c2_fom_ops c2_md_fom_readdir_ops = {
+	.fo_home_locality = c2_md_req_fom_locality_get,
+        .fo_service_name  = c2_md_req_fom_service_name,
 	.fo_state  = c2_md_readdir_fom_state,
 	.fo_fini   = c2_md_req_fom_fini
 };
 
-static struct c2_fom_type c2_md_fom_type_pch = {0,};
-
-int c2_md_rep_fom_init(struct c2_fop *fop, 
-                       struct c2_fop_ctx *ctx, 
-                       struct c2_fom **m)
+int c2_md_rep_fom_create(struct c2_fop *fop, 
+                         struct c2_fop_ctx *ctx, 
+                         struct c2_fom **m)
 {
         return 0;
 }
@@ -953,15 +985,14 @@ static inline struct c2_fid *c2_md_fid_get(struct c2_fop_fid *fid)
         return &fid_fop2mem;
 }
 
-int c2_md_req_fom_init(struct c2_fop *fop, 
-                       struct c2_fop_ctx *ctx, 
-                       struct c2_fom **m)
+int c2_md_req_fom_create(struct c2_fop *fop, 
+                         struct c2_fop_ctx *ctx, 
+                         struct c2_fom **m)
 {
         struct c2_fom           *fom;
         struct c2_site          *site;
         struct c2_fom_md        *fom_obj;
-        struct c2_fom_type      *fom_type;
-        struct c2_fop_type      *fop_type;
+        struct c2_fop_type      *rep_fopt;
         struct c2_fop_create    *create;
         struct c2_fop_unlink    *unlink;
         struct c2_fop_rename    *rename;
@@ -971,32 +1002,23 @@ int c2_md_req_fom_init(struct c2_fop *fop,
         struct c2_fop_open      *open;
         struct c2_fop_close     *close;
         struct c2_fop_readdir   *readdir;
+        const struct c2_fom_ops *ops;
         int                      rc;
 
         C2_PRE(fop != NULL);
         C2_PRE(m != NULL);
 
-        fom_obj= c2_alloc(sizeof(struct c2_fom_md));
+        fom_obj = c2_alloc(sizeof(struct c2_fom_md));
         if (fom_obj == NULL)
                 return -ENOMEM;
         
-        /* 
-         * To cheat a bit on foms generic code. 
-         */
-        fom_type = &c2_md_fom_type_pch;
-        fop->f_type->ft_fom_type = *fom_type;
-        fom = &fom_obj->fm_fom;
-        fom->fo_type = fom_type;
-        fom->fo_phase = FOPH_INIT;
-        fom->fo_fop_ctx = ctx;
-	
         site = ctx->fc_site;
         C2_ASSERT(site != NULL);
 
-        switch (fop->f_type->ft_code) {
-        case C2_FOP_CREATE:
-		fom->fo_ops = &c2_md_fom_create_ops;
-		fop_type = &c2_fop_create_rep_fopt;
+        switch (fop->f_type->ft_rpc_item_type.rit_opcode) {
+        case C2_MD_FOP_CREATE_OPCODE:
+		ops = &c2_md_fom_create_ops;
+		rep_fopt = &c2_fop_create_rep_fopt;
 
 		create = c2_fop_data(fop);
 		rc = c2_md_req_path_get(site->s_mdstore, 
@@ -1007,9 +1029,9 @@ int c2_md_req_fom_init(struct c2_fop *fop,
                         return rc;
                 }
 	        break;
-        case C2_FOP_LINK:
-		fom->fo_ops = &c2_md_fom_link_ops;
-		fop_type = &c2_fop_link_rep_fopt;
+        case C2_MD_FOP_LINK_OPCODE:
+		ops = &c2_md_fom_link_ops;
+		rep_fopt = &c2_fop_link_rep_fopt;
 
 		link = c2_fop_data(fop);
 		rc = c2_md_req_path_get(site->s_mdstore, 
@@ -1030,9 +1052,9 @@ int c2_md_req_fom_init(struct c2_fop *fop,
                         return rc;
                 }
 	        break;
-        case C2_FOP_UNLINK:
-		fom->fo_ops = &c2_md_fom_unlink_ops;
-		fop_type = &c2_fop_unlink_rep_fopt;
+        case C2_MD_FOP_UNLINK_OPCODE:
+		ops = &c2_md_fom_unlink_ops;
+		rep_fopt = &c2_fop_unlink_rep_fopt;
 
 		unlink = c2_fop_data(fop);
 		rc = c2_md_req_path_get(site->s_mdstore, 
@@ -1043,9 +1065,9 @@ int c2_md_req_fom_init(struct c2_fop *fop,
                         return rc;
                 }
 	        break;
-        case C2_FOP_RENAME:
-		fom->fo_ops = &c2_md_fom_rename_ops;
-		fop_type = &c2_fop_rename_rep_fopt;
+        case C2_MD_FOP_RENAME_OPCODE:
+		ops = &c2_md_fom_rename_ops;
+		rep_fopt = &c2_fop_rename_rep_fopt;
 
 		rename = c2_fop_data(fop);
 		rc = c2_md_req_path_get(site->s_mdstore, 
@@ -1066,9 +1088,9 @@ int c2_md_req_fom_init(struct c2_fop *fop,
                         return rc;
                 }
 	        break;
-        case C2_FOP_OPEN:
-		fom->fo_ops = &c2_md_fom_open_ops;
-		fop_type = &c2_fop_open_rep_fopt;
+        case C2_MD_FOP_OPEN_OPCODE:
+		ops = &c2_md_fom_open_ops;
+		rep_fopt = &c2_fop_open_rep_fopt;
 
 		open = c2_fop_data(fop);
 		rc = c2_md_req_path_get(site->s_mdstore, 
@@ -1079,9 +1101,9 @@ int c2_md_req_fom_init(struct c2_fop *fop,
                         return rc;
                 }
 	        break;
-        case C2_FOP_CLOSE:
-		fom->fo_ops = &c2_md_fom_close_ops;
-		fop_type = &c2_fop_close_rep_fopt;
+        case C2_MD_FOP_CLOSE_OPCODE:
+		ops = &c2_md_fom_close_ops;
+		rep_fopt = &c2_fop_close_rep_fopt;
 
 	        close = c2_fop_data(fop);
 		rc = c2_md_req_path_get(site->s_mdstore, 
@@ -1092,9 +1114,9 @@ int c2_md_req_fom_init(struct c2_fop *fop,
                         return rc;
                 }
 	        break;
-        case C2_FOP_SETATTR:
-		fom->fo_ops = &c2_md_fom_setattr_ops;
-		fop_type = &c2_fop_setattr_rep_fopt;
+        case C2_MD_FOP_SETATTR_OPCODE:
+		ops = &c2_md_fom_setattr_ops;
+		rep_fopt = &c2_fop_setattr_rep_fopt;
 
 		setattr = c2_fop_data(fop);
 		rc = c2_md_req_path_get(site->s_mdstore, 
@@ -1105,9 +1127,9 @@ int c2_md_req_fom_init(struct c2_fop *fop,
                         return rc;
                 }
 	        break;
-        case C2_FOP_GETATTR:
-		fom->fo_ops = &c2_md_fom_getattr_ops;
-		fop_type = &c2_fop_getattr_rep_fopt;
+        case C2_MD_FOP_GETATTR_OPCODE:
+		ops = &c2_md_fom_getattr_ops;
+		rep_fopt = &c2_fop_getattr_rep_fopt;
 
 		getattr = c2_fop_data(fop);
 		rc = c2_md_req_path_get(site->s_mdstore, 
@@ -1118,9 +1140,9 @@ int c2_md_req_fom_init(struct c2_fop *fop,
                         return rc;
                 }
 	        break;
-        case C2_FOP_READDIR:
-		fom->fo_ops = &c2_md_fom_readdir_ops;
-		fop_type = &c2_fop_readdir_rep_fopt;
+        case C2_MD_FOP_READDIR_OPCODE:
+		ops = &c2_md_fom_readdir_ops;
+		rep_fopt = &c2_fop_readdir_rep_fopt;
 
 		readdir = c2_fop_data(fop);
 		rc = c2_md_req_path_get(site->s_mdstore,
@@ -1136,14 +1158,17 @@ int c2_md_req_fom_init(struct c2_fop *fop,
                 return -EOPNOTSUPP;
         }
 
-        fom_obj->fm_fop_rep = c2_fop_alloc(fop_type, NULL);
-	if (fom_obj->fm_fop_rep == NULL) {
+        fom = &fom_obj->fm_fom;
+	*m = fom;
+        c2_fom_init(fom, &fop->f_type->ft_fom_type,
+		    ops, fop, c2_fop_alloc(rep_fopt, NULL));
+
+	if (fom->fo_rep_fop == NULL) {
+                c2_fom_fini(fom);
                 c2_free(fom_obj);
 	        return -ENOMEM;
 	}
 
-	fom_obj->fm_fop = fop;
-	*m = &fom_obj->fm_fom;
 	return 0;
 }
 

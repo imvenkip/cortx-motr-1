@@ -115,7 +115,7 @@ done:
 	c2_mutex_unlock(&tm->ntm_mutex);
 done2:
 	ex->sgr_rc = rc;
-	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
+	c2_net_reply_post(ctx->fc_service, reply, ctx->fc_cookie);
 	return rc;
 }
 
@@ -172,7 +172,7 @@ done:
 	c2_mutex_unlock(&tm->ntm_mutex);
 done2:
 	ex->spr_rc = rc;
-	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
+	c2_net_reply_post(ctx->fc_service, reply, ctx->fc_cookie);
 	return rc;
 }
 

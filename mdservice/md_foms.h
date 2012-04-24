@@ -33,18 +33,17 @@ struct c2_cob_oikey;
 struct c2_fom_md {
 	/** Generic c2_fom object. */
         struct c2_fom                    fm_fom;
-	/** FOP associated with this FOM. */
-        struct c2_fop			*fm_fop;
-	/** Reply FOP associated with request FOP above. */
-	struct c2_fop			*fm_fop_rep;
 };
 
 /**
    Init request fom for all types of requests.
 */
-int c2_md_req_fom_init(struct c2_fop *fop, 
-                       struct c2_fop_ctx *ctx, 
-                       struct c2_fom **m);
+int c2_md_req_fom_create(struct c2_fop *fop, 
+                         struct c2_fop_ctx *ctx, 
+                         struct c2_fom **m);
+int c2_md_rep_fom_create(struct c2_fop *fop, 
+                         struct c2_fop_ctx *ctx, 
+                         struct c2_fom **m);
 
 /**
    Init reply fom.

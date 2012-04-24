@@ -42,8 +42,7 @@ struct c2_site {
    Init site using metadata and data stores.
  */
 int c2_site_init(struct c2_site *s, 
-                 struct c2_md_store *md, 
-                 struct c2_io_store *io);
+                 struct c2_md_store *md);
 
 void c2_site_fini(struct c2_site *s);
 

@@ -94,7 +94,7 @@ static int sunrpc_ut_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	C2_UT_ASSERT(ex->sgr_buf.sb_buf != NULL);
 	C2_UT_ASSERT(ex->sgr_buf.sb_len == i);
 
-	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
+	c2_net_reply_post(ctx->fc_service, reply, ctx->fc_cookie);
 	return 0;
 }
 
@@ -125,7 +125,7 @@ static int sunrpc_ut_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	kunmap(in->sp_buf.sb_buf[0]);
 
 	ex->spr_rc = i + 1;
-	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
+	c2_net_reply_post(ctx->fc_service, reply, ctx->fc_cookie);
 	return 0;
 }
 
@@ -135,7 +135,7 @@ static int ksunrpc_service_handler(struct c2_service *service,
 {
         struct c2_fop_ctx ctx;
 
-        ctx.ft_service = service;
+        ctx.fc_service = service;
         ctx.fc_cookie  = cookie;
         return fop->f_type->ft_ops->fto_execute(fop, &ctx);
 }

@@ -18,8 +18,10 @@
  * Original creation date: 11/17/2010
  */
 
+#include <string.h>         /* memcpy() */
 #include "lib/bitstring.h"
 #include "lib/arith.h"      /* C2_3WAY */
+#include "lib/memory.h"     /* c2_alloc() */
 
 
 void *c2_bitstring_buf_get(struct c2_bitstring *c)
@@ -35,6 +37,27 @@ uint32_t c2_bitstring_len_get(const struct c2_bitstring *c)
 void c2_bitstring_len_set(struct c2_bitstring *c, uint32_t len)
 {
 	c->b_len = len;
+}
+
+struct c2_bitstring *c2_bitstring_alloc(const char *name, size_t len)
+{
+        struct c2_bitstring *c = c2_alloc(sizeof(*c) + len);
+        if (c == NULL)
+                return NULL;
+        c2_bitstring_len_set(c, len);
+        c2_bitstring_copy(c, name, len);
+        return c;
+}
+
+void c2_bitstring_free(struct c2_bitstring *c)
+{
+        c2_free(c);
+}
+
+void c2_bitstring_copy(struct c2_bitstring *dst, const char *src, size_t count)
+{
+        memcpy(c2_bitstring_buf_get(dst), src, count);
+        c2_bitstring_len_set(dst, count);
 }
 
 /**

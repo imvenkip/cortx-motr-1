@@ -71,7 +71,8 @@ static void session_gen_fom_fini(struct c2_fom *fom)
    conn establish, conn terminate, session establish,
    session terminate fop types.
  */
-static int session_gen_fom_create(struct c2_fop *fop, struct c2_fom **m)
+static int session_gen_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
+                                  struct c2_fom **m)
 {
 	const struct c2_fom_ops *fom_ops;
 	struct c2_fom           *fom;
@@ -137,7 +138,7 @@ const struct c2_fom_ops c2_rpc_fom_conn_establish_ops = {
 	.fo_home_locality = c2_rpc_session_default_home_locality
 };
 
-static struct c2_fom_type_ops c2_rpc_fom_conn_establish_type_ops = {
+struct c2_fom_type_ops c2_rpc_fom_conn_establish_type_ops = {
 	.fto_create = session_gen_fom_create
 };
 
@@ -298,7 +299,7 @@ const struct c2_fom_ops c2_rpc_fom_session_establish_ops = {
 	.fo_home_locality = c2_rpc_session_default_home_locality
 };
 
-static struct c2_fom_type_ops c2_rpc_fom_session_establish_type_ops = {
+struct c2_fom_type_ops c2_rpc_fom_session_establish_type_ops = {
 	.fto_create = session_gen_fom_create
 };
 
@@ -399,7 +400,7 @@ const struct c2_fom_ops c2_rpc_fom_session_terminate_ops = {
 	.fo_home_locality = c2_rpc_session_default_home_locality
 };
 
-static struct c2_fom_type_ops c2_rpc_fom_session_terminate_type_ops = {
+struct c2_fom_type_ops c2_rpc_fom_session_terminate_type_ops = {
 	.fto_create = session_gen_fom_create
 };
 
@@ -487,7 +488,7 @@ const struct c2_fom_ops c2_rpc_fom_conn_terminate_ops = {
 	.fo_home_locality = c2_rpc_session_default_home_locality
 };
 
-static struct c2_fom_type_ops c2_rpc_fom_conn_terminate_type_ops = {
+struct c2_fom_type_ops c2_rpc_fom_conn_terminate_type_ops = {
 	.fto_create = session_gen_fom_create
 };
 

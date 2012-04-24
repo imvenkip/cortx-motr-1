@@ -610,7 +610,8 @@ extern struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop);
 extern bool c2_is_cob_create_fop(const struct c2_fop *fop);
 extern bool c2_is_cob_delete_fop(const struct c2_fop *fop);
 
-static int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **m);
+static int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
+                                   struct c2_fom **m);
 static int c2_io_fom_cob_rw_state(struct c2_fom *fom);
 static void c2_io_fom_cob_rw_fini(struct c2_fom *fom);
 static size_t c2_io_fom_cob_rw_locality_get(const struct c2_fom *fom);
@@ -637,7 +638,7 @@ static const struct c2_fom_ops ops = {
 /**
  * I/O FOM type operation vector.
  */
-static const struct c2_fom_type_ops type_ops = {
+const struct c2_fom_type_ops c2_io_cob_rw_type_ops = {
 	.fto_create = c2_io_fom_cob_rw_create,
 };
 
@@ -645,7 +646,7 @@ static const struct c2_fom_type_ops type_ops = {
  * I/O FOM type operation.
  */
 const struct c2_fom_type c2_io_fom_cob_rw_mopt = {
-	.ft_ops = &type_ops,
+	.ft_ops = &c2_io_cob_rw_type_ops,
 };
 
 /**
@@ -1010,7 +1011,8 @@ static int align_bufvec (struct c2_fom    *fom,
  * @pre fop != NULL
  * @pre m != NULL
  */
-int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
+int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
+                            struct c2_fom **out)
 {
         int                      rc = 0;
         struct c2_fom           *fom;

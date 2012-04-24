@@ -151,8 +151,9 @@ int c2_reqhs_init(void)
 	return c2_reqh_fop_init();
 }
 
-void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
+void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 {
+	struct c2_fop_ctx      *ctx;
 	struct c2_fom	       *fom;
 	struct c2_fom_domain   *dom;
 	int			result;
@@ -162,12 +163,25 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 	C2_PRE(reqh != NULL);
 	C2_PRE(fop != NULL);
 
+        C2_ALLOC_PTR(ctx);
+        if (ctx == NULL) {
+		REQH_ADDB_ADD(c2_reqh_addb_ctx, "c2_reqh_fop_handle",
+                              ENOMEM);
+		return;
+        }
+
+        ctx->fc_service = reqh->rh_svc;
+        ctx->fc_site = reqh->rh_site;
+        ctx->fc_fol  = reqh->rh_fol;
+        ctx->fc_cookie  = cookie;
+
 	c2_mutex_lock(&reqh->rh_lock);
 	rsd = reqh->rh_shutdown;
 	c2_mutex_unlock(&reqh->rh_lock);
 	if (rsd) {
 		REQH_ADDB_ADD(c2_reqh_addb_ctx, "c2_reqh_fop_handle",
-								ESHUTDOWN);
+                              ESHUTDOWN);
+                c2_free(ctx);
 		return;
 	}
 
@@ -175,9 +189,15 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 	C2_ASSERT(fop->f_type->ft_fom_type.ft_ops != NULL);
 	C2_ASSERT(fop->f_type->ft_fom_type.ft_ops->fto_create != NULL);
 
-	result = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, &fom);
+	result = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, ctx, &fom);
 	if (result == 0) {
 		C2_ASSERT(fom != NULL);
+
+                /*
+                 * This is used by fo_state() function and finalized right
+                 * after fo_fini().
+                 */
+                fom->fo_fop_ctx = ctx;
 
                 /**
                  * To access service specific data,

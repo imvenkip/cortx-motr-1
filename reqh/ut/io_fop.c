@@ -90,17 +90,63 @@ static const struct c2_fop_type_ops default_rep_fop_ops = {
 };
 
 /**
+ * Fom type operations structures for corresponding foms.
+ */
+static int stob_create_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
+                                  struct c2_fom **out);
+static int stob_read_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
+                                struct c2_fom **out);
+static int stob_write_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
+                                 struct c2_fom **out);
+
+static const struct c2_fom_type_ops stob_create_fom_type_ops = {
+	.fto_create = stob_create_fom_create,
+};
+
+static const struct c2_fom_type_ops stob_read_fom_type_ops = {
+	.fto_create = stob_read_fom_create,
+};
+
+static const struct c2_fom_type_ops stob_write_fom_type_ops = {
+	.fto_create = stob_write_fom_create,
+};
+
+static struct c2_fom_type stob_create_fom_mopt = {
+	.ft_ops = &stob_create_fom_type_ops,
+};
+
+static struct c2_fom_type stob_read_fom_mopt = {
+	.ft_ops = &stob_read_fom_type_ops,
+};
+
+static struct c2_fom_type stob_write_fom_mopt = {
+	.ft_ops = &stob_write_fom_type_ops,
+};
+
+static struct c2_fom_type *stob_fom_types[] = {
+	&stob_create_fom_mopt,
+	&stob_write_fom_mopt,
+	&stob_read_fom_mopt,
+};
+
+/**
  * Fop type declarations for corresponding fops
  */
-C2_FOP_TYPE_DECLARE(c2_stob_io_create, "stob_create", &default_fop_ops,
-		    C2_STOB_IO_CREATE_REQ_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
-C2_FOP_TYPE_DECLARE(c2_stob_io_read, "stob_read", &default_fop_ops,
-		    C2_STOB_IO_READ_REQ_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
-C2_FOP_TYPE_DECLARE(c2_stob_io_write, "stob_write", &default_fop_ops,
-		    C2_STOB_IO_WRITE_REQ_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
+C2_FOP_TYPE_DECLARE_OPS(c2_stob_io_create, "stob_create", &default_fop_ops,
+			C2_STOB_IO_CREATE_REQ_OPCODE,
+			C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+			&c2_rpc_fop_default_item_type_ops,
+			&stob_create_fom_type_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_stob_io_read, "stob_read", &default_fop_ops,
+			C2_STOB_IO_READ_REQ_OPCODE,
+			C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+			&c2_rpc_fop_default_item_type_ops,
+			&stob_read_fom_type_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_stob_io_write, "stob_write", &default_fop_ops,
+			C2_STOB_IO_WRITE_REQ_OPCODE,
+			C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+			&c2_rpc_fop_default_item_type_ops,
+			&stob_write_fom_type_ops);
 
 C2_FOP_TYPE_DECLARE(c2_stob_io_create_rep, "stob_create reply",
 		    &default_rep_fop_ops,
@@ -147,10 +193,6 @@ struct c2_stob_io_fom {
 	struct c2_stob_io		 sif_stio;
 };
 
-static int stob_create_fom_create(struct c2_fop *fop, struct c2_fom **out);
-static int stob_read_fom_create(struct c2_fop *fop, struct c2_fom **out);
-static int stob_write_fom_create(struct c2_fop *fop, struct c2_fom **out);
-
 static int stob_create_fom_state(struct c2_fom *fom);
 static int stob_read_fom_state(struct c2_fom *fom);
 static int stob_write_fom_state(struct c2_fom *fom);
@@ -177,39 +219,6 @@ static struct c2_fom_ops stob_read_fom_ops = {
 	.fo_fini = stob_io_fom_fini,
 	.fo_state = stob_read_fom_state,
 	.fo_home_locality = stob_find_fom_home_locality,
-};
-
-/**
- * Fom type operations structures for corresponding foms.
- */
-static const struct c2_fom_type_ops stob_create_fom_type_ops = {
-	.fto_create = stob_create_fom_create,
-};
-
-static const struct c2_fom_type_ops stob_read_fom_type_ops = {
-	.fto_create = stob_read_fom_create,
-};
-
-static const struct c2_fom_type_ops stob_write_fom_type_ops = {
-	.fto_create = stob_write_fom_create,
-};
-
-static struct c2_fom_type stob_create_fom_mopt = {
-	.ft_ops = &stob_create_fom_type_ops,
-};
-
-static struct c2_fom_type stob_read_fom_mopt = {
-	.ft_ops = &stob_read_fom_type_ops,
-};
-
-static struct c2_fom_type stob_write_fom_mopt = {
-	.ft_ops = &stob_write_fom_type_ops,
-};
-
-static struct c2_fom_type *stob_fom_types[] = {
-	&stob_create_fom_mopt,
-	&stob_write_fom_mopt,
-	&stob_read_fom_mopt,
 };
 
 /**
@@ -278,7 +287,8 @@ static int stob_io_fop_fom_create_helper(struct c2_fop *fop,
 /**
  * Creates a fom for create fop.
  */
-static int stob_create_fom_create(struct c2_fop *fop, struct c2_fom **out)
+static int stob_create_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
+                                  struct c2_fom **out)
 {
 	return stob_io_fop_fom_create_helper(fop, &stob_create_fom_ops,
 				      &c2_stob_io_create_rep_fopt, out);
@@ -287,7 +297,8 @@ static int stob_create_fom_create(struct c2_fop *fop, struct c2_fom **out)
 /**
  * Creates a fom for write fop.
  */
-static int stob_write_fom_create(struct c2_fop *fop, struct c2_fom **out)
+static int stob_write_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
+                                 struct c2_fom **out)
 {
 	return stob_io_fop_fom_create_helper(fop, &stob_write_fom_ops,
 				      &c2_stob_io_write_rep_fopt, out);
@@ -296,7 +307,8 @@ static int stob_write_fom_create(struct c2_fop *fop, struct c2_fom **out)
 /**
  * Creates a fom for read fop.
  */
-static int stob_read_fom_create(struct c2_fop *fop, struct c2_fom **out)
+static int stob_read_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
+                                struct c2_fom **out)
 {
 	return stob_io_fop_fom_create_helper(fop, &stob_read_fom_ops,
 				      &c2_stob_io_read_rep_fopt, out);
