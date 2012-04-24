@@ -125,7 +125,7 @@ struct nlx_kcore_transfer_mc {
 	/** ADDB context for events related to this transfer machine. */
 	struct c2_addb_ctx            ktm_addb;
 
-	unsigned                   _debug_;
+	unsigned                      _debug_;
 };
 
 /**
