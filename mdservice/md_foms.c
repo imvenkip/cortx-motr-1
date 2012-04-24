@@ -185,7 +185,6 @@ static int c2_md_create_fom_state(struct c2_fom *fom)
         struct c2_site           *site;
         struct c2_fop_create     *req;
         struct c2_fop_create_rep *rep;
-        struct c2_fom_md         *fom_obj;
         struct c2_fop            *fop;
         struct c2_fop            *fop_rep;
         struct c2_fop_ctx        *ctx;
@@ -194,7 +193,10 @@ static int c2_md_create_fom_state(struct c2_fom *fom)
         struct c2_service        *svc;
         int                       rc;
 
-        fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+        if (fom->fo_phase < C2_FOPH_NR) {
+                rc = c2_fom_state_generic(fom);
+                return rc;
+        }
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
@@ -241,7 +243,6 @@ static int c2_md_link_fom_state(struct c2_fom *fom)
         struct c2_site           *site;
         struct c2_fop_link       *req;
         struct c2_fop_link_rep   *rep;
-        struct c2_fom_md         *fom_obj;
         struct c2_fop            *fop;
         struct c2_fop            *fop_rep;
         struct c2_fop_ctx        *ctx;
@@ -251,7 +252,10 @@ static int c2_md_link_fom_state(struct c2_fom *fom)
         struct c2_cob_attr        attr;
         int                       rc;
 
-        fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+        if (fom->fo_phase < C2_FOPH_NR) {
+                rc = c2_fom_state_generic(fom);
+                return rc;
+        }
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
@@ -296,7 +300,6 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
         struct c2_cob            *scob = NULL;
         struct c2_fop_unlink     *req;
         struct c2_fop_unlink_rep *rep;
-        struct c2_fom_md         *fom_obj;
         struct c2_fop            *fop;
         struct c2_fop            *fop_rep;
         struct c2_fop_ctx        *ctx;
@@ -307,7 +310,10 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
         struct c2_md_store       *md;
         int                       rc;
 
-        fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+        if (fom->fo_phase < C2_FOPH_NR) {
+                rc = c2_fom_state_generic(fom);
+                return rc;
+        }
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
@@ -402,7 +408,6 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
         struct c2_fop_cob        *tbody;
         struct c2_site           *site;
         struct c2_fop_rename     *req;
-        struct c2_fom_md         *fom_obj;
         struct c2_fop            *fop;
         struct c2_fop            *fop_rep;
         struct c2_fop_ctx        *ctx;
@@ -419,7 +424,10 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
         struct c2_md_store       *md;
         int                       rc;
 
-        fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+        if (fom->fo_phase < C2_FOPH_NR) {
+                rc = c2_fom_state_generic(fom);
+                return rc;
+        }
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
@@ -491,7 +499,6 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
         struct c2_cob            *cob;
         struct c2_fop_open       *req;
         struct c2_fop_open_rep   *rep;
-        struct c2_fom_md         *fom_obj;
         struct c2_fop            *fop;
         struct c2_fop            *fop_rep;
         struct c2_fop_ctx        *ctx;
@@ -500,7 +507,10 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
         struct c2_cob_attr        attr;
         int                       rc;
 
-        fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+        if (fom->fo_phase < C2_FOPH_NR) {
+                rc = c2_fom_state_generic(fom);
+                return rc;
+        }
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
@@ -569,7 +579,6 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
         struct c2_cob            *cob;
         struct c2_fop_close      *req;
         struct c2_fop_close_rep  *rep;
-        struct c2_fom_md         *fom_obj;
         struct c2_fop            *fop;
         struct c2_fop            *fop_rep;
         struct c2_fop_ctx        *ctx;
@@ -578,7 +587,10 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
         struct c2_cob_attr        attr;
         int                       rc;
 
-        fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+        if (fom->fo_phase < C2_FOPH_NR) {
+                rc = c2_fom_state_generic(fom);
+                return rc;
+        }
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
@@ -644,7 +656,6 @@ static int c2_md_setattr_fom_state(struct c2_fom *fom)
         struct c2_cob                 *cob;
         struct c2_fop_setattr         *req;
         struct c2_fop_setattr_rep     *rep;
-        struct c2_fom_md              *fom_obj;
         struct c2_fop                 *fop;
         struct c2_fop                 *fop_rep;
         struct c2_fop_ctx             *ctx;
@@ -652,7 +663,10 @@ static int c2_md_setattr_fom_state(struct c2_fom *fom)
         struct c2_service             *svc;
         int                            rc;
 
-        fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+        if (fom->fo_phase < C2_FOPH_NR) {
+                rc = c2_fom_state_generic(fom);
+                return rc;
+        }
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
@@ -708,7 +722,6 @@ static int c2_md_getattr_fom_state(struct c2_fom *fom)
         struct c2_cob                 *cob;
         struct c2_fop_getattr         *req;
         struct c2_fop_getattr_rep     *rep;
-        struct c2_fom_md              *fom_obj;
         struct c2_fop                 *fop;
         struct c2_fop                 *fop_rep;
         struct c2_fop_ctx             *ctx;
@@ -716,7 +729,10 @@ static int c2_md_getattr_fom_state(struct c2_fom *fom)
         struct c2_service             *svc;
         int                            rc;
 
-        fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+        if (fom->fo_phase < C2_FOPH_NR) {
+                rc = c2_fom_state_generic(fom);
+                return rc;
+        }
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
@@ -766,7 +782,6 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
         struct c2_cob                 *cob;
         struct c2_fop_readdir         *req;
         struct c2_fop_readdir_rep     *rep;
-        struct c2_fom_md              *fom_obj;
         struct c2_fop                 *fop;
         struct c2_fop                 *fop_rep;
         struct c2_fop_ctx             *ctx;
@@ -776,7 +791,10 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
         void                          *addr;
         int                            rc;
 
-        fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+        if (fom->fo_phase < C2_FOPH_NR) {
+                rc = c2_fom_state_generic(fom);
+                return rc;
+        }
 
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
