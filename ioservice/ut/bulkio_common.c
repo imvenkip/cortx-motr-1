@@ -74,7 +74,7 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr, int port)
 	strcpy(server_args[0], "bulkio_st");
 	strcpy(server_args[1], "-r");
 	strcpy(server_args[2], "-T");
-	strcpy(server_args[3], "linux");
+	strcpy(server_args[3], "Linux");
 	strcpy(server_args[4], "-D");
 	strcpy(server_args[5], S_DBFILE);
 	strcpy(server_args[6], "-S");

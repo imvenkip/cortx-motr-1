@@ -25,7 +25,7 @@
 #include <stdio.h> /* FILE */
 #endif
 
-#include "rpc/rpc2.h"    /* struct c2_rpcmachine, c2_rpc_item */
+#include "rpc/rpc2.h"    /* struct c2_rpc_machine, c2_rpc_item */
 #include "rpc/session.h" /* struct c2_rpc_conn, c2_rpc_session */
 #include "db/db.h"       /* struct c2_dbenv */
 #include "cob/cob.h"     /* struct c2_cob_domain */
@@ -116,42 +116,42 @@ struct c2_rpc_client_ctx {
 	 * A pointer to net domain struct which will be initialized and used by
 	 * c2_rpc_client_start()
 	 */
-	struct c2_net_domain    *rcx_net_dom;
+	struct c2_net_domain      *rcx_net_dom;
 
 	/** Transport specific local address (client's address) */
-	const char              *rcx_local_addr;
+	const char                *rcx_local_addr;
 
 	/** Transport specific remote address (server's address) */
-	const char              *rcx_remote_addr;
+	const char                *rcx_remote_addr;
 
 	/** Name of database used by the RPC machine */
-	const char              *rcx_db_name;
+	const char                *rcx_db_name;
 
 	/**
 	 * A pointer to dbenv struct which will be initialized and used by
 	 * c2_rpc_client_start()
 	 */
-	struct c2_dbenv         *rcx_dbenv;
+	struct c2_dbenv           *rcx_dbenv;
 
 	/** Identity of cob used by the RPC machine */
-	uint32_t                rcx_cob_dom_id;
+	uint32_t                   rcx_cob_dom_id;
 
 	/**
 	 * A pointer to cob domain struct which will be initialized and used by
 	 * c2_rpc_client_start()
 	 */
-	struct c2_cob_domain    *rcx_cob_dom;
+	struct c2_cob_domain      *rcx_cob_dom;
 
 	/** Number of session slots */
-	uint32_t                rcx_nr_slots;
+	uint32_t          	   rcx_nr_slots;
 
-	uint64_t                rcx_max_rpcs_in_flight;
+	uint64_t		   rcx_max_rpcs_in_flight;
 
 	/**
 	 * Time in seconds after which connection/session
 	 * establishment is aborted.
 	 */
-	uint32_t                rcx_timeout_s;
+	uint32_t             	   rcx_timeout_s;
 
 	/**
 	 * Output parameters.
@@ -160,10 +160,10 @@ struct c2_rpc_client_ctx {
 	 * c2_rpc_client_start().
 	 */
 
-	struct c2_rpcmachine    rcx_rpc_machine;
-	struct c2_net_end_point *rcx_remote_ep;
-	struct c2_rpc_conn      rcx_connection;
-	struct c2_rpc_session   rcx_session;
+	struct c2_rpc_machine	   rcx_rpc_machine;
+	struct c2_net_end_point	  *rcx_remote_ep;
+	struct c2_rpc_conn	   rcx_connection;
+	struct c2_rpc_session	   rcx_session;
 	struct c2_net_buffer_pool *rcx_buffer_pool;
 };
 

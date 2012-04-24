@@ -134,7 +134,7 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 	/* @todo current rpc uses single segment.Need to find a way to decide
 	 * number of segments.
 	 */
-	nrsegs = 8;
+	nrsegs = 2;
 	c2_net_buffer_pool_init(app_pool, ndom, 2, nrsegs, seg_size, 64,
 				shift);
 	/* @todo assummed or based on number of TM's
@@ -177,13 +177,13 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	if (rc != 0)
 		goto pool_fini;
 
-	rc = c2_rpcmachine_init(&cctx->rcx_rpc_machine, cctx->rcx_cob_dom,
-				cctx->rcx_net_dom, cctx->rcx_local_addr, NULL,
-				cctx->rcx_buffer_pool);
+	rc = c2_rpc_machine_init(&cctx->rcx_rpc_machine, cctx->rcx_cob_dom,
+				  cctx->rcx_net_dom, cctx->rcx_local_addr, NULL,
+				  cctx->rcx_buffer_pool);
 	if (rc != 0)
 		return rc;
 
-	tm = &cctx->rcx_rpc_machine.cr_tm;
+	tm = &cctx->rcx_rpc_machine.rm_tm;
 
 	c2_net_tm_colour_set(tm, tm_colours++);
 
@@ -211,10 +211,9 @@ conn_destroy:
 ep_put:
 	c2_net_end_point_put(cctx->rcx_remote_ep);
 rpcmach_fini:
-	c2_rpcmachine_fini(&cctx->rcx_rpc_machine);
+	c2_rpc_machine_fini(&cctx->rcx_rpc_machine);
 pool_fini:
 	c2_rpc_net_buffer_pool_cleanup(cctx->rcx_buffer_pool);
-
 	C2_ASSERT(rc != 0);
 	return rc;
 }
@@ -277,7 +276,7 @@ int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
 		return rc;
 
 	c2_net_end_point_put(cctx->rcx_remote_ep);
-	c2_rpcmachine_fini(&cctx->rcx_rpc_machine);
+	c2_rpc_machine_fini(&cctx->rcx_rpc_machine);
 
 	c2_rpc_net_buffer_pool_cleanup(cctx->rcx_buffer_pool);
 

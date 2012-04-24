@@ -260,13 +260,13 @@ int c2_rpc_slot_cob_create(struct c2_cob   *session_cob,
    Initalises receiver end of conn object.
 
    @post ergo(result == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
-			   conn->c_rpcmachine == machine &&
+			   conn->c_rpc_machine == machine &&
 			   conn->c_sender_id == SENDER_ID_INVALID &&
 			   (conn->c_flags & RCF_RECV_END) != 0)
  */
 int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
 			 struct c2_net_end_point         *ep,
-			 struct c2_rpcmachine            *machine,
+			 struct c2_rpc_machine           *machine,
 			 const struct c2_rpc_sender_uuid *uuid);
 /**
    Creates a receiver end of conn.
@@ -274,7 +274,7 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
    @pre conn->c_state == C2_RPC_CONN_INITIALISED
    @post ergo(result == 0, conn->c_state == C2_RPC_CONN_ACTIVE &&
 			   conn->c_sender_id != SENDER_ID_INVALID &&
-			   c2_list_contains(&machine->cr_incoming_conns,
+			   c2_list_contains(&machine->rm_incoming_conns,
 					    &conn->c_link)
    @post ergo(result != 0, conn->c_state == C2_RPC_CONN_FAILED)
    @post ergo(result == 0, conn->c_state == C2_RPC_CONN_ACTIVE)
@@ -386,8 +386,8 @@ struct c2_rpc_slot_ref {
    else
 	report REPLY_RECEIVED to appropriate slot
  */
-int c2_rpc_item_received(struct c2_rpc_item   *item,
-			 struct c2_rpcmachine *machine);
+int c2_rpc_item_received(struct c2_rpc_item    *item,
+			 struct c2_rpc_machine *machine);
 
 /**
    Adds an item to slot->sl_item_list, without triggering
@@ -475,7 +475,7 @@ bool c2_rpc_item_is_conn_terminate(const struct c2_rpc_item *item);
  */
 void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
 					struct c2_net_end_point *ep,
-					struct c2_rpcmachine    *machine);
+					struct c2_rpc_machine   *machine);
 
 /**
    Helper routine, internal to rpc module.
@@ -512,7 +512,7 @@ bool c2_rpc_slot_can_item_add_internal(const struct c2_rpc_slot *slot);
 
 /**
    For all slots belonging to @session,
-     if slot is in c2_rpcmachine::cr_ready_slots list,
+     if slot is in c2_rpc_machine::rm_ready_slots list,
      then remove it from the list.
  */
 void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session);

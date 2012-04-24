@@ -91,9 +91,9 @@ struct c2_reqh {
 	    There is one rpc machine per request handler
 	    end point.
 
-	    @see c2_rpcmachine::cr_rh_linkage
+	    @see c2_rpc_machine::rm_rh_linkage
 	 */
-        struct c2_tl             rh_rpcmachines;
+        struct c2_tl             rh_rpc_machines;
 
 	/**
 	    True if request handler received a shutdown signal.
@@ -251,23 +251,25 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop);
 
    @endverbatim
 
-   If a generic phase handler function fails while executing a fom, then it
-   just sets the c2_fom::fo_rc to the result of the operation and returns FSO_WAIT.
-   c2_fom_state_generic() then sets the c2_fom::fo_phase to FOPH_FAILED, logs an
-   ADDB event, and returns, later the fom eecution proceeds as mentioned in above
-   diagram.
-   If fom fails while executing fop specific operation, the c2_fom::fo_phase is set
-   to FOPH_FAILED already by the fop specific operation handler, and the c2_fom::fo_rc
-   set to the result of the operation.
+   If a generic phase handler function fails while executing a fom, then
+   it just sets the c2_fom::fo_rc to the result of the operation and returns
+   C2_FSO_WAIT.  c2_fom_state_generic() then sets the c2_fom::fo_phase to
+   C2_FOPH_FAILED, logs an ADDB event, and returns, later the fom execution
+   proceeds as mentioned in above diagram.
+
+   If fom fails while executing fop specific operation, the c2_fom::fo_phase
+   is set to C2_FOPH_FAILED already by the fop specific operation handler, and
+   the c2_fom::fo_rc set to the result of the operation.
 
    @see c2_fom_phase
    @see c2_fom_state_outcome
 
    @param fom, fom under execution
 
-   @retval FSO_AGAIN, if fom operation is successful, transition to next phase,
-	FSO_WAIT, if fom execution blocks and fom goes into corresponding wait
-		phase, or if fom execution is complete, i.e success or failure
+   @retval C2_FSO_AGAIN, if fom operation is successful, transition to next
+	   phase, C2_FSO_WAIT, if fom execution blocks and fom goes into
+	   corresponding wait phase, or if fom execution is complete, i.e
+	   success or failure
 
    @todo standard fom phases implementation, depends on the support routines for
 	handling various standard operations on fop as mentioned above
@@ -294,6 +296,17 @@ int c2_reqhs_init(void);
 */
 void c2_reqhs_fini(void);
 
+/**
+   Find a service instance for a given service-name within a give
+   request handler instance.
+
+   @param service_name Name of the service of interest
+   @param reqh Request handler instance
+
+   @retval serive instance pointer or NULL.
+ */
+struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
+                                            struct c2_reqh *reqh);
 /** @} endgroup reqh */
 
 /* __COLIBRI_REQH_REQH_H__ */

@@ -163,7 +163,7 @@ static int c2t1fs_rpc_init(void)
 	struct c2_dbenv          *dbenv;
 	struct c2_cob_domain     *cob_dom;
 	struct c2_cob_domain_id  *cob_dom_id;
-	struct c2_rpcmachine     *rpcmachine;
+	struct c2_rpc_machine    *rpc_machine;
 	struct c2_net_domain     *ndom;
 	struct c2_net_transfer_mc *tm;
 	char                     *laddr;
@@ -194,20 +194,20 @@ static int c2t1fs_rpc_init(void)
 
 	ndom        = &c2t1fs_globals.g_ndom;
 	laddr       =  c2t1fs_globals.g_laddr;
-	rpcmachine  = &c2t1fs_globals.g_rpcmachine;
+	rpc_machine = &c2t1fs_globals.g_rpc_machine;
 	buffer_pool = c2t1fs_globals.g_buffer_pool;
 
 	rc = c2_rpc_net_buffer_pool_setup(ndom, buffer_pool);
 	if (rc != 0)
 		goto pool_fini;
-	
-	rc = c2_rpcmachine_init(rpcmachine, cob_dom, ndom, laddr, NULL/*reqh*/,
-				buffer_pool);
+
+	rc = c2_rpc_machine_init(rpc_machine, cob_dom, ndom, laddr, NULL/*reqh*/,
+				 buffer_pool);
 	if (rc != 0)
 		goto cob_dom_fini;
-	
-	tm = &rpcmachine->cr_tm;
-	
+
+	tm = &rpc_machine->rm_tm;
+
 	c2_net_tm_colour_set(tm, tm_colours++);
 
 	C2_LEAVE("rc: %d", rc);
@@ -231,7 +231,7 @@ static void c2t1fs_rpc_fini(void)
 {
 	C2_ENTRY();
 
-	c2_rpcmachine_fini(&c2t1fs_globals.g_rpcmachine);
+	c2_rpc_machine_fini(&c2t1fs_globals.g_rpc_machine);
 	c2_rpc_net_buffer_pool_cleanup(c2t1fs_globals.g_buffer_pool);
 	c2_cob_domain_fini(&c2t1fs_globals.g_cob_dom);
 	c2_dbenv_fini(&c2t1fs_globals.g_dbenv);

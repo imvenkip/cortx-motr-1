@@ -108,6 +108,11 @@ enum C2_RPC_OPCODES {
 
 	/** Xcode rpc opcodes */
 	C2_XCODE_UT_OPCODE = 50,
+
+	/** Cob creation and deletion during IO. */
+	C2_IOSERVICE_COB_CREATE_OPCODE   = 51,
+	C2_IOSERVICE_COB_DELETE_OPCODE   = 52,
+	C2_IOSERVICE_COB_OP_REPLY_OPCODE = 53,
 };
 /** @} endgroup rpc_layer_core */
 

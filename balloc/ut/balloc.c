@@ -40,7 +40,6 @@
 #define GROUP_SIZE (BALLOC_DEF_CONTAINER_SIZE / (BALLOC_DEF_BLOCKS_PER_GROUP * \
 						 (1 << BALLOC_DEF_BLOCK_SHIFT)))
 
-extern	struct c2_balloc	 colibri_balloc;
 static const char		*db_name = BALLOC_DBNAME;
 static const int		 MAX	 = 100;
 static c2_bcount_t		 prev_free_blocks;
@@ -51,15 +50,15 @@ enum balloc_invariant_enum {
 	INVAR_FREE
 };
 
-bool balloc_ut_invariant(struct c2_ext	alloc_ext,
-			 int		balloc_invariant_flag)
+bool balloc_ut_invariant(struct c2_balloc *colibri_balloc, struct c2_ext alloc_ext,
+                                                         int balloc_invariant_flag)
 {
 	c2_bcount_t	len = c2_ext_length(&alloc_ext),
 			group;
 
-	group = alloc_ext.e_start >> colibri_balloc.cb_sb.bsb_gsbits;
+	group = alloc_ext.e_start >> colibri_balloc->cb_sb.bsb_gsbits;
 
-	if (colibri_balloc.cb_sb.bsb_magic != C2_BALLOC_SB_MAGIC)
+	if (colibri_balloc->cb_sb.bsb_magic != C2_BALLOC_SB_MAGIC)
 		return false;
 
 	switch (balloc_invariant_flag) {
@@ -75,22 +74,23 @@ bool balloc_ut_invariant(struct c2_ext	alloc_ext,
 		 return false;
 	}
 
-	return colibri_balloc.cb_group_info[group].bgi_freeblocks ==
+	return colibri_balloc->cb_group_info[group].bgi_freeblocks ==
 		prev_group_info_free_blocks[group] &&
-		colibri_balloc.cb_sb.bsb_freeblocks ==
+		colibri_balloc->cb_sb.bsb_freeblocks ==
 		prev_free_blocks;
 }
 
 int test_balloc_ut_ops()
 {
-	struct c2_dbenv	db;
-	struct c2_dtx	dtx;
-	int		result;
-	struct c2_ext	ext[MAX];
-	struct c2_ext	tmp   = { 0 };
-	c2_bcount_t	count = 539;
-	int		i     = 0;
-	time_t		now;
+	struct c2_balloc *colibri_balloc;
+	struct c2_dbenv	  db;
+	struct c2_dtx	  dtx;
+	int		  result;
+	struct c2_ext	  ext[MAX];
+	struct c2_ext	  tmp   = { 0 };
+	c2_bcount_t	  count = 539;
+	int		  i     = 0;
+	time_t		  now;
 
 	time(&now);
 	srand(now);
@@ -98,21 +98,24 @@ int test_balloc_ut_ops()
 	result = c2_dbenv_init(&db, db_name, 0);
 	C2_UT_ASSERT(result == 0);
 
-	result = colibri_balloc.cb_ballroom.ab_ops->bo_init
-		(&colibri_balloc.cb_ballroom, &db, BALLOC_DEF_BLOCK_SHIFT,
+	result = c2_balloc_locate(&colibri_balloc);
+	C2_UT_ASSERT(result == 0);
+
+	result = colibri_balloc->cb_ballroom.ab_ops->bo_init
+		(&colibri_balloc->cb_ballroom, &db, BALLOC_DEF_BLOCK_SHIFT,
 		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP,
 		 BALLOC_DEF_RESERVED_GROUPS);
 
 	if(result == 0) {
 
-		prev_free_blocks = colibri_balloc.cb_sb.bsb_freeblocks;
+		prev_free_blocks = colibri_balloc->cb_sb.bsb_freeblocks;
 
 		C2_ALLOC_ARR(prev_group_info_free_blocks, GROUP_SIZE);
 
 		for(i=0; i<GROUP_SIZE; i++)
 		{
 			prev_group_info_free_blocks[i] =
-				colibri_balloc.cb_group_info[i].bgi_freeblocks;
+				colibri_balloc->cb_group_info[i].bgi_freeblocks;
 		}
 
 		for (i = 0; i < MAX; i++ ) {
@@ -126,8 +129,8 @@ int test_balloc_ut_ops()
 			/* pass last result as goal. comment out this to turn
 			   off goal */
 			//tmp.e_start = tmp.e_end;
-			result = colibri_balloc.cb_ballroom.ab_ops->bo_alloc(
-				    &colibri_balloc.cb_ballroom, &dtx, count,
+			result = colibri_balloc->cb_ballroom.ab_ops->bo_alloc(
+				    &colibri_balloc->cb_ballroom, &dtx, count,
 				    &tmp);
 			if(result < 0) {
 				fprintf(stderr, "Error in allocation\n");
@@ -146,7 +149,7 @@ int test_balloc_ut_ops()
 				result = -EINVAL;
 			}
 
-			C2_UT_ASSERT(balloc_ut_invariant(ext[i], INVAR_ALLOC));
+			C2_UT_ASSERT(balloc_ut_invariant(colibri_balloc, ext[i], INVAR_ALLOC));
 #ifdef BALLOC_DEBUG
 			printf("%3d:rc = %d: requested count=%5d, result"
 			       " count=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",
@@ -163,17 +166,17 @@ int test_balloc_ut_ops()
 				c2_db_tx_abort(&dtx.tx_dbtx);
 		}
 
-		for (i = colibri_balloc.cb_sb.bsb_reserved_groups;
-		     i < colibri_balloc.cb_sb.bsb_groupcount && result == 0;
+		for (i = colibri_balloc->cb_sb.bsb_reserved_groups;
+		     i < colibri_balloc->cb_sb.bsb_groupcount && result == 0;
 		     i++) {
 			struct c2_balloc_group_info *grp = c2_balloc_gn2info
-				(&colibri_balloc, i);
+				(colibri_balloc, i);
 
 			result = c2_db_tx_init(&dtx.tx_dbtx, &db, 0);
 			C2_UT_ASSERT(result == 0);
 			if (grp) {
 				c2_balloc_lock_group(grp);
-				result = c2_balloc_load_extents(&colibri_balloc,
+				result = c2_balloc_load_extents(colibri_balloc,
 							     grp,
 							     &dtx.tx_dbtx);
 				if (result == 0)
@@ -199,8 +202,8 @@ int test_balloc_ut_ops()
 			C2_UT_ASSERT(result == 0);
 			if (ext[i].e_start != 0)
 				result =
-				colibri_balloc.cb_ballroom.ab_ops->bo_free(
-					    &colibri_balloc.cb_ballroom, &dtx,
+				colibri_balloc->cb_ballroom.ab_ops->bo_free(
+					    &colibri_balloc->cb_ballroom, &dtx,
 					    &ext[i]);
 			if(result < 0) {
 				fprintf(stderr,"Error during free for size %5d",
@@ -208,7 +211,7 @@ int test_balloc_ut_ops()
 				return result;
 			}
 
-			C2_UT_ASSERT(balloc_ut_invariant(ext[i], INVAR_FREE));
+			C2_UT_ASSERT(balloc_ut_invariant(colibri_balloc, ext[i], INVAR_FREE));
 #ifdef BALLOC_DEBUG
 			printf("%3d:rc = %d: freed:                          "
 			       "len=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",
@@ -224,34 +227,34 @@ int test_balloc_ut_ops()
 				c2_db_tx_abort(&dtx.tx_dbtx);
 		}
 
-		if(colibri_balloc.cb_sb.bsb_freeblocks != prev_free_blocks) {
+		if(colibri_balloc->cb_sb.bsb_freeblocks != prev_free_blocks) {
 			fprintf(stderr, "Size mismatch during block reclaim\n");
 			result = -EINVAL;
 		}
 
-		for (i = colibri_balloc.cb_sb.bsb_reserved_groups;
-		     i < colibri_balloc.cb_sb.bsb_groupcount && result == 0;
+		for (i = colibri_balloc->cb_sb.bsb_reserved_groups;
+		     i < colibri_balloc->cb_sb.bsb_groupcount && result == 0;
 		     i++) {
 			struct c2_balloc_group_info *grp = c2_balloc_gn2info
-				(&colibri_balloc, i);
+				(colibri_balloc, i);
 
 			result = c2_db_tx_init(&dtx.tx_dbtx, &db, 0);
 			C2_UT_ASSERT(result == 0);
 			if (grp) {
 				c2_balloc_lock_group(grp);
-				result = c2_balloc_load_extents(&colibri_balloc,
+				result = c2_balloc_load_extents(colibri_balloc,
 								grp,
 								&dtx.tx_dbtx);
 				if (result == 0)
 					c2_balloc_debug_dump_group_extent(
 						    "balloc ut", grp);
 				if (grp->bgi_freeblocks !=
-				    colibri_balloc.cb_sb.bsb_groupsize) {
+				    colibri_balloc->cb_sb.bsb_groupsize) {
 					printf("corrupted grp %d: %llx != %llx\n",
 					       i, (unsigned long long)
 					       grp->bgi_freeblocks,
 					       (unsigned long long)
-					       colibri_balloc.cb_sb.bsb_groupsize);
+					       colibri_balloc->cb_sb.bsb_groupsize);
 					result = -EINVAL;
 				}
 				c2_balloc_release_extents(grp);
@@ -260,8 +263,8 @@ int test_balloc_ut_ops()
 			c2_db_tx_commit(&dtx.tx_dbtx);
 		}
 
-		colibri_balloc.cb_ballroom.ab_ops->bo_fini(
-			    &colibri_balloc.cb_ballroom);
+		colibri_balloc->cb_ballroom.ab_ops->bo_fini(
+			    &colibri_balloc->cb_ballroom);
 	}
 
 	c2_free(prev_group_info_free_blocks);
