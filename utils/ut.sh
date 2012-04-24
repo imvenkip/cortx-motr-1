@@ -16,10 +16,13 @@ fi
 
 MODLIST="build_kernel_modules/kcolibri.ko"
 
+unload_all() {
+    modunload
+    modunload_galois
+}
+trap unload_all EXIT
+
 modload_galois
-modload
+modload || exit $?
 
-utils/ut
-
-modunload
-modunload_galois
+utils/ut "$@"
