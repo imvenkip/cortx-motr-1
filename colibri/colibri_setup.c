@@ -627,6 +627,7 @@ static int cs_rpcmachine_init(struct c2_colibri *cctx, const char *xprt_name,
 	struct c2_rpcmachine         *rpcmach;
 	struct c2_net_domain         *ndom;
 	struct c2_net_xprt           *xprt;
+	struct c2_net_buffer_pool    *buffer_pool;
 	int                           rc;
 
 	C2_PRE(cctx != NULL && xprt_name != NULL && ep != NULL &&
@@ -645,8 +646,9 @@ static int cs_rpcmachine_init(struct c2_colibri *cctx, const char *xprt_name,
 	if (rpcmach == NULL)
 		return -ENOMEM;
 
-	rpcmach->cr_buffer_pool = cs_buffer_pool_get(cctx, ndom);
-	rc = c2_rpcmachine_init(rpcmach, reqh->rh_cob_domain, ndom, ep, reqh);
+	buffer_pool = cs_buffer_pool_get(cctx, ndom);
+	rc = c2_rpcmachine_init(rpcmach, reqh->rh_cob_domain, ndom, ep, reqh,
+				buffer_pool);
 	if (rc != 0) {
 		c2_free(rpcmach);
 		return rc;
@@ -754,12 +756,13 @@ static const struct c2_net_buffer_pool_ops b_ops = {
 	.nbpo_below_threshold = low,
 };
 
-/** Creating a buffer pool per net domain which will be share by TM's in it. */
+/** Creating a buffer pool per net domain which will be shared by TM's in it. */
 static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 {
 	struct c2_net_domain *ndom;
 	int		      rc;
 	uint32_t	      segs_nr;
+	uint32_t	      nrsegs;
 	c2_bcount_t	      seg_size;
 	c2_bcount_t	      buf_size;
 	uint32_t	      shift = 0;
@@ -777,11 +780,11 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 		buf_size = c2_net_domain_get_max_buffer_size(ndom);
 		segs_nr  = c2_net_domain_get_max_buffer_segments(ndom);
 		seg_size = c2_net_domain_get_max_buffer_segment_size(ndom);
-		/* @todo verify seg size and buf size are same now */
-		seg_size = 1 << 12;
-		C2_ASSERT((segs_nr * seg_size) <=
-			   c2_net_domain_get_max_buffer_size(ndom));
-		c2_net_buffer_pool_init(buffer_pool, ndom, 2, segs_nr,
+		/* @todo current rpc uses single segment.Need to find a way to decide
+		 * number of segments.
+		 */
+		nrsegs   = 8;	
+		c2_net_buffer_pool_init(buffer_pool, ndom, 2, nrsegs,
 					seg_size, 64, shift);
 		/* @todo Number of TM's need to be assumed or taken from user.
 		   c2_list_length(&ndom->nd_tms));
@@ -796,7 +799,7 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 			return -ENOMEM;
 		else
 			rc = 0;
-		
+
 		cs_buffer_pools_tlink_init(cs_bp);
 		cs_buffer_pools_tlist_add(&cctx->cc_buffer_pools, cs_bp);
 	} c2_tlist_endfor;
@@ -1325,8 +1328,8 @@ static int cs_colibri_init(struct c2_colibri *cctx)
 static void cs_colibri_fini(struct c2_colibri *cctx)
 {
 	C2_PRE(cctx != NULL);
-       // if (!cs_buffer_pools_tlist_is_empty(&cctx->cc_buffer_pools))
-		cs_buffer_pool_fini(cctx);
+	
+	cs_buffer_pool_fini(cctx);
 	cs_net_domains_fini(cctx);
 	c2_tlist_fini(&ndoms_descr, &cctx->cc_ndoms);
 	c2_tlist_fini(&rctx_descr, &cctx->cc_reqh_ctxs);

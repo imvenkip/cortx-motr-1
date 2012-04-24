@@ -347,8 +347,8 @@ enum {
  * transfer machine.
  */
 enum {
-	C2_RPC_TM_RECV_BUFFERS_NR     = 32,
-	C2_RPC_TM_MIN_RECV_BUFFERS_NR = 4,
+	C2_RPC_TM_RECV_BUFFERS_NR     = 128,
+	C2_RPC_TM_MIN_RECV_BUFFERS_NR = 16,
 };
 
 
@@ -571,11 +571,12 @@ void c2_rpc_core_fini(void);
    @param ep_addr Source end point address to associate with the transfer mc.
    @pre c2_rpc_core_init().
  */
-int  c2_rpcmachine_init(struct c2_rpcmachine	*machine,
-			struct c2_cob_domain	*dom,
-			struct c2_net_domain	*net_dom,
-			const char		*ep_addr,
-			struct c2_reqh          *reqh);
+int  c2_rpcmachine_init(struct c2_rpcmachine	  *machine,
+			struct c2_cob_domain	  *dom,
+			struct c2_net_domain	  *net_dom,
+			const char		  *ep_addr,
+			struct c2_reqh            *reqh,
+			struct c2_net_buffer_pool *app_pool);
 
 /**
    Destruct rpcmachine

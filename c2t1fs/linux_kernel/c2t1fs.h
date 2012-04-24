@@ -200,16 +200,17 @@ enum {
 /** Anything that is global to c2t1fs module goes in this singleton structure.
     There is only one, global, instance of this type. */
 struct c2t1fs_globals {
-	struct c2_net_xprt      *g_xprt;
+	struct c2_net_xprt        *g_xprt;
 	/** local endpoint address */
-	char                    *g_laddr;
-	char                    *g_db_name;
-	struct c2_cob_domain_id  g_cob_dom_id;
+	char                      *g_laddr;
+	char                      *g_db_name;
+	struct c2_cob_domain_id    g_cob_dom_id;
 
-	struct c2_net_domain     g_ndom;
-	struct c2_rpcmachine     g_rpcmachine;
-	struct c2_cob_domain     g_cob_dom;
-	struct c2_dbenv          g_dbenv;
+	struct c2_net_domain       g_ndom;
+	struct c2_rpcmachine       g_rpcmachine;
+	struct c2_cob_domain       g_cob_dom;
+	struct c2_dbenv            g_dbenv;
+	struct c2_net_buffer_pool *g_buffer_pool;
 };
 
 extern struct c2t1fs_globals c2t1fs_globals;

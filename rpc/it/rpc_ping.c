@@ -41,6 +41,7 @@
 #include "rpc/rpclib.h" /* c2_rpc_server_start */
 #include "ut/rpc.h"     /* c2_rpc_client_init */
 #include "fop/fop.h"    /* c2_fop_default_item_ops */
+#include "net/buffer_pool.h"
 
 #ifdef __KERNEL__
 #include <linux/kernel.h>
@@ -346,7 +347,7 @@ static int client_fini(struct c2_rpc_client_ctx *cctx)
 	c2_cob_domain_fini(cctx->rcx_cob_dom);
 	c2_dbenv_fini(cctx->rcx_dbenv);
 
-	c2_net_buffer_pool_cleanup(cctx->rcx_net_dom);
+	c2_rpc_net_buffer_pool_cleanup(cctx->rcx_buffer_pool);
 
 	return rc;
 }

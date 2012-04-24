@@ -419,7 +419,7 @@ static int rpc_tm_setup(struct c2_rpcmachine *machine,
 	rc = c2_net_tm_start(&machine->cr_tm, ep_addr);
 	if (rc < 0)
 		goto cleanup;
-	
+
 	/* Wait on transfer machine channel till transfer machine is
 	   actually started. */
 	while (machine->cr_tm.ntm_state != C2_NET_TM_STARTED)
@@ -427,7 +427,7 @@ static int rpc_tm_setup(struct c2_rpcmachine *machine,
 
 	c2_clink_del(&tmwait);
 	c2_clink_fini(&tmwait);
-	
+
 	c2_net_tm_pool_length_set(&machine->cr_tm, C2_RPC_TM_MIN_RECV_BUFFERS_NR);
 
 	/* Add buffers for receiving messages to this transfer machine. */
@@ -545,7 +545,7 @@ static void rpc_tm_cleanup(struct c2_rpcmachine *machine)
 
 		for (cnt = 0; cnt < C2_RPC_TM_RECV_BUFFERS_NR; ++cnt)
 		C2_ASSERT(machine->cr_rcv_buffers[cnt] == NULL);
-	} else c2_rpc_recv_pool_buffers_put(tm); /* @todo may not be needed. */ 
+	} else c2_rpc_recv_pool_buffers_put(tm); /* @todo may not be needed. */
 
 	c2_free(machine->cr_rcv_buffers);
 	/* Fini the transfer machine here and deallocate the chan. */
@@ -881,7 +881,7 @@ void c2_rpc_recv_pool_buffers_put(struct c2_net_transfer_mc *tm)
 
 int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
 		       struct c2_net_domain *net_dom, const char *ep_addr,
-			struct c2_reqh *reqh)
+		       struct c2_reqh *reqh, struct c2_net_buffer_pool *app_pool)
 {
 	int		rc;
 	struct c2_db_tx tx;
@@ -902,6 +902,9 @@ int c2_rpcmachine_init(struct c2_rpcmachine *machine, struct c2_cob_domain *dom,
 
 	c2_mutex_init(&machine->cr_chan_mutex);
 	c2_list_init(&machine->cr_chans);
+	if (app_pool != NULL)
+		machine->cr_buffer_pool = app_pool;
+	
 	rc = rpc_tm_setup(machine, net_dom, ep_addr);
 	if (rc < 0)
 		goto cleanup;

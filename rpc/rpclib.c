@@ -115,34 +115,34 @@ static const struct c2_net_buffer_pool_ops b_ops = {
 	.nbpo_below_threshold = low,
 };
 
-int c2_net_buffer_pool_setup(struct c2_net_domain *ndom)
+int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
+				 struct c2_net_buffer_pool *app_pool)
 {
 	int	    rc;
 	uint32_t    segs_nr;
+	uint32_t    nrsegs;
 	c2_bcount_t seg_size;
 	c2_bcount_t buf_size;
 	uint32_t    shift = 0;
-	
+
 	C2_PRE(ndom != NULL);
-	C2_ALLOC_PTR(ndom->nd_app_pool);
-	if (ndom->nd_app_pool == NULL)
-		return -ENOMEM;
-	ndom->nd_app_pool->nbp_ops = &b_ops;
+	C2_PRE(app_pool != NULL);
+	app_pool->nbp_ops = &b_ops;
 	buf_size = c2_net_domain_get_max_buffer_size(ndom);
 	segs_nr = c2_net_domain_get_max_buffer_segments(ndom);
 	seg_size = c2_net_domain_get_max_buffer_segment_size(ndom);
-	seg_size = 1 << 12;
-	C2_ASSERT((segs_nr * seg_size) <=
-		   c2_net_domain_get_max_buffer_size(ndom));
-	c2_net_buffer_pool_init(ndom->nd_app_pool, ndom, 2, segs_nr, seg_size, 64,
+	/* @todo current rpc uses single segment.Need to find a way to decide
+	 * number of segments.
+	 */
+	nrsegs = 8;
+	c2_net_buffer_pool_init(app_pool, ndom, 2, nrsegs, seg_size, 64,
 				shift);
 	/* @todo assummed or based on number of TM's
 		c2_list_length(&ndom->nd_tms));
 	 */
-	c2_net_buffer_pool_lock(ndom->nd_app_pool);
-	rc = c2_net_buffer_pool_provision(ndom->nd_app_pool,
-					  C2_RPC_TM_RECV_BUFFERS_NR);
-	c2_net_buffer_pool_unlock(ndom->nd_app_pool);
+	c2_net_buffer_pool_lock(app_pool);
+	rc = c2_net_buffer_pool_provision(app_pool, C2_RPC_TM_RECV_BUFFERS_NR);
+	c2_net_buffer_pool_unlock(app_pool);
 	if (rc != C2_RPC_TM_RECV_BUFFERS_NR)
 		rc = -ENOMEM;
 	else
@@ -151,14 +151,14 @@ int c2_net_buffer_pool_setup(struct c2_net_domain *ndom)
 	return rc;
 }
 
-void c2_net_buffer_pool_cleanup(struct c2_net_domain *ndom)
+void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool)
 {
-	C2_PRE(ndom != NULL);
-	C2_PRE(ndom->nd_app_pool != NULL);
-	c2_net_buffer_pool_lock(ndom->nd_app_pool);
-	c2_net_buffer_pool_fini(ndom->nd_app_pool);
-	c2_free(ndom->nd_app_pool);
+	C2_PRE(app_pool != NULL);
+	c2_net_buffer_pool_lock(app_pool);
+	c2_net_buffer_pool_fini(app_pool);
+	c2_free(app_pool);
 }
+C2_EXPORTED(c2_rpc_net_buffer_pool_cleanup);
 
 int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 {
@@ -168,18 +168,22 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	static uint32_t		   tm_colours;
 
 	ndom = cctx->rcx_net_dom;
-	rc = c2_net_buffer_pool_setup(ndom);
+
+	C2_ALLOC_PTR(cctx->rcx_buffer_pool);
+	if (cctx->rcx_buffer_pool == NULL)
+		return -ENOMEM;
+
+	rc = c2_rpc_net_buffer_pool_setup(ndom, cctx->rcx_buffer_pool);
 	if (rc != 0)
 		goto pool_fini;
-	
-	cctx->rcx_rpc_machine.cr_buffer_pool =  ndom->nd_app_pool;
 
 	rc = c2_rpcmachine_init(&cctx->rcx_rpc_machine, cctx->rcx_cob_dom,
-				cctx->rcx_net_dom, cctx->rcx_local_addr, NULL);
+				cctx->rcx_net_dom, cctx->rcx_local_addr, NULL,
+				cctx->rcx_buffer_pool);
 	if (rc != 0)
 		return rc;
 
-	tm				     = &cctx->rcx_rpc_machine.cr_tm;
+	tm = &cctx->rcx_rpc_machine.cr_tm;
 
 	c2_net_tm_colour_set(tm, tm_colours++);
 
@@ -209,7 +213,7 @@ ep_put:
 rpcmach_fini:
 	c2_rpcmachine_fini(&cctx->rcx_rpc_machine);
 pool_fini:
-	c2_net_buffer_pool_cleanup(ndom);
+	c2_rpc_net_buffer_pool_cleanup(cctx->rcx_buffer_pool);
 
 	C2_ASSERT(rc != 0);
 	return rc;
@@ -275,7 +279,7 @@ int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
 	c2_net_end_point_put(cctx->rcx_remote_ep);
 	c2_rpcmachine_fini(&cctx->rcx_rpc_machine);
 
-	c2_net_buffer_pool_cleanup(ndom);
+	c2_rpc_net_buffer_pool_cleanup(cctx->rcx_buffer_pool);
 
 	return rc;
 }

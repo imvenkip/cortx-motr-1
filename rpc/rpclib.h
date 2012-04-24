@@ -198,8 +198,9 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 */
 int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx);
 
-int c2_net_buffer_pool_setup(struct c2_net_domain *ndom);
-void c2_net_buffer_pool_cleanup(struct c2_net_domain *ndom);
+int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
+			     struct c2_net_buffer_pool *app_pool);
+void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool);
 
 #endif /* __COLIBRI_RPC_RPCLIB_H__ */
 

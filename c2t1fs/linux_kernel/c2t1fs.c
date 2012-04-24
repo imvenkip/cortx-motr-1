@@ -24,6 +24,8 @@
 #include "c2t1fs/linux_kernel/c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"  /* C2_LOG and C2_ENTRY */
+#include "lib/memory.h"  /* C2_ALLOC_PTR */
+#include "net/buffer_pool.h"
 #include "net/bulk_sunrpc.h"
 #include "ioservice/io_fops.h"
 #include "rpc/rpclib.h"
@@ -168,8 +170,13 @@ static int c2t1fs_rpc_init(void)
 	char                     *db_name;
 	int                       rc;
 	static uint32_t		  tm_colours;
+	struct c2_net_buffer_pool *buffer_pool;
 
 	C2_ENTRY();
+
+	C2_ALLOC_PTR(c2t1fs_globals.g_buffer_pool);
+	if (c2t1fs_globals.g_buffer_pool == NULL)
+		return -ENOMEM;
 
 	dbenv   = &c2t1fs_globals.g_dbenv;
 	db_name =  c2t1fs_globals.g_db_name;
@@ -185,20 +192,21 @@ static int c2t1fs_rpc_init(void)
 	if (rc != 0)
 		goto dbenv_fini;
 
-	ndom       = &c2t1fs_globals.g_ndom;
-	laddr      =  c2t1fs_globals.g_laddr;
-	rpcmachine = &c2t1fs_globals.g_rpcmachine;
+	ndom        = &c2t1fs_globals.g_ndom;
+	laddr       =  c2t1fs_globals.g_laddr;
+	rpcmachine  = &c2t1fs_globals.g_rpcmachine;
+	buffer_pool = c2t1fs_globals.g_buffer_pool;
 
-	rc = c2_net_buffer_pool_setup(ndom);
+	rc = c2_rpc_net_buffer_pool_setup(ndom, buffer_pool);
 	if (rc != 0)
 		goto pool_fini;
 	
-	rc = c2_rpcmachine_init(rpcmachine, cob_dom, ndom, laddr, NULL/*reqh*/);
+	rc = c2_rpcmachine_init(rpcmachine, cob_dom, ndom, laddr, NULL/*reqh*/,
+				buffer_pool);
 	if (rc != 0)
 		goto cob_dom_fini;
 	
-	rpcmachine->cr_buffer_pool =  ndom->nd_app_pool;
-	tm			   = &rpcmachine->cr_tm;
+	tm = &rpcmachine->cr_tm;
 	
 	c2_net_tm_colour_set(tm, tm_colours++);
 
@@ -209,7 +217,7 @@ cob_dom_fini:
 	c2_cob_domain_fini(cob_dom);
 
 pool_fini:
-	c2_net_buffer_pool_cleanup(ndom);
+	c2_rpc_net_buffer_pool_cleanup(buffer_pool);
 
 dbenv_fini:
 	c2_dbenv_fini(dbenv);
@@ -224,7 +232,7 @@ static void c2t1fs_rpc_fini(void)
 	C2_ENTRY();
 
 	c2_rpcmachine_fini(&c2t1fs_globals.g_rpcmachine);
-	c2_net_buffer_pool_cleanup(&c2t1fs_globals.g_ndom);
+	c2_rpc_net_buffer_pool_cleanup(c2t1fs_globals.g_buffer_pool);
 	c2_cob_domain_fini(&c2t1fs_globals.g_cob_dom);
 	c2_dbenv_fini(&c2t1fs_globals.g_dbenv);
 
