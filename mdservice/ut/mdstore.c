@@ -53,6 +53,8 @@ static int db_reset(void)
         return rc;
 }
 
+#include "mdservice/ut/mdstore.h"
+
 static void test_mkfs(void)
 {
         struct c2_md_lustre_fid root;
@@ -68,7 +70,7 @@ static void test_mkfs(void)
         int                   rc;
         int                   fd;
 
-        fd = open("../../mdservice/ut/ops.dump", O_RDONLY);
+        fd = open(C2_MDSTORE_OPS_DUMP_PATH, O_RDONLY);
         C2_ASSERT(fd > 0);
         
         rc = read(fd, &root, sizeof(root));

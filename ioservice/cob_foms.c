@@ -22,6 +22,8 @@
 #include <config.h>
 #endif
 
+#include <sys/stat.h>    /* S_ISDIR */
+
 #include "lib/errno.h"
 #include "lib/memory.h"             /* c2_free(), C2_ALLOC_PTR() */
 #include "fid/fid.h"                /* c2_fid */
@@ -273,6 +275,7 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	struct c2_cob_nskey	 *nskey;
 	struct c2_cob_nsrec	  nsrec;
 	struct c2_cob_fabrec	  fabrec;
+	struct c2_cob_omgrec      omgrec;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(cc != NULL);
@@ -295,7 +298,14 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	fabrec.cfb_version.vn_lsn = c2_fol_lsn_allocate(fom->fo_fol);
 	fabrec.cfb_version.vn_vc = CC_COB_VERSION_INIT;
 
-	rc = c2_cob_create(cdom, nskey, &nsrec, &fabrec, NULL, &cob,
+        omgrec.cor_uid = 0;
+        omgrec.cor_gid = 0;
+        omgrec.cor_mode = S_IFDIR | 
+                          S_IRUSR | S_IWUSR | S_IXUSR | /* rwx for owner */
+                          S_IRGRP | S_IXGRP |           /* r-x for group */
+                          S_IROTH | S_IXOTH;            /* r-x for others */
+
+	rc = c2_cob_create(cdom, nskey, &nsrec, &fabrec, &omgrec, &cob,
 			   &fom->fo_tx.tx_dbtx);
 
 	/*

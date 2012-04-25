@@ -458,7 +458,7 @@ void c2_fol_rec_fini(struct c2_fol_rec *rec)
  */
 
 enum {
-	C2_FOL_REC_TYPE_MAX = 64
+	C2_FOL_REC_TYPE_MAX = 128
 };
 
 const static struct c2_fol_rec_type *rtypes[C2_FOL_REC_TYPE_MAX];

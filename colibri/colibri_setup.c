@@ -1110,7 +1110,7 @@ static int cs_start_request_handler(struct cs_reqh_context *rctx)
 		goto cleanup_db;
 
 	rctx->rc_cdom_id.id = ++cdom_id;
-	rc = c2_md_store_init(&rctx->rc_mdstore, &rctx->rc_cdom_id, &rctx->rc_db, 1);
+	rc = c2_md_store_init(&rctx->rc_mdstore, &rctx->rc_cdom_id, &rctx->rc_db, 0);
 	if (rc != 0)
 		goto cleanup_stob;
 

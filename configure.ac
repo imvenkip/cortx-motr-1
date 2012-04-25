@@ -662,6 +662,7 @@ AC_CONFIG_FILES([
                  mdstore/Makefile
                  mdservice/Makefile
                  mdservice/ut/Makefile
+                 mdservice/ut/mdstore.h
                  layout/Makefile
                  layout/ut/Makefile
                  lib/Makefile
