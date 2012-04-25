@@ -220,8 +220,8 @@ again:
 
                 c2_reqh_fop_handle(&reqh, fop, NULL);
                 
-                c2_md_lustre_fop_free(fop);
-                c2_fop_free(fop);
+//                c2_md_lustre_fop_free(fop);
+//                c2_fop_free(fop);
         }
         
         close(fd);
