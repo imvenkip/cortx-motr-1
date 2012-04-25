@@ -39,7 +39,6 @@ struct c2_md_lustre_logrec {
         uint32_t                 cr_mode;
         uint8_t                  cr_type;
         uint64_t                 cr_index;
-        uint64_t                 cr_prev;
         uint64_t                 cr_time;
         uint64_t                 cr_atime;
         uint64_t                 cr_ctime;
