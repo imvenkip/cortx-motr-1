@@ -127,68 +127,6 @@ static inline int accmode(uint32_t flags)
         return result;
 }
 
-/**
-   These two structures used for testing mdstore functionality. To do
-   so we use changelog dump created by dump.changelog program, parse
-   it, convert to fops and feed to test program in fops form.
-*/
-struct c2_md_lustre_fid {
-        uint64_t f_seq;
-        uint32_t f_oid;
-        uint32_t f_ver;
-};
-
-struct c2_md_lustre_logrec {
-        uint16_t                 cr_namelen;
-        uint16_t                 cr_flags;
-        uint16_t                 cr_valid;
-        uint32_t                 cr_mode;
-        uint8_t                  cr_type;
-        uint64_t                 cr_index;
-        uint64_t                 cr_prev;
-        uint64_t                 cr_time;
-        uint64_t                 cr_atime;
-        uint64_t                 cr_ctime;
-        uint64_t                 cr_mtime;
-        uint32_t                 cr_nlink;
-        uint32_t                 cr_rdev;
-        uint64_t                 cr_version;
-        uint64_t                 cr_size;
-        uint64_t                 cr_blocks;
-        uint64_t                 cr_blksize;
-        uint32_t                 cr_uid;
-        uint32_t                 cr_gid;
-        uint32_t                 cr_sid;
-        uint64_t                 cr_clnid;
-        struct c2_md_lustre_fid  cr_tfid;
-        struct c2_md_lustre_fid  cr_pfid;
-        char                     cr_name[0];
-} __attribute__((packed));
-
-enum c2_md_lustre_logrec_type {
-        RT_MARK     = 0,
-        RT_CREATE   = 1,
-        RT_MKDIR    = 2,
-        RT_HARDLINK = 3,
-        RT_SOFTLINK = 4,
-        RT_MKNOD    = 5,
-        RT_UNLINK   = 6,
-        RT_RMDIR    = 7,
-        RT_RENAME   = 8,
-        RT_EXT      = 9,
-        RT_OPEN     = 10,
-        RT_CLOSE    = 11,
-        RT_IOCTL    = 12,
-        RT_TRUNC    = 13,
-        RT_SETATTR  = 14,
-        RT_XATTR    = 15,
-        RT_HSM      = 16,
-        RT_MTIME    = 17,
-        RT_CTIME    = 18,
-        RT_ATIME    = 19,
-        RT_LAST
-};
-
 struct c2_dirent {
         uint32_t             d_namelen;
         uint32_t             d_reclen;

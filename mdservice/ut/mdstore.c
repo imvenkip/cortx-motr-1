@@ -35,6 +35,9 @@
 #include "mdstore/mdstore.h"
 #include "net/net.h"
 
+#include "mdservice/ut/mdstore.h"
+#include "mdservice/ut/lustre.h"
+
 static const char db_name[] = "ut-mdstore";
 static struct c2_cob_domain_id id = { 42 };
 
@@ -53,8 +56,6 @@ static int db_reset(void)
         C2_ASSERT(rc == 0);
         return rc;
 }
-
-#include "mdservice/ut/mdstore.h"
 
 static void test_mkfs(void)
 {
