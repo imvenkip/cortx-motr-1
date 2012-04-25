@@ -46,12 +46,28 @@ To summarise:
 
     * braces around single statement blocks can be optionally omitted;
 
-    * continuation line starts one column after the last unclosed
+    * Comment formatting follows Linux kernel style.
+
+    * Continuation line starts one column after the last unclosed
       opening parenthesis:
 
 	C2_ASSERT(ergo(service != NULL,
 		       c2_rpc_service_invariant(service) &&
 		       service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED));
+
+    * A new line should not start with an operator:
+
+	if (pl_oldrec->pr_let_id != stl->ls_enum->le_type->let_id ||
+            pl_oldrec->pr_attr.pa_N != pl->pl_attr.pa_N) {
+	}
+
+    * Align identifier names, not asterisks:
+
+	struct c2_layout_type {
+		const char                      *lt_name;
+		uint32_t                         lt_id;
+		const struct c2_layout_type_ops *lt_ops;
+	};
 
 In addition to the above syntactic conventions, Colibri code should
 try to adhere to some higher level idioms.

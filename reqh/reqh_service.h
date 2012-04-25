@@ -55,7 +55,7 @@
    First, we have to define service type operations,
    @code
    static const struct c2_reqh_service_type_ops dummy_service_type_ops = {
-        .rsto_service_alloc_and_init = dummy_service_alloc_init
+        .rsto_service_locate = dummy_service_locate
    };
    @endcode
 
@@ -98,33 +98,33 @@
 
    - unregister service using c2_reqh_service_type_unregister().
 
-   A typical service transitions through its phases as below,
+   A typical service transitions through its states as below,
    @verbatim
 
      cs_service_init()
           |
           v                 allocated
-     rsto_service_alloc_and_init()+---->C2_RSPH_INITIALISING
-                                            |rs_state = C2_RSS_UNDEFINED
+     rsto_service_locate()+------------>C2_RST_INITIALISING
+                                            |
                                             | c2_reqh_service_init()
                                             v
-                                        C2_RSPH_INITIALISED
-                                            | rs_state = C2_RSS_READY
+                                        C2_RST_INITIALISED
+                                            |
                                             | rso_start()
                     start up failed         v
-        +------------------------------+C2_RSPH_STARTING
+        +------------------------------+C2_RST_STARTING
         |              rc != 0              |
 	|                                   | c2_reqh_service_start()
         v                                   v
-   C2_RSPH_FAILED                          C2_RSPH_STARTED
-        |                                   | rs_state = C2_RSS_RUNNING
+   C2_RST_FAILED                          C2_RST_STARTED
+        |                                   |
         v                                   | rso_stop()
     rso_fini()                              v
-        ^                               C2_RSPH_STOPPING
+        ^                               C2_RST_STOPPING
         |                                   |
         |                                   | c2_reqh_service_stop()
-        |     c2_reqh_service_fini()        v rs_state = C2_RSS_STOPPED
-	+------------------------------+C2_RSPH_STOPPED
+        |     c2_reqh_service_fini()        v
+	+------------------------------+C2_RST_STOPPED
 
    @endverbatim
 
@@ -146,81 +146,52 @@ enum {
 /**
    Phases through which a service typically passes.
  */
-enum c2_reqh_service_phase {
+enum c2_reqh_service_state {
 	/**
-	   A service is in C2_RSPH_INITIALISING state when it is allocated
+	   A service is in C2_RST_INITIALISING state when it is created.
 	   in service specific start routine, once the service specific
-	   initialisation is complete, generic c2_reqh_service_init() is invoked.
-	 */
-	C2_RSPH_INITIALISING,
-	/**
-	   A service transitions to C2_RSPH_INITIALISED state, once it is
-	   successfully initialised by the generic service c2_reqh_service_init()
-	   routine.
+	   initialisation is complete, generic part of service is initialised.
 
-	   @see c2_reqh_service_type_ops
+           @see c2_reqh_service_locate()
 	 */
-	C2_RSPH_INITIALISED,
+	C2_RST_INITIALISING,
 	/**
-	   A service transitions to C2_RSPH_STARTING phase before service
-	   specific start routine is invoked from cs_service_init() while
-	   configuring a service during colibri setup.
+	   A service transitions to C2_RST_INITIALISED state, once it is
+	   successfully initialised.
 
-	   @see struct c2_reqh_service_ops
+	   @see c2_reqh_service_init()
 	 */
-	C2_RSPH_STARTING,
+	C2_RST_INITIALISED,
 	/**
-	   A service transitions to C2_RSPH_STARTED phase after completing
-	   generic part of service start up operations by c2_reqh_service_start().
-	   once service specific start up operations are completed, generic
-	   service start routine c2_reqh_service_start() is invoked.
+	   A service transitions to C2_RST_STARTING state before service
+	   specific start routine is invoked.
 
 	   @see c2_reqh_service_start()
 	 */
-	C2_RSPH_STARTED,
+	C2_RST_STARTING,
 	/**
-	   A service transitions to C2_RSPH_STOPPING phase before service
-	   specific stop routine is invoked from cs_service_fini().
-	   A service should be in C2_RSS_RUNNING state to proceed for
-	   finalisation.
+	   A service transitions to C2_RST_STARTED state after completing
+	   generic part of service start up operations by c2_reqh_service_start().
+	 */
+	C2_RST_STARTED,
+	/**
+	   A service transitions to C2_RST_STOPPING state before service specific
+           stop routine is invoked.
 
-	   @see c2_reqh_service_state
 	   @see c2_reqh_service_stop()
 	 */
-	C2_RSPH_STOPPING,
+	C2_RST_STOPPING,
 	/**
-	   A service is transitions to C2_RSPH_STOPPED phase once the
-	   generic service c2_reqh_service_stop() routine completes successfully.
+	   A service transitions to C2_RST_STOPPED state, once service specific
+           stop routine completes successfully and after it is unregistered from
+           the request handler.
 	 */
-	C2_RSPH_STOPPED,
+	C2_RST_STOPPED,
 	/**
-	   A service transitions to C2_RSPH_FAILED phase if the service start up
+	   A service transitions to C2_RST_FAILED state if the service start up
 	   fails.
 	 */
-	C2_RSPH_FAILED
-};
-
-/**
-   States a service can be throughout its lifecycle.
- */
-enum c2_reqh_service_state {
-	/**
-	   A service is in C2_RSS_UNDEFINED state after its allocation and before
-	   it is initialised.
-	 */
-	C2_RSS_UNDEFINED,
-	/**
-	   A service is in C2_RSS_READY state once it is successfully initialised.
-	 */
-	C2_RSS_READY,
-	/**
-	   A service is in C2_RSS_RUNNING state once it is successfully started.
-	 */
-	C2_RSS_RUNNING,
-	/**
-	   A service is in C2_RSS_STOPPED state once it is successfully stopped.
-	 */
-	C2_RSS_STOPPED
+	C2_RST_FAILED
 };
 
 /**
@@ -244,13 +215,6 @@ struct c2_reqh_service {
 	   This can be used to initialise service specific objects such as fops.
 	 */
 	struct c2_reqh_service_type      *rs_type;
-
-	/**
-	   Current phase of a service.
-
-	   @see c2_reqh_service_phase
-	 */
-	enum c2_reqh_service_phase        rs_phase;
 
 	/**
 	   Current state of a service.
@@ -298,10 +262,9 @@ struct c2_reqh_service_ops {
 	   Service startup can involve operations like initialising service
 	   specific fops, &tc which may fail due to whichever reason, in that
 	   case the service is finalised and appropriate error is returned.
-	   Once the service specific startup operations are performed, the
-	   service is added to the request handler's list of services by
-	   the generic c2_reqh_service_start() routine invoked after this
-	   routine returns successfully.
+           This is invoked from c2_reqh_service_start(). Once the service
+           specific startup operations are performed, the service is registered
+           with the request handler.
 
 	   @param service Service to be started
 
@@ -310,15 +273,13 @@ struct c2_reqh_service_ops {
 	int (*rso_start)(struct c2_reqh_service *service);
 
 	/**
-	   Performs services specific finalisation of objects.
+	   Performs service specific finalisation of objects.
 	   Once stopped, no incoming request related to this service
 	   on a node will be processed further.
-	   Stopping a service can involve operations like finalising
-	   service specific fops, &tc.
-	   Once the service specific objects are finalised, generic
-	   c2_reqh_service_stop() routine is invoked after this routine
-	   returns successfully, this removes the service from request
-	   handler's list of services.
+	   Stopping a service can involve operations like finalising service
+           specific fops, &tc. This is invoked from c2_reqh_service_stop().
+           Once the service specific objects are finalised, the service is
+           unregistered from request handler.
 
 	   @param service Service to be started
 
@@ -328,14 +289,12 @@ struct c2_reqh_service_ops {
 
 	/**
 	   Destroys a particular service.
-	   Firstly a generic c2_reqh_service_fini() is invoked, from
-	   colibri_setup service finalisation routine, which performs
-	   generic part of service finalisation and then follows the
-	   service specific finalisation.
+           This is invoked from c2_reqh_service_fini(). Initialy generic part
+           of the service is finalised, followed by the service specific
+           finalisation.
 
 	   @param service Service to be finalised
 
-	   @see cs_service_fini()
 	   @see c2_reqh_service_fini()
 	 */
 	void (*rso_fini)(struct c2_reqh_service *service);
@@ -346,20 +305,19 @@ struct c2_reqh_service_ops {
  */
 struct c2_reqh_service_type_ops {
 	/**
-	   Contructs a particular service.
-	   Allocates and initialises a service with the given service type and
-	   corresponding service operations vector. This is invoked during
-	   colibri startup to configure a particular service. Once the service
-	   specific initialisation is done, generic c2_reqh_service_init()
-	   routine is invoked after this routine returns successfully.
+	   Locates a particular service.
+	   Allocates and initialises a service for the given service type.
+	   This also initialises the corresponding service operations vector.
+           This is typically invoked  during colibri setup, but also can be
+           invoked later, in-order to configure a particular service. Once the
+           service specific initialisation is done, generic c2_reqh_service_init()
+           routine is invoked.
 
-	   @param service Service to be allocated and initialised
-	   @param stype Type of service to be initialised
-
-	   @see c2_reqh_service_init()
+	   @param stype Type of service to be located
+	   @param service successfully located service
 	 */
-	int (*rsto_service_alloc_and_init)(struct c2_reqh_service_type *stype,
-					struct c2_reqh_service **service);
+	int (*rsto_service_locate)(struct c2_reqh_service_type *stype,
+                                     struct c2_reqh_service **service);
 };
 
 /**
@@ -385,7 +343,22 @@ struct c2_reqh_service_type {
 };
 
 /**
-   Locates a particular type of service by traversing global list of service
+   Locates a particular type of service.
+   Invokes service type specific locate routine.
+
+   @param stype Type of service to be located
+   @param service out parameter containing located service
+
+   @pre service != NULL
+   @post c2_reqh_service_invariant(service)
+
+   @see struct c2_reqh_service_type_ops
+ */
+int c2_reqh_service_locate(struct c2_reqh_service_type *stype,
+                              struct c2_reqh_service **service);
+
+/**
+   Searches a particular type of service by traversing global list of service
    types maintained by request handler module.
 
    @param sname, name of the service to be searched in global list
@@ -399,25 +372,24 @@ struct c2_reqh_service_type *c2_reqh_service_type_find(const char *sname);
 
 /**
    Starts a particular service.
-   Registers a service with the request handler and transitions the service
-   into C2_RSPH_STARTED phase and changes service state to C2_RSS_RUNNING.
-   This is invoked after service specific start routine returns successfully.
+   Invokes service specific start routine, if service specific startup completes
+   Successfully then the service is registered with the request handler and
+   transitioned into C2_RST_STARTED state.
 
    @param service Service to be started
 
    @pre service != NULL
+   @post c2_reqh_service_invariant(service)
 
    @see struct c2_reqh_service_ops
    @see c2_service_init()
-
-   @post c2_reqh_service_invariant(service)
  */
 int c2_reqh_service_start(struct c2_reqh_service *service);
 
 /**
    Stops a particular service.
    Unregisters a service from the request handler and transitions service to
-   C2_RSPH_STOPPED phase and state is changed to C2_RSS_STOPPED.
+   C2_RST_STOPPED state.
    This is invoked after service specific stop routine returns successfully.
 
    @param service Service to be stopped
@@ -431,19 +403,17 @@ void c2_reqh_service_stop(struct c2_reqh_service *service);
 
 /**
    Performs generic part of service initialisation.
-   Transitions service into C2_RSPH_INITIALISED phase and changes service state to
-   C2_RSS_READY.
+   Transitions service into C2_RST_INITIALISED state
    This is invoked after the service specific init routine returns successfully.
 
    @param service service to be initialised
 
-   @pre service != NULL && reqh != NULL && service->rs_state == C2_RSS_UNDEFINED &&
-	service->rs_phase == C2_RSPH_INITIALISING
+   @pre service != NULL && reqh != NULL && service->rs_state == C2_RST_INITIALISING
 
    @see struct c2_reqh_service_type_ops
    @see cs_service_init()
  */
-int c2_reqh_service_init(struct c2_reqh_service *service, struct c2_reqh *reqh);
+void c2_reqh_service_init(struct c2_reqh_service *service, struct c2_reqh *reqh);
 
 /**
    Performs generic part of service finalisation.
@@ -451,8 +421,7 @@ int c2_reqh_service_init(struct c2_reqh_service *service, struct c2_reqh *reqh);
 
    @param service Service to be finalised
 
-   @pre service != NULL && service->rs_phase == C2_RSPH_STOPPED &&
-        service->rs_state == C2_RSS_STOPPED
+   @pre service != NULL && service->rs_state == C2_RST_STOPPED
 
    @see struct c2_reqh_service_ops
    @see cs_service_fini()
