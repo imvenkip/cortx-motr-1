@@ -1,0 +1,1 @@
+#define C2_MDSTORE_OPS_DUMP_PATH "@SRCDIR@/mdservice/ut/ops.dump"
