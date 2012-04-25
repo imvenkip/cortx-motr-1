@@ -733,11 +733,12 @@ static void cob_verify(struct c2_fom *fom, const bool exists)
 	struct c2_cob_domain *cobdom;
 	struct c2_cob_nskey  *nskey;
 	struct c2_dbenv	     *dbenv;
+	struct c2_fid         fid = {COB_TEST_ID, COB_TEST_ID};
 
-	cobdom = fom->fo_loc->fl_dom->fd_reqh->rh_cob_domain;
+	cobdom = &fom->fo_loc->fl_dom->fd_reqh->rh_mdstore->md_dom;
 	dbenv = fom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
 
-	c2_cob_nskey_make(&nskey, COB_TEST_ID, COB_TEST_ID, test_cobname);
+	c2_cob_make_nskey(&nskey, &fid, test_cobname, strlen(test_cobname));
 
 	C2_SET0(&tx);
 	rc = c2_db_tx_init(&tx, dbenv, 0);

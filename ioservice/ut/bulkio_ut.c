@@ -33,10 +33,16 @@ static void bulkio_fini();
 struct bulkio_params *bp;
 extern void bulkioapi_test(void);
 static int io_fop_server_write_fom_create(struct c2_fop *fop,
+                                          struct c2_fop_ctx *ctx, 
 					  struct c2_fom **m);
-static int ut_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **m);
-static int io_fop_server_read_fom_create(struct c2_fop *fop, struct c2_fom **m);
-static int io_fop_stob_create_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
+static int ut_io_fom_cob_rw_create(struct c2_fop *fop,
+                                   struct c2_fop_ctx *ctx, 
+                                   struct c2_fom **m);
+static int io_fop_server_read_fom_create(struct c2_fop *fop,
+                                         struct c2_fop_ctx *ctx, 
+                                         struct c2_fom **m);
+static int io_fop_stob_create_fom_create(struct c2_fop *fop,
+                                         struct c2_fop_ctx *ctx,
                                          struct c2_fom **m);
 static int check_write_fom_state_transition(struct c2_fom *fom);
 static int check_read_fom_state_transition(struct c2_fom *fom);
@@ -1169,12 +1175,13 @@ static struct c2_fom_ops bulkio_server_read_fom_ops = {
         .fo_service_name = c2_io_fom_cob_rw_service_name,
 };
 
-static int io_fop_stob_create_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
+static int io_fop_stob_create_fom_create(struct c2_fop *fop,
+                                         struct c2_fop_ctx *ctx,
                                          struct c2_fom **m)
 {
 	int rc;
 	struct c2_fom *fom;
-	rc = c2_io_fom_cob_rw_create(fop, &fom);
+	rc = c2_io_fom_cob_rw_create(fop, ctx, &fom);
         C2_UT_ASSERT(rc == 0);
 	fop->f_type->ft_fom_type = bulkio_stob_create_fom_type;
 	fom->fo_ops = &bulkio_stob_create_fom_ops;
@@ -1183,12 +1190,13 @@ static int io_fop_stob_create_fom_create(struct c2_fop *fop, struct c2_fop_ctx *
 	return rc;
 }
 
-static int io_fop_server_write_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
+static int io_fop_server_write_fom_create(struct c2_fop *fop,
+                                          struct c2_fop_ctx *ctx,
                                           struct c2_fom **m)
 {
 	int rc;
 	struct c2_fom *fom;
-	 rc = c2_io_fom_cob_rw_create(fop, &fom);
+	 rc = c2_io_fom_cob_rw_create(fop, ctx, &fom);
         C2_UT_ASSERT(rc == 0);
 	fop->f_type->ft_fom_type = bulkio_server_write_fom_type;
 	fom->fo_ops = &bulkio_server_write_fom_ops;
@@ -1200,7 +1208,8 @@ static int io_fop_server_write_fom_create(struct c2_fop *fop, struct c2_fop_ctx 
 /*
  * This creates FOM for ut.
  */
-static int ut_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
+static int ut_io_fom_cob_rw_create(struct c2_fop *fop,
+                                   struct c2_fop_ctx *ctx,
                                    struct c2_fom **m)
 {
 	int rc;
@@ -1209,7 +1218,7 @@ static int ut_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
          * Case : This tests the I/O FOM create api.
          *        It use real I/O FOP
          */
-	rc = c2_io_fom_cob_rw_create(fop, &fom);
+	rc = c2_io_fom_cob_rw_create(fop, ctx, &fom);
         C2_UT_ASSERT(rc == 0 &&
                      fom != NULL &&
                      fom->fo_rep_fop != NULL &&
@@ -1224,12 +1233,13 @@ static int ut_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
 	return rc;
 }
 
-static int io_fop_server_read_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
+static int io_fop_server_read_fom_create(struct c2_fop *fop,
+                                         struct c2_fop_ctx *ctx,
                                          struct c2_fom **m)
 {
 	int rc;
 	struct c2_fom *fom;
-	rc = c2_io_fom_cob_rw_create(fop, &fom);
+	rc = c2_io_fom_cob_rw_create(fop, ctx, &fom);
         C2_UT_ASSERT(rc == 0);
 	fop->f_type->ft_fom_type = bulkio_server_read_fom_type;
 	fom->fo_ops = &bulkio_server_read_fom_ops;

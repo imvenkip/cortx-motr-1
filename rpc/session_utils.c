@@ -119,8 +119,8 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	struct c2_cob_nsrec   nsrec;
 	struct c2_cob_fabrec  fabrec;
 	struct c2_cob        *cob;
-	uint64_t              pfid_hi;
-	uint64_t              pfid_lo;
+	struct c2_fid         pfid;
+	struct c2_uint128     stobid;
 	int                   rc;
 
 	C2_PRE(dom != NULL && name != NULL && out != NULL);
@@ -128,17 +128,18 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	*out = NULL;
 
 	if (pcob == NULL) {
-		pfid_hi = pfid_lo = 1;
+	        pfid.f_container = pfid.f_key = 1;
 	} else {
-		pfid_hi = COB_GET_PFID_HI(pcob);
-		pfid_lo = COB_GET_PFID_LO(pcob);
+	        pfid = pcob->co_nsrec.cnr_fid;
 	}
 
-	c2_cob_nskey_make(&key, pfid_hi, pfid_lo, name);
+	c2_cob_make_nskey(&key, &pfid, name, strlen(name));
 	if (key == NULL)
 		return -ENOMEM;
 
-	nsrec.cnr_stobid.si_bits = stob_id_alloc();
+        stobid = stob_id_alloc();
+	nsrec.cnr_fid.f_container = stobid.u_hi;
+	nsrec.cnr_fid.f_key = stobid.u_lo;
 	nsrec.cnr_nlink = 1;
 
 	/*
@@ -147,8 +148,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	fabrec.cfb_version.vn_lsn = C2_LSN_RESERVED_NR + 2;
 	fabrec.cfb_version.vn_vc = 0;
 
-	rc = c2_cob_create(dom, key, &nsrec, &fabrec, CA_NSKEY_FREE | CA_FABREC,
-				&cob, tx);
+	rc = c2_cob_create(dom, key, &nsrec, &fabrec, NULL, &cob, tx);
 	if (rc == 0)
 		*out = cob;
 
@@ -162,21 +162,19 @@ int c2_rpc_cob_lookup_helper(struct c2_cob_domain *dom,
 			     struct c2_db_tx      *tx)
 {
 	struct c2_cob_nskey *key = NULL;
-	uint64_t             pfid_hi;
-	uint64_t             pfid_lo;
+	struct c2_fid        pfid;
 	int                  rc;
 
 	C2_PRE(dom != NULL && name != NULL && out != NULL);
 
 	*out = NULL;
 	if (pcob == NULL) {
-		pfid_hi = pfid_lo = 1;
+	        pfid.f_container = pfid.f_key = 1;
 	} else {
-		pfid_hi = COB_GET_PFID_HI(pcob);
-		pfid_lo = COB_GET_PFID_LO(pcob);
+	        pfid = pcob->co_nsrec.cnr_fid;
 	}
 
-	c2_cob_nskey_make(&key, pfid_hi, pfid_lo, name);
+	c2_cob_make_nskey(&key, &pfid, name, strlen(name));
 	if (key == NULL)
 		return -ENOMEM;
 	rc = c2_cob_lookup(dom, key, CA_NSKEY_FREE | CA_FABREC, out, tx);

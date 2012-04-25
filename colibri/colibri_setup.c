@@ -42,6 +42,7 @@
 #include "rpc/rpc2.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
+#include "mdstore/mdstore.h"
 #include "colibri/colibri_setup.h"
 
 /**
@@ -172,8 +173,8 @@ struct cs_reqh_context {
 	/** Database used by the request handler */
 	struct c2_dbenv              rc_db;
 
-	/** Cob domain to be used by the request handler */
-	struct c2_cob_domain         rc_cdom;
+	/** Metadata store to be used by the request handler */
+	struct c2_md_store           rc_mdstore;
 
 	struct c2_cob_domain_id      rc_cdom_id;
 
@@ -647,7 +648,7 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 	if (rpcmach == NULL)
 		return -ENOMEM;
 
-	rc = c2_rpc_machine_init(rpcmach, reqh->rh_cob_domain, ndom, ep, reqh);
+	rc = c2_rpc_machine_init(rpcmach, &reqh->rh_mdstore->md_dom, ndom, ep, reqh);
 	if (rc != 0) {
 		c2_free(rpcmach);
 		return rc;
@@ -1104,19 +1105,18 @@ static int cs_start_request_handler(struct cs_reqh_context *rctx)
 		goto out;
 
 	rc = c2_cs_storage_init(rctx->rc_stype, rctx->rc_stpath,
-                                     &rctx->rc_stob, &rctx->rc_db);
+                                &rctx->rc_stob, &rctx->rc_db);
 	if (rc != 0)
 		goto cleanup_db;
 
 	rctx->rc_cdom_id.id = ++cdom_id;
-	rc = c2_cob_domain_init(&rctx->rc_cdom, &rctx->rc_db,
-					&rctx->rc_cdom_id);
+	rc = c2_md_store_init(&rctx->rc_mdstore, &rctx->rc_cdom_id, &rctx->rc_db, 1);
 	if (rc != 0)
 		goto cleanup_stob;
 
 	rc = c2_fol_init(&rctx->rc_fol, &rctx->rc_db);
 	if (rc != 0)
-		goto cleanup_cob;
+		goto cleanup_mdstore;
 
 	rstob = &rctx->rc_stob;
 	if (strcasecmp(rstob->rs_stype, cs_stobs[AD_STOB]) == 0)
@@ -1125,7 +1125,7 @@ static int cs_start_request_handler(struct cs_reqh_context *rctx)
 		sdom = rstob->rs_ldom;
 
 	rc = c2_reqh_init(&rctx->rc_reqh, NULL, sdom, &rctx->rc_db,
-					&rctx->rc_cdom, &rctx->rc_fol);
+			  &rctx->rc_mdstore, &rctx->rc_fol);
 	if (rc != 0)
 		goto cleanup_fol;
 
@@ -1134,8 +1134,8 @@ static int cs_start_request_handler(struct cs_reqh_context *rctx)
 
 cleanup_fol:
 	c2_fol_fini(&rctx->rc_fol);
-cleanup_cob:
-	c2_cob_domain_fini(&rctx->rc_cdom);
+cleanup_mdstore:
+	c2_md_store_fini(&rctx->rc_mdstore);
 cleanup_stob:
 	c2_cs_storage_fini(&rctx->rc_stob);
 cleanup_db:
@@ -1209,7 +1209,7 @@ static void cs_request_handler_stop(struct cs_reqh_context *rctx)
 	cs_rpc_machines_fini(reqh);
 	c2_reqh_fini(reqh);
 	c2_fol_fini(&rctx->rc_fol);
-	c2_cob_domain_fini(&rctx->rc_cdom);
+	c2_md_store_fini(&rctx->rc_mdstore);
 	c2_cs_storage_fini(&rctx->rc_stob);
 	c2_dbenv_fini(&rctx->rc_db);
 }

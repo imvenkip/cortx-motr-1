@@ -173,9 +173,6 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 			     struct c2_cob       **out,
 			     struct c2_db_tx      *tx);
 
-#define COB_GET_PFID_HI(cob)    (cob)->co_nsrec.cnr_stobid.si_bits.u_hi
-#define COB_GET_PFID_LO(cob)    (cob)->co_nsrec.cnr_stobid.si_bits.u_lo
-
 /**
    Lookup a cob named 'name' in parent cob @pcob. If found store reference
    in @out. If not found set *out to NULL. To lookup root cob, pcob can be

@@ -18,7 +18,12 @@
  * Original creation date: 11/17/2010
  */
 
-#include <string.h>         /* memcpy() */
+#ifdef __KERNEL__
+#include <linux/string.h>
+#else
+#include <string.h>
+#endif
+
 #include "lib/bitstring.h"
 #include "lib/arith.h"      /* C2_3WAY */
 #include "lib/memory.h"     /* c2_alloc() */

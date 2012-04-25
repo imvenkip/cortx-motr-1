@@ -36,7 +36,7 @@
 #include "fid/fid.h"
 #include "fop/fop.h"
 #include "cob/cob.h"
-#include "site/site.h"
+#include "reqh/reqh.h"
 
 #include "mdservice/md_fops_u.h"
 #include "mdservice/md_fops.h"
@@ -182,7 +182,6 @@ static int c2_md_create_fom_state(struct c2_fom *fom)
 {
         struct c2_cob_attr        attr;
         struct c2_fop_cob        *body;
-        struct c2_site           *site;
         struct c2_fop_create     *req;
         struct c2_fop_create_rep *rep;
         struct c2_fop            *fop;
@@ -190,7 +189,6 @@ static int c2_md_create_fom_state(struct c2_fom *fom)
         struct c2_fop_ctx        *ctx;
         struct c2_fid             pfid;
         struct c2_fid             tfid;
-        struct c2_service        *svc;
         int                       rc;
 
         if (fom->fo_phase < C2_FOPH_NR) {
@@ -208,9 +206,6 @@ static int c2_md_create_fom_state(struct c2_fom *fom)
 	
         ctx = fom->fo_fop_ctx;
         C2_ASSERT(ctx != NULL);
-
-        site = ctx->fc_site;
-        C2_ASSERT(site != NULL);
 
         body = &req->c_body;
         c2_md_fop_cob2attr(&attr, body);
@@ -224,13 +219,13 @@ static int c2_md_create_fom_state(struct c2_fom *fom)
         c2_md_make_fid(&pfid, &body->b_pfid);
         c2_md_make_fid(&tfid, &body->b_tfid);
 
-        rc = c2_md_create(site->s_mdstore, &pfid, &tfid,
+        rc = c2_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &pfid, &tfid,
                           &attr, &fom->fo_tx.tx_dbtx);
-        if (rc == 0) {
+/*        if (rc == 0) {
                 svc = fom->fo_fop_ctx->fc_service;
 	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
-	}
-	ctx->fc_retval = rc;
+	}*/
+	fom->fo_rc = rc;
         if (rc)
                 c2_fop_free(fop_rep);
 	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
@@ -240,7 +235,6 @@ static int c2_md_create_fom_state(struct c2_fom *fom)
 static int c2_md_link_fom_state(struct c2_fom *fom)
 {
         struct c2_fop_cob        *body;
-        struct c2_site           *site;
         struct c2_fop_link       *req;
         struct c2_fop_link_rep   *rep;
         struct c2_fop            *fop;
@@ -248,7 +242,6 @@ static int c2_md_link_fom_state(struct c2_fom *fom)
         struct c2_fop_ctx        *ctx;
         struct c2_fid             tfid;
         struct c2_fid             pfid;
-        struct c2_service        *svc;
         struct c2_cob_attr        attr;
         int                       rc;
 
@@ -268,9 +261,6 @@ static int c2_md_link_fom_state(struct c2_fom *fom)
         ctx = fom->fo_fop_ctx;
         C2_ASSERT(ctx != NULL);
 
-        site = ctx->fc_site;
-        C2_ASSERT(site != NULL);
-
         body = &req->l_body;
         c2_md_fop_cob2attr(&attr, body);
         attr.ca_name = req->l_name.s_buf;
@@ -279,13 +269,13 @@ static int c2_md_link_fom_state(struct c2_fom *fom)
         c2_md_make_fid(&pfid, &body->b_pfid);
         c2_md_make_fid(&tfid, &body->b_tfid);
 
-        rc = c2_md_create(site->s_mdstore, &pfid, &tfid,
+        rc = c2_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &pfid, &tfid,
                           &attr, &fom->fo_tx.tx_dbtx);
-        if (rc == 0) {
+/*        if (rc == 0) {
                 svc = fom->fo_fop_ctx->fc_service;
 	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
-	}
-	ctx->fc_retval = rc;
+	}*/
+	fom->fo_rc = rc;
         if (rc)
                 c2_fop_free(fop_rep);
 	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
@@ -296,7 +286,6 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
 {
         struct c2_cob_attr        attr;
         struct c2_fop_cob        *body;
-        struct c2_site           *site;
         struct c2_cob            *scob = NULL;
         struct c2_fop_unlink     *req;
         struct c2_fop_unlink_rep *rep;
@@ -305,7 +294,6 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
         struct c2_fop_ctx        *ctx;
         struct c2_fid             tfid;
         struct c2_fid             pfid;
-        struct c2_service        *svc;
         struct c2_db_tx          *tx;
         struct c2_md_store       *md;
         int                       rc;
@@ -326,10 +314,7 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
         ctx = fom->fo_fop_ctx;
         C2_ASSERT(ctx != NULL);
 
-        site = ctx->fc_site;
-        C2_ASSERT(site != NULL);
-
-        md = site->s_mdstore;
+        md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
         tx = &fom->fo_tx.tx_dbtx;
 
         body = &req->u_body;
@@ -352,12 +337,12 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
                 rc = c2_md_store_setattr(md, scob, &attr, tx);
         c2_cob_put(scob);
         
-        if (rc == 0) {
+/*        if (rc == 0) {
                 svc = fom->fo_fop_ctx->fc_service;
 	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
-	}
+	}*/
 out:
-	ctx->fc_retval = rc;
+	fom->fo_rc = rc;
         if (rc)
                 c2_fop_free(fop_rep);
 	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
@@ -406,7 +391,6 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
 {
         struct c2_fop_cob        *sbody;
         struct c2_fop_cob        *tbody;
-        struct c2_site           *site;
         struct c2_fop_rename     *req;
         struct c2_fop            *fop;
         struct c2_fop            *fop_rep;
@@ -419,7 +403,6 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
         struct c2_fid             pfid_src;
         struct c2_cob_attr        sattr;
         struct c2_cob_attr        tattr;
-        struct c2_service        *svc;
         struct c2_db_tx          *tx;
         struct c2_md_store       *md;
         int                       rc;
@@ -438,11 +421,8 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
         ctx = fom->fo_fop_ctx;
         C2_ASSERT(ctx != NULL);
 
-        site = ctx->fc_site;
-        C2_ASSERT(site != NULL);
-
         tx = &fom->fo_tx.tx_dbtx;
-        md = site->s_mdstore;
+        md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
         req = c2_fop_data(fop);
         sbody = &req->r_sbody;
@@ -480,12 +460,12 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
         }
         c2_cob_put(scob);
 out:
-        if (rc == 0) {
+/*        if (rc == 0) {
                 svc = fom->fo_fop_ctx->fc_service;
 	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
-	}
+	}*/
 
-	ctx->fc_retval = rc;
+	fom->fo_rc = rc;
         if (rc)
                 c2_fop_free(fop_rep);
 	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
@@ -495,7 +475,6 @@ out:
 static int c2_md_open_fom_state(struct c2_fom *fom)
 {
         struct c2_fop_cob        *body;
-        struct c2_site           *site;
         struct c2_cob            *cob;
         struct c2_fop_open       *req;
         struct c2_fop_open_rep   *rep;
@@ -503,7 +482,6 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
         struct c2_fop            *fop_rep;
         struct c2_fop_ctx        *ctx;
         struct c2_fid             fid;
-        struct c2_service        *svc;
         struct c2_cob_attr        attr;
         int                       rc;
 
@@ -523,21 +501,16 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
         ctx = fom->fo_fop_ctx;
         C2_ASSERT(ctx != NULL);
 
-        site = ctx->fc_site;
-        C2_ASSERT(site != NULL);
-
         body = &req->o_body;
         c2_md_fop_cob2attr(&attr, body);
 
         c2_md_make_fid(&fid, &body->b_tfid);
 
-        rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
-                                C2_MD_LOCATE_STORED,
-                                &fom->fo_tx.tx_dbtx);
+        rc = c2_md_store_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob, 
+                                C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
         if (rc == 0) {
-                rc = c2_md_store_open(site->s_mdstore, cob, 
-                                      body->b_flags, 
-                                      &fom->fo_tx.tx_dbtx);
+                rc = c2_md_store_open(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob, 
+                                      body->b_flags, &fom->fo_tx.tx_dbtx);
                 if (rc == 0 &&
                     (!(attr.ca_flags & C2_MD_NLINK) || attr.ca_nlink > 0)) {
                         /*
@@ -545,9 +518,8 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
                          * to store to db.
                          */
                         attr.ca_flags &= ~C2_MD_MODE;
-                        rc = c2_md_store_setattr(site->s_mdstore,
-                                                 cob, &attr, 
-                                                 &fom->fo_tx.tx_dbtx);
+                        rc = c2_md_store_setattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
+                                                 cob, &attr, &fom->fo_tx.tx_dbtx);
                 }
                 c2_cob_put(cob);
         } else if (rc == -ENOENT) {
@@ -560,12 +532,12 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
         } else if (rc)
                 goto out;
 
-        if (rc == 0) {
+        /*if (rc == 0) {
                 svc = fom->fo_fop_ctx->fc_service;
 	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
-	}
+	}*/
 out:
-	ctx->fc_retval = rc;
+	fom->fo_rc = rc;
         if (rc)
                 c2_fop_free(fop_rep);
 	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
@@ -575,7 +547,6 @@ out:
 static int c2_md_close_fom_state(struct c2_fom *fom)
 {
         struct c2_fop_cob        *body;
-        struct c2_site           *site;
         struct c2_cob            *cob;
         struct c2_fop_close      *req;
         struct c2_fop_close_rep  *rep;
@@ -583,7 +554,6 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
         struct c2_fop            *fop_rep;
         struct c2_fop_ctx        *ctx;
         struct c2_fid             fid;
-        struct c2_service        *svc;
         struct c2_cob_attr        attr;
         int                       rc;
 
@@ -603,9 +573,6 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
         ctx = fom->fo_fop_ctx;
         C2_ASSERT(ctx != NULL);
 
-        site = ctx->fc_site;
-        C2_ASSERT(site != NULL);
-
         body = &req->c_body;
         c2_md_fop_cob2attr(&attr, body);
 
@@ -617,13 +584,12 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
          * quite implemented and we lookup on main store to make
          * ut happy.
          */
-        rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
-                                C2_MD_LOCATE_STORED/*OPENED*/,
-                                &fom->fo_tx.tx_dbtx);
+        rc = c2_md_store_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob, 
+                                C2_MD_LOCATE_STORED/*OPENED*/, &fom->fo_tx.tx_dbtx);
         if (rc)
                 goto out;
 
-        rc = c2_md_store_close(site->s_mdstore, cob, 
+        rc = c2_md_store_close(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob, 
                                &fom->fo_tx.tx_dbtx);
         if (rc == 0 && 
             (!(attr.ca_flags & C2_MD_NLINK) || attr.ca_nlink > 0)) {
@@ -632,16 +598,16 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
                  * to store to db.
                  */
                 attr.ca_flags &= ~C2_MD_MODE;
-                rc = c2_md_store_setattr(site->s_mdstore, cob,
+                rc = c2_md_store_setattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob,
                                          &attr, &fom->fo_tx.tx_dbtx);
         }
         c2_cob_put(cob);
-        if (rc == 0) {
+        /*if (rc == 0) {
                 svc = fom->fo_fop_ctx->fc_service;
 	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
-	}
+	}*/
 out:
-	ctx->fc_retval = rc;
+	fom->fo_rc = rc;
         if (rc)
                 c2_fop_free(fop_rep);
 	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
@@ -652,7 +618,6 @@ static int c2_md_setattr_fom_state(struct c2_fom *fom)
 {
         struct c2_cob_attr             attr;
         struct c2_fop_cob             *body;
-        struct c2_site                *site;
         struct c2_cob                 *cob;
         struct c2_fop_setattr         *req;
         struct c2_fop_setattr_rep     *rep;
@@ -660,7 +625,6 @@ static int c2_md_setattr_fom_state(struct c2_fom *fom)
         struct c2_fop                 *fop_rep;
         struct c2_fop_ctx             *ctx;
         struct c2_fid                  fid;
-        struct c2_service             *svc;
         int                            rc;
 
         if (fom->fo_phase < C2_FOPH_NR) {
@@ -679,9 +643,6 @@ static int c2_md_setattr_fom_state(struct c2_fom *fom)
         ctx = fom->fo_fop_ctx;
         C2_ASSERT(ctx != NULL);
 
-        site = ctx->fc_site;
-        C2_ASSERT(site != NULL);
-
         body = &req->s_body;
         c2_md_fop_cob2attr(&attr, body);
 
@@ -692,22 +653,21 @@ static int c2_md_setattr_fom_state(struct c2_fom *fom)
          * an object in case there is no target yet. This is why
          * we return quickly if no object is found.
          */
-        rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
-                                C2_MD_LOCATE_STORED,
-                                &fom->fo_tx.tx_dbtx);
+        rc = c2_md_store_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob, 
+                                C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
         if (rc)
                 goto out;
 
-        rc = c2_md_store_setattr(site->s_mdstore, cob, &attr,
+        rc = c2_md_store_setattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob, &attr,
                                  &fom->fo_tx.tx_dbtx);
         c2_cob_put(cob);
 
-        if (rc == 0) {
+        /*if (rc == 0) {
                 svc = fom->fo_fop_ctx->fc_service;
 	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
-	}
+	}*/
 out:
-	ctx->fc_retval = rc;
+	fom->fo_rc = rc;
         if (rc)
                 c2_fop_free(fop_rep);
 	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
@@ -718,7 +678,6 @@ static int c2_md_getattr_fom_state(struct c2_fom *fom)
 {
         struct c2_cob_attr             attr;
         struct c2_fop_cob             *body;
-        struct c2_site                *site;
         struct c2_cob                 *cob;
         struct c2_fop_getattr         *req;
         struct c2_fop_getattr_rep     *rep;
@@ -726,7 +685,6 @@ static int c2_md_getattr_fom_state(struct c2_fom *fom)
         struct c2_fop                 *fop_rep;
         struct c2_fop_ctx             *ctx;
         struct c2_fid                  fid;
-        struct c2_service             *svc;
         int                            rc;
 
         if (fom->fo_phase < C2_FOPH_NR) {
@@ -746,27 +704,23 @@ static int c2_md_getattr_fom_state(struct c2_fom *fom)
         ctx = fom->fo_fop_ctx;
         C2_ASSERT(ctx != NULL);
 
-        site = ctx->fc_site;
-        C2_ASSERT(site != NULL);
-
         c2_md_make_fid(&fid, &body->b_tfid);
 
-        rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
-                                C2_MD_LOCATE_STORED,
-                                &fom->fo_tx.tx_dbtx);
+        rc = c2_md_store_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob, 
+                                C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
         if (rc)
                 goto out;
 
-        rc = c2_md_store_getattr(site->s_mdstore, cob, &attr,
+        rc = c2_md_store_getattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob, &attr,
                                  &fom->fo_tx.tx_dbtx);
         c2_cob_put(cob);
         if (rc == 0) {
                 c2_md_fop_attr2cob(&rep->g_body, &attr);
-                svc = fom->fo_fop_ctx->fc_service;
-	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
+                /*svc = fom->fo_fop_ctx->fc_service;
+	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);*/
 	}
 out:
-	ctx->fc_retval = rc;
+	fom->fo_rc = rc;
         if (rc)
                 c2_fop_free(fop_rep);
 	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
@@ -778,7 +732,6 @@ out:
 static int c2_md_readdir_fom_state(struct c2_fom *fom)
 {
         struct c2_fop_cob             *body;
-        struct c2_site                *site;
         struct c2_cob                 *cob;
         struct c2_fop_readdir         *req;
         struct c2_fop_readdir_rep     *rep;
@@ -786,7 +739,6 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
         struct c2_fop                 *fop_rep;
         struct c2_fop_ctx             *ctx;
         struct c2_fid                  fid;
-        struct c2_service             *svc;
         struct c2_rdpg                 rdpg;
         void                          *addr;
         int                            rc;
@@ -807,15 +759,12 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
         ctx = fom->fo_fop_ctx;
         C2_ASSERT(ctx != NULL);
 
-        site = ctx->fc_site;
-        C2_ASSERT(site != NULL);
         body = &req->r_body;
 
         c2_md_make_fid(&fid, &body->b_tfid);
 
-        rc = c2_md_store_locate(site->s_mdstore, &fid, &cob, 
-                                C2_MD_LOCATE_STORED,
-                                &fom->fo_tx.tx_dbtx);
+        rc = c2_md_store_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob, 
+                                C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
         if (rc)
                 goto out;
 
@@ -843,7 +792,7 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
         
         c2_buf_init(&rdpg.r_buf, addr, C2_MD_READDIR_BUF_ALLOC);
 
-        rc = c2_md_store_readdir(site->s_mdstore, cob, &rdpg,
+        rc = c2_md_store_readdir(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob, &rdpg,
                                  &fom->fo_tx.tx_dbtx);
         c2_bitstring_free(rdpg.r_pos);
         c2_cob_put(cob);
@@ -874,12 +823,12 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
         /*
          * Post reply in non-error cases.
          */
-        if (rc >= 0) {
+        /*if (rc >= 0) {
                 svc = fom->fo_fop_ctx->fc_service;
                 svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
-        }
+        }*/
 out:
-	ctx->fc_retval = rc;
+	fom->fo_rc = rc;
         if (rc < 0)
                 c2_fop_free(fop_rep);
 	fom->fo_phase = rc < 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
@@ -1008,7 +957,6 @@ int c2_md_req_fom_create(struct c2_fop *fop,
                          struct c2_fom **m)
 {
         struct c2_fom           *fom;
-        struct c2_site          *site;
         struct c2_fom_md        *fom_obj;
         struct c2_fop_type      *rep_fopt;
         struct c2_fop_create    *create;
@@ -1030,16 +978,13 @@ int c2_md_req_fom_create(struct c2_fop *fop,
         if (fom_obj == NULL)
                 return -ENOMEM;
         
-        site = ctx->fc_site;
-        C2_ASSERT(site != NULL);
-
         switch (fop->f_type->ft_rpc_item_type.rit_opcode) {
         case C2_MD_FOP_CREATE_OPCODE:
 		ops = &c2_md_fom_create_ops;
 		rep_fopt = &c2_fop_create_rep_fopt;
 
 		create = c2_fop_data(fop);
-		rc = c2_md_req_path_get(site->s_mdstore, 
+		rc = c2_md_req_path_get(ctx->fc_reqh->rh_mdstore, 
                                         c2_md_fid_get(&create->c_body.b_pfid),
                                         &create->c_path);
                 if (rc) {
@@ -1052,14 +997,14 @@ int c2_md_req_fom_create(struct c2_fop *fop,
 		rep_fopt = &c2_fop_link_rep_fopt;
 
 		link = c2_fop_data(fop);
-		rc = c2_md_req_path_get(site->s_mdstore, 
+		rc = c2_md_req_path_get(ctx->fc_reqh->rh_mdstore, 
                                         c2_md_fid_get(&link->l_body.b_pfid),
                                         &link->l_tpath);
                 if (rc) {
                         c2_free(fom_obj);
                         return rc;
                 }
-		rc = c2_md_req_path_get(site->s_mdstore, 
+		rc = c2_md_req_path_get(ctx->fc_reqh->rh_mdstore, 
                                         c2_md_fid_get(&link->l_body.b_tfid),
                                         &link->l_spath);
                 if (rc) {
@@ -1075,7 +1020,7 @@ int c2_md_req_fom_create(struct c2_fop *fop,
 		rep_fopt = &c2_fop_unlink_rep_fopt;
 
 		unlink = c2_fop_data(fop);
-		rc = c2_md_req_path_get(site->s_mdstore, 
+		rc = c2_md_req_path_get(ctx->fc_reqh->rh_mdstore, 
                                         c2_md_fid_get(&unlink->u_body.b_pfid),
                                         &unlink->u_path);
                 if (rc) {
@@ -1088,14 +1033,14 @@ int c2_md_req_fom_create(struct c2_fop *fop,
 		rep_fopt = &c2_fop_rename_rep_fopt;
 
 		rename = c2_fop_data(fop);
-		rc = c2_md_req_path_get(site->s_mdstore, 
+		rc = c2_md_req_path_get(ctx->fc_reqh->rh_mdstore, 
                                         c2_md_fid_get(&rename->r_sbody.b_pfid),
                                         &rename->r_spath);
                 if (rc) {
                         c2_free(fom_obj);
                         return rc;
                 }
-		rc = c2_md_req_path_get(site->s_mdstore, 
+		rc = c2_md_req_path_get(ctx->fc_reqh->rh_mdstore, 
                                         c2_md_fid_get(&rename->r_tbody.b_pfid),
                                         &rename->r_tpath);
                 if (rc) {
@@ -1111,7 +1056,7 @@ int c2_md_req_fom_create(struct c2_fop *fop,
 		rep_fopt = &c2_fop_open_rep_fopt;
 
 		open = c2_fop_data(fop);
-		rc = c2_md_req_path_get(site->s_mdstore, 
+		rc = c2_md_req_path_get(ctx->fc_reqh->rh_mdstore, 
                                         c2_md_fid_get(&open->o_body.b_tfid),
                                         &open->o_path);
                 if (rc) {
@@ -1124,7 +1069,7 @@ int c2_md_req_fom_create(struct c2_fop *fop,
 		rep_fopt = &c2_fop_close_rep_fopt;
 
 	        close = c2_fop_data(fop);
-		rc = c2_md_req_path_get(site->s_mdstore, 
+		rc = c2_md_req_path_get(ctx->fc_reqh->rh_mdstore, 
                                         c2_md_fid_get(&close->c_body.b_tfid),
                                         &close->c_path);
                 if (rc) {
@@ -1137,7 +1082,7 @@ int c2_md_req_fom_create(struct c2_fop *fop,
 		rep_fopt = &c2_fop_setattr_rep_fopt;
 
 		setattr = c2_fop_data(fop);
-		rc = c2_md_req_path_get(site->s_mdstore, 
+		rc = c2_md_req_path_get(ctx->fc_reqh->rh_mdstore, 
                                         c2_md_fid_get(&setattr->s_body.b_tfid),
                                         &setattr->s_path);
                 if (rc) {
@@ -1150,7 +1095,7 @@ int c2_md_req_fom_create(struct c2_fop *fop,
 		rep_fopt = &c2_fop_getattr_rep_fopt;
 
 		getattr = c2_fop_data(fop);
-		rc = c2_md_req_path_get(site->s_mdstore, 
+		rc = c2_md_req_path_get(ctx->fc_reqh->rh_mdstore, 
                                         c2_md_fid_get(&getattr->g_body.b_tfid),
                                         &getattr->g_path);
                 if (rc) {
@@ -1163,7 +1108,7 @@ int c2_md_req_fom_create(struct c2_fop *fop,
 		rep_fopt = &c2_fop_readdir_rep_fopt;
 
 		readdir = c2_fop_data(fop);
-		rc = c2_md_req_path_get(site->s_mdstore,
+		rc = c2_md_req_path_get(ctx->fc_reqh->rh_mdstore,
                                         c2_md_fid_get(&readdir->r_body.b_tfid),
                                         &readdir->r_path);
                 if (rc) {

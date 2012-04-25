@@ -22,8 +22,6 @@
 #  include <config.h>
 #endif
 
-#include <limits.h>
-
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/cdefs.h"
 #include "lib/arith.h"   /* C2_3WAY */
@@ -32,7 +30,7 @@
 #include "lib/memory.h"
 #include "lib/bitstring.h"
 
-#include "cob.h"
+#include "cob/cob.h"
 
 /**
    @addtogroup cob
@@ -111,16 +109,16 @@ void c2_cob_make_fabrec(struct c2_cob_fabrec **rech,
 
 int c2_cob_fabrec_size_max(void)
 {
-        return sizeof(struct c2_cob_fabrec) + NAME_MAX;
+        return sizeof(struct c2_cob_fabrec) + C2_COB_NAME_MAX;
 }
 
 void c2_cob_make_fabrec_max(struct c2_cob_fabrec **rech)
 {
         struct c2_cob_fabrec *rec;
         
-        rec = c2_alloc(sizeof(struct c2_cob_fabrec) + NAME_MAX);
+        rec = c2_alloc(sizeof(struct c2_cob_fabrec) + C2_COB_NAME_MAX);
         C2_ASSERT(rec != NULL);
-        rec->cfb_linklen = NAME_MAX;
+        rec->cfb_linklen = C2_COB_NAME_MAX;
         *rech = rec;
 }
 
@@ -135,7 +133,7 @@ void c2_cob_make_nskey_max(struct c2_cob_nskey **keyh,
 {
         struct c2_cob_nskey *key;
 
-        key = c2_alloc(sizeof(*key) + NAME_MAX);
+        key = c2_alloc(sizeof(*key) + C2_COB_NAME_MAX);
         key->cnk_pfid = *pfid;
         memcpy(c2_bitstring_buf_get(&key->cnk_name), name, namelen);
         c2_bitstring_len_set(&key->cnk_name, namelen);
@@ -149,7 +147,7 @@ void c2_cob_make_nskey_max(struct c2_cob_nskey **keyh,
  */
 int c2_cob_nskey_size_max(const struct c2_cob_nskey *cnk)
 {
-        return sizeof(*cnk) + NAME_MAX;
+        return sizeof(*cnk) + C2_COB_NAME_MAX;
 }
 
 /** 

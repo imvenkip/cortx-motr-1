@@ -75,18 +75,17 @@ struct c2_fop;
  */
 struct c2_fop_ctx {
         /**
+           Request handler for this fop
+        */
+        struct c2_reqh     *fc_reqh;
+        /**
            Service that fop is executed on behlf of.
         */
-	struct c2_service  *fc_service;
+        struct c2_service  *fc_service;
 	/**
 	   Fol that reqh uses.
 	*/
 	struct c2_fol      *fc_fol;
-	/**
-	   Site that fop is executed on behalf of. Site contains devices
-	   stack and allows accessing them from ->fop_execute().
-	*/
-        struct c2_site     *fc_site;
 	/**
 	   Service-dependent cookie identifying fop execution. Passed to
 	   c2_service_ops::so_reply_post() to post a reply.

@@ -32,7 +32,11 @@ struct c2_cob_oikey;
 
 struct c2_fom_md {
 	/** Generic c2_fom object. */
-        struct c2_fom                    fm_fom;
+        struct c2_fom        fm_fom;
+};
+
+enum c2_md_fom_phases {
+        C2_FOPH_MD_GENERIC = C2_FOPH_NR + 1
 };
 
 /**

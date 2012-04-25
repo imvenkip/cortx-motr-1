@@ -34,6 +34,7 @@
 #include "stob/stob.h"
 #include "dtm/verno.h"
 
+#define C2_COB_NAME_MAX 256
 
 /* import */
 struct c2_db_tx;

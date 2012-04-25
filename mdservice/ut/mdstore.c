@@ -31,7 +31,6 @@
 #include "fop/fop.h"
 #include "cob/cob.h"
 #include "reqh/reqh.h"
-#include "site/site.h"
 #include "mdstore/mdstore.h"
 #include "net/net.h"
 
@@ -41,26 +40,11 @@ static struct c2_cob_domain_id id = { 42 };
 static struct c2_dbenv       db;
 static struct c2_md_store    md;
 static struct c2_reqh        reqh;
-static struct c2_site        site;
 static struct c2_fol         fol;
-static struct c2_service     service;
 static int                   rc;
 
 int c2_md_lustre_fop_alloc(struct c2_fop **fop, void *data);
 void c2_md_lustre_fop_free(struct c2_fop *fop);
-
-static void reply_post(struct c2_service *service,
-	               struct c2_fop *fop, void *cookie)
-{
-	struct c2_fop **ret = cookie;
-
-	C2_ASSERT(*ret == NULL);
-	*ret = fop;
-}
-
-const struct c2_service_ops service_ops = {
-	.so_reply_post = reply_post
-};
 
 static int db_reset(void)
 {
@@ -84,7 +68,7 @@ static void test_mkfs(void)
         int                   rc;
         int                   fd;
 
-        fd = open("../../mdstore/ut/ops.dump", O_RDONLY);
+        fd = open("../../mdservice/ut/ops.dump", O_RDONLY);
         C2_ASSERT(fd > 0);
         
         rc = read(fd, &root, sizeof(root));
@@ -182,13 +166,7 @@ static void test_init(void)
         rc = c2_md_store_init(&md, &id, &db, 1);
 	C2_ASSERT(rc == 0);
         
-        rc = c2_site_init(&site, &md, NULL);
-	C2_ASSERT(rc == 0);
-
-        C2_SET0(&service);
-	service.s_ops = &service_ops;
-
-        rc = c2_reqh_init(&reqh, NULL, &fol, &site, &service);
+        rc = c2_reqh_init(&reqh, NULL, NULL, &db, &md, &fol);
 	C2_ASSERT(rc == 0);
 }
 
@@ -196,10 +174,10 @@ static void test_ops(void)
 {
         struct c2_md_lustre_logrec *rec;
         struct c2_md_lustre_fid root;
-        struct c2_fop *fop, *rep_fop;
+        struct c2_fop *fop;
         int fd, result, size;
         
-        fd = open("../../mdstore/ut/ops.dump", O_RDONLY);
+        fd = open("../../mdservice/ut/ops.dump", O_RDONLY);
         C2_ASSERT(fd > 0);
         
         result = read(fd, &root, sizeof(root));
@@ -233,13 +211,11 @@ again:
                         
                 C2_ASSERT(result == 0);
 
-                rep_fop = NULL;
-                result = c2_reqh_fop_handle(&reqh, fop, &rep_fop);
-                C2_UT_ASSERT(result == 0);
+                c2_reqh_fop_handle(&reqh, fop, NULL);
+//                C2_UT_ASSERT(result == 0);
                 
                 c2_md_lustre_fop_free(fop);
                 c2_fop_free(fop);
-                c2_fop_free(rep_fop);
         }
         
         close(fd);
@@ -248,14 +224,13 @@ again:
 static void test_fini(void)
 {
         c2_reqh_fini(&reqh);
-        c2_site_fini(&site);
         c2_md_store_fini(&md);
         c2_fol_fini(&fol);
         c2_dbenv_fini(&db);
 }
 
-const struct c2_test_suite mdstore_ut = {
-	.ts_name = "mdstore-ut",
+const struct c2_test_suite mdservice_ut = {
+	.ts_name = "mdservice-ut",
 	.ts_init = db_reset,
 	/* .ts_fini = db_reset, */
 	.ts_tests = {

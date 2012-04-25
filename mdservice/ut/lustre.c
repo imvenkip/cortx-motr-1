@@ -291,8 +291,8 @@ void c2_md_lustre_fop_free(struct c2_fop *fop)
         struct c2_fop_close     *close;
         struct c2_fop_readdir   *readdir;
 
-        switch (fop->f_type->ft_code) {
-        case C2_FOP_CREATE:
+        switch (fop->f_type->ft_rpc_item_type.rit_opcode) {
+        case C2_MD_FOP_CREATE_OPCODE:
                 create = c2_fop_data(fop);
                 if (create->c_name.s_len != 0)
                         c2_free(create->c_name.s_buf);
@@ -301,7 +301,7 @@ void c2_md_lustre_fop_free(struct c2_fop *fop)
                 if (create->c_path.s_len != 0)
                         c2_free(create->c_path.s_buf);
                 break;
-        case C2_FOP_LINK:
+        case C2_MD_FOP_LINK_OPCODE:
                 link = c2_fop_data(fop);
                 if (link->l_name.s_len != 0)
                         c2_free(link->l_name.s_buf);
@@ -310,14 +310,14 @@ void c2_md_lustre_fop_free(struct c2_fop *fop)
                 if (link->l_tpath.s_len != 0)
                         c2_free(link->l_tpath.s_buf);
                 break;
-        case C2_FOP_UNLINK:
+        case C2_MD_FOP_UNLINK_OPCODE:
                 unlink = c2_fop_data(fop);
                 if (unlink->u_name.s_len != 0)
                         c2_free(unlink->u_name.s_buf);
                 if (unlink->u_path.s_len != 0)
                         c2_free(unlink->u_path.s_buf);
                 break;
-        case C2_FOP_RENAME:
+        case C2_MD_FOP_RENAME_OPCODE:
                 rename = c2_fop_data(fop);
                 if (rename->r_sname.s_len != 0)
                         c2_free(rename->r_sname.s_buf);
@@ -328,27 +328,27 @@ void c2_md_lustre_fop_free(struct c2_fop *fop)
                 if (rename->r_tpath.s_len != 0)
                         c2_free(rename->r_tpath.s_buf);
                 break;
-        case C2_FOP_SETATTR:
+        case C2_MD_FOP_SETATTR_OPCODE:
                 setattr = c2_fop_data(fop);
                 if (setattr->s_path.s_len != 0)
                         c2_free(setattr->s_path.s_buf);
                 break;
-        case C2_FOP_GETATTR:
+        case C2_MD_FOP_GETATTR_OPCODE:
                 getattr = c2_fop_data(fop);
                 if (getattr->g_path.s_len != 0)
                         c2_free(getattr->g_path.s_buf);
                 break;
-        case C2_FOP_OPEN:
+        case C2_MD_FOP_OPEN_OPCODE:
                 open = c2_fop_data(fop);
                 if (open->o_path.s_len != 0)
                         c2_free(open->o_path.s_buf);
                 break;
-        case C2_FOP_CLOSE:
+        case C2_MD_FOP_CLOSE_OPCODE:
                 close = c2_fop_data(fop);
                 if (close->c_path.s_len != 0)
                         c2_free(close->c_path.s_buf);
                 break;
-        case C2_FOP_READDIR:
+        case C2_MD_FOP_READDIR_OPCODE:
                 readdir = c2_fop_data(fop);
                 if (readdir->r_path.s_len != 0)
                         c2_free(readdir->r_path.s_buf);

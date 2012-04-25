@@ -201,7 +201,7 @@ struct c2_rdpg {
 };
 
 /**
-   Init mdstore and get it ready to work. Ifinit_root == !!1
+   Init mdstore and get it ready to work. If init_root == !!1
    then root cob is initialized.
 */
 int c2_md_store_init(struct c2_md_store         *md, 

@@ -29,6 +29,7 @@
 #include "ioservice/io_fops.h"      /* c2_cobfop_common_get */
 #include "ioservice/cob_foms.h"     /* c2_fom_cob_create, c2_fom_cob_delete */
 #include "ioservice/io_fops.h"      /* c2_is_cob_create_fop() */
+#include "mdstore/mdstore.h"
 #include "reqh/reqh.h"              /* c2_fom_state_generic() */
 #include "colibri/colibri_setup.h"  /* c2_cs_ctx_get(), c2_cobfid_setup_get() */
 
@@ -276,7 +277,7 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	C2_PRE(fom != NULL);
 	C2_PRE(cc != NULL);
 
-	cdom = fom->fo_loc->fl_dom->fd_reqh->rh_cob_domain;
+	cdom = &fom->fo_loc->fl_dom->fd_reqh->rh_mdstore->md_dom;
 	C2_ASSERT(cdom != NULL);
 	fop = c2_fop_data(fom->fo_fop);
 
@@ -427,7 +428,7 @@ static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 	C2_PRE(fom != NULL);
 	C2_PRE(cd != NULL);
 
-	cdom = fom->fo_loc->fl_dom->fd_reqh->rh_cob_domain;
+	cdom = &fom->fo_loc->fl_dom->fd_reqh->rh_mdstore->md_dom;
 	C2_ASSERT(cdom != NULL);
 
         c2_cob_make_oikey(&oikey, (struct c2_fid *)&cd->fco_stobid, 0);
