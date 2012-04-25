@@ -23,7 +23,7 @@ EXTRA_CFLAGS    = -DHAVE_CONFIG_H -I. -I$(CORE_SRCDIR) @KCFLAGS@
 
 dirs  = addb addb/linux_kernel c2t1fs/linux_kernel cob colibri db \
         db/linux_kernel dtm fid fol fop ioservice ioservice/ut    \
-	layout lib lib/linux_kernel lib/ut net net/bulk_emulation \
+	layout layout/ut lib lib/linux_kernel lib/ut net net/bulk_emulation \
         net/bulk_emulation/ut net/ksunrpc net/ut pool rpc rpc/ut  \
         sm sns stob ut xcode xcode/ut
 
@@ -70,6 +70,8 @@ layout_SOURCES                  := layout.c pdclust.c composite.c list_enum.c \
                                    linear_enum.c
 layout_HEADERS                  := layout.h layout_internal.h pdclust.h \
                                    composite.h list_enum.h linear_enum.h
+
+layout_ut_SOURCES               := layout.c
 
 lib_SOURCES                     := bitstring.c vec.c list.c queue.c refs.c    \
                                    time.c bitmap.c chan.c misc.c buf.c cond.c \

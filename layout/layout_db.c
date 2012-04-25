@@ -397,7 +397,7 @@ static int l_key_cmp(struct c2_table *table,
 	const uint64_t *lid0 = key0;
 	const uint64_t *lid1 = key1;
 
-	return C2_3WAY(*lid0, *lid1);;
+	return C2_3WAY(*lid0, *lid1);
 }
 
 /**
@@ -624,10 +624,8 @@ void c2_layout_domain_fini(struct c2_layout_domain *dom)
 	C2_LEAVE();
 }
 
-
-
 /**
- * Initializes layout schema - creates the layouts table.
+ * Initializes the layout schema object - creates the layouts table.
  * @pre dbenv Caller should have performed c2_dbenv_init() on dbenv.
  */
 int c2_layout_schema_init(struct c2_layout_schema *schema,
@@ -661,7 +659,7 @@ int c2_layout_schema_init(struct c2_layout_schema *schema,
 		c2_mutex_fini(&schema->ls_lock);
 	}
 
-	/* Store pointer to schema in the domain object. */
+	/* Store pointer to the schema object, in the domain object. */
 	dom->ld_schema = schema;
 
 	C2_POST(schema_invariant(schema));

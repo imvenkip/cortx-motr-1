@@ -71,6 +71,23 @@ extern const struct c2_layout_enum_type c2_list_enum_type;
 
 /** @} end group list_enum */
 
+/**
+ * Following structure is part of the internal implementation. It is required to
+ * be accessed by the UT as well.
+ * Structure used to store cob entries inline into the layouts table - maximum
+ * upto LDB_MAX_INLINE_COB_ENTRIES number of those.
+ */
+struct cob_entries_header {
+	/** Total number of COB Ids for the specific layout. */
+	uint32_t  ces_nr;
+
+	/**
+	 * Payload storing list of cob ids (struct c2_fid), max upto
+	 * LDB_MAX_INLINE_COB_ENTRIES number of those.
+	 */
+	char      ces_cobs[0];
+};
+
 /* __COLIBRI_LAYOUT_LIST_ENUM_H__ */
 #endif
 

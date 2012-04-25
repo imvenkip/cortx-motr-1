@@ -54,21 +54,6 @@ static const struct c2_bob_type list_enum_bob = {
 
 C2_BOB_DEFINE(static, &list_enum_bob, c2_layout_list_enum);
 
-/**
- * Structure used to store cob entries inline into the layouts table - maximum
- * upto LDB_MAX_INLINE_COB_ENTRIES number of those.
- */
-struct cob_entries_header {
-	/** Total number of COB Ids for the specific layout. */
-	uint32_t  ces_nr;
-
-	/**
-	 * Payload storing list of cob ids (struct c2_fid), max upto
-	 * LDB_MAX_INLINE_COB_ENTRIES number of those.
-	 */
-	char      ces_cobs[0];
-};
-
 struct list_schema_data {
 	/** Table to store COB lists for all the layouts with LIST enum type. */
 	struct c2_table  lsd_cob_lists;

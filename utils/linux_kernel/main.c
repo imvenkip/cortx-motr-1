@@ -39,6 +39,7 @@ extern const struct c2_test_suite buffer_pool_ut;
 extern const struct c2_test_suite xcode_ut;
 extern const struct c2_test_suite bulkio_client_ut;
 extern const struct c2_test_suite rpc_service_ut;
+extern const struct c2_test_suite layout_ut;
 
 static struct c2_thread ut_thread;
 
@@ -56,6 +57,7 @@ static void run_kernel_ut(int ignored)
 	c2_ut_add(&buffer_pool_ut);
 	c2_ut_add(&xcode_ut);
 	c2_ut_add(&rpc_service_ut);
+	c2_ut_add(&layout_ut);
 	c2_ut_run();
 	c2_uts_fini();
 }

@@ -28,26 +28,31 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h" /* C2_LOG */
 
+#include "fid/fid.h"   /* c2_fid_set() */
 #include "pool/pool.h" /* c2_pool_init() */
 #include "layout/layout_internal.h" /* DEFAULT_REF_COUNT */
 #include "layout/layout.h"
-#include "layout/pdclust.h"
 #include "layout/layout_db.h"
-#include "layout/layout_db.c" /* recsize_get() */
+#include "layout/pdclust.h"
 #include "layout/list_enum.h"
-#include "layout/list_enum.c" /* cob_entries_header */
 #include "layout/linear_enum.h"
 
+#ifndef __KERNEL__
+#include "layout/layout_db.c" /* recsize_get() */
+static struct c2_dbenv         dbenv;
 static const char              db_name[] = "ut-layout";
+#endif
+
 static struct c2_layout_domain domain;
 static struct c2_layout_schema schema;
-static struct c2_dbenv         dbenv;
 static struct c2_pool          pool;
-static int                     rc;
 enum c2_addb_ev_level          orig_addb_level;
+static int                     rc;
 
 enum {
+#ifndef __KERNEL__
 	DBFLAGS                  = 0,
+#endif
 	DEFAULT_POOL_ID          = 1,
 	POOL_WIDTH               = 200,
 	LIST_ENUM_ID             = 0x4C495354, /* "LIST" */
@@ -57,25 +62,274 @@ enum {
 	ADDITIONAL_BYTES_NONE    = 0,
 	ADDITIONAL_BYTES_DEFAULT = 2048,
 	ONLY_INLINE_TEST         = true,
-	EXISTING_TEST            = 1,
-	LOOKUP_TEST              = 1,
-	DUPLICATE_TEST           = 1,
-	LAYOUT_DESTROY           = 1
+	EXISTING_TEST            = true,
+	LOOKUP_TEST              = true,
+	DUPLICATE_TEST           = true,
+	LAYOUT_DESTROY           = true
 };
 
 extern const struct c2_layout_type c2_pdclust_layout_type;
-
 extern const struct c2_layout_enum_type c2_list_enum_type;
 extern const struct c2_layout_enum_type c2_linear_enum_type;
 
+#ifdef __KERNEL__
+/* Fake version of schema_invariant(). */
+static int fake_schema_invariant(const struct c2_layout_schema *schema)
+{
+	return schema != NULL && schema->ls_domain != NULL &&
+		schema->ls_dbenv == NULL;
+}
+
+/* Fake version of c2_layout_domain_init(), for the kernel UT. */
+static int fake_layout_domain_init(struct c2_layout_domain *dom)
+{
+	C2_ASSERT(dom != NULL);
+
+	C2_SET0(dom);
+	c2_mutex_init(&dom->ld_lock);
+	C2_ASSERT(dom->ld_schema == NULL);
+
+	return 0;
+}
+
+/* Fake version of c2_layout_domain_fini(), for the kernel UT. */
+static int fake_layout_domain_fini(struct c2_layout_domain *dom)
+{
+	uint32_t i;
+
+	C2_ASSERT(dom != NULL);
+
+	/*
+	 * Verify that the schema object associated with this domain has been
+	 * finalized prior to this routine being invoked.
+	 */
+	C2_ASSERT(dom->ld_schema == NULL);
+
+	/* Verify that all the layout types were unregistered. */
+	for (i = 0; i < ARRAY_SIZE(dom->ld_type); ++i)
+		C2_ASSERT(dom->ld_type[i] == NULL);
+
+	/* Verify that all the enum types were unregistered. */
+	for (i = 0; i < ARRAY_SIZE(dom->ld_enum); ++i)
+		C2_ASSERT(dom->ld_enum[i] == NULL);
+
+	c2_mutex_fini(&dom->ld_lock);
+
+	return 0;
+}
+
+/* Fake version of c2_layout_schema_init(), for the kernel UT. */
+static int fake_layout_schema_init(struct c2_layout_schema *schema,
+				   struct c2_layout_domain *dom,
+				   struct c2_dbenv *dbenv)
+{
+	C2_ASSERT(schema != NULL);
+	C2_ASSERT(dom != NULL);
+	C2_ASSERT(dbenv == NULL);
+
+	C2_SET0(schema);
+	schema->ls_domain = dom;
+
+	/* Store pointer to the schema object, in the domain object. */
+	dom->ld_schema = schema;
+
+	C2_ASSERT(fake_schema_invariant(schema));
+	return 0;
+}
+
+/* Fake version of c2_layout_schema_fini(), for the kernel UT. */
+static void fake_layout_schema_fini(struct c2_layout_schema *schema)
+{
+	C2_ASSERT(fake_schema_invariant(schema));
+
+	schema->ls_domain->ld_schema = NULL;
+	schema->ls_domain = NULL;
+}
+
+/*
+ * Fake version of the local function max_recsize_update(),
+ * for the kernel UT.
+ */
+static void fake_max_recsize_update(struct c2_layout_domain *dom)
+{
+	uint32_t    i;
+	c2_bcount_t recsize;
+	c2_bcount_t max_recsize = 0;
+
+	C2_PRE(domain_invariant(dom));
+
+	/*
+	 * Iterate over all the layout types to find maximum possible recsize.
+	 */
+	for (i = 0; i < ARRAY_SIZE(dom->ld_type); ++i) {
+		if (dom->ld_type[i] == NULL)
+			continue;
+
+		recsize = dom->ld_type[i]->lt_ops->lto_max_recsize(dom);
+		max_recsize = max64u(max_recsize, recsize);
+	}
+
+	dom->ld_schema->ls_max_recsize =  sizeof(struct c2_layout_rec) +
+					  max_recsize;
+}
+
+/* Fake version of c2_layout_type_register(), for the kernel UT. */
+static int fake_layout_type_register(struct c2_layout_domain *dom,
+				     const struct c2_layout_type *lt)
+{
+	C2_ASSERT(domain_invariant(dom));
+	C2_ASSERT(lt != NULL);
+	C2_ASSERT(IS_IN_ARRAY(lt->lt_id, dom->ld_type));
+
+	c2_mutex_lock(&dom->ld_lock);
+
+	C2_ASSERT(dom->ld_type[lt->lt_id] == NULL);
+	C2_ASSERT(lt->lt_ops != NULL);
+
+	dom->ld_type[lt->lt_id] = (struct c2_layout_type *)lt;
+
+	/* Get the first reference on this layout type. */
+	C2_ASSERT(dom->ld_type_ref_count[lt->lt_id] == 0);
+	C2_CNT_INC(dom->ld_type_ref_count[lt->lt_id]);
+
+	fake_max_recsize_update(dom);
+
+	c2_mutex_unlock(&dom->ld_lock);
+
+	return 0;
+}
+
+/* Fake version of c2_layout_type_unregister(), for the kernel UT. */
+static void fake_layout_type_unregister(struct c2_layout_domain *dom,
+					const struct c2_layout_type *lt)
+{
+	C2_ASSERT(domain_invariant(dom));
+	C2_ASSERT(lt != NULL);
+	C2_ASSERT(dom->ld_type[lt->lt_id] == lt);
+
+	c2_mutex_lock(&dom->ld_lock);
+
+	fake_max_recsize_update(dom);
+
+	/* Release the last reference on this layout type. */
+	C2_ASSERT(dom->ld_type_ref_count[lt->lt_id] == 1);
+	C2_CNT_DEC(dom->ld_type_ref_count[lt->lt_id]);
+
+	dom->ld_type[lt->lt_id] = NULL;
+	c2_mutex_unlock(&dom->ld_lock);
+}
+
+/* Fake version of c2_layout_enum_type_register(), for the kernel UT. */
+static int fake_layout_enum_type_register(struct c2_layout_domain *dom,
+					  const struct c2_layout_enum_type *let)
+{
+	C2_ASSERT(domain_invariant(dom));
+	C2_ASSERT(let != NULL);
+	C2_ASSERT(IS_IN_ARRAY(let->let_id, dom->ld_enum));
+
+	c2_mutex_lock(&dom->ld_lock);
+
+	C2_ASSERT(dom->ld_enum[let->let_id] == NULL);
+	C2_ASSERT(let->let_ops != NULL);
+
+	dom->ld_enum[let->let_id] = (struct c2_layout_enum_type *)let;
+
+	/* Get the first reference on this enum type. */
+	C2_CNT_INC(dom->ld_enum_ref_count[let->let_id]);
+	C2_ASSERT(dom->ld_enum_ref_count[let->let_id] == DEFAULT_REF_COUNT);
+
+	fake_max_recsize_update(dom);
+
+	c2_mutex_unlock(&dom->ld_lock);
+
+	return 0;
+}
+
+/* Fake version of c2_layout_enum_type_unregister(), for the kernel UT. */
+static void fake_layout_enum_type_unregister(struct c2_layout_domain *dom,
+					  const struct c2_layout_enum_type *let)
+{
+	C2_ASSERT(domain_invariant(dom));
+	C2_ASSERT(let != NULL);
+	C2_ASSERT(dom->ld_enum[let->let_id] == let);
+
+	c2_mutex_lock(&dom->ld_lock);
+
+	fake_max_recsize_update(dom);
+
+	/* Release the last reference on this enum type. */
+	C2_ASSERT(dom->ld_enum_ref_count[let->let_id] == DEFAULT_REF_COUNT);
+	C2_CNT_DEC(dom->ld_enum_ref_count[let->let_id]);
+
+	dom->ld_enum[let->let_id] = NULL;
+	c2_mutex_unlock(&dom->ld_lock);
+}
+
+/* Fake version of c2_layout_register(), for the kernel UT. */
+static int fake_layout_register(struct c2_layout_domain *dom)
+{
+	int rc;
+
+	C2_ASSERT(domain_invariant(dom));
+
+	rc = fake_layout_type_register(dom, &c2_pdclust_layout_type);
+	if (rc != 0)
+		return rc;
+
+	rc = fake_layout_enum_type_register(dom, &c2_list_enum_type);
+	if (rc != 0)
+		return rc;
+
+	rc = fake_layout_enum_type_register(dom, &c2_linear_enum_type);
+	return rc;
+}
+
+/* Fake version of c2_layout_unregister(), for the kernel UT. */
+static void fake_layout_unregister(struct c2_layout_domain *dom)
+{
+	C2_ASSERT(domain_invariant(dom));
+
+	fake_layout_enum_type_unregister(dom, &c2_list_enum_type);
+	fake_layout_enum_type_unregister(dom, &c2_linear_enum_type);
+
+	fake_layout_type_unregister(dom, &c2_pdclust_layout_type);
+}
+#endif
+
+/* init routine for the layout-ut. */
 static int test_init(void)
 {
-	c2_ut_db_reset(db_name);
-
 	/*
 	 * Note: In test_init() and test_fini(), need to use C2_ASSERT()
 	 * as against C2_UT_ASSERT().
 	 */
+
+	/*
+	 * Store the original addb level before changing it and change it to
+	 * AEL_WARN.
+	 * Note: This is a provision to avoid recompiling the whole ADDB module,
+	 * when interested in ADDB messages only for LAYOUT module.
+	 * Just changing the level to AEL_NONE here and recompiling the LAYOUT
+	 * module serves the purpose in that case.
+	 */
+	orig_addb_level = c2_addb_choose_default_level_console(AEL_WARN);
+
+#ifdef __KERNEL__
+/* Intialize the domain. */
+	rc = fake_layout_domain_init(&domain);
+	C2_ASSERT(rc == 0);
+
+	/* Initialize the schema. */
+	rc = fake_layout_schema_init(&schema, &domain, NULL);
+	C2_ASSERT(rc == 0);
+	C2_ASSERT(schema.ls_domain == &domain);
+
+	/* Register all the available layout types and enum types. */
+	rc = fake_layout_register(&domain);
+	C2_ASSERT(rc == 0);
+
+#else
+	c2_ut_db_reset(db_name);
 
 	/* Intialize the domain. */
 	rc = c2_layout_domain_init(&domain);
@@ -89,19 +343,10 @@ static int test_init(void)
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(schema.ls_domain == &domain);
 
-	/*
-	 * Store the original addb level before changing it and change it to
-	 * AEL_WARN.
-	 * Note: This is a provision to avoid recompiling the whole ADDB module,
-	 * when interested in ADDB messages only for LAYOUT module.
-	 * Just changing the level to AEL_NONE here and recompiling the LAYOUT
-	 * module serves the purpose in that case.
-	 */
-	orig_addb_level = c2_addb_choose_default_level_console(AEL_WARN);
-
 	/* Register all the available layout types and enum types. */
 	rc = c2_layout_register(&domain);
-	C2_ASSERT(rc == 0 || rc == -EEXIST);
+	C2_ASSERT(rc == 0);
+#endif
 
 	/* Intialize the pool. */
 	rc = c2_pool_init(&pool, DEFAULT_POOL_ID, POOL_WIDTH);
@@ -110,234 +355,26 @@ static int test_init(void)
 	return rc;
 }
 
+/* fini routine for the layout-ut. */
 static int test_fini(void)
 {
 	c2_pool_fini(&pool);
 
+#ifdef __KERNEL__
+	fake_layout_unregister(&domain);
+	fake_layout_schema_fini(&schema);
+	fake_layout_domain_fini(&domain);
+#else
 	c2_layout_unregister(&domain);
+	c2_layout_schema_fini(&schema);
+	c2_dbenv_fini(&dbenv);
+	c2_layout_domain_fini(&domain);
+#endif
 
 	/* Restore the original addb level. */
 	c2_addb_choose_default_level_console(orig_addb_level);
 
-	c2_layout_schema_fini(&schema);
-
-	c2_dbenv_fini(&dbenv);
-
-	c2_layout_domain_fini(&domain);
-
 	return 0;
-}
-
-static void test_domain_init_fini(void)
-{
-	struct c2_layout_domain t_domain;
-
-	/* Initialize the domain. */
-	rc = c2_layout_domain_init(&t_domain);
-	C2_UT_ASSERT(rc == 0);
-
-	/* Finalize the domain. */
-	c2_layout_domain_fini(&t_domain);
-}
-
-static void test_schema_init_fini(void)
-{
-	const char              t_db_name[] = "t-layout";
-	struct c2_layout_domain t_domain;
-	struct c2_layout_schema t_schema;
-	struct c2_dbenv         t_dbenv;
-
-	C2_ENTRY();
-
-	/* Initialize the domain. */
-	rc = c2_layout_domain_init(&t_domain);
-	C2_UT_ASSERT(rc == 0);
-
-	rc = c2_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
-	C2_UT_ASSERT(rc == 0);
-
-	/* Initialize the schema. */
-	rc = c2_layout_schema_init(&t_schema, &t_domain, &t_dbenv);
-	C2_UT_ASSERT(rc == 0);
-
-	/* Finalize the schema. */
-	c2_layout_schema_fini(&t_schema);
-
-	/* Should be able to initialize the schema again after finalizing it. */
-	rc = c2_layout_schema_init(&t_schema, &t_domain, &t_dbenv);
-	C2_UT_ASSERT(rc == 0);
-
-	/* Finalize the schema. */
-	c2_layout_schema_fini(&t_schema);
-
-	c2_dbenv_fini(&t_dbenv);
-
-	/* Finalize the domain. */
-	c2_layout_domain_fini(&t_domain);
-
-	C2_LEAVE();
-}
-
-static int t_register(struct c2_layout_schema *schema,
-		      const struct c2_layout_type *lt)
-{
-	return 0;
-}
-
-static void t_unregister(struct c2_layout_schema *schema,
-			 const struct c2_layout_type *lt)
-{
-}
-
-static c2_bcount_t t_max_recsize(struct c2_layout_domain *dom)
-{
-	return 0;
-}
-
-static const struct c2_layout_type_ops test_layout_type_ops = {
-	.lto_register    = t_register,
-	.lto_unregister  = t_unregister,
-	.lto_max_recsize = t_max_recsize,
-	.lto_recsize     = NULL,
-	.lto_decode      = NULL,
-	.lto_encode      = NULL
-};
-
-const struct c2_layout_type test_layout_type = {
-	.lt_name     = "test",
-	.lt_id       = 2,
-	.lt_ops      = &test_layout_type_ops
-};
-
-static void test_type_reg_unreg(void)
-{
-	C2_ENTRY();
-
-	/* Register a layout type. */
-	rc = c2_layout_type_register(&domain, &test_layout_type);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(domain.ld_type[test_layout_type.lt_id] ==
-		     &test_layout_type);
-
-	/* Unregister it. */
-	c2_layout_type_unregister(&domain, &test_layout_type);
-	C2_UT_ASSERT(domain.ld_type[test_layout_type.lt_id] == NULL);
-
-	C2_LEAVE();
-}
-
-static int t_enum_register(struct c2_layout_schema *schema,
-			   const struct c2_layout_enum_type *et)
-{
-	return 0;
-}
-
-static void t_enum_unregister(struct c2_layout_schema *schema,
-			      const struct c2_layout_enum_type *et)
-{
-}
-
-static c2_bcount_t t_enum_max_recsize()
-{
-	return 0;
-}
-
-static const struct c2_layout_enum_type_ops test_enum_ops = {
-	.leto_register    = t_enum_register,
-	.leto_unregister  = t_enum_unregister,
-	.leto_max_recsize = t_enum_max_recsize,
-	.leto_recsize     = NULL,
-	.leto_decode      = NULL,
-	.leto_encode      = NULL
-};
-
-const struct c2_layout_enum_type test_enum_type = {
-	.let_name = "test",
-	.let_id   = 2,
-	.let_ops  = &test_enum_ops
-};
-
-static void test_etype_reg_unreg(void)
-{
-	C2_ENTRY();
-
-	/* Register a layout enum type. */
-	rc = c2_layout_enum_type_register(&domain, &test_enum_type);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(domain.ld_enum[test_enum_type.let_id] ==
-		     &test_enum_type);
-
-	/* Unregister it. */
-	c2_layout_enum_type_unregister(&domain, &test_enum_type);
-	C2_UT_ASSERT(domain.ld_enum[test_enum_type.let_id] == NULL);
-
-	C2_LEAVE();
-}
-
-static void test_reg_unreg(void)
-{
-	const char              t_db_name[] = "t-layout";
-	struct c2_layout_domain t_domain;
-	struct c2_layout_schema t_schema;
-	struct c2_dbenv         t_dbenv;
-
-	C2_ENTRY();
-
-	/* Initialize the domain. */
-	rc = c2_layout_domain_init(&t_domain);
-	C2_UT_ASSERT(rc == 0);
-
-	rc = c2_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
-	C2_UT_ASSERT(rc == 0);
-
-	/* Initialize the schema. */
-	rc = c2_layout_schema_init(&t_schema, &t_domain, &t_dbenv);
-	C2_UT_ASSERT(rc == 0);
-
-	/* Register all the available layout types and enum types. */
-	rc = c2_layout_register(&t_domain);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(t_domain.ld_enum[c2_list_enum_type.let_id] ==
-		     &c2_list_enum_type);
-	C2_UT_ASSERT(t_domain.ld_enum[c2_linear_enum_type.let_id] ==
-		     &c2_linear_enum_type);
-	C2_UT_ASSERT(t_domain.ld_type[c2_pdclust_layout_type.lt_id] ==
-		     &c2_pdclust_layout_type);
-
-	/* Unregister all the registered layout and enum types. */
-	c2_layout_unregister(&t_domain);
-	C2_UT_ASSERT(t_domain.ld_enum[c2_list_enum_type.let_id] == NULL);
-	C2_UT_ASSERT(t_domain.ld_enum[c2_linear_enum_type.let_id] == NULL);
-	C2_UT_ASSERT(t_domain.ld_type[c2_pdclust_layout_type.lt_id] == NULL);
-
-	/*
-	 * Should be able to register all the available layout types and enum
-	 * types, again after unregistering those.
-	 */
-	rc = c2_layout_register(&t_domain);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(t_domain.ld_enum[c2_list_enum_type.let_id] ==
-		     &c2_list_enum_type);
-	C2_UT_ASSERT(t_domain.ld_enum[c2_linear_enum_type.let_id] ==
-		     &c2_linear_enum_type);
-	C2_UT_ASSERT(t_domain.ld_type[c2_pdclust_layout_type.lt_id] ==
-		     &c2_pdclust_layout_type);
-
-	/* Unregister all the registered layout and enum types. */
-	c2_layout_unregister(&t_domain);
-	C2_UT_ASSERT(t_domain.ld_enum[c2_list_enum_type.let_id] == NULL);
-	C2_UT_ASSERT(t_domain.ld_enum[c2_linear_enum_type.let_id] == NULL);
-	C2_UT_ASSERT(t_domain.ld_type[c2_pdclust_layout_type.lt_id] == NULL);
-
-	/* Finalize the schema. */
-	c2_layout_schema_fini(&t_schema);
-
-	c2_dbenv_fini(&t_dbenv);
-
-	/* Finalize the domain. */
-	c2_layout_domain_fini(&t_domain);
-
-	C2_LEAVE();
 }
 
 /* Builds part of the buffer representing generic part of the layout object. */
@@ -518,7 +555,7 @@ static void layout_finalize(struct c2_layout *l, uint64_t lid)
 {
 	C2_UT_ASSERT(l != NULL);
 
-	/* Enum object is destroyed internally by lo_fini(). */
+	/* Enum object is finalized internally by lo_fini(). */
 	l->l_ops->lo_fini(l, &domain);
 }
 
@@ -1334,7 +1371,7 @@ static void test_encode_decode(void)
 }
 
 /* Tests the API c2_layout_max_recsize(). */
-static void test_max_recsize()
+static void test_max_recsize(void)
 {
 	c2_bcount_t max_size_from_api;
 	c2_bcount_t max_size_calculated;
@@ -1354,119 +1391,6 @@ static void test_max_recsize()
 
 	/* Compare the two sizes. */
 	C2_UT_ASSERT(max_size_from_api == max_size_calculated);
-}
-
-/*
- * Calculates the recsize by considering the sizes of the internal data
- * structures and their values, as applicable. Then verifies that the recsize
- * provided as an argument matches the calcualted one.
- */
-static void pdclust_recsize_verify(uint32_t enum_id,
-				   struct c2_layout *l,
-				   c2_bcount_t recsize_to_verify)
-{
-	struct c2_pdclust_layout     *pl;
-	struct c2_layout_list_enum   *list_enum;
-	c2_bcount_t                   recsize;
-
-	C2_UT_ASSERT(l != NULL);
-	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
-	C2_UT_ASSERT(l->l_type == &c2_pdclust_layout_type);
-
-	pl = container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
-
-	/* Account for the enum type specific recsize. */
-	if (enum_id == LIST_ENUM_ID) {
-		list_enum = container_of(pl->pl_base.ls_enum,
-					 struct c2_layout_list_enum, lle_base);
-		if (list_enum->lle_nr < LDB_MAX_INLINE_COB_ENTRIES)
-			recsize = sizeof(struct cob_entries_header) +
-				  list_enum->lle_nr * sizeof(struct c2_fid);
-		else
-			recsize = sizeof(struct cob_entries_header) +
-				  LDB_MAX_INLINE_COB_ENTRIES *
-				  sizeof(struct c2_fid);
-	} else
-		recsize = sizeof(struct c2_layout_linear_attr);
-
-	/*
-	 * Account for the recsize for the generic part of the layout object
-	 * and for the PDCLUST layout type specific part of it.
-	 */
-	recsize = sizeof(struct c2_layout_rec) +
-		  sizeof(struct c2_layout_pdclust_rec) + recsize;
-
-	/* Compare the two sizes. */
-	C2_UT_ASSERT(recsize == recsize_to_verify);
-}
-
-/* Tests the internal function recsize_get(), for the PDCLUST layout type. */
-static int test_recsize_pdclust(uint32_t enum_id, uint64_t lid,
-				bool only_inline_test)
-{
-	struct c2_pdclust_layout     *pl = NULL;
-	struct c2_uint128             seed;
-	uint32_t                      nr;
-	struct c2_layout_list_enum   *list_enum = NULL;
-	struct c2_layout_linear_enum *lin_enum = NULL;
-	c2_bcount_t                   recsize;
-
-	C2_ENTRY("lid %llu", (unsigned long long)lid);
-	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
-
-	c2_uint128_init(&seed, "recsizepdclustla");
-
-	/* Build a layout object. */
-	if (enum_id == LIST_ENUM_ID) {
-		nr = only_inline_test ? 10 : 1200;
-		rc = pdclust_layout_build(LIST_ENUM_ID, lid,
-					  60, 6, 4096, &seed,
-					  nr, A_NONE, B_NONE,
-					  &pl, &list_enum, NULL);
-	} else {
-		nr = 1111;
-		rc = pdclust_layout_build(LINEAR_ENUM_ID, lid,
-					  60, 6, 4096, &seed,
-					  nr, 10, 20,
-					  &pl, NULL, &lin_enum);
-	}
-	C2_UT_ASSERT(rc == 0);
-
-	/* Obtain the recsize by using the internal function recsize_get(). */
-	recsize = recsize_get(&domain, &pl->pl_base.ls_base);
-
-	/* Verify the recsize returned by recsize_get(). */
-	pdclust_recsize_verify(enum_id, &pl->pl_base.ls_base, recsize);
-
-	layout_finalize(&pl->pl_base.ls_base, lid);
-
-	C2_LEAVE();
-	return rc;
-}
-
-/* Tests the internal function recsize_get(). */
-static void test_recsize()
-{
-	uint64_t lid;
-	int      rc;
-
-	/*
-	 * recsize_get() for PDCLUST layout type and LIST enumeration type,
-	 * with only inline entries.
-	 */
-	lid = 5001;
-	rc = test_recsize_pdclust(LIST_ENUM_ID, lid, ONLY_INLINE_TEST);
-	C2_UT_ASSERT(rc == 0);
-
-	/* recsize_get() for PDCLUST layout type and LIST enumeration type. */
-	lid = 5002;
-	rc = test_recsize_pdclust(LIST_ENUM_ID, lid, !ONLY_INLINE_TEST);
-	C2_UT_ASSERT(rc == 0);
-
-	/* recsize_get() for PDCLUST layout type and LINEAR enumeration type. */
-	lid = 5003;
-	rc = test_recsize_pdclust(LINEAR_ENUM_ID, lid, !ONLY_INLINE_TEST);
-	C2_UT_ASSERT(rc == 0);
 }
 
 /*
@@ -1536,7 +1460,7 @@ static void test_ref_get_put(void)
 	 * Reference get and put operations for PDCLUST layout type and LIST
 	 * enumeration type.
 	 */
-	lid = 6001;
+	lid = 5001;
 	rc = test_ref_get_put_pdclust(LIST_ENUM_ID, lid);
 	C2_UT_ASSERT(rc == 0);
 
@@ -1544,7 +1468,7 @@ static void test_ref_get_put(void)
 	 * Reference get and put operations for PDCLUST layout type and LINEAR
 	 * enumeration type.
 	 */
-	lid = 6002;
+	lid = 5002;
 	rc = test_ref_get_put_pdclust(LINEAR_ENUM_ID, lid);
 	C2_UT_ASSERT(rc == 0);
 }
@@ -1661,7 +1585,7 @@ static void test_enum_operations(void)
 	 * with only inline entries.
 	 * And then verify its enum ops.
 	 */
-	lid = 11001;
+	lid = 6001;
 	rc = test_enum_ops_pdclust(LIST_ENUM_ID, lid, ONLY_INLINE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
@@ -1669,7 +1593,7 @@ static void test_enum_operations(void)
 	 * Decode a layout with PDCLUST layout type and LIST enum type.
 	 * And then verify its enum ops.
 	 */
-	lid = 11002;
+	lid = 6002;
 	rc = test_enum_ops_pdclust(LIST_ENUM_ID, lid, !ONLY_INLINE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
@@ -1677,8 +1601,334 @@ static void test_enum_operations(void)
 	 * Decode a layout with PDCLUST layout type and LINEAR enum type.
 	 * And then verify its enum ops.
 	 */
-	lid = 11003;
+	lid = 6003;
 	rc = test_enum_ops_pdclust(LINEAR_ENUM_ID, lid, !ONLY_INLINE_TEST);
+	C2_UT_ASSERT(rc == 0);
+}
+
+#ifndef __KERNEL__
+static void test_domain_init_fini(void)
+{
+	struct c2_layout_domain t_domain;
+
+	/* Initialize the domain. */
+	rc = c2_layout_domain_init(&t_domain);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Finalize the domain. */
+	c2_layout_domain_fini(&t_domain);
+}
+
+static void test_schema_init_fini(void)
+{
+	const char              t_db_name[] = "t-layout";
+	struct c2_layout_domain t_domain;
+	struct c2_layout_schema t_schema;
+	struct c2_dbenv         t_dbenv;
+
+	C2_ENTRY();
+
+	/* Initialize the domain. */
+	rc = c2_layout_domain_init(&t_domain);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Initialize the schema. */
+	rc = c2_layout_schema_init(&t_schema, &t_domain, &t_dbenv);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Finalize the schema. */
+	c2_layout_schema_fini(&t_schema);
+
+	/* Should be able to initialize the schema again after finalizing it. */
+	rc = c2_layout_schema_init(&t_schema, &t_domain, &t_dbenv);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Finalize the schema. */
+	c2_layout_schema_fini(&t_schema);
+
+	c2_dbenv_fini(&t_dbenv);
+
+	/* Finalize the domain. */
+	c2_layout_domain_fini(&t_domain);
+
+	C2_LEAVE();
+}
+
+static int t_register(struct c2_layout_schema *schema,
+		      const struct c2_layout_type *lt)
+{
+	return 0;
+}
+
+static void t_unregister(struct c2_layout_schema *schema,
+			 const struct c2_layout_type *lt)
+{
+}
+
+static c2_bcount_t t_max_recsize(struct c2_layout_domain *dom)
+{
+	return 0;
+}
+
+static const struct c2_layout_type_ops test_layout_type_ops = {
+	.lto_register    = t_register,
+	.lto_unregister  = t_unregister,
+	.lto_max_recsize = t_max_recsize,
+	.lto_recsize     = NULL,
+	.lto_decode      = NULL,
+	.lto_encode      = NULL
+};
+
+const struct c2_layout_type test_layout_type = {
+	.lt_name     = "test",
+	.lt_id       = 2,
+	.lt_ops      = &test_layout_type_ops
+};
+
+static void test_type_reg_unreg(void)
+{
+	C2_ENTRY();
+
+	/* Register a layout type. */
+	rc = c2_layout_type_register(&domain, &test_layout_type);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(domain.ld_type[test_layout_type.lt_id] ==
+		     &test_layout_type);
+
+	/* Unregister it. */
+	c2_layout_type_unregister(&domain, &test_layout_type);
+	C2_UT_ASSERT(domain.ld_type[test_layout_type.lt_id] == NULL);
+
+	C2_LEAVE();
+}
+
+static int t_enum_register(struct c2_layout_schema *schema,
+			   const struct c2_layout_enum_type *et)
+{
+	return 0;
+}
+
+static void t_enum_unregister(struct c2_layout_schema *schema,
+			      const struct c2_layout_enum_type *et)
+{
+}
+
+static c2_bcount_t t_enum_max_recsize(void)
+{
+	return 0;
+}
+
+static const struct c2_layout_enum_type_ops test_enum_ops = {
+	.leto_register    = t_enum_register,
+	.leto_unregister  = t_enum_unregister,
+	.leto_max_recsize = t_enum_max_recsize,
+	.leto_recsize     = NULL,
+	.leto_decode      = NULL,
+	.leto_encode      = NULL
+};
+
+const struct c2_layout_enum_type test_enum_type = {
+	.let_name = "test",
+	.let_id   = 2,
+	.let_ops  = &test_enum_ops
+};
+
+static void test_etype_reg_unreg(void)
+{
+	C2_ENTRY();
+
+	/* Register a layout enum type. */
+	rc = c2_layout_enum_type_register(&domain, &test_enum_type);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(domain.ld_enum[test_enum_type.let_id] ==
+		     &test_enum_type);
+
+	/* Unregister it. */
+	c2_layout_enum_type_unregister(&domain, &test_enum_type);
+	C2_UT_ASSERT(domain.ld_enum[test_enum_type.let_id] == NULL);
+
+	C2_LEAVE();
+}
+
+static void test_reg_unreg(void)
+{
+	const char              t_db_name[] = "t-layout";
+	struct c2_layout_domain t_domain;
+	struct c2_layout_schema t_schema;
+	struct c2_dbenv         t_dbenv;
+
+	C2_ENTRY();
+
+	/* Initialize the domain. */
+	rc = c2_layout_domain_init(&t_domain);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Initialize the schema. */
+	rc = c2_layout_schema_init(&t_schema, &t_domain, &t_dbenv);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Register all the available layout types and enum types. */
+	rc = c2_layout_register(&t_domain);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(t_domain.ld_enum[c2_list_enum_type.let_id] ==
+		     &c2_list_enum_type);
+	C2_UT_ASSERT(t_domain.ld_enum[c2_linear_enum_type.let_id] ==
+		     &c2_linear_enum_type);
+	C2_UT_ASSERT(t_domain.ld_type[c2_pdclust_layout_type.lt_id] ==
+		     &c2_pdclust_layout_type);
+
+	/* Unregister all the registered layout and enum types. */
+	c2_layout_unregister(&t_domain);
+	C2_UT_ASSERT(t_domain.ld_enum[c2_list_enum_type.let_id] == NULL);
+	C2_UT_ASSERT(t_domain.ld_enum[c2_linear_enum_type.let_id] == NULL);
+	C2_UT_ASSERT(t_domain.ld_type[c2_pdclust_layout_type.lt_id] == NULL);
+
+	/*
+	 * Should be able to register all the available layout types and enum
+	 * types, again after unregistering those.
+	 */
+	rc = c2_layout_register(&t_domain);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(t_domain.ld_enum[c2_list_enum_type.let_id] ==
+		     &c2_list_enum_type);
+	C2_UT_ASSERT(t_domain.ld_enum[c2_linear_enum_type.let_id] ==
+		     &c2_linear_enum_type);
+	C2_UT_ASSERT(t_domain.ld_type[c2_pdclust_layout_type.lt_id] ==
+		     &c2_pdclust_layout_type);
+
+	/* Unregister all the registered layout and enum types. */
+	c2_layout_unregister(&t_domain);
+	C2_UT_ASSERT(t_domain.ld_enum[c2_list_enum_type.let_id] == NULL);
+	C2_UT_ASSERT(t_domain.ld_enum[c2_linear_enum_type.let_id] == NULL);
+	C2_UT_ASSERT(t_domain.ld_type[c2_pdclust_layout_type.lt_id] == NULL);
+
+	/* Finalize the schema. */
+	c2_layout_schema_fini(&t_schema);
+
+	c2_dbenv_fini(&t_dbenv);
+
+	/* Finalize the domain. */
+	c2_layout_domain_fini(&t_domain);
+
+	C2_LEAVE();
+}
+
+/*
+ * Calculates the recsize by considering the sizes of the internal data
+ * structures and their values, as applicable. Then verifies that the recsize
+ * provided as an argument matches the calcualted one.
+ */
+static void pdclust_recsize_verify(uint32_t enum_id,
+				   struct c2_layout *l,
+				   c2_bcount_t recsize_to_verify)
+{
+	struct c2_pdclust_layout     *pl;
+	struct c2_layout_list_enum   *list_enum;
+	c2_bcount_t                   recsize;
+
+	C2_UT_ASSERT(l != NULL);
+	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+	C2_UT_ASSERT(l->l_type == &c2_pdclust_layout_type);
+
+	pl = container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
+
+	/* Account for the enum type specific recsize. */
+	if (enum_id == LIST_ENUM_ID) {
+		list_enum = container_of(pl->pl_base.ls_enum,
+					 struct c2_layout_list_enum, lle_base);
+		if (list_enum->lle_nr < LDB_MAX_INLINE_COB_ENTRIES)
+			recsize = sizeof(struct cob_entries_header) +
+				  list_enum->lle_nr * sizeof(struct c2_fid);
+		else
+			recsize = sizeof(struct cob_entries_header) +
+				  LDB_MAX_INLINE_COB_ENTRIES *
+				  sizeof(struct c2_fid);
+	} else
+		recsize = sizeof(struct c2_layout_linear_attr);
+
+	/*
+	 * Account for the recsize for the generic part of the layout object
+	 * and for the PDCLUST layout type specific part of it.
+	 */
+	recsize = sizeof(struct c2_layout_rec) +
+		  sizeof(struct c2_layout_pdclust_rec) + recsize;
+
+	/* Compare the two sizes. */
+	C2_UT_ASSERT(recsize == recsize_to_verify);
+}
+
+/* Tests the internal function recsize_get(), for the PDCLUST layout type. */
+static int test_recsize_pdclust(uint32_t enum_id, uint64_t lid,
+				bool only_inline_test)
+{
+	struct c2_pdclust_layout     *pl = NULL;
+	struct c2_uint128             seed;
+	uint32_t                      nr;
+	struct c2_layout_list_enum   *list_enum = NULL;
+	struct c2_layout_linear_enum *lin_enum = NULL;
+	c2_bcount_t                   recsize;
+
+	C2_ENTRY("lid %llu", (unsigned long long)lid);
+	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+
+	c2_uint128_init(&seed, "recsizepdclustla");
+
+	/* Build a layout object. */
+	if (enum_id == LIST_ENUM_ID) {
+		nr = only_inline_test ? 10 : 1200;
+		rc = pdclust_layout_build(LIST_ENUM_ID, lid,
+					  60, 6, 4096, &seed,
+					  nr, A_NONE, B_NONE,
+					  &pl, &list_enum, NULL);
+	} else {
+		nr = 1111;
+		rc = pdclust_layout_build(LINEAR_ENUM_ID, lid,
+					  60, 6, 4096, &seed,
+					  nr, 10, 20,
+					  &pl, NULL, &lin_enum);
+	}
+	C2_UT_ASSERT(rc == 0);
+
+	/* Obtain the recsize by using the internal function recsize_get(). */
+	recsize = recsize_get(&domain, &pl->pl_base.ls_base);
+
+	/* Verify the recsize returned by recsize_get(). */
+	pdclust_recsize_verify(enum_id, &pl->pl_base.ls_base, recsize);
+
+	layout_finalize(&pl->pl_base.ls_base, lid);
+
+	C2_LEAVE();
+	return rc;
+}
+
+/* Tests the internal function recsize_get(). */
+static void test_recsize(void)
+{
+	uint64_t lid;
+	int      rc;
+
+	/*
+	 * recsize_get() for PDCLUST layout type and LIST enumeration type,
+	 * with only inline entries.
+	 */
+	lid = 7001;
+	rc = test_recsize_pdclust(LIST_ENUM_ID, lid, ONLY_INLINE_TEST);
+	C2_UT_ASSERT(rc == 0);
+
+	/* recsize_get() for PDCLUST layout type and LIST enumeration type. */
+	lid = 7002;
+	rc = test_recsize_pdclust(LIST_ENUM_ID, lid, !ONLY_INLINE_TEST);
+	C2_UT_ASSERT(rc == 0);
+
+	/* recsize_get() for PDCLUST layout type and LINEAR enumeration type. */
+	lid = 7003;
+	rc = test_recsize_pdclust(LINEAR_ENUM_ID, lid, !ONLY_INLINE_TEST);
 	C2_UT_ASSERT(rc == 0);
 }
 
@@ -1768,7 +2018,7 @@ static void test_lookup(void)
 	 * Lookup for a layout object with LIST enum type, that does not
 	 * exist in the DB.
 	 */
-	lid = 7001;
+	lid = 8001;
 	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
 				 !EXISTING_TEST,
 				 !ONLY_INLINE_TEST);
@@ -1779,7 +2029,7 @@ static void test_lookup(void)
 	 * with only inline entries.
 	 * Then perform lookup for it.
 	 */
-	lid = 7002;
+	lid = 8002;
 	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 ONLY_INLINE_TEST);
@@ -1789,7 +2039,7 @@ static void test_lookup(void)
 	 * Add a layout object with PDCLUST layout type, LIST enum type.
 	 * Then perform lookup for it.
 	 */
-	lid = 7003;
+	lid = 8003;
 	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 !ONLY_INLINE_TEST);
@@ -1800,7 +2050,7 @@ static void test_lookup(void)
 	 * Once again, lookup for a layout object that does not exist in the
 	 * DB.
 	 */
-	lid = 7004;
+	lid = 8004;
 	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
 				 !EXISTING_TEST,
 				 !ONLY_INLINE_TEST);
@@ -1810,7 +2060,7 @@ static void test_lookup(void)
 	 * Lookup for a layout object with LINEAR enum type, that does not
 	 * exist in the DB.
 	 */
-	lid = 7005;
+	lid = 8005;
 	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
 				 !EXISTING_TEST,
 				 !ONLY_INLINE_TEST);
@@ -1820,7 +2070,7 @@ static void test_lookup(void)
 	 * Add a layout object with PDCLUST layout type and LINEAR enum type.
 	 * Then perform lookup for it.
 	 */
-	lid = 7006;
+	lid = 8006;
 	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 !ONLY_INLINE_TEST);
@@ -1940,7 +2190,6 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 	return rc;
 }
 
-
 /* Tests the API c2_layout_add(). */
 static void test_add(void)
 {
@@ -1950,7 +2199,7 @@ static void test_add(void)
 	 * Add a layout object with PDCLUST layout type, LIST enum type and
 	 * with only inline entries.
 	 */
-	lid = 8001;
+	lid = 9001;
 	rc = test_add_pdclust(LIST_ENUM_ID, lid,
 			      ONLY_INLINE_TEST,
 			      LOOKUP_TEST,
@@ -1959,7 +2208,7 @@ static void test_add(void)
 	C2_UT_ASSERT(rc == 0);
 
 	/* Add a layout object with PDCLUST layout type and LIST enum type. */
-	lid = 8002;
+	lid = 9002;
 	rc = test_add_pdclust(LIST_ENUM_ID, lid,
 			      !ONLY_INLINE_TEST,
 			      LOOKUP_TEST,
@@ -1968,7 +2217,7 @@ static void test_add(void)
 	C2_UT_ASSERT(rc == 0);
 
 	/* Add a layout object with PDCLUST layout type and LINEAR enum type. */
-	lid = 8003;
+	lid = 9003;
 	rc = test_add_pdclust(LINEAR_ENUM_ID, lid,
 			      !ONLY_INLINE_TEST,
 			      LOOKUP_TEST,
@@ -2095,7 +2344,7 @@ static void test_update(void)
 	 * type, that does not exist in the DB to verify that the operation
 	 * fails with the error ENOENT.
 	 */
-	lid = 9001;
+	lid = 10001;
 	rc = test_update_pdclust(LIST_ENUM_ID, lid,
 				 !EXISTING_TEST,
 				 !ONLY_INLINE_TEST);
@@ -2105,7 +2354,7 @@ static void test_update(void)
 	 * Update a layout object with PDCLUST layout type, LIST enum type and
 	 * with only inline entries.
 	 */
-	lid = 9002;
+	lid = 10002;
 	rc = test_update_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 ONLY_INLINE_TEST);
@@ -2115,7 +2364,7 @@ static void test_update(void)
 	 * Update a layout object with PDCLUST layout type and LIST enum
 	 * type.
 	 */
-	lid = 9003;
+	lid = 10003;
 	rc = test_update_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 !ONLY_INLINE_TEST);
@@ -2125,7 +2374,7 @@ static void test_update(void)
 	 * Update a layout object with PDCLUST layout type and LINEAR enum
 	 * type.
 	 */
-	lid = 9004;
+	lid = 10004;
 	rc = test_update_pdclust(LINEAR_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 !ONLY_INLINE_TEST);
@@ -2231,7 +2480,7 @@ static void test_delete(void)
 	 * enum type, that does not exist in the DB, to verify that it results
 	 * into the error ENOENT.
 	 */
-	lid = 10001;
+	lid = 11001;
 	rc = test_delete_pdclust(LINEAR_ENUM_ID, lid,
 				 !EXISTING_TEST,
 				 !ONLY_INLINE_TEST);
@@ -2241,7 +2490,7 @@ static void test_delete(void)
 	 * Delete a layout object with PDCLUST layout type, LIST enum type and
 	 * with only inline entries.
 	 */
-	lid = 10002;
+	lid = 11002;
 	rc = test_delete_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 ONLY_INLINE_TEST);
@@ -2251,7 +2500,7 @@ static void test_delete(void)
 	 * Delete a layout object with PDCLUST layout type and LIST enum
 	 * type.
 	 */
-	lid = 10003;
+	lid = 11003;
 	rc = test_delete_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 !ONLY_INLINE_TEST);
@@ -2261,38 +2510,44 @@ static void test_delete(void)
 	 * Delete a layout object with PDCLUST layout type and LINEAR enum
 	 * type.
 	 */
-	lid = 10004;
+	lid = 11004;
 	rc = test_delete_pdclust(LINEAR_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 !ONLY_INLINE_TEST);
 	C2_UT_ASSERT(rc == 0);
 }
+#endif
 
 const struct c2_test_suite layout_ut = {
 	.ts_name  = "layout-ut",
 	.ts_init  = test_init,
 	.ts_fini  = test_fini,
 	.ts_tests = {
-		{ "layout-domain-init-fini", test_domain_init_fini },
-		{ "layout-schema-init-fini", test_schema_init_fini },
-		{ "layout-type-register-unregister", test_type_reg_unreg },
-		{ "layout-etype-register-unregister", test_etype_reg_unreg },
-		{ "layout-register-unregister", test_reg_unreg },
 		{ "layout-decode", test_decode },
 		{ "layout-encode", test_encode },
 		{ "layout-decode-encode", test_decode_encode },
 		{ "layout-encode-decode", test_encode_decode },
 		{ "layout-max-recsize", test_max_recsize },
-		{ "layout-recsize", test_recsize },
 		{ "layout-ref-get-put", test_ref_get_put },
 		{ "layout-enum-ops", test_enum_operations },
+#ifndef __KERNEL__
+		{ "layout-domain-init-fini", test_domain_init_fini },
+		{ "layout-schema-init-fini", test_schema_init_fini },
+		{ "layout-type-register-unregister", test_type_reg_unreg },
+		{ "layout-etype-register-unregister", test_etype_reg_unreg },
+		{ "layout-register-unregister", test_reg_unreg },
+		{ "layout-recsize", test_recsize },
                 { "layout-lookup", test_lookup },
                 { "layout-add", test_add },
                 { "layout-update", test_update },
                 { "layout-delete", test_delete },
+#endif
 		{ NULL, NULL }
 	}
 };
+C2_EXPORTED(layout_ut);
+
+/* todo Add tests for pdclust build, list and linear enum build. */
 
 /*
  *  Local variables:
