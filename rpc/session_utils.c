@@ -121,7 +121,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 {
 	struct c2_cob_nskey  *key;
 	struct c2_cob_nsrec   nsrec;
-	struct c2_cob_fabrec  fabrec;
+	struct c2_cob_fabrec *fabrec;
 	struct c2_cob_omgrec  omgrec;
 	struct c2_cob        *cob;
 	struct c2_fid         pfid;
@@ -147,11 +147,13 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	nsrec.cnr_fid.f_key = stobid.u_lo;
 	nsrec.cnr_nlink = 1;
 
+        c2_cob_make_fabrec(&fabrec, NULL, 0); 
+
 	/*
 	 * Temporary assignment for lsn
 	 */
-	fabrec.cfb_version.vn_lsn = C2_LSN_RESERVED_NR + 2;
-	fabrec.cfb_version.vn_vc = 0;
+	fabrec->cfb_version.vn_lsn = C2_LSN_RESERVED_NR + 2;
+	fabrec->cfb_version.vn_vc = 0;
 
         omgrec.cor_uid = 0;
         omgrec.cor_gid = 0;
@@ -160,9 +162,13 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
                           S_IRGRP | S_IXGRP |           /* r-x for group */
                           S_IROTH | S_IXOTH;            /* r-x for others */
 
-	rc = c2_cob_create(dom, key, &nsrec, &fabrec, &omgrec, &cob, tx);
-	if (rc == 0)
+	rc = c2_cob_create(dom, key, &nsrec, fabrec, &omgrec, &cob, tx);
+	if (rc == 0) {
 		*out = cob;
+	} else {
+                c2_free(key);
+                c2_free(fabrec);
+	}
 
 	return rc;
 }

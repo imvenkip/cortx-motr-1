@@ -274,7 +274,7 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	struct c2_fop_cob_create *fop;
 	struct c2_cob_nskey	 *nskey;
 	struct c2_cob_nsrec	  nsrec;
-	struct c2_cob_fabrec	  fabrec;
+	struct c2_cob_fabrec	 *fabrec;
 	struct c2_cob_omgrec      omgrec;
 
 	C2_PRE(fom != NULL);
@@ -295,8 +295,9 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	*((struct c2_stob_id *)&nsrec.cnr_fid) = cc->fco_stobid;
 	nsrec.cnr_nlink = CC_COB_HARDLINK_NR;
 
-	fabrec.cfb_version.vn_lsn = c2_fol_lsn_allocate(fom->fo_fol);
-	fabrec.cfb_version.vn_vc = CC_COB_VERSION_INIT;
+        c2_cob_make_fabrec(&fabrec, NULL, 0); 
+	fabrec->cfb_version.vn_lsn = c2_fol_lsn_allocate(fom->fo_fol);
+	fabrec->cfb_version.vn_vc = CC_COB_VERSION_INIT;
 
         omgrec.cor_uid = 0;
         omgrec.cor_gid = 0;
@@ -305,17 +306,20 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
                           S_IRGRP | S_IXGRP |           /* r-x for group */
                           S_IROTH | S_IXOTH;            /* r-x for others */
 
-	rc = c2_cob_create(cdom, nskey, &nsrec, &fabrec, &omgrec, &cob,
+	rc = c2_cob_create(cdom, nskey, &nsrec, fabrec, &omgrec, &cob,
 			   &fom->fo_tx.tx_dbtx);
 
 	/*
-	 * For all errors except -ENOMEM, cob code puts reference on cob
-	 * which in turn finalizes the in-memory cob object.
-	 * The flag CA_NSKEY_FREE takes care of deallocating memory for
-	 * nskey during cob finalization.
+	 * Cob does not free nskey and fab rec on errors. We need to do so
+	 * ourself. In case cob created successfully, it frees things on
+	 * last put.
 	 */
-	switch (rc) {
-	case 0:
+	if (rc) {
+		c2_free(nskey);
+		c2_free(fabrec);
+		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+			    cc_fom_func_fail, "Cob creation failed", rc);
+	} else {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    c2_addb_trace, "Cob created successfully.");
 		/**
@@ -326,20 +330,8 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 		 * otherwise would cause a memory leak.
 		 */
 		c2_cob_put(cob);
-		break;
-
-	case -ENOMEM:
-		c2_free(nskey->cnk_name.b_data);
-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			    cc_fom_func_fail,
-			    "Memory allocation failed in cc_cob_create().", rc);
-		break;
-
-	default:
-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			    cc_fom_func_fail, "Cob creation failed", rc);
-	}
-
+        }
+	
 	return rc;
 }
 

@@ -28,6 +28,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"              /* C2_SET0 */
 #include "lib/bitstring.h"
+#include "lib/processor.h"
 #include "fop/fop.h"
 #include "cob/cob.h"
 #include "reqh/reqh.h"
@@ -159,6 +160,9 @@ static void test_mkfs(void)
 
 static void test_init(void)
 {
+        rc = c2_processors_init();
+        C2_ASSERT(rc == 0);
+
 	rc = c2_dbenv_init(&db, db_name, 0);
 	C2_ASSERT(rc == 0);
 
@@ -179,7 +183,7 @@ static void test_ops(void)
         struct c2_fop *fop;
         int fd, result, size;
         
-        fd = open("../../mdservice/ut/ops.dump", O_RDONLY);
+        fd = open(C2_MDSTORE_OPS_DUMP_PATH, O_RDONLY);
         C2_ASSERT(fd > 0);
         
         result = read(fd, &root, sizeof(root));
@@ -214,7 +218,6 @@ again:
                 C2_ASSERT(result == 0);
 
                 c2_reqh_fop_handle(&reqh, fop, NULL);
-//                C2_UT_ASSERT(result == 0);
                 
                 c2_md_lustre_fop_free(fop);
                 c2_fop_free(fop);
