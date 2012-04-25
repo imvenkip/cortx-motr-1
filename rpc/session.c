@@ -83,6 +83,10 @@ static int session_persistent_state_destroy(struct c2_rpc_session *session,
 
 static int nr_active_items_count(const struct c2_rpc_session *session);
 
+static int slot_table_alloc_and_init(struct c2_rpc_session *session);
+static void __session_fini(struct c2_rpc_session *session);
+static void session_failed(struct c2_rpc_session *session, int32_t error);
+
 static const struct c2_rpc_slot_ops snd_slot_ops = {
 	.so_slot_idle = snd_slot_idle,
 	.so_item_consume = snd_item_consume,
@@ -124,13 +128,6 @@ static const struct c2_rpc_item_ops session_terminate_item_ops = {
 
 extern void frm_item_ready(struct c2_rpc_item *item);
 extern void frm_slot_idle(struct c2_rpc_slot *slot);
-
-bool c2_rpc_session_is_idle(const struct c2_rpc_session *session)
-{
-	return session->s_nr_active_items == 0 &&
-	       session->s_activity_counter == 0 &&
-	       c2_list_is_empty(&session->s_unbound_items);
-}
 
 /**
    The routine is also called from session_foms.c, hence can't be static
@@ -209,6 +206,13 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 	C2_ASSERT(0);
 }
 
+bool c2_rpc_session_is_idle(const struct c2_rpc_session *session)
+{
+	return session->s_nr_active_items == 0 &&
+	       session->s_activity_counter == 0 &&
+	       c2_list_is_empty(&session->s_unbound_items);
+}
+
 static int nr_active_items_count(const struct c2_rpc_session *session)
 {
 	struct c2_rpc_slot *slot;
@@ -233,74 +237,27 @@ static int nr_active_items_count(const struct c2_rpc_session *session)
 	return count;
 }
 
-/**
-   Finalises session.
-   Used by
-    c2_rpc_session_init(), when initialisation fails.
-    c2_rpc_session_fini() for cleanup
- */
-static void __session_fini(struct c2_rpc_session *session)
+int c2_rpc_session_init(struct c2_rpc_session *session,
+			struct c2_rpc_conn    *conn,
+			uint32_t               nr_slots)
 {
-	struct c2_rpc_slot *slot;
-	int                 i;
+	struct c2_rpc_machine *machine;
+	int                    rc;
 
-	if (session->s_slot_table != NULL) {
+	C2_PRE(session != NULL && conn != NULL && nr_slots >= 1);
 
-		for (i = 0; i < session->s_nr_slots; i++) {
+	machine = conn->c_rpc_machine;
+	C2_PRE(machine != NULL);
 
-			slot = session->s_slot_table[i];
-			if (slot != NULL) {
+	c2_rpc_machine_lock(machine);
 
-				c2_rpc_slot_fini(slot);
-				c2_free(slot);
+	rc = c2_rpc_session_init_locked(session, conn, nr_slots);
 
-			}
-			session->s_slot_table[i] = NULL;
-		}
-		session->s_nr_slots = 0;
-		session->s_slot_table_capacity = 0;
-		c2_free(session->s_slot_table);
-		session->s_slot_table = NULL;
-	}
-	c2_list_link_fini(&session->s_link);
-	c2_cond_fini(&session->s_state_changed);
-	c2_list_fini(&session->s_unbound_items);
+	c2_rpc_machine_unlock(machine);
+
+	return rc;
 }
-
-int slot_table_alloc_and_init(struct c2_rpc_session *session)
-{
-	const struct c2_rpc_slot_ops *slot_ops;
-	struct c2_rpc_slot           *slot;
-	int                           i;
-	int                           rc;
-
-	C2_ALLOC_ARR(session->s_slot_table, session->s_nr_slots);
-	if (session->s_slot_table == NULL)
-		return -ENOMEM;
-
-	slot_ops = c2_rpc_conn_is_snd(session->s_conn) ? &snd_slot_ops
-					               : &rcv_slot_ops;
-
-	for (i = 0; i < session->s_nr_slots; i++) {
-
-		C2_ALLOC_PTR(slot);
-		if (slot == NULL)
-			/* __session_fini() will do the cleanup */
-			return -ENOMEM;
-
-		rc = c2_rpc_slot_init(slot, slot_ops);
-		if (rc != 0) {
-			c2_free(slot);
-			return rc;
-		}
-
-		slot->sl_session = session;
-		slot->sl_slot_id = i;
-
-		session->s_slot_table[i] = slot;
-	}
-	return 0;
-}
+C2_EXPORTED(c2_rpc_session_init);
 
 int c2_rpc_session_init_locked(struct c2_rpc_session *session,
 			       struct c2_rpc_conn    *conn,
@@ -337,38 +294,69 @@ int c2_rpc_session_init_locked(struct c2_rpc_session *session,
 	return rc;
 }
 
-int c2_rpc_session_init(struct c2_rpc_session *session,
-			struct c2_rpc_conn    *conn,
-			uint32_t               nr_slots)
+static int slot_table_alloc_and_init(struct c2_rpc_session *session)
 {
-	struct c2_rpc_machine *machine;
-	int                    rc;
+	const struct c2_rpc_slot_ops *slot_ops;
+	struct c2_rpc_slot           *slot;
+	int                           i;
+	int                           rc;
 
-	C2_PRE(session != NULL && conn != NULL && nr_slots >= 1);
+	C2_ALLOC_ARR(session->s_slot_table, session->s_nr_slots);
+	if (session->s_slot_table == NULL)
+		return -ENOMEM;
 
-	machine = conn->c_rpc_machine;
-	C2_PRE(machine != NULL);
+	slot_ops = c2_rpc_conn_is_snd(session->s_conn) ? &snd_slot_ops
+					               : &rcv_slot_ops;
 
-	c2_rpc_machine_lock(machine);
+	for (i = 0; i < session->s_nr_slots; i++) {
 
-	rc = c2_rpc_session_init_locked(session, conn, nr_slots);
+		C2_ALLOC_PTR(slot);
+		if (slot == NULL)
+			/* __session_fini() will do the cleanup */
+			return -ENOMEM;
 
-	c2_rpc_machine_unlock(machine);
+		rc = c2_rpc_slot_init(slot, slot_ops);
+		if (rc != 0) {
+			c2_free(slot);
+			return rc;
+		}
 
-	return rc;
+		slot->sl_session = session;
+		slot->sl_slot_id = i;
+
+		session->s_slot_table[i] = slot;
+	}
+	return 0;
 }
-C2_EXPORTED(c2_rpc_session_init);
 
-void c2_rpc_session_fini_locked(struct c2_rpc_session *session)
+/**
+   Finalises session.
+   Used by
+    c2_rpc_session_init(), when initialisation fails.
+    c2_rpc_session_fini() for cleanup
+ */
+static void __session_fini(struct c2_rpc_session *session)
 {
-	C2_ASSERT(c2_rpc_session_invariant(session));
-	C2_PRE(session->s_state == C2_RPC_SESSION_TERMINATED ||
-	       session->s_state == C2_RPC_SESSION_INITIALISED ||
-	       session->s_state == C2_RPC_SESSION_FAILED);
+	struct c2_rpc_slot *slot;
+	int                 i;
 
-	c2_rpc_conn_remove_session(session);
-	__session_fini(session);
-	session->s_session_id = SESSION_ID_INVALID;
+	if (session->s_slot_table != NULL) {
+		for (i = 0; i < session->s_nr_slots; i++) {
+			slot = session->s_slot_table[i];
+			if (slot != NULL) {
+				c2_rpc_slot_fini(slot);
+				c2_free(slot);
+			}
+			session->s_slot_table[i] = NULL;
+		}
+		session->s_nr_slots = 0;
+		session->s_slot_table_capacity = 0;
+		c2_free(session->s_slot_table);
+		session->s_slot_table = NULL;
+	}
+	c2_list_link_fini(&session->s_link);
+	c2_cond_fini(&session->s_state_changed);
+	c2_list_fini(&session->s_unbound_items);
 }
 
 void c2_rpc_session_fini(struct c2_rpc_session *session)
@@ -386,6 +374,18 @@ void c2_rpc_session_fini(struct c2_rpc_session *session)
 	c2_rpc_machine_unlock(machine);
 }
 C2_EXPORTED(c2_rpc_session_fini);
+
+void c2_rpc_session_fini_locked(struct c2_rpc_session *session)
+{
+	C2_ASSERT(c2_rpc_session_invariant(session));
+	C2_PRE(session->s_state == C2_RPC_SESSION_TERMINATED ||
+	       session->s_state == C2_RPC_SESSION_INITIALISED ||
+	       session->s_state == C2_RPC_SESSION_FAILED);
+
+	c2_rpc_conn_remove_session(session);
+	__session_fini(session);
+	session->s_session_id = SESSION_ID_INVALID;
+}
 
 bool c2_rpc_session_timedwait(struct c2_rpc_session *session,
 			      uint64_t               state_flags,
@@ -418,30 +418,48 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session *session,
 }
 C2_EXPORTED(c2_rpc_session_timedwait);
 
-/**
-   Moves session to FAILED state and take it out of conn->c_sessions list.
-   Caller is expected to broadcast of session->s_state_changed CV.
-
-   @pre c2_mutex_is_locked(&session->s_mutex) && (
-		 (session->s_state == C2_RPC_SESSION_ESTABLISHING ||
-                  session->s_state == C2_RPC_SESSION_IDLE ||
-                  session->s_state == C2_RPC_SESSION_BUSY ||
-                  session->s_state == C2_RPC_SESSION_TERMINATING)
- */
-static void session_failed(struct c2_rpc_session *session, int32_t error)
+int c2_rpc_session_create(struct c2_rpc_session *session,
+			  struct c2_rpc_conn    *conn,
+			  uint32_t               nr_slots,
+			  uint32_t               timeout_sec)
 {
-	C2_ASSERT(c2_rpc_session_invariant(session));
-	C2_PRE(session->s_state == C2_RPC_SESSION_INITIALISED ||
-	       session->s_state == C2_RPC_SESSION_ESTABLISHING ||
-	       session->s_state == C2_RPC_SESSION_IDLE ||
-	       session->s_state == C2_RPC_SESSION_BUSY ||
-	       session->s_state == C2_RPC_SESSION_TERMINATING);
+	int rc;
 
-	session->s_state = C2_RPC_SESSION_FAILED;
-	session->s_rc    = error;
+	rc = c2_rpc_session_init(session, conn, nr_slots);
+	if (rc == 0) {
+		rc = c2_rpc_session_establish_sync(session, timeout_sec);
+		if (rc != 0)
+			c2_rpc_session_fini(session);
+	}
 
-	C2_ASSERT(c2_rpc_session_invariant(session));
+	return rc;
 }
+
+int c2_rpc_session_establish_sync(struct c2_rpc_session *session,
+				  uint32_t               timeout_sec)
+{
+	bool state_reached;
+	int  rc;
+
+	rc = c2_rpc_session_establish(session);
+	if (rc != 0)
+		return rc;
+
+	state_reached = c2_rpc_session_timedwait(session,
+				C2_RPC_SESSION_IDLE | C2_RPC_SESSION_FAILED,
+				c2_time_from_now(timeout_sec, 0));
+	/*
+	 * When rpc-timeouts will be implemented !state_reached should never
+	 * arise. Even if we return error e.g. -ETIMEDOUT what to do with
+	 * a session in ESTABLISHING state?
+	 */
+	C2_ASSERT(state_reached);
+	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
+		  session->s_state == C2_RPC_SESSION_FAILED);
+
+	return session->s_state == C2_RPC_SESSION_IDLE ? 0 : session->s_rc;
+}
+C2_EXPORTED(c2_rpc_session_establish_sync);
 
 int c2_rpc_session_establish(struct c2_rpc_session *session)
 {
@@ -465,7 +483,6 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 			         &c2_rpc_fop_session_establish_fopt, NULL);
 		if (rc != 0)
 			c2_free(ctx);
-
 	}
 
 	machine = session->s_conn->c_rpc_machine;
@@ -515,49 +532,30 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 }
 C2_EXPORTED(c2_rpc_session_establish);
 
-int c2_rpc_session_establish_sync(struct c2_rpc_session *session,
-				  uint32_t               timeout_sec)
+/**
+   Moves session to FAILED state and take it out of conn->c_sessions list.
+   Caller is expected to broadcast of session->s_state_changed CV.
+
+   @pre c2_mutex_is_locked(&session->s_mutex) && (
+		 (session->s_state == C2_RPC_SESSION_ESTABLISHING ||
+                  session->s_state == C2_RPC_SESSION_IDLE ||
+                  session->s_state == C2_RPC_SESSION_BUSY ||
+                  session->s_state == C2_RPC_SESSION_TERMINATING)
+ */
+static void session_failed(struct c2_rpc_session *session, int32_t error)
 {
-	bool state_reached;
-	int  rc;
+	C2_ASSERT(c2_rpc_session_invariant(session));
+	C2_PRE(session->s_state == C2_RPC_SESSION_INITIALISED ||
+	       session->s_state == C2_RPC_SESSION_ESTABLISHING ||
+	       session->s_state == C2_RPC_SESSION_IDLE ||
+	       session->s_state == C2_RPC_SESSION_BUSY ||
+	       session->s_state == C2_RPC_SESSION_TERMINATING);
 
-	rc = c2_rpc_session_establish(session);
-	if (rc != 0)
-		return rc;
+	session->s_state = C2_RPC_SESSION_FAILED;
+	session->s_rc    = error;
 
-	state_reached = c2_rpc_session_timedwait(session,
-				C2_RPC_SESSION_IDLE | C2_RPC_SESSION_FAILED,
-				c2_time_from_now(timeout_sec, 0));
-	/*
-	 * When rpc-timeouts will be implemented !state_reached should never
-	 * arise. Even if we return error e.g. -ETIMEDOUT what to do with
-	 * a session in ESTABLISHING state?
-	 */
-	C2_ASSERT(state_reached);
-	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
-		  session->s_state == C2_RPC_SESSION_FAILED);
-
-	return session->s_state == C2_RPC_SESSION_IDLE ? 0 : session->s_rc;
+	C2_ASSERT(c2_rpc_session_invariant(session));
 }
-C2_EXPORTED(c2_rpc_session_establish_sync);
-
-int c2_rpc_session_create(struct c2_rpc_session *session,
-			  struct c2_rpc_conn    *conn,
-			  uint32_t               nr_slots,
-			  uint32_t               timeout_sec)
-{
-	int rc;
-
-	rc = c2_rpc_session_init(session, conn, nr_slots);
-	if (rc == 0) {
-		rc = c2_rpc_session_establish_sync(session, timeout_sec);
-		if (rc != 0)
-			c2_rpc_session_fini(session);
-	}
-
-	return rc;
-}
-
 
 void c2_rpc_session_establish_reply_received(struct c2_rpc_item *item)
 {
@@ -645,6 +643,50 @@ static void fop_session_establish_item_free(struct c2_rpc_item *item)
 	c2_free(ctx);
 }
 
+int c2_rpc_session_destroy(struct c2_rpc_session *session, uint32_t timeout_sec)
+{
+	int rc;
+
+	rc = c2_rpc_session_terminate_sync(session, timeout_sec);
+	c2_rpc_session_fini(session);
+
+	/* Amit: What the sender will do with this return value? Is rc really required? */
+	return rc;
+}
+C2_EXPORTED(c2_rpc_session_destroy);
+
+int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
+				  uint32_t timeout_sec)
+{
+	int rc;
+	bool state_reached;
+
+	/* Wait for session to become IDLE */
+	c2_rpc_session_timedwait(session, C2_RPC_SESSION_IDLE,
+				 c2_time_from_now(timeout_sec, 0));
+
+	rc = c2_rpc_session_terminate(session);
+	if (rc == 0) {
+		state_reached = c2_rpc_session_timedwait(session,
+			    C2_RPC_SESSION_TERMINATED | C2_RPC_SESSION_FAILED,
+			    c2_time_from_now(timeout_sec, 0));
+
+		/*
+		 * In the absense of rpc-timeouts, it is not very clear yet,
+		 * that what to do with a session in TERMINATING state.
+		 */
+		C2_ASSERT(state_reached);
+
+		C2_ASSERT(session->s_state == C2_RPC_SESSION_TERMINATED ||
+			  session->s_state == C2_RPC_SESSION_FAILED);
+
+		rc = session->s_state == C2_RPC_SESSION_TERMINATED ? 0
+							     : session->s_rc;
+	}
+	return rc;
+}
+C2_EXPORTED(c2_rpc_session_terminate_sync);
+
 int c2_rpc_session_terminate(struct c2_rpc_session *session)
 {
 	struct c2_fop                       *fop;
@@ -727,59 +769,12 @@ C2_EXPORTED(c2_rpc_session_terminate);
  * to alternative 1, iff required.
  */
 
-/*
- * Terminate the session synchronously.
- */
-int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
-				  uint32_t timeout_sec)
+
+void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *item)
 {
-	int rc;
-	bool state_reached;
-
-	/* Wait for session to become IDLE */
-	c2_rpc_session_timedwait(session, C2_RPC_SESSION_IDLE,
-				 c2_time_from_now(timeout_sec, 0));
-
-	rc = c2_rpc_session_terminate(session);
-	if (rc == 0) {
-		state_reached = c2_rpc_session_timedwait(session,
-			    C2_RPC_SESSION_TERMINATED | C2_RPC_SESSION_FAILED,
-			    c2_time_from_now(timeout_sec, 0));
-
-		/*
-		 * In the absense of rpc-timeouts, it is not very clear yet,
-		 * that what to do with a session in TERMINATING state.
-		 */
-		C2_ASSERT(state_reached);
-
-		C2_ASSERT(session->s_state == C2_RPC_SESSION_TERMINATED ||
-			  session->s_state == C2_RPC_SESSION_FAILED);
-
-		rc = session->s_state == C2_RPC_SESSION_TERMINATED ? 0
-							     : session->s_rc;
-	}
-	return rc;
-}
-C2_EXPORTED(c2_rpc_session_terminate_sync);
-
-int c2_rpc_session_destroy(struct c2_rpc_session *session, uint32_t timeout_sec)
-{
-	int rc;
-
-	rc = c2_rpc_session_terminate_sync(session, timeout_sec);
-	c2_rpc_session_fini(session);
-
-	/* Amit: What the sender will do with this return value? Is rc really required? */
-	return rc;
-}
-C2_EXPORTED(c2_rpc_session_destroy);
-
-void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req)
-{
-	struct c2_rpc_fop_session_terminate_rep *fop_str;
-	struct c2_rpc_fop_session_terminate     *fop_st;
-	struct c2_rpc_item                      *reply;
-	struct c2_fop                           *fop;
+	struct c2_rpc_fop_session_terminate_rep *reply;
+	struct c2_rpc_fop_session_terminate     *args;
+	struct c2_rpc_item                      *reply_item;
 	struct c2_rpc_conn                      *conn;
 	struct c2_rpc_session                   *session;
 	struct c2_rpc_machine                   *machine;
@@ -787,10 +782,11 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req)
 	uint64_t                                 session_id;
 	int32_t                                  rc;
 
-	C2_PRE(req != NULL && req->ri_session != NULL &&
-		req->ri_session->s_session_id == SESSION_ID_0);
+	C2_PRE(item != NULL &&
+	       item->ri_session != NULL &&
+	       item->ri_session->s_session_id == SESSION_ID_0);
 
-	conn    = req->ri_session->s_conn;
+	conn    = item->ri_session->s_conn;
 	machine = conn->c_rpc_machine;
 
 	C2_ASSERT(c2_rpc_machine_is_locked(machine));
@@ -798,32 +794,30 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req)
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 
-	reply = req->ri_reply;
-	rc    = req->ri_error;
+	reply_item = item->ri_reply;
+	rc         = item->ri_error;
 
-	C2_ASSERT(ergo(rc == 0, reply != NULL &&
-			        req->ri_session == reply->ri_session));
+	C2_ASSERT(ergo(rc == 0, reply_item != NULL &&
+			        item->ri_session == reply_item->ri_session));
 
-	fop    = c2_rpc_item_to_fop(req);
-	fop_st = c2_fop_data(fop);
+	args = c2_fop_data(c2_rpc_item_to_fop(item));
 
-	sender_id  = fop_st->rst_sender_id;
-	session_id = fop_st->rst_session_id;
+	sender_id  = args->rst_sender_id;
+	C2_ASSERT(sender_id == conn->c_sender_id);
+	session_id = args->rst_session_id;
 
 	session = c2_rpc_session_search(conn, session_id);
 	C2_ASSERT(c2_rpc_session_invariant(session) &&
 		  session->s_state == C2_RPC_SESSION_TERMINATING);
 
 	if (rc == 0) {
-		fop     = c2_rpc_item_to_fop(reply);
-		fop_str = c2_fop_data(fop);
-		rc      = fop_str->rstr_rc;
-
-		if (rc == 0)
-			session->s_state = C2_RPC_SESSION_TERMINATED;
+		reply = c2_fop_data(c2_rpc_item_to_fop(reply_item));
+		rc    = reply->rstr_rc;
 	}
 
-	if (rc != 0)
+	if (rc == 0)
+		session->s_state = C2_RPC_SESSION_TERMINATED;
+	else
 		session_failed(session, rc);
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
@@ -887,15 +881,17 @@ uint64_t session_id_allocate(void)
 	static struct c2_atomic64 cnt;
 	uint64_t                  session_id;
 	uint64_t                  sec;
+	bool                      session_id_is_valid;
 
 	do {
 		c2_atomic64_inc(&cnt);
 		sec = c2_time_nanoseconds(c2_time_now()) * 1000000;
 
 		session_id = (sec << 10) | (c2_atomic64_get(&cnt) & 0x3FF);
+		session_id_is_valid = (session_id > SESSION_ID_MIN &&
+				       session_id < SESSION_ID_MAX);
 
-	} while (session_id < SESSION_ID_MIN ||
-			session_id > SESSION_ID_MAX);
+	} while (!session_id_is_valid);
 
 	return session_id;
 }
