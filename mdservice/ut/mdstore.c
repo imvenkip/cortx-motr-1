@@ -232,22 +232,36 @@ again:
                 }
                         
                 C2_ASSERT(result == 0);
-
-                rep_fop = NULL;
                 c2_reqh_fop_handle(&reqh, fop, &rep_fop);
                 
 //                c2_md_lustre_fop_free(fop);
 //                c2_fop_free(fop);
         }
-        
         close(fd);
 }
 
+enum {
+	WAIT_FOR_REQH_SHUTDOWN = 1000000,
+};
+
 static void test_fini(void)
 {
+	c2_time_t rdelay;
+        uint64_t sleepcnt;
+
+        c2_mutex_lock(&reqh.rh_lock);
+        reqh.rh_shutdown = true;
+        c2_mutex_unlock(&reqh.rh_lock);
+
+	sleepcnt = 1;
+	while (!c2_reqh_can_shutdown(&reqh)) {
+		c2_nanosleep(c2_time_set(&rdelay, 0,
+			WAIT_FOR_REQH_SHUTDOWN * sleepcnt), NULL);
+                ++sleepcnt;
+	}
         c2_reqh_fini(&reqh);
-        c2_md_store_fini(&md);
         c2_fol_fini(&fol);
+        c2_md_store_fini(&md);
         c2_dbenv_fini(&db);
 }
 
