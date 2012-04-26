@@ -330,6 +330,7 @@ int c2_net_tm_confine(struct c2_net_transfer_mc *tm,
 	c2_mutex_unlock(&tm->ntm_mutex);
 	return rc;
 }
+C2_EXPORTED(c2_net_tm_confine);
 
 int c2_net_buffer_event_deliver_synchronously(struct c2_net_transfer_mc *tm)
 {
@@ -351,6 +352,7 @@ int c2_net_buffer_event_deliver_synchronously(struct c2_net_transfer_mc *tm)
 	c2_mutex_unlock(&tm->ntm_mutex);
 	return rc;
 }
+C2_EXPORTED(c2_net_buffer_event_deliver_synchronously);
 
 void c2_net_buffer_event_deliver_all(struct c2_net_transfer_mc *tm)
 {
@@ -363,6 +365,7 @@ void c2_net_buffer_event_deliver_all(struct c2_net_transfer_mc *tm)
 	c2_mutex_unlock(&tm->ntm_mutex);
 	return;
 }
+C2_EXPORTED(c2_net_buffer_event_deliver_all);
 
 bool c2_net_buffer_event_pending(struct c2_net_transfer_mc *tm)
 {
@@ -376,6 +379,7 @@ bool c2_net_buffer_event_pending(struct c2_net_transfer_mc *tm)
 	c2_mutex_unlock(&tm->ntm_mutex);
 	return result;
 }
+C2_EXPORTED(c2_net_buffer_event_pending);
 
 void c2_net_buffer_event_notify(struct c2_net_transfer_mc *tm,
 				struct c2_chan *chan)
@@ -389,6 +393,7 @@ void c2_net_buffer_event_notify(struct c2_net_transfer_mc *tm,
 	c2_mutex_unlock(&tm->ntm_mutex);
 	return;
 }
+C2_EXPORTED(c2_net_buffer_event_notify);
 
 /** @} end of net group */
 
