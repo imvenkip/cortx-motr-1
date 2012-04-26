@@ -524,7 +524,6 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	rc = c2_rpc_rcv_conn_terminate(conn);
 
 	if (conn->c_state == C2_RPC_CONN_FAILED) {
-
 		/*
 		 * conn has been moved to FAILED state. fini() and free() it.
 		 * Cannot send reply back to sender. Sender will time-out and
@@ -539,9 +538,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 		c2_free(conn);
 		fom->fo_phase = FOPH_FINISH;
 		return FSO_WAIT;
-
 	} else {
-
 		C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE ||
 			  conn->c_state == C2_RPC_CONN_TERMINATING);
 
@@ -557,7 +554,6 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 		C2_LOG("Conn terminate successful: conn [%p]\n", conn);
 		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 		return FSO_WAIT;
-
 	}
 }
 

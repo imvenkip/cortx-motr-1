@@ -58,6 +58,8 @@ extern void frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
 extern void rpcobj_exit_stats_set(const struct c2_rpc *rpcobj,
 		struct c2_rpc_machine *mach, enum c2_rpc_item_path path);
 
+int c2_rpc_post_locked(struct c2_rpc_item *item);
+
 C2_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", , struct c2_rpc_item, ri_field,
 	           ri_link_magic, C2_RPC_ITEM_FIELD_MAGIC,
 		   C2_RPC_ITEM_HEAD_MAGIC);
@@ -196,6 +198,23 @@ void c2_rpc_item_fini(struct c2_rpc_item *item)
 }
 C2_EXPORTED(c2_rpc_item_fini);
 
+int c2_rpc_post(struct c2_rpc_item *item)
+{
+	struct c2_rpc_machine *machine;
+	int                    rc;
+
+	C2_PRE(item->ri_session != NULL);
+
+	machine = item->ri_session->s_conn->c_rpc_machine;
+
+	c2_rpc_machine_lock(machine);
+	rc = c2_rpc_post_locked(item);
+	c2_rpc_machine_unlock(machine);
+
+	return rc;
+}
+C2_EXPORTED(c2_rpc_post);
+
 int c2_rpc_post_locked(struct c2_rpc_item *item)
 {
 	struct c2_rpc_session *session;
@@ -226,23 +245,6 @@ int c2_rpc_post_locked(struct c2_rpc_item *item)
 	return 0;
 }
 
-int c2_rpc_post(struct c2_rpc_item *item)
-{
-	struct c2_rpc_machine *machine;
-	int                    rc;
-
-	C2_PRE(item->ri_session != NULL);
-
-	machine = item->ri_session->s_conn->c_rpc_machine;
-
-	c2_rpc_machine_lock(machine);
-	rc = c2_rpc_post_locked(item);
-	c2_rpc_machine_unlock(machine);
-
-	return rc;
-}
-C2_EXPORTED(c2_rpc_post);
-
 int c2_rpc_reply_post(struct c2_rpc_item	*request,
 		      struct c2_rpc_item	*reply)
 {
@@ -258,20 +260,21 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	C2_PRE(reply->ri_ops != NULL && reply->ri_ops->rio_free != NULL);
 
 	reply->ri_rpc_time = c2_time_now();
+	reply->ri_session  = request->ri_session;
 
-	reply->ri_session = request->ri_session;
-
+	/* BEWARE: structure instance copy ahead */
+	reply->ri_slot_refs[0] = request->ri_slot_refs[0];
 	sref = &reply->ri_slot_refs[0];
-	*sref = request->ri_slot_refs[0];
-	sref->sr_item = reply;
 	/* don't need values of sr_link and sr_ready_link of request item */
 	c2_list_link_init(&sref->sr_link);
 	c2_list_link_init(&sref->sr_ready_link);
 
-	reply->ri_prio = request->ri_prio;
+	sref->sr_item = reply;
+
+	reply->ri_prio     = request->ri_prio;
 	reply->ri_deadline = request->ri_deadline;
-	reply->ri_error = 0;
-	reply->ri_state = RPC_ITEM_SUBMITTED;
+	reply->ri_error    = 0;
+	reply->ri_state    = RPC_ITEM_SUBMITTED;
 
 	slot = sref->sr_slot;
 	machine = slot->sl_session->s_conn->c_rpc_machine;
@@ -658,7 +661,7 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 
 		item->ri_rpc_time = now;
 		/*
-		 * if item is not one of item types provided by session module,
+		 * if item is NOT one of item types provided by session module,
 		 * c2_rpc_item_received() => rpc_item_replied() drops
 		 * and reaquires machine->rm_mutex
 		 */
@@ -877,8 +880,8 @@ int c2_rpc_machine_init(struct c2_rpc_machine *machine,
 	C2_PRE(ep_addr != NULL);
 	C2_PRE(net_dom != NULL);
 
-	machine->rm_dom              = dom;
-	machine->rm_reqh             = reqh;
+	machine->rm_dom  = dom;
+	machine->rm_reqh = reqh;
 
 	C2_SET_ARR0(machine->rm_rpc_stats);
 
