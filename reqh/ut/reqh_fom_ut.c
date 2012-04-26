@@ -242,7 +242,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	C2_ALLOC_PTR(app_pool);
 	C2_UT_ASSERT(app_pool != NULL);
 
-	rc = c2_rpc_net_buffer_pool_setup(net_dom, app_pool);
+	rc = c2_rpc_net_buffer_pool__setup(net_dom, app_pool);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Init the rpcmachine */

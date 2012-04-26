@@ -349,6 +349,7 @@ enum {
 enum {
 	C2_RPC_TM_RECV_BUFFERS_NR     = 128,
 	C2_RPC_TM_MIN_RECV_BUFFERS_NR = 16,
+	C2_RPC_TM_MAX_NR	      = 64,
 };
 
 
@@ -549,6 +550,7 @@ struct c2_rpc_machine {
 	uint64_t                          rm_magic;
 
 	struct c2_net_buffer_pool	 *rm_buffer_pool;
+	uint32_t			  rm_tm_recv_queue_min_length;
 };
 
 /**

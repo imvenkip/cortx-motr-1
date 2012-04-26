@@ -48,7 +48,6 @@ const struct c2_net_buffer_pool_ops b_ops = {
 static void test_init(void)
 {
 	int         rc;
-	uint32_t    threshold = 2;
 	uint32_t    seg_nr    = 64;
 	c2_bcount_t seg_size  = 4096;
 	uint32_t    colours   = 10;
@@ -62,7 +61,8 @@ static void test_init(void)
 	rc = c2_net_domain_init(bp.nbp_ndom, xprt);
 	C2_ASSERT(rc == 0);
 	bp.nbp_ops = &b_ops;
-	rc = c2_net_buffer_pool_init(&bp, bp.nbp_ndom, threshold, seg_nr,
+	rc = c2_net_buffer_pool_init(&bp, bp.nbp_ndom,
+				      C2_NET_BUFFER_POOL_THRESHOLD, seg_nr,
 				      seg_size, colours, shift);
 	C2_UT_ASSERT(rc == 0);
 	c2_net_buffer_pool_lock(&bp);

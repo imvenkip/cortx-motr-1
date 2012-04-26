@@ -427,9 +427,7 @@ static int rpc_tm_setup(struct c2_rpc_machine *machine,
 
 	c2_clink_del(&tmwait);
 	c2_clink_fini(&tmwait);
-
-	c2_net_tm_pool_length_set(&machine->rm_tm, C2_RPC_TM_MIN_RECV_BUFFERS_NR);
-
+		
 	/* Add buffers for receiving messages to this transfer machine. */
 	if (machine->rm_buffer_pool == NULL) {
 		rc = recv_buffer_allocate_nr(net_dom, machine);
@@ -546,7 +544,7 @@ static void rpc_tm_cleanup(struct c2_rpc_machine *machine)
 
 	/* Fini the transfer machine here and deallocate the chan. */
 	c2_net_tm_fini(tm);
-	if (machine->rm_buffer_pool != NULL) {
+	if (machine->rm_buffer_pool == NULL) {
 		for (cnt = 0; cnt < C2_RPC_TM_RECV_BUFFERS_NR; ++cnt)
 			C2_ASSERT(machine->rm_rcv_buffers[cnt] == NULL);
 		c2_free(machine->rm_rcv_buffers);

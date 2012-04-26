@@ -138,6 +138,7 @@
 enum {
   /** Specify this constant as the colour when colouring is not an issue. */
   C2_NET_BUFFER_POOL_ANY_COLOR = ~0,
+  C2_NET_BUFFER_POOL_THRESHOLD = 2,
 };
 
 struct c2_net_buffer_pool;

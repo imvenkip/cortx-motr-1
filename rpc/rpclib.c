@@ -115,39 +115,52 @@ static const struct c2_net_buffer_pool_ops b_ops = {
 	.nbpo_below_threshold = low,
 };
 
+/** Creating a buffer pool per net domain which will be shared by TM's in it. */
 int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
-				 struct c2_net_buffer_pool *app_pool)
+				 struct c2_net_buffer_pool *app_pool,
+				 uint32_t segs_nr, c2_bcount_t seg_size,
+				 uint32_t bufs_nr, uint32_t tm_nr)
 {
 	int	    rc;
-	uint32_t    segs_nr;
-	uint32_t    nrsegs;
-	c2_bcount_t seg_size;
-	c2_bcount_t buf_size;
 	uint32_t    shift = 0;
 
 	C2_PRE(ndom != NULL);
 	C2_PRE(app_pool != NULL);
+	C2_PRE(segs_nr != 0 && seg_size != 0 && bufs_nr != 0 && tm_nr != 0);
+
 	app_pool->nbp_ops = &b_ops;
-	buf_size = c2_net_domain_get_max_buffer_size(ndom);
-	segs_nr = c2_net_domain_get_max_buffer_segments(ndom);
-	seg_size = c2_net_domain_get_max_buffer_segment_size(ndom);
-	/* @todo current rpc uses single segment.Need to find a way to decide
-	 * number of segments.
-	 */
-	nrsegs = 2;
-	c2_net_buffer_pool_init(app_pool, ndom, 2, nrsegs, seg_size, 64,
-				shift);
-	/* @todo assummed or based on number of TM's
-		c2_list_length(&ndom->nd_tms));
-	 */
+	c2_net_buffer_pool_init(app_pool, ndom, C2_NET_BUFFER_POOL_THRESHOLD,
+				segs_nr, seg_size, tm_nr, shift);
 	c2_net_buffer_pool_lock(app_pool);
-	rc = c2_net_buffer_pool_provision(app_pool, C2_RPC_TM_RECV_BUFFERS_NR);
+	rc = c2_net_buffer_pool_provision(app_pool, bufs_nr);
 	c2_net_buffer_pool_unlock(app_pool);
-	if (rc != C2_RPC_TM_RECV_BUFFERS_NR)
+	if (rc != bufs_nr)
 		rc = -ENOMEM;
 	else
 		rc = 0;
 
+	return rc;
+}
+
+int c2_rpc_net_buffer_pool__setup(struct c2_net_domain *ndom,
+ 				  struct c2_net_buffer_pool *app_pool)
+{
+	int	    rc;
+	uint32_t    segs_nr;
+	c2_bcount_t seg_size;
+	uint32_t    bufs_nr;
+	uint32_t    tm_nr;
+	c2_bcount_t buf_size;
+	
+	/* Add default values if arguments are not passed. */
+	seg_size = 4096;
+	buf_size = c2_net_domain_get_max_buffer_size(ndom);
+	segs_nr  = buf_size / seg_size;
+	bufs_nr  = C2_RPC_TM_RECV_BUFFERS_NR;
+	tm_nr    = C2_RPC_TM_MAX_NR;
+		
+	rc = c2_rpc_net_buffer_pool_setup(ndom, app_pool, segs_nr, seg_size,
+					  bufs_nr, tm_nr);
 	return rc;
 }
 
@@ -173,7 +186,17 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	if (cctx->rcx_buffer_pool == NULL)
 		return -ENOMEM;
 
-	rc = c2_rpc_net_buffer_pool_setup(ndom, cctx->rcx_buffer_pool);
+	if (cctx->rcx_segs_nr != 0 && cctx->rcx_seg_size != 0 &&
+	    cctx->rcx_bufs_nr != 0 && cctx->rcx_tm_nr != 0)
+		rc = c2_rpc_net_buffer_pool_setup(ndom, cctx->rcx_buffer_pool,
+						  cctx->rcx_segs_nr,
+						  cctx->rcx_seg_size,
+						  cctx->rcx_bufs_nr,
+						  cctx->rcx_tm_nr);
+	else
+		rc = c2_rpc_net_buffer_pool__setup(ndom,
+						   cctx->rcx_buffer_pool);
+
 	if (rc != 0)
 		goto pool_fini;
 
@@ -186,6 +209,10 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	tm = &cctx->rcx_rpc_machine.rm_tm;
 
 	c2_net_tm_colour_set(tm, tm_colours++);
+
+	if (cctx->rcx_recv_queue_min_length == 0)
+		cctx->rcx_recv_queue_min_length = C2_RPC_TM_MIN_RECV_BUFFERS_NR; 
+	c2_net_tm_pool_length_set(tm, cctx->rcx_recv_queue_min_length);
 
 	rc = c2_net_end_point_create(&cctx->rcx_remote_ep, tm,
 				      cctx->rcx_remote_addr);

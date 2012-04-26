@@ -113,6 +113,12 @@ static char *cs_ut_args_bad_cmd[] = { "colibri_setup", "-r", "-D", "cs_sdb",
                                 "-S", "cs_stob", "-e",
                                 "bulk-sunrpc:127.0.0.1:34567:2"};
 
+static char *cs_ut_buffer_pool_cmd[] = { "colibri_setup", "-r", "-T", "linux",
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-s", "ds1", "-n 128", "-p 4096", "-b 128",
+				"-t 16", "-m 64"};
+
 static const char *cl_ep_addrs[] = {
 				"127.0.0.1:34567:1",
 				"127.0.0.1:34569"};
@@ -353,6 +359,14 @@ static void test_cs_ut_args_bad(void)
 				  ARRAY_SIZE(cs_ut_args_bad_cmd));
 }
 
+static void test_cs_ut_buffer_pool(void)
+{
+	struct cl_ctx  cctx[1] = { };
+
+	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx), cs_ut_buffer_pool_cmd,
+				  ARRAY_SIZE(cs_ut_buffer_pool_cmd));
+}
+
 const struct c2_test_suite colibri_setup_ut = {
         .ts_name = "colibri_setup-ut",
         .ts_init = NULL,
@@ -368,6 +382,7 @@ const struct c2_test_suite colibri_setup_ut = {
 		{ "cs-bad-network-ep", test_cs_ut_ep_bad},
 		{ "cs-bad-service", test_cs_ut_service_bad},
 		{ "cs-missing-options", test_cs_ut_args_bad},
+		{ "cs-buffer_pool-options", test_cs_ut_buffer_pool},
                 { NULL, NULL }
         }
 };

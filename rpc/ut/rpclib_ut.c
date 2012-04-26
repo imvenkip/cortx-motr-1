@@ -108,16 +108,21 @@ static void test_rpclib(void)
 				  SERVER_LOG_FILE_NAME);
 
 	struct c2_rpc_client_ctx cctx = {
-		.rcx_net_dom            = &client_net_dom,
-		.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
-		.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
-		.rcx_db_name            = CLIENT_DB_NAME,
-		.rcx_dbenv              = &client_dbenv,
-		.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
-		.rcx_cob_dom            = &client_cob_dom,
-		.rcx_nr_slots           = SESSION_SLOTS,
-		.rcx_timeout_s          = CONNECT_TIMEOUT,
-		.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
+		.rcx_net_dom               = &client_net_dom,
+		.rcx_local_addr            = CLIENT_ENDPOINT_ADDR,
+		.rcx_remote_addr           = SERVER_ENDPOINT_ADDR,
+		.rcx_db_name               = CLIENT_DB_NAME,
+		.rcx_dbenv                 = &client_dbenv,
+		.rcx_cob_dom_id            = CLIENT_COB_DOM_ID,
+		.rcx_cob_dom               = &client_cob_dom,
+		.rcx_nr_slots              = SESSION_SLOTS,
+		.rcx_timeout_s             = CONNECT_TIMEOUT,
+		.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT,
+        	.rcx_bufs_nr		   = 128,
+        	.rcx_segs_nr		   = 128,
+        	.rcx_tm_nr		   = 64,
+        	.rcx_seg_size		   = 4096,
+        	.rcx_recv_queue_min_length = 16,
 	};
 
 	/*

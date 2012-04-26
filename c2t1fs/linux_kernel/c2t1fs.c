@@ -197,7 +197,7 @@ static int c2t1fs_rpc_init(void)
 	rpc_machine = &c2t1fs_globals.g_rpc_machine;
 	buffer_pool = c2t1fs_globals.g_buffer_pool;
 
-	rc = c2_rpc_net_buffer_pool_setup(ndom, buffer_pool);
+	rc = c2_rpc_net_buffer_pool__setup(ndom, buffer_pool);
 	if (rc != 0)
 		goto pool_fini;
 
@@ -209,6 +209,7 @@ static int c2t1fs_rpc_init(void)
 	tm = &rpc_machine->rm_tm;
 
 	c2_net_tm_colour_set(tm, tm_colours++);
+	c2_net_tm_pool_length_set(tm, C2_RPC_TM_MIN_RECV_BUFFERS_NR);
 
 	C2_LEAVE("rc: %d", rc);
 	return 0;

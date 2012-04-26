@@ -260,6 +260,11 @@ struct c2_colibri {
 
 	/** List of buffer pools in the colibri. */
         struct c2_tl		   cc_buffer_pools;
+        uint32_t		   cc_bufs_nr;
+        uint32_t		   cc_segs_nr;
+        c2_bcount_t		   cc_seg_size;
+        uint32_t		   cc_recv_queue_min_length;
+        uint32_t		   cc_tm_nr;
 };
 
 /**
