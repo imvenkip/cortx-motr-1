@@ -185,13 +185,14 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	 * See conn_establish_item_decode()
 	 */
 	ctx = container_of(fop, struct c2_rpc_fop_conn_establish_ctx, cec_fop);
-	C2_ASSERT(ctx != NULL && ctx->cec_sender_ep != NULL &&
-				 ctx->cec_rpc_machine != NULL);
+	C2_ASSERT(ctx != NULL &&
+		  ctx->cec_sender_ep != NULL &&
+		  ctx->cec_rpc_machine != NULL);
 
 	C2_ALLOC_PTR(conn);
 	if (conn == NULL)
 		/* no reply if conn establish failed.
-		   See [4] at end of this functio. */
+		   See [4] at end of this function. */
 		return -ENOMEM;
 
 	machine = ctx->cec_rpc_machine;
@@ -207,11 +208,10 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 		if (rc == 0) {
 			/* See [1] at the end of function */
 			session0         = c2_rpc_conn_session0(conn);
-			item->ri_session = session0;
-
 			slot             = session0->s_slot_table[0];
 			C2_ASSERT(slot != NULL);
 
+			item->ri_session = session0;
 			c2_rpc_slot_item_add_internal(slot, item);
 
 			/* See [2] at the end of function */
@@ -437,7 +437,6 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 
 	session = c2_rpc_session_search(conn, session_id);
 	if (session != NULL) {
-
 		/*
 		 * c2_rpc_rcv_session_terminate() may drop machine->rm_mutex
 		 * to wait for session to move to IDLE state

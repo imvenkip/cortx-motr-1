@@ -374,12 +374,18 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
 void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 {
 	struct c2_rpc_machine *machine;
+	struct c2_rpc_session *session0;
 
 	C2_PRE(conn != NULL && conn->c_rpc_machine != NULL);
 
 	machine = conn->c_rpc_machine;
 
 	c2_rpc_machine_lock(machine);
+
+	session0 = c2_rpc_conn_session0(conn);
+	while (session0->s_state != C2_RPC_SESSION_IDLE)
+		c2_cond_wait(&session0->s_state_changed, &machine->rm_mutex);
+
 	c2_rpc_conn_fini_locked(conn);
 	/* Don't look in conn after this point */
 	c2_rpc_machine_unlock(machine);
@@ -409,16 +415,10 @@ static void session_zero_detach(struct c2_rpc_conn *conn)
 	C2_PRE(c2_rpc_machine_is_locked(conn->c_rpc_machine));
 
 	session = c2_rpc_conn_session0(conn);
-
-	while (session->s_state != C2_RPC_SESSION_IDLE)
-		c2_cond_wait(&session->s_state_changed,
-			     &conn->c_rpc_machine->rm_mutex);
-
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
 
-	session->s_state = C2_RPC_SESSION_TERMINATED;
-
 	c2_rpc_session_del_slots_from_ready_list(session);
+	session->s_state = C2_RPC_SESSION_TERMINATED;
 	c2_rpc_session_fini_locked(session);
 	c2_free(session);
 }
