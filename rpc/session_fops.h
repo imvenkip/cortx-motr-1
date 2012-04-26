@@ -87,8 +87,8 @@ struct c2_rpc_fop_conn_establish_ctx
 	struct c2_net_end_point *cec_sender_ep;
 
 	/** New rpc connection needs to be established in context of this
-	    rpcmachine */
-	struct c2_rpcmachine    *cec_rpcmachine;
+	    rpc_machine */
+	struct c2_rpc_machine   *cec_rpc_machine;
 };
 
 /* __COLIBRI_RPC_SESSION_FOPS_H__ */

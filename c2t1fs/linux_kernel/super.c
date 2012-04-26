@@ -24,7 +24,7 @@
 
 #include "lib/misc.h"         /* C2_SET0()                 */
 #include "lib/memory.h"       /* C2_ALLOC_PTR(), c2_free() */
-#include "c2t1fs.h"
+#include "c2t1fs/linux_kernel/c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"        /* C2_LOG and C2_ENTRY */
 #include "pool/pool.h"        /* c2_pool_init(), c2_pool_fini() */
@@ -686,7 +686,7 @@ static void c2t1fs_service_contexts_discard(struct c2t1fs_sb *csb)
 
 static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
 {
-	struct c2_rpcmachine      *rpc_mach;
+	struct c2_rpc_machine     *rpc_mach;
 	struct c2_net_transfer_mc *tm;
 	struct c2_net_end_point   *ep;
 	struct c2_rpc_conn        *conn;
@@ -695,8 +695,8 @@ static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
 
 	C2_ENTRY();
 
-	rpc_mach = &c2t1fs_globals.g_rpcmachine;
-	tm       = &rpc_mach->cr_tm;
+	rpc_mach = &c2t1fs_globals.g_rpc_machine;
+	tm       = &rpc_mach->rm_tm;
 
 	/* Create target end-point */
 	rc = c2_net_end_point_create(&ep, tm, ctx->sc_addr);

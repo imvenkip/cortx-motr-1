@@ -195,6 +195,7 @@ enum {
 					    2 * C2T1FS_DEFAULT_NR_PARITY_UNITS,
 	C2T1FS_DEFAULT_STRIPE_UNIT_SIZE = PAGE_CACHE_SIZE,
 	C2T1FS_MAX_NR_CONTAINERS        = 1024,
+	C2T1FS_COB_ID_STRLEN		= 34,
 };
 
 /** Anything that is global to c2t1fs module goes in this singleton structure.
@@ -207,7 +208,7 @@ struct c2t1fs_globals {
 	struct c2_cob_domain_id  g_cob_dom_id;
 
 	struct c2_net_domain     g_ndom;
-	struct c2_rpcmachine     g_rpcmachine;
+	struct c2_rpc_machine    g_rpc_machine;
 	struct c2_cob_domain     g_cob_dom;
 	struct c2_dbenv          g_dbenv;
 };

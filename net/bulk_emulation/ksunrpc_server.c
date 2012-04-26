@@ -39,8 +39,8 @@
 #include "fop/fop.h"
 #include "addb/addb.h"
 
-#include "ksunrpc.h"
-#include "sunrpc_io_k.h"
+#include "net/ksunrpc/ksunrpc.h"
+#include "net/bulk_emulation/sunrpc_io_k.h"
 #include "net/bulk_emulation/sunrpc_xprt.h"
 #include "rpc/rpc_opcodes.h"
 

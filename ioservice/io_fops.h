@@ -68,7 +68,7 @@
    - Bulk client invokes c2_rpc_bulk_store() to store the network buffer
    memory descriptor/s to io fop wire format. The network buffer memory
    descriptor is retrieved after adding the network buffer to transfer
-   machine belonging to c2_rpcmachine.
+   machine belonging to c2_rpc_machine.
    - Bulk client invokes c2_rpc_post() to submit the fop to rpc layer.
    - The network buffers added by bulk client to c2_rpc_bulk structure
    are removed and deallocated by network buffer completion callbacks.
@@ -210,7 +210,10 @@ bool c2_is_write_fop(const struct c2_fop *fop);
 bool c2_is_io_fop(const struct c2_fop *fop);
 struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
 struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop);
-
+bool c2_is_cob_create_fop(const struct c2_fop *fop);
+bool c2_is_cob_delete_fop(const struct c2_fop *fop);
+bool c2_is_cob_create_delete_fop(const struct c2_fop *fop);
+struct c2_fop_cob_common *c2_cobfop_common_get(struct c2_fop *fop);
 
 /**
    @} bulkclientDFS end group
@@ -244,6 +247,9 @@ extern struct c2_fop_type c2_fop_cob_readv_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_fopt;
 extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
+extern struct c2_fop_type c2_fop_cob_create_fopt;
+extern struct c2_fop_type c2_fop_cob_delete_fopt;
+extern struct c2_fop_type c2_fop_cob_op_reply_fopt;
 extern const struct c2_fom_type c2_io_fom_cob_rw_mopt;
 
 struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);

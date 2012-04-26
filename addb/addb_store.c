@@ -33,9 +33,9 @@
 #include "addb/addb.h"
 
 #ifdef __KERNEL__
-# include "addb_k.h"
+# include "addb/addb_k.h"
 #else
-# include "addb_u.h"
+# include "addb/addb_u.h"
 #endif
 
 #ifndef __KERNEL__

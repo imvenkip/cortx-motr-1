@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -63,13 +63,6 @@
    @subsection DLD-bulk-server-fspec-if Interfaces
    Bulk I/O Service will be implemented as read FOM and write FOM. Since
    request handler processes FOM, each FOM needs to define its operations:
-
-   Bulk I/O FOP type Operations :
-   @verbatim
-
-   c2_io_fom_cob_rw_init()      Request handler uses this interface to
-                                initiate I/O FOM.
-   @endverbatim
 
    Bulk I/O FOM type operations:
 
@@ -145,6 +138,8 @@
 #include "net/net.h"
 #include "fop/fom.h"
 
+struct c2_fid;
+struct c2_fop_file_fid;
 struct c2_io_fom_cob_rw;
 
 enum {
@@ -215,13 +210,13 @@ struct c2_io_fom_cob_rw {
  * complete FOM and reqh infrastructure is in place.
  */
 enum c2_io_fom_cob_rw_phases {
-        FOPH_IO_FOM_BUFFER_ACQUIRE = FOPH_NR + 1,
-        FOPH_IO_FOM_BUFFER_WAIT,
-        FOPH_IO_STOB_INIT,
-        FOPH_IO_STOB_WAIT,
-        FOPH_IO_ZERO_COPY_INIT,
-        FOPH_IO_ZERO_COPY_WAIT,
-        FOPH_IO_BUFFER_RELEASE,
+        C2_FOPH_IO_FOM_BUFFER_ACQUIRE = C2_FOPH_NR + 1,
+        C2_FOPH_IO_FOM_BUFFER_WAIT,
+        C2_FOPH_IO_STOB_INIT,
+        C2_FOPH_IO_STOB_WAIT,
+        C2_FOPH_IO_ZERO_COPY_INIT,
+        C2_FOPH_IO_ZERO_COPY_WAIT,
+        C2_FOPH_IO_BUFFER_RELEASE,
 };
 
 /**
@@ -240,6 +235,26 @@ struct c2_io_fom_cob_rw_state_transition {
         const char *fcrw_st_desc;
 };
 
+/**
+ * Returns string representing ioservice name given a fom.
+ */
+const char *c2_io_fom_cob_rw_service_name (struct c2_fom *fom);
+
+/**
+ * Function to map the on-wire FOP format to in-core FOP format.
+ * @param in Input on-wire fid fop format.
+ * @param out Output in-core fid fop format.
+ */
+void io_fom_cob_rw_fid_wire2mem(struct c2_fop_file_fid *in,
+                                struct c2_fid *out);
+
+/**
+ * Maps given fid to corresponding stob id.
+ * @param in Input in-core fid.
+ * @param out Output stob id.
+ */
+void io_fom_cob_rw_fid2stob_map(const struct c2_fid *in,
+                                struct c2_stob_id *out);
 
 /** @} end of io_foms */
 
