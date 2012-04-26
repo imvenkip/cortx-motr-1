@@ -75,11 +75,13 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 	struct c2_rpc_item *item2;
 	struct c2_verno    *v1;
 	struct c2_verno    *v2;
-	bool                ret = true;   /* init to true, required */
+	bool                ok;
 
-	if (slot == NULL ||
-	      slot->sl_in_flight > slot->sl_max_in_flight ||
-	      !c2_list_invariant(&slot->sl_item_list))
+	ok = slot != NULL &&
+	     slot->sl_in_flight <= slot->sl_max_in_flight &&
+	     c2_list_invariant(&slot->sl_item_list);
+
+	if (!ok)
 		return false;
 
 	/*
@@ -97,15 +99,15 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 			item1 = item2;
 			continue;
 		}
-		ret = ergo(item2->ri_stage == RPC_ITEM_STAGE_PAST_VOLATILE ||
-			   item2->ri_stage == RPC_ITEM_STAGE_PAST_COMMITTED,
-			   item2->ri_reply != NULL);
-		if (!ret)
-			break;
+		ok = ergo(item2->ri_stage == RPC_ITEM_STAGE_PAST_VOLATILE ||
+			  item2->ri_stage == RPC_ITEM_STAGE_PAST_COMMITTED,
+			  item2->ri_reply != NULL);
+		if (!ok)
+			return false;
 
-		ret = (item1->ri_stage <= item2->ri_stage);
-		if (!ret)
-			break;
+		ok = (item1->ri_stage <= item2->ri_stage);
+		if (!ok)
+			return false;
 
 		v1 = &item1->ri_slot_refs[0].sr_verno;
 		v2 = &item2->ri_slot_refs[0].sr_verno;
@@ -114,20 +116,20 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 		 * AFTER an "update" item is applied on a slot
 		 * the version number of slot is advanced
 		 */
-		ret = c2_rpc_item_is_update(item1) ?
+		ok = c2_rpc_item_is_update(item1) ?
 			v1->vn_vc + 1 == v2->vn_vc :
 			v1->vn_vc == v2->vn_vc;
-		if (!ret)
-			break;
+		if (!ok)
+			return false;
 
-		ret = (item1->ri_slot_refs[0].sr_xid + 1 ==
-			item2->ri_slot_refs[0].sr_xid);
-		if (!ret)
-			break;
+		ok = (item1->ri_slot_refs[0].sr_xid + 1 ==
+		      item2->ri_slot_refs[0].sr_xid);
+		if (!ok)
+			return false;
 
 		item1 = item2;
 	}
-	return ret;
+	return true;
 }
 
 int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
@@ -228,7 +230,7 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 		reply = item->ri_reply;
 		if (reply != NULL) {
 			C2_ASSERT(reply->ri_ops != NULL &&
-					reply->ri_ops->rio_free != NULL);
+				  reply->ri_ops->rio_free != NULL);
 			reply->ri_ops->rio_free(reply);
 		}
 		item->ri_reply = NULL;
@@ -236,7 +238,7 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 		c2_list_del(&item->ri_slot_refs[0].sr_link);
 
 		C2_ASSERT(item->ri_ops != NULL &&
-				item->ri_ops->rio_free != NULL);
+			  item->ri_ops->rio_free != NULL);
 		item->ri_ops->rio_free(item);
 		count++;
 	}
@@ -639,10 +641,8 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 			session->s_state = C2_RPC_SESSION_IDLE;
 			c2_cond_broadcast(&session->s_state_changed,
 					  &machine->rm_mutex);
-
 		}
 		C2_ASSERT(c2_rpc_session_invariant(session));
-
 	}
 }
 
@@ -803,6 +803,7 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 		 * item except to discard it.
 		 * XXX generate ADDB record
 		 */
+		item->ri_ops->rio_free(item);
 		return rc;
 	}
 	C2_ASSERT(item->ri_session != NULL &&
@@ -862,11 +863,9 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
 		session->s_activity_counter++;
 
 		if (session->s_state == C2_RPC_SESSION_IDLE) {
-
 			session->s_state = C2_RPC_SESSION_BUSY;
 			c2_cond_broadcast(&session->s_state_changed,
 					  &machine->rm_mutex);
-
 		}
 		c2_rpc_machine_unlock(machine);
 
@@ -884,11 +883,9 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
 
 		session->s_activity_counter--;
 		if (c2_rpc_session_is_idle(session)) {
-
 			session->s_state = C2_RPC_SESSION_IDLE;
 			c2_cond_broadcast(&session->s_state_changed,
 					  &machine->rm_mutex);
-
 		}
 	}
 }
