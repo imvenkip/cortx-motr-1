@@ -398,6 +398,7 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 		C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb, &frm_addb_loc,
 			    c2_addb_trace, "Rpc sent on wire.");
 		frm_item_rpc_stats_set(rpc);
+		/* XXX @todo implement SENT callback */
 		frm_item_state_set(rpc, RPC_ITEM_SENT);
 
 	} else {
@@ -405,6 +406,7 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 		C2_ADDB_ADD(&fb->fb_frm_sm->fs_rpc_form_addb,
 			    &frm_addb_loc, formation_func_fail,
 			    "net buf send failed", ev->nbe_status);
+		/* XXX @todo implement FAILED callback */
 		frm_item_state_failed(rpc, ev->nbe_status);
 		C2_ASSERT("BUF_SEND_FAILED" == NULL);
 
@@ -418,6 +420,8 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 		C2_ASSERT(session->s_state == C2_RPC_SESSION_BUSY);
 		C2_ASSERT(session->s_activity_counter > 0);
 
+		/* s_activity_counter was incremented when the item was
+		   added to rpc */
 		session->s_activity_counter--;
 
 		if (c2_rpc_session_is_idle(session)) {
@@ -629,7 +633,6 @@ static void frm_item_remove(struct c2_rpc_frm_sm *frm_sm,
 
 	C2_PRE(item != NULL);
 	C2_PRE(frm_sm != NULL);
-	//C2_PRE(c2_mutex_is_locked(&frm_sm->fs_lock));
 	C2_PRE(c2_rpc_machine_is_locked(frm_sm_to_rpc_machine(frm_sm)));
 	C2_PRE(item->ri_state == RPC_ITEM_SUBMITTED);
 
@@ -690,12 +693,14 @@ static void frm_item_add(struct c2_rpc_frm_sm *frm_sm,
 	struct c2_rpc_item		*rpc_item_next;
 	struct c2_rpc_session		*session;
 	struct c2_rpc_frm_group		*rg;
+	struct c2_rpc_machine           *machine;
 
 	C2_PRE(item != NULL);
 	C2_PRE(frm_sm != NULL);
-	C2_PRE(c2_rpc_machine_is_locked(frm_sm_to_rpc_machine(frm_sm)));
-
 	C2_PRE(item->ri_state == RPC_ITEM_SUBMITTED);
+
+	machine = frm_sm_to_rpc_machine(frm_sm);
+	C2_PRE(c2_rpc_machine_is_locked(machine));
 
 	item_size = item->ri_type->rit_ops->rito_item_size(item);
 	frm_sm->fs_cumulative_size += item_size;
@@ -739,8 +744,11 @@ static void frm_item_add(struct c2_rpc_frm_sm *frm_sm,
 			  session->s_state == C2_RPC_SESSION_BUSY);
 
 		c2_list_add(&session->s_unbound_items, &item->ri_unbound_link);
-		session->s_state = C2_RPC_SESSION_BUSY;
-
+		if (session->s_state == C2_RPC_SESSION_IDLE) {
+			session->s_state = C2_RPC_SESSION_BUSY;
+			c2_cond_broadcast(&session->s_state_changed,
+					  &machine->rm_mutex);
+		}
 		C2_ASSERT(c2_rpc_session_invariant(session));
 		return;
 	}
@@ -901,7 +909,6 @@ static void io_coalesce(struct c2_rpc_item *item, struct c2_rpc_frm_sm *frm_sm,
 
 	session = item->ri_session;
 	C2_PRE(session != NULL);
-//	C2_PRE(c2_mutex_is_locked(&session->s_mutex));
 
 	if (frm_sm->fs_max_msg_size - size == 0)
 		return;
@@ -958,6 +965,8 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 
 			session = item->ri_session;
 			session->s_activity_counter++;
+			/* s_activity_counter will be decremented in
+			   frm_net_buffer_sent() callback */
 			if (session->s_state == C2_RPC_SESSION_IDLE) {
 				session->s_state = C2_RPC_SESSION_BUSY;
 				c2_cond_broadcast(&session->s_state_changed,
@@ -1042,10 +1051,13 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 			frm_item_make_bound(slot, item);
 			c2_list_del(&item->ri_unbound_link);
 			io_coalesce(item, frm_sm, rpc_size);
-			frm_add_to_rpc(frm_sm, rpcobj, item,
-				       rpcobj_size);
+			frm_add_to_rpc(frm_sm, rpcobj, item, rpcobj_size);
 
 			session->s_activity_counter++;
+			/* s_activity_counter will be decremented when
+			   buffer sent callback is generated for the buffer
+			   that carries this rpc. See frm_net_buffer_sent()
+			 */
 			if (session->s_state == C2_RPC_SESSION_IDLE) {
 				session->s_state = C2_RPC_SESSION_BUSY;
 				c2_cond_broadcast(&session->s_state_changed,
@@ -1172,12 +1184,13 @@ static void frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 
 		if (frm_sm->fs_sender_side &&
 		    frm_sm->fs_curr_rpcs_in_flight >=
-		      frm_sm->fs_max_rpcs_in_flight) {
+				frm_sm->fs_max_rpcs_in_flight) {
 
 			rc = -EBUSY;
 			break;
 
 		}
+
 		tm       = &chan->rc_rpc_machine->rm_tm;
 		dom      = tm->ntm_dom;
 		rpc_size = rpc_size_get(rpc_obj);
@@ -1219,7 +1232,6 @@ static void frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 
 		}
 		c2_list_del(&rpc_obj->r_linkage);
-
 	}
 }
 

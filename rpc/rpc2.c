@@ -661,9 +661,10 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 
 		item->ri_rpc_time = now;
 		/*
-		 * if item is NOT one of item types provided by session module,
-		 * c2_rpc_item_received() => rpc_item_replied() drops
-		 * and reaquires machine->rm_mutex
+		 * IMPORTANT:
+		 * if type of item is NOT one of item types provided by session
+		 * module, then c2_rpc_item_received() => rpc_item_replied()
+		 * drops and reaquires machine->rm_mutex
 		 */
 		rc = c2_rpc_item_received(item, machine);
 	}
