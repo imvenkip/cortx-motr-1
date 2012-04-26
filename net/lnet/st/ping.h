@@ -75,6 +75,7 @@ struct nlx_ping_ctx {
 	struct c2_clink                       pc_net_clink;
 	bool                                  pc_net_signal;
 	unsigned                              pc_net_signal_count;
+	struct c2_atomic64                    pc_errors;
 };
 
 struct nlx_ping_client_params {
@@ -140,6 +141,12 @@ void nlx_ping_server_spawn(struct c2_thread *server_thread,
 			   struct nlx_ping_ctx *sctx);
 void nlx_ping_server_should_stop(struct nlx_ping_ctx *ctx);
 void nlx_ping_client(struct nlx_ping_client_params *params);
+
+void nlx_ping_print_qstats_tm(struct nlx_ping_ctx *ctx, bool reset);
+void nlx_ping_print_qstats_total(const char *ident,
+				 const struct nlx_ping_ops *ops);
+void nlx_ping_init(void);
+void nlx_ping_fini(void);
 
 #endif /* __COLIBRI_NET_LNET_PING_H__ */
 

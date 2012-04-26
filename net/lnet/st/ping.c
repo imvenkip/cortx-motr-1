@@ -49,6 +49,109 @@ struct ping_work_item {
 	struct c2_list_link         pwi_link;
 };
 
+static struct c2_mutex qstats_mutex;
+static struct c2_net_qstats ping_qs_total[C2_NET_QT_NR];
+static uint64_t ping_qs_total_errors;
+
+static void ping_print_qstats(struct nlx_ping_ctx *ctx,
+			      struct c2_net_qstats *qp,
+			      bool accumulate)
+
+{
+	int i;
+	uint64_t hr;
+	uint64_t min;
+	uint64_t sec;
+	uint64_t msec;
+	static const char *qnames[C2_NET_QT_NR] = {
+		"mRECV", "mSEND",
+		"pRECV", "pSEND",
+		"aRECV", "aSEND",
+	};
+	char tbuf[16];
+	const char *lfmt =
+"%5s %6lu %6lu %6lu %6lu %13s %14lu %13lu\n";
+	const char *hfmt =
+"Queue   #Add   #Del  #Succ  #Fail Time in Queue   Total Bytes  "
+" Max Buffer Sz\n"
+"----- ------ ------ ------ ------ ------------- ---------------"
+" -------------\n";
+
+	c2_mutex_lock(&qstats_mutex);
+	ctx->pc_ops->pf("%s statistics:\n", ctx->pc_ident);
+	ctx->pc_ops->pf("%s", hfmt);
+	for (i = 0; i < C2_NET_QT_NR; ++qp, ++i) {
+		sec = c2_time_seconds(qp->nqs_time_in_queue);
+		hr = sec / SEC_PER_HR;
+		min = sec % SEC_PER_HR / SEC_PER_MIN;
+		sec %= SEC_PER_MIN;
+		msec = (c2_time_nanoseconds(qp->nqs_time_in_queue) +
+			ONE_MILLION / 2) / ONE_MILLION;
+		sprintf(tbuf, "%02lu:%02lu:%02lu.%03lu",
+			(long unsigned int) hr,
+			(long unsigned int) min,
+			(long unsigned int) sec,
+			(long unsigned int) msec);
+		ctx->pc_ops->pf(lfmt,
+				qnames[i],
+				qp->nqs_num_adds, qp->nqs_num_dels,
+				qp->nqs_num_s_events, qp->nqs_num_f_events,
+				tbuf, qp->nqs_total_bytes, qp->nqs_max_bytes);
+		if (accumulate) {
+			struct c2_net_qstats *cqp = &ping_qs_total[i];
+
+#define PING_QSTATS_CLIENT_TOTAL(f) cqp->nqs_##f += qp->nqs_##f
+			PING_QSTATS_CLIENT_TOTAL(time_in_queue);
+			PING_QSTATS_CLIENT_TOTAL(num_adds);
+			PING_QSTATS_CLIENT_TOTAL(num_dels);
+			PING_QSTATS_CLIENT_TOTAL(num_s_events);
+			PING_QSTATS_CLIENT_TOTAL(num_f_events);
+			PING_QSTATS_CLIENT_TOTAL(total_bytes);
+#undef PING_QSTATS_CLIENT_TOTAL
+			cqp->nqs_max_bytes =
+				max64u(cqp->nqs_max_bytes, qp->nqs_max_bytes);
+		}
+	}
+	if (ctx->pc_sync_events) {
+		ctx->pc_ops->pf("%s #channel events: Work=%u Net=%u\n",
+				ctx->pc_ident,
+				ctx->pc_work_signal_count,
+				ctx->pc_net_signal_count);
+	}
+	ctx->pc_ops->pf("%s errors: %lu\n", ctx->pc_ident,
+			(long unsigned int)c2_atomic64_get(&ctx->pc_errors));
+	if (accumulate)
+		ping_qs_total_errors += c2_atomic64_get(&ctx->pc_errors);
+
+	c2_mutex_unlock(&qstats_mutex);
+}
+
+void nlx_ping_print_qstats_tm(struct nlx_ping_ctx *ctx, bool reset)
+{
+	struct c2_net_qstats qs[C2_NET_QT_NR];
+	bool is_client;
+	int rc;
+
+	if (ctx->pc_tm.ntm_state < C2_NET_TM_INITIALIZED)
+		return;
+	is_client = ctx->pc_ident[0] == 'C';
+	rc = c2_net_tm_stats_get(&ctx->pc_tm, C2_NET_QT_NR, qs, reset);
+	C2_ASSERT(rc == 0);
+	ping_print_qstats(ctx, qs, is_client);
+}
+
+
+void nlx_ping_print_qstats_total(const char *ident,
+				 const struct nlx_ping_ops *ops)
+{
+	struct nlx_ping_ctx tctx = {
+		.pc_ops    = ops,
+		.pc_ident  = ident,
+	};
+	c2_atomic64_set(&tctx.pc_errors, ping_qs_total_errors);
+	ping_print_qstats(&tctx, ping_qs_total, false);
+}
+
 static void ping_sleep_secs(int secs)
 {
 	c2_time_t req, rem;
@@ -279,9 +382,11 @@ static void c_m_recv_cb(const struct c2_net_buffer_event *ev)
 		if (ev->nbe_status == -ECANCELED)
 			ctx->pc_ops->pf("%s: msg recv canceled\n",
 					ctx->pc_ident);
-		else
+		else {
 			ctx->pc_ops->pf("%s: msg recv error: %d\n",
 					ctx->pc_ident, ev->nbe_status);
+			c2_atomic64_inc(&ctx->pc_errors);
+		}
 	} else {
 		ev->nbe_buffer->nb_length = ev->nbe_length;
 		rc = decode_msg(ev->nbe_buffer, &msg);
@@ -334,9 +439,11 @@ static void c_m_send_cb(const struct c2_net_buffer_event *ev)
 		if (ev->nbe_status == -ECANCELED)
 			ctx->pc_ops->pf("%s: msg send canceled\n",
 					ctx->pc_ident);
-		else
+		else {
 			ctx->pc_ops->pf("%s: msg send error: %d\n",
 					ctx->pc_ident, ev->nbe_status);
+			c2_atomic64_inc(&ctx->pc_errors);
+		}
 
 		/* let main app deal with it */
 		C2_ALLOC_PTR(wi);
@@ -378,9 +485,11 @@ static void c_p_recv_cb(const struct c2_net_buffer_event *ev)
 		if (ev->nbe_status == -ECANCELED)
 			ctx->pc_ops->pf("%s: passive recv canceled\n",
 					ctx->pc_ident);
-		else
+		else {
 			ctx->pc_ops->pf("%s: passive recv error: %d\n",
 					ctx->pc_ident, ev->nbe_status);
+			c2_atomic64_inc(&ctx->pc_errors);
+		}
 	} else {
 		ev->nbe_buffer->nb_length = ev->nbe_length;
 		rc = decode_msg(ev->nbe_buffer, &msg);
@@ -405,6 +514,7 @@ static void c_p_recv_cb(const struct c2_net_buffer_event *ev)
 						 ctx->pc_ident, i,
 						 msg.pm_u.pm_str[i],
 						 "abcdefghi"[i % 9]);
+					c2_atomic64_inc(&ctx->pc_errors);
 					break;
 				}
 			}
@@ -440,9 +550,11 @@ static void c_p_send_cb(const struct c2_net_buffer_event *ev)
 		if (ev->nbe_status == -ECANCELED)
 			ctx->pc_ops->pf("%s: passive send canceled\n",
 					ctx->pc_ident);
-		else
+		else {
 			ctx->pc_ops->pf("%s: passive send error: %d\n",
 					ctx->pc_ident, ev->nbe_status);
+			c2_atomic64_inc(&ctx->pc_errors);
+		}
 	}
 
 	c2_net_desc_free(&ev->nbe_buffer->nb_desc);
@@ -489,10 +601,11 @@ static void event_cb(const struct c2_net_tm_event *ev)
 		ctx->pc_ops->pf("%s: Event CB state change to %s, status %d\n",
 				ctx->pc_ident, s, ev->nte_status);
 		ctx->pc_status = ev->nte_status;
-	} else if (ev->nte_type == C2_NET_TEV_ERROR)
+	} else if (ev->nte_type == C2_NET_TEV_ERROR) {
 		ctx->pc_ops->pf("%s: Event CB for error %d\n",
 				ctx->pc_ident, ev->nte_status);
-	else if (ev->nte_type == C2_NET_TEV_DIAGNOSTIC)
+		c2_atomic64_inc(&ctx->pc_errors);
+	} else if (ev->nte_type == C2_NET_TEV_DIAGNOSTIC)
 		ctx->pc_ops->pf("%s: Event CB for diagnostic %d\n",
 				ctx->pc_ident, ev->nte_status);
 }
@@ -558,6 +671,8 @@ static void s_m_recv_cb(const struct c2_net_buffer_event *ev)
 		else {
 			ctx->pc_ops->pf("%s: msg recv error: %d\n",
 					idbuf, ev->nbe_status);
+			c2_atomic64_inc(&ctx->pc_errors);
+
 			ev->nbe_buffer->nb_timeout = C2_TIME_NEVER;
 			ev->nbe_buffer->nb_ep = NULL;
 			rc = c2_net_buffer_add(ev->nbe_buffer, &ctx->pc_tm);
@@ -574,6 +689,7 @@ static void s_m_recv_cb(const struct c2_net_buffer_event *ev)
 		if (nb == NULL) {
 			ctx->pc_ops->pf("%s: dropped msg, "
 					"no buffer available\n", idbuf);
+			c2_atomic64_inc(&ctx->pc_errors);
 		} else {
 			C2_ALLOC_PTR(wi);
 			nb->nb_ep = ev->nbe_ep; /* save for later, if set */
@@ -679,9 +795,11 @@ static void s_m_send_cb(const struct c2_net_buffer_event *ev)
 		/* no retries here */
 		if (ev->nbe_status == -ECANCELED)
 			ctx->pc_ops->pf("%s: msg send canceled\n", idbuf);
-		else
+		else {
 			ctx->pc_ops->pf("%s: msg send error: %d\n",
 					idbuf, ev->nbe_status);
+			c2_atomic64_inc(&ctx->pc_errors);
+		}
 	}
 
 	rc = c2_net_end_point_put(ev->nbe_buffer->nb_ep);
@@ -721,9 +839,11 @@ static void s_a_recv_cb(const struct c2_net_buffer_event *ev)
 		/* no retries here */
 		if (ev->nbe_status == -ECANCELED)
 			ctx->pc_ops->pf("%s: active recv canceled\n", idbuf);
-		else
+		else {
 			ctx->pc_ops->pf("%s: active recv error: %d\n",
 					idbuf, ev->nbe_status);
+			c2_atomic64_inc(&ctx->pc_errors);
+		}
 	} else {
 		ev->nbe_buffer->nb_length = ev->nbe_length;
 		rc = decode_msg(ev->nbe_buffer, &msg);
@@ -747,6 +867,7 @@ static void s_a_recv_cb(const struct c2_net_buffer_event *ev)
 						 "%c != %c\n", idbuf, i,
 						 msg.pm_u.pm_str[i],
 						 "abcdefghi"[i % 9]);
+					c2_atomic64_inc(&ctx->pc_errors);
 					break;
 				}
 			}
@@ -775,9 +896,11 @@ static void s_a_send_cb(const struct c2_net_buffer_event *ev)
 		/* no retries here */
 		if (ev->nbe_status == -ECANCELED)
 			ctx->pc_ops->pf("%s: active send canceled\n", idbuf);
-		else
+		else {
 			ctx->pc_ops->pf("%s: active send error: %d\n",
 					idbuf, ev->nbe_status);
+			c2_atomic64_inc(&ctx->pc_errors);
+		}
 	}
 
 	c2_net_desc_free(&ev->nbe_buffer->nb_desc);
@@ -837,6 +960,7 @@ static int ping_init(struct nlx_ping_ctx *ctx)
 	struct c2_clink    tmwait;
 
 	c2_list_init(&ctx->pc_work_queue);
+	c2_atomic64_set(&ctx->pc_errors, 0);
 	if (ctx->pc_sync_events) {
 		c2_chan_init(&ctx->pc_work_chan);
 		c2_chan_init(&ctx->pc_net_chan);
@@ -1203,7 +1327,6 @@ static void nlx_ping_server(struct nlx_ping_ctx *ctx)
 		c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
 		c2_net_buffer_del(nb, &ctx->pc_tm);
 		c2_bitmap_set(&ctx->pc_nbbm, i, false);
-		ctx->pc_ops->pf("waiting after buffer deletion\n");
 		ping_tm_wait(ctx, &tmwait);
 		c2_clink_del(&tmwait);
 	}
@@ -1651,6 +1774,16 @@ void nlx_ping_client(struct nlx_ping_client_params *params)
 fail:
 	c2_cond_fini(&cctx.pc_cond);
 	c2_mutex_fini(&cctx.pc_mutex);
+}
+
+void nlx_ping_init()
+{
+	c2_mutex_init(&qstats_mutex);
+}
+
+void nlx_ping_fini()
+{
+	c2_mutex_fini(&qstats_mutex);
 }
 
 /*

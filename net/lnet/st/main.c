@@ -43,63 +43,6 @@ static struct nlx_ping_ctx sctx = {
 	}
 };
 
-static struct c2_mutex qstats_mutex;
-
-static void print_qstats(struct nlx_ping_ctx *ctx, bool reset)
-{
-	int i;
-	int rc;
-	uint64_t hr;
-	uint64_t min;
-	uint64_t sec;
-	uint64_t msec;
-	struct c2_net_qstats qs[C2_NET_QT_NR];
-	struct c2_net_qstats *qp;
-	static const char *qnames[C2_NET_QT_NR] = {
-		"mRECV", "mSEND",
-		"pRECV", "pSEND",
-		"aRECV", "aSEND",
-	};
-	char tbuf[16];
-	const char *lfmt =
-"%5s %6lu %6lu %6lu %6lu %13s %14lu %13lu\n";
-	const char *hfmt =
-"Queue   #Add   #Del  #Succ  #Fail Time in Queue   Total Bytes  "
-" Max Buffer Sz\n"
-"----- ------ ------ ------ ------ ------------- ---------------"
-" -------------\n";
-
-	if (ctx->pc_tm.ntm_state < C2_NET_TM_INITIALIZED)
-		return;
-	rc = c2_net_tm_stats_get(&ctx->pc_tm, C2_NET_QT_NR, qs, reset);
-	C2_ASSERT(rc == 0);
-	c2_mutex_lock(&qstats_mutex);
-	ctx->pc_ops->pf("%s statistics:\n", ctx->pc_ident);
-	ctx->pc_ops->pf("%s", hfmt);
-	for (i = 0; i < ARRAY_SIZE(qs); ++i) {
-		qp = &qs[i];
-		sec = c2_time_seconds(qp->nqs_time_in_queue);
-		hr = sec / SEC_PER_HR;
-		min = sec % SEC_PER_HR / SEC_PER_MIN;
-		sec %= SEC_PER_MIN;
-		msec = (c2_time_nanoseconds(qp->nqs_time_in_queue) +
-			ONE_MILLION / 2) / ONE_MILLION;
-		sprintf(tbuf, "%02lu:%02lu:%02lu.%03lu",
-			hr, min, sec, msec);
-		ctx->pc_ops->pf(lfmt,
-				qnames[i],
-				qp->nqs_num_adds, qp->nqs_num_dels,
-				qp->nqs_num_s_events, qp->nqs_num_f_events,
-				tbuf, qp->nqs_total_bytes, qp->nqs_max_bytes);
-	}
-	if (ctx->pc_sync_events) {
-		ctx->pc_ops->pf("#Channel Events: Work=%u Net=%u\n",
-				ctx->pc_work_signal_count,
-				ctx->pc_net_signal_count);
-	}
-	c2_mutex_unlock(&qstats_mutex);
-}
-
 static int quiet_printf(const char *fmt, ...)
 {
 	return 0;
@@ -107,12 +50,12 @@ static int quiet_printf(const char *fmt, ...)
 
 static struct nlx_ping_ops verbose_ops = {
 	.pf  = printf,
-	.pqs = print_qstats
+	.pqs = nlx_ping_print_qstats_tm,
 };
 
 static struct nlx_ping_ops quiet_ops = {
 	.pf  = quiet_printf,
-	.pqs = print_qstats
+	.pqs = nlx_ping_print_qstats_tm,
 };
 
 int main(int argc, char *argv[])
@@ -216,7 +159,7 @@ int main(int argc, char *argv[])
 
 	rc = c2_net_xprt_init(&c2_net_lnet_xprt);
 	C2_ASSERT(rc == 0);
-	c2_mutex_init(&qstats_mutex);
+	nlx_ping_init();
 
 	if (!client_only) {
 		/* start server in background thread */
@@ -254,9 +197,9 @@ int main(int argc, char *argv[])
 			if (strcmp(readbuf, "quit\n") == 0)
 				break;
 			if (strcmp(readbuf, "\n") == 0)
-				print_qstats(&sctx, false);
+				nlx_ping_print_qstats_tm(&sctx, false);
 			if (strcmp(readbuf, "reset_stats\n") == 0)
-				print_qstats(&sctx, true);
+				nlx_ping_print_qstats_tm(&sctx, true);
 		}
 	} else {
 		int		      i;
@@ -310,21 +253,24 @@ int main(int argc, char *argv[])
 				       params[i].client_id);
 			}
 		}
+		if (!quiet)
+			nlx_ping_print_qstats_total("Client total",
+						    &verbose_ops);
 		c2_free(client_thread);
 		c2_free(params);
 	}
 
 	if (!client_only) {
 		if (!quiet)
-			print_qstats(&sctx, false);
+			nlx_ping_print_qstats_tm(&sctx, false);
 		nlx_ping_server_should_stop(&sctx);
 		c2_thread_join(&server_thread);
 		c2_cond_fini(&sctx.pc_cond);
 		c2_mutex_fini(&sctx.pc_mutex);
 	}
 
+	nlx_ping_fini();
 	c2_net_xprt_fini(&c2_net_lnet_xprt);
-	c2_mutex_fini(&qstats_mutex);
 	c2_fini();
 
 	return 0;

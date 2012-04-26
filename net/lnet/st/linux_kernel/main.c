@@ -139,73 +139,14 @@ static int verbose_printk(const char *fmt, ...)
 	return rc;
 }
 
-static struct c2_mutex qstats_mutex;
-
-static void print_qstats(struct nlx_ping_ctx *ctx, bool reset)
-{
-	int i;
-	int rc;
-	uint64_t hr;
-	uint64_t min;
-	uint64_t sec;
-	uint64_t msec;
-	struct c2_net_qstats qs[C2_NET_QT_NR];
-	struct c2_net_qstats *qp;
-	static const char *qnames[C2_NET_QT_NR] = {
-		"mRECV", "mSEND",
-		"pRECV", "pSEND",
-		"aRECV", "aSEND",
-	};
-	char tbuf[16];
-	const char *lfmt =
-"%5s %6llu %6llu %6llu %6llu %13s %14llu %13llu\n";
-	const char *hfmt1 =
-"Queue   #Add   #Del  #Succ  #Fail Time in Queue   Total Bytes  "
-" Max Buffer Sz\n";
-	const char *hfmt2 =
-"----- ------ ------ ------ ------ ------------- ---------------"
-" -------------\n";
-
-	if (ctx->pc_tm.ntm_state < C2_NET_TM_INITIALIZED)
-		return;
-	rc = c2_net_tm_stats_get(&ctx->pc_tm, C2_NET_QT_NR, qs, reset);
-	C2_ASSERT(rc == 0);
-	c2_mutex_lock(&qstats_mutex);
-	ctx->pc_ops->pf("%s statistics:\n", ctx->pc_ident);
-	ctx->pc_ops->pf("%s", hfmt1);
-	ctx->pc_ops->pf("%s", hfmt2);
-	for (i = 0; i < ARRAY_SIZE(qs); ++i) {
-		qp = &qs[i];
-		sec = c2_time_seconds(qp->nqs_time_in_queue);
-		hr = sec / SEC_PER_HR;
-		min = sec % SEC_PER_HR / SEC_PER_MIN;
-		sec %= SEC_PER_MIN;
-		msec = (c2_time_nanoseconds(qp->nqs_time_in_queue) +
-			ONE_MILLION / 2) / ONE_MILLION;
-		sprintf(tbuf, "%02llu:%02llu:%02llu.%03llu",
-			hr, min, sec, msec);
-		ctx->pc_ops->pf(lfmt,
-				qnames[i],
-				qp->nqs_num_adds, qp->nqs_num_dels,
-				qp->nqs_num_s_events, qp->nqs_num_f_events,
-				tbuf, qp->nqs_total_bytes, qp->nqs_max_bytes);
-	}
-	if (ctx->pc_sync_events) {
-		ctx->pc_ops->pf("#Channel Events: Work=%u Net=%u\n",
-				ctx->pc_work_signal_count,
-				ctx->pc_net_signal_count);
-	}
-	c2_mutex_unlock(&qstats_mutex);
-}
-
 static struct nlx_ping_ops verbose_ops = {
 	.pf  = verbose_printk,
-	.pqs = print_qstats
+	.pqs = nlx_ping_print_qstats_tm,
 };
 
 static struct nlx_ping_ops quiet_ops = {
 	.pf  = quiet_printk,
-	.pqs = print_qstats
+	.pqs = nlx_ping_print_qstats_tm,
 };
 
 static struct nlx_ping_ctx sctx = {
@@ -265,7 +206,7 @@ static int __init c2_netst_init_k(void)
 	/* init main context */
 	rc = c2_net_xprt_init(&c2_net_lnet_xprt);
 	C2_ASSERT(rc == 0);
-	c2_mutex_init(&qstats_mutex);
+	nlx_ping_init();
 
 	if (!client_only) {
 		/* set up server context */
@@ -352,6 +293,9 @@ static void __exit c2_netst_fini_k(void)
 				       params[i].client_id);
 			}
 		}
+		if (verbose)
+			nlx_ping_print_qstats_total("Client total",
+						    &verbose_ops);
 		c2_free(client_thread);
 		c2_free(params);
 	}
@@ -366,6 +310,7 @@ static void __exit c2_netst_fini_k(void)
 		c2_mutex_fini(&sctx.pc_mutex);
 	}
 
+	nlx_ping_fini();
 	printk(KERN_INFO "Colibri Kernel Messaging System Test removed\n");
 }
 
