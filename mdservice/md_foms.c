@@ -190,8 +190,16 @@ static int c2_md_create_fom_state(struct c2_fom *fom)
         struct c2_fid             pfid;
         struct c2_fid             tfid;
         int                       rc;
+        struct c2_service        *svc;
+
+        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (fom->fo_phase < C2_FOPH_NR) {
+                /**
+                   Don't send reply in case there is local reply consumer defined.
+                 */
+                if (svc && fom->fo_phase == C2_FOPH_QUEUE_REPLY)
+                        goto finish;
                 rc = c2_fom_state_generic(fom);
                 return rc;
         }
@@ -221,15 +229,16 @@ static int c2_md_create_fom_state(struct c2_fom *fom)
 
         rc = c2_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &pfid, &tfid,
                           &attr, &fom->fo_tx.tx_dbtx);
-/*        if (rc == 0) {
-                svc = fom->fo_fop_ctx->fc_service;
+        if (rc == 0 && svc)
 	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
-	}*/
 	fom->fo_rc = rc;
         if (rc)
                 c2_fop_free(fop_rep);
 	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
         return C2_FSO_AGAIN;
+finish:
+        fom->fo_phase = C2_FOPH_FINISH;
+        return C2_FSO_WAIT;
 }
 
 static int c2_md_link_fom_state(struct c2_fom *fom)
@@ -244,8 +253,16 @@ static int c2_md_link_fom_state(struct c2_fom *fom)
         struct c2_fid             pfid;
         struct c2_cob_attr        attr;
         int                       rc;
+        struct c2_service        *svc;
+
+        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (fom->fo_phase < C2_FOPH_NR) {
+                /**
+                   Don't send reply in case there is local reply consumer defined.
+                 */
+                if (svc && fom->fo_phase == C2_FOPH_QUEUE_REPLY)
+                        goto finish;
                 rc = c2_fom_state_generic(fom);
                 return rc;
         }
@@ -271,15 +288,16 @@ static int c2_md_link_fom_state(struct c2_fom *fom)
 
         rc = c2_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &pfid, &tfid,
                           &attr, &fom->fo_tx.tx_dbtx);
-/*        if (rc == 0) {
-                svc = fom->fo_fop_ctx->fc_service;
+        if (rc == 0 && svc)
 	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
-	}*/
 	fom->fo_rc = rc;
         if (rc)
                 c2_fop_free(fop_rep);
 	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
         return C2_FSO_AGAIN;
+finish:
+        fom->fo_phase = C2_FOPH_FINISH;
+        return C2_FSO_WAIT;
 }
 
 static int c2_md_unlink_fom_state(struct c2_fom *fom)
@@ -297,8 +315,16 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
         struct c2_db_tx          *tx;
         struct c2_md_store       *md;
         int                       rc;
+        struct c2_service        *svc;
+
+        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (fom->fo_phase < C2_FOPH_NR) {
+                /**
+                   Don't send reply in case there is local reply consumer defined.
+                 */
+                if (svc && fom->fo_phase == C2_FOPH_QUEUE_REPLY)
+                        goto finish;
                 rc = c2_fom_state_generic(fom);
                 return rc;
         }
@@ -337,16 +363,17 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
                 rc = c2_md_store_setattr(md, scob, &attr, tx);
         c2_cob_put(scob);
         
-/*        if (rc == 0) {
-                svc = fom->fo_fop_ctx->fc_service;
+        if (rc == 0 && svc)
 	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
-	}*/
 out:
 	fom->fo_rc = rc;
         if (rc)
                 c2_fop_free(fop_rep);
 	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
         return C2_FSO_AGAIN;
+finish:
+        fom->fo_phase = C2_FOPH_FINISH;
+        return C2_FSO_WAIT;
 }
 
 static int c2_md_rename(struct c2_md_store  *md,
@@ -406,8 +433,16 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
         struct c2_db_tx          *tx;
         struct c2_md_store       *md;
         int                       rc;
+        struct c2_service        *svc;
+
+        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (fom->fo_phase < C2_FOPH_NR) {
+                /**
+                   Don't send reply in case there is local reply consumer defined.
+                 */
+                if (svc && fom->fo_phase == C2_FOPH_QUEUE_REPLY)
+                        goto finish;
                 rc = c2_fom_state_generic(fom);
                 return rc;
         }
@@ -460,16 +495,17 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
         }
         c2_cob_put(scob);
 out:
-/*        if (rc == 0) {
-                svc = fom->fo_fop_ctx->fc_service;
+        if (rc == 0 && svc)
 	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
-	}*/
 
 	fom->fo_rc = rc;
         if (rc)
                 c2_fop_free(fop_rep);
 	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
         return C2_FSO_AGAIN;
+finish:
+        fom->fo_phase = C2_FOPH_FINISH;
+        return C2_FSO_WAIT;
 }
 
 static int c2_md_open_fom_state(struct c2_fom *fom)
@@ -484,8 +520,16 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
         struct c2_fid             fid;
         struct c2_cob_attr        attr;
         int                       rc;
+        struct c2_service        *svc;
+
+        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (fom->fo_phase < C2_FOPH_NR) {
+                /**
+                   Don't send reply in case there is local reply consumer defined.
+                 */
+                if (svc && fom->fo_phase == C2_FOPH_QUEUE_REPLY)
+                        goto finish;
                 rc = c2_fom_state_generic(fom);
                 return rc;
         }
@@ -532,16 +576,17 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
         } else if (rc)
                 goto out;
 
-        /*if (rc == 0) {
-                svc = fom->fo_fop_ctx->fc_service;
+        if (rc == 0 && svc)
 	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
-	}*/
 out:
 	fom->fo_rc = rc;
         if (rc)
                 c2_fop_free(fop_rep);
 	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
         return C2_FSO_AGAIN;
+finish:
+        fom->fo_phase = C2_FOPH_FINISH;
+        return C2_FSO_WAIT;
 }
 
 static int c2_md_close_fom_state(struct c2_fom *fom)
@@ -556,8 +601,16 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
         struct c2_fid             fid;
         struct c2_cob_attr        attr;
         int                       rc;
+        struct c2_service        *svc;
+
+        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (fom->fo_phase < C2_FOPH_NR) {
+                /**
+                   Don't send reply in case there is local reply consumer defined.
+                 */
+                if (svc && fom->fo_phase == C2_FOPH_QUEUE_REPLY)
+                        goto finish;
                 rc = c2_fom_state_generic(fom);
                 return rc;
         }
@@ -602,16 +655,17 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
                                          &attr, &fom->fo_tx.tx_dbtx);
         }
         c2_cob_put(cob);
-        /*if (rc == 0) {
-                svc = fom->fo_fop_ctx->fc_service;
+        if (rc == 0 && svc)
 	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
-	}*/
 out:
 	fom->fo_rc = rc;
         if (rc)
                 c2_fop_free(fop_rep);
 	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
         return C2_FSO_AGAIN;
+finish:
+        fom->fo_phase = C2_FOPH_FINISH;
+        return C2_FSO_WAIT;
 }
 
 static int c2_md_setattr_fom_state(struct c2_fom *fom)
@@ -626,12 +680,20 @@ static int c2_md_setattr_fom_state(struct c2_fom *fom)
         struct c2_fop_ctx             *ctx;
         struct c2_fid                  fid;
         int                            rc;
+        struct c2_service        *svc;
+
+        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (fom->fo_phase < C2_FOPH_NR) {
+                /**
+                   Don't send reply in case there is local reply consumer defined.
+                 */
+                if (svc && fom->fo_phase == C2_FOPH_QUEUE_REPLY)
+                        goto finish;
                 rc = c2_fom_state_generic(fom);
                 return rc;
         }
-
+        
         fop = fom->fo_fop;
         C2_ASSERT(fop != NULL);
         req = c2_fop_data(fop);
@@ -662,16 +724,17 @@ static int c2_md_setattr_fom_state(struct c2_fom *fom)
                                  &fom->fo_tx.tx_dbtx);
         c2_cob_put(cob);
 
-        /*if (rc == 0) {
-                svc = fom->fo_fop_ctx->fc_service;
+        if (rc == 0 && svc)
 	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
-	}*/
 out:
 	fom->fo_rc = rc;
         if (rc)
                 c2_fop_free(fop_rep);
 	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
         return C2_FSO_AGAIN;
+finish:
+        fom->fo_phase = C2_FOPH_FINISH;
+        return C2_FSO_WAIT;
 }
 
 static int c2_md_getattr_fom_state(struct c2_fom *fom)
@@ -686,8 +749,16 @@ static int c2_md_getattr_fom_state(struct c2_fom *fom)
         struct c2_fop_ctx             *ctx;
         struct c2_fid                  fid;
         int                            rc;
+        struct c2_service        *svc;
+
+        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (fom->fo_phase < C2_FOPH_NR) {
+                /**
+                   Don't send reply in case there is local reply consumer defined.
+                 */
+                if (svc && fom->fo_phase == C2_FOPH_QUEUE_REPLY)
+                        goto finish;
                 rc = c2_fom_state_generic(fom);
                 return rc;
         }
@@ -716,8 +787,8 @@ static int c2_md_getattr_fom_state(struct c2_fom *fom)
         c2_cob_put(cob);
         if (rc == 0) {
                 c2_md_fop_attr2cob(&rep->g_body, &attr);
-                /*svc = fom->fo_fop_ctx->fc_service;
-	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);*/
+                if (svc)
+	                svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
 	}
 out:
 	fom->fo_rc = rc;
@@ -725,6 +796,9 @@ out:
                 c2_fop_free(fop_rep);
 	fom->fo_phase = rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
         return C2_FSO_AGAIN;
+finish:
+        fom->fo_phase = C2_FOPH_FINISH;
+        return C2_FSO_WAIT;
 }
 
 #define C2_MD_READDIR_BUF_ALLOC 4096
@@ -742,8 +816,16 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
         struct c2_rdpg                 rdpg;
         void                          *addr;
         int                            rc;
+        struct c2_service        *svc;
+
+        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (fom->fo_phase < C2_FOPH_NR) {
+                /**
+                   Don't send reply in case there is local reply consumer defined.
+                 */
+                if (svc && fom->fo_phase == C2_FOPH_QUEUE_REPLY)
+                        goto finish;
                 rc = c2_fom_state_generic(fom);
                 return rc;
         }
@@ -823,16 +905,17 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
         /*
          * Post reply in non-error cases.
          */
-        /*if (rc >= 0) {
-                svc = fom->fo_fop_ctx->fc_service;
+        if (rc >= 0 && svc)
                 svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
-        }*/
 out:
 	fom->fo_rc = rc;
         if (rc < 0)
                 c2_fop_free(fop_rep);
 	fom->fo_phase = rc < 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
         return C2_FSO_AGAIN;
+finish:
+        fom->fo_phase = C2_FOPH_FINISH;
+        return C2_FSO_WAIT;
 }
 
 static void c2_md_req_fom_fini(struct c2_fom *fom)

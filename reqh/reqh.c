@@ -99,7 +99,8 @@ bool c2_reqh_invariant(const struct c2_reqh *reqh)
 
 int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
                   struct c2_stob_domain *stdom, struct c2_dbenv *db,
-                  struct c2_md_store *mdstore, struct c2_fol *fol)
+                  struct c2_md_store *mdstore, struct c2_fol *fol,
+                  struct c2_service *svc)
 {
 	int result;
 
@@ -111,6 +112,7 @@ int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
                 reqh->rh_dtm = dtm;
                 reqh->rh_stdom = stdom;
                 reqh->rh_dbenv = db;
+                reqh->rh_svc = svc;
                 reqh->rh_mdstore = mdstore;
                 reqh->rh_fol = fol;
 		reqh->rh_shutdown = false;
@@ -191,8 +193,8 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 		C2_ASSERT(fom != NULL);
 
                 /*
-                 * This is used by fo_state() function and finalized right
-                 * after fo_fini().
+                 * This is used by fo_state() function and finalized just
+                 * before fo_fini().
                  */
                 fom->fo_fop_ctx = ctx;
 

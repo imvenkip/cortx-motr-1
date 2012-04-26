@@ -38,17 +38,29 @@
 #include "mdservice/ut/mdstore.h"
 #include "mdservice/ut/lustre.h"
 
-static const char db_name[] = "ut-mdstore";
+static const char db_name[] = "ut-mdservice";
 static struct c2_cob_domain_id id = { 42 };
 
 static struct c2_dbenv       db;
 static struct c2_md_store    md;
 static struct c2_reqh        reqh;
+static struct c2_service     svc;
 static struct c2_fol         fol;
 static int                   rc;
 
 int c2_md_lustre_fop_alloc(struct c2_fop **fop, void *data);
 void c2_md_lustre_fop_free(struct c2_fop *fop);
+
+static void reply_post(struct c2_service *service,
+	               struct c2_fop *fop, void *cookie)
+{
+	struct c2_fop **ret = cookie;
+	*ret = fop;
+}
+
+const struct c2_service_ops svc_ops = {
+	.so_reply_post = reply_post
+};
 
 static int db_reset(void)
 {
@@ -173,7 +185,10 @@ static void test_init(void)
         rc = c2_md_store_init(&md, &id, &db, 1);
 	C2_ASSERT(rc == 0);
         
-        rc = c2_reqh_init(&reqh, NULL, NULL, &db, &md, &fol);
+        C2_SET0(&svc);
+	svc.s_ops = &svc_ops;
+
+        rc = c2_reqh_init(&reqh, NULL, NULL, &db, &md, &fol, &svc);
 	C2_ASSERT(rc == 0);
 }
 
@@ -181,7 +196,7 @@ static void test_ops(void)
 {
         struct c2_md_lustre_logrec *rec;
         struct c2_md_lustre_fid root;
-        struct c2_fop *fop;
+        struct c2_fop *fop, *rep_fop;
         int fd, result, size;
         
         fd = open(C2_MDSTORE_OPS_DUMP_PATH, O_RDONLY);
@@ -218,7 +233,8 @@ again:
                         
                 C2_ASSERT(result == 0);
 
-                c2_reqh_fop_handle(&reqh, fop, NULL);
+                rep_fop = NULL;
+                c2_reqh_fop_handle(&reqh, fop, &rep_fop);
                 
 //                c2_md_lustre_fop_free(fop);
 //                c2_fop_free(fop);

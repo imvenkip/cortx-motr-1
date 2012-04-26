@@ -1091,7 +1091,7 @@ static int cs_start_request_handler(struct cs_reqh_context *rctx)
 		sdom = rstob->rs_ldom;
 
 	rc = c2_reqh_init(&rctx->rc_reqh, NULL, sdom, &rctx->rc_db,
-			  &rctx->rc_mdstore, &rctx->rc_fol);
+			  &rctx->rc_mdstore, &rctx->rc_fol, NULL);
 	if (rc != 0)
 		goto cleanup_fol;
 

@@ -318,15 +318,18 @@ static void fom_exec(struct c2_fom *fom)
 
 	C2_ASSERT(rc == C2_FSO_WAIT);
 	if (fom->fo_phase == C2_FOPH_FINISH) {
-		fom->fo_ops->fo_fini(fom);
-		
-		/*
-		 * Make sure that ctx is released. It is allocated just before fto_create()
-		 * is called.
+		/**
+		   Make sure that ctx is released. It is allocated just before fto_create()
+		   is called.
 		 */
                 C2_ASSERT(fom->fo_fop_ctx != NULL);
                 c2_free(fom->fo_fop_ctx);
                 fom->fo_fop_ctx = NULL;
+
+                /**
+                   Finish fom itself.
+                */
+		fom->fo_ops->fo_fini(fom);
 	} else {
 		C2_ASSERT(c2_mutex_is_locked(&loc->fl_lock));
 		fom_wait(fom);
