@@ -24,6 +24,7 @@
 #endif
 
 #include "lib/assert.h"
+#include "lib/chan.h"
 #include "lib/cond.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
@@ -649,7 +650,10 @@ static void s_m_recv_cb(const struct c2_net_buffer_event *ev)
 			}
 			c2_mutex_lock(&ctx->pc_mutex);
 			c2_list_add(&ctx->pc_work_queue, &wi->pwi_link);
-			c2_cond_signal(&ctx->pc_cond, &ctx->pc_mutex);
+			if (ctx->pc_sync_events)
+				c2_chan_signal(&ctx->pc_work_chan);
+			else
+				c2_cond_signal(&ctx->pc_cond, &ctx->pc_mutex);
 			c2_mutex_unlock(&ctx->pc_mutex);
 		}
 		ev->nbe_buffer->nb_timeout = C2_TIME_NEVER;
@@ -797,6 +801,24 @@ static struct c2_net_tm_callbacks stm_cb = {
 
 static void ping_fini(struct nlx_ping_ctx *ctx);
 
+static bool ping_work_clink_cb(struct c2_clink *cl)
+{
+	struct nlx_ping_ctx *ctx =
+		container_of(cl, struct nlx_ping_ctx, pc_work_clink);
+	ctx->pc_work_signal = true;
+	++ctx->pc_work_signal_count;
+	return false;
+}
+
+static bool ping_net_clink_cb(struct c2_clink *cl)
+{
+	struct nlx_ping_ctx *ctx =
+		container_of(cl, struct nlx_ping_ctx, pc_net_clink);
+	ctx->pc_net_signal = true;
+	++ctx->pc_net_signal_count;
+	return false;
+}
+
 /**
    Initialise a ping client or server.
    Calls all the required c2_net APIs in the correct order, with
@@ -815,6 +837,17 @@ static int ping_init(struct nlx_ping_ctx *ctx)
 	struct c2_clink    tmwait;
 
 	c2_list_init(&ctx->pc_work_queue);
+	if (ctx->pc_sync_events) {
+		c2_chan_init(&ctx->pc_work_chan);
+		c2_chan_init(&ctx->pc_net_chan);
+
+		c2_clink_init(&ctx->pc_work_clink, &ping_work_clink_cb);
+		c2_clink_attach(&ctx->pc_net_clink, &ctx->pc_work_clink,
+				&ping_net_clink_cb); /* group */
+
+		c2_clink_add(&ctx->pc_work_chan, &ctx->pc_work_clink);
+		c2_clink_add(&ctx->pc_net_chan, &ctx->pc_net_clink);
+	}
 
 	rc = c2_net_domain_init(&ctx->pc_dom, ctx->pc_xprt);
 	if (rc != 0) {
@@ -886,6 +919,11 @@ static int ping_init(struct nlx_ping_ctx *ctx)
 	if (ctx->pc_tm_debug > 0)
 		c2_net_lnet_tm_set_debug(&ctx->pc_tm, ctx->pc_tm_debug);
 
+	if (ctx->pc_sync_events) {
+		rc = c2_net_buffer_event_deliver_synchronously(&ctx->pc_tm);
+		C2_ASSERT(rc == 0);
+	}
+
 	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
 	rc = c2_net_tm_start(&ctx->pc_tm, addr);
@@ -911,6 +949,34 @@ fail:
 	return rc;
 }
 
+static inline bool ping_tm_timedwait(struct nlx_ping_ctx *ctx,
+				     struct c2_clink *cl,
+				     c2_time_t timeout)
+{
+	bool signalled = false;
+	if (timeout == C2_TIME_NEVER) {
+		if (ctx->pc_sync_events) {
+			do {
+				timeout = c2_time_from_now(0, 50 * ONE_MILLION);
+				signalled = c2_chan_timedwait(cl, timeout);
+				c2_net_buffer_event_deliver_all(&ctx->pc_tm);
+			} while (!signalled);
+		} else
+			c2_chan_wait(cl);
+	} else {
+		signalled = c2_chan_timedwait(cl, timeout);
+		if (ctx->pc_sync_events)
+			c2_net_buffer_event_deliver_all(&ctx->pc_tm);
+	}
+	return signalled;
+}
+
+static inline void ping_tm_wait(struct nlx_ping_ctx *ctx,
+				struct c2_clink *cl)
+{
+	ping_tm_timedwait(ctx, cl, C2_TIME_NEVER);
+}
+
 static void ping_fini(struct nlx_ping_ctx *ctx)
 {
 	struct c2_list_link *link;
@@ -922,8 +988,12 @@ static void ping_fini(struct nlx_ping_ctx *ctx)
 			c2_clink_init(&tmwait, NULL);
 			c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
 			c2_net_tm_stop(&ctx->pc_tm, true);
-			while (ctx->pc_tm.ntm_state != C2_NET_TM_STOPPED)
-				c2_chan_wait(&tmwait); /* wait for it to stop */
+			while (ctx->pc_tm.ntm_state != C2_NET_TM_STOPPED) {
+				/* wait for it to stop */
+				c2_time_t timeout = c2_time_from_now(0,
+							     50 * ONE_MILLION);
+				c2_chan_timedwait(&tmwait, timeout);
+			}
 			c2_clink_del(&tmwait);
 		}
 
@@ -955,6 +1025,17 @@ static void ping_fini(struct nlx_ping_ctx *ctx)
 		c2_list_del(&wi->pwi_link);
 		c2_free(wi);
 	}
+	if (ctx->pc_sync_events) {
+		c2_clink_del(&ctx->pc_net_clink);
+		c2_clink_del(&ctx->pc_work_clink);
+
+		c2_clink_fini(&ctx->pc_net_clink);
+		c2_clink_fini(&ctx->pc_work_clink);
+
+		c2_chan_fini(&ctx->pc_net_chan);
+		c2_chan_fini(&ctx->pc_work_chan);
+	}
+
 	c2_list_fini(&ctx->pc_work_queue);
 }
 
@@ -983,6 +1064,91 @@ static void set_bulk_timeout(struct nlx_ping_ctx *ctx,
 		nb->nb_timeout = C2_TIME_NEVER;
 	}
 }
+
+static void nlx_ping_server_work(struct nlx_ping_ctx *ctx)
+{
+	struct c2_list_link *link;
+	struct ping_work_item *wi;
+	int rc;
+
+	C2_ASSERT(c2_mutex_is_locked(&ctx->pc_mutex));
+
+	while (!c2_list_is_empty(&ctx->pc_work_queue)) {
+		link = c2_list_first(&ctx->pc_work_queue);
+		wi = c2_list_entry(link, struct ping_work_item,
+				   pwi_link);
+		switch (wi->pwi_type) {
+		case C2_NET_QT_MSG_SEND:
+			set_msg_timeout(ctx, wi->pwi_nb);
+			rc = c2_net_buffer_add(wi->pwi_nb, &ctx->pc_tm);
+			C2_ASSERT(rc == 0);
+			break;
+		case C2_NET_QT_ACTIVE_BULK_SEND:
+		case C2_NET_QT_ACTIVE_BULK_RECV:
+			set_bulk_timeout(ctx, wi->pwi_nb);
+			rc = c2_net_buffer_add(wi->pwi_nb, &ctx->pc_tm);
+			C2_ASSERT(rc == 0);
+			break;
+		default:
+			C2_IMPOSSIBLE("unexpected wi->pwi_type");
+		}
+		c2_list_del(&wi->pwi_link);
+		c2_free(wi);
+	}
+}
+
+static void nlx_ping_server_async(struct nlx_ping_ctx *ctx)
+{
+	c2_time_t timeout;
+
+	C2_ASSERT(c2_mutex_is_locked(&ctx->pc_mutex));
+
+	while (!server_stop) {
+		nlx_ping_server_work(ctx);
+		timeout = c2_time_from_now(5, 0);
+		c2_cond_timedwait(&ctx->pc_cond, &ctx->pc_mutex, timeout);
+	}
+
+	return;
+}
+
+static void nlx_ping_server_sync(struct nlx_ping_ctx *ctx)
+{
+	c2_time_t timeout;
+	bool signalled;
+
+	C2_ASSERT(c2_mutex_is_locked(&ctx->pc_mutex));
+
+	while (!server_stop) {
+		while (!server_stop && !ctx->pc_net_signal &&
+		       c2_list_is_empty(&ctx->pc_work_queue) &&
+		       !c2_net_buffer_event_pending(&ctx->pc_tm)) {
+			c2_net_buffer_event_notify(&ctx->pc_tm,
+						   &ctx->pc_net_chan);
+			c2_mutex_unlock(&ctx->pc_mutex);
+			/* wait on the channel group */
+			timeout = c2_time_from_now(5, 0);
+			signalled = c2_chan_timedwait(&ctx->pc_work_clink,
+						      timeout);
+			c2_mutex_lock(&ctx->pc_mutex);
+		}
+		if (server_stop)
+			break;
+
+		nlx_ping_server_work(ctx);
+
+		if (ctx->pc_net_signal) {
+			c2_mutex_unlock(&ctx->pc_mutex);
+			/* deliver events synchronously on this thread */
+			c2_net_buffer_event_deliver_all(&ctx->pc_tm);
+			c2_mutex_lock(&ctx->pc_mutex);
+			ctx->pc_net_signal = false;
+		}
+	}
+
+	return;
+}
+
 
 static void nlx_ping_server(struct nlx_ping_ctx *ctx)
 {
@@ -1023,33 +1189,10 @@ static void nlx_ping_server(struct nlx_ping_ctx *ctx)
 	while (ctx->pc_ready)
 		c2_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
 
-	while (!server_stop) {
-		struct c2_list_link *link;
-		struct ping_work_item *wi;
-		while (!c2_list_is_empty(&ctx->pc_work_queue)) {
-			link = c2_list_first(&ctx->pc_work_queue);
-			wi = c2_list_entry(link, struct ping_work_item,
-					   pwi_link);
-			switch (wi->pwi_type) {
-			case C2_NET_QT_MSG_SEND:
-				set_msg_timeout(ctx, wi->pwi_nb);
-				rc = c2_net_buffer_add(wi->pwi_nb, &ctx->pc_tm);
-				C2_ASSERT(rc == 0);
-				break;
-			case C2_NET_QT_ACTIVE_BULK_SEND:
-			case C2_NET_QT_ACTIVE_BULK_RECV:
-				set_bulk_timeout(ctx, wi->pwi_nb);
-				rc = c2_net_buffer_add(wi->pwi_nb, &ctx->pc_tm);
-				C2_ASSERT(rc == 0);
-				break;
-			default:
-				C2_IMPOSSIBLE("unexpected wi->pwi_type");
-			}
-			c2_list_del(&wi->pwi_link);
-			c2_free(wi);
-		}
-		c2_cond_wait(&ctx->pc_cond, &ctx->pc_mutex);
-	}
+	if (ctx->pc_sync_events)
+		nlx_ping_server_sync(ctx);
+	else
+		nlx_ping_server_async(ctx);
 	c2_mutex_unlock(&ctx->pc_mutex);
 
 	/* dequeue recv buffers */
@@ -1060,8 +1203,8 @@ static void nlx_ping_server(struct nlx_ping_ctx *ctx)
 		c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
 		c2_net_buffer_del(nb, &ctx->pc_tm);
 		c2_bitmap_set(&ctx->pc_nbbm, i, false);
-		C2_ASSERT(rc == 0);
-		c2_chan_wait(&tmwait);
+		ctx->pc_ops->pf("waiting after buffer deletion\n");
+		ping_tm_wait(ctx, &tmwait);
 		c2_clink_del(&tmwait);
 	}
 
@@ -1070,7 +1213,7 @@ static void nlx_ping_server(struct nlx_ping_ctx *ctx)
 	for (i = 0; i < C2_NET_QT_NR; ++i)
 		while (!c2_net_tm_tlist_is_empty(&ctx->pc_tm.ntm_q[i])) {
 			ctx->pc_ops->pf("waiting for queue %d to empty\n", i);
-			c2_chan_wait(&tmwait);
+			ping_tm_wait(ctx, &tmwait);
 		}
 	c2_clink_del(&tmwait);
 	c2_clink_fini(&tmwait);
@@ -1083,7 +1226,10 @@ void nlx_ping_server_should_stop(struct nlx_ping_ctx *ctx)
 {
 	c2_mutex_lock(&ctx->pc_mutex);
 	server_stop = true;
-	c2_cond_signal(&ctx->pc_cond, &ctx->pc_mutex);
+	if (ctx->pc_sync_events)
+		c2_chan_signal(&ctx->pc_work_chan);
+	else
+		c2_cond_signal(&ctx->pc_cond, &ctx->pc_mutex);
 	c2_mutex_unlock(&ctx->pc_mutex);
 }
 
@@ -1464,6 +1610,8 @@ void nlx_ping_client(struct nlx_ping_client_params *params)
 		.pc_rtmid    = params->server_tmid,
 		.pc_dom_debug = params->debug,
 		.pc_tm_debug  = params->debug,
+
+		.pc_sync_events = false,
 	};
 
 	c2_mutex_init(&cctx.pc_mutex);

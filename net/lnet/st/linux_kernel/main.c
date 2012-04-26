@@ -49,7 +49,11 @@ MODULE_PARM_DESC(verbose, "run client only");
 
 static bool server_only = false;
 module_param(server_only, bool, S_IRUGO);
-MODULE_PARM_DESC(verbose, "run server only");
+MODULE_PARM_DESC(server_only, "run server only");
+
+static bool async_events = false;
+module_param(async_events, bool, S_IRUGO);
+MODULE_PARM_DESC(async_events, "async event processing (old style)");
 
 static uint nr_bufs = PING_DEF_BUFS;
 module_param(nr_bufs, uint, S_IRUGO);
@@ -73,7 +77,7 @@ MODULE_PARM_DESC(loops, "loops to run");
 
 static int bulk_timeout = PING_DEF_BULK_TIMEOUT;
 module_param(bulk_timeout, int, S_IRUGO);
-MODULE_PARM_DESC(passive_bulk_timeout, "bulk timeout");
+MODULE_PARM_DESC(bulk_timeout, "bulk timeout");
 
 static int msg_timeout = PING_DEF_MSG_TIMEOUT;
 module_param(msg_timeout, int, S_IRUGO);
@@ -186,6 +190,11 @@ static void print_qstats(struct nlx_ping_ctx *ctx, bool reset)
 				qp->nqs_num_s_events, qp->nqs_num_f_events,
 				tbuf, qp->nqs_total_bytes, qp->nqs_max_bytes);
 	}
+	if (ctx->pc_sync_events) {
+		ctx->pc_ops->pf("#Channel Events: Work=%u Net=%u\n",
+				ctx->pc_work_signal_count,
+				ctx->pc_net_signal_count);
+	}
 	c2_mutex_unlock(&qstats_mutex);
 }
 
@@ -277,6 +286,7 @@ static int __init c2_netst_init_k(void)
 		sctx.pc_tmid = server_tmid;
 		sctx.pc_dom_debug = server_debug;
 		sctx.pc_tm_debug = server_debug;
+		sctx.pc_sync_events = !async_events;
 		nlx_ping_server_spawn(&server_thread, &sctx);
 
 		printk(KERN_INFO "Colibri LNet System Test"

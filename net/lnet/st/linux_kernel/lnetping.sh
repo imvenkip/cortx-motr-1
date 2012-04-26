@@ -12,9 +12,10 @@ usage() {
     echo "   [-b #Bufs] [-l #Loops] [-n #Threads] [-o MessageTimeout]"
     echo "   [-O PassiveTimeout] [-d PassiveSize] [-D ActiveDelay] [-q]"
     echo "   [-i ClientNetwork] [-p ClientPortal] [-t ClientTMID]"
-    echo "   [-I ServerNetwork] [-P ServerPortal] [-T ServerTMID]"
+    echo "   [-I ServerNetwork] [-P ServerPortal] [-T ServerTMID] [-A]"
     echo "   [-x ClientDebug] [-X ServerDebug]"
     echo "Flags:"
+    echo "-A  Async event processing (old style)"
     echo "-D  Server active bulk delay"
     echo "-I  Server network interface (ip@intf)"
     echo "-O  Bulk timeout in seconds"
@@ -66,6 +67,7 @@ client_nid=$NID
 Pverbose=verbose
 Pserver_only=
 Pclient_only=
+Pasync_events=
 Pnr_bufs=
 Ploops=
 Ppassive_size="passive_size=30720"
@@ -89,6 +91,7 @@ while [ $# -gt 0 ]; do
     case $FLAG in
 	(-c) Pclient_only="client_only";;
 	(-s) Pserver_only="server_only";;
+	(-A) Pasync_events="async_events";;
 	(-q) Pverbose="" ;;
 	(-D|-O|-P|-T|-X|-b|-d|-l|-n|-o|-p|-t|-x) has_narg=1;;
 	(-I|-i) has_sarg=1;;
@@ -137,7 +140,7 @@ fi
 
 # Server parameters
 SPARM="$Pserver_only $Pserver_network $Pserver_portal $Pserver_tmid \
-$Pactive_bulk_delay $Pserver_debug"
+$Pasync_events $Pactive_bulk_delay $Pserver_debug"
 
 # Client parameters
 CPARM="$Pclient_only $Pclient_network $Pclient_portal $Pclient_tmid \

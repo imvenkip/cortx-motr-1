@@ -66,6 +66,15 @@ struct nlx_ping_ctx {
 	int                                   pc_tm_debug;
 	bool                                  pc_ready;
 	char * const *                        pc_interfaces;
+	bool                                  pc_sync_events;
+	struct c2_chan                        pc_work_chan;
+	struct c2_clink                       pc_work_clink;
+	bool                                  pc_work_signal;
+	unsigned                              pc_work_signal_count;
+	struct c2_chan                        pc_net_chan;
+	struct c2_clink                       pc_net_clink;
+	bool                                  pc_net_signal;
+	unsigned                              pc_net_signal_count;
 };
 
 struct nlx_ping_client_params {

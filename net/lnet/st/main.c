@@ -92,6 +92,11 @@ static void print_qstats(struct nlx_ping_ctx *ctx, bool reset)
 				qp->nqs_num_s_events, qp->nqs_num_f_events,
 				tbuf, qp->nqs_total_bytes, qp->nqs_max_bytes);
 	}
+	if (ctx->pc_sync_events) {
+		ctx->pc_ops->pf("#Channel Events: Work=%u Net=%u\n",
+				ctx->pc_work_signal_count,
+				ctx->pc_net_signal_count);
+	}
 	c2_mutex_unlock(&qstats_mutex);
 }
 
@@ -116,6 +121,7 @@ int main(int argc, char *argv[])
 	bool			 client_only = false;
 	bool			 server_only = false;
 	bool			 quiet = false;
+	bool                     async_events = false;
 	int			 loops = PING_DEF_LOOPS;
 	int			 nr_clients = PING_DEF_CLIENT_THREADS;
 	int			 nr_bufs = PING_DEF_BUFS;
@@ -169,6 +175,8 @@ int main(int argc, char *argv[])
 				     "%i", &client_debug),
 			C2_FORMATARG('X', "server debug",
 				     "%i", &server_debug),
+			C2_FLAGARG('A', "async event processing (old style)",
+				   &async_events),
 			C2_FLAGARG('q', "quiet", &quiet));
 	if (rc != 0)
 		return rc;
@@ -231,6 +239,7 @@ int main(int argc, char *argv[])
 		sctx.pc_tmid = server_tmid;
 		sctx.pc_dom_debug = server_debug;
 		sctx.pc_tm_debug = server_debug;
+		sctx.pc_sync_events = !async_events;
 		nlx_ping_server_spawn(&server_thread, &sctx);
 
 		if (!quiet)
