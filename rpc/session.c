@@ -1062,22 +1062,7 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
-
-	while (session->s_state != C2_RPC_SESSION_IDLE)
-		c2_cond_wait(&session->s_state_changed,
-			     &machine->rm_mutex);
-
-	if (session->s_state != C2_RPC_SESSION_IDLE) {
-		/*
-		 * Should catch this situation while testing. This can be
-		 * because of some bug.
-		 */
-		C2_ASSERT(0);
-		/*
-		 * XXX Generate ADDB record here.
-		 */
-		return -EPROTO;
-	}
+	C2_PRE(session->s_state == C2_RPC_SESSION_IDLE);
 
 	/* For receiver side session, no slots are on ready_slots list
 	   since all reply items are bound items. */

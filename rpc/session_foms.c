@@ -437,20 +437,20 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 
 	session = c2_rpc_session_search(conn, session_id);
 	if (session != NULL) {
-		/*
-		 * c2_rpc_rcv_session_terminate() may drop machine->rm_mutex
-		 * to wait for session to move to IDLE state
-		 */
+		while (session->s_state != C2_RPC_SESSION_IDLE)
+			c2_cond_wait(&session->s_state_changed,
+				     &machine->rm_mutex);
+
+		C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
+
 		rc = c2_rpc_rcv_session_terminate(session);
-		if (rc != -EPROTO) {
-			C2_ASSERT(ergo(rc != 0,
-				session->s_state == C2_RPC_SESSION_FAILED));
-			C2_ASSERT(ergo(rc == 0,
+		C2_ASSERT(ergo(rc != 0,
+			       session->s_state == C2_RPC_SESSION_FAILED));
+		C2_ASSERT(ergo(rc == 0,
 			       session->s_state == C2_RPC_SESSION_TERMINATED));
 
-			c2_rpc_session_fini_locked(session);
-			c2_free(session);
-		}
+		c2_rpc_session_fini_locked(session);
+		c2_free(session);
 	} else { /* session == NULL */
 		rc = -ENOENT;
 	}
