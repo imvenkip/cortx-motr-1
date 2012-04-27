@@ -354,7 +354,7 @@
 
    All c2_net_test_stats_* functions have O(1) complexity.
 
-   @see @ref net-test-hld
+   @see @ref net-test-hld "Colibri Network Benchmark HLD"
 
    <hr>
    @section net-test-ref References
@@ -363,8 +363,11 @@
    In particular a link to the HLD for the DLD should be provided.</i>
 
    @anchor net-test-hld
-   - <a href="https://docs.google.com/a/xyratex.com/document/view?id=1_dAYA4_5rLEr9Z4PSkH1OTDTMlGBmAcIEEJRvwCRDV4">Colibri Network Benchmark HLD</a>
-   - <a href="http://wiki.lustre.org/manual/LustreManual20_HTML/LNETSelfTest.html">LNET Self-Test manual</a>
+   - <a href="https://docs.google.com/a/xyratex.com/document/
+view?id=1_dAYA4_5rLEr9Z4PSkH1OTDTMlGBmAcIEEJRvwCRDV4">
+Colibri Network Benchmark HLD</a>
+   - <a href="http://wiki.lustre.org/manual/LustreManual20_HTML/
+LNETSelfTest.html">LNET Self-Test manual</a>
    - <a href="http://reviewboard.clusterstor.com/r/773">DLD review request</a>
 
  */
