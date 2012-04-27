@@ -352,17 +352,9 @@
    resource (memory, processor, locks, messages, etc.) consumption,
    ideally described in big-O notation.</i>
 
-   @subsection net-test-config-O Configuration
-
-   - c2_net_test_config_init() have O(N*M) complexity, where N is number of
-   command line parameters and M is number of all possible command line
-   parameter names.
-   - c2_net_test_config_fini() have O(1) complexity.
-   - Every reading of configuration parameter have O(1) complexity.
-
-   @subsection net-test-stats-O Statistics
-
    All c2_net_test_stats_* functions have O(1) complexity.
+
+   @see @ref net-test-hld
 
    <hr>
    @section net-test-ref References
