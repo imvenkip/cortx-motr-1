@@ -29,7 +29,7 @@ enum c2_fom_cob_create_phases {
 	 * Internally creates a stob, a cob and adds a record to
 	 * auxiliary database.
 	 */
-	FOPH_CC_COB_CREATE = FOPH_NR + 1,
+	C2_FOPH_CC_COB_CREATE = C2_FOPH_NR + 1,
 };
 
 /**
@@ -55,7 +55,7 @@ enum c2_fom_cob_delete_phases {
 	 * Internally deletes the cob, stob and removes the corresponding
 	 * record from auxiliary database.
 	 */
-	FOPH_CD_COB_DEL = FOPH_NR + 1,
+	C2_FOPH_CD_COB_DEL = C2_FOPH_NR + 1,
 };
 
 #endif    /* __COLIBRI_IOSERVICE_COB_FOMS_H__ */
