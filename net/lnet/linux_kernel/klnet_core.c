@@ -1695,6 +1695,11 @@ static int nlx_kcore_buf_event_wait(struct nlx_core_transfer_mc *ctm,
 	C2_PRE(nlx_core_tm_invariant(ctm));
 	C2_PRE(nlx_kcore_tm_invariant(ktm));
 
+	if (!bev_cqueue_is_empty(&ctm->ctm_bevq)) {
+		c2_semaphore_trydown(&ktm->ktm_sem); /* just once */
+		return 0;
+	}
+
 	do {
 		any = c2_semaphore_timeddown(&ktm->ktm_sem, timeout);
 		if (!any)
@@ -1702,6 +1707,9 @@ static int nlx_kcore_buf_event_wait(struct nlx_core_transfer_mc *ctm,
 		while (c2_semaphore_trydown(&ktm->ktm_sem))
 			; /* exhaust the semaphore */
 	} while (bev_cqueue_is_empty(&ctm->ctm_bevq)); /* loop if empty */
+
+	if (!any)
+		any = !bev_cqueue_is_empty(&ctm->ctm_bevq);
 
 	return any ? 0 : -ETIMEDOUT;
 }

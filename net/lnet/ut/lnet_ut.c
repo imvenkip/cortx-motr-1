@@ -1913,6 +1913,9 @@ static void test_sync_body(struct ut_data *td)
 	C2_UT_ASSERT(cb_called1 == 0);
 	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
 
+	/* event is still pending */
+	C2_UT_ASSERT(c2_net_buffer_event_pending(TM1));
+
 	c2_net_buffer_event_deliver_all(TM1); /* get events */
 
 	C2_UT_ASSERT(cb_called1 == num_msgs);
