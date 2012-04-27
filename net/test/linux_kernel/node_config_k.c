@@ -18,7 +18,10 @@
  * Original creation date: 03/22/2012
  */
 
-#include "net/test/node_config.h"
+#include <linux/module.h>
+#include <linux/kernel.h>
+
+#include "net/test/linux_kernel/node_config_k.h"
 
 static char *node_role	      = NULL;
 static char *test_type	      = NULL;
@@ -26,7 +29,7 @@ static long  count	      = C2_NET_TEST_CONFIG_COUNT_DEFAULT;
 static long  size	      = C2_NET_TEST_CONFIG_SIZE_DEFAULT;
 static char *console	      = C2_NET_TEST_CONFIG_CONSOLE_DEFAULT;
 static char *target[C2_NET_TEST_CONFIG_TARGETS_MAX];
-static int   target_nr       = 0;
+static int   target_nr        = 0;
 
 module_param(node_role, charp, S_IRUGO);
 MODULE_PARM_DESC(node_role, "node role: can be client or server");
@@ -47,28 +50,28 @@ MODULE_PARM_DESC(console, "console address");
 module_param_array(target, charp, &target_nr, S_IRUGO);
 MODULE_PARM_DESC(target, "test targets");
 
-int c2_net_test_config_init(void)
+int c2_net_test_node_config_init(struct c2_net_test_node_config *cfg)
 {
 	int i;
 
 	/* XXX debug */
 	printk(KERN_INFO "node_role = %s\n",  node_role);
 	printk(KERN_INFO "test_type = %s\n",  test_type);
-	printk(KERN_INFO "count	    = %ld\n", count);
+	printk(KERN_INFO "count     = %ld\n", count);
 	printk(KERN_INFO "size      = %ld\n", size);
 	printk(KERN_INFO "console   = %s\n",  console);
-	printk(KERN_INFO "target    = ");
+	printk(KERN_INFO "target    = \n");
 
 	for (i = 0; i < target_nr; ++i)
-		printk(KERN_INFO "%s, ", target[i]);
-	printk(KERN_INFO "\n");
+		printk(KERN_INFO "%s\n", target[i]);
+	printk(KERN_INFO "end of target\n");
 
-	/* XXX implement */
+	/* TODO implement */
 
-	return -1;
+	return -ENOSYS;
 }
 
-void c2_net_test_config_fini(void)
+void c2_net_test_node_config_fini(struct c2_net_test_node_config *cfg)
 {
 }
 

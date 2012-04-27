@@ -121,11 +121,9 @@ net_bulk_emulation_ut_SOURCES   := ksunrpc_ut.c bulk_mem_ut.c bulk_sunrpc_ut.c
 
 net_ksunrpc_SOURCES             := domain.c client.c kxdr.c
 
-net_test_SOURCES		:= client.c network.c \
-				   linux_kernel/node_config_k.c node_config.c \
+net_test_SOURCES		:= client.c network.c node_config.c \
 				   node_main.c server.c stats.c
-net_test_HEADERS		:= client.h network.h \
-				   linux_kernel/node_config_k.h node_config.h \
+net_test_HEADERS		:= client.h network.h node_config.h \
 				   node_main.h server.h stats.h
 
 net_ut_SOURCES                  := bulk_if.c buffer_pool_ut.c

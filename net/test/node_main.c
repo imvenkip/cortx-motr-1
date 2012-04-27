@@ -406,13 +406,10 @@ static struct c2_thread net_test_main_thread;
  */
 static void net_test_main(int ignored)
 {
-	if (c2_net_test_config_init() != 0) {
-		/* TODO */
-	}
 	/* TODO */
 }
 
-int c2_net_test_init(void)
+int c2_net_test_init(struct c2_net_test_node_config *cfg)
 {
 	return C2_THREAD_INIT(&net_test_main_thread, int, NULL,
 		            &net_test_main, 0, "net_test_main");

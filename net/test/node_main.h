@@ -145,6 +145,8 @@
    @see @ref net-test
  */
 
+#include "net/test/node_config.h"
+
 /**
    @defgroup NetTestDFS Detailed Functional Specification
    @brief Detailed functional specification for Colibri Network Benchmark.
@@ -160,7 +162,7 @@
    will run corresponding subroutine.
    @todo implement as service
 */
-int c2_net_test_init(void);
+int c2_net_test_init(struct c2_net_test_node_config *cfg);
 
 /**
    Stop c2_net_test on the test node.

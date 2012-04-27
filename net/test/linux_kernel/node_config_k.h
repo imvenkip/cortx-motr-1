@@ -21,8 +21,17 @@
 #ifndef __NET_TEST_LINUX_KERNEL_CONFIG_H__
 #define __NET_TEST_LINUX_KERNEL_CONFIG_H__
 
-#include <linux/module.h>
-#include <linux/kernel.h>
+#include "net/test/node_config.h"
+
+/*
+   Set c2_net_test_node_config structure according to kernel module parameters.
+ */
+int c2_net_test_node_config_init(struct c2_net_test_node_config *cfg);
+
+/**
+   Finalize c2_net_test_node_config structure (free memory etc.)
+ */
+void c2_net_test_node_config_fini(struct c2_net_test_node_config *cfg);
 
 #endif /*  ___NET_TEST_LINUX_KERNEL_CONFIG_H__ */
 

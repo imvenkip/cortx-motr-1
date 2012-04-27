@@ -21,10 +21,6 @@
 #ifndef __NET_TEST_CONFIG_NODE_H__
 #define __NET_TEST_CONFIG_NODE_H__
 
-#ifdef __KERNEL__
-#include <linux/kernel.h>
-#endif
-
 /**
    @defgroup NetTestConfigDFS Colibri Network Benchmark \
 			      Configuration \
@@ -52,46 +48,25 @@ enum c2_net_test_type {
 };
 
 /**
-   Test node role.
-   @see @ref net-test-config-fspec-cli
- */
-extern enum c2_net_test_role c2_net_test_config_role;
-
-/**
-   Test node type.
-   @see @ref net-test-config-fspec-cli
- */
-extern enum c2_net_test_type c2_net_test_config_type;
-
-/**
-   Number of packets which need to be send to test server
-   @see @ref net-test-config-fspec-cli
- */
-extern long c2_net_test_config_count;
-
-/**
-   Size of bulk test message.
-   @see @ref net-test-config-fspec-cli
- */
-extern long c2_net_test_config_size;
-
-/**
-   Test server names for test client.
-   @see @ref net-test-config-fspec-cli
- */
-extern char **c2_net_test_config_targets;
-
-/**
-   Test server names number for test client.
-   @see @ref net-test-config-fspec-cli
- */
-extern long c2_net_test_config_targets_nr;
-
-/**
-   Test console name.
-   @see @ref net-test-config-fspec-cli
- */
-extern char *c2_net_test_config_console;
+   Configuration structure for test node.
+   @see @ref net-test-fspec-cli
+*/
+struct c2_net_test_node_config {
+	/** Test node role */
+	enum c2_net_test_role role;
+	/** Test node type */
+	enum c2_net_test_type type;
+	/** Number of test messages which need to be send to test server */
+	long   count;
+	/** Size of bulk test message */
+	long   size;
+	/** Test server names for the test client */
+	char **targets;
+	/** Test server names number for the test client */
+	long   targets_nr;
+	/** Test console adress */
+	char  *console;
+};
 
 /** Default parameter values */
 enum {
@@ -100,29 +75,14 @@ enum {
 	C2_NET_TEST_CONFIG_TARGETS_MAX	 = 0x100,
 };
 
-#define C2_NET_TEST_CONFIG_CONSOLE_DEFAULT    NULL
-
-/**
-   Set configuration variable values according to command line parameters.
- */
-int c2_net_test_config_init(void);
-
-/**
-   Finalize configuration module (free memory etc.)
- */
-void c2_net_test_config_fini(void);
+#define C2_NET_TEST_CONFIG_CONSOLE_DEFAULT	NULL
 
 /**
    Do sanity check for configuration variables.
    @return configuration is valid.
  */
-bool c2_net_test_config_invariant(void);
-
-#ifdef __KERNEL__
-#include "net/test/linux_kernel/node_config_k.h"
-#else
-#include "net/test/user_space/node_config.h"
-#endif
+bool c2_net_test_node_config_invariant(
+		const struct c2_net_test_node_config *cfg);
 
 /**
    @} end of NetTestConfigDFS
