@@ -81,8 +81,6 @@
 
 /**
    Initialize console data structures.
-   c2_net_test_network_init() and c2_net_test_config_init() must be called
-   before this function.
    @see @ref net-test-console-lspec
  */
 int c2_net_test_console_init(void);

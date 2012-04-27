@@ -74,10 +74,10 @@
    - c2_net_test_client_fini()
    - c2_net_test_server_init()
    - c2_net_test_server_fini()
-   - c2_net_test_net_init()
-   - c2_net_test_net_fini()
-   - c2_net_test_net_ctx_init()
-   - c2_net_test_net_ctx_fini()
+   - c2_net_test_network_init()
+   - c2_net_test_network_fini()
+   - c2_net_test_network_ctx_init()
+   - c2_net_test_network_ctx_fini()
 
    @subsection net-test-fspec-sub-acc Accessors and Invariants
 
@@ -98,13 +98,13 @@
    - c2_net_test_server_start()
    - c2_net_test_server_stop()
 
-   - c2_net_test_net_ep_add()
-   - c2_net_test_net_msg_send()
-   - c2_net_test_net_msg_recv()
-   - c2_net_test_net_bulk_send_passive()
-   - c2_net_test_net_bulk_recv_passive()
-   - c2_net_test_net_bulk_send_active()
-   - c2_net_test_net_bulk_recv_active()
+   - c2_net_test_network_ep_add()
+   - c2_net_test_network_msg_send()
+   - c2_net_test_network_msg_recv()
+   - c2_net_test_network_bulk_send_passive()
+   - c2_net_test_network_bulk_recv_passive()
+   - c2_net_test_network_bulk_send_active()
+   - c2_net_test_network_bulk_recv_active()
 
    @section net-test-fspec-cli Command Usage
    <i>Mandatory for command line programs.  Components that provide programs

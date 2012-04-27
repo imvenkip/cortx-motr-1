@@ -257,16 +257,16 @@
    based on which min/max/average/standard deviation can be calculated.
 
    @subsubsection net-test-lspec-network Network
-   - c2_net_test_net_init()/c2_net_test_net_fini() need to be called to
+   - c2_net_test_network_init()/c2_net_test_network_fini() need to be called to
    initialize/finalize c2_net_test network.
-   - c2_net_test_net_(msg/bulk)_(send/rev)_* is a wrapper around c2_net.
+   - c2_net_test_network_(msg/bulk)_(send/rev)_* is a wrapper around c2_net.
    This functions use c2_net_test_ctx as containter for buffers, callbacks,
    endpoints and transfer machine. Buffer/endpoint index (int in range
    [0, NR), where NR is number of corresponding elements) is used for selecting
    buffer/endpoint structure from c2_net_test_ctx.
-   - All buffers are allocated in c2_net_test_net_ctx_init().
-   - Endpoints can be added after c2_net_test_net_ctx_init() using
-   c2_net_test_net_ep_add().
+   - All buffers are allocated in c2_net_test_network_ctx_init().
+   - Endpoints can be added after c2_net_test_network_ctx_init() using
+   c2_net_test_network_ep_add().
 
    @subsubsection net-test-lspec-console Test Console
    @todo add

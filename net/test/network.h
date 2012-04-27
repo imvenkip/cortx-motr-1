@@ -55,14 +55,14 @@ struct c2_net_test_ctx {
    Initialize c2_net structures.
    Call c2_net_xprt_init(), c2_net_domain_init().
  */
-int c2_net_test_net_init(void);
-void c2_net_test_net_fini(void);
+int c2_net_test_network_init(void);
+void c2_net_test_network_fini(void);
 
 /**
    Initialize c2_net_test_ctx structure.
    Allocate ping and bulk buffers.
  */
-int c2_net_test_net_ctx_init(struct c2_net_test_ctx *ctx,
+int c2_net_test_network_ctx_init(struct c2_net_test_ctx *ctx,
 		const char *tm_addr,
 		const struct c2_net_tm_callbacks *tm_cb,
 		const struct c2_net_buffer_callbacks *buf_cb,
@@ -71,33 +71,33 @@ int c2_net_test_net_ctx_init(struct c2_net_test_ctx *ctx,
 		const int buf_bulk_size,
 		const int buf_bulk_nr,
 		const int ep_max);
-void c2_net_test_net_ctx_fini(struct c2_net_test_ctx *ctx);
+void c2_net_test_network_ctx_fini(struct c2_net_test_ctx *ctx);
 
 /**
    Add entry point to c2_net_test_ctx structure.
    @return entry point number.
  */
-int c2_net_test_net_ep_add(struct c2_net_test_ctx *ctx,
+int c2_net_test_network_ep_add(struct c2_net_test_ctx *ctx,
 		const char *ep_addr);
 
 /**
    Send/receive ping messages.
  */
-int c2_net_test_net_msg_send(struct c2_net_test_ctx *ctx,
+int c2_net_test_network_msg_send(struct c2_net_test_ctx *ctx,
 		int buf_ping_index, int ep_index);
-int c2_net_test_net_msg_recv(struct c2_net_test_ctx *ctx,
+int c2_net_test_network_msg_recv(struct c2_net_test_ctx *ctx,
 		int buf_ping_index, int ep_index);
 
 /**
    Send/receive bulk messages.
  */
-int c2_net_test_net_bulk_send_passive(struct c2_net_test_ctx *ctx,
+int c2_net_test_network_bulk_send_passive(struct c2_net_test_ctx *ctx,
 		int buf_bulk_index, int ep_index);
-int c2_net_test_net_bulk_recv_passive(struct c2_net_test_ctx *ctx,
+int c2_net_test_network_bulk_recv_passive(struct c2_net_test_ctx *ctx,
 		int buf_bulk_index, int ep_index);
-int c2_net_test_net_bulk_send_active(struct c2_net_test_ctx *ctx,
+int c2_net_test_network_bulk_send_active(struct c2_net_test_ctx *ctx,
 		int buf_bulk_index, int buf_ping_index);
-int c2_net_test_net_bulk_recv_active(struct c2_net_test_ctx *ctx,
+int c2_net_test_network_bulk_recv_active(struct c2_net_test_ctx *ctx,
 		int buf_bulk_index, int buf_ping_index);
 
 /**

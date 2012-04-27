@@ -33,8 +33,6 @@
 
 /**
    Initialize server data structures.
-   c2_net_test_network_init() and c2_net_test_config_init() must be called
-   before this function.
    @see @ref net-test-lspec
  */
 int c2_net_test_server_init(void);
