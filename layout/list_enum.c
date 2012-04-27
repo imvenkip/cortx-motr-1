@@ -117,8 +117,8 @@ static const struct c2_layout_enum_ops list_enum_ops;
 
 /**
  * Build list enumeration object.
- * @note Enum object need not be finalized explicitly by the user. It is
- * finalized internally through the layout finalization routine to be invoked
+ * @note Enum object need not be finalised explicitly by the user. It is
+ * finalised internally through the layout finalisation routine to be invoked
  * as l->l_ops->lo_fini().
  */
 int c2_list_enum_build(struct c2_layout_domain *dom,
@@ -217,7 +217,7 @@ void list_fini(struct c2_layout_domain *dom,
 /**
  * Implementation of leto_register for LIST enumeration type.
  *
- * Initializes table specifically required for LIST enum type.
+ * Initialises table specifically required for LIST enum type.
  */
 static int list_register(struct c2_layout_schema *schema,
 			 const struct c2_layout_enum_type *et)
@@ -265,7 +265,7 @@ out:
 /**
  * Implementation of leto_unregister for LIST enumeration type.
  *
- * Finalizes table specifically required for LIST enum type.
+ * Finalises table specifically required for LIST enum type.
  */
 static void list_unregister(struct c2_layout_schema *schema,
 			    const struct c2_layout_enum_type *et)

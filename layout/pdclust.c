@@ -273,7 +273,7 @@ static uint64_t permute_column(struct c2_pdclust_layout *play,
 		for (i = 0; i < play->pl_attr.pa_P; ++i)
 			tc->tc_permute[i] = i;
 
-		/* initialize PRNG */
+		/* initialise PRNG */
 		rstate  =
 			hash(play->pl_attr.pa_seed.u_hi) ^
 			hash(play->pl_attr.pa_seed.u_lo + omega);
@@ -433,7 +433,7 @@ static const struct c2_layout_ops pdclust_ops;
 
 /**
  * @post A pdclust type of layout object is created. It needs to be
- * finalized by the user, once done with the usage. It can be finalized
+ * finalised by the user, once done with the usage. It can be finalised
  * using l->l_ops->lo_fini().
  */
 int c2_pdclust_build(struct c2_layout_domain *dom,

@@ -71,17 +71,17 @@
  * A layout can be assigned to a file both by server and the client.
  *
  * The sequence of operation related to domain, schema
- * intialization/finalization, layout type and enum type registration and
+ * intialisation/finalisation, layout type and enum type registration and
  * unregistration is as follows:
- * - Initialize c2_layout_domain object.
- * - Initialize c2_layout_schema object.
+ * - Initialise c2_layout_domain object.
+ * - Initialise c2_layout_schema object.
  * - Register layout types and enum types using c2_layout_register().
  * - Perform various required operations including usage of c2_layout_encode(),
  *   c2_layout_decode(), c2_layout_lookup(), c2_layout_add(),
  *   c2_layout_update(), c2_layout_delete(), leo_nr(), leo_get().
  * - Unregister layout types and enum types using c2_layout_unregister.
- * - Finalize c2_layout_schema object.
- * - Finalize c2_layout_domain object.
+ * - Finalise c2_layout_schema object.
+ * - Finalise c2_layout_domain object.
  *
  * Regarding client/server access to various APIs from layout and layout-DB
  * modules:

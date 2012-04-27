@@ -47,7 +47,7 @@ enum {
 	DEFAULT_DB_FLAG            = 0,
 
 	/**
-	 * Reference coount assigned to layout, during its initialization and
+	 * Reference coount assigned to layout, during its initialisation and
 	 * assigned to layout type and enum type, during their registration.
 	 */
 	DEFAULT_REF_COUNT          = 1,

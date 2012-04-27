@@ -52,7 +52,7 @@ struct layout_prefix {
 
 /*
  * @post A composite type of layout object is created. It needs to be
- * finalized by the user, once done with the usage. It can be finalized
+ * finalised by the user, once done with the usage. It can be finalised
  * using l->l_ops->lo_fini().
  */
 void c2_composite_build(uint64_t pool_id, uint64_t lid,
@@ -70,7 +70,7 @@ static void composite_fini(struct c2_layout *l, struct c2_layout_domain *dom)
 /**
  * Implementation of lto_register for COMPOSITE layout type.
  *
- * Intializes table specifically required for COMPOSITE layout type.
+ * Intialises table specifically required for COMPOSITE layout type.
  */
 static int composite_register(struct c2_layout_schema *schema,
 			      const struct c2_layout_type *lt)
@@ -81,7 +81,7 @@ static int composite_register(struct c2_layout_schema *schema,
 
 	C2_ALLOC_PTR(csd);
 
-	Initialize csd->csd_comp_layout_ext_map table.
+	Initialise csd->csd_comp_layout_ext_map table.
 
 	schema->ls_type_data[lt->lt_id] = csd;
 	@endcode
@@ -92,14 +92,14 @@ static int composite_register(struct c2_layout_schema *schema,
 /**
  * Implementation of lto_unregister for COMPOSITE layout type.
  *
- * Finalizes table specifically required for COMPOSITE layout type.
+ * Finalises table specifically required for COMPOSITE layout type.
  */
 static void composite_unregister(struct c2_layout_schema *schema,
 				 const struct c2_layout_type *lt)
 {
 	/*
 	@code
-	Finalize schema->ls_type_data[lt->lt_id]->csd_comp_layout_ext_map
+	Finalise schema->ls_type_data[lt->lt_id]->csd_comp_layout_ext_map
 	table.
 
 	schema->ls_type_data[lt->lt_id] = NULL;

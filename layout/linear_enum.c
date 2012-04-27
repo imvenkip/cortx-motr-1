@@ -67,8 +67,8 @@ static const struct c2_layout_enum_ops linear_enum_ops;
 
 /**
  * Build linear enumeration object.
- * @note Enum object need not be finalized explicitly by the user. It is
- * finalized internally through the layout finalization routine to be invoked
+ * @note Enum object need not be finalised explicitly by the user. It is
+ * finalised internally through the layout finalisation routine to be invoked
  * as l->l_ops->lo_fini().
  */
 int c2_linear_enum_build(struct c2_layout_domain *dom,

@@ -564,7 +564,7 @@ static int rec_get(struct c2_layout *l, void *area,
  */
 
 /**
- * Initializes layout domain - Initializes arrays to hold the objects for
+ * Initialises layout domain - Initialises arrays to hold the objects for
  * layout types and enum types.
  */
 int c2_layout_domain_init(struct c2_layout_domain *dom)
@@ -580,7 +580,7 @@ int c2_layout_domain_init(struct c2_layout_domain *dom)
 	/*
 	 * Can not invoke invariant here since the dom->ld_schema pointer is
 	 * not yet set. It will be set once the c2_layout_schema object
-	 * associated with this domain object is initialized.
+	 * associated with this domain object is initialised.
 	 */
 	C2_POST(dom->ld_schema == NULL);
 
@@ -589,7 +589,7 @@ int c2_layout_domain_init(struct c2_layout_domain *dom)
 }
 
 /**
- * Finalizes the layout domain.
+ * Finalises the layout domain.
  * @pre All the layout types and enum types should be unregistered.
  */
 void c2_layout_domain_fini(struct c2_layout_domain *dom)
@@ -598,14 +598,14 @@ void c2_layout_domain_fini(struct c2_layout_domain *dom)
 
 	/*
 	 * Can not invoke invariant here since the dom->ld_schema pointer is
-	 * expected to be set to NULL during finalization of the
+	 * expected to be set to NULL during finalisation of the
 	 * c2_layout_schema object associated with this domain.
 	 */
 	C2_PRE(dom != NULL);
 
 	/*
 	 * Verify that the schema object associated with this domain has been
-	 * finalized prior to this routine being invoked.
+	 * finalised prior to this routine being invoked.
 	 */
 	C2_PRE(dom->ld_schema == NULL);
 
@@ -625,7 +625,7 @@ void c2_layout_domain_fini(struct c2_layout_domain *dom)
 }
 
 /**
- * Initializes the layout schema object - creates the layouts table.
+ * Initialises the layout schema object - creates the layouts table.
  * @pre dbenv Caller should have performed c2_dbenv_init() on dbenv.
  */
 int c2_layout_schema_init(struct c2_layout_schema *schema,
@@ -669,7 +669,7 @@ int c2_layout_schema_init(struct c2_layout_schema *schema,
 }
 
 /**
- * Finalizes the layout schema.
+ * Finalises the layout schema.
  * @pre All the layout types and enum types should be unregistered.
  */
 void c2_layout_schema_fini(struct c2_layout_schema *schema)
@@ -721,7 +721,7 @@ void c2_layout_unregister(struct c2_layout_domain *dom)
 
 /**
  * Registers a new layout type with the layout types maintained by
- * c2_layout_domain::ld_type[] and initializes type layout specific tables,
+ * c2_layout_domain::ld_type[] and initialises type layout specific tables,
  * if applicable.
  */
 int c2_layout_type_register(struct c2_layout_domain *dom,
@@ -768,7 +768,7 @@ int c2_layout_type_register(struct c2_layout_domain *dom,
 
 /**
  * Unregisters a layout type from the layout types maintained by
- * c2_layout_domain::ld_type[] and finalizes type layout specific tables,
+ * c2_layout_domain::ld_type[] and finalises type layout specific tables,
  * if applicable.
  */
 void c2_layout_type_unregister(struct c2_layout_domain *dom,
@@ -801,7 +801,7 @@ void c2_layout_type_unregister(struct c2_layout_domain *dom,
 
 /**
  * Registers a new enumeration type with the enumeration types
- * maintained by c2_layout_domain::ld_enum[] and initializes enum type specific
+ * maintained by c2_layout_domain::ld_enum[] and initialises enum type specific
  * tables, if applicable.
  */
 int c2_layout_enum_type_register(struct c2_layout_domain *dom,
@@ -849,7 +849,7 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 
 /**
  * Unregisters an enumeration type from the enumeration types
- * maintained by c2_layout_domain::ld_enum[] and finalizes enum type
+ * maintained by c2_layout_domain::ld_enum[] and finalises enum type
  * specific tables, if applicable.
  */
 void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
@@ -894,7 +894,7 @@ void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
  * most the size returned by c2_layout_max_recsize().
  *
  * @post Layout object is built internally (along with enumeration object being
- * built if applicable). Hence, user needs to finalize the layout object when
+ * built if applicable). Hence, user needs to finalise the layout object when
  * done with the use. It can be accomplished by performing l->l_ops->lo_fini(l).
  */
 int c2_layout_lookup(struct c2_layout_schema *schema,

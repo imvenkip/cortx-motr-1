@@ -230,7 +230,7 @@ static void enum_type_put(struct c2_layout_domain *dom,
 	c2_mutex_unlock(&dom->ld_lock);
 }
 
-/** Intializes a layout, adds a reference on the respective layout type. */
+/** Intialises a layout, adds a reference on the respective layout type. */
 int layout_init(struct c2_layout_domain *dom,
 		struct c2_layout *l,
 		uint64_t lid, uint64_t pool_id,
@@ -265,7 +265,7 @@ int layout_init(struct c2_layout_domain *dom,
 	return 0;
 }
 
-/** Finalizes a layout, releases a reference on the respective layout type. */
+/** Finalises a layout, releases a reference on the respective layout type. */
 void layout_fini(struct c2_layout_domain *dom, struct c2_layout *l)
 {
 	C2_PRE(domain_invariant(dom));
@@ -312,7 +312,7 @@ int striped_init(struct c2_layout_domain *dom,
 }
 
 /**
- * @post The enum object which is part of striped layout object, is finalized
+ * @post The enum object which is part of striped layout object, is finalised
  * as well.
  */
 void striped_fini(struct c2_layout_domain *dom,
@@ -567,7 +567,7 @@ void c2_layout_put(struct c2_layout *l)
  * - Client decodes a buffer received over the network, into an in-memory
  *   layout structure, using c2_layout_decode().
  *
- * @param cur Cursor pointing to a buffer containing serialized representation
+ * @param cur Cursor pointing to a buffer containing serialised representation
  * of the buffer. Regarding the size of the buffer:
  * - In case c2_layout_decode() is called through c2_layout_add(), then the
  *   buffer should be containing all the data that is read specifically from
@@ -586,7 +586,7 @@ void c2_layout_put(struct c2_layout *l)
  * received over the network.
  *
  * @post Layout object is built internally (along with enumeration object being
- * built if applicable). Hence, user needs to finalize the layout object when
+ * built if applicable). Hence, user needs to finalise the layout object when
  * done with the use. It can be accomplished by performing l->l_ops->lo_fini(l).
  */
 int c2_layout_decode(struct c2_layout_domain *dom,
@@ -691,7 +691,7 @@ out:
  * @post
  * - If op is is either for ADD|UPDATE|DELETE, respective DB operation is
  *   continued.
- * - If op is NONE, the buffer contains the serialized representation of the
+ * - If op is NONE, the buffer contains the serialised representation of the
  *   whole layout.
  */
 int c2_layout_encode(struct c2_layout_domain *dom,

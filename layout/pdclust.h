@@ -196,7 +196,7 @@ struct c2_pdclust_layout {
 		uint32_t *tc_lcode;
 	} pl_tile_cache;
 
-	/** Parity math information, initialized according to the layout. */
+	/** Parity math information, initialised according to the layout. */
 	struct c2_parity_math        pl_math;
 
 	uint64_t                     pl_magic;
