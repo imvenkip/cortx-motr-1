@@ -56,7 +56,8 @@
    C2 Glossary are permitted and encouraged.  Agreed upon terminology
    should be incorporated in the glossary.</i>
 
-   Previously defined terms: see @ref net-test-hld "Colibri Network Benchmark HLD"
+   Previously defined terms:
+   @see @ref net-test-hld "Colibri Network Benchmark HLD"
 
    New terms:
    @subsection net-test-config-def Configuration
