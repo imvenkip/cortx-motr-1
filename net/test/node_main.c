@@ -47,6 +47,25 @@
    Colibri network benchmark is designed to test network subsystem of Colibri
    and network connections between nodes that are running Colibri.
 
+   Colibri Network Benchmark is implemented as a kernel module for test node
+   and user space program for test console.
+   Before testing kernel module must be copied to every test node.
+   Then test console will perform test in this way:
+
+   @msc
+   console, node;
+   console->node	[label = "Load kernel module"];
+   node->console	[label = "Node is ready"];
+   ---			[label = "waiting for all nodes"];
+   console->node	[label = "Command to start test"];
+   node rbox node	[label = "Executing test"];
+   node->console	[label = "Statistics"];
+   ---			[label = "waiting for all nodes"];
+   console rbox console [label = "Print summary statistics"];
+   console->node	[label = "Unload kernel module"];
+   ---			[label = "waiting for all nodes"];
+   @endmsc
+
    <hr>
    @section net-test-def Definitions
    <i>Mandatory.
@@ -93,25 +112,7 @@
    decisions that are important for understanding the functional and
    logical specifications, and enumerates topics that need special
    attention.</i>
-
-   Colibri Network Benchmark is implemented as a kernel module for test node
-   and user space program for test console.
-   Before testing kernel module must be copied to every test node.
-   Then test console will perform test in this way:
-
-   @msc
-   console, node;
-   console->node	[label = "Load kernel module"];
-   node->console	[label = "Node is ready"];
-   ---			[label = "waiting for all nodes"];
-   console->node	[label = "Command to start test"];
-   node rbox node	[label = "Executing test"];
-   node->console	[label = "Statistics"];
-   ---			[label = "waiting for all nodes"];
-   console rbox console [label = "Print summary statistics"];
-   console->node	[label = "Unload kernel module"];
-   ---			[label = "waiting for all nodes"];
-   @endmsc
+   @todo
 
    <hr>
    @section net-test-lspec Logical Specification
