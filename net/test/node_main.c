@@ -80,25 +80,25 @@
 
    New terms:
    - <b>Configuration variable</b> Variable with name. It can have some value.
-   - <b>Configuration</b> Set of name-value pairs.
+   - @b Configuration Set of name-value pairs.
 
    <hr>
    @section net-test-req Requirements
    <i>Mandatory.
    The DLD shall state the requirements that it attempts to meet.</i>
 
-   - <b>R.c2.net.self-test.statistics</b> pdsh is used to gather the statistics
+   - @b R.c2.net.self-test.statistics pdsh is used to gather the statistics
      from the all nodes.
-   - <b>R.c2.net.self-test.statistics.live</b> pdsh is used to perform
+   - @b R.c2.net.self-test.statistics.live pdsh is used to perform
      statistics collecting from the all nodes with some interval.
-   - <b>R.c2.net.self-test.test.ping</b> latency is automatically measured for
+   - @b R.c2.net.self-test.test.ping latency is automatically measured for
      all messages.
-   - <b>R.c2.net.self-test.test.bulk</b> used messages with additional data.
-   - <b>R.c2.net.self-test.test.bulk.integrity.no-check</b> bulk messages
+   - @b R.c2.net.self-test.test.bulk used messages with additional data.
+   - @b R.c2.net.self-test.test.bulk.integrity.no-check bulk messages
       additional data isn't checked.
-   - <b>R.c2.net.self-test.test.duration.simple</b> end user should be able to
+   - @b R.c2.net.self-test.test.duration.simple end user should be able to
      specify how long a test should run, by loop.
-   - <b>R.c2.net.self-test.kernel</b> test client/server is implemented as
+   - @b R.c2.net.self-test.kernel test client/server is implemented as
      a kernel module.
 
    <hr>

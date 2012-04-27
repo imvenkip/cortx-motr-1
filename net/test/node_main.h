@@ -114,20 +114,20 @@
 
    This command line options are valid for both client and server testing role.
 
-   - <b>node_role</b> Node role. Mandatory option.
-     - <b>client</b> Program will act as test client.
-     - <b>server</b> Program will act as test server.
-   - <b>test_type</b> Test type. Mandatory option.
-     - <b>ping</b> Ping test will be executed.
-     - <b>bulk</b> Bulk test will be executed.
-   - <b>count</b> Number of test messages to exchange between test client
+   - @b node_role Node role. Mandatory option.
+     - @b client Program will act as test client.
+     - @b server Program will act as test server.
+   - @b test_type Test type. Mandatory option.
+     - @b ping Ping test will be executed.
+     - @b bulk Bulk test will be executed.
+   - @b count Number of test messages to exchange between test client
                   and test server. Makes sense for test client only.
 		  Default value is 16.
-   - <b>size</b> Size of bulk messages, bytes. Makes sense for bulk test only.
+   - @b size Size of bulk messages, bytes. Makes sense for bulk test only.
 	         Default value is 1048576 (1Mb).
-   - <b>target</b> Test servers list for the test client and vice versa.
+   - @b target Test servers list for the test client and vice versa.
 		   Items in list are comma-separated. Mandatory option.
-   - <b>console</b> Console hostname. Mandatory option.
+   - @b console Console hostname. Mandatory option.
 
    @section net-test-fspec-usecases Recipes
    <i>This section could briefly explain what sequence of interface calls or
