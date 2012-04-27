@@ -22,30 +22,20 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 
-#include "lib/assert.h"
-#include "lib/thread.h"
-
 #include "net/test/node_main.h"
 
 MODULE_AUTHOR("Xyratex International");
 MODULE_DESCRIPTION("Colibri Network Benchmark Module");
 MODULE_LICENSE("proprietary");
 
-static struct c2_thread net_test_main;
-
 static int __init c2_net_test_module_init(void)
 {
-	int rc;
-
-	rc = C2_THREAD_INIT(&net_test_main, int, NULL,
-		            &c2_net_test_main, 0, "net_test_main");
-
-	return rc;
+	return c2_net_test_init();
 }
 
 static void __exit c2_net_test_module_fini(void)
 {
-	c2_thread_join(&net_test_main);
+	c2_net_test_fini();
 }
 
 module_init(c2_net_test_module_init)

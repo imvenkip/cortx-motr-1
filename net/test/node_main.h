@@ -155,11 +155,19 @@
 */
 
 /**
-   Main function for client/server.
+   Start c2_net_test on the test node.
    It will determine whether it is a client or a server and
    will run corresponding subroutine.
+   @todo implement as service
 */
-void c2_net_test_main(int ignored);
+int c2_net_test_init(void);
+
+/**
+   Stop c2_net_test on the test node.
+   Will interrupt all running tests.
+   Will block until all tests stopped.
+*/
+void c2_net_test_fini(void);
 
 /**
    @} end of NetTestDFS

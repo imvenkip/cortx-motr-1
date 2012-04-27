@@ -386,6 +386,7 @@
  */
 
 #include "lib/cdefs.h"
+#include "lib/thread.h"
 
 #include "net/test/node_config.h"
 #include "net/test/node_main.h"
@@ -398,16 +399,32 @@
    @{
  */
 
+static struct c2_thread net_test_main_thread;
+
 /**
    Entry point for test node.
  */
-void c2_net_test_main(int ignored)
+static void net_test_main(int ignored)
 {
 	if (c2_net_test_config_init() != 0) {
-		/* XXX */
+		/* TODO */
 	}
+	/* TODO */
 }
-C2_EXPORTED(c2_net_test_main);
+
+int c2_net_test_init(void)
+{
+	return C2_THREAD_INIT(&net_test_main_thread, int, NULL,
+		            &net_test_main, 0, "net_test_main");
+}
+C2_EXPORTED(c2_net_test_init);
+
+void c2_net_test_fini(void)
+{
+	/* TODO */
+	c2_thread_join(&net_test_main_thread);
+}
+C2_EXPORTED(c2_net_test_fini);
 
 /**
    @} end NetTestInternals
