@@ -49,6 +49,8 @@ struct nlx_ping_ctx {
 	uint32_t		              pc_segments;
 	uint32_t		              pc_seg_size;
         uint32_t                              pc_seg_shift;
+	int                                   pc_min_recv_size;
+	int                                   pc_max_recv_msgs;
 	int32_t				      pc_passive_size;
 	struct c2_net_buffer		     *pc_nbs;
 	const struct c2_net_buffer_callbacks *pc_buf_callbacks;
@@ -67,20 +69,21 @@ struct nlx_ping_ctx {
 	bool                                  pc_ready;
 	char * const *                        pc_interfaces;
 	bool                                  pc_sync_events;
-	struct c2_chan                        pc_work_chan;
-	struct c2_clink                       pc_work_clink;
-	bool                                  pc_work_signal;
-	unsigned                              pc_work_signal_count;
+	struct c2_chan                        pc_wq_chan;
+	struct c2_clink                       pc_wq_clink;
+	uint64_t                              pc_wq_signal_count;
 	struct c2_chan                        pc_net_chan;
 	struct c2_clink                       pc_net_clink;
-	bool                                  pc_net_signal;
-	unsigned                              pc_net_signal_count;
+	uint64_t                              pc_net_signal_count;
+	uint64_t                              pc_blocked_count;
+        uint64_t                              pc_worked_count;
 	struct c2_atomic64                    pc_errors;
+	struct c2_atomic64                    pc_retries;
+	int                                   pc_verbose;
 };
 
 struct nlx_ping_client_params {
 	const struct nlx_ping_ops *ops;
-	bool verbose;
 	int loops;
 	unsigned int nr_bufs;
 	int client_id;
@@ -96,6 +99,7 @@ struct nlx_ping_client_params {
 	uint32_t    server_portal;
 	int32_t	    server_tmid;
 	int         debug;
+	int         verbose;
 };
 
 enum {
@@ -123,6 +127,8 @@ enum {
 	PING_MAX_PASSIVE_SIZE =
 		PING_SERVER_SEGMENTS * PING_SERVER_SEGMENT_SIZE - 1024,
 
+	PING_DEF_MIN_RECV_SIZE = 100, /* empirical observation: 58 */
+
 	ONE_MILLION = 1000000ULL,
 	SEC_PER_HR = 60 * 60,
 	SEC_PER_MIN = 60,
@@ -131,11 +137,16 @@ enum {
 /* Debug printf macro */
 #ifdef __KERNEL__
 #define PING_ERR(fmt, ...) printk(KERN_ERR fmt , ## __VA_ARGS__)
-#define PRId64 "lld" /* from <inttypes.h> */
 #else
 #include <stdio.h>
 #define PING_ERR(fmt, ...) fprintf(stderr, fmt , ## __VA_ARGS__)
 #endif
+
+#define PING_OUT(ctx, num, fmt, ...)			\
+do {							\
+	if ((ctx)->pc_verbose >= num)			\
+		(ctx)->pc_ops->pf(fmt , ## __VA_ARGS__);\
+} while (0)
 
 void nlx_ping_server_spawn(struct c2_thread *server_thread,
 			   struct nlx_ping_ctx *sctx);

@@ -39,9 +39,13 @@
  */
 
 /* Module parameters */
-static bool verbose = false;
-module_param(verbose, bool, S_IRUGO);
-MODULE_PARM_DESC(verbose, "enable verbose output to kernel log");
+static bool quiet = false;
+module_param(quiet, bool, S_IRUGO);
+MODULE_PARM_DESC(quiet, "quiet mode");
+
+static int verbose = 0;
+module_param(verbose, int, S_IRUGO);
+MODULE_PARM_DESC(verbose, "verbosity level");
 
 static bool client_only = false;
 module_param(client_only, bool, S_IRUGO);
@@ -106,6 +110,14 @@ MODULE_PARM_DESC(server_portal, "server portal (optional)");
 static int server_tmid = -1;
 module_param(server_tmid, int, S_IRUGO);
 MODULE_PARM_DESC(server_tmid, "server TMID (optional)");
+
+static int server_min_recv_size = -1;
+module_param(server_min_recv_size, int, S_IRUGO);
+MODULE_PARM_DESC(server_min_recv_size, "server min receive size (optional)");
+
+static int server_max_recv_msgs = -1;
+module_param(server_max_recv_msgs, int, S_IRUGO);
+MODULE_PARM_DESC(server_max_recv_msgs, "server max receive msgs (optional)");
 
 static int server_debug = 0;
 module_param(server_debug, int, S_IRUGO);
@@ -200,6 +212,8 @@ static int __init c2_netst_init_k(void)
 		server_tmid = PING_SERVER_TMID;
 	if (client_tmid < 0)
 		client_tmid = PING_CLIENT_DYNAMIC_TMID;
+	if (verbose < 0)
+		verbose = 0;
 
 	/* set up sys fs entries? */
 
@@ -212,7 +226,7 @@ static int __init c2_netst_init_k(void)
 		/* set up server context */
 		c2_mutex_init(&sctx.pc_mutex);
 		c2_cond_init(&sctx.pc_cond);
-		if (verbose)
+		if (!quiet)
 			sctx.pc_ops = &verbose_ops;
 		else
 			sctx.pc_ops = &quiet_ops;
@@ -228,6 +242,9 @@ static int __init c2_netst_init_k(void)
 		sctx.pc_dom_debug = server_debug;
 		sctx.pc_tm_debug = server_debug;
 		sctx.pc_sync_events = !async_events;
+		sctx.pc_min_recv_size = server_min_recv_size;
+		sctx.pc_max_recv_msgs = server_max_recv_msgs;
+		sctx.pc_verbose = verbose;
 		nlx_ping_server_spawn(&server_thread, &sctx);
 
 		printk(KERN_INFO "Colibri LNet System Test"
@@ -259,12 +276,13 @@ static int __init c2_netst_init_k(void)
 			CPARAM_SET(server_network);
 			CPARAM_SET(server_portal);
 			CPARAM_SET(server_tmid);
+			CPARAM_SET(verbose);
 #undef CPARAM_SET
 			params[i].client_id = i + 1;
 			params[i].client_pid = C2_NET_LNET_PID;
 			params[i].server_pid = C2_NET_LNET_PID;
 			params[i].debug = client_debug;
-			if (verbose)
+			if (!quiet)
 				params[i].ops = &verbose_ops;
 			else
 				params[i].ops = &quiet_ops;
@@ -288,12 +306,12 @@ static void __exit c2_netst_fini_k(void)
 		int i;
 		for (i = 0; i < nr_clients; ++i) {
 			c2_thread_join(&client_thread[i]);
-			if (verbose) {
+			if (!quiet && verbose > 0) {
 				printk(KERN_INFO "Client %d: joined\n",
 				       params[i].client_id);
 			}
 		}
-		if (verbose)
+		if (!quiet)
 			nlx_ping_print_qstats_total("Client total",
 						    &verbose_ops);
 		c2_free(client_thread);

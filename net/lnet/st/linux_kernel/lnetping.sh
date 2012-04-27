@@ -13,7 +13,7 @@ usage() {
     echo "   [-O PassiveTimeout] [-d PassiveSize] [-D ActiveDelay] [-q]"
     echo "   [-i ClientNetwork] [-p ClientPortal] [-t ClientTMID]"
     echo "   [-I ServerNetwork] [-P ServerPortal] [-T ServerTMID] [-A]"
-    echo "   [-x ClientDebug] [-X ServerDebug]"
+    echo "   [-x ClientDebug] [-X ServerDebug] [-v VerbosityLevel]"
     echo "Flags:"
     echo "-A  Async event processing (old style)"
     echo "-D  Server active bulk delay"
@@ -33,6 +33,7 @@ usage() {
     echo "-q  Not verbose"
     echo "-s  Run server only"
     echo "-t  Client base TMID - default is dynamic"
+    echo "-v  Verbosity level"
     echo "-x  Client debug"
     echo "By default the client and server are configued to use the first LNet"
     echo "network interface returned by lctl."
@@ -64,7 +65,8 @@ fi
 server_nid=$NID
 client_nid=$NID
 
-Pverbose=verbose
+Pquiet=
+Pverbose=
 Pserver_only=
 Pclient_only=
 Pasync_events=
@@ -92,8 +94,8 @@ while [ $# -gt 0 ]; do
 	(-c) Pclient_only="client_only";;
 	(-s) Pserver_only="server_only";;
 	(-A) Pasync_events="async_events";;
-	(-q) Pverbose="" ;;
-	(-D|-O|-P|-T|-X|-b|-d|-l|-n|-o|-p|-t|-x) has_narg=1;;
+	(-q) Pquiet="quiet" ;;
+	(-D|-O|-P|-T|-X|-b|-d|-l|-n|-o|-p|-t|-v|-x) has_narg=1;;
 	(-I|-i) has_sarg=1;;
 	(-h|--help) usage; exit 0;;
 	(*) echo "Error: Unknown argument $FLAG"; echo "Use -h for help"; exit 1;;
@@ -128,6 +130,7 @@ while [ $# -gt 0 ]; do
 	(-o) Pmsg_timeout="msg_timeout=$1";;
 	(-p) Pclient_portal="client_portal=$1";;
 	(-t) Pclient_tmid="client_tmid=$1";;
+	(-v) Pverbose="verbose=$1";;
 	(-x) Pclient_debug="client_debug=$1";;
     esac
     shift
@@ -147,7 +150,7 @@ CPARM="$Pclient_only $Pclient_network $Pclient_portal $Pclient_tmid \
 $Pnr_clients $Ploops $Ppassive_size $Pclient_debug"
 
 # Other parameters
-OPARM="$Pverbose $Pnr_bufs $Pmsg_timeout $Pbulk_timeout"
+OPARM="$Pquiet $Pverbose $Pnr_bufs $Pmsg_timeout $Pbulk_timeout"
 
 echo $OPARM
 echo $SPARM

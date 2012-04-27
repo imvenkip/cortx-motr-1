@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
 	bool			 client_only = false;
 	bool			 server_only = false;
 	bool			 quiet = false;
+	int			 verbose = 0;
 	bool                     async_events = false;
 	int			 loops = PING_DEF_LOOPS;
 	int			 nr_clients = PING_DEF_CLIENT_THREADS;
@@ -80,6 +81,8 @@ int main(int argc, char *argv[])
 	int32_t                  server_tmid = -1;
 	int                      client_debug = 0;
 	int                      server_debug = 0;
+	int                      server_min_recv_size = -1;
+	int                      server_max_recv_msgs = -1;
 	struct c2_thread	 server_thread;
 
 	rc = c2_init();
@@ -120,6 +123,12 @@ int main(int argc, char *argv[])
 				     "%i", &server_debug),
 			C2_FLAGARG('A', "async event processing (old style)",
 				   &async_events),
+			C2_FORMATARG('R', "server min receive size",
+				     "%i", &server_min_recv_size),
+			C2_FORMATARG('M', "server max receive messages",
+				     "%i", &server_max_recv_msgs),
+			C2_FORMATARG('v', "verbosity level",
+				     "%i", &verbose),
 			C2_FLAGARG('q', "quiet", &quiet));
 	if (rc != 0)
 		return rc;
@@ -156,6 +165,8 @@ int main(int argc, char *argv[])
 		server_tmid = PING_SERVER_TMID;
 	if (client_tmid < 0)
 		client_tmid = PING_CLIENT_DYNAMIC_TMID;
+	if (verbose < 0)
+		verbose = 0;
 
 	rc = c2_net_xprt_init(&c2_net_lnet_xprt);
 	C2_ASSERT(rc == 0);
@@ -183,6 +194,9 @@ int main(int argc, char *argv[])
 		sctx.pc_dom_debug = server_debug;
 		sctx.pc_tm_debug = server_debug;
 		sctx.pc_sync_events = !async_events;
+		sctx.pc_min_recv_size = server_min_recv_size;
+		sctx.pc_max_recv_msgs = server_max_recv_msgs;
+		sctx.pc_verbose = verbose;
 		nlx_ping_server_spawn(&server_thread, &sctx);
 
 		if (!quiet)
@@ -225,6 +239,7 @@ int main(int argc, char *argv[])
 			CPARAM_SET(server_network);
 			CPARAM_SET(server_portal);
 			CPARAM_SET(server_tmid);
+			CPARAM_SET(verbose);
 #undef CPARAM_SET
 			params[i].client_id = i + 1;
 			params[i].client_pid = C2_NET_LNET_PID;
@@ -248,7 +263,7 @@ int main(int argc, char *argv[])
 		/* ...and wait for them */
 		for (i = 0; i < nr_clients; ++i) {
 			c2_thread_join(&client_thread[i]);
-			if (!quiet) {
+			if (!quiet && verbose > 0) {
 				printf("Client %d: joined\n",
 				       params[i].client_id);
 			}
