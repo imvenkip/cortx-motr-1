@@ -114,10 +114,10 @@
 
    This command line options are valid for both client and server testing role.
 
-   - <b>role</b> Program role. Mandatory option.
+   - <b>node_role</b> Node role. Mandatory option.
      - <b>client</b> Program will act as test client.
      - <b>server</b> Program will act as test server.
-   - <b>type</b> Test type. Mandatory option.
+   - <b>test_type</b> Test type. Mandatory option.
      - <b>ping</b> Ping test will be executed.
      - <b>bulk</b> Bulk test will be executed.
    - <b>count</b> Number of test messages to exchange between test client
@@ -135,10 +135,10 @@
    scenarios.  It would be very nice if these examples can be linked
    back to the HLD for the component.</i>
 
-   role=client type=ping count=10 target=s1,s2,s3 @n
+   node_role=client test_type=ping count=10 target=s1,s2,s3 @n
    Run ping test as test client with 10 test messages to servers s1, s2 and s3.
    @n @n
-   role=server type=bulk target=c1,c2 @n
+   node_role=server test_type=bulk target=c1,c2 @n
    Run bulk test as test server with 1Mb bulk message size and
    test clients c1 and c2.
 
