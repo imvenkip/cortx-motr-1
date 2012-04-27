@@ -452,8 +452,8 @@ static void layout_addb_add(struct c2_addb_ctx *ctx,
 
 /**
  * This method performs the following operations:
- * 1) If value of the flag if_addb_msg is true, then Invokes layout_addb_add()
- *    to add an ADDB message.
+ * 1) If value of the flag if_addb_msg is true, then it invokes
+ *    layout_addb_add() to add an ADDB message.
  * 2) If value of the flag if_trace_msg is true and if it is a failure case
  *    (indicated by rc != 0), then it adds a C2_LOG message (trace message),
  *    indicating failure, along with a short error message string and the
