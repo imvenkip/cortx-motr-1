@@ -60,18 +60,8 @@
    @see @ref net-test-hld "Colibri Network Benchmark HLD"
 
    New terms:
-   @subsection net-test-config-def Configuration
-   - <b>Command line parameters</b> Command line parameters for user space
-   program or kernel module options for kernel module.
    - <b>Configuration variable</b> Variable with name. It can have some value.
    - <b>Configuration</b> Set of name-value pairs.
-
-   @subsection net-test-stats-def Statistics
-   - <b>Sample</b> A set of values.
-   - <b>Min</b> Smallest value from sample.
-   - <b>Max</b> Largest value from sample.
-   - <b>Average</b> Sample average (arithmetic mean).
-   - <b>Standard deviation</b> Sample standard deviation.
 
    <hr>
    @section net-test-req Requirements
