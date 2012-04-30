@@ -323,6 +323,20 @@
    This section cites each requirement in the @ref net-test-req section,
    and explains briefly how the DLD meets the requirement.</i>
 
+   - @b R.c2.net.self-test.statistics pdsh is used to gather the statistics
+     from the all nodes.
+   - @b R.c2.net.self-test.statistics.live pdsh is used to perform
+     statistics collecting from the all nodes with some interval.
+   - @b R.c2.net.self-test.test.ping latency is automatically measured for
+     all messages.
+   - @b R.c2.net.self-test.test.bulk used messages with additional data.
+   - @b R.c2.net.self-test.test.bulk.integrity.no-check bulk messages
+      additional data isn't checked.
+   - @b R.c2.net.self-test.test.duration.simple end user should be able to
+     specify how long a test should run, by loop.
+   - @b R.c2.net.self-test.kernel test client/server is implemented as
+     a kernel module.
+
    <hr>
    @section net-test-ut Unit Tests
    <i>Mandatory. This section describes the unit tests that will be designed.

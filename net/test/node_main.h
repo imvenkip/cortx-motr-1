@@ -129,6 +129,8 @@
 		   Items in list are comma-separated. Mandatory option.
    - @b console Console hostname. Mandatory option.
 
+   @todo console cli
+
    @section net-test-fspec-usecases Recipes
    <i>This section could briefly explain what sequence of interface calls or
    what program invocation flags are required to solve specific usage
