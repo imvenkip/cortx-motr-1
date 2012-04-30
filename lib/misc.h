@@ -44,7 +44,15 @@
 	memset((arr), 0, sizeof (arr));		\
 })
 
-
+#define c2_forall(var, nr, ...)						\
+({									\
+	unsigned __nr = (nr);						\
+	unsigned var;							\
+									\
+	for (var = 0; var < __nr && ({ true; __VA_ARGS__ }); ++var)	\
+		;							\
+	var == __nr;							\
+})
 
 /* __COLIBRI_LIB_MISC_H__ */
 #endif

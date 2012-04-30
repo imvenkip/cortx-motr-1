@@ -408,6 +408,17 @@ do {									\
  */
 #define c2_tlist_endfor ; (void)__tl; } while (0)
 
+#define c2_tlist_forall(descr, var, head, ...)	\
+({						\
+	void *var;				\
+						\
+	c2_tlist_for(descr, head, var) {	\
+		if (!({ true; __VA_ARGS__ }))	\
+			break;			\
+	} c2_tlist_endfor;			\
+	var == NULL;				\
+})
+
 #define C2_TL_DESCR_DECLARE(name, scope)	\
 scope const struct c2_tl_descr name ## _tl
 
@@ -596,6 +607,20 @@ scope __AUN amb_type *name ## _tlist_prev(const struct c2_tl *list,     \
 }									\
 									\
 struct __ ## name ## _terminate_me_with_a_semicolon { ; }
+
+#define c2_tl_for(name, head, obj) c2_tlist_for(& name ## _tl, head, obj)
+#define c2_tl_end c2_tlist_endfor
+
+#define c2_tl_forall(name, var, head, ...)		\
+({							\
+	typeof (name ## _tlist_head(NULL)) var;		\
+							\
+	c2_tlist_for(& name ## _tl, head, var) {	\
+		if (!({ true; __VA_ARGS__ }))			\
+			break;				\
+	} c2_tlist_endfor;				\
+	var == NULL;					\
+})
 
 /** @} end of tlist group */
 
