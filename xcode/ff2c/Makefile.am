@@ -5,5 +5,5 @@ noinst_PROGRAMS                   = ff2c
 ff2c_SOURCES                      = ff2c.c
 ff2c_LDADD                        = $(top_builddir)/xcode/ff2c/libcolibri-xcode-ff2c.la
 
-INCLUDES                          = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+INCLUDES                          = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
 

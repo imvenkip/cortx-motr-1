@@ -26,7 +26,7 @@ COLIBRI_MINOR_VERSION=1
 PACKAGE=colibri
 VERSION=$COLIBRI_MAJOR_VERSION.$COLIBRI_MINOR_VERSION
 
-AM_INIT_AUTOMAKE([$PACKAGE], [$VERSION])
+AM_INIT_AUTOMAKE([nostdinc])
 
 LT_RELEASE=$COLIBRI_MAJOR_VERSION.$COLIBRI_MINOR_VERSION
 AC_SUBST([LT_RELEASE])
@@ -593,14 +593,14 @@ CFLAGS="$OLD_CFLAGS")
 if test x$enable_rpm = xyes; then
 
 GALOIS_INCLUDES="-I/usr/local/include -I/usr/include"
-CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I. -I$SRCDIR $CFLAGS"
+CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -iquote . -iquote $SRCDIR $CFLAGS"
 
 else
 
 GALOIS_INCLUDES="-I$GALOIS_SRC/include"
 CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing \
         $DB_INCLUDES $GALOIS_INCLUDES -I$YAML_SRC/include \
-        -I$CUNIT_HEADERS -I. -I$SRCDIR $CFLAGS"
+        -I$CUNIT_HEADERS -iquote . -iquote $SRCDIR $CFLAGS"
 fi
 
 #

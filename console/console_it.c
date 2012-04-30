@@ -18,7 +18,7 @@
  * Original creation date: 08/17/2011
  */
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
 #include "lib/memory.h"		  /* C2_ALLOC_ARR */

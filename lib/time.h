@@ -22,7 +22,7 @@
 #ifndef __COLIBRI_LIB_TIME_H__
 #define __COLIBRI_LIB_TIME_H__
 
-#include <lib/types.h>
+#include "lib/types.h"
 
 /**
    @defgroup time Generic time manipulation
