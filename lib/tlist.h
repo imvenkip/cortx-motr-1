@@ -156,6 +156,9 @@
          C2_TL_DESCR_DEFINE() in .c file and C2_TL_DESCR_DECLARE() with scope
          "extern" followed by C2_TL_DEFINE() with scope "static inline" in .h
          file.
+
+   Use c2_tl_for() and c2_tl_endfor() to iterate over tailored lists.
+
    @{
  */
 
@@ -408,12 +411,36 @@ do {									\
  */
 #define c2_tlist_endfor ; (void)__tl; } while (0)
 
+/**
+ * Returns a conjunction (logical AND) of an expression evaluated for each list
+ * element.
+ *
+ * Declares a void pointer variable named "var" in a new scope and evaluates
+ * user-supplied expression (the last argument) with "var" iterated over
+ * successive list elements, while this expression returns true. Returns true
+ * iff the whole list was iterated over.
+ *
+ * The list can be modified by the user-supplied expression.
+ *
+ * This function is useful for invariant checking.
+ *
+ * @code
+ * bool foo_invariant(const struct foo *f)
+ * {
+ *         return f_state_is_valid(f) &&
+ *                c2_tlist_forall(bars_descr, bar, &f->f_bars,
+ *                                bar_is_valid(bar));
+ * }
+ * @endcode
+ *
+ * @see c2_forall(), c2_tl_forall(), c2_list_forall(), c2_list_entry_forall().
+ */
 #define c2_tlist_forall(descr, var, head, ...)	\
 ({						\
 	void *var;				\
 						\
 	c2_tlist_for(descr, head, var) {	\
-		if (!({ true; __VA_ARGS__ }))	\
+		if (!({ __VA_ARGS__ ; }))	\
 			break;			\
 	} c2_tlist_endfor;			\
 	var == NULL;				\
@@ -608,15 +635,47 @@ scope __AUN amb_type *name ## _tlist_prev(const struct c2_tl *list,     \
 									\
 struct __ ## name ## _terminate_me_with_a_semicolon { ; }
 
+/**
+ * A version of c2_tlist_for() to use with tailored lists.
+ *
+ * c2_tl_for() loop is terminated with c2_tl_endfor().
+ */
 #define c2_tl_for(name, head, obj) c2_tlist_for(& name ## _tl, head, obj)
-#define c2_tl_end c2_tlist_endfor
 
+/**
+ * Terminates c2_tl_for() loop.
+ */
+#define c2_tl_endfor c2_tlist_endfor
+
+/**
+ * Returns a conjunction (logical AND) of an expression evaluated for each list
+ * element.
+ *
+ * Declares a variable named "var" of list ambient object type in a new scope
+ * and evaluates user-supplied expression (the last argument) with "var"
+ * iterated over successive list elements, while this expression returns
+ * true. Returns true iff the whole list was iterated over.
+ *
+ * The list can be modified by the user-supplied expression.
+ *
+ * This function is useful for invariant checking.
+ *
+ * @code
+ * bool foo_invariant(const struct foo *f)
+ * {
+ *         return c2_tl_forall(bar, b, &f->f_bars,
+ *                             b->b_count > 0 && b->b_parent == f);
+ * }
+ * @endcode
+ *
+ * @see c2_forall(), c2_tlist_forall(), c2_list_forall(), c2_list_entry_forall().
+ */
 #define c2_tl_forall(name, var, head, ...)		\
 ({							\
 	typeof (name ## _tlist_head(NULL)) var;		\
 							\
 	c2_tlist_for(& name ## _tl, head, var) {	\
-		if (!({ true; __VA_ARGS__ }))			\
+		if (!({ __VA_ARGS__ ; }))		\
 			break;				\
 	} c2_tlist_endfor;				\
 	var == NULL;					\

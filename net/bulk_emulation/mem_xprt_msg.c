@@ -198,14 +198,14 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		*/
 
 		/* get the first available receive buffer */
-		c2_tlist_for(&tm_tl, &dest_tm->ntm_q[C2_NET_QT_MSG_RECV],
+		c2_tl_for(tm, &dest_tm->ntm_q[C2_NET_QT_MSG_RECV],
 			      dest_nb) {
 			if ((dest_nb->nb_flags &
 			     (C2_NET_BUF_IN_USE | C2_NET_BUF_CANCELLED)) == 0) {
 				found_dest_nb = true;
 				break;
 			}
-		} c2_tlist_endfor;
+		} c2_tl_endfor;
 		if (!found_dest_nb) {
 			dest_tm->ntm_qstats[C2_NET_QT_MSG_RECV].nqs_num_f_events
 				++;

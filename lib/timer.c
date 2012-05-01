@@ -122,12 +122,12 @@ static struct c2_timer_tid *locality_tid_find(struct c2_timer_locality *loc,
 	C2_PRE(loc != NULL);
 
 	c2_mutex_lock(&loc->tlo_lock);
-	c2_tlist_for(&tid_tl, &loc->tlo_tids, tt) {
+	c2_tl_for(tid, &loc->tlo_tids, tt) {
 		if (tt->tt_tid == tid) {
 			result = tt;
 			break;
 		}
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	c2_mutex_unlock(&loc->tlo_lock);
 
 	return result;
@@ -287,19 +287,15 @@ static void c2_timer_working_thread(struct c2_timer *timer)
 		timer->t_callback(timer->t_data);
 }
 
-static bool timer_invariant(struct c2_timer *timer)
+static bool timer_invariant(const struct c2_timer *timer)
 {
-	C2_PRE(timer != NULL);
-
-	if (!(timer->t_type == C2_TIMER_HARD ||
-				timer->t_type == C2_TIMER_SOFT))
-		return false;
-	if (!(timer->t_state == TIMER_INITED ||
-				timer->t_state == TIMER_RUNNING ||
-				timer->t_state == TIMER_STOPPED ||
-				timer->t_state == TIMER_UNINIT))
-		return false;
-	return true;
+	return timer != NULL &&
+		(timer->t_type == C2_TIMER_HARD ||
+		 timer->t_type == C2_TIMER_SOFT) &&
+		(timer->t_state == TIMER_INITED ||
+		 timer->t_state == TIMER_RUNNING ||
+		 timer->t_state == TIMER_STOPPED ||
+		 timer->t_state == TIMER_UNINIT);
 }
 
 /*

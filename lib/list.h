@@ -244,27 +244,75 @@ size_t c2_list_length(const struct c2_list *list);
 	     pos = next,						\
 	     next = c2_list_entry((next)->member.ll_next, type, member))
 
+/**
+ * Returns a conjunction (logical AND) of an expression evaluated for each list
+ * element.
+ *
+ * Declares a struct c2_list_link pointer variable named "var" in a new scope
+ * and evaluates user-supplied expression (the last argument) with "var"
+ * iterated over successive list elements, while this expression returns
+ * true. Returns true iff the whole list was iterated over.
+ *
+ * The list can not be modified by the user-supplied expression.
+ *
+ * This function is useful for invariant checking.
+ *
+ * @code
+ * bool foo_invariant(const struct foo *f)
+ * {
+ *         return c2_list_forall(bar, &f->f_bars,
+ *                               bar_is_valid(container_of(bar, struct bar,
+ *                                            b_linkage)));
+ * }
+ * @endcode
+ *
+ * @see c2_tlist_forall(), c2_tl_forall(),
+ * @see c2_forall(), c2_list_entry_forall().
+ */
 #define c2_list_forall(var, head, ...)		\
 ({						\
-	void *var;				\
+	struct c2_list_link *var;		\
 						\
 	c2_list_for_each(head, var) {		\
-		if (!({ true; __VA_ARGS__ }))	\
+		if (!({ __VA_ARGS__ ; }))	\
 		    break;			\
 	}					\
 	var == (void *)head;			\
 })
 
+/**
+ * Returns a conjunction (logical AND) of an expression evaluated for each list
+ * element.
+ *
+ * Declares a pointer variable named "var", in a new scope and evaluates
+ * user-supplied expression (the last argument) with "var" iterated over
+ * successive list elements, while this expression returns true. Returns true
+ * iff the whole list was iterated over.
+ *
+ * The list can be modified by the user-supplied expression.
+ *
+ * This function is useful for invariant checking.
+ *
+ * @code
+ * bool foo_invariant(const struct foo *f)
+ * {
+ *         return c2_list_entry_forall(b, &f->f_bars, struct bar, b_linkage,
+ *                                     b->b_count > 0 && b->b_parent == f);
+ * }
+ * @endcode
+ *
+ * @see c2_tlist_forall(), c2_tl_forall(), c2_list_forall(), c2_forall().
+ */
 #define c2_list_entry_forall(var, head, type, member, ...)		\
 ({									\
 	type *var;							\
 	type *next;							\
 									\
 	c2_list_for_each_entry_safe(head, var, next, type, member) {	\
-		if (!({ true; __VA_ARGS__ }))				\
+		if (!({ __VA_ARGS__ ; }))				\
 		    break;						\
 	}								\
-	var->member == (void *)head;					\
+	&var->member == (void *)head;					\
 })
 
 /** @} end of list group */

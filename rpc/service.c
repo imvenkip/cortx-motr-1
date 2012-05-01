@@ -123,14 +123,14 @@ struct c2_rpc_service_type * c2_rpc_service_type_locate(uint32_t type_id)
 	struct c2_rpc_service_type *service_type;
 
 	c2_rwlock_read_lock(&service_type_tlist_lock);
-	c2_tlist_for(&service_type_tl, &service_type_tlist, service_type) {
+	c2_tl_for(service_type, &service_type_tlist, service_type) {
 
 		C2_ASSERT(c2_rpc_service_type_bob_check(service_type));
 
 		if (service_type->svt_type_id == type_id)
 			break;
 
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 
 	c2_rwlock_read_unlock(&service_type_tlist_lock);
 
