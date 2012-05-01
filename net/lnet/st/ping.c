@@ -71,12 +71,12 @@ static void ping_print_qstats(struct nlx_ping_ctx *ctx,
 	};
 	char tbuf[16];
 	const char *lfmt =
-"%5s %6lu %6lu %6lu %6lu %13s %14lu %13lu\n";
+"%5s %6lu %6lu %6lu %6lu %13s %18lu %9lu\n";
 	const char *hfmt =
-"Queue   #Add   #Del  #Succ  #Fail Time in Queue   Total Bytes  "
-" Max Buffer Sz\n"
-"----- ------ ------ ------ ------ ------------- ---------------"
-" -------------\n";
+"Queue   #Add   #Del  #Succ  #Fail Time in Queue     Total  Bytes  "
+"  Max Size\n"
+"----- ------ ------ ------ ------ ------------- ------------------"
+" ---------\n";
 
 	c2_mutex_lock(&qstats_mutex);
 	ctx->pc_ops->pf("%s statistics:\n", ctx->pc_ident);
@@ -1362,8 +1362,9 @@ static void nlx_ping_server(struct nlx_ping_ctx *ctx)
 	C2_ASSERT(ctx->pc_max_recv_msgs >= 1);
 	ctx->pc_ops->pf("%s receive buffer parameters:\n"
 			"\tnum_recv_bufs=%d\n"
-			"\tmin_recv_size=%d\n\tmax_recv_msgs=%d",
-			ctx->pc_ident, num_recv_bufs,
+			"\tbuffer size=%d\n"
+			"\tmin_recv_size=%d\n\tmax_recv_msgs=%d\n",
+			ctx->pc_ident, num_recv_bufs, buf_size,
 			ctx->pc_min_recv_size, ctx->pc_max_recv_msgs);
 
 	c2_mutex_lock(&ctx->pc_mutex);
@@ -1456,13 +1457,11 @@ void nlx_ping_server_spawn(struct c2_thread *server_thread,
    getting back a response.
    @param ctx client context
    @param server_ep endpoint of the server
-   @param data data to send, or NULL to send a default "ping"
    @retval 0 successful test
    @retval -errno failed to send to server
  */
 static int nlx_ping_client_msg_send_recv(struct nlx_ping_ctx *ctx,
-					 struct c2_net_end_point *server_ep,
-					 const char *data)
+					 struct c2_net_end_point *server_ep)
 {
 	int rc;
 	struct c2_net_buffer *nb;
@@ -1471,9 +1470,8 @@ static int nlx_ping_client_msg_send_recv(struct nlx_ping_ctx *ctx,
 	int recv_done = 0;
 	int retries = SEND_RETRIES;
 	c2_time_t session_timeout = C2_TIME_NEVER;
+	const char *data = "ping";
 
-	if (data == NULL)
-		data = "ping";
 	ctx->pc_compare_buf = data;
 
 	PING_OUT(ctx, 1, "%s: starting msg send/recv sequence\n",
@@ -1551,6 +1549,7 @@ static int nlx_ping_client_msg_send_recv(struct nlx_ping_ctx *ctx,
 			ctx->pc_ops->pf("%s: Receive TIMED OUT\n",
 					ctx->pc_ident);
 			rc = -ETIMEDOUT;
+			c2_atomic64_inc(&ctx->pc_errors);
 			break;
 		}
 	}
@@ -1835,7 +1834,7 @@ void nlx_ping_client(struct nlx_ping_client_params *params)
 
 	for (i = 1; i <= params->loops; ++i) {
 		PING_OUT(&cctx, 1, "%s: Loop %d\n", cctx.pc_ident, i);
-		rc = nlx_ping_client_msg_send_recv(&cctx, server_ep, bp);
+		rc = nlx_ping_client_msg_send_recv(&cctx, server_ep);
 		if (rc != 0)
 			break;
 		rc = nlx_ping_client_passive_recv(&cctx, server_ep);

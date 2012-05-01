@@ -143,11 +143,10 @@ int main(int argc, char *argv[])
 			PING_MIN_BUFS);
 		return 1;
 	}
-	if (passive_size < 0 || passive_size >
-	    (PING_CLIENT_SEGMENTS - 1) * PING_CLIENT_SEGMENT_SIZE) {
+	if (passive_size < 0 || passive_size > PING_MAX_PASSIVE_SIZE) {
 		/* need to leave room for encoding overhead */
 		fprintf(stderr, "Max supported passive data size: %d\n",
-			(PING_CLIENT_SEGMENTS - 1) * PING_CLIENT_SEGMENT_SIZE);
+			PING_MAX_PASSIVE_SIZE);
 		return 1;
 	}
 	if (client_only && server_only)
