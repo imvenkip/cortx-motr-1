@@ -747,6 +747,8 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	c2_rpc_machine_lock(machine);
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
+	/* All sessions associated with this conn must have been fini()ed by
+	   this time */
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE &&
 		  conn->c_nr_sessions == 1);
 
