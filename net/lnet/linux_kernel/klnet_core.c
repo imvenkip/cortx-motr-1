@@ -1701,6 +1701,7 @@ static int nlx_kcore_buf_event_wait(struct nlx_core_transfer_mc *ctm,
 	while (c2_semaphore_trydown(&ktm->ktm_sem))
 		; /* exhaust the semaphore */
 
+	any = true;
 	while (bev_cqueue_is_empty(&ctm->ctm_bevq)) {
 		any = c2_semaphore_timeddown(&ktm->ktm_sem, timeout);
 		if (!any)
