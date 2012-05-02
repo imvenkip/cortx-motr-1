@@ -73,7 +73,8 @@ extern const struct c2_layout_enum_type c2_list_enum_type;
 
 /**
  * Following structure is part of the internal implementation. It is required to
- * be accessed by the UT as well.
+ * be accessed by the UT as well. Hence, is placed here in the header file.
+ *
  * Structure used to store cob entries inline into the layouts table - maximum
  * upto LDB_MAX_INLINE_COB_ENTRIES number of those.
  */

@@ -434,6 +434,7 @@ static void max_recsize_update(struct c2_layout_domain *dom)
 	c2_bcount_t max_recsize = 0;
 
 	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_mutex_is_locked(&dom->ld_schema->ls_lock));
 
 	/*
 	 * Iterate over all the layout types to find maximum possible recsize.
@@ -725,7 +726,7 @@ void c2_layout_unregister(struct c2_layout_domain *dom)
  * if applicable.
  */
 int c2_layout_type_register(struct c2_layout_domain *dom,
-			 const struct c2_layout_type *lt)
+			    const struct c2_layout_type *lt)
 {
 	int rc;
 
@@ -772,7 +773,7 @@ int c2_layout_type_register(struct c2_layout_domain *dom,
  * if applicable.
  */
 void c2_layout_type_unregister(struct c2_layout_domain *dom,
-			    const struct c2_layout_type *lt)
+			       const struct c2_layout_type *lt)
 {
 	C2_PRE(domain_invariant(dom));
 	C2_PRE(lt != NULL);
@@ -785,15 +786,16 @@ void c2_layout_type_unregister(struct c2_layout_domain *dom,
 	c2_mutex_lock(&dom->ld_schema->ls_lock);
 
 	lt->lt_ops->lto_unregister(dom->ld_schema, lt);
-	max_recsize_update(dom);
-
-	c2_mutex_unlock(&dom->ld_schema->ls_lock);
 
 	/* Release the last reference on this layout type. */
 	C2_ASSERT(dom->ld_type_ref_count[lt->lt_id] == 1);
 	C2_CNT_DEC(dom->ld_type_ref_count[lt->lt_id]);
 
 	dom->ld_type[lt->lt_id] = NULL;
+
+	max_recsize_update(dom);
+
+	c2_mutex_unlock(&dom->ld_schema->ls_lock);
 	c2_mutex_unlock(&dom->ld_lock);
 
 	C2_LEAVE("Layout-type-id %lu", (unsigned long)lt->lt_id);
@@ -866,15 +868,16 @@ void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
 	c2_mutex_lock(&dom->ld_schema->ls_lock);
 
 	let->let_ops->leto_unregister(dom->ld_schema, let);
-	max_recsize_update(dom);
-
-	c2_mutex_unlock(&dom->ld_schema->ls_lock);
 
 	/* Release the last reference on this enum type. */
 	C2_ASSERT(dom->ld_enum_ref_count[let->let_id] == DEFAULT_REF_COUNT);
 	C2_CNT_DEC(dom->ld_enum_ref_count[let->let_id]);
 
 	dom->ld_enum[let->let_id] = NULL;
+
+	max_recsize_update(dom);
+
+	c2_mutex_unlock(&dom->ld_schema->ls_lock);
 	c2_mutex_unlock(&dom->ld_lock);
 
 	C2_LEAVE("Enum_type_id %lu", (unsigned long)let->let_id);

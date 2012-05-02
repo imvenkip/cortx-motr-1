@@ -558,7 +558,7 @@ void c2_layout_put(struct c2_layout *l)
  * - Either continues to build an in-memory layout object from its
  *   representation 'stored in the Layout DB'
  * - Or builds an in-memory layout object from its representation 'received
- *   over the network'.
+ *   through a buffer'.
  *
  * Two use cases of c2_layout_decode()
  * - Server decodes an on-disk layout record by reading it from the Layout
@@ -582,8 +582,8 @@ void c2_layout_put(struct c2_layout *l)
  *
  * @param op This enum parameter indicates what is the DB operation to be
  * performed on the layout record. It could be LOOKUP if at all a DB operation.
- * If it is BUFFER_NONE, then the layout is decoded from its representation
- * received over the network.
+ * If it is BUFFER_OP, then the layout is decoded from its representation
+ * received through the buffer.
  *
  * @post Layout object is built internally (along with enumeration object being
  * built if applicable). Hence, user needs to finalise the layout object when
@@ -658,7 +658,7 @@ out:
 /**
  * This method uses an in-memory layout object and
  * - Either adds/updates/deletes it to/from the Layout DB
- * - Or converts it to a buffer that can be passed on over the network.
+ * - Or converts it to a buffer.
  *
  * Two use cases of c2_layout_encode()
  * - Server encodes an in-memory layout object into a buffer, so as to send
@@ -691,8 +691,8 @@ out:
  * @post
  * - If op is is either for ADD|UPDATE|DELETE, respective DB operation is
  *   continued.
- * - If op is NONE, the buffer contains the serialised representation of the
- *   whole layout.
+ * - If op is BUFFER_OP, the buffer contains the serialised representation
+ *   of the whole layout.
  */
 int c2_layout_encode(struct c2_layout_domain *dom,
 		     struct c2_layout *l,

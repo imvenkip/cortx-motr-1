@@ -23,14 +23,14 @@
  * @{
  */
 
-#include "lib/memory.h"             /* C2_ALLOC_PTR() */
+#include "lib/memory.h" /* C2_ALLOC_PTR() */
 
 #include "layout/layout_internal.h"
 #include "layout/composite.h"
 
 struct composite_schema_data {
 	/** Table to store extent maps for all the composite layouts. */
-	struct c2_emap            csd_comp_layout_ext_map;;
+	struct c2_emap csd_comp_layout_ext_map;
 };
 
 /**
@@ -41,13 +41,13 @@ struct layout_prefix {
 	 * Layout id for the composite layout.
 	 * Value is same as c2_layout::l_id.
 	 */
-	uint64_t                  lp_l_id;
+	uint64_t lp_l_id;
 
 	/**
 	 * Filler since prefix is a 128 bit field.
 	 * Currently un-used.
 	 */
-	uint64_t                  lp_filler;
+	uint64_t lp_filler;
 };
 
 /*
@@ -55,9 +55,9 @@ struct layout_prefix {
  * finalised by the user, once done with the usage. It can be finalised
  * using l->l_ops->lo_fini().
  */
-void c2_composite_build(uint64_t pool_id, uint64_t lid,
+void c2_composite_build(struct c2_layout_domain *dom,
+			uint64_t pool_id, uint64_t lid,
 			struct c2_tl *sub_layouts,
-			struct c2_layout_schema *schema,
 			struct c2_composite_layout **out)
 {
 }
@@ -131,12 +131,12 @@ static const struct c2_layout_ops composite_ops;
  * Implementation of lto_decode() for composite layout type.
  *
  * Continues to build the in-memory layout object from its representation
- * either 'stored in the Layout DB' or 'received over the network'.
+ * either 'stored in the Layout DB' or 'received through the buffer'.
  *
  * @param op This enum parameter indicates what if a DB operation is to be
  * performed on the layout record and it could be LOOKUP if at all.
- * If it is NONE, then the layout is decoded from its representation received
- * over the network.
+ * If it is BUFFER_OP, then the layout is decoded from its representation
+ * received through the buffer.
  */
 static int composite_decode(struct c2_layout_domain *dom,
 			    uint64_t lid, uint64_t pool_id,
@@ -146,28 +146,17 @@ static int composite_decode(struct c2_layout_domain *dom,
 			    struct c2_db_tx *tx,
 			    struct c2_layout **out)
 {
-	struct c2_composite_layout   *cl;
-	struct c2_layout             *l;
+	/*
+	@code
+	struct c2_composite_layout *cl;
 
-	C2_PRE(schema != NULL);
-	C2_PRE(lid != LID_NONE);
-	C2_PRE(cur != NULL);
-	/* Check if the buffer is with insufficient size, using assert of the
-	 * form:
-	 * C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof ...);
-	 */
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
-	C2_PRE(tx != NULL);
 
 	C2_ALLOC_PTR(cl);
 
-	l = &cl->cl_base;
-	l->l_ops = &composite_ops;
+	layout_init(dom, &cl->cl_base, lid, pool_id,
+		    &c2_composite_layout_type, &composite_ops);
 
-	*out = l;
-
-	/*
-	@code
 	if (op == C2_LXO_DB_LOOKUP) {
 		Read all the segments from the comp_layout_ext_map table,
 		belonging to composite layout with layout id 'lid' and store
@@ -177,8 +166,11 @@ static int composite_decode(struct c2_layout_domain *dom,
 		Parse the sub-layout information from the buffer pointed by
 		cur and store it in cl->cl_sub_layouts.
 	}
+
+	*out = &cl->cl_base;
 	@endcode
 	*/
+
 	return 0;
 }
 
@@ -186,12 +178,12 @@ static int composite_decode(struct c2_layout_domain *dom,
  * Implementation of lto_encode() for composite layout type.
  *
  * Continues to use the in-memory layout object and either 'stores it in the
- * Layout DB' or 'converts it to a buffer that can be passed on over the
- * network'.
+ * Layout DB' or 'converts it to a buffer'.
  *
  * @param op This enum parameter indicates what is the DB operation to be
  * performed on the layout record if at all and it could be one of
- * ADD/UPDATE/DELETE. If it is NONE, then the layout is stored in the buffer.
+ * ADD/UPDATE/DELETE. If it is BUFFER_OP, then the layout is stored in the
+ * buffer.
  */
 static int composite_encode(struct c2_layout_domain *dom,
 			    struct c2_layout *l,
@@ -201,20 +193,22 @@ static int composite_encode(struct c2_layout_domain *dom,
 			    struct c2_bufvec_cursor *oldrec_cur,
 			    struct c2_bufvec_cursor *out)
 {
+	/*
+	@code
+
 	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
             (op == C2_LXO_DB_DELETE)) {
-		/*
 		Form records for the cob_lists table by using data from the
 		c2_layout object l and depending on the value of op,
 		insert/update/delete those records to/from the cob_lists table.
-		 */
 	} else {
-		/*
 		Store composite layout type specific fields like information
 		about the sub-layouts, into the buffer by referring it from
 		c2_layout object l.
-		 */
 	}
+
+	@endcode
+	*/
 
 	return 0;
 }

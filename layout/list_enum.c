@@ -372,8 +372,8 @@ out:
  *
  * @param op This enum parameter indicates what if a DB operation is to be
  * performed on the layout record and it could be LOOKUP if at all.
- * If it is NONE, then the layout is decoded from its representation received
- * over the network.
+ * If it is BUFFER_OP, then the layout is decoded from its representation
+ * received through the buffer.
  */
 static int list_decode(struct c2_layout_domain *dom,
 		       uint64_t lid,
@@ -527,12 +527,11 @@ int cob_list_write(enum c2_layout_xcode_op op, uint64_t lid,
  * Implementation of leto_encode() for list enumeration type.
  *
  * Continues to use the in-memory layout object and either 'stores it in the
- * Layout DB' or 'converts it to a buffer that can be passed on over the
- * network'.
+ * Layout DB' or 'converts it to a buffer'.
 
  * @param op This enum parameter indicates what is the DB operation to be
  * performed on the layout record if at all and it could be one of
- * ADD/UPDATE/DELETE. If it is NONE, then the layout is converted into the
+ * ADD/UPDATE/DELETE. If it is BUFFER_OP, then the layout is converted into a
  * buffer.
  */
 static int list_encode(struct c2_layout_domain *dom,

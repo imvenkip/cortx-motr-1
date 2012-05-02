@@ -591,12 +591,12 @@ static c2_bcount_t pdclust_recsize(struct c2_layout_domain *dom,
  * Implementation of lto_decode() for pdclust layout type.
  *
  * Continues to build the in-memory layout object from its representation
- * either 'stored in the Layout DB' or 'received over the network'.
+ * either 'stored in the Layout DB' or 'received through the buffer'.
  *
  * @param op This enum parameter indicates what, if a DB operation is to be
  * performed on the layout record and it could be LOOKUP if at all.
- * If it is NONE, then the layout is decoded from its representation received
- * over the network.
+ * If it is BUFFER_OP, then the layout is decoded from its representation
+ * received through the buffer.
  */
 static int pdclust_decode(struct c2_layout_domain *dom,
 			  uint64_t lid, uint64_t pool_id,
@@ -677,11 +677,12 @@ out:
  *
  * Continues to use the in-memory layout object and
  * - Either adds/updates/deletes it to/from the Layout DB
- * - Or converts it to a buffer that can be passed on over the network.
+ * - Or converts it to a buffer.
  *
  * @param op This enum parameter indicates what is the DB operation to be
  * performed on the layout record if at all and it could be one of
- * ADD/UPDATE/DELETE. If it is NONE, then the layout is stored in the buffer.
+ * ADD/UPDATE/DELETE. If it is BUFFER_OP, then the layout is stored in the
+ * buffer.
  */
 static int pdclust_encode(struct c2_layout_domain *dom,
 			  struct c2_layout *l,

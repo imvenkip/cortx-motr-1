@@ -28,7 +28,7 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h" /* C2_LOG */
 
-#include "fid/fid.h"   /* c2_fid_set() */
+#include "fid/fid.h" /* c2_fid_set() */
 #include "pool/pool.h" /* c2_pool_init() */
 #include "layout/layout_internal.h" /* DEFAULT_REF_COUNT */
 #include "layout/layout.h"
@@ -78,7 +78,8 @@ extern const struct c2_layout_enum_type c2_linear_enum_type;
 /*
  * Note:
  * To test the layout APIs available to the kernel mode, domain object is
- * required and also, supported layout types and enum types need to be registered.
+ * required. Additionally, supported layout types and enum types need to be
+ * registered.
  * But the APIs for domain initialisation/finalisation and the APIs for layout
  * type and enum type registration/unregistration are not available to the
  * kernel mode. Hence, dummy version of those APIs is implemented here with
@@ -168,7 +169,7 @@ static void fake_max_recsize_update(struct c2_layout_domain *dom)
 	c2_bcount_t recsize;
 	c2_bcount_t max_recsize = 0;
 
-	C2_PRE(domain_invariant(dom));
+	C2_ASSERT(domain_invariant(dom));
 
 	/*
 	 * Iterate over all the layout types to find maximum possible recsize.
@@ -221,13 +222,14 @@ static void fake_layout_type_unregister(struct c2_layout_domain *dom,
 
 	c2_mutex_lock(&dom->ld_lock);
 
-	fake_max_recsize_update(dom);
-
 	/* Release the last reference on this layout type. */
 	C2_ASSERT(dom->ld_type_ref_count[lt->lt_id] == 1);
 	C2_CNT_DEC(dom->ld_type_ref_count[lt->lt_id]);
 
 	dom->ld_type[lt->lt_id] = NULL;
+
+	fake_max_recsize_update(dom);
+
 	c2_mutex_unlock(&dom->ld_lock);
 }
 
@@ -259,7 +261,7 @@ static int fake_layout_enum_type_register(struct c2_layout_domain *dom,
 
 /* Fake version of c2_layout_enum_type_unregister(), for the kernel UT. */
 static void fake_layout_enum_type_unregister(struct c2_layout_domain *dom,
-					     const struct c2_layout_enum_type *let)
+				         const struct c2_layout_enum_type *let)
 {
 	C2_ASSERT(domain_invariant(dom));
 	C2_ASSERT(let != NULL);
@@ -267,13 +269,14 @@ static void fake_layout_enum_type_unregister(struct c2_layout_domain *dom,
 
 	c2_mutex_lock(&dom->ld_lock);
 
-	fake_max_recsize_update(dom);
-
 	/* Release the last reference on this enum type. */
 	C2_ASSERT(dom->ld_enum_ref_count[let->let_id] == DEFAULT_REF_COUNT);
 	C2_CNT_DEC(dom->ld_enum_ref_count[let->let_id]);
 
 	dom->ld_enum[let->let_id] = NULL;
+
+	fake_max_recsize_update(dom);
+
 	c2_mutex_unlock(&dom->ld_lock);
 }
 
@@ -1712,7 +1715,7 @@ static void test_domain_init_fini(void)
 
 static void test_schema_init_fini(void)
 {
-	const char              t_db_name[] = "t-layout";
+	const char              t_db_name[] = "t1-layout";
 	struct c2_layout_domain t_domain;
 	struct c2_layout_schema t_schema;
 	struct c2_dbenv         t_dbenv;
@@ -1846,7 +1849,7 @@ static void test_etype_reg_unreg(void)
 
 static void test_reg_unreg(void)
 {
-	const char              t_db_name[] = "t-layout";
+	const char              t_db_name[] = "t2-layout";
 	struct c2_layout_domain t_domain;
 	struct c2_layout_schema t_schema;
 	struct c2_dbenv         t_dbenv;
@@ -1898,6 +1901,117 @@ static void test_reg_unreg(void)
 	C2_UT_ASSERT(t_domain.ld_enum[c2_list_enum_type.let_id] == NULL);
 	C2_UT_ASSERT(t_domain.ld_enum[c2_linear_enum_type.let_id] == NULL);
 	C2_UT_ASSERT(t_domain.ld_type[c2_pdclust_layout_type.lt_id] == NULL);
+
+	/* Finalise the schema. */
+	c2_layout_schema_fini(&t_schema);
+
+	c2_dbenv_fini(&t_dbenv);
+
+	/* Finalise the domain. */
+	c2_layout_domain_fini(&t_domain);
+
+	C2_LEAVE();
+}
+
+/*
+ * Tests the API c2_layout_max_recsize() along with testing the part of the
+ * following APIs that is responsible to update the value of
+ * c2_layout_schema::ls_max_recsize, using the internal fuction
+ * max_recsize_update():
+ * c2_layout_type_register(), c2_layout_type_unregister,
+ * c2_layout_enum_type_register() and c2_layout_enum_type_unregister().
+ */
+static void test_max_recsize_detail(void)
+{
+	const char              t_db_name[] = "t3-layout";
+	struct c2_layout_domain t_domain;
+	struct c2_layout_schema t_schema;
+	struct c2_dbenv         t_dbenv;
+	c2_bcount_t             max_size_from_api;
+	c2_bcount_t             max_size_calculated;
+
+	C2_ENTRY();
+
+	/* Initialise the domain. */
+	rc = c2_layout_domain_init(&t_domain);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Initialise the schema. */
+	rc = c2_layout_schema_init(&t_schema, &t_domain, &t_dbenv);
+	C2_UT_ASSERT(rc == 0);
+
+	max_size_from_api = c2_layout_max_recsize(&t_domain);
+	C2_UT_ASSERT(max_size_from_api == 0);
+
+	/* Register pdclust layout type and verify c2_layout_max_recsize(). */
+	rc = c2_layout_type_register(&t_domain, &c2_pdclust_layout_type);
+	C2_UT_ASSERT(rc == 0);
+
+	max_size_from_api = c2_layout_max_recsize(&t_domain);
+
+	max_size_calculated = sizeof(struct c2_layout_rec) +
+			      sizeof(struct c2_layout_pdclust_rec);
+
+	C2_UT_ASSERT(max_size_from_api == max_size_calculated);
+
+	/* Register linear enum type and verify c2_layout_max_recsize(). */
+	rc = c2_layout_enum_type_register(&t_domain, &c2_linear_enum_type);
+	C2_UT_ASSERT(rc == 0);
+
+	max_size_from_api = c2_layout_max_recsize(&t_domain);
+
+	max_size_calculated = sizeof(struct c2_layout_rec) +
+			      sizeof(struct c2_layout_pdclust_rec) +
+			      sizeof(struct c2_layout_linear_attr);
+
+	C2_UT_ASSERT(max_size_from_api == max_size_calculated);
+
+	/* Register list enum type and verify c2_layout_max_recsize(). */
+	rc = c2_layout_enum_type_register(&t_domain, &c2_list_enum_type);
+	C2_UT_ASSERT(rc == 0);
+
+	max_size_from_api = c2_layout_max_recsize(&t_domain);
+
+	max_size_calculated = sizeof(struct c2_layout_rec) +
+			      sizeof(struct c2_layout_pdclust_rec) +
+			      sizeof(struct cob_entries_header) +
+			      LDB_MAX_INLINE_COB_ENTRIES *
+			      sizeof(struct c2_fid);;
+
+	C2_UT_ASSERT(max_size_from_api == max_size_calculated);
+
+	/* Unregister list enum type and verify c2_layout_max_recsize(). */
+	c2_layout_enum_type_unregister(&t_domain, &c2_list_enum_type);
+
+	max_size_from_api = c2_layout_max_recsize(&t_domain);
+
+	max_size_calculated = sizeof(struct c2_layout_rec) +
+			      sizeof(struct c2_layout_pdclust_rec) +
+			      sizeof(struct c2_layout_linear_attr);
+
+	C2_UT_ASSERT(max_size_from_api == max_size_calculated);
+
+	/* Unregister linear enum type and verify c2_layout_max_recsize(). */
+	c2_layout_enum_type_unregister(&t_domain, &c2_linear_enum_type);
+
+	max_size_from_api = c2_layout_max_recsize(&t_domain);
+
+	max_size_calculated = sizeof(struct c2_layout_rec) +
+			      sizeof(struct c2_layout_pdclust_rec);
+
+	C2_UT_ASSERT(max_size_from_api == max_size_calculated);
+
+	/* Unregister pdclust layout type and verify c2_layout_max_recsize(). */
+	c2_layout_type_unregister(&t_domain, &c2_pdclust_layout_type);
+
+	max_size_from_api = c2_layout_max_recsize(&t_domain);
+
+	max_size_calculated = sizeof(struct c2_layout_rec);
+
+	C2_UT_ASSERT(max_size_from_api == max_size_calculated);
 
 	/* Finalise the schema. */
 	c2_layout_schema_fini(&t_schema);
@@ -2627,6 +2741,7 @@ const struct c2_test_suite layout_ut = {
 		{ "layout-type-register-unregister", test_type_reg_unreg },
 		{ "layout-etype-register-unregister", test_etype_reg_unreg },
 		{ "layout-register-unregister", test_reg_unreg },
+		{ "layout-max-recsize-detail", test_max_recsize_detail },
 		{ "layout-recsize", test_recsize },
                 { "layout-lookup", test_lookup },
                 { "layout-add", test_add },
