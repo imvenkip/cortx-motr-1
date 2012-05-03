@@ -352,6 +352,7 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 	return 0;
 }
 
+/* Put buffer back into the pool */
 static void rpc_recv_pool_buffer_put(struct c2_net_buffer *nb)
 {
 	struct c2_net_transfer_mc *tm;
@@ -362,6 +363,7 @@ static void rpc_recv_pool_buffer_put(struct c2_net_buffer *nb)
 	C2_PRE(tm->ntm_recv_pool != NULL && nb->nb_pool !=NULL);
 	C2_PRE(tm->ntm_recv_pool == nb->nb_pool);
 	C2_PRE(!(nb->nb_flags & C2_NET_BUF_QUEUED));
+	
 	c2_net_buffer_pool_lock(tm->ntm_recv_pool);
 	c2_net_buffer_pool_put(tm->ntm_recv_pool, nb,
 			       tm->ntm_pool_colour);
@@ -488,8 +490,8 @@ void rpc_chan_put(struct c2_rpc_chan *chan)
 
 static void rpc_tm_cleanup(struct c2_rpc_machine *machine)
 {
-	int		rc;
-	struct c2_clink	tmwait;
+	int			   rc;
+	struct c2_clink		   tmwait;
 	struct c2_net_transfer_mc *tm = &machine->rm_tm;
 
 	C2_PRE(machine != NULL);
@@ -630,7 +632,7 @@ last:
 	nb->nb_ep = NULL;
 	nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
 	if ((nb->nb_pool != NULL) && !(nb->nb_flags & C2_NET_BUF_QUEUED))
-			rpc_recv_pool_buffer_put(nb);
+		rpc_recv_pool_buffer_put(nb);
 }
 
 static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,

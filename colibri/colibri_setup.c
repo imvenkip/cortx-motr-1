@@ -70,7 +70,7 @@ enum {
 	WAIT_FOR_REQH_SHUTDOWN = 1000000,
 };
 
-C2_TL_DESCR_DEFINE(cs_buffer_pools, "buffers pools in the colibri", ,
+C2_TL_DESCR_DEFINE(cs_buffer_pools, "buffer pools in the colibri context", ,
                    struct c2_cs_buffer_pool, cs_bp_linkage, cs_bp_magic,
                    C2_CS_BUFFER_POOL_MAGIC, C2_CS_BUFFER_POOL_HEAD);
 C2_TL_DEFINE(cs_buffer_pools, , struct c2_cs_buffer_pool);
@@ -620,6 +620,10 @@ static struct c2_net_buffer_pool *cs_buffer_pool_get(struct c2_colibri *cctx,
 {
 	struct c2_net_buffer_pool  *buffer_pool;
 	struct c2_cs_buffer_pool   *cs_bp;
+	
+	C2_PRE(cctx != NULL);
+	C2_PRE(ndom != NULL);
+	
 	c2_tlist_for(&cs_buffer_pools_tl, &cctx->cc_buffer_pools, cs_bp) {
 		buffer_pool = &cs_bp->cs_buffer_pool;
 		if (buffer_pool != NULL && buffer_pool->nbp_ndom == ndom)
@@ -681,7 +685,7 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 
 	buffer_pool = cs_buffer_pool_get(cctx, ndom);
 	rc = c2_rpc_machine_init(rpcmach, reqh->rh_cob_domain, ndom, ep, reqh,
-				buffer_pool);
+				 buffer_pool);
 	if (rc != 0) {
 		c2_free(rpcmach);
 		return rc;
@@ -756,8 +760,8 @@ static void cs_rpc_machines_fini(struct c2_reqh *reqh)
 }
 
 /**
- * Assigning a unique colour to each transfer machine in a domain and prisioning their
- * with specified number of network buffers.
+ * Assigns a unique colour to all transfer machines in a domain.
+ * Provisions each TM receive queue with specified number of network buffers.
  */
 static void cs_tm_colour_setup_prov(struct c2_colibri *cctx)
 {
@@ -793,8 +797,9 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 	struct c2_cs_buffer_pool *cs_bp;
 
 	C2_PRE(cctx != NULL);
+	
 	c2_tlist_for(&ndoms_descr, &cctx->cc_ndoms, ndom) {
-		C2_PRE(cctx->cc_segs_nr  <=
+		C2_PRE(cctx->cc_segs_nr <=
 		       c2_net_domain_get_max_buffer_segments(ndom));
 		C2_PRE(cctx->cc_seg_size <=
 		       c2_net_domain_get_max_buffer_segment_size(ndom));
@@ -825,8 +830,9 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 
 static void cs_buffer_pool_fini(struct c2_colibri *cctx)
 {
-	struct c2_cs_buffer_pool  *cs_bp;
+	struct c2_cs_buffer_pool   *cs_bp;
 	struct c2_net_buffer_pool  *buffer_pool;
+	
 	C2_PRE(cctx != NULL);
 
 	c2_tlist_for(&cs_buffer_pools_tl, &cctx->cc_buffer_pools, cs_bp) {
@@ -1807,7 +1813,7 @@ static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
 			     "%i", &cctx->cc_segs_nr),
 		C2_FORMATARG('p', "Network buffer segment size in the pool",
 			     "%i", &cctx->cc_seg_size),
-		C2_FORMATARG('b', "Number of buffer in the pool",
+		C2_FORMATARG('b', "Number of buffers in the pool",
 			     "%i", &cctx->cc_bufs_nr),
 		C2_FORMATARG('t', "Minimum TM Receive queue length", "%i",
 			     &cctx->cc_recv_queue_min_length),

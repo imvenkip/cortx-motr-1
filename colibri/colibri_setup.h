@@ -249,7 +249,7 @@ struct c2_colibri {
 
 	   @see c2_cs_init()
 	 */
-	FILE                      *cc_outfile;
+	FILE                     *cc_outfile;
 
 	/**
 	 * Instance of struct c2_cobfid_setup which is maintained
@@ -258,22 +258,22 @@ struct c2_colibri {
 	 */
 	struct c2_cobfid_setup	 *cc_setup;
 
-	/** List of buffer pools in the colibri. */
-        struct c2_tl		   cc_buffer_pools;
-        uint32_t		   cc_bufs_nr;
-        uint32_t		   cc_segs_nr;
-        c2_bcount_t		   cc_seg_size;
-        uint32_t		   cc_recv_queue_min_length;
-        uint32_t		   cc_tm_nr;
-	uint32_t		   cc_max_recv_msgs;
-	uint32_t		   cc_min_recv_size;
+	/** List of buffer pools in colibri context. */
+        struct c2_tl		  cc_buffer_pools;
+        uint32_t		  cc_bufs_nr;
+        uint32_t		  cc_segs_nr;
+        c2_bcount_t		  cc_seg_size;
+        uint32_t		  cc_recv_queue_min_length;
+        uint32_t		  cc_tm_nr;
+	uint32_t		  cc_max_recv_msgs;
+	uint32_t		  cc_min_recv_size;
 };
 
 /**
- * Data structure represents list of buffer pool per network domain.
+ * Represents list of buffer pools in the colibri context.
  */
 struct c2_cs_buffer_pool {
-        /** Pointer to Network buffer pool. */
+        /** Network buffer pool object. */
         struct c2_net_buffer_pool    cs_buffer_pool;
         /** Linkage into netowrk buffer pool list */
         struct c2_tlink              cs_bp_linkage;
@@ -282,8 +282,8 @@ struct c2_cs_buffer_pool {
 };
 
 enum {
-        C2_CS_BUFFER_POOL_MAGIC = 0x627566666572,
-        C2_CS_BUFFER_POOL_HEAD = 0x425546464552,
+        C2_CS_BUFFER_POOL_MAGIC = 0x4353504f4f4c4d,
+        C2_CS_BUFFER_POOL_HEAD  = 0x4353504f4f4c48,
 };
 
 /**

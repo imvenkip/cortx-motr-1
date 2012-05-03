@@ -105,14 +105,14 @@ void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx)
 }
 #endif
 
-static void low(struct c2_net_buffer_pool *bp)
+static void buffer_pool_low(struct c2_net_buffer_pool *bp)
 {
 	/* Buffer pool is below threshold.  */
 }
 
 static const struct c2_net_buffer_pool_ops b_ops = {
 	.nbpo_not_empty	      = c2_net_domain_buffer_pool_not_empty,
-	.nbpo_below_threshold = low,
+	.nbpo_below_threshold = buffer_pool_low,
 };
 
 /** Creating a buffer pool per net domain which will be shared by TM's in it. */
@@ -145,7 +145,6 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 int c2_rpc_net_buffer_pool__setup(struct c2_net_domain *ndom,
 				  struct c2_net_buffer_pool *app_pool)
 {
-	int	    rc;
 	uint32_t    segs_nr;
 	c2_bcount_t seg_size;
 	uint32_t    bufs_nr;
@@ -159,14 +158,14 @@ int c2_rpc_net_buffer_pool__setup(struct c2_net_domain *ndom,
 	bufs_nr  = C2_RPC_TM_RECV_BUFFERS_NR;
 	tm_nr    = C2_RPC_TM_MAX_NR;
 
-	rc = c2_rpc_net_buffer_pool_setup(ndom, app_pool, segs_nr, seg_size,
-					  bufs_nr, tm_nr);
-	return rc;
+	return c2_rpc_net_buffer_pool_setup(ndom, app_pool, segs_nr, seg_size,
+					    bufs_nr, tm_nr);
 }
 
 void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool)
 {
 	C2_PRE(app_pool != NULL);
+	
 	c2_net_buffer_pool_lock(app_pool);
 	c2_net_buffer_pool_fini(app_pool);
 	c2_free(app_pool);

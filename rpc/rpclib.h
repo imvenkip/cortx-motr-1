@@ -213,7 +213,7 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 
 /** It uses default arguments for segs_nr, seg_size, tm_nr and bufs_nr */
 int c2_rpc_net_buffer_pool__setup(struct c2_net_domain *ndom,
-				 struct c2_net_buffer_pool *app_pool);
+				  struct c2_net_buffer_pool *app_pool);
 
 void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool);
 

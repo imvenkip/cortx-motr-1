@@ -58,7 +58,7 @@
    // and executed as a part of c2_init().
 
    // create rpc machine.
-   ret = c2_rpc_machine_init(&mach, cob_domain, net_domain, ep_addr);
+   ret = c2_rpc_machine_init(&mach, cob_domain, net_domain, ep_addr, app_pool);
    // create/get update stream used for interaction between endpoints
    ret = c2_rpc_update_stream_get(&mach, &srvid,
 	C2_UPDATE_STREAM_SHARED_SLOT, &us_ops, &update_stream);
@@ -342,16 +342,25 @@ enum {
 	C2_RPC_ITEM_HEAD_MAGIC = 0x1007c095e511054eULL,
 };
 
-/**
- * Number of default receive c2_net_buffers to be used with each
- * transfer machine.
- */
+/** Default values to be used if user does not provide these values. */
 enum {
+	/** Number of default receive c2_net_buffers in each buffer pool */
 	C2_RPC_TM_RECV_BUFFERS_NR     = 128,
+	/** Minimum number of receive net buffers to be in each TM */
 	C2_RPC_TM_MIN_RECV_BUFFERS_NR = 16,
+	/** Maximum number of TM's in each network domain. */
 	C2_RPC_TM_MAX_NR	      = 64,
+	/** Segement size of network buffer in the pool. */
 	C2_RPC_SEG_SIZE		      = 1 << 12,
+	/**
+	   Minimum remaining size in a buffer in TM receive queue to allow reuse
+	   for multiple messages.
+	 */
 	C2_RPC_MIN_RECV_SIZE	      = 1 << 12,
+	/**
+	   Maximum number of messages that may be received in the buffer in
+	   TM Receive queue.
+	 */
 	C2_RPC_MAX_RECV_MSGS	      = 1,
 };
 
@@ -550,14 +559,14 @@ struct c2_rpc_machine {
 
 	uint64_t                          rm_magic;
 
-	/** Buffer pool from which receive buffers are provisioned to TM's. */
+	/** Buffer pool from which TM receive buffers are provisioned. */
 	struct c2_net_buffer_pool	 *rm_buffer_pool;
-
-	/** Refer ntm_recv_queue_length */
+  
+	/** @see c2_net_transfer_mc:ntm_recv_queue_length */
 	uint32_t			  rm_tm_recv_queue_min_length;
-	/** Refer ntm_recv_queue_min_recv_size */
+	/** @see c2_net_transfer_mc:ntm_recv_queue_min_recv_size */
 	uint32_t			  rm_min_recv_size;
-	/** Refer ntm_recv_queue_max_recv_msgs */
+	/** @see c2_net_transfer_mc:ntm_recv_queue_max_recv_msgs */
 	uint32_t			  rm_max_recv_msgs;
 };
 
@@ -580,12 +589,13 @@ void c2_rpc_core_fini(void);
    @param dom cob domain that contains cobs representing slots
    @param net_dom Network domain, this rpc_machine is associated with.
    @param ep_addr Source end point address to associate with the transfer mc.
+   @param app_pool Buffer pool to be attached to TM for provisioning it.
    @pre c2_rpc_core_init().
  */
-int  c2_rpc_machine_init(struct c2_rpc_machine	  *machine,
-			 struct c2_cob_domain	  *dom,
-			 struct c2_net_domain	  *net_dom,
-			 const char		  *ep_addr,
+int  c2_rpc_machine_init(struct c2_rpc_machine	   *machine,
+			 struct c2_cob_domain	   *dom,
+			 struct c2_net_domain	   *net_dom,
+			 const char		   *ep_addr,
 			 struct c2_reqh            *reqh,
 			 struct c2_net_buffer_pool *app_pool);
 

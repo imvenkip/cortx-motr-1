@@ -206,7 +206,6 @@ struct c2t1fs_globals {
 	char                      *g_laddr;
 	char                      *g_db_name;
 	struct c2_cob_domain_id    g_cob_dom_id;
-
 	struct c2_net_domain       g_ndom;
 	struct c2_rpc_machine      g_rpc_machine;
 	struct c2_cob_domain       g_cob_dom;

@@ -160,16 +160,16 @@ static void c2t1fs_net_fini(void)
 
 static int c2t1fs_rpc_init(void)
 {
-	struct c2_dbenv          *dbenv;
-	struct c2_cob_domain     *cob_dom;
-	struct c2_cob_domain_id  *cob_dom_id;
-	struct c2_rpc_machine    *rpc_machine;
-	struct c2_net_domain     *ndom;
+	struct c2_dbenv           *dbenv;
+	struct c2_cob_domain      *cob_dom;
+	struct c2_cob_domain_id   *cob_dom_id;
+	struct c2_rpc_machine     *rpc_machine;
+	struct c2_net_domain      *ndom;
 	struct c2_net_transfer_mc *tm;
-	char                     *laddr;
-	char                     *db_name;
-	int                       rc;
-	static uint32_t		  tm_colours;
+	char                      *laddr;
+	char                      *db_name;
+	int                        rc;
+	static uint32_t		   tm_colours;
 	struct c2_net_buffer_pool *buffer_pool;
 
 	C2_ENTRY();

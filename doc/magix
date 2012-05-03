@@ -12,3 +12,4 @@ c2_rpc_service_type  svt_magix               5356435f54595045 SVC_TYPE
 c2_rpc_service       svc_magix                 7270635f737663 rpc_svc
 c2_rpc_services_tl   td_head_magic           7270637376636864 rpcsvchd
 rpc_service_types_tl td_head_magic           5356435459504844 SVCTYPHD
+c2_cs_buffer_pool    cs_bp_magic	       4353504f4f4c4d CSPOOLM
