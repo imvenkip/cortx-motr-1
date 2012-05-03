@@ -58,7 +58,7 @@ To summarise:
     * A new line should not start with an operator:
 
 	if (pl_oldrec->pr_let_id != stl->ls_enum->le_type->let_id ||
-                    pl_oldrec->pr_attr.pa_N != pl->pl_attr.pa_N) {
+            pl_oldrec->pr_attr.pa_N != pl->pl_attr.pa_N) {
 	}
 
     * Align identifier names, not asterisks:
