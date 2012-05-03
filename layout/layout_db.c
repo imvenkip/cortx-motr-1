@@ -88,10 +88,10 @@
  * - It provides support for storing composite layout maps.
  * - It is required that for adding a layout type or layout enumeration type,
  *   central layout.h should not require modifications.
- * - It is assumed that the roblem of coruption is going to be attacked
+ * - It is assumed that the problem of coruption is going to be attacked
  *   generically at the lower layers (db and fop) transparently, instead of
  *   adding magic numbers and check-sums in every module. Thus the input to
- *   Layou DB APIs which is either a layout or a FOP buffer in most of the
+ *   Layout DB APIs which is either a layout or a FOP buffer in most of the
  *   cases is going to be tested for corruption by db or fop layer, as
  *   applicable.
  *
@@ -161,8 +161,8 @@
  * Key: layout_id
  * Record:
  *    - layout_type_id
- *    - layout_enumeration_type_id
  *    - reference_count
+ *    - pool_id
  *    - layout_type_specific_data (optional)
  *
  * @endverbatim
@@ -176,7 +176,7 @@
  *   structure with size LDB_MAX_INLINE_COB_ENTRIES is used to store a few COB
  *   entries inline into the layouts table itself.
  * - It is possible that some layouts do not need to store any layout type or
- *   layout enum type specific data in this layouts table. For example, a
+ *   layout enum type specific data in the layouts table. For example, a
  *   layout with COMPOSITE layout type.
  *
  * @subsection Layout-DB-lspec-schema-cob_lists Table cob_lists
@@ -195,7 +195,7 @@
  *
  * layout_id is a foreign key referring record, in the layouts table.
  *
- * cob_index for the first entry in this table will be continuation of the
+ * cob_index for the first entry in this table will be the continuation of the
  * index from the array of c2_fid structures stored inline in the layouts
  * table.
  *
@@ -247,6 +247,8 @@
  * See @ref LayoutDBDFSInternal for internal subroutines.
  *
  * @subsection Layout-DB-lspec-state State Specification
+ * This module does follow state machine ind of a design. Hence, this section
+ * is not applicable.
  *
  * @subsection Layout-DB-lspec-thread Threading and Concurrency Model
  * - DB5 internally provides synchronization against various table entries.
@@ -255,6 +257,15 @@
  *   holding registered layout types and enum types, are protected by using
  *   c2_layout_domain::ld_lock, specifically, during registration and
  *   unregistration routines for various layout types and enum types.
+ * - Reference count is maintained for each of the layout types and enum types.
+ *   This is to help verify that no layout type or enum type gets unregistered
+ *   while any of the layout object or enum object is using it.
+ * - Reference count for the layout types are stored in the array
+ *   c2_layout_domain::ld_type_ref_count[] and are updated during every
+ *   layout_init() and layout_fini() operations.
+ * - Reference count for the enum types are stored in the array
+ *   c2_layout_domain::ld_enum_ref_count[] and are updated during every
+ *   enum_init() and enum_fini() operations.
  * - Various tables those are part of layout DB, directly or indirectly
  *   pointed by struct c2_layout_schema, are protected by using
  *   c2_layout_schema::ls_lock.
@@ -274,7 +285,7 @@
  *   Layout DB module supports storing all kinds of layout types supported
  *   currently by the layout module viz. PDCLUST and COMPOSITE.
  *   The framework supports to add other layout types, as required in
- * the future.
+ *   the future.
  * - I.LAYOUT.SCHEMA.Formulae:
  *    - Parameters:
  *       - In case of PDCLUST layout type using LINEAR enumeration,
@@ -423,7 +434,7 @@ static int schema_invariant(const struct c2_layout_schema *schema)
 
 /**
  * Maximum possible size for a record in the layouts table (without
- * considering the data in the tables other than layouts) is maintained in
+ * considering the data in the tables other than the layouts) is maintained in
  * c2_layout_schema::ls_max_recsize.
  * This function updates c2_layout_schema::ls_max_recsize.
  */
@@ -534,15 +545,16 @@ static int rec_get(struct c2_layout *l, void *area,
 	c2_bcount_t        max_recsize;
 	int                rc;
 
-	C2_PRE(schema != NULL);
 	C2_PRE(l != NULL);
 	C2_PRE(area != NULL);
+	C2_PRE(schema != NULL);
+	C2_PRE(tx != NULL);
 
 	max_recsize = c2_layout_max_recsize(schema->ls_domain);
 
 	/*
 	 * The max_recsize is never expected to be that large. But still,
-	 * since it is being typcasted here to uint32_t.
+	 * since it is being type-casted here to uint32_t.
 	 */
 	C2_ASSERT(max_recsize <= UINT32_MAX);
 
@@ -550,6 +562,10 @@ static int rec_get(struct c2_layout *l, void *area,
 			 &l->l_id, sizeof l->l_id,
 			 area, (uint32_t)max_recsize);
 
+	/*
+	 * ADDB message covering the failure of c2_table_lookup()
+	 * is added into the caller of this routine.
+	 */
 	rc = c2_table_lookup(tx, &pair);
 
 	c2_db_pair_fini(&pair);
@@ -664,6 +680,7 @@ int c2_layout_schema_init(struct c2_layout_schema *schema,
 	dom->ld_schema = schema;
 
 	C2_POST(schema_invariant(schema));
+	C2_POST(domain_invariant(dom));
 
 	C2_LEAVE("rc %d", rc);
 	return rc;
@@ -676,6 +693,7 @@ int c2_layout_schema_init(struct c2_layout_schema *schema,
 void c2_layout_schema_fini(struct c2_layout_schema *schema)
 {
 	C2_PRE(schema_invariant(schema));
+	C2_POST(domain_invariant(schema->ls_domain));
 
 	C2_ENTRY();
 

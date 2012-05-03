@@ -329,7 +329,7 @@ static int test_init(void)
 	orig_addb_level = c2_addb_choose_default_level_console(AEL_WARN);
 
 #ifdef __KERNEL__
-	/* Intialise the domain. */
+	/* Initialise the domain. */
 	rc = fake_layout_domain_init(&domain);
 	C2_ASSERT(rc == 0);
 
@@ -345,7 +345,7 @@ static int test_init(void)
 #else
 	c2_ut_db_reset(db_name);
 
-	/* Intialise the domain. */
+	/* Initialise the domain. */
 	rc = c2_layout_domain_init(&domain);
 	C2_ASSERT(rc == 0);
 
@@ -362,7 +362,7 @@ static int test_init(void)
 	C2_ASSERT(rc == 0);
 #endif
 
-	/* Intialise the pool. */
+	/* Initialise the pool. */
 	rc = c2_pool_init(&pool, DEFAULT_POOL_ID, POOL_WIDTH);
 	C2_ASSERT(rc == 0);
 
@@ -655,10 +655,10 @@ static void buf_build(uint32_t lt_id, struct c2_bufvec_cursor *dcur)
  * Builds part of the buffer representing generic and PDCLUST layout type
  * specific parts of the layout object.
  */
-static void pdclust_buf_build(uint64_t lid,
+static void pdclust_buf_build(uint32_t let_id, uint64_t lid,
 			      uint32_t N, uint32_t K,
 			      uint64_t unitsize, struct c2_uint128 *seed,
-			      uint32_t let_id, struct c2_bufvec_cursor *dcur)
+			      struct c2_bufvec_cursor *dcur)
 {
 	struct c2_layout_pdclust_rec pl_rec;
 	c2_bcount_t                  nbytes_copied;
@@ -703,7 +703,7 @@ static int pdclust_layout_buf_build(uint32_t enum_id, uint64_t lid,
 	 */
 	let_id = enum_id == LIST_ENUM_ID ? c2_list_enum_type.let_id :
 					   c2_linear_enum_type.let_id;
-	pdclust_buf_build(lid, N, K, unitsize, seed, let_id, dcur);
+	pdclust_buf_build(let_id, lid, N, K, unitsize, seed, dcur);
 
 	/*
 	 * Build part of the buffer representing enum type specific part of
@@ -1591,7 +1591,7 @@ static void enum_op_verify(uint32_t enum_id, uint64_t lid,
 					 struct c2_layout_list_enum, lle_base);
 
 		C2_UT_ASSERT(list_enum->lle_base.le_ops->leo_nr(
-						&list_enum->lle_base, lid) == nr);
+					     &list_enum->lle_base, lid) == nr);
 
 		for(i = 0; i < list_enum->lle_nr; ++i) {
 			c2_fid_set(&fid_calculated, i * 100 + 1, i + 1);
@@ -1606,7 +1606,7 @@ static void enum_op_verify(uint32_t enum_id, uint64_t lid,
 		lin_enum = container_of(stl->ls_enum,
 					struct c2_layout_linear_enum, lle_base);
 		C2_UT_ASSERT(lin_enum->lle_base.le_ops->leo_nr(
-						&lin_enum->lle_base, lid) == nr);
+					      &lin_enum->lle_base, lid) == nr);
 
 		/* Set gfid to some dummy value. */
 		c2_fid_set(&gfid, 0, 999);
@@ -1732,6 +1732,8 @@ static void test_schema_init_fini(void)
 	/* Initialise the schema. */
 	rc = c2_layout_schema_init(&t_schema, &t_domain, &t_dbenv);
 	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(t_schema.ls_domain == &t_domain);
+	C2_UT_ASSERT(t_domain.ld_schema == &t_schema);
 
 	/* Finalise the schema. */
 	c2_layout_schema_fini(&t_schema);
@@ -1742,6 +1744,7 @@ static void test_schema_init_fini(void)
 
 	/* Finalise the schema. */
 	c2_layout_schema_fini(&t_schema);
+	C2_UT_ASSERT(t_domain.ld_schema == NULL);
 
 	c2_dbenv_fini(&t_dbenv);
 
@@ -1916,7 +1919,7 @@ static void test_reg_unreg(void)
 /*
  * Tests the API c2_layout_max_recsize() along with testing the part of the
  * following APIs that is responsible to update the value of
- * c2_layout_schema::ls_max_recsize, using the internal fuction
+ * c2_layout_schema::ls_max_recsize, using the internal function
  * max_recsize_update():
  * c2_layout_type_register(), c2_layout_type_unregister,
  * c2_layout_enum_type_register() and c2_layout_enum_type_unregister().
@@ -2033,9 +2036,9 @@ static void pdclust_recsize_verify(uint32_t enum_id,
 				   struct c2_layout *l,
 				   c2_bcount_t recsize_to_verify)
 {
-	struct c2_pdclust_layout     *pl;
-	struct c2_layout_list_enum   *list_enum;
-	c2_bcount_t                   recsize;
+	struct c2_pdclust_layout    *pl;
+	struct c2_layout_list_enum  *list_enum;
+	c2_bcount_t                  recsize;
 
 	C2_UT_ASSERT(l != NULL);
 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
@@ -2138,8 +2141,8 @@ static void test_recsize(void)
 }
 
 /*
- * Sets (or resets) the pair using the area and layout id provided as
- * arguments.
+ * Sets (or resets) the pair using the area pointer and the layout id provided
+ * as arguments.
  */
 static void pair_set(struct c2_db_pair *pair, uint64_t *lid,
 		       void *area, c2_bcount_t num_bytes)

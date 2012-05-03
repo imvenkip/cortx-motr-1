@@ -205,7 +205,7 @@ static void enum_type_get(struct c2_layout_domain *dom,
 	C2_PRE(let != NULL);
 
 	/*
-	 * The DEFAULT_REF_COUNT while a layout type is registered, being 1,
+	 * The DEFAULT_REF_COUNT while an enum type is registered, being 1,
 	 * ensures that the layout can not be freed concurrently.
 	 */
 
@@ -252,9 +252,9 @@ int layout_init(struct c2_layout_domain *dom,
 	l->l_ref     = DEFAULT_REF_COUNT;
 	l->l_pool_id = pool_id;
 	l->l_ops     = ops;
+	l->l_type    = type;
 
 	layout_type_get(dom, type);
-	l->l_type    = type;
 
 	c2_mutex_init(&l->l_lock);
 	c2_addb_ctx_init(&l->l_addb, &layout_addb_ctx_type,
@@ -277,7 +277,7 @@ void layout_fini(struct c2_layout_domain *dom, struct c2_layout *l)
 	c2_mutex_fini(&l->l_lock);
 
 	layout_type_put(dom, l->l_type);
-	l->l_type    = NULL;
+	l->l_type = NULL;
 
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
@@ -347,8 +347,8 @@ int enum_init(struct c2_layout_domain *dom,
 
 	le->le_lid  = lid;
 	le->le_ops  = ops;
-
 	le->le_type = et;
+
 	enum_type_get(dom, le->le_type);
 
 	C2_LEAVE("Enum-type-id %lu", (unsigned long)et->let_id);
@@ -568,7 +568,7 @@ void c2_layout_put(struct c2_layout *l)
  *   layout structure, using c2_layout_decode().
  *
  * @param cur Cursor pointing to a buffer containing serialised representation
- * of the buffer. Regarding the size of the buffer:
+ * of the layout. Regarding the size of the buffer:
  * - In case c2_layout_decode() is called through c2_layout_add(), then the
  *   buffer should be containing all the data that is read specifically from
  *   the layouts table. It means its size needs to be at the most the size
@@ -578,7 +578,7 @@ void c2_layout_put(struct c2_layout *l)
  *   It may include data that spans over tables other than layouts as well. It
  *   means its size may need to be even more than the one returned by
  *   c2_layout_max_recsize(). For example, in case of LIST enumeration type,
- *   the buffer needs to contain the data that goes to cob_lists table.
+ *   the buffer needs to contain the data that is stored in the cob_lists table.
  *
  * @param op This enum parameter indicates what is the DB operation to be
  * performed on the layout record. It could be LOOKUP if at all a DB operation.
@@ -661,10 +661,11 @@ out:
  * - Or converts it to a buffer.
  *
  * Two use cases of c2_layout_encode()
- * - Server encodes an in-memory layout object into a buffer, so as to send
- *   it to the client.
- * - Server encodes an in-memory layout object and stores it into the Layout
- *   DB.
+ * - Server encodes an in-memory layout object into a buffer using
+ *   c2_layout_encode(), so as to send it to the client.
+ * - Server encodes an in-memory layout object using one of c2_layout_add(),
+ *   c2_layout_update() or c2_layout_delete() and adds/updates/deletes
+ *   it to or from the Layout DB.
  *
  * @param op This enum parameter indicates what is the DB operation to be
  * performed on the layout record if at all a DB operation which could be
@@ -675,7 +676,7 @@ out:
  * exisiting layout record from the layouts table. Applicable only in case of
  * layou update operation. In other cases, it is expected to be NULL.
  *
- * @param out Cursor poining to a buffer. Regarding the size of the buffer:
+ * @param out Cursor pointing to a buffer. Regarding the size of the buffer:
  * - In case c2_layout_encode() is called through c2_layout_add()|
  *   c2_layout_update()|c2_layout_delete(), then the buffer size should be
  *   large enough to contain the data that is to be written specifically to
@@ -767,7 +768,6 @@ out:
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }
-
 
 /**
  * Returns maximum possible size for a record in the layouts table (without
