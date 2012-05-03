@@ -59,7 +59,7 @@ static bool nlx_kcore_kiov_invariant(const lnet_kiov_t *k, size_t len)
    Count the number of pages in a segment of a c2_bufvec.
    @param bvec Colibri buffer vector pointer
    @param n    Segment number in the vector
-   @retval Number of pages in the segment.
+   @returns Number of pages in the segment.
  */
 static unsigned bufvec_seg_page_count(const struct c2_bufvec *bvec, unsigned n)
 {
@@ -87,7 +87,7 @@ static unsigned bufvec_seg_page_count(const struct c2_bufvec *bvec, unsigned n)
    @param bvec Colibri buffer vector pointer
    @param n    Segment number in the vector
    @param kiov Pointer to array of lnet_kiov_t structures.
-   @retval Number of lnet_kiov_t elements added.
+   @returns Number of lnet_kiov_t elements added.
  */
 static unsigned bufvec_seg_kla_to_kiov(const struct c2_bufvec *bvec,
 				       unsigned n,
@@ -180,7 +180,7 @@ fail:
    @param bvec Colibri buffer vector pointer.
    @param n    Segment number in the vector.
    @param kiov Pointer to array of lnet_kiov_t structures.
-   @retval Number of lnet_kiov_t elements added, or -errno on failure.
+   @returns Number of lnet_kiov_t elements added, or -errno on failure.
  */
 static int bufvec_seg_uva_to_kiov(struct nlx_kcore_buffer *kb,
 				  const struct c2_bufvec *bvec,
@@ -252,7 +252,8 @@ int nlx_kcore_buffer_uva_to_kiov(struct nlx_kcore_buffer *kb,
 	if (num_pages == 0) {
 		rc = -EBADR;
 		goto fail;
-	} else if (num_pages > LNET_MAX_IOV) {
+	}
+	if (num_pages > LNET_MAX_IOV) {
 		rc = -EFBIG;
 		goto fail;
 	}
@@ -298,7 +299,7 @@ fail:
    @param bytes The byte count desired.
    @param last_len Returns the number of bytes used in the last kiov
    element.
-   @retval uint32_t The number of KIOV entries required.
+   @returns The number of KIOV entries required.
    @post return value <= kiov_len
  */
 static size_t nlx_kcore_num_kiov_entries_for_bytes(const lnet_kiov_t *kiov,
@@ -313,9 +314,8 @@ static size_t nlx_kcore_num_kiov_entries_for_bytes(const lnet_kiov_t *kiov,
 	C2_PRE(kiov_len > 0);
 	C2_PRE(last_len != NULL);
 
-	for (i = 0, count = 0; i < kiov_len && count < bytes; ++i, ++kiov) {
-		count += (c2_bcount_t) kiov->kiov_len;
-	}
+	for (i = 0, count = 0; i < kiov_len && count < bytes; ++i, ++kiov)
+		count += kiov->kiov_len;
 
 	C2_POST(i <= kiov_len);
 	--kiov;
