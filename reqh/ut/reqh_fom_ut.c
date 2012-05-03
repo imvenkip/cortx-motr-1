@@ -176,7 +176,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 			struct c2_stob_id *rh_addb_stob_id)
 {
         int                        rc;
-	struct c2_net_transfer_mc *srv_tm;
+	struct c2_rpc_machine     *rpc_machine = &srv_rpc_mach;
 
         srv_cob_dom_id.id = 102;
 
@@ -244,17 +244,14 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 
 	rc = c2_rpc_net_buffer_pool__setup(net_dom, app_pool);
 	C2_UT_ASSERT(rc == 0);
+	
+	rpc_machine->rm_min_recv_size = C2_RPC_MIN_RECV_SIZE;
+	rpc_machine->rm_max_recv_msgs = C2_RPC_MAX_RECV_MSGS;
 
 	/* Init the rpcmachine */
-        rc = c2_rpc_machine_init(&srv_rpc_mach, &srv_cob_domain, net_dom,
-				  SERVER_ENDPOINT_ADDR, &reqh, app_pool);
+        rc = c2_rpc_machine_init(rpc_machine, &srv_cob_domain, net_dom,
+				 SERVER_ENDPOINT_ADDR, &reqh, app_pool);
         C2_UT_ASSERT(rc == 0);
-
-        /* Find first c2_rpc_chan from the chan's list
-           and use its corresponding tm to create target end_point */
-        srv_tm = &srv_rpc_mach.rm_tm;
-	C2_UT_ASSERT(srv_tm != NULL);
-
 	return rc;
 }
 

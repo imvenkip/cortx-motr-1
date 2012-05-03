@@ -670,6 +670,16 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 	if (rpcmach == NULL)
 		return -ENOMEM;
 
+	if (cctx->cc_min_recv_size != 0)
+		rpcmach->rm_min_recv_size = cctx->cc_min_recv_size;
+	else
+		rpcmach->rm_min_recv_size = C2_RPC_MIN_RECV_SIZE;
+	
+	if (cctx->cc_max_recv_msgs != 0)
+		rpcmach->rm_max_recv_msgs = cctx->cc_max_recv_msgs;
+	else
+		rpcmach->rm_max_recv_msgs = C2_RPC_MAX_RECV_MSGS;
+	
 	buffer_pool = cs_buffer_pool_get(cctx, ndom);
 	rc = c2_rpc_machine_init(rpcmach, reqh->rh_cob_domain, ndom, ep, reqh,
 				buffer_pool);
@@ -1606,11 +1616,13 @@ static void cs_help(FILE *out)
 		   "-s Services to be started in given request handler "
 		   "context.\n   This can be specified multiple times "
 		   "per request handler set.\n"
-		   " -n Number of segments in each network buffer \n"
-		   " -p Network buffer segment size in the pool.\n"
-		   " -b Number of buffer in the pool.\n"
-		   " -t Minimum TM Receive queue length.\n"
-		   " -m Max number of TM's in a domain.\n "
+		   "-n Number of segments in each network buffer\n"
+		   "-p Network buffer segment size in the pool.\n"
+		   "-b Number of buffers in the pool.\n"
+		   "-t Minimum TM Receive queue length.\n"
+		   "-m Maximum number of TM's in a domain.\n "
+		   "-k Minimum receive size of network buffer.\n"
+		   "-R Maximum receive messages in a network buffer.\n"
 		   "   e.g. ./colibri -r -T linux -D dbpath -S stobfile\n"
 		   "        -e xport:127.0.0.1:1024:1 -s mds\n");
 }
@@ -1801,6 +1813,10 @@ static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
 			     &cctx->cc_recv_queue_min_length),
 		C2_FORMATARG('m', "Max Number of TM's in a domain", "%i",
 			     &cctx->cc_tm_nr),
+		C2_FORMATARG('k', "Minimum receive size of network buffer", "%i",
+			     &cctx->cc_min_recv_size),
+		C2_FORMATARG('R', "Maximum receive messages in a network buffer", "%i",
+			     &cctx->cc_max_recv_msgs),
                 C2_STRINGARG('s', "Services to be configured",
                         LAMBDA(void, (const char *str)
 			{

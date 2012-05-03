@@ -350,6 +350,8 @@ enum {
 	C2_RPC_TM_RECV_BUFFERS_NR     = 128,
 	C2_RPC_TM_MIN_RECV_BUFFERS_NR = 16,
 	C2_RPC_TM_MAX_NR	      = 64,
+	C2_RPC_MIN_RECV_SIZE	      = 1 << 12,
+	C2_RPC_MAX_RECV_MSGS	      = 1,
 };
 
 
@@ -504,8 +506,6 @@ struct c2_rpc_machine {
 	struct c2_list			  rm_chans;
 	/** Transfer machine associated with this endpoint.*/
 	struct c2_net_transfer_mc	  rm_tm;
-	/** Pool of receive buffers associated with this transfer machine. */
-	struct c2_net_buffer		**rm_rcv_buffers;
 	/** Cob domain in which cobs related to session will be stored */
 	struct c2_cob_domain		 *rm_dom;
 	/** List of rpc connections
@@ -549,8 +549,11 @@ struct c2_rpc_machine {
 
 	uint64_t                          rm_magic;
 
+	/** Buffer pool from which receive buffers are provisioned to TM's. */
 	struct c2_net_buffer_pool	 *rm_buffer_pool;
 	uint32_t			  rm_tm_recv_queue_min_length;
+	uint32_t			  rm_min_recv_size;
+	uint32_t			  rm_max_recv_msgs;
 };
 
 /**
@@ -1074,27 +1077,6 @@ int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk,
 		     struct c2_net_buf_desc *from_desc);
 
 /** @} bulkclientDFS end group */
-
-/**
-   Put back the number of buffers in the TM receive queue into buffer pool.
-   @param tm Pointer to the initialized transfer machine.
-   @pre
-   (tm->ntm_dom != NULL) &&
-   (tm->ntm_recv_pool != NULL)
- */
-void c2_rpc_recv_pool_buffers_put(struct c2_net_transfer_mc *tm);
-
-/**
-   Put the buffer back into buffer pool.
-   @param nb network buffer pointer which was taken from pool.
-   @pre
-   (nb->nb_tm != NULL) &&
-   (nb->nb_tm->ntm_recv_pool != NULL && nb->nb_pool !=NULL) &&
-   (nb->nb_tm->ntm_recv_pool == nb->nb_pool) &&
-   (!(nb->nb_flags & C2_NET_BUF_QUEUED))
- */
-void c2_rpc_recv_pool_buffer_put(struct c2_net_buffer *nb);
-
 
 /** @} end group rpc_layer_core */
 /* __COLIBRI_RPC_RPCCORE_H__  */

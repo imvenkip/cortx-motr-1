@@ -265,6 +265,8 @@ struct c2_colibri {
         c2_bcount_t		   cc_seg_size;
         uint32_t		   cc_recv_queue_min_length;
         uint32_t		   cc_tm_nr;
+	uint32_t		   cc_max_recv_msgs;
+	uint32_t		   cc_min_recv_size;
 };
 
 /**

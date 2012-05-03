@@ -178,9 +178,11 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	int rc;
 	struct c2_net_transfer_mc *tm;
 	struct c2_net_domain      *ndom;
+	struct c2_rpc_machine	  *rpc_machine;
 	static uint32_t		   tm_colours;
 
 	ndom = cctx->rcx_net_dom;
+	rpc_machine = &cctx->rcx_rpc_machine;
 
 	C2_ALLOC_PTR(cctx->rcx_buffer_pool);
 	if (cctx->rcx_buffer_pool == NULL)
@@ -199,10 +201,20 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 
 	if (rc != 0)
 		goto pool_fini;
+	
+	if (cctx->rcx_min_recv_size != 0)
+		rpc_machine->rm_min_recv_size = cctx->rcx_min_recv_size;
+	else
+		rpc_machine->rm_min_recv_size = C2_RPC_MIN_RECV_SIZE;
+	
+	if (cctx->rcx_max_recv_msgs != 0)
+		rpc_machine->rm_max_recv_msgs = cctx->rcx_max_recv_msgs;
+	else
+		rpc_machine->rm_max_recv_msgs = C2_RPC_MAX_RECV_MSGS;
 
-	rc = c2_rpc_machine_init(&cctx->rcx_rpc_machine, cctx->rcx_cob_dom,
-				  cctx->rcx_net_dom, cctx->rcx_local_addr, NULL,
-				  cctx->rcx_buffer_pool);
+	rc = c2_rpc_machine_init(rpc_machine, cctx->rcx_cob_dom,
+				 cctx->rcx_net_dom, cctx->rcx_local_addr, NULL,
+				 cctx->rcx_buffer_pool);
 	if (rc != 0)
 		return rc;
 
@@ -220,7 +232,7 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 		goto rpcmach_fini;
 
 	rc = c2_rpc_conn_create(&cctx->rcx_connection, cctx->rcx_remote_ep,
-				&cctx->rcx_rpc_machine,
+				rpc_machine,
 				cctx->rcx_max_rpcs_in_flight,
 				cctx->rcx_timeout_s);
 	if (rc != 0)
@@ -238,7 +250,7 @@ conn_destroy:
 ep_put:
 	c2_net_end_point_put(cctx->rcx_remote_ep);
 rpcmach_fini:
-	c2_rpc_machine_fini(&cctx->rcx_rpc_machine);
+	c2_rpc_machine_fini(rpc_machine);
 pool_fini:
 	c2_rpc_net_buffer_pool_cleanup(cctx->rcx_buffer_pool);
 	C2_ASSERT(rc != 0);

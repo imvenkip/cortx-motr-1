@@ -42,10 +42,6 @@
 #include "net/buffer_pool.h"
 
 /* Forward declarations. */
-static int recv_buffer_allocate_nr(struct c2_net_domain  *net_dom,
-				   struct c2_rpc_machine *machine);
-static void recv_buffer_deallocate_nr(struct c2_rpc_machine *machine,
-				      bool tm_active, uint32_t nr);
 static void rpc_net_buf_received(const struct c2_net_buffer_event *ev);
 static void rpc_tm_cleanup(struct c2_rpc_machine *machine);
 
@@ -356,18 +352,20 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 	return 0;
 }
 
-/*
- * @todo These dummy api's needs to be removed once transport provides values
- * for nb_min_receive_size and nb_max_receive_msgs.
- */
-int c2_xprt_buffer_min_recv_size(struct c2_net_domain *ndom)
+static void rpc_recv_pool_buffer_put(struct c2_net_buffer *nb)
 {
-	return 1<<12;
-}
+	struct c2_net_transfer_mc *tm;
+	C2_PRE(nb != NULL);
+	tm = nb->nb_tm;
 
-int c2_xprt_buffer_max_recv_msgs(struct c2_net_domain *ndom)
-{
-	return 1;
+	C2_PRE(tm != NULL);
+	C2_PRE(tm->ntm_recv_pool != NULL && nb->nb_pool !=NULL);
+	C2_PRE(tm->ntm_recv_pool == nb->nb_pool);
+	C2_PRE(!(nb->nb_flags & C2_NET_BUF_QUEUED));
+	c2_net_buffer_pool_lock(tm->ntm_recv_pool);
+	c2_net_buffer_pool_put(tm->ntm_recv_pool, nb,
+			       tm->ntm_pool_colour);
+	c2_net_buffer_pool_unlock(tm->ntm_recv_pool);
 }
 
 static int rpc_tm_setup(struct c2_rpc_machine *machine,
@@ -379,35 +377,24 @@ static int rpc_tm_setup(struct c2_rpc_machine *machine,
 	C2_PRE(machine != NULL);
 	C2_PRE(net_dom != NULL);
 	C2_PRE(ep_addr != NULL);
-
-	/* Allocate space for pointers of recv net buffers. */
-	C2_ALLOC_ARR(machine->rm_rcv_buffers, C2_RPC_TM_RECV_BUFFERS_NR);
-	if (machine->rm_rcv_buffers == NULL) {
-		C2_ADDB_ADD(&machine->rm_rpc_machine_addb,
-				&rpc_machine_addb_loc, c2_addb_oom);
-		return -ENOMEM;
-	}
+	C2_PRE(machine->rm_buffer_pool != NULL);
 
 	machine->rm_tm.ntm_state = C2_NET_TM_UNDEFINED;
 	machine->rm_tm.ntm_callbacks = &c2_rpc_tm_callbacks;
 
 	/* Initialize the net transfer machine. */
 	rc = c2_net_tm_init(&machine->rm_tm, net_dom);
-	if (rc < 0) {
-		c2_free(machine->rm_rcv_buffers);
+	if (rc < 0)
 		return rc;
-	}
 
 	c2_mutex_lock(&net_dom->nd_mutex);
-	if (machine->rm_buffer_pool != NULL) {
-		rc = c2_net_tm_pool_attach(&machine->rm_tm, machine->rm_buffer_pool,
-					   &c2_rpc_rcv_buf_callbacks,
-					   c2_xprt_buffer_min_recv_size(net_dom),
-					   c2_xprt_buffer_max_recv_msgs(net_dom));
-		if (rc != 0) {
-			c2_mutex_unlock(&net_dom->nd_mutex);
-			return rc;
-		}
+	rc = c2_net_tm_pool_attach(&machine->rm_tm, machine->rm_buffer_pool,
+				   &c2_rpc_rcv_buf_callbacks,
+				   machine->rm_min_recv_size,
+				   machine->rm_max_recv_msgs);
+	if (rc != 0) {
+		c2_mutex_unlock(&net_dom->nd_mutex);
+		return rc;
 	}
 	c2_mutex_unlock(&net_dom->nd_mutex);
 
@@ -427,21 +414,11 @@ static int rpc_tm_setup(struct c2_rpc_machine *machine,
 
 	c2_clink_del(&tmwait);
 	c2_clink_fini(&tmwait);
-		
-	/* Add buffers for receiving messages to this transfer machine. */
-	if (machine->rm_buffer_pool == NULL) {
-		rc = recv_buffer_allocate_nr(net_dom, machine);
-		if (rc < 0) {
-			rpc_tm_cleanup(machine);
-			return rc;
-		}
-	}
 
 	return rc;
 cleanup:
 	c2_clink_del(&tmwait);
 	c2_clink_fini(&tmwait);
-	c2_free(machine->rm_rcv_buffers);
 	if (machine->rm_tm.ntm_state <= C2_NET_TM_FAILED)
 		c2_net_tm_fini(&machine->rm_tm);
 	return rc;
@@ -511,7 +488,6 @@ void rpc_chan_put(struct c2_rpc_chan *chan)
 
 static void rpc_tm_cleanup(struct c2_rpc_machine *machine)
 {
-	int		cnt;
 	int		rc;
 	struct c2_clink	tmwait;
 	struct c2_net_transfer_mc *tm = &machine->rm_tm;
@@ -536,19 +512,8 @@ static void rpc_tm_cleanup(struct c2_rpc_machine *machine)
 	c2_clink_del(&tmwait);
 	c2_clink_fini(&tmwait);
 
-	/* Delete all the buffers from net domain. */
-	if (machine->rm_buffer_pool == NULL)
-		recv_buffer_deallocate_nr(machine, false,
-					  C2_RPC_TM_RECV_BUFFERS_NR);
-	else c2_rpc_recv_pool_buffers_put(tm); /* @todo may not be needed. */
-
 	/* Fini the transfer machine here and deallocate the chan. */
 	c2_net_tm_fini(tm);
-	if (machine->rm_buffer_pool == NULL) {
-		for (cnt = 0; cnt < C2_RPC_TM_RECV_BUFFERS_NR; ++cnt)
-			C2_ASSERT(machine->rm_rcv_buffers[cnt] == NULL);
-		c2_free(machine->rm_rcv_buffers);
-	}
 }
 
 int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout)
@@ -665,12 +630,7 @@ last:
 	nb->nb_ep = NULL;
 	nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
 	if ((nb->nb_pool != NULL) && !(nb->nb_flags & C2_NET_BUF_QUEUED))
-			c2_rpc_recv_pool_buffer_put(nb);
-	/*else {
-		if (nb->nb_tm->ntm_state == C2_NET_TM_STARTED &&
-		  !(nb->nb_flags & C2_NET_BUF_RETAIN))
-			rc = c2_net_buffer_add(nb, nb->nb_tm);
-	}*/
+			rpc_recv_pool_buffer_put(nb);
 }
 
 static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
@@ -744,15 +704,6 @@ static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 	return rc;
 }
 
-static int recv_buffer_allocate(struct c2_net_domain *net_dom,
-		struct c2_net_buffer **nb)
-{
-	C2_PRE(net_dom != NULL);
-	C2_PRE(nb != NULL);
-
-	return rpc_net_buffer_allocate(net_dom, nb, C2_NET_QT_MSG_RECV, 0);
-}
-
 int send_buffer_allocate(struct c2_net_domain *net_dom,
 		struct c2_net_buffer **nb, uint64_t rpc_size)
 {
@@ -761,62 +712,6 @@ int send_buffer_allocate(struct c2_net_domain *net_dom,
 
 	return rpc_net_buffer_allocate(net_dom, nb, C2_NET_QT_MSG_SEND,
 			rpc_size);
-}
-
-static int recv_buffer_allocate_nr(struct c2_net_domain  *net_dom,
-				   struct c2_rpc_machine *machine)
-{
-	int			 rc;
-	uint32_t		 cnt;
-	struct c2_net_buffer	*nb;
-
-	C2_PRE(net_dom != NULL);
-	C2_PRE(machine != NULL);
-
-	for (cnt = 0; cnt < C2_RPC_TM_RECV_BUFFERS_NR; ++cnt) {
-		rc = recv_buffer_allocate(net_dom, &nb);
-		if (rc != 0)
-			break;
-		machine->rm_rcv_buffers[cnt] = nb;
-		rc = c2_net_buffer_add(nb, &machine->rm_tm);
-		if (rc < 0)
-			break;
-	}
-	if (rc < 0)
-		recv_buffer_deallocate_nr(machine, true, cnt);
-
-	return rc;
-}
-
-void recv_buffer_deallocate(struct c2_net_buffer *nb,
-			    struct c2_rpc_machine *machine, bool tm_active)
-{
-	struct c2_clink			 tmwait;
-	struct c2_net_transfer_mc	*tm;
-	struct c2_net_domain		*net_dom;
-
-	C2_PRE(nb != NULL);
-	C2_PRE(machine != NULL);
-
-	tm = &machine->rm_tm;
-	net_dom = tm->ntm_dom;
-
-	/* Add to a clink to transfer machine's channel to wait for
-	   deletion of buffers from transfer machine. */
-	if (tm_active) {
-		c2_clink_init(&tmwait, NULL);
-		c2_clink_add(&tm->ntm_chan, &tmwait);
-
-		c2_net_buffer_del(nb, tm);
-		while ((nb->nb_flags & C2_NET_BUF_QUEUED) != 0)
-			c2_chan_wait(&tmwait);
-		c2_clink_del(&tmwait);
-		c2_clink_fini(&tmwait);
-	}
-
-	c2_net_buffer_deregister(nb, net_dom);
-	c2_bufvec_free(&nb->nb_buffer);
-	c2_free(nb);
 }
 
 void send_buffer_deallocate(struct c2_net_buffer *nb,
@@ -828,55 +723,6 @@ void send_buffer_deallocate(struct c2_net_buffer *nb,
 
 	c2_net_buffer_deregister(nb, net_dom);
 	c2_bufvec_free(&nb->nb_buffer);
-}
-
-static void recv_buffer_deallocate_nr(struct c2_rpc_machine *machine,
-				      bool tm_active, uint32_t nr)
-{
-	int			 cnt;
-	struct c2_net_buffer	*nb;
-
-	C2_PRE(machine != NULL);
-	C2_PRE(nr <= C2_RPC_TM_RECV_BUFFERS_NR);
-
-	for (cnt = 0; cnt < nr; ++cnt) {
-		nb = machine->rm_rcv_buffers[cnt];
-		recv_buffer_deallocate(nb, machine, tm_active);
-		machine->rm_rcv_buffers[cnt] = NULL;
-	}
-}
-
-void c2_rpc_recv_pool_buffer_put(struct c2_net_buffer *nb)
-{
-	struct c2_net_transfer_mc *tm;
-	C2_PRE(nb != NULL);
-	tm = nb->nb_tm;
-
-	C2_PRE(tm != NULL);
-	C2_PRE(tm->ntm_recv_pool != NULL && nb->nb_pool !=NULL);
-	C2_PRE(tm->ntm_recv_pool == nb->nb_pool);
-	C2_PRE(!(nb->nb_flags & C2_NET_BUF_QUEUED));
-	c2_net_buffer_pool_lock(tm->ntm_recv_pool);
-	c2_net_buffer_pool_put(tm->ntm_recv_pool, nb,
-			       tm->ntm_pool_colour);
-	c2_net_buffer_pool_unlock(tm->ntm_recv_pool);
-}
-
-void c2_rpc_recv_pool_buffers_put(struct c2_net_transfer_mc *tm)
-{
-	struct c2_net_domain *net_dom;
-	struct c2_net_buffer *nb;
-	struct c2_tl	     *ql;
-
-	C2_PRE(tm != NULL);
-	C2_PRE(tm->ntm_dom != NULL);
-	C2_PRE(tm->ntm_recv_pool != NULL);
-	net_dom = tm->ntm_dom;
-	ql = &tm->ntm_q[C2_NET_QT_MSG_RECV];
-
-	c2_tlist_for(&tm_tl, ql, nb) {
-		c2_rpc_recv_pool_buffer_put(nb);
-	} c2_tlist_endfor;
 }
 
 int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
@@ -907,7 +753,7 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 	c2_mutex_init(&machine->rm_chan_mutex);
 	c2_list_init(&machine->rm_chans);
 	machine->rm_buffer_pool = app_pool;
-
+	
 	rc = rpc_tm_setup(machine, net_dom, ep_addr);
 	if (rc < 0)
 		goto cleanup;

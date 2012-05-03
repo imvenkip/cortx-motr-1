@@ -170,6 +170,8 @@ struct c2_rpc_client_ctx {
         uint32_t		   rcx_tm_nr;
         c2_bcount_t		   rcx_seg_size;
         uint32_t		   rcx_recv_queue_min_length;
+        uint32_t		   rcx_min_recv_size;
+        uint32_t		   rcx_max_recv_msgs;
 };
 
 /**
