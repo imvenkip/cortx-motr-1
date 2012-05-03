@@ -97,18 +97,16 @@
 #include "lib/tlist.h"    /* struct c2_tl */
 #include "lib/mutex.h"    /* struct c2_mutex */
 
+#include "db/db.h"        /* struct c2_table */
 #include "addb/addb.h"
 
 struct c2_addb_ctx;
 struct c2_bufvec_cursor;
 struct c2_fid;
-struct c2_db_tx;
-struct c2_db_pair;
-struct c2_layout_rec;
-struct c2_layout_schema;
 
 /* export */
 struct c2_layout_domain;
+struct c2_layout_schema;
 struct c2_layout;
 struct c2_layout_ops;
 enum c2_layout_xcode_op;
@@ -126,7 +124,7 @@ enum {
 
 /**
  * Layout domain.
- * There is one instance of layout domain object per Colibri.
+ * There is one instance of layout domain object per address space.
  */
 struct c2_layout_domain {
 	/** Layout types array. */
@@ -153,6 +151,39 @@ struct c2_layout_domain {
 	 * its members.
 	 */
 	struct c2_mutex             ld_lock;
+};
+
+/**
+ * In-memory data structure for the layout schema.
+ * It includes a pointer to the layouts table and various related
+ * parameters. ls_type_data[] and ls_enum_data[] store pointers to tables
+ * applicable, if any, for various layout types and enum types.
+ * There is one instance of layout domain object per address space.
+ */
+struct c2_layout_schema {
+	/** Pointer to domain; to keep things together. */
+	struct c2_layout_domain *ls_domain;
+
+	/** Pointer to dbenv; to keep things together. */
+	struct c2_dbenv         *ls_dbenv;
+
+	/** Table for layout record entries. */
+	struct c2_table          ls_layouts;
+
+	/** Layout type specific data. */
+	void                    *ls_type_data[C2_LAYOUT_TYPE_MAX];
+
+	/** Layout enum type specific data. */
+	void                    *ls_enum_data[C2_LAYOUT_ENUM_TYPE_MAX];
+
+	/** Maximum possible size for a record in the layouts table. */
+	c2_bcount_t              ls_max_recsize;
+
+	/**
+	 * Lock to protect the instance of c2_layout_schema, including all
+	 * its members.
+	 */
+	struct c2_mutex          ls_lock;
 };
 
 /**
@@ -376,9 +407,29 @@ struct c2_layout_striped {
 	struct c2_layout_enum *ls_enum;
 };
 
-
 int c2_layouts_init(void);
 void c2_layouts_fini(void);
+
+int c2_layout_domain_init(struct c2_layout_domain *dom);
+void c2_layout_domain_fini(struct c2_layout_domain *dom);
+
+int c2_layout_schema_init(struct c2_layout_schema *schema,
+			  struct c2_layout_domain *domain,
+			  struct c2_dbenv *db);
+void c2_layout_schema_fini(struct c2_layout_schema *schema);
+
+int c2_layout_register(struct c2_layout_domain *dom);
+void c2_layout_unregister(struct c2_layout_domain *dom);
+
+int c2_layout_type_register(struct c2_layout_domain *dom,
+			    const struct c2_layout_type *lt);
+void c2_layout_type_unregister(struct c2_layout_domain *dom,
+			       const struct c2_layout_type *lt);
+
+int c2_layout_enum_type_register(struct c2_layout_domain *dom,
+				 const struct c2_layout_enum_type *et);
+void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
+				    const struct c2_layout_enum_type *et);
 
 void c2_layout_get(struct c2_layout *l);
 void c2_layout_put(struct c2_layout *l);

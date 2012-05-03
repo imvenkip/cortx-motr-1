@@ -365,7 +365,6 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
-#include "db/db_common.h" /* c2_db_buf_init() */
 #include "layout/layout_internal.h"
 #include "layout/layout_db.h"
 
@@ -381,10 +380,6 @@ extern const struct c2_addb_ev layout_update_fail;
 extern const struct c2_addb_ev layout_delete_success;
 extern const struct c2_addb_ev layout_delete_fail;
 
-extern const struct c2_layout_type c2_pdclust_layout_type;
-extern const struct c2_layout_enum_type c2_list_enum_type;
-extern const struct c2_layout_enum_type c2_linear_enum_type;
-
 /**
  * @defgroup LayoutDBDFSInternal Layout DB Internals
  * @brief Detailed functional specification of the internals of the
@@ -397,70 +392,6 @@ extern const struct c2_layout_enum_type c2_linear_enum_type;
  *
  * @{
  */
-
-/**
- * Compare layouts table keys.
- * This is a 3WAY comparison.
- */
-static int l_key_cmp(struct c2_table *table,
-		     const void *key0, const void *key1)
-{
-	const uint64_t *lid0 = key0;
-	const uint64_t *lid1 = key1;
-
-	return C2_3WAY(*lid0, *lid1);
-}
-
-/**
- * table_ops for layouts table.
- */
-static const struct c2_table_ops layouts_table_ops = {
-	.to = {
-		[TO_KEY] = {
-			.max_size = sizeof(struct c2_uint128)
-		},
-		[TO_REC] = {
-			.max_size = ~0
-		}
-	},
-	.key_cmp = l_key_cmp
-};
-
-static int schema_invariant(const struct c2_layout_schema *schema)
-{
-	return schema != NULL && schema->ls_domain != NULL &&
-		schema->ls_dbenv != NULL;
-}
-
-/**
- * Maximum possible size for a record in the layouts table (without
- * considering the data in the tables other than the layouts) is maintained in
- * c2_layout_schema::ls_max_recsize.
- * This function updates c2_layout_schema::ls_max_recsize.
- */
-static void max_recsize_update(struct c2_layout_domain *dom)
-{
-	uint32_t    i;
-	c2_bcount_t recsize;
-	c2_bcount_t max_recsize = 0;
-
-	C2_PRE(domain_invariant(dom));
-	C2_PRE(c2_mutex_is_locked(&dom->ld_schema->ls_lock));
-
-	/*
-	 * Iterate over all the layout types to find maximum possible recsize.
-	 */
-	for (i = 0; i < ARRAY_SIZE(dom->ld_type); ++i) {
-		if (dom->ld_type[i] == NULL)
-			continue;
-
-		recsize = dom->ld_type[i]->lt_ops->lto_max_recsize(dom);
-		max_recsize = max64u(max_recsize, recsize);
-	}
-
-	dom->ld_schema->ls_max_recsize =  sizeof(struct c2_layout_rec) +
-					  max_recsize;
-}
 
 /**
  * Returns actual size for a record in the layouts table (without
@@ -500,7 +431,6 @@ int layout_write(enum c2_layout_xcode_op op, uint64_t lid,
 	void *key_buf = pair->dp_key.db_buf.b_addr;
 	void *rec_buf = pair->dp_rec.db_buf.b_addr;
 
-	C2_PRE(schema != NULL);
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE);
 	C2_PRE(pair != NULL);
@@ -510,6 +440,7 @@ int layout_write(enum c2_layout_xcode_op op, uint64_t lid,
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= recsize);
 	C2_PRE(recsize >= sizeof(struct c2_layout_rec) &&
 	       recsize <= c2_layout_max_recsize(schema->ls_domain));
+	C2_PRE(schema != NULL);
 	C2_PRE(tx != NULL);
 
 	*(uint64_t *)key_buf = lid;
@@ -563,8 +494,8 @@ static int rec_get(struct c2_layout *l, void *area,
 			 area, (uint32_t)max_recsize);
 
 	/*
-	 * ADDB message covering the failure of c2_table_lookup()
-	 * is added into the caller of this routine.
+	 * ADDB message covering the failure of c2_table_lookup() is added
+	 * into the caller of this routine.
 	 */
 	rc = c2_table_lookup(tx, &pair);
 
@@ -581,327 +512,6 @@ static int rec_get(struct c2_layout *l, void *area,
  */
 
 /**
- * Initialises layout domain - Initialises arrays to hold the objects for
- * layout types and enum types.
- */
-int c2_layout_domain_init(struct c2_layout_domain *dom)
-{
-	C2_PRE(dom != NULL);
-
-	C2_ENTRY();
-
-	C2_SET0(dom);
-
-	c2_mutex_init(&dom->ld_lock);
-
-	/*
-	 * Can not invoke invariant here since the dom->ld_schema pointer is
-	 * not yet set. It will be set once the c2_layout_schema object
-	 * associated with this domain object is initialised.
-	 */
-	C2_POST(dom->ld_schema == NULL);
-
-	C2_LEAVE();
-	return 0;
-}
-
-/**
- * Finalises the layout domain.
- * @pre All the layout types and enum types should be unregistered.
- */
-void c2_layout_domain_fini(struct c2_layout_domain *dom)
-{
-	uint32_t i;
-
-	/*
-	 * Can not invoke invariant here since the dom->ld_schema pointer is
-	 * expected to be set to NULL during finalisation of the
-	 * c2_layout_schema object associated with this domain.
-	 */
-	C2_PRE(dom != NULL);
-
-	/*
-	 * Verify that the schema object associated with this domain has been
-	 * finalised prior to this routine being invoked.
-	 */
-	C2_PRE(dom->ld_schema == NULL);
-
-	C2_ENTRY();
-
-	/* Verify that all the layout types were unregistered. */
-	for (i = 0; i < ARRAY_SIZE(dom->ld_type); ++i)
-		C2_ASSERT(dom->ld_type[i] == NULL);
-
-	/* Verify that all the enum types were unregistered. */
-	for (i = 0; i < ARRAY_SIZE(dom->ld_enum); ++i)
-		C2_ASSERT(dom->ld_enum[i] == NULL);
-
-	c2_mutex_fini(&dom->ld_lock);
-
-	C2_LEAVE();
-}
-
-/**
- * Initialises the layout schema object - creates the layouts table.
- * @pre dbenv Caller should have performed c2_dbenv_init() on dbenv.
- */
-int c2_layout_schema_init(struct c2_layout_schema *schema,
-			  struct c2_layout_domain *dom,
-			  struct c2_dbenv *dbenv)
-{
-	int rc;
-
-	C2_PRE(schema != NULL);
-	C2_PRE(dom != NULL);
-	C2_PRE(dbenv != NULL);
-
-	C2_ENTRY();
-
-	C2_SET0(schema);
-
-	schema->ls_domain = dom;
-	schema->ls_dbenv = dbenv;
-
-	c2_mutex_init(&schema->ls_lock);
-
-	rc = c2_table_init(&schema->ls_layouts, schema->ls_dbenv, "layouts",
-			   DEFAULT_DB_FLAG, &layouts_table_ops);
-	if (rc != 0) {
-		layout_log("c2_layout_schema_init", "c2_table_init() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   c2_addb_func_fail.ae_id,
-			   &layout_global_ctx, !LID_APPLICABLE, LID_NONE, rc);
-
-		schema->ls_dbenv = NULL;
-		c2_mutex_fini(&schema->ls_lock);
-	}
-
-	/* Store pointer to the schema object, in the domain object. */
-	dom->ld_schema = schema;
-
-	C2_POST(schema_invariant(schema));
-	C2_POST(domain_invariant(dom));
-
-	C2_LEAVE("rc %d", rc);
-	return rc;
-}
-
-/**
- * Finalises the layout schema.
- * @pre All the layout types and enum types should be unregistered.
- */
-void c2_layout_schema_fini(struct c2_layout_schema *schema)
-{
-	C2_PRE(schema_invariant(schema));
-	C2_POST(domain_invariant(schema->ls_domain));
-
-	C2_ENTRY();
-
-	schema->ls_domain->ld_schema = NULL;
-
-	c2_table_fini(&schema->ls_layouts);
-	c2_mutex_fini(&schema->ls_lock);
-	schema->ls_dbenv = NULL;
-	schema->ls_domain = NULL;
-
-	C2_LEAVE();
-}
-
-/**
- * Registers all the available layout types and enum types.
- */
-int c2_layout_register(struct c2_layout_domain *dom)
-{
-	int rc;
-
-	C2_PRE(domain_invariant(dom));
-
-	rc = c2_layout_type_register(dom, &c2_pdclust_layout_type);
-	if (rc != 0)
-		return rc;
-
-	rc = c2_layout_enum_type_register(dom, &c2_list_enum_type);
-	if (rc != 0)
-		return rc;
-
-	rc = c2_layout_enum_type_register(dom, &c2_linear_enum_type);
-	return rc;
-}
-
-void c2_layout_unregister(struct c2_layout_domain *dom)
-{
-	C2_PRE(domain_invariant(dom));
-
-	c2_layout_enum_type_unregister(dom, &c2_list_enum_type);
-	c2_layout_enum_type_unregister(dom, &c2_linear_enum_type);
-
-	c2_layout_type_unregister(dom, &c2_pdclust_layout_type);
-}
-
-/**
- * Registers a new layout type with the layout types maintained by
- * c2_layout_domain::ld_type[] and initialises type layout specific tables,
- * if applicable.
- */
-int c2_layout_type_register(struct c2_layout_domain *dom,
-			    const struct c2_layout_type *lt)
-{
-	int rc;
-
-	C2_PRE(domain_invariant(dom));
-	C2_PRE(lt != NULL);
-	C2_PRE(IS_IN_ARRAY(lt->lt_id, dom->ld_type));
-
-	C2_ENTRY("Layout-type-id %lu", (unsigned long)lt->lt_id);
-
-	c2_mutex_lock(&dom->ld_lock);
-
-	C2_ASSERT(dom->ld_type[lt->lt_id] == NULL);
-	C2_ASSERT(lt->lt_ops != NULL);
-
-	dom->ld_type[lt->lt_id] = (struct c2_layout_type *)lt;
-
-	/* Get the first reference on this layout type. */
-	C2_ASSERT(dom->ld_type_ref_count[lt->lt_id] == 0);
-	C2_CNT_INC(dom->ld_type_ref_count[lt->lt_id]);
-
-	/* Allocate type specific schema data. */
-	c2_mutex_lock(&dom->ld_schema->ls_lock);
-
-	rc = lt->lt_ops->lto_register(dom->ld_schema, lt);
-	if (rc != 0)
-		layout_log("c2_layout_type_register", "lto_register() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   c2_addb_func_fail.ae_id,
-			   &layout_global_ctx, !LID_APPLICABLE, LID_NONE, rc);
-
-	max_recsize_update(dom);
-
-	c2_mutex_unlock(&dom->ld_schema->ls_lock);
-
-	c2_mutex_unlock(&dom->ld_lock);
-
-	C2_LEAVE("Layout-type-id %lu, rc %d", (unsigned long)lt->lt_id, rc);
-	return rc;
-}
-
-/**
- * Unregisters a layout type from the layout types maintained by
- * c2_layout_domain::ld_type[] and finalises type layout specific tables,
- * if applicable.
- */
-void c2_layout_type_unregister(struct c2_layout_domain *dom,
-			       const struct c2_layout_type *lt)
-{
-	C2_PRE(domain_invariant(dom));
-	C2_PRE(lt != NULL);
-	C2_PRE(dom->ld_type[lt->lt_id] == lt);
-
-	C2_ENTRY("Layout-type-id %lu", (unsigned long)lt->lt_id);
-
-	c2_mutex_lock(&dom->ld_lock);
-
-	c2_mutex_lock(&dom->ld_schema->ls_lock);
-
-	lt->lt_ops->lto_unregister(dom->ld_schema, lt);
-
-	/* Release the last reference on this layout type. */
-	C2_ASSERT(dom->ld_type_ref_count[lt->lt_id] == 1);
-	C2_CNT_DEC(dom->ld_type_ref_count[lt->lt_id]);
-
-	dom->ld_type[lt->lt_id] = NULL;
-
-	max_recsize_update(dom);
-
-	c2_mutex_unlock(&dom->ld_schema->ls_lock);
-	c2_mutex_unlock(&dom->ld_lock);
-
-	C2_LEAVE("Layout-type-id %lu", (unsigned long)lt->lt_id);
-}
-
-/**
- * Registers a new enumeration type with the enumeration types
- * maintained by c2_layout_domain::ld_enum[] and initialises enum type specific
- * tables, if applicable.
- */
-int c2_layout_enum_type_register(struct c2_layout_domain *dom,
-				 const struct c2_layout_enum_type *let)
-{
-	int rc;
-
-	C2_PRE(domain_invariant(dom));
-	C2_PRE(let != NULL);
-	C2_PRE(IS_IN_ARRAY(let->let_id, dom->ld_enum));
-
-	C2_ENTRY("Enum_type_id %lu", (unsigned long)let->let_id);
-
-	c2_mutex_lock(&dom->ld_lock);
-
-	C2_ASSERT(dom->ld_enum[let->let_id] == NULL);
-	C2_ASSERT(let->let_ops != NULL);
-
-	dom->ld_enum[let->let_id] = (struct c2_layout_enum_type *)let;
-
-	/* Get the first reference on this enum type. */
-	C2_CNT_INC(dom->ld_enum_ref_count[let->let_id]);
-	C2_ASSERT(dom->ld_enum_ref_count[let->let_id] == DEFAULT_REF_COUNT);
-
-	/* Allocate enum type specific schema data. */
-	c2_mutex_lock(&dom->ld_schema->ls_lock);
-
-	rc = let->let_ops->leto_register(dom->ld_schema, let);
-	if (rc != 0)
-		layout_log("c2_layout_enum_type_register",
-			   "leto_register() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   c2_addb_func_fail.ae_id,
-			   &layout_global_ctx, !LID_APPLICABLE, LID_NONE, rc);
-
-	max_recsize_update(dom);
-
-	c2_mutex_unlock(&dom->ld_schema->ls_lock);
-
-	c2_mutex_unlock(&dom->ld_lock);
-
-	C2_LEAVE("Enum_type_id %lu, rc %d", (unsigned long)let->let_id, rc);
-	return rc;
-}
-
-/**
- * Unregisters an enumeration type from the enumeration types
- * maintained by c2_layout_domain::ld_enum[] and finalises enum type
- * specific tables, if applicable.
- */
-void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
-				    const struct c2_layout_enum_type *let)
-{
-	C2_PRE(domain_invariant(dom));
-	C2_PRE(let != NULL);
-	C2_PRE(dom->ld_enum[let->let_id] == let);
-
-	C2_ENTRY("Enum_type_id %lu", (unsigned long)let->let_id);
-
-	c2_mutex_lock(&dom->ld_lock);
-
-	c2_mutex_lock(&dom->ld_schema->ls_lock);
-
-	let->let_ops->leto_unregister(dom->ld_schema, let);
-
-	/* Release the last reference on this enum type. */
-	C2_ASSERT(dom->ld_enum_ref_count[let->let_id] == DEFAULT_REF_COUNT);
-	C2_CNT_DEC(dom->ld_enum_ref_count[let->let_id]);
-
-	dom->ld_enum[let->let_id] = NULL;
-
-	max_recsize_update(dom);
-
-	c2_mutex_unlock(&dom->ld_schema->ls_lock);
-	c2_mutex_unlock(&dom->ld_lock);
-
-	C2_LEAVE("Enum_type_id %lu", (unsigned long)let->let_id);
-}
-
-/**
  * Looks up a persistent layout record with the specified layout_id, and
  * its related information from the relevant tables.
  *
@@ -916,7 +526,7 @@ void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
  *
  * @post Layout object is built internally (along with enumeration object being
  * built if applicable). Hence, user needs to finalise the layout object when
- * done with the use. It can be accomplished by performing l->l_ops->lo_fini(l).
+ * done with the use. It can be accomplished by performing l->l_ops->lo_fini().
  */
 int c2_layout_lookup(struct c2_layout_schema *schema,
 		     uint64_t lid,
@@ -966,7 +576,7 @@ int c2_layout_lookup(struct c2_layout_schema *schema,
 		goto out;
 	}
 
-	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&rec_buf, &recsize);
+	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&rec_buf, &recsize);
 
 	c2_bufvec_cursor_init(&cur, &bv);
 
@@ -1033,8 +643,8 @@ int c2_layout_add(struct c2_layout_schema *schema,
 
 	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
 
-	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
-						   &pair->dp_rec.db_buf.b_nob);
+	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
+						  &pair->dp_rec.db_buf.b_nob);
 	c2_bufvec_cursor_init(&cur, &bv);
 
 	rc = c2_layout_encode(schema->ls_domain, l, C2_LXO_DB_ADD,
@@ -1141,8 +751,8 @@ int c2_layout_update(struct c2_layout_schema *schema,
 	/* Now, proceed to update the layout. */
 	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
 
-	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
-						   &pair->dp_rec.db_buf.b_nob);
+	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
+						  &pair->dp_rec.db_buf.b_nob);
 	c2_bufvec_cursor_init(&cur, &bv);
 
 	rc = c2_layout_encode(schema->ls_domain, l, C2_LXO_DB_UPDATE,
@@ -1219,8 +829,8 @@ int c2_layout_delete(struct c2_layout_schema *schema,
 
 	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
 
-	bv =  (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
-						   &pair->dp_rec.db_buf.b_nob);
+	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
+						  &pair->dp_rec.db_buf.b_nob);
 	c2_bufvec_cursor_init(&cur, &bv);
 
 	rc = c2_layout_encode(schema->ls_domain, l, C2_LXO_DB_DELETE,

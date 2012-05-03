@@ -74,6 +74,7 @@ bool layout_invariant(const struct c2_layout *l);
 bool enum_invariant(const struct c2_layout_enum *le, uint64_t lid);
 bool striped_layout_invariant(const struct c2_layout_striped *stl,
 			      uint64_t lid);
+int schema_invariant(const struct c2_layout_schema *schema);
 
 bool is_layout_type_valid(uint32_t lt_id, const struct c2_layout_domain *dom);
 bool is_enum_type_valid(uint32_t let_id, const struct c2_layout_domain *dom);
