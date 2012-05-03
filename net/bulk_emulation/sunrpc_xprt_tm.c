@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -232,7 +232,7 @@ static void sunrpc_skulker_timeout_buffers(struct c2_net_domain *dom,
 		c2_mutex_lock(&tm->ntm_mutex);
 		/* iterate over buffers in each queue */
 		for (qt = C2_NET_QT_MSG_RECV; qt < C2_NET_QT_NR; ++qt) {
-			c2_tlist_for(&c2_net_tm_tl, &tm->ntm_q[qt], nb) {
+			c2_tl_for(c2_net_tm, &tm->ntm_q[qt], nb) {
 				if (nb->nb_timeout == C2_TIME_NEVER)
 					continue;
 				if (c2_time_after(nb->nb_timeout, now))
@@ -243,18 +243,16 @@ static void sunrpc_skulker_timeout_buffers(struct c2_net_domain *dom,
 				   may not always notice or honor this flag.
 				   The cancel wf supplies the proper error
 				   code.
-				*/
+				 */
 				sunrpc_xo_buf_del(nb);
-			} c2_tlist_endfor;
+			} c2_tl_endfor;
 		}
 		c2_mutex_unlock(&tm->ntm_mutex);
 	}
 	return;
 }
 
-/**
-   @} bulksunrpc
-*/
+/** @} */ /* bulksunrpc */
 
 /*
  *  Local variables:

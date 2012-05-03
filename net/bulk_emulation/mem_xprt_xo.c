@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -31,7 +31,7 @@
 /**
    List of in-memory network domains.
    Protected by struct c2_net_mutex.
-*/
+ */
 static struct c2_list  mem_domains;
 
 /* forward reference */
@@ -60,7 +60,7 @@ void c2_mem_xprt_fini(void)
 
    Static functions should be declared in the private header file
    so that the order of their definition does not matter.
-*/
+ */
 #include "net/bulk_emulation/mem_xprt_ep.c"
 #include "net/bulk_emulation/mem_xprt_tm.c"
 #include "net/bulk_emulation/mem_xprt_msg.c"
@@ -125,7 +125,7 @@ static int mem_copy_buffer(struct c2_net_buffer *d_nb,
 
 /**
    Add a work item to the work list
-*/
+ */
 static void mem_wi_add(struct c2_net_bulk_mem_work_item *wi,
 		       struct c2_net_bulk_mem_tm_pvt *tp)
 {
@@ -686,11 +686,11 @@ static int mem_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 
 	/* walk through the queues and cancel every buffer */
 	for (qt = 0; qt < C2_NET_QT_NR; ++qt) {
-		c2_tlist_for(&c2_net_tm_tl, &tm->ntm_q[qt], nb) {
+		c2_tl_for(c2_net_tm, &tm->ntm_q[qt], nb) {
 			mem_xo_buf_del(nb);
 			/* bump the del stat count */
 			tm->ntm_qstats[qt].nqs_num_dels += 1;
-		} c2_tlist_endfor;
+		} c2_tl_endfor;
 	}
 
 	/* set transition state and add the state change work item */
@@ -746,9 +746,7 @@ struct c2_net_xprt c2_net_bulk_mem_xprt = {
 	.nx_ops  = &mem_xo_xprt_ops
 };
 
-/**
-   @} bulkmem
-*/
+/** @} */ /* bulkmem */
 
 /*
  *  Local variables:

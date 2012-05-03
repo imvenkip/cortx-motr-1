@@ -518,7 +518,7 @@ static int tx_fini_pre(struct c2_db_tx *tx, bool commit)
 		if (result != 0)
 			return result;
 	}
-	c2_tlist_for(&txw_tl, &tx->dt_waiters, w) {
+	c2_tl_for(txw, &tx->dt_waiters, w) {
 		txw_tlist_del(w);
 		if (!commit) {
 			w->tw_abort(w);
@@ -529,7 +529,7 @@ static int tx_fini_pre(struct c2_db_tx *tx, bool commit)
 			w->tw_commit(w);
 			w->tw_i.tw_lsn = lsn;
 		}
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	return 0;
 }
 
@@ -828,12 +828,12 @@ static void dbenv_thread(struct c2_dbenv *env)
 			next.file   = st->st_disk_file;
 			next.offset = st->st_disk_offset;
 			c2_free(st);
-			c2_tlist_for(&enw_tl, &di->d_waiters, w) {
+			c2_tl_for(enw, &di->d_waiters, w) {
 				if (log_compare(&w->tw_i.tw_lsn, &next) <= 0) {
 					w->tw_persistent(w);
 					waiter_fini(w);
 				}
-			} c2_tlist_endfor;
+			} c2_tl_endfor;
 		}
 		deadline = c2_time_now();
 		c2_time_set(&delay, 1, 0);
