@@ -268,30 +268,22 @@ static bool addr_is_4k_aligned(void *addr)
 	return ((uint64_t)addr & C2_0VEC_MASK) == 0;
 }
 
-static bool c2_0vec_invariant(struct c2_0vec *zvec)
+static bool c2_0vec_invariant(const struct c2_0vec *zvec)
 {
-	uint32_t	  i;
-	struct c2_bufvec *bvec;
+	const struct c2_bufvec *bvec = &zvec->z_bvec;
 
-	if (zvec == NULL || zvec->z_index == NULL)
-		return false;
-
-	bvec = &zvec->z_bvec;
-	if (bvec->ov_buf == NULL ||
-	    bvec->ov_vec.v_count == NULL ||
-	    bvec->ov_vec.v_nr == 0)
-		return false;
-
-	for (i = 0; i < bvec->ov_vec.v_nr; ++i)
-		/* Checks if all segments are aligned on 4k boundary
-		   and the sizes of all segments except the last one
-		   are positive multiples of 4k. */
-		if (!addr_is_4k_aligned(bvec->ov_buf[i]) ||
-		    (bvec->ov_vec.v_count[i] & C2_0VEC_MASK &&
-		     i < bvec->ov_vec.v_nr - 1))
-			return false;
-
-	return true;
+	return zvec != NULL && zvec->z_index != NULL &&
+		bvec->ov_buf != NULL &&
+		bvec->ov_vec.v_count != NULL &&
+		bvec->ov_vec.v_nr != 0 &&
+		/*
+		 * All segments are aligned on 4k boundary and the sizes of all
+		 * segments except the last one are positive multiples of 4k.
+		 */
+		c2_forall(i, bvec->ov_vec.v_nr,
+			  addr_is_4k_aligned(bvec->ov_buf[i]) &&
+			  ergo(i < bvec->ov_vec.v_nr - 1,
+			       !(bvec->ov_vec.v_count[i] & C2_0VEC_MASK)));
 }
 
 int c2_0vec_init(struct c2_0vec *zvec, uint32_t segs_nr)

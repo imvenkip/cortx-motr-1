@@ -239,9 +239,9 @@ void c2_fop_itype_watch_add(struct c2_fit_type *itype,
 {
 	struct c2_fit_watch *scan;
 
-	c2_tlist_for(&wat_tl, &itype->fit_watch, scan) {
+	c2_tl_for(wat, &itype->fit_watch, scan) {
 		C2_PRE(scan->fif_field != watch->fif_field);
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 
 	wat_tlink_init_at(watch, &itype->fit_watch);
 	mod_tlist_init(&watch->fif_mod);
@@ -502,18 +502,18 @@ static bool has_watches(struct c2_fit_type *itype,
                 return true;
 
 	*bits = 0;
-	c2_tlist_for(&wat_tl, &itype->fit_watch, watch) {
+	c2_tl_for(wat, &itype->fit_watch, watch) {
 		if (watch->fif_field == child->ff_type) {
 			*bits = watch->fif_bits;
-			c2_tlist_for(&mod_tl, &watch->fif_mod, mod) {
+			c2_tl_for(mod, &watch->fif_mod, mod) {
 				if (mod->fm_field == child) {
 					*bits |= mod->fm_bits_add;
 					*bits &= ~mod->fm_bits_sub;
 				}
-			} c2_tlist_endfor;
+			} c2_tl_endfor;
 			return true;
 		}
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	return false;
 }
 
