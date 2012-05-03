@@ -1328,7 +1328,7 @@ static void nlx_ping_server(struct nlx_ping_ctx *ctx)
 	int rc;
 	struct c2_net_buffer *nb;
 	struct c2_clink tmwait;
-	int num_recv_bufs = max32u(ctx->pc_nr_bufs / 4, 2);
+	unsigned int num_recv_bufs = max32u(ctx->pc_nr_bufs / 8, 2);
 	int buf_size;
 
 	ctx->pc_tm.ntm_callbacks = &stm_cb;
@@ -1336,6 +1336,11 @@ static void nlx_ping_server(struct nlx_ping_ctx *ctx)
 
 	ctx->pc_ident = "Server";
 	C2_ASSERT(ctx->pc_nr_bufs > 2);
+	if (ctx->pc_nr_recv_bufs > ctx->pc_nr_bufs / 2)
+		ctx->pc_nr_recv_bufs = num_recv_bufs;
+	if (ctx->pc_nr_recv_bufs < 2)
+		ctx->pc_nr_recv_bufs = num_recv_bufs;
+	num_recv_bufs = ctx->pc_nr_recv_bufs;
 	C2_ASSERT(num_recv_bufs >= 2);
 	rc = ping_init(ctx);
 	C2_ASSERT(rc == 0);
@@ -1360,11 +1365,13 @@ static void nlx_ping_server(struct nlx_ping_ctx *ctx)
 	}
 	C2_ASSERT(ctx->pc_min_recv_size >= PING_DEF_MIN_RECV_SIZE);
 	C2_ASSERT(ctx->pc_max_recv_msgs >= 1);
-	ctx->pc_ops->pf("%s receive buffer parameters:\n"
-			"\tnum_recv_bufs=%d\n"
-			"\tbuffer size=%d\n"
-			"\tmin_recv_size=%d\n\tmax_recv_msgs=%d\n",
-			ctx->pc_ident, num_recv_bufs, buf_size,
+	ctx->pc_ops->pf("%s buffer parameters:\n"
+			"\t  total buffers=%u\n"
+			"\t    buffer size=%u\n"
+			"\treceive buffers=%u\n"
+			"\t  min_recv_size=%d\n"
+			"\t  max_recv_msgs=%d\n",
+			ctx->pc_ident, ctx->pc_nr_bufs, buf_size, num_recv_bufs,
 			ctx->pc_min_recv_size, ctx->pc_max_recv_msgs);
 
 	c2_mutex_lock(&ctx->pc_mutex);
@@ -1461,7 +1468,8 @@ void nlx_ping_server_spawn(struct c2_thread *server_thread,
    @retval -errno failed to send to server
  */
 static int nlx_ping_client_msg_send_recv(struct nlx_ping_ctx *ctx,
-					 struct c2_net_end_point *server_ep)
+					 struct c2_net_end_point *server_ep,
+					 const char *data)
 {
 	int rc;
 	struct c2_net_buffer *nb;
@@ -1470,8 +1478,9 @@ static int nlx_ping_client_msg_send_recv(struct nlx_ping_ctx *ctx,
 	int recv_done = 0;
 	int retries = SEND_RETRIES;
 	c2_time_t session_timeout = C2_TIME_NEVER;
-	const char *data = "ping";
 
+	if (data == NULL)
+		data = "ping";
 	ctx->pc_compare_buf = data;
 
 	PING_OUT(ctx, 1, "%s: starting msg send/recv sequence\n",
@@ -1786,6 +1795,7 @@ void nlx_ping_client(struct nlx_ping_client_params *params)
 	int			 rc;
 	struct c2_net_end_point *server_ep;
 	char			*bp = NULL;
+	char                    *send_msg = NULL;
 	struct nlx_ping_ctx	 cctx = {
 		.pc_xprt = &c2_net_lnet_xprt,
 		.pc_ops  = params->ops,
@@ -1832,9 +1842,16 @@ void nlx_ping_client(struct nlx_ping_client_params *params)
 			bp[i] = "abcdefghi"[i % 9];
 	}
 
+	if (params->send_msg_size > 0) {
+		send_msg = c2_alloc(params->send_msg_size);
+		C2_ASSERT(send_msg);
+		for (i = 0; i < params->send_msg_size - 1; ++i)
+			send_msg[i] = "ABCDEFGHI"[i % 9];
+	}
+
 	for (i = 1; i <= params->loops; ++i) {
 		PING_OUT(&cctx, 1, "%s: Loop %d\n", cctx.pc_ident, i);
-		rc = nlx_ping_client_msg_send_recv(&cctx, server_ep);
+		rc = nlx_ping_client_msg_send_recv(&cctx, server_ep, send_msg);
 		if (rc != 0)
 			break;
 		rc = nlx_ping_client_passive_recv(&cctx, server_ep);
@@ -1848,6 +1865,7 @@ void nlx_ping_client(struct nlx_ping_client_params *params)
 	cctx.pc_ops->pqs(&cctx, false);
 	rc = nlx_ping_client_fini(&cctx, server_ep);
 	c2_free(bp);
+	c2_free(send_msg);
 	C2_ASSERT(rc == 0);
 fail:
 	c2_cond_fini(&cctx.pc_cond);

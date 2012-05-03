@@ -69,6 +69,7 @@ int main(int argc, char *argv[])
 	int			 loops = PING_DEF_LOOPS;
 	int			 nr_clients = PING_DEF_CLIENT_THREADS;
 	int			 nr_bufs = PING_DEF_BUFS;
+	unsigned		 nr_recv_bufs = 0;
 	int			 passive_size = 0;
 	int                      bulk_timeout = PING_DEF_BULK_TIMEOUT;
 	int                      msg_timeout = PING_DEF_MSG_TIMEOUT;
@@ -83,6 +84,7 @@ int main(int argc, char *argv[])
 	int                      server_debug = 0;
 	int                      server_min_recv_size = -1;
 	int                      server_max_recv_msgs = -1;
+	int                      send_msg_size = -1;
 	struct c2_thread	 server_thread;
 
 	rc = c2_init();
@@ -92,6 +94,9 @@ int main(int argc, char *argv[])
 			C2_FLAGARG('s', "run server only", &server_only),
 			C2_FLAGARG('c', "run client only", &client_only),
 			C2_FORMATARG('b', "number of buffers", "%i", &nr_bufs),
+			C2_FORMATARG('B', "number of receive buffers "
+				     "(server only)",
+				     "%u", &nr_recv_bufs),
 			C2_FORMATARG('l', "loops to run", "%i", &loops),
 			C2_FORMATARG('d', "passive data size", "%i",
 				     &passive_size),
@@ -123,10 +128,14 @@ int main(int argc, char *argv[])
 				     "%i", &server_debug),
 			C2_FLAGARG('A', "async event processing (old style)",
 				   &async_events),
-			C2_FORMATARG('R', "server min receive size",
+			C2_FORMATARG('R', "receive message max size "
+				     "(server only)",
 				     "%i", &server_min_recv_size),
-			C2_FORMATARG('M', "server max receive messages",
+			C2_FORMATARG('M', "max receive messages in a single "
+				     "buffer (server only)",
 				     "%i", &server_max_recv_msgs),
+			C2_FORMATARG('m', "message size (client only)",
+				     "%i", &send_msg_size),
 			C2_FORMATARG('v', "verbosity level",
 				     "%i", &verbose),
 			C2_FLAGARG('q', "quiet", &quiet));
@@ -180,6 +189,7 @@ int main(int argc, char *argv[])
 		else
 			sctx.pc_ops = &quiet_ops;
 		sctx.pc_nr_bufs = nr_bufs;
+		sctx.pc_nr_recv_bufs = nr_recv_bufs;
 		sctx.pc_segments = PING_SERVER_SEGMENTS;
 		sctx.pc_seg_size = PING_SERVER_SEGMENT_SIZE;
 		sctx.pc_passive_size = passive_size;
@@ -238,6 +248,7 @@ int main(int argc, char *argv[])
 			CPARAM_SET(server_network);
 			CPARAM_SET(server_portal);
 			CPARAM_SET(server_tmid);
+			CPARAM_SET(send_msg_size);
 			CPARAM_SET(verbose);
 #undef CPARAM_SET
 			params[i].client_id = i + 1;

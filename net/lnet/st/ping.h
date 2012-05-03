@@ -46,6 +46,7 @@ struct nlx_ping_ctx {
 	int32_t			              pc_rtmid;
 	int32_t				      pc_status;
 	uint32_t		              pc_nr_bufs;
+	uint32_t		              pc_nr_recv_bufs;
 	uint32_t		              pc_segments;
 	uint32_t		              pc_seg_size;
         uint32_t                              pc_seg_shift;
@@ -88,6 +89,7 @@ struct nlx_ping_client_params {
 	unsigned int nr_bufs;
 	int client_id;
 	int passive_size;
+	int send_msg_size;
 	int bulk_timeout;
 	int msg_timeout;
 	const char *client_network;

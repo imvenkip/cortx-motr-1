@@ -63,6 +63,10 @@ static uint nr_bufs = PING_DEF_BUFS;
 module_param(nr_bufs, uint, S_IRUGO);
 MODULE_PARM_DESC(nr_bufs, "total number of network buffers to allocate");
 
+static uint nr_recv_bufs = 0;
+module_param(nr_recv_bufs, uint, S_IRUGO);
+MODULE_PARM_DESC(nr_recv_bufs, "number of receive buffers (server only)");
+
 static uint passive_size = 0;
 module_param(passive_size, uint, S_IRUGO);
 MODULE_PARM_DESC(passive_size, "size to offer for passive recv message");
@@ -118,6 +122,10 @@ MODULE_PARM_DESC(server_min_recv_size, "server min receive size (optional)");
 static int server_max_recv_msgs = -1;
 module_param(server_max_recv_msgs, int, S_IRUGO);
 MODULE_PARM_DESC(server_max_recv_msgs, "server max receive msgs (optional)");
+
+static int send_msg_size = -1;
+module_param(send_msg_size, int, S_IRUGO);
+MODULE_PARM_DESC(send_msg_size, "client message size (optional)");
 
 static int server_debug = 0;
 module_param(server_debug, int, S_IRUGO);
@@ -232,6 +240,7 @@ static int __init c2_netst_init_k(void)
 			sctx.pc_ops = &quiet_ops;
 
 		sctx.pc_nr_bufs = nr_bufs;
+		sctx.pc_nr_recv_bufs = nr_recv_bufs;
 		sctx.pc_passive_size = passive_size;
 		sctx.pc_msg_timeout = msg_timeout;
 		sctx.pc_bulk_timeout = bulk_timeout;
@@ -276,6 +285,7 @@ static int __init c2_netst_init_k(void)
 			CPARAM_SET(server_network);
 			CPARAM_SET(server_portal);
 			CPARAM_SET(server_tmid);
+			CPARAM_SET(send_msg_size);
 			CPARAM_SET(verbose);
 #undef CPARAM_SET
 			params[i].client_id = i + 1;
