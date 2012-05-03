@@ -350,7 +350,7 @@ enum {
 	C2_RPC_TM_MIN_RECV_BUFFERS_NR = 16,
 	/** Maximum number of TM's in each network domain. */
 	C2_RPC_TM_MAX_NR	      = 64,
-	/** Segement size of network buffer in the pool. */
+	/** Segment size of network buffer in the pool. */
 	C2_RPC_SEG_SIZE		      = 1 << 12,
 	/**
 	   Minimum remaining size in a buffer in TM receive queue to allow reuse
@@ -561,7 +561,7 @@ struct c2_rpc_machine {
 
 	/** Buffer pool from which TM receive buffers are provisioned. */
 	struct c2_net_buffer_pool	 *rm_buffer_pool;
-  
+
 	/** @see c2_net_transfer_mc:ntm_recv_queue_length */
 	uint32_t			  rm_tm_recv_queue_min_length;
 	/** @see c2_net_transfer_mc:ntm_recv_queue_min_recv_size */

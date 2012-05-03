@@ -165,7 +165,7 @@ int c2_rpc_net_buffer_pool__setup(struct c2_net_domain *ndom,
 void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool)
 {
 	C2_PRE(app_pool != NULL);
-	
+
 	c2_net_buffer_pool_lock(app_pool);
 	c2_net_buffer_pool_fini(app_pool);
 	c2_free(app_pool);

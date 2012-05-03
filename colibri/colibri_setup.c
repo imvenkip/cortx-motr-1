@@ -620,10 +620,10 @@ static struct c2_net_buffer_pool *cs_buffer_pool_get(struct c2_colibri *cctx,
 {
 	struct c2_net_buffer_pool  *buffer_pool;
 	struct c2_cs_buffer_pool   *cs_bp;
-	
+
 	C2_PRE(cctx != NULL);
 	C2_PRE(ndom != NULL);
-	
+
 	c2_tlist_for(&cs_buffer_pools_tl, &cctx->cc_buffer_pools, cs_bp) {
 		buffer_pool = &cs_bp->cs_buffer_pool;
 		if (buffer_pool != NULL && buffer_pool->nbp_ndom == ndom)
@@ -797,7 +797,7 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 	struct c2_cs_buffer_pool *cs_bp;
 
 	C2_PRE(cctx != NULL);
-	
+
 	c2_tlist_for(&ndoms_descr, &cctx->cc_ndoms, ndom) {
 		C2_PRE(cctx->cc_segs_nr <=
 		       c2_net_domain_get_max_buffer_segments(ndom));
@@ -832,7 +832,7 @@ static void cs_buffer_pool_fini(struct c2_colibri *cctx)
 {
 	struct c2_cs_buffer_pool   *cs_bp;
 	struct c2_net_buffer_pool  *buffer_pool;
-	
+
 	C2_PRE(cctx != NULL);
 
 	c2_tlist_for(&cs_buffer_pools_tl, &cctx->cc_buffer_pools, cs_bp) {

@@ -363,7 +363,7 @@ static void rpc_recv_pool_buffer_put(struct c2_net_buffer *nb)
 	C2_PRE(tm->ntm_recv_pool != NULL && nb->nb_pool !=NULL);
 	C2_PRE(tm->ntm_recv_pool == nb->nb_pool);
 	C2_PRE(!(nb->nb_flags & C2_NET_BUF_QUEUED));
-	
+
 	c2_net_buffer_pool_lock(tm->ntm_recv_pool);
 	c2_net_buffer_pool_put(tm->ntm_recv_pool, nb,
 			       tm->ntm_pool_colour);
