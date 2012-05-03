@@ -67,9 +67,9 @@ static uint nr_recv_bufs = 0;
 module_param(nr_recv_bufs, uint, S_IRUGO);
 MODULE_PARM_DESC(nr_recv_bufs, "number of receive buffers (server only)");
 
-static uint passive_size = 0;
-module_param(passive_size, uint, S_IRUGO);
-MODULE_PARM_DESC(passive_size, "size to offer for passive recv message");
+static char *bulk_size = NULL;
+module_param(bulk_size, charp, S_IRUGO);
+MODULE_PARM_DESC(bulk_size, "bulk data size");
 
 static int active_bulk_delay = 0;
 module_param(active_bulk_delay, int, S_IRUGO);
@@ -182,6 +182,7 @@ static struct nlx_ping_client_params *params;
 static int __init c2_netst_init_k(void)
 {
 	int rc;
+	uint64_t buffer_size;
 
 	/* parse module options */
 	if (nr_bufs < PING_MIN_BUFS) {
@@ -189,10 +190,10 @@ static int __init c2_netst_init_k(void)
 		       PING_MIN_BUFS);
 		return -EINVAL;
 	}
-	if (passive_size < 0 || passive_size > PING_MAX_PASSIVE_SIZE) {
-		/* need to leave room for encoding overhead */
-		printk(KERN_WARNING "Max supported passive data size: %d\n",
-		       PING_MAX_PASSIVE_SIZE);
+	buffer_size = nlx_ping_parse_uint64(bulk_size);
+	if (buffer_size > PING_MAX_BUFFER_SIZE) {
+		printk(KERN_WARNING "Max supported bulk data size: %d\n",
+		       PING_MAX_BUFFER_SIZE);
 		return -EINVAL;
 	}
 	if (nr_clients > PING_MAX_CLIENT_THREADS) {
@@ -241,7 +242,7 @@ static int __init c2_netst_init_k(void)
 
 		sctx.pc_nr_bufs = nr_bufs;
 		sctx.pc_nr_recv_bufs = nr_recv_bufs;
-		sctx.pc_passive_size = passive_size;
+		sctx.pc_bulk_size = buffer_size;
 		sctx.pc_msg_timeout = msg_timeout;
 		sctx.pc_bulk_timeout = bulk_timeout;
 		sctx.pc_server_bulk_delay = active_bulk_delay;
@@ -276,7 +277,6 @@ static int __init c2_netst_init_k(void)
 #define CPARAM_SET(f) params[i].f = f
 			CPARAM_SET(loops);
 			CPARAM_SET(nr_bufs);
-			CPARAM_SET(passive_size);
 			CPARAM_SET(bulk_timeout);
 			CPARAM_SET(msg_timeout);
 			CPARAM_SET(client_network);
@@ -288,6 +288,7 @@ static int __init c2_netst_init_k(void)
 			CPARAM_SET(send_msg_size);
 			CPARAM_SET(verbose);
 #undef CPARAM_SET
+			params[i].bulk_size = buffer_size;
 			params[i].client_id = i + 1;
 			params[i].client_pid = C2_NET_LNET_PID;
 			params[i].server_pid = C2_NET_LNET_PID;

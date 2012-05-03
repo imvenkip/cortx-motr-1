@@ -52,7 +52,7 @@ struct nlx_ping_ctx {
         uint32_t                              pc_seg_shift;
 	int                                   pc_min_recv_size;
 	int                                   pc_max_recv_msgs;
-	int32_t				      pc_passive_size;
+	uint64_t			      pc_bulk_size;
 	struct c2_net_buffer		     *pc_nbs;
 	const struct c2_net_buffer_callbacks *pc_buf_callbacks;
 	struct c2_bitmap		      pc_nbbm;
@@ -88,7 +88,7 @@ struct nlx_ping_client_params {
 	int loops;
 	unsigned int nr_bufs;
 	int client_id;
-	int passive_size;
+	uint64_t bulk_size;
 	int send_msg_size;
 	int bulk_timeout;
 	int msg_timeout;
@@ -119,15 +119,14 @@ enum {
 	PING_DEF_MSG_TIMEOUT = 5,
 	PING_DEF_BULK_TIMEOUT = 10,
 
-	PING_CLIENT_SEGMENTS = 8,
-	PING_CLIENT_SEGMENT_SIZE = 4096,
-	PING_CLIENT_SEGMENT_SHIFT = 12,
-	PING_SERVER_SEGMENTS = 8,
-	PING_SERVER_SEGMENT_SIZE = 4096,
-	PING_SERVER_SEGMENT_SHIFT = 12,
-	/* leave some room for overhead */
-	PING_MAX_PASSIVE_SIZE =
-		PING_SERVER_SEGMENTS * PING_SERVER_SEGMENT_SIZE - 1024,
+	PING_SEGMENT_SIZE    = 4096,
+	PING_SEGMENT_SHIFT   = 12,
+	PING_MAX_SEGMENTS    = 256,
+	PING_MAX_BUFFER_SIZE = PING_MAX_SEGMENTS * PING_SEGMENT_SIZE,
+	PING_DEF_SEGMENTS    = 8,
+	PING_DEF_BUFFER_SIZE = PING_DEF_SEGMENTS * PING_SEGMENT_SIZE,
+
+	PING_MSG_OVERHEAD = 2, /* Msg type byte + '\0' */
 
 	PING_DEF_MIN_RECV_SIZE = 100, /* empirical observation: 58 */
 
@@ -158,6 +157,7 @@ void nlx_ping_client(struct nlx_ping_client_params *params);
 void nlx_ping_print_qstats_tm(struct nlx_ping_ctx *ctx, bool reset);
 void nlx_ping_print_qstats_total(const char *ident,
 				 const struct nlx_ping_ops *ops);
+uint64_t nlx_ping_parse_uint64(const char *s);
 void nlx_ping_init(void);
 void nlx_ping_fini(void);
 

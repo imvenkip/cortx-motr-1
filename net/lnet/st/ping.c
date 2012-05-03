@@ -162,6 +162,35 @@ void nlx_ping_print_qstats_total(const char *ident,
 	ping_print_qstats(&tctx, ping_qs_total, false);
 }
 
+uint64_t nlx_ping_parse_uint64(const char *s)
+{
+	const char *fmt2 = "%lu%c";
+	const char *fmt1 = "%lu";
+	uint64_t len;
+	uint64_t mult = 1;
+	char unit;
+
+	if (s == NULL)
+		return 0;
+	if (sscanf(s, fmt2, &len, &unit) == 2) {
+		if (unit == 'K')
+			mult = 1 << 10;
+		else if (unit == 'M')
+			mult = 1 << 20;
+		else if (unit == 'G')
+			mult = 1 << 30;
+		else if (unit == 'T')
+			mult = (uint64_t) 1 << 40;
+		else
+			C2_ASSERT(unit == 'K' || unit == 'M' || unit == 'G' ||
+				  unit == 'T');
+	} else
+		sscanf(s, fmt1, &len);
+	C2_ASSERT(len != 0);
+	C2_ASSERT(mult >= 1);
+	return len * mult;
+}
+
 static void ping_sleep_secs(int secs)
 {
 	c2_time_t req, rem;
@@ -274,6 +303,7 @@ static int encode_msg(struct c2_net_buffer *nb, const char *str)
 /** encode a descriptor into a net buffer, not zero-copy */
 static int encode_desc(struct c2_net_buffer *nb,
 		       bool send_desc,
+		       unsigned passive_size,
 		       const struct c2_net_buf_desc *desc)
 {
 	struct c2_bufvec_cursor cur;
@@ -288,10 +318,12 @@ static int encode_desc(struct c2_net_buffer *nb,
 
 	/* only support sending net_desc in single chunks in this test */
 	step = c2_bufvec_cursor_step(&cur);
-	C2_ASSERT(step >= 9 + desc->nbd_len);
-	nb->nb_length = 10 + desc->nbd_len;
+	C2_ASSERT(step >= 18 + desc->nbd_len);
+	nb->nb_length = 19 + desc->nbd_len;
 
-	bp += sprintf(bp, "%08d", desc->nbd_len);
+	bp += sprintf(bp, "%08u", desc->nbd_len);
+	++bp;				/* +nul */
+	bp += sprintf(bp, "%08u", passive_size);
 	++bp;				/* +nul */
 	memcpy(bp, desc->nbd_data, desc->nbd_len);
 	return 0;
@@ -311,6 +343,7 @@ struct ping_msg {
 		char *pm_str;
 		struct c2_net_buf_desc pm_desc;
 	} pm_u;
+	unsigned pm_passive_size;
 };
 
 /** decode a net buffer, allocates memory and copies payload */
@@ -357,7 +390,13 @@ static int decode_msg(struct c2_net_buffer *nb,
 		c2_bufvec_cursor_init(&bv_cur, &bv);
 		i = c2_bufvec_cursor_copy(&bv_cur, &cur, 9);
 		C2_ASSERT(i == 9);
-		i = sscanf(nine, "%d", &len);
+		i = sscanf(nine, "%u", &len);
+		C2_ASSERT(i == 1);
+
+		c2_bufvec_cursor_init(&bv_cur, &bv);
+		i = c2_bufvec_cursor_copy(&bv_cur, &cur, 9);
+		C2_ASSERT(i == 9);
+		i = sscanf(nine, "%u", &msg->pm_passive_size);
 		C2_ASSERT(i == 1);
 
 		buflen = len;
@@ -715,6 +754,7 @@ static void s_m_recv_cb(const struct c2_net_buffer_event *ev)
 		}
 	} else {
 		struct c2_net_buffer *nb;
+		unsigned bulk_size = ctx->pc_segments * ctx->pc_seg_size;
 
 		rc = decode_msg(ev->nbe_buffer, ev->nbe_length, ev->nbe_offset,
 				&msg);
@@ -725,6 +765,16 @@ static void s_m_recv_cb(const struct c2_net_buffer_event *ev)
 			ctx->pc_ops->pf("%s: dropped msg, "
 					"no buffer available\n", idbuf);
 			c2_atomic64_inc(&ctx->pc_errors);
+		} else if ((msg.pm_type == PM_SEND_DESC ||
+			    msg.pm_type == PM_RECV_DESC) &&
+			   msg.pm_passive_size > bulk_size) {
+			const char *req = msg.pm_type == PM_SEND_DESC ?
+				"receive" : "send";
+			ctx->pc_ops->pf("%s: dropped msg, bulk %s request "
+					"too large (%u)\n", idbuf, req,
+					msg.pm_passive_size);
+			c2_atomic64_inc(&ctx->pc_errors);
+			ping_buf_put(ctx, nb);
 		} else {
 			C2_ALLOC_PTR(wi);
 			nb->nb_ep = ev->nbe_ep; /* save for later, if set */
@@ -733,9 +783,11 @@ static void s_m_recv_cb(const struct c2_net_buffer_event *ev)
 			wi->pwi_nb = nb;
 			if (msg.pm_type == PM_SEND_DESC) {
 				PING_OUT(ctx, 1, "%s: got desc for "
-					 "active recv\n", idbuf);
+					 "active recv: sz=%u\n", idbuf,
+					 msg.pm_passive_size);
 				wi->pwi_type = C2_NET_QT_ACTIVE_BULK_RECV;
 				nb->nb_qtype = C2_NET_QT_ACTIVE_BULK_RECV;
+				nb->nb_length = msg.pm_passive_size;
 				c2_net_desc_copy(&msg.pm_u.pm_desc,
 						 &nb->nb_desc);
 				nb->nb_ep = NULL; /* not needed */
@@ -747,26 +799,29 @@ static void s_m_recv_cb(const struct c2_net_buffer_event *ev)
 				}
 			} else if (msg.pm_type == PM_RECV_DESC) {
 				PING_OUT(ctx, 1, "%s: got desc for "
-					 "active send\n", idbuf);
+					 "active send: sz=%u\n", idbuf,
+					 msg.pm_passive_size);
 				wi->pwi_type = C2_NET_QT_ACTIVE_BULK_SEND;
 				nb->nb_qtype = C2_NET_QT_ACTIVE_BULK_SEND;
+				nb->nb_length = 0;
 				c2_net_desc_copy(&msg.pm_u.pm_desc,
 						 &nb->nb_desc);
 				nb->nb_ep = NULL; /* not needed */
 				/* reuse encode_msg for convenience */
-				if (ctx->pc_passive_size == 0)
+				if (msg.pm_passive_size == 0)
 					rc = encode_msg(nb, DEF_RESPONSE);
 				else {
 					char *bp;
 					int i;
-					bp = c2_alloc(ctx->pc_passive_size);
+					bp = c2_alloc(msg.pm_passive_size);
 					C2_ASSERT(bp != NULL);
 					for (i = 0;
-					     i < ctx->pc_passive_size - 1; ++i)
+					     i < msg.pm_passive_size -
+						     PING_MSG_OVERHEAD; ++i)
 						bp[i] = "abcdefghi"[i % 9];
 					PING_OUT(ctx, 1, "%s: sending data "
-						 "%d bytes\n", idbuf,
-						 ctx->pc_passive_size);
+						 "%u bytes\n", idbuf,
+						 msg.pm_passive_size);
 					rc = encode_msg(nb, bp);
 					c2_free(bp);
 					C2_ASSERT(rc == 0);
@@ -996,6 +1051,7 @@ static int ping_init(struct nlx_ping_ctx *ctx)
 	int                rc;
 	char               addr[C2_NET_LNET_XEP_ADDR_LEN];
 	struct c2_clink    tmwait;
+	uint64_t           bsz;
 
 	c2_list_init(&ctx->pc_work_queue);
 	c2_atomic64_set(&ctx->pc_errors, 0);
@@ -1034,10 +1090,18 @@ static int ping_init(struct nlx_ping_ctx *ctx)
 		goto fail;
 	}
 
+	ctx->pc_seg_shift = PING_SEGMENT_SHIFT;
+	ctx->pc_seg_size = PING_SEGMENT_SIZE;
+        bsz = ctx->pc_bulk_size > 0 ? ctx->pc_bulk_size : PING_DEF_BUFFER_SIZE;
+	ctx->pc_segments = bsz / ctx->pc_seg_size +
+		(bsz % ctx->pc_seg_size != 0 ? 1 : 0);
+	C2_ASSERT(ctx->pc_segments * ctx->pc_seg_size <= PING_MAX_BUFFER_SIZE);
 	rc = alloc_buffers(ctx->pc_nr_bufs, ctx->pc_segments, ctx->pc_seg_size,
 			   ctx->pc_seg_shift, &ctx->pc_nbs);
 	if (rc != 0) {
-		PING_ERR("buffer allocation failed: %d\n", rc);
+		PING_ERR("buffer allocation %u X %lu([%u][%u]) failed: %d\n",
+			 ctx->pc_nr_bufs, (unsigned long) bsz,
+			 ctx->pc_segments, ctx->pc_seg_size, rc);
 		goto fail;
 	}
 	rc = c2_bitmap_init(&ctx->pc_nbbm, ctx->pc_nr_bufs);
@@ -1442,9 +1506,6 @@ void nlx_ping_server_spawn(struct c2_thread *server_thread,
 	int rc;
 
 	sctx->pc_xprt = &c2_net_lnet_xprt;
-	sctx->pc_segments = PING_SERVER_SEGMENTS;
-	sctx->pc_seg_size = PING_SERVER_SEGMENT_SIZE;
-	sctx->pc_seg_shift = PING_SERVER_SEGMENT_SHIFT;
 	sctx->pc_pid = C2_NET_LNET_PID;
 
 	c2_mutex_lock(&sctx->pc_mutex);
@@ -1593,7 +1654,7 @@ static int nlx_ping_client_passive_recv(struct nlx_ping_ctx *ctx,
 	/* send descriptor in message to server */
 	nb = ping_buf_get(ctx);
 	C2_ASSERT(nb != NULL);
-	rc = encode_desc(nb, false, &nbd);
+	rc = encode_desc(nb, false, ctx->pc_seg_size * ctx->pc_segments, &nbd);
 	c2_net_desc_free(&nbd);
 	nb->nb_qtype = C2_NET_QT_MSG_SEND;
 	nb->nb_ep = server_ep;
@@ -1679,7 +1740,7 @@ static int nlx_ping_client_passive_send(struct nlx_ping_ctx *ctx,
 	/* send descriptor in message to server */
 	nb = ping_buf_get(ctx);
 	C2_ASSERT(nb != NULL);
-	rc = encode_desc(nb, true, &nbd);
+	rc = encode_desc(nb, true, ctx->pc_seg_size * ctx->pc_segments, &nbd);
 	c2_net_desc_free(&nbd);
 	nb->nb_qtype = C2_NET_QT_MSG_SEND;
 	nb->nb_ep = server_ep;
@@ -1800,10 +1861,7 @@ void nlx_ping_client(struct nlx_ping_client_params *params)
 		.pc_xprt = &c2_net_lnet_xprt,
 		.pc_ops  = params->ops,
 		.pc_nr_bufs = params->nr_bufs,
-		.pc_segments = PING_CLIENT_SEGMENTS,
-		.pc_seg_size = PING_CLIENT_SEGMENT_SIZE,
-		.pc_seg_shift = PING_CLIENT_SEGMENT_SHIFT,
-		.pc_passive_size = params->passive_size,
+		.pc_bulk_size = params->bulk_size,
 		.pc_tm = {
 			.ntm_state     = C2_NET_TM_UNDEFINED
 		},
@@ -1835,10 +1893,10 @@ void nlx_ping_client(struct nlx_ping_client_params *params)
 	if (params->client_id == 1)
 		ping_print_interfaces(&cctx);
 
-	if (params->passive_size != 0) {
-		bp = c2_alloc(params->passive_size);
+	if (params->bulk_size != 0) {
+		bp = c2_alloc(params->bulk_size);
 		C2_ASSERT(bp != NULL);
-		for (i = 0; i < params->passive_size - 1; ++i)
+		for (i = 0; i < params->bulk_size - PING_MSG_OVERHEAD; ++i)
 			bp[i] = "abcdefghi"[i % 9];
 	}
 

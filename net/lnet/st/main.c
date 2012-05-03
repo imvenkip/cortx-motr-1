@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
 	int			 nr_clients = PING_DEF_CLIENT_THREADS;
 	int			 nr_bufs = PING_DEF_BUFS;
 	unsigned		 nr_recv_bufs = 0;
-	int			 passive_size = 0;
+	uint64_t                 bulk_size = 0;
 	int                      bulk_timeout = PING_DEF_BULK_TIMEOUT;
 	int                      msg_timeout = PING_DEF_MSG_TIMEOUT;
 	int                      active_bulk_delay = 0;
@@ -98,8 +98,11 @@ int main(int argc, char *argv[])
 				     "(server only)",
 				     "%u", &nr_recv_bufs),
 			C2_FORMATARG('l', "loops to run", "%i", &loops),
-			C2_FORMATARG('d', "passive data size", "%i",
-				     &passive_size),
+			C2_STRINGARG('d', "bulk data size",
+				     LAMBDA(void, (const char *str) {
+					     bulk_size =
+						     nlx_ping_parse_uint64(str);
+					     })),
 			C2_FORMATARG('n', "number of client threads", "%i",
 				     &nr_clients),
 			C2_FORMATARG('D', "server active bulk delay",
@@ -152,10 +155,9 @@ int main(int argc, char *argv[])
 			PING_MIN_BUFS);
 		return 1;
 	}
-	if (passive_size < 0 || passive_size > PING_MAX_PASSIVE_SIZE) {
-		/* need to leave room for encoding overhead */
-		fprintf(stderr, "Max supported passive data size: %d\n",
-			PING_MAX_PASSIVE_SIZE);
+	if (bulk_size > PING_MAX_BUFFER_SIZE) {
+		fprintf(stderr, "Max supported bulk data size: %d\n",
+			PING_MAX_BUFFER_SIZE);
 		return 1;
 	}
 	if (client_only && server_only)
@@ -190,9 +192,7 @@ int main(int argc, char *argv[])
 			sctx.pc_ops = &quiet_ops;
 		sctx.pc_nr_bufs = nr_bufs;
 		sctx.pc_nr_recv_bufs = nr_recv_bufs;
-		sctx.pc_segments = PING_SERVER_SEGMENTS;
-		sctx.pc_seg_size = PING_SERVER_SEGMENT_SIZE;
-		sctx.pc_passive_size = passive_size;
+		sctx.pc_bulk_size = bulk_size;
 		sctx.pc_bulk_timeout = bulk_timeout;
 		sctx.pc_msg_timeout = msg_timeout;
 		sctx.pc_server_bulk_delay = active_bulk_delay;
@@ -239,7 +239,7 @@ int main(int argc, char *argv[])
 #define CPARAM_SET(f) params[i].f = f
 			CPARAM_SET(loops);
 			CPARAM_SET(nr_bufs);
-			CPARAM_SET(passive_size);
+			CPARAM_SET(bulk_size);
 			CPARAM_SET(msg_timeout);
 			CPARAM_SET(bulk_timeout);
 			CPARAM_SET(client_network);

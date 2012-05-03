@@ -10,7 +10,7 @@ fi
 usage() {
     echo "Usage: $0 {-s | -c | -s -c}"
     echo "   [-b #Bufs] [-l #Loops] [-n #Threads] [-o MessageTimeout]"
-    echo "   [-O PassiveTimeout] [-m MsgSize] [-d PassiveSize] [-D ActiveDelay]"
+    echo "   [-O BulkTimeout] [-m MsgSize] [-d BulkSize] [-D ActiveDelay]"
     echo "   [-B #ReceiveBufs] [-M MaxReceiveMsgs] [-R ReceiveMsgSize]"
     echo "   [-i ClientNetwork] [-p ClientPortal] [-t ClientTMID]"
     echo "   [-I ServerNetwork] [-P ServerPortal] [-T ServerTMID] [-A]"
@@ -28,7 +28,7 @@ usage() {
     echo "-X  Server debug"
     echo "-b  Number of buffers"
     echo "-c  Run client only"
-    echo "-d  Passive data size"
+    echo "-d  Bulk data size"
     echo "-i  Client network interface (ip@intf)"
     echo "-l  Loops to run"
     echo "-m  Message size (client only)"
@@ -78,7 +78,7 @@ Pasync_events=
 Pnr_bufs=
 Pnr_recv_bufs=
 Ploops=
-Ppassive_size="passive_size=30720"
+Pbulk_size="bulk_size=30K"
 Pbulk_timeout="bulk_timeout=20"
 Pmsg_timeout="msg_timeout=5"
 Pactive_bulk_delay=
@@ -135,7 +135,7 @@ while [ $# -gt 0 ]; do
 	(-T) Pserver_tmid="server_tmid=$1";;
 	(-X) Pserver_debug="server_debug=$1";;
 	(-b) Pnr_bufs="nr_bufs=$1";;
-	(-d) Ppassive_size="passive_size=$1";;
+	(-d) Pbulk_size="bulk_size=$1";;
 	(-i) Pclient_network="client_network=$1"; client_nid=$1;;
 	(-l) Ploops="loops=$1";;
 	(-m) Psend_msg_size="send_msg_size=$1";;
@@ -161,10 +161,10 @@ $Pasync_events $Pactive_bulk_delay $Pserver_debug"
 
 # Client parameters
 CPARM="$Pclient_only $Pclient_network $Pclient_portal $Pclient_tmid \
-$Pnr_clients $Ploops $Psend_msg_size $Ppassive_size $Pclient_debug"
+$Pnr_clients $Ploops $Psend_msg_size $Pclient_debug"
 
 # Other parameters
-OPARM="$Pquiet $Pverbose $Pnr_bufs $Pmsg_timeout $Pbulk_timeout"
+OPARM="$Pquiet $Pverbose $Pnr_bufs $Pbulk_size $Pmsg_timeout $Pbulk_timeout"
 
 echo $OPARM
 echo $SPARM
