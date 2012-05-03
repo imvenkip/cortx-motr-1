@@ -180,7 +180,6 @@ void c2_bufvec_free_aligned(struct c2_bufvec *bufvec, unsigned shift)
 	else if (bufvec != NULL) {
 		if (bufvec->ov_buf != NULL) {
 			uint32_t i;
-			
 			for (i = 0; i < bufvec->ov_vec.v_nr; ++i)
 				c2_free_aligned(bufvec->ov_buf[i],
 					bufvec->ov_vec.v_count[i], shift);

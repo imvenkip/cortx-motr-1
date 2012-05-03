@@ -752,8 +752,8 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 
 	c2_mutex_init(&machine->rm_chan_mutex);
 	c2_list_init(&machine->rm_chans);
+
 	machine->rm_buffer_pool = app_pool;
-	
 	rc = rpc_tm_setup(machine, net_dom, ep_addr);
 	if (rc < 0)
 		goto cleanup;

@@ -118,11 +118,11 @@ static void test_rpclib(void)
 		.rcx_nr_slots              = SESSION_SLOTS,
 		.rcx_timeout_s             = CONNECT_TIMEOUT,
 		.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT,
-        	.rcx_bufs_nr		   = 128,
-        	.rcx_segs_nr		   = 128,
-        	.rcx_tm_nr		   = 64,
-        	.rcx_seg_size		   = 4096,
-        	.rcx_recv_queue_min_length = 16,
+		.rcx_bufs_nr		   = C2_RPC_TM_RECV_BUFFERS_NR,
+		.rcx_segs_nr		   = 128,
+		.rcx_tm_nr		   = C2_RPC_TM_MAX_NR,
+		.rcx_seg_size		   = C2_RPC_SEG_SIZE,
+		.rcx_recv_queue_min_length = C2_RPC_TM_MIN_RECV_BUFFERS_NR,
 	};
 
 	/*

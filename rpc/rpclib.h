@@ -143,7 +143,7 @@ struct c2_rpc_client_ctx {
 	struct c2_cob_domain      *rcx_cob_dom;
 
 	/** Number of session slots */
-	uint32_t          	   rcx_nr_slots;
+	uint32_t		   rcx_nr_slots;
 
 	uint64_t		   rcx_max_rpcs_in_flight;
 
@@ -151,7 +151,7 @@ struct c2_rpc_client_ctx {
 	 * Time in seconds after which connection/session
 	 * establishment is aborted.
 	 */
-	uint32_t             	   rcx_timeout_s;
+	uint32_t		   rcx_timeout_s;
 
 	/**
 	 * Output parameters.

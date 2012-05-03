@@ -350,6 +350,7 @@ enum {
 	C2_RPC_TM_RECV_BUFFERS_NR     = 128,
 	C2_RPC_TM_MIN_RECV_BUFFERS_NR = 16,
 	C2_RPC_TM_MAX_NR	      = 64,
+	C2_RPC_SEG_SIZE		      = 1 << 12,
 	C2_RPC_MIN_RECV_SIZE	      = 1 << 12,
 	C2_RPC_MAX_RECV_MSGS	      = 1,
 };
@@ -551,8 +552,12 @@ struct c2_rpc_machine {
 
 	/** Buffer pool from which receive buffers are provisioned to TM's. */
 	struct c2_net_buffer_pool	 *rm_buffer_pool;
+
+	/** Refer ntm_recv_queue_length */
 	uint32_t			  rm_tm_recv_queue_min_length;
+	/** Refer ntm_recv_queue_min_recv_size */
 	uint32_t			  rm_min_recv_size;
+	/** Refer ntm_recv_queue_max_recv_msgs */
 	uint32_t			  rm_max_recv_msgs;
 };
 

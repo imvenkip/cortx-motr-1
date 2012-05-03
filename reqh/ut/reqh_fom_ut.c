@@ -244,7 +244,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 
 	rc = c2_rpc_net_buffer_pool__setup(net_dom, app_pool);
 	C2_UT_ASSERT(rc == 0);
-	
+
 	rpc_machine->rm_min_recv_size = C2_RPC_MIN_RECV_SIZE;
 	rpc_machine->rm_max_recv_msgs = C2_RPC_MAX_RECV_MSGS;
 

@@ -195,22 +195,21 @@ static int c2t1fs_rpc_init(void)
 	ndom        = &c2t1fs_globals.g_ndom;
 	laddr       =  c2t1fs_globals.g_laddr;
 	rpc_machine = &c2t1fs_globals.g_rpc_machine;
-	buffer_pool = c2t1fs_globals.g_buffer_pool;
+	buffer_pool =  c2t1fs_globals.g_buffer_pool;
 
 	rc = c2_rpc_net_buffer_pool__setup(ndom, buffer_pool);
 	if (rc != 0)
 		goto pool_fini;
-	
+
 	rpc_machine->rm_min_recv_size = C2_RPC_MIN_RECV_SIZE;
 	rpc_machine->rm_max_recv_msgs = C2_RPC_MAX_RECV_MSGS;
 
-	rc = c2_rpc_machine_init(rpc_machine, cob_dom, ndom, laddr, NULL/*reqh*/,
+	rc = c2_rpc_machine_init(rpc_machine, cob_dom, ndom, laddr, NULL,
 				 buffer_pool);
 	if (rc != 0)
 		goto cob_dom_fini;
 
 	tm = &rpc_machine->rm_tm;
-
 	c2_net_tm_colour_set(tm, tm_colours++);
 	c2_net_tm_pool_length_set(tm, C2_RPC_TM_MIN_RECV_BUFFERS_NR);
 

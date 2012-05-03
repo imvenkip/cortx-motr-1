@@ -38,7 +38,6 @@
 #include "balloc/balloc.h"
 #include "stob/ad.h"
 #include "stob/linux.h"
-#include "net/buffer_pool.h"
 #include "rpc/rpc2.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
@@ -674,12 +673,12 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 		rpcmach->rm_min_recv_size = cctx->cc_min_recv_size;
 	else
 		rpcmach->rm_min_recv_size = C2_RPC_MIN_RECV_SIZE;
-	
+
 	if (cctx->cc_max_recv_msgs != 0)
 		rpcmach->rm_max_recv_msgs = cctx->cc_max_recv_msgs;
 	else
 		rpcmach->rm_max_recv_msgs = C2_RPC_MAX_RECV_MSGS;
-	
+
 	buffer_pool = cs_buffer_pool_get(cctx, ndom);
 	rc = c2_rpc_machine_init(rpcmach, reqh->rh_cob_domain, ndom, ep, reqh,
 				buffer_pool);
@@ -794,7 +793,6 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 	struct c2_cs_buffer_pool *cs_bp;
 
 	C2_PRE(cctx != NULL);
-	C2_ASSERT(!c2_tlist_is_empty(&ndoms_descr, &cctx->cc_ndoms));
 	c2_tlist_for(&ndoms_descr, &cctx->cc_ndoms, ndom) {
 		C2_PRE(cctx->cc_segs_nr  <=
 		       c2_net_domain_get_max_buffer_segments(ndom));
@@ -805,13 +803,15 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 			return -ENOMEM;
 		if (cctx->cc_segs_nr != 0 && cctx->cc_seg_size != 0 &&
 		    cctx->cc_bufs_nr != 0 && cctx->cc_tm_nr != 0)
-			rc = c2_rpc_net_buffer_pool_setup(ndom, &cs_bp->cs_buffer_pool,
+			rc = c2_rpc_net_buffer_pool_setup(ndom,
+							 &cs_bp->cs_buffer_pool,
 							  cctx->cc_segs_nr,
 							  cctx->cc_seg_size,
 							  cctx->cc_bufs_nr,
 							  cctx->cc_tm_nr);
 		else
-			rc = c2_rpc_net_buffer_pool__setup(ndom, &cs_bp->cs_buffer_pool);
+			rc = c2_rpc_net_buffer_pool__setup(ndom,
+							&cs_bp->cs_buffer_pool);
 		if (rc != 0) {
 			c2_free(cs_bp);
 			return rc;

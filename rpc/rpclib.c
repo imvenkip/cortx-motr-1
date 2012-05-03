@@ -143,7 +143,7 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 }
 
 int c2_rpc_net_buffer_pool__setup(struct c2_net_domain *ndom,
- 				  struct c2_net_buffer_pool *app_pool)
+				  struct c2_net_buffer_pool *app_pool)
 {
 	int	    rc;
 	uint32_t    segs_nr;
@@ -151,14 +151,14 @@ int c2_rpc_net_buffer_pool__setup(struct c2_net_domain *ndom,
 	uint32_t    bufs_nr;
 	uint32_t    tm_nr;
 	c2_bcount_t buf_size;
-	
+
 	/* Add default values if arguments are not passed. */
-	seg_size = 4096;
+	seg_size = C2_RPC_SEG_SIZE;
 	buf_size = c2_net_domain_get_max_buffer_size(ndom);
 	segs_nr  = buf_size / seg_size;
 	bufs_nr  = C2_RPC_TM_RECV_BUFFERS_NR;
 	tm_nr    = C2_RPC_TM_MAX_NR;
-		
+
 	rc = c2_rpc_net_buffer_pool_setup(ndom, app_pool, segs_nr, seg_size,
 					  bufs_nr, tm_nr);
 	return rc;
@@ -201,12 +201,12 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 
 	if (rc != 0)
 		goto pool_fini;
-	
+
 	if (cctx->rcx_min_recv_size != 0)
 		rpc_machine->rm_min_recv_size = cctx->rcx_min_recv_size;
 	else
 		rpc_machine->rm_min_recv_size = C2_RPC_MIN_RECV_SIZE;
-	
+
 	if (cctx->rcx_max_recv_msgs != 0)
 		rpc_machine->rm_max_recv_msgs = cctx->rcx_max_recv_msgs;
 	else
@@ -223,7 +223,8 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	c2_net_tm_colour_set(tm, tm_colours++);
 
 	if (cctx->rcx_recv_queue_min_length == 0)
-		cctx->rcx_recv_queue_min_length = C2_RPC_TM_MIN_RECV_BUFFERS_NR; 
+		cctx->rcx_recv_queue_min_length = C2_RPC_TM_MIN_RECV_BUFFERS_NR;
+
 	c2_net_tm_pool_length_set(tm, cctx->rcx_recv_queue_min_length);
 
 	rc = c2_net_end_point_create(&cctx->rcx_remote_ep, tm,
@@ -303,8 +304,6 @@ C2_EXPORTED(c2_rpc_client_call);
 int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
 {
 	int rc;
-	struct c2_net_domain      *ndom;
-	ndom = cctx->rcx_net_dom;
 
 	rc = c2_rpc_session_destroy(&cctx->rcx_session, cctx->rcx_timeout_s);
 	if (rc != 0)
