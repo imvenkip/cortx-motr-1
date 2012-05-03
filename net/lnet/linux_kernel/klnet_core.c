@@ -950,13 +950,13 @@ static bool nlx_kcore_addr_in_use(struct nlx_core_ep_addr *cepa)
 	struct nlx_core_ep_addr *scanaddr;
 	C2_PRE(c2_mutex_is_locked(&nlx_kcore_mutex));
 
-	c2_tlist_for(&tms_tl, &nlx_kcore_tms, scan) {
+	c2_tl_for(tms, &nlx_kcore_tms, scan) {
 		scanaddr = &scan->ktm_addr;
 		if (nlx_core_ep_eq(scanaddr, cepa)) {
 			matched = true;
 			break;
 		}
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	return matched;
 }
 
@@ -974,7 +974,7 @@ static int nlx_kcore_max_tmid_find(struct nlx_core_ep_addr *cepa)
 	C2_PRE(c2_mutex_is_locked(&nlx_kcore_mutex));
 
 	/* list is in descending order by tmid */
-	c2_tlist_for(&tms_tl, &nlx_kcore_tms, scan) {
+	c2_tl_for(tms, &nlx_kcore_tms, scan) {
 		scanaddr = &scan->ktm_addr;
 		if (scanaddr->cepa_nid == cepa->cepa_nid &&
 		    scanaddr->cepa_pid == cepa->cepa_pid &&
@@ -984,7 +984,7 @@ static int nlx_kcore_max_tmid_find(struct nlx_core_ep_addr *cepa)
 			else if (scanaddr->cepa_tmid < tmid)
 				break;
 		}
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	return tmid >= 0 ? tmid : -EADDRNOTAVAIL;
 }
 
@@ -1000,13 +1000,13 @@ static void nlx_kcore_tms_list_add(struct nlx_kcore_transfer_mc *kctm)
 	struct nlx_core_ep_addr *cepa = &kctm->ktm_addr;
 	C2_PRE(c2_mutex_is_locked(&nlx_kcore_mutex));
 
-	c2_tlist_for(&tms_tl, &nlx_kcore_tms, scan) {
+	c2_tl_for(tms, &nlx_kcore_tms, scan) {
 		scanaddr = &scan->ktm_addr;
 		if (scanaddr->cepa_tmid <= cepa->cepa_tmid) {
 			tms_tlist_add_before(scan, kctm);
 			return;
 		}
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	tms_tlist_add_tail(&nlx_kcore_tms, kctm);
 }
 

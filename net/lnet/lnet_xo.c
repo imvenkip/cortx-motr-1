@@ -484,11 +484,11 @@ static int nlx_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 	/* walk through the queues and cancel every buffer if desired */
 	if (cancel)
 		for (qt = 0; qt < ARRAY_SIZE(tm->ntm_q); ++qt)
-			c2_tlist_for(&c2_net_tm_tl, &tm->ntm_q[qt], nb) {
+			c2_tl_for(c2_net_tm, &tm->ntm_q[qt], nb) {
 				nlx_xo_buf_del(nb);
 				/* bump the del stat count */
 				tm->ntm_qstats[qt].nqs_num_dels++;
-			} c2_tlist_endfor;
+			} c2_tl_endfor;
 
 	c2_cond_signal(&tp->xtm_ev_cond, &tm->ntm_mutex);
 	return 0;

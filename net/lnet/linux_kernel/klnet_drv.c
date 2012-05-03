@@ -1273,14 +1273,14 @@ static int nlx_dev_tm_cleanup(struct nlx_kcore_domain *kd,
 
 	if (!nlx_kcore_tm_invariant(ktm))
 		return -EBADR;
-	c2_tlist_for(&drv_bevs_tl, &ktm->ktm_drv_bevs, kbev) {
+	c2_tl_for(drv_bevs, &ktm->ktm_drv_bevs, kbev) {
 		WRITABLE_USER_PAGE_PUT(kbev->kbe_bev_loc.kl_page);
 		c2_mutex_lock(&kd->kd_drv_mutex);
 		drv_bevs_tlist_del(kbev);
 		c2_mutex_unlock(&kd->kd_drv_mutex);
 		drv_bevs_tlink_fini(kbev);
 		c2_free(kbev);
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	c2_mutex_lock(&kd->kd_drv_mutex);
 	drv_tms_tlist_del(ktm);
 	c2_mutex_unlock(&kd->kd_drv_mutex);
@@ -1556,7 +1556,7 @@ int nlx_dev_close(struct inode *inode, struct file *file)
 	 * 2. Clean up (stop, et al) all running TMs, this can take a while.
 	 * 3. De-register all buffers.
 	 */
-	c2_tlist_for(&drv_bufs_tl, &kd->kd_drv_bufs, kb) {
+	c2_tl_for(drv_bufs, &kd->kd_drv_bufs, kb) {
 		ktm = kb->kb_ktm;
 		if (ktm != NULL) {
 			/*
@@ -1567,8 +1567,8 @@ int nlx_dev_close(struct inode *inode, struct file *file)
 			 */
 			nlx_kcore_LNetMDUnlink(ktm, kb);
 		}
-	} c2_tlist_endfor;
-	c2_tlist_for(&drv_tms_tl, &kd->kd_drv_tms, ktm) {
+	} c2_tl_endfor;
+	c2_tl_for(drv_tms, &kd->kd_drv_tms, ktm) {
 		/*
 		 * Wait until no more buffers are associated with this TM and
 		 * the event callback is no longer using the ktm.  Must be in
@@ -1597,12 +1597,12 @@ int nlx_dev_close(struct inode *inode, struct file *file)
 		rc = nlx_dev_tm_cleanup(kd, ktm);
 		C2_ASSERT(rc == 0);
 		cleanup = true;
-	} c2_tlist_endfor;
-	c2_tlist_for(&drv_bufs_tl, &kd->kd_drv_bufs, kb) {
+	} c2_tl_endfor;
+	c2_tl_for(drv_bufs, &kd->kd_drv_bufs, kb) {
 		rc = nlx_dev_buf_deregister(kd, kb);
 		C2_ASSERT(rc == 0);
 		cleanup = true;
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 
 	if (cleanup)
 		NLX_ADDB_ADD(kd->kd_addb, nlx_addb_dev_cleanup, cleanup);

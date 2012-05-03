@@ -73,14 +73,14 @@ static int nlx_tm_timeout_buffers(struct c2_net_transfer_mc *tm, c2_time_t now)
 	tp = tm->ntm_xprt_private;
 	NLXDBGP(tp, 2, "%p: nlx_tm_timeout_buffers\n", tp);
 	for (i = 0, qt = C2_NET_QT_MSG_RECV; qt < C2_NET_QT_NR; ++qt) {
-		c2_tlist_for(&c2_net_tm_tl, &tm->ntm_q[qt], nb) {
+		c2_tl_for(c2_net_tm, &tm->ntm_q[qt], nb) {
 			/* nb_timeout set to C2_TIME_NEVER if disabled */
 			if (c2_time_after(nb->nb_timeout, now))
 				continue;
 			nb->nb_flags |= C2_NET_BUF_TIMED_OUT;
 			nlx_xo_buf_del(nb); /* cancel if possible; !dequeued */
 			++i;
-		} c2_tlist_endfor;
+		} c2_tl_endfor;
 	}
 	return i;
 }
