@@ -128,13 +128,13 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 	uint32_t                    i;
 	int                         rc;
 
-	C2_PRE(dom != NULL);
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cob_list != NULL);
 	C2_PRE(nr != NR_NONE);
 	C2_PRE(out != NULL && *out == NULL);
 
-	C2_ENTRY("BUILD, lid %llu", (unsigned long long)lid);
+	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
 	C2_ALLOC_PTR(list_enum);
 	if (list_enum == NULL) {
@@ -153,6 +153,7 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
 			   c2_addb_func_fail.ae_id,
 			   &layout_global_ctx, LID_APPLICABLE, lid, rc);
+		c2_free(list_enum);
 		goto out;
 	}
 
@@ -165,6 +166,8 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
 			   c2_addb_oom.ae_id,
 			   &layout_global_ctx, LID_APPLICABLE, lid, rc);
+		enum_fini(dom, &list_enum->lle_base);
+		c2_free(list_enum);
 		goto out;
 	}
 
@@ -179,12 +182,6 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 	C2_POST(c2_list_enum_invariant(list_enum, lid));
 
 out:
-	if (rc != 0 && list_enum != NULL) {
-		c2_free(list_enum->lle_list_of_cobs);
-		enum_fini(dom, &list_enum->lle_base);
-		c2_free(list_enum);
-	}
-
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
@@ -198,9 +195,11 @@ void list_fini(struct c2_layout_domain *dom,
 {
 	struct c2_layout_list_enum *list_enum;
 
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(e != NULL);
+	C2_PRE(lid != LID_NONE);
 
-	C2_ENTRY("DESTROY");
+	C2_ENTRY("");
 
 	list_enum = container_of(e, struct c2_layout_list_enum, lle_base);
 	C2_ASSERT(c2_list_enum_invariant(list_enum, lid));
@@ -248,15 +247,13 @@ static int list_register(struct c2_layout_domain *dom,
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
 			   c2_addb_func_fail.ae_id,
 			   &layout_global_ctx, !LID_APPLICABLE, LID_NONE, rc);
+		c2_free(lsd);
 		goto out;
 	}
 
 	dom->ld_schema.ls_type_data[et->let_id] = lsd;
 
 out:
-	if (rc != 0)
-		c2_free(lsd);
-
 	C2_LEAVE("Enum_type_id %lu, rc %d", (unsigned long)et->let_id, rc);
 	return rc;
 }
@@ -278,7 +275,6 @@ static void list_unregister(struct c2_layout_domain *dom,
 
 	lsd = dom->ld_schema.ls_type_data[et->let_id];
 
-	// todo check if local variable lsd can be removed
 	c2_table_fini(&lsd->lsd_cob_lists);
 
 	dom->ld_schema.ls_type_data[et->let_id] = NULL;
@@ -337,7 +333,9 @@ static int cob_list_read(struct c2_layout_schema *schema,
 	int                      rc;
 
 	C2_PRE(schema != NULL);
+	C2_PRE(tx != NULL);
 	C2_PRE(op == C2_LXO_DB_LOOKUP);
+	C2_PRE(cob_id != NULL);
 
 	lsd = schema->ls_type_data[c2_list_enum_type.let_id];
 
@@ -392,7 +390,7 @@ static int list_decode(struct c2_layout_domain *dom,
 	uint32_t                    i;
 	int                         rc;
 
-	C2_PRE(dom != NULL);
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(lid != LID_NONE);
@@ -486,9 +484,9 @@ int cob_list_write(struct c2_layout_schema *schema,
 	int                      rc;
 
 	C2_PRE(schema != NULL);
+	C2_PRE(tx != NULL);
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_DELETE);
 	C2_PRE(cob_id != NULL);
-	C2_PRE(tx != NULL);
 
 	lsd = schema->ls_type_data[c2_list_enum_type.let_id];
 	C2_ASSERT(lsd != NULL);
@@ -554,11 +552,11 @@ static int list_encode(struct c2_layout_domain *dom,
 	uint32_t                    i;
 	int                         rc = 0;
 
-	C2_PRE(dom != NULL);
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
-	C2_PRE(enum_invariant(le, lid));
+	C2_PRE(le != NULL);
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
 		    c2_bufvec_cursor_step(oldrec_cur) >=

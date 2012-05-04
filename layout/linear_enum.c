@@ -76,15 +76,15 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
 			 struct c2_layout_linear_enum **out)
 {
 	struct c2_layout_linear_enum *lin_enum;
-	int                           rc = 0;
+	int                           rc;
 
-	C2_PRE(dom != NULL);
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(nr != NR_NONE);
 	C2_PRE(B != 0);
 	C2_PRE(out != NULL && *out == NULL);
 
-	C2_ENTRY("BUILD");
+	C2_ENTRY();
 
 	C2_ALLOC_PTR(lin_enum);
 	if (lin_enum == NULL) {
@@ -103,6 +103,7 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
 	if (rc != 0) {
 		C2_LOG("c2_linear_enum_build(): lid %llu, enum_init() failed, "
 		       "rc %d", (unsigned long long)lid, rc);
+		c2_free(lin_enum);
 		goto out;
 	}
 
@@ -114,11 +115,6 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
 	C2_POST(c2_linear_enum_invariant(lin_enum, lid));
 
 out:
-	if (rc != 0 && lin_enum != NULL) {
-		enum_fini(dom, &lin_enum->lle_base);
-		c2_free(lin_enum);
-	}
-
 	C2_LEAVE("rc %d", rc);
 	return rc;
 }
@@ -132,9 +128,10 @@ static void linear_fini(struct c2_layout_domain *dom,
 {
 	struct c2_layout_linear_enum *lin_enum;
 
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(e != NULL);
 
-	C2_ENTRY("DESTROY");
+	C2_ENTRY();
 
 	lin_enum = container_of(e, struct c2_layout_linear_enum, lle_base);
 	C2_ASSERT(c2_linear_enum_invariant(lin_enum, lid));
@@ -216,14 +213,6 @@ static int linear_decode(struct c2_layout_domain *dom,
 	lin_attr = c2_bufvec_cursor_addr(cur);
 	C2_ASSERT(lin_attr != NULL);
 
-	if (lin_attr->lla_nr == NR_NONE) {
-		rc = -EINVAL;
-		C2_LOG("linear_decode(), lid %llu, Invalid value, nr %lu",
-		       (unsigned long long)lid,
-		       (unsigned long)lin_attr->lla_nr);
-		goto out;
-	}
-
 	rc = c2_linear_enum_build(dom, lid, lin_attr->lla_nr, lin_attr->lla_A,
 				  lin_attr->lla_B, &lin_enum);
 	if (rc != 0) {
@@ -261,7 +250,7 @@ static int linear_encode(struct c2_layout_domain *dom,
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
-	C2_PRE(enum_invariant(le, lid));
+	C2_PRE(le != NULL);
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
 		    c2_bufvec_cursor_step(oldrec_cur) >= sizeof old_attr));

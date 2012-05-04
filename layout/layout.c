@@ -119,7 +119,7 @@ static int layout_rec_invariant(const struct c2_layout_rec *rec,
 }
 
 /**
- * @note The check is_layout_type_valid() is purposely not moved to
+ * @note The check is_layout_type_valid() is intentionally not added to
  * layout_invariant(). It requires an aditional domain object pointer,
  * requiring it to be passed to multiple invariants like
  * layout_invariant(), striped_layout_invariant(),
@@ -234,7 +234,7 @@ static void enum_type_put(struct c2_layout_domain *dom,
 	c2_mutex_unlock(&dom->ld_lock);
 }
 
-/** Intialises a layout, adds a reference on the respective layout type. */
+/** Initialises a layout, adds a reference on the respective layout type. */
 int layout_init(struct c2_layout_domain *dom,
 		struct c2_layout *l,
 		uint64_t lid, uint64_t pool_id,
@@ -286,6 +286,7 @@ void layout_fini(struct c2_layout_domain *dom, struct c2_layout *l)
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
 
+/* Initialises a striped layout object, using provided enumeration object. */
 int striped_init(struct c2_layout_domain *dom,
 		 struct c2_layout_striped *str_l,
 		 struct c2_layout_enum *e,
@@ -316,6 +317,7 @@ int striped_init(struct c2_layout_domain *dom,
 }
 
 /**
+ * Initialises a striped layout object.
  * @post The enum object which is part of striped layout object, is finalised
  * as well.
  */
@@ -335,6 +337,10 @@ void striped_fini(struct c2_layout_domain *dom,
 	C2_LEAVE("lid %llu", (unsigned long long)str_l->ls_base.l_id);
 }
 
+/**
+ * Initialises an enumeration object, adds a reference on the respective
+ * enum type.
+ */
 int enum_init(struct c2_layout_domain *dom,
 	      struct c2_layout_enum *le, uint64_t lid,
 	      const struct c2_layout_enum_type *et,
@@ -359,6 +365,10 @@ int enum_init(struct c2_layout_domain *dom,
 	return 0;
 }
 
+/**
+ * Finalises an enum object, releases a reference on the respective enum
+ * type.
+ */
 void enum_fini(struct c2_layout_domain *dom, struct c2_layout_enum *le)
 {
 	C2_PRE(domain_invariant(dom));
@@ -384,9 +394,7 @@ static int l_key_cmp(struct c2_table *table,
 	return C2_3WAY(*lid0, *lid1);
 }
 
-/**
- * table_ops for layouts table.
- */
+/** table_ops for the layouts table. */
 static const struct c2_table_ops layouts_table_ops = {
 	.to = {
 		[TO_KEY] = {
@@ -399,10 +407,7 @@ static const struct c2_table_ops layouts_table_ops = {
 	.key_cmp = l_key_cmp
 };
 
-/**
- * Initialises the layout schema object - creates the layouts table.
- * @pre dbenv Caller should have performed c2_dbenv_init() on dbenv.
- */
+/** Initialises the layout schema object - creates the layouts table. */
 static int schema_init(struct c2_layout_schema *schema,
 		       struct c2_dbenv *dbenv)
 {
@@ -704,7 +709,7 @@ void c2_layout_unregister(struct c2_layout_domain *dom)
 
 /**
  * Registers a new layout type with the layout types maintained by
- * c2_layout_domain::ld_type[] and initialises type layout specific tables,
+ * c2_layout_domain::ld_type[] and initialises layout type specific tables,
  * if applicable.
  */
 int c2_layout_type_register(struct c2_layout_domain *dom,
@@ -750,7 +755,7 @@ int c2_layout_type_register(struct c2_layout_domain *dom,
 
 /**
  * Unregisters a layout type from the layout types maintained by
- * c2_layout_domain::ld_type[] and finalises type layout specific tables,
+ * c2_layout_domain::ld_type[] and finalises layout type specific tables,
  * if applicable.
  */
 void c2_layout_type_unregister(struct c2_layout_domain *dom,

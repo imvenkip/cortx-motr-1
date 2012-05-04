@@ -444,6 +444,7 @@ int layout_write(struct c2_layout_domain *dom, struct c2_db_tx *tx,
 	C2_PRE(tx != NULL);
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE);
+	C2_PRE(lid != LID_NONE);
 	C2_PRE(pair != NULL);
 	C2_PRE(key_buf != NULL);
 	C2_PRE(rec_buf != NULL);

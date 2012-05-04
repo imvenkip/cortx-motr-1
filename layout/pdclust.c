@@ -76,7 +76,7 @@
  *   number. This is a conversion of L-matrix to 1-matrix.
  *
  * Inverse layout mapping function c2_pdclust_layout_inv() performs reverse
- *  conversions.
+ * conversions.
  *
  * @{
  */
@@ -382,7 +382,7 @@ static void pdclust_fini(struct c2_layout *l, struct c2_layout_domain *dom)
 	C2_PRE(l != NULL);
 	C2_PRE(dom != NULL);
 
-	C2_ENTRY("DESTROY, lid %llu", (unsigned long long)l->l_id);
+	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
 	pl = container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
 	C2_ASSERT(c2_pdclust_layout_invariant(pl));
@@ -458,7 +458,7 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 	P = pool->po_width;
 	C2_PRE(N + 2 * K <= P);
 
-	C2_ENTRY("BUILD, lid %llu", (unsigned long long)lid);
+	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
 	C2_ALLOC_PTR(pdl);
 	C2_ALLOC_ARR(pdl->pl_tgt, P);
@@ -524,9 +524,8 @@ out:
 		*out = pdl;
 		C2_POST(c2_pdclust_layout_invariant(pdl));
 	}
-	else {
+	else
 		pdclust_fini(&pdl->pl_base.ls_base, dom);
-	}
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
@@ -553,7 +552,10 @@ static c2_bcount_t pdclust_max_recsize(struct c2_layout_domain *dom)
 
 	C2_PRE(dom != NULL);
 
-	/* Iterate over all the enum types to find maximum possible recsize. */
+	/*
+	 * Iterate over all the enum types to find the maximum possible
+	 * recsize.
+	 */
         for (i = 0; i < ARRAY_SIZE(dom->ld_enum); ++i) {
 		if (dom->ld_enum[i] == NULL)
 			continue;
