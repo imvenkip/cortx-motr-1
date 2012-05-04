@@ -390,7 +390,8 @@ finished.up();\l", shape=box];
      S1 -> S2 [label="INIT command from console"];
      S2 -> S3 [label="START command from console"];
      S2 -> S4 [label="STOP command from console"];
-     S3 -> S4 [label="done"];
+     S3 -> S4 [label="send FINISHED command to console (for client)\l\
+receive FINISHED command from console (for server)"];
      S4 -> S5 [label="send stats to console"];
      S5 -> S6 [label="finish"];
    }
