@@ -215,7 +215,7 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 				 cctx->rcx_net_dom, cctx->rcx_local_addr, NULL,
 				 cctx->rcx_buffer_pool);
 	if (rc != 0)
-		return rc;
+		goto pool_fini;
 
 	tm = &cctx->rcx_rpc_machine.rm_tm;
 

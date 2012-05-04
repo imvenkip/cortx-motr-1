@@ -656,8 +656,7 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 	struct c2_net_buffer_pool    *buffer_pool;
 	int                           rc;
 
-	C2_PRE(cctx != NULL && xprt_name != NULL && ep != NULL &&
-							reqh != NULL);
+	C2_PRE(cctx != NULL && xprt_name != NULL && ep != NULL && reqh != NULL);
 	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
 
 	xprt = cs_xprt_lookup(xprt_name, cctx->cc_xprts, cctx->cc_xprts_nr);
@@ -1622,7 +1621,7 @@ static void cs_help(FILE *out)
 		   "-s Services to be started in given request handler "
 		   "context.\n   This can be specified multiple times "
 		   "per request handler set.\n"
-		   "-n Number of segments in each network buffer\n"
+		   "-n Number of segments in each network buffer.\n"
 		   "-p Network buffer segment size in the pool.\n"
 		   "-b Number of buffers in the pool.\n"
 		   "-t Minimum TM Receive queue length.\n"

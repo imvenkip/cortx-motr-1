@@ -175,7 +175,7 @@ C2_EXPORTED(c2_bufvec_free);
 
 void c2_bufvec_free_aligned(struct c2_bufvec *bufvec, unsigned shift)
 {
-	if ( shift == 0)
+	if (shift == 0)
 		c2_bufvec_free(bufvec);
 	else if (bufvec != NULL) {
 		if (bufvec->ov_buf != NULL) {

@@ -275,7 +275,7 @@ struct c2_colibri {
 struct c2_cs_buffer_pool {
         /** Network buffer pool object. */
         struct c2_net_buffer_pool    cs_buffer_pool;
-        /** Linkage into netowrk buffer pool list */
+        /** Linkage into network buffer pool list */
         struct c2_tlink              cs_bp_linkage;
         /** Magic */
         uint64_t                     cs_bp_magic;

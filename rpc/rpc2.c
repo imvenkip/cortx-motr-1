@@ -394,11 +394,9 @@ static int rpc_tm_setup(struct c2_rpc_machine *machine,
 				   &c2_rpc_rcv_buf_callbacks,
 				   machine->rm_min_recv_size,
 				   machine->rm_max_recv_msgs);
-	if (rc != 0) {
-		c2_mutex_unlock(&net_dom->nd_mutex);
-		return rc;
-	}
 	c2_mutex_unlock(&net_dom->nd_mutex);
+	if (rc != 0)
+		return rc;
 
 	/* Start the transfer machine so that users of this rpc_machine
 	   can send/receive messages. */
