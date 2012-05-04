@@ -132,7 +132,7 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cob_list != NULL);
 	C2_PRE(nr != NR_NONE);
-	C2_PRE(out != NULL && *out == NULL);
+	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
@@ -396,6 +396,7 @@ static int list_decode(struct c2_layout_domain *dom,
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *ce_header);
+	C2_PRE(out != NULL);
 
 	ce_header = c2_bufvec_cursor_addr(cur);
 

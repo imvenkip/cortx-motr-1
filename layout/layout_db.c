@@ -560,7 +560,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof lid);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_layout_rec));
 	C2_PRE(lid != LID_NONE);
-	C2_PRE(out != NULL && *out == NULL);
+	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 

@@ -453,7 +453,7 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(seed != NULL);
 	C2_PRE(le != NULL);
-	C2_PRE(out != NULL && *out == NULL);
+	C2_PRE(out != NULL);
 
 	P = pool->po_width;
 	C2_PRE(N + 2 * K <= P);
@@ -620,7 +620,7 @@ static int pdclust_decode(struct c2_layout_domain *dom,
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *pl_rec);
-	C2_PRE(out != NULL && *out == NULL);
+	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 

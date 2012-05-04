@@ -82,7 +82,7 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(nr != NR_NONE);
 	C2_PRE(B != 0);
-	C2_PRE(out != NULL && *out == NULL);
+	C2_PRE(out != NULL);
 
 	C2_ENTRY();
 
@@ -206,7 +206,7 @@ static int linear_decode(struct c2_layout_domain *dom,
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *lin_attr);
-	C2_PRE(out != NULL && *out == NULL);
+	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 

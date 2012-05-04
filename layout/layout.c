@@ -948,7 +948,7 @@ int c2_layout_decode(struct c2_layout_domain *dom,
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *rec);
-	C2_PRE(out != NULL && *out == NULL);
+	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
