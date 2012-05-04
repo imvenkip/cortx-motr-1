@@ -31,7 +31,7 @@
    @ref net-test
 
    @{
-*/
+ */
 
 /**
    Net test network context structure.
@@ -102,7 +102,7 @@ int c2_net_test_network_bulk_recv_active(struct c2_net_test_ctx *ctx,
 
 /**
    @} end NetTestNetworkDFS
-*/
+ */
 
 #endif /*  __NET_TEST_NETWORK_H__ */
 

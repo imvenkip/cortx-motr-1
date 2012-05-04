@@ -198,26 +198,26 @@
    @see @ref net-test
 
    @{
-*/
+ */
 
 /**
    Start c2_net_test on the test node.
    It will determine whether it is a client or a server and
    will run corresponding subroutine.
    @todo implement as service
-*/
+ */
 int c2_net_test_init(struct c2_net_test_node_config *cfg);
 
 /**
    Stop c2_net_test on the test node.
    Will interrupt all running tests.
    Will block until all tests stopped.
-*/
+ */
 void c2_net_test_fini(void);
 
 /**
    @} end of NetTestDFS
-*/
+ */
 
 #endif /*  __NET_TEST_MAIN_H__ */
 

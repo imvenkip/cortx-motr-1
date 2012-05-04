@@ -30,7 +30,7 @@
    @ref net-test
 
    @{
-*/
+ */
 
 /**
    This structure is used for statistics calculation and collecting.
@@ -122,7 +122,7 @@ long   c2_net_test_stats_count(const struct c2_net_test_stats *stats);
 
 /**
    @} end of NetTestStatsDFS
-*/
+ */
 
 #endif /*  __NET_TEST_STATS_H__ */
 

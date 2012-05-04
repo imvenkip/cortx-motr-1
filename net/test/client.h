@@ -29,7 +29,7 @@
    @ref net-test
 
    @{
-*/
+ */
 
 /**
    Initialize client data structures.
@@ -59,7 +59,7 @@ void c2_net_test_client_stop(void);
 
 /**
    @} end NetTestClientDFS
-*/
+ */
 
 #endif /*  __NET_TEST_CLIENT_H__ */
 

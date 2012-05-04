@@ -31,7 +31,7 @@
    @see @ref net-test
 
    @{
-*/
+ */
 
 /**
    Test node role - node can be test client or test server.
@@ -52,7 +52,7 @@ enum c2_net_test_type {
 /**
    Configuration structure for test node.
    @see @ref net-test-fspec-cli
-*/
+ */
 struct c2_net_test_node_config {
 	/** Test node role */
 	enum c2_net_test_role role;

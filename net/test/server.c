@@ -54,7 +54,7 @@ void c2_net_test_server_stop(void)
 
 /**
    @} end NetTestServerInternals
-*/
+ */
 
 /*
  *  Local variables:

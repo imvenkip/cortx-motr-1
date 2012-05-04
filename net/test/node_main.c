@@ -532,7 +532,7 @@ C2_EXPORTED(c2_net_test_fini);
 
 /**
    @} end NetTestInternals
-*/
+ */
 
 /*
  *  Local variables:

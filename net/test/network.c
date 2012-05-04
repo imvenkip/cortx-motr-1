@@ -25,7 +25,7 @@
 #include "net/test/network.h"
 
 /**
-   @defgroup NetTestNetworkInternals Colibri Network Bencmark Network Internals
+   @defgroup NetTestNetworkInternals Colibri Network Benchmark Network Internals
 
    @see
    @ref net-test
@@ -35,7 +35,7 @@
 
 /**
    @} end NetTestNetworkInternals
-*/
+ */
 
 /*
  *  Local variables:

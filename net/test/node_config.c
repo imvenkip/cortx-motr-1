@@ -27,7 +27,7 @@
 #include "net/test/node_config.h"
 
 /**
-   @defgroup NetTestConfigInternals Colibri Network Bencmark \
+   @defgroup NetTestConfigInternals Colibri Network Benchmark \
 				    Configuration Internals
 
    @see
@@ -45,7 +45,7 @@ bool c2_net_test_node_config_invariant(
 
 /**
    @} end of NetTestConfigInternals
-*/
+ */
 
 /*
  *  Local variables:

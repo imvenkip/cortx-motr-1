@@ -36,7 +36,7 @@
 
 /**
    @} end of NetTestStatsInternals
-*/
+ */
 
 /*
  *  Local variables:

@@ -29,7 +29,7 @@
    @ref net-test
 
    @{
-*/
+ */
 
 /**
    Initialize server data structures.
@@ -60,7 +60,7 @@ void c2_net_test_server_stop(void);
 
 /**
    @} end NetTestServerDFS
-*/
+ */
 
 #endif /*  __NET_TEST_SERVER_H__ */
 
