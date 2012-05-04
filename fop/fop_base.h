@@ -98,6 +98,7 @@ int  c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr);
 void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr);
 
 struct c2_list;
+struct c2_fop_ctx;
 
 /** fop type operations. */
 struct c2_fop_type_ops {
