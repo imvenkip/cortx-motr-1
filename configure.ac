@@ -298,7 +298,7 @@ AC_FUNC_MALLOC
 # Configure options
 AC_ARG_ENABLE([debug],
         [AC_HELP_STRING([--disable-debug], [disable debug information and logs])], [],
-        [enable_debug=yes]
+        [enable_debug=no]
 )
 
 AC_ARG_ENABLE([gssrpc],
@@ -572,10 +572,6 @@ if test x$enable_debug = xyes; then
         CFLAGS="$(echo $CFLAGS | sed 's/-g//' | sed 's/-O2//') -g -O0"
         KCFLAGS="$(echo $KCFLAGS | sed 's/-g//' | sed 's/-O2//') -g -O0"
         AC_DEFINE([ENABLE_DEBUG])
-else
-        # Remove debug flags but keep default or user optimizations
-        # passed via construction like ./configure CFLAGS=-O3
-        CFLAGS="$(echo $CFLAGS | sed 's/-g//')"
 fi
 
 # Check if gcc option is supported in current gcc version.
