@@ -59,15 +59,15 @@ struct c2_net_test_node_config {
 	/** Test node type */
 	enum c2_net_test_type type;
 	/** Number of test messages which need to be send to test server */
-	long   count;
+	uint32_t count;
 	/** Size of bulk test message */
-	long   size;
+	c2_bcount_t size;
 	/** Test server names for the test client */
 	char **targets;
 	/** Test server names number for the test client */
-	long   targets_nr;
+	uint32_t targets_nr;
 	/** Test console adress */
-	char  *console;
+	char *console;
 };
 
 /** Default parameter values */
