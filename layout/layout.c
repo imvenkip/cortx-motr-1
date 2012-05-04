@@ -927,9 +927,10 @@ void c2_layout_put(struct c2_layout *l)
  * done with the use. It can be accomplished by performing l->l_ops->lo_fini(l).
  */
 int c2_layout_decode(struct c2_layout_domain *dom,
-		     uint64_t lid, struct c2_bufvec_cursor *cur,
 		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,
+		     uint64_t lid,
+		     struct c2_bufvec_cursor *cur,
 		     struct c2_layout **out)
 {
 	struct c2_layout_type *lt;
@@ -937,11 +938,11 @@ int c2_layout_decode(struct c2_layout_domain *dom,
 	int                    rc;
 
 	C2_PRE(domain_invariant(dom));
+	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
+	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *rec);
-	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
-	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(out != NULL && *out == NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
@@ -960,8 +961,8 @@ int c2_layout_decode(struct c2_layout_domain *dom,
 	 * Hence, ignoring the return status of c2_bufvec_cursor_move() here.
 	 */
 
-	rc = lt->lt_ops->lto_decode(dom, lid, rec->lr_pool_id,
-				    cur, op, tx, out);
+	rc = lt->lt_ops->lto_decode(dom, op, tx, lid, rec->lr_pool_id,
+				    cur, out);
 	if (rc != 0) {
 		layout_log("c2_layout_decode", "lto_decode() failed",
 			   op == C2_LXO_BUFFER_OP, PRINT_TRACE_MSG,
@@ -1028,9 +1029,9 @@ out:
  *   of the whole layout.
  */
 int c2_layout_encode(struct c2_layout_domain *dom,
-		     struct c2_layout *l,
 		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,
+		     struct c2_layout *l,
 		     struct c2_bufvec_cursor *oldrec_cur,
 		     struct c2_bufvec_cursor *out)
 {
@@ -1041,15 +1042,15 @@ int c2_layout_encode(struct c2_layout_domain *dom,
 	int                    rc;
 
 	C2_PRE(domain_invariant(dom));
-	C2_PRE(layout_invariant(l));
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
+	C2_PRE(layout_invariant(l));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
-	C2_PRE(out != NULL);
-	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof rec);
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
 	            c2_bufvec_cursor_step(oldrec_cur) >= sizeof *oldrec));
+	C2_PRE(out != NULL);
+	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof rec);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
@@ -1079,7 +1080,7 @@ int c2_layout_encode(struct c2_layout_domain *dom,
 	nbytes = c2_bufvec_cursor_copyto(out, &rec, sizeof rec);
 	C2_ASSERT(nbytes == sizeof rec);
 
-	rc = lt->lt_ops->lto_encode(dom, l, op, tx, oldrec_cur, out);
+	rc = lt->lt_ops->lto_encode(dom, op, tx, l, oldrec_cur, out);
 	if (rc != 0) {
 		layout_log("c2_layout_encode", "lto_encode() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,

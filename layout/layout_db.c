@@ -538,9 +538,9 @@ static int rec_get(struct c2_layout_domain *dom, struct c2_db_tx *tx,
  * done with the use. It can be accomplished by performing l->l_ops->lo_fini().
  */
 int c2_layout_lookup(struct c2_layout_domain *dom,
-		     uint64_t lid,
-		     struct c2_db_pair *pair,
 		     struct c2_db_tx *tx,
+		     struct c2_db_pair *pair,
+		     uint64_t lid,
 		     struct c2_layout **out)
 {
 	int                      rc;
@@ -552,13 +552,13 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	void                    *rec_buf = pair->dp_rec.db_buf.b_addr;
 
 	C2_PRE(domain_invariant(dom));
-	C2_PRE(lid != LID_NONE);
+	C2_PRE(tx != NULL);
 	C2_PRE(pair != NULL);
 	C2_PRE(key_buf != NULL);
 	C2_PRE(rec_buf != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof lid);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_layout_rec));
-	C2_PRE(tx != NULL);
+	C2_PRE(lid != LID_NONE);
 	C2_PRE(out != NULL && *out == NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
@@ -589,7 +589,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = c2_layout_decode(dom, lid, &cur, C2_LXO_DB_LOOKUP, tx, out);
+	rc = c2_layout_decode(dom, C2_LXO_DB_LOOKUP, tx, lid, &cur, out);
 	if (rc != 0) {
 		layout_log("c2_layout_lookup", "c2_layout_decode() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
@@ -626,9 +626,9 @@ out:
  * most the size returned by c2_layout_max_recsize().
  */
 int c2_layout_add(struct c2_layout_domain *dom,
-		  struct c2_layout *l,
+		  struct c2_db_tx *tx,
 		  struct c2_db_pair *pair,
-		  struct c2_db_tx *tx)
+		  struct c2_layout *l)
 {
 	struct c2_bufvec         bv;
 	struct c2_bufvec_cursor  cur;
@@ -636,14 +636,13 @@ int c2_layout_add(struct c2_layout_domain *dom,
 	int                      rc;
 
 	C2_PRE(domain_invariant(dom));
-	C2_PRE(layout_invariant(l));
-	C2_PRE(pair != NULL);
 	C2_PRE(tx != NULL);
-
+	C2_PRE(pair != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof l->l_id);
 	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_layout_rec));
+	C2_PRE(layout_invariant(l));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
@@ -655,7 +654,7 @@ int c2_layout_add(struct c2_layout_domain *dom,
 						  &pair->dp_rec.db_buf.b_nob);
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = c2_layout_encode(dom, l, C2_LXO_DB_ADD, tx, NULL, &cur);
+	rc = c2_layout_encode(dom, C2_LXO_DB_ADD, tx, l, NULL, &cur);
 	if (rc != 0) {
 		layout_log("c2_layout_add", "c2_layout_encode() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
@@ -699,9 +698,9 @@ out:
  * most the size returned by c2_layout_max_recsize().
  */
 int c2_layout_update(struct c2_layout_domain *dom,
-		     struct c2_layout *l,
+		     struct c2_db_tx *tx,
 		     struct c2_db_pair *pair,
-		     struct c2_db_tx *tx)
+		     struct c2_layout *l)
 {
 	void                    *oldrec_area;
 	struct c2_bufvec         oldrec_bv;
@@ -712,14 +711,13 @@ int c2_layout_update(struct c2_layout_domain *dom,
 	int                      rc;
 
 	C2_PRE(domain_invariant(dom));
-	C2_PRE(layout_invariant(l));
-	C2_PRE(pair != NULL);
 	C2_PRE(tx != NULL);
-
+	C2_PRE(pair != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof l->l_id);
 	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_layout_rec));
+	C2_PRE(layout_invariant(l));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
@@ -761,7 +759,7 @@ int c2_layout_update(struct c2_layout_domain *dom,
 						  &pair->dp_rec.db_buf.b_nob);
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = c2_layout_encode(dom, l, C2_LXO_DB_UPDATE, tx, &oldrec_cur, &cur);
+	rc = c2_layout_encode(dom, C2_LXO_DB_UPDATE, tx, l, &oldrec_cur, &cur);
 	if (rc != 0) {
 		layout_log("c2_layout_update", "c2_layout_encode() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
@@ -807,9 +805,9 @@ out:
  * most the size returned by c2_layout_max_recsize().
  */
 int c2_layout_delete(struct c2_layout_domain *dom,
-		     struct c2_layout *l,
+		     struct c2_db_tx *tx,
 		     struct c2_db_pair *pair,
-		     struct c2_db_tx *tx)
+		     struct c2_layout *l)
 {
 	struct c2_bufvec         bv;
 	struct c2_bufvec_cursor  cur;
@@ -817,14 +815,13 @@ int c2_layout_delete(struct c2_layout_domain *dom,
 	int                      rc;
 
 	C2_PRE(domain_invariant(dom));
-	C2_PRE(layout_invariant(l));
-	C2_PRE(pair != NULL);
 	C2_PRE(tx != NULL);
-
+	C2_PRE(pair != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof l->l_id);
 	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_layout_rec));
+	C2_PRE(layout_invariant(l));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
@@ -836,7 +833,7 @@ int c2_layout_delete(struct c2_layout_domain *dom,
 						  &pair->dp_rec.db_buf.b_nob);
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = c2_layout_encode(dom, l, C2_LXO_DB_DELETE, tx, NULL, &cur);
+	rc = c2_layout_encode(dom, C2_LXO_DB_DELETE, tx, l, NULL, &cur);
 	if (rc != 0) {
 		layout_log("c2_layout_delete", "c2_layout_encode() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,

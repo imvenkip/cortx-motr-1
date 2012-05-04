@@ -140,10 +140,11 @@ static const struct c2_layout_ops composite_ops;
  * received through the buffer.
  */
 static int composite_decode(struct c2_layout_domain *dom,
-			    uint64_t lid, uint64_t pool_id,
-			    struct c2_bufvec_cursor *cur,
 			    enum c2_layout_xcode_op op,
 			    struct c2_db_tx *tx,
+			    uint64_t lid,
+			    uint64_t pool_id,
+			    struct c2_bufvec_cursor *cur,
 			    struct c2_layout **out)
 {
 	/*
@@ -186,9 +187,9 @@ static int composite_decode(struct c2_layout_domain *dom,
  * buffer.
  */
 static int composite_encode(struct c2_layout_domain *dom,
-			    struct c2_layout *l,
 			    enum c2_layout_xcode_op op,
 			    struct c2_db_tx *tx,
+			    struct c2_layout *l,
 			    struct c2_bufvec_cursor *oldrec_cur,
 			    struct c2_bufvec_cursor *out)
 {

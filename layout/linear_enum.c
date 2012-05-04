@@ -193,21 +193,22 @@ static c2_bcount_t linear_recsize(struct c2_layout_enum *e, uint64_t lid)
  * the c2_layout_linear_enum::c2_layout_linear_attr object.
  */
 static int linear_decode(struct c2_layout_domain *dom,
-			 uint64_t lid,
-			 struct c2_bufvec_cursor *cur,
 			 enum c2_layout_xcode_op op,
 			 struct c2_db_tx *tx,
+			 uint64_t lid,
+			 struct c2_bufvec_cursor *cur,
 			 struct c2_layout_enum **out)
 {
 	struct c2_layout_linear_enum *lin_enum = NULL;
 	struct c2_layout_linear_attr *lin_attr;
 	int                           rc;
 
+	C2_PRE(domain_invariant(dom));
+	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
+	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *lin_attr);
-	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
-	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(out != NULL && *out == NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
@@ -245,9 +246,10 @@ out:
  * c2_layout_linear_enum object into the buffer.
  */
 static int linear_encode(struct c2_layout_domain *dom,
-			 const struct c2_layout_enum *le, uint64_t lid,
 			 enum c2_layout_xcode_op op,
 			 struct c2_db_tx *tx,
+			 uint64_t lid,
+			 const struct c2_layout_enum *le,
 			 struct c2_bufvec_cursor *oldrec_cur,
 			 struct c2_bufvec_cursor *out)
 {
@@ -255,15 +257,16 @@ static int linear_encode(struct c2_layout_domain *dom,
 	struct c2_layout_linear_attr *old_attr;
 	c2_bcount_t                   nbytes;
 
-	C2_PRE(enum_invariant(le, lid));
+	C2_PRE(domain_invariant(dom));
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
+	C2_PRE(enum_invariant(le, lid));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
-	C2_PRE(out != NULL);
-	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof lin_enum->lle_attr);
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
 		    c2_bufvec_cursor_step(oldrec_cur) >= sizeof old_attr));
+	C2_PRE(out != NULL);
+	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof lin_enum->lle_attr);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
