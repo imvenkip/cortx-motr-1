@@ -184,7 +184,9 @@
    }
    c2_net_test_PROG_fini();
    @endcode
-   c2_net_test_PROG_stop() can be used to interrupt c2_net_test_PROG_start().
+
+   c2_net_test_PROG_start() will be blocked until it's finished or
+   c2_net_test_PROG_stop() called.
 
    @subsubsection net-test-lspec-ping Ping Test
 
