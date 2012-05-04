@@ -1,8 +1,9 @@
 This document contains a list of small code-level tasks that require no further
 design. The intention is that people take tasks from the list to avoid being
-blocked. Synchronization of concurrent list updates is through email. Completed
-tasks are moved into DONE section. The list is populated by team and sub-team
-leads, contact them to add more things here.
+blocked. Synchronization of concurrent list updates is through email. Task is
+moved into IN-PROGRESS section after someone has started working on it.
+Completed tasks are moved into DONE section. The list is populated by team and
+sub-team leads, contact them to add more things here.
 
 TODO
 
@@ -49,5 +50,7 @@ TODO
     Use lists based on C2_TL_{DEFINE,DESCR}()
 
 2012-May-04 Add all magic numbers to doc/magix
+
+IN-PROGRESS
 
 DONE
