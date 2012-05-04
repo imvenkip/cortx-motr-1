@@ -176,17 +176,25 @@
 
    @code
    int rc;
+   // wait until INIT command received
    rc = c2_net_test_PROG_init();
    if (rc == 0) {
+	// send INIT DONE command
+	// wait until START command received
 	rc = c2_net_test_PROG_start();
+	// send FINISHED command (if PROG == client)
 	if (rc == 0)
 		c2_net_test_PROG_stop();
    }
+   // wait for FINISHED ACK response (if PROG == client)
+   // send FINISHED ACK response (if PROG == server)
    c2_net_test_PROG_fini();
    @endcode
 
    c2_net_test_PROG_start() will be blocked until it's finished or
-   c2_net_test_PROG_stop() called.
+   c2_net_test_PROG_stop() called. Test server need to catch
+   FINISHED command from the test console and run c2_net_test_server_stop()
+   when it is received.
 
    @subsubsection net-test-lspec-ping Ping Test
 
