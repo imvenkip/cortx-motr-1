@@ -44,7 +44,7 @@ struct c2_net_test_stats {
 	unsigned long max;	/** max value from sample */
 	unsigned long sum;	/** sum of all values from sample */
 	unsigned long sum_sqr;	/** sum of squares of all values from sample */
-	long	      count;	/** sample size */
+	unsigned long count;	/** sample size */
 };
 
 /**
