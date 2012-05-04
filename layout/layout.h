@@ -70,17 +70,14 @@
  *
  * A layout can be assigned to a file both by server and the client.
  *
- * The sequence of operation related to domain, schema
- * intialisation/finalisation, layout type and enum type registration and
- * unregistration is as follows:
+ * The sequence of operation related to domain intialisation/finalisation,
+ * layout type and enum type registration and unregistration is as follows:
  * - Initialise c2_layout_domain object.
- * - Initialise c2_layout_schema object.
  * - Register layout types and enum types using c2_layout_register().
  * - Perform various required operations including usage of c2_layout_encode(),
  *   c2_layout_decode(), c2_layout_lookup(), c2_layout_add(),
  *   c2_layout_update(), c2_layout_delete(), leo_nr(), leo_get().
  * - Unregister layout types and enum types using c2_layout_unregister.
- * - Finalise c2_layout_schema object.
  * - Finalise c2_layout_domain object.
  *
  * Regarding client/server access to various APIs from layout and layout-DB
@@ -105,8 +102,8 @@ struct c2_bufvec_cursor;
 struct c2_fid;
 
 /* export */
-struct c2_layout_domain;
 struct c2_layout_schema;
+struct c2_layout_domain;
 struct c2_layout;
 struct c2_layout_ops;
 enum c2_layout_xcode_op;
@@ -123,47 +120,13 @@ enum {
 };
 
 /**
- * Layout domain.
- * There is one instance of layout domain object per address space.
- */
-struct c2_layout_domain {
-	/** Layout types array. */
-	struct c2_layout_type      *ld_type[C2_LAYOUT_TYPE_MAX];
-
-	/** Enumeration types array. */
-	struct c2_layout_enum_type *ld_enum[C2_LAYOUT_ENUM_TYPE_MAX];
-
-	/** Reference count on layout types. */
-	uint32_t                    ld_type_ref_count[C2_LAYOUT_TYPE_MAX];
-
-	/** Reference count on enum types. */
-	uint32_t                    ld_enum_ref_count[C2_LAYOUT_ENUM_TYPE_MAX];
-
-	/**
-	 * Pointer to schema object.
-	 * This pointer is set for a c2_layout_domain object, when the
-	 * c2_layout_schema object associated with that domain object is set.
-	 */
-	struct c2_layout_schema    *ld_schema;
-
-	/**
-	 * Lock to protect the instance of c2_layout_domain, including all
-	 * its members.
-	 */
-	struct c2_mutex             ld_lock;
-};
-
-/**
  * In-memory data structure for the layout schema.
- * It includes a pointer to the layouts table and various related
+ * It includes a pointer to the layouts table and some related
  * parameters. ls_type_data[] and ls_enum_data[] store pointers to tables
  * applicable, if any, for various layout types and enum types.
  * There is one instance of layout domain object per address space.
  */
 struct c2_layout_schema {
-	/** Pointer to domain; to keep things together. */
-	struct c2_layout_domain *ls_domain;
-
 	/** Pointer to dbenv; to keep things together. */
 	struct c2_dbenv         *ls_dbenv;
 
@@ -184,6 +147,33 @@ struct c2_layout_schema {
 	 * its members.
 	 */
 	struct c2_mutex          ls_lock;
+};
+
+/**
+ * Layout domain.
+ * There is one instance of layout domain object per address space.
+ */
+struct c2_layout_domain {
+	/** Layout types array. */
+	struct c2_layout_type      *ld_type[C2_LAYOUT_TYPE_MAX];
+
+	/** Enumeration types array. */
+	struct c2_layout_enum_type *ld_enum[C2_LAYOUT_ENUM_TYPE_MAX];
+
+	/** Reference count on layout types. */
+	uint32_t                    ld_type_ref_count[C2_LAYOUT_TYPE_MAX];
+
+	/** Reference count on enum types. */
+	uint32_t                    ld_enum_ref_count[C2_LAYOUT_ENUM_TYPE_MAX];
+
+	/** c2_layout_schema object. */
+	struct c2_layout_schema     ld_schema;
+
+	/**
+	 * Lock to protect the instance of c2_layout_domain, including all
+	 * its members.
+	 */
+	struct c2_mutex             ld_lock;
 };
 
 /**
@@ -254,11 +244,11 @@ struct c2_layout_type_ops {
 	 * Allocates layout type specific schema data.
 	 * For example, comp_layout_ext_map table.
 	 */
-	int         (*lto_register)(struct c2_layout_schema *schema,
+	int         (*lto_register)(struct c2_layout_domain *dom,
 				    const struct c2_layout_type *lt);
 
 	/** Deallocates layout type specific schema data. */
-	void        (*lto_unregister)(struct c2_layout_schema *schema,
+	void        (*lto_unregister)(struct c2_layout_domain *dom,
 				      const struct c2_layout_type *lt);
 
 	/** Returns applicable max record size for the layouts table. */
@@ -283,7 +273,6 @@ struct c2_layout_type_ops {
 				  uint64_t lid, uint64_t pool_id,
 				  struct c2_bufvec_cursor *cur,
 				  enum c2_layout_xcode_op op,
-				  struct c2_layout_schema *schema,
 				  struct c2_db_tx *tx,
 				  struct c2_layout **out);
 
@@ -294,7 +283,6 @@ struct c2_layout_type_ops {
 	int         (*lto_encode)(struct c2_layout_domain *dom,
 				  struct c2_layout *l,
 				  enum c2_layout_xcode_op op,
-				  struct c2_layout_schema *schema,
 				  struct c2_db_tx *tx,
 				  struct c2_bufvec_cursor *oldrec_cur,
 				  struct c2_bufvec_cursor *out);
@@ -350,11 +338,11 @@ struct c2_layout_enum_type_ops {
 	 * Allocates enumeration type specific schema data.
 	 * For example, cob_lists table.
 	 */
-	int         (*leto_register)(struct c2_layout_schema *schema,
+	int         (*leto_register)(struct c2_layout_domain *dom,
 				     const struct c2_layout_enum_type *et);
 
 	/** Deallocates enumeration type specific schema data. */
-	void        (*leto_unregister)(struct c2_layout_schema *schema,
+	void        (*leto_unregister)(struct c2_layout_domain *dom,
 				       const struct c2_layout_enum_type *et);
 
 	/** Returns applicable max record size for the layouts table. */
@@ -378,7 +366,6 @@ struct c2_layout_enum_type_ops {
 				   uint64_t lid,
 				   struct c2_bufvec_cursor *cur,
 				   enum c2_layout_xcode_op op,
-				   struct c2_layout_schema *schema,
 				   struct c2_db_tx *tx,
 				   struct c2_layout_enum **out);
 
@@ -390,7 +377,6 @@ struct c2_layout_enum_type_ops {
 				   const struct c2_layout_enum *le,
 				   uint64_t lid,
 				   enum c2_layout_xcode_op op,
-				   struct c2_layout_schema *schema,
 				   struct c2_db_tx *tx,
 				   struct c2_bufvec_cursor *oldrec_cur,
 				   struct c2_bufvec_cursor *out);
@@ -410,13 +396,8 @@ struct c2_layout_striped {
 int c2_layouts_init(void);
 void c2_layouts_fini(void);
 
-int c2_layout_domain_init(struct c2_layout_domain *dom);
+int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *db);
 void c2_layout_domain_fini(struct c2_layout_domain *dom);
-
-int c2_layout_schema_init(struct c2_layout_schema *schema,
-			  struct c2_layout_domain *domain,
-			  struct c2_dbenv *db);
-void c2_layout_schema_fini(struct c2_layout_schema *schema);
 
 int c2_layout_register(struct c2_layout_domain *dom);
 void c2_layout_unregister(struct c2_layout_domain *dom);
@@ -437,13 +418,11 @@ void c2_layout_put(struct c2_layout *l);
 int c2_layout_decode(struct c2_layout_domain *dom,
 		     uint64_t lid, struct c2_bufvec_cursor *cur,
 		     enum c2_layout_xcode_op op,
-		     struct c2_layout_schema *schema,
 		     struct c2_db_tx *tx,
 		     struct c2_layout **out);
 int c2_layout_encode(struct c2_layout_domain *dom,
 		     struct c2_layout *l,
 		     enum c2_layout_xcode_op op,
-		     struct c2_layout_schema *schema,
 		     struct c2_db_tx *tx,
 		     struct c2_bufvec_cursor *oldrec_cur,
 		     struct c2_bufvec_cursor *out);

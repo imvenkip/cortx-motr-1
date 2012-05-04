@@ -151,7 +151,7 @@ static void linear_fini(struct c2_layout_domain *dom,
  * Implementation of leto_register for LINEAR enumeration type.
  * No table is required specifically for LINEAR enum type.
  */
-static int linear_register(struct c2_layout_schema *schema,
+static int linear_register(struct c2_layout_domain *dom,
 			   const struct c2_layout_enum_type *et)
 {
 	return 0;
@@ -160,7 +160,7 @@ static int linear_register(struct c2_layout_schema *schema,
 /**
  * Implementation of leto_unregister for LINEAR enumeration type.
  */
-static void linear_unregister(struct c2_layout_schema *schema,
+static void linear_unregister(struct c2_layout_domain *dom,
 			      const struct c2_layout_enum_type *et)
 {
 }
@@ -196,7 +196,6 @@ static int linear_decode(struct c2_layout_domain *dom,
 			 uint64_t lid,
 			 struct c2_bufvec_cursor *cur,
 			 enum c2_layout_xcode_op op,
-			 struct c2_layout_schema *schema,
 			 struct c2_db_tx *tx,
 			 struct c2_layout_enum **out)
 {
@@ -208,7 +207,7 @@ static int linear_decode(struct c2_layout_domain *dom,
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *lin_attr);
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
-	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, schema != NULL && tx != NULL));
+	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(out != NULL && *out == NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
@@ -248,7 +247,6 @@ out:
 static int linear_encode(struct c2_layout_domain *dom,
 			 const struct c2_layout_enum *le, uint64_t lid,
 			 enum c2_layout_xcode_op op,
-			 struct c2_layout_schema *schema,
 			 struct c2_db_tx *tx,
 			 struct c2_bufvec_cursor *oldrec_cur,
 			 struct c2_bufvec_cursor *out)
@@ -260,7 +258,7 @@ static int linear_encode(struct c2_layout_domain *dom,
 	C2_PRE(enum_invariant(le, lid));
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
-	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, schema != NULL && tx != NULL));
+	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(out != NULL);
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof lin_enum->lle_attr);

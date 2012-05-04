@@ -70,9 +70,9 @@ static void composite_fini(struct c2_layout *l, struct c2_layout_domain *dom)
 /**
  * Implementation of lto_register for COMPOSITE layout type.
  *
- * Intialises table specifically required for COMPOSITE layout type.
+ * Initialises table specifically required for COMPOSITE layout type.
  */
-static int composite_register(struct c2_layout_schema *schema,
+static int composite_register(struct c2_layout_domain *dom,
 			      const struct c2_layout_type *lt)
 {
 	/*
@@ -83,7 +83,7 @@ static int composite_register(struct c2_layout_schema *schema,
 
 	Initialise csd->csd_comp_layout_ext_map table.
 
-	schema->ls_type_data[lt->lt_id] = csd;
+	dom->ld_schema->ls_type_data[lt->lt_id] = csd;
 	@endcode
 	*/
 	return 0;
@@ -94,15 +94,16 @@ static int composite_register(struct c2_layout_schema *schema,
  *
  * Finalises table specifically required for COMPOSITE layout type.
  */
-static void composite_unregister(struct c2_layout_schema *schema,
+static void composite_unregister(struct c2_layout_domain *dom,
 				 const struct c2_layout_type *lt)
 {
 	/*
 	@code
-	Finalise schema->ls_type_data[lt->lt_id]->csd_comp_layout_ext_map
+	Finalise
+	dom->ld_schema->ls_type_data[lt->lt_id]->csd_comp_layout_ext_map
 	table.
 
-	schema->ls_type_data[lt->lt_id] = NULL;
+	dom->ld_schema->ls_type_data[lt->lt_id] = NULL;
 	@endcode
 	*/
 }
@@ -142,7 +143,6 @@ static int composite_decode(struct c2_layout_domain *dom,
 			    uint64_t lid, uint64_t pool_id,
 			    struct c2_bufvec_cursor *cur,
 			    enum c2_layout_xcode_op op,
-			    struct c2_layout_schema *schema,
 			    struct c2_db_tx *tx,
 			    struct c2_layout **out)
 {
@@ -188,7 +188,6 @@ static int composite_decode(struct c2_layout_domain *dom,
 static int composite_encode(struct c2_layout_domain *dom,
 			    struct c2_layout *l,
 			    enum c2_layout_xcode_op op,
-			    struct c2_layout_schema *schema,
 			    struct c2_db_tx *tx,
 			    struct c2_bufvec_cursor *oldrec_cur,
 			    struct c2_bufvec_cursor *out)

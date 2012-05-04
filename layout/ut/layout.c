@@ -30,8 +30,8 @@
 
 #include "fid/fid.h" /* c2_fid_set() */
 #include "pool/pool.h" /* c2_pool_init() */
-#include "layout/layout_internal.h" /* DEFAULT_REF_COUNT */
 #include "layout/layout.h"
+#include "layout/layout_internal.h" /* DEFAULT_REF_COUNT */
 #include "layout/layout_db.h"
 #include "layout/pdclust.h"
 #include "layout/list_enum.h"
@@ -44,7 +44,6 @@
 static struct c2_dbenv         dbenv;
 static const char              db_name[] = "ut-layout";
 static struct c2_layout_domain domain;
-static struct c2_layout_schema schema;
 static struct c2_pool          pool;
 enum c2_addb_ev_level          orig_addb_level;
 static int                     rc;
@@ -91,17 +90,12 @@ static int test_init(void)
 	c2_ut_db_reset(db_name);
 #endif
 
-	/* Initialise the domain. */
-	rc = c2_layout_domain_init(&domain);
-	C2_ASSERT(rc == 0);
-
 	rc = c2_dbenv_init(&dbenv, db_name, DBFLAGS);
 	C2_ASSERT(rc == 0);
 
-	/* Initialise the schema. */
-	rc = c2_layout_schema_init(&schema, &domain, &dbenv);
+	/* Initialise the domain. */
+	rc = c2_layout_domain_init(&domain, &dbenv);
 	C2_ASSERT(rc == 0);
-	C2_ASSERT(schema.ls_domain == &domain);
 
 	/* Register all the available layout types and enum types. */
 	rc = c2_layout_register(&domain);
@@ -119,11 +113,10 @@ static int test_fini(void)
 	c2_pool_fini(&pool);
 
 	c2_layout_unregister(&domain);
-	c2_layout_schema_fini(&schema);
-
-	c2_dbenv_fini(&dbenv);
 
 	c2_layout_domain_fini(&domain);
+
+	c2_dbenv_fini(&dbenv);
 
 	/* Restore the original addb level. */
 	c2_addb_choose_default_level_console(orig_addb_level);
@@ -133,64 +126,41 @@ static int test_fini(void)
 
 static void test_domain_init_fini(void)
 {
-	struct c2_layout_domain t_domain;
-
-	/* Initialise the domain. */
-	rc = c2_layout_domain_init(&t_domain);
-	C2_UT_ASSERT(rc == 0);
-
-	/* Finalise the domain. */
-	c2_layout_domain_fini(&t_domain);
-}
-
-static void test_schema_init_fini(void)
-{
 	const char              t_db_name[] = "t1-layout";
 	struct c2_layout_domain t_domain;
-	struct c2_layout_schema t_schema;
 	struct c2_dbenv         t_dbenv;
 
 	C2_ENTRY();
 
-	/* Initialise the domain. */
-	rc = c2_layout_domain_init(&t_domain);
-	C2_UT_ASSERT(rc == 0);
-
 	rc = c2_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
-	/* Initialise the schema. */
-	rc = c2_layout_schema_init(&t_schema, &t_domain, &t_dbenv);
+	/* Initialise the domain. */
+	rc = c2_layout_domain_init(&t_domain, &t_dbenv);
 	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(t_schema.ls_domain == &t_domain);
-	C2_UT_ASSERT(t_domain.ld_schema == &t_schema);
-
-	/* Finalise the schema. */
-	c2_layout_schema_fini(&t_schema);
-
-	/* Should be able to initialise the schema again after finalising it. */
-	rc = c2_layout_schema_init(&t_schema, &t_domain, &t_dbenv);
-	C2_UT_ASSERT(rc == 0);
-
-	/* Finalise the schema. */
-	c2_layout_schema_fini(&t_schema);
-	C2_UT_ASSERT(t_domain.ld_schema == NULL);
-
-	c2_dbenv_fini(&t_dbenv);
 
 	/* Finalise the domain. */
 	c2_layout_domain_fini(&t_domain);
 
+	/* Should be able to initialise the domain again after finalising it. */
+	rc = c2_layout_domain_init(&t_domain, &t_dbenv);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Finalise the domain. */
+	c2_layout_domain_fini(&t_domain);
+
+	c2_dbenv_fini(&t_dbenv);
+
 	C2_LEAVE();
 }
 
-static int t_register(struct c2_layout_schema *schema,
+static int t_register(struct c2_layout_domain *dom,
 		      const struct c2_layout_type *lt)
 {
 	return 0;
 }
 
-static void t_unregister(struct c2_layout_schema *schema,
+static void t_unregister(struct c2_layout_domain *dom,
 			 const struct c2_layout_type *lt)
 {
 }
@@ -232,13 +202,13 @@ static void test_type_reg_unreg(void)
 	C2_LEAVE();
 }
 
-static int t_enum_register(struct c2_layout_schema *schema,
+static int t_enum_register(struct c2_layout_domain *dom,
 			   const struct c2_layout_enum_type *et)
 {
 	return 0;
 }
 
-static void t_enum_unregister(struct c2_layout_schema *schema,
+static void t_enum_unregister(struct c2_layout_domain *dom,
 			      const struct c2_layout_enum_type *et)
 {
 }
@@ -283,21 +253,16 @@ static void test_etype_reg_unreg(void)
 static void test_reg_unreg(void)
 {
 	const char              t_db_name[] = "t2-layout";
-	struct c2_layout_domain t_domain;
-	struct c2_layout_schema t_schema;
 	struct c2_dbenv         t_dbenv;
+	struct c2_layout_domain t_domain;
 
 	C2_ENTRY();
-
-	/* Initialise the domain. */
-	rc = c2_layout_domain_init(&t_domain);
-	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
-	/* Initialise the schema. */
-	rc = c2_layout_schema_init(&t_schema, &t_domain, &t_dbenv);
+	/* Initialise the domain. */
+	rc = c2_layout_domain_init(&t_domain, &t_dbenv);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Register all the available layout types and enum types. */
@@ -335,13 +300,10 @@ static void test_reg_unreg(void)
 	C2_UT_ASSERT(t_domain.ld_enum[c2_linear_enum_type.let_id] == NULL);
 	C2_UT_ASSERT(t_domain.ld_type[c2_pdclust_layout_type.lt_id] == NULL);
 
-	/* Finalise the schema. */
-	c2_layout_schema_fini(&t_schema);
-
-	c2_dbenv_fini(&t_dbenv);
-
 	/* Finalise the domain. */
 	c2_layout_domain_fini(&t_domain);
+
+	c2_dbenv_fini(&t_dbenv);
 
 	C2_LEAVE();
 }
@@ -515,7 +477,7 @@ static void layout_finalise(struct c2_layout *l, uint64_t lid)
 
 /*
  * Tests the APIs c2_layout_enum_build() and c2_layout_build() and the function
- * pointed by lo_fini, for the PDCLUST layout type.
+ * pointed by lo_fini(), for the PDCLUST layout type.
  */
 static int test_build_pdclust(uint32_t enum_id, uint64_t lid,
 			      bool only_inline_test)
@@ -695,7 +657,8 @@ static int pdclust_layout_buf_build(uint32_t enum_id, uint64_t lid,
  * additional_bytes required if any.
  * For example, additional_bytes are required for LIST enumeration type, and
  * specifically when directly invoking c2_layout_encode() or
- * c2_layout_decode() (and not while invoking DB APIs like c2_layout_add() etc).
+ * c2_layout_decode() (and not while invoking Layout DB APIs like
+ * c2_layout_add() etc).
  */
 static void allocate_area(void **area,
 			  c2_bcount_t additional_bytes,
@@ -756,8 +719,7 @@ static int test_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	c2_bufvec_cursor_init(&cur, &bv);
 
 	/* Decode the layout buffer into a layout object. */
-	rc = c2_layout_decode(&domain, lid, &cur, C2_LXO_BUFFER_OP,
-			      NULL, NULL, &l);
+	rc = c2_layout_decode(&domain, lid, &cur, C2_LXO_BUFFER_OP, NULL, &l);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Verify the layout object built by c2_layout_decode(). */
@@ -962,7 +924,7 @@ static int test_encode_pdclust(uint32_t enum_id, uint64_t lid,
 
 	/* Encode the layout object into a layout buffer. */
 	rc  = c2_layout_encode(&domain, &pl->pl_base.ls_base, C2_LXO_BUFFER_OP,
-			       NULL, NULL, NULL, &cur);
+			       NULL, NULL, &cur);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Rewind the cursor. */
@@ -1051,7 +1013,7 @@ static void pdclust_lbuf_compare(struct c2_bufvec_cursor *cur1,
 	c2_bufvec_cursor_move(cur2, sizeof *pl_rec2);
 }
 
-/* Copmares two layout buffers provided as input arguments. */
+/* Compares two layout buffers provided as input arguments. */
 static void pdclust_layout_buf_compare(uint32_t enum_id,
 				       struct c2_bufvec_cursor *cur1,
 				       struct c2_bufvec_cursor *cur2)
@@ -1161,8 +1123,7 @@ static int test_decode_encode_pdclust(uint32_t enum_id, uint64_t lid,
 	c2_bufvec_cursor_init(&cur1, &bv1);
 
 	/* Decode the layout buffer into a layout object. */
-	rc = c2_layout_decode(&domain, lid, &cur1, C2_LXO_BUFFER_OP,
-			      NULL, NULL, &l);
+	rc = c2_layout_decode(&domain, lid, &cur1, C2_LXO_BUFFER_OP, NULL, &l);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Rewind the cursor. */
@@ -1181,7 +1142,7 @@ static int test_decode_encode_pdclust(uint32_t enum_id, uint64_t lid,
 	c2_bufvec_cursor_init(&cur2, &bv2);
 
 	rc = c2_layout_encode(&domain, l, C2_LXO_BUFFER_OP,
-			      NULL, NULL, NULL, &cur2);
+			      NULL, NULL, &cur2);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Rewind the cursor. */
@@ -1354,7 +1315,7 @@ static int test_encode_decode_pdclust(uint32_t enum_id, uint64_t lid,
 
 	/* Encode the layout object into a layout buffer. */
 	rc  = c2_layout_encode(&domain, &pl->pl_base.ls_base, C2_LXO_BUFFER_OP,
-			       NULL, NULL, NULL, &cur);
+			       NULL, NULL, &cur);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Rewind the cursor. */
@@ -1364,8 +1325,7 @@ static int test_encode_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	 * Decode the layout buffer produced by c2_layout_encode() into another
 	 * layout object.
 	 */
-	rc = c2_layout_decode(&domain, lid, &cur, C2_LXO_BUFFER_OP,
-			      NULL, NULL, &l);
+	rc = c2_layout_decode(&domain, lid, &cur, C2_LXO_BUFFER_OP, NULL, &l);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -1633,34 +1593,22 @@ static void test_enum_operations(void)
 	C2_UT_ASSERT(rc == 0);
 }
 
-/*
- * Tests the API c2_layout_max_recsize() along with testing the part of the
- * following APIs that is responsible to update the value of
- * c2_layout_schema::ls_max_recsize, using the internal function
- * max_recsize_update():
- * c2_layout_type_register(), c2_layout_type_unregister,
- * c2_layout_enum_type_register() and c2_layout_enum_type_unregister().
- */
+/* Tests the API c2_layout_max_recsize(). */
 static void test_max_recsize(void)
 {
 	const char              t_db_name[] = "t3-layout";
-	struct c2_layout_domain t_domain;
-	struct c2_layout_schema t_schema;
 	struct c2_dbenv         t_dbenv;
+	struct c2_layout_domain t_domain;
 	c2_bcount_t             max_size_from_api;
 	c2_bcount_t             max_size_calculated;
 
 	C2_ENTRY();
 
-	/* Initialise the domain. */
-	rc = c2_layout_domain_init(&t_domain);
-	C2_UT_ASSERT(rc == 0);
-
 	rc = c2_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
-	/* Initialise the schema. */
-	rc = c2_layout_schema_init(&t_schema, &t_domain, &t_dbenv);
+	/* Initialise the domain. */
+	rc = c2_layout_domain_init(&t_domain, &t_dbenv);
 	C2_UT_ASSERT(rc == 0);
 
 	max_size_from_api = c2_layout_max_recsize(&t_domain);
@@ -1733,13 +1681,10 @@ static void test_max_recsize(void)
 
 	C2_UT_ASSERT(max_size_from_api == max_size_calculated);
 
-	/* Finalise the schema. */
-	c2_layout_schema_fini(&t_schema);
-
-	c2_dbenv_fini(&t_dbenv);
-
 	/* Finalise the domain. */
 	c2_layout_domain_fini(&t_domain);
+
+	c2_dbenv_fini(&t_dbenv);
 
 	C2_LEAVE();
 }
@@ -1913,7 +1858,7 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 
 	pair_set(&pair, &lid, area, num_bytes);
 
-	rc = c2_layout_lookup(&schema, lid, &pair, &tx, &l2);
+	rc = c2_layout_lookup(&domain, lid, &pair, &tx, &l2);
 
 	if (existing_test)
 		C2_UT_ASSERT(rc == 0)
@@ -2054,7 +1999,7 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 
 	pair_set(&pair, &lid, area, num_bytes);
 
-	rc = c2_layout_add(&schema, &pl->pl_base.ls_base, &pair, &tx);
+	rc = c2_layout_add(&domain, &pl->pl_base.ls_base, &pair, &tx);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_db_tx_commit(&tx);
@@ -2070,7 +2015,7 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 
 		pair_set(&pair, &lid, area, num_bytes);
 
-		rc = c2_layout_lookup(&schema, lid, &pair, &tx, &l);
+		rc = c2_layout_lookup(&domain, lid, &pair, &tx, &l);
 		C2_UT_ASSERT(rc == 0);
 
 		rc = c2_db_tx_commit(&tx);
@@ -2097,7 +2042,7 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 
 		pair_set(&pair, &lid, area, num_bytes);
 
-		rc = c2_layout_add(&schema, &pl->pl_base.ls_base, &pair, &tx);
+		rc = c2_layout_add(&domain, &pl->pl_base.ls_base, &pair, &tx);
 		C2_UT_ASSERT(rc == -EEXIST);
 
 		rc = c2_db_tx_commit(&tx);
@@ -2217,7 +2162,7 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 
 	pair_set(&pair, &lid, area, num_bytes);
 
-	rc = c2_layout_update(&schema, l1, &pair, &tx);
+	rc = c2_layout_update(&domain, l1, &pair, &tx);
 	if (existing_test)
 		C2_UT_ASSERT(rc == 0)
 	else
@@ -2236,7 +2181,7 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 
 		pair_set(&pair, &lid, area, num_bytes);
 
-		rc = c2_layout_lookup(&schema, lid, &pair, &tx, &l2);
+		rc = c2_layout_lookup(&domain, lid, &pair, &tx, &l2);
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(l2->l_ref == DEFAULT_REF_COUNT + 7654);
 
@@ -2362,7 +2307,7 @@ static int test_delete_pdclust(uint32_t enum_id, uint64_t lid,
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_layout_delete(&schema, l, &pair, &tx);
+	rc = c2_layout_delete(&domain, l, &pair, &tx);
 	if (existing_test)
 		C2_UT_ASSERT(rc == 0)
 	else
@@ -2383,7 +2328,7 @@ static int test_delete_pdclust(uint32_t enum_id, uint64_t lid,
 
 	pair_set(&pair, &lid, area, num_bytes);
 
-	rc = c2_layout_lookup(&schema, lid, &pair, &tx, &l);
+	rc = c2_layout_lookup(&domain, lid, &pair, &tx, &l);
 	C2_UT_ASSERT(rc == -ENOENT);
 
 	rc = c2_db_tx_commit(&tx);
@@ -2449,7 +2394,6 @@ const struct c2_test_suite layout_ut = {
 	.ts_fini  = test_fini,
 	.ts_tests = {
 		{ "layout-domain-init-fini", test_domain_init_fini },
-		{ "layout-schema-init-fini", test_schema_init_fini },
 		{ "layout-type-register-unregister", test_type_reg_unreg },
 		{ "layout-etype-register-unregister", test_etype_reg_unreg },
 		{ "layout-register-unregister", test_reg_unreg },

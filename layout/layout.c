@@ -86,7 +86,7 @@ C2_ADDB_EV_DEFINE(layout_delete_fail, "layout_delete_fail",
 
 bool domain_invariant(const struct c2_layout_domain *dom)
 {
-	return dom != NULL && dom->ld_schema != NULL;
+	return dom != NULL && dom->ld_schema.ls_dbenv != NULL;
 }
 
 bool layout_invariant(const struct c2_layout *l)
@@ -107,12 +107,6 @@ bool striped_layout_invariant(const struct c2_layout_striped *stl,
 {
 	return stl != NULL && enum_invariant(stl->ls_enum, lid) &&
 		layout_invariant(&stl->ls_base);
-}
-
-int schema_invariant(const struct c2_layout_schema *schema)
-{
-	return schema != NULL && schema->ls_domain != NULL &&
-		schema->ls_dbenv != NULL;
 }
 
 static int layout_rec_invariant(const struct c2_layout_rec *rec,
@@ -406,6 +400,49 @@ static const struct c2_table_ops layouts_table_ops = {
 };
 
 /**
+ * Initialises the layout schema object - creates the layouts table.
+ * @pre dbenv Caller should have performed c2_dbenv_init() on dbenv.
+ */
+static int schema_init(struct c2_layout_schema *schema,
+		       struct c2_dbenv *dbenv)
+{
+	int rc;
+
+	C2_PRE(schema != NULL);
+	C2_PRE(dbenv != NULL);
+
+	C2_SET0(schema);
+
+	schema->ls_dbenv = dbenv;
+
+	rc = c2_table_init(&schema->ls_layouts, schema->ls_dbenv, "layouts",
+			   DEFAULT_DB_FLAG, &layouts_table_ops);
+	if (rc != 0) {
+		layout_log("c2_layout_schema_init", "c2_table_init() failed",
+			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			   c2_addb_func_fail.ae_id,
+			   &layout_global_ctx, !LID_APPLICABLE, LID_NONE, rc);
+
+		schema->ls_dbenv = NULL;
+	}
+
+	c2_mutex_init(&schema->ls_lock);
+
+	return rc;
+}
+
+/**
+ * Finalises the layout schema.
+ * @pre All the layout types and enum types should be unregistered.
+ */
+void schema_fini(struct c2_layout_schema *schema)
+{
+	c2_mutex_fini(&schema->ls_lock);
+	c2_table_fini(&schema->ls_layouts);
+	schema->ls_dbenv = NULL;
+}
+
+/**
  * Maximum possible size for a record in the layouts table (without
  * considering the data in the tables other than the layouts) is maintained in
  * c2_layout_schema::ls_max_recsize.
@@ -418,7 +455,7 @@ static void max_recsize_update(struct c2_layout_domain *dom)
 	c2_bcount_t max_recsize = 0;
 
 	C2_PRE(domain_invariant(dom));
-	C2_PRE(c2_mutex_is_locked(&dom->ld_schema->ls_lock));
+	C2_PRE(c2_mutex_is_locked(&dom->ld_schema.ls_lock));
 
 	/*
 	 * Iterate over all the layout types to find maximum possible recsize.
@@ -431,8 +468,8 @@ static void max_recsize_update(struct c2_layout_domain *dom)
 		max_recsize = max64u(max_recsize, recsize);
 	}
 
-	dom->ld_schema->ls_max_recsize = sizeof(struct c2_layout_rec) +
-					 max_recsize;
+	dom->ld_schema.ls_max_recsize = sizeof(struct c2_layout_rec) +
+					max_recsize;
 }
 
 /**
@@ -589,27 +626,26 @@ void c2_layouts_fini(void)
 
 /**
  * Initialises layout domain - Initialises arrays to hold the objects for
- * layout types and enum types.
+ * layout types and enum types and initializes the schema object.
+ * @pre Caller should have performed c2_dbenv_init() on dbenv.
  */
-int c2_layout_domain_init(struct c2_layout_domain *dom)
+int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
 {
-	C2_PRE(dom != NULL);
+	int rc;
 
-	C2_ENTRY();
+	C2_PRE(dom != NULL);
+	C2_PRE(dbenv != NULL);
 
 	C2_SET0(dom);
 
 	c2_mutex_init(&dom->ld_lock);
 
-	/*
-	 * Can not invoke invariant here since the dom->ld_schema pointer is
-	 * not yet set. It will be set once the c2_layout_schema object
-	 * associated with this domain object is initialised.
-	 */
-	C2_POST(dom->ld_schema == NULL);
+	rc = schema_init(&dom->ld_schema, dbenv);
+	if (rc != 0)
+		return rc;
 
-	C2_LEAVE();
-	return 0;
+	C2_POST(domain_invariant(dom));
+	return rc;
 }
 
 /**
@@ -620,98 +656,19 @@ void c2_layout_domain_fini(struct c2_layout_domain *dom)
 {
 	uint32_t i;
 
-	/*
-	 * Can not invoke invariant here since the dom->ld_schema pointer is
-	 * expected to be set to NULL during finalisation of the
-	 * c2_layout_schema object associated with this domain.
-	 */
-	C2_PRE(dom != NULL);
+	C2_PRE(domain_invariant(dom));
 
-	/*
-	 * Verify that the schema object associated with this domain has been
-	 * finalised prior to this routine being invoked.
-	 */
-	C2_PRE(dom->ld_schema == NULL);
-
-	C2_ENTRY();
-
-	/* Verify that all the layout types were unregistered. */
+	/* Verify that all the layout types are unregistered. */
 	for (i = 0; i < ARRAY_SIZE(dom->ld_type); ++i)
-		C2_ASSERT(dom->ld_type[i] == NULL);
+		C2_PRE(dom->ld_type[i] == NULL);
 
-	/* Verify that all the enum types were unregistered. */
+	/* Verify that all the enum types are unregistered. */
 	for (i = 0; i < ARRAY_SIZE(dom->ld_enum); ++i)
-		C2_ASSERT(dom->ld_enum[i] == NULL);
+		C2_PRE(dom->ld_enum[i] == NULL);
+
+	schema_fini(&dom->ld_schema);
 
 	c2_mutex_fini(&dom->ld_lock);
-
-	C2_LEAVE();
-}
-
-/**
- * Initialises the layout schema object - creates the layouts table.
- * @pre dbenv Caller should have performed c2_dbenv_init() on dbenv.
- */
-int c2_layout_schema_init(struct c2_layout_schema *schema,
-			  struct c2_layout_domain *dom,
-			  struct c2_dbenv *dbenv)
-{
-	int rc;
-
-	C2_PRE(schema != NULL);
-	C2_PRE(dom != NULL);
-	C2_PRE(dbenv != NULL);
-
-	C2_ENTRY();
-
-	C2_SET0(schema);
-
-	schema->ls_domain = dom;
-	schema->ls_dbenv = dbenv;
-
-	c2_mutex_init(&schema->ls_lock);
-
-	rc = c2_table_init(&schema->ls_layouts, schema->ls_dbenv, "layouts",
-			   DEFAULT_DB_FLAG, &layouts_table_ops);
-	if (rc != 0) {
-		layout_log("c2_layout_schema_init", "c2_table_init() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   c2_addb_func_fail.ae_id,
-			   &layout_global_ctx, !LID_APPLICABLE, LID_NONE, rc);
-
-		schema->ls_dbenv = NULL;
-		c2_mutex_fini(&schema->ls_lock);
-	}
-
-	/* Store pointer to the schema object, in the domain object. */
-	dom->ld_schema = schema;
-
-	C2_POST(schema_invariant(schema));
-	C2_POST(domain_invariant(dom));
-
-	C2_LEAVE("rc %d", rc);
-	return rc;
-}
-
-/**
- * Finalises the layout schema.
- * @pre All the layout types and enum types should be unregistered.
- */
-void c2_layout_schema_fini(struct c2_layout_schema *schema)
-{
-	C2_PRE(schema_invariant(schema));
-	C2_POST(domain_invariant(schema->ls_domain));
-
-	C2_ENTRY();
-
-	schema->ls_domain->ld_schema = NULL;
-
-	c2_table_fini(&schema->ls_layouts);
-	c2_mutex_fini(&schema->ls_lock);
-	schema->ls_dbenv = NULL;
-	schema->ls_domain = NULL;
-
-	C2_LEAVE();
 }
 
 /**
@@ -773,9 +730,9 @@ int c2_layout_type_register(struct c2_layout_domain *dom,
 	C2_CNT_INC(dom->ld_type_ref_count[lt->lt_id]);
 
 	/* Allocate type specific schema data. */
-	c2_mutex_lock(&dom->ld_schema->ls_lock);
+	c2_mutex_lock(&dom->ld_schema.ls_lock);
 
-	rc = lt->lt_ops->lto_register(dom->ld_schema, lt);
+	rc = lt->lt_ops->lto_register(dom, lt);
 	if (rc != 0)
 		layout_log("c2_layout_type_register", "lto_register() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
@@ -784,8 +741,7 @@ int c2_layout_type_register(struct c2_layout_domain *dom,
 
 	max_recsize_update(dom);
 
-	c2_mutex_unlock(&dom->ld_schema->ls_lock);
-
+	c2_mutex_unlock(&dom->ld_schema.ls_lock);
 	c2_mutex_unlock(&dom->ld_lock);
 
 	C2_LEAVE("Layout-type-id %lu, rc %d", (unsigned long)lt->lt_id, rc);
@@ -808,19 +764,16 @@ void c2_layout_type_unregister(struct c2_layout_domain *dom,
 
 	c2_mutex_lock(&dom->ld_lock);
 
-	c2_mutex_lock(&dom->ld_schema->ls_lock);
-
-	lt->lt_ops->lto_unregister(dom->ld_schema, lt);
+	c2_mutex_lock(&dom->ld_schema.ls_lock);
+	lt->lt_ops->lto_unregister(dom, lt);
+	dom->ld_type[lt->lt_id] = NULL;
+	max_recsize_update(dom);
+	c2_mutex_unlock(&dom->ld_schema.ls_lock);
 
 	/* Release the last reference on this layout type. */
 	C2_ASSERT(dom->ld_type_ref_count[lt->lt_id] == 1);
 	C2_CNT_DEC(dom->ld_type_ref_count[lt->lt_id]);
 
-	dom->ld_type[lt->lt_id] = NULL;
-
-	max_recsize_update(dom);
-
-	c2_mutex_unlock(&dom->ld_schema->ls_lock);
 	c2_mutex_unlock(&dom->ld_lock);
 
 	C2_LEAVE("Layout-type-id %lu", (unsigned long)lt->lt_id);
@@ -854,9 +807,9 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 	C2_ASSERT(dom->ld_enum_ref_count[let->let_id] == DEFAULT_REF_COUNT);
 
 	/* Allocate enum type specific schema data. */
-	c2_mutex_lock(&dom->ld_schema->ls_lock);
+	c2_mutex_lock(&dom->ld_schema.ls_lock);
 
-	rc = let->let_ops->leto_register(dom->ld_schema, let);
+	rc = let->let_ops->leto_register(dom, let);
 	if (rc != 0)
 		layout_log("c2_layout_enum_type_register",
 			   "leto_register() failed",
@@ -866,8 +819,7 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 
 	max_recsize_update(dom);
 
-	c2_mutex_unlock(&dom->ld_schema->ls_lock);
-
+	c2_mutex_unlock(&dom->ld_schema.ls_lock);
 	c2_mutex_unlock(&dom->ld_lock);
 
 	C2_LEAVE("Enum_type_id %lu, rc %d", (unsigned long)let->let_id, rc);
@@ -890,19 +842,16 @@ void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
 
 	c2_mutex_lock(&dom->ld_lock);
 
-	c2_mutex_lock(&dom->ld_schema->ls_lock);
-
-	let->let_ops->leto_unregister(dom->ld_schema, let);
+	c2_mutex_lock(&dom->ld_schema.ls_lock);
+	let->let_ops->leto_unregister(dom, let);
+	dom->ld_enum[let->let_id] = NULL;
+	max_recsize_update(dom);
+	c2_mutex_unlock(&dom->ld_schema.ls_lock);
 
 	/* Release the last reference on this enum type. */
 	C2_ASSERT(dom->ld_enum_ref_count[let->let_id] == DEFAULT_REF_COUNT);
 	C2_CNT_DEC(dom->ld_enum_ref_count[let->let_id]);
 
-	dom->ld_enum[let->let_id] = NULL;
-
-	max_recsize_update(dom);
-
-	c2_mutex_unlock(&dom->ld_schema->ls_lock);
 	c2_mutex_unlock(&dom->ld_lock);
 
 	C2_LEAVE("Enum_type_id %lu", (unsigned long)let->let_id);
@@ -980,7 +929,6 @@ void c2_layout_put(struct c2_layout *l)
 int c2_layout_decode(struct c2_layout_domain *dom,
 		     uint64_t lid, struct c2_bufvec_cursor *cur,
 		     enum c2_layout_xcode_op op,
-		     struct c2_layout_schema *schema,
 		     struct c2_db_tx *tx,
 		     struct c2_layout **out)
 {
@@ -993,7 +941,7 @@ int c2_layout_decode(struct c2_layout_domain *dom,
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *rec);
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
-	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, schema != NULL && tx != NULL));
+	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(out != NULL && *out == NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
@@ -1013,7 +961,7 @@ int c2_layout_decode(struct c2_layout_domain *dom,
 	 */
 
 	rc = lt->lt_ops->lto_decode(dom, lid, rec->lr_pool_id,
-				    cur, op, schema, tx, out);
+				    cur, op, tx, out);
 	if (rc != 0) {
 		layout_log("c2_layout_decode", "lto_decode() failed",
 			   op == C2_LXO_BUFFER_OP, PRINT_TRACE_MSG,
@@ -1022,14 +970,10 @@ int c2_layout_decode(struct c2_layout_domain *dom,
 		goto out;
 	}
 
-	c2_mutex_lock(&(*out)->l_lock);
-
 	(*out)->l_id      = lid;
 	(*out)->l_type    = lt;
 	(*out)->l_ref     = rec->lr_ref_count;
 	(*out)->l_pool_id = rec->lr_pool_id;
-
-	c2_mutex_unlock(&(*out)->l_lock);
 
 	C2_POST(layout_invariant(*out));
 
@@ -1086,7 +1030,6 @@ out:
 int c2_layout_encode(struct c2_layout_domain *dom,
 		     struct c2_layout *l,
 		     enum c2_layout_xcode_op op,
-		     struct c2_layout_schema *schema,
 		     struct c2_db_tx *tx,
 		     struct c2_bufvec_cursor *oldrec_cur,
 		     struct c2_bufvec_cursor *out)
@@ -1101,7 +1044,7 @@ int c2_layout_encode(struct c2_layout_domain *dom,
 	C2_PRE(layout_invariant(l));
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
-	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, schema != NULL && tx != NULL));
+	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(out != NULL);
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof rec);
@@ -1136,7 +1079,7 @@ int c2_layout_encode(struct c2_layout_domain *dom,
 	nbytes = c2_bufvec_cursor_copyto(out, &rec, sizeof rec);
 	C2_ASSERT(nbytes == sizeof rec);
 
-	rc = lt->lt_ops->lto_encode(dom, l, op, schema, tx, oldrec_cur, out);
+	rc = lt->lt_ops->lto_encode(dom, l, op, tx, oldrec_cur, out);
 	if (rc != 0) {
 		layout_log("c2_layout_encode", "lto_encode() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
@@ -1166,7 +1109,7 @@ c2_bcount_t c2_layout_max_recsize(struct c2_layout_domain *dom)
 {
 	C2_PRE(domain_invariant(dom));
 
-	return dom->ld_schema->ls_max_recsize;
+	return dom->ld_schema.ls_max_recsize;
 }
 
 /** @} end group layout */

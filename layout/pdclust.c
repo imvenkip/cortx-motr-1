@@ -92,7 +92,7 @@
 #include "stob/stob.h"  /* c2_stob_id_is_set() */
 #include "pool/pool.h"  /* c2_pool_lookup() */
 #include "layout/layout_internal.h"
-#include "layout/layout_db.h"
+//todo #include "layout/layout_db.h"
 #include "layout/pdclust.h"
 
 extern const struct c2_addb_loc layout_addb_loc;
@@ -415,7 +415,7 @@ static void pdclust_fini(struct c2_layout *l, struct c2_layout_domain *dom)
  * Implementation of lto_register for PDCLUST layout type.
  * No table is required specifically for PDCLUST layout type.
  */
-static int pdclust_register(struct c2_layout_schema *schema,
+static int pdclust_register(struct c2_layout_domain *dom,
 			    const struct c2_layout_type *lt)
 {
 	return 0;
@@ -424,7 +424,7 @@ static int pdclust_register(struct c2_layout_schema *schema,
 /**
  * Implementation of lto_unregister for PDCLUST layout type.
  */
-static void pdclust_unregister(struct c2_layout_schema *schema,
+static void pdclust_unregister(struct c2_layout_domain *dom,
 			       const struct c2_layout_type *lt)
 {
 }
@@ -602,7 +602,6 @@ static int pdclust_decode(struct c2_layout_domain *dom,
 			  uint64_t lid, uint64_t pool_id,
 			  struct c2_bufvec_cursor *cur,
 			  enum c2_layout_xcode_op op,
-			  struct c2_layout_schema *schema,
 			  struct c2_db_tx *tx,
 		          struct c2_layout **out)
 {
@@ -618,7 +617,7 @@ static int pdclust_decode(struct c2_layout_domain *dom,
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *pl_rec);
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
-	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, schema != NULL && tx != NULL));
+	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(out != NULL && *out == NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
@@ -631,7 +630,7 @@ static int pdclust_decode(struct c2_layout_domain *dom,
 
 	c2_bufvec_cursor_move(cur, sizeof *pl_rec);
 
-	rc = et->let_ops->leto_decode(dom, lid, cur, op, schema, tx, &e);
+	rc = et->let_ops->leto_decode(dom, lid, cur, op, tx, &e);
 	if (rc != 0) {
 		C2_LOG("pdclust_decode(): lid %llu, leto_decode() failed, "
 		       "rc %d", (unsigned long long)lid, rc);
@@ -687,7 +686,6 @@ out:
 static int pdclust_encode(struct c2_layout_domain *dom,
 			  struct c2_layout *l,
 			  enum c2_layout_xcode_op op,
-			  struct c2_layout_schema *schema,
 			  struct c2_db_tx *tx,
 		          struct c2_bufvec_cursor *oldrec_cur,
 		          struct c2_bufvec_cursor *out)
@@ -709,7 +707,7 @@ static int pdclust_encode(struct c2_layout_domain *dom,
 
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
-	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, schema != NULL && tx != NULL));
+	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(out != NULL);
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof pl_rec);
@@ -749,7 +747,7 @@ static int pdclust_encode(struct c2_layout_domain *dom,
 	C2_ASSERT(nbytes == sizeof pl_rec);
 
 	rc = et->let_ops->leto_encode(dom, pl->pl_base.ls_enum, l->l_id,
-				      op, schema, tx, oldrec_cur, out);
+				      op, tx, oldrec_cur, out);
 	if (rc != 0) {
 		C2_LOG("pdclust_encode(): lid %llu, leto_encode() failed, "
 		       "rc %d", (unsigned long long)l->l_id, rc);

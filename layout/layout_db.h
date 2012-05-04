@@ -36,20 +36,13 @@
  * - @ref LayoutDBDFS "Detailed Functional Specification"
  *
  * @section Layout-DB-fspec-ds Data Structures
- * - struct c2_layout_schema
  * - struct c2_layout_rec
  *
  * @section Layout-DB-fspec-sub Subroutines
- * - int c2_layout_schema_init(struct c2_layout_schema *schema, struct c2_dbenv *db)
- * - void c2_layout_schema_fini(struct c2_layout_schema *schema)
- * - void c2_layout_type_register(struct c2_layout_schema *schema, const struct c2_layout_type *lt)
- * - void c2_layout_type_unregister(struct c2_layout_schema *schema, const struct c2_layout_type *lt)
- * - void c2_layout_enum_type_register(struct c2_layout_schema *schema, const struct c2_layout_enum_type *et)
- * - void c2_layout_enum_type_unregister(struct c2_layout_schema *schema, const struct c2_layout_enum_type *et)
- * - int c2_layout_lookup(struct c2_layout_schema *schema, uint64_t lid, struct c2_db_pair *pair, struct c2_db_tx *tx, struct c2_layout **out)
- * - int c2_layout_add(struct c2_layout_schema *schema, struct c2_layout *l, struct c2_db_pair *pair, struct c2_db_tx *tx)
- * - int c2_layout_update(struct c2_layout_schema *schema, struct c2_layout *l, struct c2_db_pair *pair, struct c2_db_tx *tx)
- * - int c2_layout_delete(struct c2_layout_schema *schema, struct c2_layout *l, struct c2_db_pair *pair, struct c2_db_tx *tx)
+ * - int c2_layout_lookup(struct c2_layout_domain *dom, uint64_t lid, struct c2_db_pair *pair, struct c2_db_tx *tx, struct c2_layout **out)
+ * - int c2_layout_add(struct c2_layout_domain *dom, struct c2_layout *l, struct c2_db_pair *pair, struct c2_db_tx *tx)
+ * - int c2_layout_update(struct c2_layout_domain *dom, struct c2_layout *l, struct c2_db_pair *pair, struct c2_db_tx *tx)
+ * - int c2_layout_delete(struct c2_layout_domain *dom, struct c2_layout *l, struct c2_db_pair *pair, struct c2_db_tx *tx)
  *
  * @subsection Layout-DB-fspec-sub-acc Accessors and Invariants
  *
@@ -133,20 +126,20 @@ struct c2_layout_rec {
 	char      lr_data[0];
 };
 
-int c2_layout_lookup(struct c2_layout_schema *schema,
+int c2_layout_lookup(struct c2_layout_domain *dom,
 		     uint64_t id,
 		     struct c2_db_pair *pair,
 		     struct c2_db_tx *tx,
 		     struct c2_layout **out);
-int c2_layout_add(struct c2_layout_schema *schema,
+int c2_layout_add(struct c2_layout_domain *dom,
 		  struct c2_layout *l,
 		  struct c2_db_pair *pair,
 		  struct c2_db_tx *tx);
-int c2_layout_update(struct c2_layout_schema *schema,
+int c2_layout_update(struct c2_layout_domain *dom,
 		     struct c2_layout *l,
 		     struct c2_db_pair *pair,
 		     struct c2_db_tx *tx);
-int c2_layout_delete(struct c2_layout_schema *schema,
+int c2_layout_delete(struct c2_layout_domain *dom,
 		     struct c2_layout *l,
 		     struct c2_db_pair *pair,
 		     struct c2_db_tx *tx);
