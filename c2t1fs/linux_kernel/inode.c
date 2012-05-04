@@ -118,11 +118,7 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 
 	pd_layout = container_of(ci->ci_layout, struct c2_pdclust_layout,
 				 pl_base.ls_base);
-	/*
-	 * todo NULL will be replaced by c2_layout_domain pointer.
-	 * This will be taken care of through the component task
-	 * "c2t1fs.LayoutDB".
-	 */
+	/* todo NULL will be replaced by c2_layout_domain pointer. */
 	ci->ci_layout->l_ops->lo_fini(ci->ci_layout, NULL);
 
 	C2_LEAVE();
@@ -346,12 +342,21 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 			     uint32_t             K,
 			     uint64_t             unit_size)
 {
-	struct c2_pdclust_layout     *pd_layout = NULL;
+	struct c2_pdclust_layout     *pd_layout;
 	uint64_t                      layout_id;
 	struct c2_uint128             seed;
 	struct c2_layout_domain       domain;
-	struct c2_layout_linear_enum *le = NULL;
+	struct c2_layout_linear_enum *le;
 	int                           rc;
+
+	/**
+	 * @todo The domain object needs to be initialized during c2t1fs_init()
+	 * operation and its pointer needs to preserved in c2t1fs_globals.
+	 * The available layout types and enum types need to be registered.
+	 * This is to be taken care of before the layout schema code is
+	 * checked in to master. A small patch should follow this one for
+	 * INSP with such changes.
+	 */
 
 	C2_ENTRY();
 	C2_PRE(ci != NULL && pool != NULL && pool->po_width > 0);

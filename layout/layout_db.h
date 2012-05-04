@@ -76,7 +76,6 @@ int c2_layout_delete(struct c2_layout_domain *dom, struct c2_db_tx *tx, struct c
  */
 
 /* import */
-
 #include "layout/layout.h"
 
 /* export */

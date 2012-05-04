@@ -364,7 +364,7 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 
 	/*
 	 * execute inverses of the steps of c2_pdclust_layout_map() in reverse
-	   order.
+	 * order.
 	 */
 	m_dec(L, tgt->ta_frame, &omega, &r);
 	permute_column(play, omega, t); /* force tile cache update */

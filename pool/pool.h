@@ -49,7 +49,7 @@ void c2_pool_fini(struct c2_pool *pool);
 /**
  * @todo One of the LayoutSchema function, viz. pdclust_decode() requires an
  * interface returning c2_pool object, given a pool id. Eventually, such an
- * interface will be provided by configuration schema, over-riding this one.
+ * interface will be provided by configuration caching, over-riding this one.
  */
 int c2_pool_lookup(uint64_t pid, struct c2_pool **out);
 

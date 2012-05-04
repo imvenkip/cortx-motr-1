@@ -25,8 +25,6 @@
 #include "lib/misc.h"
 #include "lib/assert.h"
 
-#include "lib/trace.h" /* todo remove this */
-
 static void test_bufvec_cursor(void);
 static void test_bufvec_cursor_copyto_copyfrom(void);
 
@@ -374,8 +372,7 @@ static void test_bufvec_cursor_copyto_copyfrom(void)
 	C2_UT_ASSERT(c2_bufvec_cursor_step(&dcur1) == nbytes);
 
 	/*
-	 * Copy data from the cursor using the API
-	 * c2_bufvec_cursor_copyfrom().
+	 * Copy data from the cursor using the API c2_bufvec_cursor_copyfrom().
 	 */
 
 	for (i = 0; i < 3; ++i) {

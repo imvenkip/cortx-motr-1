@@ -163,14 +163,13 @@ void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 }
 
 /*
- * Creates dummy schema, domain, registers pdclust layout type and linear
+ * Creates dummy domain, registers pdclust layout type and linear
  * enum type and creates dummy enum object.
  * These objects are called as dummy since they are not used by this ldemo
  * test.
  */
 static int dummy_create(struct c2_layout_domain *domain,
 			struct c2_dbenv *dbenv,
-			struct c2_layout_schema *schema,
 			uint64_t lid, uint32_t pool_width,
 			struct c2_layout_linear_enum **lin_enum)
 {
@@ -181,12 +180,6 @@ static int dummy_create(struct c2_layout_domain *domain,
 
 	rc = c2_layout_domain_init(domain, dbenv);
 	C2_ASSERT(rc == 0);
-
-	/*
-	rc = c2_layout_schema_init(schema, domain, dbenv);
-	C2_ASSERT(rc == 0);
-	C2_ASSERT(schema->ls_domain == domain);
-	*/
 
 	c2_layout_type_register(domain, &c2_pdclust_layout_type);
 	c2_layout_enum_type_register(domain, &c2_linear_enum_type);
@@ -206,14 +199,13 @@ int main(int argc, char **argv)
 	int      I;
 	int      result;
 	uint64_t unitsize = 4096;
-	struct c2_pdclust_layout      *play = NULL;
+	struct c2_pdclust_layout      *play;
 	struct c2_pool                 pool;
 	uint64_t                       id;
 	struct c2_uint128              seed;
 	struct c2_layout_domain        domain;
 	struct c2_dbenv                dbenv;
-	struct c2_layout_schema        schema;
-	struct c2_layout_linear_enum  *le = NULL;
+	struct c2_layout_linear_enum  *le;
 	if (argc != 6) {
 		printf(
 "\t\tldemo N K P R I\nwhere\n"
@@ -255,8 +247,8 @@ int main(int argc, char **argv)
 		 * Creating a dummy domain object here so as to supply it
 		 * to c2_pdclust_build(), though it is not used in this test.
 		 */
-		result = dummy_create(&domain, &dbenv, &schema,
-				      id, pool.po_width, &le);
+		result = dummy_create(&domain, &dbenv, id,
+				      pool.po_width, &le);
 		if (result == 0) {
 			result = c2_pdclust_build(&domain, &pool, id, N, K,
 						  unitsize, &seed,

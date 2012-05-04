@@ -58,9 +58,7 @@ struct list_schema_data {
 	struct c2_table  lsd_cob_lists;
 };
 
-/**
- * cob_lists table.
- */
+/** cob_lists table. */
 struct cob_lists_key {
 	/** Layout id, value obtained from c2_layout::l_id. */
 	uint64_t  clk_lid;
@@ -88,9 +86,7 @@ static int lcl_key_cmp(struct c2_table *table,
                 C2_3WAY(k0->clk_cob_index, k1->clk_cob_index);
 }
 
-/**
- * table_ops for cob_lists table.
- */
+/** table_ops for cob_lists table. */
 static const struct c2_table_ops cob_lists_table_ops = {
 	.to = {
 		[TO_KEY] = {
