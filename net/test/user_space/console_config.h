@@ -18,14 +18,11 @@
  * Original creation date: 03/22/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include <config.h>
-#endif
+#ifndef __NET_TEST_USER_SPACE_CONSOLE_CONFIG_H__
+#define __NET_TEST_USER_SPACE_CONSOLE_CONFIG_H__
 
-int main(int argc, char *argv[])
-{
-	return 0;
-}
+
+#endif /*  __NET_TEST_USER_SPACE_CONSOLE_CONFIG_H__ */
 
 /*
  *  Local variables:

@@ -21,6 +21,8 @@
 #ifndef __NET_TEST_CONFIG_NODE_H__
 #define __NET_TEST_CONFIG_NODE_H__
 
+#include "lib/types.h"		/* bool */
+
 /**
    @defgroup NetTestConfigDFS Colibri Network Benchmark \
 			      Configuration \

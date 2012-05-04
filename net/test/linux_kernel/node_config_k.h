@@ -18,8 +18,8 @@
  * Original creation date: 03/22/2012
  */
 
-#ifndef __NET_TEST_LINUX_KERNEL_CONFIG_H__
-#define __NET_TEST_LINUX_KERNEL_CONFIG_H__
+#ifndef __NET_TEST_LINUX_KERNEL_NODE_CONFIG_K_H__
+#define __NET_TEST_LINUX_KERNEL_NODE_CONFIG_K_H__
 
 #include "net/test/node_config.h"
 
@@ -33,7 +33,7 @@ int c2_net_test_node_config_init(struct c2_net_test_node_config *cfg);
  */
 void c2_net_test_node_config_fini(struct c2_net_test_node_config *cfg);
 
-#endif /*  ___NET_TEST_LINUX_KERNEL_CONFIG_H__ */
+#endif /* __NET_TEST_LINUX_KERNEL_NODE_CONFIG_K_H__ */
 
 /*
  *  Local variables:

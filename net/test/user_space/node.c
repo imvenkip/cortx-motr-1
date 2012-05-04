@@ -15,16 +15,30 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Maxim Medved <max_medved@xyratex.com>
- * Original creation date: 03/22/2012
+ * Original creation date: 04/30/2012
  */
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
 
+#include "net/test/node_main.h"
+#include "net/test/user_space/node_config_u.h"
+
+static struct c2_net_test_node_config node_config;
+
 int main(int argc, char *argv[])
 {
-	return 0;
+	int rc;
+
+	rc = c2_net_test_node_config_init(&node_config);
+	if (rc == 0)
+		rc = c2_net_test_init(&node_config);
+
+	/* TODO add Ctrl+C handler c2_net_test_fini()+c2_net_test_config_fini() */
+	/* TODO atexit() */
+
+	return rc;
 }
 
 /*

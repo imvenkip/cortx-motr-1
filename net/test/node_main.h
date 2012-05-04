@@ -31,6 +31,8 @@
    - @ref net-test-fspec-ds
    - @ref net-test-fspec-sub
    - @ref net-test-fspec-cli
+     - @ref net-test-fspec-cli-node "Linux kernel module"
+     - @ref net-test-fspec-cli-console "Console"
    - @ref net-test-fspec-usecases
    - @subpage NetTestDFS
      - @subpage NetTestStatsDFS "Statistics Collector"
@@ -38,14 +40,12 @@
      - @subpage NetTestClientDFS "Test Client"
      - @subpage NetTestServerDFS "Test Server"
      - @subpage NetTestNetworkDFS "Network"
-     - @subpage NetTestConsoleDFS "Console"
    - @subpage NetTestInternals "Internals"
      - @subpage NetTestStatsInternals "Statistics Collector"
      - @subpage NetTestConfigInternals "Configuration"
      - @subpage NetTestClientInternals "Test Client"
      - @subpage NetTestServerInternals "Test Server"
      - @subpage NetTestNetworkInternals "Network"
-     - @subpage NetTestConsoleInternals "Console"
 
    @section net-test-fspec-ds Data Structures
    <i>Mandatory for programmatic interfaces.  Components with programming
@@ -112,7 +112,8 @@
    addition, the format of any any structured file consumed or produced by the
    interface must be described in this section.</i>
 
-   This command line options are valid for both client and server testing role.
+   @subsection net-test-fspec-cli-node \
+	   Command line options for the test client/server kernel module.
 
    - @b node_role Node role. Mandatory option.
      - @b client Program will act as test client.
@@ -129,7 +130,26 @@
 		   Items in list are comma-separated. Mandatory option.
    - @b console Console hostname. Mandatory option.
 
-   @todo console cli
+   @subsection net-test-fspec-cli-console \
+	   Command line options for the test console.
+
+   Installing/uninstalling test suite (kernel modules, scripts etc.)
+   to/from remote host:
+   - @b --install Install test suite. This means only copying binaries,
+                  scripts etc., but not running something.
+   - @b --uninstall Uninstall test suite.
+   - @b --remote-path Remote path for installing.
+   - @b --targets Comma-separated list of host names for installion.
+
+   Running test:
+   - @b --type Test type. Can be @b bulk or @b ping.
+   - @b --clients Comma-separated list of test client hostnames.
+   - @b --servers Comma-separated list of test server hostnames.
+   - @b --count Number of test messages to exchange between every test
+		client and every test server.
+   - @b --size Size of bulk messages, bytes. Makes sense for bulk test only.
+   - @b --remote-path Path to test suite on remote host.
+   - @b --live Live report update time, seconds.
 
    @section net-test-fspec-usecases Recipes
    <i>This section could briefly explain what sequence of interface calls or
@@ -137,12 +157,34 @@
    scenarios.  It would be very nice if these examples can be linked
    back to the HLD for the component.</i>
 
+   @subsection net-test-fspec-usecases-kernel Kernel module parameters example
+
    node_role=client test_type=ping count=10 target=s1,s2,s3 @n
    Run ping test as test client with 10 test messages to servers s1, s2 and s3.
    @n @n
    node_role=server test_type=bulk target=c1,c2 @n
    Run bulk test as test server with 1Mb bulk message size and
    test clients c1 and c2.
+
+   @subsection net-test-fspec-usecases-console Test console parameters example
+
+   --install --remote-path=~/net-test --targets=c1,c2,c3,s1,s2 @n
+   Install test suite to ~/net-test directory on hosts c1, c2, c3, s1 and s2. @n
+   @n
+   --uninstall --remote-path=/tmp/net-test --targets=host1,host2 @n
+   Uninstall test suite on hosts host1 and host2. @n
+   @n
+   --type=ping --clients=c1,c2,c3 --servers=s1,s2 --count=1024
+   --remote-path=~/net-test @n
+   Run ping test with hosts c1, c2 and c3 as clients and s2 and s2 as servers.
+   Ping test should have 1024 test messages and test suite on remote hosts
+   is installed in ~/net-test. @n
+   @n
+   --type=bulk --clients=host1 --servers=host2 --count=1000000 --size=1048576
+   --remote-path=~/net-test --live=1 @n
+   Run bulk test with host1 as test client and host2 as test server. Number of
+   bulk packets is one million, size is 1 MiB. Test statistics should be updated
+   every second.
 
    @see @ref net-test
  */

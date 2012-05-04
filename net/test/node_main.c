@@ -106,13 +106,16 @@
    <i>Mandatory. Identify other components on which this specification
    depends.</i>
 
+   - R.c2.net
+
    <hr>
    @section net-test-highlights Design Highlights
    <i>Mandatory. This section briefly summarizes the key design
    decisions that are important for understanding the functional and
    logical specifications, and enumerates topics that need special
    attention.</i>
-   @todo
+
+   - c2_net is used as network library.
 
    <hr>
    @section net-test-lspec Logical Specification
@@ -127,19 +130,13 @@
    - @ref net-test-lspec-comps
      - @ref net-test-lspec-ping
      - @ref net-test-lspec-bulk
-     - @ref net-test-lspec-config
-     - @ref net-test-lspec-stats
-     - @ref net-test-lspec-network
+     - @ref net-test-lspec-algo-client
+     - @ref net-test-lspec-algo-server
      - @ref net-test-lspec-console
+     - @ref net-test-lspec-misc
    - @ref net-test-lspec-state
    - @ref net-test-lspec-thread
-     - @ref net-test-lspec-thread-config
-     - @ref net-test-lspec-thread-stats
-     - @ref net-test-lspec-thread-network
    - @ref net-test-lspec-numa
-     - @ref net-test-lspec-numa-config
-     - @ref net-test-lspec-numa-stats
-     - @ref net-test-lspec-numa-network
 
    @subsection net-test-lspec-comps Component Overview
    <i>Mandatory.
@@ -151,40 +148,31 @@
    digraph {
      node [style=box];
      label = "Network Benchmark Source File Relationship";
-     subgraph kernel_main_sg {
-       kernel_main [label = "linux_kernel/main.c"];
-     }
-     subgraph programs {
-       node_main [label = "node_main.c"];
-       console	 [label = "console.c"];
-     }
-     subgraph client_server {
-       client [label = "client.c"];
-       server [label = "server.c"];
-     }
-     subgraph libraries {
-       stats	   [label="stats.c"];
-       network     [label="network.c"];
-       node_config [label="node_config.c"];
-     }
-     subgraph kernel_config_sg {
-       kernel_config [label = "linux_kernel/node_config_k.c"];
-     }
-     kernel_main -> node_main;
-     node_main	 -> client;
-     node_main	 -> server;
-     client	 -> stats;
-     client	 -> network;
-     client	 -> node_config;
-     server	 -> stats;
-     server	 -> network;
-     server	 -> node_config;
-     node_config -> kernel_config;
-     console	 -> stats;
+     nodeU   [label="user_space/node.c"];
+     nodeK   [label="linux_kerner/main.c"];
+     console [label="user_space/console.c"];
+     server  [label="server.c"];
+     client  [label="client.c"];
+     config  [label="node_config.c"];
+     main    [label="node_main.c"];
+     network [label="network.c"];
+     stats   [label="stats.c"];
+     nodeU   -> main;
+     nodeK   -> main;
+     main    -> client;
+     main    -> server;
+     client  -> network;
+     client  -> stats;
+     client  -> config;
+     server  -> network;
+     server  -> stats;
+     server  -> config;
+     console -> network;
+     console -> stats;
    }
    @enddot
 
-   Test client/server/console (PROG) can be run in such a way:
+   Test client/server (PROG) can be run in such a way:
 
    @code
    int rc;
@@ -246,20 +234,132 @@
    |||;
    @endmsc
 
-   @subsubsection net-test-lspec-config Configuration
+   @subsubsection net-test-lspec-algo-client Test Client Algorithm
 
+   @dot
+   digraph {
+     S0 [label="entry point"];
+     S1 [label="msg_left = msg_count;\l\
+semaphore buf_free = concurrency;\l", shape=box];
+     SD [label="", height=0, width=0, shape=plaintext];
+     S2 [label="msg_left > 0?", shape=diamond];
+     S3 [label="buf_free.down();", shape=box];
+     S4 [label="stop.trydown()?", shape=diamond];
+     S5 [label="msg_left--;", shape=box];
+     S6 [label="test_type == ping?", shape=diamond];
+     SA [label="add recv buf to recv queue\l\
+add send buf to send queue", shape=box];
+     SB [label="add bulk buf to PASSIVE_SEND queue\l\
+add bulk buf to PASSIVE_RECV queue\l\
+add 2 buf descriptors to MSG_SEND queue\l", shape=box];
+     SC [label="", height=0, width=0, shape=plaintext];
+     S7 [label="stop.down();\lfree_buf.up();\l", style=box];
+     S8 [label="for (i = 0; i < concurrency; ++i)\l  buf_free.down();\l\
+finished.up();\l", shape=box];
+     S9 [label="exit point"];
+     S0   -> S1;
+     S1:s -> SD;
+     SD   -> S2:n;
+     S2:e -> S3   [label="yes"];
+     S2:w -> S8   [label="no"];
+     S3:s -> S4:n;
+     S4:e -> S5   [label="no"];
+     S4:w -> S7   [label="yes"];
+     S5   -> S6;
+     S6:e -> SA:n [label="yes"];
+     S6:w -> SB:n [label="no"];;
+     SA:s -> SC;
+     SB:s -> SC;
+     SC   -> SD;
+     S7   -> S8;
+     S8   -> S9;
+   }
+   @enddot
+
+   Callbacks for ping test
+   - C2_NET_QT_MSG_SEND
+     - update stats
+   - C2_NET_QT_MSG_RECV
+     - update stats
+     - buf_free.up()
+
+   Callbacks for bulk test
+   - C2_NET_QT_MSG_SEND
+     - nothing
+   - C2_NET_QT_PASSIVE_BULK_SEND
+     - update stats
+   - C2_NET_QT_PASSIVE_BULK_RECV
+     - update stats
+     - buf_free.up()
+
+   External variables and interrupts
+   - semaphore stop = 0;
+   - semaphore finished = 0;
+   - client_stop()
+     - stop.up()
+   - stop and block until finish
+     - client_stop()
+     - finished.down()
+
+   @subsubsection net-test-lspec-algo-server Test Server Algorithm
+
+   Ping test callbacks
+   - C2_NET_QT_MSG_RECV
+     - add buffer to msg send queue
+     - update stats
+   - C2_NET_QT_MSG_SEND
+     - add buffer to msg recv queue
+
+   Bulk test callbacks
+   - C2_NET_QT_MSG_RECV
+     - add first buffer descriptor to ACTIVE_BULK_RECV queue
+     - add msg buffer to MSG_RECV queue
+   - C2_NET_QT_ACTIVE_BULK_RECV
+     - add second buffer descriptor to ACTIVE_BULK_SEND queue
+     (to send just received buffer)
+   - C2_NET_QT_ACTIVE_BULK_SEND
+     - add sent buffer to ACTIVE_BULK_RECV queue
+
+   @subsubsection net-test-lspec-console Test Console
+   @msc
+   console, client, server;
+
+   |||;
+   client rbox client [label = "Listening for console commands"],
+   server rbox server [label = "Listening for console commands"];
+   console => server  [label = "INIT command"];
+   server => console  [label = "INIT DONE response"];
+   ---                [label = "waiting for all servers"];
+   console => client  [label = "INIT command"];
+   client => console  [label = "INIT DONT response"];
+   ---                [label = "waiting for all clients"];
+   console => server  [label = "START command"];
+   server => console  [label = "START ACK response"];
+   console => client  [label = "START command"];
+   client => console  [label = "START ACK response"];
+   ---                [label = "running..."];
+   client => console  [label = "cumulative stats and time if live mode"];
+   server => console  [label = "cumulative stats and time if live mode"];
+   ---                [label = "running..."];
+   client => console  [label = "FINISHED command"];
+   console => client  [label = "FINISHED ACK response"];
+   client rbox client [label = "clients cleanup"];
+   ---                [label = "waiting for all clients"];
+   console => server  [label = "FINISHED command"];
+   server => console  [label = "FINISHED ACK response"];
+   server rbox server [label = "server cleanup"];
+   ---                [label = "waiting for all servers"];
+   @endmsc
+
+   @subsubsection net-test-lspec-misc Misc
    - Typed variables are used to store configuration.
    - Configuration variables are set in c2_net_test_config_init(). They
    should be never changed in other place.
-
-   @subsubsection net-test-lspec-stats Statistics
    - c2_net_test_stats is used for keeping some data for sample,
    based on which min/max/average/standard deviation can be calculated.
-
-   @subsubsection net-test-lspec-network Network
    - c2_net_test_network_init()/c2_net_test_network_fini() need to be called to
    initialize/finalize c2_net_test network.
-   - c2_net_test_network_(msg/bulk)_(send/rev)_* is a wrapper around c2_net.
+   - c2_net_test_network_(msg/bulk)_(send/recv)_* is a wrapper around c2_net.
    This functions use c2_net_test_ctx as containter for buffers, callbacks,
    endpoints and transfer machine. Buffer/endpoint index (int in range
    [0, NR), where NR is number of corresponding elements) is used for selecting
@@ -268,16 +368,32 @@
    - Endpoints can be added after c2_net_test_network_ctx_init() using
    c2_net_test_network_ep_add().
 
-   @subsubsection net-test-lspec-console Test Console
-   @todo add
-
-   <hr>
    @subsection net-test-lspec-state State Specification
    <i>Mandatory.
    This section describes any formal state models used by the component,
    whether externally exposed or purely internal.</i>
 
-   <hr>
+   @dot
+   digraph {
+     node [style=box];
+     label = "Test Client and Test Server States";
+     S0 [label="", shape="plaintext"];
+     S1 [label="Initialized"];
+     S2 [label="Ready"];
+     S3 [label="Running"];
+     S4 [label="Stopped"];
+     S5 [label="Uninitialized"];
+     S6 [label="", shape="plaintext"];
+     S0 -> S1 [label="start"];
+     S1 -> S2 [label="INIT command from console"];
+     S2 -> S3 [label="START command from console"];
+     S2 -> S4 [label="STOP command from console"];
+     S3 -> S4 [label="done"];
+     S4 -> S5 [label="send stats to console"];
+     S5 -> S6 [label="finish"];
+   }
+   @enddot
+
    @subsection net-test-lspec-thread Threading and Concurrency Model
    <i>Mandatory.
    This section describes the threading and concurrency model.
@@ -285,37 +401,23 @@
    the critical sections and synchronization primitives used
    (such as semaphores, locks, mutexes and condition variables).</i>
 
-   @subsubsection net-test-lspec-thread-config Configuration
+   - Configuration is not protected by any synchronization mechanism.
+     Configuration is not intended to change after initialization,
+     so no need to use synchronization mechanish for reading configuration.
+   - struct c2_net_test_stats is not protected by any synchronization mechanism.
+   - struct c2_net_test_ctx is not protected by any synchronization mechanism.
 
-   Configuration is not protected by any synchronization mechanism.
-   Configuration is not intended to change after initialization,
-   so no need to use synchronization mechanish for reading configuration.
-
-   @subsubsection net-test-lspec-thread-stats Statistics
-
-   struct c2_net_test_stats is not protected by any synchronization mechanism.
-
-   @subsubsection net-test-lspec-thread-network Network
-
-   struct c2_net_test_ctx is not protected by any synchronization mechanism.
-
-   <hr>
    @subsection net-test-lspec-numa NUMA optimizations
    <i>Mandatory for components with programmatic interfaces.
    This section describes if optimal behavior can be supported by
    associating the utilizing thread to a single processor.</i>
 
-   @subsubsection net-test-lspec-numa-config Configuration
-   Configuration is not intented to change after initial initialization,
-   so cache coherence overhead will not exists.
-
-   @subsubsection net-test-lspec-numa-stats Statistics
-   One c2_net_test_stats per locality can be used. Summary statistics can
-   be collected from all localities using c2_net_test_stats_add_stats()
-   only when it needed.
-
-   @subsubsection net-test-lspec-numa-network Network
-   One c2_net_test_ctx per locality can be used.
+   - Configuration is not intented to change after initial initialization,
+     so cache coherence overhead will not exists.
+   - One c2_net_test_stats per locality can be used. Summary statistics can
+     be collected from all localities using c2_net_test_stats_add_stats()
+     only when it needed.
+   - One c2_net_test_ctx per locality can be used.
 
    <hr>
    @section net-test-conformance Conformance
@@ -323,18 +425,20 @@
    This section cites each requirement in the @ref net-test-req section,
    and explains briefly how the DLD meets the requirement.</i>
 
-   - @b R.c2.net.self-test.statistics pdsh is used to gather the statistics
-     from the all nodes.
-   - @b R.c2.net.self-test.statistics.live pdsh is used to perform
-     statistics collecting from the all nodes with some interval.
-   - @b R.c2.net.self-test.test.ping latency is automatically measured for
+   - @b I.c2.net.self-test.statistics user-space LNet implementation is used
+     to collect statistics from all nodes.
+   - @b I.c2.net.self-test.statistics.live user-space LNet implementaton
+     is used to perform statistics collecting from the all nodes with
+     some interval.
+   - @b I.c2.net.self-test.test.ping latency is automatically measured for
      all messages.
-   - @b R.c2.net.self-test.test.bulk used messages with additional data.
-   - @b R.c2.net.self-test.test.bulk.integrity.no-check bulk messages
+   - @b I.c2.net.self-test.test.bulk used messages with additional data.
+   - @b I.c2.net.self-test.test.bulk.integrity.no-check bulk messages
       additional data isn't checked.
-   - @b R.c2.net.self-test.test.duration.simple end user should be able to
-     specify how long a test should run, by loop.
-   - @b R.c2.net.self-test.kernel test client/server is implemented as
+   - @b I.c2.net.self-test.test.duration.simple end user is able to
+     specify how long a test should run, by loop - see
+     @ref net-test-fspec-cli-console.
+   - @b I.c2.net.self-test.kernel test client/server is implemented as
      a kernel module.
 
    <hr>
@@ -366,7 +470,9 @@
    resource (memory, processor, locks, messages, etc.) consumption,
    ideally described in big-O notation.</i>
 
-   All c2_net_test_stats_* functions have O(1) complexity.
+   - all c2_net_test_stats_* functions have O(1) complexity;
+   - one mutex lock/unlock per statistics update in test client/server/console;
+   - one semaphore up/down per test message in test client;
 
    @see @ref net-test-hld "Colibri Network Benchmark HLD"
 

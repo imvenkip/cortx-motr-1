@@ -15,16 +15,30 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Maxim Medved <max_medved@xyratex.com>
- * Original creation date: 03/22/2012
+ * Original creation date: 04/30/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include <config.h>
-#endif
+#include "lib/cdefs.h"		/* NULL */
 
-int main(int argc, char *argv[])
+#include "net/test/user_space/node_config_u.h"
+
+/*
+static char *node_role	      = NULL;
+static char *test_type	      = NULL;
+static long  count	      = C2_NET_TEST_CONFIG_COUNT_DEFAULT;
+static long  size	      = C2_NET_TEST_CONFIG_SIZE_DEFAULT;
+static char *console	      = C2_NET_TEST_CONFIG_CONSOLE_DEFAULT;
+static char *target[C2_NET_TEST_CONFIG_TARGETS_MAX];
+static int   target_nr        = 0;
+*/
+
+int c2_net_test_node_config_init(struct c2_net_test_node_config *cfg)
 {
-	return 0;
+	return -1;
+}
+
+void c2_net_test_node_config_fini(struct c2_net_test_node_config *cfg)
+{
 }
 
 /*

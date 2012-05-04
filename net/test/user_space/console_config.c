@@ -15,17 +15,10 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Maxim Medved <max_medved@xyratex.com>
- * Original creation date: 03/22/2012
+ * Original creation date: 04/30/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include <config.h>
-#endif
-
-int main(int argc, char *argv[])
-{
-	return 0;
-}
+#include "net/test/user_space/console_config.h"
 
 /*
  *  Local variables:
