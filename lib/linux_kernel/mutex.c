@@ -65,11 +65,13 @@ bool c2_mutex_is_locked(const struct c2_mutex *mutex)
 {
 	return true;
 }
+C2_EXPORTED(c2_mutex_is_locked);
 
 bool c2_mutex_is_not_locked(const struct c2_mutex *mutex)
 {
 	return true;
 }
+C2_EXPORTED(c2_mutex_is_not_locked);
 
 /** @} end of mutex group */
 

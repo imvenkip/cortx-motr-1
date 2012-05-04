@@ -1109,7 +1109,7 @@ static int acquire_net_buffer(struct c2_fom *fom)
                                 fom_obj->fcrw_bp = &bpdesc->rios_bp;
                                 break;
                         }
-                } c2_tlist_endfor;
+                } c2_tl_endfor;
                 C2_ASSERT(fom_obj->fcrw_bp != NULL);
         }
         colour = c2_net_tm_colour_get(tm);
@@ -1276,7 +1276,7 @@ static int initiate_zero_copy(struct c2_fom *fom)
         rpc_item = (const struct c2_rpc_item *)&(fop->f_item);
 
         /* Create rpc bulk bufs list using available net buffers */
-        c2_tlist_for(&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
+        c2_tl_for(netbufs, &fom_obj->fcrw_netbuf_list, nb) {
                 int                         current_index;
                 uint32_t                    segs_nr;
                 struct c2_rpc_bulk_buf     *rb_buf = NULL;
@@ -1304,7 +1304,7 @@ static int initiate_zero_copy(struct c2_fom *fom)
 
                 fom_obj->fcrw_curr_desc_index++;
                 buffers_added++;
-        } c2_tlist_endfor;
+        } c2_tl_endfor;
 
         C2_ASSERT(buffers_added == fom_obj->fcrw_batch_size);
 
@@ -1442,7 +1442,7 @@ static int io_launch(struct c2_fom *fom)
         C2_ASSERT(c2_tlist_invariant(&stobio_tl, &fom_obj->fcrw_stio_list));
 
         c2_mutex_lock(&fom_obj->fcrw_stio_mutex);
-        c2_tlist_for(&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
+        c2_tl_for(netbufs, &fom_obj->fcrw_netbuf_list, nb) {
                 struct c2_indexvec     *mem_ivec;
                 struct c2_stob_io_desc *stio_desc;
                 struct c2_stob_io      *stio;
@@ -1534,7 +1534,7 @@ static int io_launch(struct c2_fom *fom)
                 stobio_tlink_init(stio_desc);
                 stobio_tlist_add(&fom_obj->fcrw_stio_list, stio_desc);
 
-        } c2_tlist_endfor;
+        } c2_tl_endfor;
 
         /*
            1. Add FOM clink to wait channel only if atleast one STOB I/O
@@ -1603,7 +1603,7 @@ static int io_finish(struct c2_fom *fom)
          * Empty the list as all STOB I/O completed here.
          */
         c2_mutex_lock(&fom_obj->fcrw_stio_mutex);
-        c2_tlist_for (&stobio_tl, &fom_obj->fcrw_stio_list, stio_desc) {
+        c2_tl_for (stobio, &fom_obj->fcrw_stio_list, stio_desc) {
                 struct c2_stob_io *stio;
 
                 stio = &stio_desc->siod_stob_io;
@@ -1622,7 +1622,7 @@ static int io_finish(struct c2_fom *fom)
                 stobio_tlist_del(stio_desc);
 
 		c2_free(stio_desc);
-        } c2_tlist_endfor;
+        } c2_tl_endfor;
         c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
 
         c2_stob_put(fom_obj->fcrw_stob);
@@ -1725,16 +1725,16 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
         C2_ASSERT(fom_obj->fcrw_bp != NULL);
         C2_ASSERT(c2_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
         c2_net_buffer_pool_lock(fom_obj->fcrw_bp);
-        c2_tlist_for (&netbufs_tl, &fom_obj->fcrw_netbuf_list, nb) {
+        c2_tl_for (netbufs, &fom_obj->fcrw_netbuf_list, nb) {
                 c2_net_buffer_pool_put(fom_obj->fcrw_bp, nb, colour);
                 netbufs_tlink_del_fini(nb);
-        } c2_tlist_endfor;
+        } c2_tl_endfor;
         c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
         netbufs_tlist_fini(&fom_obj->fcrw_netbuf_list);
 
         C2_ASSERT(c2_tlist_invariant(&stobio_tl, &fom_obj->fcrw_stio_list));
         c2_mutex_lock(&fom_obj->fcrw_stio_mutex);
-        c2_tlist_for (&stobio_tl, &fom_obj->fcrw_stio_list, stio_desc) {
+        c2_tl_for (stobio, &fom_obj->fcrw_stio_list, stio_desc) {
                 struct c2_stob_io *stio;
 
                 stio = &stio_desc->siod_stob_io;
@@ -1751,7 +1751,7 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
 
 		c2_free(stio_desc);
 
-        } c2_tlist_endfor;
+        } c2_tl_endfor;
         c2_mutex_unlock(&fom_obj->fcrw_stio_mutex);
         stobio_tlist_fini(&fom_obj->fcrw_stio_list);
 

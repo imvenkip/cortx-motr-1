@@ -45,7 +45,7 @@ void ut_tm_prov_event_cb(const struct c2_net_tm_event *ev)
 	 * TM is in C2_NET_TM_STARTED state.
 	 */
 	if (tm->ntm_state == C2_NET_TM_STARTED)
-		C2_UT_ASSERT(tm_tlist_length(
+		C2_UT_ASSERT(c2_net_tm_tlist_length(
 			    &tm->ntm_q[C2_NET_QT_MSG_RECV]) == 0);
 	C2_CNT_INC(ut_tm_prov_event_cb_calls);
 }
@@ -118,7 +118,7 @@ static int ut_tm_prov_stop(struct c2_net_transfer_mc *tm, bool cancel)
 
 	C2_UT_ASSERT(c2_mutex_is_locked(&tm->ntm_mutex));
 	c2_mutex_unlock(&tm->ntm_mutex);
-	c2_tlist_for(&tm_tl, ql, nb) {
+	c2_tlist_for(&c2_net_tm_tl, ql, nb) {
 		ut_buf_del_called = false;
 		c2_clink_add(&tm->ntm_chan, &tmwait);
 		c2_net_buffer_del(nb, tm);
@@ -128,7 +128,7 @@ static int ut_tm_prov_stop(struct c2_net_transfer_mc *tm, bool cancel)
 		c2_clink_del(&tmwait);
 		rc = c2_thread_join(&ut_del_thread);
 		C2_UT_ASSERT(rc == 0);
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 
 	ut_tm_prov_stop_called = true;
 	c2_mutex_lock(&tm->ntm_mutex);
@@ -154,9 +154,9 @@ struct c2_net_buffer * pool_colour_buffer_add(struct c2_net_transfer_mc *tm)
 
 	ut_buf_del_called = false;
 	prov_free = pool_prov->nbp_free;
-	C2_UT_ASSERT(tm_tlist_length(
+	C2_UT_ASSERT(c2_net_tm_tlist_length(
 		&pool_prov->nbp_colours[tm->ntm_pool_colour]) == 0);
-	nb = tm_tlist_head(&tm->ntm_q[C2_NET_QT_MSG_RECV]);
+	nb = c2_net_tm_tlist_head(&tm->ntm_q[C2_NET_QT_MSG_RECV]);
 	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&tm->ntm_chan, &tmwait);
 	c2_net_buffer_del(nb, tm);
@@ -168,9 +168,9 @@ struct c2_net_buffer * pool_colour_buffer_add(struct c2_net_transfer_mc *tm)
 	C2_UT_ASSERT(rc == 0);
 	/* A buffer with colour of TM is put back into the pool. */
 	C2_UT_ASSERT(pool_prov->nbp_free == prov_free);
-	C2_UT_ASSERT(tm_tlist_length(&tm->ntm_q[C2_NET_QT_MSG_RECV]) ==
+	C2_UT_ASSERT(c2_net_tm_tlist_length(&tm->ntm_q[C2_NET_QT_MSG_RECV]) ==
 		     tm->ntm_recv_queue_min_length);
-	C2_UT_ASSERT(tm_tlist_length(
+	C2_UT_ASSERT(c2_net_tm_tlist_length(
 		&pool_prov->nbp_colours[tm->ntm_pool_colour]) == 1);
 	c2_clink_fini(&tmwait);
 	return nb;
@@ -180,8 +180,9 @@ void provision_buffer_validate_colour(struct c2_net_buffer *nb,
 				      struct c2_net_transfer_mc *tm)
 {
 	c2_net_tm_pool_length_set(tm, tm->ntm_recv_queue_min_length + 1);
-	C2_UT_ASSERT(nb == tm_tlist_tail(&tm->ntm_q[C2_NET_QT_MSG_RECV]));
-	C2_UT_ASSERT(tm_tlist_length(
+	C2_UT_ASSERT(nb == c2_net_tm_tlist_tail(
+		&tm->ntm_q[C2_NET_QT_MSG_RECV]));
+	C2_UT_ASSERT(c2_net_tm_tlist_length(
 		&pool_prov->nbp_colours[tm->ntm_pool_colour]) == 0);
 }
 
@@ -290,7 +291,8 @@ static void test_net_tm_prov(void)
 	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&tm1->ntm_chan, &tmwait);
 	ut_end_point_create_called = false;
-	C2_UT_ASSERT(tm_tlist_length(&tm1->ntm_q[C2_NET_QT_MSG_RECV]) == 0);
+	C2_UT_ASSERT(c2_net_tm_tlist_length(&tm1->ntm_q[C2_NET_QT_MSG_RECV]) ==
+		     0);
 	rc = c2_net_tm_start(tm1, "addr1");
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ut_tm_start_called);
@@ -310,8 +312,9 @@ static void test_net_tm_prov(void)
 	 * notified of the state change.
 	 * Check for initial provisioning.
 	 */
-	C2_UT_ASSERT(tm_tlist_length(&tm1->ntm_q[C2_NET_QT_MSG_RECV]) != 0);
-	C2_UT_ASSERT(tm_tlist_length(&tm1->ntm_q[C2_NET_QT_MSG_RECV]) ==
+	C2_UT_ASSERT(c2_net_tm_tlist_length(&tm1->ntm_q[C2_NET_QT_MSG_RECV]) !=
+		     0);
+	C2_UT_ASSERT(c2_net_tm_tlist_length(&tm1->ntm_q[C2_NET_QT_MSG_RECV]) ==
 		     tm1->ntm_recv_queue_min_length);
 	C2_UT_ASSERT(pool_prov->nbp_free == pool_prov->nbp_buf_nr -
 		     tm1->ntm_recv_queue_min_length);
@@ -367,7 +370,8 @@ static void test_net_tm_prov(void)
 	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&tm2->ntm_chan, &tmwait);
 	ut_end_point_create_called = false;
-	C2_UT_ASSERT(tm_tlist_length(&tm2->ntm_q[C2_NET_QT_MSG_RECV]) == 0);
+	C2_UT_ASSERT(c2_net_tm_tlist_length(&tm2->ntm_q[C2_NET_QT_MSG_RECV]) ==
+		     0);
 	rc = c2_net_tm_start(tm2, "addr2");
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(ut_tm_start_called);
@@ -381,7 +385,8 @@ static void test_net_tm_prov(void)
 	C2_UT_ASSERT(tm2->ntm_state == C2_NET_TM_STARTED);
 	C2_UT_ASSERT(ut_end_point_create_called);
 	/* No buffers to initially provision TM1. */
-	C2_UT_ASSERT(tm_tlist_length(&tm2->ntm_q[C2_NET_QT_MSG_RECV]) == 0);
+	C2_UT_ASSERT(c2_net_tm_tlist_length(&tm2->ntm_q[C2_NET_QT_MSG_RECV]) ==
+		     0);
 	C2_UT_ASSERT(c2_atomic64_get(&tm2->ntm_recv_queue_deficit) ==
 				      C2_NET_TM_RECV_QUEUE_DEF_LEN);
 
@@ -407,7 +412,7 @@ static void test_net_tm_prov(void)
 	C2_UT_ASSERT(pool_not_empty_called);
 	C2_UT_ASSERT(c2_atomic64_get(&tm1->ntm_recv_queue_deficit) == 0);
 	C2_UT_ASSERT(c2_atomic64_get(&tm2->ntm_recv_queue_deficit) == 0);
-	C2_UT_ASSERT(tm_tlist_length(&tm2->ntm_q[C2_NET_QT_MSG_RECV]) ==
+	C2_UT_ASSERT(c2_net_tm_tlist_length(&tm2->ntm_q[C2_NET_QT_MSG_RECV]) ==
 		     tm2->ntm_recv_queue_min_length);
 	C2_UT_ASSERT(pool_prov->nbp_free == pool_prov->nbp_buf_nr -
 		     tm1->ntm_recv_queue_min_length -
@@ -431,9 +436,9 @@ static void test_net_tm_prov(void)
 	c2_net_buffer_pool_unlock(pool_prov);
 	C2_UT_ASSERT(rc == 2);
 
-	C2_UT_ASSERT(tm_tlist_length(
+	C2_UT_ASSERT(c2_net_tm_tlist_length(
 		&pool_prov->nbp_colours[tm1->ntm_pool_colour]) == 0);
-	C2_UT_ASSERT(tm_tlist_length(
+	C2_UT_ASSERT(c2_net_tm_tlist_length(
 		&pool_prov->nbp_colours[tm2->ntm_pool_colour]) == 0);
 	/*
 	 * Adds a colured buffer into the pool and checks for it's presence in
@@ -441,9 +446,9 @@ static void test_net_tm_prov(void)
 	 */
 	nb_tm1 = pool_colour_buffer_add(tm1);
 	nb_tm2 = pool_colour_buffer_add(tm2);
-	C2_UT_ASSERT(tm_tlist_length(
+	C2_UT_ASSERT(c2_net_tm_tlist_length(
 		&pool_prov->nbp_colours[tm2->ntm_pool_colour]) == 1);
-	C2_UT_ASSERT(tm_tlist_length(
+	C2_UT_ASSERT(c2_net_tm_tlist_length(
 		&pool_prov->nbp_colours[tm1->ntm_pool_colour]) == 1);
 
 	/* Add some uncoloured buffers. */
@@ -459,16 +464,16 @@ static void test_net_tm_prov(void)
 	provision_buffer_validate_colour(nb_tm1, tm1);
 	provision_buffer_validate_colour(nb_tm2, tm2);
 
-	C2_UT_ASSERT(tm_tlist_length(
+	C2_UT_ASSERT(c2_net_tm_tlist_length(
 		&pool_prov->nbp_colours[tm1->ntm_pool_colour]) == 0);
-	C2_UT_ASSERT(tm_tlist_length(
+	C2_UT_ASSERT(c2_net_tm_tlist_length(
 		&pool_prov->nbp_colours[tm2->ntm_pool_colour]) == 0);
 
 	nb_tm1 = pool_colour_buffer_add(tm1);
 	nb_tm2 = pool_colour_buffer_add(tm2);
-	C2_UT_ASSERT(tm_tlist_length(
+	C2_UT_ASSERT(c2_net_tm_tlist_length(
 		&pool_prov->nbp_colours[tm1->ntm_pool_colour]) == 1);
-	C2_UT_ASSERT(tm_tlist_length(
+	C2_UT_ASSERT(c2_net_tm_tlist_length(
 		&pool_prov->nbp_colours[tm1->ntm_pool_colour]) == 1);
 
 	provision_buffer_validate_colour(nb_tm2, tm2);

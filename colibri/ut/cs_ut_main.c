@@ -32,6 +32,7 @@
 #include "rpc/rpclib.h"
 #include "fop/fop.h"
 #include "net/bulk_sunrpc.h"
+#include "net/lnet/lnet.h"
 #include "net/bulk_mem.h"
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
@@ -119,6 +120,12 @@ static char *cs_ut_buffer_pool_cmd[] = { "colibri_setup", "-r", "-T", "linux",
                                 "-s", "ds1", "-n 128", "-p 4096", "-b 128",
 				"-t 16", "-m 64", "-k 4096", "-R 1"};
 
+static char *cs_ut_lnet_cmd[] = { "colibri_setup", "-r", "-T", "linux",
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-e", "lnet:127.0.0.1@tcp:12345:31:0",
+                                "-s", "ds1", "-n 128", "-p 4096", "-b 128",
+				"-t 16", "-m 64", "-k 4096", "-R 1"};
+
 static const char *cl_ep_addrs[] = {
 				"127.0.0.1:34567:1",
 				"127.0.0.1:34569"};
@@ -126,6 +133,15 @@ static const char *cl_ep_addrs[] = {
 static const char *srv_ep_addrs[] = {
 				"127.0.0.1:34567:2",
 				"127.0.0.1:35678"};
+
+static const char *cl_lnet_ep_addrs[] = {
+				"127.0.0.1@tcp:12345:31:0",
+				"127.0.0.1@tcp:12345:31:*"};
+
+static const char *srv_lnet_ep_addrs[] = {
+				"127.0.0.1@tcp:12345:31:0",
+				"127.0.0.1@tcp:12345:31:*"};
+
 
 static const char *cdbnames[] = {
 				"cdb1",
@@ -136,7 +152,8 @@ static const char *cdbnames[] = {
  */
 static struct c2_net_xprt *cs_xprts[] = {
 	&c2_net_bulk_sunrpc_xprt,
-	&c2_net_bulk_mem_xprt
+	&c2_net_bulk_mem_xprt,
+	&c2_net_lnet_xprt,
 };
 
 static int cl_cdom_id = 10001;
@@ -367,6 +384,11 @@ static void test_cs_ut_buffer_pool(void)
 				  ARRAY_SIZE(cs_ut_buffer_pool_cmd));
 }
 
+static void test_cs_ut_lnet(void)
+{
+	return;
+}
+
 const struct c2_test_suite colibri_setup_ut = {
         .ts_name = "colibri_setup-ut",
         .ts_init = NULL,
@@ -383,6 +405,7 @@ const struct c2_test_suite colibri_setup_ut = {
 		{ "cs-bad-service", test_cs_ut_service_bad},
 		{ "cs-missing-options", test_cs_ut_args_bad},
 		{ "cs-buffer_pool-options", test_cs_ut_buffer_pool},
+		{ "cs-lnet-options", test_cs_ut_lnet},
                 { NULL, NULL }
         }
 };

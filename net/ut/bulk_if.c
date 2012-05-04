@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,8 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 04/06/2010
  */
 
@@ -622,6 +622,8 @@ static void test_net_bulk_if(void)
 	C2_UT_ASSERT(ut_dom_init_called);
 	C2_UT_ASSERT(dom->nd_xprt == &ut_xprt);
 	C2_UT_ASSERT(dom->nd_xprt_private == &ut_xprt_pvt);
+	C2_UT_ASSERT(dom->nd_addb.ac_type == &c2_net_dom_addb_ctx);
+	C2_UT_ASSERT(dom->nd_addb.ac_parent == &c2_net_addb);
 	C2_ASSERT(c2_mutex_is_not_locked(&dom->nd_mutex));
 
 	/* get max buffer size */
@@ -662,6 +664,8 @@ static void test_net_bulk_if(void)
 		C2_UT_ASSERT(ut_buf_register_called);
 		C2_UT_ASSERT(nb->nb_flags & C2_NET_BUF_REGISTERED);
 		C2_UT_ASSERT(nb->nb_timeout == C2_TIME_NEVER);
+		C2_UT_ASSERT(nb->nb_addb.ac_type == &c2_net_buffer_addb_ctx);
+		C2_UT_ASSERT(nb->nb_addb.ac_parent == &dom->nd_addb);
 		num_adds[i] = 0;
 		num_dels[i] = 0;
 		total_bytes[i] = 0;
@@ -674,6 +678,8 @@ static void test_net_bulk_if(void)
 	C2_UT_ASSERT(ut_tm_init_called);
 	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_INITIALIZED);
 	C2_UT_ASSERT(c2_list_contains(&dom->nd_tms, &tm->ntm_dom_linkage));
+	C2_UT_ASSERT(tm->ntm_addb.ac_type == &c2_net_tm_addb_ctx);
+	C2_UT_ASSERT(tm->ntm_addb.ac_parent == &dom->nd_addb);
 
 	/* should be able to fini it immediately */
 	ut_tm_fini_called = false;

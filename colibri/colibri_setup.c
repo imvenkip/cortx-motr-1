@@ -43,6 +43,7 @@
 #include "reqh/reqh.h"
 #include "colibri/colibri_setup.h"
 #include "rpc/rpclib.h"
+#include "net/lnet/lnet.h"
 
 /**
    @addtogroup colibri_setup

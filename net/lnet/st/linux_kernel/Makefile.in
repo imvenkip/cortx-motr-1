@@ -1,0 +1,26 @@
+LNETST_SRCDIR     = @SRCDIR@/net/lnet/st/linux_kernel
+LNETST_MOD       := klnetst
+
+local_src        := main.c
+st_src           := ping.c
+link_st          := $(st_src:%=../%)
+all_src          := $(local_src) $(st_src)
+all_obj          := $(all_src:.c=.o)
+
+obj-m            := $(LNETST_MOD).o
+$(LNETST_MOD)-y  := $(all_obj)
+
+dist_src         := Makefile.in lnetping.sh $(local_src)
+
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
+
+prepare:
+	ln -fs $(link_st) .
+
+clean distclean:
+	$(RM) $(st_src)
+	$(RM) Module.markers Module.symvers modules.order
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
+
+distdir:
+	cp $(dist_src) @top_builddir@/@PACKAGE@-@VERSION@/net/lnet/st/linux_kernel

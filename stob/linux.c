@@ -121,9 +121,9 @@ static void linux_domain_fini(struct c2_stob_domain *self)
 	ldom = domain2linux(self);
 	linux_domain_io_fini(self);
 	c2_rwlock_write_lock(&self->sd_guard);
-	c2_tlist_for(&ls_tl, &ldom->sdl_object, lstob) {
+	c2_tl_for(ls, &ldom->sdl_object, lstob) {
 		linux_stob_fini(&lstob->sl_stob);
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	c2_rwlock_write_unlock(&self->sd_guard);
 	ls_tlist_fini(&ldom->sdl_object);
 	c2_stob_domain_fini(self);
@@ -205,13 +205,13 @@ static struct linux_stob *linux_domain_lookup(struct linux_domain *ldom,
 {
 	struct linux_stob *obj;
 
-	c2_tlist_for(&ls_tl, &ldom->sdl_object, obj) {
+	c2_tl_for(ls, &ldom->sdl_object, obj) {
 		C2_ASSERT(linux_stob_invariant(obj));
 		if (c2_stob_id_eq(id, &obj->sl_stob.so_id)) {
 			c2_stob_get(&obj->sl_stob);
 			break;
 		}
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	return obj;
 }
 

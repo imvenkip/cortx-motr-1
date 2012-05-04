@@ -426,7 +426,7 @@ static void tm_provision_recv_q(struct c2_net_transfer_mc *tm)
 	if (tm->ntm_state != C2_NET_TM_STARTED || pool == NULL)
 		return; /* provisioning not required */
 	C2_PRE(c2_net_buffer_pool_is_locked(pool));
-	recv_q_len = tm_tlist_length(&tm->ntm_q[C2_NET_QT_MSG_RECV]);
+	recv_q_len = c2_net_tm_tlist_length(&tm->ntm_q[C2_NET_QT_MSG_RECV]);
 	need = tm->ntm_recv_queue_min_length - recv_q_len;
 	while (need > 0) {
 		nb = c2_net_buffer_pool_get(tm->ntm_recv_pool,

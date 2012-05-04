@@ -36,11 +36,15 @@ enum {
 	NR = 128
 };
 
+enum {
+	fl0_magix = 0xab5ce55edba1b0a0
+};
+
 static const struct c2_tl_descr fl0 = C2_TL_DESCR("foo-s of bar",
 						  struct foo,
 						  f_linkage0,
 						  f_magic,
-						  0xab5ce55edba1b0a0,
+						  fl0_magix,
 						  0xba1dba11adba0bab);
 
 static const struct c2_tl_descr fl1 = C2_TL_DESCR("other foo-s of bar",
@@ -144,6 +148,9 @@ void test_tlist(void)
 	C2_UT_ASSERT(c2_tlist_length(&fl1, &head1[0]) == NR);
 	C2_UT_ASSERT(c2_tlist_length(&fl2, &head2[0]) == NR);
 
+	C2_UT_ASSERT(c2_tlist_forall(&fl0, o, &head0[0],
+				     ((struct foo *)o)->f_magic == fl0_magix));
+
 	/* initialise bar-s */
 
 	bar_tlist_init(&bhead);
@@ -154,10 +161,11 @@ void test_tlist(void)
 		bar_tlist_add(&bhead, b);
 		C2_UT_ASSERT(bar_tlink_is_in(b));
 		C2_UT_ASSERT(bar_tlist_contains(&bhead, b));
-		sumB += (b->b_payload = i*i);
+		sumB += (b->b_payload = 3*i);
 	}
 
 	C2_UT_ASSERT(bar_tlist_length(&bhead) == ARRAY_SIZE(B));
+	C2_UT_ASSERT(c2_tl_forall(bar, bb, &bhead, bb->b_payload % 3 == 0));
 
 	/* check that everything is in the lists */
 
@@ -246,15 +254,15 @@ void test_tlist(void)
 
 	/* reverse bar-s */
 
-	c2_tlist_for(&bar_tl, &bhead, b) {
+	c2_tl_for(bar, &bhead, b) {
 		bar_tlist_move(&bhead, b);
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 
 	/* check that bar list is reversed */
 
 	for (i = 0, b = bar_tlist_head(&bhead); b != NULL;
 	     b = bar_tlist_next(&bhead, b), ++i) {
-		C2_UT_ASSERT(b->b_payload == i*i);
+		C2_UT_ASSERT(b->b_payload == 3*i);
 	}
 
 	/* finalise */

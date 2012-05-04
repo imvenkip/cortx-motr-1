@@ -1,4 +1,6 @@
 INCLUDES			= -I. -I$(top_srcdir) -I$(top_srcdir)/include
+
+MOSTLYCLEANFILES                = main.c
 main.c:
 	ln -sf $(top_builddir)/console/main.c main.c
 
