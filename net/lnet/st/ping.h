@@ -46,10 +46,13 @@ struct nlx_ping_ctx {
 	int32_t			              pc_rtmid;
 	int32_t				      pc_status;
 	uint32_t		              pc_nr_bufs;
+	uint32_t		              pc_nr_recv_bufs;
 	uint32_t		              pc_segments;
 	uint32_t		              pc_seg_size;
         uint32_t                              pc_seg_shift;
-	int32_t				      pc_passive_size;
+	int                                   pc_min_recv_size;
+	int                                   pc_max_recv_msgs;
+	uint64_t			      pc_bulk_size;
 	struct c2_net_buffer		     *pc_nbs;
 	const struct c2_net_buffer_callbacks *pc_buf_callbacks;
 	struct c2_bitmap		      pc_nbbm;
@@ -66,15 +69,27 @@ struct nlx_ping_ctx {
 	int                                   pc_tm_debug;
 	bool                                  pc_ready;
 	char * const *                        pc_interfaces;
+	bool                                  pc_sync_events;
+	struct c2_chan                        pc_wq_chan;
+	struct c2_clink                       pc_wq_clink;
+	uint64_t                              pc_wq_signal_count;
+	struct c2_chan                        pc_net_chan;
+	struct c2_clink                       pc_net_clink;
+	uint64_t                              pc_net_signal_count;
+	uint64_t                              pc_blocked_count;
+        uint64_t                              pc_worked_count;
+	struct c2_atomic64                    pc_errors;
+	struct c2_atomic64                    pc_retries;
+	int                                   pc_verbose;
 };
 
 struct nlx_ping_client_params {
 	const struct nlx_ping_ops *ops;
-	bool verbose;
 	int loops;
 	unsigned int nr_bufs;
 	int client_id;
-	int passive_size;
+	uint64_t bulk_size;
+	int send_msg_size;
 	int bulk_timeout;
 	int msg_timeout;
 	const char *client_network;
@@ -86,6 +101,7 @@ struct nlx_ping_client_params {
 	uint32_t    server_portal;
 	int32_t	    server_tmid;
 	int         debug;
+	int         verbose;
 };
 
 enum {
@@ -103,15 +119,16 @@ enum {
 	PING_DEF_MSG_TIMEOUT = 5,
 	PING_DEF_BULK_TIMEOUT = 10,
 
-	PING_CLIENT_SEGMENTS = 8,
-	PING_CLIENT_SEGMENT_SIZE = 4096,
-	PING_CLIENT_SEGMENT_SHIFT = 12,
-	PING_SERVER_SEGMENTS = 8,
-	PING_SERVER_SEGMENT_SIZE = 4096,
-	PING_SERVER_SEGMENT_SHIFT = 12,
-	/* leave some room for overhead */
-	PING_MAX_PASSIVE_SIZE =
-		PING_SERVER_SEGMENTS * PING_SERVER_SEGMENT_SIZE - 1024,
+	PING_SEGMENT_SIZE    = 4096,
+	PING_SEGMENT_SHIFT   = 12,
+	PING_MAX_SEGMENTS    = 256,
+	PING_MAX_BUFFER_SIZE = PING_MAX_SEGMENTS * PING_SEGMENT_SIZE,
+	PING_DEF_SEGMENTS    = 8,
+	PING_DEF_BUFFER_SIZE = PING_DEF_SEGMENTS * PING_SEGMENT_SIZE,
+
+	PING_MSG_OVERHEAD = 2, /* Msg type byte + '\0' */
+
+	PING_DEF_MIN_RECV_SIZE = 100, /* empirical observation: 58 */
 
 	ONE_MILLION = 1000000ULL,
 	SEC_PER_HR = 60 * 60,
@@ -121,16 +138,28 @@ enum {
 /* Debug printf macro */
 #ifdef __KERNEL__
 #define PING_ERR(fmt, ...) printk(KERN_ERR fmt , ## __VA_ARGS__)
-#define PRId64 "lld" /* from <inttypes.h> */
 #else
 #include <stdio.h>
 #define PING_ERR(fmt, ...) fprintf(stderr, fmt , ## __VA_ARGS__)
 #endif
 
+#define PING_OUT(ctx, num, fmt, ...)			\
+do {							\
+	if ((ctx)->pc_verbose >= num)			\
+		(ctx)->pc_ops->pf(fmt , ## __VA_ARGS__);\
+} while (0)
+
 void nlx_ping_server_spawn(struct c2_thread *server_thread,
 			   struct nlx_ping_ctx *sctx);
 void nlx_ping_server_should_stop(struct nlx_ping_ctx *ctx);
 void nlx_ping_client(struct nlx_ping_client_params *params);
+
+void nlx_ping_print_qstats_tm(struct nlx_ping_ctx *ctx, bool reset);
+void nlx_ping_print_qstats_total(const char *ident,
+				 const struct nlx_ping_ops *ops);
+uint64_t nlx_ping_parse_uint64(const char *s);
+void nlx_ping_init(void);
+void nlx_ping_fini(void);
 
 #endif /* __COLIBRI_NET_LNET_PING_H__ */
 

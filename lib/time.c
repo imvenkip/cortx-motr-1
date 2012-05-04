@@ -127,7 +127,7 @@ c2_time_t c2_time_from_now(uint64_t secs, long ns)
 {
 	return c2_time_now() + secs * C2_TIME_ONE_BILLION + ns;
 }
-
+C2_EXPORTED(c2_time_from_now);
 
 const c2_time_t C2_TIME_NEVER = ~0ULL;
 C2_EXPORTED(C2_TIME_NEVER);

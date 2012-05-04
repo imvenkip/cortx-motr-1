@@ -298,7 +298,9 @@ int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
 		    nb->nb_flags & C2_NET_BUF_TIMED_OUT)
 			nbev->nbe_status = -ETIMEDOUT;
 		goto done; /* this is not an error from this sub */
-	}
+	} else
+		nb->nb_flags &= ~C2_NET_BUF_TIMED_OUT;
+
 	if (nb->nb_qtype == C2_NET_QT_MSG_RECV) {
 		rc = NLX_ep_create(&nbev->nbe_ep, tm, &lcbev->cbe_sender);
 		if (rc != 0) {
@@ -325,6 +327,7 @@ int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
 	C2_POST(ergo(nb->nb_flags & C2_NET_BUF_RETAIN,
 		     nb->nb_qtype == C2_NET_QT_MSG_RECV));
 	C2_POST(rc == 0 || rc == -ENOMEM);
+	C2_POST(c2_net__buffer_event_invariant(nbev));
 	return rc;
 }
 

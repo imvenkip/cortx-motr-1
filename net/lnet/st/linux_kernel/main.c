@@ -39,9 +39,13 @@
  */
 
 /* Module parameters */
-static bool verbose = false;
-module_param(verbose, bool, S_IRUGO);
-MODULE_PARM_DESC(verbose, "enable verbose output to kernel log");
+static bool quiet = false;
+module_param(quiet, bool, S_IRUGO);
+MODULE_PARM_DESC(quiet, "quiet mode");
+
+static int verbose = 0;
+module_param(verbose, int, S_IRUGO);
+MODULE_PARM_DESC(verbose, "verbosity level");
 
 static bool client_only = false;
 module_param(client_only, bool, S_IRUGO);
@@ -49,15 +53,23 @@ MODULE_PARM_DESC(verbose, "run client only");
 
 static bool server_only = false;
 module_param(server_only, bool, S_IRUGO);
-MODULE_PARM_DESC(verbose, "run server only");
+MODULE_PARM_DESC(server_only, "run server only");
+
+static bool async_events = false;
+module_param(async_events, bool, S_IRUGO);
+MODULE_PARM_DESC(async_events, "async event processing (old style)");
 
 static uint nr_bufs = PING_DEF_BUFS;
 module_param(nr_bufs, uint, S_IRUGO);
 MODULE_PARM_DESC(nr_bufs, "total number of network buffers to allocate");
 
-static uint passive_size = 0;
-module_param(passive_size, uint, S_IRUGO);
-MODULE_PARM_DESC(passive_size, "size to offer for passive recv message");
+static uint nr_recv_bufs = 0;
+module_param(nr_recv_bufs, uint, S_IRUGO);
+MODULE_PARM_DESC(nr_recv_bufs, "number of receive buffers (server only)");
+
+static char *bulk_size = NULL;
+module_param(bulk_size, charp, S_IRUGO);
+MODULE_PARM_DESC(bulk_size, "bulk data size");
 
 static int active_bulk_delay = 0;
 module_param(active_bulk_delay, int, S_IRUGO);
@@ -73,7 +85,7 @@ MODULE_PARM_DESC(loops, "loops to run");
 
 static int bulk_timeout = PING_DEF_BULK_TIMEOUT;
 module_param(bulk_timeout, int, S_IRUGO);
-MODULE_PARM_DESC(passive_bulk_timeout, "bulk timeout");
+MODULE_PARM_DESC(bulk_timeout, "bulk timeout");
 
 static int msg_timeout = PING_DEF_MSG_TIMEOUT;
 module_param(msg_timeout, int, S_IRUGO);
@@ -102,6 +114,18 @@ MODULE_PARM_DESC(server_portal, "server portal (optional)");
 static int server_tmid = -1;
 module_param(server_tmid, int, S_IRUGO);
 MODULE_PARM_DESC(server_tmid, "server TMID (optional)");
+
+static int server_min_recv_size = -1;
+module_param(server_min_recv_size, int, S_IRUGO);
+MODULE_PARM_DESC(server_min_recv_size, "server min receive size (optional)");
+
+static int server_max_recv_msgs = -1;
+module_param(server_max_recv_msgs, int, S_IRUGO);
+MODULE_PARM_DESC(server_max_recv_msgs, "server max receive msgs (optional)");
+
+static int send_msg_size = -1;
+module_param(send_msg_size, int, S_IRUGO);
+MODULE_PARM_DESC(send_msg_size, "client message size (optional)");
 
 static int server_debug = 0;
 module_param(server_debug, int, S_IRUGO);
@@ -135,68 +159,14 @@ static int verbose_printk(const char *fmt, ...)
 	return rc;
 }
 
-static struct c2_mutex qstats_mutex;
-
-static void print_qstats(struct nlx_ping_ctx *ctx, bool reset)
-{
-	int i;
-	int rc;
-	uint64_t hr;
-	uint64_t min;
-	uint64_t sec;
-	uint64_t msec;
-	struct c2_net_qstats qs[C2_NET_QT_NR];
-	struct c2_net_qstats *qp;
-	static const char *qnames[C2_NET_QT_NR] = {
-		"mRECV", "mSEND",
-		"pRECV", "pSEND",
-		"aRECV", "aSEND",
-	};
-	char tbuf[16];
-	const char *lfmt =
-"%5s %6llu %6llu %6llu %6llu %13s %14llu %13llu\n";
-	const char *hfmt1 =
-"Queue   #Add   #Del  #Succ  #Fail Time in Queue   Total Bytes  "
-" Max Buffer Sz\n";
-	const char *hfmt2 =
-"----- ------ ------ ------ ------ ------------- ---------------"
-" -------------\n";
-
-	if (ctx->pc_tm.ntm_state < C2_NET_TM_INITIALIZED)
-		return;
-	rc = c2_net_tm_stats_get(&ctx->pc_tm, C2_NET_QT_NR, qs, reset);
-	C2_ASSERT(rc == 0);
-	c2_mutex_lock(&qstats_mutex);
-	ctx->pc_ops->pf("%s statistics:\n", ctx->pc_ident);
-	ctx->pc_ops->pf("%s", hfmt1);
-	ctx->pc_ops->pf("%s", hfmt2);
-	for (i = 0; i < ARRAY_SIZE(qs); ++i) {
-		qp = &qs[i];
-		sec = c2_time_seconds(qp->nqs_time_in_queue);
-		hr = sec / SEC_PER_HR;
-		min = sec % SEC_PER_HR / SEC_PER_MIN;
-		sec %= SEC_PER_MIN;
-		msec = (c2_time_nanoseconds(qp->nqs_time_in_queue) +
-			ONE_MILLION / 2) / ONE_MILLION;
-		sprintf(tbuf, "%02llu:%02llu:%02llu.%03llu",
-			hr, min, sec, msec);
-		ctx->pc_ops->pf(lfmt,
-				qnames[i],
-				qp->nqs_num_adds, qp->nqs_num_dels,
-				qp->nqs_num_s_events, qp->nqs_num_f_events,
-				tbuf, qp->nqs_total_bytes, qp->nqs_max_bytes);
-	}
-	c2_mutex_unlock(&qstats_mutex);
-}
-
 static struct nlx_ping_ops verbose_ops = {
 	.pf  = verbose_printk,
-	.pqs = print_qstats
+	.pqs = nlx_ping_print_qstats_tm,
 };
 
 static struct nlx_ping_ops quiet_ops = {
 	.pf  = quiet_printk,
-	.pqs = print_qstats
+	.pqs = nlx_ping_print_qstats_tm,
 };
 
 static struct nlx_ping_ctx sctx = {
@@ -212,6 +182,7 @@ static struct nlx_ping_client_params *params;
 static int __init c2_netst_init_k(void)
 {
 	int rc;
+	uint64_t buffer_size;
 
 	/* parse module options */
 	if (nr_bufs < PING_MIN_BUFS) {
@@ -219,10 +190,10 @@ static int __init c2_netst_init_k(void)
 		       PING_MIN_BUFS);
 		return -EINVAL;
 	}
-	if (passive_size < 0 || passive_size > PING_MAX_PASSIVE_SIZE) {
-		/* need to leave room for encoding overhead */
-		printk(KERN_WARNING "Max supported passive data size: %d\n",
-		       PING_MAX_PASSIVE_SIZE);
+	buffer_size = nlx_ping_parse_uint64(bulk_size);
+	if (buffer_size > PING_MAX_BUFFER_SIZE) {
+		printk(KERN_WARNING "Max supported bulk data size: %d\n",
+		       PING_MAX_BUFFER_SIZE);
 		return -EINVAL;
 	}
 	if (nr_clients > PING_MAX_CLIENT_THREADS) {
@@ -250,25 +221,28 @@ static int __init c2_netst_init_k(void)
 		server_tmid = PING_SERVER_TMID;
 	if (client_tmid < 0)
 		client_tmid = PING_CLIENT_DYNAMIC_TMID;
+	if (verbose < 0)
+		verbose = 0;
 
 	/* set up sys fs entries? */
 
 	/* init main context */
 	rc = c2_net_xprt_init(&c2_net_lnet_xprt);
 	C2_ASSERT(rc == 0);
-	c2_mutex_init(&qstats_mutex);
+	nlx_ping_init();
 
 	if (!client_only) {
 		/* set up server context */
 		c2_mutex_init(&sctx.pc_mutex);
 		c2_cond_init(&sctx.pc_cond);
-		if (verbose)
+		if (!quiet)
 			sctx.pc_ops = &verbose_ops;
 		else
 			sctx.pc_ops = &quiet_ops;
 
 		sctx.pc_nr_bufs = nr_bufs;
-		sctx.pc_passive_size = passive_size;
+		sctx.pc_nr_recv_bufs = nr_recv_bufs;
+		sctx.pc_bulk_size = buffer_size;
 		sctx.pc_msg_timeout = msg_timeout;
 		sctx.pc_bulk_timeout = bulk_timeout;
 		sctx.pc_server_bulk_delay = active_bulk_delay;
@@ -277,6 +251,10 @@ static int __init c2_netst_init_k(void)
 		sctx.pc_tmid = server_tmid;
 		sctx.pc_dom_debug = server_debug;
 		sctx.pc_tm_debug = server_debug;
+		sctx.pc_sync_events = !async_events;
+		sctx.pc_min_recv_size = server_min_recv_size;
+		sctx.pc_max_recv_msgs = server_max_recv_msgs;
+		sctx.pc_verbose = verbose;
 		nlx_ping_server_spawn(&server_thread, &sctx);
 
 		printk(KERN_INFO "Colibri LNet System Test"
@@ -299,7 +277,6 @@ static int __init c2_netst_init_k(void)
 #define CPARAM_SET(f) params[i].f = f
 			CPARAM_SET(loops);
 			CPARAM_SET(nr_bufs);
-			CPARAM_SET(passive_size);
 			CPARAM_SET(bulk_timeout);
 			CPARAM_SET(msg_timeout);
 			CPARAM_SET(client_network);
@@ -308,12 +285,15 @@ static int __init c2_netst_init_k(void)
 			CPARAM_SET(server_network);
 			CPARAM_SET(server_portal);
 			CPARAM_SET(server_tmid);
+			CPARAM_SET(send_msg_size);
+			CPARAM_SET(verbose);
 #undef CPARAM_SET
+			params[i].bulk_size = buffer_size;
 			params[i].client_id = i + 1;
 			params[i].client_pid = C2_NET_LNET_PID;
 			params[i].server_pid = C2_NET_LNET_PID;
 			params[i].debug = client_debug;
-			if (verbose)
+			if (!quiet)
 				params[i].ops = &verbose_ops;
 			else
 				params[i].ops = &quiet_ops;
@@ -337,11 +317,14 @@ static void __exit c2_netst_fini_k(void)
 		int i;
 		for (i = 0; i < nr_clients; ++i) {
 			c2_thread_join(&client_thread[i]);
-			if (verbose) {
+			if (!quiet && verbose > 0) {
 				printk(KERN_INFO "Client %d: joined\n",
 				       params[i].client_id);
 			}
 		}
+		if (!quiet)
+			nlx_ping_print_qstats_total("Client total",
+						    &verbose_ops);
 		c2_free(client_thread);
 		c2_free(params);
 	}
@@ -356,6 +339,7 @@ static void __exit c2_netst_fini_k(void)
 		c2_mutex_fini(&sctx.pc_mutex);
 	}
 
+	nlx_ping_fini();
 	printk(KERN_INFO "Colibri Kernel Messaging System Test removed\n");
 }
 

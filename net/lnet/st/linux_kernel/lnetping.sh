@@ -10,28 +10,35 @@ fi
 usage() {
     echo "Usage: $0 {-s | -c | -s -c}"
     echo "   [-b #Bufs] [-l #Loops] [-n #Threads] [-o MessageTimeout]"
-    echo "   [-O PassiveTimeout] [-d PassiveSize] [-D ActiveDelay] [-q]"
+    echo "   [-O BulkTimeout] [-m MsgSize] [-d BulkSize] [-D ActiveDelay]"
+    echo "   [-B #ReceiveBufs] [-M MaxReceiveMsgs] [-R ReceiveMsgSize]"
     echo "   [-i ClientNetwork] [-p ClientPortal] [-t ClientTMID]"
-    echo "   [-I ServerNetwork] [-P ServerPortal] [-T ServerTMID]"
-    echo "   [-x ClientDebug] [-X ServerDebug]"
+    echo "   [-I ServerNetwork] [-P ServerPortal] [-T ServerTMID] [-A]"
+    echo "   [-x ClientDebug] [-X ServerDebug] [-q] [-v VerbosityLevel]"
     echo "Flags:"
+    echo "-A  Async event processing (old style)"
+    echo "-B  Number of receive buffers (server only)"
     echo "-D  Server active bulk delay"
     echo "-I  Server network interface (ip@intf)"
+    echo "-M  Max receive messages in a single buffer (server only)"
     echo "-O  Bulk timeout in seconds"
     echo "-P  Server portal"
+    echo "-R  Receive message max size (server only)"
     echo "-T  Server TMID"
     echo "-X  Server debug"
     echo "-b  Number of buffers"
     echo "-c  Run client only"
-    echo "-d  Passive data size"
+    echo "-d  Bulk data size"
     echo "-i  Client network interface (ip@intf)"
     echo "-l  Loops to run"
+    echo "-m  Message size (client only)"
     echo "-n  Number of client threads"
     echo "-o  Message send timeout in seconds"
     echo "-p  Client portal"
     echo "-q  Not verbose"
     echo "-s  Run server only"
     echo "-t  Client base TMID - default is dynamic"
+    echo "-v  Verbosity level"
     echo "-x  Client debug"
     echo "By default the client and server are configued to use the first LNet"
     echo "network interface returned by lctl."
@@ -63,12 +70,15 @@ fi
 server_nid=$NID
 client_nid=$NID
 
-Pverbose=verbose
+Pquiet=
+Pverbose=
 Pserver_only=
 Pclient_only=
+Pasync_events=
 Pnr_bufs=
+Pnr_recv_bufs=
 Ploops=
-Ppassive_size="passive_size=30720"
+Pbulk_size="bulk_size=30K"
 Pbulk_timeout="bulk_timeout=20"
 Pmsg_timeout="msg_timeout=5"
 Pactive_bulk_delay=
@@ -77,6 +87,9 @@ Pclient_network="client_network=$client_nid"
 Pclient_portal=
 Pclient_tmid=
 Pclient_debug=
+Psend_msg_size=
+Pserver_min_recv_size=
+Pserver_max_recv_msgs=
 Pserver_network="server_network=$server_nid"
 Pserver_portal=
 Pserver_tmid=
@@ -89,8 +102,9 @@ while [ $# -gt 0 ]; do
     case $FLAG in
 	(-c) Pclient_only="client_only";;
 	(-s) Pserver_only="server_only";;
-	(-q) Pverbose="" ;;
-	(-D|-O|-P|-T|-X|-b|-d|-l|-n|-o|-p|-t|-x) has_narg=1;;
+	(-A) Pasync_events="async_events";;
+	(-q) Pquiet="quiet" ;;
+	(-B|-D|-M|-O|-P|-R|-T|-X|-b|-d|-l|-m|-n|-o|-p|-t|-v|-x) has_narg=1;;
 	(-I|-i) has_sarg=1;;
 	(-h|--help) usage; exit 0;;
 	(*) echo "Error: Unknown argument $FLAG"; echo "Use -h for help"; exit 1;;
@@ -111,20 +125,25 @@ while [ $# -gt 0 ]; do
 	esac
     fi
     case $FLAG in
+	(-B) Pnr_recv_bufs="nr_recv_bufs=$1";;
 	(-D) Pactive_bulk_delay="active_bulk_delay $1";;
 	(-I) Pserver_network="server_network=$1"; server_nid=$1;;
+	(-M) Pserver_max_recv_msgs="server_max_recv_msgs=$1";;
 	(-O) Pbulk_timeout="bulk_timeout=$1";;
 	(-P) Pserver_portal="server_portal=$1";;
+	(-R) Pserver_min_recv_size="server_min_recv_size=$1";;
 	(-T) Pserver_tmid="server_tmid=$1";;
 	(-X) Pserver_debug="server_debug=$1";;
 	(-b) Pnr_bufs="nr_bufs=$1";;
-	(-d) Ppassive_size="passive_size=$1";;
+	(-d) Pbulk_size="bulk_size=$1";;
 	(-i) Pclient_network="client_network=$1"; client_nid=$1;;
 	(-l) Ploops="loops=$1";;
+	(-m) Psend_msg_size="send_msg_size=$1";;
 	(-n) Pnr_clients="nr_clients=$1";;
 	(-o) Pmsg_timeout="msg_timeout=$1";;
 	(-p) Pclient_portal="client_portal=$1";;
 	(-t) Pclient_tmid="client_tmid=$1";;
+	(-v) Pverbose="verbose=$1";;
 	(-x) Pclient_debug="client_debug=$1";;
     esac
     shift
@@ -137,14 +156,15 @@ fi
 
 # Server parameters
 SPARM="$Pserver_only $Pserver_network $Pserver_portal $Pserver_tmid \
-$Pactive_bulk_delay $Pserver_debug"
+$Pnr_recv_bufs $Pserver_max_recv_msgs $Pserver_min_recv_size \
+$Pasync_events $Pactive_bulk_delay $Pserver_debug"
 
 # Client parameters
 CPARM="$Pclient_only $Pclient_network $Pclient_portal $Pclient_tmid \
-$Pnr_clients $Ploops $Ppassive_size $Pclient_debug"
+$Pnr_clients $Ploops $Psend_msg_size $Pclient_debug"
 
 # Other parameters
-OPARM="$Pverbose $Pnr_bufs $Pmsg_timeout $Pbulk_timeout"
+OPARM="$Pquiet $Pverbose $Pnr_bufs $Pbulk_size $Pmsg_timeout $Pbulk_timeout"
 
 echo $OPARM
 echo $SPARM

@@ -374,8 +374,10 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 		else
 			len = buf->nb_length;
 	}
-	tdiff = c2_time_sub(ev->nbe_time, buf->nb_add_time);
-	q->nqs_time_in_queue = c2_time_add(q->nqs_time_in_queue, tdiff);
+	if (!(buf->nb_flags & C2_NET_BUF_QUEUED)) {
+		tdiff = c2_time_sub(ev->nbe_time, buf->nb_add_time);
+		q->nqs_time_in_queue = c2_time_add(q->nqs_time_in_queue, tdiff);
+	}
 	q->nqs_total_bytes += len;
 	q->nqs_max_bytes = max_check(q->nqs_max_bytes, len);
 

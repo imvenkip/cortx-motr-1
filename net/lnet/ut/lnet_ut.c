@@ -1913,6 +1913,9 @@ static void test_sync_body(struct ut_data *td)
 	C2_UT_ASSERT(cb_called1 == 0);
 	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
 
+	/* event is still pending */
+	C2_UT_ASSERT(c2_net_buffer_event_pending(TM1));
+
 	c2_net_buffer_event_deliver_all(TM1); /* get events */
 
 	C2_UT_ASSERT(cb_called1 == num_msgs);
@@ -2139,6 +2142,57 @@ static void test_timeout_body(struct ut_data *td)
 	ut_chan_timedwait(&td->tmwait1, 3);
 	C2_UT_ASSERT(cb_called1 == 2);
 	C2_UT_ASSERT(cb_status1 == -ECANCELED);
+
+	/* TEST
+	   Enqueue a buffer, no timeout.
+	   Force set the C2_NET_BUF_TIMED_OUT flag in the buffer.
+	   Construct a core buffer event structure and set the status to 0
+           in the structure, indicating that the buffer operation completed
+	   successfully and co-incidentally with the time out.
+	   Call nlx_xo_core_bev_to_net_bev() to construct the net buffer
+	   event structure.
+	   The status should be 0 in the buffer event structure and the
+	   C2_NET_BUF_TIMED_OUT flag should be cleared.
+
+	   This situation is quite probable when using synchronous buffer event
+	   delivery when the cancel is issued while the completion event is
+	   already present in the circular buffer but not yet harvested.
+	 */
+	c2_net_lnet_tm_set_debug(TM1, 0);
+	nb1 = &td->bufs1[0];
+	nb1->nb_length = td->buf_size1;
+	nb1->nb_min_receive_size = UT_MSG_SIZE;
+	nb1->nb_max_receive_msgs = 1;
+	nb1->nb_timeout = C2_TIME_NEVER;
+	nb1->nb_qtype = C2_NET_QT_PASSIVE_BULK_RECV; /* doesn't involve EPs */
+	zUT(c2_net_buffer_add(nb1, TM1), done);
+	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
+
+	{
+		struct nlx_core_buffer_event lcbev = {
+			.cbe_buffer_id = (nlx_core_opaque_ptr_t) nb1,
+			.cbe_status    = 0,
+			.cbe_length    = 10,
+			.cbe_unlinked  = true,
+		};
+		struct c2_net_buffer_event nbev;
+
+		nb1->nb_flags |= C2_NET_BUF_TIMED_OUT;
+
+		c2_mutex_lock(&TM1->ntm_mutex);
+		zUT(nlx_xo_core_bev_to_net_bev(TM1, &lcbev, &nbev), done);
+		c2_mutex_unlock(&TM1->ntm_mutex);
+		C2_UT_ASSERT(!(nb1->nb_flags & C2_NET_BUF_TIMED_OUT));
+		C2_UT_ASSERT(nbev.nbe_status == 0);
+		C2_UT_ASSERT(nbev.nbe_length == lcbev.cbe_length);
+	}
+
+	/* cancel the buffer */
+	c2_net_buffer_del(nb1, TM1);
+	ut_chan_timedwait(&td->tmwait1, 3);
+	C2_UT_ASSERT(cb_called1 == 3);
+	C2_UT_ASSERT(cb_status1 == -ECANCELED);
+	c2_net_desc_free(&nb1->nb_desc);
 
  done:
 	c2_clink_del(&td->tmwait1);

@@ -43,58 +43,6 @@ static struct nlx_ping_ctx sctx = {
 	}
 };
 
-static struct c2_mutex qstats_mutex;
-
-static void print_qstats(struct nlx_ping_ctx *ctx, bool reset)
-{
-	int i;
-	int rc;
-	uint64_t hr;
-	uint64_t min;
-	uint64_t sec;
-	uint64_t msec;
-	struct c2_net_qstats qs[C2_NET_QT_NR];
-	struct c2_net_qstats *qp;
-	static const char *qnames[C2_NET_QT_NR] = {
-		"mRECV", "mSEND",
-		"pRECV", "pSEND",
-		"aRECV", "aSEND",
-	};
-	char tbuf[16];
-	const char *lfmt =
-"%5s %6lu %6lu %6lu %6lu %13s %14lu %13lu\n";
-	const char *hfmt =
-"Queue   #Add   #Del  #Succ  #Fail Time in Queue   Total Bytes  "
-" Max Buffer Sz\n"
-"----- ------ ------ ------ ------ ------------- ---------------"
-" -------------\n";
-
-	if (ctx->pc_tm.ntm_state < C2_NET_TM_INITIALIZED)
-		return;
-	rc = c2_net_tm_stats_get(&ctx->pc_tm, C2_NET_QT_NR, qs, reset);
-	C2_ASSERT(rc == 0);
-	c2_mutex_lock(&qstats_mutex);
-	ctx->pc_ops->pf("%s statistics:\n", ctx->pc_ident);
-	ctx->pc_ops->pf("%s", hfmt);
-	for (i = 0; i < ARRAY_SIZE(qs); ++i) {
-		qp = &qs[i];
-		sec = c2_time_seconds(qp->nqs_time_in_queue);
-		hr = sec / SEC_PER_HR;
-		min = sec % SEC_PER_HR / SEC_PER_MIN;
-		sec %= SEC_PER_MIN;
-		msec = (c2_time_nanoseconds(qp->nqs_time_in_queue) +
-			ONE_MILLION / 2) / ONE_MILLION;
-		sprintf(tbuf, "%02lu:%02lu:%02lu.%03lu",
-			hr, min, sec, msec);
-		ctx->pc_ops->pf(lfmt,
-				qnames[i],
-				qp->nqs_num_adds, qp->nqs_num_dels,
-				qp->nqs_num_s_events, qp->nqs_num_f_events,
-				tbuf, qp->nqs_total_bytes, qp->nqs_max_bytes);
-	}
-	c2_mutex_unlock(&qstats_mutex);
-}
-
 static int quiet_printf(const char *fmt, ...)
 {
 	return 0;
@@ -102,12 +50,12 @@ static int quiet_printf(const char *fmt, ...)
 
 static struct nlx_ping_ops verbose_ops = {
 	.pf  = printf,
-	.pqs = print_qstats
+	.pqs = nlx_ping_print_qstats_tm,
 };
 
 static struct nlx_ping_ops quiet_ops = {
 	.pf  = quiet_printf,
-	.pqs = print_qstats
+	.pqs = nlx_ping_print_qstats_tm,
 };
 
 int main(int argc, char *argv[])
@@ -116,10 +64,13 @@ int main(int argc, char *argv[])
 	bool			 client_only = false;
 	bool			 server_only = false;
 	bool			 quiet = false;
+	int			 verbose = 0;
+	bool                     async_events = false;
 	int			 loops = PING_DEF_LOOPS;
 	int			 nr_clients = PING_DEF_CLIENT_THREADS;
 	int			 nr_bufs = PING_DEF_BUFS;
-	int			 passive_size = 0;
+	unsigned		 nr_recv_bufs = 0;
+	uint64_t                 bulk_size = 0;
 	int                      bulk_timeout = PING_DEF_BULK_TIMEOUT;
 	int                      msg_timeout = PING_DEF_MSG_TIMEOUT;
 	int                      active_bulk_delay = 0;
@@ -131,6 +82,9 @@ int main(int argc, char *argv[])
 	int32_t                  server_tmid = -1;
 	int                      client_debug = 0;
 	int                      server_debug = 0;
+	int                      server_min_recv_size = -1;
+	int                      server_max_recv_msgs = -1;
+	int                      send_msg_size = -1;
 	struct c2_thread	 server_thread;
 
 	rc = c2_init();
@@ -140,9 +94,15 @@ int main(int argc, char *argv[])
 			C2_FLAGARG('s', "run server only", &server_only),
 			C2_FLAGARG('c', "run client only", &client_only),
 			C2_FORMATARG('b', "number of buffers", "%i", &nr_bufs),
+			C2_FORMATARG('B', "number of receive buffers "
+				     "(server only)",
+				     "%u", &nr_recv_bufs),
 			C2_FORMATARG('l', "loops to run", "%i", &loops),
-			C2_FORMATARG('d', "passive data size", "%i",
-				     &passive_size),
+			C2_STRINGARG('d', "bulk data size",
+				     LAMBDA(void, (const char *str) {
+					     bulk_size =
+						     nlx_ping_parse_uint64(str);
+					     })),
 			C2_FORMATARG('n', "number of client threads", "%i",
 				     &nr_clients),
 			C2_FORMATARG('D', "server active bulk delay",
@@ -169,6 +129,18 @@ int main(int argc, char *argv[])
 				     "%i", &client_debug),
 			C2_FORMATARG('X', "server debug",
 				     "%i", &server_debug),
+			C2_FLAGARG('A', "async event processing (old style)",
+				   &async_events),
+			C2_FORMATARG('R', "receive message max size "
+				     "(server only)",
+				     "%i", &server_min_recv_size),
+			C2_FORMATARG('M', "max receive messages in a single "
+				     "buffer (server only)",
+				     "%i", &server_max_recv_msgs),
+			C2_FORMATARG('m', "message size (client only)",
+				     "%i", &send_msg_size),
+			C2_FORMATARG('v', "verbosity level",
+				     "%i", &verbose),
 			C2_FLAGARG('q', "quiet", &quiet));
 	if (rc != 0)
 		return rc;
@@ -183,11 +155,9 @@ int main(int argc, char *argv[])
 			PING_MIN_BUFS);
 		return 1;
 	}
-	if (passive_size < 0 || passive_size >
-	    (PING_CLIENT_SEGMENTS - 1) * PING_CLIENT_SEGMENT_SIZE) {
-		/* need to leave room for encoding overhead */
-		fprintf(stderr, "Max supported passive data size: %d\n",
-			(PING_CLIENT_SEGMENTS - 1) * PING_CLIENT_SEGMENT_SIZE);
+	if (bulk_size > PING_MAX_BUFFER_SIZE) {
+		fprintf(stderr, "Max supported bulk data size: %d\n",
+			PING_MAX_BUFFER_SIZE);
 		return 1;
 	}
 	if (client_only && server_only)
@@ -205,10 +175,12 @@ int main(int argc, char *argv[])
 		server_tmid = PING_SERVER_TMID;
 	if (client_tmid < 0)
 		client_tmid = PING_CLIENT_DYNAMIC_TMID;
+	if (verbose < 0)
+		verbose = 0;
 
 	rc = c2_net_xprt_init(&c2_net_lnet_xprt);
 	C2_ASSERT(rc == 0);
-	c2_mutex_init(&qstats_mutex);
+	nlx_ping_init();
 
 	if (!client_only) {
 		/* start server in background thread */
@@ -219,9 +191,8 @@ int main(int argc, char *argv[])
 		else
 			sctx.pc_ops = &quiet_ops;
 		sctx.pc_nr_bufs = nr_bufs;
-		sctx.pc_segments = PING_SERVER_SEGMENTS;
-		sctx.pc_seg_size = PING_SERVER_SEGMENT_SIZE;
-		sctx.pc_passive_size = passive_size;
+		sctx.pc_nr_recv_bufs = nr_recv_bufs;
+		sctx.pc_bulk_size = bulk_size;
 		sctx.pc_bulk_timeout = bulk_timeout;
 		sctx.pc_msg_timeout = msg_timeout;
 		sctx.pc_server_bulk_delay = active_bulk_delay;
@@ -231,6 +202,10 @@ int main(int argc, char *argv[])
 		sctx.pc_tmid = server_tmid;
 		sctx.pc_dom_debug = server_debug;
 		sctx.pc_tm_debug = server_debug;
+		sctx.pc_sync_events = !async_events;
+		sctx.pc_min_recv_size = server_min_recv_size;
+		sctx.pc_max_recv_msgs = server_max_recv_msgs;
+		sctx.pc_verbose = verbose;
 		nlx_ping_server_spawn(&server_thread, &sctx);
 
 		if (!quiet)
@@ -245,9 +220,9 @@ int main(int argc, char *argv[])
 			if (strcmp(readbuf, "quit\n") == 0)
 				break;
 			if (strcmp(readbuf, "\n") == 0)
-				print_qstats(&sctx, false);
+				nlx_ping_print_qstats_tm(&sctx, false);
 			if (strcmp(readbuf, "reset_stats\n") == 0)
-				print_qstats(&sctx, true);
+				nlx_ping_print_qstats_tm(&sctx, true);
 		}
 	} else {
 		int		      i;
@@ -264,7 +239,7 @@ int main(int argc, char *argv[])
 #define CPARAM_SET(f) params[i].f = f
 			CPARAM_SET(loops);
 			CPARAM_SET(nr_bufs);
-			CPARAM_SET(passive_size);
+			CPARAM_SET(bulk_size);
 			CPARAM_SET(msg_timeout);
 			CPARAM_SET(bulk_timeout);
 			CPARAM_SET(client_network);
@@ -273,6 +248,8 @@ int main(int argc, char *argv[])
 			CPARAM_SET(server_network);
 			CPARAM_SET(server_portal);
 			CPARAM_SET(server_tmid);
+			CPARAM_SET(send_msg_size);
+			CPARAM_SET(verbose);
 #undef CPARAM_SET
 			params[i].client_id = i + 1;
 			params[i].client_pid = C2_NET_LNET_PID;
@@ -296,26 +273,29 @@ int main(int argc, char *argv[])
 		/* ...and wait for them */
 		for (i = 0; i < nr_clients; ++i) {
 			c2_thread_join(&client_thread[i]);
-			if (!quiet) {
+			if (!quiet && verbose > 0) {
 				printf("Client %d: joined\n",
 				       params[i].client_id);
 			}
 		}
+		if (!quiet)
+			nlx_ping_print_qstats_total("Client total",
+						    &verbose_ops);
 		c2_free(client_thread);
 		c2_free(params);
 	}
 
 	if (!client_only) {
 		if (!quiet)
-			print_qstats(&sctx, false);
+			nlx_ping_print_qstats_tm(&sctx, false);
 		nlx_ping_server_should_stop(&sctx);
 		c2_thread_join(&server_thread);
 		c2_cond_fini(&sctx.pc_cond);
 		c2_mutex_fini(&sctx.pc_mutex);
 	}
 
+	nlx_ping_fini();
 	c2_net_xprt_fini(&c2_net_lnet_xprt);
-	c2_mutex_fini(&qstats_mutex);
 	c2_fini();
 
 	return 0;
