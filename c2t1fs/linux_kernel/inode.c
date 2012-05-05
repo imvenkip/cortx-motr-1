@@ -106,12 +106,12 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 
 	C2_ENTRY("ci: %p", ci);
 
-	c2_tlist_for(&dir_ents_tl, &ci->ci_dir_ents, de) {
+	c2_tl_for(dir_ents, &ci->ci_dir_ents, de) {
 		dir_ents_tlist_del(de);
 
 		c2t1fs_dir_ent_fini(de);
 		c2_free(de);
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 
 	dir_ents_tlist_fini(&ci->ci_dir_ents);
 

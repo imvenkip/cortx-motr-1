@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -13,7 +13,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 04/12/2011
  */
 
@@ -29,16 +29,17 @@ MODULE_AUTHOR("Xyratex International");
 MODULE_DESCRIPTION("Colibri Unit Test Module");
 MODULE_LICENSE("proprietary");
 
-/* UT suites */
-extern const struct c2_test_suite c2_klibc2_ut;
+/* sort test suites in alphabetic order */
+extern const struct c2_test_suite c2_klibc2_ut; /* test lib first */
+extern const struct c2_test_suite buffer_pool_ut;
+extern const struct c2_test_suite bulkio_client_ut;
 extern const struct c2_test_suite c2_net_bulk_if_ut;
 extern const struct c2_test_suite c2_net_bulk_mem_ut;
-extern const struct c2_test_suite c2_net_bulk_sunrpc_ut;
-extern const struct c2_test_suite c2_net_ksunrpc_ut;
-extern const struct c2_test_suite buffer_pool_ut;
+extern const struct c2_test_suite c2_net_lnet_ut;
+extern const struct c2_test_suite c2_net_tm_prov_ut;
 extern const struct c2_test_suite xcode_ut;
-extern const struct c2_test_suite bulkio_client_ut;
 extern const struct c2_test_suite rpc_service_ut;
+extern const struct c2_test_suite sm_ut;
 
 static struct c2_thread ut_thread;
 
@@ -47,15 +48,17 @@ static void run_kernel_ut(int ignored)
         printk(KERN_INFO "Colibri Kernel Unit Test\n");
 
 	c2_uts_init();
+	/* sort test suites in alphabetic order */
+	c2_ut_add(&c2_klibc2_ut);  /* test lib first */
+	c2_ut_add(&buffer_pool_ut);
 	c2_ut_add(&bulkio_client_ut);
-	c2_ut_add(&c2_klibc2_ut);
 	c2_ut_add(&c2_net_bulk_if_ut);
 	c2_ut_add(&c2_net_bulk_mem_ut);
-	c2_ut_add(&c2_net_bulk_sunrpc_ut);
-	c2_ut_add(&c2_net_ksunrpc_ut);
-	c2_ut_add(&buffer_pool_ut);
+	c2_ut_add(&c2_net_lnet_ut);
+	c2_ut_add(&c2_net_tm_prov_ut);
 	c2_ut_add(&xcode_ut);
 	c2_ut_add(&rpc_service_ut);
+	c2_ut_add(&sm_ut);
 	c2_ut_run();
 	c2_uts_fini();
 }

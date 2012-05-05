@@ -1,41 +1,51 @@
 #! /bin/sh
 
-MODLIST="build_kernel_modules/kcolibri.ko"
+# This script is also used by utils/ut.sh, utils/linux_kernel/ut.sh
+# If you are modifying this file, please make the relevant changes
+# in above mentioned files also.
+
+MODLIST="@SRCDIR@/build_kernel_modules/kcolibri.ko"
 
 abort()
 {
-    msg="$1"
-    echo "$1 Aborting."
-    exit 1
+	msg="$1"
+	echo "$1 Aborting."
+	exit 1
+}
+
+# Do not rmmod lnet, it may be in use by lustre
+modprobe_lnet()
+{
+	modprobe lnet || abort "Error probing lnet."
 }
 
 modload_galois()
 {
-    BASE=@GALOIS_SRC@
-    if test "x$BASE" = "x"; then
-        modprobe galois
-    else
-        insmod $BASE/src/linux_kernel/galois.ko
-    fi
+	BASE=@GALOIS_SRC@
+	if test "x$BASE" = "x"; then
+		modprobe galois
+	else
+		insmod $BASE/src/linux_kernel/galois.ko
+	fi
 }
 
 modunload_galois()
 {
-    rmmod galois
+	rmmod galois &>> /dev/null
 }
 
 modload()
 {
-    for m in $MODLIST ;do
-	insmod $m                   || abort "Error loading $m."
-    done
+	for m in $MODLIST ;do
+		insmod $m || abort "Error loading $m."
+	done
 }
 
 modunload()
 {
-    for m in $MODLIST ;do
-	echo $m
-    done | tac | while read ;do
-	rmmod $REPLY                || echo "Error unloading $m."
-    done
+	for m in $MODLIST ;do
+		echo $m
+	done | tac | while read ;do
+		rmmod $REPLY &>> /dev/null || echo "Error unloading $m."
+	done
 }

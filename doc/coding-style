@@ -46,28 +46,33 @@ To summarise:
 
     * braces around single statement blocks can be optionally omitted;
 
-    * Comment formatting follows Linux kernel style.
+    * comment formatting follows Linux kernel style;
 
-    * Continuation line starts one column after the last unclosed
+    * continuation line starts one column after the last unclosed
       opening parenthesis:
 
 	C2_ASSERT(ergo(service != NULL,
 		       c2_rpc_service_invariant(service) &&
 		       service->svc_state == C2_RPC_SERVICE_STATE_INITIALISED));
 
-    * A new line should not start with an operator:
+    * a new line should not start with an operator:
 
 	if (pl_oldrec->pr_let_id != stl->ls_enum->le_type->let_id ||
             pl_oldrec->pr_attr.pa_N != pl->pl_attr.pa_N) {
 	}
 
-    * Align identifier names, not asterisks:
+    * align identifier names, not asterisks or other type-declaration related
+      decorations:
 
-	struct c2_layout_type {
-		const char                      *lt_name;
-		uint32_t                         lt_id;
-		const struct c2_layout_type_ops *lt_ops;
+	struct foo {
+		const char        *f_name;
+		uint32_t           f_id;
+		const struct bar  *f_bar;
+		int              (*f_callback)(struct foo *f, int flag);
 	};
+
+      This rule applied to block-level variable declarations too.
+
 
 In addition to the above syntactic conventions, Colibri code should
 try to adhere to some higher level idioms.
@@ -77,6 +82,10 @@ try to adhere to some higher level idioms.
         for (i = 0; i < N; ++i) {
                 body;
         }
+
+      or, if appropriate,
+
+        c2_forall(i, N, body);
 
     * an infinite loop is written as
 
@@ -275,3 +284,46 @@ try to adhere to some higher level idioms.
       after the code restructuring, the variable remains
       un-initialized in a conditional branch or in a loop that might
       execute 0 times, the initializer suppresses compiler warning).
+
+
+Things to look after:
+
+    * locks should outlive the object(s) they are protecting.
+
+      The code below illustrates a common mistake:
+
+        struct foo {
+                ...
+                /* Protects foo object from concurrent modifications. */
+                struct c2_mutex f_lock;
+        };
+
+        int foo_init(struct foo *foo)
+        {
+                c2_mutex_init(&foo->f_lock);
+                c2_mutex_lock(&foo->f_lock);
+                /* ... Initialize foo ... */
+                c2_mutex_unlock(&foo->f_lock);
+        }
+
+        void foo_fini(struct foo *foo)
+        {
+                c2_mutex_lock(&foo->f_lock);
+                /* ... Finalize foo ... */
+                c2_mutex_unlock(&foo->f_lock);
+                c2_mutex_fini(&foo->f_lock);           /* <--- Thread A */
+        }
+
+        int foo_modify(struct foo *foo, ...)
+        {
+                c2_mutex_lock(&foo->f_lock);
+                /* ... Modify field(s) of foo ... */   /* <--- Thread B */
+                c2_mutex_unlock(&foo->f_lock);
+        }
+
+      Here it is possible that some thread (B) tries to unlock the
+      mutex, which is already finalized by another thread (A).
+
+      A general rule of thumb is that object creation and destruction
+      should be protected by "existential lock(s)", with a life-time
+      longer than that of the object.

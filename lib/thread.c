@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>,
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 05/01/2010
  */
 
@@ -89,6 +89,7 @@ void c2_thread_fini(struct c2_thread *q)
 	c2_semaphore_fini(&q->t_wait);
 	C2_SET0(q);
 }
+C2_EXPORTED(c2_thread_fini);
 
 /** @} end of thread group */
 

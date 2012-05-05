@@ -20,7 +20,7 @@
 
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 
 #include "lib/cdefs.h"
@@ -69,9 +69,11 @@ int c2_rpc_client_init(struct c2_rpc_client_ctx *cctx)
 
 	rc = init_cob(cctx);
 	if (rc != 0)
-		goto fini_cob;
+		return rc;
 
 	rc = c2_rpc_client_start(cctx);
+	if (rc != 0)
+		goto fini_cob;
 
 	return rc;
 

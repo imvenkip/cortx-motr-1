@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -19,7 +19,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 
 #include <stdio.h>     /* fprintf */
@@ -31,7 +31,7 @@
 
 #include "colibri/colibri_setup.h"
 #include "colibri/init.h"
-#include "net/bulk_sunrpc.h"
+#include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
 
 /**
@@ -44,7 +44,7 @@
    by a particular node in a cluster.
  */
 static struct c2_net_xprt *cs_xprts[] = {
-	&c2_net_bulk_sunrpc_xprt
+	&c2_net_lnet_xprt
 };
 
 /**

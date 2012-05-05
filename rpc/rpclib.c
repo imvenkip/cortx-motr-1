@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -20,7 +20,7 @@
 
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 
 #ifndef __KERNEL__
@@ -34,6 +34,7 @@
 #include "lib/assert.h"
 #include "rpc/rpc2.h"
 #include "net/net.h"
+#include "net/lnet/lnet.h"
 #include "fop/fop.h"
 #include "rpc/rpclib.h"
 
@@ -42,7 +43,6 @@
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
 #endif
-
 
 #ifndef __KERNEL__
 int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx)
@@ -108,21 +108,44 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 {
 	int rc;
 	struct c2_net_transfer_mc *tm;
+	struct c2_net_domain      *ndom;
+	struct c2_rpc_machine	  *rpc_mach;
+	struct c2_net_buffer_pool *buffer_pool;
+	uint32_t		   tms_nr;
+	uint32_t		   bufs_nr;
 
-	rc = c2_rpc_machine_init(&cctx->rcx_rpc_machine, cctx->rcx_cob_dom,
-				cctx->rcx_net_dom, cctx->rcx_local_addr, NULL);
+	ndom	    = cctx->rcx_net_dom;
+	rpc_mach    = &cctx->rcx_rpc_machine;
+	buffer_pool = &cctx->rcx_buffer_pool;
+
+	if (cctx->rcx_recv_queue_min_length == 0)
+		cctx->rcx_recv_queue_min_length = C2_NET_TM_RECV_QUEUE_DEF_LEN;
+
+	tms_nr   = 1;
+	bufs_nr  = c2_rpc_bufs_nr(cctx->rcx_recv_queue_min_length, tms_nr);
+
+	rc = c2_rpc_net_buffer_pool_setup(ndom, buffer_pool,
+					  bufs_nr, tms_nr);
 	if (rc != 0)
-		return rc;
+		goto pool_fini;
+
+	rc = c2_rpc_machine_init(rpc_mach, cctx->rcx_cob_dom,
+				 ndom, cctx->rcx_local_addr, NULL,
+				 buffer_pool, C2_BUFFER_ANY_COLOUR,
+				 cctx->rcx_max_rpc_msg_size,
+				 cctx->rcx_recv_queue_min_length);
+	if (rc != 0)
+		goto pool_fini;
 
 	tm = &cctx->rcx_rpc_machine.rm_tm;
 
-	rc = c2_net_end_point_create(&cctx->rcx_remote_ep, tm, cctx->rcx_remote_addr);
+	rc = c2_net_end_point_create(&cctx->rcx_remote_ep, tm,
+				      cctx->rcx_remote_addr);
 	if (rc != 0)
 		goto rpcmach_fini;
 
 	rc = c2_rpc_conn_create(&cctx->rcx_connection, cctx->rcx_remote_ep,
-				&cctx->rcx_rpc_machine,
-				cctx->rcx_max_rpcs_in_flight,
+				rpc_mach, cctx->rcx_max_rpcs_in_flight,
 				cctx->rcx_timeout_s);
 	if (rc != 0)
 		goto ep_put;
@@ -139,7 +162,9 @@ conn_destroy:
 ep_put:
 	c2_net_end_point_put(cctx->rcx_remote_ep);
 rpcmach_fini:
-	c2_rpc_machine_fini(&cctx->rcx_rpc_machine);
+	c2_rpc_machine_fini(rpc_mach);
+pool_fini:
+	c2_rpc_net_buffer_pool_cleanup(buffer_pool);
 	C2_ASSERT(rc != 0);
 	return rc;
 }
@@ -150,7 +175,7 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 	int                 rc;
 	c2_time_t           timeout;
 	struct c2_clink     clink;
-	struct c2_rpc_item  *item;
+	struct c2_rpc_item *item;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(session != NULL);
@@ -201,6 +226,8 @@ int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
 
 	c2_net_end_point_put(cctx->rcx_remote_ep);
 	c2_rpc_machine_fini(&cctx->rcx_rpc_machine);
+
+	c2_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
 
 	return rc;
 }

@@ -61,7 +61,7 @@ How headers should be included in C sources?
 First, your .c files should typically start with
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
 Include system headers as usual:

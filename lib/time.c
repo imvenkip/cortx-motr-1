@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nathan Rutman <Nathan_Rutman@us.xyratex.com>,
+ * Original author: Nathan Rutman <Nathan_Rutman@xyratex.com>,
  *                  Huang Hua <Hua_Huang@xyratex.com>
  * Original creation date: 12/10/2010
  */
@@ -127,7 +127,7 @@ c2_time_t c2_time_from_now(uint64_t secs, long ns)
 {
 	return c2_time_now() + secs * C2_TIME_ONE_BILLION + ns;
 }
-
+C2_EXPORTED(c2_time_from_now);
 
 const c2_time_t C2_TIME_NEVER = ~0ULL;
 C2_EXPORTED(C2_TIME_NEVER);

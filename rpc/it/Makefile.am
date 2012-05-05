@@ -1,4 +1,4 @@
-INCLUDES             = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I/usr/include
+INCLUDES             = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include -iquote /usr/include
 
 ping_fop_u.h ping_fop_u.c ping_fop_k.h ping_fop_k.c: ping_fop.ff \
 		$(top_builddir)/fop/rt/libc2rt.la \

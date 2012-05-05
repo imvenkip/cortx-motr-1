@@ -7,15 +7,13 @@ AC_CONFIG_MACRO_DIR([m4])
 AH_TEMPLATE([PACKAGE], [Package name.])
 AH_TEMPLATE([VERSION], [Version of the package.])
 AH_TEMPLATE([ENABLE_DEBUG], [Enable debug info.])
-AH_TEMPLATE([ENABLE_GSSRPC], [Enable gssrpc.])
+AH_TEMPLATE([ENABLE_FAULT_INJECTION], [Enable fault injection.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT], [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV], [Have fops->readv function])
 AH_TEMPLATE([HAVE_FILE_AIO_READ], [Have fops->aio_read function])
 AH_TEMPLATE([HAVE_INODE_BLKSIZE], [Have inode->i_blksize field])
 AH_TEMPLATE([HAVE_WRITE_BEGIN_END], [Have .begin_write/end_write])
 AH_TEMPLATE([HAVE_SENDFILE], [Have .sendfile])
-AH_TEMPLATE([HAVE_STRUCT_NET], [Use struct net in sunrpc])
-AH_TEMPLATE([HAVE_CRED_IN_REQ], [Have rq_cred in rpc_rqst])
 AH_TEMPLATE([HAVE_MALLINFO], [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE], [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE], [Have backtrace(3) function])
@@ -26,7 +24,7 @@ COLIBRI_MINOR_VERSION=1
 PACKAGE=colibri
 VERSION=$COLIBRI_MAJOR_VERSION.$COLIBRI_MINOR_VERSION
 
-AM_INIT_AUTOMAKE([$PACKAGE], [$VERSION])
+AM_INIT_AUTOMAKE([nostdinc])
 
 LT_RELEASE=$COLIBRI_MAJOR_VERSION.$COLIBRI_MINOR_VERSION
 AC_SUBST([LT_RELEASE])
@@ -192,40 +190,6 @@ COLIBRI_LINUX_TRY_COMPILE([
 ])
 ])
 
-AC_DEFUN([COLIBRI_LINUX_STRUCT_NET],
-[
-AC_MSG_CHECKING([if kernel sunrpc uses struct net])
-COLIBRI_LINUX_TRY_COMPILE([
-#include <linux/sunrpc/clnt.h>
-],[
-        struct rpc_create_args a;
-
-        a.net = NULL;
-], [
-        AC_MSG_RESULT([yes])
-        AC_DEFINE([HAVE_STRUCT_NET])
-],[
-        AC_MSG_RESULT([no])
-])
-])
-
-AC_DEFUN([COLIBRI_LINUX_CRED_IN_REQ],
-[
-AC_MSG_CHECKING([if kernel sunrpc has rq_cred in rpc_rqst])
-COLIBRI_LINUX_TRY_COMPILE([
-#include <linux/sunrpc/clnt.h>
-],[
-        struct rpc_rqst r;
-
-        r.rq_cred = NULL;
-], [
-        AC_MSG_RESULT([yes])
-        AC_DEFINE([HAVE_CRED_IN_REQ])
-],[
-        AC_MSG_RESULT([no])
-])
-])
-
 AC_DEFUN([COLIBRI_LINUX_INIT_CONFIG], [
 rm -fr config > /dev/null 2>&1
 mkdir config
@@ -297,13 +261,18 @@ AC_FUNC_MALLOC
 
 # Configure options
 AC_ARG_ENABLE([debug],
-        [AC_HELP_STRING([--disable-debug], [disable debug information and logs])], [],
-        [enable_debug=yes]
+        [AC_HELP_STRING([--enable-debug], [enable debug information and logs])], [],
+        [enable_debug=no]
 )
 
-AC_ARG_ENABLE([gssrpc],
-        [AC_HELP_STRING([--enable-gssrpc], [enable gssrpc support])], [],
-        [enable_gssrpc=no]
+AC_ARG_ENABLE([finject],
+        [AC_HELP_STRING([--disable-finject], [disable fault injection support])], [],
+        [enable_finject=yes]
+)
+
+AC_ARG_ENABLE([mcheck],
+        [AC_HELP_STRING([--enable-mcheck], [enable glibc malloc check])], [],
+        [enable_mcheck=no]
 )
 
 AC_ARG_ENABLE([rpm],
@@ -349,7 +318,7 @@ AC_SUBST([ENABLE_COVERAGE])
 if test "x[$]ENABLE_COVERAGE" = "x1"
 then
 	# Remove -O<digit> flag from $CFLAGS
-	CFLAGS="`echo $CFLAGS | sed 's/-O[0-9]//g'` --coverage"
+	CFLAGS="`echo $CFLAGS | sed 's/-O[[0-9]]//g'` --coverage"
 	LDFLAGS="-lgcov"
 	K_ENABLE_COVERAGE=y
 else
@@ -370,8 +339,31 @@ COLIBRI_LINUX_FILE_READV
 COLIBRI_LINUX_FILE_AIO_READ
 COLIBRI_LINUX_WRITE_BEGIN_END
 COLIBRI_LINUX_SENDFILE
-COLIBRI_LINUX_STRUCT_NET
-COLIBRI_LINUX_CRED_IN_REQ
+
+AC_MSG_CHECKING([for LNet header dir])
+AC_ARG_WITH([lustre],
+        [AC_HELP_STRING([--with-lustre=path], [set path to lustre sources])],
+        [LUSTRE=$with_lustre],
+        [LUSTRE=/usr/src/`ls /usr/src | grep lustre | tail -1`]
+)
+
+if ! test -d $LUSTRE/lnet/include; then
+	AC_MSG_ERROR([lnet/include not found in $LUSTRE!])
+fi
+AC_MSG_RESULT([$LUSTRE])
+
+# Disabling check for lustre config and Module.symvers until devel RPM is ready
+#AC_MSG_CHECKING([for Lustre config.h])
+#if ! test -e $LUSTRE/config.h; then
+#	AC_MSG_ERROR([$LUSTRE/config.h not found! Did you configure lustre?])
+#fi
+#AC_MSG_RESULT([$LUSTRE/config.h])
+#AC_MSG_CHECKING([for Lustre symbols file])
+#if ! test -e $LUSTRE/Module.symvers; then
+#	AC_MSG_ERROR([$LUSTRE/Module.symvers not found! Did you build lustre?])
+#fi
+#AC_MSG_RESULT([$LUSTRE/Module.symvers])
+AC_SUBST([LUSTRE])
 
 build_lib() {
        NAME=$1
@@ -534,30 +526,6 @@ AC_SUBST([GALOIS_LIBS])
 AC_SUBST([YAML_LIBS])
 AC_SUBST([CUNIT_LIBS])
 
-if test x$enable_gssrpc = xyes; then
-        AC_CHECK_LIB([gssrpc], [xdr_int], [
-            AC_CHECK_HEADERS([gssrpc/rpc.h gssrpc/pmap_clnt.h], [],
-                [
-                    enable_gssrpc=no
-                    AC_MSG_NOTICE([gssrpc/pmap_clnt.h gssrpc/rpc.h is not found. Gssrpc is disabled!])
-                ],
-                [[
-                    #ifdef HAVE_GSSRPC_RPC_H
-                    #include <gssrpc/rpc.h>
-                    #endif
-                ]])
-            ],
-            [
-                enable_gssrpc=no
-                AC_MSG_NOTICE([libgssrpc is not found. Gssrpc is disabled!])
-            ]
-        )
-        if test x$enable_gssrpc = xyes; then
-                AC_DEFINE([ENABLE_GSSRPC])
-                LIBS="-lgssrpc $LIBS"
-        fi
-fi
-
 # Check for libaio
 OLD_LIBS=$LIBS
 LIBS=""
@@ -572,10 +540,14 @@ if test x$enable_debug = xyes; then
         CFLAGS="$(echo $CFLAGS | sed 's/-g//' | sed 's/-O2//') -g -O0"
         KCFLAGS="$(echo $KCFLAGS | sed 's/-g//' | sed 's/-O2//') -g -O0"
         AC_DEFINE([ENABLE_DEBUG])
-else
-        # Remove debug flags but keep default or user optimizations
-        # passed via construction like ./configure CFLAGS=-O3
-        CFLAGS="$(echo $CFLAGS | sed 's/-g//')"
+fi
+
+if test x$enable_finject = xyes; then
+        AC_DEFINE([ENABLE_FAULT_INJECTION])
+fi
+
+if test x$enable_mcheck = xyes; then
+	LDFLAGS="$LDFLAGS -lmcheck"
 fi
 
 # Check if gcc option is supported in current gcc version.
@@ -597,18 +569,19 @@ CFLAGS="$OLD_CFLAGS")
 if test x$enable_rpm = xyes; then
 
 GALOIS_INCLUDES="-I/usr/local/include -I/usr/include"
-CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I. -I$SRCDIR $CFLAGS"
+CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -iquote . -iquote $SRCDIR $CFLAGS"
 
 else
 
 GALOIS_INCLUDES="-I$GALOIS_SRC/include"
 CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing \
         $DB_INCLUDES $GALOIS_INCLUDES -I$YAML_SRC/include \
-        -I$CUNIT_HEADERS -I. -I$SRCDIR $CFLAGS"
+        -I$CUNIT_HEADERS -iquote . -iquote $SRCDIR $CFLAGS"
 fi
 
 #
-# Galois header may be in one of the following standard loctions. Kernel needs to know about.
+# Galois header may be in one of the following standard loctions.
+# Kernel needs to know about.
 #
 KCFLAGS="-Wall -Werror $KCFLAGS $GALOIS_INCLUDES"
 COLIBRI_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable])
@@ -616,9 +589,9 @@ COLIBRI_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable])
 LDFLAGS="-rdynamic $LDFLAGS"
 
 # trim spaces at the end of flags
-CFLAGS=$(echo $CFLAGS | sed 's/[[:blank:]]*$//')
-KCFLAGS=$(echo $KCFLAGS | sed 's/[[:blank:]]*$//')
-LDFLAGS=$(echo $LDFLAGS | sed 's/[[:blank:]]*$//')
+CFLAGS=$(echo $CFLAGS | sed 's/[[[:blank:]]]*$//')
+KCFLAGS=$(echo $KCFLAGS | sed 's/[[[:blank:]]]*$//')
+LDFLAGS=$(echo $LDFLAGS | sed 's/[[[:blank:]]]*$//')
 AC_SUBST([KCFLAGS])
 
 # Please keep this list sorted (always appending new items at the end
@@ -627,6 +600,7 @@ AC_CONFIG_FILES([
                  Makefile
                  addb/Makefile
                  addb/addb_pseudo/Makefile
+                 addb/addbff/Makefile
 		 addb/ut/Makefile
                  balloc/Makefile
                  balloc/ut/Makefile
@@ -675,11 +649,12 @@ AC_CONFIG_FILES([
                  net/Makefile
 		 net/bulk_emulation/Makefile
 		 net/bulk_emulation/st/Makefile
-		 net/bulk_emulation/st/linux_kernel/Makefile
 		 net/bulk_emulation/ut/Makefile
-                 net/usunrpc/Makefile
+		 net/lnet/Makefile
+		 net/lnet/st/Makefile
+		 net/lnet/st/linux_kernel/Makefile
+		 net/lnet/ut/Makefile
 		 net/ut/Makefile
-		 net/st/Makefile
                  patches/Makefile
                  pool/Makefile
                  reqh/Makefile
@@ -701,6 +676,8 @@ AC_CONFIG_FILES([
                  utils/Makefile
                  utils/linux_kernel/Makefile
                  utils/ploss/Makefile
+                 utils/ut.sh
+                 utils/linux_kernel/ut.sh
                  xcode/Makefile
                  xcode/ff2c/Makefile
                  xcode/ut/Makefile
@@ -715,6 +692,11 @@ AC_OUTPUT
 # Set up execute bit on our "compiler" generated from fop2c.in above.
 #
 chmod +x fop/fop2c
+#
+# Set up execute bit for UT scripts.
+#
+chmod +x utils/ut.sh
+chmod +x utils/linux_kernel/ut.sh
 
 echo ""
 echo "GALOIS_LIBS :  \"$GALOIS_LIBS\""
@@ -729,6 +711,7 @@ echo "LDFLAGS     :  \"$LDFLAGS\""
 echo ""
 
 echo "Linux Obj   :  \"$LINUX_OBJ\""
+echo "Lustre      :  \"$LUSTRE\""
 echo ""
 
 echo "Type 'make' to build Colibri"

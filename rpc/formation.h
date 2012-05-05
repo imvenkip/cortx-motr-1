@@ -181,7 +181,6 @@ struct c2_rpc_frm_sm {
 	/** ADDB context for all formation state machines. */
 	struct c2_addb_ctx		 fs_rpc_form_addb;
 	/** Mutex protecting the state machine from concurrent access. */
-	struct c2_mutex			 fs_lock;
 	enum c2_rpc_frm_state		 fs_state;
 	/** List of structures containing data for each group linked
 	    through c2_rpc_frm_group::frg_linkage. */
@@ -192,9 +191,10 @@ struct c2_rpc_frm_sm {
 	/** Array of lists (one per priority band) containing unformed
 	    rpc items sorted according to increasing order of deadline. */
 	struct c2_rpc_frm_prio_list	 fs_unformed[C2_RPC_ITEM_PRIO_NR];
-	/** Network layer attributes for buffer transfer. */
+	/** Network layer attributes for buffer transfer.
+	 *  Maximum RPC message size.
+	 */
 	uint64_t			 fs_max_msg_size;
-	uint64_t			 fs_max_frags;
 	/** Statistics data. Currently stationed with formation but
 	    later will be moved to Output sub component from rpc. */
 	uint64_t			 fs_max_rpcs_in_flight;

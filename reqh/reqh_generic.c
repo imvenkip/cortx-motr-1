@@ -19,7 +19,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 
 #include "lib/errno.h"
@@ -257,7 +257,6 @@ static int set_gen_err_reply(struct c2_fom *fom)
  */
 static int fom_failure(struct c2_fom *fom)
 {
-
 	if (fom->fo_rc != 0 && fom->fo_rep_fop == NULL)
 		set_gen_err_reply(fom);
 
@@ -269,6 +268,19 @@ static int fom_failure(struct c2_fom *fom)
  */
 static int fom_success(struct c2_fom *fom)
 {
+	return C2_FSO_AGAIN;
+}
+
+/**
+ * Make a FOL transaction record
+ */
+static int fom_fol_rec_add(struct c2_fom *fom)
+{
+        c2_fom_block_enter(fom);
+        fom->fo_rc = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
+                                        &fom->fo_tx.tx_dbtx);
+        c2_fom_block_leave(fom);
+
 	return C2_FSO_AGAIN;
 }
 
@@ -438,9 +450,13 @@ static const struct fom_phase_ops fpo_table[] = {
 					     "create_loc_ctx_wait",
 					      1 << C2_FOPH_TXN_CONTEXT_WAIT },
 	[C2_FOPH_SUCCESS] =		   { &fom_success,
-					      C2_FOPH_TXN_COMMIT,
+					      C2_FOPH_FOL_REC_ADD,
 					     "fom_success",
 					      1 << C2_FOPH_SUCCESS },
+	[C2_FOPH_FOL_REC_ADD] =		   { &fom_fol_rec_add,
+					      C2_FOPH_TXN_COMMIT,
+					     "fom_fol_rec_add",
+					      1 << C2_FOPH_FOL_REC_ADD },
 	[C2_FOPH_TXN_COMMIT] =		   { &fom_txn_commit,
 					      C2_FOPH_QUEUE_REPLY,
 					     "fom_txn_commit",

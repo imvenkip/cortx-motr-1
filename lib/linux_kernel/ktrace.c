@@ -18,8 +18,8 @@
  * Original creation date: 02/16/2012
  */
 
-#include <linux/slab.h>
-#include <linux/sched.h>
+#include <linux/vmalloc.h>           /* vmalloc, vfree */
+#include <linux/kernel.h>            /* vprintk */
 
 #include "lib/errno.h"
 #include "lib/atomic.h"
@@ -40,7 +40,7 @@ MODULE_PARM_DESC(c2_trace_immediate_mask,
 
 int c2_arch_trace_init(void)
 {
-	c2_logbuf = kzalloc(c2_logbufsize, GFP_KERNEL);
+	c2_logbuf = vmalloc(c2_logbufsize);
 	if (c2_logbuf == NULL)
 		return -ENOMEM;
 
@@ -51,7 +51,7 @@ int c2_arch_trace_init(void)
 
 void c2_arch_trace_fini(void)
 {
-	kfree(c2_logbuf);
+	vfree(c2_logbuf);
 }
 
 void c2_console_vprintf(const char *fmt, va_list args)

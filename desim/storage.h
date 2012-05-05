@@ -54,6 +54,7 @@ struct storage_dev {
 	storage_end_io_t     sd_end_io;
 	storage_submit_t     sd_submit;
 	struct elevator     *sd_el;
+	char                *sd_name;
 };
 
 #endif /* STORAGE_H */

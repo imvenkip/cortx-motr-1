@@ -23,16 +23,16 @@
  */
 
 DEF(cs_ds1_req_fop, RECORD,
-        _(csr_value, U32));
+        _(csr_value, U64));
 
 DEF(cs_ds1_rep_fop, RECORD,
-        _(csr_rc, U32));
+        _(csr_rc, U64));
 
 DEF(cs_ds2_req_fop, RECORD,
-        _(csr_value, U32));
+        _(csr_value, U64));
 
 DEF(cs_ds2_rep_fop, RECORD,
-        _(csr_rc, U32));
+        _(csr_rc, U64));
 
 /*
  *  Local variables:

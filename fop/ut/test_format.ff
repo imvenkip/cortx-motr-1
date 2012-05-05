@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -37,10 +37,6 @@
  * C) source code, containing
  *
  *     @li definitions of C data types matching fop format description;
- *
- *     @li declaration of user level sunrpc xdr functions;
- *
- *     @li definitions of user level sunrpc xdr functions;
  *
  *     @li the same for Linux kernel xdr functions.
  *

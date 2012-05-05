@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,12 +14,19 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
  * Original creation date: 04/04/2011
  */
 
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "lib/assert.h"
+#include "lib/errno.h"
 #include "lib/cdefs.h"
+#include "lib/finject.h"
 #include "net/net_internal.h"
 
 /** @}
@@ -57,6 +64,9 @@ int c2_net_end_point_create(struct c2_net_end_point  **epp,
 	C2_PRE(tm != NULL && tm->ntm_state == C2_NET_TM_STARTED);
 	C2_PRE(epp != NULL);
 
+	if (C2_FI_ENABLED("fake_error"))
+		return -EINVAL;
+
 	dom = tm->ntm_dom;
 	C2_PRE(dom->nd_xprt != NULL);
 
@@ -71,6 +81,8 @@ int c2_net_end_point_create(struct c2_net_end_point  **epp,
 	*/
 	C2_POST(ergo(rc == 0, c2_net__ep_invariant(*epp, tm, true)));
 
+	if (rc != 0)
+		NET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
 	c2_mutex_unlock(&tm->ntm_mutex);
 	return rc;
 }

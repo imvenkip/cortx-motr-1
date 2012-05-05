@@ -20,7 +20,7 @@
  * Nikita Danilov.
  */
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
 #include <string.h>
@@ -77,9 +77,9 @@ void cnt_dump_all(void)
 {
 	struct cnt *scan;
 
-	c2_tlist_for(&cnts_tl, &cnts, scan)
+	c2_tl_for(cnts, &cnts, scan)
 		cnt_dump(scan);
-	c2_tlist_endfor;
+	c2_tl_endfor;
 }
 
 void cnt_fini(struct cnt *cnt)
@@ -113,9 +113,9 @@ void cnt_global_fini(void)
 {
 	struct cnt *scan;
 
-	c2_tlist_for(&cnts_tl, &cnts, scan)
+	c2_tl_for(cnts, &cnts, scan)
 		cnt_fini(scan);
-	c2_tlist_endfor;
+	c2_tl_endfor;
 
 	cnts_tlist_fini(&cnts);
 }

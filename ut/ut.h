@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -38,7 +38,6 @@
 */
 
 #include "ut/rpc.h"
-#include "ut/net.h"
 #include "ut/cs_fop_foms.h"
 #include "ut/cs_service.h"
 #include "ut/cs_test_fops_u.h"

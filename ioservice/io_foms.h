@@ -158,12 +158,9 @@ struct c2_stob_io_desc {
 	uint64_t		 siod_magic;
 	/** Stob IO packet for the operation. */
         struct c2_stob_io        siod_stob_io;
-        /** Link to get signal for this stob io compelte */
-        struct c2_clink          siod_clink;
         /** Linkage into c2_io_fom_cob_rw::fcrw_stobio_list */
         struct c2_tlink          siod_linkage;
-        /** Pointer to I/O FOM */
-        struct c2_io_fom_cob_rw *siod_fom;
+        struct c2_fom_callback   siod_fcb;
 };
 
 /**
@@ -181,20 +178,16 @@ struct c2_io_fom_cob_rw {
         int                              fcrw_curr_ivec_index;
         /** no. of descriptor going to process */
         int                              fcrw_batch_size;
-        /** Number of bytes successfully transfered. */
-        int                              fcrw_bytes_transfered;
+        /** Number of bytes successfully transferred. */
+        c2_bcount_t                      fcrw_count;
         /** Number of STOB I/O launched */
         int                              fcrw_num_stobio_launched;
         /** Pointer to buffer pool refered by FOM */
         struct c2_net_buffer_pool       *fcrw_bp;
-        /** Signal send to this channel when io_fom ready to execute */
-        struct c2_chan                   fcrw_wait;
 	/** Stob object on which this FOM is acting. */
         struct c2_stob		        *fcrw_stob;
 	/** Stob IO packets for the operation. */
         struct c2_tl                     fcrw_stio_list;
-        /** Mutex to protect access on list fcrw_stio_list. */
-        struct c2_mutex                  fcrw_stio_mutex;
         /** rpc bulk load data*/
         struct c2_rpc_bulk               fcrw_bulk;
         /** Start time for FOM. */
@@ -240,7 +233,7 @@ extern const struct c2_fom_type_ops c2_io_cob_rw_type_ops;
 /**
  * Returns string representing ioservice name given a fom.
  */
-const char *c2_io_fom_cob_rw_service_name (struct c2_fom *fom);
+const char *c2_io_fom_cob_rw_service_name(struct c2_fom *fom);
 
 /**
  * Function to map the on-wire FOP format to in-core FOP format.

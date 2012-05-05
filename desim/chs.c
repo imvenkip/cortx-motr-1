@@ -22,7 +22,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
 #include <string.h>
@@ -133,17 +133,19 @@ void chs_conf_fini(struct chs_conf *conf)
 
 void chs_dev_init(struct chs_dev *dev, struct sim *sim, struct chs_conf *conf)
 {
-	memset(dev, 0, sizeof *dev);
-	dev->cd_storage.sd_sim    = dev->cd_todo.sc_sim = sim;
-	dev->cd_storage.sd_conf   = &conf->cc_storage;
-	dev->cd_storage.sd_submit = &chs_submit;
-	dev->cd_conf   = conf;
-	dev->cd_state  = CDS_IDLE;
-	cnt_init(&dev->cd_seek_time, NULL, "seek-time@%p", dev);
-	cnt_init(&dev->cd_rotation_time, NULL, "rotation-time@%p", dev);
-	cnt_init(&dev->cd_xfer_time, NULL, "xfer-time@%p", dev);
-	cnt_init(&dev->cd_read_size, NULL, "read-size@%p", dev);
-	cnt_init(&dev->cd_write_size, NULL, "write-size@%p", dev);
+	struct storage_dev *cd = &dev->cd_storage;
+	char *name = cd->sd_name;
+
+	cd->sd_sim    = dev->cd_todo.sc_sim = sim;
+	cd->sd_conf   = &conf->cc_storage;
+	cd->sd_submit = &chs_submit;
+	dev->cd_conf  = conf;
+	dev->cd_state = CDS_IDLE;
+	cnt_init(&dev->cd_seek_time, NULL, "seek-time@%s", name);
+	cnt_init(&dev->cd_rotation_time, NULL, "rotation-time@%s", name);
+	cnt_init(&dev->cd_xfer_time, NULL, "xfer-time@%s", name);
+	cnt_init(&dev->cd_read_size, NULL, "read-size@%s", name);
+	cnt_init(&dev->cd_write_size, NULL, "write-size@%s", name);
 }
 
 void chs_dev_fini(struct chs_dev *dev)
@@ -345,8 +347,9 @@ static sim_time_t chs_req(struct chs_dev *dev, enum storage_req_type type,
 	cnt_mod(&dev->cd_xfer_time, xfer);
 
 	sim_log(dev->cd_storage.sd_sim,
-		SLL_TRACE, "D     : [%4u:%u:%4llu] -> [%4u:%u:%4llu] %10llu "
-		"%8llu+%8llu+%8llu\n",
+		SLL_TRACE, "D%s: [%4u:%u:%4llu] -> [%4u:%u:%4llu] %10llu "
+		"%llu+%llu+%llu\n",
+		dev->cd_storage.sd_name,
 		dev->cd_cylinder, dev->cd_head, sector_at,
 		cylinder, head, sector_target0, sector,
 		seek, rotation, xfer);

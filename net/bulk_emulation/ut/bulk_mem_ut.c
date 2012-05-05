@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,8 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 04/12/2011
  */
 
@@ -768,14 +768,17 @@ static void test_ping(void)
 	c2_free(data);
 }
 
+static void ntc_event_callback(const struct c2_net_tm_event *ev)
+{
+}
+
 static void test_tm(void)
 {
 	static struct c2_net_domain dom1 = {
 		.nd_xprt = NULL
 	};
 	const struct c2_net_tm_callbacks cbs1 = {
-		.ntc_event_cb = LAMBDA(void,(const struct c2_net_tm_event *ev) {
-				       }),
+		.ntc_event_cb = ntc_event_callback
 	};
 	struct c2_net_transfer_mc d1tm1 = {
 		.ntm_callbacks = &cbs1,

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,13 +14,13 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nathan Rutman <Nathan_Rutman@us.xyratex.com>,
+ * Original author: Nathan Rutman <Nathan_Rutman@xyratex.com>,
  *                  Nikita Danilov <Nikita_Danilov@xyratex.com>
  * Original creation date: 06/15/2010
  */
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
 #ifndef __KERNEL__
@@ -78,9 +78,7 @@ void c2_net_domain_stats_fini(struct c2_net_domain *dom)
  in-memory fop struct.  All substructures pointed to from the
  top are allocated deep inside XDR bowels. E.g., for read or
  write this won't include data buffers size.
- Either we find a way to extract the total size from sunrpc
- or we should write a generic fop-type function traversing
- fop-format tree.
+
  Note that even if not accturate, if the number reported is
  reflective of the actual rate that is sufficient for relative
  loading estimation.  In fact, # reqs may be a sufficient
@@ -102,7 +100,7 @@ void c2_net_domain_stats_collect(struct c2_net_domain *dom,
   Report the network loading rate for a direction (in/out).
   Assume semi-regular calling of this function; timebase is simply the time
   between calls.
-  @returnval rate, in percent * 100 of maximum seen rate (e.g. 1234 = 12.34%)
+  @returns rate, in percent * 100 of maximum seen rate (e.g. 1234 = 12.34%)
  */
 int c2_net_domain_stats_get(struct c2_net_domain *dom,
                             enum c2_net_stats_direction dir)

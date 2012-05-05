@@ -72,6 +72,29 @@ static void t3(int n)
 
 static char t1place[100];
 
+static void forty_two_func(const char *s)
+{
+	strcpy(t1place, s);
+}
+
+static int lambda42_init(int x)
+{
+	return 0;
+}
+
+static void lambda42_func(int x)
+{
+}
+
+static int lambda_42_init(int x)
+{
+	return -42;
+}
+
+static void lambda_42_func(int x)
+{
+}
+
 void test_thread(void)
 {
 	int i;
@@ -95,9 +118,7 @@ void test_thread(void)
 	c2_thread_fini(&t[0]);
 	C2_UT_ASSERT(t0place == 42);
 
-	result = C2_THREAD_INIT(&t[0], const char *, NULL,
-				LAMBDA(void, (const char *s) {
-						strcpy(t1place, s); } ),
+	result = C2_THREAD_INIT(&t[0], const char *, NULL, &forty_two_func,
 				(const char *)"forty-two", "fourty-two");
 	C2_UT_ASSERT(result == 0);
 	c2_thread_join(&t[0]);
@@ -114,16 +135,14 @@ void test_thread(void)
 	}
 
 	/* test init functions */
-	result = C2_THREAD_INIT(&t[0], int,
-				LAMBDA(int, (int x) { return 0; } ),
-				LAMBDA(void, (int x) { ; } ), 42, "lambda42");
+	result = C2_THREAD_INIT(&t[0], int, &lambda42_init, &lambda42_func,
+				42, "lambda42");
 	C2_UT_ASSERT(result == 0);
 	c2_thread_join(&t[0]);
 	c2_thread_fini(&t[0]);
 
-	result = C2_THREAD_INIT(&t[0], int,
-				LAMBDA(int, (int x) { return -42; } ),
-				LAMBDA(void, (int x) { ; } ), 42, "lambda-42");
+	result = C2_THREAD_INIT(&t[0], int, &lambda_42_init, &lambda_42_func,
+				42, "lambda-42");
 	C2_UT_ASSERT(result == -42);
 	c2_thread_fini(&t[0]);
 

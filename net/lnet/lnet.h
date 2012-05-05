@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,8 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 11/01/2011
  */
 #ifndef __COLIBRI_NET_LNET_H__
@@ -41,8 +41,17 @@
    - c2_net_lnet_ep_addr_net_cmp()
      Compare the network portion of two LNet transport end point addresses.
      It is intended for use by the Request Handler setup logic.
+   - c2_net_lnet_ifaces_get()
+     Get a reference to the list of registered LNet interfaces, as strings.
+   - c2_net_lnet_ifaces_put()
+     Releases the reference to the list of registered LNet interfaces.
+   - c2_net_lnet_tm_stat_interval_set()
+     Sets the interval at which a started LNet transfer machine will generate
+     ADDB events with transfer machine statistics.
+   - c2_net_lnet_tm_stat_interval_get()
+     Gets the current statistics interval.
 
-   The use of this subroutine is not mandatory.
+   The use of these subroutines is not mandatory.
 
    @see @ref net "Networking"                     <!-- net/net.h -->
    @see @ref LNetDLD "LNet Transport DLD"         <!-- net/lnet/lnet_main.c -->
@@ -50,18 +59,54 @@
 
  */
 
+#include "net/net.h"
+
 /**
    @defgroup LNetDFS LNet Transport
    @ingroup net
 
-   The external interfaces of the LNet transport are obtained by
-   including the file @ref net/lnet/lnet.h.
+   The external interfaces of the LNet transport are obtained by including the
+   file @ref net/lnet/lnet.h.  The ::c2_net_lnet_xprt variable represents the
+   transport itself and is used as an argument to c2_net_domain_init().
+
+   An end point address for this transport is of the form:
+   @code
+     NetworkIdentifierString : PID : PortalNumber : TransferMachineIdentifier
+   @endcode
+
+   For example:
+   @code
+     10.72.49.14@o2ib0:12345:31:0
+     192.168.96.128@tcp1:12345:32:*
+   @endcode
+   The PID value of 12345 is used by Lustre
+   in the kernel and is the only value currently supported. The symbolic
+   constant ::C2_NET_LNET_PID provides this value.
+
+   The "*" indicates a dynamic assignment of a transfer machine identifier.
+   This syntax is valid only when starting a transfer machine with the
+   c2_net_tm_start() subroutine; it is intended for use by ephemeral processes
+   like management utilities and user interactive programs, not by servers.
+
+   Some LNet transport idiosyncrasies to be aware of:
+   - LNet does not provide any guarantees to a sender of data that the data was
+     actually received by its intended recipient.  In LNet semantics, a
+     successful buffer completion callback for ::C2_NET_QT_MSG_SEND and
+     ::C2_NET_QT_ACTIVE_BULK_SEND only indicates that the data was successfully
+     transmitted from the buffer and that the buffer can be reused.  It does
+     not provide any indication if recipient was able to store the data or not.
+     This makes it very important for an application to keep the unsolicited
+     receive message queue (::C2_NET_QT_MSG_RECV) populated at all times.
+
+   - Similar to the previous case, LNet may not provide indication that an end
+     point address is invalid during buffer operations. A ::C2_NET_QT_MSG_SEND
+     operation may succeed even if the end point provided as the destination
+     address does not exist.
 
    @see @ref LNetDLD "LNet Transport DLD"
 
    @{
-*/
-#include "net/net.h"
+ */
 
 /**
    The LNet transport is used by specifying this data structure to the
@@ -70,22 +115,74 @@
 extern struct c2_net_xprt c2_net_lnet_xprt;
 
 enum {
-	/** Max LNet ep addr length
-	    @todo Determine exact value for a 4-tuple LNet EP addr
+	/**
+	   The Lustre PID value used in the kernel.
+	 */
+	C2_NET_LNET_PID = 12345,
+	/**
+	   Maximum LNet end point address length.
 	*/
 	C2_NET_LNET_XEP_ADDR_LEN = 80,
+	/**
+	   Report TM statistics once every 5 minutes by default.
+	 */
+	C2_NET_LNET_TM_STAT_INTERVAL_SECS = 60 * 5,
 };
 
 /**
    Subroutine compares the network portions of two LNet end point address
    strings.
+   @retval -1 if any of the two strings do not have a colon character.
    @retval int Return value like strcmp().
  */
 int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2);
 
 /**
-   @} LNetDFS end group
-*/
+   Gets a list of strings corresponding to the local LNET network interfaces.
+   The returned array must be released using c2_net_lnet_ifaces_put().
+   @param dom Pointer to the domain.
+   @param addrs A NULL-terminated (like argv) array of NID strings is returned.
+ */
+int c2_net_lnet_ifaces_get(struct c2_net_domain *dom, char * const **addrs);
+
+/**
+   Releases the string array returned by c2_net_lnet_ifaces_get().
+ */
+void c2_net_lnet_ifaces_put(struct c2_net_domain *dom, char * const **addrs);
+
+/**
+   Sets the transfer machine statistics reporting interval.
+   By default, the interval is @c C2_NET_LNET_TM_STAT_INTERVAL_SECS seconds.
+   @param tm   Pointer to the transfer machine.
+   @param secs The interval in seconds. Must be greater than 0.
+   @pre tm->ntm_state >= C2_NET_TM_INITIALIZED &&
+   tm->ntm_state <= C2_NET_TM_STOPPING &&
+   secs > 0
+ */
+void c2_net_lnet_tm_stat_interval_set(struct c2_net_transfer_mc *tm,
+				      uint64_t secs);
+
+/**
+   Gets the transfer machine statistics reporting interval.
+   @param tm  Pointer to the transfer machine.
+   @pre tm->ntm_state >= C2_NET_TM_INITIALIZED &&
+   tm->ntm_state <= C2_NET_TM_STOPPING
+ */
+uint64_t c2_net_lnet_tm_stat_interval_get(struct c2_net_transfer_mc *tm);
+
+/* init and fini functions for colibri init */
+int c2_net_lnet_init(void);
+void c2_net_lnet_fini(void);
+
+/*
+   Debug support.
+ */
+void c2_net_lnet_dom_set_debug(struct c2_net_domain *dom, unsigned dbg);
+void c2_net_lnet_tm_set_debug(struct c2_net_transfer_mc *tm, unsigned dbg);
+
+/**
+   @}
+ */
 
 #endif /* __COLIBRI_NET_LNET_H__ */
 

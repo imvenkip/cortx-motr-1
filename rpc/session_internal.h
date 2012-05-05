@@ -76,6 +76,13 @@ struct c2_rpc_session *c2_rpc_session_search(const struct c2_rpc_conn *conn,
  */
 struct c2_rpc_session *c2_rpc_conn_session0(const struct c2_rpc_conn *conn);
 
+void c2_rpc_conn_fini_locked(struct c2_rpc_conn *conn);
+
+int c2_rpc_session_init_locked(struct c2_rpc_session *session,
+			       struct c2_rpc_conn    *conn,
+			       uint32_t               nr_slots);
+void c2_rpc_session_fini_locked(struct c2_rpc_session *session);
+
 /**
    Generates UUID
  */
@@ -513,6 +520,19 @@ bool c2_rpc_slot_can_item_add_internal(const struct c2_rpc_slot *slot);
      then remove it from the list.
  */
 void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session);
+
+void c2_rpc_conn_add_session(struct c2_rpc_conn    *conn,
+                             struct c2_rpc_session *session);
+void c2_rpc_conn_remove_session(struct c2_rpc_session *session);
+
+bool c2_rpc_item_is_control_msg(const struct c2_rpc_item *item);
+
+bool c2_rpc_session_is_idle(const struct c2_rpc_session *session);
+
+#ifndef __KERNEL__
+int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active,
+				int count);
+#endif
 
 /** @}  End of rpc_session group */
 #endif

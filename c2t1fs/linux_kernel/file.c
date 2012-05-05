@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -273,9 +273,9 @@ static int c2t1fs_pin_memory_area(char          *buf,
 		goto out;
 	}
 
-	C2_LOG("addr %lu off %d nr_pages %d", addr, off, nr_pages);
+	C2_LOG("addr 0x%lx off %d nr_pages %d", addr, off, nr_pages);
 
-	if (access_ok(rw == READ, addr, count)) {
+	if (current->mm != NULL && access_ok(rw == READ, addr, count)) {
 
 		/* addr points in user space */
 		down_read(&current->mm->mmap_sem);
@@ -484,12 +484,12 @@ static struct rw_desc * rw_desc_get(struct c2_tl        *list,
 	C2_LOG("fid [%lu:%lu]", (unsigned long)fid->f_container,
 				(unsigned long)fid->f_key);
 
-	c2_tlist_for(&rwd_tl, list, rw_desc) {
+	c2_tl_for(rwd, list, rw_desc) {
 
 		if (c2_fid_eq(fid, &rw_desc->rd_fid))
 			goto out;
 
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 
 	C2_ALLOC_PTR(rw_desc);
 	if (rw_desc == NULL)
@@ -515,13 +515,13 @@ static void rw_desc_fini(struct rw_desc *rw_desc)
 
 	C2_ENTRY();
 
-	c2_tlist_for(&bufs_tl, &rw_desc->rd_buf_list, buf) {
+	c2_tl_for(bufs, &rw_desc->rd_buf_list, buf) {
 
 		bufs_tlist_del(buf);
 		c2t1fs_buf_fini(buf);
 		c2_free(buf);
 
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	bufs_tlist_fini(&rw_desc->rd_buf_list);
 
 	rwd_tlink_fini(rw_desc);
@@ -717,14 +717,14 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 	rc = c2t1fs_rpc_rw(&rw_desc_list, rw);
 
 cleanup:
-	c2_tlist_for(&rwd_tl, &rw_desc_list, rw_desc) {
+	c2_tl_for(rwd, &rw_desc_list, rw_desc) {
 
 		rwd_tlist_del(rw_desc);
 
 		rw_desc_fini(rw_desc);
 		c2_free(rw_desc);
 
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	rwd_tlist_fini(&rw_desc_list);
 
 	C2_LEAVE("rc: %ld", rc);
@@ -749,7 +749,8 @@ static struct page *addr_to_page(void *addr)
 	ul_addr = (unsigned long)addr;
 	C2_ASSERT(address_is_page_aligned(ul_addr));
 
-	if (access_ok(VERIFY_READ, addr, PAGE_CACHE_SIZE)) {
+	if (current->mm != NULL &&
+	    access_ok(VERIFY_READ, addr, PAGE_CACHE_SIZE)) {
 
 		/* addr points in user space */
 		down_read(&current->mm->mmap_sem);
@@ -904,7 +905,7 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 	if (rc != 0)
 		goto buflist_empty;
 
-	c2_tlist_for(&bufs_tl, &rw_desc->rd_buf_list, cbuf) {
+	c2_tl_for(bufs, &rw_desc->rd_buf_list, cbuf) {
 		addr = cbuf->cb_buf.b_addr;
 
 		/* See comments earlier in this function, to understand
@@ -950,7 +951,7 @@ retry:
 				(unsigned long)count, seg, remaining_segments);
 
 		}
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 
 	C2_ASSERT(count == rw_desc->rd_count);
 
@@ -1033,7 +1034,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 	if (rwd_tlist_is_empty(rw_desc_list))
 		C2_LOG("rw_desc_list is empty");
 
-	c2_tlist_for(&rwd_tl, rw_desc_list, rw_desc) {
+	c2_tl_for(rwd, rw_desc_list, rw_desc) {
 
 		C2_LOG("fid: [%lu:%lu] offset: %lu count: %lu",
 				(unsigned long)rw_desc->rd_fid.f_container,
@@ -1043,7 +1044,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 
 		C2_LOG("Buf list");
 
-		c2_tlist_for(&bufs_tl, &rw_desc->rd_buf_list, buf) {
+		c2_tl_for(bufs, &rw_desc->rd_buf_list, buf) {
 
 			C2_LOG("addr %p len %lu type %s",
 				buf->cb_buf.b_addr,
@@ -1057,7 +1058,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 			if (buf->cb_type == PUT_DATA)
 				count += buf->cb_buf.b_nob;
 
-		} c2_tlist_endfor;
+		} c2_tl_endfor;
 
 		rc = rw_desc_to_io_fop(rw_desc, rw, &iofop);
 		if (rc != 0) {
@@ -1067,14 +1068,14 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 			return rc;
 		}
 
-		rc    = io_fop_do_sync_io(iofop, rw_desc->rd_session);
+		rc = io_fop_do_sync_io(iofop, rw_desc->rd_session);
 		if (rc != 0) {
 			/* For now, if one io fails, fail entire IO. */
 			C2_LOG("io_fop_do_sync_io() failed: rc [%d]", rc);
 			C2_LEAVE("%d", rc);
 			return rc;
 		}
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 
 	C2_LEAVE("count: %ld", count);
 	return count;
