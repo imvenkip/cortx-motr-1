@@ -250,7 +250,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	C2_UT_ASSERT(rc == 0);
 
 	/* Init the rpcmachine */
-        rc = c2_rpc_machine_init(rpc_machine, &srv_cob_domain, net_dom,
+        rc = c2_rpc_machine_init(rpc_machine, &srv_mdstore.md_dom, net_dom,
 				 SERVER_ENDPOINT_ADDR, &reqh, &app_pool,
 				 C2_BUFFER_ANY_COLOUR, 0,
 				 C2_NET_TM_RECV_QUEUE_DEF_LEN);
