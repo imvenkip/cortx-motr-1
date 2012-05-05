@@ -87,8 +87,10 @@
    <i>Mandatory.
    The DLD shall state the requirements that it attempts to meet.</i>
 
-   - @b R.c2.net.self-test.statistics pdsh is used to gather the statistics
-     from the all nodes.
+   - @b R.c2.net.self-test.statistics statistics from the all nodes
+     can be collected on the test console.
+   - @b R.c2.net.self-test.statistics.live statistics from the all nodes
+     can be collected on the test console at any time during the test.
    - @b R.c2.net.self-test.statistics.live pdsh is used to perform
      statistics collecting from the all nodes with some interval.
    - @b R.c2.net.self-test.test.ping latency is automatically measured for
