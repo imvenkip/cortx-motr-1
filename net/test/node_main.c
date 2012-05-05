@@ -116,6 +116,9 @@
    attention.</i>
 
    - c2_net is used as network library.
+   - To make latency measurement error as little as possible all
+     heavy operations (such as buffer allocation) will be done before
+     test message exchanging between test client and test server.
 
    <hr>
    @section net-test-lspec Logical Specification
