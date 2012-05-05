@@ -18,8 +18,8 @@
  * Original creation date: 03/22/2012
  */
 
-#ifndef __NET_TEST_MAIN_H__
-#define __NET_TEST_MAIN_H__
+#ifndef __NET_TEST_NODE_MAIN_H__
+#define __NET_TEST_NODE_MAIN_H__
 
 /**
    @page net-test-fspec Functional Specification
@@ -40,12 +40,14 @@
      - @subpage NetTestClientDFS "Test Client"
      - @subpage NetTestServerDFS "Test Server"
      - @subpage NetTestNetworkDFS "Network"
+     - @subpage NetTestCommandsDFS "Commands"
    - @subpage NetTestInternals "Internals"
      - @subpage NetTestStatsInternals "Statistics Collector"
      - @subpage NetTestConfigInternals "Configuration"
      - @subpage NetTestClientInternals "Test Client"
      - @subpage NetTestServerInternals "Test Server"
      - @subpage NetTestNetworkInternals "Network"
+     - @subpage NetTestCommandsInternals "Commands"
 
    @section net-test-fspec-ds Data Structures
    <i>Mandatory for programmatic interfaces.  Components with programming
@@ -105,6 +107,9 @@
    - c2_net_test_network_bulk_recv_passive()
    - c2_net_test_network_bulk_send_active()
    - c2_net_test_network_bulk_recv_active()
+
+   - c2_net_test_commands_send()
+   - c2_net_test_commands_wait()
 
    @section net-test-fspec-cli Command Usage
    <i>Mandatory for command line programs.  Components that provide programs
