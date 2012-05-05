@@ -135,6 +135,8 @@
                  G (for gigabyte) can be used here.
    - @b target Test servers list for the test client and vice versa.
 		   Items in list are comma-separated. Mandatory option.
+		   Test clients list for server is used for preallocating
+		   endpoint structures.
    - @b console Console hostname. Mandatory option.
 
    @subsection net-test-fspec-cli-console \
