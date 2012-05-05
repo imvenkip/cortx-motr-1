@@ -131,6 +131,8 @@
 		  Default value is 16.
    - @b size Size of bulk messages, bytes. Makes sense for bulk test only.
 	         Default value is 1048576 (1Mb).
+		 Prefixes K (for kilobyte), M (for megabyte) and
+                 G (for gigabyte) can be used here.
    - @b target Test servers list for the test client and vice versa.
 		   Items in list are comma-separated. Mandatory option.
    - @b console Console hostname. Mandatory option.
@@ -197,7 +199,7 @@
    is installed in $HOME/net-test.
 
    @code
-   --type=bulk --clients=host1 --servers=host2 --count=1000000 --size=1048576
+   --type=bulk --clients=host1 --servers=host2 --count=1000000 --size=1M
    --remote-path=$HOME/net-test --live=1
    @endcode
    Run bulk test with host1 as test client and host2 as test server. Number of
