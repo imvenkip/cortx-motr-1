@@ -57,7 +57,6 @@
 */
 
 /* import */
-struct c2_service;
 struct c2_fol;
 struct c2_db_tx;
 
@@ -84,7 +83,7 @@ struct c2_fop_ctx {
 	struct c2_fol      *fc_fol;
 	/**
 	   Service-dependent cookie identifying fop execution. Passed to
-	   c2_service_ops::so_reply_post() to post a reply.
+	   c2_local_service_ops::so_reply_post() to post a reply.
 
 	   @see c2_net_reply_post()
 	 */

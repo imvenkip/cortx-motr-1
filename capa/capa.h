@@ -97,9 +97,6 @@ struct c2_object_capa {
 	char			 oc_opaque[C2_CAPA_HMAC_MAX_LEN];
 };
 
-
-struct c2_service;
-
 /**
    Colibri Capability Context
 
@@ -107,8 +104,6 @@ struct c2_service;
    authorized, checked, etc.
 */
 struct c2_capa_ctxt {
-	/** running service */
-	struct c2_service *cc_service;
 	/** more fields go here */
 };
 

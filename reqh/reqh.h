@@ -50,14 +50,16 @@
    @{
  */
 
-struct c2_local_service_ops {
-	void (*so_reply_post)(struct c2_local_service *service,
-			      struct c2_fop *fop, void *cookie);
-};
+struct c2_local_service_ops;
 
 /** Local reply consumer service (testing or replicator) */
 struct c2_local_service {
 	const struct c2_local_service_ops    *s_ops;
+};
+
+struct c2_local_service_ops {
+	void (*so_reply_post)(struct c2_local_service *service,
+			      struct c2_fop *fop, void *cookie);
 };
 
 /**
