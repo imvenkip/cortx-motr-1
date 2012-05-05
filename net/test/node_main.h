@@ -178,9 +178,10 @@
    @subsection net-test-fspec-usecases-console Test console parameters example
 
    @code
-   --install --remote-path=~/net-test --targets=c1,c2,c3,s1,s2
+   --install --remote-path=$HOME/net-test --targets=c1,c2,c3,s1,s2
    @endcode
-   Install test suite to ~/net-test directory on hosts c1, c2, c3, s1 and s2.
+   Install test suite to $HOME/net-test directory on hosts c1, c2, c3,
+   s1 and s2.
 
    @code
    --uninstall --remote-path=/tmp/net-test --targets=host1,host2
@@ -189,15 +190,15 @@
 
    @code
    --type=ping --clients=c1,c2,c3 --servers=s1,s2 --count=1024
-   --remote-path=~/net-test
+   --remote-path=$HOME/net-test
    @endcode
    Run ping test with hosts c1, c2 and c3 as clients and s2 and s2 as servers.
    Ping test should have 1024 test messages and test suite on remote hosts
-   is installed in ~/net-test.
+   is installed in $HOME/net-test.
 
    @code
    --type=bulk --clients=host1 --servers=host2 --count=1000000 --size=1048576
-   --remote-path=~/net-test --live=1
+   --remote-path=$HOME/net-test --live=1
    @endcode
    Run bulk test with host1 as test client and host2 as test server. Number of
    bulk packets is one million, size is 1 MiB. Test statistics should be updated
