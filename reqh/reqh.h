@@ -50,6 +50,16 @@
    @{
  */
 
+struct c2_local_service_ops {
+	void (*so_reply_post)(struct c2_local_service *service,
+			      struct c2_fop *fop, void *cookie);
+};
+
+/** Local reply consumer service (testing or replicator) */
+struct c2_local_service {
+	const struct c2_local_service_ops    *s_ops;
+};
+
 /**
    Request handler instance.
  */
@@ -103,7 +113,7 @@ struct c2_reqh {
 	uint64_t                 rh_magic;
 	
 	/** Used for testing and replicator. Local reply_post is main usage of svc. */
-	struct c2_service       *rh_svc;
+	struct c2_local_service *rh_svc;
 };
 
 /**
@@ -129,7 +139,7 @@ struct c2_reqh {
 int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
                   struct c2_stob_domain *stdom, struct c2_dbenv *db,
                   struct c2_md_store *mdstore, struct c2_fol *fol,
-                  struct c2_service *svc);
+                  struct c2_local_service *svc);
 
 bool c2_reqh_invariant(const struct c2_reqh *reqh);
 

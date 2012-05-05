@@ -41,24 +41,24 @@
 static const char db_name[] = "ut-mdservice";
 static struct c2_cob_domain_id id = { 42 };
 
-static struct c2_dbenv       db;
-static struct c2_md_store    md;
-static struct c2_reqh        reqh;
-static struct c2_service     svc;
-static struct c2_fol         fol;
-static int                   rc;
+static struct c2_dbenv          db;
+static struct c2_md_store       md;
+static struct c2_reqh           reqh;
+static struct c2_local_service  svc;
+static struct c2_fol            fol;
+static int                      rc;
 
 int c2_md_lustre_fop_alloc(struct c2_fop **fop, void *data);
 void c2_md_lustre_fop_free(struct c2_fop *fop);
 
-static void reply_post(struct c2_service *service,
+static void reply_post(struct c2_local_service *service,
 	               struct c2_fop *fop, void *cookie)
 {
 	struct c2_fop **ret = cookie;
 	*ret = fop;
 }
 
-const struct c2_service_ops svc_ops = {
+const struct c2_local_service_ops svc_ops = {
 	.so_reply_post = reply_post
 };
 

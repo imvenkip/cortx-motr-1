@@ -98,6 +98,8 @@ struct c2_object_capa {
 };
 
 
+struct c2_service;
+
 /**
    Colibri Capability Context
 

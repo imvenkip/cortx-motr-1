@@ -78,10 +78,6 @@ struct c2_fop_ctx {
            Request handler for this fop
         */
         struct c2_reqh     *fc_reqh;
-        /**
-           Service that fop is executed on behlf of.
-        */
-        struct c2_service  *fc_service;
 	/**
 	   Fol that reqh uses.
 	*/

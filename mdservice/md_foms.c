@@ -190,7 +190,7 @@ static int c2_md_create_fom_state(struct c2_fom *fom)
         struct c2_fid             pfid;
         struct c2_fid             tfid;
         int                       rc;
-        struct c2_service        *svc;
+        struct c2_local_service  *svc;
 
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
@@ -253,7 +253,7 @@ static int c2_md_link_fom_state(struct c2_fom *fom)
         struct c2_fid             pfid;
         struct c2_cob_attr        attr;
         int                       rc;
-        struct c2_service        *svc;
+        struct c2_local_service  *svc;
 
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
@@ -315,7 +315,7 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
         struct c2_db_tx          *tx;
         struct c2_md_store       *md;
         int                       rc;
-        struct c2_service        *svc;
+        struct c2_local_service  *svc;
 
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
@@ -433,7 +433,7 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
         struct c2_db_tx          *tx;
         struct c2_md_store       *md;
         int                       rc;
-        struct c2_service        *svc;
+        struct c2_local_service  *svc;
 
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
@@ -520,7 +520,7 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
         struct c2_fid             fid;
         struct c2_cob_attr        attr;
         int                       rc;
-        struct c2_service        *svc;
+        struct c2_local_service  *svc;
 
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
@@ -601,7 +601,7 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
         struct c2_fid             fid;
         struct c2_cob_attr        attr;
         int                       rc;
-        struct c2_service        *svc;
+        struct c2_local_service  *svc;
 
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
@@ -680,7 +680,7 @@ static int c2_md_setattr_fom_state(struct c2_fom *fom)
         struct c2_fop_ctx             *ctx;
         struct c2_fid                  fid;
         int                            rc;
-        struct c2_service        *svc;
+        struct c2_local_service       *svc;
 
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
@@ -749,7 +749,7 @@ static int c2_md_getattr_fom_state(struct c2_fom *fom)
         struct c2_fop_ctx             *ctx;
         struct c2_fid                  fid;
         int                            rc;
-        struct c2_service        *svc;
+        struct c2_local_service       *svc;
 
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
@@ -816,7 +816,7 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
         struct c2_rdpg                 rdpg;
         void                          *addr;
         int                            rc;
-        struct c2_service        *svc;
+        struct c2_local_service       *svc;
 
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
