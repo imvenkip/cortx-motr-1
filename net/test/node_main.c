@@ -318,6 +318,9 @@ finished.up();\l", shape=box];
 
    @subsubsection net-test-lspec-algo-server Test Server Algorithm
 
+   Test server allocates all necessary buffers and initializes transfer
+   machine. Then it just working in transfer machine callbacks.
+
    Ping test callbacks
    - C2_NET_QT_MSG_RECV
      - add buffer to msg send queue
