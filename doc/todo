@@ -41,6 +41,10 @@ TODO
     Use standard state machine with states RUNNING, READY and WAITING for
     c2_fom.
 
+2012-May-04 cleanup "linux_kernel" directories
+
+    Modify build process to cleanup linux_kernel directories.
+
 2012-May-04 Use tailored type-safe lists in reqh_service.c
 
     Use lists based on C2_TL_{DEFINE,DESCR}()
