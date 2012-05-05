@@ -51,11 +51,14 @@ static int                      rc;
 int c2_md_lustre_fop_alloc(struct c2_fop **fop, void *data);
 void c2_md_lustre_fop_free(struct c2_fop *fop);
 
+static int locked = 0;
+
 static void reply_post(struct c2_local_service *service,
 	               struct c2_fop *fop, void *cookie)
 {
 	struct c2_fop **ret = cookie;
 	*ret = fop;
+	locked = 0;
 }
 
 const struct c2_local_service_ops svc_ops = {
@@ -192,7 +195,11 @@ static void test_init(void)
 	C2_ASSERT(rc == 0);
 }
 
-static void test_ops(void)
+enum {
+	WAIT_FOR_REQH_SHUTDOWN = 1000000,
+};
+
+static void test_mdops(void)
 {
         struct c2_md_lustre_logrec *rec;
         struct c2_md_lustre_fid root;
@@ -206,7 +213,17 @@ static void test_ops(void)
         C2_ASSERT(result == sizeof(root));
         
         while (1) {
+	        c2_time_t rdelay;
                 fop = NULL;
+	        
+/*	        while (!c2_reqh_can_shutdown(&reqh)) {
+		        c2_nanosleep(c2_time_set(&rdelay, 0,
+			        WAIT_FOR_REQH_SHUTDOWN * 1), NULL);
+	        }*/
+	        while (locked) {
+		        c2_nanosleep(c2_time_set(&rdelay, 0,
+			        WAIT_FOR_REQH_SHUTDOWN * 1), NULL);
+	        }
 again:
                 result = read(fd, &size, sizeof(size));
                 if (result < sizeof(size))
@@ -231,6 +248,7 @@ again:
                         goto again;
                 }
                         
+	        locked = 1;
                 C2_ASSERT(result == 0);
                 c2_reqh_fop_handle(&reqh, fop, &rep_fop);
                 
@@ -239,10 +257,6 @@ again:
         }
         close(fd);
 }
-
-enum {
-	WAIT_FOR_REQH_SHUTDOWN = 1000000,
-};
 
 static void test_fini(void)
 {
@@ -270,10 +284,10 @@ const struct c2_test_suite mdservice_ut = {
 	.ts_init = db_reset,
 	/* .ts_fini = db_reset, */
 	.ts_tests = {
-		{ "mdstore-mkfs", test_mkfs },
-		{ "mdstore-init", test_init },
-		{ "mdstore-ops",  test_ops },
-		{ "mdstore-fini", test_fini },
+		{ "mdservice-mkfs", test_mkfs },
+		{ "mdservice-init", test_init },
+		{ "mdservice-ops", test_mdops },
+		{ "mdservice-fini", test_fini },
 		{ NULL, NULL }
 	}
 };
