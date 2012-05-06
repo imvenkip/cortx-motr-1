@@ -803,6 +803,15 @@ void io_fom_cob_rw_fid2stob_map(const struct c2_fid *in, struct c2_stob_id *out)
 	out->si_bits.u_lo = in->f_key;
 }
 
+void io_fom_cob_rw_stob2fid_map(const struct c2_stob_id *in, struct c2_fid *out)
+{
+        C2_PRE(in != NULL);
+        C2_PRE(out != NULL);
+
+	out->f_container = in->si_bits.u_hi;
+	out->f_key = in->si_bits.u_lo;
+}
+
 /**
  * Function to map the on-wire FOP format to in-core FOP format.
  *

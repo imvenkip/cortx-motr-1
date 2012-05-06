@@ -292,7 +292,7 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 		return -ENOMEM;
 	}
 
-	*((struct c2_stob_id *)&nsrec.cnr_fid) = cc->fco_stobid;
+        io_fom_cob_rw_stob2fid_map(&cc->fco_stobid, &nsrec.cnr_fid);
 	nsrec.cnr_nlink = CC_COB_HARDLINK_NR;
 
         c2_cob_make_fabrec(&fabrec, NULL, 0); 
@@ -428,6 +428,7 @@ static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 	struct c2_cob_oikey   oikey;
 	struct c2_cob        *cob;
 	struct c2_cob_domain *cdom;
+	struct c2_fid         fid;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(cd != NULL);
@@ -436,7 +437,8 @@ static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 	C2_ASSERT(cdom != NULL);
 
         c2_fom_block_enter(fom);
-        c2_cob_make_oikey(&oikey, (struct c2_fid *)&cd->fco_stobid, 0);
+        io_fom_cob_rw_stob2fid_map(&cd->fco_stobid, &fid);
+        c2_cob_make_oikey(&oikey, &fid, 0);
 	rc = c2_cob_locate(cdom, &oikey, &cob, &fom->fo_tx.tx_dbtx);
 	if (rc != 0) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
