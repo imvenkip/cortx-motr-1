@@ -306,8 +306,10 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
                           S_IRGRP | S_IXGRP |           /* r-x for group */
                           S_IROTH | S_IXOTH;            /* r-x for others */
 
+        c2_fom_block_enter(fom);
 	rc = c2_cob_create(cdom, nskey, &nsrec, fabrec, &omgrec, &cob,
 			   &fom->fo_tx.tx_dbtx);
+        c2_fom_block_leave(fom);
 
 	/*
 	 * Cob does not free nskey and fab rec on errors. We need to do so
@@ -433,12 +435,14 @@ static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 	cdom = &fom->fo_loc->fl_dom->fd_reqh->rh_mdstore->md_dom;
 	C2_ASSERT(cdom != NULL);
 
+        c2_fom_block_enter(fom);
         c2_cob_make_oikey(&oikey, (struct c2_fid *)&cd->fco_stobid, 0);
 	rc = c2_cob_locate(cdom, &oikey, &cob, &fom->fo_tx.tx_dbtx);
 	if (rc != 0) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
 			    cd_fom_func_fail,
 			    "c2_cob_locate() failed.", rc);
+                c2_fom_block_leave(fom);
 		return rc;
 	}
 	C2_ASSERT(cob != NULL);
@@ -451,6 +455,7 @@ static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    c2_addb_trace, "Cob deleted successfully.");
 
+        c2_fom_block_leave(fom);
 	return rc;
 }
 
