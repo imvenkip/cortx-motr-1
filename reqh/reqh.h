@@ -58,8 +58,7 @@ struct c2_local_service {
 };
 
 struct c2_local_service_ops {
-	void (*so_reply_post)(struct c2_local_service *service,
-			      struct c2_fop *fop, void *cookie);
+	void (*lso_fini) (struct c2_local_service *service, struct c2_fom *fom);
 };
 
 /**
@@ -114,7 +113,6 @@ struct c2_reqh {
 	/** Request handler magic. */
 	uint64_t                 rh_magic;
 	
-	/** Used for testing and replicator. Local reply_post is main usage of svc. */
 	struct c2_local_service *rh_svc;
 };
 

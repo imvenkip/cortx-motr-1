@@ -227,10 +227,10 @@ static int c2_md_create_fom_state(struct c2_fom *fom)
         c2_md_make_fid(&pfid, &body->b_pfid);
         c2_md_make_fid(&tfid, &body->b_tfid);
 
+        c2_fom_block_enter(fom);
         rc = c2_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &pfid, &tfid,
                           &attr, &fom->fo_tx.tx_dbtx);
-        if (rc == 0 && svc)
-	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
+        c2_fom_block_leave(fom);
 	fom->fo_rc = rc;
         if (rc)
                 c2_fop_free(fop_rep);
@@ -286,10 +286,10 @@ static int c2_md_link_fom_state(struct c2_fom *fom)
         c2_md_make_fid(&pfid, &body->b_pfid);
         c2_md_make_fid(&tfid, &body->b_tfid);
 
+        c2_fom_block_enter(fom);
         rc = c2_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &pfid, &tfid,
                           &attr, &fom->fo_tx.tx_dbtx);
-        if (rc == 0 && svc)
-	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
+        c2_fom_block_leave(fom);
 	fom->fo_rc = rc;
         if (rc)
                 c2_fop_free(fop_rep);
@@ -351,20 +351,21 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
         c2_md_make_fid(&pfid, &body->b_pfid);
         c2_md_make_fid(&tfid, &body->b_tfid);
 
+        c2_fom_block_enter(fom);
         rc = c2_md_store_locate(md, &tfid, &scob, 
                                 C2_MD_LOCATE_STORED,
                                 tx);
-        if (rc)
+        if (rc) {
+                c2_fom_block_leave(fom);
                 goto out;
+        }
                 
         rc = c2_md_store_unlink(md, &pfid, scob, attr.ca_name,
                                 attr.ca_namelen, tx);
         if (rc == 0 && scob->co_nsrec.cnr_nlink > 0)
                 rc = c2_md_store_setattr(md, scob, &attr, tx);
         c2_cob_put(scob);
-        
-        if (rc == 0 && svc)
-	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
+        c2_fom_block_leave(fom);
 out:
 	fom->fo_rc = rc;
         if (rc)
@@ -477,27 +478,30 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
         sattr.ca_name = req->r_sname.s_buf;
         sattr.ca_namelen = req->r_sname.s_len;
 
+        c2_fom_block_enter(fom);
         rc = c2_md_store_locate(md, &tfid_src, &scob,
                                 C2_MD_LOCATE_STORED, tx);
-        if (rc)
+        if (rc) {
+                c2_fom_block_leave(fom);
                 goto out;
+        }
         if (c2_fid_eq(&tfid_tgt, &tfid_src)) {
                 rc = c2_md_rename(md, &pfid_tgt, &pfid_src, &tfid_tgt,
                                   &tfid_src, &tattr, &sattr, scob, scob, tx);
         } else {
                 rc = c2_md_store_locate(md, &tfid_tgt, &tcob,
                                         C2_MD_LOCATE_STORED, tx);
-                if (rc)
+                if (rc) {
+                        c2_fom_block_leave(fom);
                         goto out;
+                }
                 rc = c2_md_rename(md, &pfid_tgt, &pfid_src, &tfid_tgt,
                                   &tfid_src, &tattr, &sattr, tcob, scob, tx);
                 c2_cob_put(tcob);
         }
         c2_cob_put(scob);
+        c2_fom_block_leave(fom);
 out:
-        if (rc == 0 && svc)
-	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
-
 	fom->fo_rc = rc;
         if (rc)
                 c2_fop_free(fop_rep);
@@ -550,6 +554,7 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
 
         c2_md_make_fid(&fid, &body->b_tfid);
 
+        c2_fom_block_enter(fom);
         rc = c2_md_store_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob, 
                                 C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
         if (rc == 0) {
@@ -573,11 +578,12 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
                  * should exist, let's just check this.
                  */
                 C2_ASSERT(!(body->b_flags & C2_MD_OPEN_CREAT));
-        } else if (rc)
+        } else if (rc) {
+                c2_fom_block_leave(fom);
                 goto out;
+        }
 
-        if (rc == 0 && svc)
-	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
+        c2_fom_block_leave(fom);
 out:
 	fom->fo_rc = rc;
         if (rc)
@@ -631,6 +637,7 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
 
         c2_md_make_fid(&fid, &body->b_tfid);
 
+        c2_fom_block_enter(fom);
         /*
          * @todo: This should lookup for cobs in special opened
          * cobs table. But so far orphans and open/close are not
@@ -639,8 +646,10 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
          */
         rc = c2_md_store_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob, 
                                 C2_MD_LOCATE_STORED/*OPENED*/, &fom->fo_tx.tx_dbtx);
-        if (rc)
+        if (rc) {
+                c2_fom_block_leave(fom);
                 goto out;
+        }
 
         rc = c2_md_store_close(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob, 
                                &fom->fo_tx.tx_dbtx);
@@ -655,8 +664,7 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
                                          &attr, &fom->fo_tx.tx_dbtx);
         }
         c2_cob_put(cob);
-        if (rc == 0 && svc)
-	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
+        c2_fom_block_leave(fom);
 out:
 	fom->fo_rc = rc;
         if (rc)
@@ -710,6 +718,8 @@ static int c2_md_setattr_fom_state(struct c2_fom *fom)
 
         c2_md_make_fid(&fid, &body->b_tfid);
 
+        c2_fom_block_enter(fom);
+
         /*
          * Setattr fop does not carry enough information to create
          * an object in case there is no target yet. This is why
@@ -717,15 +727,15 @@ static int c2_md_setattr_fom_state(struct c2_fom *fom)
          */
         rc = c2_md_store_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob, 
                                 C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
-        if (rc)
+        if (rc) {
+                c2_fom_block_leave(fom);
                 goto out;
+        }
 
         rc = c2_md_store_setattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob, &attr,
                                  &fom->fo_tx.tx_dbtx);
         c2_cob_put(cob);
-
-        if (rc == 0 && svc)
-	        svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
+        c2_fom_block_leave(fom);
 out:
 	fom->fo_rc = rc;
         if (rc)
@@ -777,19 +787,20 @@ static int c2_md_getattr_fom_state(struct c2_fom *fom)
 
         c2_md_make_fid(&fid, &body->b_tfid);
 
+        c2_fom_block_enter(fom);
         rc = c2_md_store_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob, 
                                 C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
-        if (rc)
+        if (rc) {
+                c2_fom_block_leave(fom);
                 goto out;
+        }
 
         rc = c2_md_store_getattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob, &attr,
                                  &fom->fo_tx.tx_dbtx);
         c2_cob_put(cob);
-        if (rc == 0) {
+        c2_fom_block_leave(fom);
+        if (rc == 0)
                 c2_md_fop_attr2cob(&rep->g_body, &attr);
-                if (svc)
-	                svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
-	}
 out:
 	fom->fo_rc = rc;
         if (rc)
@@ -845,12 +856,16 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
 
         c2_md_make_fid(&fid, &body->b_tfid);
 
+        c2_fom_block_enter(fom);
         rc = c2_md_store_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob, 
                                 C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
-        if (rc)
+        if (rc) {
+                c2_fom_block_leave(fom);
                 goto out;
+        }
 
         if (!S_ISDIR(cob->co_omgrec.cor_mode)) {
+                c2_fom_block_leave(fom);
                 rc = -ENOTDIR;
                 c2_cob_put(cob);
                 goto out;
@@ -859,6 +874,7 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
         rdpg.r_pos = c2_bitstring_alloc(req->r_pos.s_buf, 
                                         req->r_pos.s_len);
         if (rdpg.r_pos == NULL) {
+                c2_fom_block_leave(fom);
                 c2_cob_put(cob);
                 rc = -ENOMEM;
                 goto out;
@@ -866,6 +882,7 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
 
         addr = c2_alloc(C2_MD_READDIR_BUF_ALLOC);
         if (addr == NULL) {
+                c2_fom_block_leave(fom);
                 c2_bitstring_free(rdpg.r_pos);
                 c2_cob_put(cob);
                 rc = -ENOMEM;
@@ -878,6 +895,7 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
                                  &fom->fo_tx.tx_dbtx);
         c2_bitstring_free(rdpg.r_pos);
         c2_cob_put(cob);
+        c2_fom_block_leave(fom);
         if (rc < 0) {
                 c2_free(addr);
                 goto out;
@@ -901,12 +919,6 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
          */
         rep->r_buf.b_count = rdpg.r_buf.b_nob;
         rep->r_buf.b_addr = rdpg.r_buf.b_addr;
-        
-        /*
-         * Post reply in non-error cases.
-         */
-        if (rc >= 0 && svc)
-                svc->s_ops->so_reply_post(svc, fop_rep, ctx->fc_cookie);
 out:
 	fom->fo_rc = rc;
         if (rc < 0)
@@ -918,12 +930,108 @@ finish:
         return C2_FSO_WAIT;
 }
 
+static void c2_md_fop_free(struct c2_fop *fop)
+{
+        struct c2_fop_create    *create;
+        struct c2_fop_unlink    *unlink;
+        struct c2_fop_rename    *rename;
+        struct c2_fop_link      *link;
+        struct c2_fop_setattr   *setattr;
+        struct c2_fop_getattr   *getattr;
+        struct c2_fop_open      *open;
+        struct c2_fop_close     *close;
+        struct c2_fop_readdir   *readdir;
+
+        switch (fop->f_type->ft_rpc_item_type.rit_opcode) {
+        case C2_MD_FOP_CREATE_OPCODE:
+                create = c2_fop_data(fop);
+                if (create->c_name.s_len != 0)
+                        c2_free(create->c_name.s_buf);
+                if (create->c_target.s_len != 0)
+                        c2_free(create->c_target.s_buf);
+                if (create->c_path.s_len != 0)
+                        c2_free(create->c_path.s_buf);
+                break;
+        case C2_MD_FOP_LINK_OPCODE:
+                link = c2_fop_data(fop);
+                if (link->l_name.s_len != 0)
+                        c2_free(link->l_name.s_buf);
+                if (link->l_spath.s_len != 0)
+                        c2_free(link->l_spath.s_buf);
+                if (link->l_tpath.s_len != 0)
+                        c2_free(link->l_tpath.s_buf);
+                break;
+        case C2_MD_FOP_UNLINK_OPCODE:
+                unlink = c2_fop_data(fop);
+                if (unlink->u_name.s_len != 0)
+                        c2_free(unlink->u_name.s_buf);
+                if (unlink->u_path.s_len != 0)
+                        c2_free(unlink->u_path.s_buf);
+                break;
+        case C2_MD_FOP_RENAME_OPCODE:
+                rename = c2_fop_data(fop);
+                if (rename->r_sname.s_len != 0)
+                        c2_free(rename->r_sname.s_buf);
+                if (rename->r_tname.s_len != 0)
+                        c2_free(rename->r_tname.s_buf);
+                if (rename->r_spath.s_len != 0)
+                        c2_free(rename->r_spath.s_buf);
+                if (rename->r_tpath.s_len != 0)
+                        c2_free(rename->r_tpath.s_buf);
+                break;
+        case C2_MD_FOP_SETATTR_OPCODE:
+                setattr = c2_fop_data(fop);
+                if (setattr->s_path.s_len != 0)
+                        c2_free(setattr->s_path.s_buf);
+                break;
+        case C2_MD_FOP_GETATTR_OPCODE:
+                getattr = c2_fop_data(fop);
+                if (getattr->g_path.s_len != 0)
+                        c2_free(getattr->g_path.s_buf);
+                break;
+        case C2_MD_FOP_OPEN_OPCODE:
+                open = c2_fop_data(fop);
+                if (open->o_path.s_len != 0)
+                        c2_free(open->o_path.s_buf);
+                break;
+        case C2_MD_FOP_CLOSE_OPCODE:
+                close = c2_fop_data(fop);
+                if (close->c_path.s_len != 0)
+                        c2_free(close->c_path.s_buf);
+                break;
+        case C2_MD_FOP_READDIR_OPCODE:
+                readdir = c2_fop_data(fop);
+                if (readdir->r_path.s_len != 0)
+                        c2_free(readdir->r_path.s_buf);
+                break;
+        default:
+                break;
+        }
+}
+
 static void c2_md_req_fom_fini(struct c2_fom *fom)
 {
-        struct c2_fom_md        *fom_obj;
+        struct c2_fom_md         *fom_obj;
+        struct c2_local_service  *svc;
+
+        /* Let local sevice know that we have finished. */
+        svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
+        if (svc && svc->s_ops->lso_fini)
+	        svc->s_ops->lso_fini(svc, fom);
+
+        /* Free all fop fields and fop itself. */
+        c2_md_fop_free(fom->fo_fop);
+        c2_fop_free(fom->fo_fop);
         
-        fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+        /* XXX: Free all rep fop field. */
+        
+        /* Free fop_rep as we don't need it anymore. */
+        c2_fop_free(fom->fo_rep_fop);
+        
+        /* Fini fom itself. */
         c2_fom_fini(fom);
+
+        fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
         c2_free(fom_obj);
 }
 

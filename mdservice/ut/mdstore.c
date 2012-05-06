@@ -52,17 +52,23 @@ int c2_md_lustre_fop_alloc(struct c2_fop **fop, void *data);
 void c2_md_lustre_fop_free(struct c2_fop *fop);
 
 static int locked = 0;
+static int error = 0;
 
-static void reply_post(struct c2_local_service *service,
-	               struct c2_fop *fop, void *cookie)
+static void fom_fini(struct c2_local_service *service, struct c2_fom *fom)
 {
-	struct c2_fop **ret = cookie;
-	*ret = fop;
+        struct c2_fop_ctx *ctx = fom->fo_fop_ctx;
+
+        if (ctx->fc_cookie) {
+	        struct c2_fop **ret = ctx->fc_cookie;
+	        *ret = fom->fo_rep_fop;
+	}
+	if (error == 0)
+	        error = fom->fo_rc;
 	locked = 0;
 }
 
 const struct c2_local_service_ops svc_ops = {
-	.so_reply_post = reply_post
+	.lso_fini = fom_fini
 };
 
 static int db_reset(void)
@@ -203,26 +209,27 @@ static void test_mdops(void)
 {
         struct c2_md_lustre_logrec *rec;
         struct c2_md_lustre_fid root;
-        struct c2_fop *fop, *rep_fop;
         int fd, result, size;
+        struct c2_fop *fop;
+	c2_time_t rdelay;
         
         fd = open(C2_MDSTORE_OPS_DUMP_PATH, O_RDONLY);
         C2_ASSERT(fd > 0);
         
         result = read(fd, &root, sizeof(root));
         C2_ASSERT(result == sizeof(root));
+        error = 0;
         
         while (1) {
-	        c2_time_t rdelay;
                 fop = NULL;
 	        
-/*	        while (!c2_reqh_can_shutdown(&reqh)) {
-		        c2_nanosleep(c2_time_set(&rdelay, 0,
-			        WAIT_FOR_REQH_SHUTDOWN * 1), NULL);
-	        }*/
+                /** 
+                   All fops should be sent in order they stored in dump. This is why we wait here
+                   for locked == 0, which is set in ->lso_fini()
+                 */
 	        while (locked) {
 		        c2_nanosleep(c2_time_set(&rdelay, 0,
-			        WAIT_FOR_REQH_SHUTDOWN * 1), NULL);
+			             WAIT_FOR_REQH_SHUTDOWN * 1), NULL);
 	        }
 again:
                 result = read(fd, &size, sizeof(size));
@@ -250,12 +257,16 @@ again:
                         
 	        locked = 1;
                 C2_ASSERT(result == 0);
-                c2_reqh_fop_handle(&reqh, fop, &rep_fop);
-                
-//                c2_md_lustre_fop_free(fop);
-//                c2_fop_free(fop);
+                c2_reqh_fop_handle(&reqh, fop, NULL);
         }
         close(fd);
+
+        /* Make sure that all fops are handled. */
+	while (locked) {
+		c2_nanosleep(c2_time_set(&rdelay, 0,
+			     WAIT_FOR_REQH_SHUTDOWN * 1), NULL);
+	}
+        C2_ASSERT(error == 0);
 }
 
 static void test_fini(void)

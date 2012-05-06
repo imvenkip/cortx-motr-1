@@ -81,13 +81,9 @@ struct c2_fop_ctx {
 	   Fol that reqh uses.
 	*/
 	struct c2_fol      *fc_fol;
-	/**
-	   Service-dependent cookie identifying fop execution. Passed to
-	   c2_local_service_ops::so_reply_post() to post a reply.
 
-	   @see c2_net_reply_post()
-	 */
 	void               *fc_cookie;
+
 	/**
 	   Fop execution error code returned by store.
 	*/

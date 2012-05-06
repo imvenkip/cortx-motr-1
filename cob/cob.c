@@ -331,7 +331,7 @@ static void cob_fini(struct c2_cob *cob)
 {
         if (cob->co_valid & CA_NSKEY_FREE)
                 c2_free(cob->co_nskey);
-        else if (cob->co_valid & CA_NSKEY_DB)
+        if (cob->co_valid & CA_NSKEY_DB)
                 c2_db_pair_fini(&cob->co_oipair);
         if (cob->co_valid & CA_FABREC)
                 c2_free(cob->co_fabrec);

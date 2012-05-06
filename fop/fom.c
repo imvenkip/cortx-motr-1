@@ -31,6 +31,7 @@
 #include "lib/timer.h"
 #include "lib/arith.h"
 
+#include "db/db_common.h"
 #include "addb/addb.h"
 #include "fop/fom.h"
 #include "fop/fop.h"
@@ -290,6 +291,7 @@ static void fom_exec(struct c2_fom *fom)
 {
 	int			rc;
 	struct c2_fom_locality *loc;
+	struct c2_fop_ctx      *ctx;
 
 	C2_PRE(fom->fo_state == C2_FOS_RUNNING);
 
@@ -304,18 +306,22 @@ static void fom_exec(struct c2_fom *fom)
 	C2_ASSERT(is_locked(fom));
 
 	if (fom->fo_phase == C2_FOPH_FINISH) {
-		/**
-		   Make sure that ctx is released. It is allocated just before fto_create()
-		   is called.
-		 */
-                C2_ASSERT(fom->fo_fop_ctx != NULL);
-                c2_free(fom->fo_fop_ctx);
-                fom->fo_fop_ctx = NULL;
-
+	        /**
+	           Get ctx from fom begore killing fom.
+	         */
+	        ctx = fom->fo_fop_ctx;
+	        
                 /**
                    Finish fom itself.
-                */
+                 */
 		fom->fo_ops->fo_fini(fom);
+
+		/**
+		   Make sure that ctx is released. It is allocated just before fto_create()
+		   is called. We release it after fo_finish as it may use ctx.
+		 */
+                C2_ASSERT(ctx != NULL);
+                c2_free(ctx);
 	} else {
 		fom_wait(fom);
 		C2_ASSERT(fom->fo_state == C2_FOS_WAITING);
@@ -750,6 +756,7 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
 void c2_fom_fini(struct c2_fom *fom)
 {
 	C2_PRE(fom->fo_phase == C2_FOPH_FINISH);
+        C2_PRE(!c2_db_tx_is_active(&fom->fo_tx.tx_dbtx));
 
 	c2_atomic64_dec(&fom->fo_loc->fl_dom->fd_foms_nr);
 	c2_list_link_fini(&fom->fo_linkage);

@@ -493,8 +493,10 @@ int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
 		 * to {DBENV,DB}->app_private. Hijack xml_private.
 		 */
 		txn->xml_internal = tx;
-	} else
+	} else {
 		tx->dt_i.dt_txn = NULL;
+		tx->dt_env = NULL;
+        }
 	result = dberr_conv(result);
 	return result;
 }
@@ -662,7 +664,7 @@ int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair)
 	 */
 	return WITH_PAIR(pair, TABLE_CALL(pair->dp_table, get, tx->dt_i.dt_txn,
 					  pair_key(pair), pair_rec(pair),
-					  DB_RMW));
+					  0));
 }
 
 int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair)
@@ -680,7 +682,7 @@ int c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
         else if (flags & C2_DB_CURSOR_READ_UNCOMMITTED)
                 cursor->c_flags |= DB_READ_UNCOMMITTED;
         else if (flags & C2_DB_CURSOR_RMW)
-                cursor->c_flags |= DB_RMW;
+                cursor->c_flags |= DB_WRITECURSOR;
 
 	cursor->c_table = table;
 	cursor->c_tx    = tx;

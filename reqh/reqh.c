@@ -156,7 +156,7 @@ void c2_reqhs_fini(void)
 int c2_reqhs_init(void)
 {
 	c2_addb_ctx_init(&c2_reqh_addb_ctx, &c2_reqh_addb_ctx_type,
-					&c2_addb_global_ctx);
+		         &c2_addb_global_ctx);
 	c2_reqh_service_types_init();
 	return c2_reqh_fop_init();
 }

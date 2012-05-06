@@ -166,6 +166,11 @@ void c2_db_pair_release(struct c2_db_pair *pair)
 {
 }
 
+int c2_db_tx_is_active(const struct c2_db_tx *tx)
+{
+        return tx->dt_env != NULL;
+}
+
 void c2_db_common_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env)
 {
 	tx->dt_env = env;
@@ -177,6 +182,7 @@ void c2_db_common_tx_fini(struct c2_db_tx *tx)
 {
 	c2_addb_ctx_fini(&tx->dt_addb);
 	txw_tlist_fini(&tx->dt_waiters);
+	tx->dt_env = NULL;
 }
 
 /** @} end of db group */
