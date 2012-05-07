@@ -803,8 +803,9 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *item)
 	args = c2_fop_data(c2_rpc_item_to_fop(item));
 
 	sender_id  = args->rst_sender_id;
-	C2_ASSERT(sender_id == conn->c_sender_id);
 	session_id = args->rst_session_id;
+
+	C2_ASSERT(sender_id == conn->c_sender_id);
 
 	session = c2_rpc_session_search(conn, session_id);
 	C2_ASSERT(c2_rpc_session_invariant(session) &&

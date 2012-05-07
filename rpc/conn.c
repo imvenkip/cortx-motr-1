@@ -594,7 +594,7 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 C2_EXPORTED(c2_rpc_conn_establish);
 
 /**
-   Moves @conn to C2_RPC_CONN_FAILED state, setting error code to @error.
+   Moves conn to C2_RPC_CONN_FAILED state, setting error code to error.
  */
 static void conn_failed(struct c2_rpc_conn *conn, int32_t error)
 {

@@ -916,7 +916,7 @@ struct c2_rpc_session {
 	 */
 	int32_t                   s_rc;
 
-	int32_t                   s_activity_counter;
+	uint32_t                  s_activity_counter;
 	/** A condition variable on which broadcast is sent whenever state of
 	    session is changed. Associated with s_mutex
 	 */

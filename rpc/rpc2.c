@@ -69,7 +69,7 @@ C2_TL_DEFINE(rpcitem, , struct c2_rpc_item);
 /* Number of default receive c2_net_buffers to be used with
    each transfer machine.*/
 enum {
-	C2_RPC_TM_RECV_BUFFERS_NR = 512,
+	C2_RPC_TM_RECV_BUFFERS_NR = 128,
 };
 
 /* ADDB Instrumentation for rpccore. */
@@ -556,7 +556,7 @@ static void rpc_tm_cleanup(struct c2_rpc_machine *machine)
 	c2_free(machine->rm_rcv_buffers);
 }
 
-int c2_rpc_reply_timedwait( struct c2_clink *clink, const c2_time_t timeout)
+int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout)
 {
 	bool got_signal;
 

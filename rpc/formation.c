@@ -398,7 +398,7 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 		C2_ADDB_ADD(&frm_sm->fs_rpc_form_addb, &frm_addb_loc,
 			    c2_addb_trace, "Rpc sent on wire.");
 		frm_item_rpc_stats_set(rpc);
-		/* XXX @todo implement SENT callback */
+		/** XXX @todo implement SENT callback */
 		frm_item_state_set(rpc, RPC_ITEM_SENT);
 
 	} else {
@@ -406,7 +406,7 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 		C2_ADDB_ADD(&fb->fb_frm_sm->fs_rpc_form_addb,
 			    &frm_addb_loc, formation_func_fail,
 			    "net buf send failed", ev->nbe_status);
-		/* XXX @todo implement FAILED callback */
+		/** XXX @todo implement FAILED callback */
 		frm_item_state_failed(rpc, ev->nbe_status);
 		C2_ASSERT("BUF_SEND_FAILED" == NULL);
 
@@ -604,7 +604,6 @@ static struct c2_rpc_frm_group *frm_rpcgroup_init(
 	struct c2_rpc_frm_group	*rg;
 
 	C2_PRE(frm_sm != NULL);
-	//C2_PRE(c2_mutex_is_locked(&frm_sm->fs_lock));
 	C2_PRE(item != NULL);
 	C2_PRE(item->ri_group != NULL);
 
