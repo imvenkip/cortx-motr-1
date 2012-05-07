@@ -60,6 +60,8 @@ c2_time_t c2_time_now(void);
 */
 c2_time_t c2_time_from_now(uint64_t secs, long ns);
 
+c2_time_t c2_time(uint64_t secs, long ns);
+
 /**
    Create a c2_time_t from seconds and nanosecond
 
@@ -93,6 +95,10 @@ bool c2_time_after(const c2_time_t a, const c2_time_t b);
    Is time a after or equal to time b?
  */
 bool c2_time_after_eq(const c2_time_t a, const c2_time_t b);
+
+bool c2_time_before_eq(const c2_time_t a, const c2_time_t b);
+
+bool c2_time_eq(const c2_time_t a, const c2_time_t b);
 
 /**
    Sleep for requested time. If interrupted, remaining time returned.

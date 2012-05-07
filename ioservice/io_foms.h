@@ -178,6 +178,8 @@ struct c2_io_fom_cob_rw {
         int                              fcrw_curr_ivec_index;
         /** no. of descriptor going to process */
         int                              fcrw_batch_size;
+        /** Number of bytes requested to transfer. */
+        c2_bcount_t                      fcrw_req_count;
         /** Number of bytes successfully transferred. */
         c2_bcount_t                      fcrw_count;
         /** Number of STOB I/O launched */

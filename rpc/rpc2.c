@@ -46,21 +46,17 @@
 #include "lib/arith.h"
 #include "lib/vec.h"
 #include "lib/finject.h"
+#include "rpc/formation2.h"
 
 /* Forward declarations. */
 static void rpc_net_buf_received(const struct c2_net_buffer_event *ev);
 static void rpc_tm_cleanup(struct c2_rpc_machine *machine);
 
-
-extern void frm_rpcs_inflight_dec(struct c2_rpc_frm_sm *frm_sm);
-extern void frm_sm_init(struct c2_rpc_frm_sm *frm_sm,
-			uint64_t max_rpcs_in_flight,
-			uint32_t max_rpc_msg_size);
-extern void frm_sm_fini(struct c2_rpc_frm_sm *frm_sm);
-extern int frm_ubitem_added(struct c2_rpc_item *item);
 extern void frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
 extern void rpcobj_exit_stats_set(const struct c2_rpc *rpcobj,
 		struct c2_rpc_machine *mach, enum c2_rpc_item_path path);
+
+static void frm_worker_fn(struct c2_rpc_machine *machine);
 
 int c2_rpc__post_locked(struct c2_rpc_item *item);
 
@@ -69,6 +65,16 @@ C2_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", , struct c2_rpc_item, ri_field,
 		   C2_RPC_ITEM_HEAD_MAGIC);
 
 C2_TL_DEFINE(rpcitem, , struct c2_rpc_item);
+
+const struct c2_addb_ctx_type c2_rpc_addb_ctx_type = {
+	.act_name = "rpc"
+};
+
+const struct c2_addb_loc c2_rpc_addb_loc = {
+	.al_name = "rpc"
+};
+
+struct c2_addb_ctx c2_rpc_addb_ctx;
 
 /* ADDB Instrumentation for rpccore. */
 static const struct c2_addb_ctx_type rpc_machine_addb_ctx_type = {
@@ -102,6 +108,18 @@ const struct c2_net_buffer_callbacks c2_rpc_send_buf_callbacks = {
 
 static void rpc_tm_event_cb(const struct c2_net_tm_event *ev)
 {
+}
+
+int c2_rpc_module_init(void)
+{
+	c2_addb_ctx_init(&c2_rpc_addb_ctx, &c2_rpc_addb_ctx_type,
+			 &c2_addb_global_ctx);
+	return 0;
+}
+
+void c2_rpc_module_fini(void)
+{
+	c2_addb_ctx_fini(&c2_rpc_addb_ctx);
 }
 
 /**
@@ -214,14 +232,19 @@ int c2_rpc__post_locked(struct c2_rpc_item *item)
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_ASSERT(C2_IN(session->s_state, (C2_RPC_SESSION_IDLE,
 					   C2_RPC_SESSION_BUSY)));
-
+	C2_ASSERT(c2_rpc_item_size(item) <=
+			c2_rpc_session_get_max_item_size(session));
 	C2_ASSERT(c2_rpc_machine_is_locked(session->s_conn->c_rpc_machine));
+	/*
+	 * This hold will be released when the item is SENT or FAILED.
+	 * See rpc/frmops.c:item_done()
+	 */
+	c2_rpc_session_hold_busy(session);
 
 	item->ri_rpc_time = c2_time_now();
 
 	item->ri_state = RPC_ITEM_SUBMITTED;
-	frm_ubitem_added(item);
-
+	c2_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm, item);
 	return 0;
 }
 
@@ -238,7 +261,8 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	C2_PRE(request->ri_session != NULL);
 	C2_PRE(reply->ri_type != NULL);
 	C2_PRE(reply->ri_ops != NULL && reply->ri_ops->rio_free != NULL);
-
+	C2_PRE(c2_rpc_item_size(reply) <=
+			c2_rpc_session_get_max_item_size(request->ri_session));
 	reply->ri_rpc_time = c2_time_now();
 	reply->ri_session  = request->ri_session;
 
@@ -252,7 +276,7 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	sref->sr_item = reply;
 
 	reply->ri_prio     = request->ri_prio;
-	reply->ri_deadline = request->ri_deadline;
+	reply->ri_deadline = 0;
 	reply->ri_error    = 0;
 	reply->ri_state    = RPC_ITEM_SUBMITTED;
 
@@ -260,7 +284,11 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	machine = slot->sl_session->s_conn->c_rpc_machine;
 
 	c2_rpc_machine_lock(machine);
-
+	/*
+	 * This hold will be released when the item is SENT or FAILED.
+	 * See rpc/frmops.c:item_done()
+	 */
+	c2_rpc_session_hold_busy(reply->ri_session);
 	c2_rpc_slot_reply_received(slot, reply, &tmp);
 	C2_ASSERT(tmp == request);
 
@@ -268,6 +296,15 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	return 0;
 }
 C2_EXPORTED(c2_rpc_reply_post);
+
+c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item)
+{
+	C2_PRE(item->ri_type != NULL &&
+	       item->ri_type->rit_ops != NULL &&
+	       item->ri_type->rit_ops->rito_item_size != NULL);
+
+	return item->ri_type->rit_ops->rito_item_size(item);
+}
 
 bool c2_rpc_item_is_update(const struct c2_rpc_item *item)
 {
@@ -309,23 +346,17 @@ bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item)
 }
 
 int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
-		struct c2_rpc_item *item)
+				 struct c2_rpc_item       *item)
 {
-	struct c2_rpc_session	*session_zero;
-
 	C2_PRE(conn != NULL);
-	C2_PRE(item != NULL);
+	C2_PRE(item != NULL && c2_rpc_item_is_unsolicited(item));
 
-	session_zero = c2_rpc_conn_session0(conn);
-
-	item->ri_session = session_zero;
-	item->ri_state = RPC_ITEM_SUBMITTED;
-
+	item->ri_state    = RPC_ITEM_SUBMITTED;
 	item->ri_rpc_time = c2_time_now();
 
 	c2_rpc_machine_lock(conn->c_rpc_machine);
 
-	frm_ubitem_added(item);
+	c2_rpc_frm_enq_item(&conn->c_rpcchan->rc_frm, item);
 
 	c2_rpc_machine_unlock(conn->c_rpc_machine);
 	return 0;
@@ -341,9 +372,8 @@ static void rpc_chan_ref_release(struct c2_ref *ref)
 	C2_ASSERT(chan != NULL);
 	C2_ASSERT(c2_rpc_machine_is_locked(chan->rc_rpc_machine));
 
-	/* Destroy the chan structure. */
 	c2_list_del(&chan->rc_linkage);
-	frm_sm_fini(&chan->rc_frmsm);
+	c2_rpc_frm_fini(&chan->rc_frm);
 	c2_free(chan);
 }
 
@@ -352,15 +382,16 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 			   struct c2_net_end_point *dest_ep,
 			   uint64_t max_rpcs_in_flight)
 {
-	struct c2_rpc_chan *ch;
+	struct c2_rpc_frm_constraints  constraints;
+	struct c2_net_domain          *ndom;
+	struct c2_rpc_chan            *ch;
 
 	C2_PRE(chan != NULL);
 	C2_PRE(dest_ep != NULL);
 
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 
-	C2_ALLOC_PTR_ADDB(ch, &machine->rm_rpc_machine_addb,
-			       &rpc_machine_addb_loc);
+	C2_ALLOC_PTR_ADDB(ch, &machine->rm_addb, &rpc_machine_addb_loc);
 	if (ch == NULL) {
 		*chan = NULL;
 		return -ENOMEM;
@@ -370,8 +401,18 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 	ch->rc_destep = dest_ep;
 	c2_ref_init(&ch->rc_ref, 1, rpc_chan_ref_release);
 	c2_net_end_point_get(dest_ep);
-	frm_sm_init(&ch->rc_frmsm, max_rpcs_in_flight,
-		     machine->rm_min_recv_size);
+
+	ndom = machine->rm_tm.ntm_dom;
+
+	constraints.fc_max_nr_packets_enqed = max_rpcs_in_flight;
+	constraints.fc_max_packet_size = machine->rm_min_recv_size;
+	constraints.fc_max_nr_bytes_accumulated =
+				constraints.fc_max_packet_size;
+	constraints.fc_max_nr_segments =
+				c2_net_domain_get_max_buffer_segments(ndom);
+
+	c2_rpc_frm_init(&ch->rc_frm, machine, ch,
+			constraints, &c2_rpc_frm_default_ops);
 	c2_list_add(&machine->rm_chans, &ch->rc_linkage);
 	*chan = ch;
 	return 0;
@@ -525,9 +566,8 @@ static void rpc_tm_cleanup(struct c2_rpc_machine *machine)
 	if (rc < 0) {
 		c2_clink_del(&tmwait);
 		c2_clink_fini(&tmwait);
-		C2_ADDB_ADD(&machine->rm_rpc_machine_addb,
-			    &rpc_machine_addb_loc, rpc_machine_func_fail,
-			    "c2_net_tm_stop", 0);
+		C2_ADDB_ADD(&machine->rm_addb, &rpc_machine_addb_loc,
+			    rpc_machine_func_fail, "c2_net_tm_stop", 0);
 		return;
 	}
 	/* Wait for transfer machine to stop. */
@@ -563,7 +603,7 @@ int c2_rpc_group_timedwait(struct c2_rpc_group *group, const c2_time_t *timeout)
  */
 static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 {
-	int		       rc = 0;
+	int		       rc;
 	c2_time_t	       now;
 	struct c2_rpc	       rpc;
 	struct c2_rpc_item    *item;
@@ -586,7 +626,7 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 
 	if (ev->nbe_status != 0) {
 		if (ev->nbe_status != -ECANCELED)
-			C2_ADDB_ADD(&machine->rm_rpc_machine_addb,
+			C2_ADDB_ADD(&machine->rm_addb,
 				    &rpc_machine_addb_loc,
 				    rpc_machine_func_fail,
 				    "Buffer event reported failure",
@@ -597,7 +637,6 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 
 	chan = rpc_chan_locate(machine, nb->nb_ep);
 	if (chan != NULL) {
-		frm_rpcs_inflight_dec(&chan->rc_frmsm);
 		rpc_chan_put(chan);
 	}
 	c2_rpcobj_init(&rpc);
@@ -739,7 +778,7 @@ static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 
 	c2_mutex_fini(&machine->rm_mutex);
 
-	c2_addb_ctx_fini(&machine->rm_rpc_machine_addb);
+	c2_addb_ctx_fini(&machine->rm_addb);
 }
 
 int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
@@ -766,6 +805,7 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 	if (C2_FI_ENABLED("fake_error"))
 		return -EINVAL;
 
+	C2_SET0(machine);
 	machine->rm_dom		  = dom;
 	machine->rm_reqh	  = reqh;
 	machine->rm_buffer_pool	  = receive_pool;
@@ -775,8 +815,6 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 
 	machine->rm_tm_recv_queue_min_length = queue_len;
 
-	C2_SET_ARR0(machine->rm_rpc_stats);
-
 	c2_list_init(&machine->rm_chans);
 	c2_list_init(&machine->rm_incoming_conns);
 	c2_list_init(&machine->rm_outgoing_conns);
@@ -785,8 +823,18 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 
 	c2_mutex_init(&machine->rm_mutex);
 
-	c2_addb_ctx_init(&machine->rm_rpc_machine_addb,
-			&rpc_machine_addb_ctx_type, &c2_addb_global_ctx);
+	c2_addb_ctx_init(&machine->rm_addb, &rpc_machine_addb_ctx_type,
+			 &c2_addb_global_ctx);
+
+	machine->rm_stopping = false;
+	rc = C2_THREAD_INIT(&machine->rm_frm_worker, struct c2_rpc_machine *,
+			    NULL, &frm_worker_fn, machine, "frm_worker");
+	if (rc != 0)
+		goto out_fini;
+
+	rc = rpc_tm_setup(machine, net_dom, ep_addr);
+	if (rc != 0)
+		goto out_stop_frm_worker;
 
 #ifndef __KERNEL__
 	rc = c2_db_tx_init(&tx, dom->cd_dbenv, 0);
@@ -796,14 +844,51 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 			c2_db_tx_commit(&tx);
 		} else {
 			c2_db_tx_abort(&tx);
-			__rpc_machine_fini(machine);
+			rpc_tm_cleanup(machine);
+			goto out_stop_frm_worker;
 		}
 	}
 #endif
-	rc = rpc_tm_setup(machine, net_dom, ep_addr);
+	return rc;
+
+out_stop_frm_worker:
+	machine->rm_stopping = true;
+	c2_thread_join(&machine->rm_frm_worker);
+
+out_fini:
+	__rpc_machine_fini(machine);
 	return rc;
 }
 C2_EXPORTED(c2_rpc_machine_init);
+
+/**
+   Worker thread that runs formation periodically on all formation machines,
+   in an attempt to send timedout items.
+
+   XXX This entire routine is temporary. The item deadline timeout mechanism
+       should be based on generic sm framework.
+ */
+static void frm_worker_fn(struct c2_rpc_machine *machine)
+{
+	struct c2_rpc_chan *chan;
+	enum { MILLI_SEC = 1000 * 1000 };
+
+	C2_PRE(machine != NULL);
+
+	while (true) {
+		c2_rpc_machine_lock(machine);
+		if (machine->rm_stopping) {
+			c2_rpc_machine_unlock(machine);
+			return;
+		}
+		c2_list_for_each_entry(&machine->rm_chans, chan,
+				       struct c2_rpc_chan, rc_linkage) {
+			c2_rpc_frm_run_formation(&chan->rc_frm);
+		}
+		c2_rpc_machine_unlock(machine);
+		c2_nanosleep(c2_time(0, 100 * MILLI_SEC), NULL);
+	}
+}
 
 /**
    XXX Temporary. This routine will be discarded, once rpc-core starts
@@ -831,6 +916,12 @@ static void conn_list_fini(struct c2_list *list)
 void c2_rpc_machine_fini(struct c2_rpc_machine *machine)
 {
 	C2_PRE(machine != NULL);
+
+	c2_rpc_machine_lock(machine);
+	machine->rm_stopping = true;
+	c2_rpc_machine_unlock(machine);
+
+	c2_thread_join(&machine->rm_frm_worker);
 
 	c2_rpc_machine_lock(machine);
 
@@ -1271,7 +1362,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 		if (!(nb->nb_flags & C2_NET_BUF_REGISTERED)) {
 			rc = c2_net_buffer_register(nb, netdom);
 			if (rc != 0) {
-				C2_ADDB_ADD(&rpcmach->rm_rpc_machine_addb,
+				C2_ADDB_ADD(&rpcmach->rm_addb,
 					    &rpc_machine_addb_loc,
 					    rpc_machine_func_fail,
 					    "Net buf registration failed.", rc);
@@ -1283,7 +1374,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 		if (op == C2_RPC_BULK_LOAD) {
 			rc = c2_net_desc_copy(&descs[cnt], &nb->nb_desc);
 			if (rc != 0) {
-				C2_ADDB_ADD(&rpcmach->rm_rpc_machine_addb,
+				C2_ADDB_ADD(&rpcmach->rm_addb,
 					    &rpc_machine_addb_loc,
 					    rpc_machine_func_fail,
 					    "Load: Net buf desc copy failed.",
@@ -1298,7 +1389,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 		nb->nb_app_private = rbuf;
 		rc = c2_net_buffer_add(nb, tm);
 		if (rc != 0) {
-			C2_ADDB_ADD(&rpcmach->rm_rpc_machine_addb,
+			C2_ADDB_ADD(&rpcmach->rm_addb,
 				    &rpc_machine_addb_loc,
 				    rpc_machine_func_fail,
 				    "Buffer addition to TM failed.", rc);
@@ -1310,7 +1401,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 		if (op == C2_RPC_BULK_STORE) {
 			rc = c2_net_desc_copy(&nb->nb_desc, &descs[cnt]);
                         if (rc != 0) {
-                                C2_ADDB_ADD(&rpcmach->rm_rpc_machine_addb,
+                                C2_ADDB_ADD(&rpcmach->rm_addb,
                                             &rpc_machine_addb_loc,
                                             rpc_machine_func_fail,
                                             "Store: Net buf desc copy failed.",

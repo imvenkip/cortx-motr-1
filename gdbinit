@@ -38,3 +38,11 @@ document c2-rpc-conn-print-sessions
 
 	Usage: c2-rpc-conn-print-sessions &conn
 end
+
+define frm-item
+	set $item = (struct c2_rpc_item *)$arg0
+	printf "item: %p deadline: %lu prio: %u\n", $item, $item->ri_deadline, $item->ri_prio
+end
+define c2-rpc-frm-itemq-print
+	c2-list-print $arg0 struct c2_rpc_item ri_iq_link frm-item
+end

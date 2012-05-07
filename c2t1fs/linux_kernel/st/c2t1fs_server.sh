@@ -43,8 +43,6 @@ main()
 
 		echo "Colibri ioservice endpoint = $COLIBRI_IOSERVICE_ENDPOINT"
 		echo "Colibri c2t1fs endpoint = $COLIBRI_C2T1FS_ENDPOINT"
-
-		prepare
 	fi
 
 	colibri_service $1

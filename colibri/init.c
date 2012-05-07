@@ -65,6 +65,9 @@
 extern int  c2_memory_init(void);
 extern void c2_memory_fini(void);
 
+extern int  c2_rpc_module_init(void);
+extern void c2_rpc_module_fini(void);
+
 /** @addtogroup init @{ */
 
 struct init_fini_call {
@@ -94,6 +97,7 @@ struct init_fini_call subsystem[] = {
 	{ &c2_fops_init,     &c2_fops_fini,    "fop" },
 	{ &c2_net_init,      &c2_net_fini,     "net" },
 	{ &c2_rpc_base_init, &c2_rpc_base_fini, "rpc-base" },
+	{ &c2_rpc_module_init, &c2_rpc_module_fini, "rpc" },
 	{ &c2_rpc_service_module_init, &c2_rpc_service_module_fini,
 						"rpc-service" },
 	{ &c2_rpc_session_module_init, &c2_rpc_session_module_fini,
