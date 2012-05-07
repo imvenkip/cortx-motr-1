@@ -29,6 +29,10 @@
 #include "lib/trace.h"        /* C2_LOG and C2_ENTRY */
 #include "pool/pool.h"        /* c2_pool_init(), c2_pool_fini() */
 
+enum {
+	DEF_POOL_ID = 9
+};
+
 /* Super block */
 
 static int  c2t1fs_fill_super(struct super_block *sb, void *data, int silent);
@@ -171,7 +175,7 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	if (rc != 0)
 		goto out_fini;
 
-	rc = c2_pool_init(&csb->csb_pool, pool_width);
+	rc = c2_pool_init(&csb->csb_pool, DEF_POOL_ID, pool_width);
 	if (rc != 0)
 		goto out_fini;
 

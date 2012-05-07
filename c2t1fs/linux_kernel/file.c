@@ -59,9 +59,9 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 
-static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
+static struct c2_pdclust_layout *layout_to_pd_layout(struct c2_layout *l)
 {
-	return container_of(l, struct c2_pdclust_layout, pl_layout);
+	return container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
 }
 
 const struct file_operations c2t1fs_reg_file_operations = {
@@ -222,7 +222,8 @@ static bool io_req_spans_full_stripe(struct c2t1fs_inode *ci,
 	pd_layout = layout_to_pd_layout(ci->ci_layout);
 
 	/* stripe width = number of data units * size of each unit */
-	stripe_width = pd_layout->pl_N * pd_layout->pl_unit_size;
+	stripe_width = pd_layout->pl_attr.pa_N *
+		       pd_layout->pl_attr.pa_unit_size;
 
 	/*
 	 * Requested IO size and position within file must be
@@ -589,15 +590,15 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 	pd_layout = layout_to_pd_layout(ci->ci_layout);
 	gob_fid   = ci->ci_fid;
-	unit_size = pd_layout->pl_unit_size;
+	unit_size = pd_layout->pl_attr.pa_unit_size;
 
 	C2_LOG("Unit size: %lu", (unsigned long)unit_size);
 
 	/* unit_size should be multiple of PAGE_CACHE_SIZE */
 	C2_ASSERT((unit_size & (PAGE_CACHE_SIZE - 1)) == 0);
 
-	nr_data_units           = pd_layout->pl_N;
-	nr_parity_units         = pd_layout->pl_K;
+	nr_data_units           = pd_layout->pl_attr.pa_N;
+	nr_parity_units         = pd_layout->pl_attr.pa_K;
 	nr_units_per_group      = nr_data_units + 2 * nr_parity_units;
 	nr_data_bytes_per_group = nr_data_units * unit_size;
 	/* only full stripe read write */

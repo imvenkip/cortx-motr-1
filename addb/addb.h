@@ -208,7 +208,21 @@ enum c2_addb_event_id {
 	C2_ADDB_EVENT_COB_MDEXISTS          = 0x21ULL,
 	C2_ADDB_EVENT_COB_MDDELETE          = 0x22ULL,
 
-	C2_ADDB_EVENT_TRACE		    = 0x30ULL
+	C2_ADDB_EVENT_TRACE		    = 0x30ULL,
+
+	C2_ADDB_EVENT_LAYOUT_DECODE_SUCCESS = 0x41ULL,
+	C2_ADDB_EVENT_LAYOUT_DECODE_FAIL    = 0x42ULL,
+	C2_ADDB_EVENT_LAYOUT_ENCODE_SUCCESS = 0x43ULL,
+	C2_ADDB_EVENT_LAYOUT_ENCODE_FAIL    = 0x44ULL,
+
+	C2_ADDB_EVENT_LAYOUT_LOOKUP_SUCCESS = 0x45ULL,
+	C2_ADDB_EVENT_LAYOUT_LOOKUP_FAIL    = 0x46ULL,
+	C2_ADDB_EVENT_LAYOUT_ADD_SUCCESS    = 0x47ULL,
+	C2_ADDB_EVENT_LAYOUT_ADD_FAIL       = 0x48ULL,
+	C2_ADDB_EVENT_LAYOUT_UPDATE_SUCCESS = 0x49ULL,
+	C2_ADDB_EVENT_LAYOUT_UPDATE_FAIL    = 0x4AULL,
+	C2_ADDB_EVENT_LAYOUT_DELETE_SUCCESS = 0x4BULL,
+	C2_ADDB_EVENT_LAYOUT_DELETE_FAIL    = 0x4CULL
 };
 
 /**
@@ -259,7 +273,7 @@ void c2_addb_ctx_fini(struct c2_addb_ctx *ctx);
 /**
    Low-level interface posting a data-point to the addb.
 
-   Use this if type-safe interface (C2_ADDB_ADD()) is for some reason
+   Use this, if type-safe interface (C2_ADDB_ADD()) is for some reason
    inadequate.
  */
 void c2_addb_add(struct c2_addb_dp *dp);
@@ -329,7 +343,7 @@ const struct c2_addb_ev var = {						\
 
    Event formal parameters are supplied as variadic arguments. This macro checks
    that their number and types conform to the event definition
-   (C2_ADDB_EV_DEFINE(), which it turns conforms to the event operation vector
+   (C2_ADDB_EV_DEFINE(), which in turn conforms to the event operation vector
    definition in C2_ADDB_OPS_DEFINE()).
 
    "ev" MUST be a variable name, usually introduced by C2_ADDB_EV_DEFINE().

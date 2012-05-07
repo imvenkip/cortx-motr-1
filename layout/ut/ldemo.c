@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -30,19 +30,25 @@
 
 #include "pool/pool.h"
 #include "layout/layout.h"
+#include "layout/layout_db.h"
 #include "layout/pdclust.h"
+#include "layout/linear_enum.h" /* c2_linear_enum_build() */
 
 /**
    @addtogroup layout
    @{
 */
 
+enum {
+	DEF_POOL_ID = 10
+};
+
 enum c2_pdclust_unit_type classify(const struct c2_pdclust_layout *play,
 				   int unit)
 {
-	if (unit < play->pl_N)
+	if (unit < play->pl_attr.pa_N)
 		return PUT_DATA;
-	else if (unit < play->pl_N + play->pl_K)
+	else if (unit < play->pl_attr.pa_N + play->pl_attr.pa_K)
 		return PUT_PARITY;
 	else
 		return PUT_SPARE;
@@ -64,7 +70,7 @@ void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 	struct c2_pdclust_src_addr map[R][P];
 	uint32_t                   incidence[P][P];
 	uint32_t                   usage[P][PUT_NR + 1];
-	uint32_t                   where[play->pl_N + 2*play->pl_K];
+	uint32_t                   where[play->pl_attr.pa_N + 2*play->pl_attr.pa_K];
 	const char                *brace[PUT_NR] = { "[]", "<>", "{}" };
 	const char                *head[PUT_NR+1] = { "D", "P", "S", "total" };
 
@@ -78,8 +84,8 @@ void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 	C2_SET_ARR0(usage);
 	C2_SET_ARR0(incidence);
 
-	N = play->pl_N;
-	K = play->pl_K;
+	N = play->pl_attr.pa_N;
+	K = play->pl_attr.pa_K;
 	W = N + 2*K;
 
 	printf("layout: N: %u K: %u P: %u C: %u L: %u\n",
@@ -156,6 +162,34 @@ void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 	}
 }
 
+/*
+ * Creates dummy domain, registers pdclust layout type and linear
+ * enum type and creates dummy enum object.
+ * These objects are called as dummy since they are not used by this ldemo
+ * test.
+ */
+static int dummy_create(struct c2_layout_domain *domain,
+			struct c2_dbenv *dbenv,
+			uint64_t lid, uint32_t pool_width,
+			struct c2_layout_linear_enum **lin_enum)
+{
+	int rc;
+
+	rc = c2_dbenv_init(dbenv, "ldemo-db", 0);
+	C2_ASSERT(rc == 0);
+
+	rc = c2_layout_domain_init(domain, dbenv);
+	C2_ASSERT(rc == 0);
+
+	c2_layout_type_register(domain, &c2_pdclust_layout_type);
+	c2_layout_enum_type_register(domain, &c2_linear_enum_type);
+
+	rc = c2_linear_enum_build(domain, lid, pool_width, 100, 200, lin_enum);
+	C2_ASSERT(rc == 0);
+
+	return rc;
+}
+
 int main(int argc, char **argv)
 {
 	uint32_t N;
@@ -165,11 +199,13 @@ int main(int argc, char **argv)
 	int      I;
 	int      result;
 	uint64_t unitsize = 4096;
-	struct c2_pdclust_layout  *play;
-	struct c2_pool             pool;
-	struct c2_uint128          id;
-	struct c2_uint128          seed;
-
+	struct c2_pdclust_layout      *play;
+	struct c2_pool                 pool;
+	uint64_t                       id;
+	struct c2_uint128              seed;
+	struct c2_layout_domain        domain;
+	struct c2_dbenv                dbenv;
+	struct c2_layout_linear_enum  *le;
 	if (argc != 6) {
 		printf(
 "\t\tldemo N K P R I\nwhere\n"
@@ -198,21 +234,34 @@ int main(int argc, char **argv)
 	R = atoi(argv[4]);
 	I = atoi(argv[5]);
 
-	c2_uint128_init(&id,   "jinniesisjillous");
+	id = 0x4A494E4E49455349; /* "jinniesi" */
 	c2_uint128_init(&seed, "upjumpandpumpim,");
 
 	result = c2_init();
+	if (result != 0)
+		return result;
+
+	result = c2_pool_init(&pool, DEF_POOL_ID, P);
 	if (result == 0) {
-		result = c2_pool_init(&pool, P);
+		/**
+		 * Creating a dummy domain object here so as to supply it
+		 * to c2_pdclust_build(), though it is not used in this test.
+		 */
+		result = dummy_create(&domain, &dbenv, id,
+				      pool.po_width, &le);
 		if (result == 0) {
-			result = c2_pdclust_build(&pool, &id, N, K, unitsize,
-						  &seed, &play);
+			result = c2_pdclust_build(&domain, &pool, id, N, K,
+						  unitsize, &seed,
+						  &le->lle_base, &play);
 			if (result == 0)
 				layout_demo(play, P, R, I);
 			c2_pool_fini(&pool);
 		}
-		c2_fini();
+
 	}
+
+	c2_fini();
+
 	return result;
 }
 

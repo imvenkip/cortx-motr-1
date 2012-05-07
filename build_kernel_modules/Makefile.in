@@ -35,6 +35,7 @@ dirs  = addb                                                                  \
         ioservice                                                             \
         ioservice/ut                                                          \
         layout                                                                \
+        layout/ut                                                             \
         lib                                                                   \
         lib/linux_kernel                                                      \
         lib/ut                                                                \
@@ -92,7 +93,12 @@ ioservice_HEADERS               := io_fops_k.h
 
 ioservice_ut_SOURCES            := bulkio_client.c
 
-layout_SOURCES                  := layout.c pdclust.c
+layout_SOURCES                  := layout.c pdclust.c composite.c list_enum.c \
+                                   linear_enum.c
+layout_HEADERS                  := layout.h layout_internal.h pdclust.h \
+                                   composite.h list_enum.h linear_enum.h
+
+layout_ut_SOURCES               := layout.c
 
 lib_SOURCES                     := bitstring.c vec.c list.c queue.c refs.c    \
                                    time.c bitmap.c chan.c misc.c buf.c cond.c \

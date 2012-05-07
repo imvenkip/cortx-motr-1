@@ -21,6 +21,7 @@
 #include <linux/slab.h>      /* kmem_cache */
 
 #include "layout/pdclust.h"  /* c2_pdclust_build(), c2_pdclust_fini() */
+#include "layout/linear_enum.h" /* c2_linear_enum_build() */
 #include "lib/misc.h"        /* C2_SET0()                             */
 #include "lib/memory.h"      /* C2_ALLOC_PTR(), c2_free()             */
 #include "c2t1fs/linux_kernel/c2t1fs.h"
@@ -116,8 +117,9 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 	dir_ents_tlist_fini(&ci->ci_dir_ents);
 
 	pd_layout = container_of(ci->ci_layout, struct c2_pdclust_layout,
-				 pl_layout);
-	c2_pdclust_fini(pd_layout);
+				 pl_base.ls_base);
+	/* todo NULL will be replaced by c2_layout_domain pointer. */
+	ci->ci_layout->l_ops->lo_fini(ci->ci_layout, NULL);
 
 	C2_LEAVE();
 }
@@ -340,10 +342,21 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 			     uint32_t             K,
 			     uint64_t             unit_size)
 {
-	struct c2_pdclust_layout *pd_layout;
-	struct c2_uint128         layout_id;
-	struct c2_uint128         seed;
-	int                       rc;
+	struct c2_pdclust_layout     *pd_layout;
+	uint64_t                      layout_id;
+	struct c2_uint128             seed;
+	struct c2_layout_domain       domain;
+	struct c2_layout_linear_enum *le;
+	int                           rc;
+
+	/**
+	 * @todo The domain object needs to be initialized during c2t1fs_init()
+	 * operation and its pointer needs to preserved in c2t1fs_globals.
+	 * The available layout types and enum types need to be registered.
+	 * This is to be taken care of before the layout schema code is
+	 * checked in to master. A small patch should follow this one for
+	 * INSP with such changes.
+	 */
 
 	C2_ENTRY();
 	C2_PRE(ci != NULL && pool != NULL && pool->po_width > 0);
@@ -353,12 +366,25 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 			(unsigned long)ci->ci_fid.f_key,
 			N, K, pool->po_width);
 
-	c2_uint128_init(&layout_id, "jinniesisjillous");
-	c2_uint128_init(&seed,      "upjumpandpumpim,");
+	layout_id = 0x4A494E4E49455349; /* "jinniesi" */
+	c2_uint128_init(&seed, "upjumpandpumpim,");
 
-	rc = c2_pdclust_build(pool, &layout_id, N, K, unit_size,
-				&seed, &pd_layout);
-	ci->ci_layout = rc == 0 ? &pd_layout->pl_layout : NULL;
+	/**
+	 * @todo A dummy enumeration object is being created here so that the
+	 * compilation goes through. c2t1fs code is not using enumeration
+	 * at this point but will be using it eventually.
+	 * This will be taken care of through the component task
+	 * "c2t1fs.LayoutDB".
+	 */
+	rc = c2_linear_enum_build(&domain, layout_id, pool->po_width,
+				  100, 200, &le);
+	if (rc != 0)
+		return rc;
+
+	rc = c2_pdclust_build(&domain, pool, layout_id, N, K, unit_size,
+			      &seed, &le->lle_base, &pd_layout);
+
+	ci->ci_layout = rc == 0 ? &pd_layout->pl_base.ls_base : NULL;
 
 	C2_LEAVE("rc: %d", rc);
 	return rc;

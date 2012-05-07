@@ -36,11 +36,22 @@ struct c2_stob_id;
 struct c2_pool;
 
 struct c2_pool {
+	/** Pool id. */
+	uint64_t po_id;
+
 	uint32_t po_width;
 };
 
-int  c2_pool_init(struct c2_pool *pool, uint32_t width);
+bool c2_pool_id_is_valid(uint64_t pool_id);
+int  c2_pool_init(struct c2_pool *pool, uint64_t pid, uint32_t width);
 void c2_pool_fini(struct c2_pool *pool);
+
+/**
+ * @todo One of the LayoutSchema function, viz. pdclust_decode() requires an
+ * interface returning c2_pool object, given a pool id. Eventually, such an
+ * interface will be provided by configuration caching, over-riding this one.
+ */
+int c2_pool_lookup(uint64_t pid, struct c2_pool **out);
 
 /**
    Allocates object id in the pool.

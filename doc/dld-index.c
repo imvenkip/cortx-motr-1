@@ -8,6 +8,8 @@ Detailed designs, ordered alphabetically:
            <!-- c2t1fs/main.c -->
 - @subpage DLD_conf_schema "DLD for configuration schema"
            <!-- cfg/cfg.h -->
+- @subpage Layout-DB "Layout DB DLD"
+           <!-- layout/layout_db.c -->
 - @subpage LNetDLD "LNet Transport DLD"
            <!-- net/lnet/lnet_main.c -->
 - @subpage rpc-layer-core-dld "RPC layer core DLD"
