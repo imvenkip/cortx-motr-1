@@ -17,5 +17,5 @@ libcolibri_desim_la_SOURCES   = \
                                 sim.h \
                                 storage.h
 
-INCLUDES                      = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+INCLUDES                      = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
 

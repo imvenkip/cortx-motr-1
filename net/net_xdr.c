@@ -21,7 +21,7 @@
 #include <rpc/types.h>
 #include <rpc/xdr.h>
 
-#include <lib/cdefs.h>
+#include "lib/cdefs.h"
 #include "net/net.h"
 #include "net/xdr.h"
 

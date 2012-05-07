@@ -24,7 +24,7 @@
 #include <stdarg.h>
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h> /* ENABLE_DEBUG */
+#  include "config.h" /* ENABLE_DEBUG */
 #endif
 
 #include "lib/types.h"

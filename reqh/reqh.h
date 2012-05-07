@@ -22,7 +22,7 @@
 #ifndef __COLIBRI_REQH_REQH_H__
 #define __COLIBRI_REQH_REQH_H__
 
-#include <sm/sm.h>
+#include "sm/sm.h"
 #include "fol/fol.h"
 #include "fop/fop.h"
 #include "fop/fom.h"

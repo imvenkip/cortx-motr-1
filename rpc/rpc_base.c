@@ -64,9 +64,9 @@ void c2_rpc_base_fini(void)
 	struct c2_rpc_item_type		*item_type;
 
 	c2_rwlock_write_lock(&rpc_item_types_lock);
-	c2_tlist_for(&rit_tl, &rpc_item_types_list, item_type) {
+	c2_tl_for(rit, &rpc_item_types_list, item_type) {
 		rit_tlink_del_fini(item_type);
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	rit_tlist_fini(&rpc_item_types_list);
 	c2_rwlock_write_unlock(&rpc_item_types_lock);
 	c2_rwlock_fini(&rpc_item_types_lock);
@@ -101,12 +101,12 @@ struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 	bool                             found = false;
 
 	c2_rwlock_read_lock(&rpc_item_types_lock);
-	c2_tlist_for(&rit_tl, &rpc_item_types_list, item_type) {
+	c2_tl_for(rit, &rpc_item_types_list, item_type) {
 		if (item_type->rit_opcode == opcode) {
 			found = true;
 			break;
 		}
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	c2_rwlock_read_unlock(&rpc_item_types_lock);
 	if (found)
 		return item_type;

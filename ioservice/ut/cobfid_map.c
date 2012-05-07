@@ -19,7 +19,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
 #include "ioservice/cobfid_map.h"
@@ -114,8 +114,12 @@ static void enumerate_generic(const int rec_total, const char *map_path,
 
 		C2_ALLOC_ARR(cid_out, rec_total);
 		C2_UT_ASSERT(cid_out != NULL);
-	} else
+	} else {
+		cid_in = NULL;
+		cid_out = NULL;
 		container_id_in = 200;
+	}
+
 	j = rec_total - 1;
 
 	/* Fill in the database with varying fid values in

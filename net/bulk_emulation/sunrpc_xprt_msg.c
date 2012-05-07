@@ -145,14 +145,14 @@ static int sunrpc_msg_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	do {
 		/* get the first available receive buffer */
 		bool found_nb = false;
-		c2_tlist_for(&tm_tl, &tm->ntm_q[C2_NET_QT_MSG_RECV], nb) {
+		c2_tl_for(tm, &tm->ntm_q[C2_NET_QT_MSG_RECV], nb) {
 			if ((nb->nb_flags &
 			     (C2_NET_BUF_IN_USE | C2_NET_BUF_CANCELLED |
 			      C2_NET_BUF_TIMED_OUT)) == 0) {
 				found_nb = true;
 				break;
 			}
-		} c2_tlist_endfor;
+		} c2_tl_endfor;
 		if (!found_nb) {
 			tm->ntm_qstats[C2_NET_QT_MSG_RECV].nqs_num_f_events++;
 			rc = -ENOBUFS;

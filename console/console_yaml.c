@@ -18,7 +18,7 @@
  * Original creation date: 22/03/2011
  */
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
 #include "lib/errno.h"
@@ -26,7 +26,7 @@
 #include "lib/cdefs.h"
 #include "lib/memory.h"
 
-#include <console/console_yaml.h>
+#include "console/console_yaml.h"
 
 /**
    @addtogroup console_yaml

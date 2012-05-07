@@ -66,23 +66,11 @@ static bool clink_is_head(const struct c2_clink *clink)
  */
 static bool c2_chan_invariant_locked(struct c2_chan *chan)
 {
-	struct c2_clink *scan;
-	struct c2_clink *group;
-
-	if (chan->ch_waiters != clink_tlist_length(&chan->ch_links))
-		return false;
-
-	c2_tlist_for(&clink_tl, &chan->ch_links, scan) {
-		group = scan->cl_group;
-
-		if (scan->cl_chan != chan)
-			return false;
-		if (group == NULL)
-			return false;
-		if (!clink_is_head(group))
-			return false;
-	} c2_tlist_endfor;
-	return true;
+	return chan->ch_waiters == clink_tlist_length(&chan->ch_links) &&
+		c2_tl_forall(clink, scan, &chan->ch_links,
+			     scan->cl_chan == chan &&
+			     scan->cl_group != NULL &&
+			     clink_is_head(scan->cl_group));
 }
 
 static bool c2_chan_invariant(struct c2_chan *chan)
