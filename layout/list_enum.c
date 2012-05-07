@@ -478,7 +478,7 @@ int cob_list_write(struct c2_layout_schema *schema,
 	struct cob_lists_key     key;
 	struct cob_lists_rec     rec;
 	struct c2_db_pair        pair;
-	int                      rc;
+	int                      rc = 0;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(tx != NULL);
