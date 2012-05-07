@@ -40,11 +40,11 @@
    updating according to this.
  */
 struct c2_net_test_stats {
-	unsigned long min;	/** min value from sample */
-	unsigned long max;	/** max value from sample */
-	unsigned long sum;	/** sum of all values from sample */
-	unsigned long sum_sqr;	/** sum of squares of all values from sample */
-	unsigned long count;	/** sample size */
+	unsigned long min;	/**< min value from sample */
+	unsigned long max;	/**< max value from sample */
+	unsigned long sum;	/**< sum of all values from sample */
+	unsigned long sum_sqr;	/**< sum of squares of all values from sample */
+	unsigned long count;	/**< sample size */
 };
 
 /**
