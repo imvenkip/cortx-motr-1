@@ -20,13 +20,14 @@
 
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
+
+#include <stdio.h>         /* printf */
 
 #ifdef ENABLE_FAULT_INJECTION
 
 #include <stdlib.h>        /* random */
-#include <stdio.h>         /* printf */
 #include <unistd.h>        /* getpid */
 
 #include "lib/mutex.h"     /* c2_mutex */

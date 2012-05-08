@@ -20,12 +20,13 @@
 
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
+
+#include <linux/kernel.h>    /* pr_info */
 
 #ifdef ENABLE_FAULT_INJECTION
 
-#include <linux/kernel.h>    /* pr_info */
 #include <linux/debugfs.h>   /* debugfs_create_dir */
 #include <linux/module.h>    /* THIS_MODULE */
 #include <linux/seq_file.h>  /* seq_read */
@@ -397,7 +398,7 @@ void fi_dfs_cleanup(void)
 
 int fi_dfs_init(void)
 {
-	pr_warn(KBUILD_MODNAME ": fault injection is not available, because it"
+	pr_warning(KBUILD_MODNAME ": fault injection is not available, because it"
 				" was disabled during build\n");
 	return 0;
 }

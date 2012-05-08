@@ -20,6 +20,11 @@
  * Original creation date: 04/28/2011
  */
 
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "cob/cob.h"
 #include "rpc/rpc2.h"
 #include "rpc/rpcdbg.h"

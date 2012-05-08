@@ -18,6 +18,10 @@
  * Original creation date: 04/04/2011
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "lib/assert.h"
 #include "lib/cdefs.h"
 #include "net/net_internal.h"

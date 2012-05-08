@@ -19,7 +19,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 
 #include <stdio.h>    /* setbuf */
@@ -139,6 +139,8 @@ void free_test_list(struct c2_list *list)
 		c2_free(entry);
 	}
 }
+
+#ifdef ENABLE_FAULT_INJECTION
 
 int enable_fault_point(char *str)
 {
@@ -321,6 +323,20 @@ fclose:
 
 	return rc;
 }
+
+#else /* ENABLE_FAULT_INJECTION */
+
+int enable_fault_point(char *str)
+{
+	return 0;
+}
+
+int enable_fault_points_from_file(const char *file_name)
+{
+	return 0;
+}
+
+#endif /* ENABLE_FAULT_INJECTION */
 
 /*
  *  Local variables:
