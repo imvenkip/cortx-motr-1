@@ -133,6 +133,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	C2_PRE(dom != NULL && name != NULL && out != NULL);
 
 	*out = NULL;
+	C2_SET0(&nsrec);
 
 	if (pcob == NULL) {
 	        pfid.f_container = pfid.f_key = 1;

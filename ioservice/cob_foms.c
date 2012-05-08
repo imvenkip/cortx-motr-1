@@ -225,7 +225,9 @@ static int cc_fom_state(struct c2_fom *fom)
 		if (rc != 0)
 			goto out;
 
+                c2_fom_block_enter(fom);
 		rc = cc_cob_create(fom, cc);
+                c2_fom_block_leave(fom);
 		if (rc != 0)
 			goto out;
 
@@ -307,10 +309,8 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
                           S_IRGRP | S_IXGRP |           /* r-x for group */
                           S_IROTH | S_IXOTH;            /* r-x for others */
 
-        c2_fom_block_enter(fom);
 	rc = c2_cob_create(cdom, nskey, &nsrec, fabrec, &omgrec, &cob,
 			   &fom->fo_tx.tx_dbtx);
-        c2_fom_block_leave(fom);
 
 	/*
 	 * Cob does not free nskey and fab rec on errors. We need to do so
