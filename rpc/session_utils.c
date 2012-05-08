@@ -145,7 +145,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	        pfid = pcob->co_nsrec.cnr_fid;
 	}
 
-	c2_cob_make_nskey(&key, &pfid, name, strlen(name));
+	c2_cob_nskey_make(&key, &pfid, name, strlen(name));
 	if (key == NULL) {
 	        c2_cob_put(cob);
 		return -ENOMEM;
@@ -156,7 +156,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	nsrec.cnr_fid.f_key = stobid.u_lo;
 	nsrec.cnr_nlink = 1;
 
-        c2_cob_make_fabrec(&fabrec, NULL, 0); 
+        c2_cob_fabrec_make(&fabrec, NULL, 0); 
 
 	/*
 	 * Temporary assignment for lsn
@@ -202,7 +202,7 @@ int c2_rpc_cob_lookup_helper(struct c2_cob_domain *dom,
 	        pfid = pcob->co_nsrec.cnr_fid;
 	}
 
-	c2_cob_make_nskey(&key, &pfid, name, strlen(name));
+	c2_cob_nskey_make(&key, &pfid, name, strlen(name));
 	if (key == NULL)
 		return -ENOMEM;
 	rc = c2_cob_lookup(dom, key, CA_NSKEY_FREE | CA_FABREC, out, tx);

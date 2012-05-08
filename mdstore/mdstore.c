@@ -143,7 +143,7 @@ int c2_md_store_create(struct c2_md_store       *md,
         if (rc)
                 goto out;
 
-        c2_cob_make_nskey(&nskey, pfid, attr->ca_name, 
+        c2_cob_nskey_make(&nskey, pfid, attr->ca_name, 
                           attr->ca_namelen);
 
         nsrec.cnr_fid = attr->ca_tfid;
@@ -162,7 +162,7 @@ int c2_md_store_create(struct c2_md_store       *md,
         omgrec.cor_gid = attr->ca_gid;
         omgrec.cor_mode = attr->ca_mode;
 
-        c2_cob_make_fabrec(&fabrec, attr->ca_link, 
+        c2_cob_fabrec_make(&fabrec, attr->ca_link, 
                            attr->ca_link ? attr->ca_size : 0);
         rc = c2_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
         if (rc) {
@@ -205,7 +205,7 @@ int c2_md_store_link(struct c2_md_store         *md,
         /*
          * Link @nskey to a file described with @cob
          */
-        c2_cob_make_nskey(&nskey, pfid, name, namelen); 
+        c2_cob_nskey_make(&nskey, pfid, name, namelen); 
         C2_PRE(c2_fid_is_set(&cob->co_nsrec.cnr_fid));
 
         nsrec.cnr_fid = cob->co_nsrec.cnr_fid;
@@ -258,7 +258,7 @@ int c2_md_store_unlink(struct c2_md_store       *md,
          * Check for hardlinks.
          */
         if (!S_ISDIR(cob->co_omgrec.cor_mode)) {
-                c2_cob_make_nskey(&nskey, pfid, name, namelen);
+                c2_cob_nskey_make(&nskey, pfid, name, namelen);
                 
                 /*
                  * New stat data name should get updated nlink value.
@@ -274,7 +274,7 @@ int c2_md_store_unlink(struct c2_md_store       *md,
                         /*
                          * Find another name (new stat data) in object index.
                          */
-                        c2_cob_make_oikey(&oikey, cob->co_fid, 
+                        c2_cob_oikey_make(&oikey, cob->co_fid, 
                                           cob->co_nsrec.cnr_linkno + 1);
                 
                         rc = c2_cob_locate(&md->md_dom, &oikey, &ncob, tx);
@@ -428,8 +428,8 @@ int c2_md_store_rename(struct c2_md_store       *md,
         /*
          * Prepare src and dst keys.
          */                
-        c2_cob_make_nskey(&srckey, pfid_src, sname, snamelen);
-        c2_cob_make_nskey(&tgtkey, pfid_tgt, tname, tnamelen);
+        c2_cob_nskey_make(&srckey, pfid_src, sname, snamelen);
+        c2_cob_nskey_make(&tgtkey, pfid_tgt, tname, tnamelen);
 
         rc = c2_cob_update_name(cob_src, srckey, tgtkey, tx);
 
@@ -678,7 +678,7 @@ int c2_md_store_locate(struct c2_md_store       *md,
         struct c2_cob_oikey oikey;
         int                 rc;
 
-        c2_cob_make_oikey(&oikey, fid, 0);
+        c2_cob_oikey_make(&oikey, fid, 0);
 
         if (flags == C2_MD_LOCATE_STORED) {
                 rc = c2_cob_locate(&md->md_dom, &oikey, cob, tx);
@@ -708,7 +708,7 @@ int c2_md_store_lookup(struct c2_md_store       *md,
         if (pfid == NULL)
                 pfid = &C2_COB_ROOT_FID;
 
-        c2_cob_make_nskey(&nskey, pfid, name, namelen);
+        c2_cob_nskey_make(&nskey, pfid, name, namelen);
         flags = (CA_NSKEY_FREE | CA_FABREC | CA_OMGREC);
         return c2_cob_lookup(&md->md_dom, nskey, flags,
                              cob, tx);

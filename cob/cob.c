@@ -77,7 +77,7 @@ static const struct c2_addb_loc cob_addb_loc = {
 	.al_name = "cob"
 };
 
-void c2_cob_make_oikey(struct c2_cob_oikey *oikey, 
+void c2_cob_oikey_make(struct c2_cob_oikey *oikey, 
                        const struct c2_fid *fid,
                        int linkno)
 {
@@ -85,7 +85,7 @@ void c2_cob_make_oikey(struct c2_cob_oikey *oikey,
         oikey->cok_linkno = linkno;
 }
 
-void c2_cob_make_nskey(struct c2_cob_nskey **keyh, 
+void c2_cob_nskey_make(struct c2_cob_nskey **keyh, 
                        const struct c2_fid *pfid,
                        const char *name, 
                        int namelen)
@@ -122,7 +122,7 @@ static int c2_cob_fabrec_size(const struct c2_cob_fabrec *rec)
         return sizeof *rec + rec->cfb_linklen;
 }
 
-void c2_cob_make_fabrec(struct c2_cob_fabrec **rech, 
+void c2_cob_fabrec_make(struct c2_cob_fabrec **rech, 
                         const char *link, int linklen)
 {
         struct c2_cob_fabrec *rec;
@@ -135,16 +135,16 @@ void c2_cob_make_fabrec(struct c2_cob_fabrec **rech,
         *rech = rec;
 }
 
-static int c2_cob_fabrec_size_max(void)
+static int c2_cob_max_fabrec_size(void)
 {
         return sizeof(struct c2_cob_fabrec) + C2_COB_NAME_MAX;
 }
 
-static void c2_cob_make_fabrec_max(struct c2_cob_fabrec **rech)
+static void c2_cob_max_fabrec_make(struct c2_cob_fabrec **rech)
 {
         struct c2_cob_fabrec *rec;
         
-        rec = c2_alloc(c2_cob_fabrec_size_max());
+        rec = c2_alloc(c2_cob_max_fabrec_size());
         C2_ASSERT(rec != NULL);
         rec->cfb_linklen = C2_COB_NAME_MAX;
         *rech = rec;
@@ -154,7 +154,7 @@ static void c2_cob_make_fabrec_max(struct c2_cob_fabrec **rech)
    Make nskey for iterator. Allocate space for max possible name
    but put real string len into the struct.
 */
-static void c2_cob_make_nskey_max(struct c2_cob_nskey **keyh, 
+static void c2_cob_max_nskey_make(struct c2_cob_nskey **keyh, 
                                   const struct c2_fid *pfid,
                                   const char *name, 
                                   int namelen)
@@ -385,7 +385,7 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
         if (rc)
                 return rc;
 
-        c2_cob_make_nskey(&nskey, &C2_COB_ROOT_FID, C2_COB_ROOT_NAME, 
+        c2_cob_nskey_make(&nskey, &C2_COB_ROOT_FID, C2_COB_ROOT_NAME, 
                           strlen(C2_COB_ROOT_NAME));
 
         nsrec.cnr_omgid = 0;
@@ -405,7 +405,7 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
                           S_IRGRP | S_IXGRP |           /* r-x for group */
                           S_IROTH | S_IXOTH;            /* r-x for others */
 
-        c2_cob_make_fabrec(&fabrec, NULL, 0);
+        c2_cob_fabrec_make(&fabrec, NULL, 0);
 
         rc = c2_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
         c2_cob_put(cob);
@@ -424,7 +424,7 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
         if (rc)
                 return rc;
 
-        c2_cob_make_nskey(&nskey, &C2_COB_ROOT_FID, C2_COB_SESSIONS_NAME, 
+        c2_cob_nskey_make(&nskey, &C2_COB_ROOT_FID, C2_COB_SESSIONS_NAME, 
                           strlen(C2_COB_SESSIONS_NAME));
 
         nsrec.cnr_omgid = 0;
@@ -444,7 +444,7 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
                           S_IRGRP | S_IXGRP |           /* r-x for group */
                           S_IROTH | S_IXOTH;            /* r-x for others */
 
-        c2_cob_make_fabrec(&fabrec, NULL, 0);
+        c2_cob_fabrec_make(&fabrec, NULL, 0);
 	fabrec->cfb_version.vn_lsn = C2_LSN_RESERVED_NR + 2;
 	fabrec->cfb_version.vn_vc = 0;
 
@@ -645,10 +645,10 @@ static int cob_fab_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
                 return 0;
 
         fabkey.cfb_fid = *cob->co_fid;
-        c2_cob_make_fabrec_max(&cob->co_fabrec);
+        c2_cob_max_fabrec_make(&cob->co_fabrec);
         c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_basic,
 			 &fabkey, sizeof fabkey, cob->co_fabrec,
-			 c2_cob_fabrec_size_max());
+			 c2_cob_max_fabrec_size());
         rc = c2_table_lookup(tx, &pair);
         c2_db_pair_release(&pair);
         c2_db_pair_fini(&pair);
@@ -803,7 +803,7 @@ int c2_cob_iterator_init(struct c2_cob *cob,
         /*
          * Prepare entry key using passed started pos.
          */
-        c2_cob_make_nskey_max(&it->ci_key, cob->co_fid, 
+        c2_cob_max_nskey_make(&it->ci_key, cob->co_fid, 
                               c2_bitstring_buf_get(name),
                               c2_bitstring_len_get(name));
 
@@ -1204,7 +1204,7 @@ int c2_cob_add_name(struct c2_cob        *cob,
          * Add new name to object index table. Table insert should fail
          * if name already exists. 
          */
-        c2_cob_make_oikey(&oikey, &nsrec->cnr_fid, 
+        c2_cob_oikey_make(&oikey, &nsrec->cnr_fid, 
                           cob->co_nsrec.cnr_cntr);
 
         c2_db_pair_setup(&pair, &cob->co_dom->cd_object_index,
@@ -1269,7 +1269,7 @@ int c2_cob_del_name(struct c2_cob        *cob,
         /*
          * Let's also kill object index entry.
          */
-        c2_cob_make_oikey(&oikey, cob->co_fid, nsrec.cnr_linkno);
+        c2_cob_oikey_make(&oikey, cob->co_fid, nsrec.cnr_linkno);
         c2_db_pair_setup(&pair, &cob->co_dom->cd_object_index,
                          &oikey, sizeof oikey, NULL, 0);
         rc = c2_table_delete(tx, &pair);
@@ -1337,7 +1337,7 @@ int c2_cob_update_name(struct c2_cob        *cob,
                 goto out;
 
         /* Update object index */
-        c2_cob_make_oikey(&oikey, cob->co_fid, nsrec.cnr_linkno);
+        c2_cob_oikey_make(&oikey, cob->co_fid, nsrec.cnr_linkno);
         c2_db_pair_setup(&pair, &cob->co_dom->cd_object_index,
                          &oikey, sizeof oikey, tgtkey,
                          c2_cob_nskey_size(tgtkey));
@@ -1355,7 +1355,7 @@ int c2_cob_update_name(struct c2_cob        *cob,
         else if (cob->co_valid & CA_NSKEY_DB)
                 c2_db_pair_fini(&cob->co_oipair);
         cob->co_valid &= ~(CA_NSKEY_FREE | CA_NSKEY_DB);
-        c2_cob_make_nskey(&cob->co_nskey, &tgtkey->cnk_pfid,
+        c2_cob_nskey_make(&cob->co_nskey, &tgtkey->cnk_pfid,
                           c2_bitstring_buf_get(&tgtkey->cnk_name),
                           c2_bitstring_len_get(&tgtkey->cnk_name));
         cob->co_valid |= CA_NSKEY_FREE;

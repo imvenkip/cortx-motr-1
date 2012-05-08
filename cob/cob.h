@@ -471,7 +471,7 @@ int c2_cob_locate(struct c2_cob_domain    *dom,
    metadata table entries for it to enable namespace and oi lookup.
    
    cob    - cob instance allocted with c2_cob_alloc()
-   nskey  - namespace key made with c2_cob_make_nskey()
+   nskey  - namespace key made with c2_cob_nskey_make()
    nsrec  - namespace record with all attrbiutes set
    fabrec - symlink record
    omgrec - owner/mode/group record
@@ -588,7 +588,7 @@ void c2_cob_put(struct c2_cob *obj);
    It consists of object fid an linkno depending on what record we want to 
    find.
 */
-void c2_cob_make_oikey(struct c2_cob_oikey *oikey, 
+void c2_cob_oikey_make(struct c2_cob_oikey *oikey, 
                        const struct c2_fid *fid,
                        int linkno);
 
@@ -596,7 +596,7 @@ void c2_cob_make_oikey(struct c2_cob_oikey *oikey,
    Create namespace table key for ns table manipulation. It contains parent fid
    and child name.
 */
-void c2_cob_make_nskey(struct c2_cob_nskey **keyh, 
+void c2_cob_nskey_make(struct c2_cob_nskey **keyh, 
                        const struct c2_fid *pfid,
                        const char *name, 
                        int namelen);
@@ -605,7 +605,7 @@ void c2_cob_make_nskey(struct c2_cob_nskey **keyh,
    Allocate fabrec record according with @link and @linklen and setup record
    fields.
 */
-void c2_cob_make_fabrec(struct c2_cob_fabrec **rech,
+void c2_cob_fabrec_make(struct c2_cob_fabrec **rech,
                         const char *link, int linklen);
 
 /**

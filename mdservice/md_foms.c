@@ -47,7 +47,7 @@
 /**
    Make in-memory fid from wire fid (wid).
 */
-void c2_md_make_fid(struct c2_fid *fid, const struct c2_fop_fid *wid)
+void c2_md_fid_make(struct c2_fid *fid, const struct c2_fop_fid *wid)
 {
         fid->f_container = wid->f_seq;
         fid->f_key = wid->f_oid;
@@ -56,24 +56,24 @@ void c2_md_make_fid(struct c2_fid *fid, const struct c2_fop_fid *wid)
 /**
    Make nskey from passed parent fid and child name.
 */
-void c2_md_make_nskey(struct c2_cob_nskey **keyh, 
+void c2_md_nskey_make(struct c2_cob_nskey **keyh, 
                       const struct c2_fop_fid *fid,
                       struct c2_fop_str *name)
 {
         struct c2_fid cfid;
         
-        c2_md_make_fid(&cfid, fid);
-        c2_cob_make_nskey(keyh, &cfid, name->s_buf, name->s_len);
+        c2_md_fid_make(&cfid, fid);
+        c2_cob_nskey_make(keyh, &cfid, name->s_buf, name->s_len);
 }
 
 /**
    Make oikey from passed child fid and liunk number.
 */
-void c2_md_make_oikey(struct c2_cob_oikey *oikey, 
+void c2_md_oikey_make(struct c2_cob_oikey *oikey, 
                       const struct c2_fop_fid *fid,
                       int linkno)
 {
-        c2_md_make_fid(&oikey->cok_fid, fid);
+        c2_md_fid_make(&oikey->cok_fid, fid);
         oikey->cok_linkno = linkno;
 }
 
@@ -81,8 +81,8 @@ static void c2_md_fop_cob2attr(struct c2_cob_attr *attr,
                                struct c2_fop_cob *body)
 {
         C2_SET0(attr);
-        c2_md_make_fid(&attr->ca_pfid, &body->b_pfid);
-        c2_md_make_fid(&attr->ca_tfid, &body->b_tfid);
+        c2_md_fid_make(&attr->ca_pfid, &body->b_pfid);
+        c2_md_fid_make(&attr->ca_tfid, &body->b_tfid);
         attr->ca_flags = body->b_valid;
         if (body->b_valid & C2_COB_MODE)
                 attr->ca_mode = body->b_mode;
@@ -232,8 +232,8 @@ static int c2_md_create_fom_state(struct c2_fom *fom)
         if (S_ISLNK(attr.ca_mode))
                 attr.ca_link = req->c_target.s_buf;
 
-        c2_md_make_fid(&pfid, &body->b_pfid);
-        c2_md_make_fid(&tfid, &body->b_tfid);
+        c2_md_fid_make(&pfid, &body->b_pfid);
+        c2_md_fid_make(&tfid, &body->b_tfid);
 
         c2_fom_block_enter(fom);
         rc = c2_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &pfid, &tfid,
@@ -298,8 +298,8 @@ static int c2_md_link_fom_state(struct c2_fom *fom)
         attr.ca_name = req->l_name.s_buf;
         attr.ca_namelen = req->l_name.s_len;
 
-        c2_md_make_fid(&pfid, &body->b_pfid);
-        c2_md_make_fid(&tfid, &body->b_tfid);
+        c2_md_fid_make(&pfid, &body->b_pfid);
+        c2_md_fid_make(&tfid, &body->b_tfid);
 
         c2_fom_block_enter(fom);
         rc = c2_md_create(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &pfid, &tfid,
@@ -370,8 +370,8 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
         attr.ca_name = req->u_name.s_buf;
         attr.ca_namelen = req->u_name.s_len;
 
-        c2_md_make_fid(&pfid, &body->b_pfid);
-        c2_md_make_fid(&tfid, &body->b_tfid);
+        c2_md_fid_make(&pfid, &body->b_pfid);
+        c2_md_fid_make(&tfid, &body->b_tfid);
 
         c2_fom_block_enter(fom);
         rc = c2_md_store_locate(md, &tfid, &scob, 
@@ -492,11 +492,11 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
         sbody = &req->r_sbody;
         tbody = &req->r_tbody;
 
-        c2_md_make_fid(&pfid_src, &sbody->b_pfid);
-        c2_md_make_fid(&pfid_tgt, &tbody->b_pfid);
+        c2_md_fid_make(&pfid_src, &sbody->b_pfid);
+        c2_md_fid_make(&pfid_tgt, &tbody->b_pfid);
 
-        c2_md_make_fid(&tfid_src, &sbody->b_tfid);
-        c2_md_make_fid(&tfid_tgt, &tbody->b_tfid);
+        c2_md_fid_make(&tfid_src, &sbody->b_tfid);
+        c2_md_fid_make(&tfid_tgt, &tbody->b_tfid);
 
         c2_md_fop_cob2attr(&tattr, tbody);
         tattr.ca_name = req->r_tname.s_buf;
@@ -586,7 +586,7 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
         body = &req->o_body;
         c2_md_fop_cob2attr(&attr, body);
 
-        c2_md_make_fid(&fid, &body->b_tfid);
+        c2_md_fid_make(&fid, &body->b_tfid);
 
         c2_fom_block_enter(fom);
         rc = c2_md_store_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob, 
@@ -675,7 +675,7 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
         body = &req->c_body;
         c2_md_fop_cob2attr(&attr, body);
 
-        c2_md_make_fid(&fid, &body->b_tfid);
+        c2_md_fid_make(&fid, &body->b_tfid);
 
         c2_fom_block_enter(fom);
         /*
@@ -762,7 +762,7 @@ static int c2_md_setattr_fom_state(struct c2_fom *fom)
         body = &req->s_body;
         c2_md_fop_cob2attr(&attr, body);
 
-        c2_md_make_fid(&fid, &body->b_tfid);
+        c2_md_fid_make(&fid, &body->b_tfid);
 
         c2_fom_block_enter(fom);
 
@@ -837,7 +837,7 @@ static int c2_md_getattr_fom_state(struct c2_fom *fom)
         ctx = fom->fo_fop_ctx;
         C2_ASSERT(ctx != NULL);
 
-        c2_md_make_fid(&fid, &body->b_tfid);
+        c2_md_fid_make(&fid, &body->b_tfid);
 
         c2_fom_block_enter(fom);
         rc = c2_md_store_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob, 
@@ -911,7 +911,7 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
                 goto out;
 
         body = &req->r_body;
-        c2_md_make_fid(&fid, &body->b_tfid);
+        c2_md_fid_make(&fid, &body->b_tfid);
 
         c2_fom_block_enter(fom);
         rc = c2_md_store_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob, 
@@ -1001,7 +1001,7 @@ static int c2_md_req_path_get(struct c2_md_store *mdstore,
 static inline struct c2_fid *c2_md_fid_get(struct c2_fop_fid *fid)
 {
         static struct c2_fid fid_fop2mem;
-        c2_md_make_fid(&fid_fop2mem, fid);
+        c2_md_fid_make(&fid_fop2mem, fid);
         return &fid_fop2mem;
 }
 

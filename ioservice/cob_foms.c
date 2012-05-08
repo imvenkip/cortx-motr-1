@@ -305,7 +305,7 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
         rc = c2_cob_alloc(cdom, &cob);
         if (rc)
                 return rc;
-	c2_cob_make_nskey(&nskey, &cc->fco_cfid, fop->cc_cobname.cn_name,
+	c2_cob_nskey_make(&nskey, &cc->fco_cfid, fop->cc_cobname.cn_name,
 	                  fop->cc_cobname.cn_count);
 	if (nskey == NULL) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
@@ -317,7 +317,7 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
         io_fom_cob_rw_stob2fid_map(&cc->fco_stobid, &nsrec.cnr_fid);
 	nsrec.cnr_nlink = CC_COB_HARDLINK_NR;
 
-        c2_cob_make_fabrec(&fabrec, NULL, 0); 
+        c2_cob_fabrec_make(&fabrec, NULL, 0); 
 	fabrec->cfb_version.vn_lsn = c2_fol_lsn_allocate(fom->fo_fol);
 	fabrec->cfb_version.vn_vc = CC_COB_VERSION_INIT;
 
@@ -467,7 +467,7 @@ static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 	C2_ASSERT(cdom != NULL);
 
         io_fom_cob_rw_stob2fid_map(&cd->fco_stobid, &fid);
-        c2_cob_make_oikey(&oikey, &fid, 0);
+        c2_cob_oikey_make(&oikey, &fid, 0);
 	rc = c2_cob_locate(cdom, &oikey, &cob, &fom->fo_tx.tx_dbtx);
 	if (rc != 0) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,

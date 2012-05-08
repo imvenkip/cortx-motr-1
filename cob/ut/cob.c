@@ -100,7 +100,7 @@ static void test_create(void)
         /* pfid, filename */
         pfid.f_container = 0x123;
         pfid.f_key = 0x456;
-        c2_cob_make_nskey(&key, &pfid, test_name, strlen(test_name));
+        c2_cob_nskey_make(&key, &pfid, test_name, strlen(test_name));
 
         nsrec.cnr_fid.f_container = 0xabc;
         nsrec.cnr_fid.f_key = 0xdef;
@@ -110,7 +110,7 @@ static void test_create(void)
         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
         rc = c2_cob_alloc(&dom, &cob);
         C2_UT_ASSERT(rc == 0);
-        c2_cob_make_fabrec(&fabrec, NULL, 0);
+        c2_cob_fabrec_make(&fabrec, NULL, 0);
 	rc = c2_cob_create(cob, key, &nsrec, fabrec, &omgrec, &tx);
 	C2_UT_ASSERT(rc == 0);
 
@@ -137,12 +137,12 @@ static void test_add_name(void)
         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
 
         /* lookup for cob created before using @test_name. */
-        c2_cob_make_nskey(&nskey, &pfid, test_name, strlen(test_name));
+        c2_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
         rc = c2_cob_lookup(&dom, nskey, CA_NSKEY_FREE, &cob, &tx);
         C2_UT_ASSERT(rc == 0);
 
         /* add new name to existing cob */
-        c2_cob_make_nskey(&nskey, &pfid, add_name, strlen(add_name));
+        c2_cob_nskey_make(&nskey, &pfid, add_name, strlen(add_name));
         cob->co_nsrec.cnr_linkno = cob->co_nsrec.cnr_cntr;
         rc = c2_cob_add_name(cob, nskey, &cob->co_nsrec, &tx);
         C2_UT_ASSERT(rc == 0);
@@ -155,7 +155,7 @@ static void test_add_name(void)
         c2_free(nskey);
 
         /* lookup for wrong name, should fail. */
-        c2_cob_make_nskey(&nskey, &pfid, wrong_name, strlen(wrong_name));
+        c2_cob_nskey_make(&nskey, &pfid, wrong_name, strlen(wrong_name));
         rc = c2_cob_lookup(&dom, nskey, 0, &cob, &tx);
         C2_UT_ASSERT(rc != 0);
         c2_free(nskey);
@@ -179,12 +179,12 @@ static void test_del_name(void)
         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
 
         /* lookup for cob created before using @test_name. */
-        c2_cob_make_nskey(&nskey, &pfid, test_name, strlen(test_name));
+        c2_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
         rc = c2_cob_lookup(&dom, nskey, CA_NSKEY_FREE, &cob, &tx);
         C2_UT_ASSERT(rc == 0);
 
         /* del name that we created in prev test */
-        c2_cob_make_nskey(&nskey, &pfid, add_name, strlen(add_name));
+        c2_cob_nskey_make(&nskey, &pfid, add_name, strlen(add_name));
         rc = c2_cob_del_name(cob, nskey, &tx);
         C2_UT_ASSERT(rc == 0);
         c2_cob_put(cob);
@@ -208,7 +208,7 @@ static void test_lookup(void)
 
         pfid.f_container = 0x123;
         pfid.f_key = 0x456;
-        c2_cob_make_nskey(&nskey, &pfid, test_name, strlen(test_name));
+        c2_cob_nskey_make(&nskey, &pfid, test_name, strlen(test_name));
         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
         rc = c2_cob_lookup(&dom, nskey, CA_NSKEY_FREE, &cob, &tx);
         c2_db_tx_commit(&tx);
@@ -362,7 +362,7 @@ static void ub_create(int i)
            uniquely in the namespace by {pfid, ""} */
         fid.f_container = 0xAA;
         fid.f_key = i;
-        c2_cob_make_nskey(&key, &fid, "", 0);
+        c2_cob_nskey_make(&key, &fid, "", 0);
 
         nsrec.cnr_fid.f_container = 0xAA;
         nsrec.cnr_fid.f_key = i;
@@ -371,7 +371,7 @@ static void ub_create(int i)
         rc = c2_cob_alloc(&dom, &cob);
         C2_UT_ASSERT(rc == 0);
 
-        c2_cob_make_fabrec(&fabrec, NULL, 0);
+        c2_cob_fabrec_make(&fabrec, NULL, 0);
 	rc = c2_cob_create(cob, key, &nsrec, fabrec, &omgrec, &cob_ub_tx);
 	C2_UB_ASSERT(rc == 0);
 
@@ -388,7 +388,7 @@ static void ub_lookup(int i)
         /* pfid == cfid for data objects */
         fid.f_container = 0xAA;
         fid.f_key = i;
-        c2_cob_make_nskey(&key, &fid, "", 0);
+        c2_cob_nskey_make(&key, &fid, "", 0);
         rc = c2_cob_lookup(&dom, key, CA_NSKEY_FREE, &cob, &cob_ub_tx);
         C2_UB_ASSERT(rc == 0);
         C2_UB_ASSERT(cob != NULL);

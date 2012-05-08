@@ -722,7 +722,7 @@ static void cob_verify(struct c2_fom *fom, const bool exists)
 	cobdom = &fom->fo_loc->fl_dom->fd_reqh->rh_mdstore->md_dom;
 	dbenv = fom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
 
-	c2_cob_make_nskey(&nskey, &fid, test_cobname, strlen(test_cobname));
+	c2_cob_nskey_make(&nskey, &fid, test_cobname, strlen(test_cobname));
 
 	C2_SET0(&tx);
 	rc = c2_db_tx_init(&tx, dbenv, 0);
