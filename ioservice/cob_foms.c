@@ -203,7 +203,7 @@ static void cob_fom_populate(struct c2_fom *fom)
 	io_fom_cob_rw_fid2stob_map(&cfom->fco_cfid, &cfom->fco_stobid);
 }
 
-static int cc_fom_state(struct c2_fom *fom)
+static int cc_fom_state_internal(struct c2_fom *fom, bool block)
 {
 	int                          rc;
 	struct c2_fom_cob_op        *cc;
@@ -221,17 +221,27 @@ static int cc_fom_state(struct c2_fom *fom)
 	if (fom->fo_phase == C2_FOPH_CC_COB_CREATE) {
 		cc = cob_fom_get(fom);
 
-		rc = cc_stob_create(fom, cc);
-		if (rc != 0)
-			goto out;
+                if (block)
+                        c2_fom_block_enter(fom);
 
-                c2_fom_block_enter(fom);
-		rc = cc_cob_create(fom, cc);
-                c2_fom_block_leave(fom);
-		if (rc != 0)
+		rc = cc_stob_create(fom, cc);
+		if (rc != 0) {
+		        if (block)
+                                c2_fom_block_leave(fom);
 			goto out;
+	        }
+
+		rc = cc_cob_create(fom, cc);
+		if (rc != 0) {
+		        if (block)
+                                c2_fom_block_leave(fom);
+			goto out;
+	        }
 
 		rc = cc_cobfid_map_add(fom, cc);
+
+		if (block)
+                        c2_fom_block_leave(fom);
 	} else
 		C2_IMPOSSIBLE("Invalid phase for cob create fom.");
 
@@ -242,6 +252,11 @@ out:
 	fom->fo_rc = rc;
 	fom->fo_phase = (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
 	return C2_FSO_AGAIN;
+}
+
+static int cc_fom_state(struct c2_fom *fom)
+{
+	return cc_fom_state_internal(fom, true);
 }
 
 static int cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
@@ -383,7 +398,12 @@ static void cd_fom_fini(struct c2_fom *fom)
 	c2_free(cfom);
 }
 
-static int cd_fom_state(struct c2_fom *fom)
+/**
+   We use this function both from fom_exec abd testing threads. It is not
+   allowed to use c2_fom_block_enter/c2_fom_block_leave wihtout group lock,
+   hence from cunit tests. 
+ */
+static int cd_fom_state_internal(struct c2_fom *fom, bool block)
 {
 	int                         rc;
 	struct c2_fom_cob_op       *cd;
@@ -401,15 +421,25 @@ static int cd_fom_state(struct c2_fom *fom)
 	if (fom->fo_phase == C2_FOPH_CD_COB_DEL) {
 		cd = cob_fom_get(fom);
 
+                if (block)
+                        c2_fom_block_enter(fom);
 		rc = cd_cob_delete(fom, cd);
-		if (rc != 0)
+		if (rc != 0) {
+		        if (block)
+                                c2_fom_block_leave(fom);
 			goto out;
+	        }
 
 		rc = cd_stob_delete(fom, cd);
-		if (rc != 0)
+		if (rc != 0) {
+		        if (block)
+                                c2_fom_block_leave(fom);
 			goto out;
+	        }
 
 		rc = cd_cobfid_map_delete(fom, cd);
+		if (block)
+                        c2_fom_block_leave(fom);
 	} else
 		C2_IMPOSSIBLE("Invalid phase for cob delete fom.");
 
@@ -420,6 +450,11 @@ out:
 	fom->fo_rc = rc;
 	fom->fo_phase = (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
 	return C2_FSO_AGAIN;
+}
+
+static int cd_fom_state(struct c2_fom *fom)
+{
+	return cd_fom_state_internal(fom, true);
 }
 
 static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
@@ -436,7 +471,6 @@ static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 	cdom = &fom->fo_loc->fl_dom->fd_reqh->rh_mdstore->md_dom;
 	C2_ASSERT(cdom != NULL);
 
-        c2_fom_block_enter(fom);
         io_fom_cob_rw_stob2fid_map(&cd->fco_stobid, &fid);
         c2_cob_make_oikey(&oikey, &fid, 0);
 	rc = c2_cob_locate(cdom, &oikey, &cob, &fom->fo_tx.tx_dbtx);
@@ -444,7 +478,6 @@ static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
 			    cd_fom_func_fail,
 			    "c2_cob_locate() failed.", rc);
-                c2_fom_block_leave(fom);
 		return rc;
 	}
 	C2_ASSERT(cob != NULL);
@@ -457,7 +490,6 @@ static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    c2_addb_trace, "Cob deleted successfully.");
 
-        c2_fom_block_leave(fom);
 	return rc;
 }
 

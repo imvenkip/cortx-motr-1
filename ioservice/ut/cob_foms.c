@@ -736,7 +736,8 @@ static void cob_verify(struct c2_fom *fom, const bool exists)
 		C2_UT_ASSERT(test_cob->co_valid & CA_NSREC);
 	} else
 		C2_UT_ASSERT(rc == -ENOENT);
-	c2_free(nskey);
+        if (rc != 0)
+	        c2_free(nskey);
 }
 
 /*
@@ -866,7 +867,7 @@ static void cc_cobfid_map_add_test()
 	rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = cd_fom_state(dfom);
+	rc = cd_fom_state_internal(dfom, false);
 	C2_UT_ASSERT(rc == C2_FSO_AGAIN);
 	C2_UT_ASSERT(dfom->fo_phase == C2_FOPH_SUCCESS);
 
@@ -893,7 +894,7 @@ static void cc_fom_state_test()
 	dbenv = cfom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
 	rc = c2_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
-	rc = cc_fom_state(cfom);
+	rc = cc_fom_state_internal(cfom, false);
 	c2_db_tx_commit(&cfom->fo_tx.tx_dbtx);
 
 	C2_UT_ASSERT(rc == C2_FSO_AGAIN);
@@ -918,7 +919,7 @@ static void cc_fom_state_test()
 	rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = cd_fom_state(dfom);
+	rc = cd_fom_state_internal(dfom, false);
 	C2_UT_ASSERT(rc == C2_FSO_AGAIN);
 	C2_UT_ASSERT(dfom->fo_phase == C2_FOPH_SUCCESS);
 
@@ -1042,7 +1043,7 @@ static struct c2_fom *cob_testdata_create()
 	rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = cc_fom_state(fom);
+	rc = cc_fom_state_internal(fom, false);
 	c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
 
 	C2_UT_ASSERT(rc == C2_FSO_AGAIN);
@@ -1238,7 +1239,7 @@ static void cd_fom_state_test()
 	rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = cd_fom_state(dfom);
+	rc = cd_fom_state_internal(dfom, false);
 	c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
 
 	C2_UT_ASSERT(dfom->fo_phase == C2_FOPH_SUCCESS);
