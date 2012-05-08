@@ -468,7 +468,7 @@ static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 
         io_fom_cob_rw_stob2fid_map(&cd->fco_stobid, &fid);
         c2_cob_oikey_make(&oikey, &fid, 0);
-	rc = c2_cob_locate(cdom, &oikey, &cob, &fom->fo_tx.tx_dbtx);
+	rc = c2_cob_locate(cdom, &oikey, 0, &cob, &fom->fo_tx.tx_dbtx);
 	if (rc != 0) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
 			    cd_fom_func_fail,

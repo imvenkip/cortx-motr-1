@@ -277,7 +277,7 @@ int c2_md_store_unlink(struct c2_md_store       *md,
                         c2_cob_oikey_make(&oikey, cob->co_fid, 
                                           cob->co_nsrec.cnr_linkno + 1);
                 
-                        rc = c2_cob_locate(&md->md_dom, &oikey, &ncob, tx);
+                        rc = c2_cob_locate(&md->md_dom, &oikey, 0, &ncob, tx);
                         if (rc) {
                                 c2_free(nskey);
                                 goto out;
@@ -681,7 +681,8 @@ int c2_md_store_locate(struct c2_md_store       *md,
         c2_cob_oikey_make(&oikey, fid, 0);
 
         if (flags == C2_MD_LOCATE_STORED) {
-                rc = c2_cob_locate(&md->md_dom, &oikey, cob, tx);
+                rc = c2_cob_locate(&md->md_dom, &oikey,
+                                   (CA_FABREC | CA_OMGREC), cob, tx);
         } else {
                 /*
                  * @todo: locate cob in opened cobs table.

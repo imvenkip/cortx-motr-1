@@ -117,6 +117,7 @@ int c2_cob_nskey_size(const struct c2_cob_nskey *cnk)
                 c2_bitstring_len_get(&cnk->cnk_name);
 }
 
+/** Fabrec size taking into account symlink length. */
 static int c2_cob_fabrec_size(const struct c2_cob_fabrec *rec)
 {
         return sizeof *rec + rec->cfb_linklen;
@@ -135,11 +136,13 @@ void c2_cob_fabrec_make(struct c2_cob_fabrec **rech,
         *rech = rec;
 }
 
+/** Maximal possible fabrec size. */
 static int c2_cob_max_fabrec_size(void)
 {
         return sizeof(struct c2_cob_fabrec) + C2_COB_NAME_MAX;
 }
 
+/** Allocate memory for maximal possible size of fabrec. */
 static void c2_cob_max_fabrec_make(struct c2_cob_fabrec **rech)
 {
         struct c2_cob_fabrec *rec;
@@ -178,8 +181,8 @@ static int c2_cob_nskey_size_max(const struct c2_cob_nskey *cnk)
         return sizeof *cnk + C2_COB_NAME_MAX;
 }
 
-/** 
-   Namespace table definition
+/**
+   Namespace table definition.
 */
 static int ns_cmp(struct c2_table *table, const void *key0, const void *key1)
 {
@@ -199,7 +202,7 @@ static const struct c2_table_ops cob_ns_ops = {
 	.key_cmp = ns_cmp
 };
 
-/** 
+/**
    Object index table definition. 
 */
 static int oi_cmp(struct c2_table *table, const void *key0, const void *key1)
@@ -524,7 +527,7 @@ static int cob_ns_lookup(struct c2_cob *cob, struct c2_db_tx *tx);
 static int cob_oi_lookup(struct c2_cob *cob, struct c2_db_tx *tx);
 static int cob_fab_lookup(struct c2_cob *cob, struct c2_db_tx *tx);
 
-/** 
+/**
    Search for a record in the namespace table
 
    If the lookup fails, we return error and co_valid accurately reflects
@@ -629,7 +632,7 @@ static int cob_oi_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
         return 0;
 }
 
-/** 
+/**
    Search for a record in the fileattr_basic table.
 
    @see cob_ns_lookup
@@ -661,7 +664,7 @@ static int cob_fab_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
         return rc;
 }
 
-/** 
+/**
    Search for a record in the fileattr_omg table.
    @see cob_fab_lookup
  */
@@ -690,6 +693,28 @@ static int cob_omg_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
         return rc;
 }
 
+static int c2_cob_get_fabomg(struct c2_cob *cob, uint64_t need,
+                             struct c2_db_tx *tx)
+{
+        int rc = 0;
+        
+        if (need & CA_FABREC) {
+                rc = cob_fab_lookup(cob, tx);
+                if (rc != 0)
+                        return rc;
+        }
+
+        /*
+         * Get omg attributes as well if we need it.
+         */
+        if (need & CA_OMGREC) {
+                rc = cob_omg_lookup(cob, tx);
+                if (rc != 0)
+                        return rc;
+        }
+        return rc;
+}
+
 int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
                   uint64_t need, struct c2_cob **out, struct c2_db_tx *tx)
 {
@@ -715,39 +740,18 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
                 return rc;
         }
 
-        /*
-         * Get the fabrec here too if needed.  co_valid will be set
-         * correctly inside the call so we can ignore the return code. 
-         */
-        if (need & CA_FABREC) {
-                rc = cob_fab_lookup(cob, tx);
-                if (rc != 0) {
-                        c2_cob_put(cob);
-                        return rc;
-                }
-        }
-
-        /*
-         * Get omg attributes as well if we need it.
-         */
-        if (need & CA_OMGREC) {
-                rc = cob_omg_lookup(cob, tx);
-                if (rc != 0) {
-                        c2_cob_put(cob);
-                        return rc;
-                }
+        rc = c2_cob_get_fabomg(cob, need, tx);
+        if (rc != 0) {
+                c2_cob_put(cob);
+                return rc;
         }
 
         *out = cob;
 	return rc;
 }
 
-/**
-   Locate cob by object index key and populate all of its records.
-   This lookup adds a reference to the cob.
- */
 int c2_cob_locate(struct c2_cob_domain *dom, struct c2_cob_oikey *oikey,
-                  struct c2_cob **out, struct c2_db_tx *tx)
+                  uint64_t need, struct c2_cob **out, struct c2_db_tx *tx)
 {
         struct c2_cob *cob;
         int rc;
@@ -778,12 +782,8 @@ int c2_cob_locate(struct c2_cob_domain *dom, struct c2_cob_oikey *oikey,
                 c2_cob_put(cob);
                 return rc;
         }
-        rc = cob_fab_lookup(cob, tx);
-        if (rc != 0) {
-                c2_cob_put(cob);
-                return rc;
-        }
-        rc = cob_omg_lookup(cob, tx);
+        
+        rc = c2_cob_get_fabomg(cob, need, tx);
         if (rc != 0) {
                 c2_cob_put(cob);
                 return rc;
@@ -877,7 +877,7 @@ void c2_cob_iterator_fini(struct c2_cob_iterator *it)
         c2_free(it->ci_key);
 }
 
-/** 
+/**
    For assertions only.
  */
 static bool c2_cob_is_valid(struct c2_cob *cob)

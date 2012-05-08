@@ -238,7 +238,7 @@ static int test_locate_internal(void)
         oikey.cok_linkno = 0;
 
         c2_db_tx_init(&tx, dom.cd_dbenv, 0);
-        rc = c2_cob_locate(&dom, &oikey, &cob, &tx);
+        rc = c2_cob_locate(&dom, &oikey, 0, &cob, &tx);
         c2_db_tx_commit(&tx);
 
         return rc;

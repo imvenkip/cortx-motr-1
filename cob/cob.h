@@ -454,14 +454,15 @@ int c2_cob_lookup(struct c2_cob_domain *dom,
    Locate by object index key.
 
    Create a new cob and populate it with the contents of the
-   oi record; i.e. the filename. This also lookups for all attributes,
-   that is, fab, omg, etc.
+   a record; i.e. the filename. This also lookups for all attributes,
+   that is, fab, omg, etc., according to @need flags.
 
    @see c2_cob_lookup
  */
 int c2_cob_locate(struct c2_cob_domain    *dom, 
                   struct c2_cob_oikey     *oikey,
-                  struct c2_cob          **out, 
+                  uint64_t                 need,
+                  struct c2_cob          **out,
                   struct c2_db_tx         *tx);
 
 /**
