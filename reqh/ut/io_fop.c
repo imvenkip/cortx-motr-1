@@ -146,13 +146,41 @@ struct c2_stob_io_fom {
 	struct c2_stob_io		 sif_stio;
 };
 
-/**
- * Fom type operations structures for corresponding foms.
- */
 static int stob_create_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static int stob_read_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static int stob_write_fom_create(struct c2_fop *fop, struct c2_fom **out);
 
+static int stob_create_fom_state(struct c2_fom *fom);
+static int stob_read_fom_state(struct c2_fom *fom);
+static int stob_write_fom_state(struct c2_fom *fom);
+
+static void stob_io_fom_fini(struct c2_fom *fom);
+static size_t stob_find_fom_home_locality(const struct c2_fom *fom);
+
+/**
+ * Operation structures for respective foms
+ */
+static struct c2_fom_ops stob_create_fom_ops = {
+	.fo_fini = stob_io_fom_fini,
+	.fo_state = stob_create_fom_state,
+	.fo_home_locality = stob_find_fom_home_locality,
+};
+
+static struct c2_fom_ops stob_write_fom_ops = {
+	.fo_fini = stob_io_fom_fini,
+	.fo_state = stob_write_fom_state,
+	.fo_home_locality = stob_find_fom_home_locality,
+};
+
+static struct c2_fom_ops stob_read_fom_ops = {
+	.fo_fini = stob_io_fom_fini,
+	.fo_state = stob_read_fom_state,
+	.fo_home_locality = stob_find_fom_home_locality,
+};
+
+/**
+ * Fom type operations structures for corresponding foms.
+ */
 static const struct c2_fom_type_ops stob_create_fom_type_ops = {
 	.fto_create = stob_create_fom_create,
 };
@@ -181,34 +209,6 @@ static struct c2_fom_type *stob_fom_types[] = {
 	&stob_create_fom_mopt,
 	&stob_write_fom_mopt,
 	&stob_read_fom_mopt,
-};
-
-static int stob_create_fom_state(struct c2_fom *fom);
-static int stob_read_fom_state(struct c2_fom *fom);
-static int stob_write_fom_state(struct c2_fom *fom);
-
-static void stob_io_fom_fini(struct c2_fom *fom);
-static size_t stob_find_fom_home_locality(const struct c2_fom *fom);
-
-/**
- * Operation structures for respective foms
- */
-static struct c2_fom_ops stob_create_fom_ops = {
-	.fo_fini = stob_io_fom_fini,
-	.fo_state = stob_create_fom_state,
-	.fo_home_locality = stob_find_fom_home_locality,
-};
-
-static struct c2_fom_ops stob_write_fom_ops = {
-	.fo_fini = stob_io_fom_fini,
-	.fo_state = stob_write_fom_state,
-	.fo_home_locality = stob_find_fom_home_locality,
-};
-
-static struct c2_fom_ops stob_read_fom_ops = {
-	.fo_fini = stob_io_fom_fini,
-	.fo_state = stob_read_fom_state,
-	.fo_home_locality = stob_find_fom_home_locality,
 };
 
 /**

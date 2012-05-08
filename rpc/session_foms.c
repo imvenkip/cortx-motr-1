@@ -137,7 +137,7 @@ const struct c2_fom_ops c2_rpc_fom_conn_establish_ops = {
 	.fo_home_locality = c2_rpc_session_default_home_locality
 };
 
-struct c2_fom_type_ops c2_rpc_fom_conn_establish_type_ops = {
+static struct c2_fom_type_ops c2_rpc_fom_conn_establish_type_ops = {
 	.fto_create = session_gen_fom_create
 };
 
@@ -300,7 +300,7 @@ const struct c2_fom_ops c2_rpc_fom_session_establish_ops = {
 	.fo_home_locality = c2_rpc_session_default_home_locality
 };
 
-struct c2_fom_type_ops c2_rpc_fom_session_establish_type_ops = {
+static struct c2_fom_type_ops c2_rpc_fom_session_establish_type_ops = {
 	.fto_create = session_gen_fom_create
 };
 
@@ -392,7 +392,7 @@ const struct c2_fom_ops c2_rpc_fom_session_terminate_ops = {
 	.fo_home_locality = c2_rpc_session_default_home_locality
 };
 
-struct c2_fom_type_ops c2_rpc_fom_session_terminate_type_ops = {
+static struct c2_fom_type_ops c2_rpc_fom_session_terminate_type_ops = {
 	.fto_create = session_gen_fom_create
 };
 
@@ -480,7 +480,7 @@ const struct c2_fom_ops c2_rpc_fom_conn_terminate_ops = {
 	.fo_home_locality = c2_rpc_session_default_home_locality
 };
 
-struct c2_fom_type_ops c2_rpc_fom_conn_terminate_type_ops = {
+static struct c2_fom_type_ops c2_rpc_fom_conn_terminate_type_ops = {
 	.fto_create = session_gen_fom_create
 };
 

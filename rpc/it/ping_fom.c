@@ -46,13 +46,13 @@ struct c2_fom_ops c2_fom_ping_ops = {
 };
 
 /** FOM type specific functions for ping FOP. */
-const struct c2_fom_type_ops c2_fom_ping_type_ops = {
+static const struct c2_fom_type_ops c2_fom_ping_type_ops = {
 	.fto_create = ping_fop_fom_create
 };
 
 /** Ping specific FOM type operations vector. */
 struct c2_fom_type c2_fom_ping_mopt = {
-        .ft_ops = &c2_fom_ping_type_ops
+        .ft_ops = &c2_fom_ping_type_ops,
 };
 
 size_t c2_fom_ping_home_locality(const struct c2_fom *fom)
@@ -89,14 +89,14 @@ int c2_fom_ping_state(struct c2_fom *fom)
 /* Init for ping */
 static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
 {
-        struct c2_fom	   *fom;
-        struct c2_fom_ping *fom_obj;
-	struct c2_fom_type *fom_type;
+        struct c2_fom                   *fom;
+        struct c2_fom_ping              *fom_obj;
+        struct c2_fom_type              *fom_type;
 
         C2_PRE(fop != NULL);
         C2_PRE(m != NULL);
 
-	C2_ALLOC_PTR(fom_obj);
+	fom_obj= c2_alloc(sizeof(struct c2_fom_ping));
         if (fom_obj == NULL)
                 return -ENOMEM;
         fom_type = &c2_fom_ping_mopt;

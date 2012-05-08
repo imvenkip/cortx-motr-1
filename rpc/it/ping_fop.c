@@ -77,6 +77,8 @@ void c2_ping_fop_fini(void)
         c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
 }
 
+extern struct c2_fom_type c2_fom_ping_mopt;
+
 int c2_ping_fop_init(void)
 {
         int result;

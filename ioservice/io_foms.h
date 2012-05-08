@@ -230,8 +230,6 @@ struct c2_io_fom_cob_rw_state_transition {
         const char *fcrw_st_desc;
 };
 
-extern const struct c2_fom_type_ops c2_io_cob_rw_type_ops;
-
 /**
  * Returns string representing ioservice name given a fom.
  */
