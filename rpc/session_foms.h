@@ -50,7 +50,7 @@ enum c2_rpc_fom_conn_establish_phase {
 	C2_FOPH_CONN_ESTABLISHING = C2_FOPH_NR + 1
 };
 
-extern struct c2_fom_type      c2_rpc_fom_conn_establish_type;
+extern struct c2_fom_type c2_rpc_fom_conn_establish_type;
 extern const struct c2_fom_ops c2_rpc_fom_conn_establish_ops;
 
 size_t c2_rpc_session_default_home_locality(const struct c2_fom *fom);
@@ -65,7 +65,7 @@ enum c2_rpc_fom_session_establish_phase {
 	C2_FOPH_SESSION_ESTABLISHING = C2_FOPH_NR + 1
 };
 
-extern struct c2_fom_type      c2_rpc_fom_session_establish_type;
+extern struct c2_fom_type c2_rpc_fom_session_establish_type;
 extern const struct c2_fom_ops c2_rpc_fom_session_establish_ops;
 
 int c2_rpc_fom_session_establish_state(struct c2_fom *fom);
@@ -79,7 +79,7 @@ enum c2_rpc_fom_session_terminate_phase {
 	C2_FOPH_SESSION_TERMINATING = C2_FOPH_NR + 1
 };
 
-extern struct c2_fom_type      c2_rpc_fom_session_terminate_type;
+extern struct c2_fom_type c2_rpc_fom_session_terminate_type;
 extern const struct c2_fom_ops c2_rpc_fom_session_terminate_ops;
 
 int c2_rpc_fom_session_terminate_state(struct c2_fom *fom);
@@ -93,7 +93,7 @@ enum c2_rpc_fom_conn_terminate_phase {
 	C2_FOPH_CONN_TERMINATING = C2_FOPH_NR + 1
 };
 
-extern struct c2_fom_type      c2_rpc_fom_conn_terminate_type;
+extern struct c2_fom_type c2_rpc_fom_conn_terminate_type;
 extern const struct c2_fom_ops c2_rpc_fom_conn_terminate_ops;
 
 int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom);

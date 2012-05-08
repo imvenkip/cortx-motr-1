@@ -83,7 +83,7 @@ static struct c2_fom_ops cc_fom_ops = {
 };
 
 /** Common fom_type_ops for c2_fop_cob_create and c2_fop_cob_delete fops. */
-const struct c2_fom_type_ops cob_fom_type_ops = {
+static const struct c2_fom_type_ops cob_fom_type_ops = {
 	.fto_create = cob_fom_create,
 };
 

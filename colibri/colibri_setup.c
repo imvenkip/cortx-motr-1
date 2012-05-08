@@ -1158,6 +1158,7 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 		C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
 			    "c2_dbenv_init", rc);
 		goto out;
+	}
 	rc = c2_cs_storage_init(rctx->rc_stype, rctx->rc_stpath, &rctx->rc_stob,
 				&rctx->rc_db, addb);
 	if (rc != 0) {

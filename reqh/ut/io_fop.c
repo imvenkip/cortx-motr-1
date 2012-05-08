@@ -92,14 +92,14 @@ static const struct c2_fop_type_ops default_rep_fop_ops = {
  * Fop type declarations for corresponding fops
  */
 C2_FOP_TYPE_DECLARE(c2_stob_io_create, "stob_create", &default_fop_ops,
-                   C2_STOB_IO_CREATE_REQ_OPCODE,
-                   C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
+		    C2_STOB_IO_CREATE_REQ_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
 C2_FOP_TYPE_DECLARE(c2_stob_io_read, "stob_read", &default_fop_ops,
-                   C2_STOB_IO_READ_REQ_OPCODE,
-                   C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
+		    C2_STOB_IO_READ_REQ_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
 C2_FOP_TYPE_DECLARE(c2_stob_io_write, "stob_write", &default_fop_ops,
-                   C2_STOB_IO_WRITE_REQ_OPCODE,
-                   C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
+		    C2_STOB_IO_WRITE_REQ_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
 
 C2_FOP_TYPE_DECLARE(c2_stob_io_create_rep, "stob_create reply",
 		    &default_rep_fop_ops,

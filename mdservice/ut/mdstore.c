@@ -271,19 +271,7 @@ again:
 
 static void test_fini(void)
 {
-	c2_time_t rdelay;
-        uint64_t sleepcnt;
-
-        c2_mutex_lock(&reqh.rh_lock);
-        reqh.rh_shutdown = true;
-        c2_mutex_unlock(&reqh.rh_lock);
-
-	sleepcnt = 1;
-	while (!c2_reqh_can_shutdown(&reqh)) {
-		c2_nanosleep(c2_time_set(&rdelay, 0,
-			WAIT_FOR_REQH_SHUTDOWN * sleepcnt), NULL);
-                ++sleepcnt;
-	}
+        c2_reqh_shutdown_wait(&reqh);
         c2_reqh_fini(&reqh);
         c2_fol_fini(&fol);
         c2_md_store_fini(&md);

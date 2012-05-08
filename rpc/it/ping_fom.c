@@ -90,13 +90,13 @@ int c2_fom_ping_state(struct c2_fom *fom)
 static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
 {
         struct c2_fom                   *fom;
-        struct c2_fom_ping              *fom_obj;
+        struct c2_fom_ping		*fom_obj;
         struct c2_fom_type              *fom_type;
 
         C2_PRE(fop != NULL);
         C2_PRE(m != NULL);
 
-	fom_obj= c2_alloc(sizeof(struct c2_fom_ping));
+        fom_obj= c2_alloc(sizeof(struct c2_fom_ping));
         if (fom_obj == NULL)
                 return -ENOMEM;
         fom_type = &c2_fom_ping_mopt;

@@ -133,6 +133,7 @@ struct c2_reqh {
 	/** Request handler magic. */
 	uint64_t                 rh_magic;
 	
+	/** Local service consuming reply. */
 	struct c2_local_service *rh_svc;
 };
 

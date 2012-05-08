@@ -183,7 +183,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 
         C2_ALLOC_PTR(ctx);
         if (ctx == NULL) {
-		REQH_ADDB_ADD(c2_reqh_addb_ctx, "c2_reqh_fop_handle",
+		REQH_ADDB_ADD(reqh->rh_addb, "c2_reqh_fop_handle",
                               ENOMEM);
 		return;
         }

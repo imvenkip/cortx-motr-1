@@ -141,12 +141,12 @@ C2_FOP_TYPE_DECLARE_OPS(c2_rpc_fop_conn_establish, "rpc_conn_establish",
 			&conn_establish_item_type_ops);
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_conn_terminate, "rpc_conn_terminate",
-	            &default_fop_type_ops,
+		    &default_fop_type_ops,
 		    C2_RPC_CONN_TERMINATE_OPCODE,
 		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
 
 C2_FOP_TYPE_DECLARE(c2_rpc_fop_session_establish, "rpc_session_establish",
-	            &default_fop_type_ops,
+		    &default_fop_type_ops,
 		    C2_RPC_SESSION_ESTABLISH_OPCODE,
 		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
 
@@ -211,17 +211,17 @@ int c2_rpc_session_fop_init(void)
 	if (result != 0)
 		c2_rpc_session_fop_fini();
 
-        c2_rpc_fop_conn_establish_fopt.ft_fom_type =
-               c2_rpc_fom_conn_establish_type;
+	c2_rpc_fop_conn_establish_fopt.ft_fom_type =
+		c2_rpc_fom_conn_establish_type;
 
-        c2_rpc_fop_conn_terminate_fopt.ft_fom_type =
-               c2_rpc_fom_conn_terminate_type;
+	c2_rpc_fop_conn_terminate_fopt.ft_fom_type =
+		c2_rpc_fom_conn_terminate_type;
 
-        c2_rpc_fop_session_establish_fopt.ft_fom_type =
-               c2_rpc_fom_session_establish_type;
+	c2_rpc_fop_session_establish_fopt.ft_fom_type =
+		c2_rpc_fom_session_establish_type;
 
-        c2_rpc_fop_session_terminate_fopt.ft_fom_type =
-               c2_rpc_fom_session_terminate_type;
+	c2_rpc_fop_session_terminate_fopt.ft_fom_type =
+		c2_rpc_fom_session_terminate_type;
 
 	return result;
 }
