@@ -92,7 +92,7 @@ void c2_cob_make_nskey(struct c2_cob_nskey **keyh,
 {
         struct c2_cob_nskey *key;
 
-        key = c2_alloc(sizeof(*key) + namelen);
+        key = c2_alloc(sizeof *key + namelen);
         C2_ASSERT(key != NULL);
         key->cnk_pfid = *pfid;
         c2_bitstring_copy(&key->cnk_name, name, namelen);
@@ -113,13 +113,13 @@ int c2_cob_nskey_cmp(const struct c2_cob_nskey *k0,
 
 int c2_cob_nskey_size(const struct c2_cob_nskey *cnk)
 {
-        return sizeof(*cnk) +
+        return sizeof *cnk +
                 c2_bitstring_len_get(&cnk->cnk_name);
 }
 
-int c2_cob_fabrec_size(const struct c2_cob_fabrec *rec)
+static int c2_cob_fabrec_size(const struct c2_cob_fabrec *rec)
 {
-        return sizeof(*rec) + rec->cfb_linklen;
+        return sizeof *rec + rec->cfb_linklen;
 }
 
 void c2_cob_make_fabrec(struct c2_cob_fabrec **rech, 
@@ -135,16 +135,16 @@ void c2_cob_make_fabrec(struct c2_cob_fabrec **rech,
         *rech = rec;
 }
 
-int c2_cob_fabrec_size_max(void)
+static int c2_cob_fabrec_size_max(void)
 {
         return sizeof(struct c2_cob_fabrec) + C2_COB_NAME_MAX;
 }
 
-void c2_cob_make_fabrec_max(struct c2_cob_fabrec **rech)
+static void c2_cob_make_fabrec_max(struct c2_cob_fabrec **rech)
 {
         struct c2_cob_fabrec *rec;
         
-        rec = c2_alloc(sizeof(struct c2_cob_fabrec) + C2_COB_NAME_MAX);
+        rec = c2_alloc(c2_cob_fabrec_size_max());
         C2_ASSERT(rec != NULL);
         rec->cfb_linklen = C2_COB_NAME_MAX;
         *rech = rec;
@@ -154,14 +154,14 @@ void c2_cob_make_fabrec_max(struct c2_cob_fabrec **rech)
    Make nskey for iterator. Allocate space for max possible name
    but put real string len into the struct.
 */
-void c2_cob_make_nskey_max(struct c2_cob_nskey **keyh, 
-                           const struct c2_fid *pfid,
-                           const char *name, 
-                           int namelen)
+static void c2_cob_make_nskey_max(struct c2_cob_nskey **keyh, 
+                                  const struct c2_fid *pfid,
+                                  const char *name, 
+                                  int namelen)
 {
         struct c2_cob_nskey *key;
 
-        key = c2_alloc(sizeof(*key) + C2_COB_NAME_MAX);
+        key = c2_alloc(sizeof *key + C2_COB_NAME_MAX);
         key->cnk_pfid = *pfid;
         memcpy(c2_bitstring_buf_get(&key->cnk_name), name, namelen);
         c2_bitstring_len_set(&key->cnk_name, namelen);
@@ -173,9 +173,9 @@ void c2_cob_make_nskey_max(struct c2_cob_nskey **keyh,
    and want to allocate it for worst case scenario, that is, for max 
    possible name len.
  */
-int c2_cob_nskey_size_max(const struct c2_cob_nskey *cnk)
+static int c2_cob_nskey_size_max(const struct c2_cob_nskey *cnk)
 {
-        return sizeof(*cnk) + C2_COB_NAME_MAX;
+        return sizeof *cnk + C2_COB_NAME_MAX;
 }
 
 /** 

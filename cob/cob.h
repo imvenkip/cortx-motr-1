@@ -137,8 +137,9 @@ struct c2_db_tx;
    Cob iterator.
 
    In order to iterate over all names that "dir" cob contains, cob iterator
-   is used. It is simple, cursor based API, that contains 3 methods:
+   is used. It is simple, cursor based API, that contains four methods:
    - c2_cob_iterator_init() - init iterator with fid, name position;
+   - c2_cob_iterator_get()  - position iterator according with its properies;
    - c2_cob_iterator_next() - move to next position;
    - c2_cob_iterator_fini() - fini iterator.
 
@@ -282,12 +283,17 @@ int c2_cob_nskey_cmp(const struct c2_cob_nskey *k0,
 struct c2_cob_nsrec {
         struct c2_fid     cnr_fid;     /**< object fid */
         uint32_t          cnr_linkno;  /**< number of link for the name */
+        
+        /**
+           The following fields are only important for 0-nsrec, that is,
+           stat data. For other records, only two fields above are valid.
+         */
         uint32_t          cnr_nlink;   /**< number of hard links. */
         uint32_t          cnr_cntr;    /**< linkno allocation counter. */
         uint64_t          cnr_omgid;   /**< uid/gid/mode slot reference */
-        uint64_t          cnr_version; /**< attributes version, used for repl. */
-        uint32_t          cnr_rdev;    /**< device ID (if special file). */
+        uint64_t          cnr_version; /**< attributes version, used for replicator */
         uint64_t          cnr_size;    /**< total size, in bytes. */
+        uint64_t          cnr_rdev;    /**< devid for special devices, used for replicator */
         uint64_t          cnr_blksize; /**< blocksize for filesystem I/O. */
         uint64_t          cnr_blocks;  /**< number of blocks allocated. */
         uint64_t          cnr_atime;   /**< time of last access. */
@@ -372,20 +378,10 @@ struct c2_cob_omgrec {
    operations can be executed on persistent storage by calling functions on
    c2_cob;
 
-   - it caches certain metadata attributes in memory for short period of time
-   that may be used in same thread.
-
-   <b>Concurrency control</b>
-   No concurrency control is needed as the same cob instance cannot be accessed
-   by more than one thread simultaneously as there is no method to find a cob
-   that has already been returned. c2_cob_locate() and c2_cob_lookup() return
-   new allocated cobs to the caller even oikey and nskey used are the same.
-   
-   Concurrent thread will be blocked anyways on db[45] transaction until it
-   is committed.
+   - it caches certain metadata attributes in memory (controlled by ->co_valid);
 
    <b>Liveness</b>
-   A c2-cob may be freed when the reference count drops to 0
+   A c2_cob may be freed when the reference count drops to 0
 
    @note: The c2_cob_nskey is allocated separately because it is variable
    length. Once allocated, the cob can free the memory by using CA_NSKEY_FREE.
@@ -404,7 +400,7 @@ struct c2_cob {
         struct c2_cob_domain  *co_dom;
         struct c2_stob        *co_stob;     /**< underlying storage object */
         struct c2_ref          co_ref;      /**< refcounter for caching cobs */
-        uint64_t               co_valid;    /**< @see enum ca_valid */
+        uint64_t               co_valid;    /**< @see enum c2_cob_valid_flags */
         struct c2_fid         *co_fid;      /**< object fid, refers to nsrec fid */
         struct c2_cob_nskey   *co_nskey;    /**< cob statdata nskey */
         struct c2_cob_oikey    co_oikey;    /**< object fid, linkno */
@@ -443,7 +439,8 @@ enum c2_cob_ca_valid {
    Lookup a filename in the namespace table
 
    Allocate a new cob and populate it with the contents of the
-   namespace record; i.e. the stat data and fid.
+   namespace record; i.e. the stat data and fid. This function
+   also looks up fab and omg tables, depending on "need" flag.
 
    @see c2_cob_locate
  */
@@ -599,30 +596,16 @@ void c2_cob_make_nskey(struct c2_cob_nskey **keyh,
                        int namelen);
 
 /**
-   Make nskey for iterator. Allocate space for max possible name
-   but put real string len into the struct.
+   Allocate fabrec record according with @link and @linklen and setup record
+   fields.
 */
-void c2_cob_make_nskey_max(struct c2_cob_nskey **keyh, 
-                           const struct c2_fid *pfid,
-                           const char *name, 
-                           int namelen);
-
-/**
-   Key size for iterator in which case we don't know exact length of key
-   and want to allocate it for worst case scenario, that is, for max 
-   possible name len.
- */
-int c2_cob_nskey_size_max(const struct c2_cob_nskey *cnk);
-
-int c2_cob_fabrec_size(const struct c2_cob_fabrec *rec);
-
 void c2_cob_make_fabrec(struct c2_cob_fabrec **rech,
                         const char *link, int linklen);
 
-int c2_cob_fabrec_size_max(void);
-
-void c2_cob_make_fabrec_max(struct c2_cob_fabrec **rech);
-
+/**
+   Try to allocate new omgid using omg table and terminator record. Save
+   allocated id in @omgid if not NULL.
+*/
 int c2_cob_alloc_omgid(struct c2_cob_domain *dom,
                        struct c2_db_tx *tx,
                        uint64_t *omgid);
