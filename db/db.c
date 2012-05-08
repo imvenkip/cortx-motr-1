@@ -682,7 +682,7 @@ int c2_db_cursor_init(struct c2_db_cursor *cursor, struct c2_table *table,
         else if (flags & C2_DB_CURSOR_READ_UNCOMMITTED)
                 cursor->c_flags |= DB_READ_UNCOMMITTED;
         else if (flags & C2_DB_CURSOR_RMW)
-                cursor->c_flags |= DB_WRITECURSOR;
+                cursor->c_flags |= DB_RMW;
 
 	cursor->c_table = table;
 	cursor->c_tx    = tx;

@@ -84,7 +84,15 @@ int c2_md_store_init(struct c2_md_store         *md,
                 if (rc) {
                         c2_db_tx_abort(&tx);
                 } else {
-                        c2_db_tx_commit(&tx);
+                        /**
+                           Lets check for omgid terminator record present.
+                           If new omgid may be allocted then we're fine.
+                         */
+                        rc = c2_cob_alloc_omgid(&md->md_dom, &tx, NULL);
+                        if (rc)
+                                c2_db_tx_abort(&tx);
+                        else
+                                c2_db_tx_commit(&tx);
                 }
         }
         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 

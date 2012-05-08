@@ -22,13 +22,12 @@
 #endif
 
 #include "fop/fop.h"
+#include "fop/fop_format_def.h"
 
 #include "mdservice/md_fops_u.h"
-#include "fop/fop_format_def.h"
-#include "mdservice/md_fops.ff"
-
 #include "mdservice/md_foms.h"
 #include "mdservice/md_fops.h"
+#include "mdservice/md_fops.ff"
 
 static size_t c2_md_fol_pack_size(struct c2_fol_rec_desc *desc)
 {
@@ -307,7 +306,6 @@ static struct c2_fop_type *c2_md_fop_fops[] = {
 };
 
 static struct c2_fop_type_format *c2_md_fop_fmts[] = {
-        &c2_fop_fid_tfmt,
         &c2_fop_str_tfmt,
         &c2_fop_cob_tfmt,
 	&c2_fop_buf_tfmt

@@ -603,6 +603,10 @@ int c2_cob_fabrec_size_max(void);
 
 void c2_cob_make_fabrec_max(struct c2_cob_fabrec **rech);
 
+int c2_cob_alloc_omgid(struct c2_cob_domain *dom,
+                       struct c2_db_tx *tx,
+                       uint64_t *omgid);
+
 /** @} end group cob */
 
 /* __COLIBRI_COB_COB_H__ */

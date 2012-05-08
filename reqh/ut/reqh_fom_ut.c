@@ -233,8 +233,8 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	c2_addb_choose_store_media(C2_ADDB_REC_STORE_STOB, c2_addb_stob_add,
 					  *reqh_addb_stob, NULL);
 
-        /* Init the cob domain */
-        rc = c2_md_store_init(&srv_mdstore, &srv_cob_dom_id, &srv_db, 1);
+        /* Init the mdstore */
+        rc = c2_md_store_init(&srv_mdstore, &srv_cob_dom_id, &srv_db, 0);
         C2_UT_ASSERT(rc == 0);
 
 	/* Initialising request handler */

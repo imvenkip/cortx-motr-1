@@ -111,6 +111,7 @@ struct init_fini_call subsystem[] = {
 	{ &c2_ad_stobs_init,    &c2_ad_stobs_fini,    "ad-stob" },
 	{ &sim_global_init,  &sim_global_fini,  "desim" },
 	{ &c2_reqhs_init,    &c2_reqhs_fini,    "reqh" },
+	{ &c2_fid_register,  &c2_fid_unregister, "fids" },
 #ifndef __KERNEL__
 	{ &c2_ios_register, &c2_ios_unregister, "ioservice" },
 	{ &c2_mds_register, &c2_mds_unregister,   "mdservice"}

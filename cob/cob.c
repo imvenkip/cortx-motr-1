@@ -892,6 +892,56 @@ static bool c2_cob_is_valid(struct c2_cob *cob)
         return c2_fid_is_set(cob->co_fid);
 }
 
+int c2_cob_alloc_omgid(struct c2_cob_domain *dom, struct c2_db_tx *tx,
+                       uint64_t *omgid)
+{
+        struct c2_db_pair     pair;
+        struct c2_cob_omgkey  omgkey;
+        struct c2_cob_omgrec  omgrec;
+        struct c2_db_cursor   cursor;
+        int                   rc;
+
+        rc = c2_db_cursor_init(&cursor, 
+                               &dom->cd_fileattr_omg, tx, 0);
+        if (rc)
+                return rc;
+
+        /**
+           Lookup for ~0ULL terminator record and do step back to find last
+           allocated omgid. Terminator record should be prepared in storage
+           init time (mkfs or else).
+         */
+        omgkey.cok_omgid = ~0ULL;
+        
+        c2_db_pair_setup(&pair, &dom->cd_fileattr_omg,
+			 &omgkey, sizeof omgkey, &omgrec,
+			 sizeof omgrec);
+
+        rc = c2_db_cursor_get(&cursor, &pair);
+
+        /**
+           In case of error, most probably no terminator record found,
+           one needs to run mkfs.
+         */
+        if (rc == 0) {
+                rc = c2_db_cursor_prev(&cursor, &pair);
+                if (omgid) {
+                        if (rc == 0) {
+                                /** We found last allocated omgid. Bump it by one. */
+                                *omgid = ++omgkey.cok_omgid;
+                        } else {
+                                /** No last allocated found, this first alloc call. */
+                                *omgid = 0;
+                        }
+                }
+                rc = 0;
+        }
+        c2_db_pair_release(&pair);
+	c2_db_pair_fini(&pair);
+        c2_db_cursor_fini(&cursor);
+        return rc;
+}
+
 /**
    Add a new cob to the namespace.
 
@@ -911,7 +961,6 @@ int c2_cob_create(struct c2_cob_domain *dom,
         struct c2_db_pair     pair;
         struct c2_cob_omgkey  omgkey;
         struct c2_cob_fabkey  fabkey;
-        struct c2_db_cursor   cursor;
         struct c2_cob        *cob;
         int                   rc;
 
@@ -929,41 +978,9 @@ int c2_cob_create(struct c2_cob_domain *dom,
         if (rc)
                 return rc;
         
-        rc = c2_db_cursor_init(&cursor, 
-                               &cob->co_dom->cd_fileattr_omg, tx, 0);
+        rc = c2_cob_alloc_omgid(dom, tx, &nsrec->cnr_omgid);
         if (rc)
                 goto out;
-
-        /**
-           Lookup for ~0ULL terminator record and do step back to find last
-           allocated omgid. Terminator record should be prepared in storage
-           init time (mkfs or else).
-         */
-        omgkey.cok_omgid = ~0ULL;
-        
-        c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_omg,
-			 &omgkey, sizeof omgkey, &cob->co_omgrec,
-			 sizeof cob->co_omgrec);
-
-        rc = c2_db_cursor_get(&cursor, &pair);
-        if (rc == 0)
-                rc = c2_db_cursor_prev(&cursor, &pair);
-
-        c2_db_pair_release(&pair);
-	c2_db_pair_fini(&pair);
-        c2_db_cursor_fini(&cursor);
-
-        if (rc == 0) {
-                /**
-                   Bump last allocated omgid.
-                 */
-                nsrec->cnr_omgid = ++omgkey.cok_omgid;
-        } else {
-                /**
-                   Nothing allocated yet, this may be root cob..
-                 */
-                nsrec->cnr_omgid = 0;
-        }
 
         cob->co_nskey = nskey;
         cob->co_valid |= CA_NSKEY;

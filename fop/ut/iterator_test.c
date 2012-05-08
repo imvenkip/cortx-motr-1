@@ -29,8 +29,10 @@
 
 #include "fop/fop.h"
 #include "fop/fop_iterator.h"
+#include "fid/fid_u.h"
 #include "iterator_test_u.h"
 #include "fop/fop_format_def.h"
+#include "fid/fid.ff"
 #include "fop/ut/iterator_test.ff"
 #include "rpc/rpc_opcodes.h"
 
@@ -49,16 +51,6 @@ static struct c2_fop_type *fops[] = {
 	&c2_fop_iterator_test_fopt,
 };
 
-/*
- * Split fop formats in two groups, because c2_fop_object_init() has to be
- * called after c2_fop_fid_tfmt has been parsed, but before other types having
- * fids in them have been.
- */
-
-static struct c2_fop_type_format *fmts0[] = {
-	&c2_fop_fid_tfmt
-};
-
 static struct c2_fop_type_format *fmts[] = {
 	&c2_fop_seg_tfmt,
 	&c2_fop_vec_tfmt,
@@ -73,15 +65,12 @@ static void fop_fini(void)
 	c2_fop_object_fini();
 	c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
 	c2_fop_type_format_fini_nr(fmts, ARRAY_SIZE(fmts));
-	c2_fop_type_format_fini_nr(fmts0, ARRAY_SIZE(fmts0));
 }
 
 static int fop_init(void)
 {
 	int result;
 
-	result = c2_fop_type_format_parse_nr(fmts0, ARRAY_SIZE(fmts0));
-	C2_UT_ASSERT(result == 0);
 	c2_fop_object_init(&c2_fop_fid_tfmt);
 	result = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
 	C2_UT_ASSERT(result == 0);
@@ -101,8 +90,8 @@ static void fop_obj_init(struct c2_fop_iterator_test *fop)
 {
 	int i;
 
-	fop->fit_fid.ff_seq = 1;
-	fop->fit_fid.ff_oid = 2;
+	fop->fit_fid.f_seq = 1;
+	fop->fit_fid.f_oid = 2;
 
 	fop->fit_vec.fv_count = 2;
 	C2_ALLOC_ARR(fop->fit_vec.fv_seg, fop->fit_vec.fv_count);
@@ -113,21 +102,21 @@ static void fop_obj_init(struct c2_fop_iterator_test *fop)
 	}
 
 	fop->fit_opt0.fo_present = 0; /* void */
-	fop->fit_opt0.u.fo_fid.ff_seq = 131;
-	fop->fit_opt0.u.fo_fid.ff_oid = 132;
+	fop->fit_opt0.u.fo_fid.f_seq = 131;
+	fop->fit_opt0.u.fo_fid.f_oid = 132;
 
 	fop->fit_opt1.fo_present = 1;
-	fop->fit_opt1.u.fo_fid.ff_seq = 31;
-	fop->fit_opt1.u.fo_fid.ff_oid = 32;
+	fop->fit_opt1.u.fo_fid.f_seq = 31;
+	fop->fit_opt1.u.fo_fid.f_oid = 32;
 
 	fop->fit_topt.fo_present = 1;
-	fop->fit_topt.u.fo_fid.ff_seq = 41;
-	fop->fit_topt.u.fo_fid.ff_oid = 42;
+	fop->fit_topt.u.fo_fid.f_seq = 41;
+	fop->fit_topt.u.fo_fid.f_oid = 42;
 
-	fop->fit_rec.fr_fid.ff_seq = 5;
-	fop->fit_rec.fr_fid.ff_oid = 6;
-	fop->fit_rec.fr_seq.fr_fid.ff_seq = 7;
-	fop->fit_rec.fr_seq.fr_fid.ff_oid = 8;
+	fop->fit_rec.fr_fid.f_seq = 5;
+	fop->fit_rec.fr_fid.f_oid = 6;
+	fop->fit_rec.fr_seq.fr_fid.f_seq = 7;
+	fop->fit_rec.fr_seq.fr_fid.f_oid = 8;
 	fop->fit_rec.fr_seq.fr_seq.fv_count = 3;
 	C2_ALLOC_ARR(fop->fit_rec.fr_seq.fr_seq.fv_seg,
 		     fop->fit_rec.fr_seq.fr_seq.fv_count);
@@ -137,8 +126,8 @@ static void fop_obj_init(struct c2_fop_iterator_test *fop)
 		fop->fit_rec.fr_seq.fr_seq.fv_seg[i].fs_offset = i*2;
 	}
 	fop->fit_rec.fr_seq.fr_unn.fo_present = 1;
-	fop->fit_rec.fr_seq.fr_unn.u.fo_fid.ff_seq = 41;
-	fop->fit_rec.fr_seq.fr_unn.u.fo_fid.ff_oid = 42;
+	fop->fit_rec.fr_seq.fr_unn.u.fo_fid.f_seq = 41;
+	fop->fit_rec.fr_seq.fr_unn.u.fo_fid.f_oid = 42;
 }
 
 /**

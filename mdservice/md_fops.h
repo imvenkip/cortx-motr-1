@@ -21,6 +21,8 @@
 #ifndef __COLIBRI_MDSERVICE_MD_FOPS_H__
 #define __COLIBRI_MDSERVICE_MD_FOPS_H__
 
+extern struct c2_fop_type_format c2_fop_fid_tfmt;
+
 extern struct c2_fop_type c2_fop_create_fopt;
 extern struct c2_fop_type c2_fop_link_fopt;  
 extern struct c2_fop_type c2_fop_unlink_fopt;

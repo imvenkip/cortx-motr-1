@@ -30,6 +30,7 @@ static const char test_name[] = "hello_world";
 static const char add_name[] = "add_name";
 static const char wrong_name[] = "wrong_name";
 
+static struct c2_cob_domain_id id = { 42 };
 static struct c2_dbenv       db;
 static struct c2_cob_domain  dom;
 static struct c2_cob         *cob;
@@ -43,9 +44,32 @@ static int db_reset(void)
         return rc;
 }
 
+static void test_mkfs(void)
+{
+        struct c2_db_tx         tx;
+        int                     rc;
+
+	rc = c2_dbenv_init(&db, db_name, 0);
+	C2_UT_ASSERT(rc == 0);
+
+        rc = c2_cob_domain_init(&dom, &db, &id);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_db_tx_init(&tx, &db, 0);
+	C2_UT_ASSERT(rc == 0);
+
+        /* Create root and other structures */
+        rc = c2_cob_domain_mkfs(&dom, &C2_COB_SLASH_FID, &C2_COB_SESSIONS_FID, &tx);
+        C2_UT_ASSERT(rc == 0);
+	c2_db_tx_commit(&tx);
+
+        /* Fini everything */
+        c2_cob_domain_fini(&dom);
+        c2_dbenv_fini(&db);
+}
+
 static void test_init(void)
 {
-        struct c2_cob_domain_id id = { 42 };
 
 	rc = c2_dbenv_init(&db, db_name, 0);
         /* test_init is called by ub_init which hates C2_UT_ASSERT */
@@ -269,6 +293,7 @@ const struct c2_test_suite cob_ut = {
 	.ts_init = db_reset,
 	/* .ts_fini = db_reset, */
 	.ts_tests = {
+		{ "cob-mkfs", test_mkfs },
 		{ "cob-init", test_init },
                 { "cob-create", test_create },
                 { "cob-lookup", test_lookup },
@@ -280,7 +305,6 @@ const struct c2_test_suite cob_ut = {
 		{ NULL, NULL }
 	}
 };
-
 
 /*
  * UB

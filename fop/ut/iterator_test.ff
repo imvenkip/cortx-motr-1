@@ -19,9 +19,7 @@
  * Original creation date: 01/05/2011
  */
 
-DEF(c2_fop_fid, RECORD,
-    _(ff_seq, U64),
-    _(ff_oid, U64));
+FOPDEP("fid/fid.ff");
 
 DEF(c2_fop_seg, RECORD,
     _(fs_offset, U64),

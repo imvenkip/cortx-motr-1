@@ -29,9 +29,7 @@
  *
  */
 
-DEF(c2_fop_fid, RECORD,
-    _(f_seq, U64),
-    _(f_oid, U64));
+FOPDEP("fid/fid.ff");
 
 DEF(c2_fop_str, SEQUENCE,
     _(s_len, U32),
