@@ -26,6 +26,7 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"             /* c2_free(), C2_ALLOC_PTR() */
+#include "lib/misc.h"               /* C2_SET0() */
 #include "fid/fid.h"                /* c2_fid */
 #include "ioservice/io_foms.h"      /* io_fom_cob_rw_fid2stob_map */
 #include "ioservice/io_fops.h"      /* c2_cobfop_common_get */
@@ -278,6 +279,7 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 
 	C2_PRE(fom != NULL);
 	C2_PRE(cc != NULL);
+	C2_SET0(&nsrec);
 
 	cdom = &fom->fo_loc->fl_dom->fd_reqh->rh_mdstore->md_dom;
 	C2_ASSERT(cdom != NULL);
