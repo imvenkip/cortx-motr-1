@@ -26,7 +26,6 @@
 
 #include "lib/cdefs.h"         /* C2_EXPORTED */
 #include "fid/fid.h"
-#include "fop/fop.h"
 #include "fop/fop_format_def.h"
 
 #ifndef __KERNEL__

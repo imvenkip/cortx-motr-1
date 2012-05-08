@@ -386,7 +386,7 @@ struct c2_cob_omgrec {
    @note: The c2_cob_nskey is allocated separately because it is variable
    length. Once allocated, the cob can free the memory by using CA_NSKEY_FREE.
    
-   <b>Caching</b>
+   <b>Caching and concurrency</b>
    Cobs are not cached by cob domain or even cob API users. Rationale is the
    following:
    
@@ -469,13 +469,19 @@ int c2_cob_locate(struct c2_cob_domain    *dom,
 
    This doesn't create a new storage object; just creates
    metadata table entries for it to enable namespace and oi lookup.
+   
+   cob    - cob instance allocted with c2_cob_alloc()
+   nskey  - namespace key made with c2_cob_make_nskey()
+   nsrec  - namespace record with all attrbiutes set
+   fabrec - symlink record
+   omgrec - owner/mode/group record
+   tx     - transaction handle
  */
-int c2_cob_create(struct c2_cob_domain *dom, 
+int c2_cob_create(struct c2_cob         *cob, 
                   struct c2_cob_nskey   *nskey,
                   struct c2_cob_nsrec   *nsrec,
                   struct c2_cob_fabrec  *fabrec,
                   struct c2_cob_omgrec  *omgrec,
-                  struct c2_cob        **out,
                   struct c2_db_tx       *tx);
 
 /**

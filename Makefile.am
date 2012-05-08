@@ -11,9 +11,9 @@ SUBDIRS_LIBS = \
 	       addb/ut \
                fol \
                db \
-               fid \
                fop/rt \
                \
+               fid \
                addb/addbff \
                net \
                fop \

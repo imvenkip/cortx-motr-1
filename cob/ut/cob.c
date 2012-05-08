@@ -111,8 +111,7 @@ static void test_create(void)
         rc = c2_cob_alloc(&dom, &cob);
         C2_UT_ASSERT(rc == 0);
         c2_cob_make_fabrec(&fabrec, NULL, 0);
-	rc = c2_cob_create(&dom, key, &nsrec, fabrec,
-	                   &omgrec, &cob, &tx);
+	rc = c2_cob_create(cob, key, &nsrec, fabrec, &omgrec, &tx);
 	C2_UT_ASSERT(rc == 0);
 
         nsrec.cnr_nlink++;
@@ -373,8 +372,7 @@ static void ub_create(int i)
         C2_UT_ASSERT(rc == 0);
 
         c2_cob_make_fabrec(&fabrec, NULL, 0);
-	rc = c2_cob_create(&dom, key, &nsrec, fabrec, &omgrec, 
-	                   &cob, &cob_ub_tx);
+	rc = c2_cob_create(cob, key, &nsrec, fabrec, &omgrec, &cob_ub_tx);
 	C2_UB_ASSERT(rc == 0);
 
         c2_cob_put(cob);

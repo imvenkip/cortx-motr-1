@@ -127,6 +127,7 @@ int c2_md_store_create(struct c2_md_store       *md,
                        struct c2_cob           **out,
                        struct c2_db_tx          *tx)
 {
+        struct c2_cob         *cob;
         struct c2_cob_nskey   *nskey;
         struct c2_cob_nsrec    nsrec;
         struct c2_cob_fabrec  *fabrec;
@@ -138,6 +139,10 @@ int c2_md_store_create(struct c2_md_store       *md,
         C2_SET0(&nsrec);
         C2_SET0(&omgrec);
         
+        rc = c2_cob_alloc(&md->md_dom, &cob);
+        if (rc)
+                goto out;
+
         c2_cob_make_nskey(&nskey, pfid, attr->ca_name, 
                           attr->ca_namelen);
 
@@ -159,13 +164,16 @@ int c2_md_store_create(struct c2_md_store       *md,
 
         c2_cob_make_fabrec(&fabrec, attr->ca_link, 
                            attr->ca_link ? attr->ca_size : 0);
-        rc = c2_cob_create(&md->md_dom, nskey, &nsrec,
-                           fabrec, &omgrec, out, tx);
+        rc = c2_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
         if (rc) {
+                c2_cob_put(cob);
                 c2_free(nskey);
                 c2_free(fabrec);
+        } else {
+                *out = cob;
         }
 
+out:
         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
                     c2_addb_func_fail, "md_create", rc);
         return rc;

@@ -302,11 +302,15 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	C2_ASSERT(cdom != NULL);
 	fop = c2_fop_data(fom->fo_fop);
 
+        rc = c2_cob_alloc(cdom, &cob);
+        if (rc)
+                return rc;
 	c2_cob_make_nskey(&nskey, &cc->fco_cfid, fop->cc_cobname.cn_name,
 	                  fop->cc_cobname.cn_count);
 	if (nskey == NULL) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    c2_addb_oom);
+	        c2_cob_put(cob);
 		return -ENOMEM;
 	}
 
@@ -324,15 +328,13 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
                           S_IRGRP | S_IXGRP |           /* r-x for group */
                           S_IROTH | S_IXOTH;            /* r-x for others */
 
-	rc = c2_cob_create(cdom, nskey, &nsrec, fabrec, &omgrec, &cob,
-			   &fom->fo_tx.tx_dbtx);
-
-	/*
-	 * Cob does not free nskey and fab rec on errors. We need to do so
-	 * ourself. In case cob created successfully, it frees things on
-	 * last put.
-	 */
+	rc = c2_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, &fom->fo_tx.tx_dbtx);
 	if (rc) {
+	        /*
+	         * Cob does not free nskey and fab rec on errors. We need to do so
+	         * ourself. In case cob created successfully, it frees things on
+	         * last put.
+	         */
 		c2_free(nskey);
 		c2_free(fabrec);
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
@@ -340,15 +342,8 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	} else {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    c2_addb_trace, "Cob created successfully.");
-		/**
-		 * Since c2_cob_locate() does not cache in-memory cobs,
-		 * it allocates a new c2_cob structure by default every time
-		 * c2_cob_locate() is called.
-		 * Hence releasing reference of cob here which
-		 * otherwise would cause a memory leak.
-		 */
-		c2_cob_put(cob);
         }
+	c2_cob_put(cob);
 	
 	return rc;
 }

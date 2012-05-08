@@ -380,6 +380,10 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
            Create root cob where all namespace is stored.
          */
         C2_SET0(&nsrec);
+        
+        rc = c2_cob_alloc(dom, &cob);
+        if (rc)
+                return rc;
 
         c2_cob_make_nskey(&nskey, &C2_COB_ROOT_FID, C2_COB_ROOT_NAME, 
                           strlen(C2_COB_ROOT_NAME));
@@ -403,18 +407,22 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
 
         c2_cob_make_fabrec(&fabrec, NULL, 0);
 
-        rc = c2_cob_create(dom, nskey, &nsrec, fabrec, &omgrec, &cob, tx);
+        rc = c2_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
+        c2_cob_put(cob);
         if (rc != 0) {
                 c2_free(nskey);
                 c2_free(fabrec);
                 return rc;
         }
-        c2_cob_put(cob);
 
         /**
            Create root session.
          */
         C2_SET0(&nsrec);
+
+        rc = c2_cob_alloc(dom, &cob);
+        if (rc)
+                return rc;
 
         c2_cob_make_nskey(&nskey, &C2_COB_ROOT_FID, C2_COB_SESSIONS_NAME, 
                           strlen(C2_COB_SESSIONS_NAME));
@@ -440,13 +448,13 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
 	fabrec->cfb_version.vn_lsn = C2_LSN_RESERVED_NR + 2;
 	fabrec->cfb_version.vn_vc = 0;
 
-        rc = c2_cob_create(dom, nskey, &nsrec, fabrec, &omgrec, &cob, tx);
+        rc = c2_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
+        c2_cob_put(cob);
         if (rc != 0) {
                 c2_free(nskey);
                 c2_free(fabrec);
                 return rc;
         }
-        c2_cob_put(cob);
         return rc;
 }
 #endif
@@ -935,23 +943,19 @@ int c2_cob_alloc_omgid(struct c2_cob_domain *dom, struct c2_db_tx *tx,
 
    This takes a reference on the cob in-memory struct.
  */
-int c2_cob_create(struct c2_cob_domain *dom, 
+int c2_cob_create(struct c2_cob        *cob, 
                   struct c2_cob_nskey  *nskey,
                   struct c2_cob_nsrec  *nsrec,
                   struct c2_cob_fabrec *fabrec,
                   struct c2_cob_omgrec *omgrec,
-                  struct c2_cob       **out,
                   struct c2_db_tx      *tx)
 {
         struct c2_db_pair     pair;
         struct c2_cob_omgkey  omgkey;
         struct c2_cob_fabkey  fabkey;
-        struct c2_cob        *cob;
         int                   rc;
 
-        C2_PRE(out != NULL);
-        *out = NULL;
-
+        C2_PRE(cob != NULL);
         C2_PRE(nskey != NULL);
         C2_PRE(nsrec != NULL);
         C2_PRE(fabrec != NULL);
@@ -959,11 +963,7 @@ int c2_cob_create(struct c2_cob_domain *dom,
 	C2_PRE(c2_fid_is_set(&nsrec->cnr_fid));
         C2_PRE(c2_fid_is_set(&nskey->cnk_pfid));
 
-        rc = c2_cob_alloc(dom, &cob);
-        if (rc != 0)
-                return rc;
-        
-        rc = c2_cob_alloc_omgid(dom, tx, &nsrec->cnr_omgid);
+        rc = c2_cob_alloc_omgid(cob->co_dom, tx, &nsrec->cnr_omgid);
         if (rc != 0)
                 goto out;
 
@@ -1040,12 +1040,9 @@ int c2_cob_create(struct c2_cob_domain *dom,
 	        goto out;
 
         cob->co_valid |= CA_NSKEY_FREE | CA_FABREC;
-        *out = cob;
 out:
         C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
                     c2_addb_func_fail, "cob_create", rc);
-        if (rc != 0)
-                c2_cob_put(cob);
         return rc;
 }
 

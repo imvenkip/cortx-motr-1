@@ -134,6 +134,10 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 
 	*out = NULL;
 	C2_SET0(&nsrec);
+	
+	rc = c2_cob_alloc(dom, &cob);
+	if (rc)
+	        return rc;
 
 	if (pcob == NULL) {
 	        pfid.f_container = pfid.f_key = 1;
@@ -142,8 +146,10 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	}
 
 	c2_cob_make_nskey(&key, &pfid, name, strlen(name));
-	if (key == NULL)
+	if (key == NULL) {
+	        c2_cob_put(cob);
 		return -ENOMEM;
+        }
 
         stobid = stob_id_alloc();
 	nsrec.cnr_fid.f_container = stobid.u_hi;
@@ -165,10 +171,11 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
                           S_IRGRP | S_IXGRP |           /* r-x for group */
                           S_IROTH | S_IXOTH;            /* r-x for others */
 
-	rc = c2_cob_create(dom, key, &nsrec, fabrec, &omgrec, &cob, tx);
+	rc = c2_cob_create(cob, key, &nsrec, fabrec, &omgrec, tx);
 	if (rc == 0) {
 		*out = cob;
 	} else {
+	        c2_cob_put(cob);
                 c2_free(key);
                 c2_free(fabrec);
 	}
