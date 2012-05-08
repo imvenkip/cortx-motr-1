@@ -633,10 +633,6 @@ AC_CONFIG_FILES([
                  fop/ut/Makefile
                  ioservice/Makefile
                  ioservice/ut/Makefile
-                 mdstore/Makefile
-                 mdservice/Makefile
-                 mdservice/ut/Makefile
-                 mdservice/ut/mdstore.h
                  layout/Makefile
                  layout/ut/Makefile
                  lib/Makefile
@@ -645,6 +641,10 @@ AC_CONFIG_FILES([
                  m4/Makefile
                  man/Makefile
                  mw/Makefile
+                 mdstore/Makefile
+                 mdservice/Makefile
+                 mdservice/ut/Makefile
+                 mdservice/ut/mdstore.h
                  net/Makefile
 		 net/bulk_emulation/Makefile
 		 net/bulk_emulation/st/Makefile

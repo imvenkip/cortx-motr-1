@@ -423,7 +423,7 @@ struct c2_cob_iterator {
 };
 
 /** 
-   Cob flags and valid attributes 
+   Cob flags and valid attributes.
 */
 enum c2_cob_ca_valid {
         CA_NSKEY      = (1 << 0),  /**< nskey in cob is up-to-date */
@@ -436,7 +436,7 @@ enum c2_cob_ca_valid {
 };
 
 /**
-   Lookup a filename in the namespace table
+   Lookup a filename in the namespace table.
 
    Allocate a new cob and populate it with the contents of the
    namespace record; i.e. the stat data and fid. This function

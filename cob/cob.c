@@ -373,7 +373,7 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
         rc = c2_table_insert(tx, &pair);
         c2_db_pair_release(&pair);
         c2_db_pair_fini(&pair);
-        if (rc)
+        if (rc != 0)
                 return rc;
 
         /**
@@ -404,7 +404,7 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
         c2_cob_make_fabrec(&fabrec, NULL, 0);
 
         rc = c2_cob_create(dom, nskey, &nsrec, fabrec, &omgrec, &cob, tx);
-        if (rc) {
+        if (rc != 0) {
                 c2_free(nskey);
                 c2_free(fabrec);
                 return rc;
@@ -441,7 +441,7 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
 	fabrec->cfb_version.vn_vc = 0;
 
         rc = c2_cob_create(dom, nskey, &nsrec, fabrec, &omgrec, &cob, tx);
-        if (rc) {
+        if (rc != 0) {
                 c2_free(nskey);
                 c2_free(fabrec);
                 return rc;
@@ -580,7 +580,7 @@ static int cob_oi_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
                  */
                 rc = c2_db_cursor_init(&cursor, 
                                        &cob->co_dom->cd_object_index, tx, 0);
-                if (rc) {
+                if (rc != 0) {
                         c2_db_pair_fini(&cob->co_oipair);
                         return rc;
                 }
@@ -588,7 +588,7 @@ static int cob_oi_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
                 oldkey = cob->co_oikey;
                 rc = c2_db_cursor_get(&cursor, &cob->co_oipair);
                 c2_db_cursor_fini(&cursor);
-                if (rc) {
+                if (rc != 0) {
                         c2_db_pair_fini(&cob->co_oipair);
                         return rc;
                 }
@@ -608,7 +608,7 @@ static int cob_oi_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
                  * for case that we need exact position.
                  */
                 rc = c2_table_lookup(tx, &cob->co_oipair);
-                if (rc) {
+                if (rc != 0) {
                         c2_db_pair_fini(&cob->co_oipair);
                         return rc;
                 }
@@ -682,32 +682,17 @@ static int cob_omg_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
         return rc;
 }
 
-/**
-   Lookup a filename in the namespace table.
-
-   Create a new cob and populate it with the contents of the namespace
-   record; i.e. the stat data and fid.
-
-   This lookup adds a reference to the cob.
-
-   On namespace table lookup failure, no cob is created. On failure to lookup
-   other data, co_valid fields shall be correctly set.
- */
 int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
                   uint64_t need, struct c2_cob **out, struct c2_db_tx *tx)
 {
         struct c2_cob *cob;
         int            rc;
 
-        /*
-         * Zero out "out" just in case that if we fail here, it is
-         * easier to find abnormal using of NULL cob.
-         */
         C2_ASSERT(out != NULL);
         *out = NULL;
 
         rc = c2_cob_alloc(dom, &cob);
-        if (rc)
+        if (rc != 0)
                 return rc;
 
         cob->co_nskey = nskey;
@@ -717,7 +702,7 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
                 cob->co_valid |= CA_NSKEY_FREE;
 
         rc = cob_ns_lookup(cob, tx);
-        if (rc) {
+        if (rc != 0) {
                 c2_cob_put(cob);
                 return rc;
         }
@@ -728,7 +713,7 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
          */
         if (need & CA_FABREC) {
                 rc = cob_fab_lookup(cob, tx);
-                if (rc) {
+                if (rc != 0) {
                         c2_cob_put(cob);
                         return rc;
                 }
@@ -739,7 +724,7 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
          */
         if (need & CA_OMGREC) {
                 rc = cob_omg_lookup(cob, tx);
-                if (rc) {
+                if (rc != 0) {
                         c2_cob_put(cob);
                         return rc;
                 }
@@ -750,11 +735,7 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
 }
 
 /**
-   Locate by object index key
-
-   Otherwise create a new cob and populate it with the contents of the oi
-   record; i.e. the filename.
-
+   Locate cob by object index key and populate all of its records.
    This lookup adds a reference to the cob.
  */
 int c2_cob_locate(struct c2_cob_domain *dom, struct c2_cob_oikey *oikey,
@@ -774,28 +755,28 @@ int c2_cob_locate(struct c2_cob_domain *dom, struct c2_cob_oikey *oikey,
 
         /* Get cob memory. */
         rc = c2_cob_alloc(dom, &cob);
-        if (rc)
+        if (rc != 0)
                 return rc;
 
         cob->co_oikey = *oikey;
         rc = cob_oi_lookup(cob, tx);
-        if (rc) {
+        if (rc != 0) {
                 c2_cob_put(cob);
                 return rc;
         }
 
         rc = cob_ns_lookup(cob, tx);
-        if (rc) {
+        if (rc != 0) {
                 c2_cob_put(cob);
                 return rc;
         }
         rc = cob_fab_lookup(cob, tx);
-        if (rc) {
+        if (rc != 0) {
                 c2_cob_put(cob);
                 return rc;
         }
         rc = cob_omg_lookup(cob, tx);
-        if (rc) {
+        if (rc != 0) {
                 c2_cob_put(cob);
                 return rc;
         }
@@ -827,7 +808,7 @@ int c2_cob_iterator_init(struct c2_cob *cob,
 
         rc = c2_db_cursor_init(&it->ci_cursor, 
                                &cob->co_dom->cd_namespace, tx, 0);
-        if (rc) {
+        if (rc != 0) {
                 c2_db_pair_release(&it->ci_pair);
                 c2_db_pair_fini(&it->ci_pair);
                 c2_free(it->ci_key);
@@ -871,7 +852,7 @@ int c2_cob_iterator_next(struct c2_cob_iterator *it)
         rc = c2_db_cursor_next(&it->ci_cursor, &it->ci_pair);
         if (rc == -ENOENT)
                 return 1;
-        else if (rc)
+        else if (rc != 0)
                 return rc;
 
         if (!c2_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
@@ -907,7 +888,7 @@ int c2_cob_alloc_omgid(struct c2_cob_domain *dom, struct c2_db_tx *tx,
 
         rc = c2_db_cursor_init(&cursor, 
                                &dom->cd_fileattr_omg, tx, 0);
-        if (rc)
+        if (rc != 0)
                 return rc;
 
         /**
@@ -979,11 +960,11 @@ int c2_cob_create(struct c2_cob_domain *dom,
         C2_PRE(c2_fid_is_set(&nskey->cnk_pfid));
 
         rc = c2_cob_alloc(dom, &cob);
-        if (rc)
+        if (rc != 0)
                 return rc;
         
         rc = c2_cob_alloc_omgid(dom, tx, &nsrec->cnr_omgid);
-        if (rc)
+        if (rc != 0)
                 goto out;
 
         cob->co_nskey = nskey;
@@ -1008,7 +989,7 @@ int c2_cob_create(struct c2_cob_domain *dom,
          * Let's create name, statdata and object index.
          */
         rc = c2_cob_add_name(cob, nskey, nsrec, tx);
-        if (rc)
+        if (rc != 0)
                 goto out;
 
         /*
@@ -1031,7 +1012,7 @@ int c2_cob_create(struct c2_cob_domain *dom,
         rc = c2_table_insert(tx, &pair);
         c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
-	if (rc)
+	if (rc != 0)
                 goto out;
 
         /*
@@ -1055,7 +1036,7 @@ int c2_cob_create(struct c2_cob_domain *dom,
         rc = c2_table_insert(tx, &pair);
         c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
-	if (rc)
+	if (rc != 0)
 	        goto out;
 
         cob->co_valid |= CA_NSKEY_FREE | CA_FABREC;
@@ -1063,7 +1044,7 @@ int c2_cob_create(struct c2_cob_domain *dom,
 out:
         C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
                     c2_addb_func_fail, "cob_create", rc);
-        if (rc)
+        if (rc != 0)
                 c2_cob_put(cob);
         return rc;
 }
@@ -1085,7 +1066,7 @@ int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
          * Delete last name from namespace and object index.
          */
         rc = c2_cob_del_name(cob, cob->co_nskey, tx);
-        if (rc)
+        if (rc != 0)
                 goto out;
 
         if (cob->co_nsrec.cnr_linkno == 0) {
@@ -1157,7 +1138,7 @@ int c2_cob_update(struct c2_cob         *cob,
                 rc = c2_table_update(tx, &pair);
                 c2_db_pair_release(&pair);
                 c2_db_pair_fini(&pair);
-                if (rc)
+                if (rc != 0)
                         goto out;
         }
         
@@ -1236,7 +1217,7 @@ int c2_cob_add_name(struct c2_cob        *cob,
         rc = c2_table_insert(tx, &pair);
         c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
-	if (rc)
+	if (rc != 0)
                 goto out;
 
         c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
@@ -1278,14 +1259,14 @@ int c2_cob_del_name(struct c2_cob        *cob,
                          nskey, c2_cob_nskey_size(nskey),
 		         &nsrec, sizeof nsrec);
         rc = c2_table_lookup(tx, &pair);
-        if (rc) {
+        if (rc != 0) {
                 c2_db_pair_fini(&pair);
                 goto out;
         }
         
         rc = c2_table_delete(tx, &pair);
         c2_db_pair_fini(&pair);
-        if (rc)
+        if (rc != 0)
                 goto out;
 
         /*
@@ -1333,7 +1314,7 @@ int c2_cob_update_name(struct c2_cob        *cob,
         rc = c2_table_lookup(tx, &pair);
         c2_db_pair_release(&pair);
         c2_db_pair_fini(&pair);
-        if (rc)
+        if (rc != 0)
                 goto out;
 
         c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
@@ -1342,7 +1323,7 @@ int c2_cob_update_name(struct c2_cob        *cob,
         rc = c2_table_insert(tx, &pair);
         c2_db_pair_release(&pair);
         c2_db_pair_fini(&pair);
-        if (rc)
+        if (rc != 0)
                 goto out;
         
         /*
@@ -1355,7 +1336,7 @@ int c2_cob_update_name(struct c2_cob        *cob,
         rc = c2_table_delete(tx, &pair);
         c2_db_pair_release(&pair);
         c2_db_pair_fini(&pair);
-        if (rc)
+        if (rc != 0)
                 goto out;
 
         /* Update object index */
@@ -1366,7 +1347,7 @@ int c2_cob_update_name(struct c2_cob        *cob,
         rc = c2_table_update(tx, &pair);
         c2_db_pair_release(&pair);
         c2_db_pair_fini(&pair);
-        if (rc)
+        if (rc != 0)
                 goto out;
 
         /*
