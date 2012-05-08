@@ -15,16 +15,11 @@ TODO
 
     http://www.gnu.org/software/libc/manual/html_node/Heap-Consistency-Checking.html
 
-    Modify build process to optionally use -lmcheck. 
+    Modify build process to optionally use -lmcheck.
 
     Investigate the possibility to use mprobe() from lib/bob.c (and some other
     places, like lib/list.c, lib/tlist.c). This can be difficult, because
     objects can be statically allocated.
-
-2012-May-04 remove obsolete fop-related structures from sunrpc transport
-
-    Due to a historical accident, sunrpc network transport uses higher layer
-    (fop) data-structures internally. This should be cleaned up.
 
 2012-May-04 cleanup "linux_kernel" directories
 

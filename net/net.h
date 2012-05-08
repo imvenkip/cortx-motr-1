@@ -108,8 +108,8 @@ enum {
 	 */
 	C2_NET_TM_RECV_QUEUE_DEF_LEN = 2,
 
-	/* Hex value for "NET_DOM" */
-	C2_NET_DOMAIN_MAGIX = 0x4E45545F444F4D
+	/* Hex value for "NETDOM" */
+	C2_NET_DOMAIN_MAGIX = 0x4E4554444F4D
 };
 
 /** Network transport (e.g. lnet) */
@@ -402,7 +402,7 @@ struct c2_net_domain {
         struct c2_tlink     nd_app_linkage;
 
 	/** Network magic */
-	uint64_t            nd_magic;
+	uint64_t            nd_magix;
 };
 
 /**
@@ -1192,7 +1192,7 @@ struct c2_net_buffer_event {
 	   Applications should take it into consideration when determining the
 	   starting location of the event data in the buffer.
 	 */
-	c2_bcount_t                nbe_offset;
+	c2_bindex_t                nbe_offset;
 
 	/**
 	   This field is used only in successful completion of buffers
@@ -1301,7 +1301,7 @@ struct c2_net_buffer {
 
 	   It is transport specific if a non-zero value is supported.
 	 */
-	c2_bcount_t                nb_offset;
+	c2_bindex_t                nb_offset;
 
 	/**
 	   Domain pointer. It is set automatically when the buffer

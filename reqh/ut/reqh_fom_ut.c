@@ -48,7 +48,7 @@
 #include "net/lnet/lnet.h"
 #include "rpc/rpc2.h"
 #include "fop/fop_item_type.h"
-#include "rpc/rpc_base.h"
+#include "rpc/item.h"
 #include "xcode/bufvec_xcode.h"
 
 #include "fop/fop_format_def.h"

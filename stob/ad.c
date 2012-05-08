@@ -32,10 +32,11 @@
 #include "lib/tlist.h"
 #include "lib/misc.h"		    /* C2_SET0 */
 
+#include "stob/stob.h"
 #include "stob/ad.h"
 
 /**
-   @addtogroup stobad Storage objects with extent maps.
+   @addtogroup stobad
 
    <b>Implementation of c2_stob with Allocation Data (AD).</b>
 
@@ -978,6 +979,22 @@ static void ad_write_back_fill(struct c2_stob_io *io, struct c2_stob_io *back,
 }
 
 /**
+ * Helper function used by ad_write_map_ext() to free sub-segment "ext" from
+ * allocated segment "seg".
+ */
+static int seg_free(struct c2_stob_io *io, struct ad_domain *adom,
+		    const struct c2_emap_seg *seg, const struct c2_ext *ext,
+		    uint64_t val)
+{
+	c2_bcount_t   delta = ext->e_start - seg->ee_ext.e_start;
+	struct c2_ext tocut = {
+		.e_start = val + delta,
+		.e_end   = val + delta + c2_ext_length(ext)
+	};
+	return val < AET_MIN ? ad_bfree(adom, io->si_tx, &tocut) : 0;
+}
+
+/**
    Inserts allocated extent into AD storage object allocation map, possibly
    overwriting a number of existing extents.
 
@@ -995,7 +1012,6 @@ static int ad_write_map_ext(struct c2_stob_io *io, struct ad_domain *adom,
 	int                    result;
 	int                    rc = 0;
 	struct c2_emap_cursor  it;
-	struct c2_ext          tocut;
 	/* an extent in the logical name-space to be mapped to ext. */
 	struct c2_ext          todo = {
 		.e_start = offset,
@@ -1023,12 +1039,8 @@ static int ad_write_map_ext(struct c2_stob_io *io, struct ad_domain *adom,
 		(&it, &todo, ext->e_start,
 	 LAMBDA(void, (struct c2_emap_seg *seg) {
 			 /* handle extent deletion. */
-			 if (seg->ee_val < AET_MIN) {
-				 tocut.e_start = seg->ee_val;
-				 tocut.e_end   = seg->ee_val +
-					 c2_ext_length(&seg->ee_ext);
-				 rc = rc ?: ad_bfree(adom, io->si_tx, &tocut);
-			 }
+			 rc = rc ?: seg_free(io, adom, seg,
+					     &seg->ee_ext, seg->ee_val);
 		 }),
 	 LAMBDA(void, (struct c2_emap_seg *seg, struct c2_ext *ext,
 		       uint64_t val) {
@@ -1036,12 +1048,7 @@ static int ad_write_map_ext(struct c2_stob_io *io, struct ad_domain *adom,
 			C2_ASSERT(ext->e_start > seg->ee_ext.e_start);
 
 			seg->ee_val = val;
-			if (val < AET_MIN) {
-				tocut.e_start = val;
-				tocut.e_end   = val + ext->e_start -
-					seg->ee_ext.e_start;
-				rc = rc ?: ad_bfree(adom, io->si_tx, &tocut);
-			}
+			rc = rc ?: seg_free(io, adom, seg, ext, val);
 		}),
 	 LAMBDA(void, (struct c2_emap_seg *seg, struct c2_ext *ext,
 		       uint64_t val) {
@@ -1049,12 +1056,16 @@ static int ad_write_map_ext(struct c2_stob_io *io, struct ad_domain *adom,
 			C2_ASSERT(seg->ee_ext.e_end > ext->e_end);
 			if (val < AET_MIN) {
 				seg->ee_val = val +
-					(ext->e_start - seg->ee_ext.e_start) +
-					c2_ext_length(ext);
-				tocut.e_start = val;
-				tocut.e_end   = val +
-					seg->ee_ext.e_end - ext->e_end;
-				rc = rc ?: ad_bfree(adom, io->si_tx, &tocut);
+					(ext->e_end - seg->ee_ext.e_start);
+				/*
+				 * Free physical sub-extent, but only when
+				 * sub-extent starts at the left boundary of the
+				 * logical extent, because otherwise "cut left"
+				 * already freed it.
+				 */
+				if (ext->e_start == seg->ee_ext.e_start)
+					rc = rc ?: seg_free(io, adom,
+							    seg, ext, val);
 			} else
 				seg->ee_val = val;
 		}));
@@ -1249,6 +1260,12 @@ static int ad_stob_io_launch(struct c2_stob_io *io)
 	ad_cursors_fini(&it, &src, &dst, &map);
 	if (result == 0) {
 		if (back->si_stob.iv_vec.v_nr > 0) {
+			/**
+			 * Sorts index vecs in incremental order.
+			 * @todo : Needs to check performance impact
+			 *        of sorting each stobio on ad stob.
+			 */
+			c2_stob_iovec_sort(back);
 			result = c2_stob_io_launch(back, adom->ad_bstore,
 						   io->si_tx, io->si_scope);
 			wentout = result == 0;

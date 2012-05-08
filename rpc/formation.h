@@ -26,6 +26,7 @@
 #include "lib/mutex.h"
 #include "lib/rwlock.h"
 #include "addb/addb.h"
+#include "net/net.h"
 
 struct c2_fop;
 

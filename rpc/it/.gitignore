@@ -1,2 +1,6 @@
 ping_fop_[ku].[ch]
 rpcping
+rpcping_client.db
+rpcping_server.db
+rpcping_server.log
+rpcping_server.stob
