@@ -120,6 +120,7 @@ static void test_add_name(void)
 
         /* add new name to existing cob */
         c2_cob_make_nskey(&nskey, &pfid, add_name, strlen(add_name));
+        cob->co_nsrec.cnr_linkno = cob->co_nsrec.cnr_cntr;
         rc = c2_cob_add_name(cob, nskey, &cob->co_nsrec, &tx);
         C2_UT_ASSERT(rc == 0);
         c2_cob_put(cob);

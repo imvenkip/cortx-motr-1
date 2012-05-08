@@ -976,7 +976,7 @@ int c2_cob_create(struct c2_cob_domain *dom,
         cob->co_nsrec.cnr_cntr = 0;
 
         /*
-         * Intialize counter with 1 which what will be used
+         * Intialize counter with 1 which is what will be used
          * for adding second name. We do it this way to avoid
          * doing special c2_cob_update() solely for having
          * this field stored in db.
