@@ -22,7 +22,6 @@
 #define __COLIBRI_COB_COB_H__
 
 #include "lib/atomic.h"
-#include "lib/types.h"         /* c2_uint128 */
 #include "lib/cdefs.h"
 #include "lib/rwlock.h"
 #include "lib/refs.h"
@@ -33,8 +32,6 @@
 #include "fid/fid.h"
 #include "stob/stob.h"
 #include "dtm/verno.h"
-
-#define C2_COB_NAME_MAX 256
 
 /* import */
 struct c2_db_tx;
@@ -55,20 +52,21 @@ struct c2_db_tx;
 
    Metadata organization:
 
-   COB uses three db tables for storing the following pieces of information:
+   COB uses four db tables for storing the following pieces of information:
    - Namespace - stores file names and basic stat data for readdir speedup;
+   
    - Object Index - stores links of file (all names of the file);
 
    - File attributes - stores file version, some replicator fields, basically
    anything that is not needed during stat and readdir operations;
 
-   - One more table is needed for so called "omg" records. They will store
-   mode/uid/gid file attributes.
+   - One more table is needed for so called "omg" records (owner/mode/group).
+   They store mode/uid/gid file attributes.
 
    For traditional file systems namespace we need two tables: name space and
-   object index. It  may be stored in way like this.
+   object index. Namespace and object index tables are used as following:
 
-   Suppose that there is a file that has got three names:
+   Suppose that there is a file F that has got three names:
 
    "a/f0", "b/f1", "c/f3"
 
@@ -81,6 +79,9 @@ struct c2_db_tx;
    where, in first record, we have key constructed of f0's parent fid (the
    directory fid) and "f0", the filename itself. The namespace record is the
    file "f0" fid with full stat data, plus the link number for this name.
+   
+   Here "stat data" means that this record contains file attributes that usually
+   extracted by stat utility or ls -la.
 
    Since this is the first name, it stores the stat data (basic file system
    attributes) and has link number zero.
@@ -120,12 +121,12 @@ struct c2_db_tx;
    record as a key for name space and find second name record in name space
    table. Having the name, we can move stat data of F to it.
 
-   Now let's kill the record in theobject index. We have already found that we
+   Now let's kill the record in the object index. We have already found that we
    need key constructed of F and link number, that is, zero. Having this key we
    can kill object index entry describing "f0" name.
 
    We are done with unlink operation. Of course for cases when killing name that
-   does not hold stat data, algorithm is much more simple. We just need to kill
+   does not hold stat data, algorithm is much simpler. We just need to kill
    one record in name, update stat data record in namespace (decremented nlink
    should be updated in the store) and kill one record in object index.
 
@@ -135,7 +136,7 @@ struct c2_db_tx;
 
    Cob iterator.
 
-   In order to iterate over all names that "dir" cob may contains, cob iterator
+   In order to iterate over all names that "dir" cob contains, cob iterator
    is used. It is simple, cursor based API, that contains 3 methods:
    - c2_cob_iterator_init() - init iterator with fid, name position;
    - c2_cob_iterator_next() - move to next position;
@@ -201,9 +202,9 @@ struct c2_cob_domain {
         struct c2_table         cd_fileattr_basic;
         struct c2_table         cd_fileattr_omg;
 
-        /** 
-           An ADDB context for events related to this domain. 
-        */
+        /**
+           An ADDB context for events related to this domain.
+         */
         struct c2_addb_ctx      cd_addb;
 };
 
@@ -215,6 +216,25 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
                        struct c2_fid *sessfid, struct c2_db_tx *tx);
 
 /**
+   Valid flags for cob attributes.
+*/
+enum c2_cob_valid_flags {
+        C2_COB_ATIME   = 1 << 0,
+        C2_COB_MTIME   = 1 << 1,
+        C2_COB_CTIME   = 1 << 2,
+        C2_COB_SIZE    = 1 << 3,
+        C2_COB_MODE    = 1 << 4,
+        C2_COB_UID     = 1 << 5,
+        C2_COB_GID     = 1 << 6,
+        C2_COB_BLOCKS  = 1 << 7,
+        C2_COB_TYPE    = 1 << 8,
+        C2_COB_FLAGS   = 1 << 9,
+        C2_COB_NLINK   = 1 << 10,
+        C2_COB_RDEV    = 1 << 11,
+        C2_COB_BLKSIZE = 1 << 12
+};
+
+/**
    Attributes describing object that needs to be created or modified.
    This structure is filled by mdservice and used in mdstore and/or
    in cob modules for carrying in-request information to layers that
@@ -223,7 +243,7 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
 struct c2_cob_attr {
         struct c2_fid     ca_pfid;    /**< parent fid */
         struct c2_fid     ca_tfid;    /**< object fid */
-        uint16_t          ca_flags;   /**< marks valid fields. */
+        uint16_t          ca_flags;   /**< valid fields (enum c2_cob_valid_flags) */
         uint32_t          ca_mode;    /**< protection. */
         uint32_t          ca_uid;     /**< user ID of owner. */
         uint32_t          ca_gid;     /**< group ID of owner. */
@@ -242,7 +262,7 @@ struct c2_cob_attr {
 };
 
 /** 
-   Namespace table. For data objects, pfid = cfid and name = ""
+   Namespace table key. For data objects, pfid = cfid and name = ""
  */
 struct c2_cob_nskey {
         struct c2_fid       cnk_pfid;

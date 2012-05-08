@@ -456,21 +456,21 @@ int c2_md_store_setattr(struct c2_md_store      *md,
          */
         if (cob->co_valid & CA_NSREC) {
                 nsrec = &cob->co_nsrec;
-                if (attr->ca_flags & C2_MD_ATIME)
+                if (attr->ca_flags & C2_COB_ATIME)
                         nsrec->cnr_atime = attr->ca_atime;
-                if (attr->ca_flags & C2_MD_MTIME)
+                if (attr->ca_flags & C2_COB_MTIME)
                         nsrec->cnr_mtime = attr->ca_mtime;
-                if (attr->ca_flags & C2_MD_CTIME)
+                if (attr->ca_flags & C2_COB_CTIME)
                         nsrec->cnr_ctime = attr->ca_ctime;
-                if (attr->ca_flags & C2_MD_SIZE)
+                if (attr->ca_flags & C2_COB_SIZE)
                         nsrec->cnr_size = attr->ca_size;
-                if (attr->ca_flags & C2_MD_RDEV)
+                if (attr->ca_flags & C2_COB_RDEV)
                         nsrec->cnr_rdev = attr->ca_rdev;
-                if (attr->ca_flags & C2_MD_BLOCKS)
+                if (attr->ca_flags & C2_COB_BLOCKS)
                         nsrec->cnr_blocks = attr->ca_blocks;
-                if (attr->ca_flags & C2_MD_BLKSIZE)
+                if (attr->ca_flags & C2_COB_BLKSIZE)
                         nsrec->cnr_blksize = attr->ca_blksize;
-                if (attr->ca_flags & C2_MD_NLINK) {
+                if (attr->ca_flags & C2_COB_NLINK) {
                         C2_ASSERT(attr->ca_nlink > 0);
                         nsrec->cnr_nlink = attr->ca_nlink;
                 }
@@ -482,11 +482,11 @@ int c2_md_store_setattr(struct c2_md_store      *md,
          */
         if (cob->co_valid & CA_OMGREC) {
                 omgrec = &cob->co_omgrec;
-                if (attr->ca_flags & C2_MD_UID)
+                if (attr->ca_flags & C2_COB_UID)
                         omgrec->cor_uid = attr->ca_uid;
-                if (attr->ca_flags & C2_MD_GID)
+                if (attr->ca_flags & C2_COB_GID)
                         omgrec->cor_gid = attr->ca_gid;
-                if (attr->ca_flags & C2_MD_MODE)
+                if (attr->ca_flags & C2_COB_MODE)
                         omgrec->cor_mode = attr->ca_mode;
         }
         
@@ -524,7 +524,7 @@ int c2_md_store_getattr(struct c2_md_store      *md,
          * Copy permissions and owner info into rep.
          */
         if (cob->co_valid & CA_OMGREC) {
-                attr->ca_flags |= C2_MD_UID | C2_MD_GID | C2_MD_MODE;
+                attr->ca_flags |= C2_COB_UID | C2_COB_GID | C2_COB_MODE;
                 attr->ca_uid = cob->co_omgrec.cor_uid;
                 attr->ca_gid = cob->co_omgrec.cor_gid;
                 attr->ca_mode = cob->co_omgrec.cor_mode;
@@ -534,9 +534,9 @@ int c2_md_store_getattr(struct c2_md_store      *md,
          * Copy nsrec fields into response.
          */
         if (cob->co_valid & CA_NSREC) {
-                attr->ca_flags |= C2_MD_ATIME | C2_MD_CTIME | C2_MD_MTIME |
-                                  C2_MD_SIZE | C2_MD_BLKSIZE | C2_MD_BLOCKS |
-                                  C2_MD_RDEV;
+                attr->ca_flags |= C2_COB_ATIME | C2_COB_CTIME | C2_COB_MTIME |
+                                  C2_COB_SIZE | C2_COB_BLKSIZE | C2_COB_BLOCKS |
+                                  C2_COB_RDEV;
                 attr->ca_atime = cob->co_nsrec.cnr_atime;
                 attr->ca_ctime = cob->co_nsrec.cnr_ctime;
                 attr->ca_mtime = cob->co_nsrec.cnr_mtime;

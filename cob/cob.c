@@ -37,6 +37,10 @@
    @{
 */
 
+enum {
+        C2_COB_NAME_MAX = 256
+};
+
 /**
    Storage virtual root. All cobs are placed in it.
  */

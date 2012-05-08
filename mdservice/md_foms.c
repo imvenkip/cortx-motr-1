@@ -84,27 +84,27 @@ static void c2_md_fop_cob2attr(struct c2_cob_attr *attr,
         c2_md_make_fid(&attr->ca_pfid, &body->b_pfid);
         c2_md_make_fid(&attr->ca_tfid, &body->b_tfid);
         attr->ca_flags = body->b_valid;
-        if (body->b_valid & C2_MD_MODE)
+        if (body->b_valid & C2_COB_MODE)
                 attr->ca_mode = body->b_mode;
-        if (body->b_valid & C2_MD_UID)
+        if (body->b_valid & C2_COB_UID)
                 attr->ca_uid = body->b_uid;
-        if (body->b_valid & C2_MD_GID)
+        if (body->b_valid & C2_COB_GID)
                 attr->ca_gid = body->b_gid;
-        if (body->b_valid & C2_MD_ATIME)
+        if (body->b_valid & C2_COB_ATIME)
                 attr->ca_atime = body->b_atime;
-        if (body->b_valid & C2_MD_MTIME)
+        if (body->b_valid & C2_COB_MTIME)
                 attr->ca_mtime = body->b_mtime;
-        if (body->b_valid & C2_MD_CTIME)
+        if (body->b_valid & C2_COB_CTIME)
                 attr->ca_ctime = body->b_ctime;
-        if (body->b_valid & C2_MD_NLINK)
+        if (body->b_valid & C2_COB_NLINK)
                 attr->ca_nlink = body->b_nlink;
-        if (body->b_valid & C2_MD_RDEV)
+        if (body->b_valid & C2_COB_RDEV)
                 attr->ca_rdev = body->b_rdev;
-        if (body->b_valid & C2_MD_SIZE)
+        if (body->b_valid & C2_COB_SIZE)
                 attr->ca_size = body->b_size;
-        if (body->b_valid & C2_MD_BLKSIZE)
+        if (body->b_valid & C2_COB_BLKSIZE)
                 attr->ca_blksize = body->b_blksize;
-        if (body->b_valid & C2_MD_BLOCKS)
+        if (body->b_valid & C2_COB_BLOCKS)
                 attr->ca_blocks = body->b_blocks;
         attr->ca_version = body->b_version;
 }
@@ -113,27 +113,27 @@ static void c2_md_fop_attr2cob(struct c2_fop_cob *body,
                                struct c2_cob_attr *attr)
 {
         body->b_valid = attr->ca_flags;
-        if (body->b_valid & C2_MD_UID)
+        if (body->b_valid & C2_COB_UID)
                 body->b_mode = attr->ca_mode;
-        if (body->b_valid & C2_MD_UID)
+        if (body->b_valid & C2_COB_UID)
                 body->b_uid = attr->ca_uid;
-        if (body->b_valid & C2_MD_UID)
+        if (body->b_valid & C2_COB_UID)
                 body->b_gid = attr->ca_gid;
-        if (body->b_valid & C2_MD_ATIME)
+        if (body->b_valid & C2_COB_ATIME)
                 body->b_atime = attr->ca_atime;
-        if (body->b_valid & C2_MD_MTIME)
+        if (body->b_valid & C2_COB_MTIME)
                 body->b_mtime = attr->ca_mtime;
-        if (body->b_valid & C2_MD_CTIME)
+        if (body->b_valid & C2_COB_CTIME)
                 body->b_ctime = attr->ca_ctime;
-        if (body->b_valid & C2_MD_NLINK)
+        if (body->b_valid & C2_COB_NLINK)
                 body->b_nlink = attr->ca_nlink;
-        if (body->b_valid & C2_MD_RDEV)
+        if (body->b_valid & C2_COB_RDEV)
                 body->b_rdev = attr->ca_rdev;
-        if (body->b_valid & C2_MD_SIZE)
+        if (body->b_valid & C2_COB_SIZE)
                 body->b_size = attr->ca_size;
-        if (body->b_valid & C2_MD_BLKSIZE)
+        if (body->b_valid & C2_COB_BLKSIZE)
                 body->b_blksize = attr->ca_blksize;
-        if (body->b_valid & C2_MD_BLOCKS)
+        if (body->b_valid & C2_COB_BLOCKS)
                 body->b_blocks = attr->ca_blocks;
         body->b_version = attr->ca_version;
 }
@@ -595,12 +595,12 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
                 rc = c2_md_store_open(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob, 
                                       body->b_flags, &fom->fo_tx.tx_dbtx);
                 if (rc == 0 &&
-                    (!(attr.ca_flags & C2_MD_NLINK) || attr.ca_nlink > 0)) {
+                    (!(attr.ca_flags & C2_COB_NLINK) || attr.ca_nlink > 0)) {
                         /*
                          * Mode contains open flags that we don't need
                          * to store to db.
                          */
-                        attr.ca_flags &= ~C2_MD_MODE;
+                        attr.ca_flags &= ~C2_COB_MODE;
                         rc = c2_md_store_setattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
                                                  cob, &attr, &fom->fo_tx.tx_dbtx);
                 }
@@ -611,7 +611,7 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
                  * We don't have to create anything here as file already
                  * should exist, let's just check this.
                  */
-                C2_ASSERT(!(body->b_flags & C2_MD_OPEN_CREAT));
+                //C2_ASSERT(!(body->b_flags & C2_MD_OPEN_CREAT));
         } else if (rc) {
                 c2_fom_block_leave(fom);
                 goto out;
@@ -694,12 +694,12 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
         rc = c2_md_store_close(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob, 
                                &fom->fo_tx.tx_dbtx);
         if (rc == 0 && 
-            (!(attr.ca_flags & C2_MD_NLINK) || attr.ca_nlink > 0)) {
+            (!(attr.ca_flags & C2_COB_NLINK) || attr.ca_nlink > 0)) {
                 /*
                  * Mode contains open flags that we don't need
                  * to store to db.
                  */
-                attr.ca_flags &= ~C2_MD_MODE;
+                attr.ca_flags &= ~C2_COB_MODE;
                 rc = c2_md_store_setattr(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob,
                                          &attr, &fom->fo_tx.tx_dbtx);
         }

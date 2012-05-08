@@ -79,31 +79,31 @@ static uint16_t lustre_get_valid(uint16_t valid)
         uint16_t result = 0;
         
         if (valid & C2_LA_ATIME)
-                result |= C2_MD_ATIME;
+                result |= C2_COB_ATIME;
         if (valid & C2_LA_MTIME)
-                result |= C2_MD_MTIME;
+                result |= C2_COB_MTIME;
         if (valid & C2_LA_CTIME)
-                result |= C2_MD_CTIME;
+                result |= C2_COB_CTIME;
         if (valid & C2_LA_SIZE)
-                result |= C2_MD_SIZE;
+                result |= C2_COB_SIZE;
         if (valid & C2_LA_MODE)
-                result |= C2_MD_MODE;
+                result |= C2_COB_MODE;
         if (valid & C2_LA_UID)
-                result |= C2_MD_UID;
+                result |= C2_COB_UID;
         if (valid & C2_LA_GID)
-                result |= C2_MD_GID;
+                result |= C2_COB_GID;
         if (valid & C2_LA_BLOCKS)
-                result |= C2_MD_BLOCKS;
+                result |= C2_COB_BLOCKS;
         if (valid & C2_LA_TYPE)
-                result |= C2_MD_TYPE;
+                result |= C2_COB_TYPE;
         if (valid & C2_LA_FLAGS)
-                result |= C2_MD_FLAGS;
+                result |= C2_COB_FLAGS;
         if (valid & C2_LA_NLINK)
-                result |= C2_MD_NLINK;
+                result |= C2_COB_NLINK;
         if (valid & C2_LA_RDEV)
-                result |= C2_MD_RDEV;
+                result |= C2_COB_RDEV;
         if (valid & C2_LA_BLKSIZE)
-                result |= C2_MD_BLKSIZE;
+                result |= C2_COB_BLKSIZE;
         return result;
 }
 
