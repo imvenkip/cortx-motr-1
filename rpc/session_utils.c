@@ -207,7 +207,7 @@ int c2_rpc_root_session_cob_get(struct c2_cob_domain *dom,
 				struct c2_cob       **out,
 				struct c2_db_tx      *tx)
 {
-	return c2_rpc_cob_lookup_helper(dom, NULL, root_session_cob_name,
+	return c2_rpc_cob_lookup_helper(dom, NULL, C2_COB_SESSIONS_NAME,
 						out, tx);
 }
 
@@ -224,14 +224,9 @@ int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
 int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
 				   struct c2_db_tx      *tx)
 {
-	struct c2_cob *out = NULL;
-	int            rc;
-
-	rc = c2_rpc_cob_create_helper(dom, NULL, root_session_cob_name,
-						&out, tx);
-	if (rc == 0)
-		c2_cob_put(out);
-
+	int rc;
+	
+	rc = c2_cob_domain_mkfs(dom, &C2_COB_SLASH_FID, &C2_COB_SESSIONS_FID, tx);
 	if (rc == -EEXIST)
 		rc = 0;
 

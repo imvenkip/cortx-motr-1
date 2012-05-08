@@ -153,15 +153,24 @@ struct c2_db_tx;
  */
 
 struct c2_cob;
+struct c2_fid;
 struct c2_cob_id;
 struct c2_cob_domain;
 struct c2_cob_domain_id;
 
-/**
-  Unique cob domain identifier.
+#define C2_COB_ROOT_NAME     "ROOT"
+#define C2_COB_SESSIONS_NAME "SESSIONS"
 
-  A cob_domain identifier distinguishes domains within a single
-  database environment.
+extern struct c2_fid C2_COB_ROOT_FID;
+
+extern struct c2_fid C2_COB_SLASH_FID;
+extern struct c2_fid C2_COB_SESSIONS_FID;
+
+/**
+   Unique cob domain identifier.
+
+   A cob_domain identifier distinguishes domains within a single
+   database environment.
  */
 struct c2_cob_domain_id {
 	uint32_t id;
@@ -201,6 +210,9 @@ struct c2_cob_domain {
 int c2_cob_domain_init(struct c2_cob_domain *dom, struct c2_dbenv *env,
                        struct c2_cob_domain_id *id);
 void c2_cob_domain_fini(struct c2_cob_domain *dom);
+
+int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
+                       struct c2_fid *sessfid, struct c2_db_tx *tx);
 
 /**
    Attributes describing object that needs to be created or modified.

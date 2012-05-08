@@ -158,12 +158,6 @@ void c2_rpc_slot_fini(struct c2_rpc_slot *slot);
 bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot);
 
 /**
-   Name of a cob which is root of hierarchy of cobs that represent
-   persistent state maintained by session module.
- */
-static const char root_session_cob_name[] = "SESSIONS";
-
-/**
    Helper to create cob
 
    @param dom cob domain in which cob should be created.

@@ -42,9 +42,6 @@ struct c2_md_store {
         struct c2_addb_ctx    md_addb;
 };
 
-#define C2_MD_ROOT_NAME "ROOT"
-extern struct c2_fid C2_MD_ROOT_FID;
-
 /**
    Flags supplied to c2_md_store_locate() to point out where a cob 
    should be found: on store, in opened files table or orhans table.

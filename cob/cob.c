@@ -37,6 +37,30 @@
    @{
 */
 
+/**
+   Storage virtual root. All cobs are placed in it.
+ */
+struct c2_fid C2_COB_ROOT_FID = {
+        .f_container = 1ULL, 
+        .f_key       = 1ULL
+};
+
+/**
+   Metadata hierarchry root fid.
+*/
+struct c2_fid C2_COB_SLASH_FID = {
+        .f_container = 1ULL, 
+        .f_key       = 2ULL
+};
+
+/**
+   Root session fid. All sessions are placed in it.
+*/
+struct c2_fid C2_COB_SESSIONS_FID = {
+        .f_container = 1ULL, 
+        .f_key       = 3ULL
+};
+
 static const struct c2_addb_ctx_type c2_cob_domain_addb = {
 	.act_name = "cob-domain"
 };
@@ -315,6 +339,113 @@ void c2_cob_domain_fini(struct c2_cob_domain *dom)
 	c2_rwlock_fini(&dom->cd_guard);
 	c2_addb_ctx_fini(&dom->cd_addb);
 }
+
+#ifndef __KERNEL__
+#include <sys/stat.h>    /* S_ISDIR */
+
+int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
+                       struct c2_fid *sessfid, struct c2_db_tx *tx)
+{
+        struct c2_cob_nskey  *nskey;
+        struct c2_cob_nsrec   nsrec;
+        struct c2_cob_omgkey  omgkey;
+        struct c2_cob_omgrec  omgrec;
+        struct c2_cob_fabrec *fabrec;
+        struct c2_db_pair     pair;
+        struct c2_cob        *cob;
+        time_t                now;
+        int                   rc;
+
+        /**
+           Create terminator omgid record with id == ~0ULL.
+         */
+        omgkey.cok_omgid = ~0ULL;
+        
+        C2_SET0(&omgrec);
+        
+        c2_db_pair_setup(&pair, &dom->cd_fileattr_omg,
+                         &omgkey, sizeof omgkey, &omgrec, sizeof omgrec);
+
+        rc = c2_table_insert(tx, &pair);
+        c2_db_pair_release(&pair);
+        c2_db_pair_fini(&pair);
+        if (rc)
+                return rc;
+
+        /**
+           Create root cob where all namespace is stored.
+         */
+        C2_SET0(&nsrec);
+
+        c2_cob_make_nskey(&nskey, &C2_COB_ROOT_FID, C2_COB_ROOT_NAME, 
+                          strlen(C2_COB_ROOT_NAME));
+
+        nsrec.cnr_omgid = 0;
+        nsrec.cnr_fid = *rootfid;
+
+        nsrec.cnr_nlink = 1;
+        nsrec.cnr_size = 4096;
+        nsrec.cnr_blksize = 4096;
+        nsrec.cnr_blocks = 16;
+        time(&now);
+        nsrec.cnr_atime = nsrec.cnr_mtime = nsrec.cnr_ctime = now;
+
+        omgrec.cor_uid = 0;
+        omgrec.cor_gid = 0;
+        omgrec.cor_mode = S_IFDIR | 
+                          S_IRUSR | S_IWUSR | S_IXUSR | /* rwx for owner */
+                          S_IRGRP | S_IXGRP |           /* r-x for group */
+                          S_IROTH | S_IXOTH;            /* r-x for others */
+
+        c2_cob_make_fabrec(&fabrec, NULL, 0);
+
+        rc = c2_cob_create(dom, nskey, &nsrec, fabrec, &omgrec, &cob, tx);
+        if (rc) {
+                c2_free(nskey);
+                c2_free(fabrec);
+                return rc;
+        }
+        c2_cob_put(cob);
+
+        /**
+           Create root session.
+         */
+        C2_SET0(&nsrec);
+
+        c2_cob_make_nskey(&nskey, &C2_COB_ROOT_FID, C2_COB_SESSIONS_NAME, 
+                          strlen(C2_COB_SESSIONS_NAME));
+
+        nsrec.cnr_omgid = 0;
+        nsrec.cnr_fid = *sessfid;
+
+        nsrec.cnr_nlink = 1;
+        nsrec.cnr_size = 4096;
+        nsrec.cnr_blksize = 4096;
+        nsrec.cnr_blocks = 16;
+        time(&now);
+        nsrec.cnr_atime = nsrec.cnr_mtime = nsrec.cnr_ctime = now;
+
+        omgrec.cor_uid = 0;
+        omgrec.cor_gid = 0;
+        omgrec.cor_mode = S_IFDIR | 
+                          S_IRUSR | S_IWUSR | S_IXUSR | /* rwx for owner */
+                          S_IRGRP | S_IXGRP |           /* r-x for group */
+                          S_IROTH | S_IXOTH;            /* r-x for others */
+
+        c2_cob_make_fabrec(&fabrec, NULL, 0);
+	fabrec->cfb_version.vn_lsn = C2_LSN_RESERVED_NR + 2;
+	fabrec->cfb_version.vn_vc = 0;
+
+        rc = c2_cob_create(dom, nskey, &nsrec, fabrec, &omgrec, &cob, tx);
+        if (rc) {
+                c2_free(nskey);
+                c2_free(fabrec);
+                return rc;
+        }
+        c2_cob_put(cob);
+        return rc;
+}
+#endif
 
 static void cob_free_cb(struct c2_ref *ref);
 
@@ -755,7 +886,7 @@ void c2_cob_iterator_fini(struct c2_cob_iterator *it)
 
 /** 
    For assertions only.
-*/
+ */
 static bool c2_cob_is_valid(struct c2_cob *cob)
 {
         return c2_fid_is_set(cob->co_fid);
@@ -797,18 +928,19 @@ int c2_cob_create(struct c2_cob_domain *dom,
         rc = c2_cob_alloc(dom, &cob);
         if (rc)
                 return rc;
-        /*
-         * Allocate omgid using last allocated number + 1.
-         * Find terminator record and do prev() out of it
-         * to find last allocated.
-         */
-        omgkey.cok_omgid = ~0ULL;
         
         rc = c2_db_cursor_init(&cursor, 
                                &cob->co_dom->cd_fileattr_omg, tx, 0);
         if (rc)
                 goto out;
 
+        /**
+           Lookup for ~0ULL terminator record and do step back to find last
+           allocated omgid. Terminator record should be prepared in storage
+           init time (mkfs or else).
+         */
+        omgkey.cok_omgid = ~0ULL;
+        
         c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_omg,
 			 &omgkey, sizeof omgkey, &cob->co_omgrec,
 			 sizeof cob->co_omgrec);
@@ -816,19 +948,19 @@ int c2_cob_create(struct c2_cob_domain *dom,
         rc = c2_db_cursor_get(&cursor, &pair);
         if (rc == 0)
                 rc = c2_db_cursor_prev(&cursor, &pair);
+
         c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
         c2_db_cursor_fini(&cursor);
 
         if (rc == 0) {
-                /*
-                 * Bump last allocated omgid.
+                /**
+                   Bump last allocated omgid.
                  */
                 nsrec->cnr_omgid = ++omgkey.cok_omgid;
         } else {
-                /*
-                 * No terminator record found, this
-                 * must be root creating.
+                /**
+                   Nothing allocated yet, this may be root cob..
                  */
                 nsrec->cnr_omgid = 0;
         }

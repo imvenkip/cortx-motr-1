@@ -874,7 +874,7 @@ int c2_rpc_conn_cob_create(struct c2_cob_domain *dom,
 	sprintf(name, conn_cob_name_fmt, (unsigned long)sender_id);
 	*out = NULL;
 
-	rc = c2_rpc_cob_lookup_helper(dom, NULL, root_session_cob_name,
+	rc = c2_rpc_cob_lookup_helper(dom, NULL, C2_COB_SESSIONS_NAME,
 					&root_session_cob, tx);
 	if (rc != 0) {
 		C2_ASSERT(rc != -EEXIST);

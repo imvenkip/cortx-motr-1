@@ -50,11 +50,6 @@ static const struct c2_addb_loc mdstore_addb_loc = {
 	.al_name = "mdstore"
 };
 
-struct c2_fid C2_MD_ROOT_FID = {
-        .f_container = 1ULL, 
-        .f_key       = 1ULL
-};
-
 /**
    Initialize mdstore on passed @id and db. Input argument @init_root
    controls whether root cob should be initialized.
@@ -81,8 +76,8 @@ int c2_md_store_init(struct c2_md_store         *md,
         }
         if (init_root) {
                 c2_db_tx_init(&tx, db, 0);
-                rc = c2_md_store_lookup(md, NULL, C2_MD_ROOT_NAME, 
-                                        strlen(C2_MD_ROOT_NAME), 
+                rc = c2_md_store_lookup(md, NULL, C2_COB_ROOT_NAME, 
+                                        strlen(C2_COB_ROOT_NAME), 
                                         &md->md_root, &tx);
                 C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
                             c2_addb_func_fail, "md_root_lookup", rc);
@@ -695,7 +690,7 @@ int c2_md_store_lookup(struct c2_md_store       *md,
         int flags;
 
         if (pfid == NULL)
-                pfid = &C2_MD_ROOT_FID;
+                pfid = &C2_COB_ROOT_FID;
 
         c2_cob_make_nskey(&nskey, pfid, name, namelen);
         flags = (CA_NSKEY_FREE | CA_FABREC | CA_OMGREC);
@@ -746,7 +741,7 @@ restart:
                 memcpy(*path, name, strlen(name));
                 pfid = cob->co_nskey->cnk_pfid;
                 c2_cob_put(cob);
-        } while (!c2_fid_eq(&pfid, &C2_MD_ROOT_FID));
+        } while (!c2_fid_eq(&pfid, &C2_COB_ROOT_FID));
 out:
         if (rc) {
                 c2_db_tx_abort(&tx);

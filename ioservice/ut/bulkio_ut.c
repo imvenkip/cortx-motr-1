@@ -33,7 +33,8 @@ static void bulkio_fini();
 
 struct bulkio_params *bp;
 extern void bulkioapi_test(void);
-static int io_fop_server_write_fom_create(struct c2_fop *fop, struct c2_fom **m);
+static int io_fop_server_write_fom_create(struct c2_fop *fop,
+					  struct c2_fom **m);
 static int ut_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **m);
 static int io_fop_server_read_fom_create(struct c2_fop *fop, struct c2_fom **m);
 static int io_fop_stob_create_fom_create(struct c2_fop *fop, struct c2_fom **m);
