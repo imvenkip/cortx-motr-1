@@ -112,10 +112,8 @@ static struct c2_fop_type *cs_ds2_fopts[] = {
   Fom specific routines for corresponding fops.
  */
 static int cs_req_fop_fom_state(struct c2_fom *fom);
-static int cs_ds1_req_fop_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
-                                     struct c2_fom **out);
-static int cs_ds2_req_fop_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
-                                     struct c2_fom **out);
+static int cs_ds1_req_fop_fom_create(struct c2_fop *fop, struct c2_fom **out);
+static int cs_ds2_req_fop_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static void cs_ut_fom_fini(struct c2_fom *fom);
 static size_t cs_ut_find_fom_home_locality(const struct c2_fom *fom);
 
@@ -278,14 +276,12 @@ static int cs_ds_req_fop_fom_create(struct c2_fop *fop,
         return 0;
 }
 
-static int cs_ds1_req_fop_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
-                                     struct c2_fom **out)
+static int cs_ds1_req_fop_fom_create(struct c2_fop *fop, struct c2_fom **out)
 {
 	return cs_ds_req_fop_fom_create(fop, &cs_ds1_req_fop_fom_ops, out);
 }
 
-static int cs_ds2_req_fop_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
-                                     struct c2_fom **out)
+static int cs_ds2_req_fop_fom_create(struct c2_fop *fop, struct c2_fom **out)
 {
 	return cs_ds_req_fop_fom_create(fop, &cs_ds2_req_fop_fom_ops, out);
 }

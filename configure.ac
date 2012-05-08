@@ -644,7 +644,6 @@ AC_CONFIG_FILES([
                  lib/ut/Makefile
                  m4/Makefile
                  man/Makefile
-                 mds/Makefile
                  mw/Makefile
                  net/Makefile
 		 net/bulk_emulation/Makefile

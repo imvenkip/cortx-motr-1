@@ -39,22 +39,13 @@ enum c2_md_fom_phases {
         C2_FOPH_MD_GENERIC = C2_FOPH_NR + 1
 };
 
+int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom);
+
 /**
    Init request fom for all types of requests.
 */
-int c2_md_req_fom_create(struct c2_fop *fop, 
-                         struct c2_fop_ctx *ctx, 
-                         struct c2_fom **m);
-int c2_md_rep_fom_create(struct c2_fop *fop, 
-                         struct c2_fop_ctx *ctx, 
-                         struct c2_fom **m);
-
-/**
-   Init reply fom.
-*/
-int c2_md_rep_fom_init(struct c2_fop *fop, 
-                       struct c2_fop_ctx *ctx, 
-                       struct c2_fom **m);
+int c2_md_req_fom_create(struct c2_fop *fop, struct c2_fom **m);
+int c2_md_rep_fom_create(struct c2_fop *fop, struct c2_fom **m);
 
 /**
    Make in-memory fid from wire fid (wid).

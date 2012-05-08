@@ -42,8 +42,7 @@
 #endif
 
 /* Forward Declarations. */
-static int  cob_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
-                           struct c2_fom **out);
+static int  cob_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static void cc_fom_fini(struct c2_fom *fom);
 static int  cc_fom_state(struct c2_fom *fom);
 static int  cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc);
@@ -110,8 +109,7 @@ struct c2_fom_type cd_fom_type = {
 	.ft_ops = &cob_fom_type_ops,
 };
 
-static int cob_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
-                          struct c2_fom **out)
+static int cob_fom_create(struct c2_fop *fop, struct c2_fom **out)
 {
 	int			  rc;
 	struct c2_fop            *rfop;

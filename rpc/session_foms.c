@@ -71,8 +71,7 @@ static void session_gen_fom_fini(struct c2_fom *fom)
    conn establish, conn terminate, session establish,
    session terminate fop types.
  */
-static int session_gen_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
-                                  struct c2_fom **m)
+static int session_gen_fom_create(struct c2_fop *fop, struct c2_fom **m)
 {
 	const struct c2_fom_ops *fom_ops;
 	struct c2_fom           *fom;

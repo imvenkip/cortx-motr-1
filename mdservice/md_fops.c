@@ -223,74 +223,67 @@ static struct c2_fom_type_ops c2_md_req_ops = {
         .fto_create   = c2_md_req_fom_create
 };
 
-static struct c2_fom_type_ops c2_md_rep_ops = {
-        .fto_create = c2_md_rep_fom_create
+static struct c2_fom_type c2_md_req_type = {
+        .ft_ops = &c2_md_req_ops
 };
 
 /** Request fops. */
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_create,  "Create request",
-                        &c2_md_item_ops, C2_MD_FOP_CREATE_OPCODE,
-                        C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
-                        NULL, &c2_md_req_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_link,    "Hardlink request",
-                        &c2_md_item_ops, C2_MD_FOP_LINK_OPCODE,
-                        C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
-                        NULL, &c2_md_req_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_unlink,  "Unlink request",
-                        &c2_md_item_ops, C2_MD_FOP_UNLINK_OPCODE, 
-                        C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
-                        NULL, &c2_md_req_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_open,    "Open request",
-                        &c2_md_item_ops, C2_MD_FOP_OPEN_OPCODE,
-                        C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
-                        NULL, &c2_md_req_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_close,   "Close request",
-                        &c2_md_item_ops, C2_MD_FOP_CLOSE_OPCODE,
-                        C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
-                        NULL, &c2_md_req_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_setattr, "Setattr request",
-                        &c2_md_item_ops, C2_MD_FOP_SETATTR_OPCODE,
-                        C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
-                        NULL, &c2_md_req_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_getattr, "Getattr request",
-                        &c2_md_item_ops, C2_MD_FOP_GETATTR_OPCODE,
-                        C2_RPC_ITEM_TYPE_REQUEST, NULL, &c2_md_req_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_rename,  "Rename request",
-                        &c2_md_item_ops, C2_MD_FOP_RENAME_OPCODE,
-                        C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
-                        NULL, &c2_md_req_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_readdir, "Readdir request",
-                        &c2_md_item_ops, C2_MD_FOP_READDIR_OPCODE,
-                        C2_RPC_ITEM_TYPE_REQUEST, NULL, &c2_md_req_ops);
+C2_FOP_TYPE_DECLARE(c2_fop_create,  "Create request",
+                    &c2_md_item_ops, C2_MD_FOP_CREATE_OPCODE,
+                    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
+C2_FOP_TYPE_DECLARE(c2_fop_link,    "Hardlink request",
+                    &c2_md_item_ops, C2_MD_FOP_LINK_OPCODE,
+                    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
+C2_FOP_TYPE_DECLARE(c2_fop_unlink,  "Unlink request",
+                    &c2_md_item_ops, C2_MD_FOP_UNLINK_OPCODE, 
+                    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
+C2_FOP_TYPE_DECLARE(c2_fop_open,    "Open request",
+                    &c2_md_item_ops, C2_MD_FOP_OPEN_OPCODE,
+                    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
+C2_FOP_TYPE_DECLARE(c2_fop_close,   "Close request",
+                    &c2_md_item_ops, C2_MD_FOP_CLOSE_OPCODE,
+                    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
+C2_FOP_TYPE_DECLARE(c2_fop_setattr, "Setattr request",
+                    &c2_md_item_ops, C2_MD_FOP_SETATTR_OPCODE,
+                    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
+C2_FOP_TYPE_DECLARE(c2_fop_getattr, "Getattr request",
+                    &c2_md_item_ops, C2_MD_FOP_GETATTR_OPCODE,
+                    C2_RPC_ITEM_TYPE_REQUEST);
+C2_FOP_TYPE_DECLARE(c2_fop_rename,  "Rename request",
+                    &c2_md_item_ops, C2_MD_FOP_RENAME_OPCODE,
+                    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
+C2_FOP_TYPE_DECLARE(c2_fop_readdir, "Readdir request",
+                    &c2_md_item_ops, C2_MD_FOP_READDIR_OPCODE,
+                    C2_RPC_ITEM_TYPE_REQUEST);
 
 /** Reply fops. */
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_create_rep,  "Create reply",
-                        &c2_md_item_ops, C2_MD_FOP_CREATE_REP_OPCODE,
-                        C2_RPC_ITEM_TYPE_REPLY, NULL, &c2_md_rep_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_link_rep,    "Hardlink reply",
-                        &c2_md_item_ops, C2_MD_FOP_LINK_REP_OPCODE,
-                        C2_RPC_ITEM_TYPE_REPLY, NULL, &c2_md_rep_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_unlink_rep,  "Unlink reply",
-                        &c2_md_item_ops, C2_MD_FOP_UNLINK_REP_OPCODE,
-                        C2_RPC_ITEM_TYPE_REPLY, NULL, &c2_md_rep_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_open_rep,    "Open reply",
-                        &c2_md_item_ops, C2_MD_FOP_OPEN_REP_OPCODE,
-                        C2_RPC_ITEM_TYPE_REPLY, NULL, &c2_md_rep_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_close_rep,   "Close reply",
-                        &c2_md_item_ops, C2_MD_FOP_CLOSE_REP_OPCODE,
-                        C2_RPC_ITEM_TYPE_REPLY, NULL, &c2_md_rep_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_setattr_rep, "Setattr reply",
-                        &c2_md_item_ops, C2_MD_FOP_SETATTR_REP_OPCODE,
-                        C2_RPC_ITEM_TYPE_REPLY, NULL, &c2_md_rep_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_getattr_rep, "Getattr reply",
-                        &c2_md_item_ops, C2_MD_FOP_GETATTR_REP_OPCODE,
-                        C2_RPC_ITEM_TYPE_REPLY, NULL, &c2_md_rep_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_rename_rep,  "Rename reply",
-                        &c2_md_item_ops, C2_MD_FOP_RENAME_REP_OPCODE,
-                        C2_RPC_ITEM_TYPE_REPLY, NULL, &c2_md_rep_ops);
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_readdir_rep, "Readdir reply",
-                        &c2_md_item_ops, C2_MD_FOP_READDIR_REP_OPCODE,
-                        C2_RPC_ITEM_TYPE_REPLY, NULL, &c2_md_rep_ops);
+C2_FOP_TYPE_DECLARE(c2_fop_create_rep,  "Create reply",
+                    &c2_md_item_ops, C2_MD_FOP_CREATE_REP_OPCODE,
+                    C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE(c2_fop_link_rep,    "Hardlink reply",
+                    &c2_md_item_ops, C2_MD_FOP_LINK_REP_OPCODE,
+                    C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE(c2_fop_unlink_rep,  "Unlink reply",
+                    &c2_md_item_ops, C2_MD_FOP_UNLINK_REP_OPCODE,
+                    C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE(c2_fop_open_rep,    "Open reply",
+                    &c2_md_item_ops, C2_MD_FOP_OPEN_REP_OPCODE,
+                    C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE(c2_fop_close_rep,   "Close reply",
+                    &c2_md_item_ops, C2_MD_FOP_CLOSE_REP_OPCODE,
+                    C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE(c2_fop_setattr_rep, "Setattr reply",
+                    &c2_md_item_ops, C2_MD_FOP_SETATTR_REP_OPCODE,
+                    C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE(c2_fop_getattr_rep, "Getattr reply",
+                    &c2_md_item_ops, C2_MD_FOP_GETATTR_REP_OPCODE,
+                    C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE(c2_fop_rename_rep,  "Rename reply",
+                    &c2_md_item_ops, C2_MD_FOP_RENAME_REP_OPCODE,
+                    C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE(c2_fop_readdir_rep, "Readdir reply",
+                    &c2_md_item_ops, C2_MD_FOP_READDIR_REP_OPCODE,
+                    C2_RPC_ITEM_TYPE_REPLY);
 
 static struct c2_fop_type *c2_md_fop_fops[] = {
         &c2_fop_create_fopt,
@@ -320,21 +313,31 @@ static struct c2_fop_type_format *c2_md_fop_fmts[] = {
 	&c2_fop_buf_tfmt
 };
 
-void c2_md_fop_fini(void)
+void c2_mds_unregister(void)
 {
         c2_fop_type_fini_nr(c2_md_fop_fops, ARRAY_SIZE(c2_md_fop_fops));
         c2_fop_type_format_fini_nr(c2_md_fop_fmts, ARRAY_SIZE(c2_md_fop_fmts));
 }
 
-int c2_md_fop_init(void)
+int c2_mds_register(void)
 {
 	int rc;
 
 	rc = c2_fop_type_format_parse_nr(c2_md_fop_fmts, ARRAY_SIZE(c2_md_fop_fmts));
-	if (rc == 0)
+	if (rc == 0) {
 		rc = c2_fop_type_build_nr(c2_md_fop_fops, ARRAY_SIZE(c2_md_fop_fops));
-	if (rc != 0)
-		c2_md_fop_fini();
+	        if (rc != 0)
+		        c2_fop_type_format_fini_nr(c2_md_fop_fmts, ARRAY_SIZE(c2_md_fop_fmts));
+        }
+        c2_fop_create_fopt.ft_fom_type = c2_md_req_type;
+        c2_fop_link_fopt.ft_fom_type = c2_md_req_type;
+        c2_fop_unlink_fopt.ft_fom_type = c2_md_req_type;
+        c2_fop_open_fopt.ft_fom_type = c2_md_req_type;
+        c2_fop_close_fopt.ft_fom_type = c2_md_req_type;
+        c2_fop_setattr_fopt.ft_fom_type = c2_md_req_type;
+        c2_fop_getattr_fopt.ft_fom_type = c2_md_req_type;
+        c2_fop_rename_fopt.ft_fom_type = c2_md_req_type;
+        c2_fop_readdir_fopt.ft_fom_type = c2_md_req_type;
 	return rc;
 }
 

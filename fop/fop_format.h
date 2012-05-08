@@ -208,8 +208,7 @@ struct c2_fop_memlayout {
 	} fm_child[];
 };
 
-#define C2_FOP_TYPE_DECLARE_OPS(fopt, name, ops, opcode, itflags, itops, \
-		fom_ops)						\
+#define C2_FOP_TYPE_DECLARE_OPS(fopt, name, ops, opcode, itflags, itops) \
 struct c2_fop_type fopt ## _fopt = {					\
 	.ft_name = name,						\
 	.ft_fmt  = &__paste(fopt),					\
@@ -218,16 +217,12 @@ struct c2_fop_type fopt ## _fopt = {					\
 		.rit_opcode = (opcode),					\
 		.rit_flags  = (itflags),				\
 		.rit_ops    = (itops)					\
-	},								\
-	.ft_fom_type = {						\
-		.ft_ops = __C2_FOM_OPS_WRAPPER(fom_ops)			\
 	}								\
 };
 
 #define C2_FOP_TYPE_DECLARE(fopt, name, ops, opcode, itflags)		\
         C2_FOP_TYPE_DECLARE_OPS(fopt, name, ops, opcode, itflags,	\
-				&c2_rpc_fop_default_item_type_ops,	\
-				NULL)
+				&c2_rpc_fop_default_item_type_ops)
 
 /** @} end of fop group */
 

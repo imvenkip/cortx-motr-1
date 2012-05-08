@@ -167,13 +167,12 @@ static const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
 
 C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_readv, "Read request",
 			&io_fop_rwv_ops, C2_IOSERVICE_READV_OPCODE,
-			C2_RPC_ITEM_TYPE_REQUEST, &io_item_type_ops,
-			&c2_io_cob_rw_type_ops);
+			C2_RPC_ITEM_TYPE_REQUEST, &io_item_type_ops);
 
 C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_writev, "Write request",
 			&io_fop_rwv_ops, C2_IOSERVICE_WRITEV_OPCODE,
 			C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
-			&io_item_type_ops, &c2_io_cob_rw_type_ops);
+			&io_item_type_ops);
 
 C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply",
 		    &c2_io_rwv_rep_ops, C2_IOSERVICE_WRITEV_REP_OPCODE,
@@ -185,18 +184,15 @@ C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply",
 
 C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_create, "Cob create request",
 			&cob_fop_type_ops, C2_IOSERVICE_COB_CREATE_OPCODE,
-			C2_RPC_ITEM_TYPE_REQUEST, &cob_rpc_type_ops,
-			&cob_fom_type_ops);
+			C2_RPC_ITEM_TYPE_REQUEST, &cob_rpc_type_ops);
 
 C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_delete, "Cob delete request",
 			&cob_fop_type_ops, C2_IOSERVICE_COB_DELETE_OPCODE,
-			C2_RPC_ITEM_TYPE_REQUEST, &cob_rpc_type_ops,
-			&cob_fom_type_ops);
+			C2_RPC_ITEM_TYPE_REQUEST, &cob_rpc_type_ops);
 
 C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_op_reply, "Cob create or delete reply",
 			&cob_fop_type_ops, C2_IOSERVICE_COB_OP_REPLY_OPCODE,
-			C2_RPC_ITEM_TYPE_REPLY, &cob_rpc_type_ops,
-			&cob_fom_type_ops);
+			C2_RPC_ITEM_TYPE_REPLY, &cob_rpc_type_ops);
 
 static void cob_fom_type_attach(void)
 {

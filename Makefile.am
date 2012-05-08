@@ -53,7 +53,7 @@ SUBDIR_ST = console/st net/bulk_emulation/st net/lnet/st yaml2db/st
 
 SUBDIR_UB =
 
-SUBDIR_BIN = console/bin mds utils
+SUBDIR_BIN = console/bin utils
 
 SUBDIRS    = $(SUBDIRS_BASE) $(SUBDIRS_LIBS) colibri $(SUBDIR_IT) \
 	     $(SUBDIR_UT) $(SUBDIR_ST) $(SUBDIR_KERNEL) $(SUBDIR_UB) \

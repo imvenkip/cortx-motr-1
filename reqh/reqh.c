@@ -205,7 +205,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 	C2_ASSERT(fop->f_type->ft_fom_type.ft_ops != NULL);
 	C2_ASSERT(fop->f_type->ft_fom_type.ft_ops->fto_create != NULL);
 
-	result = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, ctx, &fom);
+	result = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, &fom);
 	if (result == 0) {
 		C2_ASSERT(fom != NULL);
 

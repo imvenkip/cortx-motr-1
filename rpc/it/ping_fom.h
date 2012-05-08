@@ -34,6 +34,7 @@ struct c2_fom_ping {
         struct c2_fop			*fp_fop;
 };
 
+extern struct c2_fom_type c2_fom_ping_mopt;
 extern const struct c2_fom_type_ops c2_fom_ping_type_ops;
 
 /**

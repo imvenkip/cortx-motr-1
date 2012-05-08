@@ -30,8 +30,6 @@ typedef void *xdrproc_t;
 #define xdr_uint32_t NULL
 #define xdr_uint64_t NULL
 
-#define __C2_FOM_OPS_WRAPPER(x) (NULL)
-
 /* __COLIBRI_FOP_FOP_KERNEL_H__ */
 #endif
 

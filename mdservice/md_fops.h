@@ -64,8 +64,8 @@ enum c2_fop_metadata_code {
         C2_MD_FOP_LAST_OPCODE
 };
 
-void c2_md_fop_fini(void);
-int c2_md_fop_init(void);
+void c2_mds_unregister(void);
+int c2_mds_register(void);
 
 #endif /* __COLIBRI_MDSERVICE_MD_FOMS_H__ */
 /* 

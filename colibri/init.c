@@ -113,7 +113,7 @@ struct init_fini_call subsystem[] = {
 	{ &c2_reqhs_init,    &c2_reqhs_fini,    "reqh" },
 #ifndef __KERNEL__
 	{ &c2_ios_register, &c2_ios_unregister, "ioservice" },
-	{ &c2_md_fop_init,   &c2_md_fop_fini,   "mdservice"}
+	{ &c2_mds_register, &c2_mds_unregister,   "mdservice"}
 #endif /* __KERNEL__ */
 };
 

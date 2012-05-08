@@ -36,8 +36,7 @@
 #include "lib/memory.h"
 #include "rpc/rpc2.h"
 
-static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
-                               struct c2_fom **m);
+static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m);
 
 /** Generic ops object for ping */
 struct c2_fom_ops c2_fom_ping_ops = {
@@ -52,7 +51,7 @@ const struct c2_fom_type_ops c2_fom_ping_type_ops = {
 };
 
 /** Ping specific FOM type operations vector. */
-static struct c2_fom_type c2_fom_ping_mopt = {
+struct c2_fom_type c2_fom_ping_mopt = {
         .ft_ops = &c2_fom_ping_type_ops
 };
 
@@ -88,8 +87,7 @@ int c2_fom_ping_state(struct c2_fom *fom)
 
 
 /* Init for ping */
-static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fop_ctx *ctx,
-                               struct c2_fom **m)
+static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
 {
         struct c2_fom	   *fom;
         struct c2_fom_ping *fom_obj;

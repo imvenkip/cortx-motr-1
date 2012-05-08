@@ -501,9 +501,7 @@ enum c2_fom_state_outcome {
 /** Fom type operation vector. */
 struct c2_fom_type_ops {
 	/** Create a new fom for the given fop. */
-	int (*fto_create)(struct c2_fop *fop,
-	                  struct c2_fop_ctx *ctx,
-	                  struct c2_fom **out);
+	int (*fto_create)(struct c2_fop *fop, struct c2_fom **out);
 };
 
 /** Fom operations vector. */
