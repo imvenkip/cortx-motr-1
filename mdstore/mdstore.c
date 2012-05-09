@@ -50,10 +50,6 @@ static const struct c2_addb_loc mdstore_addb_loc = {
 	.al_name = "mdstore"
 };
 
-/**
-   Initialize mdstore on passed @id and db. Input argument @init_root
-   controls whether root cob should be initialized.
-*/
 int c2_md_store_init(struct c2_md_store         *md, 
                      struct c2_cob_domain_id    *id,
                      struct c2_dbenv            *db, 
@@ -68,7 +64,7 @@ int c2_md_store_init(struct c2_md_store         *md,
         c2_addb_ctx_init(&md->md_addb, &mdstore_addb_ctx, 
                          &md->md_dom.cd_dbenv->d_addb);
         rc = c2_cob_domain_init(&md->md_dom, db, id);
-        if (rc) {
+        if (rc != 0) {
                 C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
                             c2_addb_func_fail, "cob_domain_init", rc);
 	        c2_addb_ctx_fini(&md->md_addb);
@@ -81,15 +77,14 @@ int c2_md_store_init(struct c2_md_store         *md,
                                         &md->md_root, &tx);
                 C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
                             c2_addb_func_fail, "md_root_lookup", rc);
-                if (rc) {
+                if (rc != 0) {
                         c2_db_tx_abort(&tx);
                 } else {
                         /**
-                           Lets check for omgid terminator record present.
-                           If new omgid may be allocted then we're fine.
+                           Check if omgid can be allocated.
                          */
                         rc = c2_cob_alloc_omgid(&md->md_dom, &tx, NULL);
-                        if (rc)
+                        if (rc != 0)
                                 c2_db_tx_abort(&tx);
                         else
                                 c2_db_tx_commit(&tx);
@@ -97,16 +92,13 @@ int c2_md_store_init(struct c2_md_store         *md,
         }
         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc, 
                     c2_addb_func_fail, "md_store_init", rc);
-        if (rc) {
+        if (rc != 0) {
 	        c2_addb_ctx_fini(&md->md_addb);
                 c2_cob_domain_fini(&md->md_dom);
         }
         return rc;
 }
 
-/**
-   Finalize mdstore
- */
 void c2_md_store_fini(struct c2_md_store *md)
 {
         if (md->md_root)
@@ -115,12 +107,6 @@ void c2_md_store_fini(struct c2_md_store *md)
 	c2_addb_ctx_fini(&md->md_addb);
 }
 
-/**
-   Handle create operation described by @attr on @cob. Input @cob
-   is returned by c2_cob_alloc().
-   
-   Error code is returned in error case or zero otherwise.
-*/
 int c2_md_store_create(struct c2_md_store       *md,
                        struct c2_fid            *pfid,
                        struct c2_cob_attr       *attr,
@@ -140,7 +126,7 @@ int c2_md_store_create(struct c2_md_store       *md,
         C2_SET0(&omgrec);
         
         rc = c2_cob_alloc(&md->md_dom, &cob);
-        if (rc)
+        if (rc != 0)
                 goto out;
 
         c2_cob_nskey_make(&nskey, pfid, attr->ca_name, 
@@ -165,7 +151,7 @@ int c2_md_store_create(struct c2_md_store       *md,
         c2_cob_fabrec_make(&fabrec, attr->ca_link, 
                            attr->ca_link ? attr->ca_size : 0);
         rc = c2_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
-        if (rc) {
+        if (rc != 0) {
                 c2_cob_put(cob);
                 c2_free(nskey);
                 c2_free(fabrec);
@@ -179,11 +165,6 @@ out:
         return rc;
 }
 
-/**
-   Handle link operation described by @pfid and @name. Input
-   cob is so called statdata cob and returned by c2_cob_locate(). 
-   Error code is returned in error case or zero otherwise.
-*/
 int c2_md_store_link(struct c2_md_store         *md, 
                      struct c2_fid              *pfid,
                      struct c2_cob              *cob,
@@ -213,7 +194,7 @@ int c2_md_store_link(struct c2_md_store         *md,
 
         rc = c2_cob_add_name(cob, nskey, &nsrec, tx);
         c2_free(nskey);
-        if (rc)
+        if (rc != 0)
                 goto out;
 
         /*
@@ -229,11 +210,6 @@ out:
         return rc;
 }
 
-/**
-   Handle unlink operation described by @pfid and @name. Input
-   cob is so called statdata cob and returned by c2_cob_locate(). 
-   Error code is returned in error case or zero otherwise.
-*/
 int c2_md_store_unlink(struct c2_md_store       *md,
                        struct c2_fid            *pfid,
                        struct c2_cob            *cob,
@@ -278,7 +254,7 @@ int c2_md_store_unlink(struct c2_md_store       *md,
                                           cob->co_nsrec.cnr_linkno + 1);
                 
                         rc = c2_cob_locate(&md->md_dom, &oikey, 0, &ncob, tx);
-                        if (rc) {
+                        if (rc != 0) {
                                 c2_free(nskey);
                                 goto out;
                         }
@@ -287,20 +263,20 @@ int c2_md_store_unlink(struct c2_md_store       *md,
                          * Copy nsrec from cob to ncob.
                          */
                         rc = c2_cob_update(ncob, &cob->co_nsrec, NULL, NULL, tx);
-                        if (rc) {
+                        if (rc != 0) {
                                 c2_free(nskey);
                                 goto out;
                         }
 
                         rc = c2_cob_del_name(cob, nskey, tx);
-                        if (rc) {
+                        if (rc != 0) {
                                 c2_free(nskey);
                                 goto out;
                         }
                 } else {
                         if (cob->co_nsrec.cnr_nlink > 0) {
                                 rc = c2_cob_del_name(cob, nskey, tx);
-                                if (rc) {
+                                if (rc != 0) {
                                         c2_free(nskey);
                                         goto out;
                                 }
@@ -331,11 +307,6 @@ out:
         return rc;
 }
 
-/**
-   Handle open operation described by @flags on @cob. Input @cob
-   is so called statdata cob and returned by c2_cob_locate(). 
-   Error code is returned in error case or zero otherwise.
-*/
 int c2_md_store_open(struct c2_md_store         *md, 
                      struct c2_cob              *cob,
                      int                         flags,
@@ -354,12 +325,6 @@ int c2_md_store_open(struct c2_md_store         *md,
         return rc;
 }
 
-/**
-   Handle close operation on @cob. Input @cob is so called statdata
-   cob and returned by c2_cob_locate(). 
-
-   Error code is returned in error case or zero otherwise.
-*/
 int c2_md_store_close(struct c2_md_store        *md, 
                       struct c2_cob             *cob,
                       struct c2_db_tx           *tx)
@@ -379,13 +344,6 @@ int c2_md_store_close(struct c2_md_store        *md,
         return rc;
 }
 
-/**
-   Handle rename operation described by params. Input cobs are
-   statdata cobs and returned by c2_cob_locate(). Rest of the
-   arguments are self explanatory.
-
-   Error code is returned in error case or zero otherwise.
-*/
 int c2_md_store_rename(struct c2_md_store       *md, 
                        struct c2_fid            *pfid_tgt,
                        struct c2_fid            *pfid_src,
@@ -417,7 +375,7 @@ int c2_md_store_rename(struct c2_md_store       *md,
             (tncob && tncob->co_nsrec.cnr_linkno != 0)) {
                 rc = c2_md_store_unlink(md, pfid_tgt, cob_tgt,
                                         tname, tnamelen, tx);
-                if (rc) {
+                if (rc != 0) {
                         if (tncob)
                                 c2_cob_put(tncob);
                         goto out;
@@ -441,12 +399,6 @@ out:
         return rc;
 }
 
-/**
-   Handle setattr operation described by @attr on @cob. Input @cob
-   is so called statdata cob and returned by c2_cob_locate(). 
-   
-   Error code is returned in error case or zero otherwise.
-*/
 int c2_md_store_setattr(struct c2_md_store      *md,
                         struct c2_cob           *cob,
                         struct c2_cob_attr      *attr,
@@ -511,12 +463,6 @@ int c2_md_store_setattr(struct c2_md_store      *md,
         return rc;
 }
 
-/**
-   Get attributes of @cob into passed @attr. Input @cob
-   is so called statdata cob and returned by c2_cob_locate(). 
-   
-   Error code is returned in error case or zero otherwise.
-*/
 int c2_md_store_getattr(struct c2_md_store      *md, 
                         struct c2_cob           *cob,
                         struct c2_cob_attr      *attr,
@@ -564,12 +510,6 @@ int c2_md_store_getattr(struct c2_md_store      *md,
         return rc;
 }
 
-/**
-   Handle readdir operation described by @rdpg on @cob. Input @cob
-   is so called statdata cob and returned by c2_cob_locate(). 
-   
-   Error code is returned in error case or something >= 0 otherwise.
-*/
 int c2_md_store_readdir(struct c2_md_store      *md, 
                         struct c2_cob           *cob,
                         struct c2_rdpg          *rdpg,
@@ -593,7 +533,7 @@ int c2_md_store_readdir(struct c2_md_store      *md,
         second = 0;
 
         rc = c2_cob_iterator_init(cob, &it, rdpg->r_pos, tx);
-        if (rc)
+        if (rc != 0)
                 goto out;
 
         rc = c2_cob_iterator_get(&it);
@@ -666,9 +606,6 @@ out:
         return rc;
 }
 
-/**
-   Find cob by fid.
-*/
 int c2_md_store_locate(struct c2_md_store       *md, 
                        const struct c2_fid      *fid,
                        struct c2_cob           **cob, 
@@ -693,9 +630,6 @@ int c2_md_store_locate(struct c2_md_store       *md,
         return rc;
 }
 
-/**
-   Find cob by parent and name.
-*/
 int c2_md_store_lookup(struct c2_md_store       *md, 
                        struct c2_fid            *pfid,
                        const char               *name, 
@@ -715,13 +649,6 @@ int c2_md_store_lookup(struct c2_md_store       *md,
                              cob, tx);
 }
 
-/**
-   Get path by @fid. Path @path is allocated by c2_alloc() on
-   success and path is saved there. When it is not longer needed
-   it may be freed with c2_free().
-   
-   Error code is returned on error or zero on success.
- */
 int c2_md_store_path(struct c2_md_store *md,
                      struct c2_fid *fid,
                      char **path)
@@ -743,7 +670,7 @@ restart:
                 char name[NAME_MAX] = {0,};
 
                 rc = c2_md_store_locate(md, &pfid, &cob, C2_MD_LOCATE_STORED, &tx);
-                if (rc)
+                if (rc != 0)
                         goto out;
 
 	        if (!c2_fid_eq(cob->co_fid, md->md_root->co_fid)) {
@@ -760,7 +687,7 @@ restart:
                 c2_cob_put(cob);
         } while (!c2_fid_eq(&pfid, &C2_COB_ROOT_FID));
 out:
-        if (rc) {
+        if (rc != 0) {
                 c2_db_tx_abort(&tx);
                 if (rc == -EDEADLK) {
                         memset(*path, 0, PATH_MAX);
