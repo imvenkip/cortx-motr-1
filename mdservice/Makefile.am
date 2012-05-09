@@ -4,7 +4,7 @@ mdservice_HEADERS                = md_foms.h md_fops.h
 md_fops_u.h md_fops_u.c: md_fops.ff \
                   $(top_builddir)/fop/rt/libc2rt.la \
                   $(top_builddir)/fop/fop2c 
-	$(top_builddir)/fop/fop2c -u $<
+	$(top_builddir)/fop/fop2c -uk $<
 
 
 noinst_LTLIBRARIES               = libcolibri-mdservice.la
@@ -16,4 +16,4 @@ EXTRA_DIST                       = md_fops.ff
 
 clean-local:
 	cd @SRCDIR@/mdservice ; \
-	rm -fr md_fops_u.[ch]
+	rm -fr md_fops_[uk]*.[ch]

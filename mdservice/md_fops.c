@@ -18,14 +18,23 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#include "config.h"
 #endif
+
+#include "lib/memory.h"
+#include "lib/errno.h"
 
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
 #include "rpc/rpc_opcodes.h"
+#include "reqh/reqh_service.h"
 
+#ifdef __KERNEL__
+#include "mdservice/md_fops_k.h"
+#else
 #include "mdservice/md_fops_u.h"
+#endif
+
 #include "mdservice/md_foms.h"
 #include "mdservice/md_fops.h"
 #include "mdservice/md_fops.ff"
@@ -81,10 +90,12 @@ static size_t c2_md_fol_pack_size(struct c2_fol_rec_desc *desc)
 
 static void copy(char **buf, struct c2_fop_str *str)
 {
+#ifndef __KERNEL__
         if (str->s_len > 0) {
 	        memcpy(*buf, str->s_buf, str->s_len);
 	        *buf += str->s_len;
 	}
+#endif
 }
 
 static void c2_md_fol_pack(struct c2_fol_rec_desc *desc, void *buf)
@@ -139,10 +150,12 @@ static void c2_md_fol_pack(struct c2_fol_rec_desc *desc, void *buf)
 
 static void map(char **buf, struct c2_fop_str *str)
 {
+#ifndef __KERNEL__
         if (str->s_len > 0) {
 	        str->s_buf = *buf;
 	        *buf += str->s_len;
 	}
+#endif
 }
 
 static int c2_md_fol_open(const struct c2_fol_rec_type *type,
@@ -219,6 +232,7 @@ const struct c2_fop_type_ops c2_md_item_ops = {
         .fto_rec_ops    = &c2_md_fop_fol_ops
 };
 
+#ifndef __KERNEL__
 static struct c2_fom_type_ops c2_md_req_ops = {
         .fto_create   = c2_md_req_fom_create
 };
@@ -226,6 +240,7 @@ static struct c2_fom_type_ops c2_md_req_ops = {
 static struct c2_fom_type c2_md_req_type = {
         .ft_ops = &c2_md_req_ops
 };
+#endif
 
 /** Request fops. */
 C2_FOP_TYPE_DECLARE(c2_fop_create,  "Create request",
@@ -312,13 +327,7 @@ static struct c2_fop_type_format *c2_md_fop_fmts[] = {
 	&c2_fop_buf_tfmt
 };
 
-void c2_mds_unregister(void)
-{
-        c2_fop_type_fini_nr(c2_md_fop_fops, ARRAY_SIZE(c2_md_fop_fops));
-        c2_fop_type_format_fini_nr(c2_md_fop_fmts, ARRAY_SIZE(c2_md_fop_fmts));
-}
-
-int c2_mds_register(void)
+int c2_mdservice_fop_init(void)
 {
 	int rc;
 
@@ -328,6 +337,7 @@ int c2_mds_register(void)
 	        if (rc != 0)
 		        c2_fop_type_format_fini_nr(c2_md_fop_fmts, ARRAY_SIZE(c2_md_fop_fmts));
         }
+#ifndef __KERNEL__
         c2_fop_create_fopt.ft_fom_type = c2_md_req_type;
         c2_fop_link_fopt.ft_fom_type = c2_md_req_type;
         c2_fop_unlink_fopt.ft_fom_type = c2_md_req_type;
@@ -337,8 +347,168 @@ int c2_mds_register(void)
         c2_fop_getattr_fopt.ft_fom_type = c2_md_req_type;
         c2_fop_rename_fopt.ft_fom_type = c2_md_req_type;
         c2_fop_readdir_fopt.ft_fom_type = c2_md_req_type;
+#endif
 	return rc;
 }
+C2_EXPORTED(c2_mdservice_fop_init);
+
+void c2_mdservice_fop_fini(void)
+{
+        c2_fop_type_fini_nr(c2_md_fop_fops, ARRAY_SIZE(c2_md_fop_fops));
+        c2_fop_type_format_fini_nr(c2_md_fop_fmts, ARRAY_SIZE(c2_md_fop_fmts));
+}
+C2_EXPORTED(c2_mdservice_fop_fini);
+
+#ifndef __KERNEL__
+
+/* ADDB context for mds. */
+static struct c2_addb_ctx mds_addb_ctx;
+
+/* ADDB location for mds. */
+static const struct c2_addb_loc mds_addb_loc = {
+	.al_name = "md_service",
+};
+
+/* ADDB context type for mds. */
+static const struct c2_addb_ctx_type mds_addb_ctx_type = {
+	.act_name = "md_service",
+};
+
+enum {
+        C2_REQH_MD_SERVICE_MAGIC = 0x6D64736572766963
+};
+
+/**
+ * Structure contains generic service structure and
+ * service specific information.
+ */
+struct c2_reqh_md_service {
+        /** Generic reqh service object */
+        struct c2_reqh_service       rmds_gen;
+        /** Magic to check io service object */
+        uint64_t                     rmds_magic;
+};
+
+static const struct c2_reqh_service_ops mds_ops;
+
+/**
+ * Allocates and initiates MD Service instance.
+ * This operation allocates & initiates service instance with its operation
+ * vector.
+ *
+ * @param stype service type
+ * @param service pointer to service instance.
+ *
+ * @pre stype != NULL && service != NULL
+ */
+static int mds_locate(struct c2_reqh_service_type *stype,
+		      struct c2_reqh_service **service)
+{
+        struct c2_reqh_service    *serv;
+        struct c2_reqh_md_service *serv_obj;
+
+        C2_PRE(stype != NULL && service != NULL);
+
+	c2_addb_ctx_init(&mds_addb_ctx, &mds_addb_ctx_type,
+			 &c2_addb_global_ctx);
+
+        C2_ALLOC_PTR_ADDB(serv_obj, &mds_addb_ctx, &mds_addb_loc);
+        if (serv_obj == NULL)
+                return -ENOMEM;
+
+        serv_obj->rmds_magic = C2_REQH_MD_SERVICE_MAGIC;
+        serv = &serv_obj->rmds_gen;
+
+        serv->rs_type = stype;
+        serv->rs_ops = &mds_ops;
+        *service = serv;
+        return 0;
+}
+
+/**
+ * Finalise MD Service instance.
+ * This operation finalises service instance and de-allocate it.
+ *
+ * @param service pointer to service instance.
+ *
+ * @pre service != NULL
+ */
+static void mds_fini(struct c2_reqh_service *service)
+{
+        struct c2_reqh_md_service *serv_obj;
+
+        C2_PRE(service != NULL);
+
+	c2_addb_ctx_fini(&mds_addb_ctx);
+
+        serv_obj = container_of(service, struct c2_reqh_md_service, rmds_gen);
+        c2_free(serv_obj);
+}
+
+/**
+ * Start MD Service.
+ * - Mount local storage
+ *
+ * @param service pointer to service instance.
+ *
+ * @pre service != NULL
+ */
+static int mds_start(struct c2_reqh_service *service)
+{
+        int			rc = 0;
+
+        C2_PRE(service != NULL);
+        
+        /** TODO: Mount local storage */
+
+        return rc;
+}
+
+/**
+ * Stops MD Service.
+ * - Umount local storage
+ *
+ * @param service pointer to service instance.
+ *
+ * @pre service != NULL
+ */
+static void mds_stop(struct c2_reqh_service *service)
+{
+        C2_PRE(service != NULL);
+
+        /** TODO: Umount local storage */
+}
+
+/**
+ * MD Service type operations.
+ */
+static const struct c2_reqh_service_type_ops mds_type_ops = {
+        .rsto_service_locate = mds_locate
+};
+
+/**
+ * MD Service operations.
+ */
+static const struct c2_reqh_service_ops mds_ops = {
+        .rso_start = mds_start,
+        .rso_stop  = mds_stop,
+        .rso_fini  = mds_fini
+};
+
+C2_REQH_SERVICE_TYPE_DECLARE(c2_mds_type, &mds_type_ops, "mdservice");
+
+int c2_mds_register(void)
+{
+        c2_reqh_service_type_register(&c2_mds_type);
+        return c2_mdservice_fop_init();
+}
+
+void c2_mds_unregister(void)
+{
+        c2_reqh_service_type_unregister(&c2_mds_type);
+        c2_mdservice_fop_fini();
+}
+#endif
 
 /* 
  *  Local variables:

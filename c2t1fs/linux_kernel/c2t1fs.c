@@ -27,6 +27,7 @@
 #include "lib/memory.h"
 #include "net/lnet/lnet.h"
 #include "ioservice/io_fops.h"
+#include "mdservice/md_fops.h"
 #include "rpc/rpclib.h"
 
 static char *local_addr = "0@lo:12345:45:6";
@@ -76,13 +77,17 @@ int c2t1fs_init(void)
 
 	c2t1fs_globals.g_laddr = local_addr;
 
-	rc = c2_ioservice_fop_init();
+	rc = c2_mdservice_fop_init();
 	if (rc != 0)
 		goto out;
 
+	rc = c2_ioservice_fop_init();
+	if (rc != 0)
+		goto mdservice_fini;
+
 	rc = c2t1fs_inode_cache_init();
 	if (rc != 0)
-		goto out;
+		goto ioservice_fini;
 
 	rc = c2t1fs_net_init();
 	if (rc != 0)
@@ -101,13 +106,14 @@ int c2t1fs_init(void)
 
 rpc_fini:
 	c2t1fs_rpc_fini();
-
 net_fini:
 	c2t1fs_net_fini();
-
 icache_fini:
 	c2t1fs_inode_cache_fini();
-
+ioservice_fini:
+        c2_ioservice_fop_fini();
+mdservice_fini:
+        c2_mdservice_fop_fini();
 out:
 	C2_LEAVE("rc: %d", rc);
 	C2_ASSERT(rc != 0);
