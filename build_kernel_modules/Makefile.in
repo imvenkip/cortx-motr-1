@@ -2,7 +2,7 @@ CORE_SRCDIR     = @SRCDIR@
 BUILD_DIR       = $(CORE_SRCDIR)/build_kernel_modules
 KERNEL_BUILDDIR = @LINUX_OBJ@
 
-KBUILD_EXTRA_SYMBOLS = Lustre.symvers @GALOIS_SYMVERS@
+KBUILD_EXTRA_SYMBOLS = $(BUILD_DIR)/Lustre.symvers @GALOIS_SYMVERS@
 
 GCOV_PROFILE    = @K_ENABLE_COVERAGE@
 
@@ -218,6 +218,7 @@ uninstall:
 
 dist distdir:
 	cp -v dummy_init_fini.[ch] main.c Makefile.in \
+		lustre_config.h Lustre.symvers \
 		@top_builddir@/@PACKAGE@-@VERSION@/build_kernel_modules
 
 clean distclean:
