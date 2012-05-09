@@ -1722,7 +1722,7 @@ static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
 				C2_CNT_INC(rctx->rc_snr);
                         })));
 
-	return rc < 0 ? rc : 0;
+	return rc != 0 ? rc : 0;
 }
 
 int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
