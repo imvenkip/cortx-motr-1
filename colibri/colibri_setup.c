@@ -1616,7 +1616,7 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
  */
 static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
 {
-	int                     rc = 0;
+	int                     rc;
 	struct cs_reqh_context *rctx = NULL;
 	FILE                   *ofd;
 
@@ -1722,7 +1722,7 @@ static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
 				C2_CNT_INC(rctx->rc_snr);
                         })));
 
-	return rc;
+	return rc < 0 ? rc : 0;
 }
 
 int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
