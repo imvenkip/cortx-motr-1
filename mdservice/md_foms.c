@@ -37,6 +37,7 @@
 #include "fop/fop.h"
 #include "cob/cob.h"
 #include "reqh/reqh.h"
+#include "rpc/rpc_opcodes.h"
 
 #include "mdservice/md_fops_u.h"
 #include "mdservice/md_fops.h"
@@ -1021,7 +1022,7 @@ int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
         C2_PRE(fop != NULL);
 
         switch (fop->f_type->ft_rpc_item_type.rit_opcode) {
-        case C2_MD_FOP_CREATE_OPCODE:
+        case C2_MDSERVICE_CREATE_OPCODE:
 		create = c2_fop_data(fop);
 		rc = c2_md_req_path_get(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, 
                                         c2_md_fid_get(&create->c_body.b_pfid),
@@ -1029,7 +1030,7 @@ int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
                 if (rc != 0)
                         return rc;
 	        break;
-        case C2_MD_FOP_LINK_OPCODE:
+        case C2_MDSERVICE_LINK_OPCODE:
 		link = c2_fop_data(fop);
 		rc = c2_md_req_path_get(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, 
                                         c2_md_fid_get(&link->l_body.b_pfid),
@@ -1046,7 +1047,7 @@ int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
                         return rc;
                 }
 	        break;
-        case C2_MD_FOP_UNLINK_OPCODE:
+        case C2_MDSERVICE_UNLINK_OPCODE:
 		unlink = c2_fop_data(fop);
 		rc = c2_md_req_path_get(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, 
                                         c2_md_fid_get(&unlink->u_body.b_pfid),
@@ -1054,7 +1055,7 @@ int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
                 if (rc != 0)
                         return rc;
 	        break;
-        case C2_MD_FOP_RENAME_OPCODE:
+        case C2_MDSERVICE_RENAME_OPCODE:
 		rename = c2_fop_data(fop);
 		rc = c2_md_req_path_get(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, 
                                         c2_md_fid_get(&rename->r_sbody.b_pfid),
@@ -1071,7 +1072,7 @@ int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
                         return rc;
                 }
 	        break;
-        case C2_MD_FOP_OPEN_OPCODE:
+        case C2_MDSERVICE_OPEN_OPCODE:
 		open = c2_fop_data(fop);
 		rc = c2_md_req_path_get(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, 
                                         c2_md_fid_get(&open->o_body.b_tfid),
@@ -1079,7 +1080,7 @@ int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
                 if (rc != 0)
                         return rc;
 	        break;
-        case C2_MD_FOP_CLOSE_OPCODE:
+        case C2_MDSERVICE_CLOSE_OPCODE:
 	        close = c2_fop_data(fop);
 		rc = c2_md_req_path_get(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, 
                                         c2_md_fid_get(&close->c_body.b_tfid),
@@ -1087,7 +1088,7 @@ int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
                 if (rc != 0)
                         return rc;
 	        break;
-        case C2_MD_FOP_SETATTR_OPCODE:
+        case C2_MDSERVICE_SETATTR_OPCODE:
 		setattr = c2_fop_data(fop);
 		rc = c2_md_req_path_get(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, 
                                         c2_md_fid_get(&setattr->s_body.b_tfid),
@@ -1095,7 +1096,7 @@ int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
                 if (rc != 0)
                         return rc;
 	        break;
-        case C2_MD_FOP_GETATTR_OPCODE:
+        case C2_MDSERVICE_GETATTR_OPCODE:
 		getattr = c2_fop_data(fop);
 		rc = c2_md_req_path_get(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, 
                                         c2_md_fid_get(&getattr->g_body.b_tfid),
@@ -1103,7 +1104,7 @@ int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
                 if (rc != 0)
                         return rc;
 	        break;
-        case C2_MD_FOP_READDIR_OPCODE:
+        case C2_MDSERVICE_READDIR_OPCODE:
 		readdir = c2_fop_data(fop);
 		rc = c2_md_req_path_get(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore,
                                         c2_md_fid_get(&readdir->r_body.b_tfid),
@@ -1131,7 +1132,7 @@ void c2_md_fop_free(struct c2_fop *fop)
         struct c2_fop_readdir   *readdir;
 
         switch (fop->f_type->ft_rpc_item_type.rit_opcode) {
-        case C2_MD_FOP_CREATE_OPCODE:
+        case C2_MDSERVICE_CREATE_OPCODE:
                 create = c2_fop_data(fop);
                 if (create->c_name.s_len != 0)
                         c2_free(create->c_name.s_buf);
@@ -1140,7 +1141,7 @@ void c2_md_fop_free(struct c2_fop *fop)
                 if (create->c_path.s_len != 0)
                         c2_free(create->c_path.s_buf);
                 break;
-        case C2_MD_FOP_LINK_OPCODE:
+        case C2_MDSERVICE_LINK_OPCODE:
                 link = c2_fop_data(fop);
                 if (link->l_name.s_len != 0)
                         c2_free(link->l_name.s_buf);
@@ -1149,14 +1150,14 @@ void c2_md_fop_free(struct c2_fop *fop)
                 if (link->l_tpath.s_len != 0)
                         c2_free(link->l_tpath.s_buf);
                 break;
-        case C2_MD_FOP_UNLINK_OPCODE:
+        case C2_MDSERVICE_UNLINK_OPCODE:
                 unlink = c2_fop_data(fop);
                 if (unlink->u_name.s_len != 0)
                         c2_free(unlink->u_name.s_buf);
                 if (unlink->u_path.s_len != 0)
                         c2_free(unlink->u_path.s_buf);
                 break;
-        case C2_MD_FOP_RENAME_OPCODE:
+        case C2_MDSERVICE_RENAME_OPCODE:
                 rename = c2_fop_data(fop);
                 if (rename->r_sname.s_len != 0)
                         c2_free(rename->r_sname.s_buf);
@@ -1167,27 +1168,27 @@ void c2_md_fop_free(struct c2_fop *fop)
                 if (rename->r_tpath.s_len != 0)
                         c2_free(rename->r_tpath.s_buf);
                 break;
-        case C2_MD_FOP_SETATTR_OPCODE:
+        case C2_MDSERVICE_SETATTR_OPCODE:
                 setattr = c2_fop_data(fop);
                 if (setattr->s_path.s_len != 0)
                         c2_free(setattr->s_path.s_buf);
                 break;
-        case C2_MD_FOP_GETATTR_OPCODE:
+        case C2_MDSERVICE_GETATTR_OPCODE:
                 getattr = c2_fop_data(fop);
                 if (getattr->g_path.s_len != 0)
                         c2_free(getattr->g_path.s_buf);
                 break;
-        case C2_MD_FOP_OPEN_OPCODE:
+        case C2_MDSERVICE_OPEN_OPCODE:
                 open = c2_fop_data(fop);
                 if (open->o_path.s_len != 0)
                         c2_free(open->o_path.s_buf);
                 break;
-        case C2_MD_FOP_CLOSE_OPCODE:
+        case C2_MDSERVICE_CLOSE_OPCODE:
                 close = c2_fop_data(fop);
                 if (close->c_path.s_len != 0)
                         c2_free(close->c_path.s_buf);
                 break;
-        case C2_MD_FOP_READDIR_OPCODE:
+        case C2_MDSERVICE_READDIR_OPCODE:
                 readdir = c2_fop_data(fop);
                 if (readdir->r_path.s_len != 0)
                         c2_free(readdir->r_path.s_buf);
@@ -1324,39 +1325,39 @@ int c2_md_req_fom_create(struct c2_fop *fop, struct c2_fom **m)
                 return -ENOMEM;
         
         switch (fop->f_type->ft_rpc_item_type.rit_opcode) {
-        case C2_MD_FOP_CREATE_OPCODE:
+        case C2_MDSERVICE_CREATE_OPCODE:
 		ops = &c2_md_fom_create_ops;
 		rep_fopt = &c2_fop_create_rep_fopt;
 	        break;
-        case C2_MD_FOP_LINK_OPCODE:
+        case C2_MDSERVICE_LINK_OPCODE:
 		ops = &c2_md_fom_link_ops;
 		rep_fopt = &c2_fop_link_rep_fopt;
 	        break;
-        case C2_MD_FOP_UNLINK_OPCODE:
+        case C2_MDSERVICE_UNLINK_OPCODE:
 		ops = &c2_md_fom_unlink_ops;
 		rep_fopt = &c2_fop_unlink_rep_fopt;
 	        break;
-        case C2_MD_FOP_RENAME_OPCODE:
+        case C2_MDSERVICE_RENAME_OPCODE:
 		ops = &c2_md_fom_rename_ops;
 		rep_fopt = &c2_fop_rename_rep_fopt;
 	        break;
-        case C2_MD_FOP_OPEN_OPCODE:
+        case C2_MDSERVICE_OPEN_OPCODE:
 		ops = &c2_md_fom_open_ops;
 		rep_fopt = &c2_fop_open_rep_fopt;
 	        break;
-        case C2_MD_FOP_CLOSE_OPCODE:
+        case C2_MDSERVICE_CLOSE_OPCODE:
 		ops = &c2_md_fom_close_ops;
 		rep_fopt = &c2_fop_close_rep_fopt;
 	        break;
-        case C2_MD_FOP_SETATTR_OPCODE:
+        case C2_MDSERVICE_SETATTR_OPCODE:
 		ops = &c2_md_fom_setattr_ops;
 		rep_fopt = &c2_fop_setattr_rep_fopt;
 	        break;
-        case C2_MD_FOP_GETATTR_OPCODE:
+        case C2_MDSERVICE_GETATTR_OPCODE:
 		ops = &c2_md_fom_getattr_ops;
 		rep_fopt = &c2_fop_getattr_rep_fopt;
 	        break;
-        case C2_MD_FOP_READDIR_OPCODE:
+        case C2_MDSERVICE_READDIR_OPCODE:
 		ops = &c2_md_fom_readdir_ops;
 		rep_fopt = &c2_fop_readdir_rep_fopt;
 	        break;

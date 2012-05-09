@@ -43,29 +43,6 @@ extern struct c2_fop_type c2_fop_getattr_rep_fopt;
 extern struct c2_fop_type c2_fop_rename_rep_fopt;
 extern struct c2_fop_type c2_fop_readdir_rep_fopt;
 
-enum c2_fop_metadata_code {
-        C2_MD_FOP_FIRST_OPCODE = 64,
-        C2_MD_FOP_CREATE_OPCODE = C2_MD_FOP_FIRST_OPCODE,
-        C2_MD_FOP_LINK_OPCODE,
-        C2_MD_FOP_UNLINK_OPCODE,
-        C2_MD_FOP_RENAME_OPCODE,
-        C2_MD_FOP_OPEN_OPCODE,
-        C2_MD_FOP_CLOSE_OPCODE,
-        C2_MD_FOP_SETATTR_OPCODE,
-        C2_MD_FOP_GETATTR_OPCODE,
-        C2_MD_FOP_READDIR_OPCODE,
-        C2_MD_FOP_CREATE_REP_OPCODE,
-        C2_MD_FOP_LINK_REP_OPCODE,
-        C2_MD_FOP_UNLINK_REP_OPCODE,
-        C2_MD_FOP_RENAME_REP_OPCODE,
-        C2_MD_FOP_OPEN_REP_OPCODE,
-        C2_MD_FOP_CLOSE_REP_OPCODE,
-        C2_MD_FOP_SETATTR_REP_OPCODE,
-        C2_MD_FOP_GETATTR_REP_OPCODE,
-        C2_MD_FOP_READDIR_REP_OPCODE,
-        C2_MD_FOP_LAST_OPCODE
-};
-
 void c2_mds_unregister(void);
 int c2_mds_register(void);
 
