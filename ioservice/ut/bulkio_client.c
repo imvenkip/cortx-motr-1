@@ -267,7 +267,7 @@ static void bulkclient_test(void)
 	 * PASSIVE_BULK_SEND queue of TM.
 	 */
 	c2_mutex_lock(&rbulk->rb_mutex);
-	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, rbuf) {
+	c2_tl_for(rpcbulk, &rbulk->rb_buflist, rbuf) {
 		C2_UT_ASSERT(rbuf->bb_nbuf->nb_callbacks == &rpc_bulk_cb);
 		C2_UT_ASSERT(rbuf->bb_nbuf != NULL);
 		C2_UT_ASSERT(rbuf->bb_nbuf->nb_app_private == rbuf);
@@ -278,7 +278,7 @@ static void bulkclient_test(void)
 			    rbuf->bb_nbuf->nb_desc.nbd_len);
 		C2_UT_ASSERT(rc == 0);
 		++i;
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	C2_UT_ASSERT(rbulk->rb_bytes ==  2 * C2_0VEC_ALIGN);
 	c2_mutex_unlock(&rbulk->rb_mutex);
 
@@ -339,7 +339,7 @@ static void bulkclient_test(void)
 	 * cleanup due to the lock.
 	 */
 	c2_mutex_lock(&sbulk->rb_mutex);
-	c2_tlist_for(&rpcbulk_tl, &sbulk->rb_buflist, rbuf2) {
+	c2_tl_for(rpcbulk, &sbulk->rb_buflist, rbuf2) {
 		C2_UT_ASSERT(rbuf2->bb_nbuf != NULL);
 		C2_UT_ASSERT(rbuf2->bb_nbuf->nb_flags & C2_NET_BUF_REGISTERED);
 		C2_UT_ASSERT(rbuf2->bb_nbuf->nb_app_private == rbuf2);
@@ -347,7 +347,7 @@ static void bulkclient_test(void)
 		C2_UT_ASSERT(rbuf2->bb_rbulk == sbulk);
 		C2_UT_ASSERT(!(rbuf2->bb_flags & C2_RPC_BULK_NETBUF_ALLOCATED));
 		C2_UT_ASSERT(rbuf2->bb_flags & C2_RPC_BULK_NETBUF_REGISTERED);
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	C2_UT_ASSERT(sbulk->rb_bytes == 2 * C2_0VEC_ALIGN);
 	c2_mutex_unlock(&sbulk->rb_mutex);
 

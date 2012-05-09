@@ -1,4 +1,4 @@
-INCLUDES          = -I. -I$(top_srcdir) -I$(top_srcdir)/include -I../
+INCLUDES          = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include -iquote ../
 
 #noinst_PROGRAMS   = rclient rserver
 # noinst_PROGRAMS   = onwire_ut

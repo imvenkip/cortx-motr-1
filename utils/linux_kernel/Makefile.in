@@ -3,7 +3,7 @@ KUTC2_SRCDIR = @SRCDIR@/utils/linux_kernel
 obj-m       := kutc2.o
 kutc2-y     := main.o
 
-EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -iquote @SRCDIR@ @KCFLAGS@
 
 prepare:
 

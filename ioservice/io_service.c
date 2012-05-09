@@ -171,7 +171,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 		/*
 		 * Check buffer pool for network domain of rpc_machine
 		 */
-		c2_tlist_for(&bufferpools_tl, &serv_obj->rios_buffer_pools, bp) {
+		c2_tl_for(bufferpools, &serv_obj->rios_buffer_pools, bp) {
 
                         if (bp->rios_ndom == rpcmach->rm_tm.ntm_dom)
 				/*
@@ -180,7 +180,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 				 * for this domain.
 				 */
                                 return rc;
-		} c2_tlist_endfor; /* bufferpools */
+		} c2_tl_endfor; /* bufferpools */
 
 		/* Buffer pool for network domain not found create one */
 		C2_ALLOC_PTR(newbp);
@@ -219,7 +219,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 		bufferpools_tlink_init(newbp);
 		bufferpools_tlist_add(&serv_obj->rios_buffer_pools, newbp);
 
-        } c2_tlist_endfor; /* rpc_machines */
+        } c2_tl_endfor; /* rpc_machines */
 
         return rc;
 }
@@ -241,7 +241,7 @@ static void ioservice_delete_buffer_pool(struct c2_reqh_service *service)
 
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
 
-        c2_tlist_for(&bufferpools_tl, &serv_obj->rios_buffer_pools, bp) {
+        c2_tl_for(bufferpools, &serv_obj->rios_buffer_pools, bp) {
 
                 C2_ASSERT(bp != NULL);
 
@@ -252,7 +252,7 @@ static void ioservice_delete_buffer_pool(struct c2_reqh_service *service)
                 c2_net_buffer_pool_fini(&bp->rios_bp);
 		c2_free(bp);
 
-        } c2_tlist_endfor; /* bufferpools */
+        } c2_tl_endfor; /* bufferpools */
 
         bufferpools_tlist_fini(&serv_obj->rios_buffer_pools);
 }

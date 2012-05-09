@@ -18,7 +18,7 @@
  * Original creation date: 08/03/2011
  */
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
 #include "console/console.h"

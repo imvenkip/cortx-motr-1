@@ -232,7 +232,7 @@ static void sunrpc_skulker_timeout_buffers(struct c2_net_domain *dom,
 		c2_mutex_lock(&tm->ntm_mutex);
 		/* iterate over buffers in each queue */
 		for (qt = C2_NET_QT_MSG_RECV; qt < C2_NET_QT_NR; ++qt) {
-			c2_tlist_for(&tm_tl, &tm->ntm_q[qt], nb) {
+			c2_tl_for(tm, &tm->ntm_q[qt], nb) {
 				if (nb->nb_timeout == C2_TIME_NEVER)
 					continue;
 				if (c2_time_after(nb->nb_timeout, now))
@@ -245,7 +245,7 @@ static void sunrpc_skulker_timeout_buffers(struct c2_net_domain *dom,
 				   code.
 				*/
 				sunrpc_xo_buf_del(nb);
-			} c2_tlist_endfor;
+			} c2_tl_endfor;
 		}
 		c2_mutex_unlock(&tm->ntm_mutex);
 	}

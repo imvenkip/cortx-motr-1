@@ -35,6 +35,7 @@ void test_list(void)
 	struct c2_list	test_head;
 	struct test1 *p;
 	int t_sum;
+	int count;
 
 	c2_list_init(&test_head);
 
@@ -57,9 +58,32 @@ void test_list(void)
 	C2_UT_ASSERT(c2_list_contains(&test_head, &t2.t_link));
 	C2_UT_ASSERT(c2_list_contains(&test_head, &t3.t_link));
 
+	count = 0;
+	C2_UT_ASSERT(c2_list_forall(e, &test_head,
+				    count++;
+				    c2_list_entry(e, struct test1,
+						  t_link)->c > 4));
+	C2_UT_ASSERT(count == 3);
+
+	count = 0;
+	C2_UT_ASSERT(c2_list_entry_forall(e, &test_head, struct test1, t_link,
+					  count++; e->c % 5 == 0));
+	C2_UT_ASSERT(count == 3);
+
+	t_sum = 0;
+	count = 0;
+	C2_UT_ASSERT(c2_list_entry_forall(e, &test_head, struct test1, t_link,
+					  count++; t_sum += e->c; e->c < 16));
+	C2_UT_ASSERT(t_sum == 30);
+	C2_UT_ASSERT(count == 3);
+
+	count = 0;
 	c2_list_for_each(&test_head, pos) {
 		p = c2_list_entry(pos,struct test1, t_link);
+		C2_UT_ASSERT(p->c % 5 == 0);
+		count++;
 	}
+	C2_UT_ASSERT(count == 3);
 
 	c2_list_del(&t2.t_link);
 
@@ -67,12 +91,15 @@ void test_list(void)
 	C2_UT_ASSERT(!c2_list_contains(&test_head, &t2.t_link));
 	C2_UT_ASSERT( c2_list_contains(&test_head, &t3.t_link));
 
+	count = 0;
 	t_sum = 0;
 	c2_list_for_each(&test_head, pos) {
 		p = c2_list_entry(pos,struct test1, t_link);
 		t_sum += p->c;
+		count++;
 	}
 	C2_UT_ASSERT(t_sum == 20);
+	C2_UT_ASSERT(count == 2);
 
 	c2_list_del(&t1.t_link);
 
@@ -81,10 +108,13 @@ void test_list(void)
 	C2_UT_ASSERT( c2_list_contains(&test_head, &t3.t_link));
 
 	t_sum = 0;
+	count = 0;
 	c2_list_for_each_entry(&test_head, p, struct test1, t_link) {
 		t_sum += p->c;
+		count++;
 	}
 	C2_UT_ASSERT(t_sum == 15);
+	C2_UT_ASSERT(count == 1);
 
 	c2_list_del(&t3.t_link);
 
@@ -93,10 +123,13 @@ void test_list(void)
 	C2_UT_ASSERT(!c2_list_contains(&test_head, &t3.t_link));
 
 	t_sum = 0;
+	count = 0;
 	c2_list_for_each_entry(&test_head, p, struct test1, t_link) {
 		t_sum += p->c;
+		count++;
 	}
 	C2_UT_ASSERT(t_sum == 0);
+	C2_UT_ASSERT(count == 0);
 
 	C2_UT_ASSERT(c2_list_is_empty(&test_head));
 	c2_list_fini(&test_head);

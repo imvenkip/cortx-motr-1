@@ -8,7 +8,7 @@ testdirs        = ../net/bulk_emulation/st/linux_kernel/        \
                   ../rpc/it/linux_kernel/                       \
                   ../utils/linux_kernel/
 
-EXTRA_CFLAGS    = -DHAVE_CONFIG_H -I. -I$(CORE_SRCDIR) @KCFLAGS@
+EXTRA_CFLAGS    = -DHAVE_CONFIG_H -iquote . -iquote $(CORE_SRCDIR) @KCFLAGS@
 
 #       NOTE:
 #       It is assumed that user space build is done before starting to

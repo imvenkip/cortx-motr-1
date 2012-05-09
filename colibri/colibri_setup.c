@@ -19,7 +19,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 
 #include <stdio.h>     /* fprintf */
@@ -332,7 +332,7 @@ static bool cs_endpoint_is_duplicate(struct c2_colibri *cctx,
 				     const struct c2_net_xprt *xprt,
 				     const char *ep)
 {
-	int                          cnt = 0;
+	int                          cnt;
 	struct cs_reqh_context      *rctx;
 	struct cs_endpoint_and_xprt *ep_xprt;
 
@@ -341,6 +341,7 @@ static bool cs_endpoint_is_duplicate(struct c2_colibri *cctx,
 
         C2_ASSERT(!rhctx_tlist_is_empty(&cctx->cc_reqh_ctxs));
 
+	cnt = 0;
 	c2_tlist_for(&rhctx_tl, &cctx->cc_reqh_ctxs, rctx) {
 		C2_ASSERT(cs_reqh_context_bob_check(rctx));
 		c2_tlist_for(&cs_eps_tl, &rctx->rc_eps, ep_xprt) {
@@ -1080,15 +1081,13 @@ static void cs_net_domains_fini(struct c2_colibri *cctx)
 
    @param rctx Request handler context to be initialised
  */
-static int cs_start_request_handler(struct cs_reqh_context *rctx)
+static int cs_request_handler_start(struct cs_reqh_context *rctx)
 {
 	int                      rc;
 	struct c2_cs_reqh_stobs *rstob;
 	struct c2_stob_domain   *sdom;
 
-	if (rctx->rc_dbpath != NULL)
-		rc = c2_dbenv_init(&rctx->rc_db, rctx->rc_dbpath, 0);
-
+	rc = c2_dbenv_init(&rctx->rc_db, rctx->rc_dbpath, 0);
 	if (rc != 0)
 		goto out;
 
@@ -1137,7 +1136,7 @@ out:
    Configures one or more request handler contexts and starts corresponding
    request handlers in each context.
  */
-static int cs_start_request_handlers(struct c2_colibri *cctx)
+static int cs_request_handlers_start(struct c2_colibri *cctx)
 {
 	int                     rc;
 	struct cs_reqh_context *rctx;
@@ -1152,7 +1151,7 @@ static int cs_start_request_handlers(struct c2_colibri *cctx)
 		C2_ASSERT(cs_reqh_context_bob_check(rctx));
 		C2_ASSERT(cs_reqh_context_invariant(rctx));
 
-		rc = cs_start_request_handler(rctx);
+		rc = cs_request_handler_start(rctx);
 		if (rc != 0) {
 			fprintf(ofd,
 				"COLIBRI: Failed to start request handler, rc=%d\n", rc);
@@ -1744,7 +1743,7 @@ int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 		if (rc != 0)
                      goto out;
 
-		rc = cs_start_request_handlers(cctx);
+		rc = cs_request_handlers_start(cctx);
 		if (rc != 0)
                      goto out;
 
