@@ -135,11 +135,11 @@ int c2_md_store_create(struct c2_md_store       *md,
         nsrec.cnr_fid = attr->ca_tfid;
         C2_ASSERT(attr->ca_nlink > 0);
         nsrec.cnr_nlink = attr->ca_nlink;
-        nsrec.cnr_rdev = attr->ca_rdev;
+        //nsrec.cnr_rdev = attr->ca_rdev;
         nsrec.cnr_size = attr->ca_size;
         nsrec.cnr_blksize = attr->ca_blksize;
         nsrec.cnr_blocks = attr->ca_blocks;
-        nsrec.cnr_version = attr->ca_version;
+        //nsrec.cnr_version = attr->ca_version;
         nsrec.cnr_atime = attr->ca_atime;
         nsrec.cnr_mtime = attr->ca_mtime;
         nsrec.cnr_ctime = attr->ca_ctime;
@@ -424,8 +424,8 @@ int c2_md_store_setattr(struct c2_md_store      *md,
                         nsrec->cnr_ctime = attr->ca_ctime;
                 if (attr->ca_flags & C2_COB_SIZE)
                         nsrec->cnr_size = attr->ca_size;
-                if (attr->ca_flags & C2_COB_RDEV)
-                        nsrec->cnr_rdev = attr->ca_rdev;
+                /*if (attr->ca_flags & C2_COB_RDEV)
+                        nsrec->cnr_rdev = attr->ca_rdev;*/
                 if (attr->ca_flags & C2_COB_BLOCKS)
                         nsrec->cnr_blocks = attr->ca_blocks;
                 if (attr->ca_flags & C2_COB_BLKSIZE)
@@ -434,7 +434,7 @@ int c2_md_store_setattr(struct c2_md_store      *md,
                         C2_ASSERT(attr->ca_nlink > 0);
                         nsrec->cnr_nlink = attr->ca_nlink;
                 }
-                nsrec->cnr_version = attr->ca_version;
+                //nsrec->cnr_version = attr->ca_version;
         }
 
         /*
@@ -489,17 +489,17 @@ int c2_md_store_getattr(struct c2_md_store      *md,
          */
         if (cob->co_valid & CA_NSREC) {
                 attr->ca_flags |= C2_COB_ATIME | C2_COB_CTIME | C2_COB_MTIME |
-                                  C2_COB_SIZE | C2_COB_BLKSIZE | C2_COB_BLOCKS |
-                                  C2_COB_RDEV;
+                                  C2_COB_SIZE | C2_COB_BLKSIZE | C2_COB_BLOCKS/* |
+                                  C2_COB_RDEV*/;
                 attr->ca_atime = cob->co_nsrec.cnr_atime;
                 attr->ca_ctime = cob->co_nsrec.cnr_ctime;
                 attr->ca_mtime = cob->co_nsrec.cnr_mtime;
                 attr->ca_blksize = cob->co_nsrec.cnr_blksize;
                 attr->ca_blocks = cob->co_nsrec.cnr_blocks;
                 attr->ca_nlink = cob->co_nsrec.cnr_nlink;
-                attr->ca_rdev = cob->co_nsrec.cnr_rdev;
+                //attr->ca_rdev = cob->co_nsrec.cnr_rdev;
                 attr->ca_size = cob->co_nsrec.cnr_size;
-                attr->ca_version = cob->co_nsrec.cnr_version;
+                //attr->ca_version = cob->co_nsrec.cnr_version;
         }
         
         /*

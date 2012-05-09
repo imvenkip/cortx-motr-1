@@ -65,6 +65,9 @@ struct c2_fid C2_COB_SESSIONS_FID = {
         .f_key       = 3ULL
 };
 
+const char C2_COB_ROOT_NAME[] = "ROOT";
+const char C2_COB_SESSIONS_NAME[] = "SESSIONS";
+
 static const struct c2_addb_ctx_type c2_cob_domain_addb = {
 	.act_name = "cob-domain"
 };

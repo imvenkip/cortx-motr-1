@@ -54,7 +54,7 @@ struct c2_db_tx;
 
    COB uses four db tables for storing the following pieces of information:
    - Namespace - stores file names and file attributes for readdir speedup;
-   
+
    - Object Index - stores links of file (all names of the file);
 
    - File attributes - stores file version, some replicator fields, basically
@@ -193,8 +193,8 @@ struct c2_cob_id;
 struct c2_cob_domain;
 struct c2_cob_domain_id;
 
-#define C2_COB_ROOT_NAME     "ROOT"
-#define C2_COB_SESSIONS_NAME "SESSIONS"
+extern const char C2_COB_ROOT_NAME[];
+extern const char C2_COB_SESSIONS_NAME[];
 
 extern struct c2_fid C2_COB_ROOT_FID;
 extern struct c2_fid C2_COB_SLASH_FID;
@@ -283,8 +283,8 @@ struct c2_cob_attr {
         uint64_t          ca_atime;   /**< time of last access. */
         uint64_t          ca_mtime;   /**< time of last modification. */
         uint64_t          ca_ctime;   /**< time of last status change. */
+        uint64_t          ca_rdev;    /**< devid for special devices, used for replicator */
         uint32_t          ca_nlink;   /**< number of hard links. */
-        uint32_t          ca_rdev;    /**< device ID (if special file). */
         uint64_t          ca_size;    /**< total size, in bytes. */
         uint64_t          ca_blksize; /**< blocksize for filesystem I/O. */
         uint64_t          ca_blocks;  /**< number of blocks allocated. */
@@ -323,9 +323,7 @@ struct c2_cob_nsrec {
         uint32_t          cnr_nlink;   /**< number of hard links. */
         uint32_t          cnr_cntr;    /**< linkno allocation counter. */
         uint64_t          cnr_omgid;   /**< uid/gid/mode slot reference */
-        uint64_t          cnr_version; /**< attributes version, used for replicator */
         uint64_t          cnr_size;    /**< total size, in bytes. */
-        uint64_t          cnr_rdev;    /**< devid for special devices, used for replicator */
         uint64_t          cnr_blksize; /**< blocksize for filesystem I/O. */
         uint64_t          cnr_blocks;  /**< number of blocks allocated. */
         uint64_t          cnr_atime;   /**< time of last access. */
