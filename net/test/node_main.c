@@ -407,10 +407,12 @@ finished.up();\l", shape=box];
      S4 [label="Stopped"];
      S5 [label="Uninitialized"];
      S6 [label="", shape="plaintext"];
+     { rank=same; S3; S4 }
      S0 -> S1 [label="start"];
      S1 -> S2 [label="INIT command from console"];
      S2 -> S3 [label="START command from console"];
      S2 -> S4 [label="STOP command from console"];
+     S3 -> S4 [label="receive STOP command from console"];
      S3 -> S4 [label="send FINISHED command to console (for client)\l\
 receive FINISHED command from console (for server)"];
      S4 -> S5 [label="send stats to console"];
