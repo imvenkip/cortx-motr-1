@@ -42,12 +42,11 @@ usage()
     echo "                      e=<list> - Exclude branches from <list>"
     echo "                      current  - Current branch"
     echo "-d <path>      Directory from where Colibri source is to be used"
-    echo "                 (If this is not given UB will not be run)"
     echo "-h             Print this help"
     echo "-m <e-mail-id> Send mail to this email address in case of error or success."
     echo "-r <path>      Test root directory (Mandatory)."
     echo "-s <suffix>    Suffix to be appended to top level directory name in "
-    echo "                 case user wants to differentiate between test directories."
+    echo "               case user wants to differentiate between test directories."
 }
 
 OPTIONS_STRING="b:d:hm:r:s:"
@@ -102,15 +101,16 @@ DIRS="logs core-dumps coverage-data coverage-data/html"
 
 # GIT Variables
 # REMOTE_GIT_CMD="git clone ssh://gitosis@git.clusterstor.com/colibri.git"
+
+# For setting any of the variables below, do -
+# UB_ROUNDS=NUM ./run_tests.sh [OPTIONS ...]
+
 GIT_USER=${GIT_USER:-gitosis}
 GIT_WEB_ADDRESS=${GIT_WEB_ADDRESS:-git.clusterstor.com}
 GIT_PROTOCOL=${GIT_PROTOCOL:-ssh}
 GIT_REPOSITORY=${GIT_REPOSITORY:-colibri.git}
 
 UB_ROUNDS=${UB_ROUNDS:-0}
-
-# For setting any of the above variables do,
-# UB_ROUNDS=NUM ./run_tests.sh [OPTIONS ...]
 
 MAIL_TEXT_FILE=$(mktemp /tmp/build-auto-mail-log.XXXXXX) > /dev/null
 
