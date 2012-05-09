@@ -202,7 +202,7 @@
    @endcode
 
    c2_net_test_PROG_start() will be blocked until it's finished or
-   c2_net_test_PROG_stop() called. Test server need to catch
+   c2_net_test_PROG_stop() called. Test server needs to catch
    FINISHED command from the test console and run c2_net_test_server_stop()
    when it is received.
 
@@ -324,7 +324,7 @@ finished.up();\l", shape=box];
    @subsubsection net-test-lspec-algo-server Test Server Algorithm
 
    Test server allocates all necessary buffers and initializes transfer
-   machine. Then it just working in transfer machine callbacks.
+   machine. Then it just works in transfer machine callbacks.
 
    Ping test callbacks
    - C2_NET_QT_MSG_RECV
@@ -429,7 +429,7 @@ receive FINISHED command from console (for server)"];
 
    - Configuration is not protected by any synchronization mechanism.
      Configuration is not intended to change after initialization,
-     so no need to use synchronization mechanish for reading configuration.
+     so no need to use synchronization mechanism for reading configuration.
    - struct c2_net_test_stats is not protected by any synchronization mechanism.
    - struct c2_net_test_ctx is not protected by any synchronization mechanism.
 
@@ -438,7 +438,7 @@ receive FINISHED command from console (for server)"];
    This section describes if optimal behavior can be supported by
    associating the utilizing thread to a single processor.</i>
 
-   - Configuration is not intented to change after initial initialization,
+   - Configuration is not intended to change after initial initialization,
      so cache coherence overhead will not exists.
    - One c2_net_test_stats per locality can be used. Summary statistics can
      be collected from all localities using c2_net_test_stats_add_stats()
@@ -453,7 +453,7 @@ receive FINISHED command from console (for server)"];
 
    - @b I.c2.net.self-test.statistics user-space LNet implementation is used
      to collect statistics from all nodes.
-   - @b I.c2.net.self-test.statistics.live user-space LNet implementaton
+   - @b I.c2.net.self-test.statistics.live user-space LNet implementation
      is used to perform statistics collecting from the all nodes with
      some interval.
    - @b I.c2.net.self-test.test.ping latency is automatically measured for
