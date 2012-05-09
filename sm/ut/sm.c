@@ -26,6 +26,8 @@
 #include "lib/ut.h"
 #include "lib/ub.h"
 #include "lib/time.h"
+#include "lib/arith.h"                    /* c2_rnd */
+#include "lib/misc.h"                     /* C2_IN */
 #include "lib/thread.h"
 
 #include "addb/addb.h"
@@ -49,7 +51,11 @@ static void ast_thread(int __d)
 }
 
 static int init(void) {
+	int result;
+
 	c2_sm_group_init(&G);
+	result = C2_THREAD_INIT(&ath, int, NULL, &ast_thread, 0, "ast_thread");
+	C2_ASSERT(result == 0);
 	return 0;
 }
 
@@ -203,9 +209,6 @@ static void timeout(void)
 	c2_time_t            delta;
 	int                  result;
 
-	result = C2_THREAD_INIT(&ath, int, NULL, &ast_thread, 0, "ast_thread");
-	C2_UT_ASSERT(result == 0);
-
 	c2_time_set(&delta, 0, C2_TIME_ONE_BILLION/100);
 
 	c2_sm_group_lock(&G);
@@ -254,12 +257,13 @@ struct story {
 
 enum { S_INITIAL, S_ITERATE, S_FRATRICIDE, S_TERMINAL, S_NR };
 
-static void genesis_4_8(struct c2_sm *mach)
+static int genesis_4_8(struct c2_sm *mach)
 {
 	struct story *s;
 
 	s = container_of(mach, struct story, cain);
 	c2_sm_fail(&s->abel, S_TERMINAL, -EINTR);
+	return -1;
 }
 
 /**
@@ -342,12 +346,168 @@ static void group(void)
 	C2_UT_ASSERT(s.abel.sm_state == S_TERMINAL);
 	C2_UT_ASSERT(s.cain.sm_state == S_FRATRICIDE);
 
-	c2_sm_state_set(&s.cain, S_TERMINAL);
+	c2_sm_fail(&s.cain, S_TERMINAL, -1);
 
 	c2_sm_timeout_fini(&to);
 
 	c2_sm_fini(&s.abel);
 	c2_sm_fini(&s.cain);
+	c2_sm_group_unlock(&G);
+}
+
+enum { C_INIT, C_FLIP, C_HEAD, C_TAIL, C_DONE, C_OVER, C_WIN, C_LOSE, C_TIE,
+       C_NR };
+
+static int heads = 0;
+static int tails = 0;
+
+static int flip(struct c2_sm *mach)
+{
+	uint64_t cookie = ~heads + 11 * tails + 42;
+
+	return c2_rnd(10, &cookie) >= 5 ? C_HEAD : C_TAIL;
+}
+
+static int head(struct c2_sm *mach)
+{
+	++heads;
+	return C_DONE;
+}
+
+static int tail(struct c2_sm *mach)
+{
+	++tails;
+	return C_DONE;
+}
+
+static int over(struct c2_sm *mach)
+{
+	if (tails > heads) {
+		return C_WIN;
+	} else if (tails == heads) {
+		return C_TIE;
+	} else {
+		/* transit to a failure state */
+		mach->sm_rc = heads - tails;
+		return C_LOSE;
+	}
+}
+
+/**
+ * Unit test for chained state transition incurred by ->sd_in() call-back.
+ *
+ * @dot
+ * digraph M {
+ *         C_INIT -> C_FLIP
+ *         C_FLIP -> C_HEAD
+ *         C_FLIP -> C_TAIL
+ *         C_HEAD -> C_DONE
+ *         C_TAIL -> C_DONE
+ *         C_DONE -> C_FLIP
+ *         C_DONE -> C_OVER
+ *         C_OVER -> C_LOSE
+ *         C_OVER -> C_WIN
+ *         C_OVER -> C_TIE
+ * }
+ *  @enddot
+ */
+static void chain(void)
+{
+	enum { NR_RUNS = 20 };
+	const struct c2_sm_state_descr states[C_NR] = {
+		[C_INIT] = {
+			.sd_flags     = C2_SDF_INITIAL,
+			.sd_name      = "initial",
+			.sd_in        = NULL,
+			.sd_ex        = NULL,
+			.sd_invariant = NULL,
+			.sd_allowed   = 1 << C_FLIP
+		},
+		[C_FLIP] = {
+			.sd_flags     = 0,
+			.sd_name      = "flip a coin",
+			.sd_in        = flip,
+			.sd_ex        = NULL,
+			.sd_invariant = NULL,
+			.sd_allowed   = (1 << C_HEAD)|(1 << C_TAIL)
+		},
+		[C_HEAD] = {
+			.sd_flags     = 0,
+			.sd_name      = "Head, I win!",
+			.sd_in        = head,
+			.sd_ex        = NULL,
+			.sd_invariant = NULL,
+			.sd_allowed   = 1 << C_DONE
+		},
+		[C_TAIL] = {
+			.sd_flags     = 0,
+			.sd_name      = "Tail, you lose!",
+			.sd_in        = tail,
+			.sd_ex        = NULL,
+			.sd_invariant = NULL,
+			.sd_allowed   = 1 << C_DONE
+		},
+		[C_DONE] = {
+			.sd_flags     = 0,
+			.sd_name      = "round done",
+			.sd_in        = NULL,
+			.sd_ex        = NULL,
+			.sd_invariant = NULL,
+			.sd_allowed   = (1 << C_OVER)|(1 << C_FLIP)
+		},
+		[C_OVER] = {
+			.sd_flags     = 0,
+			.sd_name      = "game over",
+			.sd_in        = over,
+			.sd_ex        = NULL,
+			.sd_invariant = NULL,
+			.sd_allowed   = (1 << C_WIN)|(1 << C_LOSE)|(1 << C_TIE)
+		},
+		[C_WIN] = {
+			.sd_flags     = C2_SDF_TERMINAL,
+			.sd_name      = "tails win",
+			.sd_in        = NULL,
+			.sd_ex        = NULL,
+			.sd_invariant = NULL,
+			.sd_allowed   = 0
+		},
+		[C_LOSE] = {
+			.sd_flags     = C2_SDF_TERMINAL|C2_SDF_FAILURE,
+			.sd_name      = "tails lose",
+			.sd_in        = NULL,
+			.sd_ex        = NULL,
+			.sd_invariant = NULL,
+			.sd_allowed   = 0
+		},
+		[C_TIE] = {
+			.sd_flags     = C2_SDF_TERMINAL,
+			.sd_name      = "tie",
+			.sd_in        = NULL,
+			.sd_ex        = NULL,
+			.sd_invariant = NULL,
+			.sd_allowed   = 0
+		},
+	};
+	const struct c2_sm_conf conf = {
+		.scf_name      = "test drive: chain",
+		.scf_nr_states = C_NR,
+		.scf_state     = states
+	};
+	int i;
+
+	c2_sm_group_lock(&G);
+	c2_sm_init(&m, &conf, C_INIT, &G, &actx);
+	C2_UT_ASSERT(m.sm_state == C_INIT);
+
+	for (i = 0; i < NR_RUNS; ++i) {
+		c2_sm_state_set(&m, C_FLIP);
+		C2_UT_ASSERT(m.sm_state == C_DONE);
+	}
+	C2_UT_ASSERT(tails + heads == NR_RUNS);
+	c2_sm_state_set(&m, C_OVER);
+	C2_UT_ASSERT(C2_IN(m.sm_state, (C_WIN, C_LOSE, C_TIE)));
+
+	c2_sm_fini(&m);
 	c2_sm_group_unlock(&G);
 }
 
@@ -360,6 +520,7 @@ const struct c2_test_suite sm_ut = {
 		{ "ast",        ast_test },
 		{ "timeout",    timeout },
 		{ "group",      group },
+		{ "chain",      chain },
 		{ NULL, NULL }
 	}
 };

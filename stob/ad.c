@@ -428,6 +428,8 @@ static int ad_stob_locate(struct c2_stob *obj, struct c2_dtx *tx)
 	result = ad_cursor(adom, obj, 0, tx, &it);
 	if (result == 0)
 		c2_emap_close(&it);
+	else if (result == -ESRCH)
+		result = -ENOENT;
 	return result;
 }
 
