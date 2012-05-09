@@ -241,7 +241,7 @@ void c2_net_test_fini(void);
    @} end of NetTestDFS
  */
 
-#endif /*  __NET_TEST_MAIN_H__ */
+#endif /*  __NET_TEST_NODE_MAIN_H__ */
 
 /*
  *  Local variables:
