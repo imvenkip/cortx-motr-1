@@ -25,7 +25,7 @@
 #include "lib/tlist.h"
 #include "lib/bob.h"
 
-#include <sm/sm.h>
+#include "sm/sm.h"
 #include "fol/fol.h"
 #include "fop/fop.h"
 #include "fop/fom.h"
