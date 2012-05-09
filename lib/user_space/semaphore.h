@@ -21,7 +21,7 @@
 #ifndef __COLIBRI_LIB_USER_SPACE_SEMAPHORE_H__
 #define __COLIBRI_LIB_USER_SPACE_SEMAPHORE_H__
 
-#include_next <semaphore.h>
+#include <semaphore.h>
 
 /**
    @addtogroup semaphore

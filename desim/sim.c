@@ -21,7 +21,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
 #include <stdlib.h>
@@ -164,12 +164,12 @@ static void sim_call_place(struct sim *sim, struct sim_callout *call)
 	 * data structure, like a tree or a skip-list of some sort.
 	 */
 
-	c2_tlist_for(&ca_tl, &sim->ss_future, scan) {
+	c2_tl_for(ca, &sim->ss_future, scan) {
 		if (scan->sc_time > call->sc_time) {
 			ca_tlist_add_before(scan, call);
 			return;
 		}
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	ca_tlist_add_tail(&sim->ss_future, call);
 }
 

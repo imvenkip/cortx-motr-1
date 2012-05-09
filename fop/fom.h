@@ -301,8 +301,6 @@ struct c2_fom {
 	const struct c2_fom_ops	*fo_ops;
 	/** FOM clink to wait upon a particular channel for an event */
 	struct c2_clink		 fo_clink;
-	/** FOP ctx sent by the network service. */
-	struct c2_fop_ctx	*fo_fop_ctx;
 	/** Request fop object, this fom belongs to */
 	struct c2_fop		*fo_fop;
 	/** Reply fop object */

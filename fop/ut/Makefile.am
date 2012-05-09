@@ -1,5 +1,5 @@
 noinst_LTLIBRARIES = libfop-ut.la
-INCLUDES           = -I. -I$(top_srcdir)/include -I$(top_srcdir)
+INCLUDES           = -iquote . -iquote $(top_srcdir)/include -iquote $(top_srcdir)
 
 test_format_u.h test_format_u.c test_format_k.h test_format_k.c: \
                                      test_format.ff \

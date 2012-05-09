@@ -19,7 +19,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 #include "lib/ut.h"
 #include "lib/memory.h"/* C2_ALLOC_PTR */

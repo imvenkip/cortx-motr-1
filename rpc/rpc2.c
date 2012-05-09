@@ -925,10 +925,10 @@ static bool rpc_bulk_invariant(const struct c2_rpc_bulk *rbulk)
 	if (rbulk == NULL || rbulk->rb_magic != C2_RPC_BULK_MAGIC)
 		return false;
 
-	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, buf) {
+	c2_tl_for(rpcbulk, &rbulk->rb_buflist, buf) {
 		if (buf->bb_rbulk != rbulk)
 			return false;
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 
 	return true;
 }
@@ -1095,10 +1095,10 @@ void c2_rpc_bulk_buflist_empty(struct c2_rpc_bulk *rbulk)
 
 	c2_mutex_lock(&rbulk->rb_mutex);
 	C2_ASSERT(rpc_bulk_invariant(rbulk));
-	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, buf) {
+	c2_tl_for(rpcbulk, &rbulk->rb_buflist, buf) {
 		rpcbulk_tlist_del(buf);
 		rpc_bulk_buf_fini(buf);
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	c2_mutex_unlock(&rbulk->rb_mutex);
 }
 
@@ -1188,9 +1188,9 @@ void c2_rpc_bulk_qtype(struct c2_rpc_bulk *rbulk, enum c2_net_queue_type q)
 	       q == C2_NET_QT_ACTIVE_BULK_RECV ||
 	       q == C2_NET_QT_ACTIVE_BULK_SEND);
 
-	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, rbuf) {
+	c2_tl_for(rpcbulk, &rbulk->rb_buflist, rbuf) {
 		rbuf->bb_nbuf->nb_qtype = q;
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 }
 
 static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
@@ -1217,7 +1217,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 	C2_ASSERT(rpc_bulk_invariant(rbulk));
 	C2_ASSERT(!rpcbulk_tlist_is_empty(&rbulk->rb_buflist));
 
-	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, rbuf) {
+	c2_tl_for(rpcbulk, &rbulk->rb_buflist, rbuf) {
 		nb = rbuf->bb_nbuf;
 		nb->nb_length = c2_vec_count(&rbuf->bb_zerovec.z_bvec.ov_vec);
 		C2_ASSERT(rpc_bulk_buf_invariant(rbuf));
@@ -1291,7 +1291,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 		++cnt;
 		rbulk->rb_bytes += c2_vec_count(&rbuf->bb_zerovec.z_bvec.
 						ov_vec);
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	C2_POST(rpc_bulk_invariant(rbulk));
 	c2_mutex_unlock(&rbulk->rb_mutex);
 
@@ -1299,12 +1299,12 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 cleanup:
 	C2_ASSERT(rc != 0);
 	rpcbulk_tlist_del(rbuf);
-	c2_tlist_for(&rpcbulk_tl, &rbulk->rb_buflist, rbuf) {
+	c2_tl_for(rpcbulk, &rbulk->rb_buflist, rbuf) {
 		if (rbuf->bb_flags & C2_RPC_BULK_NETBUF_REGISTERED)
 			c2_net_buffer_deregister(rbuf->bb_nbuf, netdom);
 		if (rbuf->bb_nbuf->nb_flags & C2_NET_BUF_QUEUED)
 			c2_net_buffer_del(rbuf->bb_nbuf, tm);
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	c2_mutex_unlock(&rbulk->rb_mutex);
 	return rc;
 }

@@ -24,7 +24,7 @@
 #ifdef __KERNEL__
 #include <linux/errno.h>
 #else
-#include_next <errno.h>
+#include <errno.h>
 #endif
 
 /* __COLIBRI_LIB_ERRNO_H__ */

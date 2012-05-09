@@ -119,12 +119,12 @@ struct c2_net_buffer_pool * ut_get_buffer_pool(struct c2_fom *fom)
         /* Get network buffer pool for network domain */
         fop_ndom
         = fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
-        c2_tlist_for(&bufferpools_tl, &serv_obj->rios_buffer_pools,
+        c2_tl_for(bufferpools, &serv_obj->rios_buffer_pools,
                      bpdesc) {
                 if (bpdesc->rios_ndom == fop_ndom) {
                         return &bpdesc->rios_bp;
                 }
-        } c2_tlist_endfor;
+        } c2_tl_endfor;
 
         return NULL;
 }
