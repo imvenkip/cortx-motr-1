@@ -146,6 +146,7 @@ struct c2_stob_io_fom {
 	struct c2_stob_io		 sif_stio;
 };
 
+extern struct c2_stob_domain *reqh_ut_stob_domain_find(void);
 static int stob_create_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static int stob_read_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static int stob_write_fom_create(struct c2_fop *fop, struct c2_fom **out);
@@ -235,7 +236,8 @@ static struct c2_stob *stob_object_find(const struct stob_io_fop_fid *fid,
 
 	id.si_bits.u_hi = fid->f_seq;
 	id.si_bits.u_lo = fid->f_oid;
-	fom_stdom = fom->fo_loc->fl_dom->fd_reqh->rh_stdom;
+	fom_stdom = reqh_ut_stob_domain_find();
+	C2_ASSERT(fom_stdom != NULL);
 	result = c2_stob_find(fom_stdom, &id, &obj);
 	C2_ASSERT(result == 0);
 	result = c2_stob_locate(obj, tx);

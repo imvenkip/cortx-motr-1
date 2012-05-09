@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -141,7 +141,6 @@ struct c2_reqh {
    Initialises request handler instance provided by the caller.
 
    @param reqh Request handler instance to be initialised
-   @param stdom Storage object domain used for file io
    @param db Database environment for this request handler
    @param cdom Cob domain for this request handler
    @param fol File operation log to record fop execution
@@ -150,17 +149,11 @@ struct c2_reqh {
 	or c2_rpc_machine instead of c2_service
 
    @see c2_reqh
-
-   @pre reqh != NULL && stdom != NULL && db != NULL &&
-	cdom != NULL && fol != NULL
-
-   @retval 0, if request handler is succesfully initilaised,
-		-errno, in case of failure
+   @post c2_reqh_invariant()
  */
 int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
-                  struct c2_stob_domain *stdom, struct c2_dbenv *db,
-                  struct c2_md_store *mdstore, struct c2_fol *fol,
-                  struct c2_local_service *svc);
+		  struct c2_dbenv *db, struct c2_md_store *mdstore,
+		  struct c2_fol *fol, struct c2_local_service *svc);
 
 bool c2_reqh_invariant(const struct c2_reqh *reqh);
 
@@ -330,8 +323,6 @@ void c2_reqhs_fini(void);
 
    @param service_name Name of the service of interest
    @param reqh Request handler instance
-
-   @retval serive instance pointer or NULL.
  */
 struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
 						struct c2_reqh *reqh);

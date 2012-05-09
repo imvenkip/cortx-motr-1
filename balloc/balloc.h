@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -250,11 +250,12 @@ enum {
 /**
    Allocates struct c2_balloc instance and initialises struct ad_balloc_ops
    vector. One balloc instance is allocated and initialised per storage domain.
+   @note The allocated struct c2_balloc instance is freed by balloc_fini().
 
    @see struct ad_balloc_ops
    @pre out != NULL
  */
-int c2_balloc_locate(struct c2_balloc **out);
+int c2_balloc_allocate(struct c2_balloc **out);
 
 /* Interfaces for UT */
 void c2_balloc_debug_dump_sb(const char *tag,

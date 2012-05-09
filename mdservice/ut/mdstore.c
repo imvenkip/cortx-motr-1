@@ -138,7 +138,7 @@ static void test_init(void)
         C2_SET0(&svc);
 	svc.s_ops = &svc_ops;
 
-        rc = c2_reqh_init(&reqh, NULL, NULL, &db, &md, &fol, &svc);
+        rc = c2_reqh_init(&reqh, NULL, &db, &md, &fol, &svc);
 	C2_ASSERT(rc == 0);
 }
 
