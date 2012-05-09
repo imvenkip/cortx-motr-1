@@ -1,3 +1,4 @@
+# List of macros to be defined
 macros = [ \
 "offsetof(typ,memb) ((unsigned long)((char *)&(((typ *)0)->memb)))", \
 "container_of(ptr, type, member) " + \
@@ -6,7 +7,8 @@ macros = [ \
 
 class C2ListPrint(gdb.Command):
 	"""Prints c2_list elements.
-Usage: c2-list-print [&]c2_list [[struct|union] tag field]
+
+Usage: c2-list-print [&]c2_list [[struct|union] tag field [visit]]
 
 First argument is only mandatory argument. It can be of type either
 "struct c2_list" or "struct c2_list *". If this is the only argument
@@ -27,6 +29,25 @@ Example:
 0x6256e0
 0x7fffd80008e0
 Total: 2
+
+Last argument 'visit' if present is name of a user-defined command
+that takes one argument(think c2-list-print as a list traversing function
+with pointer to function as arguemnt).
+The visit command will be executed for each object in list.
+The implementation of visit command can decide which objects to print and how.
+Example:
+(gdb) define session_visit
+>set $s = (struct c2_rpc_session *)$arg0
+>printf "session %p id %lu state %d\\n", $s, $s->s_session_id, $s->s_state
+>end
+(gdb) c2-list-print session->s_conn->c_sessions struct c2_rpc_session s_link session_visit
+session 0x604c60 id 191837184000000002 state 4
+session 0x624e50 id 0 state 4
+Total: 2
+(gdb) c2-list-print session->s_conn->c_sessions struct c2_rpc_session s_link
+0x604c60
+0x624e50
+Total: 2
 """
 
 	def __init__(self):
@@ -36,9 +57,9 @@ Total: 2
 	def invoke(self, arg, from_tty):
 		argv = gdb.string_to_argv(arg)
 		argc = len(argv)
-		if argc != 1 and argc != 4:
+		if argc != 1 and argc != 4 and argc != 5:
 			print "Error: Usage: c2-list-print [&]c2_list " + \
-			      "[[struct|union] tag field]"
+			      "[[struct|union] tag field] visit"
 			return
 
 		vhead, head, ok = self.get_head(argv)
@@ -49,12 +70,22 @@ Total: 2
 		if not ok:
 			return
 
+		if argc == 5:
+			visit = argv[4]
+		else:
+			visit = ""
+
 		vnd   = vhead['l_head']
 		nd    = long(vnd)
 		total = 0
 
 		while nd != head:
-			print "0x%x" % (nd - offset)
+			obj_addr = nd - offset
+			if visit == "":
+				print "0x%x" % obj_addr
+			else:
+				gdb.execute("{0} {1}".format(visit, obj_addr))
+
 			vnd    = vnd['ll_next']
 			nd     = long(vnd)
 			total += 1
@@ -86,7 +117,7 @@ Total: 2
 	def get_offset(self, argv):
 		argc   = len(argv)
 		offset = 0
-		if argc == 4:
+		if argc == 4 or argc == 5:
 			if argv[1] != "struct" and argv[1] != "union":
 				print 'Error: Argument 2 must be ' + \
 				      'either "struct" or "union"'
@@ -105,7 +136,7 @@ Total: 2
 
 		return offset, True
 
-
+# Define macros listed in macros[]
 for m in macros:
 	gdb.execute("macro define %s" % m)
 
