@@ -160,8 +160,11 @@ void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool)
 	int		      i;
 	struct c2_net_buffer *nb;
 
-	C2_PRE(c2_net_buffer_pool_invariant(pool));
-	C2_PRE(pool->nbp_free == pool->nbp_buf_nr);
+	C2_PRE(c2_net_buffer_pool_is_not_locked(pool));
+
+	c2_net_buffer_pool_lock(pool);
+	C2_ASSERT(c2_net_buffer_pool_invariant(pool));
+	C2_ASSERT(pool->nbp_free == pool->nbp_buf_nr);
 
 	c2_tlist_for(&pool_tl, &pool->nbp_lru, nb) {
 		C2_CNT_DEC(pool->nbp_free);
@@ -171,6 +174,7 @@ void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool)
 	for (i = 0; i < pool->nbp_colours_nr; i++)
 		tm_tlist_fini(&pool->nbp_colours[i]);
 	c2_free(pool->nbp_colours);
+	c2_net_buffer_pool_unlock(pool);
 	c2_mutex_fini(&pool->nbp_mutex);
 }
 

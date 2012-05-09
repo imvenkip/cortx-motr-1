@@ -167,6 +167,7 @@ static void test_fini(void)
 {
 	c2_net_buffer_pool_lock(&bp);
 	C2_UT_ASSERT(c2_net_buffer_pool_invariant(&bp));
+	c2_net_buffer_pool_unlock(&bp);
 	c2_net_buffer_pool_fini(&bp);
 	c2_net_domain_fini(bp.nbp_ndom);
 	c2_free(bp.nbp_ndom);

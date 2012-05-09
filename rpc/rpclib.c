@@ -142,7 +142,7 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 	return rc;
 }
 
-int c2_rpc_net_buffer_pool__setup(struct c2_net_domain *ndom,
+/*int c2_rpc_net_buffer_pool__setup(struct c2_net_domain *ndom,
 				  struct c2_net_buffer_pool *app_pool)
 {
 	uint32_t    segs_nr;
@@ -151,7 +151,6 @@ int c2_rpc_net_buffer_pool__setup(struct c2_net_domain *ndom,
 	uint32_t    tm_nr;
 	c2_bcount_t buf_size;
 
-	/* Add default values if arguments are not passed. */
 	seg_size = C2_RPC_SEG_SIZE;
 	buf_size = c2_net_domain_get_max_buffer_size(ndom);
 	segs_nr  = buf_size / seg_size;
@@ -161,12 +160,12 @@ int c2_rpc_net_buffer_pool__setup(struct c2_net_domain *ndom,
 	return c2_rpc_net_buffer_pool_setup(ndom, app_pool, segs_nr, seg_size,
 					    bufs_nr, tm_nr);
 }
+*/
 
 void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool)
 {
 	C2_PRE(app_pool != NULL);
-
-	c2_net_buffer_pool_lock(app_pool);
+	
 	c2_net_buffer_pool_fini(app_pool);
 	c2_free(app_pool);
 }
@@ -179,6 +178,7 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	struct c2_net_domain      *ndom;
 	struct c2_rpc_machine	  *rpc_machine;
 	static uint32_t		   tm_colours;
+	uint32_t		   segs_nr;
 
 	ndom = cctx->rcx_net_dom;
 	rpc_machine = &cctx->rcx_rpc_machine;
@@ -187,32 +187,30 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	if (cctx->rcx_buffer_pool == NULL)
 		return -ENOMEM;
 
-	if (cctx->rcx_segs_nr != 0 && cctx->rcx_seg_size != 0 &&
-	    cctx->rcx_bufs_nr != 0 && cctx->rcx_tm_nr != 0)
-		rc = c2_rpc_net_buffer_pool_setup(ndom, cctx->rcx_buffer_pool,
-						  cctx->rcx_segs_nr,
-						  cctx->rcx_seg_size,
-						  cctx->rcx_bufs_nr,
-						  cctx->rcx_tm_nr);
-	else
-		rc = c2_rpc_net_buffer_pool__setup(ndom,
-						   cctx->rcx_buffer_pool);
-
+	segs_nr = c2_net_domain_get_max_buffer_size(ndom) / C2_RPC_SEG_SIZE;
+	if (cctx->rcx_bufs_nr == 0)
+		cctx->rcx_bufs_nr = C2_RPC_TM_RECV_BUFFERS_NR;
+	if (cctx->rcx_tm_nr == 0)
+		cctx->rcx_tm_nr = C2_RPC_TM_NR;
+	rc = c2_rpc_net_buffer_pool_setup(ndom, cctx->rcx_buffer_pool,
+					  segs_nr, C2_RPC_SEG_SIZE,
+					  cctx->rcx_bufs_nr,
+					  cctx->rcx_tm_nr);
 	if (rc != 0)
 		goto pool_fini;
 
-	if (cctx->rcx_min_recv_size != 0)
-		rpc_machine->rm_min_recv_size = cctx->rcx_min_recv_size;
+	if (cctx->rcx_max_rpc_recv_size != 0)
+		rpc_machine->rm_min_recv_size = cctx->rcx_max_rpc_recv_size;
 	else
-		rpc_machine->rm_min_recv_size = C2_RPC_MIN_RECV_SIZE;
+		rpc_machine->rm_min_recv_size =
+			c2_net_domain_get_max_buffer_size(ndom);
 
-	if (cctx->rcx_max_recv_msgs != 0)
-		rpc_machine->rm_max_recv_msgs = cctx->rcx_max_recv_msgs;
-	else
-		rpc_machine->rm_max_recv_msgs = C2_RPC_MAX_RECV_MSGS;
+	rpc_machine->rm_max_recv_msgs =
+			c2_net_domain_get_max_buffer_size(ndom) /
+			rpc_machine->rm_min_recv_size;
 
 	rc = c2_rpc_machine_init(rpc_machine, cctx->rcx_cob_dom,
-				 cctx->rcx_net_dom, cctx->rcx_local_addr, NULL,
+				 ndom, cctx->rcx_local_addr, NULL,
 				 cctx->rcx_buffer_pool);
 	if (rc != 0)
 		goto pool_fini;

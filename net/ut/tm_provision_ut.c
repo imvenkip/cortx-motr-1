@@ -512,7 +512,6 @@ static void test_net_tm_prov(void)
 
 	c2_clink_fini(&tmwait);
 	/* Finalize the buffer pool. */
-	c2_net_buffer_pool_lock(pool_prov);
 	c2_net_buffer_pool_fini(pool_prov);
 	c2_free(pool_prov);
 

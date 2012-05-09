@@ -166,12 +166,9 @@ struct c2_rpc_client_ctx {
 	struct c2_rpc_session	   rcx_session;
 	struct c2_net_buffer_pool *rcx_buffer_pool;
         uint32_t		   rcx_bufs_nr;
-        uint32_t		   rcx_segs_nr;
         uint32_t		   rcx_tm_nr;
-        c2_bcount_t		   rcx_seg_size;
         uint32_t		   rcx_recv_queue_min_length;
-        uint32_t		   rcx_min_recv_size;
-        uint32_t		   rcx_max_recv_msgs;
+        uint32_t		   rcx_max_rpc_recv_size;
 };
 
 /**
@@ -212,9 +209,9 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 				 uint32_t bufs_nr, uint32_t tm_nr);
 
 /** It uses default arguments for segs_nr, seg_size, tm_nr and bufs_nr */
-int c2_rpc_net_buffer_pool__setup(struct c2_net_domain *ndom,
+/*int c2_rpc_net_buffer_pool__setup(struct c2_net_domain *ndom,
 				  struct c2_net_buffer_pool *app_pool);
-
+*/
 void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool);
 
 #endif /* __COLIBRI_RPC_RPCLIB_H__ */

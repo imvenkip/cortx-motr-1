@@ -253,8 +253,6 @@ static void ioservice_delete_buffer_pool(struct c2_reqh_service *service)
 
                 c2_chan_fini(&bp->rios_bp_wait);
                 bufferpools_tlink_del_fini(bp);
-
-                c2_net_buffer_pool_lock(&bp->rios_bp);
                 c2_net_buffer_pool_fini(&bp->rios_bp);
 		c2_free(bp);
 

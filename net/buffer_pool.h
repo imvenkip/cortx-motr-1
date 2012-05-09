@@ -125,9 +125,7 @@
 
     - To finalize the pool:
     @code
-	c2_net_buffer_pool_lock(&bp);
 	c2_net_buffer_pool_fini(&bp);
-	c2_net_buffer_pool_unlock(&bp);
     @endcode
 
     @see Also see c2_net_tm_pool_attach() and @ref NetRQProvDLD
@@ -184,7 +182,7 @@ int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
 				 uint32_t buf_nr);
 /** Finalizes a buffer pool.
-   @pre c2_net_buffer_pool_is_locked(pool)
+   @pre c2_net_buffer_pool_is_not_locked(pool)
  */
 void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool);
 

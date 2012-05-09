@@ -362,7 +362,6 @@ static void rpc_recv_pool_buffer_put(struct c2_net_buffer *nb)
 	C2_PRE(tm != NULL);
 	C2_PRE(tm->ntm_recv_pool != NULL && nb->nb_pool !=NULL);
 	C2_PRE(tm->ntm_recv_pool == nb->nb_pool);
-	C2_PRE(!(nb->nb_flags & C2_NET_BUF_QUEUED));
 
 	c2_net_buffer_pool_lock(tm->ntm_recv_pool);
 	c2_net_buffer_pool_put(tm->ntm_recv_pool, nb,
@@ -389,12 +388,10 @@ static int rpc_tm_setup(struct c2_rpc_machine *machine,
 	if (rc < 0)
 		return rc;
 
-	c2_mutex_lock(&net_dom->nd_mutex);
 	rc = c2_net_tm_pool_attach(&machine->rm_tm, machine->rm_buffer_pool,
 				   &c2_rpc_rcv_buf_callbacks,
 				   machine->rm_min_recv_size,
 				   machine->rm_max_recv_msgs);
-	c2_mutex_unlock(&net_dom->nd_mutex);
 	if (rc != 0)
 		return rc;
 
@@ -623,14 +620,13 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 		 */
 	}
 
-	/* Add the c2_net_buffer back to the queue of
-	   transfer machine. */
 last:
-	nb->nb_qtype = C2_NET_QT_MSG_RECV;
-	nb->nb_ep = NULL;
-	nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
-	if ((nb->nb_pool != NULL) && !(nb->nb_flags & C2_NET_BUF_QUEUED))
+	if ((nb->nb_pool != NULL) && !(nb->nb_flags & C2_NET_BUF_QUEUED)) {
+		nb->nb_qtype     = C2_NET_QT_MSG_RECV;
+		nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
+		nb->nb_ep	 = NULL;
 		rpc_recv_pool_buffer_put(nb);
+	}
 }
 
 static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
