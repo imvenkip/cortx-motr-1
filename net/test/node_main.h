@@ -118,7 +118,7 @@
    interface must be described in this section.</i>
 
    @subsection net-test-fspec-cli-node \
-	   Command line options for the test client/server kernel module.
+	   Kernel module options for the test client/server kernel module.
 
    - @b node_role Node role. Mandatory option.
      - @b client Program will act as test client.
