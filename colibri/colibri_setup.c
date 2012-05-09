@@ -1560,6 +1560,10 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
 		   Check if all the given end points in a reqh context are
 		   valid.
 		 */
+		if (cs_eps_tlist_is_empty(&rctx->rc_eps)) {
+			fprintf(ofd, "COLIBRI: No endpoint specified\n");
+			return -EINVAL;
+		}
 		c2_tlist_for(&cs_eps_tl, &rctx->rc_eps, ep) {
 			C2_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
 			rc = cs_endpoint_validate(cctx, ep->ex_endpoint, ep->ex_xprt);
