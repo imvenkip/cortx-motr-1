@@ -117,7 +117,9 @@ int c2_cob_nskey_size(const struct c2_cob_nskey *cnk)
                 c2_bitstring_len_get(&cnk->cnk_name);
 }
 
-/** Fabrec size taking into account symlink length. */
+/**
+   Fabrec size taking into account symlink length.
+ */
 static int c2_cob_fabrec_size(const struct c2_cob_fabrec *rec)
 {
         return sizeof *rec + rec->cfb_linklen;
@@ -136,13 +138,17 @@ void c2_cob_fabrec_make(struct c2_cob_fabrec **rech,
         *rech = rec;
 }
 
-/** Maximal possible fabrec size. */
+/**
+   Maximal possible fabrec size.
+ */
 static int c2_cob_max_fabrec_size(void)
 {
         return sizeof(struct c2_cob_fabrec) + C2_COB_NAME_MAX;
 }
 
-/** Allocate memory for maximal possible size of fabrec. */
+/**
+   Allocate memory for maximal possible size of fabrec.
+ */
 static void c2_cob_max_fabrec_make(struct c2_cob_fabrec **rech)
 {
         struct c2_cob_fabrec *rec;
@@ -506,9 +512,6 @@ void c2_cob_put(struct c2_cob *cob)
         c2_ref_put(&cob->co_ref);
 }
 
-/**
-   Allocate a new cob
- */
 int c2_cob_alloc(struct c2_cob_domain *dom, struct c2_cob **out)
 {
         struct c2_cob *cob;
@@ -693,6 +696,9 @@ static int cob_omg_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
         return rc;
 }
 
+/**
+   Load fab and omg records according with @need flags.
+ */
 static int c2_cob_get_fabomg(struct c2_cob *cob, uint64_t need,
                              struct c2_db_tx *tx)
 {
@@ -935,14 +941,6 @@ int c2_cob_alloc_omgid(struct c2_cob_domain *dom, struct c2_db_tx *tx,
         return rc;
 }
 
-/**
-   Add a new cob to the namespace.
-
-   This doesn't create a new stob; just creates metadata table entries
-   for it.
-
-   This takes a reference on the cob in-memory struct.
- */
 int c2_cob_create(struct c2_cob        *cob, 
                   struct c2_cob_nskey  *nskey,
                   struct c2_cob_nsrec  *nsrec,
@@ -1046,9 +1044,6 @@ out:
         return rc;
 }
 
-/**
-   Kill name+statdata, object index entry, file attrs and omg.
- */
 int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
 {
         struct c2_cob_fabkey fabkey;
@@ -1106,9 +1101,6 @@ out:
         return rc;
 }
 
-/**
-   Update file attributes of passed cob with @nsrec and fabrec fields.
-*/
 int c2_cob_update(struct c2_cob         *cob,
                    struct c2_cob_nsrec  *nsrec,
                    struct c2_cob_fabrec *fabrec,
@@ -1179,13 +1171,6 @@ out:
         return rc;
 }
 
-/**
-   Add name to namespace and object index.
-      
-   cob   - stat data (zero name) cob;
-   nskey - new name to add to the file;
-   tx    - transaction handle.
-*/
 int c2_cob_add_name(struct c2_cob        *cob,
                     struct c2_cob_nskey  *nskey,
                     struct c2_cob_nsrec  *nsrec,
@@ -1230,13 +1215,6 @@ out:
         return rc;
 }
 
-/**
-   Delete name from namespace and object index.
-   
-   cob   - stat data (zero name) cob;
-   nskey - name to kill (may be the name of statdata);
-   tx    - transcation handle.
-*/
 int c2_cob_del_name(struct c2_cob        *cob, 
                     struct c2_cob_nskey  *nskey,
                     struct c2_db_tx      *tx)
@@ -1281,14 +1259,6 @@ out:
         return rc;
 }
 
-/**
-   Rename oldkey with passed newkey.
-   
-   cob    - stat data (zero name) cob;
-   srckey - source name;
-   tgtkey - target name;
-   tx     - transcation handle
-*/
 int c2_cob_update_name(struct c2_cob        *cob, 
                        struct c2_cob_nskey  *srckey,
                        struct c2_cob_nskey  *tgtkey,

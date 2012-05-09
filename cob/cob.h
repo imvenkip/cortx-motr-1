@@ -39,7 +39,7 @@ struct c2_db_tx;
 /**
    @defgroup cob Component objects
 
-   A Component Object is a metadata layer that sits over a storage object.
+   A Component object is a metadata layer that sits over a storage object.
    It references a single storage object and contains metadata describing
    the object. The metadata is stored in database tables. A C2 Global
    Object (i.e. file) is made up of a collection of Component Objects
@@ -53,7 +53,7 @@ struct c2_db_tx;
    Metadata organization:
 
    COB uses four db tables for storing the following pieces of information:
-   - Namespace - stores file names and basic stat data for readdir speedup;
+   - Namespace - stores file names and file attributes for readdir speedup;
    
    - Object Index - stores links of file (all names of the file);
 
@@ -83,17 +83,16 @@ struct c2_db_tx;
    Here "stat data" means that this record contains file attributes that usually
    extracted by stat utility or ls -la.
 
-   Since this is the first name, it stores the stat data (basic file system
-   attributes) and has link number zero.
-
+   First name stores the stat data (basic file system attributes) and has link
+   number zero.
    All the other records have keys constructed from their parent fid and child
    name ("f1", "f2"), and the record only contains the file fid and link number
    that this record describes (1, 2).
 
-   As you can see, stat data is stored in the first record and eventually needs
-   to be migrated when this name is killed. This will be shown below.
+   As the stat data is stored in the first record it eventually needs to be
+   migrated when this name is killed. This will be shown below.
 
-   The object index will contain the records:
+   The object index will contain records:
 
    (F, 0)->(a.fid, "f0")
    (F, 1)->(b.fid, "f1")
@@ -105,34 +104,49 @@ struct c2_db_tx;
    index records have the same format as name space keys and may be used
    appropriately.
 
-   Now let's kill some names. When doing rm b/f0 we need to kill all its records
-   in object index and namespace. That is, we need to construct key containing
-   "a" fid and "f0" name. Using this key we can find its position in namespace
-   table and kill the record. Before actually killing it, we need to check if
-   this record stores file attributes. This is easy to do as ->linkno field is
-   zero for statdata names. Stat data should be moved to next name and we need
-   to find it somehow. In order to do this quickly we need to lookup in object
-   index for second file name with key constructed of linkno == 1, that is, next
-   after 0, and file fid F. Doing so allows to find record:
+   When doing rm b/f0 we need to kill all its records in object index and namespace.
+   That is, we need a key containing "a" fid and "f0" name. Using this key we can
+   find its position in namespace table and kill the record. Before actually killing
+   it, we need to check if this record stores file attributes. This is easy to do
+   as ->linkno field is zero for stat data records. Stat data should be moved to
+   next name and we need to find it somehow. In order to do this quickly we need
+   to do lookup in object index for second file name with key containing linkno == 1,
+   that is, next after 0, and file fid F.
+   
+   Doing so allows to find the record:
 
    (F, 0)->(a.fid, "f0")
 
-   As you can see, it describes second name of the file. We now can use its
-   record as a key for name space and find second name record in name space
-   table. Having the name, we can move stat data of F to it.
+   It describes second name of the file. We now can use its record as a key for name
+   space and find second name record in name space table. Having the name, we can move
+   stat data of F to it.
 
-   Now let's kill the record in the object index. We have already found that we
-   need key constructed of F and link number, that is, zero. Having this key we
-   can kill object index entry describing "f0" name.
+   Now kill the record in the object index. We have already found that we need key
+   constructed of F and link number, that is, zero. Having this key we can kill object
+   index entry describing "f0" name.
 
    We are done with unlink operation. Of course for cases when killing name that
    does not hold stat data, algorithm is much simpler. We just need to kill
    one record in name, update stat data record in namespace (decremented nlink
    should be updated in the store) and kill one record in object index.
 
-   File attributes that are stored in separate tables may also be easily managed
-   using key constructed of (F), where F is file fid. Their management is very
-   simple and we will not describe it here.
+   File attributes that are stored in separate tables may also be easily accessed
+   using key constructed of (F), where F is file fid.
+   
+   Rationale:
+   
+   Hard-links are rare, make common case fast by placing attributes in the file's
+   directory entry, make readdir fast by moving other attributes out.
+   
+   Corner cases:
+   
+   Rename and unlink. They need to move file attributes from zero name when moving
+   it.
+   
+   Special case:
+   
+   Using cob api for ioservice to create data objects is special case. The main
+   difference is that, parent fid (in nskey) and child fid (in nsrec) are the same.
 
    Cob iterator.
 
@@ -150,6 +164,25 @@ struct c2_db_tx;
 
    Once iterator is not longer needed, it is fininalized by c2_cob_iterator_fini().
    @see c2_md_store_readdir()
+   
+   Mkfs.
+   
+   In order to use cob storage one needs to prepare it by mkfs. @see c2_cob_domain_mkfs()
+   In this time the following structures are created in cob tables:
+   
+   - the main root cob with fid C2_COB_ROOT_FID
+   
+   - metadata hierarachy root cob (what potencially metadata client can see) with fid
+   C2_COB_ROOT_FID and name C2_COB_ROOT_NAME
+   
+   - sessions root cob (all sessions are created below it) with fid C2_COB_SESSIONS_FID
+   and name C2_COB_SESSIONS_NAME
+   
+   - omgid terminator record with id = ~0ULL. This is used for omgid allocation during
+   c2_cob_create()
+   
+   Cob cannot be used properly without mkfs done. All unit tests that accessing cob
+   and also all modules using cobs do c2_cob_domain_mkfs() on startup.
 
    @{
  */
@@ -164,7 +197,6 @@ struct c2_cob_domain_id;
 #define C2_COB_SESSIONS_NAME "SESSIONS"
 
 extern struct c2_fid C2_COB_ROOT_FID;
-
 extern struct c2_fid C2_COB_SLASH_FID;
 extern struct c2_fid C2_COB_SESSIONS_FID;
 
@@ -539,7 +571,7 @@ int c2_cob_update_name(struct c2_cob        *cob,
                        struct c2_db_tx      *tx);
 
 /**
-   Init cob iterator.
+   Init cob iterator on passed @cob and @name as a start position.
 */
 int c2_cob_iterator_init(struct c2_cob          *cob,
                          struct c2_cob_iterator *it, 
@@ -552,7 +584,7 @@ int c2_cob_iterator_init(struct c2_cob          *cob,
 int c2_cob_iterator_next(struct c2_cob_iterator *it);
 
 /**
-   Position in table according to @it properties.
+   Position in table according with @it properties.
 */
 int c2_cob_iterator_get(struct c2_cob_iterator *it);
 
@@ -562,7 +594,7 @@ int c2_cob_iterator_get(struct c2_cob_iterator *it);
 void c2_cob_iterator_fini(struct c2_cob_iterator *it);
 
 /**
-   Allocate a new cob
+   Allocate a new cob on passed @dom.
  */
 int c2_cob_alloc(struct c2_cob_domain *dom, 
                  struct c2_cob       **out);
