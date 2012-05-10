@@ -142,17 +142,17 @@ def human_readable(count):
 	g = 1024 * m
 	saved_count = count
 	result = ""
-	if count > g:
+	if count >= g:
 		c = count // g
 		result += "{0}G".format(c)
 		count %= g
 
-	if count > m:
+	if count >= m:
 		c = count // m
 		result += " {0}M".format(c)
 		count %= m
 
-	if count > k:
+	if count >= k:
 		c = count // k
 		result += " {0}K".format(c)
 		count %= k
@@ -169,6 +169,32 @@ def sum(start_addr, count):
 		s += a[i]
 
 	return s
+
+#
+# For now supported values for @kind are {"struct", "union"}
+#
+def value_is_instance_or_pointer_of_type(value, kind, tag):
+	type = value.type
+	if type.code == gdb.TYPE_CODE_PTR:
+		type = type.target()
+
+	ok = type.code == gdb.TYPE_CODE_STRUCT or \
+	     type.code == gdb.TYPE_CODE_UNION
+
+	if not ok:
+		 return False
+
+	if kind == "struct":
+		kind_code = gdb.TYPE_CODE_STRUCT
+	elif kind == "union":
+		kind_code = gdb.TYPE_CODE_UNION
+	else:
+		return False
+
+	if type.code == kind_code and type.tag  == tag:
+		return True
+	else:
+		return False
 
 class C2BufvecPrint(gdb.Command):
 	"""Prints segments in c2_bufvec
@@ -192,21 +218,13 @@ For each segment, the command prints,
 		argc = len(argv)
 
 		if argc != 1:
-			print "Error: Usage: c2-bufvec-print &c2_bufvec"
+			print "Error: Usage: c2-bufvec-print [&]c2_bufvec"
 			return
 
 		vbufvec = gdb.parse_and_eval(argv[0])
-		if vbufvec.type.code == gdb.TYPE_CODE_PTR:
-			type = vbufvec.type.target()
-		elif vbufvec.type.code == gdb.TYPE_CODE_STRUCT:
-			type = vbufvec.type
-		else:
-			type = None
-
-		if type == None or \
-		   not (type.code == gdb.TYPE_CODE_STRUCT and type.tag == "c2_bufvec"):
+		if not value_is_instance_or_pointer_of_type(vbufvec, "struct", "c2_bufvec"):
 			print "Error: Argument 1 must be either 'struct c2_bufvec' or" + \
-					" 'struct c2_bufvec *'"
+					" 'struct c2_bufvec *' type"
 			return
 
 		nr_seg   = long(vbufvec['ov_vec']['v_nr'])
@@ -230,9 +248,46 @@ For each segment, the command prints,
 		print "buf_size:", human_readable(buf_size)
 		print "sum:", sum_of_bytes_in_buf
 
+class C2IndexvecPrint(gdb.Command):
+	"""Prints segments in c2_indexvec
+
+Usage: c2-indexvec-print [&]c2_indexvec
+"""
+	def __init__(self):
+		gdb.Command.__init__(self, "c2-indexvec-print", \
+				     gdb.COMMAND_SUPPORT, gdb.COMPLETE_SYMBOL)
+
+	def invoke(self, arg, from_tty):
+		argv = gdb.string_to_argv(arg)
+		argc = len(argv)
+
+		if argc != 1:
+			print "Error: Usage: c2-indexvec-print [&]c2_indexvec"
+			return
+
+		v_ivec = gdb.parse_and_eval(argv[0])
+		if not value_is_instance_or_pointer_of_type(v_ivec, "struct", "c2_indexvec"):
+			print "Error: Argument 1 must be of either 'struct c2_indexvec' or" + \
+					" 'struct c2_indexvec *' type."
+			return
+
+		nr_seg      = long(v_ivec['iv_vec']['v_nr'])
+		total_count = 0
+
+		print "   :seg_num index count"
+		for i in range(nr_seg):
+			index = long(v_ivec['iv_index'][i])
+			count = long(v_ivec['iv_vec']['v_count'][i])
+			print "seg:", i, index, count
+			total_count += count
+
+		print "nr_seg:", nr_seg
+		print "total:", total_count
+
 # Define macros listed in macros[]
 for m in macros:
 	gdb.execute("macro define %s" % m)
 
 C2ListPrint()
 C2BufvecPrint()
+C2IndexvecPrint()
