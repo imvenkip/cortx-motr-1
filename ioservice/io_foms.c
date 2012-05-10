@@ -750,6 +750,15 @@ static bool c2_reqh_io_service_invariant(const struct c2_reqh_io_service *rios)
 
         return true;
 }
+
+static inline struct c2_net_transfer_mc *io_fop_tm_get(
+		const struct c2_fop *fop)
+{
+	C2_PRE(fop != NULL);
+
+	return &fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm;
+}
+
 /**
  * Call back function which gets invoked on a single STOB I/O complete.
  * This function check for STOB I/O list and remove stobio entry from
@@ -1088,7 +1097,7 @@ static int acquire_net_buffer(struct c2_fom *fom)
         fop = fom->fo_fop;
         fom_obj->fcrw_phase_start_time = c2_time_now();
 
-        tm = &fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm;
+        tm = io_fop_tm_get(fop);
         /**
          * Cache buffer pool pointer with FOM object.
          */
@@ -1205,7 +1214,7 @@ static int release_net_buffer(struct c2_fom *fom)
         C2_ASSERT(fom_obj->fcrw_bp != NULL);
 
         fop    = fom->fo_fop;
-        tm     = &fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm;
+        tm     = io_fop_tm_get(fop);
         colour = c2_net_tm_colour_get(tm);
 
         C2_ASSERT(c2_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
@@ -1214,7 +1223,7 @@ static int release_net_buffer(struct c2_fom *fom)
 
         c2_net_buffer_pool_lock(fom_obj->fcrw_bp);
         while (acquired_net_bufs > required_net_bufs) {
-                struct c2_net_buffer           *nb = NULL;
+                struct c2_net_buffer *nb;
 
                 nb = netbufs_tlist_tail(&fom_obj->fcrw_netbuf_list);
                 C2_ASSERT(nb != NULL);
@@ -1271,7 +1280,7 @@ static int initiate_zero_copy(struct c2_fom *fom)
         c2_rpc_bulk_init(rbulk);
 
         C2_ASSERT(c2_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
-        dom = fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
+       	dom      = io_fop_tm_get(fop)->ntm_dom;
         net_desc = &rwfop->crw_desc.id_descs[fom_obj->fcrw_curr_desc_index];
         rpc_item = (const struct c2_rpc_item *)&(fop->f_item);
 
@@ -1717,7 +1726,7 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc, c2_addb_trace,
 		    "FOM finished : type=rw.");
 
-        tm     = &fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm;
+        tm     = io_fop_tm_get(fop);
         colour = c2_net_tm_colour_get(tm);
 
         c2_chan_fini(&fom_obj->fcrw_wait);

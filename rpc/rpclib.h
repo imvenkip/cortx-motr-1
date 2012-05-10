@@ -164,8 +164,17 @@ struct c2_rpc_client_ctx {
 	struct c2_net_end_point	  *rcx_remote_ep;
 	struct c2_rpc_conn	   rcx_connection;
 	struct c2_rpc_session	   rcx_session;
+
+	/** Buffer pool used to provision TM receive queue. */
 	struct c2_net_buffer_pool *rcx_buffer_pool;
+
+	/**
+	 * List of buffer pools in colibri context.
+	 * @see c2_cs_buffer_pool::cs_bp_linkage
+	 */
         uint32_t		   rcx_recv_queue_min_length;
+
+	/** Maximum RPC recive buffer size. */
         uint32_t		   rcx_max_rpc_recv_size;
 };
 
@@ -200,7 +209,11 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 */
 int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx);
 
-/** Create a buffer pool per net domain which to be shared by TM's in it. */
+/**
+   Create a buffer pool per net domain which to be shared by TM's in it.
+   @pre ndom != NULL && app_pool != NULL
+   @pre segs_nr != 0 && seg_size != 0 && bufs_nr != 0
+ */
 int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 				 struct c2_net_buffer_pool *app_pool,
 				 uint32_t segs_nr, c2_bcount_t seg_size,

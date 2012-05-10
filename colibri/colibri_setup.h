@@ -287,8 +287,8 @@ struct c2_cs_buffer_pool {
 };
 
 enum {
-        C2_CS_BUFFER_POOL_MAGIC = 0x4353504f4f4c4d,
-        C2_CS_BUFFER_POOL_HEAD  = 0x4353504f4f4c48,
+        C2_CS_BUFFER_POOL_MAGIC = 0x4353504f4f4c4d41,
+        C2_CS_BUFFER_POOL_HEAD  = 0x4353504f4f4c4845,
 };
 
 C2_TL_DECLARE(cs_buffer_pools, extern, struct c2_cs_buffer_pool);

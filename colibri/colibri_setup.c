@@ -836,7 +836,8 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 	c2_tlist_for(&ndom_tl, &cctx->cc_ndoms, ndom) {
 
 		tms_nr  = cs_domain_tm_nr(cctx, ndom);
-		bufs_nr = tms_nr * cctx->cc_recv_queue_min_length;
+		bufs_nr = tms_nr * cctx->cc_recv_queue_min_length +
+			  C2_RPC_TM_RECV_BUFFERS_NR;
 		segs_nr  = c2_net_domain_get_max_buffer_size(ndom) /
 			   C2_RPC_SEG_SIZE;
 		C2_ALLOC_PTR(cs_bp);

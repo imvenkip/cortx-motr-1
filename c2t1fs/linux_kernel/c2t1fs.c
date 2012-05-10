@@ -191,8 +191,8 @@ static int c2t1fs_rpc_init(void)
 	segs_nr = c2_net_domain_get_max_buffer_size(ndom) /
 		  C2_RPC_SEG_SIZE;
 	tms_nr	= 1;
-	bufs_nr = tms_nr * C2_RPC_TM_MIN_RECV_BUFFERS_NR;
-
+	bufs_nr = tms_nr * C2_RPC_TM_MIN_RECV_BUFFERS_NR +
+		  C2_RPC_TM_RECV_BUFFERS_NR;
 	rc = c2_rpc_net_buffer_pool_setup(ndom, buffer_pool,
 					  segs_nr, C2_RPC_SEG_SIZE,
 					  bufs_nr, tms_nr);
@@ -225,6 +225,7 @@ static int c2t1fs_rpc_init(void)
 		goto cob_dom_fini;
 
 	tm = &rpc_machine->rm_tm;
+	C2_ASSERT(tm->ntm_recv_pool == buffer_pool);
 	c2_net_tm_colour_set(tm, tm_colours++);
 	c2_net_tm_pool_length_set(tm, C2_RPC_TM_MIN_RECV_BUFFERS_NR);
 

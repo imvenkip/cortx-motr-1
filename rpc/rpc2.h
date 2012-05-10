@@ -347,8 +347,6 @@ enum {
 	C2_RPC_TM_RECV_BUFFERS_NR     = 128,
 	/** Minimum number of receive net buffers to be in each TM */
 	C2_RPC_TM_MIN_RECV_BUFFERS_NR = 16,
-	/** Number of TM's in each network domain. */
-	C2_RPC_TM_NR		      = 16,
 	/** Segment size of network buffer in the pool. */
 	C2_RPC_SEG_SIZE		      = 1 << 12,
 };
