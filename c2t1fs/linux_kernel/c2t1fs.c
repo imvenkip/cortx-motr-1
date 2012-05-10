@@ -173,7 +173,7 @@ static int c2t1fs_rpc_init(void)
 	struct c2_net_buffer_pool *buffer_pool;
 	uint32_t		   segs_nr;
 	uint32_t		   bufs_nr;
-	uint32_t		   tm_nr;
+	uint32_t		   tms_nr;
 
 	C2_ENTRY();
 
@@ -190,16 +190,12 @@ static int c2t1fs_rpc_init(void)
 
 	segs_nr = c2_net_domain_get_max_buffer_size(ndom) /
 		  C2_RPC_SEG_SIZE;
-	/**
-	 * @todo calculate number of TM's and bufs_nr is calculated by
-	 * multiplying it by TM minimum receive queue length.
-	 */
-	tm_nr	= C2_RPC_TM_NR;
-	bufs_nr = C2_RPC_TM_RECV_BUFFERS_NR;
+	tms_nr	= 1;
+	bufs_nr = tms_nr * C2_RPC_TM_MIN_RECV_BUFFERS_NR;
 
 	rc = c2_rpc_net_buffer_pool_setup(ndom, buffer_pool,
 					  segs_nr, C2_RPC_SEG_SIZE,
-					  bufs_nr, tm_nr);
+					  bufs_nr, tms_nr);
 	if (rc != 0)
 		goto out;
 

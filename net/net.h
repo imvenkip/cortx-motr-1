@@ -486,12 +486,6 @@ struct c2_net_domain {
 	/** Network magic */
 	uint64_t            nd_magic;
 
-	/**
-	   Buffer pool per net domain shared across TM's and is not used
-	   by network layer.
-	 */
-	struct c2_net_buffer_pool  *nd_app_pool;
-
 	/** Transfer machine pool colour counter */
         int                 nd_pool_colour_counter;
 };

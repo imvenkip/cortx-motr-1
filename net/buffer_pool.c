@@ -118,6 +118,20 @@ int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 	return 0;
 }
 
+void c2_net_buffer_pool_colours_add(struct c2_net_buffer_pool *pool,
+				    uint32_t colours)
+{
+	uint32_t i;
+
+	C2_PRE(c2_net_buffer_pool_invariant(pool));
+
+	if (colours > pool->nbp_colours_nr) {
+		for (i = pool->nbp_colours_nr; i < colours; i++)
+			tm_tlist_init(&pool->nbp_colours[i]);
+		pool->nbp_colours_nr = i;
+	}
+}
+
 /**
    Adds a buffer to the pool to increase the capacity.
    @pre c2_net_buffer_pool_is_locked(pool)

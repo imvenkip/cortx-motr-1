@@ -236,6 +236,9 @@ static int cobfid_map_setup_init(struct c2_colibri *cc, const char *name);
 
 static void cobfid_map_setup_fini(struct c2_ref *ref);
 
+static uint32_t cs_domain_tm_nr(struct c2_colibri *cctx,
+				struct c2_net_domain *dom);
+
 /**
    Looks up an xprt by the name.
 
@@ -634,7 +637,7 @@ static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cctx,
 static struct c2_net_buffer_pool *cs_buffer_pool_get(struct c2_colibri *cctx,
 						     struct c2_net_domain *ndom)
 {
-	struct c2_cs_buffer_pool   *cs_bp;
+	struct c2_cs_buffer_pool *cs_bp;
 
 	C2_PRE(cctx != NULL);
 	C2_PRE(ndom != NULL);
@@ -776,17 +779,30 @@ static void cs_tm_colour_setup_prov(struct c2_colibri *cctx)
 	struct c2_net_domain	  *ndom;
 	struct c2_net_transfer_mc *tm;
 	uint32_t		   tm_colours;
+	uint32_t		   tms_nr;
+	uint32_t		   bufs_nr;
+	struct c2_net_buffer_pool *pool;
 
 	C2_PRE(cctx != NULL);
 	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
 
         C2_ASSERT(!ndom_tlist_is_empty(&cctx->cc_ndoms));
-	if (cctx->cc_recv_queue_min_length == 0)
-		cctx->cc_recv_queue_min_length = C2_RPC_TM_MIN_RECV_BUFFERS_NR;
 
 	c2_tlist_for(&ndom_tl, &cctx->cc_ndoms, ndom) {
 		tm_colours = 0;
 		c2_mutex_lock(&ndom->nd_mutex);
+		tms_nr = c2_list_length(&ndom->nd_tms);
+		bufs_nr = tms_nr * cctx->cc_recv_queue_min_length;
+		pool = cs_buffer_pool_get(cctx, ndom);
+		c2_net_buffer_pool_lock(pool);
+		if (pool->nbp_colours_nr < tms_nr)
+		    	c2_net_buffer_pool_colours_add(pool,
+						       tms_nr);
+		if (pool->nbp_buf_nr < bufs_nr)
+			c2_net_buffer_pool_provision(pool,
+						     bufs_nr);
+		c2_net_buffer_pool_unlock(pool);
+
 		/* iterate over TM's in domain */
 		c2_list_for_each_entry(&ndom->nd_tms, tm,
 					struct c2_net_transfer_mc,
@@ -805,22 +821,22 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 	struct c2_net_domain     *ndom;
 	struct c2_cs_buffer_pool *cs_bp;
 	uint32_t		  segs_nr;
+	uint32_t		  tms_nr;
+	uint32_t		  bufs_nr;
 
 	C2_PRE(cctx != NULL);
 	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
 
         if(!ndom_tlist_is_empty(&cctx->cc_ndoms))
 		rc = -EINVAL;
-	/**
-	 * @todo calculate number of TM's and bufs_nr can be calculated by
-	 * multiplying it by TM minimum receive queue length.
-	 */
-	if (cctx->cc_tm_nr == 0)
-		cctx->cc_tm_nr = C2_RPC_TM_NR;
-	if (cctx->cc_bufs_nr == 0)
-		cctx->cc_bufs_nr = C2_RPC_TM_RECV_BUFFERS_NR;
+
+	if (cctx->cc_recv_queue_min_length == 0)
+		cctx->cc_recv_queue_min_length = C2_RPC_TM_MIN_RECV_BUFFERS_NR;
 
 	c2_tlist_for(&ndom_tl, &cctx->cc_ndoms, ndom) {
+
+		tms_nr  = cs_domain_tm_nr(cctx, ndom);
+		bufs_nr = tms_nr * cctx->cc_recv_queue_min_length;
 		segs_nr  = c2_net_domain_get_max_buffer_size(ndom) /
 			   C2_RPC_SEG_SIZE;
 		C2_ALLOC_PTR(cs_bp);
@@ -829,8 +845,7 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 
 		rc = c2_rpc_net_buffer_pool_setup(ndom, &cs_bp->cs_buffer_pool,
 						  segs_nr, C2_RPC_SEG_SIZE,
-						  cctx->cc_bufs_nr,
-						  cctx->cc_tm_nr);
+						  bufs_nr, tms_nr);
 		if (rc != 0) {
 			c2_free(cs_bp);
 			return rc;
@@ -1267,7 +1282,8 @@ static int cs_request_handlers_start(struct c2_colibri *cctx)
 
 	C2_PRE(cctx != NULL);
 	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
-        C2_ASSERT(!rhctx_tlist_is_empty(&cctx->cc_reqh_ctxs));
+        if(rhctx_tlist_is_empty(&cctx->cc_reqh_ctxs))
+		return -EINVAL;
 
 	ofd = cctx->cc_outfile;
         c2_tlist_for(&rhctx_tl, &cctx->cc_reqh_ctxs, rctx) {
@@ -1602,7 +1618,9 @@ static void cs_usage(FILE *out)
 	fprintf(out, "Usage: colibri_setup [-h] [-x] [-l]\n"
 		   "    or colibri_setup {-r -T stobtype -D dbpath"
 		   " -S stobfile {-e xport:endpoint}+\n"
-		   "                     { -s service}+ }\n");
+		   "                     { -s service}+\n"
+		   "-t Minimum TM Receive queue length.\n"
+		   "-R Maximum RPC receive buffer size. }\n");
 }
 
 /**
@@ -1651,13 +1669,31 @@ static void cs_help(FILE *out)
 		   "-s Services to be started in given request handler "
 		   "context.\n   This can be specified multiple times "
 		   "per request handler set.\n"
-		   "-b Number of buffers in the domain-wide receive "
-		   "   buffer pool.\n"
 		   "-t Minimum TM Receive queue length.\n"
-		   "-m Maximum number of TM's in a domain.\n "
 		   "-R Maximum RPC receive buffer size. \n"
 		   "   e.g. ./colibri -r -T linux -D dbpath -S stobfile\n"
 		   "        -e xport:127.0.0.1:1024:1 -s mds\n");
+}
+
+static uint32_t cs_domain_tm_nr(struct c2_colibri *cctx,
+				struct c2_net_domain *dom)
+{
+	struct cs_reqh_context      *rctx;
+	struct cs_endpoint_and_xprt *ep;
+        uint32_t 		     cnt = 0;
+
+	C2_PRE(cctx != NULL);
+	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
+        C2_ASSERT(!rhctx_tlist_is_empty(&cctx->cc_reqh_ctxs));
+
+	c2_tlist_for(&rhctx_tl, &cctx->cc_reqh_ctxs, rctx) {
+		C2_ASSERT(!cs_eps_tlist_is_empty(&rctx->rc_eps));
+		c2_tlist_for(&cs_eps_tl, &rctx->rc_eps, ep) {
+			if(strcmp(ep->ex_xprt, dom->nd_xprt->nx_name) == 0)
+				cnt++;
+		} c2_tl_endfor;
+	} c2_tl_endfor;
+	return cnt;
 }
 
 static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
@@ -1837,12 +1873,8 @@ static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
 
 				cs_eps_tlist_add_tail(&rctx->rc_eps, ep_xprt);
                         })),
-		C2_FORMATARG('b', "Number of buffers in the buffer pool", "%i",
-			     &cctx->cc_bufs_nr),
 		C2_FORMATARG('t', "Minimum TM Receive queue length", "%i",
 			     &cctx->cc_recv_queue_min_length),
-		C2_FORMATARG('m', "Max Number of TM's in a domain", "%i",
-			     &cctx->cc_tm_nr),
 		C2_FORMATARG('R', "Maximum RPC receive buffer size", "%i",
 			     &cctx->cc_max_rpc_recv_size),
                 C2_STRINGARG('s', "Services to be configured",
@@ -1896,7 +1928,7 @@ int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 		rc = cs_rpc_machines_init(cctx);
 		if (rc != 0)
 			goto out;
-		
+
 		cs_tm_colour_setup_prov(cctx);
 	}
 out:

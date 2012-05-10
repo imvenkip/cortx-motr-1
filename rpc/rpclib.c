@@ -115,7 +115,6 @@ static const struct c2_net_buffer_pool_ops b_ops = {
 	.nbpo_below_threshold = buffer_pool_low,
 };
 
-/** Creating a buffer pool per net domain which will be shared by TM's in it. */
 int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 				 struct c2_net_buffer_pool *app_pool,
 				 uint32_t segs_nr, c2_bcount_t seg_size,
@@ -126,7 +125,7 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 
 	C2_PRE(ndom != NULL);
 	C2_PRE(app_pool != NULL);
-	C2_PRE(segs_nr != 0 && seg_size != 0 && bufs_nr != 0 && tm_nr != 0);
+	C2_PRE(segs_nr != 0 && seg_size != 0 && bufs_nr != 0);
 
 	app_pool->nbp_ops = &b_ops;
 	c2_net_buffer_pool_init(app_pool, ndom, C2_NET_BUFFER_POOL_THRESHOLD,
@@ -134,38 +133,14 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 	c2_net_buffer_pool_lock(app_pool);
 	rc = c2_net_buffer_pool_provision(app_pool, bufs_nr);
 	c2_net_buffer_pool_unlock(app_pool);
-	if (rc != bufs_nr)
-		rc = -ENOMEM;
-	else
-		rc = 0;
-
-	return rc;
+	return rc != bufs_nr ? -ENOMEM : 0 ;
 }
-
-/*int c2_rpc_net_buffer_pool__setup(struct c2_net_domain *ndom,
-				  struct c2_net_buffer_pool *app_pool)
-{
-	uint32_t    segs_nr;
-	c2_bcount_t seg_size;
-	uint32_t    bufs_nr;
-	uint32_t    tm_nr;
-	c2_bcount_t buf_size;
-
-	seg_size = C2_RPC_SEG_SIZE;
-	buf_size = c2_net_domain_get_max_buffer_size(ndom);
-	segs_nr  = buf_size / seg_size;
-	bufs_nr  = C2_RPC_TM_RECV_BUFFERS_NR;
-	tm_nr    = C2_RPC_TM_MAX_NR;
-
-	return c2_rpc_net_buffer_pool_setup(ndom, app_pool, segs_nr, seg_size,
-					    bufs_nr, tm_nr);
-}
-*/
+C2_EXPORTED(c2_rpc_net_buffer_pool_setup);
 
 void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool)
 {
 	C2_PRE(app_pool != NULL);
-	
+
 	c2_net_buffer_pool_fini(app_pool);
 	c2_free(app_pool);
 }
@@ -177,25 +152,28 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	struct c2_net_transfer_mc *tm;
 	struct c2_net_domain      *ndom;
 	struct c2_rpc_machine	  *rpc_machine;
-	static uint32_t		   tm_colours;
+	uint32_t		   tm_colours = 0;
 	uint32_t		   segs_nr;
+	uint32_t		   tms_nr;
+	uint32_t		   bufs_nr;
 
 	ndom = cctx->rcx_net_dom;
 	rpc_machine = &cctx->rcx_rpc_machine;
-
+	
 	C2_ALLOC_PTR(cctx->rcx_buffer_pool);
 	if (cctx->rcx_buffer_pool == NULL)
 		return -ENOMEM;
 
+	if (cctx->rcx_recv_queue_min_length == 0)
+		cctx->rcx_recv_queue_min_length = C2_RPC_TM_MIN_RECV_BUFFERS_NR;
+	
 	segs_nr = c2_net_domain_get_max_buffer_size(ndom) / C2_RPC_SEG_SIZE;
-	if (cctx->rcx_bufs_nr == 0)
-		cctx->rcx_bufs_nr = C2_RPC_TM_RECV_BUFFERS_NR;
-	if (cctx->rcx_tm_nr == 0)
-		cctx->rcx_tm_nr = C2_RPC_TM_NR;
+	tms_nr  = 1;
+	bufs_nr = tms_nr * cctx->rcx_recv_queue_min_length;
+
 	rc = c2_rpc_net_buffer_pool_setup(ndom, cctx->rcx_buffer_pool,
 					  segs_nr, C2_RPC_SEG_SIZE,
-					  cctx->rcx_bufs_nr,
-					  cctx->rcx_tm_nr);
+					  bufs_nr, tms_nr);
 	if (rc != 0)
 		goto pool_fini;
 
@@ -218,9 +196,6 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	tm = &cctx->rcx_rpc_machine.rm_tm;
 
 	c2_net_tm_colour_set(tm, tm_colours++);
-
-	if (cctx->rcx_recv_queue_min_length == 0)
-		cctx->rcx_recv_queue_min_length = C2_RPC_TM_MIN_RECV_BUFFERS_NR;
 
 	c2_net_tm_pool_length_set(tm, cctx->rcx_recv_queue_min_length);
 

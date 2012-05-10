@@ -31,7 +31,7 @@
 #include "dtm/dtm.h"
 
 /**
-   @defgroup colibri_setup Configures user space colibri environment
+   @defgroup colibri_setup Colibri Setup
 
    Colibri setup program configures a user space colibri context
    on a node in a cluster.
@@ -258,13 +258,19 @@ struct c2_colibri {
 	 */
 	struct c2_cobfid_setup	 *cc_setup;
 
-	/** List of buffer pools in colibri context. */
+	/**
+	 * List of buffer pools in colibri context.
+	 * @see c2_cs_buffer_pool::cs_bp_linkage
+	 */
         struct c2_tl		  cc_buffer_pools;
-        uint32_t		  cc_bufs_nr;
-        uint32_t		  cc_segs_nr;
-        c2_bcount_t		  cc_seg_size;
+
+	/**
+	 * Minimum number of buffers in TM receive queue.
+	 * @see c2_net_transfer_mc:ntm_recv_queue_length
+	 */
         uint32_t		  cc_recv_queue_min_length;
-        uint32_t		  cc_tm_nr;
+
+	/** Maximum RPC recive buffer size. */
 	uint32_t		  cc_max_rpc_recv_size;
 };
 
@@ -284,6 +290,8 @@ enum {
         C2_CS_BUFFER_POOL_MAGIC = 0x4353504f4f4c4d,
         C2_CS_BUFFER_POOL_HEAD  = 0x4353504f4f4c48,
 };
+
+C2_TL_DECLARE(cs_buffer_pools, extern, struct c2_cs_buffer_pool);
 
 /**
    Structure which encapsulates stob type and

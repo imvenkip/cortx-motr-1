@@ -165,8 +165,6 @@ struct c2_rpc_client_ctx {
 	struct c2_rpc_conn	   rcx_connection;
 	struct c2_rpc_session	   rcx_session;
 	struct c2_net_buffer_pool *rcx_buffer_pool;
-        uint32_t		   rcx_bufs_nr;
-        uint32_t		   rcx_tm_nr;
         uint32_t		   rcx_recv_queue_min_length;
         uint32_t		   rcx_max_rpc_recv_size;
 };
@@ -202,16 +200,12 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 */
 int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx);
 
-/** Creating a buffer pool per net domain which will be shared by TM's in it. */
+/** Create a buffer pool per net domain which to be shared by TM's in it. */
 int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 				 struct c2_net_buffer_pool *app_pool,
 				 uint32_t segs_nr, c2_bcount_t seg_size,
 				 uint32_t bufs_nr, uint32_t tm_nr);
 
-/** It uses default arguments for segs_nr, seg_size, tm_nr and bufs_nr */
-/*int c2_rpc_net_buffer_pool__setup(struct c2_net_domain *ndom,
-				  struct c2_net_buffer_pool *app_pool);
-*/
 void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool);
 
 #endif /* __COLIBRI_RPC_RPCLIB_H__ */

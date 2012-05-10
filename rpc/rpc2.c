@@ -392,8 +392,10 @@ static int rpc_tm_setup(struct c2_rpc_machine *machine,
 				   &c2_rpc_rcv_buf_callbacks,
 				   machine->rm_min_recv_size,
 				   machine->rm_max_recv_msgs);
-	if (rc != 0)
+	if (rc < 0) {
+		c2_net_tm_fini(&machine->rm_tm);
 		return rc;
+	}
 
 	/* Start the transfer machine so that users of this rpc_machine
 	   can send/receive messages. */
@@ -504,7 +506,8 @@ static void rpc_tm_cleanup(struct c2_rpc_machine *machine)
 		return;
 	}
 	/* Wait for transfer machine to stop. */
-	while (tm->ntm_state != C2_NET_TM_STOPPED)
+	while (tm->ntm_state != C2_NET_TM_STOPPED &&
+	       tm->ntm_state != C2_NET_TM_FAILED)
 		c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
 	c2_clink_fini(&tmwait);
@@ -621,7 +624,8 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 	}
 
 last:
-	if ((nb->nb_pool != NULL) && !(nb->nb_flags & C2_NET_BUF_QUEUED)) {
+	C2_ASSERT(nb->nb_pool != NULL);
+	if (!(nb->nb_flags & C2_NET_BUF_QUEUED)) {
 		nb->nb_qtype     = C2_NET_QT_MSG_RECV;
 		nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
 		nb->nb_ep	 = NULL;
