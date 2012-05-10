@@ -22,6 +22,7 @@ unload_all() {
 }
 trap unload_all EXIT
 
+modprobe_lnet
 modload_galois
 modload || exit $?
 

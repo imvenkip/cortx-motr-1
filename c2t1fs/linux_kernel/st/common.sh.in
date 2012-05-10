@@ -9,6 +9,12 @@ abort()
     exit 1
 }
 
+# Do not rmmod lnet, it may be in use by lustre
+modprobe_lnet()
+{
+    modprobe lnet                   || abort "Error probing lnet."
+}
+
 modload_galois()
 {
     BASE=@GALOIS_SRC@
