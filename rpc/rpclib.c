@@ -159,14 +159,14 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 
 	ndom = cctx->rcx_net_dom;
 	rpc_machine = &cctx->rcx_rpc_machine;
-	
+
 	C2_ALLOC_PTR(cctx->rcx_buffer_pool);
 	if (cctx->rcx_buffer_pool == NULL)
 		return -ENOMEM;
 
 	if (cctx->rcx_recv_queue_min_length == 0)
 		cctx->rcx_recv_queue_min_length = C2_RPC_TM_MIN_RECV_BUFFERS_NR;
-	
+
 	segs_nr = c2_net_domain_get_max_buffer_size(ndom) / C2_RPC_SEG_SIZE;
 	tms_nr  = 1;
 	bufs_nr = tms_nr * cctx->rcx_recv_queue_min_length;

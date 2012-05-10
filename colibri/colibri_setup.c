@@ -796,7 +796,7 @@ static void cs_tm_colour_setup_prov(struct c2_colibri *cctx)
 		pool = cs_buffer_pool_get(cctx, ndom);
 		c2_net_buffer_pool_lock(pool);
 		if (pool->nbp_colours_nr < tms_nr)
-		    	c2_net_buffer_pool_colours_add(pool,
+			c2_net_buffer_pool_colours_add(pool,
 						       tms_nr);
 		if (pool->nbp_buf_nr < bufs_nr)
 			c2_net_buffer_pool_provision(pool,
@@ -1681,7 +1681,7 @@ static uint32_t cs_domain_tm_nr(struct c2_colibri *cctx,
 {
 	struct cs_reqh_context      *rctx;
 	struct cs_endpoint_and_xprt *ep;
-        uint32_t 		     cnt = 0;
+        uint32_t		     cnt = 0;
 
 	C2_PRE(cctx != NULL);
 	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
@@ -1912,11 +1912,11 @@ int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 	if (rc == 0) {
 		rc = reqh_ctxs_are_valid(cctx);
 		if (rc != 0)
-	 	    goto out;
+			goto out;
 
 		rc = cs_net_domains_init(cctx);
 		if (rc != 0)
-	 	    goto out;
+			goto out;
 
 		rc = cs_buffer_pool_setup(cctx);
 		if (rc != 0)
