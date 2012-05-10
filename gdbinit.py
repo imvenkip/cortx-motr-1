@@ -136,8 +136,103 @@ Total: 2
 
 		return offset, True
 
+def human_readable(count):
+	k = 1024
+	m = 1024 * k
+	g = 1024 * m
+	saved_count = count
+	result = ""
+	if count > g:
+		c = count // g
+		result += "{0}G".format(c)
+		count %= g
+
+	if count > m:
+		c = count // m
+		result += " {0}M".format(c)
+		count %= m
+
+	if count > k:
+		c = count // k
+		result += " {0}K".format(c)
+		count %= k
+
+	if count != 0 or (count == 0 and result == ""):
+		result += " {0}B".format(count)
+
+	return str(saved_count) + "<" + result.strip() + ">"
+
+def sum(start_addr, count):
+	a = gdb.parse_and_eval("(unsigned char *){0:#x}".format(start_addr))
+	s = 0
+	for i in range(count):
+		s += a[i]
+
+	return s
+
+class C2BufvecPrint(gdb.Command):
+	"""Prints segments in c2_bufvec
+
+Usage: c2-bufvec-print [&]c2_bufvec
+For each segment, the command prints,
+- segment number,
+- [start address, end_address),
+- offset of first byte of segment, inside entire c2_bufvec, along with its
+  human readable representation,
+- number of bytes in segment in human readable form,
+- sumation of all the bytes in the segment. sum = 0, implies all the bytes in
+  the segment are zero.
+"""
+	def __init__(self):
+		gdb.Command.__init__(self, "c2-bufvec-print", \
+				     gdb.COMMAND_SUPPORT, gdb.COMPLETE_SYMBOL)
+
+	def invoke(self, arg, from_tty):
+		argv = gdb.string_to_argv(arg)
+		argc = len(argv)
+
+		if argc != 1:
+			print "Error: Usage: c2-bufvec-print &c2_bufvec"
+			return
+
+		vbufvec = gdb.parse_and_eval(argv[0])
+		if vbufvec.type.code == gdb.TYPE_CODE_PTR:
+			type = vbufvec.type.target()
+		elif vbufvec.type.code == gdb.TYPE_CODE_STRUCT:
+			type = vbufvec.type
+		else:
+			type = None
+
+		if type == None or \
+		   not (type.code == gdb.TYPE_CODE_STRUCT and type.tag == "c2_bufvec"):
+			print "Error: Argument 1 must be either 'struct c2_bufvec' or" + \
+					" 'struct c2_bufvec *'"
+			return
+
+		nr_seg   = long(vbufvec['ov_vec']['v_nr'])
+		buf_size = 0
+		offset   = 0
+		sum_of_bytes_in_buf = 0
+		print "seg:index start_addr end_addr offset bcount sum"
+		for i in range(nr_seg):
+			start_addr = long(vbufvec['ov_buf'][i])
+			count      = long(vbufvec['ov_vec']['v_count'][i])
+			end_addr   = start_addr + count
+			sum_of_bytes_in_seg = sum(start_addr, count)
+			print "seg:{0} {1:#x} {2:#x} {3} {4} {5}".format(i, \
+				start_addr, end_addr, human_readable(offset), \
+				human_readable(count), sum_of_bytes_in_seg)
+			buf_size += count
+			offset   += count
+			sum_of_bytes_in_buf += sum_of_bytes_in_seg
+
+		print "nr_seg:", nr_seg
+		print "buf_size:", human_readable(buf_size)
+		print "sum:", sum_of_bytes_in_buf
+
 # Define macros listed in macros[]
 for m in macros:
 	gdb.execute("macro define %s" % m)
 
 C2ListPrint()
+C2BufvecPrint()
