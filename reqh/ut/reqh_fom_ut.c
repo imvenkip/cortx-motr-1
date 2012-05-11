@@ -249,8 +249,8 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	segs_nr = c2_net_domain_get_max_buffer_size(net_dom) /
 		  C2_RPC_SEG_SIZE;
 	tms_nr	= 1;
-	bufs_nr = tms_nr * C2_RPC_TM_RECV_BUFFERS_NR;
-	
+	bufs_nr = tms_nr * (C2_NET_TM_RECV_QUEUE_DEF_LEN + 1);
+
 	rc = c2_rpc_net_buffer_pool_setup(net_dom, app_pool,
 					  segs_nr, C2_RPC_SEG_SIZE,
 					  bufs_nr, tms_nr);
@@ -261,6 +261,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	rpc_machine->rm_max_recv_msgs =
 			c2_net_domain_get_max_buffer_size(net_dom) /
 			rpc_machine->rm_min_recv_size;
+	rpc_machine->rm_tm_colour     = 0;
 
 	/* Init the rpcmachine */
         rc = c2_rpc_machine_init(rpc_machine, &srv_cob_domain, net_dom,

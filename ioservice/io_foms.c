@@ -751,14 +751,6 @@ static bool c2_reqh_io_service_invariant(const struct c2_reqh_io_service *rios)
         return true;
 }
 
-static inline struct c2_net_transfer_mc *io_fop_tm_get(
-		const struct c2_fop *fop)
-{
-	C2_PRE(fop != NULL);
-
-	return &fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm;
-}
-
 /**
  * Call back function which gets invoked on a single STOB I/O complete.
  * This function check for STOB I/O list and remove stobio entry from

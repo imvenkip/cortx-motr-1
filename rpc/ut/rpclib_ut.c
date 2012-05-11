@@ -118,7 +118,7 @@ static void test_rpclib(void)
 		.rcx_nr_slots              = SESSION_SLOTS,
 		.rcx_timeout_s             = CONNECT_TIMEOUT,
 		.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT,
-		.rcx_recv_queue_min_length = C2_RPC_TM_MIN_RECV_BUFFERS_NR,
+		.rcx_recv_queue_min_length = C2_NET_TM_RECV_QUEUE_DEF_LEN,
 	};
 
 	/*

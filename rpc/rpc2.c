@@ -391,11 +391,14 @@ static int rpc_tm_setup(struct c2_rpc_machine *machine,
 	rc = c2_net_tm_pool_attach(&machine->rm_tm, machine->rm_buffer_pool,
 				   &c2_rpc_rcv_buf_callbacks,
 				   machine->rm_min_recv_size,
-				   machine->rm_max_recv_msgs);
+				   machine->rm_max_recv_msgs,
+				   machine->rm_tm_recv_queue_min_length);
 	if (rc < 0) {
 		c2_net_tm_fini(&machine->rm_tm);
 		return rc;
 	}
+
+	c2_net_tm_colour_set(&machine->rm_tm, machine->rm_tm_colour);
 
 	/* Start the transfer machine so that users of this rpc_machine
 	   can send/receive messages. */

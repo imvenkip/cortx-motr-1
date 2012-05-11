@@ -270,8 +270,8 @@ struct c2_colibri {
 	 */
         uint32_t		  cc_recv_queue_min_length;
 
-	/** Maximum RPC recive buffer size. */
-	uint32_t		  cc_max_rpc_recv_size;
+	/** Maximum RPC recive message size. */
+	uint32_t		  cc_max_rpc_msg_size;
 };
 
 /**

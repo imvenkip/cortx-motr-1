@@ -194,7 +194,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 		 */
 		c2_chan_init(&newbp->rios_bp_wait);
 		newbp->rios_bp_magic = C2_RIOS_BUFFER_POOL_MAGIC;
-		colours = rpcmach->rm_tm.ntm_dom->nd_pool_colour_counter;
+		colours = c2_list_length(&newbp->rios_ndom->nd_tms);
 		rc = c2_net_buffer_pool_init(&newbp->rios_bp,
 					     rpcmach->rm_tm.ntm_dom,
 					     network_buffer_pool_threshold,

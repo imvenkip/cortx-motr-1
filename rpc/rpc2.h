@@ -333,24 +333,15 @@ enum c2_rpc_item_stage {
 
 enum {
 	/** Maximum number of slots to which an rpc item can be associated */
-	MAX_SLOT_REF = 1
+	MAX_SLOT_REF    = 1,
+	/** Segment size of network buffer in the pool. */
+	C2_RPC_SEG_SIZE = 1 << 12,
 };
 
 enum {
 	C2_RPC_ITEM_FIELD_MAGIC = 0xf12acec12c611111ULL,
 	C2_RPC_ITEM_HEAD_MAGIC = 0x1007c095e511054eULL,
 };
-
-/** Default values to be used if user does not provide these values. */
-enum {
-	/** Number of default receive c2_net_buffers in each buffer pool */
-	C2_RPC_TM_RECV_BUFFERS_NR     = 128,
-	/** Minimum number of receive net buffers to be in each TM */
-	C2_RPC_TM_MIN_RECV_BUFFERS_NR = 16,
-	/** Segment size of network buffer in the pool. */
-	C2_RPC_SEG_SIZE		      = 1 << 12,
-};
-
 
 /**
    A single RPC item, such as a FOP or ADDB Record.  This structure should be
@@ -551,10 +542,14 @@ struct c2_rpc_machine {
 
 	/** @see c2_net_transfer_mc:ntm_recv_queue_length */
 	uint32_t			  rm_tm_recv_queue_min_length;
+	
 	/** @see c2_net_transfer_mc:ntm_recv_queue_min_recv_size */
 	uint32_t			  rm_min_recv_size;
+	
 	/** @see c2_net_transfer_mc:ntm_recv_queue_max_recv_msgs */
 	uint32_t			  rm_max_recv_msgs;
+	uint32_t			  rm_tm_colour;
+
 };
 
 /**

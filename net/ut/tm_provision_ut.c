@@ -277,7 +277,8 @@ static void test_net_tm_prov(void)
 	C2_UT_ASSERT(c2_net_tm_colour_get(tm1) == tm_colours);
 
 	rc = c2_net_tm_pool_attach(tm1, pool_prov, &ut_buf_prov_cb,
-				   MIN_RECV_SIZE, max_recv_msgs);
+				   MIN_RECV_SIZE, max_recv_msgs,
+				   C2_NET_TM_RECV_QUEUE_DEF_LEN);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(tm1->ntm_recv_pool == pool_prov);
 	C2_UT_ASSERT(tm1->ntm_recv_pool_callbacks == &ut_buf_prov_cb);
@@ -357,7 +358,8 @@ static void test_net_tm_prov(void)
 	C2_UT_ASSERT(c2_net_tm_colour_get(tm2) == tm_colours);
 	max_recv_msgs = 2;
 	rc = c2_net_tm_pool_attach(tm2, pool_prov, &ut_buf_prov_cb,
-				   MIN_RECV_SIZE, max_recv_msgs);
+				   MIN_RECV_SIZE, max_recv_msgs,
+				   C2_NET_TM_RECV_QUEUE_DEF_LEN);
 	C2_UT_ASSERT(tm2->ntm_recv_pool == pool_prov);
 	C2_UT_ASSERT(tm2->ntm_recv_pool_callbacks == &ut_buf_prov_cb);
 	C2_UT_ASSERT(tm2->ntm_recv_queue_min_recv_size == MIN_RECV_SIZE);

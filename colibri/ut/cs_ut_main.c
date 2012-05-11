@@ -116,7 +116,7 @@ static char *cs_ut_args_bad_cmd[] = { "colibri_setup", "-r", "-D", "cs_sdb",
 static char *cs_ut_buffer_pool_cmd[] = { "colibri_setup", "-r", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "bulk-sunrpc:127.0.0.1:34567:2",
-                                "-s", "ds1", "-t 16", "-R 4096"};
+                                "-s", "ds1", "-q 4", "-m 4096"};
 
 static const char *cl_ep_addrs[] = {
 				"127.0.0.1:34567:1",

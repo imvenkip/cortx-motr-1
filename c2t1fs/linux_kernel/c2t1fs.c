@@ -169,7 +169,6 @@ static int c2t1fs_rpc_init(void)
 	char                      *laddr;
 	char                      *db_name;
 	int                        rc;
-	static uint32_t		   tm_colours;
 	struct c2_net_buffer_pool *buffer_pool;
 	uint32_t		   segs_nr;
 	uint32_t		   bufs_nr;
@@ -191,8 +190,7 @@ static int c2t1fs_rpc_init(void)
 	segs_nr = c2_net_domain_get_max_buffer_size(ndom) /
 		  C2_RPC_SEG_SIZE;
 	tms_nr	= 1;
-	bufs_nr = tms_nr * C2_RPC_TM_MIN_RECV_BUFFERS_NR +
-		  C2_RPC_TM_RECV_BUFFERS_NR;
+	bufs_nr = tms_nr * (C2T1FS_TM_MIN_RECV_BUFFERS_NR + 1);
 	rc = c2_rpc_net_buffer_pool_setup(ndom, buffer_pool,
 					  segs_nr, C2_RPC_SEG_SIZE,
 					  bufs_nr, tms_nr);
@@ -218,6 +216,10 @@ static int c2t1fs_rpc_init(void)
 	rpc_machine->rm_max_recv_msgs =
 			c2_net_domain_get_max_buffer_size(ndom) /
 			rpc_machine->rm_min_recv_size;
+	rpc_machine->rm_tm_colour    = 0;
+
+	rpc_machine->rm_tm_recv_queue_min_length =
+			C2T1FS_TM_MIN_RECV_BUFFERS_NR;
 
 	rc = c2_rpc_machine_init(rpc_machine, cob_dom, ndom, laddr, NULL,
 				 buffer_pool);
@@ -226,8 +228,6 @@ static int c2t1fs_rpc_init(void)
 
 	tm = &rpc_machine->rm_tm;
 	C2_ASSERT(tm->ntm_recv_pool == buffer_pool);
-	c2_net_tm_colour_set(tm, tm_colours++);
-	c2_net_tm_pool_length_set(tm, C2_RPC_TM_MIN_RECV_BUFFERS_NR);
 
 	C2_LEAVE("rc: %d", rc);
 	return 0;

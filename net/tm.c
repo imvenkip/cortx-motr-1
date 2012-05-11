@@ -164,7 +164,6 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 		tm_tlist_init(&tm->ntm_q[i]);
 	}
 	C2_SET_ARR0(tm->ntm_qstats);
-        tm->ntm_pool_colour = dom->nd_pool_colour_counter++;
 	tm->ntm_xprt_private = NULL;
 	tm->ntm_bev_auto_deliver = true;
 	tm->ntm_recv_pool = NULL;
@@ -422,7 +421,8 @@ C2_EXPORTED(c2_net_tm_colour_get);
 int c2_net_tm_pool_attach(struct c2_net_transfer_mc *tm,
 			  struct c2_net_buffer_pool *bufpool,
 			  const struct c2_net_buffer_callbacks *callbacks,
-			  c2_bcount_t min_recv_size, uint32_t max_recv_msgs)
+			  c2_bcount_t min_recv_size, uint32_t max_recv_msgs,
+			  uint32_t min_recv_queue_len)
 {
 	int rc;
 	c2_mutex_lock(&tm->ntm_mutex);
@@ -438,6 +438,8 @@ int c2_net_tm_pool_attach(struct c2_net_transfer_mc *tm,
 		tm->ntm_recv_pool_callbacks	 = callbacks;
 		tm->ntm_recv_queue_min_recv_size = min_recv_size;
 		tm->ntm_recv_queue_max_recv_msgs = max_recv_msgs;
+		if(min_recv_queue_len > C2_NET_TM_RECV_QUEUE_DEF_LEN)
+			tm->ntm_recv_queue_min_length = min_recv_queue_len;
 		rc = 0;
 	} else
 		rc = -EINVAL;
