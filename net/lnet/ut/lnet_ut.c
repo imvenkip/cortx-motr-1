@@ -499,7 +499,7 @@ do {									\
 
 #define TEARDOWN_DOM(which)						\
 do {									\
-        struct c2_net_domain *dom = &td->dom ## which;			\
+        struct c2_net_domain *dom;					\
 	struct c2_net_transfer_mc *tm = &td->tm ## which;		\
 	c2_clink_add(&tm->ntm_chan, &td->tmwait ## which);		\
 	C2_UT_ASSERT(!c2_net_tm_stop(tm, false));			\
@@ -507,8 +507,10 @@ do {									\
 	c2_clink_del(&td->tmwait ## which);				\
 	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STOPPED);		\
  fini ## which:								\
+	tm = &td->tm ## which;						\
 	c2_net_tm_fini(tm);						\
  dereg ## which:							\
+	dom = &td->dom ## which;					\
 	for (i = 0; i < UT_BUFS ## which; ++i) {			\
 		struct c2_net_buffer      *nb;				\
 		nb = &td->bufs ## which [i];				\

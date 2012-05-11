@@ -5,7 +5,7 @@ addbdir                     = $(includedir)/colibri/addb
 noinst_LTLIBRARIES          = libcolibri-addbff.la
 libcolibri_addbff_la_SOURCES = addb_u.h addb_u.c
 
-INCLUDES                    = -I. -I.. -I$(top_srcdir)/include
+INCLUDES                    = -iquote . -iquote .. -iquote $(top_srcdir)/include
 
 EXTRA_DIST                  = addb.ff
 

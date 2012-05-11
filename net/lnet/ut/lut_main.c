@@ -290,8 +290,10 @@ int test_duptm(void)
 	C2_ASSERT(tm != NULL);
 
 	f = open(lnet_xprt_dev, O_RDWR|O_CLOEXEC);
-	if (f < 0)
+	if (f < 0) {
+		rc = 1;
 		goto out;
+	}
 
 	rc = ioctl(f, C2_LNET_DOM_INIT, &pd);
 	if (rc != 0)

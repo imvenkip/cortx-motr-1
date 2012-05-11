@@ -1,7 +1,7 @@
 lut_helperdir         = $(includedir)/colibri/net/lnet/ut
 noinst_LTLIBRARIES    = liblnet-ut.la
 
-INCLUDES              = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+INCLUDES              = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
 
 liblnet_ut_la_SOURCES = lnet_ut.c
 liblnet_ut_la_LIBADD  = $(top_builddir)/colibri/libcolibri.la
