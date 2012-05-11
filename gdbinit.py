@@ -149,16 +149,16 @@ def human_readable(count):
 
 	if count >= m:
 		c = count // m
-		result += " {0}M".format(c)
+		result += "{0}M".format(c)
 		count %= m
 
 	if count >= k:
 		c = count // k
-		result += " {0}K".format(c)
+		result += "{0}K".format(c)
 		count %= k
 
 	if count != 0 or (count == 0 and result == ""):
-		result += " {0}B".format(count)
+		result += "{0}B".format(count)
 
 	return str(saved_count) + "<" + result.strip() + ">"
 
