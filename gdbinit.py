@@ -8,21 +8,43 @@ def offset_of(container, field):
 	offset = long(gdb.parse_and_eval(macro_call))
 	return offset
 
-#
-# For now supported values for @kind are {"struct", "union"}
-#
-def value_is_instance_or_pointer_of_type(value, kind, tag):
-	type = value.type
-	if type.code == gdb.TYPE_CODE_PTR:
-		type = type.target()
+def human_readable(count):
+	k = 1024
+	m = 1024 * k
+	g = 1024 * m
+	saved_count = count
+	result = ""
+	if count >= g:
+		c = count // g
+		result += "{0}G".format(c)
+		count %= g
 
-	if kind == "struct":
-		return type.code == gdb.TYPE_CODE_STRUCT and type.tag == tag
-	elif kind == "union":
-		return type.code == gdb.TYPE_CODE_UNION and  type.tag == tag
-	else:
-		return False
+	if count >= m:
+		c = count // m
+		result += "{0}M".format(c)
+		count %= m
 
+	if count >= k:
+		c = count // k
+		result += "{0}K".format(c)
+		count %= k
+
+	if count != 0 or (count == 0 and result == ""):
+		result += "{0}B".format(count)
+
+	return str(saved_count) + "<" + result.strip() + ">"
+
+def sum(start_addr, count):
+	a = gdb.parse_and_eval("(unsigned char *){0:#x}".format(start_addr))
+	s = 0
+	for i in range(count):
+		s += a[i]
+
+	return s
+
+#
+#==============================================================================
+#
 class C2ListPrint(gdb.Command):
 	"""Prints c2_list/c2_tl elements.
 
@@ -115,23 +137,13 @@ Total: 2
 		ok    = True
 		head  = 0
 		vhead = gdb.parse_and_eval(argv[0])
-		type  = vhead.type
+		type  = str(vhead.type)
 
-		head_is_ptr = False
-		if type.code == gdb.TYPE_CODE_PTR:
-			type = type.target()
-			head_is_ptr = True
-
-		if type.code != gdb.TYPE_CODE_STRUCT:
-			print "Error: Argument 1 is not a [&]c2_list or [&]c2_tl"
-			return vhead, head, False
-
-		if type.tag == "c2_list":
-			if head_is_ptr:
-				head = long(vhead)
-			else:
-				head = long(vhead.address)
-		elif type.tag == "c2_tl":
+		if type == "struct c2_list":
+			head = long(vhead.address)
+		elif type == "struct c2_list *":
+			head = long(vhead)
+		elif type == "struct c2_tl" or type == "struct c2_tl *":
 			vhead = vhead['t_head']
 			head = long(vhead.address)
 		else:
@@ -158,52 +170,20 @@ Total: 2
 				return 0, False
 
 			type = field_type(str_amb_type, anchor)
-			ok = type.code == gdb.TYPE_CODE_STRUCT and \
-			     (type.tag == "c2_list_link" or type.tag == "c2_tlink")
-			if not ok:
+			if str(type) != "struct c2_list_link" and str(type) != "struct c2_tlink":
 				print "Error: Argument 4 must be of type c2_list_link or c2_tlink"
 				return 0, False
 
-			if type.tag == "c2_tlink":
+			if str(type) == "struct c2_tlink":
 				anchor = anchor.strip() + ".t_link"
 
 			offset = offset_of(str_amb_type, anchor)
-		type = gdb.lookup_type
+
 		return offset, True
 
-def human_readable(count):
-	k = 1024
-	m = 1024 * k
-	g = 1024 * m
-	saved_count = count
-	result = ""
-	if count >= g:
-		c = count // g
-		result += "{0}G".format(c)
-		count %= g
-
-	if count >= m:
-		c = count // m
-		result += "{0}M".format(c)
-		count %= m
-
-	if count >= k:
-		c = count // k
-		result += "{0}K".format(c)
-		count %= k
-
-	if count != 0 or (count == 0 and result == ""):
-		result += "{0}B".format(count)
-
-	return str(saved_count) + "<" + result.strip() + ">"
-
-def sum(start_addr, count):
-	a = gdb.parse_and_eval("(unsigned char *){0:#x}".format(start_addr))
-	s = 0
-	for i in range(count):
-		s += a[i]
-
-	return s
+#
+#==============================================================================
+#
 
 class C2BufvecPrint(gdb.Command):
 	"""Prints segments in c2_bufvec
@@ -231,7 +211,8 @@ For each segment, the command prints,
 			return
 
 		vbufvec = gdb.parse_and_eval(argv[0])
-		if not value_is_instance_or_pointer_of_type(vbufvec, "struct", "c2_bufvec"):
+		t = str(vbufvec.type)
+		if t != "struct c2_bufvec" and t != "struct c2_bufvec *":
 			print "Error: Argument 1 must be either 'struct c2_bufvec' or" + \
 					" 'struct c2_bufvec *' type"
 			return
@@ -257,6 +238,10 @@ For each segment, the command prints,
 		print "buf_size:", human_readable(buf_size)
 		print "sum:", sum_of_bytes_in_buf
 
+#
+#==============================================================================
+#
+
 class C2IndexvecPrint(gdb.Command):
 	"""Prints segments in c2_indexvec
 
@@ -275,7 +260,8 @@ Usage: c2-indexvec-print [&]c2_indexvec
 			return
 
 		v_ivec = gdb.parse_and_eval(argv[0])
-		if not value_is_instance_or_pointer_of_type(v_ivec, "struct", "c2_indexvec"):
+		t = str(v_ivec.type)
+		if t != "struct c2_indexvec" and t != "struct c2_indexvec *":
 			print "Error: Argument 1 must be of either 'struct c2_indexvec' or" + \
 					" 'struct c2_indexvec *' type."
 			return
