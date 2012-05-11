@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -106,7 +106,11 @@ c2_net_bulk_sunrpc_dom_set_end_point_release_delay(struct c2_net_domain *dom,
 uint64_t
 c2_net_bulk_sunrpc_dom_get_end_point_release_delay(struct c2_net_domain *dom);
 
+#ifdef __KERNEL__
+#define C2_NET_SUNRPC_PORT  31110
+#else
 #define C2_NET_SUNRPC_PORT  31111
+#endif
 #define str(x) #x
 #define SUNRPC_XPRT_ADDR(port, service) "127.0.0.1:"str(port)":"str(service)
 #define EP_SERVICE(sid) SUNRPC_XPRT_ADDR(C2_NET_SUNRPC_PORT, sid)

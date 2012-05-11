@@ -83,9 +83,13 @@ int c2_bitmap_init(struct c2_bitmap *map, size_t nr)
 	int ret = 0;
 
 	map->b_nr = nr;
+	if (nr == 0)
+		nr = 1;			/* ensure b_words is non-NULL */
 	C2_ALLOC_ARR(map->b_words, C2_BITMAP_WORDS(nr));
-	if (map->b_words == NULL)
+	if (map->b_words == NULL) {
 		ret = -ENOMEM;
+		map->b_nr = 0;
+	}
 	return ret;
 }
 C2_EXPORTED(c2_bitmap_init);
@@ -102,7 +106,7 @@ bool c2_bitmap_get(const struct c2_bitmap *map, size_t idx)
 {
 	bool result = false;
 
-	C2_PRE(idx < map->b_nr);
+	C2_PRE(idx < map->b_nr && map->b_words != NULL);
 	result = map->b_words[C2_BITMAP_SHIFT(idx)] & C2_BITMAP_MASK(idx);
 	return result;
 }
@@ -110,7 +114,7 @@ C2_EXPORTED(c2_bitmap_get);
 
 void c2_bitmap_set(struct c2_bitmap *map, size_t idx, bool val)
 {
-	C2_ASSERT(idx < map->b_nr);
+	C2_ASSERT(idx < map->b_nr && map->b_words != NULL);
 	if (val)
 		map->b_words[C2_BITMAP_SHIFT(idx)] |= C2_BITMAP_MASK(idx);
 	else
@@ -123,7 +127,8 @@ void c2_bitmap_copy(struct c2_bitmap *dst, const struct c2_bitmap *src)
 	int s = C2_BITMAP_WORDS(src->b_nr);
 	int d = C2_BITMAP_WORDS(dst->b_nr);
 
-	C2_PRE(dst->b_nr >= src->b_nr);
+	C2_PRE(dst->b_nr >= src->b_nr &&
+	       src->b_words != NULL && dst->b_words != NULL);
 
 	memcpy(dst->b_words, src->b_words, s * sizeof src->b_words[0]);
 	if (d > s)

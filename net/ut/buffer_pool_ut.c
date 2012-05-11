@@ -76,11 +76,11 @@ static void test_get_put(void)
 	struct c2_net_buffer *nb;
 	uint32_t	      free = bp.nbp_free;
 	c2_net_buffer_pool_lock(&bp);
-	nb = c2_net_buffer_pool_get(&bp, BUFFER_ANY_COLOUR);
+	nb = c2_net_buffer_pool_get(&bp, C2_BUFFER_ANY_COLOUR);
 	C2_UT_ASSERT(nb != NULL);
 	C2_UT_ASSERT(--free == bp.nbp_free);
 	C2_UT_ASSERT(c2_net_buffer_pool_invariant(&bp));
-	c2_net_buffer_pool_put(&bp, nb, BUFFER_ANY_COLOUR);
+	c2_net_buffer_pool_put(&bp, nb, C2_BUFFER_ANY_COLOUR);
 	C2_UT_ASSERT(++free == bp.nbp_free);
 	C2_UT_ASSERT(c2_net_buffer_pool_invariant(&bp));
 	c2_net_buffer_pool_unlock(&bp);
@@ -94,7 +94,7 @@ static void test_get_put_colour(void)
 		COLOUR = 1,
 	};
 	c2_net_buffer_pool_lock(&bp);
-	nb = c2_net_buffer_pool_get(&bp, BUFFER_ANY_COLOUR);
+	nb = c2_net_buffer_pool_get(&bp, C2_BUFFER_ANY_COLOUR);
 	C2_UT_ASSERT(nb != NULL);
 	C2_UT_ASSERT(--free == bp.nbp_free);
 	c2_net_buffer_pool_put(&bp, nb, COLOUR);
@@ -104,7 +104,7 @@ static void test_get_put_colour(void)
 	C2_UT_ASSERT(nb != NULL);
 	C2_UT_ASSERT(--free == bp.nbp_free);
 	C2_UT_ASSERT(c2_net_buffer_pool_invariant(&bp));
-	c2_net_buffer_pool_put(&bp, nb, BUFFER_ANY_COLOUR);
+	c2_net_buffer_pool_put(&bp, nb, C2_BUFFER_ANY_COLOUR);
 	C2_UT_ASSERT(++free == bp.nbp_free);
 	c2_net_buffer_pool_unlock(&bp);
 }
@@ -143,7 +143,7 @@ static void test_get_put_multiple(void)
 		C2_SET0(&client_thread[i]);
 		rc = C2_THREAD_INIT(&client_thread[i], int,
 				     NULL, &buffers_get_put,
-				     BUFFER_ANY_COLOUR, "client_%d", i);
+				     C2_BUFFER_ANY_COLOUR, "client_%d", i);
 		C2_ASSERT(rc == 0);
 		C2_SET0(&client_thread[++i]);
 		/* value of integer 'i' is used to put or get the

@@ -1,4 +1,6 @@
 INCLUDES			= -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
+
+MOSTLYCLEANFILES                = main.c
 main.c:
 	ln -sf $(top_builddir)/console/main.c main.c
 

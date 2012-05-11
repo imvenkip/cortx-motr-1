@@ -31,6 +31,7 @@
 #include "net/net.h"
 #include "net/bulk_emulation/sunrpc_xprt.h"
 #include "net/bulk_emulation/mem_xprt.h"
+#include "net/lnet/lnet.h"
 #include "rpc/rpc2.h"
 #include "addb/addb.h"
 #include "lib/ut.h"
@@ -94,6 +95,7 @@ struct init_fini_call subsystem[] = {
 						"rpc-session" },
 	{ &c2_mem_xprt_init, &c2_mem_xprt_fini, "bulk/mem" },
 	{ &c2_sunrpc_fop_init, &c2_sunrpc_fop_fini, "bulk/sunrpc" },
+	{ &c2_net_lnet_init, &c2_net_lnet_fini, "net/lnet" },
 #ifndef __KERNEL__
 	{ &usunrpc_init,          &usunrpc_fini,          "user/sunrpc"},
 #else

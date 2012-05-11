@@ -104,7 +104,7 @@ EOF
 	done
 	# Get rid of .ff suffix so as to include corresponding headers in
 	# .c files.
-	depfiles=`echo $depfiles | sed -e 's/.ff//g'`
+	depfiles=`echo $depfiles | sed -e 's/\.ff//g'`
     fi
 
     cat >> $tfile << EOF
@@ -164,7 +164,7 @@ EOF
 	i=0
 	for ff in $depfiles; do
 	    ff=$topdir/$ff
-	    ff=`echo $ff | sed -e 's/$/.ff/g'`
+	    ff=`echo $ff | sed -e 's/$/\.ff/g'`
 	    grep '^DEF' $ff | \
 		sed -e 's/^DEF(\([^,]*\),.*$/        \&\1_tfmt,/g' >> $tfile
 	    let i=i+1

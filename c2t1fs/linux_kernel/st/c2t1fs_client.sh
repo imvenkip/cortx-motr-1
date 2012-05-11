@@ -25,6 +25,7 @@ main()
         return 0
 }
 
+modprobe_lnet
 insmod $COLIBRI_CORE_ROOT/../galois/src/linux_kernel/galois.ko
 main
 rmmod galois

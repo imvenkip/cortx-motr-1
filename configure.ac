@@ -373,6 +373,31 @@ COLIBRI_LINUX_SENDFILE
 COLIBRI_LINUX_STRUCT_NET
 COLIBRI_LINUX_CRED_IN_REQ
 
+AC_MSG_CHECKING([for LNet header dir])
+AC_ARG_WITH([lustre],
+        [AC_HELP_STRING([--with-lustre=path], [set path to lustre sources])],
+        [LUSTRE=$with_lustre],
+        [LUSTRE=/usr/src/`ls /usr/src | grep lustre | tail -1`]
+)
+
+if ! test -d $LUSTRE/lnet/include; then
+	AC_MSG_ERROR([lnet/include not found in $LUSTRE!])
+fi
+AC_MSG_RESULT([$LUSTRE])
+
+# Disabling check for lustre config and Module.symvers until devel RPM is ready
+#AC_MSG_CHECKING([for Lustre config.h])
+#if ! test -e $LUSTRE/config.h; then
+#	AC_MSG_ERROR([$LUSTRE/config.h not found! Did you configure lustre?])
+#fi
+#AC_MSG_RESULT([$LUSTRE/config.h])
+#AC_MSG_CHECKING([for Lustre symbols file])
+#if ! test -e $LUSTRE/Module.symvers; then
+#	AC_MSG_ERROR([$LUSTRE/Module.symvers not found! Did you build lustre?])
+#fi
+#AC_MSG_RESULT([$LUSTRE/Module.symvers])
+AC_SUBST([LUSTRE])
+
 build_lib() {
        NAME=$1
        SRC=$2
@@ -623,6 +648,7 @@ AC_CONFIG_FILES([
                  Makefile
                  addb/Makefile
                  addb/addb_pseudo/Makefile
+                 addb/addbff/Makefile
 		 addb/ut/Makefile
                  balloc/Makefile
                  balloc/ut/Makefile
@@ -669,6 +695,10 @@ AC_CONFIG_FILES([
 		 net/bulk_emulation/st/Makefile
 		 net/bulk_emulation/st/linux_kernel/Makefile
 		 net/bulk_emulation/ut/Makefile
+		 net/lnet/Makefile
+		 net/lnet/st/Makefile
+		 net/lnet/st/linux_kernel/Makefile
+		 net/lnet/ut/Makefile
                  net/usunrpc/Makefile
 		 net/ut/Makefile
 		 net/st/Makefile
@@ -722,6 +752,7 @@ echo "LDFLAGS     :  \"$LDFLAGS\""
 echo ""
 
 echo "Linux Obj   :  \"$LINUX_OBJ\""
+echo "Lustre      :  \"$LUSTRE\""
 echo ""
 
 echo "Type 'make' to build Colibri"
