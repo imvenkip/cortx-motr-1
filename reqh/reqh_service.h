@@ -22,6 +22,8 @@
 #define __COLIBRI_REQH_REQH_SERVICE_H__
 
 #include "lib/list.h"
+#include "lib/bob.h"
+
 #include "net/net.h"
 #include "rpc/rpc2.h"
 
@@ -139,8 +141,8 @@ enum {
    Magic for reqh service
  */
 enum {
-	/** Hex value for "reqhsvcs" */
-	C2_RHS_MAGIC = 0x7265716873766373
+	C2_RHS_MAGIX = 0x5248535643, /* RHSVC */
+	C2_RHS_MAGIX_HEAD = 0x52485356434844 /* RHSVCHD */
 };
 
 /**
@@ -432,7 +434,6 @@ void c2_reqh_service_fini(struct c2_reqh_service *service);
 struct c2_reqh_service_type stype = {                  \
         .rst_name  = (name),	                       \
 	.rst_ops   = (ops),                            \
-	.rst_magic = (C2_RHS_MAGIC)                    \
 }                                                     \
 
 /**
@@ -466,6 +467,12 @@ void c2_reqh_service_types_fini(void);
    Checks consistency of a particular service.
  */
 bool c2_reqh_service_invariant(const struct c2_reqh_service *service);
+
+/** Descriptor for tlist of request handler service types. */
+C2_TL_DESCR_DECLARE(c2_rstypes, extern);
+C2_TL_DECLARE(c2_rstypes, extern, struct c2_reqh_service_type);
+
+C2_BOB_DECLARE(extern, c2_reqh_service_type);
 
 /** @} endgroup reqh */
 

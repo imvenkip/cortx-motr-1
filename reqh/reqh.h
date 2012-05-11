@@ -22,11 +22,13 @@
 #ifndef __COLIBRI_REQH_REQH_H__
 #define __COLIBRI_REQH_REQH_H__
 
+#include "lib/tlist.h"
+#include "lib/bob.h"
+
 #include "sm/sm.h"
 #include "fol/fol.h"
 #include "fop/fop.h"
 #include "fop/fom.h"
-#include "lib/tlist.h"
 
 /**
    @defgroup reqh Request handler
@@ -47,14 +49,6 @@
    @see https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjA2Zmc0N3I3Z2Y&hl=en_US
    @{
  */
-
-/**
-   Magic for reqh.
- */
-enum {
-        /* Hex value for "reqhsvc" */
-        C2_REQH_MAGIC = 0x7265716873766373
-};
 
 /**
    Request handler instance.
@@ -307,6 +301,17 @@ void c2_reqhs_fini(void);
  */
 struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
                                             struct c2_reqh *reqh);
+
+/** Descriptor for tlist of request handler services. */
+C2_TL_DESCR_DECLARE(c2_rhsvc, extern);
+C2_TL_DECLARE(c2_rhsvc, extern, struct c2_reqh_service);
+C2_BOB_DECLARE(extern, c2_reqh_service);
+
+/** Descriptor for tlist of rpc machines. */
+C2_TL_DESCR_DECLARE(c2_rhrpm, extern);
+C2_TL_DECLARE(c2_rhrpm, extern, struct c2_rpc_machine);
+C2_BOB_DECLARE(extern, c2_rpc_machine);
+
 /** @} endgroup reqh */
 
 /* __COLIBRI_REQH_REQH_H__ */

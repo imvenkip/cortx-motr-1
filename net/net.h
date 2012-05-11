@@ -114,8 +114,8 @@ int c2_net_init(void);
 void c2_net_fini(void);
 
 enum {
-	/* Hex value for "netmagic" */
-	C2_NET_MAGIC = 0x6E65746D61676963
+	/* Hex value for "NET_DOM" */
+	C2_NET_DOMAIN_MAGIX = 0x4E45545F444F4D
 };
 
 /** Network transport (e.g., lnet or sunrpc) */

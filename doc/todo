@@ -29,11 +29,6 @@ TODO
     Due to a historical accident, sunrpc network transport uses higher layer
     (fop) data-structures internally. This should be cleaned up.
 
-2012-May-04 embed c2_sm in c2_fom
-
-    Use standard state machine with states RUNNING, READY and WAITING for
-    c2_fom.
-
 2012-May-04 cleanup "linux_kernel" directories
 
     Modify build process to cleanup linux_kernel directories.
@@ -48,13 +43,23 @@ TODO
 
 2012-May-04 Add all magic numbers to doc/magix
 
+2012-May-09 Replace all debugging printf-s and printk-s with C2_LOG()-s
+
+2012-May-10 Embed c2_sm in c2_rpc_{session,conn,item}
+
 IN-PROGRESS
 
-2012-May-04 .gdbinit macros for basic Colibri structures
+2012-May-04 [Amit] .gdbinit macros for basic Colibri structures
 
     Add to core/.gdbinit file gdb macros to display core Colibri structures:
     lists, vectors, &c. Preferably, the macros should be placed in .gdbinit
     files, located in the corresponding modules, with top-level .gdbinit loading
     them.
+
+2012-May-04 [Andriy] embed c2_sm in c2_fom
+
+    Use standard state machine with states RUNNING, READY and WAITING for
+    c2_fom.
+
 
 DONE

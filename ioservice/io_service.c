@@ -33,12 +33,6 @@
 #include "ioservice/io_service.h"
 #include "colibri/colibri_setup.h"
 
-/** Required for accessing rpc_machine list */
-C2_TL_DESCR_DEFINE(rpc_machines, "rpc machines associated with reqh", static,
-                   struct c2_rpc_machine, rm_rh_linkage, rm_magic,
-                   C2_REQH_MAGIC, C2_RPC_MAGIC);
-C2_TL_DEFINE(rpc_machines, static, struct c2_rpc_machine);
-
 C2_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh", ,
                    struct c2_rios_buffer_pool, rios_bp_linkage, rios_bp_magic,
                    C2_RIOS_BUFFER_POOL_MAGIC, C2_RIOS_BUFFER_POOL_HEAD);
@@ -172,7 +166,8 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
 
-        c2_tl_for(rpc_machines, &service->rs_reqh->rh_rpc_machines, rpcmach) {
+        c2_tlist_for(&c2_rhrpm_tl,
+		     &service->rs_reqh->rh_rpc_machines, rpcmach) {
 		/*
 		 * Check buffer pool for network domain of rpc_machine
 		 */
