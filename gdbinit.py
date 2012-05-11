@@ -1,19 +1,38 @@
-# List of macros to be defined
-macros = [ \
-"offsetof(typ,memb) ((unsigned long)((char *)&(((typ *)0)->memb)))", \
-"container_of(ptr, type, member) " + \
-	"((type *)((char *)(ptr)-(char *)(&((type *)0)->member)))" \
-]
+def field_type(container, field):
+	cmd = "&((({0} *)0)->{1})".format(container, field)
+	tmp = gdb.parse_and_eval(cmd)
+	return tmp.type.target()
+
+def offset_of(container, field):
+	macro_call = "offsetof({0}, {1})".format(container, field)
+	offset = long(gdb.parse_and_eval(macro_call))
+	return offset
+
+#
+# For now supported values for @kind are {"struct", "union"}
+#
+def value_is_instance_or_pointer_of_type(value, kind, tag):
+	type = value.type
+	if type.code == gdb.TYPE_CODE_PTR:
+		type = type.target()
+
+	if kind == "struct":
+		return type.code == gdb.TYPE_CODE_STRUCT and type.tag == tag
+	elif kind == "union":
+		return type.code == gdb.TYPE_CODE_UNION and  type.tag == tag
+	else:
+		return False
 
 class C2ListPrint(gdb.Command):
-	"""Prints c2_list elements.
+	"""Prints c2_list/c2_tl elements.
 
-Usage: c2-list-print [&]c2_list [[struct|union] tag field [visit]]
+Usage: c2-list-print [&]list [[struct|union] tag link [visit]]
 
-First argument is only mandatory argument. It can be of type either
-"struct c2_list" or "struct c2_list *". If this is the only argument
-supplied, then c2-list-print prints address of each of c2_list_link
-forming the list.
+First argument is only mandatory argument. It can be of type
+- struct c2_list or struct c2_list *,
+- struct c2_tl or struct c2_tl *
+If this is the only argument supplied, then c2-list-print prints
+address of each of links forming the list.
 Example:
 (gdb) c2-list-print session->s_slot_table[0]->sl_item_list
 0x6257d0
@@ -21,7 +40,7 @@ Example:
 Total: 2
 
 Later three arguments can be either all present or all absent.
-The three arguments together specify name of c2_list_link field
+The three arguments together specify name of link field
 within ambient object. This form of c2-list-print prints pointers to
 ambient objects.
 Example:
@@ -32,7 +51,7 @@ Total: 2
 
 Last argument 'visit' if present is name of a user-defined command
 that takes one argument(think c2-list-print as a list traversing function
-with pointer to function as arguemnt).
+with pointer to 'visit' function as arguemnt).
 The visit command will be executed for each object in list.
 The implementation of visit command can decide which objects to print and how.
 Example:
@@ -58,8 +77,8 @@ Total: 2
 		argv = gdb.string_to_argv(arg)
 		argc = len(argv)
 		if argc != 1 and argc != 4 and argc != 5:
-			print "Error: Usage: c2-list-print [&]c2_list " + \
-			      "[[struct|union] tag field] visit"
+			print "Error: Usage: c2-list-print [&]list " + \
+			      "[[struct|union] tag link [visit]]"
 			return
 
 		vhead, head, ok = self.get_head(argv)
@@ -96,20 +115,27 @@ Total: 2
 		ok    = True
 		head  = 0
 		vhead = gdb.parse_and_eval(argv[0])
+		type  = vhead.type
 
-		if vhead.type.code == gdb.TYPE_CODE_PTR and \
-		   vhead.type.target().code == gdb.TYPE_CODE_STRUCT and \
-		   vhead.type.target().tag == "c2_list":
-			# arg1 is of type "struct c2_list *"
-			head = long(vhead)
+		head_is_ptr = False
+		if type.code == gdb.TYPE_CODE_PTR:
+			type = type.target()
+			head_is_ptr = True
 
-		elif vhead.type.code == gdb.TYPE_CODE_STRUCT and \
-		     vhead.type.tag == "c2_list":
-			# arg1 is of type "struct c2_list"
+		if type.code != gdb.TYPE_CODE_STRUCT:
+			print "Error: Argument 1 is not a [&]c2_list or [&]c2_tl"
+			return vhead, head, False
+
+		if type.tag == "c2_list":
+			if head_is_ptr:
+				head = long(vhead)
+			else:
+				head = long(vhead.address)
+		elif type.tag == "c2_tl":
+			vhead = vhead['t_head']
 			head = long(vhead.address)
-
 		else:
-			print "Error: Argument 1 is not a [&]c2_list"
+			print "Error: Argument 1 is not a [&]c2_list or [&]c2_tl"
 			ok = False
 
 		return vhead, head, ok
@@ -124,16 +150,25 @@ Total: 2
 				return 0, False
 
 			str_amb_type = "{0} {1}".format(argv[1], argv[2])
+			anchor = argv[3]
 			try:
 				gdb.lookup_type(str_amb_type)
 			except:
 				print "Error: type '{0}' does not exists".format(str_amb_type)
 				return 0, False
 
-			macro_call = "offsetof({0}, {1})".format(str_amb_type,\
-					argv[3])
-			offset = long(gdb.parse_and_eval(macro_call))
+			type = field_type(str_amb_type, anchor)
+			ok = type.code == gdb.TYPE_CODE_STRUCT and \
+			     (type.tag == "c2_list_link" or type.tag == "c2_tlink")
+			if not ok:
+				print "Error: Argument 4 must be of type c2_list_link or c2_tlink"
+				return 0, False
 
+			if type.tag == "c2_tlink":
+				anchor = anchor.strip() + ".t_link"
+
+			offset = offset_of(str_amb_type, anchor)
+		type = gdb.lookup_type
 		return offset, True
 
 def human_readable(count):
@@ -169,32 +204,6 @@ def sum(start_addr, count):
 		s += a[i]
 
 	return s
-
-#
-# For now supported values for @kind are {"struct", "union"}
-#
-def value_is_instance_or_pointer_of_type(value, kind, tag):
-	type = value.type
-	if type.code == gdb.TYPE_CODE_PTR:
-		type = type.target()
-
-	ok = type.code == gdb.TYPE_CODE_STRUCT or \
-	     type.code == gdb.TYPE_CODE_UNION
-
-	if not ok:
-		 return False
-
-	if kind == "struct":
-		kind_code = gdb.TYPE_CODE_STRUCT
-	elif kind == "union":
-		kind_code = gdb.TYPE_CODE_UNION
-	else:
-		return False
-
-	if type.code == kind_code and type.tag  == tag:
-		return True
-	else:
-		return False
 
 class C2BufvecPrint(gdb.Command):
 	"""Prints segments in c2_bufvec
@@ -284,6 +293,13 @@ Usage: c2-indexvec-print [&]c2_indexvec
 		print "nr_seg:", nr_seg
 		print "total:", total_count
 
+# List of macros to be defined
+macros = [ \
+"offsetof(typ,memb) ((unsigned long)((char *)&(((typ *)0)->memb)))", \
+"container_of(ptr, type, member) " + \
+	"((type *)((char *)(ptr)-(char *)(&((type *)0)->member)))" \
+]
+
 # Define macros listed in macros[]
 for m in macros:
 	gdb.execute("macro define %s" % m)
@@ -291,3 +307,5 @@ for m in macros:
 C2ListPrint()
 C2BufvecPrint()
 C2IndexvecPrint()
+
+print "Loading gdb commands for Colibri..."
