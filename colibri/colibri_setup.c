@@ -1704,7 +1704,7 @@ static uint32_t cs_max_bufs_nr(struct c2_colibri *cctx)
 	C2_PRE(cctx != NULL);
 	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
         C2_ASSERT(!rhctx_tlist_is_empty(&cctx->cc_reqh_ctxs));
-        
+
 	c2_tlist_for(&rhctx_tl, &cctx->cc_reqh_ctxs, rctx) {
 		C2_ASSERT(cs_reqh_context_bob_check(rctx));
 		max_queue_len = max32u(max_queue_len,

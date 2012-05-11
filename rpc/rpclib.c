@@ -179,15 +179,13 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	rpc_machine->rm_min_recv_size = cctx->rcx_max_rpc_recv_size != 0 ?
 					cctx->rcx_max_rpc_recv_size :
 					c2_net_domain_get_max_buffer_size(ndom);
-
 	rpc_machine->rm_max_recv_msgs =
 			c2_net_domain_get_max_buffer_size(ndom) /
 			rpc_machine->rm_min_recv_size;
 
+	rpc_machine->rm_tm_colour		 = 0;
 	rpc_machine->rm_tm_recv_queue_min_length =
 			cctx->rcx_recv_queue_min_length;
-
-	rpc_machine->rm_tm_colour = 0;
 
 	rc = c2_rpc_machine_init(rpc_machine, cctx->rcx_cob_dom,
 				 ndom, cctx->rcx_local_addr, NULL,

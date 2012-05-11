@@ -73,7 +73,7 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr, int port)
 		c2_free(server_args);
 		return -ENOMEM;
 	}
-	
+
 	/* Copy all server arguments to server_args list. */
 	strcpy(server_args[0], "bulkio_st");
 	strcpy(server_args[1], "-r");

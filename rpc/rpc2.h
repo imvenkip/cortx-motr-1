@@ -542,12 +542,14 @@ struct c2_rpc_machine {
 
 	/** @see c2_net_transfer_mc:ntm_recv_queue_length */
 	uint32_t			  rm_tm_recv_queue_min_length;
-	
+
 	/** @see c2_net_transfer_mc:ntm_recv_queue_min_recv_size */
 	uint32_t			  rm_min_recv_size;
-	
+
 	/** @see c2_net_transfer_mc:ntm_recv_queue_max_recv_msgs */
 	uint32_t			  rm_max_recv_msgs;
+
+	/** @see c2_net_transfer_mc:ntm_pool_colour */
 	uint32_t			  rm_tm_colour;
 
 };
