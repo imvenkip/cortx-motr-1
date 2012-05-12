@@ -183,29 +183,26 @@ void c2_fom_ready(struct c2_fom *fom)
 void c2_fom_block_enter(struct c2_fom *fom)
 {
 	int			rc;
-	int			i;
-	size_t			idle_threads;
 	size_t			max_idle_threads;
 	struct c2_fom_locality *loc;
 
 	loc = fom->fo_loc;
 
 	C2_ASSERT(c2_locality_invariant(loc));
-	idle_threads = loc->fl_idle_threads_nr;
+	group_unlock(loc);
+
 	c2_mutex_lock(&loc->fl_lock);
 	C2_CNT_INC(loc->fl_lo_idle_threads_nr);
-	c2_mutex_unlock(&loc->fl_lock);
 	max_idle_threads = max_check(loc->fl_lo_idle_threads_nr,
-				loc->fl_hi_idle_threads_nr);
-	c2_mutex_unlock(&loc->fl_group.s_lock);
-
-	for (i = idle_threads; i < max_idle_threads; ++i) {
+	                             loc->fl_hi_idle_threads_nr);
+	while (loc->fl_idle_threads_nr < max_idle_threads) {
 		rc = loc_thr_create(loc);
 		if (rc != 0) {
 			FOM_ADDB_ADD(fom, "c2_fom_block_enter", rc);
 			break;
 		}
 	}
+	c2_mutex_unlock(&loc->fl_lock);
 }
 
 void c2_fom_block_leave(struct c2_fom *fom)
@@ -363,7 +360,7 @@ static void loc_handler_thread(struct c2_fom_hthread *th)
 
 	C2_PRE(th != NULL);
 	loc = th->fht_locality;
-	idle = false;
+	idle = true;
 	c2_time_set(&delta, LOC_HT_WAIT, 0);
 	c2_clink_init(&th_clink, NULL);
 	c2_clink_attach(&th_clink, &loc->fl_group.s_clink, NULL);
@@ -428,6 +425,7 @@ static int loc_thr_init(struct c2_fom_hthread *th)
 	if (rc == 0) {
 		c2_list_add_tail(&loc->fl_threads, &th->fht_linkage);
 		C2_CNT_INC(loc->fl_threads_nr);
+		C2_CNT_INC(loc->fl_idle_threads_nr);
 	}
 	group_unlock(loc);
 
