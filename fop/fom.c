@@ -776,9 +776,10 @@ void c2_fom_callback_arm(struct c2_fom *fom, struct c2_chan *chan,
 
 	c2_clink_init(&cb->fc_clink, &fom_clink_cb);
 	cb->fc_ast.sa_cb = &fom_ast_cb;
-	c2_clink_add(chan, &cb->fc_clink);
-
 	cb->fc_state = C2_FCS_INIT;
+	/* XXX a memory barrier is required
+	 * if c2_clink_add() doesn't do its own locking. */
+	c2_clink_add(chan, &cb->fc_clink);
 }
 
 static void fom_ready_cb(struct c2_fom_callback *cb)
