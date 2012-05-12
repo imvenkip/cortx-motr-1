@@ -322,15 +322,14 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
         tm = fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm;
         colour = c2_net_tm_colour_get(&tm);
 
-        if (fom->fo_phase < C2_FOPH_NR)
-        {
+        if (fom->fo_phase < C2_FOPH_NR) {
                 /*
                  * No need to test generic phases.
                  */
                 rc = c2_io_fom_cob_rw_state(fom);
-        }
-        else if (fom->fo_phase == C2_FOPH_IO_FOM_BUFFER_ACQUIRE)
-        {
+
+        } else if (fom->fo_phase == C2_FOPH_IO_FOM_BUFFER_ACQUIRE) {
+
                 /* Acquire all buffer pool buffer test some of cases. */
                 if (fom_obj->fcrw_bp == NULL)
                         buf_pool = ut_get_buffer_pool(fom);
@@ -357,9 +356,8 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                 release_one_buffer(colour);
 
                 fom->fo_phase = TEST02;
-        }
-        else if (fom->fo_phase == TEST02)
-        {
+
+        } else if (fom->fo_phase == TEST02) {
                 /*
                  * Case 02: No network buffer is available with the buffer pool.
                  *         Even after getting buffer pool not-empty event,
@@ -383,9 +381,9 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                 release_one_buffer(colour);
 
                 fom->fo_phase = TEST03;
-        }
-        else if (fom->fo_phase == TEST03)
-        {
+
+        } else if (fom->fo_phase == TEST03) {
+
                 int cdi = fom_obj->fcrw_curr_desc_index;
                 /*
                  * Case 03 : Network buffer is available with the buffer pool.
@@ -484,9 +482,8 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                              fom->fo_phase == C2_FOPH_IO_ZERO_COPY_WAIT);
 
                 fom->fo_phase = TEST07;
-        }
-        else if (fom->fo_phase == TEST07)
-        {
+
+        } else if (fom->fo_phase == TEST07) {
                 /*
                  * Case 07 : Zero-copy failure
                  *         Input phase          : C2_FOPH_IO_ZERO_COPY_WAIT
@@ -558,9 +555,8 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                              fom->fo_phase == C2_FOPH_IO_STOB_WAIT);
 
                 fom->fo_phase = TEST11;
-        }
-        else if (fom->fo_phase == TEST11)
-        {
+
+        } else if (fom->fo_phase == TEST11) {
                 /*
                  * Case 11 : STOB I/O failure from wait state.
                  *         Input phase          : C2_FOPH_IO_STOB_WAIT
@@ -691,15 +687,14 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
         tm = fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm;
         colour = c2_net_tm_colour_get(&tm);
 
-        /*
-         * No need to test generic phases.
-         */
-        if (fom->fo_phase < C2_FOPH_NR)
-        {
+        if (fom->fo_phase < C2_FOPH_NR) {
+                /*
+                 * No need to test generic phases.
+                 */
                 rc = c2_io_fom_cob_rw_state(fom);
-        }
-        else if (fom->fo_phase == C2_FOPH_IO_FOM_BUFFER_ACQUIRE)
-        {
+
+        } else if (fom->fo_phase == C2_FOPH_IO_FOM_BUFFER_ACQUIRE) {
+
                 /* Acquire all buffer pool buffer test some of cases. */
                 if (fom_obj->fcrw_bp == NULL)
                         buf_pool = ut_get_buffer_pool(fom);
@@ -728,9 +723,8 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                 release_one_buffer(colour);
 
                 fom->fo_phase = TEST02;
-        }
-        else if (fom->fo_phase == TEST02)
-        {
+
+        } else if (fom->fo_phase == TEST02) {
                 /*
                  * Case 02 : No network buffer is available with buffer pool.
                  *         Even after getting buffer pool not-empty event,
@@ -754,9 +748,8 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                 release_one_buffer(colour);
 
                 fom->fo_phase = TEST03;
-        }
-        else if (fom->fo_phase == TEST03)
-        {
+
+        } else if (fom->fo_phase == TEST03) {
                 /*
                  * Case 03 : Network buffer is available with the buffer pool.
                  *         Input phase          : C2_FOPH_IO_FOM_BUFFER_ACQUIRE
@@ -774,7 +767,8 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                  * and now buffer pool not having network buffer, this buffer
                  * need to return back to the buffer pool.
                  */
-                acquired_net_bufs = netbufs_tlist_length(&fom_obj->fcrw_netbuf_list);
+                acquired_net_bufs =
+                        netbufs_tlist_length(&fom_obj->fcrw_netbuf_list);
                 c2_net_buffer_pool_lock(fom_obj->fcrw_bp);
                 while (acquired_net_bufs > 0) {
                         struct c2_net_buffer *nb;
@@ -848,9 +842,9 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                              fom->fo_phase == C2_FOPH_IO_STOB_WAIT);
 
                 fom->fo_phase = TEST07;
-        }
-        else if (fom->fo_phase == TEST07)
-        {
+
+        } else if (fom->fo_phase == TEST07) {
+
                 int cdi = fom_obj->fcrw_curr_desc_index;
                 /*
                  * Case 07 : STOB I/O failure
@@ -957,9 +951,8 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                  * Cleanup & restore FOM for next test.
                  */
                 fom->fo_phase = TEST11;
-        }
-        else if (fom->fo_phase == TEST11)
-        {
+
+        } else if (fom->fo_phase == TEST11) {
                 /*
                  * Case 11 : Zero-copy failure
                  *         Input phase          : C2_FOPH_IO_ZERO_COPY_WAIT
