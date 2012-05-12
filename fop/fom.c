@@ -79,9 +79,29 @@ static struct c2_fom_domain_ops c2_fom_dom_ops = {
 	.fdo_time_is_out = fom_wait_time_is_out
 };
 
+static void group_lock(struct c2_fom_locality *loc)
+{
+	c2_sm_group_lock(&loc->fl_group);
+}
+
+static void group_unlock(struct c2_fom_locality *loc)
+{
+	c2_sm_group_unlock(&loc->fl_group);
+}
+
 static bool is_locked(const struct c2_fom *fom)
 {
 	return c2_mutex_is_locked(&fom->fo_loc->fl_group.s_lock);
+}
+
+static bool is_in_runq(const struct c2_fom *fom)
+{
+	return c2_list_contains(&fom->fo_loc->fl_runq, &fom->fo_linkage);
+}
+
+static bool is_in_wail(const struct c2_fom *fom)
+{
+	return c2_list_contains(&fom->fo_loc->fl_wail, &fom->fo_linkage);
 }
 
 bool c2_fom_domain_invariant(const struct c2_fom_domain *dom)
@@ -101,29 +121,19 @@ bool c2_locality_invariant(const struct c2_fom_locality *loc)
 
 bool c2_fom_invariant(const struct c2_fom *fom)
 {
-	struct c2_fom_locality *loc;
+	return
+		fom != NULL && fom->fo_loc != NULL &&
+		fom->fo_type != NULL && fom->fo_ops != NULL &&
+		fom->fo_fop != NULL &&
 
-	if (fom == NULL || fom->fo_loc == NULL || fom->fo_type == NULL ||
-		fom->fo_ops == NULL || fom->fo_fop == NULL || !is_locked(fom) ||
-		!c2_list_link_invariant(&fom->fo_linkage))
-		return false;
+		is_locked(fom) &&
 
-	loc = fom->fo_loc;
+		c2_list_link_invariant(&fom->fo_linkage) &&
 
-	switch (fom->fo_state) {
-	case C2_FOS_READY:
-		return c2_list_contains(&loc->fl_runq, &fom->fo_linkage);
-
-	case C2_FOS_RUNNING:
-		return !c2_list_contains(&loc->fl_runq, &fom->fo_linkage) &&
-			!c2_list_contains(&loc->fl_wail, &fom->fo_linkage);
-
-	case C2_FOS_WAITING:
-		return c2_list_contains(&loc->fl_wail, &fom->fo_linkage);
-
-	default:
-		return false;
-	}
+		(fom->fo_state == C2_FOS_READY) == is_in_runq(fom) &&
+		(fom->fo_state == C2_FOS_WAITING) == is_in_wail(fom) &&
+		(fom->fo_state == C2_FOS_RUNNING) ==
+			(!is_in_runq(fom) && !is_in_wail(fom));
 }
 
 static bool fom_wait_time_is_out(const struct c2_fom_domain *dom,
@@ -145,7 +155,7 @@ static void fom_ready(struct c2_fom *fom)
 {
 	struct c2_fom_locality *loc;
 
-	C2_PRE(is_locked(fom));
+	C2_PRE(c2_fom_invariant(fom));
 
 	loc = fom->fo_loc;
 
@@ -160,11 +170,12 @@ void c2_fom_ready(struct c2_fom *fom)
 	struct c2_fom_locality *loc = fom->fo_loc;
 
 	C2_PRE(fom->fo_state == C2_FOS_WAITING);
-	C2_PRE(is_locked(fom));
+	C2_PRE(c2_fom_invariant(fom));
 
-	C2_ASSERT(c2_list_contains(&loc->fl_wail, &fom->fo_linkage));
+	C2_ASSERT(is_in_wail(fom));
 	c2_list_del(&fom->fo_linkage);
 	C2_CNT_DEC(loc->fl_wail_nr);
+	fom->fo_state = C2_FOS_RUNNING;
 
 	fom_ready(fom);
 }
@@ -207,7 +218,7 @@ void c2_fom_block_leave(struct c2_fom *fom)
 	C2_CNT_DEC(loc->fl_lo_idle_threads_nr);
 	c2_mutex_unlock(&loc->fl_lock);
 
-	c2_mutex_lock(&loc->fl_group.s_lock);
+	group_lock(loc);
 	C2_ASSERT(c2_locality_invariant(loc));
 }
 
@@ -215,7 +226,7 @@ void c2_fom_queue(struct c2_fom *fom)
 {
 	struct c2_fom_locality *loc;
 
-	C2_PRE(is_locked(fom));
+	C2_PRE(c2_fom_invariant(fom));
 	C2_PRE(fom->fo_phase == C2_FOPH_INIT ||
 		fom->fo_phase == C2_FOPH_FAILURE);
 
@@ -246,7 +257,7 @@ static void fom_wait(struct c2_fom *fom)
 {
 	struct c2_fom_locality *loc;
 
-	C2_PRE(is_locked(fom));
+	C2_PRE(c2_fom_invariant(fom));
 	C2_PRE(fom->fo_state == C2_FOS_RUNNING);
 
 	loc = fom->fo_loc;
@@ -298,7 +309,7 @@ static void fom_exec(struct c2_fom *fom)
 	} else {
 		fom_wait(fom);
 		C2_ASSERT(fom->fo_state == C2_FOS_WAITING);
-		C2_ASSERT(c2_list_contains(&loc->fl_wail, &fom->fo_linkage));
+		C2_ASSERT(is_in_wail(fom));
 	}
 }
 
@@ -349,43 +360,50 @@ static void loc_handler_thread(struct c2_fom_hthread *th)
 	bool			idle;
 	struct c2_clink		th_clink;
 	struct c2_fom_locality *loc;
-	struct c2_fom	       *fom;
 
 	C2_PRE(th != NULL);
-
 	loc = th->fht_locality;
 	idle = false;
-	fom = NULL;
-        c2_time_set(&delta, LOC_HT_WAIT, 0);
+	c2_time_set(&delta, LOC_HT_WAIT, 0);
 	c2_clink_init(&th_clink, NULL);
 	c2_clink_attach(&th_clink, &loc->fl_group.s_clink, NULL);
 
-	c2_sm_group_lock(&loc->fl_group);
-	C2_ASSERT(c2_locality_invariant(loc));
+	group_lock(loc);
 	c2_clink_add(&loc->fl_runrun, &th_clink);
 
-	do {
+	while (1) {
+		struct c2_fom	       *fom;
+
+		C2_ASSERT(c2_locality_invariant(loc));
+
+		fom = fom_dequeue(loc);
 		if (fom != NULL) {
 			C2_ASSERT(fom->fo_state == C2_FOS_READY);
+			if (idle) {
+				C2_CNT_DEC(loc->fl_idle_threads_nr);
+				idle = false;
+			}
 			fom->fo_state = C2_FOS_RUNNING;
 			fom_exec(fom);
+		} else {
+			if (!idle) {
+				C2_CNT_INC(loc->fl_idle_threads_nr);
+				idle = true;
+			}
+			if (loc->fl_idle_threads_nr >
+			    loc->fl_lo_idle_threads_nr)
+				break;
+			group_unlock(loc);
+			c2_chan_timedwait(&th_clink,
+			                  c2_time_add(c2_time_now(), delta));
+			group_lock(loc);
 		}
-		c2_sm_group_unlock(&loc->fl_group);
-		c2_chan_timedwait(&th_clink, c2_time_add(c2_time_now(), delta));
-		c2_sm_group_lock(&loc->fl_group);
-		fom = fom_dequeue(loc);
-		if (fom == NULL && !idle)
-			C2_CNT_INC(loc->fl_idle_threads_nr);
-		else if (fom != NULL && idle)
-			C2_CNT_DEC(loc->fl_idle_threads_nr);
-		idle = fom == NULL;
-	} while (!idle ||
-	         loc->fl_idle_threads_nr <= loc->fl_lo_idle_threads_nr);
+	}
 
 	C2_CNT_DEC(loc->fl_idle_threads_nr);
 	C2_CNT_DEC(loc->fl_threads_nr);
-	c2_sm_group_unlock(&loc->fl_group);
 	c2_clink_del(&th_clink);
+	group_unlock(loc);
 	c2_clink_fini(&th_clink);
 }
 
@@ -405,13 +423,13 @@ static int loc_thr_init(struct c2_fom_hthread *th)
 	loc = th->fht_locality;
 	C2_ASSERT(loc != NULL);
 
-	c2_sm_group_lock(&loc->fl_group);
+	group_lock(loc);
 	rc = c2_thread_confine(&th->fht_thread, &loc->fl_processors);
 	if (rc == 0) {
 		c2_list_add_tail(&loc->fl_threads, &th->fht_linkage);
 		C2_CNT_INC(loc->fl_threads_nr);
 	}
-	c2_sm_group_unlock(&loc->fl_group);
+	group_unlock(loc);
 
 	return rc;
 }
@@ -475,7 +493,7 @@ static void locality_fini(struct c2_fom_locality *loc)
 
 	C2_PRE(loc != NULL);
 
-	c2_mutex_lock(&loc->fl_group.s_lock);
+	group_lock(loc);
 	C2_ASSERT(c2_locality_invariant(loc));
 	loc->fl_lo_idle_threads_nr = 0;
 	c2_chan_broadcast(&loc->fl_runrun);
@@ -484,16 +502,16 @@ static void locality_fini(struct c2_fom_locality *loc)
 		link = c2_list_first(&loc->fl_threads);
 		C2_ASSERT(link != NULL);
 		c2_list_del(link);
-		c2_mutex_unlock(&loc->fl_group.s_lock);
+		group_unlock(loc);
 		th = container_of(link, struct c2_fom_hthread,
 					fht_linkage);
 		C2_ASSERT(th != NULL);
 		c2_thread_join(&th->fht_thread);
 		c2_thread_fini(&th->fht_thread);
 		c2_free(th);
-		c2_mutex_lock(&loc->fl_group.s_lock);
+		group_lock(loc);
 	}
-	c2_mutex_unlock(&loc->fl_group.s_lock);
+	group_unlock(loc);
 
 	c2_list_fini(&loc->fl_runq);
 	C2_ASSERT(loc->fl_runq_nr == 0);
@@ -739,7 +757,7 @@ static void fom_ast_cb(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 {
 	struct c2_fom_callback *cb = container_of(ast, struct c2_fom_callback,
 	                                          fc_ast);
-	C2_PRE(is_locked(cb->fc_fom));
+	C2_PRE(c2_fom_invariant(cb->fc_fom));
 	C2_PRE(cb->fc_state >= C2_FCS_TOP_DONE);
 
 	if (c2_atomic64_cas(&cb->fc_state, C2_FCS_TOP_DONE, C2_FCS_DONE)) {
