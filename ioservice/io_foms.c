@@ -201,7 +201,7 @@
          - Gets as many buffers as it can from buffer_pool to transfer
            data for all descriptors. If there are insufficient buffers
            with buffer_pool to process all descriptors then its goes by
-           batch by batch. Atleast one buffer needed to start bulk
+           batch by batch. At least one buffer is needed to start bulk
            transfer. If no buffer available then bulk I/O Service will
            wait till buffer_pool becomes non-empty.
          - Initiates zero-copy using rpc_bulk on acquired buffers and
@@ -251,7 +251,7 @@
          - Gets as many buffers as it can from buffer_pool to transfer
            data for all descriptors. If there are insufficient buffers
            with buffer_pool to process all descriptors then its goes by
-           batch by batch. Atleast one buffer needed to start bulk
+           batch by batch. At least one buffer is needed to start bulk
            transfer. If no buffer available then bulk I/O Service will
            wait till buffer_pool becomes non-empty.
          - Initiates read data from STOB for all indexvecs and wait for
@@ -293,8 +293,8 @@
        S0 -> S1 [label="Got Write FOP to process"]
        S1 -> S2 [label="Start processing Write FOP"]
        S2 -> S4 [label="Got Buffer"]
-       S2 -> S3 [label="Buffer not available"]
-       S3 -> S3 [label="Buffer not available"]
+       S2 -> S3 [label="Buffer is not available"]
+       S3 -> S3 [label="Buffer is not available"]
        S3 -> S4 [label="Got Buffer"]
        S4 -> S5 [label="Initiates request"]
        S5 -> S6 [label="zero-copy complete"]
@@ -326,8 +326,8 @@
        S0 -> S1 [label="Got Read FOP to process"]
        S1 -> S2 [label="Start processing Read FOP"]
        S2 -> S4 [label="Got buffer"]
-       S2 -> S3 [label="Buffer not available"]
-       S3 -> S3 [label="Buffer not available"]
+       S2 -> S3 [label="Buffer is not available"]
+       S3 -> S3 [label="Buffer is not available"]
        S3 -> S4 [label="Got buffer"]
        S4 -> S5 [label="launch I/O request"]
        S5 -> S6 [label="STOB I/O complete"]
@@ -537,7 +537,7 @@
    @section DLD-bulk-server-O Analysis
    - Acquiring network buffers for zero-copy need to be implemented as async
      operation, otherwise each I/O FOM try to acquire this resource resulting
-     lots of request handler threads if buffers not available.
+     lots of request handler threads if buffers is not available.
    - Use of pre-allocated & pre-registered buffers could decrease I/O throughput
      since all I/O FOPs need this resource to process operation.
    - On other side usage of zero-copy improve the I/O performance.
@@ -1110,8 +1110,8 @@ static int acquire_net_buffer(struct c2_fom *fom)
             if (nb == NULL && acquired_net_bufs == 0) {
                     struct c2_rios_buffer_pool   *bpdesc = NULL;
                     /*
-                     * Network buffer not available. At least one
-                     * buffer need for zero-copy. Registers FOM clink
+                     * Network buffer is not available. At least one
+                     * buffer is need for zero-copy. Registers FOM clink
                      * with buffer pool wait channel to get buffer
                      * pool non-empty signal.
                      */
@@ -1298,7 +1298,9 @@ static int initiate_zero_copy(struct c2_fom *fom)
          */
         rc = c2_rpc_bulk_load(rbulk, rpc_item->ri_session->s_conn, net_desc);
         if (rc != 0) {
-                c2_fom_callback_cancel(&fom->fo_cb);
+                bool result;
+                result = c2_fom_callback_cancel(&fom->fo_cb);
+                C2_ASSERT(result);
                 c2_rpc_bulk_buflist_empty(rbulk);
                 c2_rpc_bulk_fini(rbulk);
                 fom->fo_rc = rc;
@@ -1494,7 +1496,9 @@ static int io_launch(struct c2_fom *fom)
                 rc = c2_stob_io_launch(stio, fom_obj->fcrw_stob,
                                        &fom->fo_tx, NULL);
                 if (rc != 0) {
-                        c2_fom_callback_cancel(&stio_desc->siod_fcb);
+                        bool result;
+                        result = c2_fom_callback_cancel(&stio_desc->siod_fcb);
+                        C2_ASSERT(result);
                         /*
                          * Since this stob io not added into list
                          * yet, free it here.
@@ -1590,14 +1594,6 @@ static int io_finish(struct c2_fom *fom)
                             fom->fo_rc);
 	        return C2_FSO_AGAIN;
         }
-
-        /*
-         * Make an FOL transaction record.
-         */
-        c2_fom_block_enter(fom);
-        fom->fo_rc = c2_fop_fol_rec_add(fom_obj->fcrw_gen.fo_fop, fom->fo_fol,
-                                        &fom->fo_tx.tx_dbtx);
-        c2_fom_block_leave(fom);
 
         return C2_FSO_AGAIN;
 }
