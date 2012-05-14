@@ -1,3 +1,10 @@
+#
+# To know more about Python APIs for gdb visit:
+# http://sourceware.org/gdb/current/onlinedocs/gdb/Python-API.html#Python-API
+#
+# Nice series of tutorials about Writing gdb commands in Python
+# http://sourceware.org/gdb/wiki/PythonGdbTutorial
+#
 def field_type(container, field):
 	cmd = "&((({0} *)0)->{1})".format(container, field)
 	tmp = gdb.parse_and_eval(cmd)
@@ -48,7 +55,7 @@ def sum(start_addr, count):
 class C2ListPrint(gdb.Command):
 	"""Prints c2_list/c2_tl elements.
 
-Usage: c2-list-print [&]list [[struct|union] tag link [visit]]
+Usage: c2-list-print [&]list [[struct|union] tag link [visit|"in-detail"]]
 
 First argument is only mandatory argument. It can be of type
 - struct c2_list or struct c2_list *,
@@ -71,12 +78,19 @@ Example:
 0x7fffd80008e0
 Total: 2
 
-Last argument 'visit' if present is name of a user-defined command
-that takes one argument(think c2-list-print as a list traversing function
-with pointer to 'visit' function as arguemnt).
-The visit command will be executed for each object in list.
-The implementation of visit command can decide which objects to print and how.
+The last parameter is optional, if present controls how the elements
+are displayed:
+- If the last parameter == "in-detail", then it prints all the contents of
+  ambient objects(not addreses) of the list
+- Otherwise the last argument 'visit' if present is name of a user-defined command
+  that takes one argument(think c2-list-print as a list traversing function
+  with pointer to 'visit' function as arguemnt).
+  The visit command will be executed for each object in list.
+  The implementation of visit command can decide which objects to print and how.
 Example:
+(gdb) c2-list-print fop_types_list struct c2_fop_type ft_linkage in-detail
+<Prints all c2_fop_type objects from fop_types_list>
+
 (gdb) define session_visit
 >set $s = (struct c2_rpc_session *)$arg0
 >printf "session %p id %lu state %d\\n", $s, $s->s_session_id, $s->s_state
@@ -107,7 +121,7 @@ Total: 2
 		if not ok:
 			return
 
-		offset, ok = self.get_offset(argv)
+		offset, elm_type, ok = self.get_offset(argv)
 		if not ok:
 			return
 
@@ -124,8 +138,12 @@ Total: 2
 			obj_addr = nd - offset
 			if visit == "":
 				print "0x%x" % obj_addr
+			elif visit == "in-detail":
+				cmd = "p *({0} *){1}".format(str(elm_type), obj_addr)
+				gdb.execute(cmd)
 			else:
-				gdb.execute("{0} {1}".format(visit, obj_addr))
+				cmd = "{0} {1}".format(visit, obj_addr)
+				gdb.execute(cmd)
 
 			vnd    = vnd['ll_next']
 			nd     = long(vnd)
@@ -153,33 +171,35 @@ Total: 2
 		return vhead, head, ok
 
 	def get_offset(self, argv):
-		argc   = len(argv)
-		offset = 0
+		argc     = len(argv)
+		offset   = 0
+		elm_type = None
+
 		if argc == 4 or argc == 5:
 			if argv[1] != "struct" and argv[1] != "union":
 				print 'Error: Argument 2 must be ' + \
 				      'either "struct" or "union"'
-				return 0, False
+				return 0, None, False
 
-			str_amb_type = "{0} {1}".format(argv[1], argv[2])
+			str_elm_type = "{0} {1}".format(argv[1], argv[2])
 			anchor = argv[3]
 			try:
-				gdb.lookup_type(str_amb_type)
+				elm_type = gdb.lookup_type(str_elm_type)
 			except:
-				print "Error: type '{0}' does not exists".format(str_amb_type)
-				return 0, False
+				print "Error: type '{0}' does not exists".format(str_elm_type)
+				return 0, None, False
 
-			type = field_type(str_amb_type, anchor)
+			type = field_type(str_elm_type, anchor)
 			if str(type) != "struct c2_list_link" and str(type) != "struct c2_tlink":
 				print "Error: Argument 4 must be of type c2_list_link or c2_tlink"
-				return 0, False
+				return 0, None, False
 
 			if str(type) == "struct c2_tlink":
 				anchor = anchor.strip() + ".t_link"
 
-			offset = offset_of(str_amb_type, anchor)
+			offset = offset_of(str_elm_type, anchor)
 
-		return offset, True
+		return offset, elm_type, True
 
 #
 #==============================================================================
