@@ -90,6 +90,7 @@ void c2_chan_init(struct c2_chan *chan)
 	chan->ch_waiters = 0;
 	C2_ASSERT(c2_chan_invariant(chan));
 }
+C2_EXPORTED(c2_chan_init);
 
 void c2_chan_fini(struct c2_chan *chan)
 {
@@ -106,6 +107,7 @@ void c2_chan_fini(struct c2_chan *chan)
 	c2_mutex_fini(&chan->ch_guard);
 	clink_tlist_fini(&chan->ch_links);
 }
+C2_EXPORTED(c2_chan_fini);
 
 static struct c2_clink *chan_head(struct c2_chan *chan)
 {
@@ -147,17 +149,20 @@ void c2_chan_signal(struct c2_chan *chan)
 {
 	chan_signal_nr(chan, 1);
 }
+C2_EXPORTED(c2_chan_signal);
 
 void c2_chan_broadcast(struct c2_chan *chan)
 {
 	chan_signal_nr(chan, chan->ch_waiters);
 }
+C2_EXPORTED(c2_chan_broadcast);
 
 bool c2_chan_has_waiters(struct c2_chan *chan)
 {
 	C2_ASSERT(c2_chan_invariant(chan));
 	return chan->ch_waiters > 0;
 }
+C2_EXPORTED(c2_chan_has_waiters);
 
 static void clink_init(struct c2_clink *link,
 		       struct c2_clink *group, c2_chan_cb_t cb)
@@ -190,6 +195,7 @@ void c2_clink_attach(struct c2_clink *link,
 
 	clink_init(link, group, cb);
 }
+C2_EXPORTED(c2_clink_attach);
 
 static void clink_lock(struct c2_clink *clink)
 {
@@ -297,6 +303,7 @@ bool c2_chan_timedwait(struct c2_clink *link, const c2_time_t abs_timeout)
 	C2_ASSERT(c2_chan_invariant(link->cl_chan));
 	return result;
 }
+C2_EXPORTED(c2_chan_timedwait);
 
 /** @} end of chan group */
 

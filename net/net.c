@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -29,7 +29,7 @@
 #include "fop/fop_format_def.h"
 
 /**
-   @addtogroup net Networking.
+   @addtogroup net
    @{
  */
 
@@ -63,9 +63,16 @@ static struct c2_fop_type_format *fmts[] = {
 
 int c2_net_init()
 {
+	int rc;
+
 	c2_mutex_init(&c2_net_mutex);
 	c2_addb_ctx_init(&c2_net_addb, &c2_net_addb_ctx, &c2_addb_global_ctx);
-	return c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
+	rc = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
+	if (rc != 0) {
+		c2_addb_ctx_fini(&c2_net_addb);
+		c2_mutex_fini(&c2_net_mutex);
+	}
+	return rc;
 }
 
 void c2_net_fini()

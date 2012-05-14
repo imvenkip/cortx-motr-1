@@ -23,9 +23,12 @@ if [ ! -e "$log" ]; then
 fi
 tailseek=$(( $(stat -c %s "$log") + 1 ))
 
-# currently, kernel UT runs as part of loading kutc2 module
+modprobe_lnet
 modload_galois
+# currently, kernel UT runs as part of loading kutc2 module
 modload
+# LNet driver UT requires a user space helper
+net/lnet/ut/lut_helper
 modunload
 modunload_galois
 

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -163,6 +163,22 @@ struct c2_addb_record_header;
 */
 struct c2_addb_record;
 
+enum {
+	/** addb record size alignment */
+	C2_ADDB_RECORD_LEN_ALIGN = 8,
+};
+
+/**
+   Pack the record header into a buffer.
+
+   @param dp the data point
+   @param header pointer to the header within the buffer
+   @param size total size of the record
+ */
+int c2_addb_record_header_pack(struct c2_addb_dp *dp,
+			       struct c2_addb_record_header *header,
+			       int size);
+
 /**
    Packing this event into a buffer.
 
@@ -202,8 +218,13 @@ enum c2_addb_event_id {
 	C2_ADDB_EVENT_USUNRPC_OPNOTSURPPORT = 0x2ULL,
 	C2_ADDB_EVENT_OOM                   = 0x3ULL,
 	C2_ADDB_EVENT_FUNC_FAIL             = 0x4ULL,
+
 	C2_ADDB_EVENT_NET_SEND              = 0x10ULL,
 	C2_ADDB_EVENT_NET_CALL              = 0x11ULL,
+	C2_ADDB_EVENT_NET_QSTATS            = 0x12ULL,
+	C2_ADDB_EVENT_NET_LNET_OPEN         = 0x13ULL,
+	C2_ADDB_EVENT_NET_LNET_CLOSE        = 0x14ULL,
+	C2_ADDB_EVENT_NET_LNET_CLEANUP      = 0x15ULL,
 
 	C2_ADDB_EVENT_COB_MDEXISTS          = 0x21ULL,
 	C2_ADDB_EVENT_COB_MDDELETE          = 0x22ULL,
@@ -305,11 +326,7 @@ void c2_addb_fini(void);
    C2_ADDB_EV_DEFINE(reqh_dirent_cache,
                      "sendreply",           // human-readable name
                      REQH_ADDB_DIRENT_CACHE,// unique identifier
-		     C2_ADDB_FLAG,          // event type (Boolean: hit or miss)
-		     bool flag              // prototype. Must match the
-                                            // prototype in C2_ADDB_FLAG
-                                            // definition.
-                    );
+		     C2_ADDB_FLAG);         // event type (Boolean: hit or miss)
    @endcode
  */
 
