@@ -86,7 +86,7 @@ frm_sm_to_rpc_machine(struct c2_rpc_frm_sm *frm_sm)
 	return chan->rc_rpc_machine;
 }
 
-static bool frm_is_locked(const struct c2_rpc_frm_sm *frm)
+static bool frm_is_locked(struct c2_rpc_frm_sm *frm)
 {
 	return c2_rpc_machine_is_locked(frm_sm_to_rpc_machine(frm));
 }

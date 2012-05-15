@@ -227,8 +227,8 @@ static int nr_active_items_count(const struct c2_rpc_session *session)
 				       struct c2_rpc_item,
 				       ri_slot_refs[0].sr_link) {
 
-			if (item->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS ||
-			    item->ri_stage == RPC_ITEM_STAGE_FUTURE) {
+			if (C2_IN(item->ri_stage, (RPC_ITEM_STAGE_IN_PROGRESS,
+						   RPC_ITEM_STAGE_FUTURE))) {
 				count++;
 			}
 
@@ -377,9 +377,9 @@ C2_EXPORTED(c2_rpc_session_fini);
 void c2_rpc_session_fini_locked(struct c2_rpc_session *session)
 {
 	C2_ASSERT(c2_rpc_session_invariant(session));
-	C2_PRE(session->s_state == C2_RPC_SESSION_TERMINATED ||
-	       session->s_state == C2_RPC_SESSION_INITIALISED ||
-	       session->s_state == C2_RPC_SESSION_FAILED);
+	C2_PRE(C2_IN(session->s_state, (C2_RPC_SESSION_TERMINATED,
+					C2_RPC_SESSION_INITIALISED,
+					C2_RPC_SESSION_FAILED)));
 
 	c2_rpc_conn_remove_session(session);
 	__session_fini(session);
@@ -453,8 +453,8 @@ int c2_rpc_session_establish_sync(struct c2_rpc_session *session,
 	 * a session in ESTABLISHING state?
 	 */
 	C2_ASSERT(state_reached);
-	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
-		  session->s_state == C2_RPC_SESSION_FAILED);
+	C2_ASSERT(C2_IN(session->s_state, (C2_RPC_SESSION_IDLE,
+					   C2_RPC_SESSION_FAILED)));
 
 	return session->s_state == C2_RPC_SESSION_IDLE ? 0 : session->s_rc;
 }
@@ -535,20 +535,21 @@ C2_EXPORTED(c2_rpc_session_establish);
    Moves session to FAILED state and take it out of conn->c_sessions list.
    Caller is expected to broadcast of session->s_state_changed CV.
 
-   @pre c2_mutex_is_locked(&session->s_mutex) && (
-		 (session->s_state == C2_RPC_SESSION_ESTABLISHING ||
-                  session->s_state == C2_RPC_SESSION_IDLE ||
-                  session->s_state == C2_RPC_SESSION_BUSY ||
-                  session->s_state == C2_RPC_SESSION_TERMINATING)
+   @pre c2_mutex_is_locked(&session->s_mutex)
+   @pre C2_IN(session->s_state, (C2_RPC_SESSION_INITIALISED,
+				 C2_RPC_SESSION_ESTABLISHING,
+				 C2_RPC_SESSION_IDLE,
+				 C2_RPC_SESSION_BUSY,
+				 C2_RPC_SESSION_TERMINATING))
  */
 static void session_failed(struct c2_rpc_session *session, int32_t error)
 {
 	C2_ASSERT(c2_rpc_session_invariant(session));
-	C2_PRE(session->s_state == C2_RPC_SESSION_INITIALISED ||
-	       session->s_state == C2_RPC_SESSION_ESTABLISHING ||
-	       session->s_state == C2_RPC_SESSION_IDLE ||
-	       session->s_state == C2_RPC_SESSION_BUSY ||
-	       session->s_state == C2_RPC_SESSION_TERMINATING);
+	C2_PRE(C2_IN(session->s_state, (C2_RPC_SESSION_INITIALISED,
+					C2_RPC_SESSION_ESTABLISHING,
+					C2_RPC_SESSION_IDLE,
+					C2_RPC_SESSION_BUSY,
+					C2_RPC_SESSION_TERMINATING)));
 
 	session->s_state = C2_RPC_SESSION_FAILED;
 	session->s_rc    = error;
@@ -624,8 +625,8 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *item)
 
 out:
 	C2_ASSERT(c2_rpc_session_invariant(session));
-	C2_POST(session->s_state == C2_RPC_SESSION_IDLE ||
-		session->s_state == C2_RPC_SESSION_FAILED);
+	C2_POST(C2_IN(session->s_state, (C2_RPC_SESSION_IDLE,
+					 C2_RPC_SESSION_FAILED)));
 
 	c2_cond_broadcast(&session->s_state_changed, &machine->rm_mutex);
 
@@ -676,8 +677,8 @@ int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
 		 */
 		C2_ASSERT(state_reached);
 
-		C2_ASSERT(session->s_state == C2_RPC_SESSION_TERMINATED ||
-			  session->s_state == C2_RPC_SESSION_FAILED);
+		C2_ASSERT(C2_IN(session->s_state, (C2_RPC_SESSION_TERMINATED,
+						   C2_RPC_SESSION_FAILED)));
 
 		rc = session->s_state == C2_RPC_SESSION_TERMINATED ? 0
 							     : session->s_rc;
@@ -703,8 +704,8 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	c2_rpc_machine_lock(machine);
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
-	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
-		  session->s_state == C2_RPC_SESSION_TERMINATING);
+	C2_ASSERT(C2_IN(session->s_state, (C2_RPC_SESSION_IDLE,
+					   C2_RPC_SESSION_TERMINATING)));
 
 	if (session->s_state == C2_RPC_SESSION_TERMINATING) {
 		c2_rpc_machine_unlock(machine);
@@ -821,8 +822,8 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *item)
 		session_failed(session, rc);
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
-	C2_ASSERT(session->s_state == C2_RPC_SESSION_TERMINATED ||
-		  session->s_state == C2_RPC_SESSION_FAILED);
+	C2_ASSERT(C2_IN(session->s_state, (C2_RPC_SESSION_TERMINATED,
+					   C2_RPC_SESSION_FAILED)));
 
 	c2_cond_broadcast(&session->s_state_changed, &machine->rm_mutex);
 
@@ -836,8 +837,8 @@ void c2_rpc_session_hold_busy(struct c2_rpc_session *session)
 	machine = session->s_conn->c_rpc_machine;
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 	C2_ASSERT(c2_rpc_session_invariant(session));
-	C2_PRE(session->s_state == C2_RPC_SESSION_IDLE ||
-	       session->s_state == C2_RPC_SESSION_BUSY);
+	C2_PRE(C2_IN(session->s_state, (C2_RPC_SESSION_IDLE,
+					C2_RPC_SESSION_BUSY)));
 
 	++session->s_hold_cnt;
 	if (session->s_state == C2_RPC_SESSION_IDLE) {

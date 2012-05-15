@@ -534,14 +534,10 @@ static void rpc_tm_cleanup(struct c2_rpc_machine *machine)
 
 int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout)
 {
-	bool got_signal;
-
 	C2_PRE(clink != NULL);
 	C2_PRE(c2_clink_is_armed(clink));
 
-	got_signal = c2_chan_timedwait(clink, timeout);
-
-	return got_signal ? 0 : -ETIMEDOUT;
+	return c2_chan_timedwait(clink, timeout) ? 0 : -ETIMEDOUT;
 }
 C2_EXPORTED(c2_rpc_reply_timedwait);
 
