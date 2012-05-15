@@ -165,8 +165,8 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 
 	ok = session0 != NULL &&
 	     c2_rpc_session_invariant(session0) &&
-	     (session0->s_state == C2_RPC_SESSION_IDLE ||
-	      session0->s_state == C2_RPC_SESSION_BUSY);
+	     C2_IN(session0->s_state, (C2_RPC_SESSION_IDLE,
+				       C2_RPC_SESSION_BUSY));
 
 	if (!ok)
 		return false;
@@ -395,9 +395,9 @@ void c2_rpc_conn_fini_locked(struct c2_rpc_conn *conn)
 	C2_PRE(c2_rpc_machine_is_locked(conn->c_rpc_machine));
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
-	C2_PRE(conn->c_state == C2_RPC_CONN_TERMINATED ||
-	       conn->c_state == C2_RPC_CONN_FAILED ||
-	       conn->c_state == C2_RPC_CONN_INITIALISED);
+	C2_PRE(C2_IN(conn->c_state, (C2_RPC_CONN_TERMINATED,
+				     C2_RPC_CONN_FAILED,
+				     C2_RPC_CONN_INITIALISED)));
 
 	c2_list_del(&conn->c_link);
 	session_zero_detach(conn);
@@ -536,8 +536,8 @@ int c2_rpc_conn_establish_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 	 * in ESTABLISHING state.
 	 */
 	C2_ASSERT(state_reached);
-	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE ||
-		  conn->c_state == C2_RPC_CONN_FAILED);
+	C2_ASSERT(C2_IN(conn->c_state, (C2_RPC_CONN_ACTIVE,
+					C2_RPC_CONN_FAILED)));
 
 	return conn->c_state == C2_RPC_CONN_ACTIVE ? 0 : conn->c_rc;
 }
@@ -599,10 +599,10 @@ static void conn_failed(struct c2_rpc_conn *conn, int32_t error)
 	struct c2_rpc_session *session0;
 
 	C2_ASSERT(c2_rpc_machine_is_locked(conn->c_rpc_machine));
-	C2_ASSERT(conn->c_state == C2_RPC_CONN_INITIALISED ||
-		  conn->c_state == C2_RPC_CONN_CONNECTING ||
-		  conn->c_state == C2_RPC_CONN_ACTIVE ||
-		  conn->c_state == C2_RPC_CONN_TERMINATING);
+	C2_ASSERT(C2_IN(conn->c_state, (C2_RPC_CONN_INITIALISED,
+					C2_RPC_CONN_CONNECTING,
+					C2_RPC_CONN_ACTIVE,
+					C2_RPC_CONN_TERMINATING)));
 
 	conn->c_state = C2_RPC_CONN_FAILED;
 	conn->c_rc    = error;
@@ -663,8 +663,8 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *item)
 
 out:
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
-	C2_ASSERT(conn->c_state == C2_RPC_CONN_FAILED ||
-		  conn->c_state == C2_RPC_CONN_ACTIVE);
+	C2_ASSERT(C2_IN(conn->c_state, (C2_RPC_CONN_FAILED,
+					C2_RPC_CONN_ACTIVE)));
 	c2_cond_broadcast(&conn->c_state_changed, &machine->rm_mutex);
 }
 
@@ -699,8 +699,8 @@ int c2_rpc_conn_terminate_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 	 * in TERMINATING state.
 	 */
 	C2_ASSERT(state_reached);
-	C2_ASSERT(conn->c_state == C2_RPC_CONN_TERMINATED ||
-		  conn->c_state == C2_RPC_CONN_FAILED);
+	C2_ASSERT(C2_IN(conn->c_state, (C2_RPC_CONN_TERMINATED,
+					C2_RPC_CONN_FAILED)));
 
 	return conn->c_state == C2_RPC_CONN_TERMINATED ? 0 : conn->c_rc;
 }
@@ -722,8 +722,8 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	machine = conn->c_rpc_machine;
 	c2_rpc_machine_lock(machine);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
-	C2_PRE(conn->c_state == C2_RPC_CONN_ACTIVE ||
-	       conn->c_state == C2_RPC_CONN_TERMINATING);
+	C2_PRE(C2_IN(conn->c_state, (C2_RPC_CONN_ACTIVE,
+				     C2_RPC_CONN_TERMINATING)));
 	C2_PRE(conn->c_nr_sessions == 1);
 	if (fop == NULL) {
 		/* see note [^1] at the end of function */

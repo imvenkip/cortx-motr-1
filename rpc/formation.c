@@ -28,6 +28,7 @@
 #include "lib/memory.h"
 #include "lib/cdefs.h"
 #include "lib/trace.h"
+#include "lib/misc.h"
 
 #include "rpc/rpc_onwire.h"
 
@@ -732,8 +733,8 @@ static void frm_item_add(struct c2_rpc_frm_sm *frm_sm,
 		/* Add the item to list of unbound items in its session. */
 		session = item->ri_session;
 		C2_ASSERT(c2_rpc_session_invariant(session));
-		C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
-			  session->s_state == C2_RPC_SESSION_BUSY);
+		C2_ASSERT(C2_IN(session->s_state, (C2_RPC_SESSION_IDLE,
+						   C2_RPC_SESSION_BUSY)));
 
 		c2_list_add(&session->s_unbound_items, &item->ri_unbound_link);
 		if (session->s_state == C2_RPC_SESSION_IDLE) {

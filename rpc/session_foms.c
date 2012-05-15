@@ -540,8 +540,8 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 		fom->fo_phase = C2_FOPH_FINISH;
 		return C2_FSO_WAIT;
 	} else {
-		C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE ||
-			  conn->c_state == C2_RPC_CONN_TERMINATING);
+		C2_ASSERT(C2_IN(conn->c_state, (C2_RPC_CONN_ACTIVE,
+						C2_RPC_CONN_TERMINATING)));
 
 		c2_rpc_machine_unlock(machine);
 

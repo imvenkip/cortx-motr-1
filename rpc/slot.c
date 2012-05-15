@@ -99,8 +99,9 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 			item1 = item2;
 			continue;
 		}
-		ok = ergo(item2->ri_stage == RPC_ITEM_STAGE_PAST_VOLATILE ||
-			  item2->ri_stage == RPC_ITEM_STAGE_PAST_COMMITTED,
+		ok = ergo(C2_IN(item2->ri_stage,
+				(RPC_ITEM_STAGE_PAST_VOLATILE,
+				 RPC_ITEM_STAGE_PAST_COMMITTED)),
 			  item2->ri_reply != NULL);
 		if (!ok)
 			return false;
@@ -670,9 +671,9 @@ void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
 		if (c2_verno_cmp(&item->ri_slot_refs[0].sr_verno,
 				&last_persistent) <= 0) {
 
-			C2_ASSERT(
-			   item->ri_stage == RPC_ITEM_STAGE_PAST_COMMITTED ||
-			   item->ri_stage == RPC_ITEM_STAGE_PAST_VOLATILE);
+			C2_ASSERT(C2_IN(item->ri_stage,
+					(RPC_ITEM_STAGE_PAST_COMMITTED,
+					 RPC_ITEM_STAGE_PAST_VOLATILE)));
 
 			item->ri_stage = RPC_ITEM_STAGE_PAST_COMMITTED;
 			slot->sl_last_persistent = item;
@@ -938,8 +939,9 @@ int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active, int 
 			continue;
 		}
 		if (ergo(only_active,
-			 item->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS ||
-			 item->ri_stage == RPC_ITEM_STAGE_FUTURE)) {
+			 C2_IN(item->ri_stage,
+			       (RPC_ITEM_STAGE_IN_PROGRESS,
+				RPC_ITEM_STAGE_FUTURE)))) {
 
 			printf("%d: item %p <%u, %lu>  state %s\n",
 					++count,
