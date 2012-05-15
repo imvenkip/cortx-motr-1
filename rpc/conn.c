@@ -304,8 +304,6 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	struct c2_rpc_session *session;
 	int                    rc;
 
-	enum {NR_SLOTS = 1};
-
 	C2_ASSERT(conn != NULL &&
 		  c2_rpc_machine_is_locked(conn->c_rpc_machine));
 
@@ -313,7 +311,7 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	if (session == NULL)
 		return -ENOMEM;
 
-	rc = c2_rpc_session_init_locked(session, conn, NR_SLOTS);
+	rc = c2_rpc_session_init_locked(session, conn, 1 /* NR_SLOTS */);
 	if (rc != 0) {
 		c2_free(session);
 		return rc;
@@ -724,6 +722,8 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 
 	c2_rpc_machine_lock(machine);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
+	C2_PRE(conn->c_state == C2_RPC_CONN_ACTIVE ||
+	       conn->c_state == C2_RPC_CONN_TERMINATING);
 
 	if (conn->c_state == C2_RPC_CONN_TERMINATING) {
 		c2_rpc_machine_unlock(machine);
