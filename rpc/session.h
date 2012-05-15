@@ -916,7 +916,9 @@ struct c2_rpc_session {
 	 */
 	int32_t                   s_rc;
 
-	uint32_t                  s_activity_counter;
+	/** if > 0, then session is in BUSY state */
+	uint32_t                  s_hold_cnt;
+
 	/** A condition variable on which broadcast is sent whenever state of
 	    session is changed. Associated with s_mutex
 	 */
@@ -1022,28 +1024,26 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session *session,
 
 /**
    Holds a session in BUSY state.
-
-   Increments "pending activities" counter and moves session to
-   BUSY state if it isn't already.
+   Every call to c2_rpc_session_hold_busy() must accompany
+   call to c2_rpc_session_release()
 
    @pre session->s_state == C2_RPC_SESSION_IDLE ||
 	session->s_state == C2_RPC_SESSION_BUSY
    @pre c2_rpc_machine_is_locked(session->s_conn->c_rpc_machine)
    @post session->s_state == C2_RPC_SESSION_BUSY
  */
-void c2_rpc_session_starting_activity(struct c2_rpc_session *session);
+void c2_rpc_session_hold_busy(struct c2_rpc_session *session);
 
 /**
-   Decrements "pending activity" counter. If session is idle then
-   moves session to IDLE state.
+   Decrements hold count. Moves session to IDLE state if it becomes idle.
 
    @pre session->s_state == C2_RPC_SESSION_BUSY
-   @pre session->s_activity_counter > 0
+   @pre session->s_hold_cnt > 0
    @pre c2_rpc_machine_is_locked(session->s_conn->c_rpc_machine)
    @post ergo(c2_rpc_session_is_idle(session),
 	      session->s_state == C2_RPC_SESSION_IDLE)
  */
-void c2_rpc_session_ending_activity(struct c2_rpc_session *session);
+void c2_rpc_session_release(struct c2_rpc_session *session);
 
 /**
    Finalises session object

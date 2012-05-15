@@ -373,7 +373,6 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 	struct c2_rpc_item		*item_next;
 	struct c2_rpc_frm_sm		*frm_sm;
 	struct c2_rpc_machine           *machine;
-	struct c2_rpc_session           *session;
 
 	C2_PRE(ev != NULL &&
 	       ev->nbe_buffer != NULL &&
@@ -416,10 +415,8 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 			struct c2_rpc_item, ri_rpcobject_linkage) {
 
 		c2_list_del(&item->ri_rpcobject_linkage);
-		session = item->ri_session;
-		/* s_activity_counter was incremented when the item was
-		   added to rpc */
-		c2_rpc_session_ending_activity(session);
+		/* session was held BUSY when the item was added to rpc */
+		c2_rpc_session_release(item->ri_session);
 	}
 
 	c2_rpcobj_fbuf_fini(fb);
@@ -954,9 +951,9 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 			frm_add_to_rpc(frm_sm, rpcobj, item, rpcobj_size);
 
 			session = item->ri_session;
-			/* s_activity_counter will be decremented in
+			/* The hold on session will be released in
 			   frm_net_buffer_sent() callback */
-			c2_rpc_session_starting_activity(session);
+			c2_rpc_session_hold_busy(session);
 		}
 	}
 
@@ -1037,11 +1034,11 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 			io_coalesce(item, frm_sm, rpc_size);
 			frm_add_to_rpc(frm_sm, rpcobj, item, rpcobj_size);
 
-			/* s_activity_counter will be decremented when
+			/* The hold on session will be released when
 			   buffer sent callback is generated for the buffer
 			   that carries this rpc. See frm_net_buffer_sent()
 			 */
-			c2_rpc_session_starting_activity(session);
+			c2_rpc_session_hold_busy(session);
 		}
 	}
 

@@ -857,7 +857,7 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
 		if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
 			item->ri_ops->rio_replied(item);
 	} else {
-		c2_rpc_session_starting_activity(session);
+		c2_rpc_session_hold_busy(session);
 		c2_rpc_machine_unlock(machine);
 
 		if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
@@ -865,7 +865,7 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
 		c2_chan_broadcast(&item->ri_chan);
 
 		c2_rpc_machine_lock(machine);
-		c2_rpc_session_ending_activity(session);
+		c2_rpc_session_release(session);
 	}
 }
 
