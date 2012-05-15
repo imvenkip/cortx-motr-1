@@ -591,14 +591,17 @@ static int test_lnet_fini(void)
 	return 0;
 }
 
+static void ntc_event_callback(const struct c2_net_tm_event *ev)
+{
+}
+
 static void test_tm_initfini(void)
 {
 	static struct c2_net_domain dom1 = {
 		.nd_xprt = NULL
 	};
 	const struct c2_net_tm_callbacks cbs1 = {
-		.ntc_event_cb = LAMBDA(void,(const struct c2_net_tm_event *ev) {
-				       }),
+		.ntc_event_cb = ntc_event_callback
 	};
 	struct c2_net_transfer_mc d1tm1 = {
 		.ntm_callbacks = &cbs1,
