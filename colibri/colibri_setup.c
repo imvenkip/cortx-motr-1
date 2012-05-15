@@ -397,26 +397,41 @@ static int cs_endpoint_validate(struct c2_colibri *cctx, const char *ep,
    colibri endpoint.
    Colibri endpoint is of 2 parts network xprt:network endpoint.
  */
-static int ep_and_xprt_get(struct cs_endpoint_and_xprt *ep_xprt, const char *ep)
+static int ep_and_xprt_get(struct cs_reqh_context *rctx, const char *ep,
+					struct cs_endpoint_and_xprt **ep_xprt)
 {
+	int   rc = 0;
 	char *sptr;
+	struct cs_endpoint_and_xprt *epx;
 
-	C2_PRE(ep_xprt != NULL && ep != NULL);
+	C2_PRE(ep != NULL);
 
-	C2_ALLOC_ARR(ep_xprt->ex_scrbuf, strlen(ep) + 1);
-	strcpy(ep_xprt->ex_scrbuf, ep);
-	ep_xprt->ex_xprt = strtok_r(ep_xprt->ex_scrbuf, ":", &sptr);
-	if (ep_xprt->ex_xprt == NULL)
-		return -EINVAL;
+	C2_ALLOC_PTR(epx);
+	C2_ALLOC_ARR(epx->ex_scrbuf, strlen(ep) + 1);
+	strcpy(epx->ex_scrbuf, ep);
+	epx->ex_xprt = strtok_r(epx->ex_scrbuf, ":", &sptr);
+	if (epx->ex_xprt == NULL)
+		rc = -EINVAL;
 
-	ep_xprt->ex_endpoint = strtok_r(NULL , "\0", &sptr);
-	if (ep_xprt->ex_endpoint == NULL)
-		return -EINVAL;
+	if (rc == 0) {
+		epx->ex_endpoint = strtok_r(NULL , "\0", &sptr);
+		if (epx->ex_endpoint == NULL)
+			rc = -EINVAL;
+		else {
+			cs_eps_tlink_init(epx);
+			cs_endpoint_and_xprt_bob_init(epx);
+			cs_eps_tlist_add_tail(&rctx->rc_eps, epx);
+			*ep_xprt = epx;
+		}
+	}
 
-	cs_eps_tlink_init(ep_xprt);
-	cs_endpoint_and_xprt_bob_init(ep_xprt);
+	if (rc != 0) {
+		c2_free(epx->ex_scrbuf);
+		c2_free(epx);
+		*ep_xprt = NULL;
+	}
 
-	return 0;
+	return rc;
 }
 
 /**
@@ -1617,102 +1632,106 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
  */
 static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
 {
-        int                     i;
-        int                     rc = 0;
-        struct cs_reqh_context *rctx = NULL;
-        FILE                   *ofd;
+	int                     rc = 0;
+	int                     result;
+	struct cs_reqh_context *rctx = NULL;
+	FILE                   *ofd;
 
-        C2_PRE(cctx != NULL);
-        C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
+	C2_PRE(cctx != NULL);
+	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
 
-        if (argc <= 1)
-                return -EINVAL;;
+	if (argc <= 1)
+		return -EINVAL;;
 
-        ofd = cctx->cc_outfile;
-        for (i = 1; i < argc; ++i) {
-                if (argv[i][0] == '-' && strlen(argv[i]) == CS_OPTLENGTH) {
-                        switch(argv[i][1]) {
-                        case 'h':
-                                cs_help(ofd);
-                                rc = 1;
-                                break;
-                        case 'x':
-                                cs_xprts_list(ofd, cctx->cc_xprts,
-                                                cctx->cc_xprts_nr);
-                                rc = 1;
-                                break;
-                        case 'l':
-                                cs_services_list(ofd);
-                                rc = 1;
-                                break;
-                        case 'r':
-                                rctx = NULL;
-                                rctx = cs_reqh_ctx_alloc(cctx);
-                                if (rctx == NULL) {
-                                        rc = -ENOMEM;
-                                        break;
-                                }
-                                rctx->rc_snr = 0;
-                                break;
-                        case 'T':
-                                if (rctx == NULL) {
-                                        rc = -EINVAL;
-                                        break;
-                                }
-                                rctx->rc_stype = argv[++i];
-                                break;
-                        case 'D':
-                                if (rctx == NULL) {
-                                        rc = -EINVAL;
-                                        break;
-                                }
-                                rctx->rc_dbpath = argv[++i];
-                                break;
-                        case 'S':
-                                if (rctx == NULL) {
-                                        rc = -EINVAL;
-                                        break;
-                                }
-                                rctx->rc_stpath = argv[++i];
-                                break;
-                        case 'e':
-                        {
-                                struct cs_endpoint_and_xprt *ep_xprt;
-                                if (rctx == NULL) {
-                                        rc = -EINVAL;
-                                        break;
-                                }
-                                C2_ALLOC_PTR(ep_xprt);
-                                rc = ep_and_xprt_get(ep_xprt, argv[++i]);
-                                if (rc != 0) {
-                                        c2_free(ep_xprt);
-                                        break;
-                                }
-                                cs_eps_tlist_add_tail(&rctx->rc_eps, ep_xprt);
-                                break;
-                        }
-                        case 's':
-                                if (rctx == NULL) {
-                                        rc = -EINVAL;
-                                        break;
-                                }
-                                if (rctx->rc_snr == rctx->rc_max_services) {
-                                        fprintf(ofd, "Too many services\n");
-                                        rc = -E2BIG;
-                                        break;
-                                }
-                                rctx->rc_services[rctx->rc_snr] = argv[++i];
-                                C2_CNT_INC(rctx->rc_snr);
-                                break;
-                        default:
-                                rc = -EINVAL;
-                                break;
-                        }
-                }
-        }
+	ofd = cctx->cc_outfile;
+	result = C2_GETOPTS("colibri_setup", argc, argv,
+			C2_VOIDARG('h', "Colibri_setup usage help",
+				LAMBDA(void, (void)
+				{
+					cs_help(ofd);
+					rc = 1;
+				})),
+			C2_VOIDARG('x', "List Supported transports",
+				LAMBDA(void, (void)
+				{
+					cs_xprts_list(ofd, cctx->cc_xprts,
+							cctx->cc_xprts_nr);
+					rc = 1;
+				})),
+			C2_VOIDARG('l', "List Supported services",
+				LAMBDA(void, (void)
+				{
+					cs_services_list(ofd);
+					rc = 1;
+				})),
+			C2_VOIDARG('r', "Start request handler",
+				LAMBDA(void, (void)
+				{
+					rctx = NULL;
+					rctx = cs_reqh_ctx_alloc(cctx);
+					if (rctx == NULL) {
+						rc = -ENOMEM;
+						return;
+					}
+					rctx->rc_snr = 0;
+				})),
+			C2_STRINGARG('T', "Storage domain type",
+				LAMBDA(void, (const char *str)
+				{
+					if (rctx == NULL) {
+						rc = -EINVAL;
+						return;
+					}
+					rctx->rc_stype = str;
+				})),
+			C2_STRINGARG('D', "Database environment path",
+				LAMBDA(void, (const char *str)
+				{
+					if (rctx == NULL) {
+						rc = -EINVAL;
+						return;
+					}
+					rctx->rc_dbpath = str;
+				})),
+			C2_STRINGARG('S', "Storage name",
+				LAMBDA(void, (const char *str)
+				{
+					if (rctx == NULL) {
+						rc = -EINVAL;
+						return;
+					}
+					rctx->rc_stpath = str;
+				})),
+			C2_STRINGARG('e',
+					"Network endpoint, eg:- xport:address",
+				LAMBDA(void, (const char *str)
+				{
+					struct cs_endpoint_and_xprt *ep_xprt;
+					if (rctx == NULL) {
+						rc = -EINVAL;
+						return;
+					}
+					rc = ep_and_xprt_get(rctx, str,
+								&ep_xprt);
+				})),
+			C2_STRINGARG('s', "Services to be configured",
+				LAMBDA(void, (const char *str)
+				{
+					if (rctx == NULL) {
+						rc = -EINVAL;
+						return;
+					}
+					if (rctx->rc_snr >=
+						rctx->rc_max_services) {
+						fprintf(ofd, "Too many services\n");
+						rc = -E2BIG;
+						return;
+					}
+					rctx->rc_services[rctx->rc_snr] = str;
+					C2_CNT_INC(rctx->rc_snr);
+				})));
 
-        return rc == 0 && rhctx_tlist_is_empty(&cctx->cc_reqh_ctxs) ? -EINVAL :
-                rc;
+        return result != 0 ? result : rc;
 }
 
 int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
