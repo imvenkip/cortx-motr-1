@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -128,9 +128,11 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 	C2_PRE(segs_nr != 0 && seg_size != 0 && bufs_nr != 0);
 
 	app_pool->nbp_ops = &b_ops;
-	c2_net_buffer_pool_init(app_pool, ndom, C2_NET_BUFFER_POOL_THRESHOLD,
-				segs_nr, seg_size, tm_nr, shift);
+	rc = c2_net_buffer_pool_init(app_pool, ndom,
+				     C2_NET_BUFFER_POOL_THRESHOLD,
+				     segs_nr, seg_size, tm_nr, shift);
 	c2_net_buffer_pool_lock(app_pool);
+	C2_ASSERT(rc == 0);
 	rc = c2_net_buffer_pool_provision(app_pool, bufs_nr);
 	c2_net_buffer_pool_unlock(app_pool);
 	return rc != bufs_nr ? -ENOMEM : 0 ;
@@ -142,7 +144,6 @@ void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool)
 	C2_PRE(app_pool != NULL);
 
 	c2_net_buffer_pool_fini(app_pool);
-	c2_free(app_pool);
 }
 C2_EXPORTED(c2_rpc_net_buffer_pool_cleanup);
 
@@ -183,7 +184,7 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 			c2_net_domain_get_max_buffer_size(ndom) /
 			rpc_machine->rm_min_recv_size;
 
-	rpc_machine->rm_tm_colour		 = 0;
+	rpc_machine->rm_tm_colour		 = C2_NET_BUFFER_POOL_ANY_COLOR;
 	rpc_machine->rm_tm_recv_queue_min_length =
 			cctx->rcx_recv_queue_min_length;
 

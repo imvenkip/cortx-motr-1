@@ -257,9 +257,10 @@ static void test_net_tm_prov(void)
 	C2_UT_ASSERT(buf_segs == UT_MAX_BUF_SEGMENTS);
 
 	/* allocate buffers for testing */
-	c2_net_buffer_pool_init(pool_prov, dom, POOL_THRESHOLD, buf_segs,
+	rc = c2_net_buffer_pool_init(pool_prov, dom, POOL_THRESHOLD, buf_segs,
 				buf_seg_size, POOL_COLOURS, shift);
 	c2_net_buffer_pool_lock(pool_prov);
+	C2_UT_ASSERT(rc == 0);
 	rc = c2_net_buffer_pool_provision(pool_prov, POOL_BUF_NR);
 	c2_net_buffer_pool_unlock(pool_prov);
 	C2_UT_ASSERT(rc == POOL_BUF_NR);

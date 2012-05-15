@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -204,10 +204,18 @@ struct cs_reqh_context {
 	/** Backlink to struct c2_colibri. */
 	struct c2_colibri	    *rc_colibri;
 
-	/** Minimum number of buffers in TM receive queue. */
+	/**
+	 * Minimum number of buffers in TM receive queue.
+	 * Default is set to c2_colibri::cc_recv_queue_min_length
+	 */
 	uint32_t		     rc_recv_queue_min_length;
 
-	/** Maximum RPC message size. */
+	/**
+	 * Maximum RPC message size.
+	 * Default value is set to c2_colibri::cc_max_rpc_msg_size
+	 * If value of cc_max_rpc_msg_size is zero then value from
+	 * c2_net_domain_get_max_buffer_size() is used.
+	 */
 	uint32_t		     rc_max_rpc_msg_size;
 };
 
@@ -250,10 +258,11 @@ static int cobfid_map_setup_init(struct c2_colibri *cc, const char *name);
 
 static void cobfid_map_setup_fini(struct c2_ref *ref);
 
-static uint32_t cs_domain_tm_nr(struct c2_colibri *cctx,
+static uint32_t cs_domain_tms_nr(struct c2_colibri *cctx,
 				struct c2_net_domain *dom);
 
-static uint32_t cs_max_bufs_nr(struct c2_colibri *cctx);
+static uint32_t cs_dom_tm_min_recv_queue_total(struct c2_colibri *cctx,
+					       struct c2_net_domain *dom);
 
 /**
    Looks up an xprt by the name.
@@ -753,13 +762,6 @@ static int cs_rpc_machines_init(struct c2_colibri *cctx)
 		C2_ASSERT(cs_reqh_context_bob_check(rctx));
 		C2_ASSERT(cs_reqh_context_invariant(rctx));
 
-		if (rctx->rc_recv_queue_min_length == 0)
-			rctx->rc_recv_queue_min_length =
-				cctx->cc_recv_queue_min_length;
-		if (rctx->rc_max_rpc_msg_size == 0)
-			rctx->rc_max_rpc_msg_size =
-				cctx->cc_max_rpc_msg_size;
-
 		c2_tlist_for(&cs_eps_tl, &rctx->rc_eps, ep) {
 			C2_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
 			rc = cs_rpc_machine_init(cctx, ep->ex_xprt,
@@ -820,16 +822,17 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
         if(!ndom_tlist_is_empty(&cctx->cc_ndoms))
 		rc = -EINVAL;
 
-	if (cctx->cc_recv_queue_min_length == 0)
+	if (cctx->cc_recv_queue_min_length < C2_NET_TM_RECV_QUEUE_DEF_LEN)
 		cctx->cc_recv_queue_min_length = C2_NET_TM_RECV_QUEUE_DEF_LEN;
-	max_recv_queue_len = cs_max_bufs_nr(cctx);
 
 	c2_tlist_for(&ndom_tl, &cctx->cc_ndoms, ndom) {
 
-		tms_nr  = cs_domain_tm_nr(cctx, ndom);
-		bufs_nr = tms_nr * (max_recv_queue_len + 1);
-		segs_nr  = c2_net_domain_get_max_buffer_size(ndom) /
-			   C2_RPC_SEG_SIZE;
+		max_recv_queue_len = cs_dom_tm_min_recv_queue_total(cctx, ndom);
+		tms_nr		   = cs_domain_tms_nr(cctx, ndom);
+		bufs_nr 	   = max_recv_queue_len + max32u(tms_nr / 4, 1);
+		segs_nr		   = c2_net_domain_get_max_buffer_size(ndom) /
+				     C2_RPC_SEG_SIZE;
+
 		C2_ALLOC_PTR(cs_bp);
 		if (cs_bp == NULL)
 			return -ENOMEM;
@@ -1669,13 +1672,14 @@ static void cs_help(FILE *out)
 		   "(If not set overrided by global value)]\n"
 		   "[-m Maximum RPC message size.\n"
 		   "(If not set overrided by global value)]\n"
-
+		   "(Should not be greater than XprtMaxBufferSize)\n"
+		   "\n"
 		   "   e.g. ./colibri_setup -Q 4 -M 4096 -r -T linux -D dbpath\n"
 		   "	    -S stobfile -e xport:127.0.0.1:1024:1 -s mds\n"
 		   "	    -q 8 -m 65536 \n");
 }
 
-static uint32_t cs_domain_tm_nr(struct c2_colibri *cctx,
+static uint32_t cs_domain_tms_nr(struct c2_colibri *cctx,
 				struct c2_net_domain *dom)
 {
 	struct cs_reqh_context      *rctx;
@@ -1696,10 +1700,12 @@ static uint32_t cs_domain_tm_nr(struct c2_colibri *cctx,
 	return cnt;
 }
 
-static uint32_t cs_max_bufs_nr(struct c2_colibri *cctx)
+static uint32_t cs_dom_tm_min_recv_queue_total(struct c2_colibri *cctx,
+					       struct c2_net_domain *dom)
 {
-	struct cs_reqh_context *rctx;
-	uint32_t		max_queue_len = 0;
+	struct cs_reqh_context	    *rctx;
+	struct cs_endpoint_and_xprt *ep;
+	uint32_t		     min_queue_len_total = 0;
 
 	C2_PRE(cctx != NULL);
 	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
@@ -1707,11 +1713,16 @@ static uint32_t cs_max_bufs_nr(struct c2_colibri *cctx)
 
 	c2_tlist_for(&rhctx_tl, &cctx->cc_reqh_ctxs, rctx) {
 		C2_ASSERT(cs_reqh_context_bob_check(rctx));
-		max_queue_len = max32u(max_queue_len,
-				       rctx->rc_recv_queue_min_length);
+		C2_ASSERT(!cs_eps_tlist_is_empty(&rctx->rc_eps));
+		c2_tlist_for(&cs_eps_tl, &rctx->rc_eps, ep) {
+			if(strcmp(ep->ex_xprt, dom->nd_xprt->nx_name) == 0)
+				min_queue_len_total =
+					rctx->rc_recv_queue_min_length;
+		} c2_tl_endfor;
 	} c2_tl_endfor;
-	return max32u(max_queue_len, cctx->cc_recv_queue_min_length);
+	return min_queue_len_total;
 }
+
 static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
 {
 	int                          rc;
@@ -1733,6 +1744,14 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
 			cs_usage(ofd);
                         return -EINVAL;
                 }
+
+		if (rctx->rc_recv_queue_min_length == 0)
+			rctx->rc_recv_queue_min_length =
+				cctx->cc_recv_queue_min_length;
+
+		if (rctx->rc_max_rpc_msg_size == 0)
+			rctx->rc_max_rpc_msg_size =
+				cctx->cc_max_rpc_msg_size;
 
 		if (!stype_is_valid(rctx->rc_stype)) {
                         fprintf(ofd, "COLIBRI: Invalid storage type\n");

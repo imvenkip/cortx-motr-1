@@ -230,14 +230,6 @@ void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
  */
 bool c2_net_buffer_pool_prune(struct c2_net_buffer_pool *pool);
 
-/**
-   Adds additional colours dynamically to the pool.
-   @param colours Number of TM's in the domain
-   @pre c2_net_buffer_pool_is_locked(pool)
- */
-void c2_net_buffer_pool_colours_add(struct c2_net_buffer_pool *pool,
-				    uint32_t colours);
-
 /** Buffer pool. */
 struct c2_net_buffer_pool {
 	/** Number of free buffers in the pool. */

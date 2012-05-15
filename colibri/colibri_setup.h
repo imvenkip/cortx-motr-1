@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -267,10 +267,11 @@ struct c2_colibri {
 	/**
 	 * Minimum number of buffers in TM receive queue.
 	 * @see c2_net_transfer_mc:ntm_recv_queue_length
+	 * Default is set to C2_NET_TM_RECV_QUEUE_DEF_LEN.
 	 */
         uint32_t		  cc_recv_queue_min_length;
 
-	/** Maximum RPC recive message size. */
+	/** Maximum RPC receive message size. */
 	uint32_t		  cc_max_rpc_msg_size;
 };
 

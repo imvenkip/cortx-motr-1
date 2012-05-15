@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -733,7 +733,7 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 			struct c2_net_domain      *net_dom,
 			const char                *ep_addr,
 			struct c2_reqh            *reqh,
-			struct c2_net_buffer_pool *app_pool)
+			struct c2_net_buffer_pool *receive_pool)
 {
 	int		rc;
 	struct c2_db_tx tx;
@@ -742,7 +742,7 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 	C2_PRE(machine  != NULL);
 	C2_PRE(ep_addr  != NULL);
 	C2_PRE(net_dom  != NULL);
-	C2_PRE(app_pool != NULL);
+	C2_PRE(receive_pool != NULL);
 
 	c2_db_tx_init(&tx, dom->cd_dbenv, 0);
 #ifndef __KERNEL__
@@ -756,7 +756,13 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 	c2_mutex_init(&machine->rm_chan_mutex);
 	c2_list_init(&machine->rm_chans);
 
-	machine->rm_buffer_pool = app_pool;
+	machine->rm_buffer_pool = receive_pool;
+	if (machine->rm_min_recv_size == 0)
+		machine->rm_min_recv_size =
+			c2_net_domain_get_max_buffer_size(net_dom);
+	if (machine->rm_max_recv_msgs == 0)
+		machine->rm_max_recv_msgs = 1;
+
 	rc = rpc_tm_setup(machine, net_dom, ep_addr);
 	if (rc < 0)
 		goto cleanup;

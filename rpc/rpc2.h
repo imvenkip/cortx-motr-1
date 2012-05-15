@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -58,7 +58,7 @@
    // and executed as a part of c2_init().
 
    // create rpc machine.
-   ret = c2_rpc_machine_init(&mach, cob_domain, net_domain, ep_addr, app_pool);
+   ret = c2_rpc_machine_init(&mach, cob_domain, net_domain, ep_addr, recv_pool);
    // create/get update stream used for interaction between endpoints
    ret = c2_rpc_update_stream_get(&mach, &srvid,
 	C2_UPDATE_STREAM_SHARED_SLOT, &us_ops, &update_stream);
@@ -540,16 +540,26 @@ struct c2_rpc_machine {
 	/** Buffer pool from which TM receive buffers are provisioned. */
 	struct c2_net_buffer_pool	 *rm_buffer_pool;
 
-	/** @see c2_net_transfer_mc:ntm_recv_queue_length */
+	/** @see c2_net_transfer_mc:ntm_recv_queue_length
+	 *  The default value is C2_NET_TM_RECV_QUEUE_DEF_LEN
+	 */
 	uint32_t			  rm_tm_recv_queue_min_length;
 
-	/** @see c2_net_transfer_mc:ntm_recv_queue_min_recv_size */
+	/**
+	 * @see c2_net_transfer_mc:ntm_recv_queue_min_recv_size
+	 * The default value is c2_net_domain_get_max_buffer_size()
+	 */
 	uint32_t			  rm_min_recv_size;
 
-	/** @see c2_net_transfer_mc:ntm_recv_queue_max_recv_msgs */
+	/**
+	 * @see c2_net_transfer_mc:ntm_recv_queue_max_recv_msgs
+	 * The default value is 1.
+	 */
 	uint32_t			  rm_max_recv_msgs;
 
-	/** @see c2_net_transfer_mc:ntm_pool_colour */
+	/** @see c2_net_transfer_mc:ntm_pool_colour
+	 * The default value is C2_NET_BUFFER_POOL_ANY_COLOR
+	 */
 	uint32_t			  rm_tm_colour;
 
 };
@@ -573,7 +583,7 @@ void c2_rpc_core_fini(void);
    @param dom cob domain that contains cobs representing slots
    @param net_dom Network domain, this rpc_machine is associated with.
    @param ep_addr Source end point address to associate with the transfer mc.
-   @param app_pool Buffer pool to be attached to TM for provisioning it.
+   @param receive_pool Buffer pool to be attached to TM for provisioning it.
    @pre c2_rpc_core_init().
  */
 int  c2_rpc_machine_init(struct c2_rpc_machine	   *machine,
@@ -581,7 +591,7 @@ int  c2_rpc_machine_init(struct c2_rpc_machine	   *machine,
 			 struct c2_net_domain	   *net_dom,
 			 const char		   *ep_addr,
 			 struct c2_reqh            *reqh,
-			 struct c2_net_buffer_pool *app_pool);
+			 struct c2_net_buffer_pool *receive_pool);
 
 /**
    Destruct rpc_machine
