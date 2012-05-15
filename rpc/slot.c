@@ -629,20 +629,19 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		session->s_nr_active_items--;
 		slot_balance(slot);
 
+		if (c2_rpc_session_is_idle(session)) {
+			session->s_state = C2_RPC_SESSION_IDLE;
+			c2_cond_broadcast(&session->s_state_changed,
+					  &machine->rm_mutex);
+		}
+		C2_ASSERT(c2_rpc_session_invariant(session));
+
 		/*
 		 * On receiver, ->so_reply_consume(req, reply) will hand over
 		 * @reply to formation, to send it back to sender.
 		 * see: rcv_reply_consume(), snd_reply_consume()
 		 */
 		slot->sl_ops->so_reply_consume(req, reply);
-
-		if (c2_rpc_session_is_idle(session)) {
-
-			session->s_state = C2_RPC_SESSION_IDLE;
-			c2_cond_broadcast(&session->s_state_changed,
-					  &machine->rm_mutex);
-		}
-		C2_ASSERT(c2_rpc_session_invariant(session));
 	}
 }
 
@@ -837,6 +836,10 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 	return 0;
 }
 
+/**
+ * @TODO XXX ->replied() callback should be triggered
+ * iff item is in WAITING_FOR_REPLY state.
+ */
 void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
                       uint32_t rc)
 {
@@ -848,45 +851,21 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
 
 	session = item->ri_slot_refs[0].sr_slot->sl_session;
 	machine = session->s_conn->c_rpc_machine;
+	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 
 	if (c2_rpc_item_is_control_msg(item)) {
-
-		if (item->ri_ops != NULL &&
-		    item->ri_ops->rio_replied != NULL)
+		if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
 			item->ri_ops->rio_replied(item);
-
 	} else {
-
-		C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
-			  session->s_state == C2_RPC_SESSION_BUSY);
-
-		++session->s_activity_counter;
-
-		if (session->s_state == C2_RPC_SESSION_IDLE) {
-			session->s_state = C2_RPC_SESSION_BUSY;
-			c2_cond_broadcast(&session->s_state_changed,
-					  &machine->rm_mutex);
-		}
+		c2_rpc_session_starting_activity(session);
 		c2_rpc_machine_unlock(machine);
 
-		/*
-		 * @TODO XXX ->replied() callback should be triggered
-		 * iff item is in WAITING_FOR_REPLY state.
-		 */
-		if (item->ri_ops != NULL &&
-		    item->ri_ops->rio_replied != NULL)
+		if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
 			item->ri_ops->rio_replied(item);
-
 		c2_chan_broadcast(&item->ri_chan);
 
 		c2_rpc_machine_lock(machine);
-
-		--session->s_activity_counter;
-		if (c2_rpc_session_is_idle(session)) {
-			session->s_state = C2_RPC_SESSION_IDLE;
-			c2_cond_broadcast(&session->s_state_changed,
-					  &machine->rm_mutex);
-		}
+		c2_rpc_session_ending_activity(session);
 	}
 }
 

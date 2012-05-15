@@ -1021,6 +1021,31 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session *session,
 			      const c2_time_t        abs_timeout);
 
 /**
+   Holds a session in BUSY state.
+
+   Increments "pending activities" counter and moves session to
+   BUSY state if it isn't already.
+
+   @pre session->s_state == C2_RPC_SESSION_IDLE ||
+	session->s_state == C2_RPC_SESSION_BUSY
+   @pre c2_rpc_machine_is_locked(session->s_conn->c_rpc_machine)
+   @post session->s_state == C2_RPC_SESSION_BUSY
+ */
+void c2_rpc_session_starting_activity(struct c2_rpc_session *session);
+
+/**
+   Decrements "pending activity" counter. If session is idle then
+   moves session to IDLE state.
+
+   @pre session->s_state == C2_RPC_SESSION_BUSY
+   @pre session->s_activity_counter > 0
+   @pre c2_rpc_machine_is_locked(session->s_conn->c_rpc_machine)
+   @post ergo(c2_rpc_session_is_idle(session),
+	      session->s_state == C2_RPC_SESSION_IDLE)
+ */
+void c2_rpc_session_ending_activity(struct c2_rpc_session *session);
+
+/**
    Finalises session object
 
    @pre session->s_state == C2_RPC_SESSION_TERMINATED ||

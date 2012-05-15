@@ -578,9 +578,14 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 
 	c2_rpc_machine_lock(machine);
 
-	if (ev->nbe_status != 0)
+	if (ev->nbe_status != 0) {
+		C2_ADDB_ADD(&machine->rm_rpc_machine_addb,
+			    &rpc_machine_addb_loc,
+			    rpc_machine_func_fail,
+			    "Buffer event reported failure %d",
+			    ev->nbe_status);
 		goto last;
-
+	}
 	nb->nb_length = ev->nbe_length;
 	nb->nb_ep = ev->nbe_ep;
 
@@ -907,7 +912,7 @@ C2_EXPORTED(c2_rpc_machine_fini);
 
 void c2_rpc_machine_lock(struct c2_rpc_machine *machine)
 {
-	C2_ENTRY();
+	C2_ENTRY("machine %p", machine);
 
 	C2_PRE(machine != NULL);
 	c2_mutex_lock(&machine->rm_mutex);
@@ -917,7 +922,7 @@ void c2_rpc_machine_lock(struct c2_rpc_machine *machine)
 
 void c2_rpc_machine_unlock(struct c2_rpc_machine *machine)
 {
-	C2_ENTRY();
+	C2_ENTRY("machine %p", machine);
 
 	C2_PRE(machine != NULL);
 	c2_mutex_unlock(&machine->rm_mutex);
