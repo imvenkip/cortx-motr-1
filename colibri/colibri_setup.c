@@ -448,9 +448,9 @@ static bool service_is_registered(const char *service_name)
 	return false;
 }
 
-struct c2_rpc_machine *c2_cs_rpcmach_get(struct c2_colibri *cctx,
-					 const struct c2_net_xprt *xprt,
-					 const char *sname)
+struct c2_rpc_machine *c2_cs_rpc_mach_get(struct c2_colibri *cctx,
+					  const struct c2_net_xprt *xprt,
+					  const char *sname)
 {
 	struct c2_reqh            *reqh;
 	struct cs_reqh_context    *rctx;
@@ -484,7 +484,7 @@ struct c2_rpc_machine *c2_cs_rpcmach_get(struct c2_colibri *cctx,
 
         return NULL;
 }
-C2_EXPORTED(c2_cs_rpcmach_get);
+C2_EXPORTED(c2_cs_rpc_mach_get);
 
 struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
 					const struct c2_net_xprt *xprt,
@@ -492,7 +492,7 @@ struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
 {
 	struct c2_rpc_machine *rpcmach;
 
-	rpcmach = c2_cs_rpcmach_get(cctx, xprt, sname);
+	rpcmach = c2_cs_rpc_mach_get(cctx, xprt, sname);
 
 	return (rpcmach == NULL) ? NULL : &rpcmach->rm_tm;
 }

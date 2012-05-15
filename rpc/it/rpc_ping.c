@@ -526,13 +526,15 @@ static int run_server(void)
 	if (verbose) {
 		struct c2_rpc_machine *rpcmach;
 
-		rpcmach = c2_cs_rpcmach_get(&sctx.rsx_colibri_ctx, xprt, "ds1");
+		rpcmach = c2_cs_rpc_mach_get(&sctx.rsx_colibri_ctx, xprt,
+					     "ds1");
 		if (rpcmach != NULL) {
 			printf("########### Server DS1 statS ###########\n");
 			print_stats(rpcmach);
 		}
 
-		rpcmach = c2_cs_rpcmach_get(&sctx.rsx_colibri_ctx, xprt, "ds2");
+		rpcmach = c2_cs_rpc_mach_get(&sctx.rsx_colibri_ctx, xprt,
+					     "ds2");
 		if (rpcmach != NULL) {
 			printf("\n");
 			printf("########### Server DS2 statS ###########\n");
