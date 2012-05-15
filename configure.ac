@@ -724,6 +724,8 @@ AC_CONFIG_FILES([
                  utils/Makefile
                  utils/linux_kernel/Makefile
                  utils/ploss/Makefile
+                 utils/ut.sh
+                 utils/linux_kernel/ut.sh
                  xcode/Makefile
                  xcode/ff2c/Makefile
                  xcode/ut/Makefile
@@ -738,6 +740,11 @@ AC_OUTPUT
 # Set up execute bit on our "compiler" generated from fop2c.in above.
 #
 chmod +x fop/fop2c
+#
+# Set up execute bit for UT scripts.
+#
+chmod +x utils/ut.sh
+chmod +x utils/linux_kernel/ut.sh
 
 echo ""
 echo "GALOIS_LIBS :  \"$GALOIS_LIBS\""
