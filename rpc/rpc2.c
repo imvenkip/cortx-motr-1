@@ -58,7 +58,7 @@ extern void frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
 extern void rpcobj_exit_stats_set(const struct c2_rpc *rpcobj,
 		struct c2_rpc_machine *mach, enum c2_rpc_item_path path);
 
-int c2_rpc_post_locked(struct c2_rpc_item *item);
+int c2_rpc__post_locked(struct c2_rpc_item *item);
 
 C2_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", , struct c2_rpc_item, ri_field,
 	           ri_link_magic, C2_RPC_ITEM_FIELD_MAGIC,
@@ -113,27 +113,6 @@ static void rpc_tm_event_cb(const struct c2_net_tm_event *ev)
 static struct c2_net_tm_callbacks c2_rpc_tm_callbacks = {
 	       .ntc_event_cb = rpc_tm_event_cb
 };
-
-static const struct c2_update_stream_ops update_stream_ops;
-
-static int update_stream_init(struct c2_update_stream *us,
-			       struct c2_rpc_machine *mach)
-{
-	us->us_session_id = ~0;
-	us->us_slot_id    = ~0;
-
-	us->us_ops   = &update_stream_ops;
-	us->us_mach  = mach;
-	us->us_state = UPDATE_STREAM_UNINITIALIZED;
-
-	c2_mutex_init(&us->us_guard);
-	return 0;
-}
-
-static void update_stream_fini(struct c2_update_stream *us)
-{
-	c2_mutex_fini(&us->us_guard);
-}
 
 void c2_rpcobj_fini(struct c2_rpc *rpc)
 {
@@ -208,14 +187,14 @@ int c2_rpc_post(struct c2_rpc_item *item)
 	machine = item->ri_session->s_conn->c_rpc_machine;
 
 	c2_rpc_machine_lock(machine);
-	rc = c2_rpc_post_locked(item);
+	rc = c2_rpc__post_locked(item);
 	c2_rpc_machine_unlock(machine);
 
 	return rc;
 }
 C2_EXPORTED(c2_rpc_post);
 
-int c2_rpc_post_locked(struct c2_rpc_item *item)
+int c2_rpc__post_locked(struct c2_rpc_item *item)
 {
 	struct c2_rpc_session *session;
 
@@ -569,35 +548,6 @@ C2_EXPORTED(c2_rpc_reply_timedwait);
 int c2_rpc_group_timedwait(struct c2_rpc_group *group, const c2_time_t *timeout)
 {
 	return 0;
-}
-
-int c2_rpc_update_stream_get(struct c2_rpc_machine *machine,
-			     struct c2_service_id *srvid,
-			     enum c2_update_stream_flags flag,
-			     const struct c2_update_stream_ops *ops,
-			     struct c2_update_stream **out)
-{
-	int rc = -ENOMEM;
-
-	C2_ALLOC_PTR(*out);
-	if (*out == NULL)
-		return rc;
-
-	rc = update_stream_init(*out, machine);
-	if (rc < 0)
-		c2_free(*out);
-
-	if (ops != NULL) {
-		(*out)->us_ops = ops;
-	}
-
-	return rc;
-}
-
-void c2_rpc_update_stream_put(struct c2_update_stream *us)
-{
-	update_stream_fini(us);
-	c2_free(us);
 }
 
 /**
@@ -980,22 +930,6 @@ bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine)
 	C2_PRE(machine != NULL);
 	return c2_mutex_is_locked(&machine->rm_mutex);
 }
-
-/** simple vector of update stream operations */
-void us_timeout(struct c2_update_stream *us)
-{
-	//DBG("us: ssid: %lu, slotid: %lu, TIMEOUT\n", us->us_session_id, us->us_slot_id);
-}
-
-void us_recovery_complete(struct c2_update_stream *us)
-{
-	//DBG("us: ssid: %lu, slotid: %lu, RECOVERED\n", us->us_session_id, us->us_slot_id);
-}
-
-static const struct c2_update_stream_ops update_stream_ops = {
-	.uso_timeout           = us_timeout,
-	.uso_recovery_complete = us_recovery_complete
-};
 
 /**
   Set the stats for outgoing rpc object
