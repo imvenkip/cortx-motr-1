@@ -7,12 +7,7 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-d="`git rev-parse --show-cdup`"
-if [ -n "$d" ]; then
-    cd "$d"
-fi
-
-. c2t1fs/linux_kernel/st/common.sh
+. @SRCDIR@/c2t1fs/linux_kernel/st/common.sh
 
 MODLIST="build_kernel_modules/kcolibri.ko"
 
@@ -26,4 +21,4 @@ modprobe_lnet
 modload_galois
 modload || exit $?
 
-utils/ut "$@"
+@SRCDIR@/utils/ut "$@"
