@@ -269,7 +269,7 @@ static int __conn_init(struct c2_rpc_conn      *conn,
 {
 	int rc;
 
-	C2_PRE(conn != NULL && ep != NULL && machine != NULL &&
+	C2_PRE(conn != NULL && ep != NULL &&
 	       c2_rpc_machine_is_locked(machine) &&
 	       c2_rpc_conn_is_snd(conn) != c2_rpc_conn_is_rcv(conn));
 
@@ -349,7 +349,7 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
 {
 	int rc;
 
-	C2_ASSERT(conn != NULL && machine != NULL && ep != NULL);
+	C2_ASSERT(conn != NULL && ep != NULL);
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 
 	C2_SET0(conn);
@@ -411,7 +411,7 @@ static void session_zero_detach(struct c2_rpc_conn *conn)
 {
 	struct c2_rpc_session *session;
 
-	C2_PRE(conn != NULL && conn->c_rpc_machine != NULL);
+	C2_PRE(conn != NULL);
 	C2_PRE(c2_rpc_machine_is_locked(conn->c_rpc_machine));
 
 	session = c2_rpc_conn_session0(conn);
@@ -984,8 +984,8 @@ int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn)
 	C2_PRE(conn != NULL);
 
 	machine = conn->c_rpc_machine;
-	C2_PRE(machine != NULL && machine->rm_dom != NULL);
 	C2_PRE(c2_rpc_machine_is_locked(machine));
+	C2_PRE(machine->rm_dom != NULL);
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_INITIALISED &&
@@ -1065,8 +1065,6 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn)
 	C2_PRE(conn != NULL);
 
 	machine = conn->c_rpc_machine;
-	C2_ASSERT(machine != NULL);
-
 	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
@@ -1109,7 +1107,7 @@ void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)
 {
 	struct c2_rpc_machine *machine;
 
-	C2_ASSERT(conn != NULL && conn->c_rpc_machine != NULL);
+	C2_ASSERT(conn != NULL);
 
 	machine = conn->c_rpc_machine;
 	C2_ASSERT(c2_rpc_machine_is_locked(machine));

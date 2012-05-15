@@ -376,7 +376,6 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 
 	C2_PRE(chan != NULL);
 	C2_PRE(dest_ep != NULL);
-	C2_PRE(machine != NULL);
 
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 
@@ -465,7 +464,6 @@ static struct c2_rpc_chan *rpc_chan_locate(struct c2_rpc_machine *machine,
 	bool			 found = false;
 	struct c2_rpc_chan	*chan;
 
-	C2_PRE(machine != NULL);
 	C2_PRE(dest_ep != NULL);
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 
@@ -494,7 +492,6 @@ struct c2_rpc_chan *rpc_chan_get(struct c2_rpc_machine *machine,
 {
 	struct c2_rpc_chan	*chan;
 
-	C2_PRE(machine != NULL);
 	C2_PRE(dest_ep != NULL);
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 
@@ -512,7 +509,7 @@ void rpc_chan_put(struct c2_rpc_chan *chan)
 	C2_PRE(chan != NULL);
 
 	machine = chan->rc_rpc_machine;
-	C2_PRE(machine != NULL && c2_rpc_machine_is_locked(machine));
+	C2_PRE(c2_rpc_machine_is_locked(machine));
 
 	c2_net_end_point_put(chan->rc_destep);
 	c2_ref_put(&chan->rc_ref);
@@ -1010,7 +1007,6 @@ void rpcobj_exit_stats_set(const struct c2_rpc *rpcobj,
 		struct c2_rpc_machine *mach, const enum c2_rpc_item_path path)
 {
 	C2_PRE(rpcobj != NULL);
-	C2_PRE(mach != NULL);
 	C2_PRE(c2_rpc_machine_is_locked(mach));
 
 	mach->rm_rpc_stats[path].rs_rpcs_nr++;
@@ -1030,7 +1026,7 @@ void item_exit_stats_set(struct c2_rpc_item *item,
 	C2_PRE(item != NULL && item->ri_session != NULL);
 
 	machine = item->ri_session->s_conn->c_rpc_machine;
-	C2_ASSERT(machine != NULL && c2_rpc_machine_is_locked(machine));
+	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 
 	C2_PRE(IS_IN_ARRAY(path, machine->rm_rpc_stats));
 

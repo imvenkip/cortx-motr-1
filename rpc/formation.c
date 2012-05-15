@@ -319,7 +319,7 @@ void frm_item_ready(struct c2_rpc_item *item)
 	C2_ASSERT(slot != NULL);
 
 	machine = slot->sl_session->s_conn->c_rpc_machine;
-	C2_ASSERT(machine != NULL && c2_rpc_machine_is_locked(machine));
+	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 
 	c2_list_add(&slot->sl_ready_list, &item->ri_slot_refs[0].sr_ready_link);
 
@@ -342,7 +342,7 @@ void frm_slot_idle(struct c2_rpc_slot *slot)
 
 	machine = slot->sl_session->s_conn->c_rpc_machine;
 
-	C2_ASSERT(machine != NULL && c2_rpc_machine_is_locked(machine));
+	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 
 	c2_list_add(&machine->rm_ready_slots, &slot->sl_link);
 }
@@ -1020,8 +1020,7 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 	C2_ASSERT(chan != NULL);
 
 	rpc_machine = chan->rc_rpc_machine;
-	C2_ASSERT(rpc_machine != NULL &&
-		  c2_rpc_machine_is_locked(rpc_machine));
+	C2_ASSERT(c2_rpc_machine_is_locked(rpc_machine));
 
 	c2_list_for_each_entry_safe(&rpc_machine->rm_ready_slots, slot,
 			slot_next, struct c2_rpc_slot, sl_link) {
@@ -1174,7 +1173,7 @@ static void frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 	C2_PRE(frm_sm != NULL);
 
 	machine = frm_sm_to_rpc_machine(frm_sm);
-	C2_PRE(machine != NULL && c2_rpc_machine_is_locked(machine));
+	C2_PRE(c2_rpc_machine_is_locked(machine));
 
 	chan = container_of(frm_sm, struct c2_rpc_chan, rc_frmsm);
 

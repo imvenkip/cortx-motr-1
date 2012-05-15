@@ -266,8 +266,7 @@ int c2_rpc_session_init_locked(struct c2_rpc_session *session,
 	int rc;
 
 	C2_PRE(session != NULL && conn != NULL && nr_slots >= 1);
-	C2_PRE(conn->c_rpc_machine != NULL &&
-	       c2_rpc_machine_is_locked(conn->c_rpc_machine));
+	C2_PRE(c2_rpc_machine_is_locked(conn->c_rpc_machine));
 
 	C2_SET0(session);
 
