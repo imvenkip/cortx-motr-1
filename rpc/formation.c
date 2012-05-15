@@ -86,6 +86,11 @@ frm_sm_to_rpc_machine(struct c2_rpc_frm_sm *frm_sm)
 	return chan->rc_rpc_machine;
 }
 
+static bool frm_is_locked(const struct c2_rpc_frm_sm *frm)
+{
+	return c2_rpc_machine_is_locked(frm_sm_to_rpc_machine(frm));
+}
+
 static void frm_item_rpc_stats_set(struct c2_rpc *rpc)
 {
 	struct c2_rpc_item *item;
@@ -357,7 +362,7 @@ void frm_ubitem_added(struct c2_rpc_item *item)
 
 	frm_sm = item_to_frm_sm(item);
 
-	C2_ASSERT(c2_rpc_machine_is_locked(frm_sm_to_rpc_machine(frm_sm)));
+	C2_ASSERT(frm_is_locked(frm_sm));
 
 	sm_updating_state(frm_sm, item);
 }
@@ -436,7 +441,7 @@ int c2_rpc_frm_item_delete(struct c2_rpc_item *item)
 
 	frm_sm = item_to_frm_sm(item);
 
-	C2_PRE(c2_rpc_machine_is_locked(frm_sm_to_rpc_machine(frm_sm)));
+	C2_PRE(frm_is_locked(frm_sm));
 
 	frm_item_remove(frm_sm, item);
 	return 0;
@@ -453,7 +458,7 @@ void c2_rpc_frm_item_priority_set(struct c2_rpc_item *item,
 	C2_PRE(prio < C2_RPC_ITEM_PRIO_NR);
 
 	frm_sm = item_to_frm_sm(item);
-	C2_PRE(c2_rpc_machine_is_locked(frm_sm_to_rpc_machine(frm_sm)));
+	C2_PRE(frm_is_locked(frm_sm));
 
 	frm_item_remove(frm_sm, item);
 	item->ri_prio = prio;
@@ -469,7 +474,7 @@ void c2_rpc_frm_item_deadline_set(struct c2_rpc_item *item, c2_time_t deadline)
 	C2_PRE(item != NULL);
 
 	frm_sm = item_to_frm_sm(item);
-	C2_PRE(c2_rpc_machine_is_locked(frm_sm_to_rpc_machine(frm_sm)));
+	C2_PRE(frm_is_locked(frm_sm));
 
 	frm_item_remove(frm_sm, item);
 	item->ri_deadline = deadline;
@@ -486,7 +491,7 @@ void c2_rpc_frm_item_group_set(struct c2_rpc_item *item,
 	C2_PRE(item != NULL);
 
 	frm_sm = item_to_frm_sm(item);
-	C2_PRE(c2_rpc_machine_is_locked(frm_sm_to_rpc_machine(frm_sm)));
+	C2_PRE(frm_is_locked(frm_sm));
 
 	frm_item_remove(frm_sm, item);
 	item->ri_group = group;
@@ -502,7 +507,7 @@ void frm_item_reply_received(struct c2_rpc_item *reply_item,
 	C2_PRE(req_item != NULL);
 
 	frm_sm = item_to_frm_sm(req_item);
-	C2_PRE(c2_rpc_machine_is_locked(frm_sm_to_rpc_machine(frm_sm)));
+	C2_PRE(frm_is_locked(frm_sm));
 
 	sm_forming_state(frm_sm, req_item);
 }
@@ -516,7 +521,7 @@ static void item_deadline_handle(struct c2_rpc_frm_sm *frm_sm,
 	C2_PRE(frm_sm != NULL);
 	C2_PRE(item != NULL);
 	C2_PRE(item->ri_state == RPC_ITEM_SUBMITTED);
-	C2_PRE(c2_rpc_machine_is_locked(frm_sm_to_rpc_machine(frm_sm)));
+	C2_PRE(frm_is_locked(frm_sm));
 
 	/* Move the rpc item to first list in unformed item data structure
 	   so that it is bundled first in the rpc being formed. */
@@ -620,7 +625,7 @@ static void frm_item_remove(struct c2_rpc_frm_sm *frm_sm,
 
 	C2_PRE(item != NULL);
 	C2_PRE(frm_sm != NULL);
-	C2_PRE(c2_rpc_machine_is_locked(frm_sm_to_rpc_machine(frm_sm)));
+	C2_PRE(frm_is_locked(frm_sm));
 	C2_PRE(item->ri_state == RPC_ITEM_SUBMITTED);
 
 	/* Reduce the cumulative size of rpc items from formation
@@ -836,7 +841,7 @@ static void sm_updating_state(struct c2_rpc_frm_sm *frm_sm,
 	bool qualify;
 
 	C2_PRE(item != NULL);
-	C2_PRE(c2_rpc_machine_is_locked(frm_sm_to_rpc_machine(frm_sm)));
+	C2_PRE(frm_is_locked(frm_sm));
 	C2_PRE(frm_sm_invariant(frm_sm));
 
 	frm_sm->fs_state = C2_RPC_FRM_STATE_UPDATING;
@@ -892,7 +897,7 @@ static void io_coalesce(struct c2_rpc_item *item, struct c2_rpc_frm_sm *frm_sm,
 
 	C2_PRE(item != NULL);
 	C2_PRE(frm_sm != NULL);
-	C2_PRE(c2_rpc_machine_is_locked(frm_sm_to_rpc_machine(frm_sm)));
+	C2_PRE(frm_is_locked(frm_sm));
 
 	session = item->ri_session;
 	C2_PRE(session != NULL);
@@ -1079,7 +1084,7 @@ static void sm_forming_state(struct c2_rpc_frm_sm *frm_sm,
 	struct c2_rpc	*rpcobj;
 
 	C2_PRE(item != NULL);
-	C2_PRE(c2_rpc_machine_is_locked(frm_sm_to_rpc_machine(frm_sm)));
+	C2_PRE(frm_is_locked(frm_sm));
 	C2_PRE(frm_sm_invariant(frm_sm));
 
 	frm_sm->fs_state = C2_RPC_FRM_STATE_FORMING;
@@ -1215,7 +1220,7 @@ static void frm_send_onwire(struct c2_rpc_frm_sm *frm_sm)
 void frm_rpcs_inflight_dec(struct c2_rpc_frm_sm *frm_sm)
 {
 	C2_PRE(frm_sm != NULL);
-	C2_PRE(c2_rpc_machine_is_locked(frm_sm_to_rpc_machine(frm_sm)));
+	C2_PRE(frm_is_locked(frm_sm));
 
 	if (frm_sm->fs_sender_side) {
 		if (frm_sm->fs_curr_rpcs_in_flight > 0) {
