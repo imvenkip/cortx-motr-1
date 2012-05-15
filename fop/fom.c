@@ -212,6 +212,8 @@ void c2_fom_block_leave(struct c2_fom *fom)
 	loc = fom->fo_loc;
 
 	c2_mutex_lock(&loc->fl_lock);
+	/* See the description for c2_fom_locality to understand why
+	 * it is decremented before taking the group lock. */
 	C2_CNT_DEC(loc->fl_lo_idle_threads_nr);
 	c2_mutex_unlock(&loc->fl_lock);
 
@@ -369,7 +371,7 @@ static void loc_handler_thread(struct c2_fom_hthread *th)
 	c2_clink_add(&loc->fl_runrun, &th_clink);
 
 	while (1) {
-		struct c2_fom	       *fom;
+		struct c2_fom *fom;
 
 		C2_ASSERT(c2_locality_invariant(loc));
 
@@ -387,9 +389,10 @@ static void loc_handler_thread(struct c2_fom_hthread *th)
 				C2_CNT_INC(loc->fl_idle_threads_nr);
 				idle = true;
 			}
-			if (loc->fl_idle_threads_nr >
-			    loc->fl_lo_idle_threads_nr)
-				break;
+		}
+		if (loc->fl_idle_threads_nr > loc->fl_lo_idle_threads_nr)
+			break;
+		if (idle) {
 			group_unlock(loc);
 			c2_chan_timedwait(&th_clink,
 			                  c2_time_add(c2_time_now(), delta));

@@ -79,13 +79,34 @@ struct c2_fom_ops;
  *
  * - part of primary store.
  *
- * Lock ordering:
- *
- * - no lock ordering is needed here as access to all the locality members
- *   is protected by a common locality lock, c2_fom_locality::fl_group.s_lock.
- *   All the operations on locality members are performed independently using
- *   simple locking and unlocking semantics.
- *
+ * The FOM states transitions are running under locality lock. The
+ * only places the lock is released during a state transition is in
+ * a "blocking point" (between c2_fom_block_enter() and matching
+ * c2_fom_block_leave()). At these points another thread is created
+ * to possibly run the next FOM and utilize the CPU as much as
+ * possible. As a result, a locality has as many additional threads
+ * created as there are outstanding calls to c2_fom_enter()---counted
+ * in c2_fom_locality::fl_lo_idle_threads_nr. When
+ * c2_fom_block_leave() is called to mark completion of a blocking
+ * point, two things should happen:
+ * 
+ *    - one of additional threads should be terminated,
+ * 
+ *    - locality lock released by c2_fom_block_enter() should be
+ *      re-acquired.
+ * 
+ * To decrease the number of threads,
+ * c2_fom_locality::fl_lo_idle_threads_nr is decremented. 
+ * 
+ * Counter is checked by each locality thread on each iteration of
+ * main handler loop (in loc_handler_thread()). If a thread finds
+ * that there are too many threads in the locality, it releases the
+ * locality lock and terminates. The idle threads counter is
+ * protected by a separate c2_fom_locality::fl_lock, because
+ * otherwise c2_fom_block_leave() might have to wait until
+ * concurrent thread exhausts the FOM queue and releases the
+ * locality lock.
+ * 
  * Once the locality is initialised, the locality invariant,
  * should hold true until locality is finalised.
  *
@@ -109,12 +130,16 @@ struct c2_fom_locality {
 	/**
 	 *  Private lock for API protection
 	 *
-	 *  Some operations should be performed in parallel with fom state
-	 *  transitions (performed with common fl_group.s_lock held) while
-	 *  still requiring atomicity protection. For example, decrementing
-	 *  of fl_lo_idle_threads_nr in block_leave().
+	 *  Some operations should be performed atomically though without
+	 *  dependence on locality lock (fl_group.s_lock). For example,
+	 *  decrementing of fl_lo_idle_threads_nr counter in block_leave().
+	 *  Else, it could take a while to get locality lock in block_leave()
+	 *  as long as another thread will run all FOMs states until its
+	 *  "block time" when the lock is released.
 	 *
-	 *  This lock is private data, i.e. it is not intended for direct
+	 *  This lock is never held together with locality lock.
+	 *
+	 *  This lock is a `private' data, i.e. it is not intended for direct
 	 *  usage by fom users.
 	 */
 	struct c2_mutex		     fl_lock;
