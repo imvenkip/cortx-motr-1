@@ -50,28 +50,43 @@ static int zero_padding_add(struct c2_bufvec_cursor *cur, uint64_t pad_bytes)
 {
 	void		*pad_p;
 	uint64_t	 pad = 0;
+	c2_bcount_t      count;
 
 	C2_PRE(cur != NULL);
 	C2_PRE(pad_bytes < BYTES_PER_XCODE_UNIT);
 
 	pad_p = &pad;
-	return(c2_bufvec_cursor_copyto(cur, pad_p, pad_bytes));
+
+	count = c2_bufvec_cursor_copyto(cur, pad_p, pad_bytes);
+	if (count != pad_bytes)
+		return -EFAULT;
+	return 0;
 }
 
 static int bufvec_uint64_encode(struct c2_bufvec_cursor *cur, uint64_t *val)
 {
+	c2_bcount_t count;
+
 	C2_PRE(cur != NULL);
 	C2_PRE(val != NULL);
 
-	return c2_bufvec_cursor_copyto(cur, val, sizeof *val);
+	count = c2_bufvec_cursor_copyto(cur, val, sizeof *val);
+	if (count != sizeof *val)
+		return -EFAULT;
+	return 0;
 }
 
 static int bufvec_uint64_decode(struct c2_bufvec_cursor *cur, uint64_t *val)
 {
+	c2_bcount_t count;
+
 	C2_PRE(cur != NULL);
 	C2_PRE(val != NULL);
 
-	return c2_bufvec_cursor_copyfrom(cur, val, sizeof *val);
+	count = c2_bufvec_cursor_copyfrom(cur, val, sizeof *val);
+	if (count != sizeof *val)
+		return -EFAULT;
+	return 0;
 
 }
 
@@ -248,7 +263,8 @@ int c2_bufvec_array(struct c2_bufvec_cursor *vc, void *p_arr, uint64_t el_no,
 int c2_bufvec_bytes(struct c2_bufvec_cursor *vc, char **cpp, size_t size,
 		    size_t max_size, enum c2_bufvec_what what)
 {
-	int		 rc;
+	int		 rc = 0;
+	c2_bcount_t      count;
 	uint64_t	 pad_bytes;
 	char		*bp;
 	bool		 eob;
@@ -261,9 +277,9 @@ int c2_bufvec_bytes(struct c2_bufvec_cursor *vc, char **cpp, size_t size,
 	C2_ASSERT(bp != NULL);
 	if (what == C2_BUFVEC_ENCODE) {
 		/* Encode the data + pad bytes into the bufvec */
-		rc = c2_bufvec_cursor_copyto(vc, bp, size);
-		if (rc != 0)
-			return rc;
+		count = c2_bufvec_cursor_copyto(vc, bp, size);
+		if (count != size)
+			return -EFAULT;
 		pad_bytes = pad_bytes_get(size);
 		if (pad_bytes > 0)
 			rc = zero_padding_add(vc, pad_bytes);
@@ -272,9 +288,9 @@ int c2_bufvec_bytes(struct c2_bufvec_cursor *vc, char **cpp, size_t size,
 		   Decode the data in the bufvec and advance the cursor by
 		   pad_bytes to keep the bufvec cursor aligned.
 		*/
-		rc = c2_bufvec_cursor_copyfrom(vc, bp, size);
-		if (rc != 0)
-			return rc;
+		count = c2_bufvec_cursor_copyfrom(vc, bp, size);
+		if (count != size)
+			return -EFAULT;
 		pad_bytes = pad_bytes_get(size);
 		if (pad_bytes > 0) {
 			eob = c2_bufvec_cursor_move(vc, pad_bytes);
