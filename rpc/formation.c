@@ -422,7 +422,7 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 
 		/* s_activity_counter was incremented when the item was
 		   added to rpc */
-		session->s_activity_counter--;
+		--session->s_activity_counter;
 
 		if (c2_rpc_session_is_idle(session)) {
 			session->s_state = C2_RPC_SESSION_IDLE;
@@ -963,7 +963,7 @@ static void bound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 			frm_add_to_rpc(frm_sm, rpcobj, item, rpcobj_size);
 
 			session = item->ri_session;
-			session->s_activity_counter++;
+			++session->s_activity_counter;
 			/* s_activity_counter will be decremented in
 			   frm_net_buffer_sent() callback */
 			if (session->s_state == C2_RPC_SESSION_IDLE) {
@@ -1051,7 +1051,7 @@ static void unbound_items_add_to_rpc(struct c2_rpc_frm_sm *frm_sm,
 			io_coalesce(item, frm_sm, rpc_size);
 			frm_add_to_rpc(frm_sm, rpcobj, item, rpcobj_size);
 
-			session->s_activity_counter++;
+			++session->s_activity_counter;
 			/* s_activity_counter will be decremented when
 			   buffer sent callback is generated for the buffer
 			   that carries this rpc. See frm_net_buffer_sent()

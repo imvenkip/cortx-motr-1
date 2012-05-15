@@ -860,7 +860,7 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
 		C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE ||
 			  session->s_state == C2_RPC_SESSION_BUSY);
 
-		session->s_activity_counter++;
+		++session->s_activity_counter;
 
 		if (session->s_state == C2_RPC_SESSION_IDLE) {
 			session->s_state = C2_RPC_SESSION_BUSY;
@@ -881,7 +881,7 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
 
 		c2_rpc_machine_lock(machine);
 
-		session->s_activity_counter--;
+		--session->s_activity_counter;
 		if (c2_rpc_session_is_idle(session)) {
 			session->s_state = C2_RPC_SESSION_IDLE;
 			c2_cond_broadcast(&session->s_state_changed,

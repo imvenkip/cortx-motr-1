@@ -35,7 +35,9 @@
    @code
    static void us_callback(struct c2_update_stream *us,
                            struct c2_rpc_item *item)             { ... }
-   static const struct c2_update_stream_ops us_ops { .uso_event_cb = us_callback };
+   static const struct c2_update_stream_ops us_ops = {
+						.uso_event_cb = us_callback
+					    };
    //...
    int ret;
    int i;
@@ -90,7 +92,8 @@
    Internally, the RPC layer core should do the following:
    @li put items into sub-caches, associated with specified services;
    @li monitor the occupancy of the sub-caches;
-   @li when there is enough pages in a sub-cache to form an optimal rpc---form it and send.
+   @li when there is enough pages in a sub-cache to form an optimal rpc,
+       form it and send.
 
    For simple implementation one update stream may be maped onto one slot.
    Several update streams may be mapped onto one slot for more complex cases.
@@ -131,7 +134,8 @@
 
       @endverbatim
 
-   @see https://docs.google.com/a/xyratex.com/Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTljbTZ3anhjbg&hl=en
+   @see https://docs.google.com/a/xyratex.com/Doc?docid=0AQaCw6YRYSVSZGZmMz
+V6NzJfMTljbTZ3anhjbg&hl=en
 
    @{
 */
