@@ -77,7 +77,7 @@ static void sm_forming_state(struct c2_rpc_frm_sm *frm_sm,
 			    struct c2_rpc_item *item);
 
 static struct c2_rpc_machine *
-frm_sm_to_rpc_machine(const struct c2_rpc_frm_sm *frm_sm)
+frm_sm_to_rpc_machine(struct c2_rpc_frm_sm *frm_sm)
 {
 	const struct c2_rpc_chan *chan;
 

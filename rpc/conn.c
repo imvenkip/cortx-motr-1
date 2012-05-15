@@ -718,43 +718,26 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	C2_PRE(conn->c_service == NULL);
 	C2_PRE(conn->c_rpc_machine != NULL);
 
+	fop = c2_fop_alloc(&c2_rpc_fop_conn_terminate_fopt, NULL);
 	machine = conn->c_rpc_machine;
-
 	c2_rpc_machine_lock(machine);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_PRE(conn->c_state == C2_RPC_CONN_ACTIVE ||
 	       conn->c_state == C2_RPC_CONN_TERMINATING);
-
-	if (conn->c_state == C2_RPC_CONN_TERMINATING) {
-		c2_rpc_machine_unlock(machine);
-		return 0;
-	}
-	c2_rpc_machine_unlock(machine);
-
-	fop = c2_fop_alloc(&c2_rpc_fop_conn_terminate_fopt, NULL);
+	C2_PRE(conn->c_nr_sessions == 1);
 	if (fop == NULL) {
 		/* see note [^1] at the end of function */
-		c2_rpc_machine_lock(machine);
-		C2_ASSERT(c2_rpc_conn_invariant(conn));
-
 		rc = -ENOMEM;
 		conn_failed(conn, rc);
-
 		c2_rpc_machine_unlock(machine);
 		return rc;
 	}
-
-	c2_rpc_machine_lock(machine);
-
-	C2_ASSERT(c2_rpc_conn_invariant(conn));
-	/* All sessions associated with this conn must have been fini()ed by
-	   this time */
-	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE &&
-		  conn->c_nr_sessions == 1);
-
+	if (conn->c_state == C2_RPC_CONN_TERMINATING) {
+		c2_fop_free(fop);
+		c2_rpc_machine_unlock(machine);
+		return 0;
+	}
 	args = c2_fop_data(fop);
-	C2_ASSERT(args != NULL);
-
 	args->ct_sender_id = conn->c_sender_id;
 
 	session_0 = c2_rpc_conn_session0(conn);
@@ -916,14 +899,12 @@ static int conn_persistent_state_create(struct c2_cob_domain *dom,
 	struct c2_cob *slot0_cob    = NULL;
 	int            rc;
 
-	enum {SLOT0 = 0, SLOT_GEN = 0};
-
 	*conn_cob_out = *session0_cob_out = *slot0_cob_out = NULL;
 
 	rc = c2_rpc_conn_cob_create(dom, sender_id, &conn_cob, tx) ?:
 	     c2_rpc_session_cob_create(conn_cob, SESSION_ID_0,
 				       &session0_cob, tx)          ?:
-	     c2_rpc_slot_cob_create(session0_cob, SLOT0, SLOT_GEN,
+	     c2_rpc_slot_cob_create(session0_cob, 0 /*SLOT0*/, 0 /*SLOT_GEN*/,
 				    &slot0_cob, tx);
 
 	if (rc == 0) {
@@ -1020,16 +1001,12 @@ static uint64_t sender_id_allocate(void)
 	static struct c2_atomic64 cnt;
 	uint64_t                  sender_id;
 	uint64_t                  sec;
-	bool                      sender_id_is_valid;
 
 	do {
 		c2_atomic64_inc(&cnt);
 		sec = c2_time_nanoseconds(c2_time_now()) * 1000000;
-
 		sender_id = (sec << 10) | (c2_atomic64_get(&cnt) & 0x3FF);
-		sender_id_is_valid = (sender_id != SENDER_ID_INVALID &&
-				      sender_id != 0);
-	} while (!sender_id_is_valid);
+	} while (sender_id == 0 || sender_id == SENDER_ID_INVALID);
 
 	return sender_id;
 }
