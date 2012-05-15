@@ -49,13 +49,6 @@ TODO
 
 IN-PROGRESS
 
-2012-May-04 [Amit] .gdbinit macros for basic Colibri structures
-
-    Add to core/.gdbinit file gdb macros to display core Colibri structures:
-    lists, vectors, &c. Preferably, the macros should be placed in .gdbinit
-    files, located in the corresponding modules, with top-level .gdbinit loading
-    them.
-
 2012-May-04 [Andriy] embed c2_sm in c2_fom
 
     Use standard state machine with states RUNNING, READY and WAITING for
@@ -63,3 +56,10 @@ IN-PROGRESS
 
 
 DONE
+
+2012-May-04 [Amit] .gdbinit macros for basic Colibri structures
+
+    Add to core/.gdbinit file gdb macros to display core Colibri structures:
+    lists, vectors, &c. Preferably, the macros should be placed in .gdbinit
+    files, located in the corresponding modules, with top-level .gdbinit loading
+    them.
