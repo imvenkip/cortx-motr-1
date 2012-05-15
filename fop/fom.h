@@ -98,7 +98,7 @@ struct c2_fom_ops;
  * To decrease the number of threads,
  * c2_fom_locality::fl_lo_idle_threads_nr is decremented. 
  * 
- * Counter is checked by each locality thread on each iteration of
+ * The counter is checked by each locality thread on each iteration of
  * main handler loop (in loc_handler_thread()). If a thread finds
  * that there are too many threads in the locality, it releases the
  * locality lock and terminates. The idle threads counter is
