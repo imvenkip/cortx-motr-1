@@ -9,8 +9,6 @@ fi
 
 . @SRCDIR@/c2t1fs/linux_kernel/st/common.sh
 
-MODLIST="build_kernel_modules/kcolibri.ko"
-
 unload_all() {
     modunload
     modunload_galois
