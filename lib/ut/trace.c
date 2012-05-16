@@ -33,6 +33,14 @@ enum {
 
 static struct c2_thread t[NR];
 
+void trace_thread_func(int d)
+{
+	int j;
+
+	for (j = 0; j < NR_INNER; ++j)
+		C2_LOG("d: %i, d*j: %i", d, d * j);
+}
+
 void test_trace(void)
 {
 	int i;
@@ -46,13 +54,8 @@ void test_trace(void)
 
 	C2_SET_ARR0(t);
 	for (i = 0; i < NR; ++i) {
-		result = C2_THREAD_INIT(&t[i], int, NULL,
-					LAMBDA(void, (int d) {
-			int j;
-
-			for (j = 0; j < NR_INNER; ++j)
-				C2_LOG("d: %i, d*j: %i", d, d * j);
-						}), i, "test_trace_%i", i);
+		result = C2_THREAD_INIT(&t[i], int, NULL, &trace_thread_func,
+					i, "test_trace_%i", i);
 		C2_ASSERT(result == 0);
 	}
 	for (i = 0; i < NR; ++i) {

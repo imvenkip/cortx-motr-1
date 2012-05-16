@@ -20,7 +20,7 @@
  * Adapted for LNet: 04/11/2012
  */
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
 #include <stdlib.h>

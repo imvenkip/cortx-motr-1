@@ -119,12 +119,12 @@ static char *cs_ut_buffer_pool_cmd[] = { "colibri_setup", "-r", "-T", "linux",
                                 "-e", "bulk-sunrpc:127.0.0.1:34567:2",
                                 "-s", "ds1", "-q 4", "-m 4096"};
 
-static char *cs_ut_lnet_cmd[] = { "colibri_setup", "-r", "-T", "linux",
+/*static char *cs_ut_lnet_cmd[] = { "colibri_setup", "-r", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:127.0.0.1@tcp:12345:31:0",
                                 "-s", "ds1", "-n 128", "-p 4096", "-b 128",
 				"-t 16", "-m 64", "-k 4096", "-R 1"};
-
+*/
 static const char *cl_ep_addrs[] = {
 				"127.0.0.1:34567:1",
 				"127.0.0.1:34569"};
@@ -132,7 +132,7 @@ static const char *cl_ep_addrs[] = {
 static const char *srv_ep_addrs[] = {
 				"127.0.0.1:34567:2",
 				"127.0.0.1:35678"};
-
+/*
 static const char *cl_lnet_ep_addrs[] = {
 				"127.0.0.1@tcp:12345:31:0",
 				"127.0.0.1@tcp:12345:31:*"};
@@ -140,7 +140,7 @@ static const char *cl_lnet_ep_addrs[] = {
 static const char *srv_lnet_ep_addrs[] = {
 				"127.0.0.1@tcp:12345:31:0",
 				"127.0.0.1@tcp:12345:31:*"};
-
+*/
 
 static const char *cdbnames[] = {
 				"cdb1",

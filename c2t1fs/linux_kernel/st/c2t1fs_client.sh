@@ -8,6 +8,7 @@ fi
 
 echo 8 > /proc/sys/kernel/printk
 
+. `dirname $0`/common.sh
 . `dirname $0`/c2t1fs_common_inc.sh
 . `dirname $0`/c2t1fs_client_inc.sh
 
@@ -25,6 +26,7 @@ main()
         return 0
 }
 
+modprobe_lnet
 insmod $COLIBRI_CORE_ROOT/../galois/src/linux_kernel/galois.ko
 main
 rmmod galois

@@ -1,12 +1,18 @@
 #! /bin/sh
 
-MODLIST="build_kernel_modules/kcolibri.ko"
+MODLIST="@SRCDIR@/build_kernel_modules/kcolibri.ko"
 
 abort()
 {
     msg="$1"
     echo "$1 Aborting."
     exit 1
+}
+
+# Do not rmmod lnet, it may be in use by lustre
+modprobe_lnet()
+{
+    modprobe lnet                   || abort "Error probing lnet."
 }
 
 modload_galois()

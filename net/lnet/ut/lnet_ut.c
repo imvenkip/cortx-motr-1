@@ -499,7 +499,7 @@ do {									\
 
 #define TEARDOWN_DOM(which)						\
 do {									\
-        struct c2_net_domain *dom = &td->dom ## which;			\
+        struct c2_net_domain *dom;					\
 	struct c2_net_transfer_mc *tm = &td->tm ## which;		\
 	c2_clink_add(&tm->ntm_chan, &td->tmwait ## which);		\
 	C2_UT_ASSERT(!c2_net_tm_stop(tm, false));			\
@@ -507,8 +507,10 @@ do {									\
 	c2_clink_del(&td->tmwait ## which);				\
 	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_STOPPED);		\
  fini ## which:								\
+	tm = &td->tm ## which;						\
 	c2_net_tm_fini(tm);						\
  dereg ## which:							\
+	dom = &td->dom ## which;					\
 	for (i = 0; i < UT_BUFS ## which; ++i) {			\
 		struct c2_net_buffer      *nb;				\
 		nb = &td->bufs ## which [i];				\
@@ -589,14 +591,17 @@ static int test_lnet_fini(void)
 	return 0;
 }
 
+static void ntc_event_callback(const struct c2_net_tm_event *ev)
+{
+}
+
 static void test_tm_initfini(void)
 {
 	static struct c2_net_domain dom1 = {
 		.nd_xprt = NULL
 	};
 	const struct c2_net_tm_callbacks cbs1 = {
-		.ntc_event_cb = LAMBDA(void,(const struct c2_net_tm_event *ev) {
-				       }),
+		.ntc_event_cb = ntc_event_callback
 	};
 	struct c2_net_transfer_mc d1tm1 = {
 		.ntm_callbacks = &cbs1,

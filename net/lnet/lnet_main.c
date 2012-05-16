@@ -783,7 +783,7 @@ RPC Bulk Transfer Task Plan</a>
 #endif
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
 #include "lib/errno.h"
