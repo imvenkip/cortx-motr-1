@@ -331,7 +331,7 @@ c2_net_domain_buffer_pool_not_empty(pool) {
    maximize the locality of reference between a network buffer and a transfer
    machine.  All c2_net_buffer_pool_get() calls will use the
    c2_net_transfer_mc::ntm_pool_colour field value as the color.  This value is
-   initialized to @c ::C2_NET_BUFFER_POOL_ANY_COLOR, and it is up to the higher
+   initialized to @c ::C2_BUFFER_ANY_COLOR, and it is up to the higher
    level application to assign a color to the transfer machine with the
    c2_net_tm_colour_set() subroutine.  The higher level application is also
    responsible for creating the buffer pool with sufficient colors in the first

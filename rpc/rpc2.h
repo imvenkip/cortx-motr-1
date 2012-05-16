@@ -560,7 +560,7 @@ struct c2_rpc_machine {
 
 	/**
 	 * @see c2_net_transfer_mc:ntm_pool_colour
-	 * The default value is C2_NET_BUFFER_POOL_ANY_COLOR
+	 * The default value is C2_BUFFER_ANY_COLOR
 	 */
 	uint32_t			  rm_tm_colour;
 

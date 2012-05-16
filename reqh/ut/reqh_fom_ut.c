@@ -258,7 +258,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	rpc_machine->rm_max_recv_msgs =
 			c2_net_domain_get_max_buffer_size(net_dom) /
 			rpc_machine->rm_min_recv_size;
-	rpc_machine->rm_tm_colour     = C2_NET_BUFFER_POOL_ANY_COLOR;
+	rpc_machine->rm_tm_colour     = C2_BUFFER_ANY_COLOUR;
 
 	/* Init the rpcmachine */
         rc = c2_rpc_machine_init(rpc_machine, &srv_cob_domain, net_dom,

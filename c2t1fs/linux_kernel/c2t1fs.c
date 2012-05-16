@@ -210,8 +210,7 @@ static int c2t1fs_rpc_init(void)
 			c2_net_domain_get_max_buffer_size(ndom) /
 			rpc_machine->rm_min_recv_size;
 
-	rpc_machine->rm_tm_colour                =
-			C2_NET_BUFFER_POOL_ANY_COLOR;
+	rpc_machine->rm_tm_colour                = C2_BUFFER_ANY_COLOUR;
 	rpc_machine->rm_tm_recv_queue_min_length =
 			C2T1FS_TM_MIN_RECV_BUFFERS_NR;
 

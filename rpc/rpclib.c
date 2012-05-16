@@ -182,7 +182,7 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 			c2_net_domain_get_max_buffer_size(ndom) /
 			rpc_machine->rm_min_recv_size;
 
-	rpc_machine->rm_tm_colour		 = C2_NET_BUFFER_POOL_ANY_COLOR;
+	rpc_machine->rm_tm_colour		 = C2_BUFFER_ANY_COLOUR;
 	rpc_machine->rm_tm_recv_queue_min_length =
 			cctx->rcx_recv_queue_min_length;
 
