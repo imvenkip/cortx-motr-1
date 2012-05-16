@@ -132,20 +132,24 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	bool                   recv_end;
 	bool                   ok;
 
-	if (conn == NULL)
+	if (conn == NULL || conn->c_rpc_machine == NULL)
 		return false;
 
 	sender_end = c2_rpc_conn_is_snd(conn);
 	recv_end   = c2_rpc_conn_is_rcv(conn);
+	conn_list  = sender_end ?
+			&conn->c_rpc_machine->rm_outgoing_conns :
+			&conn->c_rpc_machine->rm_incoming_conns;
 
 	/*
 	 * conditions that should be true irrespective of conn state
 	 */
 	ok = sender_end != recv_end &&
-	     conn->c_rpc_machine != NULL &&
+	     c2_list_contains(conn_list, &conn->c_link) &&
 	     c2_list_invariant(&conn->c_sessions) &&
 	     c2_list_length(&conn->c_sessions) == conn->c_nr_sessions &&
-	     c2_is_po2(conn->c_state);
+	     c2_is_po2(conn->c_state) &&
+	     conn->c_state <= C2_RPC_CONN_TERMINATED;
 
 	if (!ok)
 		return false;
@@ -168,14 +172,6 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	     C2_IN(session0->s_state, (C2_RPC_SESSION_IDLE,
 				       C2_RPC_SESSION_BUSY));
 
-	if (!ok)
-		return false;
-
-	conn_list = sender_end ?
-			&conn->c_rpc_machine->rm_outgoing_conns :
-			&conn->c_rpc_machine->rm_incoming_conns;
-
-	ok = c2_list_contains(conn_list, &conn->c_link);
 	if (!ok)
 		return false;
 
