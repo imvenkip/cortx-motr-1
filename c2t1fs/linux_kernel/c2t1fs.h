@@ -30,6 +30,7 @@
 #include "net/net.h"    /* c2_net_domain */
 #include "rpc/rpc2.h"
 #include "pool/pool.h"  /* c2_pool */
+#include "layout/layout.h" /* c2_layout_domain */
 
 /**
   @defgroup c2t1fs c2t1fs
@@ -211,6 +212,7 @@ struct c2t1fs_globals {
 	struct c2_rpc_machine    g_rpc_machine;
 	struct c2_cob_domain     g_cob_dom;
 	struct c2_dbenv          g_dbenv;
+	struct c2_layout_domain  g_layout_dom;
 };
 
 extern struct c2t1fs_globals c2t1fs_globals;

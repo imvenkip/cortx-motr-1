@@ -119,7 +119,8 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 	pd_layout = container_of(ci->ci_layout, struct c2_pdclust_layout,
 				 pl_base.ls_base);
 	/* todo NULL will be replaced by c2_layout_domain pointer. */
-	ci->ci_layout->l_ops->lo_fini(ci->ci_layout, NULL);
+	ci->ci_layout->l_ops->lo_fini(ci->ci_layout,
+				      &c2t1fs_globals.g_layout_dom);
 
 	C2_LEAVE();
 }
@@ -345,18 +346,8 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 	struct c2_pdclust_layout     *pd_layout;
 	uint64_t                      layout_id;
 	struct c2_uint128             seed;
-	struct c2_layout_domain       domain;
 	struct c2_layout_linear_enum *le;
 	int                           rc;
-
-	/**
-	 * @todo The domain object needs to be initialized during c2t1fs_init()
-	 * operation and its pointer needs to preserved in c2t1fs_globals.
-	 * The available layout types and enum types need to be registered.
-	 * This is to be taken care of before the layout schema code is
-	 * checked in to master. A small patch should follow this one for
-	 * INSP with such changes.
-	 */
 
 	C2_ENTRY();
 	C2_PRE(ci != NULL && pool != NULL && pool->po_width > 0);
@@ -370,19 +361,18 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 	c2_uint128_init(&seed, "upjumpandpumpim,");
 
 	/**
-	 * @todo A dummy enumeration object is being created here so that the
-	 * compilation goes through. c2t1fs code is not using enumeration
-	 * at this point but will be using it eventually.
-	 * This will be taken care of through the component task
-	 * "c2t1fs.LayoutDB".
+	 * @todo A dummy enumeration object is being created here.
+	 * c2t1fs code is not making use of this enumeration object, at this
+	 * point.
 	 */
-	rc = c2_linear_enum_build(&domain, layout_id, pool->po_width,
-				  100, 200, &le);
+	rc = c2_linear_enum_build(&c2t1fs_globals.g_layout_dom, layout_id,
+				  pool->po_width, 100, 200, &le);
 	if (rc != 0)
 		return rc;
 
-	rc = c2_pdclust_build(&domain, pool, layout_id, N, K, unit_size,
-			      &seed, &le->lle_base, &pd_layout);
+	rc = c2_pdclust_build(&c2t1fs_globals.g_layout_dom, pool, layout_id,
+			      N, K, unit_size, &seed, &le->lle_base,
+			      &pd_layout);
 
 	ci->ci_layout = rc == 0 ? &pd_layout->pl_base.ls_base : NULL;
 

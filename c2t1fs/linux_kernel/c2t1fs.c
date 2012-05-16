@@ -39,6 +39,9 @@ static void c2t1fs_net_fini(void);
 static int  c2t1fs_rpc_init(void);
 static void c2t1fs_rpc_fini(void);
 
+static int  c2t1fs_layout_init(void);
+static void c2t1fs_layout_fini(void);
+
 extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
 
 static struct file_system_type c2t1fs_fs_type = {
@@ -86,12 +89,19 @@ int c2t1fs_init(void)
 	if (rc != 0)
 		goto net_fini;
 
-	rc = register_filesystem(&c2t1fs_fs_type);
+	rc = c2t1fs_layout_init();
 	if (rc != 0)
 		goto rpc_fini;
 
+	rc = register_filesystem(&c2t1fs_fs_type);
+	if (rc != 0)
+		goto layout_fini;
+
 	C2_LEAVE("rc: 0");
 	return 0;
+
+layout_fini:
+	c2t1fs_layout_fini();
 
 rpc_fini:
 	c2t1fs_rpc_fini();
@@ -114,6 +124,7 @@ void c2t1fs_fini(void)
 
 	(void)unregister_filesystem(&c2t1fs_fs_type);
 
+	c2t1fs_layout_fini();
 	c2t1fs_rpc_fini();
 	c2t1fs_net_fini();
 	c2t1fs_inode_cache_fini();
@@ -212,6 +223,34 @@ static void c2t1fs_rpc_fini(void)
 	c2_rpc_machine_fini(&c2t1fs_globals.g_rpc_machine);
 	c2_cob_domain_fini(&c2t1fs_globals.g_cob_dom);
 	c2_dbenv_fini(&c2t1fs_globals.g_dbenv);
+
+	C2_LEAVE();
+}
+
+static int c2t1fs_layout_init(void)
+{
+	int rc;
+
+	C2_ENTRY();
+
+	rc = c2_layout_domain_init(&c2t1fs_globals.g_layout_dom,
+				   &c2t1fs_globals.g_dbenv);
+	if (rc != 0)
+		goto out;
+
+	rc = c2_layout_register(&c2t1fs_globals.g_layout_dom);
+
+out:
+	C2_LEAVE("rc: %d", rc);
+	return rc;
+}
+
+static void c2t1fs_layout_fini(void)
+{
+	C2_ENTRY();
+
+	c2_layout_unregister(&c2t1fs_globals.g_layout_dom);
+	c2_layout_domain_fini(&c2t1fs_globals.g_layout_dom);
 
 	C2_LEAVE();
 }
