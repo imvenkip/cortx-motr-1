@@ -103,6 +103,9 @@ int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 	pool->nbp_colours_nr = colours;
 	pool->nbp_align	     = shift;
 
+	pool_tlist_init(&pool->nbp_lru);
+	c2_mutex_init(&pool->nbp_mutex);
+
 	if (colours == 0)
 		pool->nbp_colours = NULL;
 	else {
@@ -111,8 +114,6 @@ int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 		if(pool->nbp_colours == NULL)
 			return -ENOMEM;
 	}
-	c2_mutex_init(&pool->nbp_mutex);
-	pool_tlist_init(&pool->nbp_lru);
 	for (i = 0; i < colours; i++)
 		tm_tlist_init(&pool->nbp_colours[i]);
 	return 0;
@@ -171,9 +172,12 @@ void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool)
 		buffer_remove(pool, nb);
 	} c2_tl_endfor;
 	pool_tlist_fini(&pool->nbp_lru);
-	for (i = 0; i < pool->nbp_colours_nr; i++)
-		tm_tlist_fini(&pool->nbp_colours[i]);
-	c2_free(pool->nbp_colours);
+
+	if (pool->nbp_colours != NULL) {
+		for (i = 0; i < pool->nbp_colours_nr; i++)
+			tm_tlist_fini(&pool->nbp_colours[i]);
+		c2_free(pool->nbp_colours);
+	}
 	c2_net_buffer_pool_unlock(pool);
 	c2_mutex_fini(&pool->nbp_mutex);
 }
