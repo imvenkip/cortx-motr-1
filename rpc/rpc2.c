@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -362,7 +362,6 @@ static void rpc_recv_pool_buffer_put(struct c2_net_buffer *nb)
 	C2_PRE(tm != NULL);
 	C2_PRE(tm->ntm_recv_pool != NULL && nb->nb_pool !=NULL);
 	C2_PRE(tm->ntm_recv_pool == nb->nb_pool);
-	C2_PRE(!(nb->nb_flags & C2_NET_BUF_QUEUED));
 
 	c2_net_buffer_pool_lock(tm->ntm_recv_pool);
 	c2_net_buffer_pool_put(tm->ntm_recv_pool, nb,
@@ -389,14 +388,17 @@ static int rpc_tm_setup(struct c2_rpc_machine *machine,
 	if (rc < 0)
 		return rc;
 
-	c2_mutex_lock(&net_dom->nd_mutex);
 	rc = c2_net_tm_pool_attach(&machine->rm_tm, machine->rm_buffer_pool,
 				   &c2_rpc_rcv_buf_callbacks,
 				   machine->rm_min_recv_size,
-				   machine->rm_max_recv_msgs);
-	c2_mutex_unlock(&net_dom->nd_mutex);
-	if (rc != 0)
+				   machine->rm_max_recv_msgs,
+				   machine->rm_tm_recv_queue_min_length);
+	if (rc < 0) {
+		c2_net_tm_fini(&machine->rm_tm);
 		return rc;
+	}
+
+	c2_net_tm_colour_set(&machine->rm_tm, machine->rm_tm_colour);
 
 	/* Start the transfer machine so that users of this rpc_machine
 	   can send/receive messages. */
@@ -507,7 +509,8 @@ static void rpc_tm_cleanup(struct c2_rpc_machine *machine)
 		return;
 	}
 	/* Wait for transfer machine to stop. */
-	while (tm->ntm_state != C2_NET_TM_STOPPED)
+	while (tm->ntm_state != C2_NET_TM_STOPPED &&
+	       tm->ntm_state != C2_NET_TM_FAILED)
 		c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
 	c2_clink_fini(&tmwait);
@@ -623,14 +626,14 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 		 */
 	}
 
-	/* Add the c2_net_buffer back to the queue of
-	   transfer machine. */
 last:
-	nb->nb_qtype = C2_NET_QT_MSG_RECV;
-	nb->nb_ep = NULL;
-	nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
-	if ((nb->nb_pool != NULL) && !(nb->nb_flags & C2_NET_BUF_QUEUED))
+	C2_ASSERT(nb->nb_pool != NULL);
+	if (!(nb->nb_flags & C2_NET_BUF_QUEUED)) {
+		nb->nb_qtype     = C2_NET_QT_MSG_RECV;
+		nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
+		nb->nb_ep	 = NULL;
 		rpc_recv_pool_buffer_put(nb);
+	}
 }
 
 static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
@@ -730,7 +733,7 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 			struct c2_net_domain      *net_dom,
 			const char                *ep_addr,
 			struct c2_reqh            *reqh,
-			struct c2_net_buffer_pool *app_pool)
+			struct c2_net_buffer_pool *receive_pool)
 {
 	int		rc;
 	struct c2_db_tx tx;
@@ -739,7 +742,7 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 	C2_PRE(machine  != NULL);
 	C2_PRE(ep_addr  != NULL);
 	C2_PRE(net_dom  != NULL);
-	C2_PRE(app_pool != NULL);
+	C2_PRE(receive_pool != NULL);
 
 	c2_db_tx_init(&tx, dom->cd_dbenv, 0);
 #ifndef __KERNEL__
@@ -753,7 +756,13 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 	c2_mutex_init(&machine->rm_chan_mutex);
 	c2_list_init(&machine->rm_chans);
 
-	machine->rm_buffer_pool = app_pool;
+	machine->rm_buffer_pool = receive_pool;
+	if (machine->rm_min_recv_size == 0)
+		machine->rm_min_recv_size =
+			c2_net_domain_get_max_buffer_size(net_dom);
+	if (machine->rm_max_recv_msgs == 0)
+		machine->rm_max_recv_msgs = 1;
+
 	rc = rpc_tm_setup(machine, net_dom, ep_addr);
 	if (rc < 0)
 		goto cleanup;

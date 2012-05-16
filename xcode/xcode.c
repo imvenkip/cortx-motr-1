@@ -69,7 +69,7 @@ bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
 	if (xt->xct_nr < min[xt->xct_aggr] || xt->xct_nr > max[xt->xct_aggr])
 		return false;
 
-	for (i = 0; i < xt->xct_nr; ++i) {
+	for (i = 0, offset = 0; i < xt->xct_nr; ++i) {
 		const struct c2_xcode_field *f;
 
 		f = &xt->xct_child[i];

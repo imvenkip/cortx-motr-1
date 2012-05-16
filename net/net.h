@@ -114,13 +114,13 @@ int c2_net_init(void);
 void c2_net_fini(void);
 
 enum {
-	/** Hex value for "netmagic" */
-	C2_NET_MAGIC = 0x6E65746D61676963,
-
 	/** Default minimum number of receive queue buffers for automatic
 	    provisioning.
 	 */
 	C2_NET_TM_RECV_QUEUE_DEF_LEN = 2,
+
+	/* Hex value for "NET_DOM" */
+	C2_NET_DOMAIN_MAGIX = 0x4E45545F444F4D
 };
 
 /** Network transport (e.g., lnet or sunrpc) */
@@ -483,15 +483,6 @@ struct c2_net_domain {
 
 	/** Network magic */
 	uint64_t            nd_magic;
-
-	/**
-	   Buffer pool per net domain shared across TM's and is not used
-	   by network layer.
-	 */
-	struct c2_net_buffer_pool  *nd_app_pool;
-
-	/** Transfer machine pool colour counter */
-        int                 nd_pool_colour_counter;
 };
 
 /**
@@ -1191,6 +1182,7 @@ uint32_t c2_net_tm_colour_get(struct c2_net_transfer_mc *tm);
    to allow reuse for multiple messages.
    @param max_recv_msgs Maximum number of messages that may be received in the
    buffer in TM receive queue.
+   @param min_recv_queue_len Minimum nuber of buffers in TM receive queue.
    @pre
 	(tm != NULL && tm->ntm_state == C2_NET_TM_INITIALIZED &&
 	bufpool != NULL && callbacks != NULL &&
@@ -1202,7 +1194,8 @@ uint32_t c2_net_tm_colour_get(struct c2_net_transfer_mc *tm);
 int c2_net_tm_pool_attach(struct c2_net_transfer_mc *tm,
 			  struct c2_net_buffer_pool *bufpool,
 			  const struct c2_net_buffer_callbacks *callbacks,
-			  c2_bcount_t min_recv_size, uint32_t max_recv_msgs);
+			  c2_bcount_t min_recv_size, uint32_t max_recv_msgs,
+			  uint32_t min_recv_queue_len);
 
 /**
    Set the minimum number of network buffers that should be present on the

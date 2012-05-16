@@ -1,6 +1,6 @@
 noinst_LTLIBRARIES                = libcolibri-net-bulkmem.la \
                                     libcolibri-net-bulksunrpc.la
-INCLUDES                          = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+INCLUDES                          = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
 
 libcolibri_net_bulkmem_la_SOURCES = mem_xprt_xo.c ../bulk_mem.h mem_xprt.h
 

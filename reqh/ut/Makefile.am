@@ -11,6 +11,6 @@ reqh_fom_ut.c : io_fop_u.h
 
 io_fop_u.h : io_fop.ff
 
-INCLUDES                = -I. -I$(top_srcdir)/include -I$(top_srcdir)
+INCLUDES                = -iquote . -iquote $(top_srcdir)/include -iquote $(top_srcdir)
 
 noinst_LTLIBRARIES      = libreqh-ut.la

@@ -33,12 +33,6 @@
 #include "ioservice/io_service.h"
 #include "colibri/colibri_setup.h"
 
-/** Required for accessing rpc_machine list */
-C2_TL_DESCR_DEFINE(rpc_machines, "rpc machines associated with reqh", static,
-                   struct c2_rpc_machine, rm_rh_linkage, rm_magic,
-                   C2_REQH_MAGIC, C2_RPC_MAGIC);
-C2_TL_DEFINE(rpc_machines, static, struct c2_rpc_machine);
-
 C2_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh", ,
                    struct c2_rios_buffer_pool, rios_bp_linkage, rios_bp_magic,
                    C2_RIOS_BUFFER_POOL_MAGIC, C2_RIOS_BUFFER_POOL_HEAD);
@@ -172,7 +166,8 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
 
-        c2_tl_for(rpc_machines, &service->rs_reqh->rh_rpc_machines, rpcmach) {
+        c2_tlist_for(&c2_rhrpm_tl,
+		     &service->rs_reqh->rh_rpc_machines, rpcmach) {
 		/*
 		 * Check buffer pool for network domain of rpc_machine
 		 */
@@ -199,7 +194,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 		 */
 		c2_chan_init(&newbp->rios_bp_wait);
 		newbp->rios_bp_magic = C2_RIOS_BUFFER_POOL_MAGIC;
-		colours = rpcmach->rm_tm.ntm_dom->nd_pool_colour_counter;
+		colours = c2_list_length(&newbp->rios_ndom->nd_tms);
 		rc = c2_net_buffer_pool_init(&newbp->rios_bp,
 					     rpcmach->rm_tm.ntm_dom,
 					     network_buffer_pool_threshold,
@@ -252,8 +247,6 @@ static void ioservice_delete_buffer_pool(struct c2_reqh_service *service)
 
                 c2_chan_fini(&bp->rios_bp_wait);
                 bufferpools_tlink_del_fini(bp);
-
-                c2_net_buffer_pool_lock(&bp->rios_bp);
                 c2_net_buffer_pool_fini(&bp->rios_bp);
 		c2_free(bp);
 

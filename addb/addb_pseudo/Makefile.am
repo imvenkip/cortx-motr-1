@@ -6,4 +6,4 @@
 noinst_LTLIBRARIES          = libcolibri-addb-pseudo.la
 libcolibri_addb_pseudo_la_SOURCES  = ../addb.c ../addb_console.c addb_pseudo.c
 
-INCLUDES                    = -I$(top_srcdir)/include
+INCLUDES                    = -iquote $(top_srcdir)/include

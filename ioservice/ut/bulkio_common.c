@@ -29,6 +29,10 @@ extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
 #define S_DBFILE		  "bulkio_st.db"
 #define S_STOBFILE		  "bulkio_st_stob"
 
+#define to_string(x) str(x)
+#define str(x)	#x
+#define IO_TM_RECV_QUEUE_MIN_LEN 6
+
 /* Global reference to bulkio_params structure. */
 struct bulkio_params *bparm;
 
@@ -86,7 +90,8 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr, int port)
 	strcat(server_args[9], sep);
 	strcpy(server_args[10], "-s");
 	strcpy(server_args[11], "ioservice");
-
+	strcpy(server_args[12], "-q");
+	strcpy(server_args[13], to_string(IO_TM_RECV_QUEUE_MIN_LEN));
 	C2_ALLOC_ARR(stypes, IO_SERVER_SERVICE_NR);
 	C2_ASSERT(stypes != NULL);
 	stypes[0] = &ds1_service_type;
@@ -470,6 +475,7 @@ int bulkio_client_start(struct bulkio_params *bp, const char *caddr, int cport,
 	cctx->rcx_nr_slots    = IO_RPC_SESSION_SLOTS;
 	cctx->rcx_timeout_s   = IO_RPC_CONN_TIMEOUT;
 	cctx->rcx_max_rpcs_in_flight = IO_RPC_MAX_IN_FLIGHT;
+	cctx->rcx_recv_queue_min_length = IO_TM_RECV_QUEUE_MIN_LEN;
 
 	C2_ALLOC_ARR(cli_addr, IO_ADDR_LEN);
 	C2_ASSERT(cli_addr != NULL);

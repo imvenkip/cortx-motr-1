@@ -255,6 +255,15 @@ extern const struct c2_fom_type c2_io_fom_cob_rw_mopt;
 struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
 struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop);
 
+static inline struct c2_net_transfer_mc *io_fop_tm_get(
+		const struct c2_fop *fop)
+{
+	C2_PRE(fop != NULL);
+
+	return &fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm;
+}
+
+
 /* __COLIBRI_IOSERVICE_IO_FOPS_H__ */
 #endif
 

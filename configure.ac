@@ -26,7 +26,7 @@ COLIBRI_MINOR_VERSION=1
 PACKAGE=colibri
 VERSION=$COLIBRI_MAJOR_VERSION.$COLIBRI_MINOR_VERSION
 
-AM_INIT_AUTOMAKE([$PACKAGE], [$VERSION])
+AM_INIT_AUTOMAKE([nostdinc])
 
 LT_RELEASE=$COLIBRI_MAJOR_VERSION.$COLIBRI_MINOR_VERSION
 AC_SUBST([LT_RELEASE])
@@ -298,7 +298,7 @@ AC_FUNC_MALLOC
 # Configure options
 AC_ARG_ENABLE([debug],
         [AC_HELP_STRING([--disable-debug], [disable debug information and logs])], [],
-        [enable_debug=yes]
+        [enable_debug=no]
 )
 
 AC_ARG_ENABLE([gssrpc],
@@ -596,10 +596,6 @@ if test x$enable_debug = xyes; then
         CFLAGS="$(echo $CFLAGS | sed 's/-g//' | sed 's/-O2//') -g -O0"
         KCFLAGS="$(echo $KCFLAGS | sed 's/-g//' | sed 's/-O2//') -g -O0"
         AC_DEFINE([ENABLE_DEBUG])
-else
-        # Remove debug flags but keep default or user optimizations
-        # passed via construction like ./configure CFLAGS=-O3
-        CFLAGS="$(echo $CFLAGS | sed 's/-g//')"
 fi
 
 # Check if gcc option is supported in current gcc version.
@@ -621,14 +617,14 @@ CFLAGS="$OLD_CFLAGS")
 if test x$enable_rpm = xyes; then
 
 GALOIS_INCLUDES="-I/usr/local/include -I/usr/include"
-CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I. -I$SRCDIR $CFLAGS"
+CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -iquote . -iquote $SRCDIR $CFLAGS"
 
 else
 
 GALOIS_INCLUDES="-I$GALOIS_SRC/include"
 CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing \
         $DB_INCLUDES $GALOIS_INCLUDES -I$YAML_SRC/include \
-        -I$CUNIT_HEADERS -I. -I$SRCDIR $CFLAGS"
+        -I$CUNIT_HEADERS -iquote . -iquote $SRCDIR $CFLAGS"
 fi
 
 #

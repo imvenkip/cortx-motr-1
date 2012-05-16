@@ -20,16 +20,12 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
-/**
-   @todo hack, but without it timer_create(2) isn't declarated.
-   in Makefile should be -iquote instead of -I
- */
-#include </usr/include/time.h>	  /* timer_create */
-#include <unistd.h>	  /* syscall */
+#include <time.h>	  /* timer_create */
 #include <signal.h>	  /* timer_create */
+#include <unistd.h>	  /* syscall */
 #include <sys/syscall.h>  /* syscall */
 
 #include "lib/misc.h"   /* C2_SET0 */

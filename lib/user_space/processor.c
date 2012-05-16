@@ -288,6 +288,7 @@ static int processor_set_map_type(enum map map_type)
 		/*
 		 * Not reachable. Earlier switch statment checks this.
 		 */
+		pbitmap = 0;
 		break;
 	}
 
@@ -945,20 +946,20 @@ static int processors_getsummary()
 
 	processor_get_maxsz();
 	if ( sys_cpus.pss_max == C2_PROCESSORS_INVALID_ID) {
-		chdir(cwd);
+		rc |= chdir(cwd);
 		return rc;
 	}
 
 	rc = processor_set_map_type(C2_PROCESSORS_POSS_MAP);
 	if (rc != 0) {
-		chdir(cwd);
+		rc |= chdir(cwd);
 		return rc;
 	}
 
 	rc = processor_set_map_type(C2_PROCESSORS_AVAIL_MAP);
 	if (rc != 0) {
 		c2_bitmap_fini(&sys_cpus.pss_poss_map);
-		chdir(cwd);
+		rc |= chdir(cwd);
 		return rc;
 	}
 
@@ -966,7 +967,7 @@ static int processors_getsummary()
 	if (rc != 0) {
 		c2_bitmap_fini(&sys_cpus.pss_poss_map);
 		c2_bitmap_fini(&sys_cpus.pss_avail_map);
-		chdir(cwd);
+		rc |= chdir(cwd);
 		return rc;
 	}
 
@@ -998,7 +999,7 @@ static int processors_getsummary()
 		c2_bitmap_fini(&sys_cpus.pss_poss_map);
 		c2_bitmap_fini(&sys_cpus.pss_avail_map);
 		c2_bitmap_fini(&sys_cpus.pss_onln_map);
-		chdir(cwd);
+		rc = chdir(cwd);
 		return -1;
 	}
 

@@ -312,11 +312,7 @@ void c2_addb_fini(void);
    C2_ADDB_EV_DEFINE(reqh_dirent_cache,
                      "sendreply",           // human-readable name
                      REQH_ADDB_DIRENT_CACHE,// unique identifier
-		     C2_ADDB_FLAG,          // event type (Boolean: hit or miss)
-		     bool flag              // prototype. Must match the
-                                            // prototype in C2_ADDB_FLAG
-                                            // definition.
-                    );
+		     C2_ADDB_FLAG);         // event type (Boolean: hit or miss)
    @endcode
  */
 

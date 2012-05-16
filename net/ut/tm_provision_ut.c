@@ -258,9 +258,10 @@ static void test_net_tm_prov(void)
 	C2_UT_ASSERT(buf_segs == UT_MAX_BUF_SEGMENTS);
 
 	/* allocate buffers for testing */
-	c2_net_buffer_pool_init(pool_prov, dom, POOL_THRESHOLD, buf_segs,
+	rc = c2_net_buffer_pool_init(pool_prov, dom, POOL_THRESHOLD, buf_segs,
 				buf_seg_size, POOL_COLOURS, shift);
 	c2_net_buffer_pool_lock(pool_prov);
+	C2_UT_ASSERT(rc == 0);
 	rc = c2_net_buffer_pool_provision(pool_prov, POOL_BUF_NR);
 	c2_net_buffer_pool_unlock(pool_prov);
 	C2_UT_ASSERT(rc == POOL_BUF_NR);
@@ -278,7 +279,8 @@ static void test_net_tm_prov(void)
 	C2_UT_ASSERT(c2_net_tm_colour_get(tm1) == tm_colours);
 
 	rc = c2_net_tm_pool_attach(tm1, pool_prov, &ut_buf_prov_cb,
-				   MIN_RECV_SIZE, max_recv_msgs);
+				   MIN_RECV_SIZE, max_recv_msgs,
+				   C2_NET_TM_RECV_QUEUE_DEF_LEN);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(tm1->ntm_recv_pool == pool_prov);
 	C2_UT_ASSERT(tm1->ntm_recv_pool_callbacks == &ut_buf_prov_cb);
@@ -360,7 +362,8 @@ static void test_net_tm_prov(void)
 	C2_UT_ASSERT(c2_net_tm_colour_get(tm2) == tm_colours);
 	max_recv_msgs = 2;
 	rc = c2_net_tm_pool_attach(tm2, pool_prov, &ut_buf_prov_cb,
-				   MIN_RECV_SIZE, max_recv_msgs);
+				   MIN_RECV_SIZE, max_recv_msgs,
+				   C2_NET_TM_RECV_QUEUE_DEF_LEN);
 	C2_UT_ASSERT(tm2->ntm_recv_pool == pool_prov);
 	C2_UT_ASSERT(tm2->ntm_recv_pool_callbacks == &ut_buf_prov_cb);
 	C2_UT_ASSERT(tm2->ntm_recv_queue_min_recv_size == MIN_RECV_SIZE);
@@ -517,7 +520,6 @@ static void test_net_tm_prov(void)
 
 	c2_clink_fini(&tmwait);
 	/* Finalize the buffer pool. */
-	c2_net_buffer_pool_lock(pool_prov);
 	c2_net_buffer_pool_fini(pool_prov);
 	c2_free(pool_prov);
 

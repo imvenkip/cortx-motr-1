@@ -10,6 +10,6 @@ noinst_LTLIBRARIES          = libcolibri-addb.la
 libcolibri_addb_la_SOURCES  = addb.c addb.h addb_console.c \
 			      addb_fop.c addb_store.c
 
-INCLUDES                    = -I. -I$(top_srcdir)/include
+INCLUDES                    = -iquote . -iquote $(top_srcdir)/include
 
 EXTRA_DIST                  = linux_kernel/addb_console.c

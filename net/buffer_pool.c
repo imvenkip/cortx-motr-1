@@ -19,7 +19,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 #include "lib/memory.h"/* C2_ALLOC_PTR */
 #include "lib/errno.h" /* ENOMEM */
@@ -104,6 +104,9 @@ int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 	pool->nbp_colours_nr = colours;
 	pool->nbp_align	     = shift;
 
+	c2_net_pool_tlist_init(&pool->nbp_lru);
+	c2_mutex_init(&pool->nbp_mutex);
+
 	if (colours == 0)
 		pool->nbp_colours = NULL;
 	else {
@@ -112,8 +115,7 @@ int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 		if(pool->nbp_colours == NULL)
 			return -ENOMEM;
 	}
-	c2_mutex_init(&pool->nbp_mutex);
-	c2_net_pool_tlist_init(&pool->nbp_lru);
+
 	for (i = 0; i < colours; i++)
 		c2_net_tm_tlist_init(&pool->nbp_colours[i]);
 	return 0;
@@ -161,17 +163,23 @@ void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool)
 	int		      i;
 	struct c2_net_buffer *nb;
 
-	C2_PRE(c2_net_buffer_pool_invariant(pool));
-	C2_PRE(pool->nbp_free == pool->nbp_buf_nr);
+	C2_PRE(c2_net_buffer_pool_is_not_locked(pool));
+
+	c2_net_buffer_pool_lock(pool);
+	C2_ASSERT(c2_net_buffer_pool_invariant(pool));
+	C2_ASSERT(pool->nbp_free == pool->nbp_buf_nr);
 
 	c2_tl_for(c2_net_pool, &pool->nbp_lru, nb) {
 		C2_CNT_DEC(pool->nbp_free);
 		buffer_remove(pool, nb);
 	} c2_tl_endfor;
 	c2_net_pool_tlist_fini(&pool->nbp_lru);
-	for (i = 0; i < pool->nbp_colours_nr; i++)
-		c2_net_tm_tlist_fini(&pool->nbp_colours[i]);
-	c2_free(pool->nbp_colours);
+	if (pool->nbp_colours != NULL) {
+		for (i = 0; i < pool->nbp_colours_nr; i++)
+			c2_net_tm_tlist_fini(&pool->nbp_colours[i]);
+		c2_free(pool->nbp_colours);
+	}
+	c2_net_buffer_pool_unlock(pool);
 	c2_mutex_fini(&pool->nbp_mutex);
 }
 

@@ -19,7 +19,7 @@
  * Original creation date: 08/24/2011
  */
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 
 #include "lib/errno.h"

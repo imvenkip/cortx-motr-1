@@ -18,7 +18,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 
 #include <stdio.h>
@@ -167,7 +167,7 @@ static struct reqh_ut_balloc rb = {
 };
 
 /* Buffer pool for TM receive queue. */
-static struct c2_net_buffer_pool *app_pool;
+static struct c2_net_buffer_pool app_pool;
 
 static int server_init(const char *stob_path, const char *srv_db_name,
 			struct c2_net_domain *net_dom, struct c2_stob_id *backid,
@@ -177,6 +177,10 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 {
         int                        rc;
 	struct c2_rpc_machine     *rpc_machine = &srv_rpc_mach;
+	uint32_t		   segs_nr;
+	uint32_t		   bufs_nr;
+	uint32_t		   tms_nr;
+
 
         srv_cob_dom_id.id = 102;
 
@@ -239,18 +243,26 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 			   &srv_fol);
 	C2_UT_ASSERT(rc == 0);
 
-	C2_ALLOC_PTR(app_pool);
-	C2_UT_ASSERT(app_pool != NULL);
+	segs_nr = c2_net_domain_get_max_buffer_size(net_dom) /
+		  C2_RPC_SEG_SIZE;
+	tms_nr	= 1;
+	bufs_nr = tms_nr * (C2_NET_TM_RECV_QUEUE_DEF_LEN + 1);
 
-	rc = c2_rpc_net_buffer_pool__setup(net_dom, app_pool);
+	rc = c2_rpc_net_buffer_pool_setup(net_dom, &app_pool,
+					  segs_nr, C2_RPC_SEG_SIZE,
+					  bufs_nr, tms_nr);
 	C2_UT_ASSERT(rc == 0);
 
-	rpc_machine->rm_min_recv_size = C2_RPC_MIN_RECV_SIZE;
-	rpc_machine->rm_max_recv_msgs = C2_RPC_MAX_RECV_MSGS;
+	rpc_machine->rm_min_recv_size =
+			c2_net_domain_get_max_buffer_size(net_dom);
+	rpc_machine->rm_max_recv_msgs =
+			c2_net_domain_get_max_buffer_size(net_dom) /
+			rpc_machine->rm_min_recv_size;
+	rpc_machine->rm_tm_colour     = C2_NET_BUFFER_POOL_ANY_COLOR;
 
 	/* Init the rpcmachine */
         rc = c2_rpc_machine_init(rpc_machine, &srv_cob_domain, net_dom,
-				 SERVER_ENDPOINT_ADDR, &reqh, app_pool);
+				 SERVER_ENDPOINT_ADDR, &reqh, &app_pool);
         C2_UT_ASSERT(rc == 0);
 	return rc;
 }
@@ -262,7 +274,7 @@ static void server_fini(struct c2_stob_domain *bdom,
         /* Fini the rpc_machine */
         c2_rpc_machine_fini(&srv_rpc_mach);
 
-	c2_rpc_net_buffer_pool_cleanup(app_pool);
+	c2_rpc_net_buffer_pool_cleanup(&app_pool);
 
         /* Fini the cob domain */
         c2_cob_domain_fini(&srv_cob_domain);
