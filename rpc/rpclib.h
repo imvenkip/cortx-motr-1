@@ -30,6 +30,7 @@
 #include "db/db.h"       /* struct c2_dbenv */
 #include "cob/cob.h"     /* struct c2_cob_domain */
 #include "net/net.h"     /* struct c2_net_end_point */
+#include "net/buffer_pool.h"
 
 #ifndef __KERNEL__
 #include "colibri/colibri_setup.h" /* struct c2_colibri */
@@ -166,7 +167,7 @@ struct c2_rpc_client_ctx {
 	struct c2_rpc_session	   rcx_session;
 
 	/** Buffer pool used to provision TM receive queue. */
-	struct c2_net_buffer_pool *rcx_buffer_pool;
+	struct c2_net_buffer_pool  rcx_buffer_pool;
 
 	/**
 	 * List of buffer pools in colibri context.

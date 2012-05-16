@@ -540,7 +540,8 @@ struct c2_rpc_machine {
 	/** Buffer pool from which TM receive buffers are provisioned. */
 	struct c2_net_buffer_pool	 *rm_buffer_pool;
 
-	/** @see c2_net_transfer_mc:ntm_recv_queue_length
+	/**
+	 *  @see c2_net_transfer_mc:ntm_recv_queue_length
 	 *  The default value is C2_NET_TM_RECV_QUEUE_DEF_LEN
 	 */
 	uint32_t			  rm_tm_recv_queue_min_length;
@@ -557,7 +558,8 @@ struct c2_rpc_machine {
 	 */
 	uint32_t			  rm_max_recv_msgs;
 
-	/** @see c2_net_transfer_mc:ntm_pool_colour
+	/**
+	 * @see c2_net_transfer_mc:ntm_pool_colour
 	 * The default value is C2_NET_BUFFER_POOL_ANY_COLOR
 	 */
 	uint32_t			  rm_tm_colour;

@@ -36,7 +36,6 @@
 #include "net/net.h"
 #include "fop/fop.h"
 #include "rpc/rpclib.h"
-#include "net/buffer_pool.h"
 
 #ifndef __KERNEL__
 #include "reqh/reqh.h"
@@ -132,7 +131,8 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 				     C2_NET_BUFFER_POOL_THRESHOLD,
 				     segs_nr, seg_size, tm_nr, shift);
 	c2_net_buffer_pool_lock(app_pool);
-	C2_ASSERT(rc == 0);
+	if (rc != 0)
+		return rc;
 	rc = c2_net_buffer_pool_provision(app_pool, bufs_nr);
 	c2_net_buffer_pool_unlock(app_pool);
 	return rc != bufs_nr ? -ENOMEM : 0 ;
@@ -153,16 +153,14 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	struct c2_net_transfer_mc *tm;
 	struct c2_net_domain      *ndom;
 	struct c2_rpc_machine	  *rpc_machine;
+	struct c2_net_buffer_pool *buffer_pool;
 	uint32_t		   segs_nr;
 	uint32_t		   tms_nr;
 	uint32_t		   bufs_nr;
 
 	ndom = cctx->rcx_net_dom;
 	rpc_machine = &cctx->rcx_rpc_machine;
-
-	C2_ALLOC_PTR(cctx->rcx_buffer_pool);
-	if (cctx->rcx_buffer_pool == NULL)
-		return -ENOMEM;
+	buffer_pool = &cctx->rcx_buffer_pool;
 
 	if (cctx->rcx_recv_queue_min_length == 0)
 		cctx->rcx_recv_queue_min_length = C2_NET_TM_RECV_QUEUE_DEF_LEN;
@@ -171,7 +169,7 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	tms_nr  = 1;
 	bufs_nr = tms_nr * (cctx->rcx_recv_queue_min_length + 1);
 
-	rc = c2_rpc_net_buffer_pool_setup(ndom, cctx->rcx_buffer_pool,
+	rc = c2_rpc_net_buffer_pool_setup(ndom, buffer_pool,
 					  segs_nr, C2_RPC_SEG_SIZE,
 					  bufs_nr, tms_nr);
 	if (rc != 0)
@@ -190,7 +188,7 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 
 	rc = c2_rpc_machine_init(rpc_machine, cctx->rcx_cob_dom,
 				 ndom, cctx->rcx_local_addr, NULL,
-				 cctx->rcx_buffer_pool);
+				 buffer_pool);
 	if (rc != 0)
 		goto pool_fini;
 
@@ -222,7 +220,7 @@ ep_put:
 rpcmach_fini:
 	c2_rpc_machine_fini(rpc_machine);
 pool_fini:
-	c2_rpc_net_buffer_pool_cleanup(cctx->rcx_buffer_pool);
+	c2_rpc_net_buffer_pool_cleanup(buffer_pool);
 	C2_ASSERT(rc != 0);
 	return rc;
 }
@@ -285,7 +283,7 @@ int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
 	c2_net_end_point_put(cctx->rcx_remote_ep);
 	c2_rpc_machine_fini(&cctx->rcx_rpc_machine);
 
-	c2_rpc_net_buffer_pool_cleanup(cctx->rcx_buffer_pool);
+	c2_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
 
 	return rc;
 }
