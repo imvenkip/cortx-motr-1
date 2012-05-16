@@ -400,7 +400,8 @@ static void loc_handler_thread(struct c2_fom_hthread *th)
 		}
 	}
 
-	C2_CNT_DEC(loc->fl_idle_threads_nr);
+	if (idle)
+		C2_CNT_DEC(loc->fl_idle_threads_nr);
 	C2_CNT_DEC(loc->fl_threads_nr);
 	c2_clink_del(&th_clink);
 	group_unlock(loc);
