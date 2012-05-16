@@ -126,7 +126,6 @@ static const struct c2_rpc_item_ops conn_terminate_item_ops = {
 bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 {
 	struct c2_rpc_session *session0;
-	struct c2_rpc_session *session;
 	struct c2_list        *conn_list;
 	bool                   sender_end;
 	bool                   recv_end;
@@ -135,6 +134,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	if (conn == NULL || conn->c_rpc_machine == NULL)
 		return false;
 
+	session0   = NULL;
 	sender_end = c2_rpc_conn_is_snd(conn);
 	recv_end   = c2_rpc_conn_is_rcv(conn);
 	conn_list  = sender_end ?
@@ -149,28 +149,20 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	     c2_list_invariant(&conn->c_sessions) &&
 	     c2_list_length(&conn->c_sessions) == conn->c_nr_sessions &&
 	     c2_is_po2(conn->c_state) &&
-	     conn->c_state <= C2_RPC_CONN_TERMINATED;
-
-	if (!ok)
-		return false;
-
-	/*
-	 * Each connection has one session with id SESSION_ID_0.
-	 * From c2_rpc_conn_init() to c2_rpc_conn_fini(), this session0 is
-	 * either in IDLE state or BUSY state.
-	 */
-	session0 = NULL;
-	c2_rpc_for_each_session(conn, session) {
-		if (session->s_session_id == SESSION_ID_0) {
-			session0 = session;
-			break;
-		}
-	}
-
-	ok = session0 != NULL &&
-	     c2_rpc_session_invariant(session0) &&
-	     C2_IN(session0->s_state, (C2_RPC_SESSION_IDLE,
-				       C2_RPC_SESSION_BUSY));
+	     conn->c_state <= C2_RPC_CONN_TERMINATED &&
+	     /*
+	      * Each connection has one session with id SESSION_ID_0.
+	      * From c2_rpc_conn_init() to c2_rpc_conn_fini(), this session0 is
+	      * either in IDLE state or BUSY state.
+	      */
+	     c2_list_entry_forall(s, &conn->c_sessions, struct c2_rpc_session,
+				  s_link,
+				  ergo(s->s_session_id == SESSION_ID_0,
+				       (session0 = s) != NULL &&
+				       C2_IN(s->s_state,
+					     (C2_RPC_SESSION_IDLE,
+					      C2_RPC_SESSION_BUSY)))) &&
+	     session0 != NULL;
 
 	if (!ok)
 		return false;
