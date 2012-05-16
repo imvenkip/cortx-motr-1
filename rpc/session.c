@@ -152,28 +152,19 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 		return false;
 
 	for (i = 0; i < session->s_nr_slots; i++) {
-
 		slot = session->s_slot_table[i];
-
-		if (!c2_rpc_slot_invariant(slot))
+		ok = c2_rpc_slot_invariant(slot) &&
+		     ergo(C2_IN(session->s_state,
+				(C2_RPC_SESSION_INITIALISED,
+				 C2_RPC_SESSION_ESTABLISHING,
+				 C2_RPC_SESSION_TERMINATING,
+				 C2_RPC_SESSION_TERMINATED,
+				 C2_RPC_SESSION_FAILED)),
+		          !c2_list_link_is_in(&slot->sl_link));
+		    /* A slot cannot be on ready slots list if session is
+		       in one of above states */
+		if (!ok)
 			return false;
-
-		switch (session->s_state) {
-		case C2_RPC_SESSION_INITIALISED:
-		case C2_RPC_SESSION_ESTABLISHING:
-		case C2_RPC_SESSION_TERMINATING:
-		case C2_RPC_SESSION_TERMINATED:
-		case C2_RPC_SESSION_FAILED:
-
-			/* A slot cannot be on ready slots list if session is
-			   in one of above states */
-			if (c2_list_link_is_in(&slot->sl_link))
-				return false;
-			break;
-
-		default:
-			break;
-		}
 	}
 
 	switch (session->s_state) {
