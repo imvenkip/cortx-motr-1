@@ -2,13 +2,17 @@ CORE_SRCDIR     = @SRCDIR@
 BUILD_DIR       = $(CORE_SRCDIR)/build_kernel_modules
 KERNEL_BUILDDIR = @LINUX_OBJ@
 
+KBUILD_EXTRA_SYMBOLS = $(BUILD_DIR)/Lustre.symvers @GALOIS_SYMVERS@
+
 GCOV_PROFILE    = @K_ENABLE_COVERAGE@
 
 testdirs        = ../net/bulk_emulation/st/linux_kernel/        \
+                  ../net/lnet/st/linux_kernel/                  \
                   ../rpc/it/linux_kernel/                       \
                   ../utils/linux_kernel/
 
-EXTRA_CFLAGS    = -DHAVE_CONFIG_H -I. -I$(CORE_SRCDIR) @KCFLAGS@
+EXTRA_CFLAGS    = -DHAVE_CONFIG_H -iquote . -iquote $(CORE_SRCDIR) @KCFLAGS@  \
+		  -I@LUSTRE@/lnet/include -I@LUSTRE@/libcfs/include
 
 #       NOTE:
 #       It is assumed that user space build is done before starting to
@@ -22,6 +26,7 @@ EXTRA_CFLAGS    = -DHAVE_CONFIG_H -I. -I$(CORE_SRCDIR) @KCFLAGS@
 #       The $(dirs) list is maintained alphabetically
 
 dirs  = addb                                                                  \
+        addb/addbff                                                           \
         addb/linux_kernel                                                     \
         c2t1fs/linux_kernel                                                   \
         cob                                                                   \
@@ -42,6 +47,7 @@ dirs  = addb                                                                  \
         net/bulk_emulation                                                    \
         net/bulk_emulation/ut                                                 \
         net/ksunrpc                                                           \
+        net/lnet/ut                                                           \
         net/ut                                                                \
         pool                                                                  \
         rpc                                                                   \
@@ -60,8 +66,9 @@ dirs  = addb                                                                  \
 #       headers that need to be included in following listing are those of
 #       type `*_k.h'; rest of the headers will be assumed relative to `core/'
 
-addb_SOURCES                    := addb.c addb_fop.c addb_k.c
-addb_HEADERS                    := addb_k.h
+addb_SOURCES                    := addb.c addb_fop.c
+addb_addbff_SOURCES             := addb_k.c
+addb_addbff_HEADERS             := addb_k.h
 
 addb_linux_kernel_SOURCES       := addb_console.c
 
@@ -118,6 +125,8 @@ net_bulk_emulation_HEADERS      := sunrpc_io_k.h
 net_bulk_emulation_ut_SOURCES   := ksunrpc_ut.c bulk_mem_ut.c bulk_sunrpc_ut.c
 
 net_ksunrpc_SOURCES             := domain.c client.c kxdr.c
+
+net_lnet_ut_SOURCES             := lnet_ut.c
 
 net_ut_SOURCES                  := bulk_if.c buffer_pool_ut.c
 
@@ -180,6 +189,8 @@ create_links = $(shell ln -s $(CORE_SRCDIR)/$(d)/$(f) $(d)/$(notdir $(f))     \
 all:
 	@echo $(kcolibri-y)
 	for s in $(testdirs); do $(MAKE) -C $$s prepare; done
+#	Following line is commented out until a lustre devel RPM is available
+#	ln -fs @LUSTRE@/config.h lustre_config.h
 #       Following lines create links to files from core/ tree to
 #       build_kernel_modules/ tree if links does not already exists.
 #       for d in $(dirs); do
@@ -194,8 +205,7 @@ all:
 	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_HEADERS),      \
 		$(create_links)))
 #       DO NOT append 'modules' target to the following $(MAKE)
-	$(MAKE) -C $(KERNEL_BUILDDIR) KBUILD_EXTRA_SYMBOLS=@GALOIS_SYMVERS@   \
-		M=`pwd`
+	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd`
 
 install modules_install:
 	$(MAKE) INSTALL_MOD_DIR=kernel/fs/colibri -C $(KERNEL_BUILDDIR) M=`pwd` modules_install
@@ -208,10 +218,12 @@ uninstall:
 
 dist distdir:
 	cp -v dummy_init_fini.[ch] main.c Makefile.in \
+		lustre_config.h Lustre.symvers \
 		@top_builddir@/@PACKAGE@-@VERSION@/build_kernel_modules
 
 clean distclean:
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd` clean
+#	$(RM) lustre_config.h
 	$(RM) Module.markers modules.order
 	$(foreach d, $(dirs), $(shell rm -rf $(firstword $(subst /, , $(d)))))
 	for s in $(testdirs) ;do $(MAKE) -C $$s clean ;done

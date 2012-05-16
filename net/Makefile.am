@@ -1,14 +1,14 @@
 netdir                     = $(includedir)/colibri/net
 net_HEADERS                = net.h xdr.h net_internal.h
 
-SUBDIRS                    = . usunrpc bulk_emulation
+SUBDIRS                    = . usunrpc bulk_emulation lnet
 
 noinst_LTLIBRARIES         = libcolibri-net.la
 libcolibri_net_la_SOURCES  = net.c net.h domain.c ep.c buf.c tm.c \
                              $(OTW_U_SOURCES) net_xdr.c xdr.h \
                              net_utils.c net_cli.c net_srv.c connection.c \
 			     buffer_pool.c buffer_pool.h net_internal.h
-INCLUDES                   = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+INCLUDES                   = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
 
 OTW_U_SOURCES              = net_otw_types_u.h net_otw_types_u.c
 MOSTLYCLEANFILES           = $(OTW_U_SOURCES) net_otw_types_k.h net_otw_types_k.c

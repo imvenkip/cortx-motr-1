@@ -46,6 +46,7 @@ static void test_addb()
 	char     buffer[MESSAGE_LENGTH];
 	struct c2_ut_redirect   addb_ut_redirect;
 	const char message[] = "A test ADDB message for C2_ADDB_TRACE event";
+	char *fgets_rc;
 
 	c2_stream_redirect(stdout, s_out_fname, &addb_ut_redirect);
 
@@ -57,7 +58,8 @@ static void test_addb()
 
 	rewind(stdout);
 
-	fgets(buffer, MESSAGE_LENGTH, stdout);
+	fgets_rc = fgets(buffer, MESSAGE_LENGTH, stdout);
+	C2_UT_ASSERT(fgets_rc != NULL);
 
 	C2_UT_ASSERT(strstr(buffer, message) != NULL);
 

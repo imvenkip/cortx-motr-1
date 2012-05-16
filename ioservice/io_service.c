@@ -33,12 +33,6 @@
 #include "ioservice/io_service.h"
 #include "colibri/colibri_setup.h"
 
-/** Required for accessing rpc_machine list */
-C2_TL_DESCR_DEFINE(rpc_machines, "rpc machines associated with reqh", static,
-                   struct c2_rpc_machine, rm_rh_linkage, rm_magic,
-                   C2_REQH_MAGIC, C2_RPC_MAGIC);
-C2_TL_DEFINE(rpc_machines, static, struct c2_rpc_machine);
-
 C2_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh", ,
                    struct c2_rios_buffer_pool, rios_bp_linkage, rios_bp_magic,
                    C2_RIOS_BUFFER_POOL_MAGIC, C2_RIOS_BUFFER_POOL_HEAD);
@@ -172,12 +166,12 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
 
-        c2_tlist_for(&rpc_machines_tl,
+        c2_tlist_for(&c2_rhrpm_tl,
 		     &service->rs_reqh->rh_rpc_machines, rpcmach) {
 		/*
 		 * Check buffer pool for network domain of rpc_machine
 		 */
-		c2_tlist_for(&bufferpools_tl, &serv_obj->rios_buffer_pools, bp) {
+		c2_tl_for(bufferpools, &serv_obj->rios_buffer_pools, bp) {
 
                         if (bp->rios_ndom == rpcmach->rm_tm.ntm_dom)
 				/*
@@ -186,7 +180,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 				 * for this domain.
 				 */
                                 return rc;
-		} c2_tlist_endfor; /* bufferpools */
+		} c2_tl_endfor; /* bufferpools */
 
 		/* Buffer pool for network domain not found create one */
 		C2_ALLOC_PTR(newbp);
@@ -225,7 +219,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 		bufferpools_tlink_init(newbp);
 		bufferpools_tlist_add(&serv_obj->rios_buffer_pools, newbp);
 
-        } c2_tlist_endfor; /* rpc_machines */
+        } c2_tl_endfor; /* rpc_machines */
 
         return rc;
 }
@@ -247,7 +241,7 @@ static void ioservice_delete_buffer_pool(struct c2_reqh_service *service)
 
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
 
-        c2_tlist_for(&bufferpools_tl, &serv_obj->rios_buffer_pools, bp) {
+        c2_tl_for(bufferpools, &serv_obj->rios_buffer_pools, bp) {
 
                 C2_ASSERT(bp != NULL);
 
@@ -258,7 +252,7 @@ static void ioservice_delete_buffer_pool(struct c2_reqh_service *service)
                 c2_net_buffer_pool_fini(&bp->rios_bp);
 		c2_free(bp);
 
-        } c2_tlist_endfor; /* bufferpools */
+        } c2_tl_endfor; /* bufferpools */
 
         bufferpools_tlist_fini(&serv_obj->rios_buffer_pools);
 }

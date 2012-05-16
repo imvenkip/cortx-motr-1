@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,7 +18,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
 #include "lib/cdefs.h"
@@ -33,9 +33,9 @@
 #include "addb/addb.h"
 
 #ifdef __KERNEL__
-# include "addb/addb_k.h"
+# include "addb/addbff/addb_k.h"
 #else
-# include "addb/addb_u.h"
+# include "addb/addbff/addb_u.h"
 #endif
 
 #ifndef __KERNEL__

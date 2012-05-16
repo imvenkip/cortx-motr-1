@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,8 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 11/01/2011
  */
 
@@ -27,7 +27,7 @@
    - @ref LNetDLD-req
    - @ref LNetDLD-depends
    - @ref LNetDLD-highlights
-   - @subpage LNetDLD-fspec "Functional Specification" <!-- ./lnet_core.h" -->
+   - @subpage LNetDLD-fspec "Functional Specification" <!-- ./lnet.h" -->
       - @ref LNetDFS "LNet Transport"                  <!-- net/lnet/lnet.h -->
       - @ref LNetXODFS "XO Interface"                  <!-- ./lnet_xo.h -->
    - @ref LNetDLD-lspec
@@ -50,20 +50,27 @@
 
    <hr>
    @section LNetDLD-ovw Overview
-   This document describes the Colibri Network transport for LNet. The
+   This document describes the Colibri network transport for LNet. The
    transport is composed of multiple layers.  The document describes the
    layering and then focuses mainly on the transport operations layer.
 
    The design of the other layers can be found here:
+   - @subpage LNetCoreDLD-fspec "LNet Transport Core API"
+     <!-- ./lnet_core.h -->
    - @ref LNetcqueueDLD "LNet Buffer Event Circular Queue DLD"
      <!-- ./bev_cqueue.c -->
    - @ref KLNetCoreDLD "LNet Transport Kernel Core DLD"
      <!-- ./linux_kernel/klnet_core.c -->
    - @ref ULNetCoreDLD "LNet Transport User Space Core DLD"
+     <!-- ./ulnet_core.c -->
+   - @ref LNetDRVDLD "LNet Transport Device DLD"
+     <!-- ./linux_kernel/klnet_drv.c -->
 
    <hr>
    @section LNetDLD-def Definitions
-   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
+   Refer to <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
+HLD of Colibri LNet Transport</a>
 
    <hr>
    @section LNetDLD-req Requirements
@@ -111,7 +118,8 @@
      };
      @endcode
      These fields are required to be set to non-zero values in receive buffers,
-     and control the reception of multiple messages into a single receive buffer.
+     and control the reception of multiple messages into a single receive
+     buffer.
 
      Additionally, the semantics of the @c nb_ep field is modified to not
      require the end point of the active transfer machine when enqueuing a
@@ -150,10 +158,10 @@
      @endcode
      By default, @c ntm_bev_auto_deliver is set to @c true.  In addition
      the following subroutines are defined:
-     - c2_net_tm_buffer_event_deliver_all()
-     - c2_net_tm_buffer_event_deliver_synchronously()
-     - c2_net_tm_buffer_event_pending()
-     - c2_net_tm_buffer_event_notify()
+     - c2_net_buffer_event_deliver_all()
+     - c2_net_buffer_event_deliver_synchronously()
+     - c2_net_buffer_event_pending()
+     - c2_net_buffer_event_notify()
      .
      This results in corresponding operations being added to the
      c2_net_xprt_ops structure:
@@ -233,9 +241,10 @@
    representation of a struct c2_net_end_point.
    @code
    struct nlx_xo_ep {
+       uint64_t                xe_magic;
        struct c2_net_end_point xe_ep;
        struct nlx_core_ep_addr xe_core;
-       char                    xe_addr[1];
+       char                    xe_addr[C2_NET_LNET_XEP_ADDR_LEN];
    };
    @endcode
    The length of the structure depends on the length of the string
@@ -277,7 +286,7 @@
    @subsection LNetDLD-lspec-tm-stop Transfer Machine Termination
    Termination of a transfer machine is requested through the c2_net_tm_stop()
    subroutine, which results in a call to nlx_xo_tm_stop(). The latter ensures
-   that the transfer machine's thread wakes up by signalling on the
+   that the transfer machine's thread wakes up by signaling on the
    nlx_xo_transfer_mc::xtm_ev_cond condition variable.
 
    When terminating a transfer machine the application has a choice of draining
@@ -303,35 +312,36 @@
 
    The nlx_xo_bev_deliver_sync() transport operation is invoked to disable the
    automatic delivery of buffer events. The subroutine simply returns without
-   error, and the invoking c2_net_tm_buffer_event_deliver_synchronously()
+   error, and the invoking c2_net_buffer_event_deliver_synchronously()
    subroutine will then set the value of
    c2_net_transfer_mc::ntm_bev_auto_deliver value to @c false.
 
    The nlx_xo_bev_pending() transport operation is invoked from the
-   c2_net_tm_buffer_event_pending() subroutine to determine if there are pending
+   c2_net_buffer_event_pending() subroutine to determine if there are pending
    network buffer events.  It invokes the nlx_core_buf_event_wait() subroutine
    with a timeout of 0 and uses the returned status value to determine if
    events are present or not.
 
    The nlx_xo_bev_notify() transport operation is invoked from the
-   c2_net_tm_buffer_event_notify() subroutine.  It sets the
+   c2_net_buffer_event_notify() subroutine.  It sets the
    nlx_xo_transfer_mc::xtm_ev_chan value to the specified wait channel, and
    signals on the nlx_xo_transfer_mc::xtm_ev_cond condition variable to wake up
    the event processing thread.
 
    The nlx_xo_bev_deliver_all() transport operation is invoked from the
-   c2_net_tm_buffer_event_deliver_all() subroutine.  It attempts to deliver all
+   c2_net_buffer_event_deliver_all() subroutine.  It attempts to deliver all
    pending events.  The transfer machine lock is held across the call to the
    nlx_core_buf_event_get() subroutine to serialize "consumers" of the
-   circualar buffer event queue, but is released during event delivery.  The
-   nlx_xo_transfer_mc::xtm_busy counter is incremented across the call to
-   prevent premature termination when operating outside of the protection of
-   the transfer machine mutex.  This is illustrated in the following
-   pseduo-code for nlx_xo_bev_deliver_all():
+   circular buffer event queue, but is released during event delivery.  The
+   c2_net_transfer_mc::ntm_callback_counter field is incremented across the
+   call to prevent premature termination when operating outside of the
+   protection of the transfer machine mutex.  This is illustrated in the
+   following pseudo-code for nlx_xo_bev_deliver_all():
    @code
    int rc;
+   bool delivered_events = false;
    C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
-   lctm->xtm_busy++;
+   tm->ntm_callback_counter++;
    do { // consume all pending events
         struct nlx_core_buffer_event lcbe;
 	struct c2_net_buffer_event nbev;
@@ -343,10 +353,13 @@
 	if (rc == 0) {
 	     nbe = ... // convert the event
 	     c2_net_buffer_event_post(&nbev);
+	     delivered_events = true;
         }
 	c2_mutex_lock(&tm->ntm_mutex); // re-acquire lock
    } while (rc == 0);
-   lctm->xtm_busy--;
+   tm->ntm_callback_counter--;
+   if (delivered_events)
+        c2_chan_broadcast(&tm->ntm_chan);
    @endcode
 
    @subsection LNetDLD-lspec-tm-thread Transfer Machine Event Processing Thread
@@ -384,7 +397,9 @@
    the following pseudo-code:
    @code
    // start the transfer machine in the Core
-   rc = nlx_core_tm_start(&tm, lctm, &cepa);
+   rc = nlx_core_tm_start(&tm, lctm);
+   if (rc == 0)
+       rc = nlx_ep_create(&tmev.nte_ep, tm, &lctm->ctm_addr);
    // deliver a C2_NET_TEV_STATE_CHANGE event to transition the TM to
    // the C2_NET_TM_STARTED or C2_NET_TM_FAILED states
    // Set the transfer machine's end point on success
@@ -421,7 +436,7 @@
       if (tm->ntm_state == C2_NET_TM_STOPPING) {
             bool must_stop = false;
             c2_mutex_lock(&tm->ntm_mutex);
-            if (all_tm_queues_are_empty(tm) && lctm->xtm_busy == 0) {
+            if (all_tm_queues_are_empty(tm) && tm->ntm_callback_counter == 0) {
 	       nlx_core_tm_stop(lctm);
 	       must_stop = true;
             }
@@ -447,7 +462,7 @@
      automatic buffer event delivery mode is set, or on the
      nlx_xo_transfer_mc::xtm_ev_cond condition variable otherwise. In the
      latter case, it may also block in the nlx_core_buf_event_wait() subroutine
-     if the condition variable is signalled by the nlx_xo_bev_notify()
+     if the condition variable is signaled by the nlx_xo_bev_notify()
      subroutine.
    - The transfer machine mutex is obtained across the call to dequeue buffer
      events to serialize with the "other" consumer of the buffer event queue,
@@ -464,7 +479,7 @@
      synchronous buffer event delivery.
    - The timeout value can vary depending on the mode of operation. Synchronous
      network delivery is best served by a long timeout value (in the order of a
-     minute), at least up to the time that the transfer machine is stopped.
+     minute), at least up to the time that the transfer machine is stopping.
      Automatic buffer event delivery is better served by a short timeout value
      (in the order of a second).  This is because in the user space transport
      the thread would be blocked in an ioctl call in the kernel, and would not
@@ -477,19 +492,25 @@
    descriptor returned to the application, to encode the identity of the
    passive buffers.
 
-   The following internal format is used:
+   The data structure will be defined by the Core API along the following lines:
    @code
-   struct nlx_xo_buf_desc {
-        uint64_t                 xbd_match_bits;
-        struct nlx_core_ep_addr  xbd_passive_ep;
-        enum c2_net_queue_type   xbd_qtype;
-        c2_bcount_t              xbd_size;
+   struct nlx_core_buf_desc {
+        uint64_t                 cbd_match_bits;
+        struct nlx_core_ep_addr  cbd_passive_ep;
+        enum c2_net_queue_type   cbd_qtype;
+        c2_bcount_t              cbd_size;
    };
    @endcode
 
-   All the fields are integer fields and the structure is of fixed length.  It
-   is encoded and decoded into its opaque over-the-wire struct c2_net_buf_desc
-   format with dedicated encoding routines.
+   The nlx_core_buf_desc_encode() and nlx_core_buf_desc_decode() subroutines
+   are provided by the Core API to generate and process the descriptor.  All
+   the descriptor fields are integers, the structure is of fixed length and all
+   values are in little-endian format.  No use is made of either the standard
+   XDR or the Colibri Xcode modules.
+
+   The transport will handle the conversion of the descriptor into its opaque
+   over the wire format by simply copying the memory area, as the descriptor is
+   inherently portable.
 
 
    @subsection LNetDLD-lspec-buf-op Buffer operations
@@ -497,17 +518,18 @@
    operation which points to the nlx_xo_buf_add() subroutine. The subroutine
    will invoke the appropriate Core API buffer initiation operations.
 
-   In passive buffer operations, the transport must first obtain suitable match
-   bits for the buffer using the nlx_core_buf_match_bits_set() subroutine.  The
-   transport is responsible for ensuring that the assigned match bits are not
-   in use currently; however this step can be ignored with relative safety as
-   the match bit space is very large and the match bit counter will only wrap
-   around after a very long while.  These match bits should also be encoded in
-   the network buffer descriptor that the transport must return.
+   In passive bulk buffer operations, the transport must first obtain suitable
+   match bits for the buffer using the nlx_core_buf_desc_encode() subroutine.
+   The transport is responsible for ensuring that the assigned match bits are
+   not in use currently; however this step can be ignored with relative safety
+   as the match bit space is very large and the match bit counter will only
+   wrap around after a very long while.  These match bits should also be
+   encoded in the network buffer descriptor that the transport must return.
 
-   In active buffer operations, the size of the active buffer should be
+   In active bulk buffer operations, the size of the active buffer should be
    validated against the size of the passive buffer as given in its network
-   buffer descriptor.
+   buffer descriptor.  The nlx_core_buf_desc_decode() subroutine should be used
+   to decode the descriptor.
 
 
    @subsection LNetDLD-lspec-state State Specification
@@ -557,7 +579,10 @@
    @subsection LNetDLD-lspec-thread Threading and Concurrency Model
    The transport inherits the concurrency model of the Colibri Networking
    Module. All transport operations are protected by some lock or object state,
-   as described in the <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">RPC Bulk Transfer Task Plan</a>.  The Core API is designed to work with this same locking model.
+   as described in the <a href="https://docs.google.com/a/xyratex.com/document/
+d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">
+RPC Bulk Transfer Task Plan</a>.
+   The Core API is designed to work with this same locking model.
    The locking order figure is repeated here for convenience:
    @dot
    digraph {
@@ -599,7 +624,7 @@
    receive buffer events.  Termination of the transfer machine is serialized
    with concurrent invocation of the nlx_xo_bev_deliver_all() subroutine in the
    case of synchronous buffer event delivery by means of the
-   nlx_xo_transfer_mc::xtm_busy counter.
+   c2_net_transfer_mc::ntm_callback_counter field.
    See @ref LNetDLD-lspec-bev-sync and @ref LNetDLD-lspec-tm-thread for
    details.
 
@@ -625,7 +650,7 @@
 
    - @b i.c2.net.xprt.lnet.end-point-address Mapping of LNet end point
    address is handled in the Core API as described in the @ref
-   LNetCoreDLD-fspec "LNet Transport Core Functional Specification".
+   LNetCoreDLD-fspec "LNet Transport Core API".
 
    - @b i.c2.net.xprt.lnet.multiple-messages-in-buffer Fields are provided
    in the c2_net_buffer to support multiple message delivery, and the event
@@ -719,13 +744,20 @@
 
    <hr>
    @section LNetDLD-ref References
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">RPC Bulk Transfer Task Plan</a>
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/
+1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">
+HLD of Colibri LNet Transport</a>
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/
+1tm_IfkSsW6zfOxQlPMHeZ5gjF1Xd0FAUHeGOaNpUcHA/view">
+RPC Bulk Transfer Task Plan</a>
    - @subpage LNetcqueueDLD "LNet Buffer Event Circular Queue DLD" <!--
-                                                               ./bev_cqueue.c -->
+     ./bev_cqueue.c -->
    - @subpage KLNetCoreDLD "LNet Transport Kernel Core DLD" <!--
-                                                  ./linux_kernel/klnet_core.c -->
-   - @subpage ULNetCoreDLD "LNet Transport User Space Core DLD"
+     ./linux_kernel/klnet_core.c -->
+   - @subpage ULNetCoreDLD "LNet Transport User Space Core DLD" <!--
+     ./ulnet_core.c -->
+   - @subpage LNetDRVDLD "LNet Transport Device DLD" <!--
+     ./linux_kernel/klnet_drv.c -->
 
  */
 
@@ -734,23 +766,241 @@
  End of DLD
  ******************************************************************************
  */
-
-#include "net/lnet/lnet_core.h"
-
-/* To reduce global symbols, yet make the code readable, we
-   include other .c files with static symbols into this file.
-   Dependency information must be captured in Makefile.am.
-
-   Static functions should be declared in the private header file
-   so that the order of their definition does not matter.
-*/
-#include "net/lnet/bev_cqueue.c"
+
 #ifdef __KERNEL__
-#include "net/lnet/linux_kernel/klnet_core.c"
+#include "build_kernel_modules/lustre_config.h" /* required by lnet/types.h */
+/* lustre config defines package macros also defined by c2 config */
+#undef PACKAGE
+#undef PACKAGE_BUGREPORT
+#undef PACKAGE_NAME
+#undef PACKAGE_STRING
+#undef PACKAGE_TARNAME
+#undef PACKAGE_VERSION
+#undef VERSION
+
+#include "libcfs/libcfs.h" /* lnet/types.h fails if this is not included */
+#include "lnet/types.h"
+#endif
+
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
+#include "lib/errno.h"
+#include "lib/misc.h"
+#include "lib/memory.h"
+#include "net/net_internal.h"
+#include "net/lnet/lnet_core.h"
+#include "net/lnet/lnet_xo.h"
+#include "net/lnet/lnet_pvt.h"
+
+#include <asm/byteorder.h>  /* byte swapping macros */
+
+/* debug print support */
+#ifdef __KERNEL__
+#define NLX_DEBUG
 #else
+#undef NLX_DEBUG
+#endif
+
+#ifdef NLX_DEBUG
+
+struct nlx_debug {
+	int _debug_;
+};
+static struct nlx_debug nlx_debug = {
+	._debug_ = 0,
+}; /* global debug control */
+
+/* note Linux uses the LP64 standard */
+#ifdef __KERNEL__
+#define NLXP(fmt, ...) printk(KERN_ERR fmt, ## __VA_ARGS__)
+#else
+#define NLXP(fmt, ...) fprintf(stderr, fmt, ## __VA_ARGS__)
+#endif
+
+#define NLXDBG(ptr, dbg, stmt)				\
+do {							\
+	if ((ptr)->_debug_ >= (dbg)) {			\
+		NLXP("%s: %d:\n", __FILE__, __LINE__);	\
+		stmt;					\
+	}						\
+} while (0)
+
+#define NLXDBGnl(ptr, dbg, stmt)		\
+do {						\
+	if ((ptr)->_debug_ >= (dbg)) {		\
+		stmt;				\
+	}					\
+} while (0)
+
+#define NLXDBGP(ptr, dbg, fmt, ...)			\
+do {							\
+	if ((ptr)->_debug_ >= (dbg)) {			\
+		NLXP("%s: %d:\n", __FILE__, __LINE__);	\
+		NLXP(fmt, ## __VA_ARGS__);		\
+	}						\
+} while (0)
+
+#define NLXDBGPnl(ptr, dbg, fmt, ...)		\
+do {						\
+	if ((ptr)->_debug_ >= (dbg)) {		\
+		NLXP(fmt, ## __VA_ARGS__);	\
+	}					\
+} while (0)
+
+#else /* !NLX_DEBUG */
+
+#define NLXP(fmt, ...)
+#define NLXDBG(ptr, dbg, stmt) do { ; } while (0)
+#define NLXDBGnl(ptr, dbg, stmt) do { ; } while (0)
+#define NLXDBGP(ptr, dbg, fmt, ...) do { ; } while (0)
+#define NLXDBGPnl(ptr, dbg, fmt, ...) do { ; } while (0)
+
+#endif /* !NLX_DEBUG */
+
+/*
+  To reduce global symbols, yet make the code readable, we
+  include other .c files with static symbols into this file.
+
+  Static functions should be declared in the private header file
+  so that the order of their definition does not matter.
+ */
+#include "net/lnet/bev_cqueue.c"
+#include "net/lnet/lnet_addb.c"
+#include "net/lnet/lnet_core.c"
+#include "net/lnet/lnet_ioctl.h"
+#ifdef __KERNEL__
+#include "net/lnet/linux_kernel/klnet_drv.h"
+#include "net/lnet/linux_kernel/klnet_core.h"
+#include "net/lnet/linux_kernel/kbev_cqueue.c"
+#include "net/lnet/linux_kernel/klnet_core.c"
+#include "net/lnet/linux_kernel/klnet_drv.c"
+/* LUSTRE_SRV_LNET_PID is not available in user space, so assert that the
+ * C2 equivalent is valid.
+ */
+C2_BASSERT(C2_NET_LNET_PID == LUSTRE_SRV_LNET_PID);
+#else
+#include "net/lnet/ulnet_core.h"
 #include "net/lnet/ulnet_core.c"
 #endif
 #include "net/lnet/lnet_xo.c"
+#include "net/lnet/lnet_ep.c"
+#include "net/lnet/lnet_tm.c"
+
+/**
+   @addtogroup LNetDFS
+   @{
+ */
+
+int c2_net_lnet_init(void)
+{
+	return nlx_core_init();
+}
+
+void c2_net_lnet_fini(void)
+{
+	nlx_core_fini();
+}
+
+int c2_net_lnet_ep_addr_net_cmp(const char *addr1, const char *addr2)
+{
+	const char *cp1;
+	const char *cp2;
+
+	cp1 = strchr(addr1, ':');
+	cp2 = strchr(addr2, ':');
+	if (cp1 == NULL || cp2 == NULL)
+		return -1;
+	return strncmp(addr1, addr2, min32(cp1 - addr1, cp2 - addr2));
+}
+C2_EXPORTED(c2_net_lnet_ep_addr_net_cmp);
+
+int c2_net_lnet_ifaces_get(struct c2_net_domain *dom, char * const **addrs)
+{
+	struct nlx_xo_domain *dp;
+
+	C2_PRE(nlx_dom_invariant(dom));
+	dp = dom->nd_xprt_private;
+	return nlx_core_nidstrs_get(&dp->xd_core, addrs);
+}
+C2_EXPORTED(c2_net_lnet_ifaces_get);
+
+void c2_net_lnet_ifaces_put(struct c2_net_domain *dom, char * const **addrs)
+{
+	struct nlx_xo_domain *dp;
+
+	C2_PRE(nlx_dom_invariant(dom));
+	dp = dom->nd_xprt_private;
+	nlx_core_nidstrs_put(&dp->xd_core, addrs);
+}
+C2_EXPORTED(c2_net_lnet_ifaces_put);
+
+void c2_net_lnet_tm_stat_interval_set(struct c2_net_transfer_mc *tm,
+				      uint64_t secs)
+{
+	struct nlx_xo_transfer_mc *tp;
+
+	C2_PRE(secs > 0);
+	C2_PRE(tm != NULL);
+	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_net__tm_invariant(tm));
+	C2_PRE(tm->ntm_state <= C2_NET_TM_STOPPING);
+	C2_PRE(nlx_tm_invariant(tm));
+
+	tp = tm->ntm_xprt_private;
+	c2_time_set(&tp->xtm_stat_interval, secs, 0);
+	c2_mutex_unlock(&tm->ntm_mutex);
+}
+C2_EXPORTED(c2_net_lnet_tm_stat_interval_set);
+
+uint64_t c2_net_lnet_tm_stat_interval_get(struct c2_net_transfer_mc *tm)
+{
+	struct nlx_xo_transfer_mc *tp;
+	uint64_t ret;
+
+	C2_PRE(tm != NULL);
+	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_net__tm_invariant(tm));
+	C2_PRE(tm->ntm_state <= C2_NET_TM_STOPPING);
+	C2_PRE(nlx_tm_invariant(tm));
+
+	tp = tm->ntm_xprt_private;
+	ret = c2_time_seconds(tp->xtm_stat_interval);
+	c2_mutex_unlock(&tm->ntm_mutex);
+	return ret;
+}
+C2_EXPORTED(c2_net_lnet_tm_stat_interval_get);
+
+void c2_net_lnet_dom_set_debug(struct c2_net_domain *dom, unsigned dbg)
+{
+	struct nlx_xo_domain *dp;
+
+	C2_PRE(dom != NULL);
+	c2_mutex_lock(&c2_net_mutex);
+	C2_PRE(nlx_dom_invariant(dom));
+	dp = dom->nd_xprt_private;
+	dp->_debug_ = dbg;
+	nlx_core_dom_set_debug(&dp->xd_core, dbg);
+	c2_mutex_unlock(&c2_net_mutex);
+}
+C2_EXPORTED(c2_net_lnet_dom_set_debug);
+
+void c2_net_lnet_tm_set_debug(struct c2_net_transfer_mc *tm, unsigned dbg)
+{
+	struct nlx_xo_transfer_mc *tp;
+
+	C2_PRE(tm != NULL);
+	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(nlx_tm_invariant(tm));
+	tp = tm->ntm_xprt_private;
+	tp->_debug_ = dbg;
+	nlx_core_tm_set_debug(&tp->xtm_core, dbg);
+	c2_mutex_unlock(&tm->ntm_mutex);
+}
+C2_EXPORTED(c2_net_lnet_tm_set_debug);
+
+/** @} */ /* LNetDFS */
 
 /*
  *  Local variables:
@@ -761,4 +1011,3 @@
  *  scroll-step: 1
  *  End:
  */
-

@@ -14,6 +14,7 @@ libcolibri_la_LDFLAGS     = -release @LT_RELEASE@ -pthread
 libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @YAML_LIBS@ @CUNIT_LIBS@ \
                             -lm -lncurses \
                             $(top_builddir)/addb/libcolibri-addb.la \
+                            $(top_builddir)/addb/addbff/libcolibri-addbff.la \
                             $(top_builddir)/balloc/libcolibri-balloc.la \
                             $(top_builddir)/capa/libcolibri-capa.la \
                             $(top_builddir)/cfg/libcolibri-cfg.la \
@@ -31,6 +32,7 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @Y
                             $(top_builddir)/net/bulk_emulation/libcolibri-net-bulkmem.la \
                             $(top_builddir)/net/bulk_emulation/libcolibri-net-bulksunrpc.la \
                             $(top_builddir)/net/usunrpc/libcolibri-net-usunrpc.la \
+                            $(top_builddir)/net/lnet/libcolibri-lnet.la \
                             $(top_builddir)/nrs/libcolibri-nrs.la \
                             $(top_builddir)/pool/libcolibri-pool.la \
                             $(top_builddir)/reqh/libcolibri-reqh.la \

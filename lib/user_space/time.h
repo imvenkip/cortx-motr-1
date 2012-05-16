@@ -22,7 +22,7 @@
 #define __COLIBRI_LIB_USER_SPACE_TIME_H__
 
 #include <sys/time.h>
-#include_next <time.h>
+#include <time.h>
 
 /* __COLIBRI_LIB_USER_SPACE_TIME_H__ */
 #endif

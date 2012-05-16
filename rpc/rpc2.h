@@ -184,8 +184,7 @@ struct c2_rpc_machine;
 struct c2_rpc_frm_item_coalesced;
 
 enum {
-	/* Hex value for "rpcmagic" */
-	C2_RPC_MAGIC = 0x7270636d61676963
+	C2_RPC_MACHINE_MAGIX = 0x5250434D414348 /* RPCMACH */
 };
 
 struct c2_rpc_item_ops {

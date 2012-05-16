@@ -12,10 +12,9 @@ libcolibri_ioservice_la_SOURCES	= io_fops_u.h io_fops_u.c \
                                   io_service.h io_service.c \
                                   cobfid_map.c cobfid_map.h cob_foms.c
 
-INCLUDES			= -I. -I$(top_srcdir) -I$(top_srcdir)/include
+INCLUDES			= -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
 
 EXTRA_DIST			= io_fops.ff
 
 clean-local:
-	cd @SRCDIR@/ioservice ; \
-	rm -rf io_fops_u*.[ch];
+	rm -rf io_fops_[uk]*.[ch]

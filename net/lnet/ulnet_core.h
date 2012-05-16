@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,8 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 11/01/2011
  *
  */
@@ -23,42 +23,63 @@
 #define __COLIBRI_NET_ULNET_CORE_H__
 
 /**
-   @defgroup ULNetCore LNet Transport Core Userspace Private Interface
+   @defgroup ULNetCore LNet Transport Core User Space Private Interface
    @ingroup LNetCore
 
-   @todo This section will be filled in by the (net, lnet-user, DLD) task.
-
    @{
-*/
+ */
+
+enum {
+	C2_NET_LNET_UCORE_DOM_MAGIC = 0x55436f7265446f6dULL, /* UCoreDom */
+	C2_NET_LNET_UCORE_TM_MAGIC  = 0x55436f7265544dULL,   /* UCoreTM */
+	C2_NET_LNET_UCORE_BUF_MAGIC = 0x55436f7265427566ULL, /* UCoreBuf */
+};
 
 /**
    Userspace domain private data.
-   This structure is pointed to by nlx_core_domain::lcd_upvt.
+   This structure is pointed to by nlx_core_domain::cd_upvt.
  */
 struct nlx_ucore_domain {
-	/** File descriptor to the kernel device */
-	int      ucd_fd;
+	uint64_t                        ud_magic;
+	/** Cached maximum buffer size (counting all segments). */
+	c2_bcount_t                     ud_max_buffer_size;
+	/** Cached maximum size of a buffer segment. */
+	c2_bcount_t                     ud_max_buffer_segment_size;
+	/** Cached maximum number of buffer segments. */
+	int32_t                         ud_max_buffer_segments;
+	/** Cached NID strings.  If LNet were to support dynamically configured
+	    NIDs, then this simple caching would have to be re-addressed.
+	 */
+        char                          **ud_nidstrs;
+	/** Number of references to the NID strings */
+	struct c2_atomic64              ud_nidstrs_refcount;
+	/** File descriptor to the kernel device. */
+	int                             ud_fd;
+	/** ADDB context for events related to this domain. */
+	struct c2_addb_ctx              ud_addb;
 };
 
 /**
    Userspace transfer machine private data.
-   This structure is pointed to by nlx_core_transfer_mc::lctm_upvt.
-*/
+   This structure is pointed to by nlx_core_transfer_mc::ctm_upvt.
+ */
 struct nlx_ucore_transfer_mc {
-
+	uint64_t                        utm_magic;
+	/** ADDB context for events related to this transfer machine. */
+	struct c2_addb_ctx              utm_addb;
 };
 
 /**
    Userspace buffer private data.
-   This structure is pointed to by nlx_core_buffer::lcb_upvt.
-*/
+   This structure is pointed to by nlx_core_buffer::cb_upvt.
+ */
 struct nlx_ucore_buffer {
-
+	uint64_t                        ub_magic;
+	/** ADDB context for events related to this buffer. */
+	struct c2_addb_ctx              ub_addb;
 };
 
-/**
-   @}
-*/
+/** @} */ /* ULNetCore */
 
 #endif /* __COLIBRI_NET_ULNET_CORE_H__ */
 

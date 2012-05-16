@@ -18,7 +18,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
 #include <errno.h>
@@ -299,13 +299,13 @@ static struct ad_stob *ad_domain_lookup(struct ad_domain *adom,
 	C2_PRE(adom->ad_setup);
 
 	found = false;
-	c2_tlist_for(&ad_tl, &adom->ad_object, obj) {
+	c2_tl_for(ad, &adom->ad_object, obj) {
 		if (c2_stob_id_eq(id, &obj->as_stob.so_id)) {
 			c2_stob_get(&obj->as_stob);
 			found = true;
 			break;
 		}
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	return found ? obj : NULL;
 }
 
