@@ -58,9 +58,8 @@ static int zero_padding_add(struct c2_bufvec_cursor *cur, uint64_t pad_bytes)
 	pad_p = &pad;
 
 	count = c2_bufvec_cursor_copyto(cur, pad_p, pad_bytes);
-	if (count != pad_bytes)
-		return -EFAULT;
-	return 0;
+
+	return count == pad_bytes ? 0 : -EFAULT;
 }
 
 static int bufvec_uint64_encode(struct c2_bufvec_cursor *cur, uint64_t *val)
@@ -71,9 +70,8 @@ static int bufvec_uint64_encode(struct c2_bufvec_cursor *cur, uint64_t *val)
 	C2_PRE(val != NULL);
 
 	count = c2_bufvec_cursor_copyto(cur, val, sizeof *val);
-	if (count != sizeof *val)
-		return -EFAULT;
-	return 0;
+
+	return count == sizeof *val ? 0 : -EFAULT;
 }
 
 static int bufvec_uint64_decode(struct c2_bufvec_cursor *cur, uint64_t *val)
@@ -84,10 +82,8 @@ static int bufvec_uint64_decode(struct c2_bufvec_cursor *cur, uint64_t *val)
 	C2_PRE(val != NULL);
 
 	count = c2_bufvec_cursor_copyfrom(cur, val, sizeof *val);
-	if (count != sizeof *val)
-		return -EFAULT;
-	return 0;
 
+	return count == sizeof *val ? 0 : -EFAULT;
 }
 
 static int bufvec_uint32_encode(struct c2_bufvec_cursor *cur, uint32_t *val)
