@@ -452,11 +452,11 @@ static int stob_read_fom_state(struct c2_fom *fom)
                         stio->si_opcode = SIO_READ;
                         stio->si_flags  = 0;
 
-                        c2_fom_block_enter(fom);
-                        c2_fom_block_at(fom, &stio->si_wait);
+                        c2_fom_wait_on(fom, &stio->si_wait, &fom->fo_cb);
                         result = c2_stob_io_launch(stio, stobj, &fom->fo_tx, NULL);
 
                         if (result != 0) {
+                                c2_fom_callback_cancel(&fom->fo_cb);
                                 fom->fo_rc = result;
                                 fom->fo_phase = C2_FOPH_FAILURE;
                         } else {
@@ -478,7 +478,6 @@ static int stob_read_fom_state(struct c2_fom *fom)
 
                 if (fom->fo_phase == C2_FOPH_FAILURE ||
                     fom->fo_phase == C2_FOPH_SUCCESS) {
-                        c2_fom_block_leave(fom);
                         out_fop->firr_rc = fom->fo_rc;
 			fop = fom_obj->sif_rep_fop;
 			item = c2_fop_to_rpc_item(fop);
@@ -561,11 +560,11 @@ static int stob_write_fom_state(struct c2_fom *fom)
                         stio->si_opcode = SIO_WRITE;
                         stio->si_flags  = 0;
 
-                        c2_fom_block_enter(fom);
-                        c2_fom_block_at(fom, &stio->si_wait);
+                        c2_fom_wait_on(fom, &stio->si_wait, &fom->fo_cb);
                         result = c2_stob_io_launch(stio, stobj, &fom->fo_tx, NULL);
 
                         if (result != 0) {
+                                c2_fom_callback_cancel(&fom->fo_cb);
                                 fom->fo_rc = result;
                                 fom->fo_phase = C2_FOPH_FAILURE;
                         } else {
@@ -573,7 +572,6 @@ static int stob_write_fom_state(struct c2_fom *fom)
                                 result = C2_FSO_WAIT;
                         }
                 } else if (fom->fo_phase == C2_FOPH_WRITE_STOB_IO_WAIT) {
-                        c2_fom_block_leave(fom);
                         fom->fo_rc = stio->si_rc;
                         stobj = fom_obj->sif_stobj;
                         if (fom->fo_rc != 0)
