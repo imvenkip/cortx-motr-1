@@ -117,7 +117,7 @@ struct cs_endpoint_and_xprt {
 	   3-tuple network layer endpoint address.
 	   e.g. 127.0.0.1:1024:1
 	 */
-	const char      *ex_endpoint;
+	char      *ex_endpoint;
 	/** Supported network transport. */
 	const char      *ex_xprt;
 	/**
@@ -739,7 +739,7 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 
 	rpcmach->rm_max_recv_msgs = c2_net_domain_get_max_buffer_size(ndom) /
 				    rpcmach->rm_min_recv_size;
-
+	
 	rpcmach->rm_tm_recv_queue_min_length = recv_queue_min_length;
 	rpcmach->rm_tm_colour                = tm_colour;
 
@@ -853,6 +853,7 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 		C2_ALLOC_PTR(cs_bp);
 		if (cs_bp == NULL)
 			return -ENOMEM;
+
 		rc = c2_rpc_net_buffer_pool_setup(ndom, &cs_bp->cs_buffer_pool,
 						  segs_nr, C2_RPC_SEG_SIZE,
 						  bufs_nr, tms_nr);
@@ -1181,6 +1182,32 @@ static int cs_net_domains_init(struct c2_colibri *cctx)
 				c2_free(ndom);
 				c2_net_xprt_fini(xprt);
 				return rc;
+			}
+
+			if (strcmp(ndom->nd_xprt->nx_name, "lnet") == 0 && 0 ) {
+				char * const *ifaces;
+				const char   *network; /* "addr@interface" */
+				int i;
+				const char *endpoint;
+				char *sptr;
+				char addr[C2_NET_LNET_XEP_ADDR_LEN];
+				strcpy(addr, ep->ex_endpoint);
+
+				c2_net_lnet_ifaces_get(ndom, &ifaces);
+				C2_ASSERT(ifaces != NULL);
+				if (network == NULL) {
+					network = ifaces[0];
+					for (i = 0; ifaces[i] != NULL; ++i) {
+						if (strstr(ifaces[i], "@lo") != NULL)
+							continue;
+						network = ifaces[i]; /* 1st !@lo */
+						strtok_r(addr, ":", &sptr);
+						endpoint = strtok_r(NULL, "\0", &sptr);
+						snprintf(ep->ex_endpoint, C2_NET_LNET_XEP_ADDR_LEN, "%s:%s",
+							 network, endpoint);
+						break;
+					}
+				}
 			}
 			ndom_tlink_init(ndom);
 			c2_net_domain_bob_init(ndom);
@@ -1987,7 +2014,7 @@ int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 
 	if (rc == 0)
 		rc = cs_rpc_machines_init(cctx);
-		
+
 	c2_mutex_unlock(&cctx->cc_mutex);
 	return rc;
 }

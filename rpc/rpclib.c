@@ -120,7 +120,7 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 				 uint32_t bufs_nr, uint32_t tm_nr)
 {
 	int	    rc;
-	uint32_t    shift = 0;
+	uint32_t    shift = 12;
 
 	C2_PRE(ndom != NULL);
 	C2_PRE(app_pool != NULL);
@@ -130,9 +130,9 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 	rc = c2_net_buffer_pool_init(app_pool, ndom,
 				     C2_NET_BUFFER_POOL_THRESHOLD,
 				     segs_nr, seg_size, tm_nr, shift);
-	c2_net_buffer_pool_lock(app_pool);
 	if (rc != 0)
 		return rc;
+	c2_net_buffer_pool_lock(app_pool);
 	rc = c2_net_buffer_pool_provision(app_pool, bufs_nr);
 	c2_net_buffer_pool_unlock(app_pool);
 	return rc != bufs_nr ? -ENOMEM : 0 ;
@@ -185,7 +185,7 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	rpc_machine->rm_tm_colour		 = C2_BUFFER_ANY_COLOUR;
 	rpc_machine->rm_tm_recv_queue_min_length =
 			cctx->rcx_recv_queue_min_length;
-
+	
 	rc = c2_rpc_machine_init(rpc_machine, cctx->rcx_cob_dom,
 				 ndom, cctx->rcx_local_addr, NULL,
 				 buffer_pool);
@@ -295,5 +295,5 @@ int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
  *  tab-width: 8
  *  fill-column: 80
  *  scroll-step: 1
- *  End:
+ p  End:
  */

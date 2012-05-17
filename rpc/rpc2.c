@@ -499,7 +499,7 @@ static void rpc_tm_cleanup(struct c2_rpc_machine *machine)
 	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&tm->ntm_chan, &tmwait);
 
-	rc = c2_net_tm_stop(tm, false);
+	rc = c2_net_tm_stop(tm, true);
 	if (rc < 0) {
 		c2_clink_del(&tmwait);
 		c2_clink_fini(&tmwait);
@@ -676,7 +676,7 @@ static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 	if (nrsegs == 0)
 		++nrsegs;
 
-	rc = c2_bufvec_alloc(&nb->nb_buffer, nrsegs, seg_size);
+	rc = c2_bufvec_alloc_aligned(&nb->nb_buffer, nrsegs, seg_size, 12);
 	if (rc < 0) {
 		if (qtype == C2_NET_QT_MSG_RECV) {
 			c2_free(nb);
@@ -697,7 +697,7 @@ static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 	/* Register the buffer with given net domain. */
 	rc = c2_net_buffer_register(nb, net_dom);
 	if (rc < 0) {
-		c2_bufvec_free(&nb->nb_buffer);
+		c2_bufvec_free_aligned(&nb->nb_buffer, 12);
 		if (qtype == C2_NET_QT_MSG_RECV) {
 			c2_free(nb);
 			nb = NULL;
@@ -725,7 +725,7 @@ void send_buffer_deallocate(struct c2_net_buffer *nb,
 	C2_PRE((nb->nb_flags & C2_NET_BUF_QUEUED) == 0);
 
 	c2_net_buffer_deregister(nb, net_dom);
-	c2_bufvec_free(&nb->nb_buffer);
+	c2_bufvec_free_aligned(&nb->nb_buffer, 12);
 }
 
 int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
