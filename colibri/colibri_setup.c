@@ -259,7 +259,7 @@ static int cobfid_map_setup_init(struct c2_colibri *cc, const char *name);
 static void cobfid_map_setup_fini(struct c2_ref *ref);
 
 static uint32_t cs_domain_tms_nr(struct c2_colibri *cctx,
-				struct c2_net_domain *dom);
+				 struct c2_net_domain *dom);
 
 static uint32_t cs_dom_tm_min_recv_queue_total(struct c2_colibri *cctx,
 					       struct c2_net_domain *dom);
@@ -519,7 +519,8 @@ struct c2_rpc_machine *c2_cs_rpcmach_get(struct c2_colibri *cctx,
 				C2_ASSERT(c2_rpc_machine_bob_check(rpcmach));
 				nxprt = rpcmach->rm_tm.ntm_dom->nd_xprt;
 				C2_ASSERT(nxprt != NULL);
-				if (strcmp(nxprt->nx_name, xprt->nx_name) == 0) {
+				if (strcmp(nxprt->nx_name,
+					   xprt->nx_name) == 0) {
 					c2_mutex_unlock(&cctx->cc_mutex);
 					return rpcmach;
 				}
@@ -815,6 +816,7 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 	uint32_t		  tms_nr;
 	uint32_t		  bufs_nr;
 	uint32_t                  max_recv_queue_len;
+	c2_bcount_t		  seg_size;
 
 	C2_PRE(cctx != NULL);
 	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
@@ -822,22 +824,23 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
         if(!ndom_tlist_is_empty(&cctx->cc_ndoms))
 		rc = -EINVAL;
 
-	if (cctx->cc_recv_queue_min_length < C2_NET_TM_RECV_QUEUE_DEF_LEN)
-		cctx->cc_recv_queue_min_length = C2_NET_TM_RECV_QUEUE_DEF_LEN;
-
 	c2_tlist_for(&ndom_tl, &cctx->cc_ndoms, ndom) {
 
 		max_recv_queue_len = cs_dom_tm_min_recv_queue_total(cctx, ndom);
 		tms_nr		   = cs_domain_tms_nr(cctx, ndom);
+		C2_ASSERT(max_recv_queue_len >= tms_nr);
 		bufs_nr		   = max_recv_queue_len + max32u(tms_nr / 4, 1);
+		seg_size	   =
+			min64u(c2_net_domain_get_max_buffer_segment_size(ndom),
+			       C2_SEG_SIZE);
 		segs_nr		   = c2_net_domain_get_max_buffer_size(ndom) /
-				     C2_RPC_SEG_SIZE;
+				     seg_size;
 
 		C2_ALLOC_PTR(cs_bp);
 		if (cs_bp == NULL)
 			return -ENOMEM;
 		rc = c2_rpc_net_buffer_pool_setup(ndom, &cs_bp->cs_buffer_pool,
-						  segs_nr, C2_RPC_SEG_SIZE,
+						  segs_nr, seg_size,
 						  bufs_nr, tms_nr);
 		if (rc != 0) {
 			c2_free(cs_bp);
@@ -1643,8 +1646,10 @@ static void cs_help(FILE *out)
 		   "   e.g. colibri_setup -x\n"
 		   "-l Lists supported services on this node.\n"
 		   "   e.g. colibri_setup -l\n"
-		   "[-Q Minimum TM Receive queue length.]\n"
-		   "[-M Maximum RPC message size.]\n"
+		   "-Q Minimum TM Receive queue length.\n"
+		   "   It is a global and optional flag.\n"
+		   "-M Maximum RPC message size.\n"
+		   "   It is a global and optional flag.\n"
 		   "-r Represents a request handler context.\n"
 		   "-T Type of storage to be used by the request handler in "
 		   "current context.\n"
@@ -1668,15 +1673,15 @@ static void cs_help(FILE *out)
 		   "-s Services to be started in given request handler "
 		   "context.\n   This can be specified multiple times "
 		   "per request handler set.\n"
-		   "[-q Minimum TM Receive queue length.\n"
-		   "(If not set overrided by global value)]\n"
-		   "[-m Maximum RPC message size.\n"
-		   "(If not set overrided by global value)]\n"
-		   "(Should not be greater than XprtMaxBufferSize)\n"
+		   "-q Minimum TM Receive queue length.\n"
+		   "   If not set overrided by global value.\n"
+		   "-m Maximum RPC message size.\n"
+		   "   If not set overrided by global value.\n"
+		   "   Should not be greater than XprtMaxBufferSize\n"
 		   "\n"
-		   "   e.g. ./colibri_setup -Q 4 -M 4096 -r -T linux -D dbpath\n"
-		   "	    -S stobfile -e xport:127.0.0.1:1024:1 -s mds\n"
-		   "	    -q 8 -m 65536 \n");
+		   "   e.g. ./colibri_setup -Q 4 -M 4096 -r -T linux\n"
+		   "        -D dbpath -S stobfile -e xport:127.0.0.1:1024:1 \n"
+		   "	    -s mds -q 8 -m 65536 \n");
 }
 
 static uint32_t cs_domain_tms_nr(struct c2_colibri *cctx,
@@ -1697,9 +1702,16 @@ static uint32_t cs_domain_tms_nr(struct c2_colibri *cctx,
 				ep->ex_tm_colour = cnt++;
 		} c2_tl_endfor;
 	} c2_tl_endfor;
+
+	C2_POST(cnt > 0);
+
 	return cnt;
 }
 
+/**
+   It calculates the summation of the minimum receive queue length of all
+   endpoints belong to a domain in all the reqest handler contexts.
+ */
 static uint32_t cs_dom_tm_min_recv_queue_total(struct c2_colibri *cctx,
 					       struct c2_net_domain *dom)
 {
@@ -1716,7 +1728,7 @@ static uint32_t cs_dom_tm_min_recv_queue_total(struct c2_colibri *cctx,
 		C2_ASSERT(!cs_eps_tlist_is_empty(&rctx->rc_eps));
 		c2_tlist_for(&cs_eps_tl, &rctx->rc_eps, ep) {
 			if(strcmp(ep->ex_xprt, dom->nd_xprt->nx_name) == 0)
-				min_queue_len_total =
+				min_queue_len_total +=
 					rctx->rc_recv_queue_min_length;
 		} c2_tl_endfor;
 	} c2_tl_endfor;
@@ -1734,6 +1746,9 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
 	C2_PRE(cctx != NULL);
 	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
         C2_ASSERT(!rhctx_tlist_is_empty(&cctx->cc_reqh_ctxs));
+
+	if (cctx->cc_recv_queue_min_length < C2_NET_TM_RECV_QUEUE_DEF_LEN)
+		cctx->cc_recv_queue_min_length = C2_NET_TM_RECV_QUEUE_DEF_LEN;
 
 	ofd = cctx->cc_outfile;
         c2_tlist_for(&rhctx_tl, &cctx->cc_reqh_ctxs, rctx) {
@@ -1798,7 +1813,8 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
 				cs_services_list(ofd);
 				return -ENOENT;
 			}
-			if (service_is_duplicate(cctx, rctx->rc_services[idx])) {
+			if (service_is_duplicate(cctx,
+						 rctx->rc_services[idx])) {
 				fprintf(ofd, "COLIBRI: Duplicate service: %s\n",
                                                        rctx->rc_services[idx]);
 				return -EADDRINUSE;

@@ -31,7 +31,7 @@ extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
 
 #define to_string(x) str(x)
 #define str(x)	#x
-#define IO_TM_RECV_QUEUE_MIN_LEN 6
+#define IO_TM_RECV_QUEUE_MIN_LEN 8
 
 /* Global reference to bulkio_params structure. */
 struct bulkio_params *bparm;

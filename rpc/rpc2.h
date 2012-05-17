@@ -334,8 +334,6 @@ enum c2_rpc_item_stage {
 enum {
 	/** Maximum number of slots to which an rpc item can be associated */
 	MAX_SLOT_REF    = 1,
-	/** Segment size of network buffer in the pool. */
-	C2_RPC_SEG_SIZE = 1 << 12,
 };
 
 enum {

@@ -172,6 +172,7 @@ static int c2t1fs_rpc_init(void)
 	uint32_t		   segs_nr;
 	uint32_t		   bufs_nr;
 	uint32_t		   tms_nr;
+	c2_bcount_t		   seg_size;
 
 	C2_ENTRY();
 
@@ -180,12 +181,13 @@ static int c2t1fs_rpc_init(void)
 	rpc_machine = &c2t1fs_globals.g_rpc_machine;
 	buffer_pool = &c2t1fs_globals.g_buffer_pool;
 
-	segs_nr = c2_net_domain_get_max_buffer_size(ndom) /
-		  C2_RPC_SEG_SIZE;
-	tms_nr	= 1;
-	bufs_nr = tms_nr * (C2T1FS_TM_MIN_RECV_BUFFERS_NR + 1);
+	seg_size = min64u(c2_net_domain_get_max_buffer_segment_size(ndom),
+			  C2_SEG_SIZE);
+	segs_nr  = c2_net_domain_get_max_buffer_size(ndom) / seg_size;
+	tms_nr	 = 1;
+	bufs_nr  = tms_nr * (C2T1FS_TM_MIN_RECV_BUFFERS_NR + 1);
 	rc = c2_rpc_net_buffer_pool_setup(ndom, buffer_pool,
-					  segs_nr, C2_RPC_SEG_SIZE,
+					  segs_nr, seg_size,
 					  bufs_nr, tms_nr);
 	if (rc != 0)
 		goto pool_fini;
