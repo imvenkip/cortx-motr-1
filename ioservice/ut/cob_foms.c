@@ -599,9 +599,7 @@ static void cobfid_setup_put(struct c2_colibri *cc)
 {
 	C2_PRE(cc != NULL);
 
-	c2_mutex_lock(&cc->cc_mutex);
 	c2_cobfid_setup_put(cc);
-	c2_mutex_unlock(&cc->cc_mutex);
 }
 
 /*
@@ -1275,9 +1273,7 @@ static int cobfid_setup_get(struct c2_cobfid_setup **s, struct c2_colibri *cc)
 {
 	int rc;
 
-	c2_mutex_lock(&cc->cc_mutex);
 	rc = c2_cobfid_setup_get(s, cc);
-	c2_mutex_unlock(&cc->cc_mutex);
 
 	return rc;
 }

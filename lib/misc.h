@@ -75,19 +75,19 @@
 })
 
 /**
-   Evaluates to true iff x is present in set.
+   Evaluates to true if x is present in set.
 
    e.g. C2_IN(session->s_state, (C2_RPC_SESSION_IDLE,
-				 C2_RPC_SESSION_BUSY,
-				 C2_RPC_SESSION_TERMINATING))
+                                 C2_RPC_SESSION_BUSY,
+                                 C2_RPC_SESSION_TERMINATING))
 
-   Parentheses around "set" members are mandatory.
+   Parenthesis around "set" members is mandatory.
  */
 #define C2_IN(x, set) C2_IN0(x, C2_UNPACK set)
 #define C2_UNPACK(...) __VA_ARGS__
 
 #define C2_IN0(...) \
-	C2_CAT(C2_IN_, C2_COUNT_PARAMS(__VA_ARGS__))(__VA_ARGS__)
+        C2_CAT(C2_IN_, C2_COUNT_PARAMS(__VA_ARGS__))(__VA_ARGS__)
 
 #define C2_IN_1(x, v) ((x) == (v))
 #define C2_IN_2(x, v, ...) ((x) == (v) || C2_IN_1(x, __VA_ARGS__))

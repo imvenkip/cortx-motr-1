@@ -48,11 +48,6 @@ static struct c2_net_xprt *cs_xprts[] = {
 };
 
 /**
-   Global colibri context.
- */
-static struct c2_colibri colibri_ctx;
-
-/**
    Signal handler registered so that pause()
    returns in order to trigger proper cleanup.
  */
@@ -81,7 +76,8 @@ static void cs_wait_for_termination(void)
 
 int main(int argc, char **argv)
 {
-	int     rc;
+	int               rc;
+	struct c2_colibri colibri_ctx;
 
 	errno = 0;
 	rc = c2_init();

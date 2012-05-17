@@ -213,8 +213,8 @@ struct c2_colibri *c2_cs_ctx_get(struct c2_reqh_service *s);
    cob domain, fol, network domains, services and request handler.
  */
 struct c2_colibri {
-	/** Mutex to serialize access to c2_colibri structure. */
-	struct c2_mutex		  cc_mutex;
+	/** Protects access to c2_colibri members. */
+	struct c2_rwlock          cc_rwlock;
 
 	/**
 	   Array of network transports supported in a colibri context.

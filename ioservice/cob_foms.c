@@ -342,9 +342,7 @@ static int cc_cobfid_map_add(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 
 	cctx = c2_cs_ctx_get(fom->fo_service);
 	C2_ASSERT(cctx != NULL);
-	c2_mutex_lock(&cctx->cc_mutex);
 	rc = c2_cobfid_setup_get(&s, cctx);
-	c2_mutex_unlock(&cctx->cc_mutex);
 	C2_ASSERT(rc == 0 && s != NULL);
 
 	cob_fid.u_hi = cc->fco_cfid.f_container;
@@ -358,9 +356,7 @@ static int cc_cobfid_map_add(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    c2_addb_trace, "Record added to cobfid_map.");
 
-	c2_mutex_lock(&cctx->cc_mutex);
 	c2_cobfid_setup_put(cctx);
-	c2_mutex_unlock(&cctx->cc_mutex);
 	return rc;
 }
 
@@ -487,9 +483,7 @@ static int cd_cobfid_map_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 
 	cctx = c2_cs_ctx_get(fom->fo_service);
 	C2_ASSERT(cctx != NULL);
-	c2_mutex_lock(&cctx->cc_mutex);
 	rc = c2_cobfid_setup_get(&s, cctx);
-	c2_mutex_unlock(&cctx->cc_mutex);
 	C2_ASSERT(rc == 0 && s != NULL);
 
 	cob_fid.u_hi = cd->fco_cfid.f_container;
@@ -505,9 +499,7 @@ static int cd_cobfid_map_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 			    c2_addb_trace,
 			    "Record removed from cobfid_map.");
 
-	c2_mutex_lock(&cctx->cc_mutex);
 	c2_cobfid_setup_put(cctx);
-	c2_mutex_unlock(&cctx->cc_mutex);
 	return rc;
 }
 

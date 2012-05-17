@@ -80,6 +80,9 @@ struct c2_reqh {
 	 */
         struct c2_tl             rh_services;
 
+	/** Provides protected access to reqh services. */
+	struct c2_rwlock         rh_svcl_rwlock;
+
         /**
 	    RPC machines running in this request handler
 	    There is one rpc machine per request handler
@@ -89,6 +92,12 @@ struct c2_reqh {
 	 */
         struct c2_tl             rh_rpc_machines;
 
+	/** Provides protected access to reqh rpc machines. */
+	struct c2_rwlock         rh_rpcml_rwlock;
+
+	/** provides protected access to reqh members. */
+	struct c2_mutex          rh_lock;
+
 	/**
 	    True if request handler received a shutdown signal.
 	    Request handler should not process any further requests
@@ -96,8 +105,10 @@ struct c2_reqh {
 	 */
 	bool                     rh_shutdown;
 
-	/** Provides protected access to c2_reqh members. */
-	struct c2_mutex          rh_lock;
+	/**
+	    Channel to wait on for reqh shutdown.
+	 */
+	struct c2_chan           rh_sd_signal;
 
 	/** Request handler magic. */
 	uint64_t                 rh_magic;
@@ -271,13 +282,13 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop);
 int c2_fom_state_generic(struct c2_fom *fom);
 
 /**
-   Waits for execution of all foms in the request handler's
-   fom domain to complete, i.e. until c2_fom_domain::fd_foms_nr
-   reaches 0 count.
+   Waits on c2_reqh::rh_sd_signal using the given clink until
+   until c2_fom_domain::fd_foms_nr is 0.
 
-   @param reqh Request handler to be shutdown
+   @param reqh request handler to be shutdown
+   @param clink clink to be used to wait on c2_reqh:rh_sd_signal
  */
-bool c2_reqh_can_shutdown(const struct c2_reqh *reqh);
+void c2_reqh_wait_for_shutdown(struct c2_reqh *reqh, struct c2_clink *clink);
 
 /**
     Initializes global reqh objects like reqh fops and addb context,
@@ -300,16 +311,19 @@ void c2_reqhs_fini(void);
    @retval serive instance pointer or NULL.
  */
 struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
-                                            struct c2_reqh *reqh);
+						struct c2_reqh *reqh);
+
+struct c2_rpc_machine *c2_reqh_rpc_machine_get(struct c2_reqh *reqh,
+						const struct c2_net_xprt *xprt);
 
 /** Descriptor for tlist of request handler services. */
-C2_TL_DESCR_DECLARE(c2_rhsvc, extern);
-C2_TL_DECLARE(c2_rhsvc, extern, struct c2_reqh_service);
+C2_TL_DESCR_DECLARE(c2_reqh_svc, extern);
+C2_TL_DECLARE(c2_reqh_svc, extern, struct c2_reqh_service);
 C2_BOB_DECLARE(extern, c2_reqh_service);
 
 /** Descriptor for tlist of rpc machines. */
-C2_TL_DESCR_DECLARE(c2_rhrpm, extern);
-C2_TL_DECLARE(c2_rhrpm, extern, struct c2_rpc_machine);
+C2_TL_DESCR_DECLARE(c2_reqh_rpc_mach, extern);
+C2_TL_DECLARE(c2_reqh_rpc_mach, extern, struct c2_rpc_machine);
 C2_BOB_DECLARE(extern, c2_rpc_machine);
 
 /** @} endgroup reqh */

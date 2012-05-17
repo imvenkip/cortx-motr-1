@@ -468,11 +468,9 @@ void c2_reqh_service_types_fini(void);
  */
 bool c2_reqh_service_invariant(const struct c2_reqh_service *service);
 
-/** Descriptor for tlist of request handler service types. */
-C2_TL_DESCR_DECLARE(c2_rstypes, extern);
-C2_TL_DECLARE(c2_rstypes, extern, struct c2_reqh_service_type);
-
-C2_BOB_DECLARE(extern, c2_reqh_service_type);
+int c2_reqh_service_types_length(void);
+bool c2_reqh_service_is_registered(const char *sname);
+void c2_reqh_service_list_print(void);
 
 /** @} endgroup reqh */
 

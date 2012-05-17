@@ -174,14 +174,15 @@ static int ios_create_buffer_pool(struct c2_reqh_service *service)
         struct c2_rpc_machine      *rpcmach;
         struct c2_reqh_io_service  *serv_obj;
         struct c2_rios_buffer_pool *bp;
-	c2_bcount_t		    segment_size;
-	uint32_t		    segments_nr;
+        struct c2_rios_buffer_pool *newbp;
+	struct c2_reqh             *reqh;
 
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
 
-        c2_tl_for(c2_rhrpm, &service->rs_reqh->rh_rpc_machines, rpcmach) {
-		struct c2_rios_buffer_pool *newbp;
-		bool			    bufpool_found = false;
+	reqh = service->rs_reqh;
+	c2_rwlock_read_lock(&reqh->rh_rpcml_rwlock);
+        c2_tlist_for(&c2_reqh_rpc_mach_tl, &reqh->rh_rpc_machines, rpcmach) {
+		C2_ASSERT(c2_rpc_machine_bob_check(rpcmach));
 		/*
 		 * Check buffer pool for network domain of rpc_machine
 		 */
@@ -248,6 +249,7 @@ static int ios_create_buffer_pool(struct c2_reqh_service *service)
 		bufferpools_tlist_add(&serv_obj->rios_buffer_pools, newbp);
 
         } c2_tl_endfor; /* rpc_machines */
+	c2_rwlock_read_unlock(&reqh->rh_rpcml_rwlock);
 
         return rc;
 }
