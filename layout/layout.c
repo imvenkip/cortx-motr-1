@@ -862,6 +862,20 @@ void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
 	C2_LEAVE("Enum_type_id %lu", (unsigned long)let->let_id);
 }
 
+/*
+ * todo Check where all this should be used, including in the UT.
+ * Add a TC for this.
+ */
+void c2_layout_fini(struct c2_layout *l, struct c2_layout_domain *dom)
+{
+	C2_PRE(layout_invariant(l));
+	C2_PRE(domain_invariant(dom));
+	
+	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
+	l->l_ops->lo_fini(l, dom);
+	C2_LEAVE();
+}
+
 /** Adds a reference to the layout. */
 void c2_layout_get(struct c2_layout *l)
 {

@@ -104,8 +104,11 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 {
 	struct c2_pdclust_layout *pd_layout;
 	struct c2t1fs_dir_ent    *de;
+	bool                      is_root;
 
-	C2_ENTRY("ci: %p", ci);
+	is_root = c2t1fs_inode_is_root(&ci->ci_inode);
+
+	C2_ENTRY("ci: %p is_root %s", ci, is_root ? "true" : "false");
 
 	c2_tl_for(dir_ents, &ci->ci_dir_ents, de) {
 		dir_ents_tlist_del(de);
@@ -116,12 +119,13 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 
 	dir_ents_tlist_fini(&ci->ci_dir_ents);
 
-	pd_layout = container_of(ci->ci_layout, struct c2_pdclust_layout,
-				 pl_base.ls_base);
-
-	ci->ci_layout->l_ops->lo_fini(ci->ci_layout,
-				      &c2t1fs_globals.g_layout_dom);
-
+	if (!is_root) {
+		C2_ASSERT(ci->ci_layout != NULL);
+		pd_layout = container_of(ci->ci_layout,
+					 struct c2_pdclust_layout,
+					 pl_base.ls_base);
+		c2_layout_fini(ci->ci_layout, &c2t1fs_globals.g_layout_dom);
+	}
 	C2_LEAVE();
 }
 

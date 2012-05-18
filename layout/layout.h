@@ -413,6 +413,8 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
 				    const struct c2_layout_enum_type *et);
 
+void c2_layout_fini(struct c2_layout *l, struct c2_layout_domain *dom);
+
 void c2_layout_get(struct c2_layout *l);
 void c2_layout_put(struct c2_layout *l);
 
