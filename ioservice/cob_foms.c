@@ -342,7 +342,7 @@ static int cc_cobfid_map_add(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 
 	cctx = c2_cs_ctx_get(fom->fo_service);
 	C2_ASSERT(cctx != NULL);
-	rc = c2_cobfid_setup_get(&s, cctx);
+	rc = c2_cobfid_setup_get(cctx, &s);
 	C2_ASSERT(rc == 0 && s != NULL);
 
 	cob_fid.u_hi = cc->fco_cfid.f_container;
@@ -483,7 +483,7 @@ static int cd_cobfid_map_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 
 	cctx = c2_cs_ctx_get(fom->fo_service);
 	C2_ASSERT(cctx != NULL);
-	rc = c2_cobfid_setup_get(&s, cctx);
+	rc = c2_cobfid_setup_get(cctx, &s);
 	C2_ASSERT(rc == 0 && s != NULL);
 
 	cob_fid.u_hi = cd->fco_cfid.f_container;

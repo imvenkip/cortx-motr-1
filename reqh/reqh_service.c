@@ -65,36 +65,34 @@ bool c2_reqh_service_invariant(const struct c2_reqh_service *svc)
 	C2_IN(svc->rs_state, (C2_RST_INITIALISING, C2_RST_INITIALISED,
 				C2_RST_STARTING, C2_RST_STARTED,
 				C2_RST_STOPPING)) &&
-	ergo(svc->rs_state == C2_RST_INITIALISING, svc->rs_type != NULL &&
-		svc->rs_ops != NULL) &&
-	ergo(svc->rs_state == C2_RST_INITIALISED, svc->rs_type != NULL &&
-		svc->rs_ops != NULL && svc->rs_uuid[0] != 0 &&
+	svc->rs_type != NULL && svc->rs_ops != NULL &&
+	ergo(svc->rs_state == C2_RST_INITIALISED ||
+		svc->rs_state == C2_RST_STARTING ||
+		svc->rs_state == C2_RST_STARTED ||
+		svc->rs_state == C2_RST_STOPPING, svc->rs_uuid[0] != 0 &&
 		svc->rs_reqh != NULL) &&
 	ergo(svc->rs_state == C2_RST_STARTING, svc->rs_type != NULL &&
 		svc->rs_ops != NULL && svc->rs_uuid[0] != 0 &&
 		svc->rs_reqh != NULL) &&
-	ergo(svc->rs_state == C2_RST_STARTED, svc->rs_ops != NULL &&
-		svc->rs_type != NULL && svc->rs_uuid[0] != 0 &&
-		svc->rs_reqh != NULL &&
-		c2_reqh_svc_tlist_contains(&svc->rs_reqh->rh_services, svc)) &&
-	ergo(svc->rs_state == C2_RST_STOPPING, svc->rs_ops != NULL &&
-		svc->rs_type != NULL && svc->rs_uuid[0] != 0 &&
-		svc->rs_reqh != NULL &&
+	ergo(svc->rs_state == C2_RST_STARTED ||
+		svc->rs_state == C2_RST_STOPPING,
 		c2_reqh_svc_tlist_contains(&svc->rs_reqh->rh_services, svc));
 }
 
 struct c2_reqh_service_type *c2_reqh_service_type_find(const char *sname)
 {
-	struct c2_reqh_service_type *stype = NULL;
+	struct c2_reqh_service_type *stype;
 
 	C2_PRE(sname != NULL);
 
 	c2_rwlock_read_lock(&rstypes_rwlock);
-        c2_tlist_for(&rstypes_tl, &rstypes, stype) {
+        c2_tl_for(rstypes, &rstypes, stype) {
 		C2_ASSERT(c2_reqh_service_type_bob_check(stype));
-                if (strcmp(stype->rst_name, sname) == 0)
-                        break;
-        } c2_tlist_endfor;
+                if (strcmp(stype->rst_name, sname) == 0) {
+			c2_rwlock_read_unlock(&rstypes_rwlock);
+                        return stype;
+		}
+        } c2_tl_endfor;
 	c2_rwlock_read_unlock(&rstypes_rwlock);
 
         return stype;
@@ -215,10 +213,10 @@ void c2_reqh_service_list_print(void)
 {
 	struct c2_reqh_service_type *stype;
 
-        c2_tlist_for(&rstypes_tl, &rstypes, stype) {
+        c2_tl_for(rstypes, &rstypes, stype) {
                 C2_ASSERT(c2_reqh_service_type_bob_check(stype));
                 c2_console_printf(" %s\n", stype->rst_name);
-        } c2_tlist_endfor;
+        } c2_tl_endfor;
 }
 
 bool c2_reqh_service_is_registered(const char *sname)

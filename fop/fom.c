@@ -738,14 +738,16 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
 
 void c2_fom_fini(struct c2_fom *fom)
 {
-	struct c2_reqh *reqh;
+	struct c2_fom_domain *fdom;
+	struct c2_reqh       *reqh;
 
 	C2_PRE(fom->fo_phase == C2_FOPH_FINISH);
 
-	reqh = fom->fo_loc->fl_dom->fd_reqh;
-	c2_atomic64_dec(&fom->fo_loc->fl_dom->fd_foms_nr);
+	fdom = fom->fo_loc->fl_dom;
+	reqh = fdom->fd_reqh;
+	c2_clink_fini(&fom->fo_clink);
 	c2_list_link_fini(&fom->fo_linkage);
-	if (c2_atomic64_get(&reqh->rh_fom_dom.fd_foms_nr) == 0)
+	if (c2_atomic64_dec_and_test(&fdom->fd_foms_nr))
 		c2_chan_signal(&reqh->rh_sd_signal);
 }
 C2_EXPORTED(c2_fom_fini);

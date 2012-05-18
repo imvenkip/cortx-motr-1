@@ -161,8 +161,7 @@ struct c2_cobfid_setup {
  * structure.
  * @pre service != NULL.
  */
-int c2_cobfid_setup_get(struct c2_cobfid_setup **out,
-			struct c2_colibri *cc);
+int c2_cobfid_setup_get(struct c2_colibri *cc, struct c2_cobfid_setup **out);
 
 /**
  * Releases the reference on struct c2_cobfid_setup. Last reference

@@ -26,8 +26,6 @@
 #include "lib/bob.h"
 
 #include "sm/sm.h"
-#include "fol/fol.h"
-#include "fop/fop.h"
 #include "fop/fom.h"
 
 /**
@@ -49,6 +47,10 @@
    @see https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjA2Zmc0N3I3Z2Y&hl=en_US
    @{
  */
+
+struct c2_fol;
+struct c2_fop;
+struct c2_net_xprt;
 
 /**
    Request handler instance.
@@ -288,7 +290,7 @@ int c2_fom_state_generic(struct c2_fom *fom);
    @param reqh request handler to be shutdown
    @param clink clink to be used to wait on c2_reqh:rh_sd_signal
  */
-void c2_reqh_wait_for_shutdown(struct c2_reqh *reqh, struct c2_clink *clink);
+void c2_reqh_shutdown_wait(struct c2_reqh *reqh);
 
 /**
     Initializes global reqh objects like reqh fops and addb context,

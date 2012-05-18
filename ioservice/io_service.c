@@ -370,7 +370,7 @@ static int ios_start(struct c2_reqh_service *service)
 
 	cc = c2_cs_ctx_get(service);
 	C2_ASSERT(cc != NULL);
-	rc = c2_cobfid_setup_get(&s, cc);
+	rc = c2_cobfid_setup_get(cc, &s);
 	C2_POST(ergo(rc == 0, s != NULL));
 
         return rc;

@@ -223,45 +223,53 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
                                             struct c2_reqh *reqh)
 {
-	struct c2_reqh_service *service = NULL;
+	struct c2_reqh_service *service;
 
 	C2_PRE(reqh != NULL && service_name != NULL);
 
 	c2_rwlock_read_lock(&reqh->rh_svcl_rwlock);
-	c2_tlist_for(&c2_reqh_svc_tl, &reqh->rh_services, service) {
+	c2_tl_for(c2_reqh_svc, &reqh->rh_services, service) {
 		C2_ASSERT(c2_reqh_service_invariant(service));
-		if (strcmp(service->rs_type->rst_name, service_name) == 0)
-			break;
-	} c2_tlist_endfor;
+		if (strcmp(service->rs_type->rst_name, service_name) == 0) {
+			c2_rwlock_read_unlock(&reqh->rh_svcl_rwlock);
+			return service;
+		}
+	} c2_tl_endfor;
 	c2_rwlock_read_unlock(&reqh->rh_svcl_rwlock);
 
 	return service;
 }
 
-void c2_reqh_wait_for_shutdown(struct c2_reqh *reqh, struct c2_clink *clink)
+void c2_reqh_shutdown_wait(struct c2_reqh *reqh)
 {
-	if (c2_atomic64_get(&reqh->rh_fom_dom.fd_foms_nr) == 0)
-		return;
-	c2_chan_wait(clink);
+	struct c2_clink clink;
+
+        c2_clink_init(&clink, NULL);
+        c2_clink_add(&reqh->rh_sd_signal, &clink);
+
+	while (c2_atomic64_get(&reqh->rh_fom_dom.fd_foms_nr) > 0)
+		c2_chan_wait(&clink);
 }
 
 struct c2_rpc_machine *c2_reqh_rpc_machine_get(struct c2_reqh *reqh,
                                                 const struct c2_net_xprt *xprt)
 {
-	struct c2_rpc_machine *rpcmach = NULL;
+	struct c2_rpc_machine *rpcmach;
 	struct c2_net_xprt    *nxprt;
 
 	C2_PRE(reqh != NULL && xprt != NULL);
 
 	c2_rwlock_read_lock(&reqh->rh_rpcml_rwlock);
-	c2_tlist_for(&c2_reqh_rpc_mach_tl, &reqh->rh_rpc_machines,
+	c2_tl_for(c2_reqh_rpc_mach, &reqh->rh_rpc_machines,
 						      rpcmach) {
 		C2_ASSERT(c2_rpc_machine_bob_check(rpcmach));
 		nxprt = rpcmach->rm_tm.ntm_dom->nd_xprt;
 		C2_ASSERT(nxprt != NULL);
-		if (strcmp(nxprt->nx_name, xprt->nx_name) == 0)
-			break;
-	} c2_tlist_endfor;
+		if (strcmp(nxprt->nx_name, xprt->nx_name) == 0) {
+			c2_rwlock_read_unlock(&reqh->rh_rpcml_rwlock);
+			return rpcmach;
+		}
+	} c2_tl_endfor;
 	c2_rwlock_read_unlock(&reqh->rh_rpcml_rwlock);
 
 	return rpcmach;

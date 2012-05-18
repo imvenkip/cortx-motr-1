@@ -37,7 +37,7 @@ static struct c2_cob *test_cob = NULL;
 
 static struct c2_fom *cd_fom_alloc();
 static void cd_fom_dealloc(struct c2_fom *fom);
-static int cobfid_setup_get(struct c2_cobfid_setup **s, struct c2_colibri *cc);
+static int cobfid_setup_get(struct c2_colibri *cc, struct c2_cobfid_setup **s);
 static void cobfid_setup_put(struct c2_colibri *cc);
 
 enum cob_fom_type {
@@ -583,7 +583,7 @@ static int cobfid_ctx_get(struct c2_fom *fom,
 
 	cctx = c2_cs_ctx_get(fom->fo_service);
 	C2_ASSERT(cctx != NULL);
-	return cobfid_setup_get(cobfid_ctx, cctx);
+	return cobfid_setup_get(cctx, cobfid_ctx);
 }
 
 static void cobfid_ctx_put(struct c2_fom *fom)
@@ -1269,11 +1269,11 @@ static void cd_fom_state_test()
 	cob_testdata_cleanup(cfom);
 }
 
-static int cobfid_setup_get(struct c2_cobfid_setup **s, struct c2_colibri *cc)
+static int cobfid_setup_get(struct c2_colibri *cc, struct c2_cobfid_setup **s)
 {
 	int rc;
 
-	rc = c2_cobfid_setup_get(s, cc);
+	rc = c2_cobfid_setup_get(cc, s);
 
 	return rc;
 }
