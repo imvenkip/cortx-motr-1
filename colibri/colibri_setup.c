@@ -264,6 +264,7 @@ static uint32_t cs_domain_tms_nr(struct c2_colibri *cctx,
 static uint32_t cs_dom_tm_min_recv_queue_total(struct c2_colibri *cctx,
 					       struct c2_net_domain *dom);
 
+static void cs_buffer_pool_fini(struct c2_colibri *cctx);
 /**
    Looks up an xprt by the name.
 
@@ -821,6 +822,7 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 	C2_PRE(cctx != NULL);
 	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
 
+	rc = 0;
         if(!ndom_tlist_is_empty(&cctx->cc_ndoms))
 		rc = -EINVAL;
 
@@ -838,18 +840,23 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 				     seg_size;
 
 		C2_ALLOC_PTR(cs_bp);
-		if (cs_bp == NULL)
-			return -ENOMEM;
+		if (cs_bp == NULL) {
+			rc = -ENOMEM;
+			break;
+		}
 		rc = c2_rpc_net_buffer_pool_setup(ndom, &cs_bp->cs_buffer_pool,
 						  segs_nr, seg_size,
 						  bufs_nr, tms_nr);
 		if (rc != 0) {
 			c2_free(cs_bp);
-			return rc;
+			break;
 		}
 		cs_buffer_pools_tlink_init(cs_bp);
 		cs_buffer_pools_tlist_add(&cctx->cc_buffer_pools, cs_bp);
 	} c2_tlist_endfor;
+
+	if (rc < 0)
+		cs_buffer_pool_fini(cctx);
 
 	return rc;
 }
