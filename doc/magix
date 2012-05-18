@@ -12,3 +12,5 @@ c2_rpc_service_type  svt_magix               5356435f54595045 SVC_TYPE
 c2_rpc_service       svc_magix                 7270635f737663 rpc_svc
 c2_rpc_services_tl   td_head_magic           7270637376636864 rpcsvchd
 rpc_service_types_tl td_head_magic           5356435459504844 SVCTYPHD
+fi_dynamic_id        fdi_magic               666964796e69646c fidynidl
+fi_dynamic_id_tl     td_head_magic           666964796e696468 fidynidh

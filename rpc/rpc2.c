@@ -20,6 +20,11 @@
  * Original creation date: 04/28/2011
  */
 
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "cob/cob.h"
 #include "rpc/rpc2.h"
 #include "rpc/rpcdbg.h"
@@ -39,6 +44,7 @@
 #include "fop/fop_item_type.h"
 #include "lib/arith.h"
 #include "lib/vec.h"
+#include "lib/finject.h"
 
 /* Forward declarations. */
 static int recv_buffer_allocate_nr(struct c2_net_domain  *net_dom,
@@ -828,6 +834,9 @@ int c2_rpc_machine_init(struct c2_rpc_machine *machine,
 	C2_PRE(machine != NULL);
 	C2_PRE(ep_addr != NULL);
 	C2_PRE(net_dom != NULL);
+
+	if (C2_FI_ENABLED("fake_error"))
+		return -EINVAL;
 
 	c2_db_tx_init(&tx, dom->cd_dbenv, 0);
 #ifndef __KERNEL__
