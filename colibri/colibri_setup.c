@@ -829,7 +829,8 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 		max_recv_queue_len = cs_dom_tm_min_recv_queue_total(cctx, ndom);
 		tms_nr		   = cs_domain_tms_nr(cctx, ndom);
 		C2_ASSERT(max_recv_queue_len >= tms_nr);
-		bufs_nr		   = max_recv_queue_len + max32u(tms_nr / 4, 1);
+		bufs_nr		   = max_recv_queue_len + max32u(tms_nr / 4, 1) +
+				     C2_NET_BUFFER_POOL_THRESHOLD;
 		seg_size	   =
 			min64u(c2_net_domain_get_max_buffer_segment_size(ndom),
 			       C2_SEG_SIZE);

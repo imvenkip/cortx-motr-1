@@ -170,7 +170,8 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 			  C2_SEG_SIZE);
 	segs_nr  = c2_net_domain_get_max_buffer_size(ndom) / seg_size;
 	tms_nr   = 1;
-	bufs_nr  = tms_nr * (cctx->rcx_recv_queue_min_length + 1);
+	bufs_nr  = cctx->rcx_recv_queue_min_length + max32u(tms_nr / 4 , 1) +
+		   C2_NET_BUFFER_POOL_THRESHOLD;
 
 	rc = c2_rpc_net_buffer_pool_setup(ndom, buffer_pool,
 					  segs_nr, seg_size,

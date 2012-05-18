@@ -71,6 +71,10 @@
 #define SERVER_STOB_FILE_NAME	"rpcping_server.stob"
 #define SERVER_LOG_FILE_NAME	"rpcping_server.log"
 
+#define to_string(x) str(x)
+#define str(x)	#x
+#define TM_RECV_QUEUE_MIN_LEN 4
+
 enum ep_type {
 	EP_SERVER,
 	EP_CLIENT,
@@ -369,16 +373,17 @@ static int run_client(void)
 	static struct c2_rpc_client_ctx cctx;
 
 
-	cctx.rcx_net_dom            = &client_net_dom,
-	cctx.rcx_local_addr         = client_endpoint,
-	cctx.rcx_remote_addr        = server_endpoint,
-	cctx.rcx_db_name            = CLIENT_DB_FILE_NAME,
-	cctx.rcx_dbenv              = &client_dbenv,
-	cctx.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
-	cctx.rcx_cob_dom            = &client_cob_dom,
-	cctx.rcx_nr_slots           = nr_slots,
-	cctx.rcx_timeout_s          = CONNECT_TIMEOUT,
-	cctx.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
+	cctx.rcx_net_dom               = &client_net_dom,
+	cctx.rcx_local_addr            = client_endpoint,
+	cctx.rcx_remote_addr           = server_endpoint,
+	cctx.rcx_db_name               = CLIENT_DB_FILE_NAME,
+	cctx.rcx_dbenv                 = &client_dbenv,
+	cctx.rcx_cob_dom_id            = CLIENT_COB_DOM_ID,
+	cctx.rcx_cob_dom               = &client_cob_dom,
+	cctx.rcx_nr_slots              = nr_slots,
+	cctx.rcx_timeout_s             = CONNECT_TIMEOUT,
+	cctx.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT,
+	cctx.rcx_recv_queue_min_length = TM_RECV_QUEUE_MIN_LEN;
 
 	rc = build_endpoint_addr(EP_SERVER, server_endpoint,
 					sizeof(server_endpoint));
@@ -476,7 +481,8 @@ static int run_server(void)
 	char *server_argv[] = {
 		"rpclib_ut", "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", server_endpoint,
-		"-s", "ds1", "-s", "ds2"
+		"-s", "ds1", "-s", "ds2",
+		"-q", to_string(TM_RECV_QUEUE_MIN_LEN),
 	};
 
 	C2_RPC_SERVER_CTX_DECLARE(sctx, &xprt, 1, server_argv,
