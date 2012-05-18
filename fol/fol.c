@@ -118,7 +118,8 @@ static void *buf_move(void **buf, uint32_t *nob, uint32_t delta)
 /**
    Parses a record representation and fills in @d.
  */
-static int rec_parse(struct c2_fol_rec_desc *d, void *buf, uint32_t nob)
+static int rec_parse(struct c2_fol_rec_desc *d, void *buf, uint32_t nob,
+                     bool open)
 {
 	struct c2_fol_rec_header     *h;
 	const struct c2_fol_rec_type *rtype;
@@ -139,24 +140,25 @@ static int rec_parse(struct c2_fol_rec_desc *d, void *buf, uint32_t nob)
 		return -EIO;
 	if (nob != 0)
 		return -EIO;
-	rtype = d->rd_type = c2_fol_rec_type_lookup(h->rh_opcode);
-	if (rtype == NULL)
-		return -EIO;
-	if (rtype->rt_ops->rto_open != NULL)
-		return rtype->rt_ops->rto_open(rtype, d);
-	else
-		return 0;
+	if (open) {
+		rtype = d->rd_type = c2_fol_rec_type_lookup(h->rh_opcode);
+		if (rtype == NULL)
+			return -EIO;
+		if (rtype->rt_ops->rto_open != NULL)
+			return rtype->rt_ops->rto_open(rtype, d);
+	}
+	return 0;
 }
 
 /**
    Parses a record without checking invariants.
  */
-static int rec_open_internal(struct c2_fol_rec *rec)
+static int rec_open_internal(struct c2_fol_rec *rec, bool open)
 {
 	struct c2_buf *recbuf;
 
 	recbuf = &rec->fr_pair.dp_rec.db_buf;
-	return rec_parse(&rec->fr_desc, recbuf->b_addr, recbuf->b_nob);
+	return rec_parse(&rec->fr_desc, recbuf->b_addr, recbuf->b_nob, open);
 }
 
 /**
@@ -166,7 +168,7 @@ static int rec_open(struct c2_fol_rec *rec)
 {
 	int result;
 
-	result = rec_open_internal(rec);
+	result = rec_open_internal(rec, true);
 	if (result == 0)
 		result = c2_fol_rec_invariant(&rec->fr_desc) ? 0 : -EIO;
 	return result;
@@ -268,7 +270,7 @@ int c2_fol_init(struct c2_fol *fol, struct c2_dbenv *env)
 				result = c2_db_cursor_last(&r.fr_ptr,
 							   &r.fr_pair);
 				if (result == 0) {
-					result = rec_open_internal(&r);
+					result = rec_open_internal(&r, false);
 					fol->f_lsn = lsn_inc(d->rd_lsn);
 				}
 				c2_fol_rec_fini(&r);
