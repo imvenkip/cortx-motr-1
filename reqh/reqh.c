@@ -60,14 +60,14 @@ const struct c2_addb_ctx_type c2_reqh_addb_ctx_type = {
 };
 
 enum {
-	REQH_RPC_MACH_HEAD_MAGIX = 0x52485F52504D4844 /* RH_RPMHD */
+	REQH_RPC_MACH_HEAD_MAGIX = 0x52455152504D4844 /* REQRPMHD */
 };
 
 /**
    Tlist descriptor for reqh services.
  */
 C2_TL_DESCR_DEFINE(c2_reqh_svc, "reqh service", , struct c2_reqh_service,
-                   rs_linkage, rs_magic, C2_RHS_MAGIX, C2_RHS_MAGIX_HEAD);
+                   rs_linkage, rs_magix, C2_RHS_MAGIX, C2_RHS_MAGIX_HEAD);
 
 C2_TL_DEFINE(c2_reqh_svc, , struct c2_reqh_service);
 
@@ -78,7 +78,7 @@ C2_BOB_DEFINE( , &rqsvc_bob, c2_reqh_service);
    Tlist descriptor for rpc machines.
  */
 C2_TL_DESCR_DEFINE(c2_reqh_rpc_mach, "rpc machines", , struct c2_rpc_machine,
-                   rm_rh_linkage, rm_magic, REQH_RPC_MACH_HEAD_MAGIX, C2_RPC_MACHINE_MAGIX);
+                   rm_rh_linkage, rm_magix, REQH_RPC_MACH_HEAD_MAGIX, C2_RPC_MACHINE_MAGIX);
 
 C2_TL_DEFINE(c2_reqh_rpc_mach, , struct c2_rpc_machine);
 

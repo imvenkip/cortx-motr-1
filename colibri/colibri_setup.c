@@ -63,9 +63,9 @@ static int cdom_id;
    Magic used to check consistency of cs_reqh_context.
  */
 enum {
-	CS_REQH_CTX_MAGIX = 0x5248435458, /* RHCTX */
+	CS_REQH_CTX_MAGIX = 0x52455148435458, /* REQHCTX */
 	CS_REQH_CTX_HEAD_MAGIX = 0x52484354584844, /* RHCTXHD */
-	CS_NET_DOMS_HEAD_MAGIX = 0x4E444F4D4844, /* NDOMHD */
+	CS_NET_DOMS_HEAD_MAGIX = 0x4E4554444F4D4844, /* NETDOMHD */
 	CS_ENDPOINT_MAGIX = 0x43535F4550, /* CS_EP */
 	CS_ENDPOINT_HEAD_MAGIX = 0x43535F45504844 /* CS_EPHD */
 };
@@ -112,7 +112,7 @@ struct cs_endpoint_and_xprt {
 	   Scratch buffer for endpoint and transport extraction.
 	 */
 	char            *ex_scrbuf;
-	uint64_t         ex_magic;
+	uint64_t         ex_magix;
 	/** Linkage into reqh context endpoint list, cs_reqh_context::rc_eps */
 	struct c2_tlink  ex_linkage;
 	/**
@@ -123,8 +123,8 @@ struct cs_endpoint_and_xprt {
 };
 
 C2_TL_DESCR_DEFINE(cs_eps, "cs endpoints", static, struct cs_endpoint_and_xprt,
-                   ex_linkage, ex_magic, CS_ENDPOINT_MAGIX,
-		   CS_ENDPOINT_HEAD_MAGIX);
+			ex_linkage, ex_magix, CS_ENDPOINT_MAGIX,
+			CS_ENDPOINT_HEAD_MAGIX);
 
 C2_TL_DEFINE(cs_eps, static, struct cs_endpoint_and_xprt);
 
@@ -186,7 +186,7 @@ struct cs_reqh_context {
 	struct c2_reqh               rc_reqh;
 
 	/** Reqh context magic */
-	uint64_t                     rc_magic;
+	uint64_t                     rc_magix;
 
 	/** Linkage into reqh context list */
 	struct c2_tlink              rc_linkage;
@@ -224,8 +224,8 @@ static const char *cs_stobs[] = {
 };
 
 C2_TL_DESCR_DEFINE(rhctx, "reqh contexts", static, struct cs_reqh_context,
-                   rc_linkage, rc_magic, CS_REQH_CTX_MAGIX,
-		   CS_REQH_CTX_HEAD_MAGIX);
+			rc_linkage, rc_magix, CS_REQH_CTX_MAGIX,
+			CS_REQH_CTX_HEAD_MAGIX);
 
 C2_TL_DEFINE(rhctx, static, struct cs_reqh_context);
 
@@ -233,8 +233,8 @@ static struct c2_bob_type rhctx_bob;
 C2_BOB_DEFINE(static, &rhctx_bob, cs_reqh_context);
 
 C2_TL_DESCR_DEFINE(ndom, "network domains", static, struct c2_net_domain,
-                   nd_app_linkage, nd_magic, C2_NET_DOMAIN_MAGIX,
-		   CS_NET_DOMS_HEAD_MAGIX);
+			nd_app_linkage, nd_magix, C2_NET_DOMAIN_MAGIX,
+			CS_NET_DOMS_HEAD_MAGIX);
 
 C2_TL_DEFINE(ndom, static, struct c2_net_domain);
 
@@ -1372,8 +1372,8 @@ int c2_cobfid_setup_get(struct c2_colibri *cc, struct c2_cobfid_setup **out)
 
 		rc = cobfid_map_setup_init(cc, cobfid_map_name);
 		if (rc != 0) {
-			c2_rwlock_write_unlock(&cc->cc_rwlock);
 			c2_free(cc->cc_setup);
+			c2_rwlock_write_unlock(&cc->cc_rwlock);
 			return rc;
 		}
 	} else

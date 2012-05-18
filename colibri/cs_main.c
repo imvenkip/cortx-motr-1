@@ -28,6 +28,7 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "lib/misc.h"  /* C2_SET0 */
 
 #include "colibri/colibri_setup.h"
 #include "colibri/init.h"
@@ -80,6 +81,7 @@ int main(int argc, char **argv)
 	struct c2_colibri colibri_ctx;
 
 	errno = 0;
+	C2_SET0(&colibri_ctx);
 	rc = c2_init();
 	if (rc != 0) {
 		fprintf(stderr, "\n Failed to initialise Colibri \n");

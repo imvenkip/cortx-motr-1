@@ -51,7 +51,7 @@ static struct c2_tl rstypes;
 static struct c2_rwlock rstypes_rwlock;
 
 C2_TL_DESCR_DEFINE(rstypes, "reqh service types", static,
-                   struct c2_reqh_service_type, rst_linkage, rst_magic,
+                   struct c2_reqh_service_type, rst_linkage, rst_magix,
                    C2_RHS_MAGIX, C2_RHS_MAGIX_HEAD);
 
 C2_TL_DEFINE(rstypes, static, struct c2_reqh_service_type);
@@ -70,9 +70,6 @@ bool c2_reqh_service_invariant(const struct c2_reqh_service *svc)
 		svc->rs_state == C2_RST_STARTING ||
 		svc->rs_state == C2_RST_STARTED ||
 		svc->rs_state == C2_RST_STOPPING, svc->rs_uuid[0] != 0 &&
-		svc->rs_reqh != NULL) &&
-	ergo(svc->rs_state == C2_RST_STARTING, svc->rs_type != NULL &&
-		svc->rs_ops != NULL && svc->rs_uuid[0] != 0 &&
 		svc->rs_reqh != NULL) &&
 	ergo(svc->rs_state == C2_RST_STARTED ||
 		svc->rs_state == C2_RST_STOPPING,
