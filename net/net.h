@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -16,7 +16,7 @@
  *
  * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>,
  *                  Nikita Danilov <Nikita_Danilov@xyratex.com>,
- *                  Carl Braganza <Carl_Braganza@us.xyratex.com>
+ *                  Carl Braganza <Carl_Braganza@xyratex.com>
  * Original creation date: 04/01/2010
  */
 
@@ -114,8 +114,8 @@ int c2_net_init(void);
 void c2_net_fini(void);
 
 enum {
-	/* Hex value for "netmagic" */
-	C2_NET_MAGIC = 0x6E65746D61676963
+	/* Hex value for "NET_DOM" */
+	C2_NET_DOMAIN_MAGIX = 0x4E45545F444F4D
 };
 
 /** Network transport (e.g., lnet or sunrpc) */
@@ -429,7 +429,7 @@ struct c2_net_stats {
 };
 
 /** @}
- @addtogroup net Networking.
+ @addtogroup net
  @{
  */
 
@@ -470,9 +470,7 @@ struct c2_net_domain {
         /** <b>Deprecated.</b> Domain network stats */
         struct c2_net_stats nd_stats[NS_STATS_NR];
 
-	/**
-	   ADDB context for events related to this domain
-	 */
+	/** ADDB context for events related to this domain */
 	struct c2_addb_ctx  nd_addb;
 
         /** Linkage for invoking application */
@@ -647,14 +645,14 @@ enum c2_net_queue_type {
 
 	/**
 	   Queue with buffers awaiting completion of
-	   remotly initiated bulk data send operations
+	   remotely initiated bulk data send operations
 	   that will read from these buffers.
 	 */
 	C2_NET_QT_PASSIVE_BULK_RECV,
 
 	/**
 	   Queue with buffers awaiting completion of
-	   remotly initiated bulk data receive operations
+	   remotely initiated bulk data receive operations
 	   that will write to these buffers.
 	 */
 	C2_NET_QT_PASSIVE_BULK_SEND,
@@ -759,7 +757,7 @@ struct c2_net_tm_event {
 	   field implies successful completion, and a negative error number
 	   is used to indicate the reasons for failure.
 	   The following errors are well defined:
-	   	- <b>-ENOBUFS</b> This indicates that the transfer machine
+		- <b>-ENOBUFS</b> This indicates that the transfer machine
 		lost messages due to a lack of receive buffers.
 
 	   Diagnostic events are free to make any use of this field.
@@ -921,6 +919,9 @@ struct c2_net_transfer_mc {
 
 	/** Statistics maintained per logical queue */
 	struct c2_net_qstats        ntm_qstats[C2_NET_QT_NR];
+
+	/** ADDB context for events related to this transfer machine */
+	struct c2_addb_ctx          ntm_addb;
 
 	/** Domain linkage */
 	struct c2_list_link         ntm_dom_linkage;
@@ -1340,7 +1341,7 @@ struct c2_net_buffer {
 	   There is only one linkage for all of the queues, as a buffer
 	   can only be used for one type of operation at a time.
 
-	   It is also used for linkage into c2_net_buffer_pool::nbp_colour[].
+	   It is also used for linkage into c2_net_buffer_pool::nbp_colours[].
 	   The application should not modify this field.
 	 */
 	struct c2_tlink		   nb_tm_linkage;
@@ -1404,6 +1405,9 @@ struct c2_net_buffer {
 	   The value may not be 0 for buffers in the C2_NET_QT_MSG_RECV queue.
 	 */
 	uint32_t                   nb_max_receive_msgs;
+
+	/** ADDB context for events related to this buffer */
+	struct c2_addb_ctx         nb_addb;
 };
 
 /**
@@ -1492,6 +1496,10 @@ ergo(buf->nb_qtype == C2_NET_QT_MSG_SEND ||
    @retval -ETIME nb_timeout is set to other than C2_TIME_NEVER, and occurs in
    the past.
    Note that this differs from them buffer timeout error code of -ETIMEDOUT.
+   @note Receiving a successful buffer completion callback is not a guarantee
+   that a data transfer actually took place, but merely an indication that the
+   transport reported the operation was successfully executed.  See the
+   transport documentation for details.
  */
 int c2_net_buffer_add(struct c2_net_buffer *buf,
 		      struct c2_net_transfer_mc *tm);
@@ -1624,7 +1632,7 @@ bool c2_net_buffer_event_pending(struct c2_net_transfer_mc *tm);
    @pre tm->ntm_bev_auto_deliver is not set.
  */
 void c2_net_buffer_event_notify(struct c2_net_transfer_mc *tm,
-				   struct c2_chan *chan);
+				struct c2_chan *chan);
 
 /**
    Copies a network buffer descriptor.
@@ -1643,10 +1651,23 @@ int c2_net_desc_copy(const struct c2_net_buf_desc *from_desc,
  */
 void c2_net_desc_free(struct c2_net_buf_desc *desc);
 
-/** @} end of networking group
+enum {
+	/* Hex ASCII value of "nb_lru" */
+	C2_NET_BUFFER_LINK_MAGIC	 = 0x6e625f6c7275,
+	/* Hex ASCII value of "nb_head" */
+	C2_NET_BUFFER_HEAD_MAGIC	 = 0x6e625f68656164,
+};
 
+/** Descriptor for the tlist of buffers. */
+C2_TL_DESCR_DECLARE(c2_net_pool, extern);
+C2_TL_DESCR_DECLARE(c2_net_tm, extern);
+C2_TL_DECLARE(c2_net_pool, extern, struct c2_net_buffer);
+C2_TL_DECLARE(c2_net_tm, extern, struct c2_net_buffer);
 
-   @addtogroup netDep Networking (Deprecated Interfaces)
+/** @} */ /* end of networking group */
+
+/**
+   @addtogroup netDep
    @{
  */
 void c2_net_domain_stats_init(struct c2_net_domain *dom);
@@ -1808,7 +1829,7 @@ struct c2_net_conn_ops {
 
    Allocates resources and connects transport connection to some logical
    connection.  Logical connection is used to send rpc in the context of one or
-   more sessions.  (@ref rpc-cli-session)
+   more sessions.
 
    @param nid - service identifier
 
@@ -1912,21 +1933,7 @@ void c2_net_reply_post(struct c2_service *service, struct c2_fop *fop,
 extern struct c2_net_xprt c2_net_usunrpc_xprt;
 extern struct c2_net_xprt c2_net_ksunrpc_xprt;
 
-enum {
-	/* Hex ASCII value of "nb_lru" */
-	C2_NET_BUFFER_LINK_MAGIC	 = 0x6e625f6c7275,
-	/* Hex ASCII value of "nb_tm_linkage" */
-	NET_BUFFER_TM_LINK_MAGIC = 0x6e625f746d5f6c,
-	/* Hex ASCII value of "nb_head" */
-	C2_NET_BUFFER_HEAD_MAGIC	 = 0x6e625f68656164,
-};
-
-/** Descriptor for the tlist of buffers. */
-C2_TL_DESCR_DECLARE(pool, extern);
-C2_TL_DESCR_DECLARE(tm, extern);
-C2_TL_DECLARE(pool, extern, struct c2_net_buffer);
-C2_TL_DECLARE(tm, extern, struct c2_net_buffer);
-/** @} end of deprecated net group */
+/** @} */ /* end of deprecated net group */
 
 #endif
 

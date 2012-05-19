@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -75,6 +75,7 @@ int c2_net__domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 	if (rc != 0) {
 		dom->nd_xprt = NULL; /* prevent call to xo_dom_fini */
 		c2_net__domain_fini(dom);
+		NET_ADDB_FUNCFAIL_ADD(c2_net_addb, rc);
 	}
 	return rc;
 }

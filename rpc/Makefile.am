@@ -21,7 +21,7 @@ libcolibri_rpc_la_SOURCES  = session_u.h session_u.c session.c session.h \
 				service.c
 
 
-INCLUDES		= -I. -I$(top_srcdir) -I$(top_srcdir)/include -I/usr/include
+INCLUDES		= -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include -iquote /usr/include
 EXTRA_DIST              = session.ff
 
 clean-local:

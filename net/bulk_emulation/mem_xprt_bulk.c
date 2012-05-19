@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -124,7 +124,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		 */
 
 		/* locate the passive buffer */
-		c2_tl_for(tm, &passive_tm->ntm_q[md->md_qt], inb) {
+		c2_tl_for(c2_net_tm, &passive_tm->ntm_q[md->md_qt], inb) {
 			if(!mem_desc_equal(&inb->nb_desc, &nb->nb_desc))
 				continue;
 			if ((inb->nb_flags & C2_NET_BUF_CANCELLED) == 0)
@@ -149,7 +149,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 		   Copy the buffer.
 		   The length check was delayed until here so both buffers
 		   can get released with appropriate error code.
-		*/
+		 */
 		rc = mem_copy_buffer(d_buf, s_buf, datalen);
 
 		/* schedule the passive callback */
@@ -180,9 +180,7 @@ static void mem_wf_active_bulk(struct c2_net_transfer_mc *tm,
 	return;
 }
 
-/**
-   @} bulkmem
-*/
+/** @} */ /* bulkmem */
 
 /*
  *  Local variables:

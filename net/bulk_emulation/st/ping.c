@@ -19,7 +19,7 @@
  * Original creation date: 04/12/2011
  */
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
 #include "lib/assert.h"
@@ -996,7 +996,7 @@ void ping_server(struct ping_ctx *ctx)
 	/* wait for active buffers to flush */
 	c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
 	for (i = 0; i < C2_NET_QT_NR; ++i)
-		while (!tm_tlist_is_empty(&ctx->pc_tm.ntm_q[i])) {
+		while (!c2_net_tm_tlist_is_empty(&ctx->pc_tm.ntm_q[i])) {
 			ctx->pc_ops->pf("waiting for queue %d to empty\n", i);
 			c2_chan_wait(&tmwait);
 		}
@@ -1304,7 +1304,8 @@ int ping_client_init(struct ping_ctx *ctx, struct c2_net_end_point **server_ep)
 
 	/* need end point for the server */
 	if (ctx->pc_rid != 0)
-		sprintf(addr, "%s:%u:%u", ctx->pc_rhostname, ctx->pc_rport, ctx->pc_rid);
+		sprintf(addr, "%s:%u:%u", ctx->pc_rhostname, ctx->pc_rport,
+			ctx->pc_rid);
 	else
 		sprintf(addr, "%s:%u", ctx->pc_rhostname, ctx->pc_rport);
 	rc = c2_net_end_point_create(server_ep, &ctx->pc_tm, addr);

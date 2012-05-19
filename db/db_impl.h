@@ -21,7 +21,7 @@
 #ifndef __COLIBRI_DB_DB_IMPL_H__
 #define __COLIBRI_DB_DB_IMPL_H__
 
-#include_next <db.h>
+#include <db.h>
 
 #include "lib/types.h"
 #include "lib/thread.h"

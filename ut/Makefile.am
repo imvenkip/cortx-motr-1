@@ -1,6 +1,6 @@
 noinst_LTLIBRARIES       = libcolibri-ut.la
 
-INCLUDES                 = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+INCLUDES                 = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
 
 cs_test_fops_u.h cs_test_fops_u.c : cs_test_fops.ff \
 				$(top_builddir)/fop/rt/libc2rt.la \

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -74,7 +74,7 @@ static int sunrpc_get_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	}
 
 	/* locate the passive buffer */
-	c2_tl_for(tm, &tm->ntm_q[in->sg_desc.sbd_qtype], inb) {
+	c2_tl_for(c2_net_tm, &tm->ntm_q[in->sg_desc.sbd_qtype], inb) {
 		if (sunrpc_desc_equal(&inb->nb_desc, &in->sg_desc) &&
 		    inb->nb_length == in->sg_desc.sbd_total) {
 			if ((inb->nb_flags & (C2_NET_BUF_CANCELLED |
@@ -142,7 +142,7 @@ static int sunrpc_put_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	}
 
 	/* locate the passive buffer */
-	c2_tl_for(tm, &tm->ntm_q[in->sp_desc.sbd_qtype], inb) {
+	c2_tl_for(c2_net_tm, &tm->ntm_q[in->sp_desc.sbd_qtype], inb) {
 		if (sunrpc_desc_equal(&inb->nb_desc, &in->sp_desc)) {
 			if ((inb->nb_flags & (C2_NET_BUF_CANCELLED |
 					      C2_NET_BUF_TIMED_OUT)) == 0)
@@ -394,9 +394,7 @@ static void sunrpc_wf_active_bulk(struct c2_net_transfer_mc *tm,
 	return;
 }
 
-/**
-   @} bulksunrpc
-*/
+/** @} */ /* bulksunrpc */
 
 /*
  *  Local variables:

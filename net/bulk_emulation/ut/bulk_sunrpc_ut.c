@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -157,7 +157,7 @@ static void test_sunrpc_ep(void)
 		/* skip rest of this test, else C2_ASSERT will occur */
 		c2_net_tm_fini(&d1tm1);
 		c2_net_domain_fini(&dom1);
-		C2_UT_FAIL("aborting test case, port 31111 in-use?");
+		C2_UT_FAIL("aborting test case, port in-use?");
 		return;
 	}
 
@@ -376,7 +376,7 @@ static void test_sunrpc_desc(void)
 		/* skip rest of this test, else C2_ASSERT will occur */
 		c2_net_tm_fini(&d1tm1);
 		c2_net_domain_fini(&dom1);
-		C2_UT_FAIL("aborting test case, port 31111 in-use?");
+		C2_UT_FAIL("aborting test case, port in-use?");
 		return;
 	}
 
@@ -395,7 +395,7 @@ static void test_sunrpc_desc(void)
 	C2_UT_ASSERT(sd.sbd_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
 	C2_UT_ASSERT(sd.sbd_total == 2345);
 	C2_UT_ASSERT(sd.sbd_passive_ep.sep_addr == htonl(0x7f000001));
-	C2_UT_ASSERT(sd.sbd_passive_ep.sep_port == htons(31111));
+	C2_UT_ASSERT(sd.sbd_passive_ep.sep_port == htons(C2_NET_SUNRPC_PORT));
 	C2_UT_ASSERT(sd.sbd_passive_ep.sep_id == 1);
 	c2_net_desc_free(&desc1);
 	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
@@ -452,7 +452,7 @@ static void test_sunrpc_pa(void)
 		/* skip rest of this test, else C2_ASSERT will occur */
 		c2_net_tm_fini(&d1tm1);
 		c2_net_domain_fini(&dom1);
-		C2_UT_FAIL("aborting test case, port 31111 in-use?");
+		C2_UT_FAIL("aborting test case, port in-use?");
 		return;
 	}
 
@@ -1075,9 +1075,13 @@ static void test_sunrpc_failure(void)
 
 	/* fini */
 	c2_net_buffer_deregister(&d1nb1, &dom1);
+	c2_bufvec_free(&d1nb1.nb_buffer);
 	c2_net_buffer_deregister(&d1nb2, &dom1);
+	c2_bufvec_free(&d1nb2.nb_buffer);
 	c2_net_buffer_deregister(&d2nb1, &dom2);
+	c2_bufvec_free(&d2nb1.nb_buffer);
 	c2_net_buffer_deregister(&d2nb2, &dom2);
+	c2_bufvec_free(&d2nb2.nb_buffer);
 
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
@@ -1110,14 +1114,17 @@ static void test_sunrpc_failure(void)
 	c2_net_domain_fini(&dom2);
 }
 
+static void ntc_event_callback(const struct c2_net_tm_event *ev)
+{
+}
+
 static void test_sunrpc_tm(void)
 {
 	static struct c2_net_domain dom1 = {
 		.nd_xprt = NULL
 	};
 	const struct c2_net_tm_callbacks cbs1 = {
-		.ntc_event_cb = LAMBDA(void,(const struct c2_net_tm_event *ev) {
-				       }),
+		.ntc_event_cb = ntc_event_callback
 	};
 	struct c2_net_transfer_mc d1tm1 = {
 		.ntm_callbacks = &cbs1,

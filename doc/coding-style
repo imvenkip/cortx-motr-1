@@ -73,6 +73,7 @@ To summarise:
 
       This rule applied to block-level variable declarations too.
 
+
 In addition to the above syntactic conventions, Colibri code should
 try to adhere to some higher level idioms.
 
@@ -283,3 +284,46 @@ try to adhere to some higher level idioms.
       after the code restructuring, the variable remains
       un-initialized in a conditional branch or in a loop that might
       execute 0 times, the initializer suppresses compiler warning).
+
+
+Things to look after:
+
+    * locks should outlive the object(s) they are protecting.
+
+      The code below illustrates a common mistake:
+
+        struct foo {
+                ...
+                /* Protects foo object from concurrent modifications. */
+                struct c2_mutex f_lock;
+        };
+
+        int foo_init(struct foo *foo)
+        {
+                c2_mutex_init(&foo->f_lock);
+                c2_mutex_lock(&foo->f_lock);
+                /* ... Initialize foo ... */
+                c2_mutex_unlock(&foo->f_lock);
+        }
+
+        void foo_fini(struct foo *foo)
+        {
+                c2_mutex_lock(&foo->f_lock);
+                /* ... Finalize foo ... */
+                c2_mutex_unlock(&foo->f_lock);
+                c2_mutex_fini(&foo->f_lock);           /* <--- Thread A */
+        }
+
+        int foo_modify(struct foo *foo, ...)
+        {
+                c2_mutex_lock(&foo->f_lock);
+                /* ... Modify field(s) of foo ... */   /* <--- Thread B */
+                c2_mutex_unlock(&foo->f_lock);
+        }
+
+      Here it is possible that some thread (B) tries to unlock the
+      mutex, which is already finalized by another thread (A).
+
+      A general rule of thumb is that object creation and destruction
+      should be protected by "existential lock(s)", with a life-time
+      longer than that of the object.

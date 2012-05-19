@@ -4,22 +4,12 @@
 # after fop is built, we build addb library again with full functionally.
 
 addbdir                     = $(includedir)/colibri/addb
-addb_HEADERS                = addb.h addb_u.h addb_k.h
+addb_HEADERS                = addb.h
 
 noinst_LTLIBRARIES          = libcolibri-addb.la
-libcolibri_addb_la_SOURCES  = addb_u.h addb_u.c addb.c addb.h addb_console.c \
+libcolibri_addb_la_SOURCES  = addb.c addb.h addb_console.c \
 			      addb_fop.c addb_store.c
 
-INCLUDES                    = -I. -I$(top_srcdir)/include
+INCLUDES                    = -iquote . -iquote $(top_srcdir)/include
 
-addb_u.h addb_u.c: addb.ff \
-                  $(top_builddir)/fop/fop2c
-	$(top_builddir)/fop/fop2c -uk $<
-
-addb.c : addb.h addb_u.h
-
-EXTRA_DIST       = addb.ff linux_kernel/addb_console.c
-
-clean-local:
-	cd @SRCDIR@/addb ; \
-	rm -fr addb_[uk].[hc]
+EXTRA_DIST                  = linux_kernel/addb_console.c

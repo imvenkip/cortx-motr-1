@@ -22,7 +22,7 @@
 #define __COLIBRI_CONSOLE_IT_H__
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
 #include "fop/fop_iterator.h"	/* c2_fit */

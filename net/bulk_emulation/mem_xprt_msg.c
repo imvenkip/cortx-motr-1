@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -26,8 +26,6 @@
    @{
  */
 
-/**
- */
 static void mem_wf_msg_recv_cb(struct c2_net_transfer_mc *tm,
 			       struct c2_net_bulk_mem_work_item *wi)
 {
@@ -112,7 +110,7 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 				   We don't need the domain lock (do need TM
 				   mutex) but the original logic required it so
 				   leave it that way...
-				*/
+				 */
 				mep = mem_ep_to_pvt(tm->ntm_ep);
 				rc = mem_bmo_ep_create(&dest_ep,
 						       dest_tm,
@@ -163,7 +161,6 @@ static int mem_find_remote_tm(struct c2_net_transfer_mc  *tm,
 
 
    If a suitable transfer machine is not found then the message send fails.
-
  */
 static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 			    struct c2_net_bulk_mem_work_item *wi)
@@ -188,18 +185,18 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 		/* Search for a remote TM matching the destination address,
 		   and if found, create an EP in the remote TM's domain with
 		   the local TM's address.
-		*/
+		 */
 		rc = mem_find_remote_tm(tm, nb->nb_ep, &dest_tm, &dest_ep);
 		if (rc != 0)
 			break;
 
 		/* We're now operating in the destination TM while holding
 		   its mutex.  The destination TM is operative.
-		*/
+		 */
 
 		/* get the first available receive buffer */
-		c2_tl_for(tm, &dest_tm->ntm_q[C2_NET_QT_MSG_RECV],
-			      dest_nb) {
+		c2_tl_for(c2_net_tm, &dest_tm->ntm_q[C2_NET_QT_MSG_RECV],
+			  dest_nb) {
 			if ((dest_nb->nb_flags &
 			     (C2_NET_BUF_IN_USE | C2_NET_BUF_CANCELLED)) == 0) {
 				found_dest_nb = true;
@@ -245,7 +242,7 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 
 	/* release the destination EP, if still referenced,
 	   outside of any mutex
-	*/
+	 */
 	if (dest_ep != NULL)
 		c2_net_end_point_put(dest_ep);
 
@@ -255,9 +252,7 @@ static void mem_wf_msg_send(struct c2_net_transfer_mc *tm,
 	return;
 }
 
-/**
-   @} bulkmem
-*/
+/** @} */ /* bulkmem */
 
 /*
  *  Local variables:

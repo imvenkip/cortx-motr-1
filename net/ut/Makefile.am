@@ -1,5 +1,5 @@
 noinst_LTLIBRARIES   	= libnet-ut.la
-INCLUDES        	= -I. -I$(top_srcdir) -I$(top_srcdir)/include -I$(top_srcdir)/net
+INCLUDES        	= -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include -iquote $(top_srcdir)/net
 
 net_u.h net_u.c: net.ff \
                   $(top_builddir)/fop/rt/libc2rt.la \

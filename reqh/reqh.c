@@ -20,7 +20,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 
 #include "lib/errno.h"
@@ -59,24 +59,31 @@ const struct c2_addb_ctx_type c2_reqh_addb_ctx_type = {
 	.act_name = "reqh"
 };
 
+enum {
+	REQH_RPC_MACH_HEAD_MAGIX = 0x52485F52504D4844 /* RH_RPMHD */
+};
+
 /**
    Tlist descriptor for reqh services.
  */
-const struct c2_tl_descr c2_rh_sl_descr = C2_TL_DESCR("reqh service",
-                                                 struct c2_reqh_service,
-                                                 rs_linkage,
-                                                 rs_magic,
-                                                 C2_REQH_MAGIC,
-                                                 C2_RHS_MAGIC);
+C2_TL_DESCR_DEFINE(c2_rhsvc, "reqh service", , struct c2_reqh_service,
+                   rs_linkage, rs_magic, C2_RHS_MAGIX, C2_RHS_MAGIX_HEAD);
+
+C2_TL_DEFINE(c2_rhsvc, , struct c2_reqh_service);
+
+static struct c2_bob_type rhsvc_bob;
+C2_BOB_DEFINE( , &rhsvc_bob, c2_reqh_service);
+
 /**
    Tlist descriptor for rpc machines.
  */
-const struct c2_tl_descr c2_rh_rpml_descr = C2_TL_DESCR("rpc machines",
-                                                      struct c2_rpc_machine,
-                                                      rm_rh_linkage,
-                                                      rm_magic,
-                                                      C2_REQH_MAGIC,
-                                                      C2_RPC_MAGIC);
+C2_TL_DESCR_DEFINE(c2_rhrpm, "rpc machines", , struct c2_rpc_machine,
+                   rm_rh_linkage, rm_magic, REQH_RPC_MACH_HEAD_MAGIX, C2_RPC_MACHINE_MAGIX);
+
+C2_TL_DEFINE(c2_rhrpm, , struct c2_rpc_machine);
+
+static struct c2_bob_type rhrpm_bob;
+C2_BOB_DEFINE( , &rhrpm_bob, c2_rpc_machine);
 
 /**
  * Reqh addb context.
@@ -115,8 +122,10 @@ int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
                 reqh->rh_fol = fol;
 		reqh->rh_shutdown = false;
                 reqh->rh_fom_dom.fd_reqh = reqh;
-                c2_tlist_init(&c2_rh_sl_descr, &reqh->rh_services);
-                c2_tlist_init(&c2_rh_rpml_descr, &reqh->rh_rpc_machines);
+                c2_rhsvc_tlist_init(&reqh->rh_services);
+		c2_bob_type_tlist_init(&rhsvc_bob, &c2_rhsvc_tl);
+                c2_rhrpm_tlist_init(&reqh->rh_rpc_machines);
+		c2_bob_type_tlist_init(&rhrpm_bob, &c2_rhrpm_tl);
 		c2_mutex_init(&reqh->rh_lock);
 
 	} else
@@ -129,8 +138,8 @@ void c2_reqh_fini(struct c2_reqh *reqh)
 {
         C2_PRE(reqh != NULL);
         c2_fom_domain_fini(&reqh->rh_fom_dom);
-        c2_tlist_fini(&c2_rh_sl_descr, &reqh->rh_services);
-        c2_tlist_fini(&c2_rh_rpml_descr, &reqh->rh_rpc_machines);
+        c2_rhsvc_tlist_fini(&reqh->rh_services);
+        c2_rhrpm_tlist_fini(&reqh->rh_rpc_machines);
 	c2_mutex_fini(&reqh->rh_lock);
 }
 
@@ -149,6 +158,13 @@ int c2_reqhs_init(void)
 	return c2_reqh_fop_init();
 }
 
+static void queueit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
+{
+	struct c2_fom *fom = container_of(ast, struct c2_fom, fo_cb.fc_ast);
+
+	c2_fom_queue(fom);
+}
+
 void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 {
 	struct c2_fom	       *fom;
@@ -165,7 +181,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 	c2_mutex_unlock(&reqh->rh_lock);
 	if (rsd) {
 		REQH_ADDB_ADD(c2_reqh_addb_ctx, "c2_reqh_fop_handle",
-								ESHUTDOWN);
+                              ESHUTDOWN);
 		return;
 	}
 
@@ -190,10 +206,12 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 		fom->fo_fol = reqh->rh_fol;
 		dom = &reqh->rh_fom_dom;
 
-		loc_idx = fom->fo_ops->fo_home_locality(fom) % dom->fd_localities_nr;
+		loc_idx = fom->fo_ops->fo_home_locality(fom) %
+		          dom->fd_localities_nr;
 		C2_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
 		fom->fo_loc = &reqh->rh_fom_dom.fd_localities[loc_idx];
-		c2_fom_queue(fom);
+		fom->fo_cb.fc_ast.sa_cb = queueit;
+		c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
 	} else
 		REQH_ADDB_ADD(c2_reqh_addb_ctx, "c2_reqh_fop_handle", result);
 }
@@ -214,8 +232,8 @@ struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
 	C2_PRE(service_name != NULL);
 
 	c2_mutex_lock(&reqh->rh_lock);
-	c2_tlist_for(&c2_rh_sl_descr, &reqh->rh_services, service) {
-		C2_ASSERT(service != NULL);
+	c2_tlist_for(&c2_rhsvc_tl, &reqh->rh_services, service) {
+		C2_ASSERT(service != NULL && c2_reqh_service_bob_check(service));
 		if (strcmp(service->rs_type->rst_name, service_name) == 0)
 			break;
 	} c2_tlist_endfor;
