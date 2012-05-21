@@ -82,7 +82,7 @@ enum ep_type {
 
 enum {
 	BUF_LEN		   = 128,
-	STRING_LEN 	   = 2,
+	STRING_LEN	   = 2,
 	RID		   = 1,
 	MAX_RPCS_IN_FLIGHT = 32,
 	CLIENT_COB_DOM_ID  = 13,
