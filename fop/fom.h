@@ -278,6 +278,7 @@ enum c2_fom_phase {
 	C2_FOPH_TXN_CONTEXT,        /*< creating local transactional context. */
 	C2_FOPH_TXN_CONTEXT_WAIT,   /*< waiting for log space. */
 	C2_FOPH_SUCCESS,            /*< fom execution completed succesfully. */
+	C2_FOPH_FOL_REC_ADD,        /*< add a FOL transaction record. */
 	C2_FOPH_TXN_COMMIT,         /*< commit local transaction context. */
 	C2_FOPH_TXN_COMMIT_WAIT,    /*< waiting to commit local transaction
 	                                context. */
