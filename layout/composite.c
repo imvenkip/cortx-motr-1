@@ -119,8 +119,8 @@ static c2_bcount_t composite_max_recsize(struct c2_layout_domain *dom)
 /**
  * Implementation of lto_recsize() for COMPOSITE layout type.
  */
-static c2_bcount_t composite_recsize(struct c2_layout_domain *dom,
-				     struct c2_layout *l)
+static c2_bcount_t composite_recsize(const struct c2_layout_domain *dom,
+				     const struct c2_layout *l)
 {
 	return 0;
 }

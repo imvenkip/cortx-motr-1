@@ -567,8 +567,8 @@ static c2_bcount_t pdclust_max_recsize(struct c2_layout_domain *dom)
 }
 
 /** Implementation of lto_recsize() for pdclust layout type. */
-static c2_bcount_t pdclust_recsize(struct c2_layout_domain *dom,
-				   struct c2_layout *l)
+static c2_bcount_t pdclust_recsize(const struct c2_layout_domain *dom,
+				   const struct c2_layout *l)
 {
 	c2_bcount_t                 e_recsize;
 	struct c2_pdclust_layout   *pl;

@@ -1126,7 +1126,7 @@ out:
  * considering the data in the tables other than layouts), from what is
  * maintained in the c2_layout_schema object.
  */
-c2_bcount_t c2_layout_max_recsize(struct c2_layout_domain *dom)
+c2_bcount_t c2_layout_max_recsize(const struct c2_layout_domain *dom)
 {
 	C2_PRE(domain_invariant(dom));
 

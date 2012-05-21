@@ -406,8 +406,8 @@ extern const struct c2_addb_ev layout_delete_fail;
  * Returns actual size for a record in the layouts table (without
  * considering the data in the tables other than layouts).
  */
-static c2_bcount_t recsize_get(struct c2_layout_domain *dom,
-			       struct c2_layout *l)
+static c2_bcount_t recsize_get(const struct c2_layout_domain *dom,
+			       const struct c2_layout *l)
 {
 	c2_bcount_t            recsize;
 	struct c2_layout_type *lt;

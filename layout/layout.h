@@ -258,8 +258,8 @@ struct c2_layout_type_ops {
 	 * Returns applicable record size for the layouts table, for the
 	 * specified layout.
 	 */
-	c2_bcount_t (*lto_recsize)(struct c2_layout_domain *dom,
-				   struct c2_layout *l);
+	c2_bcount_t (*lto_recsize)(const struct c2_layout_domain *dom,
+				   const struct c2_layout *l);
 
 	/**
 	 * Continues building the in-memory layout object either from the
@@ -431,7 +431,7 @@ int c2_layout_encode(struct c2_layout_domain *dom,
 		     struct c2_bufvec_cursor *oldrec_cur,
 		     struct c2_bufvec_cursor *out);
 
-c2_bcount_t c2_layout_max_recsize(struct c2_layout_domain *dom);
+c2_bcount_t c2_layout_max_recsize(const struct c2_layout_domain *dom);
 
 /** @} end group layout */
 
