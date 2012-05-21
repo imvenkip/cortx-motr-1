@@ -91,7 +91,7 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
 		rc = -ENOMEM;
 		layout_log("c2_linear_enum_build", "C2_ALLOC_PTR() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   c2_addb_oom.ae_id, &layout_global_ctx, LID_NONE, rc);
+			   &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
 		goto out;
 	}
 

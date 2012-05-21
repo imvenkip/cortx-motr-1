@@ -581,8 +581,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	if (rc != 0) {
 		layout_log("c2_layout_lookup", "c2_table_lookup() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   layout_lookup_fail.ae_id,
-			   &layout_global_ctx, lid, rc);
+			   &layout_lookup_fail, &layout_global_ctx, lid, rc);
 		goto out;
 	}
 
@@ -594,15 +593,12 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	if (rc != 0) {
 		layout_log("c2_layout_lookup", "c2_layout_decode() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   layout_lookup_fail.ae_id,
-			   &layout_global_ctx, lid, rc);
+			   &layout_lookup_fail, &layout_global_ctx, lid, rc);
 		goto out;
 	}
 
-	layout_log("c2_layout_lookup", "",
-		   PRINT_ADDB_MSG, !PRINT_TRACE_MSG,
-		   layout_lookup_success.ae_id,
-		   &(*out)->l_addb, lid, rc);
+	layout_log("c2_layout_lookup", NULL, PRINT_ADDB_MSG, !PRINT_TRACE_MSG,
+		   &layout_lookup_success, &(*out)->l_addb, lid, rc);
 
 out:
 	c2_db_pair_fini(pair);
@@ -659,8 +655,7 @@ int c2_layout_add(struct c2_layout_domain *dom,
 	if (rc != 0) {
 		layout_log("c2_layout_add", "c2_layout_encode() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   layout_add_fail.ae_id,
-			   &l->l_addb, l->l_id, rc);
+			   &layout_add_fail, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
 
@@ -669,15 +664,12 @@ int c2_layout_add(struct c2_layout_domain *dom,
 	if (rc != 0) {
 		layout_log("c2_layout_add", "layout_write() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   layout_add_fail.ae_id,
-			   &l->l_addb, l->l_id, rc);
+			   &layout_add_fail, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
 
-	layout_log("c2_layout_add", "",
-		   PRINT_ADDB_MSG, !PRINT_TRACE_MSG,
-		   layout_add_success.ae_id,
-		   &l->l_addb, l->l_id, rc);
+	layout_log("c2_layout_add", NULL, PRINT_ADDB_MSG, !PRINT_TRACE_MSG,
+		   &layout_add_success, &l->l_addb, l->l_id, rc);
 out:
 	c2_mutex_unlock(&dom->ld_schema.ls_lock);
 
@@ -735,8 +727,7 @@ int c2_layout_update(struct c2_layout_domain *dom,
 		rc = -ENOMEM;
 		layout_log("c2_layout_update", "c2_alloc() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   c2_addb_oom.ae_id,
-			   &l->l_addb, l->l_id, rc);
+			   &c2_addb_oom, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
 
@@ -744,8 +735,7 @@ int c2_layout_update(struct c2_layout_domain *dom,
 	if (rc != 0) {
 		layout_log("c2_layout_update", "c2_table_lookup() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   layout_update_fail.ae_id,
-			   &l->l_addb, l->l_id, rc);
+			   &layout_update_fail, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
 
@@ -764,8 +754,7 @@ int c2_layout_update(struct c2_layout_domain *dom,
 	if (rc != 0) {
 		layout_log("c2_layout_update", "c2_layout_encode() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   layout_update_fail.ae_id,
-			   &l->l_addb, l->l_id, rc);
+			   &layout_update_fail, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
 
@@ -774,15 +763,12 @@ int c2_layout_update(struct c2_layout_domain *dom,
 	if (rc != 0) {
 		layout_log("c2_layout_update", "c2_table_update() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   layout_update_fail.ae_id,
-			   &l->l_addb, l->l_id, rc);
+			   &layout_update_fail, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
 
-	layout_log("c2_layout_update", "",
-		   PRINT_ADDB_MSG, !PRINT_TRACE_MSG,
-		   layout_update_success.ae_id,
-		   &l->l_addb, l->l_id, rc);
+	layout_log("c2_layout_update", NULL, PRINT_ADDB_MSG, !PRINT_TRACE_MSG,
+		   &layout_update_success, &l->l_addb, l->l_id, rc);
 
 out:
 	c2_free(oldrec_area);
@@ -838,8 +824,7 @@ int c2_layout_delete(struct c2_layout_domain *dom,
 	if (rc != 0) {
 		layout_log("c2_layout_delete", "c2_layout_encode() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   layout_delete_fail.ae_id,
-			   &l->l_addb, l->l_id, rc);
+			   &layout_delete_fail, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
 
@@ -848,15 +833,12 @@ int c2_layout_delete(struct c2_layout_domain *dom,
 	if (rc != 0) {
 		layout_log("c2_layout_delete", "c2_table_delete() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   layout_delete_fail.ae_id,
-			   &l->l_addb, l->l_id, rc);
+			   &layout_delete_fail, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
 
-	layout_log("c2_layout_delete", "",
-		   PRINT_ADDB_MSG, !PRINT_TRACE_MSG,
-		   layout_delete_success.ae_id,
-		   &l->l_addb, l->l_id, rc);
+	layout_log("c2_layout_delete", NULL, PRINT_ADDB_MSG, !PRINT_TRACE_MSG,
+		   &layout_delete_success, &l->l_addb, l->l_id, rc);
 
 out:
 	c2_mutex_unlock(&dom->ld_schema.ls_lock);

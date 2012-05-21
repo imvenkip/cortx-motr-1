@@ -102,7 +102,7 @@ void layout_log(const char *fn_name,
 		const char *err_msg,
 		bool if_addb_msg, /* If ADDB message is to be printed. */
 		bool if_trace_msg, /* If C2_LOG message is to be printed. */
-		enum c2_addb_event_id ev_id,
+		const struct c2_addb_ev *ev,
 		struct c2_addb_ctx *ctx,
 		uint64_t lid,
 		int rc);

@@ -424,8 +424,7 @@ static int schema_init(struct c2_layout_schema *schema,
 			   DEFAULT_DB_FLAG, &layouts_table_ops);
 	if (rc != 0) {
 		layout_log("c2_layout_schema_init", "c2_table_init() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   c2_addb_func_fail.ae_id,
+			   PRINT_ADDB_MSG, PRINT_TRACE_MSG, &c2_addb_func_fail,
 			   &layout_global_ctx, LID_NONE, rc);
 
 		schema->ls_dbenv = NULL;
@@ -485,11 +484,11 @@ static void max_recsize_update(struct c2_layout_domain *dom)
  *    a short error message string and the error code.
  */
 static void layout_addb_add(struct c2_addb_ctx *ctx,
-			    enum c2_addb_event_id ev_id,
+			    const struct c2_addb_ev *ev,
 			    const char *err_msg,
 			    int rc)
 {
-	switch (ev_id) {
+	switch (ev->ae_id) {
 	case C2_ADDB_EVENT_FUNC_FAIL:
 		C2_ADDB_ADD(ctx, &layout_addb_loc, c2_addb_func_fail,
 			    err_msg, rc);
@@ -564,31 +563,34 @@ void layout_log(const char *fn_name,
 		const char *err_msg,
 		bool addb_msg,
 		bool trace_msg,
-		enum c2_addb_event_id ev_id,
+		const struct c2_addb_ev *ev,
 		struct c2_addb_ctx *ctx,
 		uint64_t lid,
 		int rc)
 {
-	C2_PRE(ergo(rc == 0, strlen(err_msg) == 0 && !trace_msg &&
-			     (ev_id == layout_decode_success.ae_id ||
-			      ev_id == layout_encode_success.ae_id ||
-			      ev_id == layout_lookup_success.ae_id ||
-			      ev_id == layout_add_success.ae_id ||
-			      ev_id == layout_update_success.ae_id ||
-			      ev_id == layout_delete_success.ae_id)));
-	C2_PRE(ergo(rc != 0, strlen(err_msg) > 0 &&
-			     (ev_id == layout_decode_fail.ae_id ||
-			      ev_id == layout_encode_fail.ae_id ||
-			      ev_id == layout_lookup_fail.ae_id ||
-			      ev_id == layout_add_fail.ae_id ||
-			      ev_id == layout_update_fail.ae_id ||
-			      ev_id == layout_delete_fail.ae_id ||
-			      ev_id == c2_addb_func_fail.ae_id ||
-			      ev_id == c2_addb_oom.ae_id)));
+	C2_PRE(fn_name != NULL);
+	C2_PRE(ev != NULL);
+	C2_PRE(ctx != NULL);
+	C2_PRE(ergo(rc == 0, err_msg == NULL && !trace_msg &&
+			     (ev->ae_id == layout_decode_success.ae_id ||
+			      ev->ae_id == layout_encode_success.ae_id ||
+			      ev->ae_id == layout_lookup_success.ae_id ||
+			      ev->ae_id == layout_add_success.ae_id ||
+			      ev->ae_id == layout_update_success.ae_id ||
+			      ev->ae_id == layout_delete_success.ae_id)));
+	C2_PRE(ergo(rc != 0, err_msg != NULL &&
+			     (ev->ae_id == layout_decode_fail.ae_id ||
+			      ev->ae_id == layout_encode_fail.ae_id ||
+			      ev->ae_id == layout_lookup_fail.ae_id ||
+			      ev->ae_id == layout_add_fail.ae_id ||
+			      ev->ae_id == layout_update_fail.ae_id ||
+			      ev->ae_id == layout_delete_fail.ae_id ||
+			      ev->ae_id == c2_addb_func_fail.ae_id ||
+			      ev->ae_id == c2_addb_oom.ae_id)));
 
 	/* ADDB message logging. */
 	if (addb_msg)
-		layout_addb_add(ctx, ev_id, err_msg, rc);
+		layout_addb_add(ctx, ev, err_msg, rc);
 
 	/* Trace message logging. */
 	if (trace_msg)
@@ -717,8 +719,7 @@ int c2_layout_type_register(struct c2_layout_domain *dom,
 	rc = lt->lt_ops->lto_register(dom, lt);
 	if (rc != 0)
 		layout_log("c2_layout_type_register", "lto_register() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   c2_addb_func_fail.ae_id,
+			   PRINT_ADDB_MSG, PRINT_TRACE_MSG, &c2_addb_func_fail,
 			   &layout_global_ctx, LID_NONE, rc);
 
 	max_recsize_update(dom);
@@ -795,8 +796,7 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 	if (rc != 0)
 		layout_log("c2_layout_enum_type_register",
 			   "leto_register() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   c2_addb_func_fail.ae_id,
+			   PRINT_ADDB_MSG, PRINT_TRACE_MSG, &c2_addb_func_fail,
 			   &layout_global_ctx, LID_NONE, rc);
 
 	max_recsize_update(dom);
@@ -963,8 +963,7 @@ int c2_layout_decode(struct c2_layout_domain *dom,
 	if (rc != 0) {
 		layout_log("c2_layout_decode", "lto_decode() failed",
 			   op == C2_LXO_BUFFER_OP, PRINT_TRACE_MSG,
-			   layout_decode_fail.ae_id,
-			   &layout_global_ctx, lid, rc);
+			   &layout_decode_fail, &layout_global_ctx, lid, rc);
 		goto out;
 	}
 
@@ -975,10 +974,8 @@ int c2_layout_decode(struct c2_layout_domain *dom,
 
 	C2_POST(layout_invariant(*out));
 
-	layout_log("c2_layout_decode", "",
-		   PRINT_ADDB_MSG, !PRINT_TRACE_MSG,
-		   layout_decode_success.ae_id,
-		   &layout_global_ctx, lid, rc);
+	layout_log("c2_layout_decode", NULL, PRINT_ADDB_MSG, !PRINT_TRACE_MSG,
+		   &layout_decode_success, &layout_global_ctx, lid, rc);
 
 out:
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
@@ -1081,14 +1078,12 @@ int c2_layout_encode(struct c2_layout_domain *dom,
 	if (rc != 0) {
 		layout_log("c2_layout_encode", "lto_encode() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   layout_decode_fail.ae_id,
-			   &l->l_addb, l->l_id, rc);
+			   &layout_decode_fail, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
 
-	layout_log("c2_layout_encode", "",
-		   PRINT_ADDB_MSG, !PRINT_TRACE_MSG,
-		   layout_decode_success.ae_id,
+	layout_log("c2_layout_encode", NULL,
+		   PRINT_ADDB_MSG, !PRINT_TRACE_MSG, &layout_decode_success,
 		   &l->l_addb, l->l_id, rc);
 
 out:
