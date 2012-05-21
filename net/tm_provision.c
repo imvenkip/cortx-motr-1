@@ -437,6 +437,7 @@ static void tm_provision_recv_q(struct c2_net_transfer_mc *tm)
 		nb->nb_callbacks	= tm->ntm_recv_pool_callbacks;
 		nb->nb_min_receive_size = tm->ntm_recv_queue_min_recv_size;
 		nb->nb_max_receive_msgs = tm->ntm_recv_queue_max_recv_msgs;
+		nb->nb_ep		= NULL;
 
 		C2_POST(nb->nb_pool == tm->ntm_recv_pool);
 		rc = c2_net__buffer_add(nb, tm);

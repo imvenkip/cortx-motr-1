@@ -8,7 +8,7 @@ COLIBRI_MODULE_TRACE_MASK=0x00
 COLIBRI_GALOIS_MODULE=$COLIBRI_CORE_ROOT/../galois/src/linux_kernel/kgalois.ko
 COLIBRI_TEST_LOGFILE=`pwd`/bulkio_`date +"%Y-%m-%d_%T"`.log
 POOL_WIDTH=3
-TM_MIN_RECV_QUEUE_LEN=16
+TM_MIN_RECV_QUEUE_LEN=2
 
 
 prepare_testdir()

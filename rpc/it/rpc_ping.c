@@ -73,7 +73,7 @@
 
 #define to_string(x) str(x)
 #define str(x)	#x
-#define TM_RECV_QUEUE_MIN_LEN 4
+#define TM_RECV_QUEUE_MIN_LEN 2
 
 enum ep_type {
 	EP_SERVER,
@@ -81,15 +81,17 @@ enum ep_type {
 };
 
 enum {
-	BUF_LEN = 128,
-	RID = 1,
+	BUF_LEN		   = 128,
+	STRING_LEN 	   = 2,
+	RID		   = 1,
 	MAX_RPCS_IN_FLIGHT = 32,
-	CLIENT_COB_DOM_ID = 13,
-	CONNECT_TIMEOUT = 5,
+	CLIENT_COB_DOM_ID  = 13,
+	CONNECT_TIMEOUT    = 5,
 };
 
 #ifndef __KERNEL__
-static bool server_mode       = false;
+static bool server_mode        = false;
+static char tm_len[STRING_LEN] = to_string(TM_RECV_QUEUE_MIN_LEN);
 #endif
 static bool verbose           = false;
 static char *server_hostname  = "127.0.0.1";
@@ -100,6 +102,7 @@ static int  nr_client_threads = 1;
 static int  nr_slots          = 1;
 static int  nr_ping_bytes     = 8;
 static int  nr_ping_item      = 1;
+static int  tm_recv_queue_len = TM_RECV_QUEUE_MIN_LEN;
 
 static char client_endpoint[BUF_LEN];
 static char server_endpoint[BUF_LEN];
@@ -134,6 +137,9 @@ MODULE_PARM_DESC(nr_ping_bytes, "number of ping fop bytes");
 
 module_param(nr_ping_item, int, S_IRUGO);
 MODULE_PARM_DESC(nr_ping_item, "number of ping fop items");
+
+module_param(tm_recv_queue_len, int, S_IRUGO);
+MODULE_PARM_DESC(tm_recv_queue_len, "minimum TM receive queue length");
 #endif
 
 static int build_endpoint_addr(enum ep_type type, char *out_buf, size_t buf_size)
@@ -383,7 +389,7 @@ static int run_client(void)
 	cctx.rcx_nr_slots              = nr_slots,
 	cctx.rcx_timeout_s             = CONNECT_TIMEOUT,
 	cctx.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT,
-	cctx.rcx_recv_queue_min_length = TM_RECV_QUEUE_MIN_LEN;
+	cctx.rcx_recv_queue_min_length = tm_recv_queue_len;
 
 	rc = build_endpoint_addr(EP_SERVER, server_endpoint,
 					sizeof(server_endpoint));
@@ -482,7 +488,7 @@ static int run_server(void)
 		"rpclib_ut", "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", server_endpoint,
 		"-s", "ds1", "-s", "ds2",
-		"-q", to_string(TM_RECV_QUEUE_MIN_LEN),
+		"-q", tm_len,
 	};
 
 	C2_RPC_SERVER_CTX_DECLARE(sctx, &xprt, 1, server_argv,
@@ -507,6 +513,9 @@ static int run_server(void)
 			sizeof(server_endpoint) - strlen(server_endpoint));
 	if (rc != 0)
 		return rc;
+
+	if (tm_recv_queue_len != 0)
+		sprintf(tm_len, "%d" , tm_recv_queue_len);
 
 	rc = c2_rpc_server_start(&sctx);
 	if (rc != 0)
@@ -567,6 +576,8 @@ int main(int argc, char *argv[])
 						&nr_client_threads),
 		C2_FORMATARG('l', "number of slots", "%i", &nr_slots),
 		C2_FORMATARG('n', "number of ping items", "%i", &nr_ping_item),
+		C2_FORMATARG('q', "minimum TM receive queue length", "%i",
+						&tm_recv_queue_len),
 		C2_FLAGARG('v', "verbose", &verbose)
 		);
 	if (rc != 0)
