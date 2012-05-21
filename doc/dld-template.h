@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
  * Original creation date: 09/16/2011
  */
 
@@ -42,13 +42,13 @@
 
    A table of contents should be created for the major sections in this page,
    as illustrated above.  It should also contain references to other
-   <b>external</b> Detailed Functional Specification sections, which even
+   @b external Detailed Functional Specification sections, which even
    though may be present in the same source file, would not be visibly linked
    in the Doxygen output.
 
    @section DLD-fspec-ds Data Structures
    <i>Mandatory for programmatic interfaces.  Components with programming
-   interfaces should provide an enumeration and <i>brief</i> description of the
+   interfaces should provide an enumeration and @b brief description of the
    major externally visible data structures defined by this component.  No
    details of the data structure are required here, just the salient
    points.</i>
@@ -121,7 +121,7 @@ struct dld_sample_ds1 {
 
    @see @ref DLDDFS "Sample Detailed Functional Specification"
  */
-
+
 /**
    @defgroup DLDDFS Colibri Sample Module
    @brief Detailed functional specification template.
@@ -148,12 +148,10 @@ struct dld_sample_ds1 {
    and its @ref DLD-lspec-thread
 
    @{
-*/
-
-/**
-   Data structure to do something.
-
  */
+
+
+/** Data structure to do something. */
 struct dld_sample_ds1 {
 	/** The z field */
 	int dsd_z_field;
@@ -161,9 +159,10 @@ struct dld_sample_ds1 {
 	int dsd_flux_density;
 };
 
-/* Documented elsewhere to illustrate bad documentation of an external symbol.
-   Doxygen cannot automatically reference it from elsewhere, as can be seen in
-   the Doxygen output for the reference in the Functional Specification above.
+/*
+ * Documented elsewhere to illustrate bad documentation of an external symbol.
+ * Doxygen cannot automatically reference it from elsewhere, as can be seen in
+ * the Doxygen output for the reference in the Functional Specification above.
  */
 extern unsigned int dld_bad_example;
 
@@ -181,7 +180,7 @@ extern unsigned int dld_bad_example;
    documentation by repeating what is already clear from the function
    prototype.  For example it would be wrong to say, <tt>"@param read_only
    A boolean parameter."</tt>.
-   - The default return convention (0 for success and <tt>-errno</tt>
+   - The default return convention (0 for success and @c -errno
    on failure) should not be repeated.
    - The @@pre and @@post conditions are preferably expressed in code.
 
@@ -191,12 +190,10 @@ extern unsigned int dld_bad_example;
    @retval return value
    @pre Pre-condition, preferably expressed in code.
    @post Post-condition, preferably expressed in code.
-*/
+ */
 int dld_sample_sub1(struct dld_sample_ds1 *param1, bool read_only);
 
-/**
-   @} DLDDFS end group
-*/
+/** @} */ /* DLDDFS end group */
 
 #endif /*  __COLIBRI_DLD_TEMPLATE_H__ */
 
