@@ -51,12 +51,8 @@ TODO
 
 2012-May-15 Add mnemonic tags to doc/todo items for ease of reference.
 
+
 IN-PROGRESS
-
-2012-May-04 [Andriy] embed c2_sm in c2_fom
-
-    Use standard state machine with states RUNNING, READY and WAITING for
-    c2_fom.
 
 
 DONE
