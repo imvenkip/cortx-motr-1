@@ -55,9 +55,6 @@ enum {
 	PRINT_ADDB_MSG             = 1,
 	PRINT_TRACE_MSG            = 1,
 
-	/** If lid is applicable to ADDB or TRACE message. */
-	LID_APPLICABLE             = 1,
-
 	/** Invalid number of elements, for enumeration objects. */
 	NR_NONE                    = 0,
 
@@ -107,7 +104,6 @@ void layout_log(const char *fn_name,
 		bool if_trace_msg, /* If C2_LOG message is to be printed. */
 		enum c2_addb_event_id ev_id,
 		struct c2_addb_ctx *ctx,
-		bool if_lid, /* If LID is applicable for the log message. */
 		uint64_t lid,
 		int rc);
 
