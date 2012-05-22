@@ -134,7 +134,7 @@ back to sender.
 
 <B>Ensuring FIFO when slot.max_in_flight > 1 </B>
 
- XXX Current implementation does not have way to define dependancies.
+ XXX Current implementation does not have way to define dependencies.
      Hence no more than 1 items are allowed to be in-flight for a particular
      slot.
 
@@ -338,7 +338,7 @@ enum c2_rpc_conn_flags {
 };
 
 /**
-   A rpc connection identfies a sender to the receiver. It acts as a parent
+   A rpc connection identifies a sender to the receiver. It acts as a parent
    object within which sessions are created. rpc connection has two
    identifiers.
 
