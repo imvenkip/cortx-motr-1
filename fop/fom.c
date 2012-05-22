@@ -745,7 +745,6 @@ void c2_fom_fini(struct c2_fom *fom)
 
 	fdom = fom->fo_loc->fl_dom;
 	reqh = fdom->fd_reqh;
-	c2_clink_fini(&fom->fo_clink);
 	c2_list_link_fini(&fom->fo_linkage);
 	if (c2_atomic64_dec_and_test(&fdom->fd_foms_nr))
 		c2_chan_signal(&reqh->rh_sd_signal);

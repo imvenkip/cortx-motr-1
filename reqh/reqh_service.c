@@ -184,7 +184,9 @@ int c2_reqh_service_type_register(struct c2_reqh_service_type *rstype)
 {
         C2_PRE(rstype != NULL);
 
-        c2_rstypes_tlink_init(rstype);
+	if (C2_FI_ENABLED("fake_error"))
+		return -EINVAL;
+
 	c2_reqh_service_type_bob_init(rstype);
 	c2_rwlock_write_lock(&rstypes_rwlock);
 	rstypes_tlink_init_at_tail(rstype, &rstypes);

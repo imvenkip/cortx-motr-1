@@ -524,10 +524,10 @@ struct c2_rpc_machine *c2_cs_rpc_mach_get(struct c2_colibri *cctx,
 		service = c2_reqh_service_get(sname, reqh);
 		if (service == NULL)
 			continue;
-		rpcmach = c2_reqh_rpc_machine_get(service->rs_reqh, xprt);
+		rpcmach = c2_reqh_rpc_machine_get(reqh, xprt);
 		c2_rwlock_read_unlock(&cctx->cc_rwlock);
 		return rpcmach;
-        } c2_tl_endfor;
+	} c2_tl_endfor;
 	c2_rwlock_read_unlock(&cctx->cc_rwlock);
 
         return NULL;
