@@ -195,6 +195,16 @@ int c2_rpc_root_session_cob_get(struct c2_cob_domain *dom,
 						out, tx);
 }
 
+#ifdef __KERNEL__
+
+int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
+				   struct c2_db_tx      *tx)
+{
+	return 0;
+}
+
+#else /* !__KERNEL__ */
+
 int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
 				   struct c2_db_tx      *tx)
 {
@@ -211,6 +221,7 @@ int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
 
 	return rc;
 }
+#endif /* __KERNEL__ */
 
 /**
   XXX temporary routine that submits the fop inside item for execution.

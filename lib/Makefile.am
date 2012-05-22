@@ -13,6 +13,7 @@ libc2_HEADERS        = \
                        cond.h \
                        errno.h \
                        ext.h \
+                       finject.h \
                        getopts.h \
                        list.h \
                        memory.h \
@@ -56,6 +57,8 @@ libc2_la_SOURCES     = \
                        errno.h \
                        ext.c \
                        ext.h \
+                       finject.c \
+                       finject.h \
                        getopts.c \
                        getopts.h \
                        list.c \
@@ -84,6 +87,7 @@ libc2_la_SOURCES     = \
                        ub.h \
                        user_space/assert.h \
                        user_space/cdefs.h \
+                       user_space/finject_init.c \
                        user_space/memory.c \
                        user_space/mutex.h \
                        user_space/processor.c \
@@ -108,6 +112,7 @@ EXTRA_DIST             = \
                          linux_kernel/assert.h \
                          linux_kernel/atomic64.h \
                          linux_kernel/cdefs.h \
+                         linux_kernel/finject_init.c \
                          linux_kernel/kthread.c \
                          linux_kernel/ktrace.c \
                          linux_kernel/ktime.c \

@@ -1594,14 +1594,6 @@ static int io_finish(struct c2_fom *fom)
 	        return C2_FSO_AGAIN;
         }
 
-        /*
-         * Make an FOL transaction record.
-         */
-        c2_fom_block_enter(fom);
-        fom->fo_rc = c2_fop_fol_rec_add(fom_obj->fcrw_gen.fo_fop, fom->fo_fol,
-                                        &fom->fo_tx.tx_dbtx);
-        c2_fom_block_leave(fom);
-
         return C2_FSO_AGAIN;
 }
 

@@ -20,6 +20,11 @@
  * Original creation date: 04/28/2011
  */
 
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "cob/cob.h"
 #include "rpc/rpc2.h"
 #include "rpc/rpcdbg.h"
@@ -39,6 +44,7 @@
 #include "fop/fop_item_type.h"
 #include "lib/arith.h"
 #include "lib/vec.h"
+#include "lib/finject.h"
 
 /* Forward declarations. */
 static int recv_buffer_allocate_nr(struct c2_net_domain  *net_dom,
@@ -829,6 +835,9 @@ int c2_rpc_machine_init(struct c2_rpc_machine *machine,
 	C2_PRE(ep_addr != NULL);
 	C2_PRE(net_dom != NULL);
 
+	if (C2_FI_ENABLED("fake_error"))
+		return -EINVAL;
+
 	machine->rm_dom  = dom;
 	machine->rm_reqh = reqh;
 
@@ -845,23 +854,18 @@ int c2_rpc_machine_init(struct c2_rpc_machine *machine,
 	c2_addb_ctx_init(&machine->rm_rpc_machine_addb,
 			&rpc_machine_addb_ctx_type, &c2_addb_global_ctx);
 
-	c2_db_tx_init(&tx, dom->cd_dbenv, 0);
-#ifndef __KERNEL__
-	rc = c2_rpc_root_session_cob_create(dom, &tx);
-	if (rc != 0)
-		goto cleanup;
-#endif
+	rc = c2_db_tx_init(&tx, dom->cd_dbenv, 0);
+	if (rc == 0) {
+		rc = c2_rpc_root_session_cob_create(dom, &tx) ?:
+		     rpc_tm_setup(machine, net_dom, ep_addr);
 
-	rc = rpc_tm_setup(machine, net_dom, ep_addr);
-	if (rc < 0)
-		goto cleanup;
-
-	c2_db_tx_commit(&tx);
-	return rc;
-
-cleanup:
-	c2_db_tx_abort(&tx);
-	__rpc_machine_fini(machine);
+		if (rc == 0) {
+			c2_db_tx_commit(&tx);
+		} else {
+			c2_db_tx_abort(&tx);
+			__rpc_machine_fini(machine);
+		}
+	}
 	return rc;
 }
 C2_EXPORTED(c2_rpc_machine_init);

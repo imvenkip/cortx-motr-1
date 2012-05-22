@@ -34,6 +34,7 @@
 #include "lib/processor.h"
 #include "lib/time.h"
 #include "lib/misc.h"
+#include "lib/finject.h"    /* C2_FI_ENABLED */
 
 #include "balloc/balloc.h"
 #include "stob/ad.h"
@@ -1744,6 +1745,9 @@ int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 
 	C2_PRE(cctx != NULL);
 
+	if (C2_FI_ENABLED("fake_error"))
+		return -EINVAL;
+
 	c2_mutex_lock(&cctx->cc_mutex);
 	rc = cs_parse_args(cctx, argc, argv);
 	if (rc < 0) {
@@ -1787,6 +1791,9 @@ int c2_cs_init(struct c2_colibri *cctx, struct c2_net_xprt **xprts,
         int rc;
 
         C2_PRE(cctx != NULL && xprts != NULL && xprts_nr > 0 && out != NULL);
+
+	if (C2_FI_ENABLED("fake_error"))
+		return -EINVAL;
 
 	c2_mutex_init(&cctx->cc_mutex);
 

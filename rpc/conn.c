@@ -32,6 +32,7 @@
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
 #include "lib/arith.h"
+#include "lib/finject.h"
 
 #ifdef __KERNEL__
 #include "rpc/session_k.h"
@@ -497,6 +498,9 @@ int c2_rpc_conn_create(struct c2_rpc_conn      *conn,
 {
 	int rc;
 
+	if (C2_FI_ENABLED("fake_error"))
+		return -EINVAL;
+
 	rc = c2_rpc_conn_init(conn, ep, rpc_machine, max_rpcs_in_flight);
 	if (rc == 0) {
 		rc = c2_rpc_conn_establish_sync(conn, timeout_sec);
@@ -541,6 +545,9 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 	int                    rc;
 
 	C2_PRE(conn != NULL && conn->c_rpc_machine != NULL);
+
+	if (C2_FI_ENABLED("fake_error"))
+		return -EINVAL;
 
 	machine = conn->c_rpc_machine;
 

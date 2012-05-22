@@ -18,12 +18,17 @@
  * Original creation date: 05/23/2010
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "lib/ut.h"
 
 /* sort test suites in alphabetic order */
 extern void test_atomic(void);
 extern void test_bitmap(void);
 extern void test_chan(void);
+extern void test_finject(void);
 extern void test_getopts(void);
 extern void test_list(void);
 extern void test_memory(void);
@@ -50,6 +55,9 @@ const struct c2_test_suite libc2_ut = {
 		{ "bitmap",    test_bitmap    },
 		{ "bob",       test_bob       },
 		{ "chan",      test_chan      },
+#ifdef ENABLE_FAULT_INJECTION
+		{ "finject",   test_finject   },
+#endif
 		{ "getopts",   test_getopts   },
 		{ "list",      test_list      },
 		{ "memory",    test_memory    },

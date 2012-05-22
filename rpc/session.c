@@ -32,6 +32,7 @@
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
 #include "lib/arith.h"
+#include "lib/finject.h"
 
 #ifdef __KERNEL__
 #include "rpc/session_k.h"
@@ -462,6 +463,9 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 	int                                  rc;
 
 	C2_PRE(session != NULL);
+
+	if (C2_FI_ENABLED("fake_error"))
+		return -EINVAL;
 
 	C2_ALLOC_PTR(ctx);
 	if (ctx == NULL) {
