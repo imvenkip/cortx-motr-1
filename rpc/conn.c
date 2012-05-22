@@ -127,6 +127,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 {
 	struct c2_rpc_session *session0;
 	struct c2_list        *conn_list;
+	int                    s0nr; /* Number of sessions with id == 0 */
 	bool                   sender_end;
 	bool                   recv_end;
 	bool                   ok;
@@ -140,10 +141,9 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	conn_list  = sender_end ?
 			&conn->c_rpc_machine->rm_outgoing_conns :
 			&conn->c_rpc_machine->rm_incoming_conns;
+	s0nr       = 0;
 
-	/*
-	 * conditions that should be true irrespective of conn state
-	 */
+	/* conditions that should be true irrespective of conn state */
 	ok = sender_end != recv_end &&
 	     c2_list_contains(conn_list, &conn->c_link) &&
 	     c2_list_invariant(&conn->c_sessions) &&
@@ -151,18 +151,20 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	     c2_is_po2(conn->c_state) &&
 	     conn->c_state <= C2_RPC_CONN_TERMINATED &&
 	     /*
-	      * Each connection has one session with id SESSION_ID_0.
+	      * Each connection has exactly one session with id SESSION_ID_0.
 	      * From c2_rpc_conn_init() to c2_rpc_conn_fini(), this session0 is
 	      * either in IDLE state or BUSY state.
 	      */
 	     c2_list_entry_forall(s, &conn->c_sessions, struct c2_rpc_session,
 				  s_link,
 				  ergo(s->s_session_id == SESSION_ID_0,
-				       (session0 = s) != NULL &&
+				       ++s0nr &&
+				       (session0 = s) && /*'=' is intentional */
 				       C2_IN(s->s_state,
 					     (C2_RPC_SESSION_IDLE,
 					      C2_RPC_SESSION_BUSY)))) &&
-	     session0 != NULL;
+	     session0 != NULL &&
+	     s0nr == 1;
 
 	if (!ok)
 		return false;
