@@ -11,13 +11,6 @@ TODO
 
     Use lists based on C2_TL_{DEFINE,DESCR}()
 
-2012-May-04 embed session fops into foms
-
-    rpc/session code allocated fops and foms separately. Preferable approach is
-    to embed the fop in its fom and to use c2_fop_init() to initialize it. (The
-    reason sessions allocate fops separately is that c2_fop_init() wasn't
-    there.)
-
 2012-May-04 use heap consistency checking
 
     http://www.gnu.org/software/libc/manual/html_node/Heap-Consistency-Checking.html
@@ -57,6 +50,13 @@ TODO
 
 
 IN-PROGRESS
+
+2012-May-04 [Andriy] embed session fops into foms
+
+    rpc/session code allocated fops and foms separately. Preferable approach is
+    to embed the fop in its fom and to use c2_fop_init() to initialize it. (The
+    reason sessions allocate fops separately is that c2_fop_init() wasn't
+    there.)
 
 
 DONE
