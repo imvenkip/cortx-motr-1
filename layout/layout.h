@@ -273,9 +273,9 @@ struct c2_layout_type_ops {
 	 * Internally, sets c2_layout::l_ops.
 	 */
 	int         (*lto_decode)(struct c2_layout_domain *dom,
+				  uint64_t lid,
 				  enum c2_layout_xcode_op op,
 				  struct c2_db_tx *tx,
-				  uint64_t lid,
 				  uint64_t pool_id,
 				  struct c2_bufvec_cursor *cur,
 				  struct c2_layout **out);
@@ -284,9 +284,9 @@ struct c2_layout_type_ops {
 	 * Continues storing the layout representation either in the buffer
 	 * provided by the caller or in the DB.
 	 */
-	int         (*lto_encode)(enum c2_layout_xcode_op op,
+	int         (*lto_encode)(struct c2_layout *l,
+				  enum c2_layout_xcode_op op,
 				  struct c2_db_tx *tx,
-				  struct c2_layout *l,
 				  struct c2_bufvec_cursor *oldrec_cur,
 				  struct c2_bufvec_cursor *out);
 };
@@ -365,9 +365,9 @@ struct c2_layout_enum_type_ops {
 	 * Internally, sets c2_layout_enum::le_ops.
 	 */
 	int         (*leto_decode)(struct c2_layout_domain *dom,
+				   uint64_t lid,
 				   enum c2_layout_xcode_op op,
 				   struct c2_db_tx *tx,
-				   uint64_t lid,
 				   struct c2_bufvec_cursor *cur,
 				   struct c2_layout_enum **out);
 
@@ -375,9 +375,9 @@ struct c2_layout_enum_type_ops {
 	 * Continues storing layout representation either in the buffer
 	 * provided by the caller or in the DB.
 	 */
-	int         (*leto_encode)(enum c2_layout_xcode_op op,
+	int         (*leto_encode)(const struct c2_layout_enum *le,
+				   enum c2_layout_xcode_op op,
 				   struct c2_db_tx *tx,
-				   const struct c2_layout_enum *le,
 				   struct c2_bufvec_cursor *oldrec_cur,
 				   struct c2_bufvec_cursor *out);
 };
@@ -416,14 +416,14 @@ void c2_layout_get(struct c2_layout *l);
 void c2_layout_put(struct c2_layout *l);
 
 int c2_layout_decode(struct c2_layout_domain *dom,
+		     uint64_t lid,
 		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,
-		     uint64_t lid,
 		     struct c2_bufvec_cursor *cur,
 		     struct c2_layout **out);
-int c2_layout_encode(enum c2_layout_xcode_op op,
+int c2_layout_encode(struct c2_layout *l,
+		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,
-		     struct c2_layout *l, //todo Make this 1st arg
 		     struct c2_bufvec_cursor *oldrec_cur,
 		     struct c2_bufvec_cursor *out);
 

@@ -372,9 +372,9 @@ out:
  * received through the buffer.
  */
 static int list_decode(struct c2_layout_domain *dom,
+		       uint64_t lid,
 		       enum c2_layout_xcode_op op,
 		       struct c2_db_tx *tx,
-		       uint64_t lid,
 		       struct c2_bufvec_cursor *cur,
 		       struct c2_layout_enum **out)
 {
@@ -387,9 +387,9 @@ static int list_decode(struct c2_layout_domain *dom,
 	int                         rc;
 
 	C2_PRE(domain_invariant(dom));
+	C2_PRE(lid != LID_NONE);
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
-	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *ce_header);
 	C2_PRE(out != NULL);
@@ -464,9 +464,10 @@ out:
 	return rc;
 }
 
-int cob_list_write(const struct c2_layout *l,
+int cob_list_write(const struct c2_layout_schema *schema,
 		   struct c2_db_tx *tx,
 		   enum c2_layout_xcode_op op,
+		   uint64_t lid,
 		   uint32_t idx,
 		   struct c2_fid *cob_id)
 {
@@ -476,15 +477,15 @@ int cob_list_write(const struct c2_layout *l,
 	struct c2_db_pair        pair;
 	int                      rc = 0;
 
-	C2_PRE(l != NULL);
+	C2_PRE(schema != NULL);
 	C2_PRE(tx != NULL);
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_DELETE);
 	C2_PRE(cob_id != NULL);
 
-	lsd = l->l_dom->ld_schema.ls_type_data[c2_list_enum_type.let_id];
+	lsd = schema->ls_type_data[c2_list_enum_type.let_id];
 	C2_ASSERT(lsd != NULL);
 
-	key.clk_lid       = l->l_id;
+	key.clk_lid       = lid;
 	key.clk_cob_index = idx;
 	rec.clr_cob_id    = *cob_id;
 
@@ -498,7 +499,7 @@ int cob_list_write(const struct c2_layout *l,
 				   "c2_table_insert() failed",
 				   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
 				   &c2_addb_func_fail, &layout_global_ctx,
-				   l->l_id, rc);
+				   lid, rc);
 		}
 	} else if (op == C2_LXO_DB_DELETE) {
 		rc = c2_table_delete(tx, &pair);
@@ -507,7 +508,7 @@ int cob_list_write(const struct c2_layout *l,
 				   "c2_table_delete() failed",
 				   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
 				   &c2_addb_func_fail, &layout_global_ctx,
-				   l->l_id, rc);
+				   lid, rc);
 		}
 	}
 
@@ -526,9 +527,9 @@ int cob_list_write(const struct c2_layout *l,
  * ADD/UPDATE/DELETE. If it is BUFFER_OP, then the layout is converted into a
  * buffer.
  */
-static int list_encode(enum c2_layout_xcode_op op,
+static int list_encode(const struct c2_layout_enum *le,
+		       enum c2_layout_xcode_op op,
 		       struct c2_db_tx *tx,
-		       const struct c2_layout_enum *le,
 		       struct c2_bufvec_cursor *oldrec_cur,
 		       struct c2_bufvec_cursor *out)
 {
@@ -542,10 +543,10 @@ static int list_encode(enum c2_layout_xcode_op op,
 	uint32_t                    i;
 	int                         rc = 0;
 
+	C2_PRE(le != NULL);
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
-	C2_PRE(le != NULL);
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
 		    c2_bufvec_cursor_step(oldrec_cur) >=
@@ -633,7 +634,8 @@ static int list_encode(enum c2_layout_xcode_op op,
 				       " to the cob_lists table.",
 				       (unsigned long long)lid);
 
-			rc = cob_list_write(le->le_l, tx, op, i,
+			rc = cob_list_write(&le->le_l->l_dom->ld_schema,
+					    tx, op, le->le_l->l_id, i,
 					    &list_enum->lle_list_of_cobs[i]);
 			if (rc != 0) {
 				C2_LOG("list_encode(): lid %llu, "

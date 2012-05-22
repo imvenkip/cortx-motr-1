@@ -194,9 +194,9 @@ static c2_bcount_t linear_recsize(struct c2_layout_enum *e)
  * the c2_layout_linear_enum::c2_layout_linear_attr object.
  */
 static int linear_decode(struct c2_layout_domain *dom,
+			 uint64_t lid,
 			 enum c2_layout_xcode_op op,
 			 struct c2_db_tx *tx,
-			 uint64_t lid,
 			 struct c2_bufvec_cursor *cur,
 			 struct c2_layout_enum **out)
 {
@@ -205,9 +205,9 @@ static int linear_decode(struct c2_layout_domain *dom,
 	int                           rc;
 
 	C2_PRE(domain_invariant(dom));
+	C2_PRE(lid != LID_NONE);
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
-	C2_PRE(lid != LID_NONE);
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *lin_attr);
 	C2_PRE(out != NULL);
@@ -238,9 +238,9 @@ out:
  * Reads linear enumeration type specific attributes from the
  * c2_layout_linear_enum object into the buffer.
  */
-static int linear_encode(enum c2_layout_xcode_op op,
+static int linear_encode(const struct c2_layout_enum *le,
+			 enum c2_layout_xcode_op op,
 			 struct c2_db_tx *tx,
-			 const struct c2_layout_enum *le,
 			 struct c2_bufvec_cursor *oldrec_cur,
 			 struct c2_bufvec_cursor *out)
 {
@@ -249,10 +249,10 @@ static int linear_encode(enum c2_layout_xcode_op op,
 	c2_bcount_t                   nbytes;
 	uint64_t                      lid;
 
+	C2_PRE(le != NULL);
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
-	C2_PRE(le != NULL);
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
 		    c2_bufvec_cursor_step(oldrec_cur) >= sizeof old_attr));

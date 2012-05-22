@@ -586,7 +586,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = c2_layout_decode(dom, C2_LXO_DB_LOOKUP, tx, lid, &cur, out);
+	rc = c2_layout_decode(dom, lid, C2_LXO_DB_LOOKUP, tx, &cur, out);
 	if (rc != 0) {
 		layout_log("c2_layout_lookup", "c2_layout_decode() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
@@ -646,7 +646,7 @@ int c2_layout_add(struct c2_db_tx *tx,
 						  &pair->dp_rec.db_buf.b_nob);
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = c2_layout_encode(C2_LXO_DB_ADD, tx, l, NULL, &cur);
+	rc = c2_layout_encode(l, C2_LXO_DB_ADD, tx, NULL, &cur);
 	if (rc != 0) {
 		layout_log("c2_layout_add", "c2_layout_encode() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
@@ -743,7 +743,7 @@ int c2_layout_update(struct c2_db_tx *tx,
 						  &pair->dp_rec.db_buf.b_nob);
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = c2_layout_encode(C2_LXO_DB_UPDATE, tx, l, &oldrec_cur, &cur);
+	rc = c2_layout_encode(l, C2_LXO_DB_UPDATE, tx, &oldrec_cur, &cur);
 	if (rc != 0) {
 		layout_log("c2_layout_update", "c2_layout_encode() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
@@ -811,7 +811,7 @@ int c2_layout_delete(struct c2_db_tx *tx,
 						  &pair->dp_rec.db_buf.b_nob);
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = c2_layout_encode(C2_LXO_DB_DELETE, tx, l, NULL, &cur);
+	rc = c2_layout_encode(l, C2_LXO_DB_DELETE, tx, NULL, &cur);
 	if (rc != 0) {
 		layout_log("c2_layout_delete", "c2_layout_encode() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,

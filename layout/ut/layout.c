@@ -710,7 +710,7 @@ static int test_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	c2_bufvec_cursor_init(&cur, &bv);
 
 	/* Decode the layout buffer into a layout object. */
-	rc = c2_layout_decode(&domain, C2_LXO_BUFFER_OP, NULL, lid, &cur, &l);
+	rc = c2_layout_decode(&domain, lid, C2_LXO_BUFFER_OP, NULL, &cur, &l);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Verify the layout object built by c2_layout_decode(). */
@@ -914,8 +914,8 @@ static int test_encode_pdclust(uint32_t enum_id, uint64_t lid,
 	C2_UT_ASSERT(rc == 0);
 
 	/* Encode the layout object into a layout buffer. */
-	rc  = c2_layout_encode(C2_LXO_BUFFER_OP, NULL,
-			       &pl->pl_base.ls_base, NULL, &cur);
+	rc  = c2_layout_encode(&pl->pl_base.ls_base, C2_LXO_BUFFER_OP, NULL,
+			       NULL, &cur);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Rewind the cursor. */
@@ -1114,7 +1114,7 @@ static int test_decode_encode_pdclust(uint32_t enum_id, uint64_t lid,
 	c2_bufvec_cursor_init(&cur1, &bv1);
 
 	/* Decode the layout buffer into a layout object. */
-	rc = c2_layout_decode(&domain, C2_LXO_BUFFER_OP, NULL, lid, &cur1, &l);
+	rc = c2_layout_decode(&domain, lid, C2_LXO_BUFFER_OP, NULL, &cur1, &l);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Rewind the cursor. */
@@ -1132,7 +1132,7 @@ static int test_decode_encode_pdclust(uint32_t enum_id, uint64_t lid,
 	bv2 = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area2, &num_bytes);
 	c2_bufvec_cursor_init(&cur2, &bv2);
 
-	rc = c2_layout_encode(C2_LXO_BUFFER_OP, NULL, l, NULL, &cur2);
+	rc = c2_layout_encode(l, C2_LXO_BUFFER_OP, NULL, NULL, &cur2);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Rewind the cursor. */
@@ -1304,8 +1304,8 @@ static int test_encode_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	C2_UT_ASSERT(rc == 0);
 
 	/* Encode the layout object into a layout buffer. */
-	rc  = c2_layout_encode(C2_LXO_BUFFER_OP, NULL,
-			       &pl->pl_base.ls_base, NULL, &cur);
+	rc  = c2_layout_encode(&pl->pl_base.ls_base, C2_LXO_BUFFER_OP, NULL,
+			       NULL, &cur);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Rewind the cursor. */
@@ -1315,7 +1315,7 @@ static int test_encode_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	 * Decode the layout buffer produced by c2_layout_encode() into another
 	 * layout object.
 	 */
-	rc = c2_layout_decode(&domain, C2_LXO_BUFFER_OP, NULL, lid, &cur, &l);
+	rc = c2_layout_decode(&domain, lid, C2_LXO_BUFFER_OP, NULL, &cur, &l);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
