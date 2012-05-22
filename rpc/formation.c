@@ -413,7 +413,6 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 			    "net buf send failed", ev->nbe_status);
 		/** XXX @todo implement FAILED callback */
 		frm_item_state_failed(rpc, ev->nbe_status);
-		C2_ASSERT("BUF_SEND_FAILED" == NULL);
 
 	}
 
