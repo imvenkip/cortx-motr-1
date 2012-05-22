@@ -1068,6 +1068,7 @@ static int cs_net_domains_init(struct c2_colibri *cctx)
 	struct c2_net_xprt          *xprt;
 	struct cs_reqh_context      *rctx;
 	struct cs_endpoint_and_xprt *ep;
+	struct c2_net_domain        *ndom;
 
 	C2_PRE(cctx != NULL);
 
@@ -1080,7 +1081,6 @@ static int cs_net_domains_init(struct c2_colibri *cctx)
 		c2_tl_for(cs_eps, &rctx->rc_eps, ep) {
 			C2_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
 
-			struct c2_net_domain *ndom;
 			xprt = cs_xprt_lookup(ep->ex_xprt, xprts, xprts_nr);
 			if (xprt == NULL) {
 				fprintf(ofd,
@@ -1958,10 +1958,16 @@ int c2_cs_init(struct c2_colibri *cctx, struct c2_net_xprt **xprts,
 	cctx->cc_outfile = out;
 
 	rc = cs_colibri_init(cctx);
-	C2_ASSERT(rc == 0);
+	if (rc != 0)
+		return rc;
 	c2_rwlock_init(&cctx->cc_rwlock);
 
         rc = c2_processors_init();
+	if (rc != 0) {
+		c2_rwlock_fini(&cctx->cc_rwlock);
+		cs_colibri_fini(cctx);
+	}
+
 	return rc;
 }
 

@@ -249,6 +249,9 @@ void c2_reqh_shutdown_wait(struct c2_reqh *reqh)
 
 	while (c2_atomic64_get(&reqh->rh_fom_dom.fd_foms_nr) > 0)
 		c2_chan_wait(&clink);
+
+	c2_clink_del(&clink);
+	c2_clink_fini(&clink);
 }
 
 struct c2_rpc_machine *c2_reqh_rpc_machine_get(struct c2_reqh *reqh,
