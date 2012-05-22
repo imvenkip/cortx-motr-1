@@ -102,7 +102,6 @@ void c2t1fs_inode_init(struct c2t1fs_inode *ci)
 
 void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 {
-	struct c2_pdclust_layout *pd_layout;
 	struct c2t1fs_dir_ent    *de;
 	bool                      is_root;
 
@@ -121,10 +120,7 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 
 	if (!is_root) {
 		C2_ASSERT(ci->ci_layout != NULL);
-		pd_layout = container_of(ci->ci_layout,
-					 struct c2_pdclust_layout,
-					 pl_base.ls_base);
-		c2_layout_fini(ci->ci_layout, &c2t1fs_globals.g_layout_dom);
+		c2_layout_fini(ci->ci_layout);
 	}
 	C2_LEAVE();
 }
@@ -369,7 +365,7 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 	 * c2t1fs code is not making use of this enumeration object, at this
 	 * point.
 	 */
-	rc = c2_linear_enum_build(&c2t1fs_globals.g_layout_dom, layout_id,
+	rc = c2_linear_enum_build(&c2t1fs_globals.g_layout_dom,
 				  pool->po_width, 100, 200, &le);
 	if (rc != 0)
 		return rc;

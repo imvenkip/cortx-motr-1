@@ -186,6 +186,9 @@ struct c2_layout {
 	/** Layout type. */
 	const struct c2_layout_type *l_type;
 
+	/** Layout domain this layout object is part of. */
+	struct c2_layout_domain     *l_dom;
+
 	/* Layout reference count, indicating how many users this layout has. */
 	uint32_t                     l_ref;
 
@@ -206,7 +209,7 @@ struct c2_layout {
 
 struct c2_layout_ops {
 	/** Cleans up while c2_layout object is about to be destoryed. */
-	void    (*lo_fini)(struct c2_layout *l, struct c2_layout_domain *dom);
+	void    (*lo_fini)(struct c2_layout *l);
 };
 
 /**
@@ -281,8 +284,7 @@ struct c2_layout_type_ops {
 	 * Continues storing the layout representation either in the buffer
 	 * provided by the caller or in the DB.
 	 */
-	int         (*lto_encode)(struct c2_layout_domain *dom,
-				  enum c2_layout_xcode_op op,
+	int         (*lto_encode)(enum c2_layout_xcode_op op,
 				  struct c2_db_tx *tx,
 				  struct c2_layout *l,
 				  struct c2_bufvec_cursor *oldrec_cur,
@@ -290,32 +292,31 @@ struct c2_layout_type_ops {
 };
 
 /**
- *  Layout enumeration.
+ * Layout enumeration.
  */
 struct c2_layout_enum {
 	/** Layout enumeration type. */
 	const struct c2_layout_enum_type *le_type;
 
-	/** Layout id for the layout this enum is associated with. */
-	uint64_t                          le_lid;
+	/** Layout object this enum is associated with. */
+	const struct c2_layout           *le_l;
 
+	/** Enum operations vector. */
 	const struct c2_layout_enum_ops  *le_ops;
 };
 
 struct c2_layout_enum_ops {
 	/** Returns number of objects in the enumeration. */
-	uint32_t (*leo_nr)(const struct c2_layout_enum *e, uint64_t lid);
+	uint32_t (*leo_nr)(const struct c2_layout_enum *e);
 
 	/**
 	 * Returns idx-th object in the enumeration.
 	 * @pre idx < e->l_enum_ops->leo_nr(e)
 	 */
-	void     (*leo_get)(const struct c2_layout_enum *e, uint64_t lid,
-			    uint32_t idx, const struct c2_fid *gfid,
-			    struct c2_fid *out);
+	void     (*leo_get)(const struct c2_layout_enum *e, uint32_t idx,
+			    const struct c2_fid *gfid, struct c2_fid *out);
 
-	void     (*leo_fini)(struct c2_layout_domain *dom,
-			     struct c2_layout_enum *e, uint64_t lid);
+	void     (*leo_fini)(struct c2_layout_enum *e);
 };
 
 /**
@@ -353,7 +354,7 @@ struct c2_layout_enum_type_ops {
 	 * Returns applicable record size for the layouts table, for the
 	 * specified layout.
 	 */
-	c2_bcount_t (*leto_recsize)(struct c2_layout_enum *e, uint64_t lid);
+	c2_bcount_t (*leto_recsize)(struct c2_layout_enum *e);
 
 	/**
 	 * Continues building the in-memory layout object, either from
@@ -374,18 +375,14 @@ struct c2_layout_enum_type_ops {
 	 * Continues storing layout representation either in the buffer
 	 * provided by the caller or in the DB.
 	 */
-	int         (*leto_encode)(struct c2_layout_domain *dom,
-				   enum c2_layout_xcode_op op,
+	int         (*leto_encode)(enum c2_layout_xcode_op op,
 				   struct c2_db_tx *tx,
-				   uint64_t lid,
 				   const struct c2_layout_enum *le,
 				   struct c2_bufvec_cursor *oldrec_cur,
 				   struct c2_bufvec_cursor *out);
 };
 
-/**
- *  Layout using enumeration.
- */
+/** Layout using enumeration. */
 struct c2_layout_striped {
 	/** Super class. */
 	struct c2_layout       ls_base;
@@ -413,7 +410,7 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
 				    const struct c2_layout_enum_type *et);
 
-void c2_layout_fini(struct c2_layout *l, struct c2_layout_domain *dom);
+void c2_layout_fini(struct c2_layout *l);
 
 void c2_layout_get(struct c2_layout *l);
 void c2_layout_put(struct c2_layout *l);
@@ -424,10 +421,9 @@ int c2_layout_decode(struct c2_layout_domain *dom,
 		     uint64_t lid,
 		     struct c2_bufvec_cursor *cur,
 		     struct c2_layout **out);
-int c2_layout_encode(struct c2_layout_domain *dom,
-		     enum c2_layout_xcode_op op,
+int c2_layout_encode(enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,
-		     struct c2_layout *l,
+		     struct c2_layout *l, //todo Make this 1st arg
 		     struct c2_bufvec_cursor *oldrec_cur,
 		     struct c2_bufvec_cursor *out);
 

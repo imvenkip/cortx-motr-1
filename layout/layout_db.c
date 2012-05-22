@@ -406,22 +406,20 @@ extern const struct c2_addb_ev layout_delete_fail;
  * Returns actual size for a record in the layouts table (without
  * considering the data in the tables other than layouts).
  */
-static c2_bcount_t recsize_get(const struct c2_layout_domain *dom,
-			       const struct c2_layout *l)
+static c2_bcount_t recsize_get(const struct c2_layout *l)
 {
 	c2_bcount_t            recsize;
 	struct c2_layout_type *lt;
 
-	C2_PRE(domain_invariant(dom));
 	C2_PRE(layout_invariant(l));
 
-	lt = dom->ld_type[l->l_type->lt_id];
-	C2_ASSERT(is_layout_type_valid(lt->lt_id, dom));
+	lt = l->l_dom->ld_type[l->l_type->lt_id];
+	C2_ASSERT(is_layout_type_valid(lt->lt_id, l->l_dom));
 
 	recsize = sizeof(struct c2_layout_rec) +
-		  lt->lt_ops->lto_recsize(dom, l);
+		  lt->lt_ops->lto_recsize(l->l_dom, l);
 
-	C2_POST(recsize <= c2_layout_max_recsize(dom));
+	C2_POST(recsize <= c2_layout_max_recsize(l->l_dom));
 
 	return recsize;
 }
@@ -432,31 +430,32 @@ static c2_bcount_t recsize_get(const struct c2_layout_domain *dom,
  * @param op This enum parameter indicates what is the DB operation to be
  * performed on the layout record which could be one of ADD/UPDATE/DELETE.
  */
-int layout_write(struct c2_layout_domain *dom, struct c2_db_tx *tx,
-		 enum c2_layout_xcode_op op, uint64_t lid,
-		 struct c2_db_pair *pair, c2_bcount_t recsize)
+int layout_write(const struct c2_layout *l,
+		 struct c2_db_tx *tx,
+		 enum c2_layout_xcode_op op,
+		 struct c2_db_pair *pair,
+		 c2_bcount_t recsize)
 {
 	int   rc;
 	void *key_buf = pair->dp_key.db_buf.b_addr;
 	void *rec_buf = pair->dp_rec.db_buf.b_addr;
 
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(l != NULL);
 	C2_PRE(tx != NULL);
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE);
-	C2_PRE(lid != LID_NONE);
 	C2_PRE(pair != NULL);
 	C2_PRE(key_buf != NULL);
 	C2_PRE(rec_buf != NULL);
-	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof lid);
+	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof l->l_id);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= recsize);
 	C2_PRE(recsize >= sizeof(struct c2_layout_rec) &&
-	       recsize <= c2_layout_max_recsize(dom));
+	       recsize <= c2_layout_max_recsize(l->l_dom));
 
-	*(uint64_t *)key_buf = lid;
+	*(uint64_t *)key_buf = l->l_id;
 
-	c2_db_pair_setup(pair, &dom->ld_schema.ls_layouts,
-			 key_buf, sizeof lid, rec_buf, recsize);
+	c2_db_pair_setup(pair, &l->l_dom->ld_schema.ls_layouts,
+			 key_buf, sizeof l->l_id, rec_buf, recsize);
 
 	/*
 	 * ADDB messages covering the failure of c2_table_insert(),
@@ -479,19 +478,17 @@ int layout_write(struct c2_layout_domain *dom, struct c2_db_tx *tx,
 /**
  * Read existing record from the layouts table into the provided area.
  */
-static int rec_get(struct c2_layout_domain *dom, struct c2_db_tx *tx,
-		   struct c2_layout *l, void *area)
+static int rec_get(struct c2_db_tx *tx, struct c2_layout *l, void *area)
 {
 	struct c2_db_pair  pair;
 	c2_bcount_t        max_recsize;
 	int                rc;
 
-	C2_PRE(domain_invariant(dom));
 	C2_PRE(tx != NULL);
 	C2_PRE(l != NULL);
 	C2_PRE(area != NULL);
 
-	max_recsize = c2_layout_max_recsize(dom);
+	max_recsize = c2_layout_max_recsize(l->l_dom);
 
 	/*
 	 * The max_recsize is never expected to be that large. But still,
@@ -499,7 +496,7 @@ static int rec_get(struct c2_layout_domain *dom, struct c2_db_tx *tx,
 	 */
 	C2_ASSERT(max_recsize <= UINT32_MAX);
 
-	c2_db_pair_setup(&pair, &dom->ld_schema.ls_layouts,
+	c2_db_pair_setup(&pair, &l->l_dom->ld_schema.ls_layouts,
 			 &l->l_id, sizeof l->l_id,
 			 area, (uint32_t)max_recsize);
 
@@ -536,7 +533,7 @@ static int rec_get(struct c2_layout_domain *dom, struct c2_db_tx *tx,
  *
  * @post Layout object is built internally (along with enumeration object being
  * built if applicable). Hence, user needs to finalise the layout object when
- * done with the use. It can be accomplished by performing l->l_ops->lo_fini().
+ * done with the use. It can be accomplished by using the API c2_layout_fini().
  */
 int c2_layout_lookup(struct c2_layout_domain *dom,
 		     struct c2_db_tx *tx,
@@ -622,8 +619,7 @@ out:
  * written specifically to the layouts table. It means it needs to be at the
  * most the size returned by c2_layout_max_recsize().
  */
-int c2_layout_add(struct c2_layout_domain *dom,
-		  struct c2_db_tx *tx,
+int c2_layout_add(struct c2_db_tx *tx,
 		  struct c2_db_pair *pair,
 		  struct c2_layout *l)
 {
@@ -632,7 +628,6 @@ int c2_layout_add(struct c2_layout_domain *dom,
 	c2_bcount_t              recsize;
 	int                      rc;
 
-	C2_PRE(domain_invariant(dom));
 	C2_PRE(tx != NULL);
 	C2_PRE(pair != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
@@ -643,7 +638,7 @@ int c2_layout_add(struct c2_layout_domain *dom,
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
-	c2_mutex_lock(&dom->ld_schema.ls_lock);
+	c2_mutex_lock(&l->l_dom->ld_schema.ls_lock);
 
 	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
 
@@ -651,7 +646,7 @@ int c2_layout_add(struct c2_layout_domain *dom,
 						  &pair->dp_rec.db_buf.b_nob);
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = c2_layout_encode(dom, C2_LXO_DB_ADD, tx, l, NULL, &cur);
+	rc = c2_layout_encode(C2_LXO_DB_ADD, tx, l, NULL, &cur);
 	if (rc != 0) {
 		layout_log("c2_layout_add", "c2_layout_encode() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
@@ -659,8 +654,8 @@ int c2_layout_add(struct c2_layout_domain *dom,
 		goto out;
 	}
 
-	recsize = recsize_get(dom, l);
-	rc = layout_write(dom, tx, C2_LXO_DB_ADD, l->l_id, pair, recsize);
+	recsize = recsize_get(l);
+	rc = layout_write(l, tx, C2_LXO_DB_ADD, pair, recsize);
 	if (rc != 0) {
 		layout_log("c2_layout_add", "layout_write() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
@@ -671,7 +666,7 @@ int c2_layout_add(struct c2_layout_domain *dom,
 	layout_log("c2_layout_add", NULL, PRINT_ADDB_MSG, !PRINT_TRACE_MSG,
 		   &layout_add_success, &l->l_addb, l->l_id, rc);
 out:
-	c2_mutex_unlock(&dom->ld_schema.ls_lock);
+	c2_mutex_unlock(&l->l_dom->ld_schema.ls_lock);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
@@ -690,8 +685,7 @@ out:
  * written specifically to the layouts table. It means it needs to be at the
  * most the size returned by c2_layout_max_recsize().
  */
-int c2_layout_update(struct c2_layout_domain *dom,
-		     struct c2_db_tx *tx,
+int c2_layout_update(struct c2_db_tx *tx,
 		     struct c2_db_pair *pair,
 		     struct c2_layout *l)
 {
@@ -703,7 +697,6 @@ int c2_layout_update(struct c2_layout_domain *dom,
 	c2_bcount_t              recsize;
 	int                      rc;
 
-	C2_PRE(domain_invariant(dom));
 	C2_PRE(tx != NULL);
 	C2_PRE(pair != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
@@ -714,14 +707,14 @@ int c2_layout_update(struct c2_layout_domain *dom,
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
-	c2_mutex_lock(&dom->ld_schema.ls_lock);
+	c2_mutex_lock(&l->l_dom->ld_schema.ls_lock);
 
 	/*
 	 * Get the existing record from the layouts table. It is used to
 	 * ensure that nothing other than l_ref gets updated for an existing
 	 * layout record.
 	 */
-	recsize = c2_layout_max_recsize(dom);
+	recsize = c2_layout_max_recsize(l->l_dom);
 	oldrec_area = c2_alloc(recsize);
 	if (oldrec_area == NULL) {
 		rc = -ENOMEM;
@@ -731,7 +724,7 @@ int c2_layout_update(struct c2_layout_domain *dom,
 		goto out;
 	}
 
-	rc = rec_get(dom, tx, l, oldrec_area);
+	rc = rec_get(tx, l, oldrec_area);
 	if (rc != 0) {
 		layout_log("c2_layout_update", "c2_table_lookup() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
@@ -750,7 +743,7 @@ int c2_layout_update(struct c2_layout_domain *dom,
 						  &pair->dp_rec.db_buf.b_nob);
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = c2_layout_encode(dom, C2_LXO_DB_UPDATE, tx, l, &oldrec_cur, &cur);
+	rc = c2_layout_encode(C2_LXO_DB_UPDATE, tx, l, &oldrec_cur, &cur);
 	if (rc != 0) {
 		layout_log("c2_layout_update", "c2_layout_encode() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
@@ -758,8 +751,8 @@ int c2_layout_update(struct c2_layout_domain *dom,
 		goto out;
 	}
 
-	recsize = recsize_get(dom, l);
-	rc = layout_write(dom, tx, C2_LXO_DB_UPDATE, l->l_id, pair, recsize);
+	recsize = recsize_get(l);
+	rc = layout_write(l, tx, C2_LXO_DB_UPDATE, pair, recsize);
 	if (rc != 0) {
 		layout_log("c2_layout_update", "c2_table_update() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
@@ -772,7 +765,7 @@ int c2_layout_update(struct c2_layout_domain *dom,
 
 out:
 	c2_free(oldrec_area);
-	c2_mutex_unlock(&dom->ld_schema.ls_lock);
+	c2_mutex_unlock(&l->l_dom->ld_schema.ls_lock);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
@@ -791,8 +784,7 @@ out:
  * written specifically to the layouts table. It means it needs to be at the
  * most the size returned by c2_layout_max_recsize().
  */
-int c2_layout_delete(struct c2_layout_domain *dom,
-		     struct c2_db_tx *tx,
+int c2_layout_delete(struct c2_db_tx *tx,
 		     struct c2_db_pair *pair,
 		     struct c2_layout *l)
 {
@@ -801,7 +793,6 @@ int c2_layout_delete(struct c2_layout_domain *dom,
 	c2_bcount_t              recsize;
 	int                      rc;
 
-	C2_PRE(domain_invariant(dom));
 	C2_PRE(tx != NULL);
 	C2_PRE(pair != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
@@ -812,7 +803,7 @@ int c2_layout_delete(struct c2_layout_domain *dom,
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
-	c2_mutex_lock(&dom->ld_schema.ls_lock);
+	c2_mutex_lock(&l->l_dom->ld_schema.ls_lock);
 
 	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
 
@@ -820,7 +811,7 @@ int c2_layout_delete(struct c2_layout_domain *dom,
 						  &pair->dp_rec.db_buf.b_nob);
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = c2_layout_encode(dom, C2_LXO_DB_DELETE, tx, l, NULL, &cur);
+	rc = c2_layout_encode(C2_LXO_DB_DELETE, tx, l, NULL, &cur);
 	if (rc != 0) {
 		layout_log("c2_layout_delete", "c2_layout_encode() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
@@ -828,8 +819,8 @@ int c2_layout_delete(struct c2_layout_domain *dom,
 		goto out;
 	}
 
-	recsize = recsize_get(dom, l);
-	rc = layout_write(dom, tx, C2_LXO_DB_DELETE, l->l_id, pair, recsize);
+	recsize = recsize_get(l);
+	rc = layout_write(l, tx, C2_LXO_DB_DELETE, pair, recsize);
 	if (rc != 0) {
 		layout_log("c2_layout_delete", "c2_table_delete() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
@@ -841,7 +832,7 @@ int c2_layout_delete(struct c2_layout_domain *dom,
 		   &layout_delete_success, &l->l_addb, l->l_id, rc);
 
 out:
-	c2_mutex_unlock(&dom->ld_schema.ls_lock);
+	c2_mutex_unlock(&l->l_dom->ld_schema.ls_lock);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;

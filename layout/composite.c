@@ -53,7 +53,7 @@ struct layout_prefix {
 /*
  * @post A composite type of layout object is created. It needs to be
  * finalised by the user, once done with the usage. It can be finalised
- * using l->l_ops->lo_fini().
+ * using the API c2_layout_fini().
  */
 void c2_composite_build(struct c2_layout_domain *dom,
 			uint64_t pool_id, uint64_t lid,
@@ -63,7 +63,7 @@ void c2_composite_build(struct c2_layout_domain *dom,
 }
 
 /** Implementation of lo_fini for composite layout type. */
-static void composite_fini(struct c2_layout *l, struct c2_layout_domain *dom)
+static void composite_fini(struct c2_layout *l)
 {
 }
 
@@ -186,8 +186,7 @@ static int composite_decode(struct c2_layout_domain *dom,
  * ADD/UPDATE/DELETE. If it is BUFFER_OP, then the layout is stored in the
  * buffer.
  */
-static int composite_encode(struct c2_layout_domain *dom,
-			    enum c2_layout_xcode_op op,
+static int composite_encode(enum c2_layout_xcode_op op,
 			    struct c2_db_tx *tx,
 			    struct c2_layout *l,
 			    struct c2_bufvec_cursor *oldrec_cur,

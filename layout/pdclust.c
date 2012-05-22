@@ -199,8 +199,7 @@ bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
 	if (!c2_pdclust_layout_bob_check(play))
 		return false;
 
-	if (!striped_layout_invariant(&play->pl_base,
-				      play->pl_base.ls_base.l_id))
+	if (!striped_layout_invariant(&play->pl_base))
 		return false;
 
 	P = play->pl_attr.pa_P;
@@ -374,13 +373,12 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 }
 
 /** Implementation of lo_fini for pdclust layout type. */
-static void pdclust_fini(struct c2_layout *l, struct c2_layout_domain *dom)
+static void pdclust_fini(struct c2_layout *l)
 {
 	uint32_t                  i;
 	struct c2_pdclust_layout *pl;
 
 	C2_PRE(l != NULL);
-	C2_PRE(dom != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
@@ -403,7 +401,7 @@ static void pdclust_fini(struct c2_layout *l, struct c2_layout_domain *dom)
 		c2_free(pl->pl_tgt);
 	}
 
-	striped_fini(dom, &pl->pl_base);
+	striped_fini(&pl->pl_base);
 
 	c2_free(pl);
 
@@ -433,7 +431,7 @@ static const struct c2_layout_ops pdclust_ops;
 /**
  * @post A pdclust type of layout object is created. It needs to be
  * finalised by the user, once done with the usage. It can be finalised
- * using l->l_ops->lo_fini().
+ * using the API c2_layout_fini().
  */
 int c2_pdclust_build(struct c2_layout_domain *dom,
 		     struct c2_pool *pool, uint64_t lid,
@@ -524,7 +522,7 @@ out:
 		C2_POST(c2_pdclust_layout_invariant(pdl));
 	}
 	else
-		pdclust_fini(&pdl->pl_base.ls_base, dom);
+		pdclust_fini(&pdl->pl_base.ls_base);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
@@ -582,7 +580,7 @@ static c2_bcount_t pdclust_recsize(const struct c2_layout_domain *dom,
 	et = dom->ld_enum[pl->pl_base.ls_enum->le_type->let_id];
 	C2_ASSERT(is_enum_type_valid(et->let_id, dom));
 
-	e_recsize = et->let_ops->leto_recsize(pl->pl_base.ls_enum, l->l_id);
+	e_recsize = et->let_ops->leto_recsize(pl->pl_base.ls_enum);
 
 	return sizeof(struct c2_layout_pdclust_rec) + e_recsize;
 }
@@ -665,7 +663,7 @@ static int pdclust_decode(struct c2_layout_domain *dom,
 out:
 	if (rc != 0 && e != NULL) {
 		C2_ASSERT(pl == NULL);
-		e->le_ops->leo_fini(dom, e, lid);
+		e->le_ops->leo_fini(e);
 	}
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
@@ -684,8 +682,7 @@ out:
  * ADD/UPDATE/DELETE. If it is BUFFER_OP, then the layout is stored in the
  * buffer.
  */
-static int pdclust_encode(struct c2_layout_domain *dom,
-			  enum c2_layout_xcode_op op,
+static int pdclust_encode(enum c2_layout_xcode_op op,
 			  struct c2_db_tx *tx,
 			  struct c2_layout *l,
 		          struct c2_bufvec_cursor *oldrec_cur,
@@ -698,7 +695,6 @@ static int pdclust_encode(struct c2_layout_domain *dom,
 	c2_bcount_t                   nbytes;
 	int                           rc;
 
-	C2_PRE(dom != NULL);
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
 	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
@@ -738,8 +734,8 @@ static int pdclust_encode(struct c2_layout_domain *dom,
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *pl_oldrec);
 	}
 
-	et = dom->ld_enum[pl->pl_base.ls_enum->le_type->let_id];
-	C2_ASSERT(is_enum_type_valid(et->let_id, dom));
+	et = l->l_dom->ld_enum[pl->pl_base.ls_enum->le_type->let_id];
+	C2_ASSERT(is_enum_type_valid(et->let_id, l->l_dom));
 
 	pl_rec.pr_let_id  = pl->pl_base.ls_enum->le_type->let_id;
 	pl_rec.pr_attr    = pl->pl_attr;
@@ -747,8 +743,8 @@ static int pdclust_encode(struct c2_layout_domain *dom,
 	nbytes = c2_bufvec_cursor_copyto(out, &pl_rec, sizeof pl_rec);
 	C2_ASSERT(nbytes == sizeof pl_rec);
 
-	rc = et->let_ops->leto_encode(dom, op, tx, l->l_id,
-				      pl->pl_base.ls_enum, oldrec_cur, out);
+	rc = et->let_ops->leto_encode(op, tx, pl->pl_base.ls_enum,
+				      oldrec_cur, out);
 	if (rc != 0) {
 		C2_LOG("pdclust_encode(): lid %llu, leto_encode() failed, "
 		       "rc %d", (unsigned long long)l->l_id, rc);
