@@ -87,7 +87,7 @@
 #define C2_UNPACK(...) __VA_ARGS__
 
 #define C2_IN0(...) \
-        C2_CAT(C2_IN_, C2_COUNT_PARAMS(__VA_ARGS__))(__VA_ARGS__)
+	C2_CAT(C2_IN_, C2_COUNT_PARAMS(__VA_ARGS__))(__VA_ARGS__)
 
 #define C2_IN_1(x, v) ((x) == (v))
 #define C2_IN_2(x, v, ...) ((x) == (v) || C2_IN_1(x, __VA_ARGS__))

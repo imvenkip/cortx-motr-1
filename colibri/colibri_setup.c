@@ -1507,6 +1507,7 @@ static int cs_colibri_init(struct c2_colibri *cctx)
         cs_buffer_pools_tlist_init(&cctx->cc_buffer_pools);
 
 	c2_bob_type_tlist_init(&cs_eps_bob, &cs_eps_tl);
+	c2_rwlock_init(&cctx->cc_rwlock);
 
 	return 0;
 }
@@ -1522,11 +1523,9 @@ static void cs_colibri_fini(struct c2_colibri *cctx)
 {
 	C2_PRE(cctx != NULL);
 
-	cs_buffer_pool_fini(cctx);
-	cs_net_domains_fini(cctx);
 	rhctx_tlist_fini(&cctx->cc_reqh_ctxs);
 	ndom_tlist_fini(&cctx->cc_ndoms);
-        cs_buffer_pools_tlist_fini(&cctx->cc_buffer_pools);
+	c2_rwlock_fini(&cctx->cc_rwlock);
 }
 
 /**
@@ -1960,13 +1959,10 @@ int c2_cs_init(struct c2_colibri *cctx, struct c2_net_xprt **xprts,
 	rc = cs_colibri_init(cctx);
 	if (rc != 0)
 		return rc;
-	c2_rwlock_init(&cctx->cc_rwlock);
 
         rc = c2_processors_init();
-	if (rc != 0) {
-		c2_rwlock_fini(&cctx->cc_rwlock);
+	if (rc != 0)
 		cs_colibri_fini(cctx);
-	}
 
 	return rc;
 }
@@ -1976,8 +1972,8 @@ void c2_cs_fini(struct c2_colibri *cctx)
 	C2_PRE(cctx != NULL);
 
         cs_request_handlers_stop(cctx);
+	cs_net_domains_fini(cctx);
         cs_colibri_fini(cctx);
-	c2_rwlock_fini(&cctx->cc_rwlock);
 	c2_processors_fini();
 }
 /** @} endgroup colibri_setup */
