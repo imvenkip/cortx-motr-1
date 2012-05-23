@@ -74,6 +74,8 @@ int c2_rpc_sender_uuid_cmp(const struct c2_rpc_sender_uuid *u1,
 	return C2_3WAY(u1->su_uuid, u2->su_uuid);
 }
 
+int c2_rpc__post_locked(struct c2_rpc_item *item);
+
 /**
    Initialises rpc item and posts it to rpc-layer
  */
@@ -83,13 +85,13 @@ int c2_rpc__fop_post(struct c2_fop                *fop,
 {
 	struct c2_rpc_item *item;
 
-	item = &fop->f_item;
-	item->ri_session = session;
-	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
+	item              = &fop->f_item;
+	item->ri_session  = session;
+	item->ri_prio     = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_deadline = 0;
-	item->ri_ops = ops;
+	item->ri_ops      = ops;
 
-	return c2_rpc_post(item);
+	return c2_rpc__post_locked(item);
 }
 
 static struct c2_uint128 stob_id_alloc(void)
@@ -193,6 +195,16 @@ int c2_rpc_root_session_cob_get(struct c2_cob_domain *dom,
 						out, tx);
 }
 
+#ifdef __KERNEL__
+
+int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
+				   struct c2_db_tx      *tx)
+{
+	return 0;
+}
+
+#else /* !__KERNEL__ */
+
 int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
 				   struct c2_db_tx      *tx)
 {
@@ -209,6 +221,7 @@ int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
 
 	return rc;
 }
+#endif /* __KERNEL__ */
 
 /**
   XXX temporary routine that submits the fop inside item for execution.

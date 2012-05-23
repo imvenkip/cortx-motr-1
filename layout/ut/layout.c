@@ -1851,7 +1851,7 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 	rc = c2_layout_lookup(&domain, lid, &tx, &pair, &l2);
 
 	if (existing_test)
-		C2_UT_ASSERT(rc == 0)
+		C2_UT_ASSERT(rc == 0);
 	else
 		C2_UT_ASSERT(rc == -ENOENT);
 
@@ -2153,7 +2153,7 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 
 	rc = c2_layout_update(l1, &tx, &pair);
 	if (existing_test)
-		C2_UT_ASSERT(rc == 0)
+		C2_UT_ASSERT(rc == 0);
 	else
 		C2_UT_ASSERT(rc == -ENOENT);
 
@@ -2298,7 +2298,7 @@ static int test_delete_pdclust(uint32_t enum_id, uint64_t lid,
 
 	rc = c2_layout_delete(l, &tx, &pair);
 	if (existing_test)
-		C2_UT_ASSERT(rc == 0)
+		C2_UT_ASSERT(rc == 0);
 	else
 		C2_UT_ASSERT(rc == -ENOENT);
 

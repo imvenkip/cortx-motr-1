@@ -160,6 +160,7 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	struct c2_fop                        *fop;
 	struct c2_fop                        *fop_rep;
 	struct c2_rpc_item                   *item;
+	struct c2_rpc_machine                *machine;
 	struct c2_rpc_session                *session0;
 	struct c2_rpc_conn                   *conn;
 	struct c2_rpc_slot                   *slot;
@@ -168,14 +169,12 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 
-	/* Request fop */
-	fop = fom->fo_fop;
+	fop     = fom->fo_fop;
 	request = c2_fop_data(fop);
 	C2_ASSERT(request != NULL);
 
-	/* reply fop */
 	fop_rep = fom->fo_rep_fop;
-	reply = c2_fop_data(fop_rep);
+	reply   = c2_fop_data(fop_rep);
 	C2_ASSERT(reply != NULL);
 
 	item = &fop->f_item;
@@ -186,107 +185,110 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	 * See conn_establish_item_decode()
 	 */
 	ctx = container_of(fop, struct c2_rpc_fop_conn_establish_ctx, cec_fop);
-	C2_ASSERT(ctx != NULL && ctx->cec_sender_ep != NULL &&
-				 ctx->cec_rpc_machine != NULL);
+	C2_ASSERT(ctx != NULL &&
+		  ctx->cec_sender_ep != NULL &&
+		  ctx->cec_rpc_machine != NULL);
 
 	C2_ALLOC_PTR(conn);
-	if (conn == NULL) {
-		rc = -ENOMEM;
-		goto out;
-	}
+	if (conn == NULL)
+		/* no reply if conn establish failed.
+		   See [4] at end of this function. */
+		return -ENOMEM;
 
-	rc = c2_rpc_rcv_conn_init(conn, ctx->cec_sender_ep,
-				  ctx->cec_rpc_machine,
+	machine = ctx->cec_rpc_machine;
+
+	c2_rpc_machine_lock(machine);
+
+	rc = c2_rpc_rcv_conn_init(conn, ctx->cec_sender_ep, machine,
 				  &item->ri_slot_refs[0].sr_uuid);
 	/* we won't need ctx->cec_sender_ep after this point */
 	c2_net_end_point_put(ctx->cec_sender_ep);
-	if (rc != 0)
-		goto out_free;
+	if (rc == 0) {
+		rc = c2_rpc_rcv_conn_establish(conn);
+		if (rc == 0) {
+			/* See [1] at the end of function */
+			session0         = c2_rpc_conn_session0(conn);
+			slot             = session0->s_slot_table[0];
+			C2_ASSERT(slot != NULL);
 
-	rc = c2_rpc_rcv_conn_establish(conn);
-	if (rc != 0) {
-		C2_ASSERT(conn->c_state == C2_RPC_CONN_FAILED);
-		goto out_fini;
+			item->ri_session = session0;
+			c2_rpc_slot_item_add_internal(slot, item);
+
+			/* See [2] at the end of function */
+			item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
+
+			/* See [3] */
+			item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
+
+			C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
+			C2_ASSERT(c2_rpc_conn_invariant(conn));
+		} else {
+			/* conn establish failed */
+			c2_rpc_conn_fini_locked(conn);
+		}
 	}
 
-	/*
-	 * As CONN_ESTABLISH request is directly submitted for execution.
-	 * Add the item explicitly to the slot0. This makes the slot
-	 * symmetric to corresponding sender side slot.
-	 */
-	c2_mutex_lock(&conn->c_mutex);
-	session0 = c2_rpc_conn_session0(conn);
-	c2_mutex_unlock(&conn->c_mutex);
+	c2_rpc_machine_unlock(machine);
 
-	item->ri_session = session0;
-	slot = session0->s_slot_table[0];
-	C2_ASSERT(slot != NULL);
+	if (rc == 0) {
+		reply->rcer_sender_id = conn->c_sender_id;
+		reply->rcer_rc        = 0;
 
-	c2_mutex_lock(&slot->sl_mutex);
-	c2_mutex_lock(&session0->s_mutex);
-
-	c2_rpc_slot_item_add_internal(slot, item);
-
-	c2_mutex_unlock(&session0->s_mutex);
-	c2_mutex_unlock(&slot->sl_mutex);
-
-	/*
-	 * IMPORTANT
-	 * Following line is required. Request item has SENDER_ID_INVALID.
-	 * slot_item_add_internal() overwrites it with conn->c_sender_id.
-	 * But we want reply to have sender_id SENDER_ID_INVALID.
-	 * c2_rpc_reply_post() simply copies sender id from req item to
-	 * reply item as it is. So set sender id of request item
-	 * to SENDER_ID_INVALID
-	 */
-	item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
-
-	/*
-	 * CONN_ESTABLISH item is directly submitted for execution. Update
-	 * rpc-layer stats on INCOMING path here.
-	 */
-	item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
-
-	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
-	reply->rcer_sender_id = conn->c_sender_id;
-	reply->rcer_rc = 0;      /* successful */
-	fom->fo_phase = C2_FOPH_FINISH;
-
-	C2_LOG("Conn established: conn [%p] id [%lu]\n", conn,
+		C2_LOG("Conn established: conn [%p] id [%lu]\n", conn,
 				(unsigned long)conn->c_sender_id);
 
-	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
-	return C2_FSO_WAIT;
+		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 
-out_fini:
-	C2_ASSERT(conn != NULL && rc != 0);
-	c2_rpc_conn_fini(conn);
+	} else {
+		C2_ASSERT(conn != NULL);
+		c2_free(conn);
+		/* No reply is sent if conn establish failed. See [4] */
+		c2_fop_fini(&ctx->cec_fop); /* CONN_ESTABLISH fop */
+		c2_free(ctx);
+		C2_LOG("Conn establish failed: rc [%d]\n", rc);
+	}
 
-out_free:
-	C2_ASSERT(conn != NULL);
-	c2_free(conn);
-
-out:
-	c2_fop_fini(&ctx->cec_fop); /* CONN_ESTABLISH fop */
-	c2_free(ctx);
-
-	/*
-	 * IMPORTANT: No reply is sent if conn establishing is failed.
-	 *
-	 * ACTIVE session is required to send reply. In case of, successful
-	 * conn establish operation, there is ACTIVE SESSION_0 and slot 0
-	 * (in the newly established ACTIVE conn) to send reply.
-	 *
-	 * But there is no SESSION_0 (in fact here is no conn object) if
-	 * conn establish operation is failed. Hence reply cannot be sent.
-	 *
-	 * In this case, sender will time-out and mark sender side conn
-	 * as FAILED.
-	 */
 	fom->fo_phase = C2_FOPH_FINISH;
-	C2_LOG("Conn establish failed: rc [%d]\n", rc);
 	return C2_FSO_WAIT;
 }
+/*
+ * [1]
+ * As CONN_ESTABLISH request is directly submitted for execution.
+ * Add the item explicitly to the slot0. This makes the slot
+ * symmetric to corresponding sender side slot.
+ */
+
+/* [2]
+ * IMPORTANT
+ * @code
+ *     item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
+ * @endcode
+ * Request item has SENDER_ID_INVALID.
+ * slot_item_add_internal() overwrites it with conn->c_sender_id.
+ * But we want reply to have sender_id SENDER_ID_INVALID.
+ * c2_rpc_reply_post() simply copies sender id from req item to
+ * reply item as it is. So set sender id of request item
+ * to SENDER_ID_INVALID
+ */
+
+/* [3]
+ * CONN_ESTABLISH item is directly submitted for execution. Update
+ * rpc-layer stats on INCOMING path here.
+ */
+
+/* [4]
+ * IMPORTANT: No reply is sent if conn establishing is failed.
+ *
+ * ACTIVE session is required to send reply. In case of, successful
+ * conn establish operation, there is ACTIVE SESSION_0 and slot 0
+ * (in the newly established ACTIVE conn) to send reply.
+ *
+ * But there is no SESSION_0 (in fact here is no conn object) if
+ * conn establish operation is failed. Hence reply cannot be sent.
+ *
+ * In this case, sender will time-out and mark sender side conn
+ * as FAILED.
+ */
 
 /*
  * FOM session create
@@ -315,6 +317,7 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	struct c2_fop                           *fop_rep;
 	struct c2_rpc_session                   *session;
 	struct c2_rpc_conn                      *conn;
+	struct c2_rpc_machine                   *machine;
 	uint32_t                                 slot_cnt;
 	int                                      rc;
 
@@ -329,18 +332,18 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	reply = c2_fop_data(fop_rep);
 	C2_ASSERT(reply != NULL);
 
-	reply->rser_sender_id = request->rse_sender_id;
 	slot_cnt = request->rse_slot_cnt;
 
+	session = NULL;
 	if (slot_cnt == 0) { /* There should be some upper limit to slot_cnt */
 		rc = -EINVAL;
-		goto errout;
+		goto out;
 	}
 
 	C2_ALLOC_PTR(session);
 	if (session == NULL) {
 		rc = -ENOMEM;
-		goto errout;
+		goto out;
 	}
 
 	item = &fop->f_item;
@@ -349,43 +352,33 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL);
 
-	rc = c2_rpc_session_init(session, conn, slot_cnt);
-	if (rc != 0)
-		goto out_free;
+	machine = conn->c_rpc_machine;
 
-	rc = c2_rpc_rcv_session_establish(session);
-	if (rc != 0)
-		goto out_fini;
+	c2_rpc_machine_lock(machine);
 
-	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
+	rc = c2_rpc_session_init_locked(session, conn, slot_cnt);
+	if (rc == 0) {
+		rc = c2_rpc_rcv_session_establish(session);
+		if (rc == 0)
+			reply->rser_session_id = session->s_session_id;
+		else
+			c2_rpc_session_fini_locked(session);
+	}
 
-	reply->rser_rc = 0;    /* success */
-	reply->rser_session_id = session->s_session_id;
-	C2_LOG("Session established: session [%p] id [%lu]\n", session,
-					(unsigned long)session->s_session_id);
+	c2_rpc_machine_unlock(machine);
+
+out:
+	reply->rser_sender_id = request->rse_sender_id;
+	reply->rser_rc        = rc;
+
+	if (rc != 0) {
+		reply->rser_session_id = SESSION_ID_INVALID;
+		if (session != NULL)
+			c2_free(session);
+	}
+
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	fom->fo_phase = C2_FOPH_FINISH;
-	return C2_FSO_WAIT;
-
-out_fini:
-	C2_ASSERT(session != NULL &&
-		  c2_rpc_session_invariant(session) &&
-		  session->s_state == C2_RPC_SESSION_FAILED);
-	c2_rpc_session_fini(session);
-
-out_free:
-	C2_ASSERT(session != NULL);
-	c2_free(session);
-	session = NULL;
-
-errout:
-	C2_ASSERT(rc != 0);
-
-	reply->rser_rc = rc;
-	reply->rser_session_id = SESSION_ID_INVALID;
-	fom->fo_phase = C2_FOPH_FINISH;
-	C2_LOG("Session establish failed: rc [%d]\n", rc);
-	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	return C2_FSO_WAIT;
 }
 
@@ -413,6 +406,7 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	struct c2_rpc_fop_session_terminate     *request;
 	struct c2_rpc_item                      *item;
 	struct c2_rpc_session                   *session;
+	struct c2_rpc_machine                   *machine;
 	struct c2_rpc_conn                      *conn;
 	uint64_t                                 session_id;
 	int                                      rc;
@@ -426,9 +420,6 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	reply = c2_fop_data(fom->fo_rep_fop);
 	C2_ASSERT(reply != NULL);
 
-	/*
-	 * Copy the same sender and session id to reply fop
-	 */
 	reply->rstr_sender_id = request->rst_sender_id;
 	reply->rstr_session_id = session_id = request->rst_session_id;
 
@@ -438,33 +429,35 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL);
 
-	c2_mutex_lock(&conn->c_mutex);
+	machine = conn->c_rpc_machine;
+
+	c2_rpc_machine_lock(machine);
+
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
 
 	session = c2_rpc_session_search(conn, session_id);
-	if (session == NULL) {
+	if (session != NULL) {
+		while (session->s_state != C2_RPC_SESSION_IDLE)
+			c2_cond_wait(&session->s_state_changed,
+				     &machine->rm_mutex);
+
+		C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
+
+		rc = c2_rpc_rcv_session_terminate(session);
+		C2_ASSERT(ergo(rc != 0,
+			       session->s_state == C2_RPC_SESSION_FAILED));
+		C2_ASSERT(ergo(rc == 0,
+			       session->s_state == C2_RPC_SESSION_TERMINATED));
+
+		c2_rpc_session_fini_locked(session);
+		c2_free(session);
+	} else { /* session == NULL */
 		rc = -ENOENT;
-		c2_mutex_unlock(&conn->c_mutex);
-		goto errout;
 	}
-	c2_mutex_unlock(&conn->c_mutex);
 
-	rc = c2_rpc_rcv_session_terminate(session);
-	if (rc == -EPROTO) {
-		/*
-		 * session could not be terminated because session is not in
-		 * IDLE state.
-		 */
-		goto errout;
-	}
-	C2_ASSERT(ergo(rc != 0, session->s_state == C2_RPC_SESSION_FAILED));
-	C2_ASSERT(ergo(rc == 0, session->s_state == C2_RPC_SESSION_TERMINATED));
+	c2_rpc_machine_unlock(machine);
 
-	c2_rpc_session_fini(session);
-	c2_free(session);
-	/* fall through */
-errout:
 	reply->rstr_rc = rc;
 	C2_LOG("Session terminate %s: session [%p] rc [%d]\n",
 			(rc == 0) ? "successful" : "failed", session, rc);
@@ -503,6 +496,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	struct c2_fop                        *fop;
 	struct c2_fop                        *fop_rep;
 	struct c2_rpc_conn                   *conn;
+	struct c2_rpc_machine                *machine;
 	int                                   rc;
 
 	C2_PRE(fom != NULL);
@@ -523,11 +517,34 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 
 	conn = item->ri_session->s_conn;
 	C2_ASSERT(conn != NULL);
+
+	machine = conn->c_rpc_machine;
+
+	c2_rpc_machine_lock(machine);
+
 	rc = c2_rpc_rcv_conn_terminate(conn);
 
-	if (conn->c_state != C2_RPC_CONN_FAILED) {
-		C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE ||
-			  conn->c_state == C2_RPC_CONN_TERMINATING);
+	if (conn->c_state == C2_RPC_CONN_FAILED) {
+		/*
+		 * conn has been moved to FAILED state. fini() and free() it.
+		 * Cannot send reply back to sender. Sender will time-out and
+		 * set sender side conn to FAILED state.
+		 * XXX generate ADDB record here.
+		 */
+		C2_LOG("Conn terminate failed: conn [%p]\n", conn);
+		c2_rpc_conn_fini_locked(conn);
+
+		c2_rpc_machine_unlock(machine);
+
+		c2_free(conn);
+		fom->fo_phase = C2_FOPH_FINISH;
+		return C2_FSO_WAIT;
+	} else {
+		C2_ASSERT(C2_IN(conn->c_state, (C2_RPC_CONN_ACTIVE,
+						C2_RPC_CONN_TERMINATING)));
+
+		c2_rpc_machine_unlock(machine);
+
 		/*
 		 * In memory state of conn is not cleaned up, at this point.
 		 * conn will be finalised and freed in the ->rio_sent()
@@ -537,18 +554,6 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 		fom->fo_phase = C2_FOPH_FINISH;
 		C2_LOG("Conn terminate successful: conn [%p]\n", conn);
 		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
-		return C2_FSO_WAIT;
-	} else {
-		/*
-		 * conn has been moved to FAILED state. fini() and free() it.
-		 * Cannot send reply back to sender. Sender will time-out and
-		 * set sender side conn to FAILED state.
-		 * XXX generate ADDB record here.
-		 */
-		C2_LOG("Conn terminate failed: conn [%p]\n", conn);
-		c2_rpc_conn_fini(conn);
-		c2_free(conn);
-		fom->fo_phase = C2_FOPH_FINISH;
 		return C2_FSO_WAIT;
 	}
 }

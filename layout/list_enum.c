@@ -535,7 +535,7 @@ static int list_encode(const struct c2_layout_enum *le,
 	c2_bcount_t                 nbytes;
 	uint64_t                    lid;
 	uint32_t                    i;
-	int                         rc;
+	int                         rc = 0;
 
 	C2_PRE(le != NULL);
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||

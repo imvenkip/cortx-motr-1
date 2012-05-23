@@ -736,11 +736,14 @@ static void c2t1fs_disconnect_from_service(struct c2t1fs_service_context *ctx)
 	C2_ENTRY();
 
 	(void)c2_rpc_session_terminate_sync(&ctx->sc_session,
-						C2T1FS_RPC_TIMEOUT);
+					    C2T1FS_RPC_TIMEOUT);
+
+	/* session_fini() before conn_terminate is necessary, to detach
+	   session from connection */
+	c2_rpc_session_fini(&ctx->sc_session);
 
 	(void)c2_rpc_conn_terminate_sync(&ctx->sc_conn, C2T1FS_RPC_TIMEOUT);
 
-	c2_rpc_session_fini(&ctx->sc_session);
 	c2_rpc_conn_fini(&ctx->sc_conn);
 
 	ctx->sc_csb->csb_nr_active_contexts--;

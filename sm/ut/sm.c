@@ -50,7 +50,7 @@ static void ast_thread(int __d)
 
 static int init(void) {
 	c2_sm_group_init(&G);
-	return C2_THREAD_INIT(&ath, int, NULL, &ast_thread, 0, "ast_thread");
+	return 0;
 }
 
 static int fini(void) {
@@ -202,6 +202,9 @@ static void timeout(void)
 	struct c2_sm_timeout t1;
 	c2_time_t            delta;
 	int                  result;
+
+	result = C2_THREAD_INIT(&ath, int, NULL, &ast_thread, 0, "ast_thread");
+	C2_UT_ASSERT(result == 0);
 
 	c2_time_set(&delta, 0, C2_TIME_ONE_BILLION/100);
 
@@ -360,6 +363,7 @@ const struct c2_test_suite sm_ut = {
 		{ NULL, NULL }
 	}
 };
+C2_EXPORTED(sm_ut);
 
 /*
  *  Local variables:

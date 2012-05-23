@@ -39,9 +39,9 @@
  */
 
 #ifndef __KERNEL__
-# define C2_UT_ASSERT(a)	CU_ASSERT(a)
-# define C2_UT_PASS(m)		CU_PASS(m)
-# define C2_UT_FAIL(m)		CU_FAIL(m)
+# define C2_UT_ASSERT(a)	({ CU_ASSERT(a) })
+# define C2_UT_PASS(m)		({ CU_PASS(m) })
+# define C2_UT_FAIL(m)		({ CU_FAIL(m) })
 #else
 # define C2_UT_ASSERT(a)	c2_ut_assertimpl((a), __LINE__, #a, __FILE__)
 # define C2_UT_PASS(m)		c2_ut_assertimpl(true, __LINE__, m, __FILE__)
