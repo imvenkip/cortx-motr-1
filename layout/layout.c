@@ -876,7 +876,8 @@ void c2_layout_put(struct c2_layout *l)
 	C2_CNT_DEC(l->l_ref);
 	c2_mutex_unlock(&l->l_lock);
 
-	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
+	/* The layout may be freed at this point. Hence not printig the lid. */
+	C2_LEAVE();
 }
 
 /**

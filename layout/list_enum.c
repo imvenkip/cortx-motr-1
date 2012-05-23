@@ -28,6 +28,7 @@
 #include "lib/errno.h"
 #include "lib/vec.h"
 #include "lib/memory.h"
+#include "lib/misc.h" /* c2_forall() */
 #include "lib/bob.h"
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
@@ -105,9 +106,13 @@ static const struct c2_table_ops cob_lists_table_ops = {
  */
 static bool list_enum_invariant_internal(const struct c2_layout_list_enum *le)
 {
-	return le != NULL && le->lle_nr != NR_NONE &&
+	return
+		le != NULL &&
+		c2_layout_list_enum_bob_check(le) &&
+		le->lle_nr != NR_NONE &&
 		le->lle_list_of_cobs != NULL &&
-		c2_layout_list_enum_bob_check(le);
+		c2_forall(i, le->lle_nr,
+			  c2_fid_is_valid(&le->lle_list_of_cobs[i]));
 }
 
 static bool list_enum_invariant(const struct c2_layout_list_enum *le)
@@ -262,11 +267,8 @@ static void list_unregister(struct c2_layout_domain *dom,
 	C2_ENTRY("Enum_type_id %lu", (unsigned long)et->let_id);
 
 	lsd = dom->ld_schema.ls_type_data[et->let_id];
-
 	c2_table_fini(&lsd->lsd_cob_lists);
-
 	dom->ld_schema.ls_type_data[et->let_id] = NULL;
-
 	c2_free(lsd);
 
 	C2_LEAVE("Enum_type_id %lu", (unsigned long)et->let_id);
@@ -401,8 +403,8 @@ static int list_decode(struct c2_layout_domain *dom,
 		goto out;
 	}
 
-	num_inline = ce_header->ces_nr >= LDB_MAX_INLINE_COB_ENTRIES ?
-		     LDB_MAX_INLINE_COB_ENTRIES : ce_header->ces_nr;
+	num_inline = min_check(ce_header->ces_nr,
+			       (uint32_t)LDB_MAX_INLINE_COB_ENTRIES);
 
 	C2_ASSERT(ergo(op == C2_LXO_BUFFER_OP,
 		       c2_bufvec_cursor_step(cur) >=
@@ -553,8 +555,8 @@ static int list_encode(const struct c2_layout_enum *le,
 		 (unsigned long long)lid,
 		 (unsigned long)list_enum->lle_nr);
 
-	num_inline = list_enum->lle_nr >= LDB_MAX_INLINE_COB_ENTRIES ?
-		     LDB_MAX_INLINE_COB_ENTRIES : list_enum->lle_nr;
+	num_inline = min_check(list_enum->lle_nr,
+			       (uint32_t)LDB_MAX_INLINE_COB_ENTRIES);
 
 	if (op == C2_LXO_DB_UPDATE) {
 		ce_oldheader = c2_bufvec_cursor_addr(oldrec_cur);
