@@ -39,10 +39,10 @@
  * - struct c2_layout_rec
  *
  * @section Layout-DB-fspec-sub Subroutines
- * - int c2_layout_lookup(struct c2_layout_domain *dom, struct c2_db_tx *tx, struct c2_db_pair *pair, uint64_t lid, struct c2_layout **out);
- * - int c2_layout_add(struct c2_layout_domain *dom, struct c2_db_tx *tx, struct c2_db_pair *pair, struct c2_layout *l);
- * - int c2_layout_update(struct c2_layout_domain *dom, struct c2_db_tx *tx, struct c2_db_pair *pair, struct c2_layout *l);
-int c2_layout_delete(struct c2_layout_domain *dom, struct c2_db_tx *tx, struct c2_db_pair *pair, struct c2_layout *l);
+ * - int c2_layout_lookup(struct c2_layout_domain *dom, uint64_t lid, struct c2_db_tx *tx, struct c2_db_pair *pair, struct c2_layout **out);
+ * - int c2_layout_add(struct c2_layout *l, struct c2_db_tx *tx, struct c2_db_pair *pair);
+ * - int c2_layout_update(struct c2_layout *l, struct c2_db_tx *tx, struct c2_db_pair *pair);
+int c2_layout_delete(struct c2_layout *l, struct c2_db_tx *tx, struct c2_db_pair *pair);
  *
  * @subsection Layout-DB-fspec-sub-acc Accessors and Invariants
  *
@@ -126,19 +126,19 @@ struct c2_layout_rec {
 };
 
 int c2_layout_lookup(struct c2_layout_domain *dom,
+		     uint64_t lid,
 		     struct c2_db_tx *tx,
 		     struct c2_db_pair *pair,
-		     uint64_t lid,
 		     struct c2_layout **out);
-int c2_layout_add(struct c2_db_tx *tx,
-		  struct c2_db_pair *pair,
-		  struct c2_layout *l); // todo Make this 1st arg
-int c2_layout_update(struct c2_db_tx *tx,
-		     struct c2_db_pair *pair,
-		     struct c2_layout *l);
-int c2_layout_delete(struct c2_db_tx *tx,
-		     struct c2_db_pair *pair,
-		     struct c2_layout *l);
+int c2_layout_add(struct c2_layout *l,
+		  struct c2_db_tx *tx,
+		  struct c2_db_pair *pair);
+int c2_layout_update(struct c2_layout *l,
+		     struct c2_db_tx *tx,
+		     struct c2_db_pair *pair);
+int c2_layout_delete(struct c2_layout *l,
+		     struct c2_db_tx *tx,
+		     struct c2_db_pair *pair);
 
 /** @} end group LayoutDBDFS */
 

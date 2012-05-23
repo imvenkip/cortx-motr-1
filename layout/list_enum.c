@@ -100,20 +100,20 @@ static const struct c2_table_ops cob_lists_table_ops = {
 };
 
 /**
- * c2_list_enum_invariant() can not be invoked until an enumeration object
+ * list_enum_invariant() can not be invoked until an enumeration object
  * is associated with some layout object. Hence this separation.
  */
-bool list_enum_invariant_internal(const struct c2_layout_list_enum *list_enum)
+static bool list_enum_invariant_internal(const struct c2_layout_list_enum *le)
 {
-	return list_enum != NULL && list_enum->lle_nr != NR_NONE &&
-		list_enum->lle_list_of_cobs != NULL &&
-		c2_layout_list_enum_bob_check(list_enum);
+	return le != NULL && le->lle_nr != NR_NONE &&
+		le->lle_list_of_cobs != NULL &&
+		c2_layout_list_enum_bob_check(le);
 }
 
-bool c2_list_enum_invariant(const struct c2_layout_list_enum *list_enum)
+static bool list_enum_invariant(const struct c2_layout_list_enum *le)
 {
-	return list_enum_invariant_internal(list_enum) &&
-		enum_invariant(&list_enum->lle_base);
+	return list_enum_invariant_internal(le) &&
+		enum_invariant(&le->lle_base);
 }
 
 static const struct c2_layout_enum_ops list_enum_ops;
@@ -148,17 +148,8 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 		goto out;
 	}
 
-	rc = enum_init(dom, &list_enum->lle_base, &c2_list_enum_type,
-		       &list_enum_ops);
-	if (rc != 0) {
-		layout_log("c2_list_enum_build", "enum_init() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   &c2_addb_func_fail, &layout_global_ctx,
-			   LID_NONE, rc);
-		c2_free(list_enum);
-		goto out;
-	}
-
+	c2_layout__enum_init(dom, &list_enum->lle_base, &c2_list_enum_type,
+			     &list_enum_ops);
 	list_enum->lle_nr = nr;
 
 	C2_ALLOC_ARR(list_enum->lle_list_of_cobs, nr);
@@ -167,7 +158,7 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 		layout_log("c2_list_enum_build", "C2_ALLOC_ARR() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
 			   &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
-		enum_fini(&list_enum->lle_base);
+		c2_layout__enum_fini(&list_enum->lle_base);
 		c2_free(list_enum);
 		goto out;
 	}
@@ -181,7 +172,7 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 
 	*out = list_enum;
 	C2_POST(list_enum_invariant_internal(list_enum));
-
+	rc = 0;
 out:
 	C2_LEAVE("rc %d", rc);
 	return rc;
@@ -200,11 +191,11 @@ void list_fini(struct c2_layout_enum *e)
 	C2_ENTRY("");
 
 	list_enum = container_of(e, struct c2_layout_list_enum, lle_base);
-	C2_ASSERT(c2_list_enum_invariant(list_enum));
+	C2_ASSERT(list_enum_invariant(list_enum));
 
 	c2_layout_list_enum_bob_fini(list_enum);
 	c2_free(list_enum->lle_list_of_cobs);
-	enum_fini(&list_enum->lle_base);
+	c2_layout__enum_fini(&list_enum->lle_base);
 	c2_free(list_enum);
 
 	C2_LEAVE();
@@ -306,7 +297,7 @@ static c2_bcount_t list_recsize(struct c2_layout_enum *e)
 	C2_PRE(e != NULL);
 
 	list_enum = container_of(e, struct c2_layout_list_enum, lle_base);
-	C2_ASSERT(c2_list_enum_invariant(list_enum));
+	C2_ASSERT(list_enum_invariant(list_enum));
 
 	if (list_enum->lle_nr < LDB_MAX_INLINE_COB_ENTRIES)
 		return sizeof(struct cob_entries_header) +
@@ -541,7 +532,7 @@ static int list_encode(const struct c2_layout_enum *le,
 	c2_bcount_t                 nbytes;
 	uint64_t                    lid;
 	uint32_t                    i;
-	int                         rc = 0;
+	int                         rc;
 
 	C2_PRE(le != NULL);
 	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
@@ -555,7 +546,7 @@ static int list_encode(const struct c2_layout_enum *le,
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof ce_header);
 
 	list_enum = container_of(le, struct c2_layout_list_enum, lle_base);
-	C2_ASSERT(c2_list_enum_invariant(list_enum));
+	C2_ASSERT(list_enum_invariant(list_enum));
 
 	lid = le->le_l->l_id;
 	C2_ENTRY("lid %llu, nr %lu",
@@ -621,7 +612,7 @@ static int list_encode(const struct c2_layout_enum *le,
 			 * return from here.
 			 */
 			rc = 0;
-			goto out;
+			break;
 		} else {
 			/*
 			 * Write non-inline cob entries to the cob_lists
@@ -641,11 +632,19 @@ static int list_encode(const struct c2_layout_enum *le,
 				C2_LOG("list_encode(): lid %llu, "
 				       "cob_list_write() failed, rc %d",
 				       (unsigned long long)lid, rc);
-				goto out;
+				break;
 			}
 		}
 	}
-out:
+
+	/*
+	 * Set the rc in case there are only inline entries or if op is
+	 * C2_LXO_BUFFER_OP since the rc does not get initialised in those
+	 * cases.
+	 */
+	if (num_inline == list_enum->lle_nr || op == C2_LXO_BUFFER_OP)
+		rc = 0;
+
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
@@ -662,7 +661,7 @@ static uint32_t list_nr(const struct c2_layout_enum *le)
 	C2_PRE(le != NULL);
 
 	list_enum = container_of(le, struct c2_layout_list_enum, lle_base);
-	C2_ASSERT(c2_list_enum_invariant(list_enum));
+	C2_ASSERT(list_enum_invariant(list_enum));
 
 	return list_enum->lle_nr;
 }
@@ -682,7 +681,7 @@ static void list_get(const struct c2_layout_enum *le, uint32_t idx,
 	C2_PRE(out != NULL);
 
 	list_enum = container_of(le, struct c2_layout_list_enum, lle_base);
-	C2_ASSERT(c2_list_enum_invariant(list_enum));
+	C2_ASSERT(list_enum_invariant(list_enum));
 
 	C2_ASSERT(idx < list_enum->lle_nr);
 

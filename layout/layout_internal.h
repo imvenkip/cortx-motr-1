@@ -72,29 +72,31 @@ bool layout_invariant(const struct c2_layout *l);
 bool enum_invariant(const struct c2_layout_enum *le);
 bool striped_layout_invariant(const struct c2_layout_striped *stl);
 
-bool is_layout_type_valid(uint32_t lt_id, const struct c2_layout_domain *dom);
-bool is_enum_type_valid(uint32_t let_id, const struct c2_layout_domain *dom);
+bool c2_layout__is_layout_type_valid(uint32_t lt_id,
+				     const struct c2_layout_domain *dom);
+bool c2_layout__is_enum_type_valid(uint32_t let_id,
+				   const struct c2_layout_domain *dom);
 
-int layout_init(struct c2_layout_domain *dom,
-		struct c2_layout *l,
-		uint64_t lid, uint64_t pool_id,
-		const struct c2_layout_type *type,
-		const struct c2_layout_ops *ops);
-void layout_fini(struct c2_layout *l);
+void c2_layout__init(struct c2_layout_domain *dom,
+		     struct c2_layout *l,
+		     uint64_t lid, uint64_t pool_id,
+		     const struct c2_layout_type *type,
+		     const struct c2_layout_ops *ops);
+void c2_layout__fini(struct c2_layout *l);
 
-int striped_init(struct c2_layout_domain *dom,
-		 struct c2_layout_striped *str_l,
-		 struct c2_layout_enum *e,
-		 uint64_t lid, uint64_t pool_id,
-		 const struct c2_layout_type *type,
-		 const struct c2_layout_ops *ops);
-void striped_fini(struct c2_layout_striped *str_l);
+void c2_layout__striped_init(struct c2_layout_domain *dom,
+			     struct c2_layout_striped *str_l,
+			     struct c2_layout_enum *e,
+			     uint64_t lid, uint64_t pool_id,
+			     const struct c2_layout_type *type,
+			     const struct c2_layout_ops *ops);
+void c2_layout__striped_fini(struct c2_layout_striped *str_l);
 
-int enum_init(struct c2_layout_domain *dom,
-	      struct c2_layout_enum *le,
-	      const struct c2_layout_enum_type *et,
-	      const struct c2_layout_enum_ops *ops);
-void enum_fini(struct c2_layout_enum *le);
+void c2_layout__enum_init(struct c2_layout_domain *dom,
+			  struct c2_layout_enum *le,
+			  const struct c2_layout_enum_type *et,
+			  const struct c2_layout_enum_ops *ops);
+void c2_layout__enum_fini(struct c2_layout_enum *le);
 
 void layout_log(const char *fn_name,
 		const char *err_msg,

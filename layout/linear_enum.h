@@ -64,7 +64,6 @@ struct c2_layout_linear_enum {
 	uint64_t                     lla_magic;
 };
 
-bool c2_linear_enum_invariant(const struct c2_layout_linear_enum *lin_enum);
 int c2_linear_enum_build(struct c2_layout_domain *dom,
 			 uint32_t nr, uint32_t A, uint32_t B,
 			 struct c2_layout_linear_enum **out);

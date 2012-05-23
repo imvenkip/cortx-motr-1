@@ -61,7 +61,6 @@ struct c2_layout_list_enum {
 	uint64_t                lle_magic;
 };
 
-bool c2_list_enum_invariant(const struct c2_layout_list_enum *list_enum);
 int c2_list_enum_build(struct c2_layout_domain *dom,
 		       struct c2_fid *cob_list, uint32_t nr,
 		       struct c2_layout_list_enum **out);

@@ -266,8 +266,8 @@
  *   - Registration and unregistration routines for various layout types and
  *     enum types.
  *   - While increasing/decreasing reference on any layout type or enum type
- *     that happens through layout_init()/layout_fini and enum_init()/
- *     enum_fini() routines.
+ *     that happens through c2_layout__init()/c2_layout__fini and
+ *     c2_layout__enum_init()/c2_layout__enum_fini() routines.
  * - c2_layout_schema::ls_lock is held during the following operations:
  *   - Part of the layout type and enum type registration and unregistration
  *     routines those deal with creating and deleting various DB tables.
@@ -277,8 +277,8 @@
  * - Note: Having two separate locks for domain data and schema data helps
  *   avoid serialising all the c2_layout_decode() and c2_layout_encode()
  *   operations. The only part of those APIs that is serialised through holding
- *   c2_layout_domain::ld_lock is during layout_init() and enum_init()
- *   routines.
+ *   c2_layout_domain::ld_lock is during c2_layout__init() and
+ *   c2_layout__enum_init() routines.
  *
  * @subsection Layout-DB-lspec-numa NUMA optimizations
  *
@@ -414,7 +414,7 @@ static c2_bcount_t recsize_get(const struct c2_layout *l)
 	C2_PRE(layout_invariant(l));
 
 	lt = l->l_dom->ld_type[l->l_type->lt_id];
-	C2_ASSERT(is_layout_type_valid(lt->lt_id, l->l_dom));
+	C2_ASSERT(c2_layout__is_layout_type_valid(lt->lt_id, l->l_dom));
 
 	recsize = sizeof(struct c2_layout_rec) +
 		  lt->lt_ops->lto_recsize(l->l_dom, l);
@@ -536,9 +536,9 @@ static int rec_get(struct c2_db_tx *tx, struct c2_layout *l, void *area)
  * done with the use. It can be accomplished by using the API c2_layout_fini().
  */
 int c2_layout_lookup(struct c2_layout_domain *dom,
+		     uint64_t lid,
 		     struct c2_db_tx *tx,
 		     struct c2_db_pair *pair,
-		     uint64_t lid,
 		     struct c2_layout **out)
 {
 	int                      rc;
@@ -550,13 +550,13 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	void                    *rec_buf = pair->dp_rec.db_buf.b_addr;
 
 	C2_PRE(domain_invariant(dom));
+	C2_PRE(lid != LID_NONE);
 	C2_PRE(tx != NULL);
 	C2_PRE(pair != NULL);
 	C2_PRE(key_buf != NULL);
 	C2_PRE(rec_buf != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof lid);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_layout_rec));
-	C2_PRE(lid != LID_NONE);
 	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
@@ -619,22 +619,22 @@ out:
  * written specifically to the layouts table. It means it needs to be at the
  * most the size returned by c2_layout_max_recsize().
  */
-int c2_layout_add(struct c2_db_tx *tx,
-		  struct c2_db_pair *pair,
-		  struct c2_layout *l)
+int c2_layout_add(struct c2_layout *l,
+		  struct c2_db_tx *tx,
+		  struct c2_db_pair *pair)
 {
 	struct c2_bufvec         bv;
 	struct c2_bufvec_cursor  cur;
 	c2_bcount_t              recsize;
 	int                      rc;
 
+	C2_PRE(layout_invariant(l));
 	C2_PRE(tx != NULL);
 	C2_PRE(pair != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof l->l_id);
 	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_layout_rec));
-	C2_PRE(layout_invariant(l));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
@@ -685,9 +685,9 @@ out:
  * written specifically to the layouts table. It means it needs to be at the
  * most the size returned by c2_layout_max_recsize().
  */
-int c2_layout_update(struct c2_db_tx *tx,
-		     struct c2_db_pair *pair,
-		     struct c2_layout *l)
+int c2_layout_update(struct c2_layout *l,
+		     struct c2_db_tx *tx,
+		     struct c2_db_pair *pair)
 {
 	void                    *oldrec_area;
 	struct c2_bufvec         oldrec_bv;
@@ -697,13 +697,13 @@ int c2_layout_update(struct c2_db_tx *tx,
 	c2_bcount_t              recsize;
 	int                      rc;
 
+	C2_PRE(layout_invariant(l));
 	C2_PRE(tx != NULL);
 	C2_PRE(pair != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof l->l_id);
 	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_layout_rec));
-	C2_PRE(layout_invariant(l));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
@@ -784,9 +784,9 @@ out:
  * written specifically to the layouts table. It means it needs to be at the
  * most the size returned by c2_layout_max_recsize().
  */
-int c2_layout_delete(struct c2_db_tx *tx,
-		     struct c2_db_pair *pair,
-		     struct c2_layout *l)
+int c2_layout_delete(struct c2_layout *l,
+		     struct c2_db_tx *tx,
+		     struct c2_db_pair *pair)
 {
 	struct c2_bufvec         bv;
 	struct c2_bufvec_cursor  cur;

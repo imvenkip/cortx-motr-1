@@ -1848,7 +1848,7 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 
 	pair_set(&pair, &lid, area, num_bytes);
 
-	rc = c2_layout_lookup(&domain, &tx, &pair, lid, &l2);
+	rc = c2_layout_lookup(&domain, lid, &tx, &pair, &l2);
 
 	if (existing_test)
 		C2_UT_ASSERT(rc == 0)
@@ -1988,7 +1988,7 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 
 	pair_set(&pair, &lid, area, num_bytes);
 
-	rc = c2_layout_add(&tx, &pair, &pl->pl_base.ls_base);
+	rc = c2_layout_add(&pl->pl_base.ls_base, &tx, &pair);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_db_tx_commit(&tx);
@@ -2004,7 +2004,7 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 
 		pair_set(&pair, &lid, area, num_bytes);
 
-		rc = c2_layout_lookup(&domain, &tx, &pair, lid, &l);
+		rc = c2_layout_lookup(&domain, lid, &tx, &pair, &l);
 		C2_UT_ASSERT(rc == 0);
 
 		rc = c2_db_tx_commit(&tx);
@@ -2031,7 +2031,7 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 
 		pair_set(&pair, &lid, area, num_bytes);
 
-		rc = c2_layout_add(&tx, &pair, &pl->pl_base.ls_base);
+		rc = c2_layout_add(&pl->pl_base.ls_base, &tx, &pair);
 		C2_UT_ASSERT(rc == -EEXIST);
 
 		rc = c2_db_tx_commit(&tx);
@@ -2151,7 +2151,7 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 
 	pair_set(&pair, &lid, area, num_bytes);
 
-	rc = c2_layout_update(&tx, &pair, l1);
+	rc = c2_layout_update(l1, &tx, &pair);
 	if (existing_test)
 		C2_UT_ASSERT(rc == 0)
 	else
@@ -2170,7 +2170,7 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 
 		pair_set(&pair, &lid, area, num_bytes);
 
-		rc = c2_layout_lookup(&domain, &tx, &pair, lid, &l2);
+		rc = c2_layout_lookup(&domain, lid, &tx, &pair, &l2);
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(l2->l_ref == DEFAULT_REF_COUNT + 7654);
 
@@ -2296,7 +2296,7 @@ static int test_delete_pdclust(uint32_t enum_id, uint64_t lid,
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_layout_delete(&tx, &pair, l);
+	rc = c2_layout_delete(l, &tx, &pair);
 	if (existing_test)
 		C2_UT_ASSERT(rc == 0)
 	else
@@ -2316,7 +2316,7 @@ static int test_delete_pdclust(uint32_t enum_id, uint64_t lid,
 
 	pair_set(&pair, &lid, area, num_bytes);
 
-	rc = c2_layout_lookup(&domain, &tx, &pair, lid, &l);
+	rc = c2_layout_lookup(&domain, lid, &tx, &pair, &l);
 	C2_UT_ASSERT(rc == -ENOENT);
 
 	rc = c2_db_tx_commit(&tx);

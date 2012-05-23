@@ -155,8 +155,8 @@ static int composite_decode(struct c2_layout_domain *dom,
 
 	C2_ALLOC_PTR(cl);
 
-	layout_init(dom, &cl->cl_base, lid, pool_id,
-		    &c2_composite_layout_type, &composite_ops);
+	c2_layout__init(dom, &cl->cl_base, lid, pool_id,
+			&c2_composite_layout_type, &composite_ops);
 
 	if (op == C2_LXO_DB_LOOKUP) {
 		Read all the segments from the comp_layout_ext_map table,

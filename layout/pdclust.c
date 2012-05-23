@@ -85,6 +85,7 @@
 #include "lib/memory.h" /* C2_ALLOC_PTR(), C2_ALLOC_ARR(), c2_free() */
 #include "lib/arith.h"  /* c2_rnd() */
 #include "lib/bob.h"
+#include "lib/misc.h"   /* c2_forall */
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
@@ -187,44 +188,29 @@ static void permute(uint32_t n, uint32_t *k, uint32_t *s, uint32_t *r)
 	r[s[n - 1]] = n - 1;
 }
 
-bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play)
+static bool pdclust_invariant(const struct c2_pdclust_layout *play)
 {
-	uint32_t                 i;
 	uint32_t                 P;
 	const struct tile_cache *tc;
 
-	if (play == NULL)
-		return false;
-
-	if (!c2_pdclust_layout_bob_check(play))
-		return false;
-
-	if (!striped_layout_invariant(&play->pl_base))
-		return false;
-
 	P = play->pl_attr.pa_P;
-
 	tc = &play->pl_tile_cache;
-	/*
-	 * tc->tc_permute[] and tc->tc_inverse[] are mutually inverse bijections
-	 * of {0, ..., P - 1}.
-	 */
-	for (i = 0; i < P; ++i) {
-		if (tc->tc_lcode[i] + i >= P)
-			return false;
-		if (tc->tc_permute[i] >= P || tc->tc_inverse[i] >= P)
-			return false;
-		if (tc->tc_permute[tc->tc_inverse[i]] != i)
-			return false;
-		if (tc->tc_inverse[tc->tc_permute[i]] != i)
-			return false;
-		/*
-		 * existence of inverse guarantees that tc->tc_permute[] is a
-		 * bijection.
-		 */
-	}
+
 	return
-		play->pl_C * (play->pl_attr.pa_N + 2*play->pl_attr.pa_K) == play->pl_L * P;
+		play != NULL &&
+		c2_pdclust_layout_bob_check(play) &&
+		striped_layout_invariant(&play->pl_base) &&
+		/*
+		 * tc->tc_permute[] and tc->tc_inverse[] are mutually inverse
+		 * bijections of {0, ..., P - 1}.
+		 */
+		c2_forall(i, P,
+			  tc->tc_lcode[i] + i < P &&
+			  (tc->tc_permute[i] < P && tc->tc_inverse[i] < P) &&
+			  tc->tc_permute[tc->tc_inverse[i]] == i &&
+			  tc->tc_inverse[tc->tc_permute[i]] == i) &&
+		play->pl_C * (play->pl_attr.pa_N + 2*play->pl_attr.pa_K) ==
+		play->pl_L * P;
 }
 
 /**
@@ -315,7 +301,7 @@ void c2_pdclust_layout_map(struct c2_pdclust_layout *play,
 	C = play->pl_C;
 	L = play->pl_L;
 
-	C2_ASSERT(c2_pdclust_layout_invariant(play));
+	C2_ASSERT(pdclust_invariant(play));
 
 	/*
 	 * first translate source address into a tile number and parity group
@@ -359,7 +345,7 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 	r = tgt->ta_frame;
 	t = tgt->ta_obj;
 
-	C2_ASSERT(c2_pdclust_layout_invariant(play));
+	C2_ASSERT(pdclust_invariant(play));
 
 	/*
 	 * execute inverses of the steps of c2_pdclust_layout_map() in reverse
@@ -383,7 +369,7 @@ static void pdclust_fini(struct c2_layout *l)
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
 	pl = container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
-	C2_ASSERT(c2_pdclust_layout_invariant(pl));
+	C2_ASSERT(pdclust_invariant(pl));
 
 	c2_pdclust_layout_bob_fini(pl);
 
@@ -401,7 +387,7 @@ static void pdclust_fini(struct c2_layout *l)
 		c2_free(pl->pl_tgt);
 	}
 
-	striped_fini(&pl->pl_base);
+	c2_layout__striped_fini(&pl->pl_base);
 
 	c2_free(pl);
 
@@ -475,13 +461,8 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 		goto out;
 	}
 
-	rc = striped_init(dom, &pdl->pl_base, le, lid, pool->po_id,
-			  &c2_pdclust_layout_type, &pdclust_ops);
-	if (rc != 0) {
-		C2_LOG("c2_pdclust_build(): lid %llu, striped_init() "
-		       "failed, rc %d", (unsigned long long)lid, rc);
-		goto out;
-	}
+	c2_layout__striped_init(dom, &pdl->pl_base, le, lid, pool->po_id,
+				&c2_pdclust_layout_type, &pdclust_ops);
 
 	pdl->pl_attr.pa_seed      = *seed;
 	pdl->pl_attr.pa_N         = N;
@@ -519,7 +500,7 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 out:
 	if (rc == 0) {
 		*out = pdl;
-		C2_POST(c2_pdclust_layout_invariant(pdl));
+		C2_POST(pdclust_invariant(pdl));
 	}
 	else
 		pdclust_fini(&pdl->pl_base.ls_base);
@@ -575,10 +556,10 @@ static c2_bcount_t pdclust_recsize(const struct c2_layout_domain *dom,
 	C2_PRE(l!= NULL);
 
 	pl = container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
-	C2_ASSERT(c2_pdclust_layout_invariant(pl));
+	C2_ASSERT(pdclust_invariant(pl));
 
 	et = dom->ld_enum[pl->pl_base.ls_enum->le_type->let_id];
-	C2_ASSERT(is_enum_type_valid(et->let_id, dom));
+	C2_ASSERT(c2_layout__is_enum_type_valid(et->let_id, dom));
 
 	e_recsize = et->let_ops->leto_recsize(pl->pl_base.ls_enum);
 
@@ -625,7 +606,7 @@ static int pdclust_decode(struct c2_layout_domain *dom,
 	pl_rec = c2_bufvec_cursor_addr(cur);
 
 	et = dom->ld_enum[pl_rec->pr_let_id];
-	C2_ASSERT(is_enum_type_valid(et->let_id, dom));
+	C2_ASSERT(c2_layout__is_enum_type_valid(et->let_id, dom));
 
 	c2_bufvec_cursor_move(cur, sizeof *pl_rec);
 
@@ -658,7 +639,7 @@ static int pdclust_decode(struct c2_layout_domain *dom,
 	}
 
 	*out = &pl->pl_base.ls_base;
-	C2_POST(c2_pdclust_layout_invariant(pl));
+	C2_POST(pdclust_invariant(pl));
 
 out:
 	if (rc != 0 && e != NULL) {
@@ -696,7 +677,7 @@ static int pdclust_encode(struct c2_layout *l,
 	int                           rc;
 
 	/*
-	 * layout_invariant() is part of c2_pdclust_layout_invariant(),
+	 * layout_invariant() is part of pdclust_invariant(),
 	 * to be invoked little later below.
 	 */
 	C2_PRE(l != NULL);
@@ -713,7 +694,7 @@ static int pdclust_encode(struct c2_layout *l,
 	C2_ENTRY("%llu", (unsigned long long)l->l_id);
 
 	pl = container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
-	C2_ASSERT(c2_pdclust_layout_invariant(pl));
+	C2_ASSERT(pdclust_invariant(pl));
 
 	if (op == C2_LXO_DB_UPDATE) {
 		/*
@@ -734,7 +715,7 @@ static int pdclust_encode(struct c2_layout *l,
 	}
 
 	et = l->l_dom->ld_enum[pl->pl_base.ls_enum->le_type->let_id];
-	C2_ASSERT(is_enum_type_valid(et->let_id, l->l_dom));
+	C2_ASSERT(c2_layout__is_enum_type_valid(et->let_id, l->l_dom));
 
 	pl_rec.pr_let_id  = pl->pl_base.ls_enum->le_type->let_id;
 	pl_rec.pr_attr    = pl->pl_attr;

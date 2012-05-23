@@ -245,8 +245,6 @@ struct c2_pdclust_tgt_addr {
 	uint64_t ta_obj;
 };
 
-bool c2_pdclust_layout_invariant(const struct c2_pdclust_layout *play);
-
 /**
  * Layout mapping function.
  *
