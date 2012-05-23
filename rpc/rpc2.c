@@ -363,6 +363,7 @@ static void rpc_recv_pool_buffer_put(struct c2_net_buffer *nb)
 	C2_PRE(tm->ntm_recv_pool != NULL && nb->nb_pool !=NULL);
 	C2_PRE(tm->ntm_recv_pool == nb->nb_pool);
 
+	nb->nb_ep = NULL;
 	c2_net_buffer_pool_lock(tm->ntm_recv_pool);
 	c2_net_buffer_pool_put(tm->ntm_recv_pool, nb,
 			       tm->ntm_pool_colour);
@@ -621,7 +622,7 @@ last:
 
 			if (c2_rpc_item_is_conn_establish(item))
 				c2_rpc_fop_conn_establish_ctx_init(item,
-								   nb->nb_ep,
+								   ev->nbe_ep,
 								   machine);
 
 			item->ri_rpc_time = now;
