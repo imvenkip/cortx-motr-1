@@ -32,6 +32,7 @@
 #include "lib/errno.h"
 #include "lib/misc.h"
 #include "lib/types.h"
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
 #include "rpc/session.h"
 #include "rpc/session_internal.h"
