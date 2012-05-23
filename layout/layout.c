@@ -30,6 +30,7 @@
 #include "lib/errno.h"
 #include "lib/misc.h"  /* strlen() */
 #include "lib/vec.h"   /* c2_bufvec_cursor_step(), c2_bufvec_cursor_addr() */
+#include "lib/bob.h"
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
@@ -42,6 +43,19 @@
 extern const struct c2_layout_type c2_pdclust_layout_type;
 extern const struct c2_layout_enum_type c2_list_enum_type;
 extern const struct c2_layout_enum_type c2_linear_enum_type;
+
+enum {
+	LAYOUT_MAGIC = 0x4C41594F55544D41 /* LAYOUTMA */
+};
+
+static const struct c2_bob_type layout_bob = {
+	.bt_name         = "layout",
+	.bt_magix_offset = offsetof(struct c2_layout, l_magic),
+	.bt_magix        = LAYOUT_MAGIC,
+	.bt_check        = NULL
+};
+
+C2_BOB_DEFINE(static, &layout_bob, c2_layout);
 
 /** ADDB instrumentation for layout. */
 static const struct c2_addb_ctx_type layout_addb_ctx_type = {
@@ -86,12 +100,17 @@ C2_ADDB_EV_DEFINE(layout_delete_fail, "layout_delete_fail",
 
 bool domain_invariant(const struct c2_layout_domain *dom)
 {
-	return dom != NULL && dom->ld_schema.ls_dbenv != NULL;
+	return
+		dom != NULL &&
+		dom->ld_schema.ls_dbenv != NULL;
 }
 
 bool layout_invariant(const struct c2_layout *l)
 {
-	return l != NULL && l->l_id != LID_NONE &&
+	return
+		l != NULL &&
+		c2_layout_bob_check(l) &&
+		l->l_id != LID_NONE &&
 		l->l_type != NULL &&
 		domain_invariant(l->l_dom) &&
 		l->l_ref >= DEFAULT_REF_COUNT &&
@@ -101,19 +120,25 @@ bool layout_invariant(const struct c2_layout *l)
 
 bool enum_invariant(const struct c2_layout_enum *le)
 {
-	return le != NULL && le->le_l != NULL && le->le_ops != NULL;
+	return
+		le != NULL &&
+		le->le_l != NULL &&
+		le->le_ops != NULL;
 }
 
 bool striped_layout_invariant(const struct c2_layout_striped *stl)
 {
-	return stl != NULL && enum_invariant(stl->ls_enum) &&
+	return
+		stl != NULL &&
+		enum_invariant(stl->ls_enum) &&
 		layout_invariant(&stl->ls_base);
 }
 
 static int layout_rec_invariant(const struct c2_layout_rec *rec,
 				const struct c2_layout_domain *dom)
 {
-	return rec != NULL &&
+	return
+		rec != NULL &&
 		c2_layout__is_layout_type_valid(rec->lr_lt_id, dom) &&
 		rec->lr_ref_count >= DEFAULT_REF_COUNT &&
 		c2_pool_id_is_valid(rec->lr_pool_id);
@@ -258,6 +283,8 @@ void c2_layout__init(struct c2_layout_domain *dom,
 	c2_addb_ctx_init(&l->l_addb, &layout_addb_ctx_type,
 			 &layout_global_ctx);
 
+	c2_layout_bob_init(l);
+
 	C2_POST(layout_invariant(l));
 	C2_LEAVE("lid %llu", (unsigned long long)lid);
 }
@@ -269,6 +296,7 @@ void c2_layout__fini(struct c2_layout *l)
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
+	c2_layout_bob_fini(l);
 	c2_addb_ctx_fini(&l->l_addb);
 	c2_mutex_fini(&l->l_lock);
 

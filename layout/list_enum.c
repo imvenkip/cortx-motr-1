@@ -42,7 +42,7 @@ extern const struct c2_addb_loc layout_addb_loc;
 extern struct c2_addb_ctx layout_global_ctx;
 
 enum {
-	LIST_ENUM_MAGIC = 0x4C495354454E554DULL, /* LISTENUM */
+	LIST_ENUM_MAGIC = 0x4C495354454E554DULL /* LISTENUM */
 };
 
 static const struct c2_bob_type list_enum_bob = {
@@ -117,7 +117,8 @@ static bool list_enum_invariant_internal(const struct c2_layout_list_enum *le)
 
 static bool list_enum_invariant(const struct c2_layout_list_enum *le)
 {
-	return list_enum_invariant_internal(le) &&
+	return
+		list_enum_invariant_internal(le) &&
 		enum_invariant(&le->lle_base);
 }
 

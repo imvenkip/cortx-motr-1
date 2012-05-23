@@ -205,6 +205,8 @@ struct c2_layout {
 	const struct c2_layout_ops  *l_ops;
 
 	struct c2_addb_ctx           l_addb;
+
+	uint64_t                     l_magic;
 };
 
 struct c2_layout_ops {

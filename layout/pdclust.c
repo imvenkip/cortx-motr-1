@@ -84,8 +84,8 @@
 #include "lib/errno.h"
 #include "lib/memory.h" /* C2_ALLOC_PTR(), C2_ALLOC_ARR(), c2_free() */
 #include "lib/arith.h"  /* c2_rnd() */
-#include "lib/bob.h"
 #include "lib/misc.h"   /* c2_forall */
+#include "lib/bob.h"
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"

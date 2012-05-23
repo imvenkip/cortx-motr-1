@@ -41,7 +41,7 @@ extern const struct c2_addb_loc layout_addb_loc;
 extern struct c2_addb_ctx layout_global_ctx;
 
 enum {
-	LINEAR_ENUM_MAGIC = 0x4C494E2D454E554DULL, /* LIN-ENUM */
+	LINEAR_ENUM_MAGIC = 0x4C494E2D454E554DULL /* LIN-ENUM */
 };
 
 static const struct c2_bob_type linear_enum_bob = {
@@ -60,7 +60,8 @@ C2_BOB_DEFINE(static, &linear_enum_bob, c2_layout_linear_enum);
 static bool linear_enum_invariant_internal(
 					const struct c2_layout_linear_enum *le)
 {
-	return le != NULL &&
+	return
+		le != NULL &&
 		le->lle_attr.lla_nr != NR_NONE &&
 		le->lle_attr.lla_B != 0 &&
 		c2_layout_linear_enum_bob_check(le);
@@ -68,7 +69,8 @@ static bool linear_enum_invariant_internal(
 
 static bool linear_enum_invariant(const struct c2_layout_linear_enum *le)
 {
-	return linear_enum_invariant_internal(le) &&
+	return
+		linear_enum_invariant_internal(le) &&
 		enum_invariant(&le->lle_base);
 }
 
