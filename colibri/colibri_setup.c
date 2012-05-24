@@ -670,10 +670,10 @@ static struct c2_net_buffer_pool *cs_buffer_pool_get(struct c2_colibri *cctx,
 	C2_PRE(ndom != NULL);
 	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
 
-	c2_tlist_for(&cs_buffer_pools_tl, &cctx->cc_buffer_pools, cs_bp) {
+	c2_tl_for(cs_buffer_pools, &cctx->cc_buffer_pools, cs_bp) {
 		if (cs_bp->cs_buffer_pool.nbp_ndom == ndom)
 			return &cs_bp->cs_buffer_pool;
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	return NULL;
 }
 
@@ -717,7 +717,8 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 	if (rpcmach == NULL)
 		return -ENOMEM;
 
-	C2_ASSERT(max_rpc_msg_size <= c2_net_domain_get_max_buffer_size(ndom));
+	if (max_rpc_msg_size > c2_net_domain_get_max_buffer_size(ndom))
+		return -EINVAL;
 
 	rpcmach->rm_min_recv_size = max_rpc_msg_size != 0 ? max_rpc_msg_size :
 				    c2_net_domain_get_max_buffer_size(ndom);
@@ -810,8 +811,8 @@ static void cs_rpc_machines_fini(struct c2_reqh *reqh)
 
 static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 {
-	int		          rc;
-	struct c2_net_domain     *ndom;
+	int		          rc = 0;
+	struct c2_net_domain     *dom;
 	struct c2_cs_buffer_pool *cs_bp;
 	uint32_t		  segs_nr;
 	uint32_t		  tms_nr;
@@ -822,21 +823,16 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 	C2_PRE(cctx != NULL);
 	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
 
-	rc = 0;
-        if(!ndom_tlist_is_empty(&cctx->cc_ndoms))
-		rc = -EINVAL;
-
-	c2_tlist_for(&ndom_tl, &cctx->cc_ndoms, ndom) {
-
-		max_recv_queue_len = cs_dom_tm_min_recv_queue_total(cctx, ndom);
-		tms_nr		   = cs_domain_tms_nr(cctx, ndom);
+	c2_tl_for(ndom, &cctx->cc_ndoms, dom) {
+		max_recv_queue_len = cs_dom_tm_min_recv_queue_total(cctx, dom);
+		tms_nr		   = cs_domain_tms_nr(cctx, dom);
 		C2_ASSERT(max_recv_queue_len >= tms_nr);
 		bufs_nr		   = max_recv_queue_len + max32u(tms_nr / 4, 1)
 				     + C2_NET_BUFFER_POOL_THRESHOLD;
 		seg_size	   =
-			min64u(c2_net_domain_get_max_buffer_segment_size(ndom),
+			min64u(c2_net_domain_get_max_buffer_segment_size(dom),
 			       C2_SEG_SIZE);
-		segs_nr		   = c2_net_domain_get_max_buffer_size(ndom) /
+		segs_nr		   = c2_net_domain_get_max_buffer_size(dom) /
 				     seg_size;
 
 		C2_ALLOC_PTR(cs_bp);
@@ -844,16 +840,15 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 			rc = -ENOMEM;
 			break;
 		}
-		rc = c2_rpc_net_buffer_pool_setup(ndom, &cs_bp->cs_buffer_pool,
+		rc = c2_rpc_net_buffer_pool_setup(dom, &cs_bp->cs_buffer_pool,
 						  segs_nr, seg_size,
 						  bufs_nr, tms_nr);
 		if (rc != 0) {
 			c2_free(cs_bp);
 			break;
 		}
-		cs_buffer_pools_tlink_init(cs_bp);
-		cs_buffer_pools_tlist_add(&cctx->cc_buffer_pools, cs_bp);
-	} c2_tlist_endfor;
+		cs_buffer_pools_tlink_init_at_tail(cs_bp, &cctx->cc_buffer_pools);
+	} c2_tl_endfor;
 
 	if (rc < 0)
 		cs_buffer_pool_fini(cctx);
@@ -1703,9 +1698,8 @@ static uint32_t cs_domain_tms_nr(struct c2_colibri *cctx,
 	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
         C2_ASSERT(!rhctx_tlist_is_empty(&cctx->cc_reqh_ctxs));
 
-	c2_tlist_for(&rhctx_tl, &cctx->cc_reqh_ctxs, rctx) {
-		C2_ASSERT(!cs_eps_tlist_is_empty(&rctx->rc_eps));
-		c2_tlist_for(&cs_eps_tl, &rctx->rc_eps, ep) {
+	c2_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
+		c2_tl_for(cs_eps, &rctx->rc_eps, ep) {
 			if(strcmp(ep->ex_xprt, dom->nd_xprt->nx_name) == 0)
 				ep->ex_tm_colour = cnt++;
 		} c2_tl_endfor;
@@ -1729,12 +1723,10 @@ static uint32_t cs_dom_tm_min_recv_queue_total(struct c2_colibri *cctx,
 
 	C2_PRE(cctx != NULL);
 	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
-        C2_ASSERT(!rhctx_tlist_is_empty(&cctx->cc_reqh_ctxs));
 
-	c2_tlist_for(&rhctx_tl, &cctx->cc_reqh_ctxs, rctx) {
+	c2_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
 		C2_ASSERT(cs_reqh_context_bob_check(rctx));
-		C2_ASSERT(!cs_eps_tlist_is_empty(&rctx->rc_eps));
-		c2_tlist_for(&cs_eps_tl, &rctx->rc_eps, ep) {
+		c2_tl_for(cs_eps, &rctx->rc_eps, ep) {
 			if(strcmp(ep->ex_xprt, dom->nd_xprt->nx_name) == 0)
 				min_queue_len_total +=
 					rctx->rc_recv_queue_min_length;
@@ -1768,7 +1760,8 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
                         return -EINVAL;
                 }
 
-		if (rctx->rc_recv_queue_min_length == 0)
+		if (rctx->rc_recv_queue_min_length <
+		    C2_NET_TM_RECV_QUEUE_DEF_LEN)
 			rctx->rc_recv_queue_min_length =
 				cctx->cc_recv_queue_min_length;
 
