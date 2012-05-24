@@ -594,9 +594,6 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 		goto out;
 	}
 
-	layout_log("c2_layout_lookup", NULL, PRINT_ADDB_MSG, !PRINT_TRACE_MSG,
-		   &layout_lookup_success, &(*out)->l_addb, lid, rc);
-
 out:
 	c2_db_pair_fini(pair);
 	c2_mutex_unlock(&dom->ld_schema.ls_lock);
@@ -663,8 +660,6 @@ int c2_layout_add(struct c2_layout *l,
 		goto out;
 	}
 
-	layout_log("c2_layout_add", NULL, PRINT_ADDB_MSG, !PRINT_TRACE_MSG,
-		   &layout_add_success, &l->l_addb, l->l_id, rc);
 out:
 	c2_mutex_unlock(&l->l_dom->ld_schema.ls_lock);
 
@@ -760,9 +755,6 @@ int c2_layout_update(struct c2_layout *l,
 		goto out;
 	}
 
-	layout_log("c2_layout_update", NULL, PRINT_ADDB_MSG, !PRINT_TRACE_MSG,
-		   &layout_update_success, &l->l_addb, l->l_id, rc);
-
 out:
 	c2_free(oldrec_area);
 	c2_mutex_unlock(&l->l_dom->ld_schema.ls_lock);
@@ -827,9 +819,6 @@ int c2_layout_delete(struct c2_layout *l,
 			   &layout_delete_fail, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
-
-	layout_log("c2_layout_delete", NULL, PRINT_ADDB_MSG, !PRINT_TRACE_MSG,
-		   &layout_delete_success, &l->l_addb, l->l_id, rc);
 
 out:
 	c2_mutex_unlock(&l->l_dom->ld_schema.ls_lock);

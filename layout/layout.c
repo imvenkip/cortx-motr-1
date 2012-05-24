@@ -72,29 +72,17 @@ struct c2_addb_ctx layout_global_ctx = {
 	.ac_parent = NULL
 };
 
-C2_ADDB_EV_DEFINE(layout_decode_success, "layout_decode_success",
-		  C2_ADDB_EVENT_LAYOUT_DECODE_SUCCESS, C2_ADDB_FLAG);
 C2_ADDB_EV_DEFINE(layout_decode_fail, "layout_decode_fail",
 		  C2_ADDB_EVENT_LAYOUT_DECODE_FAIL, C2_ADDB_FUNC_CALL);
-C2_ADDB_EV_DEFINE(layout_encode_success, "layout_encode_success",
-		  C2_ADDB_EVENT_LAYOUT_ENCODE_SUCCESS, C2_ADDB_FLAG);
 C2_ADDB_EV_DEFINE(layout_encode_fail, "layout_encode_fail",
 		  C2_ADDB_EVENT_LAYOUT_ENCODE_FAIL, C2_ADDB_FUNC_CALL);
 
-C2_ADDB_EV_DEFINE(layout_lookup_success, "layout_lookup_success",
-		  C2_ADDB_EVENT_LAYOUT_LOOKUP_SUCCESS, C2_ADDB_FLAG);
 C2_ADDB_EV_DEFINE(layout_lookup_fail, "layout_lookup_fail",
 		  C2_ADDB_EVENT_LAYOUT_LOOKUP_FAIL, C2_ADDB_FUNC_CALL);
-C2_ADDB_EV_DEFINE(layout_add_success, "layout_add_success",
-		  C2_ADDB_EVENT_LAYOUT_ADD_SUCCESS, C2_ADDB_FLAG);
 C2_ADDB_EV_DEFINE(layout_add_fail, "layout_add_fail",
 		  C2_ADDB_EVENT_LAYOUT_ADD_FAIL, C2_ADDB_FUNC_CALL);
-C2_ADDB_EV_DEFINE(layout_update_success, "layout_update_success",
-		  C2_ADDB_EVENT_LAYOUT_UPDATE_SUCCESS, C2_ADDB_FLAG);
 C2_ADDB_EV_DEFINE(layout_update_fail, "layout_update_fail",
 		  C2_ADDB_EVENT_LAYOUT_UPDATE_FAIL, C2_ADDB_FUNC_CALL);
-C2_ADDB_EV_DEFINE(layout_delete_success, "layout_delete_success",
-		  C2_ADDB_EVENT_LAYOUT_DELETE_SUCCESS, C2_ADDB_FLAG);
 C2_ADDB_EV_DEFINE(layout_delete_fail, "layout_delete_fail",
 		  C2_ADDB_EVENT_LAYOUT_DELETE_FAIL, C2_ADDB_FUNC_CALL);
 
@@ -502,11 +490,8 @@ static void max_recsize_update(struct c2_layout_domain *dom)
 }
 
 /**
- * This method performs the following operations:
- * 1) For a success case, adds an ADDB message indicating suceessful
- *    termination of the API.
- * 2) For a failure case, adds an ADDB message indicating failure along with
- *    a short error message string and the error code.
+ * This method adds an ADDB message indicating failure along with a short
+ * error message string and the error code.
  */
 static void layout_addb_add(struct c2_addb_ctx *ctx,
 			    const struct c2_addb_ev *ev,
@@ -521,44 +506,25 @@ static void layout_addb_add(struct c2_addb_ctx *ctx,
 	case C2_ADDB_EVENT_OOM:
 		C2_ADDB_ADD(ctx, &layout_addb_loc, c2_addb_oom);
 		break;
-	case C2_ADDB_EVENT_LAYOUT_DECODE_SUCCESS:
-		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_decode_success, true);
-		break;
 	case C2_ADDB_EVENT_LAYOUT_DECODE_FAIL:
 		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_decode_fail,
 			    err_msg, rc);
-		break;
-	case C2_ADDB_EVENT_LAYOUT_ENCODE_SUCCESS:
-		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_encode_success, true);
 		break;
 	case C2_ADDB_EVENT_LAYOUT_ENCODE_FAIL:
 		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_encode_fail,
 			    err_msg, rc);
 		break;
-	case C2_ADDB_EVENT_LAYOUT_LOOKUP_SUCCESS:
-		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_lookup_success, true);
-		break;
 	case C2_ADDB_EVENT_LAYOUT_LOOKUP_FAIL:
 		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_lookup_fail,
 			    err_msg, rc);
-		break;
-	case C2_ADDB_EVENT_LAYOUT_ADD_SUCCESS:
-		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_add_success, true);
 		break;
 	case C2_ADDB_EVENT_LAYOUT_ADD_FAIL:
 		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_add_fail,
 			    err_msg, rc);
 		break;
-	case C2_ADDB_EVENT_LAYOUT_UPDATE_SUCCESS:
-		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_update_success, true);
-		break;
 	case C2_ADDB_EVENT_LAYOUT_UPDATE_FAIL:
 		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_update_fail,
 			    err_msg, rc);
-		break;
-	case C2_ADDB_EVENT_LAYOUT_DELETE_SUCCESS:
-		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_delete_success,
-			    true);
 		break;
 	case C2_ADDB_EVENT_LAYOUT_DELETE_FAIL:
 		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_delete_fail,
@@ -572,14 +538,15 @@ static void layout_addb_add(struct c2_addb_ctx *ctx,
 /**
  * This method performs the following operations:
  * 1) If value of the flag if_addb_msg is true, then it invokes
- *    layout_addb_add() to add an ADDB message.
- * 2) If value of the flag if_trace_msg is true and if it is a failure case
- *    (indicated by rc != 0), then it adds a C2_LOG message (trace message),
- *    indicating failure, along with a short error message string and the
- *    error code.
- * 3) Note: For a suceesss case (indicated by rc == 0), C2_LEAVE() (trace
- *    message) invoked through the API itself, anyway indicates successful
- *    termination of the API without any error.
+ *    layout_addb_add() to add an ADDB record.
+ * 2) If value of the flag if_trace_msg is true, then it adds a C2_LOG message
+ *    (trace message), indicating failure, along with a short error message
+ *    string and the error code.
+ * 3) Note: For suceesss cases (indicated by rc == 0), layout_log() is never
+ *    invoked since:
+ *    (i) ADDB records are not expected to be added in success cases.
+ *    (ii) C2_LEAVE() or C2_LOG() are used firectly to log the trace messages,
+ *         avoiding the function call overhead.
  *
  * @param addb_msg Indicates if ADDB message is to be printed.
  * @param trace_msg Indicates if C2_LOG message is to be printed.
@@ -596,13 +563,8 @@ void layout_log(const char *fn_name,
 	C2_PRE(fn_name != NULL);
 	C2_PRE(ev != NULL);
 	C2_PRE(ctx != NULL);
-	C2_PRE(ergo(rc == 0, err_msg == NULL && !trace_msg &&
-			     (ev->ae_id == layout_decode_success.ae_id ||
-			      ev->ae_id == layout_encode_success.ae_id ||
-			      ev->ae_id == layout_lookup_success.ae_id ||
-			      ev->ae_id == layout_add_success.ae_id ||
-			      ev->ae_id == layout_update_success.ae_id ||
-			      ev->ae_id == layout_delete_success.ae_id)));
+	C2_PRE(ergo(trace_msg, addb_msg));
+	C2_PRE(rc != 0);
 	C2_PRE(ergo(rc != 0, err_msg != NULL &&
 			     (ev->ae_id == layout_decode_fail.ae_id ||
 			      ev->ae_id == layout_encode_fail.ae_id ||
@@ -613,7 +575,8 @@ void layout_log(const char *fn_name,
 			      ev->ae_id == c2_addb_func_fail.ae_id ||
 			      ev->ae_id == c2_addb_oom.ae_id)));
 
-	/* ADDB message logging. */
+
+	/* ADDB record logging. */
 	if (addb_msg)
 		layout_addb_add(ctx, ev, err_msg, rc);
 
@@ -1002,9 +965,6 @@ int c2_layout_decode(struct c2_layout_domain *dom,
 
 	C2_POST(layout_invariant(*out));
 
-	layout_log("c2_layout_decode", NULL, PRINT_ADDB_MSG, !PRINT_TRACE_MSG,
-		   &layout_decode_success, &layout_global_ctx, lid, rc);
-
 out:
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
@@ -1104,13 +1064,9 @@ int c2_layout_encode(struct c2_layout *l,
 	if (rc != 0) {
 		layout_log("c2_layout_encode", "lto_encode() failed",
 			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   &layout_decode_fail, &l->l_addb, l->l_id, rc);
+			   &layout_encode_fail, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
-
-	layout_log("c2_layout_encode", NULL,
-		   PRINT_ADDB_MSG, !PRINT_TRACE_MSG, &layout_decode_success,
-		   &l->l_addb, l->l_id, rc);
 
 out:
 	c2_mutex_unlock(&l->l_lock);
