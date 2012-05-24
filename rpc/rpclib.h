@@ -222,5 +222,7 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 
 void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool);
 
+int c2_lnet_local_addr_get(char *addr);
+
 #endif /* __COLIBRI_RPC_RPCLIB_H__ */
 

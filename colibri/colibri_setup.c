@@ -117,7 +117,7 @@ struct cs_endpoint_and_xprt {
 	   3-tuple network layer endpoint address.
 	   e.g. 127.0.0.1:1024:1
 	 */
-	char      *ex_endpoint;
+	const char	*ex_endpoint;
 	/** Supported network transport. */
 	const char      *ex_xprt;
 	/**
@@ -382,9 +382,16 @@ static bool cs_endpoint_is_duplicate(struct c2_colibri *cctx,
 		C2_ASSERT(cs_reqh_context_bob_check(rctx));
 		c2_tlist_for(&cs_eps_tl, &rctx->rc_eps, ep_xprt) {
 			C2_ASSERT(cs_endpoint_and_xprt_bob_check(ep_xprt));
-			if (strcmp(ep_xprt->ex_endpoint, ep) == 0 &&
-				strcmp(ep_xprt->ex_xprt, xprt->nx_name) == 0)
-				++cnt;
+			if (strcmp(xprt->nx_name, "lnet") == 0) {
+				if(c2_net_lnet_ep_addr_net_cmp(
+					ep_xprt->ex_endpoint, ep) == 0 &&
+				   strcmp(ep_xprt->ex_xprt, xprt->nx_name) == 0)
+					++cnt;
+			} else {
+				if (strcmp(ep_xprt->ex_endpoint, ep) == 0 &&
+				    strcmp(ep_xprt->ex_xprt, xprt->nx_name) == 0)
+					++cnt;
+			}
 			if (cnt > 1)
 				return true;
 		} c2_tlist_endfor;
@@ -421,6 +428,9 @@ static int cs_endpoint_validate(struct c2_colibri *cctx, const char *ep,
 	if (xprt == NULL)
 		rc = -EINVAL;
 
+	if (strcmp(xprt_name, "lnet") == 0)
+		rc = c2_net_lnet_ep_addr_net_cmp(ep, ep);
+
 	if (rc == 0 && cs_endpoint_is_duplicate(cctx, xprt, ep))
 		rc = -EADDRINUSE;
 
@@ -435,9 +445,10 @@ static int cs_endpoint_validate(struct c2_colibri *cctx, const char *ep,
 static int ep_and_xprt_get(struct cs_reqh_context *rctx, const char *ep,
 					struct cs_endpoint_and_xprt **ep_xprt)
 {
-	int   rc = 0;
-	char *sptr;
+	int			     rc = 0;
+	char			    *sptr;
 	struct cs_endpoint_and_xprt *epx;
+	char			    *endpoint;
 
 	C2_PRE(ep != NULL);
 
@@ -447,12 +458,18 @@ static int ep_and_xprt_get(struct cs_reqh_context *rctx, const char *ep,
 	epx->ex_xprt = strtok_r(epx->ex_scrbuf, ":", &sptr);
 	if (epx->ex_xprt == NULL)
 		rc = -EINVAL;
-
-	if (rc == 0) {
-		epx->ex_endpoint = strtok_r(NULL , "\0", &sptr);
-		if (epx->ex_endpoint == NULL)
+	else {
+		endpoint = strtok_r(NULL , "\0", &sptr);
+		if (endpoint == NULL)
 			rc = -EINVAL;
 		else {
+			if (strcmp(epx->ex_xprt, "lnet") == 0 &&
+			    strstr(endpoint, "127.0.0.1") != NULL) {
+				rc = c2_lnet_local_addr_get(endpoint);
+				if (rc < 0)
+					goto cleanup;
+			}
+			epx->ex_endpoint = endpoint;
 			cs_eps_tlink_init(epx);
 			cs_endpoint_and_xprt_bob_init(epx);
 			cs_eps_tlist_add_tail(&rctx->rc_eps, epx);
@@ -460,6 +477,7 @@ static int ep_and_xprt_get(struct cs_reqh_context *rctx, const char *ep,
 		}
 	}
 
+cleanup:
 	if (rc != 0) {
 		c2_free(epx->ex_scrbuf);
 		c2_free(epx);
@@ -739,7 +757,7 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 
 	rpcmach->rm_max_recv_msgs = c2_net_domain_get_max_buffer_size(ndom) /
 				    rpcmach->rm_min_recv_size;
-	
+
 	rpcmach->rm_tm_recv_queue_min_length = recv_queue_min_length;
 	rpcmach->rm_tm_colour                = tm_colour;
 
@@ -1184,31 +1202,6 @@ static int cs_net_domains_init(struct c2_colibri *cctx)
 				return rc;
 			}
 
-			if (strcmp(ndom->nd_xprt->nx_name, "lnet") == 0 && 0 ) {
-				char * const *ifaces;
-				const char   *network; /* "addr@interface" */
-				int i;
-				const char *endpoint;
-				char *sptr;
-				char addr[C2_NET_LNET_XEP_ADDR_LEN];
-				strcpy(addr, ep->ex_endpoint);
-
-				c2_net_lnet_ifaces_get(ndom, &ifaces);
-				C2_ASSERT(ifaces != NULL);
-				if (network == NULL) {
-					network = ifaces[0];
-					for (i = 0; ifaces[i] != NULL; ++i) {
-						if (strstr(ifaces[i], "@lo") != NULL)
-							continue;
-						network = ifaces[i]; /* 1st !@lo */
-						strtok_r(addr, ":", &sptr);
-						endpoint = strtok_r(NULL, "\0", &sptr);
-						snprintf(ep->ex_endpoint, C2_NET_LNET_XEP_ADDR_LEN, "%s:%s",
-							 network, endpoint);
-						break;
-					}
-				}
-			}
 			ndom_tlink_init(ndom);
 			c2_net_domain_bob_init(ndom);
 			ndom_tlist_add_tail(&cctx->cc_ndoms, ndom);
@@ -1912,7 +1905,7 @@ static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
                         	})),
                 	C2_STRINGARG('T', "Storage domain type",
                         	LAMBDA(void, (const char *str)
-				{	
+				{
 					if (rctx == NULL) {
 						rc = -EINVAL;
 						return;
@@ -1937,7 +1930,7 @@ static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
 					}
                                 	rctx->rc_stpath = str;
 				})),
-                	C2_STRINGARG('e', 
+                	C2_STRINGARG('e',
 				     "Network endpoint, eg:- transport:address",
                         	LAMBDA(void, (const char *str)
                         	{
@@ -2000,6 +1993,7 @@ int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 		c2_mutex_unlock(&cctx->cc_mutex);
 		return rc;
 	}
+
 	if (rc == 0)
 		rc = reqh_ctxs_are_valid(cctx);
 

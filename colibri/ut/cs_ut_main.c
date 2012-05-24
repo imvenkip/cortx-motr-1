@@ -121,7 +121,7 @@ static char *cs_ut_buffer_pool_cmd[] = { "colibri_setup", "-r", "-T", "linux",
 
 static char *cs_ut_lnet_cmd[] = { "colibri_setup", "-r", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
-                                "-e", "lnet:192.168.74.128@tcp:12345:30:101",
+                                "-e", "lnet:127.0.0.1@tcp:12345:30:101",
                                 "-s", "ds1"};
 
 static const char *cl_ep_addrs[] = {
@@ -133,13 +133,11 @@ static const char *srv_ep_addrs[] = {
 				"127.0.0.1:35678"};
 
 static const char *cl_lnet_ep_addrs[] = {
-                                "192.168.74.128@tcp:12345:30:102",
                                 "127.0.0.1@tcp:12345:30:102",
 				"127.0.0.1@tcp:12345:31:0",
 				"127.0.0.1@tcp:12345:31:*"};
 
 static const char *srv_lnet_ep_addrs[] = {
-                                "192.168.74.128@tcp:12345:30:101",
                                 "127.0.0.1@tcp:12345:30:101",
 				"127.0.0.1@tcp:12345:31:0",
 				"127.0.0.1@tcp:12345:31:*"};
@@ -182,10 +180,10 @@ static int cs_ut_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 
 	C2_PRE(cctx != NULL && cl_ep_addr != NULL && srv_ep_addr != NULL &&
 		dbname != NULL && xprt != NULL);
-
+	
 	rc = c2_net_domain_init(&cctx->cl_ndom, xprt);
 	C2_UT_ASSERT(rc == 0);
-
+	
 	cl_ctx = &cctx->cl_ctx;
 
 	cl_ctx->rcx_net_dom            = &cctx->cl_ndom;
@@ -264,7 +262,7 @@ static int cs_ut_test_helper_success(struct cl_ctx *cctx, size_t cctx_nr,
 	int rc;
 	int i;
 	int stype;
-
+	
 	C2_RPC_SERVER_CTX_DECLARE(sctx, cs_xprts, ARRAY_SIZE(cs_xprts),
 				  cs_argv, cs_argc, SERVER_LOG_FILE_NAME);
 
