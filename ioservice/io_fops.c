@@ -1486,15 +1486,10 @@ static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 	struct c2_fop		*ufop;
 	struct c2_rpc_item	*item;
 	struct c2_rpc_item	*item_next;
-	struct c2_rpc_session	*session;
 
 	C2_PRE(head != NULL);
 	C2_PRE(list != NULL);
 	C2_PRE(size > 0);
-
-	session = container_of(list, struct c2_rpc_session, s_unbound_items);
-	C2_ASSERT(session != NULL);
-	C2_ASSERT(c2_mutex_is_locked(&session->s_mutex));
 
 	if (c2_list_is_empty(list))
 		return;

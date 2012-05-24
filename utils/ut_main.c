@@ -25,7 +25,7 @@
 #include "lib/trace.h"
 #include "lib/thread.h"    /* LAMBDA */
 #include "lib/getopts.h"
-#include "lib/memory.h"
+#include "lib/finject.h"   /* c2_fi_print_info */
 #include "utils/common.h"
 
 /* sort test suites in alphabetic order */
@@ -115,60 +115,18 @@ void add_uts(void)
 	c2_ut_add(&yaml2db_ut);
 }
 
-int parse_test_list(char *str, struct c2_list *list)
-{
-	char *token;
-	char *subtoken;
-	char *saveptr = NULL;
-	struct c2_test_suite_entry *ts_entry;
-
-	while (true) {
-		token = strtok_r(str, ",", &saveptr);
-		if (token == NULL)
-			break;
-
-		subtoken = strchr(token, ':');
-		if (subtoken != NULL)
-			*subtoken++ = '\0';
-
-		C2_ALLOC_PTR(ts_entry);
-		if (ts_entry == NULL)
-			return -ENOMEM;
-
-		ts_entry->tse_suite_name = token;
-		/* subtoken can be NULL if no test was specified */
-		ts_entry->tse_test_name = subtoken;
-
-		c2_list_link_init(&ts_entry->tse_linkage);
-		c2_list_add_tail(list, &ts_entry->tse_linkage);
-
-		/* str should be NULL for subsequent strtok_r(3) calls */
-		str = NULL;
-	}
-
-	return 0;
-}
-
-void free_test_list(struct c2_list *list)
-{
-	struct c2_test_suite_entry *entry;
-	struct c2_test_suite_entry *n;
-	c2_list_for_each_entry_safe(list, entry, n,
-			struct c2_test_suite_entry, tse_linkage)
-	{
-		c2_list_del(&entry->tse_linkage);
-		c2_free(entry);
-	}
-}
-
 int main(int argc, char *argv[])
 {
-	int  result              = EXIT_SUCCESS;
-	bool list_ut             = false;
-	bool with_tests          = false;
-	bool keep_sandbox        = false;
-	char *test_list_str      = NULL;
-	char *exclude_list_str   = NULL;
+	int  result               = EXIT_SUCCESS;
+	bool list_ut              = false;
+	bool with_tests           = false;
+	bool keep_sandbox         = false;
+	bool finject_stats_before = false;
+	bool finject_stats_after  = false;
+	char *test_list_str       = NULL;
+	char *exclude_list_str    = NULL;
+	const char *fault_point   = NULL;
+	const char *fp_file_name  = NULL;
 	struct c2_list test_list;
 	struct c2_list exclude_list;
 
@@ -229,9 +187,43 @@ int main(int argc, char *argv[])
 				LAMBDA(void, (void) {
 					cfg.urc_report_exec_time = false;
 				})),
+		    C2_STRINGARG('f', "fault point to enable func:tag:type"
+				      "[:integer[:integer]]",
+				      LAMBDA(void, (const char *str) {
+					 fault_point = strdup(str);
+				      })
+				),
+		    C2_STRINGARG('F', "yaml file, which contains a list"
+				      " of fault points to enable",
+				      LAMBDA(void, (const char *str) {
+					 fp_file_name = strdup(str);
+				      })
+				),
+		    C2_FLAGARG('s', "report fault injection stats before UT",
+				&finject_stats_before),
+		    C2_FLAGARG('S', "report fault injection stats after UT",
+				&finject_stats_after),
 		    );
 	if (result != 0)
 		goto out;
+
+	/* enable fault points as early as possible */
+	if (fault_point != NULL) {
+		result = enable_fault_point(fault_point);
+		if (result != 0)
+			goto out;
+	}
+
+	if (fp_file_name != NULL) {
+		result = enable_fault_points_from_file(fp_file_name);
+		if (result != 0)
+			goto out;
+	}
+
+	if (finject_stats_before) {
+		c2_fi_print_info();
+		printf("\n");
+	}
 
 	/* check conflicting options */
 	if ((cfg.urc_mode != C2_UT_BASIC_MODE && (list_ut ||
@@ -259,6 +251,11 @@ int main(int argc, char *argv[])
 		c2_ut_list(with_tests);
 	else
 		c2_ut_run(&cfg);
+
+	if (finject_stats_after) {
+		printf("\n");
+		c2_fi_print_info();
+	}
 
 	if (test_list_str != NULL)
 		free(test_list_str);

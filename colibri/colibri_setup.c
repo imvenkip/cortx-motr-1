@@ -34,6 +34,7 @@
 #include "lib/processor.h"
 #include "lib/time.h"
 #include "lib/misc.h"
+#include "lib/finject.h"    /* C2_FI_ENABLED */
 
 #include "balloc/balloc.h"
 #include "stob/ad.h"
@@ -528,9 +529,9 @@ static bool service_is_registered(const char *service_name)
 	return false;
 }
 
-struct c2_rpc_machine *c2_cs_rpcmach_get(struct c2_colibri *cctx,
-					 const struct c2_net_xprt *xprt,
-					 const char *sname)
+struct c2_rpc_machine *c2_cs_rpc_mach_get(struct c2_colibri *cctx,
+					  const struct c2_net_xprt *xprt,
+					  const char *sname)
 {
 	struct c2_reqh            *reqh;
 	struct cs_reqh_context    *rctx;
@@ -567,7 +568,7 @@ struct c2_rpc_machine *c2_cs_rpcmach_get(struct c2_colibri *cctx,
 
         return NULL;
 }
-C2_EXPORTED(c2_cs_rpcmach_get);
+C2_EXPORTED(c2_cs_rpc_mach_get);
 
 struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
 					const struct c2_net_xprt *xprt,
@@ -575,7 +576,7 @@ struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
 {
 	struct c2_rpc_machine *rpcmach;
 
-	rpcmach = c2_cs_rpcmach_get(cctx, xprt, sname);
+	rpcmach = c2_cs_rpc_mach_get(cctx, xprt, sname);
 
 	return (rpcmach == NULL) ? NULL : &rpcmach->rm_tm;
 }
@@ -2003,6 +2004,9 @@ int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 
 	C2_PRE(cctx != NULL);
 
+	if (C2_FI_ENABLED("fake_error"))
+		return -EINVAL;
+
 	c2_mutex_lock(&cctx->cc_mutex);
 	rc = cs_parse_args(cctx, argc, argv);
 	if (rc < 0) {
@@ -2052,6 +2056,9 @@ int c2_cs_init(struct c2_colibri *cctx, struct c2_net_xprt **xprts,
         int rc;
 
         C2_PRE(cctx != NULL && xprts != NULL && xprts_nr > 0 && out != NULL);
+
+	if (C2_FI_ENABLED("fake_error"))
+		return -EINVAL;
 
 	c2_mutex_init(&cctx->cc_mutex);
 

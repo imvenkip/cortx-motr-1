@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,32 +14,15 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
- * Original creation date: 13/10/2011
+ * Original author: Dmitriy Chumak <dmitriy_chumak@xyratex.com>
+ * Original creation date: 03/28/2012
  */
 
-/*
-  Dummy fops to test colibri setup
- */
+#ifndef __COLIBRI_UTILS_FINJECT_DEBUGFS_H__
+#define __COLIBRI_UTILS_FINJECT_DEBUGFS_H__
 
-DEF(cs_ds1_req_fop, RECORD,
-        _(csr_value, U64));
+int fi_dfs_init(void);
+void fi_dfs_cleanup(void);
 
-DEF(cs_ds1_rep_fop, RECORD,
-        _(csr_rc, U64));
+#endif /* __COLIBRI_UTILS_FINJECT_DEBUGFS_H__ */
 
-DEF(cs_ds2_req_fop, RECORD,
-        _(csr_value, U64));
-
-DEF(cs_ds2_rep_fop, RECORD,
-        _(csr_rc, U64));
-
-/*
- *  Local variables:
- *  c-indentation-style: "K&R"
- *  c-basic-offset: 8
- *  tab-width: 8
- *  fill-column: 80
- *  scroll-step: 1
- *  End:
- */

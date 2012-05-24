@@ -44,7 +44,8 @@ void c2_sm_group_init(struct c2_sm_group *grp)
 
 void c2_sm_group_fini(struct c2_sm_group *grp)
 {
-	c2_clink_del(&grp->s_clink);
+	if (c2_clink_is_armed(&grp->s_clink))
+		c2_clink_del(&grp->s_clink);
 	c2_clink_fini(&grp->s_clink);
 	c2_chan_fini(&grp->s_chan);
 	c2_mutex_fini(&grp->s_lock);

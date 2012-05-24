@@ -89,6 +89,7 @@ void c2_thread_fini(struct c2_thread *q)
 	c2_semaphore_fini(&q->t_wait);
 	C2_SET0(q);
 }
+C2_EXPORTED(c2_thread_fini);
 
 /** @} end of thread group */
 

@@ -18,6 +18,10 @@
  * Original creation date: 06/19/2010
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "lib/cdefs.h"
 #include "fop/fop.h"
 
@@ -34,6 +38,7 @@
 #include "net/lnet/lnet.h"
 #include "rpc/rpc2.h"
 #include "addb/addb.h"
+#include "lib/finject.h"
 #include "lib/ut.h"
 #include "layout/layout.h"
 #include "pool/pool.h"
@@ -75,6 +80,7 @@ struct init_fini_call {
  */
 struct init_fini_call subsystem[] = {
 	{ &c2_trace_init,    &c2_trace_fini,   "trace" },
+	{ &c2_fi_init,       &c2_fi_fini,      "finject" },
 	{ &c2_memory_init,   &c2_memory_fini,  "memory" },
 	{ &c2_uts_init,      &c2_uts_fini,     "ut" },
 	{ &c2_threads_init,  &c2_threads_fini, "thread" },
@@ -107,7 +113,7 @@ struct init_fini_call subsystem[] = {
 	{ &sim_global_init,  &sim_global_fini,  "desim" },
 	{ &c2_reqhs_init,    &c2_reqhs_fini,    "reqh" },
 #ifndef __KERNEL__
-	{ &c2_ioservice_register, &c2_ioservice_unregister, "ioservice" }
+	{ &c2_ioservice_register, &c2_ioservice_unregister, "ioservice" },
 #endif
 };
 

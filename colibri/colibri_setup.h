@@ -366,7 +366,7 @@ int c2_cs_start(struct c2_colibri *cs_colibri);
 
    @retval Returns c2_rpc_machine if found, else returns NULL
  */
-struct c2_rpc_machine *c2_cs_rpcmach_get(struct c2_colibri *cctx,
+struct c2_rpc_machine *c2_cs_rpc_mach_get(struct c2_colibri *cctx,
 					 const struct c2_net_xprt *xprt,
 					 const char *sname);
 

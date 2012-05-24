@@ -32,6 +32,7 @@
 #include "lib/thread.h"
 #include "lib/processor.h"
 #include "lib/trace.h"
+#include "lib/time.h"
 #include "net/net.h"
 #include "net/bulk_sunrpc.h"
 #include "rpc/rpc2.h"
@@ -86,13 +87,14 @@ enum {
 	RID		   = 1,
 	MAX_RPCS_IN_FLIGHT = 32,
 	CLIENT_COB_DOM_ID  = 13,
-	CONNECT_TIMEOUT    = 5,
+	CONNECT_TIMEOUT    = 10,
 };
 
 #ifndef __KERNEL__
 static bool server_mode        = false;
 static char tm_len[STRING_LEN] = to_string(TM_RECV_QUEUE_MIN_LEN);
 #endif
+
 static bool verbose           = false;
 static char *server_hostname  = "127.0.0.1";
 static char *client_hostname  = "127.0.0.1";
@@ -430,10 +432,26 @@ static int run_client(void)
 
 	for (i = 0; i < nr_client_threads; i++) {
 		C2_SET0(&client_thread[i]);
-		rc = C2_THREAD_INIT(&client_thread[i], struct c2_rpc_session*,
-				NULL, &send_ping_fop,
-				&cctx.rcx_session, "client_%d", i);
-		C2_ASSERT(rc == 0);
+
+		while (1) {
+			c2_time_t t;
+
+			rc = C2_THREAD_INIT(&client_thread[i],
+					    struct c2_rpc_session*,
+					    NULL, &send_ping_fop,
+					    &cctx.rcx_session, "client_%d", i);
+			if (rc == 0) {
+				break;
+			} else if (rc == EAGAIN) {
+#ifndef __KERNEL__
+				printf("Retrying thread init\n");
+#endif
+				c2_thread_fini(&client_thread[i]);
+				c2_nanosleep(c2_time_set(&t, 1, 0), NULL);
+			} else {
+				C2_ASSERT("THREAD_INIT_FAILED" == NULL);
+			}
+		}
 	}
 
 	for (i = 0; i < nr_client_threads; i++) {
@@ -526,13 +544,15 @@ static int run_server(void)
 	if (verbose) {
 		struct c2_rpc_machine *rpcmach;
 
-		rpcmach = c2_cs_rpcmach_get(&sctx.rsx_colibri_ctx, xprt, "ds1");
+		rpcmach = c2_cs_rpc_mach_get(&sctx.rsx_colibri_ctx, xprt,
+					     "ds1");
 		if (rpcmach != NULL) {
 			printf("########### Server DS1 statS ###########\n");
 			print_stats(rpcmach);
 		}
 
-		rpcmach = c2_cs_rpcmach_get(&sctx.rsx_colibri_ctx, xprt, "ds2");
+		rpcmach = c2_cs_rpc_mach_get(&sctx.rsx_colibri_ctx, xprt,
+					     "ds2");
 		if (rpcmach != NULL) {
 			printf("\n");
 			printf("########### Server DS2 statS ###########\n");

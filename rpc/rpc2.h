@@ -35,7 +35,9 @@
    @code
    static void us_callback(struct c2_update_stream *us,
                            struct c2_rpc_item *item)             { ... }
-   static const struct c2_update_stream_ops us_ops { .uso_event_cb = us_callback };
+   static const struct c2_update_stream_ops us_ops = {
+						.uso_event_cb = us_callback
+					    };
    //...
    int ret;
    int i;
@@ -90,7 +92,8 @@
    Internally, the RPC layer core should do the following:
    @li put items into sub-caches, associated with specified services;
    @li monitor the occupancy of the sub-caches;
-   @li when there is enough pages in a sub-cache to form an optimal rpc---form it and send.
+   @li when there is enough pages in a sub-cache to form an optimal rpc,
+       form it and send.
 
    For simple implementation one update stream may be maped onto one slot.
    Several update streams may be mapped onto one slot for more complex cases.
@@ -131,7 +134,8 @@
 
       @endverbatim
 
-   @see https://docs.google.com/a/xyratex.com/Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTljbTZ3anhjbg&hl=en
+   @see https://docs.google.com/a/xyratex.com/Doc?docid=0AQaCw6YRYSVSZGZmMz
+V6NzJfMTljbTZ3anhjbg&hl=en
 
    @{
 */
@@ -177,17 +181,7 @@ struct c2_fop_type;
 struct c2_fop_io_vec;
 struct c2_rpc_group;
 struct c2_rpc_machine;
-struct c2_update_stream;
-struct c2_update_stream_ops;
 struct c2_rpc_frm_item_coalesced;
-
-/** TBD in sessions header */
-enum c2_update_stream_flags {
-	/* one slot per one update stream */
-	C2_UPDATE_STREAM_DEDICATED_SLOT = 0,
-	/* several update streams share the same slot */
-	C2_UPDATE_STREAM_SHARED_SLOT    = (1 << 0)
-};
 
 enum {
 	C2_RPC_MACHINE_MAGIX = 0x5250434D414348 /* RPCMACH */
@@ -227,61 +221,6 @@ struct c2_rpc_item_ops {
 	 */
 	void (*rio_free)(struct c2_rpc_item *item);
 };
-
-struct c2_update_stream_ops {
-	/** Called when update stream enters UPDATE_STREAM_TIMEDOUT state */
-	void (*uso_timeout)(struct c2_update_stream *us);
-	/** Called when update stream exits UPDATE_STREAM_RECOVERY state */
-	void (*uso_recovery_complete)(struct c2_update_stream *us);
-};
-
-enum c2_update_stream_state {
-	/** Newly allocated object is in uninitialized state */
-	UPDATE_STREAM_UNINITIALIZED = 0,
-	/** Enters when update stream is initialized */
-	UPDATE_STREAM_IDLE      = (1 << 0),
-	/** Enters when items are being sent with update stream */
-	UPDATE_STREAM_SENDING   = (1 << 1),
-	/** Enters when sending operation is timed out */
-	UPDATE_STREAM_TIMEDOUT  = (1 << 2),
-	/** Enters when update stream recovers "lost" items */
-	UPDATE_STREAM_RECOVERY  = (1 << 3),
-	/** Enters when update stream is finalized */
-	UPDATE_STREAM_FINALIZED = (1 << 4)
-};
-
-/**
-   Update streams is an abstraction that serves the following goals:
-   @li Hides the sessions and slots abstractions;
-   @li Multiplexes several update streams which the the only one session;
-   @li Signal about events (state transitions, etc.) happened in sessions layer.
- */
-struct c2_update_stream {
-	/* linkage to c2_rpc_machine::c2_rpc_processing::crp_us_list */
-	struct c2_list_link		   us_linkage;
-
-	uint64_t			   us_session_id;
-	uint64_t		           us_slot_id;
-	const struct c2_update_stream_ops *us_ops;
-	struct c2_rpc_machine		  *us_mach;
-	enum c2_update_stream_state        us_state;
-        struct c2_mutex			   us_guard;
-};
-
-/**
-   Possible values for flags from c2_rpc_item_type.
- */
-#if 0
-enum c2_rpc_item_type_flag {
-	/** Item with valid session, slot and version number. */
-	//C2_RPC_ITEM_BOUND = (1 << 0),
-	/** Item with a session but no slot nor version number. */
-	//C2_RPC_ITEM_UNBOUND = (1 << 1),
-	/** Item similar to unbound item except it is always sent as
-	    unbound item and it does not expect any reply. */
-	//C2_RPC_ITEM_UNSOLICITED = (1 << 2),
-};
-#endif
 
 #define C2_RPC_ITEM_TYPE_DEF(itype, opcode, flags, ops)  \
 struct c2_rpc_item_type (itype) = {                      \
@@ -486,8 +425,8 @@ struct c2_rpc_chan {
    Several such contexts might be existing simultaneously.
  */
 struct c2_rpc_machine {
-	/** Mutex protecting list of c2_rpc_chan structures. */
-	struct c2_mutex			  rm_chan_mutex;
+	struct c2_mutex                   rm_mutex;
+
 	/** List of c2_rpc_chan structures. */
 	struct c2_list			  rm_chans;
 	/** Transfer machine associated with this endpoint.*/
@@ -499,18 +438,12 @@ struct c2_rpc_machine {
 	    CONN_FAILED, CONN_TERMINATED} */
 	struct c2_list			  rm_incoming_conns;
 	struct c2_list			  rm_outgoing_conns;
-	/** mutex that protects [incoming|outgoing]_conns. Better name??? */
-	struct c2_mutex			  rm_session_mutex;
-	/** Mutex to protect list of ready slots. */
-	struct c2_mutex			  rm_ready_slots_mutex;
 	/** list of ready slots. */
 	struct c2_list			  rm_ready_slots;
 	/** ADDB context for this rpc_machine */
 	struct c2_addb_ctx		  rm_rpc_machine_addb;
 	/** Statistics for both incoming and outgoing paths */
 	struct c2_rpc_stats		  rm_rpc_stats[C2_RPC_PATH_NR];
-	/** Mutex to protect stats */
-	struct c2_mutex			  rm_stats_mutex;
 	/**
 	    Request handler this rpc_machine belongs to.
 	    @todo There needs to be  generic mechanism to register a
@@ -599,6 +532,10 @@ int  c2_rpc_machine_init(struct c2_rpc_machine	   *machine,
  */
 void c2_rpc_machine_fini(struct c2_rpc_machine *machine);
 
+void c2_rpc_machine_lock(struct c2_rpc_machine *machine);
+void c2_rpc_machine_unlock(struct c2_rpc_machine *machine);
+bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine);
+
 /**
   Posts an unbound item to the rpc layer.
 
@@ -628,14 +565,6 @@ void c2_rpc_machine_fini(struct c2_rpc_machine *machine);
   @pre item->ri_priority is sane.
 */
 int c2_rpc_post(struct c2_rpc_item *item);
-
-#if 0
-/**
-  Posts an item bound to the update stream.
-*/
-int c2_rpc_update_stream_post(struct c2_update_stream *str,
-                 struct c2_rpc_item *item);
-#endif
 
 /**
   Posts reply item on the same session on which the request item is received.
@@ -682,7 +611,6 @@ int c2_rpc_group_close(struct c2_rpc_group *group);
 
    @param group used treat rpc items as a group.
    @param item rpc item being sent
-   @param us update stream used to send the group
    @param prio priority of processing of this item
    @param deadline maximum processing time of this item
 
@@ -693,7 +621,6 @@ int c2_rpc_group_close(struct c2_rpc_group *group);
  */
 int c2_rpc_group_submit(struct c2_rpc_group		*group,
 			struct c2_rpc_item		*item,
-			struct c2_update_stream		*us,
 			enum c2_rpc_item_priority	 prio,
 			const c2_time_t			*deadline);
 
@@ -720,33 +647,6 @@ int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout);
    @return ETIMEDOUT The wait timed out wihout being sent
  */
 int c2_rpc_group_timedwait(struct c2_rpc_group *group, const c2_time_t *timeout);
-
-/**
-   Retrurns update stream associated with given service id.
-   @param machine rpc_machine operation applied to.
-   @param session_id session id for which update stream is being retrieved.
-   @param flag specifies features of update stream, @see c2_update_stream_flags
-   @param ops operations associated with the update stream
-   @param out update associated with given session
-
-   @note c2_rpc_core_init() and c2_rpc_machine_init() have been called before
-   invoking this function
-   @return 0  success
-   @return <0 failure
- */
-int c2_rpc_update_stream_get(struct c2_rpc_machine *machine,
-			     struct c2_service_id *srvid,
-			     enum c2_update_stream_flags flag,
-			     const struct c2_update_stream_ops *ops,
-			     struct c2_update_stream **out);
-
-/**
-   Releases given update stream.
-   @param us update stream to be released
-   @note c2_rpc_core_init() and c2_rpc_machine_init() have been called before
-
-*/
-void c2_rpc_update_stream_put(struct c2_update_stream *us);
 
 /**
    @name stat_ifs STATISTICS IFs
