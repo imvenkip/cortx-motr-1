@@ -41,7 +41,6 @@ int c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
 	C2_PRE(fop != NULL && fopt != NULL);
 
 	fop->f_type = fopt;
-	fop->f_private = NULL;
 
 	nob = fopt->ft_top->fft_layout->fm_sizeof;
 
