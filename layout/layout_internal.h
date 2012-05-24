@@ -100,8 +100,8 @@ void c2_layout__enum_fini(struct c2_layout_enum *le);
 
 void layout_log(const char *fn_name,
 		const char *err_msg,
-		bool if_addb_msg, /* If ADDB message is to be printed. */
-		bool if_trace_msg, /* If C2_LOG message is to be printed. */
+		bool if_addb_msg, /* If ADDB record is to be added. */
+		bool if_trace_msg, /* If C2_LOG message is to be added. */
 		const struct c2_addb_ev *ev,
 		struct c2_addb_ctx *ctx,
 		uint64_t lid,

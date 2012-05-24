@@ -458,7 +458,7 @@ int layout_write(const struct c2_layout *l,
 			 key_buf, sizeof l->l_id, rec_buf, recsize);
 
 	/*
-	 * ADDB messages covering the failure of c2_table_insert(),
+	 * ADDB records covering the failure of c2_table_insert(),
 	 * c2_table_update() and c2_table_delete(), are added into the
 	 * the respective callers of this routine.
 	 */
@@ -501,7 +501,7 @@ static int rec_get(struct c2_db_tx *tx, struct c2_layout *l, void *area)
 			 area, (uint32_t)max_recsize);
 
 	/*
-	 * ADDB message covering the failure of c2_table_lookup() is added
+	 * ADDB records covering the failure of c2_table_lookup() is added
 	 * into the caller of this routine.
 	 */
 	rc = c2_table_lookup(tx, &pair);

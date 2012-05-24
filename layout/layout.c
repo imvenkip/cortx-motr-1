@@ -296,6 +296,8 @@ void c2_layout__fini(struct c2_layout *l)
 
 /**
  * Initialises a striped layout object, using provided enumeration object.
+ * @pre The enumeration object e is already initialised by internally elevating
+ * reference of the respective enum type.
  * @post Pointer to the c2_layout object is set back in the c2_layout_enum
  * object.
  */
@@ -490,7 +492,7 @@ static void max_recsize_update(struct c2_layout_domain *dom)
 }
 
 /**
- * This method adds an ADDB message indicating failure along with a short
+ * This method adds an ADDB record indicating failure along with a short
  * error message string and the error code.
  */
 static void layout_addb_add(struct c2_addb_ctx *ctx,
@@ -548,8 +550,8 @@ static void layout_addb_add(struct c2_addb_ctx *ctx,
  *    (ii) C2_LEAVE() or C2_LOG() are used firectly to log the trace messages,
  *         avoiding the function call overhead.
  *
- * @param addb_msg Indicates if ADDB message is to be printed.
- * @param trace_msg Indicates if C2_LOG message is to be printed.
+ * @param addb_msg Indicates if ADDB record is to be added.
+ * @param trace_msg Indicates if C2_LOG message is to be added.
  */
 void layout_log(const char *fn_name,
 		const char *err_msg,
