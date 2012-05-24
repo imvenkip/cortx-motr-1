@@ -847,7 +847,8 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 			c2_free(cs_bp);
 			break;
 		}
-		cs_buffer_pools_tlink_init_at_tail(cs_bp, &cctx->cc_buffer_pools);
+		cs_buffer_pools_tlink_init_at_tail(cs_bp,
+						   &cctx->cc_buffer_pools);
 	} c2_tl_endfor;
 
 	if (rc < 0)
