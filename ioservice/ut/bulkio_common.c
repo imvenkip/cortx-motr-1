@@ -31,6 +31,11 @@ extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
 
 #define to_string(x) str(x)
 #define str(x)	#x
+
+/**
+   @todo This value can be reduced after multiple message delivery in a
+    single buffer is supported.
+ */
 #define IO_TM_RECV_QUEUE_MIN_LEN 6
 
 /* Global reference to bulkio_params structure. */

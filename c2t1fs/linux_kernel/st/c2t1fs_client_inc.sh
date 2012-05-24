@@ -23,7 +23,8 @@ load_kernel_module()
 
         insmod $colibri_module_path/$colibri_module.ko \
                c2_trace_immediate_mask=$COLIBRI_MODULE_TRACE_MASK \
-               local_addr=$COLIBRI_C2T1FS_ENDPOINT
+               local_addr=$COLIBRI_C2T1FS_ENDPOINT \
+	       tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN
         if [ $? -ne "0" ]
         then
                 echo "Failed to insert module \

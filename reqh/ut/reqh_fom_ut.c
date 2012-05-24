@@ -180,6 +180,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 	uint32_t		   segs_nr;
 	uint32_t		   bufs_nr;
 	uint32_t		   tms_nr;
+	c2_bcount_t		   seg_size;
 
 
         srv_cob_dom_id.id = 102;
@@ -243,13 +244,14 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 			   &srv_fol);
 	C2_UT_ASSERT(rc == 0);
 
-	segs_nr = c2_net_domain_get_max_buffer_size(net_dom) /
-		  C2_RPC_SEG_SIZE;
-	tms_nr	= 1;
-	bufs_nr = tms_nr * (C2_NET_TM_RECV_QUEUE_DEF_LEN + 1);
-
+	seg_size = min64u(c2_net_domain_get_max_buffer_segment_size(net_dom),
+			  C2_SEG_SIZE);
+	segs_nr  = c2_net_domain_get_max_buffer_size(net_dom) / seg_size;
+	tms_nr	 = 1;
+	bufs_nr  = C2_NET_TM_RECV_QUEUE_DEF_LEN + min32u(tms_nr / 4, 1) +
+		   C2_NET_BUFFER_POOL_THRESHOLD;
 	rc = c2_rpc_net_buffer_pool_setup(net_dom, &app_pool,
-					  segs_nr, C2_RPC_SEG_SIZE,
+					  segs_nr, seg_size,
 					  bufs_nr, tms_nr);
 	C2_UT_ASSERT(rc == 0);
 

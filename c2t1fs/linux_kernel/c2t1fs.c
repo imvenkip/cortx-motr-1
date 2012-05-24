@@ -35,6 +35,14 @@ module_param(local_addr, charp, S_IRUGO);
 MODULE_PARM_DESC(local_addr, "End-point address of c2t1fs "
 		 "e.g. 127.0.0.1:12345:6");
 
+static uint32_t tm_recv_queue_min_len = C2_NET_TM_RECV_QUEUE_DEF_LEN;
+module_param(tm_recv_queue_min_len , int, S_IRUGO);
+MODULE_PARM_DESC(tm_recv_queue_min_len, "TM receive queue minimum length");
+
+static uint32_t max_rpc_msg_size = 0;
+module_param(max_rpc_msg_size, int, S_IRUGO);
+MODULE_PARM_DESC(max_rpc_msg_size, "Maximum RPC message size");
+
 static int  c2t1fs_net_init(void);
 static void c2t1fs_net_fini(void);
 
@@ -172,6 +180,7 @@ static int c2t1fs_rpc_init(void)
 	uint32_t		   segs_nr;
 	uint32_t		   bufs_nr;
 	uint32_t		   tms_nr;
+	c2_bcount_t		   seg_size;
 
 	C2_ENTRY();
 
@@ -180,12 +189,14 @@ static int c2t1fs_rpc_init(void)
 	rpc_machine = &c2t1fs_globals.g_rpc_machine;
 	buffer_pool = &c2t1fs_globals.g_buffer_pool;
 
-	segs_nr = c2_net_domain_get_max_buffer_size(ndom) /
-		  C2_RPC_SEG_SIZE;
-	tms_nr	= 1;
-	bufs_nr = tms_nr * (C2T1FS_TM_MIN_RECV_BUFFERS_NR + 1);
+	seg_size = min64u(c2_net_domain_get_max_buffer_segment_size(ndom),
+			  C2_SEG_SIZE);
+	segs_nr  = c2_net_domain_get_max_buffer_size(ndom) / seg_size;
+	tms_nr	 = 1;
+	bufs_nr  = tm_recv_queue_min_len + max32u(tms_nr / 4 , 1) +
+		   C2_NET_BUFFER_POOL_THRESHOLD;
 	rc = c2_rpc_net_buffer_pool_setup(ndom, buffer_pool,
-					  segs_nr, C2_RPC_SEG_SIZE,
+					  segs_nr, seg_size,
 					  bufs_nr, tms_nr);
 	if (rc != 0)
 		goto pool_fini;
@@ -204,15 +215,15 @@ static int c2t1fs_rpc_init(void)
 	if (rc != 0)
 		goto dbenv_fini;
 
-	rpc_machine->rm_min_recv_size =
-			c2_net_domain_get_max_buffer_size(ndom);
+	rpc_machine->rm_min_recv_size = max_rpc_msg_size != 0 ?
+					max_rpc_msg_size :
+					c2_net_domain_get_max_buffer_size(ndom);
 	rpc_machine->rm_max_recv_msgs =
 			c2_net_domain_get_max_buffer_size(ndom) /
 			rpc_machine->rm_min_recv_size;
 
 	rpc_machine->rm_tm_colour                = C2_BUFFER_ANY_COLOUR;
-	rpc_machine->rm_tm_recv_queue_min_length =
-			C2T1FS_TM_MIN_RECV_BUFFERS_NR;
+	rpc_machine->rm_tm_recv_queue_min_length = tm_recv_queue_min_len;
 
 	rc = c2_rpc_machine_init(rpc_machine, cob_dom, ndom, laddr, NULL,
 				 buffer_pool);

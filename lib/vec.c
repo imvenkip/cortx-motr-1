@@ -31,6 +31,8 @@
    @{
 */
 
+C2_BASSERT(C2_SEG_SIZE == C2_0VEC_ALIGN);
+
 c2_bcount_t c2_vec_count(const struct c2_vec *vec)
 {
 	c2_bcount_t count;

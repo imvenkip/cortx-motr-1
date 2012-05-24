@@ -158,6 +158,7 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	uint32_t		   segs_nr;
 	uint32_t		   tms_nr;
 	uint32_t		   bufs_nr;
+	c2_bcount_t		   seg_size;
 
 	ndom = cctx->rcx_net_dom;
 	rpc_machine = &cctx->rcx_rpc_machine;
@@ -182,12 +183,15 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	if (cctx->rcx_recv_queue_min_length == 0)
 		cctx->rcx_recv_queue_min_length = C2_NET_TM_RECV_QUEUE_DEF_LEN;
 
-	segs_nr = c2_net_domain_get_max_buffer_size(ndom) / C2_RPC_SEG_SIZE;
-	tms_nr  = 1;
-	bufs_nr = tms_nr * (cctx->rcx_recv_queue_min_length + 1);
+	seg_size = min64u(c2_net_domain_get_max_buffer_segment_size(ndom),
+			  C2_SEG_SIZE);
+	segs_nr  = c2_net_domain_get_max_buffer_size(ndom) / seg_size;
+	tms_nr   = 1;
+	bufs_nr  = cctx->rcx_recv_queue_min_length + max32u(tms_nr / 4 , 1) +
+		   C2_NET_BUFFER_POOL_THRESHOLD;
 
 	rc = c2_rpc_net_buffer_pool_setup(ndom, buffer_pool,
-					  segs_nr, C2_RPC_SEG_SIZE,
+					  segs_nr, seg_size,
 					  bufs_nr, tms_nr);
 	if (rc != 0)
 		goto pool_fini;

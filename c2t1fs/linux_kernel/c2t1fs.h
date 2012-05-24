@@ -197,7 +197,6 @@ enum {
 	C2T1FS_DEFAULT_STRIPE_UNIT_SIZE = PAGE_CACHE_SIZE,
 	C2T1FS_MAX_NR_CONTAINERS        = 1024,
 	C2T1FS_COB_ID_STRLEN		= 34,
-	C2T1FS_TM_MIN_RECV_BUFFERS_NR   = 16,
 };
 
 /** Anything that is global to c2t1fs module goes in this singleton structure.

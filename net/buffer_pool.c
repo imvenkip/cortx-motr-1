@@ -227,6 +227,7 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
 		pool->nbp_ops->nbpo_below_threshold(pool);
 	nb->nb_pool = pool;
 	C2_POST(c2_net_buffer_pool_invariant(pool));
+	C2_POST(nb->nb_ep == NULL);
 	return nb;
 }
 
@@ -235,6 +236,7 @@ void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
 {
 	C2_PRE(buf != NULL);
 	C2_PRE(c2_net_buffer_pool_invariant(pool));
+	C2_PRE(buf->nb_ep == NULL);
 	C2_PRE(colour == C2_BUFFER_ANY_COLOUR || colour < pool->nbp_colours_nr);
 	C2_PRE(!(buf->nb_flags & C2_NET_BUF_QUEUED));
 	C2_PRE(buf->nb_flags & C2_NET_BUF_REGISTERED);

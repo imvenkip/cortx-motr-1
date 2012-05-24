@@ -363,6 +363,7 @@ static void rpc_recv_pool_buffer_put(struct c2_net_buffer *nb)
 	C2_PRE(tm->ntm_recv_pool != NULL && nb->nb_pool !=NULL);
 	C2_PRE(tm->ntm_recv_pool == nb->nb_pool);
 
+	nb->nb_ep = NULL;
 	c2_net_buffer_pool_lock(tm->ntm_recv_pool);
 	c2_net_buffer_pool_put(tm->ntm_recv_pool, nb,
 			       tm->ntm_pool_colour);
@@ -590,13 +591,15 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 	   for each rpc item. */
 	nb = ev->nbe_buffer;
 
-	if (ev->nbe_status != 0)
-		goto last;
-
 	nb->nb_length = ev->nbe_length;
-	nb->nb_ep = ev->nbe_ep;
+	nb->nb_ep     = ev->nbe_ep;
+	machine       = container_of(nb->nb_tm, struct c2_rpc_machine, rm_tm);
 
-	machine = container_of(nb->nb_tm, struct c2_rpc_machine, rm_tm);
+	if (ev->nbe_status != 0) {
+		rc = ev->nbe_status;
+		goto last;
+	}
+
 	chan = rpc_chan_locate(machine, nb->nb_ep);
 	if (chan != NULL) {
 		frm_rpcs_inflight_dec(&chan->rc_frmsm);
@@ -604,36 +607,35 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 	}
 	c2_rpcobj_init(&rpc);
 	rc = c2_rpc_decode(&rpc, nb);
-	if (rc < 0)
-		goto last;
-
-	rpcobj_exit_stats_set(&rpc, machine, C2_RPC_PATH_INCOMING);
-	now = c2_time_now();
-	c2_list_for_each_entry_safe(&rpc.r_items, item, next_item,
-				    struct c2_rpc_item, ri_rpcobject_linkage) {
-		c2_list_del(&item->ri_rpcobject_linkage);
-
-		if (c2_rpc_item_is_conn_establish(item))
-			c2_rpc_fop_conn_establish_ctx_init(item, nb->nb_ep,
-							   machine);
-
-		item->ri_rpc_time = now;
-		rc = c2_rpc_item_received(item, machine);
-		/*
-		 * If 'item' is conn terminate reply then, do not
-		 * access item, after this point. In which case the
-		 * item might have already been freed.
-		 */
-	}
-
 last:
 	C2_ASSERT(nb->nb_pool != NULL);
-	if (!(nb->nb_flags & C2_NET_BUF_QUEUED)) {
-		nb->nb_qtype     = C2_NET_QT_MSG_RECV;
-		nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
-		nb->nb_ep	 = NULL;
+	if (!(nb->nb_flags & C2_NET_BUF_QUEUED))
 		rpc_recv_pool_buffer_put(nb);
+
+	if (rc == 0) {
+		rpcobj_exit_stats_set(&rpc, machine, C2_RPC_PATH_INCOMING);
+		now = c2_time_now();
+		c2_list_for_each_entry_safe(&rpc.r_items, item, next_item,
+					    struct c2_rpc_item,
+					    ri_rpcobject_linkage) {
+			c2_list_del(&item->ri_rpcobject_linkage);
+
+			if (c2_rpc_item_is_conn_establish(item))
+				c2_rpc_fop_conn_establish_ctx_init(item,
+								   ev->nbe_ep,
+								   machine);
+
+			item->ri_rpc_time = now;
+			rc = c2_rpc_item_received(item, machine);
+			/*
+			 * If 'item' is conn terminate reply then, do not
+			 * access item, after this point. In which case the
+			 * item might have already been freed.
+			 */
+			C2_ASSERT(rc == 0);
+		}
 	}
+
 }
 
 static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
