@@ -543,8 +543,7 @@ static int list_encode(const struct c2_layout_enum *le,
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
-		    c2_bufvec_cursor_step(oldrec_cur) >=
-				sizeof *ce_oldheader));
+		    c2_bufvec_cursor_step(oldrec_cur) >= sizeof *ce_oldheader));
 	C2_PRE(out != NULL);
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof ce_header);
 
@@ -552,8 +551,7 @@ static int list_encode(const struct c2_layout_enum *le,
 	C2_ASSERT(list_enum_invariant(list_enum));
 
 	lid = le->le_l->l_id;
-	C2_ENTRY("lid %llu, nr %lu",
-		 (unsigned long long)lid,
+	C2_ENTRY("lid %llu, nr %lu", (unsigned long long)lid,
 		 (unsigned long)list_enum->lle_nr);
 
 	num_inline = min_check(list_enum->lle_nr,
@@ -561,17 +559,14 @@ static int list_encode(const struct c2_layout_enum *le,
 
 	if (op == C2_LXO_DB_UPDATE) {
 		ce_oldheader = c2_bufvec_cursor_addr(oldrec_cur);
-
 		C2_ASSERT(ce_oldheader->ces_nr == list_enum->lle_nr);
 
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *ce_oldheader);
-
 		C2_ASSERT(c2_bufvec_cursor_step(oldrec_cur) >=
 			  num_inline * sizeof *cob_id_old);
 
 		for (i = 0; i < num_inline; ++i) {
 			cob_id_old = c2_bufvec_cursor_addr(oldrec_cur);
-
 			C2_ASSERT(c2_fid_eq(cob_id_old,
 					    &list_enum->lle_list_of_cobs[i]));
 
@@ -590,7 +585,6 @@ static int list_encode(const struct c2_layout_enum *le,
 		       c2_bufvec_cursor_step(out) >=
 				list_enum->lle_nr *
 				sizeof list_enum->lle_list_of_cobs[i]));
-
 	C2_ASSERT(ergo(op == C2_LXO_DB_LOOKUP,
 		       c2_bufvec_cursor_step(out) >=
 				num_inline *
@@ -611,8 +605,7 @@ static int list_encode(const struct c2_layout_enum *le,
 		} else if (op == C2_LXO_DB_UPDATE) {
 			/*
 			 * The auxiliary table viz. cob_lists is not to be
-			 * modified for an update operation. Hence, need to
-			 * return from here.
+			 * modified for an update operation.
 			 */
 			rc = 0;
 			break;
@@ -641,12 +634,13 @@ static int list_encode(const struct c2_layout_enum *le,
 	}
 
 	/*
-	 * Set the rc in case there are only inline entries or if op is
-	 * C2_LXO_BUFFER_OP since the rc does not get initialised in those
-	 * cases.
+	 * At the end of the above for loop, rc remains 0, in the following
+	 * cases (with rc being initialised to 0 at the beginning of this
+	 * function).
 	 */
-	if (num_inline == list_enum->lle_nr || op == C2_LXO_BUFFER_OP)
-		rc = 0;
+	C2_ASSERT(ergo(num_inline == list_enum->lle_nr ||
+		       op == C2_LXO_BUFFER_OP ||
+		       op == C2_LXO_DB_UPDATE, rc == 0));
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
