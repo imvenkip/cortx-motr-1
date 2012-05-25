@@ -590,7 +590,7 @@ static int list_encode(const struct c2_layout_enum *le,
 				num_inline *
 				sizeof list_enum->lle_list_of_cobs[i]));
 
-	for(i = 0; i < list_enum->lle_nr; ++i) {
+	for (i = 0; i < list_enum->lle_nr; ++i) {
 		if (i < num_inline || op == C2_LXO_BUFFER_OP) {
 			if (i == 0)
 				C2_LOG("list_encode(): lid %llu, Start "

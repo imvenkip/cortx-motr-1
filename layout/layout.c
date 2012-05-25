@@ -303,19 +303,19 @@ void c2_layout__fini(struct c2_layout *l)
  */
 void c2_layout__striped_init(struct c2_layout_domain *dom,
 			     struct c2_layout_striped *str_l,
-			     struct c2_layout_enum *e,
 			     uint64_t lid, uint64_t pool_id,
 			     const struct c2_layout_type *type,
-			     const struct c2_layout_ops *ops)
+			     const struct c2_layout_ops *ops,
+			     struct c2_layout_enum *e)
 
 {
 	C2_PRE(domain_invariant(dom));
 	C2_PRE(str_l != NULL);
-	C2_PRE(e != NULL);
-	C2_PRE(c2_pool_id_is_valid(pool_id));
 	C2_PRE(lid != LID_NONE);
+	C2_PRE(c2_pool_id_is_valid(pool_id));
 	C2_PRE(type != NULL);
 	C2_PRE(ops != NULL);
+	C2_PRE(e != NULL);
 
 	C2_ENTRY("lid %llu, enum-type-id %lu", (unsigned long long)lid,
 		 (unsigned long)e->le_type->let_id);
@@ -628,17 +628,15 @@ int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
  */
 void c2_layout_domain_fini(struct c2_layout_domain *dom)
 {
-	uint32_t i;
-
 	C2_PRE(domain_invariant(dom));
 
 	/* Verify that all the layout types are unregistered. */
-	for (i = 0; i < ARRAY_SIZE(dom->ld_type); ++i)
-		C2_PRE(dom->ld_type[i] == NULL);
+	C2_PRE(c2_forall(i, ARRAY_SIZE(dom->ld_type),
+	       dom->ld_type[i] == NULL));
 
 	/* Verify that all the enum types are unregistered. */
-	for (i = 0; i < ARRAY_SIZE(dom->ld_enum); ++i)
-		C2_PRE(dom->ld_enum[i] == NULL);
+	C2_PRE(c2_forall(i, ARRAY_SIZE(dom->ld_enum),
+	       dom->ld_enum[i] == NULL));
 
 	schema_fini(&dom->ld_schema);
 

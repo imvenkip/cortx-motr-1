@@ -86,10 +86,10 @@ void c2_layout__fini(struct c2_layout *l);
 
 void c2_layout__striped_init(struct c2_layout_domain *dom,
 			     struct c2_layout_striped *str_l,
-			     struct c2_layout_enum *e,
 			     uint64_t lid, uint64_t pool_id,
 			     const struct c2_layout_type *type,
-			     const struct c2_layout_ops *ops);
+			     const struct c2_layout_ops *ops,
+			     struct c2_layout_enum *e);
 void c2_layout__striped_fini(struct c2_layout_striped *str_l);
 
 void c2_layout__enum_init(struct c2_layout_domain *dom,
