@@ -240,7 +240,8 @@ static struct c2_rpc_frm_sm *item_to_frm_sm(const struct c2_rpc_item *item)
 	return frm_sm;
 }
 
-void frm_sm_init(struct c2_rpc_frm_sm *frm_sm, uint64_t max_rpcs_in_flight)
+void frm_sm_init(struct c2_rpc_frm_sm *frm_sm, uint64_t max_rpcs_in_flight,
+		 uint32_t max_rpc_msg_size)
 {
 	uint64_t		 cnt;
 	struct c2_rpc_chan	*chan;
@@ -269,8 +270,7 @@ void frm_sm_init(struct c2_rpc_frm_sm *frm_sm, uint64_t max_rpcs_in_flight)
 	frm_sm->fs_timedout_items_nr = 0;
 	frm_sm->fs_items_left = 0;
 
-	frm_sm->fs_max_msg_size = c2_net_domain_get_max_buffer_size(netdom);
-	frm_sm->fs_max_frags = c2_net_domain_get_max_buffer_segments(netdom);
+	frm_sm->fs_max_msg_size = max_rpc_msg_size;
 	frm_sm->fs_max_rpcs_in_flight = max_rpcs_in_flight;
 }
 

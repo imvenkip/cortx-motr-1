@@ -48,7 +48,8 @@ static void rpc_tm_cleanup(struct c2_rpc_machine *machine);
 
 extern void frm_rpcs_inflight_dec(struct c2_rpc_frm_sm *frm_sm);
 extern void frm_sm_init(struct c2_rpc_frm_sm *frm_sm,
-			uint64_t max_rpcs_in_flight);
+			uint64_t max_rpcs_in_flight,
+			uint32_t max_rpc_msg_size);
 extern void frm_sm_fini(struct c2_rpc_frm_sm *frm_sm);
 extern int frm_ubitem_added(struct c2_rpc_item *item);
 extern void frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
@@ -344,7 +345,8 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 	ch->rc_destep = dest_ep;
 	c2_ref_init(&ch->rc_ref, 1, rpc_chan_ref_release);
 	c2_net_end_point_get(dest_ep);
-	frm_sm_init(&ch->rc_frmsm, max_rpcs_in_flight);
+	frm_sm_init(&ch->rc_frmsm, max_rpcs_in_flight,
+		     machine->rm_min_recv_size);
 	c2_mutex_lock(&machine->rm_chan_mutex);
 	c2_list_add(&machine->rm_chans, &ch->rc_linkage);
 	c2_mutex_unlock(&machine->rm_chan_mutex);
