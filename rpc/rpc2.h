@@ -146,7 +146,6 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 #include "lib/cdefs.h"
 #include "lib/mutex.h"
 #include "lib/list.h"
-#include "lib/tlist.h"
 #include "lib/time.h"
 #include "lib/refs.h"
 #include "lib/chan.h"
@@ -326,6 +325,7 @@ struct c2_rpc_item {
 	/** Link through which items are anchored on list of
 	    c2_rpc_item:ri_compound_items. */
 	struct c2_tlink			 ri_field;
+	struct c2_tlink                  ri_iq_link;
 	/** Magic constatnt to verify sanity of linked rpc items. */
 	uint64_t			 ri_link_magic;
 };

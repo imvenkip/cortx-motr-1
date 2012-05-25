@@ -67,6 +67,7 @@ extern const struct c2_test_suite buffer_pool_ut;
 extern const struct c2_test_suite addb_ut;
 extern const struct c2_test_suite balloc_ut;
 extern const struct c2_test_suite rpc_service_ut;
+extern const struct c2_test_suite frm_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -96,6 +97,7 @@ void add_uts(void)
 	c2_ut_add(&c2_net_bulk_sunrpc_ut);
 	c2_ut_add(&c2_net_lnet_ut);
 	c2_ut_add(&parity_math_ut);
+	c2_ut_add(&frm_ut);
 	c2_ut_add(&reqh_ut);
 	c2_ut_add(&rpclib_ut);
 	c2_ut_add(&rpc_onwire_ut);
