@@ -124,6 +124,19 @@ static char *cs_ut_lnet_cmd[] = { "colibri_setup", "-r", "-T", "linux",
                                 "-e", "lnet:127.0.0.1@tcp:12345:30:101",
                                 "-s", "ds1"};
 
+static char *cs_ut_lnet_ep_dup_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-e", "lnet:127.0.0.1@tcp:12345:30:101",
+                                "-s", "ds1", "-r", "-T", "AD",
+                                "-D", "cs_sdb2", "-S", "cs_stob2",
+                                "-e", "lnet:127.0.0.1@tcp:12345:30:101",
+                                "-s", "ds1"};
+
+static char *cs_ut_lnet_ep_bad_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-e", "lnet:asdad:asdsd:sadasd",
+                                "-s", "ds1"};
+
 static const char *cl_ep_addrs[] = {
 				"127.0.0.1:34567:1",
 				"127.0.0.1:34569"};
@@ -395,6 +408,18 @@ static void test_cs_ut_ep_bad(void)
 				  ARRAY_SIZE(cs_ut_ep_bad_cmd));
 }
 
+static void test_cs_ut_lnet_ep_bad(void)
+{
+	cs_ut_test_helper_failure(cs_ut_lnet_ep_bad_cmd,
+				  ARRAY_SIZE(cs_ut_lnet_ep_bad_cmd));
+}
+
+static void test_cs_ut_lnet_ep_duplicate(void)
+{
+	cs_ut_test_helper_failure(cs_ut_lnet_ep_dup_cmd,
+				  ARRAY_SIZE(cs_ut_lnet_ep_dup_cmd));
+}
+
 static void test_cs_ut_service_bad(void)
 {
 	cs_ut_test_helper_failure(cs_ut_service_bad_cmd,
@@ -439,6 +464,8 @@ const struct c2_test_suite colibri_setup_ut = {
 		{ "cs-bad-service", test_cs_ut_service_bad},
 		{ "cs-missing-options", test_cs_ut_args_bad},
 		{ "cs-buffer_pool-options", test_cs_ut_buffer_pool},
+		{ "cs-bad-lnet-ep", test_cs_ut_lnet_ep_bad},
+		{ "cs-duplicate-lnet-ep", test_cs_ut_lnet_ep_duplicate},
 		{ "cs-lnet-options", test_cs_ut_lnet},
                 { NULL, NULL }
         }
