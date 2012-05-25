@@ -37,6 +37,8 @@ extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
     single buffer is supported.
  */
 #define IO_TM_RECV_QUEUE_MIN_LEN 6
+/** Non zero value is given for multiple message delivery support. */
+#define IO_MAX_RPC_MSG_SIZE      0
 
 /* Global reference to bulkio_params structure. */
 struct bulkio_params *bparm;
@@ -97,6 +99,8 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr, int port)
 	strcpy(server_args[11], "ioservice");
 	strcpy(server_args[12], "-q");
 	strcpy(server_args[13], to_string(IO_TM_RECV_QUEUE_MIN_LEN));
+	strcpy(server_args[14], "-m");
+	strcpy(server_args[15], to_string(IO_MAX_RPC_MSG_SIZE));
 	C2_ALLOC_ARR(stypes, IO_SERVER_SERVICE_NR);
 	C2_ASSERT(stypes != NULL);
 	stypes[0] = &ds1_service_type;
@@ -475,12 +479,13 @@ int bulkio_client_start(struct bulkio_params *bp, const char *caddr, int cport,
 	C2_ASSERT(srv_addr != NULL);
 	bulkio_netep_form(saddr, sport, IO_SERVER_SVC_ID, srv_addr);
 
-	cctx->rcx_remote_addr = srv_addr;
-	cctx->rcx_cob_dom_id  = IO_CLIENT_COBDOM_ID;
-	cctx->rcx_nr_slots    = IO_RPC_SESSION_SLOTS;
-	cctx->rcx_timeout_s   = IO_RPC_CONN_TIMEOUT;
-	cctx->rcx_max_rpcs_in_flight = IO_RPC_MAX_IN_FLIGHT;
+	cctx->rcx_remote_addr		= srv_addr;
+	cctx->rcx_cob_dom_id		= IO_CLIENT_COBDOM_ID;
+	cctx->rcx_nr_slots		= IO_RPC_SESSION_SLOTS;
+	cctx->rcx_timeout_s		= IO_RPC_CONN_TIMEOUT;
+	cctx->rcx_max_rpcs_in_flight	= IO_RPC_MAX_IN_FLIGHT;
 	cctx->rcx_recv_queue_min_length = IO_TM_RECV_QUEUE_MIN_LEN;
+	cctx->rcx_max_rpc_recv_size     = IO_MAX_RPC_MSG_SIZE;
 
 	C2_ALLOC_ARR(cli_addr, IO_ADDR_LEN);
 	C2_ASSERT(cli_addr != NULL);

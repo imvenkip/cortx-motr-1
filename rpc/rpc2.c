@@ -55,7 +55,8 @@ static void rpc_tm_cleanup(struct c2_rpc_machine *machine);
 
 extern void frm_rpcs_inflight_dec(struct c2_rpc_frm_sm *frm_sm);
 extern void frm_sm_init(struct c2_rpc_frm_sm *frm_sm,
-			uint64_t max_rpcs_in_flight);
+			uint64_t max_rpcs_in_flight,
+			uint32_t max_rpc_msg_size);
 extern void frm_sm_fini(struct c2_rpc_frm_sm *frm_sm);
 extern int frm_ubitem_added(struct c2_rpc_item *item);
 extern void frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
@@ -367,7 +368,8 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 	ch->rc_destep = dest_ep;
 	c2_ref_init(&ch->rc_ref, 1, rpc_chan_ref_release);
 	c2_net_end_point_get(dest_ep);
-	frm_sm_init(&ch->rc_frmsm, max_rpcs_in_flight);
+	frm_sm_init(&ch->rc_frmsm, max_rpcs_in_flight,
+		     machine->rm_min_recv_size);
 	c2_list_add(&machine->rm_chans, &ch->rc_linkage);
 	*chan = ch;
 	return 0;
@@ -584,7 +586,7 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 		C2_ADDB_ADD(&machine->rm_rpc_machine_addb,
 			    &rpc_machine_addb_loc,
 			    rpc_machine_func_fail,
-			    "Buffer event reported failure %d",
+			    "Buffer event reported failure",
 			    ev->nbe_status);
 		goto last;
 	}
@@ -667,7 +669,8 @@ static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 	if (nrsegs == 0)
 		++nrsegs;
 
-	rc = c2_bufvec_alloc_aligned(&nb->nb_buffer, nrsegs, seg_size, 12);
+	rc = c2_bufvec_alloc_aligned(&nb->nb_buffer, nrsegs, seg_size,
+				      C2_SEG_SHIFT);
 	if (rc < 0) {
 		if (qtype == C2_NET_QT_MSG_RECV) {
 			c2_free(nb);
@@ -688,7 +691,7 @@ static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 	/* Register the buffer with given net domain. */
 	rc = c2_net_buffer_register(nb, net_dom);
 	if (rc < 0) {
-		c2_bufvec_free_aligned(&nb->nb_buffer, 12);
+		c2_bufvec_free_aligned(&nb->nb_buffer, C2_SEG_SHIFT);
 		if (qtype == C2_NET_QT_MSG_RECV) {
 			c2_free(nb);
 			nb = NULL;
@@ -716,7 +719,7 @@ void send_buffer_deallocate(struct c2_net_buffer *nb,
 	C2_PRE((nb->nb_flags & C2_NET_BUF_QUEUED) == 0);
 
 	c2_net_buffer_deregister(nb, net_dom);
-	c2_bufvec_free_aligned(&nb->nb_buffer, 12);
+	c2_bufvec_free_aligned(&nb->nb_buffer, C2_SEG_SHIFT);
 }
 
 static void __rpc_machine_fini(struct c2_rpc_machine *machine)

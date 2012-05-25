@@ -74,7 +74,13 @@
 
 #define to_string(x) str(x)
 #define str(x)	#x
+
 #define TM_RECV_QUEUE_MIN_LEN 2
+
+/* If zero default value will be taken and if non zero multiple message
+ * delivery support in a single receive buffer is supported.
+ */
+#define MAX_RPC_MSG_SIZE      0
 
 enum ep_type {
 	EP_SERVER,
@@ -91,8 +97,9 @@ enum {
 };
 
 #ifndef __KERNEL__
-static bool server_mode        = false;
-static char tm_len[STRING_LEN] = to_string(TM_RECV_QUEUE_MIN_LEN);
+static bool server_mode		 = false;
+static char tm_len[STRING_LEN]   = to_string(TM_RECV_QUEUE_MIN_LEN);
+static char rpc_size[STRING_LEN] = to_string(MAX_RPC_MSG_SIZE);
 #endif
 
 static bool verbose           = false;
@@ -105,6 +112,7 @@ static int  nr_slots          = 1;
 static int  nr_ping_bytes     = 8;
 static int  nr_ping_item      = 1;
 static int  tm_recv_queue_len = TM_RECV_QUEUE_MIN_LEN;
+static int  max_rpc_msg_size  = MAX_RPC_MSG_SIZE;
 
 static char client_endpoint[BUF_LEN];
 static char server_endpoint[BUF_LEN];
@@ -142,6 +150,9 @@ MODULE_PARM_DESC(nr_ping_item, "number of ping fop items");
 
 module_param(tm_recv_queue_len, int, S_IRUGO);
 MODULE_PARM_DESC(tm_recv_queue_len, "minimum TM receive queue length");
+
+module_param(max_rpc_msg_size, int, S_IRUGO);
+MODULE_PARM_DESC(tm_recv_queue_len, "maximum RPC message size");
 #endif
 
 static int build_endpoint_addr(enum ep_type type, char *out_buf, size_t buf_size)
@@ -392,6 +403,7 @@ static int run_client(void)
 	cctx.rcx_timeout_s             = CONNECT_TIMEOUT,
 	cctx.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT,
 	cctx.rcx_recv_queue_min_length = tm_recv_queue_len;
+	cctx.rcx_max_rpc_recv_size     = max_rpc_msg_size,
 
 	rc = build_endpoint_addr(EP_SERVER, server_endpoint,
 					sizeof(server_endpoint));
@@ -505,8 +517,7 @@ static int run_server(void)
 	char *server_argv[] = {
 		"rpclib_ut", "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", server_endpoint,
-		"-s", "ds1", "-s", "ds2",
-		"-q", tm_len,
+		"-s", "ds1", "-s", "ds2", "-q", tm_len, "-m", rpc_size,
 	};
 
 	C2_RPC_SERVER_CTX_DECLARE(sctx, &xprt, 1, server_argv,
@@ -534,6 +545,9 @@ static int run_server(void)
 
 	if (tm_recv_queue_len != 0)
 		sprintf(tm_len, "%d" , tm_recv_queue_len);
+
+	if (max_rpc_msg_size != 0)
+		sprintf(rpc_size, "%d" , max_rpc_msg_size);
 
 	rc = c2_rpc_server_start(&sctx);
 	if (rc != 0)
