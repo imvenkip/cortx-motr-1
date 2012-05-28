@@ -225,8 +225,9 @@ void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool);
 /**
  * Converts 127.0.0.1@tcp:12345:32:4 to local_ip@tcp:12345:32:4
  * and 127.0.0.1@oib:12345:32:4 to local_ip@oib:12345:32:4
- * @todo Needs to be removed once the bulk sunrpc replace task is done.
- */ 
+ * @todo Needs to be removed once the alternate way to convert local addresses
+ * for lnet is made available.
+ */
 int c2_lnet_local_addr_get(char *addr);
 
 #endif /* __COLIBRI_RPC_RPCLIB_H__ */

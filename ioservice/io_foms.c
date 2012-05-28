@@ -1232,7 +1232,7 @@ static int initiate_zero_copy(struct c2_fom *fom)
         c2_rpc_bulk_init(rbulk);
 
         C2_ASSERT(c2_tlist_invariant(&netbufs_tl, &fom_obj->fcrw_netbuf_list));
-       	dom      = io_fop_tm_get(fop)->ntm_dom;
+	dom      = io_fop_tm_get(fop)->ntm_dom;
         net_desc = &rwfop->crw_desc.id_descs[fom_obj->fcrw_curr_desc_index];
         rpc_item = (const struct c2_rpc_item *)&(fop->f_item);
 
@@ -1645,12 +1645,12 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
  */
 static void c2_io_fom_cob_rw_fini(struct c2_fom *fom)
 {
-        uint32_t                        colour = 0;
-        struct c2_fop                  *fop = fom->fo_fop;
-        struct c2_io_fom_cob_rw        *fom_obj;
-        struct c2_net_buffer           *nb = NULL;
-        struct c2_stob_io_desc         *stio_desc = NULL;
-        struct c2_net_transfer_mc      *tm;
+        uint32_t		  colour;
+        struct c2_fop		  *fop = fom->fo_fop;
+        struct c2_io_fom_cob_rw	  *fom_obj;
+        struct c2_net_buffer	  *nb = NULL;
+        struct c2_stob_io_desc	  *stio_desc = NULL;
+        struct c2_net_transfer_mc *tm;
 
         C2_PRE(fom != NULL);
 
