@@ -152,7 +152,7 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	int rc;
 	struct c2_net_transfer_mc *tm;
 	struct c2_net_domain      *ndom;
-	struct c2_rpc_machine	  *rpc_machine;
+	struct c2_rpc_machine	  *rpc_mach;
 	struct c2_net_buffer_pool *buffer_pool;
 	uint32_t		   segs_nr;
 	uint32_t		   tms_nr;
@@ -160,7 +160,7 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	c2_bcount_t		   seg_size;
 
 	ndom	    = cctx->rcx_net_dom;
-	rpc_machine = &cctx->rcx_rpc_machine;
+	rpc_mach    = &cctx->rcx_rpc_machine;
 	buffer_pool = &cctx->rcx_buffer_pool;
 
 	if (strcmp(ndom->nd_xprt->nx_name, "lnet") == 0 &&
@@ -193,18 +193,11 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	if (rc != 0)
 		goto pool_fini;
 
-	rpc_machine->rm_min_recv_size = cctx->rcx_max_rpc_recv_size != 0 ?
-					cctx->rcx_max_rpc_recv_size :
-					c2_net_domain_get_max_buffer_size(ndom);
-	rpc_machine->rm_max_recv_msgs =
-			c2_net_domain_get_max_buffer_size(ndom) /
-			rpc_machine->rm_min_recv_size;
+	c2_rpc_machine_params_add(rpc_mach, ndom, C2_BUFFER_ANY_COLOUR,
+				  cctx->rcx_max_rpc_recv_size,
+				  cctx->rcx_recv_queue_min_length);
 
-	rpc_machine->rm_tm_colour		 = C2_BUFFER_ANY_COLOUR;
-	rpc_machine->rm_tm_recv_queue_min_length =
-			cctx->rcx_recv_queue_min_length;
-
-	rc = c2_rpc_machine_init(rpc_machine, cctx->rcx_cob_dom,
+	rc = c2_rpc_machine_init(rpc_mach, cctx->rcx_cob_dom,
 				 ndom, cctx->rcx_local_addr, NULL,
 				 buffer_pool);
 	if (rc != 0)
@@ -218,8 +211,7 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 		goto rpcmach_fini;
 
 	rc = c2_rpc_conn_create(&cctx->rcx_connection, cctx->rcx_remote_ep,
-				rpc_machine,
-				cctx->rcx_max_rpcs_in_flight,
+				rpc_mach, cctx->rcx_max_rpcs_in_flight,
 				cctx->rcx_timeout_s);
 	if (rc != 0)
 		goto ep_put;
@@ -236,7 +228,7 @@ conn_destroy:
 ep_put:
 	c2_net_end_point_put(cctx->rcx_remote_ep);
 rpcmach_fini:
-	c2_rpc_machine_fini(rpc_machine);
+	c2_rpc_machine_fini(rpc_mach);
 pool_fini:
 	c2_rpc_net_buffer_pool_cleanup(buffer_pool);
 	C2_ASSERT(rc != 0);

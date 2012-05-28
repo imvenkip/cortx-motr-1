@@ -755,14 +755,8 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 	if (max_rpc_msg_size > c2_net_domain_get_max_buffer_size(ndom))
 		return -EINVAL;
 
-	rpcmach->rm_min_recv_size = max_rpc_msg_size != 0 ? max_rpc_msg_size :
-				    c2_net_domain_get_max_buffer_size(ndom);
-
-	rpcmach->rm_max_recv_msgs = c2_net_domain_get_max_buffer_size(ndom) /
-				    rpcmach->rm_min_recv_size;
-
-	rpcmach->rm_tm_recv_queue_min_length = recv_queue_min_length;
-	rpcmach->rm_tm_colour                = tm_colour;
+	c2_rpc_machine_params_add(rpcmach, ndom, tm_colour, max_rpc_msg_size,
+				  recv_queue_min_length);
 
 	buffer_pool = cs_buffer_pool_get(cctx, ndom);
 	rc = c2_rpc_machine_init(rpcmach, reqh->rh_cob_domain, ndom, ep, reqh,
@@ -896,11 +890,11 @@ static void cs_buffer_pool_fini(struct c2_colibri *cctx)
 	C2_PRE(cctx != NULL);
 	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
 
-	c2_tlist_for(&cs_buffer_pools_tl, &cctx->cc_buffer_pools, cs_bp) {
+	c2_tl_for(&cs_buffer_pools, &cctx->cc_buffer_pools, cs_bp) {
                 cs_buffer_pools_tlink_del_fini(cs_bp);
 		c2_net_buffer_pool_fini(&cs_bp->cs_buffer_pool);
 		c2_free(cs_bp);
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 }
 
 /**

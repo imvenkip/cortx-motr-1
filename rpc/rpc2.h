@@ -60,7 +60,8 @@
    // and executed as a part of c2_init().
 
    // create rpc machine.
-   ret = c2_rpc_machine_init(&mach, cob_domain, net_domain, ep_addr, recv_pool);
+   c2_rpc_machine_params_add(&mach, net_dom, colour, rpc_msg_size, tm_que_len);
+   ret = c2_rpc_machine_init(&mach, cob_domain, net_dom, ep_addr, recv_pool);
    // create/get update stream used for interaction between endpoints
    ret = c2_rpc_update_stream_get(&mach, &srvid,
 	C2_UPDATE_STREAM_SHARED_SLOT, &us_ops, &update_stream);
@@ -518,6 +519,7 @@ void c2_rpc_core_fini(void);
    @param ep_addr Source end point address to associate with the transfer mc.
    @param receive_pool Buffer pool to be attached to TM for provisioning it.
    @pre c2_rpc_core_init().
+   @pre c2_rpc_machine_params_add().
  */
 int  c2_rpc_machine_init(struct c2_rpc_machine	   *machine,
 			 struct c2_cob_domain	   *dom,

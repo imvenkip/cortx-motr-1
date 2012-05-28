@@ -1064,7 +1064,7 @@ static int acquire_net_buffer(struct c2_fom *fom)
 
                 /* Get network buffer pool for network domain */
                 fop_ndom = tm->ntm_dom;
-                c2_tlist_for(&bufferpools_tl, &serv_obj->rios_buffer_pools,
+                c2_tl_for(&bufferpools, &serv_obj->rios_buffer_pools,
                              bpdesc) {
                         if (bpdesc->rios_ndom == fop_ndom) {
                                 fom_obj->fcrw_bp = &bpdesc->rios_bp;

@@ -224,7 +224,15 @@ void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool);
 
 static inline uint32_t c2_rpc_bufs_nr(uint32_t len, uint32_t tms_nr)
 {
-	return len + max32u(tms_nr / 4, 1) + C2_NET_BUFFER_POOL_THRESHOLD;
+	return len +
+	       /* It is used so that more than one free buffer is present
+		* for each TM when tms_nr > 8.
+		*/
+	       max32u(tms_nr / 4, 1) +
+	       /* It is added so that frequent low_threshold callbacks of
+		* buffer pool can be reduced.
+		*/
+	       C2_NET_BUFFER_POOL_THRESHOLD;
 }
 
 static inline c2_bcount_t c2_rpc_seg_size(struct c2_net_domain *ndom)
@@ -235,11 +243,54 @@ static inline c2_bcount_t c2_rpc_seg_size(struct c2_net_domain *ndom)
 			  C2_SEG_SIZE);
 }
 
-static inline uint32_t c2_rpc_segs_nr(struct c2_net_domain *ndom, uint32_t seg_size)
+static inline uint32_t c2_rpc_segs_nr(struct c2_net_domain *ndom,
+				      c2_bcount_t seg_size)
 {
 	C2_PRE(ndom != NULL);
 
 	return c2_net_domain_get_max_buffer_size(ndom) / seg_size;
+}
+
+static inline c2_bcount_t c2_rpc_max_msg_size(struct c2_net_domain *ndom,
+					      c2_bcount_t rpc_size)
+{
+	C2_PRE(ndom != NULL);
+
+	return rpc_size != 0 ? rpc_size :
+			       c2_net_domain_get_max_buffer_size(ndom);
+}
+
+static inline uint32_t c2_rpc_max_recv_msgs(struct c2_net_domain *ndom,
+					    c2_bcount_t rpc_size)
+{
+	C2_PRE(ndom != NULL);
+
+	return c2_net_domain_get_max_buffer_size(ndom) / rpc_size;
+}
+
+/**
+   It calculates the maximum RPC message size, number of RPC messages and
+   assigns them tp the RPC machine.
+   @pre rpc_mach != NULL && dom != NULL
+   @param colour Unique colour of each transfer machine.
+   @param msg_size Maximum RPC message size.
+   @param queue_len Minimum TM receive queue length.
+ */
+
+static inline void c2_rpc_machine_params_add(struct c2_rpc_machine *rpc_mach,
+					     struct c2_net_domain  *dom,
+					     uint32_t		    colour,
+					     c2_bcount_t	    msg_size,
+					     uint32_t		    queue_len)
+{
+	C2_PRE(rpc_mach != NULL && dom != NULL);
+
+	rpc_mach->rm_min_recv_size = c2_rpc_max_msg_size(dom, msg_size);
+	rpc_mach->rm_max_recv_msgs = c2_rpc_max_recv_msgs(dom, queue_len);
+	rpc_mach->rm_tm_colour	   = colour;
+
+	rpc_mach->rm_tm_recv_queue_min_length = queue_len;
+
 }
 
 /**

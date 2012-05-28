@@ -167,7 +167,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
 
-        c2_tlist_for(&c2_rhrpm_tl,
+        c2_tl_for(&c2_rhrpm,
 		     &service->rs_reqh->rh_rpc_machines, rpcmach) {
 		/*
 		 * Check buffer pool for network domain of rpc_machine

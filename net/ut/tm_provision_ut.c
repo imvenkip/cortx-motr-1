@@ -118,7 +118,7 @@ static int ut_tm_prov_stop(struct c2_net_transfer_mc *tm, bool cancel)
 
 	C2_UT_ASSERT(c2_mutex_is_locked(&tm->ntm_mutex));
 	c2_mutex_unlock(&tm->ntm_mutex);
-	c2_tlist_for(&c2_net_tm_tl, ql, nb) {
+	c2_tl_for(&c2_net_tm, ql, nb) {
 		ut_buf_del_called = false;
 		c2_clink_add(&tm->ntm_chan, &tmwait);
 		c2_net_buffer_del(nb, tm);

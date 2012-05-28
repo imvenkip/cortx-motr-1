@@ -193,7 +193,7 @@ static int c2t1fs_rpc_init(void)
 	segs_nr  = c2_rpc_segs_nr(ndom, seg_size);
 	tms_nr	 = 1;
 	bufs_nr  = c2_rpc_bufs_nr(tm_recv_queue_min_len, tms_nr);
-	
+
 	rc = c2_rpc_net_buffer_pool_setup(ndom, buffer_pool,
 					  segs_nr, seg_size,
 					  bufs_nr, tms_nr);
@@ -213,16 +213,9 @@ static int c2t1fs_rpc_init(void)
 	rc = c2_cob_domain_init(cob_dom, dbenv, cob_dom_id);
 	if (rc != 0)
 		goto dbenv_fini;
-
-	rpc_machine->rm_min_recv_size = max_rpc_msg_size != 0 ?
-					max_rpc_msg_size :
-					c2_net_domain_get_max_buffer_size(ndom);
-	rpc_machine->rm_max_recv_msgs =
-			c2_net_domain_get_max_buffer_size(ndom) /
-			rpc_machine->rm_min_recv_size;
-
-	rpc_machine->rm_tm_colour                = C2_BUFFER_ANY_COLOUR;
-	rpc_machine->rm_tm_recv_queue_min_length = tm_recv_queue_min_len;
+	
+	c2_rpc_machine_params_add(rpc_machine, ndom, C2_BUFFER_ANY_COLOUR,
+				  max_rpc_msg_size, tm_recv_queue_min_len);
 
 	rc = c2_rpc_machine_init(rpc_machine, cob_dom, ndom, laddr, NULL,
 				 buffer_pool);
