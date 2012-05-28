@@ -48,7 +48,7 @@ struct c2_rpc_item_type_ops {
 	/**
 	   Find out the size of rpc item.
 	 */
-	size_t (*rito_item_size)(const struct c2_rpc_item *item);
+	c2_bcount_t (*rito_item_size)(const struct c2_rpc_item *item);
 
 	/**
 	  Return true iff item1 and item2 are equal.

@@ -20,7 +20,8 @@ c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *constraint);
 enum frm_state {
 	FRM_UNINITIALISED,
 	FRM_IDLE,
-	FRM_BUSY
+	FRM_BUSY,
+	FRM_NR_STATES
 };
 
 enum c2_rpc_frm_itemq_type {

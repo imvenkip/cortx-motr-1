@@ -63,7 +63,7 @@ int c2_fop_item_type_default_decode(struct c2_rpc_item_type *item_type,
    @param item The rpc item for which the on wire size is to be calculated
    @retval Size of the item in bytes.
 */
-size_t c2_fop_item_type_default_onwire_size(const struct c2_rpc_item *item);
+c2_bcount_t c2_fop_item_type_default_onwire_size(const struct c2_rpc_item *item);
 
 /** @} end of fop group */
 

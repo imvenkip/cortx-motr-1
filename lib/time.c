@@ -31,6 +31,13 @@
    @{
 */
 
+c2_time_t c2_time(uint64_t secs, long ns)
+{
+	c2_time_t t;
+	c2_time_set(&t, secs, ns);
+	return t;
+}
+
 /**
    Create a c2_time_t from seconds and ns
  */
@@ -95,6 +102,16 @@ bool c2_time_after(const c2_time_t a, const c2_time_t b)
 bool c2_time_after_eq(const c2_time_t a, const c2_time_t b)
 {
 	return a >= b;
+}
+
+bool c2_time_before_eq(const c2_time_t a, const c2_time_t b)
+{
+	return a <= b;
+}
+
+bool c2_time_eq(const c2_time_t a, const c2_time_t b)
+{
+	return a == b;
 }
 
 /**

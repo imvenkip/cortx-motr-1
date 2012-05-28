@@ -28,9 +28,9 @@ struct c2_fop;
 struct c2_rpc_item_type;
 struct c2_bufvec_cur;
 
-size_t c2_fop_item_type_default_onwire_size(const struct c2_rpc_item *item)
+c2_bcount_t c2_fop_item_type_default_onwire_size(const struct c2_rpc_item *item)
 {
-	size_t		 len;
+	c2_bcount_t      len;
 	struct c2_fop	*fop;
 
 	C2_PRE(item != NULL);

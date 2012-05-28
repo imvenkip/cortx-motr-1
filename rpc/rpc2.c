@@ -274,6 +274,15 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 }
 C2_EXPORTED(c2_rpc_reply_post);
 
+c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item)
+{
+	C2_PRE(item->ri_type != NULL &&
+	       item->ri_type->rit_ops != NULL &&
+	       item->ri_type->rit_ops->rito_item_size != NULL);
+
+	return item->ri_type->rit_ops->rito_item_size(item);
+}
+
 bool c2_rpc_item_is_update(const struct c2_rpc_item *item)
 {
 	return (item->ri_type->rit_flags & C2_RPC_ITEM_TYPE_MUTABO) != 0;
