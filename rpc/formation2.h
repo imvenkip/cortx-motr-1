@@ -2,9 +2,10 @@
 #define __COLIBRI_RPC_FORMATION2_H__
 
 #include "lib/types.h"
-#include "rpc/formation2_internal.h"
+#include "lib/tlist.h"
 
 struct c2_rpc_packet;
+struct c2_rpc_item;
 struct c2_rpc_slot;
 
 struct c2_rpc_frm_constraints {
@@ -38,7 +39,7 @@ struct c2_rpc_frm {
 	enum frm_state                 f_state;
 	struct c2_tl                   f_itemq[FRMQ_NR_QUEUES];
 	uint64_t                       f_nr_items;
-	size_t                         f_nr_bytes_accumulated;
+	c2_bcount_t                    f_nr_bytes_accumulated;
 	uint64_t                       f_nr_packets_enqed;
 	struct c2_rpc_frm_constraints  f_constraints;
 	struct c2_rpc_machine         *f_rmachine;

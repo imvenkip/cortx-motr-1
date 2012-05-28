@@ -34,20 +34,62 @@ C2_TL_DESCR_DEFINE(itemq, "rpc_itemq", static, struct c2_rpc_item,
 		   ITEMQ_HEAD_MAGIC);
 C2_TL_DEFINE(itemq, static, struct c2_rpc_item);
 
-bool itemq_invariant(const struct c2_tl *itemq)
+bool itemq_invariant(const struct c2_tl *q)
 {
-	return itemq != NULL;
+	struct c2_rpc_item *prev;
+	struct c2_rpc_item *item;
+	bool                ok;
+
+	if (q == NULL)
+		return false;
+
+	prev = NULL;
+	c2_tl_for(itemq, q, item) {
+		if (prev == NULL) {
+			prev = item;
+			continue;
+		}
+		ok = prev->ri_prio >= item->ri_prio &&
+		     ergo(prev->ri_prio == item->ri_prio,
+			  c2_time_before_eq(prev->ri_deadline,
+					    item->ri_deadline));
+		if (!ok)
+			return false;
+	} c2_tl_endfor;
+	return true;
 }
 
+c2_bcount_t itemq_nr_bytes_acc(const struct c2_tl *q)
+{
+	struct c2_rpc_item *item;
+	c2_bcount_t         size;
+
+	size = 0;
+	c2_tl_for(itemq, q, item)
+		size += c2_rpc_item_size(item);
+	c2_tl_endfor;
+
+	return size;
+}
 bool frm_invariant(const struct c2_rpc_frm *frm)
 {
+	const struct c2_tl *q;
+	c2_bcount_t         nr_bytes_acc = 0;
+	uint64_t            nr_items = 0;
+
 	return frm != NULL &&
 	       frm->f_state > FRM_UNINITIALISED &&
 	       frm->f_state < FRM_NR_STATES &&
 	       frm->f_rmachine != NULL &&
 	       ergo(frm->f_state == FRM_IDLE, frm->f_nr_items == 0) &&
 	       ergo(frm->f_state == FRM_BUSY, frm->f_nr_items > 0) &&
-	       c2_forall(i, FRMQ_NR_QUEUES, itemq_invariant(&frm->f_itemq[i]));
+	       c2_forall(i, FRMQ_NR_QUEUES,
+			 q             = &frm->f_itemq[i];
+			 nr_items     += itemq_tlist_length(q);
+			 nr_bytes_acc += itemq_nr_bytes_acc(q);
+			 itemq_invariant(q)) &&
+	       frm->f_nr_items == nr_items &&
+	       frm->f_nr_bytes_accumulated == nr_bytes_acc;
 }
 
 int c2_rpc_frm_init(struct c2_rpc_frm             *frm,
@@ -101,9 +143,28 @@ void c2_rpc_frm_enq_item(struct c2_rpc_frm  *frm,
 	q = frm_which_queue(frm, item);
 	itemq_insert(q, item);
 	C2_CNT_INC(frm->f_nr_items);
+	frm->f_nr_bytes_accumulated += c2_rpc_item_size(item);
 	if (frm->f_state == FRM_IDLE)
 		frm->f_state = FRM_BUSY;
+
 	C2_ASSERT(frm_invariant(frm));
+	C2_LEAVE("nr_items: %llu bytes: %llu",
+			(ULL)frm->f_nr_items,
+			(ULL)frm->f_nr_bytes_accumulated);
+}
+
+const char *str_qtype(enum c2_rpc_frm_itemq_type qtype)
+{
+	const char *str[] = {
+			"TIMEDOUT_BOUND",
+			"TIMEDOUT_UNBOUND",
+			"TIMEDOUT_ONE_WAY",
+			"WAITING_BOUND",
+			"WAITING_UNBOUND",
+			"WAITING_ONE_WAY"
+		   };
+	C2_ASSERT(qtype < FRMQ_NR_QUEUES);
+	return str[qtype];
 }
 
 struct c2_tl *
@@ -138,7 +199,7 @@ frm_which_queue(struct c2_rpc_frm        *frm,
 		qtype = oneway ? FRMQ_WAITING_ONE_WAY
 			       : bound  ? FRMQ_WAITING_BOUND
 					: FRMQ_WAITING_UNBOUND;
-	C2_LEAVE("qtype: %d", qtype);
+	C2_LEAVE("qtype: %s", str_qtype(qtype));
 	return &frm->f_itemq[qtype];
 }
 
@@ -156,12 +217,43 @@ bool constraints_are_valid(const struct c2_rpc_frm_constraints *constraints)
 
 void itemq_insert(struct c2_tl *q, struct c2_rpc_item *new_item)
 {
+	struct c2_rpc_item *item;
+
 	C2_ENTRY("q: %p item: %p", q, new_item);
 	C2_PRE(new_item != NULL);
-	C2_LOG("priority: %d", (int)new_item->ri_prio);
+	C2_LOG("priority: %d deadline: [%llu:%llu]",
+			(int)new_item->ri_prio,
+			(ULL)c2_time_seconds(new_item->ri_deadline),
+			(ULL)c2_time_nanoseconds(new_item->ri_deadline));
+
 	C2_PRE(item_priority_is_valid(new_item));
 
 	new_item->ri_itemq = q;
+
+	c2_tl_for(itemq, q, item)
+		if (item->ri_prio > new_item->ri_prio)
+			continue;
+	c2_tl_endfor;
+
+	C2_ASSERT(ergo(item != NULL, item->ri_prio <= new_item->ri_prio));
+
+	while (item != NULL &&
+	       item->ri_prio == new_item->ri_prio &&
+	       c2_time_before_eq(item->ri_deadline,
+				 new_item->ri_deadline)) {
+
+		item = itemq_tlist_next(q, item);
+	}
+
+	if (item == NULL) {
+		itemq_tlink_init_at_tail(new_item, q);
+	} else {
+		C2_ASSERT(item->ri_prio < new_item->ri_prio ||
+			  (item->ri_prio == new_item->ri_prio &&
+			   c2_time_after(item->ri_deadline,
+					 new_item->ri_deadline)));
+		itemq_tlist_add_before(item, new_item);
+	}
 
 	C2_LEAVE("");
 }

@@ -41,11 +41,28 @@ static void frm_init_test(void)
 
 static struct c2_rpc_item items[FRMQ_NR_QUEUES];
 static struct c2_rpc_slot slot;
+
+static c2_bcount_t twoway_item_size(const struct c2_rpc_item *item)
+{
+	return 10;
+}
+static struct c2_rpc_item_type_ops twoway_item_type_ops = {
+	.rito_item_size = twoway_item_size
+};
 static struct c2_rpc_item_type twoway_item_type = {
-	.rit_flags = C2_RPC_ITEM_TYPE_REQUEST
+	.rit_flags = C2_RPC_ITEM_TYPE_REQUEST,
+	.rit_ops   = &twoway_item_type_ops,
+};
+static c2_bcount_t oneway_item_size(const struct c2_rpc_item *item)
+{
+	return 20;
+}
+static struct c2_rpc_item_type_ops oneway_item_type_ops = {
+	.rito_item_size = oneway_item_size
 };
 static struct c2_rpc_item_type oneway_item_type = {
-	.rit_flags = C2_RPC_ITEM_TYPE_UNSOLICITED
+	.rit_flags = C2_RPC_ITEM_TYPE_UNSOLICITED,
+	.rit_ops   = &oneway_item_type_ops,
 };
 static void frm_enq_item_test(void)
 {
