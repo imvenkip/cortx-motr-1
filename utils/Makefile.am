@@ -18,7 +18,7 @@ ut_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/net/bulk_emulation/ut/libnet-bulkem-ut.la \
                $(top_builddir)/net/lnet/ut/liblnet-ut.la \
                $(top_builddir)/udb/ut/libudb-ut.la \
-               $(top_builddir)/capa/ut/libcapa-ut.la \
+	       $(top_builddir)/capa/ut/libcapa-ut.la \
                $(top_builddir)/sm/ut/libsm-ut.la \
                $(top_builddir)/xcode/ut/libxcode-ut.la \
                $(top_builddir)/reqh/ut/libreqh-ut.la \

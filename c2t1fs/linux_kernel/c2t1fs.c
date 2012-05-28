@@ -24,14 +24,15 @@
 #include "c2t1fs/linux_kernel/c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"  /* C2_LOG and C2_ENTRY */
-#include "net/bulk_sunrpc.h"
+#include "lib/memory.h"
+#include "net/lnet/lnet.h"
 #include "ioservice/io_fops.h"
 
-static char *local_addr = EP_SERVICE(6);
+static char *local_addr = "127.0.0.1@tcp:12345:34:6";
 
 module_param(local_addr, charp, S_IRUGO);
 MODULE_PARM_DESC(local_addr, "End-point address of c2t1fs "
-		 "e.g. 127.0.0.1:12345:6");
+		 "e.g. 127.0.0.1@tcp:12345:34:6");
 
 static int  c2t1fs_net_init(void);
 static void c2t1fs_net_fini(void);
@@ -39,7 +40,7 @@ static void c2t1fs_net_fini(void);
 static int  c2t1fs_rpc_init(void);
 static void c2t1fs_rpc_fini(void);
 
-extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
+extern struct c2_net_xprt c2_net_lnet_xprt;
 
 static struct file_system_type c2t1fs_fs_type = {
 	.owner        = THIS_MODULE,
@@ -55,7 +56,7 @@ enum {
 #define C2T1FS_DB_NAME "c2t1fs.db"
 
 struct c2t1fs_globals c2t1fs_globals = {
-	.g_xprt       = &c2_net_bulk_sunrpc_xprt,
+	.g_xprt       = &c2_net_lnet_xprt,
 	.g_cob_dom_id = { .id = C2T1FS_COB_DOM_ID },
 	.g_db_name    = C2T1FS_DB_NAME,
 };
@@ -183,16 +184,28 @@ static int c2t1fs_rpc_init(void)
 		goto dbenv_fini;
 
 	ndom        = &c2t1fs_globals.g_ndom;
-	laddr       =  c2t1fs_globals.g_laddr;
 	rpc_machine = &c2t1fs_globals.g_rpc_machine;
+
+	laddr = c2_alloc(C2_NET_LNET_XEP_ADDR_LEN);
+	if (laddr == NULL)
+		goto cob_dom_fini;
+
+	strncpy(laddr, c2t1fs_globals.g_laddr, C2_NET_LNET_XEP_ADDR_LEN);
+	c2_lut_lhost_lnet_conv(ndom, laddr);
+
+	C2_LOG("local_addr: %s\n", laddr);
+	c2t1fs_globals.g_laddr = laddr;
 
 	rc = c2_rpc_machine_init(rpc_machine, cob_dom, ndom,
 				 laddr, NULL/*reqh*/);
 	if (rc != 0)
-		goto cob_dom_fini;
+		goto free_laddr;
 
 	C2_LEAVE("rc: %d", rc);
 	return 0;
+
+free_laddr:
+	c2_free(laddr);
 
 cob_dom_fini:
 	c2_cob_domain_fini(cob_dom);
@@ -210,6 +223,7 @@ static void c2t1fs_rpc_fini(void)
 	C2_ENTRY();
 
 	c2_rpc_machine_fini(&c2t1fs_globals.g_rpc_machine);
+	c2_free(c2t1fs_globals.g_laddr);
 	c2_cob_domain_fini(&c2t1fs_globals.g_cob_dom);
 	c2_dbenv_fini(&c2t1fs_globals.g_dbenv);
 

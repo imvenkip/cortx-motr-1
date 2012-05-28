@@ -31,7 +31,7 @@
 
 #include "colibri/colibri_setup.h"
 #include "colibri/init.h"
-#include "net/bulk_sunrpc.h"
+#include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
 
 /**
@@ -44,7 +44,7 @@
    by a particular node in a cluster.
  */
 static struct c2_net_xprt *cs_xprts[] = {
-	&c2_net_bulk_sunrpc_xprt
+	&c2_net_lnet_xprt
 };
 
 /**

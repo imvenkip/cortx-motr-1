@@ -26,7 +26,7 @@
 #include "lib/misc.h"  /* C2_SET0 */
 #include "lib/thread.h"/* C2_THREAD_INIT */
 #include "lib/time.h"  /* c2_nanosleep */
-#include "net/bulk_sunrpc.h"
+#include "net/lnet/lnet.h"
 #include "net/buffer_pool.h"
 
 static void notempty(struct c2_net_buffer_pool *bp);
@@ -35,7 +35,7 @@ static void buffers_get_put(int rc);
 
 struct c2_net_buffer_pool  bp;
 static struct c2_chan	   buf_chan;
-static struct c2_net_xprt *xprt = &c2_net_bulk_sunrpc_xprt;
+static struct c2_net_xprt *xprt = &c2_net_lnet_xprt;
 
 const struct c2_net_buffer_pool_ops b_ops = {
 	.nbpo_not_empty	      = notempty,

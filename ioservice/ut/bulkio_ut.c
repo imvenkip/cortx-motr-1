@@ -24,6 +24,7 @@
 #include "lib/processor.h"
 #include "lib/ut.h"
 #include "bulkio_common.h"
+#include "net/lnet/lnet.h"
 #include "ioservice/io_fops.c"	/* To access static APIs. */
 #include "ioservice/io_foms.c"	/* To access static APIs. */
 
@@ -1550,21 +1551,18 @@ void bulkio_server_read_write_multiple_nb(void)
 
 static void bulkio_init(void)
 {
-	int			 rc;
-	int			 port;
-	const char		*caddr;
-	const char		*saddr;
+	int  rc;
+	char caddr[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:2";
+	char saddr[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:1";
 
-	caddr = saddr = "127.0.0.1";
-	port = 23134;
 	C2_ALLOC_PTR(bp);
 	C2_ASSERT(bp != NULL);
 	bulkio_params_init(bp);
 
-	rc = bulkio_server_start(bp, saddr, port);
+	rc = bulkio_server_start(bp, saddr);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(bp->bp_sctx != NULL);
-	rc = bulkio_client_start(bp, caddr, port, saddr, port);
+	rc = bulkio_client_start(bp, caddr, saddr);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(bp->bp_cctx != NULL);
 

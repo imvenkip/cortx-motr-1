@@ -55,15 +55,12 @@ struct ping_ctx {
 	struct c2_list			      pc_work_queue;
 	const char		             *pc_ident;
 	const char		             *pc_compare_buf;
-	int                                   pc_sunrpc_ep_delay;
 	int                                   pc_passive_bulk_timeout;
 	int                                   pc_server_bulk_delay;
-	int                                   pc_sunrpc_skulker_period;
 };
 
 enum {
-	//PING_PORT1 = 12345,
-	PING_PORT1 = C2_NET_SUNRPC_PORT,
+	PING_PORT1 = 12345,
 	PING_PORT2 = 27183,
 	PART3_SERVER_ID = 141421,
 };

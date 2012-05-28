@@ -6,8 +6,7 @@ KBUILD_EXTRA_SYMBOLS = $(BUILD_DIR)/Lustre.symvers @GALOIS_SYMVERS@
 
 GCOV_PROFILE    = @K_ENABLE_COVERAGE@
 
-testdirs        = ../net/bulk_emulation/st/linux_kernel/        \
-                  ../net/lnet/st/linux_kernel/                  \
+testdirs        = ../net/lnet/st/linux_kernel/                  \
                   ../rpc/it/linux_kernel/                       \
                   ../utils/linux_kernel/
 
@@ -44,9 +43,7 @@ dirs  = addb                                                                  \
         lib/linux_kernel                                                      \
         lib/ut                                                                \
         net                                                                   \
-        net/bulk_emulation                                                    \
         net/bulk_emulation/ut                                                 \
-        net/ksunrpc                                                           \
         net/lnet/ut                                                           \
         net/ut                                                                \
         pool                                                                  \
@@ -119,12 +116,7 @@ net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c    \
                                    net_srv.c net_otw_types_k.c
 net_HEADERS                     := net_otw_types_k.h
 
-net_bulk_emulation_SOURCES      := ksunrpc_server.c sunrpc_io_k.c
-net_bulk_emulation_HEADERS      := sunrpc_io_k.h
-
-net_bulk_emulation_ut_SOURCES   := ksunrpc_ut.c bulk_mem_ut.c bulk_sunrpc_ut.c
-
-net_ksunrpc_SOURCES             := domain.c client.c kxdr.c
+net_bulk_emulation_ut_SOURCES   := bulk_mem_ut.c
 
 net_lnet_ut_SOURCES             := lnet_ut.c
 
@@ -147,7 +139,7 @@ sns_SOURCES                     := ls_solve.c matvec.c parity_math.c          \
 
 stob_SOURCES                    := stob.c stob_id.c
 
-ut_SOURCES                      := rpc.c
+ut_SOURCES                      := rpc.c net.c
 
 xcode_SOURCES                   := bufvec_xcode.c bufvec_xcode_fop.c          \
                                    bufvec_xcode_size.c xcode.c

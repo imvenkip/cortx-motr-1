@@ -23,13 +23,11 @@
 
 #ifndef __KERNEL__
 #   include "lib/user_space/thread.h"
-#   include "net/usunrpc/usunrpc.h"
 #   include "desim/sim.h"
 #endif
 
 #include "stob/stob.h"
 #include "net/net.h"
-#include "net/bulk_emulation/sunrpc_xprt.h"
 #include "net/bulk_emulation/mem_xprt.h"
 #include "net/lnet/lnet.h"
 #include "rpc/rpc2.h"
@@ -51,7 +49,6 @@
 
 #ifdef __KERNEL__
 #   include "c2t1fs/linux_kernel/c2t1fs.h"
-#   include "net/ksunrpc/ksunrpc.h"
 #   include "build_kernel_modules/dummy_init_fini.h"
 #endif
 
@@ -94,21 +91,17 @@ struct init_fini_call subsystem[] = {
 	{ &c2_rpc_session_module_init, &c2_rpc_session_module_fini,
 						"rpc-session" },
 	{ &c2_mem_xprt_init, &c2_mem_xprt_fini, "bulk/mem" },
-	{ &c2_sunrpc_fop_init, &c2_sunrpc_fop_fini, "bulk/sunrpc" },
 	{ &c2_net_lnet_init, &c2_net_lnet_fini, "net/lnet" },
-#ifndef __KERNEL__
-	{ &usunrpc_init,          &usunrpc_fini,          "user/sunrpc"},
-#else
-	{ &c2_ksunrpc_init,       &c2_ksunrpc_fini,       "ksunrpc"},
+#ifdef __KERNEL__
 	{ &c2t1fs_init,           &c2t1fs_fini,           "c2t1fs" },
-#endif
+#endif /* __KERNEL__ */
 	{ &c2_linux_stobs_init, &c2_linux_stobs_fini, "linux-stob" },
 	{ &c2_ad_stobs_init,    &c2_ad_stobs_fini,    "ad-stob" },
 	{ &sim_global_init,  &sim_global_fini,  "desim" },
 	{ &c2_reqhs_init,    &c2_reqhs_fini,    "reqh" },
 #ifndef __KERNEL__
 	{ &c2_ioservice_register, &c2_ioservice_unregister, "ioservice" }
-#endif
+#endif /* __KERNEL__ */
 };
 
 static void fini_nr(int i)

@@ -85,7 +85,6 @@ void c2_fop_type_fini(struct c2_fop_type *fopt)
 	c2_addb_ctx_fini(&fopt->ft_addb);
 }
 
-
 int c2_fop_type_build(struct c2_fop_type *fopt)
 {
 	int                        result;

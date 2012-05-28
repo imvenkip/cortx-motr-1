@@ -210,8 +210,7 @@ static void memlayout(struct c2_fop_field_type *ftype, const char *where)
 	printf("struct c2_fop_memlayout %s_memlayout = {\n"
 	       "\t.fm_sizeof = sizeof (%s),\n",
 	       ftype->fft_name, TD(ftype)->d_type);
-	if (where[0] == 'u')
-		printf("\t.fm_uxdr = (xdrproc_t)uxdr_%s,\n", ftype->fft_name);
+
 	printf("\t.fm_child = {\n");
 	for (i = 0; i < ftype->fft_nr; ++i) {
 		struct c2_fop_field *f;
@@ -337,13 +336,9 @@ int c2_fop_comp_kdef(struct c2_fop_field_type *ftype)
 int c2_fop_comp_ulay(struct c2_fop_field_type *ftype)
 {
 	type_decorate(ftype);
-	printf("static bool_t uxdr_%s(XDR *xdrs, %s *%s)\n{\n"
-	       "\textern struct c2_fop_type_format %s_tfmt;\n"
-	       "\treturn c2_fop_type_uxdr(%s_tfmt.ftf_out, xdrs, %s);\n}\n\n",
-	       ftype->fft_name, TD(ftype)->d_type, TD(ftype)->d_prefix,
-	       ftype->fft_name,
-	       ftype->fft_name, TD(ftype)->d_prefix);
+
 	memlayout(ftype, "u");
+
 	return 0;
 }
 

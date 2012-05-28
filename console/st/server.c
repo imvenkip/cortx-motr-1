@@ -24,7 +24,7 @@
 #include <signal.h>
 #include <unistd.h>               /* sleep */
 
-#include "net/bulk_sunrpc.h"      /* bulk transport */
+#include "net/lnet/lnet.h"
 #include "colibri/init.h"         /* c2_init */
 #include "lib/getopts.h"	  /* C2_GETOPTS */
 
@@ -39,13 +39,13 @@
    @{
  */
 
-#define SERVER_ENDPOINT_ADDR	"127.0.0.1:123457:1"
-#define SERVER_ENDPOINT		"bulk-sunrpc:" SERVER_ENDPOINT_ADDR
+#define SERVER_ENDPOINT_ADDR	"127.0.0.1@tcp:12345:34:1"
+#define SERVER_ENDPOINT		"lnet:" SERVER_ENDPOINT_ADDR
 #define SERVER_DB_FILE_NAME	"cons_server.db"
 #define SERVER_STOB_FILE_NAME	"cons_server.stob"
 #define SERVER_LOG_FILE_NAME	"cons_server.log"
 
-extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
+extern struct c2_net_xprt c2_net_lnet_xprt;
 
 static int signaled = 0;
 
@@ -65,7 +65,7 @@ static void sig_handler(int num)
 int main(int argc, char **argv)
 {
 	int                 result;
-	struct c2_net_xprt  *xprt   = &c2_net_bulk_sunrpc_xprt;
+	struct c2_net_xprt *xprt = &c2_net_lnet_xprt;
 
 	char *default_server_argv[] = {
 		argv[0], "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
@@ -104,7 +104,6 @@ int main(int argc, char **argv)
 		goto fop_fini;
 	}
 
-        printf("Server Address = %s\n", SERVER_ENDPOINT);
 	printf("Press CTRL+C to quit.\n");
 
 	signal(SIGINT, sig_handler);

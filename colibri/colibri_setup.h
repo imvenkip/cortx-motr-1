@@ -68,7 +68,7 @@
    @code
    struct c2_colibri colibri_ctx;
    static struct c2_net_xprt *xprts[] = {
-        &c2_net_bulk_sunrpc_xprt,
+        &c2_net_lnet_xprt,
 	...
     };
 
@@ -80,7 +80,7 @@
    @code
    static char *cmd[] = { "colibri_setup", "-r", "-T", "AD",
                    "-D", "cs_db", "-S", "cs_stob",
-                   "-e", "bulk-sunrpc:127.0.0.1:1024:2",
+                   "-e", "lnet:127.0.0.1@tcp:12345:34:1",
                    "-s", "dummy"};
 
     c2_cs_setup_env(&colibri_ctx, ARRAY_SIZE(cs_cmd), cs_cmd);
@@ -389,6 +389,8 @@ void c2_cs_storage_fini(struct c2_cs_reqh_stobs *stob);
  */
 struct c2_reqh *c2_cs_reqh_get(struct c2_colibri *cctx,
 			       const char *service_name);
+
+extern void c2_lut_lhost_lnet_conv(struct c2_net_domain *ndom, char *ep_addr);
 
 /** @} endgroup colibri_setup */
 

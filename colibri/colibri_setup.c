@@ -39,6 +39,7 @@
 #include "stob/ad.h"
 #include "stob/linux.h"
 #include "net/net.h"
+#include "net/lnet/lnet.h"
 #include "rpc/rpc2.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
@@ -107,10 +108,10 @@ enum {
  */
 struct cs_endpoint_and_xprt {
 	/**
-	   3-tuple network layer endpoint address.
-	   e.g. 127.0.0.1:1024:1
+	   4-tuple network layer endpoint address.
+	   e.g. 127.0.0.1@tcp:12345:34:1
 	 */
-	const char      *ex_endpoint;
+	char            *ex_endpoint;
 	/** Supported network transport. */
 	const char      *ex_xprt;
 	/**
@@ -248,7 +249,7 @@ static struct c2_net_xprt *cs_xprt_lookup(const char *xprt_name,
 					  struct c2_net_xprt **xprts,
 					  int xprts_nr)
 {
-        int   i;
+        int i;
 
 	C2_PRE(xprt_name != NULL && xprts != NULL && xprts_nr > 0);
 
@@ -403,14 +404,14 @@ static int cs_endpoint_validate(struct c2_colibri *cctx, const char *ep,
 static int ep_and_xprt_get(struct cs_reqh_context *rctx, const char *ep,
 					struct cs_endpoint_and_xprt **ep_xprt)
 {
-	int   rc = 0;
-	char *sptr;
+	int                          rc = 0;
+	char                        *sptr;
 	struct cs_endpoint_and_xprt *epx;
 
 	C2_PRE(ep != NULL);
 
 	C2_ALLOC_PTR(epx);
-	C2_ALLOC_ARR(epx->ex_scrbuf, strlen(ep) + 1);
+	C2_ALLOC_ARR(epx->ex_scrbuf, C2_NET_LNET_XEP_ADDR_LEN);
 	strcpy(epx->ex_scrbuf, ep);
 	epx->ex_xprt = strtok_r(epx->ex_scrbuf, ":", &sptr);
 	if (epx->ex_xprt == NULL)
@@ -481,11 +482,11 @@ struct c2_rpc_machine *c2_cs_rpcmach_get(struct c2_colibri *cctx,
 					 const struct c2_net_xprt *xprt,
 					 const char *sname)
 {
-	struct c2_reqh            *reqh;
-	struct cs_reqh_context    *rctx;
-	struct c2_reqh_service    *service;
-	struct c2_rpc_machine     *rpcmach;
-	struct c2_net_xprt        *nxprt;
+	struct c2_reqh         *reqh;
+	struct cs_reqh_context *rctx;
+	struct c2_reqh_service *service;
+	struct c2_rpc_machine  *rpcmach;
+	struct c2_net_xprt     *nxprt;
 
         C2_PRE(cctx != NULL);
 
@@ -661,9 +662,9 @@ static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cctx,
 static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 			       const char *ep, struct c2_reqh *reqh)
 {
-	struct c2_rpc_machine        *rpcmach;
-	struct c2_net_domain         *ndom;
-	int                           rc;
+	struct c2_rpc_machine *rpcmach;
+	struct c2_net_domain  *ndom;
+	int                    rc;
 
 	C2_PRE(cctx != NULL && xprt_name != NULL && ep != NULL &&
                reqh != NULL);
@@ -840,10 +841,10 @@ void cs_linux_stob_fini(struct c2_cs_reqh_stobs *stob)
 int c2_cs_storage_init(const char *stob_type, const char *stob_path,
 		       struct c2_cs_reqh_stobs *stob, struct c2_dbenv *db)
 {
-	int                      rc;
-	int                      slen;
-	char                    *objpath;
-	static const char        objdir[] = "/o";
+	int               rc;
+	int               slen;
+	char             *objpath;
+	static const char objdir[] = "/o";
 
 	C2_PRE(stob_type != NULL && stob_path != NULL && stob != NULL);
 
@@ -899,9 +900,9 @@ void c2_cs_storage_fini(struct c2_cs_reqh_stobs *stob)
  */
 static int cs_service_init(const char *service_name, struct c2_reqh *reqh)
 {
-	int                           rc;
-	struct c2_reqh_service_type  *stype;
-	struct c2_reqh_service       *service;
+	int                          rc;
+	struct c2_reqh_service_type *stype;
+	struct c2_reqh_service      *service;
 
 	C2_PRE(service_name != NULL && reqh != NULL);
 
@@ -929,9 +930,9 @@ static int cs_service_init(const char *service_name, struct c2_reqh *reqh)
  */
 static int cs_services_init(struct c2_colibri *cctx)
 {
-	int                      idx;
-	int                      rc;
-	struct cs_reqh_context  *rctx;
+	int                     idx;
+	int                     rc;
+	struct cs_reqh_context *rctx;
 
 	C2_PRE(cctx != NULL);
 	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
@@ -1053,6 +1054,8 @@ static int cs_net_domains_init(struct c2_colibri *cctx)
 				c2_net_xprt_fini(xprt);
 				return rc;
 			}
+			if (xprt == &c2_net_lnet_xprt)
+				c2_lut_lhost_lnet_conv(ndom, ep->ex_endpoint);
 			ndom_tlink_init(ndom);
 			c2_net_domain_bob_init(ndom);
 			ndom_tlist_add_tail(&cctx->cc_ndoms, ndom);
@@ -1533,19 +1536,19 @@ static void cs_help(FILE *out)
 		   "-e Network layer endpoint to which clients connect. "
 		   "Network layer endpoint\n   consists of 2 parts "
 		   "network transport:endpoint address.\n"
-		   "   Currently supported transport is bulk-sunrpc which "
-		   "takes 3-tuple endpoint\n   address."
-		   " e.g. bulk-sunrpc:127.0.0.1:1024:1\n"
+		   "   Currently supported transport is lnet which "
+		   "takes 4-tuple endpoint\n   address."
+		   " e.g. lnet:127.0.0.1@tcp:12345:34:1\n"
 		   "   This can be specified multiple times, per request "
 		   "handler set. Thus there\n   can exist multiple endpoints "
-		   "per network transport with different ids,\n"
-		   "   i.e. 3rd component of 3-tuple endpoint address in "
+		   "per network transport with different transfer machine ids,\n"
+		   "   i.e. 4th component of 4-tuple endpoint address in "
 		   "this case.\n"
 		   "-s Services to be started in given request handler "
 		   "context.\n   This can be specified multiple times "
 		   "per request handler set.\n"
 		   "   e.g. ./colibri -r -T linux -D dbpath -S stobfile\n"
-		   "        -e xport:127.0.0.1:1024:1 -s mds\n");
+		   "        -e xport:127.0.0.1@tcp:12345:34:1 -s mds\n");
 }
 
 static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
@@ -1739,7 +1742,7 @@ static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
 
 int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 {
-	int   rc;
+	int rc;
 
 	C2_PRE(cctx != NULL);
 
@@ -1766,7 +1769,7 @@ int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 
 int c2_cs_start(struct c2_colibri *cctx)
 {
-	int   rc;
+	int rc;
 
 	C2_PRE(cctx != NULL);
 

@@ -496,7 +496,7 @@ static void rpc_tm_cleanup(struct c2_rpc_machine *machine)
 	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&machine->rm_tm.ntm_chan, &tmwait);
 
-	rc = c2_net_tm_stop(&machine->rm_tm, false);
+	rc = c2_net_tm_stop(&machine->rm_tm, true);
 	if (rc < 0) {
 		c2_clink_del(&tmwait);
 		c2_clink_fini(&tmwait);
@@ -682,7 +682,8 @@ static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 	if (nrsegs == 0)
 		++nrsegs;
 
-	rc = c2_bufvec_alloc(&nb->nb_buffer, nrsegs, seg_size);
+	rc = c2_bufvec_alloc_aligned(&nb->nb_buffer, nrsegs, seg_size,
+				     C2_SEG_SHIFT);
 	if (rc < 0) {
 		if (qtype == C2_NET_QT_MSG_RECV) {
 			c2_free(nb);
@@ -703,7 +704,7 @@ static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 	/* Register the buffer with given net domain. */
 	rc = c2_net_buffer_register(nb, net_dom);
 	if (rc < 0) {
-		c2_bufvec_free(&nb->nb_buffer);
+		c2_bufvec_free_aligned(&nb->nb_buffer, C2_SEG_SHIFT);
 		if (qtype == C2_NET_QT_MSG_RECV) {
 			c2_free(nb);
 			nb = NULL;
@@ -784,7 +785,7 @@ void recv_buffer_deallocate(struct c2_net_buffer *nb,
 	}
 
 	c2_net_buffer_deregister(nb, net_dom);
-	c2_bufvec_free(&nb->nb_buffer);
+	c2_bufvec_free_aligned(&nb->nb_buffer, C2_SEG_SHIFT);
 	c2_free(nb);
 }
 
@@ -796,7 +797,7 @@ void send_buffer_deallocate(struct c2_net_buffer *nb,
 	C2_PRE((nb->nb_flags & C2_NET_BUF_QUEUED) == 0);
 
 	c2_net_buffer_deregister(nb, net_dom);
-	c2_bufvec_free(&nb->nb_buffer);
+	c2_bufvec_free_aligned(&nb->nb_buffer, C2_SEG_SHIFT);
 }
 
 static void recv_buffer_deallocate_nr(struct c2_rpc_machine *machine,
@@ -822,22 +823,23 @@ int c2_rpc_machine_init(struct c2_rpc_machine *machine,
 			struct c2_reqh        *reqh)
 {
 	int		rc;
+#ifndef __KERNEL__
 	struct c2_db_tx tx;
-
+#endif
 	C2_PRE(dom != NULL);
 	C2_PRE(machine != NULL);
 	C2_PRE(ep_addr != NULL);
 	C2_PRE(net_dom != NULL);
 
-	c2_db_tx_init(&tx, dom->cd_dbenv, 0);
 #ifndef __KERNEL__
+	c2_db_tx_init(&tx, dom->cd_dbenv, 0);
+
 	rc = c2_rpc_root_session_cob_create(dom, &tx);
 	if (rc != 0) {
 		c2_db_tx_abort(&tx);
 		return rc;
 	}
 #endif
-
 	c2_mutex_init(&machine->rm_chan_mutex);
 	c2_list_init(&machine->rm_chans);
 	rc = rpc_tm_setup(machine, net_dom, ep_addr);
@@ -854,13 +856,17 @@ int c2_rpc_machine_init(struct c2_rpc_machine *machine,
 			&rpc_machine_addb_ctx_type, &c2_addb_global_ctx);
 	C2_SET_ARR0(machine->rm_rpc_stats);
 	machine->rm_dom = dom;
+#ifndef __KERNEL__
 	c2_db_tx_commit(&tx);
+#endif
 	machine->rm_reqh = reqh;
 	c2_rpc_services_tlist_init(&machine->rm_services);
 	return rc;
 
 cleanup:
+#ifndef __KERNEL__
 	c2_db_tx_abort(&tx);
+#endif
 	c2_mutex_fini(&machine->rm_chan_mutex);
 	c2_list_fini(&machine->rm_chans);
 	return rc;

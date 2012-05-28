@@ -21,6 +21,7 @@
 #include "lib/assert.h"
 #include "lib/cdefs.h"
 #include "net/net_internal.h"
+#include "net/lnet/lnet.h"
 
 /** @}
  @addtogroup net

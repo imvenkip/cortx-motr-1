@@ -97,17 +97,6 @@ bool c2_net__ep_invariant(struct c2_net_end_point   *ep,
  */
 bool c2_net__tm_invariant(const struct c2_net_transfer_mc *tm);
 
-/* this shouldn't really be here but it parallels the extern in net/net.h */
-extern struct c2_net_xprt c2_net_usunrpc_minimal_xprt;
-
-/*
-  Shared constants used by (deprecated) usunrpc and ksunrpc transports.
- */
-enum {
-	C2_SESSION_PROGRAM = 0x20000001,
-	C2_DEF_RPC_VER = 1
-};
-
 #endif /* __COLIBRI_NET_NET_INTERNAL_H__ */
 
 /*

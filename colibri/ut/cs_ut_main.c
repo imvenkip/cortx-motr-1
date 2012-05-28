@@ -31,8 +31,8 @@
 #include "ut/rpc.h"
 #include "rpc/rpclib.h"
 #include "fop/fop.h"
-#include "net/bulk_sunrpc.h"
 #include "net/bulk_mem.h"
+#include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
 
@@ -61,18 +61,18 @@ struct cl_ctx {
 /* Configures colibri environment with given parameters. */
 static char *cs_ut_service_one_cmd[] = { "colibri_setup", "-r", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
-                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-e", "lnet:127.0.0.1@tcp:12345:34:1",
                                 "-s", "ds1"};
 
 static char *cs_ut_services_many_cmd[] = { "colibri_setup", "-r", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
-                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-e", "lnet:127.0.0.1@tcp:12345:34:1",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-s", "ds1", "-s" "ds2"};
 
 static char *cs_ut_reqhs_many_cmd[] = { "colibri_setup", "-r", "-T", "linux",
                                 "-D", "cs_r1sdb", "-S", "cs_r1stob",
-                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-e", "lnet:127.0.0.1@tcp:12345:34:1",
                                 "-s", "ds1",
 				"-r", "-T", "AD",
                                 "-D", "cs_r2sdb", "-S", "cs_r2stob",
@@ -81,17 +81,17 @@ static char *cs_ut_reqhs_many_cmd[] = { "colibri_setup", "-r", "-T", "linux",
 
 static char *cs_ut_opts_jumbled_cmd[] = { "colibri_setup", "-r", "-D",
                                 "cs_sdb", "-T", "AD", "-s", "ds1",
-                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-e", "lnet:127.0.0.1@tcp:12345:34:1",
                                 "-S", "cs_stob"};
 
 static char *cs_ut_reqh_none_cmd[] = { "colibri_setup", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
-                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-e", "lnet:127.0.0.1@tcp:12345:34:1",
                                 "-s", "ds1"};
 
 static char *cs_ut_stype_bad_cmd[] = { "colibri_setup", "-r", "-T", "asdadd",
                                 "-D", "cs_sdb", "-S", "cs_stob",
-                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-e", "lnet:127.0.0.1@tcp:12345:34:1",
                                 "-s", "ds1"};
 
 static char *cs_ut_xprt_bad_cmd[] = { "colibri_setup", "-r", "-T", "AD",
@@ -101,24 +101,24 @@ static char *cs_ut_xprt_bad_cmd[] = { "colibri_setup", "-r", "-T", "AD",
 
 static char *cs_ut_ep_bad_cmd[] = { "colibri_setup", "-r", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
-                                "-e", "bulk-sunrpc:asdad:asdsd:sadasd",
+                                "-e", "lnet:asdad:asdsd:sadasd",
                                 "-s", "ds1"};
 
 static char *cs_ut_service_bad_cmd[] = { "colibri_setup", "-r", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
-                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-e", "lnet:127.0.0.1@tcp:12345:34:1",
                                 "-s", "dasdadasd"};
 
 static char *cs_ut_args_bad_cmd[] = { "colibri_setup", "-r", "-D", "cs_sdb",
                                 "-S", "cs_stob", "-e",
-                                "bulk-sunrpc:127.0.0.1:34567:2"};
+                                "lnet:127.0.0.1@tcp:12345:34:1"};
 
-static const char *cl_ep_addrs[] = {
-				"127.0.0.1:34567:1",
+static char cl_ep_addrs[2][C2_NET_LNET_XEP_ADDR_LEN] = {
+				"127.0.0.1@tcp:12345:34:2",
 				"127.0.0.1:34569"};
 
-static const char *srv_ep_addrs[] = {
-				"127.0.0.1:34567:2",
+static char srv_ep_addrs[2][C2_NET_LNET_XEP_ADDR_LEN] = {
+				"127.0.0.1@tcp:12345:34:1",
 				"127.0.0.1:35678"};
 
 static const char *cdbnames[] = {
@@ -129,7 +129,7 @@ static const char *cdbnames[] = {
   Transports used in colibri a context.
  */
 static struct c2_net_xprt *cs_xprts[] = {
-	&c2_net_bulk_sunrpc_xprt,
+	&c2_net_lnet_xprt,
 	&c2_net_bulk_mem_xprt
 };
 
@@ -141,25 +141,27 @@ enum {
 	RPC_TIMEOUTS       = 5
 };
 
-enum {
-	BULK_SUNRPC_XPRT,
-	BULK_MEM_XPRT
-};
-
 #define SERVER_LOG_FILE_NAME	"cs_ut.errlog"
 
-static int cs_ut_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
-			const char *srv_ep_addr, const char* dbname,
-			struct c2_net_xprt *xprt)
+static int cs_ut_client_init(struct cl_ctx *cctx, char *cl_ep_addr,
+			     char *srv_ep_addr, const char* dbname,
+			     struct c2_net_xprt *xprt)
 {
-	int rc;
+	int                       rc;
 	struct c2_rpc_client_ctx *cl_ctx;
+	static int                lnet_iface_flag = 1;
 
 	C2_PRE(cctx != NULL && cl_ep_addr != NULL && srv_ep_addr != NULL &&
 		dbname != NULL && xprt != NULL);
 
 	rc = c2_net_domain_init(&cctx->cl_ndom, xprt);
 	C2_UT_ASSERT(rc == 0);
+
+	if (xprt == &c2_net_lnet_xprt && lnet_iface_flag) {
+		c2_lut_lhost_lnet_conv(&cctx->cl_ndom, cl_ep_addr);
+		c2_lut_lhost_lnet_conv(&cctx->cl_ndom, srv_ep_addr);
+		lnet_iface_flag = 0;
+	}
 
 	cl_ctx = &cctx->cl_ctx;
 

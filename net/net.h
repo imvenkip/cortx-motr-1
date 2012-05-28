@@ -118,7 +118,7 @@ enum {
 	C2_NET_DOMAIN_MAGIX = 0x4E45545F444F4D
 };
 
-/** Network transport (e.g., lnet or sunrpc) */
+/** Network transport (e.g. lnet) */
 struct c2_net_xprt {
 	const char                   *nx_name;
 	const struct c2_net_xprt_ops *nx_ops;
@@ -366,8 +366,8 @@ struct c2_net_xprt_ops {
 
 	/**
 	   <b>Deprecated.</b>
-	   Interface to return maxima for bulk I/O for network transport e.g.,
-	   lnet or sunrpc.
+	   Interface to return maxima for bulk I/O for network transport e.g.
+	   lnet.
 
 	   The interface can be made generic enough to return any other property
 	   of network transport.
@@ -1928,10 +1928,6 @@ void c2_service_stop(struct c2_service *service);
 
 void c2_net_reply_post(struct c2_service *service, struct c2_fop *fop,
 		       void *cookie);
-
-
-extern struct c2_net_xprt c2_net_usunrpc_xprt;
-extern struct c2_net_xprt c2_net_ksunrpc_xprt;
 
 /** @} */ /* end of deprecated net group */
 

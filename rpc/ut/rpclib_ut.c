@@ -34,6 +34,7 @@
 #include "rpc/it/ping_fop_u.h"
 #endif
 #include "rpc/rpclib.h"
+#include "net/lnet/lnet.h"
 
 #include "ut/rpc.h"
 #include "ut/cs_service.h"
@@ -41,11 +42,10 @@
 #include "ut/cs_test_fops_u.h"
 
 
-#define CLIENT_ENDPOINT_ADDR	"127.0.0.1:12345:2"
 #define CLIENT_DB_NAME		"rpclib_ut_client.db"
 
-#define SERVER_ENDPOINT_ADDR	"127.0.0.1:12345:1"
-#define SERVER_ENDPOINT		"bulk-sunrpc:" SERVER_ENDPOINT_ADDR
+#define SERVER_ENDPOINT_ADDR	"127.0.0.1@tcp:12345:34:1"
+#define SERVER_ENDPOINT		"lnet:" SERVER_ENDPOINT_ADDR
 #define SERVER_DB_FILE_NAME	"rpclib_ut_server.db"
 #define SERVER_STOB_FILE_NAME	"rpclib_ut_server.stob"
 #define SERVER_LOG_FILE_NAME	"rpclib_ut_server.log"
@@ -57,8 +57,7 @@ enum {
 	CONNECT_TIMEOUT		= 5,
 };
 
-extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
-
+extern struct c2_net_xprt c2_net_lnet_xprt;
 
 static int send_fop(struct c2_rpc_session *session)
 {
@@ -93,10 +92,12 @@ out:
 static void test_rpclib(void)
 {
 	int rc;
-	struct c2_net_xprt    *xprt = &c2_net_bulk_sunrpc_xprt;
+	struct c2_net_xprt    *xprt = &c2_net_lnet_xprt;
 	struct c2_net_domain  client_net_dom = { };
 	struct c2_dbenv       client_dbenv;
 	struct c2_cob_domain  client_cob_dom;
+	char caddr[C2_NET_LNET_XEP_ADDR_LEN] = {"127.0.0.1@tcp:12345:34:2"};
+	char saddr[C2_NET_LNET_XEP_ADDR_LEN] = {"127.0.0.1@tcp:12345:34:1"};
 
 	char *server_argv[] = {
 		"rpclib_ut", "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
@@ -109,8 +110,6 @@ static void test_rpclib(void)
 
 	struct c2_rpc_client_ctx cctx = {
 		.rcx_net_dom            = &client_net_dom,
-		.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
-		.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
 		.rcx_db_name            = CLIENT_DB_NAME,
 		.rcx_dbenv              = &client_dbenv,
 		.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
@@ -130,6 +129,11 @@ static void test_rpclib(void)
 	C2_UT_ASSERT(rc == 0);
 	if (rc != 0)
 		goto out;
+
+	c2_lut_lhost_lnet_conv(&client_net_dom, caddr);
+	c2_lut_lhost_lnet_conv(&client_net_dom, saddr);
+	cctx.rcx_local_addr  = caddr;
+	cctx.rcx_remote_addr = saddr;
 
 	rc = c2_rpc_server_start(&sctx);
 	C2_UT_ASSERT(rc == 0);

@@ -41,7 +41,7 @@
 						 (1 << BALLOC_DEF_BLOCK_SHIFT)))
 
 static const char		*db_name = BALLOC_DBNAME;
-static const int		 MAX	 = 100;
+static const int		 MAX	 = 10;
 static c2_bcount_t		 prev_free_blocks;
 c2_bcount_t			*prev_group_info_free_blocks;
 

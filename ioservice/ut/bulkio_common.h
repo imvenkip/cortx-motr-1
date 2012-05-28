@@ -124,12 +124,12 @@ struct thrd_arg {
 };
 
 /* Common APIs used by bulk client as well as UT code. */
-int bulkio_client_start(struct bulkio_params *bp, const char *caddr, int cport,
-			const char *saddr, int sport);
+int bulkio_client_start(struct bulkio_params *bp, char *caddr,
+			char *saddr);
 
 void bulkio_client_stop(struct c2_rpc_client_ctx *cctx);
 
-int bulkio_server_start(struct bulkio_params *bp, const char *saddr, int port);
+int bulkio_server_start(struct bulkio_params *bp, char *saddr);
 
 void bulkio_server_stop(struct c2_rpc_server_ctx *sctx);
 

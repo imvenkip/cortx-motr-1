@@ -32,16 +32,17 @@
 
 #include "rpc/rpc2.h"		/* c2_rpc_bulk, c2_rpc_bulk_buf */
 #include "net/net.h"		/* C2_NET_QT_PASSIVE_BULK_SEND */
-#include "net/bulk_sunrpc.h"
+#include "net/lnet/lnet.h"
 
 enum {
 	IO_SINGLE_BUFFER	= 1,
 };
 
 C2_TL_DESCR_DECLARE(rpcbulk, extern);
-extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
+extern struct c2_net_xprt c2_net_lnet_xprt;
 extern struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
 extern const struct c2_net_buffer_callbacks rpc_bulk_cb;
+extern void c2_lut_lhost_lnet_conv(struct c2_net_domain *ndom, char *ep_addr);
 
 static void bulkio_tm_cb(const struct c2_net_tm_event *ev)
 {
@@ -145,8 +146,10 @@ static void bulkclient_test(void)
 	struct c2_rpc_bulk_buf	  *rbuf;
 	struct c2_rpc_bulk_buf	  *rbuf1;
 	struct c2_rpc_bulk_buf	  *rbuf2;
-	const char		  *caddr = EP_SERVICE(7);
-	const char		  *saddr = EP_SERVICE(8);
+	char                       caddr[C2_NET_LNET_XEP_ADDR_LEN] =
+					"127.0.0.1@tcp:12345:34:7";
+	char		           saddr[C2_NET_LNET_XEP_ADDR_LEN] =
+					"127.0.0.1@tcp:12345:34:8";
 	struct c2_io_indexvec	  *ivec;
 	enum c2_net_queue_type	   q;
 	struct bulkio_msg_tm      *ctm;
@@ -156,9 +159,11 @@ static void bulkclient_test(void)
 	C2_SET0(&nd);
 
 	c2_addb_choose_default_level_console(AEL_ERROR);
-	xprt = &c2_net_bulk_sunrpc_xprt;
+	xprt = &c2_net_lnet_xprt;
 	rc = c2_net_domain_init(&nd, xprt);
 	C2_UT_ASSERT(rc == 0);
+	c2_lut_lhost_lnet_conv(&nd, caddr);
+	c2_lut_lhost_lnet_conv(&nd, saddr);
 
 	/* Test : c2_io_fop_init() */
 	rc = c2_io_fop_init(&iofop, &c2_fop_cob_writev_fopt);

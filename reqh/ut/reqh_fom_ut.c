@@ -45,7 +45,7 @@
 #include "stob/stob.h"
 #include "stob/ad.h"
 #include "stob/linux.h"
-#include "net/bulk_sunrpc.h"
+#include "net/lnet/lnet.h"
 #include "rpc/rpc2.h"
 #include "fop/fop_item_type.h"
 #include "rpc/rpc_base.h"
@@ -77,10 +77,11 @@
  *  Server side structures and objects
  */
 
-#define CLIENT_ENDPOINT_ADDR	"127.0.0.1:21435:1"
-#define SERVER_ENDPOINT_ADDR	"127.0.0.1:21435:2"
 #define CLIENT_DB_NAME		"reqh_ut_stob/cdb"
 #define SERVER_DB_NAME		"reqh_ut_stob/sdb"
+char cl_addr[C2_NET_LNET_XEP_ADDR_LEN] = {"127.0.0.1@tcp:12345:34:2"};
+char srv_addr[C2_NET_LNET_XEP_ADDR_LEN] = {"127.0.0.1@tcp:12345:34:1"};
+
 
 enum {
 	CLIENT_COB_DOM_ID	= 101,
@@ -238,7 +239,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 
         /* Init the rpc_machine */
         rc = c2_rpc_machine_init(&srv_rpc_mach, &srv_cob_domain, net_dom,
-				 SERVER_ENDPOINT_ADDR, &reqh);
+				 srv_addr, &reqh);
         C2_UT_ASSERT(rc == 0);
 
         /* Find first c2_rpc_chan from the chan's list
@@ -350,7 +351,7 @@ void test_reqh(void)
 	int                    result;
 	char                   opath[64];
 	const char             *path;
-	struct c2_net_xprt     *xprt = &c2_net_bulk_sunrpc_xprt;
+	struct c2_net_xprt     *xprt = &c2_net_lnet_xprt;
 	struct c2_net_domain   net_dom = { };
 	struct c2_dbenv        client_dbenv;
 	struct c2_cob_domain   client_cob_dom;
@@ -368,8 +369,6 @@ void test_reqh(void)
 
 	struct c2_rpc_client_ctx cctx = {
 		.rcx_net_dom            = &net_dom,
-		.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
-		.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
 		.rcx_db_name            = CLIENT_DB_NAME,
 		.rcx_dbenv              = &client_dbenv,
 		.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
@@ -410,6 +409,11 @@ void test_reqh(void)
 
 	result = c2_net_domain_init(&net_dom, xprt);
 	C2_UT_ASSERT(result == 0);
+
+	c2_lut_lhost_lnet_conv(&net_dom, cl_addr);
+	c2_lut_lhost_lnet_conv(&net_dom, srv_addr);
+	cctx.rcx_local_addr  = cl_addr;
+	cctx.rcx_remote_addr = srv_addr;
 
 	server_init(path, SERVER_DB_NAME, &net_dom, &backid, &bdom, &bstore,
 			&reqh_addb_stob, &reqh_addb_stob_id);

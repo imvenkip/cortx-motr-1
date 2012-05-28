@@ -19,16 +19,10 @@
  * Original creation date: 04/12/2011
  */
 
-#include <errno.h>      /* ENOENT */
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>  /* inet_aton */
-#include <netdb.h>      /* gethostbyname_r */
-#include <stdio.h>      /* fprintf */
-#include <string.h>     /* strlen */
-
 #include "ut/net.h"
+#include "net/lnet/lnet.h"
 
+#ifndef __KERNEL__
 int canon_host(const char *hostname, char *buf, size_t bufsiz)
 {
 	int                i;
@@ -74,6 +68,49 @@ int canon_host(const char *hostname, char *buf, size_t bufsiz)
 		strcpy(buf, hostname);
 	}
 	return rc;
+}
+#endif /* __KERNEL__ */
+
+static void get_xport(const char *ep_addr, char *xport)
+{
+	int   i = 0;
+	char  addr[C2_NET_LNET_XEP_ADDR_LEN];
+	char *ptr = addr;
+
+	strncpy(addr, ep_addr, C2_NET_LNET_XEP_ADDR_LEN);
+	while (*ptr != '@') ptr++;
+	ptr++;
+	while (*ptr != ':')
+		xport[i++] = *ptr++;
+	xport[i] = '\0';
+}
+
+void c2_lut_lhost_lnet_conv(struct c2_net_domain *ndom, char *ep_addr)
+{
+	char * const *ifaces;
+	char          xport[10] = {0};
+	char         *rem_netw;
+	int           i;
+	int           j;
+	char          cl_addr[C2_NET_LNET_XEP_ADDR_LEN];
+
+	if (strstr(ep_addr, "127.0.0.1") != NULL) {
+		c2_net_lnet_ifaces_get(ndom, &ifaces);
+		C2_ASSERT(ifaces != NULL);
+		get_xport(ep_addr, xport);
+		rem_netw = strchr(ep_addr, ':');
+		for (i = 0, j = 0; ifaces[i] != NULL; ++i) {
+			if (strstr(ifaces[i], xport) == NULL)
+				continue;
+			else {
+				snprintf(cl_addr, C2_NET_LNET_XEP_ADDR_LEN,
+					 "%s%s", ifaces[i], rem_netw);
+				break;
+			}
+		}
+		c2_net_lnet_ifaces_put(ndom, &ifaces);
+		memcpy(ep_addr, cl_addr, C2_NET_LNET_XEP_ADDR_LEN);
+	}
 }
 
 /*

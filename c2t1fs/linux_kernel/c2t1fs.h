@@ -446,4 +446,7 @@ void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
 
 void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de);
 
+/* misc */
+extern void c2_lut_lhost_lnet_conv(struct c2_net_domain *ndom, char *ep_addr);
+
 #endif /* __COLIBRI_C2T1FS_H */
