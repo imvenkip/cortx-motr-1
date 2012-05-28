@@ -222,6 +222,26 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 
 void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool);
 
+static inline uint32_t c2_rpc_bufs_nr(uint32_t len, uint32_t tms_nr)
+{
+	return len + max32u(tms_nr / 4, 1) + C2_NET_BUFFER_POOL_THRESHOLD;
+}
+
+static inline c2_bcount_t c2_rpc_seg_size(struct c2_net_domain *ndom)
+{
+	C2_PRE(ndom != NULL);
+
+	return min64u(c2_net_domain_get_max_buffer_segment_size(ndom),
+			  C2_SEG_SIZE);
+}
+
+static inline uint32_t c2_rpc_segs_nr(struct c2_net_domain *ndom, uint32_t seg_size)
+{
+	C2_PRE(ndom != NULL);
+
+	return c2_net_domain_get_max_buffer_size(ndom) / seg_size;
+}
+
 /**
  * Converts 127.0.0.1@tcp:12345:32:4 to local_ip@tcp:12345:32:4
  * and 127.0.0.1@oib:12345:32:4 to local_ip@oib:12345:32:4

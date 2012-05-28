@@ -159,7 +159,7 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	uint32_t		   bufs_nr;
 	c2_bcount_t		   seg_size;
 
-	ndom = cctx->rcx_net_dom;
+	ndom	    = cctx->rcx_net_dom;
 	rpc_machine = &cctx->rcx_rpc_machine;
 	buffer_pool = &cctx->rcx_buffer_pool;
 
@@ -169,11 +169,11 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 		char saddr[C2_NET_LNET_XEP_ADDR_LEN];
 		strcpy(caddr, cctx->rcx_local_addr);
 		rc = c2_lnet_local_addr_get(caddr);
-		if (rc < 0)
+		if (rc != 0)
 			return rc;
 		strcpy(saddr, cctx->rcx_remote_addr);
 		rc = c2_lnet_local_addr_get(saddr);
-		if (rc < 0)
+		if (rc != 0)
 			return rc;
 		cctx->rcx_local_addr  = caddr;
 		cctx->rcx_remote_addr = saddr;
@@ -182,12 +182,10 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	if (cctx->rcx_recv_queue_min_length == 0)
 		cctx->rcx_recv_queue_min_length = C2_NET_TM_RECV_QUEUE_DEF_LEN;
 
-	seg_size = min64u(c2_net_domain_get_max_buffer_segment_size(ndom),
-			  C2_SEG_SIZE);
-	segs_nr  = c2_net_domain_get_max_buffer_size(ndom) / seg_size;
+	seg_size = c2_rpc_seg_size(ndom);
+	segs_nr  = c2_rpc_segs_nr(ndom, seg_size);
 	tms_nr   = 1;
-	bufs_nr  = cctx->rcx_recv_queue_min_length + max32u(tms_nr / 4 , 1) +
-		   C2_NET_BUFFER_POOL_THRESHOLD;
+	bufs_nr  = c2_rpc_bufs_nr(cctx->rcx_recv_queue_min_length, tms_nr);
 
 	rc = c2_rpc_net_buffer_pool_setup(ndom, buffer_pool,
 					  segs_nr, seg_size,

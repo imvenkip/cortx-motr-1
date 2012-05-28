@@ -189,12 +189,11 @@ static int c2t1fs_rpc_init(void)
 	rpc_machine = &c2t1fs_globals.g_rpc_machine;
 	buffer_pool = &c2t1fs_globals.g_buffer_pool;
 
-	seg_size = min64u(c2_net_domain_get_max_buffer_segment_size(ndom),
-			  C2_SEG_SIZE);
-	segs_nr  = c2_net_domain_get_max_buffer_size(ndom) / seg_size;
+	seg_size = c2_rpc_seg_size(ndom);
+	segs_nr  = c2_rpc_segs_nr(ndom, seg_size);
 	tms_nr	 = 1;
-	bufs_nr  = tm_recv_queue_min_len + max32u(tms_nr / 4 , 1) +
-		   C2_NET_BUFFER_POOL_THRESHOLD;
+	bufs_nr  = c2_rpc_bufs_nr(tm_recv_queue_min_len, tms_nr);
+	
 	rc = c2_rpc_net_buffer_pool_setup(ndom, buffer_pool,
 					  segs_nr, seg_size,
 					  bufs_nr, tms_nr);

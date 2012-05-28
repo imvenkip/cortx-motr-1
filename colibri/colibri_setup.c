@@ -468,7 +468,7 @@ static int ep_and_xprt_get(struct cs_reqh_context *rctx, const char *ep,
 			if (strcmp(epx->ex_xprt, "lnet") == 0 &&
 			    strstr(endpoint, "127.0.0.1") != NULL) {
 				rc = c2_lnet_local_addr_get(endpoint);
-				if (rc < 0)
+				if (rc != 0)
 					goto cleanup;
 			}
 			epx->ex_endpoint = endpoint;
@@ -556,8 +556,7 @@ struct c2_rpc_machine *c2_cs_rpc_mach_get(struct c2_colibri *cctx,
 				C2_ASSERT(c2_rpc_machine_bob_check(rpcmach));
 				nxprt = rpcmach->rm_tm.ntm_dom->nd_xprt;
 				C2_ASSERT(nxprt != NULL);
-				if (strcmp(nxprt->nx_name,
-					   xprt->nx_name) == 0) {
+				if (nxprt->nx_name == xprt->nx_name) {
 					c2_mutex_unlock(&cctx->cc_mutex);
 					return rpcmach;
 				}
@@ -863,19 +862,16 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 		max_recv_queue_len = cs_dom_tm_min_recv_queue_total(cctx, dom);
 		tms_nr		   = cs_domain_tms_nr(cctx, dom);
 		C2_ASSERT(max_recv_queue_len >= tms_nr);
-		bufs_nr		   = max_recv_queue_len + max32u(tms_nr / 4, 1)
-				     + C2_NET_BUFFER_POOL_THRESHOLD;
-		seg_size	   =
-			min64u(c2_net_domain_get_max_buffer_segment_size(dom),
-			       C2_SEG_SIZE);
-		segs_nr		   = c2_net_domain_get_max_buffer_size(dom) /
-				     seg_size;
+		bufs_nr  	   = c2_rpc_bufs_nr(max_recv_queue_len, tms_nr);
+		seg_size	   = c2_rpc_seg_size(dom);
+		segs_nr		   = c2_rpc_segs_nr(dom, seg_size);
 
 		C2_ALLOC_PTR(cs_bp);
 		if (cs_bp == NULL) {
 			rc = -ENOMEM;
 			break;
 		}
+
 		rc = c2_rpc_net_buffer_pool_setup(dom, &cs_bp->cs_buffer_pool,
 						  segs_nr, seg_size,
 						  bufs_nr, tms_nr);
@@ -887,7 +883,7 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 						   &cctx->cc_buffer_pools);
 	} c2_tl_endfor;
 
-	if (rc < 0)
+	if (rc != 0)
 		cs_buffer_pool_fini(cctx);
 
 	return rc;

@@ -244,12 +244,11 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 			   &srv_fol);
 	C2_UT_ASSERT(rc == 0);
 
-	seg_size = min64u(c2_net_domain_get_max_buffer_segment_size(net_dom),
-			  C2_SEG_SIZE);
-	segs_nr  = c2_net_domain_get_max_buffer_size(net_dom) / seg_size;
-	tms_nr	 = 1;
-	bufs_nr  = C2_NET_TM_RECV_QUEUE_DEF_LEN + min32u(tms_nr / 4, 1) +
-		   C2_NET_BUFFER_POOL_THRESHOLD;
+	seg_size = c2_rpc_seg_size(net_dom);
+	segs_nr  = c2_rpc_segs_nr(net_dom, seg_size);
+	tms_nr   = 1;
+	bufs_nr  = c2_rpc_bufs_nr(C2_NET_TM_RECV_QUEUE_DEF_LEN, tms_nr);
+	
 	rc = c2_rpc_net_buffer_pool_setup(net_dom, &app_pool,
 					  segs_nr, seg_size,
 					  bufs_nr, tms_nr);
