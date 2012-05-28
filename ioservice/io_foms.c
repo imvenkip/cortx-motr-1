@@ -595,7 +595,7 @@ extern struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop);
 extern bool c2_is_cob_create_fop(const struct c2_fop *fop);
 extern bool c2_is_cob_delete_fop(const struct c2_fop *fop);
 
-static int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **m);
+static int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out);
 static int c2_io_fom_cob_rw_state(struct c2_fom *fom);
 static void c2_io_fom_cob_rw_fini(struct c2_fom *fom);
 static size_t c2_io_fom_cob_rw_locality_get(const struct c2_fom *fom);
@@ -953,12 +953,12 @@ static int align_bufvec (struct c2_fom    *fom,
  * Associate fop with fom type.
  *
  * @param fop file operation packet need to process
- * @param fom file operation machine need to allocate and initiate
+ * @param out file operation machine need to allocate and initiate
  *
  * @pre fop != NULL
- * @pre m != NULL
+ * @pre out != NULL
  */
-int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
+static int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
 {
         int                      rc = 0;
         struct c2_fom           *fom;

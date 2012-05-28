@@ -966,7 +966,7 @@ static void test_net_bulk_if(void)
 		if (reuse_cnt == NUM_REUSES - 1)
 			retain = false;
 		for (i = C2_NET_QT_MSG_RECV; i < C2_NET_QT_NR; ++i) {
-			c2_time_t to_before;
+			c2_time_t to_before = 0;
 			struct c2_net_buffer_event ev = {
 				.nbe_buffer = &nbs[i],
 				.nbe_status = 0,

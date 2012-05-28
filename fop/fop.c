@@ -71,8 +71,8 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 		if (err != 0) {
 			c2_free(fop);
 			fop = NULL;
-		}
-		fop->f_item.ri_ops = &c2_fop_default_item_ops;
+		} else
+			fop->f_item.ri_ops = &c2_fop_default_item_ops;
 	}
 	return fop;
 }
