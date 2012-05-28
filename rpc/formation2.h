@@ -36,7 +36,7 @@ enum c2_rpc_frm_itemq_type {
 
 struct c2_rpc_frm {
 	enum frm_state                 f_state;
-	struct itemq                   f_itemq[FRMQ_NR_QUEUES];
+	struct c2_tl                   f_itemq[FRMQ_NR_QUEUES];
 	uint64_t                       f_nr_items;
 	size_t                         f_nr_bytes_accumulated;
 	uint64_t                       f_nr_packets_enqed;

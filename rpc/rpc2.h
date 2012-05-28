@@ -161,8 +161,6 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 #include "addb/addb.h"
 #include "rpc/rpc_base.h"
 
-struct itemq;
-
 enum c2_rpc_item_priority {
 	C2_RPC_ITEM_PRIO_MIN,
 	C2_RPC_ITEM_PRIO_MID,
@@ -328,7 +326,7 @@ struct c2_rpc_item {
 	    c2_rpc_item:ri_compound_items. */
 	struct c2_tlink			 ri_field;
 	struct c2_tlink                  ri_iq_link;
-	struct itemq                    *ri_itemq;
+	struct c2_tl                    *ri_itemq;
 	/** Magic constatnt to verify sanity of linked rpc items. */
 	uint64_t			 ri_link_magic;
 };

@@ -55,7 +55,7 @@ static void frm_enq_item_test(void)
 		c2_time_t     deadline;
 		bool          assign_slot;
 		bool          oneway;
-		struct itemq *result;
+		struct c2_tl *result;
 	} tests[FRMQ_NR_QUEUES] = {
 		{ c2_time(0, 0), true,  false, &frm.f_itemq[FRMQ_TIMEDOUT_BOUND]},
 		{ c2_time(0, 0), false, false, &frm.f_itemq[FRMQ_TIMEDOUT_UNBOUND]},
