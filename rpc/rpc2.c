@@ -582,12 +582,13 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 	c2_rpc_machine_lock(machine);
 
 	if (ev->nbe_status != 0) {
+		if (ev->nbe_status != -ECANCELED)
+			C2_ADDB_ADD(&machine->rm_rpc_machine_addb,
+				    &rpc_machine_addb_loc,
+				    rpc_machine_func_fail,
+				    "Buffer event reported failure",
+				    ev->nbe_status);
 		rc = ev->nbe_status;
-		C2_ADDB_ADD(&machine->rm_rpc_machine_addb,
-			    &rpc_machine_addb_loc,
-			    rpc_machine_func_fail,
-			    "Buffer event reported failure",
-			    ev->nbe_status);
 		goto last;
 	}
 
