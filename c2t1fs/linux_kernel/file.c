@@ -273,9 +273,9 @@ static int c2t1fs_pin_memory_area(char          *buf,
 		goto out;
 	}
 
-	C2_LOG("addr %lu off %d nr_pages %d", addr, off, nr_pages);
+	C2_LOG("addr 0x%lx off %d nr_pages %d", addr, off, nr_pages);
 
-	if (access_ok(rw == READ, addr, count)) {
+	if (current->mm != NULL && access_ok(rw == READ, addr, count)) {
 
 		/* addr points in user space */
 		down_read(&current->mm->mmap_sem);
@@ -749,7 +749,8 @@ static struct page *addr_to_page(void *addr)
 	ul_addr = (unsigned long)addr;
 	C2_ASSERT(address_is_page_aligned(ul_addr));
 
-	if (access_ok(VERIFY_READ, addr, PAGE_CACHE_SIZE)) {
+	if (current->mm != NULL &&
+	    access_ok(VERIFY_READ, addr, PAGE_CACHE_SIZE)) {
 
 		/* addr points in user space */
 		down_read(&current->mm->mmap_sem);
