@@ -391,7 +391,8 @@ static bool cs_endpoint_is_duplicate(struct c2_colibri *cctx,
 					++cnt;
 			} else {
 				if (strcmp(ep_xprt->ex_endpoint, ep) == 0 &&
-				    strcmp(ep_xprt->ex_xprt, xprt->nx_name) == 0)
+				    strcmp(ep_xprt->ex_xprt, xprt->nx_name)
+					   == 0)
 					++cnt;
 			}
 			if (cnt > 1)
@@ -856,9 +857,10 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 		max_recv_queue_len = cs_dom_tm_min_recv_queue_total(cctx, dom);
 		tms_nr		   = cs_domain_tms_nr(cctx, dom);
 		C2_ASSERT(max_recv_queue_len >= tms_nr);
-		bufs_nr  	   = c2_rpc_bufs_nr(max_recv_queue_len, tms_nr);
-		seg_size	   = c2_rpc_seg_size(dom);
-		segs_nr		   = c2_rpc_segs_nr(dom, seg_size);
+
+		bufs_nr  = c2_rpc_bufs_nr(max_recv_queue_len, tms_nr);
+		seg_size = c2_rpc_seg_size(dom);
+		segs_nr  = c2_rpc_segs_nr(dom, seg_size);
 
 		C2_ALLOC_PTR(cs_bp);
 		if (cs_bp == NULL) {
@@ -890,7 +892,7 @@ static void cs_buffer_pool_fini(struct c2_colibri *cctx)
 	C2_PRE(cctx != NULL);
 	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
 
-	c2_tl_for(&cs_buffer_pools, &cctx->cc_buffer_pools, cs_bp) {
+	c2_tl_for(cs_buffer_pools, &cctx->cc_buffer_pools, cs_bp) {
                 cs_buffer_pools_tlink_del_fini(cs_bp);
 		c2_net_buffer_pool_fini(&cs_bp->cs_buffer_pool);
 		c2_free(cs_bp);
@@ -1693,7 +1695,7 @@ static void cs_help(FILE *out)
 		   "-e Network layer endpoint to which clients connect. "
 		   "Network layer endpoint\n   consists of 2 parts "
 		   "network transport:endpoint address.\n"
-		   "   Currently supported transport are bulk-sunrpc and lnet.\n"
+		   " Currently supported transports are bulk-sunrpc and lnet.\n"
 		   " bulk sunrpc takes 3-tuple endpoint address. \n"
 		   " e.g. bulk-sunrpc:127.0.0.1:1024:1\n"
 		   " lnet takes 4-tuple endpoint address \n"
@@ -1786,7 +1788,8 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
 		C2_ASSERT(cs_reqh_context_bob_check(rctx));
 
                 if (!cs_reqh_context_invariant(rctx)) {
-                        fprintf(ofd, "COLIBRI: Missing or invalid parameters\n");
+                        fprintf(ofd,
+				"COLIBRI: Missing or invalid parameters\n");
 			cs_usage(ofd);
                         return -EINVAL;
                 }
@@ -1913,44 +1916,44 @@ static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
 						return;
 					}
 					rctx->rc_snr = 0;
-                        	})),
-                	C2_STRINGARG('T', "Storage domain type",
-                        	LAMBDA(void, (const char *str)
+				})),
+			C2_STRINGARG('T', "Storage domain type",
+				LAMBDA(void, (const char *str)
 				{
 					if (rctx == NULL) {
 						rc = -EINVAL;
 						return;
 					}
-                                	rctx->rc_stype = str;
+					rctx->rc_stype = str;
 				})),
-                	C2_STRINGARG('D', "Database environment path",
-                        	LAMBDA(void, (const char *str)
+			C2_STRINGARG('D', "Database environment path",
+				LAMBDA(void, (const char *str)
 				{
 					if (rctx == NULL) {
 						rc = -EINVAL;
 						return;
 					}
-                                	rctx->rc_dbpath = str;
+					rctx->rc_dbpath = str;
 				})),
-                	C2_STRINGARG('S', "Storage name",
-                        	LAMBDA(void, (const char *str)
+			C2_STRINGARG('S', "Storage name",
+				LAMBDA(void, (const char *str)
 				{
 					if (rctx == NULL) {
 						rc = -EINVAL;
 						return;
 					}
-                                	rctx->rc_stpath = str;
+				rctx->rc_stpath = str;
 				})),
-                	C2_STRINGARG('e',
+			C2_STRINGARG('e',
 				     "Network endpoint, eg:- transport:address",
-                        	LAMBDA(void, (const char *str)
-                        	{
+			LAMBDA(void, (const char *str)
+				{
 					struct cs_endpoint_and_xprt *ep_xprt;
 					if (rctx == NULL) {
 						rc = -EINVAL;
 						return;
 					}
-        	                        rc = ep_and_xprt_get(rctx, str,
+					rc = ep_and_xprt_get(rctx, str,
 							     &ep_xprt);
 				})),
 			C2_NUMBERARG('q', "Minimum TM recv queue length",

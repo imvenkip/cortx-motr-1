@@ -213,7 +213,7 @@ static int c2t1fs_rpc_init(void)
 	rc = c2_cob_domain_init(cob_dom, dbenv, cob_dom_id);
 	if (rc != 0)
 		goto dbenv_fini;
-	
+
 	c2_rpc_machine_params_add(rpc_machine, ndom, C2_BUFFER_ANY_COLOUR,
 				  max_rpc_msg_size, tm_recv_queue_min_len);
 

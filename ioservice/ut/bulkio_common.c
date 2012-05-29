@@ -38,7 +38,7 @@ extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
  */
 #define IO_TM_RECV_QUEUE_MIN_LEN 6
 /** Non zero value is given for multiple message delivery support. */
-#define IO_MAX_RPC_MSG_SIZE      0
+#define IO_MAX_RPC_MSG_SIZE      4096
 
 /* Global reference to bulkio_params structure. */
 struct bulkio_params *bparm;

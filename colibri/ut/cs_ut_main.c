@@ -193,10 +193,10 @@ static int cs_ut_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 
 	C2_PRE(cctx != NULL && cl_ep_addr != NULL && srv_ep_addr != NULL &&
 		dbname != NULL && xprt != NULL);
-	
+
 	rc = c2_net_domain_init(&cctx->cl_ndom, xprt);
 	C2_UT_ASSERT(rc == 0);
-	
+
 	cl_ctx = &cctx->cl_ctx;
 
 	cl_ctx->rcx_net_dom            = &cctx->cl_ndom;
@@ -248,7 +248,8 @@ int c2_cs_ut_send_fops(struct c2_rpc_session *cl_rpc_session, int dstype)
 			cs_ds1_fop = c2_fop_data(fop[i]);
 			cs_ds1_fop->csr_value = i;
 			rc = c2_rpc_client_call(fop[i], cl_rpc_session,
-						&cs_ds_req_fop_rpc_item_ops, 60);
+						&cs_ds_req_fop_rpc_item_ops,
+						60);
 			C2_UT_ASSERT(rc == 0);
 		}
 		break;
@@ -258,7 +259,8 @@ int c2_cs_ut_send_fops(struct c2_rpc_session *cl_rpc_session, int dstype)
 			cs_ds2_fop = c2_fop_data(fop[i]);
 			cs_ds2_fop->csr_value = i;
 			rc = c2_rpc_client_call(fop[i], cl_rpc_session,
-						&cs_ds_req_fop_rpc_item_ops, 60);
+						&cs_ds_req_fop_rpc_item_ops,
+						60);
 			C2_UT_ASSERT(rc == 0);
 		}
 		break;
@@ -275,7 +277,7 @@ static int cs_ut_test_helper_success(struct cl_ctx *cctx, size_t cctx_nr,
 	int rc;
 	int i;
 	int stype;
-	
+
 	C2_RPC_SERVER_CTX_DECLARE(sctx, cs_xprts, ARRAY_SIZE(cs_xprts),
 				  cs_argv, cs_argc, SERVER_LOG_FILE_NAME);
 
@@ -283,8 +285,9 @@ static int cs_ut_test_helper_success(struct cl_ctx *cctx, size_t cctx_nr,
 	C2_UT_ASSERT(rc == 0);
 
 	for (i = 0; i < cctx_nr; ++i) {
-		rc = cs_ut_client_init(&cctx[i], cl_ep_addrs[i], srv_ep_addrs[i],
-				       cdbnames[i], cs_xprts[i]);
+		rc = cs_ut_client_init(&cctx[i], cl_ep_addrs[i],
+					srv_ep_addrs[i], cdbnames[i],
+					cs_xprts[i]);
 		C2_UT_ASSERT(rc == 0);
 	}
 
@@ -361,7 +364,8 @@ static void test_cs_ut_services_many(void)
 {
 	struct cl_ctx  cctx[2] = { };
 
-	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx), cs_ut_services_many_cmd,
+	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx),
+				  cs_ut_services_many_cmd,
 				  ARRAY_SIZE(cs_ut_services_many_cmd));
 }
 
@@ -377,7 +381,8 @@ static void test_cs_ut_opts_jumbled(void)
 {
 	struct cl_ctx  cctx[1] = { };
 
-	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx), cs_ut_opts_jumbled_cmd,
+	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx),
+				  cs_ut_opts_jumbled_cmd,
 				  ARRAY_SIZE(cs_ut_opts_jumbled_cmd));
 }
 
