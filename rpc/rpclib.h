@@ -286,7 +286,8 @@ static inline void c2_rpc_machine_params_add(struct c2_rpc_machine *rpc_mach,
 	C2_PRE(rpc_mach != NULL && dom != NULL);
 
 	rpc_mach->rm_min_recv_size = c2_rpc_max_msg_size(dom, msg_size);
-	rpc_mach->rm_max_recv_msgs = c2_rpc_max_recv_msgs(dom, queue_len);
+	rpc_mach->rm_max_recv_msgs = c2_rpc_max_recv_msgs(dom,
+						rpc_mach->rm_min_recv_size);
 	rpc_mach->rm_tm_colour	   = colour;
 
 	rpc_mach->rm_tm_recv_queue_min_length = queue_len;

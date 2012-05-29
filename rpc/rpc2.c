@@ -768,11 +768,10 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 
 	c2_mutex_init(&machine->rm_mutex);
 
-	if (machine->rm_min_recv_size == 0)
-		machine->rm_min_recv_size =
-			c2_net_domain_get_max_buffer_size(net_dom);
-	if (machine->rm_max_recv_msgs == 0)
-		machine->rm_max_recv_msgs = 1;
+	C2_ASSERT(machine->rm_min_recv_size >= C2_SEG_SIZE &&
+		  machine->rm_min_recv_size <=
+		  c2_net_domain_get_max_buffer_size(net_dom));
+	C2_ASSERT(machine->rm_max_recv_msgs >= 1);
 
 	c2_addb_ctx_init(&machine->rm_rpc_machine_addb,
 			&rpc_machine_addb_ctx_type, &c2_addb_global_ctx);
