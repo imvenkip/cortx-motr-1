@@ -427,11 +427,11 @@ static void test_cs_ut_lnet_ep_bad(void)
 
 static void test_cs_ut_lnet_ep_duplicate(void)
 {
-	/* Duplicate endpoint across request handler contexts. */ 
+	/* Duplicate endpoint across request handler contexts. */
 	cs_ut_test_helper_failure(cs_ut_lnet_ep_dup_cmd,
 				  ARRAY_SIZE(cs_ut_lnet_ep_dup_cmd));
-	
-	/* Duplicate tcp interfaces in a request handler context. */ 
+
+	/* Duplicate tcp interfaces in a request handler context. */
 	cs_ut_test_helper_failure(cs_ut_lnet_dup_tcp_if_cmd,
 				  ARRAY_SIZE(cs_ut_lnet_dup_tcp_if_cmd));
 }
