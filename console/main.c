@@ -161,15 +161,14 @@ int console_main(int argc, char **argv)
 int main(int argc, char **argv)
 #endif
 {
-	int         result;
-	uint32_t    opcode     = 0;
-	bool        show       = false;
-	bool        input      = false;
-	const char  *server    = NULL;
-	const char  *client    = NULL;
-	const char  *yaml_path = NULL;
-
-	struct c2_net_xprt    *xprt = &c2_net_bulk_sunrpc_xprt;
+	int                   result;
+	uint32_t              opcode         = 0;
+	bool                  show           = false;
+	bool                  input          = false;
+	const char           *server         = NULL;
+	const char           *client         = NULL;
+	const char           *yaml_path      = NULL;
+	struct c2_net_xprt   *xprt           = &c2_net_bulk_sunrpc_xprt;
 	struct c2_net_domain  client_net_dom = { };
 	struct c2_dbenv       client_dbenv;
 	struct c2_cob_domain  client_cob_dom;
