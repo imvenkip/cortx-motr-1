@@ -180,12 +180,15 @@ int c2_rpc_post(struct c2_rpc_item *item)
 {
 	struct c2_rpc_machine *machine;
 	int                    rc;
+	uint64_t	       item_size;
 
 	C2_PRE(item->ri_session != NULL);
 
-	machine = item->ri_session->s_conn->c_rpc_machine;
+	machine	  = item->ri_session->s_conn->c_rpc_machine;
+	item_size = item->ri_type->rit_ops->rito_item_size(item);
 
 	c2_rpc_machine_lock(machine);
+	C2_ASSERT(item_size <= machine->rm_min_recv_size);
 	rc = c2_rpc__post_locked(item);
 	c2_rpc_machine_unlock(machine);
 

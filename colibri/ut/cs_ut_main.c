@@ -132,6 +132,12 @@ static char *cs_ut_lnet_ep_dup_cmd[] = { "colibri_setup", "-r", "-T", "AD",
                                 "-e", "lnet:127.0.0.1@tcp:12345:30:101",
                                 "-s", "ds1"};
 
+static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-e", "lnet:127.0.0.1@tcp:12345:30:101",
+                                "-e", "lnet:127.0.0.1@tcp:12345:32:105",
+                                "-s", "ds1"};
+
 static char *cs_ut_lnet_ep_bad_cmd[] = { "colibri_setup", "-r", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:asdad:asdsd:sadasd",
@@ -421,8 +427,13 @@ static void test_cs_ut_lnet_ep_bad(void)
 
 static void test_cs_ut_lnet_ep_duplicate(void)
 {
+	/* Duplicate endpoint across request handler contexts. */ 
 	cs_ut_test_helper_failure(cs_ut_lnet_ep_dup_cmd,
 				  ARRAY_SIZE(cs_ut_lnet_ep_dup_cmd));
+	
+	/* Duplicate tcp interfaces in a request handler context. */ 
+	cs_ut_test_helper_failure(cs_ut_lnet_dup_tcp_if_cmd,
+				  ARRAY_SIZE(cs_ut_lnet_dup_tcp_if_cmd));
 }
 
 static void test_cs_ut_service_bad(void)

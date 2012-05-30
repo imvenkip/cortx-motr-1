@@ -304,6 +304,7 @@ int c2_lnet_local_addr_get(char *addr)
 	const char	     *network; /* "addr@interface" */
 	const char	     *endpoint;
 	char		     *sptr;
+	char		     *tmp;
 	char		     *nw_if;
 	char		     *nw_type;
 	char		     *ip;
@@ -319,6 +320,7 @@ int c2_lnet_local_addr_get(char *addr)
 	}
 
 	C2_ALLOC_ARR(sptr, strlen(addr) + 1);
+	tmp = sptr;
 	strcpy(sptr, addr);
 	c2_net_lnet_ifaces_get(ndom, &ifaces);
 	C2_ASSERT(ifaces != NULL);
@@ -341,6 +343,7 @@ int c2_lnet_local_addr_get(char *addr)
 	c2_net_lnet_ifaces_put(ndom, &ifaces);
 	c2_net_domain_fini(ndom);
 	c2_free(ndom);
+	c2_free(tmp);
 
 	return rc;
 }
