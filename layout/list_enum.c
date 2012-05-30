@@ -127,8 +127,7 @@ static const struct c2_layout_enum_ops list_enum_ops;
 /**
  * Build list enumeration object.
  * @note Enum object need not be finalised explicitly by the user. It is
- * finalised internally through the layout finalisation routine to be invoked
- * as l->l_ops->lo_fini().
+ * finalised internally through c2_layout__striped_fini().
  */
 int c2_list_enum_build(struct c2_layout_domain *dom,
 		       struct c2_fid *cob_list, uint32_t nr,
@@ -186,7 +185,7 @@ out:
 
 /**
  * Implementation of leo_fini for LIST enumeration type.
- * Invoked internally by l->l_ops->lo_fini().
+ * Invoked internally by c2_layout__striped_fini().
  */
 void list_fini(struct c2_layout_enum *e)
 {

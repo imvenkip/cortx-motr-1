@@ -166,6 +166,9 @@ struct c2_layout_domain {
 	/** Reference count on enum types. */
 	uint32_t                    ld_enum_ref_count[C2_LAYOUT_ENUM_TYPE_MAX];
 
+	/** List of pointers for layout objects associated with this domain. */
+	struct c2_tl                ld_layout_list;
+
 	/** c2_layout_schema object. */
 	struct c2_layout_schema     ld_schema;
 
@@ -412,7 +415,7 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
 				    const struct c2_layout_enum_type *et);
 
-void c2_layout_fini(struct c2_layout *l);
+struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid);
 
 void c2_layout_get(struct c2_layout *l);
 void c2_layout_put(struct c2_layout *l);

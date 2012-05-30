@@ -390,7 +390,6 @@ static void pdclust_fini(struct c2_layout *l)
 	c2_layout__striped_fini(&pl->pl_base);
 
 	c2_free(pl);
-
 	C2_LEAVE();
 }
 
@@ -454,44 +453,51 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 	    pdl->pl_tile_cache.tc_lcode != NULL &&
 	    pdl->pl_tile_cache.tc_permute != NULL &&
 	    pdl->pl_tile_cache.tc_inverse != NULL) {
-		c2_layout__striped_init(dom, &pdl->pl_base, lid, pool->po_id,
-					&c2_pdclust_layout_type, &pdclust_ops,
-					le);
-		pdl->pl_attr.pa_seed      = *seed;
-		pdl->pl_attr.pa_N         = N;
-		pdl->pl_attr.pa_K         = K;
-		pdl->pl_attr.pa_unit_size = unitsize;
-
-		pdl->pl_pool              = pool;
-		/*
-		 * select minimal possible B (least common multiple of P and
-		 * N+2*K)
-		 */
-		B = P*(N+2*K)/c2_gcd64(N+2*K, P);
-		pdl->pl_attr.pa_P = P;
-		pdl->pl_C = B/(N+2*K);
-		pdl->pl_L = B/P;
-
-		pdl->pl_tile_cache.tc_tile_no = 1;
-		permute_column(pdl, 0, 0);
-		for (rc = 0, i = 0; i < P; ++i) {
-			rc = c2_pool_alloc(pool, &pdl->pl_tgt[i]);
-			if (rc != 0) {
-				C2_LOG("lid %llu, c2_pool_alloc() failed, "
-				       "rc %d", (unsigned long long)lid, rc);
-				break;
-			}
-		}
-
+		rc = c2_layout__striped_init(dom, &pdl->pl_base, lid,
+					     pool->po_id,
+					     &c2_pdclust_layout_type,
+					     &pdclust_ops, le);
 		if (rc == 0) {
-			rc = c2_parity_math_init(&pdl->pl_math, N, K);
-			if (rc != 0)
-				C2_LOG("lid %llu, c2_parity_math_init() "
-				       "failed, rc %d",
-				       (unsigned long long)lid, rc);
-			else
-				c2_pdclust_layout_bob_init(pdl);
-		}
+			pdl->pl_attr.pa_seed      = *seed;
+			pdl->pl_attr.pa_N         = N;
+			pdl->pl_attr.pa_K         = K;
+			pdl->pl_attr.pa_unit_size = unitsize;
+			pdl->pl_pool              = pool;
+			/*
+			 * select minimal possible B (least common multiple of
+			 * P and N+2*K)
+			 */
+			B = P*(N+2*K)/c2_gcd64(N+2*K, P);
+			pdl->pl_attr.pa_P = P;
+			pdl->pl_C = B/(N+2*K);
+			pdl->pl_L = B/P;
+
+			pdl->pl_tile_cache.tc_tile_no = 1;
+			permute_column(pdl, 0, 0);
+			for (rc = 0, i = 0; i < P; ++i) {
+				rc = c2_pool_alloc(pool, &pdl->pl_tgt[i]);
+				if (rc != 0) {
+					C2_LOG("lid %llu, c2_pool_alloc() "
+					       "failed, rc %d",
+					       (unsigned long long)lid, rc);
+					break;
+				}
+			}
+
+			if (rc == 0) {
+				rc = c2_parity_math_init(&pdl->pl_math, N, K);
+				if (rc == 0)
+					c2_pdclust_layout_bob_init(pdl);
+				else
+					C2_LOG("lid %llu, "
+					       "c2_parity_math_init() failed, "
+					       "rc %d",
+					       (unsigned long long)lid, rc);
+			}
+		} else
+			C2_LOG("lid %llu, "
+			       "c2_layout__striped_init() failed, rc %d",
+			       (unsigned long long)lid, rc);
 	} else {
 		rc = -ENOMEM;
 		layout_log("pdclust_build", "C2_ALLOC() failed",
@@ -737,7 +743,7 @@ static int pdclust_encode(struct c2_layout *l,
 
 
 static const struct c2_layout_ops pdclust_ops = {
-	.lo_fini        = &pdclust_fini
+	.lo_fini        = pdclust_fini
 };
 
 static const struct c2_layout_type_ops pdclust_type_ops = {

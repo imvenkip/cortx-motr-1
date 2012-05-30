@@ -120,7 +120,11 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 
 	if (!is_root) {
 		C2_ASSERT(ci->ci_layout != NULL);
-		c2_layout_fini(ci->ci_layout);
+		/*
+		 * Release the reference on the layout. The layout will be
+		 * deleted, this being the last reference.
+		 */
+		c2_layout_put(ci->ci_layout);
 	}
 	C2_LEAVE();
 }
@@ -375,6 +379,10 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 			      &pd_layout);
 
 	ci->ci_layout = rc == 0 ? &pd_layout->pl_base.ls_base : NULL;
+
+	/* Add a reference to the layout so that it does not get deleted. */
+	if (ci->ci_layout != NULL)
+		c2_layout_get(ci->ci_layout);
 
 	C2_LEAVE("rc: %d", rc);
 	return rc;

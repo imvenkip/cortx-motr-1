@@ -532,8 +532,9 @@ static int rec_get(struct c2_db_tx *tx, struct c2_layout *l, void *area)
  * most the size returned by c2_layout_max_recsize().
  *
  * @post Layout object is built internally (along with enumeration object being
- * built if applicable). Hence, user needs to finalise the layout object when
- * done with the use. It can be accomplished by using the API c2_layout_fini().
+ * built if applicable). User is expected to add rererence/s to this layout
+ * object while using it. Releasing the last reference will finalise the layout
+ * object by freeing it.
  */
 int c2_layout_lookup(struct c2_layout_domain *dom,
 		     uint64_t lid,
@@ -551,6 +552,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 
 	C2_PRE(domain_invariant(dom));
 	C2_PRE(lid != LID_NONE);
+	C2_PRE(c2_layout_find(dom, lid) == NULL);
 	C2_PRE(tx != NULL);
 	C2_PRE(pair != NULL);
 	C2_PRE(key_buf != NULL);

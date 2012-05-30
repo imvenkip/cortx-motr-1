@@ -28,8 +28,9 @@
  */
 
 #include "lib/errno.h"
-#include "lib/misc.h"  /* strlen() */
-#include "lib/vec.h"   /* c2_bufvec_cursor_step(), c2_bufvec_cursor_addr() */
+#include "lib/memory.h" /* C2_ALLOC_PTR() */
+#include "lib/misc.h"   /* strlen() */
+#include "lib/vec.h"    /* c2_bufvec_cursor_step(), c2_bufvec_cursor_addr() */
 #include "lib/bob.h"
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
@@ -45,7 +46,9 @@ extern const struct c2_layout_enum_type c2_list_enum_type;
 extern const struct c2_layout_enum_type c2_linear_enum_type;
 
 enum {
-	LAYOUT_MAGIC = 0x4C41594F55544D41 /* LAYOUTMA */
+	LAYOUT_MAGIC = 0x4C41594F55544D41, /* LAYOUTMA */
+	LIST_MAGIC   = 0x4C4953544D414749, /* LISTMAGI */
+	HEAD_MAGIC   = 0x484541444D414749  /* HEADMAGI */
 };
 
 static const struct c2_bob_type layout_bob = {
@@ -85,6 +88,24 @@ C2_ADDB_EV_DEFINE(layout_update_fail, "layout_update_fail",
 		  C2_ADDB_EVENT_LAYOUT_UPDATE_FAIL, C2_ADDB_FUNC_CALL);
 C2_ADDB_EV_DEFINE(layout_delete_fail, "layout_delete_fail",
 		  C2_ADDB_EVENT_LAYOUT_DELETE_FAIL, C2_ADDB_FUNC_CALL);
+
+/** Layout list entry. */
+struct llist_entry {
+	/** Layout id. */
+	uint64_t          lle_lid;
+
+	/** Pointer to the layout object. */
+	struct c2_layout *lle_l;
+
+	struct c2_tlink   lle_linkage;
+	uint64_t          lle_magic;
+};
+
+/* todo BOB support for the list. */
+C2_TL_DESCR_DEFINE(layout_list, "layout-list", static,
+		   struct llist_entry, lle_linkage,
+		   lle_magic, LIST_MAGIC, HEAD_MAGIC);
+C2_TL_DEFINE(layout_list, static, struct llist_entry);
 
 bool domain_invariant(const struct c2_layout_domain *dom)
 {
@@ -240,13 +261,63 @@ static void enum_type_put(struct c2_layout_domain *dom,
 	c2_mutex_unlock(&dom->ld_lock);
 }
 
-/** Initialises a layout, adds a reference on the respective layout type. */
-void c2_layout__init(struct c2_layout_domain *dom,
-		     struct c2_layout *l,
-		     uint64_t lid, uint64_t pool_id,
-		     const struct c2_layout_type *type,
-		     const struct c2_layout_ops *ops)
+/**
+ * Looks up for an entry from the layout list, with the specified layout id.
+ */
+static struct llist_entry *layout_list_lookup(struct c2_layout_domain *dom,
+					      uint64_t lid)
 {
+	struct llist_entry *l_entry;
+
+	C2_PRE(domain_invariant(dom));
+	C2_PRE(lid != LID_NONE);
+
+	c2_tl_for(layout_list, &dom->ld_layout_list, l_entry) {
+		if (l_entry->lle_lid == lid)
+			break;
+	} c2_tl_endfor;
+
+	return l_entry;
+}
+
+/**
+ * Adds an entry in the layout list, with the specified layout pointer and id.
+ */
+static int layout_list_add(struct c2_layout_domain *dom, struct c2_layout *l)
+{
+	struct llist_entry *l_entry;
+
+	C2_ENTRY("dom %p, lid %llu", dom, (unsigned long long)l->l_id);
+	C2_ALLOC_PTR(l_entry);
+	if (l_entry == NULL) {
+		layout_log("layout_list_add", "C2_ALLOC_PTR() failed",
+			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			   &c2_addb_oom, &layout_global_ctx, l->l_id, -ENOMEM);
+		return -ENOMEM;
+	}
+
+	c2_mutex_lock(&dom->ld_lock);
+	C2_ASSERT(layout_list_lookup(dom, l->l_id) == NULL);
+	l_entry->lle_lid = l->l_id;
+	l_entry->lle_l = l;
+	layout_list_tlink_init(l_entry);
+	layout_list_tlist_add(&dom->ld_layout_list, l_entry);
+	c2_mutex_unlock(&dom->ld_lock);
+
+	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
+
+	return 0;
+}
+
+/** Initialises a layout, adds a reference on the respective layout type. */
+int c2_layout__init(struct c2_layout_domain *dom,
+		    struct c2_layout *l,
+		    uint64_t lid, uint64_t pool_id,
+		    const struct c2_layout_type *type,
+		    const struct c2_layout_ops *ops)
+{
+	int rc;
+
 	C2_PRE(domain_invariant(dom));
 	C2_PRE(l != NULL);
 	C2_PRE(lid != LID_NONE);
@@ -263,24 +334,27 @@ void c2_layout__init(struct c2_layout_domain *dom,
 	l->l_ref     = DEFAULT_REF_COUNT;
 	l->l_pool_id = pool_id;
 	l->l_ops     = ops;
-
-	layout_type_get(dom, type);
 	l->l_type    = type;
 
-	c2_mutex_init(&l->l_lock);
-	c2_addb_ctx_init(&l->l_addb, &layout_addb_ctx_type,
-			 &layout_global_ctx);
+	rc = layout_list_add(dom, l);
+	if (rc == 0) {
+		layout_type_get(dom, type);
+		c2_mutex_init(&l->l_lock);
+		c2_addb_ctx_init(&l->l_addb, &layout_addb_ctx_type,
+				 &layout_global_ctx);
+		c2_layout_bob_init(l);
+		C2_POST(layout_invariant(l));
+	}
 
-	c2_layout_bob_init(l);
-
-	C2_POST(layout_invariant(l));
 	C2_LEAVE("lid %llu", (unsigned long long)lid);
+	return rc;
 }
 
 /** Finalises a layout, releases a reference on the respective layout type. */
 void c2_layout__fini(struct c2_layout *l)
 {
 	C2_PRE(layout_invariant(l));
+	C2_PRE(layout_list_lookup(l->l_dom, l->l_id) == NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
@@ -301,14 +375,16 @@ void c2_layout__fini(struct c2_layout *l)
  * @post Pointer to the c2_layout object is set back in the c2_layout_enum
  * object.
  */
-void c2_layout__striped_init(struct c2_layout_domain *dom,
-			     struct c2_layout_striped *str_l,
-			     uint64_t lid, uint64_t pool_id,
-			     const struct c2_layout_type *type,
-			     const struct c2_layout_ops *ops,
-			     struct c2_layout_enum *e)
+int c2_layout__striped_init(struct c2_layout_domain *dom,
+			    struct c2_layout_striped *str_l,
+			    uint64_t lid, uint64_t pool_id,
+			    const struct c2_layout_type *type,
+			    const struct c2_layout_ops *ops,
+			    struct c2_layout_enum *e)
 
 {
+	int rc;
+
 	C2_PRE(domain_invariant(dom));
 	C2_PRE(str_l != NULL);
 	C2_PRE(lid != LID_NONE);
@@ -320,19 +396,21 @@ void c2_layout__striped_init(struct c2_layout_domain *dom,
 	C2_ENTRY("lid %llu, enum-type-id %lu", (unsigned long long)lid,
 		 (unsigned long)e->le_type->let_id);
 
-	c2_layout__init(dom, &str_l->ls_base, lid, pool_id, type, ops);
-	str_l->ls_enum = e;
+	rc = c2_layout__init(dom, &str_l->ls_base, lid, pool_id, type, ops);
+	if (rc == 0) {
+		str_l->ls_enum = e;
+		str_l->ls_enum->le_l = &str_l->ls_base;
 
-	str_l->ls_enum->le_l = &str_l->ls_base;
+		/*
+		 * enum_invariant() invoked internally from within
+		 * striped_layout_invariant() verifies that
+		 * str_l->ls_enum->le_l is set appropriately.
+		 */
+		C2_POST(striped_layout_invariant(str_l));
+	}
 
-	/*
-	 * enum_invariant() invoked internally from within
-	 * striped_layout_invariant() verifies that str_l->ls_enum->le_l is
-	 * set appropriately.
-	 */
-	C2_POST(striped_layout_invariant(str_l));
-
-	C2_LEAVE("lid %llu", (unsigned long long)lid);
+	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
+	return rc;
 }
 
 /**
@@ -614,6 +692,8 @@ int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
 
 	c2_mutex_init(&dom->ld_lock);
 
+	layout_list_tlist_init(&dom->ld_layout_list);
+
 	rc = schema_init(&dom->ld_schema, dbenv);
 	if (rc != 0)
 		return rc;
@@ -630,6 +710,12 @@ void c2_layout_domain_fini(struct c2_layout_domain *dom)
 {
 	C2_PRE(domain_invariant(dom));
 
+	/*
+	 * Verify that all the layout objects belonging to this domain have
+	 * been finalised.
+	 */
+	C2_PRE(layout_list_tlist_is_empty(&dom->ld_layout_list));
+
 	/* Verify that all the layout types are unregistered. */
 	C2_PRE(c2_forall(i, ARRAY_SIZE(dom->ld_type),
 	       dom->ld_type[i] == NULL));
@@ -639,7 +725,7 @@ void c2_layout_domain_fini(struct c2_layout_domain *dom)
 	       dom->ld_enum[i] == NULL));
 
 	schema_fini(&dom->ld_schema);
-
+	layout_list_tlist_fini(&dom->ld_layout_list);
 	c2_mutex_fini(&dom->ld_lock);
 }
 
@@ -827,27 +913,39 @@ void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
 	C2_LEAVE("Enum_type_id %lu", (unsigned long)let->let_id);
 }
 
-/* Finalise layout and its internal enum object if applicable. */
-void c2_layout_fini(struct c2_layout *l)
+/**
+ * Finds a layout with the given identifier, from the list of layout objects
+ * maintained in the layout domain.
+ */
+struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid)
 {
-	C2_PRE(layout_invariant(l));
+	struct llist_entry *l_entry;
+	struct c2_layout   *l;
 
-	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-	l->l_ops->lo_fini(l);
-	C2_LEAVE();
+	C2_PRE(domain_invariant(dom));
+	C2_PRE(lid != LID_NONE);
+
+	C2_ENTRY("lid %llu", (unsigned long long)lid);
+
+	c2_mutex_lock(&dom->ld_schema.ls_lock);
+	l_entry = layout_list_lookup(dom, lid);
+	c2_mutex_unlock(&dom->ld_schema.ls_lock);
+
+	l = l_entry == NULL ? NULL : l_entry->lle_l;
+	C2_LEAVE("lid %llu, l_pointer %p", (unsigned long long)lid,
+		 l_entry == NULL ? NULL : l_entry->lle_l);
+	return l;
 }
 
 /** Adds a reference to the layout. */
 void c2_layout_get(struct c2_layout *l)
 {
 	C2_PRE(layout_invariant(l));
+	C2_PRE(layout_list_lookup(l->l_dom, l->l_id) != NULL);
+	/* layout_invariant() verifies that l->l_ref >= DEFAULT_REF_COUNT. */
 
-	/*
-	 * The DEFAULT_REF_COUNT being 1, ensures that the layout can not
-	 * be freed concurrently.
-	 */
-
-	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
+	C2_ENTRY("lid %llu, ref_count %lu", (unsigned long long)l->l_id,
+		 (unsigned long)l->l_ref);
 
 	c2_mutex_lock(&l->l_lock);
 	C2_CNT_INC(l->l_ref);
@@ -859,15 +957,31 @@ void c2_layout_get(struct c2_layout *l)
 /** Releases a reference on the layout. */
 void c2_layout_put(struct c2_layout *l)
 {
+	struct llist_entry *lentry;
+	bool                killme;
+
 	C2_PRE(layout_invariant(l));
 
-	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
+	C2_ENTRY("lid %llu, ref_count %lu", (unsigned long long)l->l_id,
+		 (unsigned long)l->l_ref);
 
+	c2_mutex_lock(&l->l_dom->ld_lock);
 	c2_mutex_lock(&l->l_lock);
 	C2_CNT_DEC(l->l_ref);
-	c2_mutex_unlock(&l->l_lock);
+	killme = l->l_ref == DEFAULT_REF_COUNT;
+	if (killme) {
+		lentry = layout_list_lookup(l->l_dom, l->l_id);
+		C2_ASSERT(lentry != NULL);
+		layout_list_tlist_del(lentry);
+		layout_list_tlink_fini(lentry);
+		c2_free(lentry);
+	}
 
-	/* The layout may be freed at this point. Hence not printig the lid. */
+	c2_mutex_unlock(&l->l_lock);
+	c2_mutex_unlock(&l->l_dom->ld_lock);
+
+	if (killme)
+		l->l_ops->lo_fini(l);
 	C2_LEAVE();
 }
 
@@ -904,8 +1018,9 @@ void c2_layout_put(struct c2_layout *l)
  * received through the buffer.
  *
  * @post Layout object is built internally (along with enumeration object being
- * built if applicable). Hence, user needs to finalise the layout object when
- * done with the use. It can be accomplished by using the API c2_layout_fini().
+ * built if applicable). User is expected to add rererence/s to this layout
+ * object while using it. Releasing the last reference will finalise the layout
+ * object by freeing it.
  */
 int c2_layout_decode(struct c2_layout_domain *dom,
 		     uint64_t lid,
@@ -920,6 +1035,7 @@ int c2_layout_decode(struct c2_layout_domain *dom,
 
 	C2_PRE(domain_invariant(dom));
 	C2_PRE(lid != LID_NONE);
+	C2_PRE(layout_list_lookup(dom, lid) == NULL);
 	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(cur != NULL);
