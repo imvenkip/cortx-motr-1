@@ -25,7 +25,8 @@ const bool packet_invariant(const struct c2_rpc_packet *p)
 	       p->rp_nr_items == packet_item_tlist_length(&p->rp_items) &&
 	       c2_tl_forall(packet_item, item, &p->rp_items,
 				size += c2_rpc_item_size(item);
-				true) &&
+				(c2_rpc_item_is_unsolicited(item) ||
+				      c2_rpc_item_is_bound(item))) &&
 	       p->rp_size == size;
 }
 

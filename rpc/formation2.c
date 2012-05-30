@@ -17,6 +17,7 @@ void frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
 void frm_balance(struct c2_rpc_frm *frm);
 void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p);
 void frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p);
+bool frm_try_to_bind_item(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
 int item_start_timer(const struct c2_rpc_item *item);
 unsigned long item_timer_callback(unsigned long data);
 
@@ -348,27 +349,49 @@ void frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 	frm->f_ops->fo_packet_ready(p);
 }
 
+bool frm_try_to_bind_item(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
+{
+	bool result;
+
+	C2_ENTRY("frm: %p item: %p", frm, item);
+	C2_PRE(frm != NULL &&
+	       item != NULL &&
+	       item->ri_session != NULL &&
+	       c2_rpc_item_is_unbound(item));
+	C2_PRE(frm->f_ops != NULL &&
+	       frm->f_ops->fo_bind_item != NULL);
+	C2_LOG("session: %p", item->ri_session);
+
+	result = frm->f_ops->fo_bind_item(item);
+
+	C2_LEAVE("result: %s", result ? "true" : "false");
+	return result;
+}
+
 void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 {
-	enum c2_rpc_frm_itemq_type  qtype;
-	struct c2_rpc_item         *item;
-	struct c2_tl               *q;
+	struct c2_rpc_item *item;
+	struct c2_tl       *q;
+	bool                bound;
 
 	auto bool item_will_exceed_packet_size(void);
 
 	C2_ENTRY("frm: %p packet: %p", frm, p);
 
-	for (qtype = FRMQ_TIMEDOUT_BOUND; qtype < FRMQ_NR_QUEUES; ++qtype) {
-		q = &frm->f_itemq[qtype];
+	for_each_itemq_in_frm(q, frm) {
 		c2_tl_for(itemq, q, item) {
 			if (item_will_exceed_packet_size())
-				goto out;
+				continue;
+			if (c2_rpc_item_is_unbound(item)) {
+				bound = frm_try_to_bind_item(frm, item);
+				if (!bound)
+					continue;
+			}
 			frm_itemq_remove(frm, item);
 			c2_rpc_packet_add_item(p, item);
 		} c2_tl_endfor;
 	}
 
-out:
 	C2_ASSERT(frm_invariant(frm));
 	C2_LEAVE();
 

@@ -34,7 +34,13 @@ static int frm_ut_fini(void)
 static struct c2_rpc_frm frm;
 static struct c2_rpc_frm_constraints constraints;
 static struct c2_rpc_machine rmachine;
+static struct c2_rpc_session session;
+static struct c2_rpc_item items[FRMQ_NR_QUEUES];
+static struct c2_rpc_slot slot;
+
 static int pcount = 0;
+static int bound_item_count = 0;
+
 static void packet_ready(struct c2_rpc_packet *p)
 {
 	++pcount;
@@ -43,8 +49,15 @@ static void packet_ready(struct c2_rpc_packet *p)
 	c2_free(p);
 	return;
 }
+static bool frm_bind_item(struct c2_rpc_item *item)
+{
+	item->ri_slot_refs[0].sr_slot = &slot;
+	++bound_item_count;
+	return true;
+}
 static struct c2_rpc_frm_ops frm_ops = {
-	.fo_packet_ready = packet_ready
+	.fo_packet_ready = packet_ready,
+	.fo_bind_item    = frm_bind_item
 };
 
 static void frm_init_test(void)
@@ -53,9 +66,6 @@ static void frm_init_test(void)
 	c2_rpc_frm_init(&frm, &rmachine, constraints, &frm_ops);
 	C2_UT_ASSERT(frm.f_state == FRM_IDLE);
 }
-
-static struct c2_rpc_item items[FRMQ_NR_QUEUES];
-static struct c2_rpc_slot slot;
 
 static c2_bcount_t twoway_item_size(const struct c2_rpc_item *item)
 {
@@ -106,6 +116,7 @@ static void frm_enq_item_test(void)
 								  : NULL;
 		item->ri_type = test->oneway ? &oneway_item_type
 					     : &twoway_item_type;
+		item->ri_session = &session;
 		if (i != ARRAY_SIZE(tests) - 1) {
 			c2_rpc_frm_enq_item(&frm, item);
 			C2_UT_ASSERT(item->ri_itemq == test->result);
@@ -115,7 +126,7 @@ static void frm_enq_item_test(void)
 	C2_UT_ASSERT(frm.f_nr_items == 2);
 	C2_UT_ASSERT(frm.f_nr_bytes_accumulated == 20);
 	C2_UT_ASSERT(pcount == 3);
-
+	C2_UT_ASSERT(bound_item_count == 1);
 	frm.f_constraints.fc_max_nr_bytes_accumulated = 30;
 	c2_rpc_frm_enq_item(&frm, &items[FRMQ_NR_QUEUES - 1]);
 
@@ -123,6 +134,7 @@ static void frm_enq_item_test(void)
 	C2_UT_ASSERT(frm.f_nr_items == 0);
 	C2_UT_ASSERT(frm.f_nr_bytes_accumulated == 0);
 	C2_UT_ASSERT(pcount == 4);
+	C2_UT_ASSERT(bound_item_count == 2);
 }
 static void frm_fini_test(void)
 {

@@ -37,6 +37,7 @@ enum c2_rpc_frm_itemq_type {
 
 struct c2_rpc_frm_ops {
 	void (*fo_packet_ready)(struct c2_rpc_packet *p);
+	bool (*fo_bind_item)(struct c2_rpc_item *item);
 };
 
 struct c2_rpc_frm {
