@@ -326,6 +326,7 @@ struct c2_rpc_item {
 	    c2_rpc_item:ri_compound_items. */
 	struct c2_tlink			 ri_field;
 	struct c2_tlink                  ri_iq_link;
+	struct c2_tlink                  ri_plink;
 	struct c2_tl                    *ri_itemq;
 	/** Magic constatnt to verify sanity of linked rpc items. */
 	uint64_t			 ri_link_magic;

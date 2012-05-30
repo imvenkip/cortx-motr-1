@@ -1,8 +1,10 @@
-#include "rpc/formation2.h"
 #include "rpc/rpc2.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_FORMATION
 #include "lib/trace.h"
 #include "lib/misc.h"    /* C2_SET0 */
+#include "lib/memory.h"
+#include "rpc/formation2.h"
+#include "rpc/packet.h"
 
 #define ULL unsigned long long
 
@@ -10,8 +12,11 @@ struct c2_tl *
 frm_which_queue(struct c2_rpc_frm        *frm,
                 const struct c2_rpc_item *item);
 
-void itemq_insert(struct c2_tl *q, struct c2_rpc_item *item);
-
+void frm_itemq_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
+void frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
+void frm_balance(struct c2_rpc_frm *frm);
+void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p);
+void frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p);
 int item_start_timer(const struct c2_rpc_item *item);
 unsigned long item_timer_callback(unsigned long data);
 
@@ -92,19 +97,31 @@ bool frm_invariant(const struct c2_rpc_frm *frm)
 	       frm->f_nr_bytes_accumulated == nr_bytes_acc;
 }
 
+void c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *c)
+{
+	/* XXX Temporary */
+	c->fc_max_nr_packets_enqed     = 1000;
+	c->fc_max_nr_segments          = 128;
+	c->fc_max_packet_size          = 100;
+	c->fc_max_nr_bytes_accumulated = 100;
+}
+
 int c2_rpc_frm_init(struct c2_rpc_frm             *frm,
 		    struct c2_rpc_machine         *rmachine,
-		    struct c2_rpc_frm_constraints  constraints)
+		    struct c2_rpc_frm_constraints  constraints,
+		    struct c2_rpc_frm_ops         *ops)
 {
 	struct c2_tl *q;
 
 	C2_ENTRY("frm: %p rmachine %p", frm, rmachine);
 	C2_PRE(frm != NULL &&
 	       rmachine != NULL &&
+	       ops != NULL &&
 	       constraints_are_valid(&constraints));
 
 	C2_SET0(frm);
 	frm->f_rmachine    = rmachine;
+	frm->f_ops         = ops;
 	frm->f_constraints = constraints; /* structure instance copy */
 
 	for_each_itemq_in_frm(q, frm)
@@ -135,15 +152,10 @@ void c2_rpc_frm_fini(struct c2_rpc_frm *frm)
 void c2_rpc_frm_enq_item(struct c2_rpc_frm  *frm,
 			 struct c2_rpc_item *item)
 {
-	struct c2_tl *q;
-
 	C2_ENTRY("frm: %p item: %p", frm, item);
 	C2_PRE(frm_invariant(frm) && item != NULL);
 
-	q = frm_which_queue(frm, item);
-	itemq_insert(q, item);
-	C2_CNT_INC(frm->f_nr_items);
-	frm->f_nr_bytes_accumulated += c2_rpc_item_size(item);
+	frm_itemq_insert(frm, item);
 	if (frm->f_state == FRM_IDLE)
 		frm->f_state = FRM_BUSY;
 
@@ -151,6 +163,8 @@ void c2_rpc_frm_enq_item(struct c2_rpc_frm  *frm,
 	C2_LEAVE("nr_items: %llu bytes: %llu",
 			(ULL)frm->f_nr_items,
 			(ULL)frm->f_nr_bytes_accumulated);
+
+	frm_balance(frm);
 }
 
 const char *str_qtype(enum c2_rpc_frm_itemq_type qtype)
@@ -215,11 +229,12 @@ bool constraints_are_valid(const struct c2_rpc_frm_constraints *constraints)
 	return true;
 }
 
-void itemq_insert(struct c2_tl *q, struct c2_rpc_item *new_item)
+void frm_itemq_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *new_item)
 {
 	struct c2_rpc_item *item;
+	struct c2_tl       *q;
 
-	C2_ENTRY("q: %p item: %p", q, new_item);
+	C2_ENTRY("frm: %p item: %p", frm, new_item);
 	C2_PRE(new_item != NULL);
 	C2_LOG("priority: %d deadline: [%llu:%llu]",
 			(int)new_item->ri_prio,
@@ -228,7 +243,7 @@ void itemq_insert(struct c2_tl *q, struct c2_rpc_item *new_item)
 
 	C2_PRE(item_priority_is_valid(new_item));
 
-	new_item->ri_itemq = q;
+	q = frm_which_queue(frm, new_item);
 
 	c2_tl_for(itemq, q, item)
 		if (item->ri_prio > new_item->ri_prio)
@@ -255,5 +270,110 @@ void itemq_insert(struct c2_tl *q, struct c2_rpc_item *new_item)
 		itemq_tlist_add_before(item, new_item);
 	}
 
-	C2_LEAVE("");
+	new_item->ri_itemq = q;
+	C2_CNT_INC(frm->f_nr_items);
+	frm->f_nr_bytes_accumulated += c2_rpc_item_size(new_item);
+
+	C2_LEAVE();
+}
+
+void frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
+{
+	C2_ENTRY("frm: %p item: %p", frm, item);
+	C2_PRE(frm != NULL && item != NULL);
+	C2_PRE(frm->f_nr_items > 0 && item->ri_itemq != NULL);
+
+	itemq_tlink_del_fini(item);
+	item->ri_itemq = NULL;
+	C2_CNT_DEC(frm->f_nr_items);
+	frm->f_nr_bytes_accumulated -= c2_rpc_item_size(item);
+
+	if (frm->f_nr_items == 0)
+		frm->f_state = FRM_IDLE;
+
+	C2_LEAVE();
+}
+
+bool frm_is_ready(const struct c2_rpc_frm *frm)
+{
+	const struct c2_rpc_frm_constraints *c;
+	bool                                 has_timedout_items;
+
+	C2_PRE(frm != NULL);
+
+	has_timedout_items =
+		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_TIMEDOUT_BOUND]) ||
+		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_TIMEDOUT_UNBOUND]) ||
+		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_TIMEDOUT_ONE_WAY]);
+
+	c = &frm->f_constraints;
+	return frm->f_nr_packets_enqed < c->fc_max_nr_packets_enqed &&
+	       (has_timedout_items ||
+		frm->f_nr_bytes_accumulated >= c->fc_max_nr_bytes_accumulated);
+}
+void frm_balance(struct c2_rpc_frm *frm)
+{
+	struct c2_rpc_packet *p;
+	int                   count = 0;
+
+	C2_ENTRY("frm: %p", frm);
+	C2_PRE(frm != NULL);
+	C2_LOG("ready: %s", frm_is_ready(frm) ? "true" : "false");
+
+	while (frm_is_ready(frm)) {
+		C2_ALLOC_PTR(p);
+		if (p == NULL) {
+			C2_LOG("Error: packet allocation failed");
+			C2_LEAVE("%d packets formed", count);
+			return;
+		}
+		c2_rpc_packet_init(p);
+		frm_fill_packet(frm, p);
+		frm_packet_ready(frm, p);
+		++count;
+	}
+
+	C2_LEAVE("%d packet(s) formed", count);
+}
+
+void frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
+{
+	C2_ENTRY("frm: %p packet %p", frm, p);
+
+	C2_PRE(frm != NULL && p != NULL && !c2_rpc_packet_is_empty(p));
+	C2_PRE(frm->f_ops != NULL && frm->f_ops->fo_packet_ready != NULL);
+	C2_LOG("nr_items: %llu", (ULL)p->rp_nr_items);
+
+	++frm->f_nr_packets_enqed;
+	frm->f_ops->fo_packet_ready(p);
+}
+
+void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
+{
+	enum c2_rpc_frm_itemq_type  qtype;
+	struct c2_rpc_item         *item;
+	struct c2_tl               *q;
+
+	auto bool item_will_exceed_packet_size(void);
+
+	C2_ENTRY("frm: %p packet: %p", frm, p);
+
+	for (qtype = FRMQ_TIMEDOUT_BOUND; qtype < FRMQ_NR_QUEUES; ++qtype) {
+		q = &frm->f_itemq[qtype];
+		c2_tl_for(itemq, q, item) {
+			if (item_will_exceed_packet_size())
+				goto out;
+			frm_itemq_remove(frm, item);
+			c2_rpc_packet_add_item(p, item);
+		} c2_tl_endfor;
+	}
+
+out:
+	C2_ASSERT(frm_invariant(frm));
+	C2_LEAVE();
+
+	bool item_will_exceed_packet_size(void) {
+		return p->rp_size + c2_rpc_item_size(item) >
+			frm->f_constraints.fc_max_packet_size;
+	}
 }

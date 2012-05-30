@@ -1,6 +1,8 @@
 #include "lib/ut.h"
+#include "lib/memory.h"
 #include "rpc/formation2.h"
 #include "rpc/rpc2.h"
+#include "rpc/packet.h"
 
 static int frm_ut_init(void);
 static int frm_ut_fini(void);
@@ -32,10 +34,23 @@ static int frm_ut_fini(void)
 static struct c2_rpc_frm frm;
 static struct c2_rpc_frm_constraints constraints;
 static struct c2_rpc_machine rmachine;
+static int pcount = 0;
+static void packet_ready(struct c2_rpc_packet *p)
+{
+	++pcount;
+	c2_rpc_packet_remove_all_items(p);
+	c2_rpc_packet_fini(p);
+	c2_free(p);
+	return;
+}
+static struct c2_rpc_frm_ops frm_ops = {
+	.fo_packet_ready = packet_ready
+};
 
 static void frm_init_test(void)
 {
-	c2_rpc_frm_init(&frm, &rmachine, constraints);
+	c2_rpc_frm_constraints_get_defaults(&constraints);
+	c2_rpc_frm_init(&frm, &rmachine, constraints, &frm_ops);
 	C2_UT_ASSERT(frm.f_state == FRM_IDLE);
 }
 
@@ -74,12 +89,12 @@ static void frm_enq_item_test(void)
 		bool          oneway;
 		struct c2_tl *result;
 	} tests[FRMQ_NR_QUEUES] = {
-		{ c2_time(0, 0), true,  false, &frm.f_itemq[FRMQ_TIMEDOUT_BOUND]},
-		{ c2_time(0, 0), false, false, &frm.f_itemq[FRMQ_TIMEDOUT_UNBOUND]},
-		{ c2_time(0, 0), false, true,  &frm.f_itemq[FRMQ_TIMEDOUT_ONE_WAY]},
-		{ C2_TIME_NEVER, true,  false, &frm.f_itemq[FRMQ_WAITING_BOUND]},
-		{ C2_TIME_NEVER, false, false, &frm.f_itemq[FRMQ_WAITING_UNBOUND]},
-		{ C2_TIME_NEVER, false, true,  &frm.f_itemq[FRMQ_WAITING_ONE_WAY]},
+	    { c2_time(0, 0), true,  false, NULL},
+	    { c2_time(0, 0), false, false, NULL},
+	    { c2_time(0, 0), false, true,  NULL},
+	    { C2_TIME_NEVER, true,  false, &frm.f_itemq[FRMQ_WAITING_BOUND]},
+	    { C2_TIME_NEVER, false, false, &frm.f_itemq[FRMQ_WAITING_UNBOUND]},
+	    { C2_TIME_NEVER, false, true,  &frm.f_itemq[FRMQ_WAITING_ONE_WAY]},
 	};
 	struct test *test;
 
@@ -87,13 +102,27 @@ static void frm_enq_item_test(void)
 		item = &items[i];
 		test = &tests[i];
 		item->ri_deadline = test->deadline;
-		item->ri_slot_refs[0].sr_slot = test->assign_slot ? &slot : NULL;
-		item->ri_type = test->oneway ? &oneway_item_type : &twoway_item_type;
-		c2_rpc_frm_enq_item(&frm, item);
-		C2_UT_ASSERT(item->ri_itemq == test->result);
-		C2_UT_ASSERT(frm.f_nr_items == i + 1);
-		C2_UT_ASSERT(frm.f_state == FRM_BUSY);
+		item->ri_slot_refs[0].sr_slot = test->assign_slot ? &slot
+								  : NULL;
+		item->ri_type = test->oneway ? &oneway_item_type
+					     : &twoway_item_type;
+		if (i != ARRAY_SIZE(tests) - 1) {
+			c2_rpc_frm_enq_item(&frm, item);
+			C2_UT_ASSERT(item->ri_itemq == test->result);
+		}
 	}
+	C2_UT_ASSERT(frm.f_state == FRM_BUSY);
+	C2_UT_ASSERT(frm.f_nr_items == 2);
+	C2_UT_ASSERT(frm.f_nr_bytes_accumulated == 20);
+	C2_UT_ASSERT(pcount == 3);
+
+	frm.f_constraints.fc_max_nr_bytes_accumulated = 30;
+	c2_rpc_frm_enq_item(&frm, &items[FRMQ_NR_QUEUES - 1]);
+
+	C2_UT_ASSERT(frm.f_state == FRM_IDLE);
+	C2_UT_ASSERT(frm.f_nr_items == 0);
+	C2_UT_ASSERT(frm.f_nr_bytes_accumulated == 0);
+	C2_UT_ASSERT(pcount == 4);
 }
 static void frm_fini_test(void)
 {

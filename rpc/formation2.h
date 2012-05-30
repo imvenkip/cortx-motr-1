@@ -9,10 +9,10 @@ struct c2_rpc_item;
 struct c2_rpc_slot;
 
 struct c2_rpc_frm_constraints {
-	uint64_t    f_max_nr_packets_enqed;
-	uint64_t    f_max_nr_segments;
-	c2_bcount_t f_max_packet_size;
-	c2_bcount_t f_max_nr_bytes_accumulated;
+	uint64_t    fc_max_nr_packets_enqed;
+	uint64_t    fc_max_nr_segments;
+	c2_bcount_t fc_max_packet_size;
+	c2_bcount_t fc_max_nr_bytes_accumulated;
 };
 
 void
@@ -35,6 +35,10 @@ enum c2_rpc_frm_itemq_type {
 	FRMQ_NR_QUEUES
 };
 
+struct c2_rpc_frm_ops {
+	void (*fo_packet_ready)(struct c2_rpc_packet *p);
+};
+
 struct c2_rpc_frm {
 	enum frm_state                 f_state;
 	struct c2_tl                   f_itemq[FRMQ_NR_QUEUES];
@@ -43,11 +47,13 @@ struct c2_rpc_frm {
 	uint64_t                       f_nr_packets_enqed;
 	struct c2_rpc_frm_constraints  f_constraints;
 	struct c2_rpc_machine         *f_rmachine;
+	struct c2_rpc_frm_ops         *f_ops;
 };
 
 int c2_rpc_frm_init(struct c2_rpc_frm             *frm,
 		    struct c2_rpc_machine         *rmachine,
-		    struct c2_rpc_frm_constraints  constraints);
+		    struct c2_rpc_frm_constraints  constraints,
+		    struct c2_rpc_frm_ops         *ops);
 
 void c2_rpc_frm_fini(struct c2_rpc_frm *frm);
 
