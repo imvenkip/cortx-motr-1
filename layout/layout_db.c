@@ -478,17 +478,15 @@ int layout_write(const struct c2_layout *l,
 /**
  * Read existing record from the layouts table into the provided area.
  */
-static int rec_get(struct c2_db_tx *tx, struct c2_layout *l, void *area)
+static int rec_get(struct c2_db_tx *tx, struct c2_layout *l,
+		   void *area, size_t max_recsize)
 {
 	struct c2_db_pair  pair;
-	c2_bcount_t        max_recsize;
 	int                rc;
 
 	C2_PRE(tx != NULL);
 	C2_PRE(l != NULL);
 	C2_PRE(area != NULL);
-
-	max_recsize = c2_layout_max_recsize(l->l_dom);
 
 	/*
 	 * The max_recsize is never expected to be that large. But still,
@@ -723,7 +721,7 @@ int c2_layout_update(struct c2_layout *l,
 		goto out;
 	}
 
-	rc = rec_get(tx, l, oldrec_area);
+	rc = rec_get(tx, l, oldrec_area, recsize);
 	if (rc != 0) {
 		c2_layout__log("c2_layout_update", "c2_table_lookup() failed",
 			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,

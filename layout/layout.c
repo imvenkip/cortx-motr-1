@@ -208,9 +208,7 @@ static void layout_type_get(struct c2_layout_domain *dom,
 	 */
 
 	c2_mutex_lock(&dom->ld_lock);
-
 	C2_CNT_INC(dom->ld_type_ref_count[lt->lt_id]);
-
 	c2_mutex_unlock(&dom->ld_lock);
 }
 
@@ -222,9 +220,7 @@ static void layout_type_put(struct c2_layout_domain *dom,
 	C2_PRE(lt != NULL);
 
 	c2_mutex_lock(&dom->ld_lock);
-
 	C2_CNT_DEC(dom->ld_type_ref_count[lt->lt_id]);
-
 	c2_mutex_unlock(&dom->ld_lock);
 }
 

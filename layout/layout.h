@@ -235,6 +235,7 @@ enum c2_layout_xcode_op {
  * Structure specific to a layout type.
  * There is an instance of c2_layout_type for each one of the layout types.
  * For example, for PDCLUST and COMPOSITE layout types.
+ * todo Any layout type can be registered with only one domain, at a time.
  */
 struct c2_layout_type {
 	/** Layout type name. */
