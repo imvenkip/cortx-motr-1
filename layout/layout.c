@@ -143,8 +143,8 @@ bool striped_layout_invariant(const struct c2_layout_striped *stl)
 		layout_invariant(&stl->ls_base);
 }
 
-static int layout_rec_invariant(const struct c2_layout_rec *rec,
-				const struct c2_layout_domain *dom)
+static int rec_invariant(const struct c2_layout_rec *rec,
+			 const struct c2_layout_domain *dom)
 {
 	return
 		rec != NULL &&
@@ -290,9 +290,10 @@ static int layout_list_add(struct c2_layout_domain *dom, struct c2_layout *l)
 	C2_ENTRY("dom %p, lid %llu", dom, (unsigned long long)l->l_id);
 	C2_ALLOC_PTR(l_entry);
 	if (l_entry == NULL) {
-		layout_log("layout_list_add", "C2_ALLOC_PTR() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   &c2_addb_oom, &layout_global_ctx, l->l_id, -ENOMEM);
+		c2_layout__log("layout_list_add", "C2_ALLOC_PTR() failed",
+			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       &c2_addb_oom, &layout_global_ctx,
+			       l->l_id, -ENOMEM);
 		return -ENOMEM;
 	}
 
@@ -516,9 +517,11 @@ static int schema_init(struct c2_layout_schema *schema,
 	rc = c2_table_init(&schema->ls_layouts, schema->ls_dbenv, "layouts",
 			   DEFAULT_DB_FLAG, &layouts_table_ops);
 	if (rc != 0) {
-		layout_log("c2_layout_schema_init", "c2_table_init() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG, &c2_addb_func_fail,
-			   &layout_global_ctx, LID_NONE, rc);
+		c2_layout__log("c2_layout_schema_init",
+			       "c2_table_init() failed",
+			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       &c2_addb_func_fail, &layout_global_ctx,
+			       LID_NONE, rc);
 
 		schema->ls_dbenv = NULL;
 	}
@@ -573,10 +576,10 @@ static void max_recsize_update(struct c2_layout_domain *dom)
  * This method adds an ADDB record indicating failure along with a short
  * error message string and the error code.
  */
-static void layout_addb_add(struct c2_addb_ctx *ctx,
-			    const struct c2_addb_ev *ev,
-			    const char *err_msg,
-			    int rc)
+static void addb_add(struct c2_addb_ctx *ctx,
+		     const struct c2_addb_ev *ev,
+		     const char *err_msg,
+		     int rc)
 {
 	switch (ev->ae_id) {
 	case C2_ADDB_EVENT_FUNC_FAIL:
@@ -618,27 +621,27 @@ static void layout_addb_add(struct c2_addb_ctx *ctx,
 /**
  * This method performs the following operations:
  * 1) If value of the flag if_addb_msg is true, then it invokes
- *    layout_addb_add() to add an ADDB record.
+ *    addb_add() to add an ADDB record.
  * 2) If value of the flag if_trace_msg is true, then it adds a C2_LOG message
  *    (trace message), indicating failure, along with a short error message
  *    string and the error code.
- * 3) Note: For suceesss cases (indicated by rc == 0), layout_log() is never
- *    invoked since:
+ * 3) Note: For suceesss cases (indicated by rc == 0), c2_layout__log() is
+ *    never invoked since:
  *    (i) ADDB records are not expected to be added in success cases.
- *    (ii) C2_LEAVE() or C2_LOG() are used firectly to log the trace messages,
+ *    (ii) C2_LEAVE() or C2_LOG() are used directly to log the trace messages,
  *         avoiding the function call overhead.
  *
  * @param addb_msg Indicates if ADDB record is to be added.
  * @param trace_msg Indicates if C2_LOG message is to be added.
  */
-void layout_log(const char *fn_name,
-		const char *err_msg,
-		bool addb_msg,
-		bool trace_msg,
-		const struct c2_addb_ev *ev,
-		struct c2_addb_ctx *ctx,
-		uint64_t lid,
-		int rc)
+void c2_layout__log(const char *fn_name,
+		    const char *err_msg,
+		    bool addb_msg,
+		    bool trace_msg,
+		    const struct c2_addb_ev *ev,
+		    struct c2_addb_ctx *ctx,
+		    uint64_t lid,
+		    int rc)
 {
 	C2_PRE(fn_name != NULL);
 	C2_PRE(ev != NULL);
@@ -658,7 +661,7 @@ void layout_log(const char *fn_name,
 
 	/* ADDB record logging. */
 	if (addb_msg)
-		layout_addb_add(ctx, ev, err_msg, rc);
+		addb_add(ctx, ev, err_msg, rc);
 
 	/* Trace message logging. */
 	if (trace_msg)
@@ -792,9 +795,11 @@ int c2_layout_type_register(struct c2_layout_domain *dom,
 
 	rc = lt->lt_ops->lto_register(dom, lt);
 	if (rc != 0)
-		layout_log("c2_layout_type_register", "lto_register() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG, &c2_addb_func_fail,
-			   &layout_global_ctx, LID_NONE, rc);
+		c2_layout__log("c2_layout_type_register",
+			       "lto_register() failed",
+			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       &c2_addb_func_fail, &layout_global_ctx,
+			       LID_NONE, rc);
 
 	max_recsize_update(dom);
 
@@ -868,10 +873,11 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 
 	rc = let->let_ops->leto_register(dom, let);
 	if (rc != 0)
-		layout_log("c2_layout_enum_type_register",
-			   "leto_register() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG, &c2_addb_func_fail,
-			   &layout_global_ctx, LID_NONE, rc);
+		c2_layout__log("c2_layout_enum_type_register",
+			       "leto_register() failed",
+			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       &c2_addb_func_fail, &layout_global_ctx,
+			       LID_NONE, rc);
 
 	max_recsize_update(dom);
 
@@ -1045,7 +1051,7 @@ int c2_layout_decode(struct c2_layout_domain *dom,
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
 	rec = c2_bufvec_cursor_addr(cur);
-	C2_ASSERT(layout_rec_invariant(rec, dom));
+	C2_ASSERT(rec_invariant(rec, dom));
 
 	lt = dom->ld_type[rec->lr_lt_id];
 
@@ -1061,9 +1067,10 @@ int c2_layout_decode(struct c2_layout_domain *dom,
 	rc = lt->lt_ops->lto_decode(dom, lid, op, tx, rec->lr_pool_id,
 				    cur, out);
 	if (rc != 0) {
-		layout_log("c2_layout_decode", "lto_decode() failed",
-			   op == C2_LXO_BUFFER_OP, PRINT_TRACE_MSG,
-			   &layout_decode_fail, &layout_global_ctx, lid, rc);
+		c2_layout__log("c2_layout_decode", "lto_decode() failed",
+			       op == C2_LXO_BUFFER_OP, PRINT_TRACE_MSG,
+			       &layout_decode_fail, &layout_global_ctx,
+			       lid, rc);
 		goto out;
 	}
 
@@ -1156,7 +1163,7 @@ int c2_layout_encode(struct c2_layout *l,
 	rec.lr_ref_count = l->l_ref;
 	rec.lr_pool_id   = l->l_pool_id;
 
-	C2_ASSERT(layout_rec_invariant(&rec, l->l_dom));
+	C2_ASSERT(rec_invariant(&rec, l->l_dom));
 
 	lt = l->l_dom->ld_type[l->l_type->lt_id];
 
@@ -1167,7 +1174,7 @@ int c2_layout_encode(struct c2_layout *l,
 		 * point to the layout type specific payload.
 		 */
 		oldrec = c2_bufvec_cursor_addr(oldrec_cur);
-		C2_ASSERT(layout_rec_invariant(oldrec, l->l_dom));
+		C2_ASSERT(rec_invariant(oldrec, l->l_dom));
 		C2_ASSERT(oldrec->lr_lt_id == l->l_type->lt_id &&
 			  oldrec->lr_pool_id == l->l_pool_id);
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *oldrec);
@@ -1178,9 +1185,9 @@ int c2_layout_encode(struct c2_layout *l,
 
 	rc = lt->lt_ops->lto_encode(l, op, tx, oldrec_cur, out);
 	if (rc != 0) {
-		layout_log("c2_layout_encode", "lto_encode() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   &layout_encode_fail, &l->l_addb, l->l_id, rc);
+		c2_layout__log("c2_layout_encode", "lto_encode() failed",
+			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       &layout_encode_fail, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
 

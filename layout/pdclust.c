@@ -500,9 +500,9 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 			       (unsigned long long)lid, rc);
 	} else {
 		rc = -ENOMEM;
-		layout_log("pdclust_build", "C2_ALLOC() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   &c2_addb_oom, &layout_global_ctx, lid, rc);
+		c2_layout__log("pdclust_build", "C2_ALLOC() failed",
+			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       &c2_addb_oom, &layout_global_ctx, lid, rc);
 	}
 
 	if (rc == 0) {

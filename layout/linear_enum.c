@@ -58,7 +58,7 @@ C2_BOB_DEFINE(static, &linear_enum_bob, c2_layout_linear_enum);
  * is associated with some layout object. Hence this separation.
  */
 static bool linear_enum_invariant_internal(
-					const struct c2_layout_linear_enum *le)
+				const struct c2_layout_linear_enum *le)
 {
 	return
 		le != NULL &&
@@ -98,9 +98,9 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
 	C2_ALLOC_PTR(lin_enum);
 	if (lin_enum == NULL) {
 		rc = -ENOMEM;
-		layout_log("c2_linear_enum_build", "C2_ALLOC_PTR() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
+		c2_layout__log("c2_linear_enum_build", "C2_ALLOC_PTR() failed",
+			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
 	} else {
 		rc = 0;
 		c2_layout_linear_enum_bob_init(lin_enum);

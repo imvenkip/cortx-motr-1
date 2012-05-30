@@ -147,9 +147,9 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 	C2_ALLOC_PTR(list_enum);
 	if (list_enum == NULL) {
 		rc = -ENOMEM;
-		layout_log("c2_list_enum_build", "C2_ALLOC_PTR() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
+		c2_layout__log("c2_list_enum_build", "C2_ALLOC_PTR() failed",
+			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
 		goto out;
 	}
 
@@ -160,9 +160,9 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 	C2_ALLOC_ARR(list_enum->lle_list_of_cobs, nr);
 	if (list_enum == NULL) {
 		rc = -ENOMEM;
-		layout_log("c2_list_enum_build", "C2_ALLOC_ARR() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
+		c2_layout__log("c2_list_enum_build", "C2_ALLOC_ARR() failed",
+			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
 		c2_layout__enum_fini(&list_enum->lle_base);
 		c2_free(list_enum);
 		goto out;
@@ -227,19 +227,19 @@ static int list_register(struct c2_layout_domain *dom,
 	C2_ALLOC_PTR(lsd);
 	if (lsd == NULL) {
 		rc = -ENOMEM;
-		layout_log("list_register", "C2_ALLOC_PTR() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
+		c2_layout__log("list_register", "C2_ALLOC_PTR() failed",
+			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
 		goto out;
 	}
 
 	rc = c2_table_init(&lsd->lsd_cob_lists, dom->ld_schema.ls_dbenv,
 			   "cob_lists", DEFAULT_DB_FLAG, &cob_lists_table_ops);
 	if (rc != 0) {
-		layout_log("list_register", "c2_table_init() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   &c2_addb_func_fail, &layout_global_ctx,
-			   LID_NONE, rc);
+		c2_layout__log("list_register", "c2_table_init() failed",
+			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       &c2_addb_func_fail, &layout_global_ctx,
+			       LID_NONE, rc);
 		c2_free(lsd);
 		goto out;
 	}
@@ -337,9 +337,9 @@ static int cob_list_read(struct c2_layout_schema *schema,
 
 	rc = c2_table_lookup(tx, &pair);
 	if (rc != 0) {
-		layout_log("cob_list_read", "c2_table_lookup() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   &c2_addb_func_fail, &layout_global_ctx, lid, rc);
+		c2_layout__log("cob_list_read", "c2_table_lookup() failed",
+			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       &c2_addb_func_fail, &layout_global_ctx, lid, rc);
 		goto out;
 	}
 
@@ -397,9 +397,9 @@ static int list_decode(struct c2_layout_domain *dom,
 	C2_ALLOC_ARR(cob_list, ce_header->ces_nr);
 	if (cob_list == NULL) {
 		rc = -ENOMEM;
-		layout_log("list_decode", "C2_ALLOC_ARR() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   &c2_addb_oom, &layout_global_ctx, lid, rc);
+		c2_layout__log("list_decode", "C2_ALLOC_ARR() failed",
+			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       &c2_addb_oom, &layout_global_ctx, lid, rc);
 		goto out;
 	}
 
@@ -441,9 +441,10 @@ static int list_decode(struct c2_layout_domain *dom,
 
 	rc = c2_list_enum_build(dom, cob_list, ce_header->ces_nr, &list_enum);
 	if (rc != 0) {
-		layout_log("list_decode", "c2_list_enum_build() failed",
-			   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-			   &c2_addb_func_fail, &layout_global_ctx, lid, rc);
+		c2_layout__log("list_decode", "c2_list_enum_build() failed",
+			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       &c2_addb_func_fail, &layout_global_ctx,
+			       lid, rc);
 		goto out;
 	}
 
@@ -488,20 +489,20 @@ int cob_list_write(const struct c2_layout_schema *schema,
 	if (op == C2_LXO_DB_ADD) {
 		rc = c2_table_insert(tx, &pair);
 		if (rc != 0) {
-			layout_log("cob_list_write",
-				   "c2_table_insert() failed",
-				   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-				   &c2_addb_func_fail, &layout_global_ctx,
-				   lid, rc);
+			c2_layout__log("cob_list_write",
+				       "c2_table_insert() failed",
+				       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+				       &c2_addb_func_fail, &layout_global_ctx,
+				       lid, rc);
 		}
 	} else if (op == C2_LXO_DB_DELETE) {
 		rc = c2_table_delete(tx, &pair);
 		if (rc != 0) {
-			layout_log("cob_list_write",
-				   "c2_table_delete() failed",
-				   PRINT_ADDB_MSG, PRINT_TRACE_MSG,
-				   &c2_addb_func_fail, &layout_global_ctx,
-				   lid, rc);
+			c2_layout__log("cob_list_write",
+				       "c2_table_delete() failed",
+				       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+				       &c2_addb_func_fail, &layout_global_ctx,
+				       lid, rc);
 		}
 	}
 
