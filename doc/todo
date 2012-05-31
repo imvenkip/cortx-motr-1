@@ -38,8 +38,6 @@ TODO
 
     Use lists based on C2_TL_{DEFINE,DESCR}()
 
-2012-May-04 Add all magic numbers to doc/magix
-
 2012-May-09 Replace all debugging printf-s and printk-s with C2_LOG()-s
 
 2012-May-10 Embed c2_sm in c2_rpc_{session,conn,item}
@@ -67,3 +65,5 @@ DONE
     lists, vectors, &c. Preferably, the macros should be placed in .gdbinit
     files, located in the corresponding modules, with top-level .gdbinit loading
     them.
+
+2012-May-04 [Andriy] Add all magic numbers to doc/magix

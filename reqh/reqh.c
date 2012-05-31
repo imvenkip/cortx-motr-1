@@ -78,7 +78,8 @@ C2_BOB_DEFINE( , &rhsvc_bob, c2_reqh_service);
    Tlist descriptor for rpc machines.
  */
 C2_TL_DESCR_DEFINE(c2_rhrpm, "rpc machines", , struct c2_rpc_machine,
-                   rm_rh_linkage, rm_magic, REQH_RPC_MACH_HEAD_MAGIX, C2_RPC_MACHINE_MAGIX);
+                   rm_rh_linkage, rm_magic, REQH_RPC_MACH_HEAD_MAGIX,
+                   C2_RPC_MACHINE_MAGIX);
 
 C2_TL_DEFINE(c2_rhrpm, , struct c2_rpc_machine);
 
