@@ -177,10 +177,8 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 {
         int                        rc;
 	struct c2_rpc_machine     *rpc_machine = &srv_rpc_mach;
-	uint32_t		   segs_nr;
 	uint32_t		   bufs_nr;
 	uint32_t		   tms_nr;
-	c2_bcount_t		   seg_size;
 
 
         srv_cob_dom_id.id = 102;
@@ -244,19 +242,16 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 			   &srv_fol);
 	C2_UT_ASSERT(rc == 0);
 
-	seg_size = c2_rpc_seg_size(net_dom);
-	segs_nr  = c2_rpc_segs_nr(net_dom, seg_size);
 	tms_nr   = 1;
 	bufs_nr  = c2_rpc_bufs_nr(C2_NET_TM_RECV_QUEUE_DEF_LEN, tms_nr);
 
 	rc = c2_rpc_net_buffer_pool_setup(net_dom, &app_pool,
-					  segs_nr, seg_size,
 					  bufs_nr, tms_nr);
 	C2_UT_ASSERT(rc == 0);
 
-	c2_rpc_machine_params_add(rpc_machine, net_dom,
-				  C2_BUFFER_ANY_COLOUR,
-				  0, C2_NET_TM_RECV_QUEUE_DEF_LEN);
+	c2_rpc_machine_pre_init(rpc_machine, net_dom,
+				C2_BUFFER_ANY_COLOUR,
+				0, C2_NET_TM_RECV_QUEUE_DEF_LEN);
 
 	/* Init the rpcmachine */
         rc = c2_rpc_machine_init(rpc_machine, &srv_cob_domain, net_dom,

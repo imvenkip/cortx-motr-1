@@ -177,10 +177,8 @@ static int c2t1fs_rpc_init(void)
 	char                      *db_name;
 	int                        rc;
 	struct c2_net_buffer_pool *buffer_pool;
-	uint32_t		   segs_nr;
 	uint32_t		   bufs_nr;
 	uint32_t		   tms_nr;
-	c2_bcount_t		   seg_size;
 
 	C2_ENTRY();
 
@@ -189,13 +187,10 @@ static int c2t1fs_rpc_init(void)
 	rpc_machine = &c2t1fs_globals.g_rpc_machine;
 	buffer_pool = &c2t1fs_globals.g_buffer_pool;
 
-	seg_size = c2_rpc_seg_size(ndom);
-	segs_nr  = c2_rpc_segs_nr(ndom, seg_size);
 	tms_nr	 = 1;
 	bufs_nr  = c2_rpc_bufs_nr(tm_recv_queue_min_len, tms_nr);
 
 	rc = c2_rpc_net_buffer_pool_setup(ndom, buffer_pool,
-					  segs_nr, seg_size,
 					  bufs_nr, tms_nr);
 	if (rc != 0)
 		goto pool_fini;
@@ -214,8 +209,8 @@ static int c2t1fs_rpc_init(void)
 	if (rc != 0)
 		goto dbenv_fini;
 
-	c2_rpc_machine_params_add(rpc_machine, ndom, C2_BUFFER_ANY_COLOUR,
-				  max_rpc_msg_size, tm_recv_queue_min_len);
+	c2_rpc_machine_pre_init(rpc_machine, ndom, C2_BUFFER_ANY_COLOUR,
+				max_rpc_msg_size, tm_recv_queue_min_len);
 
 	rc = c2_rpc_machine_init(rpc_machine, cob_dom, ndom, laddr, NULL,
 				 buffer_pool);

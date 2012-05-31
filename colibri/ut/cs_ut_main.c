@@ -45,18 +45,20 @@
 #include "ut/cs_test_fops.ff"
 #include "rpc/rpc_opcodes.h"
 
+#include "colibri/colibri_setup.c"
+
 extern const struct c2_tl_descr ndoms_descr;
 
 /* Client context */
 struct cl_ctx {
 	/* Client network domain.*/
-	struct c2_net_domain cl_ndom;
+	struct c2_net_domain	 cl_ndom;
 	/* Client db.*/
-	struct c2_dbenv      cl_dbenv;
+	struct c2_dbenv		 cl_dbenv;
 	/* Client cob domain.*/
-	struct c2_cob_domain cl_cdom;
+	struct c2_cob_domain	 cl_cdom;
 	/* Client rpc context.*/
-	struct c2_rpc_client_ctx    cl_ctx;
+	struct c2_rpc_client_ctx cl_ctx;
 };
 
 /* Configures colibri environment with given parameters. */
@@ -123,6 +125,12 @@ static char *cs_ut_lnet_cmd[] = { "colibri_setup", "-r", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:127.0.0.1@tcp:12345:30:101",
                                 "-s", "ds1"};
+
+static char *cs_ut_lnet_mult_if_cmd[] = { "colibri_setup", "-r", "-T", "linux",
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-e", "lnet:127.0.0.1@tcp:12345:30:101",
+                                "-e", "lnet:127.0.0.1@oib0:12345:34:101",
+                                "-s", "ioservice"};
 
 static char *cs_ut_lnet_ep_dup_cmd[] = { "colibri_setup", "-r", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
@@ -436,6 +444,22 @@ static void test_cs_ut_lnet_ep_duplicate(void)
 				  ARRAY_SIZE(cs_ut_lnet_dup_tcp_if_cmd));
 }
 
+static void test_cs_ut_lnet_multiple_if(void)
+{
+	int		  rc;
+	struct c2_colibri colibri_ctx;
+
+	rc = c2_cs_init(&colibri_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr);
+	C2_UT_ASSERT(rc == 0);
+
+	c2_mutex_lock(&colibri_ctx.cc_mutex);
+	rc = cs_parse_args(&colibri_ctx, ARRAY_SIZE(cs_ut_lnet_mult_if_cmd),
+			    cs_ut_lnet_mult_if_cmd);
+	C2_UT_ASSERT(rc == 0);
+	rc = reqh_ctxs_are_valid(&colibri_ctx);
+	C2_UT_ASSERT(rc == 0);
+}
+
 static void test_cs_ut_service_bad(void)
 {
 	cs_ut_test_helper_failure(cs_ut_service_bad_cmd,
@@ -482,6 +506,7 @@ const struct c2_test_suite colibri_setup_ut = {
 		{ "cs-buffer_pool-options", test_cs_ut_buffer_pool},
 		{ "cs-bad-lnet-ep", test_cs_ut_lnet_ep_bad},
 		{ "cs-duplicate-lnet-ep", test_cs_ut_lnet_ep_duplicate},
+		{ "cs-lnet-multiple-interace", test_cs_ut_lnet_multiple_if},
 		{ "cs-lnet-options", test_cs_ut_lnet},
                 { NULL, NULL }
         }

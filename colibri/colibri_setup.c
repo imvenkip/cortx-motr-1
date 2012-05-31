@@ -756,10 +756,10 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 	if (max_rpc_msg_size > c2_net_domain_get_max_buffer_size(ndom))
 		return -EINVAL;
 
-	c2_rpc_machine_params_add(rpcmach, ndom, tm_colour, max_rpc_msg_size,
-				  recv_queue_min_length);
-
 	buffer_pool = cs_buffer_pool_get(cctx, ndom);
+	c2_rpc_machine_pre_init(rpcmach, ndom, tm_colour, max_rpc_msg_size,
+				recv_queue_min_length);
+
 	rc = c2_rpc_machine_init(rpcmach, reqh->rh_cob_domain, ndom, ep, reqh,
 				 buffer_pool);
 	if (rc != 0) {
@@ -844,11 +844,9 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 	int		          rc = 0;
 	struct c2_net_domain     *dom;
 	struct c2_cs_buffer_pool *cs_bp;
-	uint32_t		  segs_nr;
 	uint32_t		  tms_nr;
 	uint32_t		  bufs_nr;
 	uint32_t                  max_recv_queue_len;
-	c2_bcount_t		  seg_size;
 
 	C2_PRE(cctx != NULL);
 	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
@@ -859,8 +857,6 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 		C2_ASSERT(max_recv_queue_len >= tms_nr);
 
 		bufs_nr  = c2_rpc_bufs_nr(max_recv_queue_len, tms_nr);
-		seg_size = c2_rpc_seg_size(dom);
-		segs_nr  = c2_rpc_segs_nr(dom, seg_size);
 
 		C2_ALLOC_PTR(cs_bp);
 		if (cs_bp == NULL) {
@@ -869,7 +865,6 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 		}
 
 		rc = c2_rpc_net_buffer_pool_setup(dom, &cs_bp->cs_buffer_pool,
-						  segs_nr, seg_size,
 						  bufs_nr, tms_nr);
 		if (rc != 0) {
 			c2_free(cs_bp);
@@ -1770,7 +1765,7 @@ static uint32_t cs_dom_tm_min_recv_queue_total(struct c2_colibri *cctx,
 
 static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
 {
-	int                          rc;
+	int                          rc = 0;
 	int                          idx;
 	FILE                        *ofd;
 	struct cs_reqh_context      *rctx;
