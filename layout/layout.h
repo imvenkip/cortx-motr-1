@@ -25,51 +25,56 @@
 /**
  * @defgroup layout Layouts.
  *
- * A 'layout' is an attribute of a file. It maps a file onto a set of network
- * resources. viz. component objects.
+ * @section layout-terminology Terminology
+ * - Layout <BR>
+ *   A 'layout' is an attribute of a file. It maps a file onto a set of network
+ *   resources. viz. component objects.
  *
- * A 'layout type' specifies how a file is stored in a collection of targets.
- * It provides the <offset-in-gob> to <traget-idx, offset-in-target> mapping.
- * For example, PDCLUST, RAID1, RAID5 are some types of layout, while
- * COMPOSITE being another special layout type.
+ * - Layout type <BR>
+ *   A 'layout type' specifies how a file is stored in a collection of targets.
+ *   It provides the <offset-in-gob> to <traget-idx, offset-in-target> mapping.
+ *   For example, PDCLUST, RAID1, RAID5 are some types of layout, while
+ *   COMPOSITE being another special layout type.
  *
- * An 'enumeration' provides <gfid, target-idx> to <cob-fid> mapping. Not all
- * the layout types need an enumeration. For example, layouts with types
- * composite, de-dup do not need an enumeration.
+ * - Enumeration <BR>
+ *   An 'enumeration' provides <gfid, target-idx> to <cob-fid> mapping. Not all
+ *   the layout types need an enumeration. For example, layouts with types
+ *   composite, de-dup do not need an enumeration.
  *
- * An 'enumeration type' determines how a collection of component object
- * identifiers (cob-fid) is specified. For example, it may be specified as a
- * list or by means of some linear formula.
+ * - Enumeration type <BR>
+ *   An 'enumeration type' determines how a collection of component object
+ *   identifiers (cob-fid) is specified. For example, it may be specified as a
+ *   list or by means of some linear formula.
  *
- * Layout types supported currently are:
- * - PDCLUST <BR>
- *   This layout type applies parity declustering feature to the striping
- *   process. Parity declustering feature is to keep the rebuild overhead low
- *   by striping a file over more servers or drives than there are units in
- *   the parity group.
- * - COMPOSITE <BR>
- *   This layout type partitions a file or a part of the file into
- *   various segments while each of those segment uses a different layout.
+ * @section layout-types-supported Supported layout and enum types
+ * - Layout types supported currently are:
+ *   - PDCLUST <BR>
+ *     This layout type applies parity declustering feature to the striping
+ *     process. Parity declustering feature is to keep the rebuild overhead low
+ *     by striping a file over more servers or drives than there are units in
+ *     the parity group.
+ *   - COMPOSITE <BR>
+ *     This layout type partitions a file or a part of the file into
+ *     various segments while each of those segment uses a different layout.
  *
- * Enumeration types (also referred as 'enum types') supported currently are:
- * - LINEAR <BR>
- *   A layout with LINEAR enumeration type uses a formula to enumerate all
- *   its component object identifiers.
- * - LIST <BR>
- *   A layout with LIST enumeration type uses a list to enumerate all its
- *   component object identifiers.
+ * - Enumeration types (also referred as 'enum types') supported currently are:
+ *   - LINEAR <BR>
+ *     A layout with LINEAR enumeration type uses a formula to enumerate all
+ *     its component object identifiers.
+ *   - LIST <BR>
+ *     A layout with LIST enumeration type uses a list to enumerate all its
+ *     component object identifiers.
  *
- * A layout as well as a layout-id are resources (managed by the 'Colibri
- * Resource Manager').
+ * @section layout-managed-resources Layout Managed Resources
+ * - A layout as well as a layout-id are resources (managed by the 'Colibri
+ *   Resource Manager').
+ * - Layout being a resource, it can be cached by the clients and can be
+ *   revoked when it is changed.
+ * - Layout Id being a resource, a client can cache a range of layout ids that
+ *   it uses to create new layouts without contacting the server.
+ * - A layout can be assigned to a file both by the server and the client.
  *
- * Layout being a resource, it can be cached by clients and revoked when it is
- * changed.
- *
- * Layout Id being a resource, a client can cache a range of layout ids that
- * it uses to create new layouts without contacting the server.
- *
- * A layout can be assigned to a file both by server and the client.
- *
+ * @section layout-operations-sequence Sequence Of Layout Operation
  * The sequence of operation related to domain intialisation/finalisation,
  * layout type and enum type registration and unregistration is as follows:
  * - Initialise c2_layout_domain object.
@@ -77,14 +82,46 @@
  * - Perform various required operations including usage of c2_layout_encode(),
  *   c2_layout_decode(), c2_layout_lookup(), c2_layout_add(),
  *   c2_layout_update(), c2_layout_delete(), leo_nr(), leo_get().
- * - Unregister layout types and enum types using c2_layout_unregister.
+ * - Unregister layout types and enum types using c2_layout_unregister().
  * - Finalise c2_layout_domain object.
  *
+ * @section layout-client-server-access Client Server Access to APIs
  * Regarding client/server access to various APIs from layout and layout-DB
  * modules:
  * - The APIs exported through layout.h are available both to the client and
  *   the server.
  * - the APIs exported through layout_db.h are available only to the server.
+ *
+ * @section layout-thread Layout Threading and Concurrency Model
+ * - Arrays from the struct c2_layout_domain, storing registered layout types
+ *   and registered enum types viz. ld_type[] and ld_enum[] are protected by
+ *   using c2_layout_domain::ld_lock.
+ * - Also, the list of layout objects stored in the struct c2_layout_domain
+ *   viz. ld_layout_list is protected by using c2_layout_domain::ld_lock.
+ * - Reference count is maintained for each of the layout types and enum types.
+ *   This is to help verify that no layout type or enum type gets unregistered
+ *   while any of the layout object or enum object is using it.
+ * - Various tables those are part of layout DB, directly or indirectly
+ *   pointed by struct c2_layout_schema, are protected by using
+ *   c2_layout_schema::ls_lock.
+ * - The in-memory c2_layout object is protected by using c2_layout::l_lock.
+ *
+ * - c2_layout_domain::ld_lock is held during the following operations:
+ *   - Registration and unregistration routines for various layout types and
+ *     enum types.
+ *   - While adding/deleting an entry to/from the layout list that happens
+ *     through c2_layout__init() and c2_layout_put() respectively.
+ * - c2_layout_schema::ls_lock is held during the following operations:
+ *   - Part of the layout type and enum type registration and unregistration
+ *     routines those deal with creating and deleting various DB tables.
+ *   - c2_layout_lookup(), c2_layout_add(), c2_layout_update(),
+ *     c2_layout_delete().
+ *
+ * - Note: Having two separate locks for domain data and schema data helps
+ *   avoid serialising all the c2_layout_decode() and c2_layout_encode()
+ *   operations. The only part of those APIs that is serialised through holding
+ *   c2_layout_domain::ld_lock is during c2_layout__init() and
+ *   c2_layout__enum_init() routines.
  *
  * @{
  */

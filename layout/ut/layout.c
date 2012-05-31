@@ -108,9 +108,9 @@ static int test_init(void)
 	 * c2_layout_register(&c2t1fs_globals.g_layout_dom) through
 	 * c2t1fs_init()).
 	 * Hence, performing c2_layout_unregister(&c2t1fs_globals.g_layout_dom)
-	 * here to remporarily unregister all the available layout types and enum
-	 * types from the domain "c2t1fs_globals.g_layout_dom". Those will be
-	 * registered back in test_fini().
+	 * here to remporarily unregister all the available layout types and
+	 * enum types from the domain "c2t1fs_globals.g_layout_dom". Those will
+	 * be registered back in test_fini().
 	 */
 	c2_layout_unregister(&c2t1fs_globals.g_layout_dom);
 #endif
