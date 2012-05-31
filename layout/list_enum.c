@@ -702,9 +702,10 @@ static const struct c2_layout_enum_type_ops list_type_ops = {
 	.leto_encode      = list_encode,
 };
 
-const struct c2_layout_enum_type c2_list_enum_type = {
+struct c2_layout_enum_type c2_list_enum_type = {
 	.let_name         = "list",
 	.let_id           = 0,
+	.let_domain       = NULL,
 	.let_ops          = &list_type_ops
 };
 

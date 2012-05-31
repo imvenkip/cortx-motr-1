@@ -68,7 +68,7 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
 			 uint32_t nr, uint32_t A, uint32_t B,
 			 struct c2_layout_linear_enum **out);
 
-extern const struct c2_layout_enum_type c2_linear_enum_type;
+extern struct c2_layout_enum_type c2_linear_enum_type;
 
 /** @} end group linear_enum */
 

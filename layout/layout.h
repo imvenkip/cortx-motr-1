@@ -235,7 +235,7 @@ enum c2_layout_xcode_op {
  * Structure specific to a layout type.
  * There is an instance of c2_layout_type for each one of the layout types.
  * For example, for PDCLUST and COMPOSITE layout types.
- * todo Any layout type can be registered with only one domain, at a time.
+ * Any layout type can be registered with only one domain, at a time.
  */
 struct c2_layout_type {
 	/** Layout type name. */
@@ -243,6 +243,18 @@ struct c2_layout_type {
 
 	/** Layout type id. */
 	uint32_t                         lt_id;
+
+	/** Layout domain with which the layout type is registered. */
+	struct c2_layout_domain         *lt_domain;
+
+#if 0
+	/**
+	 * Layout type reference count, indicating how many layout objects,
+	 * using this layout type, exist in the domain the layout type is
+	 * registered with.
+	 */
+	uint32_t                         lt_ref_count;
+#endif
 
 	/** Layout type operations vector. */
 	const struct c2_layout_type_ops *lt_ops;
@@ -329,6 +341,7 @@ struct c2_layout_enum_ops {
  * Structure specific to a layout enumeration type.
  * There is an instance of c2_layout_enum_type for each one of enumeration
  * types. For example, for LINEAR and LIST enumeration types.
+ * Any enumeration type can be registered with only one domain, at a time.
  */
 struct c2_layout_enum_type {
 	/** Layout enumeration type name. */
@@ -336,6 +349,9 @@ struct c2_layout_enum_type {
 
 	/** Layout enumeration type id. */
 	uint32_t                              let_id;
+
+	/** Layout domain with which the enum type is registered. */
+	const struct c2_layout_domain        *let_domain;
 
 	/** Layout enumeration type operations vector. */
 	const struct c2_layout_enum_type_ops *let_ops;
@@ -407,14 +423,14 @@ int c2_layout_register(struct c2_layout_domain *dom);
 void c2_layout_unregister(struct c2_layout_domain *dom);
 
 int c2_layout_type_register(struct c2_layout_domain *dom,
-			    const struct c2_layout_type *lt);
+			    struct c2_layout_type *lt);
 void c2_layout_type_unregister(struct c2_layout_domain *dom,
-			       const struct c2_layout_type *lt);
+			       struct c2_layout_type *lt);
 
 int c2_layout_enum_type_register(struct c2_layout_domain *dom,
-				 const struct c2_layout_enum_type *et);
+				 struct c2_layout_enum_type *et);
 void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
-				    const struct c2_layout_enum_type *et);
+				    struct c2_layout_enum_type *et);
 
 struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid);
 

@@ -37,7 +37,9 @@
 #include "layout/list_enum.h"
 #include "layout/linear_enum.h"
 
-#ifndef __KERNEL__
+#ifdef __KERNEL__
+# include "c2t1fs/linux_kernel/c2t1fs.h" /* c2t1fs_globals */
+#else
 # include "layout/layout_db.c" /* recsize_get() */
 #endif
 
@@ -64,9 +66,9 @@ enum {
 	LAYOUT_DESTROY           = true
 };
 
-extern const struct c2_layout_type c2_pdclust_layout_type;
-extern const struct c2_layout_enum_type c2_list_enum_type;
-extern const struct c2_layout_enum_type c2_linear_enum_type;
+extern struct c2_layout_type c2_pdclust_layout_type;
+extern struct c2_layout_enum_type c2_list_enum_type;
+extern struct c2_layout_enum_type c2_linear_enum_type;
 
 static int test_init(void)
 {
@@ -96,6 +98,23 @@ static int test_init(void)
 	rc = c2_layout_domain_init(&domain, &dbenv);
 	C2_ASSERT(rc == 0);
 
+#ifdef __KERNEL__
+	/*
+	 * A layout type can be registered with only one domain at a time.
+	 * As a part of the kernel UT, all the available layout types and enum
+	 * types have been registered with the domain
+	 * "c2t1fs_globals.g_layout_dom".
+	 * (This happpens during the module load operation, by performing
+	 * c2_layout_register(&c2t1fs_globals.g_layout_dom) through
+	 * c2t1fs_init()).
+	 * Hence, performing c2_layout_unregister(&c2t1fs_globals.g_layout_dom)
+	 * here to remporarily unregister all the available layout types and enum
+	 * types from the domain "c2t1fs_globals.g_layout_dom". Those will be
+	 * registered back in test_fini().
+	 */
+	c2_layout_unregister(&c2t1fs_globals.g_layout_dom);
+#endif
+
 	/* Register all the available layout types and enum types. */
 	rc = c2_layout_register(&domain);
 	C2_ASSERT(rc == 0);
@@ -112,6 +131,10 @@ static int test_fini(void)
 	c2_pool_fini(&pool);
 
 	c2_layout_unregister(&domain);
+
+#ifdef __KERNEL__
+	c2_layout_register(&c2t1fs_globals.g_layout_dom);
+#endif
 
 	c2_layout_domain_fini(&domain);
 
@@ -178,9 +201,10 @@ static const struct c2_layout_type_ops test_layout_type_ops = {
 	.lto_encode      = NULL
 };
 
-const struct c2_layout_type test_layout_type = {
+struct c2_layout_type test_layout_type = {
 	.lt_name     = "test",
 	.lt_id       = 2,
+	.lt_domain   = NULL,
 	.lt_ops      = &test_layout_type_ops
 };
 
@@ -226,7 +250,7 @@ static const struct c2_layout_enum_type_ops test_enum_ops = {
 	.leto_encode      = NULL
 };
 
-const struct c2_layout_enum_type test_enum_type = {
+struct c2_layout_enum_type test_enum_type = {
 	.let_name = "test",
 	.let_id   = 2,
 	.let_ops  = &test_enum_ops
@@ -256,6 +280,16 @@ static void test_reg_unreg(void)
 	struct c2_layout_domain t_domain;
 
 	C2_ENTRY();
+
+	/*
+	 * A layout type can be registered with only one domain at a time.
+	 * Hence, unregister all the available layout types and enum types from
+	 * the domain "domain", which are registered through test_init().
+	 * This also covers the test of registering with one domain,
+	 * unregistering from that domain and then registering with another
+	 * domain.
+	 */
+	c2_layout_unregister(&domain);
 
 	rc = c2_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
@@ -303,6 +337,14 @@ static void test_reg_unreg(void)
 	c2_layout_domain_fini(&t_domain);
 
 	c2_dbenv_fini(&t_dbenv);
+
+	/*
+	 * Register back all the available layout types and enum types with
+	 * the domain "domain", to undo the change done at the begiining of
+	 * this function.
+	 */
+	rc = c2_layout_register(&domain);
+	C2_ASSERT(rc == 0);
 
 	C2_LEAVE();
 }
@@ -1738,6 +1780,13 @@ static void test_max_recsize(void)
 
 	C2_ENTRY();
 
+	/*
+	 * A layout type can be registered with only one domain at a time.
+	 * Hence, unregister all the available layout types and enum types from
+	 * the domain "domain", which are registered through test_init().
+	 */
+	c2_layout_unregister(&domain);
+
 	rc = c2_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
@@ -1819,6 +1868,14 @@ static void test_max_recsize(void)
 	c2_layout_domain_fini(&t_domain);
 
 	c2_dbenv_fini(&t_dbenv);
+
+	/*
+	 * Register back all the available layout types and enum types with
+	 * the domain "domain", to undo the change done at the begiining of
+	 * this function.
+	 */
+	rc = c2_layout_register(&domain);
+	C2_ASSERT(rc == 0);
 
 	C2_LEAVE();
 }

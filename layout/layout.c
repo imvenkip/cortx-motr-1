@@ -41,9 +41,9 @@
 #include "layout/layout_db.h"
 #include "layout/layout.h"
 
-extern const struct c2_layout_type c2_pdclust_layout_type;
-extern const struct c2_layout_enum_type c2_list_enum_type;
-extern const struct c2_layout_enum_type c2_linear_enum_type;
+extern struct c2_layout_type c2_pdclust_layout_type;
+extern struct c2_layout_enum_type c2_list_enum_type;
+extern struct c2_layout_enum_type c2_linear_enum_type;
 
 enum {
 	LAYOUT_MAGIC = 0x4C41594F55544D41, /* LAYOUTMA */
@@ -765,15 +765,17 @@ void c2_layout_unregister(struct c2_layout_domain *dom)
  * if applicable.
  */
 int c2_layout_type_register(struct c2_layout_domain *dom,
-			    const struct c2_layout_type *lt)
+			    struct c2_layout_type *lt)
 {
 	int rc;
 
 	C2_PRE(domain_invariant(dom));
 	C2_PRE(lt != NULL);
 	C2_PRE(IS_IN_ARRAY(lt->lt_id, dom->ld_type));
+	C2_PRE(lt->lt_domain == NULL);
 
-	C2_ENTRY("Layout-type-id %lu", (unsigned long)lt->lt_id);
+	C2_ENTRY("Layout-type-id %lu, domain %p",
+		 (unsigned long)lt->lt_id, dom);
 
 	c2_mutex_lock(&dom->ld_lock);
 
@@ -790,14 +792,18 @@ int c2_layout_type_register(struct c2_layout_domain *dom,
 	c2_mutex_lock(&dom->ld_schema.ls_lock);
 
 	rc = lt->lt_ops->lto_register(dom, lt);
-	if (rc != 0)
+	if (rc != 0) {
 		c2_layout__log("c2_layout_type_register",
 			       "lto_register() failed",
 			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       LID_NONE, rc);
-
-	max_recsize_update(dom);
+		C2_CNT_DEC(dom->ld_type_ref_count[lt->lt_id]);
+		dom->ld_type[lt->lt_id] = NULL;
+	} else {
+		max_recsize_update(dom);
+		lt->lt_domain = dom;
+	}
 
 	c2_mutex_unlock(&dom->ld_schema.ls_lock);
 	c2_mutex_unlock(&dom->ld_lock);
@@ -812,13 +818,15 @@ int c2_layout_type_register(struct c2_layout_domain *dom,
  * if applicable.
  */
 void c2_layout_type_unregister(struct c2_layout_domain *dom,
-			       const struct c2_layout_type *lt)
+			       struct c2_layout_type *lt)
 {
 	C2_PRE(domain_invariant(dom));
 	C2_PRE(lt != NULL);
 	C2_PRE(dom->ld_type[lt->lt_id] == lt);
+	C2_PRE(lt->lt_domain != NULL);
 
-	C2_ENTRY("Layout-type-id %lu", (unsigned long)lt->lt_id);
+	C2_ENTRY("Layout-type-id %lu, lt_domain %p",
+		 (unsigned long)lt->lt_id, lt->lt_domain);
 
 	c2_mutex_lock(&dom->ld_lock);
 
@@ -826,6 +834,7 @@ void c2_layout_type_unregister(struct c2_layout_domain *dom,
 	lt->lt_ops->lto_unregister(dom, lt);
 	dom->ld_type[lt->lt_id] = NULL;
 	max_recsize_update(dom);
+	lt->lt_domain = NULL;
 	c2_mutex_unlock(&dom->ld_schema.ls_lock);
 
 	/* Release the last reference on this layout type. */
@@ -843,15 +852,17 @@ void c2_layout_type_unregister(struct c2_layout_domain *dom,
  * tables, if applicable.
  */
 int c2_layout_enum_type_register(struct c2_layout_domain *dom,
-				 const struct c2_layout_enum_type *let)
+				 struct c2_layout_enum_type *let)
 {
 	int rc;
 
 	C2_PRE(domain_invariant(dom));
 	C2_PRE(let != NULL);
 	C2_PRE(IS_IN_ARRAY(let->let_id, dom->ld_enum));
+	C2_PRE(let->let_domain == NULL);
 
-	C2_ENTRY("Enum_type_id %lu", (unsigned long)let->let_id);
+	C2_ENTRY("Enum_type_id %lu, domain %p",
+		 (unsigned long)let->let_id, dom);
 
 	c2_mutex_lock(&dom->ld_lock);
 
@@ -868,14 +879,18 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 	c2_mutex_lock(&dom->ld_schema.ls_lock);
 
 	rc = let->let_ops->leto_register(dom, let);
-	if (rc != 0)
+	if (rc != 0) {
 		c2_layout__log("c2_layout_enum_type_register",
 			       "leto_register() failed",
 			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       LID_NONE, rc);
-
-	max_recsize_update(dom);
+		C2_CNT_DEC(dom->ld_enum_ref_count[let->let_id]);
+		dom->ld_enum[let->let_id] = NULL;
+	} else {
+		max_recsize_update(dom);
+		let->let_domain = dom;
+	}
 
 	c2_mutex_unlock(&dom->ld_schema.ls_lock);
 	c2_mutex_unlock(&dom->ld_lock);
@@ -890,13 +905,15 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
  * specific tables, if applicable.
  */
 void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
-				    const struct c2_layout_enum_type *let)
+				    struct c2_layout_enum_type *let)
 {
 	C2_PRE(domain_invariant(dom));
 	C2_PRE(let != NULL);
 	C2_PRE(dom->ld_enum[let->let_id] == let);
+	C2_PRE(let->let_domain != NULL);
 
-	C2_ENTRY("Enum_type_id %lu", (unsigned long)let->let_id);
+	C2_ENTRY("Enum_type_id %lu, let_domain %p",
+		 (unsigned long)let->let_id, let->let_domain);
 
 	c2_mutex_lock(&dom->ld_lock);
 
@@ -904,6 +921,7 @@ void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
 	let->let_ops->leto_unregister(dom, let);
 	dom->ld_enum[let->let_id] = NULL;
 	max_recsize_update(dom);
+	let->let_domain = NULL;
 	c2_mutex_unlock(&dom->ld_schema.ls_lock);
 
 	/* Release the last reference on this enum type. */
