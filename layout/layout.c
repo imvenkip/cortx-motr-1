@@ -25,6 +25,38 @@
 /**
  * @addtogroup layout
  * @{
+ *
+ * @section layout-thread Layout Threading and Concurrency Model
+ * - Arrays from the struct c2_layout_domain, storing registered layout types
+ *   and registered enum types viz. ld_type[] and ld_enum[] are protected by
+ *   using c2_layout_domain::ld_lock.
+ * - Also, the list of layout objects stored in the struct c2_layout_domain
+ *   viz. ld_layout_list is protected by using c2_layout_domain::ld_lock.
+ * - Reference count is maintained for each of the layout types and enum types.
+ *   This is to help verify that no layout type or enum type gets unregistered
+ *   while any of the layout object or enum object is using it.
+ * - Various tables those are part of layout DB, directly or indirectly
+ *   pointed by struct c2_layout_schema, are protected by using
+ *   c2_layout_schema::ls_lock.
+ * - The in-memory c2_layout object is protected by using c2_layout::l_lock.
+ *
+ * - c2_layout_domain::ld_lock is held during the following operations:
+ *   - Registration and unregistration routines for various layout types and
+ *     enum types.
+ *   - While adding/deleting an entry to/from the layout list that happens
+ *     through c2_layout__init() and c2_layout_put() respectively.
+ * - c2_layout_schema::ls_lock is held during the following operations:
+ *   - Part of the layout type and enum type registration and unregistration
+ *     routines those deal with creating and deleting various DB tables.
+ *   - c2_layout_lookup(), c2_layout_add(), c2_layout_update(),
+ *     c2_layout_delete().
+ *
+ * - Note: Having two separate locks for domain data and schema data helps
+ *   avoid serialising all the c2_layout_decode() and c2_layout_encode()
+ *   operations. The only part of those APIs that is serialised through holding
+ *   c2_layout_domain::ld_lock is during c2_layout__init() and
+ *   c2_layout__enum_init() routines.
+ *
  */
 
 #include "lib/errno.h"
@@ -638,7 +670,6 @@ void c2_layout__log(const char *fn_name,
 	C2_PRE(fn_name != NULL);
 	C2_PRE(ev != NULL);
 	C2_PRE(ctx != NULL);
-	C2_PRE(ergo(trace_msg, addb_msg));
 	C2_PRE(rc != 0);
 	C2_PRE(ergo(rc != 0, err_msg != NULL &&
 			     (ev->ae_id == layout_decode_fail.ae_id ||
@@ -1196,7 +1227,7 @@ int c2_layout_encode(struct c2_layout *l,
 	rc = lt->lt_ops->lto_encode(l, op, tx, oldrec_cur, out);
 	if (rc != 0) {
 		c2_layout__log("c2_layout_encode", "lto_encode() failed",
-			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       op == C2_LXO_BUFFER_OP, PRINT_TRACE_MSG,
 			       &layout_encode_fail, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
