@@ -6,6 +6,9 @@
 
 struct c2_rpc_item;
 
+enum {
+	C2_RPC_PACKET_OW_HEADER_SIZE = 16
+};
 struct c2_rpc_packet {
 	uint64_t       rp_nr_items;
 	c2_bcount_t    rp_size;

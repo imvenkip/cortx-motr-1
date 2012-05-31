@@ -74,11 +74,10 @@ struct c2_rpc_item_type_ops {
 	int (*rito_decode)(struct c2_rpc_item_type *item_type,
 			   struct c2_rpc_item **item,
 			   struct c2_bufvec_cursor *cur);
-	/**
-	   Return the c2_net_buf_desc from io fop.
-	 */
-	void (*rito_io_desc_get)(struct c2_rpc_item *item,
-				 struct c2_net_buf_desc *desc);
+
+	bool (*rito_try_merge)(struct c2_rpc_item *container,
+			       struct c2_rpc_item *component,
+			       c2_bcount_t         limit);
 };
 
 /**

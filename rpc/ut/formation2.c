@@ -55,6 +55,17 @@ static bool frm_bind_item(struct c2_rpc_item *item)
 	++bound_item_count;
 	return true;
 }
+static bool frm_bind_item_on_second_turn(struct c2_rpc_item *item)
+{
+	static bool first_time = true;
+
+	if (first_time) {
+		first_time = false;
+		return false;
+	}
+	item->ri_slot_refs[0].sr_slot = &slot;
+	return true;
+}
 static struct c2_rpc_frm_ops frm_ops = {
 	.fo_packet_ready = packet_ready,
 	.fo_bind_item    = frm_bind_item
@@ -135,6 +146,31 @@ static void frm_enq_item_test(void)
 	C2_UT_ASSERT(frm.f_nr_bytes_accumulated == 0);
 	C2_UT_ASSERT(pcount == 4);
 	C2_UT_ASSERT(bound_item_count == 2);
+
+	frm_ops.fo_bind_item = frm_bind_item_on_second_turn;
+	C2_ALLOC_PTR(item);
+	C2_ASSERT(item != NULL);
+	item->ri_deadline             = c2_time(0, 0);
+	item->ri_type                 = &twoway_item_type;
+	item->ri_slot_refs[0].sr_slot = NULL;
+	item->ri_itemq                = NULL;
+	item->ri_session              = &session;
+
+	c2_rpc_frm_enq_item(&frm, item);
+	C2_UT_ASSERT(frm.f_state == FRM_BUSY);
+	C2_UT_ASSERT(frm.f_nr_items == 1);
+	C2_UT_ASSERT(frm.f_nr_bytes_accumulated == 10);
+	C2_UT_ASSERT(item->ri_itemq != NULL &&
+		     item->ri_itemq == &frm.f_itemq[FRMQ_TIMEDOUT_UNBOUND]);
+
+	c2_rpc_frm_run_formation(&frm);
+
+	C2_UT_ASSERT(frm.f_state == FRM_IDLE);
+	C2_UT_ASSERT(frm.f_nr_items == 0);
+	C2_UT_ASSERT(frm.f_nr_bytes_accumulated == 0);
+	C2_UT_ASSERT(pcount == 5);
+	C2_UT_ASSERT(item->ri_itemq == NULL);
+	c2_free(item);
 }
 static void frm_fini_test(void)
 {

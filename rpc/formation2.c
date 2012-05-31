@@ -18,6 +18,9 @@ void frm_balance(struct c2_rpc_frm *frm);
 void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p);
 void frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p);
 bool frm_try_to_bind_item(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
+void frm_try_merging_item(struct c2_rpc_frm  *frm,
+			  struct c2_rpc_item *item,
+			  c2_bcount_t         limit);
 int item_start_timer(const struct c2_rpc_item *item);
 unsigned long item_timer_callback(unsigned long data);
 
@@ -105,6 +108,11 @@ void c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *c)
 	c->fc_max_nr_segments          = 128;
 	c->fc_max_packet_size          = 100;
 	c->fc_max_nr_bytes_accumulated = 100;
+}
+
+bool constraints_are_valid(const struct c2_rpc_frm_constraints *constraints)
+{
+	return true;
 }
 
 int c2_rpc_frm_init(struct c2_rpc_frm             *frm,
@@ -225,11 +233,6 @@ bool item_priority_is_valid(const struct c2_rpc_item *item)
 	       item->ri_prio <= C2_RPC_ITEM_PRIO_MAX;
 }
 
-bool constraints_are_valid(const struct c2_rpc_frm_constraints *constraints)
-{
-	return true;
-}
-
 void frm_itemq_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *new_item)
 {
 	struct c2_rpc_item *item;
@@ -315,26 +318,40 @@ bool frm_is_ready(const struct c2_rpc_frm *frm)
 void frm_balance(struct c2_rpc_frm *frm)
 {
 	struct c2_rpc_packet *p;
-	int                   count = 0;
+	int                   packet_count;
+	int                   item_count;
 
 	C2_ENTRY("frm: %p", frm);
 	C2_PRE(frm != NULL);
 	C2_LOG("ready: %s", frm_is_ready(frm) ? "true" : "false");
 
+	packet_count = item_count = 0;
+
 	while (frm_is_ready(frm)) {
 		C2_ALLOC_PTR(p);
 		if (p == NULL) {
 			C2_LOG("Error: packet allocation failed");
-			C2_LEAVE("%d packets formed", count);
-			return;
+			break;
 		}
 		c2_rpc_packet_init(p);
 		frm_fill_packet(frm, p);
+		if (c2_rpc_packet_is_empty(p)) {
+			/*
+			 * This case can arise if:
+			 * - All the items in frm are unbound items AND
+			 * - No slot is available to bind with any of these
+			      items.
+			 */
+			c2_rpc_packet_fini(p);
+			c2_free(p);
+			break;
+		}
+		++packet_count;
+		item_count += p->rp_nr_items;
 		frm_packet_ready(frm, p);
-		++count;
 	}
 
-	C2_LEAVE("%d packet(s) formed", count);
+	C2_LEAVE("formed %d packet(s) [%d items]", packet_count, item_count);
 }
 
 void frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
@@ -372,9 +389,13 @@ void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 {
 	struct c2_rpc_item *item;
 	struct c2_tl       *q;
+	c2_bcount_t         limit;
 	bool                bound;
 
-	auto bool item_will_exceed_packet_size(void);
+	/* declarations of nested functions */
+	auto bool        item_will_exceed_packet_size(void);
+	auto c2_bcount_t available_space_in_packet(void);
+	auto bool        item_supports_merging(void);
 
 	C2_ENTRY("frm: %p packet: %p", frm, p);
 
@@ -387,7 +408,14 @@ void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 				if (!bound)
 					continue;
 			}
+			C2_ASSERT(c2_rpc_item_is_unsolicited(item) ||
+				  c2_rpc_item_is_bound(item));
 			frm_itemq_remove(frm, item);
+			if (item_supports_merging()) {
+				limit = available_space_in_packet();
+				frm_try_merging_item(frm, item, limit);
+			}
+			C2_ASSERT(!item_will_exceed_packet_size());
 			c2_rpc_packet_add_item(p, item);
 		} c2_tl_endfor;
 	}
@@ -395,8 +423,37 @@ void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 	C2_ASSERT(frm_invariant(frm));
 	C2_LEAVE();
 
-	bool item_will_exceed_packet_size(void) {
-		return p->rp_size + c2_rpc_item_size(item) >
-			frm->f_constraints.fc_max_packet_size;
+	c2_bcount_t available_space_in_packet(void)
+	{
+		C2_PRE(p->rp_size <= frm->f_constraints.fc_max_packet_size);
+		return frm->f_constraints.fc_max_packet_size - p->rp_size;
 	}
+	bool item_will_exceed_packet_size(void) {
+		return c2_rpc_item_size(item) > available_space_in_packet();
+	}
+	bool item_supports_merging(void)
+	{
+		C2_PRE(item->ri_type != NULL &&
+		       item->ri_type->rit_ops != NULL);
+
+		return item->ri_type->rit_ops->rito_try_merge != NULL;
+	}
+}
+
+void frm_try_merging_item(struct c2_rpc_frm  *frm,
+			  struct c2_rpc_item *item,
+			  c2_bcount_t         limit)
+{
+	C2_ENTRY("frm: %p item: %p limit: %llu", frm, item, (ULL)limit);
+	C2_LEAVE();
+	return;
+}
+
+void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm)
+{
+	C2_ENTRY("frm: %p", frm);
+
+	frm_balance(frm);
+
+	C2_LEAVE();
 }

@@ -61,6 +61,6 @@ void c2_rpc_frm_fini(struct c2_rpc_frm *frm);
 void c2_rpc_frm_enq_item(struct c2_rpc_frm  *frm,
 			 struct c2_rpc_item *item);
 
-void c2_rpc_frm_slot_ready(struct c2_rpc_frm  *frm,
-			   struct c2_rpc_slot *slot);
+void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm);
+
 #endif /* __COLIBRI_RPC_FORMATION2_H__ */

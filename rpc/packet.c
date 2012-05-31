@@ -27,7 +27,7 @@ const bool packet_invariant(const struct c2_rpc_packet *p)
 				size += c2_rpc_item_size(item);
 				(c2_rpc_item_is_unsolicited(item) ||
 				      c2_rpc_item_is_bound(item))) &&
-	       p->rp_size == size;
+	       p->rp_size == size + C2_RPC_PACKET_OW_HEADER_SIZE;
 }
 
 void c2_rpc_packet_init(struct c2_rpc_packet *p)
@@ -36,6 +36,7 @@ void c2_rpc_packet_init(struct c2_rpc_packet *p)
 	C2_PRE(p != NULL);
 
 	C2_SET0(p);
+	p->rp_size = C2_RPC_PACKET_OW_HEADER_SIZE;
 	packet_item_tlist_init(&p->rp_items);
 	c2_chan_init(&p->rp_chan);
 
