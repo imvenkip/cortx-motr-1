@@ -169,7 +169,7 @@ enum c2_rpc_item_priority {
 };
 
 #include "rpc/formation.h"
-
+struct c2_rpc_frm;
 struct page;
 struct c2_rpc;
 struct c2_rpc_item;
@@ -328,6 +328,7 @@ struct c2_rpc_item {
 	struct c2_tlink                  ri_iq_link;
 	struct c2_tlink                  ri_plink;
 	struct c2_tl                    *ri_itemq;
+	struct c2_rpc_frm               *ri_frm;
 	/** Magic constatnt to verify sanity of linked rpc items. */
 	uint64_t			 ri_link_magic;
 };

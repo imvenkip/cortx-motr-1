@@ -1,4 +1,6 @@
 #include "lib/ut.h"
+#include "lib/mutex.h"
+#include "lib/timer.h"
 #include "lib/memory.h"
 #include "rpc/formation2.h"
 #include "rpc/rpc2.h"
@@ -74,6 +76,7 @@ static struct c2_rpc_frm_ops frm_ops = {
 static void frm_init_test(void)
 {
 	c2_rpc_frm_constraints_get_defaults(&constraints);
+	c2_mutex_init(&rmachine.rm_mutex);
 	c2_rpc_frm_init(&frm, &rmachine, constraints, &frm_ops);
 	C2_UT_ASSERT(frm.f_state == FRM_IDLE);
 }
@@ -171,6 +174,33 @@ static void frm_enq_item_test(void)
 	C2_UT_ASSERT(pcount == 5);
 	C2_UT_ASSERT(item->ri_itemq == NULL);
 	c2_free(item);
+
+	frm_ops.fo_bind_item = frm_bind_item;
+	C2_ALLOC_PTR(item);
+	C2_UT_ASSERT(item != NULL);
+	item->ri_deadline             = c2_time_from_now(1, 0);
+	item->ri_type                 = &twoway_item_type;
+	item->ri_slot_refs[0].sr_slot = NULL;
+	item->ri_itemq                = NULL;
+	item->ri_session              = &session;
+
+	c2_rpc_frm_enq_item(&frm, item);
+	C2_UT_ASSERT(frm.f_state == FRM_BUSY);
+	C2_UT_ASSERT(frm.f_nr_items == 1);
+	C2_UT_ASSERT(frm.f_nr_bytes_accumulated == 10);
+	C2_UT_ASSERT(item->ri_itemq != NULL &&
+		     item->ri_itemq == &frm.f_itemq[FRMQ_WAITING_UNBOUND]);
+	C2_UT_ASSERT(c2_timer_is_started(&item->ri_timer));
+
+	c2_nanosleep(c2_time(2, 0), NULL);
+
+	C2_UT_ASSERT(frm.f_state == FRM_IDLE);
+	C2_UT_ASSERT(frm.f_nr_items == 0);
+	C2_UT_ASSERT(frm.f_nr_bytes_accumulated == 0);
+	C2_UT_ASSERT(pcount == 6);
+	C2_UT_ASSERT(item->ri_itemq == NULL);
+	c2_free(item);
+
 }
 static void frm_fini_test(void)
 {

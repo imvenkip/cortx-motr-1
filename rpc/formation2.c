@@ -14,6 +14,8 @@ frm_which_queue(struct c2_rpc_frm        *frm,
 
 void frm_itemq_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
 void frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
+void __frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
+unsigned long item_timer_callback(unsigned long data);
 void frm_balance(struct c2_rpc_frm *frm);
 void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p);
 void frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p);
@@ -54,6 +56,8 @@ bool itemq_invariant(const struct c2_tl *q)
 
 	prev = NULL;
 	c2_tl_for(itemq, q, item) {
+		if (item->ri_frm == NULL)
+			return false;
 		if (prev == NULL) {
 			prev = item;
 			continue;
@@ -204,7 +208,7 @@ frm_which_queue(struct c2_rpc_frm        *frm,
 
 	oneway = c2_rpc_item_is_unsolicited(item);
 	bound  = oneway ? false : c2_rpc_item_is_bound(item);
-	deadline_passed = c2_time_eq(item->ri_deadline, c2_time(0, 0)) ||
+	deadline_passed = /* _now_ is after _deadline_ ??? */
 			  c2_time_after_eq(c2_time_now(), item->ri_deadline);
 
 	C2_LOG("deadline: [%llu:%llu] bound: %s oneway: %s deadline_passed: %s",
@@ -238,6 +242,8 @@ void frm_itemq_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *new_item)
 	struct c2_rpc_item *item;
 	struct c2_tl       *q;
 
+	auto void start_deadline_timer_if_needed(void);
+
 	C2_ENTRY("frm: %p item: %p", frm, new_item);
 	C2_PRE(new_item != NULL);
 	C2_LOG("priority: %d deadline: [%llu:%llu]",
@@ -248,6 +254,8 @@ void frm_itemq_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *new_item)
 	C2_PRE(item_priority_is_valid(new_item));
 
 	q = frm_which_queue(frm, new_item);
+
+	/* where to put the new item in the queue */
 
 	c2_tl_for(itemq, q, item)
 		if (item->ri_prio > new_item->ri_prio)
@@ -264,6 +272,7 @@ void frm_itemq_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *new_item)
 		item = itemq_tlist_next(q, item);
 	}
 
+	/* insert new item in the queue at its apropriate location */
 	if (item == NULL) {
 		itemq_tlink_init_at_tail(new_item, q);
 	} else {
@@ -275,13 +284,72 @@ void frm_itemq_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *new_item)
 	}
 
 	new_item->ri_itemq = q;
+	new_item->ri_frm   = frm;
 	C2_CNT_INC(frm->f_nr_items);
 	frm->f_nr_bytes_accumulated += c2_rpc_item_size(new_item);
+
+	start_deadline_timer_if_needed();
+
+	C2_LEAVE();
+	return;
+
+	void start_deadline_timer_if_needed(void)
+	{
+		bool item_is_in_waiting_queue;
+		int  err;
+
+		/*
+		 * REMEMBER: we cannot again compare "now" and
+		 * item->ri_deadline to decide whether to start timer or not.
+		 * If item is placed in any of waiting queues then
+		 * timer must be started. Then only the item will be able to
+		 * transition to one of "timedout" queues.
+		 */
+		item_is_in_waiting_queue =
+			q == &frm->f_itemq[FRMQ_WAITING_BOUND] ||
+			q == &frm->f_itemq[FRMQ_WAITING_UNBOUND] ||
+			q == &frm->f_itemq[FRMQ_WAITING_ONE_WAY];
+
+		/*
+		 * We want ri_timer of all the items to be initialised,
+		 * irrespective of whether timer is to be started or not.
+		 * Because we will need to check whether timer is running or
+		 * not. And we don't want this check to happen on an
+		 * uninitialised timer.
+		 */
+		/** @todo XXX Use HARD timer for rpc-item deadline. */
+		c2_timer_init(&new_item->ri_timer, C2_TIMER_SOFT,
+			      new_item->ri_deadline,
+			      item_timer_callback, (unsigned long)new_item);
+
+		err = 1;
+		if (item_is_in_waiting_queue)
+			err = c2_timer_start(&new_item->ri_timer);
+
+		if (err == 0)
+			C2_LOG("timer started");
+		else
+			C2_LOG("timer is not started");
+	}
+}
+
+void frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
+{
+	C2_ENTRY("frm: %p item: %p", frm, item);
+	C2_PRE(frm != NULL && item != NULL);
+	C2_PRE(frm->f_nr_items > 0 && item->ri_itemq != NULL);
+
+	if (c2_timer_is_started(&item->ri_timer)) {
+		c2_timer_stop(&item->ri_timer);
+		C2_LOG("timer stopped");
+	}
+
+	__frm_itemq_remove(frm, item);
 
 	C2_LEAVE();
 }
 
-void frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
+void __frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
 {
 	C2_ENTRY("frm: %p item: %p", frm, item);
 	C2_PRE(frm != NULL && item != NULL);
@@ -296,6 +364,32 @@ void frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
 		frm->f_state = FRM_IDLE;
 
 	C2_LEAVE();
+}
+
+unsigned long item_timer_callback(unsigned long data)
+{
+	struct c2_rpc_item *item;
+	struct c2_rpc_frm   *frm;
+
+	C2_ENTRY("data: 0x%lx", data);
+	item = (struct c2_rpc_item *)data;
+	C2_PRE(item != NULL && item->ri_frm != NULL);
+
+	/** @todo XXX watch out for race here. */
+	frm = item->ri_frm;
+	c2_rpc_machine_lock(frm->f_rmachine);
+	if (item->ri_itemq != NULL) {
+		__frm_itemq_remove(frm, item);
+		/*
+		 * This time the item will be inserted in "timedout"
+		 * item-queue and will trigger immediate formation.
+		 */
+		c2_rpc_frm_enq_item(frm, item);
+	}
+	c2_rpc_machine_unlock(frm->f_rmachine);
+
+	C2_LEAVE();
+	return 0;
 }
 
 bool frm_is_ready(const struct c2_rpc_frm *frm)
@@ -422,7 +516,9 @@ void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 
 	C2_ASSERT(frm_invariant(frm));
 	C2_LEAVE();
+	return;
 
+	/* Nested function definitions */
 	c2_bcount_t available_space_in_packet(void)
 	{
 		C2_PRE(p->rp_size <= frm->f_constraints.fc_max_packet_size);
