@@ -7,6 +7,7 @@ AC_CONFIG_MACRO_DIR([m4])
 AH_TEMPLATE([PACKAGE], [Package name.])
 AH_TEMPLATE([VERSION], [Version of the package.])
 AH_TEMPLATE([ENABLE_DEBUG], [Enable debug info.])
+AH_TEMPLATE([ENABLE_FAULT_INJECTION], [Enable fault injection.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT], [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV], [Have fops->readv function])
 AH_TEMPLATE([HAVE_FILE_AIO_READ], [Have fops->aio_read function])
@@ -260,13 +261,13 @@ AC_FUNC_MALLOC
 
 # Configure options
 AC_ARG_ENABLE([debug],
-        [AC_HELP_STRING([--disable-debug], [disable debug information and logs])], [],
+        [AC_HELP_STRING([--enable-debug], [enable debug information and logs])], [],
         [enable_debug=no]
 )
 
-AC_ARG_ENABLE([gssrpc],
-        [AC_HELP_STRING([--enable-gssrpc], [enable gssrpc support])], [],
-        [enable_gssrpc=no]
+AC_ARG_ENABLE([finject],
+        [AC_HELP_STRING([--disable-finject], [disable fault injection support])], [],
+        [enable_finject=yes]
 )
 
 AC_ARG_ENABLE([rpm],
@@ -534,6 +535,10 @@ if test x$enable_debug = xyes; then
         CFLAGS="$(echo $CFLAGS | sed 's/-g//' | sed 's/-O2//') -g -O0"
         KCFLAGS="$(echo $KCFLAGS | sed 's/-g//' | sed 's/-O2//') -g -O0"
         AC_DEFINE([ENABLE_DEBUG])
+fi
+
+if test x$enable_finject = xyes; then
+        AC_DEFINE([ENABLE_FAULT_INJECTION])
 fi
 
 # Check if gcc option is supported in current gcc version.

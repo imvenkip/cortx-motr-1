@@ -31,8 +31,8 @@
 usage()
 {
     echo "Test automation script for colibri"
-    echo "run_tests.sh -r <path> -b [all | i=a,b,... | e=a,b,... | current]"
-    echo "            [-d <path>] [-h] [-m <e-mail-id>] [-s suffix]"
+    echo "colibri_build_test.sh -r <path> -b [all | i=a,b,... | e=a,b,... | current]"
+    echo "                     [-d <path>] [-h] [-m <e-mail-id>] [-s suffix]"
 
     echo ""
     echo "Where:"
@@ -56,7 +56,7 @@ OPTIONS_STRING="b:d:hm:r:s:"
 
 # $TESTROOT/
 # └── $DIRTIME/
-#     ├── run_tests.log
+#     ├── colibri_build_test.log
 #     ├── branches.txt
 #     ├── <Branch Name>/ [ For each branch ]
 #     │   ├── core-dumps/
@@ -72,10 +72,11 @@ OPTIONS_STRING="b:d:hm:r:s:"
 #     │       ├── make-clean.log
 #     │       ├── ut.log
 #     │       └── ub.log
-#     └── src-YYYY-MM-DD_HH-MM-SS/ [ If colibri repository is given on command
-#                                    line then src is a link to the
-#                                    colibri repository otherwise it is a
-#                                    cloned colibri repository ]
+#     ├── src[-YYYY-MM-DD_HH-MM-SS/] [ If colibri repository is given on command
+#     │                                 line then src is a link to the
+#     │                                 colibri repository otherwise it is a
+#     │                                 cloned colibri repository ]
+#     └── sandbox/                   [ All tests will be run from this directory ]
 
 # The messages will be printed in following format;
 # DATE:TIME:CODE:BRANCH:PHASE:$rc:MESSAGE
@@ -103,7 +104,7 @@ DIRS="logs core-dumps coverage-data coverage-data/html"
 # REMOTE_GIT_CMD="git clone ssh://gitosis@git.clusterstor.com/colibri.git"
 
 # For setting any of the variables below, do -
-# UB_ROUNDS=NUM ./run_tests.sh [OPTIONS ...]
+# UB_ROUNDS=NUM ./colibri_build_test.sh [OPTIONS ...]
 
 GIT_USER=${GIT_USER:-gitosis}
 GIT_WEB_ADDRESS=${GIT_WEB_ADDRESS:-git.clusterstor.com}
@@ -111,6 +112,7 @@ GIT_PROTOCOL=${GIT_PROTOCOL:-ssh}
 GIT_REPOSITORY=${GIT_REPOSITORY:-colibri.git}
 
 UB_ROUNDS=${UB_ROUNDS:-0}
+DATE_BASED_DIR_NAME=${DATE_BASED_DIR_NAME:-0}
 
 MAIL_TEXT_FILE=$(mktemp /tmp/build-auto-mail-log.XXXXXX) > /dev/null
 
@@ -125,7 +127,7 @@ COLIBRI_CORE_PATH=""
 print_msg()
 {
     mail_text=$(echo $(date +"%Y-%m-%d:%H-%M-%S")":$1")
-    echo $mail_text >> $TESTROOT/$DIRTIME/run_tests.log
+    echo $mail_text >> $TESTROOT/$DIRTIME/colibri_build_test.log
 
     if [ "$2" = "1" ]; then
         echo $mail_text >> $MAIL_TEXT_FILE
@@ -159,6 +161,7 @@ run_command()
     CORE_DUMP_FLAG=$4
 
     CMD_LOG=$(echo $CMD| awk '{ print $2 }')
+    CMD_LOG=$(basename 2>/dev/null $CMD_LOG)
     if [ "$CMD_LOG" = "" ]; then
         CMD_LOG="$CMD"
     fi
@@ -172,14 +175,14 @@ run_command()
     rc=$?
     if [ "$rc" != "0" ]; then
         print_msg "ERR:$current_branch:$rc:$CMD_LOG failed" 1
-    fi
-    if [ "$CORE_DUMP_FLAG" = "1" ]; then
-        copy_core_dump
+        if [ "$CORE_DUMP_FLAG" = "1" ]; then
+            copy_core_dump
+	fi
+    else
+	print_msg "INFO:$current_branch:$CMD_LOG:End"
     fi
 
-    print_msg "INFO:$current_branch:$CMD_LOG:End"
-
-    popd > /dev/null
+    popd 2> /dev/null > /dev/null
     return $rc
 }
 
@@ -201,7 +204,7 @@ gather_coverage()
 
     if [ -f gcov_stats_genhtml.sh ]; then
         print_msg "INFO:$current_branch:Coverage:Start"
-        ./gcov_stats_genhtml.sh user $COLIBRI_CORE_PATH \
+        sudo ./gcov_stats_genhtml.sh user $COLIBRI_CORE_PATH \
             $cur_branch_dir/coverage-data/html >>       \
             $cur_branch_dir/logs/cov.log 2>&1
         rc=$?
@@ -210,7 +213,7 @@ gather_coverage()
                 data failed" 1
         else
             if [ -f process_lcov.sh ]; then
-                ./process_lcov.sh \
+                sudo ./process_lcov.sh \
 		    -i $cur_branch_dir/coverage-data/html/index.html -b -l -f \
                     > $cur_branch_dir/coverage-data/coverage-data.txt 2>&1
                 rc=$?
@@ -226,7 +229,7 @@ gather_coverage()
         rc=2
     fi
     print_msg "INFO:$current_branch:Coverage:End"
-    popd > /dev/null
+    popd 2> /dev/null > /dev/null
     return $rc
 }
 
@@ -252,27 +255,33 @@ run_test_automate()
         git checkout $current_branch >> \
                 $TESTROOT/$DIRTIME/$current_branch/logs/git.log 2>&1
 
-        if run_command "$COLIBRI_SOURCE/core" 'sh autogen.sh'                    && \
+        if run_command "$COLIBRI_SOURCE/galois" 'sh autogen.sh'                  && \
+	   run_command "$COLIBRI_SOURCE/core" 'sh autogen.sh'                    && \
            run_command "$COLIBRI_SOURCE/core" './configure' '--enable-coverage'  && \
            run_command "$COLIBRI_SOURCE/core" 'make'; then
 
-            run_command "$COLIBRI_SOURCE/core/utils" './ut' '' 1
+	    pushd 2>/dev/null $TESTROOT/$DIRTIME/sandbox > /dev/null
+            run_command '' "sudo $COLIBRI_SOURCE/core/utils/ut.sh" '-a' 1
+	    sudo mv $TESTROOT/$DIRTIME/sandbox/*.xml $TESTROOT/$DIRTIME/$current_branch/logs/
+	    popd 2>/dev/null > /dev/null
 
             if [ $UB_ROUNDS -ne 0 ]; then
-                run_command "$COLIBRI_SOURCE/core/utils" './ub' $UB_ROUNDS
+                run_command "$COLIBRI_SOURCE/core/utils" 'sudo ./ub' $UB_ROUNDS
             fi
 
             gather_coverage
+	else
+	    rc=$?
         fi
 
         print_msg "INFO:$current_branch:Cleanup:Start"
-        cd $COLIBRI_CORE_PATH
+        cd $COLIBRI_CORE_PATH > /dev/null
         make distclean >> \
                 $TESTROOT/$DIRTIME/$current_branch/logs/make-clean.log 2>&1
         print_msg "INFO:$current_branch:Cleanup:End"
     done
 
-    return 0
+    return $rc
 }
 
 parse_branches()
@@ -288,7 +297,7 @@ parse_branches()
             pushd $COLIBRI_SOURCE/core > /dev/null
             git branch | grep \* | awk '{print $2}' > \
                 $TESTROOT/$DIRTIME/branches.txt
-            popd > /dev/null
+            popd 2> /dev/null > /dev/null
             return 0
             ;;
 
@@ -335,15 +344,25 @@ parse_branches()
 
 init_dirs()
 {
-    if [ "$suffix" = "" ]; then
-        DIRTIME=$(date +"%Y-%b-%d_%H-%M-%S")
+    if [ "$DATE_BASED_DIR_NAME" = "1" ]; then
+	if [ "$suffix" = "" ]; then
+            DIRTIME=$(date +"%Y-%b-%d_%H-%M-%S")
+	else
+            DIRTIME=$(date +"%Y-%b-%d_%H-%M-%S")"-$suffix"
+	fi
+	COLIBRI_SOURCE=$TESTROOT/$DIRTIME/src"-$DIRTIME"
     else
-        DIRTIME=$(date +"%Y-%b-%d_%H-%M-%S")"-$suffix"
+	DIRTIME=""
+	COLIBRI_SOURCE=$TESTROOT/$DIRTIME/src
     fi
 
-    COLIBRI_SOURCE=$TESTROOT/$DIRTIME/src"-$DIRTIME"
-
     create_dir $TESTROOT/$DIRTIME
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        return $rc
+    fi
+
+    create_dir $TESTROOT/$DIRTIME/sandbox
     rc=$?
     if [ $rc -ne 0 ]; then
         return $rc
@@ -360,7 +379,7 @@ init_dirs()
 
         # Clone the Colibri source
         git clone $GIT_PROTOCOL://$GIT_USER@$GIT_WEB_ADDRESS/$GIT_REPOSITORY \
-                $COLIBRI_SOURCE >> $TESTROOT/$DIRTIME/run_tests.log 2>&1
+                $COLIBRI_SOURCE >> $TESTROOT/$DIRTIME/colibri_build_test.log 2>&1
         rc=$?
         if [ $rc -ne 0 ]; then
             print_msg "ERR:::$rc:Cloning the Colibri source failed" 1
@@ -368,8 +387,8 @@ init_dirs()
         fi
 
         if [ -f $COLIBRI_SOURCE/checkout ]; then
-            cd $COLIBRI_SOURCE
-            ./checkout >> $TESTROOT/$DIRTIME/run_tests.log 2>&1
+            cd $COLIBRI_SOURCE > /dev/null
+            ./checkout >> $TESTROOT/$DIRTIME/colibri_build_test.log 2>&1
             rc=$?
             if [ $? -ne 0 ]; then
                 print_msg "ERR:::$rc:Cloning the Colibri source failed" 1
@@ -397,7 +416,7 @@ init_dirs()
 
     COLIBRI_CORE_PATH=$COLIBRI_SOURCE/core
 
-    popd > /dev/null
+    popd 2> /dev/null > /dev/null
 }
 
 check_and_setup_environ()
@@ -435,6 +454,7 @@ send_email()
 
 main()
 {
+    cd $TESTROOT/$DIRTIME > /dev/null
     check_and_setup_environ
     rc=$?
     if [ $rc -ne 0 ]; then
@@ -447,17 +467,17 @@ main()
         exit $rc
     fi
 
+    cd $TESTROOT/$DIRTIME/sandbox > /dev/null
     run_test_automate
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        exit $rc
+    fi
 
     send_email $?
 
     return 0
 }
-
-if [ "$(id -u)" != "0" ]; then
-   echo "This script must be run as root" 1>&2
-   exit 1
-fi
 
 if [ $# -lt 2 ]; then
     usage

@@ -47,8 +47,8 @@ int c2_thread_init_impl(struct c2_thread *q, const char *namebuf)
 {
 	C2_PRE(q->t_state == TS_RUNNING);
 
-	return pthread_create(&q->t_h.h_id, &pthread_attr_default,
-			      c2_thread_trampoline, q);
+	return -pthread_create(&q->t_h.h_id, &pthread_attr_default,
+			       c2_thread_trampoline, q);
 }
 
 int c2_thread_join(struct c2_thread *q)
@@ -57,7 +57,7 @@ int c2_thread_join(struct c2_thread *q)
 
 	C2_PRE(q->t_state == TS_RUNNING);
 	C2_PRE(!pthread_equal(q->t_h.h_id, pthread_self()));
-	result = pthread_join(q->t_h.h_id, NULL);
+	result = -pthread_join(q->t_h.h_id, NULL);
 	if (result == 0)
 		q->t_state = TS_PARKED;
 	return result;
@@ -81,17 +81,17 @@ int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors)
 			CPU_SET(idx, &cpuset);
 	}
 
-	return pthread_setaffinity_np(q->t_h.h_id, sizeof cpuset, &cpuset);
+	return -pthread_setaffinity_np(q->t_h.h_id, sizeof cpuset, &cpuset);
 }
 
 int c2_threads_init(void)
 {
 	int result;
 
-	result = pthread_attr_init(&pthread_attr_default);
+	result = -pthread_attr_init(&pthread_attr_default);
 	if (result == 0)
-		result = pthread_attr_setdetachstate(&pthread_attr_default,
-						     PTHREAD_CREATE_JOINABLE);
+		result = -pthread_attr_setdetachstate(&pthread_attr_default,
+						      PTHREAD_CREATE_JOINABLE);
 	return result;
 }
 
