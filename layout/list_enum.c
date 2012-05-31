@@ -148,7 +148,7 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 	if (list_enum == NULL) {
 		rc = -ENOMEM;
 		c2_layout__log("c2_list_enum_build", "C2_ALLOC_PTR() failed",
-			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
 			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
 		goto out;
 	}
@@ -161,7 +161,7 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 	if (list_enum == NULL) {
 		rc = -ENOMEM;
 		c2_layout__log("c2_list_enum_build", "C2_ALLOC_ARR() failed",
-			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
 			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
 		c2_layout__enum_fini(&list_enum->lle_base);
 		c2_free(list_enum);
@@ -228,7 +228,7 @@ static int list_register(struct c2_layout_domain *dom,
 	if (lsd == NULL) {
 		rc = -ENOMEM;
 		c2_layout__log("list_register", "C2_ALLOC_PTR() failed",
-			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
 			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
 		goto out;
 	}
@@ -237,7 +237,7 @@ static int list_register(struct c2_layout_domain *dom,
 			   "cob_lists", DEFAULT_DB_FLAG, &cob_lists_table_ops);
 	if (rc != 0) {
 		c2_layout__log("list_register", "c2_table_init() failed",
-			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       LID_NONE, rc);
 		c2_free(lsd);
@@ -338,7 +338,7 @@ static int cob_list_read(struct c2_layout_schema *schema,
 	rc = c2_table_lookup(tx, &pair);
 	if (rc != 0) {
 		c2_layout__log("cob_list_read", "c2_table_lookup() failed",
-			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
 			       &c2_addb_func_fail, &layout_global_ctx, lid, rc);
 		goto out;
 	}
@@ -398,7 +398,7 @@ static int list_decode(struct c2_layout_domain *dom,
 	if (cob_list == NULL) {
 		rc = -ENOMEM;
 		c2_layout__log("list_decode", "C2_ALLOC_ARR() failed",
-			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
 			       &c2_addb_oom, &layout_global_ctx, lid, rc);
 		goto out;
 	}
@@ -442,7 +442,7 @@ static int list_decode(struct c2_layout_domain *dom,
 	rc = c2_list_enum_build(dom, cob_list, ce_header->ces_nr, &list_enum);
 	if (rc != 0) {
 		c2_layout__log("list_decode", "c2_list_enum_build() failed",
-			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       lid, rc);
 		goto out;
@@ -491,7 +491,7 @@ int cob_list_write(const struct c2_layout_schema *schema,
 		if (rc != 0) {
 			c2_layout__log("cob_list_write",
 				       "c2_table_insert() failed",
-				       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+				       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
 				       &c2_addb_func_fail, &layout_global_ctx,
 				       lid, rc);
 		}
@@ -500,7 +500,7 @@ int cob_list_write(const struct c2_layout_schema *schema,
 		if (rc != 0) {
 			c2_layout__log("cob_list_write",
 				       "c2_table_delete() failed",
-				       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
+				       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
 				       &c2_addb_func_fail, &layout_global_ctx,
 				       lid, rc);
 		}

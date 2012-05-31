@@ -53,8 +53,8 @@ enum {
 	 */
 	DEFAULT_REF_COUNT          = 1,
 
-	PRINT_ADDB_MSG             = 1,
-	PRINT_TRACE_MSG            = 1,
+	ADD_ADDB_RECORD            = 1,
+	ADD_TRACE_RECORD           = 1,
 
 	/** Invalid number of elements, for enumeration objects. */
 	NR_NONE                    = 0,
@@ -100,8 +100,8 @@ void c2_layout__enum_fini(struct c2_layout_enum *le);
 
 void c2_layout__log(const char *fn_name,
 		    const char *err_msg,
-		    bool if_addb_msg, /* If ADDB record is to be added. */
-		    bool if_trace_msg, /* If C2_LOG message is to be added. */
+		    bool addb_record, /* If ADDB record is to be added. */
+		    bool trace_record, /* If C2_LOG record is to be added. */
 		    const struct c2_addb_ev *ev,
 		    struct c2_addb_ctx *ctx,
 		    uint64_t lid,
