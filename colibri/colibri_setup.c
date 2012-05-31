@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -44,6 +44,7 @@
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
 #include "colibri/colibri_setup.h"
+#include "net/lnet/lnet.h"
 
 /**
    @addtogroup colibri_setup
@@ -1054,8 +1055,11 @@ static int cs_net_domains_init(struct c2_colibri *cctx)
 				c2_net_xprt_fini(xprt);
 				return rc;
 			}
-			if (xprt == &c2_net_lnet_xprt)
-				c2_lut_lhost_lnet_conv(ndom, ep->ex_endpoint);
+			if (xprt == &c2_net_lnet_xprt) {
+				rc = c2_lut_lhost_lnet_conv(ndom, ep->ex_endpoint);
+				if (rc != 0)
+					return rc;
+			}
 			ndom_tlink_init(ndom);
 			c2_net_domain_bob_init(ndom);
 			ndom_tlist_add_tail(&cctx->cc_ndoms, ndom);
@@ -1536,14 +1540,20 @@ static void cs_help(FILE *out)
 		   "-e Network layer endpoint to which clients connect. "
 		   "Network layer endpoint\n   consists of 2 parts "
 		   "network transport:endpoint address.\n"
-		   "   Currently supported transport is lnet which "
-		   "takes 4-tuple endpoint\n   address."
-		   " e.g. lnet:127.0.0.1@tcp:12345:34:1\n"
+		   "   Currently supported transports are lnet and memxprt.\n "
+		   "   lnet takes 4-tuple endpoint address\n"
+		   "       NID : PID : PortalNumber : TransferMachineIdentifier\n"
+		   "       e.g. lnet:172.18.50.40@o2ib1:12345:34:1\n"
+		   "    whereas memxprt endpoint address can be given in two types,\n"
+		   "       dottedIP:portNumber\n"
+		   "       dottedIP:portNumber:serviceId\n"
+		   "       e.g. memxprt:192.168.172.130:12345\n"
+		   "            memxprt:255.255.255.255:65535:4294967295\n"
 		   "   This can be specified multiple times, per request "
 		   "handler set. Thus there\n   can exist multiple endpoints "
 		   "per network transport with different transfer machine ids,\n"
 		   "   i.e. 4th component of 4-tuple endpoint address in "
-		   "this case.\n"
+		   "lnet or 3rd component of \n   3-tuple endpoint address in memxprt.\n"
 		   "-s Services to be started in given request handler "
 		   "context.\n   This can be specified multiple times "
 		   "per request handler set.\n"

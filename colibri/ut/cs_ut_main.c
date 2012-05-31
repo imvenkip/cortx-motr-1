@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -43,6 +43,7 @@
 #include "ut/cs_test_fops_u.h"
 #include "ut/cs_test_fops.ff"
 #include "rpc/rpc_opcodes.h"
+#include "net/lnet/lnet.h"
 
 extern const struct c2_tl_descr ndoms_descr;
 
@@ -149,7 +150,7 @@ static int cs_ut_client_init(struct cl_ctx *cctx, char *cl_ep_addr,
 {
 	int                       rc;
 	struct c2_rpc_client_ctx *cl_ctx;
-	static int                lnet_iface_flag = 1;
+	static bool               lnet_iface_flag = true;
 
 	C2_PRE(cctx != NULL && cl_ep_addr != NULL && srv_ep_addr != NULL &&
 		dbname != NULL && xprt != NULL);
@@ -158,9 +159,11 @@ static int cs_ut_client_init(struct cl_ctx *cctx, char *cl_ep_addr,
 	C2_UT_ASSERT(rc == 0);
 
 	if (xprt == &c2_net_lnet_xprt && lnet_iface_flag) {
-		c2_lut_lhost_lnet_conv(&cctx->cl_ndom, cl_ep_addr);
-		c2_lut_lhost_lnet_conv(&cctx->cl_ndom, srv_ep_addr);
-		lnet_iface_flag = 0;
+		rc = c2_lut_lhost_lnet_conv(&cctx->cl_ndom, cl_ep_addr);
+		C2_UT_ASSERT(rc == 0);
+		rc = c2_lut_lhost_lnet_conv(&cctx->cl_ndom, srv_ep_addr);
+		C2_UT_ASSERT(rc == 0);
+		lnet_iface_flag = false;
 	}
 
 	cl_ctx = &cctx->cl_ctx;

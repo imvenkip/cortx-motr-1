@@ -132,7 +132,8 @@
   */
 
 enum {
-	C2_BUFFER_ANY_COLOUR = ~0
+	C2_BUFFER_ANY_COLOUR = ~0,
+	C2_NET_BUFFER_POOL_THRESHOLD = 2
 };
 struct c2_net_buffer_pool;
 

@@ -7,7 +7,6 @@ AC_CONFIG_MACRO_DIR([m4])
 AH_TEMPLATE([PACKAGE], [Package name.])
 AH_TEMPLATE([VERSION], [Version of the package.])
 AH_TEMPLATE([ENABLE_DEBUG], [Enable debug info.])
-AH_TEMPLATE([ENABLE_GSSRPC], [Enable gssrpc.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT], [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV], [Have fops->readv function])
 AH_TEMPLATE([HAVE_FILE_AIO_READ], [Have fops->aio_read function])
@@ -520,30 +519,6 @@ AC_SUBST([GALOIS_SRC])
 AC_SUBST([GALOIS_LIBS])
 AC_SUBST([YAML_LIBS])
 AC_SUBST([CUNIT_LIBS])
-
-if test x$enable_gssrpc = xyes; then
-        AC_CHECK_LIB([gssrpc], [xdr_int], [
-            AC_CHECK_HEADERS([gssrpc/rpc.h gssrpc/pmap_clnt.h], [],
-                [
-                    enable_gssrpc=no
-                    AC_MSG_NOTICE([gssrpc/pmap_clnt.h gssrpc/rpc.h is not found. Gssrpc is disabled!])
-                ],
-                [[
-                    #ifdef HAVE_GSSRPC_RPC_H
-                    #include <gssrpc/rpc.h>
-                    #endif
-                ]])
-            ],
-            [
-                enable_gssrpc=no
-                AC_MSG_NOTICE([libgssrpc is not found. Gssrpc is disabled!])
-            ]
-        )
-        if test x$enable_gssrpc = xyes; then
-                AC_DEFINE([ENABLE_GSSRPC])
-                LIBS="-lgssrpc $LIBS"
-        fi
-fi
 
 # Check for libaio
 OLD_LIBS=$LIBS

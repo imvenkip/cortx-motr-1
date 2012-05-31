@@ -70,11 +70,11 @@ enum {
 
 /**
    Capability issuer.
-*/
+
 struct c2_capa_issuer {
         struct c2_service_id ci_id;
 };
-
+*/
 struct c2_capa_ctxt;
 /**
    Colibri Object Capability

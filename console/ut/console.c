@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -85,14 +85,13 @@ enum {
 };
 
 extern struct c2_net_xprt c2_net_lnet_xprt;
-extern void c2_lut_lhost_lnet_conv(struct c2_net_domain *ndom, char *ep_addr);
 
 static struct c2_net_xprt   *xprt = &c2_net_lnet_xprt;
 static struct c2_net_domain  client_net_dom = { };
 static struct c2_dbenv       client_dbenv;
 static struct c2_cob_domain  client_cob_dom;
-static char cl_ep_addr[C2_NET_LNET_XEP_ADDR_LEN] = {"127.0.0.1@tcp:12345:34:2"};
-static char srv_ep_addr[C2_NET_LNET_XEP_ADDR_LEN] = {"127.0.0.1@tcp:12345:34:1"};
+static char cl_ep_addr[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:2";
+static char srv_ep_addr[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:1";
 
 static struct c2_rpc_client_ctx cctx = {
 	.rcx_net_dom            = &client_net_dom,
@@ -147,8 +146,10 @@ static int cons_init(void)
 	result = c2_net_domain_init(&client_net_dom, xprt);
 	C2_ASSERT(result == 0);
 	if (xprt == &c2_net_lnet_xprt) {
-		c2_lut_lhost_lnet_conv(&client_net_dom, cl_ep_addr);
-		c2_lut_lhost_lnet_conv(&client_net_dom, srv_ep_addr);
+		result = c2_lut_lhost_lnet_conv(&client_net_dom, cl_ep_addr);
+		C2_ASSERT(result == 0);
+		result = c2_lut_lhost_lnet_conv(&client_net_dom, srv_ep_addr);
+		C2_ASSERT(result == 0);
 		cctx.rcx_local_addr  = cl_ep_addr;
 		cctx.rcx_remote_addr = srv_ep_addr;
 	}

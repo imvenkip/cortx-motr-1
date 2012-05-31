@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -41,7 +41,6 @@
 #include "ut/cs_fop_foms.h"
 #include "ut/cs_test_fops_u.h"
 
-
 #define CLIENT_DB_NAME		"rpclib_ut_client.db"
 
 #define SERVER_ENDPOINT_ADDR	"127.0.0.1@tcp:12345:34:1"
@@ -56,8 +55,6 @@ enum {
 	MAX_RPCS_IN_FLIGHT	= 1,
 	CONNECT_TIMEOUT		= 5,
 };
-
-extern struct c2_net_xprt c2_net_lnet_xprt;
 
 static int send_fop(struct c2_rpc_session *session)
 {
@@ -130,8 +127,10 @@ static void test_rpclib(void)
 	if (rc != 0)
 		goto out;
 
-	c2_lut_lhost_lnet_conv(&client_net_dom, caddr);
-	c2_lut_lhost_lnet_conv(&client_net_dom, saddr);
+	rc = c2_lut_lhost_lnet_conv(&client_net_dom, caddr);
+	C2_UT_ASSERT(rc == 0);
+	rc = c2_lut_lhost_lnet_conv(&client_net_dom, saddr);
+	C2_UT_ASSERT(rc == 0);
 	cctx.rcx_local_addr  = caddr;
 	cctx.rcx_remote_addr = saddr;
 

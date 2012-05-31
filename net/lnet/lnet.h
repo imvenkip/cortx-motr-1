@@ -184,6 +184,19 @@ void c2_net_lnet_tm_set_debug(struct c2_net_transfer_mc *tm, unsigned dbg);
    @}
  */
 
+/**
+   @defgroup LNetUtils LNet Utilities
+   @ingroup LNetDFS
+
+   @{
+*/
+
+int c2_lut_lhost_lnet_conv(struct c2_net_domain *ndom, char *ep_addr);
+
+/**
+   @}
+ */
+
 #endif /* __COLIBRI_NET_LNET_H__ */
 
 /*

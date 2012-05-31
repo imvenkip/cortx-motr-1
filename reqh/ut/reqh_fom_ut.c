@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -79,8 +79,8 @@
 
 #define CLIENT_DB_NAME		"reqh_ut_stob/cdb"
 #define SERVER_DB_NAME		"reqh_ut_stob/sdb"
-char cl_addr[C2_NET_LNET_XEP_ADDR_LEN] = {"127.0.0.1@tcp:12345:34:2"};
-char srv_addr[C2_NET_LNET_XEP_ADDR_LEN] = {"127.0.0.1@tcp:12345:34:1"};
+char cl_addr[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:2";
+char srv_addr[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:1";
 
 
 enum {
@@ -410,8 +410,11 @@ void test_reqh(void)
 	result = c2_net_domain_init(&net_dom, xprt);
 	C2_UT_ASSERT(result == 0);
 
-	c2_lut_lhost_lnet_conv(&net_dom, cl_addr);
-	c2_lut_lhost_lnet_conv(&net_dom, srv_addr);
+	result = c2_lut_lhost_lnet_conv(&net_dom, cl_addr);
+	C2_UT_ASSERT(result == 0);
+	result = c2_lut_lhost_lnet_conv(&net_dom, srv_addr);
+	C2_UT_ASSERT(result == 0);
+
 	cctx.rcx_local_addr  = cl_addr;
 	cctx.rcx_remote_addr = srv_addr;
 

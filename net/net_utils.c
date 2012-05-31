@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nathan Rutman <Nathan_Rutman@us.xyratex.com>,
+ * Original author: Nathan Rutman <Nathan_Rutman@xyratex.com>,
  *                  Nikita Danilov <Nikita_Danilov@xyratex.com>
  * Original creation date: 06/15/2010
  */
@@ -78,9 +78,7 @@ void c2_net_domain_stats_fini(struct c2_net_domain *dom)
  in-memory fop struct.  All substructures pointed to from the
  top are allocated deep inside XDR bowels. E.g., for read or
  write this won't include data buffers size.
- Either we find a way to extract the total size from sunrpc
- or we should write a generic fop-type function traversing
- fop-format tree.
+
  Note that even if not accturate, if the number reported is
  reflective of the actual rate that is sufficient for relative
  loading estimation.  In fact, # reqs may be a sufficient

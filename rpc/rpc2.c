@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -112,8 +112,9 @@ static struct c2_net_tm_callbacks c2_rpc_tm_callbacks = {
 	       .ntc_event_cb = rpc_tm_event_cb
 };
 
-static const struct c2_update_stream_ops update_stream_ops;
+//static const struct c2_update_stream_ops update_stream_ops;
 
+/*
 static int update_stream_init(struct c2_update_stream *us,
 			       struct c2_rpc_machine *mach)
 {
@@ -132,6 +133,7 @@ static void update_stream_fini(struct c2_update_stream *us)
 {
 	c2_mutex_fini(&us->us_guard);
 }
+*/
 
 void c2_rpcobj_fini(struct c2_rpc *rpc)
 {
@@ -540,7 +542,7 @@ int c2_rpc_group_timedwait(struct c2_rpc_group *group, const c2_time_t *timeout)
 {
 	return 0;
 }
-
+/*
 int c2_rpc_update_stream_get(struct c2_rpc_machine *machine,
 			     struct c2_service_id *srvid,
 			     enum c2_update_stream_flags flag,
@@ -569,6 +571,7 @@ void c2_rpc_update_stream_put(struct c2_update_stream *us)
 	update_stream_fini(us);
 	c2_free(us);
 }
+*/
 
 /**
    The callback routine to be called once the transfer machine

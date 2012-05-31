@@ -38,10 +38,6 @@
  *
  *     @li definitions of C data types matching fop format description;
  *
- *     @li declaration of user level sunrpc xdr functions;
- *
- *     @li definitions of user level sunrpc xdr functions;
- *
  *     @li the same for Linux kernel xdr functions.
  *
  */

@@ -12,6 +12,10 @@ export C2_TRACE_IMMEDIATE_MASK=1
 . `dirname $0`/c2t1fs_common_inc.sh
 . `dirname $0`/c2t1fs_server_inc.sh
 
+trap unprepare EXIT
+
+prepare
+
 colibri_service $1
 if [ $? -ne "0" ]
 then

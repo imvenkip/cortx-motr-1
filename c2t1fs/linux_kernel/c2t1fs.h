@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -445,8 +445,5 @@ void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
 			 const struct c2_fid   *fid);
 
 void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de);
-
-/* misc */
-extern void c2_lut_lhost_lnet_conv(struct c2_net_domain *ndom, char *ep_addr);
 
 #endif /* __COLIBRI_C2T1FS_H */

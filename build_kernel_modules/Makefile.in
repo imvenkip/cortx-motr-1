@@ -44,6 +44,7 @@ dirs  = addb                                                                  \
         lib/ut                                                                \
         net                                                                   \
         net/bulk_emulation/ut                                                 \
+        net/lnet                                                              \
         net/lnet/ut                                                           \
         net/ut                                                                \
         pool                                                                  \
@@ -112,11 +113,12 @@ lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c    \
                                    memory.c
 
 net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c    \
-                                   tm.c connection.c net_cli.c net_utils.c    \
-                                   net_srv.c net_otw_types_k.c
+                                   tm.c net_otw_types_k.c
 net_HEADERS                     := net_otw_types_k.h
 
 net_bulk_emulation_ut_SOURCES   := bulk_mem_ut.c
+
+net_lnet_SOURCES                := lnet_utils.c
 
 net_lnet_ut_SOURCES             := lnet_ut.c
 
@@ -139,7 +141,7 @@ sns_SOURCES                     := ls_solve.c matvec.c parity_math.c          \
 
 stob_SOURCES                    := stob.c stob_id.c
 
-ut_SOURCES                      := rpc.c net.c
+ut_SOURCES                      := rpc.c
 
 xcode_SOURCES                   := bufvec_xcode.c bufvec_xcode_fop.c          \
                                    bufvec_xcode_size.c xcode.c

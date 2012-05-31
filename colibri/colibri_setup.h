@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -389,8 +389,6 @@ void c2_cs_storage_fini(struct c2_cs_reqh_stobs *stob);
  */
 struct c2_reqh *c2_cs_reqh_get(struct c2_colibri *cctx,
 			       const char *service_name);
-
-extern void c2_lut_lhost_lnet_conv(struct c2_net_domain *ndom, char *ep_addr);
 
 /** @} endgroup colibri_setup */
 

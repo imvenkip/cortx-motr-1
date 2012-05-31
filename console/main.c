@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -37,7 +37,6 @@
 #include "console/console_yaml.h"
 #include "console/console_fop.h"
 
-extern void c2_lut_lhost_lnet_conv(struct c2_net_domain *ndom, char *ep_addr);
 /**
    @addtogroup console main
    @{
@@ -305,8 +304,10 @@ int main(int argc, char **argv)
 	result = c2_net_domain_init(&client_net_dom, xprt);
 	C2_ASSERT(result == 0);
 
-	c2_lut_lhost_lnet_conv(&client_net_dom, client);
-	c2_lut_lhost_lnet_conv(&client_net_dom, server);
+	result = c2_lut_lhost_lnet_conv(&client_net_dom, client);
+	C2_ASSERT(result == 0);
+	result = c2_lut_lhost_lnet_conv(&client_net_dom, server);
+	C2_ASSERT(result == 0);
 
 	/* Init the console members from CLI input */
 	cctx.rcx_remote_addr = server;

@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -27,6 +27,7 @@
 #include "lib/memory.h"
 #include "net/lnet/lnet.h"
 #include "ioservice/io_fops.h"
+#include "net/lnet/lnet.h"
 
 static char *local_addr = "127.0.0.1@tcp:12345:34:6";
 
@@ -68,8 +69,6 @@ int c2t1fs_init(void)
 	C2_ENTRY();
 
 	c2t1fs_globals.g_laddr = local_addr;
-
-	C2_LOG("local_addr: %s", local_addr);
 
 	rc = c2_ioservice_fop_init();
 	if (rc != 0)
@@ -191,9 +190,10 @@ static int c2t1fs_rpc_init(void)
 		goto cob_dom_fini;
 
 	strncpy(laddr, c2t1fs_globals.g_laddr, C2_NET_LNET_XEP_ADDR_LEN);
-	c2_lut_lhost_lnet_conv(ndom, laddr);
+	rc = c2_lut_lhost_lnet_conv(ndom, laddr);
+	if (rc != 0)
+		goto free_laddr;
 
-	C2_LOG("local_addr: %s\n", laddr);
 	c2t1fs_globals.g_laddr = laddr;
 
 	rc = c2_rpc_machine_init(rpc_machine, cob_dom, ndom,

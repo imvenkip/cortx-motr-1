@@ -37,9 +37,7 @@
 
    @li to pack and unpack fop instance between in-memory and on-wire
    representation fop format tree is traversed recursively and fop fields are
-   serialized or de-serialized. The same generic "xdr" function
-   (c2_fop_uxdrproc() for user space, c2_kcall_enc() and c2_kcall_dec() for
-   Linux kernel) serializes and de-serializes all fop types;
+   serialized or de-serialized.
 
    @li the same for converting fop between in-memory and data-base record
    formats;
@@ -66,8 +64,6 @@
    additional auxiliary data-structure c2_fop_memlayout describing how fop
    fields are laid out in memory.
 
-   @see net/usunrpc/uxdr.c
-   @see net/ksunrpc/kxdr.c
    @see fop/fop2c
 
    @{

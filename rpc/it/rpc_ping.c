@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -98,11 +98,10 @@ static int  nr_slots          = 1;
 static int  nr_ping_bytes     = 8;
 static int  nr_ping_item      = 1;
 
-static char client_endpoint[C2_NET_LNET_XEP_ADDR_LEN] = {"127.0.0.1@tcp:12345:34:2"};
-static char server_endpoint[C2_NET_LNET_XEP_ADDR_LEN] = {"127.0.0.1@tcp:12345:34:1"};
+static char client_endpoint[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:2";
+static char server_endpoint[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:1";
 
 static struct c2_net_xprt *xprt = &c2_net_lnet_xprt;
-extern void c2_lut_lhost_lnet_conv(struct c2_net_domain *ndom, char *ep_addr);
 
 #ifdef __KERNEL__
 /* Module parameters */
@@ -155,8 +154,11 @@ static int build_endpoint_addr(enum ep_type type, char *out_buf, size_t buf_size
 		return -1;
 	}
 
-	snprintf(out_buf, buf_size, "%s:%u:%u:%u", nid, C2_NET_LNET_PID,
-		 C2_LNET_PORTAL, tmid);
+	if (buf_size > C2_NET_LNET_XEP_ADDR_LEN)
+		return -1;
+	else
+		snprintf(out_buf, buf_size, "%s:%u:%u:%u", nid, C2_NET_LNET_PID,
+			 C2_LNET_PORTAL, tmid);
 
 	if (verbose)
 		printf("%s endpoint: %s\n", ep_name, out_buf);
@@ -388,8 +390,12 @@ static int run_client(void)
 	if (rc != 0)
 		goto xprt_fini;
 
-	c2_lut_lhost_lnet_conv(&client_net_dom, client_endpoint);
-	c2_lut_lhost_lnet_conv(&client_net_dom, server_endpoint);
+	rc = c2_lut_lhost_lnet_conv(&client_net_dom, client_endpoint);
+	if (rc != 0)
+		goto xprt_fini;
+	rc = c2_lut_lhost_lnet_conv(&client_net_dom, server_endpoint);
+	if (rc != 0)
+		goto xprt_fini;
 
 	rc = c2_rpc_client_init(&cctx);
 	if (rc != 0)

@@ -21,21 +21,10 @@
 #ifndef __COLIBRI_UT_NET_H__
 #define __COLIBRI_UT_NET_H__
 
-#ifndef __KERNEL__
-#include <errno.h>      /* ENOENT */
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>  /* inet_aton */
-#include <netdb.h>      /* gethostbyname_r */
-#include <stdio.h>      /* fprintf */
-#include <string.h>     /* strlen */
-
 /**
    Resolve hostname into a dotted quad.  The result is stored in buf.
  */
 int canon_host(const char *hostname, char *buf, size_t bufsiz);
-
-#endif /* __KERNEL__ */
 
 #endif /* __COLIBRI_UT_NET_H__ */
 

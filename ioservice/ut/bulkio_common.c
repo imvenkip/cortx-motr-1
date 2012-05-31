@@ -23,10 +23,8 @@
 #ifndef __KERNEL__
 #include <errno.h>
 #endif
-#include "net/lnet/lnet.h"
 
-extern struct c2_net_xprt c2_net_lnet_xprt;
-extern void c2_lut_lhost_lnet_conv(struct c2_net_domain *ndom, char *ep_addr);
+#include "net/lnet/lnet.h"
 
 #define S_DBFILE		  "bulkio_st.db"
 #define S_STOBFILE		  "bulkio_st_stob"
@@ -44,7 +42,7 @@ int bulkio_server_start(struct bulkio_params *bp, char *saddr)
 	int			      i;
 	int			      rc                = 0;
 	char			    **server_args;
-	char			      xprt[IO_ADDR_LEN] = "lnet:";
+	const char		      xprt[IO_ADDR_LEN] = "lnet:";
 	struct c2_rpc_server_ctx     *sctx;
 	struct c2_reqh_service_type **stypes;
 
@@ -82,7 +80,8 @@ int bulkio_server_start(struct bulkio_params *bp, char *saddr)
 	strcpy(server_args[7], S_STOBFILE);
 	strcpy(server_args[8], "-e");
 	strcat(server_args[9], xprt);
-	c2_lut_lhost_lnet_conv(&bp->bp_cnetdom, saddr);
+	rc = c2_lut_lhost_lnet_conv(&bp->bp_cnetdom, saddr);
+	C2_ASSERT(rc == 0);
 	strcat(server_args[9], saddr);
 	strcpy(server_args[10], "-s");
 	strcpy(server_args[11], "ioservice");

@@ -206,7 +206,7 @@ int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *conn)
 	struct c2_fop         *reply;
 	struct c2_addb_record *addb_record;
 	struct c2_addb_reply  *addb_reply;
-	struct c2_net_call    call;
+	//struct c2_net_call    call;
 	int size;
 	int result;
 
@@ -238,9 +238,9 @@ int c2_addb_net_add(struct c2_addb_dp *dp, struct c2_net_conn *conn)
 	result = ops->aeo_pack(dp, addb_record);
 	if (result == 0) {
 		C2_SET0(addb_reply);
-		call.ac_arg = request;
-		call.ac_ret = reply;
-		result = c2_net_cli_call(conn, &call);
+		//call.ac_arg = request;
+		//call.ac_ret = reply;
+		//result = c2_net_cli_call(conn, &call);
 		/* call c2_rpc_item_submit() in the future */
 	}
 	c2_free(addb_record->ar_data.cmb_value);

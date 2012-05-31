@@ -705,12 +705,13 @@ int c2_rpc_group_timedwait(struct c2_rpc_group *group, const c2_time_t *timeout)
    invoking this function
    @return 0  success
    @return <0 failure
- */
+
 int c2_rpc_update_stream_get(struct c2_rpc_machine *machine,
 			     struct c2_service_id *srvid,
 			     enum c2_update_stream_flags flag,
 			     const struct c2_update_stream_ops *ops,
 			     struct c2_update_stream **out);
+*/
 
 /**
    Releases given update stream.

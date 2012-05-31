@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -31,7 +31,6 @@
 #endif
 
 #include "rpc/rpc2.h"		/* c2_rpc_bulk, c2_rpc_bulk_buf */
-#include "net/net.h"		/* C2_NET_QT_PASSIVE_BULK_SEND */
 #include "net/lnet/lnet.h"
 
 enum {
@@ -42,7 +41,6 @@ C2_TL_DESCR_DECLARE(rpcbulk, extern);
 extern struct c2_net_xprt c2_net_lnet_xprt;
 extern struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
 extern const struct c2_net_buffer_callbacks rpc_bulk_cb;
-extern void c2_lut_lhost_lnet_conv(struct c2_net_domain *ndom, char *ep_addr);
 
 static void bulkio_tm_cb(const struct c2_net_tm_event *ev)
 {
@@ -162,8 +160,10 @@ static void bulkclient_test(void)
 	xprt = &c2_net_lnet_xprt;
 	rc = c2_net_domain_init(&nd, xprt);
 	C2_UT_ASSERT(rc == 0);
-	c2_lut_lhost_lnet_conv(&nd, caddr);
-	c2_lut_lhost_lnet_conv(&nd, saddr);
+	rc = c2_lut_lhost_lnet_conv(&nd, caddr);
+	C2_UT_ASSERT(rc == 0);
+	rc = c2_lut_lhost_lnet_conv(&nd, saddr);
+	C2_UT_ASSERT(rc == 0);
 
 	/* Test : c2_io_fop_init() */
 	rc = c2_io_fop_init(&iofop, &c2_fop_cob_writev_fopt);

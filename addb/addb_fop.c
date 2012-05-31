@@ -46,7 +46,7 @@ int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 #include "rpc/rpc_opcodes.h"
 
 static struct c2_fop_type_ops addb_ops = {
-	.fto_execute = c2_addb_handler,
+	.fto_execute = NULL,
 };
 
 C2_FOP_TYPE_DECLARE(c2_addb_record, "addb", &addb_ops,
@@ -100,6 +100,7 @@ struct c2_addb_trace_body {
 };
 
 #ifndef __KERNEL__
+/*
 static int c2_addb_enable_dump = 0;
 
 static void c2_addb_record_dump(const struct c2_addb_record *rec)
@@ -144,10 +145,10 @@ int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	struct c2_fop           *reply;
 
 	in = c2_fop_data(fop);
-	/* do something with the request, e.g. store it in stob, or in db */
+	// do something with the request, e.g. store it in stob, or in db
 	c2_addb_record_dump(in);
 
-	/* prepare the reply */
+	// prepare the reply
 	reply = c2_fop_alloc(&c2_addb_reply_fopt, NULL);
 	if (reply != NULL) {
 		ex = c2_fop_data(reply);
@@ -157,6 +158,8 @@ int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
 	return 1;
 }
+*/
+
 #endif
 
 int c2_addb_record_header_pack(struct c2_addb_dp *dp,
