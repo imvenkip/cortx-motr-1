@@ -165,13 +165,13 @@ bool c2_layout__is_layout_type_valid(uint32_t lt_id,
 		return false;
 	}
 
-	if (dom->ld_type[lt_id] == NULL ||
-		dom->ld_type_ref_count[lt_id] < DEFAULT_REF_COUNT) {
+	if (dom->ld_type[lt_id] == NULL) {
 		C2_LOG("Unknown layout type, layout-type-id %lu",
 		       (unsigned long)lt_id);
 		return false;
 	}
 
+	C2_ASSERT(dom->ld_type[lt_id]->lt_ref_count >= DEFAULT_REF_COUNT);
 	return true;
 }
 
@@ -185,19 +185,19 @@ bool c2_layout__is_enum_type_valid(uint32_t let_id,
 		return false;
 	}
 
-	if (dom->ld_enum[let_id] == NULL ||
-		dom->ld_enum_ref_count[let_id] < DEFAULT_REF_COUNT) {
+	if (dom->ld_enum[let_id] == NULL) {
 		C2_LOG("Unknown enum type, enum-type-id %lu",
 		       (unsigned long)let_id);
 		return false;
 	}
 
+	C2_ASSERT(dom->ld_enum[let_id]->let_ref_count >= DEFAULT_REF_COUNT);
 	return true;
 }
 
 /** Adds a reference to the layout type. */
 static void layout_type_get(struct c2_layout_domain *dom,
-			    const struct c2_layout_type *lt)
+			    struct c2_layout_type *lt)
 {
 	C2_PRE(domain_invariant(dom));
 	C2_PRE(lt != NULL);
@@ -208,25 +208,25 @@ static void layout_type_get(struct c2_layout_domain *dom,
 	 */
 
 	c2_mutex_lock(&dom->ld_lock);
-	C2_CNT_INC(dom->ld_type_ref_count[lt->lt_id]);
+	C2_CNT_INC(lt->lt_ref_count);
 	c2_mutex_unlock(&dom->ld_lock);
 }
 
 /** Releases a reference on the layout type. */
 static void layout_type_put(struct c2_layout_domain *dom,
-			    const struct c2_layout_type *lt)
+			    struct c2_layout_type *lt)
 {
 	C2_PRE(domain_invariant(dom));
 	C2_PRE(lt != NULL);
 
 	c2_mutex_lock(&dom->ld_lock);
-	C2_CNT_DEC(dom->ld_type_ref_count[lt->lt_id]);
+	C2_CNT_DEC(lt->lt_ref_count);
 	c2_mutex_unlock(&dom->ld_lock);
 }
 
 /** Adds a reference on the enum type. */
 static void enum_type_get(struct c2_layout_domain *dom,
-			  const struct c2_layout_enum_type *let)
+			  struct c2_layout_enum_type *let)
 {
 	C2_PRE(domain_invariant(dom));
 	C2_PRE(let != NULL);
@@ -237,23 +237,19 @@ static void enum_type_get(struct c2_layout_domain *dom,
 	 */
 
 	c2_mutex_lock(&dom->ld_lock);
-
-	C2_CNT_INC(dom->ld_enum_ref_count[let->let_id]);
-
+	C2_CNT_INC(let->let_ref_count);
 	c2_mutex_unlock(&dom->ld_lock);
 }
 
 /** Releases a reference on the enum type. */
 static void enum_type_put(struct c2_layout_domain *dom,
-			  const struct c2_layout_enum_type *let)
+			  struct c2_layout_enum_type *let)
 {
 	C2_PRE(domain_invariant(dom));
 	C2_PRE(let != NULL);
 
 	c2_mutex_lock(&dom->ld_lock);
-
-	C2_CNT_DEC(dom->ld_enum_ref_count[let->let_id]);
-
+	C2_CNT_DEC(let->let_ref_count);
 	c2_mutex_unlock(&dom->ld_lock);
 }
 
@@ -310,7 +306,7 @@ static int layout_list_add(struct c2_layout_domain *dom, struct c2_layout *l)
 int c2_layout__init(struct c2_layout_domain *dom,
 		    struct c2_layout *l,
 		    uint64_t lid, uint64_t pool_id,
-		    const struct c2_layout_type *type,
+		    struct c2_layout_type *type,
 		    const struct c2_layout_ops *ops)
 {
 	int rc;
@@ -375,7 +371,7 @@ void c2_layout__fini(struct c2_layout *l)
 int c2_layout__striped_init(struct c2_layout_domain *dom,
 			    struct c2_layout_striped *str_l,
 			    uint64_t lid, uint64_t pool_id,
-			    const struct c2_layout_type *type,
+			    struct c2_layout_type *type,
 			    const struct c2_layout_ops *ops,
 			    struct c2_layout_enum *e)
 
@@ -434,7 +430,7 @@ void c2_layout__striped_fini(struct c2_layout_striped *str_l)
  */
 void c2_layout__enum_init(struct c2_layout_domain *dom,
 			  struct c2_layout_enum *le,
-			  const struct c2_layout_enum_type *et,
+			  struct c2_layout_enum_type *et,
 			  const struct c2_layout_enum_ops *ops)
 {
 	C2_PRE(domain_invariant(dom));
@@ -785,8 +781,8 @@ int c2_layout_type_register(struct c2_layout_domain *dom,
 	dom->ld_type[lt->lt_id] = (struct c2_layout_type *)lt;
 
 	/* Get the first reference on this layout type. */
-	C2_ASSERT(dom->ld_type_ref_count[lt->lt_id] == 0);
-	C2_CNT_INC(dom->ld_type_ref_count[lt->lt_id]);
+	C2_ASSERT(lt->lt_ref_count == 0);
+	C2_CNT_INC(lt->lt_ref_count);
 
 	/* Allocate type specific schema data. */
 	c2_mutex_lock(&dom->ld_schema.ls_lock);
@@ -798,7 +794,7 @@ int c2_layout_type_register(struct c2_layout_domain *dom,
 			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       LID_NONE, rc);
-		C2_CNT_DEC(dom->ld_type_ref_count[lt->lt_id]);
+		C2_CNT_DEC(lt->lt_ref_count);
 		dom->ld_type[lt->lt_id] = NULL;
 	} else {
 		max_recsize_update(dom);
@@ -838,8 +834,8 @@ void c2_layout_type_unregister(struct c2_layout_domain *dom,
 	c2_mutex_unlock(&dom->ld_schema.ls_lock);
 
 	/* Release the last reference on this layout type. */
-	C2_ASSERT(dom->ld_type_ref_count[lt->lt_id] == 1);
-	C2_CNT_DEC(dom->ld_type_ref_count[lt->lt_id]);
+	C2_ASSERT(lt->lt_ref_count == DEFAULT_REF_COUNT);
+	C2_CNT_DEC(lt->lt_ref_count);
 
 	c2_mutex_unlock(&dom->ld_lock);
 
@@ -872,8 +868,8 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 	dom->ld_enum[let->let_id] = (struct c2_layout_enum_type *)let;
 
 	/* Get the first reference on this enum type. */
-	C2_CNT_INC(dom->ld_enum_ref_count[let->let_id]);
-	C2_ASSERT(dom->ld_enum_ref_count[let->let_id] == DEFAULT_REF_COUNT);
+	C2_CNT_INC(let->let_ref_count);
+	C2_ASSERT(let->let_ref_count == DEFAULT_REF_COUNT);
 
 	/* Allocate enum type specific schema data. */
 	c2_mutex_lock(&dom->ld_schema.ls_lock);
@@ -885,7 +881,7 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 			       PRINT_ADDB_MSG, PRINT_TRACE_MSG,
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       LID_NONE, rc);
-		C2_CNT_DEC(dom->ld_enum_ref_count[let->let_id]);
+		C2_CNT_DEC(let->let_ref_count);
 		dom->ld_enum[let->let_id] = NULL;
 	} else {
 		max_recsize_update(dom);
@@ -925,8 +921,8 @@ void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
 	c2_mutex_unlock(&dom->ld_schema.ls_lock);
 
 	/* Release the last reference on this enum type. */
-	C2_ASSERT(dom->ld_enum_ref_count[let->let_id] == DEFAULT_REF_COUNT);
-	C2_CNT_DEC(dom->ld_enum_ref_count[let->let_id]);
+	C2_ASSERT(let->let_ref_count == DEFAULT_REF_COUNT);
+	C2_CNT_DEC(let->let_ref_count);
 
 	c2_mutex_unlock(&dom->ld_lock);
 

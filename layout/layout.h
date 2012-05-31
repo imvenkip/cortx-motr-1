@@ -160,12 +160,6 @@ struct c2_layout_domain {
 	/** Enumeration types array. */
 	struct c2_layout_enum_type *ld_enum[C2_LAYOUT_ENUM_TYPE_MAX];
 
-	/** Reference count on layout types. */
-	uint32_t                    ld_type_ref_count[C2_LAYOUT_TYPE_MAX];
-
-	/** Reference count on enum types. */
-	uint32_t                    ld_enum_ref_count[C2_LAYOUT_ENUM_TYPE_MAX];
-
 	/** List of pointers for layout objects associated with this domain. */
 	struct c2_tl                ld_layout_list;
 
@@ -187,7 +181,7 @@ struct c2_layout {
 	uint64_t                     l_id;
 
 	/** Layout type. */
-	const struct c2_layout_type *l_type;
+	struct c2_layout_type       *l_type;
 
 	/** Layout domain this layout object is part of. */
 	struct c2_layout_domain     *l_dom;
@@ -247,14 +241,12 @@ struct c2_layout_type {
 	/** Layout domain with which the layout type is registered. */
 	struct c2_layout_domain         *lt_domain;
 
-#if 0
 	/**
-	 * Layout type reference count, indicating how many layout objects,
-	 * using this layout type, exist in the domain the layout type is
+	 * Layout type reference count, indicating 'how many layout objects
+	 * using this layout type' exist in the domain the layout type is
 	 * registered with.
 	 */
 	uint32_t                         lt_ref_count;
-#endif
 
 	/** Layout type operations vector. */
 	const struct c2_layout_type_ops *lt_ops;
@@ -314,7 +306,7 @@ struct c2_layout_type_ops {
  */
 struct c2_layout_enum {
 	/** Layout enumeration type. */
-	const struct c2_layout_enum_type *le_type;
+	struct c2_layout_enum_type       *le_type;
 
 	/** Layout object this enum is associated with. */
 	const struct c2_layout           *le_l;
@@ -352,6 +344,13 @@ struct c2_layout_enum_type {
 
 	/** Layout domain with which the enum type is registered. */
 	const struct c2_layout_domain        *let_domain;
+
+	/**
+	 * Enum type reference count, indicating 'how many enum objects
+	 * using this enum type' exist in the domain the enum type is
+	 * registered with.
+	 */
+	uint32_t                              let_ref_count;
 
 	/** Layout enumeration type operations vector. */
 	const struct c2_layout_enum_type_ops *let_ops;
