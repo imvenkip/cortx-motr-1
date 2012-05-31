@@ -107,6 +107,8 @@ void c2_layout__log(const char *fn_name,
 		    uint64_t lid,
 		    int rc);
 
+c2_bcount_t c2_layout__enum_max_recsize(struct c2_layout_domain *dom);
+
 /** @} end group layout */
 
 /* __COLIBRI_LAYOUT_LAYOUT_INTERNAL_H__ */

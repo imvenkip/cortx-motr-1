@@ -531,24 +531,10 @@ c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 /** Implementation of lto_max_recsize() for pdclust layout type. */
 static c2_bcount_t pdclust_max_recsize(struct c2_layout_domain *dom)
 {
-	uint32_t    i;
-	c2_bcount_t e_recsize;
-	c2_bcount_t max_recsize = 0;
-
 	C2_PRE(dom != NULL);
 
-	/*
-	 * Iterate over all the enum types to find the maximum possible
-	 * recsize.
-	 */
-        for (i = 0; i < ARRAY_SIZE(dom->ld_enum); ++i) {
-		if (dom->ld_enum[i] == NULL)
-			continue;
-                e_recsize = dom->ld_enum[i]->let_ops->leto_max_recsize();
-		max_recsize = max64u(max_recsize, e_recsize);
-        }
-
-	return sizeof(struct c2_layout_pdclust_rec) + max_recsize;
+	return sizeof(struct c2_layout_pdclust_rec) +
+		c2_layout__enum_max_recsize(dom);
 }
 
 /** Implementation of lto_recsize() for pdclust layout type. */

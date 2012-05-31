@@ -566,6 +566,27 @@ void schema_fini(struct c2_layout_schema *schema)
 	schema->ls_dbenv = NULL;
 }
 
+c2_bcount_t c2_layout__enum_max_recsize(struct c2_layout_domain *dom)
+{
+	uint32_t    i;
+	c2_bcount_t e_recsize;
+	c2_bcount_t max_recsize = 0;
+
+	C2_PRE(dom != NULL);
+
+	/*
+	 * Iterate over all the enum types to find the maximum possible
+	 * recsize.
+	 */
+        for (i = 0; i < ARRAY_SIZE(dom->ld_enum); ++i) {
+		if (dom->ld_enum[i] == NULL)
+			continue;
+                e_recsize = dom->ld_enum[i]->let_ops->leto_max_recsize();
+		max_recsize = max64u(max_recsize, e_recsize);
+        }
+	return max_recsize;
+}
+
 /**
  * Maximum possible size for a record in the layouts table (without
  * considering the data in the tables other than the layouts) is maintained in
@@ -582,7 +603,8 @@ static void max_recsize_update(struct c2_layout_domain *dom)
 	C2_PRE(c2_mutex_is_locked(&dom->ld_schema.ls_lock));
 
 	/*
-	 * Iterate over all the layout types to find maximum possible recsize.
+	 * Iterate over all the layout types to find the maximum possible
+	 * recsize.
 	 */
 	for (i = 0; i < ARRAY_SIZE(dom->ld_type); ++i) {
 		if (dom->ld_type[i] == NULL)
