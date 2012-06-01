@@ -62,6 +62,40 @@ enum {
 	CONNECT_TIMEOUT		= 5,
 };
 
+struct c2_net_xprt    *xprt = &c2_net_lnet_xprt;
+struct c2_net_domain   client_net_dom = { };
+struct c2_dbenv        client_dbenv;
+struct c2_cob_domain   client_cob_dom;
+char client_addr[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:2";
+char server_addr[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:1";
+
+char *server_argv[] = {
+	"rpclib_ut", "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
+	"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
+	"-s", "ds1", "-s", "ds2"
+};
+
+struct c2_rpc_server_ctx sctx = {
+	.rsx_xprts            = &xprt,
+	.rsx_xprts_nr         = 1,
+	.rsx_argv             = server_argv,
+	.rsx_argc             = ARRAY_SIZE(server_argv),
+	.rsx_service_types    = cs_default_stypes,
+	.rsx_service_types_nr = 2,
+	.rsx_log_file_name    = SERVER_LOG_FILE_NAME,
+};
+
+struct c2_rpc_client_ctx cctx = {
+	.rcx_net_dom            = &client_net_dom,
+	.rcx_db_name            = CLIENT_DB_NAME,
+	.rcx_dbenv              = &client_dbenv,
+	.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
+	.rcx_cob_dom            = &client_cob_dom,
+	.rcx_nr_slots           = SESSION_SLOTS,
+	.rcx_timeout_s          = CONNECT_TIMEOUT,
+	.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
+};
+
 #ifdef ENABLE_FAULT_INJECTION
 static void test_c2_rpc_server_start(void)
 {
@@ -146,50 +180,12 @@ out:
 static void test_rpclib(void)
 {
 	int                    rc;
-	struct c2_net_xprt    *xprt = &c2_net_lnet_xprt;
-	struct c2_net_domain   client_net_dom = { };
-	struct c2_dbenv        client_dbenv;
-	struct c2_cob_domain   client_cob_dom;
-	char caddr[C2_NET_LNET_XEP_ADDR_LEN] = {"127.0.0.1@tcp:12345:34:2"};
-	char saddr[C2_NET_LNET_XEP_ADDR_LEN] = {"127.0.0.1@tcp:12345:34:1"};
-
-	char *server_argv[] = {
-		"rpclib_ut", "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
-		"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
-		"-s", "ds1", "-s", "ds2"
-	};
-
-	C2_RPC_SERVER_CTX_DECLARE_SIMPLE(sctx, xprt, server_argv,
-				  SERVER_LOG_FILE_NAME);
-
-	struct c2_rpc_client_ctx cctx = {
-		.rcx_net_dom            = &client_net_dom,
-		.rcx_db_name            = CLIENT_DB_NAME,
-		.rcx_dbenv              = &client_dbenv,
-		.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
-		.rcx_cob_dom            = &client_cob_dom,
-		.rcx_nr_slots           = SESSION_SLOTS,
-		.rcx_timeout_s          = CONNECT_TIMEOUT,
-		.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
-	};
 
 	/*
 	 * There is no need to initialize xprt explicitly if client and server
 	 * run withing a single process, because in this case transport is
 	 * initialized by c2_rpc_server_start().
 	 */
-
-	rc = c2_net_domain_init(&client_net_dom, xprt);
-	C2_UT_ASSERT(rc == 0);
-	if (rc != 0)
-		goto out;
-
-	rc = c2_lut_lhost_lnet_conv(&client_net_dom, caddr);
-	C2_UT_ASSERT(rc == 0);
-	rc = c2_lut_lhost_lnet_conv(&client_net_dom, saddr);
-	C2_UT_ASSERT(rc == 0);
-	cctx.rcx_local_addr  = caddr;
-	cctx.rcx_remote_addr = saddr;
 
 	rc = c2_rpc_server_start(&sctx);
 	C2_UT_ASSERT(rc == 0);
@@ -224,6 +220,13 @@ static int test_rpclib_init(void)
 
 	rc = c2_net_domain_init(&client_net_dom, xprt);
 	C2_ASSERT(rc == 0);
+
+	rc = c2_lut_lhost_lnet_conv(&client_net_dom, client_addr);
+	C2_ASSERT(rc == 0);
+	rc = c2_lut_lhost_lnet_conv(&client_net_dom, server_addr);
+	C2_ASSERT(rc == 0);
+	cctx.rcx_local_addr  = client_addr;
+	cctx.rcx_remote_addr = server_addr;
 
 	return rc;
 }

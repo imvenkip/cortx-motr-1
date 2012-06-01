@@ -266,8 +266,8 @@ AC_ARG_ENABLE([debug],
 )
 
 AC_ARG_ENABLE([finject],
-        [AC_HELP_STRING([--disable-finject], [disable fault injection support])], [],
-        [enable_finject=yes]
+        [AC_HELP_STRING([--enable-finject], [enable fault injection support])], [],
+        [enable_finject=no]
 )
 
 AC_ARG_ENABLE([rpm],
