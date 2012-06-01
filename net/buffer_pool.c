@@ -130,7 +130,6 @@ int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
 				 uint32_t buf_nr)
 {
 	int buffers = 0;
-
 	C2_PRE(c2_net_buffer_pool_invariant(pool));
 
 	while (buf_nr--) {
@@ -162,8 +161,13 @@ void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool)
 	int		      i;
 	struct c2_net_buffer *nb;
 
-	C2_PRE(c2_net_buffer_pool_invariant(pool));
-	C2_PRE(pool->nbp_free == pool->nbp_buf_nr);
+	C2_PRE(c2_net_buffer_pool_is_not_locked(pool));
+
+	if (pool->nbp_colours == NULL && pool->nbp_colours_nr != 0)
+		return;
+	c2_net_buffer_pool_lock(pool);
+	C2_ASSERT(c2_net_buffer_pool_invariant(pool));
+	C2_ASSERT(pool->nbp_free == pool->nbp_buf_nr);
 
 	c2_tl_for(c2_net_pool, &pool->nbp_lru, nb) {
 		C2_CNT_DEC(pool->nbp_free);
@@ -172,7 +176,9 @@ void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool)
 	c2_net_pool_tlist_fini(&pool->nbp_lru);
 	for (i = 0; i < pool->nbp_colours_nr; i++)
 		c2_net_tm_tlist_fini(&pool->nbp_colours[i]);
-	c2_free(pool->nbp_colours);
+	if (pool->nbp_colours != NULL)
+		c2_free(pool->nbp_colours);
+	c2_net_buffer_pool_unlock(pool);
 	c2_mutex_fini(&pool->nbp_mutex);
 }
 
@@ -184,6 +190,11 @@ void c2_net_buffer_pool_lock(struct c2_net_buffer_pool *pool)
 bool c2_net_buffer_pool_is_locked(const struct c2_net_buffer_pool *pool)
 {
 	return c2_mutex_is_locked(&pool->nbp_mutex);
+}
+
+bool c2_net_buffer_pool_is_not_locked(const struct c2_net_buffer_pool *pool)
+{
+	return c2_mutex_is_not_locked(&pool->nbp_mutex);
 }
 
 void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool)
@@ -213,8 +224,9 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
 	C2_CNT_DEC(pool->nbp_free);
 	if (pool->nbp_free < pool->nbp_threshold)
 		pool->nbp_ops->nbpo_below_threshold(pool);
-
+	nb->nb_pool = pool;
 	C2_POST(c2_net_buffer_pool_invariant(pool));
+	C2_POST(nb->nb_ep == NULL);
 	return nb;
 }
 
@@ -223,6 +235,7 @@ void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
 {
 	C2_PRE(buf != NULL);
 	C2_PRE(c2_net_buffer_pool_invariant(pool));
+	C2_PRE(buf->nb_ep == NULL);
 	C2_PRE(colour == C2_BUFFER_ANY_COLOUR || colour < pool->nbp_colours_nr);
 	C2_PRE(!(buf->nb_flags & C2_NET_BUF_QUEUED));
 	C2_PRE(buf->nb_flags & C2_NET_BUF_REGISTERED);

@@ -61,7 +61,7 @@ enum IO_UT_VALUES {
 	IO_RPC_SESSION_SLOTS	= 8,
 	IO_RPC_MAX_IN_FLIGHT	= 32,
 	IO_RPC_CONN_TIMEOUT	= 60,
-	IO_SERVER_ARGC		= 12,
+	IO_SERVER_ARGC		= 16,
 	IO_SERVER_SERVICE_NR	= 1,
 };
 
@@ -132,8 +132,6 @@ void bulkio_client_stop(struct c2_rpc_client_ctx *cctx);
 int bulkio_server_start(struct bulkio_params *bp, char *saddr);
 
 void bulkio_server_stop(struct c2_rpc_server_ctx *sctx);
-
-void bulkio_netep_form(const char *addr, int port, int svc_id, char *out);
 
 void bulkio_params_init(struct bulkio_params *bp);
 

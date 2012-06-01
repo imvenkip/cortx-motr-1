@@ -28,12 +28,21 @@
 #include "net/lnet/lnet.h"
 #include "ioservice/io_fops.h"
 #include "net/lnet/lnet.h"
+#include "rpc/rpclib.h"
 
 static char *local_addr = "127.0.0.1@tcp:12345:34:6";
 
 module_param(local_addr, charp, S_IRUGO);
 MODULE_PARM_DESC(local_addr, "End-point address of c2t1fs "
 		 "e.g. 127.0.0.1@tcp:12345:34:6");
+
+static uint32_t tm_recv_queue_min_len = C2_NET_TM_RECV_QUEUE_DEF_LEN;
+module_param(tm_recv_queue_min_len , int, S_IRUGO);
+MODULE_PARM_DESC(tm_recv_queue_min_len, "TM receive queue minimum length");
+
+static uint32_t max_rpc_msg_size = 0;
+module_param(max_rpc_msg_size, int, S_IRUGO);
+MODULE_PARM_DESC(max_rpc_msg_size, "Maximum RPC message size");
 
 static int  c2t1fs_net_init(void);
 static void c2t1fs_net_fini(void);
@@ -126,7 +135,7 @@ static int c2t1fs_net_init(void)
 {
 	struct c2_net_xprt   *xprt;
 	struct c2_net_domain *ndom;
-	int                   rc;
+	int		      rc;
 
 	C2_ENTRY();
 
@@ -157,23 +166,40 @@ static void c2t1fs_net_fini(void)
 
 static int c2t1fs_rpc_init(void)
 {
-	struct c2_dbenv          *dbenv;
-	struct c2_cob_domain     *cob_dom;
-	struct c2_cob_domain_id  *cob_dom_id;
-	struct c2_rpc_machine    *rpc_machine;
-	struct c2_net_domain     *ndom;
-	char                     *laddr;
-	char                     *db_name;
-	int                       rc;
+	struct c2_dbenv           *dbenv;
+	struct c2_cob_domain      *cob_dom;
+	struct c2_cob_domain_id   *cob_dom_id;
+	struct c2_rpc_machine     *rpc_machine;
+	struct c2_net_domain      *ndom;
+	struct c2_net_transfer_mc *tm;
+	char                      *laddr;
+	char                      *db_name;
+	int                        rc;
+	struct c2_net_buffer_pool *buffer_pool;
+	uint32_t		   bufs_nr;
+	uint32_t		   tms_nr;
 
 	C2_ENTRY();
+
+	ndom        = &c2t1fs_globals.g_ndom;
+	laddr       =  c2t1fs_globals.g_laddr;
+	rpc_machine = &c2t1fs_globals.g_rpc_machine;
+	buffer_pool = &c2t1fs_globals.g_buffer_pool;
+
+	tms_nr	 = 1;
+	bufs_nr  = c2_rpc_bufs_nr(tm_recv_queue_min_len, tms_nr);
+
+	rc = c2_rpc_net_buffer_pool_setup(ndom, buffer_pool,
+					  bufs_nr, tms_nr);
+	if (rc != 0)
+		goto pool_fini;
 
 	dbenv   = &c2t1fs_globals.g_dbenv;
 	db_name =  c2t1fs_globals.g_db_name;
 
 	rc = c2_dbenv_init(dbenv, db_name, 0);
 	if (rc != 0)
-		goto out;
+		goto pool_fini;
 
 	cob_dom    = &c2t1fs_globals.g_cob_dom;
 	cob_dom_id = &c2t1fs_globals.g_cob_dom_id;
@@ -196,10 +222,16 @@ static int c2t1fs_rpc_init(void)
 
 	c2t1fs_globals.g_laddr = laddr;
 
-	rc = c2_rpc_machine_init(rpc_machine, cob_dom, ndom,
-				 laddr, NULL/*reqh*/);
+	c2_rpc_machine_pre_init(rpc_machine, ndom, C2_BUFFER_ANY_COLOUR,
+				max_rpc_msg_size, tm_recv_queue_min_len);
+
+	rc = c2_rpc_machine_init(rpc_machine, cob_dom, ndom, laddr, NULL,
+				 buffer_pool);
 	if (rc != 0)
 		goto free_laddr;
+
+	tm = &rpc_machine->rm_tm;
+	C2_ASSERT(tm->ntm_recv_pool == buffer_pool);
 
 	C2_LEAVE("rc: %d", rc);
 	return 0;
@@ -213,8 +245,10 @@ cob_dom_fini:
 dbenv_fini:
 	c2_dbenv_fini(dbenv);
 
-out:
+pool_fini:
+	c2_rpc_net_buffer_pool_cleanup(buffer_pool);
 	C2_LEAVE("rc: %d", rc);
+	C2_ASSERT(rc != 0);
 	return rc;
 }
 
@@ -226,6 +260,7 @@ static void c2t1fs_rpc_fini(void)
 	c2_free(c2t1fs_globals.g_laddr);
 	c2_cob_domain_fini(&c2t1fs_globals.g_cob_dom);
 	c2_dbenv_fini(&c2t1fs_globals.g_dbenv);
+	c2_rpc_net_buffer_pool_cleanup(&c2t1fs_globals.g_buffer_pool);
 
 	C2_LEAVE();
 }

@@ -114,7 +114,8 @@ lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c    \
                                    memory.c finject.c
 
 net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c    \
-                                   tm.c net_otw_types_k.c
+                                   tm.c net_otw_types_k.c tm_provision.c
+
 net_HEADERS                     := net_otw_types_k.h
 
 net_bulk_emulation_ut_SOURCES   := bulk_mem_ut.c
@@ -124,6 +125,7 @@ net_lnet_SOURCES                := lnet_utils.c
 net_lnet_ut_SOURCES             := lnet_ut.c
 
 net_ut_SOURCES                  := bulk_if.c buffer_pool_ut.c
+net_ut_HEADERS                  := tm_provision_ut.c
 
 pool_SOURCES                    := pool.c
 

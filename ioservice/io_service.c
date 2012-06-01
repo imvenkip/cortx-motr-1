@@ -43,7 +43,6 @@ C2_TL_DEFINE(bufferpools, , struct c2_rios_buffer_pool);
  * These values are supposed to get from configuration cache. Since
  * configuration cache module not available these values defines as constants
  */
-
 enum {
 	C2_NET_BUFFER_POOL_SIZE = 32,
 };
@@ -168,8 +167,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
 
-        c2_tlist_for(&c2_rhrpm_tl,
-		     &service->rs_reqh->rh_rpc_machines, rpcmach) {
+        c2_tl_for(c2_rhrpm, &service->rs_reqh->rh_rpc_machines, rpcmach) {
 		/*
 		 * Check buffer pool for network domain of rpc_machine
 		 */
@@ -196,17 +194,19 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 		 */
 		c2_chan_init(&newbp->rios_bp_wait);
 		newbp->rios_bp_magic = C2_RIOS_BUFFER_POOL_MAGIC;
-		colours = rpcmach->rm_tm.ntm_dom->nd_pool_colour_counter;
+
+		colours = c2_list_length(&newbp->rios_ndom->nd_tms);
+
 		segment_size = min64u(c2_net_domain_get_max_buffer_segment_size(
 					      newbp->rios_ndom), C2_SEG_SIZE);
-		segments_nr  = c2_net_domain_get_max_buffer_size(
+		segments_nr = c2_net_domain_get_max_buffer_size(
 			newbp->rios_ndom) / segment_size;
 
 		rc = c2_net_buffer_pool_init(&newbp->rios_bp,
-					     newbp->rios_ndom,
-					     C2_NET_BUFFER_POOL_THRESHOLD,
-					     segments_nr, segment_size,
-					     colours, C2_0VEC_SHIFT);
+					      newbp->rios_ndom,
+					      C2_NET_BUFFER_POOL_THRESHOLD,
+					      segments_nr, segment_size,
+					      colours, C2_0VEC_SHIFT);
 		if (rc != 0)
 			break;
 		newbp->rios_bp.nbp_ops = &buffer_pool_ops;
@@ -253,8 +253,6 @@ static void ioservice_delete_buffer_pool(struct c2_reqh_service *service)
 
                 c2_chan_fini(&bp->rios_bp_wait);
                 bufferpools_tlink_del_fini(bp);
-
-                c2_net_buffer_pool_lock(&bp->rios_bp);
                 c2_net_buffer_pool_fini(&bp->rios_bp);
 		c2_free(bp);
 

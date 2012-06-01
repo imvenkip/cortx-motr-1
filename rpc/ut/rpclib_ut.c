@@ -69,6 +69,18 @@ struct c2_cob_domain   client_cob_dom;
 char client_addr[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:2";
 char server_addr[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:1";
 
+struct c2_rpc_client_ctx cctx = {
+	.rcx_net_dom		   = &client_net_dom,
+	.rcx_db_name		   = CLIENT_DB_NAME,
+	.rcx_dbenv		   = &client_dbenv,
+	.rcx_cob_dom_id		   = CLIENT_COB_DOM_ID,
+	.rcx_cob_dom		   = &client_cob_dom,
+	.rcx_nr_slots		   = SESSION_SLOTS,
+	.rcx_timeout_s		   = CONNECT_TIMEOUT,
+	.rcx_max_rpcs_in_flight	   = MAX_RPCS_IN_FLIGHT,
+	.rcx_recv_queue_min_length = C2_NET_TM_RECV_QUEUE_DEF_LEN,
+};
+
 char *server_argv[] = {
 	"rpclib_ut", "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 	"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
@@ -83,17 +95,6 @@ struct c2_rpc_server_ctx sctx = {
 	.rsx_service_types    = cs_default_stypes,
 	.rsx_service_types_nr = 2,
 	.rsx_log_file_name    = SERVER_LOG_FILE_NAME,
-};
-
-struct c2_rpc_client_ctx cctx = {
-	.rcx_net_dom            = &client_net_dom,
-	.rcx_db_name            = CLIENT_DB_NAME,
-	.rcx_dbenv              = &client_dbenv,
-	.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
-	.rcx_cob_dom            = &client_cob_dom,
-	.rcx_nr_slots           = SESSION_SLOTS,
-	.rcx_timeout_s          = CONNECT_TIMEOUT,
-	.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
 };
 
 #ifdef ENABLE_FAULT_INJECTION
@@ -201,8 +202,6 @@ static void test_rpclib(void)
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_rpc_client_fini(&cctx);
-	C2_UT_ASSERT(rc == 0);
-
 server_fini:
 	c2_rpc_server_stop(&sctx);
 	return;

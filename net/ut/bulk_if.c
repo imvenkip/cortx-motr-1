@@ -32,6 +32,7 @@
 
 static struct c2_net_domain utdom;
 static struct c2_net_transfer_mc ut_tm;
+static struct c2_net_transfer_mc *ut_evt_tm = &ut_tm;
 
 static void make_desc(struct c2_net_buf_desc *desc);
 
@@ -79,7 +80,7 @@ static void ut_dom_fini(struct c2_net_domain *dom)
 
 /* params */
 enum {
-	UT_MAX_BUF_SIZE = 4096,
+	UT_MAX_BUF_SIZE = 8192,
 	UT_MAX_BUF_SEGMENT_SIZE = 2048,
 	UT_MAX_BUF_SEGMENTS = 4,
 };
@@ -216,6 +217,7 @@ static bool ut_buf_del_called = false;
 static void ut_buf_del(struct c2_net_buffer *nb)
 {
 	int rc;
+	C2_SET0(&ut_del_thread);
 	C2_UT_ASSERT(c2_mutex_is_locked(&nb->nb_tm->ntm_mutex));
 	ut_buf_del_called = true;
 	if (!(nb->nb_flags & C2_NET_BUF_IN_USE))
@@ -253,12 +255,12 @@ static void ut_tm_fini(struct c2_net_transfer_mc *tm)
 	return;
 }
 
-struct c2_thread ut_tm_thread;
+static struct c2_thread ut_tm_thread;
 static void ut_post_tm_started_ev_thread(struct c2_net_end_point *ep)
 {
 	struct c2_net_tm_event ev = {
 		.nte_type = C2_NET_TEV_STATE_CHANGE,
-		.nte_tm = &ut_tm,
+		.nte_tm = ut_evt_tm,
 		.nte_ep = ep,
 		.nte_status = 0,
 		.nte_next_state = C2_NET_TM_STARTED
@@ -269,11 +271,12 @@ static void ut_post_tm_started_ev_thread(struct c2_net_end_point *ep)
 	/* post state change event */
 	c2_net_tm_event_post(&ev);
 }
+
 static void ut_post_state_change_ev_thread(int n)
 {
 	struct c2_net_tm_event ev = {
 		.nte_type = C2_NET_TEV_STATE_CHANGE,
-		.nte_tm = &ut_tm,
+		.nte_tm = ut_evt_tm,
 		.nte_status = 0,
 		.nte_next_state = (enum c2_net_tm_state) n
 	};
@@ -293,6 +296,7 @@ static int ut_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 
 	C2_UT_ASSERT(c2_mutex_is_locked(&tm->ntm_mutex));
 	ut_tm_start_called = true;
+	ut_evt_tm = tm;
 
 	/* create the end point (indirectly via the transport ops vector) */
 	xprt = tm->ntm_dom->nd_xprt;
@@ -303,6 +307,7 @@ static int ut_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 	/* create bg thread to post start state change event.
 	   cannot do it here: we are in tm lock, post would assert.
 	 */
+	C2_SET0(&ut_tm_thread);
 	rc = C2_THREAD_INIT(&ut_tm_thread, struct c2_net_end_point *, NULL,
 			    &ut_post_tm_started_ev_thread, ep,
 			    "state_change%d", C2_NET_TM_STARTED);
@@ -317,6 +322,8 @@ static int ut_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 
 	C2_UT_ASSERT(c2_mutex_is_locked(&tm->ntm_mutex));
 	ut_tm_stop_called = true;
+	ut_evt_tm = tm;
+	C2_SET0(&ut_tm_thread);
 	rc = C2_THREAD_INIT(&ut_tm_thread, int, NULL,
 			    &ut_post_state_change_ev_thread, C2_NET_TM_STOPPED,
 			    "state_change%d", C2_NET_TM_STOPPED);
@@ -385,8 +392,8 @@ static struct c2_net_xprt_ops ut_xprt_ops = {
 	.xo_tm_fini                     = ut_tm_fini,
 	.xo_tm_start                    = ut_tm_start,
 	.xo_tm_stop                     = ut_tm_stop,
-	// define at runtime .xo_tm_confine
-	// define at runtime .xo_bev_deliver_sync
+	/* define at runtime .xo_tm_confine       */
+	/* define at runtime .xo_bev_deliver_sync */
         .xo_bev_deliver_all             = ut_bev_deliver_all,
 	.xo_bev_pending                 = ut_bev_pending,
 	.xo_bev_notify                  = ut_bev_notify
@@ -1174,6 +1181,8 @@ static void test_net_bulk_if(void)
 	c2_net_domain_fini(dom);
 	C2_UT_ASSERT(ut_dom_fini_called);
 }
+
+#include "net/ut/tm_provision_ut.c"
 
 const struct c2_test_suite c2_net_bulk_if_ut = {
         .ts_name = "net-bulk-if",

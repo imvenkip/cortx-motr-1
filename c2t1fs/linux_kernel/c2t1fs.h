@@ -30,6 +30,7 @@
 #include "net/net.h"    /* c2_net_domain */
 #include "rpc/rpc2.h"
 #include "pool/pool.h"  /* c2_pool */
+#include "net/buffer_pool.h"
 
 /**
   @defgroup c2t1fs c2t1fs
@@ -201,16 +202,16 @@ enum {
 /** Anything that is global to c2t1fs module goes in this singleton structure.
     There is only one, global, instance of this type. */
 struct c2t1fs_globals {
-	struct c2_net_xprt      *g_xprt;
+	struct c2_net_xprt        *g_xprt;
 	/** local endpoint address */
-	char                    *g_laddr;
-	char                    *g_db_name;
-	struct c2_cob_domain_id  g_cob_dom_id;
-
-	struct c2_net_domain     g_ndom;
-	struct c2_rpc_machine    g_rpc_machine;
-	struct c2_cob_domain     g_cob_dom;
-	struct c2_dbenv          g_dbenv;
+	char                     *g_laddr;
+	char                     *g_db_name;
+	struct c2_cob_domain_id   g_cob_dom_id;
+	struct c2_net_domain      g_ndom;
+	struct c2_rpc_machine     g_rpc_machine;
+	struct c2_cob_domain      g_cob_dom;
+	struct c2_dbenv           g_dbenv;
+	struct c2_net_buffer_pool g_buffer_pool;
 };
 
 extern struct c2t1fs_globals c2t1fs_globals;

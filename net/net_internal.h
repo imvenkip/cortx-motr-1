@@ -84,6 +84,13 @@ bool c2_net__buffer_event_invariant(const struct c2_net_buffer_event *ev);
 bool c2_net__buffer_invariant(const struct c2_net_buffer *buf);
 
 /**
+  Internal version of c2_net_buffer_add() that must be invoked holding the
+  TM mutex.
+ */
+int c2_net__buffer_add(struct c2_net_buffer *buf,
+		       struct c2_net_transfer_mc *tm);
+
+/**
   Invariant checks for an end point. No mutex necessary.
   Extra checks if under_tm_mutex set to true.
  */
@@ -96,6 +103,19 @@ bool c2_net__ep_invariant(struct c2_net_end_point   *ep,
   Must be called within the domain or transfer machine mutex.
  */
 bool c2_net__tm_invariant(const struct c2_net_transfer_mc *tm);
+
+/*
+   Internal subroutine to provision the receive queue of a transfer machine
+   from its associated buffer pool.
+   @param tm  Transfer machine
+   @pre c2_mutex_is_not_locked(&tm->ntm_mutex) && tm->ntm_callback_counter > 0
+   @pre c2_net_buffer_pool_is_not_locked(&tm->ntm_recv_pool))
+   @post Length of receive queue >= tm->ntm_recv_queue_min_length &&
+                tm->ntm_recv_queue_deficit == 0 ||
+         Length of receive queue + tm->ntm_recv_queue_deficit ==
+                tm->ntm_recv_queue_min_length
+ */
+void c2_net__tm_provision_recv_q(struct c2_net_transfer_mc *tm);
 
 #endif /* __COLIBRI_NET_NET_INTERNAL_H__ */
 

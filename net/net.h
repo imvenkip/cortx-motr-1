@@ -103,6 +103,11 @@ int c2_net_init(void);
 void c2_net_fini(void);
 
 enum {
+	/** Default minimum number of receive queue buffers for automatic
+	    provisioning.
+	 */
+	C2_NET_TM_RECV_QUEUE_DEF_LEN = 2,
+
 	/* Hex value for "NET_DOM" */
 	C2_NET_DOMAIN_MAGIX = 0x4E45545F444F4D
 };
@@ -398,9 +403,6 @@ struct c2_net_domain {
 
 	/** Network magic */
 	uint64_t            nd_magic;
-
-        /** Transfer machine pool colour counter */
-        int                 nd_pool_colour_counter;
 };
 
 /**
@@ -846,17 +848,53 @@ struct c2_net_transfer_mc {
 	/** Domain linkage */
 	struct c2_list_link         ntm_dom_linkage;
 
-        /**
-         * Transfer machine colour. It is used to get
-         * buffer from buffer pool.
-         */
-        int                         ntm_pool_colour;
-
 	/** Transport private data */
         void                       *ntm_xprt_private;
 
 	/** Indicates if automatic delivery of buffer events will take place. */
 	bool                        ntm_bev_auto_deliver;
+
+	/**
+	   The buffer pool to use for automatic receive queue provisioning.
+	*/
+	struct c2_net_buffer_pool  *ntm_recv_pool;
+
+	/**
+	   Callbacks structure for automatically allocate receive queue
+	   buffers.
+	*/
+	const struct c2_net_buffer_callbacks *ntm_recv_pool_callbacks;
+
+	/**
+	   Minimum queue length for the receive queue when provisioning
+	   automatically.  The default value is ::C2_NET_TM_RECV_QUEUE_DEF_LEN.
+	 */
+	uint32_t                    ntm_recv_queue_min_length;
+
+	/**
+	   Atomic variable tracking the number of buffers needed for the
+	   receive queue when automatically provisioning and out of buffers.
+	 */
+	struct c2_atomic64          ntm_recv_queue_deficit;
+
+	/**
+	   The color assigned to the transfer machine for locality
+	   support when provisioning from a buffer pool.
+	   The value is initialized to @c ~0.
+	 */
+	uint32_t                    ntm_pool_colour;
+
+	/**
+	   Minimum remaining size in a buffer in TM receive queue to allow reuse
+	   for multiple messages.
+	 */
+	c2_bcount_t		    ntm_recv_queue_min_recv_size;
+
+	/**
+	   Maximum number of messages that may be received in the buffer in
+	   TM Receive queue.
+	 */
+	uint32_t		    ntm_recv_queue_max_recv_msgs;
 };
 
 /**
@@ -874,6 +912,8 @@ struct c2_net_transfer_mc {
    @note An initialized TM cannot be fini'd without first starting it.
    @param dom Network domain pointer.
    @post tm->ntm_bev_auto_deliver is set.
+   @post (tm->ntm_pool_colour == C2_NET_BUFFER_POOL_ANY_COLOR &&
+          tm->ntm_recv_pool_queue_min_length == C2_NET_TM_RECV_QUEUE_DEF_LEN)
    @retval 0 (success)
    @retval -errno (failure)
  */
@@ -1013,6 +1053,96 @@ int c2_net_tm_stats_get(struct c2_net_transfer_mc *tm,
    @see c2_net_tm_buffer_post()
  */
 void c2_net_tm_event_post(const struct c2_net_tm_event *ev);
+
+/**
+   Associate a buffer pool color with a transfer machine.  This helps establish
+   an association between a network buffer and the transfer machine when
+   provisioning from a buffer pool, which can considerably improve the spatial
+   and temporal locality of future provisioning calls from the buffer pool.
+
+   Automatically provisioned receive queue network buffers will be allocated
+   with the specified color.  The application can also use this color when
+   provisioning buffers for this transfer machine in other network buffer pool
+   use cases.
+
+   A transfer machine's color is initialized to @c ~0.
+   @param tm Pointer to an initialized transfer machine.
+   @pre
+   (tm->ntm_state == C2_NET_TM_INITIALIZED ||
+    tm->ntm_state == C2_NET_TM_STARTED)
+   @see c2_net_tm_colour_get(), c2_net_tm_pool_attach()
+ */
+void c2_net_tm_colour_set(struct c2_net_transfer_mc *tm, uint32_t colour);
+
+/**
+   Recover the buffer pool color associated with a transfer machine.
+   @param tm Pointer to an initialized transfer machine.
+   @see c2_net_tm_colour_set()
+ */
+uint32_t c2_net_tm_colour_get(struct c2_net_transfer_mc *tm);
+
+/**
+   Enable the automatic provisioning of network buffers to the receive
+   queue of the transfer machine from the specified network buffer pool.
+
+   Provisioning takes place at the following times:
+   - Upon transfer machine startup
+   - Prior to delivery of a de-queueud receive message buffer
+   - When buffers are returned to an exhausted network buffer pool and there
+     are transfer machines that can be re-provisioned from that pool. This
+     requires that the application invoke the
+     c2_net_domain_buffer_pool_not_empty() subroutine from the pool's not-empty
+     callback.
+   - When the minimum length of the receive buffer queue is modified.
+   @param tm Pointer to an initialized transfer machine.
+   @param bufpool Pointer to a network buffer pool.
+   @param callbacks Pointer to the callbacks to be set in the provisioned
+   network buffer.
+   @param min_recv_size Minimum remaining size in a buffer in TM receive queue
+   to allow reuse for multiple messages.
+   @param max_recv_msgs Maximum number of messages that may be received in the
+   buffer in TM receive queue.
+   @param min_recv_queue_len Minimum nuber of buffers in TM receive queue.
+   @pre
+	(tm != NULL && tm->ntm_state == C2_NET_TM_INITIALIZED &&
+	bufpool != NULL && callbacks != NULL &&
+	callbacks->nbc_cb[C2_NET_QT_MSG_RECV] != NULL &&
+	min_recv_size > 0 && max_recv_msgs > 0)
+   @see c2_net_tm_colour_set(), c2_net_domain_buffer_pool_not_empty(),
+        c2_net_tm_pool_length_set()
+ */
+int c2_net_tm_pool_attach(struct c2_net_transfer_mc *tm,
+			  struct c2_net_buffer_pool *bufpool,
+			  const struct c2_net_buffer_callbacks *callbacks,
+			  c2_bcount_t min_recv_size, uint32_t max_recv_msgs,
+			  uint32_t min_recv_queue_len);
+
+/**
+   Set the minimum number of network buffers that should be present on the
+   receive queue of the transfer machine.  If the number falls below this
+   value and automatic provisioning is enabled, then additional buffers are
+   provisioned as needed.
+   Invoking this subroutine may trigger provisioning.
+   @param tm Pointer to an initialized or started transfer machine.
+   @param len Minimum receive queue length. The default value is
+   C2_NET_TM_RECV_QUEUE_DEF_LEN.
+   @see c2_net_tm_pool_attach()
+ */
+void c2_net_tm_pool_length_set(struct c2_net_transfer_mc *tm, uint32_t len);
+
+/**
+   This subroutine will reprovision all transfer machines in the network domain
+   of this buffer pool, that are associated with the pool.
+
+   The application typically arranges for this subroutine to be called from the
+   pool's not-empty callback operation.
+
+   The subroutine should be invoked while holding the pool lock, which is
+   normally the case in the pool not-empty callback.
+   @param pool A network buffer pool.
+   @see c2_net_tm_pool_attach()
+ */
+void c2_net_domain_buffer_pool_not_empty(struct c2_net_buffer_pool *pool);
 
 /**
    Buffer completion events are described by this data structure.
@@ -1326,6 +1456,11 @@ struct c2_net_buffer {
 	 */
 	uint32_t                   nb_max_receive_msgs;
 
+	/**
+	   Set when a buffer is provisioned from a pool using the
+	   c2_net_buffer_pool_get() subroutine call.
+	 */
+	struct c2_net_buffer_pool *nb_pool;
 	/** ADDB context for events related to this buffer */
 	struct c2_addb_ctx         nb_addb;
 };

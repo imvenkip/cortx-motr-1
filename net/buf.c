@@ -151,7 +151,7 @@ void c2_net_buffer_deregister(struct c2_net_buffer *buf,
 }
 C2_EXPORTED(c2_net_buffer_deregister);
 
-int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
+int c2_net__buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 {
 	int rc;
 	struct c2_net_domain *dom;
@@ -173,7 +173,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	const struct buf_add_checks *todo;
 
 	C2_PRE(tm != NULL);
-	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(c2_net__buffer_invariant(buf));
 	C2_PRE(buf->nb_dom == tm->ntm_dom);
@@ -261,6 +261,15 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	C2_POST(c2_net__tm_invariant(tm));
 
  m_err_exit:
+	return rc;
+}
+
+int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
+{
+	int rc;
+	C2_PRE(tm != NULL);
+	c2_mutex_lock(&tm->ntm_mutex);
+	rc = c2_net__buffer_add(buf, tm);
 	c2_mutex_unlock(&tm->ntm_mutex);
 	if (rc != 0)
 		NET_ADDB_FUNCFAIL_ADD(buf->nb_addb, rc);
@@ -328,19 +337,21 @@ bool c2_net__buffer_event_invariant(const struct c2_net_buffer_event *ev)
 
 void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 {
-	struct c2_net_buffer *buf = NULL;
-	struct c2_net_end_point *ep;
-	bool check_ep;
-	enum c2_net_queue_type qtype = C2_NET_QT_NR;
+	struct c2_net_buffer	  *buf = NULL;
+	struct c2_net_end_point	  *ep;
+	bool			   check_ep;
+	bool			   retain;
+	enum c2_net_queue_type	   qtype = C2_NET_QT_NR;
 	struct c2_net_transfer_mc *tm;
-	struct c2_net_qstats *q;
-	c2_time_t tdiff;
-	c2_net_buffer_cb_proc_t cb;
-	c2_bcount_t len = 0;
+	struct c2_net_qstats	  *q;
+	c2_time_t		   tdiff;
+	c2_net_buffer_cb_proc_t	   cb;
+	c2_bcount_t		   len = 0;
+	struct c2_net_buffer_pool *pool = NULL;
 
 	C2_PRE(c2_net__buffer_event_invariant(ev));
 	buf = ev->nbe_buffer;
-	tm = buf->nb_tm;
+	tm  = buf->nb_tm;
 	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
 
 	/* pre-callback, in mutex:
@@ -357,8 +368,11 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 		buf->nb_flags &= ~(C2_NET_BUF_QUEUED | C2_NET_BUF_CANCELLED |
 				   C2_NET_BUF_IN_USE | C2_NET_BUF_TIMED_OUT);
 		buf->nb_timeout = C2_TIME_NEVER;
-	} else
+		retain = false;
+	} else {
 		buf->nb_flags &= ~C2_NET_BUF_RETAIN;
+		retain = true;
+	}
 
 	qtype = buf->nb_qtype;
 	q = &tm->ntm_qstats[qtype];
@@ -389,6 +403,10 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 			check_ep = true;
 			ep = ev->nbe_ep; /* from event */
 		}
+		if (!(buf->nb_flags & C2_NET_BUF_QUEUED) &&
+		    tm->ntm_state == C2_NET_TM_STARTED &&
+		    tm->ntm_recv_pool != NULL)
+			pool = tm->ntm_recv_pool;
 		break;
 	case C2_NET_QT_MSG_SEND:
 		/* must put() ep to match get in buffer_add() */
@@ -403,8 +421,11 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	}
 
 	cb = buf->nb_callbacks->nbc_cb[qtype];
-	tm->ntm_callback_counter++;
+	C2_CNT_INC(tm->ntm_callback_counter);
 	c2_mutex_unlock(&tm->ntm_mutex);
+
+	if (pool != NULL && !retain)
+		c2_net__tm_provision_recv_q(tm);
 
 	cb(ev);
 
@@ -417,8 +438,7 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	   signal waiters
 	 */
 	c2_mutex_lock(&tm->ntm_mutex);
-	C2_ASSERT(tm->ntm_callback_counter > 0);
-	tm->ntm_callback_counter--;
+	C2_CNT_DEC(tm->ntm_callback_counter);
 	if (tm->ntm_callback_counter == 0)
 		c2_chan_broadcast(&tm->ntm_chan);
 	c2_mutex_unlock(&tm->ntm_mutex);

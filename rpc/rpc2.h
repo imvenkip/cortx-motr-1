@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -60,7 +60,8 @@
    // and executed as a part of c2_init().
 
    // create rpc machine.
-   ret = c2_rpc_machine_init(&mach, cob_domain, net_domain, ep_addr);
+   c2_rpc_machine_pre_init(&mach, net_dom, colour, rpc_msg_size, tm_que_len);
+   ret = c2_rpc_machine_init(&mach, cob_domain, net_dom, ep_addr, recv_pool);
    // create/get update stream used for interaction between endpoints
    ret = c2_rpc_update_stream_get(&mach, &srvid,
 	C2_UPDATE_STREAM_SHARED_SLOT, &us_ops, &update_stream);
@@ -272,7 +273,7 @@ enum c2_rpc_item_stage {
 
 enum {
 	/** Maximum number of slots to which an rpc item can be associated */
-	MAX_SLOT_REF = 1
+	MAX_SLOT_REF    = 1,
 };
 
 enum {
@@ -431,8 +432,6 @@ struct c2_rpc_machine {
 	struct c2_list			  rm_chans;
 	/** Transfer machine associated with this endpoint.*/
 	struct c2_net_transfer_mc	  rm_tm;
-	/** Pool of receive buffers associated with this transfer machine. */
-	struct c2_net_buffer		**rm_rcv_buffers;
 	/** Cob domain in which cobs related to session will be stored */
 	struct c2_cob_domain		 *rm_dom;
 	/** List of rpc connections
@@ -469,6 +468,34 @@ struct c2_rpc_machine {
 	struct c2_tl                      rm_services;
 
 	uint64_t                          rm_magic;
+
+	/** Buffer pool from which TM receive buffers are provisioned. */
+	struct c2_net_buffer_pool	 *rm_buffer_pool;
+
+	/**
+	 *  @see c2_net_transfer_mc:ntm_recv_queue_length
+	 *  The default value is C2_NET_TM_RECV_QUEUE_DEF_LEN
+	 */
+	uint32_t			  rm_tm_recv_queue_min_length;
+
+	/**
+	 * @see c2_net_transfer_mc:ntm_recv_queue_min_recv_size
+	 * The default value is c2_net_domain_get_max_buffer_size()
+	 */
+	uint32_t			  rm_min_recv_size;
+
+	/**
+	 * @see c2_net_transfer_mc:ntm_recv_queue_max_recv_msgs
+	 * The default value is 1.
+	 */
+	uint32_t			  rm_max_recv_msgs;
+
+	/**
+	 * @see c2_net_transfer_mc:ntm_pool_colour
+	 * The default value is C2_BUFFER_ANY_COLOUR
+	 */
+	uint32_t			  rm_tm_colour;
+
 };
 
 /**
@@ -490,13 +517,16 @@ void c2_rpc_core_fini(void);
    @param dom cob domain that contains cobs representing slots
    @param net_dom Network domain, this rpc_machine is associated with.
    @param ep_addr Source end point address to associate with the transfer mc.
+   @param receive_pool Buffer pool to be attached to TM for provisioning it.
    @pre c2_rpc_core_init().
+   @pre c2_rpc_machine_pre_init().
  */
-int  c2_rpc_machine_init(struct c2_rpc_machine	*machine,
-			 struct c2_cob_domain	*dom,
-			 struct c2_net_domain	*net_dom,
-			 const char		*ep_addr,
-			 struct c2_reqh         *reqh);
+int  c2_rpc_machine_init(struct c2_rpc_machine	   *machine,
+			 struct c2_cob_domain	   *dom,
+			 struct c2_net_domain	   *net_dom,
+			 const char		   *ep_addr,
+			 struct c2_reqh            *reqh,
+			 struct c2_net_buffer_pool *receive_pool);
 
 /**
    Destruct rpc_machine
@@ -959,6 +989,7 @@ int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk,
 
 /** @} bulkclientDFS end group */
 
+/** @} end group rpc_layer_core */
 /* __COLIBRI_RPC_RPCCORE_H__  */
 #endif
 

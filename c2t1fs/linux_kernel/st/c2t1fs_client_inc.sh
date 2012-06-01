@@ -21,15 +21,17 @@ load_kernel_module()
 		unload_kernel_module || return $?
 	fi
 
-	insmod $colibri_module_path/$colibri_module.ko \
-	       c2_trace_immediate_mask=$COLIBRI_MODULE_TRACE_MASK \
-	       local_addr=$COLIBRI_C2T1FS_ENDPOINT
-	if [ $? -ne "0" ]
-	then
-		echo "Failed to insert module \
-		      $colibri_module_path/$colibri_module.ko"
-		return 1
-	fi
+        insmod $colibri_module_path/$colibri_module.ko \
+               c2_trace_immediate_mask=$COLIBRI_MODULE_TRACE_MASK \
+               local_addr=$COLIBRI_C2T1FS_ENDPOINT \
+	       tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
+	       max_rpc_msg_size=$MAX_RPC_MSG_SIZE
+        if [ $? -ne "0" ]
+        then
+                echo "Failed to insert module \
+                      $colibri_module_path/$colibri_module.ko"
+                return 1
+        fi
 }
 
 bulkio_test()

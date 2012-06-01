@@ -29,6 +29,17 @@
 #define S_DBFILE		  "bulkio_st.db"
 #define S_STOBFILE		  "bulkio_st_stob"
 
+#define to_string(x) str(x)
+#define str(x)	#x
+
+/**
+   @todo This value can be reduced after multiple message delivery in a
+    single buffer is supported.
+ */
+#define IO_TM_RECV_QUEUE_MIN_LEN 6
+/** Non zero value is given for multiple message delivery support. */
+#define IO_MAX_RPC_MSG_SIZE      0
+
 /* Global reference to bulkio_params structure. */
 struct bulkio_params *bparm;
 
@@ -85,7 +96,10 @@ int bulkio_server_start(struct bulkio_params *bp, char *saddr)
 	strcat(server_args[9], saddr);
 	strcpy(server_args[10], "-s");
 	strcpy(server_args[11], "ioservice");
-
+	strcpy(server_args[12], "-q");
+	strcpy(server_args[13], to_string(IO_TM_RECV_QUEUE_MIN_LEN));
+	strcpy(server_args[14], "-m");
+	strcpy(server_args[15], to_string(IO_MAX_RPC_MSG_SIZE));
 	C2_ALLOC_ARR(stypes, IO_SERVER_SERVICE_NR);
 	C2_ASSERT(stypes != NULL);
 	stypes[0] = &ds1_service_type;
@@ -424,24 +438,6 @@ void bulkio_params_fini(struct bulkio_params *bp)
 	c2_free(bp->bp_slogfile);
 }
 
-void bulkio_netep_form(const char *addr, int port, int svc_id, char *out)
-{
-	char str[8];
-
-	C2_ASSERT(addr != NULL);
-	C2_ASSERT(out != NULL);
-
-	strcat(out, addr);
-	strcat(out, ":");
-	memset(str, 0, 8);
-	sprintf(str, "%d", port);
-	strcat(out, str);
-	strcat(out, ":");
-	memset(str, 0, 8);
-	sprintf(str, "%1d", svc_id);
-	strcat(out, str);
-}
-
 int bulkio_client_start(struct bulkio_params *bp, char *caddr,
 			char *saddr)
 {
@@ -456,11 +452,13 @@ int bulkio_client_start(struct bulkio_params *bp, char *caddr,
 	C2_ALLOC_PTR(cctx);
 	C2_ASSERT(cctx != NULL);
 
-	cctx->rcx_remote_addr = saddr;
-	cctx->rcx_cob_dom_id  = IO_CLIENT_COBDOM_ID;
-	cctx->rcx_nr_slots    = IO_RPC_SESSION_SLOTS;
-	cctx->rcx_timeout_s   = IO_RPC_CONN_TIMEOUT;
-	cctx->rcx_max_rpcs_in_flight = IO_RPC_MAX_IN_FLIGHT;
+	cctx->rcx_remote_addr           = saddr;
+	cctx->rcx_cob_dom_id            = IO_CLIENT_COBDOM_ID;
+	cctx->rcx_nr_slots              = IO_RPC_SESSION_SLOTS;
+	cctx->rcx_timeout_s             = IO_RPC_CONN_TIMEOUT;
+	cctx->rcx_max_rpcs_in_flight    = IO_RPC_MAX_IN_FLIGHT;
+	cctx->rcx_recv_queue_min_length = IO_TM_RECV_QUEUE_MIN_LEN;
+        cctx->rcx_max_rpc_recv_size     = IO_MAX_RPC_MSG_SIZE;
 
 	c2_lut_lhost_lnet_conv(&bp->bp_cnetdom, caddr);
 	cctx->rcx_local_addr = caddr;

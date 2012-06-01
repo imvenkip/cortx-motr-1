@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -30,6 +30,7 @@
 #include "db/db.h"       /* struct c2_dbenv */
 #include "cob/cob.h"     /* struct c2_cob_domain */
 #include "net/net.h"     /* struct c2_net_end_point */
+#include "net/buffer_pool.h"
 
 #ifndef __KERNEL__
 #include "colibri/colibri_setup.h" /* struct c2_colibri */
@@ -116,42 +117,42 @@ struct c2_rpc_client_ctx {
 	 * A pointer to net domain struct which will be initialized and used by
 	 * c2_rpc_client_start()
 	 */
-	struct c2_net_domain    *rcx_net_dom;
+	struct c2_net_domain      *rcx_net_dom;
 
 	/** Transport specific local address (client's address) */
-	const char              *rcx_local_addr;
+	const char                *rcx_local_addr;
 
 	/** Transport specific remote address (server's address) */
-	const char              *rcx_remote_addr;
+	const char                *rcx_remote_addr;
 
 	/** Name of database used by the RPC machine */
-	const char              *rcx_db_name;
+	const char                *rcx_db_name;
 
 	/**
 	 * A pointer to dbenv struct which will be initialized and used by
 	 * c2_rpc_client_start()
 	 */
-	struct c2_dbenv         *rcx_dbenv;
+	struct c2_dbenv           *rcx_dbenv;
 
 	/** Identity of cob used by the RPC machine */
-	uint32_t                rcx_cob_dom_id;
+	uint32_t                   rcx_cob_dom_id;
 
 	/**
 	 * A pointer to cob domain struct which will be initialized and used by
 	 * c2_rpc_client_start()
 	 */
-	struct c2_cob_domain    *rcx_cob_dom;
+	struct c2_cob_domain      *rcx_cob_dom;
 
 	/** Number of session slots */
-	uint32_t                rcx_nr_slots;
+	uint32_t		   rcx_nr_slots;
 
-	uint64_t                rcx_max_rpcs_in_flight;
+	uint64_t		   rcx_max_rpcs_in_flight;
 
 	/**
 	 * Time in seconds after which connection/session
 	 * establishment is aborted.
 	 */
-	uint32_t                rcx_timeout_s;
+	uint32_t		   rcx_timeout_s;
 
 	/**
 	 * Output parameters.
@@ -160,10 +161,22 @@ struct c2_rpc_client_ctx {
 	 * c2_rpc_client_start().
 	 */
 
-	struct c2_rpc_machine    rcx_rpc_machine;
-	struct c2_net_end_point *rcx_remote_ep;
-	struct c2_rpc_conn       rcx_connection;
-	struct c2_rpc_session    rcx_session;
+	struct c2_rpc_machine	   rcx_rpc_machine;
+	struct c2_net_end_point	  *rcx_remote_ep;
+	struct c2_rpc_conn	   rcx_connection;
+	struct c2_rpc_session	   rcx_session;
+
+	/** Buffer pool used to provision TM receive queue. */
+	struct c2_net_buffer_pool  rcx_buffer_pool;
+
+	/**
+	 * List of buffer pools in colibri context.
+	 * @see c2_cs_buffer_pool::cs_bp_linkage
+	 */
+        uint32_t		   rcx_recv_queue_min_length;
+
+	/** Maximum RPC recive buffer size. */
+        uint32_t		   rcx_max_rpc_recv_size;
 };
 
 /**
@@ -196,6 +209,111 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
   @param cctx  Initialized rpc context structure.
 */
 int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx);
+
+/**
+   Create a buffer pool per net domain which to be shared by TM's in it.
+   @pre ndom != NULL && app_pool != NULL
+   @pre bufs_nr != 0
+ */
+int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
+				 struct c2_net_buffer_pool *app_pool,
+				 uint32_t bufs_nr, uint32_t tm_nr);
+
+void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool);
+
+/**
+ * Calculates the total number of buffers needed in network domain for
+ * receive buffer pool.
+ * @param len total Length of the TM's in a network domain
+ * @param tms_nr    Number of TM's in the network domain
+ */
+static inline uint32_t c2_rpc_bufs_nr(uint32_t len, uint32_t tms_nr)
+{
+	return len +
+	       /* It is used so that more than one free buffer is present
+		* for each TM when tms_nr > 8.
+		*/
+	       max32u(tms_nr / 4, 1) +
+	       /* It is added so that frequent low_threshold callbacks of
+		* buffer pool can be reduced.
+		*/
+	       C2_NET_BUFFER_POOL_THRESHOLD;
+}
+
+/** Returns the maximum segment size of receive pool of network domain. */ 
+static inline c2_bcount_t c2_rpc_max_seg_size(struct c2_net_domain *ndom)
+{
+	C2_PRE(ndom != NULL);
+
+	return min64u(c2_net_domain_get_max_buffer_segment_size(ndom),
+		      C2_SEG_SIZE);
+}
+
+/** Returns the maximum number of segments of receive pool of network domain. */ 
+static inline uint32_t c2_rpc_max_segs_nr(struct c2_net_domain *ndom)
+{
+	C2_PRE(ndom != NULL);
+
+	return c2_net_domain_get_max_buffer_size(ndom) /
+	       c2_rpc_max_seg_size(ndom);
+}
+
+/** Returns the maximum RPC message size in the network domain. */ 
+static inline c2_bcount_t c2_rpc_max_msg_size(struct c2_net_domain *ndom,
+					      c2_bcount_t rpc_size)
+{
+	c2_bcount_t mbs;
+
+	C2_PRE(ndom != NULL);
+
+	mbs = c2_net_domain_get_max_buffer_size(ndom);
+	return rpc_size != 0 ? rpc_size : mbs;
+}
+
+/**
+ * Returns the maximum number of messages thet can be received in a buffer
+ * of network domain.
+ */ 
+static inline uint32_t c2_rpc_max_recv_msgs(struct c2_net_domain *ndom,
+					    c2_bcount_t rpc_size)
+{
+	C2_PRE(ndom != NULL);
+
+	return c2_net_domain_get_max_buffer_size(ndom) /
+	       c2_rpc_max_msg_size(ndom, rpc_size);
+}
+
+/**
+ * It assigns the maximum RPC message size and maximum number of RPC messages
+ * in a buffer to the RPC machine.
+ * @pre rpc_mach != NULL && dom != NULL
+ * @param colour Unique colour of each transfer machine.
+ * @param msg_size Maximum RPC message size.
+ * @param queue_len Minimum TM receive queue length.
+ */
+static inline void c2_rpc_machine_pre_init(struct c2_rpc_machine *rpc_mach,
+					     struct c2_net_domain  *dom,
+					     uint32_t		    colour,
+					     c2_bcount_t	    msg_size,
+					     uint32_t		    queue_len)
+{
+	C2_PRE(rpc_mach != NULL && dom != NULL);
+
+	rpc_mach->rm_min_recv_size = c2_rpc_max_msg_size(dom, msg_size);
+	rpc_mach->rm_max_recv_msgs = c2_rpc_max_recv_msgs(dom, msg_size);
+	
+	rpc_mach->rm_tm_colour		      = colour;
+	rpc_mach->rm_tm_recv_queue_min_length = queue_len;
+
+}
+
+/**
+ * Converts 127.0.0.1@tcp:12345:32:4 to local_ip@tcp:12345:32:4
+ * and 127.0.0.1@oib:12345:32:4 to local_ip@oib:12345:32:4
+ * @todo Needs to be removed once the alternate way to convert local addresses
+ * for lnet is made available.
+ */
+int c2_lnet_local_addr_get(char *addr);
 
 #endif /* __COLIBRI_RPC_RPCLIB_H__ */
 

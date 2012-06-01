@@ -6,12 +6,14 @@ COLIBRI_STOB_PATH=$COLIBRI_C2T1FS_TEST_DIR/stobs
 
 colibri_service()
 {
-	prog=$COLIBRI_CORE_ROOT/colibri/colibri_setup
-	exec=$COLIBRI_CORE_ROOT/colibri/.libs/lt-colibri_setup
-	prog_args="-r -T $COLIBRI_STOB_DOMAIN -D $COLIBRI_DB_PATH \
-		   -S $COLIBRI_STOB_PATH \
-		   -e $COLIBRI_NET_DOMAIN:$COLIBRI_IOSERVICE_ENDPOINT \
-		   -s $COLIBRI_SERVICE_NAME"
+        prog=$COLIBRI_CORE_ROOT/colibri/colibri_setup
+        exec=$COLIBRI_CORE_ROOT/colibri/.libs/lt-colibri_setup
+        prog_args="-r -T $COLIBRI_STOB_DOMAIN -D $COLIBRI_DB_PATH
+		   -S $COLIBRI_STOB_PATH
+		   -e $COLIBRI_NET_DOMAIN:$COLIBRI_IOSERVICE_ENDPOINT
+		   -s $COLIBRI_SERVICE_NAME
+		   -q $TM_MIN_RECV_QUEUE_LEN
+		   -m $MAX_RPC_MSG_SIZE"
 
 	. /etc/rc.d/init.d/functions
 

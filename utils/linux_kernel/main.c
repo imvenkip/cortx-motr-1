@@ -36,6 +36,7 @@ extern const struct c2_test_suite bulkio_client_ut;
 extern const struct c2_test_suite c2_net_bulk_if_ut;
 extern const struct c2_test_suite c2_net_bulk_mem_ut;
 extern const struct c2_test_suite c2_net_lnet_ut;
+extern const struct c2_test_suite c2_net_tm_prov_ut;
 extern const struct c2_test_suite xcode_ut;
 extern const struct c2_test_suite rpc_service_ut;
 extern const struct c2_test_suite sm_ut;
@@ -54,6 +55,7 @@ static void run_kernel_ut(int ignored)
 	c2_ut_add(&c2_net_bulk_if_ut);
 	c2_ut_add(&c2_net_bulk_mem_ut);
 	c2_ut_add(&c2_net_lnet_ut);
+	c2_ut_add(&c2_net_tm_prov_ut);
 	c2_ut_add(&xcode_ut);
 	c2_ut_add(&rpc_service_ut);
 	c2_ut_add(&sm_ut);
