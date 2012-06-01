@@ -307,6 +307,11 @@ AC_ARG_ENABLE([finject],
         [enable_finject=yes]
 )
 
+AC_ARG_ENABLE([mcheck],
+        [AC_HELP_STRING([--enable-mcheck], [enable glibc malloc check])], [],
+        [enable_mcheck=no]
+)
+
 AC_ARG_ENABLE([gssrpc],
         [AC_HELP_STRING([--enable-gssrpc], [enable gssrpc support])], [],
         [enable_gssrpc=no]
@@ -607,6 +612,10 @@ fi
 
 if test x$enable_finject = xyes; then
         AC_DEFINE([ENABLE_FAULT_INJECTION])
+fi
+
+if test x$enable_mcheck = xyes; then
+	LDFLAGS="$LDFLAGS -lmcheck"
 fi
 
 # Check if gcc option is supported in current gcc version.
