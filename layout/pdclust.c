@@ -691,9 +691,8 @@ static int pdclust_encode(struct c2_layout *l,
 
 	if (op == C2_LXO_DB_UPDATE) {
 		/*
-		 * Processing the oldrec_cur, to verify that nothing other than
-		 * l_ref is being changed for this layout and then to make it
-		 * point to the enumeration type specific payload.
+		 * Processing the oldrec_cur, to verify that no layout
+		 * type specific data is being changed for this layout.
 		 */
 		pl_oldrec = c2_bufvec_cursor_addr(oldrec_cur);
 

@@ -261,6 +261,10 @@ static int linear_encode(const struct c2_layout_enum *le,
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
 	if (op == C2_LXO_DB_UPDATE) {
+		/*
+		 * Processing the oldrec_cur, to verify that no enumeration
+		 * specific data is being changed for this layout.
+		 */
 		old_attr = c2_bufvec_cursor_addr(oldrec_cur);
 
 		C2_ASSERT(old_attr->lla_nr == lin_enum->lle_attr.lla_nr &&

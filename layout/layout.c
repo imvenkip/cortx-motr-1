@@ -1232,8 +1232,8 @@ int c2_layout_encode(struct c2_layout *l,
 
 	if (op == C2_LXO_DB_UPDATE) {
 		/*
-		 * Processing the oldrec_cur, to verify that the layout
-		 * type and pool id have not changed and then to make it
+		 * Processing the oldrec_cur, to verify that nothing other than
+		 * l_ref is being changed for this layout and then to make it
 		 * point to the layout type specific payload.
 		 */
 		oldrec = c2_bufvec_cursor_addr(oldrec_cur);
