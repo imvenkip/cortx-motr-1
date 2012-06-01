@@ -11,7 +11,6 @@ POOL_WIDTH=3
 TM_MIN_RECV_QUEUE_LEN=2
 MAX_RPC_MSG_SIZE=0
 
-
 prepare_testdir()
 {
         stob_domain=$COLIBRI_STOB_DOMAIN
