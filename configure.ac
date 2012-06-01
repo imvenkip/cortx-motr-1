@@ -355,7 +355,7 @@ AC_SUBST([ENABLE_COVERAGE])
 if test "x[$]ENABLE_COVERAGE" = "x1"
 then
 	# Remove -O<digit> flag from $CFLAGS
-	CFLAGS="`echo $CFLAGS | sed 's/-O[0-9]//g'` --coverage"
+	CFLAGS="`echo $CFLAGS | sed 's/-O[[0-9]]//g'` --coverage"
 	LDFLAGS="-lgcov"
 	K_ENABLE_COVERAGE=y
 else
@@ -639,7 +639,8 @@ CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing \
 fi
 
 #
-# Galois header may be in one of the following standard loctions. Kernel needs to know about.
+# Galois header may be in one of the following standard loctions.
+# Kernel needs to know about.
 #
 KCFLAGS="-Wall -Werror $KCFLAGS $GALOIS_INCLUDES"
 COLIBRI_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable])
@@ -647,9 +648,9 @@ COLIBRI_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable])
 LDFLAGS="-rdynamic $LDFLAGS"
 
 # trim spaces at the end of flags
-CFLAGS=$(echo $CFLAGS | sed 's/[[:blank:]]*$//')
-KCFLAGS=$(echo $KCFLAGS | sed 's/[[:blank:]]*$//')
-LDFLAGS=$(echo $LDFLAGS | sed 's/[[:blank:]]*$//')
+CFLAGS=$(echo $CFLAGS | sed 's/[[[:blank:]]]*$//')
+KCFLAGS=$(echo $KCFLAGS | sed 's/[[[:blank:]]]*$//')
+LDFLAGS=$(echo $LDFLAGS | sed 's/[[[:blank:]]]*$//')
 AC_SUBST([KCFLAGS])
 
 # Please keep this list sorted (always appending new items at the end
