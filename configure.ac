@@ -298,12 +298,12 @@ AC_FUNC_MALLOC
 
 # Configure options
 AC_ARG_ENABLE([debug],
-        [AC_HELP_STRING([--enable-debug], [disable debug information and logs])], [],
+        [AC_HELP_STRING([--enable-debug], [enable debug information and logs])], [],
         [enable_debug=no]
 )
 
 AC_ARG_ENABLE([finject],
-        [AC_HELP_STRING([--disable-finject], [enable fault injection support])], [],
+        [AC_HELP_STRING([--disable-finject], [disable fault injection support])], [],
         [enable_finject=yes]
 )
 
