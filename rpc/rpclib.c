@@ -191,7 +191,7 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 		goto pool_fini;
 
 	c2_rpc_machine_pre_init(rpc_mach, ndom, C2_BUFFER_ANY_COLOUR,
-				cctx->rcx_max_rpc_recv_size,
+				cctx->rcx_max_rpc_msg_size,
 				cctx->rcx_recv_queue_min_length);
 
 	rc = c2_rpc_machine_init(rpc_mach, cctx->rcx_cob_dom,

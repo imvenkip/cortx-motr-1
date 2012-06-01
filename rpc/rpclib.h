@@ -176,7 +176,7 @@ struct c2_rpc_client_ctx {
         uint32_t		   rcx_recv_queue_min_length;
 
 	/** Maximum RPC recive buffer size. */
-        uint32_t		   rcx_max_rpc_recv_size;
+        uint32_t		   rcx_max_rpc_msg_size;
 };
 
 /**
@@ -240,7 +240,7 @@ static inline uint32_t c2_rpc_bufs_nr(uint32_t len, uint32_t tms_nr)
 	       C2_NET_BUFFER_POOL_THRESHOLD;
 }
 
-/** Returns the maximum segment size of receive pool of network domain. */ 
+/** Returns the maximum segment size of receive pool of network domain. */
 static inline c2_bcount_t c2_rpc_max_seg_size(struct c2_net_domain *ndom)
 {
 	C2_PRE(ndom != NULL);
@@ -249,7 +249,7 @@ static inline c2_bcount_t c2_rpc_max_seg_size(struct c2_net_domain *ndom)
 		      C2_SEG_SIZE);
 }
 
-/** Returns the maximum number of segments of receive pool of network domain. */ 
+/** Returns the maximum number of segments of receive pool of network domain. */
 static inline uint32_t c2_rpc_max_segs_nr(struct c2_net_domain *ndom)
 {
 	C2_PRE(ndom != NULL);
@@ -258,7 +258,7 @@ static inline uint32_t c2_rpc_max_segs_nr(struct c2_net_domain *ndom)
 	       c2_rpc_max_seg_size(ndom);
 }
 
-/** Returns the maximum RPC message size in the network domain. */ 
+/** Returns the maximum RPC message size in the network domain. */
 static inline c2_bcount_t c2_rpc_max_msg_size(struct c2_net_domain *ndom,
 					      c2_bcount_t rpc_size)
 {
@@ -273,7 +273,7 @@ static inline c2_bcount_t c2_rpc_max_msg_size(struct c2_net_domain *ndom,
 /**
  * Returns the maximum number of messages thet can be received in a buffer
  * of network domain.
- */ 
+ */
 static inline uint32_t c2_rpc_max_recv_msgs(struct c2_net_domain *ndom,
 					    c2_bcount_t rpc_size)
 {
@@ -301,7 +301,7 @@ static inline void c2_rpc_machine_pre_init(struct c2_rpc_machine *rpc_mach,
 
 	rpc_mach->rm_min_recv_size = c2_rpc_max_msg_size(dom, msg_size);
 	rpc_mach->rm_max_recv_msgs = c2_rpc_max_recv_msgs(dom, msg_size);
-	
+
 	rpc_mach->rm_tm_colour		      = colour;
 	rpc_mach->rm_tm_recv_queue_min_length = queue_len;
 

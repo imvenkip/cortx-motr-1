@@ -485,7 +485,7 @@ int bulkio_client_start(struct bulkio_params *bp, const char *caddr, int cport,
 	cctx->rcx_timeout_s		= IO_RPC_CONN_TIMEOUT;
 	cctx->rcx_max_rpcs_in_flight	= IO_RPC_MAX_IN_FLIGHT;
 	cctx->rcx_recv_queue_min_length = IO_TM_RECV_QUEUE_MIN_LEN;
-	cctx->rcx_max_rpc_recv_size     = IO_MAX_RPC_MSG_SIZE;
+	cctx->rcx_max_rpc_msg_size	= IO_MAX_RPC_MSG_SIZE;
 
 	C2_ALLOC_ARR(cli_addr, IO_ADDR_LEN);
 	C2_ASSERT(cli_addr != NULL);

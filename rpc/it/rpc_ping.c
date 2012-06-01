@@ -403,7 +403,7 @@ static int run_client(void)
 	cctx.rcx_timeout_s             = CONNECT_TIMEOUT,
 	cctx.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT,
 	cctx.rcx_recv_queue_min_length = tm_recv_queue_len;
-	cctx.rcx_max_rpc_recv_size     = max_rpc_msg_size,
+	cctx.rcx_max_rpc_msg_size      = max_rpc_msg_size,
 
 	rc = build_endpoint_addr(EP_SERVER, server_endpoint,
 					sizeof(server_endpoint));
