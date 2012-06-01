@@ -667,10 +667,13 @@ static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 	/* Allocate the bufvec of size = min((buf_size), (segs_nr * seg_size)).
 	   We keep the segment size constant. So mostly the number of segments
 	   is changed here. */
-	if (buf_size > (segs_nr * seg_size))
+	if (buf_size > (segs_nr * seg_size)) {
 		nrsegs = segs_nr;
-	else
+	} else {
 		nrsegs = buf_size / seg_size;
+		if (buf_size % seg_size != 0)
+			++nrsegs;
+	}
 	if (nrsegs == 0)
 		++nrsegs;
 

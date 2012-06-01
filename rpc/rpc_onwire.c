@@ -248,7 +248,8 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 		C2_ASSERT(item_type->rit_ops->rito_encode != NULL);
 		C2_ASSERT(item_type->rit_ops->rito_item_size != NULL);
 		offset = len + item_type->rit_ops->rito_item_size(item);
-		C2_ASSERT(offset < bufvec_size);
+
+		C2_ASSERT(offset <= bufvec_size);
 		len = offset;
 		/* Call the associated encode function for the that item type */
 		rc = item_type->rit_ops->rito_encode(item_type, item, &cur);

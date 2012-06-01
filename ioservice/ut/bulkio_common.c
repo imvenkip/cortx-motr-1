@@ -36,7 +36,7 @@
    @todo This value can be reduced after multiple message delivery in a
     single buffer is supported.
  */
-#define IO_TM_RECV_QUEUE_MIN_LEN 6
+#define IO_TM_RECV_QUEUE_MIN_LEN 8
 /** Non zero value is given for multiple message delivery support. */
 #define IO_MAX_RPC_MSG_SIZE      0
 
