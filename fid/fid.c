@@ -80,12 +80,12 @@ static struct c2_fop_type_format *c2_fid_fmts[] = {
         &c2_fop_fid_tfmt
 };
 
-void c2_fid_unregister(void)
+void c2_fid_fini(void)
 {
         c2_fop_type_format_fini_nr(c2_fid_fmts, ARRAY_SIZE(c2_fid_fmts));
 }
 
-int c2_fid_register(void)
+int c2_fid_init(void)
 {
 	int rc;
 

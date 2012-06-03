@@ -43,8 +43,8 @@ bool c2_fid_is_valid(const struct c2_fid *fid);
 bool c2_fid_eq(const struct c2_fid *fid0, const struct c2_fid *fid1);
 int c2_fid_cmp(const struct c2_fid *fid0, const struct c2_fid *fid1);
 
-void c2_fid_unregister(void);
-int c2_fid_register(void);
+void c2_fid_fini(void);
+int c2_fid_init(void);
 
 /** @} end of fid group */
 
