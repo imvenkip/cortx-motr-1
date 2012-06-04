@@ -2,6 +2,7 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_FORMATION
 #include "lib/trace.h"
 #include "lib/misc.h"
+#include "lib/errno.h"
 #include "rpc/formation2.h"
 #include "rpc/packet.h"
 #include "rpc/rpc2.h"
@@ -68,9 +69,9 @@ static bool packet_ready(struct c2_rpc_packet  *p,
 
 	C2_ALLOC_PTR(rpcbuf);
 	if (rpcbuf == NULL) {
-		C2_LEAVE("Failed to allocate memory");
-		/** @todo XXX store packet somewhere */
-		return false;
+		rc = -ENOMEM;
+		C2_LOG("Failed to allocate rpcbuf");
+		goto out;
 	}
 	rc = rpc_buffer_init(rpcbuf, p, machine, rchan);
 	if (rc != 0)
@@ -90,6 +91,7 @@ out_free:
 	C2_ASSERT(rpcbuf != NULL);
 	c2_free(rpcbuf);
 
+out:
 	c2_rpc_packet_failed(p, rc);
 	c2_rpc_packet_remove_all_items(p);
 	c2_rpc_packet_fini(p);

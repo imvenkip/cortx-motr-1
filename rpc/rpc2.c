@@ -223,10 +223,11 @@ int c2_rpc__post_locked(struct c2_rpc_item *item)
 
 	C2_ASSERT(c2_rpc_machine_is_locked(session->s_conn->c_rpc_machine));
 
+	c2_rpc_session_hold_busy(session);
+
 	item->ri_rpc_time = c2_time_now();
 
 	item->ri_state = RPC_ITEM_SUBMITTED;
-	//frm_ubitem_added(item);
 	c2_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm, item);
 	return 0;
 }
@@ -267,6 +268,7 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 
 	c2_rpc_machine_lock(machine);
 
+	c2_rpc_session_hold_busy(reply->ri_session);
 	c2_rpc_slot_reply_received(slot, reply, &tmp);
 	C2_ASSERT(tmp == request);
 

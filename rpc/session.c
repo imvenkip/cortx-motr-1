@@ -202,8 +202,7 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 bool c2_rpc_session_is_idle(const struct c2_rpc_session *session)
 {
 	return session->s_nr_active_items == 0 &&
-	       session->s_hold_cnt == 0 &&
-	       c2_list_is_empty(&session->s_unbound_items);
+	       session->s_hold_cnt == 0;
 }
 
 static int nr_active_items_count(const struct c2_rpc_session *session)
@@ -971,7 +970,6 @@ bool c2_rpc_session_bind_item(struct c2_rpc_item *item)
 }
 static void snd_item_consume(struct c2_rpc_item *item)
 {
-	//frm_item_ready(item);
 	c2_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm, item);
 }
 
@@ -999,7 +997,6 @@ static void rcv_item_consume(struct c2_rpc_item *item)
 static void rcv_reply_consume(struct c2_rpc_item *req,
 			      struct c2_rpc_item *reply)
 {
-	//frm_item_ready(reply);
 	c2_rpc_frm_enq_item(&req->ri_session->s_conn->c_rpcchan->rc_frm,
 			    reply);
 }

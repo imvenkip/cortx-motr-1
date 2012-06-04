@@ -218,6 +218,9 @@ void c2_rpc_packet_sent(struct c2_rpc_packet *p)
 		C2_LOG("item %p SENT", item);
 		/* implement SENT callback here */
 		item->ri_state = RPC_ITEM_SENT;
+		item->ri_error = 0;
+		if (c2_rpc_item_is_bound(item))
+			c2_rpc_session_release(item->ri_session);
 	} c2_tl_endfor;
 
 	C2_LEAVE();
@@ -236,6 +239,8 @@ void c2_rpc_packet_failed(struct c2_rpc_packet *p, int rc)
 		/* implement FAILED callback here */
 		item->ri_state = RPC_ITEM_SEND_FAILED;
 		item->ri_error = rc;
+		if (c2_rpc_item_is_bound(item))
+			c2_rpc_session_release(item->ri_session);
 	} c2_tl_endfor;
 
 	C2_LEAVE();

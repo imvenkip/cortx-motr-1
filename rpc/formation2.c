@@ -572,6 +572,7 @@ void frm_try_merging_item(struct c2_rpc_frm  *frm,
 void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm)
 {
 	C2_ENTRY("frm: %p", frm);
+	C2_ASSERT(frm_invariant(frm));
 
 	frm_balance(frm);
 
@@ -580,10 +581,18 @@ void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm)
 
 void c2_rpc_frm_packet_done(struct c2_rpc_packet *p)
 {
+	struct c2_rpc_frm *frm;
+
 	C2_ENTRY("packet: %p", p);
-	C2_PRE(c2_rpc_packet_invariant(p) && p->rp_frm != NULL);
+	C2_ASSERT(c2_rpc_packet_invariant(p));
 
-	C2_CNT_DEC(p->rp_frm->f_nr_packets_enqed);
+	frm = p->rp_frm;
+	C2_ASSERT(frm_invariant(frm));
 
-	C2_LEAVE("nr_packets_enqed: %llu", (ULL)p->rp_frm->f_nr_packets_enqed);
+	C2_CNT_DEC(frm->f_nr_packets_enqed);
+	C2_LOG("nr_packets_enqed: %llu", (ULL)frm->f_nr_packets_enqed);
+
+	frm_balance(frm);
+
+	C2_LEAVE();
 }
