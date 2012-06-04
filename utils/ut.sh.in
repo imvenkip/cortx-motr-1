@@ -24,5 +24,3 @@ if test x$enable_rpm = xyes; then
 else
     @SRCDIR@/utils/ut "$@"
 fi
-
-

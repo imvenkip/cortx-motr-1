@@ -25,7 +25,7 @@ c2_db_tx_waiter      tw_magix                ab5c155a0fa1bed0 abscissa of albedo
 enw_tl               td_head_magic           da2edc0cc1d10515 dazed coccidiosis
 c2_rpc_machine       rm_magic                52485F52504D4844 RH_RPMHD
 c2_rhrpm_tl          td_head_magic             5250434D414348 RPCMACH
-c2_reqh_service      rs_magic                      5248535643 RHSVC 
+c2_reqh_service      rs_magic                      5248535643 RHSVC
 c2_rhsvc_tl          td_head_magic             52485356434844 RHSVCHD
-c2_reqh_service_type rst_magic                     5248535643 RHSVC 
+c2_reqh_service_type rst_magic                     5248535643 RHSVC
 c2_rstypes_tl        td_head_magic             52485356434844 RHSVCHD
