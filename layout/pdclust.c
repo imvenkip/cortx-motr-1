@@ -111,6 +111,10 @@ static const struct c2_bob_type pdclust_bob = {
 
 C2_BOB_DEFINE(static, &pdclust_bob, c2_pdclust_layout);
 
+C2_ADDB_EV_DEFINE(pdclust_tile_cache_hit,
+		  "pdclust_tile_cache_hit",
+		  C2_ADDB_EVENT_LAYOUT_TILE_CACHE_HIT, C2_ADDB_FLAG);
+
 /**
  * "Encoding" function: returns the number that a (row, column) element of a
  * matrix with "width" columns has when elements are counted row by row. This
@@ -272,6 +276,11 @@ static uint64_t permute_column(struct c2_pdclust_layout *play,
 			tc->tc_permute, tc->tc_inverse);
 		tc->tc_tile_no = omega;
 	}
+
+	C2_ADDB_ADD(&play->pl_base.ls_base.l_addb, &layout_addb_loc,
+		    pdclust_tile_cache_hit,
+		    tc->tc_tile_no == omega);
+
 	C2_ASSERT(tc->tc_permute[t] < play->pl_attr.pa_P);
 	C2_ASSERT(tc->tc_inverse[tc->tc_permute[t]] == t);
 	C2_ASSERT(tc->tc_permute[tc->tc_inverse[t]] == t);
