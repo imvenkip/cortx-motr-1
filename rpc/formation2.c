@@ -20,7 +20,7 @@ void __frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
 unsigned long item_timer_callback(unsigned long data);
 void frm_balance(struct c2_rpc_frm *frm);
 void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p);
-void frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p);
+bool frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p);
 bool frm_try_to_bind_item(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
 void frm_try_merging_item(struct c2_rpc_frm  *frm,
 			  struct c2_rpc_item *item,
@@ -114,7 +114,7 @@ void c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *c)
 	C2_ENTRY();
 
 	/* XXX Temporary */
-	c->fc_max_nr_packets_enqed     = 10000;
+	c->fc_max_nr_packets_enqed     = 100;
 	c->fc_max_nr_segments          = 128;
 	c->fc_max_packet_size          = 4096;
 	c->fc_max_nr_bytes_accumulated = 4096;
@@ -431,9 +431,10 @@ bool frm_is_ready(const struct c2_rpc_frm *frm)
 }
 void frm_balance(struct c2_rpc_frm *frm)
 {
-	struct c2_rpc_packet *p;
-	int                   packet_count;
-	int                   item_count;
+	struct c2_rpc_packet   *p;
+	int                     packet_count;
+	int                     item_count;
+	bool                    packet_enqed;
 
 	C2_ENTRY("frm: %p", frm);
 	C2_PRE(frm != NULL);
@@ -462,22 +463,30 @@ void frm_balance(struct c2_rpc_frm *frm)
 		}
 		++packet_count;
 		item_count += p->rp_nr_items;
-		frm_packet_ready(frm, p);
+		packet_enqed = frm_packet_ready(frm, p);
+		if (packet_enqed)
+			++frm->f_nr_packets_enqed;
 	}
 
 	C2_LEAVE("formed %d packet(s) [%d items]", packet_count, item_count);
 }
 
-void frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
+bool frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 {
+	bool packet_enqed;
+
 	C2_ENTRY("frm: %p packet %p", frm, p);
 
 	C2_PRE(frm != NULL && p != NULL && !c2_rpc_packet_is_empty(p));
 	C2_PRE(frm->f_ops != NULL && frm->f_ops->fo_packet_ready != NULL);
 	C2_LOG("nr_items: %llu", (ULL)p->rp_nr_items);
 
-	++frm->f_nr_packets_enqed;
-	frm->f_ops->fo_packet_ready(p, frm->f_rmachine, frm->f_rchan);
+	p->rp_frm = frm;
+	packet_enqed = frm->f_ops->fo_packet_ready(p, frm->f_rmachine,
+						      frm->f_rchan);
+
+	C2_LEAVE("result: %s", packet_enqed ? "true" : "false");
+	return packet_enqed;
 }
 
 bool frm_try_to_bind_item(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
@@ -567,4 +576,14 @@ void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm)
 	frm_balance(frm);
 
 	C2_LEAVE();
+}
+
+void c2_rpc_frm_packet_done(struct c2_rpc_packet *p)
+{
+	C2_ENTRY("packet: %p", p);
+	C2_PRE(c2_rpc_packet_invariant(p) && p->rp_frm != NULL);
+
+	C2_CNT_DEC(p->rp_frm->f_nr_packets_enqed);
+
+	C2_LEAVE("nr_packets_enqed: %llu", (ULL)p->rp_frm->f_nr_packets_enqed);
 }

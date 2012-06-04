@@ -287,12 +287,14 @@ void out_buffer_event_handler(const struct c2_net_buffer_event *ev)
 	c2_rpc_machine_lock(machine);
 
 	p = rpcbuf->rb_packet;
+	p->rp_status = ev->nbe_status;
+
 	if (ev->nbe_status == 0)
 		c2_rpc_packet_sent(p);
 	else
 		c2_rpc_packet_failed(p, ev->nbe_status);
 
-	c2_chan_broadcast(&p->rp_chan);
+	c2_rpc_frm_packet_done(p);
 	c2_rpc_packet_remove_all_items(p);
 	c2_rpc_packet_fini(p);
 	c2_free(p);

@@ -3,19 +3,19 @@
 
 #include "lib/vec.h"
 #include "lib/tlist.h"
-#include "lib/chan.h"
 
 struct c2_rpc_item;
+struct c2_rpc_frm;
 
 enum {
 	C2_RPC_PACKET_OW_HEADER_SIZE = 16
 };
 struct c2_rpc_packet {
-	uint32_t       rp_nr_items;
-	c2_bcount_t    rp_size;
-	struct c2_tl   rp_items;
-	struct c2_chan rp_chan;
-	int            rp_status;
+	uint32_t           rp_nr_items;
+	c2_bcount_t        rp_size;
+	struct c2_tl       rp_items;
+	int                rp_status;
+	struct c2_rpc_frm *rp_frm;
 };
 
 bool c2_rpc_packet_invariant(const struct c2_rpc_packet *packet);

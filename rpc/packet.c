@@ -1,5 +1,4 @@
 #include "lib/tlist.h"
-#include "lib/chan.h"
 #include "lib/misc.h"
 #include "lib/vec.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_FORMATION
@@ -45,7 +44,6 @@ void c2_rpc_packet_init(struct c2_rpc_packet *p)
 	C2_SET0(p);
 	p->rp_size = C2_RPC_PACKET_OW_HEADER_SIZE;
 	packet_item_tlist_init(&p->rp_items);
-	c2_chan_init(&p->rp_chan);
 
 	C2_ASSERT(c2_rpc_packet_invariant(p));
 	C2_LEAVE();
@@ -56,7 +54,6 @@ void c2_rpc_packet_fini(struct c2_rpc_packet *p)
 	C2_ENTRY("packet: %p nr_items: %llu", p, (ULL)p->rp_nr_items);
 	C2_PRE(c2_rpc_packet_invariant(p) && p->rp_nr_items == 0);
 
-	c2_chan_fini(&p->rp_chan);
 	packet_item_tlist_fini(&p->rp_items);
 	C2_SET0(p);
 
