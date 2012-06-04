@@ -9,6 +9,7 @@ md_fops_u.h md_fops_u.c: md_fops.ff \
 
 noinst_LTLIBRARIES               = libcolibri-mdservice.la
 libcolibri_mdservice_la_SOURCES  = md_fops_u.c md_fops_u.h \
+	                           md_service.h md_service.c \
 				   md_foms.c md_foms.h md_fops.c md_fops.h
 INCLUDES                         = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 

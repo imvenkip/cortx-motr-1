@@ -43,9 +43,6 @@ extern struct c2_fop_type c2_fop_getattr_rep_fopt;
 extern struct c2_fop_type c2_fop_rename_rep_fopt;
 extern struct c2_fop_type c2_fop_readdir_rep_fopt;
 
-void c2_mds_unregister(void);
-int c2_mds_register(void);
-
 int c2_mdservice_fop_init(void);
 void c2_mdservice_fop_fini(void);
 
