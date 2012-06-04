@@ -46,12 +46,12 @@
   c2t1fs does not support caching. All read-write requests are directly
   forwarded to servers.
 
-  By default c2t1fs uses end-point address 127.0.0.1:12345:1 as its local
+  By default c2t1fs uses end-point address 0@lo:12345:45:6 as its local
   address. This address can be changed with local_addr module parameter.
-  e.g. to make c2t1fs use 192.168.10.20:12345:1 as its end-point address
+  e.g. to make c2t1fs use 172.18.50.40@o2ib1:12345:34:1 as its end-point address
   load module with command:
 
-  sudo insmod kcolibri.ko local_addr="192.168.10.20:12345:1"
+  sudo insmod kcolibri.ko local_addr="172.18.50.40@o2ib1:12345:34:1"
 
   c2t1fs can be mounted with mount command:
 
@@ -60,7 +60,7 @@
   where <options_list> is a comma separated list of option=value elements.
   Currently supported list of options is:
 
-  - mgs [value type: end-point address e.g. 127.0.0.1:123321:1 ]
+  - mgs [value type: end-point address e.g. 192.168.50.40@tcp:12345:34:1 ]
       end-point address of management service or confd.
       @note terms 'mgs' and 'confd' are used interchangably in the text.
 

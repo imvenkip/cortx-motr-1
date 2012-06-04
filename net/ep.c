@@ -28,7 +28,6 @@
 #include "lib/cdefs.h"
 #include "lib/finject.h"
 #include "net/net_internal.h"
-#include "net/lnet/lnet.h"
 
 /** @}
  @addtogroup net

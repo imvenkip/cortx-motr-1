@@ -38,7 +38,6 @@
 #include "rpc/rpc2.h"
 #include "rpc/it/ping_fop.h"
 #include "rpc/it/ping_fom.h"
-#include "ut/net.h"     /* canon_host */
 #include "rpc/rpclib.h" /* c2_rpc_server_start */
 #include "ut/rpc.h"     /* c2_rpc_client_init */
 #include "fop/fop.h"    /* c2_fop_default_item_ops */
@@ -65,7 +64,7 @@
 
 
 #define TRANSPORT_NAME		"lnet"
-#define SERVER_ENDPOINT         TRANSPORT_NAME ":" "127.0.0.1@tcp:12345:34:1"
+#define SERVER_ENDPOINT         TRANSPORT_NAME ":" "0@lo:12345:34:1"
 
 #define CLIENT_DB_FILE_NAME	"rpcping_client.db"
 
@@ -89,8 +88,8 @@ enum ep_type {
 };
 
 enum {
-	BUF_LEN = 128,
-	C2_LNET_PORTAL = 34,
+	BUF_LEN            = 128,
+	C2_LNET_PORTAL     = 34,
 	STRING_LEN	   = 16,
 	MAX_RPCS_IN_FLIGHT = 32,
 	CLIENT_COB_DOM_ID  = 13,
@@ -103,22 +102,20 @@ static char tm_len[STRING_LEN]   = to_string(TM_RECV_QUEUE_MIN_LEN);
 static char rpc_size[STRING_LEN] = to_string(MAX_RPC_MSG_SIZE);
 #endif
 
-static bool verbose           = false;
-static char *server_nid  = "127.0.0.1@tcp";
-static char *client_nid  = "127.0.0.1@tcp";
-static int server_tmid   = 1;
-static int client_tmid   = 2;
-static int  nr_client_threads = 1;
-static int  nr_slots          = 1;
-static int  nr_ping_bytes     = 8;
-static int  nr_ping_item      = 1;
-static int  tm_recv_queue_len = TM_RECV_QUEUE_MIN_LEN;
-static int  max_rpc_msg_size  = MAX_RPC_MSG_SIZE;
+static bool  verbose           = false;
+static char *server_nid        = "0@lo";
+static char *client_nid        = "0@lo";
+static int   server_tmid       = 1;
+static int   client_tmid       = 2;
+static int   nr_client_threads = 1;
+static int   nr_slots          = 1;
+static int   nr_ping_bytes     = 8;
+static int   nr_ping_item      = 1;
+static int   tm_recv_queue_len = TM_RECV_QUEUE_MIN_LEN;
+static int   max_rpc_msg_size  = MAX_RPC_MSG_SIZE;
 
-static char client_endpoint[C2_NET_LNET_XEP_ADDR_LEN] =
-	"127.0.0.1@tcp:12345:34:2";
-static char server_endpoint[C2_NET_LNET_XEP_ADDR_LEN] =
-	"127.0.0.1@tcp:12345:34:1";
+static char client_endpoint[C2_NET_LNET_XEP_ADDR_LEN];
+static char server_endpoint[C2_NET_LNET_XEP_ADDR_LEN];
 
 static struct c2_net_xprt *xprt = &c2_net_lnet_xprt;
 
@@ -415,13 +412,6 @@ static int run_client(void)
 		goto fop_fini;
 
 	rc = c2_net_domain_init(&client_net_dom, xprt);
-	if (rc != 0)
-		goto xprt_fini;
-
-	rc = c2_lut_lhost_lnet_conv(&client_net_dom, client_endpoint);
-	if (rc != 0)
-		goto xprt_fini;
-	rc = c2_lut_lhost_lnet_conv(&client_net_dom, server_endpoint);
 	if (rc != 0)
 		goto xprt_fini;
 

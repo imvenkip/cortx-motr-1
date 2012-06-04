@@ -48,7 +48,7 @@ C2_TL_DESCR_DECLARE(rpcbulk, extern);
 extern struct c2_reqh_service_type c2_ioservice_type;
 
 #ifndef __KERNEL__
-int bulkio_server_start(struct bulkio_params *bp, char *saddr)
+int bulkio_server_start(struct bulkio_params *bp, const char *saddr)
 {
 	int			      i;
 	int			      rc                = 0;
@@ -91,8 +91,6 @@ int bulkio_server_start(struct bulkio_params *bp, char *saddr)
 	strcpy(server_args[7], S_STOBFILE);
 	strcpy(server_args[8], "-e");
 	strcat(server_args[9], xprt);
-	rc = c2_lut_lhost_lnet_conv(&bp->bp_cnetdom, saddr);
-	C2_ASSERT(rc == 0);
 	strcat(server_args[9], saddr);
 	strcpy(server_args[10], "-s");
 	strcpy(server_args[11], "ioservice");
@@ -438,8 +436,8 @@ void bulkio_params_fini(struct bulkio_params *bp)
 	c2_free(bp->bp_slogfile);
 }
 
-int bulkio_client_start(struct bulkio_params *bp, char *caddr,
-			char *saddr)
+int bulkio_client_start(struct bulkio_params *bp, const char *caddr,
+			const char *saddr)
 {
 	int			  rc;
 	char			 *cdbname;
@@ -459,10 +457,8 @@ int bulkio_client_start(struct bulkio_params *bp, char *caddr,
 	cctx->rcx_max_rpcs_in_flight    = IO_RPC_MAX_IN_FLIGHT;
 	cctx->rcx_recv_queue_min_length = IO_TM_RECV_QUEUE_MIN_LEN;
         cctx->rcx_max_rpc_recv_size     = IO_MAX_RPC_MSG_SIZE;
-
-	c2_lut_lhost_lnet_conv(&bp->bp_cnetdom, caddr);
-	cctx->rcx_local_addr = caddr;
-	cctx->rcx_net_dom = &bp->bp_cnetdom;
+	cctx->rcx_local_addr            = caddr;
+	cctx->rcx_net_dom               = &bp->bp_cnetdom;
 
 	C2_ALLOC_ARR(cdbname, IO_STR_LEN);
 	C2_ASSERT(cdbname != NULL);

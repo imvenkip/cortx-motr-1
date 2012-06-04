@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>,
- *			Mandar Sawant <Mandar_Sawant@xyratex.com>
+ *		    Mandar Sawant <Mandar_Sawant@xyratex.com>
  * Original creation date: 05/19/2010
  */
 

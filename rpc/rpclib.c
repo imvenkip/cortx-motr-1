@@ -163,22 +163,6 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	rpc_mach    = &cctx->rcx_rpc_machine;
 	buffer_pool = &cctx->rcx_buffer_pool;
 
-	if (strcmp(ndom->nd_xprt->nx_name, "lnet") == 0 &&
-	    strstr(cctx->rcx_local_addr, "127.0.0.1") != NULL) {
-		char caddr[C2_NET_LNET_XEP_ADDR_LEN];
-		char saddr[C2_NET_LNET_XEP_ADDR_LEN];
-		strcpy(caddr, cctx->rcx_local_addr);
-		rc = c2_lnet_local_addr_get(caddr);
-		if (rc != 0)
-			return rc;
-		strcpy(saddr, cctx->rcx_remote_addr);
-		rc = c2_lnet_local_addr_get(saddr);
-		if (rc != 0)
-			return rc;
-		cctx->rcx_local_addr  = caddr;
-		cctx->rcx_remote_addr = saddr;
-	}
-
 	if (cctx->rcx_recv_queue_min_length == 0)
 		cctx->rcx_recv_queue_min_length = C2_NET_TM_RECV_QUEUE_DEF_LEN;
 
@@ -291,56 +275,6 @@ int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
 	c2_rpc_machine_fini(&cctx->rcx_rpc_machine);
 
 	c2_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
-
-	return rc;
-}
-
-int c2_lnet_local_addr_get(char *addr)
-{
-	char * const	     *ifaces;
-	const char	     *network; /* "addr@interface" */
-	const char	     *endpoint;
-	char		     *sptr;
-	char		     *tmp;
-	char		     *nw_if;
-	char		     *nw_type;
-	char		     *ip;
-	int		      i;
-	struct c2_net_domain *ndom;
-	int		      rc;
-
-	C2_ALLOC_PTR(ndom);
-        rc = c2_net_domain_init(ndom, &c2_net_lnet_xprt);
-	if (rc != 0) {
-		c2_free(ndom);
-		return rc;
-	}
-
-	C2_ALLOC_ARR(sptr, strlen(addr) + 1);
-	tmp = sptr;
-	strcpy(sptr, addr);
-	c2_net_lnet_ifaces_get(ndom, &ifaces);
-	C2_ASSERT(ifaces != NULL);
-	for (i = 0; ifaces[i] != NULL; ++i) {
-		if (strstr(ifaces[i], "@lo") != NULL)
-			continue;
-		network = ifaces[i]; /* 1st !@lo */
-		nw_if   = strsep(&sptr, ":");
-		ip      = strsep(&nw_if, "@");
-		if (strcmp(ip, "127.0.0.1") != 0)
-			break;
-		nw_type = strsep(&nw_if, "\0");
-		if (strstr(ifaces[i], nw_type) == NULL)
-			continue;
-		endpoint = strsep(&sptr, "\0");
-		snprintf(addr, C2_NET_LNET_XEP_ADDR_LEN, "%s:%s",
-			 network, endpoint);
-		break;
-	}
-	c2_net_lnet_ifaces_put(ndom, &ifaces);
-	c2_net_domain_fini(ndom);
-	c2_free(ndom);
-	c2_free(tmp);
 
 	return rc;
 }

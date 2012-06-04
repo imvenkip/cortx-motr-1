@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -70,11 +70,13 @@ enum {
 
 /**
    Capability issuer.
+   @todo Use proper capability issuer
+*/
 
 struct c2_capa_issuer {
-        struct c2_service_id ci_id;
+
 };
-*/
+
 struct c2_capa_ctxt;
 /**
    Colibri Object Capability

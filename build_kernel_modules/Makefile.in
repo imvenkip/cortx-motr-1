@@ -44,7 +44,6 @@ dirs  = addb                                                                  \
         lib/ut                                                                \
         net                                                                   \
         net/bulk_emulation/ut                                                 \
-        net/lnet                                                              \
         net/lnet/ut                                                           \
         net/ut                                                                \
         pool                                                                  \
@@ -119,8 +118,6 @@ net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c    \
 net_HEADERS                     := net_otw_types_k.h
 
 net_bulk_emulation_ut_SOURCES   := bulk_mem_ut.c
-
-net_lnet_SOURCES                := lnet_utils.c
 
 net_lnet_ut_SOURCES             := lnet_ut.c
 

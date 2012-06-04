@@ -77,11 +77,10 @@
  *  Server side structures and objects
  */
 
+#define CLIENT_ENDPOINT_ADDR    "0@lo:12345:34:*"
+#define SERVER_ENDPOINT_ADDR    "0@lo:12345:34:1"
 #define CLIENT_DB_NAME		"reqh_ut_stob/cdb"
 #define SERVER_DB_NAME		"reqh_ut_stob/sdb"
-char cl_addr[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:2";
-char srv_addr[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:1";
-
 
 enum {
 	CLIENT_COB_DOM_ID	= 101,
@@ -256,7 +255,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 
 	/* Init the rpcmachine */
         rc = c2_rpc_machine_init(rpc_machine, &srv_cob_domain, net_dom,
-				 srv_addr, &reqh, &app_pool);
+				 SERVER_ENDPOINT_ADDR, &reqh, &app_pool);
         C2_UT_ASSERT(rc == 0);
 	return rc;
 }
@@ -383,6 +382,8 @@ void test_reqh(void)
 
 	struct c2_rpc_client_ctx cctx = {
 		.rcx_net_dom            = &net_dom,
+		.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
+		.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
 		.rcx_db_name            = CLIENT_DB_NAME,
 		.rcx_dbenv              = &client_dbenv,
 		.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
@@ -425,14 +426,6 @@ void test_reqh(void)
 	C2_UT_ASSERT(result == 0);
 	result = c2_net_domain_init(&srv_net_dom, xprt);
 	C2_UT_ASSERT(result == 0);
-
-	result = c2_lut_lhost_lnet_conv(&net_dom, cl_addr);
-	C2_UT_ASSERT(result == 0);
-	result = c2_lut_lhost_lnet_conv(&net_dom, srv_addr);
-	C2_UT_ASSERT(result == 0);
-
-	cctx.rcx_local_addr  = cl_addr;
-	cctx.rcx_remote_addr = srv_addr;
 
 	server_init(path, SERVER_DB_NAME, &srv_net_dom, &backid, &bdom, &bstore,
 		    &reqh_addb_stob, &reqh_addb_stob_id);

@@ -37,6 +37,10 @@ static void cog_fini(struct capa_object_guard *cog)
 {
 }
 
+/**
+   @todo struct c2_capa_issuer is empty, put proper values.
+ */
+
 static void capa_test(void)
 {
 	int                      ret;
@@ -44,7 +48,7 @@ static void capa_test(void)
 	struct c2_object_capa    read_capa;
 	struct c2_object_capa    write_capa;
 	struct capa_object_guard guard;
-	//struct c2_capa_issuer    issuer;
+	struct c2_capa_issuer    issuer;
 
 	ret = cog_init(&guard);
 	C2_UT_ASSERT(ret == 0);
@@ -64,11 +68,11 @@ static void capa_test(void)
 			  &guard);
 	C2_UT_ASSERT(ret == 0);
 
-	//ret = c2_capa_get(&ctx, &issuer, &read_capa);
-	//C2_UT_ASSERT(ret == 0);
+	ret = c2_capa_get(&ctx, &issuer, &read_capa);
+	C2_UT_ASSERT(ret == 0);
 
-	//ret = c2_capa_get(&ctx, &issuer, &write_capa);
-	//C2_UT_ASSERT(ret == 0);
+	ret = c2_capa_get(&ctx, &issuer, &write_capa);
+	C2_UT_ASSERT(ret == 0);
 
 	/* have capability so auth should succeed */
 	ret = c2_capa_auth(&ctx, &write_capa, C2_CAPA_OP_DATA_WRITE);
@@ -77,8 +81,8 @@ static void capa_test(void)
 	ret = c2_capa_auth(&ctx, &write_capa, C2_CAPA_OP_DATA_READ);
 	C2_UT_ASSERT(ret == 0);
 
-	//c2_capa_put(&ctx, &read_capa);
-	//c2_capa_put(&ctx, &write_capa);
+	c2_capa_put(&ctx, &read_capa);
+	c2_capa_put(&ctx, &write_capa);
 
 /* uncomment when realization ready */
 #if 0

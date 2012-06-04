@@ -31,7 +31,7 @@ modload_galois()
 
 modunload_galois()
 {
-	rmmod galois
+	rmmod galois &>> /dev/null
 }
 
 modload()
@@ -46,6 +46,6 @@ modunload()
 	for m in $MODLIST ;do
 		echo $m
 	done | tac | while read ;do
-		rmmod $REPLY || echo "Error unloading $m."
+		rmmod $REPLY &>> /dev/null || echo "Error unloading $m."
 	done
 }

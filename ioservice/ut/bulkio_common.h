@@ -102,9 +102,9 @@ struct bulkio_params {
 	struct c2_cob_domain		  bp_ccbdom;
 	struct c2_net_domain		  bp_cnetdom;
 
-	char				 *bp_caddr;
+	const char			 *bp_caddr;
 	char				 *bp_cdbname;
-	char				 *bp_saddr;
+	const char			 *bp_saddr;
 	char				 *bp_slogfile;
 
 	struct c2_rpc_client_ctx	 *bp_cctx;
@@ -124,12 +124,12 @@ struct thrd_arg {
 };
 
 /* Common APIs used by bulk client as well as UT code. */
-int bulkio_client_start(struct bulkio_params *bp, char *caddr,
-			char *saddr);
+int bulkio_client_start(struct bulkio_params *bp, const char *caddr,
+			const char *saddr);
 
 void bulkio_client_stop(struct c2_rpc_client_ctx *cctx);
 
-int bulkio_server_start(struct bulkio_params *bp, char *saddr);
+int bulkio_server_start(struct bulkio_params *bp, const char *saddr);
 
 void bulkio_server_stop(struct c2_rpc_server_ctx *sctx);
 

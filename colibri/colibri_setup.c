@@ -75,6 +75,11 @@ enum {
 	CS_OPTLENGTH = 2
 };
 
+enum {
+	CS_MAX_EP_ADDR_LEN = 80,
+};
+C2_BASSERT(CS_MAX_EP_ADDR_LEN >= C2_NET_LNET_XEP_ADDR_LEN);
+
 C2_TL_DESCR_DEFINE(cs_buffer_pools, "buffer pools in the colibri context", ,
                    struct c2_cs_buffer_pool, cs_bp_linkage, cs_bp_magic,
                    C2_CS_BUFFER_POOL_MAGIC, C2_CS_BUFFER_POOL_HEAD);
@@ -117,9 +122,9 @@ enum {
 struct cs_endpoint_and_xprt {
 	/**
 	   4-tuple network layer endpoint address.
-	   e.g. 127.0.0.1@tcp:12345:34:1
+	   e.g. 172.18.50.40@o2ib1:12345:34:1
 	 */
-	char            *ex_endpoint;
+	const char      *ex_endpoint;
 	/** Supported network transport. */
 	const char      *ex_xprt;
 	/**
@@ -457,7 +462,7 @@ static int ep_and_xprt_get(struct cs_reqh_context *rctx, const char *ep,
 	C2_PRE(ep != NULL);
 
 	C2_ALLOC_PTR(epx);
-	C2_ALLOC_ARR(epx->ex_scrbuf, C2_NET_LNET_XEP_ADDR_LEN);
+	C2_ALLOC_ARR(epx->ex_scrbuf, min32u(strlen(ep) + 1, CS_MAX_EP_ADDR_LEN));
 	strcpy(epx->ex_scrbuf, ep);
 	epx->ex_xprt = strtok_r(epx->ex_scrbuf, ":", &sptr);
 	if (epx->ex_xprt == NULL)
@@ -467,12 +472,6 @@ static int ep_and_xprt_get(struct cs_reqh_context *rctx, const char *ep,
 		if (endpoint == NULL)
 			rc = -EINVAL;
 		else {
-			if (strcmp(epx->ex_xprt, "lnet") == 0 &&
-			    strstr(endpoint, "127.0.0.1") != NULL) {
-				rc = c2_lnet_local_addr_get(endpoint);
-				if (rc != 0)
-					goto cleanup;
-			}
 			epx->ex_endpoint = endpoint;
 			cs_eps_tlink_init(epx);
 			cs_endpoint_and_xprt_bob_init(epx);
@@ -481,7 +480,6 @@ static int ep_and_xprt_get(struct cs_reqh_context *rctx, const char *ep,
 		}
 	}
 
-cleanup:
 	if (rc != 0) {
 		c2_free(epx->ex_scrbuf);
 		c2_free(epx);
@@ -1196,11 +1194,6 @@ static int cs_net_domains_init(struct c2_colibri *cctx)
 				c2_net_xprt_fini(xprt);
 				return rc;
 			}
-			if (xprt == &c2_net_lnet_xprt) {
-				rc = c2_lut_lhost_lnet_conv(ndom, ep->ex_endpoint);
-				if (rc != 0)
-					return rc;
-			}
 			ndom_tlink_init(ndom);
 			c2_net_domain_bob_init(ndom);
 			ndom_tlist_add_tail(&cctx->cc_ndoms, ndom);
@@ -1719,7 +1712,7 @@ static void cs_help(FILE *out)
 		   "   Should not be greater than XprtMaxBufferSize\n"
 		   "\n"
 		   "   e.g. ./colibri_setup -Q 4 -M 4096 -r -T linux\n"
-		   "        -D dbpath -S stobfile -e xport:127.0.0.1:1024:1 \n"
+		   "        -D dbpath -S stobfile -e lnet:172.18.50.40@o2ib1:12345:34:1 \n"
 		   "	    -s mds -q 8 -m 65536 \n");
 }
 

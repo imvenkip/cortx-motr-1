@@ -81,7 +81,7 @@
    @code
    static char *cmd[] = { "colibri_setup", "-r", "-T", "AD",
                    "-D", "cs_db", "-S", "cs_stob",
-                   "-e", "lnet:127.0.0.1@tcp:12345:34:1",
+                   "-e", "lnet:172.18.50.40@o2ib1:12345:34:1",
                    "-s", "dummy"};
 
     c2_cs_setup_env(&colibri_ctx, ARRAY_SIZE(cs_cmd), cs_cmd);
@@ -98,8 +98,8 @@
 
     Similarly, to setup colibri externally, using colibri_setup program along
     with parameters specified as above.
-    e.g. ./colibri -r -T linux -D dbpath -S stobfile -e xport:127.0.0.1:1024:1
-          -s service
+    e.g. ./colibri -r -T linux -D dbpath -S stobfile \
+           -e xport:172.18.50.40@o2ib1:12345:34:1 -s service
 
     Below image gives an overview of entire colibri context.
     @note This image is borrowed from the "New developer guide for colibri"

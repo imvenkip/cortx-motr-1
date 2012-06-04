@@ -120,8 +120,8 @@ static int fop_send_and_print(struct c2_rpc_client_ctx *cctx, uint32_t opcode)
 
 const char *usage_msg =	"Usage: c2console "
 			" { -l FOP list | -f FOP opcode }"
-			" [-s server (e.g. 127.0.0.1@tcp:12345:34:1) ]"
-			" [-c client (e.g. 127.0.0.1@tcp:12345:34:2) ]"
+			" [-s server (e.g. 172.18.50.40@o2ib1:12345:34:1) ]"
+			" [-c client (e.g. 172.18.50.40@o2ib1:12345:34:*) ]"
 			" [-t timeout]"
 			" [[-i] [-y yaml file path]]"
 			" [-h] [-v]";
@@ -130,8 +130,6 @@ static void usage(void)
 {
 	fprintf(stderr, "%s\n", usage_msg);
 }
-
-extern struct c2_net_xprt c2_net_lnet_xprt;
 
 /**
  * @brief The service to connect to is specified at the command line.
@@ -149,8 +147,8 @@ extern struct c2_net_xprt c2_net_lnet_xprt;
  *
  *	  Usage:
  *	  c2console :	{ -l FOP list | -f FOP opcode }
- *			[-s server (e.g. 127.0.0.1@tcp:12345:34:1) ]
- *			[-c client (e.g. 127.0.0.1@tcp:12345:34:2) ]
+ *			[-s server (e.g. 172.18.50.40@o2ib1:12345:34:1) ]
+ *			[-c client (e.g. 172.18.50.40@o2ib1:12345:34:*) ]
  *			[-t timeout] [[-i] [-y yaml file path]] [-v]
  *
  * @return 0 success, -errno failure.
@@ -165,20 +163,19 @@ int main(int argc, char **argv)
 	uint32_t              opcode         = 0;
 	bool                  show           = false;
 	bool                  input          = false;
+	const char           *client         = NULL;
+	const char           *server         = NULL;
 	const char           *yaml_path      = NULL;
-	char                 *ptr;
 	struct c2_net_xprt   *xprt           = &c2_net_lnet_xprt;
 	struct c2_net_domain  client_net_dom = { };
 	struct c2_dbenv       client_dbenv;
 	struct c2_cob_domain  client_cob_dom;
-	char                  client[C2_NET_LNET_XEP_ADDR_LEN] =
-					{"127.0.0.1@tcp:12345:34:2"};
-	char                  server[C2_NET_LNET_XEP_ADDR_LEN] =
-					{"127.0.0.1@tcp:12345:34:1"};
 
 
 	struct c2_rpc_client_ctx cctx = {
 		.rcx_net_dom            = &client_net_dom,
+		.rcx_local_addr         = "0@lo:12345:34:*",
+		.rcx_remote_addr        = "0@lo:12345:34:1",
 		.rcx_db_name            = "cons_client_db",
 		.rcx_dbenv              = &client_dbenv,
 		.rcx_cob_dom_id         = 14,
@@ -200,13 +197,9 @@ int main(int argc, char **argv)
 			    C2_FLAGARG('l', "show list of fops", &show),
 			    C2_FORMATARG('f', "fop type", "%u", &opcode),
 			    C2_STRINGARG('s', "server",
-			    LAMBDA(void, (const char *name){
-					    strncpy(server,
-						    name, strlen(name)); })),
+			    LAMBDA(void, (const char *name){server =  name; })),
 			    C2_STRINGARG('c', "client",
-			    LAMBDA(void, (const char *name){
-					    strncpy(client,
-						    name, strlen(name)); })),
+			    LAMBDA(void, (const char *name){client = name; })),
 			    C2_FORMATARG('t', "wait time(in seconds)",
 					 "%u", &timeout),
 			    C2_FLAGARG('i', "yaml input", &input),
@@ -247,21 +240,18 @@ int main(int argc, char **argv)
 			return EX_NOINPUT;
 		}
 
-		ptr = c2_cons_yaml_get_value("server");
-		if (ptr == NULL) {
+		server = c2_cons_yaml_get_value("server");
+		if (server == NULL) {
 			fprintf(stderr, "Server assignment failed\n");
 			result = EX_DATAERR;
 			goto yaml;
-		} else
-			strncpy(server, ptr, strlen(ptr));
-
-		ptr = c2_cons_yaml_get_value("client");
-		if (ptr == NULL) {
+		}
+		client = c2_cons_yaml_get_value("client");
+		if (client == NULL) {
 			fprintf(stderr, "Client assignment failed\n");
 			result = EX_DATAERR;
 			goto yaml;
-		} else
-			strncpy(client, ptr, strlen(ptr));
+		}
 	}
 
 #ifndef CONSOLE_UT
@@ -304,14 +294,11 @@ int main(int argc, char **argv)
 	result = c2_net_domain_init(&client_net_dom, xprt);
 	C2_ASSERT(result == 0);
 
-	result = c2_lut_lhost_lnet_conv(&client_net_dom, client);
-	C2_ASSERT(result == 0);
-	result = c2_lut_lhost_lnet_conv(&client_net_dom, server);
-	C2_ASSERT(result == 0);
-
 	/* Init the console members from CLI input */
-	cctx.rcx_remote_addr = server;
-	cctx.rcx_local_addr = client;
+	if (server != NULL)
+		cctx.rcx_remote_addr = server;
+	if (client != NULL)
+		cctx.rcx_local_addr = client;
 
 	result = c2_rpc_client_init(&cctx);
 	if (result != 0) {

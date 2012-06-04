@@ -106,7 +106,7 @@ struct init_fini_call subsystem[] = {
 	{ &sim_global_init,  &sim_global_fini,  "desim" },
 	{ &c2_reqhs_init,    &c2_reqhs_fini,    "reqh" },
 #ifndef __KERNEL__
-	{ &c2_ioservice_register, &c2_ioservice_unregister, "ioservice" }
+	{ &c2_ioservice_register, &c2_ioservice_unregister, "ioservice" },
 #endif /* __KERNEL__ */
 };
 

@@ -1,8 +1,6 @@
 COLIBRI_CORE_ROOT=`dirname $0`/../../..
 COLIBRI_C2T1FS_MOUNT_DIR=/tmp/test_c2t1fs_`date +"%d-%m-%Y_%T"`
 COLIBRI_C2T1FS_TEST_DIR=/tmp/test_c2t1fs_$$
-COLIBRI_IOSERVICE_ENDPOINT="192.168.172.130@tcp:12345:34:1"
-COLIBRI_C2T1FS_ENDPOINT="192.168.172.130@tcp:12345:34:6"
 COLIBRI_MODULE=$COLIBRI_CORE_ROOT/build_kernel_modules/kcolibri.ko
 COLIBRI_MODULE_TRACE_MASK=0x00
 COLIBRI_TEST_LOGFILE=`pwd`/bulkio_`date +"%Y-%m-%d_%T"`.log
@@ -33,7 +31,6 @@ prepare_testdir()
 prepare()
 {
 	prepare_testdir || return $?
-	modprobe_lnet
 	modload_galois
 	echo 8 > /proc/sys/kernel/printk
 	load_kernel_module || return $?
@@ -42,7 +39,7 @@ prepare()
 unprepare()
 {
 	c2t1fs_mount_dir=$COLIBRI_C2T1FS_MOUNT_DIR
-	rc=`cat /proc/filesystems | grep c2t1fs | wc -l`
+	rc=`cat /proc/filesystems | grep c2t1fs | wc -l > /dev/null`
 	if [ "x$rc" = "x1" ]; then
 		umount $c2t1fs_mount_dir &>> /dev/null
 	fi
@@ -57,8 +54,12 @@ unprepare()
 	modunload_galois
 }
 
-export  COLIBRI_CORE_ROOT COLIBRI_C2T1FS_MOUNT_DIR         \
-	COLIBRI_C2T1FS_TEST_DIR COLIBRI_IOSERVICE_ENDPOINT \
-	COLIBRI_C2T1FS_ENDPOINT COLIBRI_MODULE             \
-	COLIBRI_MODULE_TRACE_MASK COLIBRI_TEST_LOGFILE     \
-	POOL_WIDTH POOL_WIDTH TM_MIN_RECV_QUEUE_LEN MAX_RPC_MSG_SIZE
+export  COLIBRI_CORE_ROOT         \
+	COLIBRI_C2T1FS_MOUNT_DIR  \
+	COLIBRI_C2T1FS_TEST_DIR   \
+	COLIBRI_MODULE            \
+	COLIBRI_MODULE_TRACE_MASK \
+	COLIBRI_TEST_LOGFILE      \
+	POOL_WIDTH                \
+	TM_MIN_RECV_QUEUE_LEN     \
+	MAX_RPC_MSG_SIZE

@@ -38,7 +38,6 @@ enum {
 };
 
 C2_TL_DESCR_DECLARE(rpcbulk, extern);
-extern struct c2_net_xprt c2_net_lnet_xprt;
 extern struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
 extern const struct c2_net_buffer_callbacks rpc_bulk_cb;
 
@@ -126,32 +125,30 @@ static void bulkio_msg_tm_fini(struct bulkio_msg_tm *bmt)
 
 static void bulkclient_test(void)
 {
-	int			   rc;
-	int                        i = 0;
-	char			  *sbuf;
-	int32_t			   max_segs;
-	c2_bcount_t		   max_seg_size;
-	c2_bcount_t		   max_buf_size;
-	struct c2_clink            clink;
-	struct c2_io_fop	   iofop;
-	struct c2_net_xprt	  *xprt;
-	struct c2_rpc_bulk	  *rbulk;
-	struct c2_rpc_bulk	  *sbulk;
-	struct c2_fop_cob_rw	  *rw;
-	struct c2_net_domain	   nd;
-	struct c2_net_buffer	  *nb;
-	struct c2_net_buffer     **nbufs;
-	struct c2_rpc_bulk_buf	  *rbuf;
-	struct c2_rpc_bulk_buf	  *rbuf1;
-	struct c2_rpc_bulk_buf	  *rbuf2;
-	char                       caddr[C2_NET_LNET_XEP_ADDR_LEN] =
-					"127.0.0.1@tcp:12345:34:7";
-	char		           saddr[C2_NET_LNET_XEP_ADDR_LEN] =
-					"127.0.0.1@tcp:12345:34:8";
-	struct c2_io_indexvec	  *ivec;
-	enum c2_net_queue_type	   q;
-	struct bulkio_msg_tm      *ctm;
-	struct bulkio_msg_tm      *stm;
+	int			 rc;
+	int                      i     = 0;
+	char			*sbuf;
+	int32_t			 max_segs;
+	c2_bcount_t		 max_seg_size;
+	c2_bcount_t		 max_buf_size;
+	struct c2_clink          clink;
+	struct c2_io_fop	 iofop;
+	struct c2_net_xprt	*xprt;
+	struct c2_rpc_bulk	*rbulk;
+	struct c2_rpc_bulk	*sbulk;
+	struct c2_fop_cob_rw	*rw;
+	struct c2_net_domain	 nd;
+	struct c2_net_buffer	*nb;
+	struct c2_net_buffer   **nbufs;
+	struct c2_rpc_bulk_buf	*rbuf;
+	struct c2_rpc_bulk_buf	*rbuf1;
+	struct c2_rpc_bulk_buf	*rbuf2;
+	const char              *caddr = "0@lo:12345:34:*";
+	const char		*saddr = "0@lo:12345:34:8";
+	struct c2_io_indexvec	*ivec;
+	enum c2_net_queue_type	 q;
+	struct bulkio_msg_tm    *ctm;
+	struct bulkio_msg_tm    *stm;
 
 	C2_SET0(&iofop);
 	C2_SET0(&nd);
@@ -159,10 +156,6 @@ static void bulkclient_test(void)
 	c2_addb_choose_default_level_console(AEL_ERROR);
 	xprt = &c2_net_lnet_xprt;
 	rc = c2_net_domain_init(&nd, xprt);
-	C2_UT_ASSERT(rc == 0);
-	rc = c2_lut_lhost_lnet_conv(&nd, caddr);
-	C2_UT_ASSERT(rc == 0);
-	rc = c2_lut_lhost_lnet_conv(&nd, saddr);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Test : c2_io_fop_init() */

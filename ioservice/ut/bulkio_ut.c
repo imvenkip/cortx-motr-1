@@ -1490,8 +1490,8 @@ void bulkio_server_read_write_multiple_nb(void)
 static void bulkio_init(void)
 {
 	int  rc;
-	char caddr[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:2";
-	char saddr[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:1";
+	const char *caddr = "0@lo:12345:34:*";
+	const char *saddr = "0@lo:12345:34:1";
 
 	C2_ALLOC_PTR(bp);
 	C2_ASSERT(bp != NULL);

@@ -27,14 +27,13 @@
 #include "lib/memory.h"
 #include "net/lnet/lnet.h"
 #include "ioservice/io_fops.h"
-#include "net/lnet/lnet.h"
 #include "rpc/rpclib.h"
 
-static char *local_addr = "127.0.0.1@tcp:12345:34:6";
+static char *local_addr = "0@lo:12345:45:6";
 
 module_param(local_addr, charp, S_IRUGO);
 MODULE_PARM_DESC(local_addr, "End-point address of c2t1fs "
-		 "e.g. 127.0.0.1@tcp:12345:34:6");
+		 "e.g. 172.18.50.40@o2ib1:12345:34:1");
 
 static uint32_t tm_recv_queue_min_len = C2_NET_TM_RECV_QUEUE_DEF_LEN;
 module_param(tm_recv_queue_min_len , int, S_IRUGO);
@@ -208,36 +207,19 @@ static int c2t1fs_rpc_init(void)
 	if (rc != 0)
 		goto dbenv_fini;
 
-	ndom        = &c2t1fs_globals.g_ndom;
-	rpc_machine = &c2t1fs_globals.g_rpc_machine;
-
-	laddr = c2_alloc(C2_NET_LNET_XEP_ADDR_LEN);
-	if (laddr == NULL)
-		goto cob_dom_fini;
-
-	strncpy(laddr, c2t1fs_globals.g_laddr, C2_NET_LNET_XEP_ADDR_LEN);
-	rc = c2_lut_lhost_lnet_conv(ndom, laddr);
-	if (rc != 0)
-		goto free_laddr;
-
-	c2t1fs_globals.g_laddr = laddr;
-
 	c2_rpc_machine_pre_init(rpc_machine, ndom, C2_BUFFER_ANY_COLOUR,
 				max_rpc_msg_size, tm_recv_queue_min_len);
 
 	rc = c2_rpc_machine_init(rpc_machine, cob_dom, ndom, laddr, NULL,
 				 buffer_pool);
 	if (rc != 0)
-		goto free_laddr;
+		goto cob_dom_fini;
 
 	tm = &rpc_machine->rm_tm;
 	C2_ASSERT(tm->ntm_recv_pool == buffer_pool);
 
 	C2_LEAVE("rc: %d", rc);
 	return 0;
-
-free_laddr:
-	c2_free(laddr);
 
 cob_dom_fini:
 	c2_cob_domain_fini(cob_dom);
@@ -257,7 +239,6 @@ static void c2t1fs_rpc_fini(void)
 	C2_ENTRY();
 
 	c2_rpc_machine_fini(&c2t1fs_globals.g_rpc_machine);
-	c2_free(c2t1fs_globals.g_laddr);
 	c2_cob_domain_fini(&c2t1fs_globals.g_cob_dom);
 	c2_dbenv_fini(&c2t1fs_globals.g_dbenv);
 	c2_rpc_net_buffer_pool_cleanup(&c2t1fs_globals.g_buffer_pool);

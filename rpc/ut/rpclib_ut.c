@@ -47,9 +47,10 @@
 #include "ut/cs_fop_foms.h"
 #include "ut/cs_test_fops_u.h"
 
+#define CLIENT_ENDPOINT_ADDR    "0@lo:12345:34:*"
 #define CLIENT_DB_NAME		"rpclib_ut_client.db"
 
-#define SERVER_ENDPOINT_ADDR	"127.0.0.1@tcp:12345:34:1"
+#define SERVER_ENDPOINT_ADDR	"0@lo:12345:34:1"
 #define SERVER_ENDPOINT		"lnet:" SERVER_ENDPOINT_ADDR
 #define SERVER_DB_FILE_NAME	"rpclib_ut_server.db"
 #define SERVER_STOB_FILE_NAME	"rpclib_ut_server.stob"
@@ -66,11 +67,11 @@ struct c2_net_xprt    *xprt = &c2_net_lnet_xprt;
 struct c2_net_domain   client_net_dom = { };
 struct c2_dbenv        client_dbenv;
 struct c2_cob_domain   client_cob_dom;
-char client_addr[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:2";
-char server_addr[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:1";
 
 struct c2_rpc_client_ctx cctx = {
 	.rcx_net_dom		   = &client_net_dom,
+	.rcx_local_addr            = CLIENT_ENDPOINT_ADDR,
+	.rcx_remote_addr           = SERVER_ENDPOINT_ADDR,
 	.rcx_db_name		   = CLIENT_DB_NAME,
 	.rcx_dbenv		   = &client_dbenv,
 	.rcx_cob_dom_id		   = CLIENT_COB_DOM_ID,
@@ -219,13 +220,6 @@ static int test_rpclib_init(void)
 
 	rc = c2_net_domain_init(&client_net_dom, xprt);
 	C2_ASSERT(rc == 0);
-
-	rc = c2_lut_lhost_lnet_conv(&client_net_dom, client_addr);
-	C2_ASSERT(rc == 0);
-	rc = c2_lut_lhost_lnet_conv(&client_net_dom, server_addr);
-	C2_ASSERT(rc == 0);
-	cctx.rcx_local_addr  = client_addr;
-	cctx.rcx_remote_addr = server_addr;
 
 	return rc;
 }

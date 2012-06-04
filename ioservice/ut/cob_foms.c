@@ -64,13 +64,11 @@ enum {
 	COBFID_SETUP_REFCOUNT_NR  = 10,
 };
 
-#define SERVER_EP_ADDR              "127.0.0.1@tcp:12345:34:123"
+#define SERVER_EP_ADDR              "0@lo:12345:34:123"
+#define CLIENT_EP_ADDR              "0@lo:12345:34:*"
 #define SERVER_ENDP                 "lnet:" SERVER_EP_ADDR
 static const char *SERVER_LOGFILE = "cobfoms_ut.log";
 static const char *CLIENT_DBNAME  = "cobfops_ut.db";
-
-char saddr[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:123";
-char caddr[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:2";
 
 struct cobfoms_ut {
 	struct c2_rpc_server_ctx      cu_sctx;
@@ -133,15 +131,10 @@ static void cobfoms_utinit(void)
 	rc = c2_rpc_server_start(sctx);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_lut_lhost_lnet_conv(&cut->cu_nd, saddr);
-	C2_UT_ASSERT(rc == 0);
-	rc = c2_lut_lhost_lnet_conv(&cut->cu_nd, caddr);
-	C2_UT_ASSERT(rc == 0);
-
 	cctx = &cut->cu_cctx;
 	cctx->rcx_net_dom            = &cut->cu_nd;
-	cctx->rcx_local_addr         = caddr;
-	cctx->rcx_remote_addr        = saddr;
+	cctx->rcx_local_addr         = CLIENT_EP_ADDR;
+	cctx->rcx_remote_addr        = SERVER_EP_ADDR;
 	cctx->rcx_dbenv              = &cut->cu_dbenv;
 	cctx->rcx_db_name            = CLIENT_DBNAME;
 	cctx->rcx_cob_dom            = &cut->cu_cob_dom;

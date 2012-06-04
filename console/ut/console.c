@@ -69,9 +69,10 @@ static struct c2_ut_redirect in_redir;
 static struct c2_ut_redirect out_redir;
 static struct c2_ut_redirect err_redir;
 
+#define CLIENT_ENDPOINT_ADDR    "0@lo:12345:34:2"
 #define CLIENT_DB_NAME		"cons_client_db"
 
-#define SERVER_ENDPOINT_ADDR	"127.0.0.1@tcp:12345:34:1"
+#define SERVER_ENDPOINT_ADDR	"0@lo:12345:34:1"
 #define SERVER_ENDPOINT		"lnet:" SERVER_ENDPOINT_ADDR
 #define SERVER_DB_FILE_NAME	"cons_server_db"
 #define SERVER_STOB_FILE_NAME	"cons_server_stob"
@@ -84,17 +85,15 @@ enum {
 	CONNECT_TIMEOUT		= 5,
 };
 
-extern struct c2_net_xprt c2_net_lnet_xprt;
-
 static struct c2_net_xprt   *xprt = &c2_net_lnet_xprt;
 static struct c2_net_domain  client_net_dom = { };
 static struct c2_dbenv       client_dbenv;
 static struct c2_cob_domain  client_cob_dom;
-static char cl_ep_addr[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:2";
-static char srv_ep_addr[C2_NET_LNET_XEP_ADDR_LEN] = "127.0.0.1@tcp:12345:34:1";
 
 static struct c2_rpc_client_ctx cctx = {
 	.rcx_net_dom            = &client_net_dom,
+	.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
+	.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
 	.rcx_db_name            = CLIENT_DB_NAME,
 	.rcx_dbenv              = &client_dbenv,
 	.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
@@ -145,14 +144,6 @@ static int cons_init(void)
 
 	result = c2_net_domain_init(&client_net_dom, xprt);
 	C2_ASSERT(result == 0);
-	if (xprt == &c2_net_lnet_xprt) {
-		result = c2_lut_lhost_lnet_conv(&client_net_dom, cl_ep_addr);
-		C2_ASSERT(result == 0);
-		result = c2_lut_lhost_lnet_conv(&client_net_dom, srv_ep_addr);
-		C2_ASSERT(result == 0);
-		cctx.rcx_local_addr  = cl_ep_addr;
-		cctx.rcx_remote_addr = srv_ep_addr;
-	}
 
 	return result;
 }

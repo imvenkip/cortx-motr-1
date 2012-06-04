@@ -42,7 +42,6 @@
 #include "lib/thread.h"
 #include "net/net.h"
 #include "net/bulk_mem.h"
-#include "ut/net.h" /* canon_host */
 #include "ping.h"
 
 enum {
@@ -85,6 +84,53 @@ struct ping_ctx sctx = {
 		.ntm_state     = C2_NET_TM_UNDEFINED
 	}
 };
+
+int canon_host(const char *hostname, char *buf, size_t bufsiz)
+{
+	int                i;
+	int		   rc = 0;
+	struct in_addr     ipaddr;
+
+	/* c2_net_end_point_create requires string IPv4 address, not name */
+	if (inet_aton(hostname, &ipaddr) == 0) {
+		struct hostent he;
+		char he_buf[4096];
+		struct hostent *hp;
+		int herrno;
+
+		rc = gethostbyname_r(hostname, &he, he_buf, sizeof he_buf,
+				     &hp, &herrno);
+		if (rc != 0) {
+			fprintf(stderr, "Can't get address for %s\n",
+				hostname);
+			return -ENOENT;
+		}
+		for (i = 0; hp->h_addr_list[i] != NULL; ++i)
+			/* take 1st IPv4 address found */
+			if (hp->h_addrtype == AF_INET &&
+			    hp->h_length == sizeof(ipaddr))
+				break;
+		if (hp->h_addr_list[i] == NULL) {
+			fprintf(stderr, "No IPv4 address for %s\n",
+				hostname);
+			return -EPFNOSUPPORT;
+		}
+		if (inet_ntop(hp->h_addrtype, hp->h_addr, buf, bufsiz) ==
+		    NULL) {
+			fprintf(stderr, "Cannot parse network address for %s\n",
+				hostname);
+			rc = -errno;
+		}
+	} else {
+		if (strlen(hostname) >= bufsiz) {
+			fprintf(stderr, "Buffer size too small for %s\n",
+				hostname);
+			return -ENOSPC;
+		}
+		strcpy(buf, hostname);
+	}
+	return rc;
+}
 
 int lookup_xprt(const char *xprt_name, struct ping_xprt **xprt)
 {
