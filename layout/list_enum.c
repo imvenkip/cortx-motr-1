@@ -404,7 +404,7 @@ static int list_decode(struct c2_layout_domain *dom,
 
 	C2_PRE(domain_invariant(dom));
 	C2_PRE(lid != LID_NONE);
-	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
+	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *ce_header);
@@ -507,7 +507,7 @@ static int noninline_cob_list_write(const struct c2_layout_schema *schema,
 
 	C2_PRE(schema != NULL);
 	C2_PRE(tx != NULL);
-	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_DELETE);
+	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_DELETE)));
 	C2_PRE(idx_end > idx_start);
 	C2_PRE(cob_list != NULL);
 
@@ -614,8 +614,8 @@ static int list_encode(const struct c2_layout_enum *le,
 	int                         rc = 0;
 
 	C2_PRE(le != NULL);
-	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
-	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
+	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
+			  C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,

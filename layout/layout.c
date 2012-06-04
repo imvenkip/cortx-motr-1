@@ -61,7 +61,7 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h" /* C2_ALLOC_PTR() */
-#include "lib/misc.h"   /* strlen() */
+#include "lib/misc.h"   /* strlen(), C2_IN() */
 #include "lib/vec.h"    /* c2_bufvec_cursor_step(), c2_bufvec_cursor_addr() */
 #include "lib/bob.h"
 
@@ -689,15 +689,14 @@ void c2_layout__log(const char *fn_name,
 	C2_PRE(ctx != NULL);
 	C2_PRE(rc != 0);
 	C2_PRE(ergo(rc != 0, err_msg != NULL &&
-			     (ev->ae_id == layout_decode_fail.ae_id ||
-			      ev->ae_id == layout_encode_fail.ae_id ||
-			      ev->ae_id == layout_lookup_fail.ae_id ||
-			      ev->ae_id == layout_add_fail.ae_id ||
-			      ev->ae_id == layout_update_fail.ae_id ||
-			      ev->ae_id == layout_delete_fail.ae_id ||
-			      ev->ae_id == c2_addb_func_fail.ae_id ||
-			      ev->ae_id == c2_addb_oom.ae_id)));
-
+			     C2_IN(ev->ae_id, (layout_decode_fail.ae_id,
+					       layout_encode_fail.ae_id,
+					       layout_lookup_fail.ae_id,
+					       layout_add_fail.ae_id,
+					       layout_update_fail.ae_id,
+					       layout_delete_fail.ae_id,
+					       c2_addb_func_fail.ae_id,
+					       c2_addb_oom.ae_id))));
 
 	/* ADDB record logging. */
 	if (addb_record)
@@ -1109,7 +1108,7 @@ int c2_layout_decode(struct c2_layout_domain *dom,
 	C2_PRE(domain_invariant(dom));
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(layout_list_lookup(dom, lid) == NULL);
-	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
+	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *rec);
@@ -1212,8 +1211,8 @@ int c2_layout_encode(struct c2_layout *l,
 	int                    rc;
 
 	C2_PRE(layout_invariant(l));
-	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
-	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
+	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
+			  C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,

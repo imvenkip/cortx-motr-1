@@ -151,7 +151,7 @@ static int composite_decode(struct c2_layout_domain *dom,
 	@code
 	struct c2_composite_layout *cl;
 
-	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
+	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP));
 
 	C2_ALLOC_PTR(cl);
 
@@ -194,6 +194,9 @@ static int composite_encode(struct c2_layout *l,
 {
 	/*
 	@code
+
+	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
+			  C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP)));
 
 	if ((op == C2_LXO_DB_ADD) || (op == C2_LXO_DB_UPDATE) ||
             (op == C2_LXO_DB_DELETE)) {

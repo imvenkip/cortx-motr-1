@@ -28,6 +28,7 @@
 #include "lib/tlist.h"	/* struct c2_tl */
 #include "lib/vec.h"    /* c2_bufvec_cursor_step(), c2_bufvec_cursor_addr() */
 #include "lib/memory.h" /* C2_ALLOC_PTR() */
+#include "lib/misc.h"   /* C2_IN() */
 #include "lib/bob.h"
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
@@ -201,7 +202,7 @@ static int linear_decode(struct c2_layout_domain *dom,
 
 	C2_PRE(domain_invariant(dom));
 	C2_PRE(lid != LID_NONE);
-	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
+	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *lin_attr);
@@ -244,8 +245,8 @@ static int linear_encode(const struct c2_layout_enum *le,
 	uint64_t                      lid;
 
 	C2_PRE(le != NULL);
-	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
-	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
+	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
+			  C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,

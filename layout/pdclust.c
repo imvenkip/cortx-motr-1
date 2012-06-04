@@ -83,6 +83,7 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h" /* C2_ALLOC_PTR(), C2_ALLOC_ARR(), c2_free() */
+#include "lib/misc.h"   /* C2_IN() */
 #include "lib/arith.h"  /* c2_rnd() */
 #include "lib/misc.h"   /* c2_forall */
 #include "lib/bob.h"
@@ -595,7 +596,7 @@ static int pdclust_decode(struct c2_layout_domain *dom,
 
 	C2_PRE(dom != NULL);
 	C2_PRE(lid != LID_NONE);
-	C2_PRE(op == C2_LXO_DB_LOOKUP || op == C2_LXO_BUFFER_OP);
+	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *pl_rec);
@@ -683,8 +684,8 @@ static int pdclust_encode(struct c2_layout *l,
 	 */
 	C2_PRE(l != NULL);
 
-	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
-	       op == C2_LXO_DB_DELETE || op == C2_LXO_BUFFER_OP);
+	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
+		          C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
 	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,

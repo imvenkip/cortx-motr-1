@@ -414,8 +414,7 @@ int layout_write(const struct c2_layout *l,
 
 	C2_PRE(l != NULL);
 	C2_PRE(tx != NULL);
-	C2_PRE(op == C2_LXO_DB_ADD || op == C2_LXO_DB_UPDATE ||
-	       op == C2_LXO_DB_DELETE);
+	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE, C2_LXO_DB_DELETE)));
 	C2_PRE(pair != NULL);
 	C2_PRE(key_buf != NULL);
 	C2_PRE(rec_buf != NULL);
