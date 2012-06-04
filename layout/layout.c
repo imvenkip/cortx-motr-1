@@ -133,11 +133,13 @@ struct llist_entry {
 	uint64_t          lle_magic;
 };
 
-/* todo BOB support for the list. */
 C2_TL_DESCR_DEFINE(layout_list, "layout-list", static,
 		   struct llist_entry, lle_linkage,
 		   lle_magic, LIST_MAGIC, HEAD_MAGIC);
 C2_TL_DEFINE(layout_list, static, struct llist_entry);
+
+static struct c2_bob_type llist_entry_bob;
+C2_BOB_DEFINE(static, &llist_entry_bob, llist_entry);
 
 bool domain_invariant(const struct c2_layout_domain *dom)
 {
@@ -297,6 +299,7 @@ static struct llist_entry *layout_list_lookup(struct c2_layout_domain *dom,
 	C2_PRE(lid != LID_NONE);
 
 	c2_tl_for(layout_list, &dom->ld_layout_list, l_entry) {
+		C2_ASSERT(llist_entry_bob_check(l_entry));
 		if (l_entry->lle_lid == lid)
 			break;
 	} c2_tl_endfor;
@@ -326,6 +329,7 @@ static int layout_list_add(struct c2_layout_domain *dom, struct c2_layout *l)
 	l_entry->lle_lid = l->l_id;
 	l_entry->lle_l = l;
 	layout_list_tlink_init(l_entry);
+	llist_entry_bob_init(l_entry);
 	layout_list_tlist_add(&dom->ld_layout_list, l_entry);
 	c2_mutex_unlock(&dom->ld_lock);
 
@@ -733,6 +737,7 @@ int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
 	C2_SET0(dom);
 	c2_mutex_init(&dom->ld_lock);
 	layout_list_tlist_init(&dom->ld_layout_list);
+	c2_bob_type_tlist_init(&llist_entry_bob, &layout_list_tl);
 
 	rc = schema_init(&dom->ld_schema, dbenv);
 	if (rc != 0)
@@ -1045,6 +1050,7 @@ void c2_layout_put(struct c2_layout *l)
 		lentry = layout_list_lookup(l->l_dom, l->l_id);
 		C2_ASSERT(lentry != NULL);
 		layout_list_tlist_del(lentry);
+		llist_entry_bob_fini(lentry);
 		layout_list_tlink_fini(lentry);
 		c2_free(lentry);
 	}
