@@ -167,7 +167,7 @@ void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool)
 	c2_net_buffer_pool_lock(pool);
 	C2_ASSERT(c2_net_buffer_pool_invariant(pool));
 	C2_ASSERT(pool->nbp_free == pool->nbp_buf_nr);
-	
+
 	if (pool->nbp_colours == NULL && pool->nbp_colours_nr != 0)
 		return;
 

@@ -39,7 +39,7 @@ static uint32_t tm_recv_queue_min_len = C2_NET_TM_RECV_QUEUE_DEF_LEN;
 module_param(tm_recv_queue_min_len , int, S_IRUGO);
 MODULE_PARM_DESC(tm_recv_queue_min_len, "TM receive queue minimum length");
 
-static uint32_t max_rpc_msg_size = 0;
+static uint32_t max_rpc_msg_size = C2_RPC_DEF_MAX_RPC_MSG_SIZE;
 module_param(max_rpc_msg_size, int, S_IRUGO);
 MODULE_PARM_DESC(max_rpc_msg_size, "Maximum RPC message size");
 
@@ -209,11 +209,10 @@ static int c2t1fs_rpc_init(void)
 	if (rc != 0)
 		goto dbenv_fini;
 
-	c2_rpc_machine_pre_init(rpc_machine, ndom, C2_BUFFER_ANY_COLOUR,
-				max_rpc_msg_size, tm_recv_queue_min_len);
-
 	rc = c2_rpc_machine_init(rpc_machine, cob_dom, ndom, laddr, NULL,
-				 buffer_pool);
+				 buffer_pool, C2_BUFFER_ANY_COLOUR,
+				 max_rpc_msg_size, tm_recv_queue_min_len);
+
 	if (rc != 0)
 		goto cob_dom_fini;
 

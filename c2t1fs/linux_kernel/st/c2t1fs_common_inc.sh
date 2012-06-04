@@ -9,7 +9,7 @@ COLIBRI_GALOIS_MODULE=$COLIBRI_CORE_ROOT/../galois/src/linux_kernel/kgalois.ko
 COLIBRI_TEST_LOGFILE=`pwd`/bulkio_`date +"%Y-%m-%d_%T"`.log
 POOL_WIDTH=3
 TM_MIN_RECV_QUEUE_LEN=2
-MAX_RPC_MSG_SIZE=0
+MAX_RPC_MSG_SIZE=163840
 
 prepare_testdir()
 {

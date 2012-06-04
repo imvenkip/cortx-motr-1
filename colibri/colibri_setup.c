@@ -754,11 +754,10 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 		return -EINVAL;
 
 	buffer_pool = cs_buffer_pool_get(cctx, ndom);
-	c2_rpc_machine_pre_init(rpcmach, ndom, tm_colour, max_rpc_msg_size,
-				recv_queue_min_length);
-
 	rc = c2_rpc_machine_init(rpcmach, reqh->rh_cob_domain, ndom, ep, reqh,
-				 buffer_pool);
+				 buffer_pool, tm_colour, max_rpc_msg_size,
+				 recv_queue_min_length);
+
 	if (rc != 0) {
 		c2_free(rpcmach);
 		return rc;

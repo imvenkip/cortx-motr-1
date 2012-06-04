@@ -77,11 +77,6 @@
 
 #define TM_RECV_QUEUE_MIN_LEN 2
 
-/* If zero default value will be taken and if non zero multiple message
- * delivery support in a single receive buffer is supported.
- */
-#define MAX_RPC_MSG_SIZE      0
-
 enum ep_type {
 	EP_SERVER,
 	EP_CLIENT,
@@ -99,7 +94,7 @@ enum {
 #ifndef __KERNEL__
 static bool server_mode		 = false;
 static char tm_len[STRING_LEN]   = to_string(TM_RECV_QUEUE_MIN_LEN);
-static char rpc_size[STRING_LEN] = to_string(MAX_RPC_MSG_SIZE);
+static char rpc_size[STRING_LEN] = to_string(C2_RPC_DEF_MAX_RPC_MSG_SIZE);
 #endif
 
 static bool verbose           = false;
@@ -112,7 +107,7 @@ static int  nr_slots          = 1;
 static int  nr_ping_bytes     = 8;
 static int  nr_ping_item      = 1;
 static int  tm_recv_queue_len = TM_RECV_QUEUE_MIN_LEN;
-static int  max_rpc_msg_size  = MAX_RPC_MSG_SIZE;
+static int  max_rpc_msg_size  = C2_RPC_DEF_MAX_RPC_MSG_SIZE;
 
 static char client_endpoint[BUF_LEN];
 static char server_endpoint[BUF_LEN];
