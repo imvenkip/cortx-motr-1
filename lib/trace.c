@@ -62,7 +62,7 @@ static char bootbuf[4096];
 void      *c2_logbuf     = bootbuf;
 uint32_t   c2_logbufsize = sizeof bootbuf;
 
-unsigned long c2_trace_immediate_mask = 16;
+unsigned long c2_trace_immediate_mask = 0;
 C2_BASSERT(sizeof(c2_trace_immediate_mask) == 8);
 
 static uint32_t           bufmask;

@@ -160,6 +160,7 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 #include "rpc/session.h"
 #include "addb/addb.h"
 #include "rpc/rpc_base.h"
+#include "rpc/formation2.h"
 
 enum c2_rpc_item_priority {
 	C2_RPC_ITEM_PRIO_MIN,
@@ -419,6 +420,7 @@ struct c2_rpc_chan {
 	struct c2_ref			  rc_ref;
 	/** Formation state machine associated with chan. */
 	struct c2_rpc_frm_sm		  rc_frmsm;
+	struct c2_rpc_frm                 rc_frm;
 	/** Destination end point to which rpcs will be sent. */
 	struct c2_net_end_point		 *rc_destep;
 	/** The rpc_machine, this chan structure is associated with.*/

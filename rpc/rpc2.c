@@ -45,6 +45,7 @@
 #include "lib/arith.h"
 #include "lib/vec.h"
 #include "lib/finject.h"
+#include "rpc/formation2.h"
 
 /* Forward declarations. */
 static int recv_buffer_allocate_nr(struct c2_net_domain  *net_dom,
@@ -225,8 +226,8 @@ int c2_rpc__post_locked(struct c2_rpc_item *item)
 	item->ri_rpc_time = c2_time_now();
 
 	item->ri_state = RPC_ITEM_SUBMITTED;
-	frm_ubitem_added(item);
-
+	//frm_ubitem_added(item);
+	c2_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm, item);
 	return 0;
 }
 
@@ -257,7 +258,7 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	sref->sr_item = reply;
 
 	reply->ri_prio     = request->ri_prio;
-	reply->ri_deadline = request->ri_deadline;
+	reply->ri_deadline = 0;
 	reply->ri_error    = 0;
 	reply->ri_state    = RPC_ITEM_SUBMITTED;
 
@@ -358,6 +359,7 @@ static void rpc_chan_ref_release(struct c2_ref *ref)
 	/* Destroy the chan structure. */
 	c2_list_del(&chan->rc_linkage);
 	frm_sm_fini(&chan->rc_frmsm);
+	c2_rpc_frm_fini(&chan->rc_frm);
 	c2_free(chan);
 }
 
@@ -366,6 +368,7 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 			   struct c2_net_end_point *dest_ep,
 			   uint64_t max_rpcs_in_flight)
 {
+	struct c2_rpc_frm_constraints constraints;
 	struct c2_rpc_chan *ch;
 
 	C2_PRE(chan != NULL);
@@ -384,7 +387,11 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 	ch->rc_destep = dest_ep;
 	c2_ref_init(&ch->rc_ref, 1, rpc_chan_ref_release);
 	c2_net_end_point_get(dest_ep);
+
 	frm_sm_init(&ch->rc_frmsm, max_rpcs_in_flight);
+	c2_rpc_frm_constraints_get_defaults(&constraints);
+	c2_rpc_frm_init(&ch->rc_frm, machine, ch,
+			constraints, NULL /* use default ops */);
 	c2_list_add(&machine->rm_chans, &ch->rc_linkage);
 	*chan = ch;
 	return 0;

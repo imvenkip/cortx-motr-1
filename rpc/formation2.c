@@ -13,6 +13,8 @@ frm_which_queue(struct c2_rpc_frm        *frm,
                 const struct c2_rpc_item *item);
 
 void frm_itemq_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
+void __itemq_insert(struct c2_tl *q, struct c2_rpc_item *new_item);
+void start_deadline_timer_if_needed(struct c2_rpc_item *item);
 void frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
 void __frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
 unsigned long item_timer_callback(unsigned long data);
@@ -27,6 +29,8 @@ int item_start_timer(const struct c2_rpc_item *item);
 unsigned long item_timer_callback(unsigned long data);
 
 bool constraints_are_valid(const struct c2_rpc_frm_constraints *constraints);
+
+extern struct c2_rpc_frm_ops c2_rpc_frm_default_ops;
 
 #define frm_first_itemq(frm) (&(frm)->f_itemq[0])
 #define frm_last_itemq(frm) (&(frm)->f_itemq[ARRAY_SIZE((frm)->f_itemq) - 1])
@@ -107,11 +111,15 @@ bool frm_invariant(const struct c2_rpc_frm *frm)
 
 void c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *c)
 {
+	C2_ENTRY();
+
 	/* XXX Temporary */
-	c->fc_max_nr_packets_enqed     = 1000;
+	c->fc_max_nr_packets_enqed     = 10000;
 	c->fc_max_nr_segments          = 128;
-	c->fc_max_packet_size          = 100;
-	c->fc_max_nr_bytes_accumulated = 100;
+	c->fc_max_packet_size          = 4096;
+	c->fc_max_nr_bytes_accumulated = 4096;
+
+	C2_LEAVE();
 }
 
 bool constraints_are_valid(const struct c2_rpc_frm_constraints *constraints)
@@ -119,22 +127,24 @@ bool constraints_are_valid(const struct c2_rpc_frm_constraints *constraints)
 	return true;
 }
 
-int c2_rpc_frm_init(struct c2_rpc_frm             *frm,
-		    struct c2_rpc_machine         *rmachine,
-		    struct c2_rpc_frm_constraints  constraints,
-		    struct c2_rpc_frm_ops         *ops)
+void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
+		     struct c2_rpc_machine         *rmachine,
+		     struct c2_rpc_chan            *rchan,
+		     struct c2_rpc_frm_constraints  constraints,
+		     struct c2_rpc_frm_ops         *ops)
 {
 	struct c2_tl *q;
 
 	C2_ENTRY("frm: %p rmachine %p", frm, rmachine);
 	C2_PRE(frm != NULL &&
 	       rmachine != NULL &&
-	       ops != NULL &&
+	       rchan != NULL &&
 	       constraints_are_valid(&constraints));
 
 	C2_SET0(frm);
 	frm->f_rmachine    = rmachine;
-	frm->f_ops         = ops;
+	frm->f_ops         = ops == NULL ? &c2_rpc_frm_default_ops : ops;
+	frm->f_rchan       = rchan;
 	frm->f_constraints = constraints; /* structure instance copy */
 
 	for_each_itemq_in_frm(q, frm)
@@ -143,8 +153,7 @@ int c2_rpc_frm_init(struct c2_rpc_frm             *frm,
 	frm->f_state = FRM_IDLE;
 
 	C2_POST(frm_invariant(frm) && frm->f_state == FRM_IDLE);
-	C2_LEAVE("rc: 0");
-	return 0;
+	C2_LEAVE();
 }
 
 void c2_rpc_frm_fini(struct c2_rpc_frm *frm)
@@ -239,10 +248,7 @@ bool item_priority_is_valid(const struct c2_rpc_item *item)
 
 void frm_itemq_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *new_item)
 {
-	struct c2_rpc_item *item;
-	struct c2_tl       *q;
-
-	auto void start_deadline_timer_if_needed(void);
+	struct c2_tl *q;
 
 	C2_ENTRY("frm: %p item: %p", frm, new_item);
 	C2_PRE(new_item != NULL);
@@ -255,8 +261,26 @@ void frm_itemq_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *new_item)
 
 	q = frm_which_queue(frm, new_item);
 
-	/* where to put the new item in the queue */
+	__itemq_insert(q, new_item);
 
+	new_item->ri_itemq = q;
+	new_item->ri_frm   = frm;
+	C2_CNT_INC(frm->f_nr_items);
+	frm->f_nr_bytes_accumulated += c2_rpc_item_size(new_item);
+
+	start_deadline_timer_if_needed(new_item);
+
+	C2_LEAVE();
+	return;
+}
+
+void __itemq_insert(struct c2_tl *q, struct c2_rpc_item *new_item)
+{
+	struct c2_rpc_item *item;
+
+	C2_ENTRY();
+
+	/* where to put the new item in the queue */
 	c2_tl_for(itemq, q, item)
 		if (item->ri_prio > new_item->ri_prio)
 			continue;
@@ -283,54 +307,50 @@ void frm_itemq_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *new_item)
 		itemq_tlist_add_before(item, new_item);
 	}
 
-	new_item->ri_itemq = q;
-	new_item->ri_frm   = frm;
-	C2_CNT_INC(frm->f_nr_items);
-	frm->f_nr_bytes_accumulated += c2_rpc_item_size(new_item);
-
-	start_deadline_timer_if_needed();
-
 	C2_LEAVE();
-	return;
+}
 
-	void start_deadline_timer_if_needed(void)
-	{
-		bool item_is_in_waiting_queue;
-		int  err;
+void start_deadline_timer_if_needed(struct c2_rpc_item *item)
+{
+	struct c2_rpc_frm *frm;
+	struct c2_tl      *q;
+	bool               item_is_in_waiting_queue;
+	int                err;
 
-		/*
-		 * REMEMBER: we cannot again compare "now" and
-		 * item->ri_deadline to decide whether to start timer or not.
-		 * If item is placed in any of waiting queues then
-		 * timer must be started. Then only the item will be able to
-		 * transition to one of "timedout" queues.
-		 */
-		item_is_in_waiting_queue =
-			q == &frm->f_itemq[FRMQ_WAITING_BOUND] ||
-			q == &frm->f_itemq[FRMQ_WAITING_UNBOUND] ||
-			q == &frm->f_itemq[FRMQ_WAITING_ONE_WAY];
+	/*
+	 * REMEMBER: we cannot again compare "now" and
+	 * item->ri_deadline to decide whether to start timer or not.
+	 * If item is placed in any of waiting queues then
+	 * timer must be started. Then only the item will be able to
+	 * transition to one of "timedout" queues.
+	 */
+	q   = item->ri_itemq;
+	frm = item->ri_frm;
+	item_is_in_waiting_queue =
+		q == &frm->f_itemq[FRMQ_WAITING_BOUND] ||
+		q == &frm->f_itemq[FRMQ_WAITING_UNBOUND] ||
+		q == &frm->f_itemq[FRMQ_WAITING_ONE_WAY];
 
-		/*
-		 * We want ri_timer of all the items to be initialised,
-		 * irrespective of whether timer is to be started or not.
-		 * Because we will need to check whether timer is running or
-		 * not. And we don't want this check to happen on an
-		 * uninitialised timer.
-		 */
-		/** @todo XXX Use HARD timer for rpc-item deadline. */
-		c2_timer_init(&new_item->ri_timer, C2_TIMER_SOFT,
-			      new_item->ri_deadline,
-			      item_timer_callback, (unsigned long)new_item);
+	/*
+	 * We want ri_timer of all the items to be initialised,
+	 * irrespective of whether timer is to be started or not.
+	 * Because we will need to check whether timer is running or
+	 * not. And we don't want this check to happen on an
+	 * uninitialised timer.
+	 */
+	/** @todo XXX Use HARD timer for rpc-item deadline. */
+	c2_timer_init(&item->ri_timer, C2_TIMER_SOFT,
+		      item->ri_deadline,
+		      item_timer_callback, (unsigned long)item);
 
-		err = 1;
-		if (item_is_in_waiting_queue)
-			err = c2_timer_start(&new_item->ri_timer);
+	err = 1;
+	if (item_is_in_waiting_queue)
+		err = c2_timer_start(&item->ri_timer);
 
-		if (err == 0)
-			C2_LOG("timer started");
-		else
-			C2_LOG("timer is not started");
-	}
+	if (err == 0)
+		C2_LOG("timer started");
+	else
+		C2_LOG("timer is not started");
 }
 
 void frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
@@ -457,7 +477,7 @@ void frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 	C2_LOG("nr_items: %llu", (ULL)p->rp_nr_items);
 
 	++frm->f_nr_packets_enqed;
-	frm->f_ops->fo_packet_ready(p);
+	frm->f_ops->fo_packet_ready(p, frm->f_rmachine, frm->f_rchan);
 }
 
 bool frm_try_to_bind_item(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
@@ -486,10 +506,22 @@ void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 	c2_bcount_t         limit;
 	bool                bound;
 
-	/* declarations of nested functions */
-	auto bool        item_will_exceed_packet_size(void);
-	auto c2_bcount_t available_space_in_packet(void);
-	auto bool        item_supports_merging(void);
+	/* Nested function definitions */
+	c2_bcount_t available_space_in_packet(void)
+	{
+		C2_PRE(p->rp_size <= frm->f_constraints.fc_max_packet_size);
+		return frm->f_constraints.fc_max_packet_size - p->rp_size;
+	}
+	bool item_will_exceed_packet_size(void) {
+		return c2_rpc_item_size(item) > available_space_in_packet();
+	}
+	bool item_supports_merging(void)
+	{
+		C2_PRE(item->ri_type != NULL &&
+		       item->ri_type->rit_ops != NULL);
+
+		return item->ri_type->rit_ops->rito_try_merge != NULL;
+	}
 
 	C2_ENTRY("frm: %p packet: %p", frm, p);
 
@@ -517,23 +549,6 @@ void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 	C2_ASSERT(frm_invariant(frm));
 	C2_LEAVE();
 	return;
-
-	/* Nested function definitions */
-	c2_bcount_t available_space_in_packet(void)
-	{
-		C2_PRE(p->rp_size <= frm->f_constraints.fc_max_packet_size);
-		return frm->f_constraints.fc_max_packet_size - p->rp_size;
-	}
-	bool item_will_exceed_packet_size(void) {
-		return c2_rpc_item_size(item) > available_space_in_packet();
-	}
-	bool item_supports_merging(void)
-	{
-		C2_PRE(item->ri_type != NULL &&
-		       item->ri_type->rit_ops != NULL);
-
-		return item->ri_type->rit_ops->rito_try_merge != NULL;
-	}
 }
 
 void frm_try_merging_item(struct c2_rpc_frm  *frm,

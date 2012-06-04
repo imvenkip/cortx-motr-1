@@ -1,12 +1,19 @@
 #include "lib/tlist.h"
 #include "lib/chan.h"
 #include "lib/misc.h"
+#include "lib/vec.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_FORMATION
 #include "lib/trace.h"
 #include "rpc/packet.h"
 #include "rpc/rpc2.h"
+#include "rpc/rpc_onwire.h"
 
 #define ULL unsigned long long
+
+static int packet_header_encode(struct c2_rpc_packet    *p,
+				struct c2_bufvec_cursor *cursor);
+static int item_encode(struct c2_rpc_item       *item,
+		       struct c2_bufvec_cursor  *cursor);
 
 enum {
 	PACKET_HEAD_MAGIC = 0x1111000011110000
@@ -16,7 +23,7 @@ C2_TL_DESCR_DEFINE(packet_item, "packet_item", static, struct c2_rpc_item,
                    PACKET_HEAD_MAGIC);
 C2_TL_DEFINE(packet_item, static, struct c2_rpc_item);
 
-const bool packet_invariant(const struct c2_rpc_packet *p)
+bool c2_rpc_packet_invariant(const struct c2_rpc_packet *p)
 {
 	c2_bcount_t size;
 
@@ -40,14 +47,14 @@ void c2_rpc_packet_init(struct c2_rpc_packet *p)
 	packet_item_tlist_init(&p->rp_items);
 	c2_chan_init(&p->rp_chan);
 
-	C2_ASSERT(packet_invariant(p));
+	C2_ASSERT(c2_rpc_packet_invariant(p));
 	C2_LEAVE();
 }
 
 void c2_rpc_packet_fini(struct c2_rpc_packet *p)
 {
 	C2_ENTRY("packet: %p nr_items: %llu", p, (ULL)p->rp_nr_items);
-	C2_PRE(packet_invariant(p) && p->rp_nr_items == 0);
+	C2_PRE(c2_rpc_packet_invariant(p) && p->rp_nr_items == 0);
 
 	c2_chan_fini(&p->rp_chan);
 	packet_item_tlist_fini(&p->rp_items);
@@ -60,7 +67,7 @@ void c2_rpc_packet_add_item(struct c2_rpc_packet *p,
 			    struct c2_rpc_item   *item)
 {
 	C2_ENTRY("packet: %p item: %p", p, item);
-	C2_PRE(packet_invariant(p) && item != NULL);
+	C2_PRE(c2_rpc_packet_invariant(p) && item != NULL);
 
 	packet_item_tlink_init_at_tail(item, &p->rp_items);
 	++p->rp_nr_items;
@@ -69,7 +76,7 @@ void c2_rpc_packet_add_item(struct c2_rpc_packet *p,
 	C2_LOG("nr_items: %llu packet size: %llu",
 			(ULL)p->rp_nr_items,
 			(ULL)p->rp_size);
-	C2_ASSERT(packet_invariant(p));
+	C2_ASSERT(c2_rpc_packet_invariant(p));
 	C2_POST(c2_rpc_packet_is_carrying_item(p, item));
 	C2_LEAVE();
 }
@@ -78,7 +85,7 @@ void c2_rpc_packet_remove_item(struct c2_rpc_packet *p,
 			       struct c2_rpc_item   *item)
 {
 	C2_ENTRY("packet: %p item: %p", p, item);
-	C2_PRE(packet_invariant(p) && item != NULL);
+	C2_PRE(c2_rpc_packet_invariant(p) && item != NULL);
 	C2_PRE(c2_rpc_packet_is_carrying_item(p, item));
 
 	packet_item_tlink_del_fini(item);
@@ -87,7 +94,7 @@ void c2_rpc_packet_remove_item(struct c2_rpc_packet *p,
 
 	C2_LOG("nr_items: %llu packet size: %llu", (ULL)p->rp_nr_items,
 						   (ULL)p->rp_size);
-	C2_ASSERT(packet_invariant(p));
+	C2_ASSERT(c2_rpc_packet_invariant(p));
 	C2_POST(!c2_rpc_packet_is_carrying_item(p, item));
 	C2_LEAVE();
 }
@@ -97,14 +104,14 @@ void c2_rpc_packet_remove_all_items(struct c2_rpc_packet *p)
 	struct c2_rpc_item *item;
 
 	C2_ENTRY("packet: %p", p);
-	C2_PRE(packet_invariant(p) && !c2_rpc_packet_is_empty(p));
+	C2_PRE(c2_rpc_packet_invariant(p) && !c2_rpc_packet_is_empty(p));
 	C2_LOG("nr_items: %d", (int)p->rp_nr_items);
 
 	c2_tl_for(packet_item, &p->rp_items, item)
 		c2_rpc_packet_remove_item(p, item);
 	c2_tl_endfor;
 
-	C2_POST(packet_invariant(p) && c2_rpc_packet_is_empty(p));
+	C2_POST(c2_rpc_packet_invariant(p) && c2_rpc_packet_is_empty(p));
 	C2_LEAVE();
 }
 
@@ -116,7 +123,123 @@ bool c2_rpc_packet_is_carrying_item(const struct c2_rpc_packet *p,
 
 bool c2_rpc_packet_is_empty(const struct c2_rpc_packet *p)
 {
-	C2_PRE(packet_invariant(p));
+	C2_PRE(c2_rpc_packet_invariant(p));
 
 	return p->rp_nr_items == 0;
+}
+
+int c2_rpc_packet_encode_in_buf(struct c2_rpc_packet *p,
+				struct c2_bufvec     *bufvec)
+{
+	struct c2_bufvec_cursor  cur;
+	c2_bcount_t              bufvec_size;
+	int                      rc;
+
+	C2_ENTRY("packet: %p bufvec: %p", p, bufvec);
+	C2_PRE(c2_rpc_packet_invariant(p) && bufvec != NULL);
+	C2_PRE(!c2_rpc_packet_is_empty(p));
+
+	bufvec_size = c2_vec_count(&bufvec->ov_vec);
+
+	C2_ASSERT(C2_IS_8ALIGNED(bufvec_size));
+	C2_ASSERT(c2_forall(i, bufvec->ov_vec.v_nr,
+			    C2_IS_8ALIGNED(bufvec->ov_vec.v_count[i])));
+	C2_ASSERT(bufvec_size >= p->rp_size);
+
+	c2_bufvec_cursor_init(&cur, bufvec);
+	C2_ASSERT(C2_IS_8ALIGNED(c2_bufvec_cursor_addr(&cur)));
+
+	rc = c2_rpc_packet_encode_using_cursor(p, &cur);
+
+	C2_LEAVE("rc: %d", rc);
+	return rc;
+}
+
+int c2_rpc_packet_encode_using_cursor(struct c2_rpc_packet    *packet,
+				      struct c2_bufvec_cursor *cursor)
+{
+	struct c2_rpc_item *item;
+	int                 rc;
+
+	C2_ENTRY("packet: %p cursor: %p", packet, cursor);
+	C2_PRE(c2_rpc_packet_invariant(packet) && cursor != NULL);
+	C2_PRE(!c2_rpc_packet_is_empty(packet));
+
+	rc = packet_header_encode(packet, cursor);
+	if (rc == 0) {
+		c2_tl_for(packet_item, &packet->rp_items, item)
+			rc = item_encode(item, cursor);
+			if (rc != 0)
+				break;
+		c2_tl_endfor;
+	}
+
+	C2_LEAVE("rc: %d", rc);
+	return rc;
+}
+
+static int packet_header_encode(struct c2_rpc_packet    *p,
+				struct c2_bufvec_cursor *cursor)
+{
+	uint32_t ver;
+	int      rc;
+
+	C2_ENTRY();
+	ver = C2_RPC_VERSION_1;
+	rc = c2_bufvec_uint32(cursor, &ver, C2_BUFVEC_ENCODE) ?:
+	     c2_bufvec_uint32(cursor, &p->rp_nr_items, C2_BUFVEC_ENCODE);
+
+	C2_LEAVE("rc: %d", rc);
+	return rc;
+}
+
+static int item_encode(struct c2_rpc_item       *item,
+		       struct c2_bufvec_cursor  *cursor)
+{
+	int rc;
+
+	C2_ENTRY("item: %p cursor: %p", item, cursor);
+	C2_PRE(item != NULL && cursor != NULL);
+	C2_PRE(item->ri_type != NULL &&
+	       item->ri_type->rit_ops != NULL &&
+	       item->ri_type->rit_ops->rito_encode != NULL);
+
+	rc = item->ri_type->rit_ops->rito_encode(item->ri_type, item, cursor);
+	C2_LEAVE("rc: %d", rc);
+	return rc;
+}
+
+void c2_rpc_packet_sent(struct c2_rpc_packet *p)
+{
+	struct c2_rpc_item *item;
+
+	C2_ENTRY("p: %p", p);
+	C2_PRE(c2_rpc_packet_invariant(p));
+	C2_LOG("nr_items: %u", (unsigned int)p->rp_nr_items);
+
+	c2_tl_for(packet_item, &p->rp_items, item) {
+		C2_LOG("item %p SENT", item);
+		/* implement SENT callback here */
+		item->ri_state = RPC_ITEM_SENT;
+	} c2_tl_endfor;
+
+	C2_LEAVE();
+}
+
+void c2_rpc_packet_failed(struct c2_rpc_packet *p, int rc)
+{
+	struct c2_rpc_item *item;
+
+	C2_ENTRY("p: %p", p);
+	C2_PRE(c2_rpc_packet_invariant(p));
+	C2_LOG("nr_items: %u", (unsigned int)p->rp_nr_items);
+
+	c2_tl_for(packet_item, &p->rp_items, item) {
+		C2_LOG("item %p SEND_FAILED rc[%d]", item, rc);
+		/* implement FAILED callback here */
+		item->ri_state = RPC_ITEM_SEND_FAILED;
+		item->ri_error = rc;
+	} c2_tl_endfor;
+
+	C2_LEAVE();
 }

@@ -6,7 +6,8 @@
 
 struct c2_rpc_packet;
 struct c2_rpc_item;
-struct c2_rpc_slot;
+struct c2_rpc_machine;
+struct c2_rpc_chan;
 
 struct c2_rpc_frm_constraints {
 	uint64_t    fc_max_nr_packets_enqed;
@@ -36,7 +37,9 @@ enum c2_rpc_frm_itemq_type {
 };
 
 struct c2_rpc_frm_ops {
-	void (*fo_packet_ready)(struct c2_rpc_packet *p);
+	bool (*fo_packet_ready)(struct c2_rpc_packet  *p,
+				struct c2_rpc_machine *machine,
+				struct c2_rpc_chan    *rchan);
 	bool (*fo_bind_item)(struct c2_rpc_item *item);
 };
 
@@ -48,13 +51,15 @@ struct c2_rpc_frm {
 	uint64_t                       f_nr_packets_enqed;
 	struct c2_rpc_frm_constraints  f_constraints;
 	struct c2_rpc_machine         *f_rmachine;
+	struct c2_rpc_chan            *f_rchan;
 	struct c2_rpc_frm_ops         *f_ops;
 };
 
-int c2_rpc_frm_init(struct c2_rpc_frm             *frm,
-		    struct c2_rpc_machine         *rmachine,
-		    struct c2_rpc_frm_constraints  constraints,
-		    struct c2_rpc_frm_ops         *ops);
+void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
+		     struct c2_rpc_machine         *rmachine,
+		     struct c2_rpc_chan            *rchan,
+		     struct c2_rpc_frm_constraints  constraints,
+		     struct c2_rpc_frm_ops         *ops);
 
 void c2_rpc_frm_fini(struct c2_rpc_frm *frm);
 

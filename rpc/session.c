@@ -45,6 +45,7 @@
 #include "dtm/verno.h"
 #include "rpc/session_fops.h"
 #include "rpc/rpc2.h"
+#include "rpc/formation2.h"
 
 /**
    @addtogroup rpc_session
@@ -270,6 +271,7 @@ int c2_rpc_session_init_locked(struct c2_rpc_session *session,
 
 	c2_list_link_init(&session->s_link);
 	c2_list_init(&session->s_unbound_items);
+	c2_list_init(&session->s_ready_slots);
 
 	c2_cond_init(&session->s_state_changed);
 
@@ -347,6 +349,7 @@ static void __session_fini(struct c2_rpc_session *session)
 	}
 	c2_list_link_fini(&session->s_link);
 	c2_cond_fini(&session->s_state_changed);
+	c2_list_fini(&session->s_ready_slots);
 	c2_list_fini(&session->s_unbound_items);
 }
 
@@ -933,13 +936,43 @@ uint64_t session_id_allocate(void)
 
 static void snd_slot_idle(struct c2_rpc_slot *slot)
 {
-	C2_ASSERT(slot->sl_in_flight == 0);
-	frm_slot_idle(slot);
+	struct c2_rpc_frm *frm;
+
+	C2_PRE(slot != NULL);
+	C2_PRE(slot->sl_session != NULL);
+	C2_PRE(slot->sl_in_flight == 0);
+	C2_PRE(!c2_list_link_is_in(&slot->sl_link));
+
+	c2_list_add_tail(&slot->sl_session->s_ready_slots, &slot->sl_link);
+	frm = &slot->sl_session->s_conn->c_rpcchan->rc_frm;
+	c2_rpc_frm_run_formation(frm);
 }
 
+bool c2_rpc_session_bind_item(struct c2_rpc_item *item)
+{
+	struct c2_rpc_session *session;
+	struct c2_rpc_slot    *slot;
+
+	C2_PRE(item != NULL && item->ri_session != NULL);
+
+	session = item->ri_session;
+
+	if (c2_list_is_empty(&session->s_ready_slots)) {
+		return false;
+	}
+	slot = c2_list_entry(c2_list_first(&session->s_ready_slots),
+			     struct c2_rpc_slot, sl_link);
+	c2_list_del(&slot->sl_link);
+	c2_rpc_slot_item_add_internal(slot, item);
+
+	C2_POST(c2_rpc_item_is_bound(item));
+
+	return true;
+}
 static void snd_item_consume(struct c2_rpc_item *item)
 {
-	frm_item_ready(item);
+	//frm_item_ready(item);
+	c2_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm, item);
 }
 
 static void snd_reply_consume(struct c2_rpc_item *req,
@@ -966,7 +999,9 @@ static void rcv_item_consume(struct c2_rpc_item *item)
 static void rcv_reply_consume(struct c2_rpc_item *req,
 			      struct c2_rpc_item *reply)
 {
-	frm_item_ready(reply);
+	//frm_item_ready(reply);
+	c2_rpc_frm_enq_item(&req->ri_session->s_conn->c_rpcchan->rc_frm,
+			    reply);
 }
 
 int c2_rpc_rcv_session_establish(struct c2_rpc_session *session)

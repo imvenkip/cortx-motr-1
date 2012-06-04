@@ -923,6 +923,8 @@ struct c2_rpc_session {
 	    session is changed. Associated with s_mutex
 	 */
 	struct c2_cond            s_state_changed;
+
+	struct c2_list            s_ready_slots;
 };
 
 /**

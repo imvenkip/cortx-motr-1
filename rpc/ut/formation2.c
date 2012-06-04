@@ -36,6 +36,7 @@ static int frm_ut_fini(void)
 static struct c2_rpc_frm frm;
 static struct c2_rpc_frm_constraints constraints;
 static struct c2_rpc_machine rmachine;
+static struct c2_rpc_chan    rchan;
 static struct c2_rpc_session session;
 static struct c2_rpc_item items[FRMQ_NR_QUEUES];
 static struct c2_rpc_slot slot;
@@ -43,13 +44,17 @@ static struct c2_rpc_slot slot;
 static int pcount = 0;
 static int bound_item_count = 0;
 
-static void packet_ready(struct c2_rpc_packet *p)
+static bool packet_ready(struct c2_rpc_packet  *p,
+			 struct c2_rpc_machine *machine,
+			 struct c2_rpc_chan    *rchanp)
 {
+	C2_UT_ASSERT(machine == &rmachine);
+	C2_UT_ASSERT(rchanp == &rchan);
 	++pcount;
 	c2_rpc_packet_remove_all_items(p);
 	c2_rpc_packet_fini(p);
 	c2_free(p);
-	return;
+	return true;
 }
 static bool frm_bind_item(struct c2_rpc_item *item)
 {
@@ -77,7 +82,7 @@ static void frm_init_test(void)
 {
 	c2_rpc_frm_constraints_get_defaults(&constraints);
 	c2_mutex_init(&rmachine.rm_mutex);
-	c2_rpc_frm_init(&frm, &rmachine, constraints, &frm_ops);
+	c2_rpc_frm_init(&frm, &rmachine, &rchan, constraints, &frm_ops);
 	C2_UT_ASSERT(frm.f_state == FRM_IDLE);
 }
 
