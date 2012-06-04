@@ -54,7 +54,8 @@ bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool)
 		pool->nbp_free <= pool->nbp_buf_nr &&
 		pool->nbp_free == c2_net_pool_tlist_length(&pool->nbp_lru) &&
 		pool_colour_check(pool) &&
-		pool_lru_buffer_check(pool);
+		pool_lru_buffer_check(pool) &&
+		!(pool->nbp_colours == NULL && pool->nbp_colours_nr != 0);
 }
 
 static bool pool_colour_check(const struct c2_net_buffer_pool *pool)
@@ -163,11 +164,12 @@ void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool)
 
 	C2_PRE(c2_net_buffer_pool_is_not_locked(pool));
 
-	if (pool->nbp_colours == NULL && pool->nbp_colours_nr != 0)
-		return;
 	c2_net_buffer_pool_lock(pool);
 	C2_ASSERT(c2_net_buffer_pool_invariant(pool));
 	C2_ASSERT(pool->nbp_free == pool->nbp_buf_nr);
+	
+	if (pool->nbp_colours == NULL && pool->nbp_colours_nr != 0)
+		return;
 
 	c2_tl_for(c2_net_pool, &pool->nbp_lru, nb) {
 		C2_CNT_DEC(pool->nbp_free);

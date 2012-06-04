@@ -261,14 +261,13 @@ end:
 	return rc;
 }
 
-int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
+int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb,
+		  c2_bcount_t len, c2_bcount_t offset)
 {
 	int			  i;
 	int			  rc;
 	struct c2_rpc_item	 *item;
 	struct c2_rpc_item_type  *item_type;
-	size_t			  offset;
-	size_t			  len;
 	size_t			  bufvec_size;
 	uint32_t		  item_count;
 	uint32_t		  opcode;
@@ -278,9 +277,8 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 
 	C2_PRE(nb != NULL);
 	C2_PRE(rpc_obj != NULL);
+	C2_PRE(len != 0);
 
-	len = nb->nb_length;
-	C2_ASSERT(len != 0);
 	bufvec_size = c2_vec_count(&nb->nb_buffer.ov_vec);
 	C2_ASSERT(len <= bufvec_size);
 	/*
@@ -290,6 +288,8 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb)
 	C2_ASSERT(C2_IS_8ALIGNED(bufvec_size));
 	C2_ASSERT(each_bufsize_is_8aligned(&nb->nb_buffer));
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
+	if (offset > 0)
+		c2_bufvec_cursor_move(&cur, offset);
         cur_addr = c2_bufvec_cursor_addr(&cur);
 	C2_ASSERT(C2_IS_8ALIGNED(cur_addr));
 

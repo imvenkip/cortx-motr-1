@@ -129,11 +129,14 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb);
    - Add the deserialized item to the r_items list of the rpc_obj.
    @param rpc_obj The RPC object on which the onwire items would be
    deserialized.
-   @param nb  The network buffer containing the onwire RPC object.
+   @param nb     The network buffer containing the onwire RPC object.
+   @param len    Length of RPC message received.
+   @param offset offset of the message in the received buffer.
    @retval 0 on success.
    @retval -errno on failure.
 */
-int c2_rpc_decode( struct c2_rpc *rpc_obj, struct c2_net_buffer *nb );
+int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb,
+		  c2_bcount_t len, c2_bcount_t offset);
 
 int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
 			enum c2_bufvec_what what);

@@ -431,9 +431,6 @@ static int cs_endpoint_validate(struct c2_colibri *cctx, const char *ep,
 	if (xprt == NULL)
 		rc = -EINVAL;
 
-	if (strcmp(xprt_name, "lnet") == 0)
-		rc = c2_net_lnet_ep_addr_net_cmp(ep, ep);
-
 	if (rc == 0 && cs_endpoint_is_duplicate(cctx, xprt, ep))
 		rc = -EADDRINUSE;
 
@@ -557,7 +554,7 @@ struct c2_rpc_machine *c2_cs_rpc_mach_get(struct c2_colibri *cctx,
 				C2_ASSERT(c2_rpc_machine_bob_check(rpcmach));
 				nxprt = rpcmach->rm_tm.ntm_dom->nd_xprt;
 				C2_ASSERT(nxprt != NULL);
-				if (nxprt->nx_name == xprt->nx_name) {
+				if (nxprt == xprt) {
 					c2_mutex_unlock(&cctx->cc_mutex);
 					return rpcmach;
 				}

@@ -601,7 +601,7 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 		rpc_chan_put(chan);
 	}
 	c2_rpcobj_init(&rpc);
-	rc = c2_rpc_decode(&rpc, nb);
+	rc = c2_rpc_decode(&rpc, nb, ev->nbe_length, ev->nbe_offset);
 last:
 	C2_ASSERT(nb->nb_pool != NULL);
 	if (!(nb->nb_flags & C2_NET_BUF_QUEUED))
