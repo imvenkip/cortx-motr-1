@@ -341,8 +341,8 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "lib/misc.h"    /* memset() */
-#include "lib/vec.h"     /* C2_BUFVEC_INIT_BUF() */
+#include "lib/misc.h"  /* memset() */
+#include "lib/vec.h"   /* C2_BUFVEC_INIT_BUF() */
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
@@ -393,7 +393,6 @@ static c2_bcount_t recsize_get(const struct c2_layout *l)
 		  lt->lt_ops->lto_recsize(l->l_dom, l);
 
 	C2_POST(recsize <= c2_layout_max_recsize(l->l_dom));
-
 	return recsize;
 }
 
@@ -426,7 +425,6 @@ int layout_write(const struct c2_layout *l,
 	       recsize <= c2_layout_max_recsize(l->l_dom));
 
 	*(uint64_t *)key_buf = l->l_id;
-
 	c2_db_pair_setup(pair, &l->l_dom->ld_schema.ls_layouts,
 			 key_buf, sizeof l->l_id, rec_buf, recsize);
 
@@ -460,12 +458,11 @@ static int rec_get(struct c2_db_tx *tx, struct c2_layout *l,
 	C2_PRE(tx != NULL);
 	C2_PRE(l != NULL);
 	C2_PRE(area != NULL);
-
 	/*
 	 * The max_recsize is never expected to be that large. But still,
 	 * since it is being type-casted here to uint32_t.
 	 */
-	C2_ASSERT(max_recsize <= UINT32_MAX);
+	C2_PRE(max_recsize <= UINT32_MAX);
 
 	c2_db_pair_setup(&pair, &l->l_dom->ld_schema.ls_layouts,
 			 &l->l_id, sizeof l->l_id,
@@ -478,7 +475,6 @@ static int rec_get(struct c2_db_tx *tx, struct c2_layout *l,
 	rc = c2_table_lookup(tx, &pair);
 
 	c2_db_pair_fini(&pair);
-
 	return rc;
 }
 
@@ -543,7 +539,6 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 
 	*(uint64_t *)key_buf = lid;
 	memset(rec_buf, 0, pair->dp_rec.db_buf.b_nob);
-
 	c2_db_pair_setup(pair, &dom->ld_schema.ls_layouts,
 			 key_buf, sizeof lid, rec_buf, recsize);
 
@@ -557,7 +552,6 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	}
 
 	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&rec_buf, &recsize);
-
 	c2_bufvec_cursor_init(&cur, &bv);
 
 	rc = c2_layout_decode(dom, lid, C2_LXO_DB_LOOKUP, tx, &cur, out);
@@ -572,7 +566,6 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 out:
 	c2_db_pair_fini(pair);
 	c2_mutex_unlock(&dom->ld_schema.ls_lock);
-
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
@@ -613,7 +606,6 @@ int c2_layout_add(struct c2_layout *l,
 	c2_mutex_lock(&l->l_dom->ld_schema.ls_lock);
 
 	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
-
 	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
 						  &pair->dp_rec.db_buf.b_nob);
 	c2_bufvec_cursor_init(&cur, &bv);
@@ -628,16 +620,13 @@ int c2_layout_add(struct c2_layout *l,
 
 	recsize = recsize_get(l);
 	rc = layout_write(l, tx, C2_LXO_DB_ADD, pair, recsize);
-	if (rc != 0) {
+	if (rc != 0)
 		c2_layout__log("c2_layout_add", "layout_write() failed",
 			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
 			       &layout_add_fail, &l->l_addb, l->l_id, rc);
-		goto out;
-	}
 
 out:
 	c2_mutex_unlock(&l->l_dom->ld_schema.ls_lock);
-
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }
@@ -723,17 +712,13 @@ int c2_layout_update(struct c2_layout *l,
 
 	recsize = recsize_get(l);
 	rc = layout_write(l, tx, C2_LXO_DB_UPDATE, pair, recsize);
-	if (rc != 0) {
+	if (rc != 0)
 		c2_layout__log("c2_layout_update", "c2_table_update() failed",
 			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
 			       &layout_update_fail, &l->l_addb, l->l_id, rc);
-		goto out;
-	}
-
 out:
 	c2_free(oldrec_area);
 	c2_mutex_unlock(&l->l_dom->ld_schema.ls_lock);
-
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }
@@ -788,16 +773,12 @@ int c2_layout_delete(struct c2_layout *l,
 
 	recsize = recsize_get(l);
 	rc = layout_write(l, tx, C2_LXO_DB_DELETE, pair, recsize);
-	if (rc != 0) {
+	if (rc != 0)
 		c2_layout__log("c2_layout_delete", "c2_table_delete() failed",
 			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
 			       &layout_delete_fail, &l->l_addb, l->l_id, rc);
-		goto out;
-	}
-
 out:
 	c2_mutex_unlock(&l->l_dom->ld_schema.ls_lock);
-
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }

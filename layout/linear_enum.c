@@ -222,7 +222,6 @@ static int linear_decode(struct c2_layout_domain *dom,
 
 	*out = &lin_enum->lle_base;
 	C2_POST(linear_enum_invariant_internal(lin_enum));
-
 out:
 	C2_LEAVE("rc %d", rc);
 	return rc;

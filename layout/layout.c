@@ -329,8 +329,7 @@ static int layout_list_add(struct c2_layout_domain *dom, struct c2_layout *l)
 	layout_list_tlist_add(&dom->ld_layout_list, l_entry);
 	c2_mutex_unlock(&dom->ld_lock);
 
-	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-
+	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
 	return 0;
 }
 
@@ -450,7 +449,6 @@ void c2_layout__striped_fini(struct c2_layout_striped *str_l)
 	C2_ENTRY("lid %llu", (unsigned long long)str_l->ls_base.l_id);
 
 	str_l->ls_enum->le_ops->leo_fini(str_l->ls_enum);
-
 	c2_layout__fini(&str_l->ls_base);
 
 	C2_LEAVE("lid %llu", (unsigned long long)str_l->ls_base.l_id);
@@ -546,12 +544,10 @@ static int schema_init(struct c2_layout_schema *schema,
 			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       LID_NONE, rc);
-
 		schema->ls_dbenv = NULL;
 	}
 
 	c2_mutex_init(&schema->ls_lock);
-
 	return rc;
 }
 
@@ -609,7 +605,6 @@ static void max_recsize_update(struct c2_layout_domain *dom)
 	for (i = 0; i < ARRAY_SIZE(dom->ld_type); ++i) {
 		if (dom->ld_type[i] == NULL)
 			continue;
-
 		recsize = dom->ld_type[i]->lt_ops->lto_max_recsize(dom);
 		max_recsize = max64u(max_recsize, recsize);
 	}
@@ -737,9 +732,7 @@ int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
 	C2_PRE(dbenv != NULL);
 
 	C2_SET0(dom);
-
 	c2_mutex_init(&dom->ld_lock);
-
 	layout_list_tlist_init(&dom->ld_layout_list);
 
 	rc = schema_init(&dom->ld_schema, dbenv);
@@ -791,10 +784,18 @@ int c2_layout_register(struct c2_layout_domain *dom)
 		return rc;
 
 	rc = c2_layout_enum_type_register(dom, &c2_list_enum_type);
-	if (rc != 0)
+	if (rc != 0) {
+		c2_layout_type_unregister(dom, &c2_pdclust_layout_type);
 		return rc;
+	}
 
 	rc = c2_layout_enum_type_register(dom, &c2_linear_enum_type);
+	if (rc != 0) {
+		c2_layout_type_unregister(dom, &c2_pdclust_layout_type);
+		c2_layout_enum_type_unregister(dom, &c2_list_enum_type);
+		return rc;
+	}
+
 	return rc;
 }
 
@@ -1001,8 +1002,7 @@ struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid)
 	c2_mutex_unlock(&dom->ld_schema.ls_lock);
 
 	l = l_entry == NULL ? NULL : l_entry->lle_l;
-	C2_LEAVE("lid %llu, l_pointer %p", (unsigned long long)lid,
-		 l_entry == NULL ? NULL : l_entry->lle_l);
+	C2_LEAVE("lid %llu, l_pointer %p", (unsigned long long)lid, l);
 	return l;
 }
 
@@ -1023,7 +1023,11 @@ void c2_layout_get(struct c2_layout *l)
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
 
-/** Releases a reference on the layout. */
+/**
+ * Releases a reference on the layout. If it is the last reference being
+ * released, then it removes the layout entry from the layout list
+ * maintained in the layout domain and then finalises the layout.
+ */
 void c2_layout_put(struct c2_layout *l)
 {
 	struct llist_entry *lentry;
@@ -1150,7 +1154,6 @@ int c2_layout_decode(struct c2_layout_domain *dom,
 	(*out)->l_ref = rec->lr_ref_count;
 
 	C2_POST(layout_invariant(*out));
-
 out:
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
@@ -1256,7 +1259,6 @@ int c2_layout_encode(struct c2_layout *l,
 
 out:
 	c2_mutex_unlock(&l->l_lock);
-
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }

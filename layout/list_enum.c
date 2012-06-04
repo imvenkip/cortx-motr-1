@@ -245,7 +245,6 @@ static int list_register(struct c2_layout_domain *dom,
 	}
 
 	dom->ld_schema.ls_type_data[et->let_id] = lsd;
-
 out:
 	C2_LEAVE("Enum_type_id %lu, rc %d", (unsigned long)et->let_id, rc);
 	return rc;
@@ -372,7 +371,6 @@ static int noninline_cob_list_read(struct c2_layout_schema *schema,
 out:
 	c2_db_pair_fini(&pair);
 	c2_db_cursor_fini(&cursor);
-
 	C2_LEAVE("rc %d", rc);
 	return rc;
 }
@@ -485,10 +483,8 @@ static int list_decode(struct c2_layout_domain *dom,
 
 	*out = &list_enum->lle_base;
 	C2_POST(list_enum_invariant_internal(list_enum));
-
 out:
 	c2_free(cob_list);
-
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
@@ -586,7 +582,6 @@ static int noninline_cob_list_write(const struct c2_layout_schema *schema,
 out:
 	c2_db_pair_fini(&pair);
 	c2_db_cursor_fini(&cursor);
-
 	C2_LEAVE("rc %d", rc);
 	return rc;
 }
@@ -763,9 +758,7 @@ static void list_get(const struct c2_layout_enum *le, uint32_t idx,
 
 	list_enum = container_of(le, struct c2_layout_list_enum, lle_base);
 	C2_ASSERT(list_enum_invariant(list_enum));
-
 	C2_ASSERT(idx < list_enum->lle_nr);
-
 	C2_ASSERT(c2_fid_is_valid(&list_enum->lle_list_of_cobs[idx]));
 
 	*out = list_enum->lle_list_of_cobs[idx];

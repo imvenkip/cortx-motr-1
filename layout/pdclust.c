@@ -555,7 +555,6 @@ static c2_bcount_t pdclust_recsize(const struct c2_layout_domain *dom,
 	C2_ASSERT(c2_layout__is_enum_type_valid(et->let_id, dom));
 
 	e_recsize = et->let_ops->leto_recsize(pl->pl_base.ls_enum);
-
 	return sizeof(struct c2_layout_pdclust_rec) + e_recsize;
 }
 
@@ -717,10 +716,9 @@ static int pdclust_encode(struct c2_layout *l,
 
 	rc = et->let_ops->leto_encode(pl->pl_base.ls_enum, op, tx,
 				      oldrec_cur, out);
-	if (rc != 0) {
+	if (rc != 0)
 		C2_LOG("pdclust_encode(): lid %llu, leto_encode() failed, "
 		       "rc %d", (unsigned long long)l->l_id, rc);
-	}
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
@@ -747,7 +745,6 @@ struct c2_layout_type c2_pdclust_layout_type = {
 	.lt_domain      = NULL,
 	.lt_ops         = &pdclust_type_ops
 };
-
 
 /** @} end group pdclust */
 
