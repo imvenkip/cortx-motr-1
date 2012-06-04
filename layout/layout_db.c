@@ -544,7 +544,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	rc = c2_table_lookup(tx, pair);
 	if (rc != 0) {
 		c2_layout__log("c2_layout_lookup", "c2_table_lookup() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &layout_lookup_fail, &layout_global_ctx,
 			       lid, rc);
 		goto out;
@@ -556,7 +556,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	rc = c2_layout_decode(dom, lid, C2_LXO_DB_LOOKUP, tx, &cur, out);
 	if (rc != 0) {
 		c2_layout__log("c2_layout_lookup", "c2_layout_decode() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &layout_lookup_fail, &layout_global_ctx,
 			       lid, rc);
 		goto out;
@@ -612,7 +612,7 @@ int c2_layout_add(struct c2_layout *l,
 	rc = c2_layout_encode(l, C2_LXO_DB_ADD, tx, NULL, &cur);
 	if (rc != 0) {
 		c2_layout__log("c2_layout_add", "c2_layout_encode() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &layout_add_fail, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
@@ -621,7 +621,7 @@ int c2_layout_add(struct c2_layout *l,
 	rc = layout_write(l, tx, C2_LXO_DB_ADD, pair, recsize);
 	if (rc != 0)
 		c2_layout__log("c2_layout_add", "layout_write() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &layout_add_fail, &l->l_addb, l->l_id, rc);
 
 out:
@@ -677,7 +677,7 @@ int c2_layout_update(struct c2_layout *l,
 	if (oldrec_area == NULL) {
 		rc = -ENOMEM;
 		c2_layout__log("c2_layout_update", "c2_alloc() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_oom, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
@@ -685,7 +685,7 @@ int c2_layout_update(struct c2_layout *l,
 	rc = rec_get(tx, l, oldrec_area, recsize);
 	if (rc != 0) {
 		c2_layout__log("c2_layout_update", "c2_table_lookup() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &layout_update_fail, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
@@ -704,7 +704,7 @@ int c2_layout_update(struct c2_layout *l,
 	rc = c2_layout_encode(l, C2_LXO_DB_UPDATE, tx, &oldrec_cur, &cur);
 	if (rc != 0) {
 		c2_layout__log("c2_layout_update", "c2_layout_encode() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &layout_update_fail, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
@@ -713,7 +713,7 @@ int c2_layout_update(struct c2_layout *l,
 	rc = layout_write(l, tx, C2_LXO_DB_UPDATE, pair, recsize);
 	if (rc != 0)
 		c2_layout__log("c2_layout_update", "c2_table_update() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &layout_update_fail, &l->l_addb, l->l_id, rc);
 out:
 	c2_free(oldrec_area);
@@ -765,7 +765,7 @@ int c2_layout_delete(struct c2_layout *l,
 	rc = c2_layout_encode(l, C2_LXO_DB_DELETE, tx, NULL, &cur);
 	if (rc != 0) {
 		c2_layout__log("c2_layout_delete", "c2_layout_encode() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &layout_delete_fail, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
@@ -774,7 +774,7 @@ int c2_layout_delete(struct c2_layout *l,
 	rc = layout_write(l, tx, C2_LXO_DB_DELETE, pair, recsize);
 	if (rc != 0)
 		c2_layout__log("c2_layout_delete", "c2_table_delete() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &layout_delete_fail, &l->l_addb, l->l_id, rc);
 out:
 	c2_mutex_unlock(&l->l_dom->ld_schema.ls_lock);

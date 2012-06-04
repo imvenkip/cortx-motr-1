@@ -100,7 +100,7 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
 	if (lin_enum == NULL) {
 		rc = -ENOMEM;
 		c2_layout__log("c2_linear_enum_build", "C2_ALLOC_PTR() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
 	} else {
 		rc = 0;
@@ -132,7 +132,8 @@ static void linear_fini(struct c2_layout_enum *e)
 
 	C2_PRE(e != NULL);
 
-	C2_ENTRY();
+	C2_ENTRY("lid %llu, enum_pointer %p",
+		 (unsigned long long)e->le_l->l_id, e);
 
 	lin_enum = container_of(e, struct c2_layout_linear_enum, lle_base);
 	C2_ASSERT(linear_enum_invariant(lin_enum));
@@ -290,8 +291,13 @@ static uint32_t linear_nr(const struct c2_layout_enum *le)
 
 	C2_PRE(le != NULL);
 
+	C2_ENTRY("lid %llu, enum_pointer %p",
+		 (unsigned long long)le->le_l->l_id, le);
 	lin_enum = container_of(le, struct c2_layout_linear_enum, lle_base);
 	C2_ASSERT(linear_enum_invariant(lin_enum));
+	C2_LEAVE("lid %llu, enum_pointer %p, nr %lu",
+		 (unsigned long long)le->le_l->l_id, le,
+		 (unsigned long)lin_enum->lle_attr.lla_nr);
 
 	return lin_enum->lle_attr.lla_nr;
 }
@@ -309,18 +315,21 @@ static void linear_get(const struct c2_layout_enum *le, uint32_t idx,
 	C2_PRE(gfid != NULL);
 	C2_PRE(out != NULL);
 
+	C2_ENTRY("lid %llu, enum_pointer %p",
+		 (unsigned long long)le->le_l->l_id, le);
+
 	lin_enum = container_of(le, struct c2_layout_linear_enum, lle_base);
 	C2_ASSERT(linear_enum_invariant(lin_enum));
-
 	C2_ASSERT(idx < lin_enum->lle_attr.lla_nr);
 
 	c2_fid_set(out,
 		   lin_enum->lle_attr.lla_A + idx * lin_enum->lle_attr.lla_B,
 		   gfid->f_key);
 
+	C2_LEAVE("lid %llu, enum_pointer %p, fid_pointer %p",
+		 (unsigned long long)le->le_l->l_id, le, out);
 	C2_ASSERT(c2_fid_is_valid(out));
 }
-
 
 static const struct c2_layout_enum_ops linear_enum_ops = {
 	.leo_nr           = linear_nr,

@@ -318,7 +318,7 @@ static int layout_list_add(struct c2_layout_domain *dom, struct c2_layout *l)
 	C2_ALLOC_PTR(l_entry);
 	if (l_entry == NULL) {
 		c2_layout__log("layout_list_add", "C2_ALLOC_PTR() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_oom, &layout_global_ctx,
 			       l->l_id, -ENOMEM);
 		return -ENOMEM;
@@ -545,7 +545,7 @@ static int schema_init(struct c2_layout_schema *schema,
 	if (rc != 0) {
 		c2_layout__log("c2_layout_schema_init",
 			       "c2_table_init() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       LID_NONE, rc);
 		schema->ls_dbenv = NULL;
@@ -849,7 +849,7 @@ int c2_layout_type_register(struct c2_layout_domain *dom,
 	if (rc != 0) {
 		c2_layout__log("c2_layout_type_register",
 			       "lto_register() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       LID_NONE, rc);
 		C2_CNT_DEC(lt->lt_ref_count);
@@ -936,7 +936,7 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 	if (rc != 0) {
 		c2_layout__log("c2_layout_enum_type_register",
 			       "leto_register() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       LID_NONE, rc);
 		C2_CNT_DEC(let->let_ref_count);
@@ -1140,7 +1140,7 @@ int c2_layout_decode(struct c2_layout_domain *dom,
 				    cur, out);
 	if (rc != 0) {
 		c2_layout__log("c2_layout_decode", "lto_decode() failed",
-			       op == C2_LXO_BUFFER_OP, ADD_TRACE_RECORD,
+			       op == C2_LXO_BUFFER_OP, TRACE_RECORD_ADD,
 			       &layout_decode_fail, &layout_global_ctx,
 			       lid, rc);
 		goto out;
@@ -1257,7 +1257,7 @@ int c2_layout_encode(struct c2_layout *l,
 	rc = lt->lt_ops->lto_encode(l, op, tx, oldrec_cur, out);
 	if (rc != 0) {
 		c2_layout__log("c2_layout_encode", "lto_encode() failed",
-			       op == C2_LXO_BUFFER_OP, ADD_TRACE_RECORD,
+			       op == C2_LXO_BUFFER_OP, TRACE_RECORD_ADD,
 			       &layout_encode_fail, &l->l_addb, l->l_id, rc);
 		goto out;
 	}

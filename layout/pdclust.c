@@ -511,7 +511,7 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 	} else {
 		rc = -ENOMEM;
 		c2_layout__log("pdclust_build", "C2_ALLOC() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_oom, &layout_global_ctx, lid, rc);
 	}
 

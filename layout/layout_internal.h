@@ -53,8 +53,8 @@ enum {
 	 */
 	DEFAULT_REF_COUNT          = 1,
 
-	ADD_ADDB_RECORD            = 1, //todo Make this ADDB_RECORD_ADD
-	ADD_TRACE_RECORD           = 1, //todo Make this TRACE_RECORD_ADD
+	ADDB_RECORD_ADD            = 1,
+	TRACE_RECORD_ADD           = 1,
 
 	/** Invalid number of elements, for enumeration objects. */
 	NR_NONE                    = 0,

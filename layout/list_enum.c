@@ -148,7 +148,7 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 	if (list_enum == NULL) {
 		rc = -ENOMEM;
 		c2_layout__log("c2_list_enum_build", "C2_ALLOC_PTR() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
 		goto out;
 	}
@@ -161,7 +161,7 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 	if (list_enum == NULL) {
 		rc = -ENOMEM;
 		c2_layout__log("c2_list_enum_build", "C2_ALLOC_ARR() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
 		c2_layout__enum_fini(&list_enum->lle_base);
 		c2_free(list_enum);
@@ -193,7 +193,8 @@ void list_fini(struct c2_layout_enum *e)
 
 	C2_PRE(e != NULL);
 
-	C2_ENTRY("");
+	C2_ENTRY("lid %llu, enum_pointer %p",
+		 (unsigned long long)e->le_l->l_id, e);
 
 	list_enum = container_of(e, struct c2_layout_list_enum, lle_base);
 	C2_ASSERT(list_enum_invariant(list_enum));
@@ -228,7 +229,7 @@ static int list_register(struct c2_layout_domain *dom,
 	if (lsd == NULL) {
 		rc = -ENOMEM;
 		c2_layout__log("list_register", "C2_ALLOC_PTR() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
 		goto out;
 	}
@@ -237,7 +238,7 @@ static int list_register(struct c2_layout_domain *dom,
 			   "cob_lists", DEFAULT_DB_FLAG, &cob_lists_table_ops);
 	if (rc != 0) {
 		c2_layout__log("list_register", "c2_table_init() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       LID_NONE, rc);
 		c2_free(lsd);
@@ -339,7 +340,7 @@ static int noninline_cob_list_read(struct c2_layout_schema *schema,
 	if (rc != 0) {
 		c2_layout__log("noninline_cob_list_read",
 			       "c2_db_cursor_init() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       lid, rc);
 		goto out;
@@ -357,7 +358,7 @@ static int noninline_cob_list_read(struct c2_layout_schema *schema,
 		if (rc != 0) {
 			c2_layout__log("noninline_cob_list_read",
 				       "c2_db_cursor_get() failed",
-				       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+				       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 				       &c2_addb_func_fail, &layout_global_ctx,
 				       lid, rc);
 			goto out;
@@ -421,7 +422,7 @@ static int list_decode(struct c2_layout_domain *dom,
 	if (cob_list == NULL) {
 		rc = -ENOMEM;
 		c2_layout__log("list_decode", "C2_ALLOC_ARR() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_oom, &layout_global_ctx, lid, rc);
 		goto out;
 	}
@@ -475,7 +476,7 @@ static int list_decode(struct c2_layout_domain *dom,
 	rc = c2_list_enum_build(dom, cob_list, ce_header->ces_nr, &list_enum);
 	if (rc != 0) {
 		c2_layout__log("list_decode", "c2_list_enum_build() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       lid, rc);
 		goto out;
@@ -523,7 +524,7 @@ static int noninline_cob_list_write(const struct c2_layout_schema *schema,
 	if (rc != 0) {
 		c2_layout__log("noninline_cob_list_write",
 			       "c2_db_cursor_init() failed",
-			       ADD_ADDB_RECORD, ADD_TRACE_RECORD,
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       lid, rc);
 		goto out;
@@ -542,8 +543,8 @@ static int noninline_cob_list_write(const struct c2_layout_schema *schema,
 			if (rc != 0) {
 				c2_layout__log("noninline_cob_list_write",
 					       "c2_db_cursor_add() failed",
-					       ADD_ADDB_RECORD,
-					       ADD_TRACE_RECORD,
+					       ADDB_RECORD_ADD,
+					       TRACE_RECORD_ADD,
 					       &c2_addb_func_fail,
 					       &layout_global_ctx, //todo check
 					       lid, rc);
@@ -557,8 +558,8 @@ static int noninline_cob_list_write(const struct c2_layout_schema *schema,
 			if (rc != 0) {
 				c2_layout__log("noninline_cob_list_write",
 					       "c2_db_cursor_get() failed",
-					       ADD_ADDB_RECORD,
-					       ADD_TRACE_RECORD,
+					       ADDB_RECORD_ADD,
+					       TRACE_RECORD_ADD,
 					       &c2_addb_func_fail,
 					       &layout_global_ctx,
 					       lid, rc);
@@ -569,8 +570,8 @@ static int noninline_cob_list_write(const struct c2_layout_schema *schema,
 			if (rc != 0) {
 				c2_layout__log("noninline_cob_list_write",
 					       "c2_db_cursor_del() failed",
-					       ADD_ADDB_RECORD,
-					       ADD_TRACE_RECORD,
+					       ADDB_RECORD_ADD,
+					       TRACE_RECORD_ADD,
 					       &c2_addb_func_fail,
 					       &layout_global_ctx,
 					       lid, rc);
@@ -736,8 +737,13 @@ static uint32_t list_nr(const struct c2_layout_enum *le)
 
 	C2_PRE(le != NULL);
 
+	C2_ENTRY("lid %llu, enum_pointer %p",
+		 (unsigned long long)le->le_l->l_id, le);
 	list_enum = container_of(le, struct c2_layout_list_enum, lle_base);
 	C2_ASSERT(list_enum_invariant(list_enum));
+	C2_LEAVE("lid %llu, enum_pointer %p, nr %lu",
+		 (unsigned long long)le->le_l->l_id, le,
+		 (unsigned long)list_enum->lle_nr);
 
 	return list_enum->lle_nr;
 }
@@ -756,10 +762,14 @@ static void list_get(const struct c2_layout_enum *le, uint32_t idx,
 	/* gfid is ignored for the list enumeration type. */
 	C2_PRE(out != NULL);
 
+	C2_ENTRY("lid %llu, enum_pointer %p",
+		 (unsigned long long)le->le_l->l_id, le);
 	list_enum = container_of(le, struct c2_layout_list_enum, lle_base);
 	C2_ASSERT(list_enum_invariant(list_enum));
 	C2_ASSERT(idx < list_enum->lle_nr);
 	C2_ASSERT(c2_fid_is_valid(&list_enum->lle_list_of_cobs[idx]));
+	C2_LEAVE("lid %llu, enum_pointer %p, fid_pointer %p",
+		 (unsigned long long)le->le_l->l_id, le, out);
 
 	*out = list_enum->lle_list_of_cobs[idx];
 }
@@ -786,7 +796,6 @@ struct c2_layout_enum_type c2_list_enum_type = {
 	.let_domain       = NULL,
 	.let_ops          = &list_type_ops
 };
-
 
 /** @} end group list_enum */
 
