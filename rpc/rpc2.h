@@ -590,7 +590,7 @@ static inline c2_bcount_t c2_rpc_max_msg_size(struct c2_net_domain *ndom,
 	c2_bcount_t mbs;
 
 	C2_PRE(ndom != NULL);
-	
+
 	mbs = c2_net_domain_get_max_buffer_size(ndom);
 	return rpc_size != 0 ? min64u(mbs, max64u(rpc_size, C2_SEG_SIZE)) : mbs;
 }
