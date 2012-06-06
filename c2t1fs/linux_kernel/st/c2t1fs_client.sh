@@ -2,11 +2,9 @@
 
 usage()
 {
-	echo "Usage: `basename $0` [client_endpoint]"
-	echo "Please provide the client endpoint address you want to use."
-	echo "e.g. 192.168.172.130@tcp:12345:34:1"
-	echo "If you want to use the default nid registered for lnet, then do"
-	echo "`basename $0` default"
+	echo "Usage: `basename $0` server_nid"
+	echo "Please provide the server nid you want to use."
+	echo "e.g. 192.168.172.130@tcp"
 }
 
 if [ $# -lt 1 ]
@@ -27,11 +25,14 @@ fi
 
 main()
 {
-	if [ "x$1" = "xdefault" ] || [ "x$1" = "xDefault" ] || [ "x$2" = "x" ]; then
-		lctl network up &>> /dev/null
-		lnet_nid=`lctl list_nids | head -1`
-		export COLIBRI_C2T1FS_ENDPOINT="$lnet_nid:12345:34:6"
-	fi
+	modprobe lnet &>> /dev/null
+	lctl network up &>> /dev/null
+	lnet_nid=`lctl list_nids | head -1`
+	export COLIBRI_C2T1FS_ENDPOINT="$lnet_nid:12345:34:6"
+	export COLIBRI_IOSERVICE_ENDPOINT="$1:12345:34:1"
+
+	echo "Colibri ioservice endpoint = $COLIBRI_IOSERVICE_ENDPOINT"
+	echo "Colibri c2t1fs endpoint = $COLIBRI_C2T1FS_ENDPOINT"
 
 	prepare
 
@@ -45,4 +46,4 @@ main()
 
 trap unprepare EXIT
 
-main
+main $1

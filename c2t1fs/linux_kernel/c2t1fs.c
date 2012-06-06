@@ -49,8 +49,6 @@ static void c2t1fs_net_fini(void);
 static int  c2t1fs_rpc_init(void);
 static void c2t1fs_rpc_fini(void);
 
-extern struct c2_net_xprt c2_net_lnet_xprt;
-
 static struct file_system_type c2t1fs_fs_type = {
 	.owner        = THIS_MODULE,
 	.name         = "c2t1fs",

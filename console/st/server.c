@@ -45,8 +45,6 @@
 #define SERVER_STOB_FILE_NAME	"cons_server.stob"
 #define SERVER_LOG_FILE_NAME	"cons_server.log"
 
-extern struct c2_net_xprt c2_net_lnet_xprt;
-
 static int signaled = 0;
 
 static void sig_handler(int num)

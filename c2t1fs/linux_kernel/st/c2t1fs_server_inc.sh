@@ -23,6 +23,7 @@ colibri_service()
 
 	stop() {
 		killproc $exec
+		unprepare
 	}
 
 	case "$1" in
@@ -40,4 +41,3 @@ colibri_service()
 	esac
 	return $?
 }
-

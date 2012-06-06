@@ -76,7 +76,7 @@ enum {
 };
 
 enum {
-	CS_MAX_EP_ADDR_LEN = 80,
+	CS_MAX_EP_ADDR_LEN = 86, /* "lnet:" + C2_NET_LNET_XEP_ADDR_LEN */
 };
 C2_BASSERT(CS_MAX_EP_ADDR_LEN >= C2_NET_LNET_XEP_ADDR_LEN);
 
@@ -455,6 +455,8 @@ static int ep_and_xprt_get(struct cs_reqh_context *rctx, const char *ep,
 					struct cs_endpoint_and_xprt **ep_xprt)
 {
 	int                          rc = 0;
+	int                          ep_len = min32u(strlen(ep) + 1,
+						     CS_MAX_EP_ADDR_LEN);
 	char                        *sptr;
 	struct cs_endpoint_and_xprt *epx;
 	char			    *endpoint;
@@ -462,8 +464,8 @@ static int ep_and_xprt_get(struct cs_reqh_context *rctx, const char *ep,
 	C2_PRE(ep != NULL);
 
 	C2_ALLOC_PTR(epx);
-	C2_ALLOC_ARR(epx->ex_scrbuf, min32u(strlen(ep) + 1, CS_MAX_EP_ADDR_LEN));
-	strcpy(epx->ex_scrbuf, ep);
+	C2_ALLOC_ARR(epx->ex_scrbuf, ep_len);
+	strncpy(epx->ex_scrbuf, ep, ep_len);
 	epx->ex_xprt = strtok_r(epx->ex_scrbuf, ":", &sptr);
 	if (epx->ex_xprt == NULL)
 		rc = -EINVAL;
@@ -1688,6 +1690,12 @@ static void cs_help(FILE *out)
 		   "-e Network layer endpoint to which clients connect. "
 		   "Network layer endpoint\n   consists of 2 parts "
 		   "network transport:endpoint address.\n"
+/* Currently cs_main.c does not pick up the in-mem transport. There is no
+ * external use case for memxprt.
+ * This does not prevent its usage in UT. So UT uses memxprt but the help
+ * should not be given unless there is an external use case.
+ */
+#if 0
 		   "   Currently supported transports are lnet and memxprt.\n "
 		   "   lnet takes 4-tuple endpoint address\n"
 		   "       NID : PID : PortalNumber : TransferMachineIdentifier\n"
@@ -1702,6 +1710,16 @@ static void cs_help(FILE *out)
 		   "per network transport with different transfer machine ids,\n"
 		   "   i.e. 4th component of 4-tuple endpoint address in "
 		   "lnet or 3rd component of \n   3-tuple endpoint address in memxprt.\n"
+#else
+		   "   Currently supported transport is lnet.\n "
+		   "   lnet takes 4-tuple endpoint address\n"
+		   "       NID : PID : PortalNumber : TransferMachineIdentifier\n"
+		   "       e.g. lnet:172.18.50.40@o2ib1:12345:34:1\n"
+		   "   This can be specified multiple times, per request "
+		   "handler set. Thus there\n   can exist multiple endpoints "
+		   "per network transport with different transfer machine ids,\n"
+		   "   i.e. 4th component of 4-tuple endpoint address in lnet\n"
+#endif /* 0 */
 		   "-s Services to be started in given request handler "
 		   "context.\n   This can be specified multiple times "
 		   "per request handler set.\n"
