@@ -50,6 +50,9 @@ missing
 *.gcno
 *.gcov
 *.swp
+*.gccxml
+*_xc.[hc]
+*_ff.[hc]
 *~
 doc/html/
 .#*
@@ -74,3 +77,4 @@ doxygen_*tmp
 cscope.out
 tags
 TAGS*
+colibri-0.1.tar.gz

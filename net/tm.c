@@ -19,9 +19,11 @@
  * Original creation date: 04/07/2011
  */
 
+#include "lib/arith.h" /* C2_CNT_INC */
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/misc.h"
+#include "colibri/magic.h"
 #include "net/net_internal.h"
 #include "net/buffer_pool.h"
 

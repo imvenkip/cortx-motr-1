@@ -1,5 +1,5 @@
 colibridir                = $(includedir)/colibri/colibri
-colibri_HEADERS           = init.h colibri_setup.h
+colibri_HEADERS           = init.h colibri_setup.h magic.h
 
 SUBDIRS                   = .
 

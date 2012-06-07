@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -23,15 +23,18 @@
 #include <asm/processor.h>
 #include <linux/topology.h>
 #include <linux/slab.h>
-#include <linux/errno.h>
 
 #include "lib/assert.h"
 #include "lib/cdefs.h"
-#include "lib/processor.h"
+#include "lib/errno.h"
 #include "lib/list.h"
+#include "lib/memory.h"
+#include "lib/processor.h"
 
 /**
-   @addtogroup Processor
+   @addtogroup processor
+
+   @section proc-kernel Kernel implementation
 
    This file includes additional data structures and functions for processing
    processors data - for kernel-mode programs.
@@ -43,40 +46,44 @@
    @{
  */
 
-/** Default values */
-enum cache_size {
-	DEFAULT_L1_SZ = 32*1024,
-	DEFAULT_L2_SZ = 6144*1024
+#ifndef CONFIG_X86_64
+#error "Only X86_64 platform is supported"
+#endif
+
+enum {
+	/** Default L1 value */
+	DEFAULT_L1_SZ                       =   32 * 1024,
+	/** Default L2 value */
+	DEFAULT_L2_SZ                       = 6144 * 1024,
+
+	/** Intel CPUID op-code */
+	PROCESSOR_INTEL_CPUID4_OP           = 4,
+
+	PROCESSOR_INTEL_CTYPE_MASK          = 0x1f,
+	PROCESSOR_INTEL_CTYPE_NULL          = 0,
+
+	PROCESSOR_INTEL_CLEVEL_MASK         = 0x7,
+	PROCESSOR_INTEL_CLEVEL_SHIFT        = 5,
+
+	PROCESSOR_INTEL_CSHARE_MASK         = 0xfff,
+	PROCESSOR_INTEL_CSHARE_SHIFT        = 14,
+
+	PROCESSOR_INTEL_LINESZ_MASK         = 0xfff,
+
+	PROCESSOR_INTEL_PARTITION_MASK      = 0x3f,
+	PROCESSOR_INTEL_PARTITION_SHIFT     = 12,
+
+	PROCESSOR_INTEL_ASSOCIATIVITY_MASK  = 0x3f,
+	PROCESSOR_INTEL_ASSOCIATIVITY_SHIFT = 22,
+
+	PROCESSOR_L1_CACHE                  = 1,
+	PROCESSOR_L2_CACHE                  = 2,
+
+	/** AMD CPUID op-code */
+	PROCESSOR_AMD_L1_OP                 = 0x80000005,
+
+	PROCESSOR_AMD_CSIZE_SHIFT           = 24,
 };
-
-#ifdef CONFIG_X86_64
-/** Intel CPUID op-code */
-#define C2_PROCESSOR_INTEL_CPUID4_OP	4
-
-#define C2_PROCESSOR_INTEL_CTYPE_MASK	0x1f
-#define C2_PROCESSOR_INTEL_CTYPE_NULL	0
-
-#define C2_PROCESSOR_INTEL_CLEVEL_MASK	0x7
-#define C2_PROCESSOR_INTEL_CLEVEL_SHIFT	5
-
-#define C2_PROCESSOR_INTEL_CSHARE_MASK	0xfff
-#define C2_PROCESSOR_INTEL_CSHARE_SHIFT	14
-
-#define C2_PROCESSOR_INTEL_LINESZ_MASK	0xfff
-
-#define C2_PROCESSOR_INTEL_PARTITION_MASK	0x3f
-#define C2_PROCESSOR_INTEL_PARTITION_SHIFT	12
-
-#define C2_PROCESSOR_INTEL_ASSOCIATIVITY_MASK	0x3f
-#define C2_PROCESSOR_INTEL_ASSOCIATIVITY_SHIFT	22
-
-#define C2_PROCESSOR_L1_CACHE	1
-#define C2_PROCESSOR_L2_CACHE	2
-
-/** AMD CPUID op-code */
-#define C2_PROCESSOR_AMD_L1_OP		0x80000005
-
-#define C2_PROCESSOR_AMD_CSIZE_SHIFT	24
 
 /**
    A node in the linked list describing processor properties. It
@@ -84,54 +91,40 @@ enum cache_size {
    attributes of x86 processors.
    @see lib/processor.h
  */
-struct c2_processor_node {
+struct processor_node {
 	/** Linking structure for node */
-	struct c2_list_link	pn_link;
+	struct c2_list_link       pn_link;
 
 	/** Processor descritor strcture */
 	struct c2_processor_descr pn_info;
 };
 
-/**
-   Overload function names.
- */
-#define c2_processor_info(a,b)		c2_processor_find_x86info((a), (b))
-#define c2_processor_cache_create()	c2_processor_x86cache_create()
-#define c2_processor_cache_destroy()	c2_processor_x86cache_destroy()
-#else
-#define c2_processor_info(a,b)		c2_processor_get_info((a), (b))
-#define c2_processor_cache_create()	0
-#define c2_processor_cache_destroy()
-#endif
-
-/** Global variables */
-static bool c2_processor_init = false;
+/* Global variables */
+static bool processor_init = false;
 static struct c2_list x86_cpus;
 
 /**
-   Convert bitmap from one format to another. Copy cpumask bitmap to
-   c2_bitmap.
+   Convert bitmap from one format to another. Copy cpumask bitmap to c2_bitmap.
 
-   @param src -> Processors bitmap used by Linux kernel.
    @param dest -> Processors bitmap for Colibri programs.
+   @param src -> Processors bitmap used by Linux kernel.
    @param bmpsz -> Size of cpumask bitmap (src)
 
    @pre Assumes memory is alloacted for outbmp and it's initialized.
 
    @see lib/processor.h
    @see lib/bitmap.h
-
  */
-static void c2_processors_copy_bitmap(const cpumask_t *src,
-                                      struct c2_bitmap *dest,
-                                      uint32_t bmpsz)
+static void processors_bitmap_copy(struct c2_bitmap *dest,
+				   const cpumask_t *src,
+				   uint32_t bmpsz)
 {
 	uint32_t bit;
 	bool     val;
 
-	C2_ASSERT(dest->b_nr >= bmpsz);
+	C2_PRE(dest->b_nr >= bmpsz);
 
-	for (bit=0; bit < bmpsz; bit++) {
+	for (bit = 0; bit < bmpsz; ++bit) {
 		val = cpumask_test_cpu(bit, src);
 		c2_bitmap_set(dest, bit, val);
 	}
@@ -142,12 +135,9 @@ static void c2_processors_copy_bitmap(const cpumask_t *src,
 
    @param id -> id of the processor for which information is requested.
 
-   @retval id of the NUMA node to which the processor belongs.
-
-   @note This function may become macro or inline function.
-
+   @return id of the NUMA node to which the processor belongs.
  */
-static uint32_t c2_processor_get_numanodeid(c2_processor_nr_t id)
+static inline uint32_t processor_numanodeid_get(c2_processor_nr_t id)
 {
 	return cpu_to_node(id);
 }
@@ -158,11 +148,9 @@ static uint32_t c2_processor_get_numanodeid(c2_processor_nr_t id)
 
    @param id -> id of the processor for which information is requested.
 
-   @retval id of pipeline for the given processor.
-
-   @note This may become an inline function.
+   @return id of pipeline for the given processor.
  */
-static inline uint32_t c2_processor_get_pipelineid(c2_processor_nr_t id)
+static inline uint32_t processor_pipelineid_get(c2_processor_nr_t id)
 {
 	return id;
 }
@@ -173,19 +161,17 @@ static inline uint32_t c2_processor_get_pipelineid(c2_processor_nr_t id)
    @param id -> id of the processor for which information is requested.
    @param cache_level -> cache level (L1 or L2) for which id is requested.
 
-   @retval size of L1 or L2  cache size, in bytes, for the given processor.
-
+   @return size of L1 or L2 cache size, in bytes, for the given processor.
  */
-static size_t c2_processor_get_cache_sz(c2_processor_nr_t id,
-					uint32_t cache_level)
+static size_t processor_cache_sz_get(c2_processor_nr_t id, uint32_t cache_level)
 {
 	uint32_t sz = 0;
 
 	switch (cache_level) {
-	case C2_PROCESSOR_L1_CACHE:
+	case PROCESSOR_L1_CACHE:
 		sz = DEFAULT_L1_SZ;
 		break;
-	case C2_PROCESSOR_L2_CACHE:
+	case PROCESSOR_L2_CACHE:
 		sz = DEFAULT_L2_SZ;
 		break;
 	default:
@@ -194,21 +180,17 @@ static size_t c2_processor_get_cache_sz(c2_processor_nr_t id,
 	return sz;
 }
 
-#ifdef CONFIG_X86_64
 /**
    Obtain cache level for a given INTEL x86 processor.
 
    @param eax -> value in eax register for INTEL x86.
 
-   @retval cache level of an intel x86 processor.
+   @return cache level of an intel x86 processor.
  */
-static inline uint32_t c2_processor_get_x86cache_level(uint32_t eax)
+static inline uint32_t processor_x86cache_level_get(uint32_t eax)
 {
-	uint32_t level;
-
-	level = (eax >> C2_PROCESSOR_INTEL_CLEVEL_SHIFT) &
-	        C2_PROCESSOR_INTEL_CLEVEL_MASK;
-	return level;
+	return (eax >> PROCESSOR_INTEL_CLEVEL_SHIFT) &
+	        PROCESSOR_INTEL_CLEVEL_MASK;
 }
 
 /**
@@ -216,16 +198,13 @@ static inline uint32_t c2_processor_get_x86cache_level(uint32_t eax)
 
    @param eax -> value in eax register for INTEL x86.
 
-   @retval number of intel x86 processors sharing the cache (within
+   @return number of intel x86 processors sharing the cache (within
            the core or the physical package).
  */
-static inline uint32_t c2_processor_get_x86cache_shares(uint32_t eax)
+static inline uint32_t processor_x86cache_shares_get(uint32_t eax)
 {
-	uint32_t shares;
-
-	shares = (eax >> C2_PROCESSOR_INTEL_CSHARE_SHIFT) &
-	        C2_PROCESSOR_INTEL_CSHARE_MASK;
-	return shares;
+	return (eax >> PROCESSOR_INTEL_CSHARE_SHIFT) &
+	        PROCESSOR_INTEL_CSHARE_MASK;
 }
 
 /**
@@ -234,37 +213,31 @@ static inline uint32_t c2_processor_get_x86cache_shares(uint32_t eax)
 
    @param id -> id of the processor for which caches leaves are requested.
 
-   @retval number of caches leaves.
+   @return number of caches leaves.
  */
-static uint32_t c2_processor_get_x86cache_leaves(c2_processor_nr_t id)
+static uint32_t processor_x86cache_leaves_get(c2_processor_nr_t id)
 {
-	uint32_t eax;
-	uint32_t ebx;
-	uint32_t ecx;
-	uint32_t edx;
-	uint32_t cachetype;
+	uint32_t            eax;
+	uint32_t            ebx;
+	uint32_t            ecx;
+	uint32_t            edx;
+	uint32_t            cachetype;
 	/*
 	 * Assume AMD supports at least L2. For AMD processors this
 	 * value is not used later.
 	 */
-	uint32_t leaves = 3;
-
-	int count = -1;
-	struct cpuinfo_x86 *p;
-
-	/*
-	 * Get Linux kernel CPU data.
-	 */
-	p = &cpu_data(id);
+	uint32_t            leaves = 3;
+	int                 count = -1;
+	struct cpuinfo_x86 *p = &cpu_data(id);
 
 	if (p->x86_vendor == X86_VENDOR_INTEL) {
 		do {
 			count++;
-			cpuid_count(C2_PROCESSOR_INTEL_CPUID4_OP, count,
+			cpuid_count(PROCESSOR_INTEL_CPUID4_OP, count,
 				    &eax, &ebx, &ecx, &edx);
-			cachetype = eax & C2_PROCESSOR_INTEL_CTYPE_MASK;
+			cachetype = eax & PROCESSOR_INTEL_CTYPE_MASK;
 
-		} while (cachetype != C2_PROCESSOR_INTEL_CTYPE_NULL);
+		} while (cachetype != PROCESSOR_INTEL_CTYPE_NULL);
 		leaves = count;
 	}
 
@@ -279,30 +252,25 @@ static uint32_t c2_processor_get_x86cache_leaves(c2_processor_nr_t id)
    @param cache_leaves -> Number of cache leaves (levels) for the given
                           processor.
 
-   @retval id of L2 cache for the given x86 processor.
+   @return id of L2 cache for the given x86 processor.
  */
-static uint32_t c2_processor_get_x86_cacheid(c2_processor_nr_t id,
-					     uint32_t cache_level,
-					     uint32_t cache_leaves)
+static uint32_t processor_x86_cacheid_get(c2_processor_nr_t id,
+					  uint32_t cache_level,
+					  uint32_t cache_leaves)
 {
-	uint32_t cache_id = id;
-	uint32_t eax;
-	uint32_t ebx;
-	uint32_t ecx;
-	uint32_t edx;
-	uint32_t shares;
-	uint32_t phys;
-	uint32_t core;
+	uint32_t            cache_id = id;
+	uint32_t            eax;
+	uint32_t            ebx;
+	uint32_t            ecx;
+	uint32_t            edx;
+	uint32_t            shares;
+	uint32_t            phys;
+	uint32_t            core;
 
-	bool l3_present = false;
-	bool cache_shared_at_core = false;
+	bool                l3_present = false;
+	bool                cache_shared_at_core = false;
 
-	struct cpuinfo_x86 *p;
-
-	/*
-	 * Get Linux kernel CPU data.
-	 */
-	p = &cpu_data(id);
+	struct cpuinfo_x86 *p = &cpu_data(id);
 
 	/*
 	 * Get L1/L2 cache id for INTEL cpus. If INTEL cpuid level is less
@@ -310,12 +278,12 @@ static uint32_t c2_processor_get_x86_cacheid(c2_processor_nr_t id,
 	 * For AMD cpus, like Linux kernel, assume that L1/L2 is not shared.
 	 */
 	if (p->x86_vendor == X86_VENDOR_INTEL &&
-	    p->cpuid_level >= C2_PROCESSOR_INTEL_CPUID4_OP &&
+	    p->cpuid_level >= PROCESSOR_INTEL_CPUID4_OP &&
 	    cache_level < cache_leaves) {
 
-		cpuid_count(C2_PROCESSOR_INTEL_CPUID4_OP, cache_level,
+		cpuid_count(PROCESSOR_INTEL_CPUID4_OP, cache_level,
 			    &eax, &ebx, &ecx, &edx);
-		shares = c2_processor_get_x86cache_shares(eax);
+		shares = processor_x86cache_shares_get(eax);
 
 		if (shares > 0) {
 			/*
@@ -323,29 +291,25 @@ static uint32_t c2_processor_get_x86_cacheid(c2_processor_nr_t id,
 			 * present then L2 is shared at core. Otherwise L2 is
 			 * shared at physical package level.
 			 */
-			if (cache_leaves > 3) {
+			if (cache_leaves > 3)
 				l3_present = true;
-			}
 			phys = topology_physical_package_id(id);
 			core = topology_core_id(id);
 			switch (cache_level) {
-			case C2_PROCESSOR_L1_CACHE:
+			case PROCESSOR_L1_CACHE:
 				cache_shared_at_core = true;
 				break;
-			case C2_PROCESSOR_L2_CACHE:
-				if (l3_present == true) {
+			case PROCESSOR_L2_CACHE:
+				if (l3_present)
 					cache_shared_at_core = true;
-				} else {
+				else
 					cache_id = phys;
-				}
 				break;
 			default:
 				break;
 			}
-			if (cache_shared_at_core == true) {
+			if (cache_shared_at_core)
 				cache_id = phys << 16 | core;
-			}/* end of if - cache shared at core */
-
 		}/* cache is shared */
 
 	}/* end of if - Intel processor with CPUID4 support */
@@ -359,25 +323,25 @@ static uint32_t c2_processor_get_x86_cacheid(c2_processor_nr_t id,
    @param id -> id of the processor for which information is requested.
    @param cache_level -> cache level (L1 or L2) for which id is requested.
 
-   @retval size of cache (in bytes) for the given AMD x86 processor.
+   @return size of cache (in bytes) for the given AMD x86 processor.
  */
-static uint32_t c2_processor_get_amd_cache_sz(c2_processor_nr_t id,
-					      uint32_t cache_level)
+static uint32_t processor_amd_cache_sz_get(c2_processor_nr_t id,
+					   uint32_t cache_level)
 {
-	uint32_t eax;
-	uint32_t ebx;
-	uint32_t ecx;
-	uint32_t l1;
-	uint32_t sz = 0;
+	uint32_t            eax;
+	uint32_t            ebx;
+	uint32_t            ecx;
+	uint32_t            l1;
+	uint32_t            sz = 0;
 
 	struct cpuinfo_x86 *p;
 
 	switch (cache_level) {
-	case C2_PROCESSOR_L1_CACHE:
-		cpuid(C2_PROCESSOR_AMD_L1_OP, &eax, &ebx, &ecx, &l1);
-		sz = (l1 >> C2_PROCESSOR_AMD_CSIZE_SHIFT) * 1024;
+	case PROCESSOR_L1_CACHE:
+		cpuid(PROCESSOR_AMD_L1_OP, &eax, &ebx, &ecx, &l1);
+		sz = (l1 >> PROCESSOR_AMD_CSIZE_SHIFT) * 1024;
 		break;
-	case C2_PROCESSOR_L2_CACHE:
+	case PROCESSOR_L2_CACHE:
 		p = &cpu_data(id);
 		sz = p->x86_cache_size;
 		break;
@@ -395,52 +359,47 @@ static uint32_t c2_processor_get_amd_cache_sz(c2_processor_nr_t id,
    @param id -> id of the processor for which information is requested.
    @param cache_level -> cache level (L1 or L2) for which id is requested.
 
-   @retval size of cache (in bytes) for the given INTEL x86 processor.
+   @return size of cache (in bytes) for the given INTEL x86 processor.
  */
-static uint32_t c2_processor_get_intel_cache_sz(c2_processor_nr_t id,
-						uint32_t cache_level)
+static uint32_t processor_intel_cache_sz_get(c2_processor_nr_t id,
+					     uint32_t cache_level)
 {
-	uint32_t eax;
-	uint32_t ebx;
-	uint32_t ecx;
-	uint32_t edx;
-	uint32_t sets;
-	uint32_t linesz;
-	uint32_t partition;
-	uint32_t asso;
-	uint32_t level;
-	uint32_t sz = 0;
+	uint32_t            eax;
+	uint32_t            ebx;
+	uint32_t            ecx;
+	uint32_t            edx;
+	uint32_t            sets;
+	uint32_t            linesz;
+	uint32_t            partition;
+	uint32_t            asso;
+	uint32_t            level;
+	uint32_t            sz = 0;
 
-	bool use_defaults = true;
-	struct cpuinfo_x86 *p;
+	bool                use_defaults = true;
+	struct cpuinfo_x86 *p = &cpu_data(id);
 
-	/*
-	 * Get Linux kernel CPU data.
-	 */
-	p = &cpu_data(id);
-
-	if (p->cpuid_level >= C2_PROCESSOR_INTEL_CPUID4_OP) {
-		cpuid_count(C2_PROCESSOR_INTEL_CPUID4_OP, cache_level,
+	if (p->cpuid_level >= PROCESSOR_INTEL_CPUID4_OP) {
+		cpuid_count(PROCESSOR_INTEL_CPUID4_OP, cache_level,
 			    &eax, &ebx, &ecx, &edx);
-		level = c2_processor_get_x86cache_level(eax);
+		level = processor_x86cache_level_get(eax);
 		if (level == cache_level) {
-			linesz = ebx & C2_PROCESSOR_INTEL_LINESZ_MASK;
-			partition = (ebx >> C2_PROCESSOR_INTEL_PARTITION_SHIFT)
-				    & C2_PROCESSOR_INTEL_PARTITION_MASK;
-			asso = (ebx >> C2_PROCESSOR_INTEL_ASSOCIATIVITY_SHIFT)
-				& C2_PROCESSOR_INTEL_ASSOCIATIVITY_MASK;
+			linesz = ebx & PROCESSOR_INTEL_LINESZ_MASK;
+			partition = (ebx >> PROCESSOR_INTEL_PARTITION_SHIFT)
+				    & PROCESSOR_INTEL_PARTITION_MASK;
+			asso = (ebx >> PROCESSOR_INTEL_ASSOCIATIVITY_SHIFT)
+				& PROCESSOR_INTEL_ASSOCIATIVITY_MASK;
 			sets = ecx;
 			sz = (linesz+1) * (sets+1) * (partition+1) * (asso+1);
 			use_defaults = false;
 		}
 	}
 
-	if (use_defaults == true) {
+	if (use_defaults) {
 		switch (cache_level) {
-		case C2_PROCESSOR_L1_CACHE:
+		case PROCESSOR_L1_CACHE:
 			sz = DEFAULT_L1_SZ;
 			break;
-		case C2_PROCESSOR_L2_CACHE:
+		case PROCESSOR_L2_CACHE:
 			sz = DEFAULT_L2_SZ;
 			break;
 		default:
@@ -457,37 +416,32 @@ static uint32_t c2_processor_get_intel_cache_sz(c2_processor_nr_t id,
    @param id -> id of the processor for which information is requested.
    @param cache_level -> cache level for which information is requested.
 
-   @retval size of L1 or L2 cache (in bytes) for the given x86 processor.
+   @return size of L1 or L2 cache (in bytes) for the given x86 processor.
  */
-static uint32_t c2_processor_get_x86_cache_sz(c2_processor_nr_t id,
-					      uint32_t cache_level)
+static uint32_t processor_x86_cache_sz_get(c2_processor_nr_t id,
+					   uint32_t cache_level)
 {
-	uint32_t sz;
-	struct cpuinfo_x86 *p;
-
-	/*
-	 * Get Linux kernel CPU data.
-	 */
-	p = &cpu_data(id);
+	uint32_t            sz;
+	struct cpuinfo_x86 *p = &cpu_data(id);
 
 	switch (p->x86_vendor) {
 	case X86_VENDOR_AMD:
 		/*
 		 * Get L1/L2 cache size for AMD processors.
 		 */
-		sz = c2_processor_get_amd_cache_sz(id, cache_level);
+		sz = processor_amd_cache_sz_get(id, cache_level);
 		break;
 	case X86_VENDOR_INTEL:
 		/*
 		 * Get L1/L2 cache size for INTEL processors.
 		 */
-		sz = c2_processor_get_intel_cache_sz(id, cache_level);
+		sz = processor_intel_cache_sz_get(id, cache_level);
 		break;
 	default:
 		/*
 		 * Use default function for all other x86 vendors.
 		 */
-		sz = c2_processor_get_cache_sz(id, cache_level);
+		sz = processor_cache_sz_get(id, cache_level);
 		break;
 	}/* end of switch - vendor name */
 
@@ -497,40 +451,37 @@ static uint32_t c2_processor_get_x86_cache_sz(c2_processor_nr_t id,
 /**
    Fetch attributes for the x86 processor.
 
-   @param arg -> argument passed to this function.
+   @param arg -> argument passed to this function, a struct processor_node.
 
-   @see c2_processor_x86cache_create
+   @see processor_x86cache_create
    @see smp_call_function_single (Linux kernel)
  */
-static void c2_processor_x86_info(void *arg)
+static void processor_x86_attrs_get(void *arg)
 {
-	uint32_t c_leaves;
-	c2_processor_nr_t cpu;
-	struct c2_processor_node *pinfo = (struct c2_processor_node *)arg;
-
-	cpu = smp_processor_id();
+	uint32_t               c_leaves;
+	c2_processor_nr_t      cpu   = smp_processor_id();
+	struct processor_node *pinfo = (struct processor_node *) arg;
 
 	/*
 	 * Fetch other generic properties.
 	 */
 	pinfo->pn_info.pd_id = cpu;
-	pinfo->pn_info.pd_numa_node = c2_processor_get_numanodeid(cpu);
-	pinfo->pn_info.pd_pipeline = c2_processor_get_pipelineid(cpu);
+	pinfo->pn_info.pd_numa_node = processor_numanodeid_get(cpu);
+	pinfo->pn_info.pd_pipeline = processor_pipelineid_get(cpu);
 
-	c_leaves = c2_processor_get_x86cache_leaves(cpu);
+	c_leaves = processor_x86cache_leaves_get(cpu);
 	/*
 	 * Now fetch the x86 cache information.
 	 */
-	pinfo->pn_info.pd_l1
-	= c2_processor_get_x86_cacheid(cpu, C2_PROCESSOR_L1_CACHE, c_leaves);
-	pinfo->pn_info.pd_l2
-	= c2_processor_get_x86_cacheid(cpu, C2_PROCESSOR_L2_CACHE, c_leaves);
+	pinfo->pn_info.pd_l1 =
+	    processor_x86_cacheid_get(cpu, PROCESSOR_L1_CACHE, c_leaves);
+	pinfo->pn_info.pd_l2 =
+	    processor_x86_cacheid_get(cpu, PROCESSOR_L2_CACHE, c_leaves);
 
-	pinfo->pn_info.pd_l1_sz
-	= c2_processor_get_x86_cache_sz(cpu, C2_PROCESSOR_L1_CACHE);
-	pinfo->pn_info.pd_l2_sz
-	= c2_processor_get_x86_cache_sz(cpu, C2_PROCESSOR_L2_CACHE);
-
+	pinfo->pn_info.pd_l1_sz =
+	    processor_x86_cache_sz_get(cpu, PROCESSOR_L1_CACHE);
+	pinfo->pn_info.pd_l2_sz =
+	    processor_x86_cache_sz_get(cpu, PROCESSOR_L2_CACHE);
 }
 
 /**
@@ -543,33 +494,53 @@ static void c2_processor_x86_info(void *arg)
    @retval 0 if processor information is found
    @retval -EINVAL if processor information is not found
 
-   @pre  Memory must be allocated for pd. Interface does not allocate memory.
+   @pre Memory must be allocated for pd. Interface does not allocate memory.
    @pre c2_processors_init() must be called before calling this function.
 
    @see c2_processor_describe
-   @see c2_processor_get_info
-
  */
-static int c2_processor_find_x86info(c2_processor_nr_t id,
-				     struct c2_processor_descr *pd)
+static int processor_x86_info_get(c2_processor_nr_t id,
+				  struct c2_processor_descr *pd)
 {
-	int rc = -EINVAL;
-	struct c2_processor_node *pinfo;
+	struct processor_node *pinfo;
 
 	C2_PRE(pd != NULL);
-	C2_PRE(c2_processor_is_initialized() == true);
+	C2_PRE(processor_init);
 
-	c2_list_for_each_entry(&x86_cpus, pinfo, struct c2_processor_node,
+	c2_list_for_each_entry(&x86_cpus, pinfo, struct processor_node,
 			       pn_link) {
 		if (pinfo->pn_info.pd_id == id) {
 			*pd = pinfo->pn_info;
-			rc = 0;
-			break;
+			return 0;
 		}/* if - matching CPU id found */
 
 	}/* for - iterate over all the processor nodes */
 
-	return rc;
+	return -EINVAL;
+}
+
+/**
+   Cache clean-up.
+
+   @see c2_processors_fini
+   @see c2_list_fini
+ */
+static void processor_x86cache_destroy(void)
+{
+	struct c2_list_link   *node;
+	struct processor_node *pinfo;
+
+	/*
+	 * Remove all the processor nodes.
+	 */
+	node = x86_cpus.l_head;
+	while((struct c2_list *)node != &x86_cpus) {
+		pinfo = c2_list_entry(node, struct processor_node, pn_link);
+		c2_list_del(&pinfo->pn_link);
+		c2_free(pinfo);
+		node = x86_cpus.l_head;
+	}
+	c2_list_fini(&x86_cpus);
 }
 
 /**
@@ -577,18 +548,13 @@ static int c2_processor_find_x86info(c2_processor_nr_t id,
 
    This is a blocking call.
 
-   @retval 0 if cache is created.
-   @retval -1 if cache is empty.
-
    @see c2_processors_init
    @see smp_call_function_single (Linux kernel)
-
  */
-static int c2_processor_x86cache_create(void)
+static int processor_x86cache_create(void)
 {
-	bool empty;
-	uint32_t cpu;
-	struct c2_processor_node *pinfo;
+	uint32_t               cpu;
+	struct processor_node *pinfo;
 
 	c2_list_init(&x86_cpus);
 
@@ -597,264 +563,84 @@ static int c2_processor_x86cache_create(void)
 	 * Unless CPU is online, we cannot execute on it.
 	 */
 	for_each_online_cpu(cpu) {
-		pinfo = (struct c2_processor_node *)
-			kmalloc (sizeof(struct c2_processor_node), GFP_KERNEL);
-		if (pinfo != NULL) {
-			/*
-			 * We may not be running on the same processor for
-			 * which cache info is needed. Hence run the function
-			 * on the requested processor. smp_call... has all the
-			 * optimization necessary.
-			 */
-			smp_call_function_single(cpu,
-						 c2_processor_x86_info,
-						 (void *)pinfo, true);
-			c2_list_add(&x86_cpus, &pinfo->pn_link);
+		C2_ALLOC_PTR(pinfo);
+		if (pinfo == NULL) {
+			processor_x86cache_destroy();
+			return -ENOMEM;
 		}
+
+		/*
+		 * We may not be running on the same processor for which cache
+		 * info is needed. Hence run the function on the requested
+		 * processor. smp_call... has all the optimization necessary.
+		 */
+		smp_call_function_single(cpu, processor_x86_attrs_get,
+					 (void *)pinfo, true);
+		c2_list_add(&x86_cpus, &pinfo->pn_link);
 	}/* for - scan all the online processors */
 
-	empty = c2_list_is_empty(&x86_cpus);
-	if (empty == true) {
+	if (c2_list_is_empty(&x86_cpus)) {
 		c2_list_fini(&x86_cpus);
-		return -1;
+		return -ENODATA;
 	}
 
 	return 0;
 }
 
-/**
-   Cache clean-up
+/* ---- Processor Interfaces ---- */
 
-   @see c2_processors_fini
-   @see c2_list_fini
-
- */
-static void c2_processor_x86cache_destroy(void)
-{
-	struct c2_list_link *node;
-	struct c2_processor_node *pinfo;
-
-	/*
-	 * Remove all the processor nodes.
-	 */
-	node = x86_cpus.l_head;
-	while((struct c2_list *)node != &x86_cpus) {
-		pinfo = c2_list_entry(node, struct c2_processor_node, pn_link);
-		c2_list_del(&pinfo->pn_link);
-		kfree(pinfo);
-		node = x86_cpus.l_head;
-	}
-	c2_list_fini(&x86_cpus);
-}
-
-#else /* if not X86_64 */
-/**
-   Fetch default L1 or L2  cache id for a given processor.
-   Irrespective of cache level default cache id is same as processor id.
-   That will uniquely identify cache.
-
-   @param id -> id of the processor for which information is requested.
-
-   @retval id of L1/L2 cache for the given processor.
- */
-static uint32_t c2_processor_get_cacheid(c2_processor_nr_t id,
-					 uint32_t cache_level)
-{
-	uint32_t cache_id = id;
-
-	return cache_id;
-}
-
-/**
-   Obtain information on the processor with a given id.
-   @param id -> id of the processor for which information is requested.
-   @param pd -> processor descripto structure. Memory for this should be
-                allocated by the calling function. Interface does not allocate
-                memory.
-
-   @retval 0
-
-   @pre  Memory must be allocated for pd. Interface does not allocate memory.
-   @pre c2_processors_init() must be called before calling this function.
-
-   @see c2_processor_describe
-   @see c2_processor_find_x86info
- */
-static int c2_processor_get_info(c2_processor_nr_t id,
-				 struct c2_processor_descr *pd)
-{
-	C2_PRE(pd != NULL);
-	C2_PRE(c2_processor_is_initialized() == true);
-
-	pd->pd_id = id;
-	pd->pd_numa_node = c2_processor_get_numanodeid(id);
-	pd->pd_pipeline = c2_processor_get_pipelineid(id);
-
-	pd->pd_l1 = c2_processor_get_cacheid(id, C2_PROCESSOR_L1_CACHE);
-	pd->pd_l2 = c2_processor_get_cacheid(id, C2_PROCESSOR_L2_CACHE);
-	pd->pd_l1_sz = c2_processor_get_cache_sz(id, C2_PROCESSOR_L1_CACHE);
-	pd->pd_l2_sz = c2_processor_get_cache_sz(id, C2_PROCESSOR_L2_CACHE);
-
-	return 0;
-}
-
-#endif /* CONFIG_X86_64 */
-
-/* ---- Processor Interfaces ----*/
-
-/**
-   Initialize processors interface.
-
-   The calling function should not assume hot-plug CPU facility.
-   If the underlying OS supports the hot-plug CPU facility, the calling
-   program will have to re-initialize the interface after registering for
-   platform specific CPU change notification.
-
-   To re-initialize the interface, c2_processors_fini() must be called first,
-   before initializing it again.
-
-   This is a blocking call.
-
-   @post Interface initialized.
-
-   Concurrency: The interface should not be initialized twice or simultaneously.
-                It's not MT-safe and can be called only once. It can be
-                called again after calling c2_processors_fini().
- */
 int c2_processors_init()
 {
 	int rc;
 
-	rc = c2_processor_cache_create();
-	if (rc == 0) {
-		c2_processor_init = true;
-	}
-
+	C2_PRE(!processor_init);
+	rc = processor_x86cache_create();
+	processor_init = (rc == 0);
 	return rc;
 }
 
-/**
-   Close the processors interface. This function will destroy any cached data.
-   After calling this interface no meaningful data should be assumed.
-
-   Concurrency: Not MT-safe. Assumes no threads are using processor interface.
- */
 void c2_processors_fini()
 {
-	c2_processor_cache_destroy();
-	c2_processor_init = false;
-	return;
+	C2_PRE(processor_init);
+	processor_x86cache_destroy();
+	processor_init = false;
 }
 
-/**
-   Query if processors interface is initialized.
-   @retval true if the interface is initialized
-   @retval false if the interface is not initialized.
- */
-bool c2_processor_is_initialized()
-{
-	return c2_processor_init;
-}
-
-/**
-   Maximum processors this kernel can handle.
-
- */
 c2_processor_nr_t c2_processor_nr_max(void)
 {
 	return NR_CPUS - 1;
 }
 
-/**
-   Return the bitmap of possible processors.
-
-   @pre map->b_nr >= c2_processor_nr_max()
-   @pre c2_processors_init() must be called before calling this function.
-   @pre The calling function should allocated memory for 'map' and initialize
-        it
-   @note This function does not take any locks.
- */
 void c2_processors_possible(struct c2_bitmap *map)
 {
-	c2_processors_copy_bitmap(cpu_possible_mask, map, nr_cpu_ids);
+	processors_bitmap_copy(map, cpu_possible_mask, nr_cpu_ids);
 }
 
-/**
-   Return the bitmap of available processors.
-
-   @pre map->b_nr >= c2_processor_nr_max()
-   @pre c2_processors_init() must be called before calling this function.
-   @pre The calling function should allocated memory for 'map' and initialize
-        it
-   @note This function does not take any locks.
- */
 void c2_processors_available(struct c2_bitmap *map)
 {
-	c2_processors_copy_bitmap(cpu_present_mask, map, nr_cpu_ids);
+	processors_bitmap_copy(map, cpu_present_mask, nr_cpu_ids);
 }
 
-/**
-   Return the bitmap of online processors.
-
-
-   @pre map->b_nr >= c2_processor_nr_max()
-   @pre c2_processors_init() must be called before calling this function.
-   @pre The calling function should allocated memory for 'map' and initialize
-        it
-   @note This function does not take any locks.
- */
 void c2_processors_online(struct c2_bitmap *map)
 {
-	c2_processors_copy_bitmap(cpu_online_mask, map, nr_cpu_ids);
+	processors_bitmap_copy(map, cpu_online_mask, nr_cpu_ids);
 }
 
-/**
-   Obtain information on the processor with a given id.
-   @param id -> id of the processor for which information is requested.
-   @param pd -> processor descripto structure. Memory for this should be
-                allocated by the calling function. Interface does not allocate
-                memory.
-
-   @retval 0 if a matching processor is found
-   @retval -EINVAL if id does not match with any of the processors or NULL
-                   memory pointer for 'pd' is passed.
-
-   @pre  Memory must be allocated for pd. Interface does not allocate memory.
-   @pre c2_processors_init() must be called before calling this function.
-   @post d->pd_id == id or none
-
-   Concurrency: This is read only data. Interface by itself does not do
-                any locking. When used in kernel-mode, the interface may
-                call some functions that may use some kind of locks.
- */
-int c2_processor_describe(c2_processor_nr_t id,
-			  struct c2_processor_descr *pd)
+int c2_processor_describe(c2_processor_nr_t id, struct c2_processor_descr *pd)
 {
-	int rc;
-
-	if (id >= nr_cpu_ids || pd == NULL) {
+	C2_PRE(pd != NULL);
+	if (id >= nr_cpu_ids)
 		return -EINVAL;
-	}
 
-	rc = c2_processor_info(id, pd);
-
-	return rc;
+	return processor_x86_info_get(id, pd);
 }
 
-/**
-   Return the id of the processor on which the calling thread is running.
-
-   @retval logical processor id (as supplied by the system) on which the
-           calling thread is running.
- */
-c2_processor_nr_t c2_processor_getcpu(void)
+c2_processor_nr_t c2_processor_id_get(void)
 {
-	int cpu;
-
-	cpu = smp_processor_id();
-	return cpu;
+	return smp_processor_id();
 }
 
+/** @} end of processor group */
 
 /*
  *  Local variables:

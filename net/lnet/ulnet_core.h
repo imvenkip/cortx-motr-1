@@ -19,6 +19,9 @@
  * Original creation date: 11/01/2011
  *
  */
+
+#pragma once
+
 #ifndef __COLIBRI_NET_ULNET_CORE_H__
 #define __COLIBRI_NET_ULNET_CORE_H__
 
@@ -28,12 +31,6 @@
 
    @{
  */
-
-enum {
-	C2_NET_LNET_UCORE_DOM_MAGIC = 0x55436f7265446f6dULL, /* UCoreDom */
-	C2_NET_LNET_UCORE_TM_MAGIC  = 0x55436f7265544dULL,   /* UCoreTM */
-	C2_NET_LNET_UCORE_BUF_MAGIC = 0x55436f7265427566ULL, /* UCoreBuf */
-};
 
 /**
    Userspace domain private data.

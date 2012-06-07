@@ -18,10 +18,6 @@
  * Original creation date: 03/30/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 /* make it compilable */
 #if 0
 

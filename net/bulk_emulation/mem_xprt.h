@@ -18,6 +18,9 @@
  *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 04/12/2011
  */
+
+#pragma once
+
 #ifndef __COLIBRI_NET_BULK_MEM_XPRT_H__
 #define __COLIBRI_NET_BULK_MEM_XPRT_H__
 
@@ -38,6 +41,7 @@ typedef __be16 in_port_t;
 #include <arpa/inet.h>
 #endif
 
+#include "colibri/magic.h"
 #include "net/bulk_mem.h"
 
 /**
@@ -227,9 +231,6 @@ mem_tm_to_pvt(const struct c2_net_transfer_mc *tm)
 	return tm->ntm_xprt_private;
 }
 
-enum {
-	C2_NET_BULK_MEM_XEP_MAGIC    = 0x6e455064696f746eULL,
-};
 /**
    End point. It tracks an IP/port number address.
  */

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,8 @@
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
  * Original creation date: 05/08/2010
  */
+
+#pragma once
 
 #ifndef __COLIBRI_LIB_ARITH_H__
 #define __COLIBRI_LIB_ARITH_H__
@@ -166,12 +168,19 @@ static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
     pointer is aligned at a 64-bit boundary. */
 #define C2_IS_8ALIGNED(val) ((((uint64_t)(val)) & 07) == 0)
 
-#define C2_3WAY(v0, v1)					\
-({							\
-	typeof(v0) __a0 = (v0);				\
-	typeof(v1) __a1 = (v1);				\
-							\
-	(__a0 < __a1) ? -1 : (__a0 == __a1 ? 0 : +1);	\
+/**
+ * 3-way comparison.
+ *
+ * +1 when v0 >  v1
+ *  0 when v0 == v2
+ * -1 when v0 <  v2
+ */
+#define C2_3WAY(v0, v1)				\
+({						\
+	typeof(v0) __a0 = (v0);			\
+	typeof(v1) __a1 = (v1);			\
+						\
+	(__a0 < __a1) ? -1 : __a0 != __a1;	\
 })
 
 #define C2_SWAP(v0, v1)					\
@@ -181,14 +190,14 @@ static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
 	typeof(v0) __tmp = __a0;			\
 	(void)(&__a0 == &__a1);				\
 							\
-	(v0) = (v1);					\
-	(v1) = (__tmp);					\
+	(v0) = __a1;					\
+	(v1) = __tmp;					\
 })
 
 /** Decrements a counter checking for underflow. */
 #define C2_CNT_DEC(cnt)					\
 ({							\
-        C2_ASSERT((cnt) > 0);				\
+        C2_ASSERT((cnt) != 0);				\
         --cnt;						\
 })
 
@@ -196,7 +205,7 @@ static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
 #define C2_CNT_INC(cnt)					\
 ({							\
         ++cnt;						\
-        C2_ASSERT((cnt) > 0);				\
+        C2_ASSERT((cnt) != 0);				\
 })
 
 /** @} end of arith group */

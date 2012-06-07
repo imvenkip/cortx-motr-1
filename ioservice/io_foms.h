@@ -21,6 +21,8 @@
  * Revision date  : 09/14/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_IOSERVICE_IO_FOMS_H__
 #define __COLIBRI_IOSERVICE_IO_FOMS_H__
 
@@ -76,8 +78,8 @@
    @verbatim
    c2_io_fom_cob_rw_locality_get()   Request handler uses this interface to
                                      get the locality for this I/O FOM.
-   c2_io_fom_cob_rw_state()          Request handler uses this interface to
-                                     execute next state of I/O FOM.
+   c2_io_fom_cob_rw_tick()           Request handler uses this interface to
+                                     execute next phase of I/O FOM.
    c2_io_fom_cob_rw_fini()           Request handler uses this interface after
                                      I/O FOM finishes its execution.
    @endverbatim
@@ -131,8 +133,8 @@
  *  @{
  */
 
+#include "reqh/reqh.h"     /* C2_FOPH_NR */
 #include "fop/fop.h"
-#include "fop/fop_format.h"
 #include "ioservice/io_fops.h"
 #include "stob/stob.h"
 #include "net/net.h"
@@ -141,12 +143,6 @@
 struct c2_fid;
 struct c2_fop_file_fid;
 struct c2_io_fom_cob_rw;
-
-enum {
-        C2_STOB_IO_DESC_LINK_MAGIC     = 0x53544f42492f4f,
-        C2_STOB_IO_DESC_HEAD_MAGIC     = 0x73746f62692f6f,
-        C2_NET_BUFFER_HEAD_MAGIC_IOFOM = 0x696f666f6d,
-};
 
 /**
  * Since STOB I/O only launch io for single index vec, I/O service need

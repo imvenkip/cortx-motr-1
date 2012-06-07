@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,66 +17,37 @@
  * Original creation date: 01/05/2011
  */
 
-
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/errno.h"
 #include "lib/ut.h"
 #include "lib/cdefs.h"
 #include "lib/memory.h"
 
 #include "fop/fop.h"
-#include "fop/fop_iterator.h"
-#include "fid/fid_u.h"
-#include "iterator_test_u.h"
-#include "fop/fop_format_def.h"
-#include "fid/fid.ff"
-#include "fop/ut/iterator_test.ff"
+#include "iterator_test_ff.h"
 #include "rpc/rpc_opcodes.h"
+#include "xcode/xcode.h"
 
 
 /* FOP object iterator test tests iterations of the following types:
- *   - FFA_TYPEDEF,
  *   - FFA_RECORD,
- *   - FFA_UNION,
  *   - FFA_SEQUENCE.
  */
 
-C2_FOP_TYPE_DECLARE(c2_fop_iterator_test, "FOP iterator test", NULL,
-		    C2_FOP_ITERATOR_TEST_OPCODE, 0);
-
-static struct c2_fop_type *fops[] = {
-	&c2_fop_iterator_test_fopt,
-};
-
-static struct c2_fop_type_format *fmts[] = {
-	&c2_fop_seg_tfmt,
-	&c2_fop_vec_tfmt,
-	&c2_fop_optfid_tfmt,
-	&c2_fop_fid_typedef_tfmt,
-	&c2_fop_recursive1_tfmt,
-	&c2_fop_recursive2_tfmt
-};
+static struct c2_fop_type c2_fop_iterator_test_fopt;
 
 static void fop_fini(void)
 {
-	c2_fop_object_fini();
-	c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
-	c2_fop_type_format_fini_nr(fmts, ARRAY_SIZE(fmts));
+	c2_fop_type_fini(&c2_fop_iterator_test_fopt);
+	c2_xc_iterator_test_fini();
 }
 
 static int fop_init(void)
 {
-	int result;
-
-	c2_fop_object_init(&c2_fop_fid_tfmt);
-	result = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
-	C2_UT_ASSERT(result == 0);
-	result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
-	C2_UT_ASSERT(result == 0);
-	return result;
+	c2_xc_iterator_test_init();
+	return C2_FOP_TYPE_INIT(&c2_fop_iterator_test_fopt,
+				.name   = "FOP Iterator Test",
+				.opcode = C2_FOP_ITERATOR_TEST_OPCODE,
+				.xt     = c2_fop_iterator_test_xc);
 }
 
 static void fop_obj_fini(struct c2_fop_iterator_test *fop)
@@ -101,17 +72,14 @@ static void fop_obj_init(struct c2_fop_iterator_test *fop)
 		fop->fit_vec.fv_seg[i].fs_offset = i*2;
 	}
 
-	fop->fit_opt0.fo_present = 0; /* void */
-	fop->fit_opt0.u.fo_fid.f_seq = 131;
-	fop->fit_opt0.u.fo_fid.f_oid = 132;
+	fop->fit_opt0.fo_fid.ff_seq = 131;
+	fop->fit_opt0.fo_fid.ff_oid = 132;
 
-	fop->fit_opt1.fo_present = 1;
-	fop->fit_opt1.u.fo_fid.f_seq = 31;
-	fop->fit_opt1.u.fo_fid.f_oid = 32;
+	fop->fit_opt1.fo_fid.ff_seq = 31;
+	fop->fit_opt1.fo_fid.ff_oid = 32;
 
-	fop->fit_topt.fo_present = 1;
-	fop->fit_topt.u.fo_fid.f_seq = 41;
-	fop->fit_topt.u.fo_fid.f_oid = 42;
+	fop->fit_topt.fo_fid.ff_seq = 41;
+	fop->fit_topt.fo_fid.ff_oid = 42;
 
 	fop->fit_rec.fr_fid.f_seq = 5;
 	fop->fit_rec.fr_fid.f_oid = 6;
@@ -125,54 +93,63 @@ static void fop_obj_init(struct c2_fop_iterator_test *fop)
 		fop->fit_rec.fr_seq.fr_seq.fv_seg[i].fs_count = i;
 		fop->fit_rec.fr_seq.fr_seq.fv_seg[i].fs_offset = i*2;
 	}
-	fop->fit_rec.fr_seq.fr_unn.fo_present = 1;
-	fop->fit_rec.fr_seq.fr_unn.u.fo_fid.f_seq = 41;
-	fop->fit_rec.fr_seq.fr_unn.u.fo_fid.f_oid = 42;
+	fop->fit_rec.fr_seq.fr_unn.fo_fid.ff_seq = 41;
+	fop->fit_rec.fr_seq.fr_unn.fo_fid.ff_oid = 42;
 }
 
-/**
-   FOP object iterator test function
-
-   @todo add FFA_SEQUENCE tests.
- */
 static void fit_test(void)
 {
-	int result;
-	int i = 0;
-	uint64_t bits = 0;
-	struct c2_fop			*f;
-	struct c2_fit			 it;
-	struct c2_fid			 fid;
-	struct c2_fop_iterator_test	*fop;
-	static struct c2_fid expected[] = {
+	int                          result;
+	int                          i = 0;
+	struct c2_fop		    *f;
+	struct c2_fid		    *fid;
+	struct c2_fop_iterator_test *fop;
+	struct c2_xcode_ctx          ctx;
+	struct c2_xcode_cursor      *it;
+	static struct c2_fid         expected[] = {
 		{ 1,  2},   /* fop->fit_fid */
-		{31, 32},   /* fop->fit_opt1.u.fo_fid */
-		{41, 42},   /* fop->fit_topt.u.fo_fid */
+		{131, 132},
+		{31, 32},   /* fop->fit_opt1.fo_fid */
+		{41, 42},   /* fop->fit_topt.fo_fid */
 		{ 5,  6},   /* fop->fit_rec.fr_fid */
 		{ 7,  8},   /* fop->fit_rec.fr_seq.fr_fid */
-                {41, 42}    /* fop->fit_rec.fr_seq.fr_unn.u.fo_fid */
+                {41, 42}    /* fop->fit_rec.fr_seq.fr_unn.fo_fid */
 	};
-
 
 	result = fop_init();
 	C2_UT_ASSERT(result == 0);
-
 
 	f = c2_fop_alloc(&c2_fop_iterator_test_fopt, NULL);
 	C2_UT_ASSERT(f != NULL);
 	fop = c2_fop_data(f);
 	fop_obj_init(fop);
 
+	c2_xcode_ctx_init(&ctx, &C2_FOP_XCODE_OBJ(f));
+	it = &ctx.xcx_it;
 
-	c2_fop_object_it_init(&it, f);
+	while ((result = c2_xcode_next(it)) > 0) {
+		const struct c2_xcode_type     *xt;
+		struct c2_xcode_obj            *cur;
+		struct c2_xcode_cursor_frame   *top;
 
-	for (; (result = c2_fop_object_it_yield(&it, &fid, &bits)) > 0; i++) {
-		C2_UT_ASSERT(fid.f_container == expected[i].f_container);
-		C2_UT_ASSERT(fid.f_key == expected[i].f_key);
+		top = c2_xcode_cursor_top(it);
+
+		if (top->s_flag != C2_XCODE_CURSOR_PRE)
+			continue;
+
+		cur = &top->s_obj;
+		xt  = cur->xo_type;
+
+		if (xt == c2_fop_fid_xc) {
+			fid = cur->xo_ptr;
+			C2_UT_ASSERT(fid->f_container ==
+				     expected[i].f_container);
+			C2_UT_ASSERT(fid->f_key ==
+				     expected[i].f_key);
+			++i;
+		}
 	}
 	C2_UT_ASSERT(i == ARRAY_SIZE(expected));
-
-	c2_fop_object_it_fini(&it);
 
 	fop_obj_fini(fop);
 	c2_fop_free(f);

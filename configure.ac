@@ -6,8 +6,10 @@ AC_CONFIG_MACRO_DIR([m4])
 
 AH_TEMPLATE([PACKAGE], [Package name.])
 AH_TEMPLATE([VERSION], [Version of the package.])
+AH_TEMPLATE([ENABLE_SYNC_ATOMIC], [Enable gcc built-in automic functions])
 AH_TEMPLATE([ENABLE_DEBUG], [Enable debug info.])
 AH_TEMPLATE([ENABLE_FAULT_INJECTION], [Enable fault injection.])
+AH_TEMPLATE([ENABLE_IMMEDIATE_TRACE], [Enable immediate tracing.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT], [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV], [Have fops->readv function])
 AH_TEMPLATE([HAVE_FILE_AIO_READ], [Have fops->aio_read function])
@@ -24,7 +26,8 @@ COLIBRI_MINOR_VERSION=1
 PACKAGE=colibri
 VERSION=$COLIBRI_MAJOR_VERSION.$COLIBRI_MINOR_VERSION
 
-AM_INIT_AUTOMAKE([nostdinc])
+AM_INIT_AUTOMAKE([nostdinc silent-rules])
+AM_SILENT_RULES([yes])
 
 LT_RELEASE=$COLIBRI_MAJOR_VERSION.$COLIBRI_MINOR_VERSION
 AC_SUBST([LT_RELEASE])
@@ -260,6 +263,11 @@ AC_CHECK_TYPES([pthread_barrier_t], [AC_DEFINE([HAVE_PTHREAD_BARRIER_T])], [], [
 AC_FUNC_MALLOC
 
 # Configure options
+AC_ARG_ENABLE([sync_atomic],
+        [AC_HELP_STRING([--enable-sync_atomic], [enable gcc built-in __sync_atomic functions])], [],
+        [enable_sync_atomic=no]
+)
+
 AC_ARG_ENABLE([debug],
         [AC_HELP_STRING([--enable-debug], [enable debug information and logs])], [],
         [enable_debug=no]
@@ -268,6 +276,11 @@ AC_ARG_ENABLE([debug],
 AC_ARG_ENABLE([finject],
         [AC_HELP_STRING([--disable-finject], [disable fault injection support])], [],
         [enable_finject=yes]
+)
+
+AC_ARG_ENABLE([immediate-trace],
+        [AC_HELP_STRING([--disable-immediate-trace], [disable immediate tracing])], [],
+        [enable_immediate_trace=yes]
 )
 
 AC_ARG_ENABLE([mcheck],
@@ -303,6 +316,40 @@ AC_SUBST([LINUX_OBJ])
 
 LINUX_MOD=$(dirname $LINUX_OBJ)
 AC_SUBST([LINUX_MOD])
+
+# gccxml is required by xcode/gccxml2xcode script
+AC_CHECK_PROG(GCCXML, gccxml, gccxml)
+if test -z "${GCCXML}"; then
+        AC_MSG_ERROR(gccxml not found: it can be installed from \
+gccxml package on Red Hat based systems)
+fi
+
+# c++ compiler is required by gccxml
+AC_CHECK_PROG(CXX, g++, g++)
+if test -z "${CXX}"; then
+        AC_MSG_ERROR(g++ not found: it can be installed from \
+gcc-c++ package on Red Hat based systems)
+else
+        AC_PROG_CXX()
+fi
+
+# perl and several perl-module are required by xcode/gccxml2xcode script
+AX_PROG_PERL_MODULES(XML::LibXML, , AC_MSG_ERROR(No XML::LibXML Perl module \
+found: it can be installed from perl-XML-LibXML package on Red Hat based systems))
+
+AX_PROG_PERL_MODULES(List::MoreUtils, , AC_MSG_ERROR(No List::MoreUtils Perl \
+module found: it can be installed from perl-List-MoreUtils package on Red Hat \
+based systems))
+
+# following two perl modules are required for scripts/check-include-guards
+# script
+AX_PROG_PERL_MODULES(File::Find::Rule, , AC_MSG_ERROR(No File::Find::Rule Perl \
+module found: it can be installed from perl-File-Find-Rule package on Red Hat \
+based systems))
+
+AX_PROG_PERL_MODULES(IO::All, , AC_MSG_ERROR(No IO::All Perl \
+module found: it can be installed from perl-IO-All package on Red Hat \
+based systems))
 
 AC_ARG_ENABLE([coverage],
 	[AC_HELP_STRING([--enable-coverage], [build for test coverage analysis])],
@@ -534,6 +581,10 @@ AIO_LIBS=$LIBS
 AC_SUBST([AIO_LIBS])
 LIBS=$OLD_LIBS
 
+if test x$enable_sync_atomic = xyes; then
+	AC_DEFINE([ENABLE_SYNC_ATOMIC])
+fi
+
 if test x$enable_debug = xyes; then
         # If debug options specified we are free to strip all the default
         # optimization and debug flags.
@@ -546,9 +597,20 @@ if test x$enable_finject = xyes; then
         AC_DEFINE([ENABLE_FAULT_INJECTION])
 fi
 
+if test x$enable_immediate_trace = xyes; then
+        AC_DEFINE([ENABLE_IMMEDIATE_TRACE])
+fi
+
 if test x$enable_mcheck = xyes; then
 	LDFLAGS="$LDFLAGS -lmcheck"
 fi
+
+MAKEFLAGS=""
+if test x$enable_silent_rules = xyes; then
+	MAKEFLAGS="--no-print-directory"
+fi
+AC_SUBST([MAKEFLAGS])
+
 
 # Check if gcc option is supported in current gcc version.
 AC_DEFUN([COLIBRI_COMPILER_OPTION_CHECK],
@@ -566,16 +628,22 @@ CFLAGS="$OLD_CFLAGS")
 #
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 #
+# -Wno-attributes is required to suppress warnings about unrecognized
+# __attribute__, such as __attribute__((gccxml(...))). It's important because we
+# use -Werror, which turns warnings into errors, but we still need to be able to
+# use gccxml attributes.
+#
 if test x$enable_rpm = xyes; then
 
 GALOIS_INCLUDES="-I/usr/local/include -I/usr/include"
-CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -iquote . -iquote $SRCDIR $CFLAGS"
+CFLAGS="-Wall -Werror -Wno-attributes -D_REENTRANT -D_GNU_SOURCE \
+        -fno-strict-aliasing -iquote . -iquote $SRCDIR $CFLAGS"
 
 else
 
 GALOIS_INCLUDES="-I$GALOIS_SRC/include"
-CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing \
-        $DB_INCLUDES $GALOIS_INCLUDES -I$YAML_SRC/include \
+CFLAGS="-Wall -Werror -Wno-attributes -D_REENTRANT -D_GNU_SOURCE \
+        -fno-strict-aliasing $DB_INCLUDES $GALOIS_INCLUDES -I$YAML_SRC/include \
         -I$CUNIT_HEADERS -iquote . -iquote $SRCDIR $CFLAGS"
 fi
 
@@ -583,10 +651,13 @@ fi
 # Galois header may be in one of the following standard loctions.
 # Kernel needs to know about.
 #
-KCFLAGS="-Wall -Werror $KCFLAGS $GALOIS_INCLUDES"
+KCFLAGS="-Wall -Werror -Wno-attributes $KCFLAGS $GALOIS_INCLUDES"
 COLIBRI_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable])
 
 LDFLAGS="-rdynamic $LDFLAGS"
+
+CFLAGS="$CFLAGS -include config.h"
+KCFLAGS="$KCFLAGS -include config.h"
 
 # trim spaces at the end of flags
 CFLAGS=$(echo $CFLAGS | sed 's/[[[:blank:]]]*$//')
@@ -599,16 +670,17 @@ AC_SUBST([KCFLAGS])
 AC_CONFIG_FILES([
                  Makefile
                  addb/Makefile
-                 addb/addb_pseudo/Makefile
-                 addb/addbff/Makefile
+		 addb/addbff/Makefile
 		 addb/ut/Makefile
                  balloc/Makefile
                  balloc/ut/Makefile
                  build_kernel_modules/Makefile
                  capa/Makefile
                  capa/ut/Makefile
-                 c2t1fs/linux_kernel/st/common.sh
                  c2t1fs/linux_kernel/Makefile
+                 c2t1fs/linux_kernel/st/Makefile
+                 c2t1fs/linux_kernel/st/common.sh
+                 c2t1fs/linux_kernel/ut/Makefile
                  cfg/Makefile
                  cob/Makefile
                  cob/ut/Makefile
@@ -628,9 +700,8 @@ AC_CONFIG_FILES([
                  fol/Makefile
                  fol/ut/Makefile
                  fop/Makefile
-                 fop/fop2c
-                 fop/rt/Makefile
                  fop/ut/Makefile
+                 fop/ut/long_lock/Makefile
                  ioservice/Makefile
                  ioservice/ut/Makefile
                  layout/Makefile
@@ -662,6 +733,7 @@ AC_CONFIG_FILES([
                  rpc/ut/Makefile
                  rpc/it/Makefile
 		 rpc/it/linux_kernel/Makefile
+		 scripts/Makefile
                  sm/Makefile
                  sm/ut/Makefile
                  sns/Makefile
@@ -687,10 +759,6 @@ AC_CONFIG_FILES([
                 ])
 AC_OUTPUT
 
-#
-# Set up execute bit on our "compiler" generated from fop2c.in above.
-#
-chmod +x fop/fop2c
 #
 # Set up execute bit for UT scripts.
 #

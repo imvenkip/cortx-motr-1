@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,8 @@
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
  * Original creation date: 05/13/2010
  */
+
+#pragma once
 
 #ifndef __COLIBRI_LIB_CHAN_H__
 #define __COLIBRI_LIB_CHAN_H__
@@ -80,7 +82,8 @@
 
    static bool callback(struct c2_clink *clink)
    {
-           struct wait_state *f = container_of(clink, struct foo, f_clink);
+           struct wait_state *f =
+                   container_of(clink, struct wait_state, f_clink);
 	   return !condition_is_right(f);
    }
 
@@ -90,7 +93,7 @@
 	   c2_clink_init(&g.f_clink, &callback);
 	   c2_clink_add(chan, &g.f_clink);
 	   ...
-	   while (!condition_is_right(g)) {
+	   while (!condition_is_right(&g)) {
 	           c2_chan_wait(&g.f_clink);
 	   }
    }
@@ -146,8 +149,8 @@
    c2_clink_del(chan0, &cl0);
 
    // finalise in any order
-   c2_clink_fini(chan0, &cl0);
-   c2_clink_fini(chan1, &cl1);
+   c2_clink_fini(&cl0);
+   c2_clink_fini(&cl1);
    @endcode
 
    @note An interface similar to c2_chan was a part of historical UNIX kernel
@@ -232,7 +235,7 @@ struct c2_chan {
    in the channel the clink is registered with. It is guaranteed that a
    call-back is executed in the same context where event producer declared new
    event. A per-channel mutex c2_chan::ch_guard is held while call-backs are
-   executed.
+   executed (except the case when c2_clink_signal() is used by producer).
 
    @li once a clink is registered with a channel, it is possible to wait until
    an event happens by calling c2_clink_wait().

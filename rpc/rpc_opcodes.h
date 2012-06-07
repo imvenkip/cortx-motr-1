@@ -17,6 +17,7 @@
  * Original author: Subhash Arya <subhash_arya@xyratex.com>,
  * Original creation date: 11/4/2011
  */
+
 /**
    @addtogroup rpc_layer_core
 
@@ -28,8 +29,10 @@
    @{
  */
 
-#ifndef __RPC_CORE_OPCODES_H__
-#define __RPC_CORE_OPCODES_H__
+#pragma once
+
+#ifndef __COLIBRI_RPC_CORE_OPCODES_H__
+#define __COLIBRI_RPC_CORE_OPCODES_H__
 
 enum C2_RPC_OPCODES {
 
@@ -56,7 +59,7 @@ enum C2_RPC_OPCODES {
 	C2_FOP_ITERATOR_TEST_OPCODE         = 12,
 
 	/** Request handler rpc opcodes */
-	C2_REQH_ERROR_REPLY_OPCODE          = 13,
+	C2_REQH_ERROR_REPLY_OPCODE	    = 13,
 
 	/** Stob IO rpc opcodes */
 	C2_STOB_IO_CREATE_REQ_OPCODE        = 14,
@@ -104,6 +107,11 @@ enum C2_RPC_OPCODES {
 	C2_IOSERVICE_COB_DELETE_OPCODE      = 46,
 	C2_IOSERVICE_COB_OP_REPLY_OPCODE    = 47,
 
+	/** FOP module opcodes */
+	C2_FOP_RDWR_OPCODE                  = 48,
+	C2_FOP_RDWR_REPLY_OPCODE            = 49,
+
+        /* Mdservice fops */
         C2_MDSERVICE_CREATE_OPCODE          = 64,
         C2_MDSERVICE_LINK_OPCODE            = 65,
         C2_MDSERVICE_UNLINK_OPCODE          = 66,
@@ -125,7 +133,7 @@ enum C2_RPC_OPCODES {
 };
 /** @} endgroup rpc_layer_core */
 
-#endif /* __RPC_CORE_OPCODES_H__ */
+#endif /* __COLIBRI_RPC_CORE_OPCODES_H__ */
 
 /*
  *  Local variables:

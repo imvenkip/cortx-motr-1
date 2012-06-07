@@ -13,6 +13,7 @@ ut_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/console/ut/libconsole-ut.la     \
                $(top_builddir)/fol/ut/libfol-ut.la   \
                $(top_builddir)/fop/ut/libfop-ut.la   \
+               $(top_builddir)/layout/ut/liblayout-ut.la \
                $(top_builddir)/sns/ut/libparity-ut.la \
                $(top_builddir)/net/ut/libnet-ut.la \
                $(top_builddir)/net/bulk_emulation/ut/libnet-bulkem-ut.la \
@@ -28,7 +29,8 @@ ut_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/mdservice/ut/libmdservice-ut.la \
                $(top_builddir)/yaml2db/ut/libyaml2db-ut.la \
 	       $(top_builddir)/addb/ut/libaddb-ut.la \
-	       $(top_builddir)/balloc/ut/libballoc-ut.la
+	       $(top_builddir)/balloc/ut/libballoc-ut.la \
+	       $(top_builddir)/fop/ut/long_lock/libfop-lock-ut.la
 
 ub_SOURCES   = ub_main.c common.c common.h
 ub_LDFLAGS   = -pthread

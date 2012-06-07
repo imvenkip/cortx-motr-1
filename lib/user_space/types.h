@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,14 +18,16 @@
  * Original creation date: 08/04/2010
  */
 
-#ifndef __COLIBRI_LIB_USER_SPACE_TYPES_H_
-#define __COLIBRI_LIB_USER_SPACE_TYPES_H_
+#pragma once
+
+#ifndef __COLIBRI_LIB_USER_SPACE_TYPES_H__
+#define __COLIBRI_LIB_USER_SPACE_TYPES_H__
 
 #include <stdint.h>
 #include <stdbool.h>
 #include <sys/types.h>
 
-/* __COLIBRI_LIB_USER_SPACE_TYPES_H_ */
+/* __COLIBRI_LIB_USER_SPACE_TYPES_H__ */
 #endif
 /*
  *  Local variables:

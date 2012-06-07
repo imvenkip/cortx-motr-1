@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,8 +17,10 @@
  * Original creation date: 07/09/2010
  */
 
-#ifndef __COLIBRI_LIB_UT_H_
-#define __COLIBRI_LIB_UT_H_
+#pragma once
+
+#ifndef __COLIBRI_LIB_UT_H__
+#define __COLIBRI_LIB_UT_H__
 
 #ifndef __KERNEL__
 # include <stdbool.h>     /* bool */
@@ -212,7 +214,7 @@ bool c2_error_mesg_match(FILE *fp, const char *mesg);
 
 /** @} end of ut group. */
 
-/* __COLIBRI_LIB_UT_H_ */
+/* __COLIBRI_LIB_UT_H__ */
 
 
 

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,6 +18,8 @@
  * Original creation date: 01/30/2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LIB_USERSP_TRACE_H__
 #define __COLIBRI_LIB_USERSP_TRACE_H__
 
@@ -29,6 +31,12 @@
  */
 
 int  c2_trace_parse(void);
+
+int  c2_trace_set_immediate_mask(const char *mask);
+
+int  c2_trace_set_print_context(const char *ctx_name);
+
+int  c2_trace_set_level(const char *level);
 
 /** @} end of trace group */
 

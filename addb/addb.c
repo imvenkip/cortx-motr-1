@@ -19,16 +19,11 @@
  * Original creation date: 06/19/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include <stdarg.h>
 
-#include "lib/arith.h" /* max_check */
-#include "lib/memory.h"/*c2_alloc/c2_free */
-#include "lib/cdefs.h" /* C2_EXPORTED */
-#include "lib/errno.h" /* errno */
+#include "lib/arith.h"  /* max_check */
+#include "lib/memory.h" /*c2_alloc/c2_free */
+#include "lib/errno.h"  /* errno */
 #include "lib/misc.h"
 #include "lib/rwlock.h"
 #include "stob/stob.h"

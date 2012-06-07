@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -19,8 +19,11 @@
  *
  * Nikita Danilov.
  */
-#ifndef STORAGE_H
-#define STORAGE_H
+
+#pragma once
+
+#ifndef __COLIBRI_DESIM_STORAGE_H__
+#define __COLIBRI_DESIM_STORAGE_H__
 
 #include "desim/sim.h"
 
@@ -57,7 +60,7 @@ struct storage_dev {
 	char                *sd_name;
 };
 
-#endif /* STORAGE_H */
+#endif /* __COLIBRI_DESIM_STORAGE_H__ */
 
 /** @} end of desim group */
 

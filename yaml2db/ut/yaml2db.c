@@ -18,10 +18,6 @@
  * Original creation date: 08/13/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/misc.h"
 #include "lib/ut.h"
 #include "cfg/cfg.h"

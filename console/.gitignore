@@ -1,6 +1,6 @@
 bin/c2console
-console_[uk].[ch]
+console_xc.[ch]
 st/server
 rm/
 ../rm/
-bin/main.c
+bin/console.c

@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -19,8 +19,11 @@
  *
  * Nikita Danilov.
  */
-#ifndef NET_H
-#define NET_H
+
+#pragma once
+
+#ifndef __COLIBRI_DESIM_NET_H__
+#define __COLIBRI_DESIM_NET_H__
 
 #include "lib/tlist.h"
 #include "stob/stob_id.h"
@@ -96,7 +99,7 @@ void net_rpc_process(struct sim_thread *t,
 		     struct c2_stob_id *id, unsigned long long offset,
 		     unsigned long count);
 
-#endif /* NET_H */
+#endif /* __COLIBRI_DESIM_NET_H__ */
 
 /** @} end of desim group */
 

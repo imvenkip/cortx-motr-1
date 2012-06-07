@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,9 @@
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
  * Original creation date: 22/03/2011
  */
+
+#pragma once
+
 #ifndef __COLIBRI_CONSOLE_YAML_H__
 #define __COLIBRI_CONSOLE_YAML_H__
 
@@ -64,8 +67,8 @@ int c2_cons_yaml_init(const char *path);
  * @brief  Search for specified string and get the respctive value
  *	   form YAML file. (like "name : console")
  *
- * @param value Search string(like name).
- * @param data  Respective data(like console).
+ * @param value Search string (like name).
+ * @param data  Respective data (like console).
  *
  * @return 0 success and -errno failure.
  */
@@ -75,8 +78,7 @@ int c2_cons_yaml_set_value(const char *value, void *data);
  * @brief  Search for specified string and set the respctive value
  *	   form YAML file. (like "name : console")
  *
- * @param value Search string(like name).
- * @param data  Respective data(like console).
+ * @param value Search string (like name).
  *
  * @return 0 success and -errno failure.
  */

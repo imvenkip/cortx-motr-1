@@ -25,6 +25,7 @@
 #endif
 
 #include "lib/cdefs.h"         /* C2_EXPORTED */
+#include "lib/assert.h"        /* C2_PRE() */
 #include "fid/fid.h"
 #include "fop/fop_format_def.h"
 
@@ -54,6 +55,14 @@ bool c2_fid_is_set(const struct c2_fid *fid)
 	        .f_key = 0
 	};
 	return !c2_fid_eq(fid, &zero);
+}
+
+void c2_fid_set(struct c2_fid *fid, uint64_t container, uint64_t key)
+{
+	C2_PRE(fid != NULL);
+
+	fid->f_container = container;
+	fid->f_key = key;
 }
 
 bool c2_fid_eq(const struct c2_fid *fid0, const struct c2_fid *fid1)

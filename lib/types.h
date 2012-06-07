@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,8 +18,10 @@
  * Original creation date: 08/14/2010
  */
 
-#ifndef __COLIBRI_LIB_TYPES_H_
-#define __COLIBRI_LIB_TYPES_H_
+#pragma once
+
+#ifndef __COLIBRI_LIB_TYPES_H__
+#define __COLIBRI_LIB_TYPES_H__
 
 #ifdef __KERNEL__
 #include "linux_kernel/types.h"
@@ -49,7 +51,7 @@ enum {
 };
 
 
-/* __COLIBRI_LIB_TYPES_H_ */
+/* __COLIBRI_LIB_TYPES_H__ */
 #endif
 
 /*

@@ -134,8 +134,8 @@ int main(int argc, char **argv)
 	if (len > 3 && strcmp(scratch + len - 3, ".ff") == 0)
 		*(scratch + len - 3) = 0;
 
-	out_h = fmt("%s.h", scratch);
-	out_c = fmt("%s.c", scratch);
+	out_h = fmt("%s_ff.h", scratch);
+	out_c = fmt("%s_ff.c", scratch);
 
 	bname = basename(scratch);
 	gname = fmt("__COLIBRI_%s_%s_H__", basename(dirname(scratch)), bname);

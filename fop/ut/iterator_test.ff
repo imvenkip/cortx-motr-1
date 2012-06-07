@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -19,40 +19,45 @@
  * Original creation date: 01/05/2011
  */
 
-FOPDEP("fid/fid.ff");
+record {
+	u64 ff_seq;
+	u64 ff_oid
+} c2_fop_fid;
 
-DEF(c2_fop_seg, RECORD,
-    _(fs_offset, U64),
-    _(fs_count, U64));
+record {
+	u64 fs_offset;
+	u64 fs_count
+} c2_fop_seg;
 
-DEF(c2_fop_vec, SEQUENCE,
-    _(fv_count, U32),
-    _(fv_seg, c2_fop_seg));
+sequence {
+	u32        fv_count;
+	c2_fop_seg fv_seg
+} c2_fop_vec;
 
-DEF(c2_fop_optfid, UNION,
-    _(fo_present, U32),
-    _case(1, fo_fid, c2_fop_fid),
-    _case(0, fo_none, VOID));
+record {
+	c2_fop_fid fo_fid;
+	void       fo_none
+} c2_fop_optfid;
 
-DEF(c2_fop_fid_typedef, TYPEDEF,
-    _(, c2_fop_optfid));
+record {
+	c2_fop_fid    fr_fid;
+	c2_fop_vec    fr_seq;
+	c2_fop_optfid fr_unn
+} c2_fop_recursive1;
 
-DEF(c2_fop_recursive1, RECORD,
-    _(fr_fid, c2_fop_fid),
-    _(fr_seq, c2_fop_vec),
-    _(fr_unn, c2_fop_optfid));
+record {
+	c2_fop_fid        fr_fid;
+	c2_fop_recursive1 fr_seq
+} c2_fop_recursive2;
 
-DEF(c2_fop_recursive2, RECORD,
-    _(fr_fid, c2_fop_fid),
-    _(fr_seq, c2_fop_recursive1));
-
-DEF(c2_fop_iterator_test, RECORD,
-    _(fit_fid, c2_fop_fid),
-    _(fit_vec, c2_fop_vec),
-    _(fit_opt0, c2_fop_optfid),
-    _(fit_opt1, c2_fop_optfid),
-    _(fit_topt, c2_fop_fid_typedef),
-    _(fit_rec, c2_fop_recursive2));
+record {
+	c2_fop_fid         fit_fid;
+	c2_fop_vec         fit_vec;
+	c2_fop_optfid      fit_opt0;
+	c2_fop_optfid      fit_opt1;
+	c2_fop_optfid      fit_topt;
+	c2_fop_recursive2  fit_rec
+} c2_fop_iterator_test;
 
 /*
  *  Local variables:

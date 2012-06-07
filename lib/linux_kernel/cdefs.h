@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,8 +18,10 @@
  * Original creation date: 08/04/2010
  */
 
-#ifndef __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H_
-#define __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H_
+#pragma once
+
+#ifndef __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H__
+#define __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H__
 
 #include <linux/stddef.h> /* offsetof, NULL */
 #include <linux/kernel.h> /* container_of, ARRAY_SIZE */
@@ -29,7 +31,7 @@
 
 #define CHAR_BIT (8)
 
-/* __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H_ */
+/* __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H__ */
 #endif
 
 /*

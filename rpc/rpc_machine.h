@@ -20,6 +20,8 @@
  * Original creation date: 06/27/2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_RPC_MACHINE_H__
 #define __COLIBRI_RPC_MACHINE_H__
 
@@ -31,10 +33,11 @@
 #include "lib/chan.h"
 #include "lib/refs.h"
 #include "lib/thread.h"
+#include "lib/arith.h"
+#include "lib/bob.h"
 
 #include "addb/addb.h"
 #include "rpc/formation2.h"  /* c2_rpc_frm         */
-#include "rpc/formation.h"   /* c2_rpc_frm_sm      */
 #include "net/net.h"         /* c2_net_transfer_mc, c2_net_domain */
 
 /**
@@ -48,7 +51,6 @@ struct c2_cob_domain;
 struct c2_reqh;
 
 enum {
-	C2_RPC_MACHINE_MAGIX	    = 0x5250434D414348, /* RPCMACH */
 	/** Default Maximum RPC message size is taken as 128k */
 	C2_RPC_DEF_MAX_RPC_MSG_SIZE = 1 << 17,
 };
@@ -97,10 +99,6 @@ struct c2_rpc_machine {
 	    CONN_FAILED, CONN_TERMINATED} */
 	struct c2_list			  rm_incoming_conns;
 	struct c2_list			  rm_outgoing_conns;
-	/** @deprecated list of ready slots.
-	    Replaced by c2_rpc_session::s_ready_slots
-	 */
-	struct c2_list			  rm_ready_slots;
 	/** ADDB context for this rpc_machine */
 	struct c2_addb_ctx		  rm_addb;
 	/** Statistics for both incoming and outgoing paths */
@@ -140,33 +138,11 @@ struct c2_rpc_machine {
 
 	uint64_t                          rm_magix;
 
-	/** Buffer pool from which TM receive buffers are provisioned. */
-	struct c2_net_buffer_pool	 *rm_buffer_pool;
-
-	/**
-	 *  @see c2_net_transfer_mc:ntm_recv_queue_length
-	 *  The default value is C2_NET_TM_RECV_QUEUE_DEF_LEN
-	 */
-	uint32_t			  rm_tm_recv_queue_min_length;
-
 	/**
 	 * @see c2_net_transfer_mc:ntm_recv_queue_min_recv_size
 	 * The default value is c2_net_domain_get_max_buffer_size()
 	 */
 	uint32_t			  rm_min_recv_size;
-
-	/**
-	 * @see c2_net_transfer_mc:ntm_recv_queue_max_recv_msgs
-	 * The default value is 1.
-	 */
-	uint32_t			  rm_max_recv_msgs;
-
-	/**
-	 * @see c2_net_transfer_mc:ntm_pool_colour
-	 * The default value is C2_BUFFER_ANY_COLOUR
-	 */
-	uint32_t			  rm_tm_colour;
-
 };
 
 /**
@@ -187,8 +163,6 @@ struct c2_rpc_chan {
 	struct c2_list_link		  rc_linkage;
 	/** Number of c2_rpc_conn structures using this transfer machine.*/
 	struct c2_ref			  rc_ref;
-	/** @deprecated Formation state machine associated with chan. */
-	struct c2_rpc_frm_sm		  rc_frmsm;
 	/** Formation state machine associated with chan. */
 	struct c2_rpc_frm                 rc_frm;
 	/** Destination end point to which rpcs will be sent. */
@@ -271,18 +245,25 @@ c2_time_t c2_rpc_avg_item_time(struct c2_rpc_machine *machine,
 size_t c2_rpc_bytes_per_sec(struct c2_rpc_machine *machine,
 			    const enum c2_rpc_item_path path);
 
-struct c2_rpc_group {
-	struct c2_rpc_machine	*rg_mach;
-	/** List of rpc items linked through c2_rpc_item:ri_group_linkage. */
-	struct c2_list		 rg_items;
-	/** expected number of items in the group */
-	uint64_t		 rg_expected;
-        /** lock protecting fields of the struct */
-        struct c2_mutex		 rg_guard;
-	/** signalled when a reply is received or an error happens
-	     (usually a timeout). */
-	struct c2_chan		 rg_chan;
-};
+static struct c2_rpc_chan *frm_rchan(const struct c2_rpc_frm *frm)
+{
+	return container_of(frm, struct c2_rpc_chan, rc_frm);
+}
+
+static struct c2_rpc_machine *frm_rmachine(const struct c2_rpc_frm *frm)
+{
+	return frm_rchan(frm)->rc_rpc_machine;
+}
+
+static bool frm_rmachine_is_locked(const struct c2_rpc_frm *frm)
+						__attribute__((unused));
+
+static bool frm_rmachine_is_locked(const struct c2_rpc_frm *frm)
+{
+	return c2_rpc_machine_is_locked(frm_rmachine(frm));
+}
+
+C2_BOB_DECLARE(extern, c2_rpc_machine);
 
 /** @} end name stat_ifs */
 

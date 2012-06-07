@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -88,8 +88,10 @@
    @{
  */
 
-#ifndef SIM_H
-#define SIM_H
+#pragma once
+
+#ifndef __COLIBRI_DESIM_SIM_H__
+#define __COLIBRI_DESIM_SIM_H__
 
 #include <stdarg.h>
 
@@ -291,7 +293,7 @@ void sim_log(struct sim *s, enum sim_log_level level, const char *format, ...)
 int  sim_global_init(void);
 void sim_global_fini(void);
 
-#endif /* SIM_H */
+#endif /* __COLIBRI_DESIM_SIM_H__ */
 
 /** @} end of desim group */
 

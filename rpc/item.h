@@ -20,6 +20,8 @@
  * Original creation date: 06/27/2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_RPC_ITEM_H__
 #define __COLIBRI_RPC_ITEM_H__
 
@@ -30,9 +32,6 @@
 
    @{
  */
-
-/* Imports */
-struct c2_rpc;
 
 /* Forward declarations */
 struct c2_rpc_item_ops;
@@ -82,11 +81,6 @@ enum {
 	MAX_SLOT_REF    = 1,
 };
 
-enum {
-	C2_RPC_ITEM_FIELD_MAGIC = 0xf12acec12c611111ULL,
-	C2_RPC_ITEM_HEAD_MAGIC = 0x1007c095e511054eULL,
-};
-
 /**
    A single RPC item, such as a FOP or ADDB Record.  This structure should be
    included in every item being sent via RPC layer core to emulate relationship
@@ -98,7 +92,6 @@ struct c2_rpc_item {
 	struct c2_chan			 ri_chan;
 	enum c2_rpc_item_priority	 ri_prio;
 	c2_time_t			 ri_deadline;
-	struct c2_rpc_group		*ri_group;
 
 	enum c2_rpc_item_state		 ri_state;
 	enum c2_rpc_item_stage		 ri_stage;
@@ -110,22 +103,14 @@ struct c2_rpc_item {
 	int32_t				 ri_error;
 	/** Pointer to the type object for this item */
 	struct c2_rpc_item_type		*ri_type;
-	/** Linkage to the forming list, needed for formation */
+	/** @deprecated Linkage to the forming list, needed for formation */
 	struct c2_list_link		 ri_rpcobject_linkage;
-	/** Linkage to the unformed rpc items list, needed for formation */
-	struct c2_list_link		 ri_unformed_linkage;
-	/** Linkage to the group c2_rpc_group, needed for grouping */
-	struct c2_list_link		 ri_group_linkage;
-	/** Timer associated with this rpc item.*/
-	struct c2_timer			 ri_timer;
 	/** reply item */
 	struct c2_rpc_item		*ri_reply;
 	/** item operations */
 	const struct c2_rpc_item_ops	*ri_ops;
 	/** Time spent in rpc layer. */
 	c2_time_t			 ri_rpc_time;
-	/** Magic constant to verify sanity of ambient structure. */
-	uint64_t			 ri_head_magic;
 	/** List of compound items. */
 	struct c2_tl			 ri_compound_items;
 	/** Link through which items are anchored on list of
@@ -155,13 +140,6 @@ struct c2_rpc_item_ops {
 	   @note ri_added() has been called before invoking this function.
 	 */
 	void (*rio_sent)(struct c2_rpc_item *item);
-	/**
-	   Called when item's added to an RPC
-	   @param rpc reference to an RPC where item's added
-	   @param item reference to an item added to rpc
-	 */
-	void (*rio_added)(struct c2_rpc *rpc, struct c2_rpc_item *item);
-
 	/**
 	   Called when given item's replied.
 	   @param item reference to an RPC-item on which reply FOP was received.
@@ -210,9 +188,9 @@ bool c2_rpc_item_is_request(const struct c2_rpc_item *item);
    in update stream */
 struct c2_rpc_item_type_ops {
 	/**
-	   Find out the size of rpc item.
+	   Find out the size of rpc payload.
 	 */
-	c2_bcount_t (*rito_item_size)(const struct c2_rpc_item *item);
+	c2_bcount_t (*rito_payload_size)(const struct c2_rpc_item *item);
 
 	/**
 	  Return true iff item1 and item2 are equal.

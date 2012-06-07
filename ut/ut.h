@@ -18,6 +18,8 @@
  * Original creation date: 11/23/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_UT_UT_H__
 #define __COLIBRI_UT_UT_H__
 

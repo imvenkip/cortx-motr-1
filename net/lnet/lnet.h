@@ -18,6 +18,9 @@
  *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 11/01/2011
  */
+
+#pragma once
+
 #ifndef __COLIBRI_NET_LNET_H__
 #define __COLIBRI_NET_LNET_H__
 

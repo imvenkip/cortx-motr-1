@@ -51,6 +51,10 @@ void c2_tlist_fini(const struct c2_tl_descr *d, struct c2_tl *list)
 {
 	C2_PRE(c2_tlist_invariant(d, list));
 	c2_list_fini(&list->t_head);
+	/*
+	 * We don't unset the magic field (list->t_magic), because it can be
+	 * shared by multiple tlinks embedded in the same ambient object.
+	 */
 }
 
 void c2_tlink_init(const struct c2_tl_descr *d, void *obj)
@@ -162,7 +166,6 @@ void c2_tlist_move_tail(const struct c2_tl_descr *d,
 			struct c2_tl *list, void *obj)
 {
 	C2_PRE(c2_tlist_invariant(d, list));
-	C2_PRE(c2_tlink_is_in(d, obj));
 
 	c2_list_move_tail(&list->t_head, link(d, obj));
 }
@@ -188,31 +191,18 @@ void *c2_tlist_tail(const struct c2_tl_descr *d, const struct c2_tl *list)
 }
 
 void *c2_tlist_next(const struct c2_tl_descr *d,
-		    const struct c2_tl *list, void *obj)
+		    const struct c2_tl *list, const void *obj)
 {
 	struct c2_list_link *next;
-
-	/*
-	 * c2_tlist_contains() internally calls c2_tlist_invariant().
-	 * c2_tl_for() uses c2_tlist_next() to adance through list elements.
-	 * Hence while iterating list of N elements using c2_tl_for(), the
-	 * invariant will be called N times. This resulted in severe
-	 * performance issue on longer lists. Ergo commenting this pre-condition
-	 *
-	 * see http://reviewboard.clusterstor.com/r/852/
-	 */
-	/* C2_PRE(c2_tlist_contains(d, list, obj)); */
 
 	next = link(d, obj)->ll_next;
 	return (void *)next != &list->t_head ? amb(d, next) : NULL;
 }
 
 void *c2_tlist_prev(const struct c2_tl_descr *d,
-		    const struct c2_tl *list, void *obj)
+		    const struct c2_tl *list, const void *obj)
 {
 	struct c2_list_link *prev;
-
-	C2_PRE(c2_tlist_contains(d, list, obj));
 
 	prev = link(d, obj)->ll_prev;
 	return (void *)prev != &list->t_head ? amb(d, prev) : NULL;
@@ -220,8 +210,8 @@ void *c2_tlist_prev(const struct c2_tl_descr *d,
 
 bool c2_tlist_invariant(const struct c2_tl_descr *d, const struct c2_tl *list)
 {
-	struct c2_list_link *head;
-	struct c2_list_link *scan;
+	const struct c2_list_link *head;
+	struct c2_list_link       *scan;
 
 	head = (void *)&list->t_head;
 

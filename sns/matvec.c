@@ -17,20 +17,14 @@
  * Original creation date: 10/19/2010
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_SNS
+#include "lib/trace.h"        /* C2_LOG and C2_ENTRY */
+
 #include "lib/cdefs.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/types.h"
-
-#ifdef __KERNEL__
-#define DBG(fmt, args...) printk("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
-#else
-# include <stdio.h>
-# include <stdlib.h>
-#define DBG(fmt, args...) printf("%s:%d " fmt, __FUNCTION__, __LINE__, ##args)
-#endif
-
 #include "sns/matvec.h"
 
 int c2_vector_init(struct c2_vector *v, uint32_t sz)
@@ -102,15 +96,15 @@ void c2_matrix_print(const struct c2_matrix *mat)
 	uint32_t x, y;
 	C2_PRE(mat);
 
-	DBG("-----> mat %p\n", mat);
+	C2_LOG(C2_DEBUG, "-----> mat %p\n", mat);
 
 	for (y = 0; y < mat->m_height; ++y) {
                 for (x = 0; x < mat->m_width; ++x)
-			DBG("%6d ", *c2_matrix_elem_get(mat, x, y));
-		DBG("\n");
+			C2_LOG(C2_DEBUG, "%6d ", *c2_matrix_elem_get(mat, x, y));
+		C2_LOG(C2_DEBUG, "\n");
 	}
 
-	DBG("\n");
+	C2_LOG(C2_DEBUG, "\n");
 }
 
 void c2_vector_print(const struct c2_vector *vec)
@@ -118,10 +112,10 @@ void c2_vector_print(const struct c2_vector *vec)
 	uint32_t x;
 	C2_PRE(vec);
 
-	DBG("-----> vec %p\n", vec);
+	C2_LOG(C2_DEBUG, "-----> vec %p\n", vec);
 	for (x = 0; x < vec->v_size; ++x)
-		DBG("%6d\n", *c2_vector_elem_get(vec, x));
-	DBG("\n");
+		C2_LOG(C2_DEBUG, "%6d\n", *c2_vector_elem_get(vec, x));
+	C2_LOG(C2_DEBUG, "\n");
 }
 
 void c2_matrix_swap_row(struct c2_matrix *m, uint32_t r0, uint32_t r1)

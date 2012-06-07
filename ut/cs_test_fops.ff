@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -21,18 +21,21 @@
 /*
   Dummy fops to test colibri setup
  */
+record {
+	u32 csr_value
+} cs_ds1_req_fop;
 
-DEF(cs_ds1_req_fop, RECORD,
-        _(csr_value, U64));
+record {
+	u32 csr_rc
+} cs_ds1_rep_fop;
 
-DEF(cs_ds1_rep_fop, RECORD,
-        _(csr_rc, U64));
+record {
+	u32 csr_value
+} cs_ds2_req_fop;
 
-DEF(cs_ds2_req_fop, RECORD,
-        _(csr_value, U64));
-
-DEF(cs_ds2_rep_fop, RECORD,
-        _(csr_rc, U64));
+record {
+	u32 csr_rc
+} cs_ds2_rep_fop;
 
 /*
  *  Local variables:

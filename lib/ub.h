@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,8 +17,10 @@
  * Original creation date: 07/20/2010
  */
 
-#ifndef __COLIBRI_LIB_UB_H_
-#define __COLIBRI_LIB_UB_H_
+#pragma once
+
+#ifndef __COLIBRI_LIB_UB_H__
+#define __COLIBRI_LIB_UB_H__
 
 #include "lib/types.h"
 #include "lib/cdefs.h"
@@ -54,7 +56,7 @@ void c2_ub_run(uint32_t rounds);
 
 /** @} end of ub group. */
 
-/* __COLIBRI_LIB_UB_H_ */
+/* __COLIBRI_LIB_UB_H__ */
 #endif
 
 /*

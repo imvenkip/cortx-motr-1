@@ -18,12 +18,11 @@
  * Original creation date: 10/12/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+#include "lib/misc.h"  /* c2_forall */
 #include "lib/memory.h"/* C2_ALLOC_PTR */
 #include "lib/errno.h" /* ENOMEM */
 #include "lib/arith.h" /* C2_CNT_INC, C2_CNT_DEC */
+#include "colibri/magic.h"
 #include "net/buffer_pool.h"
 
 /**
@@ -60,28 +59,16 @@ bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool)
 
 static bool pool_colour_check(const struct c2_net_buffer_pool *pool)
 {
-	int		      i;
-	struct c2_net_buffer *nb;
-
-	for (i = 0; i < pool->nbp_colours_nr; i++) {
-		c2_tl_for(c2_net_tm, &pool->nbp_colours[i], nb) {
-			if (!c2_net_pool_tlink_is_in(nb))
-				return false;
-		} c2_tl_endfor;
-	}
-	return true;
+	return c2_forall(i, pool->nbp_colours_nr,
+			 c2_tl_forall(c2_net_tm, nb, &pool->nbp_colours[i],
+				      c2_net_pool_tlink_is_in(nb)));
 }
 
 static bool pool_lru_buffer_check(const struct c2_net_buffer_pool *pool)
 {
-	struct c2_net_buffer *nb;
-
-	c2_tl_for(c2_net_pool, &pool->nbp_lru, nb) {
-		if ((nb->nb_flags & C2_NET_BUF_QUEUED) ||
-		    !(nb->nb_flags & C2_NET_BUF_REGISTERED))
-			return false;
-	} c2_tl_endfor;
-	return true;
+	return c2_tl_forall(c2_net_pool, nb, &pool->nbp_lru,
+			    !(nb->nb_flags & C2_NET_BUF_QUEUED) &&
+			    (nb->nb_flags & C2_NET_BUF_REGISTERED));
 }
 
 int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
@@ -164,23 +151,28 @@ void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool)
 
 	C2_PRE(c2_net_buffer_pool_is_not_locked(pool));
 
-	c2_net_buffer_pool_lock(pool);
-	C2_ASSERT(c2_net_buffer_pool_invariant(pool));
-	C2_ASSERT(pool->nbp_free == pool->nbp_buf_nr);
-
 	if (pool->nbp_colours == NULL && pool->nbp_colours_nr != 0)
 		return;
+	/*
+	 * The lock here is only needed to keep c2_net_buffer_pool_invariant()
+	 * happy. The caller must guarantee that there is no concurrency at this
+	 * point.
+	 */
+	c2_net_buffer_pool_lock(pool);
+	C2_ASSERT(c2_net_buffer_pool_invariant(pool));
+
+	C2_ASSERT(pool->nbp_free == pool->nbp_buf_nr);
 
 	c2_tl_for(c2_net_pool, &pool->nbp_lru, nb) {
 		C2_CNT_DEC(pool->nbp_free);
 		buffer_remove(pool, nb);
 	} c2_tl_endfor;
+	c2_net_buffer_pool_unlock(pool);
 	c2_net_pool_tlist_fini(&pool->nbp_lru);
 	for (i = 0; i < pool->nbp_colours_nr; i++)
 		c2_net_tm_tlist_fini(&pool->nbp_colours[i]);
 	if (pool->nbp_colours != NULL)
 		c2_free(pool->nbp_colours);
-	c2_net_buffer_pool_unlock(pool);
 	c2_mutex_fini(&pool->nbp_mutex);
 }
 

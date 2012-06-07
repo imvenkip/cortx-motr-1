@@ -19,6 +19,9 @@
  * Original creation date: 11/01/2011
  *
  */
+
+#pragma once
+
 #ifndef __COLIBRI_NET_KLNET_CORE_H__
 #define __COLIBRI_NET_KLNET_CORE_H__
 
@@ -36,14 +39,6 @@
  */
 
 enum {
-	C2_NET_LNET_KCORE_DOM_MAGIC = 0x4b436f7265446f6dULL, /* KCoreDom */
-	C2_NET_LNET_KCORE_TM_MAGIC  = 0x4b436f7265544dULL,   /* KCoreTM */
-	C2_NET_LNET_KCORE_TMS_MAGIC = 0x4b436f7265544d73ULL, /* KCoreTMs */
-	C2_NET_LNET_KCORE_BUF_MAGIC = 0x4b436f7265427566ULL, /* KCoreBuf */
-	C2_NET_LNET_KCORE_BEV_MAGIC = 0x4b436f7265426576ULL, /* KCoreBev */
-	C2_NET_LNET_DEV_TMS_MAGIC   = 0x4b446576544d73ULL,   /* KDevTMs */
-	C2_NET_LNET_DEV_BUFS_MAGIC  = 0x4b44657642756673ULL, /* KDevBufs */
-	C2_NET_LNET_DEV_BEVS_MAGIC  = 0x4b44657642657673ULL, /* KDevBevs */
 	C2_NET_LNET_MAX_PORTALS     = 64, /**< Number of portals supported. */
 	C2_NET_LNET_EQ_SIZE         = 8,  /**< Size of LNet event queue. */
 

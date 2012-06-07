@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,10 +18,12 @@
  * Original creation date: 07/07/2011
  */
 
-#ifndef __COLIBRI_PING_FOM_H__
-#define __COLIBRI_PING_FOM_H__
+#pragma once
 
-#include "ping_fop.h"
+#ifndef __COLIBRI_RPC_IT_PING_FOM_H__
+#define __COLIBRI_RPC_IT_PING_FOM_H__
+
+#include "rpc/it/ping_fop.h"
 
 /**
  * Object encompassing FOM for ping
@@ -43,7 +45,7 @@ int c2_fom_ping_state(struct c2_fom *fom);
 size_t c2_fom_ping_home_locality(const struct c2_fom *fom);
 void c2_fop_ping_fom_fini(struct c2_fom *fom);
 
-/* __COLIBRI_PING_FOM_H__ */
+/* __COLIBRI_RPC_IT_PING_FOM_H__ */
 #endif
 
 /*

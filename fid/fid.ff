@@ -18,9 +18,10 @@
  * Original creation date: 03/29/2011
  */
 
-DEF(c2_fop_fid, RECORD,
-    _(f_seq, U64),
-    _(f_oid, U64));
+record {
+    u64 f_seq;
+    u64 f_oid
+} c2_fop_fid;
 
 /* 
  *  Local variables:

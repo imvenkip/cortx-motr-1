@@ -28,32 +28,27 @@
 #include "lib/memory.h"             /* c2_free(), C2_ALLOC_PTR() */
 #include "lib/misc.h"               /* C2_SET0() */
 #include "fid/fid.h"                /* c2_fid */
+#include "fop/fom_generic.h"        /* c2_fom_tick_generic() */
 #include "ioservice/io_foms.h"      /* io_fom_cob_rw_fid2stob_map */
 #include "ioservice/io_fops.h"      /* c2_cobfop_common_get */
 #include "ioservice/cob_foms.h"     /* c2_fom_cob_create, c2_fom_cob_delete */
 #include "ioservice/io_fops.h"      /* c2_is_cob_create_fop() */
 #include "mdstore/mdstore.h"
 #include "ioservice/cobfid_map.h"   /* c2_cobfid_map_get() c2_cobfid_map_put()*/
-#include "reqh/reqh.h"              /* c2_fom_state_generic() */
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
-
-#ifdef __KERNEL__
-#include "ioservice/io_fops_k.h"
-#else
-#include "ioservice/io_fops_u.h"
-#endif
+#include "ioservice/io_fops_ff.h"
 
 /* Forward Declarations. */
 static int  cob_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static void cc_fom_fini(struct c2_fom *fom);
-static int  cc_fom_state(struct c2_fom *fom);
+static int  cc_fom_tick(struct c2_fom *fom);
 static int  cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc);
 static int  cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc);
 static int  cc_cobfid_map_add(struct c2_fom *fom, struct c2_fom_cob_op *cc);
 
 static void cd_fom_fini(struct c2_fom *fom);
-static int  cd_fom_state(struct c2_fom *fom);
+static int  cd_fom_tick(struct c2_fom *fom);
 static int  cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd);
 static int  cd_stob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd);
 static int  cd_cobfid_map_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd);
@@ -77,20 +72,15 @@ C2_ADDB_EV_DEFINE(cc_fom_func_fail, "create cob func failed.",
 		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
 /** Cob create fom ops. */
-static struct c2_fom_ops cc_fom_ops = {
+static const struct c2_fom_ops cc_fom_ops = {
 	.fo_fini	  = cc_fom_fini,
-	.fo_state	  = cc_fom_state,
+	.fo_tick	  = cc_fom_tick,
 	.fo_home_locality = cob_fom_locality_get,
-	.fo_service_name  = c2_io_fom_cob_rw_service_name,
 };
 
 /** Common fom_type_ops for c2_fop_cob_create and c2_fop_cob_delete fops. */
-static const struct c2_fom_type_ops cob_fom_type_ops = {
+const struct c2_fom_type_ops cob_fom_type_ops = {
 	.fto_create = cob_fom_create,
-};
-
-struct c2_fom_type cc_fom_type = {
-	.ft_ops = &cob_fom_type_ops,
 };
 
 static const struct c2_addb_loc cd_fom_addb_loc = {
@@ -103,13 +93,8 @@ C2_ADDB_EV_DEFINE(cd_fom_func_fail, "cob delete fom func failed.",
 /** Cob delete fom ops. */
 static const struct c2_fom_ops cd_fom_ops = {
 	.fo_fini	  = cd_fom_fini,
-	.fo_state	  = cd_fom_state,
+	.fo_tick	  = cd_fom_tick,
 	.fo_home_locality = cob_fom_locality_get,
-	.fo_service_name  = c2_io_fom_cob_rw_service_name,
-};
-
-struct c2_fom_type cd_fom_type = {
-	.ft_ops = &cob_fom_type_ops,
 };
 
 static int cob_fom_create(struct c2_fop *fop, struct c2_fom **out)
@@ -204,7 +189,7 @@ static void cob_fom_populate(struct c2_fom *fom)
 	io_fom_cob_rw_fid2stob_map(&cfom->fco_cfid, &cfom->fco_stobid);
 }
 
-static int cc_fom_state_internal(struct c2_fom *fom, bool block)
+static int cc_fom_tick(struct c2_fom *fom)
 {
 	int                          rc;
 	struct c2_fom_cob_op        *cc;
@@ -214,12 +199,12 @@ static int cc_fom_state_internal(struct c2_fom *fom, bool block)
 	C2_PRE(fom->fo_ops != NULL);
 	C2_PRE(fom->fo_type != NULL);
 
-	if (fom->fo_phase < C2_FOPH_NR) {
-		rc = c2_fom_state_generic(fom);
+	if (c2_fom_phase(fom) < C2_FOPH_NR) {
+		rc = c2_fom_tick_generic(fom);
 		return rc;
 	}
 
-	if (fom->fo_phase == C2_FOPH_CC_COB_CREATE) {
+	if (c2_fom_phase(fom) == C2_FOPH_CC_COB_CREATE) {
 		cc = cob_fom_get(fom);
 
                 if (block)
@@ -251,7 +236,7 @@ out:
 	reply->cor_rc = rc;
 
 	fom->fo_rc = rc;
-	fom->fo_phase = (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
+	c2_fom_phase_set(fom, (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE);
 	return C2_FSO_AGAIN;
 }
 
@@ -270,7 +255,7 @@ static int cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	C2_PRE(fom != NULL);
 	C2_PRE(cc != NULL);
 
-	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	reqh = c2_fom_reqh(fom);
 	sdom = c2_cs_stob_domain_find(reqh, &cc->fco_stobid);
 	if (sdom == NULL) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
@@ -404,12 +389,7 @@ static void cd_fom_fini(struct c2_fom *fom)
 	c2_free(cfom);
 }
 
-/**
-   We use this function both from fom_exec abd testing threads. It is not
-   allowed to use c2_fom_block_enter/c2_fom_block_leave wihtout group lock,
-   hence from cunit tests. 
- */
-static int cd_fom_state_internal(struct c2_fom *fom, bool block)
+static int cd_fom_tick(struct c2_fom *fom)
 {
 	int                         rc;
 	struct c2_fom_cob_op       *cd;
@@ -419,12 +399,12 @@ static int cd_fom_state_internal(struct c2_fom *fom, bool block)
 	C2_PRE(fom->fo_ops != NULL);
 	C2_PRE(fom->fo_type != NULL);
 
-	if (fom->fo_phase < C2_FOPH_NR) {
-		rc = c2_fom_state_generic(fom);
+	if (c2_fom_phase(fom) < C2_FOPH_NR) {
+		rc = c2_fom_tick_generic(fom);
 		return rc;
 	}
 
-	if (fom->fo_phase == C2_FOPH_CD_COB_DEL) {
+	if (c2_fom_phase(fom) == C2_FOPH_CD_COB_DEL) {
 		cd = cob_fom_get(fom);
 
                 if (block)
@@ -454,7 +434,7 @@ out:
 	reply->cor_rc = rc;
 
 	fom->fo_rc = rc;
-	fom->fo_phase = (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
+	c2_fom_phase_set(fom, (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE);
 	return C2_FSO_AGAIN;
 }
 
@@ -509,7 +489,7 @@ static int cd_stob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 	C2_PRE(fom != NULL);
 	C2_PRE(cd != NULL);
 
-	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	reqh = c2_fom_reqh(fom);
 	sdom = c2_cs_stob_domain_find(reqh, &cd->fco_stobid);
 	if (sdom == NULL) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,

@@ -123,6 +123,18 @@ bool c2_mod_ge(uint64_t x0, uint64_t x1)
 	return getdelta(x0, x1) >= 0;
 }
 
+uint64_t c2_round_up(uint64_t val, uint64_t size)
+{
+	C2_PRE(c2_is_po2(size));
+	return (val + size - 1) & ~(size - 1) ;
+}
+
+uint64_t c2_round_down(uint64_t val, uint64_t size)
+{
+	C2_PRE(c2_is_po2(size));
+	return val & ~(size - 1);
+}
+
 /*
  * Check that ergo() and equi() macros are really what they pretend to be.
  */
@@ -137,6 +149,27 @@ C2_BASSERT(equi(false, true)  == false);
 C2_BASSERT(equi(true,  false) == false);
 C2_BASSERT(equi(true,  true)  == true);
 
+const char *c2_bool_to_str(bool b)
+{
+	return b ? "true" : "false";
+}
+
+const char *c2_short_file_name(const char *fname)
+{
+	static const char  bkm[]  = "core/build_kernel_modules/";
+	static const char  core[] = "core/";
+	const char        *p;
+
+	p = strstr(fname, bkm);
+	if (p != NULL)
+		return p + strlen(bkm);
+
+	p = strstr(fname, core);
+	if (p != NULL)
+		return p + strlen(core);
+
+	return fname;
+}
 
 /*
  *  Local variables:

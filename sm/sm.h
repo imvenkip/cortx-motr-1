@@ -18,6 +18,8 @@
  * Original creation date: 04/01/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_SM_SM_H__
 #define __COLIBRI_SM_SM_H__
 
@@ -516,6 +518,12 @@ int c2_sm_timedwait(struct c2_sm *mach, uint64_t states, c2_time_t deadline);
 void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc);
 
 /**
+ * Moves a state machine into the next state, calling either c2_sm_state_set()
+ * or c2_sm_fail() depending on "rc".
+ */
+void c2_sm_move(struct c2_sm *mach, int32_t rc, int state);
+
+/**
    Transits a state machine into the indicated state.
 
    Calls ex- and in- methods of the corresponding states (even if the state
@@ -590,6 +598,23 @@ void c2_sm_ast_post(struct c2_sm_group *grp, struct c2_sm_ast *ast);
    @post c2_mutex_is_locked(&grp->s_lock)
  */
 void c2_sm_asts_run(struct c2_sm_group *grp);
+
+enum c2_sm_return {
+	/**
+	 * Negative mumbers are used to return from state function without
+	 * transitioning to next state.
+	 */
+	C2_SM_BREAK = -1,
+};
+
+/**
+ * "Extends" base state descriptions with the given sub descriptions.
+ *
+ * Updates sub in place to become a merged state machine descriptions array that
+ * uses base state descriptors, unless overridden by sub.
+ */
+void c2_sm_conf_extend(const struct c2_sm_state_descr *base,
+		       struct c2_sm_state_descr *sub, uint32_t nr);
 
 /** @} end of sm group */
 

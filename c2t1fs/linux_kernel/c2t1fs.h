@@ -19,8 +19,10 @@
  * Original creation date: 05/04/2010
  */
 
-#ifndef __COLIBRI_C2T1FS_H
-#define __COLIBRI_C2T1FS_H
+#pragma once
+
+#ifndef __COLIBRI_C2T1FS_C2T1FS_H__
+#define __COLIBRI_C2T1FS_C2T1FS_H__
 
 #include <linux/fs.h>
 #include <linux/pagemap.h>
@@ -28,9 +30,14 @@
 #include "lib/tlist.h"
 #include "lib/mutex.h"
 #include "net/net.h"    /* c2_net_domain */
-#include "rpc/rpc2.h"
+#include "rpc/session.h"
+#include "rpc/rpc_machine.h"
 #include "pool/pool.h"  /* c2_pool */
 #include "net/buffer_pool.h"
+#include "fid/fid.h"
+#include "cob/cob.h"    /* c2_cob_domain_id */
+#include "layout/layout.h"  /* c2_layout_domain */
+#include "layout/pdclust.h" /* c2_pdclust_instance */
 
 /**
   @defgroup c2t1fs c2t1fs
@@ -137,11 +144,8 @@
 
    Currently c2t1fs implements simple and temporary mechanism to build
    container location map. Number of containers is assumed to be equal to
-   pool_width(i.e. P) + 1. pool_width is a mount option. And additional 1 for
+   pool_width (i.e. P) + 1. pool_width is a mount option and additional 1 for
    meta-data container.
-
-   In the absense of feature of layout (called layout_enumeration), c2t1fs
-   implements a primitive mechanism to obtain fid of component objects.
 
    Assume a user-visible file F. A gob representing F is assigned fid
    <0, K>, where K is taken from a monotonically increasing counter
@@ -149,6 +153,8 @@
    by container location map.
    There are P number of component objects of file F, having fids
    { <i, K> | i = 1, 2..., P}. Here P is equal to pool_width mount option.
+   Mapping from <gob_fid, cob_index> -> cob_fid is implemented using
+   linear enumeration (B * x + A) with both A and B parameters set to 1.
    Container location map, maps container-ids from 1 to P, to io-services.
 
    Container location map is populated at mount time.
@@ -178,14 +184,12 @@
    component objects.
  */
 
-struct c2_pdclust_layout;
 struct c2t1fs_dir_ent;
 
 int  c2t1fs_init(void);
 void c2t1fs_fini(void);
 
 enum {
-	C2T1FS_SUPER_MAGIC              = 0x4332543153555052, /* "C2T1SUPR" */
 	MAX_NR_EP_PER_SERVICE_TYPE      = 10,
 	C2T1FS_MAX_NAME_LEN             = 256,
 	C2T1FS_RPC_TIMEOUT              = 10, /* seconds */
@@ -201,7 +205,7 @@ enum {
 /** Anything that is global to c2t1fs module goes in this singleton structure.
     There is only one, global, instance of this type. */
 struct c2t1fs_globals {
-	struct c2_net_xprt        *g_xprt;
+	struct c2_net_xprt       *g_xprt;
 	/** local endpoint address */
 	char                     *g_laddr;
 	char                     *g_db_name;
@@ -211,6 +215,7 @@ struct c2t1fs_globals {
 	struct c2_cob_domain      g_cob_dom;
 	struct c2_dbenv           g_dbenv;
 	struct c2_net_buffer_pool g_buffer_pool;
+	struct c2_layout_domain   g_layout_dom;
 };
 
 extern struct c2t1fs_globals c2t1fs_globals;
@@ -247,11 +252,6 @@ enum c2t1fs_service_type {
 	C2T1FS_ST_IOS
 };
 
-enum {
-	MAGIC_SVC_CTX  = 0x5356435f435458,   /* "SVC_CTX" */
-	MAGIC_SVCCTXHD = 0x5356434354584844, /* "SVCCTXHD" */
-};
-
 /**
    For each <mounted_fs, target_service> pair, there is one instance of
    c2t1fs_service_context.
@@ -277,7 +277,7 @@ struct c2t1fs_service_context {
 	/** link in c2t1fs_sb::csb_service_contexts list */
 	struct c2_tlink           sc_link;
 
-	/** magic = MAGIC_SVC_CTX */
+	/** magic = C2_T1FS_SVC_CTX_MAGIC */
 	uint64_t                  sc_magic;
 };
 
@@ -317,29 +317,23 @@ struct c2t1fs_sb {
 	/** Total number of containers. */
 	uint32_t                      csb_nr_containers;
 
-	struct c2_pool                csb_pool;
-
-	/** Number of data units per parity group. N */
-	uint32_t                      csb_nr_data_units;
-
-	/** Number of parity units per group. K */
-	uint32_t                      csb_nr_parity_units;
-
-	/** Stripe unit size */
-	uint32_t                      csb_unit_size;
+	/** pool width */
+	uint32_t                      csb_pool_width;
 
 	/** used by temporary implementation of c2t1fs_fid_alloc(). */
 	uint64_t                      csb_next_key;
 
-	struct c2t1fs_container_location_map csb_cl_map;
+	struct
+	c2t1fs_container_location_map csb_cl_map;
 
 	/** mutex that serialises all file and directory operations */
 	struct c2_mutex               csb_mutex;
-};
 
-enum {
-	MAGIC_DIRENT   = 0x444952454e54,     /* "DIRENT" */
-	MAGIC_DIRENTHD = 0x444952454e544844  /* "DIRENTHD" */
+	/** Layout for file */
+	struct c2_layout             *csb_file_layout;
+
+	/** File layout ID */
+	uint64_t                      csb_layout_id;
 };
 
 /**
@@ -349,11 +343,13 @@ struct c2t1fs_dir_ent {
 	char            de_name[C2T1FS_MAX_NAME_LEN + 1];
 	struct c2_fid   de_fid;
 
+	struct dentry  *de_dentry;
+
 	/** Link in c2t1fs_inode::ci_dir_ents list.
 	    List descriptor dir_ents_tl */
 	struct c2_tlink de_link;
 
-	/** magic == MAGIC_DIRENT */
+	/** magic == C2_T1FS_DIRENT_MAGIC */
 	uint64_t        de_magic;
 };
 
@@ -362,18 +358,23 @@ struct c2t1fs_dir_ent {
  */
 struct c2t1fs_inode {
 	/** vfs inode */
-	struct inode              ci_inode;
+	struct inode               ci_inode;
 
 	/** fid of gob */
-	struct c2_fid             ci_fid;
+	struct c2_fid              ci_fid;
 
-	/** layout of file's data */
-	struct c2_layout         *ci_layout;
+	/** layout and related information for the file's data */
+	struct c2_layout_instance *ci_layout_instance;
+
+	/** File layout ID */
+	uint64_t                   ci_layout_id;
 
 	/** List of c2t1fs_dir_ent objects placed using de_link.
 	    List descriptor dir_ents_tl. Valid for only directory inode.
 	    Empty for regular file inodes. */
-	struct c2_tl              ci_dir_ents;
+	struct c2_tl               ci_dir_ents;
+
+	uint64_t                   ci_magic;
 };
 
 static inline struct c2t1fs_sb *C2T1FS_SB(const struct super_block *sb)
@@ -428,13 +429,9 @@ struct inode *c2t1fs_iget(struct super_block *sb, const struct c2_fid *fid);
 struct inode *c2t1fs_alloc_inode(struct super_block *sb);
 void          c2t1fs_destroy_inode(struct inode *inode);
 
-int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
-			     struct c2_pool      *pool,
-			     uint32_t             N,
-			     uint32_t             K,
-			     uint64_t             unit_size);
+int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci);
 
-struct c2_fid c2t1fs_cob_fid(const struct c2_fid *gob_fid, int index);
+struct c2_fid c2t1fs_cob_fid(const struct c2t1fs_inode *ci, int index);
 
 C2_TL_DESCR_DECLARE(dir_ents, extern);
 C2_TL_DECLARE(dir_ents, extern, struct c2t1fs_dir_ent);
@@ -444,6 +441,8 @@ void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
 			 int                    namelen,
 			 const struct c2_fid   *fid);
 
+int c2t1fs_dir_ent_remove(struct c2t1fs_dir_ent *de);
+
 void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de);
 
-#endif /* __COLIBRI_C2T1FS_H */
+#endif /* __COLIBRI_C2T1FS_C2T1FS_H__ */
