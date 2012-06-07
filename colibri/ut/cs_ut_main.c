@@ -145,10 +145,9 @@ static char *cs_ut_ep_mixed_dup_cmd[] = { "colibri_setup", "-r", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:127.0.0.1@tcp:12345:30:101",
                                 "-e", "lnet:127.0.0.1@o2ib0:12345:34:101",
-                                "-s", "ds1", "-r", "-T", "AD",
-                                "-D", "cs_sdb2", "-S", "cs_stob2",
                                 "-e", "lnet:127.0.0.1@o2ib1:12345:30:101",
-                                "-s", "ds1"};
+                                "-e", "lnet:127.0.0.1@o2ib1:12345:30:101",
+                                "-s", "ioservice"};
 
 static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "colibri_setup", "-r", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
@@ -474,8 +473,10 @@ static void test_cs_ut_lnet_ep_mixed_dup(void)
 {
 	int		  rc;
 	struct c2_colibri colibri_ctx;
+	FILE		 *out;
 
-	rc = c2_cs_init(&colibri_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr);
+	out = fopen("temp", "w");
+	rc = c2_cs_init(&colibri_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), out);
 	C2_UT_ASSERT(rc == 0);
 
 	c2_mutex_lock(&colibri_ctx.cc_mutex);
@@ -484,6 +485,7 @@ static void test_cs_ut_lnet_ep_mixed_dup(void)
 	C2_UT_ASSERT(rc == 0);
 	rc = reqh_ctxs_are_valid(&colibri_ctx);
 	C2_UT_ASSERT(rc != 0);
+	fclose(out);
 }
 
 

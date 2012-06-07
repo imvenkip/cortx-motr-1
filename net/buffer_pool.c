@@ -27,7 +27,7 @@
 #include "net/buffer_pool.h"
 
 /**
-   @addtogroup net_buffer_pool  Network Buffer Pool
+   @addtogroup net_buffer_pool Network Buffer Pool
    @{
  */
 

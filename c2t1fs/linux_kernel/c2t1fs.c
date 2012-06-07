@@ -212,7 +212,6 @@ static int c2t1fs_rpc_init(void)
 	rc = c2_rpc_machine_init(rpc_machine, cob_dom, ndom, laddr, NULL,
 				 buffer_pool, C2_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size, tm_recv_queue_min_len);
-
 	if (rc != 0)
 		goto cob_dom_fini;
 

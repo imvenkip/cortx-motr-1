@@ -63,7 +63,6 @@
 #include <netdb.h>
 #endif
 
-
 #define TRANSPORT_NAME		"bulk-sunrpc"
 
 #define CLIENT_DB_FILE_NAME	"rpcping_client.db"
@@ -72,29 +71,23 @@
 #define SERVER_STOB_FILE_NAME	"rpcping_server.stob"
 #define SERVER_LOG_FILE_NAME	"rpcping_server.log"
 
-#define to_string(x) str(x)
-#define str(x)	#x
-
-#define TM_RECV_QUEUE_MIN_LEN 2
-
 enum ep_type {
 	EP_SERVER,
 	EP_CLIENT,
 };
 
 enum {
-	BUF_LEN		   = 128,
-	STRING_LEN	   = 16,
-	RID		   = 1,
-	MAX_RPCS_IN_FLIGHT = 32,
-	CLIENT_COB_DOM_ID  = 13,
-	CONNECT_TIMEOUT    = 10,
+	BUF_LEN		      = 128,
+	STRING_LEN	      = 16,
+	RID		      = 1,
+	MAX_RPCS_IN_FLIGHT    = 32,
+	CLIENT_COB_DOM_ID     = 13,
+	CONNECT_TIMEOUT	      = 10,
+	TM_RECV_QUEUE_MIN_LEN = 2
 };
 
 #ifndef __KERNEL__
-static bool server_mode		 = false;
-static char tm_len[STRING_LEN]   = to_string(TM_RECV_QUEUE_MIN_LEN);
-static char rpc_size[STRING_LEN] = to_string(C2_RPC_DEF_MAX_RPC_MSG_SIZE);
+static bool server_mode = false;
 #endif
 
 static bool verbose           = false;
@@ -507,13 +500,21 @@ static void quit_dialog(void)
 
 static int run_server(void)
 {
-	int rc;
+	int	    rc;
+	static char tm_len[STRING_LEN];
+	static char rpc_size[STRING_LEN];
 
 	char *server_argv[] = {
 		"rpclib_ut", "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", server_endpoint,
 		"-s", "ds1", "-s", "ds2", "-q", tm_len, "-m", rpc_size,
 	};
+
+	if (tm_recv_queue_len != 0)
+		sprintf(tm_len, "%d" , tm_recv_queue_len);
+
+	if (max_rpc_msg_size != 0)
+		sprintf(rpc_size, "%d" , max_rpc_msg_size);
 
 	C2_RPC_SERVER_CTX_DECLARE(sctx, &xprt, 1, server_argv,
 				  ARRAY_SIZE(server_argv), SERVER_LOG_FILE_NAME);
@@ -537,12 +538,6 @@ static int run_server(void)
 			sizeof(server_endpoint) - strlen(server_endpoint));
 	if (rc != 0)
 		return rc;
-
-	if (tm_recv_queue_len != 0)
-		sprintf(tm_len, "%d" , tm_recv_queue_len);
-
-	if (max_rpc_msg_size != 0)
-		sprintf(rpc_size, "%d" , max_rpc_msg_size);
 
 	rc = c2_rpc_server_start(&sctx);
 	if (rc != 0)

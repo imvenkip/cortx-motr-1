@@ -164,8 +164,6 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 #include "rpc/rpc_base.h"
 #include "net/buffer_pool.h"
 
-#define C2_RPC_DEF_MAX_RPC_MSG_SIZE  8192
-
 enum c2_rpc_item_priority {
 	C2_RPC_ITEM_PRIO_MIN,
 	C2_RPC_ITEM_PRIO_MID,
@@ -188,7 +186,8 @@ struct c2_rpc_machine;
 struct c2_rpc_frm_item_coalesced;
 
 enum {
-	C2_RPC_MACHINE_MAGIX = 0x5250434D414348 /* RPCMACH */
+	C2_RPC_MACHINE_MAGIX	    = 0x5250434D414348, /* RPCMACH */
+	C2_RPC_DEF_MAX_RPC_MSG_SIZE = 1 << 18, /* 256K */
 };
 
 struct c2_rpc_item_ops {
@@ -522,9 +521,20 @@ void c2_rpc_core_fini(void);
    @param ep_addr Source end point address to associate with the transfer mc.
    @param receive_pool Buffer pool to be attached to TM for provisioning it.
    @param colour Unique colour of each transfer machine.
+   		 Locality optimized buffer selection during provisioning is
+		 enabled by specifying a colour to be assigned to the internal
+		 network transfer machine; the invoker should assign each
+		 transfer machine in this network domain a unique colour.
+		 Specify the C2_BUFFER_ANY_COLOUR constant if locality
+		 optimizations are not required.
    @param msg_size Maximum RPC message size.
+   		   The C2_RPC_DEF_MAX_RPC_MSG_SIZE constant provides a
+		   suitable default value.
    @param queue_len Minimum TM receive queue length.
+   		    The C2_NET_TM_RECV_QUEUE_DEF_LEN constant provides a
+		    suitable default value.
    @pre c2_rpc_core_init().
+   @see c2_rpc_max_msg_size()
  */
 int  c2_rpc_machine_init(struct c2_rpc_machine	   *machine,
 			 struct c2_cob_domain	   *dom,
@@ -596,8 +606,8 @@ static inline c2_bcount_t c2_rpc_max_msg_size(struct c2_net_domain *ndom,
 }
 
 /**
- * Returns the maximum number of messages thet can be received in a buffer
- * of network domain.
+ * Returns the maximum number of messages that can be received in a buffer
+ * of network domain for a specific maximum receive message size.
  */
 static inline uint32_t c2_rpc_max_recv_msgs(struct c2_net_domain *ndom,
 					    c2_bcount_t rpc_size)

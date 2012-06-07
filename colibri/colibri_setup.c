@@ -750,14 +750,15 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 	if (rpcmach == NULL)
 		return -ENOMEM;
 
-	if (max_rpc_msg_size > c2_net_domain_get_max_buffer_size(ndom))
+	if (max_rpc_msg_size > c2_net_domain_get_max_buffer_size(ndom)) {
+		c2_free(rpcmach);
 		return -EINVAL;
+	}
 
 	buffer_pool = cs_buffer_pool_get(cctx, ndom);
 	rc = c2_rpc_machine_init(rpcmach, reqh->rh_cob_domain, ndom, ep, reqh,
 				 buffer_pool, tm_colour, max_rpc_msg_size,
 				 recv_queue_min_length);
-
 	if (rc != 0) {
 		c2_free(rpcmach);
 		return rc;
@@ -801,8 +802,9 @@ static int cs_rpc_machines_init(struct c2_colibri *cctx)
 						 &rctx->rc_reqh);
 			if (rc != 0) {
 				fprintf(ofd,
-					"COLIBRI: Invalid endpoint: %s:%s\n",
-					ep->ex_xprt, ep->ex_endpoint);
+					"RPC initialization failed on '%s:%s'
+					 with error %d\n",
+					 ep->ex_xprt, ep->ex_endpoint);
 				return rc;
 			}
 		} c2_tlist_endfor;

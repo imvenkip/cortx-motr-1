@@ -36,7 +36,10 @@ extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
    @todo This value can be reduced after multiple message delivery in a
     single buffer is supported.
  */
-#define IO_TM_RECV_QUEUE_MIN_LEN 6
+enum {
+	IO_TM_RECV_QUEUE_MIN_LEN = 6,
+	STRING_LEN		 = 16,
+};
 
 /* Global reference to bulkio_params structure. */
 struct bulkio_params *bparm;
@@ -55,6 +58,8 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr, int port)
 	char			     sep[IO_ADDR_LEN];
 	struct c2_rpc_server_ctx     *sctx;
 	struct c2_reqh_service_type **stypes;
+	static char		      tm_len[STRING_LEN];
+	static char		      rpc_size[STRING_LEN];
 
 	C2_ASSERT(saddr != NULL);
 
@@ -79,6 +84,8 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr, int port)
 		return -ENOMEM;
 	}
 
+	sprintf(tm_len, "%d", IO_TM_RECV_QUEUE_MIN_LEN);
+	sprintf(rpc_size, "%d", C2_RPC_DEF_MAX_RPC_MSG_SIZE);
 	/* Copy all server arguments to server_args list. */
 	strcpy(server_args[0], "bulkio_st");
 	strcpy(server_args[1], "-r");
@@ -96,9 +103,9 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr, int port)
 	strcpy(server_args[10], "-s");
 	strcpy(server_args[11], "ioservice");
 	strcpy(server_args[12], "-q");
-	strcpy(server_args[13], to_string(IO_TM_RECV_QUEUE_MIN_LEN));
+	strcpy(server_args[13], tm_len);
 	strcpy(server_args[14], "-m");
-	strcpy(server_args[15], to_string(C2_RPC_DEF_MAX_RPC_MSG_SIZE));
+	strcpy(server_args[15], rpc_size);
 	C2_ALLOC_ARR(stypes, IO_SERVER_SERVICE_NR);
 	C2_ASSERT(stypes != NULL);
 	stypes[0] = &ds1_service_type;
