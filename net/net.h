@@ -511,7 +511,7 @@ c2_bcount_t c2_net_domain_get_max_buffer_size(struct c2_net_domain *dom);
 /**
    This subroutine is used to determine the maximum buffer segment size.
    @param dom     Pointer to the domain.
-   @retval size    Returns the maximum buffer size.
+   @retval size    Returns the maximum buffer segment size.
  */
 c2_bcount_t c2_net_domain_get_max_buffer_segment_size(struct c2_net_domain
 						      *dom);

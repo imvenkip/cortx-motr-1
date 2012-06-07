@@ -19,11 +19,29 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
+#include <stdio.h>
+
+#include "lib/getopts.h"	/* C2_GETOPTS */
+#include "lib/thread.h"		/* LAMBDA */
+
+#include "net/test/user_space/console_config.h"
+#include "net/test/network.h"
+#include "net/test/commands.h"
+
+/*
+  - parse command line options
+  - connect to all nodes
+ */
 int main(int argc, char *argv[])
 {
+	C2_GETOPTS("net_test_console", argc, argv,
+		C2_STRINGARG('s', "servers list",
+			LAMBDA(void, (const char *s){
+				printf("%s\n", s);
+				})));
 	return 0;
 }
 

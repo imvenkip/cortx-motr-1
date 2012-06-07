@@ -18,6 +18,10 @@
  * Original creation date: 04/30/2012
  */
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 #include "net/test/user_space/console_config.h"
 
 /*

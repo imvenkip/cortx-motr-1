@@ -18,6 +18,10 @@
  * Original creation date: 03/22/2012
  */
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 

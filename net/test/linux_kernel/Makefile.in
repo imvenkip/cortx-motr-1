@@ -12,7 +12,7 @@ orig		:= $(shared_src:%=../%)
 EXTRA_CFLAGS	= -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
 
 prepare:
-	ln -fs $(orig) .
+	true
 
 clean distclean:
 	$(RM) $(shared_src) Module.markers Module.symvers modules.order

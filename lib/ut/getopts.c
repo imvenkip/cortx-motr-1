@@ -28,6 +28,7 @@ void test_getopts(void)
 {
 	int  result;
 	int  argc;
+	int  argc_scaled;
 	int  num;
 	bool e;
 	static char *argv[] = {
@@ -36,9 +37,21 @@ void test_getopts(void)
 		"-n", "010",
 		NULL
 	};
+	static char *argv_scaled[] = {
+		"-a", "2b",
+		"-b", "30k",
+		"-c", "400m",
+		"-d", "5000g",
+		"-w", "6B",
+		"-x", "70K",
+		"-y", "800M",
+		"-z", "9000G",
+		NULL
+	};
 	struct c2_ut_redirect redir;
 
-	argc = ARRAY_SIZE(argv) - 1;
+	argc        = ARRAY_SIZE(argv) - 1;
+	argc_scaled = ARRAY_SIZE(argv_scaled) - 1;
 
 	c2_stream_redirect(stderr, "/dev/null", &redir);
 	result = C2_GETOPTS("getopts-ut", argc, argv);
@@ -63,6 +76,35 @@ void test_getopts(void)
 				 C2_UT_ASSERT(!strcmp(s, "010"));
 			 })),
 			    C2_FLAGARG('e', "E", &e));
+
+	result = C2_GETOPTS("getopts-ut", argc_scaled, argv_scaled,
+			    C2_SCALEDARG('a', "scaled",
+			LAMBDA(void, (c2_bcount_t bcount){
+				C2_UT_ASSERT(bcount == 2 * 512);})),
+			    C2_SCALEDARG('b', "scaled",
+			LAMBDA(void, (c2_bcount_t bcount){
+				C2_UT_ASSERT(bcount == 30 * 1024);})),
+			    C2_SCALEDARG('c', "scaled",
+			LAMBDA(void, (c2_bcount_t bcount){
+				C2_UT_ASSERT(bcount == 400 * 1024 * 1024);})),
+			    C2_SCALEDARG('d', "scaled",
+			LAMBDA(void, (c2_bcount_t bcount){
+				C2_UT_ASSERT(bcount ==
+					5000ULL * 1024 * 1024 * 1024);})),
+			    C2_SCALEDARG('w', "scaled",
+			LAMBDA(void, (c2_bcount_t bcount){
+				C2_UT_ASSERT(bcount == 6 * 500);})),
+			    C2_SCALEDARG('x', "scaled",
+			LAMBDA(void, (c2_bcount_t bcount){
+				C2_UT_ASSERT(bcount == 70 * 1000);})),
+			    C2_SCALEDARG('y', "scaled",
+			LAMBDA(void, (c2_bcount_t bcount){
+				C2_UT_ASSERT(bcount == 800* 1000000);})),
+			    C2_SCALEDARG('z', "scaled",
+			LAMBDA(void, (c2_bcount_t bcount){
+				C2_UT_ASSERT(bcount ==
+					9000 * 1000000000ULL);})));
+	C2_UT_ASSERT(result == 0);
 
 	argv[--argc] = NULL;
 	argv[--argc] = NULL;

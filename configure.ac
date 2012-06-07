@@ -711,6 +711,8 @@ AC_CONFIG_FILES([
 		 net/lnet/ut/Makefile
 		 net/test/Makefile
 		 net/test/linux_kernel/Makefile
+		 net/test/test-user.sh
+		 net/test/ut/Makefile
                  net/usunrpc/Makefile
 		 net/ut/Makefile
 		 net/st/Makefile
@@ -755,6 +757,7 @@ chmod +x fop/fop2c
 #
 # Set up execute bit for UT scripts.
 #
+chmod +x net/test/test-user.sh
 chmod +x utils/ut.sh
 chmod +x utils/linux_kernel/ut.sh
 

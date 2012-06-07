@@ -88,6 +88,8 @@ libc2_la_SOURCES     = \
                        user_space/assert.h \
                        user_space/cdefs.h \
                        user_space/finject_init.c \
+                       user_space/ugetopts.c \
+                       user_space/getopts.h \
                        user_space/memory.c \
                        user_space/mutex.h \
                        user_space/processor.c \

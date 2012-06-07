@@ -375,6 +375,7 @@ static void ut_test_framework_dom_cleanup(struct ut_data *td,
 		if (c2_list_length(&tm->ntm_end_points) > 1)
 			NLXDBGP(td,0,"Cleanup D:%p T:%p E failed\n", dom, tm);
 	}
+	/* XXX max: I am not see c2_clink_fini(&cl). */
 }
 
 #ifdef NLX_DEBUG
@@ -877,6 +878,7 @@ static void test_tm_startstop(void)
 	rc = c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
 	c2_semaphore_fini(&mock_sem);
 	C2_UT_ASSERT(rc == 0);
+	/* XXX max: I am not see c2_clink_fini(&twait1). */
 }
 
 /* test_msg_body */

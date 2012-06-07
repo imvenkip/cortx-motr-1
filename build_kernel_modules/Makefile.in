@@ -50,6 +50,7 @@ dirs  = addb                                                                  \
         net/ksunrpc                                                           \
         net/lnet/ut                                                           \
 	net/test							      \
+	net/test/ut							      \
         net/ut                                                                \
         pool                                                                  \
         rpc                                                                   \
@@ -104,9 +105,10 @@ ioservice_ut_SOURCES            := bulkio_client.c
 
 layout_SOURCES                  := layout.c pdclust.c
 
-lib_SOURCES                     := bitstring.c vec.c list.c queue.c refs.c    \
-                                   time.c bitmap.c chan.c misc.c buf.c cond.c \
-                                   thread.c tlist.c bob.c trace.c finject.c
+lib_SOURCES                     := bitstring.c getopts.c vec.c list.c queue.c \
+				   refs.c time.c bitmap.c chan.c misc.c buf.c \
+				   cond.c thread.c tlist.c bob.c trace.c      \
+				   finject.c
 
 lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c  \
                                    kthread.c semaphore.c processor.c kvec.c   \
@@ -135,6 +137,8 @@ net_test_SOURCES		:= client.c commands.c network.c node_config.c \
 				   node_main.c server.c stats.c
 net_test_HEADERS		:= client.h commands.h network.h node_config.h \
 				   node_main.h server.h stats.h
+
+net_test_ut_SOURCES		:= commands.c main.c network.c
 
 net_ut_SOURCES                  := bulk_if.c buffer_pool_ut.c
 

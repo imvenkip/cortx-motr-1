@@ -518,6 +518,10 @@ LNETSelfTest.html">LNET Self-Test manual</a>
 
  */
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 #include "lib/cdefs.h"
 #include "lib/thread.h"
 
