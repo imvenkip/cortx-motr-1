@@ -802,9 +802,9 @@ static int cs_rpc_machines_init(struct c2_colibri *cctx)
 						 &rctx->rc_reqh);
 			if (rc != 0) {
 				fprintf(ofd,
-					"RPC initialization failed on '%s:%s'
-					 with error %d\n",
-					 ep->ex_xprt, ep->ex_endpoint);
+					"RPC initialization failed on '%s:%s'"
+					"with error %d\n",
+					 ep->ex_xprt, ep->ex_endpoint, rc);
 				return rc;
 			}
 		} c2_tlist_endfor;
