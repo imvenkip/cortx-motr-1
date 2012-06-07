@@ -178,6 +178,314 @@
    component objects.
  */
 
+/** @} end of c2t1fs group */
+
+/**
+  @defgroup c2t1fs-metadata Metadata
+
+  @defgroup c2t1fs-metadata-rq Requirements
+  
+  The following requirements should be met:
+  
+  - @b R.DLD.MDSERVICE - all md operations operations implemented by c2t1fs
+  should talk to mdservice in ordre to provide required functionality
+  
+  - @b R.DLD.POSIX - c2t1fs should conform to POSIX in a volume not less than
+  Lustre
+ */
+  
+/** @} end of c2t1fs-metadata-rq group */
+
+/**
+  @section Overview
+  
+  The main direction of this work is mostly to follow normal linux filesystem
+  driver requirements as for the number and meaning of operations to handle by
+  the driver.
+  
+  This means number of thigs as follow bellow:
+
+  - all fops we describe and use are following normal filesystem driver operations,
+  such as link, unlink, create and so on
+  - server side service is connected by c2t1fs in mount time and returns root inode
+  attributes and (optionally) filesystem wide information, such as free blocks, etc.,
+  that is usually needed by statfs
+  - inode may also contain some information neeed for performing I/O (layout) and this
+  data may be sent to client as part of getattr fop
+  
+  The following fops are defined:
+  
+  @code
+  
+  DEF(c2_fop_str, SEQUENCE,
+    _(s_len, U32),
+    _(s_buf, BYTE));
+
+  DEF(c2_fop_cob, RECORD,
+    _(b_index, U64),
+    _(b_version, U64),
+    _(b_flags, U32),
+    _(b_valid, U32),
+    _(b_mode, U32),
+    _(b_size, U64),
+    _(b_blksize, U64),
+    _(b_blocks, U64),
+    _(b_nlink, U32),
+    _(b_uid, U32),
+    _(b_gid, U32),
+    _(b_sid, U32),
+    _(b_nid, U64),
+    _(b_rdev, U32),
+    _(b_atime, U32),
+    _(b_mtime, U32),
+    _(b_ctime, U32),
+    _(b_pfid, c2_fop_fid),
+    _(b_tfid, c2_fop_fid));
+
+  DEF(c2_fop_create, RECORD,
+    _(c_body,   c2_fop_cob),
+    _(c_target, c2_fop_str),
+    _(c_path,   c2_fop_str),
+    _(c_name,   c2_fop_str));
+
+  DEF(c2_fop_create_rep, RECORD,
+    _(c_body, c2_fop_cob));
+
+  DEF(c2_fop_link, RECORD,
+    _(l_body, c2_fop_cob),
+    _(l_spath, c2_fop_str),
+    _(l_tpath, c2_fop_str),
+    _(l_name, c2_fop_str));
+
+  DEF(c2_fop_link_rep, RECORD,
+    _(l_body, c2_fop_cob));
+
+  DEF(c2_fop_unlink, RECORD,
+    _(u_body, c2_fop_cob),
+    _(u_path, c2_fop_str),
+    _(u_name, c2_fop_str));
+
+  DEF(c2_fop_unlink_rep, RECORD,
+    _(u_body, c2_fop_cob));
+
+  DEF(c2_fop_rename, RECORD,
+    _(r_sbody, c2_fop_cob),
+    _(r_tbody, c2_fop_cob),
+    _(r_spath, c2_fop_str),
+    _(r_tpath, c2_fop_str),
+    _(r_sname, c2_fop_str),
+    _(r_tname, c2_fop_str));
+
+  DEF(c2_fop_rename_rep, RECORD,
+    _(r_body, c2_fop_cob));
+
+  DEF(c2_fop_open, RECORD,
+    _(o_path, c2_fop_str),
+    _(o_body, c2_fop_cob));
+
+  DEF(c2_fop_open_rep, RECORD,
+    _(o_body, c2_fop_cob));
+
+  DEF(c2_fop_close, RECORD,
+    _(c_body, c2_fop_cob),
+    _(c_path, c2_fop_str));
+
+  DEF(c2_fop_close_rep, RECORD,
+    _(c_body, c2_fop_cob));
+
+  DEF(c2_fop_setattr, RECORD,
+    _(s_body, c2_fop_cob),
+    _(s_path, c2_fop_str));
+
+  DEF(c2_fop_setattr_rep, RECORD,
+    _(s_body, c2_fop_cob));
+
+  DEF(c2_fop_getattr, RECORD,
+    _(g_body, c2_fop_cob),
+    _(g_path, c2_fop_str));
+
+  DEF(c2_fop_getattr_rep, RECORD,
+    _(g_body, c2_fop_cob));
+
+  DEF(c2_fop_readdir, RECORD,
+    _(r_body, c2_fop_cob),
+    _(r_path, c2_fop_str),
+    _(r_pos,  c2_fop_str));
+
+  DEF(c2_fop_buf, SEQUENCE,
+    _(b_count, U32),
+    _(b_addr, BYTE));
+
+  DEF(c2_fop_readdir_rep, RECORD,
+    _(r_end,  c2_fop_str),
+    _(r_body, c2_fop_cob),
+    _(r_buf,  c2_fop_buf));
+
+  @endcode
+  
+  @defgroup c2t1fs-metadata-fs Detailed Functional Specification
+  
+  Some functions will see modifications in order to implement the
+  client-server communication and not just create all metadata in
+  memory.
+
+  @section Initialization
+  
+  c2t1fs_init() - c2_mdservice_fop_init() is added to initialize md
+  operations fops.
+  
+  c2t1fs_fini() - c2_mdservice_fop_fini() is added to finalize md
+  operations fops.
+  
+  c2t1fs_fill_super() -> c2t1fs_connect_to_all_services() - will
+  have also to connect the mdservice.
+  
+  It also may have some fields from space csb->csb_* initialized
+  not from mount options but rather from connect reply information.
+  
+  c2t1fs_kill_sb() -> c2t1fs_disconnect_from_all_services() - will
+  have also to disconnect from mdservice.
+  
+  @section Inode operations
+  
+  c2t1fs_mknod() - is to be added to c2t1fs_dir_inode_operations.
+  This is one of variants of create fop.
+  
+  c2t1fs_create() - sending creare fop is added. Layout speicified
+  with mount options or obtained in mount time is to be packed into
+  create fop and sent to the server. Errors should be handled on
+  all stages.
+  
+  c2t1fs_lookup() - sending getattr/lookup fop is added. Errors are
+  handled.
+  
+  c2t1fs_unlink() - sending unlink fop is added. Errors handled.
+
+  c2t1fs_link() - is to be added to c2t1fs_dir_inode_operations.
+  This is normal hard-link create function that sends link fop to
+  mdservice.
+  
+  c2t1fs_mkdir() - is to be added to c2t1fs_dir_inode_operations.
+  This function sends create fop initialized in slightly different
+  way than for creating regular file.
+  
+  c2t1fs_rmdir() - is to be added to c2t1fs_dir_inode_operations.
+  This function sends unlink fop.
+
+  c2t1fs_symlink() - is to be added to c2t1fs_dir_inode_operations.
+  This function sends create fop with mode initialized for symlinks.
+  
+  c2t1fs_rename() - is to be added to c2t1fs_dir_inode_operations.
+  This function sends rename fop.
+  
+  c2t1fs_setattr() - is to be added to c2t1fs_dir_inode_operations
+  and c2t1fs_special_inode_operations. This function sends setattr
+  fop.
+  
+  c2t1fs_getattr() - is to be added to c2t1fs_dir_inode_operations
+  and c2t1fs_special_inode_operations.
+  
+  This function sends getattr fop and returns server side inode
+  attributes.
+  
+  c2t1fs_permission() - is to be added to c2t1fs_dir_inode_operations
+  and c2t1fs_special_inode_operations.
+  
+  The following extended attributes operations to be added. We need
+  them in order to run lustre on top of colibri.
+  
+  c2t1fs_setxattr() - is to be added to c2t1fs_dir_inode_operations
+  and c2t1fs_special_inode_operations.
+  
+  c2t1fs_getxattr() - is to be added to c2t1fs_dir_inode_operations
+  and c2t1fs_special_inode_operations.
+  
+  c2t1fs_listxattr() - is to be added to c2t1fs_dir_inode_operations
+  and c2t1fs_special_inode_operations.
+  
+  c2t1fs_removexattr() - is to be added to c2t1fs_dir_inode_operations
+  and c2t1fs_special_inode_operations.
+  
+  There is no fop for these calls yet, we will add them later as part
+  of xattr support work.
+  
+  @section File operations
+  
+  c2t1fs_open() - is to be added to c2t1fs_dir_file_operations and
+  c2t1fs_reg_file_operations.
+  
+  This function sends open fop and handles reply and errors in a
+  standard way.
+  
+  c2t1fs_release() - is to be added to c2t1fs_dir_file_operations and
+  c2t1fs_reg_file_operations.
+  
+  This function sends close fop on last release call.
+  
+  c2t1fs_readdir() - sending readdir and/or getpage fop is added.
+  Errors handling and page cache management code should be added.
+
+  @sections Misc changes
+
+  fid_hash() - hash should be gnerated including ->f_container
+  and f_key.
+ */
+  
+/** @} end of c2t1fs-metadata-fs group */
+
+/**
+  @defgroup c2t1fs-metadata-ls Logical Specification
+  
+  - @ref c2t1fs-metadata-fs
+  - @ref c2t1fs-metadata-rq
+  
+  All the fs callback functions, implemented in c2t1fs filesystem driver,
+  are to be backed with corresponding fop request communicating mdservice
+  on server side.
+  
+ */
+  
+/** @} end of c2t1fs-metadata-ls group */
+
+/**
+  @defgroup c2t1fs-metadata-cf Conformance
+
+  - @b R.DLD.MDSERVICE - talking to mdservice for implementing mdops is conforming
+  to this requirement.
+    
+  - @b R.DLD.POSIX - following standard linux fs driver callback functions and reqs
+  guarantees basic posix conformance. More fine-graned conformance may be met with
+  using "standard" test suites for filessytems, such as dbench, which is mentioned
+  in Testing section (@ref c2t1fs-metadata-ts).
+ */
+  
+/** @} end of c2t1fs-metadata-cf group */
+
+/**
+  @defgroup c2t1fs-metadata-ts Testing
+  
+  c2t1fs should pass standard fs tests such as dbench as part of integration testing.
+  As for unit testing, that may run on "before-commit" basis,  small and fast set
+  of basic fs operations (10-20 operations) can be added to standard UT framework.
+  
+ */
+  
+/** @} end of c2t1fs-metadata-ts group */
+  
+/**
+  @defgroup c2t1fs-metadata-dp Dependencies
+  
+  - layout. It would be good to have layout functionality in place but without it
+  most of work also can be done.
+  - recovery. Recovery principles better to be ready to finish this work. Some tests
+  may load client node so much that connection problems can occur.
+  
+ */
+  
+/** @} end of c2t1fs-metadata-dp group */
+
+/** @} end of c2t1fs-metadata group */
+ 
 struct c2_pdclust_layout;
 struct c2t1fs_dir_ent;
 
