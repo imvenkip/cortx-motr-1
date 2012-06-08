@@ -27,6 +27,7 @@
 #include <stdio.h>		/* printf */
 #endif
 
+#include "lib/types.h"		/* c2_bcount_t */
 #include "lib/misc.h"		/* C2_SET0 */
 #include "lib/memory.h"		/* c2_alloc */
 #include "lib/errno.h"		/* ENOMEM */
@@ -58,18 +59,21 @@ static const struct c2_net_tm_callbacks c2_net_test_commands_tm_cb = {
 
 static void commands_cb_msg_recv(struct c2_net_test_network_ctx *ctx,
 		const uint32_t buf_index,
+	        enum c2_net_queue_type q,
 		const struct c2_net_buffer_event *ev) {
 	/* XXX */
 }
 
 static void commands_cb_msg_send(struct c2_net_test_network_ctx *ctx,
 		const uint32_t buf_index,
+	        enum c2_net_queue_type q,
 		const struct c2_net_buffer_event *ev) {
 	/* XXX */
 }
 
 static void commands_cb_impossible(struct c2_net_test_network_ctx *ctx,
 		const uint32_t buf_index,
+	        enum c2_net_queue_type q,
 		const struct c2_net_buffer_event *ev) {
 
 	C2_IMPOSSIBLE("commands bulk buffer callback is impossible");
@@ -86,6 +90,23 @@ static const struct c2_net_test_network_buffer_callbacks
 		[C2_NET_QT_ACTIVE_BULK_SEND]	= commands_cb_impossible,
 	}
 };
+
+/* XXX */
+#if 0
+static int command_encode(struct c2_net_test_command *cmd,
+		struct c2_net_buffer *buf) {
+	return -1;
+}
+
+static int command_decode(struct c2_net_test_command *cmd,
+		struct c2_net_buffer *buf) {
+	return -1;
+}
+#endif
+
+static c2_bcount_t command_size_max(void) {
+	return 0;
+}
 
 int c2_net_test_command_init(struct c2_net_test_command_ctx *ctx,
 		char *cmd_ep,
@@ -112,7 +133,7 @@ int c2_net_test_command_init(struct c2_net_test_command_ctx *ctx,
 	rc = c2_net_test_network_ctx_init(&ctx->ntcc_net, cmd_ep,
 			&c2_net_test_commands_tm_cb,
 			&c2_net_test_commands_buffer_cb,
-			1 /* XXX measure */, ctx->ntcc_cmd_nr,
+			command_size_max(), ctx->ntcc_cmd_nr,
 			0, 0,
 			ep_list.ntsl_nr,
 			&timeouts);

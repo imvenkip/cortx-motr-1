@@ -37,8 +37,8 @@
  */
 
 enum c2_net_test_network_buf_type {
-	C2_NET_TEST_BUF_BULK,
-	C2_NET_TEST_BUF_PING,
+	C2_NET_TEST_BUF_BULK,	/**< Buffer for the bulk transfers. */
+	C2_NET_TEST_BUF_PING,	/**< Buffer for the message transfers. */
 };
 
 struct c2_net_test_network_ctx;
@@ -52,6 +52,7 @@ struct c2_net_test_network_ctx;
 typedef void (*c2_net_test_network_buffer_cb_proc_t)
 	(struct c2_net_test_network_ctx	  *ctx,
 	 const uint32_t			   buf_index,
+	 enum c2_net_queue_type		   q,
 	 const struct c2_net_buffer_event *ev);
 
 /** Callbacks for a network context buffers. */
@@ -70,17 +71,42 @@ struct c2_net_test_network_timeouts {
    ping and bulk message buffers.
  */
 struct c2_net_test_network_ctx {
+	/** Network domain. */
 	struct c2_net_domain			    ntc_dom;
+	/** Transfer machine callbacks. */
 	struct c2_net_tm_callbacks		    ntc_tm_cb;
+	/** Transfer machine. */
 	struct c2_net_transfer_mc		    ntc_tm;
+	/** Buffer callbacks. */
 	struct c2_net_test_network_buffer_callbacks ntc_buf_cb;
+	/** Array of message buffers. Used for message send/recv. */
 	struct c2_net_buffer			   *ntc_buf_ping;
+	/** Number of message buffers. */
 	uint32_t				    ntc_buf_ping_nr;
+	/** Array of buffers for bulk transfer. */
 	struct c2_net_buffer			   *ntc_buf_bulk;
+	/** Number of buffers for bulk transfer. */
 	uint32_t				    ntc_buf_bulk_nr;
+	/**
+	   Array of pointers to endpoints.
+	   Initially this array have no endpoints, but they can
+	   be added to this array sequentually, one by one using
+	   c2_net_test_network_ep_add().
+	   Endpoints are freed in c2_net_test_network_ctx_fini().
+	 */
 	struct c2_net_end_point			  **ntc_ep;
+	/**
+	   Current number of endpoints in ntc_ep array.
+	 */
 	uint32_t				    ntc_ep_nr;
+	/**
+	   Maximum number of endponts in ntc_ep array.
+	 */
 	uint32_t				    ntc_ep_max;
+	/**
+	   Timeouts for every type of network buffer queue.
+	   Used when buffer is added to queue.
+	 */
 	struct c2_net_test_network_timeouts	    ntc_timeouts;
 };
 
@@ -89,6 +115,11 @@ struct c2_net_test_network_ctx {
    Calls c2_net_xprt_init(), c2_net_domain_init().
  */
 int c2_net_test_network_init(void);
+
+/**
+   Finalize net-test network module.
+   Calls c2_net_xprt_fini(), c2_net_domain_fini().
+ */
 void c2_net_test_network_fini(void);
 
 /**
@@ -96,17 +127,25 @@ void c2_net_test_network_fini(void);
    Allocate ping and bulk buffers.
    @param timeouts Timeouts for each type of tm queue. Can be NULL, in
    this case it is assumed than all timeouts is C2_TIME_NEVER.
+   @see c2_net_test_network_ctx
+   @pre ctx     != NULL
+   @pre tm_addr != NULL
+   @pre tm_cb   != NULL
+   @pre buf_cb  != NULL
+   @post c2_net_test_network_ctx_invariant(ctx)
  */
-int c2_net_test_network_ctx_init(struct c2_net_test_network_ctx   *ctx,
-		const char					  *tm_addr,
-		const struct c2_net_tm_callbacks		  *tm_cb,
-		const struct c2_net_test_network_buffer_callbacks *buf_cb,
-		const c2_bcount_t			   buf_size_ping,
-		const uint32_t				   buf_ping_nr,
-		const c2_bcount_t			   buf_size_bulk,
-		const uint32_t				   buf_bulk_nr,
-		const uint32_t				   ep_max,
-		const struct c2_net_test_network_timeouts *timeouts);
+int c2_net_test_network_ctx_init(struct c2_net_test_network_ctx *ctx,
+				 const char *tm_addr,
+				 const struct c2_net_tm_callbacks *tm_cb,
+				 const struct
+				 c2_net_test_network_buffer_callbacks *buf_cb,
+				 c2_bcount_t buf_size_ping,
+				 uint32_t buf_ping_nr,
+				 c2_bcount_t buf_size_bulk,
+				 uint32_t buf_bulk_nr,
+				 uint32_t ep_max,
+				 const struct c2_net_test_network_timeouts
+				 *timeouts);
 void c2_net_test_network_ctx_fini(struct c2_net_test_network_ctx *ctx);
 bool c2_net_test_network_ctx_invariant(struct c2_net_test_network_ctx *ctx);
 
@@ -119,7 +158,7 @@ bool c2_net_test_network_ctx_invariant(struct c2_net_test_network_ctx *ctx);
    @see c2_net_test_network_init()
  */
 int c2_net_test_network_ep_add(struct c2_net_test_network_ctx *ctx,
-			       const char		      *ep_addr);
+			       const char *ep_addr);
 
 /**
    Add message buffer to network messages send queue.
@@ -131,8 +170,8 @@ int c2_net_test_network_ep_add(struct c2_net_test_network_ctx *ctx,
 		   Message will be sent to this endpoint.
  */
 int c2_net_test_network_msg_send(struct c2_net_test_network_ctx *ctx,
-				 uint32_t			 buf_ping_index,
-				 uint32_t			 ep_index);
+				 uint32_t buf_ping_index,
+				 uint32_t ep_index);
 
 /**
    Add message to network messages receive queue.
@@ -162,20 +201,22 @@ int c2_net_test_network_bulk_enqueue(struct c2_net_test_network_ctx *ctx,
    @param buf_type Buffer type.
 */
 void c2_net_test_network_buffer_dequeue(struct c2_net_test_network_ctx *ctx,
-		enum c2_net_test_network_buf_type buf_type, int32_t buf_index);
+					enum c2_net_test_network_buf_type
+					buf_type,
+					int32_t buf_index);
 
 /**
    Reset to 0 number of network buffer descriptors in the message buffer.
    @see @ref c2_net_test_network_bd_encode().
  */
 void c2_net_test_network_bd_reset(struct c2_net_test_network_ctx *ctx,
-		int32_t buf_ping_index);
+				  int32_t buf_ping_index);
 /**
    Get the number of network buffer descriptors in the message buffer.
    @see @ref c2_net_test_network_bd_encode().
  */
 uint32_t c2_net_test_network_bd_count(struct c2_net_test_network_ctx *ctx,
-		int32_t buf_ping_index);
+				      int32_t buf_ping_index);
 
 /**
    Store network buffer descriptor (c2_net_buf_desc) in the message buffer.
@@ -203,29 +244,31 @@ uint32_t c2_net_test_network_bd_count(struct c2_net_test_network_ctx *ctx,
    @param buf_bulk_index Index of bulk buffer in ctx->ntc_buf_bulk array.
  */
 int c2_net_test_network_bd_encode(struct c2_net_test_network_ctx *ctx,
-		int32_t buf_ping_index, int32_t buf_bulk_index);
+				  int32_t buf_ping_index,
+				  int32_t buf_bulk_index);
 /**
    Recover a network descriptor from the message buffer.
    @see @ref c2_net_test_network_bd_encode().
  */
 int c2_net_test_network_bd_decode(struct c2_net_test_network_ctx *ctx,
-		int32_t buf_ping_index, int32_t buf_bulk_index);
+				  int32_t buf_ping_index,
+				  int32_t buf_bulk_index);
 
 /**
    Accessor to buffers in net-test network context.
  */
-struct c2_net_buffer *c2_net_test_network_buf(
-		struct c2_net_test_network_ctx *ctx,
-		enum c2_net_test_network_buf_type buf_type,
-		uint32_t buf_index);
+struct c2_net_buffer *
+c2_net_test_network_buf(struct c2_net_test_network_ctx *ctx,
+			enum c2_net_test_network_buf_type buf_type,
+			uint32_t buf_index);
 
 /**
    Fill entire buffer c2_bufvec with char ch.
    Useful for unit tests.
  */
 void c2_net_test_network_buf_fill(struct c2_net_test_network_ctx *ctx,
-		enum c2_net_test_network_buf_type buf_type,
-		uint32_t buf_index, uint8_t fill);
+				  enum c2_net_test_network_buf_type buf_type,
+				  uint32_t buf_index, uint8_t fill);
 
 /**
    Return c2_net_test_network_timeouts, filled with C2_TIME_NEVER.

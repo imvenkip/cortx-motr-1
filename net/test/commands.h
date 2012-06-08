@@ -109,6 +109,8 @@ struct c2_net_test_command_fini {
 
 /**
    Command structure to exchange between console and clients or servers.
+   @b WARNING: be sure to change command_encode(), command_decode() and
+   command_size_max() after changes to this structure.
  */
 struct c2_net_test_command {
 	int ntc_errno;
