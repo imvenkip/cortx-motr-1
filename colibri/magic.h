@@ -189,6 +189,9 @@ enum c2_magic_satchel {
 	/* c2_reqh_io_service::rios_magic (cocigeal cell) */
 	C2_IOS_REQH_SVC_MAGIC = 0x33c0c19ea1ce1177,
 
+	/* c2_reqh_md_service::rmds_magic (abscissa cell) */
+	C2_MDS_REQH_SVC_MAGIC = 0x33ab5c155ace1177,
+
 	/* bufferpools_tl::rios_bp_magic (cafe accolade) */
 	C2_IOS_BUFFER_POOL_MAGIC = 0x33cafeacc01ade77,
 

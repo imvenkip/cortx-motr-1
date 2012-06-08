@@ -421,18 +421,6 @@ void c2_mdservice_fop_fini(void)
 }
 C2_EXPORTED(c2_mdservice_fop_fini);
 
-void c2_mds_unregister(void)
-{
-        c2_reqh_service_type_unregister(&c2_mds_type);
-        c2_mdservice_fop_fini();
-}
-
-int c2_mds_register(void)
-{
-        c2_reqh_service_type_register(&c2_mds_type);
-        return c2_mdservice_fop_init();
-}
-
 /* 
  *  Local variables:
  *  c-indentation-style: "K&R"

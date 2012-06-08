@@ -179,7 +179,7 @@ static int c2_md_create(struct c2_md_store  *md,
         return rc;
 }
 
-static int c2_md_create_fom_state(struct c2_fom *fom)
+static int c2_md_create_tick(struct c2_fom *fom)
 {
         struct c2_cob_attr        attr;
         struct c2_fop_cob        *body;
@@ -201,7 +201,7 @@ static int c2_md_create_fom_state(struct c2_fom *fom)
                  */
                 if (svc && fom->fo_phase == C2_FOPH_QUEUE_REPLY)
                         goto finish;
-                rc = c2_fom_state_generic(fom);
+                rc = c2_fom_tick_generic(fom);
                 return rc;
         }
 
@@ -249,7 +249,7 @@ finish:
         return C2_FSO_WAIT;
 }
 
-static int c2_md_link_fom_state(struct c2_fom *fom)
+static int c2_md_link_tick(struct c2_fom *fom)
 {
         struct c2_fop_cob        *body;
         struct c2_fop_link       *req;
@@ -271,7 +271,7 @@ static int c2_md_link_fom_state(struct c2_fom *fom)
                  */
                 if (svc && fom->fo_phase == C2_FOPH_QUEUE_REPLY)
                         goto finish;
-                rc = c2_fom_state_generic(fom);
+                rc = c2_fom_tick_generic(fom);
                 return rc;
         }
 
@@ -315,7 +315,7 @@ finish:
         return C2_FSO_WAIT;
 }
 
-static int c2_md_unlink_fom_state(struct c2_fom *fom)
+static int c2_md_unlink_tick(struct c2_fom *fom)
 {
         struct c2_cob_attr        attr;
         struct c2_fop_cob        *body;
@@ -340,7 +340,7 @@ static int c2_md_unlink_fom_state(struct c2_fom *fom)
                  */
                 if (svc && fom->fo_phase == C2_FOPH_QUEUE_REPLY)
                         goto finish;
-                rc = c2_fom_state_generic(fom);
+                rc = c2_fom_tick_generic(fom);
                 return rc;
         }
 
@@ -436,7 +436,7 @@ static int c2_md_rename(struct c2_md_store  *md,
         return rc;
 }
 
-static int c2_md_rename_fom_state(struct c2_fom *fom)
+static int c2_md_rename_tick(struct c2_fom *fom)
 {
         struct c2_fop_cob        *sbody;
         struct c2_fop_cob        *tbody;
@@ -465,7 +465,7 @@ static int c2_md_rename_fom_state(struct c2_fom *fom)
                  */
                 if (svc && fom->fo_phase == C2_FOPH_QUEUE_REPLY)
                         goto finish;
-                rc = c2_fom_state_generic(fom);
+                rc = c2_fom_tick_generic(fom);
                 return rc;
         }
 
@@ -539,7 +539,7 @@ finish:
         return C2_FSO_WAIT;
 }
 
-static int c2_md_open_fom_state(struct c2_fom *fom)
+static int c2_md_open_tick(struct c2_fom *fom)
 {
         struct c2_fop_cob        *body;
         struct c2_cob            *cob;
@@ -561,7 +561,7 @@ static int c2_md_open_fom_state(struct c2_fom *fom)
                  */
                 if (svc && fom->fo_phase == C2_FOPH_QUEUE_REPLY)
                         goto finish;
-                rc = c2_fom_state_generic(fom);
+                rc = c2_fom_tick_generic(fom);
                 return rc;
         }
 
@@ -628,7 +628,7 @@ finish:
         return C2_FSO_WAIT;
 }
 
-static int c2_md_close_fom_state(struct c2_fom *fom)
+static int c2_md_close_tick(struct c2_fom *fom)
 {
         struct c2_fop_cob        *body;
         struct c2_cob            *cob;
@@ -650,7 +650,7 @@ static int c2_md_close_fom_state(struct c2_fom *fom)
                  */
                 if (svc && fom->fo_phase == C2_FOPH_QUEUE_REPLY)
                         goto finish;
-                rc = c2_fom_state_generic(fom);
+                rc = c2_fom_tick_generic(fom);
                 return rc;
         }
 
@@ -715,7 +715,7 @@ finish:
         return C2_FSO_WAIT;
 }
 
-static int c2_md_setattr_fom_state(struct c2_fom *fom)
+static int c2_md_setattr_tick(struct c2_fom *fom)
 {
         struct c2_cob_attr             attr;
         struct c2_fop_cob             *body;
@@ -737,7 +737,7 @@ static int c2_md_setattr_fom_state(struct c2_fom *fom)
                  */
                 if (svc && fom->fo_phase == C2_FOPH_QUEUE_REPLY)
                         goto finish;
-                rc = c2_fom_state_generic(fom);
+                rc = c2_fom_tick_generic(fom);
                 return rc;
         }
         
@@ -792,7 +792,7 @@ finish:
         return C2_FSO_WAIT;
 }
 
-static int c2_md_getattr_fom_state(struct c2_fom *fom)
+static int c2_md_getattr_tick(struct c2_fom *fom)
 {
         struct c2_cob_attr             attr;
         struct c2_fop_cob             *body;
@@ -814,7 +814,7 @@ static int c2_md_getattr_fom_state(struct c2_fom *fom)
                  */
                 if (svc && fom->fo_phase == C2_FOPH_QUEUE_REPLY)
                         goto finish;
-                rc = c2_fom_state_generic(fom);
+                rc = c2_fom_tick_generic(fom);
                 return rc;
         }
 
@@ -865,7 +865,7 @@ finish:
 
 #define C2_MD_READDIR_BUF_ALLOC 4096
 
-static int c2_md_readdir_fom_state(struct c2_fom *fom)
+static int c2_md_readdir_tick(struct c2_fom *fom)
 {
         struct c2_fop_cob             *body;
         struct c2_cob                 *cob;
@@ -888,7 +888,7 @@ static int c2_md_readdir_fom_state(struct c2_fom *fom)
                  */
                 if (svc && fom->fo_phase == C2_FOPH_QUEUE_REPLY)
                         goto finish;
-                rc = c2_fom_state_generic(fom);
+                rc = c2_fom_tick_generic(fom);
                 return rc;
         }
 
@@ -1232,76 +1232,57 @@ static size_t c2_md_req_fom_locality_get(const struct c2_fom *fom)
         return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
 }
 
-#define MDSERVICE_NAME "mdservice"
-
-const char *c2_md_req_fom_service_name(struct c2_fom *fom)
-{
-        C2_PRE(fom != NULL);
-        C2_PRE(fom->fo_fop != NULL);
-
-        return MDSERVICE_NAME;
-}
-
 static const struct c2_fom_ops c2_md_fom_create_ops = {
 	.fo_home_locality = c2_md_req_fom_locality_get,
-        .fo_service_name  = c2_md_req_fom_service_name,
-	.fo_state  = c2_md_create_fom_state,
+	.fo_tick   = c2_md_create_tick,
 	.fo_fini   = c2_md_req_fom_fini
 };
 
 static const struct c2_fom_ops c2_md_fom_link_ops = {
 	.fo_home_locality = c2_md_req_fom_locality_get,
-        .fo_service_name  = c2_md_req_fom_service_name,
-	.fo_state  = c2_md_link_fom_state,
+	.fo_tick   = c2_md_link_tick,
 	.fo_fini   = c2_md_req_fom_fini
 };
 
 static const struct c2_fom_ops c2_md_fom_unlink_ops = {
 	.fo_home_locality = c2_md_req_fom_locality_get,
-        .fo_service_name  = c2_md_req_fom_service_name,
-	.fo_state  = c2_md_unlink_fom_state,
+	.fo_tick   = c2_md_unlink_tick,
 	.fo_fini   = c2_md_req_fom_fini
 };
 
 static const struct c2_fom_ops c2_md_fom_rename_ops = {
 	.fo_home_locality = c2_md_req_fom_locality_get,
-        .fo_service_name  = c2_md_req_fom_service_name,
-	.fo_state  = c2_md_rename_fom_state,
+	.fo_tick   = c2_md_rename_tick,
 	.fo_fini   = c2_md_req_fom_fini
 };
 
 static const struct c2_fom_ops c2_md_fom_open_ops = {
 	.fo_home_locality = c2_md_req_fom_locality_get,
-        .fo_service_name  = c2_md_req_fom_service_name,
-	.fo_state  = c2_md_open_fom_state,
+	.fo_tick   = c2_md_open_tick,
 	.fo_fini   = c2_md_req_fom_fini
 };
 
 static const struct c2_fom_ops c2_md_fom_close_ops = {
 	.fo_home_locality = c2_md_req_fom_locality_get,
-        .fo_service_name  = c2_md_req_fom_service_name,
-	.fo_state = c2_md_close_fom_state,
+	.fo_tick  = c2_md_close_tick,
 	.fo_fini  = c2_md_req_fom_fini
 };
 
 static const struct c2_fom_ops c2_md_fom_setattr_ops = {
 	.fo_home_locality = c2_md_req_fom_locality_get,
-        .fo_service_name  = c2_md_req_fom_service_name,
-	.fo_state  = c2_md_setattr_fom_state,
+	.fo_tick   = c2_md_setattr_tick,
 	.fo_fini   = c2_md_req_fom_fini
 };
 
 static const struct c2_fom_ops c2_md_fom_getattr_ops = {
 	.fo_home_locality = c2_md_req_fom_locality_get,
-        .fo_service_name  = c2_md_req_fom_service_name,
-	.fo_state  = c2_md_getattr_fom_state,
+	.fo_tick   = c2_md_getattr_tick,
 	.fo_fini   = c2_md_req_fom_fini
 };
 
 static const struct c2_fom_ops c2_md_fom_readdir_ops = {
 	.fo_home_locality = c2_md_req_fom_locality_get,
-        .fo_service_name  = c2_md_req_fom_service_name,
-	.fo_state  = c2_md_readdir_fom_state,
+	.fo_tick   = c2_md_readdir_tick,
 	.fo_fini   = c2_md_req_fom_fini
 };
 

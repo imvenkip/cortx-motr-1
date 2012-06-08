@@ -1,7 +1,7 @@
 include $(top_srcdir)/Makefile.ff
 
 fiddir                     = $(includedir)/colibri/fid
-fid_HEADERS                = fid.h
+fid_HEADERS                = fid.h fid_ff.h
 
 FID_FOPS_SOURCES           = fid_ff.h fid_ff.c
 

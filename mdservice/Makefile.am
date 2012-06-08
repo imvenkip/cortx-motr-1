@@ -1,19 +1,15 @@
+include $(top_srcdir)/Makefile.ff
+
 mdservicedir                     = $(includedir)/colibri/mdservice
-mdservice_HEADERS                = md_foms.h md_fops.h
+mdservice_HEADERS                = md_foms.h md_fops.h md_service.h md_fops_ff.h
 
-md_fops_u.h md_fops_u.c: md_fops.ff \
-                  $(top_builddir)/fop/rt/libc2rt.la \
-                  $(top_builddir)/fop/fop2c 
-	$(top_builddir)/fop/fop2c -u $<
-
+MD_FOPS_SOURCES                  = md_fops_ff.h md_fops_ff.c
 
 noinst_LTLIBRARIES               = libcolibri-mdservice.la
-libcolibri_mdservice_la_SOURCES  = md_fops_u.c md_fops_u.h \
-				   md_foms.c md_foms.h md_fops.c md_fops.h
-INCLUDES                         = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+libcolibri_mdservice_la_SOURCES  = $(MD_FOPS_SOURCES) md_service.c md_service.h \
+				   md_foms.c md_foms.h md_fops.c md_fops.h md_service.c md_service.h
+INCLUDES                         = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
 
 EXTRA_DIST                       = md_fops.ff
 
-clean-local:
-	cd @SRCDIR@/mdservice ; \
-	rm -fr md_fops_u.[ch]
+MOSTLYCLEANFILES                 = $(MD_FOPS_SOURCES)
