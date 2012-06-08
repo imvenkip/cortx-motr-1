@@ -14,12 +14,6 @@ SUBDIRS_BASE = m4 doc man patches
 # Keep the rest sorted lexicographically.
 
 SUBDIRS_LIBS = \
-               lib \
-               addb/addb_pseudo \
-               addb/ut \
-               db \
-               fop/rt \
-               \
                xcode/ff2c \
                addb/addbff \
                net \
