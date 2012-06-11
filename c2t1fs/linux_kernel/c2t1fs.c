@@ -235,12 +235,12 @@ static int c2t1fs_layout_init(void)
 
 	rc = c2_layout_domain_init(&c2t1fs_globals.g_layout_dom,
 				   &c2t1fs_globals.g_dbenv);
-	if (rc != 0)
-		goto out;
+	if (rc == 0) {
+		rc = c2_layout_register(&c2t1fs_globals.g_layout_dom);
+		if (rc != 0)
+			c2_layout_domain_fini(&c2t1fs_globals.g_layout_dom);
+	}
 
-	rc = c2_layout_register(&c2t1fs_globals.g_layout_dom);
-
-out:
 	C2_LEAVE("rc: %d", rc);
 	return rc;
 }

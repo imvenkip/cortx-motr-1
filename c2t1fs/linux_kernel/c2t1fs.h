@@ -27,9 +27,9 @@
 
 #include "lib/tlist.h"
 #include "lib/mutex.h"
-#include "net/net.h"    /* c2_net_domain */
+#include "net/net.h"       /* c2_net_domain */
 #include "rpc/rpc2.h"
-#include "pool/pool.h"  /* c2_pool */
+#include "pool/pool.h"     /* c2_pool */
 #include "layout/layout.h" /* c2_layout_domain */
 
 /**

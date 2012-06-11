@@ -18,15 +18,15 @@
  * Original creation date: 10/14/2011
  */
 
-#include <linux/slab.h>      /* kmem_cache */
+#include <linux/slab.h>         /* kmem_cache */
 
-#include "layout/pdclust.h"  /* c2_pdclust_build(), c2_pdclust_fini() */
-#include "layout/linear_enum.h" /* c2_linear_enum_build() */
-#include "lib/misc.h"        /* C2_SET0()                             */
-#include "lib/memory.h"      /* C2_ALLOC_PTR(), c2_free()             */
+#include "layout/pdclust.h"     /* c2_pdclust_build(), c2_pdclust_fini() */
+#include "layout/linear_enum.h" /* c2_linear_enum_build()                */
+#include "lib/misc.h"           /* C2_SET0()                             */
+#include "lib/memory.h"         /* C2_ALLOC_PTR(), c2_free()             */
 #include "c2t1fs/linux_kernel/c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
-#include "lib/trace.h"       /* C2_LOG and C2_ENTRY */
+#include "lib/trace.h"          /* C2_LOG and C2_ENTRY */
 
 static int c2t1fs_inode_test(struct inode *inode, void *opaque);
 static int c2t1fs_inode_set(struct inode *inode, void *opaque);
@@ -122,7 +122,7 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 		C2_ASSERT(ci->ci_layout != NULL);
 		/*
 		 * Release the reference on the layout. The layout will be
-		 * deleted, this being the last reference.
+		 * deleted if it is the last reference being released.
 		 */
 		c2_layout_put(ci->ci_layout);
 	}
@@ -371,18 +371,23 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 	 */
 	rc = c2_linear_enum_build(&c2t1fs_globals.g_layout_dom,
 				  pool->po_width, 100, 200, &le);
-	if (rc != 0)
-		return rc;
+	if (rc == 0) {
+		rc = c2_pdclust_build(&c2t1fs_globals.g_layout_dom,
+				      pool, layout_id, N, K, unit_size,
+				      &seed, &le->lle_base, &pd_layout);
+		if (rc == 0) {
+			ci->ci_layout = &pd_layout->pl_base.ls_base;
 
-	rc = c2_pdclust_build(&c2t1fs_globals.g_layout_dom, pool, layout_id,
-			      N, K, unit_size, &seed, &le->lle_base,
-			      &pd_layout);
-
-	ci->ci_layout = rc == 0 ? &pd_layout->pl_base.ls_base : NULL;
-
-	/* Add a reference to the layout so that it does not get deleted. */
-	if (ci->ci_layout != NULL)
-		c2_layout_get(ci->ci_layout);
+			/*
+			 * Add a reference to the layout indicating it is being
+			 * used by one inode.
+			 */
+			c2_layout_get(ci->ci_layout);
+		} else {
+			ci->ci_layout = NULL;
+			c2_linear_enum_fini(le);
+		}
+	}
 
 	C2_LEAVE("rc: %d", rc);
 	return rc;

@@ -202,6 +202,11 @@ struct c2_pdclust_layout {
 	uint64_t                     pl_magic;
 };
 
+uint32_t c2_pdclust_nr_data_units_get(const struct c2_pdclust_layout *pl);
+uint32_t c2_pdclust_nr_parity_units_get(const struct c2_pdclust_layout *pl);
+uint32_t c2_pdclust_pool_width_get(const struct c2_pdclust_layout *pl);
+uint64_t c2_pdclust_unit_size_get(const struct c2_pdclust_layout *pl);
+
 /** Classification of units in a parity group. */
 enum c2_pdclust_unit_type {
 	PUT_DATA,

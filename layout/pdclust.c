@@ -526,6 +526,26 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 	return rc;
 }
 
+uint32_t c2_pdclust_nr_data_units_get(const struct c2_pdclust_layout *pl)
+{
+	return pl->pl_attr.pa_N;
+}
+
+uint32_t c2_pdclust_nr_parity_units_get(const struct c2_pdclust_layout *pl)
+{
+	return pl->pl_attr.pa_K;
+}
+
+uint32_t c2_pdclust_pool_width_get(const struct c2_pdclust_layout *pl)
+{
+	return pl->pl_attr.pa_P;
+}
+
+uint64_t c2_pdclust_unit_size_get(const struct c2_pdclust_layout *pl)
+{
+	return pl->pl_attr.pa_unit_size;
+}
+
 enum c2_pdclust_unit_type
 c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 			 int unit)

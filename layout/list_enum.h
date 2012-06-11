@@ -64,6 +64,7 @@ struct c2_layout_list_enum {
 int c2_list_enum_build(struct c2_layout_domain *dom,
 		       struct c2_fid *cob_list, uint32_t nr,
 		       struct c2_layout_list_enum **out);
+void c2_list_enum_fini(struct c2_layout_list_enum *e);
 
 extern struct c2_layout_enum_type c2_list_enum_type;
 

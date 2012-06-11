@@ -184,6 +184,22 @@ out:
 }
 
 /**
+ * Finalise list enumeration object.
+ * @note This interface is expected to be used only in cases where layout
+ * build operation fails and the user (for example c2t1fs) needs to get rid of
+ * the enumeration object created prior to attempting the layout build
+ * operation. In the other regular cases, enumeration object is finalised
+ * internally through c2_layout__striped_fini().
+ */
+void c2_list_enum_fini(struct c2_layout_list_enum *e)
+{
+	C2_PRE(list_enum_invariant_internal(e));
+	C2_PRE(e->lle_base.le_l == NULL);
+
+	e->lle_base.le_ops->leo_fini(&e->lle_base);
+}
+
+/**
  * Implementation of leo_fini for LIST enumeration type.
  * Invoked internally by c2_layout__striped_fini().
  */
