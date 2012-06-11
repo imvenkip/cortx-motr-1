@@ -11,6 +11,7 @@ static int frm_ut_fini(void);
 static void frm_init_test(void);
 static void frm_fini_test(void);
 static void frm_enq_item_test(void);
+static void frm_enqued_items_are_sorted_by_deadline(void);
 
 const struct c2_test_suite frm_ut = {
 	.ts_name = "formation-ut",
@@ -18,28 +19,33 @@ const struct c2_test_suite frm_ut = {
 	.ts_fini = frm_ut_fini,
 	.ts_tests = {
 		{ "frm-init",     frm_init_test},
+		{ "items-sorted", frm_enqued_items_are_sorted_by_deadline},
 		{ "frm-enq-item", frm_enq_item_test},
 		{ "frm-fini",     frm_fini_test},
 		{ NULL,           NULL         }
 	}
 };
 
+static struct c2_rpc_frm             frm;
+static struct c2_rpc_frm_constraints constraints;
+static struct c2_rpc_machine         rmachine;
+static struct c2_rpc_chan            rchan;
+static struct c2_rpc_session         session;
+static struct c2_rpc_item            items[FRMQ_NR_QUEUES];
+static struct c2_rpc_slot            slot;
+
 static int frm_ut_init(void)
 {
+	c2_mutex_init(&rmachine.rm_mutex);
+	c2_mutex_lock(&rmachine.rm_mutex);
 	return 0;
 }
 static int frm_ut_fini(void)
 {
+	c2_mutex_unlock(&rmachine.rm_mutex);
+	c2_mutex_fini(&rmachine.rm_mutex);
 	return 0;
 }
-
-static struct c2_rpc_frm frm;
-static struct c2_rpc_frm_constraints constraints;
-static struct c2_rpc_machine rmachine;
-static struct c2_rpc_chan    rchan;
-static struct c2_rpc_session session;
-static struct c2_rpc_item items[FRMQ_NR_QUEUES];
-static struct c2_rpc_slot slot;
 
 static int pcount = 0;
 static int bound_item_count = 0;
@@ -81,7 +87,6 @@ static struct c2_rpc_frm_ops frm_ops = {
 static void frm_init_test(void)
 {
 	c2_rpc_frm_constraints_get_defaults(&constraints);
-	c2_mutex_init(&rmachine.rm_mutex);
 	c2_rpc_frm_init(&frm, &rmachine, &rchan, constraints, &frm_ops);
 	C2_UT_ASSERT(frm.f_state == FRM_IDLE);
 }
@@ -108,6 +113,38 @@ static struct c2_rpc_item_type oneway_item_type = {
 	.rit_flags = C2_RPC_ITEM_TYPE_UNSOLICITED,
 	.rit_ops   = &oneway_item_type_ops,
 };
+void frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
+
+static void frm_enqued_items_are_sorted_by_deadline(void)
+{
+	struct c2_rpc_item *list;
+	struct c2_rpc_item *item;
+	uint64_t            seed;
+	uint64_t            max;
+
+	int                 i;
+	enum { N = 100 };
+
+	C2_ALLOC_ARR(list, N);
+	C2_UT_ASSERT(list != NULL);
+
+	frm.f_constraints.fc_max_nr_bytes_accumulated = ~0ULL;
+	max = 2000;
+	seed = (uint64_t)c2_time_now();
+	for (i = 0; i < N; ++i) {
+		item              = &list[i];
+		item->ri_deadline = c2_time_from_now(c2_rnd(max, &seed) + 1000, 0);
+		item->ri_type     = &twoway_item_type;
+		item->ri_prio     = 2;
+		c2_rpc_frm_enq_item(&frm, item);
+	}
+	C2_UT_ASSERT(frm.f_nr_items == N);
+	for (i = 0; i < N; i++) {
+		frm_itemq_remove(&frm, &list[i]);
+	}
+	C2_UT_ASSERT(frm.f_nr_items == 0);
+}
+
 static void frm_enq_item_test(void)
 {
 	struct c2_rpc_item *item;
@@ -195,7 +232,6 @@ static void frm_enq_item_test(void)
 	C2_UT_ASSERT(frm.f_nr_bytes_accumulated == 10);
 	C2_UT_ASSERT(item->ri_itemq != NULL &&
 		     item->ri_itemq == &frm.f_itemq[FRMQ_WAITING_UNBOUND]);
-	C2_UT_ASSERT(c2_timer_is_started(&item->ri_timer));
 
 	c2_nanosleep(c2_time(2, 0), NULL);
 
@@ -205,7 +241,6 @@ static void frm_enq_item_test(void)
 	C2_UT_ASSERT(pcount == 6);
 	C2_UT_ASSERT(item->ri_itemq == NULL);
 	c2_free(item);
-
 }
 static void frm_fini_test(void)
 {

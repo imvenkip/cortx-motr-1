@@ -65,6 +65,8 @@ extern void frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
 extern void rpcobj_exit_stats_set(const struct c2_rpc *rpcobj,
 		struct c2_rpc_machine *mach, enum c2_rpc_item_path path);
 
+static void frm_worker_fn(struct c2_rpc_machine *machine);
+
 int c2_rpc__post_locked(struct c2_rpc_item *item);
 
 C2_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", , struct c2_rpc_item, ri_field,
@@ -872,6 +874,14 @@ int c2_rpc_machine_init(struct c2_rpc_machine *machine,
 	c2_addb_ctx_init(&machine->rm_rpc_machine_addb,
 			&rpc_machine_addb_ctx_type, &c2_addb_global_ctx);
 
+	machine->rm_stopping = false;
+	rc = C2_THREAD_INIT(&machine->rm_frm_worker, struct c2_rpc_machine *,
+			    NULL, &frm_worker_fn, machine, "frm_worker");
+	if (rc != 0) {
+		__rpc_machine_fini(machine);
+		return rc;
+	}
+
 	rc = c2_db_tx_init(&tx, dom->cd_dbenv, 0);
 	if (rc == 0) {
 		rc = c2_rpc_root_session_cob_create(dom, &tx) ?:
@@ -881,12 +891,36 @@ int c2_rpc_machine_init(struct c2_rpc_machine *machine,
 			c2_db_tx_commit(&tx);
 		} else {
 			c2_db_tx_abort(&tx);
+			machine->rm_stopping = true;
+			c2_thread_join(&machine->rm_frm_worker);
 			__rpc_machine_fini(machine);
 		}
 	}
 	return rc;
 }
 C2_EXPORTED(c2_rpc_machine_init);
+
+static void frm_worker_fn(struct c2_rpc_machine *machine)
+{
+	struct c2_rpc_chan *chan;
+	enum { MILLI_SEC = 1000 * 1000 };
+
+	C2_PRE(machine != NULL);
+
+	while (true) {
+		c2_rpc_machine_lock(machine);
+		if (machine->rm_stopping) {
+			c2_rpc_machine_unlock(machine);
+			return;
+		}
+		c2_list_for_each_entry(&machine->rm_chans, chan,
+				       struct c2_rpc_chan, rc_linkage) {
+			c2_rpc_frm_run_formation(&chan->rc_frm);
+		}
+		c2_rpc_machine_unlock(machine);
+		c2_nanosleep(c2_time(0, 100 * MILLI_SEC), NULL);
+	}
+}
 
 /**
    XXX Temporary. This routine will be discarded, once rpc-core starts
@@ -914,6 +948,12 @@ static void conn_list_fini(struct c2_list *list)
 void c2_rpc_machine_fini(struct c2_rpc_machine *machine)
 {
 	C2_PRE(machine != NULL);
+
+	c2_rpc_machine_lock(machine);
+	machine->rm_stopping = true;
+	c2_rpc_machine_unlock(machine);
+
+	c2_thread_join(&machine->rm_frm_worker);
 
 	c2_rpc_machine_lock(machine);
 

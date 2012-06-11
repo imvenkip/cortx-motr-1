@@ -476,6 +476,8 @@ struct c2_rpc_machine {
 	struct c2_tl                      rm_services;
 
 	uint64_t                          rm_magic;
+	struct c2_thread                  rm_frm_worker;
+	bool                              rm_stopping;
 };
 
 /**
