@@ -103,8 +103,6 @@ ioservice_ut_SOURCES            := bulkio_client.c
 
 layout_SOURCES                  := layout.c pdclust.c composite.c list_enum.c \
                                    linear_enum.c
-layout_HEADERS                  := layout.h layout_internal.h pdclust.h \
-                                   composite.h list_enum.h linear_enum.h
 
 layout_ut_SOURCES               := layout.c
 
