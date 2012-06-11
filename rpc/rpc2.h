@@ -187,8 +187,8 @@ struct c2_rpc_frm_item_coalesced;
 
 enum {
 	C2_RPC_MACHINE_MAGIX	    = 0x5250434D414348, /* RPCMACH */
-	/** Maximum RPC message size of 256k to run c2t1fs st */
-	C2_RPC_DEF_MAX_RPC_MSG_SIZE = 1 << 18,
+	/** Default RPC message size is taken as 4k */
+	C2_RPC_DEF_MAX_RPC_MSG_SIZE = 1 << 12,
 };
 
 struct c2_rpc_item_ops {
