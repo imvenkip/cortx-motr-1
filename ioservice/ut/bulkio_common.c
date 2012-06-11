@@ -29,16 +29,14 @@
 #define S_DBFILE		  "bulkio_st.db"
 #define S_STOBFILE		  "bulkio_st_stob"
 
-#define to_string(x) str(x)
-#define str(x)	#x
-
 /**
    @todo This value can be reduced after multiple message delivery in a
     single buffer is supported.
  */
-#define IO_TM_RECV_QUEUE_MIN_LEN 8
-/** Non zero value is given for multiple message delivery support. */
-#define IO_MAX_RPC_MSG_SIZE      0
+
+enum {
+	STRING_LEN		 = 16,
+};
 
 /* Global reference to bulkio_params structure. */
 struct bulkio_params *bparm;
@@ -56,6 +54,8 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr)
 	const char		      xprt[IO_ADDR_LEN] = "lnet:";
 	struct c2_rpc_server_ctx     *sctx;
 	struct c2_reqh_service_type **stypes;
+	static char		      tm_len[STRING_LEN];
+	static char		      rpc_size[STRING_LEN];
 
 	C2_ASSERT(saddr != NULL);
 
@@ -80,6 +80,8 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr)
 		return -ENOMEM;
 	}
 
+	sprintf(tm_len, "%d", C2_NET_TM_RECV_QUEUE_DEF_LEN);
+	sprintf(rpc_size, "%d", C2_RPC_DEF_MAX_RPC_MSG_SIZE);
 	/* Copy all server arguments to server_args list. */
 	strcpy(server_args[0], "bulkio_st");
 	strcpy(server_args[1], "-r");
@@ -95,9 +97,9 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr)
 	strcpy(server_args[10], "-s");
 	strcpy(server_args[11], "ioservice");
 	strcpy(server_args[12], "-q");
-	strcpy(server_args[13], to_string(IO_TM_RECV_QUEUE_MIN_LEN));
+	strcpy(server_args[13], tm_len);
 	strcpy(server_args[14], "-m");
-	strcpy(server_args[15], to_string(IO_MAX_RPC_MSG_SIZE));
+	strcpy(server_args[15], rpc_size);
 	C2_ALLOC_ARR(stypes, IO_SERVER_SERVICE_NR);
 	C2_ASSERT(stypes != NULL);
 	stypes[0] = &ds1_service_type;
@@ -455,8 +457,8 @@ int bulkio_client_start(struct bulkio_params *bp, const char *caddr,
 	cctx->rcx_nr_slots              = IO_RPC_SESSION_SLOTS;
 	cctx->rcx_timeout_s             = IO_RPC_CONN_TIMEOUT;
 	cctx->rcx_max_rpcs_in_flight    = IO_RPC_MAX_IN_FLIGHT;
-	cctx->rcx_recv_queue_min_length = IO_TM_RECV_QUEUE_MIN_LEN;
-        cctx->rcx_max_rpc_recv_size     = IO_MAX_RPC_MSG_SIZE;
+	cctx->rcx_recv_queue_min_length = C2_NET_TM_RECV_QUEUE_DEF_LEN;
+	cctx->rcx_max_rpc_msg_size	= C2_RPC_DEF_MAX_RPC_MSG_SIZE;
 	cctx->rcx_local_addr            = caddr;
 	cctx->rcx_net_dom               = &bp->bp_cnetdom;
 
@@ -464,15 +466,15 @@ int bulkio_client_start(struct bulkio_params *bp, const char *caddr,
 	C2_ASSERT(cdbname != NULL);
 	strcpy(cdbname, IO_CLIENT_DBNAME);
 	cctx->rcx_db_name = cdbname;
-	cctx->rcx_dbenv = &bp->bp_cdbenv;
+	cctx->rcx_dbenv   = &bp->bp_cdbenv;
 	cctx->rcx_cob_dom = &bp->bp_ccbdom;
 
 	rc = c2_rpc_client_init(cctx);
 	C2_ASSERT(rc == 0);
 
-	bp->bp_cctx = cctx;
-	bp->bp_saddr = saddr;
-	bp->bp_caddr = caddr;
+	bp->bp_cctx    = cctx;
+	bp->bp_saddr   = saddr;
+	bp->bp_caddr   = caddr;
 	bp->bp_cdbname = cdbname;
 
 	return rc;

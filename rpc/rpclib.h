@@ -176,7 +176,7 @@ struct c2_rpc_client_ctx {
         uint32_t		   rcx_recv_queue_min_length;
 
 	/** Maximum RPC recive buffer size. */
-        uint32_t		   rcx_max_rpc_recv_size;
+        uint32_t		   rcx_max_rpc_msg_size;
 };
 
 /**
@@ -209,103 +209,6 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
   @param cctx  Initialized rpc context structure.
 */
 int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx);
-
-/**
-   Create a buffer pool per net domain which to be shared by TM's in it.
-   @pre ndom != NULL && app_pool != NULL
-   @pre bufs_nr != 0
- */
-int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
-				 struct c2_net_buffer_pool *app_pool,
-				 uint32_t bufs_nr, uint32_t tm_nr);
-
-void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool);
-
-/**
- * Calculates the total number of buffers needed in network domain for
- * receive buffer pool.
- * @param len total Length of the TM's in a network domain
- * @param tms_nr    Number of TM's in the network domain
- */
-static inline uint32_t c2_rpc_bufs_nr(uint32_t len, uint32_t tms_nr)
-{
-	return len +
-	       /* It is used so that more than one free buffer is present
-		* for each TM when tms_nr > 8.
-		*/
-	       max32u(tms_nr / 4, 1) +
-	       /* It is added so that frequent low_threshold callbacks of
-		* buffer pool can be reduced.
-		*/
-	       C2_NET_BUFFER_POOL_THRESHOLD;
-}
-
-/** Returns the maximum segment size of receive pool of network domain. */ 
-static inline c2_bcount_t c2_rpc_max_seg_size(struct c2_net_domain *ndom)
-{
-	C2_PRE(ndom != NULL);
-
-	return min64u(c2_net_domain_get_max_buffer_segment_size(ndom),
-		      C2_SEG_SIZE);
-}
-
-/** Returns the maximum number of segments of receive pool of network domain. */ 
-static inline uint32_t c2_rpc_max_segs_nr(struct c2_net_domain *ndom)
-{
-	C2_PRE(ndom != NULL);
-
-	return c2_net_domain_get_max_buffer_size(ndom) /
-	       c2_rpc_max_seg_size(ndom);
-}
-
-/** Returns the maximum RPC message size in the network domain. */ 
-static inline c2_bcount_t c2_rpc_max_msg_size(struct c2_net_domain *ndom,
-					      c2_bcount_t rpc_size)
-{
-	c2_bcount_t mbs;
-
-	C2_PRE(ndom != NULL);
-
-	mbs = c2_net_domain_get_max_buffer_size(ndom);
-	return rpc_size != 0 ? rpc_size : mbs;
-}
-
-/**
- * Returns the maximum number of messages thet can be received in a buffer
- * of network domain.
- */ 
-static inline uint32_t c2_rpc_max_recv_msgs(struct c2_net_domain *ndom,
-					    c2_bcount_t rpc_size)
-{
-	C2_PRE(ndom != NULL);
-
-	return c2_net_domain_get_max_buffer_size(ndom) /
-	       c2_rpc_max_msg_size(ndom, rpc_size);
-}
-
-/**
- * It assigns the maximum RPC message size and maximum number of RPC messages
- * in a buffer to the RPC machine.
- * @pre rpc_mach != NULL && dom != NULL
- * @param colour Unique colour of each transfer machine.
- * @param msg_size Maximum RPC message size.
- * @param queue_len Minimum TM receive queue length.
- */
-static inline void c2_rpc_machine_pre_init(struct c2_rpc_machine *rpc_mach,
-					     struct c2_net_domain  *dom,
-					     uint32_t		    colour,
-					     c2_bcount_t	    msg_size,
-					     uint32_t		    queue_len)
-{
-	C2_PRE(rpc_mach != NULL && dom != NULL);
-
-	rpc_mach->rm_min_recv_size = c2_rpc_max_msg_size(dom, msg_size);
-	rpc_mach->rm_max_recv_msgs = c2_rpc_max_recv_msgs(dom, msg_size);
-	
-	rpc_mach->rm_tm_colour		      = colour;
-	rpc_mach->rm_tm_recv_queue_min_length = queue_len;
-
-}
 
 #endif /* __COLIBRI_RPC_RPCLIB_H__ */
 

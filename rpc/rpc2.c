@@ -45,7 +45,6 @@
 #include "fop/fop_item_type.h"
 #include "lib/arith.h"
 #include "lib/vec.h"
-#include "net/buffer_pool.h"
 #include "lib/finject.h"
 
 /* Forward declarations. */
@@ -602,7 +601,7 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 		rpc_chan_put(chan);
 	}
 	c2_rpcobj_init(&rpc);
-	rc = c2_rpc_decode(&rpc, nb);
+	rc = c2_rpc_decode(&rpc, nb, ev->nbe_length, ev->nbe_offset);
 last:
 	C2_ASSERT(nb->nb_pool != NULL);
 	if (!(nb->nb_flags & C2_NET_BUF_QUEUED))
@@ -748,7 +747,10 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 			struct c2_net_domain      *net_dom,
 			const char                *ep_addr,
 			struct c2_reqh            *reqh,
-			struct c2_net_buffer_pool *receive_pool)
+			struct c2_net_buffer_pool *receive_pool,
+			uint32_t		   colour,
+			c2_bcount_t		   msg_size,
+			uint32_t		   queue_len)
 {
 	int		rc;
 #ifndef __KERNEL__
@@ -764,9 +766,14 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 	if (C2_FI_ENABLED("fake_error"))
 		return -EINVAL;
 
-	machine->rm_dom		= dom;
-	machine->rm_reqh	= reqh;
-	machine->rm_buffer_pool	= receive_pool;
+	machine->rm_dom		  = dom;
+	machine->rm_reqh	  = reqh;
+	machine->rm_buffer_pool	  = receive_pool;
+	machine->rm_min_recv_size = c2_rpc_max_msg_size(net_dom, msg_size);
+	machine->rm_max_recv_msgs = c2_rpc_max_recv_msgs(net_dom, msg_size);
+	machine->rm_tm_colour	  = colour;
+
+	machine->rm_tm_recv_queue_min_length = queue_len;
 
 	C2_SET_ARR0(machine->rm_rpc_stats);
 
@@ -777,11 +784,6 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 	c2_rpc_services_tlist_init(&machine->rm_services);
 
 	c2_mutex_init(&machine->rm_mutex);
-
-	C2_ASSERT(machine->rm_min_recv_size >= C2_SEG_SIZE &&
-		  machine->rm_min_recv_size <=
-		  c2_net_domain_get_max_buffer_size(net_dom));
-	C2_ASSERT(machine->rm_max_recv_msgs >= 1);
 
 	c2_addb_ctx_init(&machine->rm_rpc_machine_addb,
 			&rpc_machine_addb_ctx_type, &c2_addb_global_ctx);
@@ -1354,6 +1356,51 @@ int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk,
 	return rpc_bulk_op(rbulk, conn, from_desc, C2_RPC_BULK_LOAD);
 }
 C2_EXPORTED(c2_rpc_bulk_load);
+
+static void buffer_pool_low(struct c2_net_buffer_pool *bp)
+{
+	/* Buffer pool is below threshold.  */
+}
+
+static const struct c2_net_buffer_pool_ops b_ops = {
+	.nbpo_not_empty	      = c2_net_domain_buffer_pool_not_empty,
+	.nbpo_below_threshold = buffer_pool_low,
+};
+
+int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
+				 struct c2_net_buffer_pool *app_pool,
+				 uint32_t bufs_nr, uint32_t tm_nr)
+{
+	int	    rc;
+	uint32_t    segs_nr;
+	c2_bcount_t seg_size;
+
+	C2_PRE(ndom != NULL);
+	C2_PRE(app_pool != NULL);
+	C2_PRE(bufs_nr != 0);
+
+	seg_size = c2_rpc_max_seg_size(ndom);
+	segs_nr  = c2_rpc_max_segs_nr(ndom);
+	app_pool->nbp_ops = &b_ops;
+	rc = c2_net_buffer_pool_init(app_pool, ndom,
+				     C2_NET_BUFFER_POOL_THRESHOLD,
+				     segs_nr, seg_size, tm_nr, C2_SEG_SHIFT);
+	if (rc != 0)
+		return rc;
+	c2_net_buffer_pool_lock(app_pool);
+	rc = c2_net_buffer_pool_provision(app_pool, bufs_nr);
+	c2_net_buffer_pool_unlock(app_pool);
+	return rc != bufs_nr ? -ENOMEM : 0 ;
+}
+C2_EXPORTED(c2_rpc_net_buffer_pool_setup);
+
+void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool)
+{
+	C2_PRE(app_pool != NULL);
+
+	c2_net_buffer_pool_fini(app_pool);
+}
+C2_EXPORTED(c2_rpc_net_buffer_pool_cleanup);
 
 /*
  *  Local variables:

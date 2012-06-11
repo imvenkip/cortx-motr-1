@@ -13,7 +13,7 @@ colibri_service()
 		   -e $COLIBRI_NET_DOMAIN:$COLIBRI_IOSERVICE_ENDPOINT
 		   -s $COLIBRI_SERVICE_NAME
 		   -q $TM_MIN_RECV_QUEUE_LEN
-		   -m $MAX_RPC_MSG_SIZE"
+                   -m $MAX_RPC_MSG_SIZE"
 
 	. /etc/rc.d/init.d/functions
 

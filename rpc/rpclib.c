@@ -104,51 +104,6 @@ void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx)
 }
 #endif
 
-static void buffer_pool_low(struct c2_net_buffer_pool *bp)
-{
-	/* Buffer pool is below threshold.  */
-}
-
-static const struct c2_net_buffer_pool_ops b_ops = {
-	.nbpo_not_empty	      = c2_net_domain_buffer_pool_not_empty,
-	.nbpo_below_threshold = buffer_pool_low,
-};
-
-int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
-				 struct c2_net_buffer_pool *app_pool,
-				 uint32_t bufs_nr, uint32_t tm_nr)
-{
-	int	    rc;
-	uint32_t    segs_nr;
-	c2_bcount_t seg_size;
-
-	C2_PRE(ndom != NULL);
-	C2_PRE(app_pool != NULL);
-	C2_PRE(bufs_nr != 0);
-
-	seg_size = c2_rpc_max_seg_size(ndom);
-	segs_nr  = c2_rpc_max_segs_nr(ndom);
-	app_pool->nbp_ops = &b_ops;
-	rc = c2_net_buffer_pool_init(app_pool, ndom,
-				     C2_NET_BUFFER_POOL_THRESHOLD,
-				     segs_nr, seg_size, tm_nr, C2_SEG_SHIFT);
-	if (rc != 0)
-		return rc;
-	c2_net_buffer_pool_lock(app_pool);
-	rc = c2_net_buffer_pool_provision(app_pool, bufs_nr);
-	c2_net_buffer_pool_unlock(app_pool);
-	return rc != bufs_nr ? -ENOMEM : 0 ;
-}
-C2_EXPORTED(c2_rpc_net_buffer_pool_setup);
-
-void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool)
-{
-	C2_PRE(app_pool != NULL);
-
-	c2_net_buffer_pool_fini(app_pool);
-}
-C2_EXPORTED(c2_rpc_net_buffer_pool_cleanup);
-
 int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 {
 	int rc;
@@ -174,13 +129,11 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	if (rc != 0)
 		goto pool_fini;
 
-	c2_rpc_machine_pre_init(rpc_mach, ndom, C2_BUFFER_ANY_COLOUR,
-				cctx->rcx_max_rpc_recv_size,
-				cctx->rcx_recv_queue_min_length);
-
 	rc = c2_rpc_machine_init(rpc_mach, cctx->rcx_cob_dom,
 				 ndom, cctx->rcx_local_addr, NULL,
-				 buffer_pool);
+				 buffer_pool, C2_BUFFER_ANY_COLOUR,
+				 cctx->rcx_max_rpc_msg_size,
+				 cctx->rcx_recv_queue_min_length);
 	if (rc != 0)
 		goto pool_fini;
 

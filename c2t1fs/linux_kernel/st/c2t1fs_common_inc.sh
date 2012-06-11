@@ -6,7 +6,9 @@ COLIBRI_MODULE_TRACE_MASK=0x00
 COLIBRI_TEST_LOGFILE=`pwd`/bulkio_`date +"%Y-%m-%d_%T"`.log
 POOL_WIDTH=3
 TM_MIN_RECV_QUEUE_LEN=2
-MAX_RPC_MSG_SIZE=0
+# Maximum value needed to run current ST is 160k.
+MAX_RPC_MSG_SIZE=163840
+
 
 unload_kernel_module()
 {
@@ -98,4 +100,4 @@ export  COLIBRI_CORE_ROOT         \
 	COLIBRI_TEST_LOGFILE      \
 	POOL_WIDTH                \
 	TM_MIN_RECV_QUEUE_LEN     \
-	MAX_RPC_MSG_SIZE
+        MAX_RPC_MSG_SIZE

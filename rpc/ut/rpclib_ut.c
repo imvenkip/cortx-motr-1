@@ -203,6 +203,8 @@ static void test_rpclib(void)
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_rpc_client_fini(&cctx);
+	C2_UT_ASSERT(rc == 0);
+
 server_fini:
 	c2_rpc_server_stop(&sctx);
 	return;

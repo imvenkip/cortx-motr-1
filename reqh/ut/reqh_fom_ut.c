@@ -249,13 +249,11 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 					  bufs_nr, tms_nr);
 	C2_UT_ASSERT(rc == 0);
 
-	c2_rpc_machine_pre_init(rpc_machine, net_dom,
-				C2_BUFFER_ANY_COLOUR,
-				0, C2_NET_TM_RECV_QUEUE_DEF_LEN);
-
 	/* Init the rpcmachine */
         rc = c2_rpc_machine_init(rpc_machine, &srv_cob_domain, net_dom,
-				 SERVER_ENDPOINT_ADDR, &reqh, &app_pool);
+				 SERVER_ENDPOINT_ADDR, &reqh, &app_pool,
+				 C2_BUFFER_ANY_COLOUR, 0,
+				 C2_NET_TM_RECV_QUEUE_DEF_LEN);
         C2_UT_ASSERT(rc == 0);
 	return rc;
 }
