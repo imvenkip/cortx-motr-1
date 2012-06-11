@@ -55,7 +55,7 @@ bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool)
 		pool->nbp_free == c2_net_pool_tlist_length(&pool->nbp_lru) &&
 		pool_colour_check(pool) &&
 		pool_lru_buffer_check(pool) &&
-		!(pool->nbp_colours == NULL && pool->nbp_colours_nr != 0);
+		equi(pool->nbp_colours_nr == 0, pool->nbp_colours == NULL);
 }
 
 static bool pool_colour_check(const struct c2_net_buffer_pool *pool)

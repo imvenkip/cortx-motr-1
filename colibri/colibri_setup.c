@@ -803,7 +803,7 @@ static int cs_rpc_machines_init(struct c2_colibri *cctx)
 			if (rc != 0) {
 				fprintf(ofd,
 					"RPC initialization failed on '%s:%s'"
-					"with error %d\n",
+					" with error %d\n",
 					 ep->ex_xprt, ep->ex_endpoint, rc);
 				return rc;
 			}
