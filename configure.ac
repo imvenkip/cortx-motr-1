@@ -266,8 +266,13 @@ AC_ARG_ENABLE([debug],
 )
 
 AC_ARG_ENABLE([finject],
-        [AC_HELP_STRING([--enable-finject], [enable fault injection support])], [],
-        [enable_finject=no]
+        [AC_HELP_STRING([--disable-finject], [disable fault injection support])], [],
+        [enable_finject=yes]
+)
+
+AC_ARG_ENABLE([mcheck],
+        [AC_HELP_STRING([--enable-mcheck], [enable glibc malloc check])], [],
+        [enable_mcheck=no]
 )
 
 AC_ARG_ENABLE([rpm],
@@ -313,7 +318,7 @@ AC_SUBST([ENABLE_COVERAGE])
 if test "x[$]ENABLE_COVERAGE" = "x1"
 then
 	# Remove -O<digit> flag from $CFLAGS
-	CFLAGS="`echo $CFLAGS | sed 's/-O[0-9]//g'` --coverage"
+	CFLAGS="`echo $CFLAGS | sed 's/-O[[0-9]]//g'` --coverage"
 	LDFLAGS="-lgcov"
 	K_ENABLE_COVERAGE=y
 else
@@ -541,6 +546,10 @@ if test x$enable_finject = xyes; then
         AC_DEFINE([ENABLE_FAULT_INJECTION])
 fi
 
+if test x$enable_mcheck = xyes; then
+	LDFLAGS="$LDFLAGS -lmcheck"
+fi
+
 # Check if gcc option is supported in current gcc version.
 AC_DEFUN([COLIBRI_COMPILER_OPTION_CHECK],
 [AC_MSG_CHECKING([whether compiler $CC supports $1 option])
@@ -571,7 +580,8 @@ CFLAGS="-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing \
 fi
 
 #
-# Galois header may be in one of the following standard loctions. Kernel needs to know about.
+# Galois header may be in one of the following standard loctions.
+# Kernel needs to know about.
 #
 KCFLAGS="-Wall -Werror $KCFLAGS $GALOIS_INCLUDES"
 COLIBRI_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable])
@@ -579,9 +589,9 @@ COLIBRI_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable])
 LDFLAGS="-rdynamic $LDFLAGS"
 
 # trim spaces at the end of flags
-CFLAGS=$(echo $CFLAGS | sed 's/[[:blank:]]*$//')
-KCFLAGS=$(echo $KCFLAGS | sed 's/[[:blank:]]*$//')
-LDFLAGS=$(echo $LDFLAGS | sed 's/[[:blank:]]*$//')
+CFLAGS=$(echo $CFLAGS | sed 's/[[[:blank:]]]*$//')
+KCFLAGS=$(echo $KCFLAGS | sed 's/[[[:blank:]]]*$//')
+LDFLAGS=$(echo $LDFLAGS | sed 's/[[[:blank:]]]*$//')
 AC_SUBST([KCFLAGS])
 
 # Please keep this list sorted (always appending new items at the end
