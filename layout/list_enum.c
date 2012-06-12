@@ -562,7 +562,7 @@ static int noninline_cob_list_write(const struct c2_layout_schema *schema,
 					       ADDB_RECORD_ADD,
 					       TRACE_RECORD_ADD,
 					       &c2_addb_func_fail,
-					       &layout_global_ctx, //todo check
+					       &layout_global_ctx,
 					       lid, rc);
 				goto out;
 			}
