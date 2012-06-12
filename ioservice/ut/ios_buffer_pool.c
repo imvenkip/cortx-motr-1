@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Rajanikant Chirmade <Rajanikant_Chirmade@xyratex.com> 
+ * Original author: Rajanikant Chirmade <Rajanikant_Chirmade@xyratex.com>
  * Original creation date: 01/06/2012
  */
 
@@ -32,14 +32,12 @@
 #include "net/bulk_mem.h"
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
-
 #include "ioservice/io_service.h"
 
 #include "colibri/colibri_setup.c"
 #include "ioservice/io_service.c"
 
 extern const struct c2_tl_descr bufferpools_tl;
-
 
  /* Colibri setup arguments. */
 static char *ios_ut_bp_singledom_cmd[] = { "colibri_setup", "-r", "-T", "AD",
@@ -86,7 +84,7 @@ C2_TL_DEFINE(ut_rhsrv, static, struct c2_reqh_service);
 static int get_ioservice_buffer_pool_count(struct c2_rpc_server_ctx *sctx)
 {
 	struct cs_reqh_context		*reqh_ctx;
-	int			 	 nbp;
+	int				 nbp;
 	struct c2_reqh_io_service       *serv_obj = NULL;
 
 	c2_tl_for(ut_rhctx, &sctx->rsx_colibri_ctx.cc_reqh_ctxs, reqh_ctx) {

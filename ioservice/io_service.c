@@ -38,6 +38,19 @@ C2_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh", ,
                    C2_RIOS_BUFFER_POOL_MAGIC, C2_RIOS_BUFFER_POOL_HEAD);
 C2_TL_DEFINE(bufferpools, , struct c2_rios_buffer_pool);
 
+/* ADDB context for ios. */
+static struct c2_addb_ctx ios_addb_ctx;
+
+/* ADDB location for ios. */
+static const struct c2_addb_loc ios_addb_loc = {
+	.al_name = "io_service",
+};
+
+/* ADDB context type for ios. */
+static const struct c2_addb_ctx_type ios_addb_ctx_type = {
+	.act_name = "io_service",
+};
+
 
 /**
  * These values are supposed to be fetched from configuration cache. Since
@@ -174,28 +187,26 @@ static int ios_create_buffer_pool(struct c2_reqh_service *service)
 		 */
 		c2_tl_for(bufferpools, &serv_obj->rios_buffer_pools, bp) {
 
-                        if (bp->rios_ndom == rpcmach->rm_tm.ntm_dom)
+                        if (bp->rios_ndom == rpcmach->rm_tm.ntm_dom) {
 				/*
 				 * Found buffer pool for domain.
 				 * No need to create buffer pool
 				 * for this domain.
 				 */
                                 bufpool_found = true;
+				break;
+			}
 		} c2_tl_endfor; /* bufferpools */
 
 		if (bufpool_found)
 			continue;
 
 		/* Buffer pool for network domain not found, create one */
-		C2_ALLOC_PTR(newbp);
+		C2_ALLOC_PTR_ADDB(newbp, &ios_addb_ctx, &ios_addb_loc);
 		if (newbp == NULL)
 			return -ENOMEM;
 
 		newbp->rios_ndom = rpcmach->rm_tm.ntm_dom;
-		/*
-		 * Initialise channel for sending availability of buffers
-		 * with buffer pool to I/O FOMs.
-		 */
 		newbp->rios_bp_magic = C2_RIOS_BUFFER_POOL_MAGIC;
 		colours = rpcmach->rm_tm.ntm_dom->nd_pool_colour_counter;
 		rc = c2_net_buffer_pool_init(&newbp->rios_bp,
@@ -204,13 +215,16 @@ static int ios_create_buffer_pool(struct c2_reqh_service *service)
 					     network_buffer_pool_segment_nr,
 					     network_buffer_pool_segment_size,
 					     colours, C2_0VEC_SHIFT);
-		if (rc != 0)
-		{
+		if (rc != 0) {
 			c2_free(newbp);
 			break;
 		}
 
 		newbp->rios_bp.nbp_ops = &buffer_pool_ops;
+		/*
+		 * Initialise channel for sending availability of buffers
+		 * with buffer pool to I/O FOMs.
+		 */
 		c2_chan_init(&newbp->rios_bp_wait);
 
 		/* Pre-allocate network buffers */
@@ -287,7 +301,10 @@ static int ios_locate(struct c2_reqh_service_type *stype,
 
         C2_PRE(stype != NULL && service != NULL);
 
-        C2_ALLOC_PTR(serv_obj);
+	c2_addb_ctx_init(&ios_addb_ctx, &ios_addb_ctx_type,
+			 &c2_addb_global_ctx);
+
+        C2_ALLOC_PTR_ADDB(serv_obj, &ios_addb_ctx, &ios_addb_loc);
         if (serv_obj == NULL)
                 return -ENOMEM;
 
@@ -316,6 +333,8 @@ static void ios_fini(struct c2_reqh_service *service)
         struct c2_reqh_io_service *serv_obj;
 
         C2_PRE(service != NULL);
+
+	c2_addb_ctx_fini(&ios_addb_ctx);
 
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
 
