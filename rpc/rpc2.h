@@ -147,14 +147,13 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 #include "lib/cdefs.h"
 #include "lib/mutex.h"
 #include "lib/list.h"
+#include "lib/tlist.h"
 #include "lib/time.h"
 #include "lib/refs.h"
 #include "lib/chan.h"
 #include "net/net.h"
 #include "dtm/verno.h"		/* for c2_verno */
-#include "lib/time.h"
 #include "lib/timer.h"
-#include "lib/tlist.h"
 
 #include "cob/cob.h"
 #include "rpc/session_internal.h"

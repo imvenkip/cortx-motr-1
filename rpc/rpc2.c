@@ -778,7 +778,8 @@ static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 
 	c2_mutex_fini(&machine->rm_mutex);
 
-	c2_addb_ctx_fini(&machine->rm_addb);
+	c2_addb_ctx_fini(&machine->rm_rpc_machine_addb);
+	c2_rpc_machine_bob_fini(machine);
 }
 
 int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
@@ -838,6 +839,7 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 
 #ifndef __KERNEL__
 	rc = c2_db_tx_init(&tx, dom->cd_dbenv, 0);
+	c2_rpc_machine_bob_init(machine);
 	if (rc == 0) {
 		rc = c2_rpc_root_session_cob_create(dom, &tx);
 		if (rc == 0) {

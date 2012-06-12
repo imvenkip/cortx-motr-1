@@ -31,7 +31,7 @@
 #include "rpc/rpc2.h"
 #include "reqh/reqh.h"
 #include "ioservice/io_service.h"
-#include "colibri/colibri_setup.h"
+#include "ioservice/cobfid_map.h"
 
 C2_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh", ,
                    struct c2_rios_buffer_pool, rios_bp_linkage, rios_bp_magic,
@@ -180,7 +180,8 @@ static int ios_create_buffer_pool(struct c2_reqh_service *service)
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
 
 	reqh = service->rs_reqh;
-	c2_rwlock_read_lock(&reqh->rh_rpcml_rwlock);
+	//c2_rwlock_read_lock(&reqh->rh_rpcml_rwlock);
+	c2_rwlock_read_lock(&reqh->rh_rwlock);
         c2_tlist_for(&c2_reqh_rpc_mach_tl, &reqh->rh_rpc_machines, rpcmach) {
 		C2_ASSERT(c2_rpc_machine_bob_check(rpcmach));
 		/*
@@ -249,7 +250,8 @@ static int ios_create_buffer_pool(struct c2_reqh_service *service)
 		bufferpools_tlist_add(&serv_obj->rios_buffer_pools, newbp);
 
         } c2_tl_endfor; /* rpc_machines */
-	c2_rwlock_read_unlock(&reqh->rh_rpcml_rwlock);
+	//c2_rwlock_read_unlock(&reqh->rh_rpcml_rwlock);
+	c2_rwlock_read_unlock(&reqh->rh_rwlock);
 
         return rc;
 }
@@ -339,7 +341,6 @@ static void ios_fini(struct c2_reqh_service *service)
 	c2_addb_ctx_fini(&ios_addb_ctx);
 
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
-
         c2_free(serv_obj);
 }
 
@@ -355,9 +356,9 @@ static void ios_fini(struct c2_reqh_service *service)
  */
 static int ios_start(struct c2_reqh_service *service)
 {
-        int			rc;
-	struct c2_colibri      *cc;
-	struct c2_cobfid_setup *s;
+        int			    rc = 0;
+	struct c2_cobfid_map_setup *s;
+	struct c2_reqh             *reqh;
 
         C2_PRE(service != NULL);
 
@@ -368,10 +369,10 @@ static int ios_start(struct c2_reqh_service *service)
 		return rc;
 	}
 
-	cc = c2_cs_ctx_get(service);
-	C2_ASSERT(cc != NULL);
-	rc = c2_cobfid_setup_get(cc, &s);
-	C2_POST(ergo(rc == 0, s != NULL));
+	reqh = service->rs_reqh;
+	rc = c2_cobfid_map_setup_locate(reqh, &s);
+	if (rc == 0)
+		c2_cobfid_map_setup_get(s);
 
         return rc;
 }
@@ -387,15 +388,17 @@ static int ios_start(struct c2_reqh_service *service)
  */
 static void ios_stop(struct c2_reqh_service *service)
 {
-	struct c2_colibri *cc;
+	int                         rc;
+        struct c2_cobfid_map_setup *s;
+	struct c2_reqh             *reqh;
 
         C2_PRE(service != NULL);
 
-        ios_delete_buffer_pool(service);
-
-	cc = c2_cs_ctx_get(service);
-	C2_ASSERT(cc != NULL);
-	c2_cobfid_setup_put(cc);
+        ioservice_delete_buffer_pool(service);
+        reqh = service->rs_reqh;
+	rc = c2_cobfid_map_setup_locate(reqh, &s);
+	C2_ASSERT(rc == 0);
+	c2_cobfid_map_setup_put(s);
 }
 
 /** @} endgroup io_service */

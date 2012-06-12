@@ -48,14 +48,14 @@
 /**
  * Reqh addb event location identifier object.
  */
-const struct c2_addb_loc c2_reqh_addb_loc = {
+static const struct c2_addb_loc reqh_addb_loc = {
 	.al_name = "reqh"
 };
 
 /**
  * Reqh state of addb context.
  */
-const struct c2_addb_ctx_type c2_reqh_addb_ctx_type = {
+static const struct c2_addb_ctx_type reqh_addb_ctx_type = {
 	.act_name = "reqh"
 };
 
@@ -88,10 +88,10 @@ C2_BOB_DEFINE( , &rqrpm_bob, c2_rpc_machine);
 /**
  * Reqh addb context.
  */
-struct c2_addb_ctx c2_reqh_addb_ctx;
+static struct c2_addb_ctx reqh_addb_ctx;
 
 #define REQH_ADDB_ADD(addb_ctx, name, rc)  \
-C2_ADDB_ADD(&(addb_ctx), &c2_reqh_addb_loc, c2_addb_func_fail, (name), (rc))
+C2_ADDB_ADD((addb_ctx), &reqh_addb_loc, c2_addb_func_fail, (name), (rc))
 
 extern int c2_reqh_fop_init(void);
 extern void c2_reqh_fop_fini(void);
@@ -105,8 +105,8 @@ bool c2_reqh_invariant(const struct c2_reqh *reqh)
 }
 
 int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
-                struct c2_stob_domain *stdom, struct c2_dbenv *db,
-                struct c2_cob_domain *cdom, struct c2_fol *fol)
+			struct c2_stob_domain *stdom, struct c2_dbenv *db,
+			struct c2_cob_domain *cdom, struct c2_fol *fol)
 {
 	int result;
 
@@ -122,14 +122,13 @@ int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
                 reqh->rh_fol = fol;
 		reqh->rh_shutdown = false;
                 reqh->rh_fom_dom.fd_reqh = reqh;
+		reqh->rh_addb = &reqh_addb_ctx;
                 c2_reqh_svc_tlist_init(&reqh->rh_services);
                 c2_reqh_rpc_mach_tlist_init(&reqh->rh_rpc_machines);
-		c2_rwlock_init(&reqh->rh_svcl_rwlock);
-		c2_rwlock_init(&reqh->rh_rpcml_rwlock);
 		c2_chan_init(&reqh->rh_sd_signal);
-		c2_mutex_init(&reqh->rh_lock);
+		c2_rwlock_init(&reqh->rh_rwlock);
 	} else
-		REQH_ADDB_ADD(c2_reqh_addb_ctx, "c2_reqh_init", result);
+		REQH_ADDB_ADD(&reqh_addb_ctx, "c2_reqh_init", result);
 
 	return result;
 }
@@ -140,21 +139,19 @@ void c2_reqh_fini(struct c2_reqh *reqh)
         c2_fom_domain_fini(&reqh->rh_fom_dom);
         c2_reqh_svc_tlist_fini(&reqh->rh_services);
         c2_reqh_rpc_mach_tlist_fini(&reqh->rh_rpc_machines);
-	c2_rwlock_fini(&reqh->rh_svcl_rwlock);
-	c2_rwlock_fini(&reqh->rh_rpcml_rwlock);
-	c2_mutex_fini(&reqh->rh_lock);
+	c2_rwlock_fini(&reqh->rh_rwlock);
 }
 
 void c2_reqhs_fini(void)
 {
-	c2_addb_ctx_fini(&c2_reqh_addb_ctx);
+	c2_addb_ctx_fini(&reqh_addb_ctx);
 	c2_reqh_service_types_fini();
 	c2_reqh_fop_fini();
 }
 
 int c2_reqhs_init(void)
 {
-	c2_addb_ctx_init(&c2_reqh_addb_ctx, &c2_reqh_addb_ctx_type,
+	c2_addb_ctx_init(&reqh_addb_ctx, &reqh_addb_ctx_type,
 					&c2_addb_global_ctx);
 	c2_reqh_service_types_init();
 	c2_bob_type_tlist_init(&rqsvc_bob, &c2_reqh_svc_tl);
@@ -180,11 +177,11 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 	C2_PRE(reqh != NULL);
 	C2_PRE(fop != NULL);
 
-	c2_mutex_lock(&reqh->rh_lock);
+	c2_rwlock_read_lock(&reqh->rh_rwlock);
 	rsd = reqh->rh_shutdown;
-	c2_mutex_unlock(&reqh->rh_lock);
+	c2_rwlock_read_unlock(&reqh->rh_rwlock);
 	if (rsd) {
-		REQH_ADDB_ADD(c2_reqh_addb_ctx, "c2_reqh_fop_handle",
+		REQH_ADDB_ADD(reqh->rh_addb, "c2_reqh_fop_handle",
                               ESHUTDOWN);
 		return;
 	}
@@ -217,7 +214,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 		fom->fo_cb.fc_ast.sa_cb = queueit;
 		c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
 	} else
-		REQH_ADDB_ADD(c2_reqh_addb_ctx, "c2_reqh_fop_handle", result);
+		REQH_ADDB_ADD(reqh->rh_addb, "c2_reqh_fop_handle", result);
 }
 
 struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
@@ -227,15 +224,13 @@ struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
 
 	C2_PRE(reqh != NULL && service_name != NULL);
 
-	c2_rwlock_read_lock(&reqh->rh_svcl_rwlock);
+	c2_rwlock_read_lock(&reqh->rh_rwlock);
 	c2_tl_for(c2_reqh_svc, &reqh->rh_services, service) {
 		C2_ASSERT(c2_reqh_service_invariant(service));
-		if (strcmp(service->rs_type->rst_name, service_name) == 0) {
-			c2_rwlock_read_unlock(&reqh->rh_svcl_rwlock);
-			return service;
-		}
+		if (strcmp(service->rs_type->rst_name, service_name) == 0)
+			break;
 	} c2_tl_endfor;
-	c2_rwlock_read_unlock(&reqh->rh_svcl_rwlock);
+	c2_rwlock_read_unlock(&reqh->rh_rwlock);
 
 	return service;
 }
@@ -243,6 +238,10 @@ struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
 void c2_reqh_shutdown_wait(struct c2_reqh *reqh)
 {
 	struct c2_clink clink;
+
+        c2_rwlock_write_lock(&reqh->rh_rwlock);
+        reqh->rh_shutdown = true;
+        c2_rwlock_write_unlock(&reqh->rh_rwlock);
 
         c2_clink_init(&clink, NULL);
         c2_clink_add(&reqh->rh_sd_signal, &clink);
@@ -252,30 +251,6 @@ void c2_reqh_shutdown_wait(struct c2_reqh *reqh)
 
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
-}
-
-struct c2_rpc_machine *c2_reqh_rpc_machine_get(struct c2_reqh *reqh,
-                                                const struct c2_net_xprt *xprt)
-{
-	struct c2_rpc_machine *rpcmach;
-	struct c2_net_xprt    *nxprt;
-
-	C2_PRE(reqh != NULL && xprt != NULL);
-
-	c2_rwlock_read_lock(&reqh->rh_rpcml_rwlock);
-	c2_tl_for(c2_reqh_rpc_mach, &reqh->rh_rpc_machines,
-						      rpcmach) {
-		C2_ASSERT(c2_rpc_machine_bob_check(rpcmach));
-		nxprt = rpcmach->rm_tm.ntm_dom->nd_xprt;
-		C2_ASSERT(nxprt != NULL);
-		if (strcmp(nxprt->nx_name, xprt->nx_name) == 0) {
-			c2_rwlock_read_unlock(&reqh->rh_rpcml_rwlock);
-			return rpcmach;
-		}
-	} c2_tl_endfor;
-	c2_rwlock_read_unlock(&reqh->rh_rpcml_rwlock);
-
-	return rpcmach;
 }
 
 /** @} endgroup reqh */

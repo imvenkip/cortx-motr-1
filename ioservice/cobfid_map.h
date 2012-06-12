@@ -82,6 +82,7 @@ c2_cobfid_map_fini(&mymap);
 #include "fid/fid.h"   /* struct c2_fid */
 #include "lib/time.h"  /* c2_time_t */
 #include "lib/types.h" /* struct c2_uint128 */
+#include "lib/refs.h"  /* struct c2_ref */
 
 struct c2_cobfid_map_iter_ops; /* forward reference */
 
@@ -272,6 +273,100 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 			    uint64_t *container_id_p,
 			    struct c2_fid *file_fid_p,
 			    struct c2_uint128 *cob_fid_p);
+
+enum c2_cobfid_map_setup_state {
+	CMSS_UNKNOWN,
+	CMSS_EXISTS
+};
+
+/**
+ * Represents the infrastructure to host and maintain a
+ * cob fid map which is an auxiliary database which maintains
+ * mapping of a container_id and global_file_fid to its cob_fid.
+ * Every Colibri request handler is supposed to have only one
+ * auxiliary database and it will be leveraged by a copy machine
+ * to retrieve the lost data. A typical example would be SNS Repair.
+ */
+struct c2_cobfid_map_setup {
+	enum c2_cobfid_map_setup_state cms_state;
+	/**
+	 * Cob fid map which hosts the mapping of the tuple
+	 * {container_id, global_file_fid} to its cob_fid.
+	 */
+	struct c2_cobfid_map           cms_map;
+
+	/** Mutex to serialize access to c2_cobfid_map. */
+	struct c2_mutex                cms_mutex;
+
+	/**
+	 * Addb context to log events happening in init/fini of
+	 * cobfid_map_setup.
+	 */
+	struct c2_addb_ctx             cms_addb;
+
+	/** Request handler this cobfid_map_setup associated with. */
+	struct c2_reqh                *cms_reqh;
+	/**
+	 * Reference to track number of services sharing the same
+	 * struct c2_cobfid_map instance.
+	 */
+	struct c2_ref                  cms_ref;
+};
+
+/**
+ * Looks up for struct c2_cobfid_map_setup instance in the given request
+ * handler.
+ * Finds the request handler resource using the cobfid_map_key and initialises
+ * the same if not already initialised.
+ * Note that, this only looks up and returns the struct c2_cobfid_map_setup
+ * instance. If the same struct c2_cobfid_map_setup is shared by multiple
+ * service, then c2_cobfid_map_setup_get() should be invoked in-order to get
+ * a reference on the returned struct c2_cobfid_map_setup instance.
+ *
+ * @post s->cms_state == CMSS_EXISTS && s->cms_reqh == reqh
+ *
+ * @see c2_cobfid_map_setup_get()
+ */
+int c2_cobfid_map_setup_locate(struct c2_reqh *reqh,
+				struct c2_cobfid_map_setup **out);
+/**
+ * Gets a reference on struct c2_cobfid_map_setup.
+ * This should be invoked after c2_cobfid_map_setup_locate().
+ *
+ * @pre s->cms_state == CMSS_EXISTS && s->cms_reqh != NULL
+ * @see c2_cobfid_map_setup_locate()
+ * @see c2_cobfid_map_setup_put()
+ */
+void c2_cobfid_map_setup_get(struct c2_cobfid_map_setup *s);
+
+/**
+ * Releases a reference on struct c2_cobfid_map_setup.
+ *
+ * @pre s->cms_state == CMSS_EXISTS && s->cms_reqh != NULL
+ * @see c2_cobfid_map_setup_get()
+ */
+void c2_cobfid_map_setup_put(struct c2_cobfid_map_setup *s);
+
+/**
+ * Adds a record to c2_cobfid_map contained in c2_cobfid_map_setup.
+ * The container id needed for adding record to c2_cobfid_map is
+ * retrieved from cfid.u_hi.
+ * A global file fid and its constituent cob fids in same IO request
+ * share the same key which stands for an abstract key in a container.
+ * @param gfid Fid of global file.
+ * @param cfid Identifier of cob.
+ * @pre s != NULL.
+ */
+int c2_cobfid_map_setup_recadd(struct c2_cobfid_map_setup *s,
+				struct c2_fid gfid, struct c2_uint128 cfid);
+/**
+ * Removes a record from c2_cobfid_map contained in c2_cobfid_map_setup.
+ * @param gfid Fid of global file.
+ * @param cfid Identifier of cob.
+ * @pre s != NULL.
+ */
+int c2_cobfid_map_setup_recdel(struct c2_cobfid_map_setup *s,
+				struct c2_fid gfid, struct c2_uint128 cfid);
 
 /** @} */
 

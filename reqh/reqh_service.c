@@ -122,11 +122,11 @@ int c2_reqh_service_start(struct c2_reqh_service *service)
 	service->rs_state = C2_RST_STARTING;
 	rc = service->rs_ops->rso_start(service);
 	if (rc == 0) {
-		c2_rwlock_write_lock(&reqh->rh_svcl_rwlock);
+		c2_rwlock_write_lock(&reqh->rh_rwlock);
 		c2_reqh_svc_tlist_add_tail(&reqh->rh_services, service);
 		service->rs_state = C2_RST_STARTED;
 		C2_ASSERT(c2_reqh_service_invariant(service));
-		c2_rwlock_write_unlock(&reqh->rh_svcl_rwlock);
+		c2_rwlock_write_unlock(&reqh->rh_rwlock);
         } else
 		service->rs_state = C2_RST_FAILED;
 
@@ -142,9 +142,9 @@ void c2_reqh_service_stop(struct c2_reqh_service *service)
 	reqh = service->rs_reqh;
 	service->rs_state = C2_RST_STOPPING;
 	service->rs_ops->rso_stop(service);
-	c2_rwlock_write_lock(&reqh->rh_svcl_rwlock);
+	c2_rwlock_write_lock(&reqh->rh_rwlock);
 	c2_reqh_svc_tlist_del(service);
-	c2_rwlock_write_unlock(&reqh->rh_svcl_rwlock);
+	c2_rwlock_write_unlock(&reqh->rh_rwlock);
 	service->rs_state = C2_RST_STOPPED;
 }
 

@@ -605,7 +605,7 @@ static int locality_init(struct c2_fom_locality *loc, struct c2_bitmap *pmap)
                 else
                         loc->fl_lo_idle_threads_nr = ncpus;
 
-                loc->fl_hi_idle_threads_nr = ncpus;
+		loc->fl_hi_idle_threads_nr = ncpus;
 
 		c2_mutex_lock(&loc->fl_lock);
 		for (i = 0; i < ncpus; ++i) {
@@ -704,11 +704,11 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom)
 				c2_bitmap_fini(&loc_cpu_map);
 				C2_CNT_INC(dom->fd_localities_nr);
 				result = c2_bitmap_init(&loc_cpu_map, max_proc);
-			}
+			} else
+				break;
 		}
 		if (result != 0)
 			break;
-
 	}
 
 	if (result != 0)

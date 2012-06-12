@@ -51,6 +51,7 @@
 struct c2_fol;
 struct c2_fop;
 struct c2_net_xprt;
+struct c2_rpc_machine;
 
 /**
    Request handler instance.
@@ -82,9 +83,6 @@ struct c2_reqh {
 	 */
         struct c2_tl             rh_services;
 
-	/** Provides protected access to reqh services. */
-	struct c2_rwlock         rh_svcl_rwlock;
-
         /**
 	    RPC machines running in this request handler
 	    There is one rpc machine per request handler
@@ -94,11 +92,8 @@ struct c2_reqh {
 	 */
         struct c2_tl             rh_rpc_machines;
 
-	/** Provides protected access to reqh rpc machines. */
-	struct c2_rwlock         rh_rpcml_rwlock;
-
 	/** provides protected access to reqh members. */
-	struct c2_mutex          rh_lock;
+	struct c2_rwlock         rh_rwlock;
 
 	/**
 	    True if request handler received a shutdown signal.
@@ -106,6 +101,8 @@ struct c2_reqh {
 	    if this flag is set.
 	 */
 	bool                     rh_shutdown;
+
+	struct c2_addb_ctx      *rh_addb;
 
 	/**
 	    Channel to wait on for reqh shutdown.
@@ -137,8 +134,8 @@ struct c2_reqh {
 		-errno, in case of failure
  */
 int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
-                struct c2_stob_domain *stdom, struct c2_dbenv *db,
-                struct c2_cob_domain *cdom, struct c2_fol *fol);
+			struct c2_stob_domain *stdom, struct c2_dbenv *db,
+			struct c2_cob_domain *cdom, struct c2_fol *fol);
 
 bool c2_reqh_invariant(const struct c2_reqh *reqh);
 
@@ -314,9 +311,6 @@ void c2_reqhs_fini(void);
  */
 struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
 						struct c2_reqh *reqh);
-
-struct c2_rpc_machine *c2_reqh_rpc_machine_get(struct c2_reqh *reqh,
-						const struct c2_net_xprt *xprt);
 
 /** Descriptor for tlist of request handler services. */
 C2_TL_DESCR_DECLARE(c2_reqh_svc, extern);
