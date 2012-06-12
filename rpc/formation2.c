@@ -485,11 +485,11 @@ frm_try_to_bind_item(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
 	       item->ri_session != NULL &&
 	       c2_rpc_item_is_unbound(item));
 	C2_PRE(frm->f_ops != NULL &&
-	       frm->f_ops->fo_bind_item != NULL);
+	       frm->f_ops->fo_item_bind != NULL);
 	C2_LOG("session: %p id: %llu", item->ri_session,
 				       (ULL)item->ri_session->s_session_id);
 
-	result = frm->f_ops->fo_bind_item(item);
+	result = frm->f_ops->fo_item_bind(item);
 
 	C2_LEAVE("result: %s", bool_to_str(result));
 	return result;

@@ -14,23 +14,28 @@
 static bool packet_ready(struct c2_rpc_packet  *p,
 			 struct c2_rpc_machine *machine,
 			 struct c2_rpc_chan    *rchan);
-static bool bind_item(struct c2_rpc_item *item);
+static bool item_bind(struct c2_rpc_item *item);
 
-int net_buffer_allocate(struct c2_net_buffer *netbuf,
-			struct c2_net_domain *ndom,
-			c2_bcount_t           buf_size);
+static int net_buffer_allocate(struct c2_net_buffer *netbuf,
+			       struct c2_net_domain *ndom,
+			       c2_bcount_t           buf_size);
 
 static void net_buffer_free(struct c2_net_buffer *netbuf,
 			    struct c2_net_domain *ndom);
 
-void get_bufvec_geometry(struct c2_net_domain *ndom,
-			 c2_bcount_t           buf_size,
-			 int32_t              *out_nr_segments,
-			 c2_bcount_t          *out_segment_size);
+static void get_bufvec_geometry(struct c2_net_domain *ndom,
+				c2_bcount_t           buf_size,
+				int32_t              *out_nr_segments,
+				c2_bcount_t          *out_segment_size);
 
+static void item_done(struct c2_rpc_item *item, unsigned long rc);
+
+/*
+ * This is the only symbol exported from this file.
+ */
 struct c2_rpc_frm_ops c2_rpc_frm_default_ops = {
 	.fo_packet_ready = packet_ready,
-	.fo_bind_item    = bind_item,
+	.fo_item_bind    = item_bind,
 };
 
 struct rpc_buffer {
@@ -40,20 +45,20 @@ struct rpc_buffer {
 	struct c2_rpc_chan    *rb_rchan;
 };
 
-int rpc_buffer_init(struct rpc_buffer     *rpcbuf,
-		    struct c2_rpc_packet  *p,
-		    struct c2_rpc_machine *mahcine,
-		    struct c2_rpc_chan    *rchan);
+static int rpc_buffer_init(struct rpc_buffer     *rpcbuf,
+			   struct c2_rpc_packet  *p,
+			   struct c2_rpc_machine *mahcine,
+			   struct c2_rpc_chan    *rchan);
 
-int rpc_buffer_submit(struct rpc_buffer *rpcbuf);
+static int rpc_buffer_submit(struct rpc_buffer *rpcbuf);
 
-void rpc_buffer_fini(struct rpc_buffer *rpcbuf);
+static void rpc_buffer_fini(struct rpc_buffer *rpcbuf);
 
-void out_buffer_event_handler(const struct c2_net_buffer_event *ev);
+static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev);
 
-const struct c2_net_buffer_callbacks send_buf_callbacks = {
+static const struct c2_net_buffer_callbacks outgoing_buf_callbacks = {
 	.nbc_cb = {
-		[C2_NET_QT_MSG_SEND] = out_buffer_event_handler
+		[C2_NET_QT_MSG_SEND] = outgoing_buf_event_handler
 	}
 };
 
@@ -101,10 +106,10 @@ out:
 	return false;
 }
 
-int rpc_buffer_init(struct rpc_buffer     *rpcbuf,
-		    struct c2_rpc_packet  *p,
-		    struct c2_rpc_machine *machine,
-		    struct c2_rpc_chan    *rchan)
+static int rpc_buffer_init(struct rpc_buffer     *rpcbuf,
+			   struct c2_rpc_packet  *p,
+			   struct c2_rpc_machine *machine,
+			   struct c2_rpc_chan    *rchan)
 {
 	struct c2_net_buffer *netbuf;
 	struct c2_net_domain *ndom;
@@ -142,9 +147,9 @@ out:
 	return rc;
 }
 
-int net_buffer_allocate(struct c2_net_buffer *netbuf,
-			struct c2_net_domain *ndom,
-			c2_bcount_t           buf_size)
+static int net_buffer_allocate(struct c2_net_buffer *netbuf,
+			       struct c2_net_domain *ndom,
+			       c2_bcount_t           buf_size)
 {
 	c2_bcount_t segment_size;
 	int32_t     nr_segments;
@@ -173,10 +178,10 @@ out:
 	return rc;
 }
 
-void get_bufvec_geometry(struct c2_net_domain *ndom,
-			 c2_bcount_t           buf_size,
-			 int32_t              *out_nr_segments,
-			 c2_bcount_t          *out_segment_size)
+static void get_bufvec_geometry(struct c2_net_domain *ndom,
+				c2_bcount_t           buf_size,
+				int32_t              *out_nr_segments,
+				c2_bcount_t          *out_segment_size)
 {
 	c2_bcount_t max_buf_size;
 	c2_bcount_t max_segment_size;
@@ -232,7 +237,7 @@ static void net_buffer_free(struct c2_net_buffer *netbuf,
 	C2_LEAVE();
 }
 
-int rpc_buffer_submit(struct rpc_buffer *rpcbuf)
+static int rpc_buffer_submit(struct rpc_buffer *rpcbuf)
 {
 	struct c2_net_buffer *netbuf;
 	int                   rc;
@@ -244,7 +249,7 @@ int rpc_buffer_submit(struct rpc_buffer *rpcbuf)
 	netbuf = &rpcbuf->rb_netbuf;
 
 	netbuf->nb_qtype     = C2_NET_QT_MSG_SEND;
-	netbuf->nb_callbacks = &send_buf_callbacks;
+	netbuf->nb_callbacks = &outgoing_buf_callbacks;
 
 	rc = c2_net_buffer_add(netbuf, &rpcbuf->rb_machine->rm_tm);
 
@@ -252,7 +257,7 @@ int rpc_buffer_submit(struct rpc_buffer *rpcbuf)
 	return rc;
 }
 
-void rpc_buffer_fini(struct rpc_buffer *rpcbuf)
+static void rpc_buffer_fini(struct rpc_buffer *rpcbuf)
 {
 	struct c2_net_domain *ndom;
 
@@ -267,7 +272,7 @@ void rpc_buffer_fini(struct rpc_buffer *rpcbuf)
 	C2_LEAVE();
 }
 
-void out_buffer_event_handler(const struct c2_net_buffer_event *ev)
+static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 {
 	struct c2_net_buffer  *netbuf;
 	struct rpc_buffer     *rpcbuf;
@@ -291,11 +296,7 @@ void out_buffer_event_handler(const struct c2_net_buffer_event *ev)
 	p = rpcbuf->rb_packet;
 	p->rp_status = ev->nbe_status;
 
-	if (ev->nbe_status == 0)
-		c2_rpc_packet_sent(p);
-	else
-		c2_rpc_packet_failed(p, ev->nbe_status);
-
+	c2_rpc_packet_traverse_items(p, item_done, ev->nbe_status);
 	c2_rpc_frm_packet_done(p);
 	c2_rpc_packet_remove_all_items(p);
 	c2_rpc_packet_fini(p);
@@ -307,7 +308,22 @@ void out_buffer_event_handler(const struct c2_net_buffer_event *ev)
 	C2_LEAVE();
 }
 
-static bool bind_item(struct c2_rpc_item *item)
+static void item_done(struct c2_rpc_item *item, unsigned long rc)
+{
+	C2_ENTRY("item: %p rc: %lu", item, rc);
+	C2_PRE(item != NULL);
+
+	/** @todo XXX implement SENT/FAILED callback */
+	item->ri_state = rc == 0 ? RPC_ITEM_SENT : RPC_ITEM_SEND_FAILED;
+	item->ri_error = rc;
+
+	if (c2_rpc_item_is_bound(item))
+		c2_rpc_session_release(item->ri_session);
+
+	C2_LEAVE();
+}
+
+static bool item_bind(struct c2_rpc_item *item)
 {
 	bool result;
 

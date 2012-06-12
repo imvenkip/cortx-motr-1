@@ -62,13 +62,13 @@ static bool packet_ready(struct c2_rpc_packet  *p,
 	c2_free(p);
 	return true;
 }
-static bool frm_bind_item(struct c2_rpc_item *item)
+static bool frm_item_bind(struct c2_rpc_item *item)
 {
 	item->ri_slot_refs[0].sr_slot = &slot;
 	++bound_item_count;
 	return true;
 }
-static bool frm_bind_item_on_second_turn(struct c2_rpc_item *item)
+static bool frm_item_bind_on_second_turn(struct c2_rpc_item *item)
 {
 	static bool first_time = true;
 
@@ -81,7 +81,7 @@ static bool frm_bind_item_on_second_turn(struct c2_rpc_item *item)
 }
 static struct c2_rpc_frm_ops frm_ops = {
 	.fo_packet_ready = packet_ready,
-	.fo_bind_item    = frm_bind_item
+	.fo_item_bind    = frm_item_bind
 };
 
 static void frm_init_test(void)
@@ -192,7 +192,7 @@ static void frm_enq_item_test(void)
 	C2_UT_ASSERT(pcount == 4);
 	C2_UT_ASSERT(bound_item_count == 2);
 
-	frm_ops.fo_bind_item = frm_bind_item_on_second_turn;
+	frm_ops.fo_item_bind = frm_item_bind_on_second_turn;
 	C2_ALLOC_PTR(item);
 	C2_ASSERT(item != NULL);
 	item->ri_deadline             = c2_time(0, 0);
@@ -217,7 +217,7 @@ static void frm_enq_item_test(void)
 	C2_UT_ASSERT(item->ri_itemq == NULL);
 	c2_free(item);
 
-	frm_ops.fo_bind_item = frm_bind_item;
+	frm_ops.fo_item_bind = frm_item_bind;
 	C2_ALLOC_PTR(item);
 	C2_UT_ASSERT(item != NULL);
 	item->ri_deadline             = c2_time_from_now(1, 0);

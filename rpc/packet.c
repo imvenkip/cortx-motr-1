@@ -206,42 +206,20 @@ static int item_encode(struct c2_rpc_item       *item,
 	return rc;
 }
 
-void c2_rpc_packet_sent(struct c2_rpc_packet *p)
+void c2_rpc_packet_traverse_items(struct c2_rpc_packet *p,
+				  item_visit_fn        *visit,
+				  unsigned long         opaque_data)
 {
 	struct c2_rpc_item *item;
 
-	C2_ENTRY("p: %p", p);
-	C2_PRE(c2_rpc_packet_invariant(p));
+	C2_ENTRY("p: %p visit: %p", p, visit);
+	C2_ASSERT(c2_rpc_packet_invariant(p));
 	C2_LOG("nr_items: %u", (unsigned int)p->rp_nr_items);
 
 	c2_tl_for(packet_item, &p->rp_items, item) {
-		C2_LOG("item %p SENT", item);
-		/* implement SENT callback here */
-		item->ri_state = RPC_ITEM_SENT;
-		item->ri_error = 0;
-		if (c2_rpc_item_is_bound(item))
-			c2_rpc_session_release(item->ri_session);
+		visit(item, opaque_data);
 	} c2_tl_endfor;
 
-	C2_LEAVE();
-}
-
-void c2_rpc_packet_failed(struct c2_rpc_packet *p, int rc)
-{
-	struct c2_rpc_item *item;
-
-	C2_ENTRY("p: %p", p);
-	C2_PRE(c2_rpc_packet_invariant(p));
-	C2_LOG("nr_items: %u", (unsigned int)p->rp_nr_items);
-
-	c2_tl_for(packet_item, &p->rp_items, item) {
-		C2_LOG("item %p SEND_FAILED rc[%d]", item, rc);
-		/* implement FAILED callback here */
-		item->ri_state = RPC_ITEM_SEND_FAILED;
-		item->ri_error = rc;
-		if (c2_rpc_item_is_bound(item))
-			c2_rpc_session_release(item->ri_session);
-	} c2_tl_endfor;
-
+	C2_ASSERT(c2_rpc_packet_invariant(p));
 	C2_LEAVE();
 }

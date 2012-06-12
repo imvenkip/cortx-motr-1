@@ -40,7 +40,7 @@ struct c2_rpc_frm_ops {
 	bool (*fo_packet_ready)(struct c2_rpc_packet  *p,
 				struct c2_rpc_machine *machine,
 				struct c2_rpc_chan    *rchan);
-	bool (*fo_bind_item)(struct c2_rpc_item *item);
+	bool (*fo_item_bind)(struct c2_rpc_item *item);
 };
 
 struct c2_rpc_frm {

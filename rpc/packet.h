@@ -42,4 +42,9 @@ int c2_rpc_packet_decode_using_cursor(struct c2_rpc_packet    *packet,
 void c2_rpc_packet_sent(struct c2_rpc_packet *packet);
 void c2_rpc_packet_failed(struct c2_rpc_packet *packet, int rc);
 
+typedef void item_visit_fn(struct c2_rpc_item *item, unsigned long data);
+void c2_rpc_packet_traverse_items(struct c2_rpc_packet *p,
+				  item_visit_fn        *visit,
+				  unsigned long         opaque_data);
+
 #endif
