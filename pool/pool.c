@@ -49,17 +49,14 @@ bool c2_pool_id_is_valid(uint64_t pool_id)
 	return pool_id != POOL_ID_NONE && pool_id <= MAX_POOL_ID;
 }
 
-
 int c2_pool_init(struct c2_pool *pool, uint64_t pid, uint32_t width)
 {
-	C2_ASSERT(pid <= MAX_POOL_ID);
-	C2_ASSERT(pool_list[pid] == NULL);
+	C2_PRE(pid <= MAX_POOL_ID);
+	C2_PRE(pool_list[pid] == NULL);
 
 	pool->po_id = pid;
 	pool->po_width = width;
-
 	pool_list[pool->po_id] = pool;
-
 	return 0;
 }
 
@@ -82,7 +79,6 @@ int c2_pool_lookup(uint64_t pid, struct c2_pool **out)
 
 	if(pool_list[pid] == NULL)
 		return -EINVAL;
-
 	*out = pool_list[pid];
 	return 0;
 }
