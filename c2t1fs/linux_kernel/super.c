@@ -34,7 +34,7 @@ enum {
 	 * This is temporary arrangement until the time configuration caching
 	 * module is in place. Look at pool/pool.h for more details.
 	 */
-	DEF_POOL_ID = 9
+	DEFAULT_POOL_ID = 9
 };
 
 /* Super block */
@@ -179,7 +179,7 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	if (rc != 0)
 		goto out_fini;
 
-	rc = c2_pool_init(&csb->csb_pool, DEF_POOL_ID, pool_width);
+	rc = c2_pool_init(&csb->csb_pool, DEFAULT_POOL_ID, pool_width);
 	if (rc != 0)
 		goto out_fini;
 

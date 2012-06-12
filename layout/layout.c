@@ -35,6 +35,11 @@
  * - Reference count is maintained for each of the layout types and enum types.
  *   This is to help verify that no layout type or enum type gets unregistered
  *   while any of the layout object or enum object is using it.
+ * - Reference count is maintained for each of the layout object indicating
+ *   how many users are associated with a particular layout object. This helps
+ *   to confirm that no layout object gets deleted while any user is associated
+ *   with it. It also helps to confirm that the layout object gets deleted
+ *   while its last reference gets released.
  * - Various tables those are part of layout DB, directly or indirectly
  *   pointed by struct c2_layout_schema, are protected by using
  *   c2_layout_schema::ls_lock.
@@ -724,7 +729,7 @@ void c2_layouts_fini(void)
 
 /**
  * Initialises layout domain - Initialises arrays to hold the objects for
- * layout types and enum types and initializes the schema object.
+ * layout types and enum types and initialises the schema object.
  * @pre Caller should have performed c2_dbenv_init() on dbenv.
  */
 int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
@@ -1255,14 +1260,11 @@ int c2_layout_encode(struct c2_layout *l,
 	C2_ASSERT(nbytes == sizeof rec);
 
 	rc = lt->lt_ops->lto_encode(l, op, tx, oldrec_cur, out);
-	if (rc != 0) {
+	if (rc != 0)
 		c2_layout__log("c2_layout_encode", "lto_encode() failed",
 			       op == C2_LXO_BUFFER_OP, TRACE_RECORD_ADD,
 			       &layout_encode_fail, &l->l_addb, l->l_id, rc);
-		goto out;
-	}
 
-out:
 	c2_mutex_unlock(&l->l_lock);
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;

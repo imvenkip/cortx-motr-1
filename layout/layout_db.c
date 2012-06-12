@@ -52,7 +52,9 @@
  * <HR>
  * @section Layout-DB-def Definitions
  *   - COB: COB is component object and is defined at
- *   <a href="https://docs.google.com/a/xyratex.com/spreadsheet/ccc?key=0Ajg1HFjUZcaZdEpJd0tmM3MzVy1lMG41WWxjb0t4QkE&hl=en_US#gid=0">C2 Glossary</a>
+ *   <a href="https://docs.google.com/a/xyratex.com/spreadsheet/ccc?
+ *    key=0Ajg1HFjUZcaZdEpJd0tmM3MzVy1lMG41WWxjb0t4QkE&hl=en_US#gid=0">
+ *    C2 Glossary</a>
  *
  * <HR>
  * @section Layout-DB-req Requirements
@@ -275,12 +277,7 @@
  *         parameters in the stored formula derives the real mapping
  *         information that is the list of COB identifiers.
  *    - Garbage Collection:
- *       - A layout with PDCLUST layout type and with LIST enumeration
- *         is deleted when its last reference is released. Similarlly, a
- *         layout with COMPOSITE layout is deleted when its last reference
- *         is released.
- *       - A layout with PDCLUST layout type and with LINEAR enumeration
- *         method is never deleted and thus can be reused.
+ *       - A layout is deleted when its last reference is released.
  * - I.LAYOUT.SCHEMA.Sub-Layouts: COMPOSITE type of layout is used to
  *     store sub-layouts.
  *
@@ -333,9 +330,12 @@
  *
  * <HR>
  * @section Layout-DB-ref References
- * - <a href="https://docs.google.com/a/xyratex.com/document/d/15-G-tUZfSuK6lpOuQ_Hpbw1jJ55MypVhzGN2r1yAZ4Y/edit?hl=en_US
-">HLD of Layout Schema</a>
- * - <a href="https://docs.google.com/a/xyratex.com/document/d/12olF9CWN35HCkz-ZcEH_c0qoS8fzTxuoTqCCDN9EQR0/edit?hl=en_US#heading=h.gz7460ketfn1">Understanding LayoutSchema</a>
+ * - <a href="https://docs.google.com/a/xyratex.com/document/d/
+ *    15-G-tUZfSuK6lpOuQ_Hpbw1jJ55MypVhzGN2r1yAZ4Y/edit?hl=en_US">
+ *    HLD of Layout Schema</a>
+ * - <a href="https://docs.google.com/a/xyratex.com/document/d/
+ *    12olF9CWN35HCkz-ZcEH_c0qoS8fzTxuoTqCCDN9EQR0/edit?hl=en_US#
+ *    heading=h.gz7460ketfn1">Understanding LayoutSchema</a>
  *
  */
 

@@ -25,7 +25,7 @@
  */
 
 #include "lib/errno.h"
-#include "lib/tlist.h"	/* struct c2_tl */
+#include "lib/tlist.h"  /* struct c2_tl */
 #include "lib/vec.h"    /* c2_bufvec_cursor_step(), c2_bufvec_cursor_addr() */
 #include "lib/memory.h" /* C2_ALLOC_PTR() */
 #include "lib/misc.h"   /* C2_IN() */
@@ -299,7 +299,7 @@ static int linear_encode(const struct c2_layout_enum *le,
 
 /**
  * Implementation of leo_nr for LINEAR enumeration.
- * Rerurns number of objects in the enumeration.
+ * Returns number of objects in the enumeration.
  */
 static uint32_t linear_nr(const struct c2_layout_enum *le)
 {
@@ -320,7 +320,7 @@ static uint32_t linear_nr(const struct c2_layout_enum *le)
 
 /**
  * Implementation of leo_get for LINEAR enumeration.
- * Rerurns idx-th object from the enumeration.
+ * Returns idx-th object from the enumeration.
  */
 static void linear_get(const struct c2_layout_enum *le, uint32_t idx,
 		       const struct c2_fid *gfid, struct c2_fid *out)

@@ -520,7 +520,7 @@ static int noninline_cob_list_write(const struct c2_layout_schema *schema,
 	struct c2_db_pair        pair;
 	struct c2_db_cursor      cursor;
 	uint32_t                 i;
-	int                      rc = 0;
+	int                      rc;
 
 	C2_PRE(schema != NULL);
 	C2_PRE(tx != NULL);
@@ -628,7 +628,7 @@ static int list_encode(const struct c2_layout_enum *le,
 	c2_bcount_t                 nbytes;
 	uint64_t                    lid;
 	uint32_t                    i;
-	int                         rc = 0;
+	int                         rc;
 
 	C2_PRE(le != NULL);
 	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
@@ -686,6 +686,7 @@ static int list_encode(const struct c2_layout_enum *le,
 				num_inline *
 				sizeof list_enum->lle_list_of_cobs[i]));
 
+	rc = 0;
 	for (i = 0; i < list_enum->lle_nr; ++i) {
 		if (i < num_inline || op == C2_LXO_BUFFER_OP) {
 			if (i == 0)
@@ -708,19 +709,17 @@ static int list_encode(const struct c2_layout_enum *le,
 			 * The auxiliary table viz. cob_lists is not to be
 			 * modified for an update operation.
 			 */
-			rc = 0;
 			break;
 		} else
 			/*
-			 * When op == C2_LXO_DB_ADD or C2_LXO_DB_DELETE,
+			 * When op is C2_LXO_DB_ADD or C2_LXO_DB_DELETE,
 			 * noninline entries are to be written to the DB.
 			 */
 			break;
 	}
 	/*
 	 * At the end of the above for loop, rc remains 0, in the following
-	 * cases (with rc being initialised to 0 at the beginning of this
-	 * function).
+	 * cases (with rc being set to 0 just before starting this loop).
 	 */
 	C2_ASSERT(ergo(num_inline == list_enum->lle_nr ||
 		       op == C2_LXO_BUFFER_OP ||
@@ -784,10 +783,10 @@ static void list_get(const struct c2_layout_enum *le, uint32_t idx,
 	C2_ASSERT(list_enum_invariant(list_enum));
 	C2_ASSERT(idx < list_enum->lle_nr);
 	C2_ASSERT(c2_fid_is_valid(&list_enum->lle_list_of_cobs[idx]));
+	*out = list_enum->lle_list_of_cobs[idx];
 	C2_LEAVE("lid %llu, enum_pointer %p, fid_pointer %p",
 		 (unsigned long long)le->le_l->l_id, le, out);
 
-	*out = list_enum->lle_list_of_cobs[idx];
 }
 
 static const struct c2_layout_enum_ops list_enum_ops = {

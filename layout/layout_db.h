@@ -57,12 +57,16 @@ int c2_layout_delete(struct c2_layout *l, struct c2_db_tx *tx, struct c2_db_pair
  *   attributes table).
  * - The layout id is obtained from the basic file attributes.
  * - A query is sent to the Layout module to obtain layout for this layout id.
- * - Layout module checks if the layout record is cached and if not, it reads
- *   the layout record from the layout DB. Examples are:
+ *   - c2_layout_find() is used to return the layout object if the layout
+ *     record is cached.
+ *   - If the layout record is not cached, c2_layout_lookup() is used to
+ *     return the layout object by reading it from the layout DB.
+ * - Reading a layout record from the layout DB involves the following for
+ *   example:
  *    - If the layout record is with the LINEAR enumeration, then the
- *      linear formula is obtained from the DB, required parameters are
- *      substituted into the formula and thus the list of COB identifiers is
- *      obtained to operate upon.
+ *      linear formula is obtained from the DB. Once the formula is available,
+ *      the user can substitute the required parameters into the formula so as
+ *      to obtain the list of COB identifiers to operate upon.
  *    - If the layout record is with the LIST enumeration, then the
  *      the list of COB identifiers is obtained from the layout DB itself.
  *    - If the layout record is of the COMPOSITE layout type, it means it

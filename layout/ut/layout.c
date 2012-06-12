@@ -1511,7 +1511,7 @@ static int test_encode_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	struct c2_layout_list_enum   *list_enum;
 	struct c2_layout_linear_enum *lin_enum;
 	struct c2_layout             *l;
-	struct c2_layout             *l_copy = NULL;
+	struct c2_layout             *l_copy;
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);

@@ -367,7 +367,7 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 	/**
 	 * @todo A dummy enumeration object is being created here.
 	 * c2t1fs code is not making use of this enumeration object, at this
-	 * point.
+	 * point. It will be taken care of by the task c2t1fs.LayoutDB.
 	 */
 	rc = c2_linear_enum_build(&c2t1fs_globals.g_layout_dom,
 				  pool->po_width, 100, 200, &le);

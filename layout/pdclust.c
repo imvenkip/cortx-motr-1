@@ -505,9 +505,8 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 					       (unsigned long long)lid, rc);
 			}
 		} else
-			C2_LOG("lid %llu, "
-			       "c2_layout__striped_init() failed, rc %d",
-			       (unsigned long long)lid, rc);
+			C2_LOG("lid %llu, c2_layout__striped_init() failed, "
+			       "rc %d", (unsigned long long)lid, rc);
 	} else {
 		rc = -ENOMEM;
 		c2_layout__log("pdclust_build", "C2_ALLOC() failed",
@@ -607,11 +606,11 @@ static int pdclust_decode(struct c2_layout_domain *dom,
 			  struct c2_bufvec_cursor *cur,
 		          struct c2_layout **out)
 {
-	struct c2_pdclust_layout     *pl = NULL;
+	struct c2_pdclust_layout     *pl;
 	struct c2_layout_pdclust_rec *pl_rec;
 	struct c2_layout_enum_type   *et;
-	struct c2_layout_enum        *e = NULL;
-	struct c2_pool               *pool = NULL;
+	struct c2_layout_enum        *e;
+	struct c2_pool               *pool;
 	int                           rc;
 
 	C2_PRE(dom != NULL);
