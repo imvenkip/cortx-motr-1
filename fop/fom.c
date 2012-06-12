@@ -600,10 +600,10 @@ static int locality_init(struct c2_fom_locality *loc, struct c2_bitmap *pmap)
 			}
 		}
 
-                if (ncpus > MIN_CPU_NR)
-                        loc->fl_lo_idle_threads_nr = ncpus/2;
-                else
-                        loc->fl_lo_idle_threads_nr = ncpus;
+		if (ncpus > MIN_CPU_NR)
+			loc->fl_lo_idle_threads_nr = ncpus/2;
+		else
+			loc->fl_lo_idle_threads_nr = ncpus;
 
 		loc->fl_hi_idle_threads_nr = ncpus;
 

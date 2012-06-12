@@ -180,7 +180,6 @@ static int ios_create_buffer_pool(struct c2_reqh_service *service)
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
 
 	reqh = service->rs_reqh;
-	//c2_rwlock_read_lock(&reqh->rh_rpcml_rwlock);
 	c2_rwlock_read_lock(&reqh->rh_rwlock);
         c2_tlist_for(&c2_reqh_rpc_mach_tl, &reqh->rh_rpc_machines, rpcmach) {
 		C2_ASSERT(c2_rpc_machine_bob_check(rpcmach));
@@ -250,7 +249,6 @@ static int ios_create_buffer_pool(struct c2_reqh_service *service)
 		bufferpools_tlist_add(&serv_obj->rios_buffer_pools, newbp);
 
         } c2_tl_endfor; /* rpc_machines */
-	//c2_rwlock_read_unlock(&reqh->rh_rpcml_rwlock);
 	c2_rwlock_read_unlock(&reqh->rh_rwlock);
 
         return rc;

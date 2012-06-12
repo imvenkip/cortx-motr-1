@@ -723,7 +723,6 @@ static void cs_rpc_machines_fini(struct c2_reqh *reqh)
 	c2_tl_for(c2_reqh_rpc_mach, &reqh->rh_rpc_machines, rpcmach) {
 		C2_ASSERT(c2_rpc_machine_bob_check(rpcmach));
 		c2_reqh_rpc_mach_tlink_del_fini(rpcmach);
-		//c2_rpc_machine_bob_fini(rpcmach);
 		c2_rpc_machine_fini(rpcmach);
 		c2_free(rpcmach);
 	} c2_tl_endfor;
@@ -1127,17 +1126,18 @@ static void cs_net_domains_fini(struct c2_colibri *cctx)
 
    @param rctx Request handler context to be initialised
  */
-static int cs_request_handler_start(struct cs_reqh_context *rctx,
-					struct c2_addb_ctx *addb)
+static int cs_request_handler_start(struct cs_reqh_context *rctx)
 {
 	int                      rc;
 	struct c2_cs_reqh_stobs *rstob;
 	struct c2_stob_domain   *sdom;
+	struct c2_addb_ctx      *addb;
 
 	rc = c2_dbenv_init(&rctx->rc_db, rctx->rc_dbpath, 0);
 	if (rc != 0)
 		goto out;
 
+	addb = &rctx->rc_colibri->cc_addb;
 	rc = c2_cs_storage_init(rctx->rc_stype, rctx->rc_stpath, &rctx->rc_stob,
 				&rctx->rc_db, addb);
 	if (rc != 0)
@@ -1194,7 +1194,7 @@ static int cs_request_handlers_start(struct c2_colibri *cctx)
 	ofd = cctx->cc_outfile;
         c2_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
 		C2_ASSERT(cs_reqh_context_invariant(rctx));
-		rc = cs_request_handler_start(rctx, &cctx->cc_addb);
+		rc = cs_request_handler_start(rctx);
 		if (rc != 0) {
 			C2_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc,
 					colibri_setup_func_fail,
