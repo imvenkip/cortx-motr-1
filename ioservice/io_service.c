@@ -231,8 +231,8 @@ static int ios_create_buffer_pool(struct c2_reqh_service *service)
 		c2_net_buffer_pool_lock(&newbp->rios_bp);
 		nbuffs = c2_net_buffer_pool_provision(&newbp->rios_bp,
 					network_buffer_pool_initial_size);
-		if (nbuffs <= 0) {
-			rc = -errno;
+		if (nbuffs < network_buffer_pool_initial_size) {
+			rc = -ENOMEM;
 			c2_chan_fini(&newbp->rios_bp_wait);
 			/* It releases lock on buffer pool. */
 			c2_net_buffer_pool_fini(&newbp->rios_bp);

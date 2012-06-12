@@ -83,9 +83,9 @@ C2_TL_DEFINE(ut_rhsrv, static, struct c2_reqh_service);
 
 static int get_ioservice_buffer_pool_count(struct c2_rpc_server_ctx *sctx)
 {
-	struct cs_reqh_context		*reqh_ctx;
-	int				 nbp;
-	struct c2_reqh_io_service       *serv_obj = NULL;
+	struct cs_reqh_context	  *reqh_ctx;
+	int			   nbp;
+	struct c2_reqh_io_service *serv_obj = NULL;
 
 	c2_tl_for(ut_rhctx, &sctx->rsx_colibri_ctx.cc_reqh_ctxs, reqh_ctx) {
 		struct c2_reqh_service *reqh_ios;
@@ -110,8 +110,8 @@ static int get_ioservice_buffer_pool_count(struct c2_rpc_server_ctx *sctx)
 
 static int check_buffer_pool_per_domain(char *cs_argv[], int cs_argc, int nbp)
 {
-	int	rc;
-	int	bp_count;
+	int rc;
+	int bp_count;
 
 	C2_RPC_SERVER_CTX_DECLARE(sctx, cs_xprts, ARRAY_SIZE(cs_xprts),
 				  cs_argv, cs_argc, SERVER_LOG_FILE_NAME);
