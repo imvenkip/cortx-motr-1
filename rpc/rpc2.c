@@ -365,8 +365,9 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 			   struct c2_net_end_point *dest_ep,
 			   uint64_t max_rpcs_in_flight)
 {
-	struct c2_rpc_frm_constraints constraints;
-	struct c2_rpc_chan *ch;
+	struct c2_rpc_frm_constraints  constraints;
+	struct c2_net_domain          *ndom;
+	struct c2_rpc_chan            *ch;
 
 	C2_PRE(chan != NULL);
 	C2_PRE(dest_ep != NULL);
@@ -385,10 +386,18 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 	c2_ref_init(&ch->rc_ref, 1, rpc_chan_ref_release);
 	c2_net_end_point_get(dest_ep);
 
-	c2_rpc_frm_constraints_get_defaults(&constraints);
+	ndom = machine->rm_tm.ntm_dom;
+
 	constraints.fc_max_nr_packets_enqed = max_rpcs_in_flight;
+	constraints.fc_max_packet_size =
+				c2_net_domain_get_max_buffer_size(ndom);
+	constraints.fc_max_nr_segments =
+				c2_net_domain_get_max_buffer_segments(ndom);
+	constraints.fc_max_nr_bytes_accumulated =
+				constraints.fc_max_packet_size;
+
 	c2_rpc_frm_init(&ch->rc_frm, machine, ch,
-			constraints, NULL /* use default ops */);
+			constraints, &c2_rpc_frm_default_ops);
 	c2_list_add(&machine->rm_chans, &ch->rc_linkage);
 	*chan = ch;
 	return 0;
@@ -850,10 +859,9 @@ int c2_rpc_machine_init(struct c2_rpc_machine *machine,
 	if (C2_FI_ENABLED("fake_error"))
 		return -EINVAL;
 
+	C2_SET0(machine);
 	machine->rm_dom  = dom;
 	machine->rm_reqh = reqh;
-
-	C2_SET_ARR0(machine->rm_rpc_stats);
 
 	c2_list_init(&machine->rm_chans);
 	c2_list_init(&machine->rm_incoming_conns);

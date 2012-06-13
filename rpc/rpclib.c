@@ -167,7 +167,7 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 	item->ri_ops      = ri_ops;
 	item->ri_session  = session;
 	item->ri_prio     = C2_RPC_ITEM_PRIO_MAX;
-	item->ri_deadline = c2_time_from_now(2, 0);
+	item->ri_deadline = 0;
 
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&item->ri_chan, &clink);

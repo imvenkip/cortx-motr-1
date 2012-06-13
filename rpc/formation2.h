@@ -16,6 +16,8 @@ struct c2_rpc_frm_constraints {
 	c2_bcount_t fc_max_nr_bytes_accumulated;
 };
 
+extern struct c2_rpc_frm_ops c2_rpc_frm_default_ops;
+
 void
 c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *constraint);
 

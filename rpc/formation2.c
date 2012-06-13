@@ -113,6 +113,8 @@ static bool frm_invariant(const struct c2_rpc_frm *frm)
 	       frm->f_state > FRM_UNINITIALISED &&
 	       frm->f_state < FRM_NR_STATES &&
 	       frm->f_rmachine != NULL &&
+	       frm->f_ops != NULL &&
+	       frm->f_rchan != NULL &&
 	       ergo(frm->f_state == FRM_IDLE, frm->f_nr_items == 0) &&
 	       ergo(frm->f_state == FRM_BUSY, frm->f_nr_items > 0) &&
 	       c2_forall(i, FRMQ_NR_QUEUES,
@@ -152,14 +154,15 @@ void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
 	struct c2_tl *q;
 
 	C2_ENTRY("frm: %p rmachine %p", frm, rmachine);
-	C2_PRE(frm != NULL &&
+	C2_PRE(frm      != NULL &&
 	       rmachine != NULL &&
-	       rchan != NULL &&
+	       rchan    != NULL &&
+	       ops      != NULL &&
 	       constraints_are_valid(&constraints));
 
 	C2_SET0(frm);
 	frm->f_rmachine    = rmachine;
-	frm->f_ops         = ops == NULL ? &c2_rpc_frm_default_ops : ops;
+	frm->f_ops         = ops;
 	frm->f_rchan       = rchan;
 	frm->f_constraints = constraints; /* structure instance copy */
 
