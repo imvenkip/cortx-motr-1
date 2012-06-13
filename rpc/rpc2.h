@@ -160,7 +160,7 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 #include "rpc/session.h"
 #include "addb/addb.h"
 #include "rpc/rpc_base.h"
-#include "rpc/formation2.h"
+#include "rpc/formation2.h"     /* c2_rpc_frm */
 
 enum c2_rpc_item_priority {
 	C2_RPC_ITEM_PRIO_MIN,
@@ -170,7 +170,7 @@ enum c2_rpc_item_priority {
 };
 
 #include "rpc/formation.h"
-struct c2_rpc_frm;
+
 struct page;
 struct c2_rpc;
 struct c2_rpc_item;
@@ -329,7 +329,6 @@ struct c2_rpc_item {
 	struct c2_tlink                  ri_iq_link;
 	struct c2_tlink                  ri_plink;
 	struct c2_tl                    *ri_itemq;
-	struct c2_rpc_frm               *ri_frm;
 	/** Magic constatnt to verify sanity of linked rpc items. */
 	uint64_t			 ri_link_magic;
 };
@@ -360,18 +359,7 @@ struct c2_rpc_stats {
 	uint64_t	rs_rpcs_nr;
 };
 
-/**
-   Associate an rpc with its corresponding rpc_item_type.
-   Since rpc_item_type by itself can not be uniquely identified,
-   rather it is tightly bound to its fop_type, the fop_type_code
-   is passed, based on which the rpc_item is associated with its
-   rpc_item_type.
- */
-void c2_rpc_item_type_attach(struct c2_fop_type *fopt);
-
 void c2_rpc_item_init(struct c2_rpc_item *item);
-
-void c2_rpc_item_fini(struct c2_rpc_item *item);
 
 void c2_rpc_item_fini(struct c2_rpc_item *item);
 

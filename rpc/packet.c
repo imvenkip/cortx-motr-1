@@ -15,7 +15,7 @@ static int item_encode(struct c2_rpc_item       *item,
 		       struct c2_bufvec_cursor  *cursor);
 
 enum {
-	PACKET_HEAD_MAGIC = 0x1111000011110000
+	PACKET_HEAD_MAGIC = 0x525041434b4554 /* "RPACKET" */
 };
 C2_TL_DESCR_DEFINE(packet_item, "packet_item", static, struct c2_rpc_item,
                    ri_plink, ri_link_magic, C2_RPC_ITEM_FIELD_MAGIC,
@@ -70,9 +70,8 @@ void c2_rpc_packet_add_item(struct c2_rpc_packet *p,
 	++p->rp_nr_items;
 	p->rp_size += c2_rpc_item_size(item);
 
-	C2_LOG("nr_items: %llu packet size: %llu",
-			(ULL)p->rp_nr_items,
-			(ULL)p->rp_size);
+	C2_LOG("nr_items: %llu packet size: %llu", (ULL)p->rp_nr_items,
+						   (ULL)p->rp_size);
 	C2_ASSERT(c2_rpc_packet_invariant(p));
 	C2_POST(c2_rpc_packet_is_carrying_item(p, item));
 	C2_LEAVE();

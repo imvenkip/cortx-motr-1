@@ -56,11 +56,6 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev);
 static void rpc_tm_cleanup(struct c2_rpc_machine *machine);
 
 
-extern void frm_rpcs_inflight_dec(struct c2_rpc_frm_sm *frm_sm);
-extern void frm_sm_init(struct c2_rpc_frm_sm *frm_sm,
-			uint64_t max_rpcs_in_flight);
-extern void frm_sm_fini(struct c2_rpc_frm_sm *frm_sm);
-extern int frm_ubitem_added(struct c2_rpc_item *item);
 extern void frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
 extern void rpcobj_exit_stats_set(const struct c2_rpc *rpcobj,
 		struct c2_rpc_machine *mach, enum c2_rpc_item_path path);
@@ -224,7 +219,10 @@ int c2_rpc__post_locked(struct c2_rpc_item *item)
 					   C2_RPC_SESSION_BUSY)));
 
 	C2_ASSERT(c2_rpc_machine_is_locked(session->s_conn->c_rpc_machine));
-
+	/*
+	 * This hold will be released when the item is SENT or FAILED.
+	 * See rpc/frmops.c:item_done()
+	 */
 	c2_rpc_session_hold_busy(session);
 
 	item->ri_rpc_time = c2_time_now();
@@ -269,7 +267,10 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	machine = slot->sl_session->s_conn->c_rpc_machine;
 
 	c2_rpc_machine_lock(machine);
-
+	/*
+	 * This hold will be released when the item is SENT or FAILED.
+	 * See rpc/frmops.c:item_done()
+	 */
 	c2_rpc_session_hold_busy(reply->ri_session);
 	c2_rpc_slot_reply_received(slot, reply, &tmp);
 	C2_ASSERT(tmp == request);
@@ -328,23 +329,17 @@ bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item)
 }
 
 int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
-		struct c2_rpc_item *item)
+				 struct c2_rpc_item       *item)
 {
-	struct c2_rpc_session	*session_zero;
-
 	C2_PRE(conn != NULL);
-	C2_PRE(item != NULL);
+	C2_PRE(item != NULL && c2_rpc_item_is_unsolicited(item));
 
-	session_zero = c2_rpc_conn_session0(conn);
-
-	item->ri_session = session_zero;
-	item->ri_state = RPC_ITEM_SUBMITTED;
-
+	item->ri_state    = RPC_ITEM_SUBMITTED;
 	item->ri_rpc_time = c2_time_now();
 
 	c2_rpc_machine_lock(conn->c_rpc_machine);
 
-	frm_ubitem_added(item);
+	c2_rpc_frm_enq_item(&conn->c_rpcchan->rc_frm, item);
 
 	c2_rpc_machine_unlock(conn->c_rpc_machine);
 	return 0;
@@ -360,9 +355,7 @@ static void rpc_chan_ref_release(struct c2_ref *ref)
 	C2_ASSERT(chan != NULL);
 	C2_ASSERT(c2_rpc_machine_is_locked(chan->rc_rpc_machine));
 
-	/* Destroy the chan structure. */
 	c2_list_del(&chan->rc_linkage);
-	frm_sm_fini(&chan->rc_frmsm);
 	c2_rpc_frm_fini(&chan->rc_frm);
 	c2_free(chan);
 }
@@ -392,8 +385,8 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 	c2_ref_init(&ch->rc_ref, 1, rpc_chan_ref_release);
 	c2_net_end_point_get(dest_ep);
 
-	frm_sm_init(&ch->rc_frmsm, max_rpcs_in_flight);
 	c2_rpc_frm_constraints_get_defaults(&constraints);
+	constraints.fc_max_nr_packets_enqed = max_rpcs_in_flight;
 	c2_rpc_frm_init(&ch->rc_frm, machine, ch,
 			constraints, NULL /* use default ops */);
 	c2_list_add(&machine->rm_chans, &ch->rc_linkage);
@@ -613,7 +606,6 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 
 	chan = rpc_chan_locate(machine, nb->nb_ep);
 	if (chan != NULL) {
-		frm_rpcs_inflight_dec(&chan->rc_frmsm);
 		rpc_chan_put(chan);
 	}
 

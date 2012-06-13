@@ -825,7 +825,7 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 		 */
 		if (req != NULL) {
 			/* Send reply received event to formation component.*/
-			frm_item_reply_received(item, req);
+			/* frm_item_reply_received(item, req); */
 			/*
 			 * informing upper layer that reply is received should
 			 * be the done after all the reply processing has been

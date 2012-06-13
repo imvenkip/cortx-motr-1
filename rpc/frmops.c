@@ -97,7 +97,7 @@ out_free:
 	c2_free(rpcbuf);
 
 out:
-	c2_rpc_packet_failed(p, rc);
+	c2_rpc_packet_traverse_items(p, item_done, rc);
 	c2_rpc_packet_remove_all_items(p);
 	c2_rpc_packet_fini(p);
 	c2_free(p);

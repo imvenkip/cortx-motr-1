@@ -128,9 +128,6 @@ static const struct c2_rpc_item_ops session_terminate_item_ops = {
 	.rio_free    = c2_fop_item_free,
 };
 
-extern void frm_item_ready(struct c2_rpc_item *item);
-extern void frm_slot_idle(struct c2_rpc_slot *slot);
-
 /**
    The routine is also called from session_foms.c, hence can't be static
  */

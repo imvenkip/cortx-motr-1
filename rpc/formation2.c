@@ -216,7 +216,6 @@ frm_itemq_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *new_item)
 	__itemq_insert(q, new_item);
 
 	new_item->ri_itemq = q;
-	new_item->ri_frm   = frm;
 	C2_CNT_INC(frm->f_nr_items);
 	frm->f_nr_bytes_accumulated += c2_rpc_item_size(new_item);
 
