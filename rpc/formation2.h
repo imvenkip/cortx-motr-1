@@ -156,6 +156,9 @@ struct c2_rpc_frm {
 	/**
 	   Lists of items enqueued to to Formation, that are not yet
 	   added to any Packet. @see c2_rpc_frm_itemq_type
+	   itemq are sorted by c2_rpc_item::ri_prio (highest priority first).
+	   All items having equal priority are sorted by
+	   c2_rpc_item::ri_deadline (earlier first).
 	   An item is removed from itemq immediately upon adding the item to
 	   any packet.
 	   link: c2_rpc_item::ri_iq_link

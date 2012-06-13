@@ -87,6 +87,9 @@ static bool itemq_invariant(const struct c2_tl *q)
 	return true;
 }
 
+/**
+   Returns sum of on-wire sizes of all the items in q.
+ */
 static c2_bcount_t itemq_nr_bytes_acc(const struct c2_tl *q)
 {
 	struct c2_rpc_item *item;
@@ -230,6 +233,10 @@ frm_itemq_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *new_item)
 			(ULL)frm->f_nr_bytes_accumulated);
 }
 
+/**
+   Depending on item->ri_deadline and item->ri_prio returns one of
+   frm->f_itemq[], in which the item should be placed.
+ */
 static struct c2_tl *
 frm_which_queue(struct c2_rpc_frm *frm, const struct c2_rpc_item *item)
 {
@@ -263,6 +270,11 @@ frm_which_queue(struct c2_rpc_frm *frm, const struct c2_rpc_item *item)
 	return &frm->f_itemq[qtype];
 }
 
+/**
+   q is sorted by c2_rpc_item::ri_prio and then by c2_rpc_item::ri_deadline.
+
+   Insert new_item such that the ordering of q is maintained.
+ */
 static void __itemq_insert(struct c2_tl *q, struct c2_rpc_item *new_item)
 {
 	struct c2_rpc_item *item;
@@ -310,6 +322,9 @@ static void __itemq_insert(struct c2_tl *q, struct c2_rpc_item *new_item)
 	C2_LEAVE();
 }
 
+/**
+   Core of formation algorithm.
+ */
 static void frm_balance(struct c2_rpc_frm *frm)
 {
 	struct c2_rpc_packet *p;
@@ -365,6 +380,9 @@ static bool item_timedout(const struct c2_rpc_item *item)
 	return c2_time_after_eq(c2_time_now(), item->ri_deadline);
 }
 
+/**
+   Moves all timed-out items from WAITING_* queues to TIMEDOUT_* queues.
+ */
 static void frm_filter_timedout_items(struct c2_rpc_frm *frm)
 {
 	enum c2_rpc_frm_itemq_type  qtypes[] = {
@@ -399,6 +417,12 @@ static void frm_filter_timedout_items(struct c2_rpc_frm *frm)
 	C2_LEAVE();
 }
 
+/**
+   Is frm ready to form a packet?
+
+   It is possible that frm_is_ready() returns true but no packet could
+   be formed. See FRM_BALANCE:NOTE_1
+ */
 static bool frm_is_ready(const struct c2_rpc_frm *frm)
 {
 	const struct c2_rpc_frm_constraints *c;
@@ -417,6 +441,11 @@ static bool frm_is_ready(const struct c2_rpc_frm *frm)
 		frm->f_nr_bytes_accumulated >= c->fc_max_nr_bytes_accumulated);
 }
 
+/**
+   Adds RPC items in packet p, taking the constraints into account.
+
+   An item is removed from itemq, once it is added to packet.
+ */
 static void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 {
 	struct c2_rpc_item *item;
@@ -476,6 +505,9 @@ static void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 	return;
 }
 
+/**
+   @see c2_rpc_frm_ops::f_item_bind()
+ */
 static bool
 frm_try_to_bind_item(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
 {
@@ -525,6 +557,9 @@ static void frm_try_merging_item(struct c2_rpc_frm  *frm,
 	return;
 }
 
+/**
+   @see c2_rpc_frm_ops::f_packet_ready()
+ */
 static bool frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 {
 	bool packet_enqed;
