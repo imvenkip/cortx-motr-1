@@ -13,7 +13,7 @@ static struct c2_tl *frm_which_queue(struct c2_rpc_frm        *frm,
 
 static void frm_itemq_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
 static void __itemq_insert(struct c2_tl *q, struct c2_rpc_item *new_item);
-void frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
+static void frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
 static void frm_balance(struct c2_rpc_frm *frm);
 static void frm_filter_timedout_items(struct c2_rpc_frm *frm);
 static bool frm_is_ready(const struct c2_rpc_frm *frm);

@@ -113,7 +113,6 @@ static struct c2_rpc_item_type oneway_item_type = {
 	.rit_flags = C2_RPC_ITEM_TYPE_UNSOLICITED,
 	.rit_ops   = &oneway_item_type_ops,
 };
-void frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
 
 static void frm_enqued_items_are_sorted_by_deadline(void)
 {
@@ -121,28 +120,38 @@ static void frm_enqued_items_are_sorted_by_deadline(void)
 	struct c2_rpc_item *item;
 	uint64_t            seed;
 	uint64_t            max;
-
+	c2_bcount_t         saved;
 	int                 i;
 	enum { N = 100 };
 
 	C2_ALLOC_ARR(list, N);
 	C2_UT_ASSERT(list != NULL);
 
+	saved = frm.f_constraints.fc_max_nr_bytes_accumulated;
 	frm.f_constraints.fc_max_nr_bytes_accumulated = ~0ULL;
 	max = 2000;
 	seed = (uint64_t)c2_time_now();
 	for (i = 0; i < N; ++i) {
 		item              = &list[i];
-		item->ri_deadline = c2_time_from_now(c2_rnd(max, &seed) + 1000, 0);
+		item->ri_deadline = c2_time_from_now(c2_rnd(max, &seed) + 1000,
+						     0);
 		item->ri_type     = &twoway_item_type;
 		item->ri_prio     = 2;
+		item->ri_session  = &session;
 		c2_rpc_frm_enq_item(&frm, item);
 	}
 	C2_UT_ASSERT(frm.f_nr_items == N);
-	for (i = 0; i < N; i++) {
-		frm_itemq_remove(&frm, &list[i]);
-	}
+
+	/* make frm to pack all items */
+	frm.f_constraints.fc_max_nr_bytes_accumulated = 0;
+	pcount = 0;
+	c2_rpc_frm_run_formation(&frm);
 	C2_UT_ASSERT(frm.f_nr_items == 0);
+	C2_UT_ASSERT(bound_item_count == N);
+	C2_UT_ASSERT(pcount > 0);
+	pcount = 0;
+	bound_item_count = 0;
+	frm.f_constraints.fc_max_nr_bytes_accumulated = saved;
 }
 
 static void frm_enq_item_test(void)
