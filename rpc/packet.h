@@ -9,7 +9,7 @@ struct c2_rpc_frm;
 
 enum {
 	/** RPC version (4 bytes) + number of items in the packet (4 bytes) */
-	C2_RPC_PACKET_OW_HEADER_SIZE = 8
+	C2_RPC_PACKET_OW_HEADER_SIZE = 16
 };
 
 /**
