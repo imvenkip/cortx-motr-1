@@ -1035,7 +1035,8 @@ void c2_layout_get(struct c2_layout *l)
 /**
  * Releases a reference on the layout. If it is the last reference being
  * released, then it removes the layout entry from the layout list
- * maintained in the layout domain and then finalises the layout.
+ * maintained in the layout domain and then finalises the layout along
+ * with finalising its enumeration object, if applicable.
  */
 void c2_layout_put(struct c2_layout *l)
 {

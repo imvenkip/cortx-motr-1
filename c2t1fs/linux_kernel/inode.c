@@ -121,8 +121,10 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 	if (!is_root) {
 		C2_ASSERT(ci->ci_layout != NULL);
 		/*
-		 * Release the reference on the layout. The layout will be
-		 * deleted if it is the last reference being released.
+		 * Release the reference on the layout. If it is the last
+		 * reference being released, the layout will be finalised
+		 * along with its enumeration object being finalised, if
+		 * applicable.
 		 */
 		c2_layout_put(ci->ci_layout);
 	}

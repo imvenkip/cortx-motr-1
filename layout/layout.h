@@ -213,7 +213,10 @@ struct c2_layout {
 };
 
 struct c2_layout_ops {
-	/** Cleans up while c2_layout object is about to be destoryed. */
+	/**
+	 * Finalises the layout object. It involves finalising its enumeration
+	 * object, if applicable.
+	 */
 	void    (*lo_fini)(struct c2_layout *l);
 };
 
