@@ -11,7 +11,7 @@ libnet_ut_la_SOURCES	= bulk_if.c \
                           buffer_pool_ut.c
 libnet_ut_la_LIBADD     = $(top_builddir)/colibri/libcolibri.la
 
-EXTRA_DIST              = net.ff
+EXTRA_DIST              = net.ff tm_provision_ut.c
 
 clean-local:
 	cd @SRCDIR@/net/ut ; \

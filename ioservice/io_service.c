@@ -57,10 +57,9 @@ static const struct c2_addb_ctx_type ios_addb_ctx_type = {
  * configuration cache module is not available, these values are defined as
  * constants.
  */
-static const int network_buffer_pool_segment_size = 4096;
-static const int network_buffer_pool_segment_nr   = 128;
-static const int network_buffer_pool_threshold    = 8;
-static const int network_buffer_pool_initial_size = 32;
+enum {
+	C2_NET_BUFFER_POOL_SIZE = 32,
+};
 
 static int ios_locate(struct c2_reqh_service_type *stype,
 			 struct c2_reqh_service **service);
@@ -175,11 +174,12 @@ static int ios_create_buffer_pool(struct c2_reqh_service *service)
         struct c2_rpc_machine      *rpcmach;
         struct c2_reqh_io_service  *serv_obj;
         struct c2_rios_buffer_pool *bp;
+	c2_bcount_t		    segment_size;
+	uint32_t		    segments_nr;
 
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
 
-        c2_tlist_for(&c2_rhrpm_tl,
-		     &service->rs_reqh->rh_rpc_machines, rpcmach) {
+        c2_tl_for(c2_rhrpm, &service->rs_reqh->rh_rpc_machines, rpcmach) {
 		struct c2_rios_buffer_pool *newbp;
 		bool			    bufpool_found = false;
 		/*
@@ -208,13 +208,19 @@ static int ios_create_buffer_pool(struct c2_reqh_service *service)
 
 		newbp->rios_ndom = rpcmach->rm_tm.ntm_dom;
 		newbp->rios_bp_magic = C2_RIOS_BUFFER_POOL_MAGIC;
-		colours = rpcmach->rm_tm.ntm_dom->nd_pool_colour_counter;
+
+		colours = c2_list_length(&newbp->rios_ndom->nd_tms);
+
+		segment_size = min64u(c2_net_domain_get_max_buffer_segment_size(
+					      newbp->rios_ndom), C2_SEG_SIZE);
+		segments_nr = c2_net_domain_get_max_buffer_size(
+			newbp->rios_ndom) / segment_size;
+
 		rc = c2_net_buffer_pool_init(&newbp->rios_bp,
-					     rpcmach->rm_tm.ntm_dom,
-					     network_buffer_pool_threshold,
-					     network_buffer_pool_segment_nr,
-					     network_buffer_pool_segment_size,
-					     colours, C2_0VEC_SHIFT);
+					      newbp->rios_ndom,
+					      C2_NET_BUFFER_POOL_THRESHOLD,
+					      segments_nr, segment_size,
+					      colours, C2_0VEC_SHIFT);
 		if (rc != 0) {
 			c2_free(newbp);
 			break;
@@ -230,8 +236,8 @@ static int ios_create_buffer_pool(struct c2_reqh_service *service)
 		/* Pre-allocate network buffers */
 		c2_net_buffer_pool_lock(&newbp->rios_bp);
 		nbuffs = c2_net_buffer_pool_provision(&newbp->rios_bp,
-					network_buffer_pool_initial_size);
-		if (nbuffs < network_buffer_pool_initial_size) {
+						      C2_NET_BUFFER_POOL_SIZE);
+		if (nbuffs < C2_NET_BUFFER_POOL_SIZE) {
 			rc = -ENOMEM;
 			c2_chan_fini(&newbp->rios_bp_wait);
 			/* It releases lock on buffer pool. */
@@ -273,8 +279,6 @@ static void ios_delete_buffer_pool(struct c2_reqh_service *service)
 
                 c2_chan_fini(&bp->rios_bp_wait);
                 bufferpools_tlink_del_fini(bp);
-
-                c2_net_buffer_pool_lock(&bp->rios_bp);
                 c2_net_buffer_pool_fini(&bp->rios_bp);
 		c2_free(bp);
 

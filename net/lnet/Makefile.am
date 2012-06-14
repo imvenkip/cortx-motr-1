@@ -4,7 +4,7 @@ lnet_HEADERS               = lnet.h
 INCLUDES                   = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
 
 noinst_LTLIBRARIES         = libcolibri-lnet.la
-libcolibri_lnet_la_SOURCES = lnet_main.c lnet_core.h lnet_core_types.h \
+libcolibri_lnet_la_SOURCES = lnet_main.c lnet_core.h lnet_core_types.h 	    \
                              lnet_ioctl.h lnet_pvt.h lnet_xo.h ulnet_core.h
 
 # the .c files are included in lnet_main.c (do not add to _SOURCES)

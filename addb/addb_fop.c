@@ -46,7 +46,7 @@ int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 #include "rpc/rpc_opcodes.h"
 
 static struct c2_fop_type_ops addb_ops = {
-	.fto_execute = c2_addb_handler,
+	.fto_execute = NULL,
 };
 
 C2_FOP_TYPE_DECLARE(c2_addb_record, "addb", &addb_ops,
@@ -100,6 +100,11 @@ struct c2_addb_trace_body {
 };
 
 #ifndef __KERNEL__
+
+#if 0
+/**
+   @todo Please remove deprecated interfaces and use new net interface
+ */
 static int c2_addb_enable_dump = 0;
 
 static void c2_addb_record_dump(const struct c2_addb_record *rec)
@@ -157,6 +162,8 @@ int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
 	return 1;
 }
+#endif /* 0 */
+
 #endif
 
 int c2_addb_record_header_pack(struct c2_addb_dp *dp,

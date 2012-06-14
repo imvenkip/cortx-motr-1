@@ -19,4 +19,8 @@ modprobe_lnet
 modload_galois
 modload || exit $?
 
-@SRCDIR@/utils/ut "$@"
+if test x$enable_rpm = xyes; then
+    ut "$@"
+else
+    @SRCDIR@/utils/ut "$@"
+fi

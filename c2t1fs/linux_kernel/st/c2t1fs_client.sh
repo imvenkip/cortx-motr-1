@@ -1,12 +1,23 @@
 #!/bin/sh
 
-if [ $# -lt "0" ]
+usage()
+{
+	echo "Usage: `basename $0` server_nid"
+	echo "Please provide the server nid you want to use."
+	echo "e.g. 192.168.172.130@tcp"
+}
+
+if [ $# -lt 1 ]
 then
-	echo "Usage : $0"
+	usage
         exit 1
 fi
 
-echo 8 > /proc/sys/kernel/printk
+if [ "x$1" = "x-h" ];
+then
+	usage
+	exit 0
+fi
 
 . `dirname $0`/common.sh
 . `dirname $0`/c2t1fs_common_inc.sh
@@ -14,11 +25,18 @@ echo 8 > /proc/sys/kernel/printk
 
 main()
 {
-        prepare_test_dir || return $?
+	modprobe lnet &>> /dev/null
+	lctl network up &>> /dev/null
+	lnet_nid=`lctl list_nids | head -1`
+	export COLIBRI_C2T1FS_ENDPOINT="$lnet_nid:12345:34:6"
+	export COLIBRI_IOSERVICE_ENDPOINT="$1:12345:34:1"
 
-        load_kernel_module
+	echo "Colibri ioservice endpoint = $COLIBRI_IOSERVICE_ENDPOINT"
+	echo "Colibri c2t1fs endpoint = $COLIBRI_C2T1FS_ENDPOINT"
 
-        io_combinations $POOL_WIDTH 1 1
+	prepare
+
+	io_combinations $POOL_WIDTH 1 1
         if [ $? -ne "0" ]
         then
                 echo "Failed : IO failed.."
@@ -26,7 +44,6 @@ main()
         return 0
 }
 
-modprobe_lnet
-insmod $COLIBRI_CORE_ROOT/../galois/src/linux_kernel/galois.ko
-main
-rmmod galois
+trap unprepare EXIT
+
+main $1

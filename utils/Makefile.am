@@ -18,7 +18,7 @@ ut_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/net/bulk_emulation/ut/libnet-bulkem-ut.la \
                $(top_builddir)/net/lnet/ut/liblnet-ut.la \
                $(top_builddir)/udb/ut/libudb-ut.la \
-               $(top_builddir)/capa/ut/libcapa-ut.la \
+	       $(top_builddir)/capa/ut/libcapa-ut.la \
                $(top_builddir)/sm/ut/libsm-ut.la \
                $(top_builddir)/xcode/ut/libxcode-ut.la \
                $(top_builddir)/reqh/ut/libreqh-ut.la \
@@ -39,4 +39,6 @@ ub_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/fol/ut/libfol-ut.la   \
                $(top_builddir)/sns/ut/libparity-ut.la
 
-EXTRA_DIST   = ut.sh.in linux_kernel/main.c linux_kernel/ut.sh.in
+EXTRA_DIST   = ut.sh.in linux_kernel/main.c linux_kernel/ut.sh.in  \
+	       linux_kernel/c2ctl.c linux_kernel/finject_debugfs.c \
+	       linux_kernel/finject_debugfs.h

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,8 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 04/12/2011
  */
 #ifdef HAVE_CONFIG_H
@@ -42,8 +42,6 @@
 #include "lib/thread.h"
 #include "net/net.h"
 #include "net/bulk_mem.h"
-#include "net/bulk_sunrpc.h"
-#include "ut/net.h" /* canon_host */
 #include "ping.h"
 
 enum {
@@ -59,7 +57,6 @@ enum {
 	PING_SERVER_SEGMENT_SIZE = 16384,
 
 	MEM_CLIENT_BASE_PORT = PING_PORT2,
-	SUNRPC_CLIENT_BASE_PORT = PING_PORT1,
 
 	ONE_MILLION = 1000000ULL,
 	SEC_PER_HR = 60 * 60,
@@ -73,19 +70,13 @@ struct ping_xprt {
 	short               px_client_port;
 };
 
-struct ping_xprt xprts[2] = {
+struct ping_xprt xprts[1] = {
 	{
 		.px_xprt = &c2_net_bulk_mem_xprt,
 		.px_dual_only = true,
 		.px_3part_addr = false,
 		.px_client_port = MEM_CLIENT_BASE_PORT,
 	},
-	{
-		.px_xprt = &c2_net_bulk_sunrpc_xprt,
-		.px_dual_only = false,
-		.px_3part_addr = true,
-		.px_client_port = SUNRPC_CLIENT_BASE_PORT,
-	}
 };
 
 struct ping_ctx sctx = {
@@ -93,6 +84,53 @@ struct ping_ctx sctx = {
 		.ntm_state     = C2_NET_TM_UNDEFINED
 	}
 };
+
+int canon_host(const char *hostname, char *buf, size_t bufsiz)
+{
+	int                i;
+	int		   rc = 0;
+	struct in_addr     ipaddr;
+
+	/* c2_net_end_point_create requires string IPv4 address, not name */
+	if (inet_aton(hostname, &ipaddr) == 0) {
+		struct hostent he;
+		char he_buf[4096];
+		struct hostent *hp;
+		int herrno;
+
+		rc = gethostbyname_r(hostname, &he, he_buf, sizeof he_buf,
+				     &hp, &herrno);
+		if (rc != 0) {
+			fprintf(stderr, "Can't get address for %s\n",
+				hostname);
+			return -ENOENT;
+		}
+		for (i = 0; hp->h_addr_list[i] != NULL; ++i)
+			/* take 1st IPv4 address found */
+			if (hp->h_addrtype == AF_INET &&
+			    hp->h_length == sizeof(ipaddr))
+				break;
+		if (hp->h_addr_list[i] == NULL) {
+			fprintf(stderr, "No IPv4 address for %s\n",
+				hostname);
+			return -EPFNOSUPPORT;
+		}
+		if (inet_ntop(hp->h_addrtype, hp->h_addr, buf, bufsiz) ==
+		    NULL) {
+			fprintf(stderr, "Cannot parse network address for %s\n",
+				hostname);
+			rc = -errno;
+		}
+	} else {
+		if (strlen(hostname) >= bufsiz) {
+			fprintf(stderr, "Buffer size too small for %s\n",
+				hostname);
+			return -ENOSPC;
+		}
+		strcpy(buf, hostname);
+	}
+	return rc;
+}
 
 int lookup_xprt(const char *xprt_name, struct ping_xprt **xprt)
 {
@@ -191,9 +229,7 @@ struct client_params {
 	int passive_size;
 	const char *local_host;
 	const char *remote_host;
-	int sunrpc_ep_delay;
 	int passive_bulk_timeout;
-	int sunrpc_skulker_period;
 };
 
 void client(struct client_params *params)
@@ -216,9 +252,7 @@ void client(struct client_params *params)
 		.pc_tm = {
 			.ntm_state     = C2_NET_TM_UNDEFINED
 		},
-		.pc_sunrpc_ep_delay = params->sunrpc_ep_delay,
 		.pc_passive_bulk_timeout = params->passive_bulk_timeout,
-		.pc_sunrpc_skulker_period = params->sunrpc_skulker_period,
 	};
 
 	if (params->xprt->px_3part_addr) {
@@ -283,10 +317,8 @@ int main(int argc, char *argv[])
 	int			 nr_clients = DEF_CLIENT_THREADS;
 	int			 nr_bufs = DEF_BUFS;
 	int			 passive_size = 0;
-	int                      sunrpc_ep_delay = -1;
 	int                      passive_bulk_timeout = 0;
 	int                      active_bulk_delay = 0;
-	int                      sunrpc_skulker_period = 0;
 
 	struct ping_xprt	*xprt;
 	struct c2_thread	 server_thread;
@@ -317,14 +349,8 @@ int main(int argc, char *argv[])
 				     "list supported transports.",
 				     LAMBDA(void, (const char *str) {
 						     xprt_name = str; })),
-			C2_FORMATARG('E', "sunrpc endpoint release delay",
-				     "%i", &sunrpc_ep_delay),
-			C2_FORMATARG('P', "sunrpc passive bulk timeout",
-				     "%i", &passive_bulk_timeout),
 			C2_FORMATARG('D', "server active bulk delay",
 				     "%i", &active_bulk_delay),
-			C2_FORMATARG('S', "sunrpc skulker period",
-				     "%i", &sunrpc_skulker_period),
 			C2_FLAGARG('v', "verbose", &verbose));
 	if (rc != 0)
 		return rc;
@@ -396,9 +422,7 @@ int main(int argc, char *argv[])
 		sctx.pc_segments = PING_SERVER_SEGMENTS;
 		sctx.pc_seg_size = PING_SERVER_SEGMENT_SIZE;
 		sctx.pc_passive_size = passive_size;
-		sctx.pc_sunrpc_ep_delay = sunrpc_ep_delay;
 		sctx.pc_server_bulk_delay = active_bulk_delay;
-		sctx.pc_sunrpc_skulker_period = sunrpc_skulker_period;
 		C2_SET0(&server_thread);
 		rc = C2_THREAD_INIT(&server_thread, struct ping_ctx *, NULL,
 				    &ping_server, &sctx, "ping_server");
@@ -435,9 +459,7 @@ int main(int argc, char *argv[])
 			params[i].passive_size = passive_size;
 			params[i].local_host = local_hostbuf;
 			params[i].remote_host = remote_hostbuf;
-			params[i].sunrpc_ep_delay = sunrpc_ep_delay;
 			params[i].passive_bulk_timeout = passive_bulk_timeout;
-			params[i].sunrpc_skulker_period = sunrpc_skulker_period;
 
 			rc = C2_THREAD_INIT(&client_thread[i],
 					    struct client_params *,

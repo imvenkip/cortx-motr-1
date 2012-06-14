@@ -28,58 +28,50 @@
 
 #include "ut/rpc.h"
 #include "rpc/rpclib.h"
-#include "net/bulk_sunrpc.h"
+#include "net/lnet/lnet.h"
 #include "net/bulk_mem.h"
 #include "reqh/reqh_service.h"
-#include "colibri/colibri_setup.h"
 #include "ioservice/io_service.h"
 
-#include "colibri/colibri_setup.c"
+#include "colibri/colibri_setup.h"
 #include "ioservice/io_service.c"
 
+struct cs_reqh_context;
+
+extern struct c2_reqh *c2_reqh_get(struct cs_reqh_context *reqh_ctx);
 extern const struct c2_tl_descr bufferpools_tl;
+extern const struct c2_tl_descr rhctx_tl;
 
  /* Colibri setup arguments. */
 static char *ios_ut_bp_singledom_cmd[] = { "colibri_setup", "-r", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
-                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ioservice"};
 static char *ios_ut_bp_multidom_cmd[] = { "colibri_setup", "-r", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
-                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-e", "lnet:0@lo:12345:34:1",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-s", "ioservice"};
 static char *ios_ut_bp_repeatdom_cmd[] = { "colibri_setup", "-r", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
-                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
-                                "-e", "bulk-sunrpc:127.0.0.1:34567:1",
+                                "-e", "bulk-mem:127.0.0.1:35678",
+                                "-e", "bulk-mem:127.0.0.1:35679",
                                 "-s", "ioservice"};
 static char *ios_ut_bp_onerepeatdom_cmd[] = { "colibri_setup", "-r", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
-                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
-                                "-e", "bulk-sunrpc:127.0.0.1:34567:1",
+                                "-e", "lnet:0@lo:12345:35:1",
                                 "-e", "bulk-mem:127.0.0.1:35678",
+                                "-e", "bulk-mem:127.0.0.1:35679",
                                 "-s", "ioservice"};
 /*
   Transports used in colibri a context.
  */
 static struct c2_net_xprt *cs_xprts[] = {
-	&c2_net_bulk_sunrpc_xprt,
+	&c2_net_lnet_xprt,
 	&c2_net_bulk_mem_xprt
 };
 
 #define SERVER_LOG_FILE_NAME	"cs_ut.errlog"
-
-C2_TL_DESCR_DEFINE(ut_rhctx, "reqh contexts", static, struct cs_reqh_context,
-		   rc_linkage, rc_magic, CS_REQH_CTX_MAGIX,
-		   CS_REQH_CTX_HEAD_MAGIX);
-
-C2_TL_DEFINE(ut_rhctx, static, struct cs_reqh_context);
-
-C2_TL_DESCR_DEFINE(ut_rhsrv, "reqh service", static, struct c2_reqh_service,
-                   rs_linkage, rs_magic, C2_RHS_MAGIX, C2_RHS_MAGIX_HEAD);
-
-C2_TL_DEFINE(ut_rhsrv, static, struct c2_reqh_service);
 
 static int get_ioservice_buffer_pool_count(struct c2_rpc_server_ctx *sctx)
 {
@@ -87,18 +79,18 @@ static int get_ioservice_buffer_pool_count(struct c2_rpc_server_ctx *sctx)
 	int			   nbp;
 	struct c2_reqh_io_service *serv_obj = NULL;
 
-	c2_tl_for(ut_rhctx, &sctx->rsx_colibri_ctx.cc_reqh_ctxs, reqh_ctx) {
+	c2_tl_for(rhctx, &sctx->rsx_colibri_ctx.cc_reqh_ctxs, reqh_ctx) {
 		struct c2_reqh_service *reqh_ios;
-		c2_tl_for(ut_rhsrv, &reqh_ctx->rc_reqh.rh_services,
-			 reqh_ios) {
-			if (strcmp(reqh_ios->rs_type->rst_name,
-			           "ioservice") == 0) {
-				serv_obj = container_of(reqh_ios,
-						      struct c2_reqh_io_service,
-						      rios_gen);
-				break;
-			}
-		} c2_tl_endfor;
+		struct c2_reqh         *reqh;
+
+		reqh = c2_reqh_get(reqh_ctx);
+		reqh_ios = c2_reqh_service_get("ioservice", reqh);
+		if (reqh_ios != NULL) {
+			serv_obj = container_of(reqh_ios,
+						struct c2_reqh_io_service,
+						rios_gen);
+			break;
+		}
 	} c2_tl_endfor;
 
 	C2_UT_ASSERT(serv_obj != NULL);

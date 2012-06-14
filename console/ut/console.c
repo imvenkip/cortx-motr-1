@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -35,7 +35,6 @@
 #include "lib/memory.h"
 #include "fop/fop_iterator.h"
 #include "lib/errno.h"            /* ETIMEDOUT */
-#include "net/bulk_sunrpc.h"      /* bulk transport */
 #include "lib/processor.h"        /* c2_processors_init/fini */
 #include "lib/thread.h"		  /* c2_thread */
 #include "lib/trace.h"
@@ -70,11 +69,11 @@ static struct c2_ut_redirect in_redir;
 static struct c2_ut_redirect out_redir;
 static struct c2_ut_redirect err_redir;
 
-#define CLIENT_ENDPOINT_ADDR	"127.0.0.1:123456:1"
+#define CLIENT_ENDPOINT_ADDR    "0@lo:12345:34:2"
 #define CLIENT_DB_NAME		"cons_client_db"
 
-#define SERVER_ENDPOINT_ADDR	"127.0.0.1:123456:2"
-#define SERVER_ENDPOINT		"bulk-sunrpc:" SERVER_ENDPOINT_ADDR
+#define SERVER_ENDPOINT_ADDR	"0@lo:12345:34:1"
+#define SERVER_ENDPOINT		"lnet:" SERVER_ENDPOINT_ADDR
 #define SERVER_DB_FILE_NAME	"cons_server_db"
 #define SERVER_STOB_FILE_NAME	"cons_server_stob"
 #define SERVER_LOG_FILE_NAME	"cons_server.log"
@@ -86,9 +85,7 @@ enum {
 	CONNECT_TIMEOUT		= 5,
 };
 
-extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
-
-static struct c2_net_xprt    *xprt = &c2_net_bulk_sunrpc_xprt;
+static struct c2_net_xprt   *xprt = &c2_net_lnet_xprt;
 static struct c2_net_domain  client_net_dom = { };
 static struct c2_dbenv       client_dbenv;
 static struct c2_cob_domain  client_cob_dom;
@@ -220,12 +217,12 @@ static void init_test_fop(struct c2_cons_fop_test *fop)
 
 static void check_values(struct c2_fop *fop)
 {
-	struct c2_fit		  it;
-        struct c2_fit_yield       yield;
-	struct c2_fid		 *fid;
-	char			 *data;
-	uint64_t		 *value;
-	int			  result;
+	struct c2_fit	     it;
+        struct c2_fit_yield  yield;
+	struct c2_fid	    *fid;
+	char		    *data;
+	uint64_t	    *value;
+	int		     result;
 
 	c2_fop_all_object_it_init(&it, fop);
 	result = c2_fit_yield(&it, &yield);
@@ -285,8 +282,8 @@ static void yaml_basic_test(void)
 
 static void input_test(void)
 {
-        struct c2_fop	*fop;
-	int		 result;
+        struct c2_fop *fop;
+	int	       result;
 
 	file_redirect_init();
 	result = generate_yaml_file(yaml_file);
@@ -329,8 +326,8 @@ static void file_compare(const char *in, const char *out)
 
 static void output_test(void)
 {
-        struct c2_fop	*f;
-	int		 result;
+        struct c2_fop *f;
+	int	       result;
 
 	verbose = true;
 	result = generate_yaml_file(yaml_file);
@@ -358,7 +355,7 @@ static void output_test(void)
 
 static void yaml_file_test(void)
 {
-	int   result;
+	int result;
 
 	file_redirect_init();
 	result = c2_cons_yaml_init(yaml_file);
@@ -647,8 +644,8 @@ static int console_cmd(const char *name, ...)
 
 static void console_input_test(void)
 {
-	int   result;
-	char  buf[35];
+	int  result;
+	char buf[35];
 
 	file_redirect_init();
 	/* starts UT test for console main */

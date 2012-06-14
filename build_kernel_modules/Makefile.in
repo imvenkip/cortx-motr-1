@@ -6,8 +6,7 @@ KBUILD_EXTRA_SYMBOLS = $(BUILD_DIR)/Lustre.symvers @GALOIS_SYMVERS@
 
 GCOV_PROFILE    = @K_ENABLE_COVERAGE@
 
-testdirs        = ../net/bulk_emulation/st/linux_kernel/        \
-                  ../net/lnet/st/linux_kernel/                  \
+testdirs        = ../net/lnet/st/linux_kernel/                  \
                   ../rpc/it/linux_kernel/                       \
                   ../utils/linux_kernel/
 
@@ -44,9 +43,7 @@ dirs  = addb                                                                  \
         lib/linux_kernel                                                      \
         lib/ut                                                                \
         net                                                                   \
-        net/bulk_emulation                                                    \
         net/bulk_emulation/ut                                                 \
-        net/ksunrpc                                                           \
         net/lnet/ut                                                           \
         net/ut                                                                \
         pool                                                                  \
@@ -116,20 +113,16 @@ lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c    \
                                    memory.c finject.c
 
 net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c    \
-                                   tm.c connection.c net_cli.c net_utils.c    \
-                                   net_srv.c net_otw_types_k.c
+                                   tm.c net_otw_types_k.c tm_provision.c
+
 net_HEADERS                     := net_otw_types_k.h
 
-net_bulk_emulation_SOURCES      := ksunrpc_server.c sunrpc_io_k.c
-net_bulk_emulation_HEADERS      := sunrpc_io_k.h
-
-net_bulk_emulation_ut_SOURCES   := ksunrpc_ut.c bulk_mem_ut.c bulk_sunrpc_ut.c
-
-net_ksunrpc_SOURCES             := domain.c client.c kxdr.c
+net_bulk_emulation_ut_SOURCES   := bulk_mem_ut.c
 
 net_lnet_ut_SOURCES             := lnet_ut.c
 
 net_ut_SOURCES                  := bulk_if.c buffer_pool_ut.c
+net_ut_HEADERS                  := tm_provision_ut.c
 
 pool_SOURCES                    := pool.c
 

@@ -38,6 +38,7 @@
    - @ref DLD-st
    - @ref DLD-O
    - @ref DLD-ref
+   - @ref DLD-impl-plan
 
 
    <hr>
@@ -526,6 +527,48 @@ Detailed level design HOWTO</a>,
    - <a href="http://www.graphviz.org">Graphviz - Graph Visualization
    Software</a> for documentation on the @c dot command.
    - <a href="http://www.mcternan.me.uk/mscgen">Mscgen home page</a>
+
+   <hr>
+   @section DLD-impl-plan Implementation Plan
+   <i>Mandatory.  Describe the steps that should be taken to implement this
+   design.</i>
+
+   The plan should take into account:
+   - The need for early exposure of new interfaces to potential consumers.
+   Should parts of the interfaces be landed early with stub support?
+   Does consumer code have to be updated with such stubs?
+   - Modular and functional decomposition.  Identify pieces that can be
+   developed (coded and unit tested) in smaller sub-tasks.  Smaller tasks
+   demonstrate progress to management, as well as reduce the inspection
+   overhead.  It may be necessary to plan on re-factoring pieces of code
+   to support this incremental development approach.
+   - Understand how long it will take to implement the design. If it is
+   significantly long (more than a few weeks), then task decomposition
+   becomes even more essential, because it allows for merging of changes
+   from master into your feature branch, if necessary.
+   Task decomposition should be reflected in the GSP task plan for the sprint.
+   - Determine how to maximize the overlap of inspection and ongoing
+   development.
+   The smaller the inspection task the faster it could complete.
+   Good planning can reduce programmer idle time during inspection;
+   being able to overlap development of the next coding sub-task while the
+   current one is being inspected is ideal!
+   It is useful to anticipate how you would need organize your GIT code
+   source branches to handle this efficiently.
+   Remember that you should only present modified code for inspection,
+   and not the changes you picked up with periodic merges from another branch.
+   - The software development process used by Colibri provides sufficient
+   flexibility to decompose tasks, consolidate phases, etc.  For example,
+   you may prefer to develop code and UT together, and present both for
+   inspection at the same time.  This would require consolidation of the
+   CINSP-PREUT phase into the CINSP-POSTUT phase.
+   Involve your inspector in such decisions.
+   Document such changes in this plan, update the task spreadsheet for both
+   yourself and your inspector.
+
+   The implementation plan should be deleted from the DLD when the feature
+   is landed into master.
+
  */
 
 
