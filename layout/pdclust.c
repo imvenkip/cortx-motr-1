@@ -567,21 +567,19 @@ static c2_bcount_t pdclust_max_recsize(struct c2_layout_domain *dom)
 }
 
 /** Implementation of lto_recsize() for pdclust layout type. */
-static c2_bcount_t pdclust_recsize(const struct c2_layout_domain *dom,
-				   const struct c2_layout *l)
+static c2_bcount_t pdclust_recsize(const struct c2_layout *l)
 {
 	c2_bcount_t                 e_recsize;
 	struct c2_pdclust_layout   *pl;
 	struct c2_layout_enum_type *et;
 
-	C2_PRE(dom != NULL);
 	C2_PRE(l!= NULL);
 
 	pl = container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
 	C2_ASSERT(pdclust_invariant(pl));
 
-	et = dom->ld_enum[pl->pl_base.ls_enum->le_type->let_id];
-	C2_ASSERT(c2_layout__is_enum_type_valid(et->let_id, dom));
+	et = l->l_dom->ld_enum[pl->pl_base.ls_enum->le_type->let_id];
+	C2_ASSERT(c2_layout__is_enum_type_valid(et->let_id, l->l_dom));
 
 	e_recsize = et->let_ops->leto_recsize(pl->pl_base.ls_enum);
 	return sizeof(struct c2_layout_pdclust_rec) + e_recsize;

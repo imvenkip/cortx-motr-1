@@ -235,10 +235,8 @@ bool c2_layout__is_enum_type_valid(uint32_t let_id,
 }
 
 /** Adds a reference to the layout type. */
-static void layout_type_get(struct c2_layout_domain *dom,
-			    struct c2_layout_type *lt)
+static void layout_type_get(struct c2_layout_type *lt)
 {
-	C2_PRE(domain_invariant(dom));
 	C2_PRE(lt != NULL);
 
 	/*
@@ -246,28 +244,24 @@ static void layout_type_get(struct c2_layout_domain *dom,
 	 * ensures that the layout can not be freed concurrently.
 	 */
 
-	c2_mutex_lock(&dom->ld_lock);
+	c2_mutex_lock(&lt->lt_domain->ld_lock);
 	C2_CNT_INC(lt->lt_ref_count);
-	c2_mutex_unlock(&dom->ld_lock);
+	c2_mutex_unlock(&lt->lt_domain->ld_lock);
 }
 
 /** Releases a reference on the layout type. */
-static void layout_type_put(struct c2_layout_domain *dom,
-			    struct c2_layout_type *lt)
+static void layout_type_put(struct c2_layout_type *lt)
 {
-	C2_PRE(domain_invariant(dom));
 	C2_PRE(lt != NULL);
 
-	c2_mutex_lock(&dom->ld_lock);
+	c2_mutex_lock(&lt->lt_domain->ld_lock);
 	C2_CNT_DEC(lt->lt_ref_count);
-	c2_mutex_unlock(&dom->ld_lock);
+	c2_mutex_unlock(&lt->lt_domain->ld_lock);
 }
 
 /** Adds a reference on the enum type. */
-static void enum_type_get(struct c2_layout_domain *dom,
-			  struct c2_layout_enum_type *let)
+static void enum_type_get(struct c2_layout_enum_type *let)
 {
-	C2_PRE(domain_invariant(dom));
 	C2_PRE(let != NULL);
 
 	/*
@@ -275,21 +269,19 @@ static void enum_type_get(struct c2_layout_domain *dom,
 	 * ensures that the layout can not be freed concurrently.
 	 */
 
-	c2_mutex_lock(&dom->ld_lock);
+	c2_mutex_lock(&let->let_domain->ld_lock);
 	C2_CNT_INC(let->let_ref_count);
-	c2_mutex_unlock(&dom->ld_lock);
+	c2_mutex_unlock(&let->let_domain->ld_lock);
 }
 
 /** Releases a reference on the enum type. */
-static void enum_type_put(struct c2_layout_domain *dom,
-			  struct c2_layout_enum_type *let)
+static void enum_type_put(struct c2_layout_enum_type *let)
 {
-	C2_PRE(domain_invariant(dom));
 	C2_PRE(let != NULL);
 
-	c2_mutex_lock(&dom->ld_lock);
+	c2_mutex_lock(&let->let_domain->ld_lock);
 	C2_CNT_DEC(let->let_ref_count);
-	c2_mutex_unlock(&dom->ld_lock);
+	c2_mutex_unlock(&let->let_domain->ld_lock);
 }
 
 /**
@@ -356,6 +348,7 @@ int c2_layout__init(struct c2_layout_domain *dom,
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(c2_pool_id_is_valid(pool_id));
 	C2_PRE(type != NULL);
+	C2_PRE(dom == type->lt_domain);
 	C2_PRE(c2_layout__is_layout_type_valid(type->lt_id, dom));
 	C2_PRE(ops != NULL);
 
@@ -371,7 +364,7 @@ int c2_layout__init(struct c2_layout_domain *dom,
 
 	rc = layout_list_add(dom, l);
 	if (rc == 0) {
-		layout_type_get(dom, type);
+		layout_type_get(type);
 		c2_mutex_init(&l->l_lock);
 		c2_addb_ctx_init(&l->l_addb, &layout_addb_ctx_type,
 				 &layout_global_ctx);
@@ -395,7 +388,7 @@ void c2_layout__fini(struct c2_layout *l)
 	c2_addb_ctx_fini(&l->l_addb);
 	c2_mutex_fini(&l->l_lock);
 
-	layout_type_put(l->l_dom, l->l_type);
+	layout_type_put(l->l_type);
 	l->l_type = NULL;
 
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
@@ -484,7 +477,7 @@ void c2_layout__enum_init(struct c2_layout_domain *dom,
 	le->le_l   = NULL;
 	le->le_ops = ops;
 
-	enum_type_get(dom, et);
+	enum_type_get(et);
 	le->le_type = et;
 
 	C2_LEAVE("Enum-type-id %lu", (unsigned long)et->let_id);
@@ -500,7 +493,7 @@ void c2_layout__enum_fini(struct c2_layout_enum *le)
 
 	C2_ENTRY("Enum-type-id %lu", (unsigned long)le->le_type->let_id);
 
-	enum_type_put(le->le_l->l_dom, le->le_type);
+	enum_type_put(le->le_type);
 	le->le_type = NULL;
 
 	C2_LEAVE();
@@ -1239,10 +1232,9 @@ int c2_layout_encode(struct c2_layout *l,
 	rec.lr_lt_id     = l->l_type->lt_id;
 	rec.lr_ref_count = l->l_ref;
 	rec.lr_pool_id   = l->l_pool_id;
-
 	C2_ASSERT(rec_invariant(&rec, l->l_dom));
 
-	lt = l->l_dom->ld_type[l->l_type->lt_id];
+	lt = l->l_type;
 
 	if (op == C2_LXO_DB_UPDATE) {
 		/*

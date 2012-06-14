@@ -280,8 +280,7 @@ struct c2_layout_type_ops {
 	 * Returns applicable record size for the layouts table, for the
 	 * specified layout.
 	 */
-	c2_bcount_t (*lto_recsize)(const struct c2_layout_domain *dom,
-				   const struct c2_layout *l);
+	c2_bcount_t (*lto_recsize)(const struct c2_layout *l);
 
 	/**
 	 * Continues building the in-memory layout object either from the
@@ -352,7 +351,7 @@ struct c2_layout_enum_type {
 	uint32_t                              let_id;
 
 	/** Layout domain with which the enum type is registered. */
-	const struct c2_layout_domain        *let_domain;
+	struct c2_layout_domain              *let_domain;
 
 	/**
 	 * Enum type reference count, indicating 'how many enum objects
