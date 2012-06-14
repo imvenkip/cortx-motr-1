@@ -40,7 +40,7 @@ struct cs_reqh_context;
 
 extern struct c2_reqh *c2_reqh_get(struct cs_reqh_context *reqh_ctx);
 extern const struct c2_tl_descr bufferpools_tl;
-extern const struct c2_tl_descr rhctx_tl;
+extern const struct c2_tl_descr c2_rhctx_tl;
 
  /* Colibri setup arguments. */
 static char *ios_ut_bp_singledom_cmd[] = { "colibri_setup", "-r", "-T", "AD",
@@ -79,7 +79,7 @@ static int get_ioservice_buffer_pool_count(struct c2_rpc_server_ctx *sctx)
 	int			   nbp;
 	struct c2_reqh_io_service *serv_obj = NULL;
 
-	c2_tl_for(rhctx, &sctx->rsx_colibri_ctx.cc_reqh_ctxs, reqh_ctx) {
+	c2_tl_for(c2_rhctx, &sctx->rsx_colibri_ctx.cc_reqh_ctxs, reqh_ctx) {
 		struct c2_reqh_service *reqh_ios;
 		struct c2_reqh         *reqh;
 
