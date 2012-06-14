@@ -65,6 +65,7 @@ void c2_rpc_packet_add_item(struct c2_rpc_packet *p,
 {
 	C2_ENTRY("packet: %p item: %p", p, item);
 	C2_PRE(c2_rpc_packet_invariant(p) && item != NULL);
+	C2_PRE(!c2_rpc_packet_is_carrying_item(p, item));
 
 	packet_item_tlink_init_at_tail(item, &p->rp_items);
 	++p->rp_nr_items;
@@ -174,6 +175,11 @@ int c2_rpc_packet_encode_using_cursor(struct c2_rpc_packet    *packet,
 	return rc;
 }
 
+/*
+ * packet_header_encode() and item_encode() have similar/same counterparts in
+ * rpc_onwire.c. This plagiarisation is intentional and needed, until we
+ * change all the places in RPC layer using c2_rpc.
+ */
 static int packet_header_encode(struct c2_rpc_packet    *p,
 				struct c2_bufvec_cursor *cursor)
 {

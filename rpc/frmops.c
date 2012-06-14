@@ -62,6 +62,12 @@ static const struct c2_net_buffer_callbacks outgoing_buf_callbacks = {
 	}
 };
 
+/**
+   Serialises packet p and its items in a network buffer and submits it to
+   network layer.
+
+   @see c2_rpc_frm_ops::fo_packet_ready()
+ */
 static bool packet_ready(struct c2_rpc_packet  *p,
 			 struct c2_rpc_machine *machine,
 			 struct c2_rpc_chan    *rchan)
@@ -106,6 +112,12 @@ out:
 	return false;
 }
 
+/**
+   Initialises rpcbuf, allocates network buffer of size enough to
+   accomodate serialised packet p.
+   machine identifies source end-point and rchan identifies destination
+   end-point.
+ */
 static int rpc_buffer_init(struct rpc_buffer     *rpcbuf,
 			   struct c2_rpc_packet  *p,
 			   struct c2_rpc_machine *machine,
@@ -147,6 +159,9 @@ out:
 	return rc;
 }
 
+/**
+   Allocates network buffer and register it with network domain ndom.
+ */
 static int net_buffer_allocate(struct c2_net_buffer *netbuf,
 			       struct c2_net_domain *ndom,
 			       c2_bcount_t           buf_size)
@@ -178,6 +193,11 @@ out:
 	return rc;
 }
 
+/**
+   Depending on buf_size and maximum network buffer segment size,
+   returns number and size of segments to required to carry contents of
+   size buf_size.
+ */
 static void get_bufvec_geometry(struct c2_net_domain *ndom,
 				c2_bcount_t           buf_size,
 				int32_t              *out_nr_segments,
@@ -237,6 +257,9 @@ static void net_buffer_free(struct c2_net_buffer *netbuf,
 	C2_LEAVE();
 }
 
+/**
+   Submits buffer to network layer for sending.
+ */
 static int rpc_buffer_submit(struct rpc_buffer *rpcbuf)
 {
 	struct c2_net_buffer *netbuf;
@@ -272,6 +295,10 @@ static void rpc_buffer_fini(struct rpc_buffer *rpcbuf)
 	C2_LEAVE();
 }
 
+/**
+   Network layer calls this function, whenever there is any event on
+   network buffer which was previously submitted for sending by RPC layer.
+ */
 static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 {
 	struct c2_net_buffer  *netbuf;
@@ -323,6 +350,9 @@ static void item_done(struct c2_rpc_item *item, unsigned long rc)
 	C2_LEAVE();
 }
 
+/**
+   @see c2_rpc_frm_ops::fo_item_bind()
+ */
 static bool item_bind(struct c2_rpc_item *item)
 {
 	bool result;
