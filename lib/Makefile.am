@@ -59,6 +59,7 @@ libc2_la_SOURCES     = \
                        ext.h \
                        finject.c \
                        finject.h \
+		       finject_internal.h \
                        getopts.c \
                        getopts.h \
                        list.c \

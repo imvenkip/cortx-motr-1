@@ -177,7 +177,8 @@ static int net_buffer_allocate(struct c2_net_buffer *netbuf,
 	get_bufvec_geometry(ndom, buf_size, &nr_segments, &segment_size);
 
 	C2_SET0(netbuf);
-	rc = c2_bufvec_alloc(&netbuf->nb_buffer, nr_segments, segment_size);
+	rc = c2_bufvec_alloc_aligned(&netbuf->nb_buffer, nr_segments,
+				     segment_size, C2_SEG_SHIFT);
 	if (rc != 0) {
 		C2_LOG("buffer allocation failed");
 		goto out;
@@ -186,7 +187,7 @@ static int net_buffer_allocate(struct c2_net_buffer *netbuf,
 	rc = c2_net_buffer_register(netbuf, ndom);
 	if (rc != 0) {
 		C2_LOG("net buf registeration failed");
-		c2_bufvec_free(&netbuf->nb_buffer);
+		c2_bufvec_free_aligned(&netbuf->nb_buffer, C2_SEG_SHIFT);
 	}
 out:
 	C2_LEAVE("rc: %d", rc);
@@ -239,6 +240,7 @@ static void get_bufvec_geometry(struct c2_net_domain *ndom,
 	}
 
 	*out_segment_size = segment_size;
+	*out_segment_size = max_segment_size; /* REMOVE */
 	*out_nr_segments  = nr_segments;
 
 	C2_LEAVE("seg_size: %llu nr_segments: %d", (ULL)segment_size,
@@ -252,7 +254,7 @@ static void net_buffer_free(struct c2_net_buffer *netbuf,
 	C2_PRE(netbuf != NULL && ndom != NULL);
 
 	c2_net_buffer_deregister(netbuf, ndom);
-	c2_bufvec_free(&netbuf->nb_buffer);
+	c2_bufvec_free_aligned(&netbuf->nb_buffer, C2_SEG_SHIFT);
 
 	C2_LEAVE();
 }

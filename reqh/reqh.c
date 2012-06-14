@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>,
- *			Mandar Sawant <Mandar_Sawant@xyratex.com>
+ *		    Mandar Sawant <Mandar_Sawant@xyratex.com>
  * Original creation date: 05/19/2010
  */
 
@@ -78,7 +78,8 @@ C2_BOB_DEFINE( , &rhsvc_bob, c2_reqh_service);
    Tlist descriptor for rpc machines.
  */
 C2_TL_DESCR_DEFINE(c2_rhrpm, "rpc machines", , struct c2_rpc_machine,
-                   rm_rh_linkage, rm_magic, REQH_RPC_MACH_HEAD_MAGIX, C2_RPC_MACHINE_MAGIX);
+                   rm_rh_linkage, rm_magic, REQH_RPC_MACH_HEAD_MAGIX,
+                   C2_RPC_MACHINE_MAGIX);
 
 C2_TL_DEFINE(c2_rhrpm, , struct c2_rpc_machine);
 

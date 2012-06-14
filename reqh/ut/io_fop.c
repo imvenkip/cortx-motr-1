@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -37,7 +37,6 @@
 #include "stob/stob.h"
 #include "stob/ad.h"
 #include "stob/linux.h"
-#include "net/bulk_sunrpc.h"
 #include "rpc/rpc2.h"
 #include "rpc/rpc_onwire.h"
 #include "rpc/rpc_opcodes.h"

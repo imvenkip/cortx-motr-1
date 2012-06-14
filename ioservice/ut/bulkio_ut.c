@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Madhavrao Vemuri <madhav_vemuri@xyratec.com>
+ * Original author: Madhavrao Vemuri <madhav_vemuri@xyratex.com>
  * Original creation date: 09/29/2011
  */
 
@@ -24,6 +24,7 @@
 #include "lib/processor.h"
 #include "lib/ut.h"
 #include "bulkio_common.h"
+#include "net/lnet/lnet.h"
 #include "ioservice/io_fops.c"	/* To access static APIs. */
 #include "ioservice/io_foms.c"	/* To access static APIs. */
 
@@ -88,6 +89,14 @@ static struct c2_fom_type bulkio_stob_create_fom_type = {
 	.ft_ops = &bulkio_stob_create_fom_type_ops,
 };
 
+static inline struct c2_net_transfer_mc *fop_tm_get(
+		const struct c2_fop *fop)
+{
+	C2_PRE(fop != NULL);
+
+	return &fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm;
+}
+
 /*
  * Intercepting FOM to test I/O FOM functions for different phases.
  */
@@ -117,8 +126,7 @@ struct c2_net_buffer_pool * ut_get_buffer_pool(struct c2_fom *fom)
                                 struct c2_reqh_io_service, rios_gen);
 
         /* Get network buffer pool for network domain */
-        fop_ndom
-        = fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
+        fop_ndom = fop_tm_get(fop)->ntm_dom;
         c2_tl_for(bufferpools, &serv_obj->rios_buffer_pools,
                      bpdesc) {
                 if (bpdesc->rios_ndom == fop_ndom) {
@@ -313,14 +321,14 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
         struct c2_fop_file_fid       *ffid;
         struct c2_fid                 fid;
         struct c2_stob_id             stobid;
-        struct c2_net_transfer_mc     tm;
+        struct c2_net_transfer_mc    *tm;
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         fop = fom->fo_fop;
         rwfop = io_rw_get(fop);
 
-        tm = fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm;
-        colour = c2_net_tm_colour_get(&tm);
+        tm = fop_tm_get(fop);
+        colour = c2_net_tm_colour_get(tm);
 
         if (fom->fo_phase < C2_FOPH_NR) {
                 /*
@@ -681,14 +689,14 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
         struct c2_fop_file_fid       *ffid;
         struct c2_fid                 fid;
         struct c2_stob_id             stobid;
-        struct c2_net_transfer_mc     tm;
+        struct c2_net_transfer_mc    *tm;
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         fop = fom->fo_fop;
         rwfop = io_rw_get(fop);
 
-        tm = fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm;
-        colour = c2_net_tm_colour_get(&tm);
+        tm = fop_tm_get(fop);
+        colour = c2_net_tm_colour_get(tm);
 
         if (fom->fo_phase < C2_FOPH_NR) {
                 /*
@@ -1481,21 +1489,18 @@ void bulkio_server_read_write_multiple_nb(void)
 
 static void bulkio_init(void)
 {
-	int			 rc;
-	int			 port;
-	const char		*caddr;
-	const char		*saddr;
+	int  rc;
+	const char *caddr = "0@lo:12345:34:*";
+	const char *saddr = "0@lo:12345:34:1";
 
-	caddr = saddr = "127.0.0.1";
-	port = 23134;
 	C2_ALLOC_PTR(bp);
 	C2_ASSERT(bp != NULL);
 	bulkio_params_init(bp);
 
-	rc = bulkio_server_start(bp, saddr, port);
+	rc = bulkio_server_start(bp, saddr);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(bp->bp_sctx != NULL);
-	rc = bulkio_client_start(bp, caddr, port, saddr, port);
+	rc = bulkio_client_start(bp, caddr, saddr);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(bp->bp_cctx != NULL);
 

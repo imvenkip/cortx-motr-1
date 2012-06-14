@@ -390,12 +390,20 @@ static void loc_handler_thread(struct c2_fom_hthread *th)
 				idle = true;
 			}
 		}
-		if (loc->fl_idle_threads_nr > loc->fl_lo_idle_threads_nr)
-			break;
 		if (idle) {
 			group_unlock(loc);
 			c2_chan_timedwait(&th_clink,
 			                  c2_time_add(c2_time_now(), delta));
+			group_lock(loc);
+		}
+		if (loc->fl_idle_threads_nr > loc->fl_hi_idle_threads_nr)
+			break;
+		if (loc->fl_idle_threads_nr > loc->fl_lo_idle_threads_nr) {
+			/*
+			 * Get the other thread waiting in c2_fom_block_leave()
+			 * a chance to complete state transition.
+			 */
+			group_unlock(loc);
 			group_lock(loc);
 		}
 	}
@@ -424,14 +432,16 @@ static int loc_thr_init(struct c2_fom_hthread *th)
 	loc = th->fht_locality;
 	C2_ASSERT(loc != NULL);
 
-	group_lock(loc);
 	rc = c2_thread_confine(&th->fht_thread, &loc->fl_processors);
 	if (rc == 0) {
+		group_lock(loc);
 		c2_list_add_tail(&loc->fl_threads, &th->fht_linkage);
+		group_unlock(loc);
+		c2_mutex_lock(&loc->fl_lock);
 		C2_CNT_INC(loc->fl_threads_nr);
 		C2_CNT_INC(loc->fl_idle_threads_nr);
+		c2_mutex_unlock(&loc->fl_lock);
 	}
-	group_unlock(loc);
 
 	return rc;
 }
@@ -458,16 +468,26 @@ static int loc_thr_create(struct c2_fom_locality *loc)
 
 	C2_PRE(loc != NULL);
 
+	c2_mutex_unlock(&loc->fl_lock);
+
 	fom_addb_ctx = &loc->fl_dom->fd_addb_ctx;
 	C2_ALLOC_PTR_ADDB(locthr, fom_addb_ctx, &c2_fom_addb_loc);
-	if (locthr == NULL)
+	if (locthr == NULL) {
+		c2_mutex_lock(&loc->fl_lock);
 		return -ENOMEM;
-
+	}
+	/*
+	 * Initialize the linkage here so that c2_list_del() below can be safely
+	 * called even if thread creation failed before adding thread to the
+	 * list.
+	 */
+	c2_list_link_init(&locthr->fht_linkage);
 	locthr->fht_locality = loc;
 	result = C2_THREAD_INIT(&locthr->fht_thread, struct c2_fom_hthread *,
 			loc_thr_init, &loc_handler_thread, locthr,
 			"locality_thread");
 
+	c2_mutex_lock(&loc->fl_lock);
 	if (result != 0) {
 		c2_list_del(&locthr->fht_linkage);
 		c2_free(locthr);
@@ -497,7 +517,7 @@ static void locality_fini(struct c2_fom_locality *loc)
 
 	group_lock(loc);
 	C2_ASSERT(c2_locality_invariant(loc));
-	loc->fl_lo_idle_threads_nr = 0;
+	loc->fl_hi_idle_threads_nr = loc->fl_lo_idle_threads_nr = 0;
 	c2_chan_broadcast(&loc->fl_runrun);
 	while (!c2_list_is_empty(&loc->fl_threads)) {
 
@@ -505,8 +525,7 @@ static void locality_fini(struct c2_fom_locality *loc)
 		C2_ASSERT(link != NULL);
 		c2_list_del(link);
 		group_unlock(loc);
-		th = container_of(link, struct c2_fom_hthread,
-					fht_linkage);
+		th = container_of(link, struct c2_fom_hthread, fht_linkage);
 		C2_ASSERT(th != NULL);
 		c2_thread_join(&th->fht_thread);
 		c2_thread_fini(&th->fht_thread);
@@ -588,11 +607,13 @@ static int locality_init(struct c2_fom_locality *loc, struct c2_bitmap *pmap)
 
                 loc->fl_hi_idle_threads_nr = ncpus;
 
+		c2_mutex_lock(&loc->fl_lock);
 		for (i = 0; i < ncpus; ++i) {
 			result = loc_thr_create(loc);
 			if (result != 0)
 				break;
 		}
+		c2_mutex_unlock(&loc->fl_lock);
 	}
 
 	if (result != 0)

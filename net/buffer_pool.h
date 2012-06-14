@@ -28,6 +28,7 @@
 
 /**
    @defgroup net_buffer_pool Network Buffer Pool
+   @ingroup net
 
    @brief Network buffer pool allocates and manages a pool of network buffers.
 	  Users request a buffer from the pool and after its usage is over
@@ -124,16 +125,19 @@
 
     - To finalize the pool:
     @code
-	c2_net_buffer_pool_lock(&bp);
 	c2_net_buffer_pool_fini(&bp);
-	c2_net_buffer_pool_unlock(&bp);
     @endcode
+
+    @see Also see c2_net_tm_pool_attach() and @ref NetRQProvDLD
+    "Auo-Provisioning of Receive Message Queue Buffers".
    @{
   */
 
 enum {
-	C2_BUFFER_ANY_COLOUR = ~0
+	C2_BUFFER_ANY_COLOUR	     = ~0,
+	C2_NET_BUFFER_POOL_THRESHOLD = 2,
 };
+
 struct c2_net_buffer_pool;
 
 /** Call backs that buffer pool can trigger on different memory conditions. */
@@ -180,7 +184,7 @@ int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
 				 uint32_t buf_nr);
 /** Finalizes a buffer pool.
-   @pre c2_net_buffer_pool_is_locked(pool)
+   @pre c2_net_buffer_pool_is_not_locked(pool)
  */
 void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool);
 
@@ -190,17 +194,21 @@ void c2_net_buffer_pool_lock(struct c2_net_buffer_pool *pool);
 /** Check whether buffer pool is locked or not. */
 bool c2_net_buffer_pool_is_locked(const struct c2_net_buffer_pool *pool);
 
+/** Returns true when buffer pool is not locked. */
+bool c2_net_buffer_pool_is_not_locked(const struct c2_net_buffer_pool *pool);
+
 /** Releases the lock on buffer pool. */
 void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool);
 
 /**
    Gets a buffer from the pool.
-   If the colour is specified (i.e non zero) and the corrsponding coloured
+   If the colour is specified (i.e non zero) and the corresponding coloured
    list is not empty then the buffer is taken from the head of this list.
    Otherwise the buffer is taken from the head of the per buffer pool list.
    @pre c2_net_buffer_pool_is_locked(pool)
    @pre colour == C2_BUFFER_ANY_COLOUR || colour < pool->nbp_colours_nr
    @post ergo(result != NULL, result->nb_flags & C2_NET_BUF_REGISTERED)
+   @post ergo(result != NULL, result->nb_pool == pool)
  */
 struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
 					     uint32_t colour);

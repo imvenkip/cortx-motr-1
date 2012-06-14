@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -32,6 +32,7 @@
 #include "lib/errno.h"
 #include "lib/misc.h"
 #include "lib/types.h"
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
 #include "rpc/session.h"
 #include "rpc/session_internal.h"
@@ -48,13 +49,8 @@
 #include "rpc/formation2.h"
 
 /* Forward declarations. */
-static int recv_buffer_allocate_nr(struct c2_net_domain  *net_dom,
-				   struct c2_rpc_machine *machine);
-static void recv_buffer_deallocate_nr(struct c2_rpc_machine *machine,
-				      bool tm_active, uint32_t nr);
 static void rpc_net_buf_received(const struct c2_net_buffer_event *ev);
 static void rpc_tm_cleanup(struct c2_rpc_machine *machine);
-
 
 extern void frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
 extern void rpcobj_exit_stats_set(const struct c2_rpc *rpcobj,
@@ -69,12 +65,6 @@ C2_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", , struct c2_rpc_item, ri_field,
 		   C2_RPC_ITEM_HEAD_MAGIC);
 
 C2_TL_DEFINE(rpcitem, , struct c2_rpc_item);
-
-/* Number of default receive c2_net_buffers to be used with
-   each transfer machine.*/
-enum {
-	C2_RPC_TM_RECV_BUFFERS_NR = 64,
-};
 
 /* ADDB Instrumentation for rpccore. */
 static const struct c2_addb_ctx_type rpc_machine_addb_ctx_type = {
@@ -185,12 +175,15 @@ int c2_rpc_post(struct c2_rpc_item *item)
 {
 	struct c2_rpc_machine *machine;
 	int                    rc;
+	uint64_t	       item_size;
 
 	C2_PRE(item->ri_session != NULL);
 
-	machine = item->ri_session->s_conn->c_rpc_machine;
+	machine	  = item->ri_session->s_conn->c_rpc_machine;
+	item_size = item->ri_type->rit_ops->rito_item_size(item);
 
 	c2_rpc_machine_lock(machine);
+	C2_ASSERT(item_size <= machine->rm_min_recv_size);
 	rc = c2_rpc__post_locked(item);
 	c2_rpc_machine_unlock(machine);
 
@@ -403,6 +396,24 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 	return 0;
 }
 
+/* Put buffer back into the pool */
+static void rpc_recv_pool_buffer_put(struct c2_net_buffer *nb)
+{
+	struct c2_net_transfer_mc *tm;
+	C2_PRE(nb != NULL);
+	tm = nb->nb_tm;
+
+	C2_PRE(tm != NULL);
+	C2_PRE(tm->ntm_recv_pool != NULL && nb->nb_pool !=NULL);
+	C2_PRE(tm->ntm_recv_pool == nb->nb_pool);
+
+	nb->nb_ep = NULL;
+	c2_net_buffer_pool_lock(tm->ntm_recv_pool);
+	c2_net_buffer_pool_put(tm->ntm_recv_pool, nb,
+			       tm->ntm_pool_colour);
+	c2_net_buffer_pool_unlock(tm->ntm_recv_pool);
+}
+
 static int rpc_tm_setup(struct c2_rpc_machine *machine,
 			struct c2_net_domain *net_dom, const char *ep_addr)
 {
@@ -412,24 +423,27 @@ static int rpc_tm_setup(struct c2_rpc_machine *machine,
 	C2_PRE(machine != NULL);
 	C2_PRE(net_dom != NULL);
 	C2_PRE(ep_addr != NULL);
-
-	/* Allocate space for pointers of recv net buffers. */
-	C2_ALLOC_ARR(machine->rm_rcv_buffers, C2_RPC_TM_RECV_BUFFERS_NR);
-	if (machine->rm_rcv_buffers == NULL) {
-		C2_ADDB_ADD(&machine->rm_rpc_machine_addb,
-				&rpc_machine_addb_loc, c2_addb_oom);
-		return -ENOMEM;
-	}
+	C2_PRE(machine->rm_buffer_pool != NULL);
 
 	machine->rm_tm.ntm_state = C2_NET_TM_UNDEFINED;
 	machine->rm_tm.ntm_callbacks = &c2_rpc_tm_callbacks;
 
 	/* Initialize the net transfer machine. */
 	rc = c2_net_tm_init(&machine->rm_tm, net_dom);
+	if (rc < 0)
+		return rc;
+
+	rc = c2_net_tm_pool_attach(&machine->rm_tm, machine->rm_buffer_pool,
+				   &c2_rpc_rcv_buf_callbacks,
+				   machine->rm_min_recv_size,
+				   machine->rm_max_recv_msgs,
+				   machine->rm_tm_recv_queue_min_length);
 	if (rc < 0) {
-		c2_free(machine->rm_rcv_buffers);
+		c2_net_tm_fini(&machine->rm_tm);
 		return rc;
 	}
+
+	c2_net_tm_colour_set(&machine->rm_tm, machine->rm_tm_colour);
 
 	/* Start the transfer machine so that users of this rpc_machine
 	   can send/receive messages. */
@@ -448,18 +462,10 @@ static int rpc_tm_setup(struct c2_rpc_machine *machine,
 	c2_clink_del(&tmwait);
 	c2_clink_fini(&tmwait);
 
-	/* Add buffers for receiving messages to this transfer machine. */
-	rc = recv_buffer_allocate_nr(net_dom, machine);
-	if (rc < 0) {
-		rpc_tm_cleanup(machine);
-		return rc;
-	}
-
 	return rc;
 cleanup:
 	c2_clink_del(&tmwait);
 	c2_clink_fini(&tmwait);
-	c2_free(machine->rm_rcv_buffers);
 	if (machine->rm_tm.ntm_state <= C2_NET_TM_FAILED)
 		c2_net_tm_fini(&machine->rm_tm);
 	return rc;
@@ -524,16 +530,17 @@ void rpc_chan_put(struct c2_rpc_chan *chan)
 
 static void rpc_tm_cleanup(struct c2_rpc_machine *machine)
 {
-	int		cnt;
-	int		rc;
-	struct c2_clink	tmwait;
+	int			   rc;
+	struct c2_clink		   tmwait;
+	struct c2_net_transfer_mc *tm = &machine->rm_tm;
 
 	C2_PRE(machine != NULL);
 
 	c2_clink_init(&tmwait, NULL);
-	c2_clink_add(&machine->rm_tm.ntm_chan, &tmwait);
+	c2_clink_add(&tm->ntm_chan, &tmwait);
 
-	rc = c2_net_tm_stop(&machine->rm_tm, false);
+	rc = c2_net_tm_stop(tm, true);
+
 	if (rc < 0) {
 		c2_clink_del(&tmwait);
 		c2_clink_fini(&tmwait);
@@ -542,22 +549,15 @@ static void rpc_tm_cleanup(struct c2_rpc_machine *machine)
 			    "c2_net_tm_stop", 0);
 		return;
 	}
-
 	/* Wait for transfer machine to stop. */
-	while (machine->rm_tm.ntm_state != C2_NET_TM_STOPPED)
+	while (tm->ntm_state != C2_NET_TM_STOPPED &&
+	       tm->ntm_state != C2_NET_TM_FAILED)
 		c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
 	c2_clink_fini(&tmwait);
 
-	/* Delete all the buffers from net domain. */
-	recv_buffer_deallocate_nr(machine, false, C2_RPC_TM_RECV_BUFFERS_NR);
-
 	/* Fini the transfer machine here and deallocate the chan. */
-	c2_net_tm_fini(&machine->rm_tm);
-	for (cnt = 0; cnt < C2_RPC_TM_RECV_BUFFERS_NR; ++cnt)
-		C2_ASSERT(machine->rm_rcv_buffers[cnt] == NULL);
-
-	c2_free(machine->rm_rcv_buffers);
+	c2_net_tm_fini(tm);
 }
 
 int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout)
@@ -582,77 +582,72 @@ int c2_rpc_group_timedwait(struct c2_rpc_group *group, const c2_time_t *timeout)
  */
 static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 {
-	int			 rc;
-	c2_time_t		 now;
-	struct c2_rpc		 rpc;
-	struct c2_rpc_item	*item;
-	struct c2_rpc_item	*next_item;
-	struct c2_net_buffer	*nb;
-	struct c2_rpc_chan	*chan;
-	struct c2_rpc_machine	*machine;
+	int		       rc;
+	c2_time_t	       now;
+	struct c2_rpc	       rpc;
+	struct c2_rpc_item    *item;
+	struct c2_rpc_item    *next_item;
+	struct c2_net_buffer  *nb;
+	struct c2_rpc_chan    *chan;
+	struct c2_rpc_machine *machine;
 
 	C2_PRE(ev != NULL && ev->nbe_buffer != NULL);
 
 	/* Decode the buffer, get an RPC from it, traverse the
 	   list of rpc items from that rpc and post reply callbacks
 	   for each rpc item. */
-	nb = ev->nbe_buffer;
-
-	machine = container_of(nb->nb_tm, struct c2_rpc_machine, rm_tm);
+	nb	      = ev->nbe_buffer;
+	nb->nb_length = ev->nbe_length;
+	nb->nb_ep     = ev->nbe_ep;
+	machine       = container_of(nb->nb_tm, struct c2_rpc_machine, rm_tm);
 
 	c2_rpc_machine_lock(machine);
 
 	if (ev->nbe_status != 0) {
-		C2_ADDB_ADD(&machine->rm_rpc_machine_addb,
-			    &rpc_machine_addb_loc,
-			    rpc_machine_func_fail,
-			    "Buffer event reported failure %d",
-			    ev->nbe_status);
+		if (ev->nbe_status != -ECANCELED)
+			C2_ADDB_ADD(&machine->rm_rpc_machine_addb,
+				    &rpc_machine_addb_loc,
+				    rpc_machine_func_fail,
+				    "Buffer event reported failure",
+				    ev->nbe_status);
+		rc = ev->nbe_status;
 		goto last;
 	}
-	nb->nb_length = ev->nbe_length;
-	nb->nb_ep = ev->nbe_ep;
 
 	chan = rpc_chan_locate(machine, nb->nb_ep);
 	if (chan != NULL) {
 		rpc_chan_put(chan);
 	}
-
 	c2_rpcobj_init(&rpc);
-	rc = c2_rpc_decode(&rpc, nb);
-	if (rc < 0)
-		goto last;
-
-	rpcobj_exit_stats_set(&rpc, machine, C2_RPC_PATH_INCOMING);
-	now = c2_time_now();
-	c2_list_for_each_entry_safe(&rpc.r_items, item, next_item,
-				    struct c2_rpc_item, ri_rpcobject_linkage) {
-
-		c2_list_del(&item->ri_rpcobject_linkage);
-
-		if (c2_rpc_item_is_conn_establish(item))
-			c2_rpc_fop_conn_establish_ctx_init(item, nb->nb_ep,
-							   machine);
-
-		item->ri_rpc_time = now;
-		/*
-		 * IMPORTANT:
-		 * if type of item is NOT one of item types provided by session
-		 * module, then c2_rpc_item_received() => rpc_item_replied()
-		 * drops and reaquires machine->rm_mutex
-		 */
-		rc = c2_rpc_item_received(item, machine);
-	}
-
-	/* Add the c2_net_buffer back to the queue of
-	   transfer machine. */
+	rc = c2_rpc_decode(&rpc, nb, ev->nbe_length, ev->nbe_offset);
 last:
-	nb->nb_qtype = C2_NET_QT_MSG_RECV;
-	nb->nb_ep = NULL;
-	nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
-	if (nb->nb_tm->ntm_state == C2_NET_TM_STARTED)
-		rc = c2_net_buffer_add(nb, nb->nb_tm);
+	C2_ASSERT(nb->nb_pool != NULL);
+	if (!(nb->nb_flags & C2_NET_BUF_QUEUED))
+		rpc_recv_pool_buffer_put(nb);
 
+	if (rc == 0) {
+		rpcobj_exit_stats_set(&rpc, machine, C2_RPC_PATH_INCOMING);
+		now = c2_time_now();
+		c2_list_for_each_entry_safe(&rpc.r_items, item, next_item,
+					    struct c2_rpc_item,
+					    ri_rpcobject_linkage) {
+			c2_list_del(&item->ri_rpcobject_linkage);
+
+			if (c2_rpc_item_is_conn_establish(item))
+				c2_rpc_fop_conn_establish_ctx_init(item,
+								   ev->nbe_ep,
+								   machine);
+
+			item->ri_rpc_time = now;
+			rc = c2_rpc_item_received(item, machine);
+			/*
+			 * If 'item' is conn terminate reply then, do not
+			 * access item, after this point. In which case the
+			 * item might have already been freed.
+			 */
+			C2_ASSERT(rc == 0);
+		}
+	}
 	c2_rpc_machine_unlock(machine);
 }
 
@@ -660,12 +655,12 @@ static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 		struct c2_net_buffer **nbuf, enum c2_net_queue_type qtype,
 		uint64_t rpc_size)
 {
-	int			 rc;
-	int32_t			 segs_nr;
-	c2_bcount_t		 seg_size;
-	c2_bcount_t		 buf_size;
-	c2_bcount_t		 nrsegs;
-	struct c2_net_buffer	*nb;
+	int		      rc;
+	int32_t		      segs_nr;
+	c2_bcount_t	      seg_size;
+	c2_bcount_t	      buf_size;
+	c2_bcount_t	      nrsegs;
+	struct c2_net_buffer *nb;
 
 	C2_PRE(net_dom != NULL);
 	C2_PRE((qtype == C2_NET_QT_MSG_RECV) || (qtype == C2_NET_QT_MSG_SEND));
@@ -689,14 +684,18 @@ static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 	/* Allocate the bufvec of size = min((buf_size), (segs_nr * seg_size)).
 	   We keep the segment size constant. So mostly the number of segments
 	   is changed here. */
-	if (buf_size > (segs_nr * seg_size))
+	if (buf_size > (segs_nr * seg_size)) {
 		nrsegs = segs_nr;
-	else
+	} else {
 		nrsegs = buf_size / seg_size;
+		if (buf_size % seg_size != 0)
+			++nrsegs;
+	}
 	if (nrsegs == 0)
 		++nrsegs;
 
-	rc = c2_bufvec_alloc(&nb->nb_buffer, nrsegs, seg_size);
+	rc = c2_bufvec_alloc_aligned(&nb->nb_buffer, nrsegs, seg_size,
+				     C2_SEG_SHIFT);
 	if (rc < 0) {
 		if (qtype == C2_NET_QT_MSG_RECV) {
 			c2_free(nb);
@@ -708,7 +707,7 @@ static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 	nb->nb_flags = 0;
 	nb->nb_qtype = qtype;
 	if (qtype == C2_NET_QT_MSG_RECV) {
-		nb->nb_callbacks = &c2_rpc_rcv_buf_callbacks;
+		nb->nb_callbacks	= &c2_rpc_rcv_buf_callbacks;
 		nb->nb_min_receive_size = nrsegs * seg_size;
 		nb->nb_max_receive_msgs = 1;
 	} else
@@ -717,7 +716,7 @@ static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 	/* Register the buffer with given net domain. */
 	rc = c2_net_buffer_register(nb, net_dom);
 	if (rc < 0) {
-		c2_bufvec_free(&nb->nb_buffer);
+		c2_bufvec_free_aligned(&nb->nb_buffer, C2_SEG_SHIFT);
 		if (qtype == C2_NET_QT_MSG_RECV) {
 			c2_free(nb);
 			nb = NULL;
@@ -725,15 +724,6 @@ static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 	}
 	*nbuf = nb;
 	return rc;
-}
-
-static int recv_buffer_allocate(struct c2_net_domain *net_dom,
-		struct c2_net_buffer **nb)
-{
-	C2_PRE(net_dom != NULL);
-	C2_PRE(nb != NULL);
-
-	return rpc_net_buffer_allocate(net_dom, nb, C2_NET_QT_MSG_RECV, 0);
 }
 
 int send_buffer_allocate(struct c2_net_domain *net_dom,
@@ -746,62 +736,6 @@ int send_buffer_allocate(struct c2_net_domain *net_dom,
 			rpc_size);
 }
 
-static int recv_buffer_allocate_nr(struct c2_net_domain  *net_dom,
-				   struct c2_rpc_machine *machine)
-{
-	int			 rc;
-	uint32_t		 cnt;
-	struct c2_net_buffer	*nb;
-
-	C2_PRE(net_dom != NULL);
-	C2_PRE(machine != NULL);
-
-	for (cnt = 0; cnt < C2_RPC_TM_RECV_BUFFERS_NR; ++cnt) {
-		rc = recv_buffer_allocate(net_dom, &nb);
-		if (rc != 0)
-			break;
-		machine->rm_rcv_buffers[cnt] = nb;
-		rc = c2_net_buffer_add(nb, &machine->rm_tm);
-		if (rc < 0)
-			break;
-	}
-	if (rc < 0)
-		recv_buffer_deallocate_nr(machine, true, cnt);
-
-	return rc;
-}
-
-void recv_buffer_deallocate(struct c2_net_buffer *nb,
-			    struct c2_rpc_machine *machine, bool tm_active)
-{
-	struct c2_clink			 tmwait;
-	struct c2_net_transfer_mc	*tm;
-	struct c2_net_domain		*net_dom;
-
-	C2_PRE(nb != NULL);
-	C2_PRE(machine != NULL);
-
-	tm = &machine->rm_tm;
-	net_dom = tm->ntm_dom;
-
-	/* Add to a clink to transfer machine's channel to wait for
-	   deletion of buffers from transfer machine. */
-	if (tm_active) {
-		c2_clink_init(&tmwait, NULL);
-		c2_clink_add(&tm->ntm_chan, &tmwait);
-
-		c2_net_buffer_del(nb, tm);
-		while ((nb->nb_flags & C2_NET_BUF_QUEUED) != 0)
-			c2_chan_wait(&tmwait);
-		c2_clink_del(&tmwait);
-		c2_clink_fini(&tmwait);
-	}
-
-	c2_net_buffer_deregister(nb, net_dom);
-	c2_bufvec_free(&nb->nb_buffer);
-	c2_free(nb);
-}
-
 void send_buffer_deallocate(struct c2_net_buffer *nb,
 		struct c2_net_domain *net_dom)
 {
@@ -810,23 +744,7 @@ void send_buffer_deallocate(struct c2_net_buffer *nb,
 	C2_PRE((nb->nb_flags & C2_NET_BUF_QUEUED) == 0);
 
 	c2_net_buffer_deregister(nb, net_dom);
-	c2_bufvec_free(&nb->nb_buffer);
-}
-
-static void recv_buffer_deallocate_nr(struct c2_rpc_machine *machine,
-				      bool tm_active, uint32_t nr)
-{
-	int			 cnt;
-	struct c2_net_buffer	*nb;
-
-	C2_PRE(machine != NULL);
-	C2_PRE(nr <= C2_RPC_TM_RECV_BUFFERS_NR);
-
-	for (cnt = 0; cnt < nr; ++cnt) {
-		nb = machine->rm_rcv_buffers[cnt];
-		recv_buffer_deallocate(nb, machine, tm_active);
-		machine->rm_rcv_buffers[cnt] = NULL;
-	}
+	c2_bufvec_free_aligned(&nb->nb_buffer, C2_SEG_SHIFT);
 }
 
 static void __rpc_machine_fini(struct c2_rpc_machine *machine)
@@ -842,26 +760,39 @@ static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 	c2_addb_ctx_fini(&machine->rm_rpc_machine_addb);
 }
 
-int c2_rpc_machine_init(struct c2_rpc_machine *machine,
-			struct c2_cob_domain  *dom,
-			struct c2_net_domain  *net_dom,
-			const char            *ep_addr,
-			struct c2_reqh        *reqh)
+int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
+			struct c2_cob_domain      *dom,
+			struct c2_net_domain      *net_dom,
+			const char                *ep_addr,
+			struct c2_reqh            *reqh,
+			struct c2_net_buffer_pool *receive_pool,
+			uint32_t		   colour,
+			c2_bcount_t		   msg_size,
+			uint32_t		   queue_len)
 {
 	int		rc;
+#ifndef __KERNEL__
 	struct c2_db_tx tx;
+#endif
 
-	C2_PRE(dom != NULL);
-	C2_PRE(machine != NULL);
-	C2_PRE(ep_addr != NULL);
-	C2_PRE(net_dom != NULL);
+	C2_PRE(dom	    != NULL);
+	C2_PRE(machine	    != NULL);
+	C2_PRE(ep_addr	    != NULL);
+	C2_PRE(net_dom	    != NULL);
+	C2_PRE(receive_pool != NULL);
 
 	if (C2_FI_ENABLED("fake_error"))
 		return -EINVAL;
 
 	C2_SET0(machine);
-	machine->rm_dom  = dom;
-	machine->rm_reqh = reqh;
+	machine->rm_dom		  = dom;
+	machine->rm_reqh	  = reqh;
+	machine->rm_buffer_pool	  = receive_pool;
+	machine->rm_min_recv_size = c2_rpc_max_msg_size(net_dom, msg_size);
+	machine->rm_max_recv_msgs = c2_rpc_max_recv_msgs(net_dom, msg_size);
+	machine->rm_tm_colour	  = colour;
+
+	machine->rm_tm_recv_queue_min_length = queue_len;
 
 	c2_list_init(&machine->rm_chans);
 	c2_list_init(&machine->rm_incoming_conns);
@@ -877,25 +808,34 @@ int c2_rpc_machine_init(struct c2_rpc_machine *machine,
 	machine->rm_stopping = false;
 	rc = C2_THREAD_INIT(&machine->rm_frm_worker, struct c2_rpc_machine *,
 			    NULL, &frm_worker_fn, machine, "frm_worker");
-	if (rc != 0) {
-		__rpc_machine_fini(machine);
-		return rc;
-	}
+	if (rc != 0)
+		goto out_fini;
 
+	rc = rpc_tm_setup(machine, net_dom, ep_addr);
+	if (rc != 0)
+		goto out_stop_frm_worker;
+
+#ifndef __KERNEL__
 	rc = c2_db_tx_init(&tx, dom->cd_dbenv, 0);
 	if (rc == 0) {
-		rc = c2_rpc_root_session_cob_create(dom, &tx) ?:
-		     rpc_tm_setup(machine, net_dom, ep_addr);
-
+		rc = c2_rpc_root_session_cob_create(dom, &tx);
 		if (rc == 0) {
 			c2_db_tx_commit(&tx);
 		} else {
 			c2_db_tx_abort(&tx);
-			machine->rm_stopping = true;
-			c2_thread_join(&machine->rm_frm_worker);
-			__rpc_machine_fini(machine);
+			rpc_tm_cleanup(machine);
+			goto out_stop_frm_worker;
 		}
 	}
+#endif
+	return rc;
+
+out_stop_frm_worker:
+	machine->rm_stopping = true;
+	c2_thread_join(&machine->rm_frm_worker);
+
+out_fini:
+	__rpc_machine_fini(machine);
 	return rc;
 }
 C2_EXPORTED(c2_rpc_machine_init);
@@ -1486,6 +1426,51 @@ int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk,
 	return rpc_bulk_op(rbulk, conn, from_desc, C2_RPC_BULK_LOAD);
 }
 C2_EXPORTED(c2_rpc_bulk_load);
+
+static void buffer_pool_low(struct c2_net_buffer_pool *bp)
+{
+	/* Buffer pool is below threshold.  */
+}
+
+static const struct c2_net_buffer_pool_ops b_ops = {
+	.nbpo_not_empty	      = c2_net_domain_buffer_pool_not_empty,
+	.nbpo_below_threshold = buffer_pool_low,
+};
+
+int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
+				 struct c2_net_buffer_pool *app_pool,
+				 uint32_t bufs_nr, uint32_t tm_nr)
+{
+	int	    rc;
+	uint32_t    segs_nr;
+	c2_bcount_t seg_size;
+
+	C2_PRE(ndom != NULL);
+	C2_PRE(app_pool != NULL);
+	C2_PRE(bufs_nr != 0);
+
+	seg_size = c2_rpc_max_seg_size(ndom);
+	segs_nr  = c2_rpc_max_segs_nr(ndom);
+	app_pool->nbp_ops = &b_ops;
+	rc = c2_net_buffer_pool_init(app_pool, ndom,
+				     C2_NET_BUFFER_POOL_THRESHOLD,
+				     segs_nr, seg_size, tm_nr, C2_SEG_SHIFT);
+	if (rc != 0)
+		return rc;
+	c2_net_buffer_pool_lock(app_pool);
+	rc = c2_net_buffer_pool_provision(app_pool, bufs_nr);
+	c2_net_buffer_pool_unlock(app_pool);
+	return rc != bufs_nr ? -ENOMEM : 0;
+}
+C2_EXPORTED(c2_rpc_net_buffer_pool_setup);
+
+void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool)
+{
+	C2_PRE(app_pool != NULL);
+
+	c2_net_buffer_pool_fini(app_pool);
+}
+C2_EXPORTED(c2_rpc_net_buffer_pool_cleanup);
 
 /*
  *  Local variables:

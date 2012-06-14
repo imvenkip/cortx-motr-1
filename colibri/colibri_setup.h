@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -27,10 +27,11 @@
 #include "reqh/reqh_service.h"
 #include "ioservice/cobfid_map.h"
 #include "stob/stob.h"
+#include "net/buffer_pool.h"
 #include "dtm/dtm.h"
 
 /**
-   @defgroup colibri_setup Configures user space colibri environment
+   @defgroup colibri_setup Colibri Setup
 
    Colibri setup program configures a user space colibri context
    on a node in a cluster.
@@ -68,7 +69,7 @@
    @code
    struct c2_colibri colibri_ctx;
    static struct c2_net_xprt *xprts[] = {
-        &c2_net_bulk_sunrpc_xprt,
+        &c2_net_lnet_xprt,
 	...
     };
 
@@ -80,7 +81,7 @@
    @code
    static char *cmd[] = { "colibri_setup", "-r", "-T", "AD",
                    "-D", "cs_db", "-S", "cs_stob",
-                   "-e", "bulk-sunrpc:127.0.0.1:1024:2",
+                   "-e", "lnet:172.18.50.40@o2ib1:12345:34:1",
                    "-s", "dummy"};
 
     c2_cs_setup_env(&colibri_ctx, ARRAY_SIZE(cs_cmd), cs_cmd);
@@ -97,8 +98,8 @@
 
     Similarly, to setup colibri externally, using colibri_setup program along
     with parameters specified as above.
-    e.g. ./colibri -r -T linux -D dbpath -S stobfile -e xport:127.0.0.1:1024:1
-          -s service
+    e.g. ./colibri -r -T linux -D dbpath -S stobfile \
+           -e xport:172.18.50.40@o2ib1:12345:34:1 -s service
 
     Below image gives an overview of entire colibri context.
     @note This image is borrowed from the "New developer guide for colibri"
@@ -256,7 +257,42 @@ struct c2_colibri {
 	 * @see struct c2_cobfid_setup.
 	 */
 	struct c2_cobfid_setup	 *cc_setup;
+
+	/**
+	 * List of buffer pools in colibri context.
+	 * @see c2_cs_buffer_pool::cs_bp_linkage
+	 */
+        struct c2_tl		  cc_buffer_pools;
+
+	/**
+	 * Minimum number of buffers in TM receive queue.
+	 * @see c2_net_transfer_mc:ntm_recv_queue_length
+	 * Default is set to C2_NET_TM_RECV_QUEUE_DEF_LEN.
+	 */
+        uint32_t		  cc_recv_queue_min_length;
+
+	/** Maximum RPC message size. */
+	uint32_t		  cc_max_rpc_msg_size;
 };
+
+/**
+ * Represents list of buffer pools in the colibri context.
+ */
+struct c2_cs_buffer_pool {
+        /** Network buffer pool object. */
+        struct c2_net_buffer_pool    cs_buffer_pool;
+        /** Linkage into network buffer pool list */
+        struct c2_tlink              cs_bp_linkage;
+        /** Magic */
+        uint64_t                     cs_bp_magic;
+};
+
+enum {
+        C2_CS_BUFFER_POOL_MAGIC = 0x4353504f4f4c4d41,
+        C2_CS_BUFFER_POOL_HEAD  = 0x4353504f4f4c4845,
+};
+
+C2_TL_DECLARE(cs_buffer_pools, extern, struct c2_cs_buffer_pool);
 
 /**
    Structure which encapsulates stob type and

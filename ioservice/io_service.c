@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -43,10 +43,9 @@ C2_TL_DEFINE(bufferpools, , struct c2_rios_buffer_pool);
  * These values are supposed to get from configuration cache. Since
  * configuration cache module not available these values defines as constants
  */
-static const int network_buffer_pool_segment_size = 4096;
-static const int network_buffer_pool_segment_nr   = 128;
-static const int network_buffer_pool_threshold    = 8;
-static const int network_buffer_pool_initial_size = 32;
+enum {
+	C2_NET_BUFFER_POOL_SIZE = 32,
+};
 
 static int c2_ioservice_locate(struct c2_reqh_service_type *stype,
                                      struct c2_reqh_service **service);
@@ -163,11 +162,12 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
         struct c2_reqh_io_service  *serv_obj;
         struct c2_rios_buffer_pool *bp;
         struct c2_rios_buffer_pool *newbp;
+	c2_bcount_t		    segment_size;
+	uint32_t		    segments_nr;
 
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
 
-        c2_tlist_for(&c2_rhrpm_tl,
-		     &service->rs_reqh->rh_rpc_machines, rpcmach) {
+        c2_tl_for(c2_rhrpm, &service->rs_reqh->rh_rpc_machines, rpcmach) {
 		/*
 		 * Check buffer pool for network domain of rpc_machine
 		 */
@@ -194,13 +194,17 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 		 */
 		c2_chan_init(&newbp->rios_bp_wait);
 		newbp->rios_bp_magic = C2_RIOS_BUFFER_POOL_MAGIC;
-		colours = rpcmach->rm_tm.ntm_dom->nd_pool_colour_counter;
+
+		colours = c2_list_length(&newbp->rios_ndom->nd_tms);
+
+		segment_size = c2_rpc_max_seg_size(newbp->rios_ndom);
+		segments_nr  = c2_rpc_max_segs_nr(newbp->rios_ndom);
+
 		rc = c2_net_buffer_pool_init(&newbp->rios_bp,
-					     rpcmach->rm_tm.ntm_dom,
-					     network_buffer_pool_threshold,
-					     network_buffer_pool_segment_nr,
-					     network_buffer_pool_segment_size,
-					     colours, C2_0VEC_SHIFT);
+					      newbp->rios_ndom,
+					      C2_NET_BUFFER_POOL_THRESHOLD,
+					      segments_nr, segment_size,
+					      colours, C2_0VEC_SHIFT);
 		if (rc != 0)
 			break;
 		newbp->rios_bp.nbp_ops = &buffer_pool_ops;
@@ -208,7 +212,7 @@ static int ioservice_create_buffer_pool(struct c2_reqh_service *service)
 		/* Pre-allocate network buffers */
 		c2_net_buffer_pool_lock(&newbp->rios_bp);
 		nbuffs = c2_net_buffer_pool_provision(&newbp->rios_bp,
-					network_buffer_pool_initial_size);
+						      C2_NET_BUFFER_POOL_SIZE);
 		if (nbuffs <= 0) {
 			rc = -1;
 			break;
@@ -247,8 +251,6 @@ static void ioservice_delete_buffer_pool(struct c2_reqh_service *service)
 
                 c2_chan_fini(&bp->rios_bp_wait);
                 bufferpools_tlink_del_fini(bp);
-
-                c2_net_buffer_pool_lock(&bp->rios_bp);
                 c2_net_buffer_pool_fini(&bp->rios_bp);
 		c2_free(bp);
 

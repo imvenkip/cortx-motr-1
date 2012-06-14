@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -31,8 +31,8 @@
 #include "ut/rpc.h"
 #include "rpc/rpclib.h"
 #include "fop/fop.h"
-#include "net/bulk_sunrpc.h"
 #include "net/bulk_mem.h"
+#include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
 
@@ -44,35 +44,37 @@
 #include "ut/cs_test_fops.ff"
 #include "rpc/rpc_opcodes.h"
 
+#include "colibri/colibri_setup.c"
+
 extern const struct c2_tl_descr ndoms_descr;
 
 /* Client context */
 struct cl_ctx {
 	/* Client network domain.*/
-	struct c2_net_domain cl_ndom;
+	struct c2_net_domain	 cl_ndom;
 	/* Client db.*/
-	struct c2_dbenv      cl_dbenv;
+	struct c2_dbenv		 cl_dbenv;
 	/* Client cob domain.*/
-	struct c2_cob_domain cl_cdom;
+	struct c2_cob_domain	 cl_cdom;
 	/* Client rpc context.*/
-	struct c2_rpc_client_ctx    cl_ctx;
+	struct c2_rpc_client_ctx cl_ctx;
 };
 
 /* Configures colibri environment with given parameters. */
 static char *cs_ut_service_one_cmd[] = { "colibri_setup", "-r", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
-                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+				"-e", "lnet:0@lo:12345:34:1" ,
                                 "-s", "ds1"};
 
 static char *cs_ut_services_many_cmd[] = { "colibri_setup", "-r", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
-                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-e", "lnet:0@lo:12345:34:1",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-s", "ds1", "-s" "ds2"};
 
 static char *cs_ut_reqhs_many_cmd[] = { "colibri_setup", "-r", "-T", "linux",
                                 "-D", "cs_r1sdb", "-S", "cs_r1stob",
-                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1",
 				"-r", "-T", "AD",
                                 "-D", "cs_r2sdb", "-S", "cs_r2stob",
@@ -81,55 +83,98 @@ static char *cs_ut_reqhs_many_cmd[] = { "colibri_setup", "-r", "-T", "linux",
 
 static char *cs_ut_opts_jumbled_cmd[] = { "colibri_setup", "-r", "-D",
                                 "cs_sdb", "-T", "AD", "-s", "ds1",
-                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-e", "lnet:0@lo:12345:34:1",
                                 "-S", "cs_stob"};
 
 static char *cs_ut_reqh_none_cmd[] = { "colibri_setup", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
-                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
 
 static char *cs_ut_stype_bad_cmd[] = { "colibri_setup", "-r", "-T", "asdadd",
                                 "-D", "cs_sdb", "-S", "cs_stob",
-                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-e", "lnet:0@lo:12345:34:1",
                                 "-s", "ds1"};
 
 static char *cs_ut_xprt_bad_cmd[] = { "colibri_setup", "-r", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
-                                "-e", "asdasdada:127.0.0.1:34567:2",
+                                "-e", "asdasdada:172.18.50.40@o2ib1:34567:2",
                                 "-s", "ds1"};
 
 static char *cs_ut_ep_bad_cmd[] = { "colibri_setup", "-r", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
-                                "-e", "bulk-sunrpc:asdad:asdsd:sadasd",
+                                "-e", "lnet:asdad:asdsd:sadasd",
                                 "-s", "ds1"};
 
 static char *cs_ut_service_bad_cmd[] = { "colibri_setup", "-r", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
-                                "-e", "bulk-sunrpc:127.0.0.1:34567:2",
+                                "-e", "lnet:172.18.50.40@o2ib1:12345:34:1",
                                 "-s", "dasdadasd"};
 
 static char *cs_ut_args_bad_cmd[] = { "colibri_setup", "-r", "-D", "cs_sdb",
                                 "-S", "cs_stob", "-e",
-                                "bulk-sunrpc:127.0.0.1:34567:2"};
+                                "lnet:172.18.50.40@o2ib1:12345:34:1"};
 
-static const char *cl_ep_addrs[] = {
-				"127.0.0.1:34567:1",
-				"127.0.0.1:34569"};
+static char *cs_ut_buffer_pool_cmd[] = { "colibri_setup", "-r", "-T", "linux",
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-e", "lnet:0@lo:12345:34:1",
+                                "-s", "ds1", "-q", "4", "-m", "4096"};
 
-static const char *srv_ep_addrs[] = {
-				"127.0.0.1:34567:2",
-				"127.0.0.1:35678"};
+static char *cs_ut_lnet_cmd[] = { "colibri_setup", "-r", "-T", "linux",
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-e", "lnet:0@lo:12345:34:1",
+                                "-s", "ds1"};
+
+static char *cs_ut_lnet_mult_if_cmd[] = { "colibri_setup", "-r", "-T", "linux",
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-e", "lnet:172.18.50.40@tcp:12345:30:101",
+                                "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
+                                "-s", "ioservice"};
+
+static char *cs_ut_lnet_ep_dup_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
+                                "-s", "ds1", "-r", "-T", "AD",
+                                "-D", "cs_sdb2", "-S", "cs_stob2",
+                                "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
+                                "-s", "ds1"};
+
+static char *cs_ut_ep_mixed_dup_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-e", "lnet:172.18.50.40@tcp:12345:30:101",
+                                "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
+                                "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
+                                "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
+                                "-s", "ioservice"};
+
+static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-e", "lnet:172.18.50.40@tcp:12345:30:101",
+                                "-e", "lnet:172.18.50.40@tcp:12345:32:105",
+                                "-s", "ds1"};
+
+static char *cs_ut_lnet_ep_bad_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-e", "lnet:asdad:asdsd:sadasd",
+                                "-s", "ds1"};
 
 static const char *cdbnames[] = {
 				"cdb1",
 				"cdb2"};
 
+static const char *cl_ep_addrs[] = {
+					"0@lo:12345:34:2",
+					"127.0.0.1:34569"};
+
+static const char *srv_ep_addrs[] = {
+					"0@lo:12345:34:1",
+					"127.0.0.1:35678"};
+
 /*
   Transports used in colibri a context.
  */
 static struct c2_net_xprt *cs_xprts[] = {
-	&c2_net_bulk_sunrpc_xprt,
+	&c2_net_lnet_xprt,
 	&c2_net_bulk_mem_xprt
 };
 
@@ -141,18 +186,13 @@ enum {
 	RPC_TIMEOUTS       = 5
 };
 
-enum {
-	BULK_SUNRPC_XPRT,
-	BULK_MEM_XPRT
-};
-
 #define SERVER_LOG_FILE_NAME	"cs_ut.errlog"
 
 static int cs_ut_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
-			const char *srv_ep_addr, const char* dbname,
-			struct c2_net_xprt *xprt)
+			     const char *srv_ep_addr, const char* dbname,
+			     struct c2_net_xprt *xprt)
 {
-	int rc;
+	int                       rc;
 	struct c2_rpc_client_ctx *cl_ctx;
 
 	C2_PRE(cctx != NULL && cl_ep_addr != NULL && srv_ep_addr != NULL &&
@@ -212,7 +252,8 @@ int c2_cs_ut_send_fops(struct c2_rpc_session *cl_rpc_session, int dstype)
 			cs_ds1_fop = c2_fop_data(fop[i]);
 			cs_ds1_fop->csr_value = i;
 			rc = c2_rpc_client_call(fop[i], cl_rpc_session,
-						&cs_ds_req_fop_rpc_item_ops, 60);
+						&cs_ds_req_fop_rpc_item_ops,
+						60);
 			C2_UT_ASSERT(rc == 0);
 		}
 		break;
@@ -222,7 +263,8 @@ int c2_cs_ut_send_fops(struct c2_rpc_session *cl_rpc_session, int dstype)
 			cs_ds2_fop = c2_fop_data(fop[i]);
 			cs_ds2_fop->csr_value = i;
 			rc = c2_rpc_client_call(fop[i], cl_rpc_session,
-						&cs_ds_req_fop_rpc_item_ops, 60);
+						&cs_ds_req_fop_rpc_item_ops,
+						60);
 			C2_UT_ASSERT(rc == 0);
 		}
 		break;
@@ -247,8 +289,9 @@ static int cs_ut_test_helper_success(struct cl_ctx *cctx, size_t cctx_nr,
 	C2_UT_ASSERT(rc == 0);
 
 	for (i = 0; i < cctx_nr; ++i) {
-		rc = cs_ut_client_init(&cctx[i], cl_ep_addrs[i], srv_ep_addrs[i],
-				       cdbnames[i], cs_xprts[i]);
+		rc = cs_ut_client_init(&cctx[i], cl_ep_addrs[i],
+					srv_ep_addrs[i], cdbnames[i],
+					cs_xprts[i]);
 		C2_UT_ASSERT(rc == 0);
 	}
 
@@ -294,7 +337,8 @@ static void test_cs_ut_services_many(void)
 {
 	struct cl_ctx  cctx[2] = { };
 
-	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx), cs_ut_services_many_cmd,
+	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx),
+				  cs_ut_services_many_cmd,
 				  ARRAY_SIZE(cs_ut_services_many_cmd));
 }
 
@@ -310,7 +354,8 @@ static void test_cs_ut_opts_jumbled(void)
 {
 	struct cl_ctx  cctx[1] = { };
 
-	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx), cs_ut_opts_jumbled_cmd,
+	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx),
+				  cs_ut_opts_jumbled_cmd,
 				  ARRAY_SIZE(cs_ut_opts_jumbled_cmd));
 }
 
@@ -341,6 +386,59 @@ static void test_cs_ut_ep_bad(void)
 				  ARRAY_SIZE(cs_ut_ep_bad_cmd));
 }
 
+static void test_cs_ut_lnet_ep_bad(void)
+{
+	cs_ut_test_helper_failure(cs_ut_lnet_ep_bad_cmd,
+				  ARRAY_SIZE(cs_ut_lnet_ep_bad_cmd));
+}
+
+static void test_cs_ut_lnet_ep_duplicate(void)
+{
+	/* Duplicate endpoint across request handler contexts. */
+	cs_ut_test_helper_failure(cs_ut_lnet_ep_dup_cmd,
+				  ARRAY_SIZE(cs_ut_lnet_ep_dup_cmd));
+
+	/* Duplicate tcp interfaces in a request handler context. */
+	cs_ut_test_helper_failure(cs_ut_lnet_dup_tcp_if_cmd,
+				  ARRAY_SIZE(cs_ut_lnet_dup_tcp_if_cmd));
+}
+
+static void test_cs_ut_lnet_multiple_if(void)
+{
+	int		  rc;
+	struct c2_colibri colibri_ctx;
+
+	rc = c2_cs_init(&colibri_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr);
+	C2_UT_ASSERT(rc == 0);
+
+	c2_mutex_lock(&colibri_ctx.cc_mutex);
+	rc = cs_parse_args(&colibri_ctx, ARRAY_SIZE(cs_ut_lnet_mult_if_cmd),
+			    cs_ut_lnet_mult_if_cmd);
+	C2_UT_ASSERT(rc == 0);
+	rc = reqh_ctxs_are_valid(&colibri_ctx);
+	C2_UT_ASSERT(rc == 0);
+}
+
+static void test_cs_ut_lnet_ep_mixed_dup(void)
+{
+	int		  rc;
+	struct c2_colibri colibri_ctx;
+	FILE		 *out;
+
+	out = fopen("temp", "w");
+	rc = c2_cs_init(&colibri_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), out);
+	C2_UT_ASSERT(rc == 0);
+
+	c2_mutex_lock(&colibri_ctx.cc_mutex);
+	rc = cs_parse_args(&colibri_ctx, ARRAY_SIZE(cs_ut_ep_mixed_dup_cmd),
+			    cs_ut_ep_mixed_dup_cmd);
+	C2_UT_ASSERT(rc == 0);
+	rc = reqh_ctxs_are_valid(&colibri_ctx);
+	C2_UT_ASSERT(rc != 0);
+	fclose(out);
+}
+
+
 static void test_cs_ut_service_bad(void)
 {
 	cs_ut_test_helper_failure(cs_ut_service_bad_cmd,
@@ -351,6 +449,22 @@ static void test_cs_ut_args_bad(void)
 {
 	cs_ut_test_helper_failure(cs_ut_args_bad_cmd,
 				  ARRAY_SIZE(cs_ut_args_bad_cmd));
+}
+
+static void test_cs_ut_buffer_pool(void)
+{
+	struct cl_ctx  cctx[1] = { };
+
+	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx), cs_ut_buffer_pool_cmd,
+				  ARRAY_SIZE(cs_ut_buffer_pool_cmd));
+}
+
+static void test_cs_ut_lnet(void)
+{
+	struct cl_ctx  cctx[1] = { };
+
+	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx), cs_ut_lnet_cmd,
+				  ARRAY_SIZE(cs_ut_lnet_cmd));
 }
 
 const struct c2_test_suite colibri_setup_ut = {
@@ -368,6 +482,12 @@ const struct c2_test_suite colibri_setup_ut = {
 		{ "cs-bad-network-ep", test_cs_ut_ep_bad},
 		{ "cs-bad-service", test_cs_ut_service_bad},
 		{ "cs-missing-options", test_cs_ut_args_bad},
+		{ "cs-buffer_pool-options", test_cs_ut_buffer_pool},
+		{ "cs-bad-lnet-ep", test_cs_ut_lnet_ep_bad},
+		{ "cs-duplicate-lnet-ep", test_cs_ut_lnet_ep_duplicate},
+		{ "cs-duplicate-lnet-mixed-ep", test_cs_ut_lnet_ep_mixed_dup},
+		{ "cs-lnet-multiple-interfaces", test_cs_ut_lnet_multiple_if},
+		{ "cs-lnet-options", test_cs_ut_lnet},
                 { NULL, NULL }
         }
 };

@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -24,22 +24,30 @@
 #include "c2t1fs/linux_kernel/c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"  /* C2_LOG and C2_ENTRY */
-#include "net/bulk_sunrpc.h"
+#include "lib/memory.h"
+#include "net/lnet/lnet.h"
 #include "ioservice/io_fops.h"
+#include "rpc/rpclib.h"
 
-static char *local_addr = EP_SERVICE(6);
+static char *local_addr = "0@lo:12345:45:6";
 
 module_param(local_addr, charp, S_IRUGO);
 MODULE_PARM_DESC(local_addr, "End-point address of c2t1fs "
-		 "e.g. 127.0.0.1:12345:6");
+		 "e.g. 172.18.50.40@o2ib1:12345:34:1");
+
+static uint32_t tm_recv_queue_min_len = C2_NET_TM_RECV_QUEUE_DEF_LEN;
+module_param(tm_recv_queue_min_len , int, S_IRUGO);
+MODULE_PARM_DESC(tm_recv_queue_min_len, "TM receive queue minimum length");
+
+static uint32_t max_rpc_msg_size = C2_RPC_DEF_MAX_RPC_MSG_SIZE;
+module_param(max_rpc_msg_size, int, S_IRUGO);
+MODULE_PARM_DESC(max_rpc_msg_size, "Maximum RPC message size");
 
 static int  c2t1fs_net_init(void);
 static void c2t1fs_net_fini(void);
 
 static int  c2t1fs_rpc_init(void);
 static void c2t1fs_rpc_fini(void);
-
-extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
 
 static struct file_system_type c2t1fs_fs_type = {
 	.owner        = THIS_MODULE,
@@ -55,7 +63,7 @@ enum {
 #define C2T1FS_DB_NAME "c2t1fs.db"
 
 struct c2t1fs_globals c2t1fs_globals = {
-	.g_xprt       = &c2_net_bulk_sunrpc_xprt,
+	.g_xprt       = &c2_net_lnet_xprt,
 	.g_cob_dom_id = { .id = C2T1FS_COB_DOM_ID },
 	.g_db_name    = C2T1FS_DB_NAME,
 };
@@ -67,8 +75,6 @@ int c2t1fs_init(void)
 	C2_ENTRY();
 
 	c2t1fs_globals.g_laddr = local_addr;
-
-	C2_LOG("local_addr: %s", local_addr);
 
 	rc = c2_ioservice_fop_init();
 	if (rc != 0)
@@ -126,7 +132,7 @@ static int c2t1fs_net_init(void)
 {
 	struct c2_net_xprt   *xprt;
 	struct c2_net_domain *ndom;
-	int                   rc;
+	int		      rc;
 
 	C2_ENTRY();
 
@@ -157,23 +163,40 @@ static void c2t1fs_net_fini(void)
 
 static int c2t1fs_rpc_init(void)
 {
-	struct c2_dbenv          *dbenv;
-	struct c2_cob_domain     *cob_dom;
-	struct c2_cob_domain_id  *cob_dom_id;
-	struct c2_rpc_machine    *rpc_machine;
-	struct c2_net_domain     *ndom;
-	char                     *laddr;
-	char                     *db_name;
-	int                       rc;
+	struct c2_dbenv           *dbenv;
+	struct c2_cob_domain      *cob_dom;
+	struct c2_cob_domain_id   *cob_dom_id;
+	struct c2_rpc_machine     *rpc_machine;
+	struct c2_net_domain      *ndom;
+	struct c2_net_transfer_mc *tm;
+	char                      *laddr;
+	char                      *db_name;
+	int                        rc;
+	struct c2_net_buffer_pool *buffer_pool;
+	uint32_t		   bufs_nr;
+	uint32_t		   tms_nr;
 
 	C2_ENTRY();
+
+	ndom        = &c2t1fs_globals.g_ndom;
+	laddr       =  c2t1fs_globals.g_laddr;
+	rpc_machine = &c2t1fs_globals.g_rpc_machine;
+	buffer_pool = &c2t1fs_globals.g_buffer_pool;
+
+	tms_nr	 = 1;
+	bufs_nr  = c2_rpc_bufs_nr(tm_recv_queue_min_len, tms_nr);
+
+	rc = c2_rpc_net_buffer_pool_setup(ndom, buffer_pool,
+					  bufs_nr, tms_nr);
+	if (rc != 0)
+		goto pool_fini;
 
 	dbenv   = &c2t1fs_globals.g_dbenv;
 	db_name =  c2t1fs_globals.g_db_name;
 
 	rc = c2_dbenv_init(dbenv, db_name, 0);
 	if (rc != 0)
-		goto out;
+		goto pool_fini;
 
 	cob_dom    = &c2t1fs_globals.g_cob_dom;
 	cob_dom_id = &c2t1fs_globals.g_cob_dom_id;
@@ -182,14 +205,14 @@ static int c2t1fs_rpc_init(void)
 	if (rc != 0)
 		goto dbenv_fini;
 
-	ndom        = &c2t1fs_globals.g_ndom;
-	laddr       =  c2t1fs_globals.g_laddr;
-	rpc_machine = &c2t1fs_globals.g_rpc_machine;
-
-	rc = c2_rpc_machine_init(rpc_machine, cob_dom, ndom,
-				 laddr, NULL/*reqh*/);
+	rc = c2_rpc_machine_init(rpc_machine, cob_dom, ndom, laddr, NULL,
+				 buffer_pool, C2_BUFFER_ANY_COLOUR,
+				 max_rpc_msg_size, tm_recv_queue_min_len);
 	if (rc != 0)
 		goto cob_dom_fini;
+
+	tm = &rpc_machine->rm_tm;
+	C2_ASSERT(tm->ntm_recv_pool == buffer_pool);
 
 	C2_LEAVE("rc: %d", rc);
 	return 0;
@@ -200,8 +223,10 @@ cob_dom_fini:
 dbenv_fini:
 	c2_dbenv_fini(dbenv);
 
-out:
+pool_fini:
+	c2_rpc_net_buffer_pool_cleanup(buffer_pool);
 	C2_LEAVE("rc: %d", rc);
+	C2_ASSERT(rc != 0);
 	return rc;
 }
 
@@ -212,6 +237,7 @@ static void c2t1fs_rpc_fini(void)
 	c2_rpc_machine_fini(&c2t1fs_globals.g_rpc_machine);
 	c2_cob_domain_fini(&c2t1fs_globals.g_cob_dom);
 	c2_dbenv_fini(&c2t1fs_globals.g_dbenv);
+	c2_rpc_net_buffer_pool_cleanup(&c2t1fs_globals.g_buffer_pool);
 
 	C2_LEAVE();
 }

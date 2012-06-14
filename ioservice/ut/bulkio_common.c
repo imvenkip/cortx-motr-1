@@ -24,10 +24,19 @@
 #include <errno.h>
 #endif
 
-extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
+#include "net/lnet/lnet.h"
 
 #define S_DBFILE		  "bulkio_st.db"
 #define S_STOBFILE		  "bulkio_st_stob"
+
+/**
+   @todo This value can be reduced after multiple message delivery in a
+    single buffer is supported.
+ */
+
+enum {
+	STRING_LEN		 = 16,
+};
 
 /* Global reference to bulkio_params structure. */
 struct bulkio_params *bparm;
@@ -37,15 +46,16 @@ C2_TL_DESCR_DECLARE(rpcbulk, extern);
 extern struct c2_reqh_service_type c2_ioservice_type;
 
 #ifndef __KERNEL__
-int bulkio_server_start(struct bulkio_params *bp, const char *saddr, int port)
+int bulkio_server_start(struct bulkio_params *bp, const char *saddr)
 {
 	int			      i;
-	int			      rc = 0;
+	int			      rc                = 0;
 	char			    **server_args;
-	char			     xprt[IO_ADDR_LEN] = "bulk-sunrpc:";
-	char			     sep[IO_ADDR_LEN];
+	const char		      xprt[IO_ADDR_LEN] = "lnet:";
 	struct c2_rpc_server_ctx     *sctx;
 	struct c2_reqh_service_type **stypes;
+	static char		      tm_len[STRING_LEN];
+	static char		      rpc_size[STRING_LEN];
 
 	C2_ASSERT(saddr != NULL);
 
@@ -55,7 +65,7 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr, int port)
 		return -ENOMEM;
 
 	for (i = 0; i < IO_SERVER_ARGC; ++i) {
-		C2_ALLOC_ARR(server_args[i], IO_ADDR_LEN);
+		C2_ALLOC_ARR(server_args[i], C2_NET_LNET_XEP_ADDR_LEN);
 		C2_ASSERT(server_args[i] != NULL);
 		if (server_args[i] == NULL) {
 			rc = -ENOMEM;
@@ -70,6 +80,8 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr, int port)
 		return -ENOMEM;
 	}
 
+	sprintf(tm_len, "%d", C2_NET_TM_RECV_QUEUE_DEF_LEN);
+	sprintf(rpc_size, "%d", C2_RPC_DEF_MAX_RPC_MSG_SIZE);
 	/* Copy all server arguments to server_args list. */
 	strcpy(server_args[0], "bulkio_st");
 	strcpy(server_args[1], "-r");
@@ -81,12 +93,13 @@ int bulkio_server_start(struct bulkio_params *bp, const char *saddr, int port)
 	strcpy(server_args[7], S_STOBFILE);
 	strcpy(server_args[8], "-e");
 	strcat(server_args[9], xprt);
-	memset(sep, 0, IO_ADDR_LEN);
-	bulkio_netep_form(saddr, port, IO_SERVER_SVC_ID, sep);
-	strcat(server_args[9], sep);
+	strcat(server_args[9], saddr);
 	strcpy(server_args[10], "-s");
 	strcpy(server_args[11], "ioservice");
-
+	strcpy(server_args[12], "-q");
+	strcpy(server_args[13], tm_len);
+	strcpy(server_args[14], "-m");
+	strcpy(server_args[15], rpc_size);
 	C2_ALLOC_ARR(stypes, IO_SERVER_SERVICE_NR);
 	C2_ASSERT(stypes != NULL);
 	stypes[0] = &ds1_service_type;
@@ -240,12 +253,12 @@ static void io_fop_populate(struct bulkio_params *bp, int index,
 void io_fops_create(struct bulkio_params *bp, enum C2_RPC_OPCODES op,
 		    int fids_nr, int fops_nr, int segs_nr)
 {
-	int			  i;
-	int			  rc;
-	uint64_t		  seed;
-	uint64_t		  rnd;
-	struct c2_fop_type	 *fopt;
-	struct c2_io_fop	**io_fops;
+	int		     i;
+	int		     rc;
+	uint64_t	     seed;
+	uint64_t	     rnd;
+	struct c2_fop_type  *fopt;
+	struct c2_io_fop   **io_fops;
 
 	seed = 0;
 	for (i = 0; i < fids_nr; ++i)
@@ -299,15 +312,15 @@ void io_fops_destroy(struct bulkio_params *bp)
 
 void io_fops_rpc_submit(struct thrd_arg *t)
 {
-	int			  i;
-	int			  j;
-	int			  rc;
-	c2_time_t		  timeout;
-	struct c2_clink		  clink;
-	struct c2_rpc_item	 *item;
-	struct c2_rpc_bulk	 *rbulk;
-	struct c2_io_fop	**io_fops;
-	struct bulkio_params     *bp;
+	int		       i;
+	int		       j;
+	int		       rc;
+	c2_time_t	       timeout;
+	struct c2_clink	       clink;
+	struct c2_rpc_item    *item;
+	struct c2_rpc_bulk    *rbulk;
+	struct c2_io_fop     **io_fops;
+	struct bulkio_params  *bp;
 
 	i = t->ta_index;
 	bp = t->ta_bp;
@@ -353,8 +366,8 @@ void io_fops_rpc_submit(struct thrd_arg *t)
 
 void bulkio_params_init(struct bulkio_params *bp)
 {
-	int  i;
-	int  rc;
+	int i;
+	int rc;
 
 	C2_ASSERT(bp != NULL);
 
@@ -385,7 +398,7 @@ void bulkio_params_init(struct bulkio_params *bp)
 
 	io_buffers_allocate(bp);
 
-	bp->bp_xprt = &c2_net_bulk_sunrpc_xprt;
+	bp->bp_xprt = &c2_net_lnet_xprt;
 	rc = c2_net_domain_init(&bp->bp_cnetdom, bp->bp_xprt);
 	C2_ASSERT(rc == 0);
 
@@ -421,37 +434,15 @@ void bulkio_params_fini(struct bulkio_params *bp)
 	C2_ASSERT(bp->bp_rfops == NULL);
 	C2_ASSERT(bp->bp_wfops == NULL);
 
-	c2_free(bp->bp_saddr);
-	c2_free(bp->bp_caddr);
 	c2_free(bp->bp_cdbname);
 	c2_free(bp->bp_slogfile);
 }
 
-void bulkio_netep_form(const char *addr, int port, int svc_id, char *out)
-{
-	char str[8];
-
-	C2_ASSERT(addr != NULL);
-	C2_ASSERT(out != NULL);
-
-	strcat(out, addr);
-	strcat(out, ":");
-	memset(str, 0, 8);
-	sprintf(str, "%d", port);
-	strcat(out, str);
-	strcat(out, ":");
-	memset(str, 0, 8);
-	sprintf(str, "%1d", svc_id);
-	strcat(out, str);
-}
-
-int bulkio_client_start(struct bulkio_params *bp, const char *caddr, int cport,
-			const char *saddr, int sport)
+int bulkio_client_start(struct bulkio_params *bp, const char *caddr,
+			const char *saddr)
 {
 	int			  rc;
 	char			 *cdbname;
-	char			 *srv_addr;
-	char			 *cli_addr;
 	struct c2_rpc_client_ctx *cctx;
 
 	C2_ASSERT(bp != NULL);
@@ -461,35 +452,29 @@ int bulkio_client_start(struct bulkio_params *bp, const char *caddr, int cport,
 	C2_ALLOC_PTR(cctx);
 	C2_ASSERT(cctx != NULL);
 
-	C2_ALLOC_ARR(srv_addr, IO_ADDR_LEN);
-	C2_ASSERT(srv_addr != NULL);
-	bulkio_netep_form(saddr, sport, IO_SERVER_SVC_ID, srv_addr);
-
-	cctx->rcx_remote_addr = srv_addr;
-	cctx->rcx_cob_dom_id  = IO_CLIENT_COBDOM_ID;
-	cctx->rcx_nr_slots    = IO_RPC_SESSION_SLOTS;
-	cctx->rcx_timeout_s   = IO_RPC_CONN_TIMEOUT;
-	cctx->rcx_max_rpcs_in_flight = IO_RPC_MAX_IN_FLIGHT;
-
-	C2_ALLOC_ARR(cli_addr, IO_ADDR_LEN);
-	C2_ASSERT(cli_addr != NULL);
-	bulkio_netep_form(caddr, cport, IO_CLIENT_SVC_ID, cli_addr);
-	cctx->rcx_local_addr = cli_addr;
-	cctx->rcx_net_dom = &bp->bp_cnetdom;
+	cctx->rcx_remote_addr           = saddr;
+	cctx->rcx_cob_dom_id            = IO_CLIENT_COBDOM_ID;
+	cctx->rcx_nr_slots              = IO_RPC_SESSION_SLOTS;
+	cctx->rcx_timeout_s             = IO_RPC_CONN_TIMEOUT;
+	cctx->rcx_max_rpcs_in_flight    = IO_RPC_MAX_IN_FLIGHT;
+	cctx->rcx_recv_queue_min_length = C2_NET_TM_RECV_QUEUE_DEF_LEN;
+	cctx->rcx_max_rpc_msg_size	= C2_RPC_DEF_MAX_RPC_MSG_SIZE;
+	cctx->rcx_local_addr            = caddr;
+	cctx->rcx_net_dom               = &bp->bp_cnetdom;
 
 	C2_ALLOC_ARR(cdbname, IO_STR_LEN);
 	C2_ASSERT(cdbname != NULL);
 	strcpy(cdbname, IO_CLIENT_DBNAME);
 	cctx->rcx_db_name = cdbname;
-	cctx->rcx_dbenv = &bp->bp_cdbenv;
+	cctx->rcx_dbenv   = &bp->bp_cdbenv;
 	cctx->rcx_cob_dom = &bp->bp_ccbdom;
 
 	rc = c2_rpc_client_init(cctx);
 	C2_ASSERT(rc == 0);
 
-	bp->bp_cctx = cctx;
-	bp->bp_saddr = srv_addr;
-	bp->bp_caddr = cli_addr;
+	bp->bp_cctx    = cctx;
+	bp->bp_saddr   = saddr;
+	bp->bp_caddr   = caddr;
 	bp->bp_cdbname = cdbname;
 
 	return rc;

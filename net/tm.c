@@ -23,6 +23,7 @@
 #include "lib/errno.h"
 #include "lib/misc.h"
 #include "net/net_internal.h"
+#include "net/buffer_pool.h"
 
 /**
    @addtogroup net
@@ -90,6 +91,7 @@ bool c2_net__tm_invariant(const struct c2_net_transfer_mc *tm)
 void c2_net_tm_event_post(const struct c2_net_tm_event *ev)
 {
 	struct c2_net_transfer_mc *tm;
+	struct c2_net_buffer_pool *pool = NULL;
 
 	C2_PRE(ev != NULL);
 	tm = ev->nte_tm;
@@ -102,22 +104,29 @@ void c2_net_tm_event_post(const struct c2_net_tm_event *ev)
 
 	if (ev->nte_type == C2_NET_TEV_STATE_CHANGE) {
 		tm->ntm_state = ev->nte_next_state;
-		if (tm->ntm_state == C2_NET_TM_STARTED)
+		if (tm->ntm_state == C2_NET_TM_STARTED) {
 			tm->ntm_ep = ev->nte_ep; /* ep now visible */
+			pool = tm->ntm_recv_pool;
+		}
 	}
 
-	tm->ntm_callback_counter++;
+	C2_CNT_INC(tm->ntm_callback_counter);
 	c2_mutex_unlock(&tm->ntm_mutex);
 
 	(*tm->ntm_callbacks->ntc_event_cb)(ev);
 
-	/* post callback, in mutex:
+	/* post-callback, out of mutex:
+	   perform initial provisioning if required
+	 */
+	if (pool != NULL)
+		c2_net__tm_provision_recv_q(tm);
+
+	/* post-callback, in mutex:
 	   decrement ref counts,
 	   signal waiters
 	 */
 	c2_mutex_lock(&tm->ntm_mutex);
-	C2_ASSERT(tm->ntm_callback_counter > 0);
-	tm->ntm_callback_counter--;
+	C2_CNT_DEC(tm->ntm_callback_counter);
 	if (tm->ntm_callback_counter == 0)
 		c2_chan_broadcast(&tm->ntm_chan);
 	c2_mutex_unlock(&tm->ntm_mutex);
@@ -161,9 +170,12 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 		c2_net_tm_tlist_init(&tm->ntm_q[i]);
 	}
 	C2_SET_ARR0(tm->ntm_qstats);
-        tm->ntm_pool_colour = dom->nd_pool_colour_counter++;
 	tm->ntm_xprt_private = NULL;
 	tm->ntm_bev_auto_deliver = true;
+	tm->ntm_recv_pool = NULL;
+	tm->ntm_recv_queue_min_length = C2_NET_TM_RECV_QUEUE_DEF_LEN;
+	c2_atomic64_set(&tm->ntm_recv_queue_deficit, 0);
+	tm->ntm_pool_colour = C2_BUFFER_ANY_COLOUR;
 	c2_addb_ctx_init(&tm->ntm_addb, &c2_net_tm_addb_ctx, &dom->nd_addb);
 
 	rc = dom->nd_xprt->nx_ops->xo_tm_init(tm);
@@ -186,12 +198,16 @@ void c2_net_tm_fini(struct c2_net_transfer_mc *tm)
 	int i;
 
 	/* wait for ongoing event processing to drain without holding lock:
-	   events modify state and end point refcounts */
+	   events modify state and end point refcounts
+	   Also applies to ongoing provisioning, which requires a check for
+	   state in addition to counter.
+	*/
 	if (tm->ntm_callback_counter > 0) {
 		struct c2_clink tmwait;
 		c2_clink_init(&tmwait, NULL);
 		c2_clink_add(&tm->ntm_chan, &tmwait);
-		while (tm->ntm_callback_counter > 0)
+		while (tm->ntm_callback_counter > 0 &&
+		       tm->ntm_state == C2_NET_TM_STARTED)
 			c2_chan_wait(&tmwait);
 		c2_clink_del(&tmwait);
 	}
@@ -275,7 +291,9 @@ int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort)
 	if (rc < 0) {
 		tm->ntm_state = oldstate;
 		NET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
-	}
+	} else
+		c2_atomic64_set(&tm->ntm_recv_queue_deficit, 0);
+
 	C2_POST(c2_net__tm_invariant(tm));
 	c2_mutex_unlock(&tm->ntm_mutex);
 	C2_ASSERT(rc <= 0);
@@ -394,6 +412,87 @@ void c2_net_buffer_event_notify(struct c2_net_transfer_mc *tm,
 	return;
 }
 C2_EXPORTED(c2_net_buffer_event_notify);
+
+void c2_net_tm_colour_set(struct c2_net_transfer_mc *tm, uint32_t colour)
+{
+	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_net__tm_invariant(tm));
+	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED ||
+	       tm->ntm_state == C2_NET_TM_STARTING ||
+	       tm->ntm_state == C2_NET_TM_STARTED);
+	tm->ntm_pool_colour = colour;
+	c2_mutex_unlock(&tm->ntm_mutex);
+	return;
+}
+C2_EXPORTED(c2_net_tm_colour_set);
+
+uint32_t c2_net_tm_colour_get(struct c2_net_transfer_mc *tm)
+{
+	uint32_t colour;
+	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_net__tm_invariant(tm));
+	colour = tm->ntm_pool_colour;
+	c2_mutex_unlock(&tm->ntm_mutex);
+	return colour;
+}
+C2_EXPORTED(c2_net_tm_colour_get);
+
+int c2_net_tm_pool_attach(struct c2_net_transfer_mc *tm,
+			  struct c2_net_buffer_pool *bufpool,
+			  const struct c2_net_buffer_callbacks *callbacks,
+			  c2_bcount_t min_recv_size, uint32_t max_recv_msgs,
+			  uint32_t min_recv_queue_len)
+{
+	int rc;
+	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_net__tm_invariant(tm));
+	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED);
+	C2_PRE(bufpool != NULL);
+	C2_PRE(callbacks != NULL &&
+	       callbacks->nbc_cb[C2_NET_QT_MSG_RECV] != NULL);
+	C2_PRE(min_recv_size > 0);
+	C2_PRE(max_recv_msgs > 0);
+	if (bufpool->nbp_ndom == tm->ntm_dom) {
+		tm->ntm_recv_pool		 = bufpool;
+		tm->ntm_recv_pool_callbacks	 = callbacks;
+		tm->ntm_recv_queue_min_recv_size = min_recv_size;
+		tm->ntm_recv_queue_max_recv_msgs = max_recv_msgs;
+		if(min_recv_queue_len > C2_NET_TM_RECV_QUEUE_DEF_LEN)
+			tm->ntm_recv_queue_min_length = min_recv_queue_len;
+		rc = 0;
+	} else
+		rc = -EINVAL;
+	c2_mutex_unlock(&tm->ntm_mutex);
+	return rc;
+}
+C2_EXPORTED(c2_net_tm_pool_attach);
+
+void c2_net_tm_pool_length_set(struct c2_net_transfer_mc *tm, uint32_t len)
+{
+	struct c2_net_buffer_pool *pool = NULL;
+
+	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_net__tm_invariant(tm));
+	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED ||
+	       tm->ntm_state == C2_NET_TM_STARTING ||
+	       tm->ntm_state == C2_NET_TM_STARTED);
+	if (len > C2_NET_TM_RECV_QUEUE_DEF_LEN)
+		tm->ntm_recv_queue_min_length = len;
+	if (tm->ntm_recv_pool != NULL && tm->ntm_state == C2_NET_TM_STARTED) {
+		pool = tm->ntm_recv_pool;
+		C2_CNT_INC(tm->ntm_callback_counter);
+	}
+	c2_mutex_unlock(&tm->ntm_mutex);
+	if (pool != NULL) {
+		c2_net__tm_provision_recv_q(tm);
+		c2_mutex_lock(&tm->ntm_mutex);
+		C2_CNT_DEC(tm->ntm_callback_counter);
+		c2_chan_broadcast(&tm->ntm_chan);
+		c2_mutex_unlock(&tm->ntm_mutex);
+	}
+	return;
+}
+C2_EXPORTED(c2_net_tm_pool_length_set);
 
 /** @} end of net group */
 

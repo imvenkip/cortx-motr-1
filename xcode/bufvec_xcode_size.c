@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -35,8 +35,7 @@
    Main entry point is c2_xcode_fop_size_get() which calculates the onwire
    size (in bytes) of the fop data that would be encode/decoded into/from
    a bufvec. The size is calculated by recursively descending through the fop
-   format tree. The implementation logic is the same that has been used in
-   net/ksunrpc/kxdr.c.
+   format tree.
 
    When handling a non-leaf (i.e., "aggregating") node of a fop format tree,
    control branches though the xcode_size_disp[] function pointer array, using

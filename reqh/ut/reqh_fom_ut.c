@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -45,7 +45,7 @@
 #include "stob/stob.h"
 #include "stob/ad.h"
 #include "stob/linux.h"
-#include "net/bulk_sunrpc.h"
+#include "net/lnet/lnet.h"
 #include "rpc/rpc2.h"
 #include "fop/fop_item_type.h"
 #include "rpc/rpc_base.h"
@@ -77,8 +77,8 @@
  *  Server side structures and objects
  */
 
-#define CLIENT_ENDPOINT_ADDR	"127.0.0.1:21435:1"
-#define SERVER_ENDPOINT_ADDR	"127.0.0.1:21435:2"
+#define CLIENT_ENDPOINT_ADDR    "0@lo:12345:34:*"
+#define SERVER_ENDPOINT_ADDR    "0@lo:12345:34:1"
 #define CLIENT_DB_NAME		"reqh_ut_stob/cdb"
 #define SERVER_DB_NAME		"reqh_ut_stob/sdb"
 
@@ -166,6 +166,9 @@ static struct reqh_ut_balloc rb = {
 	}
 };
 
+/* Buffer pool for TM receive queue. */
+static struct c2_net_buffer_pool app_pool;
+
 static int server_init(const char *stob_path, const char *srv_db_name,
 			struct c2_net_domain *net_dom, struct c2_stob_id *backid,
 			struct c2_stob_domain **bdom, struct c2_stob **bstore,
@@ -173,7 +176,10 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 			struct c2_stob_id *rh_addb_stob_id)
 {
         int                        rc;
-	struct c2_net_transfer_mc *srv_tm;
+	struct c2_rpc_machine     *rpc_machine = &srv_rpc_mach;
+	uint32_t		   bufs_nr;
+	uint32_t		   tms_nr;
+
 
         srv_cob_dom_id.id = 102;
 
@@ -236,25 +242,30 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 			   &srv_fol);
 	C2_UT_ASSERT(rc == 0);
 
-        /* Init the rpc_machine */
-        rc = c2_rpc_machine_init(&srv_rpc_mach, &srv_cob_domain, net_dom,
-				 SERVER_ENDPOINT_ADDR, &reqh);
+	tms_nr   = 1;
+	bufs_nr  = c2_rpc_bufs_nr(C2_NET_TM_RECV_QUEUE_DEF_LEN, tms_nr);
+
+	rc = c2_rpc_net_buffer_pool_setup(net_dom, &app_pool,
+					  bufs_nr, tms_nr);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Init the rpcmachine */
+        rc = c2_rpc_machine_init(rpc_machine, &srv_cob_domain, net_dom,
+				 SERVER_ENDPOINT_ADDR, &reqh, &app_pool,
+				 C2_BUFFER_ANY_COLOUR, 0,
+				 C2_NET_TM_RECV_QUEUE_DEF_LEN);
         C2_UT_ASSERT(rc == 0);
-
-        /* Find first c2_rpc_chan from the chan's list
-           and use its corresponding tm to create target end_point */
-        srv_tm = &srv_rpc_mach.rm_tm;
-	C2_UT_ASSERT(srv_tm != NULL);
-
 	return rc;
 }
 
 /* Fini the server */
 static void server_fini(struct c2_stob_domain *bdom,
-		struct c2_stob *reqh_addb_stob)
+			struct c2_stob *reqh_addb_stob)
 {
         /* Fini the rpc_machine */
         c2_rpc_machine_fini(&srv_rpc_mach);
+
+	c2_rpc_net_buffer_pool_cleanup(&app_pool);
 
         /* Fini the cob domain */
         c2_cob_domain_fini(&srv_cob_domain);
@@ -350,8 +361,9 @@ void test_reqh(void)
 	int                    result;
 	char                   opath[64];
 	const char             *path;
-	struct c2_net_xprt     *xprt = &c2_net_bulk_sunrpc_xprt;
+	struct c2_net_xprt     *xprt = &c2_net_lnet_xprt;
 	struct c2_net_domain   net_dom = { };
+	struct c2_net_domain   srv_net_dom = { };
 	struct c2_dbenv        client_dbenv;
 	struct c2_cob_domain   client_cob_dom;
 	struct c2_stob_domain  *bdom;
@@ -410,9 +422,11 @@ void test_reqh(void)
 
 	result = c2_net_domain_init(&net_dom, xprt);
 	C2_UT_ASSERT(result == 0);
+	result = c2_net_domain_init(&srv_net_dom, xprt);
+	C2_UT_ASSERT(result == 0);
 
-	server_init(path, SERVER_DB_NAME, &net_dom, &backid, &bdom, &bstore,
-			&reqh_addb_stob, &reqh_addb_stob_id);
+	server_init(path, SERVER_DB_NAME, &srv_net_dom, &backid, &bdom, &bstore,
+		    &reqh_addb_stob, &reqh_addb_stob_id);
 
 	result = c2_rpc_client_init(&cctx);
 	C2_UT_ASSERT(result == 0);
@@ -428,6 +442,7 @@ void test_reqh(void)
 	server_fini(bdom, reqh_addb_stob);
 
 	c2_net_domain_fini(&net_dom);
+	c2_net_domain_fini(&srv_net_dom);
 	c2_net_xprt_fini(xprt);
 	c2_stob_io_fop_fini();
 

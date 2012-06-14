@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -24,10 +24,10 @@
 #include <sysexits.h>
 
 #include "lib/errno.h"		  /* ETIMEDOUT */
-#include "net/bulk_sunrpc.h"	  /* bulk transport */
 #include "colibri/init.h"	  /* c2_init */
 #include "lib/processor.h"        /* c2_processors_init/fini */
 #include "lib/getopts.h"	  /* C2_GETOPTS */
+#include "net/lnet/lnet.h"
 #include "rpc/rpclib.h"
 #include "ut/rpc.h"
 
@@ -120,8 +120,8 @@ static int fop_send_and_print(struct c2_rpc_client_ctx *cctx, uint32_t opcode)
 
 const char *usage_msg =	"Usage: c2console "
 			" { -l FOP list | -f FOP opcode }"
-			" [-s server (e.g. 127.0.0.1:1024:1) ]"
-			" [-c client (e.g. 127.0.0.1:1025:1) ]"
+			" [-s server (e.g. 172.18.50.40@o2ib1:12345:34:1) ]"
+			" [-c client (e.g. 172.18.50.40@o2ib1:12345:34:*) ]"
 			" [-t timeout]"
 			" [[-i] [-y yaml file path]]"
 			" [-h] [-v]";
@@ -130,8 +130,6 @@ static void usage(void)
 {
 	fprintf(stderr, "%s\n", usage_msg);
 }
-
-extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
 
 /**
  * @brief The service to connect to is specified at the command line.
@@ -149,8 +147,8 @@ extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
  *
  *	  Usage:
  *	  c2console :	{ -l FOP list | -f FOP opcode }
- *			[-s server (e.g. 127.0.0.1:1024:1) ]
- *			[-c client (e.g. 127.0.0.1:1025:1) ]
+ *			[-s server (e.g. 172.18.50.40@o2ib1:12345:34:1) ]
+ *			[-c client (e.g. 172.18.50.40@o2ib1:12345:34:*) ]
  *			[-t timeout] [[-i] [-y yaml file path]] [-v]
  *
  * @return 0 success, -errno failure.
@@ -161,23 +159,23 @@ int console_main(int argc, char **argv)
 int main(int argc, char **argv)
 #endif
 {
-	int         result;
-	uint32_t    opcode     = 0;
-	bool        show       = false;
-	bool        input      = false;
-	const char  *server    = NULL;
-	const char  *client    = NULL;
-	const char  *yaml_path = NULL;
-
-	struct c2_net_xprt    *xprt = &c2_net_bulk_sunrpc_xprt;
+	int                   result;
+	uint32_t              opcode         = 0;
+	bool                  show           = false;
+	bool                  input          = false;
+	const char           *client         = NULL;
+	const char           *server         = NULL;
+	const char           *yaml_path      = NULL;
+	struct c2_net_xprt   *xprt           = &c2_net_lnet_xprt;
 	struct c2_net_domain  client_net_dom = { };
 	struct c2_dbenv       client_dbenv;
 	struct c2_cob_domain  client_cob_dom;
 
+
 	struct c2_rpc_client_ctx cctx = {
 		.rcx_net_dom            = &client_net_dom,
-		.rcx_local_addr         = "127.0.0.1:123456:1",
-		.rcx_remote_addr        = "127.0.0.1:123457:1",
+		.rcx_local_addr         = "0@lo:12345:34:*",
+		.rcx_remote_addr        = "0@lo:12345:34:1",
 		.rcx_db_name            = "cons_client_db",
 		.rcx_dbenv              = &client_dbenv,
 		.rcx_cob_dom_id         = 14,
@@ -199,9 +197,9 @@ int main(int argc, char **argv)
 			    C2_FLAGARG('l', "show list of fops", &show),
 			    C2_FORMATARG('f', "fop type", "%u", &opcode),
 			    C2_STRINGARG('s', "server",
-			    LAMBDA(void, (const char *name){ server = name; })),
+			    LAMBDA(void, (const char *name){server =  name; })),
 			    C2_STRINGARG('c', "client",
-			    LAMBDA(void, (const char *name){ client = name; })),
+			    LAMBDA(void, (const char *name){client = name; })),
 			    C2_FORMATARG('t', "wait time(in seconds)",
 					 "%u", &timeout),
 			    C2_FLAGARG('i', "yaml input", &input),
@@ -248,7 +246,6 @@ int main(int argc, char **argv)
 			result = EX_DATAERR;
 			goto yaml;
 		}
-
 		client = c2_cons_yaml_get_value("client");
 		if (client == NULL) {
 			fprintf(stderr, "Client assignment failed\n");
@@ -256,12 +253,6 @@ int main(int argc, char **argv)
 			goto yaml;
 		}
 	}
-
-	/* Init the console members from CLI input */
-	if (server != NULL)
-		cctx.rcx_remote_addr = server;
-	if (client != NULL)
-		cctx.rcx_local_addr = client;
 
 #ifndef CONSOLE_UT
 	result = c2_init();
@@ -302,6 +293,12 @@ int main(int argc, char **argv)
 
 	result = c2_net_domain_init(&client_net_dom, xprt);
 	C2_ASSERT(result == 0);
+
+	/* Init the console members from CLI input */
+	if (server != NULL)
+		cctx.rcx_remote_addr = server;
+	if (client != NULL)
+		cctx.rcx_local_addr = client;
 
 	result = c2_rpc_client_init(&cctx);
 	if (result != 0) {

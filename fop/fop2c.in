@@ -211,8 +211,6 @@ EOF
 
 	if (todo == ULAY || todo == KLAY)
 		printf("#include \"%s\"\n", incl);
-	if (todo == ULAY)
-		printf("#include \"net/usunrpc/usunrpc.h\"\n");
 	if (todo == KLAY)
 		printf("#include <linux/module.h>\n");
 	printf("\n");

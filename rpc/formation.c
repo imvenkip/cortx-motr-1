@@ -269,7 +269,8 @@ static struct c2_rpc_frm_sm *item_to_frm_sm(const struct c2_rpc_item *item)
 	return frm_sm;
 }
 
-void frm_sm_init(struct c2_rpc_frm_sm *frm_sm, uint64_t max_rpcs_in_flight)
+void frm_sm_init(struct c2_rpc_frm_sm *frm_sm, uint64_t max_rpcs_in_flight,
+		 uint32_t max_rpc_msg_size)
 {
 	struct c2_rpc_chan   *chan;
 	struct c2_net_domain *netdom;
@@ -290,8 +291,7 @@ void frm_sm_init(struct c2_rpc_frm_sm *frm_sm, uint64_t max_rpcs_in_flight)
 
 	netdom = chan->rc_rpc_machine->rm_tm.ntm_dom;
 
-	frm_sm->fs_max_msg_size = c2_net_domain_get_max_buffer_size(netdom);
-	frm_sm->fs_max_frags = c2_net_domain_get_max_buffer_segments(netdom);
+	frm_sm->fs_max_msg_size	      = max_rpc_msg_size;
 	frm_sm->fs_max_rpcs_in_flight = max_rpcs_in_flight;
 
 	c2_list_init(&frm_sm->fs_groups);
@@ -413,7 +413,6 @@ void frm_net_buffer_sent(const struct c2_net_buffer_event *ev)
 			    "net buf send failed", ev->nbe_status);
 		/** XXX @todo implement FAILED callback */
 		frm_item_state_failed(rpc, ev->nbe_status);
-		C2_ASSERT("BUF_SEND_FAILED" == NULL);
 
 	}
 

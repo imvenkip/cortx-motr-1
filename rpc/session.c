@@ -863,6 +863,7 @@ void c2_rpc_session_release(struct c2_rpc_session *session)
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
 }
+
 int c2_rpc_session_cob_lookup(struct c2_cob   *conn_cob,
 			      uint64_t         session_id,
 			      struct c2_cob  **session_cob,

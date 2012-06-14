@@ -26,7 +26,7 @@
 #include "lib/misc.h"  /* C2_SET0 */
 #include "lib/thread.h"/* C2_THREAD_INIT */
 #include "lib/time.h"  /* c2_nanosleep */
-#include "net/bulk_sunrpc.h"
+#include "net/lnet/lnet.h"
 #include "net/buffer_pool.h"
 
 static void notempty(struct c2_net_buffer_pool *bp);
@@ -35,7 +35,7 @@ static void buffers_get_put(int rc);
 
 struct c2_net_buffer_pool  bp;
 static struct c2_chan	   buf_chan;
-static struct c2_net_xprt *xprt = &c2_net_bulk_sunrpc_xprt;
+static struct c2_net_xprt *xprt = &c2_net_lnet_xprt;
 
 const struct c2_net_buffer_pool_ops b_ops = {
 	.nbpo_not_empty	      = notempty,
@@ -48,7 +48,6 @@ const struct c2_net_buffer_pool_ops b_ops = {
 static void test_init(void)
 {
 	int         rc;
-	uint32_t    threshold = 2;
 	uint32_t    seg_nr    = 64;
 	c2_bcount_t seg_size  = 4096;
 	uint32_t    colours   = 10;
@@ -62,7 +61,8 @@ static void test_init(void)
 	rc = c2_net_domain_init(bp.nbp_ndom, xprt);
 	C2_ASSERT(rc == 0);
 	bp.nbp_ops = &b_ops;
-	rc = c2_net_buffer_pool_init(&bp, bp.nbp_ndom, threshold, seg_nr,
+	rc = c2_net_buffer_pool_init(&bp, bp.nbp_ndom,
+				      C2_NET_BUFFER_POOL_THRESHOLD, seg_nr,
 				      seg_size, colours, shift);
 	C2_UT_ASSERT(rc == 0);
 	c2_net_buffer_pool_lock(&bp);
@@ -166,6 +166,7 @@ static void test_fini(void)
 {
 	c2_net_buffer_pool_lock(&bp);
 	C2_UT_ASSERT(c2_net_buffer_pool_invariant(&bp));
+	c2_net_buffer_pool_unlock(&bp);
 	c2_net_buffer_pool_fini(&bp);
 	c2_net_domain_fini(bp.nbp_ndom);
 	c2_free(bp.nbp_ndom);
