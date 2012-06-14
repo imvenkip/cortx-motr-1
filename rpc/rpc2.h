@@ -171,17 +171,11 @@ enum c2_rpc_item_priority {
 
 #include "rpc/formation.h"
 
-struct page;
 struct c2_rpc;
 struct c2_rpc_item;
 struct c2_addb_rec;
-struct c2_rpc_formation;
-struct c2_rpc_conn;
-struct c2_fop_type;
-struct c2_fop_io_vec;
 struct c2_rpc_group;
 struct c2_rpc_machine;
-struct c2_rpc_frm_item_coalesced;
 
 enum {
 	C2_RPC_MACHINE_MAGIX = 0x5250434D414348 /* RPCMACH */
@@ -326,8 +320,18 @@ struct c2_rpc_item {
 	/** Link through which items are anchored on list of
 	    c2_rpc_item:ri_compound_items. */
 	struct c2_tlink			 ri_field;
+	/** Link in one of c2_rpc_frm::f_itemq[] list.
+	    List descriptor: itemq
+	 */
 	struct c2_tlink                  ri_iq_link;
+	/** Link in RPC packet. c2_rpc_packet::rp_items
+	    List descriptor: packet_item.
+	    XXX An item cannot be in itemq and in packet at the same time.
+	    Hence iff needed ri_iq_link and ri_plink can be replaced with
+	    just one tlink.
+	 */
 	struct c2_tlink                  ri_plink;
+	/** One of c2_rpc_frm::f_itemq[], in which this item is placed. */
 	struct c2_tl                    *ri_itemq;
 	/** Magic constatnt to verify sanity of linked rpc items. */
 	uint64_t			 ri_link_magic;
@@ -406,8 +410,9 @@ struct c2_rpc_chan {
 	struct c2_list_link		  rc_linkage;
 	/** Number of c2_rpc_conn structures using this transfer machine.*/
 	struct c2_ref			  rc_ref;
-	/** Formation state machine associated with chan. */
+	/** XXX DEPRICATED Formation state machine associated with chan. */
 	struct c2_rpc_frm_sm		  rc_frmsm;
+	/** Formation state machine associated with chan. */
 	struct c2_rpc_frm                 rc_frm;
 	/** Destination end point to which rpcs will be sent. */
 	struct c2_net_end_point		 *rc_destep;
@@ -463,9 +468,17 @@ struct c2_rpc_machine {
 	 */
 	struct c2_tl                      rm_services;
 
-	uint64_t                          rm_magic;
+	/**
+	    A worker thread to run formation periodically in order to
+	    send timedout items if any.
+	 */
 	struct c2_thread                  rm_frm_worker;
+
+	/**
+	   Flag asking rm_frm_worker thread to stop.
+	 */
 	bool                              rm_stopping;
+	uint64_t                          rm_magic;
 };
 
 /**

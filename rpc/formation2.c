@@ -348,7 +348,7 @@ static void frm_balance(struct c2_rpc_frm *frm)
 		c2_rpc_packet_init(p);
 		frm_fill_packet(frm, p);
 		if (c2_rpc_packet_is_empty(p)) {
-			/* See FRM_BALANCE:NOTE_1 at the end of this function */
+			/* See FRM_BALANCE_NOTE_1 at the end of this function */
 			c2_rpc_packet_fini(p);
 			c2_free(p);
 			break;
@@ -366,7 +366,7 @@ static void frm_balance(struct c2_rpc_frm *frm)
 	C2_ASSERT(frm_invariant(frm));
 }
 /*
- * FRM_BALANCE:NOTE_1
+ * FRM_BALANCE_NOTE_1
  * This case can arise if:
  * - Accumulated bytes are >= max_nr_bytes_accumulated,
  *   hence frm is READY AND
@@ -382,6 +382,11 @@ static bool item_timedout(const struct c2_rpc_item *item)
 
 /**
    Moves all timed-out items from WAITING_* queues to TIMEDOUT_* queues.
+
+   XXX This entire routine is temporary and will be removed in future.
+       Currently we don't start any timer for every item. Instead a
+       background thread c2_rpc_machine::rm_frm_worker periodically runs
+       formation to send any timedout items.
  */
 static void frm_filter_timedout_items(struct c2_rpc_frm *frm)
 {
@@ -421,7 +426,7 @@ static void frm_filter_timedout_items(struct c2_rpc_frm *frm)
    Is frm ready to form a packet?
 
    It is possible that frm_is_ready() returns true but no packet could
-   be formed. See FRM_BALANCE:NOTE_1
+   be formed. See FRM_BALANCE_NOTE_1
  */
 static bool frm_is_ready(const struct c2_rpc_frm *frm)
 {
@@ -478,6 +483,7 @@ static void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 
 	for_each_itemq_in_frm(q, frm) {
 		c2_tl_for(itemq, q, item) {
+			/* See FRM_FILL_PACKET_NOTE_1 at the end of this func */
 			if (available_space_in_packet() == 0)
 				break;
 			if (item_will_exceed_packet_size())
@@ -504,6 +510,12 @@ static void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 	C2_LEAVE();
 	return;
 }
+/*
+ * FRM_FILL_PACKET_NOTE_1
+ * I know that this loop is inefficient. But for now
+ * let's just stick to simplicity. We can optimize it
+ * later if need arises. --Amit
+ */
 
 /**
    @see c2_rpc_frm_ops::f_item_bind()

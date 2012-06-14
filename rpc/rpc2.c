@@ -900,6 +900,13 @@ int c2_rpc_machine_init(struct c2_rpc_machine *machine,
 }
 C2_EXPORTED(c2_rpc_machine_init);
 
+/**
+   Worker thread that runs formation periodically on all formation machines,
+   in an attempt to send timedout items.
+
+   XXX This entire routine is temporary. The item deadline timeout mechanism
+       should be based on generic sm framework.
+ */
 static void frm_worker_fn(struct c2_rpc_machine *machine)
 {
 	struct c2_rpc_chan *chan;
