@@ -633,17 +633,16 @@ static int pdclust_decode(struct c2_layout_domain *dom,
 
 	rc = et->let_ops->leto_decode(dom, lid, op, tx, cur, &e);
 	if (rc != 0) {
-		C2_LOG("pdclust_decode(): lid %llu, leto_decode() failed, "
-		       "rc %d", (unsigned long long)lid, rc);
+		C2_LOG("lid %llu, leto_decode() failed, rc %d",
+		       (unsigned long long)lid, rc);
 		goto out;
 	}
 
 	rc = c2_pool_lookup(pool_id, &pool);
 	if (rc != 0) {
-		C2_LOG("pdclust_decode(): lid %llu, pool_id %llu, "
-		       "c2_pool_lookup() failed, rc %d",
-		       (unsigned long long)lid, (unsigned long long)pool_id,
-		       rc);
+		C2_LOG("lid %llu, pool_id %llu, c2_pool_lookup() failed, "
+		       "rc %d", (unsigned long long)lid,
+		       (unsigned long long)pool_id, rc);
 		goto out;
 	}
 
@@ -654,8 +653,8 @@ static int pdclust_decode(struct c2_layout_domain *dom,
 			      &pl_rec->pr_attr.pa_seed,
 			      e, &pl);
 	if (rc != 0) {
-		C2_LOG("pdclust_decode(): lid %llu, c2_pdclust_build() failed, "
-		       "rc %d", (unsigned long long)lid, rc);
+		C2_LOG("lid %llu, c2_pdclust_build() failed, rc %d",
+		       (unsigned long long)lid, rc);
 		goto out;
 	}
 
@@ -746,8 +745,8 @@ static int pdclust_encode(struct c2_layout *l,
 	rc = et->let_ops->leto_encode(pl->pl_base.ls_enum, op, tx,
 				      oldrec_cur, out);
 	if (rc != 0)
-		C2_LOG("pdclust_encode(): lid %llu, leto_encode() failed, "
-		       "rc %d", (unsigned long long)l->l_id, rc);
+		C2_LOG("lid %llu, leto_encode() failed, rc %d",
+		       (unsigned long long)l->l_id, rc);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;

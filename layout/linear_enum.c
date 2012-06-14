@@ -233,8 +233,8 @@ static int linear_decode(struct c2_layout_domain *dom,
 	rc = c2_linear_enum_build(dom, lin_attr->lla_nr, lin_attr->lla_A,
 				  lin_attr->lla_B, &lin_enum);
 	if (rc != 0) {
-		C2_LOG("linear_decode(): lid %llu, c2_linear_enum_build() "
-		       "failed, rc %d", (unsigned long long)lid, rc);
+		C2_LOG("lid %llu, c2_linear_enum_build() failed, rc %d",
+		       (unsigned long long)lid, rc);
 		goto out;
 	}
 
