@@ -773,7 +773,7 @@ void c2_layout_domain_fini(struct c2_layout_domain *dom)
 /**
  * Registers all the available layout types and enum types.
  */
-int c2_layout_register(struct c2_layout_domain *dom)
+int c2_layout_all_types_register(struct c2_layout_domain *dom)
 {
 	int rc;
 
@@ -799,7 +799,7 @@ int c2_layout_register(struct c2_layout_domain *dom)
 	return rc;
 }
 
-void c2_layout_unregister(struct c2_layout_domain *dom)
+void c2_layout_all_types_unregister(struct c2_layout_domain *dom)
 {
 	C2_PRE(domain_invariant(dom));
 

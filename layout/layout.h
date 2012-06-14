@@ -78,11 +78,13 @@
  * The sequence of operation related to domain intialisation/finalisation,
  * layout type and enum type registration and unregistration is as follows:
  * - Initialise c2_layout_domain object.
- * - Register layout types and enum types using c2_layout_register().
- * - Perform various required operations including usage of c2_layout_encode(),
- *   c2_layout_decode(), c2_layout_lookup(), c2_layout_add(),
- *   c2_layout_update(), c2_layout_delete(), leo_nr(), leo_get().
- * - Unregister layout types and enum types using c2_layout_unregister().
+ * - Register layout types and enum types using c2_layout_all_types_register().
+ * - Perform various required operations including usage of c2_pdclust_build(),
+ *   c2_layout_encode(), c2_layout_decode(), c2_layout_lookup(),
+ *   c2_layout_add(), c2_layout_update(), c2_layout_delete(), leo_nr(),
+ *   leo_get().
+ * - Unregister layout types and enum types using
+ *   c2_layout_iall_types_unregister().
  * - Finalise c2_layout_domain object.
  *
  * @section layout-client-server-access Client Server Access to APIs
@@ -426,8 +428,8 @@ void c2_layouts_fini(void);
 int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *db);
 void c2_layout_domain_fini(struct c2_layout_domain *dom);
 
-int c2_layout_register(struct c2_layout_domain *dom);
-void c2_layout_unregister(struct c2_layout_domain *dom);
+int c2_layout_all_types_register(struct c2_layout_domain *dom);
+void c2_layout_all_types_unregister(struct c2_layout_domain *dom);
 
 int c2_layout_type_register(struct c2_layout_domain *dom,
 			    struct c2_layout_type *lt);

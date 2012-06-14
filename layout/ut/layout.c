@@ -108,18 +108,18 @@ static int test_init(void)
 	 * types have been registered with the domain
 	 * "c2t1fs_globals.g_layout_dom".
 	 * (This happpens during the module load operation, by performing
-	 * c2_layout_register(&c2t1fs_globals.g_layout_dom) through
-	 * c2t1fs_init()).
-	 * Hence, performing c2_layout_unregister(&c2t1fs_globals.g_layout_dom)
+	 * c2_layout_all_types_register(&c2t1fs_globals.g_layout_dom) through
+	 * c2t1fs_init()). Hence, performing
+	 * c2_layout_all_types_unregister(&c2t1fs_globals.g_layout_dom)
 	 * here to remporarily unregister all the available layout types and
 	 * enum types from the domain "c2t1fs_globals.g_layout_dom". Those will
 	 * be registered back in test_fini().
 	 */
-	c2_layout_unregister(&c2t1fs_globals.g_layout_dom);
+	c2_layout_all_types_unregister(&c2t1fs_globals.g_layout_dom);
 #endif
 
 	/* Register all the available layout types and enum types. */
-	rc = c2_layout_register(&domain);
+	rc = c2_layout_all_types_register(&domain);
 	C2_ASSERT(rc == 0);
 
 	/* Initialise the pool. */
@@ -133,10 +133,10 @@ static int test_fini(void)
 {
 	c2_pool_fini(&pool);
 
-	c2_layout_unregister(&domain);
+	c2_layout_all_types_unregister(&domain);
 
 #ifdef __KERNEL__
-	c2_layout_register(&c2t1fs_globals.g_layout_dom);
+	c2_layout_all_types_register(&c2t1fs_globals.g_layout_dom);
 #endif
 
 	c2_layout_domain_fini(&domain);
@@ -292,7 +292,7 @@ static void test_reg_unreg(void)
 	 * unregistering from that domain and then registering with another
 	 * domain.
 	 */
-	c2_layout_unregister(&domain);
+	c2_layout_all_types_unregister(&domain);
 
 	rc = c2_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
@@ -302,7 +302,7 @@ static void test_reg_unreg(void)
 	C2_UT_ASSERT(rc == 0);
 
 	/* Register all the available layout types and enum types. */
-	rc = c2_layout_register(&t_domain);
+	rc = c2_layout_all_types_register(&t_domain);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(t_domain.ld_enum[c2_list_enum_type.let_id] ==
 		     &c2_list_enum_type);
@@ -312,7 +312,7 @@ static void test_reg_unreg(void)
 		     &c2_pdclust_layout_type);
 
 	/* Unregister all the registered layout and enum types. */
-	c2_layout_unregister(&t_domain);
+	c2_layout_all_types_unregister(&t_domain);
 	C2_UT_ASSERT(t_domain.ld_enum[c2_list_enum_type.let_id] == NULL);
 	C2_UT_ASSERT(t_domain.ld_enum[c2_linear_enum_type.let_id] == NULL);
 	C2_UT_ASSERT(t_domain.ld_type[c2_pdclust_layout_type.lt_id] == NULL);
@@ -321,7 +321,7 @@ static void test_reg_unreg(void)
 	 * Should be able to register all the available layout types and enum
 	 * types, again after unregistering those.
 	 */
-	rc = c2_layout_register(&t_domain);
+	rc = c2_layout_all_types_register(&t_domain);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(t_domain.ld_enum[c2_list_enum_type.let_id] ==
 		     &c2_list_enum_type);
@@ -331,7 +331,7 @@ static void test_reg_unreg(void)
 		     &c2_pdclust_layout_type);
 
 	/* Unregister all the registered layout and enum types. */
-	c2_layout_unregister(&t_domain);
+	c2_layout_all_types_unregister(&t_domain);
 	C2_UT_ASSERT(t_domain.ld_enum[c2_list_enum_type.let_id] == NULL);
 	C2_UT_ASSERT(t_domain.ld_enum[c2_linear_enum_type.let_id] == NULL);
 	C2_UT_ASSERT(t_domain.ld_type[c2_pdclust_layout_type.lt_id] == NULL);
@@ -346,7 +346,7 @@ static void test_reg_unreg(void)
 	 * the domain "domain", to undo the change done at the begiining of
 	 * this function.
 	 */
-	rc = c2_layout_register(&domain);
+	rc = c2_layout_all_types_register(&domain);
 	C2_ASSERT(rc == 0);
 
 	C2_LEAVE();
@@ -1879,7 +1879,7 @@ static void test_max_recsize(void)
 	 * Hence, unregister all the available layout types and enum types from
 	 * the domain "domain", which are registered through test_init().
 	 */
-	c2_layout_unregister(&domain);
+	c2_layout_all_types_unregister(&domain);
 
 	rc = c2_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
@@ -1968,7 +1968,7 @@ static void test_max_recsize(void)
 	 * the domain "domain", to undo the change done at the begiining of
 	 * this function.
 	 */
-	rc = c2_layout_register(&domain);
+	rc = c2_layout_all_types_register(&domain);
 	C2_ASSERT(rc == 0);
 
 	C2_LEAVE();
