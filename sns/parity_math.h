@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -35,25 +35,36 @@
 */
 
 /**
+ * Parity calculation type indicating various algorithms of parity calculation.
+ */
+enum c2_parity_cal_algo {
+        C2_PARITY_CAL_ALGO_XOR,
+        C2_PARITY_CAL_ALGO_REED_SOLOMON,
+	C2_PARITY_CAL_ALGO_NR
+};
+
+/**
    Holds information about system configuration i.e., data and parity units data
    blocks and failure flags.
  */
 struct c2_parity_math {
+	enum c2_parity_cal_algo pmi_parity_algo;
+
 	/* private: */
-	uint32_t pmi_data_count;
-	uint32_t pmi_parity_count;
+	uint32_t                pmi_data_count;
+	uint32_t                pmi_parity_count;
 
 	/* structures used for parity calculation and recovery */
-	struct c2_vector pmi_data;
-	struct c2_vector pmi_parity;
-	struct c2_matrix pmi_vandmat;
-	struct c2_matrix pmi_vandmat_parity_slice;
+	struct c2_vector        pmi_data;
+	struct c2_vector        pmi_parity;
+	struct c2_matrix        pmi_vandmat;
+	struct c2_matrix        pmi_vandmat_parity_slice;
 
 	/* structures used for recovery */
-	struct c2_matrix pmi_sys_mat;
-	struct c2_vector pmi_sys_vec;
-	struct c2_vector pmi_sys_res;
-	struct c2_linsys pmi_sys;
+	struct c2_matrix        pmi_sys_mat;
+	struct c2_vector        pmi_sys_vec;
+	struct c2_vector        pmi_sys_res;
+	struct c2_linsys        pmi_sys;
 };
 
 /**
@@ -61,9 +72,11 @@ struct c2_parity_math {
    Fills '*math' with appropriate values.
    @param data_count - count of SNS data units used in system
    @param parity_count - count of SNS parity units used in system
+   @param parity_cal_algo - type of algorithm to be used to calculate parity
    @return 0 for success, -C2_SNS_PARITY_MATH_* codes or -ENOMEM for fail
  */
 int  c2_parity_math_init(struct c2_parity_math *math,
+                         enum c2_parity_cal_algo parity_cal_algo,
 			 uint32_t data_count, uint32_t parity_count);
 
 /**
@@ -106,6 +119,19 @@ void c2_parity_math_recover(struct c2_parity_math *math,
 			    struct c2_buf *data,
 			    struct c2_buf *parity,
 			    struct c2_buf *fail);
+
+/**
+ * Recovers single block of data partially or fully depending on the parity
+ * calculation algorithm.
+ * @param math - math context.
+ * @param data - data block, treaded as uint8_t block with b_nob elements.
+ * @param parity - parity block, treaded as uint8_t block with b_nob elements.
+ * @param failure_index - Index of the failed block.
+ */
+void c2_parity_math_single_block_recover(struct c2_parity_math *math,
+		                         struct c2_buf *data,
+					 struct c2_buf *parity,
+					 uint32_t failure_index);
 
 /** @} end group parity_math */
 

@@ -15,6 +15,8 @@
  *
  * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
  * Original creation date: 10/19/2010
+ * Revision       : Anup Barve <Anup_Barve@xyratex.com>
+ * Revision date  : 06/14/2011
  */
 
 #include "lib/cdefs.h"
@@ -67,7 +69,8 @@ static int gpow(int x, int p)
 }
 
 /* fills vandermonde matrix with initial values */
-static int vandmat_init(struct c2_matrix *m, uint32_t data_count, uint32_t parity_count)
+static int vandmat_init(struct c2_matrix *m, uint32_t data_count,
+			uint32_t parity_count)
 {
 	int ret;
 	uint32_t y;
@@ -116,10 +119,8 @@ static int vandmat_norm(struct c2_matrix *m)
 
 		for (x = 0; x < m->m_width; ++x)
 			if (x != y)
-				c2_matrix_cols_operate(m, x, y,
-                                                    gsub,
-                                                    0, gmul,
-                                                    *c2_matrix_elem_get(m, x, y), gsub);
+				c2_matrix_cols_operate(m, x, y, gsub, 0, gmul,
+                                            *c2_matrix_elem_get(m, x, y), gsub);
 
 		/* Assert if units configured unproperly */
 		C2_ASSERT(check_row_is_id(m, y));
@@ -144,6 +145,7 @@ void c2_parity_math_fini(struct c2_parity_math *math)
 }
 
 int  c2_parity_math_init(struct c2_parity_math *math,
+		         enum c2_parity_cal_algo parity_cal_algo,
 			 uint32_t data_count, uint32_t parity_count)
 {
 	int ret;
@@ -152,58 +154,74 @@ int  c2_parity_math_init(struct c2_parity_math *math,
 	C2_PRE(parity_count >= 1);
 	C2_PRE(data_count >= parity_count);
 	C2_PRE(data_count <= C2_SNS_PARITY_MATH_DATA_BLOCKS_MAX);
-
-	/* init galois, only first call makes initialization, no deinitialization needed */
-	c2_parity_init();
+	C2_PRE(parity_cal_algo >= C2_PARITY_CAL_ALGO_NR);
 
 	C2_SET0(math);
 
-	ret = vandmat_init(&math->pmi_vandmat, data_count, parity_count);
-	if (ret < 0)
-		goto handle_error;
+	math->pmi_parity_algo = parity_cal_algo;
 
-	ret = vandmat_norm(&math->pmi_vandmat);
-	if (ret < 0)
-		goto handle_error;
+        if (parity_cal_algo == C2_PARITY_CAL_ALGO_XOR)
+		return 0;
+	else {
+		/* init galois, only first call makes initialization,
+		 * no deinitialization needed */
+		c2_parity_init();
 
-	ret = c2_matrix_init(&math->pmi_vandmat_parity_slice, data_count, parity_count);
-	if (ret < 0)
-		goto handle_error;
+		ret = vandmat_init(&math->pmi_vandmat, data_count,
+				   parity_count);
+		if (ret < 0)
+			goto handle_error;
 
-	c2_matrix_get_submatrix(&math->pmi_vandmat, &math->pmi_vandmat_parity_slice, 0, data_count);
+		ret = vandmat_norm(&math->pmi_vandmat);
+		if (ret < 0)
+			goto handle_error;
 
-	math->pmi_data_count   = data_count;
-	math->pmi_parity_count = parity_count;
+		ret = c2_matrix_init(&math->pmi_vandmat_parity_slice,
+				     data_count, parity_count);
+		if (ret < 0)
+			goto handle_error;
 
-	ret = c2_vector_init(&math->pmi_data, data_count);
-	if (ret < 0)
-		goto handle_error;
+		c2_matrix_get_submatrix(&math->pmi_vandmat,
+				        &math->pmi_vandmat_parity_slice, 0,
+					data_count);
 
-	ret = c2_vector_init(&math->pmi_parity, parity_count);
-	if (ret < 0)
-		goto handle_error;
+		math->pmi_data_count   = data_count;
+		math->pmi_parity_count = parity_count;
 
-	ret = c2_vector_init(&math->pmi_sys_vec, math->pmi_data.v_size);
-	if (ret < 0)
-		goto handle_error;
+		ret = c2_vector_init(&math->pmi_data, data_count);
+		if (ret < 0)
+			goto handle_error;
 
-	ret = c2_vector_init(&math->pmi_sys_res, math->pmi_data.v_size);
-	if (ret < 0)
-		goto handle_error;
+		ret = c2_vector_init(&math->pmi_parity, parity_count);
+		if (ret < 0)
+			goto handle_error;
 
-	ret = c2_matrix_init(&math->pmi_sys_mat, math->pmi_data.v_size, math->pmi_data.v_size);
-	if (ret < 0)
-		goto handle_error;
+		ret = c2_vector_init(&math->pmi_sys_vec, math->pmi_data.v_size);
+		if (ret < 0)
+			goto handle_error;
 
+		ret = c2_vector_init(&math->pmi_sys_res, math->pmi_data.v_size);
+		if (ret < 0)
+			goto handle_error;
+
+		ret = c2_matrix_init(&math->pmi_sys_mat, math->pmi_data.v_size,
+				     math->pmi_data.v_size);
+		if (ret < 0)
+			goto handle_error;
+	}
 	return ret;
  handle_error:
 	c2_parity_math_fini(math);
 	return ret;
 }
 
-void c2_parity_math_calculate(struct c2_parity_math *math,
-			      struct c2_buf *data,
-			      struct c2_buf *parity)
+static void parity_math_xor_calculate()
+{
+}
+
+static void parity_math_reed_solomon_encode(struct c2_parity_math *math,
+					    struct c2_buf *data,
+					    struct c2_buf *parity)
 {
 	uint32_t ei; /* block element index */
 	uint32_t ui; /* unit index */
@@ -217,13 +235,26 @@ void c2_parity_math_calculate(struct c2_parity_math *math,
 
 	for (ei = 0; ei < block_size; ++ei) {
 		for (ui = 0; ui < math->pmi_data_count; ++ui)
-			*c2_vector_elem_get(&math->pmi_data, ui) = ((uint8_t*)data[ui].b_addr)[ei];
+			*c2_vector_elem_get(&math->pmi_data, ui) =
+				((uint8_t*)data[ui].b_addr)[ei];
 
-		c2_matrix_vec_multiply(&math->pmi_vandmat_parity_slice, &math->pmi_data, &math->pmi_parity, gmul, gadd);
+		c2_matrix_vec_multiply(&math->pmi_vandmat_parity_slice,
+				&math->pmi_data, &math->pmi_parity, gmul, gadd);
 
 		for (ui = 0; ui < math->pmi_parity_count; ++ui)
-			((uint8_t*)parity[ui].b_addr)[ei] = *c2_vector_elem_get(&math->pmi_parity, ui);
+			((uint8_t*)parity[ui].b_addr)[ei] =
+				*c2_vector_elem_get(&math->pmi_parity, ui);
 	}
+}
+
+void c2_parity_math_calculate(struct c2_parity_math *math,
+			      struct c2_buf *data,
+			      struct c2_buf *parity)
+{
+	if (math->pmi_parity_algo == C2_PARITY_CAL_ALGO_XOR)
+		parity_math_xor_calculate();
+	else if (math->pmi_parity_algo == C2_PARITY_CAL_ALGO_REED_SOLOMON)
+		parity_math_reed_solomon_encode(math, data, parity);
 }
 
 void c2_parity_math_refine(struct c2_parity_math *math,
@@ -250,22 +281,27 @@ static uint32_t fails_count(uint8_t *fail, uint32_t unit_count)
 /* fills 'mat' and 'vec' with data passed to recovery algorithm */
 static void recovery_data_fill(struct c2_parity_math *math,
 			       uint8_t *fail, uint32_t unit_count, /* in */
-			       struct c2_matrix *mat, struct c2_vector *vec) /* out */
+			       struct c2_matrix *mat, struct c2_vector *vec)
+/* out */
 {
 	uint32_t f;
 	uint32_t y = 0;
 	uint32_t x;
 
 	for (f = 0; f < unit_count; ++f) {
-		/* if (block is ok) and (not enough equations to solve system) */
+		/* if (block is ok) and
+		 * (not enough equations to solve system) */
 		if (!fail[f] && y < vec->v_size) {
 			/* copy vec */
 			*c2_vector_elem_get(vec, y) = f < math->pmi_data_count
 				? *c2_vector_elem_get(&math->pmi_data, f)
-				: *c2_vector_elem_get(&math->pmi_parity, f - math->pmi_data_count);
+				: *c2_vector_elem_get(&math->pmi_parity,
+						f - math->pmi_data_count);
 			/* copy mat */
 			for (x = 0; x < mat->m_width; ++x)
-				*c2_matrix_elem_get(mat, x, y) = *c2_matrix_elem_get(&math->pmi_vandmat, x, f);
+				*c2_matrix_elem_get(mat, x, y) =
+					*c2_matrix_elem_get(&math->pmi_vandmat,
+							x, f);
 
 			++y;
 		}
@@ -273,14 +309,16 @@ static void recovery_data_fill(struct c2_parity_math *math,
 			if (f < math->pmi_data_count)
 				*c2_vector_elem_get(&math->pmi_data, f) = 0xFF;
 			else
-				*c2_vector_elem_get(&math->pmi_parity, f - math->pmi_data_count) = 0xFF;
+				*c2_vector_elem_get(&math->pmi_parity,
+					f - math->pmi_data_count) = 0xFF;
 		} */
 	}
 }
 
 /* update internal structures of 'math' with recovered data */
 static void parity_math_recover(struct c2_parity_math *math,
-				uint8_t *fail, uint32_t unit_count) /* 1 in fail states of blocks */
+				uint8_t *fail, uint32_t unit_count)
+/* 1 in fail states of blocks */
 {
 	struct c2_matrix *mat = &math->pmi_sys_mat;
 	struct c2_vector *vec = &math->pmi_sys_vec;
@@ -323,16 +361,19 @@ void c2_parity_math_recover(struct c2_parity_math *math,
 
 		/* load data and parity */
 		for (ui = 0; ui < math->pmi_data_count; ++ui)
-			*c2_vector_elem_get(&math->pmi_data,   ui) = ((uint8_t*)data  [ui].b_addr)[ei];
+			*c2_vector_elem_get(&math->pmi_data, ui) =
+				((uint8_t*)data  [ui].b_addr)[ei];
 
 		for (ui = 0; ui < math->pmi_parity_count; ++ui)
-			*c2_vector_elem_get(&math->pmi_parity, ui) = ((uint8_t*)parity[ui].b_addr)[ei];
+			*c2_vector_elem_get(&math->pmi_parity, ui) =
+				((uint8_t*)parity[ui].b_addr)[ei];
 
 		/* recover data */
 		parity_math_recover(math, fail, unit_count);
 		/* store data */
 		for (ui = 0; ui < math->pmi_data_count; ++ui)
-			((uint8_t*)data[ui].b_addr)[ei] = *c2_vector_elem_get(recovered, ui);
+			((uint8_t*)data[ui].b_addr)[ei] =
+				*c2_vector_elem_get(recovered, ui);
 	}
 
 	/* recalculate parity */
