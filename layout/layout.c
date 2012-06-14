@@ -128,9 +128,6 @@ C2_ADDB_EV_DEFINE(layout_delete_fail, "layout_delete_fail",
 
 /** Layout list entry. */
 struct llist_entry {
-	/** Layout id. */
-	uint64_t          lle_lid;
-
 	/** Pointer to the layout object. */
 	struct c2_layout *lle_l;
 
@@ -297,7 +294,7 @@ static struct llist_entry *layout_list_lookup(struct c2_layout_domain *dom,
 
 	c2_tl_for(layout_list, &dom->ld_layout_list, l_entry) {
 		C2_ASSERT(llist_entry_bob_check(l_entry));
-		if (l_entry->lle_lid == lid)
+		if (l_entry->lle_l->l_id == lid)
 			break;
 	} c2_tl_endfor;
 
@@ -323,7 +320,6 @@ static int layout_list_add(struct c2_layout_domain *dom, struct c2_layout *l)
 
 	c2_mutex_lock(&dom->ld_lock);
 	C2_ASSERT(layout_list_lookup(dom, l->l_id) == NULL);
-	l_entry->lle_lid = l->l_id;
 	l_entry->lle_l = l;
 	layout_list_tlink_init(l_entry);
 	llist_entry_bob_init(l_entry);

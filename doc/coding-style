@@ -167,7 +167,12 @@ try to adhere to some higher level idioms.
 
       Static names don't have "c2_" prefix. Function pointers within
       "operation" structs count as static. Names of constants are
-      capitalized;
+      capitalized.
+
+      Functions which are not static, not globally exported, and are shared
+      only across multiple files within a module - shall be prefixed with
+      c2_<module-name>__ (that is double _). Invariants are excpetions to this
+      rule since conventionally invariants are internal to the module.
 
     * use C99 "designated initializers":
 
@@ -285,6 +290,8 @@ try to adhere to some higher level idioms.
       un-initialized in a conditional branch or in a loop that might
       execute 0 times, the initializer suppresses compiler warning).
 
+    * specify invariants as a conjunction of positive properties one can rely
+      upon, rather than as a disjunction of exceptions.
 
 Things to look after:
 
