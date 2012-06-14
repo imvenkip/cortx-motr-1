@@ -424,9 +424,11 @@ static void pdclust_unregister(struct c2_layout_domain *dom,
 static const struct c2_layout_ops pdclust_ops;
 
 /**
- * @post A pdclust type of layout object is created. It needs to be
- * finalised by the user, once done with the usage. It can be finalised
- * using the API c2_layout_fini().
+ * @post A pdclust type of layout object is created. User is expected to
+ * add a reference on the layout object as required and is expected to release
+ * the reference when done with the usage. The layout is finalised when it is
+ * the last reference being released. The layout finalisation internally
+ * involves enumeration object finalisation.
  */
 int c2_pdclust_build(struct c2_layout_domain *dom,
 		     struct c2_pool *pool, uint64_t lid,

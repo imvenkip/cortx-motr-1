@@ -51,9 +51,10 @@ struct layout_prefix {
 };
 
 /*
- * @post A composite type of layout object is created. It needs to be
- * finalised by the user, once done with the usage. It can be finalised
- * using the API c2_layout_fini().
+ * @post A composite type of layout object is created. User is expected to
+ * add a reference on the layout object as required and is expected to release
+ * the reference when done with the usage. The layout is finalised when it is
+ * the last reference being released.
  */
 void c2_composite_build(struct c2_layout_domain *dom,
 			uint64_t pool_id, uint64_t lid,

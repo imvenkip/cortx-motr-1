@@ -283,6 +283,7 @@ static void enum_type_put(struct c2_layout_enum_type *let)
 
 /**
  * Looks up for an entry from the layout list, with the specified layout id.
+ * @pre c2_mutex_is_locked(&dom->ld_lock).
  */
 static struct llist_entry *layout_list_lookup(struct c2_layout_domain *dom,
 					      uint64_t lid)
@@ -291,6 +292,7 @@ static struct llist_entry *layout_list_lookup(struct c2_layout_domain *dom,
 
 	C2_PRE(domain_invariant(dom));
 	C2_PRE(lid != LID_NONE);
+	C2_PRE(c2_mutex_is_locked(&dom->ld_lock));
 
 	c2_tl_for(layout_list, &dom->ld_layout_list, l_entry) {
 		C2_ASSERT(llist_entry_bob_check(l_entry));
@@ -376,7 +378,7 @@ int c2_layout__init(struct c2_layout_domain *dom,
 void c2_layout__fini(struct c2_layout *l)
 {
 	C2_PRE(layout_invariant(l));
-	C2_PRE(layout_list_lookup(l->l_dom, l->l_id) == NULL);
+	C2_PRE(c2_layout_find(l->l_dom, l->l_id) == NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
@@ -995,9 +997,9 @@ struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid)
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
-	c2_mutex_lock(&dom->ld_schema.ls_lock);
+	c2_mutex_lock(&dom->ld_lock);
 	l_entry = layout_list_lookup(dom, lid);
-	c2_mutex_unlock(&dom->ld_schema.ls_lock);
+	c2_mutex_unlock(&dom->ld_lock);
 
 	l = l_entry == NULL ? NULL : l_entry->lle_l;
 	C2_LEAVE("lid %llu, l_pointer %p", (unsigned long long)lid, l);
@@ -1008,7 +1010,7 @@ struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid)
 void c2_layout_get(struct c2_layout *l)
 {
 	C2_PRE(layout_invariant(l));
-	C2_PRE(layout_list_lookup(l->l_dom, l->l_id) != NULL);
+	C2_PRE(c2_layout_find(l->l_dom, l->l_id) == l);
 	/* layout_invariant() verifies that l->l_ref >= DEFAULT_REF_COUNT. */
 
 	C2_ENTRY("lid %llu, ref_count %lu", (unsigned long long)l->l_id,
@@ -1108,7 +1110,7 @@ int c2_layout_decode(struct c2_layout_domain *dom,
 
 	C2_PRE(domain_invariant(dom));
 	C2_PRE(lid != LID_NONE);
-	C2_PRE(layout_list_lookup(dom, lid) == NULL);
+	C2_PRE(c2_layout_find(dom, lid) == NULL);
 	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(cur != NULL);
