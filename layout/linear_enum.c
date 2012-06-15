@@ -72,7 +72,7 @@ static bool linear_enum_invariant(const struct c2_layout_linear_enum *le)
 {
 	return
 		linear_enum_invariant_internal(le) &&
-		enum_invariant(&le->lle_base);
+		c2_layout__enum_invariant(&le->lle_base);
 }
 
 static const struct c2_layout_enum_ops linear_enum_ops;
@@ -89,7 +89,7 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
 	struct c2_layout_linear_enum *lin_enum;
 	int                           rc;
 
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(nr != NR_NONE);
 	C2_PRE(B != 0);
 	C2_PRE(out != NULL);
@@ -217,7 +217,7 @@ static int linear_decode(struct c2_layout_domain *dom,
 	struct c2_layout_linear_attr *lin_attr;
 	int                           rc;
 
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));

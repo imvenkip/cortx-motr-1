@@ -204,7 +204,7 @@ static bool pdclust_invariant(const struct c2_pdclust_layout *play)
 	return
 		play != NULL &&
 		c2_pdclust_layout_bob_check(play) &&
-		striped_layout_invariant(&play->pl_base) &&
+		c2_layout__striped_invariant(&play->pl_base) &&
 		/*
 		 * tc->tc_permute[] and tc->tc_inverse[] are mutually inverse
 		 * bijections of {0, ..., P - 1}.
@@ -443,7 +443,7 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 	uint32_t                  P;
 	int                       rc;
 
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(pool != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(seed != NULL);
@@ -701,7 +701,7 @@ static int pdclust_encode(struct c2_layout *l,
 	int                           rc;
 
 	/*
-	 * layout_invariant() is part of pdclust_invariant(),
+	 * c2_layout__invariant() is part of pdclust_invariant(),
 	 * to be invoked little later below.
 	 */
 	C2_PRE(l != NULL);

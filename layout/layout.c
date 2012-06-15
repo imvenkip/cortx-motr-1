@@ -134,27 +134,27 @@ C2_TL_DESCR_DEFINE(layout_list, "layout-list", static,
 		   l_list_magic, LIST_MAGIC, HEAD_MAGIC);
 C2_TL_DEFINE(layout_list, static, struct c2_layout);
 
-bool domain_invariant(const struct c2_layout_domain *dom)
+bool c2_layout__domain_invariant(const struct c2_layout_domain *dom)
 {
 	return
 		dom != NULL &&
 		dom->ld_schema.ls_dbenv != NULL;
 }
 
-bool layout_invariant(const struct c2_layout *l)
+bool c2_layout__invariant(const struct c2_layout *l)
 {
 	return
 		l != NULL &&
 		c2_layout_bob_check(l) &&
 		l->l_id != LID_NONE &&
 		l->l_type != NULL &&
-		domain_invariant(l->l_dom) &&
+		c2_layout__domain_invariant(l->l_dom) &&
 		l->l_ref >= DEFAULT_REF_COUNT &&
 		c2_pool_id_is_valid(l->l_pool_id) &&
 		l->l_ops != NULL;
 }
 
-bool enum_invariant(const struct c2_layout_enum *le)
+bool c2_layout__enum_invariant(const struct c2_layout_enum *le)
 {
 	return
 		le != NULL &&
@@ -162,12 +162,12 @@ bool enum_invariant(const struct c2_layout_enum *le)
 		le->le_ops != NULL;
 }
 
-bool striped_layout_invariant(const struct c2_layout_striped *stl)
+bool c2_layout__striped_invariant(const struct c2_layout_striped *stl)
 {
 	return
 		stl != NULL &&
-		enum_invariant(stl->ls_enum) &&
-		layout_invariant(&stl->ls_base);
+		c2_layout__enum_invariant(stl->ls_enum) &&
+		c2_layout__invariant(&stl->ls_base);
 }
 
 static int rec_invariant(const struct c2_layout_rec *rec,
@@ -185,7 +185,7 @@ bool c2_layout__is_layout_type_valid(uint32_t lt_id,
 {
 	C2_PRE(dom != 0);
 
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 
 	if (!IS_IN_ARRAY(lt_id, dom->ld_type)) {
 		C2_LOG("Invalid layout-type-id %lu", (unsigned long)lt_id);
@@ -205,7 +205,7 @@ bool c2_layout__is_layout_type_valid(uint32_t lt_id,
 bool c2_layout__is_enum_type_valid(uint32_t let_id,
 				   const struct c2_layout_domain *dom)
 {
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 
 	if (!IS_IN_ARRAY(let_id, dom->ld_enum)) {
 		C2_LOG("Invalid enum-type-id %lu", (unsigned long)let_id);
@@ -281,7 +281,7 @@ static struct c2_layout *layout_list_lookup(struct c2_layout_domain *dom,
 {
 	struct c2_layout *l;
 
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(c2_mutex_is_locked(&dom->ld_lock));
 
 	c2_tl_for(layout_list, &dom->ld_layout_list, l) {
@@ -316,7 +316,7 @@ void c2_layout__init(struct c2_layout_domain *dom,
 		     struct c2_layout_type *type,
 		     const struct c2_layout_ops *ops)
 {
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(l != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(c2_pool_id_is_valid(pool_id));
@@ -342,14 +342,14 @@ void c2_layout__init(struct c2_layout_domain *dom,
 
 	layout_list_add(l);
 
-	C2_POST(layout_invariant(l));
+	C2_POST(c2_layout__invariant(l));
 	C2_LEAVE("lid %llu", (unsigned long long)lid);
 }
 
 /** Finalises a layout, releases a reference on the respective layout type. */
 void c2_layout__fini(struct c2_layout *l)
 {
-	C2_PRE(layout_invariant(l));
+	C2_PRE(c2_layout__invariant(l));
 	C2_PRE(c2_layout_find(l->l_dom, l->l_id) == NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
@@ -379,7 +379,7 @@ void c2_layout__striped_init(struct c2_layout_domain *dom,
 			     struct c2_layout_enum *e)
 
 {
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(str_l != NULL);
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(c2_pool_id_is_valid(pool_id));
@@ -395,11 +395,11 @@ void c2_layout__striped_init(struct c2_layout_domain *dom,
 	str_l->ls_enum->le_l = &str_l->ls_base;
 
 	/*
-	 * enum_invariant() invoked internally from within
-	 * striped_layout_invariant() verifies that
+	 * c2_layout__enum_invariant() invoked internally from within
+	 * c2_layout__striped_invariant() verifies that
 	 * str_l->ls_enum->le_l is set appropriately.
 	 */
-	C2_POST(striped_layout_invariant(str_l));
+	C2_POST(c2_layout__striped_invariant(str_l));
 	C2_LEAVE("lid %llu", (unsigned long long)lid);
 }
 
@@ -410,7 +410,7 @@ void c2_layout__striped_init(struct c2_layout_domain *dom,
  */
 void c2_layout__striped_fini(struct c2_layout_striped *str_l)
 {
-	C2_PRE(striped_layout_invariant(str_l));
+	C2_PRE(c2_layout__striped_invariant(str_l));
 
 	C2_ENTRY("lid %llu", (unsigned long long)str_l->ls_base.l_id);
 
@@ -429,7 +429,7 @@ void c2_layout__enum_init(struct c2_layout_domain *dom,
 			  struct c2_layout_enum_type *et,
 			  const struct c2_layout_enum_ops *ops)
 {
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(le != NULL);
 	C2_PRE(c2_layout__is_enum_type_valid(et->let_id, dom));
 	C2_PRE(et != NULL);
@@ -453,7 +453,7 @@ void c2_layout__enum_init(struct c2_layout_domain *dom,
  */
 void c2_layout__enum_fini(struct c2_layout_enum *le)
 {
-	C2_PRE(enum_invariant(le));
+	C2_PRE(c2_layout__enum_invariant(le));
 
 	C2_ENTRY("Enum-type-id %lu", (unsigned long)le->le_type->let_id);
 
@@ -561,7 +561,7 @@ static void max_recsize_update(struct c2_layout_domain *dom)
 	c2_bcount_t recsize;
 	c2_bcount_t max_recsize = 0;
 
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(c2_mutex_is_locked(&dom->ld_schema.ls_lock));
 
 	/*
@@ -704,7 +704,7 @@ int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
 	if (rc != 0)
 		return rc;
 
-	C2_POST(domain_invariant(dom));
+	C2_POST(c2_layout__domain_invariant(dom));
 	return rc;
 }
 
@@ -714,7 +714,7 @@ int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
  */
 void c2_layout_domain_fini(struct c2_layout_domain *dom)
 {
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 
 	/*
 	 * Verify that all the layout objects belonging to this domain have
@@ -742,7 +742,7 @@ int c2_layout_all_types_register(struct c2_layout_domain *dom)
 {
 	int rc;
 
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 
 	rc = c2_layout_type_register(dom, &c2_pdclust_layout_type);
 	if (rc != 0)
@@ -766,7 +766,7 @@ int c2_layout_all_types_register(struct c2_layout_domain *dom)
 
 void c2_layout_all_types_unregister(struct c2_layout_domain *dom)
 {
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 
 	c2_layout_enum_type_unregister(dom, &c2_list_enum_type);
 	c2_layout_enum_type_unregister(dom, &c2_linear_enum_type);
@@ -784,7 +784,7 @@ int c2_layout_type_register(struct c2_layout_domain *dom,
 {
 	int rc;
 
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(lt != NULL);
 	C2_PRE(IS_IN_ARRAY(lt->lt_id, dom->ld_type));
 	C2_PRE(lt->lt_domain == NULL);
@@ -835,7 +835,7 @@ int c2_layout_type_register(struct c2_layout_domain *dom,
 void c2_layout_type_unregister(struct c2_layout_domain *dom,
 			       struct c2_layout_type *lt)
 {
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(lt != NULL);
 	C2_PRE(dom->ld_type[lt->lt_id] == lt);
 	C2_PRE(lt->lt_domain != NULL);
@@ -871,7 +871,7 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 {
 	int rc;
 
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(let != NULL);
 	C2_PRE(IS_IN_ARRAY(let->let_id, dom->ld_enum));
 	C2_PRE(let->let_domain == NULL);
@@ -922,7 +922,7 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
 				    struct c2_layout_enum_type *let)
 {
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(let != NULL);
 	C2_PRE(dom->ld_enum[let->let_id] == let);
 	C2_PRE(let->let_domain != NULL);
@@ -956,7 +956,7 @@ struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid)
 {
 	struct c2_layout *l;
 
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(lid != LID_NONE);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
@@ -965,7 +965,7 @@ struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid)
 	l = layout_list_lookup(dom, lid);
 	c2_mutex_unlock(&dom->ld_lock);
 
-	C2_POST(ergo(l != NULL, layout_invariant(l)));
+	C2_POST(ergo(l != NULL, c2_layout__invariant(l)));
 	C2_LEAVE("lid %llu, l_pointer %p", (unsigned long long)lid, l);
 	return l;
 }
@@ -973,9 +973,9 @@ struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid)
 /** Adds a reference to the layout. */
 void c2_layout_get(struct c2_layout *l)
 {
-	C2_PRE(layout_invariant(l));
+	C2_PRE(c2_layout__invariant(l));
 	C2_PRE(c2_layout_find(l->l_dom, l->l_id) == l);
-	/* layout_invariant() verifies that l->l_ref >= DEFAULT_REF_COUNT. */
+	/* c2_layout__invariant() verifies that l->l_ref >= DEFAULT_REF_COUNT. */
 
 	C2_ENTRY("lid %llu, ref_count %lu", (unsigned long long)l->l_id,
 		 (unsigned long)l->l_ref);
@@ -997,7 +997,7 @@ void c2_layout_put(struct c2_layout *l)
 {
 	bool killme;
 
-	C2_PRE(layout_invariant(l));
+	C2_PRE(c2_layout__invariant(l));
 
 	C2_ENTRY("lid %llu, ref_count %lu", (unsigned long long)l->l_id,
 		 (unsigned long)l->l_ref);
@@ -1067,7 +1067,7 @@ int c2_layout_decode(struct c2_layout_domain *dom,
 	struct c2_layout_rec  *rec;
 	int                    rc;
 
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(c2_layout_find(dom, lid) == NULL);
 	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP)));
@@ -1114,7 +1114,7 @@ int c2_layout_decode(struct c2_layout_domain *dom,
 	 */
 	(*out)->l_ref = rec->lr_ref_count;
 
-	C2_POST(layout_invariant(*out));
+	C2_POST(c2_layout__invariant(*out));
 out:
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
@@ -1172,7 +1172,7 @@ int c2_layout_encode(struct c2_layout *l,
 	c2_bcount_t            nbytes;
 	int                    rc;
 
-	C2_PRE(layout_invariant(l));
+	C2_PRE(c2_layout__invariant(l));
 	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
 			  C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
@@ -1227,7 +1227,7 @@ int c2_layout_encode(struct c2_layout *l,
  */
 c2_bcount_t c2_layout_max_recsize(const struct c2_layout_domain *dom)
 {
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 
 	return dom->ld_schema.ls_max_recsize;
 }

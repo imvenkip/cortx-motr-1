@@ -119,7 +119,7 @@ static bool list_enum_invariant(const struct c2_layout_list_enum *le)
 {
 	return
 		list_enum_invariant_internal(le) &&
-		enum_invariant(&le->lle_base);
+		c2_layout__enum_invariant(&le->lle_base);
 }
 
 static const struct c2_layout_enum_ops list_enum_ops;
@@ -137,7 +137,7 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 	uint32_t                    i;
 	int                         rc;
 
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(cob_list != NULL);
 	C2_PRE(nr != NR_NONE);
 	C2_PRE(out != NULL);
@@ -234,7 +234,7 @@ static int list_register(struct c2_layout_domain *dom,
 	struct list_schema_data *lsd;
 	int                      rc;
 
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(et != NULL);
 	C2_PRE(IS_IN_ARRAY(et->let_id, dom->ld_enum));
 	C2_PRE(dom->ld_schema.ls_type_data[et->let_id] == NULL);
@@ -277,7 +277,7 @@ static void list_unregister(struct c2_layout_domain *dom,
 {
 	struct list_schema_data *lsd;
 
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(et != NULL);
 
 	C2_ENTRY("Enum_type_id %lu", (unsigned long)et->let_id);
@@ -419,7 +419,7 @@ static int list_decode(struct c2_layout_domain *dom,
 	uint32_t                    i;
 	int                         rc;
 
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));

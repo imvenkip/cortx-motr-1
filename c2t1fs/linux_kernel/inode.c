@@ -108,7 +108,8 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 
 	is_root = c2t1fs_inode_is_root(&ci->ci_inode);
 
-	C2_ENTRY("ci: %p is_root %s", ci, is_root ? "true" : "false");
+	C2_ENTRY("ci: %p, is_root %s, layout %p",
+		 ci, is_root ? "true" : "false", ci->ci_layout);
 
 	c2_tl_for(dir_ents, &ci->ci_dir_ents, de) {
 		dir_ents_tlist_del(de);

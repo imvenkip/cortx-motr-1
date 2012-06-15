@@ -384,7 +384,7 @@ static c2_bcount_t recsize_get(const struct c2_layout *l)
 	c2_bcount_t            recsize;
 	struct c2_layout_type *lt;
 
-	C2_PRE(layout_invariant(l));
+	C2_PRE(c2_layout__invariant(l));
 
 	lt = l->l_type;
 	C2_ASSERT(c2_layout__is_layout_type_valid(lt->lt_id, l->l_dom));
@@ -515,7 +515,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	void                    *key_buf = pair->dp_key.db_buf.b_addr;
 	void                    *rec_buf = pair->dp_rec.db_buf.b_addr;
 
-	C2_PRE(domain_invariant(dom));
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(c2_layout_find(dom, lid) == NULL);
 	C2_PRE(tx != NULL);
@@ -591,7 +591,7 @@ int c2_layout_add(struct c2_layout *l,
 	c2_bcount_t              recsize;
 	int                      rc;
 
-	C2_PRE(layout_invariant(l));
+	C2_PRE(c2_layout__invariant(l));
 	C2_PRE(tx != NULL);
 	C2_PRE(pair != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
@@ -654,7 +654,7 @@ int c2_layout_update(struct c2_layout *l,
 	c2_bcount_t              recsize;
 	int                      rc;
 
-	C2_PRE(layout_invariant(l));
+	C2_PRE(c2_layout__invariant(l));
 	C2_PRE(tx != NULL);
 	C2_PRE(pair != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
@@ -749,7 +749,7 @@ int c2_layout_delete(struct c2_layout *l,
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof l->l_id);
 	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_layout_rec));
-	C2_PRE(layout_invariant(l));
+	C2_PRE(c2_layout__invariant(l));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
