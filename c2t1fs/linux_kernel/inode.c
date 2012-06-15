@@ -20,7 +20,8 @@
 
 #include <linux/slab.h>         /* kmem_cache */
 
-#include "layout/pdclust.h"     /* c2_pdclust_build(), c2_pdclust_fini() */
+#include "layout/pdclust.h"     /* c2_pdclust_build(), c2_pdclust_fini(),
+				 * c2_pdl_to_layout()                    */
 #include "layout/linear_enum.h" /* c2_linear_enum_build()                */
 #include "lib/misc.h"           /* C2_SET0()                             */
 #include "lib/memory.h"         /* C2_ALLOC_PTR(), c2_free()             */
@@ -378,7 +379,7 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 				      pool, layout_id, N, K, unit_size,
 				      &seed, &le->lle_base, &pd_layout);
 		if (rc == 0) {
-			ci->ci_layout = &pd_layout->pl_base.ls_base;
+			ci->ci_layout = c2_pdl_to_layout(pd_layout);
 
 			/*
 			 * Add a reference to the layout indicating it is being

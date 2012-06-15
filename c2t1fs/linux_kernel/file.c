@@ -24,7 +24,7 @@
 
 #include "lib/memory.h"     /* c2_alloc(), c2_free() */
 #include "lib/arith.h"      /* min_type() */
-#include "layout/pdclust.h" /* PUT_* */
+#include "layout/pdclust.h" /* PUT_*, c2_layout_to_pdl() */
 #include "c2t1fs/linux_kernel/c2t1fs.h"
 #include "rpc/rpclib.h"     /* c2_rpc_client_call() */
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
@@ -58,11 +58,6 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 					  int                  rw);
 
 static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
-
-static struct c2_pdclust_layout *layout_to_pd_layout(struct c2_layout *l)
-{
-	return container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
-}
 
 const struct file_operations c2t1fs_reg_file_operations = {
 	.llseek    = generic_file_llseek,   /* provided by linux kernel */
@@ -219,7 +214,7 @@ static bool io_req_spans_full_stripe(struct c2t1fs_inode *ci,
 
 	addr = (unsigned long)buf;
 
-	pd_layout = layout_to_pd_layout(ci->ci_layout);
+	pd_layout = c2_layout_to_pdl(ci->ci_layout);
 
 	/* stripe width = number of data units * size of each unit */
 	stripe_width = c2_pdclust_nr_data_units_get(pd_layout) *
@@ -588,7 +583,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 	csb = C2T1FS_SB(ci->ci_inode.i_sb);
 
-	pd_layout = layout_to_pd_layout(ci->ci_layout);
+	pd_layout = c2_layout_to_pdl(ci->ci_layout);
 	gob_fid   = ci->ci_fid;
 	unit_size = c2_pdclust_unit_size_get(pd_layout);
 

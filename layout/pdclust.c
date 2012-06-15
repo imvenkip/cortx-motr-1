@@ -541,6 +541,16 @@ uint64_t c2_pdclust_unit_size_get(const struct c2_pdclust_layout *pl)
 	return pl->pl_attr.pa_unit_size;
 }
 
+struct c2_pdclust_layout *c2_layout_to_pdl(const struct c2_layout *l)
+{
+	return container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
+}
+
+struct c2_layout *c2_pdl_to_layout(struct c2_pdclust_layout *pl)
+{
+	return &pl->pl_base.ls_base;
+}
+
 enum c2_pdclust_unit_type
 c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 			 int unit)

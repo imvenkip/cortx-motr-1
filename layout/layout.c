@@ -108,7 +108,10 @@ const struct c2_addb_loc layout_addb_loc = {
 
 struct c2_addb_ctx layout_global_ctx = {
 	.ac_type   = &layout_addb_ctx_type,
-	/* todo What should this parent be set to? Something coming from FOP? */
+	/*
+	 * @todo What should this parent be set to?
+	 * Something coming from FOP?
+	 */
 	.ac_parent = NULL
 };
 
