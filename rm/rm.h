@@ -210,6 +210,13 @@ enum {
 };
 
 /**
+   Opaque cookie that RM core used to quickly identify and locate its objects.
+ */
+struct c2_rm_cookie {
+	struct c2_uint128 cv;
+};
+
+/**
    Domain of resource management.
 
    All other resource manager data-structures (resource types, resources,
@@ -254,7 +261,7 @@ struct c2_rm_resource {
         struct c2_tlink                  r_linkage;
 	/**
 	   List of remote owners (linked through c2_rm_remote::rem_linkage) with
-	   which local owners of rights to this resource communicate.
+	   which local owner, of rights to this resource, communicate.
 	 */
 	struct c2_tl                     r_remote;
         /**
@@ -342,6 +349,8 @@ struct c2_rm_resource_type {
 struct c2_rm_resource_type_ops {
         bool (*rto_eq)(const struct c2_rm_resource *resource0,
                        const struct c2_rm_resource *resource1);
+        bool (*rto_resource_is)(const struct c2_rm_resource *resource,
+                       		const uint64_t id);
         int  (*rto_decode)(const struct c2_vec_cursor *bufvec,
                            struct c2_rm_resource **resource);
         int  (*rto_encode)(struct c2_vec_cursor *bufvec,
@@ -427,6 +436,11 @@ struct c2_rm_right_ops {
 	 */
         bool (*rro_intersects) (const struct c2_rm_right *r0,
                                 const struct c2_rm_right *r1);
+        /** True, iff r0 can be joined  with r1.
+
+	 */
+        bool (*rro_join) (const struct c2_rm_right *r0,
+                          const struct c2_rm_right *r1);
 	/** True, iff r0 conflicts with r1.
 
 	    Rights conflict iff one of them authorises a usage incompatible with
@@ -1125,6 +1139,8 @@ struct c2_rm_incoming {
         uint64_t                         rin_flags;
         /** The right requested. */
         struct c2_rm_right               rin_want;
+        /** The owner of the right requested. */
+        struct c2_rm_owner               *rin_owner;
         /**
            List of pins, linked through c2_rm_pin::rp_incoming_linkage, for all
            rights held to satisfy this request.

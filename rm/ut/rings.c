@@ -40,7 +40,7 @@ const struct c2_rm_resource_ops rings_ops = {
 static bool resources_are_equal(const struct c2_rm_resource *r0,
 				const struct c2_rm_resource *r1)
 {
-	return false;
+	return r0 == r1;
 }
 
 static bool resource_is(const struct c2_rm_resource *res, uint64_t res_id)
@@ -57,47 +57,43 @@ const struct c2_rm_resource_type_ops rings_rtype_ops = {
 	.rto_resource_is = resource_is
 };
 
-static void right_meet(struct c2_rm_right *r0, const struct c2_rm_right *r1)
-{
-	r0->ri_datum |= r0->ri_datum & r1->ri_datum ;
-}
-
 static bool right_intersects(const struct c2_rm_right *r0,
 			     const struct c2_rm_right *r1)
 {
       return (r0->ri_datum & r1->ri_datum) != 0;
 }
 
-static void right_join(struct c2_rm_right *r0, const struct c2_rm_right *r1)
+static bool right_join(const struct c2_rm_right *r0, const struct c2_rm_right *r1)
 {
-	r0->ri_datum |= r0->ri_datum | r1->ri_datum ;
+	return true;
 }
 
-static void right_diff(struct c2_rm_right *r0, const struct c2_rm_right *r1)
+static int right_diff(struct c2_rm_right *r0, const struct c2_rm_right *r1)
 {
-	r0->ri_datum |= r0->ri_datum & ~r1->ri_datum ;
+	r0->ri_datum &= ~r1->ri_datum ;
+	return 0;
 }
 
-static bool right_implies(const struct c2_rm_right *r0,
-			  const struct c2_rm_right *r1)
+static void rings_right_free(struct c2_rm_right *right)
 {
-	return (r0->ri_datum & r1->ri_datum) == r1->ri_datum;
+	right->ri_datum = 0;
 }
 
 static int rings_right_copy(struct c2_rm_right *dest,
 			    const struct c2_rm_right *src)
 {
 	dest->ri_datum = src->ri_datum;
+	dest->ri_owner = src->ri_owner;
+	dest->ri_ops = src->ri_ops;
 	return 0;
 }
 
 const struct c2_rm_right_ops rings_right_ops = {
-	.rro_meet	= right_meet,
 	.rro_intersects = right_intersects,
 	.rro_join	= right_join,
 	.rro_diff	= right_diff,
-	.rro_implies	= right_implies,
-	.rro_copy	= rings_right_copy
+	.rro_copy	= rings_right_copy,
+	.rro_free	= rings_right_free
 };
 
 static void incoming_complete(struct c2_rm_incoming *in, int32_t rc)

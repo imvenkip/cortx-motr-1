@@ -96,6 +96,7 @@ void add_uts(void)
 	c2_ut_add(&c2_net_bulk_sunrpc_ut);
 	c2_ut_add(&parity_math_ut);
 	c2_ut_add(&reqh_ut);
+	c2_ut_add(&rm_ut);
 	c2_ut_add(&rpclib_ut);
 	c2_ut_add(&rpc_onwire_ut);
 	c2_ut_add(&rpc_service_ut);

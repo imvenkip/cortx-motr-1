@@ -446,8 +446,8 @@ scope void name ## _tlink_init_at(amb_type *amb, struct c2_tl *head);	\
 scope void name ## _tlink_init_at_tail(amb_type *amb, struct c2_tl *head);\
 scope void name ## _tlink_fini(amb_type *amb);				\
 scope void name ## _tlink_del_fini(amb_type *amb);			\
-scope void name ## _tlist_invariant(const struct c2_tl *head);		\
-scope void name ## _tlist_invariant_ext(const struct c2_tl *head,       \
+scope bool name ## _tlist_invariant(const struct c2_tl *head);		\
+scope bool name ## _tlist_invariant_ext(const struct c2_tl *head,       \
                                         bool (*check)(const amb_type *, \
                                         void *), void *);		\
 scope bool   name ## _tlist_is_empty(const struct c2_tl *list);		\
@@ -524,16 +524,16 @@ scope __AUN void name ## _tlink_del_fini(amb_type *amb)			\
 	c2_tlink_del_fini(&name ## _tl, amb);				\
 }									\
 									\
-scope __AUN void name ## _tlist_invariant(const struct c2_tl *list)	\
+scope __AUN bool name ## _tlist_invariant(const struct c2_tl *list)	\
 {									\
-	c2_tlist_invariant(&name ## _tl, list);				\
+	return c2_tlist_invariant(&name ## _tl, list);			\
 }									\
 									\
-scope __AUN void name ## _tlist_invariant_ext(const struct c2_tl *list, \
+scope __AUN bool name ## _tlist_invariant_ext(const struct c2_tl *list, \
 					      bool (*check)(const amb_type *,\
 					      void *), void *datum)		\
 {									\
-	c2_tlist_invariant_ext(&name ## _tl, list,                      \
+	return c2_tlist_invariant_ext(&name ## _tl, list,               \
 			 (bool (*)(const void *, void *))check, datum);	\
 }									\
 									\

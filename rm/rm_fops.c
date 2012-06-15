@@ -27,6 +27,34 @@
 
 #include "rm/rm.ff"
 
+/*
+ * Data structures.
+ */
+/*
+ * Common data-structure to other tracking structures.
+ */
+struct rm_out {
+	struct c2_rm_incoming *ou_incoming;
+	struct c2_rm_outgoing  ou_req;
+	struct c2_fop	       ou_fop;
+};
+
+/*
+ * The tracking structure for BORROW request.
+ */
+struct rm_borrow {
+	struct rm_out		bo_out;
+	struct c2_fop_rm_borrow *bo_data;
+};
+
+/*
+ * The tracking structure for BORROW request.
+ */
+struct rm_canoke {
+	struct rm_out		 bo_out;
+	struct c2_fop_rm_canoke *bo_data;
+};
+
 /**
  * Forward declaration.
  */
@@ -37,28 +65,31 @@ int c2_rm_fop_cancel_fom_init(struct c2_fop *, struct c2_fom **);
 /**
  * FOP operation vector for right borrow.
  */
-struct c2_fop_type_ops c2_fop_rm_borrow_ops = {
-	.fto_fom_init = c2_rm_fop_borrow_fom_init
+static const struct c2_fop_type_ops rm_borrow_fop_ops = {
+	.fto_fop_replied = rm_borrow_fop_reply,
+	.fto_size_get = c2_xcode_fop_size_get,
 };
 
 /**
- * FOP operation vector for right borrow reply.
+ * FOP operation vector for right revoke or cancel.
  */
-struct c2_fop_type_ops c2_fop_rm_borrow_reply_ops = {
-	.fto_fom_init = NULL,
+static const struct c2_fop_type_ops rm_canoke_fop_ops = {
+	.fto_execute = rm_client_revoke,
+	.fto_fop_replied = rm_canoke_fop_reply,
+	.fto_size_get = c2_xcode_fop_size_get,
 };
 
 /**
  * FOP operation vector for right revoke.
  */
 struct c2_fop_type_ops c2_fop_rm_revoke_ops = {
-	.fto_fom_init = c2_rm_fop_revoke_fom_init,
+	.fto_fom_init = c2_rm_fop_canoke_fom_init,
 };
 
 /**
  * FOP operation vector for right revoke reply.
  */
-struct c2_fop_type_ops c2_fop_rm_revoke_reply_ops = {
+struct c2_fop_type_ops c2_fop_rm_canoke_reply_ops = {
 	.fto_fom_init = NULL,
 };
 
@@ -70,248 +101,148 @@ struct c2_fop_type_ops c2_fop_rm_cancel_ops = {
 };
 
 static struct c2_fop_type *fops[] = {
-	&c2_fop_rm_right_borrow_fopt,
-	&c2_fop_rm_right_borrow_reply_fopt,
-	&c2_fop_rm_right_revoke_fopt,
-	&c2_fop_rm_right_revoke_reply_fopt,
-	&c2_fop_rm_right_cancel_fopt,
+	&c2_fop_rm_borrow_fopt,
+	&c2_fop_rm_borrow_rep_fopt,
+	&c2_fop_rm_canoke_fopt,
+	&c2_fop_rm_canoke_rep_fopt,
 };
 
 static struct c2_fop_type_format *rm_fmts[] = {
+	&c2_fop_rm_cookie_tfmt,
+	&c2_fop_rm_opaque_tfmt,
+	&c2_fop_rm_owner_tfmt,
+	&c2_fop_rm_loan_tfmt,
 	&c2_fop_rm_right_tfmt,
-	&c2_fop_rm_res_data_tfmt,
 };
 
 /**
  * FOP definitions for resource-right borrow request and reply.
  */
-C2_FOP_TYPE_DECLARE(c2_fop_rm_right_borrow, "Right Borrow",
+C2_FOP_TYPE_DECLARE(c2_fop_rm_borrow, "Right Borrow", &c2_fop_rm_borrow_ops,
 		    C2_RM_FOP_BORROW, &c2_fop_rm_borrow_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_rm_right_borrow_reply, "Right Borrow Reply",
+C2_FOP_TYPE_DECLARE(c2_fop_rm_borrow_rep, "Right Borrow Reply",
 		    C2_RM_FOP_BORROW_REPLY, &c2_fop_rm_borrow_reply_ops);
 
 /**
- * FOP definitions for resource-right revoke request and reply.
+ * FOP definitions for resource-right revoke,cancel request and reply.
  */
-C2_FOP_TYPE_DECLARE(c2_fop_rm_right_revoke, "Right Revoke",
-		    C2_RM_FOP_REVOKE, &c2_fop_rm_revoke_ops);
-C2_FOP_TYPE_DECLARE(c2_fop_rm_right_revoke_reply, "Right Revoke Reply",
-		    C2_RM_FOP_REVOKE_REPLY, &c2_fop_rm_revoke_reply_ops);
+C2_FOP_TYPE_DECLARE(c2_fop_rm_canoke, "Right RevokeCancel",
+		    C2_RM_FOP_REVOKE, &c2_fop_rm_canoke_ops);
+C2_FOP_TYPE_DECLARE(c2_fop_rm_canoke_rep, "Right RevokeCancel Reply",
+		    C2_RM_FOP_REVOKE_REPLY, &c2_fop_rm_canoke_reply_ops);
 
-/**
- * FOP definitions for resource-right surrender.
- */
-C2_FOP_TYPE_DECLARE(c2_fop_rm_right_cancel, "Right Surrender",
-		    C2_RM_FOP_CANCEL, &c2_fop_rm_cancel_ops);
-
-/**
- * Set the RM FOM ops vectors - constructor, destructor, other functions.
- *
- */
-static void c2_rm_fom_set_ops(struct c2_rm_fom_right_request *fom,
-			     enum c2_rm_fop_opcodes rm_fop_opcode)
+int c2_rm_borrow_out(struct c2_rm_incoming *in,
+		     struct c2_rm_right *right)
 {
-	switch (rm_fop_opcode) {
-	case C2_RM_FOP_BORROW:
-		fom->frr_gen.fo_type = &c2_rm_fom_borrow_type;
-		fom->frr_gen.fo_ops = &c2_rm_fom_borrow_ops;
-		break;
-	case C2_RM_FOP_REVOKE:
-		fom->frr_gen.fo_type = &c2_rm_fom_revoke_type;
-		fom->frr_gen.fo_ops = &c2_rm_fom_revoke_ops;
-		break;
-	case C2_RM_FOP_CANCEL:
-		fom->frr_gen.fo_type = &c2_rm_fom_cancel_type;
-		fom->frr_gen.fo_ops = &c2_rm_fom_cancel_ops;
-		break;
-	default:
-		/* Not reached */
-		break;
-	}
-}
+	struct rm_borrow	*borrow;
+	struct c2_rm_outgoing	*outreq;
+	struct c2_fop_rm_borrow *bfop = &borrow->bo_data;
+	char			*right_addr = (char *)bfop->bo_right.ri_opaque;
+	c2_bcount_t		 right_nr = 1;
+	struct c2_bufvec	 right_buf = C2_BUFVEC_INIT_BUF(&right_addr,
+								&right_nr);
 
-/**
- * This is a generic constructor for RM FOMs.
- * This creates an instance of c2_rm_fom_right_request FOM.
- *
- * @pre fop != NULL
- * @pre fom != NULL
- *
- * @param *fop - incoming FOP
- * @param **fom - fom instance created. Memory is allocated by this function.
- * @param rm_fop_opcode - Indicates the FOP-type.
- *
- * @retval 0 - on success
- *         -EINVAL - Invalid FOM type
- *         -ENOMEM - out of memory.
- *
- * @see c2_rm_fom_right_request
- */
-static int c2_rm_fop_generic_fom_init(struct c2_fop *fop, struct c2_fom **fom,
-				      enum c2_rm_fop_opcodes rm_fop_opcode)
-{
-	struct c2_rm_fom_right_request *req_fom;
-	bool check_reply_fop = false;
+	C2_PRE(in->rin_type == RIT_BORROW);
 
-	C2_PRE(fop != NULL);
-	C2_PRE(fom != NULL);
+	C2_ALLOC_PTR(borrow);
+	if (borrow == NULL)
+		goto out;
 
-#if 0
-	/* TODO - Make sure that FOM type is set */
-	fom_type = c2_fom_type_map(fop->f_type->ft_code);
-	if (fom_type == NULL)
-		return -EINVAL;
-#endif
+	/* Store the incoming request pointer */
+	borrow->bo_out.ou_incoming = in;
 
-	/* Allocate FOM object */
-	C2_ALLOC_PTR(req_fom);
-	if (req_fom == NULL)
-		return -ENOMEM;
+	/* Store the outgoing request information */
+	outreq = &borrow->bo_out.ou_req;
+	outreq->rog_type  = ROT_BORROW;
+	outreq->rog_owner = right->ri_owner;
+	right_copy(&outreq->rog_want.rl_right, right);
+	outreq->rog_want.rl_other = right->ri_owner->ro_creditor;
 
-	/* Allocate reply FOP, if applicable */
-	switch (rm_fop_opcode) {
-	case C2_RM_FOP_BORROW:
-		req_fom->frr_reply_fop
-		= c2_fop_alloc(&c2_fop_rm_right_borrow_reply_fopt, NULL);
-		check_reply_fop = true;
-		break;
-	case C2_RM_FOP_REVOKE:
-		req_fom->frr_reply_fop
-		= c2_fop_alloc(&c2_fop_rm_right_borrow_reply_fopt, NULL);
-		check_reply_fop = true;
-		break;
-	default:
-		req_fom->frr_reply_fop = NULL;
-		break;
-	}
+	c2_fop_init(&borrow->bo_out.ou_fop, &c2_fop_rm_borrow_fopt, NULL);
+	/*
+	 * pin_add should return pin, otherwise it's difficult to remove it.
+	 * Or outgoing should store pointer to incoming. The outgoing request
+	 * is generated as a result of incoming request.
+	 */
+	pin_add(in, &outreq->rog_want.rl_right, RPF_TRACK);
 
+	/* Fill in the BORROW FOP. Should we store pointer in borrow?? */
+	bfop = &borrow->bo_data;
 
-	if (check_reply_fop && req_fom->frr_reply_fop == NULL) {
-		c2_free(req_fom);
-		return -ENOMEM;
-	}
+	bfop->bo_rtype = in->rin_type;
+	bfop->bo_policy = in->rin_policy;
+	bfop->bo_flags = in->rin_flags;
+	c2_rm_owner_cookie(in->rin_want.ri_owner, &bfop->bo_owner.ow_cookie);
+	/* Sending owner cookie is not necessary. Think of getting rid of it */
+	c2_rm_loan_cookie(outreq->rog_want, &bfop->bo_loan.ow_cookie);
+	/*
+	 * Encode rights data into BORROW FOP
+	 */
+	right->ri_ops->rro_encode(right, &right_buf);
+	borrow->bo_out.ou_fop.f_item->ri_ops = &borrow_ops;
+	c2_rpc_post(&borrow->bo_out.ou_fop.f_item);
 
-	/* Save FOP pointer for future reference */
-	req_fom->frr_fop = fop;
-
-	/* Set various ops vectors */
-	c2_rm_fom_set_ops(req_fom, rm_fop_opcode);
-
-	*fom = &req_fom->frr_gen;
 	return 0;
+
+out:
+	return -ENOMEM;
 }
 
-/**
- * FOM initialization function invoked by request handler.
- * This is a right borrow FOM constructor.
- * This creates an instance of c2_rm_fom_right_request FOM.
- *
- * @param *fop - incoming FOP
- * @param **fom - fom instance created. Memory is allocated by this function.
- *
- * @retval 0 - on success
- *         -EINVAL - Invalid FOM type
- *         -ENOMEM - out of memory.
- *
- * @see c2_rm_fom_right_request
- */
-int c2_rm_fop_borrow_fom_init(struct c2_fop *fop, struct c2_fom **fom)
+int c2_rm_revoke_out(struct c2_rm_incoming *in,
+		     struct c2_rm_loan *loan,
+		     struct c2_rm_right *right)
 {
-	int rc;
+	struct rm_canoke	*revoke;
+	struct c2_rm_outgoing	*outreq;
+	struct c2_fop_rm_borrow *rfop = &borrow->bo_data;
+	char			*right_addr = (char *)rfop->cr_right.ri_opaque;
+	c2_bcount_t		 right_nr = 1;
+	struct c2_bufvec	 right_buf = C2_BUFVEC_INIT_BUF(&right_addr,
+								&right_nr);
 
-	rc = c2_rm_fop_generic_fom_init(fop, fom, C2_RM_FOP_BORROW);
-	return rc;
-}
+	C2_PRE(in->rin_type == RIT_REVOKE);
 
-#if 0
-/**
- * This reply function will be called by RPC layer.
- * This will be in response to borrow request.
- *
- * @param *req - Request FOP - Borrow request
- * @param *fom - Reply FOP - Borrow reply
- * @param rc - return code
- *
- */
-void c2_rm_fop_borrow_reply(struct c2_rpc_item *req,
-			    struct c2_rpc_item *reply,
-			    int rc)
-{
-	struct c2_fop_rm_right_borrow_reply *brep_fop;
+	C2_ALLOC_PTR(revoke);
+	if (revoke == NULL)
+		goto out;
 
-	C2_PRE(req != NULL && reply != NULL);
+	/* Store the incoming request pointer */
+	revoke->bo_out.ou_incoming = in;
 
-	brep_fop = c2_rpc_item_to_fop(reply);
-	brep_fop = c2_fop_data(brep_fop);
-	/* TODO - Figure out how RM-generic wants to be notified */
-}
-#endif
+	/* Store the outgoing request information */
+	outreq = &borrow->bo_out.ou_req;
+	outreq->rog_type  = ROT_REVOKE;
+	outreq->rog_owner = right->ri_owner;
+	right_copy(&outreq->rog_want.rl_right, right);
+	outreq->rog_want.rl_other = right->ri_owner->ro_creditor;
 
-/**
- * FOM initialization function invoked by request handler.
- * This creates an instance of c2_rm_fom_right_request FOM.
- * This is a right revoke FOM constructor.
- *
- * @param *fop - incoming FOP
- * @param **fom - fom instance created. Memory is allocated by this function.
- *
- * @retval 0 - on success
- *         -EINVAL - Invalid FOM type
- *         -ENOMEM - out of memory.
- *
- * @see c2_rm_fom_right_request
- */
-int c2_rm_fop_revoke_fom_init(struct c2_fop *fop, struct c2_fom **fom)
-{
-	int rc;
+	c2_fop_init(&borrow->bo_out.ou_fop, &c2_fop_rm_canoke_fopt, NULL);
+	/*
+	 * pin_add should return pin, otherwise it's difficult to remove it.
+	 * Or outgoing should store pointer to incoming. The outgoing request
+	 * is generated as a result of incoming request.
+	 */
+	pin_add(in, &outreq->rog_want.rl_right, RPF_TRACK);
 
-	rc = c2_rm_fop_generic_fom_init(fop, fom, C2_RM_FOP_REVOKE);
-	return rc;
-}
+	/* Fill in the REVOKE FOP. */
+	rfop = &revoke->bo_data;
 
-#if 0
-/**
- * This reply function will be called by RPC layer.
- * This will be in response to revoke request.
- *
- * @param *req - Request FOP - Revoke request
- * @param *fom - Reply FOP - Revoke reply
- * @param rc - return code
- *
- */
-void c2_rm_fop_revoke_reply(struct c2_prc_item *req,
-			    struct c2_rpc_item *reply,
-			    int rc)
-{
-	struct c2_fop_rm_right_revoke_reply *rrep_fop;
+	rfop->cr_op = RIT_REVOKE;
+	c2_rm_owner_cookie(in->rin_want.ri_owner, &rfop->cr_owner.ow_cookie);
+	/* Sending owner cookie is not necessary. Think of getting rid of it */
+	c2_rm_loan_cookie(outreq->rog_want, &rfop->cr_loan.ow_cookie);
+	/*
+	 * Encode rights data into REVOKE FOP. This is valuable for
+	 * partial revoke? Otherwise loan-id should suffice?
+	 */
+	right->ri_ops->rro_encode(right, &right_buf);
+	borrow->bo_out.ou_fop.f_item->ri_ops = &revoke_ops;
+	c2_rpc_post(&revoke->bo_out.ou_fop.f_item);
 
-	C2_PRE(req != NULL && reply != NULL);
+	return 0;
 
-	rrep_fop = c2_rpc_item_to_fop(reply);
-	rrep_fop = c2_fop_data(rrep_fop);
-	/* TODO - Figure out how RM-generic wants to be notified */
-}
-#endif
-
-/**
- * FOM initialization function invoked by request handler.
- * This creates an instance of c2_rm_fom_right_request FOM.
- *
- * @param *fop - incoming FOP
- * @param **fom - fom instance created. Memory is allocated by this function.
- *
- * @retval 0 - on success
- *         -EINVAL - Invalid FOM type
- *         -ENOMEM - out of memory.
- *
- * @see c2_rm_fom_right_request
- */
-int c2_rm_fop_cancel_fom_init(struct c2_fop *fop, struct c2_fom **fom)
-{
-	int rc;
-
-	rc = c2_rm_fop_generic_fom_init(fop, fom, C2_RM_FOP_CANCEL);
-	return rc;
+out:
+	return -ENOMEM;
 }
 
 void c2_rm_fop_fini(void)
@@ -338,8 +269,11 @@ int c2_rm_fop_init(void)
 		rc = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
 		if (rc == 0) {
 			/* Initialize RM defined types */
+			c2_fop_object_init(&c2_fop_rm_cookie_tfmt);
+			c2_fop_object_init(&c2_fop_rm_opaque_tfmt);
+			c2_fop_object_init(&c2_fop_rm_owner_tfmt);
+			c2_fop_object_init(&c2_fop_rm_loan_tfmt);
 			c2_fop_object_init(&c2_fop_rm_right_tfmt);
-			c2_fop_object_init(&c2_fop_rm_res_data_tfmt);
 		}
 	}
 

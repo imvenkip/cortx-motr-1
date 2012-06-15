@@ -112,14 +112,6 @@ int c2_rm_borrow_done(struct c2_rm_outgoing *out, struct c2_rm_loan *loan);
  */
 int c2_rm_revoke_done(struct c2_rm_outgoing *out);
 
-
-/**
-   Opaque cookie that RM core used to quickly identify and locate its objects.
- */
-struct c2_rm_cookie {
-	struct c2_uint128 cv;
-};
-
 /**
    Returns a cookie for a given owner.
  */
@@ -176,6 +168,10 @@ int c2_rm_revoke_out(struct c2_rm_incoming *in,
 */
 void c2_rm_outgoing_complete(struct c2_rm_outgoing *og, int32_t rc);
 
+#if 0
+int outgoing_check(struct c2_rm_incoming *in, enum c2_rm_incoming_type inreq,
+		   struct c2_rm_right *right, struct c2_rm_remote *remote);
+
 /** @} end of rm-fop interface. */
 
 /**
@@ -195,6 +191,7 @@ C2_TL_DECLARE(pr, , struct c2_rm_pin);
 
 C2_TL_DESCR_DECLARE(pi, extern);
 C2_TL_DECLARE(pi, , struct c2_rm_pin);
+#endif
 
 /**
    Execute "expr" against all rights lists in a given owner.

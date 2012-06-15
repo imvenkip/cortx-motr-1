@@ -45,24 +45,11 @@ enum c2_rm_fom_phases {
   * FOM to execute resource right request. The request could either be borrow,
   * revoke or cancel. This will also be used for replies.
   */
-struct c2_rm_fom_right_request {
+struct rm_borrow_fom {
 	/** Generic c2_fom object */
-	struct c2_fom	frr_gen;
-
+	struct c2_fom	bom_fom;
 	/** Incoming request */
-	struct c2_rm_incoming frr_in;
-
-	/** Request FOP */
-	struct c2_fop	*frr_fop;
-	/** Corresponding reply FOP */
-	struct c2_fop	*frr_reply_fop;
-
-	/** Resource type object - identified by resource type id in FOP */
-	struct c2_rm_resource_type *frr_restype_obj;
-	/** Resource object - identified by resource id in FOP */
-	struct c2_rm_resource *frr_res_obj;
-	/** Resource owner - Owner of the given resource */
-	struct c2_rm_owner *frr_res_owner;
+	struct c2_rm_borrow_incoming bom_in;
 };
 
 /* __COLIBRI_RM_FOMS_H__ */

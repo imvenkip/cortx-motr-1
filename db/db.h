@@ -332,6 +332,7 @@ enum {
 C2_TL_DESCR_DECLARE(txw, extern);
 C2_TL_DEFINE(txw, static inline, struct c2_db_tx_waiter);
 
+
 /**
    Adds a waiter for a transaction.
 

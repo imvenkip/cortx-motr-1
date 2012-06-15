@@ -68,31 +68,36 @@ DEF(c2_fop_rm_owner, RECORD,
     _(ow_cookie, c2_fop_rm_cookie),
     _(ow_resource, c2_fop_rm_opaque));
 
+DEF(c2_fop_rm_loan, RECORD,
+    _(lo_cookie, c2_fop_rm_cookie),
+    _(lo_id, U64));
+
 DEF(c2_fop_rm_right, RECORD,
     _(ri_opaque, c2_fop_rm_opaque));
 
 DEF(c2_fop_rm_borrow, RECORD,
-    _(bo_rtype, U64),
+    _(bo_rtype, U64),		  /* This may not be necessary */
     _(bo_owner, c2_fop_rm_owner),
     _(bo_right, c2_fop_rm_right),
-    _(bo_loan, c2_fop_rm_cookie),
+    _(bo_loan, c2_fop_rm_cookie), /* This may not be necessary */
+    _(bo_policy, U64));
     _(bo_flags, U64));
 
 DEF(c2_fop_rm_borrow_rep, RECORD,
     _(br_rc, U32),
-    _(bo_owner, c2_fop_rm_owner),
-    _(bo_loan, c2_fop_rm_cookie),
-    _(bo_right, c2_fop_rm_right),
-    _(bo_lvb, c2_fop_rm_opaque));
+    _(br_owner, c2_fop_rm_owner),
+    _(br_loan, c2_fop_rm_loan),
+    _(br_right, c2_fop_rm_right),
+    _(br_lvb, c2_fop_rm_opaque));
 
 DEF(c2_fop_rm_canoke, RECORD,
-    _(cr_dir, BYTE),
+    _(cr_op, BYTE),
     _(cr_loan, c2_fop_rm_cookie),
-    _(cr_right, c2_fop_rm_right));
+    _(cr_right, c2_fop_rm_right)); /* Need owner */
 
 DEF(c2_fop_rm_canoke_rep, RECORD,
     _(re_rc, U32),
-    _(re_right, c2_fop_rm_right));
+    _(re_right, c2_fop_rm_right)); /* Is this necessary ? */
 
 /** @} end of rm group */
 

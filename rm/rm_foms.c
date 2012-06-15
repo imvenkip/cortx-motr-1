@@ -38,58 +38,41 @@
 /**
  * Forward declaration
  */
-int c2_rm_fom_right_borrow_state(struct c2_fom *);
-int c2_rm_fom_right_revoke_state(struct c2_fom *);
-int c2_rm_fom_right_cancel_state(struct c2_fom *);
+int rm_borrow_fom_state(struct c2_fom *);
+int rm_canoke_fom_state(struct c2_fom *);
 
-/**
- * FOM ops vector
+/*
+ * Borrow FOM ops.
  */
-
-struct c2_fom_ops c2_rm_fom_borrow_ops = {
-	.fo_fini = NULL,
-	.fo_state = c2_rm_fom_right_borrow_state,
+static struct c2_fom_ops rm_fom_borrow_ops = {
+	.fo_fini = rm_borrow_fom_fini,
+	.fo_state = rm_borrow_fom_state,
+	.fo_home_locality = ??,
 };
 
-struct c2_fom_ops c2_rm_fom_revoke_ops = {
-	.fo_fini = NULL,
-	.fo_state = c2_rm_fom_right_revoke_state,
+static const struct c2_fom_type_ops rm_borrow_fom_type_ops = {
+	.fto_create = rm_borrow_fom_create,
 };
 
-struct c2_fom_ops c2_rm_fom_cancel_ops = {
-	.fo_fini = NULL,
-	.fo_state = c2_rm_fom_right_cancel_state,
+struct c2_fom_type rm_borow_fom_type = {
+	.ft_ops = &rm_borrow_fom_type_ops,
 };
 
-/**
- * FOM type ops vector. These are constructors of specific type FOM objects.
- * We will create the FOMs during FOM initialization routines.
- *
- * These constructors are not used currently. Instead the FOM object is
- * instantiated during fom_init routines.
+/*
+ * Revoke/Cancel FOM ops.
  */
-static const struct c2_fom_type_ops c2_rm_fom_borrow_type_ops = {
-	.fto_create = NULL,
+static struct c2_fom_ops rm_fom_canoke_ops = {
+	.fo_fini = rm_canoke_fom_fini,
+	.fo_state = rm_canoke_fom_state,
+	.fo_home_locality = ??,
 };
 
-static const struct c2_fom_type_ops c2_rm_fom_revoke_type_ops = {
-	.fto_create = NULL,
+static const struct c2_fom_type_ops rm_canoke_fom_type_ops = {
+	.fto_create = rm_canoke_fom_create,
 };
 
-static const struct c2_fom_type_ops c2_rm_fom_cancel_type_ops = {
-	.fto_create = NULL,
-};
-
-struct c2_fom_type c2_rm_fom_borrow_type = {
-	.ft_ops = &c2_rm_fom_borrow_type_ops,
-};
-
-struct c2_fom_type c2_rm_fom_revoke_type = {
-	.ft_ops = &c2_rm_fom_revoke_type_ops,
-};
-
-struct c2_fom_type c2_rm_fom_cancel_type = {
-	.ft_ops = &c2_rm_fom_cancel_type_ops,
+struct c2_fom_type rm_borow_fom_type = {
+	.ft_ops = &rm_canoke_fom_type_ops,
 };
 
 static inline void mark_borrow_fail(struct c2_fom *fom,
@@ -152,94 +135,101 @@ static void mark_borrow_success(struct c2_fom *fom)
 
 }
 
+static int borrow_state(struct c2_fom *fom)
+{
+	struct rm_borrow_fom	*b;
+	struct c2_fop_rm_borrow *req;
+	struct c2_rm_incoming	*in;
+	struct c2_rm_owner	*owner;
+	struct c2_rm_right	 right;
+	int			 rc;
+
+	C2_PRE(fom != NULL);
+
+	rc = c2_rm_find_owner(data->bo_owner.ow_cookie, &owner);
+	if (rc != 0) {
+		/*
+		 * This will happen only if the cookie is stale.
+		 * TODO : Set up appropriate error code.
+		 */
+		rep->br_rc = rc;
+		return FSO_DONE;
+	}
+
+	b = container_of(fom, struct rm_borrow_fom, bom_fom);
+	req = c2_fop_data(fom.fo_fop);
+	in = &b->bom_incoming.bi_incoming;
+
+	/* The loan is freed in c2_rm_borrow_commit() */
+	C2_ALLOC_PTR(b->bom_incoming.bi_loan);
+	c2_rm_incoming_init(in, owner, RIT_BORROW,
+			    req->bo_flags, req->bo_flags);
+
+	c2_rm_right_get(in);
+	/*
+	 * TODO - Should this be conditional?
+	 * Should we block only on RI_WAIT ?
+	 */
+	c2_fom_block_at(fom, &in->rin_signal);
+
+	return FSO_WAIT;
+
+}
+
+static int post_borrow_state(struct c2_fom *fom)
+{
+	struct rm_borrow_from	*b;
+	struct c2_rm_incoming	*in;
+
+	C2_PRE(fom != NULL);
+
+	b = container_of(fom, struct rm_borrow_fom, bom_fom);
+	in = &b->bom_incoming.bi_incoming;
+
+	C2_ASSERT(in->rin_state == RI_SUCCESS || in->rin_state == RI_FAILURE);
+
+	rep->br_rc = in->rin_rc;
+	if (in->rin_state == RI_SUCCESS) {
+		C2_ASSERT(rep->br_rc == 0);
+
+		c2_mutex_lock(&owner->ro_lock);
+		c2_rm_borrow_commit(in);
+
+		c2_rm_owner_cookie(in->rin_want.ri_owner,
+				   &rep->br_owner.ow_cookie);
+		c2_rm_loan_cookie(->bi_loan,
+				  &rep->br_loan.ow_cookie);
+		c2_mutex_unlock(&owner->ro_lock);
+	} else {
+		/* TODO - ??? */
+	}
+
+	return FSO_DONE;
+}
+
 /**
  * This function handles the request to borrow a right to a resource on
  * a server ("creditor").
  *
  * @param fom -> fom processing the RIGHT_BORROW request on the server
  *
- * @retval  0 - on success
- *          non-zero - if there is failure.
- *
  */
-int c2_rm_fom_right_borrow_state(struct c2_fom *fom)
+int c2_rm_fom_borrow_state(struct c2_fom *fom)
 {
-	int rc = FSO_AGAIN;
-	struct c2_fop_rm_right_borrow *req_fop;
-	struct c2_fop_rm_right_borrow_reply *reply_fop;
-	struct c2_rm_fom_right_request *rm_fom;
-	struct c2_rm_incoming *rm_in;
+	int rc;
 
 	if (fom->fo_phase < FOPH_NR) {
 		rc = c2_fom_state_generic(fom);
 	} else {
-		rm_fom
-		= container_of(fom, struct c2_rm_fom_right_request, frr_gen);
+		C2_PRE(fom->fo_phase == FOPH_RM_BORROW ||
+		       fom->fo_phase == FOPH_RM_BORROW_WAIT)	
 
-		req_fop = c2_fop_data(fom->fo_fop);
-		reply_fop = c2_fop_data(fom->fo_rep_fop);
+		if (fom->fo_phase == FOPH_RM_BORROW)
+			rc = borrow_state(fom);
+		else
+			rc = post_borrow_state(fom);
 
-		if (fom->fo_phase == FOPH_RM_RIGHT_BORROW) {
-#if 0
-			/*
-			 * Find the resource type object
-			 */
-			c2_rm_res_type_get(req_fop->res_type);
-			/*
-			 * Find the resource object
-			 */
-			rtype_obj->rt_ops->rto_res_get(req_fop->res_id,
-						       &resobj);
-			/*
-			 * Find the resource owner
-			 */
-			resobj->r_ops->rop_owner();
-#endif
-
-			rm_in = &rm_fom->frr_in;
-
-			/* Prepare incoming request for RM generic layer */
-			rm_in->rin_type = RIT_BORROW;
-			rm_in->rin_state = RI_CHECK;
-			rm_in->rin_flags = RIF_MAY_BORROW;
-			c2_list_init(&rm_in->rin_pins);
-			c2_chan_init(&rm_in->rin_signal);
-			rm_in->rin_policy = req_fop->res_policy_id;
-			rm_in->rin_priority = req_fop->res_priority;
-
-			/* Attempt to borrow the right */
-			rc = c2_rm_right_get(rm_in->rin_want.ri_owner, rm_in);
-			if (rc != 0) {
-				if (rc != -EWOULDBLOCK) {
-					mark_borrow_fail(fom, reply_fop, rc);
-				} else {
-					fom->fo_phase
-					= FOPH_RM_RIGHT_BORROW_WAIT;
-					c2_fom_block_at(fom, &rm_in->rin_signal);
-				}
-			} else {
-				if (rm_in->rin_state == RI_WAIT) {
-					fom->fo_phase
-					= FOPH_RM_RIGHT_BORROW_WAIT;
-					/* TODO - Prepare condition variable */
-					c2_fom_block_at(fom, &rm_in->rin_signal);
-				} else {
-					mark_borrow_success(fom);
-				}
-			}
-			rc = FSO_AGAIN;
-
-		} else if (fom->fo_phase == FOPH_RM_RIGHT_BORROW_WAIT) {
-			/* TODO - Need to decide failure code */
-			if (rm_in->rin_state == RI_FAILURE) {
-				mark_borrow_fail(fom, reply_fop, rc);
-			} else {
-				mark_borrow_success(fom);
-			}
-		}
-		rc = FSO_AGAIN;
-
-	}/* else - process FOM phase */
+	}/* else - process RM phases */
 
 	return rc;
 }
