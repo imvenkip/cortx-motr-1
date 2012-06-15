@@ -36,9 +36,9 @@
 #include "colibri/colibri_setup.h"
 #include "ioservice/io_service.c"
 
-struct cs_reqh_context;
+struct c2_reqh *c2_cs_reqh_get(struct c2_colibri *cctx,
+			       const char *service_name);
 
-extern struct c2_reqh *c2_reqh_get(struct cs_reqh_context *reqh_ctx);
 extern const struct c2_tl_descr bufferpools_tl;
 extern const struct c2_tl_descr c2_rhctx_tl;
 
@@ -75,23 +75,14 @@ static struct c2_net_xprt *cs_xprts[] = {
 
 static int get_ioservice_buffer_pool_count(struct c2_rpc_server_ctx *sctx)
 {
-	struct cs_reqh_context	  *reqh_ctx;
 	int			   nbp;
 	struct c2_reqh_io_service *serv_obj = NULL;
+	struct c2_reqh_service    *reqh_ios;
+	struct c2_reqh            *reqh;
 
-	c2_tl_for(c2_rhctx, &sctx->rsx_colibri_ctx.cc_reqh_ctxs, reqh_ctx) {
-		struct c2_reqh_service *reqh_ios;
-		struct c2_reqh         *reqh;
-
-		reqh = c2_reqh_get(reqh_ctx);
-		reqh_ios = c2_reqh_service_get("ioservice", reqh);
-		if (reqh_ios != NULL) {
-			serv_obj = container_of(reqh_ios,
-						struct c2_reqh_io_service,
-						rios_gen);
-			break;
-		}
-	} c2_tl_endfor;
+	reqh     = c2_cs_reqh_get(&sctx->rsx_colibri_ctx, "ioservice");
+	reqh_ios = c2_reqh_service_get("ioservice", reqh);
+	serv_obj = container_of(reqh_ios, struct c2_reqh_io_service, rios_gen);
 
 	C2_UT_ASSERT(serv_obj != NULL);
 

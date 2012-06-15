@@ -237,16 +237,14 @@ static int ios_create_buffer_pool(struct c2_reqh_service *service)
 		c2_net_buffer_pool_lock(&newbp->rios_bp);
 		nbuffs = c2_net_buffer_pool_provision(&newbp->rios_bp,
 						      C2_NET_BUFFER_POOL_SIZE);
+		c2_net_buffer_pool_unlock(&newbp->rios_bp);
 		if (nbuffs < C2_NET_BUFFER_POOL_SIZE) {
 			rc = -ENOMEM;
 			c2_chan_fini(&newbp->rios_bp_wait);
-			/* It releases lock on buffer pool. */
 			c2_net_buffer_pool_fini(&newbp->rios_bp);
 			c2_free(newbp);
 			break;
 		}
-
-		c2_net_buffer_pool_unlock(&newbp->rios_bp);
 
 		bufferpools_tlink_init(newbp);
 		bufferpools_tlist_add(&serv_obj->rios_buffer_pools, newbp);
