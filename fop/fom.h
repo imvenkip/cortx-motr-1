@@ -425,7 +425,7 @@ struct c2_fom_ops {
 	 *
 	 *  Returns value of enum c2_fom_state_outcome or error code.
 	 */
-	int  (*fo_state)(struct c2_fom *fom);
+	int (*fo_state)(struct c2_fom *fom);
 
 	/**
 	 *  Finds home locality for this fom.
@@ -448,7 +448,7 @@ struct c2_fom_hthread {
 	/** Linkage into c2_fom_locality::fl_threads. */
 	struct c2_list_link	fht_linkage;
 	/** locality this thread belongs to */
-	struct c2_fom_locality	*fht_locality;
+	struct c2_fom_locality *fht_locality;
 };
 
 /**
