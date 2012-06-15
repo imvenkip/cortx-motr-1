@@ -1390,7 +1390,7 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 	c2_net_buffer_pool_lock(app_pool);
 	rc = c2_net_buffer_pool_provision(app_pool, bufs_nr);
 	c2_net_buffer_pool_unlock(app_pool);
-	return rc != bufs_nr ? -ENOMEM : 0 ;
+	return rc != bufs_nr ? -ENOMEM : 0;
 }
 C2_EXPORTED(c2_rpc_net_buffer_pool_setup);
 

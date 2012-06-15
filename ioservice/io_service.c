@@ -211,10 +211,8 @@ static int ios_create_buffer_pool(struct c2_reqh_service *service)
 
 		colours = c2_list_length(&newbp->rios_ndom->nd_tms);
 
-		segment_size = min64u(c2_net_domain_get_max_buffer_segment_size(
-					      newbp->rios_ndom), C2_SEG_SIZE);
-		segments_nr = c2_net_domain_get_max_buffer_size(
-			newbp->rios_ndom) / segment_size;
+		segment_size = c2_rpc_max_seg_size(newbp->rios_ndom);
+		segments_nr  = c2_rpc_max_segs_nr(newbp->rios_ndom);
 
 		rc = c2_net_buffer_pool_init(&newbp->rios_bp,
 					      newbp->rios_ndom,

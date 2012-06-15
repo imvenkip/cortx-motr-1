@@ -341,7 +341,6 @@ static void bulkclient_test(void)
 		C2_UT_ASSERT(rbuf2->bb_nbuf != NULL);
 		C2_UT_ASSERT(rbuf2->bb_nbuf->nb_flags & C2_NET_BUF_REGISTERED);
 		C2_UT_ASSERT(rbuf2->bb_nbuf->nb_app_private == rbuf2);
-		C2_UT_ASSERT(rbuf2->bb_nbuf->nb_flags & C2_NET_BUF_QUEUED);
 		C2_UT_ASSERT(rbuf2->bb_rbulk == sbulk);
 		C2_UT_ASSERT(!(rbuf2->bb_flags & C2_RPC_BULK_NETBUF_ALLOCATED));
 		C2_UT_ASSERT(rbuf2->bb_flags & C2_RPC_BULK_NETBUF_REGISTERED);
