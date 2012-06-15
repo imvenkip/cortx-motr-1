@@ -211,7 +211,21 @@ struct c2_layout {
 
 	struct c2_addb_ctx           l_addb;
 
+	/** Magic number set while c2_layout object is initialised. */
 	uint64_t                     l_magic;
+
+	/**
+	 * Linkage used for maintaining list of the layout objects stored in
+	 * the c2_layout_domain object.
+	 */
+
+	struct c2_tlink              l_list_linkage;
+
+	/**
+	 * Magic number set while c2_layout object is added to the
+	 * list of the layout objects stored in the c2_layout_domain object.
+	 */
+	uint64_t                     l_list_magic;
 };
 
 struct c2_layout_ops {
