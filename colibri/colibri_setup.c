@@ -242,11 +242,11 @@ static const char *cs_stobs[] = {
 	[AD_STOB]    = "AD"
 };
 
-C2_TL_DESCR_DEFINE(rhctx, "reqh contexts", , struct cs_reqh_context,
+C2_TL_DESCR_DEFINE(rhctx, "reqh contexts", static, struct cs_reqh_context,
                    rc_linkage, rc_magic, CS_REQH_CTX_MAGIX,
 		   CS_REQH_CTX_HEAD_MAGIX);
 
-C2_TL_DEFINE(rhctx, , struct cs_reqh_context);
+C2_TL_DEFINE(rhctx, static, struct cs_reqh_context);
 
 static struct c2_bob_type rhctx_bob;
 C2_BOB_DEFINE(static, &rhctx_bob, cs_reqh_context);
