@@ -25,6 +25,7 @@
 #include "lib/types.h"
 #include "lib/adt.h"
 #include "lib/assert.h"
+#include "lib/misc.h"
 
 #include "lib/ub.h"
 #include "lib/ut.h"

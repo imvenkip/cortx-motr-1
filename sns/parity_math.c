@@ -145,7 +145,6 @@ void c2_parity_math_fini(struct c2_parity_math *math)
 }
 
 int  c2_parity_math_init(struct c2_parity_math *math,
-		         enum c2_parity_cal_algo parity_cal_algo,
 			 uint32_t data_count, uint32_t parity_count)
 {
 	int ret;
@@ -154,15 +153,18 @@ int  c2_parity_math_init(struct c2_parity_math *math,
 	C2_PRE(parity_count >= 1);
 	C2_PRE(data_count >= parity_count);
 	C2_PRE(data_count <= C2_SNS_PARITY_MATH_DATA_BLOCKS_MAX);
-	C2_PRE(parity_cal_algo >= C2_PARITY_CAL_ALGO_NR);
 
 	C2_SET0(math);
 
-	math->pmi_parity_algo = parity_cal_algo;
+	math->pmi_data_count   = data_count;
+	math->pmi_parity_count = parity_count;
 
-        if (parity_cal_algo == C2_PARITY_CAL_ALGO_XOR)
+        if (parity_count == 1) {
+		math->pmi_parity_algo = C2_PARITY_CAL_ALGO_XOR; 
 		return 0;
-	else {
+	} else {
+
+		math->pmi_parity_algo = C2_PARITY_CAL_ALGO_REED_SOLOMON; 
 		/* init galois, only first call makes initialization,
 		 * no deinitialization needed */
 		c2_parity_init();
@@ -184,9 +186,6 @@ int  c2_parity_math_init(struct c2_parity_math *math,
 		c2_matrix_get_submatrix(&math->pmi_vandmat,
 				        &math->pmi_vandmat_parity_slice, 0,
 					data_count);
-
-		math->pmi_data_count   = data_count;
-		math->pmi_parity_count = parity_count;
 
 		ret = c2_vector_init(&math->pmi_data, data_count);
 		if (ret < 0)
@@ -215,16 +214,38 @@ int  c2_parity_math_init(struct c2_parity_math *math,
 	return ret;
 }
 
-static void parity_math_xor_calculate()
+static void parity_math_xor_calculate(struct c2_parity_math *math,
+				      struct c2_buf *data,
+				      struct c2_buf *parity)
 {
+        uint32_t              ei; /* block element index */
+        uint32_t              ui; /* unit index */
+        uint32_t block_size = data[0].b_nob;
+	c2_parity_elem_t      pe;
+
+        for (ui = 0; ui < math->pmi_data_count; ++ui)
+                C2_ASSERT(block_size == data[ui].b_nob);
+
+        for (ui = 0; ui < math->pmi_parity_count; ++ui)
+                C2_ASSERT(block_size == parity[ui].b_nob);
+
+	for (ei = 0; ei < block_size; ++ei) {
+		pe = 0;
+		for (ui = 0; ui < math->pmi_data_count; ++ui) {
+			pe = pe ^
+			     (c2_parity_elem_t)((uint8_t*)data[ui].b_addr)[ei];
+		}
+		((uint8_t*)parity[0].b_addr)[ei] = pe;
+	}
+
 }
 
 static void parity_math_reed_solomon_encode(struct c2_parity_math *math,
 					    struct c2_buf *data,
 					    struct c2_buf *parity)
 {
-	uint32_t ei; /* block element index */
-	uint32_t ui; /* unit index */
+	uint32_t              ei; /* block element index */
+	uint32_t              ui; /* unit index */
 	uint32_t block_size = data[0].b_nob;
 
 	for (ui = 0; ui < math->pmi_data_count; ++ui)
@@ -252,7 +273,7 @@ void c2_parity_math_calculate(struct c2_parity_math *math,
 			      struct c2_buf *parity)
 {
 	if (math->pmi_parity_algo == C2_PARITY_CAL_ALGO_XOR)
-		parity_math_xor_calculate();
+		parity_math_xor_calculate(math, data, parity);
 	else if (math->pmi_parity_algo == C2_PARITY_CAL_ALGO_REED_SOLOMON)
 		parity_math_reed_solomon_encode(math, data, parity);
 }
@@ -281,8 +302,8 @@ static uint32_t fails_count(uint8_t *fail, uint32_t unit_count)
 /* fills 'mat' and 'vec' with data passed to recovery algorithm */
 static void recovery_data_fill(struct c2_parity_math *math,
 			       uint8_t *fail, uint32_t unit_count, /* in */
-			       struct c2_matrix *mat, struct c2_vector *vec)
-/* out */
+			       struct c2_matrix *mat,
+			       struct c2_vector *vec) /* out */
 {
 	uint32_t f;
 	uint32_t y = 0;
@@ -331,10 +352,54 @@ static void parity_math_recover(struct c2_parity_math *math,
 	c2_linsys_solve(sys);
 }
 
-void c2_parity_math_recover(struct c2_parity_math *math,
-			    struct c2_buf *data,
-			    struct c2_buf *parity,
-			    struct c2_buf *fails)
+static void parity_math_xor_recover(struct c2_parity_math *math,
+				    struct c2_buf *data,
+				    struct c2_buf *parity,
+				    struct c2_buf *fails)
+{
+	uint32_t          ei; /* block element index */
+	uint32_t          ui; /* unit index */
+	uint8_t          *fail;
+	uint32_t          fail_count;
+	uint32_t          unit_count;
+	uint32_t          block_size = data[0].b_nob;
+	c2_parity_elem_t  pe;
+	int		  fail_index;
+
+	unit_count = math->pmi_data_count + math->pmi_parity_count;
+	fail = (uint8_t*) fails->b_addr;
+	fail_count = fails_count(fail, unit_count);
+
+	C2_ASSERT(fail_count == 1);
+	C2_ASSERT(fail_count <= math->pmi_parity_count);
+
+        for (ui = 0; ui < math->pmi_data_count; ++ui)
+                C2_ASSERT(block_size == data[ui].b_nob);
+
+        for (ui = 0; ui < math->pmi_parity_count; ++ui)
+                C2_ASSERT(block_size == parity[ui].b_nob);
+
+	for (ei = 0; ei < block_size; ++ei) {
+		pe = 0;
+                for (ui = 0; ui < math->pmi_data_count; ++ui) {
+		    if (fail[ui] != 1) {
+		    	pe = pe ^
+			     (c2_parity_elem_t)((uint8_t*)data[ui].b_addr)[ei];
+		    } else
+			fail_index = ui;
+                }
+		if (fail[ui] != 1)
+			pe = pe ^ ((uint8_t*)parity[0].b_addr)[ei];
+		else /* Parity was lost, so recover it */
+			((uint8_t*)parity[0].b_addr)[ei] = pe;
+		((uint8_t*)data[fail_index].b_addr)[ei] = pe;
+        }
+}
+
+static void parity_math_reed_solomon_recover(struct c2_parity_math *math,
+                            		     struct c2_buf *data,
+					     struct c2_buf *parity,
+					     struct c2_buf *fails)
 {
 	uint32_t ei; /* block element index */
 	uint32_t ui; /* unit index */
@@ -378,6 +443,17 @@ void c2_parity_math_recover(struct c2_parity_math *math,
 
 	/* recalculate parity */
 	c2_parity_math_calculate(math, data, parity);
+}
+
+void c2_parity_math_recover(struct c2_parity_math *math,
+			    struct c2_buf *data,
+			    struct c2_buf *parity,
+			    struct c2_buf *fails)
+{
+	if (math->pmi_parity_algo == C2_PARITY_CAL_ALGO_XOR)
+		parity_math_xor_recover(math, data, parity, fails);
+	else
+		parity_math_reed_solomon_recover(math, data, parity, fails);
 }
 
 /*
