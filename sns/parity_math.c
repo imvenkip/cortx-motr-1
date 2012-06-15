@@ -160,11 +160,11 @@ int  c2_parity_math_init(struct c2_parity_math *math,
 	math->pmi_parity_count = parity_count;
 
         if (parity_count == 1) {
-		math->pmi_parity_algo = C2_PARITY_CAL_ALGO_XOR; 
+		math->pmi_parity_algo = C2_PARITY_CAL_ALGO_XOR;
 		return 0;
 	} else {
 
-		math->pmi_parity_algo = C2_PARITY_CAL_ALGO_REED_SOLOMON; 
+		math->pmi_parity_algo = C2_PARITY_CAL_ALGO_REED_SOLOMON;
 		/* init galois, only first call makes initialization,
 		 * no deinitialization needed */
 		c2_parity_init();
@@ -352,10 +352,10 @@ static void parity_math_recover(struct c2_parity_math *math,
 	c2_linsys_solve(sys);
 }
 
-static void parity_math_xor_recover(struct c2_parity_math *math,
-				    struct c2_buf *data,
-				    struct c2_buf *parity,
-				    struct c2_buf *fails)
+static void xor_recover(struct c2_parity_math *math,
+			struct c2_buf *data,
+			struct c2_buf *parity,
+			struct c2_buf *fails)
 {
 	uint32_t          ei; /* block element index */
 	uint32_t          ui; /* unit index */
@@ -396,10 +396,10 @@ static void parity_math_xor_recover(struct c2_parity_math *math,
         }
 }
 
-static void parity_math_reed_solomon_recover(struct c2_parity_math *math,
-                            		     struct c2_buf *data,
-					     struct c2_buf *parity,
-					     struct c2_buf *fails)
+static void reed_solomon_recover(struct c2_parity_math *math,
+                            	 struct c2_buf *data,
+				 struct c2_buf *parity,
+				 struct c2_buf *fails)
 {
 	uint32_t ei; /* block element index */
 	uint32_t ui; /* unit index */
@@ -451,9 +451,68 @@ void c2_parity_math_recover(struct c2_parity_math *math,
 			    struct c2_buf *fails)
 {
 	if (math->pmi_parity_algo == C2_PARITY_CAL_ALGO_XOR)
-		parity_math_xor_recover(math, data, parity, fails);
+		xor_recover(math, data, parity, fails);
 	else
-		parity_math_reed_solomon_recover(math, data, parity, fails);
+		reed_solomon_recover(math, data, parity, fails);
+}
+
+static void single_block_xor_recover(struct c2_parity_math *math,
+				     struct c2_buf *data,
+				     struct c2_buf *parity,
+				     uint32_t failure_index)
+{
+        uint32_t          ei; /* block element index */
+        uint32_t          ui; /* unit index */
+        uint32_t          unit_count;
+        uint32_t          block_size = data[0].b_nob;
+        c2_parity_elem_t  pe;
+
+        unit_count = math->pmi_data_count + math->pmi_parity_count;
+
+        C2_ASSERT(failure_index <= unit_count);
+
+        for (ui = 0; ui < math->pmi_data_count; ++ui)
+                C2_ASSERT(block_size == data[ui].b_nob);
+
+        for (ui = 0; ui < math->pmi_parity_count; ++ui)
+                C2_ASSERT(block_size == parity[ui].b_nob);
+
+        for (ei = 0; ei < block_size; ++ei) {
+                pe = 0;
+                for (ui = 0; ui < math->pmi_data_count; ++ui) {
+                    if (ui != failure_index) {
+                        pe = pe ^
+                             (c2_parity_elem_t)((uint8_t*)data[ui].b_addr)[ei];
+                    }
+                }
+                if (ui != failure_index)
+                        pe = pe ^ ((uint8_t*)parity[0].b_addr)[ei];
+                else /* Parity was lost, so recover it */
+                        ((uint8_t*)parity[0].b_addr)[ei] = pe;
+
+                ((uint8_t*)data[failure_index].b_addr)[ei] = pe;
+        }
+
+}
+
+/** @todo Iterative reed-solomon decode to be implemented */
+static void single_block_reed_solomon_recover(struct c2_parity_math *math,
+					      struct c2_buf *data,
+					      struct c2_buf *parity,
+					      uint32_t failure_index)
+{
+}
+
+void c2_parity_math_single_block_recover(struct c2_parity_math *math,
+                                         struct c2_buf *data,
+                                         struct c2_buf *parity,
+                                         uint32_t failure_index)
+{
+        if (math->pmi_parity_algo == C2_PARITY_CAL_ALGO_XOR)
+		single_block_xor_recover(math, data, parity, failure_index);
+        else
+                single_block_reed_solomon_recover(math, data, parity,
+						  failure_index);
 }
 
 /*
