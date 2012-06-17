@@ -53,13 +53,11 @@ static struct net_conf net = {
 	.nc_msg_max        =     ~0UL
 };
 
-static struct elevator el;
-
 static struct net_srv  srv = {
 	.ns_nr_threads     =      64,
+	.ns_nr_devices     =       1,
 	.ns_pre_bulk_min   =       0,
-	.ns_pre_bulk_max   =    1000,
-	.ns_el             = &el
+	.ns_pre_bulk_max   =    1000
 };
 
 static struct client_conf client = {
@@ -104,24 +102,22 @@ struct chs_dev disc;
 static void workload_init(struct sim *s, int argc, char **argv)
 {
 	chs_conf_init(&ST31000640SS);
-	chs_dev_init(&disc, s, &ST31000640SS);
-	elevator_init(&el, &disc.cd_storage);
 	net_init(&net);
 	net_srv_init(s, &srv);
+	chs_dev_init(&disc, s, &ST31000640SS);
+	elevator_init(&srv.ns_el[0], &disc.cd_storage);
 	client_init(s, &client);
 }
 
-#if 0
 static void workload_fini(void)
 {
 	client_fini(&client);
 	net_srv_fini(&srv);
 	net_fini(&net);
-	elevator_fini(&el);
+	elevator_fini(&srv.ns_el[0]);
 	chs_dev_fini(&disc);
 	chs_conf_fini(&ST31000640SS);
 }
-#endif
 
 int main(int argc, char **argv)
 {
@@ -140,8 +136,8 @@ int main(int argc, char **argv)
 		sim_init(&s);
 		workload_init(&s, argc, argv);
 		sim_run(&s);
-		/* workload_fini(); */
 		cnt_dump_all();
+		workload_fini();
 		sim_log(&s, SLL_WARN, "%5i %5i %10.2f\n", clients, threads,
 			1000.0 * filesize * clients / s.ss_bolt);
 		sim_fini(&s);
