@@ -339,6 +339,8 @@ void sim_thread_init(struct sim *state, struct sim_thread *thread,
  */
 void sim_thread_fini(struct sim_thread *thread)
 {
+	C2_PRE(sim_thread_current() != thread);
+	C2_PRE(!ca_tlink_is_in(&thread->st_wake));
 	thr_tlink_fini(thread);
 	if (thread->st_stack != NULL)
 		sim_free(thread->st_stack);
@@ -461,7 +463,7 @@ void sim_chan_signal(struct sim_chan *chan)
  */
 void sim_chan_broadcast(struct sim_chan *chan)
 {
-	if (!thr_tlist_is_empty(&chan->ch_threads))
+	while (!thr_tlist_is_empty(&chan->ch_threads))
 		sim_chan_wake_head(chan);
 }
 
