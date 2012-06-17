@@ -23,6 +23,7 @@
 #define NET_H
 
 #include "lib/tlist.h"
+#include "stob/stob_id.h"
 #include "desim/sim.h"
 
 /**
@@ -52,6 +53,7 @@ struct net_conf {
 
 struct net_srv {
 	unsigned            ns_nr_threads;
+	unsigned            ns_nr_devices;
 	sim_time_t          ns_pre_bulk_min;
 	sim_time_t          ns_pre_bulk_max;
 	struct sim_chan     ns_incoming;
@@ -61,12 +63,13 @@ struct net_srv {
 	unsigned long long  ns_file_size;
 	int                 ns_shutdown;
 	unsigned            ns_active;
+	char               *ns_name;
 };
 
 struct net_rpc {
 	struct net_srv     *nr_srv;
 	struct net_conf    *nr_conf;
-	unsigned long       nr_fid;
+	struct c2_stob_id   nr_id;
 	unsigned long long  nr_offset;
 	unsigned long       nr_todo;
 	struct c2_tlink     nr_inqueue;
@@ -83,11 +86,15 @@ void net_init(struct net_conf *net);
 void net_fini(struct net_conf *net);
 
 void net_rpc_init(struct net_rpc *rpc, struct net_conf *conf,
-		  struct net_srv *srv, unsigned long fid,
+		  struct net_srv *srv, struct c2_stob_id *id,
 		  unsigned long long offset, unsigned long nob);
 void net_rpc_fini(struct net_rpc *rpc);
 void net_rpc_send(struct sim_thread *t, struct net_rpc *rpc);
 void net_rpc_bulk(struct sim_thread *t, struct net_rpc *rpc);
+void net_rpc_process(struct sim_thread *t,
+		     struct net_conf *net, struct net_srv *srv,
+		     struct c2_stob_id *id, unsigned long long offset,
+		     unsigned long count);
 
 #endif /* NET_H */
 
