@@ -84,7 +84,7 @@ void elevator_init(struct elevator *el, struct storage_dev *dev)
 	dev->sd_end_io = el_end_io;
 	dev->sd_el     = el;
 	req_tlist_init(&el->e_queue);
-	sim_chan_init(&el->e_wait, "xfer-queue@%p", dev);
+	sim_chan_init(&el->e_wait, "xfer-queue@%s", dev->sd_name);
 }
 
 void elevator_fini(struct elevator *el)

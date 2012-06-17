@@ -52,11 +52,11 @@ static void usage(const char *progname,
 		const struct c2_getopts_opt *o;
 
 		o = &opts[i];
-		fprintf(stderr, "\t -%c %6.6s: %s\n", o->go_opt,
+		fprintf(stderr, "\t -%c %10s: %s\n", o->go_opt,
 			o->go_type == GOT_VOID ? "" :
 			o->go_type == GOT_HELP ? "" :
 			o->go_type == GOT_FLAG ? "" :
-			o->go_type == GOT_FORMAT ? "arg" :
+			o->go_type == GOT_FORMAT ? o->go_u.got_fmt.f_string :
 			o->go_type == GOT_NUMBER ? "number" : "string",
 			o->go_desc);
 	}
