@@ -119,7 +119,7 @@ void c2_parity_math_recover(struct c2_parity_math *math,
 			    struct c2_buf *fail);
 
 /**
- * Recovers single block of data partially or fully depending on the parity
+ * Recovers data or parity units partially or fully depending on the parity
  * calculation algorithm.
  * @param math - math context.
  * @param data - data block, treaded as uint8_t block with b_nob elements.

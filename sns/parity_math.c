@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -19,12 +19,12 @@
  * Revision date  : 06/14/2011
  */
 
+#include "lib/assert.h"
 #include "lib/cdefs.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "lib/assert.h"
-#include "lib/types.h"
 #include "lib/misc.h" /* SET0() */
+#include "lib/types.h"
 
 #include "sns/parity_ops.h"
 #include "sns/parity_math.h"
@@ -131,17 +131,19 @@ static int vandmat_norm(struct c2_matrix *m)
 
 void c2_parity_math_fini(struct c2_parity_math *math)
 {
-	vandmat_fini(&math->pmi_vandmat);
-	c2_matrix_fini(&math->pmi_vandmat_parity_slice);
-	c2_vector_fini(&math->pmi_data);
-	c2_vector_fini(&math->pmi_parity);
+	if (math->pmi_parity_algo == C2_PARITY_CAL_ALGO_REED_SOLOMON) {
+		vandmat_fini(&math->pmi_vandmat);
+		c2_matrix_fini(&math->pmi_vandmat_parity_slice);
+		c2_vector_fini(&math->pmi_data);
+		c2_vector_fini(&math->pmi_parity);
 
-	c2_linsys_fini(&math->pmi_sys);
-	c2_matrix_fini(&math->pmi_sys_mat);
-	c2_vector_fini(&math->pmi_sys_vec);
-	c2_vector_fini(&math->pmi_sys_res);
+		c2_linsys_fini(&math->pmi_sys);
+		c2_matrix_fini(&math->pmi_sys_mat);
+		c2_vector_fini(&math->pmi_sys_vec);
+		c2_vector_fini(&math->pmi_sys_res);
 
-	c2_parity_fini();
+		c2_parity_fini();
+	}
 }
 
 int  c2_parity_math_init(struct c2_parity_math *math,
@@ -326,13 +328,6 @@ static void recovery_data_fill(struct c2_parity_math *math,
 
 			++y;
 		}
-		/* else { / * just fill broken blocks with 0xFF * /
-			if (f < math->pmi_data_count)
-				*c2_vector_elem_get(&math->pmi_data, f) = 0xFF;
-			else
-				*c2_vector_elem_get(&math->pmi_parity,
-					f - math->pmi_data_count) = 0xFF;
-		} */
 	}
 }
 
@@ -388,12 +383,17 @@ static void xor_recover(struct c2_parity_math *math,
 		    } else
 			fail_index = ui;
                 }
+		/* Now ui points to parity block, test if it was failed */
 		if (fail[ui] != 1)
 			pe = pe ^ ((uint8_t*)parity[0].b_addr)[ei];
 		else /* Parity was lost, so recover it */
 			((uint8_t*)parity[0].b_addr)[ei] = pe;
+
 		((uint8_t*)data[fail_index].b_addr)[ei] = pe;
         }
+
+	/* recalculate parity */
+	c2_parity_math_calculate(math, data, parity);
 }
 
 static void reed_solomon_recover(struct c2_parity_math *math,
@@ -419,7 +419,6 @@ static void reed_solomon_recover(struct c2_parity_math *math,
 
 	for (ui = 0; ui < math->pmi_parity_count; ++ui)
 		C2_ASSERT(block_size == parity[ui].b_nob);
-
 
 	for (ei = 0; ei < block_size; ++ei) {
 		struct c2_vector *recovered = &math->pmi_sys_res;
@@ -456,10 +455,10 @@ void c2_parity_math_recover(struct c2_parity_math *math,
 		reed_solomon_recover(math, data, parity, fails);
 }
 
-static void single_block_xor_recover(struct c2_parity_math *math,
-				     struct c2_buf *data,
-				     struct c2_buf *parity,
-				     uint32_t failure_index)
+static void fail_index_xor_recover(struct c2_parity_math *math,
+				   struct c2_buf *data,
+				   struct c2_buf *parity,
+				   uint32_t failure_index)
 {
         uint32_t          ei; /* block element index */
         uint32_t          ui; /* unit index */
@@ -496,10 +495,10 @@ static void single_block_xor_recover(struct c2_parity_math *math,
 }
 
 /** @todo Iterative reed-solomon decode to be implemented */
-static void single_block_reed_solomon_recover(struct c2_parity_math *math,
-					      struct c2_buf *data,
-					      struct c2_buf *parity,
-					      uint32_t failure_index)
+static void fail_index_reed_solomon_recover(struct c2_parity_math *math,
+					    struct c2_buf *data,
+					    struct c2_buf *parity,
+					    uint32_t failure_index)
 {
 }
 
@@ -509,10 +508,10 @@ void c2_parity_math_single_block_recover(struct c2_parity_math *math,
                                          uint32_t failure_index)
 {
         if (math->pmi_parity_algo == C2_PARITY_CAL_ALGO_XOR)
-		single_block_xor_recover(math, data, parity, failure_index);
+		fail_index_xor_recover(math, data, parity, failure_index);
         else
-                single_block_reed_solomon_recover(math, data, parity,
-						  failure_index);
+                fail_index_reed_solomon_recover(math, data, parity,
+						failure_index);
 }
 
 /*
