@@ -106,7 +106,7 @@ static bool check_row_is_id(struct c2_matrix *m, uint32_t row)
 	return ret;
 }
 
-/* Normalizes vandermonde matrix, upper part of which becomes identity matrix
+/* Normalises vandermonde matrix, upper part of which becomes identity matrix
  * in case of success. */
 static int vandmat_norm(struct c2_matrix *m)
 {
@@ -166,8 +166,8 @@ int  c2_parity_math_init(struct c2_parity_math *math,
 	} else {
 
 		math->pmi_parity_algo = C2_PARITY_CAL_ALGO_REED_SOLOMON;
-		/* init galois, only first call makes initialization,
-		 * no deinitialization needed. */
+		/* init galois, only first call makes initialisation,
+		 * no de-initialisation needed. */
 		c2_parity_init();
 
 		ret = vandmat_init(&math->pmi_vandmat, data_count,
@@ -287,7 +287,7 @@ void c2_parity_math_refine(struct c2_parity_math *math,
 	c2_parity_math_calculate(math, data, parity);
 }
 
-/* Counts number of fialed blocks. */
+/* Counts number of failed blocks. */
 static uint32_t fails_count(uint8_t *fail, uint32_t unit_count)
 {
 	uint32_t x;
@@ -512,9 +512,8 @@ void c2_parity_math_fail_index_recover(struct c2_parity_math *math,
 void c2_parity_math_buffer_xor(struct c2_buf *src, struct c2_buf *dest)
 {
         uint32_t  ei; /* block element index. */
-        uint32_t  block_size = src[0].b_nob;
 
-        for (ei = 0; ei < block_size; ++ei)
+        for (ei = 0; ei < src[0].b_nob; ++ei)
 		((uint8_t*)dest[0].b_addr)[ei] =
 			(c2_parity_elem_t)((uint8_t*)src[0].b_addr)[ei] ^
 			(c2_parity_elem_t)((uint8_t*)dest[0].b_addr)[ei];
