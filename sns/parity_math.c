@@ -83,9 +83,8 @@ static int vandmat_init(struct c2_matrix *m, uint32_t data_count,
 		return ret;
 
 	for (y = 0; y < mat_height; ++y)
-		for (x = 0; x < mat_width; ++x) {
+		for (x = 0; x < mat_width; ++x)
 			*c2_matrix_elem_get(m, x, y) = gpow(y, x);
-		}
 
 	return ret;
 }
@@ -101,9 +100,8 @@ static bool check_row_is_id(struct c2_matrix *m, uint32_t row)
 	bool ret = true;
 	uint32_t x;
 
-	for (x = 0; x < m->m_width && ret; ++x) {
+	for (x = 0; x < m->m_width && ret; ++x)
 		ret &= (row == x) == *c2_matrix_elem_get(m, x, row);
-	}
 
 	return ret;
 }
@@ -234,10 +232,9 @@ static void parity_math_xor_calculate(struct c2_parity_math *math,
 
 	for (ei = 0; ei < block_size; ++ei) {
 		pe = 0;
-		for (ui = 0; ui < math->pmi_data_count; ++ui) {
+		for (ui = 0; ui < math->pmi_data_count; ++ui)
 			pe = pe ^
 			     (c2_parity_elem_t)((uint8_t*)data[ui].b_addr)[ei];
-		}
 		((uint8_t*)parity[0].b_addr)[ei] = pe;
 	}
 
@@ -377,10 +374,10 @@ static void xor_recover(struct c2_parity_math *math,
 	for (ei = 0; ei < block_size; ++ei) {
 		pe = 0;
                 for (ui = 0; ui < math->pmi_data_count; ++ui) {
-		    if (fail[ui] != 1) {
-		    	pe = pe ^
+		    if (fail[ui] != 1)
+			    pe = pe ^
 			     (c2_parity_elem_t)((uint8_t*)data[ui].b_addr)[ei];
-		    } else
+		    else
 			fail_index = ui;
                 }
 		/* Now ui points to parity block, test if it was failed. */
@@ -397,7 +394,7 @@ static void xor_recover(struct c2_parity_math *math,
 }
 
 static void reed_solomon_recover(struct c2_parity_math *math,
-                            	 struct c2_buf *data,
+				 struct c2_buf *data,
 				 struct c2_buf *parity,
 				 struct c2_buf *fails)
 {
@@ -478,12 +475,10 @@ static void fail_index_xor_recover(struct c2_parity_math *math,
 
         for (ei = 0; ei < block_size; ++ei) {
                 pe = 0;
-                for (ui = 0; ui < math->pmi_data_count; ++ui) {
-                    if (ui != failure_index) {
+                for (ui = 0; ui < math->pmi_data_count; ++ui)
+                    if (ui != failure_index)
                         pe = pe ^
                              (c2_parity_elem_t)((uint8_t*)data[ui].b_addr)[ei];
-                    }
-                }
                 if (ui != failure_index)
                         pe = pe ^ ((uint8_t*)parity[0].b_addr)[ei];
                 else /* Parity was lost, so recover it. */
