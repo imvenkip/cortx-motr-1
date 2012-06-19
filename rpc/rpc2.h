@@ -442,7 +442,9 @@ struct c2_rpc_machine {
 	    CONN_FAILED, CONN_TERMINATED} */
 	struct c2_list			  rm_incoming_conns;
 	struct c2_list			  rm_outgoing_conns;
-	/** list of ready slots. */
+	/** DEPRECATED: list of ready slots.
+	    Replaced by c2_rpc_session::s_ready_slots
+	 */
 	struct c2_list			  rm_ready_slots;
 	/** ADDB context for this rpc_machine */
 	struct c2_addb_ctx		  rm_rpc_machine_addb;

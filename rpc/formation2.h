@@ -114,13 +114,18 @@ struct c2_rpc_frm_constraints {
 
 /**
    Possible states of formation state machine.
+
    @see c2_rpc_frm::f_state
  */
 enum frm_state {
 	FRM_UNINITIALISED,
-	/** There are no pending items in the formation queue */
+	/** There are no pending items in the formation queue AND
+	    No callback is pending @see frm_is_idle()
+	 */
 	FRM_IDLE,
-	/** There are few items waiting in the formation queue */
+	/** There are few items waiting in the formation queue OR
+	    some packet done callbacks are yet to be received.
+	 */
 	FRM_BUSY,
 	FRM_NR_STATES
 };
@@ -169,9 +174,38 @@ enum c2_rpc_frm_itemq_type {
 
    - Packet is ready for sending
    - Request to bind an item to a slot
+
+@verbatim
+                FRM_UNINITIALISED
+                      |  ^
+     c2_rpc_frm_init()|  |
+                      |  | c2_rpc_frm_fini()
+                      V  |
+                    FRM_IDLE
+                      |  ^ 
+ c2_rpc_frm_enq_item()| | frm_itemq_remove() or c2_rpc_frm_packet_done() 
+   [frm_is_idle()]    |  | [!frm_is_idle()]
+                      V  |
+                    FRM_BUSY
+@endverbatim
+
+   <B>Concurrency and Existence: </B><BR>
+
+   Access to c2_rpc_frm instance is synchronised by c2_rpc_machine::rm_mutex.
+
+   c2_rpc_frm is not reference counted. It is responsibility of user to
+   free c2_rpc_frm. Ensuring that c2_rpc_frm is in IDLE state, before
+   finalising it, is left to user.
  */
 struct c2_rpc_frm {
+	/**
+	   Current state.
 
+	   Note: Because of very simple nature of formation state machine,
+	   currently we are not using generic sm framework. If need arises
+	   in future, we should implement formation state machine using
+	   generic sm framework.
+	 */
 	enum frm_state                 f_state;
 
 	/**

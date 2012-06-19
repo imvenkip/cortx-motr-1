@@ -31,7 +31,7 @@
 
 static struct c2_tl *frm_which_queue(struct c2_rpc_frm        *frm,
 				     const struct c2_rpc_item *item);
-
+static bool frm_is_idle(const struct c2_rpc_frm *frm);
 static void frm_itemq_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
 static void __itemq_insert(struct c2_tl *q, struct c2_rpc_item *new_item);
 static void frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item);
@@ -142,8 +142,8 @@ static bool frm_invariant(const struct c2_rpc_frm *frm)
 	       frm->f_rmachine != NULL &&
 	       frm->f_ops != NULL &&
 	       frm->f_rchan != NULL &&
-	       ergo(frm->f_state == FRM_IDLE, frm->f_nr_items == 0) &&
-	       ergo(frm->f_state == FRM_BUSY, frm->f_nr_items > 0) &&
+	       ergo(frm->f_state == FRM_IDLE,  frm_is_idle(frm)) &&
+	       ergo(frm->f_state == FRM_BUSY, !frm_is_idle(frm)) &&
 	       c2_forall(i, FRMQ_NR_QUEUES,
 			 q             = &frm->f_itemq[i];
 			 nr_items     += itemq_tlist_length(q);
@@ -170,6 +170,11 @@ static bool
 constraints_are_valid(const struct c2_rpc_frm_constraints *constraints)
 {
 	return true;
+}
+
+static bool frm_is_idle(const struct c2_rpc_frm *frm)
+{
+	return frm->f_nr_items == 0 && frm->f_nr_packets_enqed == 0;
 }
 
 void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
@@ -382,10 +387,15 @@ static void frm_balance(struct c2_rpc_frm *frm)
 		++packet_count;
 		item_count += p->rp_nr_items;
 		packet_enqed = frm_packet_ready(frm, p);
-		if (packet_enqed)
+		if (packet_enqed) {
 			++frm->f_nr_packets_enqed;
-		/* f_nr_packets_enqed will be decremented in packet done
-		   callback, see c2_rpc_frm_packet_done() */
+			/*
+			 * f_nr_packets_enqed will be decremented in packet
+			 * done callback, see c2_rpc_frm_packet_done()
+			 */
+			if (frm->f_state == FRM_IDLE)
+				frm->f_state = FRM_BUSY;
+		}
 	}
 
 	C2_LEAVE("formed %d packet(s) [%d items]", packet_count, item_count);
@@ -579,7 +589,7 @@ frm_itemq_remove(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
 	C2_CNT_DEC(frm->f_nr_items);
 	frm->f_nr_bytes_accumulated -= c2_rpc_item_size(item);
 
-	if (frm->f_nr_items == 0)
+	if (frm_is_idle(frm))
 		frm->f_state = FRM_IDLE;
 
 	C2_LEAVE();
@@ -639,6 +649,9 @@ void c2_rpc_frm_packet_done(struct c2_rpc_packet *p)
 
 	C2_CNT_DEC(frm->f_nr_packets_enqed);
 	C2_LOG("nr_packets_enqed: %llu", (ULL)frm->f_nr_packets_enqed);
+
+	if (frm_is_idle(frm))
+		frm->f_state = FRM_IDLE;
 
 	frm_balance(frm);
 

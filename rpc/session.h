@@ -924,6 +924,9 @@ struct c2_rpc_session {
 	 */
 	struct c2_cond            s_state_changed;
 
+	/** List of slots, which can be associated with an unbound item.
+	    Link: c2_rpc_slot::sl_link
+	 */
 	struct c2_list            s_ready_slots;
 };
 
@@ -1175,7 +1178,7 @@ struct c2_rpc_slot {
 	/** Cob representing this slot in persistent state */
 	struct c2_cob                *sl_cob;
 
-	/** list anchor to put in c2_rpc_machine::rm_ready_slots */
+	/** list anchor to put in c2_rpc_session::s_ready_slots */
 	struct c2_list_link           sl_link;
 
 	/** Current version number of slot */
