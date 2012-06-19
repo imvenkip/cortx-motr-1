@@ -260,11 +260,10 @@ static void get_bufvec_geometry(struct c2_net_domain *ndom,
 	}
 
 	*out_segment_size = segment_size;
-	*out_segment_size = max_segment_size; /* REMOVE */
 	*out_nr_segments  = nr_segments;
 
-	C2_LEAVE("seg_size: %llu nr_segments: %d", (ULL)segment_size,
-						   nr_segments);
+	C2_LEAVE("seg_size: %llu nr_segments: %d", (ULL)*out_segment_size,
+						   *out_nr_segments);
 }
 
 static void net_buffer_free(struct c2_net_buffer *netbuf,
