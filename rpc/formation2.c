@@ -74,7 +74,8 @@ for (itemq = frm_first_itemq(frm); \
      itemq++)
 
 enum {
-	ITEMQ_HEAD_MAGIC = 0x4954454d514844 /* ITEMQHD */
+	ITEMQ_HEAD_MAGIC = 0x4954454d514844, /* ITEMQHD */
+	FRM_MAGIC        = 0x5250435f46524d, /* RPC_FRM */
 };
 
 C2_TL_DESCR_DEFINE(itemq, "rpc_itemq", static, struct c2_rpc_item,
@@ -134,6 +135,7 @@ static bool frm_invariant(const struct c2_rpc_frm *frm)
 	nr_items     = 0;
 
 	return frm != NULL &&
+	       frm->f_magic == FRM_MAGIC &&
 	       frm->f_state > FRM_UNINITIALISED &&
 	       frm->f_state < FRM_NR_STATES &&
 	       frm->f_rmachine != NULL &&
@@ -189,6 +191,7 @@ void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
 	frm->f_ops         = ops;
 	frm->f_rchan       = rchan;
 	frm->f_constraints = constraints; /* structure instance copy */
+	frm->f_magic       = FRM_MAGIC;
 
 	for_each_itemq_in_frm(q, frm) {
 		itemq_tlist_init(q);
@@ -214,6 +217,7 @@ void c2_rpc_frm_fini(struct c2_rpc_frm *frm)
 	}
 
 	frm->f_state = FRM_UNINITIALISED;
+	frm->f_magic = 0;
 }
 
 void c2_rpc_frm_enq_item(struct c2_rpc_frm  *frm,

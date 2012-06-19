@@ -29,3 +29,4 @@ c2_reqh_service      rs_magic                      5248535643 RHSVC
 c2_rhsvc_tl          td_head_magic             52485356434844 RHSVCHD
 c2_reqh_service_type rst_magic                     5248535643 RHSVC
 c2_rstypes_tl        td_head_magic             52485356434844 RHSVCHD
+c2_rpc_frm           f_magic                   5250435f46524d RPC_FRM

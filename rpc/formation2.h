@@ -202,6 +202,9 @@ struct c2_rpc_frm {
 	struct c2_rpc_machine         *f_rmachine;
 	struct c2_rpc_chan            *f_rchan;
 	struct c2_rpc_frm_ops         *f_ops;
+
+	/** FRM_MAGIC */
+	uint64_t                       f_magic;
 };
 
 /**
