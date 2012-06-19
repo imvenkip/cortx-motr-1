@@ -82,7 +82,7 @@ enum {
 	C2_LNET_PORTAL     = 34,
 	MAX_RPCS_IN_FLIGHT = 32,
 	CLIENT_COB_DOM_ID  = 13,
-	CONNECT_TIMEOUT	   = 10,
+	CONNECT_TIMEOUT	   = 60,
 };
 
 #ifndef __KERNEL__
@@ -580,6 +580,8 @@ int main(int argc, char *argv[])
 		C2_FORMATARG('n', "number of ping items", "%i", &nr_ping_item),
 		C2_FORMATARG('q', "minimum TM receive queue length", "%i",
 						&tm_recv_queue_len),
+		C2_FORMATARG('m', "max rpc msg size", "%i",
+						&max_rpc_msg_size),
 		C2_FLAGARG('v', "verbose", &verbose)
 		);
 	if (rc != 0)
