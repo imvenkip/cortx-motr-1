@@ -196,6 +196,8 @@ enum c2_rpc_frm_itemq_type {
    c2_rpc_frm is not reference counted. It is responsibility of user to
    free c2_rpc_frm. Ensuring that c2_rpc_frm is in IDLE state, before
    finalising it, is left to user.
+
+   @see frm_invariant()
  */
 struct c2_rpc_frm {
 	/**

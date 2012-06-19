@@ -29,6 +29,9 @@
 
 #define ULL unsigned long long
 
+static bool itemq_invariant(const struct c2_tl *q);
+static c2_bcount_t itemq_nr_bytes_acc(const struct c2_tl *q);
+
 static struct c2_tl *frm_which_queue(struct c2_rpc_frm        *frm,
 				     const struct c2_rpc_item *item);
 static bool frm_is_idle(const struct c2_rpc_frm *frm);
@@ -84,6 +87,33 @@ C2_TL_DESCR_DEFINE(itemq, "rpc_itemq", static, struct c2_rpc_item,
 		   ITEMQ_HEAD_MAGIC);
 C2_TL_DEFINE(itemq, static, struct c2_rpc_item);
 
+static bool frm_invariant(const struct c2_rpc_frm *frm)
+{
+	const struct c2_tl *q;
+	c2_bcount_t         nr_bytes_acc;
+	uint64_t            nr_items;
+
+	nr_bytes_acc = 0;
+	nr_items     = 0;
+
+	return frm != NULL &&
+	       frm->f_magic == FRM_MAGIC &&
+	       frm->f_state > FRM_UNINITIALISED &&
+	       frm->f_state < FRM_NR_STATES &&
+	       frm->f_rmachine != NULL &&
+	       frm->f_ops != NULL &&
+	       frm->f_rchan != NULL &&
+	       ergo(frm->f_state == FRM_IDLE,  frm_is_idle(frm)) &&
+	       ergo(frm->f_state == FRM_BUSY, !frm_is_idle(frm)) &&
+	       c2_forall(i, FRMQ_NR_QUEUES,
+			 q             = &frm->f_itemq[i];
+			 nr_items     += itemq_tlist_length(q);
+			 nr_bytes_acc += itemq_nr_bytes_acc(q);
+			 itemq_invariant(q)) &&
+	       frm->f_nr_items == nr_items &&
+	       frm->f_nr_bytes_accumulated == nr_bytes_acc;
+}
+
 static bool itemq_invariant(const struct c2_tl *q)
 {
 	struct c2_rpc_item *prev;
@@ -124,33 +154,6 @@ static c2_bcount_t itemq_nr_bytes_acc(const struct c2_tl *q)
 	c2_tl_endfor;
 
 	return size;
-}
-
-static bool frm_invariant(const struct c2_rpc_frm *frm)
-{
-	const struct c2_tl *q;
-	c2_bcount_t         nr_bytes_acc;
-	uint64_t            nr_items;
-
-	nr_bytes_acc = 0;
-	nr_items     = 0;
-
-	return frm != NULL &&
-	       frm->f_magic == FRM_MAGIC &&
-	       frm->f_state > FRM_UNINITIALISED &&
-	       frm->f_state < FRM_NR_STATES &&
-	       frm->f_rmachine != NULL &&
-	       frm->f_ops != NULL &&
-	       frm->f_rchan != NULL &&
-	       ergo(frm->f_state == FRM_IDLE,  frm_is_idle(frm)) &&
-	       ergo(frm->f_state == FRM_BUSY, !frm_is_idle(frm)) &&
-	       c2_forall(i, FRMQ_NR_QUEUES,
-			 q             = &frm->f_itemq[i];
-			 nr_items     += itemq_tlist_length(q);
-			 nr_bytes_acc += itemq_nr_bytes_acc(q);
-			 itemq_invariant(q)) &&
-	       frm->f_nr_items == nr_items &&
-	       frm->f_nr_bytes_accumulated == nr_bytes_acc;
 }
 
 void c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *c)
