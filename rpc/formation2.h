@@ -182,8 +182,8 @@ enum c2_rpc_frm_itemq_type {
                       |  | c2_rpc_frm_fini()
                       V  |
                     FRM_IDLE
-                      |  ^ 
- c2_rpc_frm_enq_item()| | frm_itemq_remove() or c2_rpc_frm_packet_done() 
+                      |  ^
+ c2_rpc_frm_enq_item()| | frm_itemq_remove() or c2_rpc_frm_packet_done()
    [frm_is_idle()]    |  | [!frm_is_idle()]
                       V  |
                     FRM_BUSY

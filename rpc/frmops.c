@@ -362,7 +362,7 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 	rpc_buffer_fini(rpcbuf);
 	c2_free(rpcbuf);
 
-	c2_rpc_machine_unlock(machine);	
+	c2_rpc_machine_unlock(machine);
 	C2_LEAVE();
 }
 
