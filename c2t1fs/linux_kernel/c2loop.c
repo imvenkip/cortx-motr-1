@@ -55,7 +55,6 @@
 #include <linux/fs.h>
 #include <linux/file.h>
 #include <linux/stat.h>
-#include <linux/major.h>
 #include <linux/wait.h>
 #include <linux/blkdev.h>
 #include <linux/blkpg.h>
@@ -85,6 +84,7 @@ static DEFINE_MUTEX(loop_devices_mutex);
 
 static int max_part;
 static int part_shift;
+static int C2LOOP_MAJOR;
 
 /*
  * Transfer functions
@@ -290,7 +290,7 @@ static int __do_lo_send_write(struct file *file,
 	set_fs(old_fs);
 	if (likely(bw == len))
 		return 0;
-	printk(KERN_ERR "loop: Write error at byte offset %llu, length %i.\n",
+	printk(KERN_ERR "c2loop: Write error at byte offset %llu, length %i.\n",
 			(unsigned long long)pos, len);
 	if (bw >= 0)
 		bw = -EIO;
@@ -338,7 +338,7 @@ static int do_lo_send_write(struct loop_device *lo, struct bio_vec *bvec,
 		return __do_lo_send_write(lo->lo_backing_file,
 				page_address(page), bvec->bv_len,
 				pos);
-	printk(KERN_ERR "loop: Transfer error at byte offset %llu, "
+	printk(KERN_ERR "c2loop: Transfer error at byte offset %llu, "
 			"length %i.\n", (unsigned long long)pos, bvec->bv_len);
 	if (ret > 0)
 		ret = -EIO;
@@ -607,7 +607,7 @@ static inline int is_loop_device(struct file *file)
 {
 	struct inode *i = file->f_mapping->host;
 
-	return i && S_ISBLK(i->i_mode) && MAJOR(i->i_rdev) == LOOP_MAJOR;
+	return i && S_ISBLK(i->i_mode) && MAJOR(i->i_rdev) == C2LOOP_MAJOR;
 }
 
 static int loop_set_fd(struct loop_device *lo, fmode_t mode,
@@ -712,7 +712,7 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 
 	set_blocksize(bdev, lo_blocksize);
 
-	lo->lo_thread = kthread_create(loop_thread, lo, "loop%d",
+	lo->lo_thread = kthread_create(loop_thread, lo, "c2loop%d",
 						lo->lo_number);
 	if (IS_ERR(lo->lo_thread)) {
 		error = PTR_ERR(lo->lo_thread);
@@ -1332,7 +1332,7 @@ MODULE_PARM_DESC(max_loop, "Maximum number of loop devices");
 module_param(max_part, int, 0);
 MODULE_PARM_DESC(max_part, "Maximum number of partitions per loop device");
 MODULE_LICENSE("GPL");
-MODULE_ALIAS_BLOCKDEV_MAJOR(LOOP_MAJOR);
+//MODULE_ALIAS_BLOCKDEV_MAJOR(C2LOOP_MAJOR);
 
 int loop_register_transfer(struct loop_func_table *funcs)
 {
@@ -1390,12 +1390,12 @@ static struct loop_device *loop_alloc(int i)
 	lo->lo_thread		= NULL;
 	init_waitqueue_head(&lo->lo_event);
 	spin_lock_init(&lo->lo_lock);
-	disk->major		= LOOP_MAJOR;
+	disk->major		= C2LOOP_MAJOR;
 	disk->first_minor	= i << part_shift;
 	disk->fops		= &lo_fops;
 	disk->private_data	= lo;
 	disk->queue		= lo->lo_queue;
-	sprintf(disk->disk_name, "loop%d", i);
+	sprintf(disk->disk_name, "c2loop%d", i);
 	return lo;
 
 out_free_queue:
@@ -1487,8 +1487,11 @@ static int __init loop_init(void)
 		range = 1UL << (MINORBITS - part_shift);
 	}
 
-	if (register_blkdev(LOOP_MAJOR, "loop"))
-		return -EIO;
+	if ((C2LOOP_MAJOR = register_blkdev(0, "c2loop"))) {
+		printk("c2loop: major %d\n", C2LOOP_MAJOR);
+		if (C2LOOP_MAJOR < 0)
+			return -EIO;
+	}
 
 	for (i = 0; i < nr; i++) {
 		lo = loop_alloc(i);
@@ -1502,19 +1505,19 @@ static int __init loop_init(void)
 	list_for_each_entry(lo, &loop_devices, lo_list)
 		add_disk(lo->lo_disk);
 
-	blk_register_region(MKDEV(LOOP_MAJOR, 0), range,
+	blk_register_region(MKDEV(C2LOOP_MAJOR, 0), range,
 				  THIS_MODULE, loop_probe, NULL, NULL);
 
-	printk(KERN_INFO "loop: module loaded\n");
+	printk(KERN_INFO "c2loop: module loaded\n");
 	return 0;
 
 Enomem:
-	printk(KERN_INFO "loop: out of memory\n");
+	printk(KERN_INFO "c2loop: out of memory\n");
 
 	list_for_each_entry_safe(lo, next, &loop_devices, lo_list)
 		loop_free(lo);
 
-	unregister_blkdev(LOOP_MAJOR, "loop");
+	unregister_blkdev(C2LOOP_MAJOR, "c2loop");
 	return -ENOMEM;
 }
 
@@ -1528,8 +1531,8 @@ static void __exit loop_exit(void)
 	list_for_each_entry_safe(lo, next, &loop_devices, lo_list)
 		loop_del_one(lo);
 
-	blk_unregister_region(MKDEV(LOOP_MAJOR, 0), range);
-	unregister_blkdev(LOOP_MAJOR, "loop");
+	blk_unregister_region(MKDEV(C2LOOP_MAJOR, 0), range);
+	unregister_blkdev(C2LOOP_MAJOR, "c2loop");
 }
 
 module_init(loop_init);
