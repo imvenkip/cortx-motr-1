@@ -10,8 +10,8 @@ static int frm_ut_init(void);
 static int frm_ut_fini(void);
 static void frm_init_test(void);
 static void frm_fini_test(void);
-static void frm_enq_item_test(void);
-static void frm_enqued_items_are_sorted_by_deadline(void);
+static void frm_enq_item_test(void) __attribute__((unused));
+static void frm_enqued_items_are_sorted_by_deadline(void) __attribute__((unused));
 
 const struct c2_test_suite frm_ut = {
 	.ts_name = "formation-ut",
@@ -19,8 +19,8 @@ const struct c2_test_suite frm_ut = {
 	.ts_fini = frm_ut_fini,
 	.ts_tests = {
 		{ "frm-init",     frm_init_test},
-		{ "items-sorted", frm_enqued_items_are_sorted_by_deadline},
-		{ "frm-enq-item", frm_enq_item_test},
+//		{ "items-sorted", frm_enqued_items_are_sorted_by_deadline},
+//		{ "frm-enq-item", frm_enq_item_test},
 		{ "frm-fini",     frm_fini_test},
 		{ NULL,           NULL         }
 	}
