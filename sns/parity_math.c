@@ -166,8 +166,10 @@ int  c2_parity_math_init(struct c2_parity_math *math,
 	} else {
 
 		math->pmi_parity_algo = C2_PARITY_CAL_ALGO_REED_SOLOMON;
-		/* init galois, only first call makes initialisation,
-		 * no de-initialisation needed. */
+		/*
+                 * init galois, only first call makes initialisation,
+		 * no de-initialisation needed.
+		 */
 		c2_parity_init();
 
 		ret = vandmat_init(&math->pmi_vandmat, data_count,
@@ -216,7 +218,7 @@ int  c2_parity_math_init(struct c2_parity_math *math,
 }
 
 static void parity_math_xor_calculate(struct c2_parity_math *math,
-				      struct c2_buf *data,
+				      const struct c2_buf *data,
 				      struct c2_buf *parity)
 {
         uint32_t          ei; /* block element index. */
@@ -224,17 +226,15 @@ static void parity_math_xor_calculate(struct c2_parity_math *math,
         uint32_t          block_size = data[0].b_nob;
 	c2_parity_elem_t  pe;
 
-        for (ui = 0; ui < math->pmi_data_count; ++ui)
-                C2_ASSERT(block_size == data[ui].b_nob);
-
-        for (ui = 0; ui < math->pmi_parity_count; ++ui)
-                C2_ASSERT(block_size == parity[ui].b_nob);
+	C2_PRE(block_size == parity[0].b_nob);
 
 	for (ei = 0; ei < block_size; ++ei) {
 		pe = 0;
-		for (ui = 0; ui < math->pmi_data_count; ++ui)
+		for (ui = 0; ui < math->pmi_data_count; ++ui) {
+			C2_ASSERT(block_size == data[ui].b_nob);
 			pe = pe ^
 			     (c2_parity_elem_t)((uint8_t*)data[ui].b_addr)[ei];
+		}
 		((uint8_t*)parity[0].b_addr)[ei] = pe;
 	}
 
@@ -248,23 +248,21 @@ static void parity_math_reed_solomon_encode(struct c2_parity_math *math,
 	uint32_t ui; /* unit index. */
 	uint32_t block_size = data[0].b_nob;
 
-	for (ui = 0; ui < math->pmi_data_count; ++ui)
-		C2_ASSERT(block_size == data[ui].b_nob);
-
-	for (ui = 0; ui < math->pmi_parity_count; ++ui)
-		C2_ASSERT(block_size == parity[ui].b_nob);
-
 	for (ei = 0; ei < block_size; ++ei) {
-		for (ui = 0; ui < math->pmi_data_count; ++ui)
+		for (ui = 0; ui < math->pmi_data_count; ++ui) {
+			C2_ASSERT(block_size == data[ui].b_nob);
 			*c2_vector_elem_get(&math->pmi_data, ui) =
 				((uint8_t*)data[ui].b_addr)[ei];
+		}
 
 		c2_matrix_vec_multiply(&math->pmi_vandmat_parity_slice,
 				&math->pmi_data, &math->pmi_parity, gmul, gadd);
 
-		for (ui = 0; ui < math->pmi_parity_count; ++ui)
+		for (ui = 0; ui < math->pmi_parity_count; ++ui) {
+			C2_ASSERT(block_size == parity[ui].b_nob);
 			((uint8_t*)parity[ui].b_addr)[ei] =
 				*c2_vector_elem_get(&math->pmi_parity, ui);
+		}
 	}
 }
 
@@ -310,8 +308,10 @@ static void recovery_data_fill(struct c2_parity_math *math,
 	uint32_t x;
 
 	for (f = 0; f < unit_count; ++f) {
-		/* if (block is ok) and
-		 * (not enough equations to solve system). */
+		/*
+		 * if (block is ok) and
+		 * (not enough equations to solve system).
+		 */
 		if (!fail[f] && y < vec->v_size) {
 			/* copy vec. */
 			*c2_vector_elem_get(vec, y) = f < math->pmi_data_count
@@ -322,7 +322,7 @@ static void recovery_data_fill(struct c2_parity_math *math,
 			for (x = 0; x < mat->m_width; ++x)
 				*c2_matrix_elem_get(mat, x, y) =
 					*c2_matrix_elem_get(&math->pmi_vandmat,
-							x, f);
+							    x, f);
 
 			++y;
 		}
@@ -362,23 +362,19 @@ static void xor_recover(struct c2_parity_math *math,
 	fail = (uint8_t*) fails->b_addr;
 	fail_count = fails_count(fail, unit_count);
 
-	C2_ASSERT(fail_count == 1);
-	C2_ASSERT(fail_count <= math->pmi_parity_count);
-
-        for (ui = 0; ui < math->pmi_data_count; ++ui)
-                C2_ASSERT(block_size == data[ui].b_nob);
-
-        for (ui = 0; ui < math->pmi_parity_count; ++ui)
-                C2_ASSERT(block_size == parity[ui].b_nob);
+	C2_PRE(fail_count == 1);
+	C2_PRE(fail_count <= math->pmi_parity_count);
+	C2_PRE(block_size == parity[0].b_nob);
 
 	for (ei = 0; ei < block_size; ++ei) {
 		pe = 0;
                 for (ui = 0; ui < math->pmi_data_count; ++ui) {
-		    if (fail[ui] != 1)
-			    pe = pe ^
-			     (c2_parity_elem_t)((uint8_t*)data[ui].b_addr)[ei];
-		    else
-			fail_index = ui;
+			C2_ASSERT(block_size == data[ui].b_nob);
+			if (fail[ui] != 1)
+				pe = pe ^ (c2_parity_elem_t)((uint8_t*)
+					   data[ui].b_addr)[ei];
+			else
+				fail_index = ui;
                 }
 		/* Now ui points to parity block, test if it was failed. */
 		if (fail[ui] != 1)
@@ -411,23 +407,21 @@ static void reed_solomon_recover(struct c2_parity_math *math,
 	C2_ASSERT(fail_count > 0);
 	C2_ASSERT(fail_count <= math->pmi_parity_count);
 
-	for (ui = 0; ui < math->pmi_data_count; ++ui)
-		C2_ASSERT(block_size == data[ui].b_nob);
-
-	for (ui = 0; ui < math->pmi_parity_count; ++ui)
-		C2_ASSERT(block_size == parity[ui].b_nob);
-
 	for (ei = 0; ei < block_size; ++ei) {
 		struct c2_vector *recovered = &math->pmi_sys_res;
 
 		/* load data and parity. */
-		for (ui = 0; ui < math->pmi_data_count; ++ui)
+		for (ui = 0; ui < math->pmi_data_count; ++ui) {
+			C2_ASSERT(block_size == data[ui].b_nob);
 			*c2_vector_elem_get(&math->pmi_data, ui) =
-				((uint8_t*)data  [ui].b_addr)[ei];
+				((uint8_t*)data[ui].b_addr)[ei];
+		}
 
-		for (ui = 0; ui < math->pmi_parity_count; ++ui)
+		for (ui = 0; ui < math->pmi_parity_count; ++ui) {
+			C2_ASSERT(block_size == parity[ui].b_nob);
 			*c2_vector_elem_get(&math->pmi_parity, ui) =
 				((uint8_t*)parity[ui].b_addr)[ei];
+		}
 
 		/* recover data. */
 		parity_math_recover(math, fail, unit_count);
@@ -463,22 +457,19 @@ static void fail_index_xor_recover(struct c2_parity_math *math,
         uint32_t          block_size = data[0].b_nob;
         c2_parity_elem_t  pe;
 
+	C2_PRE(block_size == parity[0].b_nob);
+
         unit_count = math->pmi_data_count + math->pmi_parity_count;
-
         C2_ASSERT(failure_index <= unit_count);
-
-        for (ui = 0; ui < math->pmi_data_count; ++ui)
-                C2_ASSERT(block_size == data[ui].b_nob);
-
-        for (ui = 0; ui < math->pmi_parity_count; ++ui)
-                C2_ASSERT(block_size == parity[ui].b_nob);
 
         for (ei = 0; ei < block_size; ++ei) {
                 pe = 0;
-                for (ui = 0; ui < math->pmi_data_count; ++ui)
-                    if (ui != failure_index)
-                        pe = pe ^
-                             (c2_parity_elem_t)((uint8_t*)data[ui].b_addr)[ei];
+                for (ui = 0; ui < math->pmi_data_count; ++ui) {
+			C2_ASSERT(block_size == data[ui].b_nob);
+			if (ui != failure_index)
+				pe = pe ^ (c2_parity_elem_t)((uint8_t*)
+					   data[ui].b_addr)[ei];
+		}
                 if (ui != failure_index)
                         pe = pe ^ ((uint8_t*)parity[0].b_addr)[ei];
                 else /* Parity was lost, so recover it. */
@@ -509,7 +500,7 @@ void c2_parity_math_fail_index_recover(struct c2_parity_math *math,
 						failure_index);
 }
 
-void c2_parity_math_buffer_xor(struct c2_buf *src, struct c2_buf *dest)
+void c2_parity_math_buffer_xor(const struct c2_buf *src, struct c2_buf *dest)
 {
         uint32_t  ei; /* block element index. */
 
