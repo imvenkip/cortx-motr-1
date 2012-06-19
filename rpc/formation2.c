@@ -75,6 +75,7 @@ for (itemq = frm_first_itemq(frm); \
 
 enum {
 	ITEMQ_HEAD_MAGIC = 0x4954454d514844, /* ITEMQHD */
+	/** value of c2_rpc_frm::f_magic */
 	FRM_MAGIC        = 0x5250435f46524d, /* RPC_FRM */
 };
 

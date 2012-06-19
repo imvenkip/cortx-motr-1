@@ -58,11 +58,18 @@ struct c2_rpc_frm_ops c2_rpc_frm_default_ops = {
 	.fo_item_bind    = item_bind,
 };
 
+enum {
+	/** value of rpc_buffer::rb_magic */
+	RPC_BUF_MAGIC = 0x5250435f425546, /* RPC_BUF */
+};
+
 struct rpc_buffer {
 	struct c2_net_buffer   rb_netbuf;
 	struct c2_rpc_packet  *rb_packet;
 	struct c2_rpc_machine *rb_machine;
 	struct c2_rpc_chan    *rb_rchan;
+	/** see RPC_BUF_MAGIC */
+	uint64_t               rb_magic;
 };
 
 static int rpc_buffer_init(struct rpc_buffer     *rpcbuf,
@@ -173,6 +180,8 @@ static int rpc_buffer_init(struct rpc_buffer     *rpcbuf,
 	rpcbuf->rb_packet  = p;
 	rpcbuf->rb_machine = machine;
 	rpcbuf->rb_rchan   = rchan;
+
+	rpcbuf->rb_magic   = RPC_BUF_MAGIC;
 
 out:
 	C2_LEAVE("rc: %d", rc);
@@ -336,7 +345,8 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 		  (netbuf->nb_flags & C2_NET_BUF_QUEUED) == 0);
 
 	rpcbuf = container_of(netbuf, struct rpc_buffer, rb_netbuf);
-	C2_ASSERT(rpcbuf->rb_machine != NULL);
+	C2_ASSERT(rpcbuf->rb_magic == RPC_BUF_MAGIC &&
+		  rpcbuf->rb_machine != NULL);
 
 	machine = rpcbuf->rb_machine;
 	c2_rpc_machine_lock(machine);
