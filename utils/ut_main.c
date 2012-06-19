@@ -35,6 +35,7 @@ extern const struct c2_test_suite ad_ut;
 extern const struct c2_test_suite addb_ut;
 extern const struct c2_test_suite bulkio_server_ut;
 extern const struct c2_test_suite bulkio_client_ut;
+extern const struct c2_test_suite ios_bufferpool_ut;
 extern const struct c2_test_suite cobfoms_ut;
 extern const struct c2_test_suite capa_ut;
 extern const struct c2_test_suite cob_ut;
@@ -81,6 +82,7 @@ void add_uts(void)
 	c2_ut_add(&buffer_pool_ut);
         c2_ut_add(&bulkio_server_ut);
         c2_ut_add(&bulkio_client_ut);
+        c2_ut_add(&ios_bufferpool_ut);
 	c2_ut_add(&capa_ut);
 	c2_ut_add(&cfm_ut);
 	c2_ut_add(&cob_ut);

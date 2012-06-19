@@ -779,7 +779,7 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
  */
 static int cs_rpc_machines_init(struct c2_colibri *cctx)
 {
-	int                          rc;
+	int                          rc = 0;
 	FILE                        *ofd;
 	struct cs_reqh_context      *rctx;
 	struct cs_endpoint_and_xprt *ep;
@@ -2095,7 +2095,6 @@ void c2_cs_fini(struct c2_colibri *cctx)
 	c2_mutex_fini(&cctx->cc_mutex);
 	c2_processors_fini();
 }
-
 /** @} endgroup colibri_setup */
 
 /*
