@@ -55,13 +55,15 @@ constraints_are_valid(const struct c2_rpc_frm_constraints *constraints);
 extern struct c2_rpc_frm_ops c2_rpc_frm_default_ops;
 
 static const char *str_qtype[] = {
-			"TIMEDOUT_BOUND",
-			"TIMEDOUT_UNBOUND",
-			"TIMEDOUT_ONE_WAY",
-			"WAITING_BOUND",
-			"WAITING_UNBOUND",
-			"WAITING_ONE_WAY"
+			[FRMQ_TIMEDOUT_BOUND]   = "TIMEDOUT_BOUND",
+			[FRMQ_TIMEDOUT_UNBOUND] = "TIMEDOUT_UNBOUND",
+			[FRMQ_TIMEDOUT_ONE_WAY] = "TIMEDOUT_ONE_WAY",
+			[FRMQ_WAITING_UNBOUND]  = "WAITING_UNBOUND",
+			[FRMQ_WAITING_BOUND]    = "WAITING_BOUND",
+			[FRMQ_WAITING_ONE_WAY]  = "WAITING_ONE_WAY"
 		   };
+
+C2_BASSERT(ARRAY_SIZE(str_qtype) == FRMQ_NR_QUEUES);
 
 static const char *bool_to_str(bool b)
 {
@@ -160,7 +162,7 @@ void c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *c)
 {
 	C2_ENTRY();
 
-	/* XXX Temporary */
+	/** @todo XXX decide default values for constraints */
 	c->fc_max_nr_packets_enqed     = 100;
 	c->fc_max_nr_segments          = 128;
 	c->fc_max_packet_size          = 4096;
@@ -172,6 +174,7 @@ void c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *c)
 static bool
 constraints_are_valid(const struct c2_rpc_frm_constraints *constraints)
 {
+	/** @todo XXX Check whether constraints are consistent */
 	return true;
 }
 
@@ -429,7 +432,7 @@ static bool item_timedout(const struct c2_rpc_item *item)
  */
 static void frm_filter_timedout_items(struct c2_rpc_frm *frm)
 {
-	enum c2_rpc_frm_itemq_type  qtypes[] = {
+	static const enum c2_rpc_frm_itemq_type qtypes[] = {
 						   FRMQ_WAITING_BOUND,
 						   FRMQ_WAITING_UNBOUND,
 						   FRMQ_WAITING_ONE_WAY
@@ -442,7 +445,7 @@ static void frm_filter_timedout_items(struct c2_rpc_frm *frm)
 	C2_ENTRY("frm: %p", frm);
 	C2_PRE(frm_invariant(frm));
 
-	for (i = 0; i < ARRAY_SIZE(qtypes); i++) {
+	for (i = 0; i < ARRAY_SIZE(qtypes); ++i) {
 		qtype = qtypes[i];
 		q     = &frm->f_itemq[qtype];
 		c2_tl_for(itemq, q, item) {

@@ -184,11 +184,11 @@ int c2_rpc_packet_encode_using_cursor(struct c2_rpc_packet    *packet,
 
 	rc = packet_header_encode(packet, cursor);
 	if (rc == 0) {
-		c2_tl_for(packet_item, &packet->rp_items, item)
+		c2_tl_for(packet_item, &packet->rp_items, item) {
 			rc = item_encode(item, cursor);
 			if (rc != 0)
 				break;
-		c2_tl_endfor;
+		} c2_tl_endfor;
 	}
 
 	C2_LEAVE("rc: %d", rc);

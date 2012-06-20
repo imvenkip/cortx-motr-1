@@ -25,13 +25,13 @@
 /**
    Formation component for Colibri RPC layer is what IO scheduler is for
    block device. Because of network layer overhead associated with each
-   message(i.e. buffer), sending individual RPC item directly to network layer
-   can be inefficient. Instead, formation component tries to send multiple
-   RPC items in same network layer message to improve performance.
+   message(i.e. buffer), sending each individual RPC item directly to network
+   layer can be inefficient. Instead, formation component tries to send
+   multiple RPC items in same network layer message to improve performance.
 
-   RPC items that are posted to RPC layer for sending, are enqueued in formation
+   RPC items that are posted to RPC layer for sending are enqueued in formation
    queue. Formation then prepares "RPC Packets". A RPC Packet is collection
-   of RPC items, that are sent together in same network layer buffer.
+   of RPC items that are sent together in same network layer buffer.
 
    To improve performance formation component does two things:
 
@@ -46,14 +46,14 @@
      are merged together is dependent on _item type_ of A and B. Formation
      is not aware about how these items are merged.
 
-   While forming RPC packets Formation has to obey few "constraints":
+   While forming RPC packets Formation has to obey several "constraints":
    - max_packet_size:
    - max_nr_bytes_accumulated:
    - max_nr_segments
    - max_nr_packets_enqed
    @see c2_rpc_frm_constraints for more information.
 
-   It is important to note that, Formation has something to do only on
+   It is important to note that Formation has something to do only on
    "outgoing path".
 
    NOTE:
@@ -76,10 +76,8 @@ struct c2_rpc_item;
 struct c2_rpc_machine;
 struct c2_rpc_chan;
 
-/* Exports */
-struct c2_rpc_frm;
+/* Forward references */
 struct c2_rpc_frm_ops;
-struct c2_rpc_frm_constraints;
 
 /**
    Constraints that should be taken into consideration while forming packets.
@@ -131,7 +129,7 @@ enum frm_state {
 };
 
 /**
-   Formation partitions RPC items in these types queues.
+   Formation partitions RPC items in these types of queues.
    An item can migrate from one queue to another depending on its state.
 
    TIMEDOUT_* are the queues which contain items whose deadline has been
@@ -189,7 +187,7 @@ enum c2_rpc_frm_itemq_type {
                     FRM_BUSY
 @endverbatim
 
-   <B>Concurrency and Existence: </B><BR>
+   <B>Concurrency and Existence: </B> @n
 
    Access to c2_rpc_frm instance is synchronised by c2_rpc_machine::rm_mutex.
 
@@ -211,7 +209,7 @@ struct c2_rpc_frm {
 	enum frm_state                 f_state;
 
 	/**
-	   Lists of items enqueued to to Formation, that are not yet
+	   Lists of items enqueued to Formation that are not yet
 	   added to any Packet. @see c2_rpc_frm_itemq_type
 	   itemq are sorted by c2_rpc_item::ri_prio (highest priority first).
 	   All items having equal priority are sorted by
@@ -267,7 +265,7 @@ struct c2_rpc_frm_ops {
 	   @pre c2_rpc_item_is_unbound(item) && item->ri_session != NULL
 	   @pre c2_rpc_machine_is_locked(
 				item->ri_session->s_conn->c_rpc_machine)
-	   @post equi(result, c2_rpc_item_is_bound(item)
+	   @post equi(result, c2_rpc_item_is_bound(item))
 	   @post c2_rpc_machine_is_locked(
 				item->ri_session->s_conn->c_rpc_machine)
 	 */

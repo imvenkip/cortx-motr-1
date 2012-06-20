@@ -414,7 +414,7 @@ struct c2_rpc_chan {
 	struct c2_list_link		  rc_linkage;
 	/** Number of c2_rpc_conn structures using this transfer machine.*/
 	struct c2_ref			  rc_ref;
-	/** XXX DEPRICATED Formation state machine associated with chan. */
+	/** @deprecated Formation state machine associated with chan. */
 	struct c2_rpc_frm_sm		  rc_frmsm;
 	/** Formation state machine associated with chan. */
 	struct c2_rpc_frm                 rc_frm;
@@ -442,7 +442,7 @@ struct c2_rpc_machine {
 	    CONN_FAILED, CONN_TERMINATED} */
 	struct c2_list			  rm_incoming_conns;
 	struct c2_list			  rm_outgoing_conns;
-	/** DEPRECATED: list of ready slots.
+	/** @deprecated list of ready slots.
 	    Replaced by c2_rpc_session::s_ready_slots
 	 */
 	struct c2_list			  rm_ready_slots;

@@ -966,6 +966,7 @@ bool c2_rpc_session_bind_item(struct c2_rpc_item *item)
 
 	return true;
 }
+
 static void snd_item_consume(struct c2_rpc_item *item)
 {
 	c2_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm, item);

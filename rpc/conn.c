@@ -346,8 +346,10 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
 	conn->c_flags = RCF_RECV_END;
 	conn->c_uuid = *uuid;
 
-	/* XXX temporarily max_rpcs_in_flight is taken arbitrarily to be 128.
-		FIXME: set max_rpcs_in_flight to some sane number */
+	/** @todo XXX temporarily max_rpcs_in_flight is taken arbitrarily
+	    to be 128.
+	    FIXME: set max_rpcs_in_flight to some sane number
+	 */
 	rc = __conn_init(conn, ep, machine, 128);
 	if (rc == 0) {
 		c2_list_add(&machine->rm_incoming_conns, &conn->c_link);
