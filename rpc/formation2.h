@@ -92,7 +92,9 @@ struct c2_rpc_frm_constraints {
 
 	/**
 	   On wire size of a packet should not cross this limit. This is
-	   usually set to maximum supported size of network buffer.
+	   usually set to maximum supported size of SEND network buffer.
+
+	   @see c2_rpc_machine::rm_min_recv_size
 	 */
 	c2_bcount_t fc_max_packet_size;
 
