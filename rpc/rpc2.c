@@ -382,12 +382,11 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 	ndom = machine->rm_tm.ntm_dom;
 
 	constraints.fc_max_nr_packets_enqed = max_rpcs_in_flight;
-	constraints.fc_max_packet_size =
-				c2_net_domain_get_max_buffer_size(ndom);
-	constraints.fc_max_nr_segments =
-				c2_net_domain_get_max_buffer_segments(ndom);
+	constraints.fc_max_packet_size = machine->rm_min_recv_size;
 	constraints.fc_max_nr_bytes_accumulated =
 				constraints.fc_max_packet_size;
+	constraints.fc_max_nr_segments =
+				c2_net_domain_get_max_buffer_segments(ndom);
 
 	c2_rpc_frm_init(&ch->rc_frm, machine, ch,
 			constraints, &c2_rpc_frm_default_ops);
