@@ -421,11 +421,10 @@ int c2_net_test_slist_init(struct c2_net_test_slist *slist,
 {
 	char  *str1;
 	size_t len;
-	size_t i = 0;
+	size_t i;
 
 	C2_SET0(slist);
 
-	slist->ntsl_nr = 0;
 	if (str == NULL)
 		return 0;
 	len = strlen(str);
@@ -433,7 +432,7 @@ int c2_net_test_slist_init(struct c2_net_test_slist *slist,
 		return 0;
 
 	str1 = str;
-	while (*str1)
+	while (*str1 != '\0')
 		slist->ntsl_nr += *str1++ == delim;
 	slist->ntsl_nr++;
 
@@ -449,7 +448,7 @@ int c2_net_test_slist_init(struct c2_net_test_slist *slist,
 	strncpy(slist->ntsl_str, str, len + 1);
 	str = slist->ntsl_str;
 	slist->ntsl_list[i++] = str;
-	for (; *str; str++)
+	for (i = 0; *str != '\0'; ++str)
 		if (*str == delim) {
 			*str = '\0';
 			slist->ntsl_list[i++] = str + 1;
