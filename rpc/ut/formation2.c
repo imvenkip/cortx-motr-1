@@ -1,8 +1,33 @@
+/* -*- C -*- */
+/*
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Amit Jambure <amit_jambure@xyratex.com>
+ * Original creation date: 05/25/2012
+ */
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "lib/ut.h"
 #include "lib/mutex.h"
 #include "lib/timer.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
+#include "lib/finject.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 #include "rpc/formation2.h"
@@ -76,13 +101,12 @@ static bool packet_ready(struct c2_rpc_packet  *p,
 	return true;
 }
 
-static bool slot_available = true;
 static bool frm_item_bind(struct c2_rpc_item *item)
 {
 	item_bind_called = true;
 	++item_bind_count;
 
-	if (!slot_available)
+	if (C2_FI_ENABLED("slot_unavailable"))
 		return false;
 
 	item->ri_slot_refs[0].sr_slot = &slot;
@@ -233,7 +257,6 @@ static void frm_test1(void)
 
 	/* Do not let formation trigger because of size limit */
 	frm.f_constraints.fc_max_nr_bytes_accumulated = ~0;
-	slot_available = true;
 
 	perform_test(TIMEDOUT, BOUND);
 	perform_test(TIMEDOUT, UNBOUND);
@@ -297,7 +320,6 @@ static void frm_test2(void)
 
 	C2_ENTRY();
 
-	slot_available = true;
 	set_timeout(999);
 
 	perform_test(BOUND);
@@ -315,7 +337,6 @@ static void frm_test3(void)
 
 	C2_ENTRY();
 
-	slot_available = true;
 
 	item = new_item(TIMEDOUT, BOUND);
 	saved = frm.f_constraints.fc_max_nr_packets_enqed;
@@ -343,13 +364,12 @@ static void frm_test4(void)
 	C2_ENTRY();
 
 	item = new_item(TIMEDOUT, UNBOUND);
-	slot_available = false;
+	c2_fi_enable_once("frm_item_bind", "slot_unavailable");
 	reset_flags();
 	c2_rpc_frm_enq_item(&frm, item);
 	C2_UT_ASSERT(!packet_ready_called && item_bind_called);
 	check_frm(FRM_BUSY, 1, 0);
 
-	slot_available = true;
 	c2_rpc_frm_run_formation(&frm);
 	C2_UT_ASSERT(packet_ready_called && item_bind_called);
 
@@ -368,6 +388,8 @@ static void frm_do_test5(const int N, const int ITEMS_PER_PACKET)
 	c2_bcount_t           saved_max_packet_size;
 	int                   nr_packets;
 	int                   i;
+
+	C2_ENTRY("N: %d ITEMS_PER_PACKET: %d", N, ITEMS_PER_PACKET);
 
 	for (i = 0; i < N; ++i)
 		items[i] = new_item(WAITING, BOUND);
@@ -410,15 +432,48 @@ static void frm_do_test5(const int N, const int ITEMS_PER_PACKET)
 		c2_free(items[i]);
 	frm.f_constraints.fc_max_packet_size = saved_max_packet_size;
 	frm.f_constraints.fc_max_nr_bytes_accumulated = saved_max_nr_bytes_acc;
+	C2_UT_ASSERT(packet_stack_is_empty());
+
+	C2_LEAVE();
 }
 
 static void frm_test5(void)
 {
+	C2_ENTRY();
 	frm_do_test5(7, 3);
 	frm_do_test5(7, 6);
 	frm_do_test5(8, 8);
 	frm_do_test5(8, 2);
 	frm_do_test5(4, 1);
+	C2_LEAVE();
+}
+
+static void frm_test6(void)
+{
+	/* If packet allocation fails then packet is not formed and items
+	   remain in frm */
+	struct c2_rpc_item   *item;
+
+	C2_ENTRY();
+
+	reset_flags();
+	item = new_item(TIMEDOUT, BOUND);
+
+	c2_fi_enable_once("c2_alloc", "fail_allocation");
+
+	c2_rpc_frm_enq_item(&frm, item);
+	C2_UT_ASSERT(!packet_ready_called);
+	check_frm(FRM_BUSY, 1, 0);
+
+	/* this time allocation succeds */
+	c2_rpc_frm_run_formation(&frm);
+	C2_UT_ASSERT(packet_ready_called);
+	check_frm(FRM_BUSY, 0, 1);
+
+	check_ready_packet_has_item(item);
+	c2_free(item);
+
+	C2_LEAVE();
 }
 
 static void frm_fini_test(void)
@@ -438,6 +493,7 @@ const struct c2_test_suite frm_ut = {
 		{ "frm-test3",    frm_test3    },
 		{ "frm-test4",    frm_test4    },
 		{ "frm-test5",    frm_test5    },
+		{ "frm-test6",    frm_test6    },
 		{ "frm-fini",     frm_fini_test},
 		{ NULL,           NULL         }
 	}

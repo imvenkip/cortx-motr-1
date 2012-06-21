@@ -30,6 +30,7 @@
 #include "lib/assert.h"
 #include "lib/atomic.h"
 #include "lib/memory.h"
+#include "lib/finject.h"
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_MEMORY
 #include "lib/trace.h"
@@ -103,6 +104,9 @@ static size_t __allocated(void)
 void *c2_alloc(size_t size)
 {
 	void *ret;
+
+	if (C2_FI_ENABLED("fail_allocation"))
+		return NULL;
 
 	C2_ENTRY("%lu", size);
 	ret = __malloc(size);
