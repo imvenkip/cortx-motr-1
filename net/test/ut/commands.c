@@ -66,7 +66,7 @@ void c2_net_test_cmd_ut_slist(void)
 	int i;
 	int j;
 	int rc;
-	
+
 	/* NULL-string test */
 	rc = c2_net_test_slist_init(&slist, NULL, ':');
 	C2_UT_ASSERT(rc == 0);
