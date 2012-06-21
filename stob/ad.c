@@ -1260,7 +1260,11 @@ static int ad_stob_io_launch(struct c2_stob_io *io)
 	ad_cursors_fini(&it, &src, &dst, &map);
 	if (result == 0) {
 		if (back->si_stob.iv_vec.v_nr > 0) {
-			/* Sorts index vecs in incremental order */
+			/*
+			 * Sorts index vecs in incremental order.
+			 * Note : Needs to check performance impact
+			 *        of storing each stobio on ad stob.
+			 */
 			c2_stob_iovec_sort_ascend(back);
 			result = c2_stob_io_launch(back, adom->ad_bstore,
 						   io->si_tx, io->si_scope);
