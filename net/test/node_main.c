@@ -40,9 +40,6 @@
 
    <hr>
    @section net-test-ovw Overview
-   <i>All specifications must start with an Overview section that
-   briefly describes the document and provides any additional
-   instructions or hints on how to best read the specification.</i>
 
    Colibri network benchmark is designed to test network subsystem of Colibri
    and network connections between nodes that are running Colibri.
@@ -68,12 +65,6 @@
 
    <hr>
    @section net-test-def Definitions
-   <i>Mandatory.
-   The DLD shall provide definitions of the terms and concepts
-   introduced by the design, as well as the relevant terms used by the
-   specification but described elsewhere.  References to the
-   C2 Glossary are permitted and encouraged.  Agreed upon terminology
-   should be incorporated in the glossary.</i>
 
    Previously defined terms:
    @see @ref net-test-hld "Colibri Network Benchmark HLD"
@@ -84,8 +75,6 @@
 
    <hr>
    @section net-test-req Requirements
-   <i>Mandatory.
-   The DLD shall state the requirements that it attempts to meet.</i>
 
    - @b R.c2.net.self-test.statistics statistics from the all nodes
      can be collected on the test console.
@@ -105,17 +94,11 @@
 
    <hr>
    @section net-test-depends Dependencies
-   <i>Mandatory. Identify other components on which this specification
-   depends.</i>
 
    - R.c2.net
 
    <hr>
    @section net-test-highlights Design Highlights
-   <i>Mandatory. This section briefly summarizes the key design
-   decisions that are important for understanding the functional and
-   logical specifications, and enumerates topics that need special
-   attention.</i>
 
    - c2_net is used as network library.
    - To make latency measurement error as little as possible all
@@ -124,13 +107,6 @@
 
    <hr>
    @section net-test-lspec Logical Specification
-   <i>Mandatory.  This section describes the internal design of the component,
-   explaining how the functional specification is met.  Sub-components and
-   diagrams of their interaction should go into this section.  The section has
-   mandatory subsections created using the Doxygen @@subsection command.  The
-   designer should feel free to use additional sub-sectioning if needed, though
-   if there is significant additional sub-sectioning, provide a table of
-   contents here.</i>
 
    - @ref net-test-lspec-comps
      - @ref net-test-lspec-ping
@@ -144,10 +120,6 @@
    - @ref net-test-lspec-numa
 
    @subsection net-test-lspec-comps Component Overview
-   <i>Mandatory.
-   This section describes the internal logical decomposition.
-   A diagram of the interaction between internal components and
-   between external consumers and the internal components is useful.</i>
 
    @dot
    digraph {
@@ -392,9 +364,6 @@ finished.up();\l", shape=box];
    c2_net_test_network_ep_add().
 
    @subsection net-test-lspec-state State Specification
-   <i>Mandatory.
-   This section describes any formal state models used by the component,
-   whether externally exposed or purely internal.</i>
 
    @dot
    digraph {
@@ -421,11 +390,6 @@ receive FINISHED command from console (for server)"];
    @enddot
 
    @subsection net-test-lspec-thread Threading and Concurrency Model
-   <i>Mandatory.
-   This section describes the threading and concurrency model.
-   It describes the various asynchronous threads of operation, identifies
-   the critical sections and synchronization primitives used
-   (such as semaphores, locks, mutexes and condition variables).</i>
 
    - Configuration is not protected by any synchronization mechanism.
      Configuration is not intended to change after initialization,
@@ -434,9 +398,6 @@ receive FINISHED command from console (for server)"];
    - struct c2_net_test_ctx is not protected by any synchronization mechanism.
 
    @subsection net-test-lspec-numa NUMA optimizations
-   <i>Mandatory for components with programmatic interfaces.
-   This section describes if optimal behavior can be supported by
-   associating the utilizing thread to a single processor.</i>
 
    - Configuration is not intended to change after initial initialization,
      so cache coherence overhead will not exists.
@@ -447,9 +408,6 @@ receive FINISHED command from console (for server)"];
 
    <hr>
    @section net-test-conformance Conformance
-   <i>Mandatory.
-   This section cites each requirement in the @ref net-test-req section,
-   and explains briefly how the DLD meets the requirement.</i>
 
    - @b I.c2.net.self-test.statistics user-space LNet implementation is used
      to collect statistics from all nodes.
@@ -469,8 +427,6 @@ receive FINISHED command from console (for server)"];
 
    <hr>
    @section net-test-ut Unit Tests
-   <i>Mandatory. This section describes the unit tests that will be designed.
-   </i>
 
    @test Ping message send/recv over loopback device.
    @test Concurrent ping messages send/recv over loopback device.
@@ -483,8 +439,6 @@ receive FINISHED command from console (for server)"];
 
    <hr>
    @section net-test-st System Tests
-   <i>Mandatory.
-   This section describes the system testing done, if applicable.</i>
 
    @test Script for network benchmark ping/bulk self-testing over loopback
 	 device on single node.
@@ -492,9 +446,6 @@ receive FINISHED command from console (for server)"];
 
    <hr>
    @section net-test-O Analysis
-   <i>This section estimates the performance of the component, in terms of
-   resource (memory, processor, locks, messages, etc.) consumption,
-   ideally described in big-O notation.</i>
 
    - all c2_net_test_stats_* functions have O(1) complexity;
    - one mutex lock/unlock per statistics update in test client/server/console;
@@ -504,9 +455,6 @@ receive FINISHED command from console (for server)"];
 
    <hr>
    @section net-test-ref References
-   <i>Mandatory. Provide references to other documents and components that
-   are cited or used in the design.
-   In particular a link to the HLD for the DLD should be provided.</i>
 
    @anchor net-test-hld
    - <a href="https://docs.google.com/a/xyratex.com/document/

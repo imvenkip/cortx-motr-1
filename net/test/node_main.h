@@ -23,10 +23,6 @@
 
 /**
    @page net-test-fspec Functional Specification
-   <i>Mandatory. This page describes the external interfaces of the
-   component. The section has mandatory sub-divisions created using the Doxygen
-   @@section command.  It is required that there be Table of Contents at the
-   top of the page that illustrates the sectioning of the page.</i>
 
    - @ref net-test-fspec-ds
    - @ref net-test-fspec-sub
@@ -50,19 +46,11 @@
      - @subpage NetTestCommandsInternals "Commands"
 
    @section net-test-fspec-ds Data Structures
-   <i>Mandatory for programmatic interfaces.  Components with programming
-   interfaces should provide an enumeration and <i>brief</i> description of the
-   major externally visible data structures defined by this component.  No
-   details of the data structure are required here, just the salient
-   points.</i>
 
    - c2_net_test_stats
    - c2_net_test_ctx
 
    @section net-test-fspec-sub Subroutines
-   <i>Mandatory for programmatic interfaces.  Components with programming
-   interfaces should provide an enumeration and brief description of the
-   externally visible programming interfaces.</i>
 
    @subsection net-test-fspec-sub-cons Constructors and Destructors
 
@@ -112,10 +100,6 @@
    - c2_net_test_commands_wait()
 
    @section net-test-fspec-cli Command Usage
-   <i>Mandatory for command line programs.  Components that provide programs
-   would provide a specification of the command line invocation arguments.  In
-   addition, the format of any any structured file consumed or produced by the
-   interface must be described in this section.</i>
 
    @subsection net-test-fspec-cli-node \
 	   Kernel module options for the test client/server kernel module.
@@ -161,10 +145,6 @@
    - @b --live Live report update time, seconds.
 
    @section net-test-fspec-usecases Recipes
-   <i>This section could briefly explain what sequence of interface calls or
-   what program invocation flags are required to solve specific usage
-   scenarios.  It would be very nice if these examples can be linked
-   back to the HLD for the component.</i>
 
    @subsection net-test-fspec-usecases-kernel Kernel module parameters example
 
