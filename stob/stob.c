@@ -315,6 +315,49 @@ int c2_stob_create_helper(struct c2_stob_domain    *dom,
 	return rc;
 }
 
+void c2_stob_iovec_sort_ascend(struct c2_stob_io *stob)
+{
+	struct c2_indexvec *ivec = &stob->si_stob;
+	struct c2_bufvec   *bvec = &stob->si_user;
+	int		    i;
+	bool		    exchanged;
+
+	/*
+	 * Bubble stort the index vectores.
+	 * It also move bufvecs while sorting.
+	 */
+	do {
+		exchanged = false;
+		for(i = 0; i < ivec->iv_vec.v_nr-1; i++) {
+			if(ivec->iv_index[i] > ivec->iv_index[i+1]) {
+				c2_bindex_t  tmpindex;
+				c2_bcount_t  tmpcount;
+				void        *tmpbuf;
+
+				tmpindex            = ivec->iv_index[i];
+				ivec->iv_index[i]   = ivec->iv_index[i+1];
+				ivec->iv_index[i+1] = tmpindex;
+
+				tmpcount = ivec->iv_vec.v_count[i];
+				ivec->iv_vec.v_count[i] =
+				ivec->iv_vec.v_count[i+1];
+				ivec->iv_vec.v_count[i+1] = tmpcount;
+
+				tmpbuf            = bvec->ov_buf[i];
+				bvec->ov_buf[i]   = bvec->ov_buf[i+1];
+				bvec->ov_buf[i+1] = tmpbuf;
+
+				tmpcount = bvec->ov_vec.v_count[i];
+				bvec->ov_vec.v_count[i] =
+				bvec->ov_vec.v_count[i+1];
+				bvec->ov_vec.v_count[i+1] = tmpcount;
+
+				exchanged = true;
+			}
+		}
+	} while (exchanged);
+}
+
 /** @} end group stob */
 
 /*

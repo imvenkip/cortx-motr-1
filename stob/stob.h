@@ -771,6 +771,13 @@ void *c2_stob_addr_pack(const void *buf, uint32_t shift);
  */
 void *c2_stob_addr_open(const void *buf, uint32_t shift);
 
+/**
+ * Sorts index vecs from stob. It also move buffer vecs while sorting.
+ *
+ * @param stob storage object from which index vecs needs to sort.
+ */
+void c2_stob_iovec_sort_ascend(struct c2_stob_io *stob);
+
 /** @} end member group adieu */
 
 /** @} end group stob */
