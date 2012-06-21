@@ -16,7 +16,7 @@
  * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
  * Original creation date: 10/19/2010
  * Revision       : Anup Barve <Anup_Barve@xyratex.com>
- * Revision date  : 06/14/2011
+ * Revision date  : 06/14/2012
  */
 
 #ifndef __COLIBRI_SNS_PARITY_MATH_H__

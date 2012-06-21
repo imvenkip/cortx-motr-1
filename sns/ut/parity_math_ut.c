@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,27 +15,18 @@
  *
  * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
  * Original creation date: 10/19/2010
+ * Revision       : Anup Barve <Anup_Barve@xyratex.com>
+ * Revision date  : 06/21/2012
  */
 
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <time.h>
-
 #include "lib/types.h"
 #include "lib/adt.h"
 #include "lib/assert.h"
 
 #include "lib/ub.h"
 #include "lib/ut.h"
-
-#include "matvec.h"
-#include "ls_solve.h"
-#include "parity_math.h"
-
-enum {
-	UB_ITER = 1
-};
+#include "sns/parity_math.h"
 
 #define DATA_UNIT_COUNT_MAX 30
 #define PRTY_UNIT_COUNT_MAX 12
@@ -52,11 +43,17 @@ static int32_t fuc = PRTY_UNIT_COUNT_MAX;
 static uint32_t UNIT_BUFF_SIZE = 256;
 static int32_t fail_index_xor;
 
-extern void unit_spoil(uint32_t buff_size,
-		       uint32_t fail_count,
-		       uint32_t data_count)
+enum recovery_type {
+	FAIL_VECTOR,
+	FAIL_INDEX,
+};
+
+static void unit_spoil(const uint32_t buff_size,
+		       const uint32_t fail_count,
+		       const uint32_t data_count)
 {
-	uint32_t i = 0;
+	uint32_t i;
+
 	for (i = 0; i < fail_count; ++i)
 		if (fail[i]) {
 			if (i < data_count)
@@ -66,17 +63,15 @@ extern void unit_spoil(uint32_t buff_size,
 		}
 }
 
-extern bool expected_cmp(uint32_t data_count, uint32_t buff_size)
+static bool expected_cmp(const uint32_t data_count, const uint32_t buff_size)
 {
-	int i = 0;
-	int j = 0;
+	int i;
+	int j;
 
 	for (i = 0; i < data_count; ++i)
 		for (j = 0; j < buff_size; ++j)
-			if (expected[i][j] != data[i][j]) {
-				/* printf("expected_cmp data[%d][%d]\n", i, j); */
+			if (expected[i][j] != data[i][j])
 				return false;
-			}
 
 	return true;
 }
@@ -84,10 +79,10 @@ extern bool expected_cmp(uint32_t data_count, uint32_t buff_size)
 static bool config_generate(uint32_t *data_count,
 			    uint32_t *parity_count,
 			    uint32_t *buff_size,
-			    enum c2_parity_cal_algo algo)
+			    const enum c2_parity_cal_algo algo)
 {
-	int32_t i = 0;
-	int32_t j = 0;
+	int32_t i;
+	int32_t j;
 	int32_t puc_max = PRTY_UNIT_COUNT_MAX;
 
 	if (algo == C2_PARITY_CAL_ALGO_XOR) {
@@ -112,7 +107,6 @@ static bool config_generate(uint32_t *data_count,
 	}
 	memset(fail, 0, DATA_UNIT_COUNT_MAX + puc_max);
 
-	/* printf("duc,puc,fuc: %d,%d,%d\n", duc,puc,fuc); */
 	for (i = 0; i < duc; ++i) {
 		for (j = 0; j < UNIT_BUFF_SIZE; ++j) {
 			data[i][j] = (uint8_t) rand();
@@ -120,7 +114,6 @@ static bool config_generate(uint32_t *data_count,
 		}
 	}
 
-	/* printf("f: "); */
 	j = 0;
 	for (i = 0; i < fuc; ++i)
 		fail[i] = 0;
@@ -128,7 +121,6 @@ static bool config_generate(uint32_t *data_count,
 	if (algo == C2_PARITY_CAL_ALGO_XOR) {
 		fail_index_xor = (uint8_t) rand() % duc;
 		fail[fail_index_xor] = 1;
-		printf("fail index = %d\n",fail_index_xor);
 	} else if (algo == C2_PARITY_CAL_ALGO_REED_SOLOMON) {
 		for (i = 0; i < fuc; ++i) {
 			if (j >= puc)
@@ -143,13 +135,6 @@ static bool config_generate(uint32_t *data_count,
 			fail[fuc/2] = 1;
 		}
 	}
-	printf("start: fail vec\n");
-	for (i = 0; i < fuc; ++i)
-		printf("%d ", fail[i]);
-
-	printf("end: fail vec\n");
-	/* printf("\n"); */
-
 
 	*data_count = duc;
 	*parity_count = puc;
@@ -161,37 +146,27 @@ static bool config_generate(uint32_t *data_count,
 	return true;
 }
 
-static void ut_ub_init(void)
+static void test_recovery(const enum c2_parity_cal_algo algo,
+			  const enum recovery_type rt)
 {
-	srand(1285360231);
-}
-
-static void test_parity_math(const enum c2_parity_cal_algo algo)
-{
-	int ret = 0;
-	uint32_t i = 0;
+	uint32_t              i;
+	uint32_t              data_count;
+	uint32_t              parity_count;
+	uint32_t              buff_size;
+	uint32_t              fail_count;
+	struct c2_buf         data_buf[DATA_UNIT_COUNT_MAX];
+	struct c2_buf         parity_buf[DATA_UNIT_COUNT_MAX];
+	struct c2_buf         fail_buf;
 	struct c2_parity_math math;
-	uint32_t data_count = 0;
-	uint32_t parity_count = 0;
-	uint32_t buff_size = 0;
-	uint32_t fail_count = 0;
-	struct c2_buf data_buf[DATA_UNIT_COUNT_MAX];
-	struct c2_buf parity_buf[DATA_UNIT_COUNT_MAX];
-	struct c2_buf fail_buf;
-
-	ut_ub_init();
 
 	while (config_generate(&data_count, &parity_count, &buff_size, algo)) {
 		fail_count = data_count + parity_count;
 
-		printf("0) d:%d, p:%d, b: %d\n", data_count, parity_count,
-				buff_size);
-		ret = c2_parity_math_init(&math, data_count, parity_count);
-		C2_UT_ASSERT(ret == 0);
-		/* printf("1) %d\n", ret); */
+		C2_UT_ASSERT(c2_parity_math_init(&math, data_count,
+					         parity_count) == 0);
 
 		for (i = 0; i < data_count; ++i) {
-			c2_buf_init(&data_buf  [i], data  [i], buff_size);
+			c2_buf_init(&data_buf[i], data[i], buff_size);
 			c2_buf_init(&parity_buf[i], parity[i], buff_size);
 		}
 
@@ -200,13 +175,12 @@ static void test_parity_math(const enum c2_parity_cal_algo algo)
 		c2_parity_math_calculate(&math, data_buf, parity_buf);
 
 		unit_spoil(buff_size, fail_count, data_count);
-		printf("fail_count = %d\n",fail_count);
 
-		if (algo == C2_PARITY_CAL_ALGO_XOR)
+		if (rt == FAIL_INDEX)
 			c2_parity_math_fail_index_recover(&math, data_buf,
-					                  parity_buf,
+							  parity_buf,
 							  fail_index_xor);
-		else if (algo == C2_PARITY_CAL_ALGO_REED_SOLOMON)
+		else if (rt == FAIL_VECTOR)
 			c2_parity_math_recover(&math, data_buf, parity_buf,
 					       &fail_buf);
 
@@ -217,30 +191,36 @@ static void test_parity_math(const enum c2_parity_cal_algo algo)
 	}
 }
 
-static void test_parity_math_reed_solomon(void)
+static void test_rs_fv_recover(void)
 {
-	test_parity_math(C2_PARITY_CAL_ALGO_REED_SOLOMON);
+	test_recovery(C2_PARITY_CAL_ALGO_REED_SOLOMON, FAIL_VECTOR);
 }
 
-static void test_parity_math_xor(void)
+static void test_xor_fv_recover(void)
 {
 	duc = DATA_UNIT_COUNT_MAX;
-	test_parity_math(C2_PARITY_CAL_ALGO_XOR);
+	test_recovery(C2_PARITY_CAL_ALGO_XOR, FAIL_VECTOR);
+}
+
+static void test_xor_fail_idx_recover(void)
+{
+	duc = DATA_UNIT_COUNT_MAX;
+	test_recovery(C2_PARITY_CAL_ALGO_XOR, FAIL_INDEX);
 }
 
 static void test_buffer_xor(void)
 {
 
-        uint32_t data_count = 0;
-        uint32_t parity_count = 0;
-        uint32_t buff_size = 0;
+        uint32_t      data_count;
+        uint32_t      parity_count;
+        uint32_t      buff_size;
         struct c2_buf data_buf[DATA_UNIT_COUNT_MAX];
         struct c2_buf parity_buf[DATA_UNIT_COUNT_MAX];
 
 	duc = 2;
-	config_generate(&data_count, &parity_count, &buff_size, C2_PARITY_CAL_ALGO_XOR);
+	config_generate(&data_count, &parity_count, &buff_size,
+			C2_PARITY_CAL_ALGO_XOR);
 
-	printf("0) d:%d, p:%d, b: %d\n", data_count, parity_count, buff_size);
 	c2_buf_init(&data_buf[0], data[0], buff_size);
 	c2_buf_init(&parity_buf[0], parity[0], buff_size);
 	c2_parity_math_buffer_xor(parity_buf, data_buf);
@@ -255,12 +235,22 @@ const struct c2_test_suite parity_math_ut = {
         .ts_init = NULL,
         .ts_fini = NULL,
         .ts_tests = {
-                { "parity_math_reed_solomon", test_parity_math_reed_solomon },
-                { "parity_math_xor", test_parity_math_xor },
+                { "reed_solomon_recover_with_fail_vec", test_rs_fv_recover },
+                { "xor_recover_with_fail_vec", test_xor_fv_recover },
+                { "xor_recover_with_fail_index", test_xor_fail_idx_recover },
                 { "buffer_xor", test_buffer_xor },
                 { NULL, NULL }
         }
 };
+
+enum {
+	UB_ITER = 1
+};
+
+static void ut_ub_init(void)
+{
+	srand(1285360231);
+}
 
 void parity_math_tb(void)
 {
@@ -280,13 +270,8 @@ void parity_math_tb(void)
 	{
 		fail_count = data_count + parity_count;
 
-		/*
-		 * printf("0) d:%d, p:%d, b: %d\n", data_count, parity_count,
-		 * buff_size);
-		 */
 		ret = c2_parity_math_init(&math, data_count, parity_count);
 		C2_ASSERT(ret == 0);
-		/* printf("1) %d\n", ret); */
 
 		for (i = 0; i < data_count; ++i) {
 			c2_buf_init(&data_buf  [i], data  [i], buff_size);
@@ -431,7 +416,6 @@ struct c2_ub_set c2_parity_math_ub = {
 		{ .ut_name = NULL}
 	}
 };
-
 
 /*
  *  Local variables:
