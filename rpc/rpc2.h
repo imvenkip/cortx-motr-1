@@ -447,7 +447,7 @@ struct c2_rpc_machine {
 	 */
 	struct c2_list			  rm_ready_slots;
 	/** ADDB context for this rpc_machine */
-	struct c2_addb_ctx		  rm_rpc_machine_addb;
+	struct c2_addb_ctx		  rm_addb;
 	/** Statistics for both incoming and outgoing paths */
 	struct c2_rpc_stats		  rm_rpc_stats[C2_RPC_PATH_NR];
 	/**
@@ -512,6 +512,11 @@ struct c2_rpc_machine {
 	uint32_t			  rm_tm_colour;
 
 };
+
+/** @todo Add these declarations to some internal header */
+extern const struct c2_addb_ctx_type c2_rpc_addb_ctx_type;
+extern const struct c2_addb_loc      c2_rpc_addb_loc;
+extern       struct c2_addb_ctx      c2_rpc_addb_ctx;
 
 /**
    Construct rpc core layer

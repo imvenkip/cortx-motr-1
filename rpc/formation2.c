@@ -19,11 +19,12 @@
  * Original creation date: 04/28/2011
  */
 
-#include "rpc/rpc2.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_FORMATION
 #include "lib/trace.h"
 #include "lib/misc.h"    /* C2_SET0 */
 #include "lib/memory.h"
+#include "addb/addb.h"
+#include "rpc/rpc2.h"
 #include "rpc/formation2.h"
 #include "rpc/packet.h"
 
@@ -65,6 +66,14 @@ static const char *str_qtype[] = {
 
 C2_BASSERT(ARRAY_SIZE(str_qtype) == FRMQ_NR_QUEUES);
 
+static const struct c2_addb_ctx_type frm_addb_ctx_type = {
+        .act_name = "rpc-formation-ctx"
+};
+
+static const struct c2_addb_loc frm_addb_loc = {
+        .al_name = "rpc-formation-loc"
+};
+
 static const char *bool_to_str(bool b)
 {
 	return b ? "true" : "false";
@@ -76,7 +85,7 @@ static const char *bool_to_str(bool b)
 #define for_each_itemq_in_frm(itemq, frm)  \
 for (itemq = frm_first_itemq(frm); \
      itemq <= frm_last_itemq(frm); \
-     itemq++)
+     ++itemq)
 
 enum {
 	ITEMQ_HEAD_MAGIC = 0x4954454d514844, /* ITEMQHD */
@@ -209,6 +218,8 @@ void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
 		itemq_tlist_init(q);
 	}
 
+	c2_addb_ctx_init(&frm->f_addb_ctx, &frm_addb_ctx_type,
+			 &c2_addb_global_ctx);
 	frm->f_state = FRM_IDLE;
 
 	C2_POST(frm_invariant(frm) && frm->f_state == FRM_IDLE);
@@ -220,13 +231,14 @@ void c2_rpc_frm_fini(struct c2_rpc_frm *frm)
 	struct c2_tl *q;
 
 	C2_ENTRY("frm: %p", frm);
-	C2_ASSERT(frm_invariant(frm));
+	C2_PRE(frm_invariant(frm));
 	C2_LOG("frm state: %d", frm->f_state);
 	C2_PRE(frm->f_state == FRM_IDLE);
 
 	for_each_itemq_in_frm(q, frm) {
 		itemq_tlist_fini(q);
 	}
+	c2_addb_ctx_fini(&frm->f_addb_ctx);
 
 	frm->f_state = FRM_UNINITIALISED;
 	frm->f_magic = 0;
@@ -377,7 +389,7 @@ static void frm_balance(struct c2_rpc_frm *frm)
 
 	frm_filter_timedout_items(frm);
 	while (frm_is_ready(frm)) {
-		C2_ALLOC_PTR(p);
+		C2_ALLOC_PTR_ADDB(p, &frm->f_addb_ctx, &frm_addb_loc);
 		if (p == NULL) {
 			C2_LOG("Error: packet allocation failed");
 			break;

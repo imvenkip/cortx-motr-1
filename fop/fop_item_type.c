@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -21,12 +21,6 @@
 #include "lib/errno.h"
 #include "rpc/rpc_onwire.h"
 #include "xcode/bufvec_xcode.h"
-
-
-struct c2_rpc_item;
-struct c2_fop;
-struct c2_rpc_item_type;
-struct c2_bufvec_cur;
 
 c2_bcount_t c2_fop_item_type_default_onwire_size(const struct c2_rpc_item *item)
 {

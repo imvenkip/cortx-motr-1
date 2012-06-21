@@ -69,6 +69,7 @@
 
 #include "lib/types.h"
 #include "lib/tlist.h"
+#include "addb/addb.h"
 
 /* Imports */
 struct c2_rpc_packet;
@@ -238,6 +239,8 @@ struct c2_rpc_frm {
 	struct c2_rpc_machine         *f_rmachine;
 	struct c2_rpc_chan            *f_rchan;
 	struct c2_rpc_frm_ops         *f_ops;
+
+	struct c2_addb_ctx             f_addb_ctx;
 
 	/** FRM_MAGIC */
 	uint64_t                       f_magic;

@@ -66,6 +66,16 @@ C2_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", , struct c2_rpc_item, ri_field,
 
 C2_TL_DEFINE(rpcitem, , struct c2_rpc_item);
 
+const struct c2_addb_ctx_type c2_rpc_addb_ctx_type = {
+	.act_name = "rpc"
+};
+
+const struct c2_addb_loc c2_rpc_addb_loc = {
+	.al_name = "rpc"
+};
+
+struct c2_addb_ctx c2_rpc_addb_ctx;
+
 /* ADDB Instrumentation for rpccore. */
 static const struct c2_addb_ctx_type rpc_machine_addb_ctx_type = {
 	        .act_name = "rpc-machine"
@@ -98,6 +108,18 @@ const struct c2_net_buffer_callbacks c2_rpc_send_buf_callbacks = {
 
 static void rpc_tm_event_cb(const struct c2_net_tm_event *ev)
 {
+}
+
+int c2_rpc_module_init(void)
+{
+	c2_addb_ctx_init(&c2_rpc_addb_ctx, &c2_rpc_addb_ctx_type,
+			 &c2_addb_global_ctx);
+	return 0;
+}
+
+void c2_rpc_module_fini(void)
+{
+	c2_addb_ctx_fini(&c2_rpc_addb_ctx);
 }
 
 /**
@@ -367,8 +389,7 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 
-	C2_ALLOC_PTR_ADDB(ch, &machine->rm_rpc_machine_addb,
-			       &rpc_machine_addb_loc);
+	C2_ALLOC_PTR_ADDB(ch, &machine->rm_addb, &rpc_machine_addb_loc);
 	if (ch == NULL) {
 		*chan = NULL;
 		return -ENOMEM;
@@ -543,9 +564,8 @@ static void rpc_tm_cleanup(struct c2_rpc_machine *machine)
 	if (rc < 0) {
 		c2_clink_del(&tmwait);
 		c2_clink_fini(&tmwait);
-		C2_ADDB_ADD(&machine->rm_rpc_machine_addb,
-			    &rpc_machine_addb_loc, rpc_machine_func_fail,
-			    "c2_net_tm_stop", 0);
+		C2_ADDB_ADD(&machine->rm_addb, &rpc_machine_addb_loc,
+			    rpc_machine_func_fail, "c2_net_tm_stop", 0);
 		return;
 	}
 	/* Wait for transfer machine to stop. */
@@ -604,7 +624,7 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 
 	if (ev->nbe_status != 0) {
 		if (ev->nbe_status != -ECANCELED)
-			C2_ADDB_ADD(&machine->rm_rpc_machine_addb,
+			C2_ADDB_ADD(&machine->rm_addb,
 				    &rpc_machine_addb_loc,
 				    rpc_machine_func_fail,
 				    "Buffer event reported failure",
@@ -756,7 +776,7 @@ static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 
 	c2_mutex_fini(&machine->rm_mutex);
 
-	c2_addb_ctx_fini(&machine->rm_rpc_machine_addb);
+	c2_addb_ctx_fini(&machine->rm_addb);
 }
 
 int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
@@ -801,8 +821,8 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 
 	c2_mutex_init(&machine->rm_mutex);
 
-	c2_addb_ctx_init(&machine->rm_rpc_machine_addb,
-			&rpc_machine_addb_ctx_type, &c2_addb_global_ctx);
+	c2_addb_ctx_init(&machine->rm_addb, &rpc_machine_addb_ctx_type,
+			 &c2_addb_global_ctx);
 
 	machine->rm_stopping = false;
 	rc = C2_THREAD_INIT(&machine->rm_frm_worker, struct c2_rpc_machine *,
@@ -1340,7 +1360,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 		if (!(nb->nb_flags & C2_NET_BUF_REGISTERED)) {
 			rc = c2_net_buffer_register(nb, netdom);
 			if (rc != 0) {
-				C2_ADDB_ADD(&rpcmach->rm_rpc_machine_addb,
+				C2_ADDB_ADD(&rpcmach->rm_addb,
 					    &rpc_machine_addb_loc,
 					    rpc_machine_func_fail,
 					    "Net buf registration failed.", rc);
@@ -1352,7 +1372,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 		if (op == C2_RPC_BULK_LOAD) {
 			rc = c2_net_desc_copy(&descs[cnt], &nb->nb_desc);
 			if (rc != 0) {
-				C2_ADDB_ADD(&rpcmach->rm_rpc_machine_addb,
+				C2_ADDB_ADD(&rpcmach->rm_addb,
 					    &rpc_machine_addb_loc,
 					    rpc_machine_func_fail,
 					    "Load: Net buf desc copy failed.",
@@ -1367,7 +1387,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 		nb->nb_app_private = rbuf;
 		rc = c2_net_buffer_add(nb, tm);
 		if (rc != 0) {
-			C2_ADDB_ADD(&rpcmach->rm_rpc_machine_addb,
+			C2_ADDB_ADD(&rpcmach->rm_addb,
 				    &rpc_machine_addb_loc,
 				    rpc_machine_func_fail,
 				    "Buffer addition to TM failed.", rc);
@@ -1379,7 +1399,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 		if (op == C2_RPC_BULK_STORE) {
 			rc = c2_net_desc_copy(&nb->nb_desc, &descs[cnt]);
                         if (rc != 0) {
-                                C2_ADDB_ADD(&rpcmach->rm_rpc_machine_addb,
+                                C2_ADDB_ADD(&rpcmach->rm_addb,
                                             &rpc_machine_addb_loc,
                                             rpc_machine_func_fail,
                                             "Store: Net buf desc copy failed.",

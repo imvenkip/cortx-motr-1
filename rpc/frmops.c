@@ -105,7 +105,7 @@ static bool packet_ready(struct c2_rpc_packet  *p,
 	C2_ENTRY("packet: %p", p);
 	C2_PRE(c2_rpc_packet_invariant(p));
 
-	C2_ALLOC_PTR(rpcbuf);
+	C2_ALLOC_PTR_ADDB(rpcbuf, &c2_rpc_addb_ctx, &c2_rpc_addb_loc);
 	if (rpcbuf == NULL) {
 		rc = -ENOMEM;
 		C2_LOG("Failed to allocate rpcbuf");
@@ -209,6 +209,9 @@ static int net_buffer_allocate(struct c2_net_buffer *netbuf,
 	rc = c2_bufvec_alloc_aligned(&netbuf->nb_buffer, nr_segments,
 				     segment_size, C2_SEG_SHIFT);
 	if (rc != 0) {
+		if (rc == -ENOMEM)
+			C2_ADDB_ADD(&c2_rpc_addb_ctx, &c2_rpc_addb_loc,
+				    c2_addb_oom);
 		C2_LOG("buffer allocation failed");
 		goto out;
 	}
