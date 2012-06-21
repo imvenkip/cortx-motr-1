@@ -130,8 +130,16 @@ static c2_bcount_t twoway_item_size(const struct c2_rpc_item *item)
 	return 10;
 }
 
+bool twoway_item_try_merge(struct c2_rpc_item *container,
+			   struct c2_rpc_item *component,
+			   c2_bcount_t         limit)
+{
+	return false;
+}
+
 static struct c2_rpc_item_type_ops twoway_item_type_ops = {
-	.rito_item_size = twoway_item_size
+	.rito_item_size = twoway_item_size,
+	.rito_try_merge = twoway_item_try_merge,
 };
 
 static struct c2_rpc_item_type twoway_item_type = {
@@ -494,7 +502,7 @@ static void frm_test7(void)
 	/* Only 1 item should be included per packet */
 	saved_max_packet_size = frm.f_constraints.fc_max_packet_size;
 	frm.f_constraints.fc_max_packet_size = c2_rpc_item_size(item1) +
-			C2_RPC_PACKET_OW_HEADER_SIZE;
+		C2_RPC_PACKET_OW_HEADER_SIZE + c2_rpc_item_size(item1) / 2;
 
 	saved_max_nr_packets_enqed = frm.f_constraints.fc_max_nr_packets_enqed;
 	frm.f_constraints.fc_max_nr_packets_enqed = 0; /* disable formation */
@@ -533,6 +541,82 @@ static void frm_test7(void)
 	c2_free(item1);
 	c2_free(item2);
 
+	frm.f_constraints.fc_max_packet_size = saved_max_packet_size;
+
+	C2_LEAVE();
+}
+
+static void frm_test8(void)
+{
+	/* Add items with random priority and random deadline */
+	enum { N = 100 };
+	enum c2_rpc_item_priority  prio;
+	struct c2_rpc_packet      *p;
+	struct c2_rpc_item        *items[N];
+	c2_bcount_t                saved_max_nr_bytes_acc;
+	uint64_t                   seed_deadline;
+	uint64_t                   seed_prio;
+	uint64_t                   seed_kind;
+	uint64_t                   seed_timeout;
+	uint64_t                   _timeout;
+	int                        saved_max_nr_packets_enqed;
+	int                        i;
+	int                        deadline;
+	int                        kind;
+	int                        unbound_cnt;
+
+	saved_max_nr_packets_enqed = frm.f_constraints.fc_max_nr_packets_enqed;
+	frm.f_constraints.fc_max_nr_packets_enqed = 0; /* disable formation */
+
+	/* start with some random seed */
+	seed_deadline = 13;
+	seed_kind     = 17;
+	seed_prio     = 57;
+
+	unbound_cnt = 0;
+	reset_flags();
+	for (i = 0; i < N; ++i) {
+		deadline = c2_rnd(3, &seed_deadline) + 1;
+		kind     = c2_rnd(3, &seed_kind) + 1;
+		prio     = c2_rnd(C2_RPC_ITEM_PRIO_NR, &seed_prio);
+		_timeout = c2_rnd(1000, &seed_timeout);
+
+		set_timeout(_timeout);
+		if (kind == UNBOUND)
+			++unbound_cnt;
+
+		items[i] = new_item(deadline, kind);
+		items[i]->ri_prio = prio;
+
+		c2_rpc_frm_enq_item(&frm, items[i]);
+		C2_UT_ASSERT(!packet_ready_called);
+		check_frm(FRM_BUSY, i + 1, 0);
+	}
+	frm.f_constraints.fc_max_nr_packets_enqed = ~0; /* enable formation */
+	saved_max_nr_bytes_acc = frm.f_constraints.fc_max_nr_bytes_accumulated;
+	/* Make frm to form all items */
+	frm.f_constraints.fc_max_nr_bytes_accumulated = 0;
+	c2_rpc_frm_run_formation(&frm);
+	C2_UT_ASSERT(packet_ready_called);
+	if (unbound_cnt > 0)
+		C2_UT_ASSERT(item_bind_called &&
+			     unbound_cnt == item_bind_count);
+	else
+		C2_UT_ASSERT(!item_bind_called);
+	check_frm(FRM_BUSY, 0, top);
+
+	while (!packet_stack_is_empty()) {
+		p = packet_pop();
+		c2_rpc_frm_packet_done(p);
+		discard_packet(p);
+	}
+	check_frm(FRM_IDLE, 0, 0);
+	for (i = 0; i < N; i++)
+		c2_free(items[i]);
+
+	frm.f_constraints.fc_max_nr_packets_enqed = saved_max_nr_packets_enqed;
+	frm.f_constraints.fc_max_nr_bytes_accumulated = saved_max_nr_bytes_acc;
+
 	C2_LEAVE();
 }
 
@@ -555,6 +639,7 @@ const struct c2_test_suite frm_ut = {
 		{ "frm-test5",    frm_test5    },
 		{ "frm-test6",    frm_test6    },
 		{ "frm-test7",    frm_test7    },
+		{ "frm-test8",    frm_test8    },
 		{ "frm-fini",     frm_fini_test},
 		{ NULL,           NULL         }
 	}
