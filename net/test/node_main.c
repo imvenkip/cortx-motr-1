@@ -126,7 +126,7 @@
      node [style=box];
      label = "Network Benchmark Source File Relationship";
      nodeU    [label="user_space/node.c"];
-     nodeK    [label="linux_kerner/main.c"];
+     nodeK    [label="linux_kernel/main.c"];
      console  [label="user_space/console.c"];
      server   [label="server.c"];
      client   [label="client.c"];
