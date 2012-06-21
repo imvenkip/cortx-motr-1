@@ -30,9 +30,11 @@
 #endif
 
 #include "lib/cdefs.h"		/* ergo */
+#include "lib/errno.h"		/* E2BIG */
 #include "lib/memory.h"		/* C2_ALLOC_ARR */
 #include "lib/misc.h"		/* C2_SET0 */
-#include "lib/errno.h"		/* E2BIG */
+#include "lib/vec.h"		/* C2_SEG_SHIFT */
+
 #include "net/net.h"
 #include "net/lnet/lnet.h"	/* c2_net_lnet_xprt */
 
@@ -64,13 +66,8 @@ C2_BASSERT(sizeof(unsigned long) == sizeof(c2_bcount_t));
 #endif
 
 enum {
-	C2_NET_TEST_PAGE_SHIFT	      = 12,
 	C2_NET_TEST_STRLEN_NBD_HEADER = 32,
 };
-
-#ifdef __KERNEL__
-C2_BASSERT(C2_NET_TEST_PAGE_SHIFT == PAGE_SHIFT);
-#endif
 
 int c2_net_test_network_init(void)
 {
@@ -225,7 +222,7 @@ static int net_test_buf_init(struct c2_net_buffer *buf,
 		return -E2BIG;
 
 	rc = c2_bufvec_alloc_aligned(&buf->nb_buffer, seg_num, seg_size,
-			C2_NET_TEST_PAGE_SHIFT);
+			C2_SEG_SHIFT);
 	if (rc == 0) {
 		buf->nb_length		 = size;
 		buf->nb_max_receive_msgs = 1;
@@ -241,7 +238,7 @@ static int net_test_buf_init(struct c2_net_buffer *buf,
 		rc = c2_net_buffer_register(buf, dom);
 		if (rc != 0)
 			c2_bufvec_free_aligned(&buf->nb_buffer,
-					C2_NET_TEST_PAGE_SHIFT);
+					C2_SEG_SHIFT);
 	}
 	return rc;
 }
@@ -252,7 +249,7 @@ static void net_test_buf_fini(struct c2_net_buffer *buf,
 	C2_PRE(buf->nb_dom == dom);
 
 	c2_net_buffer_deregister(buf, dom);
-	c2_bufvec_free_aligned(&buf->nb_buffer, C2_NET_TEST_PAGE_SHIFT);
+	c2_bufvec_free_aligned(&buf->nb_buffer, C2_SEG_SHIFT);
 	c2_net_desc_free(&buf->nb_desc);
 }
 
