@@ -40,7 +40,7 @@ int c2_get_bcount(const char *arg, c2_bcount_t *out)
 {
 	char		 *end = NULL;
 	char		 *pos;
-	static const char suffix[] = "bkmgBKMG";
+	static const char suffix[] = "bkmgKMG";
 	int		  result = 0;
 
 	static const uint64_t multiplier[] = {
@@ -48,7 +48,6 @@ int c2_get_bcount(const char *arg, c2_bcount_t *out)
 		1 << 10,
 		1 << 20,
 		1 << 30,
-		500,
 		1000,
 		1000 * 1000,
 		1000 * 1000 * 1000
