@@ -454,7 +454,8 @@ static void multiple_buf_desc_encode_decode(struct c2_net_test_network_ctx *ctx,
 	}
 }
 
-void c2_net_test_network_ut_buf_desc(void) {
+void c2_net_test_network_ut_buf_desc(void)
+{
 	static struct c2_net_test_network_ctx ctx;
 	int i;
 	int rc;
@@ -497,7 +498,8 @@ void c2_net_test_network_ut_buf_desc(void) {
 }
 
 /* @todo remove it. it is for debug purposes only */
-void c2_net_test_network_ut_debug(void) {
+void c2_net_test_network_ut_debug(void)
+{
 	char * const		      *nidstrs;
 	struct c2_net_test_network_ctx ctx;
 	int			       rc;

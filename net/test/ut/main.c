@@ -35,13 +35,14 @@ extern void c2_net_test_cmd_ut_slist(void);
 extern void c2_net_test_cmd_ut_single(void);
 extern void c2_net_test_cmd_ut_multiple(void);
 
-static int net_test_init(void) {
+static int net_test_init(void)
+{
 
 	return c2_net_test_network_init();
 }
 
-static int net_test_fini(void) {
-
+static int net_test_fini(void)
+{
 	c2_net_test_network_fini();
 	return 0;
 }
