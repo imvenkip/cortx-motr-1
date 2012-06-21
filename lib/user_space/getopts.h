@@ -64,11 +64,11 @@ enum c2_getopts_opt_type {
 	 */
 	GOT_NUMBER,
 	/**
-	   An option with a numerical argument, followed by a multiplier suffix.
-	   The argument is expected in the format that c2_get_bcount() can
-	   parse.  When this option is encountered, its call-back
-	   c2_getopts_opt::go_u::got_scaled() is invoked with the parsed
-	   argument as its sole parameter.
+	   An option with a numerical argument, followed by a optional
+	   multiplier suffix.  The argument is expected in the format
+	   that c2_get_bcount() can parse.  When this option is encountered,
+	   its call-back c2_getopts_opt::go_u::got_scaled() is invoked with
+	   the parsed argument as its sole parameter.
 	 */
 	GOT_SCALED,
 	/**
@@ -109,6 +109,7 @@ enum c2_getopts_opt_type {
 
    @see C2_VOIDARG
    @see C2_NUMBERARG
+   @see C2_SCALEDARG
    @see C2_STRINGARG
    @see C2_FORMATARG
    @see C2_FLAGARG
