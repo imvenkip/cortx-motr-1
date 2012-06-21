@@ -190,9 +190,9 @@ static void test_sunrpc_ep(void)
 	sunrpc_ep_put_conn(sconn, conn, 0);
 
 	/* release the EP references */
-	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
-	C2_UT_ASSERT(!c2_net_end_point_put(ep2));
-	C2_UT_ASSERT(!c2_net_end_point_put(ep3));
+	c2_net_end_point_put(ep1);
+	c2_net_end_point_put(ep2);
+	c2_net_end_point_put(ep3);
 
 	/* The conn (but not the EP) is still cached
 	   because the default delay is about 20 sec */
@@ -212,7 +212,7 @@ static void test_sunrpc_ep(void)
 	C2_UT_ASSERT(sunrpc_ep_get_conn(ep4, &conn, &sconn2) == 0);
 	C2_UT_ASSERT(sconn2 == sconn); /* cached: same sconn */
 	sunrpc_ep_put_conn(sconn2, conn, 0);
-	C2_UT_ASSERT(!c2_net_end_point_put(ep4));
+	c2_net_end_point_put(ep4);
 	C2_UT_ASSERT(c2_list_length(&d1tm1.ntm_end_points) == 1);
 	C2_UT_ASSERT(c2_list_contains(&dp->xd_conn_cache,
 				      &sconn2->xc_dp_linkage));
@@ -225,7 +225,7 @@ static void test_sunrpc_ep(void)
 	C2_UT_ASSERT(c2_atomic64_get(&ep5->nep_ref.ref_cnt) == 1);
 	C2_UT_ASSERT(sunrpc_ep_get_conn(ep5, &conn, &sconn) == 0);
 	sunrpc_ep_put_conn(sconn, conn, 1);
-	C2_UT_ASSERT(!c2_net_end_point_put(ep5)); /* not cached */
+	c2_net_end_point_put(ep5); /* not cached */
 	C2_UT_ASSERT(c2_list_is_empty(&dp->xd_conn_cache));
 	C2_UT_ASSERT(c2_list_length(&d1tm1.ntm_end_points) == 1);
 	C2_UT_ASSERT(!c2_list_contains(&d1tm1.ntm_end_points,
@@ -262,7 +262,7 @@ static void test_sunrpc_ep(void)
 	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 1);
 	C2_UT_ASSERT(sunrpc_ep_get_conn(ep1, &conn, &sconn) == 0);
 	sunrpc_ep_put_conn(sconn, conn, 0);
-	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
+	c2_net_end_point_put(ep1);
 	C2_UT_ASSERT(c2_list_length(&d1tm1.ntm_end_points) == 1);
 	dp = sunrpc_dom_to_pvt(&dom1);
 	C2_UT_ASSERT(c2_list_contains(&dp->xd_conn_cache,
@@ -282,7 +282,7 @@ static void test_sunrpc_ep(void)
 	C2_UT_ASSERT(c2_atomic64_get(&ep1->nep_ref.ref_cnt) == 1);
 	C2_UT_ASSERT(sunrpc_ep_get_conn(ep1, &conn, &sconn) == 0);
 	sunrpc_ep_put_conn(sconn, conn, 0);
-	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
+	c2_net_end_point_put(ep1);
 	C2_UT_ASSERT(c2_list_length(&d1tm1.ntm_end_points) == 1); /* !cached */
 
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait);
@@ -320,7 +320,7 @@ static void test_sunrpc_ep(void)
 	C2_UT_ASSERT(sunrpc_ep_get_conn(ep1, &conn, &sconn) == 0);
 	t1 = c2_time_now();
 	sunrpc_ep_put_conn(sconn, conn, 0);
-	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
+	c2_net_end_point_put(ep1);
 	dp = sunrpc_dom_to_pvt(&dom1);
 	C2_UT_ASSERT(c2_list_contains(&dp->xd_conn_cache,
 				      &sconn->xc_dp_linkage));
@@ -398,7 +398,7 @@ static void test_sunrpc_desc(void)
 	C2_UT_ASSERT(sd.sbd_passive_ep.sep_port == htons(C2_NET_SUNRPC_PORT));
 	C2_UT_ASSERT(sd.sbd_passive_ep.sep_id == 1);
 	c2_net_desc_free(&desc1);
-	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
+	c2_net_end_point_put(ep1);
 
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait);
 	C2_UT_ASSERT(!c2_net_tm_stop(&d1tm1, false));
@@ -749,7 +749,7 @@ static void test_sunrpc_failure(void)
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
 	C2_UT_ASSERT(!c2_net_buffer_add(&d1nb1, &d1tm1));
-	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	c2_net_end_point_put(ep);
 	c2_chan_wait(&tmwait1);
 	c2_clink_del(&tmwait1);
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_SEND);
@@ -788,7 +788,7 @@ static void test_sunrpc_failure(void)
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
 	C2_UT_ASSERT(!c2_net_buffer_add(&d1nb1, &d1tm1));
-	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	c2_net_end_point_put(ep);
 	c2_chan_wait(&tmwait1);
 	c2_clink_del(&tmwait1);
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_SEND);
@@ -835,7 +835,7 @@ static void test_sunrpc_failure(void)
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
 	C2_UT_ASSERT(!c2_net_buffer_add(&d1nb1, &d1tm1));
-	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	c2_net_end_point_put(ep);
 	c2_chan_wait(&tmwait1);
 	c2_clink_del(&tmwait1);
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_SEND);
@@ -873,7 +873,7 @@ static void test_sunrpc_failure(void)
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
 	C2_UT_ASSERT(!c2_net_buffer_add(&d2nb1, &d2tm1));
 	C2_UT_ASSERT(d2nb1.nb_desc.nbd_len != 0);
-	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	c2_net_end_point_put(ep);
 
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_ACTIVE_BULK_RECV,
 					  &qs,true));
@@ -925,7 +925,7 @@ static void test_sunrpc_failure(void)
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
 	C2_UT_ASSERT(!c2_net_buffer_add(&d2nb2, &d2tm1));
 	C2_UT_ASSERT(d2nb2.nb_desc.nbd_len != 0);
-	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	c2_net_end_point_put(ep);
 
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_ACTIVE_BULK_SEND,
 					  &qs,true));
@@ -979,7 +979,7 @@ static void test_sunrpc_failure(void)
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
 	C2_UT_ASSERT(!c2_net_buffer_add(&d2nb1, &d2tm1));
 	C2_UT_ASSERT(d2nb1.nb_desc.nbd_len != 0);
-	/* C2_UT_ASSERT(!c2_net_end_point_put(ep)); reuse it on resubmit */
+	/* c2_net_end_point_put(ep); reuse it on resubmit */
 
 	/* copy the desc but don't start the active operation yet */
 	C2_UT_ASSERT(!c2_net_desc_copy(&d2nb1.nb_desc, &d1nb1.nb_desc));
@@ -1001,7 +1001,7 @@ static void test_sunrpc_failure(void)
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
 	C2_UT_ASSERT(!c2_net_buffer_add(&d2nb1, &d2tm1));
 	C2_UT_ASSERT(d2nb1.nb_desc.nbd_len != 0);
-	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	c2_net_end_point_put(ep);
 
 	/* descriptors should have changed */
 	C2_UT_ASSERT(d1nb1.nb_desc.nbd_len != d2nb1.nb_desc.nbd_len ||

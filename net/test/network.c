@@ -407,12 +407,8 @@ void c2_net_test_network_ctx_fini(struct c2_net_test_network_ctx *ctx)
 
 	C2_PRE(c2_net_test_network_ctx_invariant(ctx));
 
-	for (i = 0; i < ctx->ntc_ep_nr; ++i) {
-		rc = c2_net_end_point_put(ctx->ntc_ep[i]);
-		/* @todo question: max: there is too many errors can be
-		   in destructor. how they need to be handled?
-		 */
-	}
+	for (i = 0; i < ctx->ntc_ep_nr; ++i)
+		c2_net_end_point_put(ctx->ntc_ep[i]);
 	net_test_bufs_fini(ctx->ntc_buf_bulk, ctx->ntc_buf_bulk_nr,
 			&ctx->ntc_dom);
 	net_test_bufs_fini(ctx->ntc_buf_ping, ctx->ntc_buf_ping_nr,

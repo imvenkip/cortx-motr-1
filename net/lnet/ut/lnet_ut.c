@@ -1047,7 +1047,7 @@ static bool test_msg_send_loop(struct ut_data          *td,
 
 	C2_UT_ASSERT(c2_atomic64_get(&cb_ep1->nep_ref.ref_cnt) == msg_num);
 	while (msg_num-- > 0)
-		zUT(c2_net_end_point_put(cb_ep1), aborted);
+		c2_net_end_point_put(cb_ep1);
 	cb_ep1 = NULL;
 
 	rc = true;
@@ -1180,7 +1180,7 @@ static void test_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
 
 	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 1);
-	zUT(c2_net_end_point_put(ep2), aborted);
+	c2_net_end_point_put(ep2);
 	ep2 = NULL;
 
 	/* TEST
@@ -1222,7 +1222,7 @@ static void test_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
 
 	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 1);
-	zUT(c2_net_end_point_put(ep2), aborted);
+	c2_net_end_point_put(ep2);
 	ep2 = NULL;
 
  aborted:

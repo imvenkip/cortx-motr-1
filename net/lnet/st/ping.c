@@ -878,7 +878,6 @@ static void s_m_recv_cb(const struct c2_net_buffer_event *ev)
 static void s_m_send_cb(const struct c2_net_buffer_event *ev)
 {
 	struct nlx_ping_ctx *ctx = buffer_event_to_ping_ctx(ev);
-	int rc;
 	char idbuf[IDBUF_LEN];
 
 	C2_ASSERT(ev->nbe_buffer->nb_qtype == C2_NET_QT_MSG_SEND);
@@ -896,8 +895,7 @@ static void s_m_send_cb(const struct c2_net_buffer_event *ev)
 		}
 	}
 
-	rc = c2_net_end_point_put(ev->nbe_buffer->nb_ep);
-	C2_ASSERT(rc == 0);
+	c2_net_end_point_put(ev->nbe_buffer->nb_ep);
 	ev->nbe_buffer->nb_ep = NULL;
 
 	ping_buf_put(ctx, ev->nbe_buffer);
@@ -1838,16 +1836,15 @@ static int nlx_ping_client_init(struct nlx_ping_ctx *ctx,
 	return 0;
 }
 
-static int nlx_ping_client_fini(struct nlx_ping_ctx *ctx,
+static void nlx_ping_client_fini(struct nlx_ping_ctx *ctx,
 			 struct c2_net_end_point *server_ep)
 {
-	int rc = c2_net_end_point_put(server_ep);
+	c2_net_end_point_put(server_ep);
 	ping_fini(ctx);
 	if (ctx->pc_ident != NULL) {
 		c2_free((void *)ctx->pc_ident);
 		ctx->pc_ident = NULL;
 	}
-	return rc;
 }
 
 void nlx_ping_client(struct nlx_ping_client_params *params)
@@ -1921,10 +1918,9 @@ void nlx_ping_client(struct nlx_ping_client_params *params)
 	}
 
 	cctx.pc_ops->pqs(&cctx, false);
-	rc = nlx_ping_client_fini(&cctx, server_ep);
+	nlx_ping_client_fini(&cctx, server_ep);
 	c2_free(bp);
 	c2_free(send_msg);
-	C2_ASSERT(rc == 0);
 fail:
 	c2_cond_fini(&cctx.pc_cond);
 	c2_mutex_fini(&cctx.pc_mutex);

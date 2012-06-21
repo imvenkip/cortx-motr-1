@@ -98,7 +98,7 @@ void c2_net_end_point_get(struct c2_net_end_point *ep)
 }
 C2_EXPORTED(c2_net_end_point_get);
 
-int c2_net_end_point_put(struct c2_net_end_point *ep)
+void c2_net_end_point_put(struct c2_net_end_point *ep)
 {
 	struct c2_ref *ref = &ep->nep_ref;
 	struct c2_net_transfer_mc *tm;
@@ -110,7 +110,7 @@ int c2_net_end_point_put(struct c2_net_end_point *ep)
 	c2_mutex_lock(&tm->ntm_mutex);
 	c2_ref_put(ref);
 	c2_mutex_unlock(&tm->ntm_mutex);
-	return 0;
+	return;
 }
 C2_EXPORTED(c2_net_end_point_put);
 

@@ -604,7 +604,7 @@ void c2_net_end_point_get(struct c2_net_end_point *ep);
    @retval 0 (success)
    @retval -errno (failure)
  */
-int c2_net_end_point_put(struct c2_net_end_point *ep);
+void c2_net_end_point_put(struct c2_net_end_point *ep);
 
 /**
     This enumeration describes the types of logical queues in a transfer
