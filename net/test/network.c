@@ -576,7 +576,8 @@ static bool buf_desc_decode(struct c2_bufvec_cursor *cur,
 		return false;
 
 	rc_bcount = bufvec_read(cur, str, C2_NET_TEST_STRLEN_NBD_HEADER);
-	C2_ASSERT(rc_bcount == C2_NET_TEST_STRLEN_NBD_HEADER);
+	if (rc_bcount != C2_NET_TEST_STRLEN_NBD_HEADER)
+		return false;
 
 	/* note Linux uses the LP64 standard */
 	rc = sscanf(str, "%lu %u",
@@ -665,11 +666,13 @@ int c2_net_test_network_bd_encode(struct c2_net_test_network_ctx *ctx,
 	C2_ASSERT(rc == str_len - 1);
 	/* copy str[] to buf_ping */
 	rc_bcount = bufvec_append(&cur_buf, str, str_len);
-	C2_ASSERT(rc_bcount == str_len);
+	if (rc_bcount != str_len)
+		return -E2BIG;
 	/* copy c2_net_buf_desc .nbd_data to buf_ping */
 	rc_bcount = bufvec_append(&cur_buf, buf_bulk->nb_desc.nbd_data,
 				  desc_len);
-	C2_ASSERT(rc_bcount == desc_len);
+	if (rc_bcount != desc_len)
+		return -E2BIG;
 	/* adjust buf_ping .nb_length */
 	buf_ping->nb_length += str_len + desc_len;
 	return 0;
@@ -722,7 +725,8 @@ int c2_net_test_network_bd_decode(struct c2_net_test_network_ctx *ctx,
 	}
 
 	rc_bcount = bufvec_read(&cur_buf, buf_bulk->nb_desc.nbd_data, desc_len);
-	C2_ASSERT(rc_bcount == desc_len);
+	if (rc_bcount != desc_len)
+		return -EBADMSG;
 
 	buf_ping->nb_length += C2_NET_TEST_STRLEN_NBD_HEADER + desc_len;
 	return 0;
