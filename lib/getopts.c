@@ -31,9 +31,9 @@
 #include "lib/errno.h"
 
 #ifdef __KERNEL__
-#define c2_strtoull	simple_strtoull
+#define STRTOULL	simple_strtoull
 #else
-#define c2_strtoull	strtoull
+#define STRTOULL	strtoull
 #endif
 
 int c2_get_bcount(const char *arg, c2_bcount_t *out)
@@ -54,7 +54,7 @@ int c2_get_bcount(const char *arg, c2_bcount_t *out)
 		1000 * 1000 * 1000
 	};
 
-	*out = c2_strtoull(arg, &end, 0);
+	*out = STRTOULL(arg, &end, 0);
 
 	if (*end != 0) {
 		pos = strchr(suffix, *end);
