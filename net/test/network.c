@@ -58,12 +58,9 @@
 #endif
 
 #ifdef __KERNEL__
+/* see buf_desc_decode() and c2_net_test_network_bd_encode() */
 C2_BASSERT(sizeof(unsigned)	 == sizeof(uint32_t));
 C2_BASSERT(sizeof(unsigned long) == sizeof(c2_bcount_t));
-#define PRIu64	"lu"
-#define PRIu32	"u"
-#define SCNu64	"lu"
-#define SCNu32	"u"
 #endif
 
 enum {
@@ -581,13 +578,9 @@ static bool buf_desc_decode(struct c2_bufvec_cursor *cur,
 	rc_bcount = bufvec_read(cur, str, C2_NET_TEST_STRLEN_NBD_HEADER);
 	C2_ASSERT(rc_bcount == C2_NET_TEST_STRLEN_NBD_HEADER);
 
-	rc = sscanf(str, "%" SCNu64 " %" SCNu32,
-#ifdef __KERNEL__
-		    (long unsigned *) passive_len,
-#else
-		    (uint64_t *) passive_len,
-#endif
-		    desc_len);
+	/* note Linux uses the LP64 standard */
+	rc = sscanf(str, "%lu %u",
+		    (unsigned long *) passive_len, desc_len);
 #ifdef DEBUG_NET_TEST_NETWORK
 	printf("rc = %d, passive_len = %"PRIu64", desc_len = %"PRIu32", "
 		"str = %s\n", rc, *passive_len, *desc_len, str);
@@ -665,13 +658,10 @@ int c2_net_test_network_bd_encode(struct c2_net_test_network_ctx *ctx,
 		return -E2BIG;
 
 	/* fill str[] */
-	rc = snprintf(str, str_len, "%020" PRIu64 " %010" PRIu32,
-#ifdef __KERNEL__
-		      (unsigned long)
-#else
-		      (uint64_t)
-#endif
-		      buf_bulk->nb_length, buf_bulk->nb_desc.nbd_len);
+	/* note Linux uses the LP64 standard */
+	rc = snprintf(str, str_len, "%020lu %010u",
+		      (unsigned long) buf_bulk->nb_length,
+		      buf_bulk->nb_desc.nbd_len);
 	C2_ASSERT(rc == str_len - 1);
 	/* copy str[] to buf_ping */
 	rc_bcount = bufvec_append(&cur_buf, str, str_len);
