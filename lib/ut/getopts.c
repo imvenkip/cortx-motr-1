@@ -26,11 +26,12 @@
 
 void test_getopts(void)
 {
-	int  result;
-	int  argc;
-	int  argc_scaled;
-	int  num;
-	bool e;
+	int	    result;
+	int	    argc;
+	int	    argc_scaled;
+	int	    num;
+	bool	    e;
+	c2_bcount_t bcount;
 	static char *argv[] = {
 		"getopts-ut",
 		"-e",
@@ -42,16 +43,16 @@ void test_getopts(void)
 		"-b", "30k",
 		"-c", "400m",
 		"-d", "5000g",
-		"-w", "6B",
 		"-x", "70K",
 		"-y", "800M",
 		"-z", "9000G",
+		"-j", "123456789012345",
 		NULL
 	};
 	struct c2_ut_redirect redir;
 
-	argc        = ARRAY_SIZE(argv) - 1;
-	argc_scaled = ARRAY_SIZE(argv_scaled) - 1;
+	argc		    = ARRAY_SIZE(argv) - 1;
+	argc_scaled	    = ARRAY_SIZE(argv_scaled) - 1;
 
 	c2_stream_redirect(stderr, "/dev/null", &redir);
 	result = C2_GETOPTS("getopts-ut", argc, argv);
@@ -70,13 +71,16 @@ void test_getopts(void)
 			    C2_FORMATARG('n', "Num", "%d", &num),
 			    C2_FLAGARG('e', "E", &e));
 	C2_UT_ASSERT(num == 10);
+
 	result = C2_GETOPTS("getopts-ut", argc, argv,
 			    C2_STRINGARG('n', "Num",
 			 LAMBDA(void, (const char *s){
 				 C2_UT_ASSERT(!strcmp(s, "010"));
 			 })),
 			    C2_FLAGARG('e', "E", &e));
+	C2_UT_ASSERT(result == 0);
 
+	/* test for valid "scaled"-type options */
 	result = C2_GETOPTS("getopts-ut", argc_scaled, argv_scaled,
 			    C2_SCALEDARG('a', "scaled",
 			LAMBDA(void, (c2_bcount_t bcount){
@@ -91,19 +95,20 @@ void test_getopts(void)
 			LAMBDA(void, (c2_bcount_t bcount){
 				C2_UT_ASSERT(bcount ==
 					5000ULL * 1024 * 1024 * 1024);})),
-			    C2_SCALEDARG('w', "scaled",
-			LAMBDA(void, (c2_bcount_t bcount){
-				C2_UT_ASSERT(bcount == 6 * 500);})),
 			    C2_SCALEDARG('x', "scaled",
 			LAMBDA(void, (c2_bcount_t bcount){
 				C2_UT_ASSERT(bcount == 70 * 1000);})),
 			    C2_SCALEDARG('y', "scaled",
 			LAMBDA(void, (c2_bcount_t bcount){
-				C2_UT_ASSERT(bcount == 800* 1000000);})),
+				C2_UT_ASSERT(bcount == 800 * 1000000);})),
 			    C2_SCALEDARG('z', "scaled",
 			LAMBDA(void, (c2_bcount_t bcount){
 				C2_UT_ASSERT(bcount ==
-					9000 * 1000000000ULL);})));
+					9000 * 1000000000ULL);})),
+			    C2_SCALEDARG('j', "scaled",
+			LAMBDA(void, (c2_bcount_t bcount){
+				C2_UT_ASSERT(bcount ==
+					123456789012345ULL);})));
 	C2_UT_ASSERT(result == 0);
 
 	argv[--argc] = NULL;
@@ -119,6 +124,11 @@ void test_getopts(void)
 	result = C2_GETOPTS("getopts-ut", argc, argv);
 	C2_UT_ASSERT(result == 0);
 
+	/* c2_get_bcount() */
+	result = c2_get_bcount("123456789012345G", &bcount);
+	C2_UT_ASSERT(result == -EOVERFLOW);
+	result = c2_get_bcount("1asdf", &bcount);
+	C2_UT_ASSERT(result == -EINVAL);
 }
 
 /*
