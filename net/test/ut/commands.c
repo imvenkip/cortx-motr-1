@@ -22,7 +22,7 @@
 #  include "config.h"
 #endif
 
-/* XXX remove */
+/* @todo remove */
 #ifndef __KERNEL__
 #include <stdio.h>		/* printf */
 #endif

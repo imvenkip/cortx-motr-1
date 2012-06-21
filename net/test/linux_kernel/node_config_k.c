@@ -58,7 +58,7 @@ int c2_net_test_node_config_init(struct c2_net_test_node_config *cfg)
 {
 	int i;
 
-	/* XXX debug */
+	/* @todo remove it. debug only */
 	printk(KERN_INFO "node_role = %s\n",  node_role);
 	printk(KERN_INFO "test_type = %s\n",  test_type);
 	printk(KERN_INFO "count     = %ld\n", count);
@@ -70,7 +70,7 @@ int c2_net_test_node_config_init(struct c2_net_test_node_config *cfg)
 		printk(KERN_INFO "%s\n", target[i]);
 	printk(KERN_INFO "end of target\n");
 
-	/* TODO implement */
+	/* @todo implement */
 
 	return -ENOSYS;
 }

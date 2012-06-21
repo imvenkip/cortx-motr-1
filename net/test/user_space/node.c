@@ -35,8 +35,9 @@ int main(int argc, char *argv[])
 	if (rc == 0)
 		rc = c2_net_test_init(&node_config);
 
-	/* TODO add Ctrl+C handler c2_net_test_fini()+c2_net_test_config_fini() */
-	/* TODO atexit() */
+	/* @todo add Ctrl+C handler
+	   c2_net_test_fini()+c2_net_test_config_fini() */
+	/* @todo atexit() */
 
 	return rc;
 }

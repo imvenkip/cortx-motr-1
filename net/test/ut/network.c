@@ -22,7 +22,7 @@
 #  include "config.h"
 #endif
 
-/* XXX remove */
+/* @todo remove */
 #ifndef __KERNEL__
 #include <stdio.h>		/* printf */
 #endif
@@ -34,7 +34,7 @@
 
 #include "net/test/network.h"
 
-/* XXX debug only, remove it */
+/* @todo debug only, remove it */
 #ifndef __KERNEL__
 #define LOGD(format, ...) printf(format, ##__VA_ARGS__)
 #else

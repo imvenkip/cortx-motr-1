@@ -296,7 +296,7 @@ bool c2_net_test_network_ctx_invariant(struct c2_net_test_network_ctx *ctx)
 	return ctx->ntc_ep_nr <= ctx->ntc_ep_max;
 }
 
-/* TODO rearrange to allocate memory before initializing network structs? */
+/* @todo rearrange to allocate memory before initializing network structs? */
 int c2_net_test_network_ctx_init(struct c2_net_test_network_ctx *ctx,
 				 const char *tm_addr,
 				 const struct c2_net_tm_callbacks *tm_cb,
@@ -409,7 +409,7 @@ void c2_net_test_network_ctx_fini(struct c2_net_test_network_ctx *ctx)
 
 	for (i = 0; i < ctx->ntc_ep_nr; ++i) {
 		rc = c2_net_end_point_put(ctx->ntc_ep[i]);
-		/* XXX max: there is too many errors can be
+		/* @todo question: max: there is too many errors can be
 		   in destructor. how they need to be handled?
 		 */
 	}
@@ -424,7 +424,7 @@ void c2_net_test_network_ctx_fini(struct c2_net_test_network_ctx *ctx)
 	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&ctx->ntc_tm.ntm_chan, &tmwait);
 	rc = c2_net_tm_stop(&ctx->ntc_tm, true);
-	/* XXX rc can be != 0 */
+	/* @todo handle: rc can be != 0 */
 	c2_chan_wait(&tmwait);
 	C2_ASSERT(ctx->ntc_tm.ntm_state == C2_NET_TM_STOPPED);
 	C2_ASSERT(rc == 0);
@@ -781,7 +781,7 @@ void c2_net_test_network_buf_fill(struct c2_net_test_network_ctx *ctx,
 	C2_ASSERT(bv != NULL);
 	length = c2_vec_count(&bv->ov_vec);
 	c2_bufvec_cursor_init(&bc, bv);
-	/* TODO use c2_bufvec_cursor_step */
+	/* @todo use c2_bufvec_cursor_step */
 	for (i = 0; i < length; ++i) {
 		* (uint8_t *) c2_bufvec_cursor_addr(&bc) = fill;
 		c2_bufvec_cursor_move(&bc, 1);
