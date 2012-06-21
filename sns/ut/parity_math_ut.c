@@ -95,7 +95,7 @@ static bool config_generate(uint32_t *data_count,
 		puc = 1;
 		puc_max = 1;
 		duc --;
-		if(duc < 1)
+		if(duc == 1)
 			return false;
 	} else if (algo == C2_PARITY_CAL_ALGO_REED_SOLOMON) {
 		if (fuc <= 1) {
@@ -166,7 +166,7 @@ static void ut_ub_init(void)
 	srand(1285360231);
 }
 
-void test_parity_math(enum c2_parity_cal_algo algo)
+static void test_parity_math(const enum c2_parity_cal_algo algo)
 {
 	int ret = 0;
 	uint32_t i = 0;
@@ -212,22 +212,55 @@ void test_parity_math(enum c2_parity_cal_algo algo)
 
 		c2_parity_math_fini(&math);
 
-		if (!expected_cmp(data_count, buff_size)) {
+		if (!expected_cmp(data_count, buff_size))
 			C2_UT_ASSERT(0 && "Recovered data is unexpected");
-		}
 	}
 }
 
-void test_parity_math_reed_solomon(void)
+static void test_parity_math_reed_solomon(void)
 {
 	test_parity_math(C2_PARITY_CAL_ALGO_REED_SOLOMON);
 }
 
-void test_parity_math_xor(void)
+static void test_parity_math_xor(void)
 {
 	duc = DATA_UNIT_COUNT_MAX;
 	test_parity_math(C2_PARITY_CAL_ALGO_XOR);
 }
+
+static void test_buffer_xor(void)
+{
+
+        uint32_t data_count = 0;
+        uint32_t parity_count = 0;
+        uint32_t buff_size = 0;
+        struct c2_buf data_buf[DATA_UNIT_COUNT_MAX];
+        struct c2_buf parity_buf[DATA_UNIT_COUNT_MAX];
+
+	duc = 2;
+	config_generate(&data_count, &parity_count, &buff_size, C2_PARITY_CAL_ALGO_XOR);
+
+	printf("0) d:%d, p:%d, b: %d\n", data_count, parity_count, buff_size);
+	c2_buf_init(&data_buf[0], data[0], buff_size);
+	c2_buf_init(&parity_buf[0], parity[0], buff_size);
+	c2_parity_math_buffer_xor(parity_buf, data_buf);
+	c2_parity_math_buffer_xor(data_buf, parity_buf);
+
+	if (!expected_cmp(data_count, buff_size))
+		C2_UT_ASSERT(0 && "Recovered data is unexpected");
+}
+
+const struct c2_test_suite parity_math_ut = {
+        .ts_name = "parity_math-ut",
+        .ts_init = NULL,
+        .ts_fini = NULL,
+        .ts_tests = {
+                { "parity_math_reed_solomon", test_parity_math_reed_solomon },
+                { "parity_math_xor", test_parity_math_xor },
+                { "buffer_xor", test_buffer_xor },
+                { NULL, NULL }
+        }
+};
 
 void parity_math_tb(void)
 {
@@ -271,17 +304,6 @@ void parity_math_tb(void)
 		c2_parity_math_fini(&math);
 	}
 }
-
-const struct c2_test_suite parity_math_ut = {
-        .ts_name = "parity_math-ut",
-        .ts_init = NULL,
-        .ts_fini = NULL,
-        .ts_tests = {
-                { "parity_math_reed_solomon", test_parity_math_reed_solomon },
-                { "parity_math_xor", test_parity_math_xor },
-                { NULL, NULL }
-        }
-};
 
 void ub_small_4096(int iter)
 {
