@@ -28,7 +28,9 @@
 #include <string.h>		/* strchr */
 #endif
 
-#include "lib/errno.h"
+#include "lib/errno.h"		/* EINVAL */
+#include "lib/cdefs.h"		/* ARRAY_SIZE */
+#include "lib/assert.h"		/* C2_CASSSERT */
 
 #ifdef __KERNEL__
 #define STRTOULL	simple_strtoull
@@ -53,13 +55,18 @@ int c2_get_bcount(const char *arg, c2_bcount_t *out)
 		1000 * 1000 * 1000
 	};
 
+	C2_CASSERT(ARRAY_SIZE(suffix) - 1 == ARRAY_SIZE(multiplier));
+
 	*out = STRTOULL(arg, &end, 0);
 
 	if (*end != 0) {
 		pos = strchr(suffix, *end);
-		if (pos != NULL)
-			*out *= multiplier[pos - suffix];
-		else
+		if (pos != NULL) {
+			if (*out <= C2_BCOUNT_MAX / multiplier[pos - suffix])
+				*out *= multiplier[pos - suffix];
+			else
+				result = -EOVERFLOW;
+		} else
 			result = -EINVAL;
 	}
 	return result;
