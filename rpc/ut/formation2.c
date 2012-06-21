@@ -22,6 +22,7 @@ static int frm_ut_init(void)
 	c2_mutex_lock(&rmachine.rm_mutex);
 	return 0;
 }
+
 static int frm_ut_fini(void)
 {
 	c2_mutex_unlock(&rmachine.rm_mutex);
@@ -34,7 +35,7 @@ enum { STACK_SIZE = 100 };
 static struct c2_rpc_packet *packet_stack[STACK_SIZE];
 static int top = 0;
 
-void packet_push(struct c2_rpc_packet *p)
+static void packet_push(struct c2_rpc_packet *p)
 {
 	C2_UT_ASSERT(p != NULL);
 	C2_UT_ASSERT(top < STACK_SIZE - 1);
@@ -42,14 +43,14 @@ void packet_push(struct c2_rpc_packet *p)
 	++top;
 }
 
-struct c2_rpc_packet *packet_pop(void)
+static struct c2_rpc_packet *packet_pop(void)
 {
 	C2_UT_ASSERT(top > 0 && top < STACK_SIZE);
 	--top;
 	return packet_stack[top];
 }
 
-bool packet_stack_is_empty(void)
+static bool packet_stack_is_empty(void)
 {
 	return top == 0;
 }
@@ -104,20 +105,25 @@ static c2_bcount_t twoway_item_size(const struct c2_rpc_item *item)
 {
 	return 10;
 }
+
 static struct c2_rpc_item_type_ops twoway_item_type_ops = {
 	.rito_item_size = twoway_item_size
 };
+
 static struct c2_rpc_item_type twoway_item_type = {
 	.rit_flags = C2_RPC_ITEM_TYPE_REQUEST,
 	.rit_ops   = &twoway_item_type_ops,
 };
+
 static c2_bcount_t oneway_item_size(const struct c2_rpc_item *item)
 {
 	return 20;
 }
+
 static struct c2_rpc_item_type_ops oneway_item_type_ops = {
 	.rito_item_size = oneway_item_size
 };
+
 static struct c2_rpc_item_type oneway_item_type = {
 	.rit_flags = C2_RPC_ITEM_TYPE_UNSOLICITED,
 	.rit_ops   = &oneway_item_type_ops,
@@ -133,12 +139,13 @@ enum {
 	ONE_WAY  = 3,
 };
 
-uint64_t timeout; /* nano seconds */
-void set_timeout(uint64_t milli)
+static uint64_t timeout; /* nano seconds */
+static void set_timeout(uint64_t milli)
 {
 	timeout = milli * 1000 * 1000;
 }
-struct c2_rpc_item *new_item(int deadline, int kind)
+
+static struct c2_rpc_item *new_item(int deadline, int kind)
 {
 	struct c2_rpc_item *item;
 	C2_UT_ASSERT(C2_IN(deadline, (TIMEDOUT, WAITING, NEVER)));
@@ -352,6 +359,68 @@ static void frm_test4(void)
 	C2_LEAVE();
 }
 
+static void frm_do_test5(const int N, const int ITEMS_PER_PACKET)
+{
+	/* Multiple packets are formed if ready items don't fit in one packet */
+	struct c2_rpc_item   *items[N];
+	struct c2_rpc_packet *p;
+	c2_bcount_t           saved_max_nr_bytes_acc;
+	c2_bcount_t           saved_max_packet_size;
+	int                   nr_packets;
+	int                   i;
+
+	for (i = 0; i < N; ++i)
+		items[i] = new_item(WAITING, BOUND);
+
+	saved_max_nr_bytes_acc = frm.f_constraints.fc_max_nr_bytes_accumulated;
+	frm.f_constraints.fc_max_nr_bytes_accumulated = ~0;
+
+	reset_flags();
+	for (i = 0; i < N; ++i)
+		c2_rpc_frm_enq_item(&frm, items[i]);
+
+	C2_UT_ASSERT(!packet_ready_called && !item_bind_called);
+	check_frm(FRM_BUSY, N, 0);
+
+	saved_max_packet_size = frm.f_constraints.fc_max_packet_size;
+	/* Each packet should carry ITEMS_PER_PACKET items */
+	frm.f_constraints.fc_max_packet_size =
+			ITEMS_PER_PACKET * c2_rpc_item_size(items[0]) +
+			  C2_RPC_PACKET_OW_HEADER_SIZE;
+	/* trigger formation so that all items are formed */
+	frm.f_constraints.fc_max_nr_bytes_accumulated = 0;
+	c2_rpc_frm_run_formation(&frm);
+	nr_packets = N / ITEMS_PER_PACKET + (N % ITEMS_PER_PACKET != 0 ? 1 : 0);
+	C2_UT_ASSERT(packet_ready_called && top == nr_packets);
+	check_frm(FRM_BUSY, 0, nr_packets);
+
+	for (i = 0; i < nr_packets; ++i) {
+		p = packet_stack[i];
+		if (N % ITEMS_PER_PACKET == 0 ||
+		    i != nr_packets - 1)
+			C2_UT_ASSERT(p->rp_nr_items == ITEMS_PER_PACKET);
+		else
+			C2_UT_ASSERT(p->rp_nr_items == N % ITEMS_PER_PACKET);
+		(void)packet_pop();
+		c2_rpc_frm_packet_done(p);
+		discard_packet(p);
+	}
+	check_frm(FRM_IDLE, 0, 0);
+	for (i = 0; i < N; ++i)
+		c2_free(items[i]);
+	frm.f_constraints.fc_max_packet_size = saved_max_packet_size;
+	frm.f_constraints.fc_max_nr_bytes_accumulated = saved_max_nr_bytes_acc;
+}
+
+static void frm_test5(void)
+{
+	frm_do_test5(7, 3);
+	frm_do_test5(7, 6);
+	frm_do_test5(8, 8);
+	frm_do_test5(8, 2);
+	frm_do_test5(4, 1);
+}
+
 static void frm_fini_test(void)
 {
 	c2_rpc_frm_fini(&frm);
@@ -368,6 +437,7 @@ const struct c2_test_suite frm_ut = {
 		{ "frm-test2",    frm_test2    },
 		{ "frm-test3",    frm_test3    },
 		{ "frm-test4",    frm_test4    },
+		{ "frm-test5",    frm_test5    },
 		{ "frm-fini",     frm_fini_test},
 		{ NULL,           NULL         }
 	}
