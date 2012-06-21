@@ -13,8 +13,6 @@ main()
 	export COLIBRI_IOSERVICE_ENDPOINT="$lnet_nid:12345:34:1"
 	export COLIBRI_C2T1FS_ENDPOINT="$lnet_nid:12345:34:6"
 
-	prepare
-
 	colibri_service start
 	if [ $? -ne "0" ]
 	then

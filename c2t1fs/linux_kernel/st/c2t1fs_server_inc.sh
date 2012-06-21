@@ -18,6 +18,7 @@ colibri_service()
 	. /etc/rc.d/init.d/functions
 
 	start() {
+		prepare
 		$prog $prog_args &
 	}
 
