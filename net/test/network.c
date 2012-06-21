@@ -665,7 +665,7 @@ int c2_net_test_network_bd_encode(struct c2_net_test_network_ctx *ctx,
 #ifdef __KERNEL__
 		      (unsigned long)
 #else
-		      (uint64_t) 
+		      (uint64_t)
 #endif
 		      buf_bulk->nb_length, buf_bulk->nb_desc.nbd_len);
 	C2_ASSERT(rc == str_len - 1);
