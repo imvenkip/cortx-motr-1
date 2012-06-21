@@ -29,6 +29,7 @@
 #include <inttypes.h>		/* PRIu64 */
 #endif
 
+#include "lib/cdefs.h"		/* ergo */
 #include "lib/memory.h"		/* C2_ALLOC_ARR */
 #include "lib/misc.h"		/* C2_SET0 */
 #include "lib/errno.h"		/* E2BIG */
@@ -50,10 +51,10 @@
    @{
  */
 
+#if 0
 #ifndef __KERNEL__
-/*
 #define DEBUG_NET_TEST_NETWORK
-*/
+#endif
 #endif
 
 #ifdef __KERNEL__
@@ -123,24 +124,25 @@ static uint32_t cb_buf_index_extract(const struct c2_net_buffer_event *ev,
    @see net_test_buf_init()
  */
 static void cb_default(const struct c2_net_buffer_event *ev,
-		enum c2_net_queue_type q)
+		       enum c2_net_queue_type q)
 {
 	struct c2_net_buffer *buf = ev->nbe_buffer;
 	struct c2_net_test_network_ctx *ctx;
 	uint32_t buf_index;
 
 	C2_PRE(buf != NULL);
+
 	ctx = cb_ctx_extract(ev);
 	C2_ASSERT(ctx != NULL);
 	buf_index = cb_buf_index_extract(ev, ctx, q);
-#ifdef DEBUG_NET_TEST_NETWORK
-	printf("buf->nb_length = %"PRIu64"\n", buf->nb_length);
-	printf("ev->nbe_length = %"PRIu64"\n", ev->nbe_length);
-#endif
-	/* XXX max: why buf->nb_length didn't set before? */
+
+	/* c2_net_buffer.nb_max_receive_msgs will be always set to 1 */
 	if (q == C2_NET_QT_MSG_RECV || q == C2_NET_QT_ACTIVE_BULK_RECV ||
-			q == C2_NET_QT_PASSIVE_BULK_RECV)
+	    q == C2_NET_QT_PASSIVE_BULK_RECV) {
 		buf->nb_length = ev->nbe_length;
+		buf->nb_offset = 0;
+	}
+
 	ctx->ntc_buf_cb.ntnbc_cb[q](ctx, buf_index, q, ev);
 }
 
@@ -193,18 +195,22 @@ static struct c2_net_buffer_callbacks net_test_network_buf_cb = {
  */
 static int net_test_buf_init(struct c2_net_buffer *buf,
 			     c2_bcount_t size,
-			     struct c2_net_domain *dom,
 			     struct c2_net_test_network_ctx *ctx)
 {
-	int	    rc;
-	c2_bcount_t seg_size;
-	uint32_t    seg_num;
-	c2_bcount_t seg_size_max;
-	uint32_t    seg_num_max;
-	c2_bcount_t buf_size_max;
+	int		      rc;
+	c2_bcount_t	      seg_size;
+	uint32_t	      seg_num;
+	c2_bcount_t	      seg_size_max;
+	uint32_t	      seg_num_max;
+	c2_bcount_t	      buf_size_max;
+	struct c2_net_domain *dom;
 
 	C2_PRE(buf != NULL);
+	C2_PRE(ctx != NULL);
+
 	C2_SET0(buf);
+
+	dom = &ctx->ntc_dom;
 
 	buf_size_max = c2_net_domain_get_max_buffer_size(dom);
 	if (size > buf_size_max)
@@ -266,14 +272,14 @@ static void net_test_bufs_fini(struct c2_net_buffer *buf,
 static int net_test_bufs_init(struct c2_net_buffer *buf,
 			      uint32_t buf_nr,
 			      c2_bcount_t size,
-			      struct c2_net_domain *dom,
 			      struct c2_net_test_network_ctx *ctx)
 {
-	int i;
-	int rc = 0;
+	int		      i;
+	int		      rc = 0;
+	struct c2_net_domain *dom = &ctx->ntc_dom;
 
 	for (i = 0; i < buf_nr; ++i) {
-		rc = net_test_buf_init(&buf[i], size, dom, ctx);
+		rc = net_test_buf_init(&buf[i], size, ctx);
 		if (rc != 0)
 			break;
 		C2_ASSERT(buf[i].nb_dom == dom);
@@ -331,11 +337,11 @@ int c2_net_test_network_ctx_init(struct c2_net_test_network_ctx *ctx,
 	ctx->ntc_tm.ntm_state     = C2_NET_TM_UNDEFINED;
 	ctx->ntc_tm.ntm_callbacks = &ctx->ntc_tm_cb;
 
+	c2_clink_init(&tmwait, NULL);
+
 	rc = c2_net_tm_init(&ctx->ntc_tm, &ctx->ntc_dom);
 	if (rc != 0)
 		goto fini_dom;
-
-	c2_clink_init(&tmwait, NULL);
 
 	c2_clink_add(&ctx->ntc_tm.ntm_chan, &tmwait);
 	rc = c2_net_tm_start(&ctx->ntc_tm, tm_addr);
@@ -358,11 +364,11 @@ int c2_net_test_network_ctx_init(struct c2_net_test_network_ctx *ctx,
 
 	/* init buffers */
 	rc = net_test_bufs_init(ctx->ntc_buf_ping, ctx->ntc_buf_ping_nr,
-			buf_size_ping, &ctx->ntc_dom, ctx);
+			buf_size_ping, ctx);
 	if (rc != 0)
 		goto free_ep;
 	rc = net_test_bufs_init(ctx->ntc_buf_bulk, ctx->ntc_buf_bulk_nr,
-			buf_size_bulk, &ctx->ntc_dom, ctx);
+			buf_size_bulk, ctx);
 	if (rc != 0)
 		goto free_bufs_ping;
 
@@ -404,7 +410,7 @@ void c2_net_test_network_ctx_fini(struct c2_net_test_network_ctx *ctx)
 	for (i = 0; i < ctx->ntc_ep_nr; ++i) {
 		rc = c2_net_end_point_put(ctx->ntc_ep[i]);
 		/* XXX max: there is too many errors can be
-		   in destructor. how it needs to be handled?
+		   in destructor. how they need to be handled?
 		 */
 	}
 	net_test_bufs_fini(ctx->ntc_buf_bulk, ctx->ntc_buf_bulk_nr,
@@ -456,15 +462,14 @@ static int net_test_buf_queue(struct c2_net_test_network_ctx *ctx,
 	c2_time_t timeout = ctx->ntc_timeouts.ntnt_timeout[q];
 
 	C2_PRE((nb->nb_flags & C2_NET_BUF_QUEUED) == 0);
+	C2_PRE(ergo(q == C2_NET_QT_MSG_SEND, nb->nb_ep != NULL));
 
 	nb->nb_qtype   = q;
+	nb->nb_offset  = 0;	/* nb->nb_length already set */
+	nb->nb_ep      = q != C2_NET_QT_MSG_SEND ? NULL : nb->nb_ep;
 	nb->nb_timeout = timeout == C2_TIME_NEVER ?
 			 C2_TIME_NEVER : c2_time_add(c2_time_now(), timeout);
 
-	if (q == C2_NET_QT_MSG_SEND)
-		C2_ASSERT(nb->nb_ep != NULL);
-	else
-		nb->nb_ep = NULL;
 	return c2_net_buffer_add(nb, &ctx->ntc_tm);
 }
 
@@ -742,6 +747,21 @@ c2_net_test_network_buf(struct c2_net_test_network_ctx *ctx,
 
 	return buf_type == C2_NET_TEST_BUF_PING ?
 		&ctx->ntc_buf_ping[buf_index] : &ctx->ntc_buf_bulk[buf_index];
+}
+
+int c2_net_test_network_buf_resize(struct c2_net_test_network_ctx *ctx,
+				   enum c2_net_test_network_buf_type buf_type,
+				   uint32_t buf_index,
+				   c2_bcount_t new_size) {
+	struct c2_net_buffer *buf;
+
+	C2_PRE(ctx != NULL);
+
+	buf = c2_net_test_network_buf(ctx, buf_type, buf_index);
+	C2_ASSERT(buf != NULL);
+
+	net_test_buf_fini(buf, &ctx->ntc_dom);
+	return net_test_buf_init(buf, new_size, ctx);
 }
 
 void c2_net_test_network_buf_fill(struct c2_net_test_network_ctx *ctx,

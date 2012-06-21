@@ -263,12 +263,22 @@ c2_net_test_network_buf(struct c2_net_test_network_ctx *ctx,
 			uint32_t buf_index);
 
 /**
+   Resize network buffer.
+   Calls c2_net_buffer_deregister()/c2_net_buffer_register().
+ */
+int c2_net_test_network_buf_resize(struct c2_net_test_network_ctx *ctx,
+				   enum c2_net_test_network_buf_type buf_type,
+				   uint32_t buf_index,
+				   c2_bcount_t new_size);
+
+/**
    Fill entire buffer c2_bufvec with char ch.
    Useful for unit tests.
  */
 void c2_net_test_network_buf_fill(struct c2_net_test_network_ctx *ctx,
 				  enum c2_net_test_network_buf_type buf_type,
-				  uint32_t buf_index, uint8_t fill);
+				  uint32_t buf_index,
+				  uint8_t fill);
 
 /**
    Return c2_net_test_network_timeouts, filled with C2_TIME_NEVER.

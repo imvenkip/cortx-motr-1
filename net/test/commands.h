@@ -21,7 +21,9 @@
 #ifndef __NET_TEST_COMMANDS_H__
 #define __NET_TEST_COMMANDS_H__
 
-#include "net/net.h"
+#include "lib/errno.h"			/* E2BIG */
+#include "lib/semaphore.h"		/* c2_semaphore */
+
 #include "net/test/network.h"		/* c2_net_test_network_ctx */
 #include "net/test/node_config.h"	/* c2_net_test_role */
 
@@ -34,6 +36,18 @@
 
    @{
  */
+
+enum {
+	/** @todo 16k, change */
+	/** @todo send size, ack size, send command */
+	C2_NET_TEST_CMD_SIZE_MAX     = 16384,
+	/**
+	   c2_net_test_cmd.ntc_buf_status will be set to this value
+	   if buffer wasn't received within timeout from some endpoint
+	   from endpoints list.
+	 */
+	C2_NET_TEST_CMD_NOT_RECEIVED = -E2BIG,
+};
 
 /**
    String list.
@@ -57,9 +71,9 @@ struct c2_net_test_slist {
 
 /**
    Command type.
-   @see c2_net_test_command
+   @see c2_net_test_cmd
  */
-enum c2_net_test_command_type {
+enum c2_net_test_cmd_type {
 	C2_NET_TEST_CMD_INIT,
 	C2_NET_TEST_CMD_INIT_DONE,
 	C2_NET_TEST_CMD_START,
@@ -73,17 +87,17 @@ enum c2_net_test_command_type {
 
 /**
    C2_NET_TEST_CMD_*_ACK.
-   @see c2_net_test_command
+   @see c2_net_test_cmd
  */
-struct c2_net_test_command_ack {
+struct c2_net_test_cmd_ack {
 	int ntca_errno;
 };
 
 /**
    C2_NET_TEST_CMD_INIT.
-   @see c2_net_test_command
+   @see c2_net_test_cmd
  */
-struct c2_net_test_command_init {
+struct c2_net_test_cmd_init {
 	/** node role */
 	enum c2_net_test_role	 ntci_role;
 	/** node type */
@@ -94,104 +108,130 @@ struct c2_net_test_command_init {
 	uint32_t		 ntci_concurrency;
 	/** endpoints list */
 	struct c2_net_test_slist ntci_ep;
-	/** console endpoint */
-	char			*ntci_ep_console;
 };
 
 /**
    C2_NET_TEST_CMD_FINI.
-   @see c2_net_test_command
+   @see c2_net_test_cmd
  */
-struct c2_net_test_command_fini {
+struct c2_net_test_cmd_fini {
 	/** cancel the current operations */
 	bool ntcf_cancel;
 };
 
 /**
    Command structure to exchange between console and clients or servers.
-   @b WARNING: be sure to change command_encode(), command_decode() and
-   command_size_max() after changes to this structure.
+   @b WARNING: be sure to change cmd_encode(), cmd_decode() and cmd_length()
+   after changes to this structure.
+   @todo take care about endianness
  */
-struct c2_net_test_command {
-	int ntc_errno;
-	enum c2_net_test_command_type ntc_type;
+struct c2_net_test_cmd {
+	/** command type */
+	enum c2_net_test_cmd_type ntc_type;
+	/** command structures */
 	union {
-		struct c2_net_test_command_ack ntc_ack;
-		struct c2_net_test_command_init ntc_init;
-		struct c2_net_test_command_init ntc_fini;
+		struct c2_net_test_cmd_ack  ntc_ack;
+		struct c2_net_test_cmd_init ntc_init;
+		struct c2_net_test_cmd_fini ntc_fini;
 	};
+	/**
+	   Next fields will not be sent/received over the network.
+	   They are used for error reporting etc.
+	 */
+	/** last unsuccesful operation -errno */
+	int      ntc_errno;
+	/** buffer status, c2_net_buffer_event.nbe_status in buffer callback */
+	int      ntc_buf_status;
+	/**
+	   Do not send/receive this command.
+	   It is set on every succesful c2_net_test_commands_send() and
+	   c2_net_test_commands_wait() for command.
+	 */
+	bool     ntc_disabled;
+	/** buffer index for c2_net_test_command_wait() */
+	uint32_t ntc_buf_index;
 };
 
 /**
    Commands context.
  */
-struct c2_net_test_command_ctx {
-	struct c2_net_test_network_ctx ntcc_net;
-	struct c2_net_test_command    *ntcc_cmd;
-	uint32_t		       ntcc_cmd_nr;
+struct c2_net_test_cmd_ctx {
+	/** network context for this command context */
+	struct c2_net_test_network_ctx	 ntcc_net;
+	/** array of commands */
+	struct c2_net_test_cmd		*ntcc_cmd;
+	/** number of commands in context */
+	uint32_t			 ntcc_cmd_nr;
+	/** used while waiting for buffer operations completion */
+	struct c2_semaphore		 ntcc_sem;
 };
 
 /**
-   Initialize network context to use with c2_net_test_command_send/
-   c2_net_test_command_recv.
+   Initialize network context to use with c2_net_test_cmd_send()/
+   c2_net_test_cmd_send_single()/c2_net_test_cmd_recv().
+   @todo document
+   @return 0 (success)
+   @return -EEXIST ep_list contains two equal strings
+   @return -errno (failure)
  */
-int c2_net_test_command_init(struct c2_net_test_command_ctx *ctx,
-		char *cmd_ep,
-		c2_time_t timeout_send,
-		c2_time_t timeout_wait,
-		struct c2_net_test_slist ep_list);
-void c2_net_test_command_fini(struct c2_net_test_command_ctx *ctx);
-bool c2_net_test_command_invariant(struct c2_net_test_command_ctx *ctx);
+int c2_net_test_commands_init(struct c2_net_test_cmd_ctx *ctx,
+			      char *cmd_ep,
+			      c2_time_t timeout_send,
+			      c2_time_t timeout_wait,
+			      struct c2_net_test_slist *ep_list);
+void c2_net_test_commands_fini(struct c2_net_test_cmd_ctx *ctx);
+
+/**
+   Invariant for c2_net_test_cmd_ctx.
+   Time complexity is O(1).
+ */
+bool c2_net_test_commands_invariant(struct c2_net_test_cmd_ctx *ctx);
 
 /**
    Send 'cmd' command to all endpoints from ctx. Block until MSG_SEND
    callback called for all endpoints or until timeout.
    @param ctx commands context.
-   @param cmd command to send
-   @return number of successful sent commands.
+   @param cmd command to send. Can be NULL - in this case commands are
+	  taken from c2_net_test_cmd_ctx.ntcc_cmd, every command will be
+	  sent to the corresponding endpoint from ctx (i-th command to
+	  i-th endpoint).
+   @return number of successfully sent commands.
  */
-int c2_net_test_command_send_single(struct c2_net_test_command_ctx *ctx,
-		struct c2_net_test_command *cmd);
+uint32_t c2_net_test_commands_send(struct c2_net_test_cmd_ctx *ctx,
+				   struct c2_net_test_cmd *cmd);
 
 /**
-   Send corresponding command to all endpoints from ctx. Block until MSG_SEND
-   callback called for all endpoints or until timeout.
-   @param ctx commands context.
-   @return number of successful sent commands.
- */
-int c2_net_test_command_send(struct c2_net_test_command_ctx *ctx);
-
-/**
-   Wait until command is received from all endpoints from ctx.
+   Wait until command is received from all endpoints from ctx or until timeout.
    @param ctx commands context.
    @return number of successful received commands.
  */
-int c2_net_test_command_wait(struct c2_net_test_command_ctx *ctx);
+uint32_t c2_net_test_commands_wait(struct c2_net_test_cmd_ctx *ctx);
 
-#if 0
 /**
-   Copy command to all commands in the command context.
-   WARNING: all corresponding pointers in command context commands will
-   have the same value as in command, given to this function. There will
-   be no additional allocation/deallocation, just copying the values.
+   C2_SET0() for all c2_net_test_cmd in context.
  */
-int c2_net_test_command_scatter(struct c2_net_test_command_ctx *ctx,
-		struct c2_net_test_command *cmd);
-#endif
+void c2_net_test_commands_reset(struct c2_net_test_cmd_ctx *ctx);
 
 /**
    Accessor to command by command index.
  */
-struct c2_net_test_command *c2_net_test_command_cmd(
-		struct c2_net_test_command_ctx *ctx, uint32_t index);
+struct c2_net_test_cmd *
+c2_net_test_command(struct c2_net_test_cmd_ctx *ctx, uint32_t index);
 
 /**
    Initialize string list from a string and a delimiter.
-   XXX
+   @todo document it.
  */
 int c2_net_test_slist_init(struct c2_net_test_slist *slist,
-		char *str, char delim);
+			   char *str, char delim);
 void c2_net_test_slist_fini(struct c2_net_test_slist *slist);
+/**
+   Is every string in list unique in this list.
+   Time complexity - O(N^2), N - number of strings in the list.
+   @return all strings in list are different.
+	   Two strings are equal if strcmp() returns 0.
+ */
+bool c2_net_test_slist_unique(struct c2_net_test_slist *slist);
 
 /**
    @} end NetTestCommandsDFS
