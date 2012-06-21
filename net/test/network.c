@@ -289,6 +289,27 @@ static int net_test_bufs_init(struct c2_net_buffer *buf,
 	return rc;
 }
 
+/** Stop transfer machine and wait for state transition */
+static void net_test_tm_stop(struct c2_net_transfer_mc *tm)
+{
+	int	        rc;
+	struct c2_clink	tmwait;
+
+	c2_clink_init(&tmwait, NULL);
+	c2_clink_add(&tm->ntm_chan, &tmwait);
+
+	rc = c2_net_tm_stop(tm, true);
+	C2_ASSERT(rc == 0);
+
+	do {
+		c2_chan_wait(&tmwait);
+	} while (tm->ntm_state != C2_NET_TM_STOPPED &&
+		 tm->ntm_state != C2_NET_TM_FAILED);
+
+	c2_clink_del(&tmwait);
+	c2_clink_fini(&tmwait);
+}
+
 bool c2_net_test_network_ctx_invariant(struct c2_net_test_network_ctx *ctx)
 {
 	C2_PRE(ctx != NULL);
@@ -337,20 +358,24 @@ int c2_net_test_network_ctx_init(struct c2_net_test_network_ctx *ctx,
 	ctx->ntc_tm.ntm_state     = C2_NET_TM_UNDEFINED;
 	ctx->ntc_tm.ntm_callbacks = &ctx->ntc_tm_cb;
 
-	c2_clink_init(&tmwait, NULL);
 
 	rc = c2_net_tm_init(&ctx->ntc_tm, &ctx->ntc_dom);
 	if (rc != 0)
 		goto fini_dom;
 
+	c2_clink_init(&tmwait, NULL);
 	c2_clink_add(&ctx->ntc_tm.ntm_chan, &tmwait);
 	rc = c2_net_tm_start(&ctx->ntc_tm, tm_addr);
 	c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
+	c2_clink_fini(&tmwait);
 	if (rc != 0)
 		goto fini_tm;
-	C2_ASSERT(ctx->ntc_tm.ntm_state == C2_NET_TM_STARTED);
+	rc = -ECONNREFUSED;
+	if (ctx->ntc_tm.ntm_state != C2_NET_TM_STARTED)
+		goto fini_tm;
 
+	rc = -ENOMEM;
 	/* alloc arrays */
 	C2_ALLOC_ARR(ctx->ntc_buf_ping, ctx->ntc_buf_ping_nr);
 	if (ctx->ntc_buf_ping == NULL)
@@ -385,25 +410,18 @@ int c2_net_test_network_ctx_init(struct c2_net_test_network_ctx *ctx,
     free_buf_ping:
 	c2_free(ctx->ntc_buf_ping);
     stop_tm:
-	c2_clink_add(&ctx->ntc_tm.ntm_chan, &tmwait);
-	rc = c2_net_tm_stop(&ctx->ntc_tm, tm_addr);
-	c2_chan_wait(&tmwait);
-	c2_clink_del(&tmwait);
-	C2_ASSERT(ctx->ntc_tm.ntm_state == C2_NET_TM_STOPPED);
+	net_test_tm_stop(&ctx->ntc_tm);
     fini_tm:
 	c2_net_tm_fini(&ctx->ntc_tm);
     fini_dom:
 	c2_net_domain_fini(&ctx->ntc_dom);
     success:
-	c2_clink_fini(&tmwait);
 	return rc;
 }
 
 void c2_net_test_network_ctx_fini(struct c2_net_test_network_ctx *ctx)
 {
-	int		       rc;
-	int		       i;
-	static struct c2_clink tmwait;
+	int i;
 
 	C2_PRE(c2_net_test_network_ctx_invariant(ctx));
 
@@ -416,17 +434,7 @@ void c2_net_test_network_ctx_fini(struct c2_net_test_network_ctx *ctx)
 	c2_free(ctx->ntc_ep);
 	c2_free(ctx->ntc_buf_bulk);
 	c2_free(ctx->ntc_buf_ping);
-
-	c2_clink_init(&tmwait, NULL);
-	c2_clink_add(&ctx->ntc_tm.ntm_chan, &tmwait);
-	rc = c2_net_tm_stop(&ctx->ntc_tm, true);
-	/* @todo handle: rc can be != 0 */
-	c2_chan_wait(&tmwait);
-	C2_ASSERT(ctx->ntc_tm.ntm_state == C2_NET_TM_STOPPED);
-	C2_ASSERT(rc == 0);
-	c2_clink_del(&tmwait);
-	c2_clink_fini(&tmwait);
-
+	net_test_tm_stop(&ctx->ntc_tm);
 	c2_net_tm_fini(&ctx->ntc_tm);
 	c2_net_domain_fini(&ctx->ntc_dom);
 }

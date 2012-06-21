@@ -133,6 +133,9 @@ void c2_net_test_network_fini(void);
    @pre tm_cb   != NULL
    @pre buf_cb  != NULL
    @post c2_net_test_network_ctx_invariant(ctx)
+   @return 0 (success)
+   @return -ECONNREFUSED c2_net_tm_start() failed.
+   @return -errno (failire)
  */
 int c2_net_test_network_ctx_init(struct c2_net_test_network_ctx *ctx,
 				 const char *tm_addr,
