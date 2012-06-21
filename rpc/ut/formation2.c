@@ -476,6 +476,66 @@ static void frm_test6(void)
 	C2_LEAVE();
 }
 
+static void frm_test7(void)
+{
+	/* higher priority item is added to packet before lower priority */
+	struct c2_rpc_item   *item1;
+	struct c2_rpc_item   *item2;
+	c2_bcount_t           saved_max_packet_size;
+	int                   saved_max_nr_packets_enqed;
+
+	C2_ENTRY();
+
+	item1 = new_item(TIMEDOUT, BOUND);
+	item2 = new_item(TIMEDOUT, BOUND);
+	item1->ri_prio = C2_RPC_ITEM_PRIO_MIN;
+	item2->ri_prio = C2_RPC_ITEM_PRIO_MAX;
+
+	/* Only 1 item should be included per packet */
+	saved_max_packet_size = frm.f_constraints.fc_max_packet_size;
+	frm.f_constraints.fc_max_packet_size = c2_rpc_item_size(item1) +
+			C2_RPC_PACKET_OW_HEADER_SIZE;
+
+	saved_max_nr_packets_enqed = frm.f_constraints.fc_max_nr_packets_enqed;
+	frm.f_constraints.fc_max_nr_packets_enqed = 0; /* disable formation */
+
+	reset_flags();
+
+	c2_rpc_frm_enq_item(&frm, item1);
+	C2_UT_ASSERT(!packet_ready_called);
+	check_frm(FRM_BUSY, 1, 0);
+
+	c2_rpc_frm_enq_item(&frm, item2);
+	C2_UT_ASSERT(!packet_ready_called);
+	check_frm(FRM_BUSY, 2, 0);
+
+	/* Enable formation */
+	frm.f_constraints.fc_max_nr_packets_enqed = saved_max_nr_packets_enqed;
+	c2_rpc_frm_run_formation(&frm);
+
+	/* Two packets should be generated */
+	C2_UT_ASSERT(packet_ready_called && top == 2);
+	check_frm(FRM_BUSY, 0, 2);
+
+	/* First packet should be carrying item2 because it has higher
+	   priority
+	 */
+	C2_UT_ASSERT(c2_rpc_packet_is_carrying_item(packet_stack[0], item2));
+	C2_UT_ASSERT(c2_rpc_packet_is_carrying_item(packet_stack[1], item1));
+
+	c2_rpc_frm_packet_done(packet_stack[0]);
+	c2_rpc_frm_packet_done(packet_stack[1]);
+
+	discard_packet(packet_pop());
+	discard_packet(packet_pop());
+	C2_UT_ASSERT(packet_stack_is_empty());
+
+	c2_free(item1);
+	c2_free(item2);
+
+	C2_LEAVE();
+}
+
 static void frm_fini_test(void)
 {
 	c2_rpc_frm_fini(&frm);
@@ -494,6 +554,7 @@ const struct c2_test_suite frm_ut = {
 		{ "frm-test4",    frm_test4    },
 		{ "frm-test5",    frm_test5    },
 		{ "frm-test6",    frm_test6    },
+		{ "frm-test7",    frm_test7    },
 		{ "frm-fini",     frm_fini_test},
 		{ NULL,           NULL         }
 	}
