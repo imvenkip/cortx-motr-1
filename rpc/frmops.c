@@ -23,6 +23,7 @@
 #include "lib/trace.h"
 #include "lib/misc.h"
 #include "lib/errno.h"
+#include "lib/arith.h"
 #include "rpc/formation2.h"
 #include "rpc/packet.h"
 #include "rpc/rpc2.h"
@@ -241,7 +242,6 @@ static void get_bufvec_geometry(struct c2_net_domain *ndom,
 	c2_bcount_t segment_size;
 	int32_t     max_nr_segments;
 	int32_t     nr_segments;
-	uint32_t    align;
 
 	C2_ENTRY();
 
@@ -255,12 +255,10 @@ static void get_bufvec_geometry(struct c2_net_domain *ndom,
 	C2_ASSERT(buf_size <= max_buf_size);
 
 	/* encoding routine requires buf_size to be 8 byte aligned */
-	align = 8;
-	buf_size = (buf_size + align - 1) & ~(align - 1);
+	buf_size = c2_align(buf_size, 8);
 	C2_LOG("bufsize: 0x%llx", (ULL)buf_size);
-	C2_ASSERT(C2_IS_8ALIGNED(buf_size));
 
-	if (buf_size < max_segment_size) {
+	if (buf_size <= max_segment_size) {
 		segment_size = buf_size;
 		nr_segments  = 1;
 	} else {

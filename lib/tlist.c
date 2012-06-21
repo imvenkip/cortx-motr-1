@@ -192,6 +192,15 @@ void *c2_tlist_next(const struct c2_tl_descr *d,
 {
 	struct c2_list_link *next;
 
+	/*
+	 * c2_tlist_contains() internally calls c2_tlist_invariant().
+	 * c2_tl_for() uses c2_tlist_next() to adance through list elements.
+	 * Hence while iterating list of N elements using c2_tl_for(), the
+	 * invariant will be called N times. This resulted in severe
+	 * performance issue on longer lists. Ergo commenting this pre-condition
+	 *
+	 * see http://reviewboard.clusterstor.com/r/852/
+	 */
 	/* C2_PRE(c2_tlist_contains(d, list, obj)); */
 
 	next = link(d, obj)->ll_next;
