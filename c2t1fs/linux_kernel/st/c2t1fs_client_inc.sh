@@ -2,12 +2,8 @@ colibri_module=kcolibri
 
 bulkio_test()
 {
-	stripe_size=$1
-	io_size=$2
-	io_counts=$3
-	pool_width=$4
-	data_units=$5
-	parity_units=$6
+	local stripe_size=`expr $1 '*' 1024`
+	io_counts=$2
 
 	c2t1fs_mount_dir=$COLIBRI_C2T1FS_MOUNT_DIR
 	io_service=$COLIBRI_IOSERVICE_ENDPOINT
@@ -24,67 +20,54 @@ bulkio_test()
 	fi
 
 	rc=`lsmod | grep kcolibri | wc -l`
-	if [ "x$rc" != "x0" ]; then
-		echo "Mounting file system..."
-		echo "Mount options: -t c2t1fs -o ios=$io_service,unit_size=$stripe_size,"            \
-		     "pool_width=$pool_width,nr_data_units=$data_units,nr_parity_units=$parity_units" \
-		     " none $c2t1fs_mount_dir"
-		mount -t c2t1fs -o ios=$io_service,unit_size=$stripe_size,\
-pool_width=$pool_width,nr_data_units=$data_units,nr_parity_units=$parity_units \
-none $c2t1fs_mount_dir
-		if [ $? -ne "0" ]
-		then
-			echo "Failed to	mount c2t1fs file system."
-			unload_kernel_module
-			return 1
-		fi
-		echo "Successfully mounted c2t1fs file system."
-	else
+	if [ "x$rc" == "x0" ]; then
 		echo "Failed to	mount c2t1fs file system. (kcolibri not loaded)"
 		return 1
 	fi
 
+	echo "Mounting file system..."
+	cmd="mount -t c2t1fs -o ios=$io_service,unit_size=$stripe_size,\
+pool_width=$pool_width,nr_data_units=$data_units,nr_parity_units=$parity_units \
+none $c2t1fs_mount_dir"
+	echo $cmd
+	if ! $cmd
+	then
+		echo "Failed to	mount c2t1fs file system."
+		return 1
+	fi
+
 	echo "Creating local input file of I/O size ..."
-	dd if=/dev/urandom of=$local_input bs=$io_size count=$io_counts
-	if [ $? -ne "0" ]
+	local cmd="dd if=/dev/urandom of=$local_input bs=$io_size count=$io_counts"
+	echo $cmd
+	if ! $cmd
 	then
 		echo "Failed to create local input file."
-		umount $c2t1fs_mount_dir
-		unload_kernel_module
 		return 1
 	fi
-	echo "Created local input file of I/O size."
 
-	echo "Writing data of $io_counts*$io_size c2t1fs file ..."
-	dd if=$local_input of=$c2t1fs_file bs=$io_size count=$io_counts
-	if [ $? -ne "0" ]
+	echo "Writing data to c2t1fs file ..."
+	cmd="dd if=$local_input of=$c2t1fs_file bs=$io_size count=$io_counts"
+	echo $cmd
+	if ! $cmd
 	then
 		echo "Failed to write data on c2t1fs file."
-		umount $c2t1fs_mount_dir
-		unload_kernel_module
 		return 1
 	fi
-	echo "Successfully wrote data of $io_counts*$io_size to c2t1fs file."
 
-	echo "Reading data of $io_counts*$io_size from c2t1fs file ..."
-	dd if=$c2t1fs_file of=$local_output bs=$io_size count=$io_counts
-	if [ $? -ne "0" ]
+	echo "Reading data from c2t1fs file ..."
+	cmd="dd if=$c2t1fs_file of=$local_output bs=$io_size count=$io_counts"
+	echo $cmd
+	if ! $cmd
 	then
 		echo "Failed to read data from c2t1fs file."
-		umount $c2t1fs_mount_dir
-		unload_kernel_module
 		return 1
 	fi
-	echo "Successfully read data of $io_counts*$io_size from c2t1fs file."
 
 	echo "Comparing data written and data read from c2t1fs file ..."
-	diff $local_input $local_output &> /dev/null
-	if [ $? -ne "0" ]
+	if ! cmp $local_input $local_output
 	then
 		echo "Failed, data written and data read from c2t1fs file" \
 		     "are not same."
-		umount $c2t1fs_mount_dir
-		unload_kernel_module
 		return 1
 	fi
 	echo "Successfully tested $io_counts I/O(s) of size $io_size."
@@ -110,6 +93,8 @@ io_combinations()
 {
 	# This test runs for various stripe_size values
 
+	echo "Storage conf: pool_width=$1, data_units=$2, parity_units=$3"
+
 	pool_width=$1
 	data_units=$2
 	parity_units=$3
@@ -125,62 +110,50 @@ io_combinations()
 	# I/O sizes are multiple of stripe size
 
 	# stripe size is in K
-	for stripe_size_multiplyer in 4 12 20 28
+	for stripe_size in 4 12 20 28
 	do
 	    # Small I/Os KBs
-	    for ((io_size_multiplyer=1; io_size_multiplyer<=8; \
-		  io_size_multiplyer++))
+	    for io_size in 1 2 3 4 5 6 7 8
 	    do
-		stripe_size=`expr $stripe_size_multiplyer '*' 1024`
-		io_size=`expr $io_size_multiplyer '*' $stripe_size`
-		# I/O size in K
-		io_size=`expr $io_size / 1024`K
-		echo "Test: I/O for stripe_size = $stripe_size," \
+		io_size=`expr $io_size '*' $stripe_size`
+		io_size=${io_size}K
+		echo "Test: I/O for stripe_size = ${stripe_size}K," \
 		     "io_size = $io_size, Number of I/Os = 1."
-		bulkio_test $stripe_size $io_size 1 $pool_width $data_units \
-			    $parity_units &>> $COLIBRI_TEST_LOGFILE
+		bulkio_test $stripe_size 1 &>> $COLIBRI_TEST_LOGFILE
 		if [ $? -ne "0" ]
 		then
 			return 1
 		fi
 
 		# Multiple I/Os
-		echo "Test: I/O for stripe_size = $stripe_size," \
+		echo "Test: I/O for stripe_size = ${stripe_size}K," \
 		     "io_size = $io_size, Number of I/Os = 2."
-		bulkio_test $stripe_size $io_size 2 $pool_width $data_units \
-			    $parity_units &>> $COLIBRI_TEST_LOGFILE
+		bulkio_test $stripe_size 2 &>> $COLIBRI_TEST_LOGFILE
 		if [ $? -ne "0" ]
 		then
 			return 1
 		fi
 	    done
 
-	    one_mb=`expr 1024 '*' 1024`
-	    size_multiplyer=256
 	    # Large I/Os MBs
-	    for ((io_size_multiplyer=1; io_size_multiplyer<=8; \
-		  io_size_multiplyer++))
+	    for io_size in 1 2 4 5 8
 	    do
-		#Making I/O size in MBs by multiplying with size_multiplyer
-		stripe_size=`expr $stripe_size_multiplyer '*' 1024`
-		io_size=`expr $io_size_multiplyer '*' $stripe_size '*' \
-						      $size_multiplyer`
-		# I/O size in M
-		io_size=`expr $io_size / $one_mb`M
-		echo "Test: I/O for stripe_size = $stripe_size," \
+		stripe_mult=`expr 1024 / $stripe_size`
+		[ $stripe_mult -ge 1 ] || stripe_mult=1
+		io_size=`expr $io_size '*' $stripe_size '*' $stripe_mult`
+		io_size=${io_size}K
+		echo "Test: I/O for stripe_size = ${stripe_size}K," \
 		     "io_size = $io_size, Number of I/Os = 1."
-		bulkio_test $stripe_size $io_size 1 $pool_width $data_units \
-			    $parity_units &>> $COLIBRI_TEST_LOGFILE
+		bulkio_test $stripe_size 1 &>> $COLIBRI_TEST_LOGFILE
 		if [ $? -ne "0" ]
 		then
 			return 1
 		fi
 
 		# Multiple I/Os
-		echo "Test: I/O for stripe_size = $stripe_size," \
+		echo "Test: I/O for stripe_size = ${stripe_size}K," \
 		     "io_size = $io_size, Number of I/Os = 2."
-		bulkio_test $stripe_size $io_size 2 $pool_width $data_units \
-			    $parity_units &>> $COLIBRI_TEST_LOGFILE
+		bulkio_test $stripe_size 2 &>> $COLIBRI_TEST_LOGFILE
 		if [ $? -ne "0" ]
 		then
 			return 1

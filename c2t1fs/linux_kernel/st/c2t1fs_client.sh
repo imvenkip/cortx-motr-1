@@ -36,6 +36,8 @@ main()
 
 	prepare
 
+	echo "Prepare done, starting tests..."
+
 	io_combinations $POOL_WIDTH 1 1
         if [ $? -ne "0" ]
         then
