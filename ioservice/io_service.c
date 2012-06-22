@@ -354,9 +354,8 @@ static void ios_fini(struct c2_reqh_service *service)
  */
 static int ios_start(struct c2_reqh_service *service)
 {
-        int			    rc = 0;
-	struct c2_cobfid_map_setup *s;
-	struct c2_reqh             *reqh;
+        int			rc;
+	struct c2_cobfid_map   *cfm;
 
         C2_PRE(service != NULL);
 
@@ -367,10 +366,9 @@ static int ios_start(struct c2_reqh_service *service)
 		return rc;
 	}
 
-	reqh = service->rs_reqh;
-	rc = c2_cobfid_map_setup_locate(reqh, &s);
-	if (rc == 0)
-		c2_cobfid_map_setup_get(s);
+	rc = c2_cobfid_map_get(service->rs_reqh, &cfm);
+	if (rc != 0)
+		ioservice_delete_buffer_pool(service);
 
         return rc;
 }
@@ -386,17 +384,10 @@ static int ios_start(struct c2_reqh_service *service)
  */
 static void ios_stop(struct c2_reqh_service *service)
 {
-	int                         rc;
-        struct c2_cobfid_map_setup *s;
-	struct c2_reqh             *reqh;
-
         C2_PRE(service != NULL);
 
         ioservice_delete_buffer_pool(service);
-        reqh = service->rs_reqh;
-	rc = c2_cobfid_map_setup_locate(reqh, &s);
-	C2_ASSERT(rc == 0);
-	c2_cobfid_map_setup_put(s);
+	c2_cobfid_map_put(service->rs_reqh);
 }
 
 /** @} endgroup io_service */

@@ -179,10 +179,10 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 
 	c2_rwlock_read_lock(&reqh->rh_rwlock);
 	rsd = reqh->rh_shutdown;
-	c2_rwlock_read_unlock(&reqh->rh_rwlock);
 	if (rsd) {
 		REQH_ADDB_ADD(reqh->rh_addb, "c2_reqh_fop_handle",
                               ESHUTDOWN);
+		c2_rwlock_read_unlock(&reqh->rh_rwlock);
 		return;
 	}
 
@@ -194,27 +194,29 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 	if (result == 0) {
 		C2_ASSERT(fom != NULL);
 
-                /**
-                 * To access service specific data,
-                 * FOM needs pointer to service instance.
-                 */
-                if (fom->fo_ops->fo_service_name != NULL) {
-                        const char *service_name = NULL;
-                        service_name = fom->fo_ops->fo_service_name(fom);
-                        fom->fo_service = c2_reqh_service_get(service_name,
+		/**
+		 * To access service specific data,
+		 * FOM needs pointer to service instance.
+		 */
+		if (fom->fo_ops->fo_service_name != NULL) {
+			const char *service_name = NULL;
+			service_name = fom->fo_ops->fo_service_name(fom);
+			fom->fo_service = c2_reqh_service_get(service_name,
 							      reqh);
-                }
+		}
 		fom->fo_fol = reqh->rh_fol;
 		dom = &reqh->rh_fom_dom;
-
+		c2_atomic64_inc(&dom->fd_foms_nr);
 		loc_idx = fom->fo_ops->fo_home_locality(fom) %
-		          dom->fd_localities_nr;
+			  dom->fd_localities_nr;
 		C2_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
 		fom->fo_loc = &reqh->rh_fom_dom.fd_localities[loc_idx];
 		fom->fo_cb.fc_ast.sa_cb = queueit;
 		c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
 	} else
 		REQH_ADDB_ADD(reqh->rh_addb, "c2_reqh_fop_handle", result);
+
+	c2_rwlock_read_unlock(&reqh->rh_rwlock);
 }
 
 struct c2_reqh_service *c2_reqh_service_get(const char *service_name,

@@ -575,23 +575,20 @@ static void fom_create_test(enum cob_fom_type fomtype)
 	fom_fini(fom, fomtype);
 }
 
-static int cobfid_ctx_get(struct c2_fom *fom,
-			  struct c2_cobfid_map_setup **cobfid_ctx)
+static int cobfid_ctx_get(struct c2_fom *fom, struct c2_cobfid_map **cfm)
 {
-	int             rc;
 	struct c2_reqh *reqh;
 
 	reqh = fom->fo_service->rs_reqh;
-	rc = c2_cobfid_map_setup_locate(reqh, cobfid_ctx);
-	if (rc == 0)
-		c2_cobfid_map_setup_get(*cobfid_ctx);
-
-	return rc;
+	return c2_cobfid_map_get(reqh, cfm);
 }
 
-static void cobfid_ctx_put(struct c2_cobfid_map_setup *s)
+static void cobfid_ctx_put(struct c2_fom *fom)
 {
-	return c2_cobfid_map_setup_put(s);
+	struct c2_reqh *reqh;
+
+	reqh = fom->fo_service->rs_reqh;
+	c2_cobfid_map_put(reqh);
 }
 
 /*
@@ -603,18 +600,16 @@ static void cobfid_map_verify(struct c2_fom *fom, const bool map_exists)
 	bool			    found = false;
 	uint64_t		    cid_out;
 	struct c2_cobfid_map_iter   cfm_iter;
-	struct c2_cobfid_map	   *cfm_map;
 	struct c2_fid		    fid_out;
 	struct c2_uint128	    cob_fid_out;
-	struct c2_cobfid_map_setup *cobfid_ctx = NULL;
+	struct c2_cobfid_map       *cfm;
 
 	C2_SET0(&cfm_iter);
 	C2_SET0(&cob_fid_out);
-	rc = cobfid_ctx_get(fom, &cobfid_ctx);
-	C2_UT_ASSERT(rc == 0 && cobfid_ctx != NULL);
+	rc = cobfid_ctx_get(fom, &cfm);
+	C2_UT_ASSERT(rc == 0 && cfm != NULL);
 
-	cfm_map = &cobfid_ctx->cms_map;
-	rc = c2_cobfid_map_enum(cfm_map, &cfm_iter);
+	rc = c2_cobfid_map_enum(cfm, &cfm_iter);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_cobfid_map_iter_next(&cfm_iter, &cid_out,
@@ -628,7 +623,7 @@ static void cobfid_map_verify(struct c2_fom *fom, const bool map_exists)
 
 	C2_UT_ASSERT(found == map_exists);
 
-	cobfid_ctx_put(cobfid_ctx);
+	cobfid_ctx_put(fom);
 }
 
 /*

@@ -223,14 +223,9 @@ void c2_fom_block_leave(struct c2_fom *fom)
 
 void c2_fom_queue(struct c2_fom *fom)
 {
-	struct c2_fom_locality *loc;
-
 	C2_PRE(c2_fom_invariant(fom));
 	C2_PRE(fom->fo_phase == C2_FOPH_INIT ||
 		fom->fo_phase == C2_FOPH_FAILURE);
-
-	loc = fom->fo_loc;
-	c2_atomic64_inc(&loc->fl_dom->fd_foms_nr);
 
 	fom_ready(fom);
 }
@@ -704,8 +699,7 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom)
 				c2_bitmap_fini(&loc_cpu_map);
 				C2_CNT_INC(dom->fd_localities_nr);
 				result = c2_bitmap_init(&loc_cpu_map, max_proc);
-			} else
-				break;
+			}
 		}
 		if (result != 0)
 			break;

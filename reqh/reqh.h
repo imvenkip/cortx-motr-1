@@ -285,7 +285,6 @@ int c2_fom_state_generic(struct c2_fom *fom);
    until c2_fom_domain::fd_foms_nr is 0.
 
    @param reqh request handler to be shutdown
-   @param clink clink to be used to wait on c2_reqh:rh_sd_signal
  */
 void c2_reqh_shutdown_wait(struct c2_reqh *reqh);
 
