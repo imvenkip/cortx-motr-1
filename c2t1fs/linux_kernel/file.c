@@ -69,7 +69,7 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 }
 
 /**
-   @page rmw_io Detailed Level Design for read-modify-write IO requests.
+   @page rmw_io_dld Detailed Level Design for read-modify-write IO requests.
 
    - @ref rmw-ovw
    - @ref rmw-def
@@ -90,180 +90,58 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    - @ref rmw-ref
    - @ref rmw-impl-plan
 
-
    <hr>
    @section rmw-ovw Overview
-   <i>All specifications must start with an Overview section that
-   briefly describes the document and provides any additional
-   instructions or hints on how to best read the specification.</i>
 
-   This document is intended to be a style guide for a detail level
-   design specification, and is designed to be viewed both through a
-   text editor and in a browser after Doxygen processing.
+   The read-modify-write feature provides support to do partial stripe
+   IO requests on a Colibri client.
 
-   You can use this document as a template by deleting all content,
-   while retaining the sections referenced above and the overall
-   Doxygen structure of a page with one or more component modules.
-   You @b <i>must</i> change the Doxygen reference tags used in
-   @@page, @@section, @@subsection and @@defgroup examples when
-   copying this template, and adjust @@ref and @@subpage references in
-   the table of contents of your own document accordingly.
+   Colibri uses notion of layout to represent how file data is spread
+   over multiple objects. Colibri client is supposed to work with
+   layout independent code for IO requests. Using layouts, multiple RAID
+   patterns like RAID5, parity declustered RAID can be supported.
 
-   Please provide a table of contents for the major sections, as shown above.
-   Please use horizontal ruling exactly as shown in this template, and do not
-   introduce additional lines.
-
-   It is recommended that you retain the italicized instructions that
-   follow the formally recognized section headers until at least the
-   DLD review phase.  You may leave the instructions in the final
-   document if you wish.
-
-   It is imperative that the document be neat when viewed textually
-   through an editor and when browsing the Doxygen output - it is
-   intended to be relevant for the entire code life-cycle.  Please
-   check your grammar and punctuation, and run the document through a
-   spelling checker.  It is also recommended that you run the source
-   document through a paragraph formatting tool to produce neater
-   text, though be careful while doing so as text formatters do not
-   understand Doxygen syntax and significant line breaks.
-
-   Please link your DLD to the index of all detailed designs maintained
-   in @ref DLDIX "Detailed Designs". <!-- doc/dld-index.c -->
-
-   <b>Purpose of a DLD</b> @n
-   The purpose of the Detailed Level Design (DLD) specification of a
-   component is to:
-   - Refine higher level designs
-   - To be verified by inspectors and architects
-   - To guide the coding phase
-
-   <b>Location and layout of the DLD Specification</b> @n
-   The Colibri project requires Detailed Level Designs in the source
-   code itself.  This greatly aids in keeping the design documentation
-   up to date through the lifetime of the implementation code.
-
-   The main DLD specification shall primarily be located in a C file
-   in the component being designed.  The main DLD specification can be
-   quite large and is probably not of interest to a consumer of the
-   component.
-
-   It is @a required that the <b>Functional Specification</b> and
-   the <b>Detailed Functional Specification</b> be located in the
-   primary header file - this is the header file with the declaration
-   of the external interfaces that consumers of the component's API
-   would include.  In case of stand alone components, an appropriate
-   alternative header file should be chosen.
-
-   <b>Structure of the DLD</b> @n
-   The DLD specification is @b required to be sectioned in the
-   specific manner illustrated by the @c dld-sample.c and
-   @c dld-sample.h files.  This is similar in structure and
-   purpose to the sectioning found in a High Level Design.
-
-   Not all sections may be applicable to every design, but sections
-   declared to be mandatory may not be omitted.  If a mandatory
-   section does not apply, it should clearly be marked as
-   non-applicable, along with an explanation.  Additional sections or
-   sub-sectioning may be added as required.
-
-   It is probably desirable to split the Detailed Functional
-   Specifications into separate header files for each sub-module of
-   the component.  This example illustrates a component with a single
-   module.
-
-   <b>Formatting language</b> @n
-   Doxygen is the formatting tool of choice.  The Doxygen @@page
-   format is used to define a separate top-level browsable element
-   that contains the body of the DLD. The @@section, @@subsection and
-   @@subsubsection formatting commands are used to provide internal
-   structure.  The page title will be visible in the <b>Related Pages</b>
-   tab in the main browser window, as well as displayed as a top-level
-   element in the explorer side-bar.
-
-   The Functional Specification is to be located in the primary header
-   file of the component in a Doxygen @@page that is referenced as a
-   @@subpage from the table of contents of the main DLD specification.
-   This sub-page shows up as leaf element of the DLD in the explorer
-   side-bar.
-
-   Detailed functional specifications follow the Functional
-   Specification, using Doxygen @@defgroup commands for each component
-   module.
-
-   Within the text, Doxygen commands such as @@a, @@b, @@c and @@n are
-   preferred over equivalent HTML markup; this enhances the readability
-   of the DLD in a text editor.  However, visual enhancement of
-   multiple consecutive words does require HTML markup.
+   Often, incoming IO requests do not span whole stripe of file data.
+   The file data for such partial stripe requests have to be read first
+   so that whole stripe is available with client, then the stripe data
+   is changed as per user request and later sent for write to the server.
 
    <hr>
    @section rmw-def Definitions
-   <i>Mandatory.
-   The DLD shall provide definitions of the terms and concepts
-   introduced by the design, as well as the relevant terms used by the
-   specification but described elsewhere.  References to the
-   C2 Glossary and the component's HLD are permitted and encouraged.
-   Agreed upon terminology should be incorporated in the glossary.</i>
-
-   Previously defined terms:
-   - <b>Logical Specification</b> This explains how the component works.
-   - <b>Functional Specification</b> This is explains how to use the component.
-
-   New terms:
-   - <b>Detailed Functional Specification</b> This provides
-     documentation of ll the data structures and interfaces (internal
-     and external).
-   - <b>State model</b> This explains the life cycle of component data
-     structures.
-   - <b>Concurrency and threading model</b> This explains how the the
-     component works in a multi-threaded environment.
+   c2t1fs - Colibri client file system.
+   layout - A map which decides how to distribute file data over a number
+            of objects.
+   stripe - A unit of IO request which spans all data units in a parity group.
 
    <hr>
    @section rmw-req Requirements
-   <i>Mandatory.
-   The DLD shall state the requirements that it attempts to meet.</i>
 
-   They should be expressed in a list, thusly:
-   - @b R.DLD.Structured The DLD shall be decomposed into a standard
-   set of section.  Sub-sections may be used to further decompose the
-   material of a section into logically disjoint units.
-   - @b R.DLD.What The DLD shall describe the externally visible
-   data structures and interfaces of the component through a
-   functional specification section.
-   - @b R.DLD.How The DLD shall explain its inner algorithms through
-   a logical specification section.
-   - @b R.DLD.Maintainable The DLD shall be easily maintainable during
-   the lifetime of the code.
+   - @b R.c2t1fs.rmw_io.rmw The implementation shall provide support for
+   aligned and un-aligned IO requests.
+   - @b R.c2t1fs.rmw_io.efficient The implementation shall provide efficient
+   way of implementing IO requests. Since Colibri follows async nature of APIs
+   as far as possible, the implementation will stick to async APIs and shall
+   try to avoid blocking calls.
 
    <hr>
    @section rmw-depends Dependencies
-   <i>Mandatory. Identify other components on which this specification
-   depends.</i>
 
-   The DLD specification style guide depends on the HLD and AR
-   specifications as they identify requirements, use cases, @a \&c.
+   - An async way of waiting for reply rpc item from rpc layer.
 
    <hr>
    @section rmw-highlights Design Highlights
-   <i>Mandatory. This section briefly summarizes the key design
-   decisions that are important for understanding the functional and
-   logical specifications, and enumerates topics that need special
-   attention.</i>
 
-   - The DLD specification requires formal sectioning to address specific
-   aspects of the design.
-   - The DLD is with the code, and the specification is designed to be
-   viewed either as text or through Doxygen.
-   - This document can be used as a template.
+   - The IO path from c2t1fs code will have a check which will find out if
+   incoming IO request is a partial stripe IO.
+   - In case of partial stripe IO request, a read request will be issued
+   if given extent falls within end-of-file. The read request will be issued
+   on the concerned parity group and will wait for completion.
+   - Once read IO is complete, changes will be made to the data buffers
+   (typically these are pages from page cache) and then write requests
+   will be dispatched for the whole stripe.
 
    <hr>
    @section rmw-lspec Logical Specification
-   <i>Mandatory.  This section describes the internal design of the component,
-   explaining how the functional specification is met.  Sub-components and
-   diagrams of their interaction should go into this section.  The section has
-   mandatory subsections created using the Doxygen @@subsection command.  The
-   designer should feel free to use additional sub-sectioning if needed, though
-   if there is significant additional sub-sectioning, provide a table of
-   contents here.</i>
 
    - @ref rmw-lspec-comps
    - @ref rmw-lspec-sc1
@@ -274,287 +152,234 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    - @ref rmw-lspec-thread
    - @ref rmw-lspec-numa
 
-
    @subsection rmw-lspec-comps Component Overview
-   <i>Mandatory.
-   This section describes the internal logical decomposition.
-   A diagram of the interaction between internal components and
-   between external consumers and the internal components is useful.</i>
 
-   Doxygen is limited in its internal support for diagrams. It has built in
-   support for @c dot and @c mscgen, and examples of both are provided in this
-   template.  Please remember that every diagram @a must be accompanied by
-   an explanation.
+   - First, rwm_io component works with generic layout component to retrieve
+   list of data units and parity units for given parity group.
+   - Then it interacts with rpc bulk API to send IO fops to data server.
+   - All IO fops are dispatched asynchronously at once and the caller thread
+   sleeps over the condition of all fops getting replies.
 
-   The following @@dot diagram shows the internal components of the Network
-   layer, and also illustrates its primary consumer, the RPC layer.
-   @dot
-   digraph {
-     node [style=box];
-     label = "Network Layer Components and Interactions";
-     subgraph cluster_rpc {
-         label = "RPC Layer";
-         rpcC [label="Connectivity"];
-	 rpcO [label="Output"];
-     }
-     subgraph cluster_net {
-         label = "Network Layer";
-	 netM [label="Messaging"];
-	 netT [label="Transport"];
-	 netL [label="Legacy RPC emulation", style="filled"];
-	 netM -> netT;
-	 netL -> netM;
-     }
-     rpcC -> netM;
-     rpcO -> netM;
-   }
-   @enddot
-
-   The @@msc command is used to invoke @c mscgen, which creates sequence
-   diagrams. For example:
    @msc
-   a,b,c;
+   rmw_io,layout,rpc_bulk;
 
-   a->b [ label = "ab()" ] ;
-   b->c [ label = "bc(TRUE)"];
-   c=>c [ label = "process(1)" ];
-   c=>c [ label = "process(2)" ];
-   ...;
-   c=>c [ label = "process(n)" ];
-   c=>c [ label = "process(END)" ];
-   a<<=c [ label = "callback()"];
-   ---  [ label = "If more to run", ID="*" ];
-   a->a [ label = "next()"];
-   a->c [ label = "ac1()\nac2()"];
-   b<-c [ label = "cb(TRUE)"];
-   b->b [ label = "stalled(...)"];
-   a<-b [ label = "ab() = FALSE"];
+   rmw_io=>layout   [ label = "fetch constituent cobs" ];
+   rmw_io=>rpc_bulk [ label = "issue async read IO" ];
+   rpc_bulk=>rmw_io [ label = "read complete" ];
+   rmw_io=>rmw_io   [ label = "modify data buffers" ];
+   rmw_io=>rpc_bulk [ label = "issue async write IO" ];
+   rpc_bulk=>rmw_io [ label = "write complete" ];
+
    @endmsc
-   Note that when entering commands for @c mscgen, do not include the
-   <tt>msc { ... }</tt> block delimiters.
-   You need the @c mscgen program installed on your system - it is part
-   of the Scientific Linux based DevVM.
-
-   UML and sequence diagrams often illustrate points better than any written
-   explanation.  However, you have to resort to an external tool to generate
-   the diagram, save the image in a file, and load it into your DLD.
-
-   An image is relatively easy to load provided you remember that the
-   Doxygen output is viewed from the @c doc/html directory, so all paths
-   should be relative to that frame of reference.  For example:
-   <img src="../../doc/dld-sample-uml.png">
-   I found that a PNG format image from Visio shows up with the correct
-   image size while a GIF image was wrongly sized.  Your experience may
-   be different, so please ensure that you validate the Doxygen output
-   for correct image rendering.
-
-   If an external tool, such as Visio or @c dia, is used to create an
-   image, the source of that image (e.g. the Visio <tt>.vsd</tt> or
-   the <tt>.dia</tt> file) should be checked into the source tree so
-   that future maintainers can modify the figure.  This applies to all
-   non-embedded image source files, not just Visio or @c dia.
 
    @subsection rmw-lspec-sc1 Subcomponent design
-   <i>Such sections briefly describes the purpose and design of each
-   sub-component. Feel free to add multiple such sections, and any additional
-   sub-sectioning within.</i>
 
-   Sample non-standard sub-section to illustrate that it is possible to
-   document the design of a sub-component.  This contrived example demonstrates
-   @@subsubsections for the sub-component's data structures and subroutines.
+   This DLD addresses only the rmw_io component.
+
+   - The component will sit in the IO path of Colibri client code.
+   - It will detect if any incoming IO request spans a stripe only partially.
+   - In case of partial stripes, it issues an inline read request to read
+   the whole stripe and get the data in memory.
+   - The thread is blocked until read IO is not complete.
+   - If incoming IO request was read, the thread will be returned along
+   with the status and number of bytes read.
+   - If incoming IO request was write, the pages are modified in-place
+   as per incoming IO request.
+   - And then, write IO is issued for the whole stripe.
+   - Completion of write IO will send the status back to the calling thread.
+
+   @note Present implementation of c2t1fs IO path uses get_user_pages() API
+   to pin user-space pages in memory. This works just fine with page aligned
+   IO requests. But for read-modify-write, APIs like copy_from_user() and
+   copy_to_user() will be used which can copy data to/from user-space and
+   can work with both aligned and non-aligned IO requests.
 
    @subsubsection rmw-lspec-ds1 Subcomponent Data Structures
-   <i>This section briefly describes the internal data structures that are
-   significant to the design of the sub-component. These should not be a part
-   of the Functional Specification.</i>
 
-   Describe @a briefly the internal data structures that are significant to
-   the design.  These should not be described in the Functional Specification
-   as they are not part of the external interface.  It is <b>not necessary</b>
-   to describe all the internal data structures here.  They should, however, be
-   documented in Detailed Functional Specifications, though separate from the
-   external interfaces.  See @ref rmwDFSInternal for example.
+   The following data structures are needed while doing @b async IO
+   with file based on a layout.
+   Each incoming IO request is typically split into a number of subsequent
+   IO requests addressed to each cob as specified by file layout.
+   Typically, every rpc item contains a channel to notify caller of its
+   completion. But in this case, we need a new mechanism to send multiple
+   IO fops to rpc layer and wake up the caller thread only when all IO fops
+   complete their job.
 
-   - dld_sample_internal
+   io_req_leafcb - Represents a leaf node IO request callback. A leaf node
+   callback has to point to some valid parent callback. On IO completion,
+   the leaf node callback notifies the parent.
+
+   @code
+   struct io_req_leafcb {
+	struct c2_clink       irl_clink;
+	struct io_req_rootcb *irl_parent;
+   };
+   @endcode
+
+   io_req_rootcb - Represents a root node IO request callback. A root node
+   callback can be split into multiple leaf node callbacks. Contains a
+   channel and a clink along with a refcount. Caller is expected to wait on
+   the embedded channel using the clink. Caller is woken up when the refcount
+   goes down to zero.
+
+   @code
+   struct io_req_rootcb {
+	struct c2_clink       irr_clink;
+	struct c2_chan        irr_chan;
+	struct c2_ref         irr_ref;
+   };
+   @endcode
+
+   In an IO request, the io_req_rootcb is allocated first and its reference
+   count is initialized. Then subsequent io_req_leafcbs are allocated and
+   attached to the root node.
+   On receiving IO completion, the leaf nodes decrement the parent's
+   reference count atomically and then destroy themselves.
+   The origin thread which spawns the rootcb waits on its embedded channel
+   and is woken up when the reference count goes down to zero.
+
+   io_request - Represents an IO request call. It contains the IO extent,
+   struct io_req_rootcb and the state of IO request. This structure is
+   primarily used to track progress of IO request.
+
+   @code
+   struct io_request {
+	int                  ir_rc;
+	uint64_t             ir_magic;
+	struct rw_desc       ir_desc;
+	enum io_req_type     ir_type;
+	enum io_req_state    ir_state;
+	struct io_req_ops    ir_ops;
+	struct io_req_rootcb ir_rcb;
+   };
+   @endcode
+
+   io_req_state - Represents state of IO request call. The possible states
+   can be
+   UNINITIALIZED, INITIALIZED, INTRANSIT, COMPLETE
+
+   io_req_type - Represents type of IO request. Possible values are READ or
+   WRITE.
+
+   io_req_ops - Operation vector for struct io_request.
+   @code
+   struct io_req_ops {
+	int (*iro_dispatch)     (struct io_request *req);
+	int (*iro_readpage)     (struct io_request *req, struct page *page);
+	int (*iro_prepare_write)(struct io_request *req, struct page *pages,
+				 int page_nr);
+	int (*iro_commit_write) (struct io_request *req);
+   };
+   @endcode
+   @todo Do the ops vector talk in terms of pages or in rw_desc?
 
    @subsubsection rmw-lspec-sub1 Subcomponent Subroutines
-   <i>This section briefly describes the interfaces of the sub-component that
-   are of significance to the design.</i>
 
-   Describe @a briefly the internal subroutines that are significant to the
-   design.  These should not be described in the Functional Specification as
-   they are not part of the external interface.  It is <b>not necessary</b> to
-   describe all the internal subroutines here.  They should, however, be
-   documented in Detailed Functional Specifications, though separate from the
-   external interfaces.  See @ref rmwDFSInternal for example.
+   An existing API io_req_spans_full_stripe() can be reused to check if
+   incoming IO request spans a full stripe or not.
 
-   - dld_sample_internal_invariant()
+   - Callback used for leaf node IO request. This callback is used while
+   initializing clink embedded in structure io_req_leafcb.
+   This function notifies its parent of IO completion.
+
+   @code
+   bool leafio_complete(struct c2_clink *link);
+   @endcode
+
+   - Destructor function for c2_ref object embedded in structure io_req_rootcb.
+   This function will wake up the caller thread by signalling on the embedded
+   channel.
+
+   @code
+   void rootio_complete(struct c2_ref *ref);
+   @endcode
+
+   Also, corresponding APIs will be written to perform operations from
+   struct io_req_ops vector.
 
    @subsection rmw-lspec-state State Specification
-   <i>Mandatory.
-   This section describes any formal state models used by the component,
-   whether externally exposed or purely internal.</i>
 
-   Diagrams are almost essential here. The @@dot tool is the easiest way to
-   create state diagrams, and is very readable in text form too.  Here, for
-   example, is a @@dot version of a figure from the "rpc/session.h" file:
+   The structure io_request can be in one the states, namely UNINITIALIZED,
+   INITIALIZED, INTRANSIT, COMPLETE.
+
    @dot
-   digraph example {
-       size = "5,6"
-       label = "RPC Session States"
-       node [shape=record, fontname=Helvetica, fontsize=10]
-       S0 [label="", shape="plaintext", layer=""]
-       S1 [label="Uninitialized"]
-       S2 [label="Initialized"]
-       S3 [label="Connecting"]
-       S4 [label="Active"]
-       S5 [label="Terminating"]
-       S6 [label="Terminated"]
-       S7 [label="Uninitialized"]
-       S8 [label="Failed"]
-       S0 -> S1 [label="allocate"]
-       S1 -> S2 [label="c2_rpc_conn_init()"]
-       S2 -> S3 [label="c2_rpc_conn_established()"]
-       S3 -> S4 [label="c2_rpc_conn_establish_reply_received()"]
-       S4 -> S5 [label="c2_rpc_conn_terminate()"]
-       S5 -> S6 [label="c2_rpc_conn_terminate_reply_received()"]
-       S6 -> S7 [label="c2_rpc_conn_fini()"]
-       S2 -> S8 [label="failed"]
-       S3 -> S8 [label="timeout or failed"]
-       S5 -> S8 [label="timeout or failed"]
-       S8 -> S7 [label="c2_rpc_conn_fini()"]
+   digraph io_req_st {
+	size  = "3,4"
+	label = "States of IO request"
+	node   [ shape=record, fontsize=10]
+	S0     [ label = "", shape="plaintext" ]
+	S1     [ label = "UNINITIALIZED" ]
+	S2     [ label = "INITIALIZED"]
+	S3     [ label = "INTRANSIT"]
+	S4     [ label = "COMPLETE"]
+	S0->S1 [ label = "allocate" ]
+	S1->S2 [ label = "init" ]
+	S2->S3 [ label = "Dispatch all IO requests" ]
+	S3->S4 [ label = "Replies received" ]
    }
    @enddot
-   The @c dot program is part of the Scientific Linux DevVM.
+
+   @todo A client cache is missing at the moment. With addition of cache,
+   the states of an IO request might add up.
 
    @subsection rmw-lspec-thread Threading and Concurrency Model
-   <i>Mandatory.
-   This section describes the threading and concurrency model.
-   It describes the various asynchronous threads of operation, identifies
-   the critical sections and synchronization primitives used
-   (such as semaphores, locks, mutexes and condition variables).</i>
 
-   This section must explain all aspects of synchronization, including locking
-   order protocols, existential protection of objects by their state, etc.
-   A diagram illustrating lock scope would be very useful here.
-   For example, here is a @@dot illustration of the scope and locking order
-   of the mutexes in the Networking Layer:
-   @dot
-   digraph {
-      node [shape=plaintext];
-      subgraph cluster_m1 { // represents mutex scope
-         // sorted R-L so put mutex name last to align on the left
-         rank = same;
-	 n1_2 [label="dom_fini()"];  // procedure using mutex
-	 n1_1 [label="dom_init()"];
-         n1_0 [label="c2_net_mutex"];// mutex name
-      }
-      subgraph cluster_m2 {
-         rank = same;
-	 n2_2 [label="tm_fini()"];
-         n2_1 [label="tm_init()"];
-         n2_4 [label="buf_deregister()"];
-	 n2_3 [label="buf_register()"];
-         n2_0 [label="nd_mutex"];
-      }
-      subgraph cluster_m3 {
-         rank = same;
-	 n3_2 [label="tm_stop()"];
-         n3_1 [label="tm_start()"];
-	 n3_6 [label="ep_put()"];
-	 n3_5 [label="ep_create()"];
-	 n3_4 [label="buf_del()"];
-	 n3_3 [label="buf_add()"];
-         n3_0 [label="ntm_mutex"];
-      }
-      label="Mutex usage and locking order in the Network Layer";
-      n1_0 -> n2_0;  // locking order
-      n2_0 -> n3_0;
-   }
-   @enddot
+   The incoming IO request waits asynchronously for the completion of
+   constituent IO requests. Multiple leaf node IO requests can point to
+   same parent but they only decrement the refcount of parent IO request
+   which is an atomic operation and does not need any special synchronization.
+
+   @todo In future, with introduction of Resource Manager, distributed extent
+   locks have to be acquired/released as needed.
 
    @subsection rmw-lspec-numa NUMA optimizations
-   <i>Mandatory for components with programmatic interfaces.
-   This section describes if optimal behavior can be supported by
-   associating the utilizing thread to a single processor.</i>
 
-   Conversely, it can describe if sub-optimal behavior arises due
-   to contention for shared component resources by multiple processors.
-
-   The section is marked mandatory because it forces the designer to
-   consider these aspects of concurrency.
+   None.
 
    <hr>
    @section rmw-conformance Conformance
-   <i>Mandatory.
-   This section cites each requirement in the @ref rmw-req section,
-   and explains briefly how the DLD meets the requirement.</i>
 
-   Note the subtle difference in that @b I tags are used instead of
-   the @b R  tags of the requirements section.  The @b I of course,
-   stands for "implements":
-
-   - @b I.DLD.Structured The DLD specification provides a structural
-   breakdown along the lines of the HLD specification.  This makes it
-   easy to understand and analyze the various facets of the design.
-   - @b I.DLD.What The DLD style guide requires that a
-   DLD contain a Functional Specification section.
-   - @b I.DLD.How The DLD style guide requires that a
-   DLD contain a Logical Specification section.
-   - @b I.DLD.Maintainable The DLD style guide requires that the
-   DLD be written in the main header file of the component.
-   It can be maintained along with the code, without
-   requiring one to resort to other documents and tools.  The only
-   exception to this would be for images referenced by the DLD specification,
-   as Doxygen does not provide sufficient support for this purpose.
-
-   This section is meant as a cross check for the DLD writer to ensure
-   that all requirements have been addressed.  It is recommended that you
-   fill it in as part of the DLD review.
+   - @b I.c2t1fs.rmw_io.rmw The implementation uses an API
+   io_req_spans_full_stripe() to find out if the incoming IO request
+   would be read-modify-write IO. The missing data will be read first
+   from data server synchronously(later from client cache which is missing
+   at the moment and then from data server). And then it will be modified
+   and send as a full stripe IO request.
+   - @b I.c2t1fs.rmw_io.efficient The implementation uses an asynchronous
+   way of waiting for IO requests and does not send the requests one after
+   another as is done with current implementation. This leads in only one
+   conditional wait instead of waits proportional to number of IO requests
+   as is done with current implementation.
 
    <hr>
    @section rmw-ut Unit Tests
-   <i>Mandatory. This section describes the unit tests that will be designed.
-   </i>
 
-   Unit tests should be planned for all interfaces exposed by the
-   component.  Testing should not just include correctness tests, but
-   should also test failure situations.  This includes testing of
-   @a expected return error codes when presented with invalid
-   input or when encountering unexpected data or state.  Note that
-   assertions are not testable - the unit test program terminates!
+   The UT will exercise following unit test scenarios.
 
-   Another area of focus is boundary value tests, where variable
-   values are equal to but do not exceed their maximum or minimum
-   possible values.
+   @test Issue a full stripe size IO and check if it is successful. This
+   test case should assert that full stripe IO is intact with new changes.
 
-   As a further refinement and a plug for Test Driven Development, it
-   would be nice if the designer can plan the order of development of
-   the interfaces and their corresponding unit tests.  Code inspection
-   could overlap development in such a model.
+   @test Issue a partial stripe read IO and check if it successful. This
+   test case should assert the fact that partial stripe read IO is working
+   properly.
 
-   Testing should relate to specific use cases described in the HLD if
-   possible.
+   @test Issue a partial stripe write IO and check if it is successful.
+   This should confirm the fact that partial stripe write IO is working
+   properly.
 
-   It is acceptable that this section be located in a separate @@subpage like
-   along the lines of the Functional Specification.  This can be deferred
-   to the UT phase where additional details on the unit tests are available.
-
-   Use the Doxygen @@test tag to identify each test.  Doxygen collects these
-   and displays them on a "Test List" page.
+   @test Write very small amount of data (10 - 20 bytes) to a newly created
+   file and check if it is successful. This should stress 2 boundary conditions
+   - a partial stripe write IO request and
+   - unavailability of all data units in a parity group. In this case,
+   the non-existing data units will be assumed as zero filled buffers and
+   the parity will be calculated accordingly.
 
    <hr>
    @section rmw-st System Tests
-   <i>Mandatory.
-   This section describes the system testing done, if applicable.</i>
 
-   Testing should relate to specific use cases described in the HLD if
-   possible.
-
-   It is acceptable that this section be located in a separate @@subpage like
-   along the lines of the Functional Specification.  This can be deferred
-   to the ST phase where additional details on the system tests are available.
-
+   A bash script will be written to send partial stripe IO requests in
+   loop and check the results. This should do some sort of stress testing
+   for the code.
 
    <hr>
    @section rmw-O Analysis
@@ -564,19 +389,11 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 
    <hr>
    @section rmw-ref References
-   <i>Mandatory. Provide references to other documents and components that
-   are cited or used in the design.
-   In particular a link to the HLD for the DLD should be provided.</i>
 
    - <a href="https://docs.google.com/a/xyratex.com/
 Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjQ3Z3NraDI4ZG0&hl=en_US">
 Detailed level design HOWTO</a>,
    an older document on which this style guide is partially based.
-   - <a href="http://www.stack.nl/~dimitri/doxygen/manual.html">Doxygen
-   Manual</a>
-   - <a href="http://www.graphviz.org">Graphviz - Graph Visualization
-   Software</a> for documentation on the @c dot command.
-   - <a href="http://www.mcternan.me.uk/mscgen">Mscgen home page</a>
 
    <hr>
    @section rmw-impl-plan Implementation Plan
@@ -622,7 +439,7 @@ Detailed level design HOWTO</a>,
  */
 
 
-#include "doc/dld_template.h"
+/*#include "doc/dld_template.h"*/
 
 /**
    @defgroup rmwDFSInternal Colibri Sample Module Internals
@@ -639,19 +456,6 @@ Detailed level design HOWTO</a>,
 
    @{
  */
-
-/** Structure used internally */
-struct dld_sample_internal {
-	int dsi_f1; /**< field to do blah */
-};
-
-/** Invariant for dld_sample_internal must be called holding the mutex */
-static bool dld_sample_internal_invariant(const struct dld_sample_internal *dsi)
-{
-	if (dsi->dsi-f1 == 0)
-		return false;
-	return true;
-}
 
 /** @} */ /* end internal */
 

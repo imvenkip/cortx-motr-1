@@ -32,6 +32,8 @@ Detailed designs, ordered alphabetically:
            <!-- ioservice/io_foms.c -->
 - @subpage c2loop-dld "The new c2loop device driver DLD"
            <!-- c2t1fs/linux_kernel/c2loop.c -->
+- @subpage rmw_io_dld "DLD for read-modify-write IO requests"
+           <!-- c2t1fs/linux_kernel/file.c -->
 
 Detailed designs should use the <i>@subpage DLD "Colibri DLD Template"
 <!-- doc/dld-template.c --> </i> as a style guide.
