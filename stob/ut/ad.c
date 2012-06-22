@@ -323,7 +323,7 @@ static void test_ad_rw_unordered()
 	test_write(NR/2);
 
 	for (i = 0; i < NR/2; ++i) {
-	 	stob_vec[i] = (buf_size * (i + 1)) >> block_shift;
+		stob_vec[i] = (buf_size * (i + 1)) >> block_shift;
 		memset(user_buf[i], ('a' + i)|1, buf_size);
 	}
 	test_write(NR/2);
