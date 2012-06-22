@@ -76,16 +76,9 @@ prepare()
 
 unprepare()
 {
-	c2t1fs_mount_dir=$COLIBRI_C2T1FS_MOUNT_DIR
-	rc=`cat /proc/filesystems | grep c2t1fs | wc -l > /dev/null`
-	if [ "x$rc" = "x1" ]; then
-		umount $c2t1fs_mount_dir &>> /dev/null
-	fi
-
-	rc=`ps -ef | grep colibri_setup | grep -v grep | wc -l`
-	if [ "x$rc" != "x0" ]; then
-		colibri_service stop
-		sleep 5 # Give some time to stop service properly.
+	if mount | grep ^c2t1fs > /dev/null; then
+		umount $COLIBRI_C2T1FS_MOUNT_DIR
+		rm -r $COLIBRI_C2T1FS_MOUNT_DIR
 	fi
 
 	unload_kernel_module
