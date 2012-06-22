@@ -42,19 +42,19 @@ enum c2_rm_fop_opcodes {
 /**
   * Externs
   */
-extern struct c2_fop_type c2_fop_rm_right_borrow_fopt;
-extern struct c2_fop_type c2_fop_rm_right_borrow_reply_fopt;
-extern struct c2_fop_type c2_fop_rm_right_revoke_fopt;
-extern struct c2_fop_type c2_fop_rm_right_revoke_reply_fopt;
-extern struct c2_fop_type c2_fop_rm_right_cancel_fopt;
+extern struct c2_fop_type c2_fop_rm_borrow_fopt;
+extern struct c2_fop_type c2_fop_rm_borrow_reply_fopt;
+extern struct c2_fop_type c2_fop_rm_revoke_fopt;
+extern struct c2_fop_type c2_fop_rm_revoke_reply_fopt;
+extern struct c2_fop_type c2_fop_rm_cancel_fopt;
 
-extern struct c2_fop_type_format c2_fop_rm_right_tfmt;
+extern struct c2_fop_type_format c2_fop_rm_tfmt;
 extern struct c2_fop_type_format c2_fop_rm_res_data_tfmt;
-extern struct c2_fop_type_format c2_fop_rm_right_borrow_tfmt;
-extern struct c2_fop_type_format c2_fop_rm_right_borrow_reply_tfmt;
-extern struct c2_fop_type_format c2_fop_rm_right_revoke_tfmt;
-extern struct c2_fop_type_format c2_fop_rm_right_revoke_reply_tfmt;
-extern struct c2_fop_type_format c2_fop_rm_right_cancel_tfmt;
+extern struct c2_fop_type_format c2_fop_rm_borrow_tfmt;
+extern struct c2_fop_type_format c2_fop_rm_borrow_reply_tfmt;
+extern struct c2_fop_type_format c2_fop_rm_revoke_tfmt;
+extern struct c2_fop_type_format c2_fop_rm_revoke_reply_tfmt;
+extern struct c2_fop_type_format c2_fop_rm_cancel_tfmt;
 
 /*
  * FOM-types.

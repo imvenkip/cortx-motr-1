@@ -31,28 +31,11 @@
  * Data structures.
  */
 /*
- * Common data-structure to other tracking structures.
+ * Tracking structure for outgoing request.
  */
 struct rm_out {
-	struct c2_rm_incoming *ou_incoming;
 	struct c2_rm_outgoing  ou_req;
 	struct c2_fop	       ou_fop;
-};
-
-/*
- * The tracking structure for BORROW request.
- */
-struct rm_borrow {
-	struct rm_out		bo_out;
-	struct c2_fop_rm_borrow *bo_data;
-};
-
-/*
- * The tracking structure for BORROW request.
- */
-struct rm_canoke {
-	struct rm_out		 bo_out;
-	struct c2_fop_rm_canoke *bo_data;
 };
 
 /**
@@ -66,8 +49,12 @@ int c2_rm_fop_cancel_fom_init(struct c2_fop *, struct c2_fom **);
  * FOP operation vector for right borrow.
  */
 static const struct c2_fop_type_ops rm_borrow_fop_ops = {
-	.fto_fop_replied = rm_borrow_fop_reply,
 	.fto_size_get = c2_xcode_fop_size_get,
+};
+
+const struct c2_rpc_item_ops rm_borrow_rpc_ops = {
+	.rio_replied = borrow_reply,
+	.rio_free = outreq_free,
 };
 
 /**
@@ -75,8 +62,12 @@ static const struct c2_fop_type_ops rm_borrow_fop_ops = {
  */
 static const struct c2_fop_type_ops rm_canoke_fop_ops = {
 	.fto_execute = rm_client_revoke,
-	.fto_fop_replied = rm_canoke_fop_reply,
 	.fto_size_get = c2_xcode_fop_size_get,
+};
+
+const struct c2_rpc_item_ops rm_borrow_rpc_ops = {
+	.rio_replied = revoke_reply,
+	.rio_free = outreq_free,
 };
 
 /**
@@ -134,9 +125,9 @@ C2_FOP_TYPE_DECLARE(c2_fop_rm_canoke_rep, "Right RevokeCancel Reply",
 int c2_rm_borrow_out(struct c2_rm_incoming *in,
 		     struct c2_rm_right *right)
 {
-	struct rm_borrow	*borrow;
-	struct c2_rm_outgoing	*outreq;
-	struct c2_fop_rm_borrow *bfop = &borrow->bo_data;
+	struct rm_out		*outreq;
+	struct c2_fop_rm_borrow *bfop;
+	struct c2_fop		*fop = &outreq->ou_req;
 	char			*right_addr = (char *)bfop->bo_right.ri_opaque;
 	c2_bcount_t		 right_nr = 1;
 	struct c2_bufvec	 right_buf = C2_BUFVEC_INIT_BUF(&right_addr,
@@ -144,42 +135,29 @@ int c2_rm_borrow_out(struct c2_rm_incoming *in,
 
 	C2_PRE(in->rin_type == RIT_BORROW);
 
-	C2_ALLOC_PTR(borrow);
-	if (borrow == NULL)
+	C2_ALLOC_PTR(outreq);
+	if (outreq == NULL)
 		goto out;
 
-	/* Store the incoming request pointer */
-	borrow->bo_out.ou_incoming = in;
+	c2_rm_outgoing_init(&outreq->ou_req, in->rin_type, right);
 
-	/* Store the outgoing request information */
-	outreq = &borrow->bo_out.ou_req;
-	outreq->rog_type  = ROT_BORROW;
-	outreq->rog_owner = right->ri_owner;
-	right_copy(&outreq->rog_want.rl_right, right);
-	outreq->rog_want.rl_other = right->ri_owner->ro_creditor;
-
-	c2_fop_init(&borrow->bo_out.ou_fop, &c2_fop_rm_borrow_fopt, NULL);
-	/*
-	 * pin_add should return pin, otherwise it's difficult to remove it.
-	 * Or outgoing should store pointer to incoming. The outgoing request
-	 * is generated as a result of incoming request.
-	 */
+	c2_fop_init(fop, &c2_fop_rm_borrow_fopt, NULL);
 	pin_add(in, &outreq->rog_want.rl_right, RPF_TRACK);
 
-	/* Fill in the BORROW FOP. Should we store pointer in borrow?? */
-	bfop = &borrow->bo_data;
+	bfop = c2_fop_data(fop);
 
+	/* Fill up the BORROW FOP. */
 	bfop->bo_rtype = in->rin_type;
 	bfop->bo_policy = in->rin_policy;
 	bfop->bo_flags = in->rin_flags;
-	c2_rm_owner_cookie(in->rin_want.ri_owner, &bfop->bo_owner.ow_cookie);
-	/* Sending owner cookie is not necessary. Think of getting rid of it */
+	c2_rm_owner_cookie(in->rin_want.ri_owner.ro_creditor,
+			   &bfop->bo_owner.ow_cookie);
 	c2_rm_loan_cookie(outreq->rog_want, &bfop->bo_loan.ow_cookie);
 	/*
 	 * Encode rights data into BORROW FOP
 	 */
 	right->ri_ops->rro_encode(right, &right_buf);
-	borrow->bo_out.ou_fop.f_item->ri_ops = &borrow_ops;
+	borrow->bo_out.ou_fop.f_item->ri_ops = &rm_borrow_rpc_ops;
 	c2_rpc_post(&borrow->bo_out.ou_fop.f_item);
 
 	return 0;
@@ -188,61 +166,109 @@ out:
 	return -ENOMEM;
 }
 
+static void borrow_reply(struct rpc_item *item)
+{
+	struct c2_fop_rm_borrow_rep *borrow_reply;
+	struct rm_out		    *outreq;
+	struct c2_rm_outgoing	    *og;
+	struct c2_fop		    *reply_fop;
+
+	C2_PRE(item != NULL);
+	C2_PRE(item->ri_reply != NULL);
+
+	reply_fop = c2_rpc_item_to_fop(item->ri_reply);
+	borrow_reply = c2_fop_data(reply_fop);
+
+	fop = c2_rpc_item_to_fop(item);	
+
+	og->rog_rc = item->ri_error ? item->ri_error : borrow_reply->br_rc;
+
+	if (og->rog_rc == 0) {
+		og->rog_want.rl_id = borrow_reply->br_loan.lo_id;
+		/* TODO - Copy cookie */
+		/*
+		 * TODO : Copy the right - datum?
+		 */
+	}
+	c2_rm_outgoing_complete(og);
+}
+
+static void outreq_free(struct rpc_item *item)
+{
+	struct rm_out *out;
+	struct c2_fop *fop;
+
+	C2_PRE(item != NULL);
+
+	fop =  c2_rpc_item_to_fop(item);
+	out = container_of(fop, struct rm_out, ou_fop);
+	c2_fop_item_free(item);
+	c2_free(out);
+}
+
 int c2_rm_revoke_out(struct c2_rm_incoming *in,
 		     struct c2_rm_loan *loan,
 		     struct c2_rm_right *right)
 {
-	struct rm_canoke	*revoke;
-	struct c2_rm_outgoing	*outreq;
-	struct c2_fop_rm_borrow *rfop = &borrow->bo_data;
-	char			*right_addr = (char *)rfop->cr_right.ri_opaque;
+	struct rm_out		*outreq;
+	struct c2_fop_rm_canoke *rfop;
+	struct c2_fop		*fop = &outreq->ou_req;
+	char			*right_addr = (char *)rfop->bo_right.ri_opaque;
 	c2_bcount_t		 right_nr = 1;
 	struct c2_bufvec	 right_buf = C2_BUFVEC_INIT_BUF(&right_addr,
 								&right_nr);
 
 	C2_PRE(in->rin_type == RIT_REVOKE);
 
-	C2_ALLOC_PTR(revoke);
-	if (revoke == NULL)
+	C2_ALLOC_PTR(outreq);
+	if (outreq == NULL)
 		goto out;
 
-	/* Store the incoming request pointer */
-	revoke->bo_out.ou_incoming = in;
+	c2_rm_outgoing_init(&outreq->ou_req, in->rin_type, right);
 
-	/* Store the outgoing request information */
-	outreq = &borrow->bo_out.ou_req;
-	outreq->rog_type  = ROT_REVOKE;
-	outreq->rog_owner = right->ri_owner;
-	right_copy(&outreq->rog_want.rl_right, right);
-	outreq->rog_want.rl_other = right->ri_owner->ro_creditor;
-
-	c2_fop_init(&borrow->bo_out.ou_fop, &c2_fop_rm_canoke_fopt, NULL);
-	/*
-	 * pin_add should return pin, otherwise it's difficult to remove it.
-	 * Or outgoing should store pointer to incoming. The outgoing request
-	 * is generated as a result of incoming request.
-	 */
+	c2_fop_init(fop, &c2_fop_rm_canoke_fopt, NULL);
 	pin_add(in, &outreq->rog_want.rl_right, RPF_TRACK);
 
-	/* Fill in the REVOKE FOP. */
-	rfop = &revoke->bo_data;
+	rfop = c2_fop_data(fop);
 
-	rfop->cr_op = RIT_REVOKE;
-	c2_rm_owner_cookie(in->rin_want.ri_owner, &rfop->cr_owner.ow_cookie);
-	/* Sending owner cookie is not necessary. Think of getting rid of it */
-	c2_rm_loan_cookie(outreq->rog_want, &rfop->cr_loan.ow_cookie);
+	/* Fill up the REVOKE FOP. */
+	rfop->cr_op = in->rin_type;
+	rfop->cr_loan.lo_id = lona->rl_id;
+	c2_rm_loan_cookie(loan, &rfop->cr_loan.lo_cookie);
 	/*
-	 * Encode rights data into REVOKE FOP. This is valuable for
-	 * partial revoke? Otherwise loan-id should suffice?
+	 * Encode rights data into REVOKE FOP
 	 */
 	right->ri_ops->rro_encode(right, &right_buf);
-	borrow->bo_out.ou_fop.f_item->ri_ops = &revoke_ops;
-	c2_rpc_post(&revoke->bo_out.ou_fop.f_item);
+	canoke->bo_out.ou_fop.f_item->ri_ops = &rm_canoke_rpc_ops;
+	c2_rpc_post(&canoke->bo_out.ou_fop.f_item);
 
 	return 0;
 
 out:
 	return -ENOMEM;
+}
+
+static void revoke_reply(struct rpc_item *item)
+{
+	struct c2_fop_rm_canoke_rep *revoke_reply;
+	struct rm_out		    *outreq;
+	struct c2_rm_outgoing	    *og;
+	struct c2_fop		    *reply_fop;
+
+	C2_PRE(item != NULL);
+	C2_PRE(item->ri_reply != NULL);
+
+	reply_fop = c2_rpc_item_to_fop(item->ri_reply);
+	revoke_reply = c2_fop_data(reply_fop);
+
+	fop = c2_rpc_item_to_fop(item);	
+
+	/*
+	 * Is there a partial revoke? If yes, we have to copy the remaining
+	 * right.
+	 */
+	og->rog_rc = item->ri_error ? item->ri_error : revoke_reply->re_rc;
+	c2_rm_outgoing_complete(og);
 }
 
 void c2_rm_fop_fini(void)

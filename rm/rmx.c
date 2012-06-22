@@ -198,5 +198,60 @@ int borrow_state0(struct c2_fom *fom)
 	post reply;
 }
 
+static int out_request_send(struct c2_rm_outgoing *out)
+{
+	return 0;
+}
+
+/**
+   Sends an outgoing request of type "otype" to a remote owner specified by
+   "other" and with requested (or cancelled) right @right.
+ */
+int go_out(struct c2_rm_incoming *in, enum c2_rm_outgoing_type otype,
+	   struct c2_rm_loan *loan, struct c2_rm_right *right)
+{
+	struct c2_rm_right    *scan;
+	struct c2_rm_owner    *owner = in->rin_owner;
+	struct c2_rm_outgoing *out;
+	int		    result = 0;
+
+	if (!right_is_empty(right) && result == 0) {
+		C2_ALLOC_PTR(out);
+		if (out != NULL) {
+			out->rog_type  = otype;
+			out->rog_owner = owner;
+			scan = &loan->rl_right;
+			c2_rm_right_init(scan, owner);
+			result = right_copy(scan, right);
+			result = result ?: pin_add(in, scan, RPF_TRACK);
+			if (result == 0)
+				ur_tlist_add(&owner->ro_outgoing[OQS_GROUND],
+					     scan);
+			else {
+				c2_rm_right_fini(scan);
+				c2_free(out);
+			}
+		} else
+			result = -ENOMEM;
+	}
+
+	c2_rm_right_fini(right);
+
+	return result ?: out_request_send(out);
+}
+
+static bool right_check(const struct c2_rm_right *right, void *datum)
+{
+	struct owner_invariant_state *s = datum;
+
+	if (s->is_phase == OIS_BORROWED)
+		s->is_credit.ri_ops->rro_join(&s->is_credit, right);
+	if (s->is_phase == OIS_SUBLET || s->is_phase == OIS_OWNED)
+		s->is_debit.ri_ops->rro_join(&s->is_credit, right);
+
+	return s->is_owner == right->ri_owner &&
+		right_invariant(right, s);
+}
+
 
 /* and similarly for revoke fom. */

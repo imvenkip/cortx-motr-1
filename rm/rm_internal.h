@@ -166,7 +166,7 @@ int c2_rm_revoke_out(struct c2_rm_incoming *in,
    Called when an outgoing request completes (possibly with an error, like a
    timeout).
 */
-void c2_rm_outgoing_complete(struct c2_rm_outgoing *og, int32_t rc);
+void c2_rm_outgoing_complete(struct c2_rm_outgoing *og);
 
 #if 0
 int outgoing_check(struct c2_rm_incoming *in, enum c2_rm_incoming_type inreq,

@@ -52,6 +52,13 @@ struct rm_borrow_fom {
 	struct c2_rm_borrow_incoming bom_in;
 };
 
+struct rm_canoke_fom {
+	/** Generic c2_fom object */
+	struct c2_fom	ck_fom;
+	/** Revoke or cancel request */
+	struct c2_rm_revoke_incoming ck_in;
+};
+
 /* __COLIBRI_RM_FOMS_H__ */
 #endif
 

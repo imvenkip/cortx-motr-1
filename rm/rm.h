@@ -1139,8 +1139,6 @@ struct c2_rm_incoming {
         uint64_t                         rin_flags;
         /** The right requested. */
         struct c2_rm_right               rin_want;
-        /** The owner of the right requested. */
-        struct c2_rm_owner               *rin_owner;
         /**
            List of pins, linked through c2_rm_pin::rp_incoming_linkage, for all
            rights held to satisfy this request.
@@ -1229,6 +1227,10 @@ enum c2_rm_outgoing_type {
  */
 struct c2_rm_outgoing {
         enum c2_rm_outgoing_type rog_type;
+	/*
+	 * The error code (from reply or timeout) for this outgoing request.
+	 */
+	int32_t			 rog_rc;
         struct c2_rm_owner      *rog_owner;
         /** a right that is to be transferred. */
         struct c2_rm_loan        rog_want;
