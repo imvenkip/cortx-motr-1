@@ -211,20 +211,7 @@ struct cs_reqh_context {
 	/** Request handler instance to be initialised */
 	struct c2_reqh               rc_reqh;
 
-	/**
-	 * Resources used by various services running in this request handler.
-	 * This is a generic implementation to allocate various service
-	 * specific resources in the given request handler.
-	 * This also enables resource sharing among the request handler
-	 * services.
-	 * Currently no more than REQH_KEY_MAX resources can be allocated in a
-	 * given request handler. Every unique resource is identified by a key
-	 * in the request handler. Services sharing the same resource should use
-	 * the same key to access it.
-	 * @see c2_cs_reqh_key_init()
-	 * @see c2_cs_reqh_key_find()
-	 * @see c2_cs_reqh_key_fini()
-	 */
+	/** Request handler data corresopnding to various service.*/
         void                        *rc_key[REQH_KEY_MAX];
 
 	/** Max resource key assigned in a request handler. */
