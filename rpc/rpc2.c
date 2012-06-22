@@ -261,6 +261,8 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	C2_PRE(request->ri_session != NULL);
 	C2_PRE(reply->ri_type != NULL);
 	C2_PRE(reply->ri_ops != NULL && reply->ri_ops->rio_free != NULL);
+	C2_PRE(c2_rpc_item_size(reply) <=
+			c2_rpc_session_get_max_item_size(request->ri_session));
 	reply->ri_rpc_time = c2_time_now();
 	reply->ri_session  = request->ri_session;
 
@@ -282,8 +284,6 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	machine = slot->sl_session->s_conn->c_rpc_machine;
 
 	c2_rpc_machine_lock(machine);
-	C2_ASSERT(c2_rpc_item_size(reply) <=
-			c2_rpc_session_get_max_item_size(request->ri_session));
 	/*
 	 * This hold will be released when the item is SENT or FAILED.
 	 * See rpc/frmops.c:item_done()

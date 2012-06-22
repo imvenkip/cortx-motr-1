@@ -828,8 +828,6 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *item)
 c2_bcount_t
 c2_rpc_session_get_max_item_size(const struct c2_rpc_session *session)
 {
-	C2_PRE(c2_rpc_session_invariant(session));
-
 	return session->s_conn->c_rpc_machine->rm_min_recv_size -
 		C2_RPC_PACKET_OW_HEADER_SIZE;
 }
