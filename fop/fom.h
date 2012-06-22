@@ -261,6 +261,7 @@ enum c2_fom_state {
  * @see c2_fom_state_generic()
  */
 enum c2_fom_phase {
+	C2_FOPH_SM_INIT,             /*< state machine initialised. */
 	C2_FOPH_INIT,                /*< fom has been initialised. */
 	C2_FOPH_AUTHENTICATE,        /*< authentication loop is in progress. */
 	C2_FOPH_AUTHENTICATE_WAIT,   /*< waiting for key cache miss. */
@@ -411,6 +412,7 @@ struct c2_fom {
 
 	/** Result of fom execution, -errno on failure */
 	int32_t			 fo_rc;
+	struct c2_sm		 fo_sm;
 };
 
 /**

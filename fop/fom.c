@@ -35,7 +35,7 @@
 #include "fop/fom.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
-
+#include "sm/sm.h"
 /**
    @addtogroup fom
    @{

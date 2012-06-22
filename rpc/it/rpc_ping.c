@@ -139,7 +139,7 @@ module_param(tm_recv_queue_len, int, S_IRUGO);
 MODULE_PARM_DESC(tm_recv_queue_len, "minimum TM receive queue length");
 
 module_param(max_rpc_msg_size, int, S_IRUGO);
-MODULE_PARM_DESC(tm_recv_queue_len, "maximum RPC message size");
+MODULE_PARM_DESC(max_rpc_msg_size, "maximum RPC message size");
 #endif
 
 static int build_endpoint_addr(enum ep_type type, char *out_buf, size_t buf_size)
@@ -580,6 +580,8 @@ int main(int argc, char *argv[])
 		C2_FORMATARG('n', "number of ping items", "%i", &nr_ping_item),
 		C2_FORMATARG('q', "minimum TM receive queue length", "%i",
 						&tm_recv_queue_len),
+		C2_FORMATARG('m', "minimum TM receive queue length", "%i",
+						&max_rpc_msg_size),
 		C2_FLAGARG('v', "verbose", &verbose)
 		);
 	if (rc != 0)
