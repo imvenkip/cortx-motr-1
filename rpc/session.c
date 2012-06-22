@@ -45,6 +45,7 @@
 #include "dtm/verno.h"
 #include "rpc/session_fops.h"
 #include "rpc/rpc2.h"
+#include "rpc/packet.h"      /* C2_RPC_PACKET_OW_HEADER_SIZE */
 #include "rpc/formation2.h"
 
 /**
@@ -822,6 +823,15 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *item)
 	c2_cond_broadcast(&session->s_state_changed, &machine->rm_mutex);
 
 	C2_ASSERT(c2_rpc_machine_is_locked(machine));
+}
+
+c2_bcount_t
+c2_rpc_session_get_max_item_size(const struct c2_rpc_session *session)
+{
+	C2_PRE(c2_rpc_session_invariant(session));
+
+	return session->s_conn->c_rpc_machine->rm_min_recv_size -
+		C2_RPC_PACKET_OW_HEADER_SIZE;
 }
 
 void c2_rpc_session_hold_busy(struct c2_rpc_session *session)
