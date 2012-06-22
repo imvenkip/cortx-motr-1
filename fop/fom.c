@@ -288,6 +288,7 @@ static void fom_exec(struct c2_fom *fom)
 	do {
 		C2_ASSERT(c2_fom_invariant(fom));
 		rc = fom->fo_ops->fo_state(fom);
+		C2_CNT_INC(fom->fo_transitions);
 	} while (rc == C2_FSO_AGAIN);
 
 	C2_ASSERT(rc == C2_FSO_WAIT);
@@ -661,10 +662,13 @@ void c2_fom_fini(struct c2_fom *fom)
 	struct c2_reqh       *reqh;
 
 	C2_PRE(fom->fo_phase == C2_FOPH_FINISH);
+	C2_PRE(fom->fo_locks == 0);
 
 	fdom = fom->fo_loc->fl_dom;
 	reqh = fdom->fd_reqh;
 	c2_list_link_fini(&fom->fo_linkage);
+	c2_list_link_fini(&fom->fo_lock_linkage);
+
 	if (c2_atomic64_dec_and_test(&fdom->fd_foms_nr))
 		c2_chan_signal(&reqh->rh_sd_signal);
 }
@@ -685,6 +689,10 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
 	fom->fo_rep_fop = reply;
 
 	c2_list_link_init(&fom->fo_linkage);
+
+	c2_list_link_init(&fom->fo_lock_linkage);
+	fom->fo_locks = 0;
+	fom->fo_transitions = 0;
 }
 C2_EXPORTED(c2_fom_init);
 

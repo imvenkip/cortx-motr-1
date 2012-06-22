@@ -66,6 +66,7 @@ struct c2_fom_type;
 struct c2_fom_type_ops;
 struct c2_fom;
 struct c2_fom_ops;
+struct c2_longlock;
 
 /**
  * A locality is a partition of computational resources dedicated to fom
@@ -98,15 +99,15 @@ struct c2_fom_ops;
  * in c2_fom_locality::fl_lo_idle_threads_nr. When
  * c2_fom_block_leave() is called to mark completion of a blocking
  * point, two things should happen:
- * 
+ *
  *    - one of additional threads should be terminated,
- * 
+ *
  *    - locality lock released by c2_fom_block_enter() should be
  *      re-acquired.
- * 
+ *
  * To decrease the number of threads,
- * c2_fom_locality::fl_lo_idle_threads_nr is decremented. 
- * 
+ * c2_fom_locality::fl_lo_idle_threads_nr is decremented.
+ *
  * The counter is checked by each locality thread on each iteration of
  * main handler loop (in loc_handler_thread()). If a thread finds
  * that there are too many threads in the locality, it releases the
@@ -115,7 +116,7 @@ struct c2_fom_ops;
  * otherwise c2_fom_block_leave() might have to wait until
  * concurrent thread exhausts the FOM queue and releases the
  * locality lock.
- * 
+ *
  * Once the locality is initialised, the locality invariant,
  * should hold true until locality is finalised.
  *
@@ -361,6 +362,11 @@ struct c2_fom_callback {
 	 * fom state transition function.
 	 */
 	void (*fc_bottom)(struct c2_fom_callback *cb);
+	/**
+	 * Long lock taken on the fom, which has to be awaken by this callback
+	 * structure.
+	 */
+	struct c2_longlock *fc_lock;
 };
 
 /**
@@ -408,6 +414,14 @@ struct c2_fom {
 	 *  protected by the c2_fom_locality::fl_group.s_lock mutex.
 	 */
 	struct c2_list_link	 fo_linkage;
+
+	/** Linkage to struct c2_longlock::l_{readers,writers} list */
+	struct c2_list_link      fo_lock_linkage;
+	/** Long locks taken on this fom */
+	int			 fo_locks;
+	/** Transitions counter, coresponds to the number of
+	    c2_fom_ops::fo_state() calls */
+	int			 fo_transitions;
 
 	/** Result of fom execution, -errno on failure */
 	int32_t			 fo_rc;
