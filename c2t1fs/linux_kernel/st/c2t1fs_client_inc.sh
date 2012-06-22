@@ -2,7 +2,7 @@ colibri_module=kcolibri
 
 bulkio_test()
 {
-	local stripe_size=`expr $1 '*' 1024`
+	local stride_size=`expr $1 '*' 1024`
 	io_counts=$2
 
 	c2t1fs_mount_dir=$COLIBRI_C2T1FS_MOUNT_DIR
@@ -26,7 +26,7 @@ bulkio_test()
 	fi
 
 	echo "Mounting file system..."
-	cmd="mount -t c2t1fs -o ios=$io_service,unit_size=$stripe_size,\
+	cmd="mount -t c2t1fs -o ios=$io_service,unit_size=$stride_size,\
 pool_width=$pool_width,nr_data_units=$data_units,nr_parity_units=$parity_units \
 none $c2t1fs_mount_dir"
 	echo $cmd
@@ -91,7 +91,7 @@ none $c2t1fs_mount_dir"
 
 io_combinations()
 {
-	# This test runs for various stripe_size values
+	# This test runs for various stripe unit size values
 
 	echo "Storage conf: pool_width=$1, data_units=$2, parity_units=$3"
 
@@ -110,25 +110,25 @@ io_combinations()
 	# I/O sizes are multiple of stripe size
 
 	# stripe size is in K
-	for stripe_size in 4 12 20 28
+	for stride_size in 4 12 20 28
 	do
 	    # Small I/Os KBs
 	    for io_size in 1 2 3 4 5 6 7 8
 	    do
-		io_size=`expr $io_size '*' $stripe_size`
+		io_size=`expr $io_size '*' $stride_size`
 		io_size=${io_size}K
-		echo "Test: I/O for stripe_size = ${stripe_size}K," \
+		echo "Test: I/O for stride_size = ${stride_size}K," \
 		     "io_size = $io_size, Number of I/Os = 1."
-		bulkio_test $stripe_size 1 &>> $COLIBRI_TEST_LOGFILE
+		bulkio_test $stride_size 1 &>> $COLIBRI_TEST_LOGFILE
 		if [ $? -ne "0" ]
 		then
 			return 1
 		fi
 
 		# Multiple I/Os
-		echo "Test: I/O for stripe_size = ${stripe_size}K," \
+		echo "Test: I/O for stride_size = ${stride_size}K," \
 		     "io_size = $io_size, Number of I/Os = 2."
-		bulkio_test $stripe_size 2 &>> $COLIBRI_TEST_LOGFILE
+		bulkio_test $stride_size 2 &>> $COLIBRI_TEST_LOGFILE
 		if [ $? -ne "0" ]
 		then
 			return 1
@@ -138,22 +138,22 @@ io_combinations()
 	    # Large I/Os MBs
 	    for io_size in 1 2 4 5 8
 	    do
-		stripe_mult=`expr 1024 / $stripe_size`
+		stripe_mult=`expr 1024 / $stride_size`
 		[ $stripe_mult -ge 1 ] || stripe_mult=1
-		io_size=`expr $io_size '*' $stripe_size '*' $stripe_mult`
+		io_size=`expr $io_size '*' $stride_size '*' $stripe_mult`
 		io_size=${io_size}K
-		echo "Test: I/O for stripe_size = ${stripe_size}K," \
+		echo "Test: I/O for stride_size = ${stride_size}K," \
 		     "io_size = $io_size, Number of I/Os = 1."
-		bulkio_test $stripe_size 1 &>> $COLIBRI_TEST_LOGFILE
+		bulkio_test $stride_size 1 &>> $COLIBRI_TEST_LOGFILE
 		if [ $? -ne "0" ]
 		then
 			return 1
 		fi
 
 		# Multiple I/Os
-		echo "Test: I/O for stripe_size = ${stripe_size}K," \
+		echo "Test: I/O for stride_size = ${stride_size}K," \
 		     "io_size = $io_size, Number of I/Os = 2."
-		bulkio_test $stripe_size 2 &>> $COLIBRI_TEST_LOGFILE
+		bulkio_test $stride_size 2 &>> $COLIBRI_TEST_LOGFILE
 		if [ $? -ne "0" ]
 		then
 			return 1
