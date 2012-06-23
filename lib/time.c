@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -19,8 +19,9 @@
  * Original creation date: 12/10/2010
  */
 
-#include "lib/cdefs.h" /* C2_EXPORTED */
+#include "lib/cdefs.h"	/* C2_EXPORTED */
 #include "lib/assert.h" /* C2_PRE */
+#include "lib/getopts.h"/* c2_get_time */
 #include "lib/time.h"
 
 /**
@@ -128,6 +129,16 @@ c2_time_t c2_time_from_now(uint64_t secs, long ns)
 	return c2_time_now() + secs * C2_TIME_ONE_BILLION + ns;
 }
 C2_EXPORTED(c2_time_from_now);
+
+c2_time_t c2_time_from_str(const char *s)
+{
+	c2_time_t result;
+	int rc = c2_get_time(s, &result);
+
+	C2_ASSERT(rc == 0);
+	return result;
+}
+C2_EXPORTED(c2_time_from_str);
 
 const c2_time_t C2_TIME_NEVER = ~0ULL;
 C2_EXPORTED(C2_TIME_NEVER);

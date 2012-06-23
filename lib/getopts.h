@@ -21,7 +21,8 @@
 #ifndef __COLIBRI_LIB_GETOPTS_H__
 #define __COLIBRI_LIB_GETOPTS_H__
 
-#include "lib/types.h"
+#include "lib/types.h"	/* c2_bcount_t */
+#include "lib/time.h"	/* c2_time_t */
 
 #ifndef __KERNEL__
 #include "lib/user_space/getopts.h"
@@ -31,12 +32,13 @@
    @addtogroup getopts
    @{
  */
+extern const char C2_GETOPTS_DECIMAL_POINT;
 
 /**
-   Convert numerical argument, followed by a multiplier suffix, to an
+   Convert numerical argument, followed by a optional multiplier suffix, to an
    uint64_t value.  The numerical argument is expected in the format that
    strtoull(..., 0) can parse. The multiplier suffix should be a char
-   from "bkmgBKMG" string. The char matches factor which will be
+   from "bkmgKMG" string. The char matches factor which will be
    multiplied by numerical part of argument.
 
    Suffix char matches:
@@ -44,12 +46,31 @@
    - @b k = 1024
    - @b m = 1024 * 1024
    - @b g = 1024 * 1024 * 1024
-   - @b B = 500
    - @b K = 1000
    - @b M = 1000 * 1000
    - @b G = 1000 * 1000 * 1000
  */
 int c2_get_bcount(const char *arg, c2_bcount_t *out);
+
+/**
+   Convert numerical argument, followed by a optional multiplier suffix, to an
+   c2_time_t value.  The numerical argument is expected in the format
+   "[integer].[integer]" or just "integer", where [integer] is optional integer
+   value in format that strtoull(..., 10) can parse, and at least one integer
+   should be present in the numerical argument. The multiplier suffix matches
+   unit of time and should be a string from the following list.
+
+   Suffix string matches:
+   - empty string = a second
+   - @b s = a second
+   - @b ms = millisecond = 1/1000 of a second
+   - @b us = microsecond = 1/1000'000 of a second
+   - @b ns = nanosecond  = 1/1000'000'000 of a second
+
+   @note c2_getopts_decimal_point is used as decimal point in numerical
+   argument to this function.
+ */
+int c2_get_time(const char *arg, c2_time_t *out);
 
 /** @} end of getopts group */
 

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -117,6 +117,13 @@ uint64_t c2_time_seconds(const c2_time_t time);
    @retval nanosecond part of the time
  */
 uint64_t c2_time_nanoseconds(const c2_time_t time);
+
+/**
+   Get time from string.
+   Does C2_ASSERT() on c2_get_time() return value.
+   @see c2_get_time()
+ */
+c2_time_t c2_time_from_str(const char *s);
 
 
 /**

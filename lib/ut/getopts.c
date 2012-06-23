@@ -18,11 +18,12 @@
  * Original creation date: 10/04/2010
  */
 
-#include "lib/ut.h"
-#include "lib/cdefs.h"         /* ARRAY_SIZE */
-#include "lib/thread.h"        /* LAMBDA */
+#include "lib/ut.h"		/* C2_ASSERT */
+#include "lib/cdefs.h"		/* ARRAY_SIZE */
+#include "lib/thread.h"		/* LAMBDA */
 #include "lib/assert.h"
-#include "lib/getopts.h"
+#include "lib/getopts.h"	/* c2_get_bcount */
+#include "lib/time.h"		/* c2_time_t */
 
 void test_getopts(void)
 {
@@ -32,6 +33,7 @@ void test_getopts(void)
 	int	    num;
 	bool	    e;
 	c2_bcount_t bcount;
+	c2_time_t   time;
 	static char *argv[] = {
 		"getopts-ut",
 		"-e",
@@ -129,6 +131,43 @@ void test_getopts(void)
 	C2_UT_ASSERT(result == -EOVERFLOW);
 	result = c2_get_bcount("1asdf", &bcount);
 	C2_UT_ASSERT(result == -EINVAL);
+
+	/* c2_get_time() */
+	result = c2_get_time("1", &time);
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(c2_time_seconds(time)     == 1);
+	C2_UT_ASSERT(c2_time_nanoseconds(time) == 0);
+
+	result = c2_get_time("1.20s", &time);
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(c2_time_seconds(time)     == 1);
+	C2_UT_ASSERT(c2_time_nanoseconds(time) == 200000000);
+
+	result = c2_get_time("2.300ms", &time);
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(c2_time_seconds(time)     == 0);
+	C2_UT_ASSERT(c2_time_nanoseconds(time) == 2300000);
+
+	result = c2_get_time("3.4000us", &time);
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(c2_time_seconds(time)     == 0);
+	C2_UT_ASSERT(c2_time_nanoseconds(time) == 3400);
+
+	result = c2_get_time("5.60000ns", &time);
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(c2_time_seconds(time)     == 0);
+	C2_UT_ASSERT(c2_time_nanoseconds(time) == 5);
+
+	result = c2_get_time("12345.67890s", &time);
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(c2_time_seconds(time)     == 12345);
+	C2_UT_ASSERT(c2_time_nanoseconds(time) == 678900000);
+
+	result = c2_get_time("12345.67890sec", &time);
+	C2_UT_ASSERT(result == -EINVAL);
+
+	result = c2_get_time("18446744073709551616", &time);
+	C2_UT_ASSERT(result == -E2BIG);
 }
 
 /*
