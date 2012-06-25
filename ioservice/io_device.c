@@ -79,6 +79,7 @@
    @section io_calls_params_dld-lspec Logical Specification
 
    - @ref io_calls_params_dld-lspec-comps
+   - @ref io_calls_params_dld-lspec-ds
    - @ref io_calls_params_dld-lspec-state
    - @ref io_calls_params_dld-lspec-thread
    - @ref io_calls_params_dld-lspec-numa
