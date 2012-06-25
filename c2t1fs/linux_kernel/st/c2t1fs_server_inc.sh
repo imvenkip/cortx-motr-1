@@ -18,7 +18,15 @@ colibri_service()
 	. /etc/rc.d/init.d/functions
 
 	start() {
+		prepare
 		$prog $prog_args &
+		sleep 1
+		status $exec
+		if [ $? -eq 0 ]; then
+			echo "Colibri service started."
+		else
+			echo "Colibri service failed to start."
+		fi
 	}
 
 	stop() {
@@ -29,7 +37,6 @@ colibri_service()
 	case "$1" in
 	    start)
 		$1
-		echo "Colibri service started."
 		;;
 	    stop)
 		$1
