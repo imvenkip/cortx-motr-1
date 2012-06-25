@@ -89,7 +89,11 @@ static bool config_generate(uint32_t *data_count,
 		fuc = 1;
 		puc = 1;
 		puc_max = 1;
-		duc --;
+		fail_index_xor--;
+		if (fail_index_xor < 0) {
+			duc --;
+			fail_index_xor = duc;
+		}
 		if(duc == 1)
 			return false;
 	} else if (algo == C2_PARITY_CAL_ALGO_REED_SOLOMON) {
@@ -115,13 +119,10 @@ static bool config_generate(uint32_t *data_count,
 	}
 
 	j = 0;
-	for (i = 0; i < fuc; ++i)
-		fail[i] = 0;
 
-	if (algo == C2_PARITY_CAL_ALGO_XOR) {
-		fail_index_xor = (uint8_t) rand() % duc;
+	if (algo == C2_PARITY_CAL_ALGO_XOR)
 		fail[fail_index_xor] = 1;
-	} else if (algo == C2_PARITY_CAL_ALGO_REED_SOLOMON) {
+	else if (algo == C2_PARITY_CAL_ALGO_REED_SOLOMON) {
 		for (i = 0; i < fuc; ++i) {
 			if (j >= puc)
 				break;
@@ -199,12 +200,14 @@ static void test_rs_fv_recover(void)
 static void test_xor_fv_recover(void)
 {
 	duc = DATA_UNIT_COUNT_MAX;
+	fail_index_xor = DATA_UNIT_COUNT_MAX + 1;
 	test_recovery(C2_PARITY_CAL_ALGO_XOR, FAIL_VECTOR);
 }
 
 static void test_xor_fail_idx_recover(void)
 {
 	duc = DATA_UNIT_COUNT_MAX;
+	fail_index_xor = DATA_UNIT_COUNT_MAX + 1;
 	test_recovery(C2_PARITY_CAL_ALGO_XOR, FAIL_INDEX);
 }
 
@@ -218,6 +221,7 @@ static void test_buffer_xor(void)
         struct c2_buf parity_buf[DATA_UNIT_COUNT_MAX];
 
 	duc = 2;
+	fail_index_xor = 0;
 	config_generate(&data_count, &parity_count, &buff_size,
 			C2_PARITY_CAL_ALGO_XOR);
 
