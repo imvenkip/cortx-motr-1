@@ -76,7 +76,6 @@ struct c2_parity_math {
    Fills '*math' with appropriate values.
    @param data_count - count of SNS data units used in system.
    @param parity_count - count of SNS parity units used in system.
-   @return 0 for success, -C2_SNS_PARITY_MATH_* codes or -ENOMEM for fail.
  */
 int  c2_parity_math_init(struct c2_parity_math *math,
 			 uint32_t data_count, uint32_t parity_count);
