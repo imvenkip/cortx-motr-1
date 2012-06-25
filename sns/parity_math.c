@@ -29,8 +29,61 @@
 #include "sns/parity_ops.h"
 #include "sns/parity_math.h"
 
+/* Forward declarations */
+static void xor_calculate(struct c2_parity_math *math,
+                          const struct c2_buf *data,
+                          struct c2_buf *parity);
+
+static void reed_solomon_encode(struct c2_parity_math *math,
+                                const struct c2_buf *data,
+                                struct c2_buf *parity);
+
+static void xor_recover(struct c2_parity_math *math,
+                        struct c2_buf *data,
+                        struct c2_buf *parity,
+                        struct c2_buf *fails);
+
+static void reed_solomon_recover(struct c2_parity_math *math,
+                                 struct c2_buf *data,
+                                 struct c2_buf *parity,
+                                 struct c2_buf *fails);
+
+static void fail_idx_xor_recover(struct c2_parity_math *math,
+				 struct c2_buf *data,
+				 struct c2_buf *parity,
+				 const uint32_t failure_index);
+
+static void fail_idx_reed_solomon_recover(struct c2_parity_math *math,
+					  struct c2_buf *data,
+					  struct c2_buf *parity,
+					  const uint32_t failure_index);
+
+static void (*calculate[C2_PARITY_CAL_ALGO_NR])(struct c2_parity_math *math,
+						const struct c2_buf *data,
+						struct c2_buf *parity) = {
+	[C2_PARITY_CAL_ALGO_XOR] = xor_calculate,
+	[C2_PARITY_CAL_ALGO_REED_SOLOMON] = reed_solomon_encode,
+};
+
+static void (*recover[C2_PARITY_CAL_ALGO_NR])(struct c2_parity_math *math,
+					      struct c2_buf *data,
+					      struct c2_buf *parity,
+					      struct c2_buf *fails) = {
+	[C2_PARITY_CAL_ALGO_XOR] = xor_recover,
+	[C2_PARITY_CAL_ALGO_REED_SOLOMON] = reed_solomon_recover,
+};
+
+static void (*fidx_recover[C2_PARITY_CAL_ALGO_NR])(struct c2_parity_math *math,
+						   struct c2_buf *data,
+						   struct c2_buf *parity,
+						   const uint32_t fidx) = {
+	[C2_PARITY_CAL_ALGO_XOR] = fail_idx_xor_recover,
+	[C2_PARITY_CAL_ALGO_REED_SOLOMON] = fail_idx_reed_solomon_recover,
+};
+
 enum {
-	C2_SNS_PARITY_MATH_DATA_BLOCKS_MAX = 1 << (C2_PARITY_GALOIS_W - 1)
+	SNS_PARITY_MATH_DATA_BLOCKS_MAX = 1 << (C2_PARITY_GALOIS_W - 1),
+	BAD_FAIL_INDEX = -1
 };
 
 /* c2_parity_* are to much eclectic. just more simple names. */
@@ -153,7 +206,7 @@ int  c2_parity_math_init(struct c2_parity_math *math,
 	C2_PRE(data_count >= 1);
 	C2_PRE(parity_count >= 1);
 	C2_PRE(data_count >= parity_count);
-	C2_PRE(data_count <= C2_SNS_PARITY_MATH_DATA_BLOCKS_MAX);
+	C2_PRE(data_count <= SNS_PARITY_MATH_DATA_BLOCKS_MAX);
 
 	C2_SET0(math);
 
@@ -217,9 +270,9 @@ int  c2_parity_math_init(struct c2_parity_math *math,
 	return ret;
 }
 
-static void parity_math_xor_calculate(struct c2_parity_math *math,
-				      const struct c2_buf *data,
-				      struct c2_buf *parity)
+static void xor_calculate(struct c2_parity_math *math,
+			  const struct c2_buf *data,
+			  struct c2_buf *parity)
 {
         uint32_t          ei; /* block element index. */
         uint32_t          ui; /* unit index. */
@@ -239,9 +292,9 @@ static void parity_math_xor_calculate(struct c2_parity_math *math,
 
 }
 
-static void parity_math_reed_solomon_encode(struct c2_parity_math *math,
-					    struct c2_buf *data,
-					    struct c2_buf *parity)
+static void reed_solomon_encode(struct c2_parity_math *math,
+				const struct c2_buf *data,
+				struct c2_buf *parity)
 {
 	uint32_t ei; /* block element index. */
 	uint32_t ui; /* unit index. */
@@ -271,10 +324,7 @@ void c2_parity_math_calculate(struct c2_parity_math *math,
 			      struct c2_buf *data,
 			      struct c2_buf *parity)
 {
-	if (math->pmi_parity_algo == C2_PARITY_CAL_ALGO_XOR)
-		parity_math_xor_calculate(math, data, parity);
-	else if (math->pmi_parity_algo == C2_PARITY_CAL_ALGO_REED_SOLOMON)
-		parity_math_reed_solomon_encode(math, data, parity);
+	(*calculate[math->pmi_parity_algo])(math, data, parity);
 }
 
 void c2_parity_math_refine(struct c2_parity_math *math,
@@ -357,7 +407,7 @@ static void xor_recover(struct c2_parity_math *math,
 	uint32_t          unit_count;
 	uint32_t          block_size = data[0].b_nob;
 	c2_parity_elem_t  pe;
-	int		  fail_index;
+	int		  fail_index = BAD_FAIL_INDEX;
 
 	unit_count = math->pmi_data_count + math->pmi_parity_count;
 	fail = (uint8_t*) fails->b_addr;
@@ -380,9 +430,11 @@ static void xor_recover(struct c2_parity_math *math,
 				fail_index = ui;
                 }
 		/* Now ui points to parity block, test if it was failed. */
-		if (fail[ui] != 1)
+		if (fail[ui] != 1) {
+			C2_ASSERT(fail_index != BAD_FAIL_INDEX);
 			((uint8_t*)data[fail_index].b_addr)[ei] = pe ^
 				((uint8_t*)parity[0].b_addr)[ei];
+		}
 		else /* Parity was lost, so recover it. */
 			((uint8_t*)parity[0].b_addr)[ei] = pe;
         }
@@ -441,16 +493,13 @@ void c2_parity_math_recover(struct c2_parity_math *math,
 			    struct c2_buf *parity,
 			    struct c2_buf *fails)
 {
-	if (math->pmi_parity_algo == C2_PARITY_CAL_ALGO_XOR)
-		xor_recover(math, data, parity, fails);
-	else
-		reed_solomon_recover(math, data, parity, fails);
+	(*recover[math->pmi_parity_algo])(math, data, parity, fails);
 }
 
-static void fail_index_xor_recover(struct c2_parity_math *math,
-				   struct c2_buf *data,
-				   struct c2_buf *parity,
-				   const uint32_t failure_index)
+static void fail_idx_xor_recover(struct c2_parity_math *math,
+				 struct c2_buf *data,
+				 struct c2_buf *parity,
+				 const uint32_t failure_index)
 {
         uint32_t          ei; /* block element index. */
         uint32_t          ui; /* unit index. */
@@ -483,23 +532,19 @@ static void fail_index_xor_recover(struct c2_parity_math *math,
 }
 
 /** @todo Iterative reed-solomon decode to be implemented. */
-static void fail_index_reed_solomon_recover(struct c2_parity_math *math,
-					    struct c2_buf *data,
-					    struct c2_buf *parity,
-					    const uint32_t failure_index)
+static void fail_idx_reed_solomon_recover(struct c2_parity_math *math,
+					  struct c2_buf *data,
+					  struct c2_buf *parity,
+					  const uint32_t failure_index)
 {
 }
 
 void c2_parity_math_fail_index_recover(struct c2_parity_math *math,
                                        struct c2_buf *data,
                                        struct c2_buf *parity,
-                                       const uint32_t failure_index)
+                                       const uint32_t fidx)
 {
-        if (math->pmi_parity_algo == C2_PARITY_CAL_ALGO_XOR)
-		fail_index_xor_recover(math, data, parity, failure_index);
-        else
-                fail_index_reed_solomon_recover(math, data, parity,
-						failure_index);
+	(*fidx_recover[math->pmi_parity_algo])(math, data, parity, fidx);
 }
 
 void c2_parity_math_buffer_xor(const struct c2_buf *src, struct c2_buf *dest)
