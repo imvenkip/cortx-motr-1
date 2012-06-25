@@ -1723,7 +1723,7 @@ static void enum_op_verify(uint32_t enum_id, uint64_t lid,
 			   uint32_t nr, struct c2_layout *l)
 {
 	struct c2_layout_striped     *stl;
-	struct c2_layout_list_enum   *list_enum;
+	struct c2_layout_enum        *e;
 	struct c2_layout_linear_enum *lin_enum;
 	struct c2_fid                 fid_calculated;
 	struct c2_fid                 fid_from_layout;
@@ -1732,41 +1732,28 @@ static void enum_op_verify(uint32_t enum_id, uint64_t lid,
 
 	C2_UT_ASSERT(l != NULL);
 
-	stl = container_of(l, struct c2_layout_striped, ls_base);
+	stl = c2_layout_to_striped(l);
+	e = c2_striped_layout_to_enum(stl);
+	C2_UT_ASSERT(c2_layout_enum_nr(e) == nr);
 
 	if (enum_id == LIST_ENUM_ID) {
-		list_enum = container_of(stl->ls_enum,
-					 struct c2_layout_list_enum, lle_base);
-
-		C2_UT_ASSERT(list_enum->lle_base.le_ops->leo_nr(
-					     &list_enum->lle_base) == nr);
-
-		for(i = 0; i < list_enum->lle_nr; ++i) {
+		for(i = 0; i < nr; ++i) {
 			c2_fid_set(&fid_calculated, i * 100 + 1, i + 1);
-			list_enum->lle_base.le_ops->leo_get(
-							&list_enum->lle_base,
-							i, NULL,
-							&fid_from_layout);
+			c2_layout_enum_get(e, i, NULL, &fid_from_layout);
 			C2_UT_ASSERT(c2_fid_eq(&fid_calculated,
 					       &fid_from_layout));
 		}
 	} else {
-		lin_enum = container_of(stl->ls_enum,
-					struct c2_layout_linear_enum, lle_base);
-		C2_UT_ASSERT(lin_enum->lle_base.le_ops->leo_nr(
-					      &lin_enum->lle_base) == nr);
-
 		/* Set gfid to some dummy value. */
 		c2_fid_set(&gfid, 0, 999);
-
+		lin_enum = container_of(e, struct c2_layout_linear_enum,
+					lle_base);
 		for(i = 0; i < nr; ++i) {
 			c2_fid_set(&fid_calculated,
 				   lin_enum->lle_attr.lla_A +
 				   i * lin_enum->lle_attr.lla_B,
 				   gfid.f_key);
-			lin_enum->lle_base.le_ops->leo_get(&lin_enum->lle_base,
-							   i, &gfid,
-							   &fid_from_layout);
+			c2_layout_enum_get(e, i, &gfid, &fid_from_layout);
 			C2_UT_ASSERT(c2_fid_eq(&fid_calculated,
 					       &fid_from_layout));
 		}

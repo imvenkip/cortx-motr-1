@@ -50,6 +50,9 @@
  *     enum types.
  *   - While adding/deleting an entry to/from the layout list that happens
  *     through c2_layout__init() and c2_layout_put() respectively.
+ *   - While increasing/decreasing references on the layout types and enum
+ *     types through layout_type_get(), layout_type_put(), enum_type_get()
+ *     and enum_type_put().
  * - c2_layout_schema::ls_lock is held during the following operations:
  *   - Part of the layout type and enum type registration and unregistration
  *     routines those deal with creating and deleting various DB tables.
@@ -57,10 +60,16 @@
  *     c2_layout_delete().
  *
  * - Note: Having two separate locks for domain data and schema data helps
- *   avoid serialising all the c2_layout_decode() and c2_layout_encode()
- *   operations. The only part of those APIs that is serialised through holding
- *   c2_layout_domain::ld_lock is during c2_layout__init() and
- *   c2_layout__enum_init() routines.
+ *   to keep the locking separate for the in-memory structures and for the
+ *   on-disk DB tables. It helps avoid conditional locking in the routines
+ *   c2_layout__init(), layout_type_get() and enum_type_get() which need to
+ *   lock the in-memory domain structure. If we had only one lock, that
+ *   would have been acquired in c2_layout_lookup() (along with being
+ *   acquired in c2_layout_add(), c2_layout_update(), and c2_layout_delete()),
+ *   and then c2_layout__init(), layout_type_get() and enum_type_get()
+ *   would have required conditional locking - lock only when
+ *   c2_layout_decode() is invoked by an external user and not when it is
+ *   invoked by c2_layout_lookup().
  *
  */
 
@@ -975,7 +984,10 @@ void c2_layout_get(struct c2_layout *l)
 {
 	C2_PRE(c2_layout__invariant(l));
 	C2_PRE(c2_layout_find(l->l_dom, l->l_id) == l);
-	/* c2_layout__invariant() verifies that l->l_ref >= DEFAULT_REF_COUNT. */
+	/*
+	 * c2_layout__invariant() verifies that
+	 * l->l_ref >= DEFAULT_REF_COUNT.
+	 */
 
 	C2_ENTRY("lid %llu, ref_count %lu", (unsigned long long)l->l_id,
 		 (unsigned long)l->l_ref);
@@ -1228,9 +1240,51 @@ int c2_layout_encode(struct c2_layout *l,
 c2_bcount_t c2_layout_max_recsize(const struct c2_layout_domain *dom)
 {
 	C2_PRE(c2_layout__domain_invariant(dom));
-
 	return dom->ld_schema.ls_max_recsize;
 }
+
+struct c2_layout_striped *c2_layout_to_striped(const struct c2_layout *l)
+{
+	struct c2_layout_striped *stl;
+
+	C2_PRE(c2_layout__invariant(l));
+	stl = container_of(l, struct c2_layout_striped, ls_base);
+	C2_ASSERT(c2_layout__striped_invariant(stl));
+	return stl;
+}
+
+struct c2_layout_enum
+*c2_striped_layout_to_enum(const struct c2_layout_striped *stl)
+{
+	C2_PRE(c2_layout__striped_invariant(stl));
+	return stl->ls_enum;
+}
+
+struct c2_layout_enum *c2_layout_to_enum(const struct c2_layout *l)
+{
+	struct c2_layout_striped *stl;
+
+	C2_PRE(l != NULL);
+	stl = container_of(l, struct c2_layout_striped, ls_base);
+	C2_ASSERT(c2_layout__striped_invariant(stl));
+	return stl->ls_enum;
+}
+
+uint32_t c2_layout_enum_nr(const struct c2_layout_enum *e)
+{
+	C2_PRE(c2_layout__enum_invariant(e));
+	return e->le_ops->leo_nr(e);
+}
+
+void c2_layout_enum_get(const struct c2_layout_enum *e,
+			uint32_t idx,
+			const struct c2_fid *gfid,
+			struct c2_fid *out)
+{
+	C2_PRE(c2_layout__enum_invariant(e));
+	e->le_ops->leo_get(e, idx, gfid, out);
+}
+
 
 /** @} end group layout */
 

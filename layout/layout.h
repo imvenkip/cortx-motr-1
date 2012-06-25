@@ -121,6 +121,7 @@ struct c2_layout_enum;
 struct c2_layout_enum_ops;
 struct c2_layout_enum_type;
 struct c2_layout_enum_type_ops;
+struct c2_layout_striped; /* todo rename this to c2_striped_layout */
 
 enum {
 	C2_LAYOUT_TYPE_MAX      = 32,
@@ -473,6 +474,15 @@ int c2_layout_encode(struct c2_layout *l,
 		     struct c2_bufvec_cursor *out);
 
 c2_bcount_t c2_layout_max_recsize(const struct c2_layout_domain *dom);
+
+struct c2_layout_striped *c2_layout_to_striped(const struct c2_layout *l);
+struct c2_layout_enum
+*c2_striped_layout_to_enum(const struct c2_layout_striped *stl);
+uint32_t c2_layout_enum_nr(const struct c2_layout_enum *e);
+void c2_layout_enum_get(const struct c2_layout_enum *e,
+			uint32_t idx,
+			const struct c2_fid *gfid,
+			struct c2_fid *out);
 
 /** @} end group layout */
 
