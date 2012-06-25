@@ -752,6 +752,7 @@ static void test_tm_startstop(void)
 	C2_UT_ASSERT(rc == 0);
 
 	C2_UT_ASSERT(!c2_net_domain_init(dom, &c2_net_lnet_xprt));
+	c2_net_lnet_dom_set_debug(dom, 0);
 	C2_UT_ASSERT(!c2_net_lnet_ifaces_get(dom, &nidstrs));
 	C2_UT_ASSERT(nidstrs != NULL && nidstrs[0] != NULL);
 	nid_to_use = nidstrs[0];
@@ -796,6 +797,8 @@ static void test_tm_startstop(void)
 
 	/* also test periodic statistics */
 	C2_UT_ASSERT(lnet_stat_ev_count == 0);
+	C2_UT_ASSERT(c2_net_lnet_tm_stat_interval_get(tm) ==
+		     STARTSTOP_STAT_SECS);
 	tm->ntm_qstats[C2_NET_QT_MSG_RECV] = fake_stats;
 	c2_semaphore_down(&mock_sem);
 	C2_UT_ASSERT(lnet_stat_ev_count == STARTSTOP_STAT_PER_PERIOD);
