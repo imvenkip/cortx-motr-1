@@ -26,6 +26,7 @@
    - @ref io_calls_params_dld-depends
    - @ref io_calls_params_dld-lspec
       - @ref io_calls_params_dld-lspec-comps
+      - @ref io_calls_params_dld-lspec-ds
       - @ref io_calls_params_dld-lspec-state
       - @ref io_calls_params_dld-lspec-thread
       - @ref io_calls_params_dld-lspec-numa
@@ -34,7 +35,6 @@
    - @ref io_calls_params_dld-st
    - @ref io_calls_params_dld-O
    - @ref io_calls_params_dld-ref
-   - @ref io_calls_params_dld-impl-plan
 
    <hr>
    @section io_calls_params_dld-ovw Overview
@@ -60,9 +60,9 @@
 
    <hr>
    @section io_calls_params_dld-req Requirements
-   The followsing requirements should be meet:
+   The following requirements should be meet:
    - @b R.DLD.Device_Failure A specific error code should be replied to client
-     when a device is damaged and no data can be read from it. Upon recieving
+     when a device is damaged and no data can be read from it. Upon receiving
      this, the client will not try to read data from or write data to this
      device.
    - @b R.DLD.Device_New_Location A specific error code should be replied to
@@ -94,9 +94,14 @@
      If this is a read request, client will read data and parity unit to
      re-construct the data. This is de-graded read. If this is write or create
      or delete request, client will fail.
-   - If the device is FAILED, a special error node will be returned to client.
-     Client will take similar actions to OFFLINE status, but SNS repair will be
-     triggered.
+   - If the device is FAILED,
+     - if SNS is not yet started, a special error node will be returned to
+       client. Client will take similar actions to OFFLINE status, and SNS
+       repair will be triggered.
+     - if SNS is already started or completed, failure vectors are managed by
+       SNS. From the failure vectors, new location of data/parity is known and
+       will returned to client. Client will contact new i/o service for further
+       operations.
    - If the device is RECOVERING, the result depends on SNS repair progress and
      the SNS policy. Let's assume SNS will repair data sequentially from lower
      objects numbers to higher objects numbers and, no out-of-order repair.
@@ -118,6 +123,12 @@
           error code will be returned (EAGAIN) and client will try later
           again.
 
+   @subsection io_calls_params_dld-lspec-ds Data Structures
+   The reply of I/O requests (inlcude read/write/create/delete, etc.) will be
+   extended to contain the special error code and new location information.
+   Clients should make corresponding modification to understand these extension
+   and parse the reply without error.
+
    @subsection io_calls_params_dld-lspec-state State Specification
    N/A
 
@@ -131,7 +142,7 @@
    @section io_calls_params_dld-conformance Conformance
    - @b I.DLD.Device_FAILURE As we described in the component overview (@ref
         io_calls_params_dld-lspec-comps), error code will be returned to client,
-        either because device is failed, or is offline, or in recovering and
+        either because device is failed, or is off-line, or in recovering and
         data is not ready. Client will parse the error code and take proper
         actions.
    - @b I.DLD.Device_New_Location If new spare space is already set up by
@@ -150,7 +161,7 @@
    <hr>
    @section io_calls_params_dld-st System Tests
    Clients perform regular file system operations, meanwhile the I/O servers
-   have some device failed, offline, SNS repair, etc. operations. Clients
+   have some device failed, off-line, SNS repair, etc. operations. Clients
    should be able to continue operations without error.
 
    <hr>
@@ -161,7 +172,7 @@
 
    <hr>
    @section io_calls_params_dld-ref References
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1Yz25F3GjgQVXzvM1sdlGQvVDSUu-v7FhdUvFhiY_vwM/edit#heading=h.650bad0e414a"> HLD of SNS repair <a/>
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/1Yz25F3GjgQVXzvM1sdlGQvVDSUu-v7FhdUvFhiY_vwM/edit#heading=h.650bad0e414a"> HLD of SNS repair </a>
    - @ref cm
    - @ref agents
 
