@@ -92,9 +92,8 @@ extern struct c2_layout_enum_type c2_list_enum_type;
 extern struct c2_layout_enum_type c2_linear_enum_type;
 
 enum {
-	LAYOUT_MAGIC = 0x4C41594F55544D41, /* LAYOUTMA */
-	LIST_MAGIC   = 0x4C4953544D414749, /* LISTMAGI */
-	HEAD_MAGIC   = 0x484541444D414749  /* HEADMAGI */
+	LAYOUT_MAGIC           = 0x4C41594F55544D41, /* LAYOUTMA */
+	LAYOUT_LIST_HEAD_MAGIC = 0x4C484541444D4147  /* LHEADMAG */
 };
 
 static const struct c2_bob_type layout_bob = {
@@ -138,10 +137,10 @@ C2_ADDB_EV_DEFINE(layout_update_fail, "layout_update_fail",
 C2_ADDB_EV_DEFINE(layout_delete_fail, "layout_delete_fail",
 		  C2_ADDB_EVENT_LAYOUT_DELETE_FAIL, C2_ADDB_FUNC_CALL);
 
-C2_TL_DESCR_DEFINE(layout_list, "layout-list", static,
+C2_TL_DESCR_DEFINE(layout, "layout-list", static,
 		   struct c2_layout, l_list_linkage,
-		   l_list_magic, LIST_MAGIC, HEAD_MAGIC);
-C2_TL_DEFINE(layout_list, static, struct c2_layout);
+		   l_magic, LAYOUT_MAGIC, LAYOUT_LIST_HEAD_MAGIC);
+C2_TL_DEFINE(layout, static, struct c2_layout);
 
 bool c2_layout__domain_invariant(const struct c2_layout_domain *dom)
 {
@@ -293,7 +292,7 @@ static struct c2_layout *layout_list_lookup(struct c2_layout_domain *dom,
 	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(c2_mutex_is_locked(&dom->ld_lock));
 
-	c2_tl_for(layout_list, &dom->ld_layout_list, l) {
+	c2_tl_for(layout, &dom->ld_layout_list, l) {
 		C2_ASSERT(c2_layout_bob_check(l));
 		if (l->l_id == lid)
 			break;
@@ -310,7 +309,7 @@ static void layout_list_add(struct c2_layout *l)
 	C2_ENTRY("dom %p, lid %llu", l->l_dom, (unsigned long long)l->l_id);
 	c2_mutex_lock(&l->l_dom->ld_lock);
 	C2_ASSERT(layout_list_lookup(l->l_dom, l->l_id) == NULL);
-	layout_list_tlink_init_at(l, &l->l_dom->ld_layout_list);
+	layout_tlink_init_at(l, &l->l_dom->ld_layout_list);
 	c2_mutex_unlock(&l->l_dom->ld_lock);
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
@@ -362,7 +361,7 @@ void c2_layout__fini(struct c2_layout *l)
 	C2_PRE(c2_layout_find(l->l_dom, l->l_id) == NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-	layout_list_tlink_fini(l);
+	layout_tlink_fini(l);
 	c2_addb_ctx_fini(&l->l_addb);
 	c2_mutex_fini(&l->l_lock);
 	layout_type_put(l->l_type);
@@ -705,7 +704,7 @@ int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
 
 	C2_SET0(dom);
 	c2_mutex_init(&dom->ld_lock);
-	layout_list_tlist_init(&dom->ld_layout_list);
+	layout_tlist_init(&dom->ld_layout_list);
 
 	rc = schema_init(&dom->ld_schema, dbenv);
 	if (rc != 0)
@@ -727,7 +726,7 @@ void c2_layout_domain_fini(struct c2_layout_domain *dom)
 	 * Verify that all the layout objects belonging to this domain have
 	 * been finalised.
 	 */
-	C2_PRE(layout_list_tlist_is_empty(&dom->ld_layout_list));
+	C2_PRE(layout_tlist_is_empty(&dom->ld_layout_list));
 
 	/* Verify that all the layout types are unregistered. */
 	C2_PRE(c2_forall(i, ARRAY_SIZE(dom->ld_type),
@@ -738,7 +737,7 @@ void c2_layout_domain_fini(struct c2_layout_domain *dom)
 	       dom->ld_enum[i] == NULL));
 
 	schema_fini(&dom->ld_schema);
-	layout_list_tlist_fini(&dom->ld_layout_list);
+	layout_tlist_fini(&dom->ld_layout_list);
 	c2_mutex_fini(&dom->ld_lock);
 }
 
@@ -1018,7 +1017,7 @@ void c2_layout_put(struct c2_layout *l)
 	killme = l->l_ref == DEFAULT_REF_COUNT;
 	/* The layout should not be found anymore using c2_layout_find(). */
 	if (killme)
-		layout_list_tlist_del(l);
+		layout_tlist_del(l);
 
 	c2_mutex_unlock(&l->l_lock);
 	c2_mutex_unlock(&l->l_dom->ld_lock);
