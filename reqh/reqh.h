@@ -144,8 +144,8 @@ struct c2_reqh {
 		-errno, in case of failure
  */
 int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
-			struct c2_stob_domain *stdom, struct c2_dbenv *db,
-			struct c2_cob_domain *cdom, struct c2_fol *fol);
+		  struct c2_dbenv *db, struct c2_cob_domain *cdom,
+		  struct c2_fol *fol);
 
 bool c2_reqh_invariant(const struct c2_reqh *reqh);
 

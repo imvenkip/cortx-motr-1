@@ -117,6 +117,101 @@
    @{
  */
 
+struct c2_colibri;
+
+/**
+ * Represents the infrastructure to host and maintain a
+ * cob fid map which is an auxiliary database which maintains
+ * mapping of a container_id and global_file_fid to its cob_fid.
+ * Every Colibri data server is supposed to have only one
+ * auxiliary database and it will be leveraged by a copy machine
+ * to retrieve the lost data. A typical example would be SNS Repair.
+ */
+struct c2_cobfid_setup {
+	/**
+	 * Cob fid map which hosts the mapping of the tuple
+	 * {container_id, global_file_fid} to its cob_fid.
+	 */
+	struct c2_cobfid_map	 cms_map;
+
+	/** Mutex to serialize access to c2_cobfid_map. */
+	struct c2_mutex		 cms_mutex;
+
+	/** Database environment in which cob fid map will be created. */
+	struct c2_dbenv		 cms_dbenv;
+
+	/**
+	 * Addb context to log events happening in init/fini of
+	 * cobfid_map_setup.
+	 */
+	struct c2_addb_ctx	 cms_addb;
+
+	/**
+	 * Number of entities using this c2_cobfid_setup structure.
+	 * c2_cobfid_setup is finalized when last instance of
+	 * ioservice running on this node is stopped.
+	 */
+	struct c2_ref		 cms_refcount;
+
+	/**
+	 * Back link to struct c2_colibri. This is used while finalizing
+	 * c2_cobfid_setup where the c2_colibri::cc_setup pointer is made NULL.
+	 */
+	struct c2_colibri       *cms_colibri;
+};
+
+/**
+ * Gets a reference on struct c2_cobfid_setup. If it is NULL, a new
+ * instance will be created and refcount will be initialized.
+ * @param out Out parameter which returns struct c2_cobfid_setup pointer.
+ * @param cc The c2_colibri instance which hosts the c2_cobfid_setup
+ * structure.
+ * @pre service != NULL.
+ */
+int c2_cobfid_setup_get(struct c2_cobfid_setup **out,
+			struct c2_colibri *cc);
+
+/**
+ * Releases the reference on struct c2_cobfid_setup. Last reference
+ * will finalize the c2_cobfid_setup structure.
+ * @param cc The c2_colibri instance which hosts c2_cobfid_setup
+ * structure.
+ * @pre cc != NULL && c2_mutex_is_locked(cc).
+ */
+void c2_cobfid_setup_put(struct c2_colibri *cc);
+
+/**
+ * Adds a record to c2_cobfid_map contained in c2_cobfid_setup.
+ * The container id needed for adding record to c2_cobfid_map is
+ * retrieved from cfid.u_hi.
+ * A global file fid and its constituent cob fids in same IO request
+ * share the same key which stands for an abstract key in a container.
+ * @param gfid Fid of global file.
+ * @param cfid Identifier of cob.
+ * @pre s != NULL.
+ */
+int c2_cobfid_setup_recadd(struct c2_cobfid_setup *service,
+			   struct c2_fid gfid,
+			   struct c2_uint128 cfid);
+
+/**
+ * Removes a record from c2_cobfid_map contained in c2_cobfid_setup.
+ * @param gfid Fid of global file.
+ * @param cfid Identifier of cob.
+ * @pre s != NULL.
+ */
+int c2_cobfid_setup_recdel(struct c2_cobfid_setup *s,
+			   struct c2_fid gfid, struct c2_uint128 cfid);
+
+/**
+ * Locates and returns instance of struct c2_colibri given a
+ * request handler service.
+ * @param s Instance of request handler service.
+ * @pre s != NULL.
+ */
+struct c2_colibri *c2_cs_ctx_get(struct c2_reqh_service *s);
+
+>>>>>>> 1) Added stob dev support in colibri_setup, 2) Made relevant changes
 /**
    Defines a colibri context containing a set of network transports,
    network domains and request handler contexts.
@@ -205,26 +300,30 @@ C2_TL_DECLARE(cs_buffer_pools, extern, struct c2_cs_buffer_pool);
    stob domain references for linux and ad stobs respectively.
  */
 struct c2_cs_reqh_stobs {
-	/**
-	   Type of storage domain to be initialise (e.g. Linux or AD)
-	 */
+	/** Type of storage domain to be initialise (e.g. Linux or AD)*/
 	const char            *rs_stype;
-	/**
-	   Linux storage domain type.
-	 */
+	/** Linux storage domain.*/
 	struct c2_stob_domain *rs_ldom;
 	/**
-	   Allocation data storage domain type.
-	 */
-	struct c2_stob_domain *rs_adom;
-	/**
-           Front end storage object id, i.e. ad
-         */
-	struct c2_stob_id      rs_id_back;
-	/**
-           Front end storage object
-         */
-	struct c2_stob        *rs_stob_back;
+	 * @todo This is a simplistic implemetation to support stob as a device
+	 * in colibri_setup, this is subject to change as confc lands into
+	 * master.
+	 */ 
+	struct stob_file {
+		uint64_t          f_id;
+		char              f_path[C2_MAX_FILE_PATH_LEN];
+		struct stob_file *f_next;
+	}*s_file;
+	/** Array of linux objects */
+	struct stobs_ad {
+		/** Allocation data storage domain.*/
+		struct c2_stob_domain *ad_adom;
+		/** Back end storage object id, i.e. ad */
+		struct c2_stob_id      ad_id_back;
+		/** Back end storage object. */
+		struct c2_stob        *ad_stob_back;
+	} *rs_adoms;
+	uint32_t               rs_stobs_nr;
 	struct c2_dtx          rs_tx;
 };
 
@@ -287,6 +386,9 @@ int c2_cs_storage_init(const char *stob_type, const char *stob_path,
 			struct c2_cs_reqh_stobs *stob, struct c2_dbenv *db,
 			struct c2_addb_ctx *addb);
 
+int c2_cs_reqh_stob_create(struct c2_reqh *reqh, struct c2_stob_domain *dom,
+                           const struct c2_stob_id *stob_id, struct c2_dtx *dtx,
+                           struct c2_stob **out);
 /**
    Finalises storage for a request handler in a colibri context.
 
@@ -312,12 +414,8 @@ void c2_cs_storage_fini(struct c2_cs_reqh_stobs *stob);
 struct c2_reqh *c2_cs_reqh_get(struct c2_colibri *cctx,
 			       const char *service_name);
 
-/**
- * Returns instance of struct c2_colibri given a
- * request handler instance.
- * @pre reqh != NULL.
- */
-struct c2_colibri *c2_cs_ctx_get(struct c2_reqh *reqh);
+struct c2_stob_domain *c2_cs_storage_domain_find(struct c2_reqh *reqh,
+						 struct c2_stob_id *stob_id);
 
 /** @} endgroup colibri_setup */
 

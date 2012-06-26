@@ -50,12 +50,12 @@ enum {
 	CLIENT_RPC_CONN_TIMEOUT   = 200,
 	CLIENT_MAX_RPCS_IN_FLIGHT = 8,
 	COB_NAME_STRLEN           = 34,
-	COB_FID_CONTAINER_ID      = 1234,
+	COB_FID_CONTAINER_ID      = 1,
 	COB_FID_KEY_ID            = 5678,
 	GOB_FID_CONTAINER_ID      = 1000,
 	GOB_FID_KEY_ID            = 5678,
 	COB_FOP_SINGLE            = 1,
-	COB_FOP_NR                = 10,
+	COB_FOP_NR                = 3,
 	COB_TEST_ID               = 1,
 	TEST_ENV_COB              = 1,
 	TEST_ENV_STOB             = 2,
@@ -94,7 +94,8 @@ struct cobthread_arg {
 };
 
 static char *server_args[] = {
-	"cobfoms_ut", "-r", "-T", "Linux", "-D", "cobfoms_ut.db", "-S",
+	"cobfoms_ut", "-r", "-T", "Linux", "-D", "cobfoms_ut.db",
+	"-d", "/mnt/Mandar/collibri/master_13jun/colibri/core/colibri/dev_file.c", "-S",
 	"cobfoms_ut_stob", "-e", SERVER_ENDP, "-s", "ioservice",
 };
 
@@ -128,6 +129,7 @@ static void cobfoms_utinit(void)
 	sctx->rsx_log_file_name    = SERVER_LOGFILE;
 
 	rc = c2_rpc_server_start(sctx);
+	printf("%d\n", rc);
 	C2_UT_ASSERT(rc == 0);
 
 	cctx = &cut->cu_cctx;

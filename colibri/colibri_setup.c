@@ -174,6 +174,8 @@ struct cs_reqh_context {
 	/** Storage path for request handler context. */
 	const char                  *rc_stpath;
 
+	const char                  *rc_dfilepath;
+
 	/** Type of storage to be initialised. */
 	const char                  *rc_stype;
 
@@ -801,47 +803,146 @@ static void cs_buffer_pool_fini(struct c2_colibri *cctx)
 	} c2_tl_endfor;
 }
 
+static struct stob_file *cs_reqh_stob_file_lookup(struct cs_reqh_context *rctx,
+		   				  const struct c2_stob_id *stob_id)
+{
+	struct c2_cs_reqh_stobs *rstob;
+	struct stob_file        *s_file;
+
+	rstob = &rctx->rc_stob;
+	for (s_file = rstob->s_file; s_file != NULL; s_file = s_file->f_next) {
+		if (s_file->f_id == stob_id->si_bits.u_hi)
+			return s_file;
+	}
+
+	return NULL;
+}
+
+static int __reqh_stob_create(struct c2_stob_domain *dom, struct c2_dtx *dtx,
+				 const struct c2_stob_id *stob_id,
+				 const char *f_path, struct c2_stob **obj)
+{
+	int rc = 0;
+
+	if (f_path != NULL)
+		rc = c2_linux_stob_link(dom, *obj, f_path, dtx);
+	if (rc == 0 || errno == EEXIST)
+		rc = c2_stob_create_helper(dom, dtx, stob_id, obj);
+
+	return rc;		
+}
+
+int c2_cs_reqh_stob_create(struct c2_reqh *reqh, struct c2_stob_domain *dom,
+			   const struct c2_stob_id *stob_id, struct c2_dtx *dtx,
+			   struct c2_stob **out)
+{
+	int                     rc;
+	struct cs_reqh_context *rqctx;
+	struct stob_file       *s_file;
+	char                   *f_path = NULL;
+
+        rqctx = container_of(reqh, struct cs_reqh_context, rc_reqh);
+
+	rc = c2_stob_find(dom, stob_id, out);	
+	if (strcasecmp(dom->sd_type->st_name, "linuxstob") == 0 &&
+		rqctx->rc_dfilepath != NULL) {
+		s_file = cs_reqh_stob_file_lookup(rqctx, stob_id);
+		if (s_file == NULL)
+			return -EINVAL;
+		f_path = s_file->f_path;
+	}
+
+	rc = __reqh_stob_create(dom, dtx, stob_id, f_path, out);
+
+	return rc;
+}
+
+static int cs_stob_file_load(const char *dfile, struct c2_cs_reqh_stobs *rstob)
+{
+	int               rc = 0;
+	struct stob_file *s_file;
+	FILE             *fd;
+	uint64_t          fid;
+	char              path[C2_MAX_FILE_PATH_LEN];
+
+	fd = fopen(dfile, "r");
+	if (fd == NULL)
+		return -errno;
+	do {
+		rc = fscanf(fd, "%lu%s", &fid, path);
+		if (ferror(fd) != 0) {
+			c2_free(s_file);
+			rc = -errno;
+			break;
+		}
+		if (rc != EOF) {
+			C2_ALLOC_PTR(s_file);
+			if (s_file == NULL) {
+				rc = -ENOMEM;
+				break;
+			}
+			s_file->f_id = fid;
+			strcpy(s_file->f_path, path);
+			s_file->f_next = rstob->s_file;
+			rstob->s_file = s_file;
+			++rstob->rs_stobs_nr;
+		}
+	} while (rc != EOF);
+
+	fclose(fd);
+	return rc == EOF ? 0 : rc;
+}
+ 
 /**
    Initialises AD type stob.
  */
 static int cs_ad_stob_init(struct c2_cs_reqh_stobs *stob, struct c2_dbenv *db)
 {
-        int               rc;
-	struct c2_dtx    *tx;
-	struct c2_balloc *cb;
-	char              ad_dname[MAXPATHLEN];
+        int                rc;
+	int                i;
+	struct c2_dtx     *tx;
+	struct c2_balloc  *cb;
+	struct stob_file  *s_file;
+	struct c2_stob_id *bstob_id;
+	struct c2_stob    *bstob;
+	char               ad_dname[MAXPATHLEN];
 
-        C2_PRE(stob != NULL && stob->rs_ldom != NULL);
+        C2_PRE(stob != NULL && stob->rs_adoms != NULL);
 
         tx = &stob->rs_tx;
-        stob->rs_id_back.si_bits = (struct c2_uint128){ .u_hi = 0x0,
-                                                        .u_lo = 0xadf11e };
+	c2_dtx_init(tx);
+	rc = c2_dtx_open(tx, db);
+	if (rc != 0) {
+		c2_dtx_done(tx);
+		return rc;
+	}
 
-	sprintf(ad_dname, "%lx%lx", stob->rs_id_back.si_bits.u_hi,
-		stob->rs_id_back.si_bits.u_lo);
-        rc = c2_stob_domain_locate(&c2_ad_stob_type, ad_dname, &stob->rs_adom);
-	if (rc == 0)
-             rc = c2_stob_find(stob->rs_ldom, &stob->rs_id_back,
-			       &stob->rs_stob_back);
-        if (rc == 0) {
-             c2_dtx_init(tx);
-             rc = c2_dtx_open(tx, db);
-        }
-        if (rc == 0) {
-             rc = c2_stob_locate(stob->rs_stob_back, tx);
-             if (rc == -ENOENT)
-                       rc = c2_stob_create(stob->rs_stob_back, tx);
-        }
-        if (rc == 0) {
-             rc = c2_balloc_locate(&cb);
-             if (rc == 0)
-                  rc = c2_ad_stob_setup(stob->rs_adom, db,
-                                        stob->rs_stob_back,
-                                        &cb->cb_ballroom,
-                                        BALLOC_DEF_CONTAINER_SIZE,
-                                        BALLOC_DEF_BLOCK_SHIFT,
-                                        BALLOC_DEF_BLOCKS_PER_GROUP,
-                                        BALLOC_DEF_RESERVED_GROUPS);
+        for (s_file = stob->s_file, i = 0; s_file != NULL;
+		s_file = s_file->f_next, ++i) {
+		bstob_id = &stob->rs_adoms[i].ad_id_back;
+		bstob_id->si_bits.u_hi = s_file->f_id;
+		bstob_id->si_bits.u_lo = 0xadf11e;
+		bstob = stob->rs_adoms[i].ad_stob_back;
+		if (rc == 0)
+             		rc = c2_stob_find(stob->rs_ldom, bstob_id, &bstob);
+		if (rc == 0)
+			rc = __reqh_stob_create(stob->rs_ldom, tx, bstob_id,
+						   s_file->f_path, &bstob);
+		if (rc == 0) {
+			sprintf(ad_dname, "%lx%lx", bstob_id->si_bits.u_hi,
+				bstob_id->si_bits.u_lo);
+			rc = c2_stob_domain_locate(&c2_ad_stob_type, ad_dname,
+						   &stob->rs_adoms[i].ad_adom);
+		}
+        	if (rc == 0)
+             		rc = c2_balloc_locate(&cb);
+             	if (rc == 0)
+			rc = c2_ad_stob_setup(stob->rs_adoms[i].ad_adom, db,
+						bstob, &cb->cb_ballroom,
+						BALLOC_DEF_CONTAINER_SIZE,
+						BALLOC_DEF_BLOCK_SHIFT,
+						BALLOC_DEF_BLOCKS_PER_GROUP,
+						BALLOC_DEF_RESERVED_GROUPS);
 	}
 
        return rc;
@@ -856,27 +957,39 @@ static int cs_linux_stob_init(const char *stob_path,
 	int                    rc;
 	struct c2_stob_domain *sdom;
 
+	C2_ALLOC_ARR(stob->rs_adoms, stob->rs_stobs_nr);
+	if (stob->rs_adoms == NULL)
+		return -ENOMEM;
 	rc = c2_stob_domain_locate(&c2_linux_stob_type, stob_path,
 					&stob->rs_ldom);
 	if (rc == 0) {
-	     sdom = stob->rs_ldom;
-	     rc = c2_linux_stob_setup(sdom, false);
+		sdom = stob->rs_ldom;
+		rc = c2_linux_stob_setup(sdom, false);
 	}
-
 	return rc;
 }
 
 void cs_ad_stob_fini(struct c2_cs_reqh_stobs *stob)
 {
+	int                    i;
+	struct stob_file      *s_file;
+	struct c2_stob        *bstob;
+	struct c2_stob_domain *adom;
+
 	C2_PRE(stob != NULL);
 
-        if (stob->rs_adom != NULL) {
-             if (stob->rs_stob_back != NULL &&
-                 stob->rs_stob_back->so_state == CSS_EXISTS) {
-                 c2_dtx_done(&stob->rs_tx);
-                 c2_stob_put(stob->rs_stob_back);
-             }
-             stob->rs_adom->sd_ops->sdo_fini(stob->rs_adom);
+        if (stob->rs_adoms != NULL) {
+		c2_dtx_done(&stob->rs_tx);
+		for (s_file = stob->s_file, i = 0; s_file != NULL;
+			s_file = s_file->f_next, ++i) {
+			
+			bstob = stob->rs_adoms[i].ad_stob_back;
+			adom = stob->rs_adoms[i].ad_adom;
+			if (bstob != NULL && bstob->so_state == CSS_EXISTS)
+				c2_stob_put(bstob);
+             		adom->sd_ops->sdo_fini(adom);
+			c2_free(s_file);
+		}
         }
 }
 
@@ -888,6 +1001,28 @@ void cs_linux_stob_fini(struct c2_cs_reqh_stobs *stob)
                 stob->rs_ldom->sd_ops->sdo_fini(stob->rs_ldom);
 }
 
+struct c2_stob_domain *c2_cs_storage_domain_find(struct c2_reqh *reqh,
+						 struct c2_stob_id *stob_id)
+{
+	int                      i;
+	struct cs_reqh_context  *rqctx;
+	struct c2_cs_reqh_stobs *rstob;
+
+	rqctx = container_of(reqh, struct cs_reqh_context, rc_reqh);
+	rstob = &rqctx->rc_stob;
+
+	if (strcasecmp(rstob->rs_stype, cs_stobs[LINUX_STOB]) == 0)
+		return rstob->rs_ldom;
+	else if (strcasecmp(rstob->rs_stype, cs_stobs[AD_STOB]) == 0) {
+		for (i = 0; i < rstob->rs_stobs_nr; ++i) {
+			if (rstob->rs_adoms[i].ad_id_back.si_bits.u_hi ==
+				stob_id->si_bits.u_hi)
+				return rstob->rs_adoms[i].ad_adom;
+		}
+	}
+
+	return NULL;
+}
 
 int c2_cs_storage_init(const char *stob_type, const char *stob_path,
 		       struct c2_cs_reqh_stobs *stob, struct c2_dbenv *db,
@@ -1158,13 +1293,15 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 			    "c2_dbenv_init", rc);
 		goto out;
 	}
-	rc = c2_cs_storage_init(rctx->rc_stype, rctx->rc_stpath, &rctx->rc_stob,
-				&rctx->rc_db, addb);
-	if (rc != 0) {
-		C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
-			    "c2_cs_storage_init", rc);
+	if (rctx->rc_dfilepath != NULL)
+		rc = cs_stob_file_load(rctx->rc_dfilepath, &rctx->rc_stob);
+
+	if (rc == 0)
+		rc = c2_cs_storage_init(rctx->rc_stype, rctx->rc_stpath,
+					     &rctx->rc_stob, &rctx->rc_db);
+	if (rc != 0)
 		goto cleanup_db;
-	}
+
 	rctx->rc_cdom_id.id = ++cdom_id;
 	rc = c2_cob_domain_init(&rctx->rc_cdom, &rctx->rc_db,
 				&rctx->rc_cdom_id);
@@ -1179,19 +1316,12 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 			    "c2_fol_init", rc);
 		goto cleanup_cob;
 	}
-	rstob = &rctx->rc_stob;
-	if (strcasecmp(rstob->rs_stype, cs_stobs[AD_STOB]) == 0)
-		sdom = rstob->rs_adom;
-	else
-		sdom = rstob->rs_ldom;
 
-	rc = c2_reqh_init(&rctx->rc_reqh, NULL, sdom, &rctx->rc_db,
-			  &rctx->rc_cdom, &rctx->rc_fol);
-	if (rc != 0) {
-		C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
-			    "c2_reqh_init", rc);
+	rc = c2_reqh_init(&rctx->rc_reqh, NULL, &rctx->rc_db, &rctx->rc_cdom,
+			  &rctx->rc_fol);
+	if (rc != 0)
 		goto cleanup_fol;
-	}
+
 	rctx->rc_state = RC_INITIALISED;
 	goto out;
 
@@ -1698,14 +1828,23 @@ static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
 					}
 					rctx->rc_dbpath = str;
 				})),
-			C2_STRINGARG('S', "Storage name",
+			C2_STRINGARG('S', "Storage domain name",
 				LAMBDA(void, (const char *str)
 				{
 					if (rctx == NULL) {
 						rc = -EINVAL;
 						return;
 					}
-				rctx->rc_stpath = str;
+					rctx->rc_stpath = str;
+				})),
+			C2_STRINGARG('d', "devices map file",
+				LAMBDA(void, (const char *str)
+				{
+					if (rctx == NULL) {
+						rc = -EINVAL;
+						return;
+					}
+					rctx->rc_dfilepath = str;
 				})),
 			C2_STRINGARG('e',
 				     "Network endpoint, eg:- transport:address",

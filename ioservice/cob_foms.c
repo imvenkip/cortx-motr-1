@@ -240,14 +240,21 @@ out:
 
 static int cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 {
-	int             rc;
-	struct c2_stob *stob;
+	int                    rc;
+	struct c2_stob        *stob;
+	struct c2_reqh        *reqh;
+	struct c2_stob_domain *sdom;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(cc != NULL);
 
-	rc = c2_stob_create_helper(fom->fo_loc->fl_dom->fd_reqh->rh_stdom,
-				   &fom->fo_tx, &cc->fco_stobid, &stob);
+	/*rc = c2_stob_create_helper(fom->fo_loc->fl_dom->fd_reqh->rh_stdom,
+				   &fom->fo_tx, &cc->fco_stobid, &stob);*/
+
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	sdom = c2_cs_storage_domain_find(reqh, &cc->fco_stobid);
+	rc = c2_cs_reqh_stob_create(reqh, sdom, &cc->fco_stobid,
+					&fom->fo_tx, &stob);
 
 	if (rc != 0)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
@@ -449,14 +456,17 @@ static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 
 static int cd_stob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 {
-	int             rc;
-	struct c2_stob *stob = NULL;
+	int                    rc;
+	struct c2_stob        *stob = NULL;
+	struct c2_stob_domain *sdom;
+	struct c2_reqh        *reqh;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(cd != NULL);
 
-	rc = c2_stob_find(fom->fo_loc->fl_dom->fd_reqh->rh_stdom,
-			  &cd->fco_stobid, &stob);
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	sdom = c2_cs_storage_domain_find(reqh, &cd->fco_stobid);
+	rc = c2_stob_find(sdom, &cd->fco_stobid, &stob);
 	if (rc != 0) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
 			    cd_fom_func_fail,
@@ -467,7 +477,7 @@ static int cd_stob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 
 	/** @todo Implement c2_stob_delete(). */
 
-	C2_ASSERT(stob->so_ref.a_value == CD_FOM_STOBIO_LAST_REFS);
+	C2_ASSERT(stob->so_ref.a_value  >= CD_FOM_STOBIO_LAST_REFS);
 	c2_stob_put(stob);
 	C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 		    c2_addb_trace, "Stob deleted successfully.");
