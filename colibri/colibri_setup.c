@@ -177,7 +177,7 @@ struct cs_reqh_context {
 	/** Services running in request handler context. */
 	const char                 **rc_services;
 
-	/** Number services in request handler context. */
+	/** Number of services configured in request handler context. */
 	int                          rc_snr;
 
 	/**
@@ -275,6 +275,16 @@ C2_BOB_DEFINE(static, &ndom_bob, c2_net_domain);
 
 static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cctx,
 							const char *xprt);
+
+
+static int reqh_ctx_args_are_valid(const struct cs_reqh_context *rctx)
+{
+	return rctx->rc_stype != NULL && rctx->rc_stpath != NULL &&
+		rctx->rc_dbpath != NULL && rctx->rc_snr != 0 &&
+		rctx->rc_services != NULL &&
+		!cs_eps_tlist_is_empty(&rctx->rc_eps);
+}
+
 /**
    Checks consistency of request handler context.
  */
@@ -282,11 +292,9 @@ static bool cs_reqh_context_invariant(const struct cs_reqh_context *rctx)
 {
 	return cs_reqh_context_bob_check(rctx) &&
 		C2_IN(rctx->rc_state, (RC_UNINITIALISED, RC_INITIALISED)) &&
-		rctx->rc_stype != NULL && rctx->rc_dbpath != NULL &&
-		rctx->rc_stpath != NULL && rctx->rc_snr != 0 &&
-		rctx->rc_colibri != NULL && rctx->rc_services != NULL &&
 		rctx->rc_max_services == c2_reqh_service_types_length() &&
 		c2_tlist_invariant(&cs_eps_tl, &rctx->rc_eps) &&
+		reqh_ctx_args_are_valid(rctx) && rctx->rc_colibri != NULL &&
 		ergo(rctx->rc_state == RC_INITIALISED,
 		c2_reqh_invariant(&rctx->rc_reqh));
 }
@@ -469,10 +477,8 @@ static int ep_and_xprt_get(struct cs_reqh_context *rctx, const char *ep,
 		if (endpoint == NULL)
 			rc = -EINVAL;
 		else {
-			epx->ex_endpoint = endpoint;
-			cs_eps_tlink_init(epx);
 			cs_endpoint_and_xprt_bob_init(epx);
-			cs_eps_tlist_add_tail(&rctx->rc_eps, epx);
+			cs_eps_tlink_init_at_tail(epx, &rctx->rc_eps);
 			*ep_xprt = epx;
 		}
 	}
@@ -1320,19 +1326,18 @@ struct c2_colibri *c2_cs_ctx_get(struct c2_reqh *reqh)
 	return cs_reqh_ctx_get(reqh)->rc_colibri;
 }
 
-unsigned c2_cs_reqh_key_init(struct c2_reqh *reqh)
+unsigned c2_reqh_key_init(struct c2_reqh *reqh)
 {
 	struct cs_reqh_context *rqctx;
 
 	C2_PRE(reqh != NULL);
 
 	rqctx = cs_reqh_ctx_get(reqh);
-	C2_CNT_INC(rqctx->rc_keymax);
 	C2_POST(rqctx->rc_keymax < REQH_KEY_MAX);
-	return rqctx->rc_keymax;
+	return rqctx->rc_keymax++;
 }
 
-void *c2_cs_reqh_key_find(unsigned key, struct c2_reqh *reqh, c2_bcount_t size)
+void *c2_reqh_key_find(unsigned key, struct c2_reqh *reqh, c2_bcount_t size)
 {
 	struct cs_reqh_context *rqctx;
 	struct c2_colibri      *cc;
@@ -1349,7 +1354,7 @@ void *c2_cs_reqh_key_find(unsigned key, struct c2_reqh *reqh, c2_bcount_t size)
         return *data;
 }
 
-void c2_cs_reqh_key_fini(unsigned key, struct c2_reqh *reqh)
+void c2_reqh_key_fini(unsigned key, struct c2_reqh *reqh)
 {
 	struct cs_reqh_context *rqctx;
         void                   *rdata;
@@ -1521,7 +1526,7 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
 
 	ofd = cctx->cc_outfile;
         c2_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
-                if (!cs_reqh_context_invariant(rctx)){
+                if (!reqh_ctx_args_are_valid(rctx)){
 			C2_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc,
 					arg_fail,
 					"Missing or Invalid parameters",
@@ -1722,12 +1727,12 @@ static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
 					}
 					if (rctx->rc_snr >=
 						rctx->rc_max_services) {
+						rc = -E2BIG;
 						C2_ADDB_ADD(&cctx->cc_addb,
 							    &cs_addb_loc,
 							    arg_fail,
 							    "Too many services",
-							    -E2BIG);
-						rc = -E2BIG;
+							    rc);
 						return;
 					}
 					rctx->rc_services[rctx->rc_snr] = str;

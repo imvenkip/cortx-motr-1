@@ -224,8 +224,7 @@ void c2_fom_block_leave(struct c2_fom *fom)
 void c2_fom_queue(struct c2_fom *fom)
 {
 	C2_PRE(c2_fom_invariant(fom));
-	C2_PRE(fom->fo_phase == C2_FOPH_INIT ||
-		fom->fo_phase == C2_FOPH_FAILURE);
+	C2_PRE(C2_IN(fom->fo_phase, (C2_FOPH_INIT, C2_FOPH_FAILURE)));
 
 	fom_ready(fom);
 }

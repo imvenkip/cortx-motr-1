@@ -98,6 +98,7 @@ struct c2_cobfid_map {
 	c2_time_t           cfm_last_mod; /**< Time last modified */
 	struct c2_table     cfm_table;    /**< Table corresponding to cfm */
 	struct c2_mutex     cfm_mutex;
+	bool                cfm_is_initialised;
 	uint64_t            cfm_ref_cnt;
 };
 

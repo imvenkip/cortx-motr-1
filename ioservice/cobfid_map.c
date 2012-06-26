@@ -119,7 +119,8 @@ C2_ADDB_EV_DEFINE(cfm_func_fail, "cobfid_map_func_fail",
  */
 static bool cobfid_map_invariant(const struct c2_cobfid_map *cfm)
 {
-	if (cfm == NULL || cfm->cfm_magic != CFM_MAP_MAGIC)
+	if (cfm == NULL || cfm->cfm_magic != CFM_MAP_MAGIC ||
+	    !cfm->cfm_is_initialised)
 		return false;
 	return true;
 }
@@ -158,6 +159,7 @@ int c2_cobfid_map_init(struct c2_cobfid_map *cfm, struct c2_dbenv *db_env,
 	cfm->cfm_last_mod = c2_time_now();
 	cfm->cfm_magic = CFM_MAP_MAGIC;
 	c2_mutex_init(&cfm->cfm_mutex);
+	cfm->cfm_is_initialised = true;
 	C2_POST(cobfid_map_invariant(cfm));
 	return 0;
 }
@@ -699,7 +701,8 @@ int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
  * This symbol has to be exposed to UTs and possibly other modules in future.
  */
 static const char cobfid_map_name[] = "cobfid_map";
-static unsigned cobfid_map_key;
+static bool cfm_key_is_initialised;
+static unsigned cfm_key;
 
 int c2_cobfid_map_get(struct c2_reqh *reqh, struct c2_cobfid_map **out)
 {
@@ -709,15 +712,17 @@ int c2_cobfid_map_get(struct c2_reqh *reqh, struct c2_cobfid_map **out)
         C2_PRE(reqh != NULL && out != NULL);
 
 	c2_rwlock_write_lock(&reqh->rh_rwlock);
-	if (cobfid_map_key == 0)
-		cobfid_map_key = c2_cs_reqh_key_init(reqh);
+	if (!cfm_key_is_initialised) {
+		cfm_key = c2_reqh_key_init(reqh);
+		cfm_key_is_initialised = true;
+	}
 
-	cfm = c2_cs_reqh_key_find(cobfid_map_key, reqh, sizeof *cfm);
-	if (!cobfid_map_invariant(cfm)) {
+	cfm = c2_reqh_key_find(cfm_key, reqh, sizeof *cfm);
+	if (!cfm->cfm_is_initialised) {
 		rc = c2_cobfid_map_init(cfm, reqh->rh_dbenv, reqh->rh_addb,
 					cobfid_map_name);
 		if (rc != 0) {
-			c2_cs_reqh_key_fini(cobfid_map_key, reqh);
+			c2_reqh_key_fini(cfm_key, reqh);
 			c2_rwlock_write_unlock(&reqh->rh_rwlock);
 			return rc;
 		}
@@ -737,13 +742,13 @@ void c2_cobfid_map_put(struct c2_reqh *reqh)
 	C2_PRE(reqh != NULL);
 
 	c2_rwlock_write_lock(&reqh->rh_rwlock);
-	cfm = c2_cs_reqh_key_find(cobfid_map_key, reqh,
+	cfm = c2_reqh_key_find(cfm_key, reqh,
 				sizeof(struct c2_cobfid_map));
 	C2_ASSERT(cobfid_map_invariant(cfm));
 	C2_CNT_DEC(cfm->cfm_ref_cnt);
 	if (cfm->cfm_ref_cnt == 0) {
 		c2_cobfid_map_fini(cfm);
-		c2_cs_reqh_key_fini(cobfid_map_key, reqh);
+		c2_reqh_key_fini(cfm_key, reqh);
 	}
 	c2_rwlock_write_unlock(&reqh->rh_rwlock);
 }

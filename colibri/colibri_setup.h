@@ -345,16 +345,22 @@ struct c2_colibri *c2_cs_ctx_get(struct c2_reqh *reqh);
      above,
 
      @code
-     static int foo_key;
+
+     struct foo {
+	...
+	bool is_initialised;
+     };
+     static bool     foo_key_is_initialised;
+     static uint32_t foo_key;
      int bar_init()
      {
 	struct foo *data;
 
-	if (foo_key == 0)
+	if (!foo_key_is_initialised)
 		foo_key = c2_cs_reqh_key_init(reqh); //get new reqh data key
 
 	data = c2_cs_reqh_key_find(foo_key, reqh, sizeof *foo);
-	if (!foo_is_initialised(data))
+	if (!data->foo_is_initialised)
 		foo_init(data);
 	...
      }
@@ -374,9 +380,9 @@ struct c2_colibri *c2_cs_ctx_get(struct c2_reqh *reqh);
  */
 /** @{ reqhkey */
 
-unsigned c2_cs_reqh_key_init(struct c2_reqh *reqh);
-void *c2_cs_reqh_key_find(unsigned key, struct c2_reqh *reqh, c2_bcount_t size);
-void c2_cs_reqh_key_fini(unsigned key, struct c2_reqh *reqh);
+unsigned c2_reqh_key_init(struct c2_reqh *reqh);
+void *c2_reqh_key_find(unsigned key, struct c2_reqh *reqh, c2_bcount_t size);
+void c2_reqh_key_fini(unsigned key, struct c2_reqh *reqh);
 
 /** @} reqhkey */
 
