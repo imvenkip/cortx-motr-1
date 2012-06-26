@@ -277,7 +277,7 @@ static uint64_t permute_column(struct c2_pdclust_layout *play,
 		tc->tc_tile_no = omega;
 	}
 
-	C2_ADDB_ADD(&play->pl_base.ls_base.l_addb, &layout_addb_loc,
+	C2_ADDB_ADD(&play->pl_base.sl_base.l_addb, &layout_addb_loc,
 		    pdclust_tile_cache_hit,
 		    tc->tc_tile_no == omega);
 
@@ -400,7 +400,7 @@ static void pdclust_fini(struct c2_layout *l)
 /** Implementation of lo_recsize() for pdclust layout type. */
 static c2_bcount_t pdclust_recsize(const struct c2_layout *l)
 {
-	struct c2_layout_striped *stl;
+	struct c2_striped_layout *stl;
 	struct c2_layout_enum    *e;
 	c2_bcount_t               e_recsize;
 
@@ -523,7 +523,7 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 		C2_POST(pdclust_invariant(pdl));
 	}
 	else
-		pdclust_fini(&pdl->pl_base.ls_base);
+		pdclust_fini(&pdl->pl_base.sl_base);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
@@ -552,7 +552,7 @@ uint64_t c2_pdclust_unit_size(const struct c2_pdclust_layout *pl)
 struct c2_pdclust_layout *c2_layout_to_pdl(const struct c2_layout *l)
 {
 	struct c2_pdclust_layout *pl;
-	pl = container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
+	pl = container_of(l, struct c2_pdclust_layout, pl_base.sl_base);
 	C2_ASSERT(pdclust_invariant(pl));
 	return pl;
 }
@@ -560,7 +560,7 @@ struct c2_pdclust_layout *c2_layout_to_pdl(const struct c2_layout *l)
 struct c2_layout *c2_pdl_to_layout(struct c2_pdclust_layout *pl)
 {
 	C2_PRE(pdclust_invariant(pl));
-	return &pl->pl_base.ls_base;
+	return &pl->pl_base.sl_base;
 }
 
 enum c2_pdclust_unit_type
@@ -655,7 +655,7 @@ static int pdclust_decode(struct c2_layout_domain *dom,
 		goto out;
 	}
 
-	*out = &pl->pl_base.ls_base;
+	*out = &pl->pl_base.sl_base;
 	C2_POST(pdclust_invariant(pl));
 
 out:
@@ -719,7 +719,7 @@ static int pdclust_encode(struct c2_layout *l,
 		pl_oldrec = c2_bufvec_cursor_addr(oldrec_cur);
 
 		C2_ASSERT(pl_oldrec->pr_let_id ==
-			  pl->pl_base.ls_enum->le_type->let_id &&
+			  pl->pl_base.sl_enum->le_type->let_id &&
 			  pl_oldrec->pr_attr.pa_N == pl->pl_attr.pa_N &&
 			  pl_oldrec->pr_attr.pa_K == pl->pl_attr.pa_K &&
 			  pl_oldrec->pr_attr.pa_P == pl->pl_attr.pa_P &&
@@ -728,16 +728,16 @@ static int pdclust_encode(struct c2_layout *l,
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *pl_oldrec);
 	}
 
-	et = l->l_dom->ld_enum[pl->pl_base.ls_enum->le_type->let_id];
+	et = l->l_dom->ld_enum[pl->pl_base.sl_enum->le_type->let_id];
 	C2_ASSERT(c2_layout__is_enum_type_valid(et->let_id, l->l_dom));
 
-	pl_rec.pr_let_id  = pl->pl_base.ls_enum->le_type->let_id;
+	pl_rec.pr_let_id  = pl->pl_base.sl_enum->le_type->let_id;
 	pl_rec.pr_attr    = pl->pl_attr;
 
 	nbytes = c2_bufvec_cursor_copyto(out, &pl_rec, sizeof pl_rec);
 	C2_ASSERT(nbytes == sizeof pl_rec);
 
-	rc = et->let_ops->leto_encode(pl->pl_base.ls_enum, op, tx,
+	rc = et->let_ops->leto_encode(pl->pl_base.sl_enum, op, tx,
 				      oldrec_cur, out);
 	if (rc != 0)
 		C2_LOG("lid %llu, leto_encode() failed, rc %d",

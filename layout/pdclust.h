@@ -119,14 +119,14 @@ struct c2_layout_pdclust_rec {
 };
 
 /**
- * Extension of generic c2_layout_striped for parity de-clustering.
+ * Extension of generic c2_striped_layout for parity de-clustering.
  *
  * @todo liveness rules
  * @todo concurrency control
  */
 struct c2_pdclust_layout {
 	/** Super class */
-	struct c2_layout_striped     pl_base;
+	struct c2_striped_layout     pl_base;
 
 	/** Parity de-clustering layout attributes. */
 	struct c2_pdclust_attr       pl_attr;
