@@ -202,7 +202,6 @@ static bool pdclust_invariant(const struct c2_pdclust_layout *play)
 	tc = &play->pl_tile_cache;
 
 	return
-		play != NULL &&
 		c2_pdclust_layout_bob_check(play) &&
 		c2_layout__striped_invariant(&play->pl_base) &&
 		/*

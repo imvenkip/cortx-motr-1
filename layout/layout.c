@@ -152,7 +152,6 @@ bool c2_layout__domain_invariant(const struct c2_layout_domain *dom)
 bool c2_layout__invariant(const struct c2_layout *l)
 {
 	return
-		l != NULL &&
 		c2_layout_bob_check(l) &&
 		l->l_id != LID_NONE &&
 		l->l_type != NULL &&
@@ -237,7 +236,7 @@ static void layout_type_get(struct c2_layout_type *lt)
 
 	/*
 	 * The DEFAULT_REF_COUNT while a layout type is registered, being 1,
-	 * ensures that the layout can not be freed concurrently.
+	 * ensures that the layout type can not be freed concurrently.
 	 */
 
 	c2_mutex_lock(&lt->lt_domain->ld_lock);
@@ -284,7 +283,7 @@ static void enum_type_put(struct c2_layout_enum_type *let)
  * Looks up for an entry from the layout list, with the specified layout id.
  * @pre c2_mutex_is_locked(&dom->ld_lock).
  */
-static struct c2_layout *layout_list_lookup(struct c2_layout_domain *dom,
+static struct c2_layout *layout_list_lookup(const struct c2_layout_domain *dom,
 					    uint64_t lid)
 {
 	struct c2_layout *l;
@@ -293,7 +292,7 @@ static struct c2_layout *layout_list_lookup(struct c2_layout_domain *dom,
 	C2_PRE(c2_mutex_is_locked(&dom->ld_lock));
 
 	c2_tl_for(layout, &dom->ld_layout_list, l) {
-		C2_ASSERT(c2_layout_bob_check(l));
+		C2_ASSERT(c2_layout__invariant(l));
 		if (l->l_id == lid)
 			break;
 	} c2_tl_endfor;

@@ -107,7 +107,6 @@ static const struct c2_table_ops cob_lists_table_ops = {
 static bool list_enum_invariant_internal(const struct c2_layout_list_enum *le)
 {
 	return
-		le != NULL &&
 		c2_layout_list_enum_bob_check(le) &&
 		le->lle_nr != NR_NONE &&
 		le->lle_list_of_cobs != NULL &&

@@ -62,10 +62,9 @@ static bool
 linear_enum_invariant_internal(const struct c2_layout_linear_enum *le)
 {
 	return
-		le != NULL &&
+		c2_layout_linear_enum_bob_check(le) &&
 		le->lle_attr.lla_nr != NR_NONE &&
-		le->lle_attr.lla_B != 0 &&
-		c2_layout_linear_enum_bob_check(le);
+		le->lle_attr.lla_B != 0;
 }
 
 static bool linear_enum_invariant(const struct c2_layout_linear_enum *le)
