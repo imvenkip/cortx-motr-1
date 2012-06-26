@@ -778,8 +778,10 @@ static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 
 	c2_mutex_fini(&machine->rm_mutex);
 
-	c2_addb_ctx_fini(&machine->rm_rpc_machine_addb);
+	c2_addb_ctx_fini(&machine->rm_addb);
+#ifndef __KERNEL__
 	c2_rpc_machine_bob_fini(machine);
+#endif
 }
 
 int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
@@ -821,7 +823,9 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 	c2_list_init(&machine->rm_outgoing_conns);
 	c2_list_init(&machine->rm_ready_slots);
 	c2_rpc_services_tlist_init(&machine->rm_services);
-
+#ifndef __KERNEL__
+	c2_rpc_machine_bob_init(machine);
+#endif
 	c2_mutex_init(&machine->rm_mutex);
 
 	c2_addb_ctx_init(&machine->rm_addb, &rpc_machine_addb_ctx_type,
@@ -839,7 +843,6 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 
 #ifndef __KERNEL__
 	rc = c2_db_tx_init(&tx, dom->cd_dbenv, 0);
-	c2_rpc_machine_bob_init(machine);
 	if (rc == 0) {
 		rc = c2_rpc_root_session_cob_create(dom, &tx);
 		if (rc == 0) {

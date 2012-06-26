@@ -82,8 +82,9 @@ C2_TL_DESCR_DEFINE(c2_reqh_rpc_mach, "rpc machines", , struct c2_rpc_machine,
 
 C2_TL_DEFINE(c2_reqh_rpc_mach, , struct c2_rpc_machine);
 
-static struct c2_bob_type rqrpm_bob;
+struct c2_bob_type rqrpm_bob;
 C2_BOB_DEFINE( , &rqrpm_bob, c2_rpc_machine);
+
 
 /**
  * Reqh addb context.

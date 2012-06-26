@@ -103,6 +103,11 @@ int c2_net_init(void);
 void c2_net_fini(void);
 
 enum {
+	/** Default minimum number of receive queue buffers for automatic
+	    provisioning.
+	 */
+	C2_NET_TM_RECV_QUEUE_DEF_LEN = 2,
+
 	/* Hex value for "NETDOM" */
 	C2_NET_DOMAIN_MAGIX = 0x4E4554444F4D
 };
@@ -398,9 +403,6 @@ struct c2_net_domain {
 
 	/** Network magic */
 	uint64_t            nd_magix;
-
-        /** Transfer machine pool colour counter */
-        int                 nd_pool_colour_counter;
 };
 
 /**

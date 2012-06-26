@@ -97,6 +97,16 @@ enum {
 	CS_ENDPOINT_HEAD_MAGIX = 0x43535F45504844 /* CS_EPHD */
 };
 
+enum {
+	CS_MAX_EP_ADDR_LEN = 86, /* "lnet:" + C2_NET_LNET_XEP_ADDR_LEN */
+};
+C2_BASSERT(CS_MAX_EP_ADDR_LEN >= C2_NET_LNET_XEP_ADDR_LEN);
+
+C2_TL_DESCR_DEFINE(cs_buffer_pools, "buffer pools in the colibri context", ,
+		   struct c2_cs_buffer_pool, cs_bp_linkage, cs_bp_magic,
+		   C2_CS_BUFFER_POOL_MAGIC, C2_CS_BUFFER_POOL_HEAD);
+C2_TL_DEFINE(cs_buffer_pools, , struct c2_cs_buffer_pool);
+
 /**
    Represents state of a request handler context.
  */
@@ -128,8 +138,8 @@ struct cs_endpoint_and_xprt {
 	 */
 	const char      *ex_cep;
 	/**
-	   3-tuple network layer endpoint address.
-	   e.g. 127.0.0.1:1024:1
+	   4-tuple network layer endpoint address.
+	   e.g. 172.18.50.40@o2ib1:12345:34:1
 	 */
 	const char      *ex_endpoint;
 	/** Supported network transport. */
@@ -149,8 +159,8 @@ struct cs_endpoint_and_xprt {
 };
 
 C2_TL_DESCR_DEFINE(cs_eps, "cs endpoints", static, struct cs_endpoint_and_xprt,
-			ex_linkage, ex_magix, CS_ENDPOINT_MAGIX,
-			CS_ENDPOINT_HEAD_MAGIX);
+		   ex_linkage, ex_magix, CS_ENDPOINT_MAGIX,
+		   CS_ENDPOINT_HEAD_MAGIX);
 
 C2_TL_DEFINE(cs_eps, static, struct cs_endpoint_and_xprt);
 
@@ -256,8 +266,8 @@ static const char *cs_stobs[] = {
 };
 
 C2_TL_DESCR_DEFINE(rhctx, "reqh contexts", static, struct cs_reqh_context,
-			rc_linkage, rc_magix, CS_REQH_CTX_MAGIX,
-			CS_REQH_CTX_HEAD_MAGIX);
+		   rc_linkage, rc_magix, CS_REQH_CTX_MAGIX,
+		   CS_REQH_CTX_HEAD_MAGIX);
 
 C2_TL_DEFINE(rhctx, static, struct cs_reqh_context);
 
@@ -265,8 +275,8 @@ static struct c2_bob_type rhctx_bob;
 C2_BOB_DEFINE(static, &rhctx_bob, cs_reqh_context);
 
 C2_TL_DESCR_DEFINE(ndom, "network domains", static, struct c2_net_domain,
-			nd_app_linkage, nd_magix, C2_NET_DOMAIN_MAGIX,
-			CS_NET_DOMS_HEAD_MAGIX);
+		   nd_app_linkage, nd_magix, C2_NET_DOMAIN_MAGIX,
+		   CS_NET_DOMS_HEAD_MAGIX);
 
 C2_TL_DEFINE(ndom, static, struct c2_net_domain);
 
@@ -274,15 +284,20 @@ static struct c2_bob_type ndom_bob;
 C2_BOB_DEFINE(static, &ndom_bob, c2_net_domain);
 
 static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cctx,
-							const char *xprt);
+						  const char *xprt);
 
+static uint32_t cs_domain_tms_nr(struct c2_colibri *cctx,
+				 struct c2_net_domain *dom);
+static uint32_t cs_dom_tm_min_recv_queue_total(struct c2_colibri *cctx,
+					       struct c2_net_domain *dom);
+static void cs_buffer_pool_fini(struct c2_colibri *cctx);
 
 static int reqh_ctx_args_are_valid(const struct cs_reqh_context *rctx)
 {
 	return rctx->rc_stype != NULL && rctx->rc_stpath != NULL &&
-		rctx->rc_dbpath != NULL && rctx->rc_snr != 0 &&
-		rctx->rc_services != NULL &&
-		!cs_eps_tlist_is_empty(&rctx->rc_eps);
+	       rctx->rc_dbpath != NULL && rctx->rc_snr != 0 &&
+	       rctx->rc_services != NULL &&
+	       !cs_eps_tlist_is_empty(&rctx->rc_eps);
 }
 
 /**
@@ -291,12 +306,12 @@ static int reqh_ctx_args_are_valid(const struct cs_reqh_context *rctx)
 static bool cs_reqh_context_invariant(const struct cs_reqh_context *rctx)
 {
 	return cs_reqh_context_bob_check(rctx) &&
-		C2_IN(rctx->rc_state, (RC_UNINITIALISED, RC_INITIALISED)) &&
-		rctx->rc_max_services == c2_reqh_service_types_length() &&
-		c2_tlist_invariant(&cs_eps_tl, &rctx->rc_eps) &&
-		reqh_ctx_args_are_valid(rctx) && rctx->rc_colibri != NULL &&
-		ergo(rctx->rc_state == RC_INITIALISED,
-		c2_reqh_invariant(&rctx->rc_reqh));
+	       C2_IN(rctx->rc_state, (RC_UNINITIALISED, RC_INITIALISED)) &&
+	       rctx->rc_max_services == c2_reqh_service_types_length() &&
+	       c2_tlist_invariant(&cs_eps_tl, &rctx->rc_eps) &&
+	       reqh_ctx_args_are_valid(rctx) && rctx->rc_colibri != NULL &&
+	       ergo(rctx->rc_state == RC_INITIALISED,
+	       c2_reqh_invariant(&rctx->rc_reqh));
 }
 
 /**
@@ -449,11 +464,14 @@ static int cs_endpoint_validate(struct c2_colibri *cctx, const char *ep,
    Colibri endpoint is of 2 parts network xprt:network endpoint.
  */
 static int ep_and_xprt_get(struct cs_reqh_context *rctx, const char *ep,
-					struct cs_endpoint_and_xprt **ep_xprt)
+			   struct cs_endpoint_and_xprt **ep_xprt)
 {
 	int                          rc = 0;
+	int                          ep_len = min32u(strlen(ep) + 1,
+						     CS_MAX_EP_ADDR_LEN);
 	char                        *sptr;
 	struct cs_endpoint_and_xprt *epx;
+	char                        *endpoint;
 	struct c2_addb_ctx          *addb;
 
 	C2_PRE(ep != NULL);
@@ -463,12 +481,12 @@ static int ep_and_xprt_get(struct cs_reqh_context *rctx, const char *ep,
 	if (epx == NULL)
 		return -ENOMEM;
 	epx->ex_cep = ep;
-	C2_ALLOC_ARR_ADDB(epx->ex_scrbuf, strlen(ep) + 1, addb, &cs_addb_loc);
+	C2_ALLOC_ARR_ADDB(epx->ex_scrbuf, ep_len, addb, &cs_addb_loc);
 	if (epx->ex_scrbuf == NULL) {
 		c2_free(epx);
 		return -ENOMEM;
 	}
-	strcpy(epx->ex_scrbuf, ep);
+	strncpy(epx->ex_scrbuf, ep, ep_len);
 	epx->ex_xprt = strtok_r(epx->ex_scrbuf, ":", &sptr);
 	if (epx->ex_xprt == NULL)
 		rc = -EINVAL;
@@ -477,6 +495,7 @@ static int ep_and_xprt_get(struct cs_reqh_context *rctx, const char *ep,
 		if (endpoint == NULL)
 			rc = -EINVAL;
 		else {
+			epx->ex_endpoint = endpoint;
 			cs_endpoint_and_xprt_bob_init(epx);
 			cs_eps_tlink_init_at_tail(epx, &rctx->rc_eps);
 			*ep_xprt = epx;
@@ -615,7 +634,6 @@ static struct c2_net_buffer_pool *cs_buffer_pool_get(struct c2_colibri *cctx,
 
 	C2_PRE(cctx != NULL);
 	C2_PRE(ndom != NULL);
-	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
 
 	c2_tl_for(cs_buffer_pools, &cctx->cc_buffer_pools, cs_bp) {
 		if (cs_bp->cs_buffer_pool.nbp_ndom == ndom)
@@ -623,7 +641,6 @@ static struct c2_net_buffer_pool *cs_buffer_pool_get(struct c2_colibri *cctx,
 	} c2_tl_endfor;
 	return NULL;
 }
-
 
 /**
    Initialises rpc machine for the given endpoint address.
@@ -702,8 +719,11 @@ static int cs_rpc_machines_init(struct c2_colibri *cctx)
 		c2_tl_for(cs_eps, &rctx->rc_eps, ep) {
 			C2_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
 			rc = cs_rpc_machine_init(cctx, ep->ex_xprt,
-							ep->ex_endpoint,
-							&rctx->rc_reqh);
+						 ep->ex_endpoint,
+						 ep->ex_tm_colour,
+						 rctx->rc_recv_queue_min_length,
+						 rctx->rc_max_rpc_msg_size,
+						 &rctx->rc_reqh);
 			if (rc != 0) {
 				C2_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc,
 					    rpc_init_fail,
@@ -748,7 +768,6 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 	uint32_t                  max_recv_queue_len;
 
 	C2_PRE(cctx != NULL);
-	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
 
 	c2_tl_for(ndom, &cctx->cc_ndoms, dom) {
 		max_recv_queue_len = cs_dom_tm_min_recv_queue_total(cctx, dom);
@@ -784,7 +803,6 @@ static void cs_buffer_pool_fini(struct c2_colibri *cctx)
 	struct c2_cs_buffer_pool   *cs_bp;
 
 	C2_PRE(cctx != NULL);
-	C2_PRE(c2_mutex_is_locked(&cctx->cc_mutex));
 
 	c2_tl_for(cs_buffer_pools, &cctx->cc_buffer_pools, cs_bp) {
                 cs_buffer_pools_tlink_del_fini(cs_bp);
@@ -814,7 +832,7 @@ static int cs_ad_stob_init(struct c2_cs_reqh_stobs *stob, struct c2_dbenv *db)
         rc = c2_stob_domain_locate(&c2_ad_stob_type, ad_dname, &stob->rs_adom);
 	if (rc == 0)
              rc = c2_stob_find(stob->rs_ldom, &stob->rs_id_back,
-				&stob->rs_stob_back);
+			       &stob->rs_stob_back);
         if (rc == 0) {
              c2_dtx_init(tx);
              rc = c2_dtx_open(tx, db);
@@ -882,8 +900,8 @@ void cs_linux_stob_fini(struct c2_cs_reqh_stobs *stob)
 
 
 int c2_cs_storage_init(const char *stob_type, const char *stob_path,
-			struct c2_cs_reqh_stobs *stob, struct c2_dbenv *db,
-			struct c2_addb_ctx *addb)
+		       struct c2_cs_reqh_stobs *stob, struct c2_dbenv *db,
+		       struct c2_addb_ctx *addb)
 {
 	int               rc;
 	int               slen;
@@ -896,7 +914,7 @@ int c2_cs_storage_init(const char *stob_type, const char *stob_path,
 
 	slen = strlen(stob_path);
 	C2_ALLOC_ARR_ADDB(objpath, slen + ARRAY_SIZE(objdir), addb,
-							&cs_addb_loc);
+			  &cs_addb_loc);
 	if (objpath == NULL)
 		return -ENOMEM;
 
@@ -985,7 +1003,7 @@ static int cs_services_init(struct c2_colibri *cctx)
 		C2_ASSERT(cs_reqh_context_invariant(rctx));
 		for (idx = 0; idx < rctx->rc_snr; ++idx) {
 			rc = cs_service_init(rctx->rc_services[idx],
-						&rctx->rc_reqh);
+					     &rctx->rc_reqh);
 			if (rc != 0)
 				return rc;
 		}
@@ -1068,8 +1086,8 @@ static int cs_net_domains_init(struct c2_colibri *cctx)
 			xprt = cs_xprt_lookup(ep->ex_xprt, xprts, xprts_nr);
 			if (xprt == NULL) {
 				C2_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc,
-						endpoint_init_fail,
-						ep->ex_xprt, -EINVAL);
+					    endpoint_init_fail,
+					    ep->ex_xprt, -EINVAL);
 				return -EINVAL;
 			}
 
@@ -1154,21 +1172,21 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 				&rctx->rc_db, addb);
 	if (rc != 0) {
 		C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
-				"c2_cs_storage_init", rc);
+			    "c2_cs_storage_init", rc);
 		goto cleanup_db;
 	}
 	rctx->rc_cdom_id.id = ++cdom_id;
 	rc = c2_cob_domain_init(&rctx->rc_cdom, &rctx->rc_db,
-					&rctx->rc_cdom_id);
+				&rctx->rc_cdom_id);
 	if (rc != 0) {
 		C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
-				"c2_cob_domain_init", rc);
+			    "c2_cob_domain_init", rc);
 		goto cleanup_stob;
 	}
 	rc = c2_fol_init(&rctx->rc_fol, &rctx->rc_db);
 	if (rc != 0) {
 		C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
-				"c2_fol_init", rc);
+			    "c2_fol_init", rc);
 		goto cleanup_cob;
 	}
 	rstob = &rctx->rc_stob;
@@ -1178,10 +1196,10 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 		sdom = rstob->rs_ldom;
 
 	rc = c2_reqh_init(&rctx->rc_reqh, NULL, sdom, &rctx->rc_db,
-					&rctx->rc_cdom, &rctx->rc_fol);
+			  &rctx->rc_cdom, &rctx->rc_fol);
 	if (rc != 0) {
 		C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
-				"c2_reqh_init", rc);
+			    "c2_reqh_init", rc);
 		goto cleanup_fol;
 	}
 	rctx->rc_state = RC_INITIALISED;
@@ -1295,7 +1313,7 @@ struct c2_reqh *c2_cs_reqh_get(struct c2_colibri *cctx,
 
 		for (idx = 0; idx < rctx->rc_snr; ++idx) {
 			if (strcmp(rctx->rc_services[idx],
-					service_name) == 0) {
+				   service_name) == 0) {
 				reqh = &rctx->rc_reqh;
 				c2_rwlock_read_unlock(&cctx->cc_rwlock);
 				return reqh;
@@ -1390,7 +1408,7 @@ static void cs_colibri_init(struct c2_colibri *cctx)
 	c2_rwlock_init(&cctx->cc_rwlock);
 
 	c2_addb_ctx_init(&cctx->cc_addb, &cs_addb_ctx_type,
-				&c2_addb_global_ctx);
+			 &c2_addb_global_ctx);
 }
 
 /**
@@ -1405,6 +1423,7 @@ static void cs_colibri_fini(struct c2_colibri *cctx)
 	C2_PRE(cctx != NULL);
 
 	rhctx_tlist_fini(&cctx->cc_reqh_ctxs);
+	cs_buffer_pools_tlist_fini(&cctx->cc_buffer_pools);
 	ndom_tlist_fini(&cctx->cc_ndoms);
 	c2_rwlock_fini(&cctx->cc_rwlock);
 	c2_addb_ctx_fini(&cctx->cc_addb);
@@ -1506,8 +1525,60 @@ static void cs_help(FILE *out)
 		   "be started.\n"
 		   "Duplicate services are not allowed in the same request \n"
 		   "handler context.\n"
-		   "   e.g. ./colibri -r -T linux -D dbpath -S stobfile\n"
-		   "        -e xport:127.0.0.1:1024:1 -s mds\n");
+		   "-q Minimum TM Receive queue length.\n"
+		   "   If not set overrided by global value.\n"
+		   "-m Maximum RPC message size.\n"
+		   "   If not set overrided by global value.\n"
+		   "   Should not be greater than XprtMaxBufferSize\n"
+		   "\n"
+		   "   e.g. ./colibri_setup -Q 4 -M 4096 -r -T linux\n"
+		   "        -D dbpath -S stobfile -e lnet:172.18.50.40@o2ib1:12345:34:1 \n"
+		   "	    -s mds -q 8 -m 65536 \n");
+}
+
+static uint32_t cs_domain_tms_nr(struct c2_colibri *cctx,
+				struct c2_net_domain *dom)
+{
+	struct cs_reqh_context      *rctx;
+	struct cs_endpoint_and_xprt *ep;
+        uint32_t		     cnt = 0;
+
+	C2_PRE(cctx != NULL);
+
+	c2_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
+		c2_tl_for(cs_eps, &rctx->rc_eps, ep) {
+			if(strcmp(ep->ex_xprt, dom->nd_xprt->nx_name) == 0)
+				ep->ex_tm_colour = cnt++;
+		} c2_tl_endfor;
+	} c2_tl_endfor;
+
+	C2_POST(cnt > 0);
+
+	return cnt;
+}
+
+/**
+   It calculates the summation of the minimum receive queue length of all
+   endpoints belong to a domain in all the reqest handler contexts.
+ */
+static uint32_t cs_dom_tm_min_recv_queue_total(struct c2_colibri *cctx,
+					       struct c2_net_domain *dom)
+{
+	struct cs_reqh_context	    *rctx;
+	struct cs_endpoint_and_xprt *ep;
+	uint32_t		     min_queue_len_total = 0;
+
+	C2_PRE(cctx != NULL);
+
+	c2_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
+		C2_ASSERT(cs_reqh_context_bob_check(rctx));
+		c2_tl_for(cs_eps, &rctx->rc_eps, ep) {
+			if(strcmp(ep->ex_xprt, dom->nd_xprt->nx_name) == 0)
+				min_queue_len_total +=
+					rctx->rc_recv_queue_min_length;
+		} c2_tl_endfor;
+	} c2_tl_endfor;
+	return min_queue_len_total;
 }
 
 static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
@@ -1528,9 +1599,9 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
         c2_tl_for(rhctx, &cctx->cc_reqh_ctxs, rctx) {
                 if (!reqh_ctx_args_are_valid(rctx)){
 			C2_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc,
-					arg_fail,
-					"Missing or Invalid parameters",
-					-EINVAL);
+				    arg_fail,
+				    "Missing or Invalid parameters",
+				    -EINVAL);
                         return -EINVAL;
 		}
 
@@ -1545,8 +1616,8 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
 
 		if (!stype_is_valid(rctx->rc_stype)) {
 			C2_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc,
-					storage_init_fail,
-					rctx->rc_stype, -EINVAL);
+				    storage_init_fail,
+				    rctx->rc_stype, -EINVAL);
 			cs_stob_types_list(ofd);
                         return -EINVAL;
                 }
@@ -1556,19 +1627,19 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
 		 */
 		if (cs_eps_tlist_is_empty(&rctx->rc_eps)) {
 			C2_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc,
-					arg_fail,
-					"Endpoint missing", -EINVAL);
+				    arg_fail,
+				    "Endpoint missing", -EINVAL);
 			return -EINVAL;
 		}
 
 		c2_tl_for(cs_eps, &rctx->rc_eps, ep) {
 			C2_ASSERT(cs_endpoint_and_xprt_bob_check(ep));
 			rc = cs_endpoint_validate(cctx, ep->ex_endpoint,
-							ep->ex_xprt);
+						  ep->ex_xprt);
 			if (rc != 0) {
 				C2_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc,
-						endpoint_init_fail,
-						ep->ex_cep, rc);
+					    endpoint_init_fail,
+					    ep->ex_cep, rc);
 				return rc;
 			}
 		} c2_tl_endfor;
@@ -1579,8 +1650,8 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
 		 */
 		if (rctx->rc_snr == 0) {
 			C2_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc,
-					service_init_fail,
-					"No Service specified", -EINVAL);
+				    service_init_fail,
+				    "No Service specified", -EINVAL);
 			return -EINVAL;
 		}
 
@@ -1588,14 +1659,14 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
 			sname = rctx->rc_services[idx];
 			if (!c2_reqh_service_is_registered(sname)) {
 				C2_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc,
-						service_init_fail,
-						sname, -ENOENT);
+					    service_init_fail,
+					    sname, -ENOENT);
 				return -ENOENT;
 			}
 			if (service_is_duplicate(rctx, sname)) {
 				C2_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc,
-						service_init_fail,
-						sname, -EEXIST);
+					    service_init_fail,
+					    sname, -EEXIST);
 				return -EEXIST;
 			}
 		}
@@ -1755,14 +1826,15 @@ int c2_cs_setup_env(struct c2_colibri *cctx, int argc, char **argv)
 	rc = cs_parse_args(cctx, argc, argv) ?:
 		reqh_ctxs_are_valid(cctx) ?:
 		cs_net_domains_init(cctx) ?:
+		cs_buffer_pool_setup(cctx) ?:
 		cs_request_handlers_start(cctx) ?:
 		cs_rpc_machines_init(cctx);
 	c2_rwlock_write_unlock(&cctx->cc_rwlock);
 
 	if (rc < 0) {
 		C2_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc,
-				setup_fail,
-				"c2_cs_setup_env", rc);
+			    setup_fail,
+			    "c2_cs_setup_env", rc);
 		cs_usage(cctx->cc_outfile);
 	}
 
@@ -1778,8 +1850,8 @@ int c2_cs_start(struct c2_colibri *cctx)
 	rc = cs_services_init(cctx);
 	if (rc != 0)
 		C2_ADDB_ADD(&cctx->cc_addb, &cs_addb_loc,
-				service_init_fail,
-				"c2_cs_start", rc);
+			    service_init_fail,
+			    "c2_cs_start", rc);
 	return rc;
 }
 
@@ -1789,6 +1861,9 @@ int c2_cs_init(struct c2_colibri *cctx, struct c2_net_xprt **xprts,
         int rc;
 
         C2_PRE(cctx != NULL && xprts != NULL && xprts_nr > 0 && out != NULL);
+
+	if (C2_FI_ENABLED("fake_error"))
+		return -EINVAL;
 
         cctx->cc_xprts = xprts;
 	cctx->cc_xprts_nr = xprts_nr;
@@ -1806,6 +1881,7 @@ void c2_cs_fini(struct c2_colibri *cctx)
 	C2_PRE(cctx != NULL);
 
         cs_request_handlers_stop(cctx);
+	cs_buffer_pool_fini(cctx);
 	cs_net_domains_fini(cctx);
         cs_colibri_fini(cctx);
 	c2_processors_fini();

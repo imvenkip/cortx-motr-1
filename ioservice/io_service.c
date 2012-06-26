@@ -174,7 +174,8 @@ static int ios_create_buffer_pool(struct c2_reqh_service *service)
         struct c2_rpc_machine      *rpcmach;
         struct c2_reqh_io_service  *serv_obj;
         struct c2_rios_buffer_pool *bp;
-        struct c2_rios_buffer_pool *newbp;
+	c2_bcount_t                 segment_size;
+	uint32_t                    segments_nr;
 	struct c2_reqh             *reqh;
 
         serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
@@ -183,6 +184,8 @@ static int ios_create_buffer_pool(struct c2_reqh_service *service)
 	c2_rwlock_read_lock(&reqh->rh_rwlock);
         c2_tlist_for(&c2_reqh_rpc_mach_tl, &reqh->rh_rpc_machines, rpcmach) {
 		C2_ASSERT(c2_rpc_machine_bob_check(rpcmach));
+		struct c2_rios_buffer_pool *newbp;
+		bool                        bufpool_found = false;
 		/*
 		 * Check buffer pool for network domain of rpc_machine
 		 */
@@ -368,7 +371,7 @@ static int ios_start(struct c2_reqh_service *service)
 
 	rc = c2_cobfid_map_get(service->rs_reqh, &cfm);
 	if (rc != 0)
-		ioservice_delete_buffer_pool(service);
+		ios_delete_buffer_pool(service);
 
         return rc;
 }
@@ -386,7 +389,7 @@ static void ios_stop(struct c2_reqh_service *service)
 {
         C2_PRE(service != NULL);
 
-        ioservice_delete_buffer_pool(service);
+        ios_delete_buffer_pool(service);
 	c2_cobfid_map_put(service->rs_reqh);
 }
 

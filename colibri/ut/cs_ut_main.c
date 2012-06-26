@@ -411,7 +411,6 @@ static void test_cs_ut_lnet_multiple_if(void)
 	rc = c2_cs_init(&colibri_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr);
 	C2_UT_ASSERT(rc == 0);
 
-	c2_mutex_lock(&colibri_ctx.cc_mutex);
 	rc = cs_parse_args(&colibri_ctx, ARRAY_SIZE(cs_ut_lnet_mult_if_cmd),
 			    cs_ut_lnet_mult_if_cmd);
 	C2_UT_ASSERT(rc == 0);
@@ -429,7 +428,6 @@ static void test_cs_ut_lnet_ep_mixed_dup(void)
 	rc = c2_cs_init(&colibri_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), out);
 	C2_UT_ASSERT(rc == 0);
 
-	c2_mutex_lock(&colibri_ctx.cc_mutex);
 	rc = cs_parse_args(&colibri_ctx, ARRAY_SIZE(cs_ut_ep_mixed_dup_cmd),
 			    cs_ut_ep_mixed_dup_cmd);
 	C2_UT_ASSERT(rc == 0);

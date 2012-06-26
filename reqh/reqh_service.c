@@ -28,8 +28,7 @@
 #include "lib/time.h"
 #include "lib/misc.h" /* C2_SET_ARR0 */
 #include "lib/trace.h" /* c2_console_printf */
->>>>>>> 1) Addressed Nikita's comments, 2) changed mutexes to rwlocks inorder to allow concurrent read, 3) reduced scope of service types list (c2_rstypes -> rstypes) to private to reqh_service.c, 4) provided interfaces for protected access to rstypes list. 5) changed reqh shutdown logic, removed sleep, instead using c2_chan_wait, 6) Few more misc changes.
-
+#include "lib/finject.h" /* C2_FI_ENABLED */
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 
@@ -160,8 +159,8 @@ void c2_reqh_service_init(struct c2_reqh_service *service, struct c2_reqh *reqh)
 	 */
 	C2_SET_ARR0(service->rs_uuid);
 	sname = service->rs_type->rst_name;
-	snprintf(service->rs_uuid, C2_REQH_SERVICE_UUID_SIZE, "%s:%lu", sname,
-								c2_time_now());
+	snprintf(service->rs_uuid, C2_REQH_SERVICE_UUID_SIZE, "%s:%llu", sname,
+		(unsigned long long)c2_time_now());
 	service->rs_state = C2_RST_INITIALISED;
 	service->rs_reqh  = reqh;
 	c2_reqh_svc_tlink_init(service);
