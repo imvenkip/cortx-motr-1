@@ -26,6 +26,7 @@ colibri_service()
 			echo "Colibri service started."
 		else
 			echo "Colibri service failed to start."
+			return 1
 		fi
 	}
 
