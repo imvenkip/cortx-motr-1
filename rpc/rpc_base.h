@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -48,7 +48,7 @@ struct c2_rpc_item_type_ops {
 	/**
 	   Find out the size of rpc item.
 	 */
-	size_t (*rito_item_size)(const struct c2_rpc_item *item);
+	c2_bcount_t (*rito_item_size)(const struct c2_rpc_item *item);
 
 	/**
 	  Return true iff item1 and item2 are equal.
@@ -74,11 +74,10 @@ struct c2_rpc_item_type_ops {
 	int (*rito_decode)(struct c2_rpc_item_type *item_type,
 			   struct c2_rpc_item **item,
 			   struct c2_bufvec_cursor *cur);
-	/**
-	   Return the c2_net_buf_desc from io fop.
-	 */
-	void (*rito_io_desc_get)(struct c2_rpc_item *item,
-				 struct c2_net_buf_desc *desc);
+
+	bool (*rito_try_merge)(struct c2_rpc_item *container,
+			       struct c2_rpc_item *component,
+			       c2_bcount_t         limit);
 };
 
 /**

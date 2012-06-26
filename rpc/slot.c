@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -824,8 +824,6 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 		 * c2_rpc_slot_reply_received() sets req to NULL.
 		 */
 		if (req != NULL) {
-			/* Send reply received event to formation component.*/
-			frm_item_reply_received(item, req);
 			/*
 			 * informing upper layer that reply is received should
 			 * be the done after all the reply processing has been

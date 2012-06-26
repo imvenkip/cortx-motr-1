@@ -455,12 +455,11 @@ static void ioq_queue_submit(struct linux_domain *ldom)
    c2_stob_io::si_wait.
  */
 static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
-			 unsigned long res, unsigned long res2)
+			 long res, long res2)
 {
 	struct c2_stob_io    *io;
 	struct linux_stob_io *lio;
 	bool done;
-	int  i;
 
 	C2_ASSERT(!c2_queue_link_is_in(&qev->iq_linkage));
 	C2_ASSERT(qev->iq_io->si_obj->so_domain == &ldom->sdl_base);
@@ -487,10 +486,8 @@ static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 	c2_mutex_unlock(&lio->si_endlock);
 
 	if (done) {
-		for (i = 0; i < lio->si_nr; ++i) {
-			C2_ASSERT(!c2_queue_link_is_in
-				  (&lio->si_qev[i].iq_linkage));
-		}
+		C2_ASSERT(c2_forall(i, lio->si_nr,
+		          !c2_queue_link_is_in(&lio->si_qev[i].iq_linkage)));
 		linux_stob_io_release(lio);
 		io->si_state = SIS_IDLE;
 		c2_chan_broadcast(&io->si_wait);

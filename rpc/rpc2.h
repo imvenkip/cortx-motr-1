@@ -147,7 +147,6 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 #include "lib/cdefs.h"
 #include "lib/mutex.h"
 #include "lib/list.h"
-#include "lib/tlist.h"
 #include "lib/time.h"
 #include "lib/refs.h"
 #include "lib/chan.h"
@@ -162,6 +161,7 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 #include "rpc/session.h"
 #include "addb/addb.h"
 #include "rpc/rpc_base.h"
+#include "rpc/formation2.h"     /* c2_rpc_frm */
 #include "net/buffer_pool.h"
 
 enum c2_rpc_item_priority {
@@ -173,17 +173,11 @@ enum c2_rpc_item_priority {
 
 #include "rpc/formation.h"
 
-struct page;
 struct c2_rpc;
 struct c2_rpc_item;
 struct c2_addb_rec;
-struct c2_rpc_formation;
-struct c2_rpc_conn;
-struct c2_fop_type;
-struct c2_fop_io_vec;
 struct c2_rpc_group;
 struct c2_rpc_machine;
-struct c2_rpc_frm_item_coalesced;
 
 enum {
 	C2_RPC_MACHINE_MAGIX	    = 0x5250434D414348, /* RPCMACH */
@@ -330,6 +324,19 @@ struct c2_rpc_item {
 	/** Link through which items are anchored on list of
 	    c2_rpc_item:ri_compound_items. */
 	struct c2_tlink			 ri_field;
+	/** Link in one of c2_rpc_frm::f_itemq[] list.
+	    List descriptor: itemq
+	 */
+	struct c2_tlink                  ri_iq_link;
+	/** Link in RPC packet. c2_rpc_packet::rp_items
+	    List descriptor: packet_item.
+	    XXX An item cannot be in itemq and in packet at the same time.
+	    Hence iff needed ri_iq_link and ri_plink can be replaced with
+	    just one tlink.
+	 */
+	struct c2_tlink                  ri_plink;
+	/** One of c2_rpc_frm::f_itemq[], in which this item is placed. */
+	struct c2_tl                    *ri_itemq;
 	/** Magic constatnt to verify sanity of linked rpc items. */
 	uint64_t			 ri_link_magic;
 };
@@ -360,20 +367,11 @@ struct c2_rpc_stats {
 	uint64_t	rs_rpcs_nr;
 };
 
-/**
-   Associate an rpc with its corresponding rpc_item_type.
-   Since rpc_item_type by itself can not be uniquely identified,
-   rather it is tightly bound to its fop_type, the fop_type_code
-   is passed, based on which the rpc_item is associated with its
-   rpc_item_type.
- */
-void c2_rpc_item_type_attach(struct c2_fop_type *fopt);
-
 void c2_rpc_item_init(struct c2_rpc_item *item);
 
 void c2_rpc_item_fini(struct c2_rpc_item *item);
 
-void c2_rpc_item_fini(struct c2_rpc_item *item);
+c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item);
 
 /**
    Returns true if item modifies file system state, false otherwise
@@ -416,8 +414,10 @@ struct c2_rpc_chan {
 	struct c2_list_link		  rc_linkage;
 	/** Number of c2_rpc_conn structures using this transfer machine.*/
 	struct c2_ref			  rc_ref;
-	/** Formation state machine associated with chan. */
+	/** @deprecated Formation state machine associated with chan. */
 	struct c2_rpc_frm_sm		  rc_frmsm;
+	/** Formation state machine associated with chan. */
+	struct c2_rpc_frm                 rc_frm;
 	/** Destination end point to which rpcs will be sent. */
 	struct c2_net_end_point		 *rc_destep;
 	/** The rpc_machine, this chan structure is associated with.*/
@@ -442,10 +442,12 @@ struct c2_rpc_machine {
 	    CONN_FAILED, CONN_TERMINATED} */
 	struct c2_list			  rm_incoming_conns;
 	struct c2_list			  rm_outgoing_conns;
-	/** list of ready slots. */
+	/** @deprecated list of ready slots.
+	    Replaced by c2_rpc_session::s_ready_slots
+	 */
 	struct c2_list			  rm_ready_slots;
 	/** ADDB context for this rpc_machine */
-	struct c2_addb_ctx		  rm_rpc_machine_addb;
+	struct c2_addb_ctx		  rm_addb;
 	/** Statistics for both incoming and outgoing paths */
 	struct c2_rpc_stats		  rm_rpc_stats[C2_RPC_PATH_NR];
 	/**
@@ -470,6 +472,16 @@ struct c2_rpc_machine {
 	 */
 	struct c2_tl                      rm_services;
 
+	/**
+	    A worker thread to run formation periodically in order to
+	    send timedout items if any.
+	 */
+	struct c2_thread                  rm_frm_worker;
+
+	/**
+	   Flag asking rm_frm_worker thread to stop.
+	 */
+	bool                              rm_stopping;
 	uint64_t                          rm_magic;
 
 	/** Buffer pool from which TM receive buffers are provisioned. */
@@ -500,6 +512,11 @@ struct c2_rpc_machine {
 	uint32_t			  rm_tm_colour;
 
 };
+
+/** @todo Add these declarations to some internal header */
+extern const struct c2_addb_ctx_type c2_rpc_addb_ctx_type;
+extern const struct c2_addb_loc      c2_rpc_addb_loc;
+extern       struct c2_addb_ctx      c2_rpc_addb_ctx;
 
 /**
    Construct rpc core layer
