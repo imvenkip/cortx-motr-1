@@ -125,10 +125,21 @@
           again.
 
    @subsection io_calls_params_dld-lspec-ds Data Structures
-   The reply of I/O requests (inlcude read/write/create/delete, etc.) will be
+   The reply of I/O requests (include read/write/create/delete, etc.) will be
    extended to contain the special error code and new location information.
    Clients should make corresponding modification to understand these extension
    and parse the reply without error.
+
+   The new location has the following variations:
+   - location (a.k.a identity) of replacing disk.
+   - index of spare object in the parity group. In Colibri, GOB is striped into
+     COBs. Every COB has an index in this group of COBs. Failure vectors are
+     represented as this COB index. COB index can be mapped into device identity
+     with the help of layout and pool configuration information.
+   In currently architecture, I propose to have the second variation. The I/O
+   service may not have a global layout and pool configuration information.
+   But client have those information and can do the COB index to disk mapping
+   easily.
 
    @subsection io_calls_params_dld-lspec-state State Specification
    N/A
