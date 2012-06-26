@@ -308,17 +308,17 @@ static struct c2_layout *layout_list_lookup(struct c2_layout_domain *dom,
 static void layout_list_add(struct c2_layout *l)
 {
 	C2_ENTRY("dom %p, lid %llu", l->l_dom, (unsigned long long)l->l_id);
-
 	c2_mutex_lock(&l->l_dom->ld_lock);
 	C2_ASSERT(layout_list_lookup(l->l_dom, l->l_id) == NULL);
-	layout_list_tlink_init(l);
-	layout_list_tlist_add(&l->l_dom->ld_layout_list, l);
+	layout_list_tlink_init_at(l, &l->l_dom->ld_layout_list);
 	c2_mutex_unlock(&l->l_dom->ld_lock);
-
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
 
 /** Initialises a layout, adds a reference on the respective layout type. */
+/** todo Add @post in the function header
+	C2_POST(c2_layout_find(l->l_dom, l->l_id) == l)
+ */
 void c2_layout__init(struct c2_layout_domain *dom,
 		     struct c2_layout *l,
 		     uint64_t lid, uint64_t pool_id,
@@ -362,14 +362,12 @@ void c2_layout__fini(struct c2_layout *l)
 	C2_PRE(c2_layout_find(l->l_dom, l->l_id) == NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-
-	c2_layout_bob_fini(l);
+	layout_list_tlink_fini(l);
 	c2_addb_ctx_fini(&l->l_addb);
 	c2_mutex_fini(&l->l_lock);
-
 	layout_type_put(l->l_type);
 	l->l_type = NULL;
-
+	c2_layout_bob_fini(l);
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
 
@@ -413,7 +411,7 @@ void c2_layout__striped_init(struct c2_layout_domain *dom,
 }
 
 /**
- * Initialises a striped layout object.
+ * Finalises a striped layout object.
  * @post The enum object which is part of striped layout object, is finalised
  * as well.
  */
@@ -1018,10 +1016,9 @@ void c2_layout_put(struct c2_layout *l)
 	c2_mutex_lock(&l->l_lock);
 	C2_CNT_DEC(l->l_ref);
 	killme = l->l_ref == DEFAULT_REF_COUNT;
-	if (killme) {
+	/* The layout should not be found anymore using c2_layout_find(). */
+	if (killme)
 		layout_list_tlist_del(l);
-		layout_list_tlink_fini(l);
-	}
 
 	c2_mutex_unlock(&l->l_lock);
 	c2_mutex_unlock(&l->l_dom->ld_lock);
