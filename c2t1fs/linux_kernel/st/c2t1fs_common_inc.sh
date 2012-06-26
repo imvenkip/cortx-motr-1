@@ -16,7 +16,7 @@ unload_kernel_module()
 	rmmod $colibri_module.ko &>> /dev/null
 	if [ $? -ne "0" ]
 	then
-	    echo "Failed:failed to remove $colibri_module."
+	    echo "Failed to remove $colibri_module."
 	    return 1
 	fi
 }
@@ -81,7 +81,9 @@ unprepare()
 		rm -r $COLIBRI_C2T1FS_MOUNT_DIR
 	fi
 
-	unload_kernel_module
+	if lsmod | grep kcolibri > /dev/null; then
+		unload_kernel_module
+	fi
 	modunload_galois
 }
 
