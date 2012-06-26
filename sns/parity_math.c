@@ -280,13 +280,14 @@ static void xor_calculate(struct c2_parity_math *math,
 	c2_parity_elem_t  pe;
 
 	C2_PRE(block_size == parity[0].b_nob);
+	for (ui = 1; ui < math->pmi_data_count; ++ui)
+		C2_PRE(block_size == data[ui].b_nob);
 
 	for (ei = 0; ei < block_size; ++ei) {
 		pe = 0;
-		for (ui = 0; ui < math->pmi_data_count; ++ui) {
-			C2_ASSERT(block_size == data[ui].b_nob);
+		for (ui = 0; ui < math->pmi_data_count; ++ui)
 			pe ^= (c2_parity_elem_t)((uint8_t*)data[ui].b_addr)[ei];
-		}
+
 		((uint8_t*)parity[0].b_addr)[ei] = pe;
 	}
 
@@ -300,7 +301,7 @@ static void reed_solomon_encode(struct c2_parity_math *math,
 	uint32_t ui; /* unit index. */
 	uint32_t block_size = data[0].b_nob;
 
-	for (ui = 0; ui < math->pmi_data_count; ++ui)
+	for (ui = 1; ui < math->pmi_data_count; ++ui)
 		C2_ASSERT(block_size == data[ui].b_nob);
 
 	for (ui = 0; ui < math->pmi_parity_count; ++ui)
@@ -417,7 +418,7 @@ static void xor_recover(struct c2_parity_math *math,
 	C2_PRE(fail_count <= math->pmi_parity_count);
 	C2_PRE(block_size == parity[0].b_nob);
 
-	for (ui = 0; ui < math->pmi_data_count; ++ui)
+	for (ui = 1; ui < math->pmi_data_count; ++ui)
 		C2_PRE(block_size == data[ui].b_nob);
 
 	for (ei = 0; ei < block_size; ++ei) {
@@ -434,8 +435,7 @@ static void xor_recover(struct c2_parity_math *math,
 			C2_ASSERT(fail_index != BAD_FAIL_INDEX);
 			((uint8_t*)data[fail_index].b_addr)[ei] = pe ^
 				((uint8_t*)parity[0].b_addr)[ei];
-		}
-		else /* Parity was lost, so recover it. */
+		} else /* Parity was lost, so recover it. */
 			((uint8_t*)parity[0].b_addr)[ei] = pe;
         }
 }
@@ -458,7 +458,7 @@ static void reed_solomon_recover(struct c2_parity_math *math,
 	C2_ASSERT(fail_count > 0);
 	C2_ASSERT(fail_count <= math->pmi_parity_count);
 
-	for (ui = 0; ui < math->pmi_data_count; ++ui)
+	for (ui = 1; ui < math->pmi_data_count; ++ui)
 		C2_ASSERT(block_size == data[ui].b_nob);
 
 	for (ui = 0; ui < math->pmi_parity_count; ++ui)
@@ -512,7 +512,7 @@ static void fail_idx_xor_recover(struct c2_parity_math *math,
         unit_count = math->pmi_data_count + math->pmi_parity_count;
         C2_ASSERT(failure_index < unit_count);
 
-	for (ui = 0; ui < math->pmi_data_count; ++ui)
+	for (ui = 1; ui < math->pmi_data_count; ++ui)
 		C2_ASSERT(block_size == data[ui].b_nob);
 
         for (ei = 0; ei < block_size; ++ei) {
