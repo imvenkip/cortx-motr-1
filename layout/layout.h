@@ -26,42 +26,42 @@
  * @defgroup layout Layouts.
  *
  * @section layout-terminology Terminology
- * - Layout <BR>
+ * - Layout @n
  *   A 'layout' is an attribute of a file. It maps a file onto a set of network
  *   resources. viz. component objects.
  *
- * - Layout type <BR>
+ * - Layout type @n
  *   A 'layout type' specifies how a file is stored in a collection of targets.
  *   It provides the <offset-in-gob> to <traget-idx, offset-in-target> mapping.
  *   For example, PDCLUST, RAID1, RAID5 are some types of layout, while
  *   COMPOSITE being another special layout type.
  *
- * - Enumeration <BR>
+ * - Enumeration @n
  *   An 'enumeration' provides <gfid, target-idx> to <cob-fid> mapping. Not all
  *   the layout types need an enumeration. For example, layouts with types
  *   composite, de-dup do not need an enumeration.
  *
- * - Enumeration type <BR>
+ * - Enumeration type @n
  *   An 'enumeration type' determines how a collection of component object
  *   identifiers (cob-fid) is specified. For example, it may be specified as a
  *   list or by means of some linear formula.
  *
  * @section layout-types-supported Supported layout and enum types
  * - Layout types supported currently are:
- *   - PDCLUST <BR>
+ *   - PDCLUST @n
  *     This layout type applies parity declustering feature to the striping
  *     process. Parity declustering feature is to keep the rebuild overhead low
  *     by striping a file over more servers or drives than there are units in
  *     the parity group.
- *   - COMPOSITE <BR>
+ *   - COMPOSITE @n
  *     This layout type partitions a file or a part of the file into
  *     various segments while each of those segment uses a different layout.
  *
  * - Enumeration types (also referred as 'enum types') supported currently are:
- *   - LINEAR <BR>
+ *   - LINEAR @n
  *     A layout with LINEAR enumeration type uses a formula to enumerate all
  *     its component object identifiers.
- *   - LIST <BR>
+ *   - LIST @n
  *     A layout with LIST enumeration type uses a list to enumerate all its
  *     component object identifiers.
  *

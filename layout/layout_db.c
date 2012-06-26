@@ -43,7 +43,7 @@
  * @section Layout-DB-ovw Overview
  * This document contains the detail level design for the Layout DB Module.
  *
- * Purpose of the Layout-DB DLD <BR>
+ * Purpose of the Layout-DB DLD @n
  * The purpose of the Layout-DB Detailed Level Design (DLD) specification is to:
  * - Refine the higher level design
  * - To be verified by inspectors and architects
@@ -265,7 +265,7 @@
  *   helps to store those persistently.
  * - I.LAYOUT.SCHEMA.Types: There are multiple layout types for different
  *   purposes: SNS, block map, local raid, de-dup, encryption, compression, etc.
- *   <BR>
+ *   @n
  *   Layout DB module supports storing all kinds of layout types supported
  *   currently by the layout module viz. PDCLUST and COMPOSITE.
  *   The framework supports to add other layout types, as required in
