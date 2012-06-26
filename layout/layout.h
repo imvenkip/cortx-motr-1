@@ -227,7 +227,13 @@ struct c2_layout_ops {
 	 * Finalises the layout object. It involves finalising its enumeration
 	 * object, if applicable.
 	 */
-	void    (*lo_fini)(struct c2_layout *l);
+	void        (*lo_fini)(struct c2_layout *l);
+
+	/**
+	 * Returns applicable record size for the layouts table, for the
+	 * specified layout.
+	 */
+	c2_bcount_t (*lo_recsize)(const struct c2_layout *l);
 };
 
 /**
@@ -287,12 +293,6 @@ struct c2_layout_type_ops {
 	c2_bcount_t (*lto_max_recsize)(struct c2_layout_domain *dom);
 
 	/**
-	 * Returns applicable record size for the layouts table, for the
-	 * specified layout.
-	 */
-	c2_bcount_t (*lto_recsize)(const struct c2_layout *l);
-
-	/**
 	 * Continues building the in-memory layout object either from the
 	 * buffer or from the DB.
 	 * Allocates an instance of some layout-type specific data-type
@@ -335,16 +335,22 @@ struct c2_layout_enum {
 
 struct c2_layout_enum_ops {
 	/** Returns number of objects in the enumeration. */
-	uint32_t (*leo_nr)(const struct c2_layout_enum *e);
+	uint32_t    (*leo_nr)(const struct c2_layout_enum *e);
 
 	/**
 	 * Returns idx-th object in the enumeration.
 	 * @pre idx < e->l_enum_ops->leo_nr(e)
 	 */
-	void     (*leo_get)(const struct c2_layout_enum *e, uint32_t idx,
-			    const struct c2_fid *gfid, struct c2_fid *out);
+	void        (*leo_get)(const struct c2_layout_enum *e, uint32_t idx,
+			       const struct c2_fid *gfid, struct c2_fid *out);
 
-	void     (*leo_fini)(struct c2_layout_enum *e);
+	/**
+	 * Returns applicable record size for the layouts table, for the
+	 * specified enum objext part of the layout.
+	 */
+	c2_bcount_t (*leo_recsize)(struct c2_layout_enum *e);
+
+	void        (*leo_fini)(struct c2_layout_enum *e);
 };
 
 /**
@@ -388,12 +394,6 @@ struct c2_layout_enum_type_ops {
 
 	/** Returns applicable max record size for the layouts table. */
 	c2_bcount_t (*leto_max_recsize)(void);
-
-	/**
-	 * Returns applicable record size for the layouts table, for the
-	 * specified layout.
-	 */
-	c2_bcount_t (*leto_recsize)(struct c2_layout_enum *e);
 
 	/**
 	 * Continues building the in-memory layout object, either from

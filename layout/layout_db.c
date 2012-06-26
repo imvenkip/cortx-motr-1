@@ -382,15 +382,9 @@ extern const struct c2_addb_ev layout_delete_fail;
 static c2_bcount_t recsize_get(const struct c2_layout *l)
 {
 	c2_bcount_t            recsize;
-	struct c2_layout_type *lt;
 
 	C2_PRE(c2_layout__invariant(l));
-
-	lt = l->l_type;
-	C2_ASSERT(c2_layout__is_layout_type_valid(lt->lt_id, l->l_dom));
-
-	recsize = sizeof(struct c2_layout_rec) + lt->lt_ops->lto_recsize(l);
-
+	recsize = sizeof(struct c2_layout_rec) + l->l_ops->lo_recsize(l);
 	C2_POST(recsize <= c2_layout_max_recsize(l->l_dom));
 	return recsize;
 }

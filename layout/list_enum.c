@@ -199,11 +199,21 @@ void c2_list_enum_fini(struct c2_layout_list_enum *e)
 	e->lle_base.le_ops->leo_fini(&e->lle_base);
 }
 
+static struct c2_layout_list_enum
+*enum_to_list_enum(const struct c2_layout_enum *e)
+{
+	struct c2_layout_list_enum *list_enum;
+
+	list_enum = container_of(e, struct c2_layout_list_enum, lle_base);
+	C2_ASSERT(list_enum_invariant(list_enum));
+	return list_enum;
+}
+
 /**
  * Implementation of leo_fini for LIST enumeration type.
  * Invoked internally by c2_layout__striped_fini().
  */
-void list_fini(struct c2_layout_enum *e)
+static void list_fini(struct c2_layout_enum *e)
 {
 	struct c2_layout_list_enum *list_enum;
 
@@ -211,15 +221,11 @@ void list_fini(struct c2_layout_enum *e)
 
 	C2_ENTRY("lid %llu, enum_pointer %p",
 		 (unsigned long long)e->le_l->l_id, e);
-
-	list_enum = container_of(e, struct c2_layout_list_enum, lle_base);
-	C2_ASSERT(list_enum_invariant(list_enum));
-
+	list_enum = enum_to_list_enum(e);
 	c2_layout_list_enum_bob_fini(list_enum);
 	c2_free(list_enum->lle_list_of_cobs);
 	c2_layout__enum_fini(&list_enum->lle_base);
 	c2_free(list_enum);
-
 	C2_LEAVE();
 }
 
@@ -300,29 +306,6 @@ static c2_bcount_t list_max_recsize(void)
 {
 	return sizeof(struct cob_entries_header) +
 		LDB_MAX_INLINE_COB_ENTRIES * sizeof(struct c2_fid);
-}
-
-/**
- * Implementation of leto_recsize() for list enumeration type.
- *
- * Returns record size for the part of the layouts table record required to
- * store LIST enum details, for the specified enumeration object.
- */
-static c2_bcount_t list_recsize(struct c2_layout_enum *e)
-{
-	struct c2_layout_list_enum *list_enum;
-
-	C2_PRE(e != NULL);
-
-	list_enum = container_of(e, struct c2_layout_list_enum, lle_base);
-	C2_ASSERT(list_enum_invariant(list_enum));
-
-	if (list_enum->lle_nr < LDB_MAX_INLINE_COB_ENTRIES)
-		return sizeof(struct cob_entries_header) +
-			list_enum->lle_nr * sizeof(struct c2_fid);
-	else
-		return sizeof(struct cob_entries_header) +
-			LDB_MAX_INLINE_COB_ENTRIES * sizeof(struct c2_fid);
 }
 
 static int noninline_cob_list_read(struct c2_layout_schema *schema,
@@ -614,7 +597,7 @@ out:
  * ADD/UPDATE/DELETE. If it is BUFFER_OP, then the layout is converted into a
  * buffer.
  */
-static int list_encode(const struct c2_layout_enum *le,
+static int list_encode(const struct c2_layout_enum *e,
 		       enum c2_layout_xcode_op op,
 		       struct c2_db_tx *tx,
 		       struct c2_bufvec_cursor *oldrec_cur,
@@ -630,7 +613,7 @@ static int list_encode(const struct c2_layout_enum *le,
 	uint32_t                    i;
 	int                         rc;
 
-	C2_PRE(le != NULL);
+	C2_PRE(e != NULL);
 	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
 			  C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
@@ -640,10 +623,8 @@ static int list_encode(const struct c2_layout_enum *le,
 	C2_PRE(out != NULL);
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof ce_header);
 
-	list_enum = container_of(le, struct c2_layout_list_enum, lle_base);
-	C2_ASSERT(list_enum_invariant(list_enum));
-
-	lid = le->le_l->l_id;
+	list_enum = enum_to_list_enum(e);
+	lid = e->le_l->l_id;
 	C2_ENTRY("lid %llu, nr %lu", (unsigned long long)lid,
 		 (unsigned long)list_enum->lle_nr);
 
@@ -730,8 +711,8 @@ static int list_encode(const struct c2_layout_enum *le,
 		C2_LOG("lid %llu, nr %lu, Start writing noninline entries "
 		       "to the DB", (unsigned long long)lid,
 		       (unsigned long)list_enum->lle_nr);
-		rc = noninline_cob_list_write(&le->le_l->l_dom->ld_schema,
-					      tx, op, le->le_l->l_id,
+		rc = noninline_cob_list_write(&e->le_l->l_dom->ld_schema,
+					      tx, op, e->le_l->l_id,
 					      i, list_enum->lle_nr,
 					      list_enum->lle_list_of_cobs);
 		C2_LOG("noninline_cob_list_write() failed");
@@ -746,20 +727,18 @@ static int list_encode(const struct c2_layout_enum *le,
  * Returns number of objects in the enumeration.
  * Argument fid is ignored here for LIST enumeration type.
  */
-static uint32_t list_nr(const struct c2_layout_enum *le)
+static uint32_t list_nr(const struct c2_layout_enum *e)
 {
 	struct c2_layout_list_enum *list_enum;
 
-	C2_PRE(le != NULL);
+	C2_PRE(e != NULL);
 
 	C2_ENTRY("lid %llu, enum_pointer %p",
-		 (unsigned long long)le->le_l->l_id, le);
-	list_enum = container_of(le, struct c2_layout_list_enum, lle_base);
-	C2_ASSERT(list_enum_invariant(list_enum));
+		 (unsigned long long)e->le_l->l_id, e);
+	list_enum = enum_to_list_enum(e);
 	C2_LEAVE("lid %llu, enum_pointer %p, nr %lu",
-		 (unsigned long long)le->le_l->l_id, le,
+		 (unsigned long long)e->le_l->l_id, e,
 		 (unsigned long)list_enum->lle_nr);
-
 	return list_enum->lle_nr;
 }
 
@@ -768,30 +747,51 @@ static uint32_t list_nr(const struct c2_layout_enum *le)
  * Returns idx-th object from the enumeration.
  * Argument fid is ignored here for LIST enumeration type.
  */
-static void list_get(const struct c2_layout_enum *le, uint32_t idx,
+static void list_get(const struct c2_layout_enum *e, uint32_t idx,
 		     const struct c2_fid *gfid, struct c2_fid *out)
 {
 	struct c2_layout_list_enum *list_enum;
 
-	C2_PRE(le != NULL);
+	C2_PRE(e != NULL);
 	/* gfid is ignored for the list enumeration type. */
 	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu, enum_pointer %p",
-		 (unsigned long long)le->le_l->l_id, le);
-	list_enum = container_of(le, struct c2_layout_list_enum, lle_base);
-	C2_ASSERT(list_enum_invariant(list_enum));
+		 (unsigned long long)e->le_l->l_id, e);
+	list_enum = enum_to_list_enum(e);
 	C2_ASSERT(idx < list_enum->lle_nr);
 	C2_ASSERT(c2_fid_is_valid(&list_enum->lle_list_of_cobs[idx]));
 	*out = list_enum->lle_list_of_cobs[idx];
 	C2_LEAVE("lid %llu, enum_pointer %p, fid_pointer %p",
-		 (unsigned long long)le->le_l->l_id, le, out);
+		 (unsigned long long)e->le_l->l_id, e, out);
 
+}
+
+/**
+ * Implementation of leo_recsize() for list enumeration type.
+ *
+ * Returns record size for the part of the layouts table record required to
+ * store LIST enum details, for the specified enumeration object.
+ */
+static c2_bcount_t list_recsize(struct c2_layout_enum *e)
+{
+	struct c2_layout_list_enum *list_enum;
+
+	C2_PRE(e != NULL);
+
+	list_enum = enum_to_list_enum(e);
+	if (list_enum->lle_nr < LDB_MAX_INLINE_COB_ENTRIES)
+		return sizeof(struct cob_entries_header) +
+			list_enum->lle_nr * sizeof(struct c2_fid);
+	else
+		return sizeof(struct cob_entries_header) +
+			LDB_MAX_INLINE_COB_ENTRIES * sizeof(struct c2_fid);
 }
 
 static const struct c2_layout_enum_ops list_enum_ops = {
 	.leo_nr           = list_nr,
 	.leo_get          = list_get,
+	.leo_recsize      = list_recsize,
 	.leo_fini         = list_fini
 };
 
@@ -799,7 +799,6 @@ static const struct c2_layout_enum_type_ops list_type_ops = {
 	.leto_register    = list_register,
 	.leto_unregister  = list_unregister,
 	.leto_max_recsize = list_max_recsize,
-	.leto_recsize     = list_recsize,
 	.leto_decode      = list_decode,
 	.leto_encode      = list_encode,
 };

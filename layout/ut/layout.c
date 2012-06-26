@@ -199,7 +199,6 @@ static const struct c2_layout_type_ops test_layout_type_ops = {
 	.lto_register    = t_register,
 	.lto_unregister  = t_unregister,
 	.lto_max_recsize = t_max_recsize,
-	.lto_recsize     = NULL,
 	.lto_decode      = NULL,
 	.lto_encode      = NULL
 };
@@ -248,7 +247,6 @@ static const struct c2_layout_enum_type_ops test_enum_ops = {
 	.leto_register    = t_enum_register,
 	.leto_unregister  = t_enum_unregister,
 	.leto_max_recsize = t_enum_max_recsize,
-	.leto_recsize     = NULL,
 	.leto_decode      = NULL,
 	.leto_encode      = NULL
 };

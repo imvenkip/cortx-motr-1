@@ -58,8 +58,8 @@ C2_BOB_DEFINE(static, &linear_enum_bob, c2_layout_linear_enum);
  * linear_enum_invariant() can not be invoked until an enumeration object
  * is associated with some layout object. Hence this separation.
  */
-static bool linear_enum_invariant_internal(
-				const struct c2_layout_linear_enum *le)
+static bool
+linear_enum_invariant_internal(const struct c2_layout_linear_enum *le)
 {
 	return
 		le != NULL &&
@@ -138,6 +138,16 @@ void c2_linear_enum_fini(struct c2_layout_linear_enum *e)
 	e->lle_base.le_ops->leo_fini(&e->lle_base);
 }
 
+static struct c2_layout_linear_enum
+*enum_to_linear_enum(const struct c2_layout_enum *e)
+{
+	struct c2_layout_linear_enum *lin_enum;
+
+	lin_enum = container_of(e, struct c2_layout_linear_enum, lle_base);
+	C2_ASSERT(linear_enum_invariant(lin_enum));
+	return lin_enum;
+}
+
 /**
  * Implementation of leo_fini for LINEAR enumeration type.
  * Invoked internally by c2_layout__striped_fini().
@@ -150,14 +160,10 @@ static void linear_fini(struct c2_layout_enum *e)
 
 	C2_ENTRY("lid %llu, enum_pointer %p",
 		 (unsigned long long)e->le_l->l_id, e);
-
-	lin_enum = container_of(e, struct c2_layout_linear_enum, lle_base);
-	C2_ASSERT(linear_enum_invariant(lin_enum));
-
+	lin_enum = enum_to_linear_enum(e);
 	c2_layout_linear_enum_bob_fini(lin_enum);
 	c2_layout__enum_fini(e);
 	c2_free(lin_enum);
-
 	C2_LEAVE();
 }
 
@@ -186,17 +192,6 @@ static void linear_unregister(struct c2_layout_domain *dom,
  * required to store LINEAR enum details.
  */
 static c2_bcount_t linear_max_recsize(void)
-{
-	return sizeof(struct c2_layout_linear_attr);
-}
-
-/**
- * Implementation of leto_recsize() for linear enumeration type.
- *
- * Returns record size for the part of the layouts table record, required to
- * store LINEAR enum details for the specified enumeration object.
- */
-static c2_bcount_t linear_recsize(struct c2_layout_enum *e)
 {
 	return sizeof(struct c2_layout_linear_attr);
 }
@@ -250,7 +245,7 @@ out:
  * Reads linear enumeration type specific attributes from the
  * c2_layout_linear_enum object into the buffer.
  */
-static int linear_encode(const struct c2_layout_enum *le,
+static int linear_encode(const struct c2_layout_enum *e,
 			 enum c2_layout_xcode_op op,
 			 struct c2_db_tx *tx,
 			 struct c2_bufvec_cursor *oldrec_cur,
@@ -261,7 +256,7 @@ static int linear_encode(const struct c2_layout_enum *le,
 	c2_bcount_t                   nbytes;
 	uint64_t                      lid;
 
-	C2_PRE(le != NULL);
+	C2_PRE(e != NULL);
 	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
 			  C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
@@ -271,9 +266,7 @@ static int linear_encode(const struct c2_layout_enum *le,
 	C2_PRE(out != NULL);
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof lin_enum->lle_attr);
 
-	lin_enum = container_of(le, struct c2_layout_linear_enum, lle_base);
-	C2_ASSERT(linear_enum_invariant(lin_enum));
-
+	lin_enum = enum_to_linear_enum(e);
 	lid = lin_enum->lle_base.le_l->l_id;
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
@@ -288,11 +281,9 @@ static int linear_encode(const struct c2_layout_enum *le,
 			  old_attr->lla_A == lin_enum->lle_attr.lla_A &&
 			  old_attr->lla_B == lin_enum->lle_attr.lla_B);
 	}
-
 	nbytes = c2_bufvec_cursor_copyto(out, &lin_enum->lle_attr,
 					 sizeof lin_enum->lle_attr);
 	C2_ASSERT(nbytes == sizeof lin_enum->lle_attr);
-
 	C2_LEAVE("lid %llu", (unsigned long long)lid);
 	return 0;
 }
@@ -301,20 +292,18 @@ static int linear_encode(const struct c2_layout_enum *le,
  * Implementation of leo_nr for LINEAR enumeration.
  * Returns number of objects in the enumeration.
  */
-static uint32_t linear_nr(const struct c2_layout_enum *le)
+static uint32_t linear_nr(const struct c2_layout_enum *e)
 {
 	struct c2_layout_linear_enum *lin_enum;
 
-	C2_PRE(le != NULL);
+	C2_PRE(e != NULL);
 
 	C2_ENTRY("lid %llu, enum_pointer %p",
-		 (unsigned long long)le->le_l->l_id, le);
-	lin_enum = container_of(le, struct c2_layout_linear_enum, lle_base);
-	C2_ASSERT(linear_enum_invariant(lin_enum));
+		 (unsigned long long)e->le_l->l_id, e);
+	lin_enum = enum_to_linear_enum(e);
 	C2_LEAVE("lid %llu, enum_pointer %p, nr %lu",
-		 (unsigned long long)le->le_l->l_id, le,
+		 (unsigned long long)e->le_l->l_id, e,
 		 (unsigned long)lin_enum->lle_attr.lla_nr);
-
 	return lin_enum->lle_attr.lla_nr;
 }
 
@@ -322,20 +311,18 @@ static uint32_t linear_nr(const struct c2_layout_enum *le)
  * Implementation of leo_get for LINEAR enumeration.
  * Returns idx-th object from the enumeration.
  */
-static void linear_get(const struct c2_layout_enum *le, uint32_t idx,
+static void linear_get(const struct c2_layout_enum *e, uint32_t idx,
 		       const struct c2_fid *gfid, struct c2_fid *out)
 {
 	struct c2_layout_linear_enum *lin_enum;
 
-	C2_PRE(le != NULL);
+	C2_PRE(e != NULL);
 	C2_PRE(gfid != NULL);
 	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu, enum_pointer %p",
-		 (unsigned long long)le->le_l->l_id, le);
-
-	lin_enum = container_of(le, struct c2_layout_linear_enum, lle_base);
-	C2_ASSERT(linear_enum_invariant(lin_enum));
+		 (unsigned long long)e->le_l->l_id, e);
+	lin_enum = enum_to_linear_enum(e);
 	C2_ASSERT(idx < lin_enum->lle_attr.lla_nr);
 
 	c2_fid_set(out,
@@ -343,13 +330,25 @@ static void linear_get(const struct c2_layout_enum *le, uint32_t idx,
 		   gfid->f_key);
 
 	C2_LEAVE("lid %llu, enum_pointer %p, fid_pointer %p",
-		 (unsigned long long)le->le_l->l_id, le, out);
+		 (unsigned long long)e->le_l->l_id, e, out);
 	C2_ASSERT(c2_fid_is_valid(out));
+}
+
+/**
+ * Implementation of leo_recsize() for linear enumeration type.
+ *
+ * Returns record size for the part of the layouts table record, required to
+ * store LINEAR enum details for the specified enumeration object.
+ */
+static c2_bcount_t linear_recsize(struct c2_layout_enum *e)
+{
+	return sizeof(struct c2_layout_linear_attr);
 }
 
 static const struct c2_layout_enum_ops linear_enum_ops = {
 	.leo_nr           = linear_nr,
 	.leo_get          = linear_get,
+	.leo_recsize      = linear_recsize,
 	.leo_fini         = linear_fini
 };
 
@@ -357,7 +356,6 @@ static const struct c2_layout_enum_type_ops linear_type_ops = {
 	.leto_register    = linear_register,
 	.leto_unregister  = linear_unregister,
 	.leto_max_recsize = linear_max_recsize,
-	.leto_recsize     = linear_recsize,
 	.leto_decode      = linear_decode,
 	.leto_encode      = linear_encode
 };

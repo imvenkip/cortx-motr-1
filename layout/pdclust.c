@@ -377,12 +377,8 @@ static void pdclust_fini(struct c2_layout *l)
 	C2_PRE(l != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-
-	pl = container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
-	C2_ASSERT(pdclust_invariant(pl));
-
+	pl = c2_layout_to_pdl(l);
 	c2_pdclust_layout_bob_fini(pl);
-
 	c2_parity_math_fini(&pl->pl_math);
 
 	c2_free(pl->pl_tile_cache.tc_inverse);
@@ -398,9 +394,22 @@ static void pdclust_fini(struct c2_layout *l)
 	}
 
 	c2_layout__striped_fini(&pl->pl_base);
-
 	c2_free(pl);
 	C2_LEAVE();
+}
+
+/** Implementation of lo_recsize() for pdclust layout type. */
+static c2_bcount_t pdclust_recsize(const struct c2_layout *l)
+{
+	struct c2_layout_striped *stl;
+	struct c2_layout_enum    *e;
+	c2_bcount_t               e_recsize;
+
+	C2_PRE(l!= NULL);
+	stl = c2_layout_to_striped(l);
+	e = c2_striped_layout_to_enum(stl);
+	e_recsize = e->le_ops->leo_recsize(e);
+	return sizeof(struct c2_layout_pdclust_rec) + e_recsize;
 }
 
 /**
@@ -543,11 +552,15 @@ uint64_t c2_pdclust_unit_size(const struct c2_pdclust_layout *pl)
 
 struct c2_pdclust_layout *c2_layout_to_pdl(const struct c2_layout *l)
 {
-	return container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
+	struct c2_pdclust_layout *pl;
+	pl = container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
+	C2_ASSERT(pdclust_invariant(pl));
+	return pl;
 }
 
 struct c2_layout *c2_pdl_to_layout(struct c2_pdclust_layout *pl)
 {
+	C2_PRE(pdclust_invariant(pl));
 	return &pl->pl_base.ls_base;
 }
 
@@ -570,25 +583,6 @@ static c2_bcount_t pdclust_max_recsize(struct c2_layout_domain *dom)
 
 	return sizeof(struct c2_layout_pdclust_rec) +
 		c2_layout__enum_max_recsize(dom);
-}
-
-/** Implementation of lto_recsize() for pdclust layout type. */
-static c2_bcount_t pdclust_recsize(const struct c2_layout *l)
-{
-	c2_bcount_t                 e_recsize;
-	struct c2_pdclust_layout   *pl;
-	struct c2_layout_enum_type *et;
-
-	C2_PRE(l!= NULL);
-
-	pl = container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
-	C2_ASSERT(pdclust_invariant(pl));
-
-	et = l->l_dom->ld_enum[pl->pl_base.ls_enum->le_type->let_id];
-	C2_ASSERT(c2_layout__is_enum_type_valid(et->let_id, l->l_dom));
-
-	e_recsize = et->let_ops->leto_recsize(pl->pl_base.ls_enum);
-	return sizeof(struct c2_layout_pdclust_rec) + e_recsize;
 }
 
 /**
@@ -717,9 +711,7 @@ static int pdclust_encode(struct c2_layout *l,
 
 	C2_ENTRY("%llu", (unsigned long long)l->l_id);
 
-	pl = container_of(l, struct c2_pdclust_layout, pl_base.ls_base);
-	C2_ASSERT(pdclust_invariant(pl));
-
+	pl = c2_layout_to_pdl(l);
 	if (op == C2_LXO_DB_UPDATE) {
 		/*
 		 * Processing the oldrec_cur, to verify that no layout
@@ -758,14 +750,14 @@ static int pdclust_encode(struct c2_layout *l,
 
 
 static const struct c2_layout_ops pdclust_ops = {
-	.lo_fini        = pdclust_fini
+	.lo_fini        = pdclust_fini,
+	.lo_recsize     = pdclust_recsize
 };
 
 static const struct c2_layout_type_ops pdclust_type_ops = {
 	.lto_register    = pdclust_register,
 	.lto_unregister  = pdclust_unregister,
 	.lto_max_recsize = pdclust_max_recsize,
-	.lto_recsize     = pdclust_recsize,
 	.lto_decode      = pdclust_decode,
 	.lto_encode      = pdclust_encode
 };

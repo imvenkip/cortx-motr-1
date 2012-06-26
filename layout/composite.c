@@ -63,9 +63,15 @@ void c2_composite_build(struct c2_layout_domain *dom,
 {
 }
 
-/** Implementation of lo_fini for composite layout type. */
+/** Implementation of lo_fini for COMPOSITE layout type. */
 static void composite_fini(struct c2_layout *l)
 {
+}
+
+/** Implementation of lo_recsize() for COMPOSITE layout type. */
+static c2_bcount_t composite_recsize(const struct c2_layout *l)
+{
+	return 0;
 }
 
 /**
@@ -116,15 +122,6 @@ static c2_bcount_t composite_max_recsize(struct c2_layout_domain *dom)
 {
 	return 0;
 }
-
-/**
- * Implementation of lto_recsize() for COMPOSITE layout type.
- */
-static c2_bcount_t composite_recsize(const struct c2_layout *l)
-{
-	return 0;
-}
-
 
 static const struct c2_layout_ops composite_ops;
 
@@ -216,14 +213,14 @@ static int composite_encode(struct c2_layout *l,
 }
 
 static const struct c2_layout_ops composite_ops = {
-	.lo_fini        = composite_fini
+	.lo_fini        = composite_fini,
+	.lo_recsize     = composite_recsize
 };
 
 static const struct c2_layout_type_ops composite_type_ops = {
 	.lto_register    = composite_register,
 	.lto_unregister  = composite_unregister,
 	.lto_max_recsize = composite_max_recsize,
-	.lto_recsize     = composite_recsize,
 	.lto_decode      = composite_decode,
 	.lto_encode      = composite_encode,
 };
