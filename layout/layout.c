@@ -93,6 +93,7 @@ extern struct c2_layout_enum_type c2_linear_enum_type;
 
 enum {
 	LAYOUT_MAGIC           = 0x4C41594F55544D41, /* LAYOUTMA */
+	LAYOUT_ENUM_MAGIC      = 0x454E554D4D414749, /* ENUMMAGI */
 	LAYOUT_LIST_HEAD_MAGIC = 0x4C484541444D4147  /* LHEADMAG */
 };
 
@@ -102,8 +103,15 @@ static const struct c2_bob_type layout_bob = {
 	.bt_magix        = LAYOUT_MAGIC,
 	.bt_check        = NULL
 };
-
 C2_BOB_DEFINE(static, &layout_bob, c2_layout);
+
+static const struct c2_bob_type enum_bob = {
+	.bt_name         = "enum",
+	.bt_magix_offset = offsetof(struct c2_layout_enum, le_magic),
+	.bt_magix        = LAYOUT_ENUM_MAGIC,
+	.bt_check        = NULL
+};
+C2_BOB_DEFINE(static, &enum_bob, c2_layout_enum);
 
 /** ADDB instrumentation for layout. */
 static const struct c2_addb_ctx_type layout_addb_ctx_type = {
@@ -164,8 +172,9 @@ bool c2_layout__invariant(const struct c2_layout *l)
 bool c2_layout__enum_invariant(const struct c2_layout_enum *le)
 {
 	return
-		le != NULL &&
-		le->le_l != NULL &&
+		c2_layout_enum_bob_check(le) &&
+		le->le_type != NULL &&
+		c2_layout__invariant(le->le_l) &&
 		le->le_ops != NULL;
 }
 
@@ -441,13 +450,12 @@ void c2_layout__enum_init(struct c2_layout_domain *dom,
 	C2_PRE(ops != NULL);
 
 	C2_ENTRY("Enum-type-id %lu", (unsigned long)et->let_id);
-
 	/* le->le_l will be set through c2_layout__striped_init(). */
 	le->le_l   = NULL;
 	le->le_ops = ops;
-
 	enum_type_get(et);
 	le->le_type = et;
+	c2_layout_enum_bob_init(le);
 
 	C2_LEAVE("Enum-type-id %lu", (unsigned long)et->let_id);
 }
@@ -461,10 +469,9 @@ void c2_layout__enum_fini(struct c2_layout_enum *le)
 	C2_PRE(c2_layout__enum_invariant(le));
 
 	C2_ENTRY("Enum-type-id %lu", (unsigned long)le->le_type->let_id);
-
 	enum_type_put(le->le_type);
 	le->le_type = NULL;
-
+	c2_layout_enum_bob_fini(le);
 	C2_LEAVE();
 }
 

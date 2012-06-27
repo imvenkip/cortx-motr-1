@@ -324,13 +324,16 @@ struct c2_layout_type_ops {
  */
 struct c2_layout_enum {
 	/** Layout enumeration type. */
-	struct c2_layout_enum_type       *le_type;
+	struct c2_layout_enum_type      *le_type;
 
 	/** Layout object this enum is associated with. */
-	const struct c2_layout           *le_l;
+	const struct c2_layout          *le_l;
 
 	/** Enum operations vector. */
-	const struct c2_layout_enum_ops  *le_ops;
+	const struct c2_layout_enum_ops *le_ops;
+
+	/** Magic number set while c2_layout_enum object is initialised. */
+	uint64_t                         le_magic;
 };
 
 struct c2_layout_enum_ops {

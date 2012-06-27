@@ -15,6 +15,7 @@ rpc_service_types_tl  td_head_magic        5356435459504844 SVCTYPHD
 fi_dynamic_id         fdi_magic            666964796e69646c fidynidl
 fi_dynamic_id_tl      td_head_magic        666964796e696468 fidynidh
 c2_layout             l_magic              4C41594F55544D41 LAYOUTMA
+c2_layout_enum        le_magic             454E554D4D414749 ENUMMAGI
 layout_tlist          head_magic           4C484541444D4147 LHEADMAG
 c2_pdclust_layout     pl_magic             5044434C5553544C PDCLUSTL
 c2_layout_list_enum   lle_magic            4C495354454E554D LISTENUM
