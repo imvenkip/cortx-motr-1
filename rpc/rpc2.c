@@ -60,12 +60,6 @@ static void frm_worker_fn(struct c2_rpc_machine *machine);
 
 int c2_rpc__post_locked(struct c2_rpc_item *item);
 
-C2_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", , struct c2_rpc_item, ri_field,
-	           ri_link_magic, C2_RPC_ITEM_FIELD_MAGIC,
-		   C2_RPC_ITEM_HEAD_MAGIC);
-
-C2_TL_DEFINE(rpcitem, , struct c2_rpc_item);
-
 const struct c2_addb_ctx_type c2_rpc_addb_ctx_type = {
 	.act_name = "rpc"
 };
@@ -136,62 +130,6 @@ void c2_rpcobj_fini(struct c2_rpc *rpc)
 	c2_list_fini(&rpc->r_items);
 	c2_list_link_fini(&rpc->r_linkage);
 }
-
-void c2_rpc_item_init(struct c2_rpc_item *item)
-{
-	struct c2_rpc_slot_ref	*sref;
-
-	C2_SET0(item);
-
-	item->ri_state      = RPC_ITEM_UNINITIALIZED;
-	item->ri_head_magic = C2_RPC_ITEM_HEAD_MAGIC;
-	item->ri_link_magic = C2_RPC_ITEM_FIELD_MAGIC;
-
-	sref = &item->ri_slot_refs[0];
-
-	sref->sr_slot_id    = SLOT_ID_INVALID;
-	sref->sr_sender_id  = SENDER_ID_INVALID;
-	sref->sr_session_id = SESSION_ID_INVALID;
-
-	c2_list_link_init(&sref->sr_link);
-	c2_list_link_init(&sref->sr_ready_link);
-
-        c2_list_link_init(&item->ri_unbound_link);
-
-        c2_list_link_init(&item->ri_rpcobject_linkage);
-	c2_list_link_init(&item->ri_unformed_linkage);
-        c2_list_link_init(&item->ri_group_linkage);
-        rpcitem_tlink_init(item);
-	rpcitem_tlist_init(&item->ri_compound_items);
-
-	c2_chan_init(&item->ri_chan);
-}
-C2_EXPORTED(c2_rpc_item_init);
-
-void c2_rpc_item_fini(struct c2_rpc_item *item)
-{
-	struct c2_rpc_slot_ref	*sref;
-
-	c2_chan_fini(&item->ri_chan);
-
-	sref = &item->ri_slot_refs[0];
-	sref->sr_slot_id = SLOT_ID_INVALID;
-	c2_list_link_fini(&sref->sr_link);
-	c2_list_link_fini(&sref->sr_ready_link);
-
-	sref->sr_sender_id = SENDER_ID_INVALID;
-	sref->sr_session_id = SESSION_ID_INVALID;
-
-        c2_list_link_fini(&item->ri_unbound_link);
-
-        c2_list_link_fini(&item->ri_rpcobject_linkage);
-	c2_list_link_fini(&item->ri_unformed_linkage);
-        c2_list_link_fini(&item->ri_group_linkage);
-	rpcitem_tlink_fini(item);
-	rpcitem_tlist_fini(&item->ri_compound_items);
-	item->ri_state = RPC_ITEM_FINALIZED;
-}
-C2_EXPORTED(c2_rpc_item_fini);
 
 int c2_rpc_post(struct c2_rpc_item *item)
 {
@@ -296,54 +234,6 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	return 0;
 }
 C2_EXPORTED(c2_rpc_reply_post);
-
-c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item)
-{
-	C2_PRE(item->ri_type != NULL &&
-	       item->ri_type->rit_ops != NULL &&
-	       item->ri_type->rit_ops->rito_item_size != NULL);
-
-	return item->ri_type->rit_ops->rito_item_size(item);
-}
-
-bool c2_rpc_item_is_update(const struct c2_rpc_item *item)
-{
-	return (item->ri_type->rit_flags & C2_RPC_ITEM_TYPE_MUTABO) != 0;
-}
-
-bool c2_rpc_item_is_request(const struct c2_rpc_item *item)
-{
-	C2_PRE(item != NULL && item->ri_type != NULL);
-
-	return (item->ri_type->rit_flags & C2_RPC_ITEM_TYPE_REQUEST) != 0;
-}
-
-bool c2_rpc_item_is_reply(const struct c2_rpc_item *item)
-{
-	C2_PRE(item != NULL && item->ri_type != NULL);
-
-	return (item->ri_type->rit_flags & C2_RPC_ITEM_TYPE_REPLY) != 0;
-}
-
-bool c2_rpc_item_is_unsolicited(const struct c2_rpc_item *item)
-{
-	C2_PRE(item != NULL);
-	C2_PRE(item->ri_type != NULL);
-
-	return (item->ri_type->rit_flags & C2_RPC_ITEM_TYPE_UNSOLICITED) != 0;
-}
-
-bool c2_rpc_item_is_bound(const struct c2_rpc_item *item)
-{
-	C2_PRE(item != NULL);
-
-	return item->ri_slot_refs[0].sr_slot != NULL;
-}
-
-bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item)
-{
-	return !c2_rpc_item_is_bound(item) && !c2_rpc_item_is_unsolicited(item);
-}
 
 int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
 				 struct c2_rpc_item       *item)

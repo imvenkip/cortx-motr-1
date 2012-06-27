@@ -322,4 +322,3 @@ void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type);
 struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode);
 
 #endif
-
