@@ -161,21 +161,14 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 #include "rpc/session_internal.h"
 #include "rpc/session.h"
 #include "addb/addb.h"
-#include "rpc/rpc_base.h"
+#include "rpc/item.h"
 #include "rpc/formation2.h"     /* c2_rpc_frm */
 #include "net/buffer_pool.h"
 
-enum c2_rpc_item_priority {
-	C2_RPC_ITEM_PRIO_MIN,
-	C2_RPC_ITEM_PRIO_MID,
-	C2_RPC_ITEM_PRIO_MAX,
-	C2_RPC_ITEM_PRIO_NR
-};
 
 #include "rpc/formation.h"
 
 struct c2_rpc;
-struct c2_rpc_item;
 struct c2_addb_rec;
 struct c2_rpc_group;
 struct c2_rpc_machine;
@@ -184,162 +177,6 @@ enum {
 	C2_RPC_MACHINE_MAGIX	    = 0x5250434D414348, /* RPCMACH */
 	/** Default Maximum RPC message size is taken as 128k */
 	C2_RPC_DEF_MAX_RPC_MSG_SIZE = 1 << 17,
-};
-
-struct c2_rpc_item_ops {
-	/**
-	   Called when given item's sent.
-	   @param item reference to an RPC-item sent
-	   @note ri_added() has been called before invoking this function.
-	 */
-	void (*rio_sent)(struct c2_rpc_item *item);
-	/**
-	   Called when item's added to an RPC
-	   @param rpc reference to an RPC where item's added
-	   @param item reference to an item added to rpc
-	 */
-	void (*rio_added)(struct c2_rpc *rpc, struct c2_rpc_item *item);
-
-	/**
-	   Called when given item's replied.
-	   @param item reference to an RPC-item on which reply FOP was received.
-
-	   @note ri_added() and ri_sent() have been called before invoking this
-	   function.
-
-	   c2_rpc_item::ri_error and c2_rpc_item::ri_reply are already set by
-	   the time this method is called.
-	 */
-	void (*rio_replied)(struct c2_rpc_item *item);
-
-	/**
-	   Finalise and free item.
-	   @see c2_fop_default_item_ops
-	   @see c2_fop_item_free(), can be used with fops that are not embedded
-	   in any other object.
-	 */
-	void (*rio_free)(struct c2_rpc_item *item);
-};
-
-#define C2_RPC_ITEM_TYPE_DEF(itype, opcode, flags, ops)  \
-struct c2_rpc_item_type (itype) = {                      \
-	.rit_opcode = (opcode),                          \
-	.rit_flags = (flags),                            \
-	.rit_ops = (ops)                                 \
-};
-
-int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
-				 struct c2_rpc_item *item);
-
-bool c2_rpc_item_is_bound(const struct c2_rpc_item *item);
-
-bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item);
-
-bool c2_rpc_item_is_unsolicited(const struct c2_rpc_item *item);
-
-enum c2_rpc_item_state {
-	/** Newly allocated object is in uninitialized state */
-	RPC_ITEM_UNINITIALIZED = 0,
-	/** After successful initialization item enters to "in use" state */
-	RPC_ITEM_IN_USE = (1 << 0),
-	/** After item's added to the formation cache */
-	RPC_ITEM_SUBMITTED = (1 << 1),
-	/** After item's added to an RPC it enters added state */
-	RPC_ITEM_ADDED = (1 << 2),
-	/** After item's sent  it enters sent state */
-	RPC_ITEM_SENT = (1 << 3),
-	/** After item's sent is failed, it enters send failed state */
-	RPC_ITEM_SEND_FAILED = (1 << 4),
-	/** After item's replied  it enters replied state */
-	RPC_ITEM_REPLIED = (1 << 5),
-	/** After finalization item enters finalized state*/
-	RPC_ITEM_FINALIZED = (1 << 6)
-};
-/** Stages of item in slot */
-enum c2_rpc_item_stage {
-	/** the reply for the item was received and the receiver confirmed
-	    that the item is persistent */
-	RPC_ITEM_STAGE_PAST_COMMITTED = 1,
-	/** the reply was received, but persistence confirmation wasn't */
-	RPC_ITEM_STAGE_PAST_VOLATILE,
-	/** the item was sent (i.e., placed into an rpc) and no reply is
-	    received */
-	RPC_ITEM_STAGE_IN_PROGRESS,
-	/** the item is not sent */
-	RPC_ITEM_STAGE_FUTURE,
-};
-
-enum {
-	/** Maximum number of slots to which an rpc item can be associated */
-	MAX_SLOT_REF    = 1,
-};
-
-enum {
-	C2_RPC_ITEM_FIELD_MAGIC = 0xf12acec12c611111ULL,
-	C2_RPC_ITEM_HEAD_MAGIC = 0x1007c095e511054eULL,
-};
-
-/**
-   A single RPC item, such as a FOP or ADDB Record.  This structure should be
-   included in every item being sent via RPC layer core to emulate relationship
-   similar to inheritance and to allow extening the set of rpc_items without
-   modifying core rpc headers.
-   @see c2_fop.
- */
-struct c2_rpc_item {
-	struct c2_chan			 ri_chan;
-	enum c2_rpc_item_priority	 ri_prio;
-	c2_time_t			 ri_deadline;
-	struct c2_rpc_group		*ri_group;
-
-	enum c2_rpc_item_state		 ri_state;
-	enum c2_rpc_item_stage		 ri_stage;
-	uint64_t			 ri_flags;
-	struct c2_rpc_session		*ri_session;
-	struct c2_rpc_slot_ref		 ri_slot_refs[MAX_SLOT_REF];
-	/** Anchor to put item on c2_rpc_session::s_unbound_items list */
-	struct c2_list_link		 ri_unbound_link;
-	int32_t				 ri_error;
-	/** Pointer to the type object for this item */
-	struct c2_rpc_item_type		*ri_type;
-	/** Linkage to the forming list, needed for formation */
-	struct c2_list_link		 ri_rpcobject_linkage;
-	/** Linkage to the unformed rpc items list, needed for formation */
-	struct c2_list_link		 ri_unformed_linkage;
-	/** Linkage to the group c2_rpc_group, needed for grouping */
-	struct c2_list_link		 ri_group_linkage;
-	/** Timer associated with this rpc item.*/
-	struct c2_timer			 ri_timer;
-	/** reply item */
-	struct c2_rpc_item		*ri_reply;
-	/** item operations */
-	const struct c2_rpc_item_ops	*ri_ops;
-	/** Dummy queue linkage to dummy reqh */
-	struct c2_queue_link		 ri_dummy_qlinkage;
-	/** Time spent in rpc layer. */
-	c2_time_t			 ri_rpc_time;
-	/** Magic constant to verify sanity of ambient structure. */
-	uint64_t			 ri_head_magic;
-	/** List of compound items. */
-	struct c2_tl			 ri_compound_items;
-	/** Link through which items are anchored on list of
-	    c2_rpc_item:ri_compound_items. */
-	struct c2_tlink			 ri_field;
-	/** Link in one of c2_rpc_frm::f_itemq[] list.
-	    List descriptor: itemq
-	 */
-	struct c2_tlink                  ri_iq_link;
-	/** Link in RPC packet. c2_rpc_packet::rp_items
-	    List descriptor: packet_item.
-	    XXX An item cannot be in itemq and in packet at the same time.
-	    Hence iff needed ri_iq_link and ri_plink can be replaced with
-	    just one tlink.
-	 */
-	struct c2_tlink                  ri_plink;
-	/** One of c2_rpc_frm::f_itemq[], in which this item is placed. */
-	struct c2_tl                    *ri_itemq;
-	/** Magic constatnt to verify sanity of linked rpc items. */
-	uint64_t			 ri_link_magic;
 };
 
 /** Enum to distinguish if the path is incoming or outgoing */
@@ -367,22 +204,6 @@ struct c2_rpc_stats {
 	/** Number of rpc objects (used to calculate packing density) */
 	uint64_t	rs_rpcs_nr;
 };
-
-void c2_rpc_item_init(struct c2_rpc_item *item);
-
-void c2_rpc_item_fini(struct c2_rpc_item *item);
-
-c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item);
-
-/**
-   Returns true if item modifies file system state, false otherwise
- */
-bool c2_rpc_item_is_update(const struct c2_rpc_item *item);
-
-/**
-   Returns true if item is request item. False if it is a reply item
- */
-bool c2_rpc_item_is_request(const struct c2_rpc_item *item);
 
 struct c2_rpc_group {
 	struct c2_rpc_machine	*rg_mach;
@@ -678,6 +499,8 @@ int c2_rpc_post(struct c2_rpc_item *item);
 int c2_rpc_reply_post(struct c2_rpc_item *request,
 		      struct c2_rpc_item *reply);
 
+int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
+				 struct c2_rpc_item *item);
 /**
    Generate group used to treat rpc items as a group.
 
@@ -725,6 +548,7 @@ int c2_rpc_group_submit(struct c2_rpc_group		*group,
 			struct c2_rpc_item		*item,
 			enum c2_rpc_item_priority	 prio,
 			const c2_time_t			*deadline);
+
 
 /**
    Wait for the reply on item being sent.

@@ -19,7 +19,7 @@
  */
 
 #include "lib/tlist.h"
-#include "rpc/rpc_base.h"
+#include "rpc/item.h"
 #include "lib/rwlock.h"
 
 enum {
