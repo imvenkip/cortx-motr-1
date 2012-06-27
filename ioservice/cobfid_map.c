@@ -713,16 +713,16 @@ int c2_cobfid_map_get(struct c2_reqh *reqh, struct c2_cobfid_map **out)
 
 	c2_rwlock_write_lock(&reqh->rh_rwlock);
 	if (!cfm_key_is_initialised) {
-		cfm_key = c2_reqh_key_init(reqh);
+		cfm_key = c2_reqh_key_init();
 		cfm_key_is_initialised = true;
 	}
 
-	cfm = c2_reqh_key_find(cfm_key, reqh, sizeof *cfm);
+	cfm = c2_reqh_key_find(reqh, cfm_key, sizeof *cfm);
 	if (!cfm->cfm_is_initialised) {
 		rc = c2_cobfid_map_init(cfm, reqh->rh_dbenv, reqh->rh_addb,
 					cobfid_map_name);
 		if (rc != 0) {
-			c2_reqh_key_fini(cfm_key, reqh);
+			c2_reqh_key_fini(reqh, cfm_key);
 			c2_rwlock_write_unlock(&reqh->rh_rwlock);
 			return rc;
 		}
@@ -742,13 +742,12 @@ void c2_cobfid_map_put(struct c2_reqh *reqh)
 	C2_PRE(reqh != NULL);
 
 	c2_rwlock_write_lock(&reqh->rh_rwlock);
-	cfm = c2_reqh_key_find(cfm_key, reqh,
-				sizeof(struct c2_cobfid_map));
+	cfm = c2_reqh_key_find(reqh, cfm_key, sizeof *cfm);
 	C2_ASSERT(cobfid_map_invariant(cfm));
 	C2_CNT_DEC(cfm->cfm_ref_cnt);
 	if (cfm->cfm_ref_cnt == 0) {
 		c2_cobfid_map_fini(cfm);
-		c2_reqh_key_fini(cfm_key, reqh);
+		c2_reqh_key_fini(reqh, cfm_key);
 	}
 	c2_rwlock_write_unlock(&reqh->rh_rwlock);
 }

@@ -75,10 +75,6 @@ C2_ADDB_EV_DEFINE(rpc_init_fail, "rpc_init_failure",
 C2_ADDB_EV_DEFINE(reqh_init_fail, "reqh_int_failure",
                   C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
-enum {
-        REQH_KEY_MAX = 32
-};
-
 /**
    Represents cob domain id, it is incremented for every new cob domain.
 
@@ -220,12 +216,6 @@ struct cs_reqh_context {
 
 	/** Request handler instance to be initialised */
 	struct c2_reqh               rc_reqh;
-
-	/** Request handler data corresopnding to various service.*/
-        void                        *rc_key[REQH_KEY_MAX];
-
-	/** Max resource key assigned in a request handler. */
-        unsigned                     rc_keymax;
 
 	/** Reqh context magic */
 	uint64_t                     rc_magix;
@@ -1288,7 +1278,7 @@ static void cs_request_handlers_stop(struct c2_colibri *cctx)
 }
 
 /**
-   Find a request handler service within a given Colibir instance.
+   Find a request handler service within a given Colibri instance.
 
    @param cctx Pointer to Colibri context
    @param service_name Name of the service
@@ -1342,48 +1332,6 @@ static struct cs_reqh_context *cs_reqh_ctx_get(struct c2_reqh *reqh)
 struct c2_colibri *c2_cs_ctx_get(struct c2_reqh *reqh)
 {
 	return cs_reqh_ctx_get(reqh)->rc_colibri;
-}
-
-unsigned c2_reqh_key_init(struct c2_reqh *reqh)
-{
-	struct cs_reqh_context *rqctx;
-
-	C2_PRE(reqh != NULL);
-
-	rqctx = cs_reqh_ctx_get(reqh);
-	C2_POST(rqctx->rc_keymax < REQH_KEY_MAX);
-	return rqctx->rc_keymax++;
-}
-
-void *c2_reqh_key_find(unsigned key, struct c2_reqh *reqh, c2_bcount_t size)
-{
-	struct cs_reqh_context *rqctx;
-	struct c2_colibri      *cc;
-        void                  **data;
-
-	C2_PRE(key < REQH_KEY_MAX && reqh != NULL && size > 0);
-
-	cc = c2_cs_ctx_get(reqh);
-	rqctx = cs_reqh_ctx_get(reqh);
-        data = &rqctx->rc_key[key];
-        if (*data == NULL)
-                C2_ALLOC_ADDB(*data, size, &cc->cc_addb, &cs_addb_loc);
-
-        return *data;
-}
-
-void c2_reqh_key_fini(unsigned key, struct c2_reqh *reqh)
-{
-	struct cs_reqh_context *rqctx;
-        void                   *rdata;
-
-	C2_PRE(key < REQH_KEY_MAX && reqh != NULL);
-
-	rqctx = cs_reqh_ctx_get(reqh);
-        C2_ASSERT(IS_IN_ARRAY(key, rqctx->rc_key));
-        rdata = rqctx->rc_key[key];
-        C2_ASSERT(rdata != NULL);
-        c2_free(rdata);
 }
 
 /**
