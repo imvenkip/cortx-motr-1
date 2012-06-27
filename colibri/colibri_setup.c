@@ -1290,7 +1290,6 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 			    "c2_fol_init", rc);
 		goto cleanup_cob;
 	}
-
 	rc = c2_reqh_init(&rctx->rc_reqh, NULL, &rctx->rc_db, &rctx->rc_cdom,
 			  &rctx->rc_fol);
 	if (rc != 0)
