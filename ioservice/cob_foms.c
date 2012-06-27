@@ -32,6 +32,7 @@
 #include "ioservice/cobfid_map.h"   /* c2_cobfid_map_get() c2_cobfid_map_put()*/
 #include "reqh/reqh.h"              /* c2_fom_state_generic() */
 #include "reqh/reqh_service.h"
+#include "colibri/colibri_setup.h"
 
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
@@ -248,14 +249,17 @@ static int cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	C2_PRE(fom != NULL);
 	C2_PRE(cc != NULL);
 
-	/*rc = c2_stob_create_helper(fom->fo_loc->fl_dom->fd_reqh->rh_stdom,
-				   &fom->fo_tx, &cc->fco_stobid, &stob);*/
-
 	reqh = fom->fo_loc->fl_dom->fd_reqh;
 	sdom = c2_cs_storage_domain_find(reqh, &cc->fco_stobid);
-	rc = c2_cs_reqh_stob_create(reqh, sdom, &cc->fco_stobid,
-					&fom->fo_tx, &stob);
+	if (sdom == NULL) {
+		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+			    cc_fom_func_fail,
+			    "Stob creation failed in cc_stob_create().",
+			    -EINVAL);
+		return -EINVAL;
+	}
 
+	rc = c2_stob_create_helper(sdom, &fom->fo_tx, &cc->fco_stobid, &stob);
 	if (rc != 0)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail,
