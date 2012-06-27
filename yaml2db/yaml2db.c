@@ -98,7 +98,7 @@ int c2_yaml2db_init(struct c2_yaml2db_ctx *yctx)
 		yctx->yc_fp = NULL;
 
 
-	rc = c2_dbenv_init(yctx->yc_db, yctx->yc_dpath, 0);
+	rc = c2_dbenv_init(&yctx->yc_db, yctx->yc_dpath, 0);
 
 	if (rc != 0) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
@@ -145,7 +145,7 @@ void c2_yaml2db_fini(struct c2_yaml2db_ctx *yctx)
 	if (yctx->yc_dp != NULL)
 		fclose(yctx->yc_dp);
 	if (yctx->yc_db_init)
-		c2_dbenv_fini(yctx->yc_db);
+		c2_dbenv_fini(&yctx->yc_db);
         c2_addb_ctx_fini(&yctx->yc_addb);
 }
 
@@ -321,7 +321,7 @@ static bool yaml2db_context_invariant(const struct c2_yaml2db_ctx *yctx)
 	if (&yctx->yc_root_node == NULL)
 		return false;
 
-	if (yctx->yc_db == NULL)
+	if (&yctx->yc_db == NULL)
 		return false;
 
 	if (&yctx->yc_addb == NULL)
@@ -446,7 +446,7 @@ int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
         C2_PRE(yaml2db_section_invariant(ysec));
 
         /* Initialize the table */
-        rc = c2_table_init(&table, yctx->yc_db, ysec->ys_table_name,
+        rc = c2_table_init(&table, &yctx->yc_db, ysec->ys_table_name,
 			   0, ysec->ys_table_ops);
         if (rc != 0) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
@@ -455,7 +455,7 @@ int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
 	}
 
         /* Initialize the database transaction */
-        rc = c2_db_tx_init(&tx, yctx->yc_db, 0);
+        rc = c2_db_tx_init(&tx, &yctx->yc_db, 0);
         if (rc != 0) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
 			    yaml2db_func_fail, "c2_db_tx_init", 0);
@@ -569,7 +569,7 @@ int c2_yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
         C2_PRE(yaml2db_section_invariant(ysec));
 
         /* Initialize the table */
-        rc = c2_table_init(&table, yctx->yc_db, ysec->ys_table_name,
+        rc = c2_table_init(&table, &yctx->yc_db, ysec->ys_table_name,
 			   0, ysec->ys_table_ops);
         if (rc != 0) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
@@ -578,7 +578,7 @@ int c2_yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
         }
 
        /* Initialize the database transaction */
-        rc = c2_db_tx_init(&tx, yctx->yc_db, 0);
+        rc = c2_db_tx_init(&tx, &yctx->yc_db, 0);
         if (rc != 0) {
                 C2_ADDB_ADD(&yctx->yc_addb, &yaml2db_addb_loc,
                                 yaml2db_func_fail, "c2_db_tx_init", rc);

@@ -814,7 +814,7 @@ static int __reqh_stob_create(struct c2_stob_domain *dom, struct c2_dtx *dtx,
 	if (rc == 0 || errno == EEXIST)
 		rc = c2_stob_create_helper(dom, dtx, stob_id, obj);
 
-	return rc;		
+	return rc;
 }
 
 static int cs_stob_file_load(const char *dfile, struct c2_cs_reqh_stobs *rstob)
@@ -852,7 +852,7 @@ static int cs_stob_file_load(const char *dfile, struct c2_cs_reqh_stobs *rstob)
 	fclose(fd);
 	return rc == EOF ? 0 : rc;
 }
- 
+
 /**
    Initialises AD type stob.
  */
@@ -897,7 +897,7 @@ static int cs_ad_stob_init(struct c2_cs_reqh_stobs *stob, struct c2_dbenv *db)
 		bstob_id->si_bits.u_lo = 0xadf11e;
 		bstob = stob->rs_adoms[i].ad_stob_back;
 		if (rc == 0)
-             		rc = c2_stob_find(stob->rs_ldom, bstob_id, &bstob);
+			rc = c2_stob_find(stob->rs_ldom, bstob_id, &bstob);
 		if (rc == 0) {
 			rc = __reqh_stob_create(stob->rs_ldom, tx, bstob_id,
 						f_path, &bstob);
@@ -908,9 +908,9 @@ static int cs_ad_stob_init(struct c2_cs_reqh_stobs *stob, struct c2_dbenv *db)
 			rc = c2_stob_domain_locate(&c2_ad_stob_type, ad_dname,
 						   &stob->rs_adoms[i].ad_adom);
 		}
-        	if (rc == 0)
-             		rc = c2_balloc_locate(&cb);
-             	if (rc == 0)
+		if (rc == 0)
+			rc = c2_balloc_locate(&cb);
+		if (rc == 0)
 			rc = c2_ad_stob_setup(stob->rs_adoms[i].ad_adom, db,
 						bstob, &cb->cb_ballroom,
 						BALLOC_DEF_CONTAINER_SIZE,
@@ -957,7 +957,7 @@ void cs_ad_stob_fini(struct c2_cs_reqh_stobs *stob)
 			adom = stob->rs_adoms[i].ad_adom;
 			if (bstob != NULL && bstob->so_state == CSS_EXISTS)
 				c2_stob_put(bstob);
-             		adom->sd_ops->sdo_fini(adom);
+			adom->sd_ops->sdo_fini(adom);
 			s_file = stob->s_file;
 			if (s_file != NULL) {
 				stob->s_file = s_file->f_next;
@@ -1256,8 +1256,6 @@ static void cs_net_domains_fini(struct c2_colibri *cctx)
 static int cs_request_handler_start(struct cs_reqh_context *rctx)
 {
 	int                      rc;
-	struct c2_cs_reqh_stobs *rstob;
-	struct c2_stob_domain   *sdom;
 	struct c2_addb_ctx      *addb;
 
 	addb = &rctx->rc_colibri->cc_addb;
@@ -1498,7 +1496,7 @@ static void cs_usage(FILE *out)
 		   "         GlobalFlags := [-M RPCMaxMessageSize]"
 		   " [-Q MinReceiveQueueLength]\n"
 		   "         ReqHspec    := -r -T StobType -DDBPath"
-		   " -SStobFile {-e xport:endpoint}+\n"
+		   " -SStobFile [-dDevfile] {-e xport:endpoint}+\n"
 		   "                        {-s service}+"
 		   " [-q MinReceiveQueueLength] [-m RPCMaxMessageSize]\n");
 }
@@ -1539,6 +1537,15 @@ static void cs_help(FILE *out)
 		   "   This is specified once per request handler set.\n"
 		   "-S Stob file for request handler context.\n"
 		   "   This is specified once per request handler set.\n"
+		   "-d Device configuration file path.\n"
+		   "   This is an optional parameter specified once per "
+		   "request handler.\n"
+		   "   Currently the device configuration file should "
+		   "contain device id\n   (a serial number starting from 0) "
+		   "and corresponding device path. e.g. 0 /dev/sda \n"
+		   "   Note: This is a temporary implementation in-order to "
+		   "configure a device\n   as a stob. Only AD type stob domain "
+		   "can be configured over a device currently. \n"
 		   "-e Network layer endpoint to which clients connect. "
 		   "Network layer endpoint\n   consists of 2 parts "
 		   "network transport:endpoint address.\n"
@@ -1813,7 +1820,7 @@ static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
 					}
 					rctx->rc_stpath = str;
 				})),
-			C2_STRINGARG('d', "devices map file",
+			C2_STRINGARG('d', "device configuration file",
 				LAMBDA(void, (const char *str)
 				{
 					if (rctx == NULL) {

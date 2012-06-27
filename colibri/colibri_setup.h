@@ -214,10 +214,15 @@ struct c2_cs_reqh_stobs {
 	/** Linux storage domain.*/
 	struct c2_stob_domain *rs_ldom;
 	/**
-	 * @todo This is a simplistic implemetation to support device as a
+	 * @todo This is a simplistic implementation to support device as a
 	 * stob in colibri_setup, this is subject to change as confc lands
 	 * into master.
-	 */ 
+	 * @note Only AD type stob domain is can be configured over a device
+	 * currently. A linux stob is created in a specified linux domain
+	 * directory and linked to the device corresponding to the path
+	 * specified in the configuration file. Then AD domain is created
+	 * over the linux stob.
+	 */
 	struct stob_file {
 		uint64_t          f_id;
 		char              f_path[C2_MAX_FILE_PATH_LEN];

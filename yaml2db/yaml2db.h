@@ -133,7 +133,7 @@ struct c2_yaml2db_ctx {
 	/** Database path */
 	const char			*yc_dpath;
 	/** Database environment */
-	struct c2_dbenv			*yc_db;
+	struct c2_dbenv			 yc_db;
 	/** Flag indicating if the database environment has been established */
 	bool				 yc_db_init;
 	/** ADDB context for the context */
