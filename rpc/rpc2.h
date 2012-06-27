@@ -151,26 +151,18 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 #include "lib/refs.h"
 #include "lib/chan.h"
 #include "lib/bob.h"
-#include "net/net.h"
-#include "dtm/verno.h"		/* for c2_verno */
-#include "lib/time.h"
 #include "lib/timer.h"
 #include "lib/tlist.h"
-
+#include "net/net.h"
 #include "cob/cob.h"
 #include "rpc/session_internal.h"
 #include "rpc/session.h"
 #include "addb/addb.h"
 #include "rpc/item.h"
 #include "rpc/formation2.h"     /* c2_rpc_frm */
+#include "rpc/formation.h"
 #include "net/buffer_pool.h"
 
-
-#include "rpc/formation.h"
-
-struct c2_rpc;
-struct c2_addb_rec;
-struct c2_rpc_group;
 struct c2_rpc_machine;
 
 enum {
@@ -548,7 +540,6 @@ int c2_rpc_group_submit(struct c2_rpc_group		*group,
 			struct c2_rpc_item		*item,
 			enum c2_rpc_item_priority	 prio,
 			const c2_time_t			*deadline);
-
 
 /**
    Wait for the reply on item being sent.

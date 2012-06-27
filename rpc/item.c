@@ -28,6 +28,13 @@
 #include "lib/rwlock.h"
 #include "lib/misc.h"
 #include "rpc/rpc2.h"
+#include "rpc/item.h"
+
+/**
+   @addtogroup rpc_layer_core
+
+   @{
+ */
 
 C2_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", , struct c2_rpc_item, ri_field,
 	           ri_link_magic, C2_RPC_ITEM_FIELD_MAGIC,
@@ -231,6 +238,8 @@ bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item)
 {
 	return !c2_rpc_item_is_bound(item) && !c2_rpc_item_is_unsolicited(item);
 }
+
+/** @} end of rpc-layer-core group */
 
 /*
  *  Local variables:

@@ -25,6 +25,12 @@
 
 #include "rpc/session_internal.h"
 
+/**
+   @addtogroup rpc_layer_core
+
+   @{
+ */
+
 /* Imports */
 struct c2_rpc;
 
@@ -322,3 +328,15 @@ void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type);
 struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode);
 
 #endif
+
+/** @} end of rpc-layer-core group */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
