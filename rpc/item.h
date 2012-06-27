@@ -206,7 +206,7 @@ bool c2_rpc_item_is_update(const struct c2_rpc_item *item);
  */
 bool c2_rpc_item_is_request(const struct c2_rpc_item *item);
 
-/* TBD: different callbacks called on events occured while processing
+/** @todo: different callbacks called on events occured while processing
    in update stream */
 struct c2_rpc_item_type_ops {
 	/**
@@ -307,8 +307,6 @@ void c2_rpc_base_fini(void);
   list.
 
   @param item_type The rpc item type to be registered.
-  @retval 0 on success
-  @retval -errno on failure.
 */
 int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type);
 
