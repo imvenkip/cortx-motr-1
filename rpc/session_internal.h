@@ -34,6 +34,7 @@
  */
 
 struct c2_rpc_item_ops;
+struct c2_fop;
 
 /**
    Initialises all the session related fop types

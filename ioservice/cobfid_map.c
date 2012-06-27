@@ -29,6 +29,9 @@
 #include "lib/misc.h"  /* SET0 */
 #include "lib/arith.h" /* C2_3WAY */
 #include "ioservice/cobfid_map.h"
+#include "colibri/colibri_setup.h"
+#include "lib/refs.h"
+#include "reqh/reqh.h"
 
 /**
  * @addtogroup cobfidmap
@@ -116,7 +119,8 @@ C2_ADDB_EV_DEFINE(cfm_func_fail, "cobfid_map_func_fail",
  */
 static bool cobfid_map_invariant(const struct c2_cobfid_map *cfm)
 {
-	if (cfm == NULL || cfm->cfm_magic != CFM_MAP_MAGIC)
+	if (cfm == NULL || cfm->cfm_magic != CFM_MAP_MAGIC ||
+	    !cfm->cfm_is_initialised)
 		return false;
 	return true;
 }
@@ -128,14 +132,11 @@ int c2_cobfid_map_init(struct c2_cobfid_map *cfm, struct c2_dbenv *db_env,
 
 	C2_PRE(cfm != NULL);
 	C2_PRE(db_env != NULL);
-	C2_PRE(addb_ctx != NULL);
 	C2_PRE(map_name != NULL);
 
 	C2_SET0(cfm);
-	cfm->cfm_addb = addb_ctx;
 	cfm->cfm_dbenv = db_env;
-
-	c2_addb_ctx_init(cfm->cfm_addb, &cfm_ctx_type, &c2_addb_global_ctx);
+	cfm->cfm_addb  = addb_ctx;
 
 	C2_ALLOC_ARR(cfm->cfm_map_name, strlen(map_name) + 1);
 	if (cfm->cfm_map_name == NULL) {
@@ -157,6 +158,8 @@ int c2_cobfid_map_init(struct c2_cobfid_map *cfm, struct c2_dbenv *db_env,
 
 	cfm->cfm_last_mod = c2_time_now();
 	cfm->cfm_magic = CFM_MAP_MAGIC;
+	c2_mutex_init(&cfm->cfm_mutex);
+	cfm->cfm_is_initialised = true;
 	C2_POST(cobfid_map_invariant(cfm));
 	return 0;
 }
@@ -168,6 +171,7 @@ void c2_cobfid_map_fini(struct c2_cobfid_map *cfm)
 	c2_addb_ctx_fini(cfm->cfm_addb);
 	c2_table_fini(&cfm->cfm_table);
 	c2_free(cfm->cfm_map_name);
+	c2_mutex_fini(&cfm->cfm_mutex);
 }
 
 int c2_cobfid_map_add(struct c2_cobfid_map *cfm, const uint64_t container_id,
@@ -690,6 +694,62 @@ int c2_cobfid_map_container_enum(struct c2_cobfid_map *cfm,
 	iter->cfmi_next_fid.f_container = 0;
 	iter->cfmi_next_fid.f_key = 0;
 	return rc;
+}
+
+/*
+ * Name of cobfid_map table which stores the auxiliary database records.
+ * This symbol has to be exposed to UTs and possibly other modules in future.
+ */
+static const char cobfid_map_name[] = "cobfid_map";
+static bool cfm_key_is_initialised;
+static unsigned cfm_key;
+
+int c2_cobfid_map_get(struct c2_reqh *reqh, struct c2_cobfid_map **out)
+{
+	int                   rc;
+        struct c2_cobfid_map *cfm;
+
+        C2_PRE(reqh != NULL && out != NULL);
+
+	c2_rwlock_write_lock(&reqh->rh_rwlock);
+	if (!cfm_key_is_initialised) {
+		cfm_key = c2_reqh_key_init();
+		cfm_key_is_initialised = true;
+	}
+
+	cfm = c2_reqh_key_find(reqh, cfm_key, sizeof *cfm);
+	if (!cfm->cfm_is_initialised) {
+		rc = c2_cobfid_map_init(cfm, reqh->rh_dbenv, reqh->rh_addb,
+					cobfid_map_name);
+		if (rc != 0) {
+			c2_reqh_key_fini(reqh, cfm_key);
+			c2_rwlock_write_unlock(&reqh->rh_rwlock);
+			return rc;
+		}
+	}
+	C2_ASSERT(cobfid_map_invariant(cfm));
+	C2_CNT_INC(cfm->cfm_ref_cnt);
+	*out = cfm;
+	c2_rwlock_write_unlock(&reqh->rh_rwlock);
+
+	return 0;
+}
+
+void c2_cobfid_map_put(struct c2_reqh *reqh)
+{
+	struct c2_cobfid_map *cfm;
+
+	C2_PRE(reqh != NULL);
+
+	c2_rwlock_write_lock(&reqh->rh_rwlock);
+	cfm = c2_reqh_key_find(reqh, cfm_key, sizeof *cfm);
+	C2_ASSERT(cobfid_map_invariant(cfm));
+	C2_CNT_DEC(cfm->cfm_ref_cnt);
+	if (cfm->cfm_ref_cnt == 0) {
+		c2_cobfid_map_fini(cfm);
+		c2_reqh_key_fini(reqh, cfm_key);
+	}
+	c2_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 
 /** @} cobfidmap */

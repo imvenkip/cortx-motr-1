@@ -55,9 +55,8 @@
 
    Colibri setup can be done internally through colibri code or externally
    through cli using colibri_setup program. As colibri setup configures
-   the server it should be used in server side initialisation, if done
-   through code.
-   Following has to be done to configure a colibri context:
+   the server it should be used in server side initialisation. if done
+   through code, Following has to be done to configure a colibri context:
 
    - Initialise colibri context:
      For this you have to first define an array of network transports
@@ -96,6 +95,14 @@
     @note The specified services to be started should be registered before
           startup.
 
+    Failure handling for colibri_setup is done as follows,
+    - As mentioned above, user must follow the sequence of c2_cs_init(),
+      c2_cs_setup_env(), and c2_cs_start() in-order to setup c2_colibri instance
+      programmatically. If c2_cs_init() fails, user need not invoke c2_cs_fini(),
+      although if c2_cs_init() succeeds and if further calls to colibri_setup
+      routines fail i.e c2_cs_setup_env() or cs_cs_start(), then user must invoke
+      c2_cs_fini() corresponding to c2_cs_init().
+
     Similarly, to setup colibri externally, using colibri_setup program along
     with parameters specified as above.
     e.g. ./colibri -r -T linux -D dbpath -S stobfile \
@@ -110,100 +117,6 @@
    @{
  */
 
-struct c2_colibri;
-
-/**
- * Represents the infrastructure to host and maintain a
- * cob fid map which is an auxiliary database which maintains
- * mapping of a container_id and global_file_fid to its cob_fid.
- * Every Colibri data server is supposed to have only one
- * auxiliary database and it will be leveraged by a copy machine
- * to retrieve the lost data. A typical example would be SNS Repair.
- */
-struct c2_cobfid_setup {
-	/**
-	 * Cob fid map which hosts the mapping of the tuple
-	 * {container_id, global_file_fid} to its cob_fid.
-	 */
-	struct c2_cobfid_map	 cms_map;
-
-	/** Mutex to serialize access to c2_cobfid_map. */
-	struct c2_mutex		 cms_mutex;
-
-	/** Database environment in which cob fid map will be created. */
-	struct c2_dbenv		 cms_dbenv;
-
-	/**
-	 * Addb context to log events happening in init/fini of
-	 * cobfid_map_setup.
-	 */
-	struct c2_addb_ctx	 cms_addb;
-
-	/**
-	 * Number of entities using this c2_cobfid_setup structure.
-	 * c2_cobfid_setup is finalized when last instance of
-	 * ioservice running on this node is stopped.
-	 */
-	struct c2_ref		 cms_refcount;
-
-	/**
-	 * Back link to struct c2_colibri. This is used while finalizing
-	 * c2_cobfid_setup where the c2_colibri::cc_setup pointer is made NULL.
-	 */
-	struct c2_colibri       *cms_colibri;
-};
-
-/**
- * Gets a reference on struct c2_cobfid_setup. If it is NULL, a new
- * instance will be created and refcount will be initialized.
- * @param out Out parameter which returns struct c2_cobfid_setup pointer.
- * @param cc The c2_colibri instance which hosts the c2_cobfid_setup
- * structure.
- * @pre service != NULL.
- */
-int c2_cobfid_setup_get(struct c2_cobfid_setup **out,
-			struct c2_colibri *cc);
-
-/**
- * Releases the reference on struct c2_cobfid_setup. Last reference
- * will finalize the c2_cobfid_setup structure.
- * @param cc The c2_colibri instance which hosts c2_cobfid_setup
- * structure.
- * @pre cc != NULL && c2_mutex_is_locked(cc).
- */
-void c2_cobfid_setup_put(struct c2_colibri *cc);
-
-/**
- * Adds a record to c2_cobfid_map contained in c2_cobfid_setup.
- * The container id needed for adding record to c2_cobfid_map is
- * retrieved from cfid.u_hi.
- * A global file fid and its constituent cob fids in same IO request
- * share the same key which stands for an abstract key in a container.
- * @param gfid Fid of global file.
- * @param cfid Identifier of cob.
- * @pre s != NULL.
- */
-int c2_cobfid_setup_recadd(struct c2_cobfid_setup *service,
-			   struct c2_fid gfid,
-			   struct c2_uint128 cfid);
-
-/**
- * Removes a record from c2_cobfid_map contained in c2_cobfid_setup.
- * @param gfid Fid of global file.
- * @param cfid Identifier of cob.
- * @pre s != NULL.
- */
-int c2_cobfid_setup_recdel(struct c2_cobfid_setup *s,
-			   struct c2_fid gfid, struct c2_uint128 cfid);
-
-/**
- * Locates and returns instance of struct c2_colibri given a
- * request handler service.
- * @param s Instance of request handler service.
- * @pre s != NULL.
- */
-struct c2_colibri *c2_cs_ctx_get(struct c2_reqh_service *s);
-
 /**
    Defines a colibri context containing a set of network transports,
    network domains and request handler contexts.
@@ -213,8 +126,8 @@ struct c2_colibri *c2_cs_ctx_get(struct c2_reqh_service *s);
    cob domain, fol, network domains, services and request handler.
  */
 struct c2_colibri {
-	/** Mutex to serialize access to c2_colibri structure. */
-	struct c2_mutex		  cc_mutex;
+	/** Protects access to c2_colibri members. */
+	struct c2_rwlock          cc_rwlock;
 
 	/**
 	   Array of network transports supported in a colibri context.
@@ -246,33 +159,26 @@ struct c2_colibri {
 	   This is set to stdout by default if no output file
 	   is specified.
 	   Default is set to stdout.
-
 	   @see c2_cs_init()
 	 */
 	FILE                     *cc_outfile;
-
-	/**
-	 * Instance of struct c2_cobfid_setup which is maintained
-	 * per data server.
-	 * @see struct c2_cobfid_setup.
-	 */
-	struct c2_cobfid_setup	 *cc_setup;
-
 	/**
 	 * List of buffer pools in colibri context.
 	 * @see c2_cs_buffer_pool::cs_bp_linkage
 	 */
-        struct c2_tl		  cc_buffer_pools;
+	struct c2_tl             cc_buffer_pools;
 
 	/**
 	 * Minimum number of buffers in TM receive queue.
 	 * @see c2_net_transfer_mc:ntm_recv_queue_length
 	 * Default is set to C2_NET_TM_RECV_QUEUE_DEF_LEN.
 	 */
-        uint32_t		  cc_recv_queue_min_length;
+	uint32_t                 cc_recv_queue_min_length;
 
 	/** Maximum RPC message size. */
-	uint32_t		  cc_max_rpc_msg_size;
+	uint32_t                  cc_max_rpc_msg_size;
+
+	struct c2_addb_ctx        cc_addb;
 };
 
 /**
@@ -361,27 +267,6 @@ int c2_cs_setup_env(struct c2_colibri *cs_colibri, int argc, char **argv);
 int c2_cs_start(struct c2_colibri *cs_colibri);
 
 /**
-   Returns server side rpc machine in a colibri context for given service
-   and network transport.
-
-   @retval Returns c2_rpc_machine if found, else returns NULL
- */
-struct c2_rpc_machine *c2_cs_rpc_mach_get(struct c2_colibri *cctx,
-					 const struct c2_net_xprt *xprt,
-					 const char *sname);
-
-/**
-   Returns server side transfer machine in a colibri context for given service
-   and network transport.
-
-   @retval Returns c2_net_transfer_mc if found,
-	else returns NULL
- */
-struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
-					const struct c2_net_xprt *xprt,
-					const char *service);
-
-/**
    Initialises storage including database environment and stob domain of given
    type (e.g. linux or ad). There is a stob domain and a database environment
    created per request handler context.
@@ -399,7 +284,8 @@ struct c2_net_transfer_mc *c2_cs_tm_get(struct c2_colibri *cctx,
    @todo Use generic mechanism to generate stob ids
  */
 int c2_cs_storage_init(const char *stob_type, const char *stob_path,
-		       struct c2_cs_reqh_stobs *stob, struct c2_dbenv *db);
+			struct c2_cs_reqh_stobs *stob, struct c2_dbenv *db,
+			struct c2_addb_ctx *addb);
 
 /**
    Finalises storage for a request handler in a colibri context.
@@ -425,6 +311,13 @@ void c2_cs_storage_fini(struct c2_cs_reqh_stobs *stob);
  */
 struct c2_reqh *c2_cs_reqh_get(struct c2_colibri *cctx,
 			       const char *service_name);
+
+/**
+ * Returns instance of struct c2_colibri given a
+ * request handler instance.
+ * @pre reqh != NULL.
+ */
+struct c2_colibri *c2_cs_ctx_get(struct c2_reqh *reqh);
 
 /** @} endgroup colibri_setup */
 

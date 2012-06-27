@@ -223,14 +223,8 @@ void c2_fom_block_leave(struct c2_fom *fom)
 
 void c2_fom_queue(struct c2_fom *fom)
 {
-	struct c2_fom_locality *loc;
-
 	C2_PRE(c2_fom_invariant(fom));
-	C2_PRE(fom->fo_phase == C2_FOPH_INIT ||
-		fom->fo_phase == C2_FOPH_FAILURE);
-
-	loc = fom->fo_loc;
-	c2_atomic64_inc(&loc->fl_dom->fd_foms_nr);
+	C2_PRE(C2_IN(fom->fo_phase, (C2_FOPH_INIT, C2_FOPH_FAILURE)));
 
 	fom_ready(fom);
 }
@@ -600,12 +594,12 @@ static int locality_init(struct c2_fom_locality *loc, struct c2_bitmap *pmap)
 			}
 		}
 
-                if (ncpus > MIN_CPU_NR)
-                        loc->fl_lo_idle_threads_nr = ncpus/2;
-                else
-                        loc->fl_lo_idle_threads_nr = ncpus;
+		if (ncpus > MIN_CPU_NR)
+			loc->fl_lo_idle_threads_nr = ncpus/2;
+		else
+			loc->fl_lo_idle_threads_nr = ncpus;
 
-                loc->fl_hi_idle_threads_nr = ncpus;
+		loc->fl_hi_idle_threads_nr = ncpus;
 
 		c2_mutex_lock(&loc->fl_lock);
 		for (i = 0; i < ncpus; ++i) {
@@ -708,7 +702,6 @@ int  c2_fom_domain_init(struct c2_fom_domain *dom)
 		}
 		if (result != 0)
 			break;
-
 	}
 
 	if (result != 0)
@@ -738,10 +731,16 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
 
 void c2_fom_fini(struct c2_fom *fom)
 {
+	struct c2_fom_domain *fdom;
+	struct c2_reqh       *reqh;
+
 	C2_PRE(fom->fo_phase == C2_FOPH_FINISH);
 
-	c2_atomic64_dec(&fom->fo_loc->fl_dom->fd_foms_nr);
+	fdom = fom->fo_loc->fl_dom;
+	reqh = fdom->fd_reqh;
 	c2_list_link_fini(&fom->fo_linkage);
+	if (c2_atomic64_dec_and_test(&fdom->fd_foms_nr))
+		c2_chan_signal(&reqh->rh_sd_signal);
 }
 C2_EXPORTED(c2_fom_fini);
 

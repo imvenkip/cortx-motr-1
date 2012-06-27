@@ -28,6 +28,7 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "lib/misc.h"  /* C2_SET0 */
 
 #include "colibri/colibri_setup.h"
 #include "colibri/init.h"
@@ -46,11 +47,6 @@
 static struct c2_net_xprt *cs_xprts[] = {
 	&c2_net_lnet_xprt
 };
-
-/**
-   Global colibri context.
- */
-static struct c2_colibri colibri_ctx;
 
 /**
    Signal handler registered so that pause()
@@ -81,9 +77,11 @@ static void cs_wait_for_termination(void)
 
 int main(int argc, char **argv)
 {
-	int     rc;
+	int               rc;
+	struct c2_colibri colibri_ctx;
 
 	errno = 0;
+	C2_SET0(&colibri_ctx);
 	rc = c2_init();
 	if (rc != 0) {
 		fprintf(stderr, "\n Failed to initialise Colibri \n");

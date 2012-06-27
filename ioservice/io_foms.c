@@ -1001,6 +1001,7 @@ static int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
         fom_obj->fcrw_curr_desc_index     = 0;
         fom_obj->fcrw_curr_ivec_index     = 0;
         fom_obj->fcrw_batch_size          = 0;
+        fom_obj->fcrw_req_count           = 0;
         fom_obj->fcrw_count               = 0;
         fom_obj->fcrw_num_stobio_launched = 0;
         fom_obj->fcrw_bp                  = NULL;
@@ -1447,6 +1448,7 @@ static int io_launch(struct c2_fom *fom)
                  * Also trim network buffer as per I/O size.
                  */
                 ivec_count = c2_vec_count(&mem_ivec->iv_vec);
+                fom_obj->fcrw_req_count += ivec_count;
                 rc = align_bufvec(fom, &stio->si_user,
                                                 &nb->nb_buffer,
                                                 ivec_count,
@@ -1568,6 +1570,9 @@ static int io_finish(struct c2_fom *fom)
         } c2_tl_endfor;
 
         c2_stob_put(fom_obj->fcrw_stob);
+
+        C2_ASSERT(ergo(fom->fo_rc == 0,
+                       fom_obj->fcrw_req_count == fom_obj->fcrw_count));
 
         if (fom->fo_rc != 0) {
 	        fom->fo_phase = C2_FOPH_FAILURE;

@@ -24,7 +24,6 @@
    An opcode is an rpc item type attribute which uniquely identifies an rpc
    item type.
    @see rpc/rpccore.h
-   @see rpc/rpc_base.h
 
    @{
  */

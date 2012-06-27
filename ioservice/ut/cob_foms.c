@@ -24,6 +24,7 @@
 #include "net/lnet/lnet.h"
 #include "ioservice/ut/bulkio_common.h"
 #include "ioservice/cob_foms.c"          /* To access static APIs. */
+#include "ioservice/cobfid_map.h"
 
 extern struct c2_fop_type c2_fop_cob_create_fopt;
 extern struct c2_fop_type c2_fop_cob_delete_fopt;
@@ -37,8 +38,6 @@ static struct c2_cob *test_cob = NULL;
 
 static struct c2_fom *cd_fom_alloc();
 static void cd_fom_dealloc(struct c2_fom *fom);
-static int cobfid_setup_get(struct c2_cobfid_setup **s, struct c2_colibri *cc);
-static void cobfid_setup_put(struct c2_colibri *cc);
 
 enum cob_fom_type {
 	COB_CREATE = 1,
@@ -576,32 +575,20 @@ static void fom_create_test(enum cob_fom_type fomtype)
 	fom_fini(fom, fomtype);
 }
 
-static int cobfid_ctx_get(struct c2_fom *fom,
-			  struct c2_cobfid_setup **cobfid_ctx)
+static int cobfid_ctx_get(struct c2_fom *fom, struct c2_cobfid_map **cfm)
 {
-	struct c2_colibri *cctx;
+	struct c2_reqh *reqh;
 
-	cctx = c2_cs_ctx_get(fom->fo_service);
-	C2_ASSERT(cctx != NULL);
-	return cobfid_setup_get(cobfid_ctx, cctx);
+	reqh = fom->fo_service->rs_reqh;
+	return c2_cobfid_map_get(reqh, cfm);
 }
 
 static void cobfid_ctx_put(struct c2_fom *fom)
 {
-	struct c2_colibri *cctx;
+	struct c2_reqh *reqh;
 
-	cctx = c2_cs_ctx_get(fom->fo_service);
-	C2_ASSERT(cctx != NULL);
-	cobfid_setup_put(cctx);
-}
-
-static void cobfid_setup_put(struct c2_colibri *cc)
-{
-	C2_PRE(cc != NULL);
-
-	c2_mutex_lock(&cc->cc_mutex);
-	c2_cobfid_setup_put(cc);
-	c2_mutex_unlock(&cc->cc_mutex);
+	reqh = fom->fo_service->rs_reqh;
+	c2_cobfid_map_put(reqh);
 }
 
 /*
@@ -609,22 +596,20 @@ static void cobfid_setup_put(struct c2_colibri *cc)
  */
 static void cobfid_map_verify(struct c2_fom *fom, const bool map_exists)
 {
-	int			   rc;
-	bool			   found = false;
-	uint64_t		   cid_out;
-	struct c2_cobfid_map_iter  cfm_iter;
-	struct c2_cobfid_map	  *cfm_map;
-	struct c2_fid		   fid_out;
-	struct c2_uint128	   cob_fid_out;
-	struct c2_cobfid_setup	  *cobfid_ctx = NULL;
+	int			    rc;
+	bool			    found = false;
+	uint64_t		    cid_out;
+	struct c2_cobfid_map_iter   cfm_iter;
+	struct c2_fid		    fid_out;
+	struct c2_uint128	    cob_fid_out;
+	struct c2_cobfid_map       *cfm;
 
 	C2_SET0(&cfm_iter);
 	C2_SET0(&cob_fid_out);
-	rc = cobfid_ctx_get(fom, &cobfid_ctx);
-	C2_UT_ASSERT(rc == 0 && cobfid_ctx != NULL);
+	rc = cobfid_ctx_get(fom, &cfm);
+	C2_UT_ASSERT(rc == 0 && cfm != NULL);
 
-	cfm_map = &cobfid_ctx->cms_map;
-	rc = c2_cobfid_map_enum(cfm_map, &cfm_iter);
+	rc = c2_cobfid_map_enum(cfm, &cfm_iter);
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_cobfid_map_iter_next(&cfm_iter, &cid_out,
@@ -1269,17 +1254,6 @@ static void cd_fom_state_test()
 
 	cd_fom_dealloc(dfom);
 	cob_testdata_cleanup(cfom);
-}
-
-static int cobfid_setup_get(struct c2_cobfid_setup **s, struct c2_colibri *cc)
-{
-	int rc;
-
-	c2_mutex_lock(&cc->cc_mutex);
-	rc = c2_cobfid_setup_get(s, cc);
-	c2_mutex_unlock(&cc->cc_mutex);
-
-	return rc;
 }
 
 static void cob_create_api_test(void)
