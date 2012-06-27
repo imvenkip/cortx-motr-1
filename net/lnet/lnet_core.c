@@ -122,12 +122,9 @@ static const struct c2_addb_ctx_type nlx_core_tm_addb_ctx = {
  */
 static bool nlx_core_tm_invariant(const struct nlx_core_transfer_mc *lctm)
 {
-	if (lctm == NULL || lctm->ctm_magic != C2_NET_LNET_CORE_TM_MAGIC)
-		return false;
-	if (lctm->ctm_mb_counter < C2_NET_LNET_BUFFER_ID_MIN ||
-	    lctm->ctm_mb_counter > C2_NET_LNET_BUFFER_ID_MAX)
-		return false;
-	return true;
+	return lctm != NULL && lctm->ctm_magic == C2_NET_LNET_CORE_TM_MAGIC &&
+	    lctm->ctm_mb_counter >= C2_NET_LNET_BUFFER_ID_MIN &&
+	    lctm->ctm_mb_counter <= C2_NET_LNET_BUFFER_ID_MAX;
 }
 
 /**
@@ -140,14 +137,12 @@ static bool nlx_core_tm_invariant(const struct nlx_core_transfer_mc *lctm)
 static bool nlx_core_tm_is_locked(const struct nlx_core_transfer_mc *lctm)
 {
 	const struct nlx_xo_transfer_mc *xtm;
+
 	if (!nlx_core_tm_invariant(lctm))
 		return false;
 	xtm = container_of(lctm, struct nlx_xo_transfer_mc, xtm_core);
-	if (!nlx_tm_invariant(xtm->xtm_tm))
-		return false;
-	if (!c2_mutex_is_locked(&xtm->xtm_tm->ntm_mutex))
-		return false;
-	return true;
+	return nlx_tm_invariant(xtm->xtm_tm) &&
+	    c2_mutex_is_locked(&xtm->xtm_tm->ntm_mutex);
 }
 
 /**
@@ -187,8 +182,7 @@ int nlx_core_bevq_provision(struct nlx_core_domain *lcdom,
 	int num_to_alloc;
 	int rc = 0;
 
-	C2_PRE(nlx_core_tm_is_locked(lctm));
-	C2_PRE(need > 0);
+	C2_PRE(nlx_core_tm_is_locked(lctm) && need > 0);
 
 	have = bev_cqueue_size(&lctm->ctm_bevq) - C2_NET_LNET_BEVQ_NUM_RESERVED;
 	C2_ASSERT(have >= lctm->ctm_bev_needed);
@@ -210,9 +204,8 @@ int nlx_core_bevq_provision(struct nlx_core_domain *lcdom,
 
 void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm, size_t release)
 {
-	C2_PRE(nlx_core_tm_is_locked(lctm));
-	C2_PRE(release > 0);
-	C2_PRE(lctm->ctm_bev_needed >= release);
+	C2_PRE(nlx_core_tm_is_locked(lctm) &&
+	       release > 0 && lctm->ctm_bev_needed >= release);
 
 	lctm->ctm_bev_needed -= release;
 	return;
@@ -224,8 +217,7 @@ bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
 	struct nlx_core_bev_link *link;
 	struct nlx_core_buffer_event *bev;
 
-	C2_PRE(lctm != NULL && lcbe != NULL);
-	C2_PRE(nlx_core_tm_is_locked(lctm));
+	C2_PRE(lctm != NULL && lcbe != NULL && nlx_core_tm_is_locked(lctm));
 
 	link = bev_cqueue_get(&lctm->ctm_bevq);
 	if (link != NULL) {
@@ -299,11 +291,11 @@ void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
 			      struct nlx_core_buffer *lcbuf,
 			      struct nlx_core_buf_desc *cbd)
 {
-	C2_PRE(nlx_core_tm_is_locked(lctm));
-	C2_PRE(nlx_core_tm_invariant(lctm));
-	C2_PRE(nlx_core_buffer_invariant(lcbuf));
-	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_PASSIVE_BULK_SEND ||
-	       lcbuf->cb_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
+	C2_PRE(nlx_core_tm_is_locked(lctm) &&
+	       nlx_core_tm_invariant(lctm) &&
+	       nlx_core_buffer_invariant(lcbuf) &&
+	       (lcbuf->cb_qtype == C2_NET_QT_PASSIVE_BULK_SEND ||
+		lcbuf->cb_qtype == C2_NET_QT_PASSIVE_BULK_RECV));
 
 	/* generate match bits */
 	lcbuf->cb_match_bits =
@@ -328,8 +320,8 @@ void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
 
 	NLXDBG(lctm, 2, nlx_print_core_buf_desc("encode", cbd));
 
-	C2_POST(nlx_core_tm_invariant(lctm));
-	C2_POST(nlx_core_buffer_invariant(lcbuf));
+	C2_POST(nlx_core_tm_invariant(lctm) &&
+		nlx_core_buffer_invariant(lcbuf));
 	return;
 }
 
@@ -342,11 +334,11 @@ int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
 
 	NLXDBG(lctm, 2, nlx_print_core_buf_desc("decode", cbd));
 
-	C2_PRE(nlx_core_tm_is_locked(lctm));
-	C2_PRE(nlx_core_tm_invariant(lctm));
-	C2_PRE(nlx_core_buffer_invariant(lcbuf));
-	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_ACTIVE_BULK_SEND ||
-	       lcbuf->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV);
+	C2_PRE(nlx_core_tm_is_locked(lctm) &&
+	       nlx_core_tm_invariant(lctm) &&
+	       nlx_core_buffer_invariant(lcbuf) &&
+	       (lcbuf->cb_qtype == C2_NET_QT_ACTIVE_BULK_SEND ||
+		lcbuf->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV));
 
 	i64 = nlx_core_buf_desc_checksum(cbd);
 	if (i64 != cbd->cbd_checksum)
@@ -400,13 +392,10 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 	char nidstr[C2_NET_LNET_NIDSTR_SIZE];
 	char *cp = strchr(ep_addr, ':');
 	char *endp;
-	size_t n;
+	size_t n = cp - ep_addr;
 	int rc;
 
-	if (cp == NULL)
-		return -EINVAL;
-	n = cp - ep_addr;
-	if (n == 0 || n >= sizeof nidstr)
+	if (cp == NULL || n == 0 || n >= sizeof nidstr)
 		return -EINVAL;
 	strncpy(nidstr, ep_addr, n);
 	nidstr[n] = 0;
