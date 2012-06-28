@@ -108,7 +108,7 @@ struct c2_thread {
    static void worker(struct foo *arg) { ... }
    static struct c2_thread tcb;
 
-   result = C2_THREAD_INIT(&tcb, struct foo, NULL, worker, arg, "worker");
+   result = C2_THREAD_INIT(&tcb, struct foo *, NULL, &worker, arg, "worker");
    @endcode
 
    C2_THREAD_INIT() checks that type of the argument matches function prototype.

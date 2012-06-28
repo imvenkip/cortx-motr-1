@@ -80,24 +80,141 @@ static int32_t ep_index(struct c2_net_test_cmd_ctx *ctx, const char *ep_addr)
 	return UINT32_MAX;
 }
 
-static int cmd_encode(struct c2_net_test_cmd *cmd,
-		      struct c2_net_buffer *buf,
-		      c2_bcount_t offset)
-{
-	return -ENOSYS;
+/** @todo move encoding/decoding code to net/test/onwire.[ch] */
+
+enum net_test_transform_op {
+	NET_TEST_ENCODE,
+	NET_TEST_DECODE
+};
+
+struct net_test_descr {
+	size_t ntd_offset;
+	size_t ntd_length;
+};
+
+#define TYPE_DESCR(type_name) \
+	static const struct net_test_descr type_name ## _descr[]
+
+#define FIELD_SIZE(type, field) (sizeof ((type *) 0)->field)
+
+#define FIELD_DESCR(type, field) {		\
+	.ntd_offset		= offsetof(type, field),	\
+	.ntd_length		= FIELD_SIZE(type, field),	\
 }
 
-static int cmd_decode(struct c2_net_test_cmd *cmd,
-		      struct c2_net_buffer *buf,
-		      c2_bcount_t offset,
-		      c2_bcount_t length)
-{
-	return -ENOSYS;
-}
+/* c2_net_test_cmd_descr */
+TYPE_DESCR(c2_net_test_cmd) = {
+	FIELD_DESCR(struct c2_net_test_cmd, ntc_type),
+};
 
-static c2_bcount_t cmd_length(struct c2_net_test_cmd *cmd)
+/* c2_net_test_cmd_ack_descr */
+TYPE_DESCR(c2_net_test_cmd_ack) = {
+	FIELD_DESCR(struct c2_net_test_cmd_ack, ntca_errno),
+};
+
+/* c2_net_test_cmd_init_descr */
+TYPE_DESCR(c2_net_test_cmd_init) = {
+	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_role),
+	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_type),
+	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_msg_nr),
+	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_bulk_size),
+	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_concurrency),
+};
+
+/* c2_net_test_cmd_fini_descr */
+TYPE_DESCR(c2_net_test_cmd_fini) = {
+	FIELD_DESCR(struct c2_net_test_cmd_fini, ntcf_cancel),
+};
+
+/* c2_net_test_slist_descr */
+TYPE_DESCR(c2_net_test_slist) = {
+	FIELD_DESCR(struct c2_net_test_slist, ntsl_nr),
+};
+
+/**
+   Encode/decode object field to buffer.
+   @param bv_length total length of bv.
+	            Must be equivalent to c2_vec_count(&bv->ov_vec).
+   @return 0 No space in buffer.
+   @return >0 Number of bytes written to buffer.
+   @see transform().
+ */
+static c2_bcount_t transform_single(enum net_test_transform_op op,
+				    void *obj,
+				    struct net_test_descr *descr,
+				    struct c2_bufvec *bv,
+				    c2_bcount_t bv_offset,
+				    c2_bcount_t bv_length)
 {
 	return 0;
+}
+
+/**
+   Encode or decode data structure with the given description.
+   @param op operation. Can be NET_TEST_ENCODE or NET_TEST_DECODE.
+   @param obj pointer to data structure.
+   @param descr array of data field descriptions.
+   @param descr_nr described fields number in descr.
+   @return 0 No space in buffer.
+   @return >0 Number of bytes written to buffer.
+   @param bv c2_bufvec. Can be NULL - in this case bv_offset and bv_length
+	     are ignored.
+   @param bv_offset offset in bv.
+   @see transform_single().
+ */
+/** @todo make static */
+//static
+c2_bcount_t transform(enum net_test_transform_op op,
+			     void *obj,
+			     struct net_test_descr *descr,
+			     size_t descr_nr,
+			     struct c2_bufvec *bv,
+			     c2_bcount_t bv_offset)
+{
+	c2_bcount_t len_total = 0;
+	c2_bcount_t len_current = 0;
+	c2_bcount_t bv_length = bv == NULL ? 0 : c2_vec_count(&bv->ov_vec);
+	size_t	    i;
+
+	for (i = 0; i < descr_nr; ++i) {
+		len_current = transform_single(op, obj, &descr[i],
+					       bv, bv_offset + len_total,
+					       bv_length);
+		len_total += len_current;
+		if (len_current == 0)
+			break;
+	}
+	return len_current == 0 ? 0 : len_total;
+}
+
+/**
+   Encode/decode c2_net_test_cmd to/from c2_net_buffer
+   @param op operation. Can be NET_TEST_ENCODE or NET_TEST_DECODE.
+   @param cmd command for transforming.
+   @param buf can be NULL if op == NET_TEST_ENCODE,
+	      in this case offset is ignored but length is set.
+   @param offset start of encoded data in buf.
+   @param length if isn't NULL then store length of encoded command to length.
+   @see cmd_transform(), transform().
+ */
+static int cmd_transform(enum net_test_transform_op op,
+			 struct c2_net_test_cmd *cmd,
+			 struct c2_net_buffer *buf,
+			 c2_bcount_t offset,
+			 c2_bcount_t *length)
+{
+	return -ENOSYS;
+}
+
+/**
+   Get c2_net_test_cmd length in c2_net_buffer after encoding.
+ */
+static c2_bcount_t cmd_length(struct c2_net_test_cmd *cmd)
+{
+	c2_bcount_t length;
+
+	return cmd_transform(NET_TEST_ENCODE, cmd, NULL, 0, &length) == 0 ?
+	       length : 0;
 }
 
 static void commands_tm_event_cb(const struct c2_net_tm_event *ev)
@@ -258,13 +375,6 @@ static void commands_disable_succesful(struct c2_net_test_cmd_ctx *ctx)
 	uint32_t		i;
 	struct c2_net_test_cmd *cmd_i;
 
-	/* disabled	failure	result
-	 * ---------------------------
-	 * false	false	false
-	 * false	true	true
-	 * true		false	true
-	 * true		true	true
-	 */
 	for (i = 0; i < ctx->ntcc_cmd_nr; ++i) {
 		cmd_i = &ctx->ntcc_cmd[i];
 		cmd_i->ntc_disabled = cmd_i->ntc_disabled || cmd_success(cmd_i);
@@ -336,7 +446,8 @@ uint32_t c2_net_test_commands_send(struct c2_net_test_cmd_ctx *ctx,
 		buf = c2_net_test_network_buf(&ctx->ntcc_net,
 					      C2_NET_TEST_BUF_PING, i);
 		C2_ASSERT(buf != NULL);
-		ctx->ntcc_cmd[i].ntc_errno = cmd_encode(cmd_i, buf, 0);
+		ctx->ntcc_cmd[i].ntc_errno = cmd_transform(NET_TEST_ENCODE,
+							   cmd_i, buf, 0, NULL);
 	}
 
 	result = commands_network_operation(ctx, true);
@@ -374,7 +485,8 @@ uint32_t c2_net_test_commands_wait(struct c2_net_test_cmd_ctx *ctx)
 					      C2_NET_TEST_BUF_PING,
 					      cmd_i->ntc_buf_index);
 		C2_ASSERT(buf != NULL);
-		cmd_i->ntc_errno = cmd_decode(cmd_i, buf, 0, buf->nb_length);
+		cmd_i->ntc_errno = cmd_transform(NET_TEST_DECODE,
+						 cmd_i, buf, 0, NULL);
 	}
 
 	commands_disable_succesful(ctx);
@@ -404,11 +516,11 @@ bool c2_net_test_commands_invariant(struct c2_net_test_cmd_ctx *ctx)
 
 	if (ctx == NULL)
 		return false;
+	if (ctx->ntcc_cmd_nr == 0)
+		return false;
 	if (ctx->ntcc_cmd_nr != ctx->ntcc_net.ntc_ep_nr)
 		return false;
 	if (ctx->ntcc_cmd_nr != ctx->ntcc_net.ntc_buf_ping_nr)
-		return false;
-	if (ctx->ntcc_cmd_nr == 0)
 		return false;
 	if (ctx->ntcc_net.ntc_buf_bulk_nr != 0)
 		return false;
@@ -471,7 +583,7 @@ bool c2_net_test_slist_unique(struct c2_net_test_slist *slist)
 	uint32_t i, j;
 
 	for (i = 0; i < slist->ntsl_nr; ++i)
-		for (j = 0; j < slist->ntsl_nr; ++j)
+		for (j = i + 1; j < slist->ntsl_nr; ++j)
 			if (strcmp(slist->ntsl_list[i],
 				   slist->ntsl_list[j]) == 0)
 				return false;

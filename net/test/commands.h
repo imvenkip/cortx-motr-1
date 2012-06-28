@@ -102,6 +102,8 @@ struct c2_net_test_cmd_init {
 	enum c2_net_test_role	 ntci_role;
 	/** node type */
 	enum c2_net_test_type	 ntci_type;
+	/** number of test messages */
+	unsigned long		 ntci_msg_nr;
 	/** buffer size for bulk transfer */
 	c2_bcount_t		 ntci_bulk_size;
 	/** messages concurrency */
@@ -167,8 +169,8 @@ struct c2_net_test_cmd_ctx {
 };
 
 /**
-   Initialize network context to use with c2_net_test_cmd_send()/
-   c2_net_test_cmd_send_single()/c2_net_test_cmd_recv().
+   Initialize network context to use with
+   c2_net_test_cmd_send()/c2_net_test_cmd_wait().
    @todo document
    @return 0 (success)
    @return -EEXIST ep_list contains two equal strings
@@ -223,7 +225,8 @@ c2_net_test_command(struct c2_net_test_cmd_ctx *ctx, uint32_t index);
    @todo document it.
  */
 int c2_net_test_slist_init(struct c2_net_test_slist *slist,
-			   char *str, char delim);
+			   char *str,
+			   char delim);
 void c2_net_test_slist_fini(struct c2_net_test_slist *slist);
 /**
    Is every string in list unique in this list.

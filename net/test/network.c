@@ -326,7 +326,7 @@ int c2_net_test_network_ctx_init(struct c2_net_test_network_ctx *ctx,
 				 *timeouts)
 {
 	int		       rc;
-	static struct c2_clink tmwait;
+	struct c2_clink        tmwait;
 
 	C2_PRE(ctx     != NULL);
 	C2_PRE(tm_addr != NULL);
@@ -636,7 +636,7 @@ int c2_net_test_network_bd_encode(struct c2_net_test_network_ctx *ctx,
 	 */
 	char			str[str_len];
 
-	C2_CASSERT(str_len == C2_NET_TEST_STRLEN_NBD_HEADER);
+	C2_ASSERT(str_len == C2_NET_TEST_STRLEN_NBD_HEADER);
 	C2_PRE(c2_net_test_network_ctx_invariant(ctx));
 	C2_PRE(buf_bulk_index < ctx->ntc_buf_bulk_nr);
 	C2_PRE(buf_ping_index < ctx->ntc_buf_ping_nr);
