@@ -89,7 +89,7 @@ static void group_unlock(struct c2_fom_locality *loc)
 	c2_sm_group_unlock(&loc->fl_group);
 }
 
-static bool is_locked(const struct c2_fom *fom)
+bool c2_group_is_locked(const struct c2_fom *fom)
 {
 	return c2_mutex_is_locked(&fom->fo_loc->fl_group.s_lock);
 }
@@ -126,7 +126,7 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 		fom->fo_type != NULL && fom->fo_ops != NULL &&
 		fom->fo_fop != NULL &&
 
-		is_locked(fom) &&
+		c2_group_is_locked(fom) &&
 
 		c2_list_link_invariant(&fom->fo_linkage) &&
 
@@ -301,9 +301,11 @@ static void fom_exec(struct c2_fom *fom)
 	} while (rc == C2_FSO_AGAIN);
 
 	C2_ASSERT(rc == C2_FSO_WAIT);
-	C2_ASSERT(is_locked(fom));
+	C2_ASSERT(c2_group_is_locked(fom));
 
 	if (fom->fo_phase == C2_FOPH_FINISH) {
+		if (fom->fo_sm.sm_state == C2_FOPH_FINISH)
+			c2_sm_fini(&fom->fo_sm);
 		fom->fo_ops->fo_fini(fom);
 	} else {
 		fom_wait(fom);
@@ -739,7 +741,6 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
 void c2_fom_fini(struct c2_fom *fom)
 {
 	C2_PRE(fom->fo_phase == C2_FOPH_FINISH);
-
 	c2_atomic64_dec(&fom->fo_loc->fl_dom->fd_foms_nr);
 	c2_list_link_fini(&fom->fo_linkage);
 }

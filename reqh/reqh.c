@@ -163,6 +163,7 @@ static void queueit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 {
 	struct c2_fom *fom = container_of(ast, struct c2_fom, fo_cb.fc_ast);
 
+	c2_fom_sm_init(fom);
 	c2_fom_queue(fom);
 }
 
@@ -212,7 +213,6 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 		fom->fo_loc = &reqh->rh_fom_dom.fd_localities[loc_idx];
 		fom->fo_cb.fc_ast.sa_cb = queueit;
 		c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
-		c2_fom_sm_init(fom);
 	} else
 		REQH_ADDB_ADD(c2_reqh_addb_ctx, "c2_reqh_fop_handle", result);
 }

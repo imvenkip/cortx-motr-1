@@ -621,6 +621,7 @@ void c2_fom_callback_fini(struct c2_fom_callback *cb);
  */
 bool c2_fom_callback_cancel(struct c2_fom_callback *cb);
 
+bool c2_group_is_locked(const struct c2_fom *fom);
 /** @} end of fom group */
 
 /* __COLIBRI_FOP_FOM_H__ */
