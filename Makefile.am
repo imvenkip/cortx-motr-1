@@ -51,7 +51,7 @@ SUBDIR_ST = console/st net/st net/bulk_emulation/st net/lnet/st yaml2db/st
 
 SUBDIR_UB =
 
-SUBDIR_BIN = console/bin mds utils
+SUBDIR_BIN = console/bin mds net/test/user_space utils
 
 SUBDIRS    = $(SUBDIRS_BASE) $(SUBDIRS_LIBS) colibri $(SUBDIR_IT) \
 	     $(SUBDIR_UT) $(SUBDIR_ST) $(SUBDIR_KERNEL) $(SUBDIR_UB) \

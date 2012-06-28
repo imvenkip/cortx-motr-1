@@ -712,6 +712,7 @@ AC_CONFIG_FILES([
 		 net/test/Makefile
 		 net/test/linux_kernel/Makefile
 		 net/test/test-user.sh
+		 net/test/user_space/Makefile
 		 net/test/ut/Makefile
                  net/usunrpc/Makefile
 		 net/ut/Makefile
