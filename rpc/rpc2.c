@@ -20,33 +20,22 @@
  * Original creation date: 04/28/2011
  */
 
-
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
-#include "cob/cob.h"
-#include "rpc/rpc2.h"
-#include "rpc/rpcdbg.h"
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/misc.h"
 #include "lib/types.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
-#include "rpc/session.h"
-#include "rpc/session_internal.h"
+
+#include "rpc/rpc2.h"
 #include "rpc/service.h"    /* c2_rpc_services_tlist_.* */
-#include "fop/fop.h"
-#include "rpc/formation.h"
-#include "fid/fid.h"
-#include "reqh/reqh.h"
-#include "rpc/rpc_onwire.h"
-#include "fop/fop_item_type.h"
-#include "lib/arith.h"
-#include "lib/vec.h"
-#include "lib/finject.h"
-#include "rpc/formation2.h"
+#include "reqh/reqh.h"      /* c2_rpc_machine_bob.* :-( */
+#include "rpc/rpc_onwire.h" /* c2_rpc_decode */
+#include "lib/finject.h"    /* C2_FI_ENABLED */
 
 /* Forward declarations. */
 static void rpc_net_buf_received(const struct c2_net_buffer_event *ev);
@@ -900,7 +889,7 @@ void item_exit_stats_set(struct c2_rpc_item *item,
 	st->rs_max_lat = max64u(st->rs_max_lat, item->ri_rpc_time);
 
         st->rs_items_nr++;
-        st->rs_bytes_nr += c2_fop_item_type_default_onwire_size(item);
+        st->rs_bytes_nr += c2_rpc_item_size(item);
 }
 
 size_t c2_rpc_bytes_per_sec(struct c2_rpc_machine *machine,

@@ -14,6 +14,7 @@ libcolibri_rpc_la_SOURCES  = session_u.h session_u.c session.c session.h \
 				session_fops.c session_fops.h \
 				session_foms.c session_foms.h \
 				rpc2.c rpc2.h item.h item.c rpcdbg.h \
+				rpc_machine.h \
 				packet.c packet.h \
 				bulk.h bulk.c \
 				formation.h formation.c \
