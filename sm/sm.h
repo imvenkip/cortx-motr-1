@@ -241,7 +241,6 @@ struct c2_sm {
 	   @invariant mach->sm_state < mach->sm_conf->scf_nr_states
 	 */
 	uint32_t                 sm_state;
-	
 	/**
 	   State machine configuration.
 
@@ -318,7 +317,6 @@ struct c2_sm_state_descr {
 	   If this field is NULL, no invariant checks are done.
 	 */
 	bool      (*sd_invariant)(const struct c2_sm *mach);
-	
 	/**
 	   A bitmap of states to which transitions from this state are allowed.
 

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
+ *		    Madhavrao Vemuri <madhav_vemuri@xyratex.com>
  * Original creation date: 07/19/2010
  */
 
@@ -36,10 +37,9 @@
 #include "sm/sm.h"
 
 #ifdef __KERNEL__
-#include "reqh_fops_k.h"
+#include "fom_generic_fops_k.h"
 #else
-
-#include "reqh_fops_u.h"
+#include "fom_generic_fops_u.h"
 #endif
 
 #include "reqh/reqh.h"
@@ -218,7 +218,7 @@ static void sm_fom_auth_wait(struct c2_sm *mach)
  */
 static int create_loc_ctx(struct c2_fom *fom)
 {
-	int		rc;
+	int rc;
 	struct c2_reqh *reqh;
 
 	reqh = fom->fo_loc->fl_dom->fd_reqh;

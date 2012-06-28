@@ -4,10 +4,17 @@ noinst_LTLIBRARIES            = libcolibri-fop.la
 fop_HEADERS                   = fop.h fop_base.h fom.h fop_format.h fop_iterator.h \
                                 fop_user.h fop_format_def.h fop_item_type.h
 
+fom_generic_fops_u.h fom_generic_fops_u.c : fom_generic_fops.ff \
+                        $(top_builddir)/fop/rt/libc2rt.la \
+                        $(top_builddir)/fop/fop2c
+			$(top_builddir)/fop/fop2c -ku $<
+
 fop_SOURCES                   = fop.c fop.h fom.c fom.h fop_format.c \
 				fop_format.h fop_item_type.c fop_item_type.h \
 				fop_user.h fop_format_def.h fop_format_c.c \
-                                fop_iterator.h fop_iterator.c fop_base.c fop_base.h
+                                fop_iterator.h fop_iterator.c fop_base.c fop_base.h \
+				fom_generic_fops_u.c fom_generic_fops_u.h \
+			        fom_generic_fops.ff fom_generic_fops.c fom_generic.c 
 
 libcolibri_fop_la_SOURCES     = $(fop_SOURCES)
 

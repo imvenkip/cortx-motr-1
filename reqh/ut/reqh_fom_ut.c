@@ -57,12 +57,12 @@
 #include "reqh/reqh_fops_k.h"
 #include "io_fop_k.h"
 #else
-#include "reqh/reqh_fops_u.h"
+#include "fop/fom_generic_fops_u.h"
 #include "io_fop_u.h"
 #endif
 
 #include "io_fop.h"
-#include "reqh/reqh_fops.ff"
+#include "fop/fom_generic_fops.ff"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpclib.h"
 #include "ut/rpc.h"

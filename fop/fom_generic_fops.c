@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
+ *		    Madhavrao Vemuri <madhav_vemuri@xyratex.com>
  * Original creation date: 06/21/2011
  */
 
@@ -27,13 +28,12 @@
 #include "fop/fop_format_def.h"
 
 #ifdef __KERNEL__
-#include "reqh_fops_k.h"
+#include "fom_generic_fops_k.h"
 #else
-
-#include "reqh_fops_u.h"
+#include "fom_generic_fops_u.h"
 #endif
 
-#include "reqh_fops.ff"
+#include "fop/fom_generic_fops.ff"
 #include "rpc/rpc_base.h"
 #include "rpc/rpc_opcodes.h"
 #include "xcode/bufvec_xcode.h"
