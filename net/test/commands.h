@@ -24,6 +24,7 @@
 #include "lib/errno.h"			/* E2BIG */
 #include "lib/semaphore.h"		/* c2_semaphore */
 
+#include "net/test/slist.h"		/* c2_net_test_slist */
 #include "net/test/network.h"		/* c2_net_test_network_ctx */
 #include "net/test/node_config.h"	/* c2_net_test_role */
 
@@ -47,26 +48,6 @@ enum {
 	   from endpoints list.
 	 */
 	C2_NET_TEST_CMD_NOT_RECEIVED = -E2BIG,
-};
-
-/**
-   String list.
- */
-struct c2_net_test_slist {
-	/**
-	   Number of strings in the list. If it is 0, other fields are
-	   not valid.
-	 */
-	int    ntsl_nr;
-	/**
-	   Array of pointers to strings.
-	 */
-	char **ntsl_list;
-	/**
-	   Single array with '\0'-separated strings (one after another).
-	   ntsl_list contains the pointers to a strings in this array.
-	 */
-	char  *ntsl_str;
 };
 
 /**
@@ -219,22 +200,6 @@ void c2_net_test_commands_reset(struct c2_net_test_cmd_ctx *ctx);
  */
 struct c2_net_test_cmd *
 c2_net_test_command(struct c2_net_test_cmd_ctx *ctx, uint32_t index);
-
-/**
-   Initialize string list from a string and a delimiter.
-   @todo document it.
- */
-int c2_net_test_slist_init(struct c2_net_test_slist *slist,
-			   char *str,
-			   char delim);
-void c2_net_test_slist_fini(struct c2_net_test_slist *slist);
-/**
-   Is every string in list unique in this list.
-   Time complexity - O(N^2), N - number of strings in the list.
-   @return all strings in list are different.
-	   Two strings are equal if strcmp() returns 0.
- */
-bool c2_net_test_slist_unique(struct c2_net_test_slist *slist);
 
 /**
    @} end NetTestCommandsDFS

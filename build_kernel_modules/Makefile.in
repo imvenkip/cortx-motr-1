@@ -134,11 +134,14 @@ net_ksunrpc_SOURCES             := domain.c client.c kxdr.c
 net_lnet_ut_SOURCES             := lnet_ut.c
 
 net_test_SOURCES		:= client.c commands.c network.c node_config.c \
-				   node_main.c server.c stats.c
+				   node_main.c ntxcode.c server.c slist.c      \
+				   stats.c
 net_test_HEADERS		:= client.h commands.h network.h node_config.h \
-				   node_main.h server.h stats.h
+				   node_main.h ntxcode.h server.h slist.h      \
+				   stats.h
 
-net_test_ut_SOURCES		:= commands.c main.c network.c
+net_test_ut_SOURCES		:= client_server.c commands.c main.c network.c \
+				   ntxcode.c slist.c
 
 net_ut_SOURCES                  := bulk_if.c buffer_pool_ut.c
 
