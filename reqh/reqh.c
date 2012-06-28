@@ -94,8 +94,8 @@ struct c2_addb_ctx c2_reqh_addb_ctx;
 #define REQH_ADDB_ADD(addb_ctx, name, rc)  \
 C2_ADDB_ADD(&(addb_ctx), &c2_reqh_addb_loc, c2_addb_func_fail, (name), (rc))
 
-extern int c2_reqh_fop_init(void);
-extern void c2_reqh_fop_fini(void);
+extern int c2_fom_generic_fop_init(void);
+extern void c2_fom_generic_fop_fini(void);
 
 bool c2_reqh_invariant(const struct c2_reqh *reqh)
 {
@@ -148,7 +148,7 @@ void c2_reqhs_fini(void)
 {
 	c2_addb_ctx_fini(&c2_reqh_addb_ctx);
 	c2_reqh_service_types_fini();
-	c2_reqh_fop_fini();
+	c2_fom_generic_fop_fini();
 }
 
 int c2_reqhs_init(void)
@@ -156,7 +156,7 @@ int c2_reqhs_init(void)
 	c2_addb_ctx_init(&c2_reqh_addb_ctx, &c2_reqh_addb_ctx_type,
 					&c2_addb_global_ctx);
 	c2_reqh_service_types_init();
-	return c2_reqh_fop_init();
+	return c2_fom_generic_fop_init();
 }
 
 static void queueit(struct c2_sm_group *grp, struct c2_sm_ast *ast)

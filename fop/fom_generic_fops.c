@@ -44,30 +44,31 @@
    @{
  */
 
-static struct c2_fop_type_ops reqh_err_fop_ops = {
+static struct c2_fop_type_ops fom_generic_err_fop_ops = {
 	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_execute = NULL,
 };
 
+C2_FOP_TYPE_DECLARE(c2_fom_generic_error_rep, "FOM error reply",
+		    &fom_generic_err_fop_ops, C2_FOM_GENERIC_ERROR_REPLY_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY);
 
-C2_FOP_TYPE_DECLARE(c2_reqh_error_rep, "reqh error reply", &reqh_err_fop_ops,
-		    C2_REQH_ERROR_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
-
-static struct c2_fop_type *reqh_fops[] = {
-	&c2_reqh_error_rep_fopt,
+static struct c2_fop_type *fom_generic_fops[] = {
+	&c2_fom_generic_error_rep_fopt,
 };
 
-void c2_reqh_fop_fini(void)
+void c2_fom_generic_fop_fini(void)
 {
-	c2_fop_type_fini_nr(reqh_fops, ARRAY_SIZE(reqh_fops));
+	c2_fop_type_fini_nr(fom_generic_fops, ARRAY_SIZE(fom_generic_fops));
 }
 
-int c2_reqh_fop_init(void)
+int c2_fom_generic_fop_init(void)
 {
 	int result;
-	result = c2_fop_type_build_nr(reqh_fops, ARRAY_SIZE(reqh_fops));
+	result = c2_fop_type_build_nr(fom_generic_fops,
+				      ARRAY_SIZE(fom_generic_fops));
 	if (result != 0)
-		c2_reqh_fop_fini();
+		c2_fom_generic_fop_fini();
 	return result;
 }
 

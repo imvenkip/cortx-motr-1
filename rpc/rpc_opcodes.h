@@ -62,10 +62,8 @@ enum C2_RPC_OPCODES {
 	/** Fop iterator rpc opcodes */
 	C2_FOP_ITERATOR_TEST_OPCODE = 17,
 
-
-	/** Request handler rpc opcodes */
-	C2_REQH_ERROR_REPLY_OPCODE  = 18,
-
+	/**FOM generic rpc opcodes */
+	C2_FOM_GENERIC_ERROR_REPLY_OPCODE = 18,
 
 	/** Stob IO rpc opcodes */
 	C2_STOB_IO_CREATE_REQ_OPCODE = 19,

@@ -24,12 +24,12 @@
  */
 
 /**
- * @file reqh_fops.ff
+ * @file fom_generic_fops.ff
  *
- * <b>Reqh generic error reply</b>
+ * <b>FOM generic error reply</b>
  */
 
-DEF(c2_reqh_error_rep, RECORD,
+DEF(c2_fom_generic_error_rep, RECORD,
 	_(rerr_rc, U32));
 
 /** @} end of reqh group */

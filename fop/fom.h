@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -98,15 +98,15 @@ struct c2_fom_ops;
  * in c2_fom_locality::fl_lo_idle_threads_nr. When
  * c2_fom_block_leave() is called to mark completion of a blocking
  * point, two things should happen:
- * 
+ *
  *    - one of additional threads should be terminated,
- * 
+ *
  *    - locality lock released by c2_fom_block_enter() should be
  *      re-acquired.
- * 
+ *
  * To decrease the number of threads,
- * c2_fom_locality::fl_lo_idle_threads_nr is decremented. 
- * 
+ * c2_fom_locality::fl_lo_idle_threads_nr is decremented.
+ *
  * The counter is checked by each locality thread on each iteration of
  * main handler loop (in loc_handler_thread()). If a thread finds
  * that there are too many threads in the locality, it releases the
@@ -115,7 +115,7 @@ struct c2_fom_ops;
  * otherwise c2_fom_block_leave() might have to wait until
  * concurrent thread exhausts the FOM queue and releases the
  * locality lock.
- * 
+ *
  * Once the locality is initialised, the locality invariant,
  * should hold true until locality is finalised.
  *

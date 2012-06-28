@@ -59,9 +59,9 @@ extern struct c2_addb_ctx c2_reqh_addb_ctx;
 C2_ADDB_ADD(&(addb_ctx), &c2_reqh_addb_loc, c2_addb_func_fail, (name), (rc))
 
 /**
- * Reqh generic error fop type.
+ * FOM generic error fop type.
  */
-extern struct c2_fop_type c2_reqh_error_rep_fopt;
+extern struct c2_fop_type c2_fom_generic_error_rep_fopt;
 
 /**
  * Begins fom execution, transitions fom to its first
@@ -251,17 +251,17 @@ static void sm_create_loc_ctx_wait(struct c2_sm *mach)
 }
 
 /**
- * Allocates generic reqh error reply fop and sets the same
+ * Allocates generic error reply fop and sets the same
  * into fom->fo_rep_fop.
  */
 static int set_gen_err_reply(struct c2_fom *fom)
 {
 	struct c2_fop			*rfop;
-	struct c2_reqh_error_rep	*out_fop;
+	struct c2_fom_generic_error_rep	*out_fop;
 
 	C2_PRE(fom != NULL);
 
-	rfop = c2_fop_alloc(&c2_reqh_error_rep_fopt, NULL);
+	rfop = c2_fop_alloc(&c2_fom_generic_error_rep_fopt, NULL);
 	if (rfop == NULL)
 		return -ENOMEM;
 	out_fop = c2_fop_data(rfop);
