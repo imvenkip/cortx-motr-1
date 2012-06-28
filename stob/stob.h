@@ -776,7 +776,7 @@ void *c2_stob_addr_open(const void *buf, uint32_t shift);
  *
  * @param stob storage object from which index vecs needs to sort.
  */
-void c2_stob_iovec_sort_ascend(struct c2_stob_io *stob);
+void c2_stob_iovec_sort(struct c2_stob_io *stob);
 
 /** @} end member group adieu */
 

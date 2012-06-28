@@ -287,6 +287,43 @@ static void ub_read(int i)
 	test_read(NR - 1);
 }
 
+static void ub_iovec_init()
+{
+	int  i;
+	bool swapped;
+
+	/* Reverse sort index vecs. */
+	do {
+		swapped = false;
+		for (i = 0; i < NR - 1; i++) {
+			if (stob_vec[i] < stob_vec[i + 1]) {
+				c2_bindex_t tmp = stob_vec[i];
+				stob_vec[i]     = stob_vec[i + 1];
+				stob_vec[i + 1]   = tmp;
+				swapped         = true;
+			}
+		}
+	} while(swapped);
+
+	c2_stob_io_init(&io);
+
+	io.si_opcode              = SIO_WRITE;
+	io.si_flags               = 0;
+
+	io.si_user.ov_vec.v_nr    = NR;
+	io.si_user.ov_vec.v_count = user_vec;
+	io.si_user.ov_buf         = (void **)user_bufs;
+
+	io.si_stob.iv_vec.v_nr    = NR;
+	io.si_stob.iv_vec.v_count = user_vec;
+	io.si_stob.iv_index       = stob_vec;
+}
+
+static void ub_iovec_sort()
+{
+	c2_stob_iovec_sort(&io);
+}
+
 struct c2_ub_set c2_adieu_ub = {
 	.us_name = "adieu-ub",
 	.us_init = (void *)test_adieu_init,
@@ -303,6 +340,11 @@ struct c2_ub_set c2_adieu_ub = {
 		{ .ut_name = "read",
 		  .ut_iter = UB_ITER,
 		  .ut_round = ub_read },
+
+		{ .ut_name = "iovec-sort",
+		  .ut_iter = UB_ITER,
+		  .ut_init = ub_iovec_init,
+		  .ut_round = ub_iovec_sort },
 
 		{ .ut_name = NULL }
 	}

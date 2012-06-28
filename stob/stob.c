@@ -315,47 +315,48 @@ int c2_stob_create_helper(struct c2_stob_domain    *dom,
 	return rc;
 }
 
-void c2_stob_iovec_sort_ascend(struct c2_stob_io *stob)
+void c2_stob_iovec_sort(struct c2_stob_io *stob)
 {
 	struct c2_indexvec *ivec = &stob->si_stob;
 	struct c2_bufvec   *bvec = &stob->si_user;
 	int		    i;
 	bool		    exchanged;
+	bool		    different_count = true;
+
+#define SWAP_NEXT(arr, idx)			\
+({						\
+	int               _idx = (idx);		\
+	typeof(&arr[idx]) _arr = (arr);		\
+	typeof(arr[idx])  _tmp;			\
+						\
+	_tmp           = _arr[_idx];		\
+	_arr[_idx]     = _arr[_idx + 1];	\
+	_arr[_idx + 1] = _tmp;			\
+})
+
+	if (ivec->iv_vec.v_count != bvec->ov_vec.v_count)
+		different_count = true;
 
 	/*
-	 * Bubble stort the index vectores.
+	 * Bubble sort the index vectores.
 	 * It also move bufvecs while sorting.
 	 */
 	do {
 		exchanged = false;
-		for(i = 0; i < ivec->iv_vec.v_nr-1; i++) {
-			if(ivec->iv_index[i] > ivec->iv_index[i+1]) {
-				c2_bindex_t  tmpindex;
-				c2_bcount_t  tmpcount;
-				void        *tmpbuf;
+		for (i = 0; i < ivec->iv_vec.v_nr - 1; i++) {
+			if (ivec->iv_index[i] > ivec->iv_index[i + 1]) {
 
-				tmpindex            = ivec->iv_index[i];
-				ivec->iv_index[i]   = ivec->iv_index[i+1];
-				ivec->iv_index[i+1] = tmpindex;
-
-				tmpcount = ivec->iv_vec.v_count[i];
-				ivec->iv_vec.v_count[i] =
-				ivec->iv_vec.v_count[i+1];
-				ivec->iv_vec.v_count[i+1] = tmpcount;
-
-				tmpbuf            = bvec->ov_buf[i];
-				bvec->ov_buf[i]   = bvec->ov_buf[i+1];
-				bvec->ov_buf[i+1] = tmpbuf;
-
-				tmpcount = bvec->ov_vec.v_count[i];
-				bvec->ov_vec.v_count[i] =
-				bvec->ov_vec.v_count[i+1];
-				bvec->ov_vec.v_count[i+1] = tmpcount;
-
+				SWAP_NEXT(ivec->iv_index, i);
+				SWAP_NEXT(ivec->iv_vec.v_count, i);
+				SWAP_NEXT(bvec->ov_buf, i);
+				if (different_count)
+					SWAP_NEXT(bvec->ov_vec.v_count, i);
 				exchanged = true;
 			}
 		}
 	} while (exchanged);
+
+#undef SWAP_NEXT
 }
 
 /** @} end group stob */
