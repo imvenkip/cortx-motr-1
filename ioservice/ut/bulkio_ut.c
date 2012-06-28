@@ -603,7 +603,8 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                 io_fom_cob_rw_fid_wire2mem(ffid, &fid);
                 io_fom_cob_rw_fid2stob_map(&fid, &stobid);
 		reqh = fom->fo_loc->fl_dom->fd_reqh;
-                fom_stdom = c2_cs_storage_domain_find(reqh, &stobid);
+                fom_stdom = c2_cs_stob_domain_find(reqh, &stobid);
+		C2_UT_ASSERT(fom_stdom != NULL);
 
                 rc = c2_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
                 C2_UT_ASSERT(rc == 0);
@@ -898,7 +899,8 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                 io_fom_cob_rw_fid_wire2mem(ffid, &fid);
                 io_fom_cob_rw_fid2stob_map(&fid, &stobid);
 		reqh = fom->fo_loc->fl_dom->fd_reqh;
-                fom_stdom = c2_cs_storage_domain_find(reqh, &stobid);
+                fom_stdom = c2_cs_stob_domain_find(reqh, &stobid);
+		C2_UT_ASSERT(fom_stdom != NULL);
 
                 rc = c2_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
                 C2_UT_ASSERT(rc == 0);
@@ -1061,7 +1063,8 @@ static int bulkio_stob_create_fom_state(struct c2_fom *fom)
         io_fom_cob_rw_fid_wire2mem(ffid, &fid);
         io_fom_cob_rw_fid2stob_map(&fid, &stobid);
 	reqh = fom->fo_loc->fl_dom->fd_reqh;
-        fom_stdom = c2_cs_storage_domain_find(reqh, &stobid);
+        fom_stdom = c2_cs_stob_domain_find(reqh, &stobid);
+	C2_UT_ASSERT(fom_stdom != NULL);
 
 	c2_dtx_init(&fom->fo_tx);
 	rc = fom_stdom->sd_ops->sdo_tx_make(fom_stdom, &fom->fo_tx);

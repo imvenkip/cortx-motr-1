@@ -250,6 +250,7 @@ enum {
 /**
    Allocates struct c2_balloc instance and initialises struct ad_balloc_ops
    vector. One balloc instance is allocated and initialised per storage domain.
+   @note The allocated struct c2_balloc instance is freed balloc_fini().
 
    @see struct ad_balloc_ops
    @pre out != NULL

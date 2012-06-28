@@ -250,7 +250,7 @@ static int cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	C2_PRE(cc != NULL);
 
 	reqh = fom->fo_loc->fl_dom->fd_reqh;
-	sdom = c2_cs_storage_domain_find(reqh, &cc->fco_stobid);
+	sdom = c2_cs_stob_domain_find(reqh, &cc->fco_stobid);
 	if (sdom == NULL) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail,
@@ -469,7 +469,15 @@ static int cd_stob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 	C2_PRE(cd != NULL);
 
 	reqh = fom->fo_loc->fl_dom->fd_reqh;
-	sdom = c2_cs_storage_domain_find(reqh, &cd->fco_stobid);
+	sdom = c2_cs_stob_domain_find(reqh, &cd->fco_stobid);
+	if (sdom == NULL) {
+		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+			    cc_fom_func_fail,
+			    "Stob deletion failed",
+			    -EINVAL);
+		return -EINVAL;
+	}
+		return -EINVAL;
 	rc = c2_stob_find(sdom, &cd->fco_stobid, &stob);
 	if (rc != 0) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
