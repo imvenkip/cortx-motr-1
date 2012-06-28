@@ -538,13 +538,13 @@ int c2_stob_create_helper(struct c2_stob_domain    *dom,
    RDMA. To this end, IO operation must be completely set up and ready for
    queueing before RMDA starts, i.e., before data pages are available.
 
-   @todo implement barriers
-
    @{
  */
 
 /**
    Type of a storage object IO operation.
+
+   @todo implement barriers.
  */
 enum c2_stob_io_opcode {
 	SIO_INVALID,
