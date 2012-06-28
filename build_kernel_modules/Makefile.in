@@ -131,7 +131,7 @@ rpc_SOURCES                     := formation.c rpc2.c service.c    \
                                    session_utils.c session_fops.c             \
                                    rpc_onwire.c session_k.c rpclib.c          \
                                    formation2.c frmops.c packet.c item.c      \
-                                   bulk.c
+                                   bulk.c rpc_machine.c
 
 rpc_HEADERS                     := session_k.h
 
