@@ -321,7 +321,7 @@ void c2_stob_iovec_sort(struct c2_stob_io *stob)
 	struct c2_bufvec   *bvec = &stob->si_user;
 	int		    i;
 	bool		    exchanged;
-	bool		    different_count = true;
+	bool		    different_count;
 
 #define SWAP_NEXT(arr, idx)			\
 ({						\
@@ -334,8 +334,7 @@ void c2_stob_iovec_sort(struct c2_stob_io *stob)
 	_arr[_idx + 1] = _tmp;			\
 })
 
-	if (ivec->iv_vec.v_count != bvec->ov_vec.v_count)
-		different_count = true;
+	different_count = ivec->iv_vec.v_count != bvec->ov_vec.v_count;
 
 	/*
 	 * Bubble sort the index vectores.
