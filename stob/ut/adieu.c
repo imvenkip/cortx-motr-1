@@ -45,7 +45,7 @@
 
 enum {
 	NR    = 3,
-	NR_SORT = 16,
+	NR_SORT = 256,
 	MIN_BUF_SIZE = 4096,
 	MIN_BUF_SIZE_IN_BLOCKS = 4,
 };
@@ -275,7 +275,8 @@ const struct c2_test_suite adieu_ut = {
 };
 
 enum {
-	UB_ITER = 100
+	UB_ITER = 100,
+	UB_ITER_SORT = 100000
 };
 
 static void ub_write(int i)
@@ -363,12 +364,12 @@ struct c2_ub_set c2_adieu_ub = {
 		  .ut_round = ub_read },
 
 		{ .ut_name = "iovec-sort",
-		  .ut_iter = UB_ITER,
+		  .ut_iter = UB_ITER_SORT,
 		  .ut_init = ub_iovec_init,
 		  .ut_round = ub_iovec_sort },
 
 		{ .ut_name = "iovec-sort-invert",
-		  .ut_iter = UB_ITER,
+		  .ut_iter = UB_ITER_SORT,
 		  .ut_init = ub_iovec_init,
 		  .ut_round = ub_iovec_sort_invert },
 
