@@ -81,10 +81,10 @@ C2_ADDB_EV_DEFINE(reqh_init_fail, "reqh_int_failure",
  */
 static int cdom_id;
 
-C2_TL_DESCR_DEFINE(cs_buffer_pools, "buffer pools in the colibri context", ,
-		   struct cs_buffer_pool, cs_bp_linkage, cs_bp_magic,
+C2_TL_DESCR_DEFINE(cs_buffer_pools, "buffer pools in the colibri context",
+		   static, struct cs_buffer_pool, cs_bp_linkage, cs_bp_magic,
 		   CS_BUFFER_POOL_MAGIC, CS_BUFFER_POOL_HEAD);
-C2_TL_DEFINE(cs_buffer_pools, , struct cs_buffer_pool);
+C2_TL_DEFINE(cs_buffer_pools, static, struct cs_buffer_pool);
 
 C2_TL_DESCR_DEFINE(cs_eps, "cs endpoints", static, struct cs_endpoint_and_xprt,
 		   ex_linkage, ex_magix, CS_ENDPOINT_MAGIX,
@@ -714,8 +714,8 @@ static int cs_stob_file_load(const char *dfile, struct cs_stobs *stob,
 {
         int               rc;
         FILE             *f;
-	yaml_parser_t    parser;
-	yaml_document_t *document;
+	yaml_parser_t     parser;
+	yaml_document_t  *document;
 
         f = fopen(dfile, "r");
         if (f == NULL)
@@ -750,7 +750,6 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	struct cs_ad_stob  *adstob;
 	struct c2_dtx      *tx;
 
-
 	C2_ALLOC_PTR_ADDB(adstob, addb, &cs_addb_loc);
 	if (adstob == NULL)
 		return -ENOMEM;
@@ -765,10 +764,14 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 		if (f_path != NULL)
 			rc = c2_linux_stob_link(stob->s_ldom, *bstob, f_path,
 						tx);
-		if (rc == 0 || errno == EEXIST)
+		if (rc == 0 || rc == -EEXIST)
 			rc = c2_stob_create_helper(stob->s_ldom, tx, bstob_id,
 						   bstob);
 	}
+
+	if (rc == 0 && C2_FI_ENABLED("ad_domain_locate_fail"))
+		rc = -EINVAL;
+
 	if (rc == 0) {
 		sprintf(ad_dname, "%lx%lx", bstob_id->si_bits.u_hi,
 			bstob_id->si_bits.u_lo);
@@ -777,27 +780,31 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	}
 
 	/**
-	 *  Incase of failure the allocated adstob should be freed.
-	 *  If failure occurs after c2_stob_find(), which allocates the given
-	 *  struct c2_stob and links to the stob->s_ldom (linux stob domain),
-	 *  the adstob is freed, but the allocated adstob->as_stob_back linked
-	 *  to linux stob domain (stob->s_ldom) will be freed in
-	 *  cs_linux_stob_fini() by call to stob->s_ldom->sd_ops->sdo_fini().
+	 *  In case of failure the allocated adstob should be freed.
+	 *  Note that, if failure occurs after c2_stob_find(), the given
+	 *  struct c2_stob instance is already created and linked to the
+	 *  corresponding linux stob domain stob->s_ldom (linux stob domain).
+	 *  Thus even though the adstob is freed, already created
+	 *  adstob->as_stob_back linked to linux stob domain (stob->s_ldom)
+	 *  will be destroyed during cs_linux_stob_fini() by call to
+	 *  stob->s_ldom->sd_ops->sdo_fini().
 	 */
 	if (rc != 0)
 		c2_free(adstob);
 
 	/**
-	 *  Beyond this point he adstob in added to cs_stobs::s_adoms list
-	 *  as c2_stob_domain_locate() for the same was successfull.
-	 *  Thus the cleanup for further failures will be done by
-	 *  cs_ad_stob_fini().
+	 * As c2_stob_domain_locate() for cs_ad_stob::as_dom was successfull,
+	 * adstob is added to the cs_stobs::s_adoms list. Thus the cleanup
+	 * for the cs_ad_stob::as_dom in case of failures beyond this point
+	 * will be handled by cs_ad_stob_fini().
 	 */
-	cs_ad_stob_bob_init(adstob);
-	astob_tlink_init_at_tail(adstob, &stob->s_adoms);
+	if (rc == 0) {
+		cs_ad_stob_bob_init(adstob);
+		astob_tlink_init_at_tail(adstob, &stob->s_adoms);
+	}
 
 	if (rc == 0)
-		rc = c2_balloc_locate(&cb);
+		rc = c2_balloc_allocate(&cb);
 	if (rc == 0)
 		rc = c2_ad_stob_setup(adstob->as_dom, db,
 				      *bstob, &cb->cb_ballroom,
@@ -805,6 +812,10 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 				      BALLOC_DEF_BLOCK_SHIFT,
 				      BALLOC_DEF_BLOCKS_PER_GROUP,
 				      BALLOC_DEF_RESERVED_GROUPS);
+
+	if (rc == 0 && C2_FI_ENABLED("ad_stob_setup_fail"))
+		rc = -EINVAL;
+
 	return rc;
 }
 
@@ -824,12 +835,10 @@ static int cs_ad_stob_init(struct cs_stobs *stob, struct c2_dbenv *db,
         C2_PRE(stob != NULL);
 
 	if (stob->s_sfile.sf_is_initialised) {
-		f_path = NULL;
-		cid = 0;
 		doc = &stob->s_sfile.sf_document;
-		for (node = doc->nodes.start; node < doc->nodes.top; node++) {
+		for (node = doc->nodes.start; node < doc->nodes.top; ++node) {
 			for (pair = node->data.mapping.pairs.start;
-			     pair < node->data.mapping.pairs.top; pair++) {
+			     pair < node->data.mapping.pairs.top; ++pair) {
 				cid = stob_file_id_get(doc, pair);
 				f_path = stob_file_path_get(doc, pair);
 				rc = cs_ad_stob_create(stob, cid, db,
@@ -839,9 +848,10 @@ static int cs_ad_stob_init(struct cs_stobs *stob, struct c2_dbenv *db,
 			}
 		}
 	} else
-		rc = cs_ad_stob_create(stob, cid, db, f_path, addb);
+		rc = cs_ad_stob_create(stob, AD_BACK_STOB_ID_DEFAULT, db, NULL,
+				       addb);
 
-       return rc;
+	return rc;
 }
 
 /**
@@ -1216,8 +1226,8 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 	}
 
 	if (rc == 0)
-		rc = cs_storage_init(rctx->rc_stype, rctx->rc_stpath, &rctx->rc_stob,
-					&rctx->rc_db, addb);
+		rc = cs_storage_init(rctx->rc_stype, rctx->rc_stpath,
+				     &rctx->rc_stob, &rctx->rc_db, addb);
 	if (rc != 0) {
 		C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
 			    "cs_storage_init", rc);
@@ -1487,14 +1497,14 @@ static void cs_help(FILE *out)
 		   "-d Device configuration file path.\n"
 		   "   This is an optional parameter specified once per "
 		   "request handler.\n"
-		   "   Currently the device configuration file should "
-		   "contain device id\n   (a serial number starting from 0) "
-		   "and corresponding device path. e.g. dev-id : dev-path\n"
+		   "   The device configuration file should contain device "
+		   "device id\n   (a serial number starting from 0) and "
+		   "corresponding device path. e.g. dev-id : dev-path\n"
 		   "   Note: This is a temporary implementation in-order to "
 		   "configure a device\n   as a stob. Only AD type stob domain "
-		   "can be configured over a device currently. \n"
-		   "   The device configuration file is currently expected to "
-		   "be in yaml format. e.g. 1 : /dev/sda \n"
+		   "can be configured over a device. \n"
+		   "   The device configuration file is expected to be "
+		   "in yaml format. e.g. 1 : /dev/sda \n"
 		   "-e Network layer endpoint to which clients connect. "
 		   "Network layer endpoint\n   consists of 2 parts "
 		   "network transport:endpoint address.\n"

@@ -62,7 +62,8 @@ struct c2_ad_balloc {
 
 struct c2_ad_balloc_ops {
 	/** Initializes this balloc instance, creating its persistent state, if
-	    necessary.
+	    necessary. This also destroys allocated struct c2_balloc instance
+	    on failure.
 
 	    @param block size shift in bytes, similarly to
 	    c2_stob_op::sop_block_shift().
@@ -73,6 +74,7 @@ struct c2_ad_balloc_ops {
 	int  (*bo_init)(struct c2_ad_balloc *ballroom, struct c2_dbenv *db,
 			uint32_t bshift, c2_bcount_t container_size,
 			c2_bcount_t blocks_per_group, c2_bcount_t res_groups);
+	/** Finalises and destroys struct c2_balloc instance. */
 	void (*bo_fini)(struct c2_ad_balloc *ballroom);
 	/** Allocates count of blocks. On success, allocated extent, also
 	    measured in blocks, is returned in out parameter. */

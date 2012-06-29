@@ -99,7 +99,7 @@ int test_balloc_ut_ops()
 	result = c2_dbenv_init(&db, db_name, 0);
 	C2_UT_ASSERT(result == 0);
 
-	result = c2_balloc_locate(&colibri_balloc);
+	result = c2_balloc_allocate(&colibri_balloc);
 	C2_UT_ASSERT(result == 0);
 
 	result = colibri_balloc->cb_ballroom.ab_ops->bo_init

@@ -114,10 +114,6 @@
    @{
  */
 
-enum {
-	C2_MAX_FILE_PATH_LEN = 128
-};
-
 /**
    Defines a colibri context containing a set of network transports,
    network domains and request handler contexts.

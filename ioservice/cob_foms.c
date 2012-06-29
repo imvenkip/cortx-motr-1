@@ -477,7 +477,6 @@ static int cd_stob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 			    -EINVAL);
 		return -EINVAL;
 	}
-		return -EINVAL;
 	rc = c2_stob_find(sdom, &cd->fco_stobid, &stob);
 	if (rc != 0) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,

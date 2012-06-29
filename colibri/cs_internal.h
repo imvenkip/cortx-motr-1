@@ -55,6 +55,7 @@ enum {
 
 enum {
 	CS_MAX_EP_ADDR_LEN = 86, /* "lnet:" + C2_NET_LNET_XEP_ADDR_LEN */
+	AD_BACK_STOB_ID_DEFAULT = 0x0
 };
 C2_BASSERT(CS_MAX_EP_ADDR_LEN >= C2_NET_LNET_XEP_ADDR_LEN);
 
@@ -236,8 +237,6 @@ struct cs_buffer_pool {
         /** Magic */
         uint64_t                     cs_bp_magic;
 };
-
-C2_TL_DECLARE(cs_buffer_pools, extern, struct cs_buffer_pool);
 
 /** @} endgroup colibri_setup */
 
