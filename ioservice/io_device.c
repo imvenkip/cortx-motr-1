@@ -24,12 +24,10 @@
    - @ref io_calls_params_dld-def
    - @ref io_calls_params_dld-req
    - @ref io_calls_params_dld-depends
+   - @subpage io_calls_params_dld-fspec
    - @ref io_calls_params_dld-lspec
       - @ref io_calls_params_dld-lspec-comps
       - @ref io_calls_params_dld-lspec-ds
-      - @ref io_calls_params_dld-lspec-state
-      - @ref io_calls_params_dld-lspec-thread
-      - @ref io_calls_params_dld-lspec-numa
    - @ref io_calls_params_dld-conformance
    - @ref io_calls_params_dld-ut
    - @ref io_calls_params_dld-st
@@ -38,37 +36,79 @@
 
    <hr>
    @section io_calls_params_dld-ovw Overview
-   Normal I/O requests from clients are handled by I/O services, and replies are
-   sent back to clients. The replies contain the results of I/O operations. For
-   a read request, the reply contains the result data and its length, or error
-   code. For a write request, the reply contains the written data length, or
-   error code.
+   Read or write of a file stored according to a parity de-clustered layout
+   involves operations on component objects stored on a potentially large
+   number of devices attached to multiple network nodes (together comprising a
+   storage pool). Devices and nodes can be unavailable for various reasons,
+   including:
+     - hardware failure,
+     - network partitioning,
+     - administrative decision,
+     - software failure.
 
-   If a device is damaged, i/o requests on that device should be handled in a
-   special way:
-   - reply an error code. When client gets the reply, it may read from parity
-     and other data units to re-construct the data.
-   - reply a new location. If the data has been re-covered by SNS repair to
-     its spare space, this new location is replied. Client will contact with
-     that device.
+   To maintain desired levels of availability, IO must continue when some
+   elements (devices or nodes) are unavailable. Parity de-clustering layout
+   provides necessary redundancy to tolerate failures. This module provides
+   data-structures and interfaces to report changes in pool availability
+   characteristics to clients. Clients use this information to guide transitions
+   between various IO regimes:
+     - normal, when all devices and nodes in the pool are available,
+     - degraded, when a client uses redundancy ("parity") to continue IO in the
+       face of unavailability,
+     - non-blocking availability (NBA), when a client redirects write operations
+       to a different pool.
+   The decision to switch to either degraded or NBA regime is made by a policy
+   outside of this module.
 
-   I/O calls parameters handle the latter case.
+   The key data-structure describing availability characteristics of a pool is
+   its "failure vector", which is a collection of devices and nodes states,
+   the states transitions history. Failure vector is maintained by pool manager
+   and updated through distributed consensus algorithm, so that all non-faulty
+   services in the pool have the same idea about the failure vector. The failure
+   vector is shared and used by io services, SNS repair copy machines or other
+   components.
+
+   Clients receive failure vector together with the file layout from metadata
+   services, and additionally as through unsolicited failure vector change
+   notifications, sent by servers. A client uses failure vector to guide its
+   IO requests. Failure vector has a version number, incremented on each vector
+   update which leads to devices or nodes state transitions. Each client IO
+   request is tagged with the version of failure vector used to guide this
+   request. When ioservice receives an IO request with a stale failure vector
+   version, the request is denied. Client has to proactively update its failure
+   vector from ioservice.
 
    <hr>
    @section io_calls_params_dld-def Definitions
-   N/A
+   - Failure vector. This is a data structures to keep track of device and node
+     availability characteristics in a pool. Device/node join and leave will
+     generate events to update the failure vector.
+
+   - Failure vector version number. Failure vector is changing due to device
+     and/or node join/leave. Failure vector is cached by clients, md services
+     and other components. To keep the failure vector conherent in these
+     components, a version number is introduced to failure vector.
+
+   - Failure vector update event. This is a device or node event which will
+     cause failure vector transits its internal state.
 
    <hr>
    @section io_calls_params_dld-req Requirements
    The following requirements should be meet:
-   - @b R.DLD.Device_Failure A specific error code should be replied to client
-     when a device is damaged and no data can be read from it. Upon receiving
-     this, the client will not try to read data from or write data to this
-     device.
-   - @b R.DLD.Device_New_Location A specific error code should be replied to
-     client when a device is damaged and data has been recovered by SNS repair.
-     New location will be replied in the same reply. Client will use this new
-     location to fetch data or store data.
+   - @b R.DLD.FV Failure vector is stored in persistent storage. It can be
+                 shared in multiple components.
+   - @b R.DLD.FV_Update Failure vector can be updated by device/node join
+                 or leave or other event.
+   - @b R.DLD.FV_Query Failure vector can be queried, by whole, or for a
+                 specified region marked by version number.
+   - @b R.DLD.FV_Notification Failure vector update will generate unsolicite
+                 notification to other services and components, like mdservice,
+                 client, or SNS repair copy machine.
+   - @b R.DLD.FV_version Failure vector version number is embedded to client
+                 I/O request.
+   - @b R.DLD.FV_Fetch Failure vector can be fectched to client or mdservice
+                 or other services in reply message. This can be the whole
+                 failure vector, or the recent changes between spefic version.
 
    <hr>
    @section io_calls_params_dld-depends Dependencies
@@ -80,95 +120,60 @@
 
    - @ref io_calls_params_dld-lspec-comps
    - @ref io_calls_params_dld-lspec-ds
-   - @ref io_calls_params_dld-lspec-state
-   - @ref io_calls_params_dld-lspec-thread
-   - @ref io_calls_params_dld-lspec-numa
+   - @ref io_calls_params_dld-lspec-if
 
    @subsection io_calls_params_dld-lspec-comps Component Overview
-   Pool machine maintains the node and device status. Nodes/devices have four
-   states: ONLINE, OFFLINE, FAILED, RECOVERING. These status of nodes and
-   devices are replicated in a pool.
-   When a i/o request target device is not in ONLINE status, a special error
-   code will be returned along with the reply. More information may be carried
-   along with the reply.
-   - If the device is OFFLINE, a special error code will be returned to client.
-     If this is a read request, client will read data and parity unit to
-     re-construct the data. This is de-graded read. If this is write or create
-     or delete request, client will fail.
-   - If the device is FAILED,
-     - if SNS is not yet started, a special error node will be returned to
-       client. Client will take similar actions to OFFLINE status, and SNS
-       repair will be triggered.
-     - if SNS is already started or completed, failure vectors are managed by
-       SNS. From the failure vectors, new location of data/parity is known and
-       will returned to client. Client will contact new i/o service for further
-       operations.
-   - If the device is RECOVERING, the result depends on SNS repair progress and
-     the SNS policy. Let's assume SNS will repair data sequentially from lower
-     objects numbers to higher objects numbers and, no out-of-order repair.
-     If this is a read request,
-	- if data is not recovered, an error code to instruct client to do
-          degraded read is returned.
-        - if data is already recovered, request will be handled in its normal
-          way.
-     If this is a write request,
-        - if it is write to recovered area, or to a new object, request will
-          be handled normally.
-        - if it is write to a not-recovered area, a special error node will
-          be returned to client (EAGAIN) and client will try later again.
-     If this is create request,
-        - handle this normally.
-     If this is delete request,
-        - if the target object exists (recovered), handle this normally.
-        - if the target object does not exist (to-be-recovered), a special
-          error code will be returned (EAGAIN) and client will try later
-          again.
+   All I/O requests (including read, write, create, delete, ...) will to extended
+   to embed its known failure vector version numbers.
+
+   A special reply is introduced to send failure vector update (not the while,
+   but the delta between the last known to current version) to client.
+
+   A unsolicited notification fop is introduced. This fop will be sent to client
+   by server. This fop contains the latest failure vector version number.
 
    @subsection io_calls_params_dld-lspec-ds Data Structures
-   The reply of I/O requests (include read/write/create/delete, etc.) will be
-   extended to contain the special error code and new location information.
-   Clients should make corresponding modification to understand these extension
-   and parse the reply without error.
+   The data structures of failure vector, failure vector version number
+   are in @ref poolmach.
 
-   The new location has the following variations:
-   - location (a.k.a identity) of replacing disk.
-   - index of spare object in the parity group. In Colibri, GOB is striped into
-     COBs. Every COB has an index in this group of COBs. Failure vectors are
-     represented as this COB index. COB index can be mapped into device identity
-     with the help of layout and pool configuration information.
-   In currently architecture, I propose to have the second variation. The I/O
-   service may not have a global layout and pool configuration information.
-   But client have those information and can do the COB index to disk mapping
-   easily.
+   I/O request fop will be extended to embed the its known failure vector
+   version number. Please refer to the io_fops.ff file.
+   A new reply fop is introduced to carry failure vector updates to clients.
 
-   @subsection io_calls_params_dld-lspec-state State Specification
-   N/A
+   Failure vector will be stored in reqh as a shared key. c2_reqh_key_init(),
+   c2_reqh_key_find() and c2_reqh_key_fini() will be used.
 
-   @subsection io_calls_params_dld-lspec-thread Threading and Concurrency Model
-   N/A
-
-   @subsection io_calls_params_dld-lspec-numa NUMA optimizations
-   N/A
+   @subsection io_calls_params_dld-lspec-if Interfaces
+   The failure vector and version number operations are designed and listed
+   in @ref poolmach.
 
    <hr>
    @section io_calls_params_dld-conformance Conformance
-   - @b I.DLD.Device_FAILURE As we described in the component overview (@ref
-        io_calls_params_dld-lspec-comps), error code will be returned to client,
-        either because device is failed, or is off-line, or in recovering and
-        data is not ready. Client will parse the error code and take proper
-        actions.
-   - @b I.DLD.Device_New_Location If new spare space is already set up by
-     SNS repair, error code along with new device location will be returned.
-     Client will parse the reply and contact the new device.
+   - @b I.DLD.FV Failure vector is stored in persistent storage by pool manager.
+		 That will be done later and is out of the scope of this module.
+                 Failure vector can be shared in multiple components by manage it
+                 as a reqh key.
+
+   - @b I.DLD.FV_Update Failure vector can be updated by events. These events
+                 can be device or node join, leave, or others.
+
+   - @b I.DLD.FV_Query Failure vector can be queried, by whole, or by delta.
+		 Pool machine provide query interfaces.
+
+   - @b I.DLD.FV_Notification Upon failure vector updates, notification will
+                 be sent unsolicitedly to related services. These notification
+                 carry the latest version number. Recipients will fetch failure
+                 vector update based on its known version number.
+
+   - @b I.DLD.FV_version Failure vector version number is embedded to client
+                 I/O request.
+
+   - @b I.DLD.FV_Fetch Failure vector can be fetched to client or mdservice
+                 or other services in reply message. This can be the whole
+                 failure vector, or the recent changes between spefic version.
 
    <hr>
    @section io_calls_params_dld-ut Unit Tests
-   For read/write/create/delete request, unit tests will cover the following cases:
-   - Device is OFFLINE
-   - Device is FAILED
-   - Device is RECOVERING
-	- target object is recovered.
-	- target object is not recovered.
 
    <hr>
    @section io_calls_params_dld-st System Tests
@@ -187,15 +192,16 @@
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1Yz25F3GjgQVXzvM1sdlGQvVDSUu-v7FhdUvFhiY_vwM/edit#heading=h.650bad0e414a"> HLD of SNS repair </a>
    - @ref cm
    - @ref agents
+   - @ref poolmach
 
  */
 
 /**
-   @addtogroup io_calls_params_dld
+   @addtogroup io_calls_params_dldDFS
    @{
  */
 
-/** @} */ /* end-of-io_calls_params_dld */
+/** @} */ /* end of io_calls_params_dldDFS */
 
 /*
  *  Local variables:
