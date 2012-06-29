@@ -595,6 +595,40 @@ static void ntc_event_callback(const struct c2_net_tm_event *ev)
 {
 }
 
+#ifndef __KERNEL__
+static void test_fail(void)
+{
+	static struct c2_net_domain dom = {
+		.nd_xprt = NULL
+	};
+	struct nlx_xo_domain *dp;
+	struct nlx_core_kmem_loc loc = { .kl_checksum = 0 };
+	struct nlx_core_ep_addr cepa;
+	const char *sav = nlx_ucore_dev_name;
+
+	nlx_ucore_dev_name = "/dev/no such device";
+	C2_UT_ASSERT(c2_net_domain_init(&dom, &c2_net_lnet_xprt) != 0);
+	nlx_ucore_dev_name = sav;
+
+	C2_UT_ASSERT(nlx_core_kmem_loc_is_empty(&loc));
+	C2_UT_ASSERT(!nlx_core_kmem_loc_invariant(&loc));
+
+	C2_UT_ASSERT(!nlx_dom_invariant(&dom));
+	C2_UT_ASSERT(!c2_net_domain_init(&dom, &c2_net_lnet_xprt));
+	C2_UT_ASSERT(nlx_dom_invariant(&dom));
+	dp = dom.nd_xprt_private;
+	C2_UT_ASSERT(nlx_core_ep_addr_decode(&dp->xd_core, "0@lo:xpid:0:0",
+					     &cepa) == -EINVAL);
+	C2_UT_ASSERT(nlx_core_ep_addr_decode(&dp->xd_core, "0@lo:12345:xptl:0",
+					     &cepa) == -EINVAL);
+	C2_UT_ASSERT(nlx_core_ep_addr_decode(&dp->xd_core, "0@lo:12345:33:xtm",
+					     &cepa) == -EINVAL);
+	C2_UT_ASSERT(nlx_core_ep_addr_decode(&dp->xd_core, "0@lo:12345:33:1",
+					     &cepa) == 0);
+	c2_net_domain_fini(&dom);
+}
+#endif
+
 static void test_tm_initfini(void)
 {
 	static struct c2_net_domain dom1 = {
@@ -717,6 +751,11 @@ int mock_db_add(struct c2_addb_dp *dp, struct c2_dbenv *dbenv,
 	return 0;
 }
 
+#ifdef __KERNEL__
+/* this test only applies in user space, see ulnet_core.c */
+static unsigned nlx_ucore_nidstrs_thunk = 0;
+#endif
+
 static void test_tm_startstop(void)
 {
 	struct c2_net_domain *dom;
@@ -733,9 +772,11 @@ static void test_tm_startstop(void)
 	char * const *nidstrs;
 	const char *nid_to_use;
 	char epstr[C2_NET_LNET_XEP_ADDR_LEN];
+	char badportal_epstr[C2_NET_LNET_XEP_ADDR_LEN];
 	char dyn_epstr[C2_NET_LNET_XEP_ADDR_LEN];
 	char save_epstr[C2_NET_LNET_XEP_ADDR_LEN];
 	struct c2_bitmap procs;
+	unsigned thunk;
 	int rc;
 	int i;
 
@@ -751,8 +792,13 @@ static void test_tm_startstop(void)
 					mock_db_add, &mock_table, &mock_dbenv);
 	C2_UT_ASSERT(rc == 0);
 
+	/* also walk realloc block in nlx_ucore_nidstrs_get */
+	thunk = nlx_ucore_nidstrs_thunk;
+	nlx_ucore_nidstrs_thunk = 6;
 	C2_UT_ASSERT(!c2_net_domain_init(dom, &c2_net_lnet_xprt));
+	c2_net_lnet_dom_set_debug(dom, 0);
 	C2_UT_ASSERT(!c2_net_lnet_ifaces_get(dom, &nidstrs));
+	nlx_ucore_nidstrs_thunk = thunk;
 	C2_UT_ASSERT(nidstrs != NULL && nidstrs[0] != NULL);
 	nid_to_use = nidstrs[0];
 	for (i = 0; nidstrs[i] != NULL; ++i) {
@@ -763,10 +809,29 @@ static void test_tm_startstop(void)
 	}
 	sprintf(epstr, "%s:%d:%d:101",
 		nid_to_use, STARTSTOP_PID, STARTSTOP_PORTAL);
+	sprintf(badportal_epstr, "%s:%d:99:101", nid_to_use, STARTSTOP_PID);
 	sprintf(dyn_epstr, "%s:%d:%d:*",
 		nid_to_use, STARTSTOP_PID, STARTSTOP_PORTAL);
 	c2_net_lnet_ifaces_put(dom, &nidstrs);
 	C2_UT_ASSERT(nidstrs == NULL);
+
+	/* test a couple invalid cases first */
+	C2_UT_ASSERT(!c2_net_tm_init(tm, dom));
+	C2_UT_ASSERT(c2_net_tm_start(tm, "invalid") == -EINVAL);
+	c2_net_tm_fini(tm);
+
+	C2_UT_ASSERT(!c2_net_tm_init(tm, dom));
+	c2_clink_init(&tmwait1, NULL);
+	c2_clink_add(&tm->ntm_chan, &tmwait1);
+	C2_UT_ASSERT(!c2_net_tm_start(tm, badportal_epstr));
+	c2_chan_wait(&tmwait1);
+	c2_clink_del(&tmwait1);
+	C2_UT_ASSERT(ecb_count == 1);
+	C2_UT_ASSERT(ecb_status == -EINVAL);
+	C2_UT_ASSERT(tm->ntm_state == C2_NET_TM_FAILED);
+	c2_net_tm_fini(tm);
+	ecb_reset();
+
 	C2_UT_ASSERT(!c2_net_tm_init(tm, dom));
 	c2_net_lnet_tm_stat_interval_set(tm, STARTSTOP_STAT_SECS);
 
@@ -796,12 +861,14 @@ static void test_tm_startstop(void)
 
 	/* also test periodic statistics */
 	C2_UT_ASSERT(lnet_stat_ev_count == 0);
+	C2_UT_ASSERT(c2_net_lnet_tm_stat_interval_get(tm) ==
+		     STARTSTOP_STAT_SECS);
 	tm->ntm_qstats[C2_NET_QT_MSG_RECV] = fake_stats;
 	c2_semaphore_down(&mock_sem);
 	C2_UT_ASSERT(lnet_stat_ev_count == STARTSTOP_STAT_PER_PERIOD);
 	ecb_reset();
 	c2_clink_add(&tm->ntm_chan, &tmwait1);
-	C2_UT_ASSERT(!c2_net_tm_stop(tm, false));
+	C2_UT_ASSERT(!c2_net_tm_stop(tm, true));
 	c2_chan_wait(&tmwait1);
 	c2_clink_del(&tmwait1);
 	C2_UT_ASSERT(ecb_count == 1);
@@ -828,6 +895,8 @@ static void test_tm_startstop(void)
 		C2_UT_ASSERT(!c2_net_tm_init(&tm[i], &dom[i]));
 		C2_UT_ASSERT(c2_bitmap_init(&procs, 1) == 0);
 		c2_bitmap_set(&procs, 0, true);
+		C2_UT_ASSERT(c2_net_tm_confine(&tm[i], &procs) == 0);
+		/* 2x, to walk the re-confine path */
 		C2_UT_ASSERT(c2_net_tm_confine(&tm[i], &procs) == 0);
 		c2_bitmap_fini(&procs);
 
@@ -1189,6 +1258,11 @@ static void test_msg_body(struct ut_data *td)
 
 	{       /* create a destination end point */
 		char epstr[C2_NET_LNET_XEP_ADDR_LEN];
+		/* verify dynamic end point is not allowed here */
+		sprintf(epstr, "%s:%d:%d:*",
+			td->nidstrs2[0], STARTSTOP_PID, STARTSTOP_PORTAL+1);
+		zvUT(c2_net_end_point_create(&ep2, TM2, epstr),
+		     -EINVAL, aborted);
 		sprintf(epstr, "%s:%d:%d:1024",
 			td->nidstrs2[0], STARTSTOP_PID, STARTSTOP_PORTAL+1);
 		zUT(c2_net_end_point_create(&ep2, TM2, epstr), aborted);
@@ -2232,6 +2306,8 @@ const struct c2_test_suite c2_net_lnet_ut = {
 		{ "net_lnet_msg (K)",       ktest_msg },
 		{ "net_lnet_bulk (K)",      ktest_bulk },
 		{ "net_lnet_device",        ktest_dev },
+#else
+		{ "net_lnet_fail",          test_fail },
 #endif
 		{ "net_lnet_tm_initfini",   test_tm_initfini },
 		{ "net_lnet_tm_startstop",  test_tm_startstop },
