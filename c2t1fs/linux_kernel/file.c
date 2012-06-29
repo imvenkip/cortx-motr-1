@@ -76,7 +76,6 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    - @ref rmw-req
    - @ref rmw-depends
    - @ref rmw-highlights
-   - @subpage rmw-fspec "Read-modify-write IO Func Spec"
    - @ref rmw-lspec
       - @ref rmw-lspec-comps
       - @ref rmw-lspec-sc1
@@ -89,6 +88,10 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    - @ref rmw-O
    - @ref rmw-ref
    - @ref rmw-impl-plan
+
+   @note Since the data structures and interfaces produced by this DLD
+   are consumed by c2t1fs itself, no external interfaces are produced by
+   this DLD. And hence, the DLD lies in a C file.
 
    <hr>
    @section rmw-ovw Overview
@@ -163,12 +166,12 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    @msc
    rmw_io,layout,rpc_bulk;
 
-   rmw_io=>layout   [ label = "fetch constituent cobs" ];
-   rmw_io=>rpc_bulk [ label = "issue async read IO" ];
-   rpc_bulk=>rmw_io [ label = "read complete" ];
-   rmw_io=>rmw_io   [ label = "modify data buffers" ];
-   rmw_io=>rpc_bulk [ label = "issue async write IO" ];
-   rpc_bulk=>rmw_io [ label = "write complete" ];
+   rmw_io   => layout   [ label = "fetch constituent cobs" ];
+   rmw_io   => rpc_bulk [ label = "if rmw, issue sync read IO" ];
+   rpc_bulk => rmw_io   [ label = "callback" ];
+   rmw_io   => rmw_io   [ label = "modify data buffers" ];
+   rmw_io   => rpc_bulk [ label = "issue async write IO" ];
+   rpc_bulk => rmw_io   [ label = "callback" ];
 
    @endmsc
 
@@ -195,6 +198,73 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    can work with both aligned and non-aligned IO requests.
 
    @subsubsection rmw-lspec-ds1 Subcomponent Data Structures
+
+   io_request - Represents an IO request call. It contains the IO extent,
+   struct io_req_rootcb and the state of IO request. This structure is
+   primarily used to track progress of IO request.
+
+   @code
+   struct io_request {
+	int                   ir_rc;
+	uint64_t              ir_magic;
+	struct rw_desc        ir_desc;
+	enum io_req_type      ir_type;
+	struct c2_mutex       ir_mutex;
+	enum io_req_state     ir_state;
+	struct io_request_ops ir_ops;
+	struct io_req_rootcb  ir_rcb;
+	// Can we use struct c2_ext instead of these 2 fields below?
+	loff_t                ir_aux_offset;
+	size_t                ir_aux_count;
+   };
+   @endcode
+
+   io_req_state - Represents state of IO request call.
+
+   @code
+   enum io_request_state {
+	IRS_UNINITIALIZED,
+	IRS_INITIALIZED,
+	IRS_READING,
+	IRS_WRITING,
+	IRS_READ_COMPLETE,
+	IRS_WRITE_COMPLETE,
+	IRS_REQ_COMPLETE,
+	IRS_STATE_NR,
+   };
+   @endcode
+
+   io_req_type - Represents type of IO request.
+
+   @code
+   enum io_req_type {
+	IRT_READ,
+	IRT_WRITE,
+	IRT_NR,
+   };
+   @endcode
+
+   Magic value to verify sanity of struct io_request.
+
+   @code
+   enum {
+	IR_MAGIC = 0xfea2303e31a3ce10ULL, // fearsomestanceto
+   };
+   @endcode
+
+   @todo IO types like fault IO are not supported yet.
+
+   io_request_ops - Operation vector for struct io_request.
+   @code
+   struct io_request_ops {
+	int (*iro_submit)       (struct io_request *req);
+	int (*iro_readextent)   (struct io_request *req);
+	int (*iro_prepare_write)(struct io_request *req);
+	int (*iro_commit_write) (struct io_request *req);
+	int (*read_complete)    (struct io_request *req);
+	int (*write_complete)   (struct io_request *req);
+   };
+   @endcode
 
    The following data structures are needed while doing @b async IO
    with file based on a layout.
@@ -227,6 +297,7 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 	struct c2_clink       irr_clink;
 	struct c2_chan        irr_chan;
 	struct c2_ref         irr_ref;
+	uint64_t              irr_bytes;
    };
    @endcode
 
@@ -238,45 +309,148 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    The origin thread which spawns the rootcb waits on its embedded channel
    and is woken up when the reference count goes down to zero.
 
-   io_request - Represents an IO request call. It contains the IO extent,
-   struct io_req_rootcb and the state of IO request. This structure is
-   primarily used to track progress of IO request.
-
-   @code
-   struct io_request {
-	int                  ir_rc;
-	uint64_t             ir_magic;
-	struct rw_desc       ir_desc;
-	enum io_req_type     ir_type;
-	enum io_req_state    ir_state;
-	struct io_req_ops    ir_ops;
-	struct io_req_rootcb ir_rcb;
-   };
-   @endcode
-
-   io_req_state - Represents state of IO request call. The possible states
-   can be
-   UNINITIALIZED, INITIALIZED, INTRANSIT, COMPLETE
-
-   io_req_type - Represents type of IO request. Possible values are READ or
-   WRITE.
-
-   io_req_ops - Operation vector for struct io_request.
-   @code
-   struct io_req_ops {
-	int (*iro_dispatch)     (struct io_request *req);
-	int (*iro_readpage)     (struct io_request *req, struct page *page);
-	int (*iro_prepare_write)(struct io_request *req, struct page *pages,
-				 int page_nr);
-	int (*iro_commit_write) (struct io_request *req);
-   };
-   @endcode
-   @todo Do the ops vector talk in terms of pages or in rw_desc?
-
    @subsubsection rmw-lspec-sub1 Subcomponent Subroutines
 
    An existing API io_req_spans_full_stripe() can be reused to check if
    incoming IO request spans a full stripe or not.
+
+   The following API will change the stripe unaligned IO request to make it
+   align with stripe width. It will populate the auxiliary offset and count
+   fields so that further read/write IO will be done according to these
+   auxiliary IO extent. The cumulative count of auxiliary extent will always
+   be bigger than original extent. While returning from the system call, the
+   number of bytes read/written will not exceed the size of original IO extent.
+
+   @param req IO request to be expanded.
+   @pre req != NULL && req->ir_magic != IR_MAGIC
+   @post req->ir_aux_offset != 0 && req->ir_aux_count != 0 &&
+   req->ir_aux_count >= req->ir_desc.rd_count
+
+   @code
+   void io_request_expand(struct io_request *req);
+   @endcode
+
+   The APIs that work as members of operation vector struct io_request_ops
+   for struct io_request are as follows.
+
+   Initializes a newly allocated io_request structure.
+
+   @param req   IO request to be issued.
+   @param fid   File identifier.
+   @param base  User-space buffer starting address.
+   @param pos   File offset.
+   @param count Size of IO request in bytes.
+   @param rw    Flag indicating Read or write request.
+   @pre req != NULL
+   @post req->magic == IR_MAGIC && req->ir_type == rw &&
+   req->ir_desc.rd_fid == fid && req->ir_desc.rd_offset == pos &&
+   req->ir_desc.rd_count == count &&
+   ((c2t1fs_buf*)c2_tlist_head(rwd, req->ir_desc.rd_buf_list))->cb_buf.b_addr
+   == base && req->ir_state == IRS_INITIALIZED
+
+   @code
+   int io_request_init(struct io_request *req,
+                       struct c2_fid     *fid,
+                       void              *base,
+		       loff_t             pos,
+                       size_t             count,
+                       enum io_req_type   rw);
+   @endcode
+
+   Finalizes the io_request structure.
+
+   @param req IO request to be processed.
+   @pre req != NULL && req->ir_magic == IR_MAGIC &&
+   req->ir_state == IRS_REQ_COMPLETE
+   && c2_atomic64_get(&req->ir_ref.ref_cnt) == 0
+   @post c2_tlist_is_empty(rwd, req->ir_desc.rd_buf_list) == true &&
+
+   @code
+   void io_request_fini(struct io_request *req);
+   @endcode
+
+   Reads given extent of file.
+   This API can also be used by a write request which needs to read first
+   due to its unaligned nature with stripe width.
+   In such case, even if the state of struct io_request indicates IRS_READING
+   or IRS_READ_COMPLETE, the io_req_type enum suggests it is a write request
+   in first place.
+
+   @param req IO request to be issued.
+   @pre req != NULL && req->ir_magic == IR_MAGIC &&
+   req->ir_state >= IRS_INITIALIZED
+   @post req->ir_state == IRS_READING
+
+   @code
+   int io_request_readextent(struct io_request *req);
+   @endcode
+
+   Make necessary preparations for a write IO request.
+   This might involve issuing req->iro_readextent() request to read the
+   necessary file extent if the incoming IO request is not stripe aligned.
+   If the request is stripe aligned, no read IO is done.
+   Instead, file data is copied from user space to kernel space.
+
+   @param req IO request to be issued.
+   @pre req != NULL && req->ir_magic == IR_MAGIC &&
+   req->ir_state >= IRS_INITIALIZED
+   @post req->ir_state == IRS_READING || req->ir_state == IRS_WRITING
+
+   @code
+   int io_request_prepare_write(struct io_request *req);
+   @endcode
+
+   Commit the transaction for updates made by given write IO request.
+   With current code, this function will most likely be a stub. It will be
+   implemented when there is a cache in c2t1fs client which will maintain
+   dirty data and will commit the data with data servers as a result of
+   crossing some threshold (e.g. reaching grant value or timeout).
+
+   @param req IO request to be committed.
+   @pre req != NULL && req->magic == IR_MAGIC && req->ir_state == IRS_WRITING
+   && !c2_tlist_is_empty(rwd, req->ir_desc.rd_buf_list)
+   @post req->ir_state == IRS_WRITE_COMPLETE &&
+   c2_tlist_is_empty(rwd, req->ir_desc.rd_buf_list) == true
+
+   @code
+   int io_request_write_commit(struct io_request *req);
+   @endcode
+
+   Post processing for read IO completion.
+   For READ IO operations, this function will copy back the data from
+   kernel space to user-space.
+
+   @param req IO request to be processed.
+   @pre req != NULL && req->ir_magic == IR_MAGIC && req->ir_state == IRS_READING
+   @post req->ir_state == IRS_READ_COMPLETE
+
+   @code
+   int io_request_read_complete(struct io_request *req);
+   @endcode
+
+   Post processing for write IO completion. This function will simply signal
+   the thread blocked for completion of whole IO request.
+
+   @param req IO request to be processed.
+   @pre req != NULL && req->ir_magic == IR_MAGIC && req->ir_state == IRS_WRITING
+   @post req->ir_state == IRS_WRITE_COMPLETE
+
+   @code
+   int io_request_write_complete(struct io_request *req);
+   @endcode
+
+   Submits the rpc for given IO fops. Implies "network transfer" of IO
+   requests.
+
+   @param req IO request to be submitted.
+   @pre req != NULL && req->ir_magic == IR_MAGIC &&
+   (req->ir_state == IRS_READING || req->ir_state == IRS_WRITING)
+   @post (req->ir_state == IRS_READ_COMPLETE ||
+   req->ir_state == IRS_WRITE_COMPLETE)
+
+   @code
+   int io_request_submit(struct io_request *req);
+   @endcode
 
    - Callback used for leaf node IO request. This callback is used while
    initializing clink embedded in structure io_req_leafcb.
@@ -294,28 +468,38 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    void rootio_complete(struct c2_ref *ref);
    @endcode
 
-   Also, corresponding APIs will be written to perform operations from
-   struct io_req_ops vector.
-
    @subsection rmw-lspec-state State Specification
-
-   The structure io_request can be in one the states, namely UNINITIALIZED,
-   INITIALIZED, INTRANSIT, COMPLETE.
 
    @dot
    digraph io_req_st {
-	size  = "3,4"
-	label = "States of IO request"
-	node   [ shape=record, fontsize=10]
+	size    = "4,6"
+	label   = "States of IO request"
+	node   [ shape=record, fontsize=9 ]
 	S0     [ label = "", shape="plaintext" ]
-	S1     [ label = "UNINITIALIZED" ]
-	S2     [ label = "INITIALIZED"]
-	S3     [ label = "INTRANSIT"]
-	S4     [ label = "COMPLETE"]
-	S0->S1 [ label = "allocate" ]
-	S1->S2 [ label = "init" ]
-	S2->S3 [ label = "Dispatch all IO requests" ]
-	S3->S4 [ label = "Replies received" ]
+	S1     [ label = "IRS_UNINITIALIZED" ]
+	S2     [ label = "IRS_INITIALIZED" ]
+	S3     [ label = "IRS_READING" ]
+	S4     [ label = "IRS_WRITING" ]
+	S5     [ label = "IRS_READ_COMPLETE" ]
+	S6     [ label = "IRS_WRITE_COMPLETE" ]
+	S7     [ label = "IRS_REQ_COMPLETE" ]
+	S0->S1 [ label = "allocate", fontsize=10, weight=8 ]
+	S1->S2 [ label = "init", fontsize=10, weight=8 ]
+	{
+	    rank = same; S4; S3;
+	};
+	S2->S4 [ label = "io == write()", fontsize=9 ]
+	S2->S3 [ label = "io == read()", fontsize=9 ]
+	S3->S3 [ label = "!io_spans_full_stripe()", fontsize=9 ]
+	{
+	    rank = same; S6; S5;
+	};
+	S4->S6 [ label = "write_complete()", fontsize=9, weight=4 ]
+	S3->S5 [ label = "read_complete()", fontsize=9, weight=4 ]
+	S4->S3 [ label = "!io_spans_full_stripe()", fontsize=9 ]
+	S5->S7 [ label = "io == read()", fontsize=9 ]
+	S5->S4 [ label = "io == write()", fontsize=9 ]
+	S6->S7 [ label = "io == write()", fontsize=9 ]
    }
    @enddot
 
@@ -341,7 +525,8 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 
    - @b I.c2t1fs.rmw_io.rmw The implementation uses an API
    io_req_spans_full_stripe() to find out if the incoming IO request
-   would be read-modify-write IO. The missing data will be read first
+   would be read-modify-write IO. The IO extent is modified if the request
+   is unaligned with stripe width. The missing data will be read first
    from data server synchronously(later from client cache which is missing
    at the moment and then from data server). And then it will be modified
    and send as a full stripe IO request.
@@ -355,6 +540,8 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    @section rmw-ut Unit Tests
 
    The UT will exercise following unit test scenarios.
+   @todo However, with all code in kernel and no present UT code for c2t1fs,
+   it is still to be decided how to write UTs for this component.
 
    @test Issue a full stripe size IO and check if it is successful. This
    test case should assert that full stripe IO is intact with new changes.
@@ -383,9 +570,14 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 
    <hr>
    @section rmw-O Analysis
-   <i>This section estimates the performance of the component, in terms of
-   resource (memory, processor, locks, messages, etc.) consumption,
-   ideally described in big-O notation.</i>
+
+   Number of io_request structures used is directly proportional to the
+   number of buffers in incoming iovec structure to AIO calls.
+   Each IO request creates sub requests proportional to number of blocks
+   addressed by one buffer.
+   There is only one mutex used to protect the io_request structure.
+   Number of IO fops created is also directly proportional to the number
+   of data buffers.
 
    <hr>
    @section rmw-ref References
@@ -397,258 +589,27 @@ Detailed level design HOWTO</a>,
 
    <hr>
    @section rmw-impl-plan Implementation Plan
-   <i>Mandatory.  Describe the steps that should be taken to implement this
-   design.</i>
 
-   The plan should take into account:
-   - The need for early exposure of new interfaces to potential consumers.
-   Should parts of the interfaces be landed early with stub support?
-   Does consumer code have to be updated with such stubs?
-   - Modular and functional decomposition.  Identify pieces that can be
-   developed (coded and unit tested) in smaller sub-tasks.  Smaller tasks
-   demonstrate progress to management, as well as reduce the inspection
-   overhead.  It may be necessary to plan on re-factoring pieces of code
-   to support this incremental development approach.
-   - Understand how long it will take to implement the design. If it is
-   significantly long (more than a few weeks), then task decomposition
-   becomes even more essential, because it allows for merging of changes
-   from master into your feature branch, if necessary.
-   Task decomposition should be reflected in the GSP task plan for the sprint.
-   - Determine how to maximize the overlap of inspection and ongoing
-   development.
-   The smaller the inspection task the faster it could complete.
-   Good planning can reduce programmer idle time during inspection;
-   being able to overlap development of the next coding sub-task while the
-   current one is being inspected is ideal!
-   It is useful to anticipate how you would need organize your GIT code
-   source branches to handle this efficiently.
-   Remember that you should only present modified code for inspection,
-   and not the changes you picked up with periodic merges from another branch.
-   - The software development process used by Colibri provides sufficient
-   flexibility to decompose tasks, consolidate phases, etc.  For example,
-   you may prefer to develop code and UT together, and present both for
-   inspection at the same time.  This would require consolidation of the
-   CINSP-PREUT phase into the CINSP-POSTUT phase.
-   Involve your inspector in such decisions.
-   Document such changes in this plan, update the task spreadsheet for both
-   yourself and your inspector.
+   - The task can be decomposed into 2 subtasks as follows.
+     - implementation of an async way of submitting and waiting for multiple
+       IO fops. Referred to as subtask-asyncIO henceforth.
+     - implementation of primary data structures and interfaces needed to
+       support read-modify-write. Referred to as subtask-rwm-support henceforth.
 
-   The implementation plan should be deleted from the DLD when the feature
-   is landed into master.
+   - New interfaces are consumed by same module (c2t1fs). The primary
+   data structures and interfaces have been identified and defined.
+
+   - The subtask-asyncIO can be carved out as an independent task. This will
+   be done first. It can be tested using existing c2t1fs ST test scripts.
+
+   - Next, the subtask-rmw-support can be implemented which will refactor
+   the IO path code. This can be tested by using a test script which will
+   stress the IO path with read-modify-write IO requests.
+
+   - While the patch for subtask-asyncIO is getting inspected, another subtask
+   which will implement the read-modify-write support will be undertaken.
 
  */
-
-
-/*#include "doc/dld_template.h"*/
-
-/**
-   @defgroup rmwDFSInternal Colibri Sample Module Internals
-   @brief Detailed functional specification of the internals of the
-   sample module.
-
-   This example is part of the DLD Template and Style Guide. It illustrates
-   how to keep internal documentation separate from external documentation
-   by using multiple @@defgroup commands in different files.
-
-   Please make sure that the module cross-reference the DLD, as shown below.
-
-   @see @ref DLD and @ref rmw-lspec
-
-   @{
- */
-
-/** @} */ /* end internal */
-
-/**
-   External documentation can be continued if need be - usually it should
-   be fully documented in the header only.
-   @addtogroup DLDFS
-   @{
- */
-
-/**
- * This is an example of bad documentation, where an external symbol is
- * not documented in the externally visible header in which it is declared.
- * This also results in Doxygen not being able to automatically reference
- * it in the Functional Specification.
- */
-unsigned int dld_bad_example;
-/** @} */ /* end-of-DLDFS */
-
-
-/**
-   @page rmw-fspec DLD Functional Specification Template
-   <i>Mandatory. This page describes the external interfaces of the
-   component. The section has mandatory sub-divisions created using the Doxygen
-   @@section command.  It is required that there be Table of Contents at the
-   top of the page that illustrates the sectioning of the page.</i>
-
-   - @ref rmw-fspec-ds
-   - @ref rmw-fspec-sub
-   - @ref rmw-fspec-cli
-   - @ref rmw-fspec-usecases
-   - @ref rmwDFS "Detailed Functional Specification" <!-- Note link -->
-
-   The Functional Specification section of the DLD shall be placed in a
-   separate Doxygen page, identified as a @@subpage of the main specification
-   document through the table of contents in the main document page.  The
-   purpose of this separation is to co-locate the Functional Specification in
-   the same source file as the Detailed Functional Specification.
-
-   A table of contents should be created for the major sections in this page,
-   as illustrated above.  It should also contain references to other
-   @b external Detailed Functional Specification sections, which even
-   though may be present in the same source file, would not be visibly linked
-   in the Doxygen output.
-
-   @section rmw-fspec-ds Data Structures
-   <i>Mandatory for programmatic interfaces.  Components with programming
-   interfaces should provide an enumeration and @b brief description of the
-   major externally visible data structures defined by this component.  No
-   details of the data structure are required here, just the salient
-   points.</i>
-
-   For example:
-<table border="0">
-<tr><td>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</td><td>
-   The @c dld_sample_ds1 structure tracks the density of the
-   electro-magnetic field with the following:
-@code
-struct dld_sample_ds1 {
-  ...
-  int dsd_flux_density;
-  ...
-};
-@endcode
-   The value of this field is inversely proportional to the square of the
-   number of lines of comments in the DLD.
-</td></tr></table>
-   Note the indentation above, accomplished by means of an HTML table
-   is purely for visual effect in the Doxygen output of the style guide.
-   A real DLD should not use such constructs.
-
-   Simple lists can also suffice:
-   - dld_sample_ds1
-   - dld_bad_example
-
-   The section could also describe what use it makes of data structures
-   described elsewhere.
-
-   Note that data structures are defined in the
-   @ref rmwDFS "Detailed Functional Specification"
-   so <b>do not duplicate the definitions</b>!
-   Do not describe internal data structures here either - they can be described
-   in the @ref DLD-lspec "Logical Specification" if necessary.
-
-   @section rmw-fspec-sub Subroutines
-   <i>Mandatory for programmatic interfaces.  Components with programming
-   interfaces should provide an enumeration and brief description of the
-   externally visible programming interfaces.</i>
-
-   Externally visible interfaces should be enumerated and categorized by
-   function.  <b>Do not provide details.</b> They will be fully documented in
-   the @ref rmwDFS "Detailed Functional Specification".
-   Do not describe internal interfaces - they can be described in the
-   @ref DLD-lspec "Logical Specification" if necessary.
-
-   @subsection rmw-fspec-sub-cons Constructors and Destructors
-
-   @subsection rmw-fspec-sub-acc Accessors and Invariants
-
-   @subsection rmw-fspec-sub-opi Operational Interfaces
-   - dld_sample_sub1()
-
-   @section rmw-fspec-cli Command Usage
-   <i>Mandatory for command line programs.  Components that provide programs
-   would provide a specification of the command line invocation arguments.  In
-   addition, the format of any any structured file consumed or produced by the
-   interface must be described in this section.</i>
-
-   @section rmw-fspec-usecases Recipes
-   <i>This section could briefly explain what sequence of interface calls or
-   what program invocation flags are required to solve specific usage
-   scenarios.  It would be very nice if these examples can be linked
-   back to the HLD for the component.</i>
-
-   Note the following references to the Detailed Functional Specification
-   sections at the end of these Functional Specifications, created using the
-   Doxygen @@see command:
-
-   @see @ref rmwDFS "Sample Detailed Functional Specification"
- */
-
-/**
-   @defgroup rmwDFS Colibri Sample Module
-   @brief Detailed functional specification template.
-
-   This page is part of the DLD style template.  Detailed functional
-   specifications go into a module described by the Doxygen @@defgroup command.
-   Note that you cannot use a hyphen (-) in the tag of a @@defgroup.
-
-   Module documentation may spread across multiple source files.  Make sure
-   that the @@addtogroup Doxygen command is used in the other files to merge
-   their documentation into the main group.  When doing so, it is important to
-   ensure that the material flows logically when read through Doxygen.
-
-   You are not constrained to have only one module in the design.  If multiple
-   modules are present you may use multiple @@defgroup commands to create
-   individual documentation pages for each such module, though it is good idea
-   to use separate header files for the additional modules.  In particular, it
-   is a good idea to separate the internal detailed documentation from the
-   external documentation in this header file.  Please make sure that the DLD
-   and the modules cross-reference each other, as shown below.
-
-   @see The @ref DLD "Colibri Sample DLD" its
-   @ref rmw-fspec "Functional Specification"
-   and its @ref rmw-lspec-thread
-
-   @{
- */
-
-
-/** Data structure to do something. */
-struct dld_sample_ds1 {
-	/** The z field */
-	int dsd_z_field;
-	/** Flux density */
-	int dsd_flux_density;
-};
-
-/*
- * Documented elsewhere to illustrate bad documentation of an external symbol.
- * Doxygen cannot automatically reference it from elsewhere, as can be seen in
- * the Doxygen output for the reference in the Functional Specification above.
- */
-extern unsigned int dld_bad_example;
-
-/**
-   Subroutine1 opens a foo for access.
-
-   Some particulars:
-   - Proper grammar, punctuation and spelling is required
-   in all documentation.
-   This requirement is not relaxed in the detailed functional specification.
-   - Function documentation should be in the 3rd person, singular, present
-   tense, indicative mood, active voice.  For example, "creates",
-   "initializes", "finds", etc.
-   - Functional parameters should not trivialize the
-   documentation by repeating what is already clear from the function
-   prototype.  For example it would be wrong to say, <tt>"@param read_only
-   A boolean parameter."</tt>.
-   - The default return convention (0 for success and @c -errno
-   on failure) should not be repeated.
-   - The @@pre and @@post conditions are preferably expressed in code.
-
-   @param param1 Parameter 1 must be locked before use.
-   @param read_only This controls the modifiability of the foo object.
-   Set to @c true to prevent modification.
-   @retval return value
-   @pre Pre-condition, preferably expressed in code.
-   @post Post-condition, preferably expressed in code.
- */
-int dld_sample_sub1(struct dld_sample_ds1 *param1, bool read_only);
-
-/** @} */ /* rmwDFS end group */
 
 const struct file_operations c2t1fs_reg_file_operations = {
 	.llseek    = generic_file_llseek,   /* provided by linux kernel */
