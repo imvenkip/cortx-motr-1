@@ -35,8 +35,8 @@ static void nlx_ep_release(struct c2_ref *ref)
 	struct nlx_xo_ep *xep;
 
 	ep = container_of(ref, struct c2_net_end_point, nep_ref);
-	C2_PRE(c2_mutex_is_locked(&ep->nep_tm->ntm_mutex) &&
-	       nlx_ep_invariant(ep));
+	C2_PRE(c2_mutex_is_locked(&ep->nep_tm->ntm_mutex));
+	C2_PRE(nlx_ep_invariant(ep));
 	xep = container_of(ep, struct nlx_xo_ep, xe_ep);
 
 	c2_list_del(&ep->nep_tm_linkage);
@@ -54,7 +54,8 @@ static int nlx_ep_create(struct c2_net_end_point **epp,
 
 	NLXDBG((struct nlx_xo_transfer_mc *)tm->ntm_xprt_private, 2,
 	       nlx_print_core_ep_addr("nlx_ep_create", cepa));
-	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex) && nlx_tm_invariant(tm));
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+	C2_PRE(nlx_tm_invariant(tm));
 	dp = tm->ntm_dom->nd_xprt_private;
 
 	/* check if its already on the TM end point list */

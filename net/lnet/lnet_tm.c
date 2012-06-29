@@ -67,8 +67,8 @@ static int nlx_tm_timeout_buffers(struct c2_net_transfer_mc *tm, c2_time_t now)
 	struct nlx_xo_transfer_mc *tp;
 	int i;
 
-	C2_PRE(tm != NULL &&
-	       c2_mutex_is_locked(&tm->ntm_mutex) && nlx_tm_invariant(tm));
+	C2_PRE(tm != NULL && nlx_tm_invariant(tm));
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 
 	tp = tm->ntm_xprt_private;
 	NLXDBGP(tp, 2, "%p: nlx_tm_timeout_buffers\n", tp);
@@ -279,7 +279,8 @@ int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
 	struct c2_net_buffer *nb;
 	int rc = 0;
 
-	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex) && nlx_tm_invariant(tm));
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+	C2_PRE(nlx_tm_invariant(tm));
 	tp = tm->ntm_xprt_private;
 
 	/* Recover the transport space network buffer address from the
@@ -324,9 +325,9 @@ int nlx_xo_core_bev_to_net_bev(struct c2_net_transfer_mc *tm,
 		     rc == 0 && !lcbev->cbe_unlinked));
 	/* currently we only support RETAIN for received messages */
 	C2_POST(ergo(nb->nb_flags & C2_NET_BUF_RETAIN,
-		     nb->nb_qtype == C2_NET_QT_MSG_RECV) &&
-		(rc == 0 || rc == -ENOMEM) &&
-		c2_net__buffer_event_invariant(nbev));
+		     nb->nb_qtype == C2_NET_QT_MSG_RECV));
+	C2_POST(rc == 0 || rc == -ENOMEM);
+	C2_POST(c2_net__buffer_event_invariant(nbev));
 	return rc;
 }
 

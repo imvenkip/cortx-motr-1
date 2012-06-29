@@ -182,7 +182,8 @@ int nlx_core_bevq_provision(struct nlx_core_domain *lcdom,
 	int num_to_alloc;
 	int rc = 0;
 
-	C2_PRE(nlx_core_tm_is_locked(lctm) && need > 0);
+	C2_PRE(nlx_core_tm_is_locked(lctm));
+	C2_PRE(need > 0);
 
 	have = bev_cqueue_size(&lctm->ctm_bevq) - C2_NET_LNET_BEVQ_NUM_RESERVED;
 	C2_ASSERT(have >= lctm->ctm_bev_needed);
@@ -204,8 +205,9 @@ int nlx_core_bevq_provision(struct nlx_core_domain *lcdom,
 
 void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm, size_t release)
 {
-	C2_PRE(nlx_core_tm_is_locked(lctm) &&
-	       release > 0 && lctm->ctm_bev_needed >= release);
+	C2_PRE(nlx_core_tm_is_locked(lctm));
+	C2_PRE(release > 0);
+	C2_PRE(lctm->ctm_bev_needed >= release);
 
 	lctm->ctm_bev_needed -= release;
 	return;
@@ -217,7 +219,8 @@ bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
 	struct nlx_core_bev_link *link;
 	struct nlx_core_buffer_event *bev;
 
-	C2_PRE(lctm != NULL && lcbe != NULL && nlx_core_tm_is_locked(lctm));
+	C2_PRE(lcbe != NULL);
+	C2_PRE(nlx_core_tm_is_locked(lctm));
 
 	link = bev_cqueue_get(&lctm->ctm_bevq);
 	if (link != NULL) {
@@ -291,11 +294,11 @@ void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
 			      struct nlx_core_buffer *lcbuf,
 			      struct nlx_core_buf_desc *cbd)
 {
-	C2_PRE(nlx_core_tm_is_locked(lctm) &&
-	       nlx_core_tm_invariant(lctm) &&
-	       nlx_core_buffer_invariant(lcbuf) &&
-	       (lcbuf->cb_qtype == C2_NET_QT_PASSIVE_BULK_SEND ||
-		lcbuf->cb_qtype == C2_NET_QT_PASSIVE_BULK_RECV));
+	C2_PRE(nlx_core_tm_is_locked(lctm));
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	C2_PRE(nlx_core_buffer_invariant(lcbuf));
+	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_PASSIVE_BULK_SEND ||
+	       lcbuf->cb_qtype == C2_NET_QT_PASSIVE_BULK_RECV);
 
 	/* generate match bits */
 	lcbuf->cb_match_bits =
@@ -320,8 +323,8 @@ void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
 
 	NLXDBG(lctm, 2, nlx_print_core_buf_desc("encode", cbd));
 
-	C2_POST(nlx_core_tm_invariant(lctm) &&
-		nlx_core_buffer_invariant(lcbuf));
+	C2_POST(nlx_core_tm_invariant(lctm));
+	C2_POST(nlx_core_buffer_invariant(lcbuf));
 	return;
 }
 
@@ -334,11 +337,11 @@ int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
 
 	NLXDBG(lctm, 2, nlx_print_core_buf_desc("decode", cbd));
 
-	C2_PRE(nlx_core_tm_is_locked(lctm) &&
-	       nlx_core_tm_invariant(lctm) &&
-	       nlx_core_buffer_invariant(lcbuf) &&
-	       (lcbuf->cb_qtype == C2_NET_QT_ACTIVE_BULK_SEND ||
-		lcbuf->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV));
+	C2_PRE(nlx_core_tm_is_locked(lctm));
+	C2_PRE(nlx_core_tm_invariant(lctm));
+	C2_PRE(nlx_core_buffer_invariant(lcbuf));
+	C2_PRE(lcbuf->cb_qtype == C2_NET_QT_ACTIVE_BULK_SEND ||
+	       lcbuf->cb_qtype == C2_NET_QT_ACTIVE_BULK_RECV);
 
 	i64 = nlx_core_buf_desc_checksum(cbd);
 	if (i64 != cbd->cbd_checksum)

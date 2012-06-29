@@ -548,15 +548,16 @@ static int nlx_ucore_ioctl(int fd, unsigned long cmd, void *arg)
 {
 	int rc;
 
-	C2_PRE(fd >= 0 &&
-	       _IOC_TYPE(cmd) == C2_LNET_IOC_MAGIC &&
-	       _IOC_NR(cmd)   >= C2_LNET_IOC_MIN_NR &&
-	       _IOC_NR(cmd)   <= C2_LNET_IOC_MAX_NR);
+	C2_PRE(fd >= 0);
+	C2_PRE(_IOC_TYPE(cmd) == C2_LNET_IOC_MAGIC);
+	C2_PRE(_IOC_NR(cmd)   >= C2_LNET_IOC_MIN_NR);
+	C2_PRE(_IOC_NR(cmd)   <= C2_LNET_IOC_MAX_NR);
 
 	rc = ioctl(fd, cmd, arg);
 	if (rc >= 0)
 		return rc;
-	C2_ASSERT(errno > 0 && errno != EFAULT && errno != EBADR);
+	C2_ASSERT(errno > 0);
+	C2_ASSERT(errno != EFAULT && errno != EBADR);
 	return -errno;
 }
 
@@ -640,8 +641,8 @@ int nlx_core_dom_init(struct c2_net_domain *dom, struct nlx_core_domain *cd)
 	};
 	int rc;
 
-	C2_PRE(dom != NULL && cd != NULL &&
-	       cd->cd_kpvt == NULL && cd->cd_upvt == NULL);
+	C2_PRE(dom != NULL && cd != NULL);
+	C2_PRE(cd->cd_kpvt == NULL && cd->cd_upvt == NULL);
 	C2_ALLOC_PTR_ADDB(ud, &dom->nd_addb, &nlx_addb_loc);
 	if (ud == NULL)
 		return -ENOMEM;
@@ -755,10 +756,11 @@ int nlx_core_buf_register(struct nlx_core_domain *cd,
 
 	C2_PRE(cd != NULL);
 	ud = cd->cd_upvt;
-	C2_PRE(nlx_ucore_domain_invariant(ud) &&
-	       buffer_id != 0 &&
-	       bvec != NULL &&
-	       cb != NULL && cb->cb_kpvt == NULL && cb->cb_upvt == NULL);
+	C2_PRE(nlx_ucore_domain_invariant(ud));
+	C2_PRE(buffer_id != 0);
+	C2_PRE(bvec != NULL);
+	C2_PRE(cb != NULL);
+	C2_PRE(cb->cb_kpvt == NULL && cb->cb_upvt == NULL);
 
 	C2_ALLOC_PTR_ADDB(ub, &ud->ud_addb, &nlx_addb_loc);
 	if (ub == NULL)
@@ -794,10 +796,12 @@ void nlx_core_buf_deregister(struct nlx_core_domain *cd,
 
 	C2_PRE(cd != NULL);
 	ud = cd->cd_upvt;
-	C2_PRE(nlx_ucore_domain_invariant(ud) &&
-	       nlx_core_buffer_invariant(cb));
+	C2_PRE(nlx_ucore_domain_invariant(ud));
+
+	C2_PRE(nlx_core_buffer_invariant(cb));
 	ub = cb->cb_upvt;
-	C2_PRE(nlx_ucore_buffer_invariant(ub) && cb->cb_kpvt != NULL);
+	C2_PRE(nlx_ucore_buffer_invariant(ub));
+	C2_PRE(cb->cb_kpvt != NULL);
 	dp.dbd_kb = cb->cb_kpvt;
 	rc = nlx_ucore_ioctl(ud->ud_fd, C2_LNET_BUF_DEREGISTER, &dp);
 	C2_ASSERT(rc == 0);
@@ -1102,14 +1106,17 @@ int nlx_core_tm_start(struct nlx_core_domain *cd,
 	};
 	int rc;
 
-	C2_PRE(tm != NULL && cd != NULL &&
-	       c2_mutex_is_locked(&tm->ntm_mutex) &&
-	       nlx_tm_invariant(tm));
+	C2_PRE(tm != NULL);
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+	C2_PRE(nlx_tm_invariant(tm));
 
+	C2_PRE(cd != NULL);
 	ud = cd->cd_upvt;
 	C2_PRE(nlx_ucore_domain_invariant(ud));
 
-	C2_PRE(ctm != NULL && ctm->ctm_kpvt == NULL && ctm->ctm_magic == 0);
+	C2_PRE(ctm != NULL);
+	C2_PRE(ctm->ctm_kpvt == NULL);
+	C2_PRE(ctm->ctm_magic == 0);
 
 	C2_ALLOC_PTR_ADDB(utm, &ud->ud_addb, &nlx_addb_loc);
 	if (utm == NULL) {
@@ -1124,7 +1131,8 @@ int nlx_core_tm_start(struct nlx_core_domain *cd,
 	rc = nlx_ucore_ioctl(ud->ud_fd, C2_LNET_TM_START, &tsp);
 	if (rc < 0)
 		goto fail_start;
-	C2_ASSERT(ctm->ctm_kpvt != NULL && ctm->ctm_upvt == utm);
+	C2_ASSERT(ctm->ctm_kpvt != NULL);
+	C2_ASSERT(ctm->ctm_upvt == utm);
 
 	rc = nlx_core_new_blessed_bev(cd, ctm, &e1);
 	if (rc == 0)
@@ -1135,10 +1143,10 @@ int nlx_core_tm_start(struct nlx_core_domain *cd,
 	bev_cqueue_init(&ctm->ctm_bevq, &e1->cbe_tm_link, &e2->cbe_tm_link);
 	C2_ASSERT(bev_cqueue_is_empty(&ctm->ctm_bevq));
 
-	C2_POST(nlx_ucore_tm_invariant(utm) &&
-		ctm->ctm_kpvt != NULL &&
-		ctm->ctm_upvt == utm &&
-		nlx_core_tm_invariant(ctm));
+	C2_POST(nlx_ucore_tm_invariant(utm));
+	C2_POST(ctm->ctm_kpvt != NULL);
+	C2_POST(ctm->ctm_upvt == utm);
+	C2_POST(nlx_core_tm_invariant(ctm));
 	return 0;
 
  fail_blessed_bev:
@@ -1184,9 +1192,9 @@ int nlx_core_new_blessed_bev(struct nlx_core_domain *cd,
 	struct nlx_ucore_transfer_mc *utm;
 	int rc;
 
-	C2_PRE(cd != NULL &&
-	       nlx_core_tm_invariant(ctm) &&
-	       ctm->ctm_kpvt != NULL);
+	C2_PRE(cd != NULL);
+	C2_PRE(nlx_core_tm_invariant(ctm));
+	C2_PRE(ctm->ctm_kpvt != NULL);
 	ud = cd->cd_upvt;
 	C2_PRE(nlx_ucore_domain_invariant(ud));
 	utm = ctm->ctm_upvt;

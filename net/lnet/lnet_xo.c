@@ -104,8 +104,8 @@ static int nlx_xo_dom_init(struct c2_net_xprt *xprt, struct c2_net_domain *dom)
 	struct nlx_xo_domain *dp;
 	int rc;
 
-	C2_PRE(dom->nd_xprt_private == NULL &&
-	       xprt == &c2_net_lnet_xprt);
+	C2_PRE(dom->nd_xprt_private == NULL);
+	C2_PRE(xprt == &c2_net_lnet_xprt);
 	NLX_ALLOC_PTR_ADDB(dp, &dom->nd_addb, &nlx_addb_loc);
 	if (dp == NULL)
 		return -ENOMEM;
@@ -202,9 +202,9 @@ static int nlx_xo_buf_register(struct c2_net_buffer *nb)
 	struct nlx_xo_buffer *bp;
 	int rc;
 
-	C2_PRE(nb->nb_dom != NULL && nlx_dom_invariant(nb->nb_dom) &&
-	       nb->nb_xprt_private == NULL &&
-	       nlx_xo_buffer_bufvec_invariant(nb));
+	C2_PRE(nb->nb_dom != NULL && nlx_dom_invariant(nb->nb_dom));
+	C2_PRE(nb->nb_xprt_private == NULL);
+	C2_PRE(nlx_xo_buffer_bufvec_invariant(nb));
 
 	dp = nb->nb_dom->nd_xprt_private;
 	NLX_ALLOC_PTR_ADDB(bp, &nb->nb_addb, &nlx_addb_loc);
@@ -228,8 +228,8 @@ static void nlx_xo_buf_deregister(struct c2_net_buffer *nb)
 	struct nlx_xo_domain *dp;
 	struct nlx_xo_buffer *bp = nb->nb_xprt_private;
 
-	C2_PRE(nb->nb_dom != NULL && nlx_dom_invariant(nb->nb_dom) &&
-	       nlx_buffer_invariant(nb));
+	C2_PRE(nb->nb_dom != NULL && nlx_dom_invariant(nb->nb_dom));
+	C2_PRE(nlx_buffer_invariant(nb));
 	dp = nb->nb_dom->nd_xprt_private;
 
 	nlx_core_buf_deregister(&dp->xd_core, &bp->xb_core);
@@ -247,8 +247,6 @@ static int nlx_xo__nbd_allocate(struct c2_net_transfer_mc *tm,
 				const struct nlx_core_buf_desc *cbd,
 				struct c2_net_buf_desc *nbd)
 {
-	C2_PRE(tm != NULL && nbd != NULL && cbd != NULL);
-
 	nbd->nbd_len = sizeof *cbd;
 	C2_ALLOC_ADDB(nbd->nbd_data, nbd->nbd_len,
 		      &tm->ntm_addb, &nlx_addb_loc);
@@ -268,8 +266,6 @@ static int nlx_xo__nbd_recover(struct c2_net_transfer_mc *tm,
 			       const struct c2_net_buf_desc *nbd,
 			       struct nlx_core_buf_desc *cbd)
 {
-	C2_PRE(tm != NULL && nbd != NULL && cbd != NULL);
-
 	if (nbd->nbd_len != sizeof *cbd) {
 		int rc = -EINVAL;
 		LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
@@ -293,10 +289,10 @@ static int nlx_xo_buf_add(struct c2_net_buffer *nb)
 	size_t need;
 	int rc;
 
-	C2_PRE(nlx_buffer_invariant(nb) && nb->nb_tm != NULL &&
-	       c2_mutex_is_locked(&nb->nb_tm->ntm_mutex) &&
-	       nb->nb_offset == 0 && /* do not support an offset during add */
-	       (nb->nb_flags & C2_NET_BUF_RETAIN) == 0);
+	C2_PRE(nlx_buffer_invariant(nb) && nb->nb_tm != NULL);
+	C2_PRE(c2_mutex_is_locked(&nb->nb_tm->ntm_mutex));
+	C2_PRE(nb->nb_offset == 0); /* do not support an offset during add */
+	C2_PRE((nb->nb_flags & C2_NET_BUF_RETAIN) == 0);
 	dp = nb->nb_dom->nd_xprt_private;
 	tp = nb->nb_tm->ntm_xprt_private;
 	cd = &dp->xd_core;
@@ -404,7 +400,8 @@ static int nlx_xo_tm_init(struct c2_net_transfer_mc *tm)
 	struct nlx_xo_domain *dp;
 	struct nlx_xo_transfer_mc *tp;
 
-	C2_PRE(nlx_dom_invariant(tm->ntm_dom) && tm->ntm_xprt_private == NULL);
+	C2_PRE(nlx_dom_invariant(tm->ntm_dom));
+	C2_PRE(tm->ntm_xprt_private == NULL);
 
 	dp = tm->ntm_dom->nd_xprt_private;
 	NLX_ALLOC_PTR_ADDB(tp, &tm->ntm_addb, &nlx_addb_loc);
@@ -426,9 +423,9 @@ static void nlx_xo_tm_fini(struct c2_net_transfer_mc *tm)
 {
 	struct nlx_xo_transfer_mc *tp = tm->ntm_xprt_private;
 
-	C2_PRE(c2_mutex_is_locked(&tm->ntm_dom->nd_mutex) &&
-	       nlx_tm_invariant(tm) &&
-	       tm->ntm_callback_counter == 0);
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_dom->nd_mutex));
+	C2_PRE(nlx_tm_invariant(tm));
+	C2_PRE(tm->ntm_callback_counter == 0);
 
 	if (tp->xtm_ev_thread.t_state != TS_PARKED)
 		c2_thread_join(&tp->xtm_ev_thread);
@@ -446,7 +443,8 @@ static int nlx_xo_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 	struct nlx_xo_transfer_mc *tp;
 	int rc;
 
-	C2_PRE(nlx_tm_invariant(tm) && c2_mutex_is_locked(&tm->ntm_mutex));
+	C2_PRE(nlx_tm_invariant(tm));
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	dp = tm->ntm_dom->nd_xprt_private;
 	tp = tm->ntm_xprt_private;
 
@@ -468,7 +466,8 @@ static int nlx_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 	struct c2_net_buffer *nb;
 	int qt;
 
-	C2_PRE(nlx_tm_invariant(tm) && c2_mutex_is_locked(&tm->ntm_mutex));
+	C2_PRE(nlx_tm_invariant(tm));
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 
 	/* walk through the queues and cancel every buffer if desired */
 	if (cancel)
@@ -489,8 +488,9 @@ static int nlx_xo_tm_confine(struct c2_net_transfer_mc *tm,
 	struct nlx_xo_transfer_mc *tp = tm->ntm_xprt_private;
 	int rc;
 
-	C2_PRE(nlx_tm_invariant(tm) && c2_mutex_is_locked(&tm->ntm_mutex) &&
-	       processors != NULL);
+	C2_PRE(nlx_tm_invariant(tm));
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+	C2_PRE(processors != NULL);
 	if (tp->xtm_processors.b_words != NULL)
 		c2_bitmap_fini(&tp->xtm_processors);
 	rc = c2_bitmap_init(&tp->xtm_processors, processors->b_nr);
@@ -507,9 +507,10 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 	struct nlx_core_buffer_event cbev;
 	int num_events = 0;
 
-	C2_PRE(nlx_tm_invariant(tm) && c2_mutex_is_locked(&tm->ntm_mutex) &&
-	       (tm->ntm_state == C2_NET_TM_STARTED ||
-		tm->ntm_state == C2_NET_TM_STOPPING));
+	C2_PRE(nlx_tm_invariant(tm));
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
+	C2_PRE(tm->ntm_state == C2_NET_TM_STARTED ||
+	       tm->ntm_state == C2_NET_TM_STOPPING);
 
 	while (nlx_core_buf_event_get(&tp->xtm_core, &cbev)) {
 		struct c2_net_buffer_event nbev;
@@ -613,7 +614,8 @@ static void nlx_xo_bev_notify(struct c2_net_transfer_mc *tm,
 {
 	struct nlx_xo_transfer_mc *tp;
 
-	C2_PRE(nlx_tm_invariant(tm) && c2_mutex_is_locked(&tm->ntm_mutex));
+	C2_PRE(nlx_tm_invariant(tm));
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	tp = tm->ntm_xprt_private;
 
 	/* set the notification channel and awaken nlx_tm_ev_worker() */

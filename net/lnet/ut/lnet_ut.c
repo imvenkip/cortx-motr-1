@@ -598,18 +598,34 @@ static void ntc_event_callback(const struct c2_net_tm_event *ev)
 #ifndef __KERNEL__
 static void test_fail(void)
 {
-	static struct c2_net_domain dom1 = {
+	static struct c2_net_domain dom = {
 		.nd_xprt = NULL
 	};
+	struct nlx_xo_domain *dp;
 	struct nlx_core_kmem_loc loc = { .kl_checksum = 0 };
+	struct nlx_core_ep_addr cepa;
 	const char *sav = nlx_ucore_dev_name;
 
 	nlx_ucore_dev_name = "/dev/no such device";
-	C2_UT_ASSERT(c2_net_domain_init(&dom1, &c2_net_lnet_xprt) != 0);
+	C2_UT_ASSERT(c2_net_domain_init(&dom, &c2_net_lnet_xprt) != 0);
 	nlx_ucore_dev_name = sav;
 
 	C2_UT_ASSERT(nlx_core_kmem_loc_is_empty(&loc));
 	C2_UT_ASSERT(!nlx_core_kmem_loc_invariant(&loc));
+
+	C2_UT_ASSERT(!nlx_dom_invariant(&dom));
+	C2_UT_ASSERT(!c2_net_domain_init(&dom, &c2_net_lnet_xprt));
+	C2_UT_ASSERT(nlx_dom_invariant(&dom));
+	dp = dom.nd_xprt_private;
+	C2_UT_ASSERT(nlx_core_ep_addr_decode(&dp->xd_core, "0@lo:xpid:0:0",
+					     &cepa) == -EINVAL);
+	C2_UT_ASSERT(nlx_core_ep_addr_decode(&dp->xd_core, "0@lo:12345:xptl:0",
+					     &cepa) == -EINVAL);
+	C2_UT_ASSERT(nlx_core_ep_addr_decode(&dp->xd_core, "0@lo:12345:33:xtm",
+					     &cepa) == -EINVAL);
+	C2_UT_ASSERT(nlx_core_ep_addr_decode(&dp->xd_core, "0@lo:12345:33:1",
+					     &cepa) == 0);
+	c2_net_domain_fini(&dom);
 }
 #endif
 
@@ -756,7 +772,7 @@ static void test_tm_startstop(void)
 	char * const *nidstrs;
 	const char *nid_to_use;
 	char epstr[C2_NET_LNET_XEP_ADDR_LEN];
-	char badepstr[C2_NET_LNET_XEP_ADDR_LEN];
+	char badportal_epstr[C2_NET_LNET_XEP_ADDR_LEN];
 	char dyn_epstr[C2_NET_LNET_XEP_ADDR_LEN];
 	char save_epstr[C2_NET_LNET_XEP_ADDR_LEN];
 	struct c2_bitmap procs;
@@ -793,7 +809,7 @@ static void test_tm_startstop(void)
 	}
 	sprintf(epstr, "%s:%d:%d:101",
 		nid_to_use, STARTSTOP_PID, STARTSTOP_PORTAL);
-	sprintf(badepstr, "%s:%d:99:101", nid_to_use, STARTSTOP_PID);
+	sprintf(badportal_epstr, "%s:%d:99:101", nid_to_use, STARTSTOP_PID);
 	sprintf(dyn_epstr, "%s:%d:%d:*",
 		nid_to_use, STARTSTOP_PID, STARTSTOP_PORTAL);
 	c2_net_lnet_ifaces_put(dom, &nidstrs);
@@ -807,7 +823,7 @@ static void test_tm_startstop(void)
 	C2_UT_ASSERT(!c2_net_tm_init(tm, dom));
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&tm->ntm_chan, &tmwait1);
-	C2_UT_ASSERT(!c2_net_tm_start(tm, badepstr));
+	C2_UT_ASSERT(!c2_net_tm_start(tm, badportal_epstr));
 	c2_chan_wait(&tmwait1);
 	c2_clink_del(&tmwait1);
 	C2_UT_ASSERT(ecb_count == 1);
