@@ -256,6 +256,32 @@ void c2_reqh_shutdown_wait(struct c2_reqh *reqh)
 	c2_clink_fini(&clink);
 }
 
+static unsigned keymax = 0;
+
+unsigned c2_reqh_key_init()
+{
+	C2_PRE(keymax < REQH_KEY_MAX - 1);
+	return keymax++;
+}
+
+void *c2_reqh_key_find(struct c2_reqh *reqh, unsigned key, c2_bcount_t size)
+{
+	void **data;
+
+	C2_PRE(IS_IN_ARRAY(key, reqh->rh_key) && reqh != NULL && size > 0);
+
+	data = &reqh->rh_key[key];
+	if (*data == NULL)
+		C2_ALLOC_ADDB(*data, size, reqh->rh_addb, &reqh_addb_loc);
+	return *data;
+}
+
+void c2_reqh_key_fini(struct c2_reqh *reqh, unsigned key)
+{
+	C2_PRE(IS_IN_ARRAY(key, reqh->rh_key));
+	c2_free(reqh->rh_key[key]);
+}
+
 /** @} endgroup reqh */
 
 /*

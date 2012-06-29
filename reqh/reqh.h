@@ -53,6 +53,10 @@ struct c2_fop;
 struct c2_net_xprt;
 struct c2_rpc_machine;
 
+enum {
+        REQH_KEY_MAX = 32
+};
+
 /**
    Request handler instance.
  */
@@ -109,6 +113,12 @@ struct c2_reqh {
 	 */
 	struct c2_chan           rh_sd_signal;
 
+	/**
+	 * Request handler key data.
+	 *
+	 * @see c2_reqh_key_init()
+	 */
+        void                    *rh_key[REQH_KEY_MAX];
 	/** Request handler magic. */
 	uint64_t                 rh_magic;
 };
@@ -320,6 +330,88 @@ C2_BOB_DECLARE(extern, c2_reqh_service);
 C2_TL_DESCR_DECLARE(c2_reqh_rpc_mach, extern);
 C2_TL_DECLARE(c2_reqh_rpc_mach, extern, struct c2_rpc_machine);
 C2_BOB_DECLARE(extern, c2_rpc_machine);
+
+/**
+   @name reqhkey
+
+   This infrastructure allows request handler to be a central repository of
+   data, typically used by the request handler services.
+   This not only allows services to efficiently share the data with other
+   services running in the same request handler but also avoids duplicate
+   implementation of similar kind of framework.
+
+   Following interfaces are of interest to any request handler service intending
+   to store and share its specific data with the corresponding request handler,
+   - c2_cs_reqh_key_init()
+     Returns a new request handler key to access the stored data.
+     Same key should be used in-order to share the data among multiple request
+     handler entities if necessary.
+     @note Key cannot exceed beyond REQH_KEY_MAX range for the given request
+           handler.
+     @see cs_reqh_context::rc_key
+     @see cs_reqh_context::rc_keymax
+
+   - c2_cs_reqh_key_find()
+     Locates and returns the data corresponding to the key in the request handler.
+     The key is used to locate the data in cs_reqh_context::rc_key[]. If the data
+     is NULL, then size amount of memory is allocated for the data and returned.
+     @note As request handler itself does not have any knowledge about the
+     purpose and usage of the allocated data, it is the responsibility of the
+     caller to initialise the allocated data and verify the consistency of the
+     same throughout its existence.
+
+   - c2_cs_reqh_key_fini()
+     Destroys the request handler resource accessed by the given key.
+     @note This simply destroys the allocated data without formally looking
+     into its contents. Thus the caller must properly finalise the data contents
+     before invoking this function. Also if the data was shared between multiple
+     services, the caller must make sure that there are no more reference on the
+     same.
+
+     Below pseudo code illustrates the usage of reqhkey interfaces mentioned
+     above,
+
+     @code
+
+     struct foo {
+	...
+	bool is_initialised;
+     };
+     static bool     foo_key_is_initialised;
+     static uint32_t foo_key;
+     int bar_init()
+     {
+	struct foo *data;
+
+	if (!foo_key_is_initialised)
+		foo_key = c2_cs__init(); //get new reqh data key
+
+	data = c2_cs_reqh_key_find(reqh, foo_key, sizeof *foo);
+	if (!data->foo_is_initialised)
+		foo_init(data);
+	...
+     }
+
+     void bar_fini()
+     {
+	struct foo *data;
+
+	data = c2_cs_reqh_key_find(reqh, foo_key, sizeof *foo);
+	foo_fini(data);
+	c2_cs_reqh_key_fini(reqh, foo_key);
+     }
+     @endcode
+
+     For more details please refer to @ref c2_cobfid_map_get() and
+     @ref c2_cobfid_map_put() interfaces in ioservice/cobfid_map.c.
+ */
+/** @{ reqhkey */
+
+unsigned c2_reqh_key_init(void);
+void    *c2_reqh_key_find(struct c2_reqh *reqh, unsigned key, c2_bcount_t size);
+void     c2_reqh_key_fini(struct c2_reqh *reqh, unsigned key);
+
+/** @} reqhkey */
 
 /** @} endgroup reqh */
 

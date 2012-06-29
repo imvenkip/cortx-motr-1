@@ -22,7 +22,7 @@
 #define __COLIBRI_STOB_AD_INTERNAL_H__
 
 /**
-   @defgroup stobad
+   @defgroup stobad Storage objects with extent maps.
 
    <b>Storage object type based on Allocation Data (AD) stored in a
    data-base.</b>
@@ -87,13 +87,16 @@ struct c2_ad_balloc_ops {
 /**
    Setup an AD storage domain.
 
+   @param adom - AD type stob domain;
    @param dbenv - a data-base environment where domain stores its meta-data
    (extent map);
-
    @param bstore - an underlying storage object, where domain stores its
    objects;
-
-   @param ballroom - a byte allocator.
+   @param ballroom - a byte allocator;
+   @param container_size - Container size for balloc;
+   @param bshift - Block shift value;
+   @param blocks_per_group - Number of blocks per group;
+   @param res_groups - Number of reserved groups.
  */
 int  c2_ad_stob_setup(struct c2_stob_domain *adom, struct c2_dbenv *dbenv,
 		      struct c2_stob *bstore, struct c2_ad_balloc *ballroom,

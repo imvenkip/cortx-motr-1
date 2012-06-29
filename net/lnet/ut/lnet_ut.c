@@ -166,7 +166,7 @@ static enum c2_net_queue_type cb_qt1;
 static struct c2_net_buffer *cb_nb1;
 static int32_t cb_status1;
 static c2_bcount_t cb_length1;
-static c2_bcount_t cb_offset1;
+static c2_bindex_t cb_offset1;
 static bool cb_save_ep1; /* save ep next call only */
 static struct c2_net_end_point *cb_ep1; /* QT_MSG_RECV only */
 static unsigned cb_called1;
@@ -205,7 +205,7 @@ static enum c2_net_queue_type cb_qt2;
 static struct c2_net_buffer *cb_nb2;
 static int32_t cb_status2;
 static c2_bcount_t cb_length2;
-static c2_bcount_t cb_offset2;
+static c2_bindex_t cb_offset2;
 static bool cb_save_ep2; /* save ep next call only */
 static struct c2_net_end_point *cb_ep2; /* QT_MSG_RECV only */
 static unsigned cb_called2;
@@ -899,7 +899,7 @@ static bool test_msg_send_loop(struct ut_data          *td,
 	struct c2_net_buffer *nb1;
 	struct c2_net_buffer *nb2;
 	c2_bcount_t msg_size;
-	c2_bcount_t offset;
+	c2_bindex_t offset;
 	c2_bcount_t space_left;
 	unsigned bevs_left;
 	unsigned char seed;

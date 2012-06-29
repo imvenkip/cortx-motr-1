@@ -1192,7 +1192,7 @@ struct c2_net_buffer_event {
 	   Applications should take it into consideration when determining the
 	   starting location of the event data in the buffer.
 	 */
-	c2_bcount_t                nbe_offset;
+	c2_bindex_t                nbe_offset;
 
 	/**
 	   This field is used only in successful completion of buffers
@@ -1301,7 +1301,7 @@ struct c2_net_buffer {
 
 	   It is transport specific if a non-zero value is supported.
 	 */
-	c2_bcount_t                nb_offset;
+	c2_bindex_t                nb_offset;
 
 	/**
 	   Domain pointer. It is set automatically when the buffer
