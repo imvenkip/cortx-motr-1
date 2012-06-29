@@ -135,7 +135,7 @@ rpc_SOURCES                     := formation.c rpc2.c service.c    \
 
 rpc_HEADERS                     := session_k.h
 
-rpc_ut_SOURCES                  := service.c
+rpc_ut_SOURCES                  := service.c formation2.c
 
 sm_SOURCES                      := sm.c
 sm_ut_SOURCES                   := sm.c

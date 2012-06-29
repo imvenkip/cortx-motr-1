@@ -40,6 +40,7 @@ extern const struct c2_test_suite c2_net_tm_prov_ut;
 extern const struct c2_test_suite xcode_ut;
 extern const struct c2_test_suite rpc_service_ut;
 extern const struct c2_test_suite sm_ut;
+extern const struct c2_test_suite frm_ut;
 
 static struct c2_thread ut_thread;
 
@@ -59,6 +60,7 @@ static void run_kernel_ut(int ignored)
 	c2_ut_add(&xcode_ut);
 	c2_ut_add(&rpc_service_ut);
 	c2_ut_add(&sm_ut);
+	c2_ut_add(&frm_ut);
 	c2_ut_run();
 	c2_uts_fini();
 }

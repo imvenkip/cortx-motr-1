@@ -27,6 +27,7 @@
 #include "lib/cdefs.h"  /* C2_EXPORTED */
 #include "lib/assert.h"  /* C2_PRE */
 #include "lib/memory.h"
+#include "lib/finject.h" /* C2_FI_ENABLED */
 
 /**
    @addtogroup memory
@@ -38,6 +39,9 @@
 
 void *c2_alloc(size_t size)
 {
+	if (C2_FI_ENABLED("fail_allocation"))
+		return NULL;
+
 	return kzalloc(size, GFP_KERNEL);
 }
 C2_EXPORTED(c2_alloc);
