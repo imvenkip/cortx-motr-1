@@ -343,10 +343,11 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    @param rw    Flag indicating Read or write request.
    @pre req != NULL
    @post req->magic == IR_MAGIC && req->ir_type == rw &&
-   req->ir_desc.rd_fid == fid && req->ir_desc.rd_offset == pos &&
-   req->ir_desc.rd_count == count &&
-   ((c2t1fs_buf*)c2_tlist_head(rwd, req->ir_desc.rd_buf_list))->cb_buf.b_addr
-   == base && req->ir_state == IRS_INITIALIZED
+   @n req->ir_desc.rd_fid == fid && req->ir_desc.rd_offset == pos &&
+   @n req->ir_desc.rd_count == count &&
+   @n ((c2t1fs_buf*)c2_tlist_head(rwd, req->ir_desc.rd_buf_list))->cb_buf.b_addr
+   == base &&
+   @n req->ir_state == IRS_INITIALIZED
 
    @code
    int io_request_init(struct io_request *req,
@@ -378,7 +379,7 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 
    @param req IO request to be issued.
    @pre req != NULL && req->ir_magic == IR_MAGIC &&
-   req->ir_state >= IRS_INITIALIZED
+   @n req->ir_state >= IRS_INITIALIZED
    @post req->ir_state == IRS_READING
 
    @code
@@ -393,7 +394,7 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 
    @param req IO request to be issued.
    @pre req != NULL && req->ir_magic == IR_MAGIC &&
-   req->ir_state >= IRS_INITIALIZED
+   @n req->ir_state >= IRS_INITIALIZED
    @post req->ir_state == IRS_READING || req->ir_state == IRS_WRITING
 
    @code
@@ -408,7 +409,7 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 
    @param req IO request to be committed.
    @pre req != NULL && req->magic == IR_MAGIC && req->ir_state == IRS_WRITING
-   && !c2_tlist_is_empty(rwd, req->ir_desc.rd_buf_list)
+   @n && !c2_tlist_is_empty(rwd, req->ir_desc.rd_buf_list)
    @post req->ir_state == IRS_WRITE_COMPLETE &&
    c2_tlist_is_empty(rwd, req->ir_desc.rd_buf_list) == true
 
@@ -444,7 +445,7 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 
    @param req IO request to be submitted.
    @pre req != NULL && req->ir_magic == IR_MAGIC &&
-   (req->ir_state == IRS_READING || req->ir_state == IRS_WRITING)
+   @n (req->ir_state == IRS_READING || req->ir_state == IRS_WRITING)
    @post (req->ir_state == IRS_READ_COMPLETE ||
    req->ir_state == IRS_WRITE_COMPLETE)
 
@@ -530,6 +531,7 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    from data server synchronously(later from client cache which is missing
    at the moment and then from data server). And then it will be modified
    and send as a full stripe IO request.
+
    - @b I.c2t1fs.rmw_io.efficient The implementation uses an asynchronous
    way of waiting for IO requests and does not send the requests one after
    another as is done with current implementation. This leads in only one
