@@ -769,8 +769,10 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 						   bstob);
 	}
 
-	if (rc == 0 && C2_FI_ENABLED("ad_domain_locate_fail"))
+	if (rc == 0 && C2_FI_ENABLED("ad_domain_locate_fail")) {
+		printf("here\n");
 		rc = -EINVAL;
+	}
 
 	if (rc == 0) {
 		sprintf(ad_dname, "%lx%lx", bstob_id->si_bits.u_hi,
@@ -813,8 +815,10 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 				      BALLOC_DEF_BLOCKS_PER_GROUP,
 				      BALLOC_DEF_RESERVED_GROUPS);
 
-	if (rc == 0 && C2_FI_ENABLED("ad_stob_setup_fail"))
+	if (rc == 0 && C2_FI_ENABLED("ad_stob_setup_fail")) {
+		printf("here\n");
 		rc = -EINVAL;
+	}
 
 	return rc;
 }

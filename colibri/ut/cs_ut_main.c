@@ -47,7 +47,6 @@
 #include "colibri/colibri_setup.c"
 
 extern const struct c2_tl_descr ndoms_descr;
-static bool cs_ut_finject;
 
 /* Client context */
 struct cl_ctx {
@@ -293,8 +292,6 @@ static int cs_ut_test_helper_success(struct cl_ctx *cctx, size_t cctx_nr,
 				  cs_argv, cs_argc, SERVER_LOG_FILE_NAME);
 
 	rc = c2_rpc_server_start(&sctx);
-	if (cs_ut_finject && rc == -EINVAL)
-		return 0;
 	C2_UT_ASSERT(rc == 0);
 
 	for (i = 0; i < cctx_nr; ++i) {
@@ -393,28 +390,20 @@ static void test_cs_ut_opts_jumbled(void)
  */
 static void test_cs_ut_linux_stob_cleanup(void)
 {
-	struct cl_ctx  cctx[1] = { };
-
 	system("rm -f devices.conf");
 	dev_conf_file_create();
-	cs_ut_finject = true;
 	c2_fi_enable_once("cs_ad_stob_create", "ad_domain_locate_fail");
-	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx), cs_ut_dev_stob_cmd,
+	cs_ut_test_helper_failure(cs_ut_dev_stob_cmd,
 				  ARRAY_SIZE(cs_ut_dev_stob_cmd));
-	cs_ut_finject = false;
 }
 
 static void test_cs_ut_ad_stob_cleanup(void)
 {
-	struct cl_ctx  cctx[1] = { };
-
 	system("rm -f devices.conf");
 	dev_conf_file_create();
-	cs_ut_finject = true;
-	c2_fi_enable_once("cs_ad_stob_init", "ad_stob_setup_fail");
-	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx), cs_ut_dev_stob_cmd,
+	c2_fi_enable_once("cs_ad_stob_create", "ad_stob_setup_fail");
+	cs_ut_test_helper_failure(cs_ut_dev_stob_cmd,
 				  ARRAY_SIZE(cs_ut_dev_stob_cmd));
-	cs_ut_finject = false;
 }
 
 /*
@@ -533,8 +522,8 @@ const struct c2_test_suite colibri_setup_ut = {
 		{ "cs-multiple-request-handlers", test_cs_ut_reqhs_many},
 		{ "cs-command-options-jumbled", test_cs_ut_opts_jumbled},
 		{ "cs-device-stob", test_cs_ut_dev_stob},
-		{ "cs-fail-ad-stob-cleanup", test_cs_ut_ad_stob_cleanup},
 		{ "cs-fail-linux-stob-cleanup", test_cs_ut_linux_stob_cleanup},
+		{ "cs-fail-ad-stob-cleanup", test_cs_ut_ad_stob_cleanup},
 		{ "cs-missing-reqh-option", test_cs_ut_reqh_none},
 		{ "cs-bad-storage-type", test_cs_ut_stype_bad},
 		{ "cs-bad-network-xprt", test_cs_ut_xprt_bad},
