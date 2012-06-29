@@ -622,6 +622,19 @@ void c2_fom_callback_fini(struct c2_fom_callback *cb);
 bool c2_fom_callback_cancel(struct c2_fom_callback *cb);
 
 bool c2_group_is_locked(const struct c2_fom *fom);
+
+extern const struct c2_addb_loc c2_fom_addb_loc;
+extern const struct c2_addb_ctx_type c2_fom_addb_ctx_type;
+
+#define FOM_ADDB_ADD(fom, name, rc)  \
+C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, (name), (rc))
+
+/**
+ * It initializes state machine in the FOM with C2_FOPH_SM_INIT state.
+ * @pre c2_group_is_locked(fom)
+ */
+void c2_fom_sm_init(struct c2_fom *fom);
+
 /** @} end of fom group */
 
 /* __COLIBRI_FOP_FOM_H__ */

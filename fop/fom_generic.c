@@ -35,6 +35,7 @@
 #include "dtm/dtm.h"
 #include "fop/fop_format_def.h"
 #include "sm/sm.h"
+#include "reqh/reqh.h"
 
 #ifdef __KERNEL__
 #include "fom_generic_fops_k.h"
@@ -42,21 +43,10 @@
 #include "fom_generic_fops_u.h"
 #endif
 
-#include "reqh/reqh.h"
-
 /**
-   @addtogroup reqh
+   @addtogroup fom
    @{
  */
-
-extern const struct c2_addb_loc c2_reqh_addb_loc;
-
-extern const struct c2_addb_ctx_type c2_reqh_addb_ctx_type;
-
-extern struct c2_addb_ctx c2_reqh_addb_ctx;
-
-#define REQH_GEN_ADDB_ADD(addb_ctx, name, rc)  \
-C2_ADDB_ADD(&(addb_ctx), &c2_reqh_addb_loc, c2_addb_func_fail, (name), (rc))
 
 /**
  * FOM generic error fop type.
@@ -69,7 +59,9 @@ extern struct c2_fop_type c2_fom_generic_error_rep_fopt;
  *
  * @see c2_fom_state_generic()
  *
- * @retval C2_FSO_AGAIN, to execute next fom phase
+ * C2_FSO_AGAIN is used to execute next fom phase
+ * C2_FSO_WAIT  is used to execute its wait phase when
+		returned from blocking state.
  */
 static void sm_fom_phase_init(struct c2_sm *mach)
 {
@@ -218,14 +210,15 @@ static void sm_fom_auth_wait(struct c2_sm *mach)
  */
 static int create_loc_ctx(struct c2_fom *fom)
 {
-	int rc;
+	int		rc;
 	struct c2_reqh *reqh;
 
 	reqh = fom->fo_loc->fl_dom->fd_reqh;
 	rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, reqh->rh_dbenv, 0);
-	if (rc != 0)
+	if (rc != 0) {
 		fom->fo_rc = rc;
-
+		fom->fo_phase = C2_FOPH_FAILURE;
+	}
 	return C2_FSO_AGAIN;
 }
 static void sm_create_loc_ctx(struct c2_sm *mach)
@@ -456,12 +449,9 @@ static void sm_fom_timeout(struct c2_sm *mach)
 }
 
 /**
- * Fom phase operations table, this defines a fom_phase_ops object
- * for every generic phase of the fom, containing a function pointer
- * to the phase handler, the next phase fom should transition into
- * and a phase name in user visible format inorder to log addb event.
- *
- * @see struct fom_phase_ops
+ * FOM generic states, allowed transitions from each state and their functions
+ * are assigned to a state machine descriptor.
+ * State name is used to log addb event.
  */
 const struct c2_sm_state_descr states[C2_FOPH_NR + 1] = {
 	[C2_FOPH_SM_INIT] = {
@@ -690,8 +680,8 @@ const struct c2_sm_state_descr states[C2_FOPH_NR + 1] = {
 };
 
 const struct c2_sm_conf	conf = {
-	.scf_name      = "Request handler standard states",
-	.scf_nr_states = C2_FOPH_NR + 1,
+	.scf_name      = "FOM standard states",
+	.scf_nr_states = C2_FOPH_NR,
 	.scf_state     = states
 };
 
@@ -708,9 +698,8 @@ int c2_fom_state_generic(struct c2_fom *fom)
 
 	if (rc == C2_FSO_AGAIN) {
 		if (fom->fo_rc != 0 && fom->fo_phase < C2_FOPH_FAILURE) {
-			REQH_GEN_ADDB_ADD(c2_reqh_addb_ctx,
-					  states[fom_phase].sd_name,
-					  fom->fo_rc);
+			FOM_ADDB_ADD(fom, states[fom_phase].sd_name,
+				     fom->fo_rc);
 			fom->fo_phase = C2_FOPH_FAILURE;
 		}
 	}
@@ -738,7 +727,7 @@ void c2_fom_sm_init(struct c2_fom *fom)
 		    fom_addb_ctx);
 }
 
-/** @} endgroup reqh */
+/** @} endgroup fom */
 
 /*
  *  Local variables:

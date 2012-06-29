@@ -312,7 +312,6 @@ C2_TL_DESCR_DECLARE(c2_rhrpm, extern);
 C2_TL_DECLARE(c2_rhrpm, extern, struct c2_rpc_machine);
 C2_BOB_DECLARE(extern, c2_rpc_machine);
 
-void c2_fom_sm_init(struct c2_fom *fom);
 /** @} endgroup reqh */
 
 /* __COLIBRI_REQH_REQH_H__ */

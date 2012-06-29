@@ -68,9 +68,6 @@ static bool fom_wait_time_is_out(const struct c2_fom_domain *dom,
 static int loc_thr_create(struct c2_fom_locality *loc);
 static void fom_ast_cb(struct c2_sm_group *grp, struct c2_sm_ast *ast);
 
-#define FOM_ADDB_ADD(fom, name, rc)  \
-C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, (name), (rc))
-
 /**
  * Fom domain operations.
  * @todo Support fom timeout functionality.

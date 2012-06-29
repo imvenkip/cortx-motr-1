@@ -14,7 +14,7 @@ fop_SOURCES                   = fop.c fop.h fom.c fom.h fop_format.c \
 				fop_user.h fop_format_def.h fop_format_c.c \
                                 fop_iterator.h fop_iterator.c fop_base.c fop_base.h \
 				fom_generic_fops_u.c fom_generic_fops_u.h \
-			        fom_generic_fops.ff fom_generic_fops.c fom_generic.c 
+			        fom_generic_fops.ff fom_generic_fops.c fom_generic.c
 
 libcolibri_fop_la_SOURCES     = $(fop_SOURCES)
 

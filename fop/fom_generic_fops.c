@@ -38,9 +38,8 @@
 #include "rpc/rpc_opcodes.h"
 #include "xcode/bufvec_xcode.h"
 
-
 /**
-   @addtogroup reqh
+   @addtogroup fom
    @{
  */
 
@@ -49,7 +48,7 @@ static struct c2_fop_type_ops fom_generic_err_fop_ops = {
 	.fto_execute = NULL,
 };
 
-C2_FOP_TYPE_DECLARE(c2_fom_generic_error_rep, "FOM error reply",
+C2_FOP_TYPE_DECLARE(c2_fom_generic_error_rep, "FOM generic error reply",
 		    &fom_generic_err_fop_ops, C2_FOM_GENERIC_ERROR_REPLY_OPCODE,
 		    C2_RPC_ITEM_TYPE_REPLY);
 
@@ -72,7 +71,7 @@ int c2_fom_generic_fop_init(void)
 	return result;
 }
 
-/** @} endgroup reqh */
+/** @} endgroup fom */
 
 /*
  *  Local variables:
