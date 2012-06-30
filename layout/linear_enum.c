@@ -132,7 +132,7 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
 void c2_linear_enum_fini(struct c2_layout_linear_enum *e)
 {
 	C2_PRE(linear_enum_invariant_internal(e));
-	C2_PRE(e->lle_base.le_l == NULL);
+	C2_PRE(e->lle_base.le_sl == NULL);
 
 	e->lle_base.le_ops->leo_fini(&e->lle_base);
 }
@@ -158,7 +158,7 @@ static void linear_fini(struct c2_layout_enum *e)
 	C2_PRE(e != NULL);
 
 	C2_ENTRY("lid %llu, enum_pointer %p",
-		 (unsigned long long)e->le_l->l_id, e);
+		 (unsigned long long)e->le_sl->sl_base.l_id, e);
 	lin_enum = enum_to_linear_enum(e);
 	c2_layout_linear_enum_bob_fini(lin_enum);
 	c2_layout__enum_fini(e);
@@ -266,7 +266,7 @@ static int linear_encode(const struct c2_layout_enum *e,
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof lin_enum->lle_attr);
 
 	lin_enum = enum_to_linear_enum(e);
-	lid = lin_enum->lle_base.le_l->l_id;
+	lid = lin_enum->lle_base.le_sl->sl_base.l_id;
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
 	if (op == C2_LXO_DB_UPDATE) {
@@ -298,10 +298,10 @@ static uint32_t linear_nr(const struct c2_layout_enum *e)
 	C2_PRE(e != NULL);
 
 	C2_ENTRY("lid %llu, enum_pointer %p",
-		 (unsigned long long)e->le_l->l_id, e);
+		 (unsigned long long)e->le_sl->sl_base.l_id, e);
 	lin_enum = enum_to_linear_enum(e);
 	C2_LEAVE("lid %llu, enum_pointer %p, nr %lu",
-		 (unsigned long long)e->le_l->l_id, e,
+		 (unsigned long long)e->le_sl->sl_base.l_id, e,
 		 (unsigned long)lin_enum->lle_attr.lla_nr);
 	return lin_enum->lle_attr.lla_nr;
 }
@@ -320,7 +320,7 @@ static void linear_get(const struct c2_layout_enum *e, uint32_t idx,
 	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu, enum_pointer %p",
-		 (unsigned long long)e->le_l->l_id, e);
+		 (unsigned long long)e->le_sl->sl_base.l_id, e);
 	lin_enum = enum_to_linear_enum(e);
 	C2_ASSERT(idx < lin_enum->lle_attr.lla_nr);
 
@@ -329,7 +329,7 @@ static void linear_get(const struct c2_layout_enum *e, uint32_t idx,
 		   gfid->f_key);
 
 	C2_LEAVE("lid %llu, enum_pointer %p, fid_pointer %p",
-		 (unsigned long long)e->le_l->l_id, e, out);
+		 (unsigned long long)e->le_sl->sl_base.l_id, e, out);
 	C2_ASSERT(c2_fid_is_valid(out));
 }
 

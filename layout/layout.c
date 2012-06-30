@@ -174,7 +174,7 @@ bool c2_layout__enum_invariant(const struct c2_layout_enum *le)
 	return
 		c2_layout_enum_bob_check(le) &&
 		le->le_type != NULL &&
-		c2_layout__invariant(le->le_l) &&
+		le->le_sl != NULL &&
 		le->le_ops != NULL;
 }
 
@@ -406,12 +406,12 @@ void c2_layout__striped_init(struct c2_layout_domain *dom,
 
 	c2_layout__init(dom, &str_l->sl_base, lid, pool_id, type, ops);
 	str_l->sl_enum = e;
-	str_l->sl_enum->le_l = &str_l->sl_base;
+	str_l->sl_enum->le_sl = str_l;
 
 	/*
 	 * c2_layout__enum_invariant() invoked internally from within
 	 * c2_layout__striped_invariant() verifies that
-	 * str_l->sl_base->le_l is set appropriately.
+	 * str_l->sl_base->le_sl is set appropriately.
 	 */
 	C2_POST(c2_layout__striped_invariant(str_l));
 	C2_LEAVE("lid %llu", (unsigned long long)lid);
@@ -450,13 +450,12 @@ void c2_layout__enum_init(struct c2_layout_domain *dom,
 	C2_PRE(ops != NULL);
 
 	C2_ENTRY("Enum-type-id %lu", (unsigned long)et->let_id);
-	/* le->le_l will be set through c2_layout__striped_init(). */
-	le->le_l   = NULL;
+	/* le->le_sl will be set through c2_layout__striped_init(). */
+	le->le_sl = NULL;
 	le->le_ops = ops;
 	enum_type_get(et);
 	le->le_type = et;
 	c2_layout_enum_bob_init(le);
-
 	C2_LEAVE("Enum-type-id %lu", (unsigned long)et->let_id);
 }
 

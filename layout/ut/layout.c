@@ -1364,9 +1364,9 @@ static void pdclust_layout_compare(uint32_t enum_id,
 	/* Compare enumeration specific part of the layout objects. */
 	C2_UT_ASSERT(pl1->pl_base.sl_enum->le_type ==
 		     pl2->pl_base.sl_enum->le_type);
-	C2_UT_ASSERT(pl1->pl_base.sl_enum->le_l == &pl1->pl_base.sl_base);
-	C2_UT_ASSERT(pl1->pl_base.sl_enum->le_l->l_id ==
-		     pl2->pl_base.sl_enum->le_l->l_id);
+	C2_UT_ASSERT(pl1->pl_base.sl_enum->le_sl == &pl1->pl_base);
+	C2_UT_ASSERT(pl1->pl_base.sl_enum->le_sl->sl_base.l_id ==
+		     pl2->pl_base.sl_enum->le_sl->sl_base.l_id);
 	C2_UT_ASSERT(pl1->pl_base.sl_enum->le_ops ==
 		     pl2->pl_base.sl_enum->le_ops);
 
@@ -1462,7 +1462,7 @@ static void pdclust_layout_copy(uint32_t enum_id,
 	/* Copy enumeration specific part of the layout objects. */
 	pl_dest->pl_base.sl_enum->le_type = pl_src->pl_base.sl_enum->le_type;
 	pl_dest->pl_base.sl_enum->le_ops = pl_src->pl_base.sl_enum->le_ops;
-	pl_dest->pl_base.sl_enum->le_l = &pl_dest->pl_base.sl_base;
+	pl_dest->pl_base.sl_enum->le_sl = &pl_dest->pl_base;
 
 	pdclust_layout_compare(enum_id, &pl_src->pl_base.sl_base,
 			       &pl_dest->pl_base.sl_base);

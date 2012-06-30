@@ -230,8 +230,10 @@ struct c2_layout_ops {
 	void        (*lo_fini)(struct c2_layout *l);
 
 	/**
-	 * Returns applicable record size for the layouts table, for the
-	 * specified layout.
+	 * Returns size of the layout type specific and enum type specific data
+	 * stored in the "layouts" (primary) table, for the specified layout.
+	 * @invariant l->l_ops->lo_recsize(l)
+	 *            <= l->l_type->lt_ops->lto_max_recsize(l->l_dom);
 	 */
 	c2_bcount_t (*lo_recsize)(const struct c2_layout *l);
 };
@@ -298,7 +300,9 @@ struct c2_layout_type_ops {
 	 * Allocates an instance of some layout-type specific data-type
 	 * which embeds c2_layout and stores the resultant c2_layout object
 	 * in the parameter out.
-	 * Internally, sets c2_layout::l_ops.
+	 * @pre C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP))
+	 * @pre ergo(op == C2_LXO_DB_LOOKUP, tx != NULL)
+	 * @post ergo(result == 0, *out != NULL && (*out)->l_ops != NULL);
 	 */
 	int         (*lto_decode)(struct c2_layout_domain *dom,
 				  uint64_t lid,
@@ -311,6 +315,9 @@ struct c2_layout_type_ops {
 	/**
 	 * Continues storing the layout representation either in the buffer
 	 * provided by the caller or in the DB.
+	 * @pre C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
+	 *                 C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP))
+	 * @pre ergo(op != C2_LXO_BUFFER_OP, tx != NULL)
 	 */
 	int         (*lto_encode)(struct c2_layout *l,
 				  enum c2_layout_xcode_op op,
@@ -326,8 +333,8 @@ struct c2_layout_enum {
 	/** Layout enumeration type. */
 	struct c2_layout_enum_type      *le_type;
 
-	/** Layout object this enum is associated with. */
-	const struct c2_layout          *le_l;
+	/** Striped layout object this enum is associated with. */
+	const struct c2_striped_layout  *le_sl;
 
 	/** Enum operations vector. */
 	const struct c2_layout_enum_ops *le_ops;
@@ -348,8 +355,10 @@ struct c2_layout_enum_ops {
 			       const struct c2_fid *gfid, struct c2_fid *out);
 
 	/**
-	 * Returns applicable record size for the layouts table, for the
-	 * specified enum objext part of the layout.
+	 * Returns size of the enum type specific data stored in the "layouts"
+	 * (primary) table, for the specified enumeration.
+	 * @invariant e->le_ops->leo_recsize(e)
+	 *            <= e->le_type->let_ops->leto_max_recsize();
 	 */
 	c2_bcount_t (*leo_recsize)(struct c2_layout_enum *e);
 
@@ -404,7 +413,9 @@ struct c2_layout_enum_type_ops {
 	 * Allocates an instance of some enum-type specific data-type
 	 * which embeds c2_layout_enum and stores the resultant
 	 * c2_layout_enum object in the parameter out.
-	 * Internally, sets c2_layout_enum::le_ops.
+	 * @pre C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP))
+	 * @pre ergo(op == C2_LXO_DB_LOOKUP, tx != NULL)
+	 * @post ergo(result == 0, *out != NULL && (*out)->le_ops != NULL);
 	 */
 	int         (*leto_decode)(struct c2_layout_domain *dom,
 				   uint64_t lid,
@@ -416,6 +427,9 @@ struct c2_layout_enum_type_ops {
 	/**
 	 * Continues storing layout representation either in the buffer
 	 * provided by the caller or in the DB.
+	 * @pre C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
+	 *                 C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP))
+	 * @pre ergo(op != C2_LXO_BUFFER_OP, tx != NULL)
 	 */
 	int         (*leto_encode)(const struct c2_layout_enum *le,
 				   enum c2_layout_xcode_op op,
