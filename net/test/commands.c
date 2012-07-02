@@ -22,18 +22,20 @@
 #  include "config.h"
 #endif
 
-/* @todo remove */
-#ifndef __KERNEL__
-#include <stdio.h>		/* printf */
-#endif
-
 #include "lib/cdefs.h"		/* container_of */
 #include "lib/types.h"		/* c2_bcount_t */
 #include "lib/misc.h"		/* C2_SET0 */
 #include "lib/memory.h"		/* C2_ALLOC_ARR */
 #include "lib/errno.h"		/* ENOMEM */
 
+#include "net/test/ntxcode.h"	/* c2_net_test_xcode */
+
 #include "net/test/commands.h"
+
+/** @todo remove */
+#ifndef __KERNEL__
+#include <stdio.h>		/* printf */
+#endif
 
 #ifndef __KERNEL__
 #define LOGD(format, ...) printf(format, ##__VA_ARGS__)
@@ -80,28 +82,6 @@ static int32_t ep_index(struct c2_net_test_cmd_ctx *ctx, const char *ep_addr)
 	return UINT32_MAX;
 }
 
-/** @todo move encoding/decoding code to net/test/onwire.[ch] */
-
-enum net_test_transform_op {
-	NET_TEST_ENCODE,
-	NET_TEST_DECODE
-};
-
-struct net_test_descr {
-	size_t ntd_offset;
-	size_t ntd_length;
-};
-
-#define TYPE_DESCR(type_name) \
-	static const struct net_test_descr type_name ## _descr[]
-
-#define FIELD_SIZE(type, field) (sizeof ((type *) 0)->field)
-
-#define FIELD_DESCR(type, field) {		\
-	.ntd_offset		= offsetof(type, field),	\
-	.ntd_length		= FIELD_SIZE(type, field),	\
-}
-
 /* c2_net_test_cmd_descr */
 TYPE_DESCR(c2_net_test_cmd) = {
 	FIELD_DESCR(struct c2_net_test_cmd, ntc_type),
@@ -121,99 +101,80 @@ TYPE_DESCR(c2_net_test_cmd_init) = {
 	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_concurrency),
 };
 
-/* c2_net_test_cmd_fini_descr */
-TYPE_DESCR(c2_net_test_cmd_fini) = {
-	FIELD_DESCR(struct c2_net_test_cmd_fini, ntcf_cancel),
-};
-
-/* c2_net_test_slist_descr */
-TYPE_DESCR(c2_net_test_slist) = {
-	FIELD_DESCR(struct c2_net_test_slist, ntsl_nr),
+/* c2_net_test_cmd_stop_descr */
+TYPE_DESCR(c2_net_test_cmd_stop) = {
+	FIELD_DESCR(struct c2_net_test_cmd_stop, ntcs_cancel),
 };
 
 /**
-   Encode/decode object field to buffer.
-   @param bv_length total length of bv.
-	            Must be equivalent to c2_vec_count(&bv->ov_vec).
-   @return 0 No space in buffer.
-   @return >0 Number of bytes written to buffer.
-   @see transform().
+   Encode/decode c2_net_test_cmd to/from c2_net_buffer
+   @param op operation. Can be C2_NET_TEST_ENCODE or C2_NET_TEST_DECODE.
+   @param cmd command for transforming.
+   @param buf can be NULL if op == C2_NET_TEST_ENCODE,
+	      in this case offset is ignored but length is set.
+   @param offset start of encoded data in buf.
+   @param length if isn't NULL then store length of encoded command here.
  */
-static c2_bcount_t transform_single(enum net_test_transform_op op,
-				    void *obj,
-				    struct net_test_descr *descr,
-				    struct c2_bufvec *bv,
-				    c2_bcount_t bv_offset,
-				    c2_bcount_t bv_length)
+static int cmd_xcode(enum c2_net_test_xcode_op op,
+		     struct c2_net_test_cmd *cmd,
+		     struct c2_net_buffer *buf,
+		     c2_bcount_t offset,
+		     c2_bcount_t *length)
 {
+	struct c2_bufvec *bv = buf == NULL ? NULL : &buf->nb_buffer;
+	c2_bcount_t	  len;
+	c2_bcount_t	  len_total;
+
+	C2_PRE(cmd != NULL);
+	len_total = c2_net_test_xcode(op, cmd, USE_TYPE_DESCR(c2_net_test_cmd),
+				      bv, offset);
+	if (len_total == 0)
+		return -EINVAL;
+
+	switch (cmd->ntc_type) {
+	case C2_NET_TEST_CMD_INIT:
+		len = c2_net_test_xcode(op, &cmd->ntc_init,
+					USE_TYPE_DESCR(c2_net_test_cmd_init),
+					bv, offset + len_total);
+		if (len == 0)
+			break;
+		len_total += len;
+
+		len = c2_net_test_slist_xcode(op, &cmd->ntc_init.ntci_ep,
+					      bv, offset + len_total);
+		break;
+	case C2_NET_TEST_CMD_STOP:
+		len = c2_net_test_xcode(op, &cmd->ntc_stop,
+					USE_TYPE_DESCR(c2_net_test_cmd_stop),
+					bv, offset + len_total);
+		break;
+	case C2_NET_TEST_CMD_START_ACK:
+	case C2_NET_TEST_CMD_STOP_ACK:
+	case C2_NET_TEST_CMD_FINISHED_ACK:
+		len = c2_net_test_xcode(op, &cmd->ntc_ack,
+					USE_TYPE_DESCR(c2_net_test_cmd_ack),
+					bv, offset + len_total);
+		break;
+	default:
+		return -ENOSYS;
+	};
+
+	if (len == 0)
+		return -EINVAL;
+	len_total += len;
+	if (length != NULL)
+		*length = len_total;
 	return 0;
 }
 
 /**
-   Encode or decode data structure with the given description.
-   @param op operation. Can be NET_TEST_ENCODE or NET_TEST_DECODE.
-   @param obj pointer to data structure.
-   @param descr array of data field descriptions.
-   @param descr_nr described fields number in descr.
-   @return 0 No space in buffer.
-   @return >0 Number of bytes written to buffer.
-   @param bv c2_bufvec. Can be NULL - in this case bv_offset and bv_length
-	     are ignored.
-   @param bv_offset offset in bv.
-   @see transform_single().
- */
-/** @todo make static */
-//static
-c2_bcount_t transform(enum net_test_transform_op op,
-			     void *obj,
-			     struct net_test_descr *descr,
-			     size_t descr_nr,
-			     struct c2_bufvec *bv,
-			     c2_bcount_t bv_offset)
-{
-	c2_bcount_t len_total = 0;
-	c2_bcount_t len_current = 0;
-	c2_bcount_t bv_length = bv == NULL ? 0 : c2_vec_count(&bv->ov_vec);
-	size_t	    i;
-
-	for (i = 0; i < descr_nr; ++i) {
-		len_current = transform_single(op, obj, &descr[i],
-					       bv, bv_offset + len_total,
-					       bv_length);
-		len_total += len_current;
-		if (len_current == 0)
-			break;
-	}
-	return len_current == 0 ? 0 : len_total;
-}
-
-/**
-   Encode/decode c2_net_test_cmd to/from c2_net_buffer
-   @param op operation. Can be NET_TEST_ENCODE or NET_TEST_DECODE.
-   @param cmd command for transforming.
-   @param buf can be NULL if op == NET_TEST_ENCODE,
-	      in this case offset is ignored but length is set.
-   @param offset start of encoded data in buf.
-   @param length if isn't NULL then store length of encoded command to length.
-   @see cmd_transform(), transform().
- */
-static int cmd_transform(enum net_test_transform_op op,
-			 struct c2_net_test_cmd *cmd,
-			 struct c2_net_buffer *buf,
-			 c2_bcount_t offset,
-			 c2_bcount_t *length)
-{
-	return -ENOSYS;
-}
-
-/**
-   Get c2_net_test_cmd length in c2_net_buffer after encoding.
+   Get encoded command length.
  */
 static c2_bcount_t cmd_length(struct c2_net_test_cmd *cmd)
 {
 	c2_bcount_t length;
 
-	return cmd_transform(NET_TEST_ENCODE, cmd, NULL, 0, &length) == 0 ?
+	return cmd_xcode(C2_NET_TEST_ENCODE, cmd, NULL, 0, &length) == 0 ?
 	       length : 0;
 }
 
@@ -233,6 +194,7 @@ static void commands_cb_msg_recv(struct c2_net_test_network_ctx *net_ctx,
 	C2_PRE(c2_net_test_commands_invariant(ctx));
 	C2_PRE(q == C2_NET_QT_MSG_RECV);
 
+	LOGD("cb_msg_recv\n");
 	if (ev->nbe_status == 0) {
 		/* search for a command index */
 		cmd_index = ep_index(ctx, ev->nbe_ep->nep_addr);
@@ -260,6 +222,7 @@ static void commands_cb_msg_send(struct c2_net_test_network_ctx *net_ctx,
 	C2_PRE(c2_net_test_commands_invariant(ctx));
 	C2_PRE(q == C2_NET_QT_MSG_SEND);
 
+	LOGD("cb_msg_send\n");
 	/* a command index is equal to the buffer index buf_index */
 	/* save buffer status */
 	ctx->ntcc_cmd[buf_index].ntc_buf_status = ev->nbe_status;
@@ -366,7 +329,7 @@ void c2_net_test_commands_fini(struct c2_net_test_cmd_ctx *ctx)
 
 static bool cmd_success(struct c2_net_test_cmd *cmd)
 {
-	return !cmd->ntc_disabled && cmd->ntc_errno != 0 &&
+	return !cmd->ntc_disabled && cmd->ntc_errno == 0 &&
 		cmd->ntc_buf_status == 0;
 }
 
@@ -431,7 +394,8 @@ uint32_t c2_net_test_commands_send(struct c2_net_test_cmd_ctx *ctx,
 
 	/* encode all commands to buffers */
 	for (i = 0; i < ctx->ntcc_cmd_nr; ++i) {
-		cmd_i = cmd == NULL ? c2_net_test_command(ctx, i) : cmd;
+		cmd_i = c2_net_test_command(ctx, i);
+		*cmd_i = cmd == NULL ? *cmd_i : *cmd;
 
 		/* skip this command if it is disabled */
 		if (cmd_i->ntc_disabled)
@@ -446,8 +410,8 @@ uint32_t c2_net_test_commands_send(struct c2_net_test_cmd_ctx *ctx,
 		buf = c2_net_test_network_buf(&ctx->ntcc_net,
 					      C2_NET_TEST_BUF_PING, i);
 		C2_ASSERT(buf != NULL);
-		ctx->ntcc_cmd[i].ntc_errno = cmd_transform(NET_TEST_ENCODE,
-							   cmd_i, buf, 0, NULL);
+		cmd_i->ntc_errno = cmd_xcode(C2_NET_TEST_ENCODE,
+					     cmd_i, buf, 0, NULL);
 	}
 
 	result = commands_network_operation(ctx, true);
@@ -485,8 +449,8 @@ uint32_t c2_net_test_commands_wait(struct c2_net_test_cmd_ctx *ctx)
 					      C2_NET_TEST_BUF_PING,
 					      cmd_i->ntc_buf_index);
 		C2_ASSERT(buf != NULL);
-		cmd_i->ntc_errno = cmd_transform(NET_TEST_DECODE,
-						 cmd_i, buf, 0, NULL);
+		cmd_i->ntc_errno = cmd_xcode(C2_NET_TEST_DECODE,
+					     cmd_i, buf, 0, NULL);
 	}
 
 	commands_disable_succesful(ctx);

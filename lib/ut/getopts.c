@@ -163,6 +163,11 @@ void test_getopts(void)
 	C2_UT_ASSERT(c2_time_seconds(time)     == 12345);
 	C2_UT_ASSERT(c2_time_nanoseconds(time) == 678900000);
 
+	result = c2_get_time(".1s", &time);
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(c2_time_seconds(time)     == 0);
+	C2_UT_ASSERT(c2_time_nanoseconds(time) == 100000000);
+
 	result = c2_get_time("12345.67890sec", &time);
 	C2_UT_ASSERT(result == -EINVAL);
 

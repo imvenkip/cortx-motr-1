@@ -21,6 +21,9 @@
 #ifndef __NET_TEST_SLIST_H__
 #define __NET_TEST_SLIST_H__
 
+#include "lib/vec.h"		/* c2_bufvec */
+#include "net/test/ntxcode.h"	/* c2_net_test_xcode_op */
+
 /**
    @defgroup NetTestSLIST Colibri Network Benchmark String List.
 
@@ -38,6 +41,7 @@ struct c2_net_test_slist {
 	   Number of strings in the list. If it is 0, other fields are
 	   not valid.
 	 */
+	/** @todo size_t */
 	int    ntsl_nr;
 	/**
 	   Array of pointers to strings.
@@ -53,6 +57,7 @@ struct c2_net_test_slist {
 /**
    Initialize string list from a string and a delimiter.
    @todo document it.
+   @pre slist != NULL
  */
 int c2_net_test_slist_init(struct c2_net_test_slist *slist,
 			   char *str,
@@ -64,8 +69,22 @@ void c2_net_test_slist_fini(struct c2_net_test_slist *slist);
    Time complexity - O(N^2), N - number of strings in the list.
    @return all strings in list are different.
 	   Two strings are equal if strcmp() returns 0.
+   @pre slist != NULL
  */
 bool c2_net_test_slist_unique(struct c2_net_test_slist *slist);
+
+/**
+   Encode/decode string list to/from c2_bufvec.
+   c2_net_test_slist_init() shall not be called for slist before
+   c2_net_test_slist_xcode().
+   c2_net_test_slist_fini() must be called for slist to free memory,
+   allocated by c2_net_test_slist_xcode(C2_NET_TEST_DECODE, slist, ...).
+   @see c2_net_test_xcode().
+ */
+c2_bcount_t c2_net_test_slist_xcode(enum c2_net_test_xcode_op op,
+				    struct c2_net_test_slist *slist,
+				    struct c2_bufvec *bv,
+				    c2_bcount_t offset);
 
 /**
    @} end NetTestSLIST

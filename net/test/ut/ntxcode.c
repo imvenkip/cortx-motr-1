@@ -27,18 +27,88 @@
 #include <stdio.h>		/* printf */
 #endif
 
+#include "lib/misc.h"		/* C2_SET0 */
 #include "lib/ut.h"		/* C2_UT_ASSERT */
-#include "lib/semaphore.h"	/* c2_semaphore */
-#include "lib/memory.h"		/* c2_alloc */
-#include "net/lnet/lnet.h"	/* c2_net_lnet_ifaces_get */
+#include "lib/vec.h"		/* C2_BUFVEC */
 
-#include "net/test/commands.h"
+#include "net/test/ntxcode.h"
 
 #ifndef __KERNEL__
 #define LOGD(format, ...) printf(format, ##__VA_ARGS__)
 #else
 #define LOGD(format, ...) do {} while (0)
 #endif
+
+enum {
+	NTXCODE_BUF_LEN = 0x100,
+};
+
+struct simple_struct {
+	char  ss_c;
+	short ss_s;
+	int   ss_i;
+	long  ss_l;
+	void *ss_p;
+};
+
+/* simple_struct_descr */
+TYPE_DESCR(simple_struct) = {
+	FIELD_DESCR(struct simple_struct, ss_c),
+	FIELD_DESCR(struct simple_struct, ss_s),
+	FIELD_DESCR(struct simple_struct, ss_i),
+	FIELD_DESCR(struct simple_struct, ss_l),
+	FIELD_DESCR(struct simple_struct, ss_p),
+};
+
+c2_bcount_t simple_struct_xcode(enum c2_net_test_xcode_op op,
+				struct simple_struct *ss,
+				struct c2_bufvec *bv,
+				c2_bcount_t bv_offset)
+{
+	return c2_net_test_xcode(op, ss, USE_TYPE_DESCR(simple_struct),
+				 bv, bv_offset);
+}
+
+void c2_net_test_ntxcode_ut(void)
+{
+	struct simple_struct ss;
+	c2_bcount_t	     ss_encoded_len;
+	c2_bcount_t	     rc_bcount;
+	char		     buf[NTXCODE_BUF_LEN];
+	void		    *addr = buf;
+	c2_bcount_t	     len = NTXCODE_BUF_LEN;
+	struct c2_bufvec     bv = C2_BUFVEC_INIT_BUF(&addr, &len);
+
+	/* length of structure test */
+	rc_bcount = simple_struct_xcode(C2_NET_TEST_ENCODE, &ss, NULL, 0);
+	C2_UT_ASSERT(rc_bcount > 0);
+
+	/* simple encode-decode test */
+	ss.ss_c = 1;
+	ss.ss_s = 2;
+	ss.ss_i = -1;
+	ss.ss_l = -2;
+	ss.ss_p = &ss;
+
+	ss_encoded_len = simple_struct_xcode(C2_NET_TEST_ENCODE, &ss, &bv, 0);
+	C2_UT_ASSERT(ss_encoded_len > 0);
+
+	C2_SET0(&ss);
+
+	rc_bcount = simple_struct_xcode(C2_NET_TEST_DECODE, &ss, &bv, 0);
+	C2_UT_ASSERT(rc_bcount == ss_encoded_len);
+
+	C2_UT_ASSERT(ss.ss_c == 1);
+	C2_UT_ASSERT(ss.ss_s == 2);
+	C2_UT_ASSERT(ss.ss_i == -1);
+	C2_UT_ASSERT(ss.ss_l == -2);
+	C2_UT_ASSERT(ss.ss_p == &ss);
+
+	/* failure test */
+	len = 1;
+	rc_bcount = simple_struct_xcode(C2_NET_TEST_ENCODE, &ss, &bv, 0);
+	C2_UT_ASSERT(rc_bcount == 0);
+}
 
 /*
  *  Local variables:

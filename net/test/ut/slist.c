@@ -23,21 +23,49 @@
 #endif
 
 #include "lib/ut.h"		/* C2_UT_ASSERT */
+#include "lib/types.h"		/* c2_bcount_t */
+#include "lib/vec.h"		/* c2_bufvec */
 
 #include "net/test/slist.h"
 
 enum {
-	NET_TEST_SLIST_NR     = 16,
+	NET_TEST_SLIST_NR     = 64,
+	NET_TEST_SLIST_BV_LEN = NET_TEST_SLIST_NR * 3 + 0x100,
 };
+
+static void slist_check(struct c2_net_test_slist *slist, int nr, char *buf)
+{
+	int i;
+	int rc;
+
+	/* check number of string in string list */
+	C2_UT_ASSERT(slist->ntsl_nr == nr + 1);
+	C2_UT_ASSERT(slist->ntsl_list != NULL);
+	/* for every string in the list */
+	for (i = 0; i < nr; ++i) {
+		/* check the string content */
+		rc = memcmp(slist->ntsl_list[i], &buf[i * 3], 2);
+		C2_UT_ASSERT(rc == 0);
+		/* check the string size */
+		rc = strlen(slist->ntsl_list[i]);
+		C2_UT_ASSERT(rc == 2);
+	}
+}
 
 void c2_net_test_slist_ut(void)
 {
 	struct c2_net_test_slist slist;
 	static char		 buf[NET_TEST_SLIST_NR * 3];
 	int			 i;
-	int			 j;
 	int			 rc;
 	bool			 rc_bool;
+	static char		 bv_buf[NET_TEST_SLIST_BV_LEN];
+	void			*bv_addr = bv_buf;
+	c2_bcount_t		 bv_len = NET_TEST_SLIST_BV_LEN;
+	struct c2_bufvec	 bv = C2_BUFVEC_INIT_BUF(&bv_addr, &bv_len);
+	c2_bcount_t		 len;
+	c2_bcount_t		 len2;
+
 
 	/* NULL-string test */
 	rc = c2_net_test_slist_init(&slist, NULL, ':');
@@ -84,22 +112,25 @@ void c2_net_test_slist_ut(void)
 	for (i = 0; i < NET_TEST_SLIST_NR; ++i) {
 		/* cut the line */
 		buf[i * 3 + 2] = '\0';
+		/* alloc slist */
 		rc = c2_net_test_slist_init(&slist, buf, ',');
 		C2_UT_ASSERT(rc == 0);
 		rc_bool = c2_net_test_slist_unique(&slist);
-		C2_UT_ASSERT(rc_bool ^ (i < 10));
-		/* check number of string in string list */
-		C2_UT_ASSERT(slist.ntsl_nr == i + 1);
-		C2_UT_ASSERT(slist.ntsl_list != NULL);
-		/* for every string in the list */
-		for (j = 0; j < i; ++j) {
-			/* check the string content */
-			rc = memcmp(slist.ntsl_list[j], &buf[j * 3], 2);
-			C2_UT_ASSERT(rc == 0);
-			/* check the string size */
-			rc = strlen(slist.ntsl_list[j]);
-			C2_UT_ASSERT(rc == 2);
-		}
+		C2_UT_ASSERT(!rc_bool ^ (i < 10));
+		slist_check(&slist, i, buf);
+		/* encode string list to buffer */
+		len = c2_net_test_slist_xcode(C2_NET_TEST_ENCODE, &slist,
+					      &bv, 0);
+		C2_UT_ASSERT(len > 0);
+		/* free slist */
+		c2_net_test_slist_fini(&slist);
+		/* decode string slist from buffer */
+		/* alloc slist */
+		len2 = c2_net_test_slist_xcode(C2_NET_TEST_DECODE, &slist,
+					       &bv, 0);
+		C2_UT_ASSERT(len2 == len);
+		slist_check(&slist, i, buf);
+		/* free slist */
 		c2_net_test_slist_fini(&slist);
 		/* restore line delimiter */
 		buf[i * 3 + 2] = ',';

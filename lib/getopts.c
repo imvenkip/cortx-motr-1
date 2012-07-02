@@ -75,9 +75,9 @@ int c2_get_bcount(const char *arg, c2_bcount_t *out)
 	return rc;
 }
 
-static int min_power_of_10(uint64_t num)
+static uint64_t min_power_of_10(uint64_t num)
 {
-	uint64_t result = 1;
+	uint64_t result = 10;
 
 	while (result < num)
 		if (result >= UINT64_MAX / 10)

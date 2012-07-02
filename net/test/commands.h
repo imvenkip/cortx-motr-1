@@ -25,8 +25,8 @@
 #include "lib/semaphore.h"		/* c2_semaphore */
 
 #include "net/test/slist.h"		/* c2_net_test_slist */
-#include "net/test/network.h"		/* c2_net_test_network_ctx */
 #include "net/test/node_config.h"	/* c2_net_test_role */
+#include "net/test/network.h"		/* c2_net_test_network_ctx */
 
 /**
    @defgroup NetTestCommandsDFS Colibri Network Benchmark Commands \
@@ -94,19 +94,18 @@ struct c2_net_test_cmd_init {
 };
 
 /**
-   C2_NET_TEST_CMD_FINI.
+   C2_NET_TEST_CMD_STOP.
    @see c2_net_test_cmd
  */
-struct c2_net_test_cmd_fini {
+struct c2_net_test_cmd_stop {
 	/** cancel the current operations */
-	bool ntcf_cancel;
+	bool ntcs_cancel;
 };
 
 /**
    Command structure to exchange between console and clients or servers.
-   @b WARNING: be sure to change cmd_encode(), cmd_decode() and cmd_length()
+   @b WARNING: be sure to change cmd_xcode() and cmd_length()
    after changes to this structure.
-   @todo take care about endianness
  */
 struct c2_net_test_cmd {
 	/** command type */
@@ -115,7 +114,7 @@ struct c2_net_test_cmd {
 	union {
 		struct c2_net_test_cmd_ack  ntc_ack;
 		struct c2_net_test_cmd_init ntc_init;
-		struct c2_net_test_cmd_fini ntc_fini;
+		struct c2_net_test_cmd_stop ntc_stop;
 	};
 	/**
 	   Next fields will not be sent/received over the network.
@@ -152,7 +151,12 @@ struct c2_net_test_cmd_ctx {
 /**
    Initialize network context to use with
    c2_net_test_cmd_send()/c2_net_test_cmd_wait().
-   @todo document
+   @param ctx commands context.
+   @param cmd_ep endpoint for commands context.
+   @param timeout_send timeout for message sending.
+   @param timeout_recv timeout for message receing.
+   @param ep_list endpoints list. Commands will be sent to/will be
+		  expected from endpoints from this list.
    @return 0 (success)
    @return -EEXIST ep_list contains two equal strings
    @return -errno (failure)
