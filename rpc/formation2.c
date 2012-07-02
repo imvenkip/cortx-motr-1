@@ -569,6 +569,7 @@ frm_try_to_bind_item(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
 	C2_LOG("session: %p id: %llu", item->ri_session,
 		   (unsigned long long)item->ri_session->s_session_id);
 
+	/* See item_bind() in rpc/frmops.c */
 	result = frm->f_ops->fo_item_bind(item);
 
 	C2_LEAVE("result: %s", c2_bool_to_str(result));
@@ -619,6 +620,7 @@ static bool frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 	C2_LOG("nr_items: %llu", (unsigned long long)p->rp_nr_items);
 
 	p->rp_frm = frm;
+	/* See packet_ready() in rpc/frmops.c */
 	packet_enqed = frm->f_ops->fo_packet_ready(p, frm->f_rmachine,
 						      frm->f_rchan);
 

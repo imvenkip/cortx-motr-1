@@ -65,6 +65,8 @@
    @todo XXX Support for "RPC Group"
    @todo XXX RPC item cancellation
    @todo XXX RPC item deadline timer based on generic state machine framework
+   @todo XXX Better RPC level flow control than the one provided by
+             c2_rpc_frm_constraints::fc_max_nr_packets_enqed
  */
 
 #include "lib/types.h"
