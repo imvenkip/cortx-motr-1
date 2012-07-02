@@ -696,17 +696,42 @@ static int cs_buffer_pool_setup(struct c2_colibri *cctx)
 	return rc;
 }
 
-static uint64_t stob_file_id_get(yaml_document_t *doc, yaml_node_pair_t *pair)
+static int stob_file_id_get(yaml_document_t *doc, yaml_node_t *node,
+			    uint64_t *id)
 {
-	return atoll((const char *)yaml_document_get_node(doc,
-					pair->key)->data.scalar.value);
+	const char       *key_str;
+	yaml_node_pair_t *pair;
+
+	for (pair = node->data.mapping.pairs.start;
+	     pair < node->data.mapping.pairs.top; ++pair) {
+		key_str = (const char *)yaml_document_get_node(doc,
+					pair->key)->data.scalar.value;
+		printf("key: %s\n", key_str);
+		if (strcasecmp(key_str, "id") == 0) {
+			*id = atoll((const char *)yaml_document_get_node(doc,
+				     pair->value)->data.scalar.value);
+			return 0;
+		}
+	}
+
+	return -EINVAL;
 }
 
-static const char *stob_file_path_get(yaml_document_t *doc,
-				      yaml_node_pair_t *pair)
+static const char *stob_file_path_get(yaml_document_t *doc, yaml_node_t *node)
 {
-	return (const char *)yaml_document_get_node(doc,
-					pair->value)->data.scalar.value;
+	const char       *key_str;
+	yaml_node_pair_t *pair;
+
+	for (pair = node->data.mapping.pairs.start;
+	     pair < node->data.mapping.pairs.top; ++pair) {
+		key_str = (const char *)yaml_document_get_node(doc,
+					pair->key)->data.scalar.value;
+		printf("key: %s\n", key_str);
+		if (strcasecmp(key_str, "filename") == 0)
+			return (const char *)yaml_document_get_node(doc,
+					     pair->value)->data.scalar.value;
+	}
+	return NULL;
 }
 
 static int cs_stob_file_load(const char *dfile, struct cs_stobs *stob,
@@ -769,10 +794,8 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 						   bstob);
 	}
 
-	if (rc == 0 && C2_FI_ENABLED("ad_domain_locate_fail")) {
-		printf("here\n");
+	if (rc == 0 && C2_FI_ENABLED("ad_domain_locate_fail"))
 		rc = -EINVAL;
-	}
 
 	if (rc == 0) {
 		sprintf(ad_dname, "%lx%lx", bstob_id->si_bits.u_hi,
@@ -781,7 +804,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 					   &adstob->as_dom);
 	}
 
-	/**
+	/*
 	 *  In case of failure the allocated adstob should be freed.
 	 *  Note that, if failure occurs after c2_stob_find(), the given
 	 *  struct c2_stob instance is already created and linked to the
@@ -794,7 +817,7 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 	if (rc != 0)
 		c2_free(adstob);
 
-	/**
+	/*
 	 * As c2_stob_domain_locate() for cs_ad_stob::as_dom was successfull,
 	 * adstob is added to the cs_stobs::s_adoms list. Thus the cleanup
 	 * for the cs_ad_stob::as_dom in case of failures beyond this point
@@ -815,10 +838,8 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 				      BALLOC_DEF_BLOCKS_PER_GROUP,
 				      BALLOC_DEF_RESERVED_GROUPS);
 
-	if (rc == 0 && C2_FI_ENABLED("ad_stob_setup_fail")) {
-		printf("here\n");
+	if (rc == 0 && C2_FI_ENABLED("ad_stob_setup_fail"))
 		rc = -EINVAL;
-	}
 
 	return rc;
 }
@@ -830,21 +851,28 @@ static int cs_ad_stob_init(struct cs_stobs *stob, struct c2_dbenv *db,
 			   struct c2_addb_ctx *addb)
 {
         int                rc;
+        int                result;
 	uint64_t           cid;
 	const char        *f_path;
 	yaml_document_t   *doc;
 	yaml_node_t       *node;
-	yaml_node_pair_t  *pair;
+	yaml_node_t       *s_node;
+	yaml_node_item_t  *item;
 
         C2_PRE(stob != NULL);
 
 	if (stob->s_sfile.sf_is_initialised) {
 		doc = &stob->s_sfile.sf_document;
 		for (node = doc->nodes.start; node < doc->nodes.top; ++node) {
-			for (pair = node->data.mapping.pairs.start;
-			     pair < node->data.mapping.pairs.top; ++pair) {
-				cid = stob_file_id_get(doc, pair);
-				f_path = stob_file_path_get(doc, pair);
+			for (item = (node)->data.sequence.items.start;
+			     item < (node)->data.sequence.items.top; ++item) {
+				s_node = yaml_document_get_node(doc, *item);
+				result = stob_file_id_get(doc, s_node, &cid);
+				if (result != 0)
+					continue;
+				printf("cid: %lu\n", cid);
+				f_path = stob_file_path_get(doc, s_node);
+				printf("f_path: %s\n", f_path);
 				rc = cs_ad_stob_create(stob, cid, db,
 						       f_path, addb);
 				if (rc != 0)
