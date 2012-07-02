@@ -706,7 +706,6 @@ static int stob_file_id_get(yaml_document_t *doc, yaml_node_t *node,
 	     pair < node->data.mapping.pairs.top; ++pair) {
 		key_str = (const char *)yaml_document_get_node(doc,
 					pair->key)->data.scalar.value;
-		printf("key: %s\n", key_str);
 		if (strcasecmp(key_str, "id") == 0) {
 			*id = atoll((const char *)yaml_document_get_node(doc,
 				     pair->value)->data.scalar.value);
@@ -726,7 +725,6 @@ static const char *stob_file_path_get(yaml_document_t *doc, yaml_node_t *node)
 	     pair < node->data.mapping.pairs.top; ++pair) {
 		key_str = (const char *)yaml_document_get_node(doc,
 					pair->key)->data.scalar.value;
-		printf("key: %s\n", key_str);
 		if (strcasecmp(key_str, "filename") == 0)
 			return (const char *)yaml_document_get_node(doc,
 					     pair->value)->data.scalar.value;
@@ -804,25 +802,9 @@ static int cs_ad_stob_create(struct cs_stobs *stob, uint64_t cid,
 					   &adstob->as_dom);
 	}
 
-	/*
-	 *  In case of failure the allocated adstob should be freed.
-	 *  Note that, if failure occurs after c2_stob_find(), the given
-	 *  struct c2_stob instance is already created and linked to the
-	 *  corresponding linux stob domain stob->s_ldom (linux stob domain).
-	 *  Thus even though the adstob is freed, already created
-	 *  adstob->as_stob_back linked to linux stob domain (stob->s_ldom)
-	 *  will be destroyed during cs_linux_stob_fini() by call to
-	 *  stob->s_ldom->sd_ops->sdo_fini().
-	 */
 	if (rc != 0)
 		c2_free(adstob);
 
-	/*
-	 * As c2_stob_domain_locate() for cs_ad_stob::as_dom was successfull,
-	 * adstob is added to the cs_stobs::s_adoms list. Thus the cleanup
-	 * for the cs_ad_stob::as_dom in case of failures beyond this point
-	 * will be handled by cs_ad_stob_fini().
-	 */
 	if (rc == 0) {
 		cs_ad_stob_bob_init(adstob);
 		astob_tlink_init_at_tail(adstob, &stob->s_adoms);
@@ -870,9 +852,7 @@ static int cs_ad_stob_init(struct cs_stobs *stob, struct c2_dbenv *db,
 				result = stob_file_id_get(doc, s_node, &cid);
 				if (result != 0)
 					continue;
-				printf("cid: %lu\n", cid);
 				f_path = stob_file_path_get(doc, s_node);
-				printf("f_path: %s\n", f_path);
 				rc = cs_ad_stob_create(stob, cid, db,
 						       f_path, addb);
 				if (rc != 0)
@@ -1530,13 +1510,11 @@ static void cs_help(FILE *out)
 		   "   This is an optional parameter specified once per "
 		   "request handler.\n"
 		   "   The device configuration file should contain device "
-		   "device id\n   (a serial number starting from 0) and "
-		   "corresponding device path. e.g. dev-id : dev-path\n"
-		   "   Note: This is a temporary implementation in-order to "
-		   "configure a device\n   as a stob. Only AD type stob domain "
-		   "can be configured over a device. \n"
-		   "   The device configuration file is expected to be "
-		   "in yaml format. e.g. 1 : /dev/sda \n"
+		   "id and\n   corresponding device path.\n"
+		   "   e.g. id: 0\n"
+		   "        filename: /dev/sda\n"
+		   "   Note: Only AD type stob domain can be configured "
+		   "over a device.\n"
 		   "-e Network layer endpoint to which clients connect. "
 		   "Network layer endpoint\n   consists of 2 parts "
 		   "network transport:endpoint address.\n"
