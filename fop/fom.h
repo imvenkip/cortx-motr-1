@@ -52,6 +52,7 @@
 #include "lib/mutex.h"
 #include "lib/chan.h"
 #include "lib/atomic.h"
+#include "lib/tlist.h"
 
 #include "fol/fol.h"
 #include "stob/stob.h"
@@ -66,7 +67,7 @@ struct c2_fom_type;
 struct c2_fom_type_ops;
 struct c2_fom;
 struct c2_fom_ops;
-struct c2_longlock;
+struct c2_long_lock;
 
 /**
  * A locality is a partition of computational resources dedicated to fom
@@ -362,11 +363,11 @@ struct c2_fom_callback {
 	 * fom state transition function.
 	 */
 	void (*fc_bottom)(struct c2_fom_callback *cb);
-	/**
-	 * Long lock taken on the fom, which has to be awaken by this callback
-	 * structure.
-	 */
-	struct c2_longlock *fc_lock;
+};
+
+enum {
+        /** Value of c2_fom::fo_magix */
+        C2_FOM_MAGIX = 0xB055B1E55EDF01D5
 };
 
 /**
@@ -415,13 +416,18 @@ struct c2_fom {
 	 */
 	struct c2_list_link	 fo_linkage;
 
-	/** Linkage to struct c2_longlock::l_{readers,writers} list */
-	struct c2_list_link      fo_lock_linkage;
+	/** Linkage to struct c2_long_lock::l_{readers,writers} list */
+	struct c2_tlink		 fo_lock_linkage;
 	/** Long locks taken on this fom */
-	int			 fo_locks;
+	unsigned		 fo_locks;
 	/** Transitions counter, coresponds to the number of
 	    c2_fom_ops::fo_state() calls */
-	int			 fo_transitions;
+	unsigned		 fo_transitions;
+	/** Counter of transitions, used to ensure FOM was inactive,
+	    while waiting for a longlock. */
+	unsigned		 fo_transitions_saved;
+	/** magic number. C2_FOM_MAGIX */
+	uint64_t		 fo_magix;
 
 	/** Result of fom execution, -errno on failure */
 	int32_t			 fo_rc;
@@ -587,6 +593,13 @@ void c2_fom_block_leave(struct c2_fom *fom);
  * @param fom Ready to be executed fom, is put on locality runq
  */
 void c2_fom_ready(struct c2_fom *fom);
+
+/**
+ * Moves the fom from waiting to ready queue. Similar to c2_fom_ready(), but
+ * callable from a locality different from fom's locality (i.e., with a
+ * different locality group lock held).
+ */
+void c2_fom_ready_remote(struct c2_fom *fom);
 
 /**
  * Registers AST call-back with the channel and a fom executing a blocking

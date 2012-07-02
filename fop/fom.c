@@ -34,6 +34,7 @@
 #include "addb/addb.h"
 #include "fop/fom.h"
 #include "fop/fop.h"
+#include "fop/fom_long_lock.h"
 #include "reqh/reqh.h"
 
 /**
@@ -176,6 +177,21 @@ void c2_fom_ready(struct c2_fom *fom)
 	fom_ready(fom);
 }
 
+static void readyit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
+{
+	struct c2_fom *fom = container_of(ast, struct c2_fom, fo_cb.fc_ast);
+
+	c2_fom_ready(fom);
+}
+
+void c2_fom_ready_remote(struct c2_fom *fom)
+{
+	C2_PRE(fom->fo_state == C2_FOS_WAITING);
+
+	fom->fo_cb.fc_ast.sa_cb = readyit;
+	c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
+}
+
 void c2_fom_block_enter(struct c2_fom *fom)
 {
 	int			rc;
@@ -288,7 +304,7 @@ static void fom_exec(struct c2_fom *fom)
 	do {
 		C2_ASSERT(c2_fom_invariant(fom));
 		rc = fom->fo_ops->fo_state(fom);
-		C2_CNT_INC(fom->fo_transitions);
+		fom->fo_transitions++;
 	} while (rc == C2_FSO_AGAIN);
 
 	C2_ASSERT(rc == C2_FSO_WAIT);
@@ -667,7 +683,8 @@ void c2_fom_fini(struct c2_fom *fom)
 	fdom = fom->fo_loc->fl_dom;
 	reqh = fdom->fd_reqh;
 	c2_list_link_fini(&fom->fo_linkage);
-	c2_list_link_fini(&fom->fo_lock_linkage);
+
+	c2_fom_ll_tlink_fini(fom);
 
 	if (c2_atomic64_dec_and_test(&fdom->fd_foms_nr))
 		c2_chan_signal(&reqh->rh_sd_signal);
@@ -690,7 +707,7 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
 
 	c2_list_link_init(&fom->fo_linkage);
 
-	c2_list_link_init(&fom->fo_lock_linkage);
+	c2_fom_ll_tlink_init(fom);
 	fom->fo_locks = 0;
 	fom->fo_transitions = 0;
 }
