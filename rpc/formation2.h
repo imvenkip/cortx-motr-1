@@ -25,7 +25,7 @@
 /**
    Formation component for Colibri RPC layer is what IO scheduler is for
    block device. Because of network layer overhead associated with each
-   message(i.e. buffer), sending each individual RPC item directly to network
+   message (i.e. buffer), sending each individual RPC item directly to network
    layer can be inefficient. Instead, formation component tries to send
    multiple RPC items in same network layer message to improve performance.
 
@@ -58,7 +58,7 @@
 
    NOTE:
    - RPC Packet is also referred as "RPC" in some other parts of code and docs
-   - A "one-way" item is also referred as "unsolicited" items.
+   - A "one-way" item is also referred as "unsolicited" item.
 
    @todo XXX item merging support
    @todo XXX stats collection
@@ -184,7 +184,7 @@ enum c2_rpc_frm_itemq_type {
                       V  |
                     FRM_IDLE
                       |  ^
- c2_rpc_frm_enq_item()| | frm_itemq_remove() or c2_rpc_frm_packet_done()
+ c2_rpc_frm_enq_item()|  | frm_itemq_remove() or c2_rpc_frm_packet_done()
    [frm_is_idle()]    |  | [!frm_is_idle()]
                       V  |
                     FRM_BUSY
@@ -238,7 +238,7 @@ struct c2_rpc_frm {
 
 	struct c2_rpc_machine         *f_rmachine;
 	struct c2_rpc_chan            *f_rchan;
-	struct c2_rpc_frm_ops         *f_ops;
+	const struct c2_rpc_frm_ops   *f_ops;
 
 	struct c2_addb_ctx             f_addb_ctx;
 
@@ -280,7 +280,7 @@ struct c2_rpc_frm_ops {
 /**
    Default implementation of c2_rpc_frm_ops
  */
-extern struct c2_rpc_frm_ops c2_rpc_frm_default_ops;
+extern const struct c2_rpc_frm_ops c2_rpc_frm_default_ops;
 
 /**
    Load default values for various constraints, that just works.
@@ -290,7 +290,7 @@ void
 c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *constraint);
 
 /**
-   Initialise frm instance.
+   Initialises frm instance.
 
    @pre  frm->f_state == FRM_UNINITIALISED
    @post frm->f_state == FRM_IDLE
@@ -299,10 +299,10 @@ void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
 		     struct c2_rpc_machine         *rmachine,
 		     struct c2_rpc_chan            *rchan,
 		     struct c2_rpc_frm_constraints  constraints,
-		     struct c2_rpc_frm_ops         *ops);
+		     const struct c2_rpc_frm_ops   *ops);
 
 /**
-   Finalise c2_rpc_frm instance.
+   Finalises c2_rpc_frm instance.
 
    @pre  frm->f_state == FRM_IDLE
    @post frm->f_state == FRM_UNINITIALISED

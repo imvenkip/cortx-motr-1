@@ -30,8 +30,6 @@
 #include "net/net.h"
 #include "rpc/session_internal.h"
 
-#define ULL unsigned long long
-
 static bool packet_ready(struct c2_rpc_packet  *p,
 			 struct c2_rpc_machine *machine,
 			 struct c2_rpc_chan    *rchan);
@@ -54,7 +52,7 @@ static void item_done(struct c2_rpc_item *item, unsigned long rc);
 /*
  * This is the only symbol exported from this file.
  */
-struct c2_rpc_frm_ops c2_rpc_frm_default_ops = {
+const struct c2_rpc_frm_ops c2_rpc_frm_default_ops = {
 	.fo_packet_ready = packet_ready,
 	.fo_item_bind    = item_bind,
 };
@@ -201,7 +199,7 @@ static int net_buffer_allocate(struct c2_net_buffer *netbuf,
 	int         rc;
 
 	C2_ENTRY("netbuf: %p ndom: %p bufsize: %llu", netbuf, ndom,
-						      (ULL)buf_size);
+						 (unsigned long long)buf_size);
 	C2_PRE(netbuf != NULL && ndom != NULL && buf_size > 0);
 
 	get_bufvec_geometry(ndom, buf_size, &nr_segments, &segment_size);
@@ -250,13 +248,15 @@ static void get_bufvec_geometry(struct c2_net_domain *ndom,
 	max_nr_segments  = c2_net_domain_get_max_buffer_segments(ndom);
 
 	C2_LOG("max_buf_size: %llu max_segment_size: %llu max_nr_seg: %d",
-	       (ULL)max_buf_size, (ULL)max_segment_size, max_nr_segments);
+			(unsigned long long)max_buf_size,
+			(unsigned long long)max_segment_size,
+			max_nr_segments);
 
 	C2_ASSERT(buf_size <= max_buf_size);
 
 	/* encoding routine requires buf_size to be 8 byte aligned */
 	buf_size = c2_align(buf_size, 8);
-	C2_LOG("bufsize: 0x%llx", (ULL)buf_size);
+	C2_LOG("bufsize: 0x%llx", (unsigned long long)buf_size);
 
 	if (buf_size <= max_segment_size) {
 		segment_size = buf_size;
@@ -272,8 +272,9 @@ static void get_bufvec_geometry(struct c2_net_domain *ndom,
 	*out_segment_size = segment_size;
 	*out_nr_segments  = nr_segments;
 
-	C2_LEAVE("seg_size: %llu nr_segments: %d", (ULL)*out_segment_size,
-						   *out_nr_segments);
+	C2_LEAVE("seg_size: %llu nr_segments: %d",
+			(unsigned long long)*out_segment_size,
+			*out_nr_segments);
 }
 
 static void net_buffer_free(struct c2_net_buffer *netbuf,

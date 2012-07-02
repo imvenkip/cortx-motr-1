@@ -28,6 +28,7 @@
 #include <linux/bitops.h>         /* ffs */
 #endif
 
+#include "lib/types.h"
 #include "lib/assert.h"           /* C2_CASSERT */
 #include "lib/cdefs.h"            /* c2_is_array */
 
@@ -98,6 +99,8 @@
 #define C2_IN_7(x, v, ...) ((x) == (v) || C2_IN_6(x, __VA_ARGS__))
 #define C2_IN_8(x, v, ...) ((x) == (v) || C2_IN_7(x, __VA_ARGS__))
 #define C2_IN_9(x, v, ...) ((x) == (v) || C2_IN_8(x, __VA_ARGS__))
+
+const char *c2_bool_to_str(bool b);
 
 /* __COLIBRI_LIB_MISC_H__ */
 #endif

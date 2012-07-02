@@ -82,7 +82,7 @@ enum {
 	C2_LNET_PORTAL     = 34,
 	MAX_RPCS_IN_FLIGHT = 32,
 	CLIENT_COB_DOM_ID  = 13,
-	CONNECT_TIMEOUT	   = 60,
+	CONNECT_TIMEOUT	   = 600,
 };
 
 #ifndef __KERNEL__

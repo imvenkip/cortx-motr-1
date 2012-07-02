@@ -27,8 +27,6 @@
 #include "rpc/rpc2.h"
 #include "rpc/rpc_onwire.h"
 
-#define ULL unsigned long long
-
 static int packet_header_encode(struct c2_rpc_packet    *p,
 				struct c2_bufvec_cursor *cursor);
 static int item_encode(struct c2_rpc_item       *item,
@@ -71,7 +69,8 @@ void c2_rpc_packet_init(struct c2_rpc_packet *p)
 
 void c2_rpc_packet_fini(struct c2_rpc_packet *p)
 {
-	C2_ENTRY("packet: %p nr_items: %llu", p, (ULL)p->rp_nr_items);
+	C2_ENTRY("packet: %p nr_items: %llu", p,
+					   (unsigned long long)p->rp_nr_items);
 	C2_PRE(c2_rpc_packet_invariant(p) && p->rp_nr_items == 0);
 
 	packet_item_tlist_fini(&p->rp_items);
@@ -91,8 +90,9 @@ void c2_rpc_packet_add_item(struct c2_rpc_packet *p,
 	++p->rp_nr_items;
 	p->rp_size += c2_rpc_item_size(item);
 
-	C2_LOG("nr_items: %llu packet size: %llu", (ULL)p->rp_nr_items,
-						   (ULL)p->rp_size);
+	C2_LOG("nr_items: %llu packet size: %llu",
+			(unsigned long long)p->rp_nr_items,
+			(unsigned long long)p->rp_size);
 	C2_ASSERT(c2_rpc_packet_invariant(p));
 	C2_POST(c2_rpc_packet_is_carrying_item(p, item));
 	C2_LEAVE();
@@ -109,8 +109,9 @@ void c2_rpc_packet_remove_item(struct c2_rpc_packet *p,
 	--p->rp_nr_items;
 	p->rp_size -= c2_rpc_item_size(item);
 
-	C2_LOG("nr_items: %llu packet size: %llu", (ULL)p->rp_nr_items,
-						   (ULL)p->rp_size);
+	C2_LOG("nr_items: %llu packet size: %llu",
+			(unsigned long long)p->rp_nr_items,
+			(unsigned long long)p->rp_size);
 	C2_ASSERT(c2_rpc_packet_invariant(p));
 	C2_POST(!c2_rpc_packet_is_carrying_item(p, item));
 	C2_LEAVE();

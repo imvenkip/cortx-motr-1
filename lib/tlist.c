@@ -201,7 +201,7 @@ void *c2_tlist_next(const struct c2_tl_descr *d,
 	 *
 	 * see http://reviewboard.clusterstor.com/r/852/
 	 */
-	/* C2_PRE(c2_tlist_contains(d, list, obj)); */
+	C2_PRE(c2_tlist_contains(d, list, obj));
 
 	next = link(d, obj)->ll_next;
 	return (void *)next != &list->t_head ? amb(d, next) : NULL;
