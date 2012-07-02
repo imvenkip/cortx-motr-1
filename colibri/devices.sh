@@ -1,11 +1,10 @@
 #!/bin/bash
 
-#This script helps to create a device a configuration file viz. devices.conf,
-#in yaml format, as desired by the colibri_setup program.
+#This script helps to create a device configuration file viz. devices.conf.
+#The file uses yaml format, as desired by the colibri_setup program.
 #The script uses the fdisk command and extracts only the unused devices
 #present on the system (i.e without valid partition table).
-#Following is the illustration of one of the entries in devices.conf file
-#created by the script.
+#Below illustration describes a typical devices.conf entry,
 #Device:
 #       - id: 1
 #	  filename: /dev/sda
