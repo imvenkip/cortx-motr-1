@@ -713,7 +713,7 @@ static int stob_file_id_get(yaml_document_t *doc, yaml_node_t *node,
 		}
 	}
 
-	return -EINVAL;
+	return -ENOENT;
 }
 
 static const char *stob_file_path_get(yaml_document_t *doc, yaml_node_t *node)
@@ -729,6 +729,7 @@ static const char *stob_file_path_get(yaml_document_t *doc, yaml_node_t *node)
 			return (const char *)yaml_document_get_node(doc,
 					     pair->value)->data.scalar.value;
 	}
+
 	return NULL;
 }
 
