@@ -893,7 +893,6 @@ void cs_ad_stob_fini(struct cs_stobs *stob)
 
 	C2_PRE(stob != NULL);
 
-	c2_dtx_done(&stob->s_tx);
 	c2_tl_for(astob, &stob->s_adoms, adstob) {
 		C2_ASSERT(cs_ad_stob_bob_check(adstob) &&
 			  adstob->as_dom != NULL);
@@ -1005,6 +1004,7 @@ static void cs_storage_fini(struct cs_stobs *stob)
 {
 	C2_PRE(stob != NULL);
 
+	c2_dtx_done(&stob->s_tx);
         cs_ad_stob_fini(stob);
         cs_linux_stob_fini(stob);
 	if (stob->s_sfile.sf_is_initialised)
@@ -1231,11 +1231,13 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 	if (rctx->rc_dfilepath != NULL) {
 		rc = cs_stob_file_load(rctx->rc_dfilepath, &rctx->rc_stob,
 				       addb);
-		if (rc != 0)
+		if (rc != 0) {
 			C2_ADDB_ADD(addb, &cs_addb_loc,
 				    storage_init_fail,
 				    "Failed to load device configuration file",
 				    rc);
+			goto out;
+		}
 	}
 
 	if (rc == 0)

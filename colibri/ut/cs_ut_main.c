@@ -346,7 +346,11 @@ static void dev_conf_file_create(void)
 	system("touch d1 d2");
 	f = fopen("devices.conf", "w+");
 	C2_UT_ASSERT(f != NULL);
-	fprintf(f, "%d : %s\n%d : %s", 1, "d1", 2, "d2");
+	fprintf(f, "Devices:\n");
+	fprintf(f, "        - id: 0\n");
+	fprintf(f, "          filename: d1\n");
+	fprintf(f, "        - id: 1\n");
+	fprintf(f, "          filename: d2\n");
 	fclose(f);
 }
 
