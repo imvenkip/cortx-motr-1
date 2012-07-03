@@ -23,7 +23,9 @@
 
 #include "fop/fop.h"
 #include "fop/fop_format.h"
+#include "fop/fom.h"
 #include "rm/rm.h"
+#include "rm/rm_internal.h"
 
 /**
    @addtogroup rm
@@ -34,30 +36,37 @@
 
  */
 enum c2_rm_fom_phases {
-	FOPH_RM_RIGHT_BORROW = FOPH_NR + 1,
-	FOPH_RM_RIGHT_REVOKE = FOPH_NR + 1,
-	FOPH_RM_RIGHT_CANCEL = FOPH_NR + 1,
-	FOPH_RM_RIGHT_BORROW_WAIT = FOPH_NR + 2,
-	FOPH_RM_RIGHT_REVOKE_WAIT = FOPH_NR + 2
+	FOPH_RM_BORROW = C2_FOPH_NR + 1,
+	FOPH_RM_REVOKE = C2_FOPH_NR + 1,
+	FOPH_RM_CANCEL = C2_FOPH_NR + 1,
+	FOPH_RM_BORROW_WAIT = C2_FOPH_NR + 2,
+	FOPH_RM_REVOKE_WAIT = C2_FOPH_NR + 2
 };
 
 /**
   * FOM to execute resource right request. The request could either be borrow,
-  * revoke or cancel. This will also be used for replies.
+  * revoke or cancel.
   */
-struct rm_borrow_fom {
+struct rm_request_fom {
 	/** Generic c2_fom object */
-	struct c2_fom	bom_fom;
+	struct c2_fom	rf_fom;
 	/** Incoming request */
-	struct c2_rm_borrow_incoming bom_in;
+	struct c2_rm_remote_incoming rf_in;
 };
 
-struct rm_canoke_fom {
-	/** Generic c2_fom object */
-	struct c2_fom	ck_fom;
-	/** Revoke or cancel request */
-	struct c2_rm_revoke_incoming ck_in;
-};
+/*
+ * FOM-types.
+ */
+extern struct c2_fom_type c2_rm_fom_borrow_type;
+extern struct c2_fom_type c2_rm_fom_revoke_type;
+extern struct c2_fom_type c2_rm_fom_cancel_type;
+
+/*
+ * FOM-type constructors.
+ */
+extern struct c2_fom_ops c2_rm_fom_borrow_ops;
+extern struct c2_fom_ops c2_rm_fom_revoke_ops;
+extern struct c2_fom_ops c2_rm_fom_cancel_ops;
 
 /* __COLIBRI_RM_FOMS_H__ */
 #endif

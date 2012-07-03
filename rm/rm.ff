@@ -61,7 +61,7 @@ DEF(c2_fop_rm_cookie, RECORD,
     _(co_lo, U64));
 
 DEF(c2_fop_rm_opaque, SEQUENCE,
-    _(op_nr, U32),
+    _(op_nr, U64),
     _(op_bytes, BYTE));
 
 DEF(c2_fop_rm_owner, RECORD,
@@ -76,26 +76,29 @@ DEF(c2_fop_rm_right, RECORD,
     _(ri_opaque, c2_fop_rm_opaque));
 
 DEF(c2_fop_rm_borrow, RECORD,
-    _(bo_owner, c2_fop_rm_owner),
+    _(bo_debtor, c2_fop_rm_owner),
+    _(bo_creditor, c2_fop_rm_owner),
     _(bo_right, c2_fop_rm_right),
-    _(bo_policy, U64));
+    _(bo_policy, U64),
     _(bo_flags, U64));
 
 DEF(c2_fop_rm_borrow_rep, RECORD,
     _(br_rc, U32),
-    _(br_owner, c2_fop_rm_owner),
     _(br_loan, c2_fop_rm_loan),
     _(br_right, c2_fop_rm_right),
     _(br_lvb, c2_fop_rm_opaque));
 
-DEF(c2_fop_rm_canoke, RECORD,
-    _(cr_op, BYTE),
-    _(cr_loan, c2_fop_rm_loan),
-    _(cr_right, c2_fop_rm_right));
+DEF(c2_fop_rm_revoke, RECORD,
+    _(rr_op, BYTE),
+    _(rr_debtor, c2_fop_rm_owner),
+    _(rr_loan, c2_fop_rm_loan),
+    _(rr_right, c2_fop_rm_right),
+    _(rr_policy, U64),
+    _(rr_flags, U64));
 
-DEF(c2_fop_rm_canoke_rep, RECORD,
-    _(re_rc, U32),
-    _(re_right, c2_fop_rm_right)); /* Is this necessary ? */
+/* Should we add creditor in reply */
+DEF(c2_fop_rm_revoke_rep, RECORD,
+    _(re_rc, U32));
 
 /** @} end of rm group */
 

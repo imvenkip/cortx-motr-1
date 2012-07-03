@@ -44,26 +44,15 @@ bool right_eq(const struct c2_rm_right *r0, const struct c2_rm_right *r1);
 /** @{ */
 
 /**
-   Created by a creditor to process a borrow request.
-
-   This is created when an incoming BORROW for is received. Typically, this
-   structure will be embedded in an instance of the corresponding fom type.
+   Created as a result of remote request which is either BORROW ro REVOKE
+   (and CANCEL in future).
  */
-struct c2_rm_borrow_incoming {
-	/* Incoming request of type RIT_BORROW. */
-	struct c2_rm_incoming  bi_incoming;
-	struct c2_rm_loan     *bi_loan;
-};
-
-/**
-   Created by a debtor to process a revoke request.
-
-   This is created when an incoming REVOKE request is received. Typically, this
-   structure will be embedded in an instance of the corresponding fom type.
- */
-struct c2_rm_revoke_incoming {
-	/* Incoming request of type RIT_REVOKE. */
-	struct c2_rm_incoming rv_incoming;
+struct c2_rm_remote_incoming {
+	struct c2_rm_incoming  ri_incoming;
+	/* This cookie is used to determine locality */
+	struct c2_rm_cookie    ri_owner_cookie;
+	struct c2_rm_cookie    ri_loan_cookie;
+	struct c2_rm_loan     *ri_loan;
 };
 
 /**
@@ -82,7 +71,7 @@ struct c2_rm_revoke_incoming {
 
    where "owner", "loan" and "in" are respective attributes of "bor".
  */
-int c2_rm_borrow_commit(struct c2_rm_borrow_incoming *bor);
+int c2_rm_borrow_commit(struct c2_rm_remote_incoming *bor);
 
 /**
    Removes revoked rights from "owned" and borrowed lists.
@@ -91,9 +80,9 @@ int c2_rm_borrow_commit(struct c2_rm_borrow_incoming *bor);
 
    @pre c2_mutex_is_locked(&owner->ro_lock)
    @pre in->rin_state == RI_SUCCESS
-   @pre in->rin_type == RIT_BORROW
+   @pre in->rin_type == RIT_REVOKE
  */
-int c2_rm_revoke_commit(struct c2_rm_revoke_incoming *rvr);
+int c2_rm_revoke_commit(struct c2_rm_remote_incoming *rvk);
 
 /**
    Adds borrowed right to the "borrowed" and "owned" lists.
@@ -115,12 +104,14 @@ int c2_rm_revoke_done(struct c2_rm_outgoing *out);
 /**
    Returns a cookie for a given owner.
  */
-void c2_rm_owner_cookie(const struct c2_rm_owner *o, struct c2_rm_cookie *cake);
+void c2_rm_owner_cookie_get(const struct c2_rm_owner *o,
+			    struct c2_rm_cookie *cake);
 
 /**
    Returns a cookie for a given loan.
  */
-void c2_rm_loan_cookie(const struct c2_rm_loan *loan, struct c2_rm_cookie *cake);
+void c2_rm_loan_cookie_get(const struct c2_rm_loan *loan,
+			   struct c2_rm_cookie *cake);
 
 /**
    Returns the owner corresponding to a given cookie, or NULL when the cookie is
@@ -162,6 +153,12 @@ int c2_rm_borrow_out(struct c2_rm_incoming *in, struct c2_rm_right *right);
 int c2_rm_revoke_out(struct c2_rm_incoming *in,
 		     struct c2_rm_loan *loan, struct c2_rm_right *right);
 
+/**
+   Initialises the fields of @out.
+ */
+void c2_rm_outgoing_init(struct c2_rm_outgoing *out,
+			 enum c2_rm_outgoing_type type,
+			 struct c2_rm_right *right);
 /**
    Called when an outgoing request completes (possibly with an error, like a
    timeout).

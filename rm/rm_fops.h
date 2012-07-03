@@ -21,12 +21,14 @@
  * Original creation date: 07/07/2011
  */
 
+#ifndef _KERNEL_
+#include "rm/rm_u.h"
+#else
+#include "rm/rm_k.h"
+#endif
+
 #include "fop/fop.h"
 #include "fop/fop_format.h"
-#include "rm/rm_u.h"
-
-struct c2_fom;
-struct c2_fom_type;
 
 /**
   * RM:fop opcodes are defined here
@@ -43,11 +45,14 @@ enum c2_rm_fop_opcodes {
   * Externs
   */
 extern struct c2_fop_type c2_fop_rm_borrow_fopt;
-extern struct c2_fop_type c2_fop_rm_borrow_reply_fopt;
+extern struct c2_fop_type c2_fop_rm_borrow_rep_fopt;
 extern struct c2_fop_type c2_fop_rm_revoke_fopt;
-extern struct c2_fop_type c2_fop_rm_revoke_reply_fopt;
+extern struct c2_fop_type c2_fop_rm_revoke_rep_fopt;
 extern struct c2_fop_type c2_fop_rm_cancel_fopt;
 
+/*
+ * ???
+ */
 extern struct c2_fop_type_format c2_fop_rm_tfmt;
 extern struct c2_fop_type_format c2_fop_rm_res_data_tfmt;
 extern struct c2_fop_type_format c2_fop_rm_borrow_tfmt;
@@ -55,20 +60,6 @@ extern struct c2_fop_type_format c2_fop_rm_borrow_reply_tfmt;
 extern struct c2_fop_type_format c2_fop_rm_revoke_tfmt;
 extern struct c2_fop_type_format c2_fop_rm_revoke_reply_tfmt;
 extern struct c2_fop_type_format c2_fop_rm_cancel_tfmt;
-
-/*
- * FOM-types.
- */
-extern struct c2_fom_type c2_rm_fom_borrow_type;
-extern struct c2_fom_type c2_rm_fom_revoke_type;
-extern struct c2_fom_type c2_rm_fom_cancel_type;
-
-/*
- * FOM-type constructors.
- */
-extern struct c2_fom_ops c2_rm_fom_borrow_ops;
-extern struct c2_fom_ops c2_rm_fom_revoke_ops;
-extern struct c2_fom_ops c2_rm_fom_cancel_ops;
 
 /* __COLIBRI_RM_FOPS_H__ */
 #endif

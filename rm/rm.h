@@ -185,7 +185,7 @@
 */
 
 /* import */
-struct c2_vec_cursor;
+struct c2_bufvec_cursor;
 
 /* export */
 struct c2_rm_domain;
@@ -282,7 +282,7 @@ struct c2_rm_resource_ops {
          */
         int (*rop_right_decode)(struct c2_rm_resource *resource,
                                 struct c2_rm_right *right,
-                                struct c2_vec_cursor *bufvec);
+                                struct c2_bufvec_cursor *cur);
         void (*rop_policy)(struct c2_rm_resource *resource,
                            struct c2_rm_incoming *in);
 	/**
@@ -351,9 +351,9 @@ struct c2_rm_resource_type_ops {
                        const struct c2_rm_resource *resource1);
         bool (*rto_resource_is)(const struct c2_rm_resource *resource,
                        		const uint64_t id);
-        int  (*rto_decode)(const struct c2_vec_cursor *bufvec,
+        int  (*rto_decode)(const struct c2_bufvec_cursor *cur,
                            struct c2_rm_resource **resource);
-        int  (*rto_encode)(struct c2_vec_cursor *bufvec,
+        int  (*rto_encode)(struct c2_bufvec_cursor *cur,
                            const struct c2_rm_resource *resource);
 };
 
@@ -405,8 +405,11 @@ struct c2_rm_right_ops {
            code releases any resources associated with the right.
          */
         void (*rro_free)(struct c2_rm_right *droit);
+	c2_bcount_t (*rro_len) (struct c2_rm_right *right);
         int  (*rro_encode)(struct c2_rm_right *right,
-			   struct c2_vec_cursor *bufvec);
+			   struct c2_bufvec_cursor *cur);
+        int  (*rro_decode)(struct c2_rm_right *right,
+			   struct c2_bufvec_cursor *cur);
 
         /** @name operations.
 
@@ -1193,8 +1196,7 @@ enum c2_rm_outgoing_type {
 	 */
 	ROT_BORROW = 1,
 	/**
-	   A request returning a previously borrowed right. This is sent in
-	   response to an incoming RIT_REVOKE request.
+	   A request returning a previously borrowed right.
 	 */
 	ROT_CANCEL,
 	/**
@@ -1459,6 +1461,7 @@ void c2_rm_right_fini(struct c2_rm_right *right);
 void c2_rm_incoming_init(struct c2_rm_incoming *in, struct c2_rm_owner *owner,
 			 enum c2_rm_incoming_type type,
 			 enum c2_rm_incoming_policy policy, uint64_t flags);
+
 /**
    Finalises the fields of @in. Dual to c2_rm_incoming_init().
  */
@@ -1504,6 +1507,17 @@ int c2_rm_right_timedwait(struct c2_rm_incoming *in,
    with an infinite timeout.
  */
 int c2_rm_right_get_wait(struct c2_rm_incoming *in);
+
+/**
+  Copy rights data intoto a raw buffer.
+ */
+int c2_rm_rdatum2buf(struct c2_rm_right *right, void **buf,
+		     c2_bcount_t *bytesnr);
+
+/**
+  Copy raw buffer in rights data (datum).
+ */
+int c2_rm_buf2rdatum(struct c2_rm_right *right, void *buf, c2_bcount_t bytesnr);
 
 /**
    Releases the right pinned by @in.
