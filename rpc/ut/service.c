@@ -212,7 +212,7 @@ static void conn_attach_detach_test(void)
 
 	/* prepare mock rpc_machine */
 	c2_rpc_services_tlist_init(&mock_rpc_machine.rm_services);
-	c2_mutex_init(&mock_rpc_machine.rm_session_mutex);
+	c2_mutex_init(&mock_rpc_machine.rm_mutex);
 
 	/* prepare mock_destep */
 	copy_of_foo_ep_addr = c2_alloc(strlen(foo_ep_addr) + 1);
@@ -228,7 +228,6 @@ static void conn_attach_detach_test(void)
 	mock_conn.c_state       = C2_RPC_CONN_ACTIVE;
 	mock_conn.c_rpc_machine = &mock_rpc_machine;
 	mock_conn.c_rpcchan     = &mock_rpc_chan;
-	c2_mutex_init(&mock_conn.c_mutex);
 
 	c2_rpc_service_conn_attach(fr_service, &mock_conn);
 	C2_UT_ASSERT(c2_rpc_service_invariant(fr_service));
@@ -246,9 +245,8 @@ static void conn_attach_detach_test(void)
 	C2_UT_ASSERT(
 		c2_rpc_services_tlist_is_empty(&mock_rpc_machine.rm_services));
 
-	c2_mutex_fini(&mock_conn.c_mutex);
 
-	c2_mutex_fini(&mock_rpc_machine.rm_session_mutex);
+	c2_mutex_fini(&mock_rpc_machine.rm_mutex);
 	c2_rpc_services_tlist_fini(&mock_rpc_machine.rm_services);
 
 	c2_free(copy_of_foo_ep_addr);

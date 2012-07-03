@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -20,7 +20,7 @@
 
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 
 #include "colibri/init.h"
@@ -32,15 +32,16 @@
 #include "lib/thread.h"
 #include "lib/processor.h"
 #include "lib/trace.h"
+#include "lib/time.h"
 #include "net/net.h"
-#include "net/bulk_sunrpc.h"
+#include "net/lnet/lnet.h"
 #include "rpc/rpc2.h"
 #include "rpc/it/ping_fop.h"
 #include "rpc/it/ping_fom.h"
-#include "ut/net.h"     /* canon_host */
 #include "rpc/rpclib.h" /* c2_rpc_server_start */
 #include "ut/rpc.h"     /* c2_rpc_client_init */
 #include "fop/fop.h"    /* c2_fop_default_item_ops */
+#include "reqh/reqh.h"  /* c2_reqh_rpc_mach_tl */
 
 #ifdef __KERNEL__
 #include <linux/kernel.h>
@@ -62,8 +63,8 @@
 #include <netdb.h>
 #endif
 
-
-#define TRANSPORT_NAME		"bulk-sunrpc"
+#define TRANSPORT_NAME		"lnet"
+#define SERVER_ENDPOINT         TRANSPORT_NAME ":" "0@lo:12345:34:1"
 
 #define CLIENT_DB_FILE_NAME	"rpcping_client.db"
 
@@ -77,47 +78,51 @@ enum ep_type {
 };
 
 enum {
-	BUF_LEN = 128,
-	RID = 1,
+	BUF_LEN		   = 128,
+	STRING_LEN	   = 16,
+	C2_LNET_PORTAL     = 34,
 	MAX_RPCS_IN_FLIGHT = 32,
-	CLIENT_COB_DOM_ID = 13,
-	CONNECT_TIMEOUT = 5,
+	CLIENT_COB_DOM_ID  = 13,
+	CONNECT_TIMEOUT	   = 60,
 };
 
 #ifndef __KERNEL__
-static bool server_mode       = false;
+static bool server_mode = false;
 #endif
-static bool verbose           = false;
-static char *server_hostname  = "127.0.0.1";
-static char *client_hostname  = "127.0.0.1";
-static int  server_port       = 12321;
-static int  client_port       = 32123;
-static int  nr_client_threads = 1;
-static int  nr_slots          = 1;
-static int  nr_ping_bytes     = 8;
-static int  nr_ping_item      = 1;
 
-static char client_endpoint[BUF_LEN];
-static char server_endpoint[BUF_LEN];
+static bool  verbose           = false;
+static char *server_nid        = "0@lo";
+static char *client_nid        = "0@lo";
+static int   server_tmid       = 1;
+static int   client_tmid       = 2;
+static int   nr_client_threads = 1;
+static int   nr_slots          = 1;
+static int   nr_ping_bytes     = 8;
+static int   nr_ping_item      = 1;
+static int   tm_recv_queue_len = C2_NET_TM_RECV_QUEUE_DEF_LEN;
+static int   max_rpc_msg_size  = C2_RPC_DEF_MAX_RPC_MSG_SIZE;
 
-static struct c2_net_xprt *xprt = &c2_net_bulk_sunrpc_xprt;
+static char client_endpoint[C2_NET_LNET_XEP_ADDR_LEN];
+static char server_endpoint[C2_NET_LNET_XEP_ADDR_LEN];
+
+static struct c2_net_xprt *xprt = &c2_net_lnet_xprt;
 
 #ifdef __KERNEL__
 /* Module parameters */
 module_param(verbose, bool, S_IRUGO);
 MODULE_PARM_DESC(verbose, "enable verbose output to kernel log");
 
-module_param(client_hostname, charp, S_IRUGO);
-MODULE_PARM_DESC(client_hostname, "client address");
+module_param(client_nid, charp, S_IRUGO);
+MODULE_PARM_DESC(client_nid, "client network identifier");
 
-module_param(server_hostname, charp, S_IRUGO);
-MODULE_PARM_DESC(server_hostname, "server address");
+module_param(server_nid, charp, S_IRUGO);
+MODULE_PARM_DESC(server_nid, "server network identifier");
 
-module_param(server_port, int, S_IRUGO);
-MODULE_PARM_DESC(server_port, "remote port number");
+module_param(server_tmid, int, S_IRUGO);
+MODULE_PARM_DESC(server_tmid, "remote transfer machine identifier");
 
-module_param(client_port, int, S_IRUGO);
-MODULE_PARM_DESC(client_port, "local port number");
+module_param(client_tmid, int, S_IRUGO);
+MODULE_PARM_DESC(client_tmid, "local transfer machine identifier");
 
 module_param(nr_client_threads, int, S_IRUGO);
 MODULE_PARM_DESC(nr_client_threads, "number of client threads");
@@ -130,55 +135,41 @@ MODULE_PARM_DESC(nr_ping_bytes, "number of ping fop bytes");
 
 module_param(nr_ping_item, int, S_IRUGO);
 MODULE_PARM_DESC(nr_ping_item, "number of ping fop items");
+
+module_param(tm_recv_queue_len, int, S_IRUGO);
+MODULE_PARM_DESC(tm_recv_queue_len, "minimum TM receive queue length");
+
+module_param(max_rpc_msg_size, int, S_IRUGO);
+MODULE_PARM_DESC(tm_recv_queue_len, "maximum RPC message size");
 #endif
 
 static int build_endpoint_addr(enum ep_type type, char *out_buf, size_t buf_size)
 {
-#ifndef __KERNEL__
-	int  rc;
-#endif
 	char *ep_name;
-	char *hostname;
-	int  port;
-
-	/*
-	 * Declare this internal buffer as static, to avoid on-stack allocation
-	 * of big structures. This is important for kernel-space, where stack
-	 * size is very small.
-	 */
-	static char hostbuf[BUF_LEN];
+	char *nid;
+	int   tmid;
 
 	switch (type) {
 	case EP_SERVER:
-		hostname = server_hostname;
+		nid = server_nid;
 		ep_name = "server";
-		port = server_port;
+		tmid = server_tmid;
 		break;
 	case EP_CLIENT:
-		hostname = client_hostname;
+		nid = client_nid;
 		ep_name = "client";
-		port = client_port;
+		tmid = client_tmid;
 		break;
 	default:
 		return -1;
 	}
 
-	/* Resolve hostname into IP address */
-#ifndef __KERNEL__
-	rc = canon_host(hostname, hostbuf, sizeof(hostbuf));
-	if(rc != 0) {
-		fprintf(stderr, "Failed to resolve canon host for %s\n", ep_name);
-		return rc;
-	}
-#else
-	/*
-	 * For kernel-space we cannot use canon_host to resolve hostname, so
-	 * assume that hostname already contains an IP address
-	 */
-	strcpy(hostbuf, hostname);
-#endif
+	if (buf_size > C2_NET_LNET_XEP_ADDR_LEN)
+		return -1;
+	else
+		snprintf(out_buf, buf_size, "%s:%u:%u:%u", nid, C2_NET_LNET_PID,
+			 C2_LNET_PORTAL, tmid);
 
-	snprintf(out_buf, buf_size, "%s:%u:%u", hostbuf, port, RID);
 	if (verbose)
 		printf("%s endpoint: %s\n", ep_name, out_buf);
 
@@ -258,7 +249,7 @@ static void print_rpc_stats(struct c2_rpc_stats *stats)
 }
 
 /* Get stats from rpc_machine and print them */
-static void print_stats(struct c2_rpc_machine *rpc_mach)
+static void __print_stats(struct c2_rpc_machine *rpc_mach)
 {
 	printf("stats:\n");
 
@@ -268,6 +259,23 @@ static void print_stats(struct c2_rpc_machine *rpc_mach)
 	printf("        out:\n");
 	print_rpc_stats(&rpc_mach->rm_rpc_stats[C2_RPC_PATH_OUTGOING]);
 }
+
+#ifndef __KERNEL__
+/* Prints stats of all the rpc machines in the given request handler. */
+static void print_stats(struct c2_reqh *reqh)
+{
+	struct c2_rpc_machine *rpcmach;
+
+	C2_PRE(reqh != NULL);
+
+	c2_rwlock_read_lock(&reqh->rh_rwlock);
+	c2_tl_for(c2_reqh_rpc_mach, &reqh->rh_rpc_machines, rpcmach) {
+		C2_ASSERT(c2_rpc_machine_bob_check(rpcmach));
+		__print_stats(rpcmach);
+	} c2_tl_endfor;
+	c2_rwlock_read_unlock(&reqh->rh_rwlock);
+}
+#endif
 
 /* Create a ping fop and post it to rpc layer */
 static void send_ping_fop(struct c2_rpc_session *session)
@@ -340,11 +348,13 @@ static int client_fini(struct c2_rpc_client_ctx *cctx)
 	c2_net_end_point_put(cctx->rcx_remote_ep);
 
 	if (verbose)
-		print_stats(&cctx->rcx_rpc_machine);
+		__print_stats(&cctx->rcx_rpc_machine);
 
 	c2_rpc_machine_fini(&cctx->rcx_rpc_machine);
 	c2_cob_domain_fini(cctx->rcx_cob_dom);
 	c2_dbenv_fini(cctx->rcx_dbenv);
+
+	c2_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
 
 	return rc;
 }
@@ -366,25 +376,26 @@ static int run_client(void)
 	static struct c2_cob_domain     client_cob_dom;
 	static struct c2_rpc_client_ctx cctx;
 
-
-	cctx.rcx_net_dom            = &client_net_dom,
-	cctx.rcx_local_addr         = client_endpoint,
-	cctx.rcx_remote_addr        = server_endpoint,
-	cctx.rcx_db_name            = CLIENT_DB_FILE_NAME,
-	cctx.rcx_dbenv              = &client_dbenv,
-	cctx.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
-	cctx.rcx_cob_dom            = &client_cob_dom,
-	cctx.rcx_nr_slots           = nr_slots,
-	cctx.rcx_timeout_s          = CONNECT_TIMEOUT,
-	cctx.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
+	cctx.rcx_net_dom               = &client_net_dom;
+	cctx.rcx_local_addr            = client_endpoint;
+	cctx.rcx_remote_addr           = server_endpoint;
+	cctx.rcx_db_name               = CLIENT_DB_FILE_NAME;
+	cctx.rcx_dbenv                 = &client_dbenv;
+	cctx.rcx_cob_dom_id            = CLIENT_COB_DOM_ID;
+	cctx.rcx_cob_dom               = &client_cob_dom;
+	cctx.rcx_nr_slots              = nr_slots;
+	cctx.rcx_timeout_s             = CONNECT_TIMEOUT;
+	cctx.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT;
+	cctx.rcx_recv_queue_min_length = tm_recv_queue_len;
+	cctx.rcx_max_rpc_msg_size      = max_rpc_msg_size,
 
 	rc = build_endpoint_addr(EP_SERVER, server_endpoint,
-					sizeof(server_endpoint));
+				 sizeof(server_endpoint));
 	if (rc != 0)
 		return rc;
 
 	rc = build_endpoint_addr(EP_CLIENT, client_endpoint,
-					sizeof(client_endpoint));
+				 sizeof(client_endpoint));
 	if (rc != 0)
 		return rc;
 
@@ -417,10 +428,26 @@ static int run_client(void)
 
 	for (i = 0; i < nr_client_threads; i++) {
 		C2_SET0(&client_thread[i]);
-		rc = C2_THREAD_INIT(&client_thread[i], struct c2_rpc_session*,
-				NULL, &send_ping_fop,
-				&cctx.rcx_session, "client_%d", i);
-		C2_ASSERT(rc == 0);
+
+		while (1) {
+			c2_time_t t;
+
+			rc = C2_THREAD_INIT(&client_thread[i],
+					    struct c2_rpc_session*,
+					    NULL, &send_ping_fop,
+					    &cctx.rcx_session, "client_%d", i);
+			if (rc == 0) {
+				break;
+			} else if (rc == EAGAIN) {
+#ifndef __KERNEL__
+				printf("Retrying thread init\n");
+#endif
+				c2_thread_fini(&client_thread[i]);
+				c2_nanosleep(c2_time_set(&t, 1, 0), NULL);
+			} else {
+				C2_ASSERT("THREAD_INIT_FAILED" == NULL);
+			}
+		}
 	}
 
 	for (i = 0; i < nr_client_threads; i++) {
@@ -469,13 +496,21 @@ static void quit_dialog(void)
 
 static int run_server(void)
 {
-	int rc;
+	int	    rc;
+	static char tm_len[STRING_LEN];
+	static char rpc_size[STRING_LEN];
 
 	char *server_argv[] = {
 		"rpclib_ut", "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", server_endpoint,
-		"-s", "ds1", "-s", "ds2"
+		"-s", "ds1", "-s", "ds2", "-q", tm_len, "-m", rpc_size,
 	};
+
+	if (tm_recv_queue_len != 0)
+		sprintf(tm_len, "%d" , tm_recv_queue_len);
+
+	if (max_rpc_msg_size != 0)
+		sprintf(rpc_size, "%d" , max_rpc_msg_size);
 
 	C2_RPC_SERVER_CTX_DECLARE(sctx, &xprt, 1, server_argv,
 				  ARRAY_SIZE(server_argv), SERVER_LOG_FILE_NAME);
@@ -495,8 +530,8 @@ static int run_server(void)
 	strcpy(server_endpoint, TRANSPORT_NAME ":");
 
 	rc = build_endpoint_addr(
-			EP_SERVER, server_endpoint + strlen(server_endpoint),
-			sizeof(server_endpoint) - strlen(server_endpoint));
+		EP_SERVER, server_endpoint + strlen(server_endpoint),
+		sizeof(server_endpoint) - strlen(server_endpoint));
 	if (rc != 0)
 		return rc;
 
@@ -507,19 +542,19 @@ static int run_server(void)
 	quit_dialog();
 
 	if (verbose) {
-		struct c2_rpc_machine *rpcmach;
+		struct c2_reqh *reqh;
 
-		rpcmach = c2_cs_rpcmach_get(&sctx.rsx_colibri_ctx, xprt, "ds1");
-		if (rpcmach != NULL) {
+		reqh = c2_cs_reqh_get(&sctx.rsx_colibri_ctx, "ds1");
+		if (reqh != NULL) {
 			printf("########### Server DS1 statS ###########\n");
-			print_stats(rpcmach);
+			print_stats(reqh);
 		}
 
-		rpcmach = c2_cs_rpcmach_get(&sctx.rsx_colibri_ctx, xprt, "ds2");
-		if (rpcmach != NULL) {
+		reqh = c2_cs_reqh_get(&sctx.rsx_colibri_ctx, "ds2");
+		if (reqh != NULL) {
 			printf("\n");
 			printf("########### Server DS2 statS ###########\n");
-			print_stats(rpcmach);
+			print_stats(reqh);
 		}
 	}
 
@@ -546,19 +581,23 @@ int main(int argc, char *argv[])
 #ifndef __KERNEL__
 	rc = C2_GETOPTS("rpcping", argc, argv,
 		C2_FLAGARG('s', "run server", &server_mode),
-		C2_STRINGARG('C', "client hostname",
-			LAMBDA(void, (const char *str) { client_hostname =
+		C2_STRINGARG('C', "client nid",
+			LAMBDA(void, (const char *str) { client_nid =
 								(char*)str; })),
-		C2_FORMATARG('p', "client port", "%i", &client_port),
-		C2_STRINGARG('S', "server hostname",
-			LAMBDA(void, (const char *str) { server_hostname =
+		C2_FORMATARG('p', "client tmid", "%i", &client_tmid),
+		C2_STRINGARG('S', "server nid",
+			LAMBDA(void, (const char *str) { server_nid =
 								(char*)str; })),
-		C2_FORMATARG('P', "server port", "%i", &server_port),
+		C2_FORMATARG('P', "server tmid", "%i", &server_tmid),
 		C2_FORMATARG('b', "size in bytes", "%i", &nr_ping_bytes),
 		C2_FORMATARG('t', "number of client threads", "%i",
 						&nr_client_threads),
 		C2_FORMATARG('l', "number of slots", "%i", &nr_slots),
 		C2_FORMATARG('n', "number of ping items", "%i", &nr_ping_item),
+		C2_FORMATARG('q', "minimum TM receive queue length", "%i",
+						&tm_recv_queue_len),
+		C2_FORMATARG('m', "max rpc msg size", "%i",
+						&max_rpc_msg_size),
 		C2_FLAGARG('v', "verbose", &verbose)
 		);
 	if (rc != 0)

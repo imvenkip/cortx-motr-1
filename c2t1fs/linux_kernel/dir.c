@@ -283,12 +283,12 @@ static struct c2t1fs_dir_ent *c2t1fs_dir_ent_find(struct inode        *dir,
 
 	C2_ASSERT(c2t1fs_fs_is_locked(csb));
 
-	c2_tlist_for(&dir_ents_tl, &ci->ci_dir_ents, de) {
+	c2_tl_for(dir_ents, &ci->ci_dir_ents, de) {
 
 		if (name_eq(name, de->de_name, namelen))
 			break;
 
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 
 	C2_LEAVE("de: %p", de);
 	return de;
@@ -378,7 +378,7 @@ static int c2t1fs_readdir(struct file *f,
 		/* previous call to readdir() returned f->f_pos number of
 		   entries Now we should continue after that point */
 		skip = i - 2;
-		c2_tlist_for(&dir_ents_tl, &ci->ci_dir_ents, de) {
+		c2_tl_for(dir_ents, &ci->ci_dir_ents, de) {
 			char *name;
 			int   namelen;
 
@@ -400,7 +400,7 @@ static int c2t1fs_readdir(struct file *f,
 			C2_LOG("filled: \"%s\"", name);
 
 			f->f_pos++;
-		} c2_tlist_endfor;
+		} c2_tl_endfor;
 	}
 out:
 	c2t1fs_fs_unlock(csb);
@@ -472,8 +472,6 @@ out:
 struct c2_fid c2t1fs_cob_fid(const struct c2_fid *gob_fid, int index)
 {
 	struct c2_fid fid;
-
-	C2_ENTRY();
 
 	/* index 0 is currently reserved for gob_fid.f_container */
 	C2_ASSERT(gob_fid->f_container == 0);

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>
  * Original creation date: 04/05/2011
  */
 
@@ -28,6 +28,11 @@
    @addtogroup net
    @{
  */
+
+const struct c2_addb_ctx_type c2_net_buffer_addb_ctx = {
+	.act_name = "net-buffer"
+};
+
 bool c2_net__qtype_is_valid(enum c2_net_queue_type qt)
 {
 	return qt >= C2_NET_QT_MSG_RECV && qt < C2_NET_QT_NR;
@@ -76,7 +81,7 @@ bool c2_net__buffer_invariant(const struct c2_net_buffer *buf)
 		return false;
 
 	/* EXPENSIVE: on the right TM list */
-	if (!tm_tlist_contains(&buf->nb_tm->ntm_q[buf->nb_qtype], buf))
+	if (!c2_net_tm_tlist_contains(&buf->nb_tm->ntm_q[buf->nb_qtype], buf))
 		return false;
 	return true;
 }
@@ -99,8 +104,9 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 	buf->nb_dom = dom;
 	buf->nb_xprt_private = NULL;
 	buf->nb_timeout = C2_TIME_NEVER;
-
 	buf->nb_magic = C2_NET_BUFFER_LINK_MAGIC;
+	c2_addb_ctx_init(&buf->nb_addb, &c2_net_buffer_addb_ctx, &dom->nd_addb);
+
 	/* The transport will validate buffer size and number of
 	   segments, and optimize it for future use.
 	 */
@@ -108,7 +114,11 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 	if (rc == 0) {
 		buf->nb_flags |= C2_NET_BUF_REGISTERED;
 		c2_list_add_tail(&dom->nd_registered_bufs,&buf->nb_dom_linkage);
+	} else {
+		NET_ADDB_FUNCFAIL_ADD(dom->nd_addb, rc);
+		c2_addb_ctx_fini(&buf->nb_addb);
 	}
+
 	C2_POST(ergo(rc == 0, c2_net__buffer_invariant(buf)));
 	C2_POST(ergo(rc == 0, buf->nb_timeout == C2_TIME_NEVER));
 
@@ -133,6 +143,7 @@ void c2_net_buffer_deregister(struct c2_net_buffer *buf,
 	c2_list_del(&buf->nb_dom_linkage);
 	buf->nb_xprt_private = NULL;
 	buf->nb_magic = 0;
+	c2_addb_ctx_fini(&buf->nb_addb);
         buf->nb_dom = NULL;
 
 	c2_mutex_unlock(&dom->nd_mutex);
@@ -140,7 +151,7 @@ void c2_net_buffer_deregister(struct c2_net_buffer *buf,
 }
 C2_EXPORTED(c2_net_buffer_deregister);
 
-int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
+int c2_net__buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 {
 	int rc;
 	struct c2_net_domain *dom;
@@ -162,7 +173,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	const struct buf_add_checks *todo;
 
 	C2_PRE(tm != NULL);
-	c2_mutex_lock(&tm->ntm_mutex);
+	C2_PRE(c2_mutex_is_locked(&tm->ntm_mutex));
 	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(c2_net__buffer_invariant(buf));
 	C2_PRE(buf->nb_dom == tm->ntm_dom);
@@ -220,7 +231,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	/* Optimistically add it to the queue's list before calling the xprt.
 	   Post will unlink on completion, or del on cancel.
 	 */
-	tm_tlink_init_at_tail(buf, ql);
+	c2_net_tm_tlink_init_at_tail(buf, ql);
 	buf->nb_flags |= C2_NET_BUF_QUEUED;
 	buf->nb_add_time = c2_time_now(); /* record time added */
 
@@ -228,7 +239,7 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	buf->nb_tm = tm;
 	rc = dom->nd_xprt->nx_ops->xo_buf_add(buf);
 	if (rc != 0) {
-		tm_tlink_del_fini(buf);
+		c2_net_tm_tlink_del_fini(buf);
 		buf->nb_flags &= ~C2_NET_BUF_QUEUED;
 		goto m_err_exit;
 	}
@@ -250,7 +261,18 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	C2_POST(c2_net__tm_invariant(tm));
 
  m_err_exit:
+	return rc;
+}
+
+int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
+{
+	int rc;
+	C2_PRE(tm != NULL);
+	c2_mutex_lock(&tm->ntm_mutex);
+	rc = c2_net__buffer_add(buf, tm);
 	c2_mutex_unlock(&tm->ntm_mutex);
+	if (rc != 0)
+		NET_ADDB_FUNCFAIL_ADD(buf->nb_addb, rc);
 	return rc;
 }
 C2_EXPORTED(c2_net_buffer_add);
@@ -315,19 +337,21 @@ bool c2_net__buffer_event_invariant(const struct c2_net_buffer_event *ev)
 
 void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 {
-	struct c2_net_buffer *buf = NULL;
-	struct c2_net_end_point *ep;
-	bool check_ep;
-	enum c2_net_queue_type qtype = C2_NET_QT_NR;
+	struct c2_net_buffer	  *buf = NULL;
+	struct c2_net_end_point	  *ep;
+	bool			   check_ep;
+	bool			   retain;
+	enum c2_net_queue_type	   qtype = C2_NET_QT_NR;
 	struct c2_net_transfer_mc *tm;
-	struct c2_net_qstats *q;
-	c2_time_t tdiff;
-	c2_net_buffer_cb_proc_t cb;
-	c2_bcount_t len = 0;
+	struct c2_net_qstats	  *q;
+	c2_time_t		   tdiff;
+	c2_net_buffer_cb_proc_t	   cb;
+	c2_bcount_t		   len = 0;
+	struct c2_net_buffer_pool *pool = NULL;
 
 	C2_PRE(c2_net__buffer_event_invariant(ev));
 	buf = ev->nbe_buffer;
-	tm = buf->nb_tm;
+	tm  = buf->nb_tm;
 	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
 
 	/* pre-callback, in mutex:
@@ -340,12 +364,15 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	C2_PRE(buf->nb_flags & C2_NET_BUF_QUEUED);
 
 	if (!(buf->nb_flags & C2_NET_BUF_RETAIN)) {
-		tm_tlist_del(buf);
+		c2_net_tm_tlist_del(buf);
 		buf->nb_flags &= ~(C2_NET_BUF_QUEUED | C2_NET_BUF_CANCELLED |
 				   C2_NET_BUF_IN_USE | C2_NET_BUF_TIMED_OUT);
 		buf->nb_timeout = C2_TIME_NEVER;
-	} else
+		retain = false;
+	} else {
 		buf->nb_flags &= ~C2_NET_BUF_RETAIN;
+		retain = true;
+	}
 
 	qtype = buf->nb_qtype;
 	q = &tm->ntm_qstats[qtype];
@@ -361,8 +388,10 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 		else
 			len = buf->nb_length;
 	}
-	tdiff = c2_time_sub(ev->nbe_time, buf->nb_add_time);
-	q->nqs_time_in_queue = c2_time_add(q->nqs_time_in_queue, tdiff);
+	if (!(buf->nb_flags & C2_NET_BUF_QUEUED)) {
+		tdiff = c2_time_sub(ev->nbe_time, buf->nb_add_time);
+		q->nqs_time_in_queue = c2_time_add(q->nqs_time_in_queue, tdiff);
+	}
 	q->nqs_total_bytes += len;
 	q->nqs_max_bytes = max_check(q->nqs_max_bytes, len);
 
@@ -374,6 +403,10 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 			check_ep = true;
 			ep = ev->nbe_ep; /* from event */
 		}
+		if (!(buf->nb_flags & C2_NET_BUF_QUEUED) &&
+		    tm->ntm_state == C2_NET_TM_STARTED &&
+		    tm->ntm_recv_pool != NULL)
+			pool = tm->ntm_recv_pool;
 		break;
 	case C2_NET_QT_MSG_SEND:
 		/* must put() ep to match get in buffer_add() */
@@ -388,8 +421,11 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	}
 
 	cb = buf->nb_callbacks->nbc_cb[qtype];
-	tm->ntm_callback_counter++;
+	C2_CNT_INC(tm->ntm_callback_counter);
 	c2_mutex_unlock(&tm->ntm_mutex);
+
+	if (pool != NULL && !retain)
+		c2_net__tm_provision_recv_q(tm);
 
 	cb(ev);
 
@@ -402,8 +438,9 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev)
 	   signal waiters
 	 */
 	c2_mutex_lock(&tm->ntm_mutex);
-	tm->ntm_callback_counter--;
-	c2_chan_broadcast(&tm->ntm_chan);
+	C2_CNT_DEC(tm->ntm_callback_counter);
+	if (tm->ntm_callback_counter == 0)
+		c2_chan_broadcast(&tm->ntm_chan);
 	c2_mutex_unlock(&tm->ntm_mutex);
 
 	return;

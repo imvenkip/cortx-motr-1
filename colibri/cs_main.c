@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -19,7 +19,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 
 #include <stdio.h>     /* fprintf */
@@ -28,10 +28,11 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "lib/misc.h"  /* C2_SET0 */
 
 #include "colibri/colibri_setup.h"
 #include "colibri/init.h"
-#include "net/bulk_sunrpc.h"
+#include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
 
 /**
@@ -44,13 +45,8 @@
    by a particular node in a cluster.
  */
 static struct c2_net_xprt *cs_xprts[] = {
-	&c2_net_bulk_sunrpc_xprt
+	&c2_net_lnet_xprt
 };
-
-/**
-   Global colibri context.
- */
-static struct c2_colibri colibri_ctx;
 
 /**
    Signal handler registered so that pause()
@@ -81,9 +77,11 @@ static void cs_wait_for_termination(void)
 
 int main(int argc, char **argv)
 {
-	int     rc;
+	int               rc;
+	struct c2_colibri colibri_ctx;
 
 	errno = 0;
+	C2_SET0(&colibri_ctx);
 	rc = c2_init();
 	if (rc != 0) {
 		fprintf(stderr, "\n Failed to initialise Colibri \n");

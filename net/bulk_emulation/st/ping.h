@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,8 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 04/12/2011
  */
 #ifndef __COLIBRI_NET_BULK_MEM_PING_H__
@@ -55,15 +55,12 @@ struct ping_ctx {
 	struct c2_list			      pc_work_queue;
 	const char		             *pc_ident;
 	const char		             *pc_compare_buf;
-	int                                   pc_sunrpc_ep_delay;
 	int                                   pc_passive_bulk_timeout;
 	int                                   pc_server_bulk_delay;
-	int                                   pc_sunrpc_skulker_period;
 };
 
 enum {
-	//PING_PORT1 = 12345,
-	PING_PORT1 = C2_NET_SUNRPC_PORT,
+	PING_PORT1 = 12345,
 	PING_PORT2 = 27183,
 	PART3_SERVER_ID = 141421,
 };

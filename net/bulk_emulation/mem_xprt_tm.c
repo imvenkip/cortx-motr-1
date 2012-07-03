@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,8 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 04/12/2011
  */
 
@@ -161,6 +161,14 @@ static void mem_post_error(struct c2_net_transfer_mc *tm, int32_t status)
 	mem_wi_add(wi, tp);
 }
 
+enum {
+	/**
+	   Maximum time for condition to wait, avoids hung thread warning
+	   in kernel while TM is idle.
+	 */
+	MEM_XO_TIMEOUT_SECS = 20,
+};
+
 /**
    The entry point of the worker thread started when a transfer machine
    transitions from STARTING to STARTED.  The thread runs its main loop
@@ -175,6 +183,8 @@ static void mem_xo_tm_worker(struct c2_net_transfer_mc *tm)
 	struct c2_list_link *link;
 	struct c2_net_bulk_mem_work_item *wi;
 	c2_net_bulk_mem_work_fn_t fn;
+	c2_time_t timeout;
+	bool rc;
 
 	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(c2_net__tm_invariant(tm));
@@ -215,7 +225,12 @@ static void mem_xo_tm_worker(struct c2_net_transfer_mc *tm)
 		}
 		if (tp->xtm_state == C2_NET_XTM_STOPPED)
 			break;
-		c2_cond_wait(&tp->xtm_work_list_cv, &tm->ntm_mutex);
+		do {
+			timeout = c2_time_from_now(MEM_XO_TIMEOUT_SECS, 0);
+			rc = c2_cond_timedwait(&tp->xtm_work_list_cv,
+					       &tm->ntm_mutex,
+					       timeout);
+		} while (!rc);
 	}
 
 	c2_mutex_unlock(&tm->ntm_mutex);

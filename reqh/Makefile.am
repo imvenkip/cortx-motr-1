@@ -13,10 +13,10 @@ libcolibri_reqh_la_SOURCES  = reqh_fops_u.c reqh_fops_u.h \
 				reqh_generic.c reqh_service.c \
 				reqh_service.h
 
-INCLUDES                    = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+INCLUDES                    = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
 
 EXTRA_DIST = reqh_fops.ff
 
 clean-local:
 	cd @SRCDIR@/reqh ; \
-	rm -fr reqh_fops_[uk].[ch]
+	rm -fr reqh_fops_u.[ch]

@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -19,7 +19,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
 #include "lib/cdefs.h"
@@ -32,21 +32,21 @@
 #include "addb/addb.h"
 
 #ifdef __KERNEL__
-# include "addb/addb_k.h"
+# include "addb/addbff/addb_k.h"
 # define c2_addb_handler NULL
 #else
 
 int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 
-# include "addb/addb_u.h"
+# include "addb/addbff/addb_u.h"
 #endif
 
 #include "fop/fop_format_def.h"
-#include "addb/addb.ff"
+#include "addb/addbff/addb.ff"
 #include "rpc/rpc_opcodes.h"
 
 static struct c2_fop_type_ops addb_ops = {
-	.fto_execute = c2_addb_handler,
+	.fto_execute = NULL,
 };
 
 C2_FOP_TYPE_DECLARE(c2_addb_record, "addb", &addb_ops,
@@ -100,6 +100,11 @@ struct c2_addb_trace_body {
 };
 
 #ifndef __KERNEL__
+
+#if 0
+/**
+   @todo Please remove deprecated interfaces and use new net interface
+ */
 static int c2_addb_enable_dump = 0;
 
 static void c2_addb_record_dump(const struct c2_addb_record *rec)
@@ -157,11 +162,13 @@ int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
 	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
 	return 1;
 }
+#endif /* 0 */
+
 #endif
 
-static int c2_addb_record_header_pack(struct c2_addb_dp *dp,
-				      struct c2_addb_record_header *header,
-				      int size)
+int c2_addb_record_header_pack(struct c2_addb_dp *dp,
+			       struct c2_addb_record_header *header,
+			       int size)
 {
 	header->arh_magic1    = ADDB_REC_HEADER_MAGIC1;
 	header->arh_version   = ADDB_REC_HEADER_VERSION;
@@ -176,21 +183,22 @@ static int c2_addb_record_header_pack(struct c2_addb_dp *dp,
 /** get size for data point opaque data */
 int c2_addb_func_fail_getsize(struct c2_addb_dp *dp)
 {
-	return c2_align(sizeof(uint32_t) + strlen(dp->ad_name) + 1, 8);
+	return c2_align(sizeof(uint32_t) + strlen(dp->ad_name) + 1,
+			C2_ADDB_RECORD_LEN_ALIGN);
 }
 
 int c2_addb_call_getsize(struct c2_addb_dp *dp)
 {
-	return c2_align(sizeof(uint32_t), 8);
+	return c2_align(sizeof(uint32_t), C2_ADDB_RECORD_LEN_ALIGN);
 }
 int c2_addb_flag_getsize(struct c2_addb_dp *dp)
 {
-	return c2_align(sizeof(bool), 8);
+	return c2_align(sizeof(bool), C2_ADDB_RECORD_LEN_ALIGN);
 }
 
 int c2_addb_inval_getsize(struct c2_addb_dp *dp)
 {
-	return c2_align(sizeof(uint64_t), 8);
+	return c2_align(sizeof(uint64_t), C2_ADDB_RECORD_LEN_ALIGN);
 }
 
 int c2_addb_empty_getsize(struct c2_addb_dp *dp)

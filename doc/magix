@@ -12,3 +12,15 @@ c2_rpc_service_type  svt_magix               5356435f54595045 SVC_TYPE
 c2_rpc_service       svc_magix                 7270635f737663 rpc_svc
 c2_rpc_services_tl   td_head_magic           7270637376636864 rpcsvchd
 rpc_service_types_tl td_head_magic           5356435459504844 SVCTYPHD
+cs_reqh_context      rc_magix                  52455148435458 REQHCTX
+rhctx_tl             td_head_magic             52484354584844 RHCTXHD
+c2_net_domain        nd_magix                    4E4554444F4D NETDOM
+ndom_tl              td_head_magic           4E4554444F4D4844 NETDOMHD
+cs_endpoint_and_xprt ex_magix                      43535F4550 CS_EP
+cs_eps_tl            td_head_magic             43535F45504844 CS_EPHD
+c2_reqh_service      rs_magix                  52455148535643 REQHSVC
+c2_reqh_svc_tl       td_head_magic           5245515356434844 REQSVCHD
+c2_rpc_machine       rm_magix                  5250434D414348 RPCMACH
+c2_reqh_rpc_mach_tl  td_head_magic           52455152504D4844 REQRPMHD
+cs_ad_stob           as_magix                    414453544f42 ADSTOB
+astob                td_head_magic           414453544f424844 ADSTOBHD

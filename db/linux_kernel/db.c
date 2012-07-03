@@ -81,10 +81,10 @@ void c2_table_fini(struct c2_table *table)
 
 	C2_ASSERT(ktable_invariant(table));
 
-	c2_tlist_for(&pair_tl, &table->t_i.tk_pair, kpair) {
+	c2_tl_for(pair, &table->t_i.tk_pair, kpair) {
 		pair_tlink_del_fini(kpair);
 		c2_free(kpair);
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	pair_tlist_fini(&table->t_i.tk_pair);
 	c2_mutex_fini(&table->t_i.tk_lock);
 	c2_table_common_fini(table);
@@ -103,11 +103,11 @@ int c2_db_tx_commit(struct c2_db_tx *tx)
 	struct c2_dbenv        *env;
 
 	env = tx->dt_env;
-	c2_tlist_for(&txw_tl, &tx->dt_waiters, w) {
+	c2_tl_for(txw, &tx->dt_waiters, w) {
 		txw_tlist_del(w);
 		w->tw_commit(w);
 		w->tw_done(w);
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	c2_db_common_tx_fini(tx);
 	return 0;
 }
@@ -147,7 +147,7 @@ static struct c2_db_kpair *ktable_lookup(struct c2_db_pair *pair, int *out)
 	C2_PRE(c2_mutex_is_locked(&ti->tk_lock));
 
 	*out = -ENOENT;
-	c2_tlist_for(&pair_tl, &ti->tk_pair, scan) {
+	c2_tl_for(pair, &ti->tk_pair, scan) {
 		switch (key_cmp(t, &scan->dk_key, &pair->dp_key.db_buf)) {
 		case -1:
 			continue;
@@ -157,7 +157,7 @@ static struct c2_db_kpair *ktable_lookup(struct c2_db_pair *pair, int *out)
 		default:
 			break;
 		}
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	return scan;
 }
 
@@ -549,28 +549,17 @@ bool c2_db_buf_impl_invariant(const struct c2_db_buf *buf)
 static bool ktable_invariant_locked(struct c2_table *t,
 				    struct c2_table_impl *ti)
 {
-	struct c2_db_kpair *scan;
-	struct c2_db_kpair *prev;
+	struct c2_tl *tkp = &t->t_i.tk_pair;
 
-	ti = &t->t_i;
-
-	if (!c2_tlist_invariant(&pair_tl, &ti->tk_pair))
-		return false;
-
-	prev = NULL;
-	c2_tlist_for(&pair_tl, &ti->tk_pair, scan) {
-		if (scan->dk_key.b_addr != scan + 1)
-			return false;
-		if (scan->dk_rec.b_addr !=
-		    scan->dk_key.b_addr + scan->dk_key.b_nob)
-			return false;
-
-		if (prev != NULL &&
-		    key_cmp(t, &prev->dk_key, &scan->dk_key) != -1)
-			return false;
-		prev = scan;
-	} c2_tlist_endfor;
-	return true;
+	return
+		c2_tlist_invariant(&pair_tl, tkp) &&
+		c2_tl_forall(pair, scan, tkp,
+			     scan->dk_key.b_addr == scan + 1 &&
+			     scan->dk_rec.b_addr ==
+			     scan->dk_key.b_addr + scan->dk_key.b_nob &&
+			     ergo(pair_tlist_prev(tkp, scan) != NULL,
+				  key_cmp(t, &pair_tlist_prev(tkp, scan)->dk_key,
+					  &scan->dk_key) == -1));
 }
 
 static bool ktable_invariant(struct c2_table *t)

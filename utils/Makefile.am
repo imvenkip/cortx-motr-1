@@ -16,15 +16,15 @@ ut_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/sns/ut/libparity-ut.la \
                $(top_builddir)/net/ut/libnet-ut.la \
                $(top_builddir)/net/bulk_emulation/ut/libnet-bulkem-ut.la \
+               $(top_builddir)/net/lnet/ut/liblnet-ut.la \
                $(top_builddir)/udb/ut/libudb-ut.la \
                $(top_builddir)/capa/ut/libcapa-ut.la \
                $(top_builddir)/rm/ut/librm-ut.la \
                $(top_builddir)/sm/ut/libsm-ut.la \
                $(top_builddir)/xcode/ut/libxcode-ut.la \
                $(top_builddir)/reqh/ut/libreqh-ut.la \
-               $(top_builddir)/rpc/ut/libonwire-ut.la \
                $(top_builddir)/colibri/ut/libcs-ut.la \
-               $(top_builddir)/rpc/ut/librpclib-ut.la \
+               $(top_builddir)/rpc/ut/librpc-ut.la \
                $(top_builddir)/ioservice/ut/libioservice-ut.la \
                $(top_builddir)/yaml2db/ut/libyaml2db-ut.la \
 	       $(top_builddir)/addb/ut/libaddb-ut.la \
@@ -40,4 +40,6 @@ ub_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/sns/ut/libparity-ut.la \
                $(top_builddir)/rm/ut/librm-ut.la
 
-EXTRA_DIST   = linux_kernel/main.c linux_kernel/ut.sh
+EXTRA_DIST   = ut.sh.in linux_kernel/main.c linux_kernel/ut.sh.in  \
+	       linux_kernel/c2ctl.c linux_kernel/finject_debugfs.c \
+	       linux_kernel/finject_debugfs.h

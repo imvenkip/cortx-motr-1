@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -34,8 +34,7 @@
    This file defines "universal" fop-to-bufvec encode/decode functions.
    Main entry point is c2_bufvec_fop() which encodes/decodes fop data into/from
    a bufvec. Encode/Decode operations are implemented by recursively descending
-   through the fop format tree. The implementation logic is the same that has
-   been used in net/ksunrpc/kxdr.c.
+   through the fop format tree.
 
    When handling a non-leaf (i.e., "aggregating") node of a fop format tree,
    control branches though the xcode_type_disp[] function pointer array, using

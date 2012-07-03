@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -134,7 +134,7 @@ back to sender.
 
 <B>Ensuring FIFO when slot.max_in_flight > 1 </B>
 
- XXX Current implementation does not have way to define dependancies.
+ XXX Current implementation does not have way to define dependencies.
      Hence no more than 1 items are allowed to be in-flight for a particular
      slot.
 
@@ -338,7 +338,7 @@ enum c2_rpc_conn_flags {
 };
 
 /**
-   A rpc connection identfies a sender to the receiver. It acts as a parent
+   A rpc connection identifies a sender to the receiver. It acts as a parent
    object within which sessions are created. rpc connection has two
    identifiers.
 
@@ -542,8 +542,6 @@ struct c2_rpc_conn {
 	    is broadcast
 	 */
 	struct c2_cond            c_state_changed;
-
-	struct c2_mutex           c_mutex;
 };
 
 /**
@@ -918,13 +916,18 @@ struct c2_rpc_session {
 	 */
 	int32_t                   s_rc;
 
-	/** lock protecting this session and slot table */
-	struct c2_mutex           s_mutex;
+	/** if > 0, then session is in BUSY state */
+	uint32_t                  s_hold_cnt;
 
 	/** A condition variable on which broadcast is sent whenever state of
 	    session is changed. Associated with s_mutex
 	 */
 	struct c2_cond            s_state_changed;
+
+	/** List of slots, which can be associated with an unbound item.
+	    Link: c2_rpc_slot::sl_link
+	 */
+	struct c2_list            s_ready_slots;
 };
 
 /**
@@ -1025,6 +1028,29 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session *session,
 			      const c2_time_t        abs_timeout);
 
 /**
+   Holds a session in BUSY state.
+   Every call to c2_rpc_session_hold_busy() must accompany
+   call to c2_rpc_session_release()
+
+   @pre session->s_state == C2_RPC_SESSION_IDLE ||
+	session->s_state == C2_RPC_SESSION_BUSY
+   @pre c2_rpc_machine_is_locked(session->s_conn->c_rpc_machine)
+   @post session->s_state == C2_RPC_SESSION_BUSY
+ */
+void c2_rpc_session_hold_busy(struct c2_rpc_session *session);
+
+/**
+   Decrements hold count. Moves session to IDLE state if it becomes idle.
+
+   @pre session->s_state == C2_RPC_SESSION_BUSY
+   @pre session->s_hold_cnt > 0
+   @pre c2_rpc_machine_is_locked(session->s_conn->c_rpc_machine)
+   @post ergo(c2_rpc_session_is_idle(session),
+	      session->s_state == C2_RPC_SESSION_IDLE)
+ */
+void c2_rpc_session_release(struct c2_rpc_session *session);
+
+/**
    Finalises session object
 
    @pre session->s_state == C2_RPC_SESSION_TERMINATED ||
@@ -1038,7 +1064,14 @@ void c2_rpc_session_fini(struct c2_rpc_session *session);
  * a single routine - terminate the session, wait until it switched to
  * terminated state and finalize session object.
  */
-int c2_rpc_session_destroy(struct c2_rpc_session *session, uint32_t timeout_sec);
+int c2_rpc_session_destroy(struct c2_rpc_session *session,
+			   uint32_t               timeout_sec);
+
+/**
+   Returns maximum size of an RPC item allowed on this session.
+ */
+c2_bcount_t
+c2_rpc_session_get_max_item_size(const struct c2_rpc_session *session);
 
 /**
    Returns the number of rpc items that can be bound to this slot
@@ -1152,7 +1185,7 @@ struct c2_rpc_slot {
 	/** Cob representing this slot in persistent state */
 	struct c2_cob                *sl_cob;
 
-	/** list anchor to put in c2_rpc_machine::rm_ready_slots */
+	/** list anchor to put in c2_rpc_session::s_ready_slots */
 	struct c2_list_link           sl_link;
 
 	/** Current version number of slot */
@@ -1193,8 +1226,6 @@ struct c2_rpc_slot {
 	struct c2_list                sl_ready_list;
 
 	const struct c2_rpc_slot_ops *sl_ops;
-
-	struct c2_mutex               sl_mutex;
 };
 
 /** @} end of session group */

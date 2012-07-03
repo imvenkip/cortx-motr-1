@@ -1,4 +1,4 @@
-#include <linux/module.h>
+/* -*- C -*- */
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -17,6 +17,12 @@
  * Original author: Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 03/03/2011
  */
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 
@@ -26,6 +32,7 @@
 /* These unit tests are done in the kernel */
 extern void test_bitmap(void);
 extern void test_chan(void);
+extern void test_finject(void);
 extern void test_list(void);
 extern void test_tlist(void);
 extern void test_mutex(void);
@@ -49,6 +56,9 @@ const struct c2_test_suite c2_klibc2_ut = {
 		{ "memory",    test_memory    },
 		{ "bob",       test_bob       },
 		{ "chan",      test_chan      },
+#ifdef ENABLE_FAULT_INJECTION
+		{ "finject",   test_finject   },
+#endif
 		{ "list",      test_list      },
 		{ "tlist",     test_tlist     },
 		{ "mutex",     test_mutex     },
@@ -65,3 +75,12 @@ const struct c2_test_suite c2_klibc2_ut = {
 };
 C2_EXPORTED(c2_klibc2_ut);
 
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

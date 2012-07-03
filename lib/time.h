@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nathan Rutman <Nathan_Rutman@us.xyratex.com>,
+ * Original author: Nathan Rutman <Nathan_Rutman@xyratex.com>,
  *                  Huang Hua <Hua_Huang@xyratex.com>
  * Original creation date: 12/10/2010
  */
@@ -22,7 +22,7 @@
 #ifndef __COLIBRI_LIB_TIME_H__
 #define __COLIBRI_LIB_TIME_H__
 
-#include <lib/types.h>
+#include "lib/types.h"
 
 /**
    @defgroup time Generic time manipulation
@@ -60,6 +60,8 @@ c2_time_t c2_time_now(void);
 */
 c2_time_t c2_time_from_now(uint64_t secs, long ns);
 
+c2_time_t c2_time(uint64_t secs, long ns);
+
 /**
    Create a c2_time_t from seconds and nanosecond
 
@@ -93,6 +95,10 @@ bool c2_time_after(const c2_time_t a, const c2_time_t b);
    Is time a after or equal to time b?
  */
 bool c2_time_after_eq(const c2_time_t a, const c2_time_t b);
+
+bool c2_time_before_eq(const c2_time_t a, const c2_time_t b);
+
+bool c2_time_eq(const c2_time_t a, const c2_time_t b);
 
 /**
    Sleep for requested time. If interrupted, remaining time returned.

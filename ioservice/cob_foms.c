@@ -19,7 +19,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 
 #include "lib/errno.h"
@@ -29,8 +29,10 @@
 #include "ioservice/io_fops.h"      /* c2_cobfop_common_get */
 #include "ioservice/cob_foms.h"     /* c2_fom_cob_create, c2_fom_cob_delete */
 #include "ioservice/io_fops.h"      /* c2_is_cob_create_fop() */
+#include "ioservice/cobfid_map.h"   /* c2_cobfid_map_get() c2_cobfid_map_put()*/
 #include "reqh/reqh.h"              /* c2_fom_state_generic() */
-#include "colibri/colibri_setup.h"  /* c2_cs_ctx_get(), c2_cobfid_setup_get() */
+#include "reqh/reqh_service.h"
+#include "colibri/colibri_setup.h"
 
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
@@ -239,15 +241,25 @@ out:
 
 static int cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 {
-	int             rc;
-	struct c2_stob *stob;
+	int                    rc;
+	struct c2_stob        *stob;
+	struct c2_reqh        *reqh;
+	struct c2_stob_domain *sdom;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(cc != NULL);
 
-	rc = c2_stob_create_helper(fom->fo_loc->fl_dom->fd_reqh->rh_stdom,
-				   &fom->fo_tx, &cc->fco_stobid, &stob);
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	sdom = c2_cs_stob_domain_find(reqh, &cc->fco_stobid);
+	if (sdom == NULL) {
+		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+			    cc_fom_func_fail,
+			    "Stob creation failed in cc_stob_create().",
+			    -EINVAL);
+		return -EINVAL;
+	}
 
+	rc = c2_stob_create_helper(sdom, &fom->fo_tx, &cc->fco_stobid, &stob);
 	if (rc != 0)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail,
@@ -332,25 +344,25 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 
 static int cc_cobfid_map_add(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 {
-	int			rc;
-	struct c2_uint128	cob_fid;
-	struct c2_colibri      *cctx;
-	struct c2_cobfid_setup *s = NULL;
+	int			    rc;
+	struct c2_uint128	    cob_fid;
+	struct c2_reqh             *reqh;
+	struct c2_cobfid_map       *cfm;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(cc != NULL);
 
-	cctx = c2_cs_ctx_get(fom->fo_service);
-	C2_ASSERT(cctx != NULL);
-	c2_mutex_lock(&cctx->cc_mutex);
-	rc = c2_cobfid_setup_get(&s, cctx);
-	c2_mutex_unlock(&cctx->cc_mutex);
-	C2_ASSERT(rc == 0 && s != NULL);
+	reqh = fom->fo_service->rs_reqh;
+	rc = c2_cobfid_map_get(reqh, &cfm);
+	if (rc != 0)
+		return rc;
 
 	cob_fid.u_hi = cc->fco_cfid.f_container;
 	cob_fid.u_lo = cc->fco_cfid.f_key;
 
-	rc = c2_cobfid_setup_recadd(s, cc->fco_gfid, cob_fid);
+	c2_mutex_lock(&cfm->cfm_mutex);
+	rc = c2_cobfid_map_add(cfm, cob_fid.u_hi, cc->fco_gfid, cob_fid);
+	c2_mutex_unlock(&cfm->cfm_mutex);
 	if (rc != 0)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail, "cobfid_map_add() failed.", rc);
@@ -358,9 +370,8 @@ static int cc_cobfid_map_add(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    c2_addb_trace, "Record added to cobfid_map.");
 
-	c2_mutex_lock(&cctx->cc_mutex);
-	c2_cobfid_setup_put(cctx);
-	c2_mutex_unlock(&cctx->cc_mutex);
+	c2_cobfid_map_put(reqh);
+
 	return rc;
 }
 
@@ -449,14 +460,24 @@ static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 
 static int cd_stob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 {
-	int             rc;
-	struct c2_stob *stob = NULL;
+	int                    rc;
+	struct c2_stob        *stob = NULL;
+	struct c2_stob_domain *sdom;
+	struct c2_reqh        *reqh;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(cd != NULL);
 
-	rc = c2_stob_find(fom->fo_loc->fl_dom->fd_reqh->rh_stdom,
-			  &cd->fco_stobid, &stob);
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	sdom = c2_cs_stob_domain_find(reqh, &cd->fco_stobid);
+	if (sdom == NULL) {
+		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+			    cc_fom_func_fail,
+			    "Stob deletion failed",
+			    -EINVAL);
+		return -EINVAL;
+	}
+	rc = c2_stob_find(sdom, &cd->fco_stobid, &stob);
 	if (rc != 0) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
 			    cd_fom_func_fail,
@@ -467,7 +488,7 @@ static int cd_stob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 
 	/** @todo Implement c2_stob_delete(). */
 
-	C2_ASSERT(stob->so_ref.a_value == CD_FOM_STOBIO_LAST_REFS);
+	C2_ASSERT(stob->so_ref.a_value  >= CD_FOM_STOBIO_LAST_REFS);
 	c2_stob_put(stob);
 	C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 		    c2_addb_trace, "Stob deleted successfully.");
@@ -477,37 +498,37 @@ static int cd_stob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 
 static int cd_cobfid_map_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 {
-	int                     rc;
-	struct c2_uint128       cob_fid;
-	struct c2_colibri      *cctx;
-	struct c2_cobfid_setup *s;
+	int                         rc;
+	struct c2_uint128           cob_fid;
+	struct c2_reqh             *reqh;
+	struct c2_cobfid_map       *cfm;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(cd != NULL);
 
-	cctx = c2_cs_ctx_get(fom->fo_service);
-	C2_ASSERT(cctx != NULL);
-	c2_mutex_lock(&cctx->cc_mutex);
-	rc = c2_cobfid_setup_get(&s, cctx);
-	c2_mutex_unlock(&cctx->cc_mutex);
-	C2_ASSERT(rc == 0 && s != NULL);
+	reqh = fom->fo_service->rs_reqh;
+	rc = c2_cobfid_map_get(reqh, &cfm);
+	if (rc != 0)
+		return rc;
 
 	cob_fid.u_hi = cd->fco_cfid.f_container;
 	cob_fid.u_lo = cd->fco_cfid.f_key;
 
-	rc = c2_cobfid_setup_recdel(s, cd->fco_gfid, cob_fid);
+	c2_mutex_lock(&cfm->cfm_mutex);
+	rc = c2_cobfid_map_del(cfm, cob_fid.u_hi, cd->fco_gfid);
+	c2_mutex_unlock(&cfm->cfm_mutex);
+
 	if (rc != 0)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
 			    cd_fom_func_fail,
-			    "c2_cobfid_setup_delrec() failed.", rc);
+			    "c2_cobfid_map_setup_delrec() failed.", rc);
 	else
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    c2_addb_trace,
 			    "Record removed from cobfid_map.");
 
-	c2_mutex_lock(&cctx->cc_mutex);
-	c2_cobfid_setup_put(cctx);
-	c2_mutex_unlock(&cctx->cc_mutex);
+	c2_cobfid_map_put(reqh);
+
 	return rc;
 }
 

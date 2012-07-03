@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -2103,7 +2103,7 @@ static int balloc_init(struct c2_ad_balloc *ballroom, struct c2_dbenv *db,
 
 	/*
          * Free the memory allocated for colibri in
-         * c2_balloc_locate() on initialisation failure.
+         * c2_balloc_allocate() on initialisation failure.
          */
 	if (rc != 0)
              c2_free(colibri);
@@ -2140,7 +2140,7 @@ static const struct c2_ad_balloc_ops balloc_ops = {
 	.bo_free  = balloc_free,
 };
 
-int c2_balloc_locate(struct c2_balloc **out)
+int c2_balloc_allocate(struct c2_balloc **out)
 {
 	struct c2_balloc *cb;
 	int               result;

@@ -18,7 +18,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
 #include <stdlib.h>    /* system */
@@ -47,7 +47,7 @@
  */
 
 enum {
-	NR    = 3,
+	NR    = 4,
 	MIN_BUF_SIZE = 4096,
 	MIN_BUF_SIZE_IN_BLOCKS = 4,
 };
@@ -311,6 +311,34 @@ static void test_read(int i)
 	c2_stob_io_fini(&io);
 }
 
+static void test_ad_rw_unordered()
+{
+	int i;
+
+	/* Unorderd write requests */
+	for (i = NR/2; i < NR; ++i) {
+		stob_vec[i-(NR/2)] = (buf_size * (i + 1)) >> block_shift;
+		memset(user_buf[i-(NR/2)], ('a' + i)|1, buf_size);
+	}
+	test_write(NR/2);
+
+	for (i = 0; i < NR/2; ++i) {
+		stob_vec[i] = (buf_size * (i + 1)) >> block_shift;
+		memset(user_buf[i], ('a' + i)|1, buf_size);
+	}
+	test_write(NR/2);
+
+	for (i = 0; i < NR; ++i) {
+		stob_vec[i] = (buf_size * (i + 1)) >> block_shift;
+		memset(user_buf[i], ('a' + i)|1, buf_size);
+	}
+
+	/* This generates unordered offsets for back stob io */
+	test_read(NR);
+	for (i = 0; i < NR; ++i)
+		C2_ASSERT(memcmp(user_buf[i], read_buf[i], buf_size) == 0);
+}
+
 /**
    AD unit-test.
  */
@@ -335,6 +363,7 @@ const struct c2_test_suite ad_ut = {
 	.ts_fini = test_ad_fini,
 	.ts_tests = {
 		{ "ad", test_ad },
+		{ "ad-rw-unordered", test_ad_rw_unordered },
 		{ NULL, NULL }
 	}
 };

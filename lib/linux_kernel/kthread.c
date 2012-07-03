@@ -65,8 +65,8 @@ static int kthread_trampoline(void *arg)
 	   kthread_stop(), in turn, requires that the thread not exit until
 	   kthread_stop() is called, so we must loop on kthread_should_stop()
 	   to satisfy that API requirement.  The semaphore is signalled before
-	   calling the thread function so that other kernel code, such
-	   as SUNRPC service code, can still depend on kthread_should_stop().
+	   calling the thread function so that other kernel code can still
+	   depend on kthread_should_stop().
 	 */
 	if (t->t_init == NULL)
 		c2_semaphore_up(&t->t_wait);

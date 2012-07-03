@@ -18,7 +18,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
 #include <stdlib.h>    /* system */
@@ -45,6 +45,7 @@
 
 enum {
 	NR    = 3,
+	NR_SORT = 256,
 	MIN_BUF_SIZE = 4096,
 	MIN_BUF_SIZE_IN_BLOCKS = 4,
 };
@@ -274,7 +275,8 @@ const struct c2_test_suite adieu_ut = {
 };
 
 enum {
-	UB_ITER = 100
+	UB_ITER = 100,
+	UB_ITER_SORT = 100000
 };
 
 static void ub_write(int i)
@@ -285,6 +287,63 @@ static void ub_write(int i)
 static void ub_read(int i)
 {
 	test_read(NR - 1);
+}
+
+
+
+static c2_bcount_t  user_vec1[NR_SORT];
+static char        *user_bufs1[NR_SORT];
+static c2_bindex_t  stob_vec1[NR_SORT];
+
+static void ub_iovec_init()
+{
+	int i;
+
+	for (i = 0; i < NR_SORT ; i++)
+		stob_vec1[i] = MIN_BUF_SIZE * i;
+
+	c2_stob_io_init(&io);
+
+	io.si_opcode              = SIO_WRITE;
+	io.si_flags               = 0;
+
+	io.si_user.ov_vec.v_nr    = NR_SORT;
+	io.si_user.ov_vec.v_count = user_vec1;
+	io.si_user.ov_buf         = (void **)user_bufs1;
+
+	io.si_stob.iv_vec.v_nr    = NR_SORT;
+	io.si_stob.iv_vec.v_count = user_vec1;
+	io.si_stob.iv_index       = stob_vec1;
+}
+
+static void ub_iovec_invert()
+{
+	int  i;
+	bool swapped;
+
+	/* Reverse sort index vecs. */
+	do {
+		swapped = false;
+		for (i = 0; i < NR_SORT - 1; i++) {
+			if (stob_vec1[i] < stob_vec1[i + 1]) {
+				c2_bindex_t tmp  = stob_vec1[i];
+				stob_vec1[i]     = stob_vec1[i + 1];
+				stob_vec1[i + 1] = tmp;
+				swapped          = true;
+			}
+		}
+	} while(swapped);
+}
+
+static void ub_iovec_sort()
+{
+	c2_stob_iovec_sort(&io);
+}
+
+static void ub_iovec_sort_invert()
+{
+	ub_iovec_invert();
+	c2_stob_iovec_sort(&io);
 }
 
 struct c2_ub_set c2_adieu_ub = {
@@ -303,6 +362,16 @@ struct c2_ub_set c2_adieu_ub = {
 		{ .ut_name = "read",
 		  .ut_iter = UB_ITER,
 		  .ut_round = ub_read },
+
+		{ .ut_name = "iovec-sort",
+		  .ut_iter = UB_ITER_SORT,
+		  .ut_init = ub_iovec_init,
+		  .ut_round = ub_iovec_sort },
+
+		{ .ut_name = "iovec-sort-invert",
+		  .ut_iter = UB_ITER_SORT,
+		  .ut_init = ub_iovec_init,
+		  .ut_round = ub_iovec_sort_invert },
 
 		{ .ut_name = NULL }
 	}

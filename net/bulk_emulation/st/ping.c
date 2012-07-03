@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,12 +14,12 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 04/12/2011
  */
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#  include "config.h"
 #endif
 
 #include "lib/assert.h"
@@ -27,7 +27,6 @@
 #include "lib/memory.h"
 #include "net/net.h"
 #include "net/bulk_mem.h"
-#include "net/bulk_sunrpc.h"
 #include "net/bulk_emulation/st/ping.h"
 
 #define DEF_RESPONSE "active pong"
@@ -807,21 +806,6 @@ int ping_init(struct ping_ctx *ctx)
 		goto fail;
 	}
 
-	if (ctx->pc_sunrpc_ep_delay >= 0 &&
-	    ctx->pc_dom.nd_xprt == &c2_net_bulk_sunrpc_xprt) {
-		ctx->pc_ops->pf("%s: setting EP release delay to %ds\n",
-				ctx->pc_ident, ctx->pc_sunrpc_ep_delay);
-		c2_net_bulk_sunrpc_dom_set_end_point_release_delay
-			(&ctx->pc_dom, ctx->pc_sunrpc_ep_delay);
-	}
-
-	if (ctx->pc_sunrpc_skulker_period > 0) {
-		ctx->pc_ops->pf("%s: setting skulker period to %ds\n",
-				ctx->pc_ident, ctx->pc_sunrpc_skulker_period);
-		c2_net_bulk_sunrpc_dom_set_skulker_period
-			(&ctx->pc_dom, ctx->pc_sunrpc_skulker_period);
-	}
-
 	rc = alloc_buffers(ctx->pc_nr_bufs, ctx->pc_segments, ctx->pc_seg_size,
 			   &ctx->pc_nbs);
 	if (rc != 0) {
@@ -996,7 +980,7 @@ void ping_server(struct ping_ctx *ctx)
 	/* wait for active buffers to flush */
 	c2_clink_add(&ctx->pc_tm.ntm_chan, &tmwait);
 	for (i = 0; i < C2_NET_QT_NR; ++i)
-		while (!tm_tlist_is_empty(&ctx->pc_tm.ntm_q[i])) {
+		while (!c2_net_tm_tlist_is_empty(&ctx->pc_tm.ntm_q[i])) {
 			ctx->pc_ops->pf("waiting for queue %d to empty\n", i);
 			c2_chan_wait(&tmwait);
 		}
@@ -1304,7 +1288,8 @@ int ping_client_init(struct ping_ctx *ctx, struct c2_net_end_point **server_ep)
 
 	/* need end point for the server */
 	if (ctx->pc_rid != 0)
-		sprintf(addr, "%s:%u:%u", ctx->pc_rhostname, ctx->pc_rport, ctx->pc_rid);
+		sprintf(addr, "%s:%u:%u", ctx->pc_rhostname, ctx->pc_rport,
+			ctx->pc_rid);
 	else
 		sprintf(addr, "%s:%u", ctx->pc_rhostname, ctx->pc_rport);
 	rc = c2_net_end_point_create(server_ep, &ctx->pc_tm, addr);

@@ -19,7 +19,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 
 #include "fop/fop.h"
@@ -27,14 +27,14 @@
 #include "fop/fop_format_def.h"
 
 #ifdef __KERNEL__
-#include "reqh_fops_k.h"
+#include "reqh/reqh_fops_k.h"
 #else
 
-#include "reqh_fops_u.h"
+#include "reqh/reqh_fops_u.h"
 #endif
 
-#include "reqh_fops.ff"
-#include "rpc/rpc_base.h"
+#include "reqh/reqh_fops.ff"
+#include "rpc/item.h"
 #include "rpc/rpc_opcodes.h"
 #include "xcode/bufvec_xcode.h"
 

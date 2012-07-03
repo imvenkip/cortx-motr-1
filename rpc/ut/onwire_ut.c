@@ -36,7 +36,7 @@
 #include "xcode/bufvec_xcode.h"
 #include "lib/vec.h"
 #include "rpc/session_internal.h"
-#include "rpc/rpc_base.h"
+#include "rpc/item.h"
 #include "lib/ut.h"
 #include "rpc/rpc_opcodes.h"
 
@@ -223,7 +223,7 @@ static void test_rpc_encdec(void)
 
 	/* Deserialize the rpc object from the network buffer. */
 	c2_list_init(&obj2.r_items);
-	rc = c2_rpc_decode(&obj2, nb);
+	rc = c2_rpc_decode(&obj2, nb, nb->nb_length, nb->nb_offset);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Free and fini the allocated objects. */

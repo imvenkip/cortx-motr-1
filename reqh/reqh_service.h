@@ -22,6 +22,8 @@
 #define __COLIBRI_REQH_REQH_SERVICE_H__
 
 #include "lib/list.h"
+#include "lib/bob.h"
+
 #include "net/net.h"
 #include "rpc/rpc2.h"
 
@@ -139,8 +141,8 @@ enum {
    Magic for reqh service
  */
 enum {
-	/** Hex value for "reqhsvcs" */
-	C2_RHS_MAGIC = 0x7265716873766373
+	C2_RHS_MAGIX = 0x52455148535643, /* REQHSVC */
+	C2_RHS_MAGIX_HEAD = 0x5245515356434844 /* REQSVCHD */
 };
 
 /**
@@ -248,7 +250,7 @@ struct c2_reqh_service {
 	/**
 	   Service magic to check consistency of service instance.
 	 */
-	uint64_t                          rs_magic;
+	uint64_t                          rs_magix;
 };
 
 /**
@@ -339,7 +341,7 @@ struct c2_reqh_service_type {
 	    @see c2_rstypes
 	 */
 	struct c2_tlink                        rst_linkage;
-	uint64_t                               rst_magic;
+	uint64_t                               rst_magix;
 };
 
 /**
@@ -432,14 +434,13 @@ void c2_reqh_service_fini(struct c2_reqh_service *service);
 struct c2_reqh_service_type stype = {                  \
         .rst_name  = (name),	                       \
 	.rst_ops   = (ops),                            \
-	.rst_magic = (C2_RHS_MAGIC)                    \
 }                                                     \
 
 /**
    Registers a service type in a global service types list,
    i.e. rstypes.
 
-   @pre rstype != NULL && rstype->rst_magic == C2_RHS_MAGIC
+   @pre rstype != NULL && rstype->rst_magix == C2_RHS_MAGIC
  */
 int c2_reqh_service_type_register(struct c2_reqh_service_type *rstype);
 
@@ -466,6 +467,10 @@ void c2_reqh_service_types_fini(void);
    Checks consistency of a particular service.
  */
 bool c2_reqh_service_invariant(const struct c2_reqh_service *service);
+
+int c2_reqh_service_types_length(void);
+bool c2_reqh_service_is_registered(const char *sname);
+void c2_reqh_service_list_print(void);
 
 /** @} endgroup reqh */
 

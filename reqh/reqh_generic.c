@@ -19,7 +19,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include <config.h>
+#include "config.h"
 #endif
 
 #include "lib/errno.h"
@@ -48,14 +48,15 @@
    @{
  */
 
-extern const struct c2_addb_loc c2_reqh_addb_loc;
-
-extern const struct c2_addb_ctx_type c2_reqh_addb_ctx_type;
-
-extern struct c2_addb_ctx c2_reqh_addb_ctx;
+/**
+ * Reqh addb event location identifier object.
+ */
+static const struct c2_addb_loc reqh_gen_addb_loc = {
+        .al_name = "reqh generic"
+};
 
 #define REQH_GEN_ADDB_ADD(addb_ctx, name, rc)  \
-C2_ADDB_ADD(&(addb_ctx), &c2_reqh_addb_loc, c2_addb_func_fail, (name), (rc))
+C2_ADDB_ADD((addb_ctx), &reqh_gen_addb_loc, c2_addb_func_fail, (name), (rc))
 
 /**
  * Reqh generic error fop type.
@@ -257,7 +258,6 @@ static int set_gen_err_reply(struct c2_fom *fom)
  */
 static int fom_failure(struct c2_fom *fom)
 {
-
 	if (fom->fo_rc != 0 && fom->fo_rep_fop == NULL)
 		set_gen_err_reply(fom);
 
@@ -269,6 +269,19 @@ static int fom_failure(struct c2_fom *fom)
  */
 static int fom_success(struct c2_fom *fom)
 {
+	return C2_FSO_AGAIN;
+}
+
+/**
+ * Make a FOL transaction record
+ */
+static int fom_fol_rec_add(struct c2_fom *fom)
+{
+        c2_fom_block_enter(fom);
+        fom->fo_rc = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
+                                        &fom->fo_tx.tx_dbtx);
+        c2_fom_block_leave(fom);
+
 	return C2_FSO_AGAIN;
 }
 
@@ -438,9 +451,13 @@ static const struct fom_phase_ops fpo_table[] = {
 					     "create_loc_ctx_wait",
 					      1 << C2_FOPH_TXN_CONTEXT_WAIT },
 	[C2_FOPH_SUCCESS] =		   { &fom_success,
-					      C2_FOPH_TXN_COMMIT,
+					      C2_FOPH_FOL_REC_ADD,
 					     "fom_success",
 					      1 << C2_FOPH_SUCCESS },
+	[C2_FOPH_FOL_REC_ADD] =		   { &fom_fol_rec_add,
+					      C2_FOPH_TXN_COMMIT,
+					     "fom_fol_rec_add",
+					      1 << C2_FOPH_FOL_REC_ADD },
 	[C2_FOPH_TXN_COMMIT] =		   { &fom_txn_commit,
 					      C2_FOPH_QUEUE_REPLY,
 					     "fom_txn_commit",
@@ -479,6 +496,7 @@ int c2_fom_state_generic(struct c2_fom *fom)
 {
 	int			    rc;
 	const struct fom_phase_ops *fpo_phase;
+	struct c2_reqh             *reqh;
 
 	C2_PRE(IS_IN_ARRAY(fom->fo_phase, fpo_table));
 
@@ -489,11 +507,13 @@ int c2_fom_state_generic(struct c2_fom *fom)
 
 	rc = fpo_phase->fpo_action(fom);
 
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
 	if (rc == C2_FSO_AGAIN) {
 		if (fom->fo_rc != 0 && fom->fo_phase < C2_FOPH_FAILURE) {
 			fom->fo_phase = C2_FOPH_FAILURE;
-			REQH_GEN_ADDB_ADD(c2_reqh_addb_ctx,
-					fpo_phase->fpo_name, fom->fo_rc);
+			REQH_GEN_ADDB_ADD(reqh->rh_addb,
+						fpo_phase->fpo_name,
+						fom->fo_rc);
 		} else
 			fom->fo_phase = fpo_phase->fpo_nextphase;
 	}

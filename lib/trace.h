@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -24,7 +24,7 @@
 #include <stdarg.h>
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h> /* ENABLE_DEBUG */
+#  include "config.h" /* ENABLE_DEBUG */
 #endif
 
 #include "lib/types.h"
@@ -178,7 +178,9 @@ void c2_trace_fini(void);
   C2_TRACE_SUBSYS(OTHER,	0)	\
   C2_TRACE_SUBSYS(UT,		1)	\
   C2_TRACE_SUBSYS(MEMORY,	2)      \
-  C2_TRACE_SUBSYS(C2T1FS,	3)
+  C2_TRACE_SUBSYS(C2T1FS,	3)      \
+  C2_TRACE_SUBSYS(RPC,		4)      \
+  C2_TRACE_SUBSYS(FORMATION,    5)
 
 #define C2_TRACE_SUBSYS(name, value) C2_TRACE_SUBSYS_ ## name = (1 << value),
 /** The subsystem bitmask definitions */

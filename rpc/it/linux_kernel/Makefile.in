@@ -8,7 +8,7 @@ kernel_src  := rpcping_kernel.c
 krpcping-y  := $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig        := $(shared_src:%=../%)
 
-EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -iquote @SRCDIR@ @KCFLAGS@
 
 prepare: ping_fop_k.h ping_fop_k.c
 	ln -fs $(orig) .

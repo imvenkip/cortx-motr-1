@@ -1,9 +1,10 @@
 KUTC2_SRCDIR = @SRCDIR@/utils/linux_kernel
 
-obj-m       := kutc2.o
+obj-m       := kutc2.o kc2ctl.o
 kutc2-y     := main.o
+kc2ctl-y    := c2ctl.o finject_debugfs.o
 
-EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -iquote @SRCDIR@ @KCFLAGS@
 
 prepare:
 

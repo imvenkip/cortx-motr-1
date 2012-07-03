@@ -3,7 +3,7 @@ fol_HEADERS                = fol.h lsn.h
 
 noinst_LTLIBRARIES         = libcolibri-fol.la
 libcolibri_fol_la_SOURCES  = fol.c fol.h lsn.h
-INCLUDES                   = -I. -I$(top_srcdir) -I$(top_srcdir)/include
+INCLUDES                   = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
 
 #CWD=$(PWD)
 #
@@ -15,7 +15,7 @@ INCLUDES                   = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 #	    -v print_file=$(CWD)/fol_print.c \
 #	    -v template_file=$(CWD)/fol_template.0.c < @SRCDIR@/fol/fol.t
 
-#INCLUDES                   = -I@DB_SRC@
+#INCLUDES                   = -iquote @DB_SRC@
 #EXTRA_DIST	           = fol.t
 
 #clean-local:

@@ -14,11 +14,12 @@ SUBDIRS_LIBS = \
                fid \
                fop/rt \
                \
+               addb/addbff \
                net \
                addb \
                balloc \
                c2t1fs/linux_kernel \
-               capa \
+	       capa \
                cfg \
                cob \
 	       console \
@@ -48,7 +49,7 @@ SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut fol/ut \
 	    rm/ut rpc/ut \
 	    sm/ut xcode/ut yaml2db/ut
 SUBDIR_KERNEL = build_kernel_modules
-SUBDIR_ST = console/st net/st net/bulk_emulation/st yaml2db/st
+SUBDIR_ST = console/st net/bulk_emulation/st net/lnet/st yaml2db/st
 
 SUBDIR_UB =
 
@@ -66,6 +67,7 @@ ETAGS_ARGS = automake.in --lang=none \ --regex=’/^@node[ \t]+\([^,]+\)/\1/’ 
 ACLOCAL_AMFLAGS = -I m4
 
 clean-local:
+	rm -f c2.trace.*
 	if test "x@ENABLE_COVERAGE@" = "x1"; \
 	then \
 		find . -name "*.gcno" | xargs rm -f; \
