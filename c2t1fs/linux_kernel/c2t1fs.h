@@ -86,9 +86,10 @@
   - pool_width [value type: number]
       Number of component objects over which file contents are striped.
       Optional parameter.
-      Default value is C2T1FS_DEFAULT_POOL_WIDTH.
+      Default value is computed as sum of effective nr_data_units and
+      (2 * nr_parity_units).
       pool_width >= nr_data_units + 2 * nr_parity_units. (2 to account for
-      nr_spare_units which is equal to nr_parity_units. P = N + 2 * K)
+      nr_spare_units which is equal to nr_parity_units. P >= N + 2 * K)
 
   - unit_size [value type: number]
       Size of each stripe unit. Optional parameter. Default value is
