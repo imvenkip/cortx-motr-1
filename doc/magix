@@ -22,3 +22,5 @@ c2_reqh_service      rs_magix                  52455148535643 REQHSVC
 c2_reqh_svc_tl       td_head_magic           5245515356434844 REQSVCHD
 c2_rpc_machine       rm_magix                  5250434D414348 RPCMACH
 c2_reqh_rpc_mach_tl  td_head_magic           52455152504D4844 REQRPMHD
+cs_ad_stob           as_magix                    414453544f42 ADSTOB
+astob                td_head_magic           414453544f424844 ADSTOBHD

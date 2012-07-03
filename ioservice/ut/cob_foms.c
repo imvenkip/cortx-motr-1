@@ -1082,7 +1082,7 @@ static void cd_stob_delete_test()
 	cd = cob_fom_get(dfom);
 	rc = cd_stob_delete(dfom, cd);
 	C2_UT_ASSERT(dfom->fo_phase == C2_FOPH_CD_COB_DEL);
-	C2_UT_ASSERT(rc == 0);
+	C2_ASSERT(rc == 0);
 
 	cd_fom_dealloc(dfom);
 	cc_fom_dealloc(cfom);

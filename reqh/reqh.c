@@ -99,15 +99,13 @@ extern void c2_reqh_fop_fini(void);
 
 bool c2_reqh_invariant(const struct c2_reqh *reqh)
 {
-	return reqh != NULL && reqh->rh_stdom != NULL &&
-		reqh->rh_dbenv != NULL && reqh->rh_cob_domain != NULL &&
-		reqh->rh_fol != NULL &&
+	return reqh != NULL && reqh->rh_dbenv != NULL &&
+		reqh->rh_cob_domain != NULL && reqh->rh_fol != NULL &&
 		c2_fom_domain_invariant(&reqh->rh_fom_dom);
 }
 
-int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
-			struct c2_stob_domain *stdom, struct c2_dbenv *db,
-			struct c2_cob_domain *cdom, struct c2_fol *fol)
+int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm, struct c2_dbenv *db,
+		  struct c2_cob_domain *cdom, struct c2_fol *fol)
 {
 	int result;
 
@@ -115,9 +113,7 @@ int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
 
 	result = c2_fom_domain_init(&reqh->rh_fom_dom);
 	if (result == 0) {
-		C2_ASSERT(c2_fom_domain_invariant(&reqh->rh_fom_dom));
                 reqh->rh_dtm = dtm;
-                reqh->rh_stdom = stdom;
                 reqh->rh_dbenv = db;
                 reqh->rh_cob_domain = cdom;
                 reqh->rh_fol = fol;
@@ -128,6 +124,7 @@ int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
                 c2_reqh_rpc_mach_tlist_init(&reqh->rh_rpc_machines);
 		c2_chan_init(&reqh->rh_sd_signal);
 		c2_rwlock_init(&reqh->rh_rwlock);
+		C2_POST(c2_reqh_invariant(reqh));
 	} else
 		REQH_ADDB_ADD(&reqh_addb_ctx, "c2_reqh_init", result);
 
