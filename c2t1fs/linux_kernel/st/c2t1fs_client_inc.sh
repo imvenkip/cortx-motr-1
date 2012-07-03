@@ -112,12 +112,13 @@ io_combinations()
 	# stripe size is in K
 	for stride_size in 4 12 20 28
 	do
-	    # Small I/Os KBs
+	    stripe_size=`expr $stride_size '*' $data_units`
+	    # Small I/Os (KBs)
 	    for io_size in 1 2 3 4 5 6 7 8
 	    do
-		io_size=`expr $io_size '*' $stride_size`
+		io_size=`expr $io_size '*' $stripe_size`
 		io_size=${io_size}K
-		echo "Test: I/O for stride_size = ${stride_size}K," \
+		echo "Test: I/O for stripe_size = ${stripe_size}K," \
 		     "io_size = $io_size, Number of I/Os = 1."
 		bulkio_test $stride_size 1 &>> $COLIBRI_TEST_LOGFILE
 		if [ $? -ne "0" ]
@@ -126,7 +127,7 @@ io_combinations()
 		fi
 
 		# Multiple I/Os
-		echo "Test: I/O for stride_size = ${stride_size}K," \
+		echo "Test: I/O for stripe_size = ${stripe_size}K," \
 		     "io_size = $io_size, Number of I/Os = 2."
 		bulkio_test $stride_size 2 &>> $COLIBRI_TEST_LOGFILE
 		if [ $? -ne "0" ]
@@ -135,14 +136,14 @@ io_combinations()
 		fi
 	    done
 
-	    # Large I/Os MBs
+	    # Large I/Os (MBs)
 	    for io_size in 1 2 4 5 8
 	    do
-		stripe_mult=`expr 1024 / $stride_size`
-		[ $stripe_mult -ge 1 ] || stripe_mult=1
-		io_size=`expr $io_size '*' $stride_size '*' $stripe_mult`
+		stripe_1M_mult=`expr 1024 / $stripe_size`
+		[ $stripe_1M_mult -ge 1 ] || stripe_1M_mult=1
+		io_size=`expr $io_size '*' $stripe_size '*' $stripe_1M_mult`
 		io_size=${io_size}K
-		echo "Test: I/O for stride_size = ${stride_size}K," \
+		echo "Test: I/O for stripe_size = ${stripe_size}K," \
 		     "io_size = $io_size, Number of I/Os = 1."
 		bulkio_test $stride_size 1 &>> $COLIBRI_TEST_LOGFILE
 		if [ $? -ne "0" ]
@@ -151,7 +152,7 @@ io_combinations()
 		fi
 
 		# Multiple I/Os
-		echo "Test: I/O for stride_size = ${stride_size}K," \
+		echo "Test: I/O for stripe_size = ${stripe_size}K," \
 		     "io_size = $io_size, Number of I/Os = 2."
 		bulkio_test $stride_size 2 &>> $COLIBRI_TEST_LOGFILE
 		if [ $? -ne "0" ]

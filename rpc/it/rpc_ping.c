@@ -41,6 +41,7 @@
 #include "rpc/rpclib.h" /* c2_rpc_server_start */
 #include "ut/rpc.h"     /* c2_rpc_client_init */
 #include "fop/fop.h"    /* c2_fop_default_item_ops */
+#include "reqh/reqh.h"  /* c2_reqh_rpc_mach_tl */
 
 #ifdef __KERNEL__
 #include <linux/kernel.h>
@@ -248,7 +249,7 @@ static void print_rpc_stats(struct c2_rpc_stats *stats)
 }
 
 /* Get stats from rpc_machine and print them */
-static void print_stats(struct c2_rpc_machine *rpc_mach)
+static void __print_stats(struct c2_rpc_machine *rpc_mach)
 {
 	printf("stats:\n");
 
@@ -258,6 +259,23 @@ static void print_stats(struct c2_rpc_machine *rpc_mach)
 	printf("        out:\n");
 	print_rpc_stats(&rpc_mach->rm_rpc_stats[C2_RPC_PATH_OUTGOING]);
 }
+
+#ifndef __KERNEL__
+/* Prints stats of all the rpc machines in the given request handler. */
+static void print_stats(struct c2_reqh *reqh)
+{
+	struct c2_rpc_machine *rpcmach;
+
+	C2_PRE(reqh != NULL);
+
+	c2_rwlock_read_lock(&reqh->rh_rwlock);
+	c2_tl_for(c2_reqh_rpc_mach, &reqh->rh_rpc_machines, rpcmach) {
+		C2_ASSERT(c2_rpc_machine_bob_check(rpcmach));
+		__print_stats(rpcmach);
+	} c2_tl_endfor;
+	c2_rwlock_read_unlock(&reqh->rh_rwlock);
+}
+#endif
 
 /* Create a ping fop and post it to rpc layer */
 static void send_ping_fop(struct c2_rpc_session *session)
@@ -330,7 +348,7 @@ static int client_fini(struct c2_rpc_client_ctx *cctx)
 	c2_net_end_point_put(cctx->rcx_remote_ep);
 
 	if (verbose)
-		print_stats(&cctx->rcx_rpc_machine);
+		__print_stats(&cctx->rcx_rpc_machine);
 
 	c2_rpc_machine_fini(&cctx->rcx_rpc_machine);
 	c2_cob_domain_fini(cctx->rcx_cob_dom);
@@ -524,21 +542,19 @@ static int run_server(void)
 	quit_dialog();
 
 	if (verbose) {
-		struct c2_rpc_machine *rpcmach;
+		struct c2_reqh *reqh;
 
-		rpcmach = c2_cs_rpc_mach_get(&sctx.rsx_colibri_ctx, xprt,
-					     "ds1");
-		if (rpcmach != NULL) {
+		reqh = c2_cs_reqh_get(&sctx.rsx_colibri_ctx, "ds1");
+		if (reqh != NULL) {
 			printf("########### Server DS1 statS ###########\n");
-			print_stats(rpcmach);
+			print_stats(reqh);
 		}
 
-		rpcmach = c2_cs_rpc_mach_get(&sctx.rsx_colibri_ctx, xprt,
-					     "ds2");
-		if (rpcmach != NULL) {
+		reqh = c2_cs_reqh_get(&sctx.rsx_colibri_ctx, "ds2");
+		if (reqh != NULL) {
 			printf("\n");
 			printf("########### Server DS2 statS ###########\n");
-			print_stats(rpcmach);
+			print_stats(reqh);
 		}
 	}
 

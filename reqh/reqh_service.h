@@ -141,8 +141,8 @@ enum {
    Magic for reqh service
  */
 enum {
-	C2_RHS_MAGIX = 0x5248535643, /* RHSVC */
-	C2_RHS_MAGIX_HEAD = 0x52485356434844 /* RHSVCHD */
+	C2_RHS_MAGIX = 0x52455148535643, /* REQHSVC */
+	C2_RHS_MAGIX_HEAD = 0x5245515356434844 /* REQSVCHD */
 };
 
 /**
@@ -250,7 +250,7 @@ struct c2_reqh_service {
 	/**
 	   Service magic to check consistency of service instance.
 	 */
-	uint64_t                          rs_magic;
+	uint64_t                          rs_magix;
 };
 
 /**
@@ -341,7 +341,7 @@ struct c2_reqh_service_type {
 	    @see c2_rstypes
 	 */
 	struct c2_tlink                        rst_linkage;
-	uint64_t                               rst_magic;
+	uint64_t                               rst_magix;
 };
 
 /**
@@ -440,7 +440,7 @@ struct c2_reqh_service_type stype = {                  \
    Registers a service type in a global service types list,
    i.e. rstypes.
 
-   @pre rstype != NULL && rstype->rst_magic == C2_RHS_MAGIC
+   @pre rstype != NULL && rstype->rst_magix == C2_RHS_MAGIC
  */
 int c2_reqh_service_type_register(struct c2_reqh_service_type *rstype);
 
@@ -468,11 +468,9 @@ void c2_reqh_service_types_fini(void);
  */
 bool c2_reqh_service_invariant(const struct c2_reqh_service *service);
 
-/** Descriptor for tlist of request handler service types. */
-C2_TL_DESCR_DECLARE(c2_rstypes, extern);
-C2_TL_DECLARE(c2_rstypes, extern, struct c2_reqh_service_type);
-
-C2_BOB_DECLARE(extern, c2_reqh_service_type);
+int c2_reqh_service_types_length(void);
+bool c2_reqh_service_is_registered(const char *sname);
+void c2_reqh_service_list_print(void);
 
 /** @} endgroup reqh */
 

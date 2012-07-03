@@ -39,6 +39,10 @@ enum {
 	ENUM_MAP
 };
 
+static const struct c2_addb_ctx_type cfm_ut_addb_ctx_type = {
+	.act_name = "cobfid_map_ut"
+};
+
 /* DB paths for various databases */
 static const char single_buf_cont_enum_path[] = "./cfm_map_single_buf_ce";
 static const char multiple_buf_cont_enum_path[] = "./cfm_map_multiple_buf_ce";
@@ -83,6 +87,8 @@ static void enumerate_generic(const int rec_total, const char *map_path,
         rc = c2_dbenv_init(&cfm_dbenv, map_path, 0);
 	C2_UT_ASSERT(rc == 0);
 
+	c2_addb_ctx_init(&cfm_addb_ctx, &cfm_ut_addb_ctx_type,
+			 &c2_addb_global_ctx);
 	/* Initialize the map */
 	rc = c2_cobfid_map_init(&cfm_map, &cfm_dbenv, &cfm_addb_ctx,
 				"cfm_map_table");
@@ -584,6 +590,9 @@ static void test_cfm_concurrency(void)
         /* Initialise the database with given path */
         rc = c2_dbenv_init(&cfm_global_dbenv, concurrency_test_map, 0);
         C2_UT_ASSERT(rc == 0);
+
+	c2_addb_ctx_init(&cfm_global_addb_ctx, &cfm_ut_addb_ctx_type,
+			 &c2_addb_global_ctx);
 
 	/* Initialize the map */
 	rc = c2_cobfid_map_init(&cfm_global_map, &cfm_global_dbenv,

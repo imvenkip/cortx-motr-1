@@ -262,14 +262,19 @@ run_test_automate()
 
 	    pushd 2>/dev/null $TESTROOT/$DIRTIME/sandbox > /dev/null
             run_command '' "sudo $COLIBRI_SOURCE/core/utils/ut.sh" '-a' 1
-	    sudo mv $TESTROOT/$DIRTIME/sandbox/*.xml $TESTROOT/$DIRTIME/$current_branch/logs/
-	    popd 2>/dev/null > /dev/null
+	    rc=$?
+	    sudo mv $TESTROOT/$DIRTIME/sandbox/*.xml $TESTROOT/$DIRTIME/$current_branch/logs/ &> /dev/null
+	    popd &>/dev/null
 
-            if [ $UB_ROUNDS -ne 0 ]; then
+            if [ $UB_ROUNDS -ne 0 ] && [ $rc -eq 0 ]; then
                 run_command "$COLIBRI_SOURCE/core/utils" 'sudo ./ub' $UB_ROUNDS
+		rc=$?
             fi
 
-            gather_coverage
+	    if [ $rc -eq 0 ]; then
+		gather_coverage
+		rc=$?
+	    fi
 	else
 	    rc=$?
         fi

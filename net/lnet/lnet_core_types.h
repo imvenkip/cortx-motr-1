@@ -201,7 +201,7 @@ struct nlx_core_buffer_event {
 	c2_bcount_t                  cbe_length;
 
 	/** Offset of start of the data in the buffer. (Receive only) */
-	c2_bcount_t                  cbe_offset;
+	c2_bindex_t                  cbe_offset;
 
 	/** Address of the other end point.  (unsolicited Receive only)  */
 	struct nlx_core_ep_addr      cbe_sender;

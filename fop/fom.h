@@ -451,6 +451,8 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
  * i.e success or failure.
  * Also decrements the number of foms under execution in fom domain
  * atomically.
+ * Also signals c2_reqh::rh_sd_signal once c2_fom_domain::fd_foms_nr
+ * reaches 0.
  *
  * @param fom, A fom to be finalised
  * @pre fom->fo_phase == C2_FOPH_FINISH

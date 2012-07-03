@@ -592,9 +592,6 @@
 /* kernel has struct hash_desc */
 #define HAVE_STRUCT_HASH_DESC 1
 
-/* sunrpc cache facility v2 */
-/* #undef HAVE_SUNRPC_CACHE_V2 */
-
 /* in 2.6.12 synchronize_rcu preferred over synchronize_kernel */
 /* #undef HAVE_SYNCHRONIZE_RCU */
 

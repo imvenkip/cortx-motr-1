@@ -40,21 +40,22 @@
 #define GROUP_SIZE (BALLOC_DEF_CONTAINER_SIZE / (BALLOC_DEF_BLOCKS_PER_GROUP * \
 						 (1 << BALLOC_DEF_BLOCK_SHIFT)))
 
-static const char		*db_name = BALLOC_DBNAME;
-static const int		 MAX	 = 10;
-static c2_bcount_t		 prev_free_blocks;
-c2_bcount_t			*prev_group_info_free_blocks;
+static const char  *db_name = BALLOC_DBNAME;
+static const int    MAX     = 10;
+static c2_bcount_t  prev_free_blocks;
+c2_bcount_t	   *prev_group_info_free_blocks;
 
 enum balloc_invariant_enum {
 	INVAR_ALLOC,
-	INVAR_FREE
+	INVAR_FREE,
 };
 
-bool balloc_ut_invariant(struct c2_balloc *colibri_balloc, struct c2_ext alloc_ext,
-                                                         int balloc_invariant_flag)
+bool balloc_ut_invariant(struct c2_balloc *colibri_balloc,
+			 struct c2_ext alloc_ext,
+			 int balloc_invariant_flag)
 {
-	c2_bcount_t	len = c2_ext_length(&alloc_ext),
-			group;
+	c2_bcount_t len = c2_ext_length(&alloc_ext);
+	c2_bcount_t group;
 
 	group = alloc_ext.e_start >> colibri_balloc->cb_sb.bsb_gsbits;
 
@@ -98,7 +99,7 @@ int test_balloc_ut_ops()
 	result = c2_dbenv_init(&db, db_name, 0);
 	C2_UT_ASSERT(result == 0);
 
-	result = c2_balloc_locate(&colibri_balloc);
+	result = c2_balloc_allocate(&colibri_balloc);
 	C2_UT_ASSERT(result == 0);
 
 	result = colibri_balloc->cb_ballroom.ab_ops->bo_init
@@ -106,19 +107,15 @@ int test_balloc_ut_ops()
 		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP,
 		 BALLOC_DEF_RESERVED_GROUPS);
 
-	if(result == 0) {
-
+	if (result == 0) {
 		prev_free_blocks = colibri_balloc->cb_sb.bsb_freeblocks;
-
 		C2_ALLOC_ARR(prev_group_info_free_blocks, GROUP_SIZE);
-
-		for(i=0; i<GROUP_SIZE; i++)
-		{
+		for (i = 0; i < GROUP_SIZE; ++i) {
 			prev_group_info_free_blocks[i] =
 				colibri_balloc->cb_group_info[i].bgi_freeblocks;
 		}
 
-		for (i = 0; i < MAX; i++ ) {
+		for (i = 0; i < MAX; ++i) {
 			do  {
 				count = rand() % 1500;
 			} while (count == 0);
@@ -132,7 +129,7 @@ int test_balloc_ut_ops()
 			result = colibri_balloc->cb_ballroom.ab_ops->bo_alloc(
 				    &colibri_balloc->cb_ballroom, &dtx, count,
 				    &tmp);
-			if(result < 0) {
+			if (result < 0) {
 				fprintf(stderr, "Error in allocation\n");
 				return result;
 			}
@@ -141,7 +138,7 @@ int test_balloc_ut_ops()
 
 			/* The result extent length should be less than
 			 * or equal to the requested length. */
-			if(c2_ext_length(&ext[i]) > count) {
+			if (c2_ext_length(&ext[i]) > count) {
 				fprintf(stderr, "Allocation size mismatch: "
 					"requested count = %5d, result = %5d\n",
 					(int)count,
@@ -149,7 +146,8 @@ int test_balloc_ut_ops()
 				result = -EINVAL;
 			}
 
-			C2_UT_ASSERT(balloc_ut_invariant(colibri_balloc, ext[i], INVAR_ALLOC));
+			C2_UT_ASSERT(balloc_ut_invariant(colibri_balloc, ext[i],
+							 INVAR_ALLOC));
 #ifdef BALLOC_DEBUG
 			printf("%3d:rc = %d: requested count=%5d, result"
 			       " count=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",
@@ -168,7 +166,7 @@ int test_balloc_ut_ops()
 
 		for (i = colibri_balloc->cb_sb.bsb_reserved_groups;
 		     i < colibri_balloc->cb_sb.bsb_groupcount && result == 0;
-		     i++) {
+		     ++i) {
 			struct c2_balloc_group_info *grp = c2_balloc_gn2info
 				(colibri_balloc, i);
 
@@ -189,15 +187,15 @@ int test_balloc_ut_ops()
 		}
 
 		/* randomize the array */
-		for (i = 0; i < MAX; i++ ) {
-			int a, b;
+		for (i = 0; i < MAX; ++i) {
+			int a;
+			int b;
 			a = rand() % MAX;
 			b = rand() % MAX;
 			C2_SWAP(ext[a], ext[b]);
 		}
 
-		for (i = 0; i < MAX && result == 0; i++ ) {
-
+		for (i = 0; i < MAX && result == 0; ++i) {
 			result = c2_db_tx_init(&dtx.tx_dbtx, &db, 0);
 			C2_UT_ASSERT(result == 0);
 			if (ext[i].e_start != 0)
@@ -205,13 +203,14 @@ int test_balloc_ut_ops()
 				colibri_balloc->cb_ballroom.ab_ops->bo_free(
 					    &colibri_balloc->cb_ballroom, &dtx,
 					    &ext[i]);
-			if(result < 0) {
+			if (result < 0) {
 				fprintf(stderr,"Error during free for size %5d",
 					(int)c2_ext_length(&ext[i]));
 				return result;
 			}
 
-			C2_UT_ASSERT(balloc_ut_invariant(colibri_balloc, ext[i], INVAR_FREE));
+			C2_UT_ASSERT(balloc_ut_invariant(colibri_balloc, ext[i],
+							 INVAR_FREE));
 #ifdef BALLOC_DEBUG
 			printf("%3d:rc = %d: freed:                          "
 			       "len=%5d: [%08llx,%08llx)=[%8llu,%8llu)\n",
@@ -227,14 +226,14 @@ int test_balloc_ut_ops()
 				c2_db_tx_abort(&dtx.tx_dbtx);
 		}
 
-		if(colibri_balloc->cb_sb.bsb_freeblocks != prev_free_blocks) {
+		if (colibri_balloc->cb_sb.bsb_freeblocks != prev_free_blocks) {
 			fprintf(stderr, "Size mismatch during block reclaim\n");
 			result = -EINVAL;
 		}
 
 		for (i = colibri_balloc->cb_sb.bsb_reserved_groups;
 		     i < colibri_balloc->cb_sb.bsb_groupcount && result == 0;
-		     i++) {
+		     ++i) {
 			struct c2_balloc_group_info *grp = c2_balloc_gn2info
 				(colibri_balloc, i);
 
@@ -274,7 +273,6 @@ int test_balloc_ut_ops()
 #ifdef BALLOC_DEBUG
 	printf("done. status = %d\n", result);
 #endif
-
 	return result;
 }
 
@@ -285,7 +283,7 @@ void test_balloc()
 	result = test_balloc_ut_ops();
 	C2_UT_ASSERT(result == 0);
 
-	result = system("rm -fr "BALLOC_DBNAME);
+	result = system("rm -fr " BALLOC_DBNAME);
 	C2_UT_ASSERT(result == 0);
 }
 

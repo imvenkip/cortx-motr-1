@@ -86,6 +86,12 @@ static char *cs_ut_opts_jumbled_cmd[] = { "colibri_setup", "-r", "-D",
                                 "-e", "lnet:0@lo:12345:34:1",
                                 "-S", "cs_stob"};
 
+static char *cs_ut_dev_stob_cmd[] = { "colibri_setup", "-r", "-T", "AD",
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-d", "devices.conf",
+				"-e", "lnet:0@lo:12345:34:1",
+                                "-s", "ds1"};
+
 static char *cs_ut_reqh_none_cmd[] = { "colibri_setup", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-e", "lnet:0@lo:12345:34:1",
@@ -333,6 +339,30 @@ static void test_cs_ut_service_one(void)
 				  ARRAY_SIZE(cs_ut_service_one_cmd));
 }
 
+static void dev_conf_file_create(void)
+{
+	FILE *f;
+
+	system("touch d1 d2");
+	f = fopen("devices.conf", "w+");
+	C2_UT_ASSERT(f != NULL);
+	fprintf(f, "Devices:\n");
+	fprintf(f, "        - id: 0\n");
+	fprintf(f, "          filename: d1\n");
+	fprintf(f, "        - id: 1\n");
+	fprintf(f, "          filename: d2\n");
+	fclose(f);
+}
+
+static void test_cs_ut_dev_stob(void)
+{
+	struct cl_ctx  cctx[1] = { };
+
+	dev_conf_file_create();
+	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx), cs_ut_dev_stob_cmd,
+				  ARRAY_SIZE(cs_ut_dev_stob_cmd));
+}
+
 static void test_cs_ut_services_many(void)
 {
 	struct cl_ctx  cctx[2] = { };
@@ -357,6 +387,27 @@ static void test_cs_ut_opts_jumbled(void)
 	cs_ut_test_helper_success(cctx, ARRAY_SIZE(cctx),
 				  cs_ut_opts_jumbled_cmd,
 				  ARRAY_SIZE(cs_ut_opts_jumbled_cmd));
+}
+
+/*
+ * Tests colibri_setup failure paths using fault injection.
+ */
+static void test_cs_ut_linux_stob_cleanup(void)
+{
+	system("rm -f devices.conf");
+	dev_conf_file_create();
+	c2_fi_enable_once("cs_ad_stob_create", "ad_domain_locate_fail");
+	cs_ut_test_helper_failure(cs_ut_dev_stob_cmd,
+				  ARRAY_SIZE(cs_ut_dev_stob_cmd));
+}
+
+static void test_cs_ut_ad_stob_cleanup(void)
+{
+	system("rm -f devices.conf");
+	dev_conf_file_create();
+	c2_fi_enable_once("cs_ad_stob_create", "ad_stob_setup_fail");
+	cs_ut_test_helper_failure(cs_ut_dev_stob_cmd,
+				  ARRAY_SIZE(cs_ut_dev_stob_cmd));
 }
 
 /*
@@ -411,7 +462,6 @@ static void test_cs_ut_lnet_multiple_if(void)
 	rc = c2_cs_init(&colibri_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr);
 	C2_UT_ASSERT(rc == 0);
 
-	c2_mutex_lock(&colibri_ctx.cc_mutex);
 	rc = cs_parse_args(&colibri_ctx, ARRAY_SIZE(cs_ut_lnet_mult_if_cmd),
 			    cs_ut_lnet_mult_if_cmd);
 	C2_UT_ASSERT(rc == 0);
@@ -429,7 +479,6 @@ static void test_cs_ut_lnet_ep_mixed_dup(void)
 	rc = c2_cs_init(&colibri_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), out);
 	C2_UT_ASSERT(rc == 0);
 
-	c2_mutex_lock(&colibri_ctx.cc_mutex);
 	rc = cs_parse_args(&colibri_ctx, ARRAY_SIZE(cs_ut_ep_mixed_dup_cmd),
 			    cs_ut_ep_mixed_dup_cmd);
 	C2_UT_ASSERT(rc == 0);
@@ -476,6 +525,9 @@ const struct c2_test_suite colibri_setup_ut = {
 		{ "cs-multiple-services", test_cs_ut_services_many},
 		{ "cs-multiple-request-handlers", test_cs_ut_reqhs_many},
 		{ "cs-command-options-jumbled", test_cs_ut_opts_jumbled},
+		{ "cs-device-stob", test_cs_ut_dev_stob},
+		{ "cs-fail-linux-stob-cleanup", test_cs_ut_linux_stob_cleanup},
+		{ "cs-fail-ad-stob-cleanup", test_cs_ut_ad_stob_cleanup},
 		{ "cs-missing-reqh-option", test_cs_ut_reqh_none},
 		{ "cs-bad-storage-type", test_cs_ut_stype_bad},
 		{ "cs-bad-network-xprt", test_cs_ut_xprt_bad},

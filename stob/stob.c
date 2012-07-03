@@ -315,6 +315,49 @@ int c2_stob_create_helper(struct c2_stob_domain    *dom,
 	return rc;
 }
 
+void c2_stob_iovec_sort(struct c2_stob_io *stob)
+{
+	struct c2_indexvec *ivec = &stob->si_stob;
+	struct c2_bufvec   *bvec = &stob->si_user;
+	int		    i;
+	bool		    exchanged;
+	bool		    different_count;
+
+#define SWAP_NEXT(arr, idx)			\
+({						\
+	int               _idx = (idx);		\
+	typeof(&arr[idx]) _arr = (arr);		\
+	typeof(arr[idx])  _tmp;			\
+						\
+	_tmp           = _arr[_idx];		\
+	_arr[_idx]     = _arr[_idx + 1];	\
+	_arr[_idx + 1] = _tmp;			\
+})
+
+	different_count = ivec->iv_vec.v_count != bvec->ov_vec.v_count;
+
+	/*
+	 * Bubble sort the index vectores.
+	 * It also move bufvecs while sorting.
+	 */
+	do {
+		exchanged = false;
+		for (i = 0; i < ivec->iv_vec.v_nr - 1; i++) {
+			if (ivec->iv_index[i] > ivec->iv_index[i + 1]) {
+
+				SWAP_NEXT(ivec->iv_index, i);
+				SWAP_NEXT(ivec->iv_vec.v_count, i);
+				SWAP_NEXT(bvec->ov_buf, i);
+				if (different_count)
+					SWAP_NEXT(bvec->ov_vec.v_count, i);
+				exchanged = true;
+			}
+		}
+	} while (exchanged);
+
+#undef SWAP_NEXT
+}
+
 /** @} end group stob */
 
 /*
