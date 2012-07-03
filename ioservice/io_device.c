@@ -75,7 +75,7 @@
    update which leads to devices or nodes state transitions. Each client IO
    request is tagged with the version of failure vector used to guide this
    request. When ioservice receives an IO request with a stale failure vector
-   version, the request is denied. Client has to proactively update its failure
+   version, the request is denied. Client has to pro-actively update its failure
    vector from ioservice.
 
    <hr>
@@ -86,7 +86,7 @@
 
    - Failure vector version number. Failure vector is changing due to device
      and/or node join/leave. Failure vector is cached by clients, md services
-     and other components. To keep the failure vector conherent in these
+     and other components. To keep the failure vector coherent in these
      components, a version number is introduced to failure vector.
 
    - Failure vector update event. This is a device or node event which will
@@ -101,14 +101,14 @@
                  or leave or other event.
    - @b R.DLD.FV_Query Failure vector can be queried, by whole, or for a
                  specified region marked by version number.
-   - @b R.DLD.FV_Notification Failure vector update will generate unsolicite
+   - @b R.DLD.FV_Notification Failure vector update will generate un-solicited
                  notification to other services and components, like mdservice,
                  client, or SNS repair copy machine.
    - @b R.DLD.FV_version Failure vector version number is embedded to client
                  I/O request.
    - @b R.DLD.FV_Fetch Failure vector can be fectched to client or mdservice
                  or other services in reply message. This can be the whole
-                 failure vector, or the recent changes between spefic version.
+                 failure vector, or the recent changes between specific version.
 
    <hr>
    @section io_calls_params_dld-depends Dependencies
@@ -126,22 +126,27 @@
    All I/O requests (including read, write, create, delete, ...) will to extended
    to embed its known failure vector version numbers.
 
-   A special reply is introduced to send failure vector update (not the while,
-   but the delta between the last known to current version) to client.
+   I/O replies are extended to  to embed failure vector updates (not the whole
+   failure vector,  but the delta between the last known to current version) to
+   client.
 
    A unsolicited notification fop is introduced. This fop will be sent to client
-   by server. This fop contains the latest failure vector version number.
+   by server. This fop contains the latest failure vector version number. When
+   clients or other services get this notification, they should fetch the failure
+   vector updates.
 
    @subsection io_calls_params_dld-lspec-ds Data Structures
-   The data structures of failure vector, failure vector version number
-   are in @ref poolmach.
+   The data structures of failure vector, failure vector version number are in
+   @ref poolmach module.
 
    I/O request fop will be extended to embed the its known failure vector
-   version number. Please refer to the io_fops.ff file.
-   A new reply fop is introduced to carry failure vector updates to clients.
+   version number. I/O replies will embed failure vector updates. Please refer
+   to the io_fops.ff file for detailed design.
 
    Failure vector will be stored in reqh as a shared key. c2_reqh_key_init(),
-   c2_reqh_key_find() and c2_reqh_key_fini() will be used.
+   c2_reqh_key_find() and c2_reqh_key_fini() will be used. By this, latest
+   failure vectors and its version number information can be shared between
+   multiple modules in the same request handler.
 
    @subsection io_calls_params_dld-lspec-if Interfaces
    The failure vector and version number operations are designed and listed
@@ -170,10 +175,21 @@
 
    - @b I.DLD.FV_Fetch Failure vector can be fetched to client or mdservice
                  or other services in reply message. This can be the whole
-                 failure vector, or the recent changes between spefic version.
+                 failure vector, or the recent changes between specific version.
 
    <hr>
    @section io_calls_params_dld-ut Unit Tests
+   Unit tests will cover the following cases:
+   - client requests are tagged with valid failure vector version number.
+   - client requests with valid failure version number are handles by ioservice
+     correctly.
+   - client requests are denied (returned special error code, that is
+     C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH) if their failure
+     vector version number are mismatch with the server known failure vector
+     version number. Failure vector version number updates are serialized into
+     replies.
+   - failure vector changed on server. An un-solicited notification is sent to
+     relative services, including clients.
 
    <hr>
    @section io_calls_params_dld-st System Tests

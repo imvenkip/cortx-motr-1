@@ -56,22 +56,6 @@ DEF(c2_fop_file_fid, RECORD,
 	_(f_oid, U64));
 
 /**
- * A common sub structure to be referred by read and write reply fops.
- */
-DEF(c2_fop_cob_rw_reply, RECORD,
-	/** Status code of operation. */
-	_(rwr_rc, U32),
-	/** Number of bytes read or written. */
-	_(rwr_count, U64));
-
-/**
- * Reply FOP for a readv request.
- */
-DEF(c2_fop_cob_readv_rep, RECORD,
-	/** Common read/write reply. */
-	_(c_rep, c2_fop_cob_rw_reply));
-
-/**
  * Represents the extent information for an io segment. c2_ioseg typically
  * represents a user space data buffer or a kernel page.
  */
@@ -108,26 +92,40 @@ DEF(c2_io_descs, SEQUENCE,
 	_(id_descs, c2_net_buf_desc));
 
 /**
+ * Failure vector (pool machine state) version numbers.
+ */
+DEF(c2_fv_version, RECORD,
+	_(fvv_read, U64),
+	_(fvv_write, U64));
+
+/**
+ * Failure vector updates.
+ * This update is represented as an array of chars. This is the serialized
+ * representation of failure vector.
+ */
+DEF(c2_fv_updates, SEQUENCE,
+	_(fvu_length, U32),
+	_(fvu_updates, BYTE));
+
+/**
  * Common structure for read and write request fops.
  */
 DEF(c2_fop_cob_rw, RECORD,
+	/** Client known failure vector version number */
+	_(crw_version, c2_fv_version),
 
 	/** File identifier of read/write request. */
-
 	_(crw_fid, c2_fop_file_fid),
 
 	/** Net buf descriptors representing the c2_net_buffer containing
 	    the IO buffers. */
-
 	_(crw_desc, c2_io_descs),
 
 	/** Index vectors representing the extent information for the
 	    IO request. */
-
 	_(crw_ivecs, c2_io_indexvec_seq),
 
 	/** Miscellaneous flags. */
-
 	_(crw_flags, U64));
 
 /**
@@ -144,16 +142,6 @@ DEF(c2_fop_cob_readv, RECORD,
 	_(c_rwv, c2_fop_cob_rw));
 
 /**
- * Reply FOP for writev FOPs.
- * The c2_fop_cob_writev_rep FOP is sent as a response by the
- * Data server to a client.
- * It contains the status code and number of bytes written.
- */
-DEF(c2_fop_cob_writev_rep, RECORD,
-	/** Common read/write reply structure. */
-	_(c_rep, c2_fop_cob_rw_reply));
-
-/**
  * The c2_fop_cob_writev FOP is used to send write requests by a
  * client to a Data server.
  * The FOP supplies the stob id on which the write has to be performed.
@@ -167,21 +155,47 @@ DEF(c2_fop_cob_writev, RECORD,
 	_(c_rwv, c2_fop_cob_rw));
 
 /**
- * Fops referring other remote fops (not present in this file).
+ * A common sub structure to be referred by read and write reply fops.
  */
-DEF(c2_test_ios_fop, RECORD,
-	_(if_st, U64),
-	_(if_nbd, c2_net_buf_desc));
+DEF(c2_fop_cob_rw_reply, RECORD,
+	/** Status code of operation. */
+	_(rwr_rc, U32),
 
-DEF(c2_test_io_addb, RECORD,
-	_(if_st, U64),
-	_(if_addb, c2_addb_record));
+	/** Number of bytes read or written. */
+	_(rwr_count, U64),
+
+	/**
+	 * Failure vector updates. This field is valid  iff rc is some
+	 * defined special code.
+	 */
+	_(fwr_fv_updates, c2_fv_updates));
+
+/**
+ * Reply FOP for a readv request.
+ */
+DEF(c2_fop_cob_readv_rep, RECORD,
+	/** Common read/write reply. */
+	_(c_rep, c2_fop_cob_rw_reply));
+
+/**
+ * Reply FOP for writev FOPs.
+ * The c2_fop_cob_writev_rep FOP is sent as a response by the
+ * Data server to a client.
+ * It contains the status code and number of bytes written.
+ */
+DEF(c2_fop_cob_writev_rep, RECORD,
+	/** Common read/write reply structure. */
+	_(c_rep, c2_fop_cob_rw_reply));
 
 DEF(c2_fop_cob_common, RECORD,
+	/** Client known failure vector version number */
+	_(cd_version, c2_fv_version),
+
 	/**
 	 * Fid of global file.
 	 */
 	_(c_gobfid, c2_fop_file_fid),
+
 	/**
 	 * Fid of component object.
 	 */
@@ -201,6 +215,7 @@ DEF(c2_fop_cob_name, SEQUENCE,
  */
 DEF(c2_fop_cob_create, RECORD,
 	_(cc_common,  c2_fop_cob_common),
+
 	/** Name of global file. */
 	_(cc_cobname, c2_fop_cob_name));
 
@@ -219,7 +234,36 @@ DEF(c2_fop_cob_delete, RECORD,
  * requests.
  */
 DEF(c2_fop_cob_op_reply, RECORD,
-	_(cor_rc, U32));
+	_(cor_rc, U32),
+
+	/**
+	 * Failure vector updates. This field is valid  iff rc is some
+	 * defined special code.
+	 */
+	_(fwr_fv_updates, c2_fv_updates));
+
+/**
+ * Fop to notify the failure vector version number if changed.
+ * This fop itself contains the latest failure vector version number.
+ */
+DEF(c2_fop_fv_notification, RECORD,
+	/** the pool id of this failure vector */
+	_(fvn_poolid, U64),
+
+	/** its latest failure vector version */
+	_(fvn_version, c2_fv_version));
+
+/**
+ * Fops referring other remote fops (not present in this file).
+ */
+DEF(c2_test_ios_fop, RECORD,
+	_(if_st, U64),
+	_(if_nbd, c2_net_buf_desc));
+
+DEF(c2_test_io_addb, RECORD,
+	_(if_st, U64),
+	_(if_addb, c2_addb_record));
+
 
 /** @} end of FOP_data_ops */
 
