@@ -167,7 +167,7 @@
    <B> Read/Write: </B>
 
    c2t1fs currently supports only full stripe IO
-   i.e. iosize = nr_data_units * stripe_unit_size.
+   i.e. (iosize % (nr_data_units * stripe_unit_size) == 0)
 
    read-write operations on file are not synchronised.
 
@@ -192,8 +192,6 @@ enum {
 	C2T1FS_MAX_NR_RPC_IN_FLIGHT     = 100,
 	C2T1FS_DEFAULT_NR_DATA_UNITS    = 1,
 	C2T1FS_DEFAULT_NR_PARITY_UNITS  = 1,
-	C2T1FS_DEFAULT_POOL_WIDTH       = C2T1FS_DEFAULT_NR_DATA_UNITS +
-					    2 * C2T1FS_DEFAULT_NR_PARITY_UNITS,
 	C2T1FS_DEFAULT_STRIPE_UNIT_SIZE = PAGE_CACHE_SIZE,
 	C2T1FS_MAX_NR_CONTAINERS        = 1024,
 	C2T1FS_COB_ID_STRLEN		= 34,
