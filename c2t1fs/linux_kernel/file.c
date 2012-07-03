@@ -199,8 +199,6 @@ out:
 
 static bool address_is_page_aligned(unsigned long addr)
 {
-	C2_ENTRY();
-
 	C2_LOG("addr %lx mask %lx", addr, PAGE_CACHE_SIZE - 1);
 	return (addr & (PAGE_CACHE_SIZE - 1)) == 0;
 }
@@ -453,8 +451,6 @@ static void c2t1fs_buf_init(struct c2t1fs_buf *buf,
 			    c2_bindex_t        off,
 			    enum c2_pdclust_unit_type unit_type)
 {
-	C2_ENTRY();
-
 	C2_LOG("buf %p addr %p len %lu", buf, addr, (unsigned long)len);
 
 	c2_buf_init(&buf->cb_buf, addr, len);
@@ -462,21 +458,15 @@ static void c2t1fs_buf_init(struct c2t1fs_buf *buf,
 	buf->cb_off   = off;
 	buf->cb_type  = unit_type;
 	buf->cb_magic = MAGIC_C2T1BUF;
-
-	C2_LEAVE();
 }
 
 static void c2t1fs_buf_fini(struct c2t1fs_buf *buf)
 {
-	C2_ENTRY();
-
 	if (buf->cb_type == PUT_PARITY || buf->cb_type == PUT_SPARE)
 		c2_free(buf->cb_buf.b_addr);
 
 	bufs_tlink_fini(buf);
 	buf->cb_magic = 0;
-
-	C2_LEAVE();
 }
 
 static struct rw_desc * rw_desc_get(struct c2_tl        *list,
@@ -484,9 +474,8 @@ static struct rw_desc * rw_desc_get(struct c2_tl        *list,
 {
 	struct rw_desc *rw_desc;
 
-	C2_ENTRY();
-	C2_LOG("fid [%lu:%lu]", (unsigned long)fid->f_container,
-				(unsigned long)fid->f_key);
+	C2_ENTRY("fid [%lu:%lu]", (unsigned long)fid->f_container,
+	                          (unsigned long)fid->f_key);
 
 	c2_tl_for(rwd, list, rw_desc) {
 

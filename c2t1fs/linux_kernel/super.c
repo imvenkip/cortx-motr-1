@@ -852,8 +852,6 @@ c2t1fs_container_id_to_session(const struct c2t1fs_sb *csb,
 {
 	struct c2t1fs_service_context        *ctx;
 
-	C2_ENTRY();
-
 	C2_ASSERT(container_id < csb->csb_nr_containers);
 
 	ctx = csb->csb_cl_map.clm_map[container_id];
