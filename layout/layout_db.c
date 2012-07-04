@@ -497,6 +497,7 @@ static int rec_get(struct c2_db_tx *tx, struct c2_layout *l,
  */
 int c2_layout_lookup(struct c2_layout_domain *dom,
 		     uint64_t lid,
+		     struct c2_layout_type *lt,
 		     struct c2_db_tx *tx,
 		     struct c2_db_pair *pair,
 		     struct c2_layout **out)
@@ -508,10 +509,13 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	c2_bcount_t              recsize;
 	void                    *key_buf = pair->dp_key.db_buf.b_addr;
 	void                    *rec_buf = pair->dp_rec.db_buf.b_addr;
+	struct c2_layout        *l;
 
 	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(c2_layout_find(dom, lid) == NULL);
+	C2_PRE(lt != NULL);
+	C2_PRE(dom->ld_type[lt->lt_id] == lt);
 	C2_PRE(tx != NULL);
 	C2_PRE(pair != NULL);
 	C2_PRE(key_buf != NULL);
@@ -525,7 +529,6 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	c2_mutex_lock(&dom->ld_schema.ls_lock);
 
 	max_recsize = c2_layout_max_recsize(dom);
-
 	recsize = pair->dp_rec.db_buf.b_nob <= max_recsize ?
 		  pair->dp_rec.db_buf.b_nob : max_recsize;
 
@@ -543,11 +546,26 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 		goto out;
 	}
 
+	/* todo Move this before c2_table_lookup() */
+	rc = lt->lt_ops->lto_allocate(dom, lid, &l);
+	if (rc != 0) {
+		c2_layout__log("c2_layout_lookup", "lto_allocate() failed",
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
+			       &layout_lookup_fail, &layout_global_ctx,
+			       lid, rc);
+		goto out;
+	}
+	/* todo Check carefully if the layout should be added to list
+	 * as a part of lto_allocate() or as a part of c2_layout__populate. */
+
+	C2_ASSERT(c2_layout__allocated_invariant(l)); //todo remove
+
 	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&rec_buf, &recsize);
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = c2_layout_decode(dom, lid, C2_LXO_DB_LOOKUP, tx, &cur, out);
+	rc = c2_layout_decode(C2_LXO_DB_LOOKUP, tx, &cur, l);
 	if (rc != 0) {
+		//todo lt->lt_ops->lto_delete(l);
 		c2_layout__log("c2_layout_lookup", "c2_layout_decode() failed",
 			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &layout_lookup_fail, &layout_global_ctx,
@@ -555,6 +573,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 		goto out;
 	}
 
+	*out = l;
 out:
 	c2_db_pair_fini(pair);
 	c2_mutex_unlock(&dom->ld_schema.ls_lock);

@@ -136,13 +136,11 @@ static const struct c2_layout_ops composite_ops;
  * If it is BUFFER_OP, then the layout is decoded from its representation
  * received through the buffer.
  */
-static int composite_decode(struct c2_layout_domain *dom,
-			    uint64_t lid,
-			    enum c2_layout_xcode_op op,
+static int composite_decode(enum c2_layout_xcode_op op,
 			    struct c2_db_tx *tx,
 			    uint64_t pool_id,
 			    struct c2_bufvec_cursor *cur,
-			    struct c2_layout **out)
+			    struct c2_layout *l)
 {
 	/*
 	@code

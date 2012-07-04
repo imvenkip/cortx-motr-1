@@ -68,8 +68,10 @@ enum {
 };
 
 bool c2_layout__domain_invariant(const struct c2_layout_domain *dom);
+bool c2_layout__allocated_invariant(const struct c2_layout *l);
 bool c2_layout__invariant(const struct c2_layout *l);
 bool c2_layout__enum_invariant(const struct c2_layout_enum *le);
+bool c2_layout__striped_allocated_invariant(const struct c2_striped_layout *s);
 bool c2_layout__striped_invariant(const struct c2_striped_layout *stl);
 
 bool c2_layout__is_layout_type_valid(uint32_t lt_id,
@@ -79,18 +81,23 @@ bool c2_layout__is_enum_type_valid(uint32_t let_id,
 
 void c2_layout__init(struct c2_layout_domain *dom,
 		     struct c2_layout *l,
-		     uint64_t lid, uint64_t pool_id,
+		     uint64_t lid,
 		     struct c2_layout_type *type,
 		     const struct c2_layout_ops *ops);
+void c2_layout__populate(struct c2_layout *l,
+			 uint64_t pool_id);
 void c2_layout__fini(struct c2_layout *l);
 
+
 void c2_layout__striped_init(struct c2_layout_domain *dom,
-			     struct c2_striped_layout *str_l,
-			     uint64_t lid, uint64_t pool_id,
+			     struct c2_striped_layout *stl,
+			     uint64_t lid,
 			     struct c2_layout_type *type,
-			     const struct c2_layout_ops *ops,
-			     struct c2_layout_enum *e);
-void c2_layout__striped_fini(struct c2_striped_layout *str_l);
+			     const struct c2_layout_ops *ops);
+void c2_layout__striped_populate(struct c2_striped_layout *str_l,
+				 uint64_t pool_id,
+				 struct c2_layout_enum *e);
+void c2_layout__striped_fini(struct c2_striped_layout *stl);
 
 void c2_layout__enum_init(struct c2_layout_domain *dom,
 			  struct c2_layout_enum *le,

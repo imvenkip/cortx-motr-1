@@ -351,10 +351,11 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 			     uint32_t             K,
 			     uint64_t             unit_size)
 {
-	struct c2_pdclust_layout     *pd_layout;
 	uint64_t                      layout_id;
-	struct c2_uint128             seed;
 	struct c2_layout_linear_enum *le;
+	struct c2_layout_linear_attr  lin_attr;
+	struct c2_pdclust_layout     *pd_layout;
+	struct c2_pdclust_attr        pl_attr;
 	int                           rc;
 
 	C2_ENTRY();
@@ -365,23 +366,28 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 			(unsigned long)ci->ci_fid.f_key,
 			N, K, pool->po_width);
 
-	layout_id = 0x4A494E4E49455349; /* "jinniesi" */
-	c2_uint128_init(&seed, "upjumpandpumpim,");
-
 	/**
 	 * @todo A dummy enumeration object is being created here.
 	 * c2t1fs code is not making use of this enumeration object, at this
 	 * point. It will be taken care of by the task c2t1fs.LayoutDB.
 	 */
+	lin_attr.lla_nr = pool->po_width;
+	lin_attr.lla_A  = 100;
+	lin_attr.lla_B  = 200;
 	rc = c2_linear_enum_build(&c2t1fs_globals.g_layout_dom,
-				  pool->po_width, 100, 200, &le);
+				  &lin_attr, &le);
 	if (rc == 0) {
+		layout_id = 0x4A494E4E49455349; /* "jinniesi" */
+		pl_attr.pa_N = N;
+		pl_attr.pa_K = K;
+		pl_attr.pa_P = pool->po_width;
+		pl_attr.pa_unit_size = unit_size;
+		c2_uint128_init(&pl_attr.pa_seed, "upjumpandpumpim,");
 		rc = c2_pdclust_build(&c2t1fs_globals.g_layout_dom,
-				      pool, layout_id, N, K, unit_size,
-				      &seed, &le->lle_base, &pd_layout);
+				      pool, layout_id, &pl_attr,
+				      &le->lle_base, &pd_layout);
 		if (rc == 0) {
 			ci->ci_layout = c2_pdl_to_layout(pd_layout);
-
 			/*
 			 * Add a reference to the layout indicating it is being
 			 * used by one inode.
@@ -392,7 +398,6 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 			c2_linear_enum_fini(le);
 		}
 	}
-
 	C2_LEAVE("rc: %d", rc);
 	return rc;
 }

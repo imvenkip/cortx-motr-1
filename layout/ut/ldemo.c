@@ -173,7 +173,8 @@ static int dummy_create(struct c2_layout_domain *domain,
 			uint64_t lid, uint32_t pool_width,
 			struct c2_layout_linear_enum **lin_enum)
 {
-	int rc;
+	int                          rc;
+	struct c2_layout_linear_attr lin_attr;
 
 	rc = c2_dbenv_init(dbenv, "ldemo-db", 0);
 	C2_ASSERT(rc == 0);
@@ -184,7 +185,10 @@ static int dummy_create(struct c2_layout_domain *domain,
 	c2_layout_type_register(domain, &c2_pdclust_layout_type);
 	c2_layout_enum_type_register(domain, &c2_linear_enum_type);
 
-	rc = c2_linear_enum_build(domain, pool_width, 100, 200, lin_enum);
+	lin_attr.lla_nr = pool_width;
+	lin_attr.lla_A  = 100;
+	lin_attr.lla_B  = 200;
+	rc = c2_linear_enum_build(domain, &lin_attr, lin_enum);
 	C2_ASSERT(rc == 0);
 
 	return rc;
@@ -200,6 +204,7 @@ int main(int argc, char **argv)
 	int      result;
 	uint64_t unitsize = 4096;
 	struct c2_pdclust_layout      *play;
+	struct c2_pdclust_attr         attr;
 	struct c2_pool                 pool;
 	uint64_t                       id;
 	struct c2_uint128              seed;
@@ -250,8 +255,12 @@ int main(int argc, char **argv)
 		result = dummy_create(&domain, &dbenv, id,
 				      pool.po_width, &le);
 		if (result == 0) {
-			result = c2_pdclust_build(&domain, &pool, id, N, K,
-						  unitsize, &seed,
+			attr.pa_N = N;
+			attr.pa_K = K;
+			attr.pa_P = pool.po_width;
+			attr.pa_unit_size = unitsize;
+			attr.pa_seed = seed;
+			result = c2_pdclust_build(&domain, &pool, id, &attr,
 						  &le->lle_base, &play);
 			if (result == 0)
 				layout_demo(play, P, R, I);

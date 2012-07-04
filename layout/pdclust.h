@@ -115,6 +115,8 @@ struct c2_layout_pdclust_rec {
 	 */
 	uint32_t                pr_let_id;
 
+	// todo add pool_id here
+
 	struct c2_pdclust_attr  pr_attr;
 };
 
@@ -275,8 +277,7 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 
 int c2_pdclust_build(struct c2_layout_domain *dom,
 		     struct c2_pool *pool, uint64_t lid,
-		     uint32_t N, uint32_t K, uint64_t unitsize,
-		     const struct c2_uint128 *seed,
+		     const struct c2_pdclust_attr *attr,
 		     struct c2_layout_enum *le,
 		     struct c2_pdclust_layout **out);
 

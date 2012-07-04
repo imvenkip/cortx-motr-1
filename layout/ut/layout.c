@@ -359,7 +359,11 @@ static int pdclust_l_build(uint64_t lid, uint32_t N, uint32_t K,
 			   struct c2_layout_enum *le,
 			   struct c2_pdclust_layout **pl)
 {
-	struct c2_pool *pool;
+	struct c2_pool         *pool;
+	struct c2_layout_type  *lt;
+	struct c2_pdclust_attr  attr;
+
+	lt = &c2_pdclust_layout_type;
 
 	C2_UT_ASSERT(le != NULL);
 	C2_UT_ASSERT(pl != NULL);
@@ -367,7 +371,12 @@ static int pdclust_l_build(uint64_t lid, uint32_t N, uint32_t K,
 	rc = c2_pool_lookup(DEFAULT_POOL_ID, &pool);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_pdclust_build(&domain, pool, lid, N, K, unitsize, seed, le, pl);
+	attr.pa_N         = N;
+	attr.pa_K         = K;
+	attr.pa_P         = pool->po_width;
+	attr.pa_unit_size = unitsize;
+	attr.pa_seed      = *seed;
+	rc = c2_pdclust_build(&domain, pool, lid, &attr, le, pl);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(c2_layout_find(&domain, lid) == &(*pl)->pl_base.sl_base);
 
@@ -388,9 +397,10 @@ static int pdclust_layout_build(uint32_t enum_id,
 				struct c2_layout_list_enum **list_enum,
 				struct c2_layout_linear_enum **lin_enum)
 {
-	struct c2_fid         *cob_list;
-	int                    i;
-	struct c2_layout_enum *e;
+	struct c2_fid                *cob_list;
+	int                           i;
+	struct c2_layout_enum        *e;
+	struct c2_layout_linear_attr  lin_attr;
 
 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
 	C2_UT_ASSERT(pl != NULL);
@@ -416,7 +426,10 @@ static int pdclust_layout_build(uint32_t enum_id,
 		C2_UT_ASSERT(B != B_NONE && list_enum == NULL);
 		C2_UT_ASSERT(lin_enum != NULL);
 
-		rc = c2_linear_enum_build(&domain, nr, A, B, lin_enum);
+		lin_attr.lla_nr = nr;
+		lin_attr.lla_A  = A;
+		lin_attr.lla_B  = B;
+		rc = c2_linear_enum_build(&domain, &lin_attr, lin_enum);
 		C2_UT_ASSERT(rc == 0);
 
 		e = &(*lin_enum)->lle_base;
@@ -759,6 +772,7 @@ static int test_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	uint32_t                 nr;
 	uint32_t                 A;
 	uint32_t                 B;
+	struct c2_layout_type   *lt;
 
 	C2_ENTRY();
 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
@@ -792,8 +806,12 @@ static int test_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	/* Rewind the cursor. */
 	c2_bufvec_cursor_init(&cur, &bv);
 
+	lt = &c2_pdclust_layout_type;
+	rc = lt->lt_ops->lto_allocate(&domain, lid, &l);
+	C2_ASSERT(c2_layout__allocated_invariant(l));
+
 	/* Decode the layout buffer into a layout object. */
-	rc = c2_layout_decode(&domain, lid, C2_LXO_BUFFER_OP, NULL, &cur, &l);
+	rc = c2_layout_decode(C2_LXO_BUFFER_OP, NULL, &cur, l);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(c2_layout_find(&domain, lid) == l);
 
@@ -1195,6 +1213,7 @@ static int test_decode_encode_pdclust(uint32_t enum_id, uint64_t lid,
 	uint32_t                 nr;
 	struct c2_uint128        seed;
 	struct c2_layout        *l;
+	struct c2_layout_type   *lt;
 
 	C2_ENTRY();
 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
@@ -1224,8 +1243,12 @@ static int test_decode_encode_pdclust(uint32_t enum_id, uint64_t lid,
 	/* Rewind the cursor. */
 	c2_bufvec_cursor_init(&cur1, &bv1);
 
+	lt = &c2_pdclust_layout_type;
+	rc = lt->lt_ops->lto_allocate(&domain, lid, &l);
+	C2_ASSERT(c2_layout__allocated_invariant(l));
+
 	/* Decode the layout buffer into a layout object. */
-	rc = c2_layout_decode(&domain, lid, C2_LXO_BUFFER_OP, NULL, &cur1, &l);
+	rc = c2_layout_decode(C2_LXO_BUFFER_OP, NULL, &cur1, l);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Rewind the cursor. */
@@ -1510,6 +1533,7 @@ static int test_encode_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	struct c2_layout_linear_enum *lin_enum;
 	struct c2_layout             *l;
 	struct c2_layout             *l_copy;
+	struct c2_layout_type        *lt;
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
@@ -1556,11 +1580,15 @@ static int test_encode_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	/* Rewind the cursor. */
 	c2_bufvec_cursor_init(&cur, &bv);
 
+	lt = &c2_pdclust_layout_type;
+	rc = lt->lt_ops->lto_allocate(&domain, lid, &l);
+	C2_ASSERT(c2_layout__allocated_invariant(l));
+
 	/*
 	 * Decode the layout buffer produced by c2_layout_encode() into another
 	 * layout object.
 	 */
-	rc = c2_layout_decode(&domain, lid, C2_LXO_BUFFER_OP, NULL, &cur, &l);
+	rc = c2_layout_decode(C2_LXO_BUFFER_OP, NULL, &cur, l);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -2151,7 +2179,8 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 
 	pair_set(&pair, &lid, area, num_bytes);
 
-	rc = c2_layout_lookup(&domain, lid, &tx, &pair, &l2);
+	rc = c2_layout_lookup(&domain, lid, &c2_pdclust_layout_type,
+			      &tx, &pair, &l2);
 
 	if (existing_test)
 		C2_UT_ASSERT(rc == 0);
@@ -2492,7 +2521,8 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 
 		pair_set(&pair, &lid, area, num_bytes);
 
-		rc = c2_layout_lookup(&domain, lid, &tx, &pair, &l2);
+		rc = c2_layout_lookup(&domain, lid, &c2_pdclust_layout_type,
+				      &tx, &pair, &l2);
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(l2->l_ref == DEFAULT_REF_COUNT + 99);
 
@@ -2660,7 +2690,8 @@ static int test_delete_pdclust(uint32_t enum_id, uint64_t lid,
 
 	pair_set(&pair, &lid, area, num_bytes);
 
-	rc = c2_layout_lookup(&domain, lid, &tx, &pair, &l);
+	rc = c2_layout_lookup(&domain, lid, &c2_pdclust_layout_type,
+			      &tx, &pair, &l);
 	C2_UT_ASSERT(rc == -ENOENT);
 
 	rc = c2_db_tx_commit(&tx);

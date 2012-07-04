@@ -295,22 +295,28 @@ struct c2_layout_type_ops {
 	c2_bcount_t (*lto_max_recsize)(struct c2_layout_domain *dom);
 
 	/**
-	 * Continues building the in-memory layout object either from the
-	 * buffer or from the DB.
 	 * Allocates an instance of some layout-type specific data-type
 	 * which embeds c2_layout and stores the resultant c2_layout object
 	 * in the parameter out.
+	 * @post ergo(result == 0, *out != NULL && (*out)->l_ops != NULL)
+	 */
+	int         (*lto_allocate)(struct c2_layout_domain *dom,
+				    uint64_t lid,
+				    struct c2_layout **out);
+
+	/**
+	 * Continues building the in-memory layout object either from the
+	 * buffer or from the DB.
 	 * @pre C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP))
 	 * @pre ergo(op == C2_LXO_DB_LOOKUP, tx != NULL)
-	 * @post ergo(result == 0, *out != NULL && (*out)->l_ops != NULL);
 	 */
-	int         (*lto_decode)(struct c2_layout_domain *dom,
-				  uint64_t lid,
-				  enum c2_layout_xcode_op op,
+	// todo Make l as the first argument
+	// todo Make lto_decode operation of a layout, not layout type
+	int         (*lto_decode)(enum c2_layout_xcode_op op,
 				  struct c2_db_tx *tx,
 				  uint64_t pool_id,
 				  struct c2_bufvec_cursor *cur,
-				  struct c2_layout **out);
+				  struct c2_layout *l);
 
 	/**
 	 * Continues storing the layout representation either in the buffer
@@ -408,21 +414,27 @@ struct c2_layout_enum_type_ops {
 	c2_bcount_t (*leto_max_recsize)(void);
 
 	/**
-	 * Continues building the in-memory layout object, either from
-	 * the buffer or from the DB.
 	 * Allocates an instance of some enum-type specific data-type
 	 * which embeds c2_layout_enum and stores the resultant
 	 * c2_layout_enum object in the parameter out.
+	 * @post ergo(result == 0, *out != NULL && (*out)->le_ops != NULL)
+	 */
+	int         (*leto_allocate)(struct c2_layout_domain *dom,
+				     struct c2_layout_enum **out);
+
+	/**
+	 * Continues building the in-memory layout object, either from
+	 * the buffer or from the DB.
 	 * @pre C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP))
 	 * @pre ergo(op == C2_LXO_DB_LOOKUP, tx != NULL)
-	 * @post ergo(result == 0, *out != NULL && (*out)->le_ops != NULL);
 	 */
-	int         (*leto_decode)(struct c2_layout_domain *dom,
-				   uint64_t lid,
+	// todo Make e as the first argument
+	// todo Make leto_decode operation of enumeration, not enum type
+	int         (*leto_decode)(struct c2_striped_layout *stl,
 				   enum c2_layout_xcode_op op,
 				   struct c2_db_tx *tx,
 				   struct c2_bufvec_cursor *cur,
-				   struct c2_layout_enum **out);
+				   struct c2_layout_enum *e);
 
 	/**
 	 * Continues storing layout representation either in the buffer
@@ -471,12 +483,10 @@ struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid);
 void c2_layout_get(struct c2_layout *l);
 void c2_layout_put(struct c2_layout *l);
 
-int c2_layout_decode(struct c2_layout_domain *dom,
-		     uint64_t lid,
-		     enum c2_layout_xcode_op op,
+int c2_layout_decode(enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,
 		     struct c2_bufvec_cursor *cur,
-		     struct c2_layout **out);
+		     struct c2_layout *l);
 int c2_layout_encode(struct c2_layout *l,
 		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,

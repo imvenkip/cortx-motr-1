@@ -100,11 +100,19 @@ static const struct c2_table_ops cob_lists_table_ops = {
 	.key_cmp = lcl_key_cmp
 };
 
+static bool list_allocated_invariant(const struct c2_layout_list_enum *le)
+{
+	return
+		c2_layout_list_enum_bob_check(le) &&
+		le->lle_nr == NR_NONE &&
+		le->lle_list_of_cobs == NULL;
+}
+
 /**
- * list_enum_invariant() can not be invoked until an enumeration object
+ * list_invariant() can not be invoked until an enumeration object
  * is associated with some layout object. Hence this separation.
  */
-static bool list_enum_invariant_internal(const struct c2_layout_list_enum *le)
+static bool list_invariant_internal(const struct c2_layout_list_enum *le)
 {
 	return
 		c2_layout_list_enum_bob_check(le) &&
@@ -114,14 +122,77 @@ static bool list_enum_invariant_internal(const struct c2_layout_list_enum *le)
 			  c2_fid_is_valid(&le->lle_list_of_cobs[i]));
 }
 
-static bool list_enum_invariant(const struct c2_layout_list_enum *le)
+static bool list_invariant(const struct c2_layout_list_enum *le)
 {
 	return
-		list_enum_invariant_internal(le) &&
+		list_invariant_internal(le) &&
 		c2_layout__enum_invariant(&le->lle_base);
 }
 
 static const struct c2_layout_enum_ops list_enum_ops;
+
+/**
+ * Implementation of leto_allocate for LIST enumeration type.
+ */
+static int list_allocate(struct c2_layout_domain *dom,
+			 struct c2_layout_enum **out)
+{
+	struct c2_layout_list_enum *list_enum;
+
+	C2_PRE(c2_layout__domain_invariant(dom));
+	C2_PRE(out != NULL);
+
+	C2_ENTRY();
+	C2_ALLOC_PTR(list_enum);
+	if (list_enum == NULL) {
+		c2_layout__log("list_allocate", "C2_ALLOC_PTR() failed",
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
+			       &c2_addb_oom, &layout_global_ctx, LID_NONE,
+			       -ENOMEM);
+		return -ENOMEM;
+	}
+
+	c2_layout_list_enum_bob_init(list_enum);
+	c2_layout__enum_init(dom, &list_enum->lle_base,
+			     &c2_list_enum_type, &list_enum_ops);
+	C2_POST(list_allocated_invariant(list_enum));
+	*out = &list_enum->lle_base;
+	C2_LEAVE("list enum pointer %p", list_enum);
+	return 0;
+}
+
+static int list_populate(struct c2_layout_list_enum *list_enum,
+			 struct c2_fid *cob_list, uint32_t nr)
+{
+	uint32_t                    i;
+	int                         rc;
+
+	C2_PRE(list_allocated_invariant(list_enum));
+	C2_PRE(cob_list != NULL);
+	C2_PRE(nr != NR_NONE);
+
+	C2_ENTRY();
+	list_enum->lle_nr = nr;
+
+	C2_ALLOC_ARR(list_enum->lle_list_of_cobs, nr);
+	if (list_enum == NULL) {
+		rc = -ENOMEM;
+		c2_layout__log("list_populate", "C2_ALLOC_ARR() failed",
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
+			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
+		goto out;
+	}
+
+	for (i = 0; i < nr; ++i) {
+		C2_ASSERT(c2_fid_is_valid(&cob_list[i]));
+		list_enum->lle_list_of_cobs[i] = cob_list[i];
+	}
+	C2_POST(list_invariant_internal(list_enum));
+	rc = 0;
+out:
+	C2_LEAVE("rc %d", rc);
+	return rc;
+}
 
 /**
  * Build list enumeration object.
@@ -132,53 +203,20 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 		       struct c2_fid *cob_list, uint32_t nr,
 		       struct c2_layout_list_enum **out)
 {
+	struct c2_layout_enum      *e;
 	struct c2_layout_list_enum *list_enum;
-	uint32_t                    i;
 	int                         rc;
 
-	C2_PRE(c2_layout__domain_invariant(dom));
-	C2_PRE(cob_list != NULL);
-	C2_PRE(nr != NR_NONE);
 	C2_PRE(out != NULL);
 
-	C2_ENTRY();
-
-	C2_ALLOC_PTR(list_enum);
-	if (list_enum == NULL) {
-		rc = -ENOMEM;
-		c2_layout__log("c2_list_enum_build", "C2_ALLOC_PTR() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
-			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
-		goto out;
+	rc = list_allocate(dom, &e);
+	if (rc == 0) {
+		list_enum = container_of(e, struct c2_layout_list_enum,
+					 lle_base);
+		list_populate(list_enum, cob_list, nr);
+		C2_POST(list_invariant_internal(list_enum));
+		*out = list_enum;
 	}
-
-	c2_layout__enum_init(dom, &list_enum->lle_base, &c2_list_enum_type,
-			     &list_enum_ops);
-	list_enum->lle_nr = nr;
-
-	C2_ALLOC_ARR(list_enum->lle_list_of_cobs, nr);
-	if (list_enum == NULL) {
-		rc = -ENOMEM;
-		c2_layout__log("c2_list_enum_build", "C2_ALLOC_ARR() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
-			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
-		c2_layout__enum_fini(&list_enum->lle_base);
-		c2_free(list_enum);
-		goto out;
-	}
-
-	for (i = 0; i < nr; ++i) {
-		C2_ASSERT(c2_fid_is_valid(&cob_list[i]));
-		list_enum->lle_list_of_cobs[i] = cob_list[i];
-	}
-
-	c2_layout_list_enum_bob_init(list_enum);
-
-	*out = list_enum;
-	C2_POST(list_enum_invariant_internal(list_enum));
-	rc = 0;
-out:
-	C2_LEAVE("rc %d", rc);
 	return rc;
 }
 
@@ -192,7 +230,7 @@ out:
  */
 void c2_list_enum_fini(struct c2_layout_list_enum *e)
 {
-	C2_PRE(list_enum_invariant_internal(e));
+	C2_PRE(list_invariant_internal(e));
 	C2_PRE(e->lle_base.le_sl == NULL);
 
 	e->lle_base.le_ops->leo_fini(&e->lle_base);
@@ -204,7 +242,7 @@ static struct c2_layout_list_enum
 	struct c2_layout_list_enum *list_enum;
 
 	list_enum = container_of(e, struct c2_layout_list_enum, lle_base);
-	C2_ASSERT(list_enum_invariant(list_enum));
+	C2_ASSERT(list_invariant(list_enum));
 	return list_enum;
 }
 
@@ -217,6 +255,7 @@ static void list_fini(struct c2_layout_enum *e)
 	struct c2_layout_list_enum *list_enum;
 
 	C2_PRE(e != NULL);
+	C2_PRE(c2_layout__enum_invariant(e));
 
 	C2_ENTRY("lid %llu, enum_pointer %p",
 		 (unsigned long long)e->le_sl->sl_base.l_id, e);
@@ -296,7 +335,7 @@ static void list_unregister(struct c2_layout_domain *dom,
 }
 
 /**
- * Implementation of leto_max_recsize() for list enumeration type.
+ * Implementation of leto_max_recsize() for LIST enumeration type.
  *
  * Returns maximum record size for the part of the layouts table record,
  * required to store LIST enum details.
@@ -375,7 +414,7 @@ out:
 }
 
 /**
- * Implementation of leto_decode() for list enumeration type.
+ * Implementation of leto_decode() for LIST enumeration type.
  *
  * Reads LDB_MAX_INLINE_COB_ENTRIES cob identifiers from the buffer into
  * the c2_layout_list_enum object. Then reads further cob identifiers either
@@ -386,14 +425,16 @@ out:
  * If it is BUFFER_OP, then the layout is decoded from its representation
  * received through the buffer.
  */
-static int list_decode(struct c2_layout_domain *dom,
-		       uint64_t lid,
+//todo return status - int or void
+static int list_decode(struct c2_striped_layout *stl,
 		       enum c2_layout_xcode_op op,
 		       struct c2_db_tx *tx,
 		       struct c2_bufvec_cursor *cur,
-		       struct c2_layout_enum **out)
+		       struct c2_layout_enum *e)
 {
-	struct c2_layout_list_enum *list_enum = NULL;
+	uint64_t                    lid;
+	struct c2_layout_domain    *dom; //todo check if required
+	struct c2_layout_list_enum *list_enum;
 	struct cob_entries_header  *ce_header;
 	uint32_t                    num_inline; /* Number of inline cobs */
 	struct c2_fid              *cob_id;
@@ -401,20 +442,21 @@ static int list_decode(struct c2_layout_domain *dom,
 	uint32_t                    i;
 	int                         rc;
 
-	C2_PRE(c2_layout__domain_invariant(dom));
-	C2_PRE(lid != LID_NONE);
+	C2_PRE(c2_layout__striped_allocated_invariant(stl));
 	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *ce_header);
-	C2_PRE(out != NULL);
+	C2_PRE(e != NULL);
 
+	lid = stl->sl_base.l_id;
+	dom = stl->sl_base.l_dom;
 	ce_header = c2_bufvec_cursor_addr(cur);
-
+	c2_bufvec_cursor_move(cur, sizeof *ce_header);
 	C2_ENTRY("lid %llu, nr %lu", (unsigned long long)lid,
 		 (unsigned long)ce_header->ces_nr);
-
-	c2_bufvec_cursor_move(cur, sizeof *ce_header);
+	list_enum = container_of(e, struct c2_layout_list_enum, lle_base);
+	C2_ASSERT(list_allocated_invariant(list_enum));
 
 	C2_ALLOC_ARR(cob_list, ce_header->ces_nr);
 	if (cob_list == NULL) {
@@ -471,17 +513,9 @@ static int list_decode(struct c2_layout_domain *dom,
 		}
 	}
 
-	rc = c2_list_enum_build(dom, cob_list, ce_header->ces_nr, &list_enum);
-	if (rc != 0) {
-		c2_layout__log("list_decode", "c2_list_enum_build() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
-			       &c2_addb_func_fail, &layout_global_ctx,
-			       lid, rc);
-		goto out;
-	}
-
-	*out = &list_enum->lle_base;
-	C2_POST(list_enum_invariant_internal(list_enum));
+	list_populate(list_enum, cob_list, ce_header->ces_nr);
+	C2_POST(list_invariant_internal(list_enum));
+	rc = 0;
 out:
 	c2_free(cob_list);
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
@@ -586,7 +620,7 @@ out:
 }
 
 /**
- * Implementation of leto_encode() for list enumeration type.
+ * Implementation of leto_encode() for LIST enumeration type.
  *
  * Continues to use the in-memory layout object and either 'stores it in the
  * Layout DB' or 'converts it to a buffer'.
@@ -798,6 +832,7 @@ static const struct c2_layout_enum_type_ops list_type_ops = {
 	.leto_register    = list_register,
 	.leto_unregister  = list_unregister,
 	.leto_max_recsize = list_max_recsize,
+	.leto_allocate    = list_allocate,
 	.leto_decode      = list_decode,
 	.leto_encode      = list_encode,
 };

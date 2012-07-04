@@ -131,6 +131,7 @@ struct c2_layout_rec {
 
 int c2_layout_lookup(struct c2_layout_domain *dom,
 		     uint64_t lid,
+		     struct c2_layout_type *lt,
 		     struct c2_db_tx *tx,
 		     struct c2_db_pair *pair,
 		     struct c2_layout **out);

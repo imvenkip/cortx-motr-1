@@ -54,12 +54,19 @@ static const struct c2_bob_type linear_enum_bob = {
 
 C2_BOB_DEFINE(static, &linear_enum_bob, c2_layout_linear_enum);
 
+static bool linear_allocated_invariant(const struct c2_layout_linear_enum *le)
+{
+	return
+		c2_layout_linear_enum_bob_check(le) &&
+		le->lle_attr.lla_nr == NR_NONE &&
+		le->lle_attr.lla_B == 0;
+}
+
 /**
- * linear_enum_invariant() can not be invoked until an enumeration object
+ * linear_invariant() can not be invoked until an enumeration object
  * is associated with some layout object. Hence this separation.
  */
-static bool
-linear_enum_invariant_internal(const struct c2_layout_linear_enum *le)
+static bool linear_invariant_internal(const struct c2_layout_linear_enum *le)
 {
 	return
 		c2_layout_linear_enum_bob_check(le) &&
@@ -67,14 +74,53 @@ linear_enum_invariant_internal(const struct c2_layout_linear_enum *le)
 		le->lle_attr.lla_B != 0;
 }
 
-static bool linear_enum_invariant(const struct c2_layout_linear_enum *le)
+static bool linear_invariant(const struct c2_layout_linear_enum *le)
 {
 	return
-		linear_enum_invariant_internal(le) &&
+		linear_invariant_internal(le) &&
 		c2_layout__enum_invariant(&le->lle_base);
 }
 
 static const struct c2_layout_enum_ops linear_enum_ops;
+
+/**
+ * Implementation of leto_allocate for LINEAR enumeration type.
+ */
+static int linear_allocate(struct c2_layout_domain *dom,
+			   struct c2_layout_enum **out)
+{
+	struct c2_layout_linear_enum *lin_enum;
+
+	C2_PRE(c2_layout__domain_invariant(dom));
+	C2_PRE(out != NULL);
+
+	C2_ENTRY();
+	C2_ALLOC_PTR(lin_enum);
+	if (lin_enum == NULL) {
+		c2_layout__log("linear_allocate", "C2_ALLOC_PTR() failed",
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
+			       &c2_addb_oom, &layout_global_ctx, LID_NONE,
+			       -ENOMEM);
+		return -ENOMEM;
+	}
+	c2_layout__enum_init(dom, &lin_enum->lle_base,
+			     &c2_linear_enum_type, &linear_enum_ops);
+	c2_layout_linear_enum_bob_init(lin_enum);
+	C2_POST(linear_allocated_invariant(lin_enum));
+	*out = &lin_enum->lle_base;
+	C2_LEAVE("linear enum pointer %p", lin_enum);
+	return 0;
+}
+
+static void linear_populate(struct c2_layout_linear_enum *lin_enum,
+			    const struct c2_layout_linear_attr *attr)
+{
+	C2_PRE(linear_allocated_invariant(lin_enum));
+	C2_PRE(attr != NULL);
+
+	lin_enum->lle_attr = *attr;
+	C2_POST(linear_invariant_internal(lin_enum));
+}
 
 /**
  * Build linear enumeration object.
@@ -82,42 +128,23 @@ static const struct c2_layout_enum_ops linear_enum_ops;
  * finalised internally through c2_layout__striped_fini().
  */
 int c2_linear_enum_build(struct c2_layout_domain *dom,
-			 uint32_t nr, uint32_t A, uint32_t B,
+			 const struct c2_layout_linear_attr *attr,
 			 struct c2_layout_linear_enum **out)
 {
+	struct c2_layout_enum        *e;
 	struct c2_layout_linear_enum *lin_enum;
 	int                           rc;
 
-	C2_PRE(c2_layout__domain_invariant(dom));
-	C2_PRE(nr != NR_NONE);
-	C2_PRE(B != 0);
 	C2_PRE(out != NULL);
 
-	C2_ENTRY();
-
-	C2_ALLOC_PTR(lin_enum);
-	if (lin_enum == NULL) {
-		rc = -ENOMEM;
-		c2_layout__log("c2_linear_enum_build", "C2_ALLOC_PTR() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
-			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
-	} else {
-		rc = 0;
-		c2_layout_linear_enum_bob_init(lin_enum);
-
-		c2_layout__enum_init(dom, &lin_enum->lle_base,
-				     &c2_linear_enum_type,
-				     &linear_enum_ops);
-
-		lin_enum->lle_attr.lla_nr = nr;
-		lin_enum->lle_attr.lla_A  = A;
-		lin_enum->lle_attr.lla_B  = B;
-
+	rc = linear_allocate(dom, &e);
+	if (rc == 0) {
+		lin_enum = container_of(e, struct c2_layout_linear_enum,
+					lle_base);
+		linear_populate(lin_enum, attr);
+		C2_POST(linear_invariant_internal(lin_enum));
 		*out = lin_enum;
-		C2_POST(linear_enum_invariant_internal(lin_enum));
 	}
-
-	C2_LEAVE("rc %d", rc);
 	return rc;
 }
 
@@ -131,7 +158,7 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
  */
 void c2_linear_enum_fini(struct c2_layout_linear_enum *e)
 {
-	C2_PRE(linear_enum_invariant_internal(e));
+	C2_PRE(linear_invariant_internal(e));
 	C2_PRE(e->lle_base.le_sl == NULL);
 
 	e->lle_base.le_ops->leo_fini(&e->lle_base);
@@ -143,7 +170,7 @@ static struct c2_layout_linear_enum
 	struct c2_layout_linear_enum *lin_enum;
 
 	lin_enum = container_of(e, struct c2_layout_linear_enum, lle_base);
-	C2_ASSERT(linear_enum_invariant(lin_enum));
+	C2_ASSERT(linear_invariant(lin_enum));
 	return lin_enum;
 }
 
@@ -200,43 +227,34 @@ static c2_bcount_t linear_max_recsize(void)
  * Reads linear enumeration type specific attributes from the buffer into
  * the c2_layout_linear_enum::c2_layout_linear_attr object.
  */
-static int linear_decode(struct c2_layout_domain *dom,
-			 uint64_t lid,
+static int linear_decode(struct c2_striped_layout *stl,
 			 enum c2_layout_xcode_op op,
 			 struct c2_db_tx *tx,
 			 struct c2_bufvec_cursor *cur,
-			 struct c2_layout_enum **out)
+			 struct c2_layout_enum *e)
 {
-	struct c2_layout_linear_enum *lin_enum = NULL;
+	uint64_t                      lid;
+	struct c2_layout_linear_enum *lin_enum;
 	struct c2_layout_linear_attr *lin_attr;
-	int                           rc;
 
-	C2_PRE(c2_layout__domain_invariant(dom));
-	C2_PRE(lid != LID_NONE);
+	C2_PRE(c2_layout__striped_allocated_invariant(stl));
 	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *lin_attr);
-	C2_PRE(out != NULL);
+	C2_PRE(e != NULL);
 
+	lid = stl->sl_base.l_id;
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
+	lin_enum = container_of(e, struct c2_layout_linear_enum, lle_base);
+	C2_ASSERT(linear_allocated_invariant(lin_enum));
+
 	lin_attr = c2_bufvec_cursor_addr(cur);
-	C2_ASSERT(lin_attr != NULL);
-
-	rc = c2_linear_enum_build(dom, lin_attr->lla_nr, lin_attr->lla_A,
-				  lin_attr->lla_B, &lin_enum);
-	if (rc != 0) {
-		C2_LOG("lid %llu, c2_linear_enum_build() failed, rc %d",
-		       (unsigned long long)lid, rc);
-		goto out;
-	}
-
-	*out = &lin_enum->lle_base;
-	C2_POST(linear_enum_invariant_internal(lin_enum));
-out:
-	C2_LEAVE("rc %d", rc);
-	return rc;
+	linear_populate(lin_enum, lin_attr);
+	C2_POST(linear_invariant_internal(lin_enum));
+	C2_LEAVE("lid %llu", (unsigned long long)lid);
+	return 0;
 }
 
 /**
@@ -355,6 +373,7 @@ static const struct c2_layout_enum_type_ops linear_type_ops = {
 	.leto_register    = linear_register,
 	.leto_unregister  = linear_unregister,
 	.leto_max_recsize = linear_max_recsize,
+	.leto_allocate    = linear_allocate,
 	.leto_decode      = linear_decode,
 	.leto_encode      = linear_encode
 };
