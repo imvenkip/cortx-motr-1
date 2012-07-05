@@ -428,9 +428,7 @@ static int pdclust_register(struct c2_layout_domain *dom,
 	return 0;
 }
 
-/**
- * Implementation of lto_unregister for PDCLUST layout type.
- */
+/** Implementation of lto_unregister for PDCLUST layout type. */
 static void pdclust_unregister(struct c2_layout_domain *dom,
 			       const struct c2_layout_type *lt)
 {
@@ -438,9 +436,7 @@ static void pdclust_unregister(struct c2_layout_domain *dom,
 
 static const struct c2_layout_ops pdclust_ops;
 
-/**
- * Implementation of lto_allocate() for pdclust layout type.
- */
+/** Implementation of lto_allocate() for PDCLUST layout type. */
 static int pdclust_allocate(struct c2_layout_domain *dom,
 			    uint64_t lid,
 			    struct c2_layout **out)
@@ -469,6 +465,19 @@ static int pdclust_allocate(struct c2_layout_domain *dom,
 	C2_LEAVE("lid %llu, pdclust pointer %p",
 		 (unsigned long long)lid, pdl);
 	return 0;
+}
+
+/** Implementation of lo_delete() for PDCLUST layout type. */
+static void pdclust_delete(struct c2_layout *l)
+{
+	struct c2_pdclust_layout *pdl;
+
+	C2_PRE(c2_layout__allocated_invariant(l));
+	pdl = container_of(l, struct c2_pdclust_layout, pl_base.sl_base);
+	C2_ASSERT(pdclust_allocated_invariant(pdl));
+	c2_layout__striped_delete(&pdl->pl_base);
+	c2_free(pdl);
+	C2_LEAVE();
 }
 
 /**
@@ -830,6 +839,7 @@ static int pdclust_encode(struct c2_layout *l,
 
 static const struct c2_layout_ops pdclust_ops = {
 	.lo_fini        = pdclust_fini,
+	.lo_delete      = pdclust_delete,
 	.lo_recsize     = pdclust_recsize,
 };
 

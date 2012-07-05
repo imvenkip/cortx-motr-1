@@ -343,6 +343,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"  /* memset() */
 #include "lib/vec.h"   /* C2_BUFVEC_INIT_BUF() */
+#include "lib/finject.h"
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
@@ -528,25 +529,6 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 
 	c2_mutex_lock(&dom->ld_schema.ls_lock);
 
-	max_recsize = c2_layout_max_recsize(dom);
-	recsize = pair->dp_rec.db_buf.b_nob <= max_recsize ?
-		  pair->dp_rec.db_buf.b_nob : max_recsize;
-
-	*(uint64_t *)key_buf = lid;
-	memset(rec_buf, 0, pair->dp_rec.db_buf.b_nob);
-	c2_db_pair_setup(pair, &dom->ld_schema.ls_layouts,
-			 key_buf, sizeof lid, rec_buf, recsize);
-
-	rc = c2_table_lookup(tx, pair);
-	if (rc != 0) {
-		c2_layout__log("c2_layout_lookup", "c2_table_lookup() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
-			       &layout_lookup_fail, &layout_global_ctx,
-			       lid, rc);
-		goto out;
-	}
-
-	/* todo Move this before c2_table_lookup() */
 	rc = lt->lt_ops->lto_allocate(dom, lid, &l);
 	if (rc != 0) {
 		c2_layout__log("c2_layout_lookup", "lto_allocate() failed",
@@ -560,19 +542,37 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 
 	C2_ASSERT(c2_layout__allocated_invariant(l)); //todo remove
 
-	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&rec_buf, &recsize);
-	c2_bufvec_cursor_init(&cur, &bv);
+	max_recsize = c2_layout_max_recsize(dom);
+	recsize = pair->dp_rec.db_buf.b_nob <= max_recsize ?
+		  pair->dp_rec.db_buf.b_nob : max_recsize;
 
-	rc = c2_layout_decode(C2_LXO_DB_LOOKUP, tx, &cur, l);
+	*(uint64_t *)key_buf = lid;
+	memset(rec_buf, 0, pair->dp_rec.db_buf.b_nob);
+	c2_db_pair_setup(pair, &dom->ld_schema.ls_layouts,
+			 key_buf, sizeof lid, rec_buf, recsize);
+
+	rc = c2_table_lookup(tx, pair);
 	if (rc != 0) {
-		//todo lt->lt_ops->lto_delete(l);
-		c2_layout__log("c2_layout_lookup", "c2_layout_decode() failed",
+		l->l_ops->lo_delete(l); //todo
+		c2_layout__log("c2_layout_lookup", "c2_table_lookup() failed",
 			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &layout_lookup_fail, &layout_global_ctx,
 			       lid, rc);
 		goto out;
 	}
 
+	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&rec_buf, &recsize);
+	c2_bufvec_cursor_init(&cur, &bv);
+
+	rc = c2_layout_decode(C2_LXO_DB_LOOKUP, tx, &cur, l);
+	if (rc != 0) {
+		l->l_ops->lo_delete(l);
+		c2_layout__log("c2_layout_lookup", "c2_layout_decode() failed",
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
+			       &layout_lookup_fail, &layout_global_ctx,
+			       lid, rc);
+		goto out;
+	}
 	*out = l;
 out:
 	c2_db_pair_fini(pair);

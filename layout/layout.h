@@ -230,6 +230,13 @@ struct c2_layout_ops {
 	void        (*lo_fini)(struct c2_layout *l);
 
 	/**
+	 * Finalises the layout object that is only allocated and not
+	 * populated. Since it is not populated, it does not contain
+	 * enumeration object.
+	 */
+	void        (*lo_delete)(struct c2_layout *l);
+
+	/**
 	 * Returns size of the layout type specific and enum type specific data
 	 * stored in the "layouts" (primary) table, for the specified layout.
 	 * @invariant l->l_ops->lo_recsize(l)

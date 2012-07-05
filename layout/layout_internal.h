@@ -84,20 +84,21 @@ void c2_layout__init(struct c2_layout_domain *dom,
 		     uint64_t lid,
 		     struct c2_layout_type *type,
 		     const struct c2_layout_ops *ops);
+void c2_layout__fini(struct c2_layout *l);
 void c2_layout__populate(struct c2_layout *l,
 			 uint64_t pool_id);
-void c2_layout__fini(struct c2_layout *l);
-
+void c2_layout__delete(struct c2_layout *l);
 
 void c2_layout__striped_init(struct c2_layout_domain *dom,
 			     struct c2_striped_layout *stl,
 			     uint64_t lid,
 			     struct c2_layout_type *type,
 			     const struct c2_layout_ops *ops);
+void c2_layout__striped_fini(struct c2_striped_layout *stl);
 void c2_layout__striped_populate(struct c2_striped_layout *str_l,
 				 uint64_t pool_id,
 				 struct c2_layout_enum *e);
-void c2_layout__striped_fini(struct c2_striped_layout *stl);
+void c2_layout__striped_delete(struct c2_striped_layout *stl);
 
 void c2_layout__enum_init(struct c2_layout_domain *dom,
 			  struct c2_layout_enum *le,

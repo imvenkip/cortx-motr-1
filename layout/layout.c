@@ -78,6 +78,7 @@
 #include "lib/misc.h"   /* strlen(), C2_IN() */
 #include "lib/vec.h"    /* c2_bufvec_cursor_step(), c2_bufvec_cursor_addr() */
 #include "lib/bob.h"
+#include "lib/finject.h"
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
@@ -165,7 +166,6 @@ static bool layout_invariant_internal(const struct c2_layout *l)
 		l->l_type != NULL &&
 		l->l_dom->ld_type[l->l_type->lt_id] == l->l_type &&
 		c2_layout__domain_invariant(l->l_dom) &&
-		l->l_ref >= DEFAULT_REF_COUNT &&
 		l->l_ops != NULL;
 }
 
@@ -173,14 +173,16 @@ bool c2_layout__allocated_invariant(const struct c2_layout *l)
 {
 	return
 		layout_invariant_internal(l) &&
-		l->l_pool_id == 0;
+		l->l_pool_id == 0 &&
+		l->l_ref == DEFAULT_REF_COUNT;
 }
 
 bool c2_layout__invariant(const struct c2_layout *l)
 {
 	return
 		layout_invariant_internal(l) &&
-		c2_pool_id_is_valid(l->l_pool_id);
+		c2_pool_id_is_valid(l->l_pool_id) &&
+		l->l_ref >= DEFAULT_REF_COUNT;
 }
 
 bool c2_layout__enum_invariant(const struct c2_layout_enum *le)
@@ -396,6 +398,25 @@ void c2_layout__populate(struct c2_layout *l,
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
 
+void c2_layout__fini_internal(struct c2_layout *l)
+{
+	c2_addb_ctx_fini(&l->l_addb);
+	c2_mutex_fini(&l->l_lock);
+	layout_type_put(l->l_type);
+	l->l_type = NULL;
+	c2_layout_bob_fini(l);
+}
+
+void c2_layout__delete(struct c2_layout *l)
+{
+	C2_PRE(c2_layout__allocated_invariant(l));
+	C2_PRE(c2_layout_find(l->l_dom, l->l_id) == NULL); //todo
+
+	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
+	c2_layout__fini_internal(l);
+	C2_LEAVE();
+}
+
 /** Finalises a layout, releases a reference on the respective layout type. */
 void c2_layout__fini(struct c2_layout *l)
 {
@@ -404,11 +425,7 @@ void c2_layout__fini(struct c2_layout *l)
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	layout_tlink_fini(l);
-	c2_addb_ctx_fini(&l->l_addb);
-	c2_mutex_fini(&l->l_lock);
-	layout_type_put(l->l_type);
-	l->l_type = NULL;
-	c2_layout_bob_fini(l);
+	c2_layout__fini_internal(l);
 	C2_LEAVE();
 }
 
@@ -427,6 +444,7 @@ void c2_layout__striped_init(struct c2_layout_domain *dom,
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 	c2_layout__init(dom, &stl->sl_base, lid, type, ops);
+	/* stl->sl_enum will be set through c2_layout__striped_populate(). */
 	stl->sl_enum = NULL;
 	C2_POST(c2_layout__striped_allocated_invariant(stl));
 	C2_LEAVE("lid %llu", (unsigned long long)lid);
@@ -465,6 +483,15 @@ void c2_layout__striped_populate(struct c2_striped_layout *str_l,
 	C2_LEAVE("lid %llu", (unsigned long long)str_l->sl_base.l_id);
 }
 
+void c2_layout__striped_delete(struct c2_striped_layout *stl)
+{
+	C2_PRE(c2_layout__striped_allocated_invariant(stl));
+
+	C2_ENTRY("lid %llu", (unsigned long long)stl->sl_base.l_id);
+	c2_layout__delete(&stl->sl_base);
+	C2_LEAVE("lid %llu", (unsigned long long)stl->sl_base.l_id);
+}
+
 /**
  * Finalises a striped layout object.
  * @post The enum object which is part of striped layout object, is finalised
@@ -475,10 +502,8 @@ void c2_layout__striped_fini(struct c2_striped_layout *str_l)
 	C2_PRE(c2_layout__striped_invariant(str_l));
 
 	C2_ENTRY("lid %llu", (unsigned long long)str_l->sl_base.l_id);
-
 	str_l->sl_enum->le_ops->leo_fini(str_l->sl_enum);
 	c2_layout__fini(&str_l->sl_base);
-
 	C2_LEAVE("lid %llu", (unsigned long long)str_l->sl_base.l_id);
 }
 
@@ -498,7 +523,7 @@ void c2_layout__enum_init(struct c2_layout_domain *dom,
 	C2_PRE(ops != NULL);
 
 	C2_ENTRY("Enum-type-id %lu", (unsigned long)et->let_id);
-	/* le->le_sl will be set through c2_layout__striped_init(). */
+	/* le->le_sl will be set through c2_layout__striped_populate(). */
 	le->le_sl = NULL;
 	le->le_ops = ops;
 	enum_type_get(et);
@@ -1131,6 +1156,10 @@ int c2_layout_decode(enum c2_layout_xcode_op op,
 	C2_PRE(c2_layout_find(l->l_dom, l->l_id) == NULL); //todo
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
+
+	if (C2_FI_ENABLED("c2_l_decode_error_in_c2_l_lookup"))
+		return -1;
+
 	lt = l->l_type;
 	rec = c2_bufvec_cursor_addr(cur);
 	C2_ASSERT(rec_invariant(rec, l->l_dom)); //todo get rid of rec_invariant
@@ -1156,6 +1185,9 @@ int c2_layout_decode(enum c2_layout_xcode_op op,
 
 	/* todo NA - Following fields are set through c2_layout__init(). */
 	C2_ASSERT(l->l_pool_id == rec->lr_pool_id); //todo
+
+	/* todo Pass l_ref to lto_decode() in the form of l_attr so that
+	 * l can be populated with it through ..striped_populate(). */
 
 	/*
 	 * l_ref is the only field that can get updated for a layout object

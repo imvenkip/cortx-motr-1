@@ -66,6 +66,7 @@ enum {
 	MORE_THAN_INLINE         = 3,
 	EXISTING_TEST            = true,
 	DUPLICATE_TEST           = true,
+	FAILURE_TEST             = true,
 	LAYOUT_DESTROY           = true
 };
 
@@ -2138,7 +2139,8 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 /* Tests the API c2_layout_lookup(), for the PDCLUST layout type. */
 static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 			       bool existing_test,
-			       uint32_t inline_test)
+			       uint32_t inline_test,
+			       bool failure_test)
 {
 	c2_bcount_t        num_bytes;
 	void              *area;
@@ -2161,7 +2163,8 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 				      DUPLICATE_TEST,
 				      !LAYOUT_DESTROY, &l1);
 		C2_UT_ASSERT(rc == 0);
-		pdclust_layout_copy(enum_id, l1, &l1_copy);
+		if (!failure_test)
+			pdclust_layout_copy(enum_id, l1, &l1_copy);
 
 		/* Destroy the layout object. */
 		c2_layout_get(l1);
@@ -2181,8 +2184,9 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 
 	rc = c2_layout_lookup(&domain, lid, &c2_pdclust_layout_type,
 			      &tx, &pair, &l2);
-
-	if (existing_test)
+	if (failure_test)
+		C2_UT_ASSERT(rc == -1);
+	else if (existing_test)
 		C2_UT_ASSERT(rc == 0);
 	else
 		C2_UT_ASSERT(rc == -ENOENT);
@@ -2191,7 +2195,7 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 	C2_UT_ASSERT(rc == 0);
 
 	/* Destory the layout object. */
-	if (existing_test) {
+	if (existing_test && !failure_test) {
 		C2_UT_ASSERT(c2_layout_find(&domain, lid) == l2);
 		pdclust_layout_compare(enum_id, l1_copy, l2);
 		pdclust_layout_copy_delete(enum_id, l1_copy);
@@ -2201,9 +2205,7 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 		c2_layout_put(l2);
 		C2_UT_ASSERT(c2_layout_find(&domain, lid) == NULL);
 	}
-
 	c2_free(area);
-
 	C2_LEAVE();
 	return rc;
 }
@@ -2220,7 +2222,8 @@ static void test_lookup(void)
 	lid = 9001;
 	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
 				 !EXISTING_TEST,
-				 MORE_THAN_INLINE);
+				 MORE_THAN_INLINE,
+				 !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -2231,7 +2234,8 @@ static void test_lookup(void)
 	lid = 9002;
 	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
-				 LESS_THAN_INLINE);
+				 LESS_THAN_INLINE,
+				 !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -2243,7 +2247,8 @@ static void test_lookup(void)
 	lid = 9003;
 	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
-				 EXACT_INLINE);
+				 EXACT_INLINE,
+				 !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -2254,7 +2259,8 @@ static void test_lookup(void)
 	lid = 9004;
 	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
-				 MORE_THAN_INLINE);
+				 MORE_THAN_INLINE,
+				 !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -2264,7 +2270,8 @@ static void test_lookup(void)
 	lid = 9005;
 	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
 				 !EXISTING_TEST,
-				 MORE_THAN_INLINE);
+				 MORE_THAN_INLINE,
+				 !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -2274,7 +2281,8 @@ static void test_lookup(void)
 	lid = 9006;
 	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
 				 !EXISTING_TEST,
-				 INLINE_NOT_APPLICABLE);
+				 INLINE_NOT_APPLICABLE,
+				 !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -2284,7 +2292,40 @@ static void test_lookup(void)
 	lid = 9007;
 	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
 				 EXISTING_TEST,
-				 INLINE_NOT_APPLICABLE);
+				 INLINE_NOT_APPLICABLE,
+				 !FAILURE_TEST);
+	C2_UT_ASSERT(rc == 0);
+
+	/*
+	 * Add a layout object with PDCLUST layout type and LINEAR enum type.
+	 * Then simulate error that c2_layout_decode() invoked through
+	 * c2_layout_lookup() has failed.
+	 */
+	lid = 9008;
+	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
+				 EXISTING_TEST,
+				 INLINE_NOT_APPLICABLE,
+				 !FAILURE_TEST);
+	C2_UT_ASSERT(rc == 0);
+}
+
+/* Tests the API c2_layout_lookup(). */
+static void test_lookup_failure(void)
+{
+	uint64_t lid;
+
+	/*
+	 * Add a layout object with PDCLUST layout type and LINEAR enum type.
+	 * Then simulate error that c2_layout_decode() invoked through
+	 * c2_layout_lookup() has failed.
+	 */
+	lid = 9009;
+	c2_fi_enable_once("c2_layout_decode",
+			  "c2_l_decode_error_in_c2_l_lookup");
+	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
+				 EXISTING_TEST,
+				 INLINE_NOT_APPLICABLE,
+				 FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 }
 
@@ -2781,10 +2822,11 @@ const struct c2_test_suite layout_ut = {
 		{ "layout-max-recsize", test_max_recsize },
 #ifndef __KERNEL__
 		{ "layout-recsize", test_recsize },
-                { "layout-lookup", test_lookup },
-                { "layout-add", test_add },
-                { "layout-update", test_update },
-                { "layout-delete", test_delete },
+		{ "layout-lookup", test_lookup },
+		{ "layout-lookup-failure", test_lookup_failure },
+		{ "layout-add", test_add },
+		{ "layout-update", test_update },
+		{ "layout-delete", test_delete },
 #endif
 		{ NULL, NULL }
 	}

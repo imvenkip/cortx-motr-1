@@ -33,9 +33,7 @@ struct composite_schema_data {
 	struct c2_emap csd_comp_layout_ext_map;
 };
 
-/**
- * Prefix for comp_layout_ext_map table.
- */
+/** Prefix for comp_layout_ext_map table. */
 struct layout_prefix {
 	/**
 	 * Layout id for the composite layout.
@@ -65,6 +63,19 @@ void c2_composite_build(struct c2_layout_domain *dom,
 
 /** Implementation of lo_fini for COMPOSITE layout type. */
 static void composite_fini(struct c2_layout *l)
+{
+}
+
+/* Implementation of lto_allocate for COMPOSITE layout type. */
+static int composite_allocate(struct c2_layout_domain *dom,
+			      uint64_t lid,
+			      struct c2_layout **out)
+{
+	return 0;
+}
+
+/** Implementation of lo_delete for COMPOSITE layout type. */
+static void composite_delete(struct c2_layout *l)
 {
 }
 
@@ -115,9 +126,7 @@ static void composite_unregister(struct c2_layout_domain *dom,
 	*/
 }
 
-/**
- * Implementation of lto_max_recsize() for COMPOSITE layout type.
- */
+/** Implementation of lto_max_recsize() for COMPOSITE layout type. */
 static c2_bcount_t composite_max_recsize(struct c2_layout_domain *dom)
 {
 	return 0;
@@ -212,6 +221,7 @@ static int composite_encode(struct c2_layout *l,
 
 static const struct c2_layout_ops composite_ops = {
 	.lo_fini        = composite_fini,
+	.lo_delete      = composite_delete,
 	.lo_recsize     = composite_recsize
 };
 
@@ -219,6 +229,7 @@ static const struct c2_layout_type_ops composite_type_ops = {
 	.lto_register    = composite_register,
 	.lto_unregister  = composite_unregister,
 	.lto_max_recsize = composite_max_recsize,
+	.lto_allocate    = composite_allocate,
 	.lto_decode      = composite_decode,
 	.lto_encode      = composite_encode,
 };
