@@ -30,7 +30,7 @@
    @addtogroup rm
    @{
  */
-extern uint64_t node_gencount;
+uint64_t node_gencount;
 struct owner_invariant_state;
 extern void c2_cookie_copy(struct c2_rm_cookie *dst, const struct c2_rm_cookie *src);
 
@@ -492,6 +492,7 @@ static int rights_integrate(struct c2_rm_incoming *in,
 
 	if (result == 0) {
 		c2_tlist_for(&pi_tl, &in->rin_pins, pin) {
+			right = pin->rp_right;
 			pin_del(pin);
 			ur_tlink_del_fini(right);
 			c2_rm_right_fini(right);
@@ -597,7 +598,7 @@ int c2_rm_revoke_commit(struct c2_rm_remote_incoming *rvk)
 		c2_free(old_loan);
 	}
 
-	c2_rm_right_fini(&brwd_right);	
+	c2_rm_right_fini(&brwd_right);
 	owner_invariant(owner);
  	return result;
 }
@@ -860,8 +861,6 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 				return result;
 		} c2_tlist_endfor;
 	}
-
-	//C2_ASSERT(ergo(in->rin_type == RIT_REVOKE, right_is_empty(rest)));
 
 	if (!right_is_empty(rest)) {
 		if (o->ro_creditor != NULL) {
@@ -1580,10 +1579,28 @@ struct c2_rm_owner *c2_rm_owner_find(const struct c2_rm_cookie *cookie)
 
 	if(!cookie_stale(cookie->cv.u_hi))
 		owner = (struct c2_rm_owner *)cookie->cv.u_lo;
-		
+
 	return owner;
 }
 C2_EXPORTED(c2_rm_owner_find);
+
+/*
+ * Get the loan address from a cookie.
+ * The function will return an error of cookie is stale.
+ * The lower 64 bits is the address of the owner structure.
+ */
+struct c2_rm_loan *c2_rm_loan_find(const struct c2_rm_cookie *cookie)
+{
+	struct c2_rm_loan *loan = NULL;
+
+	C2_PRE(cookie != NULL);
+
+	if(!cookie_stale(cookie->cv.u_hi))
+		loan = (struct c2_rm_loan *)cookie->cv.u_lo;
+
+	return loan;
+}
+C2_EXPORTED(c2_rm_loan_find);
 
 void c2_rm_owner_cookie_get(const struct c2_rm_owner *owner,
 			    struct c2_rm_cookie *cookie)
@@ -1614,7 +1631,7 @@ int c2_rm_rdatum2buf(struct c2_rm_right *right,
 	*buf = c2_alloc(*bytesnr);
 	if (*buf == NULL)
 		return -ENOMEM;
-	
+
 	c2_bufvec_cursor_init(&cursor, &datum_buf);
 	return right->ri_ops->rro_encode(right, &cursor);
 }

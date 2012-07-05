@@ -25,7 +25,7 @@
 #include "fop/fop_iterator.h"
 #include "rm_fops.h"
 #include "xcode/bufvec_xcode.h"
-#include "rpc/rpc_base.h"
+#include "rpc/item.h"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpc2.h"
 #include "rm/rm.h"
@@ -145,12 +145,11 @@ int c2_rm_borrow_out(struct c2_rm_incoming *in,
 	bfop->bo_debtor.ow_cookie.co_hi = dcookie.cv.u_hi;
 	bfop->bo_debtor.ow_cookie.co_lo = dcookie.cv.u_lo;
 
-	//c2_rm_loan_cookie_get(outreq->rog_want, &bfop->bo_loan.ow_cookie);
 	/*
 	 * Encode rights data into BORROW FOP
 	 */
 	rc = c2_rm_rdatum2buf(right,
-			      (void **)&bfop->bo_right.ri_opaque.op_bytes, 
+			      (void **)&bfop->bo_right.ri_opaque.op_bytes,
 			      &bfop->bo_right.ri_opaque.op_nr);
 	if (rc != 0)
 		return rc;
@@ -253,7 +252,7 @@ int c2_rm_revoke_out(struct c2_rm_incoming *in,
 	 * Encode rights data into REVOKE FOP
 	 */
 	rc = c2_rm_rdatum2buf(right,
-			      (void **)&rfop->rr_right.ri_opaque.op_bytes, 
+			      (void **)&rfop->rr_right.ri_opaque.op_bytes,
 			      &rfop->rr_right.ri_opaque.op_nr);
 	if (rc != 0)
 		return rc;

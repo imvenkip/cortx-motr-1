@@ -119,7 +119,7 @@ static int request_fom_create(enum c2_rm_incoming_type type,
 		fom_ops = &rm_fom_revoke_ops;
 		break;
 	default:
-		C2_IMPOSSIBLE("Unrecognized RM request");
+		C2_IMPOSSIBLE("Unrecognised RM request");
 		break;
 	}
 
@@ -337,7 +337,7 @@ static int request_pre_process(struct c2_fom *fom,
 	 */
 	fom->fo_phase = next_phase;
 	if (in->rin_state == RI_WAIT) {
-		c2_fom_block_at(fom, &in->rin_signal);
+		c2_fom_wait_on(fom, &in->rin_signal, NULL);
 	}
 	return C2_FSO_WAIT;
 }

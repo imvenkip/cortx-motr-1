@@ -594,8 +594,9 @@ struct c2_rm_remote {
         /** A channel to signal state changes. */
         struct c2_chan           rem_signal;
         /** A service to be contacted to talk with the remote owner. Valid in
-            states starting from REM_SERVICE_LOCATED. */
+            states starting from REM_SERVICE_LOCATED.
         struct c2_service_id     rem_service;
+	*/
 	/**
 	   A linkage into the list of remotes for a given resource hanging off
 	   c2_rm_resource::r_remote.
@@ -1552,9 +1553,9 @@ int c2_rm_net_locate(struct c2_rm_right *right, struct c2_rm_remote *other);
 
    @pre  rem->rem_state < REM_SERVICE_LOCATED
    @post rem->rem_state == REM_SERVICE_LOCATED
- */
 void c2_rm_remote_service_set(struct c2_rm_remote *rem,
 			      struct c2_service_id *sid);
+*/
 /**
    Assigns an owner id to a given remote.
 
