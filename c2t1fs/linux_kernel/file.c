@@ -96,7 +96,7 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    <hr>
    @section rmw-ovw Overview
 
-   The read-modify-write feature provides support to do partial stripe
+   The read-modify-write feature provides support to do partial parity group
    IO requests on a Colibri client.
 
    Colibri uses notion of layout to represent how file data is spread
@@ -104,23 +104,22 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    layout independent code for IO requests. Using layouts, multiple RAID
    patterns like RAID5, parity declustered RAID can be supported.
 
-   Often, incoming IO requests do not span whole stripe of file data.
-   The file data for such partial stripe requests have to be read first
-   so that whole stripe is available with client, then the stripe data
-   is changed as per user request and later sent for write to the server.
+   Often, incoming IO requests do not span whole parity group of file data.
+   The file data for such partial parity group requests have to be read first
+   so that whole group is available with client, then data is changed
+   as per user request and later sent for write to the server.
 
    <hr>
    @section rmw-def Definitions
    c2t1fs - Colibri client file system.
    layout - A map which decides how to distribute file data over a number
             of objects.
-   stripe - A unit of IO request which spans all data units in a parity group.
 
    <hr>
    @section rmw-req Requirements
 
    - @b R.c2t1fs.rmw_io.rmw The implementation shall provide support for
-   partial stripe IO requests.
+   partial parity group IO requests.
    - @b R.c2t1fs.rmw_io.efficient The implementation shall provide efficient
    way of implementing IO requests. Since Colibri follows async nature of APIs
    as far as possible, the implementation will stick to async APIs and shall
@@ -136,19 +135,20 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    @section rmw-highlights Design Highlights
 
    - The IO path from c2t1fs code will have a check which will find out if
-   incoming IO request is a partial stripe IO.
-   - In case of partial stripe IO request, a read request will be issued
+   incoming IO request is a partial parity group IO.
+   - In case of partial parity group IO request, a read request will be issued
    if given extent falls within end-of-file. The read request will be issued
    on the concerned parity group and will wait for completion.
    - Once read IO is complete, changes will be made to the data buffers
    (typically these are pages from page cache).
-   - And then write requests will be dispatched for the whole stripe.
+   - And then write requests will be dispatched for the whole parity group.
 
    <hr>
    @section rmw-lspec Logical Specification
 
    - @ref rmw-lspec-comps
    - @ref rmw-lspec-sc1
+   - @ref rmw-lspec-smallIO
       - @ref rmw-lspec-ds1
       - @ref rmw-lspec-sub1
       - @ref rmwDFSInternal
@@ -181,16 +181,66 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    This DLD addresses only the rmw_io component.
 
    - The component will sit in the IO path of Colibri client code.
-   - It will detect if any incoming IO request spans a stripe only partially.
-   - In case of partial stripes, it issues an inline read request to read
-   the whole stripe and get the data in memory.
+   - It will detect if any incoming IO request spans a parity group only
+   partially.
+   - In case of partial groups, it issues an inline read request to read
+   the whole parity group and get the data in memory.
    - The thread is blocked until read IO is not complete.
    - If incoming IO request was read IO, the thread will be returned along
    with the status and number of bytes read.
    - If incoming IO request was write, the pages are modified in-place
    as per user request.
-   - And then, write IO is issued for the whole stripe.
+   - And then, write IO is issued for the whole parity group.
    - Completion of write IO will send the status back to the calling thread.
+
+   @subsection rmw-lspec-smallIO Small IO requests
+
+   For small IO requests which do not span even a single parity group
+   due to end-of-file occurring before parity group boundary,
+   - rest of the blocks are assumed to be zero filled and
+   - parity is calculated accordingly.
+
+   The read/write IO request made in such cases will still be multiple of
+   parity group width but eventually the status of original partial IO
+   request will count and will be returned to the caller.
+   The file size will be updated in file inode and will keep a check on
+   actual size even if whole parity group IO is done in such cases.
+
+   For instance, with configuration like
+   - stripe_width  = 12K
+   - unit_size     = 4K
+   - nr_data_units = 3
+
+   When a new file is written to with data worth 1K,
+
+   there will be
+   - 1 partial data unit and
+   - 2 missing data units
+   in the parity group.
+
+   Here, rest of the first unit (worth 3K) and the two whole units will be
+   zero filled, parity will be calculated with all units in parity group and
+   data from whole parity group will be written to the server.
+
+   While reading the same file back, IO request for the whole parity group will
+   be made since the whole parity group worth of data was written earlier
+   during the write() call for same file.
+
+   The seemingly obvious wastage of storage space in such cases can be
+   overcome by
+   - issuing IO requests _only_ for units which have at least a single byte
+   of valid file data and for parity units.
+   - the buffers which represent the missing data units in the parity group will
+   be zero filled in client itself.
+
+   Since sending network requests for IO is under control of client, these
+   changes can be accommodated for irrespective of layout type.
+
+   This way, the wastage of storage space in small IO can be restricted to
+   block granularity.
+
+   @todo In future, optimizations could be done in order speed up small file
+   IO with the help of client side cache.
 
    @note Present implementation of c2t1fs IO path uses get_user_pages() API
    to pin user-space pages in memory. This works just fine with page aligned
@@ -368,17 +418,17 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    An existing API io_req_spans_full_stripe() is reused to check if
    incoming IO request spans a full stripe or not.
 
-   The following API will change the stripe unaligned IO request to make it
-   align with stripe width. It will populate the auxiliary offset and count
-   fields so that further read/write IO will be done according to these
-   auxiliary IO extent. The cumulative count of auxiliary extent will always
-   be bigger than original extent. However, while returning from system call,
-   the number of bytes read/written will not exceed the size of original
-   IO extent.
+   The following API will change the parity group unaligned IO request
+   to make it align with parity group width. It will populate the
+   auxiliary offset and count fields so that further read/write IO
+   will be done according to these auxiliary IO extent.
+   The cumulative count of auxiliary extent will always be bigger than
+   original extent. However, while returning from system call, the number
+   of bytes read/written will not exceed the size of original IO extent.
 
    @see io_request_invariant()
    @param req IO request to be expanded so as to span one or multiple
-   full stripes.
+   full parity groups.
    @pre io_request_invariant() == true.
    @post req->ir_aux_offset != 0 && req->ir_aux_count != 0 &&
    @n req->ir_aux_count >= req->ir_desc.rd_count &&
@@ -541,7 +591,7 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    Reads given extent of file. Data read from server is kept into
    io_request::ir_desc::rd_buf_list. see @c2t1fs_buf.
    This API can also be used by a write request which needs to read first
-   due to its unaligned nature with stripe width.
+   due to its unaligned nature with parity group width.
    In such case, even if the state of struct io_request indicates IRS_READING
    or IRS_READ_COMPLETE, the io_req_type enum suggests it is a write request
    in first place.
@@ -556,8 +606,8 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 
    Make necessary preparations for a write IO request.
    This might involve issuing req->iro_readextent() request to read the
-   necessary file extent if the incoming IO request is not stripe aligned.
-   If the request is stripe aligned, no read IO is done.
+   necessary file extent if the incoming IO request is not parity group aligned.
+   If the request is parity group aligned, no read IO is done.
    Instead, file data is copied from user space to kernel space.
 
    @param req IO request to be issued.
@@ -760,10 +810,10 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    - @b I.c2t1fs.rmw_io.rmw The implementation uses an API
    io_req_spans_full_stripe() to find out if the incoming IO request
    would be read-modify-write IO. The IO extent is modified if the request
-   is unaligned with stripe width. The missing data will be read first
+   is unaligned with parity group width. The missing data will be read first
    from data server synchronously(later from client cache which is missing
    at the moment and then from data server). And then it will be modified
-   and send as a full stripe IO request.
+   and send as a full parity group IO request.
 
    - @b I.c2t1fs.rmw_io.efficient The implementation uses an asynchronous
    way of waiting for IO requests and does not send the requests one after
@@ -778,20 +828,20 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    @todo However, with all code in kernel and no present UT code for c2t1fs,
    it is still to be decided how to write UTs for this component.
 
-   @test Issue a full stripe size IO and check if it is successful. This
-   test case should assert that full stripe IO is intact with new changes.
+   @test Issue a full parity group size IO and check if it is successful. This
+   test case should assert that full parity group IO is intact with new changes.
 
-   @test Issue a partial stripe read IO and check if it successful. This
-   test case should assert the fact that partial stripe read IO is working
+   @test Issue a partial parity group read IO and check if it successful. This
+   test case should assert the fact that partial parity group read IO is working
    properly.
 
-   @test Issue a partial stripe write IO and check if it is successful.
-   This should confirm the fact that partial stripe write IO is working
+   @test Issue a partial parity group write IO and check if it is successful.
+   This should confirm the fact that partial parity group write IO is working
    properly.
 
    @test Write very small amount of data (10 - 20 bytes) to a newly created
    file and check if it is successful. This should stress 2 boundary conditions
-   - a partial stripe write IO request and
+   - a partial parity group write IO request and
    - unavailability of all data units in a parity group. In this case,
    the non-existing data units will be assumed as zero filled buffers and
    the parity will be calculated accordingly.
@@ -802,7 +852,7 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    <hr>
    @section rmw-st System Tests
 
-   A bash script will be written to send partial stripe IO requests in
+   A bash script will be written to send partial parity group IO requests in
    loop and check the results. This should do some sort of stress testing
    for the code.
 
