@@ -1,7 +1,7 @@
 rm_u.h rm_u.c: rm.ff \
+		  $(top_builddir)/fop/rt/libc2rt.la \
 		  $(top_builddir)/fop/fop2c
-		$(top_builddir)/fop/rt/libc2rt.la \
-		  $(top_builddir)/fop/fop2c -uk $<
+	$(top_builddir)/fop/fop2c -uk $<
 
 noinst_LTLIBRARIES       = libcolibri-rm.la
 #libcolibri_rm_la_SOURCES = rm.h rm.c rm_u.h rm_fops.h
