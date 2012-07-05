@@ -59,11 +59,9 @@
 #endif
 #endif
 
-#ifdef __KERNEL__
 /* see buf_desc_decode() and c2_net_test_network_bd_encode() */
 C2_BASSERT(sizeof(unsigned)	 == sizeof(uint32_t));
 C2_BASSERT(sizeof(unsigned long) == sizeof(c2_bcount_t));
-#endif
 
 enum {
 	C2_NET_TEST_STRLEN_NBD_HEADER = 32,
