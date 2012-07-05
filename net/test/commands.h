@@ -25,6 +25,7 @@
 #include "lib/semaphore.h"		/* c2_semaphore */
 
 #include "net/test/slist.h"		/* c2_net_test_slist */
+#include "net/test/ringbuf.h"		/* c2_net_test_ringbuf */
 #include "net/test/node_config.h"	/* c2_net_test_role */
 #include "net/test/network.h"		/* c2_net_test_network_ctx */
 
@@ -42,12 +43,6 @@ enum {
 	/** @todo 16k, change */
 	/** @todo send size, ack size, send command */
 	C2_NET_TEST_CMD_SIZE_MAX     = 16384,
-	/**
-	   c2_net_test_cmd.ntc_buf_status will be set to this value
-	   if buffer wasn't received within timeout from some endpoint
-	   from endpoints list.
-	 */
-	C2_NET_TEST_CMD_NOT_RECEIVED = -E2BIG,
 };
 
 /**
@@ -88,7 +83,7 @@ struct c2_net_test_cmd_init {
 	/** buffer size for bulk transfer */
 	c2_bcount_t		 ntci_bulk_size;
 	/** messages concurrency */
-	uint32_t		 ntci_concurrency;
+	size_t			 ntci_concurrency;
 	/** endpoints list */
 	struct c2_net_test_slist ntci_ep;
 };
@@ -111,6 +106,7 @@ struct c2_net_test_cmd {
 	/** command type */
 	enum c2_net_test_cmd_type ntc_type;
 	/** command structures */
+	/** @todo add others commands */
 	union {
 		struct c2_net_test_cmd_ack  ntc_ack;
 		struct c2_net_test_cmd_init ntc_init;
@@ -120,51 +116,102 @@ struct c2_net_test_cmd {
 	   Next fields will not be sent/received over the network.
 	   They are used for error reporting etc.
 	 */
-	/** last unsuccesful operation -errno */
-	int      ntc_errno;
-	/** buffer status, c2_net_buffer_event.nbe_status in buffer callback */
-	int      ntc_buf_status;
 	/**
-	   Do not send/receive this command.
-	   It is set on every succesful c2_net_test_commands_send() and
-	   c2_net_test_commands_wait() for command.
+	   Endpoint index in commands context.
+	   Set in c2_net_test_commands_recv().
+	   Used in c2_net_test_commands_send().
+	   Will be set to -1 in c2_net_test_commands_recv()
+	   if endpoint isn't present in commands context endpoints list.
 	 */
-	bool     ntc_disabled;
-	/** buffer index for c2_net_test_command_wait() */
-	uint32_t ntc_buf_index;
+	ssize_t ntc_ep_index;
+	/** buffer index. set in c2_net_test_commands_recv() */
+	size_t  ntc_buf_index;
 };
+
+struct c2_net_test_cmd_buf_status {
+	/**
+	   get() in message receive callback.
+	   put() in c2_net_test_commands_recv().
+	 */
+	struct c2_net_end_point *ntcbs_ep;
+	/** buffer status, c2_net_buffer_event.nbe_status in buffer callback */
+	int			 ntcbs_buf_status;
+	/** buffer was added to the receive queue */
+	bool			 ntcbs_in_recv_queue;
+};
+
+struct c2_net_test_cmd_ctx;
+
+/** 'Command sent' callback. */
+typedef void (*c2_net_test_commands_send_cb_t)(struct c2_net_test_cmd_ctx *ctx,
+					       size_t ep_index,
+					       int buf_status);
 
 /**
    Commands context.
  */
 struct c2_net_test_cmd_ctx {
 	/** network context for this command context */
-	struct c2_net_test_network_ctx	 ntcc_net;
-	/** array of commands */
-	struct c2_net_test_cmd		*ntcc_cmd;
+	struct c2_net_test_network_ctx	   ntcc_net;
+	/**
+	   Ring buffer for receive queue.
+	   c2_net_test_ringbuf_put() in message receive callback.
+	   c2_net_test_ringbuf_get() in c2_net_test_commands_recv().
+	 */
+	struct c2_net_test_ringbuf	   ntcc_rb;
 	/** number of commands in context */
-	uint32_t			 ntcc_cmd_nr;
+	size_t				   ntcc_ep_nr;
 	/** used while waiting for buffer operations completion */
-	struct c2_semaphore		 ntcc_sem;
+	/** @todo problem with semaphore max value can be here */
+	/**
+	   c2_semaphore_up() in message send callback.
+	   c2_semaphore_down() in c2_net_test_commands_send_wait_all().
+	 */
+	struct c2_semaphore		   ntcc_sem_send;
+	/**
+	   c2_semaphore_up() in message recv callback.
+	   c2_semaphore_timeddown() in c2_net_test_commands_recv().
+	 */
+	struct c2_semaphore		   ntcc_sem_recv;
+	/** Called from message send callback */
+	c2_net_test_commands_send_cb_t	   ntcc_send_cb;
+	/**
+	   Number of sent commands.
+	   Resets to 0 on every call to c2_net_test_commands_wait_all().
+	 */
+	struct c2_atomic64		   ntcc_send_nr;
+	/**
+	   Updated in message send/recv callbacks.
+	 */
+	struct c2_net_test_cmd_buf_status *ntcc_buf_status;
 };
 
 /**
-   Initialize network context to use with
-   c2_net_test_cmd_send()/c2_net_test_cmd_wait().
+   Initialize commands context.
    @param ctx commands context.
    @param cmd_ep endpoint for commands context.
-   @param timeout_send timeout for message sending.
-   @param timeout_recv timeout for message receing.
+   @param send_timeout timeout for message sending.
+   @param send_cb 'Command sent' callback. Can be NULL.
    @param ep_list endpoints list. Commands will be sent to/will be
 		  expected from endpoints from this list.
    @return 0 (success)
    @return -EEXIST ep_list contains two equal strings
    @return -errno (failure)
+   @note
+   - buffers for message sending/receiving will be allocated here,
+     two buffers per endpoint;
+   - all buffers will have C2_NET_TEST_CMD_SIZE_MAX size;
+   - all buffers for receiving commands will be added to receive queue here;
+   - buffers will not be automatically added to receive queue after
+     call to c2_net_test_commands_recv();
+   - c2_net_test_commands_recv() can allocate resources while decoding
+     command from buffer, so c2_net_test_received_free() must be called
+     for command after succesful c2_net_test_commads_recv().
  */
 int c2_net_test_commands_init(struct c2_net_test_cmd_ctx *ctx,
 			      char *cmd_ep,
-			      c2_time_t timeout_send,
-			      c2_time_t timeout_wait,
+			      c2_time_t send_timeout,
+			      c2_net_test_commands_send_cb_t send_cb,
 			      struct c2_net_test_slist *ep_list);
 void c2_net_test_commands_fini(struct c2_net_test_cmd_ctx *ctx);
 
@@ -175,35 +222,45 @@ void c2_net_test_commands_fini(struct c2_net_test_cmd_ctx *ctx);
 bool c2_net_test_commands_invariant(struct c2_net_test_cmd_ctx *ctx);
 
 /**
-   Send 'cmd' command to all endpoints from ctx. Block until MSG_SEND
-   callback called for all endpoints or until timeout.
-   @param ctx commands context.
-   @param cmd command to send. Can be NULL - in this case commands are
-	  taken from c2_net_test_cmd_ctx.ntcc_cmd, every command will be
-	  sent to the corresponding endpoint from ctx (i-th command to
-	  i-th endpoint).
-   @return number of successfully sent commands.
+   Send command.
+   @param ctx Commands context.
+   @param cmd Command to send. cmd->ntc_ep_index should be set to valid
+	      endpoint index in the commands context.
  */
-uint32_t c2_net_test_commands_send(struct c2_net_test_cmd_ctx *ctx,
-				   struct c2_net_test_cmd *cmd);
+int c2_net_test_commands_send(struct c2_net_test_cmd_ctx *ctx,
+			      struct c2_net_test_cmd *cmd);
+/**
+   Wait until all 'command send' callbacks executed for every sent command.
+ */
+void c2_net_test_commands_send_wait_all(struct c2_net_test_cmd_ctx *ctx);
 
 /**
-   Wait until command is received from all endpoints from ctx or until timeout.
-   @param ctx commands context.
-   @return number of successful received commands.
- */
-uint32_t c2_net_test_commands_wait(struct c2_net_test_cmd_ctx *ctx);
+   Receive command.
+   @param ctx Commands context.
+   @param cmd Received buffer will be decoded to this structure.
+	      c2_net_test_received_free() should be called for cmd to free
+	      resources that can be allocated while decoding.
+   @param deadline Functon will wait until deadline reached. Absolute time.
 
-/**
-   C2_SET0() for all c2_net_test_cmd in context.
+   @note cmd->ntc_buf_index will be set to buffer index with received command.
+   This buffer will be removed from receive queue and should be added using
+   c2_net_test_commands_recv_enqueue().
+   @see c2_net_test_commands_init().
  */
-void c2_net_test_commands_reset(struct c2_net_test_cmd_ctx *ctx);
-
+int c2_net_test_commands_recv(struct c2_net_test_cmd_ctx *ctx,
+			      struct c2_net_test_cmd *cmd,
+			      c2_time_t deadline);
 /**
-   Accessor to command by command index.
+   Add commands context buffer to commands receive queue.
+   @see c2_net_test_commands_recv().
  */
-struct c2_net_test_cmd *
-c2_net_test_command(struct c2_net_test_cmd_ctx *ctx, uint32_t index);
+int c2_net_test_commands_recv_enqueue(struct c2_net_test_cmd_ctx *ctx,
+				      size_t buf_index);
+/**
+   Free received command resources.
+   @see c2_net_test_commands_recv().
+ */
+void c2_net_test_received_free(struct c2_net_test_cmd *cmd);
 
 /**
    @} end NetTestCommandsDFS

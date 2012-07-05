@@ -744,6 +744,7 @@ c2_net_test_network_buf(struct c2_net_test_network_ctx *ctx,
 		&ctx->ntc_buf_ping[buf_index] : &ctx->ntc_buf_bulk[buf_index];
 }
 
+/** @todo isn't safe because net_test_buf_init() can fail */
 int c2_net_test_network_buf_resize(struct c2_net_test_network_ctx *ctx,
 				   enum c2_net_test_network_buf_type buf_type,
 				   uint32_t buf_index,

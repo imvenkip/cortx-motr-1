@@ -32,17 +32,6 @@
 
 #include "net/test/commands.h"
 
-/** @todo remove */
-#ifndef __KERNEL__
-#include <stdio.h>		/* printf */
-#endif
-
-#ifndef __KERNEL__
-#define LOGD(format, ...) printf(format, ##__VA_ARGS__)
-#else
-#define LOGD(format, ...) do {} while (0)
-#endif
-
 /**
    @defgroup NetTestCommandsInternals Colibri Network Bencmark \
 				    Commands Internals
@@ -52,35 +41,6 @@
 
    @{
  */
-
-static struct c2_net_test_cmd_ctx *
-cmd_ctx_extract(struct c2_net_test_network_ctx *net_ctx)
-{
-	C2_PRE(net_ctx != NULL);
-
-	return container_of(net_ctx, struct c2_net_test_cmd_ctx, ntcc_net);
-}
-
-/**
-   Search for ep_addr in c2_net_test_cmd_ctx.ntcc_net->ntc_ep
-   This function have time complexity
-   of O(number of endpoints in the network context).
-   @return >= 0 endpoint index
-   @return UINT32_MAX endpoint not found
- */
-static int32_t ep_index(struct c2_net_test_cmd_ctx *ctx, const char *ep_addr)
-{
-	struct c2_net_end_point **ep_arr = ctx->ntcc_net.ntc_ep;
-	uint32_t		  ep_nr = ctx->ntcc_net.ntc_ep_nr;
-	int32_t			  i;
-	size_t			  addr_len = strlen(ep_addr);
-
-	C2_PRE(ep_nr < UINT32_MAX);
-	for (i = 0; i < ep_nr; ++i)
-		if (strncmp(ep_addr, ep_arr[i]->nep_addr, addr_len) == 0)
-			return i;
-	return UINT32_MAX;
-}
 
 /* c2_net_test_cmd_descr */
 TYPE_DESCR(c2_net_test_cmd) = {
@@ -161,21 +121,46 @@ static int cmd_xcode(enum c2_net_test_xcode_op op,
 
 	if (len == 0)
 		return -EINVAL;
-	len_total += len;
-	if (length != NULL)
-		*length = len_total;
 	return 0;
 }
 
 /**
-   Get encoded command length.
+   Free c2_net_test_cmd after succesful cmd_xcode(C2_NET_TEST_DECODE, ...).
  */
-static c2_bcount_t cmd_length(struct c2_net_test_cmd *cmd)
+static void cmd_free(struct c2_net_test_cmd *cmd)
 {
-	c2_bcount_t length;
+	C2_PRE(cmd != NULL);
 
-	return cmd_xcode(C2_NET_TEST_ENCODE, cmd, NULL, 0, &length) == 0 ?
-	       length : 0;
+	if (cmd->ntc_type == C2_NET_TEST_CMD_INIT)
+		c2_net_test_slist_fini(&cmd->ntc_init.ntci_ep);
+}
+
+static struct c2_net_test_cmd_ctx *
+cmd_ctx_extract(struct c2_net_test_network_ctx *net_ctx)
+{
+	C2_PRE(net_ctx != NULL);
+
+	return container_of(net_ctx, struct c2_net_test_cmd_ctx, ntcc_net);
+}
+
+/**
+   Search for ep_addr in c2_net_test_cmd_ctx.ntcc_net->ntc_ep
+   This function have time complexity
+   of O(number of endpoints in the network context).
+   @return >= 0 endpoint index
+   @return -1 endpoint not found
+ */
+static ssize_t ep_search(struct c2_net_test_cmd_ctx *ctx, const char *ep_addr)
+{
+	struct c2_net_end_point **ep_arr = ctx->ntcc_net.ntc_ep;
+	size_t			  ep_nr = ctx->ntcc_net.ntc_ep_nr;
+	size_t			  i;
+	size_t			  addr_len = strlen(ep_addr) + 1;
+
+	for (i = 0; i < ep_nr; ++i)
+		if (strncmp(ep_addr, ep_arr[i]->nep_addr, addr_len) == 0)
+			return i;
+	return -1;
 }
 
 static void commands_tm_event_cb(const struct c2_net_tm_event *ev)
@@ -189,27 +174,21 @@ static void commands_cb_msg_recv(struct c2_net_test_network_ctx *net_ctx,
 				 const struct c2_net_buffer_event *ev)
 {
 	struct c2_net_test_cmd_ctx *ctx = cmd_ctx_extract(net_ctx);
-	uint32_t cmd_index;
 
 	C2_PRE(c2_net_test_commands_invariant(ctx));
 	C2_PRE(q == C2_NET_QT_MSG_RECV);
 
-	LOGD("cb_msg_recv\n");
-	if (ev->nbe_status == 0) {
-		/* search for a command index */
-		cmd_index = ep_index(ctx, ev->nbe_ep->nep_addr);
-		/* message from some other endpoint. just ignore it */
-		/* @todo addb? */
-		if (cmd_index == UINT32_MAX) {
-			c2_net_test_network_msg_recv(&ctx->ntcc_net, buf_index);
-			return;
-		}
-		/* save buffer index and status */
-		ctx->ntcc_cmd[cmd_index].ntc_buf_index  = buf_index;
-		ctx->ntcc_cmd[cmd_index].ntc_buf_status = ev->nbe_status;
-	}
-	/* receiver will down this semaphore to wait for all callbacks */
-	c2_semaphore_up(&ctx->ntcc_sem);
+	/* save endpoint and buffer status */
+	if (ev->nbe_ep != NULL)
+		c2_net_end_point_get(ev->nbe_ep);
+	ctx->ntcc_buf_status[buf_index].ntcbs_ep = ev->nbe_ep;
+	ctx->ntcc_buf_status[buf_index].ntcbs_buf_status = ev->nbe_status;
+
+	/* put buffer to ringbuf */
+	c2_net_test_ringbuf_put(&ctx->ntcc_rb, buf_index);
+
+	/* c2_net_test_commands_recv() will down this semaphore */
+	c2_semaphore_up(&ctx->ntcc_sem_recv);
 }
 
 static void commands_cb_msg_send(struct c2_net_test_network_ctx *net_ctx,
@@ -222,12 +201,11 @@ static void commands_cb_msg_send(struct c2_net_test_network_ctx *net_ctx,
 	C2_PRE(c2_net_test_commands_invariant(ctx));
 	C2_PRE(q == C2_NET_QT_MSG_SEND);
 
-	LOGD("cb_msg_send\n");
-	/* a command index is equal to the buffer index buf_index */
-	/* save buffer status */
-	ctx->ntcc_cmd[buf_index].ntc_buf_status = ev->nbe_status;
-	/* sender will down this semaphore to wait for all callbacks */
-	c2_semaphore_up(&ctx->ntcc_sem);
+	/* invoke 'message sent' callback if it is present */
+	if (ctx->ntcc_send_cb != NULL)
+		ctx->ntcc_send_cb(ctx, buf_index, ev->nbe_status);
+
+	c2_semaphore_up(&ctx->ntcc_sem_send);
 }
 
 static void commands_cb_impossible(struct c2_net_test_network_ctx *ctx,
@@ -254,225 +232,258 @@ static const struct c2_net_test_network_buffer_callbacks commands_buffer_cb = {
 	}
 };
 
-int c2_net_test_commands_init(struct c2_net_test_cmd_ctx *ctx,
-			     char *cmd_ep,
-			     c2_time_t timeout_send,
-			     c2_time_t timeout_wait,
-			     struct c2_net_test_slist *ep_list)
+static int commands_recv_enqueue(struct c2_net_test_cmd_ctx *ctx,
+				 size_t buf_index)
 {
-	int				    rc;
-	int				    i;
+	int rc;
+
+	ctx->ntcc_buf_status[buf_index].ntcbs_in_recv_queue = true;
+	rc = c2_net_test_network_msg_recv(&ctx->ntcc_net, buf_index);
+	if (rc != 0)
+		ctx->ntcc_buf_status[buf_index].ntcbs_in_recv_queue = false;
+
+	return rc;
+}
+
+static void commands_recv_dequeue(struct c2_net_test_cmd_ctx *ctx,
+				  size_t buf_index)
+{
+	c2_net_test_network_buffer_dequeue(&ctx->ntcc_net, C2_NET_TEST_BUF_PING,
+					   buf_index);
+}
+
+static void commands_recv_ep_put(struct c2_net_test_cmd_ctx *ctx,
+				 size_t buf_index)
+{
+	if (ctx->ntcc_buf_status[buf_index].ntcbs_ep != NULL)
+		c2_net_end_point_put(ctx->ntcc_buf_status[buf_index].ntcbs_ep);
+}
+
+static bool is_buf_in_recv_q(struct c2_net_test_cmd_ctx *ctx,
+			  size_t buf_index)
+{
+	C2_PRE(buf_index < ctx->ntcc_ep_nr * 2);
+
+	return ctx->ntcc_buf_status[buf_index].ntcbs_in_recv_queue;
+}
+
+static void commands_recv_dequeue_nr(struct c2_net_test_cmd_ctx *ctx,
+				     size_t nr)
+{
+	size_t i;
+
+	/* remove recv buffers from queue */
+	for (i = 0; i < nr; ++i)
+		if (is_buf_in_recv_q(ctx, ctx->ntcc_ep_nr + i))
+			commands_recv_dequeue(ctx, ctx->ntcc_ep_nr + i);
+	/* wait until callbacks executed */
+	for (i = 0; i < nr; ++i)
+		if (is_buf_in_recv_q(ctx, ctx->ntcc_ep_nr + i))
+			c2_semaphore_down(&ctx->ntcc_sem_recv);
+	/* release endpoints */
+	for (i = 0; i < nr; ++i)
+		if (is_buf_in_recv_q(ctx, ctx->ntcc_ep_nr + i))
+			commands_recv_ep_put(ctx, ctx->ntcc_ep_nr + i);
+}
+
+static int commands_initfini(struct c2_net_test_cmd_ctx *ctx,
+			     char *cmd_ep,
+			     c2_time_t send_timeout,
+			     c2_net_test_commands_send_cb_t send_cb,
+			     struct c2_net_test_slist *ep_list,
+			     bool init)
+{
 	struct c2_net_test_network_timeouts timeouts;
+	int				    i;
+	int				    rc = -EEXIST;
 
 	C2_PRE(ctx != NULL);
+	if (!init)
+		goto fini;
+
 	C2_PRE(ep_list->ntsl_nr > 0);
 	C2_SET0(ctx);
 
 	if (!c2_net_test_slist_unique(ep_list))
-		return -EEXIST;
+		goto fail;
 
 	timeouts = c2_net_test_network_timeouts_never();
-	timeouts.ntnt_timeout[C2_NET_QT_MSG_SEND] = timeout_send;
-	timeouts.ntnt_timeout[C2_NET_QT_MSG_RECV] = timeout_wait;
+	timeouts.ntnt_timeout[C2_NET_QT_MSG_SEND] = send_timeout;
 
-	ctx->ntcc_cmd_nr = ep_list->ntsl_nr;
-	C2_ALLOC_ARR(ctx->ntcc_cmd, ctx->ntcc_cmd_nr);
-	if (ctx->ntcc_cmd == NULL)
-		return -ENOMEM;
+	ctx->ntcc_ep_nr   = ep_list->ntsl_nr;
+	ctx->ntcc_send_cb = send_cb;
 
-	rc = c2_semaphore_init(&ctx->ntcc_sem, 0);
+	rc = c2_semaphore_init(&ctx->ntcc_sem_send, 0);
 	if (rc != 0)
-		goto free_cmd;
+		goto fail;
+	rc = c2_semaphore_init(&ctx->ntcc_sem_recv, 0);
+	if (rc != 0)
+		goto free_sem_send;
+
+	rc = c2_net_test_ringbuf_init(&ctx->ntcc_rb, ctx->ntcc_ep_nr * 2);
+	if (rc != 0)
+		goto free_sem_recv;
+
+	C2_ALLOC_ARR(ctx->ntcc_buf_status, ctx->ntcc_ep_nr * 2);
+	if (ctx->ntcc_buf_status == NULL)
+		goto free_rb;
 
 	rc = c2_net_test_network_ctx_init(&ctx->ntcc_net, cmd_ep,
 					  &c2_net_test_commands_tm_cb,
 					  &commands_buffer_cb,
 					  C2_NET_TEST_CMD_SIZE_MAX,
-					  ctx->ntcc_cmd_nr,
+					  2 * ctx->ntcc_ep_nr,
 					  0, 0,
 					  ep_list->ntsl_nr,
 					  &timeouts);
 	if (rc != 0)
-		goto free_sem;
+		goto free_buf_status;
 
-	for (i = 0; i < ep_list->ntsl_nr; ++i) {
-		rc = c2_net_test_network_ep_add(&ctx->ntcc_net,
-						ep_list->ntsl_list[i]);
-		if (rc < 0)
-			goto free_net;
-	}
+	for (i = 0; i < ep_list->ntsl_nr; ++i)
+		if ((rc = c2_net_test_network_ep_add(&ctx->ntcc_net,
+						ep_list->ntsl_list[i])) < 0)
+			goto free_net_ctx;
+	for (i = 0; i < ctx->ntcc_ep_nr; ++i)
+		if ((rc = commands_recv_enqueue(ctx,
+						ctx->ntcc_ep_nr + i)) < 0) {
+			commands_recv_dequeue_nr(ctx, i);
+			goto free_net_ctx;
+		}
 
-	c2_net_test_commands_reset(ctx);
 	C2_POST(c2_net_test_commands_invariant(ctx));
 	rc = 0;
 	goto success;
 
-    free_net:
+    fini:
+	C2_PRE(c2_net_test_commands_invariant(ctx));
+	c2_net_test_commands_send_wait_all(ctx);
+	commands_recv_dequeue_nr(ctx, ctx->ntcc_ep_nr);
+    free_net_ctx:
 	c2_net_test_network_ctx_fini(&ctx->ntcc_net);
-    free_sem:
-	c2_semaphore_fini(&ctx->ntcc_sem);
-    free_cmd:
-	c2_free(ctx->ntcc_cmd);
+    free_buf_status:
+	c2_free(ctx->ntcc_buf_status);
+    free_rb:
+	c2_net_test_ringbuf_fini(&ctx->ntcc_rb);
+    free_sem_recv:
+	c2_semaphore_fini(&ctx->ntcc_sem_recv);
+    free_sem_send:
+	c2_semaphore_fini(&ctx->ntcc_sem_send);
     success:
+    fail:
 	return rc;
+}
+
+int c2_net_test_commands_init(struct c2_net_test_cmd_ctx *ctx,
+			      char *cmd_ep,
+			      c2_time_t send_timeout,
+			      c2_net_test_commands_send_cb_t send_cb,
+			      struct c2_net_test_slist *ep_list)
+{
+	return commands_initfini(ctx, cmd_ep, send_timeout, send_cb, ep_list,
+				 true);
 }
 
 void c2_net_test_commands_fini(struct c2_net_test_cmd_ctx *ctx)
 {
-	C2_PRE(ctx != NULL);
+	commands_initfini(ctx, NULL, C2_TIME_NEVER, NULL, NULL, false);
+	C2_SET0(ctx);
+}
+
+int c2_net_test_commands_send(struct c2_net_test_cmd_ctx *ctx,
+			      struct c2_net_test_cmd *cmd)
+{
+	struct c2_net_buffer *buf;
+	int		      rc;
+	size_t		      buf_index;
+
 	C2_PRE(c2_net_test_commands_invariant(ctx));
+	C2_PRE(cmd != NULL);
 
-	c2_net_test_network_ctx_fini(&ctx->ntcc_net);
-	c2_semaphore_fini(&ctx->ntcc_sem);
-	c2_free(ctx->ntcc_cmd);
+	buf_index = cmd->ntc_ep_index;
+	buf = c2_net_test_network_buf(&ctx->ntcc_net, C2_NET_TEST_BUF_PING,
+				      buf_index);
+
+	rc = cmd_xcode(C2_NET_TEST_ENCODE, cmd, buf, 0, NULL);
+	if (rc == 0)
+		rc = c2_net_test_network_msg_send(&ctx->ntcc_net, buf_index,
+						  cmd->ntc_ep_index);
+
+	if (rc == 0)
+		c2_atomic64_inc(&ctx->ntcc_send_nr);
+
+	return rc;
 }
 
-static bool cmd_success(struct c2_net_test_cmd *cmd)
+void c2_net_test_commands_send_wait_all(struct c2_net_test_cmd_ctx *ctx)
 {
-	return !cmd->ntc_disabled && cmd->ntc_errno == 0 &&
-		cmd->ntc_buf_status == 0;
-}
-
-static void commands_disable_succesful(struct c2_net_test_cmd_ctx *ctx)
-{
-	uint32_t		i;
-	struct c2_net_test_cmd *cmd_i;
-
-	for (i = 0; i < ctx->ntcc_cmd_nr; ++i) {
-		cmd_i = &ctx->ntcc_cmd[i];
-		cmd_i->ntc_disabled = cmd_i->ntc_disabled || cmd_success(cmd_i);
-	}
-}
-
-static uint32_t commands_network_operation(struct c2_net_test_cmd_ctx *ctx,
-					   bool network_send)
-{
-	uint32_t		i;
-	uint32_t		queued_cmd_nr;
-	uint32_t		success_cmd_nr;
-	struct c2_net_test_cmd *cmd_i;
-	int			rc;
-
-	/* add all command buffers to the message send/recv queue */
-	queued_cmd_nr = 0;
-	for (i = 0; i < ctx->ntcc_cmd_nr; ++i) {
-		cmd_i = &ctx->ntcc_cmd[i];
-
-		if (cmd_i->ntc_disabled)
-			continue;
-
-		rc = network_send ? cmd_i->ntc_errno : 0;
-		rc = rc != 0 ? rc : network_send ?
-			 c2_net_test_network_msg_send(&ctx->ntcc_net, i, i) :
-			 c2_net_test_network_msg_recv(&ctx->ntcc_net, i);
-
-		queued_cmd_nr += rc == 0;
-		cmd_i->ntc_errno = rc;
-	}
-
-	/* wait until all callbacks executed */
-	for (i = 0; i < queued_cmd_nr; ++i)
-		c2_semaphore_down(&ctx->ntcc_sem);
-
-	/* count the number of sent/received commands */
-	success_cmd_nr = 0;
-	for (i = 0; i < ctx->ntcc_cmd_nr; ++i)
-		success_cmd_nr += cmd_success(&ctx->ntcc_cmd[i]);
-
-	return success_cmd_nr;
-}
-
-uint32_t c2_net_test_commands_send(struct c2_net_test_cmd_ctx *ctx,
-				   struct c2_net_test_cmd *cmd)
-{
-	uint32_t		i;
-	struct c2_net_test_cmd *cmd_i;
-	struct c2_net_buffer   *buf;
-	uint32_t		result;
+	uint64_t nr;
+	uint64_t i;
 
 	C2_PRE(c2_net_test_commands_invariant(ctx));
 
-	/* encode all commands to buffers */
-	for (i = 0; i < ctx->ntcc_cmd_nr; ++i) {
-		cmd_i = c2_net_test_command(ctx, i);
-		*cmd_i = cmd == NULL ? *cmd_i : *cmd;
+	nr = c2_atomic64_get(&ctx->ntcc_send_nr);
+	c2_atomic64_sub(&ctx->ntcc_send_nr, nr);
 
-		/* skip this command if it is disabled */
-		if (cmd_i->ntc_disabled)
-			continue;
-
-		/* check command length */
-		/** @todo use c2_net_test_network_buf_resize() */
-		if (cmd_length(cmd_i) > C2_NET_TEST_CMD_SIZE_MAX)
-			return -E2BIG;
-
-		/* encode command to c2_net_buffer */
-		buf = c2_net_test_network_buf(&ctx->ntcc_net,
-					      C2_NET_TEST_BUF_PING, i);
-		C2_ASSERT(buf != NULL);
-		cmd_i->ntc_errno = cmd_xcode(C2_NET_TEST_ENCODE,
-					     cmd_i, buf, 0, NULL);
-	}
-
-	result = commands_network_operation(ctx, true);
-	commands_disable_succesful(ctx);
-	return result;
+	for (i = 0; i < nr; ++i)
+		c2_semaphore_down(&ctx->ntcc_sem_send);
 }
 
-uint32_t c2_net_test_commands_wait(struct c2_net_test_cmd_ctx *ctx)
+int c2_net_test_commands_recv(struct c2_net_test_cmd_ctx *ctx,
+			      struct c2_net_test_cmd *cmd,
+			      c2_time_t deadline)
 {
-	int			i;
-	uint32_t		result;
-	struct c2_net_test_cmd *cmd_i;
-	struct c2_net_buffer   *buf;
+	struct c2_net_buffer	*buf;
+	struct c2_net_end_point *ep;
+	bool			 rc_bool;
+	size_t			 buf_index;
+	int			 rc;
 
 	C2_PRE(c2_net_test_commands_invariant(ctx));
+	C2_PRE(cmd != NULL);
 
-	/* set c2_net_test_cmd.ntc_buf_status to C2_NET_TEST_CMD_NOT_RECEIVED */
-	for (i = 0; i < ctx->ntcc_cmd_nr; ++i)
-		if (!c2_net_test_command(ctx, i)->ntc_disabled)
-			c2_net_test_command(ctx, i)->ntc_buf_status =
-				C2_NET_TEST_CMD_NOT_RECEIVED;
+	/* wait for received buffer */
+	rc_bool = c2_semaphore_timeddown(&ctx->ntcc_sem_recv, deadline);
+	/* buffer wasn't received before deadline */
+	if (!rc_bool)
+		return -ETIMEDOUT;
 
-	/* blocking network receive */
-	result = commands_network_operation(ctx, false);
+	/* get buffer */
+	buf_index = c2_net_test_ringbuf_get(&ctx->ntcc_rb);
+	C2_ASSERT(is_buf_in_recv_q(ctx, buf_index));
+	buf = c2_net_test_network_buf(&ctx->ntcc_net, C2_NET_TEST_BUF_PING,
+				      buf_index);
 
-	/* decode all received buffers */
-	for (i = 0; i < ctx->ntcc_cmd_nr; ++i) {
-		cmd_i = c2_net_test_command(ctx, i);
-		/* command is disabled of receiving failed */
-		if (!cmd_success(cmd_i))
-			continue;
+	/* decode buffer to cmd */
+	rc = cmd_xcode(C2_NET_TEST_DECODE, cmd, buf, 0, NULL);
+	if (rc != 0)
+		cmd->ntc_type = C2_NET_TEST_CMD_NR;
 
-		/* decode buffer */
-		buf = c2_net_test_network_buf(&ctx->ntcc_net,
-					      C2_NET_TEST_BUF_PING,
-					      cmd_i->ntc_buf_index);
-		C2_ASSERT(buf != NULL);
-		cmd_i->ntc_errno = cmd_xcode(C2_NET_TEST_DECODE,
-					     cmd_i, buf, 0, NULL);
-	}
+	/* set c2_net_test_cmd.ntc_ep_index and release endpoint */
+	ep = ctx->ntcc_buf_status[buf_index].ntcbs_ep;
+	cmd->ntc_ep_index = ep_search(ctx, ep->nep_addr);
+	c2_net_end_point_put(ep);
 
-	commands_disable_succesful(ctx);
-	return result;
+	/* set c2_net_test_cmd.ntc_buf_index */
+	cmd->ntc_buf_index = buf_index;
+
+	/* buffer now not in receive queue */
+	ctx->ntcc_buf_status[buf_index].ntcbs_in_recv_queue = false;
+
+	/* reuse received buffer */
+	return rc;
 }
 
-void c2_net_test_commands_reset(struct c2_net_test_cmd_ctx *ctx)
+int c2_net_test_commands_recv_enqueue(struct c2_net_test_cmd_ctx *ctx,
+				      size_t buf_index)
 {
-	uint32_t i;
-
 	C2_PRE(c2_net_test_commands_invariant(ctx));
-	for (i = 0; i < ctx->ntcc_cmd_nr; ++i)
-		C2_SET0(&ctx->ntcc_cmd[i]);
+
+	return commands_recv_enqueue(ctx, buf_index);
 }
 
-struct c2_net_test_cmd *
-c2_net_test_command(struct c2_net_test_cmd_ctx *ctx, uint32_t index)
+void c2_net_test_received_free(struct c2_net_test_cmd *cmd)
 {
-	C2_PRE(ctx != NULL);
-	C2_PRE(index < ctx->ntcc_cmd_nr);
-
-	return &ctx->ntcc_cmd[index];
+	cmd_free(cmd);
 }
 
 bool c2_net_test_commands_invariant(struct c2_net_test_cmd_ctx *ctx)
@@ -480,11 +491,11 @@ bool c2_net_test_commands_invariant(struct c2_net_test_cmd_ctx *ctx)
 
 	if (ctx == NULL)
 		return false;
-	if (ctx->ntcc_cmd_nr == 0)
+	if (ctx->ntcc_ep_nr == 0)
 		return false;
-	if (ctx->ntcc_cmd_nr != ctx->ntcc_net.ntc_ep_nr)
+	if (ctx->ntcc_ep_nr != ctx->ntcc_net.ntc_ep_nr)
 		return false;
-	if (ctx->ntcc_cmd_nr != ctx->ntcc_net.ntc_buf_ping_nr)
+	if (ctx->ntcc_ep_nr * 2 != ctx->ntcc_net.ntc_buf_ping_nr)
 		return false;
 	if (ctx->ntcc_net.ntc_buf_bulk_nr != 0)
 		return false;
