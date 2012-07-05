@@ -141,7 +141,7 @@ net_test_HEADERS		:= client.h commands.h network.h node_config.h \
 				   slist.h stats.h
 
 net_test_ut_SOURCES		:= client_server.c commands.c main.c network.c \
-				   ntxcode.c slist.c
+				   ntxcode.c ringbuf.c slist.c stats.c
 
 net_ut_SOURCES                  := bulk_if.c buffer_pool_ut.c
 

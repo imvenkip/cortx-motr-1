@@ -37,6 +37,10 @@ int c2_net_test_ringbuf_init(struct c2_net_test_ringbuf *rb, size_t size)
 	c2_atomic64_set(&rb->ntr_start, 0);
 	c2_atomic64_set(&rb->ntr_end, 0);
 	C2_ALLOC_ARR(rb->ntr_buf, rb->ntr_size);
+
+	if (rb->ntr_buf != NULL)
+		C2_ASSERT(c2_net_test_ringbuf_invariant(rb));
+
 	return rb->ntr_buf == NULL ? -ENOMEM : 0;
 }
 
@@ -48,7 +52,7 @@ void c2_net_test_ringbuf_fini(struct c2_net_test_ringbuf *rb)
 	C2_SET0(rb);
 }
 
-bool c2_net_test_ringbuf_invariant(struct c2_net_test_ringbuf *rb)
+bool c2_net_test_ringbuf_invariant(const struct c2_net_test_ringbuf *rb)
 {
 	int64_t start;
 	int64_t end;

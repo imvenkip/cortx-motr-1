@@ -14,32 +14,17 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author Maxim Medved <max_medved@xyratex.com>
- * Original creation date: 07/02/2012
+ * Original author: Maxim Medved <max_medved@xyratex.com>
+ * Original creation date: 07/05/2012
  */
 
-#ifndef __NET_TEST_RINGBUF_H__
-#define __NET_TEST_RINGBUF_H__
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
 
-#include "lib/types.h"	/* size_t */
-#include "lib/atomic.h"	/* c2_atomic64 */
+#include "lib/ut.h"		/* C2_UT_ASSERT */
 
-/** Circular buffer */
-struct c2_net_test_ringbuf {
-	size_t		    ntr_size;
-	size_t		   *ntr_buf;
-	struct c2_atomic64  ntr_start;
-	struct c2_atomic64  ntr_end;
-};
-
-int c2_net_test_ringbuf_init(struct c2_net_test_ringbuf *rb, size_t size);
-void c2_net_test_ringbuf_fini(struct c2_net_test_ringbuf *rb);
-bool c2_net_test_ringbuf_invariant(const struct c2_net_test_ringbuf *rb);
-
-void c2_net_test_ringbuf_put(struct c2_net_test_ringbuf *rb, size_t value);
-size_t c2_net_test_ringbuf_get(struct c2_net_test_ringbuf *rb);
-
-#endif /*  __NET_TEST_RINGBUF_H__ */
+#include "net/test/stats.h"
 
 /*
  *  Local variables:
