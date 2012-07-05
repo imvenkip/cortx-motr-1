@@ -112,6 +112,21 @@ static int linear_allocate(struct c2_layout_domain *dom,
 	return 0;
 }
 
+static void linear_delete(struct c2_layout_enum *e)
+{
+	struct c2_layout_linear_enum *lin_enum;
+
+	lin_enum = container_of(e, struct c2_layout_linear_enum, lle_base);
+	C2_PRE(linear_allocated_invariant(lin_enum));
+
+	C2_ENTRY("lid %llu, enum_pointer %p",
+		 (unsigned long long)e->le_sl->sl_base.l_id, e);
+	c2_layout_linear_enum_bob_fini(lin_enum);
+	c2_layout__enum_fini(e);
+	c2_free(lin_enum);
+	C2_LEAVE();
+}
+
 static void linear_populate(struct c2_layout_linear_enum *lin_enum,
 			    const struct c2_layout_linear_attr *attr)
 {
@@ -142,8 +157,10 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
 		lin_enum = container_of(e, struct c2_layout_linear_enum,
 					lle_base);
 		linear_populate(lin_enum, attr);
-		C2_POST(linear_invariant_internal(lin_enum));
-		*out = lin_enum;
+		if (rc == 0) {
+			C2_POST(linear_invariant_internal(lin_enum));
+			*out = lin_enum;
+		}
 	}
 	return rc;
 }
@@ -366,7 +383,8 @@ static const struct c2_layout_enum_ops linear_enum_ops = {
 	.leo_nr           = linear_nr,
 	.leo_get          = linear_get,
 	.leo_recsize      = linear_recsize,
-	.leo_fini         = linear_fini
+	.leo_fini         = linear_fini,
+	.leo_delete       = linear_delete
 };
 
 static const struct c2_layout_enum_type_ops linear_type_ops = {

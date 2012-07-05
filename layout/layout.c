@@ -173,7 +173,6 @@ bool c2_layout__allocated_invariant(const struct c2_layout *l)
 {
 	return
 		layout_invariant_internal(l) &&
-		l->l_pool_id == 0 &&
 		l->l_ref == DEFAULT_REF_COUNT;
 }
 
@@ -181,7 +180,6 @@ bool c2_layout__invariant(const struct c2_layout *l)
 {
 	return
 		layout_invariant_internal(l) &&
-		c2_pool_id_is_valid(l->l_pool_id) &&
 		l->l_ref >= DEFAULT_REF_COUNT;
 }
 
@@ -217,8 +215,7 @@ static int rec_invariant(const struct c2_layout_rec *rec,
 	return
 		rec != NULL &&
 		c2_layout__is_layout_type_valid(rec->lr_lt_id, dom) &&
-		rec->lr_ref_count >= DEFAULT_REF_COUNT &&
-		c2_pool_id_is_valid(rec->lr_pool_id);
+		rec->lr_ref_count >= DEFAULT_REF_COUNT;
 }
 
 bool c2_layout__is_layout_type_valid(uint32_t lt_id,
@@ -365,12 +362,11 @@ void c2_layout__init(struct c2_layout_domain *dom,
 	C2_ENTRY("lid %llu, layout-type-id %lu", (unsigned long long)lid,
 		 (unsigned long)type->lt_id);
 
-	l->l_id      = lid;
-	l->l_dom     = dom;
-	l->l_ref     = DEFAULT_REF_COUNT;
-	l->l_pool_id = 0;
-	l->l_ops     = ops;
-	l->l_type    = type;
+	l->l_id   = lid;
+	l->l_dom  = dom;
+	l->l_ref  = DEFAULT_REF_COUNT;
+	l->l_ops  = ops;
+	l->l_type = type;
 
 	layout_type_get(type);
 	c2_mutex_init(&l->l_lock);
@@ -386,13 +382,13 @@ void c2_layout__init(struct c2_layout_domain *dom,
 	C2_POST(c2_layout_find(l->l_dom, l->l_id) == l)
  */
 void c2_layout__populate(struct c2_layout *l,
-			 uint64_t pool_id)
+			 uint32_t ref_count)
 {
 	C2_PRE(c2_layout__allocated_invariant(l));
-	C2_PRE(c2_pool_id_is_valid(pool_id));
+	C2_PRE(ref_count >= DEFAULT_REF_COUNT);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-	l->l_pool_id = pool_id;
+	l->l_ref = ref_count;
 	layout_list_add(l);
 	C2_POST(c2_layout__invariant(l));
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
@@ -458,19 +454,18 @@ void c2_layout__striped_init(struct c2_layout_domain *dom,
  * object.
  */
 void c2_layout__striped_populate(struct c2_striped_layout *str_l,
-				 uint64_t pool_id,
-				 struct c2_layout_enum *e)
+				 struct c2_layout_enum *e,
+				 uint32_t ref_count)
 
 {
 	C2_PRE(c2_layout__striped_allocated_invariant(str_l));
-	C2_PRE(c2_pool_id_is_valid(pool_id));
 	C2_PRE(e != NULL);
 
 	C2_ENTRY("lid %llu, enum-type-id %lu",
 		 (unsigned long long)str_l->sl_base.l_id,
 		 (unsigned long)e->le_type->let_id);
 
-	c2_layout__populate(&str_l->sl_base, pool_id);
+	c2_layout__populate(&str_l->sl_base, ref_count);
 	str_l->sl_enum = e;
 	str_l->sl_enum->le_sl = str_l;
 
@@ -1174,7 +1169,7 @@ int c2_layout_decode(enum c2_layout_xcode_op op,
 	 * Hence, ignoring the return status of c2_bufvec_cursor_move() here.
 	 */
 
-	rc = lt->lt_ops->lto_decode(op, tx, rec->lr_pool_id, cur, l);
+	rc = lt->lt_ops->lto_decode(op, tx, rec->lr_ref_count, cur, l);
 	if (rc != 0) {
 		c2_layout__log("c2_layout_decode", "lto_decode() failed",
 			       op == C2_LXO_BUFFER_OP, TRACE_RECORD_ADD,
@@ -1182,18 +1177,6 @@ int c2_layout_decode(enum c2_layout_xcode_op op,
 			       l->l_id, rc);
 		goto out;
 	}
-
-	/* todo NA - Following fields are set through c2_layout__init(). */
-	C2_ASSERT(l->l_pool_id == rec->lr_pool_id); //todo
-
-	/* todo Pass l_ref to lto_decode() in the form of l_attr so that
-	 * l can be populated with it through ..striped_populate(). */
-
-	/*
-	 * l_ref is the only field that can get updated for a layout object
-	 * or a layout record, once created.
-	 */
-	l->l_ref = rec->lr_ref_count;
 
 	C2_POST(c2_layout__invariant(l));
 	C2_POST(c2_layout_find(l->l_dom, l->l_id) == l);
@@ -1270,7 +1253,6 @@ int c2_layout_encode(struct c2_layout *l,
 
 	rec.lr_lt_id     = l->l_type->lt_id;
 	rec.lr_ref_count = l->l_ref;
-	rec.lr_pool_id   = l->l_pool_id;
 	C2_ASSERT(rec_invariant(&rec, l->l_dom));
 
 	lt = l->l_type;
@@ -1283,8 +1265,7 @@ int c2_layout_encode(struct c2_layout *l,
 		 */
 		oldrec = c2_bufvec_cursor_addr(oldrec_cur);
 		C2_ASSERT(rec_invariant(oldrec, l->l_dom));
-		C2_ASSERT(oldrec->lr_lt_id == l->l_type->lt_id &&
-			  oldrec->lr_pool_id == l->l_pool_id);
+		C2_ASSERT(oldrec->lr_lt_id == l->l_type->lt_id);
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *oldrec);
 	}
 

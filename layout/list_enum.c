@@ -152,13 +152,29 @@ static int list_allocate(struct c2_layout_domain *dom,
 		return -ENOMEM;
 	}
 
-	c2_layout_list_enum_bob_init(list_enum);
 	c2_layout__enum_init(dom, &list_enum->lle_base,
 			     &c2_list_enum_type, &list_enum_ops);
+	c2_layout_list_enum_bob_init(list_enum);
 	C2_POST(list_allocated_invariant(list_enum));
 	*out = &list_enum->lle_base;
 	C2_LEAVE("list enum pointer %p", list_enum);
 	return 0;
+}
+
+/** Implementation of leo_delete for LIST enumeration type. */
+static void list_delete(struct c2_layout_enum *e)
+{
+	struct c2_layout_list_enum *list_enum;
+
+	list_enum = container_of(e, struct c2_layout_list_enum, lle_base);
+	C2_PRE(list_allocated_invariant(list_enum));
+
+	C2_ENTRY("lid %llu, enum_pointer %p",
+		 (unsigned long long)e->le_sl->sl_base.l_id, e);
+	c2_layout_list_enum_bob_fini(list_enum);
+	c2_layout__enum_fini(&list_enum->lle_base);
+	c2_free(list_enum);
+	C2_LEAVE();
 }
 
 static int list_populate(struct c2_layout_list_enum *list_enum,
@@ -213,9 +229,11 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 	if (rc == 0) {
 		list_enum = container_of(e, struct c2_layout_list_enum,
 					 lle_base);
-		list_populate(list_enum, cob_list, nr);
-		C2_POST(list_invariant_internal(list_enum));
-		*out = list_enum;
+		rc = list_populate(list_enum, cob_list, nr);
+		if (rc == 0) {
+			C2_POST(list_invariant_internal(list_enum));
+			*out = list_enum;
+		}
 	}
 	return rc;
 }
@@ -254,15 +272,14 @@ static void list_fini(struct c2_layout_enum *e)
 {
 	struct c2_layout_list_enum *list_enum;
 
-	C2_PRE(e != NULL);
 	C2_PRE(c2_layout__enum_invariant(e));
 
 	C2_ENTRY("lid %llu, enum_pointer %p",
 		 (unsigned long long)e->le_sl->sl_base.l_id, e);
 	list_enum = enum_to_list_enum(e);
 	c2_layout_list_enum_bob_fini(list_enum);
-	c2_free(list_enum->lle_list_of_cobs);
 	c2_layout__enum_fini(&list_enum->lle_base);
+	c2_free(list_enum->lle_list_of_cobs);
 	c2_free(list_enum);
 	C2_LEAVE();
 }
@@ -513,9 +530,8 @@ static int list_decode(struct c2_striped_layout *stl,
 		}
 	}
 
-	list_populate(list_enum, cob_list, ce_header->ces_nr);
-	C2_POST(list_invariant_internal(list_enum));
-	rc = 0;
+	rc = list_populate(list_enum, cob_list, ce_header->ces_nr);
+	C2_POST(ergo(rc == 0, list_invariant_internal(list_enum)));
 out:
 	c2_free(cob_list);
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
@@ -825,7 +841,8 @@ static const struct c2_layout_enum_ops list_enum_ops = {
 	.leo_nr           = list_nr,
 	.leo_get          = list_get,
 	.leo_recsize      = list_recsize,
-	.leo_fini         = list_fini
+	.leo_fini         = list_fini,
+	.leo_delete       = list_delete
 };
 
 static const struct c2_layout_enum_type_ops list_type_ops = {

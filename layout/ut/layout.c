@@ -651,7 +651,6 @@ static void buf_build(uint32_t lt_id, struct c2_bufvec_cursor *dcur)
 
 	rec.lr_lt_id     = lt_id;
 	rec.lr_ref_count = DEFAULT_REF_COUNT;
-	rec.lr_pool_id   = DEFAULT_POOL_ID;
 
 	nbytes_copied = c2_bufvec_cursor_copyto(dcur, &rec, sizeof rec);
 	C2_UT_ASSERT(nbytes_copied == sizeof rec);
@@ -672,6 +671,7 @@ static void pdclust_buf_build(uint32_t let_id, uint64_t lid,
 	buf_build(c2_pdclust_layout_type.lt_id, dcur);
 
 	pl_rec.pr_let_id            = let_id;
+	pl_rec.pr_pool_id           = pool.po_id;
 	pl_rec.pr_attr.pa_N         = N;
 	pl_rec.pr_attr.pa_K         = K;
 	pl_rec.pr_attr.pa_P         = POOL_WIDTH;
@@ -886,7 +886,6 @@ static void lbuf_verify(struct c2_bufvec_cursor *cur, uint32_t *lt_id)
 	*lt_id = rec->lr_lt_id;
 
 	C2_UT_ASSERT(rec->lr_ref_count == DEFAULT_REF_COUNT);
-	C2_UT_ASSERT(rec->lr_pool_id == DEFAULT_POOL_ID);
 
 	c2_bufvec_cursor_move(cur, sizeof *rec);
 }
@@ -911,6 +910,7 @@ static void pdclust_lbuf_verify(uint32_t N, uint32_t K, uint64_t unitsize,
 	C2_UT_ASSERT(pl_rec->pr_attr.pa_P == POOL_WIDTH);
 	C2_UT_ASSERT(c2_uint128_eq(&pl_rec->pr_attr.pa_seed, seed));
 	C2_UT_ASSERT(pl_rec->pr_attr.pa_unit_size == unitsize);
+	C2_UT_ASSERT(pl_rec->pr_pool_id == pool.po_id);
 
 	*let_id = pl_rec->pr_let_id;
 	c2_bufvec_cursor_move(cur, sizeof *pl_rec);
@@ -1103,7 +1103,6 @@ static void lbuf_compare(struct c2_bufvec_cursor *cur1,
 
 	C2_UT_ASSERT(rec1->lr_lt_id == rec2->lr_lt_id);
 	C2_UT_ASSERT(rec1->lr_ref_count == rec2->lr_ref_count);
-	C2_UT_ASSERT(rec1->lr_pool_id == rec2->lr_pool_id);
 
 	c2_bufvec_cursor_move(cur1, sizeof *rec1);
 	c2_bufvec_cursor_move(cur2, sizeof *rec2);
@@ -1122,13 +1121,14 @@ static void pdclust_lbuf_compare(struct c2_bufvec_cursor *cur1,
 	pl_rec1 = c2_bufvec_cursor_addr(cur1);
 	pl_rec2 = c2_bufvec_cursor_addr(cur2);
 
-	C2_UT_ASSERT(pl_rec1->pr_attr.pa_N == pl_rec1->pr_attr.pa_N);
+	C2_UT_ASSERT(pl_rec1->pr_attr.pa_N == pl_rec2->pr_attr.pa_N);
 	C2_UT_ASSERT(pl_rec1->pr_attr.pa_K == pl_rec2->pr_attr.pa_K);
 	C2_UT_ASSERT(pl_rec1->pr_attr.pa_P == pl_rec2->pr_attr.pa_P);
 	C2_UT_ASSERT(c2_uint128_eq(&pl_rec1->pr_attr.pa_seed,
 				   &pl_rec2->pr_attr.pa_seed));
 	C2_UT_ASSERT(pl_rec1->pr_attr.pa_unit_size ==
 		     pl_rec2->pr_attr.pa_unit_size);
+	C2_UT_ASSERT(pl_rec1->pr_pool_id == pl_rec2->pr_pool_id);
 
 	c2_bufvec_cursor_move(cur1, sizeof *pl_rec1);
 	c2_bufvec_cursor_move(cur2, sizeof *pl_rec2);
@@ -1372,7 +1372,6 @@ static void pdclust_layout_compare(uint32_t enum_id,
 	C2_UT_ASSERT(l1->l_type == l2->l_type);
 	C2_UT_ASSERT(l1->l_dom == l2->l_dom);
 	C2_UT_ASSERT(l1->l_ref == l2->l_ref);
-	C2_UT_ASSERT(l1->l_pool_id == l2->l_pool_id);
 	C2_UT_ASSERT(l1->l_ops == l2->l_ops);
 
 	/* Compare PDCLUST layout type specific part of the layout objects. */
@@ -1384,6 +1383,7 @@ static void pdclust_layout_compare(uint32_t enum_id,
 	C2_UT_ASSERT(pl1->pl_attr.pa_P == pl2->pl_attr.pa_P);
 	C2_UT_ASSERT(c2_uint128_eq(&pl1->pl_attr.pa_seed,
 				   &pl2->pl_attr.pa_seed));
+	C2_UT_ASSERT(pl1->pl_pool == pl2->pl_pool);
 
 	/* Compare enumeration specific part of the layout objects. */
 	C2_UT_ASSERT(pl1->pl_base.sl_enum->le_type ==
@@ -1445,7 +1445,6 @@ static void pdclust_layout_copy(uint32_t enum_id,
 	(*l_dest)->l_type = l_src->l_type;
 	(*l_dest)->l_dom = l_src->l_dom;
 	(*l_dest)->l_ref = l_src->l_ref;
-	(*l_dest)->l_pool_id = l_src->l_pool_id;
 	(*l_dest)->l_ops = l_src->l_ops;
 
 	/* Copy PDCLUST layout type specific part of the layout objects. */
@@ -1454,6 +1453,7 @@ static void pdclust_layout_copy(uint32_t enum_id,
 	pl_dest->pl_attr.pa_P = pl_src->pl_attr.pa_P;
 	pl_dest->pl_attr.pa_seed.u_hi = pl_src->pl_attr.pa_seed.u_hi;
 	pl_dest->pl_attr.pa_seed.u_lo = pl_src->pl_attr.pa_seed.u_lo;
+	pl_dest->pl_pool = pl_src->pl_pool;
 
 	/* Copy enumeration type specific part of the layout objects. */
 	if (enum_id == LIST_ENUM_ID) {

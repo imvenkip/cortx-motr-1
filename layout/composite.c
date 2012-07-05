@@ -147,7 +147,7 @@ static const struct c2_layout_ops composite_ops;
  */
 static int composite_decode(enum c2_layout_xcode_op op,
 			    struct c2_db_tx *tx,
-			    uint64_t pool_id,
+			    uint32_t ref_count,
 			    struct c2_bufvec_cursor *cur,
 			    struct c2_layout *l)
 {

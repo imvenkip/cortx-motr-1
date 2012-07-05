@@ -198,9 +198,6 @@ struct c2_layout {
 	/* Layout reference count, indicating how many users this layout has. */
 	uint32_t                     l_ref;
 
-	/** Pool identifier. */
-	uint64_t                     l_pool_id;
-
 	/**
 	 * Lock to protect a c2_layout instance and all its direct/indirect
 	 * members.
@@ -321,7 +318,7 @@ struct c2_layout_type_ops {
 	// todo Make lto_decode operation of a layout, not layout type
 	int         (*lto_decode)(enum c2_layout_xcode_op op,
 				  struct c2_db_tx *tx,
-				  uint64_t pool_id,
+				  uint32_t ref_count,
 				  struct c2_bufvec_cursor *cur,
 				  struct c2_layout *l);
 
@@ -376,6 +373,12 @@ struct c2_layout_enum_ops {
 	c2_bcount_t (*leo_recsize)(struct c2_layout_enum *e);
 
 	void        (*leo_fini)(struct c2_layout_enum *e);
+
+	/**
+	 * Finalises the enum object that is only allocated and not
+	 * populated.
+	 */
+	void        (*leo_delete)(struct c2_layout_enum *e);
 };
 
 /**

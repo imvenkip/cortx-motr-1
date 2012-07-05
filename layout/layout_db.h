@@ -116,12 +116,6 @@ struct c2_layout_rec {
 	uint32_t  lr_ref_count;
 
 	/**
-	 * Pool identifier.
-	 * Value obtained from c2_layout::l_pid.
-	 */
-	uint64_t  lr_pool_id;
-
-	/**
 	 * Layout type specific payload.
 	 * Contains attributes specific to the applicable layout type and/or
 	 * applicable to the enumeration type, if applicable.

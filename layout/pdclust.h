@@ -115,7 +115,8 @@ struct c2_layout_pdclust_rec {
 	 */
 	uint32_t                pr_let_id;
 
-	// todo add pool_id here
+	/** Pool identifier. */
+	uint64_t                pr_pool_id;
 
 	struct c2_pdclust_attr  pr_attr;
 };

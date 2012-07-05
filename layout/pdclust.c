@@ -490,7 +490,8 @@ static void pdclust_delete(struct c2_layout *l)
 static int pdclust_populate(struct c2_pdclust_layout *pdl,
 			    struct c2_pool *pool,
 			    const struct c2_pdclust_attr *attr,
-			    struct c2_layout_enum *le)
+			    struct c2_layout_enum *le,
+			    uint32_t ref_count)
 {
 	uint32_t                  B;
 	uint32_t                  i;
@@ -508,7 +509,7 @@ static int pdclust_populate(struct c2_pdclust_layout *pdl,
 	N = attr->pa_N;
 	K = attr->pa_K;
 	P = attr->pa_P;
-	//todo check if seed is valid ??
+	//todo check if seed is valid, pool id is valid ??
 	C2_PRE(P == pool->po_width);
 	C2_PRE(N + 2 * K <= P);
 
@@ -524,17 +525,7 @@ static int pdclust_populate(struct c2_pdclust_layout *pdl,
 	    pdl->pl_tile_cache.tc_lcode != NULL &&
 	    pdl->pl_tile_cache.tc_permute != NULL &&
 	    pdl->pl_tile_cache.tc_inverse != NULL) {
-		c2_layout__striped_populate(&pdl->pl_base, pool->po_id, le);
-
-#if 0 //todo
-		rc = c2_pool_lookup(pool_id, &pool);
-		if (rc != 0) {
-			C2_LOG("lid %llu, pool_id %llu, c2_pool_lookup() "
-			       "failed, rc %d", (unsigned long long)l->l_id,
-			       (unsigned long long)pool_id, rc);
-			goto out;
-		}
-#endif
+		c2_layout__striped_populate(&pdl->pl_base, le, ref_count);
 		pdl->pl_attr = *attr;
 		pdl->pl_pool = pool;
 		/*
@@ -597,7 +588,8 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 
 	/* todo Move these into an invariant */
 	C2_PRE(attr->pa_N + 2 * attr->pa_K <= attr->pa_P);
-	//todo C2_PRE(attr->pa_pool_id == pool->po_id);
+	//todo should pool_id be part of c2_pdclust_attr ?
+	//todo If yes, C2_PRE(attr->pa_pool_id == pool->po_id);
 	C2_PRE(attr->pa_P == pool->po_width);
 
 	/* todo check the error handling */
@@ -607,7 +599,7 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 		pl = container_of(l, struct c2_pdclust_layout, pl_base.sl_base);
 		C2_ASSERT(pdclust_allocated_invariant(pl));
 
-		rc = pdclust_populate(pl, pool, attr, le);
+		rc = pdclust_populate(pl, pool, attr, le, DEFAULT_REF_COUNT);
 		if (rc == 0) {
 			C2_POST(pdclust_invariant(pl));
 			*out = pl;
@@ -685,7 +677,7 @@ static c2_bcount_t pdclust_max_recsize(struct c2_layout_domain *dom)
  */
 static int pdclust_decode(enum c2_layout_xcode_op op,
 			  struct c2_db_tx *tx,
-			  uint64_t pool_id,
+			  uint32_t ref_count,
 			  struct c2_bufvec_cursor *cur,
 		          struct c2_layout *l)
 {
@@ -726,33 +718,30 @@ static int pdclust_decode(enum c2_layout_xcode_op op,
 
 	rc = et->let_ops->leto_decode(&pl->pl_base, op, tx, cur, e);
 	if (rc != 0) {
+		e->le_ops->leo_delete(e);
 		C2_LOG("lid %llu, leto_decode() failed, rc %d",
 		       (unsigned long long)l->l_id, rc);
 		goto out;
 	}
 
-	rc = c2_pool_lookup(pool_id, &pool);
+	rc = c2_pool_lookup(pl_rec->pr_pool_id, &pool);
 	if (rc != 0) {
+		e->le_ops->leo_delete(e);
 		C2_LOG("lid %llu, pool_id %llu, c2_pool_lookup() failed, "
 		       "rc %d", (unsigned long long)l->l_id,
-		       (unsigned long long)pool_id, rc);
+		       (unsigned long long)pl_rec->pr_pool_id, rc);
 		goto out;
 	}
 
-	rc = pdclust_populate(pl, pool, &pl_rec->pr_attr, e);
+	rc = pdclust_populate(pl, pool, &pl_rec->pr_attr, e, ref_count);
 	if (rc != 0) {
+		e->le_ops->leo_fini(e);
 		C2_LOG("lid %llu, c2_pdclust_build() failed, rc %d",
 		       (unsigned long long)l->l_id, rc);
 		goto out;
 	}
 	C2_POST(pdclust_invariant(pl));
-
 out:
-	if (rc != 0 && e != NULL)
-		// todo following is not going to work if leto_decode()
-		// is not successful. Look carefully about err handling here
-		e->le_ops->leo_fini(e);
-
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }
@@ -809,6 +798,7 @@ static int pdclust_encode(struct c2_layout *l,
 
 		C2_ASSERT(pl_oldrec->pr_let_id ==
 			  pl->pl_base.sl_enum->le_type->let_id &&
+			  pl_oldrec->pr_pool_id == pl->pl_pool->po_id &&
 			  pl_oldrec->pr_attr.pa_N == pl->pl_attr.pa_N &&
 			  pl_oldrec->pr_attr.pa_K == pl->pl_attr.pa_K &&
 			  pl_oldrec->pr_attr.pa_P == pl->pl_attr.pa_P &&
@@ -821,6 +811,7 @@ static int pdclust_encode(struct c2_layout *l,
 	C2_ASSERT(c2_layout__is_enum_type_valid(et->let_id, l->l_dom));
 
 	pl_rec.pr_let_id  = pl->pl_base.sl_enum->le_type->let_id;
+	pl_rec.pr_pool_id = pl->pl_pool->po_id;
 	pl_rec.pr_attr    = pl->pl_attr;
 
 	nbytes = c2_bufvec_cursor_copyto(out, &pl_rec, sizeof pl_rec);
