@@ -82,8 +82,10 @@ c2_cobfid_map_fini(&mymap);
 #include "fid/fid.h"   /* struct c2_fid */
 #include "lib/time.h"  /* c2_time_t */
 #include "lib/types.h" /* struct c2_uint128 */
+#include "lib/refs.h"  /* struct c2_ref */
 
 struct c2_cobfid_map_iter_ops; /* forward reference */
+struct c2_reqh;
 
 /**
    This data structure tracks the persistent (on-disk) Cobfid map in-memory.
@@ -95,6 +97,9 @@ struct c2_cobfid_map {
 	char		   *cfm_map_name; /**< Name of the map */
 	c2_time_t           cfm_last_mod; /**< Time last modified */
 	struct c2_table     cfm_table;    /**< Table corresponding to cfm */
+	struct c2_mutex     cfm_mutex;
+	bool                cfm_is_initialised;
+	uint64_t            cfm_ref_cnt;
 };
 
 /** enum indicating the query type */
@@ -272,6 +277,24 @@ int c2_cobfid_map_iter_next(struct  c2_cobfid_map_iter *iter,
 			    uint64_t *container_id_p,
 			    struct c2_fid *file_fid_p,
 			    struct c2_uint128 *cob_fid_p);
+
+/**
+ * Finds the struct c2_cobfid_map instance in the request handler using
+ * cobfid_map_key and initialises the same if not already initialised.
+ * Note that, this also takes a reference on the struct c2_cobfid_map instance,
+ * thus the reference should be released by invoking corresponding
+ * c2_cobfid_map_put().
+ *
+ * @see c2_cobfid_map_put()
+ */
+int c2_cobfid_map_get(struct c2_reqh *reqh, struct c2_cobfid_map **out);
+
+/**
+ * Releases a reference on struct c2_cobfid_map instance.
+ *
+ * @see c2_cobfid_map_setup_get()
+ */
+void c2_cobfid_map_put(struct c2_reqh *reqh);
 
 /** @} */
 

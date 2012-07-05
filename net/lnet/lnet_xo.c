@@ -44,16 +44,12 @@ static bool nlx_ep_invariant(const struct c2_net_end_point *ep)
 static bool nlx_buffer_invariant(const struct c2_net_buffer *nb)
 {
 	const struct nlx_xo_buffer *bp = nb->nb_xprt_private;
-	if (bp == NULL || bp->xb_nb != nb || !nlx_dom_invariant(nb->nb_dom))
-		return false;
-	if (bp->xb_core.cb_buffer_id != (nlx_core_opaque_ptr_t) nb)
-		return false;
-	if (!ergo(nb->nb_flags & C2_NET_BUF_QUEUED,
-		  nb->nb_tm != NULL && nlx_tm_invariant(nb->nb_tm)))
-		return false;
-	if (!nlx_xo_buffer_bufvec_invariant(nb))
-		return false;
-	return true;
+
+	return bp != NULL && bp->xb_nb == nb && nlx_dom_invariant(nb->nb_dom) &&
+	    bp->xb_core.cb_buffer_id == (nlx_core_opaque_ptr_t) nb &&
+	    ergo(nb->nb_flags & C2_NET_BUF_QUEUED,
+		 nb->nb_tm != NULL && nlx_tm_invariant(nb->nb_tm)) &&
+	    nlx_xo_buffer_bufvec_invariant(nb);
 }
 
 static bool nlx_tm_invariant(const struct c2_net_transfer_mc *tm)
@@ -188,9 +184,9 @@ static bool nlx_xo_buffer_bufvec_invariant(const struct c2_net_buffer *nb)
 	const struct c2_bufvec *bv = &nb->nb_buffer;
 	c2_bcount_t max_seg_size;
 	int i;
-	if (c2_vec_count(v) > nlx_xo_get_max_buffer_size(nb->nb_dom))
-		return false;
-	if (v->v_nr > nlx_xo_get_max_buffer_segments(nb->nb_dom))
+
+	if (c2_vec_count(v) > nlx_xo_get_max_buffer_size(nb->nb_dom) ||
+	    v->v_nr > nlx_xo_get_max_buffer_segments(nb->nb_dom))
 		return false;
 	max_seg_size = nlx_xo_get_max_buffer_segment_size(nb->nb_dom);
 	for (i = 0; i < v->v_nr; ++i)
@@ -251,10 +247,6 @@ static int nlx_xo__nbd_allocate(struct c2_net_transfer_mc *tm,
 				const struct nlx_core_buf_desc *cbd,
 				struct c2_net_buf_desc *nbd)
 {
-	C2_PRE(tm != NULL);
-	C2_PRE(nbd != NULL);
-	C2_PRE(cbd != NULL);
-
 	nbd->nbd_len = sizeof *cbd;
 	C2_ALLOC_ADDB(nbd->nbd_data, nbd->nbd_len,
 		      &tm->ntm_addb, &nlx_addb_loc);
@@ -274,10 +266,6 @@ static int nlx_xo__nbd_recover(struct c2_net_transfer_mc *tm,
 			       const struct c2_net_buf_desc *nbd,
 			       struct nlx_core_buf_desc *cbd)
 {
-	C2_PRE(tm != NULL);
-	C2_PRE(nbd != NULL);
-	C2_PRE(cbd != NULL);
-
 	if (nbd->nbd_len != sizeof *cbd) {
 		int rc = -EINVAL;
 		LNET_ADDB_FUNCFAIL_ADD(tm->ntm_addb, rc);
@@ -591,8 +579,8 @@ static void nlx_xo_bev_deliver_all(struct c2_net_transfer_mc *tm)
 		c2_mutex_lock(&tm->ntm_mutex);
 		tm->ntm_callback_counter--;
 
-		C2_PRE(tm->ntm_state == C2_NET_TM_STARTED ||
-		       tm->ntm_state == C2_NET_TM_STOPPING);
+		C2_ASSERT(tm->ntm_state == C2_NET_TM_STARTED ||
+			  tm->ntm_state == C2_NET_TM_STOPPING);
 	}
 	NLXDBGP(tp,2,"%p: delivered %d events\n", tp, num_events);
 

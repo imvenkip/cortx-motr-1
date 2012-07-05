@@ -405,12 +405,12 @@ do {									\
 	for (obj = c2_tlist_head(descr, head);				\
 	     obj != NULL &&						\
              ((void)(__tl = c2_tlist_next(descr, head, obj)), true);	\
-	     obj = __tl)
+	     obj = __tl) {
 
 /**
    Terminates c2_tlist_for() loop.
  */
-#define c2_tlist_endfor ; (void)__tl; } while (0)
+#define c2_tlist_endfor ;} (void)__tl; } while (0)
 
 /**
  * Returns a conjunction (logical AND) of an expression evaluated for each list

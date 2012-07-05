@@ -12,4 +12,4 @@ EXTRA_DIST = reqh_fops.ff
 
 clean-local:
 	cd @SRCDIR@/reqh ; \
-	rm -fr reqh_fops_[uk].[ch]
+	rm -fr reqh_fops_u.[ch]

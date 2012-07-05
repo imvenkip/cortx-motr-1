@@ -602,15 +602,10 @@
  */
 static bool bev_cqueue_invariant(const struct nlx_core_bev_cqueue *q)
 {
-	if (q == NULL || q->cbcq_consumer == 0)
-		return false;
-	if (q->cbcq_nr < C2_NET_LNET_BEVQ_MIN_SIZE)
-		return false;
-	if (c2_atomic64_get(&q->cbcq_count) >= q->cbcq_nr)
-		return false;
-	if (nlx_core_kmem_loc_is_empty(&q->cbcq_producer_loc))
-		return false;
-	return true;
+	return q != NULL && q->cbcq_consumer != 0 &&
+	    q->cbcq_nr >= C2_NET_LNET_BEVQ_MIN_SIZE &&
+	    c2_atomic64_get(&q->cbcq_count) < q->cbcq_nr &&
+	    !nlx_core_kmem_loc_is_empty(&q->cbcq_producer_loc);
 }
 
 /**
@@ -622,8 +617,7 @@ static bool bev_cqueue_invariant(const struct nlx_core_bev_cqueue *q)
    @param q the queue
    @param ql the element to add
    @pre q->cbcq_nr > 0 && q->cbcq_consumer != NULL &&
-   nlx_core_kmem_loc_invariant(&ql->cbl_p_self_loc) &&
-   !nlx_core_kmem_loc_is_empty(&ql->cbl_p_self_loc)
+   nlx_core_kmem_loc_invariant(&ql->cbl_p_self_loc)
  */
 static void bev_cqueue_add(struct nlx_core_bev_cqueue *q,
 			   struct nlx_core_bev_link *ql)
@@ -632,7 +626,6 @@ static void bev_cqueue_add(struct nlx_core_bev_cqueue *q,
 	    (struct nlx_core_bev_link *) (q->cbcq_consumer);
 	C2_PRE(q->cbcq_nr > 0 && consumer != NULL);
 	C2_PRE(nlx_core_kmem_loc_invariant(&ql->cbl_p_self_loc));
-	C2_PRE(!nlx_core_kmem_loc_is_empty(&ql->cbl_p_self_loc));
 	ql->cbl_c_self = (nlx_core_opaque_ptr_t) ql;
 
 	ql->cbl_c_next = consumer->cbl_c_next;
@@ -661,9 +654,8 @@ static void bev_cqueue_init(struct nlx_core_bev_cqueue *q,
 			    struct nlx_core_bev_link *ql2)
 {
 	C2_PRE(q != NULL && q->cbcq_nr == 0 && ql1 != NULL && ql2 != NULL);
-	/* special case: add first element to the circular queue */
 	C2_PRE(nlx_core_kmem_loc_invariant(&ql1->cbl_p_self_loc));
-	C2_PRE(!nlx_core_kmem_loc_is_empty(&ql1->cbl_p_self_loc));
+	/* special case: add first element to the circular queue */
 	ql1->cbl_c_self = (nlx_core_opaque_ptr_t) ql1;
 	ql1->cbl_c_next = (nlx_core_opaque_ptr_t) ql1;
 	ql1->cbl_p_next_loc = ql1->cbl_p_self_loc;

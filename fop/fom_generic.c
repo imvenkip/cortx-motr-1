@@ -63,116 +63,125 @@ extern struct c2_fop_type c2_fom_generic_error_rep_fopt;
  * C2_FSO_WAIT  is used to execute its wait phase when
 		returned from blocking state.
  */
-static void sm_fom_phase_init(struct c2_sm *mach)
+static int sm_fom_phase_init(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_AUTHENTICATE;
 	mach->sm_rc = C2_FSO_AGAIN;
+	return 0;
 }
 
 /**
  * Performs authenticity checks on fop,
  * executed by the fom.
  */
-static void sm_fom_authen(struct c2_sm *mach)
+static int sm_fom_authen(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_RESOURCE_LOCAL;
 	mach->sm_rc = C2_FSO_AGAIN;
+	return 0;
 }
 
 /**
  * Resumes fom execution after completing a blocking operation
  * in C2_FOPH_AUTHENTICATE phase.
  */
-static void sm_fom_authen_wait(struct c2_sm *mach)
+static int sm_fom_authen_wait(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_RESOURCE_LOCAL;
 	mach->sm_rc = C2_FSO_AGAIN;
+	return 0;
 }
 
 /**
  * Identifies local resources required for fom
  * execution.
  */
-static void sm_fom_loc_resource(struct c2_sm *mach)
+static int sm_fom_loc_resource(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_RESOURCE_DISTRIBUTED;
 	mach->sm_rc = C2_FSO_AGAIN;
+	return 0;
 }
 
 /**
  * Resumes fom execution after completing a blocking operation
  * in C2_FOPH_RESOURCE_LOCAL phase.
  */
-static void sm_fom_loc_resource_wait(struct c2_sm *mach)
+static int sm_fom_loc_resource_wait(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_RESOURCE_DISTRIBUTED;
 	mach->sm_rc = C2_FSO_AGAIN;
+	return 0;
 }
 
 /**
  * Identifies distributed resources required for fom execution.
  */
-static void sm_fom_dist_resource(struct c2_sm *mach)
+static int sm_fom_dist_resource(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_OBJECT_CHECK;
 	mach->sm_rc = C2_FSO_AGAIN;
+	return 0;
 }
 
 /**
  * Resumes fom execution after completing blocking operation
  * in C2_FOPH_RESOURCE_DISTRIBUTED_PHASE.
  */
-static void sm_fom_dist_resource_wait(struct c2_sm *mach)
+static int sm_fom_dist_resource_wait(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_OBJECT_CHECK;
 	mach->sm_rc = C2_FSO_AGAIN;
+	return 0;
 }
 
 /**
  * Locates and loads filesystem objects affected by
  * fop executed by this fom.
  */
-static void sm_fom_obj_check(struct c2_sm *mach)
+static int sm_fom_obj_check(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_AUTHORISATION;
 	mach->sm_rc = C2_FSO_AGAIN;
+	return 0;
 }
 
 /**
  * Resumes fom execution after completing blocking operation
  * in C2_FOPH_OBJECT_CHECK.
  */
-static void sm_fom_obj_check_wait(struct c2_sm *mach)
+static int sm_fom_obj_check_wait(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_AUTHORISATION;
 	mach->sm_rc = C2_FSO_AGAIN;
+	return 0;
 }
 
 /**
@@ -180,26 +189,28 @@ static void sm_fom_obj_check_wait(struct c2_sm *mach)
  * accessing the file system objects affected by
  * the fop.
  */
-static void sm_fom_auth(struct c2_sm *mach)
+static int sm_fom_auth(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_TXN_CONTEXT;
 	mach->sm_rc = C2_FSO_AGAIN;
+	return 0;
 }
 
 /**
  * Resumes fom execution after completing a blocking operation
  * C2_FOPH_AUTHORISATION phase.
  */
-static void sm_fom_auth_wait(struct c2_sm *mach)
+static int sm_fom_auth_wait(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_TXN_CONTEXT;
 	mach->sm_rc = C2_FSO_AGAIN;
+	return 0;
 }
 
 /**
@@ -221,26 +232,29 @@ static int create_loc_ctx(struct c2_fom *fom)
 	}
 	return C2_FSO_AGAIN;
 }
-static void sm_create_loc_ctx(struct c2_sm *mach)
+
+static int sm_create_loc_ctx(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_NR + 1,
 	mach->sm_rc = create_loc_ctx(fom);
+	return 0;
 }
 
 /**
  * Resumes fom execution after completing a blocking operation,
  * C2_FOPH_TXN_CONTEXT phase.
  */
-static void sm_create_loc_ctx_wait(struct c2_sm *mach)
+static int sm_create_loc_ctx_wait(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_NR + 1,
 	mach->sm_rc = C2_FSO_AGAIN;
+	return 0;
 }
 
 /**
@@ -272,7 +286,7 @@ static int set_gen_err_reply(struct c2_fom *fom)
  * already contain a fop specific error reply provided by
  * fop specific operation.
  */
-static void sm_fom_failure(struct c2_sm *mach)
+static int sm_fom_failure(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
@@ -281,24 +295,26 @@ static void sm_fom_failure(struct c2_sm *mach)
 	if (fom->fo_rc != 0 && fom->fo_rep_fop == NULL)
 		set_gen_err_reply(fom);
 	mach->sm_rc = C2_FSO_AGAIN;
+	return 0;
 }
 
 /**
  * Fom execution is successfull.
  */
-static void sm_fom_success(struct c2_sm *mach)
+static int sm_fom_success(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_FOL_REC_ADD;
 	mach->sm_rc = C2_FSO_AGAIN;
+	return 0;
 }
 
 /**
  * Make a FOL transaction record
  */
-static void sm_fom_fol_rec_add(struct c2_sm *mach)
+static int sm_fom_fol_rec_add(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
@@ -309,13 +325,14 @@ static void sm_fom_fol_rec_add(struct c2_sm *mach)
                                         &fom->fo_tx.tx_dbtx);
         c2_fom_block_leave(fom);
 	mach->sm_rc = C2_FSO_AGAIN;
+	return 0;
 }
 
 /**
  * Commits local fom transactional context if fom
  * execution is successful.
  */
-static void sm_fom_txn_commit(struct c2_sm *mach)
+static int sm_fom_txn_commit(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 	int	       rc;
@@ -328,19 +345,21 @@ static void sm_fom_txn_commit(struct c2_sm *mach)
 		set_gen_err_reply(fom);
 	}
 	mach->sm_rc = C2_FSO_AGAIN;
+	return 0;
 }
 
 /**
  * Resumes fom execution after completing a blocking operation
  * in C2_FOPH_TXN_COMMIT phase.
  */
-static void sm_fom_txn_commit_wait(struct c2_sm *mach)
+static int sm_fom_txn_commit_wait(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_QUEUE_REPLY;
 	mach->sm_rc = C2_FSO_AGAIN;
+	return 0;
 }
 
 /**
@@ -372,26 +391,29 @@ static int fom_txn_abort(struct c2_fom *fom)
 
 	return C2_FSO_AGAIN;
 }
-static void sm_fom_txn_abort(struct c2_sm *mach)
+
+static int sm_fom_txn_abort(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_QUEUE_REPLY;
 	mach->sm_rc = fom_txn_abort(fom);
+	return 0;
 }
 
 /**
  * Resumes fom execution after completing a blocking operation
  * in C2_FOPH_TXN_ABORT phase.
  */
-static void sm_fom_txn_abort_wait(struct c2_sm *mach)
+static int sm_fom_txn_abort_wait(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_QUEUE_REPLY;
 	mach->sm_rc = C2_FSO_AGAIN;
+	return 0;
 }
 
 /**
@@ -417,35 +439,39 @@ static int fom_queue_reply(struct c2_fom *fom)
 
 	return C2_FSO_AGAIN;
 }
-static void sm_fom_queue_reply(struct c2_sm *mach)
+
+static int sm_fom_queue_reply(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_FINISH;
 	mach->sm_rc = fom_queue_reply(fom);
+	return 0;
 }
 
 /**
  * Resumes fom execution after completing a blocking operation
  * in C2_FOPH_QUEUE_REPLY phase.
  */
-static void sm_fom_queue_reply_wait(struct c2_sm *mach)
+static int sm_fom_queue_reply_wait(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_FINISH;
 	mach->sm_rc = C2_FSO_AGAIN;
+	return 0;
 }
 
-static void sm_fom_timeout(struct c2_sm *mach)
+static int sm_fom_timeout(struct c2_sm *mach)
 {
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_FAILURE;
 	mach->sm_rc = C2_FSO_AGAIN;
+	return 0;
 }
 
 /**

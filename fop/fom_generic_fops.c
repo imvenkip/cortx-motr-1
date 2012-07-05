@@ -34,7 +34,7 @@
 #endif
 
 #include "fop/fom_generic_fops.ff"
-#include "rpc/rpc_base.h"
+#include "rpc/item.h"
 #include "rpc/rpc_opcodes.h"
 #include "xcode/bufvec_xcode.h"
 
