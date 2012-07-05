@@ -41,8 +41,7 @@ struct c2_net_test_slist {
 	   Number of strings in the list. If it is 0, other fields are
 	   not valid.
 	 */
-	/** @todo size_t */
-	int    ntsl_nr;
+	size_t ntsl_nr;
 	/**
 	   Array of pointers to strings.
 	 */
@@ -55,9 +54,10 @@ struct c2_net_test_slist {
 };
 
 /**
-   Initialize string list from a string and a delimiter.
-   @todo document it.
+   Initialize string list from a ASCIIZ string and a delimiter.
    @pre slist != NULL
+   @pre str != NULL
+   @pre delim != '\0'
  */
 int c2_net_test_slist_init(struct c2_net_test_slist *slist,
 			   char *str,

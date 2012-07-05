@@ -22,16 +22,7 @@
 #  include "config.h"
 #endif
 
-/* @todo remove */
-#ifndef __KERNEL__
-#include <stdio.h>		/* printf */
-#endif
-
 #include "lib/ut.h"		/* C2_UT_ASSERT */
-#include "lib/semaphore.h"	/* c2_semaphore */
-#include "lib/memory.h"		/* c2_alloc */
-
-#define DEBUG_FUNC printf("\n%s\n", __FUNCTION__)
 
 /*
  *  Local variables:

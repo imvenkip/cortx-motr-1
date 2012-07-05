@@ -39,7 +39,7 @@
 bool c2_net_test_node_config_invariant(
 		const struct c2_net_test_node_config *cfg)
 {
-	/* @todo */
+	/** @todo */
 	return false;
 }
 

@@ -60,6 +60,8 @@ int c2_net_test_slist_init(struct c2_net_test_slist *slist,
 	size_t i = 0;
 
 	C2_PRE(slist != NULL);
+	C2_PRE(str != NULL);
+	C2_PRE(delim != '\0');
 	C2_SET0(slist);
 
 	if (str == NULL)

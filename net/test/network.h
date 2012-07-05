@@ -31,7 +31,7 @@
    @ref net-test
 
    @todo c2_net_test_network_ prefix is too long. rename and align.
-   @todo s/uint32_t/size_t/ ?
+   @todo s/uint32_t/size_t/
 
    @{
  */

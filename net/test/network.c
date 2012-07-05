@@ -311,7 +311,6 @@ bool c2_net_test_network_ctx_invariant(struct c2_net_test_network_ctx *ctx)
 	return ctx->ntc_ep_nr <= ctx->ntc_ep_max;
 }
 
-/* @todo rearrange to allocate memory before initializing network structs? */
 int c2_net_test_network_ctx_init(struct c2_net_test_network_ctx *ctx,
 				 const char *tm_addr,
 				 const struct c2_net_tm_callbacks *tm_cb,
@@ -777,7 +776,7 @@ void c2_net_test_network_buf_fill(struct c2_net_test_network_ctx *ctx,
 	C2_ASSERT(bv != NULL);
 	length = c2_vec_count(&bv->ov_vec);
 	c2_bufvec_cursor_init(&bc, bv);
-	/* @todo use c2_bufvec_cursor_step */
+	/** @todo use c2_bufvec_cursor_step */
 	for (i = 0; i < length; ++i) {
 		* (uint8_t *) c2_bufvec_cursor_addr(&bc) = fill;
 		c2_bufvec_cursor_move(&bc, 1);

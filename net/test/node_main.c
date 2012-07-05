@@ -491,7 +491,7 @@ static struct c2_thread net_test_main_thread;
  */
 static void net_test_main(int ignored)
 {
-	/* @todo */
+	/** @todo */
 }
 
 int c2_net_test_init(struct c2_net_test_node_config *cfg)
@@ -503,7 +503,7 @@ C2_EXPORTED(c2_net_test_init);
 
 void c2_net_test_fini(void)
 {
-	/* @todo */
+	/** @todo */
 	c2_thread_join(&net_test_main_thread);
 }
 C2_EXPORTED(c2_net_test_fini);

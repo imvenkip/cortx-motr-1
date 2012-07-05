@@ -41,9 +41,6 @@
 #define LOGD(format, ...) do {} while (0)
 #endif
 
-/* @todo multithreaded version of UT? */
-/* @todo test all network interfaces? */
-
 enum {
 	NET_TEST_PING_BUF_SIZE = 4096,
 	NET_TEST_PING_BUF_STEP = 511,	/** @see c2_net_test_network_ut_ping */
@@ -174,7 +171,6 @@ void c2_net_test_network_ut_ping(void)
 					  1, NULL);
 	C2_UT_ASSERT(rc == 0);
 
-	/* @todo 4000 and 4001 as parameters */
 	rc = c2_net_test_network_ep_add(&send, "0@lo:12345:30:4001");
 	C2_UT_ASSERT(rc == 0);
 	rc = c2_net_test_network_ep_add(&recv, "0@lo:12345:30:4000");
