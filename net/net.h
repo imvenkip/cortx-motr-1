@@ -601,8 +601,6 @@ void c2_net_end_point_get(struct c2_net_end_point *ep);
    @pre ep->nep_ref->ref_cnt >= 1
    @note The transfer machine mutex will be obtained internally to synchronize
    the transport provided release() method in case the end point gets released.
-   @retval 0 (success)
-   @retval -errno (failure)
  */
 void c2_net_end_point_put(struct c2_net_end_point *ep);
 
