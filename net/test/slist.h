@@ -56,8 +56,6 @@ struct c2_net_test_slist {
 /**
    Initialize string list from a ASCIIZ string and a delimiter.
    @pre slist != NULL
-   @pre str != NULL
-   @pre delim != '\0'
  */
 int c2_net_test_slist_init(struct c2_net_test_slist *slist,
 			   char *str,
