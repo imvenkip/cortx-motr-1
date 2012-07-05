@@ -58,6 +58,12 @@ static bool is_littl_endian_env(void)
 	return *((char *) &one) == 1;
 }
 
+/**
+   Convert data to little endian representation.
+   @todo use htole64/le16toh/__cpu_to_le64 etc.
+   @pre len <= NTXCODE_BUF_LEN_MAX
+   @pre data != buf
+ */
 static void net_test_xcode_reorder(enum c2_net_test_xcode_op op,
 				   char *buf,
 				   char *data,
@@ -67,6 +73,7 @@ static void net_test_xcode_reorder(enum c2_net_test_xcode_op op,
 	c2_bcount_t j;
 
 	C2_PRE(len <= NTXCODE_BUF_LEN_MAX);
+	C2_PRE(data != buf);
 
 	for (i = 0; i < len; ++i) {
 		j = is_littl_endian_env() ? i : len - 1 - i;
