@@ -114,7 +114,7 @@ int c2_time_get(const char *arg, c2_time_t *out)
 	C2_CASSERT(ARRAY_SIZE(unit) == ARRAY_SIZE(multiplier));
 
 	before = STRTOULL(arg, &end, 10);
-	if (end != NULL && *end == C2_GETOPTS_DECIMAL_POINT)
+	if (*end == C2_GETOPTS_DECIMAL_POINT)
 		after = STRTOULL(++end, &end, 10);
 	if (before == UINT64_MAX || after == UINT64_MAX)
 		rc = -E2BIG;
