@@ -375,9 +375,10 @@ static int pdclust_l_build(uint64_t lid, uint32_t N, uint32_t K,
 	attr.pa_N         = N;
 	attr.pa_K         = K;
 	attr.pa_P         = pool->po_width;
+	attr.pa_pool_id   = pool->po_id;
 	attr.pa_unit_size = unitsize;
 	attr.pa_seed      = *seed;
-	rc = c2_pdclust_build(&domain, pool, lid, &attr, le, pl);
+	rc = c2_pdclust_build(&domain, lid, &attr, le, pl);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(c2_layout_find(&domain, lid) == &(*pl)->pl_base.sl_base);
 
@@ -470,6 +471,7 @@ static void pdclust_l_verify(uint64_t lid,
 	C2_UT_ASSERT(pl->pl_attr.pa_N == N);
 	C2_UT_ASSERT(pl->pl_attr.pa_K == K);
 	C2_UT_ASSERT(pl->pl_attr.pa_P == POOL_WIDTH);
+	C2_UT_ASSERT(pl->pl_attr.pa_pool_id == pool.po_id);
 	C2_UT_ASSERT(pl->pl_attr.pa_unit_size == unitsize);
 	C2_UT_ASSERT(c2_uint128_eq(&pl->pl_attr.pa_seed, seed));
 }
@@ -671,10 +673,10 @@ static void pdclust_buf_build(uint32_t let_id, uint64_t lid,
 	buf_build(c2_pdclust_layout_type.lt_id, dcur);
 
 	pl_rec.pr_let_id            = let_id;
-	pl_rec.pr_pool_id           = pool.po_id;
 	pl_rec.pr_attr.pa_N         = N;
 	pl_rec.pr_attr.pa_K         = K;
 	pl_rec.pr_attr.pa_P         = POOL_WIDTH;
+	pl_rec.pr_attr.pa_pool_id   = pool.po_id;
 	pl_rec.pr_attr.pa_unit_size = unitsize;
 	pl_rec.pr_attr.pa_seed      = *seed;
 
@@ -908,9 +910,9 @@ static void pdclust_lbuf_verify(uint32_t N, uint32_t K, uint64_t unitsize,
 	C2_UT_ASSERT(pl_rec->pr_attr.pa_N == N);
 	C2_UT_ASSERT(pl_rec->pr_attr.pa_K == K);
 	C2_UT_ASSERT(pl_rec->pr_attr.pa_P == POOL_WIDTH);
+	C2_UT_ASSERT(pl_rec->pr_attr.pa_pool_id == pool.po_id);
 	C2_UT_ASSERT(c2_uint128_eq(&pl_rec->pr_attr.pa_seed, seed));
 	C2_UT_ASSERT(pl_rec->pr_attr.pa_unit_size == unitsize);
-	C2_UT_ASSERT(pl_rec->pr_pool_id == pool.po_id);
 
 	*let_id = pl_rec->pr_let_id;
 	c2_bufvec_cursor_move(cur, sizeof *pl_rec);
@@ -1124,11 +1126,12 @@ static void pdclust_lbuf_compare(struct c2_bufvec_cursor *cur1,
 	C2_UT_ASSERT(pl_rec1->pr_attr.pa_N == pl_rec2->pr_attr.pa_N);
 	C2_UT_ASSERT(pl_rec1->pr_attr.pa_K == pl_rec2->pr_attr.pa_K);
 	C2_UT_ASSERT(pl_rec1->pr_attr.pa_P == pl_rec2->pr_attr.pa_P);
+	C2_UT_ASSERT(pl_rec1->pr_attr.pa_pool_id ==
+		     pl_rec2->pr_attr.pa_pool_id);
 	C2_UT_ASSERT(c2_uint128_eq(&pl_rec1->pr_attr.pa_seed,
 				   &pl_rec2->pr_attr.pa_seed));
 	C2_UT_ASSERT(pl_rec1->pr_attr.pa_unit_size ==
 		     pl_rec2->pr_attr.pa_unit_size);
-	C2_UT_ASSERT(pl_rec1->pr_pool_id == pl_rec2->pr_pool_id);
 
 	c2_bufvec_cursor_move(cur1, sizeof *pl_rec1);
 	c2_bufvec_cursor_move(cur2, sizeof *pl_rec2);
@@ -2313,6 +2316,8 @@ static void test_lookup(void)
 static void test_lookup_failure(void)
 {
 	uint64_t lid;
+
+	// todo Combine this test with test_lookup()
 
 	/*
 	 * Add a layout object with PDCLUST layout type and LINEAR enum type.

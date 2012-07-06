@@ -378,13 +378,14 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 				  &lin_attr, &le);
 	if (rc == 0) {
 		layout_id = 0x4A494E4E49455349; /* "jinniesi" */
-		pl_attr.pa_N = N;
-		pl_attr.pa_K = K;
-		pl_attr.pa_P = pool->po_width;
+		pl_attr.pa_N         = N;
+		pl_attr.pa_K         = K;
+		pl_attr.pa_P         = pool->po_width;
+		pl_attr.pa_pool_id   = pool->po_id;
 		pl_attr.pa_unit_size = unit_size;
 		c2_uint128_init(&pl_attr.pa_seed, "upjumpandpumpim,");
 		rc = c2_pdclust_build(&c2t1fs_globals.g_layout_dom,
-				      pool, layout_id, &pl_attr,
+				      layout_id, &pl_attr,
 				      &le->lle_base, &pd_layout);
 		if (rc == 0) {
 			ci->ci_layout = c2_pdl_to_layout(pd_layout);

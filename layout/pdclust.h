@@ -98,6 +98,9 @@ struct c2_pdclust_attr {
 	 */
 	uint32_t           pa_P;
 
+	/** Pool identifier. */
+	uint64_t           pa_pool_id;
+
 	/** Stripe unit size. Specified in number of bytes. */
 	uint64_t           pa_unit_size;
 
@@ -109,14 +112,8 @@ struct c2_pdclust_attr {
  * Pdclust layout type specific part of record for the layouts table.
  */
 struct c2_layout_pdclust_rec {
-	/**
-	 * Layout enumeration type id.
-	 * Value obtained from c2_layout_enum_type::let_id.
-	 */
+	/** Layout enumeration type id. */
 	uint32_t                pr_let_id;
-
-	/** Pool identifier. */
-	uint64_t                pr_pool_id;
 
 	struct c2_pdclust_attr  pr_attr;
 };
@@ -145,7 +142,6 @@ struct c2_pdclust_layout {
 	 * @see c2_pdclust_layout::pl_L
 	 */
 	uint32_t                     pl_L;
-
 
 	/** Storage pool this layout is for. */
 	struct c2_pool              *pl_pool;
@@ -277,7 +273,7 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 			   struct c2_pdclust_src_addr *src);
 
 int c2_pdclust_build(struct c2_layout_domain *dom,
-		     struct c2_pool *pool, uint64_t lid,
+		     uint64_t lid,
 		     const struct c2_pdclust_attr *attr,
 		     struct c2_layout_enum *le,
 		     struct c2_pdclust_layout **out);

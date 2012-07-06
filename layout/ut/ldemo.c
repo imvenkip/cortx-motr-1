@@ -40,7 +40,7 @@
 */
 
 enum {
-	DEF_POOL_ID = 10
+	DEF_POOL_ID = 2
 };
 
 enum c2_pdclust_unit_type classify(const struct c2_pdclust_layout *play,
@@ -258,9 +258,10 @@ int main(int argc, char **argv)
 			attr.pa_N = N;
 			attr.pa_K = K;
 			attr.pa_P = pool.po_width;
+			attr.pa_pool_id = pool.po_id;
 			attr.pa_unit_size = unitsize;
 			attr.pa_seed = seed;
-			result = c2_pdclust_build(&domain, &pool, id, &attr,
+			result = c2_pdclust_build(&domain, id, &attr,
 						  &le->lle_base, &play);
 			if (result == 0)
 				layout_demo(play, P, R, I);

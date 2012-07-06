@@ -112,8 +112,7 @@ static const struct c2_bob_type pdclust_bob = {
 
 C2_BOB_DEFINE(static, &pdclust_bob, c2_pdclust_layout);
 
-C2_ADDB_EV_DEFINE(pdclust_tile_cache_hit,
-		  "pdclust_tile_cache_hit",
+C2_ADDB_EV_DEFINE(pdclust_tile_cache_hit, "pdclust_tile_cache_hit",
 		  C2_ADDB_EVENT_LAYOUT_TILE_CACHE_HIT, C2_ADDB_FLAG);
 
 /**
@@ -301,13 +300,10 @@ void c2_pdclust_layout_map(struct c2_pdclust_layout *play,
 	uint32_t N;
 	uint32_t K;
 	uint32_t P;
-
 	uint32_t C;
 	uint32_t L;
-
 	uint64_t omega;
 	uint64_t j;
-
 	uint64_t r;
 	uint64_t t;
 
@@ -342,13 +338,10 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 	uint32_t N;
 	uint32_t K;
 	uint32_t P;
-
 	uint32_t C;
 	uint32_t L;
-
 	uint64_t omega;
 	uint64_t j;
-
 	uint64_t r;
 	uint64_t t;
 
@@ -377,8 +370,8 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 /** Implementation of lo_fini for pdclust layout type. */
 static void pdclust_fini(struct c2_layout *l)
 {
-	uint32_t                  i;
 	struct c2_pdclust_layout *pl;
+	uint32_t                  i;
 
 	C2_PRE(l != NULL);
 
@@ -386,19 +379,16 @@ static void pdclust_fini(struct c2_layout *l)
 	pl = c2_layout_to_pdl(l);
 	c2_pdclust_layout_bob_fini(pl);
 	c2_parity_math_fini(&pl->pl_math);
-
 	c2_free(pl->pl_tile_cache.tc_inverse);
 	c2_free(pl->pl_tile_cache.tc_permute);
 	c2_free(pl->pl_tile_cache.tc_lcode);
 	if (pl->pl_tgt != NULL) {
 		for (i = 0; i < pl->pl_attr.pa_P; ++i) {
 			if (c2_stob_id_is_set(&pl->pl_tgt[i]))
-				c2_pool_put(pl->pl_pool,
-					    &pl->pl_tgt[i]);
+				c2_pool_put(pl->pl_pool, &pl->pl_tgt[i]);
 		}
 		c2_free(pl->pl_tgt);
 	}
-
 	c2_layout__striped_fini(&pl->pl_base);
 	c2_free(pl);
 	C2_LEAVE();
@@ -448,7 +438,6 @@ static int pdclust_allocate(struct c2_layout_domain *dom,
 	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
-
 	C2_ALLOC_PTR(pdl);
 	if (pdl == NULL) {
 		c2_layout__log("c2_pdclust_allocate", "C2_ALLOC_PTR() failed",
@@ -456,14 +445,11 @@ static int pdclust_allocate(struct c2_layout_domain *dom,
 			       &c2_addb_oom, &layout_global_ctx, lid, -ENOMEM);
 		return -ENOMEM;
 	}
-
 	c2_layout__striped_init(dom, &pdl->pl_base, lid,
 				&c2_pdclust_layout_type, &pdclust_ops);
-
 	C2_POST(pdclust_allocated_invariant(pdl));
 	*out = &pdl->pl_base.sl_base;
-	C2_LEAVE("lid %llu, pdclust pointer %p",
-		 (unsigned long long)lid, pdl);
+	C2_LEAVE("lid %llu, pdl pointer %p", (unsigned long long)lid, pdl);
 	return 0;
 }
 
@@ -474,7 +460,7 @@ static void pdclust_delete(struct c2_layout *l)
 
 	C2_PRE(c2_layout__allocated_invariant(l));
 	pdl = container_of(l, struct c2_pdclust_layout, pl_base.sl_base);
-	C2_ASSERT(pdclust_allocated_invariant(pdl));
+	C2_PRE(pdclust_allocated_invariant(pdl));
 	c2_layout__striped_delete(&pdl->pl_base);
 	c2_free(pdl);
 	C2_LEAVE();
@@ -488,33 +474,39 @@ static void pdclust_delete(struct c2_layout *l)
  * involves enumeration object finalisation.
  */
 static int pdclust_populate(struct c2_pdclust_layout *pdl,
-			    struct c2_pool *pool,
 			    const struct c2_pdclust_attr *attr,
 			    struct c2_layout_enum *le,
 			    uint32_t ref_count)
 {
-	uint32_t                  B;
-	uint32_t                  i;
-	uint32_t                  N;
-	uint32_t                  K;
-	uint32_t                  P;
-	uint64_t                  lid;
-	int                       rc;
+	uint32_t        B;
+	uint32_t        i;
+	uint32_t        N;
+	uint32_t        K;
+	uint32_t        P;
+	struct c2_pool *pool;
+	uint64_t        lid;
+	int             rc;
 
 	C2_PRE(pdclust_allocated_invariant(pdl));
-	C2_PRE(pool != NULL);
 	C2_PRE(le != NULL);
-
-	/* todo remove the following, instead have it in the invar for attr */
 	N = attr->pa_N;
 	K = attr->pa_K;
 	P = attr->pa_P;
-	//todo check if seed is valid, pool id is valid ??
-	C2_PRE(P == pool->po_width);
 	C2_PRE(N + 2 * K <= P);
 
 	lid = pdl->pl_base.sl_base.l_id;
-	C2_ENTRY("lid %llu", (unsigned long long)lid);
+	C2_ENTRY("lid %llu, pool id %llu", (unsigned long long)lid,
+		 (unsigned long long)attr->pa_pool_id);
+
+	rc = c2_pool_lookup(attr->pa_pool_id, &pool);
+	if (rc != 0) {
+		c2_layout__log("pdclust_build", "c2_pool_lookup() failed",
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
+			       &c2_addb_oom, &pdl->pl_base.sl_base.l_addb,
+			       lid, rc);
+		return rc;
+	}
+	C2_ASSERT(P == pool->po_width);
 
 	C2_ALLOC_ARR(pdl->pl_tgt, P);
 	C2_ALLOC_ARR(pdl->pl_tile_cache.tc_lcode, P);
@@ -541,21 +533,18 @@ static int pdclust_populate(struct c2_pdclust_layout *pdl,
 		for (rc = 0, i = 0; i < P; ++i) {
 			rc = c2_pool_alloc(pool, &pdl->pl_tgt[i]);
 			if (rc != 0) {
-				C2_LOG("lid %llu, c2_pool_alloc() "
-				       "failed, rc %d",
-				       (unsigned long long)lid, rc);
+				C2_LOG("lid %llu, c2_pool_alloc() failed, "
+				       "rc %d", (unsigned long long)lid, rc);
 				break;
 			}
 		}
-
 		if (rc == 0) {
 			rc = c2_parity_math_init(&pdl->pl_math, N, K);
 			if (rc == 0)
 				c2_pdclust_layout_bob_init(pdl);
 			else
-				C2_LOG("lid %llu, "
-				       "c2_parity_math_init() failed, "
-				       "rc %d",
+				C2_LOG("lid %llu, c2_parity_math_init() "
+				       "failed, rc %d",
 				       (unsigned long long)lid, rc);
 		}
 	} else {
@@ -565,47 +554,46 @@ static int pdclust_populate(struct c2_pdclust_layout *pdl,
 			       &c2_addb_oom, &layout_global_ctx, lid, rc);
 	}
 
-	if (rc == 0)
+	if (rc == 0) {
 		C2_POST(pdclust_invariant(pdl));
-	else
+	}
+	else {
 		pdclust_fini(&pdl->pl_base.sl_base);
-
+		C2_POST(pdclust_allocated_invariant(pdl));
+	}
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
 
 int c2_pdclust_build(struct c2_layout_domain *dom,
-		     struct c2_pool *pool, uint64_t lid,
+		     uint64_t lid,
 		     const struct c2_pdclust_attr *attr,
 		     struct c2_layout_enum *le,
 		     struct c2_pdclust_layout **out)
 {
 	struct c2_layout         *l;
-	struct c2_pdclust_layout *pl;
+	struct c2_pdclust_layout *pdl;
 	int                       rc;
 
 	C2_PRE(out != NULL);
 
-	/* todo Move these into an invariant */
-	C2_PRE(attr->pa_N + 2 * attr->pa_K <= attr->pa_P);
-	//todo should pool_id be part of c2_pdclust_attr ?
-	//todo If yes, C2_PRE(attr->pa_pool_id == pool->po_id);
-	C2_PRE(attr->pa_P == pool->po_width);
-
-	/* todo check the error handling */
-	/* todo add log messages ?? */
+	C2_ENTRY("lid %llu", (unsigned long long)lid);
 	rc = pdclust_allocate(dom, lid, &l);
 	if (rc == 0) {
-		pl = container_of(l, struct c2_pdclust_layout, pl_base.sl_base);
-		C2_ASSERT(pdclust_allocated_invariant(pl));
+		pdl = container_of(l, struct c2_pdclust_layout,
+				   pl_base.sl_base);
+		C2_ASSERT(pdclust_allocated_invariant(pdl));
 
-		rc = pdclust_populate(pl, pool, attr, le, DEFAULT_REF_COUNT);
+		rc = pdclust_populate(pdl, attr, le, DEFAULT_REF_COUNT);
 		if (rc == 0) {
-			C2_POST(pdclust_invariant(pl));
-			*out = pl;
+			C2_POST(pdclust_invariant(pdl));
+			*out = pdl;
+		} else {
+			pdclust_delete(l);
 		}
 	}
-
+	C2_POST(pdclust_invariant(pdl));
+	C2_LEAVE("lid %llu", (unsigned long long)lid);
 	return rc;
 }
 
@@ -682,11 +670,9 @@ static int pdclust_decode(enum c2_layout_xcode_op op,
 		          struct c2_layout *l)
 {
 	struct c2_pdclust_layout     *pl;
-	struct c2_striped_layout     *stl;
 	struct c2_layout_pdclust_rec *pl_rec;
 	struct c2_layout_enum_type   *et;
-	struct c2_layout_enum        *e = NULL; //todo check if req'd
-	struct c2_pool               *pool;
+	struct c2_layout_enum        *e;
 	int                           rc;
 
 	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP)));
@@ -699,15 +685,11 @@ static int pdclust_decode(enum c2_layout_xcode_op op,
 	pl = container_of(l, struct c2_pdclust_layout, pl_base.sl_base);
 	C2_ASSERT(pdclust_allocated_invariant(pl));
 
-	stl = container_of(l, struct c2_striped_layout, sl_base);
-	C2_ASSERT(c2_layout__striped_allocated_invariant(stl));
-
 	/* pl_rec can not be NULL since the buffer size is already verified. */
 	pl_rec = c2_bufvec_cursor_addr(cur);
 	c2_bufvec_cursor_move(cur, sizeof *pl_rec);
-
 	et = l->l_dom->ld_enum[pl_rec->pr_let_id];
-	C2_ASSERT(et != NULL); //todo check how to validate
+	C2_ASSERT(et != NULL);
 
 	rc = et->let_ops->leto_allocate(l->l_dom, &e);
 	if (rc != 0) {
@@ -724,19 +706,10 @@ static int pdclust_decode(enum c2_layout_xcode_op op,
 		goto out;
 	}
 
-	rc = c2_pool_lookup(pl_rec->pr_pool_id, &pool);
-	if (rc != 0) {
-		e->le_ops->leo_delete(e);
-		C2_LOG("lid %llu, pool_id %llu, c2_pool_lookup() failed, "
-		       "rc %d", (unsigned long long)l->l_id,
-		       (unsigned long long)pl_rec->pr_pool_id, rc);
-		goto out;
-	}
-
-	rc = pdclust_populate(pl, pool, &pl_rec->pr_attr, e, ref_count);
+	rc = pdclust_populate(pl, &pl_rec->pr_attr, e, ref_count);
 	if (rc != 0) {
 		e->le_ops->leo_fini(e);
-		C2_LOG("lid %llu, c2_pdclust_build() failed, rc %d",
+		C2_LOG("lid %llu, pdclust_populate() failed, rc %d",
 		       (unsigned long long)l->l_id, rc);
 		goto out;
 	}
@@ -773,10 +746,9 @@ static int pdclust_encode(struct c2_layout *l,
 
 	/*
 	 * c2_layout__invariant() is part of pdclust_invariant(),
-	 * to be invoked little later below.
+	 * to be invoked little later through c2_layout_to_pdl() below.
 	 */
 	C2_PRE(l != NULL);
-
 	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
 		          C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
@@ -787,7 +759,6 @@ static int pdclust_encode(struct c2_layout *l,
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof pl_rec);
 
 	C2_ENTRY("%llu", (unsigned long long)l->l_id);
-
 	pl = c2_layout_to_pdl(l);
 	if (op == C2_LXO_DB_UPDATE) {
 		/*
@@ -798,7 +769,8 @@ static int pdclust_encode(struct c2_layout *l,
 
 		C2_ASSERT(pl_oldrec->pr_let_id ==
 			  pl->pl_base.sl_enum->le_type->let_id &&
-			  pl_oldrec->pr_pool_id == pl->pl_pool->po_id &&
+			  pl_oldrec->pr_attr.pa_pool_id ==
+			  pl->pl_pool->po_id &&
 			  pl_oldrec->pr_attr.pa_N == pl->pl_attr.pa_N &&
 			  pl_oldrec->pr_attr.pa_K == pl->pl_attr.pa_K &&
 			  pl_oldrec->pr_attr.pa_P == pl->pl_attr.pa_P &&
@@ -807,12 +779,10 @@ static int pdclust_encode(struct c2_layout *l,
 		c2_bufvec_cursor_move(oldrec_cur, sizeof *pl_oldrec);
 	}
 
-	et = l->l_dom->ld_enum[pl->pl_base.sl_enum->le_type->let_id];
-	C2_ASSERT(c2_layout__is_enum_type_valid(et->let_id, l->l_dom));
-
-	pl_rec.pr_let_id  = pl->pl_base.sl_enum->le_type->let_id;
-	pl_rec.pr_pool_id = pl->pl_pool->po_id;
-	pl_rec.pr_attr    = pl->pl_attr;
+	pl_rec.pr_let_id = pl->pl_base.sl_enum->le_type->let_id;
+	pl_rec.pr_attr   = pl->pl_attr;
+	et               = pl->pl_base.sl_enum->le_type;
+	C2_ASSERT(et != NULL && et == l->l_dom->ld_enum[et->let_id]);
 
 	nbytes = c2_bufvec_cursor_copyto(out, &pl_rec, sizeof pl_rec);
 	C2_ASSERT(nbytes == sizeof pl_rec);

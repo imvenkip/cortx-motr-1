@@ -70,7 +70,7 @@
  *   would have required conditional locking - lock only when
  *   c2_layout_decode() is invoked by an external user and not when it is
  *   invoked by c2_layout_lookup().
- *
+ *   todo Revise the locking related dfocumentation.
  */
 
 #include "lib/errno.h"
@@ -125,11 +125,7 @@ const struct c2_addb_loc layout_addb_loc = {
 
 struct c2_addb_ctx layout_global_ctx = {
 	.ac_type   = &layout_addb_ctx_type,
-	/*
-	 * @todo What should this parent be set to?
-	 * Something coming from FOP?
-	 */
-	.ac_parent = NULL
+	.ac_parent = &c2_addb_global_ctx
 };
 
 C2_ADDB_EV_DEFINE(layout_decode_fail, "layout_decode_fail",
@@ -147,8 +143,8 @@ C2_ADDB_EV_DEFINE(layout_delete_fail, "layout_delete_fail",
 		  C2_ADDB_EVENT_LAYOUT_DELETE_FAIL, C2_ADDB_FUNC_CALL);
 
 C2_TL_DESCR_DEFINE(layout, "layout-list", static,
-		   struct c2_layout, l_list_linkage,
-		   l_magic, LAYOUT_MAGIC, LAYOUT_LIST_HEAD_MAGIC);
+		   struct c2_layout, l_list_linkage, l_magic,
+		   LAYOUT_MAGIC, LAYOUT_LIST_HEAD_MAGIC);
 C2_TL_DEFINE(layout, static, struct c2_layout);
 
 bool c2_layout__domain_invariant(const struct c2_layout_domain *dom)
@@ -183,13 +179,13 @@ bool c2_layout__invariant(const struct c2_layout *l)
 		l->l_ref >= DEFAULT_REF_COUNT;
 }
 
-bool c2_layout__enum_invariant(const struct c2_layout_enum *le)
+bool c2_layout__enum_invariant(const struct c2_layout_enum *e)
 {
 	return
-		c2_layout_enum_bob_check(le) &&
-		le->le_type != NULL &&
-		le->le_sl != NULL &&
-		le->le_ops != NULL;
+		c2_layout_enum_bob_check(e) &&
+		e->le_type != NULL &&
+		e->le_sl != NULL &&
+		e->le_ops != NULL;
 }
 
 bool
@@ -221,8 +217,6 @@ static int rec_invariant(const struct c2_layout_rec *rec,
 bool c2_layout__is_layout_type_valid(uint32_t lt_id,
 				     const struct c2_layout_domain *dom)
 {
-	C2_PRE(dom != 0);
-
 	C2_PRE(c2_layout__domain_invariant(dom));
 
 	if (!IS_IN_ARRAY(lt_id, dom->ld_type)) {
@@ -286,28 +280,28 @@ static void layout_type_put(struct c2_layout_type *lt)
 }
 
 /** Adds a reference on the enum type. */
-static void enum_type_get(struct c2_layout_enum_type *let)
+static void enum_type_get(struct c2_layout_enum_type *et)
 {
-	C2_PRE(let != NULL);
+	C2_PRE(et != NULL);
 
 	/*
 	 * The DEFAULT_REF_COUNT while an enum type is registered, being 1,
 	 * ensures that the layout can not be freed concurrently.
 	 */
 
-	c2_mutex_lock(&let->let_domain->ld_lock);
-	C2_CNT_INC(let->let_ref_count);
-	c2_mutex_unlock(&let->let_domain->ld_lock);
+	c2_mutex_lock(&et->let_domain->ld_lock);
+	C2_CNT_INC(et->let_ref_count);
+	c2_mutex_unlock(&et->let_domain->ld_lock);
 }
 
 /** Releases a reference on the enum type. */
-static void enum_type_put(struct c2_layout_enum_type *let)
+static void enum_type_put(struct c2_layout_enum_type *et)
 {
-	C2_PRE(let != NULL);
+	C2_PRE(et != NULL);
 
-	c2_mutex_lock(&let->let_domain->ld_lock);
-	C2_CNT_DEC(let->let_ref_count);
-	c2_mutex_unlock(&let->let_domain->ld_lock);
+	c2_mutex_lock(&et->let_domain->ld_lock);
+	C2_CNT_DEC(et->let_ref_count);
+	c2_mutex_unlock(&et->let_domain->ld_lock);
 }
 
 /**
@@ -319,7 +313,6 @@ static struct c2_layout *layout_list_lookup(const struct c2_layout_domain *dom,
 {
 	struct c2_layout *l;
 
-	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(c2_mutex_is_locked(&dom->ld_lock));
 
 	c2_tl_for(layout, &dom->ld_layout_list, l) {
@@ -346,7 +339,7 @@ static void layout_list_add(struct c2_layout *l)
 
 /** Initialises a layout, adds a reference on the respective layout type. */
 void c2_layout__init(struct c2_layout_domain *dom,
-		     struct c2_layout *l,
+		     struct c2_layout *l, //todo Make this 1st arg
 		     uint64_t lid,
 		     struct c2_layout_type *type,
 		     const struct c2_layout_ops *ops)
@@ -381,8 +374,7 @@ void c2_layout__init(struct c2_layout_domain *dom,
 /** todo Add @post in the function header
 	C2_POST(c2_layout_find(l->l_dom, l->l_id) == l)
  */
-void c2_layout__populate(struct c2_layout *l,
-			 uint32_t ref_count)
+void c2_layout__populate(struct c2_layout *l, uint32_t ref_count)
 {
 	C2_PRE(c2_layout__allocated_invariant(l));
 	C2_PRE(ref_count >= DEFAULT_REF_COUNT);
