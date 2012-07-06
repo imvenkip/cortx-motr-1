@@ -118,13 +118,6 @@ uint64_t c2_time_seconds(const c2_time_t time);
  */
 uint64_t c2_time_nanoseconds(const c2_time_t time);
 
-/**
-   Get time from string.
-   Does C2_ASSERT() on c2_time_get() return value.
-   @see c2_time_get()
- */
-c2_time_t c2_time_from_str(const char *s);
-
 
 /**
    the biggest time that never reaches in system life.

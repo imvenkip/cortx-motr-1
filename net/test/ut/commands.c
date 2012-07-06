@@ -37,12 +37,12 @@ enum {
 	NTC_SVC_ID_NODE	      = 3001,
 	NTC_MULTIPLE_COMMANDS = 64,
 	NTC_ADDR_LEN_MAX      = 0x100,
+	NTC_TIMEOUT_MS	      = 1000,
 };
 
-static const char   NTC_ADDR[]	  = "0@lo:12345:%d:%d";
-static const size_t NTC_ADDR_LEN  = ARRAY_SIZE(NTC_ADDR);
-static const char   NTC_DELIM     = ',';
-static const char   NTC_TIMEOUT[] = "1.0s";
+static const char   NTC_ADDR[]	   = "0@lo:12345:%d:%d";
+static const size_t NTC_ADDR_LEN   = ARRAY_SIZE(NTC_ADDR);
+static const char   NTC_DELIM      = ',';
 
 struct net_test_cmd_node {
 	struct c2_thread	   ntcn_thread;
@@ -67,6 +67,19 @@ static struct c2_net_test_slist   slist_node;
 static struct c2_net_test_slist   slist_console;
 static struct net_test_cmd_node	 *node;
 static struct c2_net_test_cmd_ctx console;
+
+static c2_time_t timeout_get(void)
+{
+	c2_time_t timeout;
+
+	return c2_time_set(&timeout, NTC_TIMEOUT_MS / 1000,
+		           (NTC_TIMEOUT_MS % 1000) * 1000000);
+}
+
+static c2_time_t timeout_get_abs(void)
+{
+	return c2_time_add(c2_time_now(), timeout_get());
+}
 
 static int make_addr(char *s, size_t s_len, int port, int svc_id,
 		     bool add_comma)
@@ -252,9 +265,7 @@ static void commands_node_thread(struct net_test_cmd_node *node)
 	node->ntcn_failures = 0;
 	rc = c2_net_test_commands_init(ctx,
 				       slist_node.ntsl_list[node->ntcn_index],
-				       c2_time_from_str(NTC_TIMEOUT),
-				       NULL,
-				       &slist_console);
+				       timeout_get(), NULL, &slist_console);
 	if (!commands_ut_assert(node, rc == 0))
 		return barrier_disable(node);
 
@@ -269,8 +280,7 @@ static void commands_node_thread(struct net_test_cmd_node *node)
 		commands_ut_send(node, ctx);
 	barrier_with_main(node);	/* barrier #3 */
 	if (node->ntcn_index % 2 != 0)			/* test #4 */
-		commands_ut_recv(node, ctx, c2_time_add(c2_time_now(),
-						c2_time_from_str(NTC_TIMEOUT)));
+		commands_ut_recv(node, ctx, timeout_get_abs());
 	barrier_with_main(node);	/* barrier #4.0 */
 	/* main thread will check flags here */
 	barrier_with_main(node);	/* barrier #4.1 */
@@ -320,10 +330,9 @@ static void commands_ut_recv_all(size_t nr, c2_time_t deadline)
 
 static void net_test_command_ut(size_t nr)
 {
-	size_t				  i;
-	int				  rc;
-	bool				  rc_bool;
-	c2_time_t			  deadline;
+	size_t i;
+	int    rc;
+	bool   rc_bool;
 
 	C2_UT_ASSERT(nr > 0);
 
@@ -338,12 +347,9 @@ static void net_test_command_ut(size_t nr)
 	rc_bool = c2_net_test_slist_unique(&slist_console);
 	C2_UT_ASSERT(rc_bool);
 	/* init console */
-	rc = c2_net_test_commands_init(&console,
-				       addr_console,
-				       c2_time_from_str(NTC_TIMEOUT),
+	rc = c2_net_test_commands_init(&console, addr_console, timeout_get(),
 				       /** @todo set callback */
-				       NULL,
-				       &slist_node);
+				       NULL, &slist_node);
 	C2_UT_ASSERT(rc == 0);
 	/* alloc nodes */
 	C2_ALLOC_ARR(node, nr);
@@ -391,8 +397,7 @@ static void net_test_command_ut(size_t nr)
 	   Console receives commands from every node.
 	 */
 	flags_reset(nr);
-	deadline = c2_time_add(c2_time_now(), c2_time_from_str(NTC_TIMEOUT));
-	commands_ut_recv_all(nr, deadline);
+	commands_ut_recv_all(nr, timeout_get_abs());
 	C2_UT_ASSERT(is_flags_set_odd(nr));
 	barrier_with_nodes();				/* barrier #3 */
 	/*
@@ -414,8 +419,7 @@ static void net_test_command_ut(size_t nr)
 	barrier_with_nodes();				/* barrier #5.0 */
 	commands_ut_recv_all(nr, C2_TIME_NEVER);
 	flags_reset(nr);
-	deadline = c2_time_add(c2_time_now(), c2_time_from_str(NTC_TIMEOUT));
-	commands_ut_recv_all(nr, deadline);
+	commands_ut_recv_all(nr, timeout_get_abs());
 	C2_ASSERT(is_flags_set(nr, false));
 	barrier_with_nodes();				/* barrier #5.1 */
 	/* stop all threads */
