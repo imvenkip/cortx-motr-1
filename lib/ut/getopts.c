@@ -22,7 +22,7 @@
 #include "lib/cdefs.h"		/* ARRAY_SIZE */
 #include "lib/thread.h"		/* LAMBDA */
 #include "lib/assert.h"
-#include "lib/getopts.h"	/* c2_get_bcount */
+#include "lib/getopts.h"	/* c2_bcount_get */
 #include "lib/time.h"		/* c2_time_t */
 
 void test_getopts(void)
@@ -126,52 +126,52 @@ void test_getopts(void)
 	result = C2_GETOPTS("getopts-ut", argc, argv);
 	C2_UT_ASSERT(result == 0);
 
-	/* c2_get_bcount() */
-	result = c2_get_bcount("123456789012345G", &bcount);
+	/* c2_bcount_get() */
+	result = c2_bcount_get("123456789012345G", &bcount);
 	C2_UT_ASSERT(result == -EOVERFLOW);
-	result = c2_get_bcount("1asdf", &bcount);
+	result = c2_bcount_get("1asdf", &bcount);
 	C2_UT_ASSERT(result == -EINVAL);
 
-	/* c2_get_time() */
-	result = c2_get_time("1", &time);
+	/* c2_time_get() */
+	result = c2_time_get("1", &time);
 	C2_UT_ASSERT(result == 0);
 	C2_UT_ASSERT(c2_time_seconds(time)     == 1);
 	C2_UT_ASSERT(c2_time_nanoseconds(time) == 0);
 
-	result = c2_get_time("1.20s", &time);
+	result = c2_time_get("1.20s", &time);
 	C2_UT_ASSERT(result == 0);
 	C2_UT_ASSERT(c2_time_seconds(time)     == 1);
 	C2_UT_ASSERT(c2_time_nanoseconds(time) == 200000000);
 
-	result = c2_get_time("2.300ms", &time);
+	result = c2_time_get("2.300ms", &time);
 	C2_UT_ASSERT(result == 0);
 	C2_UT_ASSERT(c2_time_seconds(time)     == 0);
 	C2_UT_ASSERT(c2_time_nanoseconds(time) == 2300000);
 
-	result = c2_get_time("3.4000us", &time);
+	result = c2_time_get("3.4000us", &time);
 	C2_UT_ASSERT(result == 0);
 	C2_UT_ASSERT(c2_time_seconds(time)     == 0);
 	C2_UT_ASSERT(c2_time_nanoseconds(time) == 3400);
 
-	result = c2_get_time("5.60000ns", &time);
+	result = c2_time_get("5.60000ns", &time);
 	C2_UT_ASSERT(result == 0);
 	C2_UT_ASSERT(c2_time_seconds(time)     == 0);
 	C2_UT_ASSERT(c2_time_nanoseconds(time) == 5);
 
-	result = c2_get_time("12345.67890s", &time);
+	result = c2_time_get("12345.67890s", &time);
 	C2_UT_ASSERT(result == 0);
 	C2_UT_ASSERT(c2_time_seconds(time)     == 12345);
 	C2_UT_ASSERT(c2_time_nanoseconds(time) == 678900000);
 
-	result = c2_get_time(".1s", &time);
+	result = c2_time_get(".1s", &time);
 	C2_UT_ASSERT(result == 0);
 	C2_UT_ASSERT(c2_time_seconds(time)     == 0);
 	C2_UT_ASSERT(c2_time_nanoseconds(time) == 100000000);
 
-	result = c2_get_time("12345.67890sec", &time);
+	result = c2_time_get("12345.67890sec", &time);
 	C2_UT_ASSERT(result == -EINVAL);
 
-	result = c2_get_time("18446744073709551616", &time);
+	result = c2_time_get("18446744073709551616", &time);
 	C2_UT_ASSERT(result == -E2BIG);
 }
 

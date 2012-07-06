@@ -81,7 +81,7 @@ static int getscaled(const char *arg, const char *desc, c2_bcount_t *out)
 {
 	int rc;
 
-	rc = c2_get_bcount(arg, out);
+	rc = c2_bcount_get(arg, out);
 	if (rc != 0)
 		fprintf(stderr, "Failed conversion of \"%s\" to %s\n",
 			arg, desc);

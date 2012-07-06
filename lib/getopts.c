@@ -41,7 +41,7 @@
 
 const char C2_GETOPTS_DECIMAL_POINT = '.';
 
-int c2_get_bcount(const char *arg, c2_bcount_t *out)
+int c2_bcount_get(const char *arg, c2_bcount_t *out)
 {
 	char		 *end = NULL;
 	char		 *pos;
@@ -87,7 +87,7 @@ static uint64_t min_power_of_10(uint64_t num)
 	return result;
 }
 
-int c2_get_time(const char *arg, c2_time_t *out)
+int c2_time_get(const char *arg, c2_time_t *out)
 {
 	char	*end = NULL;
 	uint64_t before;	/* before decimal point */

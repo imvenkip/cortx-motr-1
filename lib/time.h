@@ -120,8 +120,8 @@ uint64_t c2_time_nanoseconds(const c2_time_t time);
 
 /**
    Get time from string.
-   Does C2_ASSERT() on c2_get_time() return value.
-   @see c2_get_time()
+   Does C2_ASSERT() on c2_time_get() return value.
+   @see c2_time_get()
  */
 c2_time_t c2_time_from_str(const char *s);
 

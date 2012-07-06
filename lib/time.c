@@ -21,7 +21,7 @@
 
 #include "lib/cdefs.h"	/* C2_EXPORTED */
 #include "lib/assert.h" /* C2_PRE */
-#include "lib/getopts.h"/* c2_get_time */
+#include "lib/getopts.h"/* c2_time_get */
 #include "lib/time.h"
 
 /**
@@ -133,7 +133,7 @@ C2_EXPORTED(c2_time_from_now);
 c2_time_t c2_time_from_str(const char *s)
 {
 	c2_time_t result;
-	int rc = c2_get_time(s, &result);
+	int rc = c2_time_get(s, &result);
 
 	C2_ASSERT(rc == 0);
 	return result;
