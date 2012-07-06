@@ -18,10 +18,9 @@
  * Original creation date: 10/04/2010
  */
 
-#include "lib/ut.h"		/* C2_ASSERT */
+#include "lib/ut.h"		/* C2_UT_ASSERT */
 #include "lib/cdefs.h"		/* ARRAY_SIZE */
 #include "lib/thread.h"		/* LAMBDA */
-#include "lib/assert.h"
 #include "lib/getopts.h"	/* c2_bcount_get */
 #include "lib/time.h"		/* c2_time_t */
 
