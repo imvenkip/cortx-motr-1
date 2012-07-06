@@ -68,7 +68,9 @@ struct c2_net_test_descr {
 
 /**
    Encode or decode data.
-   @pre plain_data || data_len <= 8
+   @pre data_len > 0
+   @pre plain_data || data_len == 1 || data_len == 2 ||
+		      data_len == 4 || data_len == 8
    @see c2_net_test_xcode().
  */
 c2_bcount_t c2_net_test_xcode_data(enum c2_net_test_xcode_op op,

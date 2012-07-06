@@ -27,6 +27,7 @@
 #include "lib/misc.h"		/* C2_SET0 */
 #include "lib/memory.h"		/* c2_alloc */
 #include "lib/errno.h"		/* ENOMEM */
+#include "lib/byteorder.h"	/* c2_byteorder_cpu_to_le16 */
 
 #include "net/test/ntxcode.h"
 
@@ -44,45 +45,53 @@ C2_BASSERT(sizeof(long)   == 8);
 C2_BASSERT(sizeof(void *) == 8);
 C2_BASSERT(sizeof(int)    == 4);
 
-enum {
-	NTXCODE_BUF_LEN_MAX = 8, /**< @see net_test_xcode_data(). */
-};
-
-/**
-   @return Environment is little-endian.
- */
-static bool is_littl_endian_env(void)
+static void net_test_xcode_cpu_to_le(char *d, char *s, c2_bcount_t len)
 {
-	static const long one = 1;
+	if (len == 1) {
+		*d = *s;
+	} else if (len == 2) {
+		* (uint16_t *) d = c2_byteorder_cpu_to_le16(* (uint16_t *) s);
+	} else if (len == 4) {
+		* (uint32_t *) d = c2_byteorder_cpu_to_le32(* (uint32_t *) s);
+	} else if (len == 8) {
+		* (uint64_t *) d = c2_byteorder_cpu_to_le64(* (uint64_t *) s);
+	} else {
+		C2_IMPOSSIBLE("len isn't power of 2");
+	}
 
-	return *((char *) &one) == 1;
+}
+
+static void net_test_xcode_le_to_cpu(char *d, char *s, c2_bcount_t len)
+{
+	if (len == 1) {
+		*d = *s;
+	} else if (len == 2) {
+		* (uint16_t *) d = c2_byteorder_le16_to_cpu(* (uint16_t *) s);
+	} else if (len == 4) {
+		* (uint32_t *) d = c2_byteorder_le32_to_cpu(* (uint32_t *) s);
+	} else if (len == 8) {
+		* (uint64_t *) d = c2_byteorder_le64_to_cpu(* (uint64_t *) s);
+	} else {
+		C2_IMPOSSIBLE("len isn't power of 2");
+	}
+
 }
 
 /**
    Convert data to little endian representation.
-   @todo use htole64/le16toh/__cpu_to_le64 etc.
-   @pre len <= NTXCODE_BUF_LEN_MAX
-   @pre data != buf
+   @pre len == 1 || len == 2 || len == 4 || len == 8
  */
 static void net_test_xcode_reorder(enum c2_net_test_xcode_op op,
 				   char *buf,
 				   char *data,
 				   c2_bcount_t len)
 {
-	c2_bcount_t i;
-	c2_bcount_t j;
+	C2_PRE(len == 1 || len == 2 || len == 4 || len == 8);
 
-	C2_PRE(len <= NTXCODE_BUF_LEN_MAX);
-	C2_PRE(data != buf);
-
-	for (i = 0; i < len; ++i) {
-		j = is_littl_endian_env() ? i : len - 1 - i;
-
-		if (op == C2_NET_TEST_ENCODE)
-			buf[i] = data[j];
-		else
-			data[j] = buf[i];
-	}
+	if (op == C2_NET_TEST_ENCODE)
+		net_test_xcode_cpu_to_le(buf, data, len);
+	else
+		net_test_xcode_le_to_cpu(data, buf, len);
 }
 
 /**
@@ -106,7 +115,7 @@ static c2_bcount_t net_test_xcode_data(enum c2_net_test_xcode_op op,
 {
 	struct c2_bufvec_cursor bv_cur;
 	struct c2_bufvec_cursor data_cur;
-	char			buf[NTXCODE_BUF_LEN_MAX];
+	char			buf[8];
 	void		       *data_addr = plain_data ? data : buf;
 	struct c2_bufvec	data_bv = C2_BUFVEC_INIT_BUF(&data_addr,
 							     &data_len);
@@ -114,7 +123,8 @@ static c2_bcount_t net_test_xcode_data(enum c2_net_test_xcode_op op,
 	bool			end_reached;
 
 	C2_PRE(data_len > 0);
-	C2_PRE(plain_data || data_len <= NTXCODE_BUF_LEN_MAX);
+	C2_PRE(plain_data || data_len == 1 || data_len == 2 ||
+	       data_len == 4 || data_len == 8);
 
 	/* if buffer is NULL and operation is 'encode' then return size */
 	if (bv == NULL)
@@ -161,9 +171,6 @@ c2_bcount_t c2_net_test_xcode_data(enum c2_net_test_xcode_op op,
 				   c2_bcount_t bv_offset)
 {
 	c2_bcount_t bv_length = bv == NULL ? 0 : c2_vec_count(&bv->ov_vec);
-
-	if (!plain_data && data_len > NTXCODE_BUF_LEN_MAX)
-		return 0;
 
 	return net_test_xcode_data(op, data, data_len, plain_data,
 				   bv, bv_offset, bv_length);

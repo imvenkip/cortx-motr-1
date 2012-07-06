@@ -8,6 +8,7 @@ libc2_HEADERS        = \
                        atomic.h \
                        bitmap.h \
                        bob.h \
+		       byteorder.h \
                        cdefs.h \
                        chan.h \
                        cond.h \
@@ -48,6 +49,7 @@ libc2_la_SOURCES     = \
                        bob.h \
                        buf.c \
                        buf.h \
+		       byteorder.h \
                        c2lib.c \
                        cdefs.h \
                        chan.c \
@@ -88,7 +90,6 @@ libc2_la_SOURCES     = \
                        user_space/assert.h \
                        user_space/cdefs.h \
                        user_space/finject_init.c \
-                       user_space/ugetopts.c \
                        user_space/getopts.h \
                        user_space/memory.c \
                        user_space/mutex.h \
@@ -98,12 +99,14 @@ libc2_la_SOURCES     = \
                        user_space/semaphore.h \
                        user_space/thread.h \
                        user_space/timer.h \
-                       user_space/utrace.c \
                        user_space/trace.h \
                        user_space/types.h \
+		       user_space/ubyteorder.c \
+                       user_space/ugetopts.c \
                        user_space/user_x86_64_atomic.h \
                        user_space/uthread.c \
                        user_space/utime.c \
+                       user_space/utrace.c \
                        ut.c \
                        ut.h \
                        vec.c \
@@ -115,6 +118,7 @@ EXTRA_DIST             = \
                          linux_kernel/atomic64.h \
                          linux_kernel/cdefs.h \
                          linux_kernel/finject_init.c \
+			 linux_kernel/kbyteroder.c \
                          linux_kernel/kthread.c \
                          linux_kernel/ktrace.c \
                          linux_kernel/ktime.c \
