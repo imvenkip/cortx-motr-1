@@ -244,22 +244,22 @@ static c2_bcount_t linear_max_recsize(void)
  * Reads linear enumeration type specific attributes from the buffer into
  * the c2_layout_linear_enum::c2_layout_linear_attr object.
  */
-static int linear_decode(struct c2_striped_layout *stl,
+static int linear_decode(struct c2_layout_enum *e,
+			 struct c2_striped_layout *stl,
 			 enum c2_layout_xcode_op op,
 			 struct c2_db_tx *tx,
-			 struct c2_bufvec_cursor *cur,
-			 struct c2_layout_enum *e)
+			 struct c2_bufvec_cursor *cur)
 {
 	uint64_t                      lid;
 	struct c2_layout_linear_enum *lin_enum;
 	struct c2_layout_linear_attr *lin_attr;
 
+	C2_PRE(e != NULL);
 	C2_PRE(c2_layout__striped_allocated_invariant(stl));
 	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *lin_attr);
-	C2_PRE(e != NULL);
 
 	lid = stl->sl_base.l_id;
 	C2_ENTRY("lid %llu", (unsigned long long)lid);

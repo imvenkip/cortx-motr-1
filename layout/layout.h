@@ -314,13 +314,12 @@ struct c2_layout_type_ops {
 	 * @pre C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP))
 	 * @pre ergo(op == C2_LXO_DB_LOOKUP, tx != NULL)
 	 */
-	// todo Make l as the first argument
 	// todo Make lto_decode operation of a layout, not layout type
-	int         (*lto_decode)(enum c2_layout_xcode_op op,
+	int         (*lto_decode)(struct c2_layout *l,
+				  enum c2_layout_xcode_op op,
 				  struct c2_db_tx *tx,
-				  uint32_t ref_count,
 				  struct c2_bufvec_cursor *cur,
-				  struct c2_layout *l);
+				  uint32_t ref_count);
 
 	/**
 	 * Continues storing the layout representation either in the buffer
@@ -438,13 +437,12 @@ struct c2_layout_enum_type_ops {
 	 * @pre C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP))
 	 * @pre ergo(op == C2_LXO_DB_LOOKUP, tx != NULL)
 	 */
-	// todo Make e as the first argument
 	// todo Make leto_decode operation of enumeration, not enum type
-	int         (*leto_decode)(struct c2_striped_layout *stl,
+	int         (*leto_decode)(struct c2_layout_enum *e,
+				   struct c2_striped_layout *stl,
 				   enum c2_layout_xcode_op op,
 				   struct c2_db_tx *tx,
-				   struct c2_bufvec_cursor *cur,
-				   struct c2_layout_enum *e);
+				   struct c2_bufvec_cursor *cur);
 
 	/**
 	 * Continues storing layout representation either in the buffer
@@ -493,10 +491,10 @@ struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid);
 void c2_layout_get(struct c2_layout *l);
 void c2_layout_put(struct c2_layout *l);
 
-int c2_layout_decode(enum c2_layout_xcode_op op,
+int c2_layout_decode(struct c2_layout *l,
+		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,
-		     struct c2_bufvec_cursor *cur,
-		     struct c2_layout *l);
+		     struct c2_bufvec_cursor *cur);
 int c2_layout_encode(struct c2_layout *l,
 		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,

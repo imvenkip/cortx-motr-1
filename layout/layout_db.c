@@ -564,7 +564,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&rec_buf, &recsize);
 	c2_bufvec_cursor_init(&cur, &bv);
 
-	rc = c2_layout_decode(C2_LXO_DB_LOOKUP, tx, &cur, l);
+	rc = c2_layout_decode(l, C2_LXO_DB_LOOKUP, tx, &cur);
 	if (rc != 0) {
 		l->l_ops->lo_delete(l);
 		c2_layout__log("c2_layout_lookup", "c2_layout_decode() failed",

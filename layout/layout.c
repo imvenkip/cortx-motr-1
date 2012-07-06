@@ -338,14 +338,14 @@ static void layout_list_add(struct c2_layout *l)
 }
 
 /** Initialises a layout, adds a reference on the respective layout type. */
-void c2_layout__init(struct c2_layout_domain *dom,
-		     struct c2_layout *l, //todo Make this 1st arg
+void c2_layout__init(struct c2_layout *l,
+		     struct c2_layout_domain *dom,
 		     uint64_t lid,
 		     struct c2_layout_type *type,
 		     const struct c2_layout_ops *ops)
 {
-	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(l != NULL);
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(type != NULL);
 	C2_PRE(dom == type->lt_domain);
@@ -398,7 +398,7 @@ void c2_layout__fini_internal(struct c2_layout *l)
 void c2_layout__delete(struct c2_layout *l)
 {
 	C2_PRE(c2_layout__allocated_invariant(l));
-	C2_PRE(c2_layout_find(l->l_dom, l->l_id) == NULL); //todo
+	C2_PRE(c2_layout_find(l->l_dom, l->l_id) == NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	c2_layout__fini_internal(l);
@@ -417,21 +417,21 @@ void c2_layout__fini(struct c2_layout *l)
 	C2_LEAVE();
 }
 
-void c2_layout__striped_init(struct c2_layout_domain *dom,
-			     struct c2_striped_layout *stl,
+void c2_layout__striped_init(struct c2_striped_layout *stl,
+			     struct c2_layout_domain *dom,
 			     uint64_t lid,
 			     struct c2_layout_type *type,
 			     const struct c2_layout_ops *ops)
 
 {
-	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(stl != NULL);
+	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(lid != LID_NONE);
 	C2_PRE(type != NULL);
 	C2_PRE(ops != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
-	c2_layout__init(dom, &stl->sl_base, lid, type, ops);
+	c2_layout__init(&stl->sl_base, dom, lid, type, ops);
 	/* stl->sl_enum will be set through c2_layout__striped_populate(). */
 	stl->sl_enum = NULL;
 	C2_POST(c2_layout__striped_allocated_invariant(stl));
@@ -1126,10 +1126,10 @@ void c2_layout_put(struct c2_layout *l)
  * object while using it. Releasing the last reference will finalise the layout
  * object by freeing it.
  */
-int c2_layout_decode(enum c2_layout_xcode_op op,
+int c2_layout_decode(struct c2_layout *l,
+		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,
-		     struct c2_bufvec_cursor *cur,
-		     struct c2_layout *l)
+		     struct c2_bufvec_cursor *cur)
 {
 	struct c2_layout_type *lt;
 	struct c2_layout_rec  *rec;
@@ -1140,7 +1140,7 @@ int c2_layout_decode(enum c2_layout_xcode_op op,
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *rec);
 	C2_PRE(c2_layout__allocated_invariant(l));
-	C2_PRE(c2_layout_find(l->l_dom, l->l_id) == NULL); //todo
+	C2_PRE(c2_layout_find(l->l_dom, l->l_id) == NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 
@@ -1148,6 +1148,8 @@ int c2_layout_decode(enum c2_layout_xcode_op op,
 		return -1;
 
 	lt = l->l_type;
+	C2_ASSERT(lt == l->l_dom->ld_type[lt->lt_id]);
+
 	rec = c2_bufvec_cursor_addr(cur);
 	C2_ASSERT(rec_invariant(rec, l->l_dom)); //todo get rid of rec_invariant
 	C2_ASSERT(lt->lt_id == rec->lr_lt_id);
@@ -1161,7 +1163,7 @@ int c2_layout_decode(enum c2_layout_xcode_op op,
 	 * Hence, ignoring the return status of c2_bufvec_cursor_move() here.
 	 */
 
-	rc = lt->lt_ops->lto_decode(op, tx, rec->lr_ref_count, cur, l);
+	rc = lt->lt_ops->lto_decode(l, op, tx, cur, rec->lr_ref_count);
 	if (rc != 0) {
 		c2_layout__log("c2_layout_decode", "lto_decode() failed",
 			       op == C2_LXO_BUFFER_OP, TRACE_RECORD_ADD,
@@ -1248,6 +1250,7 @@ int c2_layout_encode(struct c2_layout *l,
 	C2_ASSERT(rec_invariant(&rec, l->l_dom));
 
 	lt = l->l_type;
+	C2_ASSERT(lt == l->l_dom->ld_type[lt->lt_id]);
 
 	if (op == C2_LXO_DB_UPDATE) {
 		/*

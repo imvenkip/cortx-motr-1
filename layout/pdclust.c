@@ -445,7 +445,7 @@ static int pdclust_allocate(struct c2_layout_domain *dom,
 			       &c2_addb_oom, &layout_global_ctx, lid, -ENOMEM);
 		return -ENOMEM;
 	}
-	c2_layout__striped_init(dom, &pdl->pl_base, lid,
+	c2_layout__striped_init(&pdl->pl_base, dom, lid,
 				&c2_pdclust_layout_type, &pdclust_ops);
 	C2_POST(pdclust_allocated_invariant(pdl));
 	*out = &pdl->pl_base.sl_base;
@@ -663,11 +663,11 @@ static c2_bcount_t pdclust_max_recsize(struct c2_layout_domain *dom)
  * If it is BUFFER_OP, then the layout is decoded from its representation
  * received through the buffer.
  */
-static int pdclust_decode(enum c2_layout_xcode_op op,
+static int pdclust_decode(struct c2_layout *l,
+			  enum c2_layout_xcode_op op,
 			  struct c2_db_tx *tx,
-			  uint32_t ref_count,
 			  struct c2_bufvec_cursor *cur,
-		          struct c2_layout *l)
+			  uint32_t ref_count)
 {
 	struct c2_pdclust_layout     *pl;
 	struct c2_layout_pdclust_rec *pl_rec;
@@ -675,11 +675,11 @@ static int pdclust_decode(enum c2_layout_xcode_op op,
 	struct c2_layout_enum        *e;
 	int                           rc;
 
+	C2_PRE(c2_layout__allocated_invariant(l));
 	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *pl_rec);
-	C2_PRE(c2_layout__allocated_invariant(l));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	pl = container_of(l, struct c2_pdclust_layout, pl_base.sl_base);
@@ -698,7 +698,7 @@ static int pdclust_decode(enum c2_layout_xcode_op op,
 		goto out;
 	}
 
-	rc = et->let_ops->leto_decode(&pl->pl_base, op, tx, cur, e);
+	rc = et->let_ops->leto_decode(e, &pl->pl_base, op, tx, cur);
 	if (rc != 0) {
 		e->le_ops->leo_delete(e);
 		C2_LOG("lid %llu, leto_decode() failed, rc %d",
@@ -782,7 +782,7 @@ static int pdclust_encode(struct c2_layout *l,
 	pl_rec.pr_let_id = pl->pl_base.sl_enum->le_type->let_id;
 	pl_rec.pr_attr   = pl->pl_attr;
 	et               = pl->pl_base.sl_enum->le_type;
-	C2_ASSERT(et != NULL && et == l->l_dom->ld_enum[et->let_id]);
+	C2_ASSERT(et == l->l_dom->ld_enum[et->let_id]);
 
 	nbytes = c2_bufvec_cursor_copyto(out, &pl_rec, sizeof pl_rec);
 	C2_ASSERT(nbytes == sizeof pl_rec);

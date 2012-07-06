@@ -79,8 +79,8 @@ bool c2_layout__is_layout_type_valid(uint32_t lt_id,
 bool c2_layout__is_enum_type_valid(uint32_t let_id,
 				   const struct c2_layout_domain *dom);
 
-void c2_layout__init(struct c2_layout_domain *dom,
-		     struct c2_layout *l,
+void c2_layout__init(struct c2_layout *l,
+		     struct c2_layout_domain *dom,
 		     uint64_t lid,
 		     struct c2_layout_type *type,
 		     const struct c2_layout_ops *ops);
@@ -89,8 +89,8 @@ void c2_layout__populate(struct c2_layout *l,
 			 uint32_t ref_count);
 void c2_layout__delete(struct c2_layout *l);
 
-void c2_layout__striped_init(struct c2_layout_domain *dom,
-			     struct c2_striped_layout *stl,
+void c2_layout__striped_init(struct c2_striped_layout *stl,
+			     struct c2_layout_domain *dom,
 			     uint64_t lid,
 			     struct c2_layout_type *type,
 			     const struct c2_layout_ops *ops);

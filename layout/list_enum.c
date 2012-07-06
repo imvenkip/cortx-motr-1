@@ -443,11 +443,11 @@ out:
  * received through the buffer.
  */
 //todo return status - int or void
-static int list_decode(struct c2_striped_layout *stl,
+static int list_decode(struct c2_layout_enum *e,
+		       struct c2_striped_layout *stl,
 		       enum c2_layout_xcode_op op,
 		       struct c2_db_tx *tx,
-		       struct c2_bufvec_cursor *cur,
-		       struct c2_layout_enum *e)
+		       struct c2_bufvec_cursor *cur)
 {
 	uint64_t                    lid;
 	struct c2_layout_domain    *dom; //todo check if required
@@ -459,12 +459,12 @@ static int list_decode(struct c2_striped_layout *stl,
 	uint32_t                    i;
 	int                         rc;
 
+	C2_PRE(e != NULL);
 	C2_PRE(c2_layout__striped_allocated_invariant(stl));
 	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *ce_header);
-	C2_PRE(e != NULL);
 
 	lid = stl->sl_base.l_id;
 	dom = stl->sl_base.l_dom;
