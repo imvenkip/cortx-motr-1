@@ -67,7 +67,7 @@ int c2_bcount_get(const char *arg, c2_bcount_t *out);
    - @b us = microsecond = 1/1000'000 of a second
    - @b ns = nanosecond  = 1/1000'000'000 of a second
 
-   @note c2_getopts_decimal_point is used as decimal point in numerical
+   @note C2_GETOPTS_DECIMAL_POINT is used as decimal point in numerical
    argument to this function.
  */
 int c2_time_get(const char *arg, c2_time_t *out);
