@@ -79,11 +79,12 @@ static uint64_t min_power_of_10(uint64_t num)
 {
 	uint64_t result = 10;
 
-	while (result < num)
+	while (result < num) {
 		if (result >= UINT64_MAX / 10)
 			result = UINT64_MAX;
 		else
 			result *= 10;
+	}
 	return result;
 }
 
@@ -119,11 +120,12 @@ int c2_time_get(const char *arg, c2_time_t *out)
 		rc = -E2BIG;
 
 	if (rc == 0 && *end != '\0') {
-		for (i = 0; i < ARRAY_SIZE(unit); ++i)
+		for (i = 0; i < ARRAY_SIZE(unit); ++i) {
 			if (strncmp(end, unit[i], strlen(unit[i]) + 1) == 0) {
 				unit_mul = multiplier[i];
 				break;
 			}
+		}
 		if (i == ARRAY_SIZE(unit))
 			rc = -EINVAL;
 	}
