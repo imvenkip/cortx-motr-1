@@ -31,7 +31,7 @@
 #include "net/test/ntxcode.h"
 
 /**
-   @defgroup NetTestXCODEInternals Colibri Network Bencmark Xcode internals.
+   @defgroup NetTestXCODEInternals Colibri Network Benchmark Xcode internals.
 
    @see
    @ref net-test
@@ -115,7 +115,7 @@ static c2_bcount_t net_test_xcode_data(enum c2_net_test_xcode_op op,
 	C2_PRE(data_len > 0);
 	C2_PRE(plain_data || data_len <= NTXCODE_BUF_LEN_MAX);
 
-	/* is buffer is NULL and operation is 'encode' then return size */
+	/* if buffer is NULL and operation is 'encode' then return size */
 	if (bv == NULL)
 		return op == C2_NET_TEST_ENCODE ? data_len : 0;
 	/* if buffer is not large enough then return 0 */
@@ -123,7 +123,7 @@ static c2_bcount_t net_test_xcode_data(enum c2_net_test_xcode_op op,
 		return 0;
 
 	/*
-	   Take care abount endiannes.
+	   Take care about endianness.
 	   Store all endian-dependent data in little-endian format.
 	 */
 	if (!plain_data && op == C2_NET_TEST_ENCODE)
@@ -142,7 +142,7 @@ static c2_bcount_t net_test_xcode_data(enum c2_net_test_xcode_op op,
 	C2_ASSERT(copied == data_len);
 
 	/*
-	   Take care abount endiannes.
+	   Take care about endianness.
 	   Read all endian-dependent data from little-endian buffer.
 	 */
 	if (!plain_data && op == C2_NET_TEST_DECODE)

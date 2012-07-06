@@ -33,7 +33,7 @@
 #include "net/test/commands.h"
 
 /**
-   @defgroup NetTestCommandsInternals Colibri Network Bencmark \
+   @defgroup NetTestCommandsInternals Colibri Network Benchmark \
 				    Commands Internals
 
    @see
