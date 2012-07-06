@@ -111,6 +111,7 @@ static c2_bcount_t net_test_xcode_data(enum c2_net_test_xcode_op op,
 	struct c2_bufvec	data_bv = C2_BUFVEC_INIT_BUF(&data_addr,
 							     &data_len);
 	c2_bcount_t		copied;
+	bool			end_reached;
 
 	C2_PRE(data_len > 0);
 	C2_PRE(plain_data || data_len <= NTXCODE_BUF_LEN_MAX);
@@ -131,7 +132,8 @@ static c2_bcount_t net_test_xcode_data(enum c2_net_test_xcode_op op,
 
 	/* initialize cursors and copy data */
 	c2_bufvec_cursor_init(&bv_cur, bv);
-	c2_bufvec_cursor_move(&bv_cur, bv_offset);
+	end_reached = c2_bufvec_cursor_move(&bv_cur, bv_offset);
+	C2_ASSERT(!end_reached);
 
 	c2_bufvec_cursor_init(&data_cur, &data_bv);
 
