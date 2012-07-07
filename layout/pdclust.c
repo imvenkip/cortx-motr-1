@@ -584,7 +584,7 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 				   pl_base.sl_base);
 		C2_ASSERT(pdclust_allocated_invariant(pdl));
 
-		rc = pdclust_populate(pdl, attr, le, DEFAULT_REF_COUNT);
+		rc = pdclust_populate(pdl, attr, le, 0);
 		if (rc == 0) {
 			C2_POST(pdclust_invariant(pdl));
 			*out = pdl;

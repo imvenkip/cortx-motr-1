@@ -451,7 +451,7 @@ static int pdclust_layout_build(uint32_t enum_id,
 static void l_verify(struct c2_layout *l, uint64_t lid)
 {
 	C2_UT_ASSERT(l->l_id == lid);
-	C2_UT_ASSERT(l->l_ref >= DEFAULT_REF_COUNT);
+	C2_UT_ASSERT(l->l_ref >= 0);
 	C2_UT_ASSERT(l->l_ops != NULL);
 }
 
@@ -652,7 +652,7 @@ static void buf_build(uint32_t lt_id, struct c2_bufvec_cursor *dcur)
 	c2_bcount_t          nbytes_copied;
 
 	rec.lr_lt_id     = lt_id;
-	rec.lr_ref_count = DEFAULT_REF_COUNT;
+	rec.lr_ref_count = 0;
 
 	nbytes_copied = c2_bufvec_cursor_copyto(dcur, &rec, sizeof rec);
 	C2_UT_ASSERT(nbytes_copied == sizeof rec);
@@ -887,7 +887,7 @@ static void lbuf_verify(struct c2_bufvec_cursor *cur, uint32_t *lt_id)
 
 	*lt_id = rec->lr_lt_id;
 
-	C2_UT_ASSERT(rec->lr_ref_count == DEFAULT_REF_COUNT);
+	C2_UT_ASSERT(rec->lr_ref_count == 0);
 
 	c2_bufvec_cursor_move(cur, sizeof *rec);
 }
@@ -1699,23 +1699,23 @@ static int test_ref_get_put_pdclust(uint32_t enum_id, uint64_t lid)
 					  &pl, NULL, &lin_enum);
 	C2_UT_ASSERT(rc == 0);
 
-	/* Verify that the ref count is set to DEFAULT_REF_COUNT. */
-	C2_UT_ASSERT(pl->pl_base.sl_base.l_ref == DEFAULT_REF_COUNT);
+	/* Verify that the ref count is set to 0. */
+	C2_UT_ASSERT(pl->pl_base.sl_base.l_ref == 0);
 
 	/* Add a reference on the layout object. */
 	c2_layout_get(&pl->pl_base.sl_base);
-	C2_UT_ASSERT(pl->pl_base.sl_base.l_ref == DEFAULT_REF_COUNT + 1);
+	C2_UT_ASSERT(pl->pl_base.sl_base.l_ref == 1);
 
 	/* Add multiple references on the layout object. */
 	for (i = 0; i < 123; ++i)
 		c2_layout_get(&pl->pl_base.sl_base);
 	C2_UT_ASSERT(pl->pl_base.sl_base.l_ref ==
-		     DEFAULT_REF_COUNT + 1 + 123);
+		     1 + 123);
 
 	/* Release multiple references on the layout object. */
 	for (i = 0; i < 123; ++i)
 		c2_layout_put(&pl->pl_base.sl_base);
-	C2_UT_ASSERT(pl->pl_base.sl_base.l_ref == DEFAULT_REF_COUNT + 1);
+	C2_UT_ASSERT(pl->pl_base.sl_base.l_ref == 1);
 
 	/* Release the last reference so as to delete the layout. */
 	c2_layout_put(&pl->pl_base.sl_base);
@@ -2524,12 +2524,12 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 	}
 
 	/* Verify the original reference count is as expected. */
-	C2_UT_ASSERT(l1->l_ref == DEFAULT_REF_COUNT);
+	C2_UT_ASSERT(l1->l_ref == 0);
 
 	/* Update the layout object - update its reference count. */
 	for (i = 0; i < 99; ++i)
 		c2_layout_get(l1);
-	C2_UT_ASSERT(l1->l_ref == DEFAULT_REF_COUNT + 99);
+	C2_UT_ASSERT(l1->l_ref == 99);
 
 	/* Update the layout object in the DB. */
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
@@ -2551,7 +2551,7 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 	/* Release all the references obtained here but one. */
 	for (i = 0; i < 99 - 1; ++i)
 		c2_layout_put(l1);
-	C2_UT_ASSERT(l1->l_ref == DEFAULT_REF_COUNT + 1);
+	C2_UT_ASSERT(l1->l_ref == 1);
 
 	/* Release the last reference so as to delete the layout. */
 	c2_layout_put(l1);
@@ -2570,7 +2570,7 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 		rc = c2_layout_lookup(&domain, lid, &c2_pdclust_layout_type,
 				      &tx, &pair, &l2);
 		C2_UT_ASSERT(rc == 0);
-		C2_UT_ASSERT(l2->l_ref == DEFAULT_REF_COUNT + 99);
+		C2_UT_ASSERT(l2->l_ref == 99);
 
 		rc = c2_db_tx_commit(&tx);
 		C2_UT_ASSERT(rc == 0);
@@ -2585,7 +2585,7 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 		/* Release all the references as read from the DB but one. */
 		for (i = 0; i < 99 - 1; ++i)
 			c2_layout_put(l2);
-		C2_UT_ASSERT(l2->l_ref == DEFAULT_REF_COUNT + 1);
+		C2_UT_ASSERT(l2->l_ref == 1);
 
 		/* Release the last reference so as to delete the layout. */
 		c2_layout_put(l2);

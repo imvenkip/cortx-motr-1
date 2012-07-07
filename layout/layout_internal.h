@@ -47,12 +47,6 @@ enum {
 
 	DEFAULT_DB_FLAG            = 0,
 
-	/**
-	 * Reference coount assigned to layout, during its initialisation and
-	 * assigned to layout type and enum type, during their registration.
-	 */
-	DEFAULT_REF_COUNT          = 1,
-
 	ADDB_RECORD_ADD            = 1,
 	TRACE_RECORD_ADD           = 1,
 
@@ -73,11 +67,6 @@ bool c2_layout__invariant(const struct c2_layout *l);
 bool c2_layout__enum_invariant(const struct c2_layout_enum *le);
 bool c2_layout__striped_allocated_invariant(const struct c2_striped_layout *s);
 bool c2_layout__striped_invariant(const struct c2_striped_layout *stl);
-
-bool c2_layout__is_layout_type_valid(uint32_t lt_id,
-				     const struct c2_layout_domain *dom);
-bool c2_layout__is_enum_type_valid(uint32_t let_id,
-				   const struct c2_layout_domain *dom);
 
 void c2_layout__init(struct c2_layout *l,
 		     struct c2_layout_domain *dom,
