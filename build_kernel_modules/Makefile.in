@@ -90,7 +90,8 @@ fid_SOURCES                     := fid.c
 fol_SOURCES                     := fol.c
 
 fop_SOURCES                     := fop.c fom.c fop_format.c fop_iterator.c    \
-                                   fop_base.c fop_item_type.c
+                                   fop_base.c fop_item_type.c \
+                                   fom_long_lock.c fom_long_lock_bob.c
 
 ioservice_SOURCES               := io_fops.c io_fops_k.c
 ioservice_HEADERS               := io_fops_k.h

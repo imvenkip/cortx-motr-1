@@ -1,6 +1,7 @@
 /* -*- C -*- */
+
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,24 +15,22 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
- * Original creation date: 4-Jul-2012
+ * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
+ * Original creation date: 08/06/2012
  */
 
-#include "fop/fom_long_lock_bob.h"
+DEF(c2_fop_rdwr, RECORD,
+    _(fr_type, U32));
 
-enum {
-        /** Value of c2_longlock::l_magix */
-        C2_LONG_LOCK_MAGIX = 0x0B055B1E55EDBA55
-};
+DEF(c2_fop_rdwr_rep, RECORD,
+    _(fr_rc, U32));
 
-static struct c2_bob_type longlock_bob;
-C2_BOB_DEFINE(, &longlock_bob, c2_long_lock);
-
-void c2_fom_ll_global_init(void)
-{
-	longlock_bob.bt_name         = "LONG_LOCK_BOB";
-	longlock_bob.bt_magix        = C2_LONG_LOCK_MAGIX;
-	longlock_bob.bt_magix_offset = offsetof(struct c2_long_lock, l_magix);
-}
-C2_EXPORTED(c2_fom_ll_global_init);
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

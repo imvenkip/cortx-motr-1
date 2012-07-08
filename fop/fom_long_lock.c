@@ -37,6 +37,9 @@ C2_TL_DESCR_DEFINE(c2_fom_ll, "list of foms in longlock", ,
 
 C2_TL_DEFINE(c2_fom_ll, , struct c2_fom);
 
+C2_EXPORTED(c2_fom_ll_tlink_init);
+C2_EXPORTED(c2_fom_ll_tlink_fini);
+
 static bool prelock_check(struct c2_long_lock *lock, struct c2_fom *fom)
 {
 	bool ret;
@@ -68,7 +71,7 @@ bool c2_long_read_lock(struct c2_long_lock *lock,
 	if (lock->l_state == C2_LONG_LOCK_UNLOCKED)
 		lock->l_state = C2_LONG_LOCK_RD_LOCKED;
 
-	got_lock = lock->l_state == C2_LONG_LOCK_RD_LOCKED;
+	got_lock = !writers_pending && lock->l_state == C2_LONG_LOCK_RD_LOCKED;
 
 	if (!got_lock)
 		fom->fo_transitions_saved = fom->fo_transitions;
@@ -77,7 +80,6 @@ bool c2_long_read_lock(struct c2_long_lock *lock,
 
 
 	fom->fo_phase = next_phase;
-
 	c2_mutex_unlock(&lock->l_lock);
 
 	return got_lock;
@@ -110,6 +112,9 @@ bool c2_long_write_lock(struct c2_long_lock *lock,
 void c2_long_write_unlock(struct c2_long_lock *lock, struct c2_fom *fom)
 {
 	struct c2_fom *grantee; /* the fom to grant the lock */
+	bool reads_in_processing;
+	bool reads_pending;
+	bool write_in_processing;
 
 	c2_mutex_lock(&lock->l_lock);
 
@@ -120,21 +125,33 @@ void c2_long_write_unlock(struct c2_long_lock *lock, struct c2_fom *fom)
 	lock->l_state = C2_LONG_LOCK_UNLOCKED;
 	C2_CNT_DEC(fom->fo_locks);
 
-	if (!c2_fom_ll_tlist_is_empty(&lock->l_writers)) {
+	reads_in_processing = !c2_fom_ll_tlist_is_empty(lock->l_rd_in_processing);
+	reads_pending = !c2_fom_ll_tlist_is_empty(lock->l_rd_pending);
+	write_in_processing = !c2_fom_ll_tlist_is_empty(&lock->l_writers);
+
+	if (!write_in_processing && !reads_in_processing && reads_pending) {
+		C2_SWAP(reads_in_processing, reads_pending);
+		C2_SWAP(lock->l_rd_in_processing, lock->l_rd_pending);
+	}
+
+	if (write_in_processing) {
 		grantee = c2_fom_ll_tlist_head(&lock->l_writers);
 
 		C2_ASSERT(grantee->fo_transitions_saved + 1
 			  == grantee->fo_transitions);
 
 		lock->l_state = C2_LONG_LOCK_WR_LOCKED;
+		C2_CNT_INC(grantee->fo_locks);
+
 		c2_fom_ready_remote(grantee);
-	} else if (!c2_fom_ll_tlist_is_empty(lock->l_rd_in_processing)) {
+	} else if (reads_in_processing) {
 		lock->l_state = C2_LONG_LOCK_RD_LOCKED;
 
 		c2_tl_for(c2_fom_ll, lock->l_rd_in_processing, grantee) {
 			C2_ASSERT(grantee->fo_transitions_saved + 1
 				  == grantee->fo_transitions);
 
+			C2_CNT_INC(grantee->fo_locks);
 			c2_fom_ready_remote(grantee);
 		} c2_tl_endfor;
 	} else
@@ -171,6 +188,7 @@ void c2_long_read_unlock(struct c2_long_lock *lock, struct c2_fom *fom)
 			C2_ASSERT(grantee->fo_transitions_saved + 1
 				  == grantee->fo_transitions);
 
+			C2_CNT_INC(grantee->fo_locks);
 			c2_fom_ready_remote(grantee);
 		} else
 			;
