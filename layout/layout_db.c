@@ -492,7 +492,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 
 	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(lid != LID_NONE);
-	C2_PRE(c2_layout_find(dom, lid) == NULL);
+	//todo C2_PRE(c2_layout_find(dom, lid) == NULL);
 	C2_PRE(lt != NULL);
 	C2_PRE(dom->ld_type[lt->lt_id] == lt);
 	C2_PRE(tx != NULL);

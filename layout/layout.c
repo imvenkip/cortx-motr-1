@@ -129,18 +129,18 @@ struct c2_addb_ctx layout_global_ctx = {
 };
 
 C2_ADDB_EV_DEFINE(layout_decode_fail, "layout_decode_fail",
-		  C2_ADDB_EVENT_LAYOUT_DECODE_FAIL, C2_ADDB_FUNC_CALL);
+		  C2_ADDB_EVENT_LAYOUT_DECODE_FAIL, C2_ADDB_CALL);
 C2_ADDB_EV_DEFINE(layout_encode_fail, "layout_encode_fail",
-		  C2_ADDB_EVENT_LAYOUT_ENCODE_FAIL, C2_ADDB_FUNC_CALL);
+		  C2_ADDB_EVENT_LAYOUT_ENCODE_FAIL, C2_ADDB_CALL);
 
 C2_ADDB_EV_DEFINE(layout_lookup_fail, "layout_lookup_fail",
-		  C2_ADDB_EVENT_LAYOUT_LOOKUP_FAIL, C2_ADDB_FUNC_CALL);
+		  C2_ADDB_EVENT_LAYOUT_LOOKUP_FAIL, C2_ADDB_CALL);
 C2_ADDB_EV_DEFINE(layout_add_fail, "layout_add_fail",
-		  C2_ADDB_EVENT_LAYOUT_ADD_FAIL, C2_ADDB_FUNC_CALL);
+		  C2_ADDB_EVENT_LAYOUT_ADD_FAIL, C2_ADDB_CALL);
 C2_ADDB_EV_DEFINE(layout_update_fail, "layout_update_fail",
-		  C2_ADDB_EVENT_LAYOUT_UPDATE_FAIL, C2_ADDB_FUNC_CALL);
+		  C2_ADDB_EVENT_LAYOUT_UPDATE_FAIL, C2_ADDB_CALL);
 C2_ADDB_EV_DEFINE(layout_delete_fail, "layout_delete_fail",
-		  C2_ADDB_EVENT_LAYOUT_DELETE_FAIL, C2_ADDB_FUNC_CALL);
+		  C2_ADDB_EVENT_LAYOUT_DELETE_FAIL, C2_ADDB_CALL);
 
 C2_TL_DESCR_DEFINE(layout, "layout-list", static,
 		   struct c2_layout, l_list_linkage, l_magic,
@@ -342,7 +342,7 @@ void c2_layout__fini_internal(struct c2_layout *l)
 void c2_layout__delete(struct c2_layout *l)
 {
 	C2_PRE(c2_layout__allocated_invariant(l));
-	C2_PRE(c2_layout_find(l->l_dom, l->l_id) == NULL);
+	//todo C2_PRE(c2_layout_find(l->l_dom, l->l_id) == NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	c2_layout__fini_internal(l);
@@ -353,7 +353,7 @@ void c2_layout__delete(struct c2_layout *l)
 void c2_layout__fini(struct c2_layout *l)
 {
 	C2_PRE(c2_layout__invariant(l));
-	C2_PRE(c2_layout_find(l->l_dom, l->l_id) == NULL);
+	// todo C2_PRE(c2_layout_find(l->l_dom, l->l_id) == NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	layout_tlink_fini(l);
@@ -542,9 +542,9 @@ void schema_fini(struct c2_layout_schema *schema)
 
 c2_bcount_t c2_layout__enum_max_recsize(struct c2_layout_domain *dom)
 {
-	uint32_t    i;
 	c2_bcount_t e_recsize;
 	c2_bcount_t max_recsize = 0;
+	uint32_t    i;
 
 	C2_PRE(dom != NULL);
 
@@ -608,28 +608,22 @@ static void addb_add(struct c2_addb_ctx *ctx,
 		C2_ADDB_ADD(ctx, &layout_addb_loc, c2_addb_oom);
 		break;
 	case C2_ADDB_EVENT_LAYOUT_DECODE_FAIL:
-		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_decode_fail,
-			    err_msg, rc);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_decode_fail, rc);
 		break;
 	case C2_ADDB_EVENT_LAYOUT_ENCODE_FAIL:
-		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_encode_fail,
-			    err_msg, rc);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_encode_fail, rc);
 		break;
 	case C2_ADDB_EVENT_LAYOUT_LOOKUP_FAIL:
-		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_lookup_fail,
-			    err_msg, rc);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_lookup_fail, rc);
 		break;
 	case C2_ADDB_EVENT_LAYOUT_ADD_FAIL:
-		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_add_fail,
-			    err_msg, rc);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_add_fail, rc);
 		break;
 	case C2_ADDB_EVENT_LAYOUT_UPDATE_FAIL:
-		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_update_fail,
-			    err_msg, rc);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_update_fail, rc);
 		break;
 	case C2_ADDB_EVENT_LAYOUT_DELETE_FAIL:
-		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_delete_fail,
-			    err_msg, rc);
+		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_delete_fail, rc);
 		break;
 	default:
 		C2_ASSERT(0);
@@ -897,7 +891,9 @@ void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
 	C2_LEAVE("Enum_type_id %lu", (unsigned long)let->let_id);
 }
 
-/* todo check if this API is req'd */
+/* todo If c2_layout_lookup() first looks into the layout list, do we need
+ * c2_layout_find() to exist ?
+ */
 struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid)
 {
 	struct c2_layout *l;
@@ -908,9 +904,13 @@ struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid)
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 	c2_mutex_lock(&dom->ld_lock);
 	l = layout_list_lookup(dom, lid);
+	c2_mutex_lock(&l->l_lock);
+	C2_CNT_INC(l->l_ref);
+	c2_mutex_unlock(&l->l_lock);
 	c2_mutex_unlock(&dom->ld_lock);
 
-	C2_POST(ergo(l != NULL, c2_layout__invariant(l)));
+	C2_POST(ergo(l != NULL, c2_layout__invariant(l) &&
+				l->l_ref > 0));
 	C2_LEAVE("lid %llu, l_pointer %p", (unsigned long long)lid, l);
 	return l;
 }
@@ -924,7 +924,7 @@ void c2_layout_get(struct c2_layout *l)
 	C2_ENTRY("lid %llu, ref_count %lu", (unsigned long long)l->l_id,
 		 (unsigned long)l->l_ref);
 	c2_mutex_lock(&l->l_lock);
-	C2_PRE(c2_layout_find(l->l_dom, l->l_id) == l);
+	//todo C2_PRE(c2_layout_find(l->l_dom, l->l_id) == l);
 	C2_CNT_INC(l->l_ref);
 	c2_mutex_unlock(&l->l_lock);
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
@@ -968,7 +968,7 @@ int c2_layout_decode(struct c2_layout *l,
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *rec);
 	C2_PRE(c2_layout__allocated_invariant(l));
-	C2_PRE(c2_layout_find(l->l_dom, l->l_id) == NULL);
+	//todo C2_PRE(c2_layout_find(l->l_dom, l->l_id) == NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	if (C2_FI_ENABLED("c2_l_decode_error_in_c2_l_lookup"))
@@ -998,7 +998,7 @@ int c2_layout_decode(struct c2_layout *l,
 		goto out;
 	}
 	C2_POST(c2_layout__invariant(l));
-	C2_POST(c2_layout_find(l->l_dom, l->l_id) == l);
+	//todo C2_POST(c2_layout_find(l->l_dom, l->l_id) == l);
 out:
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;

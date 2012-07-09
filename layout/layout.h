@@ -599,7 +599,7 @@ int c2_layout_decode(struct c2_layout *l,
  *
  * @param oldrec_cur Cursor pointing to a buffer to be used to read the
  * exisiting layout record from the layouts table. Applicable only in case of
- * layou update operation. In other cases, it is expected to be NULL.
+ * layout update operation. In other cases, it is expected to be NULL.
  *
  * @param out Cursor pointing to a buffer. Regarding the size of the buffer:
  * - In case c2_layout_encode() is called through c2_layout_add()|
