@@ -433,9 +433,7 @@ int layout_write(const struct c2_layout *l,
 	} else if (op == C2_LXO_DB_DELETE) {
 		rc = c2_table_delete(tx, pair);
 	}
-
 	c2_db_pair_fini(pair);
-
 	return rc;
 }
 
@@ -460,13 +458,11 @@ static int rec_get(struct c2_db_tx *tx, struct c2_layout *l,
 	c2_db_pair_setup(&pair, &l->l_dom->ld_schema.ls_layouts,
 			 &l->l_id, sizeof l->l_id,
 			 area, (uint32_t)max_recsize);
-
 	/*
 	 * ADDB records covering the failure of c2_table_lookup() is added
 	 * into the caller of this routine.
 	 */
 	rc = c2_table_lookup(tx, &pair);
-
 	c2_db_pair_fini(&pair);
 	return rc;
 }
@@ -478,24 +474,6 @@ static int rec_get(struct c2_db_tx *tx, struct c2_layout *l,
  * @{
  */
 
-/**
- * Looks up a persistent layout record with the specified layout_id, and
- * its related information from the relevant tables.
- *
- * @param pair A c2_db_pair sent by the caller along with having set
- * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
- * allocation with the caller.
- *
- * Regarding the size of the pair->dp_rec.db_buf:
- * The buffer size should be large enough to contain the data that is to be
- * read specifically from the layouts table. It means it needs to be at the
- * most the size returned by c2_layout_max_recsize().
- *
- * @post Layout object is built internally (along with enumeration object being
- * built if applicable). User is expected to add rererence/s to this layout
- * object while using it. Releasing the last reference will finalise the layout
- * object by freeing it.
- */
 int c2_layout_lookup(struct c2_layout_domain *dom,
 		     uint64_t lid,
 		     struct c2_layout_type *lt,
@@ -526,9 +504,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
-
 	c2_mutex_lock(&dom->ld_schema.ls_lock);
-
 	rc = lt->lt_ops->lto_allocate(dom, lid, &l);
 	if (rc != 0) {
 		c2_layout__log("c2_layout_lookup", "lto_allocate() failed",
@@ -560,7 +536,6 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 			       lid, rc);
 		goto out;
 	}
-
 	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&rec_buf, &recsize);
 	c2_bufvec_cursor_init(&cur, &bv);
 
@@ -581,20 +556,6 @@ out:
 	return rc;
 }
 
-/**
- * Adds a new layout record entry into the layouts table.
- * If applicable, adds layout type and enum type specific entries into the
- * relevant tables.
- *
- * @param pair A c2_db_pair sent by the caller along with having set
- * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
- * allocation with the caller.
- *
- * Regarding the size of the pair->dp_rec.db_buf:
- * The buffer size should be large enough to contain the data that is to be
- * written specifically to the layouts table. It means it needs to be at the
- * most the size returned by c2_layout_max_recsize().
- */
 int c2_layout_add(struct c2_layout *l,
 		  struct c2_db_tx *tx,
 		  struct c2_db_pair *pair)
@@ -613,9 +574,7 @@ int c2_layout_add(struct c2_layout *l,
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_layout_rec));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-
 	c2_mutex_lock(&l->l_dom->ld_schema.ls_lock);
-
 	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
 	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
 						  &pair->dp_rec.db_buf.b_nob);
@@ -628,33 +587,18 @@ int c2_layout_add(struct c2_layout *l,
 			       &layout_add_fail, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
-
 	recsize = recsize_get(l);
 	rc = layout_write(l, tx, C2_LXO_DB_ADD, pair, recsize);
 	if (rc != 0)
 		c2_layout__log("c2_layout_add", "layout_write() failed",
 			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &layout_add_fail, &l->l_addb, l->l_id, rc);
-
 out:
 	c2_mutex_unlock(&l->l_dom->ld_schema.ls_lock);
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }
 
-/**
- * Updates a layout record. Only l_ref can be updated for an existing layout
- * record.
- *
- * @param pair A c2_db_pair sent by the caller along with having set
- * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
- * allocation with the caller.
- *
- * Regarding the size of the pair->dp_rec.db_buf:
- * The buffer size should be large enough to contain the data that is to be
- * written specifically to the layouts table. It means it needs to be at the
- * most the size returned by c2_layout_max_recsize().
- */
 int c2_layout_update(struct c2_layout *l,
 		     struct c2_db_tx *tx,
 		     struct c2_db_pair *pair)
@@ -676,9 +620,7 @@ int c2_layout_update(struct c2_layout *l,
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_layout_rec));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-
 	c2_mutex_lock(&l->l_dom->ld_schema.ls_lock);
-
 	/*
 	 * Get the existing record from the layouts table. It is used to
 	 * ensure that nothing other than l_ref gets updated for an existing
@@ -720,7 +662,6 @@ int c2_layout_update(struct c2_layout *l,
 			       &layout_update_fail, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
-
 	recsize = recsize_get(l);
 	rc = layout_write(l, tx, C2_LXO_DB_UPDATE, pair, recsize);
 	if (rc != 0)
@@ -734,19 +675,6 @@ out:
 	return rc;
 }
 
-/**
- * Deletes a layout record with given layout id and its related information
- * from the relevant tables.
- *
- * @param pair A c2_db_pair sent by the caller along with having set
- * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
- * allocation with the caller.
- *
- * Regarding the size of the pair->dp_rec.db_buf:
- * The buffer size should be large enough to contain the data that is to be
- * written specifically to the layouts table. It means it needs to be at the
- * most the size returned by c2_layout_max_recsize().
- */
 int c2_layout_delete(struct c2_layout *l,
 		     struct c2_db_tx *tx,
 		     struct c2_db_pair *pair)
@@ -765,11 +693,8 @@ int c2_layout_delete(struct c2_layout *l,
 	C2_PRE(c2_layout__invariant(l));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-
 	c2_mutex_lock(&l->l_dom->ld_schema.ls_lock);
-
 	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
-
 	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
 						  &pair->dp_rec.db_buf.b_nob);
 	c2_bufvec_cursor_init(&cur, &bv);
@@ -781,7 +706,6 @@ int c2_layout_delete(struct c2_layout *l,
 			       &layout_delete_fail, &l->l_addb, l->l_id, rc);
 		goto out;
 	}
-
 	recsize = recsize_get(l);
 	rc = layout_write(l, tx, C2_LXO_DB_DELETE, pair, recsize);
 	if (rc != 0)

@@ -206,7 +206,10 @@ uint32_t c2_pdclust_K(const struct c2_pdclust_layout *pl);
 uint32_t c2_pdclust_P(const struct c2_pdclust_layout *pl);
 uint64_t c2_pdclust_unit_size(const struct c2_pdclust_layout *pl);
 
+/** Returns c2_pdclust_layout object given c2_layout object. */
 struct c2_pdclust_layout *c2_layout_to_pdl(const struct c2_layout *l);
+
+/** Returns c2_layout object given c2_pdclust_layout object. */
 struct c2_layout *c2_pdl_to_layout(struct c2_pdclust_layout *pl);
 
 /** Classification of units in a parity group. */
@@ -217,9 +220,7 @@ enum c2_pdclust_unit_type {
 	PUT_NR
 };
 
-/**
- * Returns type of the given unit according to layout information.
- */
+/** Returns type of the given unit according to layout information. */
 enum c2_pdclust_unit_type
 c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 			 int unit);

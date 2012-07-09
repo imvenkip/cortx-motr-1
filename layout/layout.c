@@ -315,7 +315,6 @@ void c2_layout__init(struct c2_layout *l,
 	C2_LEAVE("lid %llu", (unsigned long long)lid);
 }
 
-
 /** todo Add @post in the function header
 	C2_POST(c2_layout_find(l->l_dom, l->l_id) == l)
  */
@@ -401,7 +400,6 @@ void c2_layout__striped_populate(struct c2_striped_layout *str_l,
 	C2_ENTRY("lid %llu, enum-type-id %lu",
 		 (unsigned long long)str_l->sl_base.l_id,
 		 (unsigned long)e->le_type->let_id);
-
 	c2_layout__populate(&str_l->sl_base, ref_count);
 	str_l->sl_enum = e;
 	str_l->sl_enum->le_sl = str_l;
@@ -516,9 +514,7 @@ static int schema_init(struct c2_layout_schema *schema,
 	C2_PRE(dbenv != NULL);
 
 	C2_SET0(schema);
-
 	schema->ls_dbenv = dbenv;
-
 	rc = c2_table_init(&schema->ls_layouts, schema->ls_dbenv, "layouts",
 			   DEFAULT_DB_FLAG, &layouts_table_ops);
 	if (rc != 0) {
@@ -529,7 +525,6 @@ static int schema_init(struct c2_layout_schema *schema,
 			       LID_NONE, rc);
 		schema->ls_dbenv = NULL;
 	}
-
 	c2_mutex_init(&schema->ls_lock);
 	return rc;
 }
@@ -591,7 +586,6 @@ static void max_recsize_update(struct c2_layout_domain *dom)
 		recsize = dom->ld_type[i]->lt_ops->lto_max_recsize(dom);
 		max_recsize = max64u(max_recsize, recsize);
 	}
-
 	dom->ld_schema.ls_max_recsize = sizeof(struct c2_layout_rec) +
 					max_recsize;
 }
@@ -701,11 +695,6 @@ void c2_layouts_fini(void)
 {
 }
 
-/**
- * Initialises layout domain - Initialises arrays to hold the objects for
- * layout types and enum types and initialises the schema object.
- * @pre Caller should have performed c2_dbenv_init() on dbenv.
- */
 int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
 {
 	int rc;
@@ -716,7 +705,6 @@ int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
 	C2_SET0(dom);
 	c2_mutex_init(&dom->ld_lock);
 	layout_tlist_init(&dom->ld_layout_list);
-
 	rc = schema_init(&dom->ld_schema, dbenv);
 	if (rc != 0)
 		return rc;
@@ -725,10 +713,6 @@ int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
 	return rc;
 }
 
-/**
- * Finalises the layout domain.
- * @pre All the layout types and enum types should be unregistered.
- */
 void c2_layout_domain_fini(struct c2_layout_domain *dom)
 {
 	C2_PRE(c2_layout__domain_invariant(dom));
@@ -752,9 +736,6 @@ void c2_layout_domain_fini(struct c2_layout_domain *dom)
 	c2_mutex_fini(&dom->ld_lock);
 }
 
-/**
- * Registers all the available layout types and enum types.
- */
 int c2_layout_all_types_register(struct c2_layout_domain *dom)
 {
 	int rc;
@@ -787,15 +768,9 @@ void c2_layout_all_types_unregister(struct c2_layout_domain *dom)
 
 	c2_layout_enum_type_unregister(dom, &c2_list_enum_type);
 	c2_layout_enum_type_unregister(dom, &c2_linear_enum_type);
-
 	c2_layout_type_unregister(dom, &c2_pdclust_layout_type);
 }
 
-/**
- * Registers a new layout type with the layout types maintained by
- * c2_layout_domain::ld_type[] and initialises layout type specific tables,
- * if applicable.
- */
 int c2_layout_type_register(struct c2_layout_domain *dom,
 			    struct c2_layout_type *lt)
 {
@@ -810,7 +785,6 @@ int c2_layout_type_register(struct c2_layout_domain *dom,
 
 	C2_ENTRY("Layout-type-id %lu, domain %p",
 		 (unsigned long)lt->lt_id, dom);
-
 	c2_mutex_lock(&dom->ld_lock);
 	C2_PRE(dom->ld_type[lt->lt_id] == NULL);
 	dom->ld_type[lt->lt_id] = lt;
@@ -835,11 +809,6 @@ int c2_layout_type_register(struct c2_layout_domain *dom,
 	return rc;
 }
 
-/**
- * Unregisters a layout type from the layout types maintained by
- * c2_layout_domain::ld_type[] and finalises layout type specific tables,
- * if applicable.
- */
 void c2_layout_type_unregister(struct c2_layout_domain *dom,
 			       struct c2_layout_type *lt)
 {
@@ -863,11 +832,6 @@ void c2_layout_type_unregister(struct c2_layout_domain *dom,
 	C2_LEAVE("Layout-type-id %lu", (unsigned long)lt->lt_id);
 }
 
-/**
- * Registers a new enumeration type with the enumeration types
- * maintained by c2_layout_domain::ld_enum[] and initialises enum type specific
- * tables, if applicable.
- */
 int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 				 struct c2_layout_enum_type *let)
 {
@@ -882,7 +846,6 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 
 	C2_ENTRY("Enum_type_id %lu, domain %p",
 		 (unsigned long)let->let_id, dom);
-
 	c2_mutex_lock(&dom->ld_lock);
 	C2_PRE(dom->ld_enum[let->let_id] == NULL);
 	dom->ld_enum[let->let_id] = let;
@@ -934,10 +897,7 @@ void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
 	C2_LEAVE("Enum_type_id %lu", (unsigned long)let->let_id);
 }
 
-/**
- * Finds a layout with the given identifier, from the list of layout objects
- * maintained in the layout domain.
- */
+/* todo check if this API is req'd */
 struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid)
 {
 	struct c2_layout *l;
@@ -946,7 +906,6 @@ struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid)
 	C2_PRE(lid != LID_NONE);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
-
 	c2_mutex_lock(&dom->ld_lock);
 	l = layout_list_lookup(dom, lid);
 	c2_mutex_unlock(&dom->ld_lock);
@@ -971,12 +930,6 @@ void c2_layout_get(struct c2_layout *l)
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
 
-/**
- * Releases a reference on the layout. If it is the last reference being
- * released, then it removes the layout entry from the layout list
- * maintained in the layout domain and then finalises the layout along
- * with finalising its enumeration object, if applicable.
- */
 void c2_layout_put(struct c2_layout *l)
 {
 	bool killme;
@@ -1001,43 +954,6 @@ void c2_layout_put(struct c2_layout *l)
 	C2_LEAVE();
 }
 
-/**
- * This method
- * - Either continues to build an in-memory layout object from its
- *   representation 'stored in the Layout DB'
- * - Or builds an in-memory layout object from its representation 'received
- *   through a buffer'.
- *
- * Two use cases of c2_layout_decode()
- * - Server decodes an on-disk layout record by reading it from the Layout
- *   DB, into an in-memory layout structure, using c2_layout_lookup() which
- *   internally calls c2_layout_decode().
- * - Client decodes a buffer received over the network, into an in-memory
- *   layout structure, using c2_layout_decode().
- *
- * @param cur Cursor pointing to a buffer containing serialised representation
- * of the layout. Regarding the size of the buffer:
- * - In case c2_layout_decode() is called through c2_layout_add(), then the
- *   buffer should be containing all the data that is read specifically from
- *   the layouts table. It means its size needs to be at the most the size
- *   returned by c2_layout_max_recsize().
- * - In case c2_layout_decode() is called by some other caller, then the
- *   buffer should be containing all the data belonging to the specific layout.
- *   It may include data that spans over tables other than layouts as well. It
- *   means its size may need to be even more than the one returned by
- *   c2_layout_max_recsize(). For example, in case of LIST enumeration type,
- *   the buffer needs to contain the data that is stored in the cob_lists table.
- *
- * @param op This enum parameter indicates what is the DB operation to be
- * performed on the layout record. It could be LOOKUP if at all a DB operation.
- * If it is BUFFER_OP, then the layout is decoded from its representation
- * received through the buffer.
- *
- * @post Layout object is built internally (along with enumeration object being
- * built if applicable). User is expected to add rererence/s to this layout
- * object while using it. Releasing the last reference will finalise the layout
- * object by freeing it.
- */
 int c2_layout_decode(struct c2_layout *l,
 		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,
@@ -1055,7 +971,6 @@ int c2_layout_decode(struct c2_layout *l,
 	C2_PRE(c2_layout_find(l->l_dom, l->l_id) == NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-
 	if (C2_FI_ENABLED("c2_l_decode_error_in_c2_l_lookup"))
 		return -1;
 
@@ -1082,7 +997,6 @@ int c2_layout_decode(struct c2_layout *l,
 			       l->l_id, rc);
 		goto out;
 	}
-
 	C2_POST(c2_layout__invariant(l));
 	C2_POST(c2_layout_find(l->l_dom, l->l_id) == l);
 out:
@@ -1090,46 +1004,6 @@ out:
 	return rc;
 }
 
-/**
- * This method uses an in-memory layout object and
- * - Either adds/updates/deletes it to/from the Layout DB
- * - Or converts it to a buffer.
- *
- * Two use cases of c2_layout_encode()
- * - Server encodes an in-memory layout object into a buffer using
- *   c2_layout_encode(), so as to send it to the client.
- * - Server encodes an in-memory layout object using one of c2_layout_add(),
- *   c2_layout_update() or c2_layout_delete() and adds/updates/deletes
- *   it to or from the Layout DB.
- *
- * @param op This enum parameter indicates what is the DB operation to be
- * performed on the layout record if at all a DB operation which could be
- * one of ADD/UPDATE/DELETE. If it is BUFFER_OP, then the layout is stored
- * in the buffer provided by the caller.
- *
- * @param oldrec_cur Cursor pointing to a buffer to be used to read the
- * exisiting layout record from the layouts table. Applicable only in case of
- * layou update operation. In other cases, it is expected to be NULL.
- *
- * @param out Cursor pointing to a buffer. Regarding the size of the buffer:
- * - In case c2_layout_encode() is called through c2_layout_add()|
- *   c2_layout_update()|c2_layout_delete(), then the buffer size should be
- *   large enough to contain the data that is to be written specifically to
- *   the layouts table. It means it needs to be at the most the size returned
- *   by c2_layout_max_recsize().
- * - In case c2_layout_encode() is called by some other caller, then the
- *   buffer size should be large enough to contain all the data belonging to
- *   the specific layout. It means the size required may even be more than
- *   the one returned by c2_layout_max_recsize(). For example, in case of LIST
- *   enumeration type, some data goes into table other than layouts, viz.
- *   cob_lists table.
- *
- * @post
- * - If op is is either for ADD|UPDATE|DELETE, respective DB operation is
- *   continued.
- * - If op is BUFFER_OP, the buffer contains the serialised representation
- *   of the whole layout.
- */
 int c2_layout_encode(struct c2_layout *l,
 		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,
@@ -1153,7 +1027,6 @@ int c2_layout_encode(struct c2_layout *l,
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof rec);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-
 	c2_mutex_lock(&l->l_lock);
 	lt = l->l_type;
 	C2_ASSERT(lt == l->l_dom->ld_type[lt->lt_id]);
@@ -1186,11 +1059,6 @@ int c2_layout_encode(struct c2_layout *l,
 	return rc;
 }
 
-/**
- * Returns maximum possible size for a record in the layouts table (without
- * considering the data in the tables other than layouts), from what is
- * maintained in the c2_layout_schema object.
- */
 c2_bcount_t c2_layout_max_recsize(const struct c2_layout_domain *dom)
 {
 	C2_PRE(c2_layout__domain_invariant(dom));
@@ -1238,7 +1106,6 @@ void c2_layout_enum_get(const struct c2_layout_enum *e,
 	C2_PRE(c2_layout__enum_invariant(e));
 	e->le_ops->leo_get(e, idx, gfid, out);
 }
-
 
 /** @} end group layout */
 

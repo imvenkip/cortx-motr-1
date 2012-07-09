@@ -263,21 +263,21 @@ static uint64_t permute_column(struct c2_pdclust_layout *play,
 		uint32_t i;
 		uint64_t rstate;
 
-		/* initialise columns array that will be permuted. */
+		/* Initialise columns array that will be permuted. */
 		for (i = 0; i < play->pl_attr.pa_P; ++i)
 			tc->tc_permute[i] = i;
 
-		/* initialise PRNG */
+		/* Initialise PRNG. */
 		rstate  =
 			hash(play->pl_attr.pa_seed.u_hi) ^
 			hash(play->pl_attr.pa_seed.u_lo + omega);
 
-		/* generate permutation number in lexicographic ordering */
+		/* Generate permutation number in lexicographic ordering. */
 		for (i = 0; i < play->pl_attr.pa_P - 1; ++i)
 			tc->tc_lcode[i] = c2_rnd(play->pl_attr.pa_P - i,
 						 &rstate);
 
-		/* apply the permutation */
+		/* Apply the permutation. */
 		permute(play->pl_attr.pa_P, tc->tc_lcode,
 			tc->tc_permute, tc->tc_inverse);
 		tc->tc_tile_no = omega;
@@ -697,7 +697,6 @@ static int pdclust_decode(struct c2_layout *l,
 		       (unsigned long long)l->l_id, rc);
 		goto out;
 	}
-
 	rc = et->let_ops->leto_decode(e, &pl->pl_base, op, tx, cur);
 	if (rc != 0) {
 		e->le_ops->leo_delete(e);
@@ -786,7 +785,6 @@ static int pdclust_encode(struct c2_layout *l,
 
 	nbytes = c2_bufvec_cursor_copyto(out, &pl_rec, sizeof pl_rec);
 	C2_ASSERT(nbytes == sizeof pl_rec);
-
 	rc = et->let_ops->leto_encode(pl->pl_base.sl_enum, op, tx,
 				      oldrec_cur, out);
 	if (rc != 0)

@@ -137,11 +137,6 @@ static void linear_populate(struct c2_layout_linear_enum *lin_enum,
 	C2_POST(linear_invariant_internal(lin_enum));
 }
 
-/**
- * Build linear enumeration object.
- * @note Enum object need not be finalised explicitly by the user. It is
- * finalised internally through c2_layout__striped_fini().
- */
 int c2_linear_enum_build(struct c2_layout_domain *dom,
 			 const struct c2_layout_linear_attr *attr,
 			 struct c2_layout_linear_enum **out)
@@ -263,7 +258,6 @@ static int linear_decode(struct c2_layout_enum *e,
 
 	lid = stl->sl_base.l_id;
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
-
 	lin_enum = container_of(e, struct c2_layout_linear_enum, lle_base);
 	C2_ASSERT(linear_allocated_invariant(lin_enum));
 
@@ -303,7 +297,6 @@ static int linear_encode(const struct c2_layout_enum *e,
 	lin_enum = enum_to_linear_enum(e);
 	lid = lin_enum->lle_base.le_sl->sl_base.l_id;
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
-
 	if (op == C2_LXO_DB_UPDATE) {
 		/*
 		 * Processing the oldrec_cur, to verify that no enumeration
@@ -358,7 +351,6 @@ static void linear_get(const struct c2_layout_enum *e, uint32_t idx,
 		 (unsigned long long)e->le_sl->sl_base.l_id, e);
 	lin_enum = enum_to_linear_enum(e);
 	C2_ASSERT(idx < lin_enum->lle_attr.lla_nr);
-
 	c2_fid_set(out,
 		   lin_enum->lle_attr.lla_A + idx * lin_enum->lle_attr.lla_B,
 		   gfid->f_key);

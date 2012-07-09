@@ -123,18 +123,79 @@ struct c2_layout_rec {
 	char      lr_data[0];
 };
 
+/**
+ * Looks up a persistent layout record with the specified layout_id, and
+ * its related information from the relevant tables.
+ *
+ * @param pair A c2_db_pair sent by the caller along with having set
+ * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
+ * allocation with the caller.
+ *
+ * Regarding the size of the pair->dp_rec.db_buf:
+ * The buffer size should be large enough to contain the data that is to be
+ * read specifically from the layouts table. It means it needs to be at the
+ * most the size returned by c2_layout_max_recsize().
+ *
+ * @post Layout object is built internally (along with enumeration object being
+ * built if applicable). User is expected to add rererence/s to this layout
+ * object while using it. Releasing the last reference will finalise the layout
+ * object by freeing it.
+ */
 int c2_layout_lookup(struct c2_layout_domain *dom,
 		     uint64_t lid,
 		     struct c2_layout_type *lt,
 		     struct c2_db_tx *tx,
 		     struct c2_db_pair *pair,
 		     struct c2_layout **out);
+
+/**
+ * Adds a new layout record entry into the layouts table.
+ * If applicable, adds layout type and enum type specific entries into the
+ * relevant tables.
+ *
+ * @param pair A c2_db_pair sent by the caller along with having set
+ * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
+ * allocation with the caller.
+ *
+ * Regarding the size of the pair->dp_rec.db_buf:
+ * The buffer size should be large enough to contain the data that is to be
+ * written specifically to the layouts table. It means it needs to be at the
+ * most the size returned by c2_layout_max_recsize().
+ */
 int c2_layout_add(struct c2_layout *l,
 		  struct c2_db_tx *tx,
 		  struct c2_db_pair *pair);
+
+/**
+ * Updates a layout record. Only l_ref can be updated for an existing layout
+ * record.
+ *
+ * @param pair A c2_db_pair sent by the caller along with having set
+ * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
+ * allocation with the caller.
+ *
+ * Regarding the size of the pair->dp_rec.db_buf:
+ * The buffer size should be large enough to contain the data that is to be
+ * written specifically to the layouts table. It means it needs to be at the
+ * most the size returned by c2_layout_max_recsize().
+ */
 int c2_layout_update(struct c2_layout *l,
 		     struct c2_db_tx *tx,
 		     struct c2_db_pair *pair);
+
+/**
+ * Deletes a layout record with given layout id and its related information
+ * from the relevant tables.
+ *
+ * @param pair A c2_db_pair sent by the caller along with having set
+ * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
+ * allocation with the caller.
+ *
+ * Regarding the size of the pair->dp_rec.db_buf:
+ * The buffer size should be large enough to contain the data that is to be
+ * written specifically to the layouts table. It means it needs to be at the
+ * most the size returned by c2_layout_max_recsize().
+ */
 int c2_layout_delete(struct c2_layout *l,
 		     struct c2_db_tx *tx,
 		     struct c2_db_pair *pair);

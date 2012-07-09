@@ -151,7 +151,6 @@ static int list_allocate(struct c2_layout_domain *dom,
 			       -ENOMEM);
 		return -ENOMEM;
 	}
-
 	c2_layout__enum_init(dom, &list_enum->lle_base,
 			     &c2_list_enum_type, &list_enum_ops);
 	c2_layout_list_enum_bob_init(list_enum);
@@ -198,7 +197,6 @@ static int list_populate(struct c2_layout_list_enum *list_enum,
 			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
 		goto out;
 	}
-
 	for (i = 0; i < nr; ++i) {
 		C2_ASSERT(c2_fid_is_valid(&cob_list[i]));
 		list_enum->lle_list_of_cobs[i] = cob_list[i];
@@ -210,11 +208,6 @@ out:
 	return rc;
 }
 
-/**
- * Build list enumeration object.
- * @note Enum object need not be finalised explicitly by the user. It is
- * finalised internally through c2_layout__striped_fini().
- */
 int c2_list_enum_build(struct c2_layout_domain *dom,
 		       struct c2_fid *cob_list, uint32_t nr,
 		       struct c2_layout_list_enum **out)
@@ -238,14 +231,6 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 	return rc;
 }
 
-/**
- * Finalise list enumeration object.
- * @note This interface is expected to be used only in cases where layout
- * build operation fails and the user (for example c2t1fs) needs to get rid of
- * the enumeration object created prior to attempting the layout build
- * operation. In the other regular cases, enumeration object is finalised
- * internally through c2_layout__striped_fini().
- */
 void c2_list_enum_fini(struct c2_layout_list_enum *e)
 {
 	C2_PRE(list_invariant_internal(e));
@@ -301,7 +286,6 @@ static int list_register(struct c2_layout_domain *dom,
 	C2_PRE(dom->ld_schema.ls_type_data[et->let_id] == NULL);
 
 	C2_ENTRY("Enum_type_id %lu", (unsigned long)et->let_id);
-
 	C2_ALLOC_PTR(lsd);
 	if (lsd == NULL) {
 		rc = -ENOMEM;
@@ -310,7 +294,6 @@ static int list_register(struct c2_layout_domain *dom,
 			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
 		goto out;
 	}
-
 	rc = c2_table_init(&lsd->lsd_cob_lists, dom->ld_schema.ls_dbenv,
 			   "cob_lists", DEFAULT_DB_FLAG, &cob_lists_table_ops);
 	if (rc != 0) {
@@ -321,7 +304,6 @@ static int list_register(struct c2_layout_domain *dom,
 		c2_free(lsd);
 		goto out;
 	}
-
 	dom->ld_schema.ls_type_data[et->let_id] = lsd;
 out:
 	C2_LEAVE("Enum_type_id %lu, rc %d", (unsigned long)et->let_id, rc);
@@ -342,12 +324,10 @@ static void list_unregister(struct c2_layout_domain *dom,
 	C2_PRE(et != NULL);
 
 	C2_ENTRY("Enum_type_id %lu", (unsigned long)et->let_id);
-
 	lsd = dom->ld_schema.ls_type_data[et->let_id];
 	c2_table_fini(&lsd->lsd_cob_lists);
 	dom->ld_schema.ls_type_data[et->let_id] = NULL;
 	c2_free(lsd);
-
 	C2_LEAVE("Enum_type_id %lu", (unsigned long)et->let_id);
 }
 
@@ -386,7 +366,6 @@ static int noninline_read(struct c2_layout_schema *schema,
 	C2_ENTRY("lid %llu, idx_start %lu, idx_end %lu",
 		 (unsigned long long)lid, (unsigned long)idx_start,
 		 (unsigned long)idx_end);
-
 	lsd = schema->ls_type_data[c2_list_enum_type.let_id];
 	C2_ASSERT(lsd != NULL);
 
@@ -422,7 +401,6 @@ static int noninline_read(struct c2_layout_schema *schema,
 		C2_ASSERT(c2_fid_is_valid(&rec.clr_cob_id));
 		cob_list[i] = rec.clr_cob_id;
 	}
-
 out:
 	c2_db_pair_fini(&pair);
 	c2_db_cursor_fini(&cursor);
@@ -483,7 +461,6 @@ static int list_decode(struct c2_layout_enum *e,
 			       &c2_addb_oom, &layout_global_ctx, lid, rc);
 		goto out;
 	}
-
 	num_inline = min_check(ce_header->ces_nr,
 			       (uint32_t)LDB_MAX_INLINE_COB_ENTRIES);
 
@@ -517,7 +494,6 @@ static int list_decode(struct c2_layout_enum *e,
 			 */
 			break;
 	}
-
 	if (op == C2_LXO_DB_LOOKUP && ce_header->ces_nr > num_inline) {
 		C2_LOG("lid %llu, nr %lu, Start reading noninline entries "
 		       "from the DB", (unsigned long long)lid,
@@ -529,7 +505,6 @@ static int list_decode(struct c2_layout_enum *e,
 			goto out;
 		}
 	}
-
 	rc = list_populate(list_enum, cob_list, ce_header->ces_nr);
 	C2_POST(ergo(rc == 0, list_invariant_internal(list_enum)));
 out:
@@ -563,7 +538,6 @@ static int noninline_write(const struct c2_layout_schema *schema,
 	C2_ENTRY("lid %llu, idx_start %lu, idx_end %lu",
 		 (unsigned long long)lid, (unsigned long)idx_start,
 		 (unsigned long)idx_end);
-
 	lsd = schema->ls_type_data[c2_list_enum_type.let_id];
 	C2_ASSERT(lsd != NULL);
 
@@ -627,7 +601,6 @@ static int noninline_write(const struct c2_layout_schema *schema,
 			}
 		}
 	}
-
 out:
 	c2_db_pair_fini(&pair);
 	c2_db_cursor_fini(&cursor);
@@ -672,6 +645,7 @@ static int list_encode(const struct c2_layout_enum *e,
 	C2_PRE(out != NULL);
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof ce_header);
 
+	//todo C2_ENTRY()
 	list_enum = enum_to_list_enum(e);
 	lid = e->le_sl->sl_base.l_id;
 	C2_ENTRY("lid %llu, nr %lu", (unsigned long long)lid,
@@ -701,7 +675,6 @@ static int list_encode(const struct c2_layout_enum *e,
 					sizeof list_enum->lle_list_of_cobs[i]);
 		}
 	}
-
 	ce_header.ces_nr = list_enum->lle_nr;
 	nbytes = c2_bufvec_cursor_copyto(out, &ce_header,
 					 sizeof ce_header);
@@ -766,7 +739,6 @@ static int list_encode(const struct c2_layout_enum *e,
 				     list_enum->lle_list_of_cobs);
 		C2_LOG("noninline_write() failed");
 	}
-
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
@@ -813,7 +785,6 @@ static void list_get(const struct c2_layout_enum *e, uint32_t idx,
 	*out = list_enum->lle_list_of_cobs[idx];
 	C2_LEAVE("lid %llu, enum_pointer %p, fid_pointer %p",
 		 (unsigned long long)e->le_sl->sl_base.l_id, e, out);
-
 }
 
 /**
