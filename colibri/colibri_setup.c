@@ -166,9 +166,9 @@ static bool cs_reqh_context_invariant(const struct cs_reqh_context *rctx)
  */
 static struct c2_net_xprt *cs_xprt_lookup(const char *xprt_name,
 					  struct c2_net_xprt **xprts,
-					  int xprts_nr)
+					  size_t xprts_nr)
 {
-        int i;
+        size_t i;
 
 	C2_PRE(xprt_name != NULL && xprts != NULL && xprts_nr > 0);
 
@@ -181,7 +181,7 @@ static struct c2_net_xprt *cs_xprt_lookup(const char *xprt_name,
 /**
    Lists supported network transports.
  */
-static void cs_xprts_list(FILE *out, struct c2_net_xprt **xprts, int xprts_nr)
+static void cs_xprts_list(FILE *out, struct c2_net_xprt **xprts, size_t xprts_nr)
 {
         int i;
 
@@ -1126,7 +1126,7 @@ static void cs_services_fini(struct c2_reqh *reqh)
 static int cs_net_domains_init(struct c2_colibri *cctx)
 {
 	int                          rc;
-	int                          xprts_nr;
+	size_t                       xprts_nr;
 	FILE                        *ofd;
 	struct c2_net_xprt         **xprts;
 	struct c2_net_xprt          *xprt;
@@ -1189,7 +1189,7 @@ static void cs_net_domains_fini(struct c2_colibri *cctx)
 {
 	struct c2_net_domain  *ndom;
 	struct c2_net_xprt   **xprts;
-	int                    idx;
+	size_t                 idx;
 
 	C2_PRE(cctx != NULL);
 
@@ -1853,7 +1853,7 @@ int c2_cs_start(struct c2_colibri *cctx)
 }
 
 int c2_cs_init(struct c2_colibri *cctx, struct c2_net_xprt **xprts,
-	       int xprts_nr, FILE *out)
+	       size_t xprts_nr, FILE *out)
 {
         int rc;
 
