@@ -68,6 +68,10 @@ bool c2_layout__enum_invariant(const struct c2_layout_enum *le);
 bool c2_layout__striped_allocated_invariant(const struct c2_striped_layout *s);
 bool c2_layout__striped_invariant(const struct c2_striped_layout *stl);
 
+struct c2_layout *c2_layout__list_lookup(const struct c2_layout_domain *dom,
+					 uint64_t lid,
+					 bool ref_increment);
+
 void c2_layout__init(struct c2_layout *l,
 		     struct c2_layout_domain *dom,
 		     uint64_t lid,

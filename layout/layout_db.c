@@ -489,12 +489,12 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	void                    *key_buf = pair->dp_key.db_buf.b_addr;
 	void                    *rec_buf = pair->dp_rec.db_buf.b_addr;
 	struct c2_layout        *l;
+	struct c2_layout        *ghost;
 
 	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(lid != LID_NONE);
-	//todo C2_PRE(c2_layout_find(dom, lid) == NULL);
 	C2_PRE(lt != NULL);
-	C2_PRE(dom->ld_type[lt->lt_id] == lt);
+	C2_PRE(dom->ld_type[lt->lt_id] == lt); /* Registered layout type. */
 	C2_PRE(tx != NULL);
 	C2_PRE(pair != NULL);
 	C2_PRE(key_buf != NULL);
@@ -504,19 +504,58 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
-	c2_mutex_lock(&dom->ld_schema.ls_lock);
+	c2_mutex_lock(&dom->ld_lock);
+	l = c2_layout__list_lookup(dom, lid, true);
+	c2_mutex_unlock(&dom->ld_lock);
+	if (l != NULL) {
+		/*
+		 * Layout object exists in memory and c2_layout__list_lookup()
+		 * has now acquired a reference on it.
+		 */
+		*out = l;
+		C2_POST(c2_layout__invariant(*out));
+		C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, 0);
+		return 0;
+	}
+
+	/* Allocate outside of the domain lock to improve concurrency. */
 	rc = lt->lt_ops->lto_allocate(dom, lid, &l);
 	if (rc != 0) {
 		c2_layout__log("c2_layout_lookup", "lto_allocate() failed",
 			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &layout_lookup_fail, &layout_global_ctx,
 			       lid, rc);
-		goto out;
+		return rc;
 	}
-	/* todo Check carefully if the layout should be added to list
-	 * as a part of lto_allocate() or as a part of c2_layout__populate. */
+	/*
+	 * Here, l != NULL and lto_allocate() has locked l->l_lock. On error,
+	 * must unlock l->l_lock and call lo_delete(), after this point.
+	 */
 
-	C2_ASSERT(c2_layout__allocated_invariant(l)); //todo remove
+	/* Re-check for possible concurrent layout creation. */
+	c2_mutex_lock(&dom->ld_lock);
+	ghost = c2_layout__list_lookup(dom, lid, true);
+	if (ghost != NULL) {
+		/*
+		 * Another instance of the layout with the same layout id
+		 * "ghost" was created while the domain lock was released.
+		 * Use it. c2_layout__list_lookup() has now acquired a
+		 * reference on "ghost".
+		 */
+		c2_mutex_unlock(&dom->ld_lock);
+		c2_mutex_unlock(&l->l_lock);
+		l->l_ops->lo_delete(l);
+
+		/* Wait for possible decoding completion. */
+		c2_mutex_lock(&ghost->l_lock);
+		c2_mutex_unlock(&ghost->l_lock);
+
+		*out = ghost;
+		C2_POST(c2_layout__invariant(*out));
+		C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, 0);
+		return 0;
+	}
+	c2_mutex_unlock(&dom->ld_lock);
 
 	max_recsize = c2_layout_max_recsize(dom);
 	recsize = pair->dp_rec.db_buf.b_nob <= max_recsize ?
@@ -529,7 +568,9 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 
 	rc = c2_table_lookup(tx, pair);
 	if (rc != 0) {
-		l->l_ops->lo_delete(l); //todo
+		/* covered */
+		c2_mutex_unlock(&l->l_lock);
+		l->l_ops->lo_delete(l);
 		c2_layout__log("c2_layout_lookup", "c2_table_lookup() failed",
 			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &layout_lookup_fail, &layout_global_ctx,
@@ -541,6 +582,8 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 
 	rc = c2_layout_decode(l, C2_LXO_DB_LOOKUP, tx, &cur);
 	if (rc != 0) {
+		/* covered */
+		c2_mutex_unlock(&l->l_lock);
 		l->l_ops->lo_delete(l);
 		c2_layout__log("c2_layout_lookup", "c2_layout_decode() failed",
 			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
@@ -549,9 +592,11 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 		goto out;
 	}
 	*out = l;
+	C2_CNT_INC(l->l_ref);
+	C2_POST(c2_layout__invariant(l) && l->l_ref > 0);
+	c2_mutex_unlock(&l->l_lock);
 out:
 	c2_db_pair_fini(pair);
-	c2_mutex_unlock(&dom->ld_schema.ls_lock);
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
@@ -574,7 +619,7 @@ int c2_layout_add(struct c2_layout *l,
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_layout_rec));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-	c2_mutex_lock(&l->l_dom->ld_schema.ls_lock);
+	c2_mutex_lock(&l->l_lock);
 	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
 	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
 						  &pair->dp_rec.db_buf.b_nob);
@@ -594,7 +639,7 @@ int c2_layout_add(struct c2_layout *l,
 			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &layout_add_fail, &l->l_addb, l->l_id, rc);
 out:
-	c2_mutex_unlock(&l->l_dom->ld_schema.ls_lock);
+	c2_mutex_unlock(&l->l_lock);
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }
@@ -620,7 +665,7 @@ int c2_layout_update(struct c2_layout *l,
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_layout_rec));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-	c2_mutex_lock(&l->l_dom->ld_schema.ls_lock);
+	c2_mutex_lock(&l->l_lock);
 	/*
 	 * Get the existing record from the layouts table. It is used to
 	 * ensure that nothing other than l_ref gets updated for an existing
@@ -670,7 +715,7 @@ int c2_layout_update(struct c2_layout *l,
 			       &layout_update_fail, &l->l_addb, l->l_id, rc);
 out:
 	c2_free(oldrec_area);
-	c2_mutex_unlock(&l->l_dom->ld_schema.ls_lock);
+	c2_mutex_unlock(&l->l_lock);
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }
@@ -693,7 +738,7 @@ int c2_layout_delete(struct c2_layout *l,
 	C2_PRE(c2_layout__invariant(l));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-	c2_mutex_lock(&l->l_dom->ld_schema.ls_lock);
+	c2_mutex_lock(&l->l_lock);
 	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
 	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
 						  &pair->dp_rec.db_buf.b_nob);
@@ -713,7 +758,7 @@ int c2_layout_delete(struct c2_layout *l,
 			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &layout_delete_fail, &l->l_addb, l->l_id, rc);
 out:
-	c2_mutex_unlock(&l->l_dom->ld_schema.ls_lock);
+	c2_mutex_unlock(&l->l_lock);
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }

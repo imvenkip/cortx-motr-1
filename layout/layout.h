@@ -223,6 +223,7 @@ struct c2_layout_ops {
 	/**
 	 * Finalises the layout object. It involves finalising its enumeration
 	 * object, if applicable.
+	 * Called when the last reference on the layout object is released.
 	 */
 	void        (*lo_fini)(struct c2_layout *l);
 
@@ -230,6 +231,8 @@ struct c2_layout_ops {
 	 * Finalises the layout object that is only allocated and not
 	 * populated. Since it is not populated, it does not contain
 	 * enumeration object.
+	 * Called when an allocated layout object can not be populated for
+	 * some reason.
 	 */
 	void        (*lo_delete)(struct c2_layout *l);
 
@@ -302,7 +305,9 @@ struct c2_layout_type_ops {
 	 * Allocates an instance of some layout-type specific data-type
 	 * which embeds c2_layout and stores the resultant c2_layout object
 	 * in the parameter out.
-	 * @post ergo(result == 0, *out != NULL && (*out)->l_ops != NULL)
+	 * @post ergo(result == 0, *out != NULL &&
+	 *                        (*out)->l_ops != NULL &&
+	 *                         c2_mutex_is_locked(&l->l_lock))
 	 */
 	int         (*lto_allocate)(struct c2_layout_domain *dom,
 				    uint64_t lid,
@@ -522,19 +527,29 @@ void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
 				    struct c2_layout_enum_type *et);
 
 /**
- * Finds a layout with the given identifier, from the list of layout objects
- * maintained in the layout domain.
+ * Returns an in-memory representation of the layout with the given identifier,
+ * if it exists in the list of layout objects maintained in the layout domain.
+ *
+ * On success, this function acquires a reference on the returned layout
+ * object.
  */
 struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid);
 
-/** Adds a reference to the layout. */
+/**
+ * Acquires an additional reference on the layout object.
+ * @see c2_layout_put()
+ * @see c2_layout_find()
+ */
 void c2_layout_get(struct c2_layout *l);
 
 /**
- * Releases a reference on the layout. If it is the last reference being
- * released, then it removes the layout entry from the layout list
- * maintained in the layout domain and then finalises the layout along
- * with finalising its enumeration object, if applicable.
+ * Releases a reference on the layout object.
+ * If it is the last reference being released, then it removes the layout
+ * entry from the layout list maintained in the layout domain and then
+ * finalises the layout along with finalising its enumeration object, if
+ * applicable.
+ * @see c2_layout_get()
+ * @see c2_layout_find()
  */
 void c2_layout_put(struct c2_layout *l);
 

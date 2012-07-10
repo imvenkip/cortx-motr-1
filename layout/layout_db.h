@@ -124,8 +124,15 @@ struct c2_layout_rec {
 };
 
 /**
- * Looks up a persistent layout record with the specified layout_id, and
- * its related information from the relevant tables.
+ * Looks for an in-memory layout object with the given identifier in the list
+ * of layout objects maintained in the layout domain.
+ * If not found there, looks up for a persistent layout record in the layout DB
+ * with the given identifier. If present in the layout DB, prepares an
+ * in-memory layout object with the information from the DB and adds the
+ * layout object to the list of layout objects in the layout domain.
+ *
+ * All operations are performed in the context of the caller-supplied
+ * transaction.
  *
  * @param pair A c2_db_pair sent by the caller along with having set
  * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
@@ -136,10 +143,9 @@ struct c2_layout_rec {
  * read specifically from the layouts table. It means it needs to be at the
  * most the size returned by c2_layout_max_recsize().
  *
- * @post Layout object is built internally (along with enumeration object being
- * built if applicable). User is expected to add rererence/s to this layout
- * object while using it. Releasing the last reference will finalise the layout
- * object by freeing it.
+ * @post Layout object is built internally (along with enumeration object
+ * being built if applicable). If layout object is created successfully,
+ * a reference is acquired on it and it is stored in "out".
  */
 int c2_layout_lookup(struct c2_layout_domain *dom,
 		     uint64_t lid,

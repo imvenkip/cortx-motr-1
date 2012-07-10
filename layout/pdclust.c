@@ -447,8 +447,11 @@ static int pdclust_allocate(struct c2_layout_domain *dom,
 	}
 	c2_layout__striped_init(&pdl->pl_base, dom, lid,
 				&c2_pdclust_layout_type, &pdclust_ops);
-	C2_POST(pdclust_allocated_invariant(pdl));
 	*out = &pdl->pl_base.sl_base;
+	c2_mutex_lock(&pdl->pl_base.sl_base.l_lock);
+
+	C2_POST(pdclust_allocated_invariant(pdl));
+	C2_POST(c2_mutex_is_locked(&(*out)->l_lock));
 	C2_LEAVE("lid %llu, pdl pointer %p", (unsigned long long)lid, pdl);
 	return 0;
 }
@@ -580,19 +583,23 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 	rc = pdclust_allocate(dom, lid, &l);
 	if (rc == 0) {
+		/*
+		 * Here, l != NULL and pdclust_allocate has locked l->l_lock.
+		 * On error, must call pdclust_delete(), after this point.
+		 */
 		pdl = container_of(l, struct c2_pdclust_layout,
 				   pl_base.sl_base);
 		C2_ASSERT(pdclust_allocated_invariant(pdl));
 
 		rc = pdclust_populate(pdl, attr, le, 0);
 		if (rc == 0) {
-			C2_POST(pdclust_invariant(pdl));
 			*out = pdl;
+			C2_POST(pdclust_invariant(*out));
 		} else {
 			pdclust_delete(l);
 		}
+		c2_mutex_unlock(&l->l_lock);
 	}
-	C2_POST(pdclust_invariant(pdl));
 	C2_LEAVE("lid %llu", (unsigned long long)lid);
 	return rc;
 }
