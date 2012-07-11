@@ -127,8 +127,8 @@ struct c2_net_test_cmd {
 
 struct c2_net_test_cmd_buf_status {
 	/**
-	   get() in message receive callback.
-	   put() in c2_net_test_commands_recv().
+	   c2_net_end_point_get() in message receive callback.
+	   c2_net_end_point_put() in c2_net_test_commands_recv().
 	 */
 	struct c2_net_end_point *ntcbs_ep;
 	/** buffer status, c2_net_buffer_event.nbe_status in buffer callback */
