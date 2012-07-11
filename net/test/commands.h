@@ -99,8 +99,9 @@ struct c2_net_test_cmd_stop {
 
 /**
    Command structure to exchange between console and clients or servers.
-   @b WARNING: be sure to change cmd_xcode() and cmd_length()
-   after changes to this structure.
+   @b WARNING: be sure to change cmd_xcode() after changes to this structure.
+   @note c2_net_test_cmd.ntc_ep_index and c2_net_test_cmd.ntc_buf_index
+   will not be sent/received over the network.
  */
 struct c2_net_test_cmd {
 	/** command type */
@@ -112,10 +113,6 @@ struct c2_net_test_cmd {
 		struct c2_net_test_cmd_init ntc_init;
 		struct c2_net_test_cmd_stop ntc_stop;
 	};
-	/**
-	   Next fields will not be sent/received over the network.
-	   They are used for error reporting etc.
-	 */
 	/**
 	   Endpoint index in commands context.
 	   Set in c2_net_test_commands_recv().
