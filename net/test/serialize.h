@@ -18,14 +18,14 @@
  * Original creation date: 06/28/2012
  */
 
-#ifndef __NET_TEST_NTXCODE_H__
-#define __NET_TEST_NTXCODE_H__
+#ifndef __NET_TEST_SERIALIZE_H__
+#define __NET_TEST_SERIALIZE_H__
 
 #include "lib/types.h"	/* c2_bcount_t */
 #include "lib/vec.h"	/* c2_buvfec */
 
 /**
-   @defgroup NetTestXCODE Colibri Network Benchmark Xcode.
+   @defgroup NetTestSERIALIZE Colibri Network Benchmark Serialization
 
    @see
    @ref net-test
@@ -33,13 +33,13 @@
    @{
  */
 
-/** Operation type. @see c2_net_test_xcode(). */
-enum c2_net_test_xcode_op {
-	C2_NET_TEST_ENCODE, /**< Encode operation. */
-	C2_NET_TEST_DECODE, /**< Decode operation. */
+/** Operation type. @see c2_net_test_serialize(). */
+enum c2_net_test_serialize_op {
+	C2_NET_TEST_SERIALIZE,  /**< Serialize operation. */
+	C2_NET_TEST_DESERIALIZE, /**< Deserialize operation. */
 };
 
-/** Field description. @see c2_net_test_xcode(). */
+/** Field description. @see c2_net_test_serialize(). */
 struct c2_net_test_descr {
 	size_t ntd_offset;	/**< Data offset in structure */
 	size_t ntd_length;	/**< Data length in structure */
@@ -67,22 +67,22 @@ struct c2_net_test_descr {
 }
 
 /**
-   Encode or decode data.
+   Serialize or deserialize data.
    @pre data_len > 0
    @pre plain_data || data_len == 1 || data_len == 2 ||
 		      data_len == 4 || data_len == 8
-   @see c2_net_test_xcode().
+   @see c2_net_test_serialize().
  */
-c2_bcount_t c2_net_test_xcode_data(enum c2_net_test_xcode_op op,
-				   void *data,
-				   c2_bcount_t data_len,
-				   bool plain_data,
-				   struct c2_bufvec *bv,
-				   c2_bcount_t bv_offset);
+c2_bcount_t c2_net_test_serialize_data(enum c2_net_test_serialize_op op,
+				       void *data,
+				       c2_bcount_t data_len,
+				       bool plain_data,
+				       struct c2_bufvec *bv,
+				       c2_bcount_t bv_offset);
 
 /**
-   Encode or decode data structure with the given description.
-   @param op Operation. Can be NET_TEST_ENCODE or NET_TEST_DECODE.
+   Serialize or deserialize data structure with the given description.
+   @param op Operation. Can be C2_NET_TEST_SERIALIZE or C2_NET_TEST_DESERIALIZE.
    @param obj Pointer to data structure.
    @param descr Array of data field descriptions.
    @param descr_nr Described fields number in descr.
@@ -90,20 +90,20 @@ c2_bcount_t c2_net_test_xcode_data(enum c2_net_test_xcode_op op,
    @param bv_offset Offset in bv.
    @return 0 No space in buffer or descr_nr == 0.
    @return >0 Number of bytes read/written/will be written to/from buffer.
-   @pre op == C2_NET_TEST_ENCODE || op == C2_NET_TEST_DECODE
+   @pre op == C2_NET_TEST_SERIALIZE || op == C2_NET_TEST_DESERIALIZE
    @pre obj != NULL
    @pre descr != NULL
    @note c2_net_test_descr.ntd_length can't be > 8 if
    c2_net_test_descr.ntd_plain_data is true.
  */
-c2_bcount_t c2_net_test_xcode(enum c2_net_test_xcode_op op,
-			      void *obj,
-			      const struct c2_net_test_descr descr[],
-			      size_t descr_nr,
-			      struct c2_bufvec *bv,
-			      c2_bcount_t bv_offset);
+c2_bcount_t c2_net_test_serialize(enum c2_net_test_serialize_op op,
+				  void *obj,
+				  const struct c2_net_test_descr descr[],
+				  size_t descr_nr,
+				  struct c2_bufvec *bv,
+				  c2_bcount_t bv_offset);
 
-#endif /*  __NET_TEST_NTXCODE_H__ */
+#endif /*  __NET_TEST_SERIALIZE_H__ */
 
 /*
  *  Local variables:

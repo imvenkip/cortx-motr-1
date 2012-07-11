@@ -29,7 +29,7 @@
 #include "net/test/slist.h"
 
 enum {
-	SLIST_XCODE_MAGIC =  0x5453494C535F544E, /* NT_SLIST */
+	SLIST_SERIALIZE_MAGIC =  0x5453494C535F544E, /* NT_SLIST */
 };
 
 static bool slist_alloc(struct c2_net_test_slist *slist,
@@ -134,15 +134,17 @@ static c2_bcount_t slist_encode(struct c2_net_test_slist *slist,
 	sp.sp_len   = slist->ntsl_list[slist->ntsl_nr - 1] -
 		      slist->ntsl_list[0] +
 		      strlen(slist->ntsl_list[slist->ntsl_nr - 1]) + 1;
-	sp.sp_magic = SLIST_XCODE_MAGIC;
+	sp.sp_magic = SLIST_SERIALIZE_MAGIC;
 
-	len_total = c2_net_test_xcode(C2_NET_TEST_ENCODE, &sp,
-				      USE_TYPE_DESCR(slist_params), bv, offset);
+	len_total = c2_net_test_serialize(C2_NET_TEST_SERIALIZE, &sp,
+				          USE_TYPE_DESCR(slist_params),
+					  bv, offset);
 	if (len_total == 0 || slist->ntsl_nr == 0)
 		return len_total;
 
-	len = c2_net_test_xcode_data(C2_NET_TEST_ENCODE, slist->ntsl_str,
-				     sp.sp_len, true, bv, offset + len_total);
+	len = c2_net_test_serialize_data(C2_NET_TEST_SERIALIZE, slist->ntsl_str,
+					 sp.sp_len, true,
+					 bv, offset + len_total);
 	return len == 0 ? 0 : len_total + len;
 }
 
@@ -156,9 +158,10 @@ static c2_bcount_t slist_decode(struct c2_net_test_slist *slist,
 	size_t		    i;
 
 
-	len_total = c2_net_test_xcode(C2_NET_TEST_DECODE, &sp,
-				      USE_TYPE_DESCR(slist_params), bv, offset);
-	if (len_total == 0 || sp.sp_magic != SLIST_XCODE_MAGIC)
+	len_total = c2_net_test_serialize(C2_NET_TEST_DESERIALIZE, &sp,
+					  USE_TYPE_DESCR(slist_params),
+					  bv, offset);
+	if (len_total == 0 || sp.sp_magic != SLIST_SERIALIZE_MAGIC)
 		return 0;
 
 	C2_SET0(slist);
@@ -170,8 +173,8 @@ static c2_bcount_t slist_decode(struct c2_net_test_slist *slist,
 	if (!slist_alloc(slist, sp.sp_nr, sp.sp_len + 1))
 		return 0;
 
-	len = c2_net_test_xcode_data(C2_NET_TEST_DECODE, slist->ntsl_str,
-				     sp.sp_len, true, bv, offset + len_total);
+	len = c2_net_test_serialize_data(C2_NET_TEST_DESERIALIZE, slist->ntsl_str,
+				    sp.sp_len, true, bv, offset + len_total);
 	if (len == 0)
 		goto failed;
 
@@ -191,16 +194,16 @@ failed:
 	return 0;
 }
 
-c2_bcount_t c2_net_test_slist_xcode(enum c2_net_test_xcode_op op,
-				    struct c2_net_test_slist *slist,
-				    struct c2_bufvec *bv,
-				    c2_bcount_t offset)
+c2_bcount_t c2_net_test_slist_serialize(enum c2_net_test_serialize_op op,
+					struct c2_net_test_slist *slist,
+					struct c2_bufvec *bv,
+					c2_bcount_t offset)
 {
 	C2_PRE(slist != NULL);
-	C2_PRE(op == C2_NET_TEST_ENCODE || op == C2_NET_TEST_DECODE);
+	C2_PRE(op == C2_NET_TEST_SERIALIZE || op == C2_NET_TEST_DESERIALIZE);
 
-	return op == C2_NET_TEST_ENCODE ? slist_encode(slist, bv, offset) :
-					  slist_decode(slist, bv, offset);
+	return op == C2_NET_TEST_SERIALIZE ? slist_encode(slist, bv, offset) :
+					     slist_decode(slist, bv, offset);
 }
 
 /**

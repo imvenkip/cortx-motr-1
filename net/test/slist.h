@@ -22,7 +22,7 @@
 #define __NET_TEST_SLIST_H__
 
 #include "lib/vec.h"		/* c2_bufvec */
-#include "net/test/ntxcode.h"	/* c2_net_test_xcode_op */
+#include "net/test/serialize.h"	/* c2_net_test_serialize_op */
 
 /**
    @defgroup NetTestSLIST Colibri Network Benchmark String List.
@@ -72,17 +72,17 @@ void c2_net_test_slist_fini(struct c2_net_test_slist *slist);
 bool c2_net_test_slist_unique(struct c2_net_test_slist *slist);
 
 /**
-   Encode/decode string list to/from c2_bufvec.
+   Serialize/deserialize string list to/from c2_bufvec.
    c2_net_test_slist_init() shall not be called for slist before
-   c2_net_test_slist_xcode().
+   c2_net_test_slist_serialize().
    c2_net_test_slist_fini() must be called for slist to free memory,
-   allocated by c2_net_test_slist_xcode(C2_NET_TEST_DECODE, slist, ...).
-   @see c2_net_test_xcode().
+   allocated by c2_net_test_slist_serialize(C2_NET_TEST_DESERIALIZE, slist,...).
+   @see c2_net_test_serialize().
  */
-c2_bcount_t c2_net_test_slist_xcode(enum c2_net_test_xcode_op op,
-				    struct c2_net_test_slist *slist,
-				    struct c2_bufvec *bv,
-				    c2_bcount_t offset);
+c2_bcount_t c2_net_test_slist_serialize(enum c2_net_test_serialize_op op,
+					struct c2_net_test_slist *slist,
+					struct c2_bufvec *bv,
+					c2_bcount_t offset);
 
 /**
    @} end NetTestSLIST

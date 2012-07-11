@@ -26,11 +26,11 @@
 
 #include "net/test/network.h"	/* c2_net_test_network_init */
 
-extern void c2_net_test_slist_ut(void);
-
-extern void c2_net_test_ntxcode_ut(void);
-
 extern void c2_net_test_ringbuf_ut(void);
+
+extern void c2_net_test_serialize_ut(void);
+
+extern void c2_net_test_slist_ut(void);
 
 extern void c2_net_test_network_ut_buf_desc(void);
 extern void c2_net_test_network_ut_ping(void);
@@ -57,9 +57,9 @@ const struct c2_test_suite c2_net_test_ut = {
 	.ts_init = net_test_init,
 	.ts_fini = net_test_fini,
 	.ts_tests = {
-		{ "slist",		c2_net_test_slist_ut		 },
-		{ "ntxcode",		c2_net_test_ntxcode_ut		 },
 		{ "ringbuf",		c2_net_test_ringbuf_ut		 },
+		{ "serialize",		c2_net_test_serialize_ut	 },
+		{ "slist",		c2_net_test_slist_ut		 },
 		{ "network-buf-desc",	c2_net_test_network_ut_buf_desc	 },
 		{ "network-ping",	c2_net_test_network_ut_ping	 },
 		{ "network-bulk",	c2_net_test_network_ut_bulk	 },

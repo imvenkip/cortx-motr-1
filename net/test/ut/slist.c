@@ -118,16 +118,16 @@ void c2_net_test_slist_ut(void)
 		rc_bool = c2_net_test_slist_unique(&slist);
 		C2_UT_ASSERT(!rc_bool ^ (i < 10));
 		slist_check(&slist, i, buf);
-		/* encode string list to buffer */
-		len = c2_net_test_slist_xcode(C2_NET_TEST_ENCODE, &slist,
-					      &bv, 0);
+		/* serialize string list to buffer */
+		len = c2_net_test_slist_serialize(C2_NET_TEST_SERIALIZE, &slist,
+						  &bv, 0);
 		C2_UT_ASSERT(len > 0);
 		/* free slist */
 		c2_net_test_slist_fini(&slist);
-		/* decode string slist from buffer */
+		/* deserialize string slist from buffer */
 		/* alloc slist */
-		len2 = c2_net_test_slist_xcode(C2_NET_TEST_DECODE, &slist,
-					       &bv, 0);
+		len2 = c2_net_test_slist_serialize(C2_NET_TEST_DESERIALIZE,
+						   &slist, &bv, 0);
 		C2_UT_ASSERT(len2 == len);
 		slist_check(&slist, i, buf);
 		/* free slist */

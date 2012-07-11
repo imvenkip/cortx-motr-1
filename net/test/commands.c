@@ -28,7 +28,7 @@
 #include "lib/memory.h"		/* C2_ALLOC_ARR */
 #include "lib/errno.h"		/* ENOMEM */
 
-#include "net/test/ntxcode.h"	/* c2_net_test_xcode */
+#include "net/test/serialize.h"	/* c2_net_test_serialize */
 
 #include "net/test/commands.h"
 
@@ -67,51 +67,51 @@ TYPE_DESCR(c2_net_test_cmd_stop) = {
 };
 
 /**
-   Encode/decode c2_net_test_cmd to/from c2_net_buffer
-   @param op operation. Can be C2_NET_TEST_ENCODE or C2_NET_TEST_DECODE.
+   Serialize/deserialize c2_net_test_cmd to/from c2_net_buffer
+   @param op operation. Can be C2_NET_TEST_SERIALIZE or C2_NET_TEST_DESERIALIZE
    @param cmd command for transforming.
-   @param buf can be NULL if op == C2_NET_TEST_ENCODE,
+   @param buf can be NULL if op == C2_NET_TEST_SERIALIZE,
 	      in this case offset is ignored but length is set.
-   @param offset start of encoded data in buf.
-   @param length if isn't NULL then store length of encoded command here.
+   @param offset start of serialized data in buf.
+   @param length if isn't NULL then store length of serialized command here.
  */
-static int cmd_xcode(enum c2_net_test_xcode_op op,
-		     struct c2_net_test_cmd *cmd,
-		     struct c2_net_buffer *buf,
-		     c2_bcount_t offset,
-		     c2_bcount_t *length)
+static int cmd_serialize(enum c2_net_test_serialize_op op,
+			 struct c2_net_test_cmd *cmd,
+			 struct c2_net_buffer *buf,
+			 c2_bcount_t offset,
+			 c2_bcount_t *length)
 {
 	struct c2_bufvec *bv = buf == NULL ? NULL : &buf->nb_buffer;
 	c2_bcount_t	  len;
 	c2_bcount_t	  len_total;
 
 	C2_PRE(cmd != NULL);
-	len_total = c2_net_test_xcode(op, cmd, USE_TYPE_DESCR(c2_net_test_cmd),
-				      bv, offset);
+	len_total = c2_net_test_serialize(op, cmd,
+				  USE_TYPE_DESCR(c2_net_test_cmd), bv, offset);
 	if (len_total == 0)
 		return -EINVAL;
 
 	switch (cmd->ntc_type) {
 	case C2_NET_TEST_CMD_INIT:
-		len = c2_net_test_xcode(op, &cmd->ntc_init,
+		len = c2_net_test_serialize(op, &cmd->ntc_init,
 					USE_TYPE_DESCR(c2_net_test_cmd_init),
 					bv, offset + len_total);
 		if (len == 0)
 			break;
 		len_total += len;
 
-		len = c2_net_test_slist_xcode(op, &cmd->ntc_init.ntci_ep,
+		len = c2_net_test_slist_serialize(op, &cmd->ntc_init.ntci_ep,
 					      bv, offset + len_total);
 		break;
 	case C2_NET_TEST_CMD_STOP:
-		len = c2_net_test_xcode(op, &cmd->ntc_stop,
+		len = c2_net_test_serialize(op, &cmd->ntc_stop,
 					USE_TYPE_DESCR(c2_net_test_cmd_stop),
 					bv, offset + len_total);
 		break;
 	case C2_NET_TEST_CMD_START_ACK:
 	case C2_NET_TEST_CMD_STOP_ACK:
 	case C2_NET_TEST_CMD_FINISHED_ACK:
-		len = c2_net_test_xcode(op, &cmd->ntc_ack,
+		len = c2_net_test_serialize(op, &cmd->ntc_ack,
 					USE_TYPE_DESCR(c2_net_test_cmd_ack),
 					bv, offset + len_total);
 		break;
@@ -125,7 +125,8 @@ static int cmd_xcode(enum c2_net_test_xcode_op op,
 }
 
 /**
-   Free c2_net_test_cmd after succesful cmd_xcode(C2_NET_TEST_DECODE, ...).
+   Free c2_net_test_cmd after succesful
+   cmd_serialize(C2_NET_TEST_DESERIALIZE, ...).
  */
 static void cmd_free(struct c2_net_test_cmd *cmd)
 {
@@ -403,7 +404,7 @@ int c2_net_test_commands_send(struct c2_net_test_cmd_ctx *ctx,
 	buf = c2_net_test_network_buf(&ctx->ntcc_net, C2_NET_TEST_BUF_PING,
 				      buf_index);
 
-	rc = cmd_xcode(C2_NET_TEST_ENCODE, cmd, buf, 0, NULL);
+	rc = cmd_serialize(C2_NET_TEST_SERIALIZE, cmd, buf, 0, NULL);
 	if (rc == 0)
 		rc = c2_net_test_network_msg_send(&ctx->ntcc_net, buf_index,
 						  cmd->ntc_ep_index);
@@ -453,8 +454,8 @@ int c2_net_test_commands_recv(struct c2_net_test_cmd_ctx *ctx,
 	buf = c2_net_test_network_buf(&ctx->ntcc_net, C2_NET_TEST_BUF_PING,
 				      buf_index);
 
-	/* decode buffer to cmd */
-	rc = cmd_xcode(C2_NET_TEST_DECODE, cmd, buf, 0, NULL);
+	/* deserialize buffer to cmd */
+	rc = cmd_serialize(C2_NET_TEST_DESERIALIZE, cmd, buf, 0, NULL);
 	if (rc != 0)
 		cmd->ntc_type = C2_NET_TEST_CMD_NR;
 

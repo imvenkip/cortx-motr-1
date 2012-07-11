@@ -29,10 +29,11 @@
 #include "lib/errno.h"		/* ENOMEM */
 #include "lib/byteorder.h"	/* c2_byteorder_cpu_to_le16 */
 
-#include "net/test/ntxcode.h"
+#include "net/test/serialize.h"
 
 /**
-   @defgroup NetTestXCODEInternals Colibri Network Benchmark Xcode internals.
+   @defgroup NetTestSERIALIZEInternals Colibri Network Benchmark \
+					Serialization Internals
 
    @see
    @ref net-test
@@ -45,7 +46,7 @@ C2_BASSERT(sizeof(long)   == 8);
 C2_BASSERT(sizeof(void *) == 8);
 C2_BASSERT(sizeof(int)    == 4);
 
-static void net_test_xcode_cpu_to_le(char *d, char *s, c2_bcount_t len)
+static void net_test_serialize_cpu_to_le(char *d, char *s, c2_bcount_t len)
 {
 	if (len == 1) {
 		*d = *s;
@@ -61,7 +62,7 @@ static void net_test_xcode_cpu_to_le(char *d, char *s, c2_bcount_t len)
 
 }
 
-static void net_test_xcode_le_to_cpu(char *d, char *s, c2_bcount_t len)
+static void net_test_serialize_le_to_cpu(char *d, char *s, c2_bcount_t len)
 {
 	if (len == 1) {
 		*d = *s;
@@ -81,37 +82,37 @@ static void net_test_xcode_le_to_cpu(char *d, char *s, c2_bcount_t len)
    Convert data to little endian representation.
    @pre len == 1 || len == 2 || len == 4 || len == 8
  */
-static void net_test_xcode_reorder(enum c2_net_test_xcode_op op,
-				   char *buf,
-				   char *data,
-				   c2_bcount_t len)
+static void net_test_serialize_reorder(enum c2_net_test_serialize_op op,
+				       char *buf,
+				       char *data,
+				       c2_bcount_t len)
 {
 	C2_PRE(len == 1 || len == 2 || len == 4 || len == 8);
 
-	if (op == C2_NET_TEST_ENCODE)
-		net_test_xcode_cpu_to_le(buf, data, len);
+	if (op == C2_NET_TEST_SERIALIZE)
+		net_test_serialize_cpu_to_le(buf, data, len);
 	else
-		net_test_xcode_le_to_cpu(data, buf, len);
+		net_test_serialize_le_to_cpu(data, buf, len);
 }
 
 /**
-   Encode/decode object field to buffer.
-   Converts field to little-endian representation while encoding and
-   reads field as little-endian from buffer while decoding
-   iff plain_data == false.
+   Serialize/deserialize object field to buffer.
+   Converts field to little-endian representation while serializing and
+   reads field as little-endian from buffer while deserializing.
    @param bv_length Total length of bv. This value is ignored if bv == NULL.
 	            Must be equivalent to c2_vec_count(&bv->ov_vec).
    @pre data_len > 0
-   @pre plain_data || data_len <= 8
-   @see c2_net_test_xcode().
+   @pre plain_data || data_len == 1 || data_len == 2 || data_len == 4 ||
+	data_len == 8
+   @see c2_net_test_serialize().
  */
-static c2_bcount_t net_test_xcode_data(enum c2_net_test_xcode_op op,
-				       void *data,
-				       c2_bcount_t data_len,
-				       bool plain_data,
-				       struct c2_bufvec *bv,
-				       c2_bcount_t bv_offset,
-				       c2_bcount_t bv_length)
+static c2_bcount_t net_test_serialize_data(enum c2_net_test_serialize_op op,
+					   void *data,
+					   c2_bcount_t data_len,
+					   bool plain_data,
+					   struct c2_bufvec *bv,
+					   c2_bcount_t bv_offset,
+					   c2_bcount_t bv_length)
 {
 	struct c2_bufvec_cursor bv_cur;
 	struct c2_bufvec_cursor data_cur;
@@ -126,9 +127,9 @@ static c2_bcount_t net_test_xcode_data(enum c2_net_test_xcode_op op,
 	C2_PRE(plain_data || data_len == 1 || data_len == 2 ||
 	       data_len == 4 || data_len == 8);
 
-	/* if buffer is NULL and operation is 'encode' then return size */
+	/* if buffer is NULL and operation is 'serialize' then return size */
 	if (bv == NULL)
-		return op == C2_NET_TEST_ENCODE ? data_len : 0;
+		return op == C2_NET_TEST_SERIALIZE ? data_len : 0;
 	/* if buffer is not large enough then return 0 */
 	if (bv_offset + data_len > bv_length)
 		return 0;
@@ -137,8 +138,8 @@ static c2_bcount_t net_test_xcode_data(enum c2_net_test_xcode_op op,
 	   Take care about endianness.
 	   Store all endian-dependent data in little-endian format.
 	 */
-	if (!plain_data && op == C2_NET_TEST_ENCODE)
-		net_test_xcode_reorder(op, buf, data, data_len);
+	if (!plain_data && op == C2_NET_TEST_SERIALIZE)
+		net_test_serialize_reorder(op, buf, data, data_len);
 
 	/* initialize cursors and copy data */
 	c2_bufvec_cursor_init(&bv_cur, bv);
@@ -147,7 +148,7 @@ static c2_bcount_t net_test_xcode_data(enum c2_net_test_xcode_op op,
 
 	c2_bufvec_cursor_init(&data_cur, &data_bv);
 
-	if (op == C2_NET_TEST_ENCODE)
+	if (op == C2_NET_TEST_SERIALIZE)
 		copied = c2_bufvec_cursor_copy(&bv_cur, &data_cur, data_len);
 	else
 		copied = c2_bufvec_cursor_copy(&data_cur, &bv_cur, data_len);
@@ -157,31 +158,31 @@ static c2_bcount_t net_test_xcode_data(enum c2_net_test_xcode_op op,
 	   Take care about endianness.
 	   Read all endian-dependent data from little-endian buffer.
 	 */
-	if (!plain_data && op == C2_NET_TEST_DECODE)
-		net_test_xcode_reorder(op, buf, data, data_len);
+	if (!plain_data && op == C2_NET_TEST_DESERIALIZE)
+		net_test_serialize_reorder(op, buf, data, data_len);
 
 	return data_len;
 }
 
-c2_bcount_t c2_net_test_xcode_data(enum c2_net_test_xcode_op op,
-				   void *data,
-				   c2_bcount_t data_len,
-				   bool plain_data,
-				   struct c2_bufvec *bv,
-				   c2_bcount_t bv_offset)
+c2_bcount_t c2_net_test_serialize_data(enum c2_net_test_serialize_op op,
+				       void *data,
+				       c2_bcount_t data_len,
+				       bool plain_data,
+				       struct c2_bufvec *bv,
+				       c2_bcount_t bv_offset)
 {
 	c2_bcount_t bv_length = bv == NULL ? 0 : c2_vec_count(&bv->ov_vec);
 
-	return net_test_xcode_data(op, data, data_len, plain_data,
+	return net_test_serialize_data(op, data, data_len, plain_data,
 				   bv, bv_offset, bv_length);
 }
 
-c2_bcount_t c2_net_test_xcode(enum c2_net_test_xcode_op op,
-			      void *obj,
-			      const struct c2_net_test_descr descr[],
-			      size_t descr_nr,
-			      struct c2_bufvec *bv,
-			      c2_bcount_t bv_offset)
+c2_bcount_t c2_net_test_serialize(enum c2_net_test_serialize_op op,
+				  void *obj,
+				  const struct c2_net_test_descr descr[],
+				  size_t descr_nr,
+				  struct c2_bufvec *bv,
+				  c2_bcount_t bv_offset)
 {
 	size_t				i;
 	const struct c2_net_test_descr *d_i;
@@ -190,7 +191,7 @@ c2_bcount_t c2_net_test_xcode(enum c2_net_test_xcode_op op,
 	c2_bcount_t			len_current = 0;
 	c2_bcount_t			bv_length;
 
-	C2_PRE(op == C2_NET_TEST_ENCODE || op == C2_NET_TEST_DECODE);
+	C2_PRE(op == C2_NET_TEST_SERIALIZE || op == C2_NET_TEST_DESERIALIZE);
 	C2_PRE(obj != NULL);
 	C2_PRE(descr != NULL);
 
@@ -199,10 +200,10 @@ c2_bcount_t c2_net_test_xcode(enum c2_net_test_xcode_op op,
 	for (i = 0; i < descr_nr; ++i) {
 		d_i = &descr[i];
 		addr = &((char *) obj)[d_i->ntd_offset];
-		len_current = net_test_xcode_data(op, addr, d_i->ntd_length,
-						  d_i->ntd_plain_data,
-					          bv, bv_offset + len_total,
-						  bv_length);
+		len_current = net_test_serialize_data(op, addr, d_i->ntd_length,
+						      d_i->ntd_plain_data,
+						      bv, bv_offset + len_total,
+						      bv_length);
 		len_total += len_current;
 		if (len_current == 0)
 			break;

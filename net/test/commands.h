@@ -99,7 +99,8 @@ struct c2_net_test_cmd_stop {
 
 /**
    Command structure to exchange between console and clients or servers.
-   @b WARNING: be sure to change cmd_xcode() after changes to this structure.
+   @b WARNING: be sure to change cmd_serialize() after changes to this
+   structure.
    @note c2_net_test_cmd.ntc_ep_index and c2_net_test_cmd.ntc_buf_index
    will not be sent/received over the network.
  */
@@ -234,7 +235,7 @@ void c2_net_test_commands_send_wait_all(struct c2_net_test_cmd_ctx *ctx);
 /**
    Receive command.
    @param ctx Commands context.
-   @param cmd Received buffer will be decoded to this structure.
+   @param cmd Received buffer will be deserialized to this structure.
 	      c2_net_test_received_free() should be called for cmd to free
 	      resources that can be allocated while decoding.
    @param deadline Functon will wait until deadline reached. Absolute time.
