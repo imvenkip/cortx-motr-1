@@ -224,6 +224,8 @@ struct c2_layout_ops {
 	/**
 	 * Returns size of the layout type specific and enum type specific data
 	 * stored in the "layouts" (primary) table, for the specified layout.
+	 * It does not consider the size required for storing the generic
+	 * layout data using the struct c2_layout_rec.
 	 * @invariant l->l_ops->lo_recsize(l)
 	 *            <= l->l_type->lt_ops->lto_max_recsize(l->l_dom);
 	 */
@@ -283,7 +285,13 @@ struct c2_layout_type_ops {
 	void        (*lto_unregister)(struct c2_layout_domain *dom,
 				      const struct c2_layout_type *lt);
 
-	/** Returns applicable max record size for the layouts table. */
+	/**
+	 * Returns maximum possible size for the layout type specific and
+	 * enum type specific data to be stored in the "layouts" (primary)
+	 * table for any layout of the specific layout type. It does not
+	 * consider the size required for storing the generic layout
+	 * data using the struct c2_layout_rec.
+	 */
 	c2_bcount_t (*lto_max_recsize)(struct c2_layout_domain *dom);
 
 	/**

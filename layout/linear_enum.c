@@ -262,6 +262,7 @@ static int linear_decode(struct c2_layout_enum *e,
 	C2_ASSERT(linear_allocated_invariant(lin_enum));
 
 	lin_attr = c2_bufvec_cursor_addr(cur);
+	c2_bufvec_cursor_move(cur, sizeof *lin_attr);
 	linear_populate(lin_enum, lin_attr);
 	C2_POST(linear_invariant_internal(lin_enum));
 	C2_LEAVE("lid %llu", (unsigned long long)lid);

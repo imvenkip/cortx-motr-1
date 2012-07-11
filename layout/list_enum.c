@@ -739,6 +739,7 @@ static int list_encode(const struct c2_layout_enum *e,
 				     list_enum->lle_list_of_cobs);
 		C2_LOG("noninline_write() failed");
 	}
+
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }

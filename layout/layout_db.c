@@ -380,61 +380,13 @@ extern const struct c2_addb_ev layout_delete_fail;
  * Returns actual size for a record in the layouts table (without
  * considering the data in the tables other than layouts).
  */
-static c2_bcount_t recsize_get(const struct c2_layout *l)
+static c2_bcount_t l_recsize(const struct c2_layout *l)
 {
-	c2_bcount_t            recsize;
+	c2_bcount_t recsize;
 
-	C2_PRE(c2_layout__invariant(l));
 	recsize = sizeof(struct c2_layout_rec) + l->l_ops->lo_recsize(l);
 	C2_POST(recsize <= c2_layout_max_recsize(l->l_dom));
 	return recsize;
-}
-
-/**
- * Write layout record to the layouts table.
- *
- * @param op This enum parameter indicates what is the DB operation to be
- * performed on the layout record which could be one of ADD/UPDATE/DELETE.
- */
-static int layout_write(const struct c2_layout *l,
-			struct c2_db_tx *tx,
-			enum c2_layout_xcode_op op,
-			struct c2_db_pair *pair,
-			c2_bcount_t recsize)
-{
-	int   rc;
-	void *key_buf = pair->dp_key.db_buf.b_addr;
-	void *rec_buf = pair->dp_rec.db_buf.b_addr;
-
-	C2_PRE(l != NULL);
-	C2_PRE(tx != NULL);
-	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE, C2_LXO_DB_DELETE)));
-	C2_PRE(pair != NULL);
-	C2_PRE(key_buf != NULL);
-	C2_PRE(rec_buf != NULL);
-	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof l->l_id);
-	C2_PRE(pair->dp_rec.db_buf.b_nob >= recsize);
-	C2_PRE(recsize >= sizeof(struct c2_layout_rec) &&
-	       recsize <= c2_layout_max_recsize(l->l_dom));
-
-	*(uint64_t *)key_buf = l->l_id;
-	c2_db_pair_setup(pair, &l->l_dom->ld_layouts,
-			 key_buf, sizeof l->l_id, rec_buf, recsize);
-
-	/*
-	 * ADDB records covering the failure of c2_table_insert(),
-	 * c2_table_update() and c2_table_delete(), are added into the
-	 * the respective callers of this routine.
-	 */
-	if (op == C2_LXO_DB_ADD) {
-		rc = c2_table_insert(tx, pair);
-	} else if (op == C2_LXO_DB_UPDATE) {
-		rc = c2_table_update(tx, pair);
-	} else if (op == C2_LXO_DB_DELETE) {
-		rc = c2_table_delete(tx, pair);
-	}
-	c2_db_pair_fini(pair);
-	return rc;
 }
 
 /**
@@ -601,44 +553,65 @@ out:
 	return rc;
 }
 
+static int pair_init(struct c2_db_pair *pair,
+		     struct c2_layout *l,
+		     struct c2_db_tx *tx,
+		     enum c2_layout_xcode_op op,
+		     struct c2_bufvec_cursor *oldrec_cur)
+{
+	void                    *key_buf = pair->dp_key.db_buf.b_addr;
+	void                    *rec_buf = pair->dp_rec.db_buf.b_addr;
+	c2_bcount_t              recsize = l_recsize(l);
+	struct c2_bufvec         bv;
+	struct c2_bufvec_cursor  rec_cur;
+	int                      rc;
+
+	C2_PRE(key_buf != NULL);
+	C2_PRE(rec_buf != NULL);
+	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof l->l_id);
+	C2_PRE(pair->dp_rec.db_buf.b_nob >= recsize);
+	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE, C2_LXO_DB_DELETE)));
+
+	*(uint64_t *)key_buf = l->l_id;
+	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
+	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&rec_buf,
+						  &pair->dp_rec.db_buf.b_nob);
+	c2_bufvec_cursor_init(&rec_cur, &bv);
+
+	rc = c2_layout_encode(l, op, tx, oldrec_cur, &rec_cur);
+	if (rc == 0)
+		c2_db_pair_setup(pair, &l->l_dom->ld_layouts,
+				 key_buf, sizeof l->l_id, rec_buf, recsize);
+	else
+		c2_layout__log("pair_init", "c2_layout_encode() failed",
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
+			       &layout_add_fail, &l->l_addb, l->l_id, rc);
+	return rc;
+}
+
 int c2_layout_add(struct c2_layout *l,
 		  struct c2_db_tx *tx,
 		  struct c2_db_pair *pair)
 {
-	struct c2_bufvec         bv;
-	struct c2_bufvec_cursor  cur;
-	c2_bcount_t              recsize;
-	int                      rc;
+	int rc;
 
 	C2_PRE(c2_layout__invariant(l));
 	C2_PRE(tx != NULL);
 	C2_PRE(pair != NULL);
-	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
-	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof l->l_id);
-	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
-	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_layout_rec));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	c2_mutex_lock(&l->l_lock);
-	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
-	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
-						  &pair->dp_rec.db_buf.b_nob);
-	c2_bufvec_cursor_init(&cur, &bv);
-
-	rc = c2_layout_encode(l, C2_LXO_DB_ADD, tx, NULL, &cur);
-	if (rc != 0) {
-		c2_layout__log("c2_layout_add", "c2_layout_encode() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
-			       &layout_add_fail, &l->l_addb, l->l_id, rc);
-		goto out;
+	rc = pair_init(pair, l, tx, C2_LXO_DB_ADD, NULL);
+	if (rc == 0) {
+		rc = c2_table_insert(tx, pair);
+		if (rc != 0)
+			c2_layout__log("c2_layout_add",
+				       "c2_table_insert() failed",
+				       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
+				       &layout_add_fail, &l->l_addb,
+				       l->l_id, rc);
+		c2_db_pair_fini(pair);
 	}
-	recsize = recsize_get(l);
-	rc = layout_write(l, tx, C2_LXO_DB_ADD, pair, recsize);
-	if (rc != 0)
-		c2_layout__log("c2_layout_add", "layout_write() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
-			       &layout_add_fail, &l->l_addb, l->l_id, rc);
-out:
 	c2_mutex_unlock(&l->l_lock);
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
@@ -651,18 +624,12 @@ int c2_layout_update(struct c2_layout *l,
 	void                    *oldrec_area;
 	struct c2_bufvec         oldrec_bv;
 	struct c2_bufvec_cursor  oldrec_cur;
-	struct c2_bufvec         bv;
-	struct c2_bufvec_cursor  cur;
 	c2_bcount_t              recsize;
 	int                      rc;
 
 	C2_PRE(c2_layout__invariant(l));
 	C2_PRE(tx != NULL);
 	C2_PRE(pair != NULL);
-	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
-	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof l->l_id);
-	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
-	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_layout_rec));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	c2_mutex_lock(&l->l_lock);
@@ -674,11 +641,11 @@ int c2_layout_update(struct c2_layout *l,
 	recsize = c2_layout_max_recsize(l->l_dom);
 	oldrec_area = c2_alloc(recsize);
 	if (oldrec_area == NULL) {
-		rc = -ENOMEM;
 		c2_layout__log("c2_layout_update", "c2_alloc() failed",
 			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
-			       &c2_addb_oom, &l->l_addb, l->l_id, rc);
-		goto out;
+			       &c2_addb_oom, &l->l_addb, l->l_id, -ENOMEM);
+		c2_mutex_unlock(&l->l_lock);
+		return -ENOMEM;
 	}
 
 	rc = rec_get(tx, l, oldrec_area, recsize);
@@ -686,7 +653,9 @@ int c2_layout_update(struct c2_layout *l,
 		c2_layout__log("c2_layout_update", "c2_table_lookup() failed",
 			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &layout_update_fail, &l->l_addb, l->l_id, rc);
-		goto out;
+		c2_free(oldrec_area);
+		c2_mutex_unlock(&l->l_lock);
+		return rc;
 	}
 
 	oldrec_bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&oldrec_area,
@@ -694,26 +663,18 @@ int c2_layout_update(struct c2_layout *l,
 	c2_bufvec_cursor_init(&oldrec_cur, &oldrec_bv);
 
 	/* Now, proceed to update the layout. */
-	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
-
-	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
-						  &pair->dp_rec.db_buf.b_nob);
-	c2_bufvec_cursor_init(&cur, &bv);
-
-	rc = c2_layout_encode(l, C2_LXO_DB_UPDATE, tx, &oldrec_cur, &cur);
-	if (rc != 0) {
-		c2_layout__log("c2_layout_update", "c2_layout_encode() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
-			       &layout_update_fail, &l->l_addb, l->l_id, rc);
-		goto out;
+	rc = pair_init(pair, l, tx, C2_LXO_DB_UPDATE, &oldrec_cur);
+	if (rc == 0) {
+		rc = c2_table_update(tx, pair);
+		if (rc != 0)
+			c2_layout__log("c2_layout_update",
+				       "c2_table_update() failed",
+				       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
+				       &layout_update_fail, &l->l_addb,
+				       l->l_id, rc);
+		c2_db_pair_fini(pair);
 	}
-	recsize = recsize_get(l);
-	rc = layout_write(l, tx, C2_LXO_DB_UPDATE, pair, recsize);
-	if (rc != 0)
-		c2_layout__log("c2_layout_update", "c2_table_update() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
-			       &layout_update_fail, &l->l_addb, l->l_id, rc);
-out:
+
 	c2_free(oldrec_area);
 	c2_mutex_unlock(&l->l_lock);
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
@@ -724,40 +685,25 @@ int c2_layout_delete(struct c2_layout *l,
 		     struct c2_db_tx *tx,
 		     struct c2_db_pair *pair)
 {
-	struct c2_bufvec         bv;
-	struct c2_bufvec_cursor  cur;
-	c2_bcount_t              recsize;
-	int                      rc;
+	int rc;
 
+	C2_PRE(c2_layout__invariant(l));
 	C2_PRE(tx != NULL);
 	C2_PRE(pair != NULL);
-	C2_PRE(pair->dp_key.db_buf.b_addr != NULL);
-	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof l->l_id);
-	C2_PRE(pair->dp_rec.db_buf.b_addr != NULL);
-	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_layout_rec));
-	C2_PRE(c2_layout__invariant(l));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	c2_mutex_lock(&l->l_lock);
-	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
-	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
-						  &pair->dp_rec.db_buf.b_nob);
-	c2_bufvec_cursor_init(&cur, &bv);
-
-	rc = c2_layout_encode(l, C2_LXO_DB_DELETE, tx, NULL, &cur);
-	if (rc != 0) {
-		c2_layout__log("c2_layout_delete", "c2_layout_encode() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
-			       &layout_delete_fail, &l->l_addb, l->l_id, rc);
-		goto out;
+	rc = pair_init(pair, l, tx, C2_LXO_DB_DELETE, NULL);
+	if (rc == 0) {
+		rc = c2_table_delete(tx, pair);
+		if (rc != 0)
+			c2_layout__log("c2_layout_delete",
+				       "c2_table_delete() failed",
+				       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
+				       &layout_delete_fail, &l->l_addb,
+				       l->l_id, rc);
+		c2_db_pair_fini(pair);
 	}
-	recsize = recsize_get(l);
-	rc = layout_write(l, tx, C2_LXO_DB_DELETE, pair, recsize);
-	if (rc != 0)
-		c2_layout__log("c2_layout_delete", "c2_table_delete() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
-			       &layout_delete_fail, &l->l_addb, l->l_id, rc);
-out:
 	c2_mutex_unlock(&l->l_lock);
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
