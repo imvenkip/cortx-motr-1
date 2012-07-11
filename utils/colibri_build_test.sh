@@ -268,7 +268,6 @@ run_test_automate()
 	    pushd 2>/dev/null $TESTROOT/$DIRTIME/sandbox > /dev/null
             run_command '' "sudo $COLIBRI_SOURCE/core/utils/ut.sh" '' 1
 	    rc=$?
-	    sudo mv $TESTROOT/$DIRTIME/sandbox/*.xml $TESTROOT/$DIRTIME/$current_branch/logs/ &> /dev/null
 	    popd &>/dev/null
 
             if [ $UB_ROUNDS -ne 0 ] && [ $rc -eq 0 ]; then
