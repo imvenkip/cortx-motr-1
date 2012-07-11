@@ -365,11 +365,6 @@ struct c2_fom_callback {
 	void (*fc_bottom)(struct c2_fom_callback *cb);
 };
 
-enum {
-        /** Value of c2_fom::fo_magix */
-        C2_FOM_MAGIX = 0xB055B1E55EDF01D5
-};
-
 /**
  * Fop state machine.
  *
@@ -415,9 +410,6 @@ struct c2_fom {
 	 *  protected by the c2_fom_locality::fl_group.s_lock mutex.
 	 */
 	struct c2_list_link	 fo_linkage;
-
-	/** Linkage to struct c2_long_lock::l_{readers,writers} list */
-	struct c2_tlink		 fo_lock_linkage;
 	/** Long locks taken on this fom */
 	unsigned		 fo_locks;
 	/** Transitions counter, coresponds to the number of
@@ -426,8 +418,6 @@ struct c2_fom {
 	/** Counter of transitions, used to ensure FOM was inactive,
 	    while waiting for a longlock. */
 	unsigned		 fo_transitions_saved;
-	/** magic number. C2_FOM_MAGIX */
-	uint64_t		 fo_magix;
 
 	/** Result of fom execution, -errno on failure */
 	int32_t			 fo_rc;

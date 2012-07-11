@@ -684,8 +684,6 @@ void c2_fom_fini(struct c2_fom *fom)
 	reqh = fdom->fd_reqh;
 	c2_list_link_fini(&fom->fo_linkage);
 
-	c2_fom_ll_tlink_fini(fom);
-
 	if (c2_atomic64_dec_and_test(&fdom->fd_foms_nr))
 		c2_chan_signal(&reqh->rh_sd_signal);
 }
@@ -707,7 +705,6 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
 
 	c2_list_link_init(&fom->fo_linkage);
 
-	c2_fom_ll_tlink_init(fom);
 	fom->fo_locks = 0;
 	fom->fo_transitions = 0;
 }

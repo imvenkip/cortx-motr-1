@@ -20,7 +20,8 @@
  */
 
 DEF(c2_fop_rdwr, RECORD,
-    _(fr_type, U32));
+    _(fr_type, U32),
+    _(fr_seqn, U32));
 
 DEF(c2_fop_rdwr_rep, RECORD,
     _(fr_rc, U32));

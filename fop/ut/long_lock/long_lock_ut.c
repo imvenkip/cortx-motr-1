@@ -34,6 +34,13 @@
 #include "fop/ut/long_lock/rdwr_fop_u.h"
 #include "fop/ut/long_lock/rdwr_tb.h"
 
+enum {
+	CLIENT_COB_DOM_ID	= 16,
+	SESSION_SLOTS		= RDWR_REQUEST_MAX,
+	MAX_RPCS_IN_FLIGHT	= RDWR_REQUEST_MAX,
+	CONNECT_TIMEOUT		= 5,
+};
+
 #define CLIENT_ENDPOINT_ADDR    "0@lo:12345:34:*"
 #define CLIENT_DB_NAME		"libfop_lock_ut_client.db"
 
@@ -87,25 +94,25 @@ static void test_long_lock(void)
 	 * run withing a single process, because in this case transport is
 	 * initialized by c2_rpc_server_start().
 	 */
-	
+
 	rc = c2_rpc_server_start(&sctx);
 	C2_UT_ASSERT(rc == 0);
 	if (rc != 0)
 		return;
-	
+
 	rc = c2_rpc_client_init(&cctx);
 	C2_UT_ASSERT(rc == 0);
 	if (rc != 0)
 		goto server_fini;
-	
+
 	c2_rdwr_send_fop(&cctx.rcx_session);
-	
+
 	rc = c2_rpc_client_fini(&cctx);
 	C2_UT_ASSERT(rc == 0);
-	
+
 server_fini:
 	c2_rpc_server_stop(&sctx);
-	
+
 	return;
 }
 
@@ -115,16 +122,16 @@ static int test_long_lock_init(void)
 
 	/* set ADDB leve to AEL_WARN to see ADDB messages on STDOUT */
 	/*c2_addb_choose_default_level(AEL_WARN);*/
-	
+
 	rc = c2_rdwr_fop_init();
 	C2_ASSERT(rc == 0);
-	
+
 	rc = c2_net_xprt_init(xprt);
 	C2_ASSERT(rc == 0);
-	
+
 	rc = c2_net_domain_init(&client_net_dom, xprt);
 	C2_ASSERT(rc == 0);
-	
+
 	return rc;
 }
 

@@ -28,79 +28,94 @@
 #include "fop/fom_long_lock_bob.h"
 #include "lib/arith.h"
 
+enum {
+        /** Value of c2_long_lock_link::lll_magix */
+        C2_LONG_LOCK_LINK_MAGIX = 0xB055B1E55EDF01D5
+};
+
 /**
- * Descriptor of typed list used in c2_long_lock with c2_fom::fo_lock_linkage.
+ * Descriptor of typed list used in c2_long_lock with
+ * c2_long_lock_link::lll_lock_linkage.
  */
-C2_TL_DESCR_DEFINE(c2_fom_ll, "list of foms in longlock", ,
-                   struct c2_fom, fo_lock_linkage, fo_magix,
-                   C2_FOM_MAGIX, C2_FOM_MAGIX);
+C2_TL_DESCR_DEFINE(c2_lll, "list of lock-links in longlock", ,
+                   struct c2_long_lock_link, lll_lock_linkage, lll_magix,
+                   C2_LONG_LOCK_LINK_MAGIX, C2_LONG_LOCK_LINK_MAGIX);
 
-C2_TL_DEFINE(c2_fom_ll, , struct c2_fom);
+C2_TL_DEFINE(c2_lll, , struct c2_long_lock_link);
 
-C2_EXPORTED(c2_fom_ll_tlink_init);
-C2_EXPORTED(c2_fom_ll_tlink_fini);
+C2_EXPORTED(c2_lll_tlink_init);
+C2_EXPORTED(c2_lll_tlink_fini);
 
-static bool prelock_check(struct c2_long_lock *lock, struct c2_fom *fom)
+static bool prelock_check(struct c2_long_lock *lock,
+			  struct c2_long_lock_link *link)
 {
 	bool ret;
 
 	C2_PRE(c2_mutex_is_locked(&lock->l_lock));
 
-	ret =   !c2_fom_ll_tlist_contains(&lock->l_readers[0], fom) &&
-		!c2_fom_ll_tlist_contains(&lock->l_readers[1], fom) &&
-		!c2_fom_ll_tlist_contains(&lock->l_writers, fom);
+	ret = !c2_lll_tlist_contains(&lock->l_owners, link) &&
+	      !c2_lll_tlist_contains(&lock->l_waiters, link);
 
 	return ret;
 }
 
 bool c2_long_read_lock(struct c2_long_lock *lock,
-		       struct c2_fom *fom, int next_phase)
+		       struct c2_long_lock_link *link, int next_phase)
 {
 	bool got_lock;
-	bool writers_pending;
+	bool waiters;
+	struct c2_fom *fom;
 
 	c2_mutex_lock(&lock->l_lock);
-	C2_PRE(prelock_check(lock, fom));
+	C2_PRE(prelock_check(lock, link));
 
-	writers_pending = !c2_fom_ll_tlist_is_empty(&lock->l_writers);
-	c2_fom_ll_tlist_add_tail(writers_pending
-				 ? lock->l_rd_pending
-				 : lock->l_rd_in_processing,
-				 fom);
+	fom = link->lll_fom;
+	C2_ASSERT(fom);
 
-	if (lock->l_state == C2_LONG_LOCK_UNLOCKED)
-		lock->l_state = C2_LONG_LOCK_RD_LOCKED;
-
-	got_lock = !writers_pending && lock->l_state == C2_LONG_LOCK_RD_LOCKED;
-
-	if (!got_lock)
-		fom->fo_transitions_saved = fom->fo_transitions;
-	else
+	link->lll_lock_type = C2_LONG_LOCK_READER;
+	waiters = !c2_lll_tlist_is_empty(&lock->l_waiters);
+	got_lock = lock->l_state == C2_LONG_LOCK_UNLOCKED ||
+		(!waiters && lock->l_state == C2_LONG_LOCK_RD_LOCKED);
+	
+	if (got_lock) {
 		C2_CNT_INC(fom->fo_locks);
-
+		lock->l_state = C2_LONG_LOCK_RD_LOCKED;
+		c2_lll_tlist_add_tail(&lock->l_owners, link);
+	} else {
+		fom->fo_transitions_saved = fom->fo_transitions;
+		c2_lll_tlist_add_tail(&lock->l_waiters, link);
+	}
 
 	fom->fo_phase = next_phase;
+
 	c2_mutex_unlock(&lock->l_lock);
 
 	return got_lock;
 }
 
 bool c2_long_write_lock(struct c2_long_lock *lock,
-			struct c2_fom *fom, int next_phase)
+			struct c2_long_lock_link *link, int next_phase)
 {
 	bool got_lock;
+	struct c2_fom *fom;
 
 	c2_mutex_lock(&lock->l_lock);
-	C2_PRE(prelock_check(lock, fom));
-	c2_fom_ll_tlist_add_tail(&lock->l_writers, fom);
+	C2_PRE(prelock_check(lock, link));
 
+	fom = link->lll_fom;
+	C2_ASSERT(fom);
+
+	link->lll_lock_type = C2_LONG_LOCK_WRITER;
 	got_lock = lock->l_state == C2_LONG_LOCK_UNLOCKED;
 
-	if (!got_lock)
-		fom->fo_transitions_saved = fom->fo_transitions;
-	else {
+	if (got_lock) {
+		C2_ASSERT(c2_lll_tlist_is_empty(&lock->l_owners));
 		C2_CNT_INC(fom->fo_locks);
 		lock->l_state = C2_LONG_LOCK_WR_LOCKED;
+		c2_lll_tlist_add_tail(&lock->l_owners, link);
+	} else {
+		fom->fo_transitions_saved = fom->fo_transitions;
+		c2_lll_tlist_add_tail(&lock->l_waiters, link);
 	}
 
 	fom->fo_phase = next_phase;
@@ -109,116 +124,126 @@ bool c2_long_write_lock(struct c2_long_lock *lock,
 	return got_lock;
 }
 
-void c2_long_write_unlock(struct c2_long_lock *lock, struct c2_fom *fom)
+void c2_long_write_unlock(struct c2_long_lock *lock,
+			  struct c2_long_lock_link *link)
 {
-	struct c2_fom *grantee; /* the fom to grant the lock */
-	bool reads_in_processing;
-	bool reads_pending;
-	bool write_in_processing;
+	struct c2_long_lock_link *grantee; /* the fom to grant the lock */
+	struct c2_long_lock_link *next;
+	struct c2_fom *fom;
+	int grantee_lock_type;
 
 	c2_mutex_lock(&lock->l_lock);
 
 	C2_PRE(lock->l_state == C2_LONG_LOCK_WR_LOCKED);
-	C2_PRE(c2_fom_ll_tlist_contains(&lock->l_writers, fom));
+	C2_PRE(link == c2_lll_tlist_head(&lock->l_owners));
+	C2_PRE(link->lll_lock_type == C2_LONG_LOCK_WRITER);
 
-	c2_fom_ll_tlist_del(fom);
+	fom = link->lll_fom;
+	C2_ASSERT(fom);
+
+	c2_lll_tlist_del(link);
 	lock->l_state = C2_LONG_LOCK_UNLOCKED;
 	C2_CNT_DEC(fom->fo_locks);
 
-	reads_in_processing = !c2_fom_ll_tlist_is_empty(lock->l_rd_in_processing);
-	reads_pending = !c2_fom_ll_tlist_is_empty(lock->l_rd_pending);
-	write_in_processing = !c2_fom_ll_tlist_is_empty(&lock->l_writers);
+	C2_ASSERT(c2_lll_tlist_is_empty(&lock->l_owners));
 
-	if (!write_in_processing && !reads_in_processing && reads_pending) {
-		C2_SWAP(reads_in_processing, reads_pending);
-		C2_SWAP(lock->l_rd_in_processing, lock->l_rd_pending);
+	if (!c2_lll_tlist_is_empty(&lock->l_waiters)) {
+		next = c2_lll_tlist_head(&lock->l_waiters);
+		lock->l_state = next->lll_lock_type == C2_LONG_LOCK_WRITER ?
+			C2_LONG_LOCK_WR_LOCKED : C2_LONG_LOCK_RD_LOCKED;
+
+		do {
+			grantee = next;
+			grantee_lock_type = grantee->lll_lock_type;
+			c2_lll_tlist_del(grantee);
+			c2_lll_tlist_add_tail(&lock->l_owners, grantee);
+
+			C2_CNT_INC(grantee->lll_fom->fo_locks);
+			c2_fom_ready_remote(grantee->lll_fom);
+			C2_ASSERT(grantee->lll_fom->fo_transitions_saved + 1
+				  == grantee->lll_fom->fo_transitions);
+
+			next = c2_lll_tlist_head(&lock->l_waiters);
+		} while (next && grantee_lock_type == C2_LONG_LOCK_READER &&
+			 next->lll_lock_type == grantee_lock_type);
 	}
-
-	if (write_in_processing) {
-		grantee = c2_fom_ll_tlist_head(&lock->l_writers);
-
-		C2_ASSERT(grantee->fo_transitions_saved + 1
-			  == grantee->fo_transitions);
-
-		lock->l_state = C2_LONG_LOCK_WR_LOCKED;
-		C2_CNT_INC(grantee->fo_locks);
-
-		c2_fom_ready_remote(grantee);
-	} else if (reads_in_processing) {
-		lock->l_state = C2_LONG_LOCK_RD_LOCKED;
-
-		c2_tl_for(c2_fom_ll, lock->l_rd_in_processing, grantee) {
-			C2_ASSERT(grantee->fo_transitions_saved + 1
-				  == grantee->fo_transitions);
-
-			C2_CNT_INC(grantee->fo_locks);
-			c2_fom_ready_remote(grantee);
-		} c2_tl_endfor;
-	} else
-		;
 
 	c2_mutex_unlock(&lock->l_lock);
 }
 
-void c2_long_read_unlock(struct c2_long_lock *lock, struct c2_fom *fom)
+void c2_long_read_unlock(struct c2_long_lock *lock,
+			 struct c2_long_lock_link *link)
 {
-	struct c2_fom *grantee; /* the fom to grant the lock */
+	struct c2_long_lock_link *next;
+	struct c2_long_lock_link *grantee;
+	struct c2_fom *fom;
+	int grantee_lock_type;
 
 	c2_mutex_lock(&lock->l_lock);
 
 	C2_PRE(lock->l_state == C2_LONG_LOCK_RD_LOCKED);
-	C2_PRE(c2_fom_ll_tlist_contains(lock->l_rd_in_processing, fom));
+	C2_PRE(c2_lll_tlist_contains(&lock->l_owners, link));
+	C2_PRE(link->lll_lock_type == C2_LONG_LOCK_READER);
 
-	c2_fom_ll_tlist_del(fom);
+	fom = link->lll_fom;
+	C2_ASSERT(fom);
 
-	if (c2_fom_ll_tlist_is_empty(lock->l_rd_in_processing)) {
+	c2_lll_tlist_del(link);
+	if (c2_lll_tlist_is_empty(&lock->l_owners))
 		lock->l_state = C2_LONG_LOCK_UNLOCKED;
-		C2_SWAP(lock->l_rd_in_processing, lock->l_rd_pending);
-	}
-
 	C2_CNT_DEC(fom->fo_locks);
 
-	if (lock->l_state == C2_LONG_LOCK_UNLOCKED) {
-		C2_ASSERT(ergo(!c2_fom_ll_tlist_is_empty(lock->l_rd_in_processing),
-			       !c2_fom_ll_tlist_is_empty(&lock->l_writers)));
+	if (!c2_lll_tlist_is_empty(&lock->l_waiters) &&
+	    lock->l_state == C2_LONG_LOCK_UNLOCKED) {
 
-		if (!c2_fom_ll_tlist_is_empty(&lock->l_writers)) {
-			grantee = c2_fom_ll_tlist_head(&lock->l_writers);
-			lock->l_state = C2_LONG_LOCK_WR_LOCKED;
-			C2_ASSERT(grantee->fo_transitions_saved + 1
-				  == grantee->fo_transitions);
+		next = c2_lll_tlist_head(&lock->l_waiters);
+		lock->l_state = next->lll_lock_type == C2_LONG_LOCK_WRITER ?
+			C2_LONG_LOCK_WR_LOCKED : C2_LONG_LOCK_RD_LOCKED;
 
-			C2_CNT_INC(grantee->fo_locks);
-			c2_fom_ready_remote(grantee);
-		} else
-			;
+		do {
+			grantee = next;
+			grantee_lock_type = grantee->lll_lock_type;
+			c2_lll_tlist_del(grantee);
+			c2_lll_tlist_add_tail(&lock->l_owners, grantee);
+
+			C2_CNT_INC(grantee->lll_fom->fo_locks);
+			c2_fom_ready_remote(grantee->lll_fom);
+			C2_ASSERT(grantee->lll_fom->fo_transitions_saved + 1
+				  == grantee->lll_fom->fo_transitions);
+
+			next = c2_lll_tlist_head(&lock->l_waiters);
+		} while (next && grantee_lock_type == C2_LONG_LOCK_READER &&
+			 next->lll_lock_type == grantee_lock_type);
 	}
 
 	c2_mutex_unlock(&lock->l_lock);
+
 }
 
-bool c2_long_is_read_locked(struct c2_long_lock *lock, struct c2_fom *fom)
+bool c2_long_is_read_locked(struct c2_long_lock *lock,
+			    struct c2_long_lock_link *link)
 {
 	bool ret;
 
 	c2_mutex_lock(&lock->l_lock);
 
 	ret = lock->l_state == C2_LONG_LOCK_RD_LOCKED &&
-		c2_fom_ll_tlist_contains(lock->l_rd_in_processing, fom);
+		c2_lll_tlist_contains(&lock->l_owners, link);
 
 	c2_mutex_unlock(&lock->l_lock);
 
 	return ret;
 }
 
-bool c2_long_is_write_locked(struct c2_long_lock *lock, struct c2_fom *fom)
+bool c2_long_is_write_locked(struct c2_long_lock *lock,
+			     struct c2_long_lock_link *link)
 {
 	bool ret;
 
 	c2_mutex_lock(&lock->l_lock);
 
 	ret = lock->l_state == C2_LONG_LOCK_WR_LOCKED &&
-		c2_fom_ll_tlist_head(&lock->l_writers) == fom;
+		c2_lll_tlist_head(&lock->l_owners) == link;
 
 	c2_mutex_unlock(&lock->l_lock);
 
@@ -229,12 +254,8 @@ void c2_long_lock_init(struct c2_long_lock *lock)
 {
 	c2_mutex_init(&lock->l_lock);
 
-	c2_fom_ll_tlist_init(&lock->l_readers[0]);
-	c2_fom_ll_tlist_init(&lock->l_readers[1]);
-	c2_fom_ll_tlist_init(&lock->l_writers);
-
-	lock->l_rd_in_processing = &lock->l_readers[0];
-	lock->l_rd_pending = &lock->l_readers[1];
+	c2_lll_tlist_init(&lock->l_owners);
+	c2_lll_tlist_init(&lock->l_waiters);
 
 	lock->l_state = C2_LONG_LOCK_UNLOCKED;
 
@@ -247,12 +268,8 @@ void c2_long_lock_fini(struct c2_long_lock *lock)
 
 	c2_long_lock_bob_fini(lock);
 
-	c2_fom_ll_tlist_fini(&lock->l_writers);
-	c2_fom_ll_tlist_fini(&lock->l_readers[0]);
-	c2_fom_ll_tlist_fini(&lock->l_readers[1]);
-
-	lock->l_rd_in_processing = NULL;
-	lock->l_rd_pending = NULL;
+	c2_lll_tlist_fini(&lock->l_waiters);
+	c2_lll_tlist_fini(&lock->l_owners);
 
 	c2_mutex_fini(&lock->l_lock);
 }
