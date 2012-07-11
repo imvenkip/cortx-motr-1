@@ -57,7 +57,7 @@ bool c2_net_test_ringbuf_invariant(const struct c2_net_test_ringbuf *rb)
 	int64_t start;
 	int64_t end;
 
-	if (rb == NULL)
+	if (rb == NULL || rb->ntr_buf == NULL)
 		return false;
 
 	start = c2_atomic64_get(&rb->ntr_start);
