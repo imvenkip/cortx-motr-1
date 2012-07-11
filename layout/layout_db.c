@@ -418,7 +418,7 @@ int layout_write(const struct c2_layout *l,
 	       recsize <= c2_layout_max_recsize(l->l_dom));
 
 	*(uint64_t *)key_buf = l->l_id;
-	c2_db_pair_setup(pair, &l->l_dom->ld_schema.ls_layouts,
+	c2_db_pair_setup(pair, &l->l_dom->ld_layouts,
 			 key_buf, sizeof l->l_id, rec_buf, recsize);
 
 	/*
@@ -455,7 +455,7 @@ static int rec_get(struct c2_db_tx *tx, struct c2_layout *l,
 	 */
 	C2_PRE(max_recsize <= UINT32_MAX);
 
-	c2_db_pair_setup(&pair, &l->l_dom->ld_schema.ls_layouts,
+	c2_db_pair_setup(&pair, &l->l_dom->ld_layouts,
 			 &l->l_id, sizeof l->l_id,
 			 area, (uint32_t)max_recsize);
 	/*
@@ -563,7 +563,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 
 	*(uint64_t *)key_buf = lid;
 	memset(rec_buf, 0, pair->dp_rec.db_buf.b_nob);
-	c2_db_pair_setup(pair, &dom->ld_schema.ls_layouts,
+	c2_db_pair_setup(pair, &dom->ld_layouts,
 			 key_buf, sizeof lid, rec_buf, recsize);
 
 	rc = c2_table_lookup(tx, pair);

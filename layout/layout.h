@@ -129,37 +129,10 @@ enum {
 };
 
 /**
- * In-memory data structure for the layout schema.
- * It includes a pointer to the layouts table and some related
- * parameters. ls_type_data[] and ls_enum_data[] store pointers to tables
- * applicable, if any, for various layout types and enum types.
- * There is one instance of layout domain object per address space.
- */
-struct c2_layout_schema {
-	/** Pointer to dbenv; to keep things together. */
-	struct c2_dbenv         *ls_dbenv;
-
-	/** Table for layout record entries. */
-	struct c2_table          ls_layouts;
-
-	/** Layout type specific data. */
-	void                    *ls_type_data[C2_LAYOUT_TYPE_MAX];
-
-	/** Layout enum type specific data. */
-	void                    *ls_enum_data[C2_LAYOUT_ENUM_TYPE_MAX];
-
-	/** Maximum possible size for a record in the layouts table. */
-	c2_bcount_t              ls_max_recsize;
-
-	/**
-	 * Lock to protect the instance of c2_layout_schema, including all
-	 * its members.
-	 */
-	struct c2_mutex          ls_lock;
-};
-
-/**
  * Layout domain.
+ * It includes a pointer to the layouts table and some related
+ * parameters. ld_type_data[] and ld_enum_data[] store pointers to tables
+ * applicable, if any, for various layout types and enum types.
  * There is one instance of layout domain object per address space.
  */
 struct c2_layout_domain {
@@ -172,8 +145,20 @@ struct c2_layout_domain {
 	/** List of pointers for layout objects associated with this domain. */
 	struct c2_tl                ld_layout_list;
 
-	/** c2_layout_schema object. */
-	struct c2_layout_schema     ld_schema;
+	/** Pointer to dbenv; to keep things together. */
+	struct c2_dbenv            *ld_dbenv;
+
+	/** Table for layout record entries. */
+	struct c2_table             ld_layouts;
+
+	/** Layout type specific data. */
+	void                       *ld_type_data[C2_LAYOUT_TYPE_MAX];
+
+	/** Layout enum type specific data. */
+	void                       *ld_enum_data[C2_LAYOUT_ENUM_TYPE_MAX];
+
+	/** Maximum possible size for a record in the layouts table. */
+	c2_bcount_t                 ld_max_recsize;
 
 	/**
 	 * Lock to protect the instance of c2_layout_domain, including all
@@ -477,7 +462,7 @@ void c2_layouts_fini(void);
 
 /**
  * Initialises layout domain - Initialises arrays to hold the objects for
- * layout types and enum types and initialises the schema object.
+ * layout types and enum types and creates the layouts table.
  * @pre Caller should have performed c2_dbenv_init() on dbenv.
  */
 int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *db);
@@ -585,12 +570,20 @@ void c2_layout_put(struct c2_layout *l);
  * If it is BUFFER_OP, then the layout is decoded from its representation
  * received through the buffer.
  *
- * @post Layout object is built internally (along with enumeration object being
- * built if applicable). User is expected to add rererence/s to this layout
- * object while using it. Releasing the last reference will finalise the layout
- * object by freeing it.
+ * @pre
+ * - c2_layout__allocated_invariant(l)
+ * - c2_mutex_is_locked(&l->l_lock)
+ *
+ * @post Layout object is fully built (along with enumeration object being
+ * built if applicable).
+ * - c2_layout__invariant(l)
+ * - c2_mutex_is_locked(&l->l_lock)
+ *
+ * @note User is expected to add rererence/s to this layout object while using
+ * it. Releasing the last reference will finalise the layout object by freeing
+ * it.
  */
-int c2_layout_decode(struct c2_layout *l,
+int c2_layout_decode(struct c2_layout *l, /* todo Make cur as the 2nd arg */
 		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,
 		     struct c2_bufvec_cursor *cur);
@@ -644,7 +637,7 @@ int c2_layout_encode(struct c2_layout *l,
 /**
  * Returns maximum possible size for a record in the layouts table (without
  * considering the data in the tables other than layouts), from what is
- * maintained in the c2_layout_schema object.
+ * maintained in the c2_layout_domain object.
  */
 c2_bcount_t c2_layout_max_recsize(const struct c2_layout_domain *dom);
 

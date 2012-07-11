@@ -283,7 +283,7 @@ static int list_register(struct c2_layout_domain *dom,
 	C2_PRE(c2_layout__domain_invariant(dom));
 	C2_PRE(et != NULL);
 	C2_PRE(IS_IN_ARRAY(et->let_id, dom->ld_enum));
-	C2_PRE(dom->ld_schema.ls_type_data[et->let_id] == NULL);
+	C2_PRE(dom->ld_type_data[et->let_id] == NULL);
 
 	C2_ENTRY("Enum_type_id %lu", (unsigned long)et->let_id);
 	C2_ALLOC_PTR(lsd);
@@ -294,7 +294,7 @@ static int list_register(struct c2_layout_domain *dom,
 			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
 		goto out;
 	}
-	rc = c2_table_init(&lsd->lsd_cob_lists, dom->ld_schema.ls_dbenv,
+	rc = c2_table_init(&lsd->lsd_cob_lists, dom->ld_dbenv,
 			   "cob_lists", DEFAULT_DB_FLAG, &cob_lists_table_ops);
 	if (rc != 0) {
 		c2_layout__log("list_register", "c2_table_init() failed",
@@ -304,7 +304,7 @@ static int list_register(struct c2_layout_domain *dom,
 		c2_free(lsd);
 		goto out;
 	}
-	dom->ld_schema.ls_type_data[et->let_id] = lsd;
+	dom->ld_type_data[et->let_id] = lsd;
 out:
 	C2_LEAVE("Enum_type_id %lu, rc %d", (unsigned long)et->let_id, rc);
 	return rc;
@@ -324,9 +324,9 @@ static void list_unregister(struct c2_layout_domain *dom,
 	C2_PRE(et != NULL);
 
 	C2_ENTRY("Enum_type_id %lu", (unsigned long)et->let_id);
-	lsd = dom->ld_schema.ls_type_data[et->let_id];
+	lsd = dom->ld_type_data[et->let_id];
 	c2_table_fini(&lsd->lsd_cob_lists);
-	dom->ld_schema.ls_type_data[et->let_id] = NULL;
+	dom->ld_type_data[et->let_id] = NULL;
 	c2_free(lsd);
 	C2_LEAVE("Enum_type_id %lu", (unsigned long)et->let_id);
 }
@@ -343,7 +343,7 @@ static c2_bcount_t list_max_recsize(void)
 		LDB_MAX_INLINE_COB_ENTRIES * sizeof(struct c2_fid);
 }
 
-static int noninline_read(struct c2_layout_schema *schema,
+static int noninline_read(struct c2_layout_domain *dom,
 			  struct c2_db_tx *tx,
 			  uint64_t lid,
 			  uint32_t idx_start,
@@ -358,7 +358,7 @@ static int noninline_read(struct c2_layout_schema *schema,
 	uint32_t                 i;
 	int                      rc;
 
-	C2_PRE(schema != NULL);
+	C2_PRE(dom != NULL);
 	C2_PRE(tx != NULL);
 	C2_PRE(idx_end > idx_start);
 	C2_PRE(cob_list != NULL);
@@ -366,7 +366,7 @@ static int noninline_read(struct c2_layout_schema *schema,
 	C2_ENTRY("lid %llu, idx_start %lu, idx_end %lu",
 		 (unsigned long long)lid, (unsigned long)idx_start,
 		 (unsigned long)idx_end);
-	lsd = schema->ls_type_data[c2_list_enum_type.let_id];
+	lsd = dom->ld_type_data[c2_list_enum_type.let_id];
 	C2_ASSERT(lsd != NULL);
 
 	rc = c2_db_cursor_init(&cursor, &lsd->lsd_cob_lists, tx, 0);
@@ -498,7 +498,7 @@ static int list_decode(struct c2_layout_enum *e,
 		C2_LOG("lid %llu, nr %lu, Start reading noninline entries "
 		       "from the DB", (unsigned long long)lid,
 		       (unsigned long)ce_header->ces_nr);
-		rc = noninline_read(&dom->ld_schema, tx, lid, i,
+		rc = noninline_read(dom, tx, lid, i,
 				    ce_header->ces_nr, cob_list);
 		if (rc != 0) {
 			C2_LOG("noninline_read() failed");
@@ -513,7 +513,7 @@ out:
 	return rc;
 }
 
-static int noninline_write(const struct c2_layout_schema *schema,
+static int noninline_write(const struct c2_layout_domain *dom,
 			   struct c2_db_tx *tx,
 			   enum c2_layout_xcode_op op,
 			   uint64_t lid,
@@ -529,7 +529,7 @@ static int noninline_write(const struct c2_layout_schema *schema,
 	uint32_t                 i;
 	int                      rc;
 
-	C2_PRE(schema != NULL);
+	C2_PRE(dom != NULL);
 	C2_PRE(tx != NULL);
 	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_DELETE)));
 	C2_PRE(idx_end > idx_start);
@@ -538,7 +538,7 @@ static int noninline_write(const struct c2_layout_schema *schema,
 	C2_ENTRY("lid %llu, idx_start %lu, idx_end %lu",
 		 (unsigned long long)lid, (unsigned long)idx_start,
 		 (unsigned long)idx_end);
-	lsd = schema->ls_type_data[c2_list_enum_type.let_id];
+	lsd = dom->ld_type_data[c2_list_enum_type.let_id];
 	C2_ASSERT(lsd != NULL);
 
 	rc = c2_db_cursor_init(&cursor, &lsd->lsd_cob_lists, tx,
@@ -733,7 +733,7 @@ static int list_encode(const struct c2_layout_enum *e,
 		C2_LOG("lid %llu, nr %lu, Start writing noninline entries "
 		       "to the DB", (unsigned long long)lid,
 		       (unsigned long)list_enum->lle_nr);
-		rc = noninline_write(&e->le_sl->sl_base.l_dom->ld_schema,
+		rc = noninline_write(e->le_sl->sl_base.l_dom,
 				     tx, op, e->le_sl->sl_base.l_id,
 				     i, list_enum->lle_nr,
 				     list_enum->lle_list_of_cobs);

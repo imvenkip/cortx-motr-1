@@ -101,7 +101,7 @@ static int composite_register(struct c2_layout_domain *dom,
 
 	Initialise csd->csd_comp_layout_ext_map table.
 
-	dom->ld_schema->ls_type_data[lt->lt_id] = csd;
+	dom->ld_type_data[lt->lt_id] = csd;
 	@endcode
 	*/
 	return 0;
@@ -118,10 +118,10 @@ static void composite_unregister(struct c2_layout_domain *dom,
 	/*
 	@code
 	Finalise
-	dom->ld_schema->ls_type_data[lt->lt_id]->csd_comp_layout_ext_map
+	dom->ld_type_data[lt->lt_id]->csd_comp_layout_ext_map
 	table.
 
-	dom->ld_schema->ls_type_data[lt->lt_id] = NULL;
+	dom->ld_type_data[lt->lt_id] = NULL;
 	@endcode
 	*/
 }
