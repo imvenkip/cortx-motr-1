@@ -22,6 +22,7 @@
 #  include "config.h"
 #endif
 
+/* todo revise the c2_layout_schema related documentation. */
 /**
  * @addtogroup layout
  * @{

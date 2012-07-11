@@ -396,11 +396,11 @@ static c2_bcount_t recsize_get(const struct c2_layout *l)
  * @param op This enum parameter indicates what is the DB operation to be
  * performed on the layout record which could be one of ADD/UPDATE/DELETE.
  */
-int layout_write(const struct c2_layout *l,
-		 struct c2_db_tx *tx,
-		 enum c2_layout_xcode_op op,
-		 struct c2_db_pair *pair,
-		 c2_bcount_t recsize)
+static int layout_write(const struct c2_layout *l,
+			struct c2_db_tx *tx,
+			enum c2_layout_xcode_op op,
+			struct c2_db_pair *pair,
+			c2_bcount_t recsize)
 {
 	int   rc;
 	void *key_buf = pair->dp_key.db_buf.b_addr;

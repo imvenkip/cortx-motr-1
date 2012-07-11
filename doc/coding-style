@@ -171,8 +171,8 @@ try to adhere to some higher level idioms.
 
       Functions which are not static, not globally exported, and are shared
       only across multiple files within a module - shall be prefixed with
-      c2_<module-name>__ (that is double _). This tule applies to invariants as
-      well.
+      c2_<module-name>__ (that is double _). This rule applies to invariants as
+      well;
 
     * use C99 "designated initializers":
 
@@ -288,7 +288,7 @@ try to adhere to some higher level idioms.
       (Rationale: dead initializations potentially hide errors. If,
       after the code restructuring, the variable remains
       un-initialized in a conditional branch or in a loop that might
-      execute 0 times, the initializer suppresses compiler warning).
+      execute 0 times, the initializer suppresses compiler warning);
 
     * specify invariants as a conjunction of positive properties one can rely
       upon, rather than as a disjunction of exceptions.

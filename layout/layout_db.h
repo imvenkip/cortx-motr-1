@@ -47,20 +47,20 @@ int c2_layout_delete(struct c2_layout *l, struct c2_db_tx *tx, struct c2_db_pair
  * @subsection Layout-DB-fspec-sub-acc Accessors and Invariants
  *
  * @section Layout-DB-fspec-usecases Recipes
- * A file layout is used by the client to perform IO against that file. A
- * Layout for a file contains COB identifiers for all the COBs associated with
- * that file. These COB identifiers are stored by the layout either in the
- * form of a list or as a linear formula.
+ * A file layout is used by the client to perform IO against that file. For
+ * example, layout for a file may contain COB identifiers for all the COBs
+ * associated with that file. For example, the COB identifiers may be stored
+ * by the layout either in the form of a list or as a linear formula.
  *
  * Example use case of reading a file:
  * - Reading a file involves reading basic file attributes from the basic file
  *   attributes table).
  * - The layout id is obtained from the basic file attributes.
- * - A query is sent to the Layout module to obtain layout for this layout id.
- *   - c2_layout_find() is used to return the layout object if the layout
- *     record is cached.
- *   - If the layout record is not cached, c2_layout_lookup() is used to
- *     return the layout object by reading it from the layout DB.
+ * - A query is sent to the Layout module to obtain layout for this layout id
+ *   using the API c2_layout_lookup()
+ *   - c2_layout_lookup() returns the layout object if it is cached.
+ *   - If the layout is not cached, c2_layout_lookup() return it by reading
+ *     it from the layout DB and by keeping it in the cache.
  * - Reading a layout record from the layout DB involves the following for
  *   example:
  *    - If the layout record is with the LINEAR enumeration, then the
