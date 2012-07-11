@@ -995,11 +995,9 @@ out:
 int c2_layout_encode(struct c2_layout *l,
 		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,
-		     struct c2_bufvec_cursor *oldrec_cur,
 		     struct c2_bufvec_cursor *out)
 {
 	struct c2_layout_rec   rec;
-	struct c2_layout_rec  *oldrec;
 	struct c2_layout_type *lt;
 	c2_bcount_t            nbytes;
 	int                    rc;
@@ -1008,9 +1006,6 @@ int c2_layout_encode(struct c2_layout *l,
 	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
 			  C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
-	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
-	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
-	            c2_bufvec_cursor_step(oldrec_cur) >= sizeof *oldrec));
 	C2_PRE(out != NULL);
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof rec);
 
@@ -1020,22 +1015,10 @@ int c2_layout_encode(struct c2_layout *l,
 
 	rec.lr_lt_id     = l->l_type->lt_id;
 	rec.lr_ref_count = l->l_ref;
-
-	if (op == C2_LXO_DB_UPDATE) {
-		/*
-		 * Processing the oldrec_cur, to verify that nothing other than
-		 * l_ref is being changed for this layout and then to make it
-		 * point to the layout type specific payload.
-		 */
-		oldrec = c2_bufvec_cursor_addr(oldrec_cur);
-		C2_ASSERT(oldrec->lr_lt_id == l->l_type->lt_id);
-		c2_bufvec_cursor_move(oldrec_cur, sizeof *oldrec);
-	}
-
 	nbytes = c2_bufvec_cursor_copyto(out, &rec, sizeof rec);
 	C2_ASSERT(nbytes == sizeof rec);
 
-	rc = lt->lt_ops->lto_encode(l, op, tx, oldrec_cur, out);
+	rc = lt->lt_ops->lto_encode(l, op, tx, out);
 	if (rc != 0)
 		c2_layout__log("c2_layout_encode", "lto_encode() failed",
 			       op == C2_LXO_BUFFER_OP, TRACE_RECORD_ADD,

@@ -622,14 +622,11 @@ out:
 static int list_encode(const struct c2_layout_enum *e,
 		       enum c2_layout_xcode_op op,
 		       struct c2_db_tx *tx,
-		       struct c2_bufvec_cursor *oldrec_cur,
 		       struct c2_bufvec_cursor *out)
 {
 	struct c2_layout_list_enum *list_enum;
 	uint32_t                    num_inline; /* Number of inline cobs */
 	struct cob_entries_header   ce_header;
-	struct cob_entries_header  *ce_oldheader;
-	struct c2_fid              *cob_id_old;
 	c2_bcount_t                 nbytes;
 	uint64_t                    lid;
 	uint32_t                    i;
@@ -639,9 +636,6 @@ static int list_encode(const struct c2_layout_enum *e,
 	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
 			  C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
-	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
-	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
-		    c2_bufvec_cursor_step(oldrec_cur) >= sizeof *ce_oldheader));
 	C2_PRE(out != NULL);
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof ce_header);
 
@@ -653,31 +647,8 @@ static int list_encode(const struct c2_layout_enum *e,
 
 	num_inline = min_check(list_enum->lle_nr,
 			       (uint32_t)LDB_MAX_INLINE_COB_ENTRIES);
-
-	if (op == C2_LXO_DB_UPDATE) {
-		/*
-		 * Processing the oldrec_cur, to verify that no enumeration
-		 * specific data is being changed for this layout.
-		 */
-		ce_oldheader = c2_bufvec_cursor_addr(oldrec_cur);
-		C2_ASSERT(ce_oldheader->ces_nr == list_enum->lle_nr);
-
-		c2_bufvec_cursor_move(oldrec_cur, sizeof *ce_oldheader);
-		C2_ASSERT(c2_bufvec_cursor_step(oldrec_cur) >=
-			  num_inline * sizeof *cob_id_old);
-
-		for (i = 0; i < num_inline; ++i) {
-			cob_id_old = c2_bufvec_cursor_addr(oldrec_cur);
-			C2_ASSERT(c2_fid_eq(cob_id_old,
-					    &list_enum->lle_list_of_cobs[i]));
-
-			c2_bufvec_cursor_move(oldrec_cur,
-					sizeof list_enum->lle_list_of_cobs[i]);
-		}
-	}
 	ce_header.ces_nr = list_enum->lle_nr;
-	nbytes = c2_bufvec_cursor_copyto(out, &ce_header,
-					 sizeof ce_header);
+	nbytes = c2_bufvec_cursor_copyto(out, &ce_header, sizeof ce_header);
 	C2_ASSERT(nbytes == sizeof ce_header);
 
 	C2_ASSERT(ergo(op == C2_LXO_BUFFER_OP,

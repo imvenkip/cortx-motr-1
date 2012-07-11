@@ -740,12 +740,10 @@ out:
 static int pdclust_encode(struct c2_layout *l,
 			  enum c2_layout_xcode_op op,
 			  struct c2_db_tx *tx,
-		          struct c2_bufvec_cursor *oldrec_cur,
 		          struct c2_bufvec_cursor *out)
 {
 	struct c2_pdclust_layout     *pl;
 	struct c2_layout_pdclust_rec  pl_rec;
-	struct c2_layout_pdclust_rec *pl_oldrec;
 	struct c2_layout_enum_type   *et;
 	c2_bcount_t                   nbytes;
 	int                           rc;
@@ -758,33 +756,11 @@ static int pdclust_encode(struct c2_layout *l,
 	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
 		          C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
-	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
-	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
-		    c2_bufvec_cursor_step(oldrec_cur) >= sizeof *pl_oldrec));
 	C2_PRE(out != NULL);
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof pl_rec);
 
 	C2_ENTRY("%llu", (unsigned long long)l->l_id);
 	pl = c2_layout_to_pdl(l);
-	if (op == C2_LXO_DB_UPDATE) {
-		/*
-		 * Processing the oldrec_cur, to verify that no layout
-		 * type specific data is being changed for this layout.
-		 */
-		pl_oldrec = c2_bufvec_cursor_addr(oldrec_cur);
-
-		C2_ASSERT(pl_oldrec->pr_let_id ==
-			  pl->pl_base.sl_enum->le_type->let_id &&
-			  pl_oldrec->pr_attr.pa_pool_id ==
-			  pl->pl_pool->po_id &&
-			  pl_oldrec->pr_attr.pa_N == pl->pl_attr.pa_N &&
-			  pl_oldrec->pr_attr.pa_K == pl->pl_attr.pa_K &&
-			  pl_oldrec->pr_attr.pa_P == pl->pl_attr.pa_P &&
-			  c2_uint128_eq(&pl_oldrec->pr_attr.pa_seed,
-					&pl->pl_attr.pa_seed));
-		c2_bufvec_cursor_move(oldrec_cur, sizeof *pl_oldrec);
-	}
-
 	pl_rec.pr_let_id = pl->pl_base.sl_enum->le_type->let_id;
 	pl_rec.pr_attr   = pl->pl_attr;
 	et               = pl->pl_base.sl_enum->le_type;
@@ -792,8 +768,7 @@ static int pdclust_encode(struct c2_layout *l,
 
 	nbytes = c2_bufvec_cursor_copyto(out, &pl_rec, sizeof pl_rec);
 	C2_ASSERT(nbytes == sizeof pl_rec);
-	rc = et->let_ops->leto_encode(pl->pl_base.sl_enum, op, tx,
-				      oldrec_cur, out);
+	rc = et->let_ops->leto_encode(pl->pl_base.sl_enum, op, tx, out);
 	if (rc != 0)
 		C2_LOG("lid %llu, leto_encode() failed, rc %d",
 		       (unsigned long long)l->l_id, rc);

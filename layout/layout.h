@@ -329,7 +329,6 @@ struct c2_layout_type_ops {
 	int         (*lto_encode)(struct c2_layout *l,
 				  enum c2_layout_xcode_op op,
 				  struct c2_db_tx *tx,
-				  struct c2_bufvec_cursor *oldrec_cur,
 				  struct c2_bufvec_cursor *out);
 };
 
@@ -452,7 +451,6 @@ struct c2_layout_enum_type_ops {
 	int         (*leto_encode)(const struct c2_layout_enum *le,
 				   enum c2_layout_xcode_op op,
 				   struct c2_db_tx *tx,
-				   struct c2_bufvec_cursor *oldrec_cur,
 				   struct c2_bufvec_cursor *out);
 };
 
@@ -613,10 +611,6 @@ int c2_layout_decode(struct c2_layout *l, /* todo Make cur as the 2nd arg */
  * one of ADD/UPDATE/DELETE. If it is BUFFER_OP, then the layout is stored
  * in the buffer provided by the caller.
  *
- * @param oldrec_cur Cursor pointing to a buffer to be used to read the
- * exisiting layout record from the layouts table. Applicable only in case of
- * layout update operation. In other cases, it is expected to be NULL.
- *
  * @param out Cursor pointing to a buffer. Regarding the size of the buffer:
  * - In case c2_layout_encode() is called through c2_layout_add()|
  *   c2_layout_update()|c2_layout_delete(), then the buffer size should be
@@ -639,7 +633,6 @@ int c2_layout_decode(struct c2_layout *l, /* todo Make cur as the 2nd arg */
 int c2_layout_encode(struct c2_layout *l,
 		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx,
-		     struct c2_bufvec_cursor *oldrec_cur,
 		     struct c2_bufvec_cursor *out);
 
 /**

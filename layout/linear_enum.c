@@ -277,11 +277,9 @@ static int linear_decode(struct c2_layout_enum *e,
 static int linear_encode(const struct c2_layout_enum *e,
 			 enum c2_layout_xcode_op op,
 			 struct c2_db_tx *tx,
-			 struct c2_bufvec_cursor *oldrec_cur,
 			 struct c2_bufvec_cursor *out)
 {
 	struct c2_layout_linear_enum *lin_enum;
-	struct c2_layout_linear_attr *old_attr;
 	c2_bcount_t                   nbytes;
 	uint64_t                      lid;
 
@@ -289,26 +287,12 @@ static int linear_encode(const struct c2_layout_enum *e,
 	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
 			  C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
-	C2_PRE(ergo(op == C2_LXO_DB_UPDATE, oldrec_cur != NULL));
-	C2_PRE(ergo(op == C2_LXO_DB_UPDATE,
-		    c2_bufvec_cursor_step(oldrec_cur) >= sizeof old_attr));
 	C2_PRE(out != NULL);
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof lin_enum->lle_attr);
 
 	lin_enum = enum_to_linear_enum(e);
 	lid = lin_enum->lle_base.le_sl->sl_base.l_id;
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
-	if (op == C2_LXO_DB_UPDATE) {
-		/*
-		 * Processing the oldrec_cur, to verify that no enumeration
-		 * specific data is being changed for this layout.
-		 */
-		old_attr = c2_bufvec_cursor_addr(oldrec_cur);
-
-		C2_ASSERT(old_attr->lla_nr == lin_enum->lle_attr.lla_nr &&
-			  old_attr->lla_A == lin_enum->lle_attr.lla_A &&
-			  old_attr->lla_B == lin_enum->lle_attr.lla_B);
-	}
 	nbytes = c2_bufvec_cursor_copyto(out, &lin_enum->lle_attr,
 					 sizeof lin_enum->lle_attr);
 	C2_ASSERT(nbytes == sizeof lin_enum->lle_attr);

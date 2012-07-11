@@ -389,35 +389,41 @@ static c2_bcount_t l_recsize(const struct c2_layout *l)
 	return recsize;
 }
 
-/**
- * Read existing record from the layouts table into the provided area.
- */
-static int rec_get(struct c2_db_tx *tx, struct c2_layout *l,
-		   void *area, size_t max_recsize)
+static int pair_init(struct c2_db_pair *pair,
+		     struct c2_layout *l,
+		     struct c2_db_tx *tx,
+		     enum c2_layout_xcode_op op)
 {
-	struct c2_db_pair  pair;
-	int                rc;
+	void                    *key_buf = pair->dp_key.db_buf.b_addr;
+	void                    *rec_buf = pair->dp_rec.db_buf.b_addr;
+	c2_bcount_t              recsize = l_recsize(l);
+	struct c2_bufvec         bv;
+	struct c2_bufvec_cursor  rec_cur;
+	int                      rc;
 
-	C2_PRE(tx != NULL);
-	C2_PRE(l != NULL);
-	C2_PRE(area != NULL);
-	/*
-	 * The max_recsize is never expected to be that large. But still,
-	 * since it is being type-casted here to uint32_t.
-	 */
-	C2_PRE(max_recsize <= UINT32_MAX);
+	C2_PRE(key_buf != NULL);
+	C2_PRE(rec_buf != NULL);
+	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof l->l_id);
+	C2_PRE(pair->dp_rec.db_buf.b_nob >= recsize);
+	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE, C2_LXO_DB_DELETE)));
 
-	c2_db_pair_setup(&pair, &l->l_dom->ld_layouts,
-			 &l->l_id, sizeof l->l_id,
-			 area, (uint32_t)max_recsize);
-	/*
-	 * ADDB records covering the failure of c2_table_lookup() is added
-	 * into the caller of this routine.
-	 */
-	rc = c2_table_lookup(tx, &pair);
-	c2_db_pair_fini(&pair);
+	*(uint64_t *)key_buf = l->l_id;
+	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
+	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&rec_buf,
+						  &pair->dp_rec.db_buf.b_nob);
+	c2_bufvec_cursor_init(&rec_cur, &bv);
+
+	rc = c2_layout_encode(l, op, tx, &rec_cur);
+	if (rc == 0)
+		c2_db_pair_setup(pair, &l->l_dom->ld_layouts,
+				 key_buf, sizeof l->l_id, rec_buf, recsize);
+	else
+		c2_layout__log("pair_init", "c2_layout_encode() failed",
+			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
+			       &layout_add_fail, &l->l_addb, l->l_id, rc);
 	return rc;
 }
+
 
 /** @} end group LayoutDBDFSInternal */
 
@@ -553,42 +559,6 @@ out:
 	return rc;
 }
 
-static int pair_init(struct c2_db_pair *pair,
-		     struct c2_layout *l,
-		     struct c2_db_tx *tx,
-		     enum c2_layout_xcode_op op,
-		     struct c2_bufvec_cursor *oldrec_cur)
-{
-	void                    *key_buf = pair->dp_key.db_buf.b_addr;
-	void                    *rec_buf = pair->dp_rec.db_buf.b_addr;
-	c2_bcount_t              recsize = l_recsize(l);
-	struct c2_bufvec         bv;
-	struct c2_bufvec_cursor  rec_cur;
-	int                      rc;
-
-	C2_PRE(key_buf != NULL);
-	C2_PRE(rec_buf != NULL);
-	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof l->l_id);
-	C2_PRE(pair->dp_rec.db_buf.b_nob >= recsize);
-	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE, C2_LXO_DB_DELETE)));
-
-	*(uint64_t *)key_buf = l->l_id;
-	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
-	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&rec_buf,
-						  &pair->dp_rec.db_buf.b_nob);
-	c2_bufvec_cursor_init(&rec_cur, &bv);
-
-	rc = c2_layout_encode(l, op, tx, oldrec_cur, &rec_cur);
-	if (rc == 0)
-		c2_db_pair_setup(pair, &l->l_dom->ld_layouts,
-				 key_buf, sizeof l->l_id, rec_buf, recsize);
-	else
-		c2_layout__log("pair_init", "c2_layout_encode() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
-			       &layout_add_fail, &l->l_addb, l->l_id, rc);
-	return rc;
-}
-
 int c2_layout_add(struct c2_layout *l,
 		  struct c2_db_tx *tx,
 		  struct c2_db_pair *pair)
@@ -601,7 +571,7 @@ int c2_layout_add(struct c2_layout *l,
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	c2_mutex_lock(&l->l_lock);
-	rc = pair_init(pair, l, tx, C2_LXO_DB_ADD, NULL);
+	rc = pair_init(pair, l, tx, C2_LXO_DB_ADD);
 	if (rc == 0) {
 		rc = c2_table_insert(tx, pair);
 		if (rc != 0)
@@ -621,11 +591,7 @@ int c2_layout_update(struct c2_layout *l,
 		     struct c2_db_tx *tx,
 		     struct c2_db_pair *pair)
 {
-	void                    *oldrec_area;
-	struct c2_bufvec         oldrec_bv;
-	struct c2_bufvec_cursor  oldrec_cur;
-	c2_bcount_t              recsize;
-	int                      rc;
+	int rc;
 
 	C2_PRE(c2_layout__invariant(l));
 	C2_PRE(tx != NULL);
@@ -633,37 +599,7 @@ int c2_layout_update(struct c2_layout *l,
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	c2_mutex_lock(&l->l_lock);
-	/*
-	 * Get the existing record from the layouts table. It is used to
-	 * ensure that nothing other than l_ref gets updated for an existing
-	 * layout record.
-	 */
-	recsize = c2_layout_max_recsize(l->l_dom);
-	oldrec_area = c2_alloc(recsize);
-	if (oldrec_area == NULL) {
-		c2_layout__log("c2_layout_update", "c2_alloc() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
-			       &c2_addb_oom, &l->l_addb, l->l_id, -ENOMEM);
-		c2_mutex_unlock(&l->l_lock);
-		return -ENOMEM;
-	}
-
-	rc = rec_get(tx, l, oldrec_area, recsize);
-	if (rc != 0) {
-		c2_layout__log("c2_layout_update", "c2_table_lookup() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
-			       &layout_update_fail, &l->l_addb, l->l_id, rc);
-		c2_free(oldrec_area);
-		c2_mutex_unlock(&l->l_lock);
-		return rc;
-	}
-
-	oldrec_bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&oldrec_area,
-							 &recsize);
-	c2_bufvec_cursor_init(&oldrec_cur, &oldrec_bv);
-
-	/* Now, proceed to update the layout. */
-	rc = pair_init(pair, l, tx, C2_LXO_DB_UPDATE, &oldrec_cur);
+	rc = pair_init(pair, l, tx, C2_LXO_DB_UPDATE);
 	if (rc == 0) {
 		rc = c2_table_update(tx, pair);
 		if (rc != 0)
@@ -674,8 +610,6 @@ int c2_layout_update(struct c2_layout *l,
 				       l->l_id, rc);
 		c2_db_pair_fini(pair);
 	}
-
-	c2_free(oldrec_area);
 	c2_mutex_unlock(&l->l_lock);
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
@@ -693,7 +627,7 @@ int c2_layout_delete(struct c2_layout *l,
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	c2_mutex_lock(&l->l_lock);
-	rc = pair_init(pair, l, tx, C2_LXO_DB_DELETE, NULL);
+	rc = pair_init(pair, l, tx, C2_LXO_DB_DELETE);
 	if (rc == 0) {
 		rc = c2_table_delete(tx, pair);
 		if (rc != 0)
