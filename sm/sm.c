@@ -137,7 +137,7 @@ bool c2_sm_invariant(const struct c2_sm *mach)
 
 	return
 		sm_is_locked(mach) &&
-		(mach->sm_rc != 0) == (sd->sd_flags & C2_SDF_FAILURE) &&
+		equi((mach->sm_rc != 0), (sd->sd_flags & C2_SDF_FAILURE)) &&
 		ergo(sd->sd_invariant != NULL, sd->sd_invariant(mach));
 }
 

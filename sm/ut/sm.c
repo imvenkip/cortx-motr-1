@@ -346,7 +346,7 @@ static void group(void)
 	C2_UT_ASSERT(s.abel.sm_state == S_TERMINAL);
 	C2_UT_ASSERT(s.cain.sm_state == S_FRATRICIDE);
 
-	c2_sm_state_set(&s.cain, S_TERMINAL);
+	c2_sm_fail(&s.cain, S_TERMINAL, -1);
 
 	c2_sm_timeout_fini(&to);
 
