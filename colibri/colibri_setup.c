@@ -32,7 +32,6 @@
 #include "lib/memory.h"
 #include "lib/getopts.h"
 #include "lib/processor.h"
-#include "lib/time.h"
 #include "lib/misc.h"
 #include "lib/finject.h"    /* C2_FI_ENABLED */
 
@@ -885,7 +884,7 @@ static int cs_linux_stob_init(const char *stob_path, struct cs_stobs *stob)
 	return rc;
 }
 
-void cs_ad_stob_fini(struct cs_stobs *stob)
+static void cs_ad_stob_fini(struct cs_stobs *stob)
 {
 	struct c2_stob        *bstob;
 	struct cs_ad_stob     *adstob;

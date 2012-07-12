@@ -62,11 +62,6 @@ enum {
  */
 struct c2_reqh {
 	struct c2_dtm		*rh_dtm;
-	/**
-	   @todo for now simply use storage object domain. In the future, this
-	   will be replaced with "stores".
-	 */
-	struct c2_stob_domain	*rh_stdom;
 
 	/** Database environment for this request handler. */
 	struct c2_dbenv         *rh_dbenv;

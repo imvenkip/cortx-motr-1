@@ -170,12 +170,12 @@ struct c2_colibri {
 	 * @see c2_net_transfer_mc:ntm_recv_queue_length
 	 * Default is set to C2_NET_TM_RECV_QUEUE_DEF_LEN.
 	 */
-	uint32_t                  cc_recv_queue_min_length;
+	size_t                   cc_recv_queue_min_length;
 
 	/** Maximum RPC message size. */
-	uint32_t                  cc_max_rpc_msg_size;
+	size_t                   cc_max_rpc_msg_size;
 
-	struct c2_addb_ctx        cc_addb;
+	struct c2_addb_ctx       cc_addb;
 };
 
 /**
