@@ -354,7 +354,6 @@ static int do_bio_filebacked(struct loop_device *lo, struct bio *bio)
 	struct iovec *iov;
  	struct bio_vec *bvec;
 	int i;
-	int j = 0;
 	ssize_t bw;
 	struct kiocb kiocb;
 	mm_segment_t old_fs = get_fs();
@@ -365,20 +364,49 @@ static int do_bio_filebacked(struct loop_device *lo, struct bio *bio)
 	pos = ((loff_t) bio->bi_sector << 9) + lo->lo_offset;
         kiocb.ki_pos = pos;
  	bio_for_each_segment(bvec, bio, i) {
-		iov = &iov_static[j++];
+		iov = &iov_static[i];
 		iov->iov_base = page_address(bvec->bv_page) + bvec->bv_offset;
 		iov->iov_len = bvec->bv_len;
  	}
 
 	set_fs(get_ds());
-	bw = (bio_rw(bio) == READ ? file->f_op->aio_read : file->f_op->aio_write)
-		(&kiocb, iov_static, j, pos);
+	if (bio_rw(bio) == READ)
+		bw = file->f_op->aio_read(&kiocb, iov_static, i, pos);
+	else
+		bw = file->f_op->aio_write(&kiocb, iov_static, i, pos);
 	set_fs(old_fs);
+
 	if (likely(bio->bi_size == bw))
 		return 0;
+
 	return -EIO;
 }
  
+static int do_iov_filebacked(struct loop_device *lo, unsigned long op, int n,
+                             loff_t pos, unsigned size)
+{
+	struct file *file = lo->lo_backing_file;
+	ssize_t bw;
+	struct kiocb kiocb;
+	mm_segment_t old_fs = get_fs();
+
+	init_sync_kiocb(&kiocb, file);
+	kiocb.ki_nbytes = kiocb.ki_left = size;
+        kiocb.ki_pos = pos;
+
+	set_fs(get_ds());
+	if (op == READ)
+		bw = file->f_op->aio_read(&kiocb, iov_static, n, pos);
+	else
+		bw = file->f_op->aio_write(&kiocb, iov_static, n, pos);
+	set_fs(old_fs);
+
+	if (likely(size == bw))
+		return 0;
+
+	return -EIO;
+}
+
 
 /*
  * Add bio to back of pending list
@@ -451,6 +479,77 @@ static inline void loop_handle_bio(struct loop_device *lo, struct bio *bio)
 	}
 }
 
+static inline void loop_handle_bios(struct loop_device *lo, struct bio_list *l)
+{
+	int i;
+	int iov_idx = 0;
+	unsigned size = 0;
+	unsigned long op = READ;
+	loff_t init_pos = -1;
+	loff_t pos;
+	loff_t prev_end_pos = 0;
+	struct bio *bio;
+	struct iovec *iov;
+	struct bio_vec *bvec;
+	struct bio_list cl; /* contiguous bios list */
+
+	bio_list_init(&cl);
+
+	while (!bio_list_empty(l)) {
+
+		bio = bio_list_pop(l);
+
+		pos = ((loff_t) bio->bi_sector << 9) + lo->lo_offset;
+		if (init_pos == -1) {
+			init_pos = pos;
+			op = bio_rw(bio);
+		}
+
+		if ((prev_end_pos == 0 || pos == prev_end_pos)
+		    && bio_rw(bio) == op)
+			goto accumulate;
+flush:
+		/*printk("flush: op=%d idx=%d bio=%p pos=%d size=%d\n",
+		       (int)op, iov_idx, bio, (int)init_pos, size);*/
+		if (iov_idx > 0) {
+			int ret = do_iov_filebacked(lo, op, iov_idx,
+						    init_pos, size);
+			if (bio != NULL) {
+				iov_idx = size = 0;
+				init_pos = pos;
+				op = bio_rw(bio);
+			}
+
+			while (!bio_list_empty(&cl))
+				bio_endio(bio_list_pop(&cl), ret);
+		}
+		if (bio == NULL)
+			return;
+accumulate:
+		BUG_ON(bio->bi_vcnt > ARRAY_SIZE(iov_static));
+		if (iov_idx + bio->bi_vcnt > ARRAY_SIZE(iov_static))
+			goto flush;
+
+		bio_for_each_segment(bvec, bio, i) {
+			iov = &iov_static[iov_idx++];
+			iov->iov_base = page_address(bvec->bv_page)
+					+ bvec->bv_offset;
+			iov->iov_len = bvec->bv_len;
+		}
+
+		bio_list_add(&cl, bio);
+		prev_end_pos = pos + bio->bi_size;
+		size += bio->bi_size;
+		/*printk("accum: op=%d idx=%d bio=%p pos=%d size=%d\n",
+		       (int)op, iov_idx, bio, (int)pos, size);*/
+
+		if (bio_list_empty(l)) {
+			bio = NULL;
+			goto flush;
+		}
+	}
+}
+
 /*
  * worker thread that handles reads/writes to file backed loop devices,
  * to avoid blocking in our make_request_fn. it also does loop decrypting
@@ -465,25 +564,41 @@ static inline void loop_handle_bio(struct loop_device *lo, struct bio *bio)
  */
 static int loop_thread(void *data)
 {
+	int i;
 	struct loop_device *lo = data;
 	struct bio *bio;
+	struct bio_list bios;
 
 	set_user_nice(current, -20);
 
 	while (!kthread_should_stop() || !bio_list_empty(&lo->lo_bio_list)) {
 
+		bio_list_init(&bios);
+
 		wait_event_interruptible(lo->lo_event,
 				!bio_list_empty(&lo->lo_bio_list) ||
 				kthread_should_stop());
 
-		if (bio_list_empty(&lo->lo_bio_list))
-			continue;
-		spin_lock_irq(&lo->lo_lock);
-		bio = loop_get_bio(lo);
-		spin_unlock_irq(&lo->lo_lock);
+		for (i=0; i < BIO_MAX_PAGES; i++) {
+			if (bio_list_empty(&lo->lo_bio_list))
+				break;
 
-		BUG_ON(!bio);
-		loop_handle_bio(lo, bio);
+			spin_lock_irq(&lo->lo_lock);
+			bio = loop_get_bio(lo);
+			spin_unlock_irq(&lo->lo_lock);
+
+			BUG_ON(!bio);
+			if (unlikely(!bio->bi_bdev))
+				break;
+
+			bio_list_add(&bios, bio);
+		}
+
+		if (likely(!bio_list_empty(&bios)))
+			loop_handle_bios(lo, &bios);
+
+		if (unlikely(!bio->bi_bdev))
+			loop_handle_bio(lo, bio);
 	}
 
 	return 0;
@@ -711,6 +826,9 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 	bd_set_size(bdev, size << 9);
 
 	set_blocksize(bdev, lo_blocksize);
+
+	blk_queue_bounce_limit(lo->lo_queue, BLK_BOUNCE_ANY);
+	blk_queue_logical_block_size(lo->lo_queue, PAGE_SIZE);
 
 	lo->lo_thread = kthread_create(loop_thread, lo, "c2loop%d",
 						lo->lo_number);
