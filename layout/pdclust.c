@@ -502,7 +502,7 @@ static int pdclust_populate(struct c2_pdclust_layout *pdl,
 
 	rc = c2_pool_lookup(attr->pa_pool_id, &pool);
 	if (rc != 0) {
-		c2_layout__log("pdclust_build", "c2_pool_lookup() failed",
+		c2_layout__log("pdclust_populate", "c2_pool_lookup() failed",
 			       &c2_addb_oom, &pdl->pl_base.sl_base.l_addb,
 			       lid, rc);
 		return rc;
@@ -550,7 +550,7 @@ static int pdclust_populate(struct c2_pdclust_layout *pdl,
 		}
 	} else {
 		rc = -ENOMEM;
-		c2_layout__log("pdclust_build", "C2_ALLOC() failed",
+		c2_layout__log("pdclust_populate", "C2_ALLOC() failed",
 			       &c2_addb_oom, &layout_global_ctx, lid, rc);
 	}
 

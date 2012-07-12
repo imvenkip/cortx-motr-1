@@ -52,9 +52,7 @@ struct c2_layout_linear_attr {
 	uint32_t   lla_B;
 };
 
-/**
- * Extension of generic c2_layout_enum for a linear enumeration type.
- */
+/** Extension of generic c2_layout_enum for a linear enumeration type. */
 struct c2_layout_linear_enum {
 	/** Super class. */
 	struct c2_layout_enum        lle_base;
@@ -65,7 +63,9 @@ struct c2_layout_linear_enum {
 };
 
 /**
- * Build linear enumeration object.
+ * Builds linear enumeration object.
+ * @post ergo(rc == 0, linear_invariant_internal(lin_enum))
+ *
  * @note Enum object need not be finalised explicitly by the user. It is
  * finalised internally through c2_layout__striped_fini().
  */
@@ -73,7 +73,7 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
 			 const struct c2_layout_linear_attr *attr,
 			 struct c2_layout_linear_enum **out);
 /**
- * Finalise linear enumeration object.
+ * Finalises linear enumeration object.
  * @note This interface is expected to be used only in cases where layout
  * build operation fails and the user (for example c2t1fs) needs to get rid of
  * the enumeration object created prior to attempting the layout build

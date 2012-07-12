@@ -58,7 +58,7 @@ static bool linear_allocated_invariant(const struct c2_layout_linear_enum *le)
 {
 	return
 		c2_layout_linear_enum_bob_check(le) &&
-		le->lle_attr.lla_nr == NR_NONE &&
+		le->lle_attr.lla_nr == 0 &&
 		le->lle_attr.lla_B == 0;
 }
 
@@ -70,7 +70,7 @@ static bool linear_invariant_internal(const struct c2_layout_linear_enum *le)
 {
 	return
 		c2_layout_linear_enum_bob_check(le) &&
-		le->lle_attr.lla_nr != NR_NONE &&
+		le->lle_attr.lla_nr != 0 &&
 		le->lle_attr.lla_B != 0;
 }
 
@@ -159,14 +159,6 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
 	return rc;
 }
 
-/**
- * Finalise linear enumeration object.
- * @note This interface is expected to be used only in cases where layout
- * build operation fails and the user (for example c2t1fs) needs to get rid of
- * the enumeration object created prior to attempting the layout build
- * operation. In the other regular cases, enumeration object is finalised
- * internally through c2_layout__striped_fini().
- */
 void c2_linear_enum_fini(struct c2_layout_linear_enum *e)
 {
 	C2_PRE(linear_invariant_internal(e));

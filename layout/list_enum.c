@@ -104,7 +104,7 @@ static bool list_allocated_invariant(const struct c2_layout_list_enum *le)
 {
 	return
 		c2_layout_list_enum_bob_check(le) &&
-		le->lle_nr == NR_NONE &&
+		le->lle_nr == 0 &&
 		le->lle_list_of_cobs == NULL;
 }
 
@@ -116,7 +116,7 @@ static bool list_invariant_internal(const struct c2_layout_list_enum *le)
 {
 	return
 		c2_layout_list_enum_bob_check(le) &&
-		le->lle_nr != NR_NONE &&
+		le->lle_nr != 0 &&
 		le->lle_list_of_cobs != NULL &&
 		c2_forall(i, le->lle_nr,
 			  c2_fid_is_valid(&le->lle_list_of_cobs[i]));
@@ -183,7 +183,7 @@ static int list_populate(struct c2_layout_list_enum *list_enum,
 
 	C2_PRE(list_allocated_invariant(list_enum));
 	C2_PRE(cob_list != NULL);
-	C2_PRE(nr != NR_NONE);
+	C2_PRE(nr != 0);
 
 	C2_ENTRY();
 	list_enum->lle_nr = nr;

@@ -273,6 +273,13 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 			   const struct c2_pdclust_tgt_addr *tgt,
 			   struct c2_pdclust_src_addr *src);
 
+/**
+ * Builds a layout object with pdclust layout type.
+ * @post ergo(rc == 0, pdclust_invariant(*out))
+ *
+ * @note This layout object need not be finalised explicitly but it is
+ * finalised automatically when its last reference is released.
+ */
 int c2_pdclust_build(struct c2_layout_domain *dom,
 		     uint64_t lid,
 		     const struct c2_pdclust_attr *attr,

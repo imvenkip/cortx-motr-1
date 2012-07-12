@@ -48,9 +48,6 @@ enum {
 	/** Flag used during table creation, using c2_table_init() */
 	DEFAULT_DB_FLAG            = 0,
 
-	/** Invalid number of elements, for enumeration objects. */
-	NR_NONE                    = 0,
-
 	/**
 	 * Maximum limit on the number of COB entries those can be stored
 	 * inline into the layouts table, while rest of those are stored into

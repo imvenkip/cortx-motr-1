@@ -311,6 +311,8 @@ struct c2_layout_type_ops {
 	 * buffer or from the DB.
 	 * @pre C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP))
 	 * @pre ergo(op == C2_LXO_DB_LOOKUP, tx != NULL)
+	 * @post The cursor cur is advanced by the size of the data that is
+	 * read from it.
 	 */
 	// todo Make lto_decode operation of a layout, not layout type
 	int         (*lto_decode)(struct c2_layout *l,
@@ -433,6 +435,8 @@ struct c2_layout_enum_type_ops {
 	 * the buffer or from the DB.
 	 * @pre C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP))
 	 * @pre ergo(op == C2_LXO_DB_LOOKUP, tx != NULL)
+	 * @post The cursor cur is advanced by the size of the data that is
+	 * read from it.
 	 */
 	// todo Make leto_decode operation of enumeration, not enum type
 	int         (*leto_decode)(struct c2_layout_enum *e,
@@ -584,6 +588,7 @@ void c2_layout_put(struct c2_layout *l);
  * built if applicable).
  * - c2_layout__invariant(l)
  * - c2_mutex_is_locked(&l->l_lock)
+ * - The cursor cur is advanced by the size of the data that is read from it.
  *
  * @note User is expected to add rererence/s to this layout object while using
  * it. Releasing the last reference will finalise the layout object by freeing
