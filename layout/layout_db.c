@@ -392,11 +392,11 @@ static c2_bcount_t l_recsize(const struct c2_layout *l)
 static int pair_init(struct c2_db_pair *pair,
 		     struct c2_layout *l,
 		     struct c2_db_tx *tx,
-		     enum c2_layout_xcode_op op)
+		     enum c2_layout_xcode_op op,
+		     c2_bcount_t recsize)
 {
 	void                    *key_buf = pair->dp_key.db_buf.b_addr;
 	void                    *rec_buf = pair->dp_rec.db_buf.b_addr;
-	c2_bcount_t              recsize = l_recsize(l);
 	struct c2_bufvec         bv;
 	struct c2_bufvec_cursor  rec_cur;
 	int                      rc;
@@ -405,22 +405,30 @@ static int pair_init(struct c2_db_pair *pair,
 	C2_PRE(rec_buf != NULL);
 	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof l->l_id);
 	C2_PRE(pair->dp_rec.db_buf.b_nob >= recsize);
-	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE, C2_LXO_DB_DELETE)));
+	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_DB_ADD,
+			  C2_LXO_DB_UPDATE, C2_LXO_DB_DELETE)));
+	C2_PRE(recsize >= sizeof(struct c2_layout_rec));
 
 	*(uint64_t *)key_buf = l->l_id;
 	memset(pair->dp_rec.db_buf.b_addr, 0, pair->dp_rec.db_buf.b_nob);
-	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&rec_buf,
+	c2_db_pair_setup(pair, &l->l_dom->ld_layouts,
+			 key_buf, sizeof l->l_id,
+			 rec_buf, recsize);
+	if (op != C2_LXO_DB_LOOKUP) {
+		bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&rec_buf,
 						  &pair->dp_rec.db_buf.b_nob);
-	c2_bufvec_cursor_init(&rec_cur, &bv);
+		c2_bufvec_cursor_init(&rec_cur, &bv);
 
-	rc = c2_layout_encode(l, op, tx, &rec_cur);
-	if (rc == 0)
-		c2_db_pair_setup(pair, &l->l_dom->ld_layouts,
-				 key_buf, sizeof l->l_id, rec_buf, recsize);
-	else
-		c2_layout__log("pair_init", "c2_layout_encode() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
-			       &layout_add_fail, &l->l_addb, l->l_id, rc);
+		rc = c2_layout_encode(l, op, tx, &rec_cur);
+		if (rc != 0) {
+			c2_layout__log("pair_init", "c2_layout_encode() failed",
+				       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
+				       &layout_add_fail, &l->l_addb,
+				       l->l_id, rc);
+			c2_db_pair_fini(pair);
+		}
+	} else
+		rc = 0;
 	return rc;
 }
 
@@ -444,8 +452,6 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	struct c2_bufvec_cursor  cur;
 	c2_bcount_t              max_recsize;
 	c2_bcount_t              recsize;
-	void                    *key_buf = pair->dp_key.db_buf.b_addr;
-	void                    *rec_buf = pair->dp_rec.db_buf.b_addr;
 	struct c2_layout        *l;
 	struct c2_layout        *ghost;
 
@@ -455,10 +461,6 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	C2_PRE(dom->ld_type[lt->lt_id] == lt); /* Registered layout type. */
 	C2_PRE(tx != NULL);
 	C2_PRE(pair != NULL);
-	C2_PRE(key_buf != NULL);
-	C2_PRE(rec_buf != NULL);
-	C2_PRE(pair->dp_key.db_buf.b_nob == sizeof lid);
-	C2_PRE(pair->dp_rec.db_buf.b_nob >= sizeof(struct c2_layout_rec));
 	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
@@ -518,15 +520,11 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	max_recsize = c2_layout_max_recsize(dom);
 	recsize = pair->dp_rec.db_buf.b_nob <= max_recsize ?
 		  pair->dp_rec.db_buf.b_nob : max_recsize;
-
-	*(uint64_t *)key_buf = lid;
-	memset(rec_buf, 0, pair->dp_rec.db_buf.b_nob);
-	c2_db_pair_setup(pair, &dom->ld_layouts,
-			 key_buf, sizeof lid, rec_buf, recsize);
-
+	rc = pair_init(pair, l, tx, C2_LXO_DB_LOOKUP, recsize);
+	C2_ASSERT(rc == 0);
 	rc = c2_table_lookup(tx, pair);
 	if (rc != 0) {
-		/* covered */
+		/* error covered */
 		c2_mutex_unlock(&l->l_lock);
 		l->l_ops->lo_delete(l);
 		c2_layout__log("c2_layout_lookup", "c2_table_lookup() failed",
@@ -535,12 +533,13 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 			       lid, rc);
 		goto out;
 	}
-	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&rec_buf, &recsize);
-	c2_bufvec_cursor_init(&cur, &bv);
 
+	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
+						  &recsize);
+	c2_bufvec_cursor_init(&cur, &bv);
 	rc = c2_layout_decode(l, C2_LXO_DB_LOOKUP, tx, &cur);
 	if (rc != 0) {
-		/* covered */
+		/* error covered */
 		c2_mutex_unlock(&l->l_lock);
 		l->l_ops->lo_delete(l);
 		c2_layout__log("c2_layout_lookup", "c2_layout_decode() failed",
@@ -551,7 +550,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	}
 	*out = l;
 	C2_CNT_INC(l->l_ref);
-	C2_POST(c2_layout__invariant(l) && l->l_ref > 0);
+	C2_POST(c2_layout__invariant(*out) && l->l_ref > 0);
 	c2_mutex_unlock(&l->l_lock);
 out:
 	c2_db_pair_fini(pair);
@@ -563,7 +562,8 @@ int c2_layout_add(struct c2_layout *l,
 		  struct c2_db_tx *tx,
 		  struct c2_db_pair *pair)
 {
-	int rc;
+	c2_bcount_t recsize;
+	int         rc;
 
 	C2_PRE(c2_layout__invariant(l));
 	C2_PRE(tx != NULL);
@@ -571,7 +571,8 @@ int c2_layout_add(struct c2_layout *l,
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	c2_mutex_lock(&l->l_lock);
-	rc = pair_init(pair, l, tx, C2_LXO_DB_ADD);
+	recsize = l_recsize(l);
+	rc = pair_init(pair, l, tx, C2_LXO_DB_ADD, recsize);
 	if (rc == 0) {
 		rc = c2_table_insert(tx, pair);
 		if (rc != 0)
@@ -591,7 +592,8 @@ int c2_layout_update(struct c2_layout *l,
 		     struct c2_db_tx *tx,
 		     struct c2_db_pair *pair)
 {
-	int rc;
+	c2_bcount_t recsize;
+	int         rc;
 
 	C2_PRE(c2_layout__invariant(l));
 	C2_PRE(tx != NULL);
@@ -599,7 +601,8 @@ int c2_layout_update(struct c2_layout *l,
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	c2_mutex_lock(&l->l_lock);
-	rc = pair_init(pair, l, tx, C2_LXO_DB_UPDATE);
+	recsize = l_recsize(l);
+	rc = pair_init(pair, l, tx, C2_LXO_DB_UPDATE, recsize);
 	if (rc == 0) {
 		rc = c2_table_update(tx, pair);
 		if (rc != 0)
@@ -619,7 +622,8 @@ int c2_layout_delete(struct c2_layout *l,
 		     struct c2_db_tx *tx,
 		     struct c2_db_pair *pair)
 {
-	int rc;
+	c2_bcount_t recsize;
+	int         rc;
 
 	C2_PRE(c2_layout__invariant(l));
 	C2_PRE(tx != NULL);
@@ -627,7 +631,8 @@ int c2_layout_delete(struct c2_layout *l,
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	c2_mutex_lock(&l->l_lock);
-	rc = pair_init(pair, l, tx, C2_LXO_DB_DELETE);
+	recsize = l_recsize(l);
+	rc = pair_init(pair, l, tx, C2_LXO_DB_DELETE, recsize);
 	if (rc == 0) {
 		rc = c2_table_delete(tx, pair);
 		if (rc != 0)

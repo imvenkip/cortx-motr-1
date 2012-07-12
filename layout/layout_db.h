@@ -141,7 +141,8 @@ struct c2_layout_rec {
  * Regarding the size of the pair->dp_rec.db_buf:
  * The buffer size should be large enough to contain the data that is to be
  * read specifically from the layouts table. It means it needs to be at the
- * most the size returned by c2_layout_max_recsize().
+ * most the size returned by c2_layout_max_recsize(). It is no harm if it is
+ * bigger than that.
  *
  * @post Layout object is built internally (along with enumeration object
  * being built if applicable). If layout object is created successfully,
