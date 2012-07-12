@@ -101,6 +101,7 @@ struct c2_layout_rec;
 /**
  * layouts table.
  * Key is uint64_t, value obtained from c2_layout::l_id.
+ * @note This structure needs to be maintained as 8 bytes aligned.
  */
 struct c2_layout_rec {
 	/**

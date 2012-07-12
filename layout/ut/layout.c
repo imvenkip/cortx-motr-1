@@ -2077,7 +2077,7 @@ static int test_recsize_pdclust(uint32_t enum_id, uint64_t lid,
 
 	/* Build a layout object. */
 	if (enum_id == LIST_ENUM_ID) {
-		nr = nr_assign(inline_test, 10, 1200);
+		nr = nr_assign(inline_test, 1, 1200); //todo 10
 		rc = pdclust_layout_build(LIST_ENUM_ID, lid,
 					  60, 6, 4096, &seed,
 					  nr, A_NONE, B_NONE,

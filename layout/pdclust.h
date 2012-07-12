@@ -82,6 +82,8 @@ struct c2_pdclust_tgt_addr;
  * These attributes are part of c2_pdclust_layout which is in-memory layout
  * object and are stored in the Layout DB as well, through
  * c2_layout_pdclust_rec.
+ *
+ * @note This structure needs to be maintained as 8 bytes aligned.
  */
 struct c2_pdclust_attr {
 	/** Number of data units in a parity group. */
@@ -106,16 +108,24 @@ struct c2_pdclust_attr {
 
 	/** A datum used to seed PRNG to generate tile column permutations. */
 	struct c2_uint128  pa_seed;
+
+	/** Padding to make the structure 8 bytes aligned. */
+	uint32_t           pa_pad;
 };
 
 /**
  * Pdclust layout type specific part of record for the layouts table.
+ *
+ * @note This structure needs to be maintained as 8 bytes aligned.
  */
 struct c2_layout_pdclust_rec {
 	/** Layout enumeration type id. */
-	uint32_t                pr_let_id;
+	uint32_t               pr_let_id;
 
-	struct c2_pdclust_attr  pr_attr;
+	struct c2_pdclust_attr pr_attr;
+
+	/** Padding to make the structure 8 bytes aligned. */
+	uint32_t               pr_pad;
 };
 
 /**

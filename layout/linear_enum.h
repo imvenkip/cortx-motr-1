@@ -40,6 +40,8 @@ struct c2_layout_linear_enum;
  * Attributes specific to Linear enumeration type.
  * These attributes are part of c2_layout_linear_enum which is in-memory layout
  * enumeration object and are stored in the Layout DB as well.
+ *
+ * @note This structure needs to be maintained as 8 bytes aligned.
  */
 struct c2_layout_linear_attr {
 	/** Number of elements present in the enumeration. */
@@ -50,6 +52,9 @@ struct c2_layout_linear_attr {
 
 	/** Constant B used in the linear equation A + idx * B. */
 	uint32_t   lla_B;
+
+	/** Padding to make the structure 8 bytes aligned. */
+	uint32_t   lla_pad;
 };
 
 /** Extension of generic c2_layout_enum for a linear enumeration type. */

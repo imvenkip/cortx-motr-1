@@ -90,10 +90,15 @@ extern struct c2_layout_enum_type c2_list_enum_type;
  *
  * Structure used to store cob entries inline into the layouts table - maximum
  * upto LDB_MAX_INLINE_COB_ENTRIES number of those.
+ *
+ * @note This structure needs to be maintained as 8 bytes aligned.
  */
 struct cob_entries_header {
 	/** Total number of COB Ids for the specific layout. */
 	uint32_t  ces_nr;
+
+	/** Padding to make the structure 8 bytes aligned. */
+	uint32_t  ces_pad;
 
 	/**
 	 * Payload storing list of cob ids (struct c2_fid), max upto

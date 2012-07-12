@@ -59,13 +59,20 @@ struct list_schema_data {
 	struct c2_table  lsd_cob_lists;
 };
 
-/** cob_lists table. */
+/**
+ * cob_lists table.
+ *
+ * @note This structure needs to be maintained as 8 bytes aligned.
+ */
 struct cob_lists_key {
 	/** Layout id, value obtained from c2_layout::l_id. */
 	uint64_t  clk_lid;
 
 	/** Index for the COB from the layout it is part of. */
 	uint32_t  clk_cob_index;
+
+	/** Padding to make the structure 8 bytes aligned. */
+	uint32_t  clk_pad;
 };
 
 struct cob_lists_rec {
