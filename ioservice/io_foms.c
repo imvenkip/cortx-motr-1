@@ -28,6 +28,8 @@
 #include "lib/memory.h"
 #include "lib/tlist.h"
 #include "lib/assert.h"
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_IOSERVICE
+#include "lib/trace.h"
 #include "addb/addb.h"
 #include "net/net.h"
 #include "net/net_internal.h"
@@ -1456,6 +1458,7 @@ static int io_launch(struct c2_fom *fom)
                  */
                 ivec_count = c2_vec_count(&mem_ivec->iv_vec);
                 fom_obj->fcrw_req_count += ivec_count;
+                C2_LOG("iv_count %d, req_count %d", (int)ivec_count, (int)fom_obj->fcrw_req_count);
                 rc = align_bufvec(fom, &stio->si_user,
                                                 &nb->nb_buffer,
                                                 ivec_count,
@@ -1561,6 +1564,8 @@ static int io_finish(struct c2_fom *fom)
                         fom->fo_phase = C2_FOPH_FAILURE;
                 } else {
                         fom_obj->fcrw_count += stio->si_count;
+                        C2_LOG("rw_count %d, si_count %d",
+                               (int)fom_obj->fcrw_count, (int)stio->si_count);
                 }
 
                 c2_free(stio->si_user.ov_vec.v_count);
@@ -1636,6 +1641,7 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
                 rwrep = io_rw_rep_get(fom->fo_rep_fop);
                 rwrep->rwr_rc = fom->fo_rc;
                 rwrep->rwr_count = fom_obj->fcrw_count;
+                C2_LOG("rc %d, count %d", rwrep->rwr_rc, (int)rwrep->rwr_count);
                 return rc;
         }
 

@@ -180,7 +180,8 @@ void c2_trace_fini(void);
   C2_TRACE_SUBSYS(MEMORY,	2)      \
   C2_TRACE_SUBSYS(C2T1FS,	3)      \
   C2_TRACE_SUBSYS(RPC,		4)      \
-  C2_TRACE_SUBSYS(FORMATION,    5)
+  C2_TRACE_SUBSYS(FORMATION,    5)      \
+  C2_TRACE_SUBSYS(IOSERVICE,    6)
 
 #define C2_TRACE_SUBSYS(name, value) C2_TRACE_SUBSYS_ ## name = (1 << value),
 /** The subsystem bitmask definitions */
