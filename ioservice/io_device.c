@@ -90,20 +90,31 @@
      components, a version number is introduced to failure vector.
 
    - Failure vector update event. This is a device or node event which will
-     cause failure vector transits its internal state.
+     cause failure vector to update its internal state. When faiure vector
+     is updated on server, clients will get un-solicited notification. Client
+     should fetch the whole failure vector ( at the init stage ) or fetch the
+     incremental updates ( when clients already have cache ).
 
    <hr>
    @section io_calls_params_dld-req Requirements
    The following requirements should be meet:
    - @b R.DLD.FV Failure vector is stored in persistent storage. It can be
                  shared in multiple components.
-   - @b R.DLD.FV_Update Failure vector can be updated by device/node join
-                 or leave or other event.
+   - @b R.DLD.FV_Update Failure vector can be updated by device/node events.
+                 Events are device/node failure, new device join/node join,
+                 device starting recovering, device/node going offline,
+                 device/node going online, etc.
    - @b R.DLD.FV_Query Failure vector can be queried, by whole, or for a
                  specified region marked by version number.
    - @b R.DLD.FV_Notification Failure vector update will generate un-solicited
                  notification to other services and components, like mdservice,
                  client, or SNS repair copy machine.
+		      - When Clients/mdservice get this notification, they compare
+			their cached failure vector version number with the
+			lastest one. If not match, client or mdservice will
+			update its failure vector.
+		      - When SNS repair copy machine get this notification,
+			it will take proper action, such as start a SNS repair.
    - @b R.DLD.FV_version Failure vector version number is embedded to client
                  I/O request.
    - @b R.DLD.FV_Fetch Failure vector can be fectched to client or mdservice
@@ -123,11 +134,11 @@
    - @ref io_calls_params_dld-lspec-if
 
    @subsection io_calls_params_dld-lspec-comps Component Overview
-   All I/O requests (including read, write, create, delete, ...) will to extended
-   to embed its known failure vector version numbers.
+   All I/O requests (including read, write, create, delete, etc.) will be modified
+   to embed the client known failure vector version numbers.
 
-   I/O replies are extended to  to embed failure vector updates (not the whole
-   failure vector,  but the delta between the last known to current version) to
+   I/O replies are extended to embed failure vector updates (not the whole
+   failure vector, but the delta between the last known to current version) to
    client.
 
    A unsolicited notification fop is introduced. This fop will be sent to client
