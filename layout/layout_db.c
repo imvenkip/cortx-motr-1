@@ -422,7 +422,6 @@ static int pair_init(struct c2_db_pair *pair,
 		rc = c2_layout_encode(l, op, tx, &rec_cur);
 		if (rc != 0) {
 			c2_layout__log("pair_init", "c2_layout_encode() failed",
-				       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 				       &layout_add_fail, &l->l_addb,
 				       l->l_id, rc);
 			c2_db_pair_fini(pair);
@@ -482,7 +481,6 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	rc = lt->lt_ops->lto_allocate(dom, lid, &l);
 	if (rc != 0) {
 		c2_layout__log("c2_layout_lookup", "lto_allocate() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &layout_lookup_fail, &layout_global_ctx,
 			       lid, rc);
 		return rc;
@@ -528,7 +526,6 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 		c2_mutex_unlock(&l->l_lock);
 		l->l_ops->lo_delete(l);
 		c2_layout__log("c2_layout_lookup", "c2_table_lookup() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &layout_lookup_fail, &layout_global_ctx,
 			       lid, rc);
 		goto out;
@@ -543,7 +540,6 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 		c2_mutex_unlock(&l->l_lock);
 		l->l_ops->lo_delete(l);
 		c2_layout__log("c2_layout_lookup", "c2_layout_decode() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &layout_lookup_fail, &layout_global_ctx,
 			       lid, rc);
 		goto out;
@@ -578,7 +574,6 @@ int c2_layout_add(struct c2_layout *l,
 		if (rc != 0)
 			c2_layout__log("c2_layout_add",
 				       "c2_table_insert() failed",
-				       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 				       &layout_add_fail, &l->l_addb,
 				       l->l_id, rc);
 		c2_db_pair_fini(pair);
@@ -608,7 +603,6 @@ int c2_layout_update(struct c2_layout *l,
 		if (rc != 0)
 			c2_layout__log("c2_layout_update",
 				       "c2_table_update() failed",
-				       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 				       &layout_update_fail, &l->l_addb,
 				       l->l_id, rc);
 		c2_db_pair_fini(pair);
@@ -638,7 +632,6 @@ int c2_layout_delete(struct c2_layout *l,
 		if (rc != 0)
 			c2_layout__log("c2_layout_delete",
 				       "c2_table_delete() failed",
-				       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 				       &layout_delete_fail, &l->l_addb,
 				       l->l_id, rc);
 		c2_db_pair_fini(pair);

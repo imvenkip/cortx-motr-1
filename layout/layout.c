@@ -621,24 +621,17 @@ static void addb_add(struct c2_addb_ctx *ctx,
 
 /**
  * This method performs the following operations:
- * 1) If value of the flag addb_record is true, then it invokes
- *    addb_add() to add an ADDB record.
- * 2) If value of the flag trace_record is true, then it adds a C2_LOG record
- *    (trace record), indicating failure, along with a short error message
- *    string and the error code.
- * 3) Note: For suceesss cases (indicated by rc == 0), c2_layout__log() is
+ * 1) It invokes addb_add() to add an ADDB record.
+ * 2) It adds a C2_LOG record (trace record), indicating failure, along with
+ *    a short error message string and the error code.
+ * 3) Note: For the suceesss cases (indicated by rc == 0), c2_layout__log() is
  *    never invoked since:
  *    (i) ADDB records are not expected to be added in success cases.
  *    (ii) C2_LEAVE() or C2_LOG() are used directly to log the trace records,
  *         avoiding the function call overhead.
- *
- * @param addb_record Indicates if ADDB record is to be added.
- * @param trace_record Indicates if C2_LOG record is to be added.
  */
 void c2_layout__log(const char *fn_name,
 		    const char *err_msg,
-		    bool addb_record,
-		    bool trace_record,
 		    const struct c2_addb_ev *ev,
 		    struct c2_addb_ctx *ctx,
 		    uint64_t lid,
@@ -659,14 +652,12 @@ void c2_layout__log(const char *fn_name,
 					       c2_addb_oom.ae_id))));
 
 	/* ADDB record logging. */
-	if (addb_record)
-		addb_add(ctx, ev, err_msg, rc);
+	addb_add(ctx, ev, err_msg, rc);
 
 	/* Trace record logging. */
-	if (trace_record)
-		C2_LOG("%s(): lid %llu, %s, rc %d",
-		       (const char *)fn_name, (unsigned long long)lid,
-		       (const char *)err_msg, rc);
+	C2_LOG("%s(): lid %llu, %s, rc %d",
+	       (const char *)fn_name, (unsigned long long)lid,
+	       (const char *)err_msg, rc);
 }
 
 int c2_layouts_init(void)
@@ -693,7 +684,6 @@ int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
 	if (rc != 0) {
 		c2_layout__log("c2_layout_domain_init",
 			       "c2_table_init() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       LID_NONE, rc);
 		dom->ld_dbenv = NULL;
@@ -788,7 +778,6 @@ int c2_layout_type_register(struct c2_layout_domain *dom,
 	} else {
 		c2_layout__log("c2_layout_type_register",
 			       "lto_register() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       LID_NONE, rc);
 		dom->ld_type[lt->lt_id] = NULL;
@@ -845,7 +834,6 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 	} else {
 		c2_layout__log("c2_layout_enum_type_register",
 			       "leto_register() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       LID_NONE, rc);
 		dom->ld_enum[let->let_id] = NULL;
@@ -979,7 +967,6 @@ int c2_layout_decode(struct c2_layout *l,
 	rc = lt->lt_ops->lto_decode(l, op, tx, cur, rec->lr_ref_count);
 	if (rc != 0) {
 		c2_layout__log("c2_layout_decode", "lto_decode() failed",
-			       op == C2_LXO_BUFFER_OP, TRACE_RECORD_ADD,
 			       &layout_decode_fail, &layout_global_ctx,
 			       l->l_id, rc);
 		goto out;
@@ -1021,7 +1008,6 @@ int c2_layout_encode(struct c2_layout *l,
 	rc = lt->lt_ops->lto_encode(l, op, tx, out);
 	if (rc != 0)
 		c2_layout__log("c2_layout_encode", "lto_encode() failed",
-			       op == C2_LXO_BUFFER_OP, TRACE_RECORD_ADD,
 			       &layout_encode_fail, &l->l_addb, l->l_id, rc);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);

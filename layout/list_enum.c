@@ -146,7 +146,6 @@ static int list_allocate(struct c2_layout_domain *dom,
 	C2_ALLOC_PTR(list_enum);
 	if (list_enum == NULL) {
 		c2_layout__log("list_allocate", "C2_ALLOC_PTR() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_oom, &layout_global_ctx, LID_NONE,
 			       -ENOMEM);
 		return -ENOMEM;
@@ -193,7 +192,6 @@ static int list_populate(struct c2_layout_list_enum *list_enum,
 	if (list_enum == NULL) {
 		rc = -ENOMEM;
 		c2_layout__log("list_populate", "C2_ALLOC_ARR() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
 		goto out;
 	}
@@ -290,7 +288,6 @@ static int list_register(struct c2_layout_domain *dom,
 	if (lsd == NULL) {
 		rc = -ENOMEM;
 		c2_layout__log("list_register", "C2_ALLOC_PTR() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
 		goto out;
 	}
@@ -298,7 +295,6 @@ static int list_register(struct c2_layout_domain *dom,
 			   "cob_lists", DEFAULT_DB_FLAG, &cob_lists_table_ops);
 	if (rc != 0) {
 		c2_layout__log("list_register", "c2_table_init() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       LID_NONE, rc);
 		c2_free(lsd);
@@ -373,7 +369,6 @@ static int noninline_read(struct c2_layout_domain *dom,
 	if (rc != 0) {
 		c2_layout__log("noninline_read",
 			       "c2_db_cursor_init() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       lid, rc);
 		goto out;
@@ -391,7 +386,6 @@ static int noninline_read(struct c2_layout_domain *dom,
 		if (rc != 0) {
 			c2_layout__log("noninline_read",
 				       "c2_db_cursor_get() failed",
-				       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 				       &c2_addb_func_fail, &layout_global_ctx,
 				       lid, rc);
 			goto out;
@@ -457,7 +451,6 @@ static int list_decode(struct c2_layout_enum *e,
 	if (cob_list == NULL) {
 		rc = -ENOMEM;
 		c2_layout__log("list_decode", "C2_ALLOC_ARR() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_oom, &layout_global_ctx, lid, rc);
 		goto out;
 	}
@@ -546,7 +539,6 @@ static int noninline_write(const struct c2_layout_domain *dom,
 	if (rc != 0) {
 		c2_layout__log("noninline_write",
 			       "c2_db_cursor_init() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       lid, rc);
 		goto out;
@@ -565,8 +557,6 @@ static int noninline_write(const struct c2_layout_domain *dom,
 			if (rc != 0) {
 				c2_layout__log("noninline_write",
 					       "c2_db_cursor_add() failed",
-					       ADDB_RECORD_ADD,
-					       TRACE_RECORD_ADD,
 					       &c2_addb_func_fail,
 					       &layout_global_ctx,
 					       lid, rc);
@@ -580,8 +570,6 @@ static int noninline_write(const struct c2_layout_domain *dom,
 			if (rc != 0) {
 				c2_layout__log("noninline_write",
 					       "c2_db_cursor_get() failed",
-					       ADDB_RECORD_ADD,
-					       TRACE_RECORD_ADD,
 					       &c2_addb_func_fail,
 					       &layout_global_ctx,
 					       lid, rc);
@@ -592,8 +580,6 @@ static int noninline_write(const struct c2_layout_domain *dom,
 			if (rc != 0) {
 				c2_layout__log("noninline_write",
 					       "c2_db_cursor_del() failed",
-					       ADDB_RECORD_ADD,
-					       TRACE_RECORD_ADD,
 					       &c2_addb_func_fail,
 					       &layout_global_ctx,
 					       lid, rc);

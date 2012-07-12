@@ -45,10 +45,8 @@ enum {
 	/** Invalid layout id. */
 	LID_NONE                   = 0,
 
+	/** Flag used during table creation, using c2_table_init() */
 	DEFAULT_DB_FLAG            = 0,
-
-	ADDB_RECORD_ADD            = 1,
-	TRACE_RECORD_ADD           = 1,
 
 	/** Invalid number of elements, for enumeration objects. */
 	NR_NONE                    = 0,
@@ -101,8 +99,6 @@ void c2_layout__enum_fini(struct c2_layout_enum *le);
 
 void c2_layout__log(const char *fn_name,
 		    const char *err_msg,
-		    bool addb_record, /* If ADDB record is to be added. */
-		    bool trace_record, /* If C2_LOG record is to be added. */
 		    const struct c2_addb_ev *ev,
 		    struct c2_addb_ctx *ctx,
 		    uint64_t lid,

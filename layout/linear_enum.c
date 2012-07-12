@@ -98,7 +98,6 @@ static int linear_allocate(struct c2_layout_domain *dom,
 	C2_ALLOC_PTR(lin_enum);
 	if (lin_enum == NULL) {
 		c2_layout__log("linear_allocate", "C2_ALLOC_PTR() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_oom, &layout_global_ctx, LID_NONE,
 			       -ENOMEM);
 		return -ENOMEM;

@@ -441,7 +441,6 @@ static int pdclust_allocate(struct c2_layout_domain *dom,
 	C2_ALLOC_PTR(pdl);
 	if (pdl == NULL) {
 		c2_layout__log("c2_pdclust_allocate", "C2_ALLOC_PTR() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_oom, &layout_global_ctx, lid, -ENOMEM);
 		return -ENOMEM;
 	}
@@ -504,7 +503,6 @@ static int pdclust_populate(struct c2_pdclust_layout *pdl,
 	rc = c2_pool_lookup(attr->pa_pool_id, &pool);
 	if (rc != 0) {
 		c2_layout__log("pdclust_build", "c2_pool_lookup() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_oom, &pdl->pl_base.sl_base.l_addb,
 			       lid, rc);
 		return rc;
@@ -553,7 +551,6 @@ static int pdclust_populate(struct c2_pdclust_layout *pdl,
 	} else {
 		rc = -ENOMEM;
 		c2_layout__log("pdclust_build", "C2_ALLOC() failed",
-			       ADDB_RECORD_ADD, TRACE_RECORD_ADD,
 			       &c2_addb_oom, &layout_global_ctx, lid, rc);
 	}
 
