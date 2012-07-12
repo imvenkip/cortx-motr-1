@@ -32,7 +32,7 @@
 #include "fop/ut/long_lock/rdwr_fop.h"
 #include "fop/ut/long_lock/rdwr_fom.h"
 #include "fop/ut/long_lock/rdwr_fop_u.h"
-#include "fop/ut/long_lock/rdwr_tb.h"
+#include "fop/ut/long_lock/rdwr_test_bench.h"
 
 enum {
 	CLIENT_COB_DOM_ID	= 16,

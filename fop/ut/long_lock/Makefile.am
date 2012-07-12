@@ -8,7 +8,8 @@ rdwr_fop_u.h rdwr_fop_u.c: \
 
 libfop_lock_ut_la_SOURCES  = rdwr_fop_u.h rdwr_fop_u.c rdwr_fop.h rdwr_fop.c \
 			     rdwr_fom.h rdwr_fom.c \
-			     rdwr_tb.h rdwr_tb.c long_lock_ut.c
+			     rdwr_test_bench.h rdwr_test_bench.c \
+			     long_lock_ut.c
 
 EXTRA_DIST = rdwr_fop.ff
 

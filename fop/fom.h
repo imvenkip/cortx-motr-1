@@ -587,7 +587,9 @@ void c2_fom_ready(struct c2_fom *fom);
 /**
  * Moves the fom from waiting to ready queue. Similar to c2_fom_ready(), but
  * callable from a locality different from fom's locality (i.e., with a
- * different locality group lock held).
+ * different locality group lock held). It's prohibited to use
+ * c2_fom_ready_remote() and c2_fom_block_enter() in the same fo_phase because
+ * of possible races.
  */
 void c2_fom_ready_remote(struct c2_fom *fom);
 
@@ -638,6 +640,11 @@ void c2_fom_callback_fini(struct c2_fom_callback *cb);
  */
 bool c2_fom_callback_cancel(struct c2_fom_callback *cb);
 
+/**
+ * Returns the state of SM group for AST call-backs of locality, given fom is
+ * associated with.
+ */
+bool c2_fom_group_is_locked(const struct c2_fom *fom);
 /** @} end of fom group */
 
 /* __COLIBRI_FOP_FOM_H__ */

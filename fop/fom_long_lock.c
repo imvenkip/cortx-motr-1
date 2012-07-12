@@ -70,7 +70,9 @@ bool c2_long_read_lock(struct c2_long_lock *lock,
 	C2_PRE(prelock_check(lock, link));
 
 	fom = link->lll_fom;
-	C2_ASSERT(fom);
+	C2_PRE(fom);
+	/* don't need it here, no c2_fom_ready_remote() here */
+	/* C2_PRE(c2_fom_group_is_locked(fom)); */
 
 	link->lll_lock_type = C2_LONG_LOCK_READER;
 	waiters = !c2_lll_tlist_is_empty(&lock->l_waiters);
@@ -103,7 +105,9 @@ bool c2_long_write_lock(struct c2_long_lock *lock,
 	C2_PRE(prelock_check(lock, link));
 
 	fom = link->lll_fom;
-	C2_ASSERT(fom);
+	C2_PRE(fom);
+	/* don't need it here, no c2_fom_ready_remote() here */
+	/* C2_PRE(c2_fom_group_is_locked(fom)); */
 
 	link->lll_lock_type = C2_LONG_LOCK_WRITER;
 	got_lock = lock->l_state == C2_LONG_LOCK_UNLOCKED;
@@ -124,13 +128,39 @@ bool c2_long_write_lock(struct c2_long_lock *lock,
 	return got_lock;
 }
 
+static void waiters_wakeup(struct c2_long_lock *lock)
+{
+	struct c2_long_lock_link *grantee;
+	struct c2_long_lock_link *next;
+	enum c2_long_lock_type    grantee_lock_type;
+
+	C2_PRE(c2_mutex_is_locked(&lock->l_lock));
+	C2_PRE(!c2_lll_tlist_is_empty(&lock->l_waiters));
+
+	next = c2_lll_tlist_head(&lock->l_waiters);
+	lock->l_state = next->lll_lock_type == C2_LONG_LOCK_WRITER ?
+		C2_LONG_LOCK_WR_LOCKED : C2_LONG_LOCK_RD_LOCKED;
+
+	do {
+		grantee = next;
+		grantee_lock_type = grantee->lll_lock_type;
+		c2_lll_tlist_del(grantee);
+		c2_lll_tlist_add_tail(&lock->l_owners, grantee);
+
+		C2_CNT_INC(grantee->lll_fom->fo_locks);
+		c2_fom_ready_remote(grantee->lll_fom);
+		C2_ASSERT(grantee->lll_fom->fo_transitions_saved + 1
+			  == grantee->lll_fom->fo_transitions);
+
+		next = c2_lll_tlist_head(&lock->l_waiters);
+	} while (next && grantee_lock_type == C2_LONG_LOCK_READER &&
+		 next->lll_lock_type == grantee_lock_type);
+}
+
 void c2_long_write_unlock(struct c2_long_lock *lock,
 			  struct c2_long_lock_link *link)
 {
-	struct c2_long_lock_link *grantee; /* the fom to grant the lock */
-	struct c2_long_lock_link *next;
 	struct c2_fom *fom;
-	int grantee_lock_type;
 
 	c2_mutex_lock(&lock->l_lock);
 
@@ -139,7 +169,8 @@ void c2_long_write_unlock(struct c2_long_lock *lock,
 	C2_PRE(link->lll_lock_type == C2_LONG_LOCK_WRITER);
 
 	fom = link->lll_fom;
-	C2_ASSERT(fom);
+	C2_PRE(fom);
+	C2_PRE(c2_fom_group_is_locked(fom));
 
 	c2_lll_tlist_del(link);
 	lock->l_state = C2_LONG_LOCK_UNLOCKED;
@@ -147,26 +178,8 @@ void c2_long_write_unlock(struct c2_long_lock *lock,
 
 	C2_ASSERT(c2_lll_tlist_is_empty(&lock->l_owners));
 
-	if (!c2_lll_tlist_is_empty(&lock->l_waiters)) {
-		next = c2_lll_tlist_head(&lock->l_waiters);
-		lock->l_state = next->lll_lock_type == C2_LONG_LOCK_WRITER ?
-			C2_LONG_LOCK_WR_LOCKED : C2_LONG_LOCK_RD_LOCKED;
-
-		do {
-			grantee = next;
-			grantee_lock_type = grantee->lll_lock_type;
-			c2_lll_tlist_del(grantee);
-			c2_lll_tlist_add_tail(&lock->l_owners, grantee);
-
-			C2_CNT_INC(grantee->lll_fom->fo_locks);
-			c2_fom_ready_remote(grantee->lll_fom);
-			C2_ASSERT(grantee->lll_fom->fo_transitions_saved + 1
-				  == grantee->lll_fom->fo_transitions);
-
-			next = c2_lll_tlist_head(&lock->l_waiters);
-		} while (next && grantee_lock_type == C2_LONG_LOCK_READER &&
-			 next->lll_lock_type == grantee_lock_type);
-	}
+	if (!c2_lll_tlist_is_empty(&lock->l_waiters))
+		waiters_wakeup(lock);
 
 	c2_mutex_unlock(&lock->l_lock);
 }
@@ -174,10 +187,7 @@ void c2_long_write_unlock(struct c2_long_lock *lock,
 void c2_long_read_unlock(struct c2_long_lock *lock,
 			 struct c2_long_lock_link *link)
 {
-	struct c2_long_lock_link *next;
-	struct c2_long_lock_link *grantee;
 	struct c2_fom *fom;
-	int grantee_lock_type;
 
 	c2_mutex_lock(&lock->l_lock);
 
@@ -186,7 +196,8 @@ void c2_long_read_unlock(struct c2_long_lock *lock,
 	C2_PRE(link->lll_lock_type == C2_LONG_LOCK_READER);
 
 	fom = link->lll_fom;
-	C2_ASSERT(fom);
+	C2_PRE(fom);
+	C2_PRE(c2_fom_group_is_locked(fom));
 
 	c2_lll_tlist_del(link);
 	if (c2_lll_tlist_is_empty(&lock->l_owners))
@@ -194,30 +205,10 @@ void c2_long_read_unlock(struct c2_long_lock *lock,
 	C2_CNT_DEC(fom->fo_locks);
 
 	if (!c2_lll_tlist_is_empty(&lock->l_waiters) &&
-	    lock->l_state == C2_LONG_LOCK_UNLOCKED) {
-
-		next = c2_lll_tlist_head(&lock->l_waiters);
-		lock->l_state = next->lll_lock_type == C2_LONG_LOCK_WRITER ?
-			C2_LONG_LOCK_WR_LOCKED : C2_LONG_LOCK_RD_LOCKED;
-
-		do {
-			grantee = next;
-			grantee_lock_type = grantee->lll_lock_type;
-			c2_lll_tlist_del(grantee);
-			c2_lll_tlist_add_tail(&lock->l_owners, grantee);
-
-			C2_CNT_INC(grantee->lll_fom->fo_locks);
-			c2_fom_ready_remote(grantee->lll_fom);
-			C2_ASSERT(grantee->lll_fom->fo_transitions_saved + 1
-				  == grantee->lll_fom->fo_transitions);
-
-			next = c2_lll_tlist_head(&lock->l_waiters);
-		} while (next && grantee_lock_type == C2_LONG_LOCK_READER &&
-			 next->lll_lock_type == grantee_lock_type);
-	}
+	    lock->l_state == C2_LONG_LOCK_UNLOCKED)
+		waiters_wakeup(lock);
 
 	c2_mutex_unlock(&lock->l_lock);
-
 }
 
 bool c2_long_is_read_locked(struct c2_long_lock *lock,

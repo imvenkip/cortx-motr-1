@@ -30,19 +30,45 @@
  * reader-writer lock for FOMs.
  *
  * @section c2_long_lock-dld-func Functional specification.
- * The following code example demonstrates the usage example of the lock:
+ * According to reasons, described in @ref c2_long_lock-dld-logic, application
+ * of `struct c2_long_lock' requires to introduce special link structures
+ * `struct c2_long_lock_link': one structure per one acquiring long lock in the
+ * FOM. It's required that individual FOMs allocate and initialize link
+ * structures in their derived FOM data structures, and use this structures with
+ * long lock interfaces. The following code example demonstrates the usage
+ * example of the lock:
  *
  * @code
+ * // Object encompassing FOM for some FOP type which
+ * // typically contains necessary context data
+ * struct fom_object_type {
+ *	// Generic c2_fom object.
+ *      struct c2_fom                    fp_gen;
+ *      // ...
+ *      // Long lock link structure, embedded into derived FOM object.
+ *	struct c2_long_lock_link	 fp_link;
+ *	// ...
+ * };
+ *
  * static int fom_state_handler(struct c2_fom *fom)
  * {
+ *      //...
+ *      struct c2_fom_rdwr	 *fom_obj;
+ *      struct c2_long_lock_link *link;
+ *
+ *	// Retreive derived FOM object and long lock link.
+ *	fom_obj = container_of(fom, struct fom_object_type, fp_gen);
+ *	link = &fom_obj->fp_link;
  *	//...
  *	if (fom->fo_phase == PH_CURRENT) {
  *		// try to obtain a lock, when it's obtained FOM is
  *		// transitted into PH_GOT_LOCK
  *
  *		return C2_FOM_LONG_LOCK_RETURN(
- *		     c2_long_read_lock(lock, fom, PH_GOT_LOCK));
+ *		     c2_long_read_lock(lock, link, PH_GOT_LOCK));
  *	} else if (fom->fo_phase == PH_GOT_LOCK) {
+ *		// ...
+ *		c2_long_read_unlock(lock, link);
  *		// ...
  *	}
  *	//...
@@ -57,32 +83,31 @@
  * access to which must be synchronized, the lock can be released with
  * c2_long_write_unlock() and c2_long_write_unlock() calls.
  *
- * The long lock uses the fo_lock_linkage field of the c2_fom structure to track
- * the FOMs that actively own the lock, and the FOMs that are queued waiting to
- * acquire the lock.  Note that this implies that a FOM can only acquire one
- * long lock.
+ * The long lock uses special link structures `struct c2_long_lock_link' to
+ * track the FOMs that actively own the lock (c2_long_lock::l_owners), and the
+ * FOMs that are queued waiting to acquire the lock (c2_long_lock::l_waiters).
+ * This is dictated by the requirement that one FOM can obtain multiple long
+ * locks. Holding multiple locks assumes that the same FOM can be presented in
+ * an arbitary number of queues in different long_locks. Since that, derived FOM
+ * objects should contain as many link structures as a number of different long
+ * locks used by given FOM.
  *
  * To avoid starvation of writers in the face of a stream of incoming readers,
- * separate lists of pending and active readers are maintained:
+ * a queue of waiting for the long lock FOMs is maintained:
  *
- * - FOM-links are physically stored in c2_long_lock::l_readers[N], where N is
- *   [0, 2). c2_long_lock::l_rd_pending and c2_long_lock::l_rd_active are
- *   the pointers to the first or the second element of c2_long_lock::l_readers.
- *   c2_long_read_lock() adds new links into the list pointed by
- *   c2_long_lock::l_rd_active if the lock is obtained for reading or
- *   unlocked, otherwise into the list pointed by c2_long_lock::l_rd_pending
- *   (the last avoids starvation).
- * - When a write lock is released and there are no active readers, FOMs
- *   pending for processing (if any) are put into
- *   c2_long_lock::l_rd_active queue. This done by swapping the
- *   c2_long_lock::l_rd_pending and c2_long_lock::l_rd_active pointers
- *   (C2_SWAP).
+ * - Long lock links store read/write flags.
+ * - c2_long_read_lock() adds new links into the c2_long_lock::l_owners list if
+ *   the lock is obtained for reading or unlocked, otherwise into the
+ *   c2_long_lock::l_waiters.
+ * - When a lock is released and there are no FOMs which own the lock, FOMs
+ *   waiting for processing (if any) are processed in FIFO order (this avoids
+ *   starvation).
  *
  * When some lock is being unlocked the work of selecting the next lock owner(s)
  * and waking them up is done in the unlock path in c2_long_read_unlock() and
- * c2_long_write_unlock() with respect to c2_long_lock::l_rd_active,
- * c2_long_lock::l_rd_pending and c2_long_lock::l_writers lists.
- * c2_fom_ready_remote() call is used to wake FOMs up.
+ * c2_long_write_unlock() with respect to c2_long_lock::l_owners and
+ * c2_long_lock::l_waiters lists. c2_fom_ready_remote() call is used to wake
+ * FOMs up.
  *
  * @{
  */
@@ -103,18 +128,26 @@ enum c2_long_lock_state {
 	C2_LONG_LOCK_WR_LOCKED
 };
 
+/**
+ * Type of long lock link, requesting the lock
+ */
 enum c2_long_lock_type {
 	C2_LONG_LOCK_READER,
 	C2_LONG_LOCK_WRITER
 };
 
+/**
+ * Long lock link, special structure used to link multiple owners and waiters of
+ * the long lock.
+ */
 struct c2_long_lock_link {
+	/** FOM, which obtains the lock */
 	struct c2_fom		*lll_fom;
 	/** Linkage to struct c2_long_lock::l_{owners,waiters} list */
 	struct c2_tlink		 lll_lock_linkage;
 	/** magic number. C2_FOM_MAGIX */
 	uint64_t		 lll_magix;
-	/** . */
+	/** Type of long lock, requested by the lll_fom */
 	enum c2_long_lock_type   lll_lock_type;
 };
 
@@ -122,17 +155,9 @@ struct c2_long_lock_link {
  * Long lock structure.
  */
 struct c2_long_lock {
-	/** 
-	 *  List of readers pending the lock or holding it. l_rd_pending and
-	 *  l_rd_active point into l_readers[].
-	 */
-	/* struct c2_tl		l_readers[2]; */
-	/* struct c2_tl	       *l_rd_pending; */
-	/* struct c2_tl	       *l_rd_active; */
-	/** List of writers pending the lock, or writer, which holds it */
-	/* struct c2_tl		l_writers; */
-
+	/** List of long lock links, which has obtained the lock */
 	struct c2_tl		l_owners;
+	/** List of long lock links, which waiting for the lock */
 	struct c2_tl		l_waiters;
 	/** Mutex used to protect the structure from concurrent access. */
 	struct c2_mutex		l_lock;
@@ -166,9 +191,11 @@ void c2_long_lock_fini(struct c2_long_lock *lock);
  * will eventually be awoken when the lock has been obtained, and will be
  * transitioned to the next_phase state.
  *
- * @param fom - FOM which has to obtain the lock.
+ * @param link - Long lock link associated with the FOM
+ *		 which has to obtain the lock.
  *
- * @pre !c2_long_is_read_locked(lock, fom)
+ * @pre link->lll_fom != NULL
+ * @pre !c2_long_is_read_locked(lock, link)
  * @post fom->fo_phase == next_phase
  *
  * @return true iff the lock is taken.
@@ -182,8 +209,10 @@ bool c2_long_read_lock(struct c2_long_lock *lock,
  * will eventually be awoken when the lock has been obtained, and will be
  * transitioned to the next_phase state.
  *
- * @param fom - FOM which has to obtain the lock.
+ * @param link - Long lock link associated with the FOM
+ *		 which has to obtain the lock.
  *
+ * @pre link->lll_fom != NULL
  * @pre !c2_long_is_write_locked(lock, fom)
  * @post fom->fo_phase == next_phase
  *
@@ -195,10 +224,12 @@ bool c2_long_write_lock(struct c2_long_lock *lock,
 /**
  * Unlocks given read-lock.
  *
- * @param fom - FOM which has obtained the lock.
+ * @param link - Long lock link associated with the FOM
+ *		 which has to obtain the lock.
  *
- * @pre c2_long_is_read_locked(lock, fom);
- * @post !c2_long_is_read_locked(lock, fom);
+ * @pre c2_long_is_read_locked(lock, link);
+ * @pre c2_fom_group_is_locked(lock->lll_fom)
+ * @post !c2_long_is_read_locked(lock, link);
  */
 void c2_long_read_unlock(struct c2_long_lock *lock,
 			 struct c2_long_lock_link *link);
@@ -206,10 +237,12 @@ void c2_long_read_unlock(struct c2_long_lock *lock,
 /**
  * Unlocks given write-lock.
  *
- * @param fom - FOM which has obtained the lock.
+ * @param link - Long lock link associated with the FOM
+ *		 which has to obtain the lock.
  *
- * @pre c2_long_is_write_locked(lock, fom);
- * @post !c2_long_is_write_locked(lock, fom);
+ * @pre c2_long_is_write_locked(lock, link);
+ * @pre c2_fom_group_is_locked(lock->lll_fom)
+ * @post !c2_long_is_write_locked(lock, link);
  */
 void c2_long_write_unlock(struct c2_long_lock *lock,
 			  struct c2_long_lock_link *link);

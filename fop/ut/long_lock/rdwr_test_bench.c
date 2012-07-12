@@ -34,11 +34,8 @@
 #include "fop/ut/long_lock/rdwr_fop.h"
 #include "fop/ut/long_lock/rdwr_fom.h"
 #include "fop/ut/long_lock/rdwr_fop_u.h"
-#include "fop/ut/long_lock/rdwr_tb.h"
-
+#include "fop/ut/long_lock/rdwr_test_bench.h"
 #include "fop/fom_long_lock.h"
-
-#include <stdio.h>
 
 enum tb_request_type {
 	RQ_READ,
@@ -88,12 +85,14 @@ int c2_fom_rdwr_state(struct c2_fom *fom)
 	} else if (fom->fo_phase == PH_GOT_LOCK) {
 		switch (rq_type) {
 		case RQ_READ:
-			C2_UT_ASSERT(c2_long_is_read_locked(&long_lock, fom));
-			c2_long_read_unlock(&long_lock, fom);
+			C2_UT_ASSERT(c2_long_is_read_locked(&long_lock,
+							    &fom_obj->fp_link));
+			c2_long_read_unlock(&long_lock, &fom_obj->fp_link);
 			break;
 		case RQ_WRITE:
-			C2_UT_ASSERT(c2_long_is_write_locked(&long_lock, fom));
-			c2_long_write_unlock(&long_lock, fom);
+			C2_UT_ASSERT(c2_long_is_write_locked(&long_lock,
+							     &fom_obj->fp_link));
+			c2_long_write_unlock(&long_lock, &fom_obj->fp_link);
 			break;
 		case RQ_WAKE_UP:
 		default:
@@ -119,12 +118,16 @@ int c2_fom_rdwr_state(struct c2_fom *fom)
 
 		switch (rq_type) {
 		case RQ_READ:
-			result = c2_long_read_lock(&long_lock, fom, PH_GOT_LOCK);
+			result = c2_long_read_lock(&long_lock,
+						   &fom_obj->fp_link,
+						   PH_GOT_LOCK);
 			C2_UT_ASSERT(result == (rq_seqn == 0));
 			result = C2_FSO_WAIT;
 			break;
 		case RQ_WRITE:
-			result = c2_long_write_lock(&long_lock, fom, PH_GOT_LOCK);
+			result = c2_long_write_lock(&long_lock,
+						    &fom_obj->fp_link,
+						    PH_GOT_LOCK);
 			C2_UT_ASSERT(result == (rq_seqn == 0));
 			result = C2_FSO_WAIT;
 			break;
@@ -184,6 +187,8 @@ void c2_rdwr_send_fop(struct c2_rpc_session *session)
 			RQ_WRITE, RQ_READ, RQ_READ, RQ_READ, RQ_WAKE_UP, RQ_LAST
 		},
 	};
+	
+	/* printf("\n"); */
 
 	for (j = 0; j < ARRAY_SIZE(test); ++j) {
 		c2_long_lock_init(&long_lock);
@@ -210,7 +215,7 @@ void c2_rdwr_send_fop(struct c2_rpc_session *session)
 
 		c2_long_lock_fini(&long_lock);
 
-		printf("end %d\n", j);
+		/* printf("end %d\n", j); */
 	}
 }
 

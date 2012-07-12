@@ -22,7 +22,7 @@
 #define __COLIBRI_RDWR_FOM_H__
 
 #include "rdwr_fop.h"
-
+#include "fop/fom_long_lock.h"
 /**
  * Object encompassing FOM for rdwr
  * operation and necessary context data
@@ -32,6 +32,7 @@ struct c2_fom_rdwr {
         struct c2_fom                    fp_gen;
 	/** FOP associated with this FOM. */
         struct c2_fop			*fp_fop;
+	struct c2_long_lock_link	 fp_link;
 };
 
 /**

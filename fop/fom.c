@@ -90,7 +90,7 @@ static void group_unlock(struct c2_fom_locality *loc)
 	c2_sm_group_unlock(&loc->fl_group);
 }
 
-static bool is_locked(const struct c2_fom *fom)
+bool c2_fom_group_is_locked(const struct c2_fom *fom)
 {
 	return c2_mutex_is_locked(&fom->fo_loc->fl_group.s_lock);
 }
@@ -127,7 +127,7 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 		fom->fo_type != NULL && fom->fo_ops != NULL &&
 		fom->fo_fop != NULL &&
 
-		is_locked(fom) &&
+		c2_fom_group_is_locked(fom) &&
 
 		c2_list_link_invariant(&fom->fo_linkage) &&
 
@@ -186,8 +186,6 @@ static void readyit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 
 void c2_fom_ready_remote(struct c2_fom *fom)
 {
-	C2_PRE(fom->fo_state == C2_FOS_WAITING);
-
 	fom->fo_cb.fc_ast.sa_cb = readyit;
 	c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
 }
@@ -308,7 +306,7 @@ static void fom_exec(struct c2_fom *fom)
 	} while (rc == C2_FSO_AGAIN);
 
 	C2_ASSERT(rc == C2_FSO_WAIT);
-	C2_ASSERT(is_locked(fom));
+	C2_ASSERT(c2_fom_group_is_locked(fom));
 
 	if (fom->fo_phase == C2_FOPH_FINISH) {
 		fom->fo_ops->fo_fini(fom);

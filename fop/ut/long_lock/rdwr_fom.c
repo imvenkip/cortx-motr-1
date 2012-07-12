@@ -26,7 +26,7 @@
 #include "fop/fop_format.h"
 #include "fop/ut/long_lock/rdwr_fom.h"
 #include "fop/ut/long_lock/rdwr_fop.h"
-#include "fop/ut/long_lock/rdwr_tb.h"
+#include "fop/ut/long_lock/rdwr_test_bench.h"
 
 #ifdef __KERNEL__
 #include "rdwr_fop_k.h"
@@ -59,11 +59,9 @@ struct c2_fom_type c2_fom_rdwr_mopt = {
 
 size_t c2_fom_rdwr_home_locality(const struct c2_fom *fom)
 {
-	static int cnt = 0;
 	C2_PRE(fom != NULL);
 
-	//return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
-	return cnt++;
+	return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
 }
 
 /* Init for rdwr */
@@ -85,6 +83,10 @@ static int rdwr_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
 	fom = &fom_obj->fp_gen;
 	c2_fom_init(fom, fom_type, &c2_fom_rdwr_ops, fop, NULL);
 	fom_obj->fp_fop = fop;
+
+	c2_lll_tlink_init(&fom_obj->fp_link);
+	fom_obj->fp_link.lll_fom = fom;
+
 	*m = fom;
 	return 0;
 }
@@ -95,6 +97,7 @@ void c2_fop_rdwr_fom_fini(struct c2_fom *fom)
 
 	fom_obj = container_of(fom, struct c2_fom_rdwr, fp_gen);
 	c2_fom_fini(fom);
+	c2_lll_tlink_fini(&fom_obj->fp_link);
 	c2_free(fom_obj);
 
 	return;
