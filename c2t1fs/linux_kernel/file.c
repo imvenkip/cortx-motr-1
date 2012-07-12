@@ -45,14 +45,16 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb       *iocb,
 				     unsigned long       nr_segs,
 				     loff_t              pos);
 
-static ssize_t c2t1fs_read_write(struct file *filp,
-				 char        *buf,
-				 size_t       count,
-				 loff_t      *ppos,
-				 int          rw);
+static ssize_t c2t1fs_read_write(struct file        *file,
+				 const struct iovec *iov,
+				 unsigned long       nr_segs,
+				 size_t              count,
+				 loff_t             *ppos,
+				 int                 rw);
 
 static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
-					  char                *buf,
+					  const struct iovec  *iov,
+					  unsigned long        nr_segs,
 					  size_t               count,
 					  loff_t               pos,
 					  int                  rw);
@@ -81,9 +83,7 @@ static ssize_t c2t1fs_file_aio_read(struct kiocb       *iocb,
 				    unsigned long       nr_segs,
 				    loff_t              pos)
 {
-	unsigned long i;
 	ssize_t       result = 0;
-	ssize_t       nr_bytes_read = 0;
 	ssize_t       count;
 
 	C2_ENTRY();
@@ -107,28 +107,11 @@ static ssize_t c2t1fs_file_aio_read(struct kiocb       *iocb,
 	if (count == 0)
 		goto out;
 
-	for (i = 0; i < nr_segs; i++) {
-		const struct iovec *vec = &iov[i];
-
-		C2_LOG("iov: base %p len %lu pos %lu", vec->iov_base,
-					(unsigned long)vec->iov_len,
-					(unsigned long)iocb->ki_pos);
-
-		result = c2t1fs_read_write(iocb->ki_filp, vec->iov_base,
-					   vec->iov_len, &iocb->ki_pos, READ);
-
-		C2_LOG("result: %ld", (long)result);
-		if (result <= 0)
-			break;
-
-		nr_bytes_read += result;
-
-		if ((size_t)result < vec->iov_len)
-			break;
-	}
+	result = c2t1fs_read_write(iocb->ki_filp, iov, nr_segs, count,
+				   &iocb->ki_pos, READ);
 out:
-	C2_LEAVE("bytes_read: %ld", nr_bytes_read ?: result);
-	return nr_bytes_read ?: result;
+	C2_LEAVE("bytes_read: %ld", result);
+	return result;
 }
 
 static ssize_t c2t1fs_file_aio_write(struct kiocb       *iocb,
@@ -136,9 +119,7 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb       *iocb,
 				     unsigned long       nr_segs,
 				     loff_t              pos)
 {
-	unsigned long i;
 	ssize_t       result = 0;
-	ssize_t       nr_bytes_written = 0;
 	size_t        count = 0;
 	size_t        saved_count;
 
@@ -173,28 +154,11 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb       *iocb,
 		C2_LOG("write size changed to %lu", (unsigned long)count);
 	}
 
-	for (i = 0; i < nr_segs; i++) {
-		const struct iovec *vec = &iov[i];
-
-		C2_LOG("iov: base %p len %lu pos %lu", vec->iov_base,
-					(unsigned long)vec->iov_len,
-					(unsigned long)iocb->ki_pos);
-
-		result = c2t1fs_read_write(iocb->ki_filp, vec->iov_base,
-					   vec->iov_len, &iocb->ki_pos, WRITE);
-
-		C2_LOG("result: %ld", (long)result);
-		if (result <= 0)
-			break;
-
-		nr_bytes_written += result;
-
-		if ((size_t)result < vec->iov_len)
-			break;
-	}
+	result = c2t1fs_read_write(iocb->ki_filp, iov, nr_segs, count,
+				   &iocb->ki_pos, WRITE);
 out:
-	C2_LEAVE("bytes_written: %ld", nr_bytes_written ?: result);
-	return nr_bytes_written ?: result;
+	C2_LEAVE("bytes_written: %ld", result);
+	return result;
 }
 
 static bool address_is_page_aligned(unsigned long addr)
@@ -321,19 +285,21 @@ out:
 	return rc;
 }
 
-static ssize_t c2t1fs_read_write(struct file *file,
-				 char        *buf,
-				 size_t       count,
-				 loff_t      *ppos,
-				 int          rw)
+static ssize_t c2t1fs_read_write(struct file        *file,
+				 const struct iovec *iov,
+				 unsigned long       nr_segs,
+				 size_t              count,
+				 loff_t             *ppos,
+				 int                 rw)
 {
 	struct inode         *inode;
 	struct c2t1fs_inode  *ci;
-	struct page         **pinned_pages;
-	int                   nr_pinned_pages;
+	struct page        ***pinned_pages;
+	int                  *nr_pinned_pages;
 	loff_t                pos = *ppos;
 	ssize_t               rc;
-	int                   i;
+	int                   i = 0;
+	int                   j;
 
 	C2_ENTRY();
 
@@ -357,32 +323,57 @@ static ssize_t c2t1fs_read_write(struct file *file,
 		}
 	}
 
-	C2_LOG("%s %lu bytes at pos %lu to %p",
-				(char *)(rw == READ ? "Read" : "Write"),
-				(unsigned long)count,
-				(unsigned long)pos, buf);
-
-	if (!io_req_spans_full_stripe(ci, buf, count, pos)) {
-		rc = -EINVAL;
+	C2_ALLOC_ARR(pinned_pages, nr_segs);
+	if (pinned_pages == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
+	C2_ALLOC_ARR(nr_pinned_pages, nr_segs);
+	if (nr_pinned_pages == NULL) {
+		rc = -ENOMEM;
 		goto out;
 	}
 
-	rc = c2t1fs_pin_memory_area(buf, count, rw, &pinned_pages,
-						&nr_pinned_pages);
-	if (rc != 0)
-		goto out;
+	for (i = 0; i < nr_segs; i++) {
+		const struct iovec *v = &iov[i];
+		char               *buf = v->iov_base;
+		size_t              count = v->iov_len;
 
-	rc = c2t1fs_internal_read_write(ci, buf, count, pos, rw);
+		C2_LOG("%s %lu bytes at pos %lu to %p",
+					(char *)(rw == READ ? "Read" : "Write"),
+					(unsigned long)count,
+					(unsigned long)pos, buf);
+
+		if (!io_req_spans_full_stripe(ci, buf, count, pos)) {
+			rc = -EINVAL;
+			goto out;
+		}
+
+		rc = c2t1fs_pin_memory_area(buf, count, rw, &pinned_pages[i],
+							&nr_pinned_pages[i]);
+		if (rc != 0)
+			goto out;
+
+		pos += count;
+	}
+	pos = *ppos;
+
+	rc = c2t1fs_internal_read_write(ci, iov, nr_segs, count, pos, rw);
 	if (rc > 0) {
 		pos += rc;
 		if (rw == WRITE && pos > inode->i_size)
 			inode->i_size = pos;
 		*ppos = pos;
 	}
-
-	for (i = 0; i < nr_pinned_pages; i++)
-		put_page(pinned_pages[i]);
 out:
+	while (--i >= 0)
+		for (j = 0; j < nr_pinned_pages[i]; j++)
+			put_page(pinned_pages[i][j]);
+	if (nr_pinned_pages != NULL)
+		c2_free(nr_pinned_pages);
+	if (pinned_pages != NULL)
+		c2_free(pinned_pages);
+
 	C2_LEAVE("rc: %ld", rc);
 	return rc;
 }
@@ -546,7 +537,8 @@ static int rw_desc_add(struct rw_desc           *rw_desc,
 }
 
 static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
-					  char                *buf,
+					  const struct iovec  *iov,
+					  unsigned long        nr_segs,
 					  size_t               count,
 					  loff_t               gob_pos,
 					  int                  rw)
@@ -567,6 +559,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 	uint64_t                     unit_size;
 	uint64_t                     nr_data_bytes_per_group;
 	ssize_t                      rc = 0;
+	char                        *buf = iov->iov_base;
 	char                        *ptr;
 	uint32_t                     nr_groups_to_rw;
 	uint32_t                     nr_units_per_group;
@@ -604,6 +597,9 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 	src_addr.sa_group = gob_pos / nr_data_bytes_per_group;
 	offset_in_buf = 0;
 
+	C2_LOG("iov: base %p len %lu pos %lu", buf,
+				(unsigned long)iov->iov_len,
+				(unsigned long)gob_pos);
 	for (i = 0; i < nr_groups_to_rw; i++, src_addr.sa_group++) {
 
 		for (unit = 0; unit < nr_units_per_group; unit++) {
@@ -647,6 +643,8 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 			switch (unit_type) {
 			case PUT_DATA:
 				/* add data buffer to rw_desc */
+				C2_ASSERT(nr_segs > 0);
+
 				rc = rw_desc_add(rw_desc, buf + offset_in_buf,
 						     unit_size, pos, PUT_DATA);
 				if (rc != 0)
@@ -657,6 +655,17 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 					    unit_size);
 
 				offset_in_buf += unit_size;
+
+				C2_ASSERT(offset_in_buf <= iov->iov_len);
+
+				if (offset_in_buf == iov->iov_len
+				    && --nr_segs > 0) {
+					iov++;
+					buf = iov->iov_base;
+					offset_in_buf = 0;
+					C2_LOG("iov: base %p len %lu", buf,
+					       (unsigned long)iov->iov_len);
+				}
 				break;
 
 			case PUT_PARITY:
