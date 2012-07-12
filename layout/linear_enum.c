@@ -45,14 +45,14 @@ enum {
 	LINEAR_ENUM_MAGIC = 0x4C494E2D454E554DULL /* LIN-ENUM */
 };
 
-static const struct c2_bob_type linear_enum_bob = {
+static const struct c2_bob_type linear_bob = {
 	.bt_name         = "linear_enum",
 	.bt_magix_offset = offsetof(struct c2_layout_linear_enum, lla_magic),
 	.bt_magix        = LINEAR_ENUM_MAGIC,
 	.bt_check        = NULL
 };
 
-C2_BOB_DEFINE(static, &linear_enum_bob, c2_layout_linear_enum);
+C2_BOB_DEFINE(static, &linear_bob, c2_layout_linear_enum);
 
 static bool linear_allocated_invariant(const struct c2_layout_linear_enum *le)
 {
@@ -115,7 +115,8 @@ static void linear_delete(struct c2_layout_enum *e)
 {
 	struct c2_layout_linear_enum *lin_enum;
 
-	lin_enum = container_of(e, struct c2_layout_linear_enum, lle_base);
+	lin_enum = bob_of(e, struct c2_layout_linear_enum,
+		          lle_base, &linear_bob);
 	C2_PRE(linear_allocated_invariant(lin_enum));
 
 	C2_ENTRY("lid %llu, enum_pointer %p",
@@ -148,8 +149,8 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
 
 	rc = linear_allocate(dom, &e);
 	if (rc == 0) {
-		lin_enum = container_of(e, struct c2_layout_linear_enum,
-					lle_base);
+		lin_enum = bob_of(e, struct c2_layout_linear_enum,
+			          lle_base, &linear_bob);
 		linear_populate(lin_enum, attr);
 		if (rc == 0) {
 			C2_POST(linear_invariant_internal(lin_enum));
@@ -172,7 +173,8 @@ static struct c2_layout_linear_enum
 {
 	struct c2_layout_linear_enum *lin_enum;
 
-	lin_enum = container_of(e, struct c2_layout_linear_enum, lle_base);
+	lin_enum = bob_of(e, struct c2_layout_linear_enum,
+			  lle_base, &linear_bob);
 	C2_ASSERT(linear_invariant(lin_enum));
 	return lin_enum;
 }
@@ -249,7 +251,8 @@ static int linear_decode(struct c2_layout_enum *e,
 
 	lid = stl->sl_base.l_id;
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
-	lin_enum = container_of(e, struct c2_layout_linear_enum, lle_base);
+	lin_enum = bob_of(e, struct c2_layout_linear_enum,
+			  lle_base, &linear_bob);
 	C2_ASSERT(linear_allocated_invariant(lin_enum));
 
 	lin_attr = c2_bufvec_cursor_addr(cur);

@@ -45,14 +45,14 @@ enum {
 	LIST_ENUM_MAGIC = 0x4C495354454E554DULL /* LISTENUM */
 };
 
-static const struct c2_bob_type list_enum_bob = {
+static const struct c2_bob_type list_bob = {
 	.bt_name         = "list_enum",
 	.bt_magix_offset = offsetof(struct c2_layout_list_enum, lle_magic),
 	.bt_magix        = LIST_ENUM_MAGIC,
 	.bt_check        = NULL
 };
 
-C2_BOB_DEFINE(static, &list_enum_bob, c2_layout_list_enum);
+C2_BOB_DEFINE(static, &list_bob, c2_layout_list_enum);
 
 struct list_schema_data {
 	/** Table to store COB lists for all the layouts with LIST enum type. */
@@ -164,7 +164,8 @@ static void list_delete(struct c2_layout_enum *e)
 {
 	struct c2_layout_list_enum *list_enum;
 
-	list_enum = container_of(e, struct c2_layout_list_enum, lle_base);
+	list_enum = bob_of(e, struct c2_layout_list_enum,
+			   lle_base, &list_bob);
 	C2_PRE(list_allocated_invariant(list_enum));
 
 	C2_ENTRY("lid %llu, enum_pointer %p",
@@ -218,8 +219,8 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 
 	rc = list_allocate(dom, &e);
 	if (rc == 0) {
-		list_enum = container_of(e, struct c2_layout_list_enum,
-					 lle_base);
+		list_enum = bob_of(e, struct c2_layout_list_enum,
+				   lle_base, &list_bob);
 		rc = list_populate(list_enum, cob_list, nr);
 		if (rc == 0) {
 			C2_POST(list_invariant_internal(list_enum));
@@ -242,7 +243,8 @@ static struct c2_layout_list_enum
 {
 	struct c2_layout_list_enum *list_enum;
 
-	list_enum = container_of(e, struct c2_layout_list_enum, lle_base);
+	list_enum = bob_of(e, struct c2_layout_list_enum,
+			   lle_base, &list_bob);
 	C2_ASSERT(list_invariant(list_enum));
 	return list_enum;
 }
@@ -444,7 +446,8 @@ static int list_decode(struct c2_layout_enum *e,
 	c2_bufvec_cursor_move(cur, sizeof *ce_header);
 	C2_ENTRY("lid %llu, nr %lu", (unsigned long long)lid,
 		 (unsigned long)ce_header->ces_nr);
-	list_enum = container_of(e, struct c2_layout_list_enum, lle_base);
+	list_enum = bob_of(e, struct c2_layout_list_enum,
+			   lle_base, &list_bob);
 	C2_ASSERT(list_allocated_invariant(list_enum));
 
 	C2_ALLOC_ARR(cob_list, ce_header->ces_nr);

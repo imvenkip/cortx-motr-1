@@ -377,7 +377,7 @@ static void pdclust_fini(struct c2_layout *l)
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	pl = c2_layout_to_pdl(l);
-	c2_pdclust_layout_bob_fini(pl);
+	c2_pdclust_layout_bob_fini(pl); //todo Make it last step
 	c2_parity_math_fini(&pl->pl_math);
 	c2_free(pl->pl_tile_cache.tc_inverse);
 	c2_free(pl->pl_tile_cache.tc_permute);
@@ -444,6 +444,7 @@ static int pdclust_allocate(struct c2_layout_domain *dom,
 			       &c2_addb_oom, &layout_global_ctx, lid, -ENOMEM);
 		return -ENOMEM;
 	}
+	c2_pdclust_layout_bob_init(pdl);
 	c2_layout__striped_init(&pdl->pl_base, dom, lid,
 				&c2_pdclust_layout_type, &pdclust_ops);
 	*out = &pdl->pl_base.sl_base;
@@ -461,7 +462,8 @@ static void pdclust_delete(struct c2_layout *l)
 	struct c2_pdclust_layout *pdl;
 
 	C2_PRE(c2_layout__allocated_invariant(l));
-	pdl = container_of(l, struct c2_pdclust_layout, pl_base.sl_base);
+	pdl = bob_of(l, struct c2_pdclust_layout,
+		     pl_base.sl_base, &pdclust_bob);
 	C2_PRE(pdclust_allocated_invariant(pdl));
 	c2_layout__striped_delete(&pdl->pl_base);
 	c2_free(pdl);
@@ -469,7 +471,7 @@ static void pdclust_delete(struct c2_layout *l)
 }
 
 /**
- * @post A pdclust type of layout object is created. User is expected to
+ * todo @post A pdclust type of layout object is created. User is expected to
  * add a reference on the layout object as required and is expected to release
  * the reference when done with the usage. The layout is finalised when it is
  * the last reference being released. The layout finalisation internally
@@ -522,7 +524,7 @@ static int pdclust_populate(struct c2_pdclust_layout *pdl,
 		pdl->pl_attr = *attr;
 		pdl->pl_pool = pool;
 		/*
-		 * select minimal possible B (least common multiple of
+		 * Select minimal possible B (least common multiple of
 		 * P and N+2*K)
 		 */
 		B = P*(N+2*K)/c2_gcd64(N+2*K, P);
@@ -541,9 +543,7 @@ static int pdclust_populate(struct c2_pdclust_layout *pdl,
 		}
 		if (rc == 0) {
 			rc = c2_parity_math_init(&pdl->pl_math, N, K);
-			if (rc == 0)
-				c2_pdclust_layout_bob_init(pdl);
-			else
+			if (rc != 0)
 				C2_LOG("lid %llu, c2_parity_math_init() "
 				       "failed, rc %d",
 				       (unsigned long long)lid, rc);
@@ -584,8 +584,8 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 		 * Here, l != NULL and pdclust_allocate has locked l->l_lock.
 		 * On error, must call pdclust_delete(), after this point.
 		 */
-		pdl = container_of(l, struct c2_pdclust_layout,
-				   pl_base.sl_base);
+		pdl = bob_of(l, struct c2_pdclust_layout,
+			     pl_base.sl_base, &pdclust_bob);
 		C2_ASSERT(pdclust_allocated_invariant(pdl));
 
 		rc = pdclust_populate(pdl, attr, le, 0);
@@ -623,10 +623,12 @@ uint64_t c2_pdclust_unit_size(const struct c2_pdclust_layout *pl)
 
 struct c2_pdclust_layout *c2_layout_to_pdl(const struct c2_layout *l)
 {
-	struct c2_pdclust_layout *pl;
-	pl = container_of(l, struct c2_pdclust_layout, pl_base.sl_base);
-	C2_ASSERT(pdclust_invariant(pl));
-	return pl;
+	struct c2_pdclust_layout *pdl;
+
+	pdl = bob_of(l, struct c2_pdclust_layout,
+		     pl_base.sl_base, &pdclust_bob);
+	C2_ASSERT(pdclust_invariant(pdl));
+	return pdl;
 }
 
 struct c2_layout *c2_pdl_to_layout(struct c2_pdclust_layout *pl)
@@ -686,7 +688,8 @@ static int pdclust_decode(struct c2_layout *l,
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *pl_rec);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-	pl = container_of(l, struct c2_pdclust_layout, pl_base.sl_base);
+	pl = bob_of(l, struct c2_pdclust_layout,
+		    pl_base.sl_base, &pdclust_bob);
 	C2_ASSERT(pdclust_allocated_invariant(pl));
 
 	/* pl_rec can not be NULL since the buffer size is already verified. */

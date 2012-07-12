@@ -368,7 +368,7 @@ void c2_layout__delete(struct c2_layout *l)
 {
 	C2_PRE(c2_layout__allocated_invariant(l));
 	C2_PRE(list_lookup(l->l_dom, l->l_id) == NULL);
-	C2_PRE(c2_mutex_is_not_locked(&l->l_lock)); //todo remove later
+	C2_PRE(c2_mutex_is_not_locked(&l->l_lock));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	c2_layout__fini_internal(l);
@@ -698,7 +698,7 @@ int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
 void c2_layout_domain_fini(struct c2_layout_domain *dom)
 {
 	C2_PRE(c2_layout__domain_invariant(dom));
-	C2_PRE(c2_mutex_is_not_locked(&dom->ld_lock)); //todo remove later
+	C2_PRE(c2_mutex_is_not_locked(&dom->ld_lock));
 	/*
 	 * Verify that all the layout objects belonging to this domain have
 	 * been finalised.
@@ -1025,7 +1025,7 @@ struct c2_striped_layout *c2_layout_to_striped(const struct c2_layout *l)
 	struct c2_striped_layout *stl;
 
 	C2_PRE(c2_layout__invariant(l));
-	stl = container_of(l, struct c2_striped_layout, sl_base);
+	stl = bob_of(l, struct c2_striped_layout, sl_base, &layout_bob);
 	C2_ASSERT(c2_layout__striped_invariant(stl));
 	return stl;
 }
@@ -1042,7 +1042,7 @@ struct c2_layout_enum *c2_layout_to_enum(const struct c2_layout *l)
 	struct c2_striped_layout *stl;
 
 	C2_PRE(l != NULL);
-	stl = container_of(l, struct c2_striped_layout, sl_base);
+	stl = bob_of(l, struct c2_striped_layout, sl_base, &layout_bob);
 	C2_ASSERT(c2_layout__striped_invariant(stl));
 	return stl->sl_enum;
 }
