@@ -696,8 +696,12 @@ static int pdclust_decode(struct c2_layout *l,
 	pl_rec = c2_bufvec_cursor_addr(cur);
 	c2_bufvec_cursor_move(cur, sizeof *pl_rec);
 	et = l->l_dom->ld_enum[pl_rec->pr_let_id];
-	C2_ASSERT(et != NULL);
-
+	if (et == NULL) {
+		rc = -EPROTO;
+		C2_LOG("lid %llu, unregistered enum type, rc %d",
+		       (unsigned long long)l->l_id, rc);
+		goto out;
+	}
 	rc = et->let_ops->leto_allocate(l->l_dom, &e);
 	if (rc != 0) {
 		C2_LOG("lid %llu, leto_allocate() failed, rc %d",

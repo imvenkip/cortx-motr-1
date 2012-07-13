@@ -1498,10 +1498,7 @@ static void pdclust_layout_copy(uint32_t enum_id,
 		lin_dest = c2_alloc(sizeof *lin_src);
 		C2_UT_ASSERT(lin_src != NULL);
 
-		lin_dest->lle_attr.lla_nr = lin_src->lle_attr.lla_nr;
-		lin_dest->lle_attr.lla_A = lin_src->lle_attr.lla_A;
-		lin_dest->lle_attr.lla_B = lin_src->lle_attr.lla_B;
-
+		lin_dest->lle_attr = lin_src->lle_attr;
 		pl_dest->pl_base.sl_enum = &lin_dest->lle_base;
 	}
 

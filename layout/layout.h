@@ -342,7 +342,7 @@ struct c2_layout_enum {
 	struct c2_layout_enum_type      *le_type;
 
 	/** Striped layout object this enum is associated with. */
-	const struct c2_striped_layout  *le_sl;
+	struct c2_striped_layout        *le_sl;
 
 	/** Enum operations vector. */
 	const struct c2_layout_enum_ops *le_ops;

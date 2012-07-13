@@ -338,12 +338,11 @@ static c2_bcount_t list_max_recsize(void)
 		LDB_MAX_INLINE_COB_ENTRIES * sizeof(struct c2_fid);
 }
 
-static int noninline_read(struct c2_layout_domain *dom,
+static int noninline_read(struct c2_fid *cob_list,
+			  struct c2_striped_layout *stl,
 			  struct c2_db_tx *tx,
-			  uint64_t lid,
 			  uint32_t idx_start,
-			  uint32_t idx_end,
-			  struct c2_fid *cob_list)
+			  uint32_t idx_end)
 {
 	struct list_schema_data *lsd;
 	struct cob_lists_key     key;
@@ -353,27 +352,23 @@ static int noninline_read(struct c2_layout_domain *dom,
 	uint32_t                 i;
 	int                      rc;
 
-	C2_PRE(dom != NULL);
-	C2_PRE(tx != NULL);
-	C2_PRE(idx_end > idx_start);
-	C2_PRE(cob_list != NULL);
-
 	C2_ENTRY("lid %llu, idx_start %lu, idx_end %lu",
-		 (unsigned long long)lid, (unsigned long)idx_start,
+		 (unsigned long long)stl->sl_base.l_id,
+		 (unsigned long)idx_start,
 		 (unsigned long)idx_end);
-	lsd = dom->ld_type_data[c2_list_enum_type.let_id];
+	lsd = stl->sl_base.l_dom->ld_type_data[c2_list_enum_type.let_id];
 	C2_ASSERT(lsd != NULL);
 
 	rc = c2_db_cursor_init(&cursor, &lsd->lsd_cob_lists, tx, 0);
 	if (rc != 0) {
 		c2_layout__log("noninline_read",
 			       "c2_db_cursor_init() failed",
-			       &c2_addb_func_fail, &layout_global_ctx,
-			       lid, rc);
-		goto out;
+			       &c2_addb_func_fail, &stl->sl_base.l_addb,
+			       stl->sl_base.l_id, rc);
+		return rc;
 	}
 
-	key.clk_lid       = lid;
+	key.clk_lid       = stl->sl_base.l_id;
 	key.clk_cob_index = idx_start;
 	c2_db_pair_setup(&pair, &lsd->lsd_cob_lists,
 			 &key, sizeof key, &rec, sizeof rec);
@@ -386,7 +381,7 @@ static int noninline_read(struct c2_layout_domain *dom,
 			c2_layout__log("noninline_read",
 				       "c2_db_cursor_get() failed",
 				       &c2_addb_func_fail, &layout_global_ctx,
-				       lid, rc);
+				       key.clk_lid, rc);
 			goto out;
 		}
 		if (!c2_fid_is_valid(&rec.clr_cob_id)) {
@@ -394,7 +389,7 @@ static int noninline_read(struct c2_layout_domain *dom,
 			c2_layout__log("noninline_read",
 				       "fid invalid",
 				       &c2_addb_func_fail, &layout_global_ctx,
-				       lid, rc);
+				       key.clk_lid, rc);
 			goto out;
 		}
 		cob_list[i] = rec.clr_cob_id;
@@ -402,7 +397,7 @@ static int noninline_read(struct c2_layout_domain *dom,
 out:
 	c2_db_pair_fini(&pair);
 	c2_db_cursor_fini(&cursor);
-	C2_LEAVE("rc %d", rc);
+	C2_LEAVE("lid %llu, rc %d", (unsigned long long)stl->sl_base.l_id, rc);
 	return rc;
 }
 
@@ -418,7 +413,6 @@ out:
  * If it is BUFFER_OP, then the layout is decoded from its representation
  * received through the buffer.
  */
-//todo return status - int or void
 static int list_decode(struct c2_layout_enum *e,
 		       struct c2_striped_layout *stl,
 		       enum c2_layout_xcode_op op,
@@ -426,10 +420,10 @@ static int list_decode(struct c2_layout_enum *e,
 		       struct c2_bufvec_cursor *cur)
 {
 	uint64_t                    lid;
-	struct c2_layout_domain    *dom; //todo check if required
 	struct c2_layout_list_enum *list_enum;
 	struct cob_entries_header  *ce_header;
-	uint32_t                    num_inline; /* Number of inline cobs */
+	/* Number of cobs to be read from the buffer. */
+	uint32_t                    num_inline;
 	struct c2_fid              *cob_id;
 	struct c2_fid              *cob_list;
 	uint32_t                    i;
@@ -443,7 +437,6 @@ static int list_decode(struct c2_layout_enum *e,
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *ce_header);
 
 	lid = stl->sl_base.l_id;
-	dom = stl->sl_base.l_dom;
 	ce_header = c2_bufvec_cursor_addr(cur);
 	c2_bufvec_cursor_move(cur, sizeof *ce_header);
 	C2_ENTRY("lid %llu, nr %lu", (unsigned long long)lid,
@@ -459,49 +452,30 @@ static int list_decode(struct c2_layout_enum *e,
 			       &c2_addb_oom, &layout_global_ctx, lid, rc);
 		goto out;
 	}
-	num_inline = min_check(ce_header->ces_nr,
-			       (uint32_t)LDB_MAX_INLINE_COB_ENTRIES);
+	num_inline = op == C2_LXO_BUFFER_OP ? ce_header->ces_nr :
+		min_check(ce_header->ces_nr,
+			  (uint32_t)LDB_MAX_INLINE_COB_ENTRIES);
+	C2_ASSERT(c2_bufvec_cursor_step(cur) >= num_inline * sizeof *cob_id);
 
-	C2_ASSERT(ergo(op == C2_LXO_BUFFER_OP,
-		       c2_bufvec_cursor_step(cur) >=
-				ce_header->ces_nr * sizeof *cob_id));
-	C2_ASSERT(ergo(op == C2_LXO_DB_LOOKUP,
-		       c2_bufvec_cursor_step(cur) >=
-				num_inline * sizeof *cob_id));
-
-	for (i = 0; i < ce_header->ces_nr; ++i) {
-		if (i < num_inline || op == C2_LXO_BUFFER_OP) {
-			if (i == 0)
-				C2_LOG("lid %llu, nr %lu, Start reading "
-				       "inline entries from the buffer",
-				       (unsigned long long)lid,
-				       (unsigned long)ce_header->ces_nr);
-			if (i == num_inline)
-				C2_LOG("lid %llu, nr %lu, Start reading "
-				       "noninline entries from the buffer",
-				       (unsigned long long)lid,
-				       (unsigned long)ce_header->ces_nr);
-			cob_id = c2_bufvec_cursor_addr(cur);
-			c2_bufvec_cursor_move(cur, sizeof *cob_id);
-			if (!c2_fid_is_valid(cob_id)) {
-				rc = -EPROTO;
-				C2_LOG("fid invalid, i %lu", (unsigned long)i);
-				goto out;
-			}
-			cob_list[i] = *cob_id;
-		} else
-			/*
-			 * When op == C2_LXO_DB_LOOKUP, noninline entries
-			 * are to read from the DB.
-			 */
-			break;
+	C2_LOG("lid %llu, nr %lu, Start reading inline entries",
+	       (unsigned long long)lid, (unsigned long)ce_header->ces_nr);
+	for (i = 0; i < num_inline; ++i) {
+		cob_id = c2_bufvec_cursor_addr(cur);
+		c2_bufvec_cursor_move(cur, sizeof *cob_id);
+		if (!c2_fid_is_valid(cob_id)) {
+			rc = -EPROTO;
+			C2_LOG("fid invalid, i %lu", (unsigned long)i);
+			goto out;
+		}
+		cob_list[i] = *cob_id;
 	}
-	if (op == C2_LXO_DB_LOOKUP && ce_header->ces_nr > num_inline) {
-		C2_LOG("lid %llu, nr %lu, Start reading noninline entries "
-		       "from the DB", (unsigned long long)lid,
+
+	if (ce_header->ces_nr > num_inline) {
+		C2_ASSERT(op == C2_LXO_DB_LOOKUP);
+		C2_LOG("lid %llu, nr %lu, Start reading noninline entries",
+		       (unsigned long long)lid,
 		       (unsigned long)ce_header->ces_nr);
-		rc = noninline_read(dom, tx, lid, i,
-				    ce_header->ces_nr, cob_list);
+		rc = noninline_read(cob_list, stl, tx, i, ce_header->ces_nr);
 		if (rc != 0) {
 			C2_LOG("noninline_read() failed");
 			goto out;
@@ -509,39 +483,37 @@ static int list_decode(struct c2_layout_enum *e,
 	}
 	list_populate(list_enum, cob_list, ce_header->ces_nr);
 	rc = 0;
-	C2_POST(ergo(rc == 0, list_invariant_internal(list_enum)));
+	C2_POST(list_invariant_internal(list_enum));
 out:
 	C2_POST(ergo(rc != 0, list_allocated_invariant(list_enum)));
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
 
-static int noninline_write(const struct c2_layout_domain *dom,
+static int noninline_write(const struct c2_layout_enum *e,
 			   struct c2_db_tx *tx,
 			   enum c2_layout_xcode_op op,
-			   uint64_t lid,
-			   uint32_t idx_start,
-			   uint32_t idx_end,
-			   struct c2_fid *cob_list)
+			   uint32_t idx_start)
 {
-	struct list_schema_data *lsd;
-	struct cob_lists_key     key;
-	struct cob_lists_rec     rec;
-	struct c2_db_pair        pair;
-	struct c2_db_cursor      cursor;
-	uint32_t                 i;
-	int                      rc;
+	struct c2_layout_list_enum *list_enum;
+	struct c2_fid              *cob_list;
+	struct list_schema_data    *lsd;
+	struct c2_db_cursor         cursor;
+	struct cob_lists_key        key;
+	struct cob_lists_rec        rec;
+	struct c2_db_pair           pair;
+	uint32_t                    i;
+	int                         rc;
 
-	C2_PRE(dom != NULL);
-	C2_PRE(tx != NULL);
 	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_DELETE)));
-	C2_PRE(idx_end > idx_start);
-	C2_PRE(cob_list != NULL);
 
+	list_enum = enum_to_list_enum(e);
 	C2_ENTRY("lid %llu, idx_start %lu, idx_end %lu",
-		 (unsigned long long)lid, (unsigned long)idx_start,
-		 (unsigned long)idx_end);
-	lsd = dom->ld_type_data[c2_list_enum_type.let_id];
+		 (unsigned long long)e->le_sl->sl_base.l_id,
+		 (unsigned long)idx_start,
+		 (unsigned long)list_enum->lle_nr);
+	cob_list = list_enum->lle_list_of_cobs;
+	lsd = e->le_sl->sl_base.l_dom->ld_type_data[c2_list_enum_type.let_id];
 	C2_ASSERT(lsd != NULL);
 
 	rc = c2_db_cursor_init(&cursor, &lsd->lsd_cob_lists, tx,
@@ -549,13 +521,13 @@ static int noninline_write(const struct c2_layout_domain *dom,
 	if (rc != 0) {
 		c2_layout__log("noninline_write",
 			       "c2_db_cursor_init() failed",
-			       &c2_addb_func_fail, &layout_global_ctx,
-			       lid, rc);
-		goto out;
+			       &c2_addb_func_fail, &e->le_sl->sl_base.l_addb,
+			       (unsigned long long)e->le_sl->sl_base.l_id, rc);
+		return rc;
 	}
 
-	key.clk_lid = lid;
-	for (i = idx_start; i < idx_end; ++i) {
+	key.clk_lid = e->le_sl->sl_base.l_id;
+	for (i = idx_start; i < list_enum->lle_nr; ++i) {
 		C2_ASSERT(c2_fid_is_valid(&cob_list[i]));
 		key.clk_cob_index = i;
 		c2_db_pair_setup(&pair, &lsd->lsd_cob_lists,
@@ -568,8 +540,8 @@ static int noninline_write(const struct c2_layout_domain *dom,
 				c2_layout__log("noninline_write",
 					       "c2_db_cursor_add() failed",
 					       &c2_addb_func_fail,
-					       &layout_global_ctx,
-					       lid, rc);
+					       &e->le_sl->sl_base.l_addb,
+					       key.clk_lid, rc);
 				goto out;
 			}
 		} else if (op == C2_LXO_DB_DELETE) {
@@ -581,8 +553,8 @@ static int noninline_write(const struct c2_layout_domain *dom,
 				c2_layout__log("noninline_write",
 					       "c2_db_cursor_get() failed",
 					       &c2_addb_func_fail,
-					       &layout_global_ctx,
-					       lid, rc);
+					       &e->le_sl->sl_base.l_addb,
+					       key.clk_lid, rc);
 				goto out;
 			}
 			C2_ASSERT(c2_fid_eq(&rec.clr_cob_id, &cob_list[i]));
@@ -591,8 +563,8 @@ static int noninline_write(const struct c2_layout_domain *dom,
 				c2_layout__log("noninline_write",
 					       "c2_db_cursor_del() failed",
 					       &c2_addb_func_fail,
-					       &layout_global_ctx,
-					       lid, rc);
+					       &e->le_sl->sl_base.l_addb,
+					       key.clk_lid, rc);
 				goto out;
 			}
 		}
@@ -600,7 +572,8 @@ static int noninline_write(const struct c2_layout_domain *dom,
 out:
 	c2_db_pair_fini(&pair);
 	c2_db_cursor_fini(&cursor);
-	C2_LEAVE("rc %d", rc);
+	C2_LEAVE("lid %llu, rc %d",
+		 (unsigned long long)e->le_sl->sl_base.l_id, rc);
 	return rc;
 }
 
@@ -621,7 +594,8 @@ static int list_encode(const struct c2_layout_enum *e,
 		       struct c2_bufvec_cursor *out)
 {
 	struct c2_layout_list_enum *list_enum;
-	uint32_t                    num_inline; /* Number of inline cobs */
+	/* Number of cobs to be written to the buffer. */
+	uint32_t                    num_inline;
 	struct cob_entries_header   ce_header;
 	c2_bcount_t                 nbytes;
 	uint64_t                    lid;
@@ -640,70 +614,37 @@ static int list_encode(const struct c2_layout_enum *e,
 	C2_ENTRY("lid %llu, nr %lu", (unsigned long long)lid,
 		 (unsigned long)list_enum->lle_nr);
 
-	num_inline = min_check(list_enum->lle_nr,
-			       (uint32_t)LDB_MAX_INLINE_COB_ENTRIES);
 	ce_header.ces_nr = list_enum->lle_nr;
 	nbytes = c2_bufvec_cursor_copyto(out, &ce_header, sizeof ce_header);
 	C2_ASSERT(nbytes == sizeof ce_header);
 
-	C2_ASSERT(ergo(op == C2_LXO_BUFFER_OP,
-		       c2_bufvec_cursor_step(out) >=
-				list_enum->lle_nr *
-				sizeof list_enum->lle_list_of_cobs[i]));
-	C2_ASSERT(ergo(op == C2_LXO_DB_LOOKUP,
-		       c2_bufvec_cursor_step(out) >=
-				num_inline *
-				sizeof list_enum->lle_list_of_cobs[i]));
+	num_inline = op == C2_LXO_BUFFER_OP ? ce_header.ces_nr :
+		min_check(list_enum->lle_nr,
+			  (uint32_t)LDB_MAX_INLINE_COB_ENTRIES);
+	C2_ASSERT(c2_bufvec_cursor_step(out) >= num_inline *
+					sizeof list_enum->lle_list_of_cobs[0]);
 
-	rc = 0;
-	for (i = 0; i < list_enum->lle_nr; ++i) {
-		if (i < num_inline || op == C2_LXO_BUFFER_OP) {
-			if (i == 0)
-				C2_LOG("lid %llu, nr %lu, Start accepting "
-				       "inline entries into the buffer",
-				       (unsigned long long)lid,
-				       (unsigned long)list_enum->lle_nr);
-			if (i == num_inline)
-				C2_LOG("lid %llu, nr %lu, Start accepting "
-				       "noninline entries into the buffer",
-				       (unsigned long long)lid,
-				       (unsigned long)list_enum->lle_nr);
-			nbytes = c2_bufvec_cursor_copyto(out,
+	C2_LOG("lid %llu, nr %lu, Start accepting inline entries",
+	       (unsigned long long)lid, (unsigned long)list_enum->lle_nr);
+	for (i = 0; i < num_inline; ++i) {
+		nbytes = c2_bufvec_cursor_copyto(out,
 					&list_enum->lle_list_of_cobs[i],
 					sizeof list_enum->lle_list_of_cobs[i]);
-			C2_ASSERT(nbytes ==
-				  sizeof list_enum->lle_list_of_cobs[i]);
-		} else if (op == C2_LXO_DB_UPDATE) {
-			/*
-			 * The auxiliary table viz. cob_lists is not to be
-			 * modified for an update operation.
-			 */
-			break;
-		} else
-			/*
-			 * When op is C2_LXO_DB_ADD or C2_LXO_DB_DELETE,
-			 * noninline entries are to be written to the DB.
-			 */
-			break;
+		C2_ASSERT(nbytes == sizeof list_enum->lle_list_of_cobs[i]);
 	}
-	/*
-	 * At the end of the above for loop, rc remains 0, in the following
-	 * cases (with rc being set to 0 just before starting this loop).
-	 */
-	C2_ASSERT(ergo(num_inline == list_enum->lle_nr ||
-		       op == C2_LXO_BUFFER_OP ||
-		       op == C2_LXO_DB_UPDATE, rc == 0));
 
-	if ((op == C2_LXO_DB_ADD || op == C2_LXO_DB_DELETE) &&
-	    list_enum->lle_nr > num_inline) {
-		C2_LOG("lid %llu, nr %lu, Start writing noninline entries "
-		       "to the DB", (unsigned long long)lid,
+	/*
+	 * The auxiliary table viz. cob_lists is not to be modified for an
+	 * update operation.
+	 */
+	if (list_enum->lle_nr > num_inline && op != C2_LXO_DB_UPDATE) {
+		C2_ASSERT(op == C2_LXO_DB_ADD || op == C2_LXO_DB_DELETE);
+		C2_LOG("lid %llu, nr %lu, Start writing noninline entries",
+		       (unsigned long long)lid,
 		       (unsigned long)list_enum->lle_nr);
-		rc = noninline_write(e->le_sl->sl_base.l_dom,
-				     tx, op, e->le_sl->sl_base.l_id,
-				     i, list_enum->lle_nr,
-				     list_enum->lle_list_of_cobs);
-		C2_LOG("noninline_write() failed");
+		rc = noninline_write(e, tx, op, i);
+		if (rc != 0)
+			C2_LOG("noninline_write() failed");
 	}
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
