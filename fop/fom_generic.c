@@ -739,6 +739,8 @@ void c2_fom_sm_init(struct c2_fom *fom)
 	fom_addb_ctx = &fom->fo_loc->fl_dom->fd_addb_ctx;
 	c2_sm_init(&fom->fo_sm, &conf, C2_FOPH_SM_INIT, fom_group,
 		    fom_addb_ctx);
+	c2_sm_init(&fom->fo_sm_state, &fom_conf, C2_FOS_SM_INIT, fom_group,
+		    fom_addb_ctx);
 }
 
 /** @} endgroup fom */

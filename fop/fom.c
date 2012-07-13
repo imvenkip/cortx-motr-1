@@ -173,6 +173,24 @@ void c2_fom_ready(struct c2_fom *fom)
 	fom_ready(fom);
 }
 
+int sm_fom_ready(struct c2_sm *mach)
+{
+	struct c2_fom *fom;
+
+	fom = container_of(mach, struct c2_fom, fo_sm_state);
+	fom_ready(fom);
+	return -1;
+}
+
+int c2_sm_fom_ready(struct c2_sm *mach)
+{
+	struct c2_fom *fom;
+
+	fom = container_of(mach, struct c2_fom, fo_sm_state);
+	c2_fom_ready(fom);
+	return -1;
+}
+
 void c2_fom_block_enter(struct c2_fom *fom)
 {
 	int			rc;
@@ -219,7 +237,7 @@ void c2_fom_queue(struct c2_fom *fom)
 	C2_PRE(c2_fom_invariant(fom));
 	C2_PRE(C2_IN(fom->fo_phase, (C2_FOPH_INIT, C2_FOPH_FAILURE)));
 
-	fom_ready(fom);
+	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_INIT);
 }
 
 /**
@@ -250,6 +268,15 @@ static void fom_wait(struct c2_fom *fom)
 	fom->fo_state = C2_FOS_WAITING;
 	c2_list_add_tail(&loc->fl_wail, &fom->fo_linkage);
 	C2_CNT_INC(loc->fl_wail_nr);
+}
+
+int sm_fom_wait(struct c2_sm *mach)
+{
+	struct c2_fom *fom;
+
+	fom = container_of(mach, struct c2_fom, fo_sm_state);
+	fom_wait(fom);
+	return -1;
 }
 
 /**
@@ -291,11 +318,15 @@ static void fom_exec(struct c2_fom *fom)
 	C2_ASSERT(c2_group_is_locked(fom));
 
 	if (fom->fo_phase == C2_FOPH_FINISH) {
-		if (fom->fo_sm.sm_state == C2_FOPH_FINISH)
+		if (fom->fo_sm.sm_state == C2_FOPH_FINISH) {
 			c2_sm_fini(&fom->fo_sm);
+			c2_sm_state_set(&fom->fo_sm_state, C2_FOS_SM_FINISH);
+			c2_sm_fini(&fom->fo_sm_state);
+		}
 		fom->fo_ops->fo_fini(fom);
 	} else {
-		fom_wait(fom);
+		c2_sm_state_set(&fom->fo_sm_state, C2_FOS_WAITING);
+	//	fom_wait(fom);
 		C2_ASSERT(fom->fo_state == C2_FOS_WAITING);
 		C2_ASSERT(is_in_wail(fom));
 	}
@@ -372,6 +403,7 @@ static void loc_handler_thread(struct c2_fom_hthread *th)
 				idle = false;
 			}
 			fom->fo_state = C2_FOS_RUNNING;
+			c2_sm_state_set(&fom->fo_sm_state, C2_FOS_RUNNING);
 			fom_exec(fom);
 		} else {
 			if (!idle) {
@@ -837,7 +869,67 @@ void c2_fom_type_register(struct c2_fom *fom)
 {
 }
 
-/** @} endgroup fom */
+const struct c2_sm_state_descr fom_states[C2_FOS_SM_FINISH + 1] = {
+	[C2_FOS_SM_INIT] = {
+		.sd_flags     = C2_SDF_INITIAL,
+		.sd_name      = "SM init",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOS_SM_FINISH) |
+				(1 << C2_FOS_INIT)
+	},
+	[C2_FOS_INIT] = {
+		.sd_flags     = 0,
+		.sd_name      = "SM init",
+		.sd_in        = &sm_fom_ready,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOS_WAITING) |
+				(1 << C2_FOS_RUNNING)
+	},
+	[C2_FOS_READY] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom ready",
+		.sd_in        = &c2_sm_fom_ready,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOS_RUNNING)
+	},
+	[C2_FOS_RUNNING] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom running",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOS_SM_FINISH) |
+				(1 << C2_FOS_WAITING)
+	},
+	[C2_FOS_WAITING] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom wait",
+		.sd_in        = &sm_fom_wait,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOS_SM_FINISH) |
+				(1 << C2_FOS_RUNNING) |
+				(1 << C2_FOS_READY)
+	},
+	[C2_FOS_SM_FINISH] = {
+		.sd_flags     = C2_SDF_TERMINAL | C2_SDF_FAILURE,
+		.sd_name      = "finished",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = 0
+	}
+};
+
+const struct c2_sm_conf	fom_conf = {
+	.scf_name      = "FOM states",
+	.scf_nr_states = C2_FOS_SM_FINISH + 1,
+	.scf_state     = fom_states
+};
 
 /*
  *  Local variables:

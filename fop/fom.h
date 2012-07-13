@@ -232,6 +232,8 @@ struct c2_fom_domain_ops {
  * States a fom can be in.
  */
 enum c2_fom_state {
+	C2_FOS_SM_INIT,
+	C2_FOS_INIT,
 	/**
 	 * Fom is in C2_FOS_RUNNING state when its state transition function is
 	 * being executed by a locality handler thread.  The fom is not on any
@@ -249,6 +251,7 @@ enum c2_fom_state {
 	 * locality wait list in this state.
 	 */
 	C2_FOS_WAITING,
+	C2_FOS_SM_FINISH,
 };
 
 /**
@@ -414,6 +417,7 @@ struct c2_fom {
 	/** Result of fom execution, -errno on failure */
 	int32_t			 fo_rc;
 	struct c2_sm		 fo_sm;
+	struct c2_sm		 fo_sm_state;
 };
 
 /**
@@ -644,6 +648,9 @@ void c2_fom_sm_init(struct c2_fom *fom);
 
 void c2_fom_type_register(struct c2_fom *fom);
 void c2_fom_type_unregister(struct c2_fom *fom);
+
+extern const struct c2_sm_conf	fom_conf;
+
 /** @} end of fom group */
 
 /* __COLIBRI_FOP_FOM_H__ */
