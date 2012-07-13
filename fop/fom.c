@@ -833,6 +833,10 @@ bool c2_fom_callback_cancel(struct c2_fom_callback *cb)
 	return result;
 }
 
+void c2_fom_type_register(struct c2_fom *fom)
+{
+}
+
 /** @} endgroup fom */
 
 /*
