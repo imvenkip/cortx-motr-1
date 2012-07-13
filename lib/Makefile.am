@@ -11,6 +11,7 @@ libc2_HEADERS        = \
                        cdefs.h \
                        chan.h \
                        cond.h \
+		       cookie.h \
                        errno.h \
                        ext.h \
                        finject.h \
@@ -54,6 +55,8 @@ libc2_la_SOURCES     = \
                        chan.h \
                        cond.c \
                        cond.h \
+		       cookie.h \
+		       cookie.c \
                        errno.h \
                        ext.c \
                        ext.h \
