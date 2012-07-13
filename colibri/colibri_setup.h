@@ -23,12 +23,9 @@
 #define __COLIBRI_COLIBRI_COLIBRI_SETUP_H__
 
 #include "lib/tlist.h"
-#include "lib/refs.h"
 #include "reqh/reqh_service.h"
-#include "ioservice/cobfid_map.h"
 #include "stob/stob.h"
 #include "net/buffer_pool.h"
-#include "dtm/dtm.h"
 
 /**
    @defgroup colibri_setup Colibri Setup
@@ -137,7 +134,7 @@ struct c2_colibri {
 	/**
 	   Size of cc_xprts array.
 	 */
-	int                       cc_xprts_nr;
+	size_t                    cc_xprts_nr;
 
         /**
            List of network domain per colibri context.
@@ -164,7 +161,7 @@ struct c2_colibri {
 	FILE                     *cc_outfile;
 	/**
 	 * List of buffer pools in colibri context.
-	 * @see c2_cs_buffer_pool::cs_bp_linkage
+	 * @see cs_buffer_pool::cs_bp_linkage
 	 */
 	struct c2_tl             cc_buffer_pools;
 
@@ -173,59 +170,12 @@ struct c2_colibri {
 	 * @see c2_net_transfer_mc:ntm_recv_queue_length
 	 * Default is set to C2_NET_TM_RECV_QUEUE_DEF_LEN.
 	 */
-	uint32_t                 cc_recv_queue_min_length;
+	size_t                   cc_recv_queue_min_length;
 
 	/** Maximum RPC message size. */
-	uint32_t                  cc_max_rpc_msg_size;
+	size_t                   cc_max_rpc_msg_size;
 
-	struct c2_addb_ctx        cc_addb;
-};
-
-/**
- * Represents list of buffer pools in the colibri context.
- */
-struct c2_cs_buffer_pool {
-        /** Network buffer pool object. */
-        struct c2_net_buffer_pool    cs_buffer_pool;
-        /** Linkage into network buffer pool list */
-        struct c2_tlink              cs_bp_linkage;
-        /** Magic */
-        uint64_t                     cs_bp_magic;
-};
-
-enum {
-        C2_CS_BUFFER_POOL_MAGIC = 0x4353504f4f4c4d41,
-        C2_CS_BUFFER_POOL_HEAD  = 0x4353504f4f4c4845,
-};
-
-C2_TL_DECLARE(cs_buffer_pools, extern, struct c2_cs_buffer_pool);
-
-/**
-   Structure which encapsulates stob type and
-   stob domain references for linux and ad stobs respectively.
- */
-struct c2_cs_reqh_stobs {
-	/**
-	   Type of storage domain to be initialise (e.g. Linux or AD)
-	 */
-	const char            *rs_stype;
-	/**
-	   Linux storage domain type.
-	 */
-	struct c2_stob_domain *rs_ldom;
-	/**
-	   Allocation data storage domain type.
-	 */
-	struct c2_stob_domain *rs_adom;
-	/**
-           Front end storage object id, i.e. ad
-         */
-	struct c2_stob_id      rs_id_back;
-	/**
-           Front end storage object
-         */
-	struct c2_stob        *rs_stob_back;
-	struct c2_dtx          rs_tx;
+	struct c2_addb_ctx       cc_addb;
 };
 
 /**
@@ -237,7 +187,7 @@ struct c2_cs_reqh_stobs {
    @param out File descriptor to which output is written
  */
 int c2_cs_init(struct c2_colibri *cs_colibri, struct c2_net_xprt **xprts,
-						int xprts_nr, FILE *out);
+	       size_t xprts_nr, FILE *out);
 
 /**
    Finalises colibri context.
@@ -266,41 +216,11 @@ int c2_cs_setup_env(struct c2_colibri *cs_colibri, int argc, char **argv);
  */
 int c2_cs_start(struct c2_colibri *cs_colibri);
 
-/**
-   Initialises storage including database environment and stob domain of given
-   type (e.g. linux or ad). There is a stob domain and a database environment
-   created per request handler context.
-
-   @param stob_type Type of stob to be initialised (e.g. linux or ad)
-   @param stob_path Path at which storage object should be created
-   @param stob Pre allocated struct reqh_stob_domain object encapsulates
-               c2_stob_domain references for linux and ad stob types
-   @param db Pre allocated struct c2_dbenv instance to be initialised
-
-   @see struct reqh_stob_domain
-
-   @pre stob_type != NULL && stob_path != NULL && stob != NULL && db != NULL
-
-   @todo Use generic mechanism to generate stob ids
- */
-int c2_cs_storage_init(const char *stob_type, const char *stob_path,
-			struct c2_cs_reqh_stobs *stob, struct c2_dbenv *db,
-			struct c2_addb_ctx *addb);
+struct c2_stob_domain *c2_cs_stob_domain_find(struct c2_reqh *reqh,
+					      const struct c2_stob_id *stob_id);
 
 /**
-   Finalises storage for a request handler in a colibri context.
-
-   @param stob Generic stob encapsulating c2_stob_domain references for linux
-          and ad stobs to be finalised
-
-   @see struct reqh_stob_domain
-
-   @pre stob != NULL
- */
-void c2_cs_storage_fini(struct c2_cs_reqh_stobs *stob);
-
-/**
-   Find a request handler service within a given Colibir instance.
+   Find a request handler service within a given Colibri instance.
 
    @param cctx Pointer to Colibri context
    @param service_name Name of the service

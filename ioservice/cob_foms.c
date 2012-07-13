@@ -32,6 +32,7 @@
 #include "ioservice/cobfid_map.h"   /* c2_cobfid_map_get() c2_cobfid_map_put()*/
 #include "reqh/reqh.h"              /* c2_fom_state_generic() */
 #include "reqh/reqh_service.h"
+#include "colibri/colibri_setup.h"
 
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
@@ -240,15 +241,25 @@ out:
 
 static int cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 {
-	int             rc;
-	struct c2_stob *stob;
+	int                    rc;
+	struct c2_stob        *stob;
+	struct c2_reqh        *reqh;
+	struct c2_stob_domain *sdom;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(cc != NULL);
 
-	rc = c2_stob_create_helper(fom->fo_loc->fl_dom->fd_reqh->rh_stdom,
-				   &fom->fo_tx, &cc->fco_stobid, &stob);
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	sdom = c2_cs_stob_domain_find(reqh, &cc->fco_stobid);
+	if (sdom == NULL) {
+		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+			    cc_fom_func_fail,
+			    "Stob creation failed in cc_stob_create().",
+			    -EINVAL);
+		return -EINVAL;
+	}
 
+	rc = c2_stob_create_helper(sdom, &fom->fo_tx, &cc->fco_stobid, &stob);
 	if (rc != 0)
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail,
@@ -449,14 +460,24 @@ static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 
 static int cd_stob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 {
-	int             rc;
-	struct c2_stob *stob = NULL;
+	int                    rc;
+	struct c2_stob        *stob = NULL;
+	struct c2_stob_domain *sdom;
+	struct c2_reqh        *reqh;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(cd != NULL);
 
-	rc = c2_stob_find(fom->fo_loc->fl_dom->fd_reqh->rh_stdom,
-			  &cd->fco_stobid, &stob);
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	sdom = c2_cs_stob_domain_find(reqh, &cd->fco_stobid);
+	if (sdom == NULL) {
+		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+			    cc_fom_func_fail,
+			    "Stob deletion failed",
+			    -EINVAL);
+		return -EINVAL;
+	}
+	rc = c2_stob_find(sdom, &cd->fco_stobid, &stob);
 	if (rc != 0) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
 			    cd_fom_func_fail,
@@ -467,7 +488,7 @@ static int cd_stob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 
 	/** @todo Implement c2_stob_delete(). */
 
-	C2_ASSERT(stob->so_ref.a_value == CD_FOM_STOBIO_LAST_REFS);
+	C2_ASSERT(stob->so_ref.a_value  >= CD_FOM_STOBIO_LAST_REFS);
 	c2_stob_put(stob);
 	C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 		    c2_addb_trace, "Stob deleted successfully.");

@@ -122,12 +122,9 @@ static const struct c2_addb_ctx_type nlx_core_tm_addb_ctx = {
  */
 static bool nlx_core_tm_invariant(const struct nlx_core_transfer_mc *lctm)
 {
-	if (lctm == NULL || lctm->ctm_magic != C2_NET_LNET_CORE_TM_MAGIC)
-		return false;
-	if (lctm->ctm_mb_counter < C2_NET_LNET_BUFFER_ID_MIN ||
-	    lctm->ctm_mb_counter > C2_NET_LNET_BUFFER_ID_MAX)
-		return false;
-	return true;
+	return lctm != NULL && lctm->ctm_magic == C2_NET_LNET_CORE_TM_MAGIC &&
+	    lctm->ctm_mb_counter >= C2_NET_LNET_BUFFER_ID_MIN &&
+	    lctm->ctm_mb_counter <= C2_NET_LNET_BUFFER_ID_MAX;
 }
 
 /**
@@ -140,14 +137,12 @@ static bool nlx_core_tm_invariant(const struct nlx_core_transfer_mc *lctm)
 static bool nlx_core_tm_is_locked(const struct nlx_core_transfer_mc *lctm)
 {
 	const struct nlx_xo_transfer_mc *xtm;
+
 	if (!nlx_core_tm_invariant(lctm))
 		return false;
 	xtm = container_of(lctm, struct nlx_xo_transfer_mc, xtm_core);
-	if (!nlx_tm_invariant(xtm->xtm_tm))
-		return false;
-	if (!c2_mutex_is_locked(&xtm->xtm_tm->ntm_mutex))
-		return false;
-	return true;
+	return nlx_tm_invariant(xtm->xtm_tm) &&
+	    c2_mutex_is_locked(&xtm->xtm_tm->ntm_mutex);
 }
 
 /**
@@ -224,7 +219,7 @@ bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
 	struct nlx_core_bev_link *link;
 	struct nlx_core_buffer_event *bev;
 
-	C2_PRE(lctm != NULL && lcbe != NULL);
+	C2_PRE(lcbe != NULL);
 	C2_PRE(nlx_core_tm_is_locked(lctm));
 
 	link = bev_cqueue_get(&lctm->ctm_bevq);
@@ -400,13 +395,10 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 	char nidstr[C2_NET_LNET_NIDSTR_SIZE];
 	char *cp = strchr(ep_addr, ':');
 	char *endp;
-	size_t n;
+	size_t n = cp - ep_addr;
 	int rc;
 
-	if (cp == NULL)
-		return -EINVAL;
-	n = cp - ep_addr;
-	if (n == 0 || n >= sizeof nidstr)
+	if (cp == NULL || n == 0 || n >= sizeof nidstr)
 		return -EINVAL;
 	strncpy(nidstr, ep_addr, n);
 	nidstr[n] = 0;

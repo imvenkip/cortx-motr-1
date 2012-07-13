@@ -169,6 +169,11 @@ static struct reqh_ut_balloc rb = {
 /* Buffer pool for TM receive queue. */
 static struct c2_net_buffer_pool app_pool;
 
+struct c2_stob_domain *reqh_ut_stob_domain_find(void)
+{
+	return sdom;
+}
+
 static int server_init(const char *stob_path, const char *srv_db_name,
 			struct c2_net_domain *net_dom, struct c2_stob_id *backid,
 			struct c2_stob_domain **bdom, struct c2_stob **bstore,
@@ -238,8 +243,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
         C2_UT_ASSERT(rc == 0);
 
 	/* Initialising request handler */
-	rc =  c2_reqh_init(&reqh, NULL, sdom, &srv_db, &srv_cob_domain,
-			   &srv_fol);
+	rc =  c2_reqh_init(&reqh, NULL, &srv_db, &srv_cob_domain, &srv_fol);
 	C2_UT_ASSERT(rc == 0);
 
 	tms_nr   = 1;

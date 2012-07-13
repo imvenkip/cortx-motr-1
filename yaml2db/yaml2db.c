@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -144,7 +144,7 @@ void c2_yaml2db_fini(struct c2_yaml2db_ctx *yctx)
 		fclose(yctx->yc_fp);
 	if (yctx->yc_dp != NULL)
 		fclose(yctx->yc_dp);
-	if (&yctx->yc_db_init)
+	if (yctx->yc_db_init)
 		c2_dbenv_fini(&yctx->yc_db);
         c2_addb_ctx_fini(&yctx->yc_addb);
 }
