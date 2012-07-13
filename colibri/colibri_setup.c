@@ -929,8 +929,9 @@ struct c2_stob_domain *c2_cs_stob_domain_find(struct c2_reqh *reqh,
 	else if (strcasecmp(stob->s_stype, cs_stypes[AD_STOB]) == 0) {
 		c2_tl_for(astob, &stob->s_adoms, adstob) {
 			C2_ASSERT(cs_ad_stob_bob_check(adstob));
-			if (adstob->as_id_back.si_bits.u_hi ==
-				stob_id->si_bits.u_hi)
+			if (!stob->s_sfile.sf_is_initialised ||
+			    adstob->as_id_back.si_bits.u_hi ==
+			    stob_id->si_bits.u_hi)
 				return adstob->as_dom;
 		} c2_tl_endfor;
 	}

@@ -1470,7 +1470,7 @@ static int io_launch(struct c2_fom *fom)
                                     "io_launch", rc);
                         /*
                          * @todo: need to add memory free allocated in stio
-                         *        in thid function.
+                         *        in this function.
                          */
                         c2_stob_io_fini(stio);
                         c2_free(stio_desc);

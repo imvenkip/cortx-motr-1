@@ -24,7 +24,7 @@
    @defgroup rpc_layer_core RPC layer core
    @page rpc-layer-core-dld RPC layer core DLD
    @section Overview
-   RPC layer core is used to transmitt rpc items and groups of them.
+   RPC layer core is used to transmit rpc items and groups of them.
 
    @see https://docs.google.com/a/xyratex.com/Doc?docid=0AQaCw6YRYSVSZGZmMz
 V6NzJfMTljbTZ3anhjbg&hl=en
