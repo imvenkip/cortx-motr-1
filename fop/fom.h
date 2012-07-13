@@ -410,8 +410,6 @@ struct c2_fom {
 	 *  protected by the c2_fom_locality::fl_group.s_lock mutex.
 	 */
 	struct c2_list_link	 fo_linkage;
-	/** Long locks taken on this fom */
-	unsigned		 fo_locks;
 	/** Transitions counter, coresponds to the number of
 	    c2_fom_ops::fo_state() calls */
 	unsigned		 fo_transitions;
@@ -587,9 +585,8 @@ void c2_fom_ready(struct c2_fom *fom);
 /**
  * Moves the fom from waiting to ready queue. Similar to c2_fom_ready(), but
  * callable from a locality different from fom's locality (i.e., with a
- * different locality group lock held). It's prohibited to use
- * c2_fom_ready_remote() and c2_fom_block_enter() in the same fo_phase because
- * of possible races.
+ * different locality group lock held). It's recomended not to use
+ * c2_fom_ready_remote() and c2_fom_block_enter() in the same fo_phase.
  */
 void c2_fom_ready_remote(struct c2_fom *fom);
 

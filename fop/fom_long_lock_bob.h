@@ -25,10 +25,11 @@
 #include "fop/fom_long_lock.h"
 
 C2_BOB_DECLARE(extern, c2_long_lock);
+C2_BOB_DECLARE(extern, c2_long_lock_link);
 
 /**
- * Initializes bob-type for c2_long_lock. Should be called once, during system
- * initialisation.
+ * Initializes bob-type for c2_long_lock and c2_long_lock_link. Should be called
+ * once, during system initialisation.
  */
 void c2_fom_ll_global_init(void);
 

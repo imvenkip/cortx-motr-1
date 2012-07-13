@@ -84,8 +84,7 @@ static int rdwr_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
 	c2_fom_init(fom, fom_type, &c2_fom_rdwr_ops, fop, NULL);
 	fom_obj->fp_fop = fop;
 
-	c2_lll_tlink_init(&fom_obj->fp_link);
-	fom_obj->fp_link.lll_fom = fom;
+	c2_long_lock_link_init(&fom_obj->fp_link, fom);
 
 	*m = fom;
 	return 0;
@@ -97,7 +96,7 @@ void c2_fop_rdwr_fom_fini(struct c2_fom *fom)
 
 	fom_obj = container_of(fom, struct c2_fom_rdwr, fp_gen);
 	c2_fom_fini(fom);
-	c2_lll_tlink_fini(&fom_obj->fp_link);
+	c2_long_lock_link_fini(&fom_obj->fp_link);
 	c2_free(fom_obj);
 
 	return;

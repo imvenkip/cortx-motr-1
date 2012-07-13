@@ -62,9 +62,6 @@ static struct c2_long_lock long_lock;
  */
 int c2_fom_rdwr_state(struct c2_fom *fom)
 {
-	struct c2_fop		*fop;
-        struct c2_fop_rdwr_rep	*rdwr_fop_rep;
-        struct c2_rpc_item      *item;
         struct c2_fom_rdwr	*fom_obj;
 	struct c2_fop_rdwr	*request;
 	int			 rq_type;
@@ -85,13 +82,11 @@ int c2_fom_rdwr_state(struct c2_fom *fom)
 	} else if (fom->fo_phase == PH_GOT_LOCK) {
 		switch (rq_type) {
 		case RQ_READ:
-			C2_UT_ASSERT(c2_long_is_read_locked(&long_lock,
-							    &fom_obj->fp_link));
+			C2_UT_ASSERT(c2_long_is_read_locked(&long_lock, fom));
 			c2_long_read_unlock(&long_lock, &fom_obj->fp_link);
 			break;
 		case RQ_WRITE:
-			C2_UT_ASSERT(c2_long_is_write_locked(&long_lock,
-							     &fom_obj->fp_link));
+			C2_UT_ASSERT(c2_long_is_write_locked(&long_lock, fom));
 			c2_long_write_unlock(&long_lock, &fom_obj->fp_link);
 			break;
 		case RQ_WAKE_UP:
@@ -99,18 +94,9 @@ int c2_fom_rdwr_state(struct c2_fom *fom)
 			;
 		}
 
-		/* send reply */
-		fop = c2_fop_alloc(&c2_fop_rdwr_rep_fopt, NULL);
-		C2_ASSERT(fop != NULL);
-		rdwr_fop_rep = c2_fop_data(fop);
-		rdwr_fop_rep->fr_rc = true;
-		item = c2_fop_to_rpc_item(fop);
-		item->ri_group = NULL;
-		c2_rpc_reply_post(&fom_obj->fp_fop->f_item, item);
-		fom->fo_phase = C2_FOPH_FINISH;
-
 		/* notify, fom ready */
 		c2_chan_signal(&chan[rq_seqn]);
+		fom->fo_phase = C2_FOPH_FINISH;
 		result = 0;
         } else if (fom->fo_phase == PH_REQ_LOCK) {
 		if (rq_seqn == 0)
@@ -148,10 +134,11 @@ int c2_fom_rdwr_state(struct c2_fom *fom)
 	return result;
 }
 
-static void c2_rdwr_send_fop_type(struct c2_rpc_session *session, int type, int seqn)
+static void c2_rdwr_send_fop_type(struct c2_reqh *reqh, int type, int seqn)
 {
 	struct c2_fop      *fop;
 	struct c2_fop_rdwr *rdwr_fop;
+	int rc;
 
 	fop = c2_fop_alloc(&c2_fop_rdwr_fopt, NULL);
 	C2_ASSERT(fop);
@@ -160,15 +147,11 @@ static void c2_rdwr_send_fop_type(struct c2_rpc_session *session, int type, int 
 	rdwr_fop->fr_type = type;
 	rdwr_fop->fr_seqn = seqn;
 
-	c2_rpc_client_call(fop, session, &c2_fop_default_item_ops, 0);
-
-	/* FIXME: freeing fop here will lead to endless loop in
-	 * nr_active_items_count(), which is called from
-	 * c2_rpc_session_terminate() */
-	/*c2_fop_free(fop);*/
+	c2_reqh_fop_handle(reqh, fop);
+	C2_ASSERT(rc == 0);
 }
 
-void c2_rdwr_send_fop(struct c2_rpc_session *session)
+void c2_rdwr_send_fop(struct c2_reqh *reqh)
 {
 	int i;
 	int j;
@@ -187,7 +170,7 @@ void c2_rdwr_send_fop(struct c2_rpc_session *session)
 			RQ_WRITE, RQ_READ, RQ_READ, RQ_READ, RQ_WAKE_UP, RQ_LAST
 		},
 	};
-	
+
 	/* printf("\n"); */
 
 	for (j = 0; j < ARRAY_SIZE(test); ++j) {
@@ -198,7 +181,7 @@ void c2_rdwr_send_fop(struct c2_rpc_session *session)
 			c2_clink_init(&clink[i], NULL);
 			c2_clink_add(&chan[i], &clink[i]);
 
-			c2_rdwr_send_fop_type(session, test[j][i], i);
+			c2_rdwr_send_fop_type(reqh, test[j][i], i);
 
 			c2_chan_wait(&clink[i]);
 		}

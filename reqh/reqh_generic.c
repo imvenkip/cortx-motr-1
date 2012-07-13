@@ -33,6 +33,7 @@
 #include "fop/fop_iterator.h"
 #include "dtm/dtm.h"
 #include "fop/fop_format_def.h"
+#include "rpc/rpc2.h"
 
 #ifdef __KERNEL__
 #include "reqh_fops_k.h"

@@ -53,7 +53,7 @@
  * static int fom_state_handler(struct c2_fom *fom)
  * {
  *      //...
- *      struct c2_fom_rdwr	 *fom_obj;
+ *      struct fom_object_type	 *fom_obj;
  *      struct c2_long_lock_link *link;
  *
  *	// Retreive derived FOM object and long lock link.
@@ -117,7 +117,6 @@
 #include "lib/chan.h"
 #include "lib/mutex.h"
 #include "lib/bob.h"
-#include "fop/fom_long_lock.h"
 
 /**
  * Long lock states.
@@ -145,7 +144,7 @@ struct c2_long_lock_link {
 	struct c2_fom		*lll_fom;
 	/** Linkage to struct c2_long_lock::l_{owners,waiters} list */
 	struct c2_tlink		 lll_lock_linkage;
-	/** magic number. C2_FOM_MAGIX */
+	/** magic number. C2_LONG_LOCK_LINK_MAGIX */
 	uint64_t		 lll_magix;
 	/** Type of long lock, requested by the lll_fom */
 	enum c2_long_lock_type   lll_lock_type;
@@ -167,15 +166,18 @@ struct c2_long_lock {
 	uint64_t		l_magix;
 };
 
-C2_TL_DESCR_DECLARE(c2_lll, extern);
-C2_TL_DECLARE(c2_lll, extern, struct c2_long_lock_link);
-
+/**
+ * A macros to request a long lock from a fom state transition function. The
+ * value of macros should be returned from the state transition function. The
+ * fom transitions into next_phase when the lock is acquired:
+ * - C2_FSO_AGAIN when the lock is acquired immediately;
+ * - C2_FSO_WAIT when the lock will be acquired after a wait.
+ */
 #define C2_FOM_LONG_LOCK_RETURN(rc) ((rc) ? C2_FSO_AGAIN : C2_FSO_WAIT)
 
 /**
  * @post lock->l_state == C2_LONG_LOCK_UNLOCKED
  * @post c2_mutex_is_not_locked(&lock->l_lock)
- * @post !c2_chan_has_waiters(&lock->l_wait)
  */
 void c2_long_lock_init(struct c2_long_lock *lock);
 
@@ -196,6 +198,7 @@ void c2_long_lock_fini(struct c2_long_lock *lock);
  *
  * @pre link->lll_fom != NULL
  * @pre !c2_long_is_read_locked(lock, link)
+ * @pre !*_tlink_is_in(&link->lll_lock_linkage)
  * @post fom->fo_phase == next_phase
  *
  * @return true iff the lock is taken.
@@ -214,6 +217,7 @@ bool c2_long_read_lock(struct c2_long_lock *lock,
  *
  * @pre link->lll_fom != NULL
  * @pre !c2_long_is_write_locked(lock, fom)
+ * @pre !*_tlink_is_in(&link->lll_lock_linkage)
  * @post fom->fo_phase == next_phase
  *
  * @return true iff the lock is taken.
@@ -250,14 +254,26 @@ void c2_long_write_unlock(struct c2_long_lock *lock,
 /**
  * @return true iff the lock is taken as a read-lock by the given fom.
  */
-bool c2_long_is_read_locked(struct c2_long_lock *lock,
-			    struct c2_long_lock_link *link);
+bool c2_long_is_read_locked(struct c2_long_lock *lock, struct c2_fom *link);
 
 /**
  * @return true iff the lock is taken as a write-lock by the given fom.
  */
-bool c2_long_is_write_locked(struct c2_long_lock *lock,
-			     struct c2_long_lock_link *link);
+bool c2_long_is_write_locked(struct c2_long_lock *lock, struct c2_fom *link);
+
+/**
+ * Initialize long lock link object with given fom.
+ *
+ * @pre fom != NULL
+ */
+void c2_long_lock_link_init(struct c2_long_lock_link *link, struct c2_fom *fom);
+
+/**
+ * Finalize long lock link object.
+ *
+ * @pre !c2_lll_tlink_is_in(link)
+ */
+void c2_long_lock_link_fini(struct c2_long_lock_link *link);
 
 /** @} end of c2_long_lock group */
 

@@ -41,6 +41,7 @@
 
 #include "rpc/session_fops.h"
 #include "rpc/session_internal.h"
+#include "rpc/rpc_machine.h"
 #include "db/db.h"
 
 /**

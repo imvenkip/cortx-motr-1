@@ -26,7 +26,7 @@ enum {
 	RDWR_REQUEST_MAX = 48
 };
 
-void c2_rdwr_send_fop(struct c2_rpc_session *session);
+void c2_rdwr_send_fop(struct c2_reqh* reqh);
 
 #endif /* __COLIBRI_RDWR_TB_H__ */
 

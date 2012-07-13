@@ -41,6 +41,7 @@
 
 #include "fop/fop_format_def.h"
 #include "rpc/session_internal.h"
+#include "rpc/rpc2.h"
 
 /**
    @addtogroup rpc_session

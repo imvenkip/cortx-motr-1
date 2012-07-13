@@ -34,6 +34,7 @@
 #include "xcode/ut/test.ff"
 #include "lib/vec.h"
 #include "rpc/rpc_opcodes.h"
+#include "net/net.h"
 
 /** Random test values. */
 enum {

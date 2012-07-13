@@ -34,94 +34,33 @@
 #include "fop/ut/long_lock/rdwr_fop_u.h"
 #include "fop/ut/long_lock/rdwr_test_bench.h"
 
-enum {
-	CLIENT_COB_DOM_ID	= 16,
-	SESSION_SLOTS		= RDWR_REQUEST_MAX,
-	MAX_RPCS_IN_FLIGHT	= RDWR_REQUEST_MAX,
-	CONNECT_TIMEOUT		= 5,
-};
-
-#define CLIENT_ENDPOINT_ADDR    "0@lo:12345:34:*"
-#define CLIENT_DB_NAME		"libfop_lock_ut_client.db"
-
+#define LOG_FILE_NAME		"fom_lock_ut.log"
 #define SERVER_ENDPOINT_ADDR	"0@lo:12345:34:1"
 #define SERVER_ENDPOINT		"lnet:" SERVER_ENDPOINT_ADDR
-#define SERVER_DB_FILE_NAME	"libfop_lock_ut_server.db"
-#define SERVER_STOB_FILE_NAME	"libfop_lock_ut_server.stob"
-#define SERVER_LOG_FILE_NAME	"libfop_lock_ut_server.log"
+#define SERVER_DB_FILE_NAME	"fom_lock_ut_server.db"
+#define SERVER_STOB_FILE_NAME	"fom_lock_ut_server.stob"
+
+char *server_argv[] = {
+	"fom_lock_lib_ut", "-r", "-T", "AD",
+	"-D", SERVER_DB_FILE_NAME, "-S", SERVER_STOB_FILE_NAME,
+	"-e", SERVER_ENDPOINT, "-s", "ds1", "-s", "ds2"
+};
 
 static struct c2_net_xprt    *xprt = &c2_net_lnet_xprt;
-static struct c2_net_domain   client_net_dom = { };
-static struct c2_dbenv        client_dbenv;
-static struct c2_cob_domain   client_cob_dom;
-
-static struct c2_rpc_client_ctx cctx = {
-	.rcx_net_dom		   = &client_net_dom,
-	.rcx_local_addr            = CLIENT_ENDPOINT_ADDR,
-	.rcx_remote_addr           = SERVER_ENDPOINT_ADDR,
-	.rcx_db_name		   = CLIENT_DB_NAME,
-	.rcx_dbenv		   = &client_dbenv,
-	.rcx_cob_dom_id		   = CLIENT_COB_DOM_ID,
-	.rcx_cob_dom		   = &client_cob_dom,
-	.rcx_nr_slots		   = SESSION_SLOTS,
-	.rcx_timeout_s		   = CONNECT_TIMEOUT,
-	.rcx_max_rpcs_in_flight	   = MAX_RPCS_IN_FLIGHT,
-	.rcx_recv_queue_min_length = C2_NET_TM_RECV_QUEUE_DEF_LEN,
-};
-
-static char *server_argv[] = {
-	"libfop_lock_ut", "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
-	"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
-	"-s", "ds1", "-s", "ds2"
-};
-
-static struct c2_rpc_server_ctx sctx = {
-	.rsx_xprts            = &xprt,
-	.rsx_xprts_nr         = 1,
-	.rsx_argv             = server_argv,
-	.rsx_argc             = ARRAY_SIZE(server_argv),
-	.rsx_service_types    = cs_default_stypes,
-	.rsx_service_types_nr = 2,
-	.rsx_log_file_name    = SERVER_LOG_FILE_NAME,
-};
+struct c2_net_domain	      client_net_dom = { };
+static struct c2_colibri      colibri_ctx;
+static FILE                  *log_file;
 
 static void test_long_lock(void)
 {
-	int                    rc;
-
-	/*
-	 * There is no need to initialize xprt explicitly if client and server
-	 * run withing a single process, because in this case transport is
-	 * initialized by c2_rpc_server_start().
-	 */
-
-	rc = c2_rpc_server_start(&sctx);
-	C2_UT_ASSERT(rc == 0);
-	if (rc != 0)
-		return;
-
-	rc = c2_rpc_client_init(&cctx);
-	C2_UT_ASSERT(rc == 0);
-	if (rc != 0)
-		goto server_fini;
-
-	c2_rdwr_send_fop(&cctx.rcx_session);
-
-	rc = c2_rpc_client_fini(&cctx);
-	C2_UT_ASSERT(rc == 0);
-
-server_fini:
-	c2_rpc_server_stop(&sctx);
-
-	return;
+	struct c2_reqh *reqh = c2_cs_reqh_get(&colibri_ctx, "ds1");
+	c2_rdwr_send_fop(reqh);
 }
 
 static int test_long_lock_init(void)
 {
 	int rc;
-
-	/* set ADDB leve to AEL_WARN to see ADDB messages on STDOUT */
-	/*c2_addb_choose_default_level(AEL_WARN);*/
+	size_t i;
 
 	rc = c2_rdwr_fop_init();
 	C2_ASSERT(rc == 0);
@@ -132,14 +71,40 @@ static int test_long_lock_init(void)
 	rc = c2_net_domain_init(&client_net_dom, xprt);
 	C2_ASSERT(rc == 0);
 
+	log_file = fopen(LOG_FILE_NAME, "w+");
+	C2_ASSERT(log_file != NULL);
+
+	for (i = 0; i < cs_default_stypes_nr; ++i) {
+		rc = c2_reqh_service_type_register(cs_default_stypes[i]);
+		C2_ASSERT(rc == 0);
+	}
+
+	rc = c2_cs_init(&colibri_ctx, &xprt, 1, log_file);
+	C2_ASSERT(rc == 0);
+
+	rc = c2_cs_setup_env(&colibri_ctx, ARRAY_SIZE(server_argv), server_argv);
+	C2_ASSERT(rc == 0);
+
+	rc = c2_cs_start(&colibri_ctx);
+	C2_ASSERT(rc == 0);
+
 	return rc;
 }
 
 static int test_long_lock_fini(void)
 {
+	size_t i;
+
+	c2_cs_fini(&colibri_ctx);
+
+	for (i = 0; i < cs_default_stypes_nr; ++i)
+		c2_reqh_service_type_unregister(cs_default_stypes[i]);
+
+	fclose(log_file);
 	c2_net_domain_fini(&client_net_dom);
 	c2_net_xprt_fini(xprt);
 	c2_rdwr_fop_fini();
+
 	return 0;
 }
 

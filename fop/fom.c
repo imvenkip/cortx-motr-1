@@ -676,7 +676,6 @@ void c2_fom_fini(struct c2_fom *fom)
 	struct c2_reqh       *reqh;
 
 	C2_PRE(fom->fo_phase == C2_FOPH_FINISH);
-	C2_PRE(fom->fo_locks == 0);
 
 	fdom = fom->fo_loc->fl_dom;
 	reqh = fdom->fd_reqh;
@@ -703,7 +702,6 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
 
 	c2_list_link_init(&fom->fo_linkage);
 
-	fom->fo_locks = 0;
 	fom->fo_transitions = 0;
 }
 C2_EXPORTED(c2_fom_init);
