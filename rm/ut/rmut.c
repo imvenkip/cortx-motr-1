@@ -47,8 +47,6 @@
 /*
  * Extern declarations
  */
-extern struct c2_tl_descr ur_tl;
-extern struct c2_tl_descr pi_tl;
 void ur_tlist_del(struct c2_rm_right *);
 void ur_tlist_move(struct c2_tl *list, struct c2_rm_right *);
 void pr_tlist_init(struct c2_tl *head);

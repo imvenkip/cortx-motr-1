@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -21,18 +21,23 @@
 #define __COLIBRI_RM_RM_INTERNAL_H__
 
 /**
+   Created as a result of remote request which is either BORROW ro REVOKE
+   (and CANCEL in future).
+ */
+struct c2_rm_remote_incoming {
+	struct c2_rm_incoming ri_incoming;
+	/* This cookie is used to determine locality */
+	struct c2_cookie      ri_owner_cookie;
+	struct c2_cookie      ri_loan_cookie;
+	struct c2_rm_loan    *ri_loan;
+};
+
+/**
    Sticks a tracking pin on @right. When @right is released, the all incoming
    requests that stuck pins into it are notified.
 */
-int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right, uint32_t flag);
-
-/**
-   Makes another copy of right struct.
-*/
-int right_copy(struct c2_rm_right *dest, const struct c2_rm_right *src);
-
-/** Returns true iff rights are equal. */
-bool right_eq(const struct c2_rm_right *r0, const struct c2_rm_right *r1);
+int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right,
+	    uint32_t flag);
 
 /**
    @name rm-fop interface.
@@ -42,18 +47,6 @@ bool right_eq(const struct c2_rm_right *r0, const struct c2_rm_right *r1);
  */
 
 /** @{ */
-
-/**
-   Created as a result of remote request which is either BORROW ro REVOKE
-   (and CANCEL in future).
- */
-struct c2_rm_remote_incoming {
-	struct c2_rm_incoming  ri_incoming;
-	/* This cookie is used to determine locality */
-	struct c2_rm_cookie    ri_owner_cookie;
-	struct c2_rm_cookie    ri_loan_cookie;
-	struct c2_rm_loan     *ri_loan;
-};
 
 /**
    Moves credited rights from "owned" to "sublet" list.
@@ -105,25 +98,25 @@ int c2_rm_revoke_done(struct c2_rm_outgoing *out);
    Returns a cookie for a given owner.
  */
 void c2_rm_owner_cookie_get(const struct c2_rm_owner *o,
-			    struct c2_rm_cookie *cake);
+			    struct c2_cookie *cake);
 
 /**
    Returns a cookie for a given loan.
  */
 void c2_rm_loan_cookie_get(const struct c2_rm_loan *loan,
-			   struct c2_rm_cookie *cake);
+			   struct c2_cookie *cake);
 
 /**
    Returns the owner corresponding to a given cookie, or NULL when the cookie is
    stale.
  */
-struct c2_rm_owner *c2_rm_owner_find(const struct c2_rm_cookie *cake);
+struct c2_rm_owner *c2_rm_owner_find(const struct c2_cookie *cake);
 
 /**
    Returns the loan corresponding to a given cookie, or NULL when the cookie is
    stale.
  */
-struct c2_rm_loan  *c2_rm_loan_find (const struct c2_rm_cookie *cake);
+struct c2_rm_loan  *c2_rm_loan_find (const struct c2_cookie *cake);
 
 /**
    Returns the owner locally managing the rights for a given resource.
@@ -158,16 +151,19 @@ int c2_rm_revoke_out(struct c2_rm_incoming *in,
  */
 void c2_rm_outgoing_init(struct c2_rm_outgoing *out,
 			 enum c2_rm_outgoing_type type,
-			 struct c2_rm_right *right);
+			 struct c2_rm_owner *owner);
+
+/**
+   Initialise the loan
+ */
+int c2_rm_loan_init(struct c2_rm_loan *loan, struct c2_rm_right *right);
+
 /**
    Called when an outgoing request completes (possibly with an error, like a
    timeout).
 */
 void c2_rm_outgoing_complete(struct c2_rm_outgoing *og);
 
-#if 0
-int outgoing_check(struct c2_rm_incoming *in, enum c2_rm_incoming_type inreq,
-		   struct c2_rm_right *right, struct c2_rm_remote *remote);
 
 /** @} end of rm-fop interface. */
 
@@ -188,7 +184,6 @@ C2_TL_DECLARE(pr, , struct c2_rm_pin);
 
 C2_TL_DESCR_DECLARE(pi, extern);
 C2_TL_DECLARE(pi, , struct c2_rm_pin);
-#endif
 
 /**
    Execute "expr" against all rights lists in a given owner.

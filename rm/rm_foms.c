@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -109,7 +109,7 @@ static int request_fom_create(enum c2_rm_incoming_type type,
 		return -ENOMEM;
 	}
 
-	switch(type) {
+	switch (type) {
 	case RIT_BORROW:
 		fopt = &c2_fop_rm_borrow_rep_fopt;
 		fom_ops = &rm_fom_borrow_ops;
@@ -164,27 +164,34 @@ static size_t rm_locality(const struct c2_fom *fom)
 /*
  * This function will fill reply FOP data.
  * However, it will not set the return code.
+ *
+ * @see reply_err_set()
  */
 static int reply_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 {
 	struct c2_fop_rm_borrow_rep  *bfop;
 	struct rm_request_fom        *rfom;
-	struct c2_rm_cookie	      cookie;
+	struct c2_cookie	      cookie;
 	void			    **buf;
 	c2_bcount_t		     *buflen;
 	int			      rc = 0;
 
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 
-	switch(type) {
+	switch (type) {
 	case RIT_BORROW:
 		bfop = c2_fop_data(fom->fo_rep_fop);
 		c2_rm_loan_cookie_get(rfom->rf_in.ri_loan, &cookie);
 		bfop->br_loan.lo_cookie.co_hi = cookie.cv.u_hi;
 		bfop->br_loan.lo_cookie.co_lo = cookie.cv.u_lo;
 
+		bfop->br_loan.lo_id = rfom->rf_in.ri_loan->rl_id;
+
 		buf = (void **)&bfop->br_right.ri_opaque.op_bytes;
 		buflen = &bfop->br_right.ri_opaque.op_nr;
+		/*
+		 * Memory for the function is allocated by the function.
+		 */
 		rc = c2_rm_rdatum2buf(&rfom->rf_in.ri_loan->rl_right,
 				      buf, buflen);
 		break;
@@ -203,7 +210,7 @@ static void reply_err_set(enum c2_rm_incoming_type type,
 	struct c2_fop_rm_borrow_rep *bfop;
 	struct c2_fop_rm_revoke_rep *rfop;
 
-	switch(type) {
+	switch (type) {
 	case RIT_BORROW:
 		bfop = c2_fop_data(fom->fo_rep_fop);
 		bfop->br_rc = rc;
@@ -219,11 +226,10 @@ static void reply_err_set(enum c2_rm_incoming_type type,
 }
 
 /*
- * Build an incoming structure using request information.
+ * Build an remote-incoming structure using remote request information.
  */
 static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 {
-	struct c2_fop_rm_borrow_rep *brw_rply_fop;
 	struct c2_fop_rm_borrow     *bfop;
 	struct c2_fop_rm_revoke     *rfop;
 	struct c2_rm_incoming	    *in;
@@ -231,35 +237,36 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 	struct rm_request_fom	    *rfom;
 	struct c2_rm_loan	    *loan;
 	enum c2_rm_incoming_policy   policy;
-	struct c2_rm_cookie	    *ccookie;
-	struct c2_rm_cookie	    *dcookie;
+	struct c2_cookie	    *ccookie;
+	struct c2_cookie	    *dcookie;
+	struct c2_cookie	    *lcookie;
 	void			    *datum_buf;
 	c2_bcount_t		     datum_len;
 	uint64_t		     flags;
 	int			     rc = 0;
 
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
-	switch(type) {
+	switch (type) {
 	case RIT_BORROW:
 		bfop = c2_fop_data(fom->fo_fop);
 		policy = bfop->bo_policy;
 		flags = bfop->bo_flags;
 		datum_buf = bfop->bo_right.ri_opaque.op_bytes;
 		datum_len = bfop->bo_right.ri_opaque.op_nr;
-		/* This is the owner cookie for creditor (local) */
+		/*
+		 * Populate the owner cookie for creditor (local)
+		 * This is used later by rm_locality().
+		 */
 		ccookie = &rfom->rf_in.ri_owner_cookie;
 		ccookie->cv.u_hi = bfop->bo_creditor.ow_cookie.co_hi;
 		ccookie->cv.u_lo = bfop->bo_creditor.ow_cookie.co_lo;
 		/*
-		 * This is the owner cookie for debtor
-		 * (for loan->rl_other->rm_cookie) ???
+		 * Populate the owner cookie for debtor (remote end).
+		 * (for loan->rl_other->rm_cookie).
+		 * We have got debtor cookie, call ...net_locate()??
+		 * @todo - How do you set up rl_other??
 		 */
-		dcookie = &rfom->rf_in.ri_loan_cookie;
-		dcookie->cv.u_hi = bfop->bo_debtor.ow_cookie.co_hi;
-		dcookie->cv.u_lo = bfop->bo_debtor.ow_cookie.co_lo;
 
-		brw_rply_fop = c2_fop_data(fom->fo_rep_fop);
-		c2_free(brw_rply_fop->br_right.ri_opaque.op_bytes);
 		break;
 
 	case RIT_REVOKE:
@@ -269,16 +276,24 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		datum_buf = rfop->rr_right.ri_opaque.op_bytes;
 		datum_len = rfop->rr_right.ri_opaque.op_nr;
 		/*
-		 * This is the loan cookie given to the debtor
+		 * Populate the owner cookie for debtor (local)
+		 * This server is debtor; hence it received REVOKE reuest.
+		 * This is used later by rm_locality().
 		 */
 		dcookie = &rfom->rf_in.ri_owner_cookie;
 		dcookie->cv.u_hi = rfop->rr_debtor.ow_cookie.co_hi;
 		dcookie->cv.u_lo = rfop->rr_debtor.ow_cookie.co_lo;
 		/*
+		 * Populate the loan cookie.
+		 */
+		lcookie = &rfom->rf_in.ri_loan_cookie;
+		lcookie->cv.u_hi = rfop->rr_loan.lo_cookie.co_hi;
+		lcookie->cv.u_lo = rfop->rr_loan.lo_cookie.co_lo;
+		/*
 		 * Check if the loan cookie stale. If the cookie is stale
 		 * don't do further processing.
 		 */
-		loan = c2_rm_loan_find(&rfom->rf_in.ri_loan_cookie);
+		loan = c2_rm_loan_find(lcookie);
 		rc = loan ? 0: -EPROTO;
 		break;
 
@@ -287,8 +302,11 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		break;
 	}
 
+	if (rc != 0)
+		return rc;
+
 	owner = c2_rm_owner_find(&rfom->rf_in.ri_owner_cookie);
-	rc = rc == 0 ? (owner ? 0 : -EPROTO) : -EPROTO;
+	rc = owner ? 0 : -EPROTO;
 	if (rc == 0) {
 		in = &rfom->rf_in.ri_incoming;
 		c2_rm_incoming_init(in, owner, type, policy, flags);
@@ -317,7 +335,6 @@ static int request_pre_process(struct c2_fom *fom,
 	C2_PRE(fom != NULL);
 
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
-	in = &rfom->rf_in.ri_incoming;
 
 	rc = incoming_prepare(type, fom);
 	if (rc != 0) {
@@ -329,6 +346,7 @@ static int request_pre_process(struct c2_fom *fom,
 		return C2_FOPH_SUCCESS;
 	}
 
+	in = &rfom->rf_in.ri_incoming;
 	c2_rm_right_get(in);
 
 	/*
@@ -337,7 +355,7 @@ static int request_pre_process(struct c2_fom *fom,
 	 */
 	fom->fo_phase = next_phase;
 	if (in->rin_state == RI_WAIT) {
-		c2_fom_wait_on(fom, &in->rin_signal, NULL);
+		c2_fom_wait_on(fom, &in->rin_signal, &fom->fo_cb);
 	}
 	return C2_FSO_WAIT;
 }
@@ -364,7 +382,7 @@ static int request_post_process(struct c2_fom *fom)
 		rc = reply_prepare(in->rin_type, fom);
 
 		c2_mutex_lock(&owner->ro_lock);
-		switch(in->rin_type) {
+		switch (in->rin_type) {
 		case RIT_BORROW:
 			rc = rc ?: c2_rm_borrow_commit(&rfom->rf_in);
 			break;
@@ -415,8 +433,10 @@ static int rm_borrow_fom_state(struct c2_fom *fom)
 }
 
 /**
- * This function handles the request to borrow a right to a resource on
- * a server ("creditor").
+ * This function handles the request to revoke a right to a resource on
+ * a server ("debtor"). REVOKE is typically issued to the client. In Colibri,
+ * resources are arranged in hierarchy (chain). Hence a server can receive
+ * REVOKE from another server.
  *
  * @param fom -> fom processing the RIGHT_REVOKE request on the server
  *
@@ -457,6 +477,9 @@ static void rm_borrow_fom_fini(struct c2_fom *fom)
 {
 	struct c2_fop_rm_borrow_rep *rply_fop;
 
+	/*
+	 * Free memory allocated by c2_rm_rdatum2buf().
+	 */
 	rply_fop = c2_fop_data(fom->fo_rep_fop);
 	c2_free(rply_fop->br_right.ri_opaque.op_bytes);
 

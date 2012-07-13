@@ -3,7 +3,7 @@
 #define __COLIBRI_RM_FOPS_H__
 
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -48,18 +48,6 @@ extern struct c2_fop_type c2_fop_rm_borrow_fopt;
 extern struct c2_fop_type c2_fop_rm_borrow_rep_fopt;
 extern struct c2_fop_type c2_fop_rm_revoke_fopt;
 extern struct c2_fop_type c2_fop_rm_revoke_rep_fopt;
-extern struct c2_fop_type c2_fop_rm_cancel_fopt;
-
-/*
- * ???
- */
-extern struct c2_fop_type_format c2_fop_rm_tfmt;
-extern struct c2_fop_type_format c2_fop_rm_res_data_tfmt;
-extern struct c2_fop_type_format c2_fop_rm_borrow_tfmt;
-extern struct c2_fop_type_format c2_fop_rm_borrow_reply_tfmt;
-extern struct c2_fop_type_format c2_fop_rm_revoke_tfmt;
-extern struct c2_fop_type_format c2_fop_rm_revoke_reply_tfmt;
-extern struct c2_fop_type_format c2_fop_rm_cancel_tfmt;
 
 /* __COLIBRI_RM_FOPS_H__ */
 #endif

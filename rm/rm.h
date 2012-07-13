@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -205,14 +205,15 @@ struct c2_rm_outgoing;
 struct c2_rm_lease;
 
 enum {
-        C2_RM_RESOURCE_TYPE_ID_MAX     = 64,
-        C2_RM_RESOURCE_TYPE_ID_INVALID = ~0
+	C2_RM_RESOURCE_TYPE_ID_MAX     = 64,
+	C2_RM_RESOURCE_TYPE_ID_INVALID = ~0
 };
 
 /**
    Opaque cookie that RM core used to quickly identify and locate its objects.
+   @todo Remove after generic cookie implementation.
  */
-struct c2_rm_cookie {
+struct c2_cookie {
 	struct c2_uint128 cv;
 };
 
@@ -228,14 +229,14 @@ struct c2_rm_cookie {
    the same address space.
  */
 struct c2_rm_domain {
-        /**
-           An array where resource types are registered. Protected by
-           c2_rm_domain::rd_lock.
+	/**
+	   An array where resource types are registered. Protected by
+	   c2_rm_domain::rd_lock.
 
-           @see c2_rm_resource_type::rt_id
-         */
-        struct c2_rm_resource_type *rd_types[C2_RM_RESOURCE_TYPE_ID_MAX];
-        struct c2_mutex             rd_lock;
+	   @see c2_rm_resource_type::rt_id
+	 */
+	struct c2_rm_resource_type *rd_types[C2_RM_RESOURCE_TYPE_ID_MAX];
+	struct c2_mutex             rd_lock;
 };
 
 /**
@@ -252,39 +253,39 @@ struct c2_rm_domain {
    identities.
  */
 struct c2_rm_resource {
-        struct c2_rm_resource_type      *r_type;
-        const struct c2_rm_resource_ops *r_ops;
-        /**
-           Linkage to a list of all resources of this type, hanging off
-           c2_rm_resource_type::rt_resources.
-         */
-        struct c2_tlink                  r_linkage;
+	struct c2_rm_resource_type      *r_type;
+	const struct c2_rm_resource_ops *r_ops;
+	/**
+	   Linkage to a list of all resources of this type, hanging off
+	   c2_rm_resource_type::rt_resources.
+	 */
+	struct c2_tlink                  r_linkage;
 	/**
 	   List of remote owners (linked through c2_rm_remote::rem_linkage) with
 	   which local owner, of rights to this resource, communicate.
 	 */
 	struct c2_tl                     r_remote;
-        /**
-           Active references to this resource from resource owners
-           (c2_rm_resource::r_type) and from remote resource owners
-           (c2_rm_remote::rem_resource) Protected by
-           c2_rm_resource_type::rt_lock.
-         */
-        uint32_t                         r_ref;
+	/**
+	   Active references to this resource from resource owners
+	   (c2_rm_resource::r_type) and from remote resource owners
+	   (c2_rm_remote::rem_resource) Protected by
+	   c2_rm_resource_type::rt_lock.
+	 */
+	uint32_t                         r_ref;
 	uint64_t                         r_magix;
 };
 
 struct c2_rm_resource_ops {
-        /**
-           Called when a new right is allocated for the resource. The resource
-           specific code should parse the right description stored in the
-           buffer and fill c2_rm_right::ri_datum appropriately.
-         */
-        int (*rop_right_decode)(struct c2_rm_resource *resource,
-                                struct c2_rm_right *right,
-                                struct c2_bufvec_cursor *cur);
-        void (*rop_policy)(struct c2_rm_resource *resource,
-                           struct c2_rm_incoming *in);
+	/**
+	   Called when a new right is allocated for the resource. The resource
+	   specific code should parse the right description stored in the
+	   buffer and fill c2_rm_right::ri_datum appropriately.
+	 */
+	int (*rop_right_decode)(struct c2_rm_resource *resource,
+				struct c2_rm_right *right,
+				struct c2_bufvec_cursor *cur);
+	void (*rop_policy)(struct c2_rm_resource *resource,
+			   struct c2_rm_incoming *in);
 	/**
 	   Called to initialise a usage right for this resource.
 
@@ -312,49 +313,49 @@ struct c2_rm_resource_ops {
    - how right conflicts are resolved.
  */
 struct c2_rm_resource_type {
-        const struct c2_rm_resource_type_ops *rt_ops;
-        const char                           *rt_name;
-        /**
-           A resource type identifier, globally unique within a cluster, used
-           to identify resource types on wire and storage.
+	const struct c2_rm_resource_type_ops *rt_ops;
+	const char                           *rt_name;
+	/**
+	   A resource type identifier, globally unique within a cluster, used
+	   to identify resource types on wire and storage.
 
-           This identifier is used as an index in c2_rm_domain::rd_index.
+	   This identifier is used as an index in c2_rm_domain::rd_index.
 
-           @todo currently this is assigned manually and centrally. In the
-           future, resource types identifiers (as well as rpc item opcodes)
-           will be assigned dynamically by a special service (and then
-           announced to the clients). Such identifier name-spaces are
-           resources themselves, so, welcome to a minefield of
-           bootstrapping.
-         */
-        uint64_t                              rt_id;
-        struct c2_mutex                       rt_lock;
-        /**
-           List of all resources of this type. Protected by
-           c2_rm_resource_type::rt_lock.
-         */
-        struct c2_tl                          rt_resources;
-        /**
-           Active references to this resource type from resource instances
-           (c2_rm_owner::ro_resource). Protected by
-           c2_rm_resource_type::rt_lock.
-         */
-        uint32_t                              rt_nr_resources;
-        /**
-           Domain this resource type is registered with.
-         */
-        struct c2_rm_domain                  *rt_dom;
+	   @todo currently this is assigned manually and centrally. In the
+	   future, resource types identifiers (as well as rpc item opcodes)
+	   will be assigned dynamically by a special service (and then
+	   announced to the clients). Such identifier name-spaces are
+	   resources themselves, so, welcome to a minefield of
+	   bootstrapping.
+	 */
+	uint64_t			      rt_id;
+	struct c2_mutex			      rt_lock;
+	/**
+	   List of all resources of this type. Protected by
+	   c2_rm_resource_type::rt_lock.
+	 */
+	struct c2_tl			      rt_resources;
+	/**
+	   Active references to this resource type from resource instances
+	   (c2_rm_owner::ro_resource). Protected by
+	   c2_rm_resource_type::rt_lock.
+	 */
+	uint32_t			      rt_nr_resources;
+	/**
+	   Domain this resource type is registered with.
+	 */
+	struct c2_rm_domain		     *rt_dom;
 };
 
 struct c2_rm_resource_type_ops {
-        bool (*rto_eq)(const struct c2_rm_resource *resource0,
-                       const struct c2_rm_resource *resource1);
-        bool (*rto_resource_is)(const struct c2_rm_resource *resource,
-                       		const uint64_t id);
-        int  (*rto_decode)(const struct c2_bufvec_cursor *cur,
-                           struct c2_rm_resource **resource);
-        int  (*rto_encode)(struct c2_bufvec_cursor *cur,
-                           const struct c2_rm_resource *resource);
+	bool (*rto_eq)(const struct c2_rm_resource *resource0,
+		       const struct c2_rm_resource *resource1);
+	bool (*rto_resource_is)(const struct c2_rm_resource *resource,
+				const uint64_t id);
+	int  (*rto_decode)(const struct c2_bufvec_cursor *cur,
+			   struct c2_rm_resource **resource);
+	int  (*rto_encode)(struct c2_bufvec_cursor *cur,
+			   const struct c2_rm_resource *resource);
 };
 
 /**
@@ -381,37 +382,38 @@ struct c2_rm_resource_type_ops {
    out of this list until unpinned.
  */
 struct c2_rm_right {
-        struct c2_rm_owner           *ri_owner;
-        const struct c2_rm_right_ops *ri_ops;
-        /** resource type private field. By convention, 0 means "empty"
-            right. */
-        uint64_t                      ri_datum;
-        /**
-           Linkage of a right (and the corresponding loan, if applicable) to a
-           list hanging off c2_rm_owner.
-         */
-        struct c2_tlink               ri_linkage;
-        /**
-           A list of pins, linked through c2_rm_pins::rp_right, stuck into this
-           right.
-         */
-        struct c2_tl                  ri_pins;
+	struct c2_rm_owner           *ri_owner;
+	const struct c2_rm_right_ops *ri_ops;
+	/** resource type private field. By convention, 0 means "empty"
+	    right.
+	 */
+	uint64_t                      ri_datum;
+	/**
+	   Linkage of a right (and the corresponding loan, if applicable) to a
+	   list hanging off c2_rm_owner.
+	 */
+	struct c2_tlink               ri_linkage;
+	/**
+	   A list of pins, linked through c2_rm_pins::rp_right, stuck into this
+	   right.
+	 */
+	struct c2_tl                  ri_pins;
 	uint64_t                      ri_magix;
 };
 
 struct c2_rm_right_ops {
-        /**
-           Called when the generic code is about to free a right. Type specific
-           code releases any resources associated with the right.
-         */
-        void (*rro_free)(struct c2_rm_right *droit);
+	/**
+	   Called when the generic code is about to free a right. Type specific
+	   code releases any resources associated with the right.
+	 */
+	void (*rro_free)(struct c2_rm_right *droit);
+	int  (*rro_encode)(struct c2_rm_right *right,
+			   struct c2_bufvec_cursor *cur);
+	int  (*rro_decode)(struct c2_rm_right *right,
+			   struct c2_bufvec_cursor *cur);
 	c2_bcount_t (*rro_len) (struct c2_rm_right *right);
-        int  (*rro_encode)(struct c2_rm_right *right,
-			   struct c2_bufvec_cursor *cur);
-        int  (*rro_decode)(struct c2_rm_right *right,
-			   struct c2_bufvec_cursor *cur);
 
-        /** @name operations.
+	/** @name operations.
 
 	    The following operations are implemented by resource type and used
 	    by generic code to analyse rights relationships.
@@ -514,12 +516,12 @@ struct c2_rm_right_ops {
 };
 
 enum c2_rm_remote_state {
-        REM_FREED = 0,
-        REM_INITIALIZED,
-        REM_SERVICE_LOCATING,
-        REM_SERVICE_LOCATED,
-        REM_OWNER_LOCATING,
-        REM_OWNER_LOCATED
+	REM_FREED = 0,
+	REM_INITIALIZED,
+	REM_SERVICE_LOCATING,
+	REM_SERVICE_LOCATED,
+	REM_OWNER_LOCATING,
+	REM_OWNER_LOCATED
 };
 
 /**
@@ -586,26 +588,30 @@ enum c2_rm_remote_state {
    @endverbatim
  */
 struct c2_rm_remote {
-        enum c2_rm_remote_state  rem_state;
-        /**
-           A resource for which the remote owner is represented.
-         */
-        struct c2_rm_resource   *rem_resource;
-        /** A channel to signal state changes. */
-        struct c2_chan           rem_signal;
-        /** A service to be contacted to talk with the remote owner. Valid in
-            states starting from REM_SERVICE_LOCATED.
-        struct c2_service_id     rem_service;
+	enum c2_rm_remote_state  rem_state;
+	/**
+	   A resource for which the remote owner is represented.
+	 */
+	struct c2_rm_resource   *rem_resource;
+	/** A channel to signal state changes. */
+	struct c2_chan           rem_signal;
+	/** A service to be contacted to talk with the remote owner. Valid in
+	    states starting from REM_SERVICE_LOCATED.
+	@todo Due to changes in RPC, service id cannot be used. Do we need
+	this field? Alternately, we have to replace this field with connection
+	or session pointer.
+	struct c2_service_id     rem_service;
 	*/
 	/**
 	   A linkage into the list of remotes for a given resource hanging off
 	   c2_rm_resource::r_remote.
 	 */
 	struct c2_tlink          rem_linkage;
-        /** An identifier of the remote owner within the service. Valid in
-            REM_OWNER_LOCATED state. This identifier is generated by the
-            resource manager service. */
-        struct c2_rm_cookie      rem_cookie;
+	/** An identifier of the remote owner within the service. Valid in
+	    REM_OWNER_LOCATED state. This identifier is generated by the
+	    resource manager service.
+	 */
+	struct c2_cookie         rem_cookie;
 	uint64_t                 rem_id;
 };
 
@@ -632,42 +638,42 @@ struct c2_rm_group {
    c2_rm_owner state machine states.
  */
 enum c2_rm_owner_state {
-        /**
-            Terminal and initial state.
+	/**
+	    Terminal and initial state.
 
-            In this state owner rights lists are empty (including incoming and
-            outgoing request lists).
-         */
-        ROS_FINAL = 1,
-        /**
-           Initial network setup state:
+	    In this state owner rights lists are empty (including incoming and
+	    outgoing request lists).
+	 */
+	ROS_FINAL = 1,
+	/**
+	   Initial network setup state:
 
-               - registering with the resource data-base;
+	       - registering with the resource data-base;
 
-               - &c.
+	       - &c.
          */
-        ROS_INITIALISING,
-        /**
-           Active request processing state. Once an owner reached this state it
-           must pass through the finalising state.
-         */
-        ROS_ACTIVE,
-        /**
-           No new requests are allowed in this state.
+	ROS_INITIALISING,
+	/**
+	   Active request processing state. Once an owner reached this state it
+	   must pass through the finalising state.
+	 */
+	ROS_ACTIVE,
+	/**
+	   No new requests are allowed in this state.
 
-           The owner collects from debtors and repays creditors.
-         */
-        ROS_FINALISING
+	   The owner collects from debtors and repays creditors.
+	 */
+	ROS_FINALISING
 };
 
 enum {
-        /**
-           Incoming requests are assigned a priority (greater numerical value
-           is higher). When multiple requests are ready to be fulfilled, higher
-           priority ones have a preference.
-         */
-        C2_RM_REQUEST_PRIORITY_MAX = 3,
-        C2_RM_REQUEST_PRIORITY_NR
+	/**
+	   Incoming requests are assigned a priority (greater numerical value
+	   is higher). When multiple requests are ready to be fulfilled, higher
+	   priority ones have a preference.
+	 */
+	C2_RM_REQUEST_PRIORITY_MAX = 3,
+	C2_RM_REQUEST_PRIORITY_NR
 };
 
 /**
@@ -675,43 +681,43 @@ enum {
    into sub-lists enumerated by this enum.
  */
 enum c2_rm_owner_owned_state {
-        /**
-           Sub-list of pinned rights.
+	/**
+	   Sub-list of pinned rights.
 
-           @see c2_rm_right
-         */
-        OWOS_HELD,
-        /**
-           Not-pinned right is "cached". Such right can be returned to an
-           upward owner from which it was previously borrowed (i.e., right can
-           be "cancelled") or sub-let to downward owners.
-         */
-        OWOS_CACHED,
-        OWOS_NR
+	   @see c2_rm_right
+	 */
+	OWOS_HELD,
+	/**
+	   Not-pinned right is "cached". Such right can be returned to an
+	   upward owner from which it was previously borrowed (i.e., right can
+	   be "cancelled") or sub-let to downward owners.
+	 */
+	OWOS_CACHED,
+	OWOS_NR
 };
 
 /**
    Lists of incoming and outgoing requests are subdivided into sub-lists.
  */
 enum c2_rm_owner_queue_state {
-        /**
-           "Ground" request is not excited.
-         */
-        OQS_GROUND,
-        /**
-           Excited requests are those for which something has to be done. An
-           outgoing request is excited when it completes (or times out). An
-           incoming request is excited when it's ready to go from RI_WAIT to
-           RI_CHECK state.
+	/**
+	   "Ground" request is not excited.
+	 */
+	OQS_GROUND,
+	/**
+	   Excited requests are those for which something has to be done. An
+	   outgoing request is excited when it completes (or times out). An
+	   incoming request is excited when it's ready to go from RI_WAIT to
+	   RI_CHECK state.
 
-           Resource owner state machine goes through lists of excited requests
-           processing them. This processing can result in more excitement
-           somewhere, but eventually terminates.
+	   Resource owner state machine goes through lists of excited requests
+	   processing them. This processing can result in more excitement
+	   somewhere, but eventually terminates.
 
-           @see http://en.wikipedia.org/wiki/Excited_state
-         */
-        OQS_EXCITED,
-        OQS_NR
+	   @see http://en.wikipedia.org/wiki/Excited_state
+	 */
+	OQS_EXCITED,
+	OQS_NR
 };
 
 /**
@@ -801,55 +807,55 @@ enum c2_rm_owner_queue_state {
    }
  */
 struct c2_rm_owner {
-        enum c2_rm_owner_state ro_state;
-        /**
-           Resource this owner possesses the rights on.
-         */
-        struct c2_rm_resource *ro_resource;
-        /**
-           A group this owner is part of.
+	enum c2_rm_owner_state ro_state;
+	/**
+	   Resource this owner possesses the rights on.
+	 */
+	struct c2_rm_resource *ro_resource;
+	/**
+	   A group this owner is part of.
 
-           If this is NULL, the owner is not a member of any group (a
-           "standalone" owner).
-         */
-        struct c2_rm_group    *ro_group;
+	   If this is NULL, the owner is not a member of any group (a
+	   "standalone" owner).
+	 */
+	struct c2_rm_group    *ro_group;
 	/**
 	   An upward creditor, from where this owner borrows rights.
 	 */
 	struct c2_rm_remote   *ro_creditor;
-        /**
-           A list of loans, linked through c2_rm_loan::rl_right:ri_linkage that
-           this owner borrowed from other owners.
+	/**
+	   A list of loans, linked through c2_rm_loan::rl_right:ri_linkage that
+	   this owner borrowed from other owners.
 
 	   @see c2_rm_loan
-         */
-        struct c2_tl           ro_borrowed;
-        /**
-           A list of loans, linked through c2_rm_loan::rl_right:ri_linkage that
-           this owner extended to other owners. Rights on this list are not
-           longer possessed by this owner: they are counted in
-           c2_rm_owner::ro_borrowed, but not in c2_rm_owner::ro_owned.
+	 */
+	struct c2_tl           ro_borrowed;
+	/**
+	   A list of loans, linked through c2_rm_loan::rl_right:ri_linkage that
+	   this owner extended to other owners. Rights on this list are not
+	   longer possessed by this owner: they are counted in
+	   c2_rm_owner::ro_borrowed, but not in c2_rm_owner::ro_owned.
 
 	   @see c2_rm_loan
-         */
-        struct c2_tl           ro_sublet;
-        /**
-           A list of rights, linked through c2_rm_right::ri_linkage possessed
-           by the owner.
-         */
-        struct c2_tl           ro_owned[OWOS_NR];
-        /**
-           An array of lists, sorted by priority, of incoming requests. Requests
-           are linked through c2_rm_incoming::rin_want::ri_linkage.
+	 */
+	struct c2_tl           ro_sublet;
+	/**
+	   A list of rights, linked through c2_rm_right::ri_linkage possessed
+	   by the owner.
+	 */
+	struct c2_tl           ro_owned[OWOS_NR];
+	/**
+	   An array of lists, sorted by priority, of incoming requests. Requests
+	   are linked through c2_rm_incoming::rin_want::ri_linkage.
 
 	   @see c2_rm_incoming
-         */
-        struct c2_tl           ro_incoming[C2_RM_REQUEST_PRIORITY_NR][OQS_NR];
-        /**
-           An array of lists, of outgoing, not yet completed, requests.
-         */
-        struct c2_tl           ro_outgoing[OQS_NR];
-        struct c2_mutex        ro_lock;
+	 */
+	struct c2_tl           ro_incoming[C2_RM_REQUEST_PRIORITY_NR][OQS_NR];
+	/**
+	   An array of lists, of outgoing, not yet completed, requests.
+	 */
+	struct c2_tl           ro_outgoing[OQS_NR];
+	struct c2_mutex        ro_lock;
 };
 
 enum {
@@ -870,83 +876,83 @@ enum {
    creditor and which is debtor is determined by the list the loan is on.
  */
 struct c2_rm_loan {
-        struct c2_rm_right   rl_right;
-        /**
-           Other party in the loan. Either an "upward" creditor or "downward"
-           debtor, or "self" in case of a fake loan issued by the top-level
-           creditor to maintain its invariants.
-         */
-        struct c2_rm_remote *rl_other;
-        /**
-           A identifier generated by the remote end that should be passed back
-           whenever operating on a loan (think loan agreement number).
-         */
-	struct c2_rm_cookie  rl_cookie;
-        uint64_t             rl_id;
+	struct c2_rm_right   rl_right;
+	/**
+	   Other party in the loan. Either an "upward" creditor or "downward"
+	   debtor, or "self" in case of a fake loan issued by the top-level
+	   creditor to maintain its invariants.
+	 */
+	struct c2_rm_remote *rl_other;
+	/**
+	   A identifier generated by the remote end that should be passed back
+	   whenever operating on a loan (think loan agreement number).
+	 */
+	struct c2_cookie     rl_cookie;
+	uint64_t             rl_id;
 };
 
 /**
    States of incoming request. See c2_rm_incoming for description.
  */
 enum c2_rm_incoming_state {
-        RI_INITIALISED = 1,
-        /** Ready to check whether the request can be fulfilled. */
-        RI_CHECK,
-        /** Request has been fulfilled. */
-        RI_SUCCESS,
-        /** Request cannot be fulfilled. */
-        RI_FAILURE,
-        /** Has to wait for some future event, like outgoing request completion
-            or release of a locally held usage right. */
-        RI_WAIT
+	RI_INITIALISED = 1,
+	/** Ready to check whether the request can be fulfilled. */
+	RI_CHECK,
+	/** Request has been fulfilled. */
+	RI_SUCCESS,
+	/** Request cannot be fulfilled. */
+	RI_FAILURE,
+	/** Has to wait for some future event, like outgoing request completion
+	    or release of a locally held usage right. */
+	RI_WAIT
 };
 
 /**
    Types of an incoming usage right request.
  */
 enum c2_rm_incoming_type {
-        /**
-           A request for a usage right from a local user. When the request
-           succeeds, the right is held by the owner.
-         */
-        RIT_LOCAL,
-        /**
-           A request to loan a usage right to a remote owner. Fulfillment of
-           this request might cause further outgoing requests to be sent, e.g.,
-           to revoke rights sub-let to remote owner.
-         */
-        RIT_BORROW,
-        /**
-           A request to return a usage right previously sub-let to this owner.
-         */
-        RIT_REVOKE
+	/**
+	   A request for a usage right from a local user. When the request
+	   succeeds, the right is held by the owner.
+	 */
+	RIT_LOCAL,
+	/**
+	   A request to loan a usage right to a remote owner. Fulfillment of
+	   this request might cause further outgoing requests to be sent, e.g.,
+	   to revoke rights sub-let to remote owner.
+	 */
+	RIT_BORROW,
+	/**
+	   A request to return a usage right previously sub-let to this owner.
+	 */
+	RIT_REVOKE
 };
 
 /**
    Some universal (i.e., not depending on a resource type) granting policies.
  */
 enum c2_rm_incoming_policy {
-        RIP_NONE = 1,
-        /**
-           If possible, don't insert a new right into the list of possessed
-           rights. Instead, pin possessed rights overlapping with the requested
-           right.
-         */
-        RIP_INPLACE,
-        /**
-           Insert a new right into the list of possessed rights, equal to the
-           requested right.
-         */
-        RIP_STRICT,
-        /**
-           ...
-         */
-        RIP_JOIN,
-        /**
-           Grant maximal possible right, not conflicting with others.
-         */
-        RIP_MAX,
-        RIP_NR
+	RIP_NONE = 1,
+	/**
+	   If possible, don't insert a new right into the list of possessed
+	   rights. Instead, pin possessed rights overlapping with the requested
+	   right.
+	 */
+	RIP_INPLACE,
+	/**
+	   Insert a new right into the list of possessed rights, equal to the
+	   requested right.
+	 */
+	RIP_STRICT,
+	/**
+	   ...
+	 */
+	RIP_JOIN,
+	/**
+	   Grant maximal possible right, not conflicting with others.
+	 */
+	RIP_MAX,
+	RIP_NR
 };
 
 /**
@@ -954,41 +960,41 @@ enum c2_rm_incoming_policy {
    stored in c2_rm_incoming::rin_flags and analysed in c2_rm_right_get().
  */
 enum c2_rm_incoming_flags {
-        /**
-           Previously sub-let rights may be revoked, if necessary, to fulfill
-           this request.
-         */
-        RIF_MAY_REVOKE = (1 << 0),
-        /**
-           More rights may be borrowed, if necessary, to fulfill this request.
-         */
-        RIF_MAY_BORROW = (1 << 1),
-        /**
-           The interaction between the request and locally possessed rights is
-           the following:
+	/**
+	   Previously sub-let rights may be revoked, if necessary, to fulfill
+	   this request.
+	 */
+	RIF_MAY_REVOKE = (1 << 0),
+	/**
+	   More rights may be borrowed, if necessary, to fulfill this request.
+	 */
+	RIF_MAY_BORROW = (1 << 1),
+	/**
+	   The interaction between the request and locally possessed rights is
+	   the following:
 
-               - by default, locally possessed rights are ignored. This scenario
-                 is typical for a local request (RIT_LOCAL), because local users
-                 resolve conflicts by some other means (usually some form of
-                 concurrency control, like locking);
+	       - by default, locally possessed rights are ignored. This scenario
+		 is typical for a local request (RIT_LOCAL), because local users
+		 resolve conflicts by some other means (usually some form of
+		 concurrency control, like locking);
 
-               - if RIF_LOCAL_WAIT is set, the request can be fulfilled only
-                 once there is no locally possessed rights conflicting with the
-                 wanted right. This is typical for a remote request (RIT_BORROW
-                 or RIT_REVOKE);
+	       - if RIF_LOCAL_WAIT is set, the request can be fulfilled only
+		 once there is no locally possessed rights conflicting with the
+		 wanted right. This is typical for a remote request (RIT_BORROW
+		 or RIT_REVOKE);
 
-               - if RIF_LOCAL_TRY is set, the request will be immediately
-                 denied, if there are conflicting local rights. This allows to
-                 implement a "try-lock" like functionality.
-         */
-        RIF_LOCAL_WAIT = (1 << 2),
-        /**
-           Fail the request if it cannot be fulfilled because of the local
-           conflicts.
+	       - if RIF_LOCAL_TRY is set, the request will be immediately
+		 denied, if there are conflicting local rights. This allows to
+		 implement a "try-lock" like functionality.
+	 */
+	RIF_LOCAL_WAIT = (1 << 2),
+	/**
+	   Fail the request if it cannot be fulfilled because of the local
+	   conflicts.
 
-           @see RIF_LOCAL_WAIT
-         */
-        RIF_LOCAL_TRY  = (1 << 3),
+	   @see RIF_LOCAL_WAIT
+	 */
+	RIF_LOCAL_TRY  = (1 << 3),
 };
 
 /**
@@ -1137,36 +1143,36 @@ enum c2_rm_incoming_flags {
    ROT_TAKE could be added.
  */
 struct c2_rm_incoming {
-        enum c2_rm_incoming_type         rin_type;
-        enum c2_rm_incoming_state        rin_state;
-        enum c2_rm_incoming_policy       rin_policy;
-        uint64_t                         rin_flags;
-        /** The right requested. */
-        struct c2_rm_right               rin_want;
-        /**
-           List of pins, linked through c2_rm_pin::rp_incoming_linkage, for all
-           rights held to satisfy this request.
+	enum c2_rm_incoming_type	 rin_type;
+	enum c2_rm_incoming_state	 rin_state;
+	enum c2_rm_incoming_policy	 rin_policy;
+	uint64_t			 rin_flags;
+	/** The right requested. */
+	struct c2_rm_right		 rin_want;
+	/**
+	   List of pins, linked through c2_rm_pin::rp_incoming_linkage, for all
+	   rights held to satisfy this request.
 
-           @invariant meaning of this list depends on the request state:
+	   @invariant meaning of this list depends on the request state:
 
-               - RI_CHECK, RI_SUCCESS: a list of RPF_PROTECT pins on rights in
-               ->rin_want.ri_owner->ro_owned[];
+	       - RI_CHECK, RI_SUCCESS: a list of RPF_PROTECT pins on rights in
+	       ->rin_want.ri_owner->ro_owned[];
 
-               - RI_WAIT: a list of RPF_TRACK pins on outgoing requests (through
-                 c2_rm_outgoing::rog_want::rl_right::ri_pins) and held rights in
-                 ->rin_want.ri_owner->ro_owned[OWOS_HELD];
+	       - RI_WAIT: a list of RPF_TRACK pins on outgoing requests (through
+		 c2_rm_outgoing::rog_want::rl_right::ri_pins) and held rights in
+		 ->rin_want.ri_owner->ro_owned[OWOS_HELD];
 
-               - other states: empty.
-         */
-        struct c2_tl                     rin_pins;
-        /**
-           Request priority from 0 to C2_RM_REQUEST_PRIORITY_MAX.
-         */
-        int                              rin_priority;
+	       - other states: empty.
+	 */
+	struct c2_tl			 rin_pins;
+	/**
+	   Request priority from 0 to C2_RM_REQUEST_PRIORITY_MAX.
+	 */
+	int				 rin_priority;
 	/** Request processing error. Used to propagate it to proper caller */
 	int32_t				 rin_rc;
-        const struct c2_rm_incoming_ops *rin_ops;
-        struct c2_chan                   rin_signal;
+	const struct c2_rm_incoming_ops *rin_ops;
+	struct c2_chan			 rin_signal;
 };
 
 /**
@@ -1175,16 +1181,16 @@ struct c2_rm_incoming {
    related to the request happen.
  */
 struct c2_rm_incoming_ops {
-        /**
-           This is called when incoming request processing completes either
-           successfully (rc == 0) or with an error (-ve rc).
-         */
-        void (*rio_complete)(struct c2_rm_incoming *in, int32_t rc);
-        /**
-           This is called when a request arrives that conflicts with the right
-           held by this incoming request.
-         */
-        void (*rio_conflict)(struct c2_rm_incoming *in);
+	/**
+	   This is called when incoming request processing completes either
+	   successfully (rc == 0) or with an error (-ve rc).
+	 */
+	void (*rio_complete)(struct c2_rm_incoming *in, int32_t rc);
+	/**
+	   This is called when a request arrives that conflicts with the right
+	   held by this incoming request.
+	 */
+	void (*rio_conflict)(struct c2_rm_incoming *in);
 };
 
 /**
@@ -1229,20 +1235,20 @@ enum c2_rm_outgoing_type {
    mutex.
  */
 struct c2_rm_outgoing {
-        enum c2_rm_outgoing_type rog_type;
+	enum c2_rm_outgoing_type rog_type;
 	/*
 	 * The error code (from reply or timeout) for this outgoing request.
 	 */
 	int32_t			 rog_rc;
-        struct c2_rm_owner      *rog_owner;
-        /** a right that is to be transferred. */
-        struct c2_rm_loan        rog_want;
+	struct c2_rm_owner	*rog_owner;
+	/** a right that is to be transferred. */
+	struct c2_rm_loan	*rog_want;
 };
 
 enum c2_rm_pin_flags {
-        RPF_TRACK   = (1 << 0),
-        RPF_PROTECT = (1 << 1),
-        RPF_BARRIER = (1 << 2)
+	RPF_TRACK   = (1 << 0),
+	RPF_PROTECT = (1 << 1),
+	RPF_BARRIER = (1 << 2)
 };
 
 /**
@@ -1333,16 +1339,16 @@ enum c2_rm_pin_flags {
    state transitions.
  */
 struct c2_rm_pin {
-        uint32_t               rp_flags;
-        struct c2_rm_right    *rp_right;
-        /** An incoming request that stuck this pin. */
-        struct c2_rm_incoming *rp_incoming;
-        /** Linkage into a list of all pins for a right, hanging off
-            c2_rm_right::ri_pins. */
-        struct c2_tlink        rp_right_linkage;
-        /** Linkage into a list of all pins, held to satisfy an incoming
-            request. This list hangs off c2_rm_incoming::rin_pins. */
-        struct c2_tlink        rp_incoming_linkage;
+	uint32_t               rp_flags;
+	struct c2_rm_right    *rp_right;
+	/** An incoming request that stuck this pin. */
+	struct c2_rm_incoming *rp_incoming;
+	/** Linkage into a list of all pins for a right, hanging off
+	    c2_rm_right::ri_pins. */
+	struct c2_tlink        rp_right_linkage;
+	/** Linkage into a list of all pins, held to satisfy an incoming
+	    request. This list hangs off c2_rm_incoming::rin_pins. */
+	struct c2_tlink        rp_incoming_linkage;
 	uint64_t               rp_magix;
 };
 
@@ -1384,7 +1390,7 @@ void c2_rm_type_deregister(struct c2_rm_resource_type *rtype);
    @post c2_tlist_contains(&rtype->rt_resources, &res->r_linkage)
  */
 void c2_rm_resource_add(struct c2_rm_resource_type *rtype,
-                        struct c2_rm_resource *res);
+			struct c2_rm_resource *res);
 /**
    Removes a resource from the list of resources. Dual to c2_rm_resource_add().
 

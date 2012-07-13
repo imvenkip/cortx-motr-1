@@ -89,7 +89,6 @@ DEF(c2_fop_rm_borrow_rep, RECORD,
     _(br_lvb, c2_fop_rm_opaque));
 
 DEF(c2_fop_rm_revoke, RECORD,
-    _(rr_op, BYTE),
     _(rr_debtor, c2_fop_rm_owner),
     _(rr_loan, c2_fop_rm_loan),
     _(rr_right, c2_fop_rm_right),

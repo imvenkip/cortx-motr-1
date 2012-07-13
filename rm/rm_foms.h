@@ -3,7 +3,7 @@
 #define __COLIBRI_RM_FOMS_H__
 
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -53,20 +53,6 @@ struct rm_request_fom {
 	/** Incoming request */
 	struct c2_rm_remote_incoming rf_in;
 };
-
-/*
- * FOM-types.
- */
-extern struct c2_fom_type c2_rm_fom_borrow_type;
-extern struct c2_fom_type c2_rm_fom_revoke_type;
-extern struct c2_fom_type c2_rm_fom_cancel_type;
-
-/*
- * FOM-type constructors.
- */
-extern struct c2_fom_ops c2_rm_fom_borrow_ops;
-extern struct c2_fom_ops c2_rm_fom_revoke_ops;
-extern struct c2_fom_ops c2_rm_fom_cancel_ops;
 
 /* __COLIBRI_RM_FOMS_H__ */
 #endif
