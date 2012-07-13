@@ -133,7 +133,7 @@ static void linear_populate(struct c2_layout_linear_enum *lin_enum,
 	C2_PRE(linear_allocated_invariant(lin_enum));
 	C2_PRE(attr != NULL);
 
-	lin_enum->lle_attr = *attr;
+	lin_enum->lle_attr = *attr; //todo validate and handle error
 	C2_POST(linear_invariant_internal(lin_enum));
 }
 

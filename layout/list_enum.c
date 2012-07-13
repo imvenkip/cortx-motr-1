@@ -183,35 +183,16 @@ static void list_delete(struct c2_layout_enum *e)
 	C2_LEAVE();
 }
 
-static int list_populate(struct c2_layout_list_enum *list_enum,
-			 struct c2_fid *cob_list, uint32_t nr)
+static void list_populate(struct c2_layout_list_enum *list_enum,
+			  struct c2_fid *cob_list, uint32_t nr)
 {
-	uint32_t                    i;
-	int                         rc;
-
 	C2_PRE(list_allocated_invariant(list_enum));
 	C2_PRE(cob_list != NULL);
-	C2_PRE(nr != 0);
+	C2_PRE(nr != 0); //todo Assert or handle?
 
-	C2_ENTRY();
 	list_enum->lle_nr = nr;
-
-	C2_ALLOC_ARR(list_enum->lle_list_of_cobs, nr);
-	if (list_enum == NULL) {
-		rc = -ENOMEM;
-		c2_layout__log("list_populate", "C2_ALLOC_ARR() failed",
-			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
-		goto out;
-	}
-	for (i = 0; i < nr; ++i) {
-		C2_ASSERT(c2_fid_is_valid(&cob_list[i]));
-		list_enum->lle_list_of_cobs[i] = cob_list[i];
-	}
+	list_enum->lle_list_of_cobs = cob_list;
 	C2_POST(list_invariant_internal(list_enum));
-	rc = 0;
-out:
-	C2_LEAVE("rc %d", rc);
-	return rc;
 }
 
 int c2_list_enum_build(struct c2_layout_domain *dom,
@@ -220,19 +201,28 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 {
 	struct c2_layout_enum      *e;
 	struct c2_layout_list_enum *list_enum;
+	uint32_t                    i;
 	int                         rc;
 
 	C2_PRE(out != NULL);
+
+	for (i = 0; i < nr; ++i) {
+		if (!c2_fid_is_valid(&cob_list[i])) {
+			c2_layout__log("c2_list_enum_build",
+				       "fid invalid",
+				       &c2_addb_func_fail, &layout_global_ctx,
+				       LID_NONE, -EPROTO);
+			return -EPROTO;
+		}
+	}
 
 	rc = list_allocate(dom, &e);
 	if (rc == 0) {
 		list_enum = bob_of(e, struct c2_layout_list_enum,
 				   lle_base, &list_bob);
-		rc = list_populate(list_enum, cob_list, nr);
-		if (rc == 0) {
-			C2_POST(list_invariant_internal(list_enum));
-			*out = list_enum;
-		}
+		list_populate(list_enum, cob_list, nr);
+		C2_POST(list_invariant_internal(list_enum));
+		*out = list_enum;
 	}
 	return rc;
 }
@@ -399,9 +389,14 @@ static int noninline_read(struct c2_layout_domain *dom,
 				       lid, rc);
 			goto out;
 		}
-		C2_ASSERT(key.clk_lid == lid);
-		C2_ASSERT(key.clk_cob_index == i);
-		C2_ASSERT(c2_fid_is_valid(&rec.clr_cob_id));
+		if (!c2_fid_is_valid(&rec.clr_cob_id)) {
+			rc = -EPROTO;
+			c2_layout__log("noninline_read",
+				       "fid invalid",
+				       &c2_addb_func_fail, &layout_global_ctx,
+				       lid, rc);
+			goto out;
+		}
 		cob_list[i] = rec.clr_cob_id;
 	}
 out:
@@ -488,7 +483,11 @@ static int list_decode(struct c2_layout_enum *e,
 				       (unsigned long)ce_header->ces_nr);
 			cob_id = c2_bufvec_cursor_addr(cur);
 			c2_bufvec_cursor_move(cur, sizeof *cob_id);
-			C2_ASSERT(cob_id != NULL);
+			if (!c2_fid_is_valid(cob_id)) {
+				rc = -EPROTO;
+				C2_LOG("fid invalid, i %lu", (unsigned long)i);
+				goto out;
+			}
 			cob_list[i] = *cob_id;
 		} else
 			/*
@@ -508,10 +507,11 @@ static int list_decode(struct c2_layout_enum *e,
 			goto out;
 		}
 	}
-	rc = list_populate(list_enum, cob_list, ce_header->ces_nr);
+	list_populate(list_enum, cob_list, ce_header->ces_nr);
+	rc = 0;
 	C2_POST(ergo(rc == 0, list_invariant_internal(list_enum)));
 out:
-	c2_free(cob_list);
+	C2_POST(ergo(rc != 0, list_allocated_invariant(list_enum)));
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
@@ -635,7 +635,6 @@ static int list_encode(const struct c2_layout_enum *e,
 	C2_PRE(out != NULL);
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof ce_header);
 
-	//todo C2_ENTRY()
 	list_enum = enum_to_list_enum(e);
 	lid = e->le_sl->sl_base.l_id;
 	C2_ENTRY("lid %llu, nr %lu", (unsigned long long)lid,
@@ -768,12 +767,10 @@ static c2_bcount_t list_recsize(struct c2_layout_enum *e)
 	C2_PRE(e != NULL);
 
 	list_enum = enum_to_list_enum(e);
-	if (list_enum->lle_nr < LDB_MAX_INLINE_COB_ENTRIES)
-		return sizeof(struct cob_entries_header) +
-			list_enum->lle_nr * sizeof(struct c2_fid);
-	else
-		return sizeof(struct cob_entries_header) +
-			LDB_MAX_INLINE_COB_ENTRIES * sizeof(struct c2_fid);
+	return sizeof(struct cob_entries_header) +
+		min_check((uint32_t)LDB_MAX_INLINE_COB_ENTRIES,
+			  list_enum->lle_nr) *
+		sizeof(struct c2_fid);
 }
 
 static const struct c2_layout_enum_ops list_enum_ops = {

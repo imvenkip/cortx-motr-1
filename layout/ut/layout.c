@@ -433,7 +433,6 @@ static int pdclust_layout_build(uint32_t enum_id,
 
 		e = &(*list_enum)->lle_base;
 
-		c2_free(cob_list);
 	} else { /* LINEAR_ENUM_ID */
 		C2_UT_ASSERT(B != B_NONE && list_enum == NULL);
 		C2_UT_ASSERT(lin_enum != NULL);

@@ -61,6 +61,12 @@ struct c2_layout_list_enum {
 
 /**
  * Builds list enumeration object.
+ *
+ * @param cob_list List of cob identifiers, allocated and supplied by the
+ * user. User shall not free the memory allocated for this list but it will
+ * be internally freed as a part of the enum object finalisation that
+ * happens through layout finalisation.
+ *
  * @post ergo(rc == 0, list_invariant_internal(lin_enum))
  *
  * @note Enum object need not be finalised explicitly by the user. It is
