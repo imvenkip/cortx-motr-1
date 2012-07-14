@@ -27,7 +27,7 @@
 #include "rpc/session_internal.h"
 #include "rpc/rpc_onwire.h"
 #include "xcode/bufvec_xcode.h"
-
+#include "xcode/xcode.h"
 
 /* XXX : Return correct RPC version. */
 static uint32_t rpc_ver_get(void)
@@ -183,7 +183,36 @@ int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
 	rc = item_header_encdec(cur, item, what);
 	if(rc != 0)
 		return rc;
-	rc = c2_xcode_bufvec_fop(cur, fop, what);
+
+	if (fop->f_type->ft_top == NULL) {
+		struct c2_xcode_ctx *xc_ctx = &fop->f_type->ft_xc_ctx;
+
+		if (what == C2_BUFVEC_ENCODE) {
+			c2_xcode_ctx_init(xc_ctx, &(struct c2_xcode_obj){
+					*fop->f_type->ft_xc_type,
+						c2_fop_data(fop)});
+			xc_ctx->xcx_buf = *cur;
+			rc = c2_xcode_encode(xc_ctx);
+			*cur = xc_ctx->xcx_buf;
+		} else {
+			c2_xcode_ctx_init(xc_ctx, &(struct c2_xcode_obj){
+					*fop->f_type->ft_xc_type,
+						NULL});
+			xc_ctx->xcx_alloc = c2_xcode_alloc;
+			xc_ctx->xcx_buf = *cur;
+			rc = c2_xcode_decode(xc_ctx);
+			*cur = xc_ctx->xcx_buf;
+			if (rc == 0) {
+				if (fop->f_data.fd_data != NULL)
+					c2_free(fop->f_data.fd_data);
+				fop->f_data.fd_data =
+					xc_ctx->xcx_it.xcu_stack[0].s_obj.xo_ptr;
+			}
+		}
+	} else {
+		rc = c2_xcode_bufvec_fop(cur, fop, what);
+	}
+
 	return rc;
 }
 

@@ -1,0 +1,9 @@
+
+sequence {
+	u64 t_count;
+	u32 t_data
+} c2_fop_onwire_test_arr;
+
+record {
+	c2_fop_onwire_test_arr t_arr
+} c2_fop_onwire_test;

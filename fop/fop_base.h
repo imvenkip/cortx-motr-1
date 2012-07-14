@@ -30,6 +30,7 @@
 #include "fop/fom.h"
 #include "lib/vec.h"
 #include "rpc/item.h"
+#include "xcode/xcode.h"
 
 /**
    @addtogroup fop
@@ -79,6 +80,8 @@ struct c2_fop_type {
 	const struct c2_fop_type_ops     *ft_ops;
 	/** Format of this fop's top field. */
 	struct c2_fop_type_format        *ft_fmt;
+	struct c2_xcode_type            **ft_xc_type;
+	struct c2_xcode_ctx               ft_xc_ctx;
 	struct c2_fol_rec_type            ft_rec_type;
 	/** State machine for this fop type */
 	struct c2_fom_type                ft_fom_type;

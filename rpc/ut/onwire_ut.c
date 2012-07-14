@@ -17,7 +17,6 @@
  * Original author: Subhash Arya <subhash_arya@xyratex.com>
  * Original creation date: 06/25/2011
  */
-#include <stdio.h>
 #include "lib/errno.h"
 #include "colibri/init.h"
 #include "lib/memory.h"
@@ -25,10 +24,7 @@
 #include "lib/misc.h"
 #include "lib/trace.h"
 #include "fop/fop.h"
-#include "fop/fop_format_def.h"
 #include "fop/fop_format.h"
-#include "rpc/ut/test_u.h"
-#include "rpc/ut/test.ff"
 #include "rpc/rpc2.h"
 #include "fop/fop_base.h"
 #include "fop/fop_item_type.h"
@@ -39,50 +35,33 @@
 #include "rpc/item.h"
 #include "lib/ut.h"
 #include "rpc/rpc_opcodes.h"
+#include "rpc/ut/onwire_fops.h"
 
-extern struct c2_fop_type_format c2_fop_onwire_test_tfmt;
-extern struct c2_fop_type_format c2_fop_onwire_test_arr_tfmt;
-
-static struct c2_rpc	 rpc_obj;
-struct c2_rpc_item	*item1;
-struct c2_rpc_item	*item2;
-struct c2_rpc_item	*item3;
+static struct c2_rpc  rpc_obj;
+struct c2_rpc_item   *item1;
+struct c2_rpc_item   *item2;
+struct c2_rpc_item   *item3;
 
 struct c2_fop_type_ops onwire_test_ops = {
 	.fto_size_get = c2_xcode_fop_size_get,
 };
 
-size_t test_item_size_get(const struct c2_rpc_item *item)
-{
-	uint64_t	 len = 0;
-	struct c2_fop	*fop;
-
-	C2_UT_ASSERT(item != NULL);
-
-	fop = c2_rpc_item_to_fop(item);
-	if(fop != NULL)	{
-		len = fop->f_type->ft_ops->fto_size_get(fop);
-		len += ITEM_ONWIRE_HEADER_SIZE;
-	}
-	return (size_t)len;
-}
-
-C2_FOP_TYPE_DECLARE(c2_fop_onwire_test, "onwire test", &onwire_test_ops,
-		    C2_RPC_ONWIRE_UT_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
+C2_FOP_TYPE_DECLARE_XC(c2_fop_onwire_test, "onwire test", &onwire_test_ops,
+		       C2_RPC_ONWIRE_UT_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
 
 static struct c2_verno verno = {
 	.vn_lsn = 1111,
-	.vn_vc = 2222,
+	.vn_vc  = 2222,
 };
 
 static struct c2_verno p_no = {
 	.vn_lsn = 3333,
-	.vn_vc = 4444
+	.vn_vc  = 4444
 };
 
 static struct c2_verno ls_no = {
 	.vn_lsn = 55555,
-	.vn_vc = 6666
+	.vn_vc  = 6666
 };
 
 void item_populate(struct c2_rpc_item *item)
@@ -91,16 +70,16 @@ void item_populate(struct c2_rpc_item *item)
 
 	C2_UT_ASSERT(item != NULL);
 
-	item->ri_slot_refs[0].sr_sender_id = 0xdead;
-	item->ri_slot_refs[0].sr_session_id = 0xbeef;
+	item->ri_slot_refs[0].sr_sender_id    = 0xdead;
+	item->ri_slot_refs[0].sr_session_id   = 0xbeef;
 	item->ri_slot_refs[0].sr_uuid.su_uuid = 0xeaeaeaea;
-	slot_ref = &item->ri_slot_refs[0];
-	slot_ref->sr_xid  = 0x11111111;
-	slot_ref->sr_slot_gen = 0x22222222;
-	slot_ref->sr_slot_id = 0x666;
-	slot_ref->sr_verno = verno;
-	slot_ref->sr_last_persistent_verno = p_no;
-	slot_ref->sr_last_seen_verno = ls_no;
+	slot_ref                              = &item->ri_slot_refs[0];
+	slot_ref->sr_xid                      = 0x11111111;
+	slot_ref->sr_slot_gen                 = 0x22222222;
+	slot_ref->sr_slot_id                  = 0x666;
+	slot_ref->sr_verno                    = verno;
+	slot_ref->sr_last_persistent_verno    = p_no;
+	slot_ref->sr_last_seen_verno          = ls_no;
 }
 
 void rpc_obj_populate(struct c2_rpc *rpc, struct c2_rpc_item *item)
@@ -140,25 +119,25 @@ static void rpc_obj_free(struct c2_rpc *rpc)
 
 static void test_rpc_encdec(void)
 {
-	int				 rc;
-	struct c2_fop			*f1;
-	struct c2_fop			*f2;
-	struct c2_fop			*f3;
-	struct c2_fop_onwire_test	*ccf1;
-	struct c2_fop_onwire_test       *ccf2;
-	struct c2_fop_onwire_test       *ccf3;
-	struct c2_rpc			*obj;
-	struct c2_rpc			 obj2;
-	struct c2_net_buffer		*nb;
-	struct c2_bufvec_cursor		 cur;
-	void				*cur_addr;
-	size_t				 allocated;
+	int			   rc;
+	struct c2_fop		  *f1;
+	struct c2_fop		  *f2;
+	struct c2_fop		  *f3;
+	struct c2_fop_onwire_test *ccf1;
+	struct c2_fop_onwire_test *ccf2;
+	struct c2_fop_onwire_test *ccf3;
+	struct c2_rpc		  *obj;
+	struct c2_rpc		   obj2;
+	struct c2_net_buffer	  *nb;
+	struct c2_bufvec_cursor	   cur;
+	void			  *cur_addr;
+	size_t			   allocated;
 
 	allocated = c2_allocated();
-	/* Allocate and build test fops. */
-	rc = c2_fop_type_format_parse(&c2_fop_onwire_test_arr_tfmt);
+	/* Build and allocate test fops. */
 	rc = c2_fop_type_build(&c2_fop_onwire_test_fopt);
 	C2_UT_ASSERT(rc == 0);
+
 	f1 = c2_fop_alloc(&c2_fop_onwire_test_fopt, NULL);
 	C2_UT_ASSERT(f1 != NULL);
 	f2 = c2_fop_alloc(&c2_fop_onwire_test_fopt, NULL);
@@ -210,7 +189,7 @@ static void test_rpc_encdec(void)
 	rpc_obj_populate(obj, item2);
 	rpc_obj_populate(obj, item3);
 
-	/* Alloc and initialise network buffer. */
+	/* Allocate and initialise network buffer. */
 	C2_ALLOC_PTR(nb);
 	c2_bufvec_alloc(&nb->nb_buffer, 13, 72);
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
@@ -231,15 +210,26 @@ static void test_rpc_encdec(void)
 	c2_free(nb);
 	rpc_obj_free(obj);
 	rpc_obj_free(&obj2);
-	c2_fop_type_format_fini(&c2_fop_onwire_test_arr_tfmt);
 	c2_fop_type_fini(&c2_fop_onwire_test_fopt);
 	C2_UT_ASSERT(allocated == c2_allocated());
 }
 
+static int onwire_fop_init(void)
+{
+	c2_xc_onwire_fops_init();
+	return 0;
+}
+
+static int onwire_fop_fini(void)
+{
+	c2_xc_onwire_fops_fini();
+	return 0;
+}
+
 const struct c2_test_suite rpc_onwire_ut = {
         .ts_name = "onwire-ut",
-        .ts_init = NULL,
-        .ts_fini = NULL,
+        .ts_init = onwire_fop_init,
+        .ts_fini = onwire_fop_fini,
         .ts_tests = {
                 { "onwire enc/decode", test_rpc_encdec },
                 { NULL, NULL }

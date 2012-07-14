@@ -42,7 +42,12 @@ int c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
 
 	fop->f_type = fopt;
 
-	nob = fopt->ft_top->fft_layout->fm_sizeof;
+
+	if (fopt->ft_top != NULL) {
+		nob = fopt->ft_top->fft_layout->fm_sizeof;
+	} else {
+		nob = (*fopt->ft_xc_type)->xct_sizeof;
+	}
 
 	if (data == NULL) {
 		data = c2_alloc(nob);

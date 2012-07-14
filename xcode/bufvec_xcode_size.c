@@ -309,8 +309,16 @@ size_t c2_xcode_fop_size_get(struct c2_fop *fop)
 
 	C2_PRE(fop != NULL);
 
-	c2_xcode_fop_type_size_get(&size, fop->f_type->ft_top,
-				   c2_fop_data(fop));
+	if (fop->f_type->ft_top != NULL) {
+		c2_xcode_fop_type_size_get(&size, fop->f_type->ft_top,
+					   c2_fop_data(fop));
+	} else {
+		c2_xcode_ctx_init(&fop->f_type->ft_xc_ctx,
+				  &(struct c2_xcode_obj){
+					  *fop->f_type->ft_xc_type,
+						  c2_fop_data(fop)});
+		size = c2_xcode_length(&fop->f_type->ft_xc_ctx);
+	}
 	return size;
 }
 C2_EXPORTED(c2_xcode_fop_size_get);

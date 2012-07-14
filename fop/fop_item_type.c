@@ -40,11 +40,11 @@ c2_bcount_t c2_fop_item_type_default_onwire_size(const struct c2_rpc_item *item)
 }
 
 int c2_fop_item_type_default_encode(struct c2_rpc_item_type *item_type,
-			      struct c2_rpc_item *item,
-			      struct c2_bufvec_cursor *cur)
+				    struct c2_rpc_item *item,
+				    struct c2_bufvec_cursor *cur)
 {
-	int			rc;
-	uint32_t		opcode;
+	int	 rc;
+	uint32_t opcode;
 
 	C2_PRE(item != NULL);
 	C2_PRE(cur != NULL);

@@ -524,7 +524,7 @@ int c2_xcode_encode(struct c2_xcode_ctx *ctx);
 
 /** Calculates the length of serialized representation. */
 int c2_xcode_length(struct c2_xcode_ctx *ctx);
-
+void *c2_xcode_alloc(struct c2_xcode_ctx *ctx, size_t nob);
 /** @} xcoding. */
 
 

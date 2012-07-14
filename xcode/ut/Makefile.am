@@ -1,18 +1,15 @@
 xcodeutdir        = $(includedir)/xcode/ut
 noinst_LTLIBRARIES   = libxcode-ut.la
 
-#xcode_ut_LDADD = $(top_builddir)/colibri/libcolibri.la
+libxcode_ut_la_SOURCES  = xcode_fops.h xcode_fops.c xcode_fop_test.c xcode_test.c \
+			  xcode.c ff2c.c
 
-libxcode_ut_la_SOURCES  = test_u.h test_u.c xcode_fop_test.c xcode_test.c \
-			xcode.c ff2c.c
+xcode_fops.h xcode_fops.c : xcode_fops.ff \
+	$(top_builddir)/xcode/ff2c/ff2c
+	$(top_builddir)/xcode/ff2c/ff2c $<
 
-test_u.h test_u.c : test.ff \
-	$(top_builddir)/fop/rt/libc2rt.la
-	$(top_builddir)/fop/fop2c
-	$(top_builddir)/fop/fop2c -u $<
-
-EXTRA_DIST = test.ff
+EXTRA_DIST = xcode_fops.ff
 
 clean-local:
 	cd @SRCDIR@/xcode/ut ; \
-	rm -fr test_[uk].[ch]
+	rm -fr xcode_fops.[ch]

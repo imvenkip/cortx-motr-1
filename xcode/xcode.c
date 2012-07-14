@@ -22,6 +22,7 @@
 #include "lib/misc.h"                           /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/assert.h"
+#include "lib/memory.h"
 
 #include "xcode/xcode.h"
 
@@ -31,6 +32,7 @@
    @{
  */
 
+#if 0
 static bool field_invariant(const struct c2_xcode_type *xt,
 			    const struct c2_xcode_field *field)
 {
@@ -39,6 +41,15 @@ static bool field_invariant(const struct c2_xcode_type *xt,
 		ergo(xt == &C2_XT_OPAQUE, field->xf_opaque != NULL) &&
 		field->xf_offset + field->xf_type->xct_sizeof <= xt->xct_sizeof;
 }
+#else
+static bool field_invariant(const struct c2_xcode_type *xt,
+			    const struct c2_xcode_field *field)
+{
+	return
+		field->xf_name != NULL && field->xf_type != NULL &&
+		ergo(xt == &C2_XT_OPAQUE, field->xf_opaque != NULL);
+}
+#endif
 
 bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
 {
@@ -311,6 +322,11 @@ int c2_xcode_encode(struct c2_xcode_ctx *ctx)
 int c2_xcode_length(struct c2_xcode_ctx *ctx)
 {
 	return ctx_walk(ctx, XO_LEN);
+}
+
+void *c2_xcode_alloc(struct c2_xcode_ctx *ctx, size_t nob)
+{
+	return c2_alloc(nob);
 }
 
 void *c2_xcode_addr(const struct c2_xcode_obj *obj, int fileno, uint64_t elno)

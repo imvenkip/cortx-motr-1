@@ -88,7 +88,7 @@ void c2_fop_field_type_fini(struct c2_fop_field_type *t)
 void c2_fop_type_fini(struct c2_fop_type *fopt)
 {
 	fop_fol_type_fini(fopt);
-	if (fopt->ft_top != NULL) {
+	if (fopt->ft_top != NULL || *fopt->ft_xc_type != NULL) {
 		c2_mutex_lock(&fop_types_lock);
 		C2_ASSERT(&fopt->ft_rpc_item_type != NULL);
 		c2_rpc_item_type_deregister(&fopt->ft_rpc_item_type);
@@ -105,17 +105,21 @@ void c2_fop_type_fini(struct c2_fop_type *fopt)
 
 int c2_fop_type_build(struct c2_fop_type *fopt)
 {
-	int                        result;
+	int                        result = 0;
 	struct c2_fop_type_format *fmt;
 
 	C2_PRE(fopt->ft_top == NULL);
 
 	fmt    = fopt->ft_fmt;
-	result = c2_fop_type_format_parse(fmt);
+	if (fmt != NULL)
+		result = c2_fop_type_format_parse(fmt);
 	if (result == 0) {
 		result = fop_fol_type_init(fopt);
 		if (result == 0) {
-			fopt->ft_top = fmt->ftf_out;
+			if (fmt != NULL)
+				fopt->ft_top = fmt->ftf_out;
+			else
+				fopt->ft_top = NULL;
 			result =
 			c2_rpc_item_type_register(&fopt->ft_rpc_item_type);
 			c2_addb_ctx_init(&fopt->ft_addb,
