@@ -417,13 +417,15 @@ int c2_net_test_commands_send(struct c2_net_test_cmd_ctx *ctx,
 
 void c2_net_test_commands_send_wait_all(struct c2_net_test_cmd_ctx *ctx)
 {
-	uint64_t nr;
-	uint64_t i;
+	int64_t nr;
+	int64_t i;
 
 	C2_PRE(c2_net_test_commands_invariant(ctx));
 
-	nr = c2_atomic64_get(&ctx->ntcc_send_nr);
-	c2_atomic64_sub(&ctx->ntcc_send_nr, nr);
+	C2_CASSERT(sizeof ctx->ntcc_send_nr == 8);
+	do
+		nr = c2_atomic64_get(&ctx->ntcc_send_nr);
+	while (!c2_atomic64_cas((int64_t *) &ctx->ntcc_send_nr, nr, 0));
 
 	for (i = 0; i < nr; ++i)
 		c2_semaphore_down(&ctx->ntcc_sem_send);
