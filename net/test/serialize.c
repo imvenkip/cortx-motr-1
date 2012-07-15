@@ -212,7 +212,7 @@ c2_bcount_t c2_net_test_serialize(enum c2_net_test_serialize_op op,
 }
 
 /**
-   @} end NetTestXCODEInternals
+   @} end NetTestSERIALIZEInternals
  */
 
 /*

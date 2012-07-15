@@ -91,10 +91,6 @@ size_t c2_net_test_ringbuf_get(struct c2_net_test_ringbuf *rb)
 	return rb->ntr_buf[index % rb->ntr_size];
 }
 
-/**
-   @} end NetTestCommandsInternals
- */
-
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

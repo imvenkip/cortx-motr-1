@@ -103,6 +103,10 @@ c2_bcount_t c2_net_test_serialize(enum c2_net_test_serialize_op op,
 				  struct c2_bufvec *bv,
 				  c2_bcount_t bv_offset);
 
+/**
+   @} end NetTestSERIALIZE
+ */
+
 #endif /*  __NET_TEST_SERIALIZE_H__ */
 
 /*

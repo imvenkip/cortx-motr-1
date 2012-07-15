@@ -206,10 +206,6 @@ c2_bcount_t c2_net_test_slist_serialize(enum c2_net_test_serialize_op op,
 					     slist_decode(slist, bv, offset);
 }
 
-/**
-   @} end NetTestCommandsInternals
- */
-
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
