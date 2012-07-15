@@ -69,7 +69,7 @@ bool c2_net_test_ringbuf_invariant(const struct c2_net_test_ringbuf *rb)
 	return true;
 }
 
-void c2_net_test_ringbuf_put(struct c2_net_test_ringbuf *rb, size_t value)
+void c2_net_test_ringbuf_push(struct c2_net_test_ringbuf *rb, size_t value)
 {
 	int64_t index;
 
@@ -80,7 +80,7 @@ void c2_net_test_ringbuf_put(struct c2_net_test_ringbuf *rb, size_t value)
 	rb->ntr_buf[index % rb->ntr_size] = value;
 }
 
-size_t c2_net_test_ringbuf_get(struct c2_net_test_ringbuf *rb)
+size_t c2_net_test_ringbuf_pop(struct c2_net_test_ringbuf *rb)
 {
 	int64_t index;
 

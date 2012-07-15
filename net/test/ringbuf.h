@@ -50,17 +50,17 @@ void c2_net_test_ringbuf_fini(struct c2_net_test_ringbuf *rb);
 bool c2_net_test_ringbuf_invariant(const struct c2_net_test_ringbuf *rb);
 
 /**
-   Put item to the ring buffer.
+   Push item to the ring buffer.
    @pre c2_net_test_ringbuf_invariant(rb)
    @post c2_net_test_ringbuf_invariant(rb)
  */
-void c2_net_test_ringbuf_put(struct c2_net_test_ringbuf *rb, size_t value);
+void c2_net_test_ringbuf_push(struct c2_net_test_ringbuf *rb, size_t value);
 /**
-   Get item from the ring buffer.
+   Pop item from the ring buffer.
    @pre c2_net_test_ringbuf_invariant(rb)
    @post c2_net_test_ringbuf_invariant(rb)
  */
-size_t c2_net_test_ringbuf_get(struct c2_net_test_ringbuf *rb);
+size_t c2_net_test_ringbuf_pop(struct c2_net_test_ringbuf *rb);
 
 #endif /*  __NET_TEST_RINGBUF_H__ */
 

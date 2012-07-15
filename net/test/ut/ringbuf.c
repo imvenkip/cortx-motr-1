@@ -31,7 +31,7 @@ enum {
 	NET_TEST_RB_LOOP_NR = 0x10,
 };
 
-static void ringbuf_put_get(struct c2_net_test_ringbuf *rb, size_t nr)
+static void ringbuf_push_pop(struct c2_net_test_ringbuf *rb, size_t nr)
 {
 	size_t i;
 	size_t value;
@@ -39,9 +39,9 @@ static void ringbuf_put_get(struct c2_net_test_ringbuf *rb, size_t nr)
 	C2_PRE(rb != NULL);
 
 	for (i = 0; i < nr; ++i)
-		c2_net_test_ringbuf_put(rb, i);
+		c2_net_test_ringbuf_push(rb, i);
 	for (i = 0; i < nr; ++i) {
-		value = c2_net_test_ringbuf_get(rb);
+		value = c2_net_test_ringbuf_pop(rb);
 		C2_UT_ASSERT(value == i);
 	}
 }
@@ -56,18 +56,18 @@ void c2_net_test_ringbuf_ut(void)
 	/* init */
 	rc = c2_net_test_ringbuf_init(&rb, NET_TEST_RB_SIZE);
 	C2_UT_ASSERT(rc == 0);
-	/* test #1: single value put, single value get */
-	c2_net_test_ringbuf_put(&rb, 42);
-	value = c2_net_test_ringbuf_get(&rb);
+	/* test #1: single value push, single value pop */
+	c2_net_test_ringbuf_push(&rb, 42);
+	value = c2_net_test_ringbuf_pop(&rb);
 	C2_UT_ASSERT(value == 42);
-	/* test #2: multiple values put, multiple values get */
-	ringbuf_put_get(&rb, NET_TEST_RB_SIZE);
+	/* test #2: multiple values push, multiple values pop */
+	ringbuf_push_pop(&rb, NET_TEST_RB_SIZE);
 	/*
-	 * test #3: put and get (NET_TEST_RB_SIZE - 1) items
+	 * test #3: push and pop (NET_TEST_RB_SIZE - 1) items
 	 * NET_TEST_RB_LOOP_NR times
 	 */
 	for (i = 0; i < NET_TEST_RB_LOOP_NR; ++i)
-		ringbuf_put_get(&rb, NET_TEST_RB_SIZE - 1);
+		ringbuf_push_pop(&rb, NET_TEST_RB_SIZE - 1);
 	/* fini */
 	c2_net_test_ringbuf_fini(&rb);
 }

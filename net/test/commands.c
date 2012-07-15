@@ -186,7 +186,7 @@ static void commands_cb_msg_recv(struct c2_net_test_network_ctx *net_ctx,
 	ctx->ntcc_buf_status[buf_index].ntcbs_buf_status = ev->nbe_status;
 
 	/* put buffer to ringbuf */
-	c2_net_test_ringbuf_put(&ctx->ntcc_rb, buf_index);
+	c2_net_test_ringbuf_push(&ctx->ntcc_rb, buf_index);
 
 	/* c2_net_test_commands_recv() will down this semaphore */
 	c2_semaphore_up(&ctx->ntcc_sem_recv);
@@ -451,7 +451,7 @@ int c2_net_test_commands_recv(struct c2_net_test_cmd_ctx *ctx,
 		return -ETIMEDOUT;
 
 	/* get buffer */
-	buf_index = c2_net_test_ringbuf_get(&ctx->ntcc_rb);
+	buf_index = c2_net_test_ringbuf_pop(&ctx->ntcc_rb);
 	C2_ASSERT(is_buf_in_recv_q(ctx, buf_index));
 	buf = c2_net_test_network_buf(&ctx->ntcc_net, C2_NET_TEST_BUF_PING,
 				      buf_index);
