@@ -58,6 +58,7 @@ struct c2_net_test_slist {
    separated by a delimiter character.  The delimiter cannot be NUL and
    cannot be part of the sub-string.
    @pre slist != NULL
+   @pre delim != NUL
  */
 int c2_net_test_slist_init(struct c2_net_test_slist *slist,
 			   char *str,
