@@ -67,11 +67,6 @@ void c2_net_test_slist_ut(void)
 	c2_bcount_t		 len2;
 
 
-	/* NULL-string test */
-	rc = c2_net_test_slist_init(&slist, NULL, ':');
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(slist.ntsl_nr == 0);
-	c2_net_test_slist_fini(&slist);
 	/* empty string test */
 	rc = c2_net_test_slist_init(&slist, "", ':');
 	C2_UT_ASSERT(rc == 0);

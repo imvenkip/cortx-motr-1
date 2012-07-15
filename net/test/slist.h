@@ -58,6 +58,7 @@ struct c2_net_test_slist {
    separated by a delimiter character.  The delimiter cannot be NUL and
    cannot be part of the sub-string.
    @pre slist != NULL
+   @pre str != NULL
    @pre delim != NUL
    @post (result == 0) && c2_net_test_slist_invariant(slist)
  */
