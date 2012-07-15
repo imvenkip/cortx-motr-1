@@ -47,7 +47,7 @@ struct c2_net_test_slist {
 	 */
 	char **ntsl_list;
 	/**
-	   Single array with '\0'-separated strings (one after another).
+	   Single array with NUL-separated strings (one after another).
 	   ntsl_list contains the pointers to strings in this array.
 	 */
 	char  *ntsl_str;
