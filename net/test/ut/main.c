@@ -35,7 +35,6 @@ extern void c2_net_test_slist_ut(void);
 extern void c2_net_test_network_ut_buf_desc(void);
 extern void c2_net_test_network_ut_ping(void);
 extern void c2_net_test_network_ut_bulk(void);
-extern void c2_net_test_network_ut_debug(void);
 
 extern void c2_net_test_cmd_ut_single(void);
 extern void c2_net_test_cmd_ut_multiple(void);
@@ -63,7 +62,6 @@ const struct c2_test_suite c2_net_test_ut = {
 		{ "network-buf-desc",	c2_net_test_network_ut_buf_desc	 },
 		{ "network-ping",	c2_net_test_network_ut_ping	 },
 		{ "network-bulk",	c2_net_test_network_ut_bulk	 },
-		{ "network-debug",	c2_net_test_network_ut_debug	 },
 		{ "cmd-single",		c2_net_test_cmd_ut_single	 },
 		{ "cmd-multiple",	c2_net_test_cmd_ut_multiple	 },
 		{ NULL,			NULL				 }

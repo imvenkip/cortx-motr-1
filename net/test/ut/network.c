@@ -493,52 +493,6 @@ void c2_net_test_network_ut_buf_desc(void)
 	c2_net_test_network_ctx_fini(&ctx);
 }
 
-/* @todo remove it. it is for debug purposes only */
-void c2_net_test_network_ut_debug(void)
-{
-	char * const		      *nidstrs;
-	struct c2_net_test_network_ctx ctx;
-	int			       rc;
-	int			       i;
-
-	rc = c2_net_test_network_ctx_init(&ctx, "0@lo:12345:30:*",
-					  &tm_cb_empty, &buf_cb_empty,
-					  128, 2,
-					  0, 0,
-					  1, NULL);
-	C2_UT_ASSERT(rc == 0);
-
-	LOGD("\n");
-	rc = c2_net_lnet_ifaces_get(&ctx.ntc_dom, &nidstrs);
-	if (rc != 0 || nidstrs == NULL || nidstrs[0] == NULL)
-		LOGD("c2_net_lnet_ifaces_get() failed!");
-	else {
-		for (i = 0; nidstrs[i] != NULL; ++i)
-			LOGD("NID %d: %s\n", i, nidstrs[i]);
-	}
-	if (rc == 0)
-		c2_net_lnet_ifaces_put(&ctx.ntc_dom, &nidstrs);
-
-	LOGD("c2_net_domain_get_max_buffer_segment_size = %"PRIu64"\n",
-	     c2_net_domain_get_max_buffer_segment_size(&ctx.ntc_dom));
-	LOGD("c2_net_domain_get_max_buffer_segments     = %"PRIi32"\n",
-	     c2_net_domain_get_max_buffer_segments(&ctx.ntc_dom));
-	LOGD("c2_net_domain_get_max_buffer_size         = %"PRIu64"\n",
-	     c2_net_domain_get_max_buffer_size(&ctx.ntc_dom));
-
-	c2_net_test_network_buf_fill(&ctx, C2_NET_TEST_BUF_PING, 0, 1);
-	rc = c2_net_test_network_ep_add(&ctx, ctx.ntc_tm.ntm_ep->nep_addr);
-	C2_UT_ASSERT(rc >= 0);
-#if 0
-	rc = c2_net_test_network_msg_send(&ctx, 0, 0);
-	C2_UT_ASSERT(rc == 0);
-#endif
-	/* test callbacks when cancelled */
-	c2_net_test_network_buffer_dequeue(&ctx, C2_NET_TEST_BUF_PING, 0);
-	c2_net_test_network_buffer_dequeue(&ctx, C2_NET_TEST_BUF_PING, 0);
-	c2_net_test_network_ctx_fini(&ctx);
-}
-
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
