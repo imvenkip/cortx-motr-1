@@ -117,7 +117,6 @@ EXTRA_DIST             = \
                          linux_kernel/atomic64.h \
                          linux_kernel/cdefs.h \
                          linux_kernel/finject_init.c \
-			 linux_kernel/kbyteroder.c \
                          linux_kernel/kthread.c \
                          linux_kernel/ktrace.c \
                          linux_kernel/ktime.c \
