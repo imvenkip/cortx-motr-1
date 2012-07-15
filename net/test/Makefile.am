@@ -10,3 +10,5 @@ net_test_HDR			= client.h commands.h network.h node_config.h \
 				  slist.h stats.h
 
 libcolibri_net_test_la_SOURCES	= $(net_test_HDR) $(net_test_SRC)
+
+EXTRA_DIST			= test-user.sh.in
