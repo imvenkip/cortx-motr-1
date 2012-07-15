@@ -288,7 +288,7 @@ static void commands_recv_dequeue_nr(struct c2_net_test_cmd_ctx *ctx,
 }
 
 static int commands_initfini(struct c2_net_test_cmd_ctx *ctx,
-			     char *cmd_ep,
+			     const char *cmd_ep,
 			     c2_time_t send_timeout,
 			     c2_net_test_commands_send_cb_t send_cb,
 			     struct c2_net_test_slist *ep_list,
@@ -375,7 +375,7 @@ static int commands_initfini(struct c2_net_test_cmd_ctx *ctx,
 }
 
 int c2_net_test_commands_init(struct c2_net_test_cmd_ctx *ctx,
-			      char *cmd_ep,
+			      const char *cmd_ep,
 			      c2_time_t send_timeout,
 			      c2_net_test_commands_send_cb_t send_cb,
 			      struct c2_net_test_slist *ep_list)

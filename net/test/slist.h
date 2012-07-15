@@ -61,7 +61,7 @@ struct c2_net_test_slist {
    @pre delim != NUL
  */
 int c2_net_test_slist_init(struct c2_net_test_slist *slist,
-			   char *str,
+			   const char *str,
 			   char delim);
 void c2_net_test_slist_fini(struct c2_net_test_slist *slist);
 

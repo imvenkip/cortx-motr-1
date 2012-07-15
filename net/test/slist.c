@@ -52,11 +52,11 @@ static void slist_free(struct c2_net_test_slist *slist)
 }
 
 int c2_net_test_slist_init(struct c2_net_test_slist *slist,
-			   char *str,
+			   const char *str,
 			   char delim)
 {
 	char  *str1;
-	size_t len;
+	size_t len = 0;
 	size_t i = 0;
 
 	C2_PRE(slist != NULL);
@@ -66,25 +66,23 @@ int c2_net_test_slist_init(struct c2_net_test_slist *slist,
 
 	if (str == NULL)
 		return 0;
-	len = strlen(str);
+
+	for (len = 0; str[len] != '\0'; ++len)
+		slist->ntsl_nr += str[len] == delim;
 	if (len == 0)
 		return 0;
-
-	str1 = str;
-	while (*str1 != '\0')
-		slist->ntsl_nr += *str1++ == delim;
 	slist->ntsl_nr++;
 
 	if (!slist_alloc(slist, slist->ntsl_nr, len + 1))
 		return -ENOMEM;
 
 	strncpy(slist->ntsl_str, str, len + 1);
-	str = slist->ntsl_str;
-	slist->ntsl_list[i++] = str;
-	for (; *str != '\0'; ++str)
-		if (*str == delim) {
-			*str = '\0';
-			slist->ntsl_list[i++] = str + 1;
+	str1 = slist->ntsl_str;
+	slist->ntsl_list[i++] = str1;
+	for (; *str1 != '\0'; ++str1)
+		if (*str1 == delim) {
+			*str1 = '\0';
+			slist->ntsl_list[i++] = str1 + 1;
 		}
 	return 0;
 }

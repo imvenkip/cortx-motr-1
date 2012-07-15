@@ -207,7 +207,7 @@ struct c2_net_test_cmd_ctx {
      for command after succesful c2_net_test_commads_recv().
  */
 int c2_net_test_commands_init(struct c2_net_test_cmd_ctx *ctx,
-			      char *cmd_ep,
+			      const char *cmd_ep,
 			      c2_time_t send_timeout,
 			      c2_net_test_commands_send_cb_t send_cb,
 			      struct c2_net_test_slist *ep_list);
