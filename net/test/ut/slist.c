@@ -78,6 +78,14 @@ void c2_net_test_slist_ut(void)
 	C2_UT_ASSERT(slist.ntsl_nr == 0);
 	rc_bool = c2_net_test_slist_unique(&slist);
 	C2_UT_ASSERT(rc_bool);
+	len = c2_net_test_slist_serialize(C2_NET_TEST_SERIALIZE, &slist,
+					  &bv, 0);
+	C2_UT_ASSERT(len > 0);
+	c2_net_test_slist_fini(&slist);
+	len2 = c2_net_test_slist_serialize(C2_NET_TEST_DESERIALIZE, &slist,
+					   &bv, 0);
+	C2_UT_ASSERT(len2 == len);
+	C2_UT_ASSERT(slist.ntsl_nr == 0);
 	c2_net_test_slist_fini(&slist);
 	/* one string test */
 	rc = c2_net_test_slist_init(&slist, "asdf", ',');

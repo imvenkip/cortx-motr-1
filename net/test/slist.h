@@ -59,20 +59,26 @@ struct c2_net_test_slist {
    cannot be part of the sub-string.
    @pre slist != NULL
    @pre delim != NUL
+   @post (result == 0) && c2_net_test_slist_invariant(slist)
  */
 int c2_net_test_slist_init(struct c2_net_test_slist *slist,
 			   const char *str,
 			   char delim);
+/**
+   Finalize string list.
+   @pre c2_net_test_slist_invariant(slist);
+ */
 void c2_net_test_slist_fini(struct c2_net_test_slist *slist);
+bool c2_net_test_slist_invariant(const struct c2_net_test_slist *slist);
 
 /**
    Is every string in list unique in this list.
    Time complexity - O(N*N), N - number of strings in the list.
+   Two strings are equal if strcmp() returns 0.
    @return all strings in list are different.
-	   Two strings are equal if strcmp() returns 0.
-   @pre slist != NULL
+   @pre c2_net_test_slist_invariant(slist);
  */
-bool c2_net_test_slist_unique(struct c2_net_test_slist *slist);
+bool c2_net_test_slist_unique(const struct c2_net_test_slist *slist);
 
 /**
    Serialize/deserialize string list to/from c2_bufvec.

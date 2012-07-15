@@ -69,38 +69,64 @@ int c2_net_test_slist_init(struct c2_net_test_slist *slist,
 
 	for (len = 0; str[len] != '\0'; ++len)
 		slist->ntsl_nr += str[len] == delim;
-	if (len == 0)
-		return 0;
-	slist->ntsl_nr++;
 
-	if (!slist_alloc(slist, slist->ntsl_nr, len + 1))
-		return -ENOMEM;
+	if (len != 0) {
+		slist->ntsl_nr++;
 
-	strncpy(slist->ntsl_str, str, len + 1);
-	str1 = slist->ntsl_str;
-	slist->ntsl_list[i++] = str1;
-	for (; *str1 != '\0'; ++str1)
-		if (*str1 == delim) {
-			*str1 = '\0';
-			slist->ntsl_list[i++] = str1 + 1;
-		}
+		if (!slist_alloc(slist, slist->ntsl_nr, len + 1))
+			return -ENOMEM;
+
+		strncpy(slist->ntsl_str, str, len + 1);
+		str1 = slist->ntsl_str;
+		slist->ntsl_list[i++] = str1;
+		for (; *str1 != '\0'; ++str1)
+			if (*str1 == delim) {
+				*str1 = '\0';
+				slist->ntsl_list[i++] = str1 + 1;
+			}
+	}
+	C2_POST(c2_net_test_slist_invariant(slist));
 	return 0;
+}
+
+bool c2_net_test_slist_invariant(const struct c2_net_test_slist *slist)
+{
+	size_t i;
+
+	if (slist == NULL)
+		return false;
+	if (slist->ntsl_nr == 0)
+		return true;
+	if (slist->ntsl_list == NULL)
+		return false;
+	if (slist->ntsl_str == NULL)
+		return false;
+
+	/* check all pointers in ntsl_list */
+	if (slist->ntsl_list[0] != slist->ntsl_str)
+		return false;
+	for (i = 1; i < slist->ntsl_nr; ++i)
+		if (slist->ntsl_list[i - 1] >= slist->ntsl_list[i] ||
+		    slist->ntsl_list[i] <= slist->ntsl_str)
+			return false;
+	return true;
 }
 
 void c2_net_test_slist_fini(struct c2_net_test_slist *slist)
 {
-	C2_PRE(slist != NULL);
+	C2_PRE(c2_net_test_slist_invariant(slist));
 
 	if (slist->ntsl_nr > 0)
 		slist_free(slist);
 	C2_SET0(slist);
 }
 
-bool c2_net_test_slist_unique(struct c2_net_test_slist *slist)
+bool c2_net_test_slist_unique(const struct c2_net_test_slist *slist)
 {
-	uint32_t i, j;
+	size_t i;
+	size_t j;
 
-	C2_PRE(slist != NULL);
+	C2_PRE(c2_net_test_slist_invariant(slist));
 
 	for (i = 0; i < slist->ntsl_nr; ++i)
 		for (j = i + 1; j < slist->ntsl_nr; ++j)
@@ -131,7 +157,8 @@ static c2_bcount_t slist_encode(struct c2_net_test_slist *slist,
 	c2_bcount_t	    len_total;
 
 	sp.sp_nr    = slist->ntsl_nr;
-	sp.sp_len   = slist->ntsl_list[slist->ntsl_nr - 1] -
+	sp.sp_len   = slist->ntsl_nr == 0 ? 0 :
+		      slist->ntsl_list[slist->ntsl_nr - 1] -
 		      slist->ntsl_list[0] +
 		      strlen(slist->ntsl_list[slist->ntsl_nr - 1]) + 1;
 	sp.sp_magic = SLIST_SERIALIZE_MAGIC;
