@@ -67,7 +67,7 @@ void c2_net_test_slist_fini(struct c2_net_test_slist *slist);
 
 /**
    Is every string in list unique in this list.
-   Time complexity - O(N^2), N - number of strings in the list.
+   Time complexity - O(N*N), N - number of strings in the list.
    @return all strings in list are different.
 	   Two strings are equal if strcmp() returns 0.
    @pre slist != NULL
