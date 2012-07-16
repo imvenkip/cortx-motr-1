@@ -30,9 +30,9 @@
 #include "pool/pool.h"        /* c2_pool_init(), c2_pool_fini() */
 
 enum {
-	/*
-	 * This is temporary arrangement until the time configuration caching
-	 * module is in place. Look at pool/pool.h for more details.
+	/**
+	 * @todo This is temporary arrangement until the time configuration
+	 * caching module is in place. Look at pool/pool.h for more details.
 	 */
 	DEFAULT_POOL_ID = 9
 };

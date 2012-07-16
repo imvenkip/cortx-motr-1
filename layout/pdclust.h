@@ -131,6 +131,12 @@ struct c2_layout_pdclust_rec {
 /**
  * Extension of generic c2_striped_layout for parity de-clustering.
  *
+ * @invariant pdl->pl_base.sl_enum->leo_nr() == pdl->pl_attr.pa_P
+ * @invariant pdl->pl_L * pdl->pl_attr.pa_P ==
+	      pdl->pl_C * (pdl->pl_attr.pa_N + 2 * pdl->pl_attr.pa_K)
+ * @invariant c2_forall(i, pdl->pl_attr.pa_N, c2_fid_eq(&pdl->pl_tgt[i],
+	      pdl->pl_base.sl_enum->leo_get(pdl->pl_base.sl_enum,
+	      i, &pdl->pl_fid, &out));
  * @todo liveness rules
  * @todo concurrency control
  */
@@ -149,14 +155,18 @@ struct c2_pdclust_layout {
 
 	/**
 	 * Number of "frame rows" in a tile. L * P == C * (N + 2 * K).
-	 * @see c2_pdclust_layout::pl_L
+	 * @see c2_pdclust_layout::pl_C
 	 */
 	uint32_t                     pl_L;
 
 	/** Storage pool this layout is for. */
 	struct c2_pool              *pl_pool;
 
-	/** Target object identifiers. */
+	/**
+	 * Target object identifiers.
+	 * This array is populated by invoking pdl->pl_base.sl_enum->leo_get()
+	 * method.
+	 */
 	struct c2_stob_id           *pl_tgt;
 
 	/**

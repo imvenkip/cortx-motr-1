@@ -177,7 +177,6 @@
    component objects.
  */
 
-struct c2_pdclust_layout;
 struct c2t1fs_dir_ent;
 
 int  c2t1fs_init(void);
