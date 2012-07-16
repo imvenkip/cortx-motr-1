@@ -230,7 +230,7 @@ static int xcode_bufvec_sequence(struct c2_fop_field_type *fftype,
 
 	struct c2_fop_sequence  *fseq;
 	int                      rc;
-	uint32_t                 nr;
+	uint32_t                 nr = 0;
 	int		         cnt;
 	void		        *s_data;
 	size_t			 elsize;
@@ -247,6 +247,9 @@ static int xcode_bufvec_sequence(struct c2_fop_field_type *fftype,
 		rc = xcode_atom_disp[FPF_U32](cur, &nr, C2_BUFVEC_ENCODE);
 		if (rc != 0)
 			return rc;
+
+		if (nr == 0)
+			return rc;
 		/*
 		 * Check if its a byte array and call the byte array encode
 		 *  function.
@@ -256,11 +259,17 @@ static int xcode_bufvec_sequence(struct c2_fop_field_type *fftype,
 				(char **)&fseq->fs_data, nr, what);
 	} else if (what  == C2_BUFVEC_DECODE) {
 		rc = xcode_atom_disp[FPF_U32](cur, &nr, C2_BUFVEC_DECODE);
-			if(rc != 0)
-				return rc;
+		if(rc != 0)
+			return rc;
+
 		fseq->fs_count = nr;
+		fseq->fs_data = NULL;
+
+		if (nr == 0)
+			return 0;
+
 		/* Detect if it's byte sequence */
-		if(c2_xcode_is_byte_array(fftype)) {
+		if( c2_xcode_is_byte_array(fftype)) {
 			return xcode_bufvec_byte_seq(cur,
 				(char **)&fseq->fs_data, nr, what);
 		}

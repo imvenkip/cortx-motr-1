@@ -173,17 +173,12 @@ static void xcode_record_size_get(size_t *size,
    pad bytes are required to keep the byte array 8 byte aligned.
 
     @param count No of bytes in the byte array.
-
     @retval The onwire size of the byte array (sum of count and pad_bytes).
+    @note the count may be zero.
 */
 static size_t xcode_byte_seq_size_get(uint32_t count)
 {
-	size_t		size;
-
-	C2_PRE(count != 0);
-
-        size  = (count + MAX_PAD_BYTES) & XCODE_UNIT_ALIGNED_MASK;
-	return size;
+	return (count + MAX_PAD_BYTES) & XCODE_UNIT_ALIGNED_MASK;
 }
 
 /**
@@ -213,7 +208,10 @@ static void xcode_sequence_size_get(size_t *size,
 
 	fseq = fop_data;
 	nr = fseq->fs_count;
+
+	/* adds size for "count" itself */
 	xcode_atom_size_get(size, fftype, fop_data);
+
 	/*
 	 * Check if its a byte array and call function to calc byte array size.
 	 */
