@@ -48,8 +48,8 @@ static void frm_try_merging_item(struct c2_rpc_frm  *frm,
 				 struct c2_rpc_item *item,
 				 c2_bcount_t         limit);
 
-static bool item_preceeds(const struct c2_rpc_item *i0,
-			  const struct c2_rpc_item *i1);
+static bool item_less_or_equal(const struct c2_rpc_item *i0,
+			       const struct c2_rpc_item *i1);
 
 static c2_bcount_t available_space_in_packet(const struct c2_rpc_packet *p,
 					     const struct c2_rpc_frm    *frm);
@@ -82,11 +82,11 @@ static const struct c2_addb_loc frm_addb_loc = {
 };
 
 #define frm_first_itemq(frm) (&(frm)->f_itemq[0])
-#define frm_last_itemq(frm) (&(frm)->f_itemq[ARRAY_SIZE((frm)->f_itemq) - 1])
+#define frm_end_itemq(frm) (&(frm)->f_itemq[ARRAY_SIZE((frm)->f_itemq)])
 
 #define for_each_itemq_in_frm(itemq, frm)  \
 for (itemq = frm_first_itemq(frm); \
-     itemq <= frm_last_itemq(frm); \
+     itemq < frm_end_itemq(frm); \
      ++itemq)
 
 enum {
@@ -133,15 +133,16 @@ static bool itemq_invariant(const struct c2_tl *q)
 	return  q != NULL &&
 		c2_tl_forall(itemq, item, q,
 				prev = itemq_tlist_prev(q, item);
-				ergo(prev != NULL, item_preceeds(prev, item))
+				ergo(prev != NULL,
+				     item_less_or_equal(prev, item))
 			    );
 }
 
 /**
    Defines total order of rpc items in itemq.
  */
-static bool item_preceeds(const struct c2_rpc_item *i0,
-			  const struct c2_rpc_item *i1)
+static bool item_less_or_equal(const struct c2_rpc_item *i0,
+			       const struct c2_rpc_item *i1)
 {
 	return
 		i0->ri_prio > i1->ri_prio ||
@@ -193,7 +194,7 @@ static bool frm_is_idle(const struct c2_rpc_frm *frm)
 void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
 		     struct c2_rpc_machine         *rmachine,
 		     struct c2_rpc_chan            *rchan,
-		     struct c2_rpc_frm_constraints  constraints,
+		     struct c2_rpc_frm_constraints *constraints,
 		     const struct c2_rpc_frm_ops   *ops)
 {
 	struct c2_tl *q;
@@ -203,14 +204,14 @@ void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
 	       rmachine != NULL &&
 	       rchan    != NULL &&
 	       ops      != NULL &&
-	       constraints_are_valid(&constraints));
+	       constraints_are_valid(constraints));
 
 	C2_SET0(frm);
-	frm->f_rmachine    = rmachine;
-	frm->f_ops         = ops;
-	frm->f_rchan       = rchan;
-	frm->f_constraints = constraints; /* structure instance copy */
-	frm->f_magic       = FRM_MAGIC;
+	frm->f_rmachine    =  rmachine;
+	frm->f_ops         =  ops;
+	frm->f_rchan       =  rchan;
+	frm->f_constraints = *constraints; /* structure instance copy */
+	frm->f_magic       =  FRM_MAGIC;
 
 	for_each_itemq_in_frm(q, frm) {
 		itemq_tlist_init(q);
@@ -329,9 +330,8 @@ static void __itemq_insert(struct c2_tl *q, struct c2_rpc_item *new_item)
 	C2_ENTRY();
 
 	/* insertion sort. */
-
 	c2_tl_for(itemq, q, item) {
-		if (!item_preceeds(item, new_item)) {
+		if (!item_less_or_equal(item, new_item)) {
 			itemq_tlink_init(new_item);
 			itemq_tlist_add_before(item, new_item);
 			break;

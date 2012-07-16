@@ -125,9 +125,9 @@ void c2_rpc_packet_remove_all_items(struct c2_rpc_packet *p)
 	C2_PRE(c2_rpc_packet_invariant(p) && !c2_rpc_packet_is_empty(p));
 	C2_LOG("nr_items: %d", (int)p->rp_nr_items);
 
-	c2_tl_for(packet_item, &p->rp_items, item)
+	c2_tl_for(packet_item, &p->rp_items, item) {
 		c2_rpc_packet_remove_item(p, item);
-	c2_tl_endfor;
+	} c2_tl_endfor;
 
 	C2_POST(c2_rpc_packet_invariant(p) && c2_rpc_packet_is_empty(p));
 	C2_LEAVE();

@@ -121,7 +121,7 @@ static struct c2_rpc_frm_ops frm_ops = {
 static void frm_init_test(void)
 {
 	c2_rpc_frm_constraints_get_defaults(&constraints);
-	c2_rpc_frm_init(&frm, &rmachine, &rchan, constraints, &frm_ops);
+	c2_rpc_frm_init(&frm, &rmachine, &rchan, &constraints, &frm_ops);
 	C2_UT_ASSERT(frm.f_state == FRM_IDLE);
 }
 

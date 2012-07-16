@@ -574,6 +574,24 @@ void c2_rpc_machine_lock(struct c2_rpc_machine *machine);
 void c2_rpc_machine_unlock(struct c2_rpc_machine *machine);
 bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine);
 
+static struct c2_rpc_chan *frm_rchan(const struct c2_rpc_frm *frm)
+{
+	return container_of(frm, struct c2_rpc_chan, rc_frm);
+}
+
+static struct c2_rpc_machine *frm_rmachine(const struct c2_rpc_frm *frm)
+{
+	return frm_rchan(frm)->rc_rpc_machine;
+}
+
+static bool frm_rmachine_is_locked(const struct c2_rpc_frm *frm)
+			__attribute__((unused));
+
+static bool frm_rmachine_is_locked(const struct c2_rpc_frm *frm)
+{
+	return c2_rpc_machine_is_locked(frm_rmachine(frm));
+}
+
 /**
  * Calculates the total number of buffers needed in network domain for
  * receive buffer pool.

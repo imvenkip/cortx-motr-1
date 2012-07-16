@@ -294,13 +294,15 @@ c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *constraint);
 /**
    Initialises frm instance.
 
+   Object pointed by constraints is copied inside c2_rpc_frm.
+
    @pre  frm->f_state == FRM_UNINITIALISED
    @post frm->f_state == FRM_IDLE
  */
 void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
 		     struct c2_rpc_machine         *rmachine,
 		     struct c2_rpc_chan            *rchan,
-		     struct c2_rpc_frm_constraints  constraints,
+		     struct c2_rpc_frm_constraints *constraints,
 		     const struct c2_rpc_frm_ops   *ops);
 
 /**
