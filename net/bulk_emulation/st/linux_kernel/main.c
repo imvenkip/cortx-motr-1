@@ -14,7 +14,8 @@
 #include "net/bulk_emulation/st/ping.h"
 
 /**
-   @addtogroup net_st Networking System Test
+   @defgroup net_st System Test
+   @ingroup net
 
   @{
  */

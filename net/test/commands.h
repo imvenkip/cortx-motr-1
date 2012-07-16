@@ -30,8 +30,8 @@
 #include "net/test/network.h"		/* c2_net_test_network_ctx */
 
 /**
-   @defgroup NetTestCommandsDFS Colibri Network Benchmark Commands \
-			      Detailed Functional Specification
+   @defgroup NetTestCommandsDFS Commands
+   @ingroup NetTestDFS
 
    @see
    @ref net-test
@@ -261,7 +261,7 @@ int c2_net_test_commands_recv_enqueue(struct c2_net_test_cmd_ctx *ctx,
 void c2_net_test_received_free(struct c2_net_test_cmd *cmd);
 
 /**
-   @} end NetTestCommandsDFS
+   @} end of NetTestCommandsDFS group
  */
 
 #endif /*  __NET_TEST_COMMANDS_H__ */

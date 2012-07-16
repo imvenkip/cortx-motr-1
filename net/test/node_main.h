@@ -30,27 +30,17 @@
      - @ref net-test-fspec-cli-node "Linux kernel module"
      - @ref net-test-fspec-cli-console "Console"
    - @ref net-test-fspec-usecases
-   - @subpage NetTestDFS
-     - @subpage NetTestStatsDFS "Statistics Collector"
-     - @subpage NetTestConfigDFS "Configuration"
-     - @subpage NetTestClientDFS "Test Client"
-     - @subpage NetTestServerDFS "Test Server"
-     - @subpage NetTestNetworkDFS "Network"
-     - @subpage NetTestCommandsDFS "Commands"
-   - @subpage NetTestInternals "Internals"
-     - @subpage NetTestStatsInternals "Statistics Collector"
-     - @subpage NetTestConfigInternals "Configuration"
-     - @subpage NetTestClientInternals "Test Client"
-     - @subpage NetTestServerInternals "Test Server"
-     - @subpage NetTestNetworkInternals "Network"
-     - @subpage NetTestCommandsInternals "Commands"
+   - @ref NetTestDFS "Detailed Functional Specification"
+   - @ref NetTestInternals "Internals"
 
    @section net-test-fspec-ds Data Structures
 
    - c2_net_test_stats
    - c2_net_test_ctx
 
+   @todo update this section
    @section net-test-fspec-sub Subroutines
+   @todo update this section
 
    @subsection net-test-fspec-sub-cons Constructors and Destructors
 
@@ -194,7 +184,7 @@
 #include "net/test/node_config.h"
 
 /**
-   @defgroup NetTestDFS Detailed Functional Specification
+   @defgroup NetTestDFS Network Benchmark
    @brief Detailed functional specification for Colibri Network Benchmark.
 
    @see @ref net-test
@@ -218,7 +208,7 @@ int c2_net_test_init(struct c2_net_test_node_config *cfg);
 void c2_net_test_fini(void);
 
 /**
-   @} end of NetTestDFS
+   @} end of NetTestDFS group
  */
 
 #endif /*  __NET_TEST_NODE_MAIN_H__ */

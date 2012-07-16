@@ -28,6 +28,13 @@
 
 #include "net/test/slist.h"
 
+/**
+   @defgroup NetTestSListInternals String List
+   @ingroup NetTestInternals
+
+   @{
+ */
+
 enum {
 	SLIST_SERIALIZE_MAGIC =  0x5453494C535F544E, /* NT_SLIST */
 };
@@ -230,6 +237,10 @@ c2_bcount_t c2_net_test_slist_serialize(enum c2_net_test_serialize_op op,
 	return op == C2_NET_TEST_SERIALIZE ? slist_encode(slist, bv, offset) :
 					     slist_decode(slist, bv, offset);
 }
+
+/**
+   @} end of NetTestSListInternals group
+ */
 
 /*
  *  Local variables:

@@ -41,7 +41,8 @@
 #include "net/test/network.h"
 
 /**
-   @defgroup NetTestNetworkInternals Colibri Network Benchmark Network Internals
+   @defgroup NetTestNetworkInternals Network
+   @ingroup NetTestInternals
 
    @todo add timeouts to channels and network buffers
    @todo align code (function parameters etc.)
@@ -794,7 +795,7 @@ struct c2_net_test_network_timeouts c2_net_test_network_timeouts_never(void)
 }
 
 /**
-   @} end NetTestNetworkInternals
+   @} end of NetTestNetworkInternals group
  */
 
 /*

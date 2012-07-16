@@ -22,8 +22,8 @@
 #define __NET_TEST_CLIENT_H__
 
 /**
-   @defgroup NetTestClientDFS Colibri Network Benchmark Test Client \
-			      Detailed Functional Specification
+   @defgroup NetTestClientDFS Test Client
+   @ingroup NetTestDFS
 
    @see
    @ref net-test
@@ -58,7 +58,7 @@ int c2_net_test_client_start(void);
 void c2_net_test_client_stop(void);
 
 /**
-   @} end NetTestClientDFS
+   @} end of NetTestClientDFS group
  */
 
 #endif /*  __NET_TEST_CLIENT_H__ */

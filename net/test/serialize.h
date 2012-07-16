@@ -25,7 +25,8 @@
 #include "lib/vec.h"	/* c2_buvfec */
 
 /**
-   @defgroup NetTestSERIALIZE Colibri Network Benchmark Serialization
+   @defgroup NetTestSerializeDFS Serialization
+   @ingroup NetTestDFS
 
    @see
    @ref net-test
@@ -104,7 +105,7 @@ c2_bcount_t c2_net_test_serialize(enum c2_net_test_serialize_op op,
 				  c2_bcount_t bv_offset);
 
 /**
-   @} end NetTestSERIALIZE
+   @} end of NetTestSerializeDFS group
  */
 
 #endif /*  __NET_TEST_SERIALIZE_H__ */

@@ -22,9 +22,8 @@
 #define __NET_TEST_STATS_H__
 
 /**
-   @defgroup NetTestStatsDFS Colibri Network Benchmark \
-			     Statistics Collector \
-			     Detailed Functional Specification
+   @defgroup NetTestStatsDFS Statistics Collector
+   @ingroup NetTestDFS
 
    @see
    @ref net-test
@@ -121,7 +120,7 @@ double c2_net_test_stats_stddev(const struct c2_net_test_stats *stats);
 long   c2_net_test_stats_count(const struct c2_net_test_stats *stats);
 
 /**
-   @} end of NetTestStatsDFS
+   @} end of NetTestStatsDFS group
  */
 
 #endif /*  __NET_TEST_STATS_H__ */

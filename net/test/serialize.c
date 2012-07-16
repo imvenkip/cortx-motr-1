@@ -32,8 +32,8 @@
 #include "net/test/serialize.h"
 
 /**
-   @defgroup NetTestSERIALIZEInternals Colibri Network Benchmark \
-					Serialization Internals
+   @defgroup NetTestSerializeInternals Serialization
+   @ingroup NetTestInternals
 
    @see
    @ref net-test
@@ -212,7 +212,7 @@ c2_bcount_t c2_net_test_serialize(enum c2_net_test_serialize_op op,
 }
 
 /**
-   @} end NetTestSERIALIZEInternals
+   @} end of NetTestSerializeInternals group
  */
 
 /*

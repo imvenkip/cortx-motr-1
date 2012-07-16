@@ -477,7 +477,8 @@ LNETSelfTest.html">LNET Self-Test manual</a>
 #include "net/test/node_main.h"
 
 /**
-   @defgroup NetTestInternals Colibri Network Benchmark Internals
+   @defgroup NetTestInternals Internals
+   @ingroup NetTestDFS
 
    @see @ref net-test
 
@@ -509,7 +510,7 @@ void c2_net_test_fini(void)
 C2_EXPORTED(c2_net_test_fini);
 
 /**
-   @} end NetTestInternals
+   @} end NetTestInternals group
  */
 
 /*

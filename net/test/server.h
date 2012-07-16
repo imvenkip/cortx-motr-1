@@ -22,8 +22,8 @@
 #define __NET_TEST_SERVER_H__
 
 /**
-   @defgroup NetTestServerDFS Colibri Network Benchmark Test Server \
-			      Detailed Functional Specification
+   @defgroup NetTestServerDFS Test Server
+   @ingroup NetTestDFS
 
    @see
    @ref net-test
@@ -59,7 +59,7 @@ void c2_net_test_server_stop(void);
 
 
 /**
-   @} end NetTestServerDFS
+   @} end of NetTestServerDFS group
  */
 
 #endif /*  __NET_TEST_SERVER_H__ */

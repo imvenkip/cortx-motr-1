@@ -24,8 +24,8 @@
 #include "net/net.h"
 
 /**
-   @defgroup NetTestNetworkDFS Colibri Network Benchmark Network \
-			       Detailed Functional Specification
+   @defgroup NetTestNetworkDFS Network
+   @ingroup NetTestDFS
 
    @see
    @ref net-test
@@ -290,7 +290,7 @@ void c2_net_test_network_buf_fill(struct c2_net_test_network_ctx *ctx,
 struct c2_net_test_network_timeouts c2_net_test_network_timeouts_never(void);
 
 /**
-   @} end NetTestNetworkDFS
+   @} end of NetTestNetworkDFS group
  */
 
 #endif /*  __NET_TEST_NETWORK_H__ */

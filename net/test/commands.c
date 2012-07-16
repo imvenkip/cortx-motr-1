@@ -33,8 +33,8 @@
 #include "net/test/commands.h"
 
 /**
-   @defgroup NetTestCommandsInternals Colibri Network Benchmark \
-				    Commands Internals
+   @defgroup NetTestCommandsInternals Commands
+   @ingroup NetTestInternals
 
    @see
    @ref net-test
@@ -506,7 +506,7 @@ bool c2_net_test_commands_invariant(struct c2_net_test_cmd_ctx *ctx)
 }
 
 /**
-   @} end NetTestCommandsInternals
+   @} end of NetTestCommandsInternals group
  */
 
 /*

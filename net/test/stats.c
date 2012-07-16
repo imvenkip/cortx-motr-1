@@ -25,8 +25,8 @@
 #include "net/test/stats.h"
 
 /**
-   @defgroup NetTestStatsInternals Colibri Network Benchmark \
-			           Statistics Collector Internals
+   @defgroup NetTestStatsInternals Statistics Collector
+   @ingroup NetTestInternals
 
    @see
    @ref net-test
@@ -35,7 +35,7 @@
  */
 
 /**
-   @} end of NetTestStatsInternals
+   @} end of NetTestStatsInternals group
  */
 
 /*

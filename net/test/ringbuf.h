@@ -25,6 +25,13 @@
 #include "lib/atomic.h"	/* c2_atomic64 */
 
 /**
+   @defgroup NetTestRingbufDFS Ringbuf
+   @ingroup NetTestDFS
+
+   @{
+ */
+
+/**
    Circular FIFO buffer with size_t elements.
    @note c2_net_test_ringbuf.ntr_start and c2_net_test_ringbuf.ntr_end are
    absolute indices.
@@ -61,6 +68,10 @@ void c2_net_test_ringbuf_push(struct c2_net_test_ringbuf *rb, size_t value);
    @post c2_net_test_ringbuf_invariant(rb)
  */
 size_t c2_net_test_ringbuf_pop(struct c2_net_test_ringbuf *rb);
+
+/**
+   @} end of NetTestRingbufDFS group
+ */
 
 #endif /*  __NET_TEST_RINGBUF_H__ */
 

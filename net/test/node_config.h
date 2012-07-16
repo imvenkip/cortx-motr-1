@@ -24,9 +24,8 @@
 #include "lib/types.h"		/* bool */
 
 /**
-   @defgroup NetTestConfigDFS Colibri Network Benchmark \
-			      Configuration \
-			      Detailed Functional Specification
+   @defgroup NetTestNodeConfigDFS Node Configuration
+   @ingroup NetTestDFS
 
    @see @ref net-test
 
@@ -87,7 +86,7 @@ bool c2_net_test_node_config_invariant(
 		const struct c2_net_test_node_config *cfg);
 
 /**
-   @} end of NetTestConfigDFS
+   @} end of NetTestNodeConfigDFS group
  */
 
 #endif /*  __NET_TEST_CONFIG_NODE_H__ */

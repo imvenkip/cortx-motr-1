@@ -25,8 +25,8 @@
 #include "net/test/server.h"
 
 /**
-   @defgroup NetTestServerInternals Colibri Network Benchmark \
-				    Test Server Internals
+   @defgroup NetTestServerInternals Test Server
+   @ingroup NetTestInternals
 
    @see
    @ref net-test
@@ -53,7 +53,7 @@ void c2_net_test_server_stop(void)
 }
 
 /**
-   @} end NetTestServerInternals
+   @} end of NetTestServerInternals group
  */
 
 /*

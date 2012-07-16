@@ -28,6 +28,13 @@
 
 #include "net/test/ringbuf.h"
 
+/**
+   @defgroup NetTestRingbufInternals Ringbuf
+   @ingroup NetTestInternals
+
+   @{
+ */
+
 int c2_net_test_ringbuf_init(struct c2_net_test_ringbuf *rb, size_t size)
 {
 	C2_PRE(rb != NULL);
@@ -90,6 +97,10 @@ size_t c2_net_test_ringbuf_pop(struct c2_net_test_ringbuf *rb)
 
 	return rb->ntr_buf[index % rb->ntr_size];
 }
+
+/**
+   @} end of NetTestRingbufInternals group
+ */
 
 /*
  *  Local variables:

@@ -25,7 +25,8 @@
 #include "net/test/serialize.h"	/* c2_net_test_serialize_op */
 
 /**
-   @defgroup NetTestSLIST Colibri Network Benchmark String List.
+   @defgroup NetTestSListDFS String List
+   @ingroup NetTestDFS
 
    @see
    @ref net-test
@@ -95,7 +96,7 @@ c2_bcount_t c2_net_test_slist_serialize(enum c2_net_test_serialize_op op,
 					c2_bcount_t offset);
 
 /**
-   @} end NetTestSLIST
+   @} end of NetTestSListDFS group
  */
 
 #endif /*  __NET_TEST_SLIST_H__ */
