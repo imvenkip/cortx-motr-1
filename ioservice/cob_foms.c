@@ -233,6 +233,8 @@ static int cc_fom_state(struct c2_fom *fom)
 out:
 	reply = c2_fop_data(fom->fo_rep_fop);
 	reply->cor_rc = rc;
+	reply->cor_fv_updates.fvu_length = 0;
+	reply->cor_fv_updates.fvu_updates = NULL;
 
 	fom->fo_rc = rc;
 	fom->fo_phase = (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
@@ -420,6 +422,8 @@ static int cd_fom_state(struct c2_fom *fom)
 out:
 	reply = c2_fop_data(fom->fo_rep_fop);
 	reply->cor_rc = rc;
+	reply->cor_fv_updates.fvu_length = 0;
+	reply->cor_fv_updates.fvu_updates = NULL;
 
 	fom->fo_rc = rc;
 	fom->fo_phase = (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;

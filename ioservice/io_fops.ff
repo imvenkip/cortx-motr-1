@@ -240,7 +240,7 @@ DEF(c2_fop_cob_op_reply, RECORD,
 	 * Failure vector updates. This field is valid  iff rc is some
 	 * defined special code.
 	 */
-	_(fwr_fv_updates, c2_fv_updates));
+	_(cor_fv_updates, c2_fv_updates));
 
 /**
  * Fop to notify the failure vector version number if changed.

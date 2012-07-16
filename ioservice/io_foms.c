@@ -1636,6 +1636,8 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
                 rwrep = io_rw_rep_get(fom->fo_rep_fop);
                 rwrep->rwr_rc = fom->fo_rc;
                 rwrep->rwr_count = fom_obj->fcrw_count;
+                rwrep->fwr_fv_updates.fvu_length = 0;
+                rwrep->fwr_fv_updates.fvu_updates = NULL;
                 return rc;
         }
 
