@@ -6,7 +6,6 @@ fop_SOURCES                   = ../fop_base.c ../fop_base.h ../fom.h \
                                 ../fop_format.h \
                                 ../fop_user.h ../fop_format_def.h \
                                 ../fop_format_c.c \
-				../fom_long_lock_bob.h ../fom_long_lock_bob.c \
                                 stub.c
 
 libc2rt_la_SOURCES            = $(fop_SOURCES)

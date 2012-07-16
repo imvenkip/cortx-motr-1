@@ -585,7 +585,7 @@ void c2_fom_ready(struct c2_fom *fom);
 /**
  * Moves the fom from waiting to ready queue. Similar to c2_fom_ready(), but
  * callable from a locality different from fom's locality (i.e., with a
- * different locality group lock held). It's recomended not to use
+ * different locality group lock held). It's recomended that you not use
  * c2_fom_ready_remote() and c2_fom_block_enter() in the same fo_phase.
  */
 void c2_fom_ready_remote(struct c2_fom *fom);

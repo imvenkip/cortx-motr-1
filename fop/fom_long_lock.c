@@ -19,18 +19,48 @@
  */
 
 /**
- * @addtogroup c2_long_lock
+ * @addtogroup c2_long_lock_API
  *
  * @{
  */
 
 #include "fop/fom_long_lock.h"
-#include "fop/fom_long_lock_bob.h"
 #include "lib/arith.h"
 #include "lib/misc.h"
+#include "lib/bob.h"
 
-C2_TL_DESCR_DECLARE(c2_lll, extern);
-C2_TL_DECLARE(c2_lll, extern, struct c2_long_lock_link);
+enum {
+        /** Value of c2_long_lock_link::lll_magix */
+        C2_LONG_LOCK_LINK_MAGIX = 0xB055B1E55EDF01D5,
+        /** Value of c2_longlock::l_magix */
+        C2_LONG_LOCK_MAGIX = 0x0B055B1E55EDBA55
+};
+
+/**
+ * Descriptor of typed list used in c2_long_lock with
+ * c2_long_lock_link::lll_lock_linkage.
+ */
+C2_TL_DESCR_DEFINE(c2_lll, "list of lock-links in longlock", static,
+                   struct c2_long_lock_link, lll_lock_linkage, lll_magix,
+                   C2_LONG_LOCK_LINK_MAGIX, C2_LONG_LOCK_LINK_MAGIX);
+
+C2_TL_DEFINE(c2_lll, static, struct c2_long_lock_link);
+
+static struct c2_bob_type long_lock_bob;
+C2_BOB_DEFINE(, &long_lock_bob, c2_long_lock);
+
+static struct c2_bob_type long_lock_link_bob;
+C2_BOB_DEFINE(, &long_lock_link_bob, c2_long_lock_link);
+
+void c2_fom_ll_global_init(void)
+{
+	long_lock_bob.bt_name         = "LONG_LOCK_BOB";
+	long_lock_bob.bt_magix        = C2_LONG_LOCK_MAGIX;
+	long_lock_bob.bt_magix_offset = offsetof(struct c2_long_lock, l_magix);
+
+	c2_bob_type_tlist_init(&long_lock_link_bob, &c2_lll_tl);
+}
+C2_EXPORTED(c2_fom_ll_global_init);
 
 void c2_long_lock_link_init(struct c2_long_lock_link *link, struct c2_fom *fom)
 {
@@ -103,10 +133,9 @@ static bool lock_invariant(const struct c2_long_lock *lock)
 static bool can_lock(const struct c2_long_lock *lock,
 		     const struct c2_long_lock_link *link)
 {
-	return
-		link->lll_lock_type == C2_LONG_LOCK_READER ?
-			lock->l_state != C2_LONG_LOCK_WR_LOCKED :
-			lock->l_state == C2_LONG_LOCK_UNLOCKED;
+	return link->lll_lock_type == C2_LONG_LOCK_READER ?
+		lock->l_state != C2_LONG_LOCK_WR_LOCKED :
+		lock->l_state == C2_LONG_LOCK_UNLOCKED;
 }
 
 static void grant(struct c2_long_lock *lock, struct c2_long_lock_link *link)
@@ -130,7 +159,7 @@ static bool lock(struct c2_long_lock *lock, struct c2_long_lock_link *link,
 	c2_mutex_lock(&lock->l_lock);
 	C2_PRE(lock_invariant(lock));
 	C2_PRE(!c2_lll_tlink_is_in(link));
-	
+
 	fom = link->lll_fom;
 	C2_PRE(fom != NULL);
 
@@ -175,10 +204,10 @@ static void unlock(struct c2_long_lock *lock, struct c2_long_lock_link *link)
 	C2_PRE(c2_fom_group_is_locked(fom));
 
 	c2_lll_tlist_del(link);
-	lock->l_state = 
+	lock->l_state =
 		link->lll_lock_type == C2_LONG_LOCK_WRITER ||
 		c2_lll_tlist_is_empty(&lock->l_owners) ?
-		C2_LONG_LOCK_UNLOCKED : C2_LONG_LOCK_RD_LOCKED; 
+		C2_LONG_LOCK_UNLOCKED : C2_LONG_LOCK_RD_LOCKED;
 
 	while ((next = c2_lll_tlist_head(&lock->l_waiters)) != NULL &&
 	       can_lock(lock, next)) {

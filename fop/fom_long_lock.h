@@ -22,17 +22,16 @@
 #define __COLIBRI_LONG_LOCK_H__
 
 /**
- * @defgroup c2_long_lock FOM long lock
  * @page c2_long_lock-dld FOM long lock DLD
  * @section c2_long_lock-dld-ovw Overview
  * Long lock is a non-blocking synchronization construct which has to be used in
  * FOM state handlers c2_fom_ops::fo_state(). Long lock provides support for a
  * reader-writer lock for FOMs.
  *
- * @section c2_long_lock-dld-func Functional specification.
+ * @section c2_long_lock-dld-func Functional specification
  * According to reasons, described in @ref c2_long_lock-dld-logic, application
- * of `struct c2_long_lock' requires to introduce special link structures
- * `struct c2_long_lock_link': one structure per one acquiring long lock in the
+ * of struct c2_long_lock requires to introduce special link structures
+ * struct c2_long_lock_link: one structure per one acquiring long lock in the
  * FOM. It's required that individual FOMs allocate and initialize link
  * structures in their derived FOM data structures, and use this structures with
  * long lock interfaces. The following code example demonstrates the usage
@@ -75,22 +74,24 @@
  * }
  * @endcode
  *
- * @section c2_long_lock-dld-logic Logical specification.
+ * @see c2_long_lock_API
+ *
+ * @section c2_long_lock-dld-logic Logical specification
  * The lock is considered to be obtained when FOM transitions to the phase
  * specified by the next_phase parameter to the c2_long_{read|write}_lock
  * subroutine - the PH_GOT_LOCK value in the example above. Eventually, when
  * FOMs state handler does not need to read or write shared data structures,
  * access to which must be synchronized, the lock can be released with
- * c2_long_write_unlock() and c2_long_write_unlock() calls.
+ * c2_long_read_unlock() and c2_long_write_unlock() calls.
  *
- * The long lock uses special link structures `struct c2_long_lock_link' to
- * track the FOMs that actively own the lock (c2_long_lock::l_owners), and the
- * FOMs that are queued waiting to acquire the lock (c2_long_lock::l_waiters).
- * This is dictated by the requirement that one FOM can obtain multiple long
+ * The long lock uses special link structures struct c2_long_lock_link to track
+ * the FOMs that actively own the lock (c2_long_lock::l_owners), and the FOMs
+ * that are queued waiting to acquire the lock (c2_long_lock::l_waiters).  This
+ * is dictated by the requirement that one FOM can obtain multiple long
  * locks. Holding multiple locks assumes that the same FOM can be presented in
- * an arbitary number of queues in different long_locks. Since that, derived FOM
- * objects should contain as many link structures as a number of different long
- * locks used by given FOM.
+ * an arbitary number of queues in different long_locks. Derived FOM objects
+ * should contain a distinct link structure for each long lock used. The link
+ * must be initialized with c2_long_lock_link_init() before use.
  *
  * To avoid starvation of writers in the face of a stream of incoming readers,
  * a queue of waiting for the long lock FOMs is maintained:
@@ -100,8 +101,8 @@
  *   the lock is obtained for reading or unlocked, otherwise into the
  *   c2_long_lock::l_waiters.
  * - When a lock is released and there are no FOMs which own the lock, FOMs
- *   waiting for processing (if any) are processed in FIFO order (this avoids
- *   starvation).
+ *   waiting for processing (if any) are processed in FIFO order. This avoid
+ *   starvation and provides a degree of fairness.
  *
  * When some lock is being unlocked the work of selecting the next lock owner(s)
  * and waking them up is done in the unlock path in c2_long_read_unlock() and
@@ -109,7 +110,10 @@
  * c2_long_lock::l_waiters lists. c2_fom_ready_remote() call is used to wake
  * FOMs up.
  *
+ * @defgroup c2_long_lock_API FOM long lock API
  * @{
+ * @see @ref c2_long_lock-dld
+ *
  */
 
 #include "fop/fop.h"
@@ -274,6 +278,16 @@ void c2_long_lock_link_init(struct c2_long_lock_link *link, struct c2_fom *fom);
  * @pre !c2_lll_tlink_is_in(link)
  */
 void c2_long_lock_link_fini(struct c2_long_lock_link *link);
+
+C2_BOB_DECLARE(extern, c2_long_lock);
+C2_BOB_DECLARE(extern, c2_long_lock_link);
+
+/**
+ * Initializes bob-type for c2_long_lock and c2_long_lock_link. Should be called
+ * once, during system initialisation.
+ */
+void c2_fom_ll_global_init(void);
+
 
 /** @} end of c2_long_lock group */
 
