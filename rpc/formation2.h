@@ -260,9 +260,7 @@ struct c2_rpc_frm_ops {
 		   p are moved to FAILED state and are removed from p.
 		   c2_rpc_packet instance pointed by p is freed.
 	 */
-	bool (*fo_packet_ready)(struct c2_rpc_packet  *p,
-				struct c2_rpc_machine *machine,
-				struct c2_rpc_chan    *rchan);
+	bool (*fo_packet_ready)(struct c2_rpc_packet *p);
 
 	/**
 	   Bind a slot to the item.

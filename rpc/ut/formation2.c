@@ -92,12 +92,10 @@ static void flags_reset(void)
 	item_bind_count = 0;
 }
 
-static bool packet_ready(struct c2_rpc_packet  *p,
-			 struct c2_rpc_machine *machine,
-			 struct c2_rpc_chan    *rchanp)
+static bool packet_ready(struct c2_rpc_packet *p)
 {
-	C2_UT_ASSERT(machine == &rmachine);
-	C2_UT_ASSERT(rchanp == &rchan);
+	C2_UT_ASSERT(frm_rmachine(p->rp_frm) == &rmachine);
+	C2_UT_ASSERT(frm_rchan(p->rp_frm) == &rchan);
 	packet_stack_push(p);
 	packet_ready_called = true;
 	return true;

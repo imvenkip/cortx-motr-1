@@ -613,8 +613,7 @@ static bool frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 
 	p->rp_frm = frm;
 	/* See packet_ready() in rpc/frmops.c */
-	packet_enqed = frm->f_ops->fo_packet_ready(p, frm_rmachine(frm),
-						      frm_rchan(frm));
+	packet_enqed = frm->f_ops->fo_packet_ready(p);
 
 	C2_LEAVE("result: %s", c2_bool_to_str(packet_enqed));
 	return packet_enqed;

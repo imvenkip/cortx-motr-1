@@ -30,9 +30,7 @@
 #include "net/net.h"
 #include "rpc/session_internal.h"
 
-static bool packet_ready(struct c2_rpc_packet  *p,
-			 struct c2_rpc_machine *machine,
-			 struct c2_rpc_chan    *rchan);
+static bool packet_ready(struct c2_rpc_packet *p);
 static bool item_bind(struct c2_rpc_item *item);
 
 static int net_buffer_allocate(struct c2_net_buffer *netbuf,
@@ -71,10 +69,8 @@ struct rpc_buffer {
 	uint64_t               rb_magic;
 };
 
-static int rpc_buffer_init(struct rpc_buffer     *rpcbuf,
-			   struct c2_rpc_packet  *p,
-			   struct c2_rpc_machine *mahcine,
-			   struct c2_rpc_chan    *rchan);
+static int rpc_buffer_init(struct rpc_buffer    *rpcbuf,
+			   struct c2_rpc_packet *p);
 
 static int rpc_buffer_submit(struct rpc_buffer *rpcbuf);
 
@@ -94,11 +90,10 @@ static const struct c2_net_buffer_callbacks outgoing_buf_callbacks = {
 
    @see c2_rpc_frm_ops::fo_packet_ready()
  */
-static bool packet_ready(struct c2_rpc_packet  *p,
-			 struct c2_rpc_machine *machine,
-			 struct c2_rpc_chan    *rchan)
+static bool packet_ready(struct c2_rpc_packet *p)
 {
 	struct rpc_buffer *rpcbuf;
+	struct c2_rpc_frm *frm;
 	int                rc;
 
 	C2_ENTRY("packet: %p", p);
@@ -110,7 +105,8 @@ static bool packet_ready(struct c2_rpc_packet  *p,
 		C2_LOG("Failed to allocate rpcbuf");
 		goto out;
 	}
-	rc = rpc_buffer_init(rpcbuf, p, machine, rchan);
+	frm = p->rp_frm;
+	rc = rpc_buffer_init(rpcbuf, p);
 	if (rc != 0)
 		goto out_free;
 
@@ -144,23 +140,20 @@ out:
    machine identifies source end-point and rchan identifies destination
    end-point.
  */
-static int rpc_buffer_init(struct rpc_buffer     *rpcbuf,
-			   struct c2_rpc_packet  *p,
-			   struct c2_rpc_machine *machine,
-			   struct c2_rpc_chan    *rchan)
+static int rpc_buffer_init(struct rpc_buffer    *rpcbuf,
+			   struct c2_rpc_packet *p)
 {
-	struct c2_net_buffer *netbuf;
-	struct c2_net_domain *ndom;
+	struct c2_net_buffer  *netbuf;
+	struct c2_net_domain  *ndom;
+	struct c2_rpc_machine *machine;
+	struct c2_rpc_chan    *rchan;
 	int                   rc;
 
-	C2_ENTRY("rbuf: %p packet: %p machine: %p rchan: %p",
-		 rpcbuf, p, machine, rchan);
-	C2_PRE(rpcbuf != NULL &&
-	       p != NULL &&
-	       machine != NULL &&
-	       rchan != NULL);
+	C2_ENTRY("rbuf: %p packet: %p", rpcbuf, p);
+	C2_PRE(rpcbuf != NULL && p != NULL);
 
-	ndom = machine->rm_tm.ntm_dom;
+	machine = frm_rmachine(p->rp_frm);
+	ndom    = machine->rm_tm.ntm_dom;
 	C2_ASSERT(ndom != NULL);
 
 	netbuf = &rpcbuf->rb_netbuf;
@@ -173,6 +166,7 @@ static int rpc_buffer_init(struct rpc_buffer     *rpcbuf,
 		net_buffer_free(netbuf, ndom);
 		goto out;
 	}
+	rchan = frm_rchan(p->rp_frm);
 	netbuf->nb_length  = p->rp_size;
 	netbuf->nb_ep      = rchan->rc_destep;
 
