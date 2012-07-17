@@ -63,8 +63,6 @@ enum {
 struct rpc_buffer {
 	struct c2_net_buffer   rb_netbuf;
 	struct c2_rpc_packet  *rb_packet;
-	struct c2_rpc_machine *rb_machine;
-	struct c2_rpc_chan    *rb_rchan;
 	/** see RPC_BUF_MAGIC */
 	uint64_t               rb_magic;
 };
@@ -83,6 +81,21 @@ static const struct c2_net_buffer_callbacks outgoing_buf_callbacks = {
 		[C2_NET_QT_MSG_SEND] = outgoing_buf_event_handler
 	}
 };
+
+static struct c2_rpc_machine *
+rpc_buffer__rmachine(const struct rpc_buffer *rpcbuf)
+{
+	struct c2_rpc_machine *rmachine;
+
+	C2_PRE(rpcbuf != NULL &&
+	       rpcbuf->rb_packet != NULL &&
+	       rpcbuf->rb_packet->rp_frm != NULL);
+
+	rmachine = frm_rmachine(rpcbuf->rb_packet->rp_frm);
+	C2_ASSERT(rmachine != NULL);
+
+	return rmachine;
+}
 
 /**
    Serialises packet p and its items in a network buffer and submits it to
@@ -137,8 +150,6 @@ out:
 /**
    Initialises rpcbuf, allocates network buffer of size enough to
    accomodate serialised packet p.
-   machine identifies source end-point and rchan identifies destination
-   end-point.
  */
 static int rpc_buffer_init(struct rpc_buffer    *rpcbuf,
 			   struct c2_rpc_packet *p)
@@ -167,12 +178,10 @@ static int rpc_buffer_init(struct rpc_buffer    *rpcbuf,
 		goto out;
 	}
 	rchan = frm_rchan(p->rp_frm);
-	netbuf->nb_length  = p->rp_size;
-	netbuf->nb_ep      = rchan->rc_destep;
+	netbuf->nb_length = p->rp_size;
+	netbuf->nb_ep     = rchan->rc_destep;
 
-	rpcbuf->rb_packet  = p;
-	rpcbuf->rb_machine = machine;
-	rpcbuf->rb_rchan   = rchan;
+	rpcbuf->rb_packet = p;
 
 	rpcbuf->rb_magic   = RPC_BUF_MAGIC;
 
@@ -288,19 +297,20 @@ static void net_buffer_free(struct c2_net_buffer *netbuf,
  */
 static int rpc_buffer_submit(struct rpc_buffer *rpcbuf)
 {
-	struct c2_net_buffer *netbuf;
-	int                   rc;
+	struct c2_net_buffer  *netbuf;
+	struct c2_rpc_machine *machine;
+	int                    rc;
 
 	C2_ENTRY("rpcbuf: %p", rpcbuf);
-	C2_PRE(rpcbuf != NULL &&
-	       rpcbuf->rb_machine != NULL);
+	C2_PRE(rpcbuf != NULL);
 
 	netbuf = &rpcbuf->rb_netbuf;
 
 	netbuf->nb_qtype     = C2_NET_QT_MSG_SEND;
 	netbuf->nb_callbacks = &outgoing_buf_callbacks;
 
-	rc = c2_net_buffer_add(netbuf, &rpcbuf->rb_machine->rm_tm);
+	machine = rpc_buffer__rmachine(rpcbuf);
+	rc = c2_net_buffer_add(netbuf, &machine->rm_tm);
 
 	C2_LEAVE("rc: %d", rc);
 	return rc;
@@ -308,11 +318,13 @@ static int rpc_buffer_submit(struct rpc_buffer *rpcbuf)
 
 static void rpc_buffer_fini(struct rpc_buffer *rpcbuf)
 {
-	struct c2_net_domain *ndom;
-
+	struct c2_net_domain  *ndom;
+	struct c2_rpc_machine *machine;
 	C2_ENTRY("rpcbuf: %p", rpcbuf);
-	C2_PRE(rpcbuf != NULL && rpcbuf->rb_machine != NULL);
-	ndom = rpcbuf->rb_machine->rm_tm.ntm_dom;
+	C2_PRE(rpcbuf != NULL);
+
+	machine = rpc_buffer__rmachine(rpcbuf);
+	ndom    = machine->rm_tm.ntm_dom;
 	C2_ASSERT(ndom != NULL);
 
 	net_buffer_free(&rpcbuf->rb_netbuf, ndom);
@@ -341,22 +353,22 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 		  (netbuf->nb_flags & C2_NET_BUF_QUEUED) == 0);
 
 	rpcbuf = container_of(netbuf, struct rpc_buffer, rb_netbuf);
-	C2_ASSERT(rpcbuf->rb_magic == RPC_BUF_MAGIC &&
-		  rpcbuf->rb_machine != NULL);
+	C2_ASSERT(rpcbuf->rb_magic == RPC_BUF_MAGIC);
 
-	machine = rpcbuf->rb_machine;
+	machine = rpc_buffer__rmachine(rpcbuf);
 	c2_rpc_machine_lock(machine);
 
 	p = rpcbuf->rb_packet;
 	p->rp_status = ev->nbe_status;
+
+	rpc_buffer_fini(rpcbuf);
+	c2_free(rpcbuf);
 
 	c2_rpc_packet_traverse_items(p, item_done, ev->nbe_status);
 	c2_rpc_frm_packet_done(p);
 	c2_rpc_packet_remove_all_items(p);
 	c2_rpc_packet_fini(p);
 	c2_free(p);
-	rpc_buffer_fini(rpcbuf);
-	c2_free(rpcbuf);
 
 	c2_rpc_machine_unlock(machine);
 	C2_LEAVE();
