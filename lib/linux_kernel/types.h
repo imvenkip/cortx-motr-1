@@ -23,22 +23,31 @@
 
 #include <linux/types.h>
 
-#define C2_TYPES_UINT_MAX(bits) ((uint ## bits ## _t)((uint ## bits ## _t) 0))
-#define C2_TYPES_INT_MAX(bits) ((int ## bits ## _t)((uint ## bits ## _t)0) >> 1)
-#define C2_TYPES_INT_MIN(bits) ((int ## bits ## _t)(-(INT ## bits ## _MAX) - 1))
+#include "lib/assert.h"
 
-#define UINT8_MAX  C2_TYPES_UINT_MAX(8)	 /* 0xFF */
-#define INT8_MIN   C2_TYPES_INT_MIN(8)	 /* 0x80 */
-#define INT8_MAX   C2_TYPES_INT_MAX(8)	 /* 0x7F */
-#define UINT16_MAX C2_TYPES_UINT_MAX(16) /* 0xFFFF */
-#define INT16_MIN  C2_TYPES_INT_MIN(16)	 /* 0x8000 */
-#define INT16_MAX  C2_TYPES_INT_MAX(16)	 /* 0x7FFF */
-#define UINT32_MAX C2_TYPES_UINT_MAX(32) /* 0xFFFFFFFF */
-#define INT32_MIN  C2_TYPES_INT_MIN(32)	 /* 0x80000000 */
-#define INT32_MAX  C2_TYPES_INT_MAX(32)	 /* 0x7FFFFFFF */
-#define UINT64_MAX C2_TYPES_UINT_MAX(64) /* 0xFFFFFFFFFFFFFFFF */
-#define INT64_MIN  C2_TYPES_INT_MIN(64)	 /* 0x8000000000000000 */
-#define INT64_MAX  C2_TYPES_INT_MAX(64)	 /* 0x7FFFFFFFFFFFFFFF */
+C2_BASSERT(((uint32_t) 0) - 1 == ~(uint32_t) 0);
+
+#define UINT8_MAX  ((uint8_t) 0xff)
+#define INT8_MIN   ( (int8_t) 0x80)
+#define INT8_MAX   ( (int8_t) 0x7f)
+#define UINT16_MAX ((uint16_t)0xffff)
+#define INT16_MIN  ( (int16_t)0x8000)
+#define INT16_MAX  ( (int16_t)0x7fff)
+#define UINT32_MAX ((uint32_t)0xffffffff)
+#define INT32_MIN  ( (int32_t)0x80000000)
+#define INT32_MAX  ( (int32_t)0x7fffffff)
+#define UINT64_MAX ((uint64_t)0xffffffffffffffff)
+#define INT64_MIN  ( (int64_t)0x8000000000000000)
+#define INT64_MAX  ( (int64_t)0x7fffffffffffffff)
+
+C2_BASSERT(INT8_MIN < 0);
+C2_BASSERT(INT8_MAX > 0);
+C2_BASSERT(INT16_MIN < 0);
+C2_BASSERT(INT16_MAX > 0);
+C2_BASSERT(INT32_MIN < 0);
+C2_BASSERT(INT32_MAX > 0);
+C2_BASSERT(INT64_MIN < 0);
+C2_BASSERT(INT64_MAX > 0);
 
 /* __COLIBRI_LIB_LINUX_KERNEL_TYPES_H_ */
 #endif
