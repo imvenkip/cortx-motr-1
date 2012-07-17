@@ -106,7 +106,6 @@ rpc_buffer__rmachine(const struct rpc_buffer *rpcbuf)
 static bool packet_ready(struct c2_rpc_packet *p)
 {
 	struct rpc_buffer *rpcbuf;
-	struct c2_rpc_frm *frm;
 	int                rc;
 
 	C2_ENTRY("packet: %p", p);
@@ -118,7 +117,6 @@ static bool packet_ready(struct c2_rpc_packet *p)
 		C2_LOG("Failed to allocate rpcbuf");
 		goto out;
 	}
-	frm = p->rp_frm;
 	rc = rpc_buffer_init(rpcbuf, p);
 	if (rc != 0)
 		goto out_free;
@@ -320,6 +318,7 @@ static void rpc_buffer_fini(struct rpc_buffer *rpcbuf)
 {
 	struct c2_net_domain  *ndom;
 	struct c2_rpc_machine *machine;
+
 	C2_ENTRY("rpcbuf: %p", rpcbuf);
 	C2_PRE(rpcbuf != NULL);
 
