@@ -238,8 +238,6 @@ struct c2_rpc_frm {
 	/** Limits that formation should respect */
 	struct c2_rpc_frm_constraints  f_constraints;
 
-	struct c2_rpc_machine         *f_rmachine;
-	struct c2_rpc_chan            *f_rchan;
 	const struct c2_rpc_frm_ops   *f_ops;
 
 	struct c2_addb_ctx             f_addb_ctx;
@@ -300,8 +298,6 @@ c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *constraint);
    @post frm->f_state == FRM_IDLE
  */
 void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
-		     struct c2_rpc_machine         *rmachine,
-		     struct c2_rpc_chan            *rchan,
 		     struct c2_rpc_frm_constraints *constraints,
 		     const struct c2_rpc_frm_ops   *ops);
 

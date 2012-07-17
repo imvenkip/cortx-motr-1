@@ -113,9 +113,7 @@ static bool frm_invariant(const struct c2_rpc_frm *frm)
 	       frm->f_magic == FRM_MAGIC &&
 	       frm->f_state > FRM_UNINITIALISED &&
 	       frm->f_state < FRM_NR_STATES &&
-	       frm->f_rmachine != NULL &&
 	       frm->f_ops != NULL &&
-	       frm->f_rchan != NULL &&
 	       equi(frm->f_state == FRM_IDLE,  frm_is_idle(frm)) &&
 	       c2_forall(i, FRMQ_NR_QUEUES,
 			 q             = &frm->f_itemq[i];
@@ -183,7 +181,7 @@ static bool
 constraints_are_valid(const struct c2_rpc_frm_constraints *constraints)
 {
 	/** @todo XXX Check whether constraints are consistent */
-	return true;
+	return constraints != NULL;
 }
 
 static bool frm_is_idle(const struct c2_rpc_frm *frm)
@@ -192,24 +190,18 @@ static bool frm_is_idle(const struct c2_rpc_frm *frm)
 }
 
 void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
-		     struct c2_rpc_machine         *rmachine,
-		     struct c2_rpc_chan            *rchan,
 		     struct c2_rpc_frm_constraints *constraints,
 		     const struct c2_rpc_frm_ops   *ops)
 {
 	struct c2_tl *q;
 
-	C2_ENTRY("frm: %p rmachine %p", frm, rmachine);
-	C2_PRE(frm      != NULL &&
-	       rmachine != NULL &&
-	       rchan    != NULL &&
-	       ops      != NULL &&
+	C2_ENTRY("frm: %p", frm);
+	C2_PRE(frm != NULL &&
+	       ops != NULL &&
 	       constraints_are_valid(constraints));
 
 	C2_SET0(frm);
-	frm->f_rmachine    =  rmachine;
 	frm->f_ops         =  ops;
-	frm->f_rchan       =  rchan;
 	frm->f_constraints = *constraints; /* structure instance copy */
 	frm->f_magic       =  FRM_MAGIC;
 
@@ -247,7 +239,7 @@ void c2_rpc_frm_enq_item(struct c2_rpc_frm  *frm,
 			 struct c2_rpc_item *item)
 {
 	C2_ENTRY("frm: %p item: %p", frm, item);
-	C2_PRE(c2_rpc_machine_is_locked(frm->f_rmachine));
+	C2_PRE(frm_rmachine_is_locked(frm));
 	C2_PRE(frm_invariant(frm) && item != NULL);
 
 	frm_itemq_insert(frm, item);
@@ -347,7 +339,7 @@ static void __itemq_insert(struct c2_tl *q, struct c2_rpc_item *new_item)
 /**
    Core of formation algorithm.
 
-   @pre c2_rpc_machine_is_locked(frm->f_rmachine)
+   @pre frm_rmachine_is_locked(frm)
  */
 static void frm_balance(struct c2_rpc_frm *frm)
 {
@@ -358,7 +350,7 @@ static void frm_balance(struct c2_rpc_frm *frm)
 
 	C2_ENTRY("frm: %p", frm);
 
-	C2_PRE(c2_rpc_machine_is_locked(frm->f_rmachine));
+	C2_PRE(frm_rmachine_is_locked(frm));
 	C2_PRE(frm_invariant(frm));
 
 	C2_LOG("ready: %s", c2_bool_to_str(frm_is_ready(frm)));
@@ -621,8 +613,8 @@ static bool frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 
 	p->rp_frm = frm;
 	/* See packet_ready() in rpc/frmops.c */
-	packet_enqed = frm->f_ops->fo_packet_ready(p, frm->f_rmachine,
-						      frm->f_rchan);
+	packet_enqed = frm->f_ops->fo_packet_ready(p, frm_rmachine(frm),
+						      frm_rchan(frm));
 
 	C2_LEAVE("result: %s", c2_bool_to_str(packet_enqed));
 	return packet_enqed;
@@ -632,7 +624,7 @@ void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm)
 {
 	C2_ENTRY("frm: %p", frm);
 	C2_ASSERT(frm_invariant(frm));
-	C2_PRE(c2_rpc_machine_is_locked(frm->f_rmachine));
+	C2_PRE(frm_rmachine_is_locked(frm));
 
 	frm_balance(frm);
 
@@ -648,7 +640,7 @@ void c2_rpc_frm_packet_done(struct c2_rpc_packet *p)
 
 	frm = p->rp_frm;
 	C2_ASSERT(frm_invariant(frm));
-	C2_PRE(c2_rpc_machine_is_locked(frm->f_rmachine));
+	C2_PRE(frm_rmachine_is_locked(frm));
 
 	C2_CNT_DEC(frm->f_nr_packets_enqed);
 	C2_LOG("nr_packets_enqed: %llu",
