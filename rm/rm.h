@@ -42,13 +42,13 @@
    These parts are used by the operation vectors (c2_rm_resource_ops,
    c2_rm_resource_type_ops and c2_rm_right_ops) provided by a resource type
    and called by the generic code. Type specific code, in turn, calls
-   generic entry-points described in the <b>Resource type interface</b>
+   generic entry-points described in the @@b Resource type interface
    section.
 
    In the documentation below, responsibilities of generic and type specific
    parts of the resource manager are delineated.
 
-   @@bOverview
+   @@b Overview
 
    A resource (c2_rm_resource) is associated with various file system entities:
 
@@ -85,7 +85,7 @@
    See the documentation for individual resource management data-types and
    interfaces for more detailed description of their behaviour.
 
-   <b>Terminology.</b>
+   @@b Terminology.
 
    Various terms are used to described right ownership flow in a cluster.
 
@@ -109,7 +109,7 @@
 
    A debtor can voluntary return a loan. This is called a "cancel" operation.
 
-   <b>Concurrency control.</b>
+   @@b Concurrency control.</b>
 
    Generic resource manager makes no assumptions about threading model used by
    its callers. Generic resource data-structures and code are thread safe.
@@ -146,7 +146,7 @@
 
    Lock ordering: these locks do not nest.
 
-   <b>Liveness.</b>
+   @@b Liveness.</b>
 
    None of the resource manager structures, except for c2_rm_resource, require
    reference counting, because their liveness is strictly determined by the
@@ -171,13 +171,13 @@
    network by revoking the loans it sublet to and by retuning the loans it
    borrowed from other owners.
 
-   <b>Resource identification and location.</b>
+   @@b Resource identification and location.</b>
 
    @see c2_rm_remote
 
-   <b>Persistent state.</b>
+   @@b Persistent state.</b>
 
-   <b>Network protocol.</b>
+   @@b Network protocol.</b>
 
    @see https://docs.google.com/a/xyratex.com/Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfN2NiNXM1dHF3&hl=en
 
@@ -441,7 +441,7 @@ struct c2_rm_right_ops {
 	 */
         bool (*rro_intersects) (const struct c2_rm_right *r0,
                                 const struct c2_rm_right *r1);
-        /** 
+        /**
            @ret True, iff r0 can be joined with r1.
 	 */
         bool (*rro_join) (const struct c2_rm_right *r0,
@@ -1267,7 +1267,7 @@ enum c2_rm_pin_flags {
    incoming requests and rights: an incoming request has a list of pins "from"
    it and a right has a list of pins "to" it. A typical use case is as follows:
 
-   <b>Protection.</b>
+   @@b Protection.</b>
 
    While a right is actively used, it cannot be revoked. For example, while file
    write is going on, the right to write in the target file extent must be
@@ -1278,7 +1278,7 @@ enum c2_rm_pin_flags {
    c2_rm_right_get()). This pin is removed by the call to
    c2_rm_right_put(). Multiple incoming requests can pin the same right.
 
-   <b>Tracking.</b>
+   @@b Tracking.</b>
 
    An incoming request with a RIF_LOCAL_WAIT flag might need to wait until a
    conflicting pinned right becomes unpinned. To this end, an C2_RPF_TRACK pin
@@ -1296,7 +1296,7 @@ enum c2_rm_pin_flags {
    same outgoing request. When the outgoing request completes, the incoming
    requests waiting for it are checked as above.
 
-   <b>Barrier.</b>
+   @@b Barrier.</b>
 
    Not currently used. The idea is to avoid live-locks and guarantee progress of
    incoming request processing by pinning the rights with a C2_RPF_BARRIER pin.

@@ -183,15 +183,15 @@ static void rm_init(void)
 	men.ro_state = ROS_FINAL;
 	c2_rm_owner_init(&men, &R.rs_resource, NULL);
 	c2_rm_incoming_init(&in, &Sauron,
-			    RIT_LOCAL, RIP_STRICT, RIF_LOCAL_WAIT);
+			    C2_RIT_LOCAL, RIP_STRICT, RIF_LOCAL_WAIT);
 	c2_rm_incoming_init(&inother, &Sauron,
-			    RIT_LOCAL, RIP_STRICT, RIF_LOCAL_WAIT);
+			    C2_RIT_LOCAL, RIP_STRICT, RIF_LOCAL_WAIT);
 	c2_rm_incoming_init(&inreq, &Sauron,
-			    RIT_LOCAL, RIP_STRICT, RIF_LOCAL_WAIT);
+			    C2_RIT_LOCAL, RIP_STRICT, RIF_LOCAL_WAIT);
 	c2_rm_incoming_init(&inrep, &Sauron,
-			    RIT_LOCAL, RIP_STRICT, RIF_LOCAL_WAIT);
+			    C2_RIT_LOCAL, RIP_STRICT, RIF_LOCAL_WAIT);
 	c2_rm_incoming_init(&inconflict, &Sauron,
-			    RIT_LOCAL, RIP_STRICT, RIF_MAY_BORROW);
+			    C2_RIT_LOCAL, RIP_STRICT, RIF_MAY_BORROW);
 }
 
 static void rights_prune(struct c2_tl *rights_list)
@@ -281,7 +281,7 @@ static void right_get_test0(void)
 	in.rin_priority = 0;
 	in.rin_ops = &rings_incoming_ops;
 	in.rin_want.ri_ops = &rings_right_ops;
-	in.rin_type = RIT_LOCAL;
+	in.rin_type = C2_RIT_LOCAL;
 	in.rin_policy = RIP_STRICT;
 	in.rin_flags |= RIF_LOCAL_WAIT;
 
@@ -312,7 +312,7 @@ static void right_get_test1(void)
 	in.rin_priority = 0;
 	in.rin_ops = &rings_incoming_ops;
 	in.rin_want.ri_ops = &rings_right_ops;
-	in.rin_type = RIT_LOCAL;
+	in.rin_type = C2_RIT_LOCAL;
 	in.rin_policy = RIP_STRICT;
 	in.rin_flags |= RIF_LOCAL_WAIT;
 
@@ -326,7 +326,7 @@ static void right_get_test1(void)
 	inother.rin_priority = 0;
 	inother.rin_ops = &rings_incoming_ops;
 	inother.rin_want.ri_ops = &rings_right_ops;
-	inother.rin_type = RIT_LOCAL;
+	inother.rin_type = C2_RIT_LOCAL;
 	inother.rin_policy = RIP_STRICT;
 	inother.rin_flags |= RIF_LOCAL_WAIT;
 
@@ -364,7 +364,7 @@ static void right_get_test2(void)
 	in.rin_priority = 0;
 	in.rin_ops = &rings_incoming_ops;
 	in.rin_want.ri_ops = &rings_right_ops;
-	in.rin_type = RIT_LOCAL;
+	in.rin_type = C2_RIT_LOCAL;
 	in.rin_policy = RIP_STRICT;
 	in.rin_flags |= RIF_LOCAL_WAIT;
 
@@ -378,7 +378,7 @@ static void right_get_test2(void)
 	inother.rin_priority = 0;
 	inother.rin_ops = &rings_incoming_ops;
 	inother.rin_want.ri_ops = &rings_right_ops;
-	inother.rin_type = RIT_LOCAL;
+	inother.rin_type = C2_RIT_LOCAL;
 	inother.rin_policy = RIP_STRICT;
 	inother.rin_flags |= RIF_LOCAL_WAIT;
 
@@ -418,7 +418,7 @@ static void right_get_test3(void)
 	in.rin_priority = 0;
 	in.rin_ops = &rings_incoming_ops;
 	in.rin_want.ri_ops = &rings_right_ops;
-	in.rin_type = RIT_LOCAL;
+	in.rin_type = C2_RIT_LOCAL;
 	in.rin_policy = RIP_STRICT;
 
 	in.rin_flags = RIF_LOCAL_WAIT;
@@ -436,7 +436,7 @@ static void right_get_test3(void)
 	inother.rin_priority = 0;
 	inother.rin_ops = &rings_incoming_ops;
 	inother.rin_want.ri_ops = &rings_right_ops;
-	inother.rin_type = RIT_LOCAL;
+	inother.rin_type = C2_RIT_LOCAL;
 	inother.rin_policy = RIP_STRICT;
 
 	inother.rin_want.ri_datum = NARYA;
@@ -467,7 +467,7 @@ static void rm_server_init(void)
         c2_rm_type_register(&server, &rts);
         c2_rm_resource_add(&rts, &R.rs_resource);
         c2_rm_right_init(&everything, &Sauron);
-	c2_rm_incoming_init(&in, &Sauron, RIT_LOCAL, RIP_STRICT, RIF_LOCAL_WAIT);
+	c2_rm_incoming_init(&in, &Sauron, C2_RIT_LOCAL, RIP_STRICT, RIF_LOCAL_WAIT);
         everything.ri_ops = &rings_right_ops;
         everything.ri_datum = ALLRINGS;
         Sauron.ro_state = ROS_FINAL;
@@ -502,7 +502,7 @@ static void rm_client_init(void)
         c2_rm_domain_init(&client);
         c2_rm_type_register(&client, &rtc);
 	c2_rm_incoming_init(&inother, &elves,
-			    RIT_LOCAL, RIP_STRICT, RIF_LOCAL_WAIT);
+			    C2_RIT_LOCAL, RIP_STRICT, RIF_LOCAL_WAIT);
         c2_rm_resource_add(&rtc, &RC0.rs_resource);
         elves.ro_state = ROS_FINAL;
         c2_rm_owner_init(&elves, &RC0.rs_resource, NULL);
@@ -557,7 +557,7 @@ static void intent_server(int id)
         in.rin_priority = 0;
         in.rin_ops = &rings_incoming_ops;
         in.rin_want.ri_ops = &rings_right_ops;
-        in.rin_type = RIT_LOCAL;
+        in.rin_type = C2_RIT_LOCAL;
         in.rin_policy = RIP_STRICT;
 
         in.rin_flags = RIF_LOCAL_TRY;
@@ -590,7 +590,7 @@ static void intent_client(int id)
         req->in.rin_priority = 0;
         req->in.rin_ops = &rings_incoming_ops;
         req->in.rin_want.ri_ops = &rings_right_ops;
-        req->in.rin_type = RIT_LOCAL;
+        req->in.rin_type = C2_RIT_LOCAL;
         req->in.rin_policy = RIP_STRICT;
         req->in.rin_want.ri_datum = NARYA;
         req->in.rin_flags |= RIF_LOCAL_TRY;
@@ -685,7 +685,7 @@ static void wbc_server(int id)
         req->in.rin_priority = 0;
         req->in.rin_ops = &rings_incoming_ops;
         req->in.rin_want.ri_ops = &rings_right_ops;
-        req->in.rin_type = RIT_LOCAL;
+        req->in.rin_type = C2_RIT_LOCAL;
         req->in.rin_policy = RIP_STRICT;
 
         req->in.rin_flags = RIF_LOCAL_WAIT;
@@ -706,7 +706,7 @@ static void wbc_client(int id)
 	c2_chan_init(&inother.rin_signal);
         c2_rm_right_init(&inother.rin_want, &Sauron);
 	c2_rm_incoming_init(&inother, &Sauron,
-			    RIT_LOCAL, RIP_STRICT, RIF_MAY_BORROW);
+			    C2_RIT_LOCAL, RIP_STRICT, RIF_MAY_BORROW);
         inother.rin_priority = 0;
         inother.rin_ops = &rings_incoming_ops;
         inother.rin_want.ri_ops = &rings_right_ops;
@@ -822,7 +822,7 @@ static void cancel_server(int id)
         req->in.rin_priority = 0;
         req->in.rin_ops = &rings_incoming_ops;
         req->in.rin_want.ri_ops = &rings_right_ops;
-        req->in.rin_type = RIT_LOCAL;
+        req->in.rin_type = C2_RIT_LOCAL;
         req->in.rin_policy = RIP_STRICT;
 
         req->in.rin_flags = RIF_LOCAL_WAIT;
@@ -838,7 +838,7 @@ static void cancel_server(int id)
         in.rin_priority = 0;
         in.rin_ops = &rings_incoming_ops;
         in.rin_want.ri_ops = &rings_right_ops;
-        in.rin_type = RIT_LOCAL;
+        in.rin_type = C2_RIT_LOCAL;
         in.rin_policy = RIP_STRICT;
 
         in.rin_flags = RIF_MAY_REVOKE;
@@ -853,7 +853,7 @@ static void cancel_server(int id)
         inreq.rin_priority = 0;
         inreq.rin_ops = &rings_incoming_ops;
         inreq.rin_want.ri_ops = &rings_right_ops;
-        inreq.rin_type = RIT_LOCAL;
+        inreq.rin_type = C2_RIT_LOCAL;
         inreq.rin_policy = RIP_STRICT;
 
         inreq.rin_flags = RIF_LOCAL_WAIT;
@@ -892,7 +892,7 @@ static void cancel_client(int id)
         inother.rin_priority = 0;
         inother.rin_ops = &rings_incoming_ops;
         inother.rin_want.ri_ops = &rings_right_ops;
-        inother.rin_type = RIT_LOCAL;
+        inother.rin_type = C2_RIT_LOCAL;
         inother.rin_policy = RIP_STRICT;
         inother.rin_want.ri_datum = DURIN;
         inother.rin_flags = RIF_MAY_BORROW;
@@ -914,7 +914,7 @@ static void cancel_client(int id)
         req->in.rin_priority = 0;
         req->in.rin_ops = &rings_incoming_ops;
         req->in.rin_want.ri_ops = &rings_right_ops;
-        req->in.rin_type = RIT_REVOKE;
+        req->in.rin_type = C2_RIT_REVOKE;
         req->in.rin_policy = RIP_STRICT;
 
         req->in.rin_flags = RIF_LOCAL_WAIT;
@@ -1003,7 +1003,7 @@ static void caching_server(int id)
         req->in.rin_priority = 0;
         req->in.rin_ops = &rings_incoming_ops;
         req->in.rin_want.ri_ops = &rings_right_ops;
-        req->in.rin_type = RIT_LOCAL;
+        req->in.rin_type = C2_RIT_LOCAL;
         req->in.rin_policy = RIP_STRICT;
 
         req->in.rin_flags = RIF_LOCAL_WAIT;
@@ -1029,7 +1029,7 @@ static void caching_client(int id)
         inother.rin_priority = 0;
         inother.rin_ops = &rings_incoming_ops;
         inother.rin_want.ri_ops = &rings_right_ops;
-        inother.rin_type = RIT_LOCAL;
+        inother.rin_type = C2_RIT_LOCAL;
         inother.rin_policy = RIP_STRICT;
         inother.rin_want.ri_datum = THROR;
         inother.rin_flags = RIF_MAY_BORROW;
@@ -1049,7 +1049,7 @@ static void caching_client(int id)
         inrep.rin_priority = 0;
         inrep.rin_ops = &rings_incoming_ops;
         inrep.rin_want.ri_ops = &rings_right_ops;
-        inrep.rin_type = RIT_LOCAL;
+        inrep.rin_type = C2_RIT_LOCAL;
         inrep.rin_policy = RIP_STRICT;
 
         inrep.rin_flags = RIF_LOCAL_WAIT;
@@ -1131,7 +1131,7 @@ static void callback_server(int id)
         req->in.rin_priority = 0;
         req->in.rin_ops = &rings_incoming_ops;
         req->in.rin_want.ri_ops = &rings_right_ops;
-        req->in.rin_type = RIT_LOCAL;
+        req->in.rin_type = C2_RIT_LOCAL;
         req->in.rin_policy = RIP_STRICT;
 
         req->in.rin_flags = RIF_LOCAL_WAIT;
@@ -1161,7 +1161,7 @@ static void callback_server(int id)
         req->in.rin_priority = 0;
         req->in.rin_ops = &rings_incoming_ops;
         req->in.rin_want.ri_ops = &rings_right_ops;
-        req->in.rin_type = RIT_REVOKE;
+        req->in.rin_type = C2_RIT_REVOKE;
         req->in.rin_policy = RIP_STRICT;
 
         req->in.rin_flags = RIF_MAY_REVOKE;
@@ -1205,7 +1205,7 @@ static void callback_client(int id)
         inother.rin_priority = 0;
         inother.rin_ops = &rings_incoming_ops;
         inother.rin_want.ri_ops = &rings_right_ops;
-        inother.rin_type = RIT_LOCAL;
+        inother.rin_type = C2_RIT_LOCAL;
         inother.rin_policy = RIP_STRICT;
         inother.rin_want.ri_datum = ANGMAR;
         inother.rin_flags = RIF_MAY_BORROW;
@@ -1228,7 +1228,7 @@ static void callback_client(int id)
         req->in.rin_priority = 0;
         req->in.rin_ops = &rings_incoming_ops;
         req->in.rin_want.ri_ops = &rings_right_ops;
-        req->in.rin_type = RIT_REVOKE;
+        req->in.rin_type = C2_RIT_REVOKE;
         req->in.rin_policy = RIP_STRICT;
 
         req->in.rin_flags = RIF_LOCAL_WAIT;
@@ -1261,7 +1261,7 @@ static void callback_client1(int id)
         inconflict.rin_priority = 0;
         inconflict.rin_ops = &rings_incoming_ops;
         inconflict.rin_want.ri_ops = &rings_right_ops;
-        inconflict.rin_type = RIT_LOCAL;
+        inconflict.rin_type = C2_RIT_LOCAL;
         inconflict.rin_policy = RIP_STRICT;
         inconflict.rin_want.ri_datum = ANGMAR;
         inconflict.rin_flags = RIF_MAY_BORROW;
