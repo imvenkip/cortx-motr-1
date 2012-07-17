@@ -314,6 +314,7 @@ static int commands_initfini(struct c2_net_test_cmd_ctx *ctx,
 	ctx->ntcc_ep_nr   = ep_list->ntsl_nr;
 	ctx->ntcc_send_cb = send_cb;
 
+	c2_mutex_init(&ctx->ntcc_send_mutex);
 	rc = c2_semaphore_init(&ctx->ntcc_sem_send, 0);
 	if (rc != 0)
 		goto fail;
@@ -369,8 +370,9 @@ static int commands_initfini(struct c2_net_test_cmd_ctx *ctx,
 	c2_semaphore_fini(&ctx->ntcc_sem_recv);
     free_sem_send:
 	c2_semaphore_fini(&ctx->ntcc_sem_send);
-    success:
     fail:
+	c2_mutex_fini(&ctx->ntcc_send_mutex);
+    success:
 	return rc;
 }
 
@@ -409,8 +411,11 @@ int c2_net_test_commands_send(struct c2_net_test_cmd_ctx *ctx,
 		rc = c2_net_test_network_msg_send(&ctx->ntcc_net, buf_index,
 						  cmd->ntc_ep_index);
 
-	if (rc == 0)
-		c2_atomic64_inc(&ctx->ntcc_send_nr);
+	if (rc == 0) {
+		c2_mutex_lock(&ctx->ntcc_send_mutex);
+		ctx->ntcc_send_nr++;
+		c2_mutex_unlock(&ctx->ntcc_send_mutex);
+	}
 
 	return rc;
 }
@@ -422,10 +427,10 @@ void c2_net_test_commands_send_wait_all(struct c2_net_test_cmd_ctx *ctx)
 
 	C2_PRE(c2_net_test_commands_invariant(ctx));
 
-	C2_CASSERT(sizeof ctx->ntcc_send_nr == 8);
-	do
-		nr = c2_atomic64_get(&ctx->ntcc_send_nr);
-	while (!c2_atomic64_cas((int64_t *) &ctx->ntcc_send_nr, nr, 0));
+	c2_mutex_lock(&ctx->ntcc_send_mutex);
+	nr = ctx->ntcc_send_nr;
+	ctx->ntcc_send_nr = 0;
+	c2_mutex_unlock(&ctx->ntcc_send_mutex);
 
 	for (i = 0; i < nr; ++i)
 		c2_semaphore_down(&ctx->ntcc_sem_send);

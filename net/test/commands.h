@@ -159,16 +159,16 @@ struct c2_net_test_cmd_ctx {
 	struct c2_net_test_ringbuf	   ntcc_rb;
 	/** number of commands in context */
 	size_t				   ntcc_ep_nr;
-	/** used while waiting for buffer operations completion */
-	/** @todo problem with semaphore max value can be here */
 	/**
 	   c2_semaphore_up() in message send callback.
 	   c2_semaphore_down() in c2_net_test_commands_send_wait_all().
+	   @todo problem with semaphore max value can be here
 	 */
 	struct c2_semaphore		   ntcc_sem_send;
 	/**
 	   c2_semaphore_up() in message recv callback.
 	   c2_semaphore_timeddown() in c2_net_test_commands_recv().
+	   @todo problem with semaphore max value can be here
 	 */
 	struct c2_semaphore		   ntcc_sem_recv;
 	/** Called from message send callback */
@@ -177,7 +177,9 @@ struct c2_net_test_cmd_ctx {
 	   Number of sent commands.
 	   Resets to 0 on every call to c2_net_test_commands_wait_all().
 	 */
-	struct c2_atomic64		   ntcc_send_nr;
+	size_t				   ntcc_send_nr;
+	/** Mutex for ntcc_send_nr protection */
+	struct c2_mutex			   ntcc_send_mutex;
 	/**
 	   Updated in message send/recv callbacks.
 	 */
