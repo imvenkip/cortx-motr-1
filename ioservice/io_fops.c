@@ -221,10 +221,10 @@ int c2_ioservice_fop_init(void)
 				ARRAY_SIZE(ioservice_fops));
 
 #ifndef __KERNEL__
+	c2_fom_type_register(&c2_io_fom_cob_rw_mopt);
         c2_fop_cob_readv_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
         c2_fop_cob_writev_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
 #endif
-
 	cob_fom_type_attach();
 
 	if (rc != 0)

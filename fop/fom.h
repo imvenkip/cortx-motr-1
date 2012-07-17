@@ -478,7 +478,7 @@ bool c2_fom_invariant(const struct c2_fom *fom);
 /** Type of fom. c2_fom_type is part of c2_fop_type. */
 struct c2_fom_type {
 	const struct c2_fom_type_ops *ft_ops;
-	struct c2_sm_conf	      ft_conf;
+	const struct c2_sm_conf	     *ft_conf;
 	uint32_t		      ft_nr_phases;
 	struct c2_sm_state_descr     *ft_phases;
 
@@ -646,8 +646,7 @@ C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, (name),
  */
 void c2_fom_sm_init(struct c2_fom *fom);
 
-void c2_fom_type_register(struct c2_fom *fom);
-void c2_fom_type_unregister(struct c2_fom *fom);
+void c2_fom_type_register(struct c2_fom_type *fom_type);
 
 extern const struct c2_sm_conf	fom_conf;
 

@@ -634,14 +634,7 @@ static const struct c2_fom_type_ops type_ops = {
 	.fto_create = c2_io_fom_cob_rw_create,
 };
 
-/**
- * I/O FOM type operation.
- */
-const struct c2_fom_type c2_io_fom_cob_rw_mopt = {
-	.ft_ops = &type_ops,
-};
-
-const struct c2_sm_state_descr io_wr_states[C2_IO_FOPH_NR + 1] = {
+struct c2_sm_state_descr io_states[C2_IO_FOPH_NR + 1] = {
 	[C2_FOPH_IO_FOM_BUFFER_ACQUIRE] = {
 		.sd_flags     = 0,
 		.sd_name      = "Network buffer acquire",
@@ -662,7 +655,7 @@ const struct c2_sm_state_descr io_wr_states[C2_IO_FOPH_NR + 1] = {
 	},
 	[C2_FOPH_IO_STOB_INIT] = {
 		.sd_flags     = 0,
-		.sd_name      = "STOB I/O launch", 
+		.sd_name      = "STOB I/O launch",
 		.sd_in        = &sm_io_launch,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
@@ -670,7 +663,7 @@ const struct c2_sm_state_descr io_wr_states[C2_IO_FOPH_NR + 1] = {
 	},
 	[C2_FOPH_IO_STOB_WAIT] = {
 		.sd_flags     = 0,
-		.sd_name      = "STOB I/O finish", 
+		.sd_name      = "STOB I/O finish",
 		.sd_in        = &sm_io_finish,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
@@ -678,7 +671,7 @@ const struct c2_sm_state_descr io_wr_states[C2_IO_FOPH_NR + 1] = {
 	},
 	[C2_FOPH_IO_ZERO_COPY_INIT] = {
 		.sd_flags     = 0,
-		.sd_name      = "Zero-copy initiate", 
+		.sd_name      = "Zero-copy initiate",
 		.sd_in        = &sm_initiate_zero_copy,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
@@ -686,7 +679,7 @@ const struct c2_sm_state_descr io_wr_states[C2_IO_FOPH_NR + 1] = {
 	},
 	[C2_FOPH_IO_ZERO_COPY_WAIT] = {
 		.sd_flags     = 0,
-		.sd_name      = "Zero-copy finish", 
+		.sd_name      = "Zero-copy finish",
 		.sd_in        = &sm_zero_copy_finish,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
@@ -694,12 +687,21 @@ const struct c2_sm_state_descr io_wr_states[C2_IO_FOPH_NR + 1] = {
 	},
 	[C2_FOPH_IO_BUFFER_RELEASE] = {
 		.sd_flags     = 0,
-		.sd_name      = "Network buffer release", 
+		.sd_name      = "Network buffer release",
 		.sd_in        = &sm_release_net_buffer,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOPH_IO_FOM_BUFFER_ACQUIRE)
 	},
+};
+
+/**
+ * I/O FOM type operation.
+ */
+struct c2_fom_type c2_io_fom_cob_rw_mopt = {
+	.ft_ops       = &type_ops,
+	.ft_nr_phases = C2_IO_FOPH_NR + 1,
+	.ft_phases    = io_states,
 };
 
 /**

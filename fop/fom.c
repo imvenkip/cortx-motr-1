@@ -326,7 +326,6 @@ static void fom_exec(struct c2_fom *fom)
 		fom->fo_ops->fo_fini(fom);
 	} else {
 		c2_sm_state_set(&fom->fo_sm_state, C2_FOS_WAITING);
-	//	fom_wait(fom);
 		C2_ASSERT(fom->fo_state == C2_FOS_WAITING);
 		C2_ASSERT(is_in_wail(fom));
 	}
@@ -865,10 +864,6 @@ bool c2_fom_callback_cancel(struct c2_fom_callback *cb)
 	return result;
 }
 
-void c2_fom_type_register(struct c2_fom *fom)
-{
-}
-
 const struct c2_sm_state_descr fom_states[C2_FOS_SM_FINISH + 1] = {
 	[C2_FOS_SM_INIT] = {
 		.sd_flags     = C2_SDF_INITIAL,
@@ -930,6 +925,8 @@ const struct c2_sm_conf	fom_conf = {
 	.scf_nr_states = C2_FOS_SM_FINISH + 1,
 	.scf_state     = fom_states
 };
+
+/** @} endgroup fom */
 
 /*
  *  Local variables:

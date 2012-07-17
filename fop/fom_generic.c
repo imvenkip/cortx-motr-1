@@ -459,7 +459,7 @@ static int sm_fom_timeout(struct c2_sm *mach)
  * are assigned to a state machine descriptor.
  * State name is used to log addb event.
  */
-const struct c2_sm_state_descr states[C2_FOPH_NR + 1] = {
+const struct c2_sm_state_descr generic_states[C2_FOPH_NR + 1] = {
 	[C2_FOPH_SM_INIT] = {
 		.sd_flags     = C2_SDF_INITIAL,
 		.sd_name      = "SM init",
@@ -693,10 +693,10 @@ const struct c2_sm_state_descr states[C2_FOPH_NR + 1] = {
 	}
 };
 
-const struct c2_sm_conf	conf = {
+const struct c2_sm_conf	generic_conf = {
 	.scf_name      = "FOM standard states",
 	.scf_nr_states = C2_FOPH_NR,
-	.scf_state     = states
+	.scf_state     = generic_states
 };
 
 int c2_fom_state_generic(struct c2_fom *fom)
@@ -731,16 +731,40 @@ void c2_fom_sm_init(struct c2_fom *fom)
 {
 	struct c2_sm_group *fom_group;
 	struct c2_addb_ctx *fom_addb_ctx;
+	const struct c2_sm_conf *conf;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(c2_group_is_locked(fom));
 
+	conf	     = fom->fo_type->ft_conf;
 	fom_group    = &fom->fo_loc->fl_group;
 	fom_addb_ctx = &fom->fo_loc->fl_dom->fd_addb_ctx;
-	c2_sm_init(&fom->fo_sm, &conf, C2_FOPH_SM_INIT, fom_group,
+
+	c2_sm_init(&fom->fo_sm, conf, C2_FOPH_SM_INIT, fom_group,
 		    fom_addb_ctx);
 	c2_sm_init(&fom->fo_sm_state, &fom_conf, C2_FOS_SM_INIT, fom_group,
 		    fom_addb_ctx);
+}
+
+void c2_fom_type_register(struct c2_fom_type *fom_type)
+{
+	int		   i;
+	struct c2_sm_conf *conf;
+
+	C2_PRE(fom_type != NULL);
+
+	C2_ALLOC_PTR(conf);
+	if (fom_type->ft_nr_phases > C2_FOPH_NR) {
+		for (i = 0; i < C2_FOPH_NR; i++)
+			fom_type->ft_phases[i] = generic_states[i];
+
+		conf->scf_nr_states = fom_type->ft_nr_phases;
+		conf->scf_state     = fom_type->ft_phases;
+
+		fom_type->ft_conf = conf;
+	} else
+		fom_type->ft_conf = &generic_conf;
+
 }
 
 /** @} endgroup fom */
