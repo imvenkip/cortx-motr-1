@@ -23,19 +23,12 @@
 #include "lib/ut.h"
 #include "lib/misc.h"
 #include "lib/memory.h"
-#include "lib/processor.h"
-#include "lib/thread.h"
-#include "fop/fop.h"
+#include "lib/mutex.h"
 #include "reqh/reqh.h"
-#include "rpc/rpclib.h"
-#include "net/lnet/lnet.h"
-#include "ut/rpc.h"
-
-#include "fop/ut/long_lock/rdwr_fop.h"
-#include "fop/ut/long_lock/rdwr_fom.h"
-#include "fop/ut/long_lock/rdwr_fop_u.h"
-#include "fop/ut/long_lock/rdwr_test_bench.h"
 #include "fop/fom_long_lock.h"
+
+C2_TL_DESCR_DECLARE(c2_lll, extern);
+C2_TL_DECLARE(c2_lll, extern, struct c2_long_lock_link);
 
 enum tb_request_type {
 	RQ_READ,
@@ -48,8 +41,26 @@ enum {
 };
 
 enum tb_request_phase {
-	PH_REQ_LOCK = C2_FOPH_NR + 1,
-	PH_GOT_LOCK
+	/* See comment on PH_REQ_LOCK value in fom_rdwr_state() function */
+	PH_REQ_LOCK = C2_FOPH_INIT,
+	PH_GOT_LOCK = C2_FOPH_NR + 1,
+};
+
+struct test_min_max {
+	size_t min;
+	size_t max;
+};
+
+struct test_request {
+	enum tb_request_type tr_type;
+	/* Expected count of waiters */
+	size_t tr_waiters;
+	/**
+	 * Expected count of owners. As far, test is being run in multithreaded
+	 * environment, concurrent FOMs can pop an owner from a queue in an
+	 * arbitary order. That's the reason why struct test_min_max is used.
+	 */
+	struct test_min_max tr_owners;
 };
 
 static struct c2_fom      *sleeper;
@@ -58,40 +69,118 @@ static struct c2_clink	   clink[RDWR_REQUEST_MAX];
 static struct c2_long_lock long_lock;
 
 /**
- * State function for rdwr request
+ * a. Checks that multiple readers can hold the read lock concurrently, but
+ * writers (more than one) get blocked.
  */
-int c2_fom_rdwr_state(struct c2_fom *fom)
+static bool readers_check(struct c2_long_lock *lock)
 {
-        struct c2_fom_rdwr	*fom_obj;
-	struct c2_fop_rdwr	*request;
-	int			 rq_type;
-	int			 rq_seqn;
-	int			 result;
+	struct c2_long_lock_link *head;
 
-	fom_obj = container_of(fom, struct c2_fom_rdwr, fp_gen);
-	request = c2_fop_data(fom->fo_fop);
-	C2_ASSERT(request != NULL);
+	c2_mutex_lock(&lock->l_lock);
+
+	head = c2_lll_tlist_head(&lock->l_waiters);
+	bool result =
+		c2_tl_forall(c2_lll, l, &lock->l_owners,
+			     l->lll_lock_type == C2_LONG_LOCK_READER) &&
+		ergo(head != NULL, head->lll_lock_type == C2_LONG_LOCK_WRITER);
+
+	c2_mutex_unlock(&lock->l_lock);
+
+	return result;
+}
+
+/**
+ * b. Only one writer at a time can hold the write lock. All other contenders
+ * wait.
+ */
+static bool writer_check(struct c2_long_lock *lock)
+{
+	struct c2_long_lock_link *head;
+
+	c2_mutex_lock(&lock->l_lock);
+
+	head = c2_lll_tlist_head(&lock->l_owners);
+	bool result =
+		head != NULL &&
+		head->lll_lock_type == C2_LONG_LOCK_WRITER &&
+		c2_lll_tlist_length(&lock->l_owners) == 1;
+
+	c2_mutex_unlock(&lock->l_lock);
+
+	return result;
+}
+
+/**
+ * Checks expected readers and writers against actual.
+ */
+static bool lock_check(struct c2_long_lock *lock, enum tb_request_type type,
+		       size_t owners_min, size_t owners_max, size_t waiters)
+{
+	bool result;
+	size_t owners_len;
+
+	c2_mutex_lock(&lock->l_lock);
+
+	owners_len = c2_lll_tlist_length(&lock->l_owners);
+	result = owners_min <= owners_len && owners_len <= owners_max &&
+		c2_lll_tlist_length(&lock->l_waiters) == waiters &&
+
+		(type == RQ_WRITE) ? lock->l_state == C2_LONG_LOCK_WR_LOCKED :
+		(type == RQ_READ)  ? lock->l_state == C2_LONG_LOCK_RD_LOCKED :
+		false;
+
+	c2_mutex_unlock(&lock->l_lock);
+
+	return result;
+}
+
+/**
+ * State function for rdwr request
+ * (it's static, declared in rdwr_fom.c)
+ */
+int fom_rdwr_state(struct c2_fom *fom)
+{
+        struct fom_rdwr	*fom_obj;
+	struct fom_rdwr	*request;
+	int		 rq_type;
+	int		 rq_seqn;
+	int		 result = -1;
+
+	fom_obj = container_of(fom, struct fom_rdwr, fp_gen);
+	request = fom_obj;
+	C2_UT_ASSERT(request != NULL);
 	rq_type = request->fr_type;
 	rq_seqn = request->fr_seqn;
 
-	/* printf("fo_phase: %d:%d, rq_{type,seqn}: {%d:%d}, fom: %p\n", */
-	/*      C2_FOPH_NR, fom->fo_phase, rq_type, rq_seqn, fom); */
+	/**
+	 * To pacify C2_PRE(C2_IN(fom->fo_phase,(C2_FOPH_INIT,C2_FOPH_FAILURE)))
+	 * precondition in c2_fom_queue(), special processing order of FOM
+	 * phases is used.
+	 *
+	 * Do NOT use this code as a template for the general purpose. It's
+	 * designed for tesing of c2_long_lock ONLY!
+	 */
+        if (fom->fo_phase == PH_GOT_LOCK) {
+		if (C2_IN(rq_type, (RQ_READ, RQ_WRITE)))
+			C2_UT_ASSERT(lock_check(&long_lock, rq_type,
+						request->fr_owners_min,
+						request->fr_owners_max,
+						request->fr_waiters));
 
-        if (fom->fo_phase < C2_FOPH_NR) {
-                result = c2_fom_state_generic(fom);
-	} else if (fom->fo_phase == PH_GOT_LOCK) {
 		switch (rq_type) {
 		case RQ_READ:
+			C2_UT_ASSERT(readers_check(&long_lock));
 			C2_UT_ASSERT(c2_long_is_read_locked(&long_lock, fom));
 			c2_long_read_unlock(&long_lock, &fom_obj->fp_link);
 			break;
 		case RQ_WRITE:
+			C2_UT_ASSERT(writer_check(&long_lock));
 			C2_UT_ASSERT(c2_long_is_write_locked(&long_lock, fom));
 			c2_long_write_unlock(&long_lock, &fom_obj->fp_link);
 			break;
 		case RQ_WAKE_UP:
 		default:
-			;
+			;rd
 		}
 
 		/* notify, fom ready */
@@ -104,17 +193,21 @@ int c2_fom_rdwr_state(struct c2_fom *fom)
 
 		switch (rq_type) {
 		case RQ_READ:
-			result = c2_long_read_lock(&long_lock,
-						   &fom_obj->fp_link,
-						   PH_GOT_LOCK);
-			C2_UT_ASSERT(result == (rq_seqn == 0));
+			result = C2_FOM_LONG_LOCK_RETURN(
+					c2_long_read_lock(&long_lock,
+							  &fom_obj->fp_link,
+							  PH_GOT_LOCK));
+			C2_UT_ASSERT((result == C2_FSO_AGAIN)
+				     == (rq_seqn == 0));
 			result = C2_FSO_WAIT;
 			break;
 		case RQ_WRITE:
-			result = c2_long_write_lock(&long_lock,
-						    &fom_obj->fp_link,
-						    PH_GOT_LOCK);
-			C2_UT_ASSERT(result == (rq_seqn == 0));
+			result = C2_FOM_LONG_LOCK_RETURN(
+					c2_long_write_lock(&long_lock,
+							   &fom_obj->fp_link,
+							   PH_GOT_LOCK));
+			C2_UT_ASSERT((result == C2_FSO_AGAIN)
+				     == (rq_seqn == 0));
 			result = C2_FSO_WAIT;
 			break;
 		case RQ_WAKE_UP:
@@ -126,79 +219,144 @@ int c2_fom_rdwr_state(struct c2_fom *fom)
 
 		/* notify, fom ready */
 		c2_chan_signal(&chan[rq_seqn]);
-	} else {
-		C2_ASSERT(request != NULL);
-		result = -1;
-	}
+	} else if (fom->fo_phase < C2_FOPH_NR) {
+                result = c2_fom_state_generic(fom);
+	} else
+		C2_IMPOSSIBLE("");
 
 	return result;
 }
 
-static void c2_rdwr_send_fop_type(struct c2_reqh *reqh, int type, int seqn)
+static void reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fom *fom)
 {
-	struct c2_fop      *fop;
-	struct c2_fop_rdwr *rdwr_fop;
-	int rc;
+	struct c2_fom_domain   *dom;
+	size_t			loc_idx;
 
-	fop = c2_fop_alloc(&c2_fop_rdwr_fopt, NULL);
-	C2_ASSERT(fop);
+	c2_rwlock_read_lock(&reqh->rh_rwlock);
 
-	rdwr_fop = c2_fop_data(fop);
-	rdwr_fop->fr_type = type;
-	rdwr_fop->fr_seqn = seqn;
+	C2_PRE(reqh != NULL);
+	C2_PRE(!reqh->rh_shutdown);
+	C2_PRE(fom != NULL);
 
-	c2_reqh_fop_handle(reqh, fop);
-	C2_ASSERT(rc == 0);
+	fom->fo_fol = reqh->rh_fol;
+	dom = &reqh->rh_fom_dom;
+	c2_atomic64_inc(&dom->fd_foms_nr);
+
+	loc_idx = fom->fo_ops->fo_home_locality(fom) % dom->fd_localities_nr;
+	C2_UT_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
+	fom->fo_loc = &reqh->rh_fom_dom.fd_localities[loc_idx];
+
+	c2_mutex_lock(&fom->fo_loc->fl_group.s_lock);
+	c2_fom_queue(fom);
+	c2_mutex_unlock(&fom->fo_loc->fl_group.s_lock);
+
+	c2_rwlock_read_unlock(&reqh->rh_rwlock);
 }
 
-void c2_rdwr_send_fop(struct c2_reqh *reqh)
+static void rdwr_send_fop_type(struct c2_reqh *reqh,
+			       struct test_request rq, int seqn)
+{
+	struct c2_fom   *fom = NULL;
+	struct fom_rdwr *obj;
+
+	rdwr_fop_fom_create((void*) 1, &fom);
+
+	obj = container_of(fom, struct fom_rdwr, fp_gen);
+
+	obj->fr_type		= rq.tr_type;
+	obj->fr_seqn		= seqn;
+	obj->fr_owners_min	= rq.tr_owners.min;
+	obj->fr_owners_max	= rq.tr_owners.max;
+	obj->fr_waiters		= rq.tr_waiters;
+
+	fom->fo_phase		= PH_REQ_LOCK;
+
+	reqh_fop_handle(reqh, fom);
+}
+
+/* c. To make sure that the fairness queue works, lock should sequentially
+ * transit from "state to state" listed in the following structure: */
+
+static struct test_request test[3][RDWR_REQUEST_MAX] = {
+	[0] = {
+		{.tr_type = RQ_READ,  .tr_owners = {1, 1}, .tr_waiters = 8},
+		{.tr_type = RQ_WRITE, .tr_owners = {1, 1}, .tr_waiters = 7},
+		{.tr_type = RQ_READ,  .tr_owners = {1, 3}, .tr_waiters = 4},
+		{.tr_type = RQ_READ,  .tr_owners = {1, 3}, .tr_waiters = 4},
+		{.tr_type = RQ_READ,  .tr_owners = {1, 3}, .tr_waiters = 4},
+		{.tr_type = RQ_WRITE, .tr_owners = {1, 1}, .tr_waiters = 3},
+		{.tr_type = RQ_READ,  .tr_owners = {1, 3}, .tr_waiters = 0},
+		{.tr_type = RQ_READ,  .tr_owners = {1, 3}, .tr_waiters = 0},
+		{.tr_type = RQ_READ,  .tr_owners = {1, 3}, .tr_waiters = 0},
+
+		{.tr_type = RQ_WAKE_UP, .tr_owners = {0, 0}, .tr_waiters = 0},
+		{.tr_type = RQ_LAST,    .tr_owners = {0, 0}, .tr_waiters = 0},
+	},
+	[1] = {
+		{.tr_type = RQ_WRITE, .tr_owners = {1, 1}, .tr_waiters = 9},
+		{.tr_type = RQ_READ,  .tr_owners = {1, 1}, .tr_waiters = 8},
+		{.tr_type = RQ_WRITE, .tr_owners = {1, 1}, .tr_waiters = 7},
+		{.tr_type = RQ_READ,  .tr_owners = {1, 3}, .tr_waiters = 4},
+		{.tr_type = RQ_READ,  .tr_owners = {1, 3}, .tr_waiters = 4},
+		{.tr_type = RQ_READ,  .tr_owners = {1, 3}, .tr_waiters = 4},
+		{.tr_type = RQ_WRITE, .tr_owners = {1, 1}, .tr_waiters = 3},
+		{.tr_type = RQ_READ,  .tr_owners = {1, 3}, .tr_waiters = 0},
+		{.tr_type = RQ_READ,  .tr_owners = {1, 3}, .tr_waiters = 0},
+		{.tr_type = RQ_READ,  .tr_owners = {1, 3}, .tr_waiters = 0},
+
+		{.tr_type = RQ_WAKE_UP, .tr_owners = {0, 0}, .tr_waiters = 0},
+		{.tr_type = RQ_LAST,    .tr_owners = {0, 0}, .tr_waiters = 0},
+	},
+	[2] = {
+		{.tr_type = RQ_WRITE, .tr_owners = {1, 1}, .tr_waiters = 9},
+		{.tr_type = RQ_READ,  .tr_owners = {1, 1}, .tr_waiters = 8},
+		{.tr_type = RQ_WRITE, .tr_owners = {1, 1}, .tr_waiters = 7},
+		{.tr_type = RQ_WRITE, .tr_owners = {1, 1}, .tr_waiters = 6},
+		{.tr_type = RQ_WRITE, .tr_owners = {1, 1}, .tr_waiters = 5},
+		{.tr_type = RQ_READ,  .tr_owners = {1, 1}, .tr_waiters = 4},
+		{.tr_type = RQ_WRITE, .tr_owners = {1, 1}, .tr_waiters = 3},
+		{.tr_type = RQ_READ,  .tr_owners = {1, 3}, .tr_waiters = 0},
+		{.tr_type = RQ_READ,  .tr_owners = {1, 3}, .tr_waiters = 0},
+		{.tr_type = RQ_READ,  .tr_owners = {1, 3}, .tr_waiters = 0},
+
+		{.tr_type = RQ_WAKE_UP, .tr_owners = {0, 0}, .tr_waiters = 0},
+		{.tr_type = RQ_LAST,    .tr_owners = {0, 0}, .tr_waiters = 0},
+	},
+};
+
+static void rdwr_send_fop(struct c2_reqh **reqh, size_t reqh_nr)
 {
 	int i;
 	int j;
 
-	int test[3][RDWR_REQUEST_MAX] = {
-		[0] = {
-			RQ_READ, RQ_WRITE, RQ_READ, RQ_READ, RQ_READ, RQ_WRITE,
-			RQ_READ, RQ_READ,  RQ_READ, RQ_WAKE_UP, RQ_LAST
-		},
-		[1] = {
-			RQ_WRITE, RQ_READ, RQ_WRITE, RQ_READ, RQ_READ, RQ_READ,
-			RQ_WRITE, RQ_READ, RQ_READ, RQ_READ, RQ_WAKE_UP, RQ_LAST
-		},
-		[2] = {
-			RQ_WRITE, RQ_READ, RQ_WRITE, RQ_WRITE, RQ_WRITE, RQ_READ,
-			RQ_WRITE, RQ_READ, RQ_READ, RQ_READ, RQ_WAKE_UP, RQ_LAST
-		},
-	};
-
-	/* printf("\n"); */
-
 	for (j = 0; j < ARRAY_SIZE(test); ++j) {
 		c2_long_lock_init(&long_lock);
 
-		for (i = 0; test[j][i] != RQ_LAST; ++i) {
+		for (i = 0; test[j][i].tr_type != RQ_LAST; ++i) {
 			c2_chan_init(&chan[i]);
 			c2_clink_init(&clink[i], NULL);
 			c2_clink_add(&chan[i], &clink[i]);
 
-			c2_rdwr_send_fop_type(reqh, test[j][i], i);
+			/* d. Send FOMs from multiple request handlers, where
+			 * they can contend for the lock. 'reqh[i % reqh_nr]'
+			 * expression allows to send FOMs one by one into each
+			 * request handler */
+			rdwr_send_fop_type(reqh[i % reqh_nr], test[j][i], i);
 
 			c2_chan_wait(&clink[i]);
 		}
 
-		for (i = 0; test[j][i] != RQ_LAST; ++i) {
+		for (i = 0; test[j][i].tr_type != RQ_LAST; ++i) {
 			c2_chan_wait(&clink[i]);
 		}
 
-		for (i = 0; test[j][i] != RQ_LAST; ++i) {
+		for (i = 0; test[j][i].tr_type != RQ_LAST; ++i) {
 			c2_clink_del(&clink[i]);
 			c2_chan_fini(&chan[i]);
 			c2_clink_fini(&clink[i]);
 		}
 
 		c2_long_lock_fini(&long_lock);
-
-		/* printf("end %d\n", j); */
 	}
 }
 

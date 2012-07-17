@@ -24,7 +24,7 @@
 extern struct c2_reqh_service_type ds1_service_type;
 extern struct c2_reqh_service_type ds2_service_type;
 
-extern struct c2_reqh_service_type *cs_default_stypes[];
-extern size_t cs_default_stypes_nr;
+extern struct c2_reqh_service_type *c2_cs_default_stypes[];
+extern size_t c2_cs_default_stypes_nr;
 
 #endif /* __COLIBRI_UT_CS_SERVICE_H__ */

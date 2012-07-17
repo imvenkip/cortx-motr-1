@@ -40,11 +40,11 @@ enum {
  * Descriptor of typed list used in c2_long_lock with
  * c2_long_lock_link::lll_lock_linkage.
  */
-C2_TL_DESCR_DEFINE(c2_lll, "list of lock-links in longlock", static,
+C2_TL_DESCR_DEFINE(c2_lll, "list of lock-links in longlock", ,
                    struct c2_long_lock_link, lll_lock_linkage, lll_magix,
                    C2_LONG_LOCK_LINK_MAGIX, C2_LONG_LOCK_LINK_MAGIX);
 
-C2_TL_DEFINE(c2_lll, static, struct c2_long_lock_link);
+C2_TL_DEFINE(c2_lll, , struct c2_long_lock_link);
 
 static struct c2_bob_type long_lock_bob;
 C2_BOB_DEFINE(, &long_lock_bob, c2_long_lock);

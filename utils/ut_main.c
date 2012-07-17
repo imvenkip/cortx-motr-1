@@ -69,54 +69,54 @@ extern const struct c2_test_suite addb_ut;
 extern const struct c2_test_suite balloc_ut;
 extern const struct c2_test_suite rpc_service_ut;
 extern const struct c2_test_suite frm_ut;
-extern const struct c2_test_suite fop_lock_ut;
+extern const struct c2_test_suite c2_fop_lock_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
 void add_uts(void)
 {
 	/* sort test suites in alphabetic order */
-	/* c2_ut_add(&libc2_ut); */
-	/* c2_ut_add(&ad_ut); */
-	/* c2_ut_add(&adieu_ut); */
-	/* c2_ut_add(&balloc_ut); */
-	/* c2_ut_add(&buffer_pool_ut); */
-        /* c2_ut_add(&bulkio_server_ut); */
-        /* c2_ut_add(&bulkio_client_ut); */
-        /* c2_ut_add(&ios_bufferpool_ut); */
-	/* c2_ut_add(&capa_ut); */
-	/* c2_ut_add(&cfm_ut); */
-	/* c2_ut_add(&cob_ut); */
-        /* c2_ut_add(&cobfoms_ut); */
-	/* c2_ut_add(&colibri_setup_ut); */
-	/* c2_ut_add(&db_ut); */
-	/* c2_ut_add(&db_cursor_ut); */
-	/* c2_ut_add(&emap_ut); */
-	/* c2_ut_add(&fit_ut); */
-	/* c2_ut_add(&fol_ut); */
-	c2_ut_add(&fop_lock_ut);
-	/* c2_ut_add(&fop_ut); */
-	/* c2_ut_add(&c2_net_bulk_if_ut); */
-	/* c2_ut_add(&c2_net_bulk_mem_ut); */
-	/* c2_ut_add(&c2_net_lnet_ut); */
-	/* c2_ut_add(&c2_net_tm_prov_ut); */
-	/* c2_ut_add(&parity_math_ut); */
-	/* c2_ut_add(&frm_ut); */
-	/* c2_ut_add(&reqh_ut); */
-	/* c2_ut_add(&rpclib_ut); */
-	/* c2_ut_add(&rpc_onwire_ut); */
-	/* c2_ut_add(&rpc_service_ut); */
-	/* c2_ut_add(&sm_ut); */
-	/* c2_ut_add(&stobio_ut); */
-	/* c2_ut_add(&udb_ut); */
-	/* c2_ut_add(&xcode_bufvec_fop_ut); */
-	/* c2_ut_add(&xcode_bufvec_ut); */
-	/* c2_ut_add(&xcode_ut); */
-	/* c2_ut_add(&xcode_ff2c_ut); */
-	/* /\* These tests have redirection of messages. *\/ */
-	/* c2_ut_add(&addb_ut); */
-	/* c2_ut_add(&console_ut); */
-	/* c2_ut_add(&yaml2db_ut); */
+	c2_ut_add(&libc2_ut);
+	c2_ut_add(&ad_ut);
+	c2_ut_add(&adieu_ut);
+	c2_ut_add(&balloc_ut);
+	c2_ut_add(&buffer_pool_ut);
+        c2_ut_add(&bulkio_server_ut);
+        c2_ut_add(&bulkio_client_ut);
+        c2_ut_add(&ios_bufferpool_ut);
+	c2_ut_add(&capa_ut);
+	c2_ut_add(&cfm_ut);
+	c2_ut_add(&cob_ut);
+        c2_ut_add(&cobfoms_ut);
+	c2_ut_add(&colibri_setup_ut);
+	c2_ut_add(&db_ut);
+	c2_ut_add(&db_cursor_ut);
+	c2_ut_add(&emap_ut);
+	c2_ut_add(&fit_ut);
+	c2_ut_add(&fol_ut);
+	c2_ut_add(&fop_ut);
+	c2_ut_add(&c2_fop_lock_ut);
+	c2_ut_add(&c2_net_bulk_if_ut);
+	c2_ut_add(&c2_net_bulk_mem_ut);
+	c2_ut_add(&c2_net_lnet_ut);
+	c2_ut_add(&c2_net_tm_prov_ut);
+	c2_ut_add(&parity_math_ut);
+	c2_ut_add(&frm_ut);
+	c2_ut_add(&reqh_ut);
+	c2_ut_add(&rpclib_ut);
+	c2_ut_add(&rpc_onwire_ut);
+	c2_ut_add(&rpc_service_ut);
+	c2_ut_add(&sm_ut);
+	c2_ut_add(&stobio_ut);
+	c2_ut_add(&udb_ut);
+	c2_ut_add(&xcode_bufvec_fop_ut);
+	c2_ut_add(&xcode_bufvec_ut);
+	c2_ut_add(&xcode_ut);
+	c2_ut_add(&xcode_ff2c_ut);
+	/* These tests have redirection of messages. */
+	c2_ut_add(&addb_ut);
+	c2_ut_add(&console_ut);
+	c2_ut_add(&yaml2db_ut);
 }
 
 int main(int argc, char *argv[])

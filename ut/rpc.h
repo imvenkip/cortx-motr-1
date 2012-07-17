@@ -21,7 +21,7 @@
 #ifndef __COLIBRI_UT_RPC_H__
 #define __COLIBRI_UT_RPC_H__
 
-#include "ut/cs_service.h" /* cs_default_stypes */
+#include "ut/cs_service.h" /* c2_cs_default_stypes */
 #include "rpc/rpclib.h"    /* c2_rpc_server_ctx */
 
 #ifndef __KERNEL__
@@ -32,8 +32,8 @@
 		.rsx_xprts_nr         = (xprts_nr),				\
 		.rsx_argv             = (server_argv),				\
 		.rsx_argc             = (server_argc),				\
-		.rsx_service_types    = cs_default_stypes,			\
-		.rsx_service_types_nr = cs_default_stypes_nr,			\
+		.rsx_service_types    = c2_cs_default_stypes,			\
+		.rsx_service_types_nr = c2_cs_default_stypes_nr,			\
 		.rsx_log_file_name    = (log_file_name),			\
 	};
 
