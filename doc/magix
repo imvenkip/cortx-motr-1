@@ -24,3 +24,7 @@ c2_rpc_machine       rm_magix                  5250434D414348 RPCMACH
 c2_reqh_rpc_mach_tl  td_head_magic           52455152504D4844 REQRPMHD
 cs_ad_stob           as_magix                    414453544f42 ADSTOB
 astob                td_head_magic           414453544f424844 ADSTOBHD
+c2_rm_resource       r_linkage               b1f01d5add1eb111 bifold saddlebill
+c2_rm_right          ri_linkage              c0a1faceba5111ca coalface basilica
+c2_rm_pin            rp_right_linkage        D15CA1CED0551C1E discalced ossicle
+c2_rm_pin            rp_incoming_linkage     D15CA1CED0551C1E discalced ossicle

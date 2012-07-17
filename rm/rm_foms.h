@@ -30,7 +30,7 @@
 /**
    @addtogroup rm
 
-   This file includes data structures and function used by RM:fop layer.
+   This file includes data structures used by RM:fop layer.
 
    @{
 

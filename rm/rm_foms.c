@@ -110,11 +110,11 @@ static int request_fom_create(enum c2_rm_incoming_type type,
 	}
 
 	switch (type) {
-	case RIT_BORROW:
+	case C2_RIT_BORROW:
 		fopt = &c2_fop_rm_borrow_rep_fopt;
 		fom_ops = &rm_fom_borrow_ops;
 		break;
-	case RIT_REVOKE:
+	case C2_RIT_REVOKE:
 		fopt = &c2_fop_rm_revoke_rep_fopt;
 		fom_ops = &rm_fom_revoke_ops;
 		break;
@@ -167,7 +167,8 @@ static size_t rm_locality(const struct c2_fom *fom)
  *
  * @see reply_err_set()
  */
-static int reply_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
+static int reply_prepare(const enum c2_rm_incoming_type type,
+			 struct c2_fom *fom)
 {
 	struct c2_fop_rm_borrow_rep  *bfop;
 	struct rm_request_fom        *rfom;
@@ -179,7 +180,7 @@ static int reply_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 
 	switch (type) {
-	case RIT_BORROW:
+	case C2_RIT_BORROW:
 		bfop = c2_fop_data(fom->fo_rep_fop);
 		c2_rm_loan_cookie_get(rfom->rf_in.ri_loan, &cookie);
 		bfop->br_loan.lo_cookie.co_hi = cookie.cv.u_hi;
@@ -211,11 +212,11 @@ static void reply_err_set(enum c2_rm_incoming_type type,
 	struct c2_fop_rm_revoke_rep *rfop;
 
 	switch (type) {
-	case RIT_BORROW:
+	case C2_RIT_BORROW:
 		bfop = c2_fop_data(fom->fo_rep_fop);
 		bfop->br_rc = rc;
 		break;
-	case RIT_REVOKE:
+	case C2_RIT_REVOKE:
 		rfop = c2_fop_data(fom->fo_rep_fop);
 		rfop->re_rc = rc;
 		break;
@@ -247,7 +248,7 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 	switch (type) {
-	case RIT_BORROW:
+	case C2_RIT_BORROW:
 		bfop = c2_fop_data(fom->fo_fop);
 		policy = bfop->bo_policy;
 		flags = bfop->bo_flags;
@@ -269,7 +270,7 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 
 		break;
 
-	case RIT_REVOKE:
+	case C2_RIT_REVOKE:
 		rfop = c2_fop_data(fom->fo_fop);
 		policy = rfop->rr_policy;
 		flags = rfop->rr_flags;
@@ -383,10 +384,10 @@ static int request_post_process(struct c2_fom *fom)
 
 		c2_mutex_lock(&owner->ro_lock);
 		switch (in->rin_type) {
-		case RIT_BORROW:
+		case C2_RIT_BORROW:
 			rc = rc ?: c2_rm_borrow_commit(&rfom->rf_in);
 			break;
-		case RIT_REVOKE:
+		case C2_RIT_REVOKE:
 			rc = rc ?: c2_rm_revoke_commit(&rfom->rf_in);
 			break;
 		default:
@@ -422,7 +423,7 @@ static int rm_borrow_fom_state(struct c2_fom *fom)
 		       fom->fo_phase == FOPH_RM_BORROW_WAIT);
 
 		if (fom->fo_phase == FOPH_RM_BORROW)
-			rc = request_pre_process(fom, RIT_BORROW,
+			rc = request_pre_process(fom, C2_RIT_BORROW,
 						 FOPH_RM_BORROW_WAIT);
 		else
 			rc = request_post_process(fom);
@@ -452,7 +453,7 @@ static int rm_revoke_fom_state(struct c2_fom *fom)
 		       fom->fo_phase == FOPH_RM_REVOKE_WAIT);
 
 		if (fom->fo_phase == FOPH_RM_REVOKE)
-			rc = request_pre_process(fom, RIT_REVOKE,
+			rc = request_pre_process(fom, C2_RIT_REVOKE,
 						 FOPH_RM_REVOKE_WAIT);
 		else
 			rc = request_post_process(fom);
@@ -467,7 +468,7 @@ static int rm_revoke_fom_state(struct c2_fom *fom)
  */
 static int rm_borrow_fom_create(struct c2_fop *fop, struct c2_fom **out)
 {
-	return request_fom_create(RIT_BORROW, fop, out);
+	return request_fom_create(C2_RIT_BORROW, fop, out);
 }
 
 /*
@@ -491,7 +492,7 @@ static void rm_borrow_fom_fini(struct c2_fom *fom)
  */
 static int rm_revoke_fom_create(struct c2_fop *fop, struct c2_fom **out)
 {
-	return request_fom_create(RIT_REVOKE, fop, out);
+	return request_fom_create(C2_RIT_REVOKE, fop, out);
 }
 
 /*

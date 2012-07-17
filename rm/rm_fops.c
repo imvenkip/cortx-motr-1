@@ -178,7 +178,7 @@ int c2_rm_borrow_out(struct c2_rm_incoming *in,
 	struct c2_cookie	 dcookie;
 	int			 rc;
 
-	C2_PRE(in->rin_type == RIT_BORROW);
+	C2_PRE(in->rin_type == C2_RIT_BORROW);
 
 	rc = rm_out_create(&outreq, in, NULL, right);
 	if (rc != 0)
@@ -214,7 +214,7 @@ int c2_rm_borrow_out(struct c2_rm_incoming *in,
 		goto out;
 	}
 
-	pin_add(in, &outreq->ou_req.rog_want->rl_right, RPF_TRACK);
+	pin_add(in, &outreq->ou_req.rog_want->rl_right, C2_RPF_TRACK);
 	outreq->ou_fop.f_item.ri_ops = &rm_borrow_rpc_ops;
 	c2_rpc_post(&outreq->ou_fop.f_item);
 
@@ -293,7 +293,7 @@ int c2_rm_revoke_out(struct c2_rm_incoming *in,
 	struct c2_cookie	 lcookie;
 	int			 rc;
 
-	C2_PRE(in->rin_type == RIT_REVOKE);
+	C2_PRE(in->rin_type == C2_RIT_REVOKE);
 
 	rc = rm_out_create(&outreq, in, loan, right);
 	if (rc != 0)
@@ -331,7 +331,7 @@ int c2_rm_revoke_out(struct c2_rm_incoming *in,
 		goto out;
 	}
 
-	pin_add(in, &outreq->ou_req.rog_want->rl_right, RPF_TRACK);
+	pin_add(in, &outreq->ou_req.rog_want->rl_right, C2_RPF_TRACK);
 	outreq->ou_fop.f_item.ri_ops = &rm_revoke_rpc_ops;
 	c2_rpc_post(&outreq->ou_fop.f_item);
 
@@ -412,7 +412,7 @@ int c2_rm_fop_init(void)
 C2_EXPORTED(c2_rm_fop_init);
 
 /*
- * Stubs remove later.
+ * @todo - Stubs. Remove later.
  */
 void c2_cookie_copy(struct c2_cookie *dst, const struct c2_cookie *src)
 {
