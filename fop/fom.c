@@ -46,7 +46,7 @@ enum locality_ht_wait {
 };
 
 enum {
-        MIN_CPU_NR = 1
+        DEFAULT_THREAD_NR = 1
 };
 
 /**
@@ -542,33 +542,28 @@ static void loc_fini(struct c2_fom_locality *loc)
 
 /**
  * Initialises a locality in fom domain.
- * Creates and adds threads to locality, every thread is
- * confined to the cpus represented by the pmap, this is
- * done in the thread init function.
- * Number of threads in the locality corresponds to the
- * number of cpus represented by the bits set in the pmap.
+ * Creates and adds threads to locality, every thread is confined to the cpus
+ * represented by the c2_fom_locality::fl_processors, this is done in the
+ * locality thread init function. Number of threads in the locality corresponds
+ * to the number of cpus represented by c2_fom_locality::fl_processors.
  *
+ * @see loc_thr_create()
  * @see loc_thr_init()
  *
- * @param loc  c2_fom_locality to be initialised
- * @param pmap Bitmap representing number of cpus
- *		present in the locality
+ * @param loc     c2_fom_locality to be initialised
+ * @param cpu     cpu assigned to the locality
+ * @param cpu_max maximum number of cpus that can be present in a locality
  *
  * @retval 0 If locality is initialised
  *	-errno on failure
  *
  * @pre loc != NULL
  */
-static int loc_init(struct c2_fom_locality *loc, struct c2_bitmap *pmap)
+static int loc_init(struct c2_fom_locality *loc, size_t cpu, size_t cpu_max)
 {
-	int			result;
-	int			i;
-	int			ncpus;
-	c2_processor_nr_t	max_proc;
+	int result;
 
 	C2_PRE(loc != NULL);
-
-	max_proc = c2_processor_nr_max();
 
 	c2_list_init(&loc->fl_runq);
 	loc->fl_runq_nr = 0;
@@ -581,29 +576,14 @@ static int loc_init(struct c2_fom_locality *loc, struct c2_bitmap *pmap)
 	c2_chan_init(&loc->fl_runrun);
 	c2_list_init(&loc->fl_threads);
 
-	result = c2_bitmap_init(&loc->fl_processors, max_proc);
+	result = c2_bitmap_init(&loc->fl_processors, cpu_max);
 
 	if (result == 0) {
-		for (i = 0, ncpus = 0; i < max_proc; ++i) {
-			if (c2_bitmap_get(pmap, i)) {
-				c2_bitmap_set(&loc->fl_processors, i, true);
-				C2_CNT_INC(ncpus);
-			}
-		}
-
-		if (ncpus > MIN_CPU_NR)
-			loc->fl_lo_idle_threads_nr = ncpus/2;
-		else
-			loc->fl_lo_idle_threads_nr = ncpus;
-
-		loc->fl_hi_idle_threads_nr = ncpus;
-
+		c2_bitmap_set(&loc->fl_processors, cpu, true);
+		loc->fl_lo_idle_threads_nr = loc->fl_hi_idle_threads_nr =
+					     DEFAULT_THREAD_NR;
 		c2_mutex_lock(&loc->fl_lock);
-		for (i = 0; i < ncpus; ++i) {
-			result = loc_thr_create(loc);
-			if (result != 0)
-				break;
-		}
+		result = loc_thr_create(loc);
 		c2_mutex_unlock(&loc->fl_lock);
 	}
 
@@ -613,99 +593,48 @@ static int loc_init(struct c2_fom_locality *loc, struct c2_bitmap *pmap)
 	return result;
 }
 
-/**
- * Checks if cpu resource is shared.
- *
- * @retval bool true if cpu resource is shared
- *		false if no cpu resource is shared
- */
-static bool resource_is_shared(const struct c2_processor_descr *cpu1,
-			const struct c2_processor_descr *cpu2)
-{
-	return cpu1->pd_l2 == cpu2->pd_l2 ||
-		cpu1->pd_numa_node == cpu2->pd_numa_node;
-}
-
 int c2_fom_domain_init(struct c2_fom_domain *dom)
 {
-	int				i;
-	int				j;
-	struct c2_processor_descr	cpui;
-	struct c2_processor_descr	cpuj;
-	c2_processor_nr_t		max_proc;
-	c2_processor_nr_t		result;
-	struct c2_bitmap		onln_cpu_map;
-	struct c2_bitmap		loc_cpu_map;
-	struct c2_fom_locality	       *localities;
+	int                     result;
+	size_t                  cpu;
+	size_t                  cpu_max;
+	struct c2_fom_locality *localities;
+	struct c2_bitmap        onln_cpu_map;
+
 
 	C2_PRE(dom != NULL);
 
-	/*
-	 * Check number of processors online and create localities
-	 * between one's sharing common resources.
-	 * Currently considering shared L2 cache and numa node,
-	 * between cores, as shared resources.
-	 */
-	max_proc = c2_processor_nr_max();
+	cpu_max = c2_processor_nr_max();
 	dom->fd_ops = &c2_fom_dom_ops;
-	result = c2_bitmap_init(&onln_cpu_map, max_proc);
+	result = c2_bitmap_init(&onln_cpu_map, cpu_max);
 	if (result != 0)
 		return result;
 
-	result = c2_bitmap_init(&loc_cpu_map, max_proc);
-	if (result != 0) {
-		c2_bitmap_fini(&onln_cpu_map);
-		return result;
-	}
-
 	c2_processors_online(&onln_cpu_map);
-
         c2_addb_ctx_init(&dom->fd_addb_ctx, &c2_fom_addb_ctx_type,
-						&c2_addb_global_ctx);
-	C2_ALLOC_ARR_ADDB(dom->fd_localities, max_proc, &dom->fd_addb_ctx,
-							&c2_fom_addb_loc);
+			 &c2_addb_global_ctx);
+	C2_ALLOC_ARR_ADDB(dom->fd_localities, cpu_max, &dom->fd_addb_ctx,
+			  &c2_fom_addb_loc);
 	if (dom->fd_localities == NULL) {
 		c2_addb_ctx_fini(&dom->fd_addb_ctx);
 		c2_bitmap_fini(&onln_cpu_map);
-		c2_bitmap_fini(&loc_cpu_map);
 		return -ENOMEM;
 	}
 
 	localities = dom->fd_localities;
-	for (i = 0; i < max_proc; ++i) {
-		if (!c2_bitmap_get(&onln_cpu_map, i))
+	for (cpu = 0; cpu < cpu_max; ++cpu) {
+		if (!c2_bitmap_get(&onln_cpu_map, cpu))
 			continue;
-		result = c2_processor_describe(i, &cpui);
-		if (result != 0)
+		localities[dom->fd_localities_nr].fl_dom = dom;
+		result = loc_init(&localities[dom->fd_localities_nr], cpu,
+				  cpu_max);
+		if (result != 0) {
+			c2_fom_domain_fini(dom);
 			break;
-		for (j = i; j < max_proc; ++j) {
-			if (!c2_bitmap_get(&onln_cpu_map, j))
-				continue;
-			result = c2_processor_describe(j, &cpuj);
-			if (result == 0 && resource_is_shared(&cpui, &cpuj)) {
-				c2_bitmap_set(&loc_cpu_map, cpuj.pd_id, true);
-				c2_bitmap_set(&onln_cpu_map, j, false);
-			}
 		}
-		if (result == 0) {
-			localities[dom->fd_localities_nr].fl_dom = dom;
-			result = loc_init(&localities[dom->fd_localities_nr],
-					  &loc_cpu_map);
-			if (result == 0) {
-				c2_bitmap_fini(&loc_cpu_map);
-				C2_CNT_INC(dom->fd_localities_nr);
-				result = c2_bitmap_init(&loc_cpu_map, max_proc);
-			}
-		}
-		if (result != 0)
-			break;
+		C2_CNT_INC(dom->fd_localities_nr);
 	}
-
-	if (result != 0)
-		c2_fom_domain_fini(dom);
-
 	c2_bitmap_fini(&onln_cpu_map);
-	c2_bitmap_fini(&loc_cpu_map);
 
 	return result;
 }
