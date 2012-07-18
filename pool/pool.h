@@ -166,16 +166,16 @@ enum {
  */
 struct c2_pool_event {
 	/** Event owner type */
-	enum c2_pool_event_owner_type pe_type;
+	enum c2_pool_event_owner_type  pe_type;
 
 	/** Event owner */
 	union {
-		struct c2_server *pe_node;
-		struct c2_device *pe_device;
-	}                             pe_owner;
+		struct c2_poolnode *pe_node;
+		struct c2_pooldev  *pe_device;
+	}                              pe_owner;
 
 	/** new state for this node/device */
-	enum c2_pool_nd_state         pe_new_state;
+	enum c2_pool_nd_state          pe_new_state;
 
 	/**
 	 * Pool machine's new version when this event handled
@@ -183,15 +183,15 @@ struct c2_pool_event {
 	 * other module and passed to pool machine operations,
 	 * it is not used and undefined at that moment.
 	 */
-	uint64_t                      pe_new_version[PVE_NR];
+	struct c2_pool_version_numbers pe_new_version;
 
 	/**
 	 * link to c2_poolmach::pm_events_list.
 	 * Used internally in pool machine.
 	 */
-	struct c2_tlink               pe_linkage;
+	struct c2_tlink                pe_linkage;
 
-	uint64_t                      pe_magic;
+	uint64_t                       pe_magic;
 };
 
 /**
@@ -289,8 +289,8 @@ int c2_poolmach_state_query(struct c2_poolmach *pm,
  *
  * @param curr the returned current version number stored here.
  */
-int c2_poolmach_current_version(struct c2_poolmach *pm,
-				struct c2_pool_version_numbers *curr);
+int c2_poolmach_current_version_get(struct c2_poolmach *pm,
+				    struct c2_pool_version_numbers *curr);
 
 /**
  * Return a copy of current pool machine state.
@@ -299,10 +299,17 @@ int c2_poolmach_current_version(struct c2_poolmach *pm,
  * clients. The caller also can store the state in persistent storage.
  * The serialization and un-serialization is determined by caller.
  *
+ * Note: The results must be freed by c2_poolmach_state_free().
+ *
  * @param state_copy the returned state stored here.
  */
-int c2_poolmach_current_state(struct c2_poolmach *pm,
-			      struct c2_poolmach_state *state_copy);
+int c2_poolmach_current_state_get(struct c2_poolmach *pm,
+				  struct c2_poolmach_state **state_copy);
+/**
+ * Frees the state copy returned from c2_poolmach_current_state_get().
+ */
+void c2_poolmach_state_free(struct c2_poolmach *pm,
+			    struct c2_poolmach_state *state);
 
 /** @} end of poolmach group */
 
