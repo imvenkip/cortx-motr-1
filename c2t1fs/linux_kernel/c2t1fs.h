@@ -27,10 +27,11 @@
 
 #include "lib/tlist.h"
 #include "lib/mutex.h"
-#include "net/net.h"       /* c2_net_domain */
+#include "net/net.h"        /* c2_net_domain */
 #include "rpc/rpc2.h"
-#include "pool/pool.h"     /* c2_pool */
-#include "layout/layout.h" /* c2_layout_domain */
+#include "pool/pool.h"      /* c2_pool */
+#include "layout/layout.h"  /* c2_layout_domain */
+#include "layout/pdclust.h" /* c2_pdclust_instance */
 
 /**
   @defgroup c2t1fs c2t1fs
@@ -363,13 +364,13 @@ struct c2t1fs_dir_ent {
  */
 struct c2t1fs_inode {
 	/** vfs inode */
-	struct inode              ci_inode;
+	struct inode               ci_inode;
 
 	/** fid of gob */
-	struct c2_fid             ci_fid;
+	struct c2_fid              ci_fid;
 
-	/** layout of file's data */
-	struct c2_layout         *ci_layout;
+	/** layout of the file's data */ //todo This shall be generic instance
+	struct c2_pdclust_instance ci_pd_instance;
 
 	/** List of c2t1fs_dir_ent objects placed using de_link.
 	    List descriptor dir_ents_tl. Valid for only directory inode.

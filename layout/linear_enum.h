@@ -57,7 +57,7 @@ struct c2_layout_linear_attr {
 	uint32_t   lla_pad;
 };
 
-/** Extension of generic c2_layout_enum for a linear enumeration type. */
+/** Extension of the generic c2_layout_enum for the linear enumeration type. */
 struct c2_layout_linear_enum {
 	/** Super class. */
 	struct c2_layout_enum        lle_base;
@@ -71,7 +71,7 @@ struct c2_layout_linear_enum {
  * Builds linear enumeration object.
  * @post ergo(rc == 0, linear_invariant_internal(lin_enum))
  *
- * @note Enum object need not be finalised explicitly by the user. It is
+ * @note Enum object is not to be finalised explicitly by the user. It is
  * finalised internally through c2_layout__striped_fini().
  */
 int c2_linear_enum_build(struct c2_layout_domain *dom,

@@ -94,7 +94,7 @@ void c2t1fs_inode_init(struct c2t1fs_inode *ci)
 	C2_ENTRY("ci: %p", ci);
 
 	C2_SET0(&ci->ci_fid);
-	ci->ci_layout = NULL;
+	C2_SET0(&ci->ci_pd_instance);
 
 	dir_ents_tlist_init(&ci->ci_dir_ents);
 
@@ -108,8 +108,8 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 
 	is_root = c2t1fs_inode_is_root(&ci->ci_inode);
 
-	C2_ENTRY("ci: %p, is_root %s, layout %p",
-		 ci, is_root ? "true" : "false", ci->ci_layout);
+	C2_ENTRY("ci: %p, is_root %s, pd instance %p",
+		 ci, is_root ? "true" : "false", &ci->ci_pd_instance);
 
 	c2_tl_for(dir_ents, &ci->ci_dir_ents, de) {
 		dir_ents_tlist_del(de);
@@ -120,16 +120,8 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 
 	dir_ents_tlist_fini(&ci->ci_dir_ents);
 
-	if (!is_root) {
-		C2_ASSERT(ci->ci_layout != NULL);
-		/*
-		 * Release the reference on the layout. If it is the last
-		 * reference being released, the layout will be finalised
-		 * along with its enumeration object being finalised, if
-		 * applicable.
-		 */
-		c2_layout_put(ci->ci_layout);
-	}
+	if (!is_root)
+		c2_pdclust_instance_fini(&ci->ci_pd_instance);
 	C2_LEAVE();
 }
 
@@ -354,7 +346,7 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 	uint64_t                      layout_id;
 	struct c2_layout_linear_enum *le;
 	struct c2_layout_linear_attr  lin_attr;
-	struct c2_pdclust_layout     *pd_layout;
+	struct c2_pdclust_layout     *pl;
 	struct c2_pdclust_attr        pl_attr;
 	int                           rc;
 
@@ -384,20 +376,18 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 		pl_attr.pa_pool_id   = pool->po_id;
 		pl_attr.pa_unit_size = unit_size;
 		c2_uint128_init(&pl_attr.pa_seed, "upjumpandpumpim,");
-		rc = c2_pdclust_build(&c2t1fs_globals.g_layout_dom,
-				      layout_id, &pl_attr,
-				      &le->lle_base, &pd_layout);
-		if (rc == 0) {
-			ci->ci_layout = c2_pdl_to_layout(pd_layout);
+		rc = c2_pdclust_build(&c2t1fs_globals.g_layout_dom, layout_id,
+				      &pl_attr, &le->lle_base, &pl);
+		if (rc == 0)
+			rc = c2_pdclust_instance_init(&ci->ci_pd_instance,
+						      pl, &ci->ci_fid);
 			/*
-			 * Add a reference to the layout indicating it is being
-			 * used by one inode.
+			 * If rc is 0, c2_pdclust_instance_init() has now
+			 * acquired an additional reference on the layout
+			 * object.
 			 */
-			c2_layout_get(ci->ci_layout);
-		} else {
-			ci->ci_layout = NULL;
+		else
 			c2_linear_enum_fini(le);
-		}
 	}
 	C2_LEAVE("rc: %d", rc);
 	return rc;

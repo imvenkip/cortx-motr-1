@@ -38,7 +38,7 @@ struct c2_fid;
 /* export */
 struct c2_layout_list_enum;
 
-/** Extension of generic c2_layout_enum for a list enumeration type. */
+/** Extension of the generic c2_layout_enum for the list enumeration type. */
 struct c2_layout_list_enum {
 	/** Super class. */
 	struct c2_layout_enum   lle_base;
@@ -69,7 +69,7 @@ struct c2_layout_list_enum {
  *
  * @post ergo(rc == 0, list_invariant_internal(lin_enum))
  *
- * @note Enum object need not be finalised explicitly by the user. It is
+ * @note Enum object is not to be finalised explicitly by the user. It is
  * finalised internally through c2_layout__striped_fini().
  */
 int c2_list_enum_build(struct c2_layout_domain *dom,

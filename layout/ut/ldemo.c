@@ -54,7 +54,7 @@ enum c2_pdclust_unit_type classify(const struct c2_pdclust_layout *play,
 		return PUT_SPARE;
 }
 
-void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
+void layout_demo(struct c2_pdclust_instance *pi, uint32_t P, int R, int I)
 {
 	uint64_t                   group;
 	uint64_t                   frame;
@@ -70,39 +70,40 @@ void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 	struct c2_pdclust_src_addr map[R][P];
 	uint32_t                   incidence[P][P];
 	uint32_t                   usage[P][PUT_NR + 1];
-	uint32_t                   where[play->pl_attr.pa_N + 2*play->pl_attr.pa_K];
+	uint32_t                   where[pi->pi_layout->pl_attr.pa_N +
+					 2*pi->pi_layout->pl_attr.pa_K];
 	const char                *brace[PUT_NR] = { "[]", "<>", "{}" };
 	const char                *head[PUT_NR+1] = { "D", "P", "S", "total" };
 
-	uint32_t min;
-	uint32_t max;
-	uint64_t sum;
-	uint32_t u;
-	double   sq;
-	double   avg;
+	uint32_t                   min;
+	uint32_t                   max;
+	uint64_t                   sum;
+	uint32_t                   u;
+	double                     sq;
+	double                     avg;
 
 	C2_SET_ARR0(usage);
 	C2_SET_ARR0(incidence);
 
-	N = play->pl_attr.pa_N;
-	K = play->pl_attr.pa_K;
+	N = pi->pi_layout->pl_attr.pa_N;
+	K = pi->pi_layout->pl_attr.pa_K;
 	W = N + 2*K;
 
 	printf("layout: N: %u K: %u P: %u C: %u L: %u\n",
-	       N, K, P, play->pl_C, play->pl_L);
+	       N, K, P, pi->pi_layout->pl_C, pi->pi_layout->pl_L);
 
 	for (group = 0; group < I ; ++group) {
 		src.sa_group = group;
 		for (unit = 0; unit < W; ++unit) {
 			src.sa_unit = unit;
-			c2_pdclust_layout_map(play, &src, &tgt);
-			c2_pdclust_layout_inv(play, &tgt, &src1);
+			c2_pdclust_layout_map(pi, &src, &tgt);
+			c2_pdclust_layout_inv(pi, &tgt, &src1);
 			C2_ASSERT(memcmp(&src, &src1, sizeof src) == 0);
 			if (tgt.ta_frame < R)
 				map[tgt.ta_frame][tgt.ta_obj] = src;
 			where[unit] = tgt.ta_obj;
 			usage[tgt.ta_obj][PUT_NR]++;
-			usage[tgt.ta_obj][classify(play, unit)]++;
+			usage[tgt.ta_obj][classify(pi->pi_layout, unit)]++;
 		}
 		for (unit = 0; unit < W; ++unit) {
 			for (i = 0; i < W; ++i)
@@ -115,7 +116,7 @@ void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
 		for (obj = 0; obj < P; ++obj) {
 			int d;
 
-			d = classify(play, map[frame][obj].sa_unit);
+			d = classify(pi->pi_layout, map[frame][obj].sa_unit);
 			printf("%c%2i, %1i%c ",
 			       brace[d][0],
 			       (int)map[frame][obj].sa_group,
@@ -201,7 +202,7 @@ int main(int argc, char **argv)
 	uint32_t P;
 	int      R;
 	int      I;
-	int      result;
+	int      rc;
 	uint64_t unitsize = 4096;
 	struct c2_pdclust_layout      *play;
 	struct c2_pdclust_attr         attr;
@@ -211,6 +212,8 @@ int main(int argc, char **argv)
 	struct c2_layout_domain        domain;
 	struct c2_dbenv                dbenv;
 	struct c2_layout_linear_enum  *le;
+	struct c2_pdclust_instance     pi;
+	struct c2_fid                  gfid;
 	if (argc != 6) {
 		printf(
 "\t\tldemo N K P R I\nwhere\n"
@@ -242,37 +245,43 @@ int main(int argc, char **argv)
 	id = 0x4A494E4E49455349; /* "jinniesi" */
 	c2_uint128_init(&seed, "upjumpandpumpim,");
 
-	result = c2_init();
-	if (result != 0)
-		return result;
+	rc = c2_init();
+	if (rc != 0)
+		return rc;
 
-	result = c2_pool_init(&pool, DEF_POOL_ID, P);
-	if (result == 0) {
+	rc = c2_pool_init(&pool, DEF_POOL_ID, P);
+	if (rc == 0) {
 		/**
 		 * Creating a dummy domain object here so as to supply it
 		 * to c2_pdclust_build(), though it is not used in this test.
 		 */
-		result = dummy_create(&domain, &dbenv, id,
-				      pool.po_width, &le);
-		if (result == 0) {
+		/* todo Move pdclust_build() to dummy_create */
+		rc = dummy_create(&domain, &dbenv, id, pool.po_width, &le);
+		if (rc == 0) {
 			attr.pa_N = N;
 			attr.pa_K = K;
 			attr.pa_P = pool.po_width;
 			attr.pa_pool_id = pool.po_id;
 			attr.pa_unit_size = unitsize;
 			attr.pa_seed = seed;
-			result = c2_pdclust_build(&domain, id, &attr,
-						  &le->lle_base, &play);
-			if (result == 0)
-				layout_demo(play, P, R, I);
+			c2_fid_set(&gfid, 0, 999);
+			rc = c2_pdclust_build(&domain, id, &attr,
+					      &le->lle_base, &play);
+			if (rc == 0) {
+				rc = c2_pdclust_instance_init(&pi,
+							      play,
+							      &gfid);
+				layout_demo(&pi, P, R, I);
+			}
 			c2_pool_fini(&pool);
 		}
 
 	}
 
+	//todo instance fini(pdclust fini, enum fini), domain fini etc
 	c2_fini();
 
-	return result;
+	return rc;
 }
 
 /** @} end of layout group */

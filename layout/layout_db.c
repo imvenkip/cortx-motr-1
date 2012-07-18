@@ -487,10 +487,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 			       lid, rc);
 		return rc;
 	}
-	/*
-	 * Here, l != NULL and lto_allocate() has locked l->l_lock. On error,
-	 * must unlock l->l_lock and call lo_delete(), after this point.
-	 */
+	/* Here, lto_allocate() has locked l->l_lock. */
 
 	/* Re-check for possible concurrent layout creation. */
 	c2_mutex_lock(&dom->ld_lock);
@@ -503,7 +500,6 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 		 * reference on "ghost".
 		 */
 		c2_mutex_unlock(&dom->ld_lock);
-		c2_mutex_unlock(&l->l_lock);
 		l->l_ops->lo_delete(l);
 
 		/* Wait for possible decoding completion. */
@@ -512,6 +508,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 
 		*out = ghost;
 		C2_POST(c2_layout__invariant(*out));
+		C2_POST(l->l_ref > 0);
 		C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, 0);
 		return 0;
 	}
@@ -524,8 +521,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	C2_ASSERT(rc == 0);
 	rc = c2_table_lookup(tx, pair);
 	if (rc != 0) {
-		/* error covered */
-		c2_mutex_unlock(&l->l_lock);
+		/* Error covered in UT. */
 		l->l_ops->lo_delete(l);
 		c2_layout__log("c2_layout_lookup", "c2_table_lookup() failed",
 			       &layout_lookup_fail, &layout_global_ctx,
@@ -538,8 +534,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	c2_bufvec_cursor_init(&cur, &bv);
 	rc = c2_layout_decode(l, C2_LXO_DB_LOOKUP, tx, &cur);
 	if (rc != 0) {
-		/* error covered */
-		c2_mutex_unlock(&l->l_lock);
+		/* Error covered in UT. */
 		l->l_ops->lo_delete(l);
 		c2_layout__log("c2_layout_lookup", "c2_layout_decode() failed",
 			       &layout_lookup_fail, &layout_global_ctx,

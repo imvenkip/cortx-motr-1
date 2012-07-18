@@ -340,8 +340,8 @@ void c2_layout__init(struct c2_layout *l,
 	C2_LEAVE("lid %llu", (unsigned long long)lid);
 }
 
-/** todo Add @post in the function header
-	C2_POST(c2_layout_find(l->l_dom, l->l_id) == l)
+/**
+ * @post c2_layout__list_lookup(l->l_dom, l->l_id, false) == l
  */
 void c2_layout__populate(struct c2_layout *l, uint32_t ref_count)
 {
@@ -421,7 +421,7 @@ void c2_layout__striped_populate(struct c2_striped_layout *str_l,
 
 {
 	C2_PRE(c2_layout__striped_allocated_invariant(str_l));
-	C2_PRE(e != NULL);
+	C2_PRE(e != NULL); //todo enum_allocated_invariant
 
 	C2_ENTRY("lid %llu, enum-type-id %lu",
 		 (unsigned long long)str_l->sl_base.l_id,
@@ -436,6 +436,7 @@ void c2_layout__striped_populate(struct c2_striped_layout *str_l,
 	 * str_l->sl_base->le_sl is set appropriately.
 	 */
 	C2_POST(c2_layout__striped_invariant(str_l));
+	//todo enum invariant
 	C2_LEAVE("lid %llu", (unsigned long long)str_l->sl_base.l_id);
 }
 
@@ -893,7 +894,6 @@ struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid)
 void c2_layout_get(struct c2_layout *l)
 {
 	C2_PRE(c2_layout__invariant(l));
-	/* c2_layout__invariant() verifies that l->l_ref >= 0. */ //todo check
 
 	C2_ENTRY("lid %llu, ref_count %lu", (unsigned long long)l->l_id,
 		 (unsigned long)l->l_ref);

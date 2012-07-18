@@ -84,6 +84,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h" /* C2_ALLOC_PTR(), C2_ALLOC_ARR(), c2_free() */
 #include "lib/misc.h"   /* C2_IN() */
+#include "lib/vec.h"    /* c2_bufvec_cursor_step(), c2_bufvec_cursor_addr() */
 #include "lib/arith.h"  /* c2_rnd() */
 #include "lib/misc.h"   /* c2_forall */
 #include "lib/bob.h"
@@ -91,8 +92,6 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
-#include "stob/stob.h"  /* c2_stob_id_is_set() */
-#include "pool/pool.h"  /* c2_pool_lookup() */
 #include "layout/layout_internal.h"
 #include "layout/pdclust.h"
 
@@ -100,7 +99,8 @@ extern const struct c2_addb_loc layout_addb_loc;
 extern struct c2_addb_ctx layout_global_ctx;
 
 enum {
-	PDCLUST_MAGIC = 0x5044434C5553544CULL /* PDCLUSTL */
+	PDCLUST_MAGIC     = 0x5044434C5553544CULL, /* PDCLUSTL */
+	PD_INSTANCE_MAGIC = 0x5044494E5354414EULL  /* PDINSTAN */
 };
 
 static const struct c2_bob_type pdclust_bob = {
@@ -112,8 +112,397 @@ static const struct c2_bob_type pdclust_bob = {
 
 C2_BOB_DEFINE(static, &pdclust_bob, c2_pdclust_layout);
 
+static const struct c2_bob_type pd_instance_bob = {
+	.bt_name         = "pd_instance",
+	.bt_magix_offset = offsetof(struct c2_pdclust_instance, pi_magic),
+	.bt_magix        = PD_INSTANCE_MAGIC,
+	.bt_check        = NULL
+};
+
+C2_BOB_DEFINE(static, &pd_instance_bob, c2_pdclust_instance);
+
 C2_ADDB_EV_DEFINE(pdclust_tile_cache_hit, "pdclust_tile_cache_hit",
 		  C2_ADDB_EVENT_LAYOUT_TILE_CACHE_HIT, C2_ADDB_FLAG);
+
+static bool pdclust_allocated_invariant(const struct c2_pdclust_layout *pl)
+{
+	return
+		pl != NULL &&
+		c2_layout__striped_allocated_invariant(&pl->pl_base);
+}
+
+static bool pdclust_invariant(const struct c2_pdclust_layout *pl)
+{
+	return
+		c2_pdclust_layout_bob_check(pl) &&
+		c2_layout__striped_invariant(&pl->pl_base) &&
+		pl->pl_C * (pl->pl_attr.pa_N + 2 * pl->pl_attr.pa_K) ==
+		pl->pl_L * pl->pl_attr.pa_P;
+}
+
+static bool pdclust_instance_invariant(const struct c2_pdclust_instance *pi)
+{
+	uint32_t                 P;
+	const struct tile_cache *tc;
+
+	P  = pi->pi_layout->pl_attr.pa_P;
+	tc = &pi->pi_tile_cache;
+
+	return
+		c2_pdclust_instance_bob_check(pi) &&
+		pdclust_invariant(pi->pi_layout) &&
+		/*
+		 * tc->tc_permute[] and tc->tc_inverse[] are mutually inverse
+		 * bijections of {0, ..., P - 1}.
+		 */
+		c2_forall(i, P,
+			  tc->tc_lcode[i] + i < P &&
+			  (tc->tc_permute[i] < P && tc->tc_inverse[i] < P) &&
+			  tc->tc_permute[tc->tc_inverse[i]] == i &&
+			  tc->tc_inverse[tc->tc_permute[i]] == i);
+}
+
+/**
+ * Implementation of lto_register for PDCLUST layout type.
+ * No table is required specifically for PDCLUST layout type.
+ */
+static int pdclust_register(struct c2_layout_domain *dom,
+			    const struct c2_layout_type *lt)
+{
+	return 0;
+}
+
+/** Implementation of lto_unregister for PDCLUST layout type. */
+static void pdclust_unregister(struct c2_layout_domain *dom,
+			       const struct c2_layout_type *lt)
+{
+}
+
+/** Implementation of lo_fini for pdclust layout type. */
+static void pdclust_fini(struct c2_layout *l)
+{
+	struct c2_pdclust_layout *pl;
+
+	C2_PRE(l != NULL);
+	C2_PRE(c2_mutex_is_not_locked(&l->l_lock));
+
+	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
+	pl = c2_layout_to_pdl(l);
+	c2_pdclust_layout_bob_fini(pl);
+	c2_layout__striped_fini(&pl->pl_base);
+	c2_free(pl);
+	C2_LEAVE();
+}
+
+static const struct c2_layout_ops pdclust_ops;
+/** Implementation of lto_allocate() for PDCLUST layout type. */
+static int pdclust_allocate(struct c2_layout_domain *dom,
+			    uint64_t lid,
+			    struct c2_layout **out)
+{
+	struct c2_pdclust_layout *pl;
+
+	C2_PRE(c2_layout__domain_invariant(dom));
+	C2_PRE(lid != LID_NONE);
+	C2_PRE(out != NULL);
+
+	C2_ENTRY("lid %llu", (unsigned long long)lid);
+	C2_ALLOC_PTR(pl);
+	if (pl == NULL) {
+		c2_layout__log("c2_pdclust_allocate", "C2_ALLOC_PTR() failed",
+			       &c2_addb_oom, &layout_global_ctx, lid, -ENOMEM);
+		return -ENOMEM;
+	}
+	c2_layout__striped_init(&pl->pl_base, dom, lid,
+				&c2_pdclust_layout_type, &pdclust_ops);
+	c2_pdclust_layout_bob_init(pl);
+	c2_mutex_lock(&pl->pl_base.sl_base.l_lock);
+
+	*out = &pl->pl_base.sl_base;
+	C2_POST(pdclust_allocated_invariant(pl));
+	C2_POST(c2_mutex_is_locked(&(*out)->l_lock));
+	C2_LEAVE("lid %llu, pl pointer %p", (unsigned long long)lid, pl);
+	return 0;
+}
+
+/**
+ * Implementation of lo_delete() for PDCLUST layout type.
+ * Dual to pdclust_allocate(). Required only in case of failure handling.
+ * In the success case, dual to the sequence of "pdclust_allocate() followed
+ * by pdclust_populate()" is pdclust_fini().
+ */
+static void pdclust_delete(struct c2_layout *l)
+{
+	struct c2_pdclust_layout *pl;
+
+	pl = bob_of(l, struct c2_pdclust_layout,
+		    pl_base.sl_base, &pdclust_bob);
+	C2_PRE(pdclust_allocated_invariant(pl));
+	C2_PRE(c2_mutex_is_locked(&l->l_lock));
+
+	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
+	c2_mutex_unlock(&l->l_lock);
+	c2_pdclust_layout_bob_fini(pl);
+	c2_layout__striped_delete(&pl->pl_base);
+	c2_free(pl);
+	C2_LEAVE();
+}
+
+/** Populates pl using the arguments supplied. */
+static void pdclust_populate(struct c2_pdclust_layout *pl,
+			     const struct c2_pdclust_attr *attr,
+			     struct c2_layout_enum *le,
+			     uint32_t ref_count)
+{
+	uint64_t lid;
+	uint32_t B;
+	uint32_t N;
+	uint32_t K;
+	uint32_t P;
+
+	N = attr->pa_N;
+	K = attr->pa_K;
+	P = attr->pa_P;
+	C2_PRE(pdclust_allocated_invariant(pl));
+	C2_PRE(c2_mutex_is_locked(&pl->pl_base.sl_base.l_lock));
+	C2_PRE(N + 2 * K <= P);
+	C2_PRE(le != NULL);
+
+	lid = pl->pl_base.sl_base.l_id;
+	C2_ENTRY("lid %llu", (unsigned long long)lid);
+
+	c2_layout__striped_populate(&pl->pl_base, le, ref_count);
+	pl->pl_attr = *attr;
+
+	/* Select minimal possible B (least common multiple of P and N+2*K). */
+	B = P*(N+2*K)/c2_gcd64(N+2*K, P);
+	pl->pl_C = B/(N+2*K);
+	pl->pl_L = B/P;
+
+	C2_POST(pdclust_invariant(pl));
+	C2_PRE(c2_mutex_is_locked(&pl->pl_base.sl_base.l_lock));
+	C2_LEAVE("lid %llu", (unsigned long long)lid);
+}
+
+int c2_pdclust_build(struct c2_layout_domain *dom,
+		     uint64_t lid,
+		     const struct c2_pdclust_attr *attr,
+		     struct c2_layout_enum *le,
+		     struct c2_pdclust_layout **out)
+{
+	struct c2_layout         *l;
+	struct c2_pdclust_layout *pl;
+	int                       rc;
+
+	C2_PRE(out != NULL);
+
+	C2_ENTRY("lid %llu", (unsigned long long)lid);
+	rc = pdclust_allocate(dom, lid, &l);
+	if (rc == 0) {
+		/* Here pdclust_allocate() has locked l->l_lock. */
+		pl = bob_of(l, struct c2_pdclust_layout,
+			    pl_base.sl_base, &pdclust_bob);
+		C2_ASSERT(pdclust_allocated_invariant(pl));
+
+		pdclust_populate(pl, attr, le, 0);
+		*out = pl;
+		c2_mutex_unlock(&l->l_lock);
+	}
+
+	C2_POST(ergo(rc == 0, pdclust_invariant(*out) &&
+			      c2_mutex_is_not_locked(&l->l_lock)));
+	C2_LEAVE("lid %llu, pl %p", (unsigned long long)lid, *out);
+	return rc;
+}
+
+uint32_t c2_pdclust_N(const struct c2_pdclust_layout *pl)
+{
+	return pl->pl_attr.pa_N;
+}
+
+uint32_t c2_pdclust_K(const struct c2_pdclust_layout *pl)
+{
+	return pl->pl_attr.pa_K;
+}
+
+uint32_t c2_pdclust_P(const struct c2_pdclust_layout *pl)
+{
+	return pl->pl_attr.pa_P;
+}
+
+uint64_t c2_pdclust_unit_size(const struct c2_pdclust_layout *pl)
+{
+	return pl->pl_attr.pa_unit_size;
+}
+
+struct c2_pdclust_layout *c2_layout_to_pdl(const struct c2_layout *l)
+{
+	struct c2_pdclust_layout *pl;
+
+	pl = bob_of(l, struct c2_pdclust_layout,
+		    pl_base.sl_base, &pdclust_bob);
+	C2_ASSERT(pdclust_invariant(pl));
+	return pl;
+}
+
+struct c2_layout *c2_pdl_to_layout(struct c2_pdclust_layout *pl)
+{
+	C2_PRE(pdclust_invariant(pl));
+	return &pl->pl_base.sl_base;
+}
+
+enum c2_pdclust_unit_type
+c2_pdclust_unit_classify(const struct c2_pdclust_layout *pl,
+			 int unit)
+{
+	if (unit < pl->pl_attr.pa_N)
+		return PUT_DATA;
+	else if (unit < pl->pl_attr.pa_N + pl->pl_attr.pa_K)
+		return PUT_PARITY;
+	else
+		return PUT_SPARE;
+}
+
+/** Implementation of lto_max_recsize() for pdclust layout type. */
+static c2_bcount_t pdclust_max_recsize(struct c2_layout_domain *dom)
+{
+	C2_PRE(dom != NULL);
+
+	return sizeof(struct c2_layout_pdclust_rec) +
+		c2_layout__enum_max_recsize(dom);
+}
+
+/**
+ * Implementation of lto_decode() for pdclust layout type.
+ *
+ * Continues to build the in-memory layout object from its representation
+ * either 'stored in the Layout DB' or 'received through the buffer'.
+ *
+ * @param op This enum parameter indicates what, if a DB operation is to be
+ * performed on the layout record and it could be LOOKUP if at all.
+ * If it is BUFFER_OP, then the layout is decoded from its representation
+ * received through the buffer.
+ */
+static int pdclust_decode(struct c2_layout *l,
+			  enum c2_layout_xcode_op op,
+			  struct c2_db_tx *tx,
+			  struct c2_bufvec_cursor *cur,
+			  uint32_t ref_count)
+{
+	struct c2_pdclust_layout     *pl;
+	struct c2_layout_pdclust_rec *pl_rec;
+	struct c2_layout_enum_type   *et;
+	struct c2_layout_enum        *e;
+	int                           rc;
+
+	C2_PRE(c2_layout__allocated_invariant(l));
+	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP)));
+	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
+	C2_PRE(cur != NULL);
+	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *pl_rec);
+
+	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
+	pl = bob_of(l, struct c2_pdclust_layout,
+		    pl_base.sl_base, &pdclust_bob);
+	C2_ASSERT(pdclust_allocated_invariant(pl));
+
+	/* pl_rec can not be NULL since the buffer size is already verified. */
+	pl_rec = c2_bufvec_cursor_addr(cur);
+	c2_bufvec_cursor_move(cur, sizeof *pl_rec);
+	et = l->l_dom->ld_enum[pl_rec->pr_let_id];
+	if (et == NULL) {
+		rc = -EPROTO;
+		C2_LOG("lid %llu, unregistered enum type, rc %d",
+		       (unsigned long long)l->l_id, rc);
+		goto out;
+	}
+	rc = et->let_ops->leto_allocate(l->l_dom, &e);
+	if (rc != 0) {
+		C2_LOG("lid %llu, leto_allocate() failed, rc %d",
+		       (unsigned long long)l->l_id, rc);
+		goto out;
+	}
+	rc = et->let_ops->leto_decode(e, &pl->pl_base, op, tx, cur);
+	if (rc != 0) {
+		e->le_ops->leo_delete(e);
+		C2_LOG("lid %llu, leto_decode() failed, rc %d",
+		       (unsigned long long)l->l_id, rc);
+		goto out;
+	}
+
+	pdclust_populate(pl, &pl_rec->pr_attr, e, ref_count);
+	C2_POST(pdclust_invariant(pl));
+out:
+	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
+	return rc;
+}
+
+/**
+ * Implementation of lto_encode() for pdclust layout type.
+ *
+ * Continues to use the in-memory layout object and
+ * - Either adds/updates/deletes it to/from the Layout DB
+ * - Or converts it to a buffer.
+ *
+ * @param op This enum parameter indicates what is the DB operation to be
+ * performed on the layout record if at all and it could be one of
+ * ADD/UPDATE/DELETE. If it is BUFFER_OP, then the layout is stored in the
+ * buffer.
+ */
+static int pdclust_encode(struct c2_layout *l,
+			  enum c2_layout_xcode_op op,
+			  struct c2_db_tx *tx,
+		          struct c2_bufvec_cursor *out)
+{
+	struct c2_pdclust_layout     *pl;
+	struct c2_layout_pdclust_rec  pl_rec;
+	struct c2_layout_enum_type   *et;
+	c2_bcount_t                   nbytes;
+	int                           rc;
+
+	/*
+	 * c2_layout__invariant() is part of pdclust_invariant(),
+	 * to be invoked little later through c2_layout_to_pdl() below.
+	 */
+	C2_PRE(l != NULL);
+	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
+		          C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP)));
+	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
+	C2_PRE(out != NULL);
+	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof pl_rec);
+
+	C2_ENTRY("%llu", (unsigned long long)l->l_id);
+	pl = c2_layout_to_pdl(l);
+	pl_rec.pr_let_id = pl->pl_base.sl_enum->le_type->let_id;
+	pl_rec.pr_attr   = pl->pl_attr;
+	et               = pl->pl_base.sl_enum->le_type;
+	C2_ASSERT(et == l->l_dom->ld_enum[et->let_id]);
+
+	nbytes = c2_bufvec_cursor_copyto(out, &pl_rec, sizeof pl_rec);
+	C2_ASSERT(nbytes == sizeof pl_rec);
+	rc = et->let_ops->leto_encode(pl->pl_base.sl_enum, op, tx, out);
+	if (rc != 0)
+		C2_LOG("lid %llu, leto_encode() failed, rc %d",
+		       (unsigned long long)l->l_id, rc);
+
+	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
+	return rc;
+}
+
+
+/** Implementation of lo_recsize() for pdclust layout type. */
+static c2_bcount_t pdclust_recsize(const struct c2_layout *l)
+{
+	struct c2_striped_layout *stl;
+	struct c2_layout_enum    *e;
+	c2_bcount_t               e_recsize;
+
+	C2_PRE(l!= NULL);
+	stl = c2_layout_to_striped(l);
+	e = c2_striped_layout_to_enum(stl);
+	e_recsize = e->le_ops->leo_recsize(e);
+	return sizeof(struct c2_layout_pdclust_rec) + e_recsize;
+}
 
 /**
  * "Encoding" function: returns the number that a (row, column) element of a
@@ -192,37 +581,6 @@ static void permute(uint32_t n, uint32_t *k, uint32_t *s, uint32_t *r)
 	r[s[n - 1]] = n - 1;
 }
 
-static bool pdclust_allocated_invariant(const struct c2_pdclust_layout *play)
-{
-	return
-		play != NULL &&
-		c2_layout__striped_allocated_invariant(&play->pl_base);
-}
-
-static bool pdclust_invariant(const struct c2_pdclust_layout *play)
-{
-	uint32_t                 P;
-	const struct tile_cache *tc;
-
-	P = play->pl_attr.pa_P;
-	tc = &play->pl_tile_cache;
-
-	return
-		c2_pdclust_layout_bob_check(play) &&
-		c2_layout__striped_invariant(&play->pl_base) &&
-		/*
-		 * tc->tc_permute[] and tc->tc_inverse[] are mutually inverse
-		 * bijections of {0, ..., P - 1}.
-		 */
-		c2_forall(i, P,
-			  tc->tc_lcode[i] + i < P &&
-			  (tc->tc_permute[i] < P && tc->tc_inverse[i] < P) &&
-			  tc->tc_permute[tc->tc_inverse[i]] == i &&
-			  tc->tc_inverse[tc->tc_permute[i]] == i) &&
-		play->pl_C * (play->pl_attr.pa_N + 2*play->pl_attr.pa_K) ==
-		play->pl_L * P;
-}
-
 /**
  * Simple multiplicative hash.
  */
@@ -250,13 +608,15 @@ static uint64_t hash(uint64_t x)
  * Returns column number that a column t has after a permutation for tile omega
  * is applied.
  */
-static uint64_t permute_column(struct c2_pdclust_layout *play,
+static uint64_t permute_column(struct c2_pdclust_instance *pi,
 			       uint64_t omega, uint64_t t)
 {
-	struct tile_cache *tc;
+	struct tile_cache      *tc;
+	struct c2_pdclust_attr  attr = pi->pi_layout->pl_attr;
 
-	C2_ASSERT(t < play->pl_attr.pa_P);
-	tc = &play->pl_tile_cache;
+	C2_ENTRY("t %lu, P %lu", (unsigned long)t, (unsigned long)attr.pa_P);
+	C2_ASSERT(t < attr.pa_P);
+	tc = &pi->pi_tile_cache;
 
 	/* If cached values are for different tile, update the cache. */
 	if (tc->tc_tile_no != omega) {
@@ -264,36 +624,33 @@ static uint64_t permute_column(struct c2_pdclust_layout *play,
 		uint64_t rstate;
 
 		/* Initialise columns array that will be permuted. */
-		for (i = 0; i < play->pl_attr.pa_P; ++i)
+		for (i = 0; i < attr.pa_P; ++i)
 			tc->tc_permute[i] = i;
 
 		/* Initialise PRNG. */
-		rstate  =
-			hash(play->pl_attr.pa_seed.u_hi) ^
-			hash(play->pl_attr.pa_seed.u_lo + omega);
+		rstate = hash(attr.pa_seed.u_hi) ^
+			 hash(attr.pa_seed.u_lo + omega);
 
 		/* Generate permutation number in lexicographic ordering. */
-		for (i = 0; i < play->pl_attr.pa_P - 1; ++i)
-			tc->tc_lcode[i] = c2_rnd(play->pl_attr.pa_P - i,
-						 &rstate);
+		for (i = 0; i < attr.pa_P - 1; ++i)
+			tc->tc_lcode[i] = c2_rnd(attr.pa_P - i, &rstate);
 
 		/* Apply the permutation. */
-		permute(play->pl_attr.pa_P, tc->tc_lcode,
+		permute(attr.pa_P, tc->tc_lcode,
 			tc->tc_permute, tc->tc_inverse);
 		tc->tc_tile_no = omega;
 	}
 
-	C2_ADDB_ADD(&play->pl_base.sl_base.l_addb, &layout_addb_loc,
-		    pdclust_tile_cache_hit,
-		    tc->tc_tile_no == omega);
+	C2_ADDB_ADD(&pi->pi_layout->pl_base.sl_base.l_addb, &layout_addb_loc,
+		    pdclust_tile_cache_hit, tc->tc_tile_no == omega);
 
-	C2_ASSERT(tc->tc_permute[t] < play->pl_attr.pa_P);
-	C2_ASSERT(tc->tc_inverse[tc->tc_permute[t]] == t);
-	C2_ASSERT(tc->tc_permute[tc->tc_inverse[t]] == t);
+	C2_POST(tc->tc_permute[t] < attr.pa_P);
+	C2_POST(tc->tc_inverse[tc->tc_permute[t]] == t);
+	C2_POST(tc->tc_permute[tc->tc_inverse[t]] == t);
 	return tc->tc_permute[t];
 }
 
-void c2_pdclust_layout_map(struct c2_pdclust_layout *play,
+void c2_pdclust_layout_map(struct c2_pdclust_instance *pi,
 			   const struct c2_pdclust_src_addr *src,
 			   struct c2_pdclust_tgt_addr *tgt)
 {
@@ -307,31 +664,33 @@ void c2_pdclust_layout_map(struct c2_pdclust_layout *play,
 	uint64_t r;
 	uint64_t t;
 
-	N = play->pl_attr.pa_N;
-	K = play->pl_attr.pa_K;
-	P = play->pl_attr.pa_P;
-	C = play->pl_C;
-	L = play->pl_L;
+	C2_PRE(pdclust_instance_invariant(pi));
 
-	C2_ASSERT(pdclust_invariant(play));
+	C2_ENTRY("pi %p", pi);
+	N = pi->pi_layout->pl_attr.pa_N;
+	K = pi->pi_layout->pl_attr.pa_K;
+	P = pi->pi_layout->pl_attr.pa_P;
+	C = pi->pi_layout->pl_C;
+	L = pi->pi_layout->pl_L;
 
 	/*
-	 * first translate source address into a tile number and parity group
+	 * First translate source address into a tile number and parity group
 	 * number in the tile.
 	 */
 	m_dec(C, src->sa_group, &omega, &j);
 	/*
-	 * then, convert from C*(N+2*K) coordinates to L*P coordinates within a
+	 * Then, convert from C*(N+2*K) coordinates to L*P coordinates within a
 	 * tile.
 	 */
 	m_dec(P, m_enc(N + 2*K, j, src->sa_unit), &r, &t);
-	/* permute columns */
-	tgt->ta_obj   = permute_column(play, omega, t);
-	/* and translate back from tile to target address. */
+	/* Permute columns */
+	tgt->ta_obj = permute_column(pi, omega, t);
+	/* And translate back from tile to target address. */
 	tgt->ta_frame = m_enc(L, omega, r);
+	C2_LEAVE("pi %p", pi);
 }
 
-void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
+void c2_pdclust_layout_inv(struct c2_pdclust_instance *pi,
 			   const struct c2_pdclust_tgt_addr *tgt,
 			   struct c2_pdclust_src_addr *src)
 {
@@ -345,442 +704,96 @@ void c2_pdclust_layout_inv(struct c2_pdclust_layout *play,
 	uint64_t r;
 	uint64_t t;
 
-	N = play->pl_attr.pa_N;
-	K = play->pl_attr.pa_K;
-	P = play->pl_attr.pa_P;
-	C = play->pl_C;
-	L = play->pl_L;
+	N = pi->pi_layout->pl_attr.pa_N;
+	K = pi->pi_layout->pl_attr.pa_K;
+	P = pi->pi_layout->pl_attr.pa_P;
+	C = pi->pi_layout->pl_C;
+	L = pi->pi_layout->pl_L;
 
 	r = tgt->ta_frame;
 	t = tgt->ta_obj;
 
-	C2_ASSERT(pdclust_invariant(play));
+	C2_ASSERT(pdclust_instance_invariant(pi));
 
 	/*
-	 * execute inverses of the steps of c2_pdclust_layout_map() in reverse
+	 * Execute inverses of the steps of c2_pdclust_layout_map() in reverse
 	 * order.
 	 */
 	m_dec(L, tgt->ta_frame, &omega, &r);
-	permute_column(play, omega, t); /* force tile cache update */
-	t = play->pl_tile_cache.tc_inverse[t];
+	permute_column(pi, omega, t); /* Force tile cache update */
+	t = pi->pi_tile_cache.tc_inverse[t];
 	m_dec(N + 2*K, m_enc(P, r, t), &j, &src->sa_unit);
 	src->sa_group = m_enc(C, omega, j);
 }
 
-/** Implementation of lo_fini for pdclust layout type. */
-static void pdclust_fini(struct c2_layout *l)
+int c2_pdclust_instance_init(struct c2_pdclust_instance *pi,
+			     struct c2_pdclust_layout *pl,
+			     const struct c2_fid *fid)
 {
-	struct c2_pdclust_layout *pl;
-	uint32_t                  i;
+	uint32_t N;
+	uint32_t K;
+	uint32_t P;
+	uint64_t lid;
+	int      rc;
 
-	C2_PRE(l != NULL);
+	C2_PRE(pi != NULL);
+	C2_PRE(pdclust_invariant(pl));
+	C2_PRE(c2_fid_is_valid(fid));
 
-	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-	pl = c2_layout_to_pdl(l);
-	c2_pdclust_layout_bob_fini(pl); //todo Make it last step
-	c2_parity_math_fini(&pl->pl_math);
-	c2_free(pl->pl_tile_cache.tc_inverse);
-	c2_free(pl->pl_tile_cache.tc_permute);
-	c2_free(pl->pl_tile_cache.tc_lcode);
-	if (pl->pl_tgt != NULL) {
-		for (i = 0; i < pl->pl_attr.pa_P; ++i) {
-			if (c2_stob_id_is_set(&pl->pl_tgt[i]))
-				c2_pool_put(pl->pl_pool, &pl->pl_tgt[i]);
-		}
-		c2_free(pl->pl_tgt);
-	}
-	c2_layout__striped_fini(&pl->pl_base);
-	c2_free(pl);
-	C2_LEAVE();
-}
+	lid = pl->pl_base.sl_base.l_id;
+	C2_ENTRY("pi %p, pl %p, gfid container %llu, gfid key %llu",
+		 pi, pl, (unsigned long long)fid->f_container,
+		 (unsigned long long)fid->f_key);
+	pi->pi_layout = pl;
+	pi->pi_fid    = *fid;
 
-/** Implementation of lo_recsize() for pdclust layout type. */
-static c2_bcount_t pdclust_recsize(const struct c2_layout *l)
-{
-	struct c2_striped_layout *stl;
-	struct c2_layout_enum    *e;
-	c2_bcount_t               e_recsize;
-
-	C2_PRE(l!= NULL);
-	stl = c2_layout_to_striped(l);
-	e = c2_striped_layout_to_enum(stl);
-	e_recsize = e->le_ops->leo_recsize(e);
-	return sizeof(struct c2_layout_pdclust_rec) + e_recsize;
-}
-
-/**
- * Implementation of lto_register for PDCLUST layout type.
- * No table is required specifically for PDCLUST layout type.
- */
-static int pdclust_register(struct c2_layout_domain *dom,
-			    const struct c2_layout_type *lt)
-{
-	return 0;
-}
-
-/** Implementation of lto_unregister for PDCLUST layout type. */
-static void pdclust_unregister(struct c2_layout_domain *dom,
-			       const struct c2_layout_type *lt)
-{
-}
-
-static const struct c2_layout_ops pdclust_ops;
-
-/** Implementation of lto_allocate() for PDCLUST layout type. */
-static int pdclust_allocate(struct c2_layout_domain *dom,
-			    uint64_t lid,
-			    struct c2_layout **out)
-{
-	struct c2_pdclust_layout *pdl;
-
-	C2_PRE(c2_layout__domain_invariant(dom));
-	C2_PRE(lid != LID_NONE);
-	C2_PRE(out != NULL);
-
-	C2_ENTRY("lid %llu", (unsigned long long)lid);
-	C2_ALLOC_PTR(pdl);
-	if (pdl == NULL) {
-		c2_layout__log("c2_pdclust_allocate", "C2_ALLOC_PTR() failed",
-			       &c2_addb_oom, &layout_global_ctx, lid, -ENOMEM);
-		return -ENOMEM;
-	}
-	c2_pdclust_layout_bob_init(pdl);
-	c2_layout__striped_init(&pdl->pl_base, dom, lid,
-				&c2_pdclust_layout_type, &pdclust_ops);
-	*out = &pdl->pl_base.sl_base;
-	c2_mutex_lock(&pdl->pl_base.sl_base.l_lock);
-
-	C2_POST(pdclust_allocated_invariant(pdl));
-	C2_POST(c2_mutex_is_locked(&(*out)->l_lock));
-	C2_LEAVE("lid %llu, pdl pointer %p", (unsigned long long)lid, pdl);
-	return 0;
-}
-
-/** Implementation of lo_delete() for PDCLUST layout type. */
-static void pdclust_delete(struct c2_layout *l)
-{
-	struct c2_pdclust_layout *pdl;
-
-	C2_PRE(c2_layout__allocated_invariant(l));
-	pdl = bob_of(l, struct c2_pdclust_layout,
-		     pl_base.sl_base, &pdclust_bob);
-	C2_PRE(pdclust_allocated_invariant(pdl));
-	c2_layout__striped_delete(&pdl->pl_base);
-	c2_free(pdl);
-	C2_LEAVE();
-}
-
-/**
- * todo @post A pdclust type of layout object is created. User is expected to
- * add a reference on the layout object as required and is expected to release
- * the reference when done with the usage. The layout is finalised when it is
- * the last reference being released. The layout finalisation internally
- * involves enumeration object finalisation.
- */
-static int pdclust_populate(struct c2_pdclust_layout *pdl,
-			    const struct c2_pdclust_attr *attr,
-			    struct c2_layout_enum *le,
-			    uint32_t ref_count)
-{
-	uint32_t        B;
-	uint32_t        i;
-	uint32_t        N;
-	uint32_t        K;
-	uint32_t        P;
-	struct c2_pool *pool;
-	uint64_t        lid;
-	int             rc;
-
-	C2_PRE(pdclust_allocated_invariant(pdl));
-	C2_PRE(le != NULL);
-	N = attr->pa_N;
-	K = attr->pa_K;
-	P = attr->pa_P;
-	C2_PRE(N + 2 * K <= P);
-
-	lid = pdl->pl_base.sl_base.l_id;
-	C2_ENTRY("lid %llu, pool id %llu", (unsigned long long)lid,
-		 (unsigned long long)attr->pa_pool_id);
-
-	rc = c2_pool_lookup(attr->pa_pool_id, &pool);
-	if (rc != 0) {
-		c2_layout__log("pdclust_populate", "c2_pool_lookup() failed",
-			       &c2_addb_oom, &pdl->pl_base.sl_base.l_addb,
-			       lid, rc);
-		return rc;
-	}
-	C2_ASSERT(P == pool->po_width);
-
-	C2_ALLOC_ARR(pdl->pl_tgt, P);
-	C2_ALLOC_ARR(pdl->pl_tile_cache.tc_lcode, P);
-	C2_ALLOC_ARR(pdl->pl_tile_cache.tc_permute, P);
-	C2_ALLOC_ARR(pdl->pl_tile_cache.tc_inverse, P);
-
-	if (pdl->pl_tgt != NULL &&
-	    pdl->pl_tile_cache.tc_lcode != NULL &&
-	    pdl->pl_tile_cache.tc_permute != NULL &&
-	    pdl->pl_tile_cache.tc_inverse != NULL) {
-		c2_layout__striped_populate(&pdl->pl_base, le, ref_count);
-		pdl->pl_attr = *attr;
-		pdl->pl_pool = pool;
-		/*
-		 * Select minimal possible B (least common multiple of
-		 * P and N+2*K)
-		 */
-		B = P*(N+2*K)/c2_gcd64(N+2*K, P);
-		pdl->pl_C = B/(N+2*K);
-		pdl->pl_L = B/P;
-
-		pdl->pl_tile_cache.tc_tile_no = 1;
-		permute_column(pdl, 0, 0);
-		for (rc = 0, i = 0; i < P; ++i) {
-			rc = c2_pool_alloc(pool, &pdl->pl_tgt[i]);
-			if (rc != 0) {
-				C2_LOG("lid %llu, c2_pool_alloc() failed, "
-				       "rc %d", (unsigned long long)lid, rc);
-				break;
-			}
-		}
+	N = pl->pl_attr.pa_N;
+	K = pl->pl_attr.pa_K;
+	P = pl->pl_attr.pa_P;
+	C2_ALLOC_ARR(pi->pi_tile_cache.tc_lcode, P);
+	C2_ALLOC_ARR(pi->pi_tile_cache.tc_permute, P);
+	C2_ALLOC_ARR(pi->pi_tile_cache.tc_inverse, P);
+	if (pi->pi_tile_cache.tc_lcode != NULL &&
+	    pi->pi_tile_cache.tc_permute != NULL &&
+	    pi->pi_tile_cache.tc_inverse != NULL) {
+		pi->pi_tile_cache.tc_tile_no = 1;
+		permute_column(pi, 0, 0);
+		rc = c2_parity_math_init(&pi->pi_math, N, K);
 		if (rc == 0) {
-			rc = c2_parity_math_init(&pdl->pl_math, N, K);
-			if (rc != 0)
-				C2_LOG("lid %llu, c2_parity_math_init() "
-				       "failed, rc %d",
-				       (unsigned long long)lid, rc);
+			c2_pdclust_instance_bob_init(pi);
+			c2_layout_get(&pl->pl_base.sl_base);
 		}
+		else
+			C2_LOG("lid %llu, c2_parity_math_init() failed, rc %d",
+			       (unsigned long long)lid, rc);
+
 	} else {
 		rc = -ENOMEM;
-		c2_layout__log("pdclust_populate", "C2_ALLOC() failed",
+		c2_layout__log("c2_pdclust_instance_init", "C2_ALLOC() failed",
 			       &c2_addb_oom, &layout_global_ctx, lid, rc);
 	}
 
-	if (rc == 0) {
-		C2_POST(pdclust_invariant(pdl));
-	}
-	else {
-		pdclust_fini(&pdl->pl_base.sl_base);
-		C2_POST(pdclust_allocated_invariant(pdl));
-	}
-	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
-	return rc;
-}
-
-int c2_pdclust_build(struct c2_layout_domain *dom,
-		     uint64_t lid,
-		     const struct c2_pdclust_attr *attr,
-		     struct c2_layout_enum *le,
-		     struct c2_pdclust_layout **out)
-{
-	struct c2_layout         *l;
-	struct c2_pdclust_layout *pdl;
-	int                       rc;
-
-	C2_PRE(out != NULL);
-
-	C2_ENTRY("lid %llu", (unsigned long long)lid);
-	rc = pdclust_allocate(dom, lid, &l);
-	if (rc == 0) {
-		/*
-		 * Here, l != NULL and pdclust_allocate has locked l->l_lock.
-		 * On error, must call pdclust_delete(), after this point.
-		 */
-		pdl = bob_of(l, struct c2_pdclust_layout,
-			     pl_base.sl_base, &pdclust_bob);
-		C2_ASSERT(pdclust_allocated_invariant(pdl));
-
-		rc = pdclust_populate(pdl, attr, le, 0);
-		if (rc == 0) {
-			*out = pdl;
-			C2_POST(pdclust_invariant(*out));
-		} else {
-			pdclust_delete(l);
-		}
-		c2_mutex_unlock(&l->l_lock);
-	}
-	C2_LEAVE("lid %llu", (unsigned long long)lid);
-	return rc;
-}
-
-uint32_t c2_pdclust_N(const struct c2_pdclust_layout *pl)
-{
-	return pl->pl_attr.pa_N;
-}
-
-uint32_t c2_pdclust_K(const struct c2_pdclust_layout *pl)
-{
-	return pl->pl_attr.pa_K;
-}
-
-uint32_t c2_pdclust_P(const struct c2_pdclust_layout *pl)
-{
-	return pl->pl_attr.pa_P;
-}
-
-uint64_t c2_pdclust_unit_size(const struct c2_pdclust_layout *pl)
-{
-	return pl->pl_attr.pa_unit_size;
-}
-
-struct c2_pdclust_layout *c2_layout_to_pdl(const struct c2_layout *l)
-{
-	struct c2_pdclust_layout *pdl;
-
-	pdl = bob_of(l, struct c2_pdclust_layout,
-		     pl_base.sl_base, &pdclust_bob);
-	C2_ASSERT(pdclust_invariant(pdl));
-	return pdl;
-}
-
-struct c2_layout *c2_pdl_to_layout(struct c2_pdclust_layout *pl)
-{
-	C2_PRE(pdclust_invariant(pl));
-	return &pl->pl_base.sl_base;
-}
-
-enum c2_pdclust_unit_type
-c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
-			 int unit)
-{
-	if (unit < play->pl_attr.pa_N)
-		return PUT_DATA;
-	else if (unit < play->pl_attr.pa_N + play->pl_attr.pa_K)
-		return PUT_PARITY;
+	if (rc == 0)
+		C2_POST(pdclust_instance_invariant(pi));
 	else
-		return PUT_SPARE;
-}
-
-/** Implementation of lto_max_recsize() for pdclust layout type. */
-static c2_bcount_t pdclust_max_recsize(struct c2_layout_domain *dom)
-{
-	C2_PRE(dom != NULL);
-
-	return sizeof(struct c2_layout_pdclust_rec) +
-		c2_layout__enum_max_recsize(dom);
-}
-
-/**
- * Implementation of lto_decode() for pdclust layout type.
- *
- * Continues to build the in-memory layout object from its representation
- * either 'stored in the Layout DB' or 'received through the buffer'.
- *
- * @param op This enum parameter indicates what, if a DB operation is to be
- * performed on the layout record and it could be LOOKUP if at all.
- * If it is BUFFER_OP, then the layout is decoded from its representation
- * received through the buffer.
- */
-static int pdclust_decode(struct c2_layout *l,
-			  enum c2_layout_xcode_op op,
-			  struct c2_db_tx *tx,
-			  struct c2_bufvec_cursor *cur,
-			  uint32_t ref_count)
-{
-	struct c2_pdclust_layout     *pl;
-	struct c2_layout_pdclust_rec *pl_rec;
-	struct c2_layout_enum_type   *et;
-	struct c2_layout_enum        *e;
-	int                           rc;
-
-	C2_PRE(c2_layout__allocated_invariant(l));
-	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP)));
-	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
-	C2_PRE(cur != NULL);
-	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *pl_rec);
-
-	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-	pl = bob_of(l, struct c2_pdclust_layout,
-		    pl_base.sl_base, &pdclust_bob);
-	C2_ASSERT(pdclust_allocated_invariant(pl));
-
-	/* pl_rec can not be NULL since the buffer size is already verified. */
-	pl_rec = c2_bufvec_cursor_addr(cur);
-	c2_bufvec_cursor_move(cur, sizeof *pl_rec);
-	et = l->l_dom->ld_enum[pl_rec->pr_let_id];
-	if (et == NULL) {
-		rc = -EPROTO;
-		C2_LOG("lid %llu, unregistered enum type, rc %d",
-		       (unsigned long long)l->l_id, rc);
-		goto out;
-	}
-	rc = et->let_ops->leto_allocate(l->l_dom, &e);
-	if (rc != 0) {
-		C2_LOG("lid %llu, leto_allocate() failed, rc %d",
-		       (unsigned long long)l->l_id, rc);
-		goto out;
-	}
-	rc = et->let_ops->leto_decode(e, &pl->pl_base, op, tx, cur);
-	if (rc != 0) {
-		e->le_ops->leo_delete(e);
-		C2_LOG("lid %llu, leto_decode() failed, rc %d",
-		       (unsigned long long)l->l_id, rc);
-		goto out;
-	}
-
-	rc = pdclust_populate(pl, &pl_rec->pr_attr, e, ref_count);
-	if (rc != 0) {
-		e->le_ops->leo_fini(e);
-		C2_LOG("lid %llu, pdclust_populate() failed, rc %d",
-		       (unsigned long long)l->l_id, rc);
-		goto out;
-	}
-	C2_POST(pdclust_invariant(pl));
-out:
-	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
+		c2_pdclust_instance_fini(pi);
+	C2_LEAVE("pi %p, pl %p, rc %d", pi, pl, rc);
 	return rc;
 }
 
-/**
- * Implementation of lto_encode() for pdclust layout type.
- *
- * Continues to use the in-memory layout object and
- * - Either adds/updates/deletes it to/from the Layout DB
- * - Or converts it to a buffer.
- *
- * @param op This enum parameter indicates what is the DB operation to be
- * performed on the layout record if at all and it could be one of
- * ADD/UPDATE/DELETE. If it is BUFFER_OP, then the layout is stored in the
- * buffer.
- */
-static int pdclust_encode(struct c2_layout *l,
-			  enum c2_layout_xcode_op op,
-			  struct c2_db_tx *tx,
-		          struct c2_bufvec_cursor *out)
+void c2_pdclust_instance_fini(struct c2_pdclust_instance *pi)
 {
-	struct c2_pdclust_layout     *pl;
-	struct c2_layout_pdclust_rec  pl_rec;
-	struct c2_layout_enum_type   *et;
-	c2_bcount_t                   nbytes;
-	int                           rc;
+	C2_PRE(pdclust_instance_invariant(pi));
 
-	/*
-	 * c2_layout__invariant() is part of pdclust_invariant(),
-	 * to be invoked little later through c2_layout_to_pdl() below.
-	 */
-	C2_PRE(l != NULL);
-	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
-		          C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP)));
-	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
-	C2_PRE(out != NULL);
-	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof pl_rec);
-
-	C2_ENTRY("%llu", (unsigned long long)l->l_id);
-	pl = c2_layout_to_pdl(l);
-	pl_rec.pr_let_id = pl->pl_base.sl_enum->le_type->let_id;
-	pl_rec.pr_attr   = pl->pl_attr;
-	et               = pl->pl_base.sl_enum->le_type;
-	C2_ASSERT(et == l->l_dom->ld_enum[et->let_id]);
-
-	nbytes = c2_bufvec_cursor_copyto(out, &pl_rec, sizeof pl_rec);
-	C2_ASSERT(nbytes == sizeof pl_rec);
-	rc = et->let_ops->leto_encode(pl->pl_base.sl_enum, op, tx, out);
-	if (rc != 0)
-		C2_LOG("lid %llu, leto_encode() failed, rc %d",
-		       (unsigned long long)l->l_id, rc);
-
-	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
-	return rc;
+	C2_ENTRY("pi %p", pi);
+	c2_layout_put(&pi->pi_layout->pl_base.sl_base);
+	c2_pdclust_instance_bob_fini(pi);
+	c2_parity_math_fini(&pi->pi_math);
+	c2_free(pi->pi_tile_cache.tc_inverse);
+	c2_free(pi->pi_tile_cache.tc_permute);
+	c2_free(pi->pi_tile_cache.tc_lcode);
+	C2_LEAVE();
 }
-
 
 static const struct c2_layout_ops pdclust_ops = {
 	.lo_fini        = pdclust_fini,

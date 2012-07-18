@@ -452,6 +452,7 @@ static int list_decode(struct c2_layout_enum *e,
 			       &c2_addb_oom, &layout_global_ctx, lid, rc);
 		goto out;
 	}
+	rc = 0;
 	num_inline = op == C2_LXO_BUFFER_OP ? ce_header->ces_nr :
 		min_check(ce_header->ces_nr,
 			  (uint32_t)LDB_MAX_INLINE_COB_ENTRIES);
@@ -633,6 +634,7 @@ static int list_encode(const struct c2_layout_enum *e,
 		C2_ASSERT(nbytes == sizeof list_enum->lle_list_of_cobs[i]);
 	}
 
+	rc = 0;
 	/*
 	 * The auxiliary table viz. cob_lists is not to be modified for an
 	 * update operation.
