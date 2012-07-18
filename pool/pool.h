@@ -39,9 +39,11 @@ struct c2_dtx;
 
 /* export */
 struct c2_pool;
+struct c2_poolmach;
 
 struct c2_pool {
-	uint32_t po_width;
+	uint32_t            po_width;
+	struct c2_poolmach *po_mach;
 };
 
 int  c2_pool_init(struct c2_pool *pool, uint32_t width);
@@ -152,6 +154,10 @@ struct c2_pool_version_numbers {
 	uint64_t pvn_version[PVE_NR];
 };
 
+enum {
+	C2_POOL_EVENTS_LIST_MAGIC = 0x706f6f6c6c696e6bUL, /* poollink */
+	C2_POOL_EVENTS_HEAD_MAGIC = 0x706f6f6c68656164UL, /* poolhead */
+};
 
 /**
  * Pool Event, which is used to change the state of a node or device.
@@ -184,6 +190,8 @@ struct c2_pool_event {
 	 * Used internally in pool machine.
 	 */
 	struct c2_tlink               pe_linkage;
+
+	uint64_t                      pe_magic;
 };
 
 /**
@@ -240,6 +248,9 @@ struct c2_poolmach_state {
 struct c2_poolmach {
 	/** struct c2_persistent_sm  pm_mach; */
 	struct c2_poolmach_state pm_state;
+
+	/** this pool machine initialized or not */
+	bool                     pm_is_initialised;
 
 	/** read write lock to protect the whole pool machine */
 	struct c2_rwlock         pm_lock;

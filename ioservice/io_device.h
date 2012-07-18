@@ -72,15 +72,32 @@
 
    @{
  */
+struct c2_reqh;
+struct c2_poolmach;
 
 enum {
 	/**
 	 * i/o reply error code to indicate the client known failure vector
 	 * version is mismatch with the server's.
 	 */
-	C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH = -1001;
+	C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH = -1001
 };
 
+/**
+ * Initializes the pool machine. This will create a shared reqh key
+ * and call c2_poolmach_init() internally.
+ */
+int c2_ios_poolmach_init(struct c2_reqh *reqh);
+
+/**
+ * Gets the shared pool machine.
+ */
+struct c2_poolmach *c2_ios_poolmach_get(struct c2_reqh *reqh);
+
+/**
+ * Finializes the pool machine when it is no longer used.
+ */
+void c2_ios_poolmach_fini(struct c2_reqh *reqh);
 
 /** @} */ /* io_calls_params_dldDFS end group */
 

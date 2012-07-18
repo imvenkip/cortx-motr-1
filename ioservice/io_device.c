@@ -223,10 +223,79 @@
 
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include "lib/errno.h"
+#include "ioservice/io_device.h"
+#include "pool/pool.h"
+#include "reqh/reqh.h"
+
 /**
    @addtogroup io_calls_params_dldDFS
    @{
  */
+
+
+static bool poolmach_is_initialised = false;
+static unsigned poolmach_key = 0;
+
+int c2_ios_poolmach_init(struct c2_reqh *reqh)
+{
+	int                 rc;
+	struct c2_poolmach *poolmach;
+
+	C2_PRE(reqh != NULL);
+	C2_PRE(!poolmach_is_initialised);
+
+	c2_rwlock_write_lock(&reqh->rh_rwlock);
+	poolmach_key = c2_reqh_key_init();
+
+	poolmach = c2_reqh_key_find(reqh, poolmach_key, sizeof *poolmach);
+	if (poolmach == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
+
+	rc = c2_poolmach_init(poolmach, reqh->rh_dtm);
+	if (rc != 0) {
+		c2_reqh_key_fini(reqh, poolmach_key);
+		goto out;
+	}
+	poolmach_is_initialised = true;
+
+out:
+	c2_rwlock_write_unlock(&reqh->rh_rwlock);
+	return rc;
+}
+
+struct c2_poolmach *c2_ios_poolmach_get(struct c2_reqh *reqh)
+{
+	struct c2_poolmach *pm;
+
+	C2_PRE(reqh != NULL);
+	C2_PRE(poolmach_is_initialised);
+	C2_PRE(poolmach_key != 0);
+
+	pm = c2_reqh_key_find(reqh, poolmach_key, sizeof *pm);
+	C2_POST(pm != NULL);
+	return pm;
+}
+
+void c2_ios_poolmach_fini(struct c2_reqh *reqh)
+{
+	struct c2_poolmach *pm;
+	C2_PRE(reqh != NULL);
+
+	c2_rwlock_write_lock(&reqh->rh_rwlock);
+	pm = c2_reqh_key_find(reqh, poolmach_key, sizeof *pm);
+	c2_poolmach_fini(pm);
+	c2_reqh_key_fini(reqh, poolmach_key);
+	poolmach_is_initialised = false;
+	poolmach_key = 0;
+	c2_rwlock_write_unlock(&reqh->rh_rwlock);
+}
 
 /** @} */ /* end of io_calls_params_dldDFS */
 

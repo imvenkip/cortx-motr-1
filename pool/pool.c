@@ -23,6 +23,7 @@
 
 #include "stob/stob.h"
 #include "pool/pool.h"
+#include "lib/misc.h"
 
 /**
    @addtogroup pool
@@ -30,6 +31,13 @@
    XXX Stub code for now.
    @{
  */
+
+C2_TL_DESCR_DEFINE(poolmach_events, "pool machine events list", static,
+                   struct c2_pool_event, pe_linkage, pe_magic,
+                   C2_POOL_EVENTS_LIST_MAGIC, C2_POOL_EVENTS_HEAD_MAGIC);
+
+C2_TL_DEFINE(poolmach_events, static, struct c2_pool_event);
+
 
 int c2_pool_init(struct c2_pool *pool, uint32_t width)
 {
@@ -64,6 +72,33 @@ int c2_pools_init(void)
 void c2_pools_fini(void)
 {
 }
+
+int  c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm)
+{
+	C2_PRE(!pm->pm_is_initialised);
+
+	/* TODO Init pool machine, build its state from persistent storage
+	 * This involves to read latest pool machine state from storage,
+	 * and build its state transit history (represented by list of events).
+	 */
+	C2_SET0(&pm->pm_state);
+	poolmach_events_tlist_init(&pm->pm_state.pst_events_list);
+
+	c2_rwlock_init(&pm->pm_lock);
+	pm->pm_is_initialised = true;
+	return 0;
+}
+
+void c2_poolmach_fini(struct c2_poolmach *pm)
+{
+	c2_rwlock_write_lock(&pm->pm_lock);
+	/* TODO Sync the pool machine state onto persistent storage */
+	c2_rwlock_write_unlock(&pm->pm_lock);
+
+	pm->pm_is_initialised = false;
+	c2_rwlock_fini(&pm->pm_lock);
+}
+
 
 /** @} end group pool */
 
