@@ -25,6 +25,7 @@
 
 #include "lib/vec.h"                /* c2_bufvec_cursor */
 #include "lib/types.h"              /* c2_bcount_t */
+#include "xcode/xcode_attr.h"       /* C2_XC_ATTR */
 
 /**
    @defgroup xcode

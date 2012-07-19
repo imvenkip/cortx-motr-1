@@ -1,5 +1,23 @@
 #!/usr/bin/perl
 
+# COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+#
+# THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+# HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+# LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+# THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+# BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+# USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+# EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+#
+# YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+# THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+# http://www.xyratex.com/contact
+#
+# Original author: Dmitriy Chumak <dmitriy_chumak@xyratex.com>
+# Original creation date: 18-Jul-2012
+
+
 # This script generates c2 xcode data from gccxml's output.
 
 # For detailed description and usage information please refer to the POD
@@ -820,36 +838,36 @@ this script to extract additional high-level information about C structures.
   [] (opaque): __attribute__((gccxml("xc_opaque","c2_package_cred_get")))
   : (tag):     __attribute__((gccxml("xc_tag","NR")))
 
+There is a shorthand macros in xcode/xcode_attr.h: C2_XCA_XXX(). They
+should be used instead of bare __attribute__((gccxml(...))):
+
+  record:      C2_XCA_RECORD
+  sequence:    C2_XCA_SEQUENCE
+  union:       C2_XCA_UNION
+  [] (opaque): C2_XCA_OPAQUE("c2_package_cred_get")
+  : (tag):     C2_XCA_TAG("NR")
+
 Here are some simple examples:
 
   struct fid {
-    uint64_t f_container;
-    struct c2_cred *p_cred __attribute__((gccxml("xc_opaque","c2_package_cred_get")));
-    uint64_t f_offset;
-  } __attribute__((gccxml("xc_atype","C2_XA_RECORD")));
+    uint64_t        f_container;
+    struct c2_cred *p_cred C2_XCA_OPAQUE("c2_package_cred_get");
+    uint64_t        f_offset;
+  } C2_XCA_RECORD;
 
   struct optfid {
      uint8_t o_flag;
      union {
-        struct fid o_fid __attribute__((gccxml("xc_tag","1")));
-        uint32_t o_short __attribute__((gccxml("xc_tag","3")));
+        struct fid  o_fid   C2_XCA_TAG("1");
+        uint32_t    o_short C2_XCA_TAG("3");
      } u;
-  } __attribute__((gccxml("xc_atype","C2_XA_UNION")));
+  } C2_XCA_UNION;
 
 This script generates xcode data only for global C structures which have
 either record, sequence or union gccxml attribute. All other structures
 without gccxml attribute are ignored. Structures can be defined inside other
 structures, but they still have to used gccxml attribute if they need to be
 processed.
-
-There is a shorthand macro in xcode/xcode_attr.h: C2_XC_ATTR(name, value). It
-can be used instead of __attribute__((gccxml(...))). Note, that it automatically
-prepends "xc_" part to the attribute name:
-
-  struct fixarray {
-      c2_void_t       fa_none C2_XC_ATTR("tag","NR");
-      struct optfid  *fa_data;
-  } C2_XC_ATTR("atype","C2_XA_SEQUENCE");
 
 =head2 Gccxml output format
 

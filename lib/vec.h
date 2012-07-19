@@ -25,6 +25,7 @@
 
 #include "lib/types.h"
 #include "lib/buf.h"
+#include "xcode/xcode_attr.h"
 
 #ifdef __KERNEL__
 #include "lib/linux_kernel/vec.h"
@@ -46,7 +47,7 @@ struct c2_vec {
 	uint32_t     v_nr;
 	/** array of segment counts */
 	c2_bcount_t *v_count;
-};
+} C2_XCA_RECORD;
 
 /** Returns total count of vector */
 c2_bcount_t c2_vec_count(const struct c2_vec *vec);
