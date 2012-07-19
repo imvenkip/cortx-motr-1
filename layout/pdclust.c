@@ -137,7 +137,9 @@ static bool pdclust_invariant(const struct c2_pdclust_layout *pl)
 		c2_pdclust_layout_bob_check(pl) &&
 		c2_layout__striped_invariant(&pl->pl_base) &&
 		pl->pl_C * (pl->pl_attr.pa_N + 2 * pl->pl_attr.pa_K) ==
-		pl->pl_L * pl->pl_attr.pa_P;
+		pl->pl_L * pl->pl_attr.pa_P &&
+		pl->pl_base.sl_enum->le_ops->leo_nr(pl->pl_base.sl_enum) ==
+		pl->pl_attr.pa_P;
 }
 
 static bool pdclust_instance_invariant(const struct c2_pdclust_instance *pi)

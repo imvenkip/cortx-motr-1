@@ -619,9 +619,10 @@ static int list_encode(const struct c2_layout_enum *e,
 	nbytes = c2_bufvec_cursor_copyto(out, &ce_header, sizeof ce_header);
 	C2_ASSERT(nbytes == sizeof ce_header);
 
-	num_inline = op == C2_LXO_BUFFER_OP ? ce_header.ces_nr :
+	num_inline = op == C2_LXO_BUFFER_OP ? list_enum->lle_nr :
 		min_check(list_enum->lle_nr,
 			  (uint32_t)LDB_MAX_INLINE_COB_ENTRIES);
+
 	C2_ASSERT(c2_bufvec_cursor_step(out) >= num_inline *
 					sizeof list_enum->lle_list_of_cobs[0]);
 

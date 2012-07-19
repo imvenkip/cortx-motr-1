@@ -130,9 +130,10 @@ struct c2_layout_pdclust_rec {
  * Extension of the generic c2_striped_layout for the parity de-clustered
  * layout type.
  *
- * @invariant pdl->pl_base.sl_enum->leo_nr() == pdl->pl_attr.pa_P todo
- * @invariant pdl->pl_L * pdl->pl_attr.pa_P ==
-	      pdl->pl_C * (pdl->pl_attr.pa_N + 2 * pdl->pl_attr.pa_K)
+ * @invariant pdl->pl_C * (pdl->pl_attr.pa_N + 2 * pdl->pl_attr.pa_K) ==
+ *            pdl->pl_L * pdl->pl_attr.pa_P
+ * @invariant pdl->pl_base.sl_enum->le_ops->leo_nr(pdl->pl_base.sl_enum) ==
+ *            pdl->pl_attr.pa_P
  * @todo liveness rules
  * @todo concurrency control
  */

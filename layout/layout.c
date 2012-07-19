@@ -1091,8 +1091,6 @@ void c2_layout__instance_init(struct c2_layout_instance *li,
 	li->li_gfid = *gfid;
 	li->li_ops = ops;
 	c2_layout_instance_bob_init(li);
-	C2_POST(li->li_gfid.f_container == gfid->f_container &&
-		li->li_gfid.f_key == gfid->f_key ); //todo rm
 	C2_POST(c2_layout__instance_invariant(li));
 }
 
@@ -1100,7 +1098,6 @@ void c2_layout__instance_fini(struct c2_layout_instance *li)
 {
 	C2_PRE(c2_layout__instance_invariant(li));
 	c2_layout_instance_bob_fini(li);
-	C2_POST(!c2_layout__instance_invariant(li)); //todo rm
 }
 /** @} end group layout */
 
