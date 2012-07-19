@@ -80,7 +80,7 @@ int c2t1fs_init(void)
 	C2_ENTRY();
 
 	c2t1fs_globals.g_laddr = local_addr;
-	
+
 	rc = c2_ioservice_fop_init();
 	if (rc != 0)
 		goto out;

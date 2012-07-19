@@ -5,7 +5,7 @@
 Detailed designs, ordered alphabetically:
 
 - @subpage c2t1fs "C2T1FS detailed level design specification"
-           <!-- c2t1fs/main.c -->
+           <!-- c2t1fs/linux_kernel/c2t1fs.h -->
 - @subpage conf
            <!-- conf/obj.c -->
 - @subpage DLD_conf_schema "DLD for configuration schema"
