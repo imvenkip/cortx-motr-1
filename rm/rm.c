@@ -146,6 +146,8 @@ static struct c2_rm_resource *resource_find(const struct c2_rm_resource_type *rt
 {
 	struct c2_rm_resource *scan;
 
+	C2_PRE(rt->rt_ops->rto_eq != NULL);
+
 	c2_tlist_for(&res_tl, (struct c2_tl *)&rt->rt_resources, scan) {
 		if (rt->rt_ops->rto_eq(res, scan))
 			break;
@@ -190,12 +192,10 @@ void c2_rm_type_deregister(struct c2_rm_resource_type *rtype)
 
 	dom->rd_types[rtype->rt_id] = NULL;
 	rtype->rt_dom = NULL;
-	rtype->rt_id = C2_RM_RESOURCE_TYPE_ID_INVALID;
 	res_tlist_fini(&rtype->rt_resources);
 	c2_mutex_fini(&rtype->rt_lock);
 	c2_mutex_unlock(&dom->rd_lock);
 
-	C2_POST(rtype->rt_id == C2_RM_RESOURCE_TYPE_ID_INVALID);
 	C2_POST(rtype->rt_dom == NULL);
 }
 C2_EXPORTED(c2_rm_type_deregister);
@@ -269,7 +269,6 @@ static void owner_init_internal(struct c2_rm_owner *owner,
 	C2_POST(owner_invariant(owner));
 }
 
-
 void c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res,
 		      struct c2_rm_remote *creditor)
 {
@@ -291,7 +290,8 @@ int c2_rm_owner_selfadd(struct c2_rm_owner *owner, struct c2_rm_right *r)
 	struct c2_rm_loan *nominal_capital;
 	int                rc;
 
-	C2_PRE((C2_IN(owner->ro_state,(ROS_INITIALISING, ROS_ACTIVE))));
+	C2_PRE(C2_IN(owner->ro_state, (ROS_INITIALISING, ROS_ACTIVE)));
+	C2_PRE(r != NULL);
 	C2_PRE(r->ri_owner == owner);
 	/* Owner must be "top-most" */
 	C2_PRE(owner->ro_creditor == NULL);
@@ -310,9 +310,8 @@ int c2_rm_owner_selfadd(struct c2_rm_owner *owner, struct c2_rm_right *r)
 		rc = -ENOMEM;
 
 	C2_POST(ergo(rc == 0,
-		     (owner->ro_state == ROS_INITIALISING ||
-		      owner->ro_state == ROS_ACTIVE) &&
-		      ur_tlist_contains(&owner->ro_owned[OWOS_CACHED], r) &&
+		     C2_IN(owner->ro_state, (ROS_INITIALISING, ROS_ACTIVE)) &&
+		     ur_tlist_contains(&owner->ro_owned[OWOS_CACHED], r) &&
 		     owner_invariant(owner)));
 	return rc;
 }
@@ -338,7 +337,7 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 	struct c2_rm_right    *right;
 	struct c2_rm_loan     *loan;
 	struct c2_rm_incoming  in;
-	int		       rc;
+	int		       rc = 0;
 	int		       i;
 
 	C2_PRE(C2_IN(owner->ro_state, (ROS_ACTIVE, ROS_FINALISING)));
@@ -422,8 +421,7 @@ void c2_rm_owner_fini(struct c2_rm_owner *owner)
 
 	C2_PRE(owner->ro_state == ROS_FINAL);
 	C2_PRE(owner_invariant(owner));
-	C2_PRE((ur_tlist_length(&owner->ro_borrowed) > 0) ==
-	       (owner->ro_creditor == NULL));
+	C2_PRE(owner->ro_creditor == NULL);
 
 	RM_OWNER_LISTS_FOR(owner, ur_tlist_fini);
 	owner->ro_resource = NULL;
@@ -436,6 +434,8 @@ C2_EXPORTED(c2_rm_owner_fini);
 void c2_rm_right_init(struct c2_rm_right *right, struct c2_rm_owner *owner)
 {
 	C2_PRE(right != NULL);
+	C2_PRE(owner->ro_resource->r_ops != NULL);
+	C2_PRE(owner->ro_resource->r_ops->rop_right_init != NULL);
 
 	right->ri_datum = 0;
 	ur_tlink_init(right);
@@ -975,6 +975,8 @@ static void incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 {
 	C2_PRE(c2_mutex_is_locked(&in->rin_want.ri_owner->ro_lock));
 	C2_PRE(C2_IN(in->rin_state, (RI_INITIALISED, RI_CHECK)));
+	C2_PRE(in->rin_ops != NULL);
+	C2_PRE(in->rin_ops->rio_complete != NULL);
 	C2_PRE(in->rin_rc == 0);
 	C2_PRE(rc <= 0);
 
@@ -1224,8 +1226,9 @@ static bool right_invariant(const struct c2_rm_right *right, void *data)
 		(struct owner_invariant_state *) data;
 	return
 		/* only held rights have PROTECT pins */
-		(is->is_phase == OIS_OWNED /* && owos == OWOS_HELD*/) ==
-		(right_pin_nr(right, C2_RPF_PROTECT) > 0) &&
+		ergo((is->is_phase == OIS_OWNED &&
+		      is->is_owned_idx == OWOS_HELD),
+		     right_pin_nr(right, C2_RPF_PROTECT) > 0) &&
 		ergo(is->is_phase == OIS_INCOMING,
 		     incoming_invariant(container_of(right,
 						     struct c2_rm_incoming,
@@ -1239,7 +1242,6 @@ static bool owner_invariant_state(const struct c2_rm_owner *owner,
 				  struct owner_invariant_state *is)
 {
 	struct c2_rm_right *right;
-	int		    rc;
 	int		    i;
 	int		    j;
 
@@ -1273,22 +1275,21 @@ static bool owner_invariant_state(const struct c2_rm_owner *owner,
 	is->is_phase = OIS_OWNED;
 	for (i = 0; i < ARRAY_SIZE(owner->ro_owned); ++i) {
 		is->is_owned_idx = i;
-		if (ur_tlist_invariant_ext(&owner->ro_owned[i],
+		if (!ur_tlist_invariant_ext(&owner->ro_owned[i],
 					   &right_invariant, (void *)is))
 		    return false;
 	}
 	is->is_phase = OIS_INCOMING;
 	for (i = 0; i < ARRAY_SIZE(owner->ro_incoming); ++i) {
 		for (j = 0; j < ARRAY_SIZE(owner->ro_incoming[i]); ++j) {
-			if (ur_tlist_invariant(&owner->ro_incoming[i][j]))
+			if (!ur_tlist_invariant(&owner->ro_incoming[i][j]))
 				return false;
 		}
 	}
 
 	/* Calculate debit */
 	c2_tlist_for(&ur_tl, &owner->ro_borrowed, right) {
-		rc = right->ri_ops->rro_join(&is->is_debit, right);
-		if (rc != 0)
+		if(!right->ri_ops->rro_join(&is->is_debit, right))
 			return false;
 	} c2_tlist_endfor;
 
@@ -1296,14 +1297,12 @@ static bool owner_invariant_state(const struct c2_rm_owner *owner,
 	for (i = 0; i < ARRAY_SIZE(owner->ro_owned); ++i) {
 		is->is_owned_idx = i;
 		c2_tlist_for(&ur_tl, &owner->ro_owned[i], right) {
-			rc = right->ri_ops->rro_join(&is->is_credit, right);
-			if (rc != 0)
+			if(!right->ri_ops->rro_join(&is->is_credit, right))
 				return false;
 		} c2_tlist_endfor;
 	}
 	c2_tlist_for(&ur_tl, &owner->ro_sublet, right) {
-		rc = right->ri_ops->rro_join(&is->is_credit, right);
-		if (rc != 0)
+		if(right->ri_ops->rro_join(&is->is_credit, right))
 			return false;
 	} c2_tlist_endfor;
 

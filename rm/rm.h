@@ -1431,6 +1431,18 @@ void c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res,
 int c2_rm_owner_selfadd(struct c2_rm_owner *owner, struct c2_rm_right *r);
 
 /**
+   Retire the owner before finalising it. This function will revoke sublets
+   and give up loans.
+
+   @pre owner->ro_state == ROS_ACTIVE || ROS_FINALISING
+   @see c2_rm_owner_fini
+
+   @ret -EBUSY - If rights are under use.
+        0      - If all rights are finalised.
+ */
+int c2_rm_owner_retire(struct c2_rm_owner *owner);
+
+/**
    Finalises the owner. Dual to c2_rm_owner_init().
 
    @pre owner->ro_state == ROS_FINAL
