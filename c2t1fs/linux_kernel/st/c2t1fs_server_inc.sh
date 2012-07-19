@@ -1,33 +1,40 @@
-COLIBRI_NET_DOMAIN=lnet
-COLIBRI_SERVICE_NAME=ioservice
-COLIBRI_STOB_DOMAIN=linux
-COLIBRI_DB_PATH=$COLIBRI_C2T1FS_TEST_DIR/db
-COLIBRI_STOB_PATH=$COLIBRI_C2T1FS_TEST_DIR/stobs
-
 colibri_service()
 {
         prog=$COLIBRI_CORE_ROOT/colibri/colibri_setup
         exec=$COLIBRI_CORE_ROOT/colibri/.libs/lt-colibri_setup
-        prog_args="-r -T $COLIBRI_STOB_DOMAIN -D $COLIBRI_DB_PATH
-		   -S $COLIBRI_STOB_PATH
-		   -e $COLIBRI_NET_DOMAIN:$COLIBRI_IOSERVICE_ENDPOINT
-		   -s $COLIBRI_SERVICE_NAME
-		   -q $TM_MIN_RECV_QUEUE_LEN
-                   -m $MAX_RPC_MSG_SIZE"
 
 	. /etc/rc.d/init.d/functions
 
 	start() {
 		prepare
-		$prog $prog_args &>>/dev/null &
-		sleep 1
-		status $exec
-		if [ $? -eq 0 ]; then
-			echo "Colibri service started."
-		else
-			echo "Colibri service failed to start."
-			return 1
-		fi
+
+		IOS=""
+		# spawn servers
+		for ((i=0; i < ${#EP[*]}; i++)) ; do
+			if ((i != 0)) ; then
+				IOS="$IOS,"
+		        fi
+		        IOS="${IOS}ios=${lnet_nid}:${EP[$i]}"
+			rm -rf $COLIBRI_C2T1FS_TEST_DIR/d$i
+			mkdir $COLIBRI_C2T1FS_TEST_DIR/d$i
+			(cd $COLIBRI_C2T1FS_TEST_DIR/d$i
+			 $prog -r -T $COLIBRI_STOB_DOMAIN \
+			 -D $COLIBRI_C2T1FS_TEST_DIR/d$i/db \
+		         -S $COLIBRI_C2T1FS_TEST_DIR/d$i/stobs \
+			 -e $XPT:${lnet_nid}:${EP[$i]} \
+			 -s $COLIBRI_SERVICE_NAME -m $MAX_RPC_MSG_SIZE \
+			 -q $TM_MIN_RECV_QUEUE_LEN \
+			     &>>$COLIBRI_C2T1FS_TEST_DIR/servers_started )&
+
+			sleep 1
+			status $exec
+			if [ $? -eq 0 ]; then
+				echo "Colibri service started."
+			else
+				echo "Colibri service failed to start."
+				return 1
+			fi
+		done
 	}
 
 	stop() {

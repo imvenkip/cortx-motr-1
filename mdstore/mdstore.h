@@ -23,8 +23,9 @@
 #ifndef __COLIBRI_MDSTORE_MDSTORE_H__
 #define __COLIBRI_MDSTORE_MDSTORE_H__
 
+#include "cob/cob.h"
+
 struct c2_cob_domain_id;
-struct c2_cob_domain;
 struct c2_stob_id;
 struct c2_db_tx;
 struct c2_dbenv;

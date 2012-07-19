@@ -35,7 +35,7 @@
 #include "stob/linux.h"
 #include "net/net.h"
 #include "net/lnet/lnet.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "reqh/reqh.h"
 #include "cob/cob.h"
 #include "mdstore/mdstore.h"

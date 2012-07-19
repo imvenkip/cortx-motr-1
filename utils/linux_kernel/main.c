@@ -39,6 +39,7 @@ extern const struct c2_test_suite c2_net_bulk_mem_ut;
 extern const struct c2_test_suite c2_net_lnet_ut;
 extern const struct c2_test_suite c2_net_tm_prov_ut;
 extern const struct c2_test_suite conn_ut;
+extern const struct c2_test_suite file_io_ut;
 extern const struct c2_test_suite frm_ut;
 extern const struct c2_test_suite layout_ut;
 extern const struct c2_test_suite rpc_mc_ut;
@@ -58,6 +59,7 @@ static void run_kernel_ut(int ignored)
 	c2_uts_init();
 	/* sort test suites in alphabetic order */
 	c2_ut_add(&c2_klibc2_ut);  /* test lib first */
+	c2_ut_add(&file_io_ut);
 	c2_ut_add(&buffer_pool_ut);
 	c2_ut_add(&bulkio_client_ut);
 	c2_ut_add(&c2_loop_ut);

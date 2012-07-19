@@ -26,7 +26,7 @@
 
 #include "lib/list.h"
 #include "fop/fop.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 
 /**
    @page bulkclient-fspec Functional Specification for fop bulk client.
@@ -245,8 +245,15 @@ static inline struct c2_net_transfer_mc *io_fop_tm_get(const struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 
-	return &fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm;
+	return &(item_machine(&fop->f_item)->rm_tm);
 }
+
+size_t c2_io_fop_size_get(struct c2_fop *fop);
+
+void c2_io_item_free(struct c2_rpc_item *item);
+
+/* Returns the number of bytes to be read/written. */
+c2_bcount_t c2_io_fop_byte_count(struct c2_io_fop *iofop);
 
 /* __COLIBRI_IOSERVICE_IO_FOPS_H__ */
 #endif

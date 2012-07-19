@@ -1,4 +1,4 @@
-CORE_SRCDIR     = @SRCDIR@
+CORE_SRCDIR     = @abs_top_srcdir@
 BUILD_DIR       = $(CORE_SRCDIR)/build_kernel_modules
 KERNEL_BUILDDIR = @LINUX_OBJ@
 
@@ -11,7 +11,8 @@ testdirs        = ../net/lnet/st/linux_kernel/                  \
                   ../rpc/it/linux_kernel/                       \
                   ../utils/linux_kernel/
 
-EXTRA_CFLAGS    = -DHAVE_CONFIG_H -iquote . -iquote $(CORE_SRCDIR) @KCFLAGS@  \
+EXTRA_CFLAGS    = -DHAVE_CONFIG_H -iquote . -iquote $(CORE_SRCDIR) \
+		  @C2_KCPPFLAGS@ @C2_KCFLAGS@ @KCFLAGS@ \
 		  -I@LUSTRE@/lnet/include -I@LUSTRE@/libcfs/include
 
 #       NOTE:
@@ -82,7 +83,8 @@ addb_linux_kernel_SOURCES       := addb_console.c
 #       If there's a directory 'd' in $(dirs) then the listing of files given
 #       for d_SOURCES is relative to $(CORE_SRCDIR)/d;
 
-c2t1fs_linux_kernel_SOURCES     := c2t1fs.c super.c inode.c dir.c file.c
+c2t1fs_linux_kernel_SOURCES     := c2t1fs.c super.c inode.c dir.c
+c2t1fs_linux_kernel_ut_SOURCES  := file.c
 
 c2t1fs_linux_kernel_c2loop_SOURCES     := c2loop.c
 c2t1fs_linux_kernel_ut_c2loop_SOURCES  := c2loop.c
@@ -125,7 +127,7 @@ lib_SOURCES                     := bitstring.c getopts.c vec.c list.c queue.c  \
 				   refs.c time.c bitmap.c chan.c misc.c buf.c  \
 				   cond.c thread.c tlist.c bob.c trace.c       \
 				   finject.c vec_xc.c vec.c buf_xc.c buf.c     \
-				   c2lib.c cookie.c
+				   c2lib.c cookie.c ext.c
 
 lib_HEADERS                     := vec.h vec_xc.h buf.h buf_xc.h
 
@@ -166,7 +168,7 @@ pool_SOURCES                    := pool.c
 
 reqh_SOURCES                    := reqh.c reqh_service.c
 
-rpc_SOURCES                     := rpc2.c service.c \
+rpc_SOURCES                     := rpc.c service.c \
                                    session.c session_foms.c conn.c slot.c \
                                    session_utils.c session_fops.c \
                                    rpc_onwire.c session_ff.c rpclib.c \
@@ -273,7 +275,7 @@ uninstall:
 dist distdir:
 	cp -v dummy_init_fini.[ch] main.c Makefile.in \
 		lustre_config.h Lustre.symvers \
-		@top_builddir@/@PACKAGE@-@VERSION@/build_kernel_modules
+		@top_builddir@/@PACKAGE@-@PACKAGE_VERSION@/build_kernel_modules
 
 clean distclean:
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd` clean

@@ -216,13 +216,13 @@ extern const char C2_COB_ROOT_NAME[];
 extern const char C2_COB_SESSIONS_NAME[];
 
 /* Grobal cob root fid. */
-extern struct c2_fid C2_COB_ROOT_FID;
+extern const struct c2_fid C2_COB_ROOT_FID;
 
 /* Hierarchy root fid (exposed to user). */
-extern struct c2_fid C2_COB_SLASH_FID;
+extern const struct c2_fid C2_COB_SLASH_FID;
 
 /* Root sessions cob fid. */
-extern struct c2_fid C2_COB_SESSIONS_FID;
+extern const struct c2_fid C2_COB_SESSIONS_FID;
 
 /**
    Unique cob domain identifier.

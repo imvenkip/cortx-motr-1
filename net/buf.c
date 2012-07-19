@@ -22,6 +22,7 @@
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/time.h"
+#include "lib/finject.h"
 #include "colibri/magic.h"
 #include "net/net_internal.h"
 
@@ -94,6 +95,10 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
 
 	C2_PRE(dom != NULL);
 	C2_PRE(dom->nd_xprt != NULL);
+
+	if (C2_FI_ENABLED("fake_error"))
+		return -EINVAL;
+
 	c2_mutex_lock(&dom->nd_mutex);
 
 	C2_PRE(buf != NULL &&
@@ -269,6 +274,8 @@ int c2_net_buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 {
 	int rc;
 	C2_PRE(tm != NULL);
+	if (C2_FI_ENABLED("fake_error"))
+		return -EMSGSIZE;
 	c2_mutex_lock(&tm->ntm_mutex);
 	rc = c2_net__buffer_add(buf, tm);
 	c2_mutex_unlock(&tm->ntm_mutex);

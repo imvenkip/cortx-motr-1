@@ -31,15 +31,13 @@
 #include "lib/arith.h"
 #include "lib/bitstring.h"
 #include "lib/finject.h"       /* C2_FI_ENABLED */
-#include "rpc/session.h"
 #include "cob/cob.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
-#include "rpc/session_ff.h"
-#include "rpc/session_fops.h"
-#include "rpc/session_internal.h"
-#include "rpc/rpc_machine.h"
 #include "db/db.h"
+
+#include "rpc/rpc.h"
+#include "rpc/rpc_internal.h"
 
 /**
    @addtogroup rpc_session
@@ -57,13 +55,9 @@ void c2_rpc_session_module_fini(void)
         c2_rpc_session_fop_fini();
 }
 
-void c2_rpc_sender_uuid_generate(struct c2_rpc_sender_uuid *u)
+void c2_rpc_sender_uuid_get(struct c2_rpc_sender_uuid *u)
 {
-	/* XXX temporary */
-	uint64_t  rnd;
-
-	rnd = c2_time_nanoseconds(c2_time_now()) * 1000;
-	u->su_uuid = c2_rnd(~0ULL >> 16, &rnd);
+	u->su_uuid = uuid_generate();
 }
 
 int c2_rpc_sender_uuid_cmp(const struct c2_rpc_sender_uuid *u1,
@@ -92,11 +86,12 @@ int c2_rpc__fop_post(struct c2_fop                *fop,
 
 	C2_ENTRY("fop: %p, session: %p", fop, session);
 
-	item              = &fop->f_item;
-	item->ri_session  = session;
-	item->ri_prio     = C2_RPC_ITEM_PRIO_MAX;
-	item->ri_deadline = 0;
-	item->ri_ops      = ops;
+	item                = &fop->f_item;
+	item->ri_session    = session;
+	item->ri_prio       = C2_RPC_ITEM_PRIO_MAX;
+	item->ri_deadline   = 0;
+	item->ri_ops        = ops;
+	item->ri_op_timeout = c2_time_from_now(10, 0);
 
 	rc = c2_rpc__post_locked(item);
 	C2_RETURN(rc);
@@ -277,7 +272,7 @@ void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 		C2_ASSERT(ctx != NULL);
 		rpcmach = ctx->cec_rpc_machine;
 	} else
-		rpcmach = item->ri_session->s_conn->c_rpc_machine;
+		rpcmach = item_machine(item);
 
 	C2_ASSERT(rpcmach != NULL);
 
@@ -290,3 +285,5 @@ void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 #endif
 	C2_LEAVE();
 }
+
+/** @} */

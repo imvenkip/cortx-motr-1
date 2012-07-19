@@ -25,13 +25,23 @@
 #ifndef __COLIBRI_RPC_ITEM_H__
 #define __COLIBRI_RPC_ITEM_H__
 
-#include "rpc/session_internal.h"
+#include "lib/types.h"             /* c2_bcount_t */
+#include "lib/tlist.h"
+#include "lib/list.h"
+#include "lib/time.h"
+#include "sm/sm.h"                 /* c2_sm */
+#include "rpc/rpc_onwire.h"        /* c2_rpc_onwire_slot_ref */
 
 /**
-   @addtogroup rpc_layer_core
+   @addtogroup rpc
 
    @{
  */
+
+/* Imports */
+struct c2_rpc_slot;
+struct c2_rpc_session;
+struct c2_bufvec_cursor;
 
 /* Forward declarations */
 struct c2_rpc_item_ops;
@@ -45,23 +55,58 @@ enum c2_rpc_item_priority {
 };
 
 enum c2_rpc_item_state {
-	/** Newly allocated object is in uninitialized state */
-	RPC_ITEM_UNINITIALIZED = 0,
-	/** After successful initialization item enters to "in use" state */
-	RPC_ITEM_IN_USE = (1 << 0),
-	/** After item's added to the formation cache */
-	RPC_ITEM_SUBMITTED = (1 << 1),
-	/** After item's added to an RPC it enters added state */
-	RPC_ITEM_ADDED = (1 << 2),
-	/** After item's sent  it enters sent state */
-	RPC_ITEM_SENT = (1 << 3),
-	/** After item's sent is failed, it enters send failed state */
-	RPC_ITEM_SEND_FAILED = (1 << 4),
-	/** After item's replied  it enters replied state */
-	RPC_ITEM_REPLIED = (1 << 5),
-	/** After finalization item enters finalized state*/
-	RPC_ITEM_FINALIZED = (1 << 6)
+	C2_RPC_ITEM_UNINITIALISED,
+	C2_RPC_ITEM_INITIALISED,
+	/**
+	 * On sender side when a bound item is posted to RPC, the item
+	 * is kept in slot's item stream. The item remains in this state
+	 * until slot forwards this item to formation.
+	 * @see __slot_balance()
+	 */
+	C2_RPC_ITEM_WAITING_IN_STREAM,
+	/**
+	 * Item is in one of the queues maintained by formation.
+	 * The item is waiting to be selected by formation machine for sending
+	 * on the network.
+	 */
+	C2_RPC_ITEM_ENQUEUED,
+	/**
+	 * Item is serialised in a network buffer and the buffer is submitted
+	 * to network layer for sending.
+	 */
+	C2_RPC_ITEM_SENDING,
+	/**
+	 * The item is successfully placed on the network.
+	 * Note that it does not state anything about whether the item is
+	 * received or not.
+	 */
+	C2_RPC_ITEM_SENT,
+	/**
+	 * Only request items which are successfully sent over the wire
+	 * can be in this state. Request item in this state is expecting a
+	 * reply.
+	 */
+	C2_RPC_ITEM_WAITING_FOR_REPLY,
+	/**
+	 * When a reply is received for a request item, RPC moves the request
+	 * item to REPLIED state.
+	 */
+	C2_RPC_ITEM_REPLIED,
+	/**
+	 * Received item is valid and is accepted.
+	 */
+	C2_RPC_ITEM_ACCEPTED,
+	/**
+	 * Operation is timedout.
+	 */
+	C2_RPC_ITEM_TIMEDOUT,
+	/**
+	 * Item is failed.
+	 */
+	C2_RPC_ITEM_FAILED,
+	C2_RPC_ITEM_NR_STATES,
 };
+
 /** Stages of item in slot */
 enum c2_rpc_item_stage {
 	/** the reply for the item was received and the receiver confirmed
@@ -72,6 +117,11 @@ enum c2_rpc_item_stage {
 	/** the item was sent (i.e., placed into an rpc) and no reply is
 	    received */
 	RPC_ITEM_STAGE_IN_PROGRESS,
+	/** Operation is timedout. Uncertain whether receiver has processed
+	    the request or not. */
+	RPC_ITEM_STAGE_TIMEDOUT,
+	/** Failed to send the item */
+	RPC_ITEM_STAGE_FAILED,
 	/** the item is not sent */
 	RPC_ITEM_STAGE_FUTURE,
 };
@@ -82,6 +132,35 @@ enum {
 };
 
 /**
+   slot_ref object establishes association between c2_rpc_item and
+   c2_rpc_slot. Upto MAX_SLOT_REF number of c2_rpc_slot_ref objects are
+   embeded with c2_rpc_item.
+   At the time item is associated with a slot, values of few slot fields are
+   copied into slot_ref.
+ */
+struct c2_rpc_slot_ref {
+	/** sr_slot and sr_item identify two ends of association */
+	struct c2_rpc_slot           *sr_slot;
+
+	struct c2_rpc_item           *sr_item;
+
+	struct c2_rpc_onwire_slot_ref sr_ow;
+
+	/** Anchor to put item on c2_rpc_slot::sl_item_list
+	    List descriptor: slot_item
+	 */
+	struct c2_tlink               sr_link;
+};
+
+/**
+   RPC item direction.
+ */
+enum c2_rpc_item_dir {
+	C2_RPC_ITEM_INCOMING,
+	C2_RPC_ITEM_OUTGOING,
+};
+
+/**
    A single RPC item, such as a FOP or ADDB Record.  This structure should be
    included in every item being sent via RPC layer core to emulate relationship
    similar to inheritance and to allow extening the set of rpc_items without
@@ -89,11 +168,10 @@ enum {
    @see c2_fop.
  */
 struct c2_rpc_item {
-	struct c2_chan			 ri_chan;
 	enum c2_rpc_item_priority	 ri_prio;
 	c2_time_t			 ri_deadline;
-
-	enum c2_rpc_item_state		 ri_state;
+	c2_time_t                        ri_op_timeout;
+	struct c2_sm                     ri_sm;
 	enum c2_rpc_item_stage		 ri_stage;
 	uint64_t			 ri_flags;
 	struct c2_rpc_session		*ri_session;
@@ -102,11 +180,10 @@ struct c2_rpc_item {
 	struct c2_list_link		 ri_unbound_link;
 	int32_t				 ri_error;
 	/** Pointer to the type object for this item */
-	struct c2_rpc_item_type		*ri_type;
-	/** @deprecated Linkage to the forming list, needed for formation */
-	struct c2_list_link		 ri_rpcobject_linkage;
+	const struct c2_rpc_item_type	*ri_type;
 	/** reply item */
 	struct c2_rpc_item		*ri_reply;
+	struct c2_sm_timeout             ri_timeout;
 	/** item operations */
 	const struct c2_rpc_item_ops	*ri_ops;
 	/** Time spent in rpc layer. */
@@ -135,25 +212,31 @@ struct c2_rpc_item {
 
 struct c2_rpc_item_ops {
 	/**
-	   Called when given item's sent.
-	   @param item reference to an RPC-item sent
-	   @note ri_added() has been called before invoking this function.
+	   RPC layer executes this callback when,
+	   - item is sent over the network;
+	   - or item sending failed in which case item->ri_error != 0.
+
+	   Note that it does not state anything about whether item
+	   is received on receiver or not.
+
+	   IMP: Called with rpc-machine mutex held. Do not reenter in RPC.
 	 */
 	void (*rio_sent)(struct c2_rpc_item *item);
 	/**
-	   Called when given item's replied.
-	   @param item reference to an RPC-item on which reply FOP was received.
+	   RPC layer executes this callback only for request items when,
+	   - a reply is received to the request item;
+	   - or any failure is occured (including timeout) in which case
+	     item->ri_error != 0
 
-	   @note ri_added() and ri_sent() have been called before invoking this
-	   function.
-
-	   c2_rpc_item::ri_error and c2_rpc_item::ri_reply are already set by
-	   the time this method is called.
+	   IMP: Called with rpc-machine mutex held. Do not reenter in RPC.
 	 */
 	void (*rio_replied)(struct c2_rpc_item *item);
 
 	/**
-	   Finalise and free item.
+	   RPC triggers this callback to free the item.
+	   Implementation should call c2_rpc_item_fini() on the item.
+	   Note: item->ri_sm is already finalised.
+
 	   @see c2_fop_default_item_ops
 	   @see c2_fop_item_free(), can be used with fops that are not embedded
 	   in any other object.
@@ -161,37 +244,23 @@ struct c2_rpc_item_ops {
 	void (*rio_free)(struct c2_rpc_item *item);
 };
 
-void c2_rpc_item_init(struct c2_rpc_item *item);
+void c2_rpc_item_init(struct c2_rpc_item *item,
+		      const struct c2_rpc_item_type *itype);
 
 void c2_rpc_item_fini(struct c2_rpc_item *item);
-
-bool c2_rpc_item_is_bound(const struct c2_rpc_item *item);
-
-bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item);
-
-bool c2_rpc_item_is_unsolicited(const struct c2_rpc_item *item);
 
 c2_bcount_t c2_rpc_item_onwire_header_size(void);
 
 c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item);
+struct c2_rpc_machine *item_machine(const struct c2_rpc_item *item);
 
-/**
-   Returns true if item modifies file system state, false otherwise
- */
-bool c2_rpc_item_is_update(const struct c2_rpc_item *item);
+int c2_rpc_item_timedwait(struct c2_rpc_item *item,
+			  uint64_t            states,
+			  c2_time_t           timeout);
 
-/**
-   Returns true if item is request item. False if it is a reply item
- */
-bool c2_rpc_item_is_request(const struct c2_rpc_item *item);
+int c2_rpc_item_wait_for_reply(struct c2_rpc_item *item, c2_time_t timeout);
 
-/**
-    Encodes the rpc item header into a bufvec
-    @param ioh RPC item header to be encoded
-    @param cur Current bufvec cursor position
-    @retval 0 (success)
-    @retval -errno  (failure)
-*/
+void c2_rpc_item_free(struct c2_rpc_item *item);
 
 /** @todo: different callbacks called on events occured while processing
    in update stream */
@@ -214,15 +283,15 @@ struct c2_rpc_item_type_ops {
 				 struct c2_list *list, uint64_t size);
 
 	/**
-	   Serialise @item on provided xdr stream @xdrs
+	   Serialise item at location given by cur.
 	 */
-	int (*rito_encode)(struct c2_rpc_item_type *item_type,
+	int (*rito_encode)(const struct c2_rpc_item_type *item_type,
 		           struct c2_rpc_item *item,
 	                   struct c2_bufvec_cursor *cur);
 	/**
 	   Create in memory item from serialised representation of item
 	 */
-	int (*rito_decode)(struct c2_rpc_item_type *item_type,
+	int (*rito_decode)(const struct c2_rpc_item_type *item_type,
 			   struct c2_rpc_item **item,
 			   struct c2_bufvec_cursor *cur);
 
@@ -234,7 +303,7 @@ struct c2_rpc_item_type_ops {
 /**
    Possible values for c2_rpc_item_type::rit_flags.
    Flags C2_RPC_ITEM_TYPE_REQUEST, C2_RPC_ITEM_TYPE_REPLY and
-   C2_RPC_ITEM_TYPE_UNSOLICITED are mutually exclusive.
+   C2_RPC_ITEM_TYPE_ONEWAY are mutually exclusive.
  */
 enum c2_rpc_item_type_flags {
 	/** Receiver of item is expected to send reply to item of this type */
@@ -248,7 +317,7 @@ enum c2_rpc_item_type_flags {
 	  This is a one-way item. There is no reply for this type of
 	  item
 	*/
-	C2_RPC_ITEM_TYPE_UNSOLICITED = (1 << 2),
+	C2_RPC_ITEM_TYPE_ONEWAY = (1 << 2),
 	/**
 	  Item of this type can modify file-system state on receiver.
 	*/
@@ -264,7 +333,7 @@ struct c2_rpc_item_type {
 	uint32_t			   rit_opcode;
 	/** Operations that can be performed on the type */
 	const struct c2_rpc_item_type_ops *rit_ops;
-	/** see @c2_rpc_item_type_flags */
+	/** @see c2_rpc_item_type_flags */
 	uint64_t			   rit_flags;
 	/** Linkage into rpc item types list (c2_rpc_item_types_list) */
 	struct c2_tlink			   rit_linkage;
@@ -278,15 +347,6 @@ struct c2_rpc_item_type (itype) = {                      \
 	.rit_flags = (flags),                            \
 	.rit_ops = (ops)                                 \
 };
-
-/** Initialises the rpc item types list and lock */
-int c2_rpc_base_init(void);
-
-/**
-  Finalizes and destroys the rpc item type list by traversing the list and
-  deleting and finalizing each element.
-*/
-void c2_rpc_base_fini(void);
 
 /**
   Registers a new rpc item type by adding an entry to the rpc item types list.
@@ -314,7 +374,7 @@ struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode);
 
 #endif
 
-/** @} end of rpc-layer-core group */
+/** @} end of rpc group */
 
 /*
  *  Local variables:

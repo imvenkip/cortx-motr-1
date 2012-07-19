@@ -90,9 +90,15 @@ enum c2_cm_cp_priority {
 	C2_CM_CP_PRIORITY_NR
 };
 
-/** Copy packet FOM generic phases.*/
+/** Distinguishes IO operation for a copy packet. */
+enum c2_cm_cp_io_op {
+	C2_CM_CP_READ,
+	C2_CM_CP_WRITE
+};
+
+/** Copy packet FOM generic phases. */
 enum c2_cm_cp_phase {
-	/** Copy packet specific initialisation.*/
+	/** Copy packet specific initialisation. */
 	C2_CCP_INIT = C2_FOM_PHASE_INIT,
 
 	/**
@@ -101,19 +107,22 @@ enum c2_cm_cp_phase {
 	 */
 	C2_CCP_FINI = C2_FOM_PHASE_FINISH,
 
-	/** Read and fill up the packet.*/
+	/** Read and fill up the packet. */
 	C2_CCP_READ,
 
-	/** Write packet data.*/
+	/** Write packet data. */
 	C2_CCP_WRITE,
 
-	/** Transform the packet.*/
+	/** Wait for IO completion. */
+	C2_CCP_IO_WAIT,
+
+	/** Transform the packet. */
 	C2_CCP_XFORM,
 
-	/** Send packet over network.*/
+	/** Send packet over network. */
 	C2_CCP_SEND,
 
-	/** Received packet from network.*/
+	/** Received packet from network. */
 	C2_CCP_RECV,
 
 	C2_CCP_NR
@@ -137,6 +146,9 @@ struct c2_cm_cp {
 
 	/** Set and used in case of network send/recv.*/
 	struct c2_rpc_bulk	   c_bulk;
+
+	/** Distinguishes IO operation. */
+	enum c2_cm_cp_io_op        c_io_op;
 
 	uint64_t		   c_magix;
 };

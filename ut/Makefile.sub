@@ -1,0 +1,16 @@
+ut_libcolibri_ut_la_SOURCES += ut/rpc.c \
+                               ut/cs_service.c \
+                               ut/cs_fop_foms.c \
+                               ut/cs_test_fops_ff.c \
+                               ut/ut.h \
+                               ut/ut.c \
+                               ut/rpc.h \
+                               ut/cs_service.h \
+                               ut/cs_fop_foms.h
+
+FF_FILES   += ut/cs_test_fops_ff.h
+
+EXTRA_DIST += ut/cs_test_fops.ff
+
+CLEANFILES += ut/cs_test_fops_ff.h \
+              ut/cs_test_fops_ff.c

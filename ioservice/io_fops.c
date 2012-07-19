@@ -29,7 +29,7 @@
 #include "fop/fop_item_type.h"
 #include "rpc/item.h"
 #include "rpc/rpc_opcodes.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "ioservice/io_fops.h"
 #include "fop/fom_generic.h"
 #include "ioservice/io_fops_ff.h"
@@ -40,13 +40,16 @@ C2_TL_DESCR_DECLARE(rpcitem, extern);
 C2_TL_DECLARE(rpcbulk, extern, struct c2_rpc_bulk_buf);
 C2_TL_DECLARE(rpcitem, extern, struct c2_rpc_item);
 
+void c2_io_item_free(struct c2_rpc_item *item);
+
 static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop);
 
+static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
+			     uint64_t size);
 static void io_item_replied (struct c2_rpc_item *item);
-static void io_item_free    (struct c2_rpc_item *item);
 static void io_fop_replied  (struct c2_fop *fop, struct c2_fop *bkpfop);
 static void io_fop_desc_get (struct c2_fop *fop, struct c2_net_buf_desc **desc);
-static int  io_fop_coalesce(struct c2_fop *res_fop, uint64_t size);
+static int  io_fop_coalesce (struct c2_fop *res_fop, uint64_t size);
 static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 			     uint64_t size);
 static void cob_rpcitem_free(struct c2_rpc_item *item);
@@ -91,9 +94,8 @@ static struct c2_fop_type *ioservice_fops[] = {
 
 /* Used for IO REQUEST items only. */
 const struct c2_rpc_item_ops io_req_rpc_item_ops = {
-	.rio_sent	= NULL,
 	.rio_replied	= io_item_replied,
-	.rio_free	= io_item_free,
+	.rio_free	= c2_io_item_free,
 };
 
 static const struct c2_rpc_item_type_ops io_item_type_ops = {
@@ -111,9 +113,7 @@ const struct c2_fop_type_ops io_fop_rwv_ops = {
 
 /* Used for cob_create and cob_delete fops on client side */
 const struct c2_rpc_item_ops cob_req_rpc_item_ops = {
-	.rio_sent        = NULL,
-	.rio_replied	 = NULL,
-	.rio_free        = cob_rpcitem_free,
+	.rio_free = cob_rpcitem_free,
 };
 
 static const struct c2_rpc_item_type_ops cob_rpc_type_ops = {
@@ -225,7 +225,7 @@ int c2_ioservice_fop_init(void)
 				 .opcode    = C2_IOSERVICE_FV_NOTIFICATION_OPCODE,
 				 .xt        = c2_fop_fv_notification_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
-					      C2_RPC_ITEM_TYPE_UNSOLICITED,
+					      C2_RPC_ITEM_TYPE_ONEWAY,
 				 .rpc_ops   = &cob_rpc_type_ops);
 
 
@@ -1148,7 +1148,7 @@ void c2_io_fop_destroy(struct c2_fop *fop)
 	io_fop_ivec_dealloc(fop);
 }
 
-static inline size_t io_fop_size_get(struct c2_fop *fop)
+size_t c2_io_fop_size_get(struct c2_fop *fop)
 {
 	struct c2_xcode_ctx  ctx;
 
@@ -1263,7 +1263,7 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 	 * Checks if current size of res_fop fits into the size
 	 * provided as input.
 	 */
-	if (io_fop_size_get(res_fop) > size) {
+	if (c2_io_fop_size_get(res_fop) > size) {
 		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
 			    bulkclient_func_fail, "Size of coalesced fop"
 			    "exceeded remaining space in send net buffer.",
@@ -1403,13 +1403,19 @@ static void io_item_replied(struct c2_rpc_item *item)
 {
 	struct c2_fop		   *fop;
 	struct c2_fop		   *rfop;
-	struct c2_fop		   *bkpfop;
-	struct c2_rpc_item	   *ritem;
+	/* struct c2_fop           *bkpfop; */
+	/* struct c2_rpc_item	   *ritem;  */
 	struct c2_rpc_bulk	   *rbulk;
 	struct c2_fop_cob_rw_reply *reply;
 
 	C2_PRE(item != NULL);
 
+	if (item->ri_error != 0) {
+		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
+			    bulkclient_func_fail, "io fop failed.",
+			    item->ri_error);
+		return;
+	}
 	fop = c2_rpc_item_to_fop(item);
 	rbulk = c2_fop_to_rpcbulk(fop);
 	rfop = c2_rpc_item_to_fop(item->ri_reply);
@@ -1418,11 +1424,10 @@ static void io_item_replied(struct c2_rpc_item *item)
 	C2_ASSERT(ergo(reply->rwr_rc == 0,
 		       reply->rwr_count == rbulk->rb_bytes));
 
-	if (reply->rwr_rc != 0)
-		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
-			    bulkclient_func_fail, "io fop failed.",
-			    item->ri_error);
-
+#if 0
+	/** @todo Rearrange IO item merging code to work with new
+		  formation code.
+	 */
 	/*
 	 * Restores the contents of master coalesced fop from the first
 	 * rpc item in c2_rpc_item::ri_compound_items list. This item
@@ -1455,8 +1460,13 @@ static void io_item_replied(struct c2_rpc_item *item)
 		/* Notifies all member coalesced items of completion status. */
 		rbulk->rb_rc = item->ri_error;
 		c2_mutex_unlock(&rbulk->rb_mutex);
-		c2_chan_broadcast(&ritem->ri_chan);
+		/* XXX Use rpc_item_replied()
+		       But we'll fix it later because this code path will need
+		       significant changes because of new formation code.
+		 */
+		/* c2_chan_broadcast(&ritem->ri_chan); */
 	} c2_tl_endfor;
+#endif
 }
 
 static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
@@ -1530,7 +1540,21 @@ static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 	}
 }
 
-static void io_item_free_internal(struct c2_rpc_item *item)
+c2_bcount_t c2_io_fop_byte_count(struct c2_io_fop *iofop)
+{
+	c2_bcount_t             count = 0;
+	struct c2_rpc_bulk_buf *rbuf;
+
+	C2_PRE(iofop != NULL);
+
+	c2_tl_for (rpcbulk, &iofop->if_rbulk.rb_buflist, rbuf) {
+		count += c2_vec_count(&rbuf->bb_zerovec.z_bvec.ov_vec);
+	} c2_tl_endfor;
+
+	return count;
+}
+
+static void io_fop_free_internal(struct c2_rpc_item *item)
 {
 	struct c2_fop    *fop;
 	struct c2_io_fop *iofop;
@@ -1540,14 +1564,13 @@ static void io_item_free_internal(struct c2_rpc_item *item)
 	fop = c2_rpc_item_to_fop(item);
 	iofop = container_of(fop, struct c2_io_fop, if_fop);
 	c2_io_fop_fini(iofop);
-	c2_free(iofop);
 }
 
 /*
  * From bulk client side, IO REQUEST fops are typically bundled in
  * struct c2_io_fop. So c2_io_fop is deallocated from here.
  */
-static void io_item_free(struct c2_rpc_item *item)
+void c2_io_item_free(struct c2_rpc_item *item)
 {
 	struct c2_rpc_item *ri;
 
@@ -1555,10 +1578,10 @@ static void io_item_free(struct c2_rpc_item *item)
 
 	c2_tl_for (rpcitem, &item->ri_compound_items, ri) {
 		rpcitem_tlist_del(ri);
-		io_item_free_internal(ri);
+		io_fop_free_internal(ri);
 	} c2_tl_endfor;
 
-	io_item_free_internal(item);
+	io_fop_free_internal(item);
 }
 
 /*

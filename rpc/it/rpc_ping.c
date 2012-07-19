@@ -28,7 +28,7 @@
 #include "lib/time.h"
 #include "net/net.h"
 #include "net/lnet/lnet.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "rpc/it/ping_fop.h"
 #include "rpc/it/ping_fom.h"
 #include "rpc/rpclib.h" /* c2_rpc_server_start */
@@ -76,7 +76,7 @@ enum {
 	C2_LNET_PORTAL     = 34,
 	MAX_RPCS_IN_FLIGHT = 32,
 	CLIENT_COB_DOM_ID  = 13,
-	CONNECT_TIMEOUT	   = 60,
+	CONNECT_TIMEOUT	   = 20,
 };
 
 #ifndef __KERNEL__
@@ -180,14 +180,20 @@ static void __print_stats(struct c2_rpc_machine *rpc_mach)
 	       (unsigned long long)stats.rs_nr_rcvd_items);
 	printf("\tsent_items: %llu\n",
 		(unsigned long long)stats.rs_nr_sent_items);
-	printf("\titems_failed: %llu\n",
+	printf("\tfailed_items: %llu\n",
 		(unsigned long long)stats.rs_nr_failed_items);
+	printf("\ttimedout_items: %llu\n",
+		(unsigned long long)stats.rs_nr_timedout_items);
+	printf("\tdropped_items: %llu\n",
+		(unsigned long long)stats.rs_nr_dropped_items);
+
 	printf("\treceived_packets: %llu\n",
 	       (unsigned long long)stats.rs_nr_rcvd_packets);
 	printf("\tsent_packets: %llu\n",
 	       (unsigned long long)stats.rs_nr_sent_packets);
 	printf("\tpackets_failed : %llu\n",
 	       (unsigned long long)stats.rs_nr_failed_packets);
+
 	printf("\tTotal_bytes_sent : %llu\n",
 	       (unsigned long long)stats.rs_nr_sent_bytes);
 	printf("\tTotal_bytes_rcvd : %llu\n",
@@ -255,23 +261,14 @@ static int client_fini(struct c2_rpc_client_ctx *cctx)
 {
 	int rc;
 
-	rc = c2_rpc_session_destroy(&cctx->rcx_session, cctx->rcx_timeout_s);
-	if (rc != 0)
-		return rc;
-
-	rc = c2_rpc_conn_destroy(&cctx->rcx_connection, cctx->rcx_timeout_s);
-	if (rc != 0)
-		return rc;
-
+	rc = c2_rpc_session_destroy(&cctx->rcx_session, C2_TIME_NEVER);
+	rc = c2_rpc_conn_destroy(&cctx->rcx_connection, C2_TIME_NEVER);
 	c2_net_end_point_put(cctx->rcx_remote_ep);
-
 	if (verbose)
 		__print_stats(&cctx->rcx_rpc_machine);
-
 	c2_rpc_machine_fini(&cctx->rcx_rpc_machine);
 	c2_cob_domain_fini(cctx->rcx_cob_dom);
 	c2_dbenv_fini(cctx->rcx_dbenv);
-
 	c2_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
 
 	return rc;
@@ -335,9 +332,12 @@ static int run_client(void)
 		goto xprt_fini;
 
 	rc = c2_rpc_client_init(&cctx);
-	if (rc != 0)
+	if (rc != 0) {
+#ifndef __KERNEL__
+		printf("rpcping: client init failed \"%s\"\n", strerror(-rc));
+#endif
 		goto net_dom_fini;
-
+	}
 	C2_ALLOC_ARR(client_thread, nr_client_threads);
 
 	for (i = 0; i < nr_client_threads; i++) {
@@ -367,7 +367,6 @@ static int run_client(void)
 	for (i = 0; i < nr_client_threads; i++) {
 		c2_thread_join(&client_thread[i]);
 	}
-
 	/*
 	 * NOTE: don't use c2_rpc_client_fini() here, see the comment above
 	 * client_fini() for explanation.

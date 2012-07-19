@@ -19,7 +19,7 @@
  */
 
 /**
-   @addtogroup rpc_layer_core
+   @addtogroup rpc
 
    This file is a centralized (temporary) location for opcodes.
    An opcode is an rpc item type attribute which uniquely identifies an rpc

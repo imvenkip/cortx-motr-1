@@ -72,6 +72,24 @@ enum c2_magic_satchel {
 	/* bufs_tl::td_head_magic (bedded celiac) */
 	C2_T1FS_BUF_HEAD_MAGIC = 0x33beddedce11ac77,
 
+        /* io_request::ir_magic (fearsome acts) */
+        C2_T1FS_IOREQ_MAGIC  = 0x33fea2503eac1577,
+
+        /* nw_xfer_request::nxr_magic (coffee arabic) */
+        C2_T1FS_NWREQ_MAGIC  = 0x33c0ffeea2ab1c77,
+
+        /* target_ioreq::ti_magic (falafel bread) */
+        C2_T1FS_TIOREQ_MAGIC = 0x33fa1afe1b2ead77,
+
+        /* io_req_fop::irf_magic (desirability) */
+        C2_T1FS_IOFOP_MAGIC  = 0x33de512ab1111777,
+
+        /* data_buf::db_magic (fire incoming) */
+        C2_T1FS_DTBUF_MAGIC  = 0x33f12e19c0319977,
+
+        /* pargrp_iomap::pi_magic (incandescent) */
+        C2_T1FS_PGROUP_MAGIC = 0x3319ca9de5ce9177,
+
 /* Configuration Caching */
 	/* c2_conf_reg::r_magic (fabled feodal) */
 	C2_CONF_REG_MAGIC = 0x33fab1edfe0da177,
@@ -211,6 +229,15 @@ enum c2_magic_satchel {
 
 	/* fop_types_list::t_magic (baffle bacili) */
 	C2_FOP_TYPE_HEAD_MAGIC = 0x33baff1ebac11177,
+
+	/* c2_fom::fo_magic (leadless less) */
+	C2_FOM_MAGIC = 0x331ead1e551e5577,
+
+	/* c2_fom_locality::fl_runq::td_head_magic (alas albizzia) */
+	C2_FOM_RUNQ_MAGIC = 0x33a1a5a1b1221a77,
+
+	/* c2_fom_locality::fl_wail::td_head_magic (baseless bole) */
+	C2_FOM_WAIL_MAGIC = 0x33ba5e1e55501e77,
 
 	/* c2_fom_thread::lt_magix (falsifiable C) */
 	C2_FOM_THREAD_MAGIC = 0x33fa151f1ab1ec77,

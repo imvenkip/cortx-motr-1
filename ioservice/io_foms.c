@@ -1798,7 +1798,7 @@ static size_t c2_io_fom_cob_rw_locality_get(const struct c2_fom *fom)
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_fop != NULL);
 
-	return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
+	return c2_fop_opcode(fom->fo_fop);
 }
 
 /**

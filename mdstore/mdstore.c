@@ -17,10 +17,6 @@
  * Original creation date: 01/17/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#  include <config.h>
-#endif
-
 #include <sys/stat.h>    /* S_ISDIR */
 
 #include "lib/misc.h"    /* C2_SET0 */
@@ -647,7 +643,7 @@ int c2_mdstore_lookup(struct c2_mdstore         *md,
         int rc;
 
         if (pfid == NULL)
-                pfid = &C2_COB_ROOT_FID;
+                pfid = (struct c2_fid *)&C2_COB_ROOT_FID;
 
         rc = c2_cob_nskey_make(&nskey, pfid, name, namelen);
         if (rc != 0)

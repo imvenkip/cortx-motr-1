@@ -38,6 +38,18 @@ static void reed_solomon_encode(struct c2_parity_math *math,
                                 const struct c2_buf *data,
                                 struct c2_buf *parity);
 
+static void xor_diff(struct c2_parity_math *math,
+		     struct c2_buf         *old,
+		     struct c2_buf         *new,
+		     struct c2_buf         *parity,
+		     uint32_t               index);
+
+static void reed_solomon_diff(struct c2_parity_math *math,
+		              struct c2_buf         *old,
+		              struct c2_buf         *new,
+		              struct c2_buf         *parity,
+		              uint32_t               index);
+
 static void xor_recover(struct c2_parity_math *math,
                         struct c2_buf *data,
                         struct c2_buf *parity,
@@ -63,6 +75,15 @@ static void (*calculate[C2_PARITY_CAL_ALGO_NR])(struct c2_parity_math *math,
 						struct c2_buf *parity) = {
 	[C2_PARITY_CAL_ALGO_XOR] = xor_calculate,
 	[C2_PARITY_CAL_ALGO_REED_SOLOMON] = reed_solomon_encode,
+};
+
+static void (*diff[C2_PARITY_CAL_ALGO_NR])(struct c2_parity_math *math,
+					   struct c2_buf         *old,
+					   struct c2_buf         *new,
+					   struct c2_buf         *parity,
+					   uint32_t               index) = {
+	[C2_PARITY_CAL_ALGO_XOR]          = xor_diff,
+	[C2_PARITY_CAL_ALGO_REED_SOLOMON] = reed_solomon_diff,
 };
 
 static void (*recover[C2_PARITY_CAL_ALGO_NR])(struct c2_parity_math *math,
@@ -293,6 +314,37 @@ static void xor_calculate(struct c2_parity_math *math,
 
 }
 
+static void reed_solomon_diff(struct c2_parity_math *math,
+			      struct c2_buf         *old,
+			      struct c2_buf         *new,
+			      struct c2_buf         *parity,
+			      uint32_t               index)
+{
+}
+
+static void xor_diff(struct c2_parity_math *math,
+		     struct c2_buf         *old,
+		     struct c2_buf         *new,
+		     struct c2_buf         *parity,
+		     uint32_t               index)
+{
+	uint32_t ei;
+
+	C2_PRE(math   != NULL);
+	C2_PRE(old    != NULL);
+	C2_PRE(new    != NULL);
+	C2_PRE(parity != NULL);
+	C2_PRE(index  <  math->pmi_data_count);
+	C2_PRE(old[index].b_nob == new[index].b_nob);
+	C2_PRE(new[index].b_nob == parity[0].b_nob);
+
+	for (ei = 0; ei < new[index].b_nob; ++ei) {
+		((uint8_t*)parity[0].b_addr)[ei] ^=
+			((uint8_t *)old[index].b_addr)[ei] ^
+			((uint8_t *)new[index].b_addr)[ei];
+	}
+}
+
 static void reed_solomon_encode(struct c2_parity_math *math,
 				const struct c2_buf *data,
 				struct c2_buf *parity)
@@ -326,6 +378,15 @@ void c2_parity_math_calculate(struct c2_parity_math *math,
 			      struct c2_buf *parity)
 {
 	(*calculate[math->pmi_parity_algo])(math, data, parity);
+}
+
+void c2_parity_math_diff(struct c2_parity_math *math,
+			 struct c2_buf         *old,
+			 struct c2_buf         *new,
+			 struct c2_buf         *parity,
+			 uint32_t               index)
+{
+	(*diff[math->pmi_parity_algo])(math, old, new, parity, index);
 }
 
 void c2_parity_math_refine(struct c2_parity_math *math,

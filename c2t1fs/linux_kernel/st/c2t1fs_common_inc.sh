@@ -2,14 +2,38 @@ COLIBRI_CORE_ROOT=`dirname $0`/../../..
 COLIBRI_C2T1FS_MOUNT_DIR=/tmp/test_c2t1fs_`date +"%d-%m-%Y_%T"`
 COLIBRI_C2T1FS_TEST_DIR=/tmp/test_c2t1fs_$$
 COLIBRI_MODULE=kcolibri
-COLIBRI_MODULE_TRACE_MASK=0x00
+
+COLIBRI_MODULE_TRACE_MASK=0
+COLIBRI_TRACE_PRINT_CONTEXT=none
+COLIBRI_TRACE_LEVEL=call+
+
 COLIBRI_TEST_LOGFILE=`pwd`/bulkio_`date +"%Y-%m-%d_%T"`.log
-POOL_WIDTH=3
-MAX_NR_FILES=500
-TM_MIN_RECV_QUEUE_LEN=2
+
+COLIBRI_SERVICE_NAME=ioservice
+COLIBRI_STOB_DOMAIN=linux
+
+POOL_WIDTH=4
+NR_DATA=2
+NR_PARITY=1
+MAX_NR_FILES=250
+TM_MIN_RECV_QUEUE_LEN=16
 # Maximum value needed to run current ST is 160k.
 MAX_RPC_MSG_SIZE=163840
+IOS=""
+STRIPE="pool_width=$POOL_WIDTH,nr_data_units=$NR_DATA"
+XPT=lnet
+lnet_nid=0@lo
 
+# Client end point (kcolibri module local_addr)
+LADDR="$lnet_nid:12345:33:1"
+
+# list of server end points
+EP=(
+    12345:33:101
+    12345:33:102
+    12345:33:103
+    12345:33:104
+)
 
 unload_kernel_module()
 {
@@ -24,6 +48,8 @@ unload_kernel_module()
 
 load_kernel_module()
 {
+	modprobe lnet
+
 	colibri_module_path=$COLIBRI_CORE_ROOT/build_kernel_modules
 	colibri_module=$COLIBRI_MODULE
 	lsmod | grep $colibri_module &> /dev/null
@@ -34,10 +60,12 @@ load_kernel_module()
 		unload_kernel_module || return $?
 	fi
 
-        insmod $colibri_module_path/$colibri_module.ko            \
-               trace_immediate_mask=$COLIBRI_MODULE_TRACE_MASK    \
-               local_addr=$COLIBRI_C2T1FS_ENDPOINT                \
-	       tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN       \
+        insmod $colibri_module_path/$colibri_module.ko \
+               trace_immediate_mask=$COLIBRI_MODULE_TRACE_MASK \
+	       trace_print_context=$COLIBRI_TRACE_PRINT_CONTEXT \
+	       trace_level=$COLIBRI_TRACE_LEVEL \
+               local_addr=$LADDR \
+	       tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
 	       max_rpc_msg_size=$MAX_RPC_MSG_SIZE
         if [ $? -ne "0" ]
         then
@@ -49,9 +77,6 @@ load_kernel_module()
 
 prepare_testdir()
 {
-	stob_domain=$COLIBRI_STOB_DOMAIN
-	db_path=$COLIBRI_DB_PATH
-
 	echo "Cleaning up test directory ..."
 	rm -rf $COLIBRI_C2T1FS_TEST_DIR	 &> /dev/null
 
@@ -79,21 +104,39 @@ unprepare()
 {
 	if mount | grep ^c2t1fs > /dev/null; then
 		umount $COLIBRI_C2T1FS_MOUNT_DIR
-		rm -r $COLIBRI_C2T1FS_MOUNT_DIR
+		sleep 2
+		rm -rf $COLIBRI_C2T1FS_MOUNT_DIR
 	fi
 
 	if lsmod | grep kcolibri > /dev/null; then
 		unload_kernel_module
 	fi
 	modunload_galois
+
+	rm -rf $COLIBRI_C2T1FS_TEST_DIR
 }
 
-export  COLIBRI_CORE_ROOT         \
-	COLIBRI_C2T1FS_MOUNT_DIR  \
-	COLIBRI_C2T1FS_TEST_DIR   \
-	COLIBRI_MODULE            \
-	COLIBRI_MODULE_TRACE_MASK \
-	COLIBRI_TEST_LOGFILE      \
-	POOL_WIDTH                \
-	TM_MIN_RECV_QUEUE_LEN     \
-        MAX_RPC_MSG_SIZE
+c2t1fs_system_tests()
+{
+	file_creation_test $MAX_NR_FILES
+	if [ $? -ne "0" ]
+        then
+                echo "Failed: File creation test failed."
+        fi
+
+	io_combinations $POOL_WIDTH $NR_DATA $NR_PARITY
+	if [ $? -ne "0" ]
+	then
+		echo "Failed: IO failed.."
+	fi
+
+	rmw_test
+	if [ $? -ne "0" ]
+	then
+		echo "Failed: IO-RMW failed.."
+	fi
+
+	c2loop_st || return 1
+
+	return 0
+}

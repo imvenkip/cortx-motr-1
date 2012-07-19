@@ -25,7 +25,7 @@
 #include "rpc/it/ping_fop.h"
 #include "rpc/it/ping_fom.h"
 #include "lib/errno.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc.h"
 #include "fop/fop_item_type.h"
 #include "fop/fom_generic.h"
 

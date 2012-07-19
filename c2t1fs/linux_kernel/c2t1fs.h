@@ -30,14 +30,12 @@
 #include "lib/tlist.h"
 #include "lib/mutex.h"
 #include "net/net.h"    /* c2_net_domain */
-#include "rpc/session.h"
-#include "rpc/rpc_machine.h"
+#include "rpc/rpc.h"
 #include "pool/pool.h"  /* c2_pool */
 #include "net/buffer_pool.h"
 #include "fid/fid.h"
 #include "cob/cob.h"    /* c2_cob_domain_id */
-#include "layout/layout.h"  /* c2_layout_domain */
-#include "layout/pdclust.h" /* c2_pdclust_instance */
+#include "layout/layout.h" /* c2_layout_domain, c2_layout, c2_layout_instance */
 
 /**
   @defgroup c2t1fs c2t1fs
@@ -553,6 +551,31 @@ struct c2t1fs_sb {
 	/** Layout for file */
 	struct c2_layout             *csb_file_layout;
 
+	/**
+         * Flag indicating if c2t1fs mount is active or not.
+         * Flag is set when c2t1fs is mounted and is reset by unmount thread.
+         */
+        bool                          csb_active;
+
+        /**
+         * Instantaneous count of pending io requests.
+         * Every io request increments this value while initializing
+         * and decrements it while finalizing.
+         */
+        struct c2_atomic64            csb_pending_io_nr;
+
+        /** Special thread which runs ASTs from io requests. */
+        struct c2_thread              csb_astthread;
+
+        /**
+         * Channel on which unmount thread will wait. It will be signalled
+         * by AST thread while exiting.
+         */
+        struct c2_chan                csb_iowait;
+
+        /** State machine group used for all IO requests. */
+        struct c2_sm_group            csb_iogroup;
+
 	/** File layout ID */
 	uint64_t                      csb_layout_id;
 };
@@ -665,5 +688,20 @@ void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
 int c2t1fs_dir_ent_remove(struct c2t1fs_dir_ent *de);
 
 void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de);
+
+struct io_mem_stats {
+	uint64_t a_ioreq_nr;
+	uint64_t d_ioreq_nr;
+	uint64_t a_pargrp_iomap_nr;
+	uint64_t d_pargrp_iomap_nr;
+	uint64_t a_target_ioreq_nr;
+	uint64_t d_target_ioreq_nr;
+	uint64_t a_io_req_fop_nr;
+	uint64_t d_io_req_fop_nr;
+	uint64_t a_data_buf_nr;
+	uint64_t d_data_buf_nr;
+	uint64_t a_page_nr;
+	uint64_t d_page_nr;
+};
 
 #endif /* __COLIBRI_C2T1FS_C2T1FS_H__ */

@@ -32,6 +32,16 @@
  *   A 'layout' is an attribute of a file. It maps a file onto a set of network
  *   resources. viz. component objects.
  *
+ * - Layout user count @n
+ *   Layout user count is the number of users associated with a particular
+ *   layout. For example, files using that layout, other composite layouts
+ *   using that layout.
+ *   - User count of a layout does not have any impact on the liveness of
+ *     an in-memory representation of a layout.
+ *   - A layout with non-zero user count can not be deleted from the layout DB.
+ *   - A layout with zero user count may continue to reside in memory or in
+ *     the layout DB.
+ *
  * - Layout type @n
  *   A 'layout type' specifies how a file is stored in a collection of targets.
  *   It provides the <offset-in-gob> to <traget-idx, offset-in-target> mapping.
@@ -82,12 +92,23 @@
  * - Initialise c2_layout_domain object.
  * - Register layout types and enum types using
  *   c2_layout_standard_types_register().
- * - Perform various required operations including usage of c2_pdclust_build(),
- *   c2_layout_encode(), c2_layout_decode(), c2_layout_lookup(),
- *   c2_layout_add(), c2_layout_update(), c2_layout_delete(), leo_nr(),
- *   leo_get().
+ * - Perform various required operations on the in-memory layouts including
+ *   the usage of c2_pdclust_build(), c2_layout_get(), c2_layout_put(),
+ *   c2_layout_encode(), c2_layout_decode(), c2_layout_enum_nr(),
+ *   c2_layout_enum_get().
+ * - Perform various required operation on the layouts in the DB including
+ *   the usage of c2_layout_lookup(), c2_layout_add(), c2_layout_update(),
+ *   c2_layout_delete().
+ * - Perform various operations on layout instances including the usage of
+ *   c2_layout_instance_build(), c2_layout_instance_fini() and the relevant
+ *   instance type specific operations. (Creating a layout instance is a way
+ *   of associating a layout with a particular user, for example a file.)
+ * - Finalise all the layout instances.
+ * - Finalise all the in-memory layouts. (The layouts can continue to exist in
+ *   the layout DB, even if the resepctive layout types and enum types are to
+ *   be unregistered and the domain is to be finalised.)
  * - Unregister layout types and enum types using
- *   c2_layout_iall_types_unregister().
+ *   c2_layout_all_types_unregister().
  * - Finalise c2_layout_domain object.
  *
  * @section layout-client-server-access Client Server Access to APIs
@@ -104,6 +125,8 @@
 #include "lib/types.h"  /* uint64_t */
 #include "lib/tlist.h"  /* struct c2_tl */
 #include "lib/mutex.h"  /* struct c2_mutex */
+#include "lib/arith.h"  /* C2_IS_8ALIGNED */
+#include "lib/refs.h"   /* struct c2_ref */
 
 #include "fid/fid.h"    /* struct c2_fid */
 #include "db/db.h"      /* struct c2_table */
@@ -167,7 +190,7 @@ struct c2_layout_domain {
 	c2_bcount_t                 ld_max_recsize;
 
 	/**
-	 * Lock to protect the instance of c2_layout_domain, including all
+	 * Lock to protect an instance of c2_layout_domain, including all
 	 * its members.
 	 */
 	struct c2_mutex             ld_lock;
@@ -186,12 +209,20 @@ struct c2_layout {
 	/** Layout domain this layout object is part of. */
 	struct c2_layout_domain     *l_dom;
 
-	/* Layout reference count, indicating how many users this layout has. */
-	uint32_t                     l_ref;
+	/** Reference counter for caching a layout. */
+	struct c2_ref                l_ref;
 
 	/**
-	 * Lock to protect a c2_layout instance and all its direct/indirect
-	 * members.
+	 * Layout user count, indicating how many users this layout has.
+	 * For example files, other composite layouts using this layout.
+	 * A layout can not be deleted from the layout DB as long as its
+	 * user count is non-zero.
+	 */
+	uint32_t                     l_user_count;
+
+	/**
+	 * Lock to protect a c2_layout instance, including all its direct and
+	 * indirect members.
 	 */
 	struct c2_mutex              l_lock;
 
@@ -214,20 +245,23 @@ struct c2_layout_ops {
 	/**
 	 * Finalises the type specific layout object. It involves finalising
 	 * its enumeration object, if applicable.
-	 * Called implicitly when the last reference on the layout object
-	 * is released. User is not expected to invoke this method explicitly.
+	 *
+	 * Dual to the sequence "lto_allocate() followed by the type specific
+	 * populate operation", but the user is not expected to invoke this
+	 * method explicitly. It is called implicitly when the last reference
+	 * on the layout object is released.
 	 * @see c2_layout_put().
 	 */
-	void        (*lo_fini)(struct c2_layout *l);
+	void        (*lo_fini)(struct c2_ref *ref);
 
 	/**
 	 * Finalises the layout object that is only allocated and not
 	 * populated. Since it is not populated, it does not contain
 	 * enumeration object.
-	 * Dual to lto_allocate(). Called when an allocated layout object can
-	 * not be populated for some reason. In the success case, dual to the
-	 * sequence of "lto_allocate() followed by type specific populate
-	 * method" is lo_fini().
+	 * Dual to lto_allocate() when an allocated layout object can
+	 * not be populated for some reason. In the other regular cases, dual
+	 * to the sequence of "lto_allocate() followed by the type specific
+	 * populate operation" is lo_fini().
 	 */
 	void        (*lo_delete)(struct c2_layout *l);
 
@@ -243,7 +277,8 @@ struct c2_layout_ops {
 	c2_bcount_t (*lo_recsize)(const struct c2_layout *l);
 
 	/**
-	 * Allocates and builds a layout instance using the supplied layout
+	 * Allocates and builds a layout instance using the supplied layout.
+	 * Increments a reference on the supplied layout.
 	 */
 	int         (*lo_instance_build)(struct c2_layout           *l,
 					 const struct c2_fid        *fid,
@@ -270,7 +305,7 @@ struct c2_layout_ops {
 				 struct c2_bufvec_cursor *cur,
 				 enum c2_layout_xcode_op op,
 				 struct c2_db_tx *tx,
-				 uint32_t ref_count);
+				 uint32_t user_count);
 
 	/**
 	 * Continues to use the in-memory layout object and
@@ -322,9 +357,9 @@ struct c2_layout_type {
 	struct c2_layout_domain         *lt_domain;
 
 	/**
-	 * Layout type reference count, indicating 'how many layout objects
-	 * using this layout type' exist in the domain the layout type is
-	 * registered with.
+	 * Layout type reference count, indicating 'how many in-memory layout
+	 * objects using this layout type' exist in 'the domain the layout type
+	 * is registered with'.
 	 */
 	uint32_t                         lt_ref_count;
 
@@ -493,9 +528,9 @@ struct c2_layout_enum_type {
 	struct c2_layout_domain              *let_domain;
 
 	/**
-	 * Enum type reference count, indicating 'how many enum objects
-	 * using this enum type' exist in the domain the enum type is
-	 * registered with.
+	 * Enum type reference count, indicating 'how many in-memory enum
+	 * objects using this enum type' exist in 'the domain the enum type is
+	 * registered with'.
 	 */
 	uint32_t                              let_ref_count;
 
@@ -546,10 +581,15 @@ struct c2_striped_layout {
  * On a client, this structure is embedded in c2t1fs inode.
  */
 struct c2_layout_instance {
-	/** (Global) fid of the file. */
+	/** (Global) fid of the file this instance is associated with. */
 	struct c2_fid                        li_gfid;
+
+	/** Layout used for the file referred by li_gfid. */
+	struct c2_layout                    *li_l;
+
 	/** Layout operations vector. */
 	const struct c2_layout_instance_ops *li_ops;
+
 	/** Magic number set while c2_layout_instance object is initialised. */
 	uint64_t                             li_magic;
 };
@@ -559,8 +599,8 @@ struct c2_layout_instance_ops {
 	 * Finalises the type specifc layout instance object.
 	 *
 	 * Releases a reference on the layout object that was obtained through
-	 * the layout instance type specific build method, for example
-	 * c2_pdclust_instance_init().
+	 * the layout instance type specific build method, referred by
+	 * l->l_ops->lo_instance_build(), for example pdclust_instance_build().
 	 */
 	void (*lio_fini)(struct c2_layout_instance *li);
 
@@ -581,7 +621,7 @@ c2_layout_instance_to_enum(const struct c2_layout_instance *li);
 /**
  * Allocates and builds a layout instance using the supplied layout;
  * Acquires an additional reference on the layout pointed by 'l'.
- * @post ergo(rc == 0, l->l_ref > 1))
+ * @post ergo(rc == 0, c2_ref_read(&l->l_ref) > 1)
  *
  * Dual to c2_layout_instance_fini()
  */
@@ -590,7 +630,7 @@ int c2_layout_instance_build(struct c2_layout           *l,
 			     struct c2_layout_instance **out);
 
 /**
- * Finalises the layout instance object; Releases reference on the layout
+ * Finalises the layout instance object; releases reference on the layout
  * that was obtained through c2_layout_instance_build().
  *
  * Dual to c2_layout_instance_build()
@@ -610,10 +650,10 @@ struct c2_layout_rec {
 	uint32_t  lr_lt_id;
 
 	/**
-	 * Layout reference count, indicating number of users for this layout.
-	 * Value obtained from c2_layout::l_ref.
+	 * Layout user count, indicating number of users for this layout.
+	 * Value obtained from c2_layout::l_user_count.
 	 */
-	uint32_t  lr_ref_count;
+	uint32_t  lr_user_count;
 
 	/**
 	 * Layout type specific payload.
@@ -622,6 +662,7 @@ struct c2_layout_rec {
 	 */
 	char      lr_data[0];
 };
+C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct c2_layout_rec)));
 
 int c2_layouts_init(void);
 void c2_layouts_fini(void);
@@ -679,8 +720,11 @@ void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
 				    struct c2_layout_enum_type *et);
 
 /**
- * Returns the layout object if it exists in memory, else returns NULL.
+ * Returns the layout object if it exists in memory by incrementing a reference
+ * on it, else returns NULL.
  * This interface does not attempt to read the layout from the layout database.
+ *
+ * @post ergo(@ret != NULL, c2_ref_read(l->l_ref) > 1)
  *
  * @note This API is required specifically on the client in the absence of
  * layout DB APIs, c2_layout_lookup() to be specific.
@@ -704,6 +748,20 @@ void c2_layout_get(struct c2_layout *l);
  * @see c2_layout_find()
  */
 void c2_layout_put(struct c2_layout *l);
+
+/**
+ * Increments layout user count.
+ * This API shall be used by the user to associate a specific layout with some
+ * user of that layout, for example, while creating 'a file using that layout'.
+ */
+void c2_layout_user_count_inc(struct c2_layout *l);
+
+/**
+ * Decrements layout user count.
+ * This API shall be used by the user to dissociate a layout from some user of
+ * that layout, for example, while deleting 'a file using that layout'.
+ */
+void c2_layout_user_count_dec(struct c2_layout *l);
 
 /**
  * This method
@@ -738,20 +796,23 @@ void c2_layout_put(struct c2_layout *l);
  * received through the buffer.
  *
  * @pre
- * - c2_layout__allocated_invariant(l)
- * - c2_mutex_is_locked(&l->l_lock)
- * - The buffer pointed by cur contains serialized representation of the whole
+ * - c2_layout__allocated_invariant(l) implying:
+ *   - c2_ref_read(l->l_ref) == 1 and
+ *   - c2_mutex_is_locked(&l->l_lock)
+ * - The buffer pointed by cur contains serialised representation of the whole
  *   layout in case op is C2_LXO_BUFFER_OP. It contains the data for the
  *   layout read from the primary table viz. "layouts" in case op is
  *   C2_LXO_DB_LOOKUP.
  *
  * @post Layout object is fully built (along with enumeration object being
- * built if applicable).
+ * built if applicable) along with its ref count being intialised to 1. User
+ * needs to explicitly release this reference so as to delete this in-memory
+ * layout.
  * - ergo(rc == 0, c2_layout__invariant(l))
  * - ergo(rc != 0, c2_layout__allocated_invariant(l)
  * - c2_mutex_is_locked(&l->l_lock)
  * - The cursor cur is advanced by the size of the data that is read from it.
- * - ergo(rc == 0, l->l_ref == 1)
+ * - ergo(rc == 0, c2_ref_read(l->l_ref) == 1)
  *
  * @see c2_layout_put()
  */
@@ -790,7 +851,9 @@ int c2_layout_decode(struct c2_layout *l,
  *   enumeration type, some data goes into table other than layouts, viz.
  *   cob_lists table.
  *
- * @pre c2_layout__invariant(l)
+ * @pre
+ * - c2_layout__invariant(l)
+ * - c2_mutex_is_locked(&l->l_lock)
  * @post
  * - If op is is either for C2_LXO_DB_<ADD|UPDATE|DELETE>, the respective DB
  *   operation is continued.

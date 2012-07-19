@@ -29,11 +29,12 @@
 #include "colibri/magic.h"
 #include "net/net.h"
 #include "rpc/bulk.h"
-#include "rpc/session.h"
-#include "rpc/rpc2.h"
+
+#include "rpc/rpc.h"
+#include "rpc/rpc_internal.h"
 
 /**
-   @addtogroup rpc_layer_core
+   @addtogroup rpc
 
    @{
  */
@@ -298,8 +299,10 @@ int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
 
 	if (c2_vec_count(&rbuf->bb_zerovec.z_bvec.ov_vec) + count >
 	    c2_net_domain_get_max_buffer_size(netdom) ||
-	    count > c2_net_domain_get_max_buffer_segment_size(netdom))
-		C2_RETERR(-EMSGSIZE, "Cannot exceed net_dom_max_buf_segs");
+	    count > c2_net_domain_get_max_buffer_segment_size(netdom)) {
+		C2_LOG(C2_DEBUG, "Cannot exceed net_dom_max_buf_segs");
+		return -EMSGSIZE;
+	}
 
 	cbuf.b_addr = buf;
 	cbuf.b_nob = count;
@@ -458,7 +461,7 @@ int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk,
 }
 C2_EXPORTED(c2_rpc_bulk_load);
 
-/** @} end of rpc-layer-core group */
+/** @} end of rpc group */
 
 /*
  *  Local variables:

@@ -26,6 +26,10 @@
 #include "lib/vec.h"
 #include "rpc/item.h"
 
+/**
+ * @addtogroup rpc
+ * @{
+ */
 enum c2_bufvec_what {
 	C2_BUFVEC_ENCODE = 0,
 	C2_BUFVEC_DECODE = 1,
@@ -35,5 +39,7 @@ int c2_rpc_item_slot_ref_encdec(struct c2_bufvec_cursor *cur,
 				struct c2_rpc_slot_ref  *slot_ref,
 				int                      nr_slot_refs,
 				enum c2_bufvec_what      what);
+
+/** @} */
 
 #endif /* __COLIBRI_RPC_HELPERS_H__ */

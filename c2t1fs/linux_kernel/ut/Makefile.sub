@@ -1,0 +1,2 @@
+EXTRA_DIST += c2t1fs/linux_kernel/ut/c2loop.c \
+              c2t1fs/linux_kernel/ut/file.c

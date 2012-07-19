@@ -147,7 +147,8 @@ int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
 		       struct c2_db_tx *tx);
 
 struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *fop);
-struct c2_fop *c2_rpc_item_to_fop(const struct c2_rpc_item *item);
+struct c2_fop      *c2_rpc_item_to_fop(const struct c2_rpc_item *item);
+uint32_t            c2_fop_opcode(const struct c2_fop *fop);
 
 /**  Returns a fop type associated with an rpc item type */
 struct c2_fop_type *c2_item_type_to_fop_type
