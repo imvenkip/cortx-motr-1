@@ -377,7 +377,6 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 		pl_attr.pa_N         = N;
 		pl_attr.pa_K         = K;
 		pl_attr.pa_P         = pool->po_width;
-		pl_attr.pa_pool_id   = pool->po_id;
 		pl_attr.pa_unit_size = unit_size;
 		c2_uint128_init(&pl_attr.pa_seed, "upjumpandpumpim,");
 		rc = c2_pdclust_build(&c2t1fs_globals.g_layout_dom, layout_id,

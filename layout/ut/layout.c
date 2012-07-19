@@ -28,10 +28,10 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h" /* C2_LOG */
 
+#include "pool/pool.h" /* c2_pool_init(), c2_pool_fini() */
 #include "fid/fid.h" /* c2_fid_set() */
-#include "pool/pool.h" /* c2_pool_init() */
 #include "layout/layout.h"
-#include "layout/layout_internal.h" /* DEFAULT_REF_COUNT */
+#include "layout/layout_internal.h" /* LDB_MAX_INLINE_COB_ENTRIES */
 #include "layout/layout_db.h"
 #include "layout/pdclust.h"
 #include "layout/list_enum.h"
@@ -52,7 +52,6 @@ static int                     rc;
 
 enum {
 	DBFLAGS                  = 0,
-	DEFAULT_POOL_ID          = 1,
 	POOL_WIDTH               = 200,
 	LIST_ENUM_ID             = 0x4C495354, /* "LIST" */
 	LINEAR_ENUM_ID           = 0x4C494E45, /* "LINE" */
@@ -124,7 +123,7 @@ static int test_init(void)
 	C2_ASSERT(rc == 0);
 
 	/* Initialise the pool. */
-	rc = c2_pool_init(&pool, DEFAULT_POOL_ID, POOL_WIDTH);
+	rc = c2_pool_init(&pool, POOL_WIDTH);
 	C2_ASSERT(rc == 0);
 
 	return rc;
@@ -370,7 +369,6 @@ static int pdclust_l_build(uint64_t lid, uint32_t N, uint32_t K,
 			   struct c2_layout_enum *le,
 			   struct c2_pdclust_layout **pl)
 {
-	struct c2_pool         *pool;
 	struct c2_layout_type  *lt;
 	struct c2_pdclust_attr  attr;
 
@@ -379,13 +377,9 @@ static int pdclust_l_build(uint64_t lid, uint32_t N, uint32_t K,
 	C2_UT_ASSERT(le != NULL);
 	C2_UT_ASSERT(pl != NULL);
 
-	rc = c2_pool_lookup(DEFAULT_POOL_ID, &pool);
-	C2_UT_ASSERT(rc == 0);
-
 	attr.pa_N         = N;
 	attr.pa_K         = K;
-	attr.pa_P         = pool->po_width;
-	attr.pa_pool_id   = pool->po_id;
+	attr.pa_P         = pool.po_width;
 	attr.pa_unit_size = unitsize;
 	attr.pa_seed      = *seed;
 	rc = c2_pdclust_build(&domain, lid, &attr, le, pl);
@@ -480,7 +474,6 @@ static void pdclust_l_verify(struct c2_pdclust_layout *pl,
 	C2_UT_ASSERT(pl->pl_attr.pa_N == N);
 	C2_UT_ASSERT(pl->pl_attr.pa_K == K);
 	C2_UT_ASSERT(pl->pl_attr.pa_P == POOL_WIDTH);
-	C2_UT_ASSERT(pl->pl_attr.pa_pool_id == pool.po_id);
 	C2_UT_ASSERT(pl->pl_attr.pa_unit_size == unitsize);
 	C2_UT_ASSERT(c2_uint128_eq(&pl->pl_attr.pa_seed, seed));
 }
@@ -685,7 +678,6 @@ static void pdclust_buf_build(uint32_t let_id, uint64_t lid,
 	pl_rec.pr_attr.pa_N         = N;
 	pl_rec.pr_attr.pa_K         = K;
 	pl_rec.pr_attr.pa_P         = POOL_WIDTH;
-	pl_rec.pr_attr.pa_pool_id   = pool.po_id;
 	pl_rec.pr_attr.pa_unit_size = unitsize;
 	pl_rec.pr_attr.pa_seed      = *seed;
 
@@ -922,7 +914,6 @@ static void pdclust_lbuf_verify(uint32_t N, uint32_t K, uint64_t unitsize,
 	C2_UT_ASSERT(pl_rec->pr_attr.pa_N == N);
 	C2_UT_ASSERT(pl_rec->pr_attr.pa_K == K);
 	C2_UT_ASSERT(pl_rec->pr_attr.pa_P == POOL_WIDTH);
-	C2_UT_ASSERT(pl_rec->pr_attr.pa_pool_id == pool.po_id);
 	C2_UT_ASSERT(c2_uint128_eq(&pl_rec->pr_attr.pa_seed, seed));
 	C2_UT_ASSERT(pl_rec->pr_attr.pa_unit_size == unitsize);
 
@@ -1138,8 +1129,6 @@ static void pdclust_lbuf_compare(struct c2_bufvec_cursor *cur1,
 	C2_UT_ASSERT(pl_rec1->pr_attr.pa_N == pl_rec2->pr_attr.pa_N);
 	C2_UT_ASSERT(pl_rec1->pr_attr.pa_K == pl_rec2->pr_attr.pa_K);
 	C2_UT_ASSERT(pl_rec1->pr_attr.pa_P == pl_rec2->pr_attr.pa_P);
-	C2_UT_ASSERT(pl_rec1->pr_attr.pa_pool_id ==
-		     pl_rec2->pr_attr.pa_pool_id);
 	C2_UT_ASSERT(c2_uint128_eq(&pl_rec1->pr_attr.pa_seed,
 				   &pl_rec2->pr_attr.pa_seed));
 	C2_UT_ASSERT(pl_rec1->pr_attr.pa_unit_size ==
@@ -1405,7 +1394,6 @@ static void pdclust_layout_compare(uint32_t enum_id,
 	C2_UT_ASSERT(pl1->pl_attr.pa_P == pl2->pl_attr.pa_P);
 	C2_UT_ASSERT(c2_uint128_eq(&pl1->pl_attr.pa_seed,
 				   &pl2->pl_attr.pa_seed));
-	C2_UT_ASSERT(pl1->pl_pool == pl2->pl_pool);
 
 	/* Compare enumeration specific part of the layout objects. */
 	C2_UT_ASSERT(pl1->pl_base.sl_enum->le_type ==
@@ -1475,7 +1463,6 @@ static void pdclust_layout_copy(uint32_t enum_id,
 	pl_dest->pl_attr.pa_P = pl_src->pl_attr.pa_P;
 	pl_dest->pl_attr.pa_seed.u_hi = pl_src->pl_attr.pa_seed.u_hi;
 	pl_dest->pl_attr.pa_seed.u_lo = pl_src->pl_attr.pa_seed.u_lo;
-	pl_dest->pl_pool = pl_src->pl_pool;
 
 	/* Copy enumeration type specific part of the layout objects. */
 	if (enum_id == LIST_ENUM_ID) {

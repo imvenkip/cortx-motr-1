@@ -101,9 +101,6 @@ struct c2_pdclust_attr {
 	 */
 	uint32_t           pa_P;
 
-	/** Pool identifier. */
-	uint64_t           pa_pool_id;
-
 	/** Stripe unit size. Specified in number of bytes. */
 	uint64_t           pa_unit_size;
 
@@ -154,8 +151,7 @@ struct c2_pdclust_layout {
 	 * @see c2_pdclust_layout::pl_C
 	 */
 	uint32_t                  pl_L;
-	/** Storage pool this layout is for. */
-	struct c2_pool           *pl_pool;
+
 	uint64_t                  pl_magic;
 };
 

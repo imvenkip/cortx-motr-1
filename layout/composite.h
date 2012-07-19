@@ -50,7 +50,7 @@ struct c2_composite_layout {
 };
 
 void c2_composite_build(struct c2_layout_domain *dom,
-			uint64_t pool_id, uint64_t lid,
+			uint64_t lid,
 			struct c2_tl *sub_layouts,
 			struct c2_composite_layout **out);
 

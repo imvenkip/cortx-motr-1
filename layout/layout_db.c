@@ -164,7 +164,6 @@
  * Record:
  *    - layout_type_id
  *    - reference_count
- *    - pool_id
  *    - layout_type_specific_data (optional)
  *
  * @endverbatim

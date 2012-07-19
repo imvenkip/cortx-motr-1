@@ -84,7 +84,6 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
-#include "pool/pool.h" /* c2_pool_id_is_valid() */
 #include "layout/layout_internal.h"
 #include "layout/layout_db.h"
 #include "layout/layout.h"

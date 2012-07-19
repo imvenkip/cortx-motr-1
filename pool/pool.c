@@ -32,55 +32,14 @@
    @{
  */
 
-enum {
-	POOL_ID_NONE = 0,
-	MAX_POOL_ID  = 10
-};
-
-/**
- * @todo Temporarily storing the pool structures in this array since not
- * many pool objects are expected to be instantiated.
- * See pool.h for note related to c2_pool_lookup().
- */
-static struct c2_pool *pool_list[MAX_POOL_ID + 1];
-
-bool c2_pool_id_is_valid(uint64_t pool_id)
+int c2_pool_init(struct c2_pool *pool, uint32_t width)
 {
-	return pool_id != POOL_ID_NONE && pool_id <= MAX_POOL_ID;
-}
-
-int c2_pool_init(struct c2_pool *pool, uint64_t pid, uint32_t width)
-{
-	C2_PRE(pid <= MAX_POOL_ID);
-	C2_PRE(pool_list[pid] == NULL);
-
-	pool->po_id = pid;
 	pool->po_width = width;
-	pool_list[pool->po_id] = pool;
 	return 0;
 }
 
 void c2_pool_fini(struct c2_pool *pool)
 {
-	C2_PRE(pool->po_id <= MAX_POOL_ID);
-
-	pool_list[pool->po_id] = NULL;
-}
-
-/**
- * Provides c2_pool object with specified pool id.
- * @note This interface is temporary and will be over-ridden by the interface
- * to be provided by configuration catching.
- */
-int c2_pool_lookup(uint64_t pid, struct c2_pool **out)
-{
-	C2_PRE(pid < MAX_POOL_ID);
-	C2_PRE(out != NULL);
-
-	if(pool_list[pid] == NULL)
-		return -EINVAL;
-	*out = pool_list[pid];
-	return 0;
 }
 
 int c2_pool_alloc(struct c2_pool *pool, struct c2_stob_id *id)

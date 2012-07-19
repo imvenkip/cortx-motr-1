@@ -55,7 +55,7 @@ struct layout_prefix {
  * the last reference being released.
  */
 void c2_composite_build(struct c2_layout_domain *dom,
-			uint64_t pool_id, uint64_t lid,
+			uint64_t lid,
 			struct c2_tl *sub_layouts,
 			struct c2_composite_layout **out)
 {
@@ -159,7 +159,7 @@ static int composite_decode(struct c2_layout *l,
 
 	C2_ALLOC_PTR(cl);
 
-	c2_layout__init(dom, &cl->cl_base, lid, pool_id,
+	c2_layout__init(dom, &cl->cl_base, lid,
 			&c2_composite_layout_type, &composite_ops);
 
 	if (op == C2_LXO_DB_LOOKUP) {
