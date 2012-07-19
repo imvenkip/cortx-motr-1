@@ -24,7 +24,7 @@
 
 #include "lib/memory.h"     /* c2_alloc(), c2_free() */
 #include "lib/arith.h"      /* min_type() */
-#include "layout/pdclust.h" /* PUT_*, c2_layout_to_pdl(),
+#include "layout/pdclust.h" /* C2_PUT_*, c2_layout_to_pdl(),
 			     * c2_pdclust_layout_map */
 #include "c2t1fs/linux_kernel/c2t1fs.h"
 #include "rpc/rpclib.h"     /* c2_rpc_client_call() */
@@ -464,7 +464,7 @@ static void c2t1fs_buf_fini(struct c2t1fs_buf *buf)
 {
 	C2_ENTRY();
 
-	if (buf->cb_type == PUT_PARITY || buf->cb_type == PUT_SPARE)
+	if (buf->cb_type == C2_PUT_PARITY || buf->cb_type == C2_PUT_SPARE)
 		c2_free(buf->cb_buf.b_addr);
 
 	bufs_tlink_fini(buf);
@@ -617,7 +617,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 		for (unit = 0; unit < nr_units_per_group; unit++) {
 
 			unit_type = c2_pdclust_unit_classify(pl, unit);
-			if (unit_type == PUT_SPARE) {
+			if (unit_type == C2_PUT_SPARE) {
 				/* No need to read/write spare units */
 				C2_LOG("Skipped spare unit %d", unit);
 				continue;
@@ -655,10 +655,10 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 						     csb, tgt_fid.f_container);
 
 			switch (unit_type) {
-			case PUT_DATA:
+			case C2_PUT_DATA:
 				/* add data buffer to rw_desc */
 				rc = rw_desc_add(rw_desc, buf + offset_in_buf,
-						     unit_size, PUT_DATA);
+						     unit_size, C2_PUT_DATA);
 				if (rc != 0)
 					goto cleanup;
 
@@ -669,7 +669,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 				offset_in_buf += unit_size;
 				break;
 
-			case PUT_PARITY:
+			case C2_PUT_PARITY:
 				/* Allocate buffer for parity and add it to
 				   rw_desc */
 				parity_index = unit - nr_data_units;
@@ -679,7 +679,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 				  address_is_page_aligned((unsigned long)ptr));
 
 				rc = rw_desc_add(rw_desc, ptr, unit_size,
-							PUT_PARITY);
+							C2_PUT_PARITY);
 				if (rc != 0) {
 					c2_free(ptr);
 					goto cleanup;
@@ -702,7 +702,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 				}
 				break;
 
-			case PUT_SPARE:
+			case C2_PUT_SPARE:
 				/* we've decided to skip spare units. So we
 				   shouldn't reach here */
 				C2_ASSERT(0);
@@ -1049,12 +1049,12 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 				buf->cb_buf.b_addr,
 				(unsigned long)buf->cb_buf.b_nob,
 				(char *)(
-				(buf->cb_type == PUT_DATA) ? "DATA" :
-				 (buf->cb_type == PUT_PARITY) ? "PARITY" :
-				 (buf->cb_type == PUT_SPARE) ? "SPARE" :
+				(buf->cb_type == C2_PUT_DATA) ? "DATA" :
+				 (buf->cb_type == C2_PUT_PARITY) ? "PARITY" :
+				 (buf->cb_type == C2_PUT_SPARE) ? "SPARE" :
 					"UNKNOWN"));
 
-			if (buf->cb_type == PUT_DATA)
+			if (buf->cb_type == C2_PUT_DATA)
 				count += buf->cb_buf.b_nob;
 
 		} c2_tl_endfor;

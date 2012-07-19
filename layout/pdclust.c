@@ -359,11 +359,11 @@ c2_pdclust_unit_classify(const struct c2_pdclust_layout *pl,
 			 int unit)
 {
 	if (unit < pl->pl_attr.pa_N)
-		return PUT_DATA;
+		return C2_PUT_DATA;
 	else if (unit < pl->pl_attr.pa_N + pl->pl_attr.pa_K)
-		return PUT_PARITY;
+		return C2_PUT_PARITY;
 	else
-		return PUT_SPARE;
+		return C2_PUT_SPARE;
 }
 
 /** Implementation of lto_max_recsize() for pdclust layout type. */

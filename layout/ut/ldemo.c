@@ -43,11 +43,11 @@ enum c2_pdclust_unit_type classify(const struct c2_pdclust_layout *play,
 				   int unit)
 {
 	if (unit < play->pl_attr.pa_N)
-		return PUT_DATA;
+		return C2_PUT_DATA;
 	else if (unit < play->pl_attr.pa_N + play->pl_attr.pa_K)
-		return PUT_PARITY;
+		return C2_PUT_PARITY;
 	else
-		return PUT_SPARE;
+		return C2_PUT_SPARE;
 }
 
 void layout_demo(struct c2_pdclust_instance *pi, uint32_t P, int R, int I)
@@ -65,11 +65,12 @@ void layout_demo(struct c2_pdclust_instance *pi, uint32_t P, int R, int I)
 	struct c2_pdclust_src_addr src1;
 	struct c2_pdclust_src_addr map[R][P];
 	uint32_t                   incidence[P][P];
-	uint32_t                   usage[P][PUT_NR + 1];
+	uint32_t                   usage[P][C2_PUT_NR + 1];
 	uint32_t                   where[pi->pi_layout->pl_attr.pa_N +
 					 2*pi->pi_layout->pl_attr.pa_K];
-	const char                *brace[PUT_NR] = { "[]", "<>", "{}" };
-	const char                *head[PUT_NR+1] = { "D", "P", "S", "total" };
+	const char                *brace[C2_PUT_NR] = { "[]", "<>", "{}" };
+	const char                *head[C2_PUT_NR+1] = { "D", "P", "S",
+							 "total" };
 
 	uint32_t                   min;
 	uint32_t                   max;
@@ -98,7 +99,7 @@ void layout_demo(struct c2_pdclust_instance *pi, uint32_t P, int R, int I)
 			if (tgt.ta_frame < R)
 				map[tgt.ta_frame][tgt.ta_obj] = src;
 			where[unit] = tgt.ta_obj;
-			usage[tgt.ta_obj][PUT_NR]++;
+			usage[tgt.ta_obj][C2_PUT_NR]++;
 			usage[tgt.ta_obj][classify(pi->pi_layout, unit)]++;
 		}
 		for (unit = 0; unit < W; ++unit) {
@@ -122,7 +123,7 @@ void layout_demo(struct c2_pdclust_instance *pi, uint32_t P, int R, int I)
 		printf("\n");
 	}
 	printf("usage : \n");
-	for (i = 0; i < PUT_NR + 1; ++i) {
+	for (i = 0; i < C2_PUT_NR + 1; ++i) {
 		max = sum = sq = 0;
 		min = ~0;
 		printf("%5s : ", head[i]);

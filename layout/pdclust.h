@@ -224,10 +224,10 @@ struct c2_pdclust_instance {
 
 /** Classification of units in a parity group. */
 enum c2_pdclust_unit_type {
-	PUT_DATA,
-	PUT_PARITY,
-	PUT_SPARE,
-	PUT_NR
+	C2_PUT_DATA,
+	C2_PUT_PARITY,
+	C2_PUT_SPARE,
+	C2_PUT_NR
 };
 
 /**
