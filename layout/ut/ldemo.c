@@ -212,7 +212,7 @@ int main(int argc, char **argv)
 	struct c2_layout_domain        domain;
 	struct c2_dbenv                dbenv;
 	struct c2_layout_linear_enum  *le;
-	struct c2_pdclust_instance     pi;
+	struct c2_pdclust_instance    *pi;
 	struct c2_fid                  gfid;
 	if (argc != 6) {
 		printf(
@@ -268,19 +268,21 @@ int main(int argc, char **argv)
 			rc = c2_pdclust_build(&domain, id, &attr,
 					      &le->lle_base, &play);
 			if (rc == 0) {
-				rc = c2_pdclust_instance_init(&pi,
-							      play,
-							      &gfid);
-				layout_demo(&pi, P, R, I);
+				rc = c2_pdclust_instance_build(play, &gfid,
+							       &pi);
+				layout_demo(pi, P, R, I);
+				pi->pi_base.li_ops->lio_fini(&pi->pi_base);
 			}
 			c2_pool_fini(&pool);
 		}
 
+		c2_layout_enum_type_unregister(&domain, &c2_linear_enum_type);
+		c2_layout_type_unregister(&domain, &c2_pdclust_layout_type);
+		c2_layout_domain_fini(&domain);
+		c2_dbenv_fini(&dbenv);
 	}
 
-	//todo instance fini(pdclust fini, enum fini), domain fini etc
 	c2_fini();
-
 	return rc;
 }
 

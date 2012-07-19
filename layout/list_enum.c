@@ -34,7 +34,7 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
-#include "fid/fid.h"
+#include "fid/fid.h"  /* c2_fid_is_valid() */
 #include "layout/layout_internal.h"
 #include "layout/list_enum.h"
 

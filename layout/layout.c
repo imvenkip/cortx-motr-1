@@ -96,7 +96,8 @@ extern struct c2_layout_enum_type c2_linear_enum_type;
 enum {
 	LAYOUT_MAGIC           = 0x4C41594F55544D41, /* LAYOUTMA */
 	LAYOUT_ENUM_MAGIC      = 0x454E554D4D414749, /* ENUMMAGI */
-	LAYOUT_LIST_HEAD_MAGIC = 0x4C484541444D4147  /* LHEADMAG */
+	LAYOUT_LIST_HEAD_MAGIC = 0x4C484541444D4147, /* LHEADMAG */
+	LAYOUT_INSTANCE_MAGIC  = 0x4C494E53544D4147  /* LINSTMAG */
 };
 
 static const struct c2_bob_type layout_bob = {
@@ -114,6 +115,16 @@ static const struct c2_bob_type enum_bob = {
 	.bt_check        = NULL
 };
 C2_BOB_DEFINE(static, &enum_bob, c2_layout_enum);
+
+bool c2_layout__instance_invariant(const void *bob);
+static const struct c2_bob_type layout_instance_bob = {
+	.bt_name         = "layout_instance",
+	.bt_magix_offset = offsetof(struct c2_layout_instance, li_magic),
+	.bt_magix        = LAYOUT_INSTANCE_MAGIC,
+	.bt_check        = NULL
+//todo .bt_check = &c2_layout__instance_invariant does not work for c2t1fs st
+};
+C2_BOB_DEFINE(static, &layout_instance_bob, c2_layout_instance);
 
 /** ADDB instrumentation for layout. */
 static const struct c2_addb_ctx_type layout_addb_ctx_type = {
@@ -204,6 +215,17 @@ bool c2_layout__striped_invariant(const struct c2_striped_layout *stl)
 		stl != NULL &&
 		c2_layout__enum_invariant(stl->sl_enum) &&
 		c2_layout__invariant(&stl->sl_base);
+}
+
+//todo bool c2_layout__instance_invariant(const struct c2_layout_instance *li)
+bool c2_layout__instance_invariant(const void *bob)
+{
+	const struct c2_layout_instance *li = bob;
+
+	return
+		c2_layout_instance_bob_check(li) &&
+		c2_fid_is_valid(&li->li_gfid) &&
+		li->li_ops != NULL;
 }
 
 /** Adds a reference to the layout type. */
@@ -1062,6 +1084,25 @@ void c2_layout_enum_get(const struct c2_layout_enum *e,
 	e->le_ops->leo_get(e, idx, gfid, out);
 }
 
+void c2_layout__instance_init(struct c2_layout_instance *li,
+                              const struct c2_fid *gfid,
+			      const struct c2_layout_instance_ops *ops)
+{
+	C2_PRE(li != NULL);
+	li->li_gfid = *gfid;
+	li->li_ops = ops;
+	c2_layout_instance_bob_init(li);
+	C2_POST(li->li_gfid.f_container == gfid->f_container &&
+		li->li_gfid.f_key == gfid->f_key ); //todo rm
+	C2_POST(c2_layout__instance_invariant(li));
+}
+
+void c2_layout__instance_fini(struct c2_layout_instance *li)
+{
+	C2_PRE(c2_layout__instance_invariant(li));
+	c2_layout_instance_bob_fini(li);
+	C2_POST(!c2_layout__instance_invariant(li)); //todo rm
+}
 /** @} end group layout */
 
 /*

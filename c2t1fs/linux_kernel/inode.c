@@ -20,8 +20,8 @@
 
 #include <linux/slab.h>         /* kmem_cache */
 
-#include "layout/pdclust.h"     /* c2_pdclust_build(), c2_pdclust_fini(),
-				 * c2_pdl_to_layout()                    */
+#include "layout/pdclust.h"     /* c2_pdclust_build(), c2_pdl_to_layout(),
+				 * c2_pdclust_instance_build()           */
 #include "layout/linear_enum.h" /* c2_linear_enum_build()                */
 #include "lib/misc.h"           /* C2_SET0()                             */
 #include "lib/memory.h"         /* C2_ALLOC_PTR(), c2_free()             */
@@ -94,7 +94,7 @@ void c2t1fs_inode_init(struct c2t1fs_inode *ci)
 	C2_ENTRY("ci: %p", ci);
 
 	C2_SET0(&ci->ci_fid);
-	C2_SET0(&ci->ci_pd_instance);
+	ci->ci_layout_instance = NULL;
 
 	dir_ents_tlist_init(&ci->ci_dir_ents);
 
@@ -108,8 +108,8 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 
 	is_root = c2t1fs_inode_is_root(&ci->ci_inode);
 
-	C2_ENTRY("ci: %p, is_root %s, pd instance %p",
-		 ci, is_root ? "true" : "false", &ci->ci_pd_instance);
+	C2_ENTRY("ci: %p, is_root %s, layout_instance %p",
+		 ci, is_root ? "true" : "false", ci->ci_layout_instance);
 
 	c2_tl_for(dir_ents, &ci->ci_dir_ents, de) {
 		dir_ents_tlist_del(de);
@@ -120,8 +120,11 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 
 	dir_ents_tlist_fini(&ci->ci_dir_ents);
 
-	if (!is_root)
-		c2_pdclust_instance_fini(&ci->ci_pd_instance);
+	if (!is_root) {
+		C2_ASSERT(ci->ci_layout_instance != NULL);
+		ci->ci_layout_instance->li_ops->lio_fini(
+						ci->ci_layout_instance);
+	}
 	C2_LEAVE();
 }
 
@@ -344,10 +347,11 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 			     uint64_t             unit_size)
 {
 	uint64_t                      layout_id;
-	struct c2_layout_linear_enum *le;
 	struct c2_layout_linear_attr  lin_attr;
-	struct c2_pdclust_layout     *pl;
+	struct c2_layout_linear_enum *le;
 	struct c2_pdclust_attr        pl_attr;
+	struct c2_pdclust_layout     *pl;
+	struct c2_pdclust_instance   *pi;
 	int                           rc;
 
 	C2_ENTRY();
@@ -379,13 +383,15 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 		rc = c2_pdclust_build(&c2t1fs_globals.g_layout_dom, layout_id,
 				      &pl_attr, &le->lle_base, &pl);
 		if (rc == 0)
-			rc = c2_pdclust_instance_init(&ci->ci_pd_instance,
-						      pl, &ci->ci_fid);
-			/*
-			 * If rc is 0, c2_pdclust_instance_init() has now
-			 * acquired an additional reference on the layout
-			 * object.
-			 */
+			rc = c2_pdclust_instance_build(pl, &ci->ci_fid, &pi);
+			if (rc == 0) {
+				/*
+				 * c2_pdclust_instance_build() has now
+				 * acquired an additional reference on the
+				 * layout object 'pl'.
+				 */
+				ci->ci_layout_instance = &pi->pi_base;
+			}
 		else
 			c2_linear_enum_fini(le);
 	}

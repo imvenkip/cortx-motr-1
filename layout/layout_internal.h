@@ -35,11 +35,13 @@ struct c2_layout_enum;
 struct c2_layout_enum_ops;
 struct c2_layout_enum_type;
 struct c2_striped_layout;
-struct c2_layout_schema;
+struct c2_layout_instance;
+struct c2_layout_instance_ops;
 enum c2_addb_event_id;
 struct c2_addb_ev;
 struct c2_addb_ctx;
 struct c2_addb_loc;
+struct c2_fid;
 
 enum {
 	/** Invalid layout id. */
@@ -102,6 +104,11 @@ void c2_layout__log(const char *fn_name,
 		    int rc);
 
 c2_bcount_t c2_layout__enum_max_recsize(struct c2_layout_domain *dom);
+
+void c2_layout__instance_init(struct c2_layout_instance *li,
+			      const struct c2_fid *gfid,
+			      const struct c2_layout_instance_ops *ops);
+void c2_layout__instance_fini(struct c2_layout_instance *li);
 
 /** @} end group layout */
 

@@ -112,14 +112,14 @@ static const struct c2_bob_type pdclust_bob = {
 
 C2_BOB_DEFINE(static, &pdclust_bob, c2_pdclust_layout);
 
-static const struct c2_bob_type pd_instance_bob = {
+static const struct c2_bob_type pdclust_instance_bob = {
 	.bt_name         = "pd_instance",
 	.bt_magix_offset = offsetof(struct c2_pdclust_instance, pi_magic),
 	.bt_magix        = PD_INSTANCE_MAGIC,
 	.bt_check        = NULL
 };
 
-C2_BOB_DEFINE(static, &pd_instance_bob, c2_pdclust_instance);
+C2_BOB_DEFINE(static, &pdclust_instance_bob, c2_pdclust_instance);
 
 C2_ADDB_EV_DEFINE(pdclust_tile_cache_hit, "pdclust_tile_cache_hit",
 		  C2_ADDB_EVENT_LAYOUT_TILE_CACHE_HIT, C2_ADDB_FLAG);
@@ -148,6 +148,7 @@ static bool pdclust_instance_invariant(const struct c2_pdclust_instance *pi)
 	P  = pi->pi_layout->pl_attr.pa_P;
 	tc = &pi->pi_tile_cache;
 
+	C2_ENTRY(); //todo rm after confirming bt_check
 	return
 		c2_pdclust_instance_bob_check(pi) &&
 		pdclust_invariant(pi->pi_layout) &&
@@ -209,7 +210,7 @@ static int pdclust_allocate(struct c2_layout_domain *dom,
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 	C2_ALLOC_PTR(pl);
 	if (pl == NULL) {
-		c2_layout__log("c2_pdclust_allocate", "C2_ALLOC_PTR() failed",
+		c2_layout__log("pdclust_allocate", "C2_ALLOC_PTR() failed",
 			       &c2_addb_oom, &layout_global_ctx, lid, -ENOMEM);
 		return -ENOMEM;
 	}
@@ -726,79 +727,112 @@ void c2_pdclust_layout_inv(struct c2_pdclust_instance *pi,
 	src->sa_group = m_enc(C, omega, j);
 }
 
-int c2_pdclust_instance_init(struct c2_pdclust_instance *pi,
-			     struct c2_pdclust_layout *pl,
-			     const struct c2_fid *fid)
-{
-	uint32_t N;
-	uint32_t K;
-	uint32_t P;
-	uint64_t lid;
-	int      rc;
+static const struct c2_layout_instance_ops pdclust_instance_ops;
+void pdclust_instance_fini(struct c2_layout_instance *li);
 
-	C2_PRE(pi != NULL);
+int c2_pdclust_instance_build(struct c2_pdclust_layout *pl,
+			      const struct c2_fid *fid,
+			      struct c2_pdclust_instance **out)
+{
+	struct c2_pdclust_instance *pi;
+	uint32_t                    N;
+	uint32_t                    K;
+	uint32_t                    P;
+	int                         rc;
+
 	C2_PRE(pdclust_invariant(pl));
 	C2_PRE(c2_fid_is_valid(fid));
+	C2_PRE(out != NULL);
 
-	lid = pl->pl_base.sl_base.l_id;
-	C2_ENTRY("pi %p, pl %p, gfid container %llu, gfid key %llu",
-		 pi, pl, (unsigned long long)fid->f_container,
+	C2_ENTRY("lid %llu, gfid container %llu, gfid key %llu",
+		 (unsigned long long)pl->pl_base.sl_base.l_id,
+		 (unsigned long long)fid->f_container,
 		 (unsigned long long)fid->f_key);
-	pi->pi_layout = pl;
-	pi->pi_fid    = *fid;
-
 	N = pl->pl_attr.pa_N;
 	K = pl->pl_attr.pa_K;
 	P = pl->pl_attr.pa_P;
+
+	C2_ALLOC_PTR(pi);
 	C2_ALLOC_ARR(pi->pi_tile_cache.tc_lcode, P);
 	C2_ALLOC_ARR(pi->pi_tile_cache.tc_permute, P);
 	C2_ALLOC_ARR(pi->pi_tile_cache.tc_inverse, P);
 	if (pi->pi_tile_cache.tc_lcode != NULL &&
 	    pi->pi_tile_cache.tc_permute != NULL &&
 	    pi->pi_tile_cache.tc_inverse != NULL) {
+		pi->pi_layout = pl;
 		pi->pi_tile_cache.tc_tile_no = 1;
 		permute_column(pi, 0, 0);
 		rc = c2_parity_math_init(&pi->pi_math, N, K);
 		if (rc == 0) {
+			c2_layout__instance_init(&pi->pi_base, fid,
+						 &pdclust_instance_ops);
 			c2_pdclust_instance_bob_init(pi);
 			c2_layout_get(&pl->pl_base.sl_base);
 		}
 		else
-			C2_LOG("lid %llu, c2_parity_math_init() failed, rc %d",
-			       (unsigned long long)lid, rc);
+			C2_LOG("pi %p, c2_parity_math_init() failed, rc %d",
+			        pi, rc);
 
 	} else {
 		rc = -ENOMEM;
-		c2_layout__log("c2_pdclust_instance_init", "C2_ALLOC() failed",
-			       &c2_addb_oom, &layout_global_ctx, lid, rc);
+		c2_layout__log("c2_pdclust_instance_build",
+			       "C2_ALLOC() failed",
+			       &c2_addb_oom, &pl->pl_base.sl_base.l_addb,
+			       pl->pl_base.sl_base.l_id, rc);
 	}
 
-	if (rc == 0)
-		C2_POST(pdclust_instance_invariant(pi));
+	if (rc == 0) {
+		*out = pi;
+		C2_POST(pdclust_instance_invariant(*out));
+		C2_POST(pl->pl_base.sl_base.l_ref > 0);
+	}
 	else
-		c2_pdclust_instance_fini(pi);
-	C2_LEAVE("pi %p, pl %p, rc %d", pi, pl, rc);
+		pdclust_instance_fini(&pi->pi_base);
+	C2_LEAVE("lid %llu, pi %p, rc %d",
+		 (unsigned long long)pl->pl_base.sl_base.l_id, pi, rc);
 	return rc;
 }
 
-void c2_pdclust_instance_fini(struct c2_pdclust_instance *pi)
+/**
+ * Implementation of lio_fini().
+ * Dual to c2_pdclust_instance_build().
+ */
+void pdclust_instance_fini(struct c2_layout_instance *li)
 {
-	C2_PRE(pdclust_instance_invariant(pi));
+	struct c2_pdclust_instance *pi;
+
+	pi = bob_of(li, struct c2_pdclust_instance,
+		    pi_base, &pdclust_instance_bob);
+	C2_PRE(pdclust_instance_invariant(pi)); //todo rm
 
 	C2_ENTRY("pi %p", pi);
 	c2_layout_put(&pi->pi_layout->pl_base.sl_base);
+	c2_layout__instance_fini(&pi->pi_base);
 	c2_pdclust_instance_bob_fini(pi);
 	c2_parity_math_fini(&pi->pi_math);
 	c2_free(pi->pi_tile_cache.tc_inverse);
 	c2_free(pi->pi_tile_cache.tc_permute);
 	c2_free(pi->pi_tile_cache.tc_lcode);
+	c2_free(pi);
 	C2_LEAVE();
 }
 
+struct c2_pdclust_instance *c2_layout_instance_to_pdi(
+					const struct c2_layout_instance *li)
+{
+	struct c2_pdclust_instance *pi;
+	C2_ENTRY(); //todo rm after confirming bt_check
+	pi = bob_of(li, struct c2_pdclust_instance, pi_base,
+		    &pdclust_instance_bob);
+	C2_POST(pdclust_instance_invariant(pi)); //todo tm
+	C2_LEAVE(); //todo rm
+	return pi;
+}
+
 static const struct c2_layout_ops pdclust_ops = {
-	.lo_fini        = pdclust_fini,
-	.lo_delete      = pdclust_delete,
-	.lo_recsize     = pdclust_recsize,
+	.lo_fini    = pdclust_fini,
+	.lo_delete  = pdclust_delete,
+	.lo_recsize = pdclust_recsize
 };
 
 static const struct c2_layout_type_ops pdclust_type_ops = {
@@ -811,11 +845,15 @@ static const struct c2_layout_type_ops pdclust_type_ops = {
 };
 
 struct c2_layout_type c2_pdclust_layout_type = {
-	.lt_name        = "pdclust",
-	.lt_id          = 0,
-	.lt_ref_count   = 0,
-	.lt_domain      = NULL,
-	.lt_ops         = &pdclust_type_ops
+	.lt_name      = "pdclust",
+	.lt_id        = 0,
+	.lt_ref_count = 0,
+	.lt_domain    = NULL,
+	.lt_ops       = &pdclust_type_ops
+};
+
+static const struct c2_layout_instance_ops pdclust_instance_ops = {
+	.lio_fini = pdclust_instance_fini
 };
 
 /** @} end group pdclust */

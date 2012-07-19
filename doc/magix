@@ -17,6 +17,8 @@ fi_dynamic_id_tl      td_head_magic        666964796e696468 fidynidh
 c2_layout             l_magic              4C41594F55544D41 LAYOUTMA
 c2_layout_enum        le_magic             454E554D4D414749 ENUMMAGI
 layout_tlist          head_magic           4C484541444D4147 LHEADMAG
+c2_layout_instance    li_magic             4C494E53544D4147 LINSTMAG
 c2_pdclust_layout     pl_magic             5044434C5553544C PDCLUSTL
+c2_pdclust_instance   pi_magic             5044494E5354414E PDINSTAN
 c2_layout_list_enum   lle_magic            4C495354454E554D LISTENUM
 c2_layout_linear_enum lla_magic            4C494E2D454E554D LIN-ENUM

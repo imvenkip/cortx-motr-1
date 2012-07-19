@@ -24,7 +24,8 @@
 
 #include "lib/memory.h"     /* c2_alloc(), c2_free() */
 #include "lib/arith.h"      /* min_type() */
-#include "layout/pdclust.h" /* PUT_*, c2_layout_to_pdl() */
+#include "layout/pdclust.h" /* PUT_*, c2_layout_to_pdl(),
+			     * c2_pdclust_layout_map */
 #include "c2t1fs/linux_kernel/c2t1fs.h"
 #include "rpc/rpclib.h"     /* c2_rpc_client_call() */
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
@@ -205,16 +206,18 @@ static bool io_req_spans_full_stripe(struct c2t1fs_inode *ci,
 				     size_t               count,
 				     loff_t               pos)
 {
-	struct c2_pdclust_layout *pl;
-	uint64_t                  stripe_width;
-	unsigned long             addr;
-	bool                      result;
+	struct c2_pdclust_instance *pi;
+	struct c2_pdclust_layout   *pl;
+	uint64_t                    stripe_width;
+	unsigned long               addr;
+	bool                        result;
 
 	C2_ENTRY();
 
 	addr = (unsigned long)buf;
 
-	pl = ci->ci_pd_instance.pi_layout;
+	pi = c2_layout_instance_to_pdi(ci->ci_layout_instance);
+	pl = pi->pi_layout;
 
 	/* stripe width = number of data units * size of each unit */
 	stripe_width = c2_pdclust_N(pl) * c2_pdclust_unit_size(pl);
@@ -556,6 +559,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 	enum   c2_pdclust_unit_type  unit_type;
 	struct c2_pdclust_src_addr   src_addr;
 	struct c2_pdclust_tgt_addr   tgt_addr;
+	struct c2_pdclust_instance  *pi;
 	struct c2_pdclust_layout    *pl;
 	struct rw_desc              *rw_desc;
 	struct c2t1fs_sb            *csb;
@@ -582,7 +586,9 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 	csb = C2T1FS_SB(ci->ci_inode.i_sb);
 
-	pl = ci->ci_pd_instance.pi_layout;
+	pi = c2_layout_instance_to_pdi(ci->ci_layout_instance);
+	pl = pi->pi_layout;
+
 	gob_fid   = ci->ci_fid;
 	unit_size = c2_pdclust_unit_size(pl);
 
@@ -619,8 +625,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 			src_addr.sa_unit = unit;
 
-			c2_pdclust_layout_map(&ci->ci_pd_instance,
-					      &src_addr, &tgt_addr);
+			c2_pdclust_layout_map(pi, &src_addr, &tgt_addr);
 
 			C2_LOG("src [%lu:%lu] maps to tgt [0:%lu]",
 					(unsigned long)src_addr.sa_group,
@@ -691,10 +696,9 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 						rw == WRITE) {
 					C2_LOG("Compute parity of grp %lu",
 					     (unsigned long)src_addr.sa_group);
-					c2_parity_math_calculate(
-						&ci->ci_pd_instance.pi_math,
-						data_bufs,
-						parity_bufs);
+					c2_parity_math_calculate(&pi->pi_math,
+								 data_bufs,
+								 parity_bufs);
 				}
 				break;
 

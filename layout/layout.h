@@ -98,19 +98,18 @@
  */
 
 /* import */
-#include "lib/types.h"    /* uint64_t */
-#include "lib/tlist.h"    /* struct c2_tl */
-#include "lib/mutex.h"    /* struct c2_mutex */
+#include "lib/types.h"  /* uint64_t */
+#include "lib/tlist.h"  /* struct c2_tl */
+#include "lib/mutex.h"  /* struct c2_mutex */
 
-#include "db/db.h"        /* struct c2_table */
+#include "fid/fid.h"    /* struct c2_fid */
+#include "db/db.h"      /* struct c2_table */
 #include "addb/addb.h"
 
 struct c2_addb_ctx;
 struct c2_bufvec_cursor;
-struct c2_fid;
 
 /* export */
-struct c2_layout_schema;
 struct c2_layout_domain;
 struct c2_layout;
 struct c2_layout_ops;
@@ -466,6 +465,32 @@ struct c2_striped_layout {
 	/** Layout enumeration. */
 	struct c2_layout_enum *sl_enum;
 };
+
+/**
+ * Layout instance for a particular file.
+ *
+ * On a client, this structure is embedded in c2t1fs inode.
+ */
+struct c2_layout_instance {
+	/** (Global) fid of the file. */
+	struct c2_fid                        li_gfid;
+	/** Layout operations vector. */
+	const struct c2_layout_instance_ops *li_ops;
+	/** Magic number set while c2_layout_instance object is initialised. */
+	uint64_t                             li_magic;
+};
+
+struct c2_layout_instance_ops {
+	/**
+	 * Finalises the layout instance object.
+	 * Releases a reference on the layout object
+	 * (pi->pi_layout->pl_base.sl_base) that was obtained through the
+	 * layout instance type specific build method, for example
+	 * c2_pdclust_instance_init().
+	 */
+	void (*lio_fini)(struct c2_layout_instance *li);
+};
+
 
 int c2_layouts_init(void);
 void c2_layouts_fini(void);

@@ -64,7 +64,6 @@
 
 /* import */
 #include "sns/parity_math.h"
-#include "fid/fid.h"         /* struct c2_fid */
 #include "layout/layout.h"
 
 struct c2_pool;
@@ -161,19 +160,19 @@ struct c2_pdclust_layout {
 };
 
 /**
- * Parity de-clustered layout instance.
+ * Parity de-clustered layout instance for a particular file.
  *
  * This structure contains information necessary to execute IO against a
  * particular parity de-clustered file.
- *
- * On a client, this structure is embedded in c2t1fs inode. //todo rm
  */
 struct c2_pdclust_instance {
-	/** Parity de-clustered layout used for the file referred by pi_fid. */
+	/* Super class. */
+	struct c2_layout_instance    pi_base;
+	/**
+	 * Parity de-clustered layout used for the file referred by
+	 * pi_base.li_fid.
+	 */
 	struct c2_pdclust_layout    *pi_layout;
-
-	/** (Global) fid of the file. */
-	struct c2_fid                pi_fid;
 	/**
 	 * Caches information about the most recently used tile.
 	 *
@@ -222,6 +221,7 @@ struct c2_pdclust_instance {
 
 	/** Parity math information, initialised according to the layout. */
 	struct c2_parity_math        pi_math;
+
 	uint64_t                     pi_magic;
 };
 
@@ -289,17 +289,19 @@ c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 			 int unit);
 
 /**
- * Builds a parity de-clustered layout instance using the supplied pdclust
- * layout 'pl' and acquires an additional referece on 'pl->pl_base.sl_base'.
+ * Allocates and Builds a parity de-clustered layout instance using the
+ * supplied pdclust layout 'pl' and acquires an additional referece on
+ * 'pl->pl_base.sl_base'.
  * @post ergo(rc == 0, pdclust_instance_invariant(*out) &&
  *                     pl->pl_base.sl_base.l_ref > 0))
  *
- * @note This layout object is not to be finalised explicitly but it is
- * finalised automatically when its last reference is released.
+ * @note This layout instance object is to be finalised explicitly by the user,
+ * using pi->li_ops->lio_fini().
  */
-int c2_pdclust_instance_init(struct c2_pdclust_instance *pi,
-			     struct c2_pdclust_layout *pl,
-			     const struct c2_fid *fid);
+int c2_pdclust_instance_build(struct c2_pdclust_layout *pl,
+			      const struct c2_fid *fid,
+			      struct c2_pdclust_instance **out);
+
 /**
  * Finalises the parity de-clustered layout instance and releases a
  * reference on the pi->pi_layout->pl_base.sl_base that was obtained through
@@ -308,6 +310,10 @@ int c2_pdclust_instance_init(struct c2_pdclust_instance *pi,
  * Dual to c2_pdclust_instance_init().
  */
 void c2_pdclust_instance_fini(struct c2_pdclust_instance *pi);
+
+/** Returns c2_pdclust_instance object given a c2_layout_instance object. */
+struct c2_pdclust_instance *c2_layout_instance_to_pdi(
+					const struct c2_layout_instance *li);
 
 /* todo Change name of fns which operate upon instance and non pl */
 /**

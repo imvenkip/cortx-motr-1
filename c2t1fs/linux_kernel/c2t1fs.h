@@ -369,13 +369,13 @@ struct c2t1fs_inode {
 	/** fid of gob */
 	struct c2_fid              ci_fid;
 
-	/** layout of the file's data */ //todo This shall be generic instance
-	struct c2_pdclust_instance ci_pd_instance;
+	/** layout and related information for the file's data */
+	struct c2_layout_instance *ci_layout_instance;
 
 	/** List of c2t1fs_dir_ent objects placed using de_link.
 	    List descriptor dir_ents_tl. Valid for only directory inode.
 	    Empty for regular file inodes. */
-	struct c2_tl              ci_dir_ents;
+	struct c2_tl               ci_dir_ents;
 };
 
 static inline struct c2t1fs_sb *C2T1FS_SB(const struct super_block *sb)
