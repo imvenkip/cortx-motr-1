@@ -236,7 +236,8 @@ static int c2t1fs_layout_init(void)
 	rc = c2_layout_domain_init(&c2t1fs_globals.g_layout_dom,
 				   &c2t1fs_globals.g_dbenv);
 	if (rc == 0) {
-		rc = c2_layout_all_types_register(&c2t1fs_globals.g_layout_dom);
+		rc = c2_layout_standard_types_register(
+						&c2t1fs_globals.g_layout_dom);
 		if (rc != 0)
 			c2_layout_domain_fini(&c2t1fs_globals.g_layout_dom);
 	}
@@ -249,7 +250,7 @@ static void c2t1fs_layout_fini(void)
 {
 	C2_ENTRY();
 
-	c2_layout_all_types_unregister(&c2t1fs_globals.g_layout_dom);
+	c2_layout_standard_types_unregister(&c2t1fs_globals.g_layout_dom);
 	c2_layout_domain_fini(&c2t1fs_globals.g_layout_dom);
 
 	C2_LEAVE();

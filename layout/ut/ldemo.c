@@ -168,11 +168,13 @@ void layout_demo(struct c2_pdclust_instance *pi, uint32_t P, int R, int I)
  */
 static int dummy_create(struct c2_layout_domain *domain,
 			struct c2_dbenv *dbenv,
-			uint64_t lid, uint32_t pool_width,
-			struct c2_layout_linear_enum **lin_enum)
+			uint64_t lid,
+			struct c2_pdclust_attr *attr,
+			struct c2_pdclust_layout **pl)
 {
-	int                          rc;
-	struct c2_layout_linear_attr lin_attr;
+	int                           rc;
+	struct c2_layout_linear_attr  lin_attr;
+	struct c2_layout_linear_enum *lin_enum;
 
 	rc = c2_dbenv_init(dbenv, "ldemo-db", 0);
 	C2_ASSERT(rc == 0);
@@ -180,15 +182,17 @@ static int dummy_create(struct c2_layout_domain *domain,
 	rc = c2_layout_domain_init(domain, dbenv);
 	C2_ASSERT(rc == 0);
 
-	c2_layout_type_register(domain, &c2_pdclust_layout_type);
-	c2_layout_enum_type_register(domain, &c2_linear_enum_type);
-
-	lin_attr.lla_nr = pool_width;
-	lin_attr.lla_A  = 100;
-	lin_attr.lla_B  = 200;
-	rc = c2_linear_enum_build(domain, &lin_attr, lin_enum);
+	rc = c2_layout_standard_types_register(domain);
 	C2_ASSERT(rc == 0);
 
+	lin_attr.lla_nr = attr->pa_P;
+	lin_attr.lla_A  = 100;
+	lin_attr.lla_B  = 200;
+	rc = c2_linear_enum_build(domain, &lin_attr, &lin_enum);
+	C2_ASSERT(rc == 0);
+
+	rc = c2_pdclust_build(domain, lid, attr, &lin_enum->lle_base, pl);
+	C2_ASSERT(rc == 0);
 	return rc;
 }
 
@@ -208,7 +212,6 @@ int main(int argc, char **argv)
 	struct c2_uint128              seed;
 	struct c2_layout_domain        domain;
 	struct c2_dbenv                dbenv;
-	struct c2_layout_linear_enum  *le;
 	struct c2_pdclust_instance    *pi;
 	struct c2_fid                  gfid;
 	if (argc != 6) {
@@ -248,34 +251,25 @@ int main(int argc, char **argv)
 
 	rc = c2_pool_init(&pool, P);
 	if (rc == 0) {
-		/**
-		 * Creating a dummy domain object here so as to supply it
-		 * to c2_pdclust_build(), though it is not used in this test.
-		 */
-		/* todo Move pdclust_build() to dummy_create */
-		rc = dummy_create(&domain, &dbenv, id, pool.po_width, &le);
+		attr.pa_N = N;
+		attr.pa_K = K;
+		attr.pa_P = pool.po_width;
+		attr.pa_unit_size = unitsize;
+		attr.pa_seed = seed;
+
+		rc = dummy_create(&domain, &dbenv, id, &attr, &play);
 		if (rc == 0) {
-			attr.pa_N = N;
-			attr.pa_K = K;
-			attr.pa_P = pool.po_width;
-			attr.pa_unit_size = unitsize;
-			attr.pa_seed = seed;
 			c2_fid_set(&gfid, 0, 999);
-			rc = c2_pdclust_build(&domain, id, &attr,
-					      &le->lle_base, &play);
+			rc = c2_pdclust_instance_build(play, &gfid, &pi);
 			if (rc == 0) {
-				rc = c2_pdclust_instance_build(play, &gfid,
-							       &pi);
 				layout_demo(pi, P, R, I);
 				pi->pi_base.li_ops->lio_fini(&pi->pi_base);
 			}
-			c2_pool_fini(&pool);
+			c2_layout_standard_types_unregister(&domain);
+			c2_layout_domain_fini(&domain);
+			c2_dbenv_fini(&dbenv);
 		}
-
-		c2_layout_enum_type_unregister(&domain, &c2_linear_enum_type);
-		c2_layout_type_unregister(&domain, &c2_pdclust_layout_type);
-		c2_layout_domain_fini(&domain);
-		c2_dbenv_fini(&dbenv);
+		c2_pool_fini(&pool);
 	}
 
 	c2_fini();

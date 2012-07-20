@@ -711,7 +711,6 @@ int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
 		dom->ld_dbenv = NULL;
 		return rc;
 	}
-
 	c2_mutex_init(&dom->ld_lock);
 	C2_POST(c2_layout__domain_invariant(dom));
 	return rc;
@@ -741,7 +740,7 @@ void c2_layout_domain_fini(struct c2_layout_domain *dom)
 	layout_tlist_fini(&dom->ld_layout_list);
 }
 
-int c2_layout_all_types_register(struct c2_layout_domain *dom)
+int c2_layout_standard_types_register(struct c2_layout_domain *dom)
 {
 	int rc;
 
@@ -765,7 +764,7 @@ int c2_layout_all_types_register(struct c2_layout_domain *dom)
 	return rc;
 }
 
-void c2_layout_all_types_unregister(struct c2_layout_domain *dom)
+void c2_layout_standard_types_unregister(struct c2_layout_domain *dom)
 {
 	C2_PRE(c2_layout__domain_invariant(dom));
 
