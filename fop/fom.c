@@ -184,7 +184,17 @@ static void readyit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 	c2_fom_ready(fom);
 }
 
-void c2_fom_ready_remote(struct c2_fom *fom)
+static void queueit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
+{
+	struct c2_fom *fom = container_of(ast, struct c2_fom, fo_cb.fc_ast);
+
+	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(C2_IN(fom->fo_phase, (C2_FOPH_INIT, C2_FOPH_FAILURE)));
+
+	fom_ready(fom);
+}
+
+void c2_fom_wakeup(struct c2_fom *fom)
 {
 	fom->fo_cb.fc_ast.sa_cb = readyit;
 	c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
@@ -204,7 +214,7 @@ void c2_fom_block_enter(struct c2_fom *fom)
 	c2_mutex_lock(&loc->fl_lock);
 	C2_CNT_INC(loc->fl_lo_idle_threads_nr);
 	max_idle_threads = max_check(loc->fl_lo_idle_threads_nr,
-	                             loc->fl_hi_idle_threads_nr);
+				     loc->fl_hi_idle_threads_nr);
 	while (loc->fl_idle_threads_nr < max_idle_threads) {
 		rc = loc_thr_create(loc);
 		if (rc != 0) {
@@ -231,12 +241,34 @@ void c2_fom_block_leave(struct c2_fom *fom)
 	C2_ASSERT(c2_locality_invariant(loc));
 }
 
-void c2_fom_queue(struct c2_fom *fom)
+void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
 {
-	C2_PRE(c2_fom_invariant(fom));
-	C2_PRE(C2_IN(fom->fo_phase, (C2_FOPH_INIT, C2_FOPH_FAILURE)));
+	struct c2_fom_domain   *dom;
+	size_t			loc_idx;
 
-	fom_ready(fom);
+	C2_PRE(reqh != NULL);
+	C2_PRE(fom != NULL);
+
+	/*
+	 * To access service specific data,
+	 * FOM needs pointer to service instance.
+	 */
+	if (fom->fo_ops->fo_service_name != NULL) {
+		const char *service_name = NULL;
+		service_name = fom->fo_ops->fo_service_name(fom);
+		fom->fo_service = c2_reqh_service_get(service_name,
+						      reqh);
+	}
+	fom->fo_fol = reqh->rh_fol;
+	dom = &reqh->rh_fom_dom;
+	c2_atomic64_inc(&dom->fd_foms_nr);
+	loc_idx = fom->fo_ops->fo_home_locality(fom) %
+		dom->fd_localities_nr;
+	C2_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
+	fom->fo_loc = &reqh->rh_fom_dom.fd_localities[loc_idx];
+
+	fom->fo_cb.fc_ast.sa_cb = queueit;
+	c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
 }
 
 /**

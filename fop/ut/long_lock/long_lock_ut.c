@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,7 +14,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
- * Original creation date: 08/06/2011
+ * Original creation date: 08/06/2012
  */
 
 #ifdef HAVE_CONFIG_H
@@ -63,7 +63,7 @@ static int test_long_lock_init(void)
 		C2_ASSERT(rc == 0);
 	}
 
-	/**
+	/*
 	 * Instead of using colibri_setup and dealing with network, database and
 	 * other subsystems, request handler is initialised in a 'special way'.
 	 * This allows it to operate in a 'limited mode' which is enough for

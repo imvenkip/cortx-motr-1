@@ -46,7 +46,12 @@ C2_TL_DESCR_DEFINE(c2_lll, "list of lock-links in longlock", ,
 
 C2_TL_DEFINE(c2_lll, , struct c2_long_lock_link);
 
-static struct c2_bob_type long_lock_bob;
+static const struct c2_bob_type long_lock_bob = {
+	.bt_name         = "LONG_LOCK_BOB",
+	.bt_magix        = C2_LONG_LOCK_MAGIX,
+	.bt_magix_offset = offsetof(struct c2_long_lock, l_magix)
+};
+
 C2_BOB_DEFINE(, &long_lock_bob, c2_long_lock);
 
 static struct c2_bob_type long_lock_link_bob;
@@ -54,10 +59,6 @@ C2_BOB_DEFINE(, &long_lock_link_bob, c2_long_lock_link);
 
 void c2_fom_ll_global_init(void)
 {
-	long_lock_bob.bt_name         = "LONG_LOCK_BOB";
-	long_lock_bob.bt_magix        = C2_LONG_LOCK_MAGIX;
-	long_lock_bob.bt_magix_offset = offsetof(struct c2_long_lock, l_magix);
-
 	c2_bob_type_tlist_init(&long_lock_link_bob, &c2_lll_tl);
 }
 C2_EXPORTED(c2_fom_ll_global_init);
@@ -143,11 +144,7 @@ static void grant(struct c2_long_lock *lock, struct c2_long_lock_link *link)
 	lock->l_state = link->lll_lock_type == C2_LONG_LOCK_READER ?
 		C2_LONG_LOCK_RD_LOCKED : C2_LONG_LOCK_WR_LOCKED;
 
-	if (c2_lll_tlist_contains(&lock->l_waiters, link)) {
-		c2_lll_tlist_move_tail(&lock->l_owners, link);
-	}
-	else
-		c2_lll_tlist_add_tail(&lock->l_owners, link);
+	c2_lll_tlist_move_tail(&lock->l_owners, link);
 }
 
 static bool lock(struct c2_long_lock *lock, struct c2_long_lock_link *link,
@@ -215,7 +212,7 @@ static void unlock(struct c2_long_lock *lock, struct c2_long_lock_link *link)
 
 		C2_ASSERT(next->lll_fom->fo_transitions_saved + 1
 			  == next->lll_fom->fo_transitions);
-		c2_fom_ready_remote(next->lll_fom);
+		c2_fom_wakeup(next->lll_fom);
 	}
 
 	C2_POST(lock_invariant(lock));
@@ -234,30 +231,22 @@ void c2_long_read_unlock(struct c2_long_lock *lock,
 	unlock(lock, link);
 }
 
-bool c2_long_is_read_locked(struct c2_long_lock *lock, struct c2_fom *fom)
+bool c2_long_is_read_locked(struct c2_long_lock *lock,
+			    const struct c2_fom *fom)
 {
 	bool ret;
-	bool fom_is_in = false;
-	struct c2_long_lock_link *link;
 
 	c2_mutex_lock(&lock->l_lock);
 	C2_ASSERT(lock_invariant(lock));
-
-	c2_tl_for(c2_lll, &lock->l_owners, link) {
-		if (link->lll_fom == fom) {
-			fom_is_in = true;
-			break;
-		}
-	} c2_tl_endfor;
-
-	ret = lock->l_state == C2_LONG_LOCK_RD_LOCKED && fom_is_in;
-
+	ret = lock->l_state == C2_LONG_LOCK_RD_LOCKED &&
+		!c2_tl_forall(c2_lll, link, &lock->l_owners,
+			      link->lll_fom != fom);
 	c2_mutex_unlock(&lock->l_lock);
-
 	return ret;
 }
 
-bool c2_long_is_write_locked(struct c2_long_lock *lock, struct c2_fom *fom)
+bool c2_long_is_write_locked(struct c2_long_lock *lock,
+			     const struct c2_fom *fom)
 {
 	bool ret;
 

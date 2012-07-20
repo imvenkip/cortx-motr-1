@@ -202,7 +202,7 @@ void c2_long_lock_fini(struct c2_long_lock *lock);
  *
  * @pre link->lll_fom != NULL
  * @pre !c2_long_is_read_locked(lock, link)
- * @pre !*_tlink_is_in(&link->lll_lock_linkage)
+ * @pre !c2_tlink_is_in(&link->lll_lock_linkage)
  * @post fom->fo_phase == next_phase
  *
  * @return true iff the lock is taken.
@@ -221,7 +221,7 @@ bool c2_long_read_lock(struct c2_long_lock *lock,
  *
  * @pre link->lll_fom != NULL
  * @pre !c2_long_is_write_locked(lock, fom)
- * @pre !*_tlink_is_in(&link->lll_lock_linkage)
+ * @pre !c2_tlink_is_in(&link->lll_lock_linkage)
  * @post fom->fo_phase == next_phase
  *
  * @return true iff the lock is taken.
@@ -258,12 +258,14 @@ void c2_long_write_unlock(struct c2_long_lock *lock,
 /**
  * @return true iff the lock is taken as a read-lock by the given fom.
  */
-bool c2_long_is_read_locked(struct c2_long_lock *lock, struct c2_fom *link);
+bool c2_long_is_read_locked(struct c2_long_lock *lock,
+			    const struct c2_fom *fom);
 
 /**
  * @return true iff the lock is taken as a write-lock by the given fom.
  */
-bool c2_long_is_write_locked(struct c2_long_lock *lock, struct c2_fom *link);
+bool c2_long_is_write_locked(struct c2_long_lock *lock,
+			     const struct c2_fom *fom);
 
 /**
  * Initialize long lock link object with given fom.
