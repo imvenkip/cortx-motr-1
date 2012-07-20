@@ -70,7 +70,8 @@ static bool linear_invariant_internal(const struct c2_layout_linear_enum *le)
 {
 	return
 		c2_layout_linear_enum_bob_check(le) &&
-		le->lle_attr.lla_nr != 0;
+		le->lle_attr.lla_nr != 0 &&
+		le->lle_attr.lla_B != 0;
 }
 
 static bool linear_invariant(const struct c2_layout_linear_enum *le)
@@ -137,7 +138,7 @@ static int linear_populate(struct c2_layout_linear_enum *lin_enum,
 		       lin_enum, attr, -EINVAL);
 		return -EINVAL;
 	}
-	lin_enum->lle_attr = *attr; //todo validate and handle error
+	lin_enum->lle_attr = *attr;
 	C2_POST(linear_invariant_internal(lin_enum));
 	return 0;
 }

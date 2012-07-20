@@ -953,7 +953,7 @@ int c2_layout_decode(struct c2_layout *l,
 	lt = l->l_type;
 	if (lt == NULL) {
 		c2_layout__log("c2_layout_decode", "Unregistered layout type",
-			       &layout_decode_fail, &layout_global_ctx,
+			       &layout_decode_fail, &l->l_addb,
 			       l->l_id, -EPROTO);
 		return -EPROTO;
 	}
@@ -974,7 +974,7 @@ int c2_layout_decode(struct c2_layout *l,
 	rc = lt->lt_ops->lto_decode(l, op, tx, cur, rec->lr_ref_count);
 	if (rc != 0)
 		c2_layout__log("c2_layout_decode", "lto_decode() failed",
-			       &layout_decode_fail, &layout_global_ctx,
+			       &layout_decode_fail, &l->l_addb,
 			       l->l_id, rc);
 
 	C2_POST(ergo(rc == 0, c2_layout__invariant(l) &&

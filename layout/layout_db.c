@@ -385,8 +385,6 @@ static c2_bcount_t l_recsize(const struct c2_layout *l)
 
 	recsize = sizeof(struct c2_layout_rec) + l->l_ops->lo_recsize(l);
 	C2_POST(recsize <= c2_layout_max_recsize(l->l_dom));
-	C2_LEAVE("lid %llu, recsize %llu", (unsigned long long)l->l_id,
-		 (unsigned long long)recsize); //todo remove
 	return recsize;
 }
 

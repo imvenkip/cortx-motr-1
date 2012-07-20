@@ -153,7 +153,8 @@ static int list_allocate(struct c2_layout_domain *dom,
 	C2_ALLOC_PTR(list_enum);
 	if (list_enum == NULL) {
 		c2_layout__log("list_allocate", "C2_ALLOC_PTR() failed",
-			       &c2_addb_oom, &layout_global_ctx, 0, -ENOMEM);
+			       &c2_addb_oom, &layout_global_ctx, LID_NONE,
+			       -ENOMEM);
 		return -ENOMEM;
 	}
 	c2_layout__enum_init(dom, &list_enum->lle_base,
@@ -213,8 +214,7 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 	C2_ENTRY("domain %p", dom);
 	for (i = 0; i < nr; ++i) {
 		if (!c2_fid_is_valid(&cob_list[i])) {
-			c2_layout__log("c2_list_enum_build",
-				       "fid invalid",
+			c2_layout__log("c2_list_enum_build", "fid invalid",
 				       &c2_addb_func_fail, &layout_global_ctx,
 				       LID_NONE, -EPROTO);
 			return -EPROTO;
@@ -295,7 +295,7 @@ static int list_register(struct c2_layout_domain *dom,
 	if (lsd == NULL) {
 		rc = -ENOMEM;
 		c2_layout__log("list_register", "C2_ALLOC_PTR() failed",
-			       &c2_addb_oom, &layout_global_ctx, 0, rc);
+			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
 		goto out;
 	}
 	rc = c2_table_init(&lsd->lsd_cob_lists, dom->ld_dbenv,
@@ -303,7 +303,7 @@ static int list_register(struct c2_layout_domain *dom,
 	if (rc != 0) {
 		c2_layout__log("list_register", "c2_table_init() failed",
 			       &c2_addb_func_fail, &layout_global_ctx,
-			       0, rc);
+			       LID_NONE, rc);
 		c2_free(lsd);
 		goto out;
 	}
@@ -388,7 +388,8 @@ static int noninline_read(struct c2_fid *cob_list,
 		if (rc != 0) {
 			c2_layout__log("noninline_read",
 				       "c2_db_cursor_get() failed",
-				       &c2_addb_func_fail, &layout_global_ctx,
+				       &c2_addb_func_fail,
+				       &stl->sl_base.l_addb,
 				       key.clk_lid, rc);
 			goto out;
 		}
@@ -396,7 +397,8 @@ static int noninline_read(struct c2_fid *cob_list,
 			rc = -EPROTO;
 			c2_layout__log("noninline_read",
 				       "fid invalid",
-				       &c2_addb_func_fail, &layout_global_ctx,
+				       &c2_addb_func_fail,
+				       &stl->sl_base.l_addb,
 				       key.clk_lid, rc);
 			goto out;
 		}
@@ -457,7 +459,7 @@ static int list_decode(struct c2_layout_enum *e,
 	if (cob_list == NULL) {
 		rc = -ENOMEM;
 		c2_layout__log("list_decode", "C2_ALLOC_ARR() failed",
-			       &c2_addb_oom, &layout_global_ctx, lid, rc);
+			       &c2_addb_oom, &stl->sl_base.l_addb, lid, rc);
 		goto out;
 	}
 	rc = 0;
