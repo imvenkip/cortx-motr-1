@@ -22,6 +22,8 @@
 #  include "config.h"
 #endif
 
+/** @todo remove */
+#include "lib/errno.h"	/* ENOSYS */
 #include "net/test/server.h"
 
 /**
@@ -34,21 +36,22 @@
    @{
  */
 
-int c2_net_test_server_init(void)
+int c2_net_test_server_init(struct c2_net_test_server_ctx *ctx,
+			    struct c2_net_test_server_cfg *cfg)
 {
-	return -1;
+	return -ENOSYS;
 }
 
-void c2_net_test_server_fini(void)
+void c2_net_test_server_fini(struct c2_net_test_server_ctx *ctx)
 {
 }
 
-int c2_net_test_server_start(void)
+int c2_net_test_server_start(struct c2_net_test_server_ctx *ctx)
 {
-	return -1;
+	return -ENOSYS;
 }
 
-void c2_net_test_server_stop(void)
+void c2_net_test_server_stop(struct c2_net_test_server_ctx *ctx)
 {
 }
 

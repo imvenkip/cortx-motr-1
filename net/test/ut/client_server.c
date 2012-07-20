@@ -24,6 +24,15 @@
 
 #include "lib/ut.h"		/* C2_UT_ASSERT */
 
+void c2_net_test_client_server_ping(void)
+{
+}
+
+void c2_net_test_client_server_bulk(void)
+{
+}
+
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

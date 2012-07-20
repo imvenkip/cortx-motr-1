@@ -250,6 +250,7 @@ static void commands_ut_recv(struct net_test_cmd_node *node,
 	commands_ut_assert(node, cmd.ntc_type == C2_NET_TEST_CMD_STOP);
 	commands_ut_assert(node, cmd.ntc_stop.ntcs_cancel);
 	commands_ut_assert(node, cmd.ntc_ep_index == 0);
+	c2_net_test_commands_received_free(&cmd);
 	flag_set(node->ntcn_index);
 }
 
@@ -324,6 +325,7 @@ static void commands_ut_recv_all(size_t nr, c2_time_t deadline)
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(cmd.ntc_type == C2_NET_TEST_CMD_STOP_ACK);
 		C2_UT_ASSERT(cmd.ntc_ack.ntca_errno == -cmd.ntc_ep_index);
+		c2_net_test_commands_received_free(&cmd);
 		flag_set(cmd.ntc_ep_index);
 	}
 }

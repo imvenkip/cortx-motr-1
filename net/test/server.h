@@ -31,17 +31,24 @@
    @{
  */
 
+struct c2_net_test_server_cfg {
+};
+
+struct c2_net_test_server_ctx {
+};
+
 /**
    Initialize server data structures.
    @see @ref net-test-lspec
  */
-int c2_net_test_server_init(void);
+int c2_net_test_server_init(struct c2_net_test_server_ctx *ctx,
+			    struct c2_net_test_server_cfg *cfg);
 
 /**
    Finalize server data structures.
    @see @ref net-test-lspec
  */
-void c2_net_test_server_fini(void);
+void c2_net_test_server_fini(struct c2_net_test_server_ctx *ctx);
 
 /**
    Start test server.
@@ -49,13 +56,13 @@ void c2_net_test_server_fini(void);
    with c2_net_test_server_stop().
    @see @ref net-test-lspec
  */
-int c2_net_test_server_start(void);
+int c2_net_test_server_start(struct c2_net_test_server_ctx *ctx);
 
 /**
    Stop test server.
    @see @ref net-test-lspec
  */
-void c2_net_test_server_stop(void);
+void c2_net_test_server_stop(struct c2_net_test_server_ctx *ctx);
 
 
 /**

@@ -54,10 +54,10 @@ enum c2_net_test_cmd_type {
 	C2_NET_TEST_CMD_INIT_DONE,
 	C2_NET_TEST_CMD_START,
 	C2_NET_TEST_CMD_START_ACK,
+	C2_NET_TEST_CMD_STATUS,
+	C2_NET_TEST_CMD_STATUS_DATA,
 	C2_NET_TEST_CMD_STOP,
 	C2_NET_TEST_CMD_STOP_ACK,
-	C2_NET_TEST_CMD_FINISHED,
-	C2_NET_TEST_CMD_FINISHED_ACK,
 	C2_NET_TEST_CMD_NR,
 };
 
@@ -81,9 +81,11 @@ struct c2_net_test_cmd_init {
 	/** number of test messages */
 	unsigned long		 ntci_msg_nr;
 	/** buffer size for bulk transfer */
-	c2_bcount_t		 ntci_bulk_size;
-	/** messages concurrency */
-	size_t			 ntci_concurrency;
+	c2_bcount_t		 ntci_msg_size;
+	/** number of network buffers */
+	size_t			 ntci_buf_nr;
+	/** transfer machine endpoint for data transfers */
+	char			*ntci_tm_ep;
 	/** endpoints list */
 	struct c2_net_test_slist ntci_ep;
 };
@@ -260,7 +262,7 @@ int c2_net_test_commands_recv_enqueue(struct c2_net_test_cmd_ctx *ctx,
    Free received command resources.
    @see c2_net_test_commands_recv().
  */
-void c2_net_test_received_free(struct c2_net_test_cmd *cmd);
+void c2_net_test_commands_received_free(struct c2_net_test_cmd *cmd);
 
 /**
    @} end of NetTestCommandsDFS group

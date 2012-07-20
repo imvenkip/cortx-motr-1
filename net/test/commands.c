@@ -57,8 +57,8 @@ TYPE_DESCR(c2_net_test_cmd_init) = {
 	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_role),
 	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_type),
 	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_msg_nr),
-	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_bulk_size),
-	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_concurrency),
+	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_msg_size),
+	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_buf_nr),
 };
 
 /* c2_net_test_cmd_stop_descr */
@@ -100,8 +100,15 @@ static int cmd_serialize(enum c2_net_test_serialize_op op,
 			break;
 		len_total += len;
 
+		len = c2_net_test_str_serialize(op, &cmd->ntc_init.ntci_tm_ep,
+						bv, offset + len_total);
+		if (len == 0)
+			break;
+		len_total += len;
+
+
 		len = c2_net_test_slist_serialize(op, &cmd->ntc_init.ntci_ep,
-					      bv, offset + len_total);
+						  bv, offset + len_total);
 		break;
 	case C2_NET_TEST_CMD_STOP:
 		len = c2_net_test_serialize(op, &cmd->ntc_stop,
@@ -110,18 +117,15 @@ static int cmd_serialize(enum c2_net_test_serialize_op op,
 		break;
 	case C2_NET_TEST_CMD_START_ACK:
 	case C2_NET_TEST_CMD_STOP_ACK:
-	case C2_NET_TEST_CMD_FINISHED_ACK:
 		len = c2_net_test_serialize(op, &cmd->ntc_ack,
-					USE_TYPE_DESCR(c2_net_test_cmd_ack),
-					bv, offset + len_total);
+					    USE_TYPE_DESCR(c2_net_test_cmd_ack),
+					    bv, offset + len_total);
 		break;
 	default:
 		return -ENOSYS;
 	};
 
-	if (len == 0)
-		return -EINVAL;
-	return 0;
+	return len == 0 ? -EINVAL : 0;
 }
 
 /**
@@ -132,8 +136,10 @@ static void cmd_free(struct c2_net_test_cmd *cmd)
 {
 	C2_PRE(cmd != NULL);
 
-	if (cmd->ntc_type == C2_NET_TEST_CMD_INIT)
+	if (cmd->ntc_type == C2_NET_TEST_CMD_INIT) {
+		c2_net_test_str_fini  (&cmd->ntc_init.ntci_tm_ep);
 		c2_net_test_slist_fini(&cmd->ntc_init.ntci_ep);
+	}
 }
 
 static struct c2_net_test_cmd_ctx *
@@ -489,7 +495,7 @@ int c2_net_test_commands_recv_enqueue(struct c2_net_test_cmd_ctx *ctx,
 	return commands_recv_enqueue(ctx, buf_index);
 }
 
-void c2_net_test_received_free(struct c2_net_test_cmd *cmd)
+void c2_net_test_commands_received_free(struct c2_net_test_cmd *cmd)
 {
 	cmd_free(cmd);
 }

@@ -30,6 +30,8 @@ extern void c2_net_test_ringbuf_ut(void);
 
 extern void c2_net_test_serialize_ut(void);
 
+extern void c2_net_test_str_ut(void);
+
 extern void c2_net_test_slist_ut(void);
 
 extern void c2_net_test_network_ut_buf_desc(void);
@@ -60,6 +62,7 @@ const struct c2_test_suite c2_net_test_ut = {
 	.ts_tests = {
 		{ "ringbuf",		c2_net_test_ringbuf_ut		 },
 		{ "serialize",		c2_net_test_serialize_ut	 },
+		{ "str",		c2_net_test_str_ut		 },
 		{ "slist",		c2_net_test_slist_ut		 },
 		{ "network-buf-desc",	c2_net_test_network_ut_buf_desc	 },
 		{ "network-ping",	c2_net_test_network_ut_ping	 },
