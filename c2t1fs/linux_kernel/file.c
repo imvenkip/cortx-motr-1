@@ -35,6 +35,11 @@
 #include "ioservice/io_fops_ff.h"
 #include "colibri/magic.h"
 
+static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
+{
+	return container_of(l, struct c2_pdclust_layout, pl_layout);
+}
+
 /* Imports */
 struct c2_net_domain;
 extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
@@ -62,11 +67,6 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 					  int                  rw);
 
 static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
-
-static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
-{
-	return container_of(l, struct c2_pdclust_layout, pl_layout);
-}
 
 /**
    @page rmw_io_dld Detailed Level Design for read-modify-write IO requests.
@@ -98,16 +98,19 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 
    The read-modify-write feature provides support to do partial parity group
    IO requests on a Colibri client.
+   This feature is supported for write IO requests _only_.
 
    Colibri uses notion of layout to represent how file data is spread
    over multiple objects. Colibri client is supposed to work with
-   layout independent code for IO requests. Using layouts, multiple RAID
+   layout independent code for IO requests. Using layouts, various RAID
    patterns like RAID5, parity declustered RAID can be supported.
 
-   Often, incoming IO requests do not span whole parity group of file data.
-   The file data for such partial parity group requests have to be read first
-   so that whole group is available with client, then data is changed
-   as per user request and later sent for write to the server.
+   Often, incoming _write_ IO requests do not span whole parity group of
+   file data. The file data for such partial parity group requests have to be
+   read first so that all necessary data blocks are available with client,
+   then data is changed as per user request and later sent for write to server.
+   Such actions are taken only for write IO path.
+   Read IO requests do not need any such support.
 
    <hr>
    @section rmw-def Definitions
@@ -134,14 +137,28 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    <hr>
    @section rmw-highlights Design Highlights
 
-   - The IO path from c2t1fs code will have a check which will find out if
-   incoming IO request is a partial parity group IO.
-   - In case of partial parity group IO request, a read request will be issued
-   if given extent falls within end-of-file. The read request will be issued
-   on the concerned parity group and will wait for completion.
-   - Once read IO is complete, changes will be made to the data buffers
-   (typically these are pages from page cache).
-   - And then write requests will be dispatched for the whole parity group.
+   - All IO requests (spanning full/partial parity group) follow same code path.
+   - For IO requests which span whole parity group/s, IO is issued immediately.
+   - IO requests are issued _only_ for units with at least one single byte
+   of valid file data along with parity units.
+   - In case of partial parity group write IO request, a read request is issued
+   to read necessary data blocks and parity block.
+   - Once read is complete, changes will be made to the data buffers
+   (typically these are pages from page cache) and parity is calculated in
+   _iterative_ manner. See the example below.
+   - And then write requests are dispatched for the changed data blocks
+   and the parity block from parity group/s.
+
+   If
+   @n Do    - Data from older version of data block.
+   @n Dn    - Data from new version of data block.
+   @n Po    - Parity for older version of parity group.
+
+   Then,
+   @n delta - @f$Parity(D_o, D_n)@f$   (Difference between 2 version of
+                                        data blocks)
+   @n    Pn - @f$Parity(delta, P_o)@f$ (Parity for new version of
+                                        parity group)
 
    <hr>
    @section rmw-lspec Logical Specification
@@ -178,14 +195,14 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 
    @subsection rmw-lspec-sc1 Subcomponent design
 
-   This DLD addresses only the rmw_io component.
+   This DLD addresses only rmw_io component.
 
-   - The component will sit in the IO path of Colibri client code.
+   - The component will sit in IO path of Colibri client code.
    - It will detect if any incoming IO request spans a parity group only
    partially.
    - In case of partial groups, it issues an inline read request to read
-   the whole parity group and get the data in memory.
-   - The thread is blocked until read IO is not complete.
+   the necessary blocks from parity group and get the data in memory.
+   - The thread blocks for completion of read IO.
    - If incoming IO request was read IO, the thread will be returned along
    with the status and number of bytes read.
    - If incoming IO request was write, the pages are modified in-place
@@ -197,19 +214,16 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 
    For small IO requests which do not span even a single parity group
    due to end-of-file occurring before parity group boundary,
-   - rest of the blocks are assumed to be zero filled and
-   - parity is calculated accordingly.
+   - rest of the blocks are assumed to be zero and
+   - parity is calculated from valid data blocks only.
 
-   The read/write IO request made in such cases will still be multiple of
-   parity group width but eventually the status of original partial IO
-   request will count and will be returned to the caller.
    The file size will be updated in file inode and will keep a check on
-   actual size even if whole parity group IO is done in such cases.
+   actual size.
 
    For instance, with configuration like
-   - stripe_width  = 12K
-   - unit_size     = 4K
-   - nr_data_units = 3
+   - parity_group_width  = 12K
+   - unit_size           = 4K
+   - nr_data_units       = 3
 
    When a new file is written to with data worth 1K,
 
@@ -218,24 +232,23 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    - 2 missing data units
    in the parity group.
 
-   Here, rest of the first unit (worth 3K) and the two whole units will be
-   zero filled, parity will be calculated with all units in parity group and
-   data from whole parity group will be written to the server.
+   Here, parity is calculated with only one partial data unit (only valid block)
+   and data from whole parity group will be written to the server.
 
-   While reading the same file back, IO request for the whole parity group will
-   be made since the whole parity group worth of data was written earlier
-   during the write() call for same file.
+   While reading the same file back, IO request for only one block is
+   made as mandated by file size.
 
    The seemingly obvious wastage of storage space in such cases can be
    overcome by
    - issuing IO requests _only_ for units which have at least a single byte
    of valid file data and for parity units.
-   - the buffers which represent the missing data units in the parity group will
-   be zero filled in client itself.
+   - For missing data units, there is no need to use zeroed out buffers since
+   such buffers does not change parity.
+   - Ergo, parity will be calculated from valid (falling within end-of-file)
+   data blocks only.
 
    Since sending network requests for IO is under control of client, these
    changes can be accommodated for irrespective of layout type.
-
    This way, the wastage of storage space in small IO can be restricted to
    block granularity.
 
@@ -244,33 +257,63 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 
    @note Present implementation of c2t1fs IO path uses get_user_pages() API
    to pin user-space pages in memory. This works just fine with page aligned
-   IO requests. But for read-modify-write, APIs like copy_from_user() and
-   copy_to_user() will be used which can copy data to/from user-space and
-   can work with both aligned and non-aligned IO requests.
+   IO requests. But for page unaligned IO requests, APIs like copy_from_user()
+   and copy_to_user() will be used (except for _direct-IO_ and device IO)
+   which can copy data to/from user-space and can work with both aligned and
+   non-aligned IO requests.
+   For _direct-IO_ and device IO requests, no copy will be done and it works
+   since direct IO mandates page aligned IO request.
 
    @subsubsection rmw-lspec-ds1 Subcomponent Data Structures
 
    io_request - Represents an IO request call. It contains the IO extent,
    struct nw_xfer_request and the state of IO request. This structure is
    primarily used to track progress of an IO request.
+   The state transitions of io_request structure are handled by c2_sm
+   structure and its support for chained state transitions.
+
+   The c2_sm_group structure is kept as a member of in-memory superblock,
+   struct c2t1fs_sb. @see struct c2t1fs_sb.
+   All c2_sm structures are associated with this group.
 
    @code
    struct io_request {
-	int                    ir_rc;
 	uint64_t               ir_magic;
-	struct rw_desc         ir_desc;
+
+	int                    ir_rc;
+
+        // File identifier.
+        struct c2_fid          ir_fid;
+
+	// File extent spanned by io_request.
+	struct c2_ext          ir_extent;
+
+        // iovec structure containing user-space buffers.
+        // iovec structure is used as it is since using a new structure
+        // would require conversion.
+        struct iovec          *ir_iovec;
+
+	// Async state machine to handle state transitions.
+	struct c2_sm           ir_sm;
+
 	enum io_req_type       ir_type;
+
 	struct c2_mutex        ir_mutex;
+
 	enum io_req_state      ir_state;
+
 	struct io_request_ops  ir_ops;
+
 	struct nw_xfer_request ir_nwxfer;
-	// Can we use struct c2_ext instead of these 2 fields below?
-	loff_t                 ir_aux_offset;
-	size_t                 ir_aux_count;
+
+	// Expanded file extent. Used in case of read-modify-write.
+	struct c2_ext          ir_aux_extent;
    };
    @endcode
 
    io_req_state - Represents state of IO request call.
+   c2_sm_state_descr structure will be defined for description of all
+   states mentioned below.
 
    @code
    enum io_request_state {
@@ -300,14 +343,12 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    io_request_ops - Operation vector for struct io_request.
    @code
    struct io_request_ops {
-	int (*pages_alloc)      (struct io_request *req);
-	int (*pages_dealloc)    (struct io_request *req);
-	int (*iro_readextent)   (struct io_request *req);
-	int (*iro_prepare_write)(struct io_request *req);
-	int (*iro_commit_write) (struct io_request *req);
-	int (*iro_submit)       (struct io_request *req);
-	int (*read_complete)    (struct io_request *req);
-	int (*write_complete)   (struct io_request *req);
+	int (*iro_readextent)     (struct io_request *req);
+	int (*iro_prepare_write)  (struct io_request *req);
+	int (*iro_commit_write)   (struct io_request *req);
+	int (*iro_submit)         (struct io_request *req);
+	int (*iro_read_complete)  (struct io_request *req);
+	int (*iro_write_complete) (struct io_request *req);
    };
    @endcode
 
@@ -320,14 +361,26 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 
    @code
    struct nw_xfer_request {
+	uint64_t               nxr_magic;
+
+        // Resultant status code for all IO fops issed by this structure.
 	int                    nxr_rc;
-	int                    nxr_magic;
+
+        // Resultant number of bytes read/written by this structure.
+        uint64_t               nxr_bytes;
+
 	enum nw_xfer_state     nxr_state;
-	// List of IO fops associated with given IO request.
-	c2_tl                  nxr_iofops;
+
 	struct nw_xfer_ops     nxr_ops;
-	// Root of callback objects tree.
-	struct io_req_rootcb   nxr_rcb;
+
+	// List of stripe_io_desc structures.
+	struct c2_tl           nxr_descs;
+
+        // Number of IO fops issued by all stripe_io_desc objects belonging
+        // to this nw_xfer_request object.
+        // This number is updated when bottom halves from ASTs are run.
+        // When it reaches zero, state of io_request::ir_sm changes.
+        uint64_t               nxr_iofops_nr;
    };
    @endcode
 
@@ -353,119 +406,146 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    };
    @endcode
 
-   Magic value to verify sanity of struct io_request and struct nw_xfer_request.
+   stripe_io_desc - Collection of IO extents and buffers, directed towards each
+   of the units (data_unit / parity_unit) in a parity group.
+   These structures are created by struct io_request dividing the incoming
+   struct iovec into members of parity group.
+
+   @todo Need better name for this structure.
+
+   @code
+   struct stripe_io_desc {
+	uint64_t               sid_magic;
+
+	// Fid of component object.
+	struct c2_fid          sid_fid;
+
+	// List of c2t1fs_buf structures which hold file data.
+	// Length of ird_extents list is same as length of ird_buffers list.
+	struct c2_tl          *sid_buffers;
+
+	// List of c2_ext structures.
+	// Each extent infers starting offset and count.
+	// Since file data is divided uniformly into members of parity group,
+	// the offsets from this list are discontiguous.
+	struct c2_tl           sid_extents;
+
+        // List of struct io_req_fop issued on this stripe object.
+        struct c2_tl           sid_iofops;
+
+	// Resulting IO fops are sent on this session.
+	struct c2_rpc_session *sid_session;
+
+	// Linkage to link in to nw_xfer_request::nxr_descs list.
+	struct c2_tlink        sid_link;
+   };
+   @endcode
+
+   io_req_fop - Represents a wrapper over generic IO fop and its callback
+   to keep track of such IO fops issued by same nw_xfer_request.
+
+   When bottom halves for c2_sm_ast structures are run, it updates
+   nw_xfer_request::nxr_rc and nw_xfer_request::nxr_bytes with data from
+   IO reply fop.
+   Then it decrements nw_xfer_request::nxr_iofops_nr, number of IO fops.
+   When this count reaches zero, io_request::ir_sm changes its state.
+
+   @note c2_fom_callback structure is reused as a wrapper over AST. No lock
+   is needed while updating nw_xfer_request structure from ASTs since
+   c2_sm_asts_run() executes ASTs in serial fashion.
+
+   @code
+   struct io_req_fop {
+        uint64_t                irf_magic;
+
+        struct c2_io_fop        irf_iofop;
+
+        // Callback per IO fop.
+        struct c2_fom_callback  irf_iocb;
+
+        // Linkage to link in to stripe_io_desc::sid_iofops list.
+        struct c2_tlink         irf_tlink;
+
+        // Backlink to nw_xfer_request object where rc and number of bytes
+        // are updated.
+        struct nw_xfer_request *irf_nwxfer;
+   };
+   @endcode
+
+   Magic value to verify sanity of struct io_request, struct nw_xfer_request,
+   struct stripe_io_desc and struct io_req_fop.
    The magic values will be used along with static c2_bob_type structures to
    assert run-time type identification.
 
    @code
    enum {
-	IOREQ_MAGIC = 0xfea2303e31a3ce10ULL, // fearsomestanceto
-	NWREQ_MAGIC = 0x12ec0ffeea2ab1caULL, // thecoffeearabica
+	IOREQ_MAGIC  = 0xfea2303e31a3ce10ULL, // fearsomestanceto
+	NWREQ_MAGIC  = 0x12ec0ffeea2ab1caULL, // thecoffeearabica
+        STRIPE_MAGIC = 0xfa1afe1611ab2eadULL, // falafelpitabread
+        IOFOP_MAGIC  = 0xde514ab11117302eULL, // desirabilitymore
    };
    @endcode
-
-   The following data structures are needed while doing @b async IO
-   with file based on a layout.
-   Each incoming IO request is typically split into a number of subsequent
-   IO requests addressed to each cob as specified by file layout.
-   Typically, every rpc item contains a channel to notify caller of its
-   completion. But in this case, we need a new mechanism to send multiple
-   IO fops to rpc layer and wake up the caller thread only when all IO fops
-   complete their job.
-
-   io_req_leafcb - Represents a leaf node IO request callback. A leaf node
-   callback has to point to some valid parent callback. On IO completion,
-   the leaf node callback notifies the parent.
-
-   @code
-   struct io_req_leafcb {
-	// Link into io_req_rootcb::irr_leaves
-	struct c2_tlink       irl_tlink;
-	struct c2_clink       irl_clink;
-	struct io_req_rootcb *irl_parent;
-   };
-   @endcode
-
-   io_req_rootcb - Represents a root node IO request callback. A root node
-   callback can be split into multiple leaf node callbacks. Contains a
-   channel and a clink along with a refcount. Caller is expected to wait on
-   the embedded channel using the clink. Caller is woken up when the refcount
-   goes down to zero.
-
-   @code
-   struct io_req_rootcb {
-	int                   irr_rc;
-	uint64_t              irr_bytes;
-	// List of struct io_req_leafcb
-	struct c2_tl          irr_leaves;
-	struct c2_clink       irr_clink;
-	struct c2_chan        irr_chan;
-	struct c2_ref         irr_ref;
-   };
-   @endcode
-
-   In an IO request, the io_req_rootcb is allocated first and its reference
-   count is initialized. Then subsequent io_req_leafcbs are allocated and
-   attached to the root node.
-
-   On receiving IO completion, the leaf nodes decrement the parent's
-   reference count atomically and then destroy themselves.
-   The origin thread which spawns the rootcb waits on its embedded channel
-   and is woken up when the reference count goes down to zero.
 
    @subsubsection rmw-lspec-sub1 Subcomponent Subroutines
 
-   An existing API io_req_spans_full_stripe() is reused to check if
-   incoming IO request spans a full stripe or not.
+   An existing API io_req_spans_full_pg() is reused to check if incoming
+   IO request spans a full parity group or not.
 
-   The following API will change the parity group unaligned IO request
-   to make it align with parity group width. It will populate the
-   auxiliary offset and count fields so that further read/write IO
-   will be done according to these auxiliary IO extent.
-   The cumulative count of auxiliary extent will always be bigger than
-   original extent. However, while returning from system call, the number
-   of bytes read/written will not exceed the size of original IO extent.
+   The following API will change the parity unit size unaligned IO request
+   to make it align with parity group unit size.
+   It will populate io_request::ir_aux_extent so that further read/write IO
+   will be done according to auxiliary IO extent.
+   The cumulative count of auxiliary extent will always be not less than
+   size of original extent. However, while returning from system call, the
+   number of bytes read/written will not exceed the size of original IO extent.
 
-   @see io_request_invariant()
-   @param req IO request to be expanded so as to span one or multiple
-   full parity groups.
-   @pre io_request_invariant() == true.
-   @post req->ir_aux_offset != 0 && req->ir_aux_count != 0 &&
-   @n req->ir_aux_count >= req->ir_desc.rd_count &&
-   @n io_request_invariant() == true.
+   @see   io_request_invariant()
+   @param req IO request to be expanded so as to align with parity group
+   unit size.
+   @pre   io_request_invariant()
+   @post  c2_ext_is_partof(&req->ir_aux_extent, &req->ir_extent) &&
+   @n     io_request_invariant()
 
    @code
-   void io_request_expand(struct c2t1fs_inode * ci, struct io_request *req)
+   void io_request_expand(struct c2t1fs_inode *ci, struct io_request *req)
    {
-	c2t1fs_buf               *buf;
-	uint64_t                  stripe_width;
-	struct c2_pdclust_layout *pd_layout;
+	void                 *buf = req->ir_iovec[0].iov_base;
+        // Unit size of a block in parity group.
+	uint64_t              size = layout_to_pd_layout(ci->ci_layout)->
+                                     pl_unit_size;
+        // Original file extent.
+        const struct c2_ext  *oe = &req->ir_extent;
+        // Expanded file extent.
+        const struct c2_ext  *ee = &req->ir_aux_extent;
 
 	C2_PRE(req != NULL);
-	buf = c2_tlist_head(rwd, req->ir_desc.rd_buf_list);
-	C2_PRE(!io_req_spans_full_stripe(ci, buf->cb_buf.b_addr,
-					 req->ir_desc.rd_count,
-					 req->ir_desc.rd_offset));
-
-	pd_layout    = layout_to_pd_layout(ci->ci_layout);
-	stripe_width = pd_layout->pl_N * pd_layout->pl_unit_size;
+	C2_PRE(!io_req_spans_full_pg(ci, buf, c2_ext_length(oe), oe->e_start));
 
 	c2_mutex_lock(&req->ir_mutex);
 
-	// find  floor(req->ir_desc.rd_offset) when unit_size=stripe_width
-	req->ir_aux_offset = req->ir_desc.rd_offset & ~(stripe_width - 1);
+	// finds immediate lower number which is aligned to
+        // parity group unit size.
+	ee->e_start = c2_round_down(oe->e_start, size);
 
-	// find ceiling(req->ir_desc.rd_count) when unit_size=stripe_width
-	req->ir_aux_count  = ((req->ir_desc.rd_offset - req->ir_aux_offset +
-			      req->ir_desc.rd_count) | (stripe_width - 1)) + 1;
+	// finds immediate higher number which is aligned to
+        // parity group unit size.
+	ee->e_end = ee->e_start + c2_round_up(oe->e_start - ee->e_start +
+					      c2_ext_length(oe), size);
 
 	c2_mutex_unlock(&req->ir_mutex);
 
-	C2_POST(io_request_invariant() &&
-		io_req_spans_full_stripe(ci, buf->cb_buf.b_addr,
-					 req->ir_aux_count,
-					 req->ir_aux_offset));
+	C2_POST(c2_ext_is_partof(ee, oe) && io_request_invariant(req));
    }
+   @endcode
+
+   API which tells if given IO request is read-modify-write request or not.
+
+   @code
+   bool io_request_is_rmw(const struct io_request *req)
+   {
+           return req->ir_type == IRT_WRITE &&
+                  c2_ext_is_partof(&req->ir_aux_extent, &req->ir_extent);
+   };
    @endcode
 
    Invariant for structure io_request.
@@ -480,20 +560,26 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 		req->ir_magic == IOREQ_MAGIC &&
 		req->ir_type  <= IRT_NR &&
 		req->ir_state <= IRS_STATE_NR &&
+                req->ir_iovec != NULL &&
+                !c2_ext_is_empty(&req->ir_extent) &&
+                c2_fid_is_valid(&req->ir_fid) &&
 
 		ergo(req->ir_state == IRS_READING,
-		     !c2_tlist_is_empty(req->ir_desc.rd_buf_list)) &&
+		     !c2_tlist_is_empty(req->ir_nwxfer.nxr_descs)) &&
 
 		ergo(req->ir_state == IRS_WRITING,
 		     req->ir_type == IRT_WRITE &&
-		     !c2_tlist_is_empty(req->ir_desc.rd_buf_list)) &&
+		     !c2_tlist_is_empty(req->ir_nwxfer.nxr_descs)) &&
 
 		ergo(req->ir_state == IRS_READ_COMPLETE,
 		     ergo(req->ir_type == IRT_READ,
-		          c2_tlist_is_empty(req->ir_desc.rd_buf_list))) &&
+		          c2_tlist_is_empty(req->ir_nwxfer.nxr_descs))) &&
 
 		ergo(req->ir_state == IRS_WRITE_COMPLETE,
-		     c2_tlist_is_empty(req->ir_desc.rd_buf_list));
+		     c2_tlist_is_empty(req->ir_nwxfer.nxr_descs)) &&
+
+                ergo(io_req_is_rmw(req),
+                     c2_ext_is_partof(&req->ir_aux_extent, &req->ir_extent));
    }
    @endcode
 
@@ -509,10 +595,40 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 		xfer->nxr_state <= NXS_NR &&
 
 		ergo(xfer->xfr_state == NXS_INFLIGHT,
-		     !c2_tlist_is_empty(xfer->nxr_iofops)) &&
+		     !c2_tlist_is_empty(xfer->nxr_descs) &&
+                     xfer->nxr_iofops_nr > 0) &&
 
 		ergo(xfer->xfr_state == NXS_COMPLETE,
-		     c2_tlist_is_empty(xfer->nxr_iofops));
+		     c2_tlist_is_empty(xfer->nxr_descs) &&
+                     xfer->nxr_iofops_nr == 0 && xfer->nxr_bytes > 0);
+   }
+   @endcode
+
+   Invariant for structure stripe_io_desc.
+
+   @code
+   static bool stripe_io_desc_invariant(const struct stripe_io_desc *desc)
+   {
+           return
+                  desc != NULL &&
+                  desc->sid_magic   != STRIPE_MAGIC &&
+                  desc->sid_session != NULL &&
+                  c2_fid_is_valid(desc->sid_fid) &&
+                  c2_tlink_is_in(desc->sid_link) &&
+                  ergo(!c2_tlist_is_empty(desc->sid_iofops),
+                       !c2_tlist_is_empty(desc->sid_buffers));
+   }
+   @endcode
+
+   Invariant for structure io_req_fop.
+
+   @code
+   static bool io_req_fop_invariant(const struct io_req_fop *irf)
+   {
+           return
+                  irf != NULL &&
+                  irf->irf_magic  != IOFOP_MAGIC &&
+                  irf->irf_nwxfer != NULL;
    }
    @endcode
 
@@ -523,73 +639,36 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 
    @param req   IO request to be issued.
    @param fid   File identifier.
-   @param base  User-space buffer starting address.
-   @param pos   File offset.
-   @param count Size of IO request in bytes.
+   @param ivec  Array of user-space buffers.
+   @param pos   Starting file offset.
    @param rw    Flag indicating Read or write request.
    @pre   req != NULL
-   @post  io_request_invariant(req) == true &&
-   @n     req->ir_desc.rd_fid == fid && req->ir_desc.rd_offset == pos &&
-   @n     req->ir_desc.rd_count == count &&
-   @n ((c2t1fs_buf*)c2_tlist_head(rwd, req->ir_desc.rd_buf_list))->cb_buf.b_addr
-   == base &&
-   @n req->ir_state == IRS_INITIALIZED
+   @post  io_request_invariant(req) &&
+   @n     c2_fid_eq(&req->ir_fid, fid) && req->ir_iovec == ivec &&
+   @n     req->ir_extent.e_start == pos && req->ir_type == rw
+   @n     req->ir_state == IRS_INITIALIZED
 
    @code
    int io_request_init(struct io_request *req,
                        struct c2_fid     *fid,
-                       void              *base,
+                       struct iovec      *ivec,
 		       loff_t             pos,
-                       size_t             count,
                        enum io_req_type   rw);
    @endcode
 
    Finalizes the io_request structure.
 
    @param req IO request to be processed.
-   @pre   io_request_invariant(req) == true &&
+   @pre   io_request_invariant(req) &&
    @n     req->ir_state == IRS_REQ_COMPLETE &&
-   @n     c2_atomic64_get(&req->ir_ref.ref_cnt) == 0
-   @post  c2_tlist_is_empty(rwd, req->ir_desc.rd_buf_list) == true
+   @post  c2_tlist_is_empty(req->ir_nwxfer.nxr_descs)
 
    @code
    void io_request_fini(struct io_request *req);
    @endcode
 
-   Allocates pages for size of given extent from struct io_request.
-   The allocated pages will be enqueued in io_request::rw_desc::rd_buf_list.
-
-   @todo Client side cache is not supported at the moment. With client side
-   cache, it will be searched first for data and when cache does not contain
-   given data, only then new pages will be allocated.
-
-   @param req Structure io_request for which pages have to be allocated.
-   @pre   io_request_invariant(req) == true &&
-   @n     (req->ir_state == IRS_READING || req->ir_state == IRS_WRITING)
-   @post  !c2_tlist_is_empty(rwd, req->ir_desc.rd_buf_list)
-
-   @code
-   int io_request_pages_alloc(struct io_request *req);
-   @endcode
-
-   Deallocates pages enqueued in struct io_request.
-   After pages are deallocated, io_request::rw_desc::rd_buf_list will be empty.
-
-   @todo With client side cache in place, the pages will not always be
-   deallocated. An attempt will be made to keep them as part of the cache
-   subject to client grant.
-
-   @param req Struct io_request for which, the pages have to be deallocated.
-   @pre   io_request_invariant(req) == true &&
-   @n     req->ir_state == IRS_REQ_COMPLETE
-   @post  c2_tlist_is_empty(rwd, req->ir_desc.rd_buf_list)
-
-   @code
-   int io_request_pages_dealloc(struct io_request *req);
-   @endcode
-
    Reads given extent of file. Data read from server is kept into
-   io_request::ir_desc::rd_buf_list. see @c2t1fs_buf.
+   io_request::ir_nwxfer::stripe_io_desc::sid_buffers. see @c2t1fs_buf.
    This API can also be used by a write request which needs to read first
    due to its unaligned nature with parity group width.
    In such case, even if the state of struct io_request indicates IRS_READING
@@ -597,8 +676,8 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    in first place.
 
    @param req IO request to be issued.
-   @pre   io_request_invariant(req) == true && req->ir_state >= IRS_INITIALIZED
-   @post  io_request_invariant(req) == true && req->ir_state == IRS_READING
+   @pre   io_request_invariant(req) && req->ir_state >= IRS_INITIALIZED
+   @post  io_request_invariant(req) && req->ir_state == IRS_READING
 
    @code
    int io_request_readextent(struct io_request *req);
@@ -611,8 +690,8 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    Instead, file data is copied from user space to kernel space.
 
    @param req IO request to be issued.
-   @pre   io_request_invariant(req) == true && req->ir_state >= IRS_INITIALIZED
-   @post  io_request_invariant(req) == true &&
+   @pre   io_request_invariant(req) && req->ir_state >= IRS_INITIALIZED
+   @post  io_request_invariant(req) &&
    @n     req->ir_state == IRS_READING || req->ir_state == IRS_WRITING
 
    @code
@@ -626,11 +705,11 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    crossing some threshold (e.g. reaching grant value or timeout).
 
    @param req IO request to be committed.
-   @pre   io_request_invariant(req) == true && req->ir_state == IRS_WRITING &&
-   @n     !c2_tlist_is_empty(rwd, req->ir_desc.rd_buf_list)
-   @post  io_request_invariant(req) == true &&
+   @pre   io_request_invariant(req) && req->ir_state == IRS_WRITING &&
+   @n     !c2_tlist_is_empty(req->ir_nwxfer.nxr_descs)
+   @post  io_request_invariant(req) &&
    @n     req->ir_state == IRS_WRITE_COMPLETE &&
-   @n     c2_tlist_is_empty(rwd, req->ir_desc.rd_buf_list) == true
+   @n     c2_tlist_is_empty(req->ir_nwxfer.nxr_descs)
 
    @code
    int io_request_write_commit(struct io_request *req);
@@ -641,8 +720,8 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    kernel space to user-space.
 
    @param req IO request to be processed.
-   @pre   io_request_invariant(req) == true && req->ir_state == IRS_READING
-   @post  io_request_invariant(req) == true &&
+   @pre   io_request_invariant(req) && req->ir_state == IRS_READING
+   @post  io_request_invariant(req) &&
    @n     req->ir_state == IRS_READ_COMPLETE
 
    @code
@@ -653,8 +732,8 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    the thread blocked for completion of whole IO request.
 
    @param req IO request to be processed.
-   @pre   io_request_invariant(req) == true && req->ir_state == IRS_WRITING
-   @post  io_request_invariant(req) == true &&
+   @pre   io_request_invariant(req) && req->ir_state == IRS_WRITING
+   @post  io_request_invariant(req) &&
    @n     req->ir_state == IRS_WRITE_COMPLETE
 
    @code
@@ -666,9 +745,9 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    struct nw_xfer_request object. @see nw_xer_request.
 
    @param req IO request to be submitted.
-   @pre   io_request_invariant(req) == true &&
+   @pre   io_request_invariant(req) &&
    @n     (req->ir_state == IRS_READING || req->ir_state == IRS_WRITING)
-   @post  io_request_invariant(req) == true &&
+   @post  io_request_invariant(req) &&
    @n     (req->ir_state == IRS_READ_COMPLETE ||
    @n     req->ir_state == IRS_WRITE_COMPLETE)
 
@@ -679,16 +758,16 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    The APIs that work as member functions for operation vector struct
    nw_xfer_ops are as follows.
 
-   Prepares and populates IO fops which are part of struct nw_xfer_request.
-   This involves adding buffers one-by-one to struct c2_rpc_bulk, building
-   the index vectors from IO fop and storing the IO descriptor in IO fop.
+   Creates and populates stripe_io_desc structures for each member in the
+   parity group.
+   Each stripe_io_desc structure will allocate necessary pages to store
+   file data and will create IO fops out of it.
 
    @param xfer The network transfer request being prepared.
-   @pre   nw_xfer_request_invariant(xfer) == true &&
-   @n     c2_tlist_is_empty(xfer->nxr_iofops) == true &&
+   @pre   nw_xfer_request_invariant(xfer) &&
    @n     xfer->nxr_state == UNINITIALIZED
-   @post  nw_xfer_request_invariant(xfer) == true &&
-   @n     !c2_tlist_is_empty(xfer->nxr_iofops) &&
+   @post  nw_xfer_request_invariant(xfer) &&
+   @n     !c2_tlist_is_empty(xfer->nxr_descs) &&
    @n     xfer->nxr_state == NXS_INITIALIZED.
 
    @code
@@ -696,15 +775,17 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    @endcode
 
    Dispatches the network transfer request and does asynchronous wait for
-   completion. Typically, all IO fops in nw_xfer_request::nxr_iofops are
-   dispatched at once and the network transfer request is considered as
-   complete when callbacks for all IO fops are acknowledged and processed.
+   completion. Typically, IO fops from all stripe_io_desc::sid_iofops
+   contained in nw_xfer_request::nxr_descs list are dispatched at once
+   The network transfer request is considered as complete when callbacks for
+   all IO fops from all stripe_io_desc structures are acknowledged and
+   processed.
 
    @param xfer The network transfer request being dispatched.
-   @pre   nw_xfer_request_invariant(xfer) == true &&
-   @n     !c2_tlist_is_empty(xfer->nxr_iofops) &&
+   @pre   nw_xfer_request_invariant(xfer) &&
+   @n     !c2_tlist_is_empty(xfer->nxr_descs) &&
    @n     xfer->nxr_state == NXS_INITIALIZED.
-   @post  nw_xfer_request_invariant(xfer) == true &&
+   @post  nw_xfer_request_invariant(xfer) &&
    @n     xfer->nxr_state == xfer->nxr_state == NXS_INFLIGHT
 
    @code
@@ -715,36 +796,14 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    notifying struct io_request about completion.
 
    @param xfer The network transfer request being processed.
-   @pre   nw_xfer_request_invariant(xfer) == true &&
+   @pre   nw_xfer_request_invariant(xfer) &&
    @n     xfer->nxr_state == NXS_INFLIGHT
-   @post  nw_xfer_request_invariant(xfer) == true &&
+   @post  nw_xfer_request_invariant(xfer) &&
    @n     xfer->nxr_state == NXS_COMPLETE &&
-   @n     c2_tlist_is_empty(xfer->nxr_iofops) == true.
+   @n     c2_tlist_is_empty(xfer->nxr_descs).
 
    @code
    int nw_xfer_req_complete(struct nw_xfer_request *xfer);
-   @endcode
-
-   - Callback used for leaf node IO request. This callback is used while
-   initializing clink embedded in structure io_req_leafcb.
-   This function notifies its parent of IO completion.
-
-   @param link c2_clink structure used to wait on a c2_chan structure.
-   @pre   clink != NULL && c2_clink_is_armed(clink)
-
-   @code
-   bool leafio_complete(struct c2_clink *clink);
-   @endcode
-
-   - Destructor function for c2_ref object embedded in structure io_req_rootcb.
-   This function will wake up the caller thread by signalling on the embedded
-   channel.
-
-   @param ref c2_ref object embedded in struct io_req_rootcb.
-   @pre   ref != NULL
-
-   @code
-   void rootio_complete(struct c2_ref *ref);
    @endcode
 
    @subsection rmw-lspec-state State Specification
@@ -792,10 +851,14 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 
    @subsection rmw-lspec-thread Threading and Concurrency Model
 
-   The incoming IO request waits asynchronously for the completion of
-   constituent IO requests. Multiple leaf node IO requests can point to
-   same parent but they only decrement the refcount of parent IO request
-   which is an atomic operation and does not need any special synchronization.
+   All IO fops resulting from IO request will be dispatched at once and the
+   state machine (c2_sm) will wait for completion of read/write IO.
+   Incoming callbacks will be registered with the c2_sm state machine where
+   their respective top half functions will be executed on same thread while
+   the bottom half functions will be executed when all ASTs are run.
+   All processing happens on same thread handling the system call. No new
+   threads are created.
+   @see sm. Concurrency section of State machine.
 
    @todo In future, with introduction of Resource Manager, distributed extent
    locks have to be acquired/released as needed.
@@ -807,13 +870,13 @@ static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
    <hr>
    @section rmw-conformance Conformance
 
-   - @b I.c2t1fs.rmw_io.rmw The implementation uses an API
-   io_req_spans_full_stripe() to find out if the incoming IO request
-   would be read-modify-write IO. The IO extent is modified if the request
-   is unaligned with parity group width. The missing data will be read first
-   from data server synchronously(later from client cache which is missing
-   at the moment and then from data server). And then it will be modified
-   and send as a full parity group IO request.
+   - @b I.c2t1fs.rmw_io.rmw The implementation uses an API io_req_is_rmw()
+   to find out if the incoming IO request would be read-modify-write IO.
+   The IO extent is modified if the request is unaligned with parity group
+   unit size width. The missing data will be read first from data server
+   synchronously (later from client cache which is missing at the moment and
+   then from data server). And then it will be modified and sent to server
+   as a write IO request.
 
    - @b I.c2t1fs.rmw_io.efficient The implementation uses an asynchronous
    way of waiting for IO requests and does not send the requests one after
@@ -879,23 +942,23 @@ Detailed level design HOWTO</a>,
    @section rmw-impl-plan Implementation Plan
 
    - The task can be decomposed into 2 subtasks as follows.
-     - implementation of an async way of submitting and waiting for multiple
-       IO fops. Referred to as subtask-asyncIO henceforth.
+     - implementation of c2_sm and all state entry and exit functions.
+       Referred to as subtask-sm-support henceforth.
      - implementation of primary data structures and interfaces needed to
        support read-modify-write. Referred to as subtask-rwm-support henceforth.
 
    - New interfaces are consumed by same module (c2t1fs). The primary
    data structures and interfaces have been identified and defined.
 
-   - The subtask-asyncIO can be carved out as an independent task. This will
-   be done first. It can be tested using existing c2t1fs ST test scripts.
+   - The subtask-sm-support will be done first.
 
    - Next, the subtask-rmw-support can be implemented which will refactor
    the IO path code. This can be tested by using a test script which will
    stress the IO path with read-modify-write IO requests.
 
-   - While the patch for subtask-asyncIO is getting inspected, another subtask
-   which will implement the read-modify-write support will be undertaken.
+   - While the patch for subtask-sm-support is getting inspected, another
+   subtask which will implement the read-modify-write support will be
+   undertaken.
 
  */
 
@@ -1039,10 +1102,10 @@ static bool address_is_page_aligned(unsigned long addr)
 	return (addr & (PAGE_CACHE_SIZE - 1)) == 0;
 }
 
-static bool io_req_spans_full_stripe(struct c2t1fs_inode *ci,
-				     char                *buf,
-				     size_t               count,
-				     loff_t               pos)
+static bool io_req_spans_full_pg(struct c2t1fs_inode *ci,
+			         char                *buf,
+				 size_t               count,
+				 loff_t               pos)
 {
 	struct c2_pdclust_instance *pi;
 	struct c2_pdclust_layout   *pl;
@@ -1201,7 +1264,7 @@ static ssize_t c2t1fs_read_write(struct file *file,
 				(unsigned long)count,
 				(unsigned long)pos, buf);
 
-	if (!io_req_spans_full_stripe(ci, buf, count, pos)) {
+	if (!io_req_spans_full_pg(ci, buf, count, pos)) {
 		rc = -EINVAL;
 		goto out;
 	}
@@ -1225,6 +1288,40 @@ out:
 	C2_LEAVE("rc: %ld", rc);
 	return rc;
 }
+
+/**
+ * Collection of IO extents and buffers, directed towards each of the units
+ * (data_unit / parity_unit) in a parity group.
+ * These structures are created by struct io_request dividing the incoming
+ * struct iovec into members of parity group.
+ */
+struct stripe_io_desc {
+	/** Magic to verify sanity of structure. */
+	uint64_t               ird_magic;
+
+	/** Fid of component object. */
+	struct c2_fid          ird_fid;
+
+	/**
+	 * List of c2t1fs_buf structures which hold file data.
+	 * Length of ird_extents list is same as length of ird_buffers list.
+	 */
+	struct c2_tl          *ird_buffers;
+
+	/**
+	 * List of c2_ext structures.
+	 * Each extent infers starting offset and count.
+	 * Since file data is divided uniformly into members of parity group,
+	 * the offsets from this list are discontiguous.
+	 */
+	struct c2_tl           ird_extents;
+
+	/** Resulting IO fops are sent on this session. */
+	struct c2_rpc_session *ird_session;
+
+	/** Linkage to link in to nw_xfer_request::nxr_descs list. */
+	struct c2_tlink        ird_link;
+};
 
 /**
    Read/write descriptor that describes io on cob identified by rd_fid.
