@@ -70,8 +70,7 @@ static bool linear_invariant_internal(const struct c2_layout_linear_enum *le)
 {
 	return
 		c2_layout_linear_enum_bob_check(le) &&
-		le->lle_attr.lla_nr != 0 &&
-		le->lle_attr.lla_B != 0;
+		le->lle_attr.lla_nr != 0;
 }
 
 static bool linear_invariant(const struct c2_layout_linear_enum *le)
@@ -127,14 +126,20 @@ static void linear_delete(struct c2_layout_enum *e)
 	C2_LEAVE();
 }
 
-static void linear_populate(struct c2_layout_linear_enum *lin_enum,
-			    const struct c2_layout_linear_attr *attr)
+static int linear_populate(struct c2_layout_linear_enum *lin_enum,
+			   const struct c2_layout_linear_attr *attr)
 {
 	C2_PRE(linear_allocated_invariant(lin_enum));
 	C2_PRE(attr != NULL);
 
+	if (attr->lla_nr == 0 || attr->lla_B == 0) {
+		C2_LOG("lin_enum %p, attr %p,  Invalid attributes, rc %d",
+		       lin_enum, attr, -EINVAL);
+		return -EINVAL;
+	}
 	lin_enum->lle_attr = *attr; //todo validate and handle error
 	C2_POST(linear_invariant_internal(lin_enum));
+	return 0;
 }
 
 int c2_linear_enum_build(struct c2_layout_domain *dom,
@@ -146,17 +151,18 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
 	int                           rc;
 
 	C2_PRE(out != NULL);
-
+	C2_ENTRY("domain %p", dom);
 	rc = linear_allocate(dom, &e);
 	if (rc == 0) {
 		lin_enum = bob_of(e, struct c2_layout_linear_enum,
 			          lle_base, &linear_bob);
-		linear_populate(lin_enum, attr);
+		rc = linear_populate(lin_enum, attr);
 		if (rc == 0) {
 			C2_POST(linear_invariant_internal(lin_enum));
 			*out = lin_enum;
 		}
 	}
+	C2_LEAVE("domain %p, rc %d", dom, rc);
 	return rc;
 }
 
@@ -241,6 +247,7 @@ static int linear_decode(struct c2_layout_enum *e,
 	uint64_t                      lid;
 	struct c2_layout_linear_enum *lin_enum;
 	struct c2_layout_linear_attr *lin_attr;
+	int                           rc;
 
 	C2_PRE(e != NULL);
 	C2_PRE(c2_layout__striped_allocated_invariant(stl));
@@ -257,10 +264,13 @@ static int linear_decode(struct c2_layout_enum *e,
 
 	lin_attr = c2_bufvec_cursor_addr(cur);
 	c2_bufvec_cursor_move(cur, sizeof *lin_attr);
-	linear_populate(lin_enum, lin_attr);
-	C2_POST(linear_invariant_internal(lin_enum));
-	C2_LEAVE("lid %llu", (unsigned long long)lid);
-	return 0;
+	rc = linear_populate(lin_enum, lin_attr);
+	if (rc == 0)
+		C2_POST(linear_invariant_internal(lin_enum));
+	else
+		C2_POST(linear_allocated_invariant(lin_enum));
+	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
+	return rc;
 }
 
 /**

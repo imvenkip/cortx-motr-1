@@ -608,10 +608,15 @@ void c2_layout_put(struct c2_layout *l);
  * @pre
  * - c2_layout__allocated_invariant(l)
  * - c2_mutex_is_locked(&l->l_lock)
+ * - The buffer pointed by cur contains serialized representation of the whole
+ *   layout in case op is C2_LXO_BUFFER_OP. It contains the data for the
+ *   layout read from the primary table viz. "layouts" in case op is
+ *   C2_LXO_DB_LOOKUP.
  *
  * @post Layout object is fully built (along with enumeration object being
  * built if applicable).
- * - c2_layout__invariant(l)
+ * - ergo(rc == 0, c2_layout__invariant(l))
+ * - ergo(rc != 0, c2_layout__allocated_invariant(l)
  * - c2_mutex_is_locked(&l->l_lock)
  * - The cursor cur is advanced by the size of the data that is read from it.
  *
@@ -654,11 +659,12 @@ int c2_layout_decode(struct c2_layout *l, /* todo Make cur as the 2nd arg */
  *   enumeration type, some data goes into table other than layouts, viz.
  *   cob_lists table.
  *
+ * @pre c2_layout__invariant(l)
  * @post
- * - If op is is either for ADD|UPDATE|DELETE, respective DB operation is
- *   continued.
- * - If op is BUFFER_OP, the buffer contains the serialised representation
- *   of the whole layout.
+ * - If op is is either for C2_LXO_DB_<ADD|UPDATE|DELETE>, the respective DB
+ *   operation is continued.
+ * - If op is C2_LXO_BUFFER_OP, the buffer contains the serialised
+ *   representation of the whole layout.
  */
 int c2_layout_encode(struct c2_layout *l,
 		     enum c2_layout_xcode_op op,

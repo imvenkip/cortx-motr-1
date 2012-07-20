@@ -464,6 +464,13 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
+	if (dom->ld_type[lt->lt_id] != lt) {
+		c2_layout__log("c2_layout_lookup", "Unregistered layout type",
+			       &layout_lookup_fail, &layout_global_ctx,
+			       lid, -EPROTO);
+		return -EPROTO;
+	}
+
 	c2_mutex_lock(&dom->ld_lock);
 	l = c2_layout__list_lookup(dom, lid, true);
 	c2_mutex_unlock(&dom->ld_lock);

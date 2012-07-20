@@ -967,10 +967,18 @@ int c2_layout_decode(struct c2_layout *l,
 	C2_PRE(list_lookup(l->l_dom, l->l_id) == NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-	if (C2_FI_ENABLED("c2_l_decode_error_in_c2_l_lookup"))
+	if (C2_FI_ENABLED("c2_l_decode_error_in_c2_l_lookup")) {
+		C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, -501);
 		return -501;
+	}
 
 	lt = l->l_type;
+	if (lt == NULL) {
+		c2_layout__log("c2_layout_decode", "Unregistered layout type",
+			       &layout_decode_fail, &layout_global_ctx,
+			       l->l_id, -EPROTO);
+		return -EPROTO;
+	}
 	C2_ASSERT(lt == l->l_dom->ld_type[lt->lt_id]);
 
 	rec = c2_bufvec_cursor_addr(cur);
@@ -986,16 +994,15 @@ int c2_layout_decode(struct c2_layout *l,
 	 */
 
 	rc = lt->lt_ops->lto_decode(l, op, tx, cur, rec->lr_ref_count);
-	if (rc != 0) {
+	if (rc != 0)
 		c2_layout__log("c2_layout_decode", "lto_decode() failed",
 			       &layout_decode_fail, &layout_global_ctx,
 			       l->l_id, rc);
-		goto out;
-	}
-	C2_POST(c2_layout__invariant(l));
+
+	C2_POST(ergo(rc == 0, c2_layout__invariant(l) &&
+			      list_lookup(l->l_dom, l->l_id) == l));
+	C2_POST(ergo(rc != 0, c2_layout__allocated_invariant(l)));
 	C2_POST(c2_mutex_is_locked(&l->l_lock));
-	C2_POST(list_lookup(l->l_dom, l->l_id) == l);
-out:
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }

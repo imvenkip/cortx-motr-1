@@ -183,16 +183,21 @@ static void list_delete(struct c2_layout_enum *e)
 	C2_LEAVE();
 }
 
-static void list_populate(struct c2_layout_list_enum *list_enum,
-			  struct c2_fid *cob_list, uint32_t nr)
+static int list_populate(struct c2_layout_list_enum *list_enum,
+			 struct c2_fid *cob_list, uint32_t nr)
 {
 	C2_PRE(list_allocated_invariant(list_enum));
 	C2_PRE(cob_list != NULL);
-	C2_PRE(nr != 0); //todo Assert or handle?
 
+	if (nr == 0) {
+		C2_LOG("list_enum %p, Invalid attributes (nr = 0), rc %d",
+		       list_enum, -EINVAL);
+		return -EINVAL;
+	}
 	list_enum->lle_nr = nr;
 	list_enum->lle_list_of_cobs = cob_list;
 	C2_POST(list_invariant_internal(list_enum));
+	return 0;
 }
 
 int c2_list_enum_build(struct c2_layout_domain *dom,
@@ -206,6 +211,7 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 
 	C2_PRE(out != NULL);
 
+	C2_ENTRY("domain %p", dom);
 	for (i = 0; i < nr; ++i) {
 		if (!c2_fid_is_valid(&cob_list[i])) {
 			c2_layout__log("c2_list_enum_build",
@@ -220,10 +226,13 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 	if (rc == 0) {
 		list_enum = bob_of(e, struct c2_layout_list_enum,
 				   lle_base, &list_bob);
-		list_populate(list_enum, cob_list, nr);
-		C2_POST(list_invariant_internal(list_enum));
-		*out = list_enum;
+		rc = list_populate(list_enum, cob_list, nr);
+		if (rc == 0) {
+			*out = list_enum;
+			C2_POST(list_invariant_internal(*out));
+		}
 	}
+	C2_LEAVE("domain %p, rc %d", dom, rc);
 	return rc;
 }
 
@@ -482,9 +491,9 @@ static int list_decode(struct c2_layout_enum *e,
 			goto out;
 		}
 	}
-	list_populate(list_enum, cob_list, ce_header->ces_nr);
-	rc = 0;
-	C2_POST(list_invariant_internal(list_enum));
+	rc = list_populate(list_enum, cob_list, ce_header->ces_nr);
+	if (rc == 0)
+		C2_POST(list_invariant_internal(list_enum));
 out:
 	C2_POST(ergo(rc != 0, list_allocated_invariant(list_enum)));
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
