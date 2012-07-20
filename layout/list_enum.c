@@ -153,8 +153,7 @@ static int list_allocate(struct c2_layout_domain *dom,
 	C2_ALLOC_PTR(list_enum);
 	if (list_enum == NULL) {
 		c2_layout__log("list_allocate", "C2_ALLOC_PTR() failed",
-			       &c2_addb_oom, &layout_global_ctx, LID_NONE,
-			       -ENOMEM);
+			       &c2_addb_oom, &layout_global_ctx, 0, -ENOMEM);
 		return -ENOMEM;
 	}
 	c2_layout__enum_init(dom, &list_enum->lle_base,
@@ -296,7 +295,7 @@ static int list_register(struct c2_layout_domain *dom,
 	if (lsd == NULL) {
 		rc = -ENOMEM;
 		c2_layout__log("list_register", "C2_ALLOC_PTR() failed",
-			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
+			       &c2_addb_oom, &layout_global_ctx, 0, rc);
 		goto out;
 	}
 	rc = c2_table_init(&lsd->lsd_cob_lists, dom->ld_dbenv,
@@ -304,7 +303,7 @@ static int list_register(struct c2_layout_domain *dom,
 	if (rc != 0) {
 		c2_layout__log("list_register", "c2_table_init() failed",
 			       &c2_addb_func_fail, &layout_global_ctx,
-			       LID_NONE, rc);
+			       0, rc);
 		c2_free(lsd);
 		goto out;
 	}

@@ -169,7 +169,7 @@ static bool layout_invariant_internal(const struct c2_layout *l)
 {
 	return
 		c2_layout_bob_check(l) &&
-		l->l_id != LID_NONE &&
+		l->l_id > 0 &&
 		l->l_type != NULL &&
 		l->l_dom->ld_type[l->l_type->lt_id] == l->l_type &&
 		c2_layout__domain_invariant(l->l_dom) &&
@@ -337,7 +337,7 @@ void c2_layout__init(struct c2_layout *l,
 {
 	C2_PRE(l != NULL);
 	C2_PRE(c2_layout__domain_invariant(dom));
-	C2_PRE(lid != LID_NONE);
+	C2_PRE(lid > 0);
 	C2_PRE(lt != NULL);
 	C2_PRE(lt->lt_domain == dom);
 	C2_PRE(lt == dom->ld_type[lt->lt_id]);
@@ -417,7 +417,7 @@ void c2_layout__striped_init(struct c2_striped_layout *stl,
 {
 	C2_PRE(stl != NULL);
 	C2_PRE(c2_layout__domain_invariant(dom));
-	C2_PRE(lid != LID_NONE);
+	C2_PRE(lid > 0);
 	C2_PRE(type != NULL);
 	C2_PRE(ops != NULL);
 
@@ -887,27 +887,6 @@ void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
 	let->let_domain = NULL;
 	c2_mutex_unlock(&dom->ld_lock);
 	C2_LEAVE("Enum_type_id %lu", (unsigned long)let->let_id);
-}
-
-/* todo If c2_layout_lookup() first looks into the layout list, do we need
- * c2_layout_find() to exist ?
- */
-struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid)
-{
-	struct c2_layout *l;
-
-	C2_PRE(c2_layout__domain_invariant(dom));
-	C2_PRE(lid != LID_NONE);
-
-	C2_ENTRY("lid %llu", (unsigned long long)lid);
-	c2_mutex_lock(&dom->ld_lock);
-	l = c2_layout__list_lookup(dom, lid, true);
-	c2_mutex_unlock(&dom->ld_lock);
-
-	C2_POST(ergo(l != NULL, c2_layout__invariant(l) &&
-				l->l_ref > 0));
-	C2_LEAVE("lid %llu, l_pointer %p", (unsigned long long)lid, l);
-	return l;
 }
 
 /** Adds a reference to the layout. */

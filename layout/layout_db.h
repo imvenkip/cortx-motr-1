@@ -145,9 +145,14 @@ struct c2_layout_rec {
  * most the size returned by c2_layout_max_recsize(). It is no harm if it is
  * bigger than that.
  *
- * @post Layout object is built internally (along with enumeration object
- * being built if applicable). If layout object is created successfully,
- * a reference is acquired on it and it is stored in "out".
+ * @post
+ * - Returns a layout object with the given identifier if it exists in the
+ *   list of the layout objects maintained in the layout domain.
+ * - If it does not exist in that list, then it read from the database. If its
+ *   entry exists in the database, then using it, a new layout object is built
+ *   internally (along with enumeration object being built if applicable).
+ * - In case of successful return, an additional reference is acquired on
+ *   the layout object returned in the variable "out".
  */
 int c2_layout_lookup(struct c2_layout_domain *dom,
 		     uint64_t lid,

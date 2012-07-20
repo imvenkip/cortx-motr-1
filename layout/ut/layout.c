@@ -562,8 +562,9 @@ static void NKP_assign_and_pool_init(uint32_t enum_id,
 
 /*
  * Tests the APIs supported for enumeration object build, layout object build
- * and layout dstruction that happens using c2_layout_put(), and also the API
- * c2_layout_find(), specifically for the PDCLUST layout type.
+ * and layout dstruction that happens using c2_layout_put(). Verifies that the
+ * newly build layout object is added to the list of layout objects maintained
+ * in the domain object.
  */
 static int test_build_pdclust(uint32_t enum_id, uint64_t lid,
 			      uint32_t inline_test)
@@ -589,14 +590,12 @@ static int test_build_pdclust(uint32_t enum_id, uint64_t lid,
 				  10, 20,
 				  &pl, &list_enum, &lin_enum);
 	C2_UT_ASSERT(rc == 0);
-
+	C2_UT_ASSERT(list_lookup(lid) == &pl->pl_base.sl_base);
 
 	/* Verify the layout object built earlier here. */
 	pdclust_layout_verify(enum_id, &pl->pl_base.sl_base, lid,
 			      N, K, P, &seed,
 			      10, 20);
-
-	C2_UT_ASSERT(list_lookup(lid) == &pl->pl_base.sl_base);
 
 	/*
 	 * Delete the layout by first increasing a reference and then
@@ -607,14 +606,12 @@ static int test_build_pdclust(uint32_t enum_id, uint64_t lid,
 	C2_UT_ASSERT(list_lookup(lid) == NULL);
 
 	c2_pool_fini(&pool);
-
 	return rc;
 }
 
 /*
  * Tests the APIs supported for enumeration object build, layout object build
- * and layout dstruction that happens using c2_layout_put() and also the API
- * c2_layout_find().
+ * and layout dstruction that happens using c2_layout_put().
  */
 static void test_build(void)
 {
@@ -2341,7 +2338,7 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 	struct c2_uint128             seed;
 	struct c2_layout_list_enum   *list_enum;
 	struct c2_layout_linear_enum *lin_enum;
-	//todo struct c2_layout             *l;
+	//tdo struct c2_layout             *l;
 
 	C2_ENTRY();
 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
@@ -2375,10 +2372,9 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 
-	/* todo l = c2_layout_find(&domain, lid);
-	C2_UT_ASSERT(&pl->pl_base.sl_base == l);
-	*/
 	C2_UT_ASSERT(list_lookup(lid) == &pl->pl_base.sl_base);
+	/* todo rc = c2_layout_lookup(&domain, lid, NULL, NULL, NULL, &l);
+	C2_UT_ASSERT(l == &pl->pl_base.sl_base); */
 
 	/*
 	 * If duplicate_test is true, again try to add the same layout object

@@ -548,15 +548,6 @@ void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
 				    struct c2_layout_enum_type *et);
 
 /**
- * Returns an in-memory representation of the layout with the given identifier,
- * if it exists in the list of layout objects maintained in the layout domain.
- *
- * On success, this function acquires a reference on the returned layout
- * object.
- */
-struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid);
-
-/**
  * Acquires an additional reference on the layout object.
  * @see c2_layout_put()
  * @see c2_layout_find()

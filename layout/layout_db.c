@@ -456,9 +456,8 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	struct c2_layout        *ghost;
 
 	C2_PRE(c2_layout__domain_invariant(dom));
-	C2_PRE(lid != LID_NONE);
+	C2_PRE(lid > 0);
 	C2_PRE(lt != NULL);
-	C2_PRE(dom->ld_type[lt->lt_id] == lt); /* Registered layout type. */
 	C2_PRE(tx != NULL);
 	C2_PRE(pair != NULL);
 	C2_PRE(out != NULL);

@@ -208,7 +208,7 @@ static int pdclust_allocate(struct c2_layout_domain *dom,
 	struct c2_pdclust_layout *pl;
 
 	C2_PRE(c2_layout__domain_invariant(dom));
-	C2_PRE(lid != LID_NONE);
+	C2_PRE(lid > 0);
 	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
