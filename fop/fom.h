@@ -416,7 +416,9 @@ struct c2_fom {
 
 	/** Result of fom execution, -errno on failure */
 	int32_t			 fo_rc;
+	/** State machine for generic and specfic FOM phases. */
 	struct c2_sm		 fo_sm_phase;
+	/** State machine for FOM states. */
 	struct c2_sm		 fo_sm_state;
 };
 

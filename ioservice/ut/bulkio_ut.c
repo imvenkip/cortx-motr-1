@@ -81,13 +81,13 @@ static struct c2_fom_type_ops ut_io_fom_cob_rw_type_ops = {
 
 static struct c2_fom_type bulkio_server_write_fom_type = {
 	.ft_ops = &bulkio_server_write_fom_type_ops,
-	.ft_nr_phases = C2_IO_FOPH_NR + 1,
+	.ft_nr_phases = C2_IO_FOPH_NR,
 	.ft_phases    = io_states,
 };
 
 static struct c2_fom_type bulkio_server_read_fom_type = {
 	.ft_ops = &bulkio_server_read_fom_type_ops,
-	.ft_nr_phases = C2_IO_FOPH_NR + 1,
+	.ft_nr_phases = C2_IO_FOPH_NR,
 	.ft_phases    = io_states,
 };
 static struct c2_fom_type bulkio_stob_create_fom_type = {
@@ -107,7 +107,7 @@ static inline struct c2_net_transfer_mc *fop_tm_get(
  */
 static struct c2_fom_type ut_io_fom_cob_rw_type_mopt = {
 	.ft_ops = &ut_io_fom_cob_rw_type_ops,
-	.ft_nr_phases = C2_IO_FOPH_NR + 1,
+	.ft_nr_phases = C2_IO_FOPH_NR,
 	.ft_phases    = io_states,
 };
 
@@ -184,7 +184,7 @@ static int bulkio_server_write_fom_state(struct c2_fom *fom)
                 fom->fo_phase == C2_FOPH_IO_FOM_BUFFER_ACQUIRE);
 		reply_fop_populate(fom);
 		break;
-	default : 
+	default :
 		rc = c2_io_fom_cob_rw_state(fom);
 	}
 	return rc;

@@ -714,7 +714,7 @@ struct c2_sm_state_descr io_states[C2_IO_FOPH_NR + 1] = {
  */
 struct c2_fom_type c2_io_fom_cob_rw_mopt = {
 	.ft_ops       = &type_ops,
-	.ft_nr_phases = C2_IO_FOPH_NR + 1,
+	.ft_nr_phases = C2_IO_FOPH_NR,
 	.ft_phases    = io_states,
 };
 
@@ -850,11 +850,11 @@ void io_fom_cob_rw_fid_wire2mem(struct c2_fop_file_fid *in, struct c2_fid *out)
  * @pre out != NULL
  */
 static int  indexvec_wire2mem(struct c2_fom         *fom,
-                                            struct c2_io_indexvec *in,
-                                            struct c2_indexvec    *out,
-                                            uint32_t               bshift)
+			      struct c2_io_indexvec *in,
+			      struct c2_indexvec    *out,
+			      uint32_t               bshift)
 {
-        int         i;
+        int i;
 
         C2_PRE(fom != NULL);
         C2_PRE(in != NULL);
@@ -904,15 +904,15 @@ static int  indexvec_wire2mem(struct c2_fom         *fom,
  *
  */
 static int align_bufvec (struct c2_fom    *fom,
-                                       struct c2_bufvec *obuf,
-                                       struct c2_bufvec *ibuf,
-                                       c2_bcount_t       ivec_count,
-                                       uint32_t          bshift)
+			 struct c2_bufvec *obuf,
+			 struct c2_bufvec *ibuf,
+			 c2_bcount_t       ivec_count,
+			 uint32_t          bshift)
 {
-        int                rc = 0;
-        int                i = 0;
-        c2_bcount_t        bufvec_count = 0;
-        int                bufvec_seg_size = 0;
+        int	    rc = 0;
+        int	    i = 0;
+        c2_bcount_t bufvec_count = 0;
+        int	    bufvec_seg_size = 0;
 
         C2_PRE(fom != NULL);
         C2_PRE(obuf != NULL);
@@ -1227,7 +1227,7 @@ static int release_net_buffer(struct c2_fom *fom)
         c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
 
         fom_obj->fcrw_batch_size = acquired_net_bufs;
-	
+
 	fom->fo_phase = C2_FOPH_IO_FOM_BUFFER_ACQUIRE;
 
         if (required_net_bufs == 0)
@@ -1397,7 +1397,7 @@ static int zero_copy_finish(struct c2_fom *fom)
 
         c2_mutex_unlock(&rbulk->rb_mutex);
         c2_rpc_bulk_fini(rbulk);
-        
+
 	if (c2_is_read_fop(fom->fo_fop))
 		fom->fo_phase = C2_FOPH_IO_BUFFER_RELEASE;
 	else
@@ -1674,7 +1674,7 @@ static int io_finish(struct c2_fom *fom)
                             fom->fo_rc);
 	        return C2_FSO_AGAIN;
         }
-        
+
 	if (c2_is_read_fop(fom->fo_fop))
 		fom->fo_phase = C2_FOPH_IO_ZERO_COPY_INIT;
 	else
@@ -1709,14 +1709,14 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 static void reply_fop_populate(struct c2_fom *fom)
 {
         struct c2_io_fom_cob_rw *fom_obj;
-        
+
         C2_PRE(fom != NULL);
 	C2_PRE(c2_is_io_fop(fom->fo_fop));
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
-        
+
 	C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
-       
+
        /* Set operation status in reply fop if FOM ends.*/
         if (fom->fo_phase == C2_FOPH_SUCCESS ||
             fom->fo_phase == C2_FOPH_FAILURE) {
