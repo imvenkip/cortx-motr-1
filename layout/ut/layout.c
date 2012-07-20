@@ -189,9 +189,7 @@ static c2_bcount_t t_max_recsize(struct c2_layout_domain *dom)
 static const struct c2_layout_type_ops test_layout_type_ops = {
 	.lto_register    = t_register,
 	.lto_unregister  = t_unregister,
-	.lto_max_recsize = t_max_recsize,
-	.lto_decode      = NULL,
-	.lto_encode      = NULL
+	.lto_max_recsize = t_max_recsize
 };
 
 struct c2_layout_type test_layout_type = {
@@ -237,9 +235,7 @@ static c2_bcount_t t_enum_max_recsize(void)
 static const struct c2_layout_enum_type_ops test_enum_ops = {
 	.leto_register    = t_enum_register,
 	.leto_unregister  = t_enum_unregister,
-	.leto_max_recsize = t_enum_max_recsize,
-	.leto_decode      = NULL,
-	.leto_encode      = NULL
+	.leto_max_recsize = t_enum_max_recsize
 };
 
 struct c2_layout_enum_type test_enum_type = {

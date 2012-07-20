@@ -388,7 +388,7 @@ static c2_bcount_t pdclust_max_recsize(struct c2_layout_domain *dom)
 }
 
 /**
- * Implementation of lto_decode() for pdclust layout type.
+ * Implementation of lo_decode() for pdclust layout type.
  *
  * Continues to build the in-memory layout object from its representation
  * either 'stored in the Layout DB' or 'received through the buffer'.
@@ -437,14 +437,13 @@ static int pdclust_decode(struct c2_layout *l,
 		       (unsigned long long)l->l_id, rc);
 		goto out;
 	}
-	rc = et->let_ops->leto_decode(e, cur, op, tx, &pl->pl_base);
+	rc = e->le_ops->leo_decode(e, cur, op, tx, &pl->pl_base);
 	if (rc != 0) {
 		e->le_ops->leo_delete(e);
-		C2_LOG("lid %llu, leto_decode() failed, rc %d",
+		C2_LOG("lid %llu, leo_decode() failed, rc %d",
 		       (unsigned long long)l->l_id, rc);
 		goto out;
 	}
-
 	rc = pdclust_populate(pl, &pl_rec->pr_attr, e, ref_count);
 	if (rc == 0)
 		C2_POST(pdclust_invariant(pl));
@@ -455,7 +454,7 @@ out:
 }
 
 /**
- * Implementation of lto_encode() for pdclust layout type.
+ * Implementation of lo_encode() for pdclust layout type.
  *
  * Continues to use the in-memory layout object and
  * - Either adds/updates/deletes it to/from the Layout DB
@@ -473,7 +472,7 @@ static int pdclust_encode(struct c2_layout *l,
 {
 	struct c2_pdclust_layout     *pl;
 	struct c2_layout_pdclust_rec  pl_rec;
-	struct c2_layout_enum_type   *et;
+	struct c2_layout_enum        *e;
 	c2_bcount_t                   nbytes;
 	int                           rc;
 
@@ -492,14 +491,14 @@ static int pdclust_encode(struct c2_layout *l,
 	pl = c2_layout_to_pdl(l);
 	pl_rec.pr_let_id = pl->pl_base.sl_enum->le_type->let_id;
 	pl_rec.pr_attr   = pl->pl_attr;
-	et               = pl->pl_base.sl_enum->le_type;
-	C2_ASSERT(et == l->l_dom->ld_enum[et->let_id]);
 
 	nbytes = c2_bufvec_cursor_copyto(out, &pl_rec, sizeof pl_rec);
 	C2_ASSERT(nbytes == sizeof pl_rec);
-	rc = et->let_ops->leto_encode(pl->pl_base.sl_enum, op, tx, out);
+
+	e = pl->pl_base.sl_enum;
+	rc = e->le_ops->leo_encode(e, op, tx, out);
 	if (rc != 0)
-		C2_LOG("lid %llu, leto_encode() failed, rc %d",
+		C2_LOG("lid %llu, leo_encode() failed, rc %d",
 		       (unsigned long long)l->l_id, rc);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
@@ -849,7 +848,9 @@ struct c2_pdclust_instance *c2_layout_instance_to_pdi(
 static const struct c2_layout_ops pdclust_ops = {
 	.lo_fini    = pdclust_fini,
 	.lo_delete  = pdclust_delete,
-	.lo_recsize = pdclust_recsize
+	.lo_recsize = pdclust_recsize,
+	.lo_decode  = pdclust_decode,
+	.lo_encode  = pdclust_encode
 };
 
 static const struct c2_layout_type_ops pdclust_type_ops = {
@@ -857,8 +858,6 @@ static const struct c2_layout_type_ops pdclust_type_ops = {
 	.lto_unregister  = pdclust_unregister,
 	.lto_max_recsize = pdclust_max_recsize,
 	.lto_allocate    = pdclust_allocate,
-	.lto_decode      = pdclust_decode,
-	.lto_encode      = pdclust_encode
 };
 
 struct c2_layout_type c2_pdclust_layout_type = {

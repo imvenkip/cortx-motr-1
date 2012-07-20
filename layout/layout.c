@@ -927,9 +927,8 @@ int c2_layout_decode(struct c2_layout *l,
 		     enum c2_layout_xcode_op op,
 		     struct c2_db_tx *tx)
 {
-	struct c2_layout_type *lt;
-	struct c2_layout_rec  *rec;
-	int                    rc;
+	struct c2_layout_rec *rec;
+	int                   rc;
 
 	C2_PRE(c2_layout__allocated_invariant(l));
 	C2_PRE(c2_mutex_is_locked(&l->l_lock));
@@ -945,30 +944,21 @@ int c2_layout_decode(struct c2_layout *l,
 		return -501;
 	}
 
-	lt = l->l_type;
-	if (lt == NULL) {
-		c2_layout__log("c2_layout_decode", "Unregistered layout type",
-			       &layout_decode_fail, &l->l_addb,
-			       l->l_id, -EPROTO);
-		return -EPROTO;
-	}
-	C2_ASSERT(lt == l->l_dom->ld_type[lt->lt_id]);
-
 	rec = c2_bufvec_cursor_addr(cur);
-	C2_ASSERT(rec->lr_lt_id == lt->lt_id);
+	C2_ASSERT(rec->lr_lt_id == l->l_type->lt_id);
 
 	/* Move the cursor to point to the layout type specific payload. */
 	c2_bufvec_cursor_move(cur, sizeof *rec);
 	/*
 	 * It is fine if any of the layout does not contain any data in
 	 * rec->lr_data[], unless it is required by the specific layout type,
-	 * which will be caught by the respective lto_decode() implementation.
+	 * which will be caught by the respective lo_decode() implementation.
 	 * Hence, ignoring the return status of c2_bufvec_cursor_move() here.
 	 */
 
-	rc = lt->lt_ops->lto_decode(l, cur, op, tx, rec->lr_ref_count);
+	rc = l->l_ops->lo_decode(l, cur, op, tx, rec->lr_ref_count);
 	if (rc != 0)
-		c2_layout__log("c2_layout_decode", "lto_decode() failed",
+		c2_layout__log("c2_layout_decode", "lo_decode() failed",
 			       &layout_decode_fail, &l->l_addb,
 			       l->l_id, rc);
 
@@ -986,7 +976,6 @@ int c2_layout_encode(struct c2_layout *l,
 		     struct c2_bufvec_cursor *out)
 {
 	struct c2_layout_rec   rec;
-	struct c2_layout_type *lt;
 	c2_bcount_t            nbytes;
 	int                    rc;
 
@@ -998,17 +987,14 @@ int c2_layout_encode(struct c2_layout *l,
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof rec);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-	lt = l->l_type;
-	C2_ASSERT(lt == l->l_dom->ld_type[lt->lt_id]);
-
 	rec.lr_lt_id     = l->l_type->lt_id;
 	rec.lr_ref_count = l->l_ref;
 	nbytes = c2_bufvec_cursor_copyto(out, &rec, sizeof rec);
 	C2_ASSERT(nbytes == sizeof rec);
 
-	rc = lt->lt_ops->lto_encode(l, op, tx, out);
+	rc = l->l_ops->lo_encode(l, op, tx, out);
 	if (rc != 0)
-		c2_layout__log("c2_layout_encode", "lto_encode() failed",
+		c2_layout__log("c2_layout_encode", "lo_encode() failed",
 			       &layout_encode_fail, &l->l_addb, l->l_id, rc);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);

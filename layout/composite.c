@@ -135,7 +135,7 @@ static c2_bcount_t composite_max_recsize(struct c2_layout_domain *dom)
 static const struct c2_layout_ops composite_ops;
 
 /**
- * Implementation of lto_decode() for composite layout type.
+ * Implementation of lo_decode() for composite layout type.
  *
  * Continues to build the in-memory layout object from its representation
  * either 'stored in the Layout DB' or 'received through the buffer'.
@@ -180,7 +180,7 @@ static int composite_decode(struct c2_layout *l,
 }
 
 /**
- * Implementation of lto_encode() for composite layout type.
+ * Implementation of lo_encode() for composite layout type.
  *
  * Continues to use the in-memory layout object and either 'stores it in the
  * Layout DB' or 'converts it to a buffer'.
@@ -219,25 +219,25 @@ static int composite_encode(struct c2_layout *l,
 }
 
 static const struct c2_layout_ops composite_ops = {
-	.lo_fini        = composite_fini,
-	.lo_delete      = composite_delete,
-	.lo_recsize     = composite_recsize
+	.lo_fini    = composite_fini,
+	.lo_delete  = composite_delete,
+	.lo_recsize = composite_recsize,
+	.lo_decode  = composite_decode,
+	.lo_encode  = composite_encode
 };
 
 static const struct c2_layout_type_ops composite_type_ops = {
 	.lto_register    = composite_register,
 	.lto_unregister  = composite_unregister,
 	.lto_max_recsize = composite_max_recsize,
-	.lto_allocate    = composite_allocate,
-	.lto_decode      = composite_decode,
-	.lto_encode      = composite_encode,
+	.lto_allocate    = composite_allocate
 };
 
 
 const struct c2_layout_type c2_composite_layout_type = {
-	.lt_name  = "composite",
-	.lt_id    = 1,
-	.lt_ops   = &composite_type_ops
+	.lt_name = "composite",
+	.lt_id   = 1,
+	.lt_ops  = &composite_type_ops
 };
 
 /** @} end group composite */

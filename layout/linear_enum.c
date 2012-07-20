@@ -235,7 +235,7 @@ static c2_bcount_t linear_max_recsize(void)
 }
 
 /**
- * Implementation of leto_decode() for linear enumeration type.
+ * Implementation of leo_decode() for linear enumeration type.
  * Reads linear enumeration type specific attributes from the buffer into
  * the c2_layout_linear_enum::c2_layout_linear_attr object.
  */
@@ -275,7 +275,7 @@ static int linear_decode(struct c2_layout_enum *e,
 }
 
 /**
- * Implementation of leto_encode() for linear enumeration type.
+ * Implementation of leo_encode() for linear enumeration type.
  * Reads linear enumeration type specific attributes from the
  * c2_layout_linear_enum object into the buffer.
  */
@@ -362,28 +362,28 @@ static c2_bcount_t linear_recsize(struct c2_layout_enum *e)
 }
 
 static const struct c2_layout_enum_ops linear_enum_ops = {
-	.leo_nr           = linear_nr,
-	.leo_get          = linear_get,
-	.leo_recsize      = linear_recsize,
-	.leo_fini         = linear_fini,
-	.leo_delete       = linear_delete
+	.leo_nr      = linear_nr,
+	.leo_get     = linear_get,
+	.leo_recsize = linear_recsize,
+	.leo_fini    = linear_fini,
+	.leo_delete  = linear_delete,
+	.leo_decode  = linear_decode,
+	.leo_encode  = linear_encode
 };
 
 static const struct c2_layout_enum_type_ops linear_type_ops = {
 	.leto_register    = linear_register,
 	.leto_unregister  = linear_unregister,
 	.leto_max_recsize = linear_max_recsize,
-	.leto_allocate    = linear_allocate,
-	.leto_decode      = linear_decode,
-	.leto_encode      = linear_encode
+	.leto_allocate    = linear_allocate
 };
 
 struct c2_layout_enum_type c2_linear_enum_type = {
-	.let_name         = "linear",
-	.let_id           = 1,
-	.let_ref_count    = 0,
-	.let_domain       = NULL,
-	.let_ops          = &linear_type_ops
+	.let_name      = "linear",
+	.let_id        = 1,
+	.let_ref_count = 0,
+	.let_domain    = NULL,
+	.let_ops       = &linear_type_ops
 };
 
 /** @} end group linear_enum */

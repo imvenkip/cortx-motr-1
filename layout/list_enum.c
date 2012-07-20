@@ -412,7 +412,7 @@ out:
 }
 
 /**
- * Implementation of leto_decode() for LIST enumeration type.
+ * Implementation of leo_decode() for LIST enumeration type.
  *
  * Reads LDB_MAX_INLINE_COB_ENTRIES cob identifiers from the buffer into
  * the c2_layout_list_enum object. Then reads further cob identifiers either
@@ -589,7 +589,7 @@ out:
 }
 
 /**
- * Implementation of leto_encode() for LIST enumeration type.
+ * Implementation of leo_encode() for LIST enumeration type.
  *
  * Continues to use the in-memory layout object and either 'stores it in the
  * Layout DB' or 'converts it to a buffer'.
@@ -728,28 +728,28 @@ static c2_bcount_t list_recsize(struct c2_layout_enum *e)
 }
 
 static const struct c2_layout_enum_ops list_enum_ops = {
-	.leo_nr           = list_nr,
-	.leo_get          = list_get,
-	.leo_recsize      = list_recsize,
-	.leo_fini         = list_fini,
-	.leo_delete       = list_delete
+	.leo_nr      = list_nr,
+	.leo_get     = list_get,
+	.leo_recsize = list_recsize,
+	.leo_fini    = list_fini,
+	.leo_delete  = list_delete,
+	.leo_decode  = list_decode,
+	.leo_encode  = list_encode
 };
 
 static const struct c2_layout_enum_type_ops list_type_ops = {
 	.leto_register    = list_register,
 	.leto_unregister  = list_unregister,
 	.leto_max_recsize = list_max_recsize,
-	.leto_allocate    = list_allocate,
-	.leto_decode      = list_decode,
-	.leto_encode      = list_encode,
+	.leto_allocate    = list_allocate
 };
 
 struct c2_layout_enum_type c2_list_enum_type = {
-	.let_name         = "list",
-	.let_id           = 0,
-	.let_ref_count    = 0,
-	.let_domain       = NULL,
-	.let_ops          = &list_type_ops
+	.let_name      = "list",
+	.let_id        = 0,
+	.let_ref_count = 0,
+	.let_domain    = NULL,
+	.let_ops       = &list_type_ops
 };
 
 /** @} end group list_enum */
