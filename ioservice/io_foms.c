@@ -1047,7 +1047,7 @@ static int sm_acquire_net_buffer(struct c2_sm *sm)
 	struct c2_fom *fom;
 	int rc;
 
-	fom = container_of(sm, struct c2_fom, fo_sm);
+	fom = container_of(sm, struct c2_fom, fo_sm_phase);
 	rc = fom->fo_sm_state.sm_rc = acquire_net_buffer(fom);
 	if (rc == C2_FSO_WAIT)
 		return -1;
@@ -1180,7 +1180,7 @@ static int sm_release_net_buffer(struct c2_sm *sm)
 {
 	struct c2_fom *fom;
 
-	fom = container_of(sm, struct c2_fom, fo_sm);
+	fom = container_of(sm, struct c2_fom, fo_sm_phase);
 	fom->fo_sm_state.sm_rc = release_net_buffer(fom);
 	if (fom->fo_phase == C2_FOPH_SUCCESS)
 		return -1;
@@ -1252,7 +1252,7 @@ static int sm_initiate_zero_copy(struct c2_sm *sm)
 	struct c2_fom *fom;
 	int rc;
 
-	fom = container_of(sm, struct c2_fom, fo_sm);
+	fom = container_of(sm, struct c2_fom, fo_sm_phase);
 	rc = fom->fo_sm_state.sm_rc = initiate_zero_copy(fom);
 	if (rc == C2_FSO_WAIT)
 		return -1;
@@ -1365,7 +1365,7 @@ static int sm_zero_copy_finish(struct c2_sm *sm)
 {
 	struct c2_fom *fom;
 
-	fom = container_of(sm, struct c2_fom, fo_sm);
+	fom = container_of(sm, struct c2_fom, fo_sm_phase);
 	fom->fo_sm_state.sm_rc = zero_copy_finish(fom);
 	return fom->fo_phase;
 }
@@ -1427,7 +1427,7 @@ static int sm_io_launch(struct c2_sm *sm)
 	struct c2_fom *fom;
 	int rc;
 
-	fom = container_of(sm, struct c2_fom, fo_sm);
+	fom = container_of(sm, struct c2_fom, fo_sm_phase);
 	rc = fom->fo_sm_state.sm_rc = io_launch(fom);
 	if (rc == C2_FSO_WAIT)
 		return -1;
@@ -1617,7 +1617,7 @@ static int sm_io_finish(struct c2_sm *sm)
 {
 	struct c2_fom *fom;
 
-	fom = container_of(sm, struct c2_fom, fo_sm);
+	fom = container_of(sm, struct c2_fom, fo_sm_phase);
 	fom->fo_sm_state.sm_rc = io_finish(fom);
 	return fom->fo_phase;
 }

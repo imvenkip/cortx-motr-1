@@ -416,7 +416,7 @@ struct c2_fom {
 
 	/** Result of fom execution, -errno on failure */
 	int32_t			 fo_rc;
-	struct c2_sm		 fo_sm;
+	struct c2_sm		 fo_sm_phase;
 	struct c2_sm		 fo_sm_state;
 };
 

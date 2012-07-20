@@ -318,9 +318,9 @@ static void fom_exec(struct c2_fom *fom)
 	C2_ASSERT(c2_group_is_locked(fom));
 
 	if (fom->fo_phase == C2_FOPH_FINISH) {
-		if (fom->fo_sm.sm_state == C2_FOPH_FINISH) {
-			c2_sm_fini(&fom->fo_sm);
+		if (fom->fo_sm_phase.sm_state == C2_FOPH_FINISH) {
 			c2_sm_state_set(&fom->fo_sm_state, C2_FOS_SM_FINISH);
+			c2_sm_fini(&fom->fo_sm_phase);
 			c2_sm_fini(&fom->fo_sm_state);
 		}
 		fom->fo_ops->fo_fini(fom);
