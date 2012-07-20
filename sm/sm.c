@@ -238,7 +238,7 @@ static void state_set(struct c2_sm *mach, int state)
 	 */
 	do {
 		sd = sm_state(mach);
-		C2_PRE(sd->sd_allowed & (1 << state));
+		C2_PRE(sd->sd_allowed & ((uint64_t)1 << state));
 
 		if (sd->sd_ex != NULL)
 			sd->sd_ex(mach);

@@ -227,9 +227,9 @@ static int sm_create_loc_ctx(struct c2_sm *mach)
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
-	fom->fo_phase = C2_FOPH_NR + 1;
+	fom->fo_phase = C2_FOPH_NR;
 	mach->sm_rc = create_loc_ctx(fom);
-	return -1;
+	return fom->fo_phase;
 }
 
 /**
@@ -241,7 +241,17 @@ static int sm_create_loc_ctx_wait(struct c2_sm *mach)
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm);
+	fom->fo_phase = C2_FOPH_NR;
+	return fom->fo_phase;
+}
+
+static int sm_specific_phase(struct c2_sm *mach)
+{
+	struct c2_fom *fom;
+
+	fom = container_of(mach, struct c2_fom, fo_sm);
 	fom->fo_phase = C2_FOPH_NR + 1;
+	fom->fo_sm_state.sm_rc = C2_FSO_AGAIN;
 	return -1;
 }
 
@@ -581,7 +591,8 @@ const struct c2_sm_state_descr generic_states[C2_FOPH_NR + 1] = {
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOPH_TXN_CONTEXT_WAIT) |
 				(1 << C2_FOPH_SUCCESS) |
-				(1 << C2_FOPH_FAILURE)
+				(1 << C2_FOPH_FAILURE) |
+				(1 << C2_FOPH_NR)
 	},
 	[C2_FOPH_TXN_CONTEXT_WAIT] = {
 		.sd_flags     = 0,
@@ -590,7 +601,8 @@ const struct c2_sm_state_descr generic_states[C2_FOPH_NR + 1] = {
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOPH_SUCCESS) |
-				(1 << C2_FOPH_FAILURE)
+				(1 << C2_FOPH_FAILURE) |
+				(1 << C2_FOPH_NR)
 	},
 	[C2_FOPH_SUCCESS] = {
 		.sd_flags     = 0,
@@ -683,6 +695,15 @@ const struct c2_sm_state_descr generic_states[C2_FOPH_NR + 1] = {
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOPH_SM_FINISH)
 	},
+	[C2_FOPH_NR] = {
+		.sd_flags     = 0,
+		.sd_name      = "specific states ",
+		.sd_in        = &sm_specific_phase,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_SUCCESS) |
+				(1 << C2_FOPH_FAILURE)
+	},
 	[C2_FOPH_SM_FINISH] = {
 		.sd_flags     = C2_SDF_TERMINAL | C2_SDF_FAILURE,
 		.sd_name      = "SM finish",
@@ -695,7 +716,7 @@ const struct c2_sm_state_descr generic_states[C2_FOPH_NR + 1] = {
 
 const struct c2_sm_conf	generic_conf = {
 	.scf_name      = "FOM standard states",
-	.scf_nr_states = C2_FOPH_NR,
+	.scf_nr_states = C2_FOPH_NR + 1,
 	.scf_state     = generic_states
 };
 
@@ -708,19 +729,8 @@ int c2_fom_state_generic(struct c2_fom *fom)
 
 	fom_phase = fom->fo_phase;
 	c2_sm_state_set(&fom->fo_sm, fom_phase);
-	rc = C2_FSO_AGAIN;
-/*
-	if (rc == C2_FSO_AGAIN) {
-		if (fom->fo_rc != 0 && fom->fo_phase < C2_FOPH_FAILURE) {
-			FOM_ADDB_ADD(fom, states[fom_phase].sd_name,
-				     fom->fo_rc);
-			fom->fo_phase = C2_FOPH_FAILURE;
-		}
-	}
-
-	if (rc == C2_FSO_WAIT)
-		fom->fo_phase = fom_phase + 1;
-*/
+	rc = fom->fo_sm_state.sm_rc;
+	fom->fo_sm_state.sm_rc = 0;
 	if (fom->fo_phase == C2_FOPH_FINISH)
 		rc = C2_FSO_WAIT;
 
@@ -755,9 +765,10 @@ void c2_fom_type_register(struct c2_fom_type *fom_type)
 
 	C2_ALLOC_PTR(conf);
 	if (fom_type->ft_nr_phases > C2_FOPH_NR) {
-		for (i = 0; i < C2_FOPH_NR; i++)
+		for (i = 0; i <= C2_FOPH_NR; i++)
 			fom_type->ft_phases[i] = generic_states[i];
 
+		fom_type->ft_phases[C2_FOPH_NR].sd_allowed |= (1 << (C2_FOPH_NR + 1));
 		conf->scf_nr_states = fom_type->ft_nr_phases;
 		conf->scf_state     = fom_type->ft_phases;
 
