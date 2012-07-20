@@ -399,9 +399,9 @@ static c2_bcount_t pdclust_max_recsize(struct c2_layout_domain *dom)
  * received through the buffer.
  */
 static int pdclust_decode(struct c2_layout *l,
+			  struct c2_bufvec_cursor *cur,
 			  enum c2_layout_xcode_op op,
 			  struct c2_db_tx *tx,
-			  struct c2_bufvec_cursor *cur,
 			  uint32_t ref_count)
 {
 	struct c2_pdclust_layout     *pl;
@@ -411,10 +411,10 @@ static int pdclust_decode(struct c2_layout *l,
 	int                           rc;
 
 	C2_PRE(c2_layout__allocated_invariant(l));
-	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP)));
-	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 	C2_PRE(cur != NULL);
 	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *pl_rec);
+	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP)));
+	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	pl = bob_of(l, struct c2_pdclust_layout,
@@ -437,7 +437,7 @@ static int pdclust_decode(struct c2_layout *l,
 		       (unsigned long long)l->l_id, rc);
 		goto out;
 	}
-	rc = et->let_ops->leto_decode(e, &pl->pl_base, op, tx, cur);
+	rc = et->let_ops->leto_decode(e, cur, op, tx, &pl->pl_base);
 	if (rc != 0) {
 		e->le_ops->leo_delete(e);
 		C2_LOG("lid %llu, leto_decode() failed, rc %d",

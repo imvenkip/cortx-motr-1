@@ -316,9 +316,9 @@ struct c2_layout_type_ops {
 	 */
 	// todo Make lto_decode operation of a layout, not layout type
 	int         (*lto_decode)(struct c2_layout *l,
+				  struct c2_bufvec_cursor *cur,
 				  enum c2_layout_xcode_op op,
 				  struct c2_db_tx *tx,
-				  struct c2_bufvec_cursor *cur,
 				  uint32_t ref_count);
 
 	/**
@@ -440,10 +440,10 @@ struct c2_layout_enum_type_ops {
 	 */
 	// todo Make leto_decode operation of enumeration, not enum type
 	int         (*leto_decode)(struct c2_layout_enum *e,
-				   struct c2_striped_layout *stl,
+				   struct c2_bufvec_cursor *cur,
 				   enum c2_layout_xcode_op op,
 				   struct c2_db_tx *tx,
-				   struct c2_bufvec_cursor *cur);
+				   struct c2_striped_layout *stl);
 
 	/**
 	 * Continues storing layout representation either in the buffer
@@ -616,10 +616,10 @@ void c2_layout_put(struct c2_layout *l);
  * it. Releasing the last reference will finalise the layout object by freeing
  * it.
  */
-int c2_layout_decode(struct c2_layout *l, /* todo Make cur as the 2nd arg */
+int c2_layout_decode(struct c2_layout *l,
+		     struct c2_bufvec_cursor *cur,
 		     enum c2_layout_xcode_op op,
-		     struct c2_db_tx *tx,
-		     struct c2_bufvec_cursor *cur);
+		     struct c2_db_tx *tx);
 
 /**
  * This method uses an in-memory layout object and

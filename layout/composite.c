@@ -146,9 +146,9 @@ static const struct c2_layout_ops composite_ops;
  * received through the buffer.
  */
 static int composite_decode(struct c2_layout *l,
+			    struct c2_bufvec_cursor *cur,
 			    enum c2_layout_xcode_op op,
 			    struct c2_db_tx *tx,
-			    struct c2_bufvec_cursor *cur,
 			    uint32_t ref_count)
 {
 	/*

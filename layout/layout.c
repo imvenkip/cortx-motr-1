@@ -115,13 +115,11 @@ static const struct c2_bob_type enum_bob = {
 };
 C2_BOB_DEFINE(static, &enum_bob, c2_layout_enum);
 
-bool c2_layout__instance_invariant(const void *bob);
 static const struct c2_bob_type layout_instance_bob = {
 	.bt_name         = "layout_instance",
 	.bt_magix_offset = offsetof(struct c2_layout_instance, li_magic),
 	.bt_magix        = LAYOUT_INSTANCE_MAGIC,
 	.bt_check        = NULL
-//todo .bt_check = &c2_layout__instance_invariant does not work for c2t1fs st
 };
 C2_BOB_DEFINE(static, &layout_instance_bob, c2_layout_instance);
 
@@ -216,11 +214,8 @@ bool c2_layout__striped_invariant(const struct c2_striped_layout *stl)
 		c2_layout__invariant(&stl->sl_base);
 }
 
-//todo bool c2_layout__instance_invariant(const struct c2_layout_instance *li)
-bool c2_layout__instance_invariant(const void *bob)
+bool c2_layout__instance_invariant(const struct c2_layout_instance *li)
 {
-	const struct c2_layout_instance *li = bob;
-
 	return
 		c2_layout_instance_bob_check(li) &&
 		c2_fid_is_valid(&li->li_gfid) &&
@@ -928,21 +923,21 @@ void c2_layout_put(struct c2_layout *l)
 }
 
 int c2_layout_decode(struct c2_layout *l,
+		     struct c2_bufvec_cursor *cur,
 		     enum c2_layout_xcode_op op,
-		     struct c2_db_tx *tx,
-		     struct c2_bufvec_cursor *cur)
+		     struct c2_db_tx *tx)
 {
 	struct c2_layout_type *lt;
 	struct c2_layout_rec  *rec;
 	int                    rc;
 
-	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP)));
-	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
-	C2_PRE(cur != NULL);
-	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *rec);
 	C2_PRE(c2_layout__allocated_invariant(l));
 	C2_PRE(c2_mutex_is_locked(&l->l_lock));
 	C2_PRE(list_lookup(l->l_dom, l->l_id) == NULL);
+	C2_PRE(cur != NULL);
+	C2_PRE(c2_bufvec_cursor_step(cur) >= sizeof *rec);
+	C2_PRE(C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP)));
+	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	if (C2_FI_ENABLED("c2_l_decode_error_in_c2_l_lookup")) {
@@ -971,7 +966,7 @@ int c2_layout_decode(struct c2_layout *l,
 	 * Hence, ignoring the return status of c2_bufvec_cursor_move() here.
 	 */
 
-	rc = lt->lt_ops->lto_decode(l, op, tx, cur, rec->lr_ref_count);
+	rc = lt->lt_ops->lto_decode(l, cur, op, tx, rec->lr_ref_count);
 	if (rc != 0)
 		c2_layout__log("c2_layout_decode", "lto_decode() failed",
 			       &layout_decode_fail, &l->l_addb,

@@ -535,7 +535,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 	bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&pair->dp_rec.db_buf.b_addr,
 						  &recsize);
 	c2_bufvec_cursor_init(&cur, &bv);
-	rc = c2_layout_decode(l, C2_LXO_DB_LOOKUP, tx, &cur);
+	rc = c2_layout_decode(l, &cur, C2_LXO_DB_LOOKUP, tx);
 	if (rc != 0) {
 		/* Error covered in UT. */
 		l->l_ops->lo_delete(l);

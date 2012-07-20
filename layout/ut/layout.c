@@ -809,7 +809,7 @@ static int test_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	C2_ASSERT(c2_layout__allocated_invariant(l));
 
 	/* Decode the layout buffer into a layout object. */
-	rc = c2_layout_decode(l, C2_LXO_BUFFER_OP, NULL, &cur);
+	rc = c2_layout_decode(l, &cur, C2_LXO_BUFFER_OP, NULL);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(list_lookup(lid) == l);
 
@@ -1240,7 +1240,7 @@ static int test_decode_encode_pdclust(uint32_t enum_id, uint64_t lid,
 	C2_ASSERT(c2_layout__allocated_invariant(l));
 
 	/* Decode the layout buffer into a layout object. */
-	rc = c2_layout_decode(l, C2_LXO_BUFFER_OP, NULL, &cur1);
+	rc = c2_layout_decode(l, &cur1, C2_LXO_BUFFER_OP, NULL);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Unlock the layout, locked by lto_allocate() */
@@ -1581,7 +1581,7 @@ static int test_encode_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	 * Decode the layout buffer produced by c2_layout_encode() into another
 	 * layout object.
 	 */
-	rc = c2_layout_decode(l, C2_LXO_BUFFER_OP, NULL, &cur);
+	rc = c2_layout_decode(l, &cur, C2_LXO_BUFFER_OP, NULL);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
