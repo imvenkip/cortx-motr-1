@@ -82,9 +82,6 @@ int c2_layout_delete(struct c2_layout *l, struct c2_db_tx *tx, struct c2_db_pair
 /* import */
 #include "layout/layout.h"
 
-/* export */
-struct c2_layout_rec;
-
 /**
  * @defgroup LayoutDBDFS Layout DB
  * @brief Detailed functional specification for Layout DB.
@@ -97,32 +94,6 @@ struct c2_layout_rec;
  *
  * @{
  */
-
-/**
- * layouts table.
- * Key is uint64_t, value obtained from c2_layout::l_id.
- * @note This structure needs to be maintained as 8 bytes aligned.
- */
-struct c2_layout_rec {
-	/**
-	 * Layout type id.
-	 * Value obtained from c2_layout_type::lt_id.
-	 */
-	uint32_t  lr_lt_id;
-
-	/**
-	 * Layout reference count, indicating number of users for this layout.
-	 * Value obtained from c2_layout::l_ref.
-	 */
-	uint32_t  lr_ref_count;
-
-	/**
-	 * Layout type specific payload.
-	 * Contains attributes specific to the applicable layout type and/or
-	 * applicable to the enumeration type, if applicable.
-	 */
-	char      lr_data[0];
-};
 
 /**
  * Looks for an in-memory layout object with the given identifier in the list

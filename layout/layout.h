@@ -122,6 +122,9 @@ struct c2_layout_enum_ops;
 struct c2_layout_enum_type;
 struct c2_layout_enum_type_ops;
 struct c2_striped_layout;
+struct c2_layout_instance;
+struct c2_layout_instance_ops;
+struct c2_layout_rec;
 
 enum {
 	C2_LAYOUT_TYPE_MAX      = 32,
@@ -225,10 +228,11 @@ struct c2_layout_ops {
 	void        (*lo_delete)(struct c2_layout *l);
 
 	/**
-	 * Returns size of the layout type specific and enum type specific data
-	 * stored in the "layouts" (primary) table, for the specified layout.
-	 * It does not consider the size required for storing the generic
-	 * layout data using the struct c2_layout_rec.
+	 * Returns size of the record stored in the "layouts" (primary) table,
+	 * for the specified layout. It includes the size required for
+	 * storing the generic data, the layout type specific data and the enum
+	 * type specific data.
+	 *
 	 * @invariant l->l_ops->lo_recsize(l)
 	 *            <= l->l_type->lt_ops->lto_max_recsize(l->l_dom);
 	 */
@@ -331,11 +335,10 @@ struct c2_layout_type_ops {
 				      const struct c2_layout_type *lt);
 
 	/**
-	 * Returns maximum possible size for the layout type specific and
-	 * enum type specific data to be stored in the "layouts" (primary)
-	 * table for any layout of the specific layout type. It does not
-	 * consider the size required for storing the generic layout
-	 * data using the struct c2_layout_rec.
+	 * Returns the maximum possible size for the record stored in the
+	 * "layouts" (primary) table for any layout. It includes the size
+	 * required for storing the generic data, the layout type specific
+	 * data and the enum type specific data.
 	 */
 	c2_bcount_t (*lto_max_recsize)(struct c2_layout_domain *dom);
 
@@ -537,6 +540,31 @@ struct c2_layout_instance_ops {
 	void (*lio_fini)(struct c2_layout_instance *li);
 };
 
+/**
+ * layouts table.
+ * Key is uint64_t, value obtained from c2_layout::l_id.
+ * @note This structure needs to be maintained as 8 bytes aligned.
+ */
+struct c2_layout_rec {
+	/**
+	 * Layout type id.
+	 * Value obtained from c2_layout_type::lt_id.
+	 */
+	uint32_t  lr_lt_id;
+
+	/**
+	 * Layout reference count, indicating number of users for this layout.
+	 * Value obtained from c2_layout::l_ref.
+	 */
+	uint32_t  lr_ref_count;
+
+	/**
+	 * Layout type specific payload.
+	 * Contains attributes specific to the applicable layout type and/or
+	 * applicable to the enumeration type, if applicable.
+	 */
+	char      lr_data[0];
+};
 
 int c2_layouts_init(void);
 void c2_layouts_fini(void);

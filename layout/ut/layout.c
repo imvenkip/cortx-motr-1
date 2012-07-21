@@ -28,6 +28,12 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h" /* C2_LOG */
 
+#ifdef __KERNEL__
+# include "c2t1fs/linux_kernel/c2t1fs.h" /* c2t1fs_globals */
+#else
+# include "lib/finject.h"
+#endif
+
 #include "pool/pool.h" /* c2_pool_init(), c2_pool_fini() */
 #include "fid/fid.h" /* c2_fid_set() */
 #include "layout/layout.h"
@@ -36,12 +42,6 @@
 #include "layout/pdclust.h"
 #include "layout/list_enum.h"
 #include "layout/linear_enum.h"
-
-#ifdef __KERNEL__
-# include "c2t1fs/linux_kernel/c2t1fs.h" /* c2t1fs_globals */
-#else
-# include "layout/layout_db.c" /* l_recsize() */
-#endif
 
 static struct c2_dbenv         dbenv;
 static const char              db_name[] = "ut-layout";
@@ -2023,11 +2023,12 @@ static void pdclust_recsize_verify(uint32_t enum_id,
 	C2_UT_ASSERT(recsize == recsize_to_verify);
 }
 
-/* Tests the internal function l_recsize(), for the PDCLUST layout type. */
+/* Tests the function lo_recsize(), for the PDCLUST layout type. */
 static int test_recsize_pdclust(uint32_t enum_id, uint64_t lid,
 				uint32_t inline_test)
 {
 	struct c2_pdclust_layout     *pl;
+	struct c2_layout             *l;
 	struct c2_uint128             seed;
 	uint32_t                      N;
 	uint32_t                      K;
@@ -2054,14 +2055,15 @@ static int test_recsize_pdclust(uint32_t enum_id, uint64_t lid,
 
 	c2_layout_get(&pl->pl_base.sl_base);
 
-	/* Obtain the recsize by using the internal function l_recsize(). */
-	recsize = l_recsize(&pl->pl_base.sl_base);
+	/* Obtain the recsize by using the internal function lo_recsize(). */
+	l = &pl->pl_base.sl_base;
+	recsize = l->l_ops->lo_recsize(l);
 
-	/* Verify the recsize returned by l_recsize(). */
+	/* Verify the recsize returned by lo_recsize(). */
 	pdclust_recsize_verify(enum_id, &pl->pl_base.sl_base, recsize);
 
 	/* Destroy the layout object. */
-	c2_layout_put(&pl->pl_base.sl_base);
+	c2_layout_put(l);
 	C2_UT_ASSERT(list_lookup(lid) == NULL);
 
 	c2_pool_fini(&pool);
@@ -2069,14 +2071,14 @@ static int test_recsize_pdclust(uint32_t enum_id, uint64_t lid,
 	return rc;
 }
 
-/* Tests the internal function l_recsize(). */
+/* Tests the function lo_recsize(). */
 static void test_recsize(void)
 {
 	uint64_t lid;
 	int      rc;
 
 	/*
-	 * l_recsize() for PDCLUST layout type and LIST enumeration type,
+	 * lo_recsize() for PDCLUST layout type and LIST enumeration type,
 	 * with a few inline entries only.
 	 */
 	lid = 8001;
@@ -2084,7 +2086,7 @@ static void test_recsize(void)
 	C2_UT_ASSERT(rc == 0);
 
 	/*
-	 * l_recsize() for PDCLUST layout type and LIST enumeration type,
+	 * lo_recsize() for PDCLUST layout type and LIST enumeration type,
 	 * with a number of inline entries exactly equal to
 	 * LDB_MAX_INLINE_COB_ENTRIES
 	 */
@@ -2093,14 +2095,14 @@ static void test_recsize(void)
 	C2_UT_ASSERT(rc == 0);
 
 	/*
-	 * l_recsize() for PDCLUST layout type and LIST enumeration type
+	 * lo_recsize() for PDCLUST layout type and LIST enumeration type
 	 * including noninline entries.
 	 */
 	lid = 8003;
 	rc = test_recsize_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE);
 	C2_UT_ASSERT(rc == 0);
 
-	/* l_recsize() for PDCLUST layout type and LINEAR enumeration type. */
+	/* lo_recsize() for PDCLUST layout type and LINEAR enumeration type. */
 	lid = 8004;
 	rc = test_recsize_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE);
 	C2_UT_ASSERT(rc == 0);

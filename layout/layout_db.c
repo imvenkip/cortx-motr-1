@@ -315,8 +315,7 @@
  *
  * @test 12) Covering all the negative test cases.
  *
- * @test 13) Covering all the error cases. This will be done after error
- *           injection framework is ready that is being worked upon.
+ * @test 13) Covering all the error cases.
  *
  * <HR>
  * @section Layout-DB-st System Tests
@@ -374,19 +373,6 @@ extern const struct c2_addb_ev layout_delete_fail;
  *
  * @{
  */
-
-/**
- * Returns actual size for a record in the layouts table (without
- * considering the data in the tables other than layouts).
- */
-static c2_bcount_t l_recsize(const struct c2_layout *l)
-{
-	c2_bcount_t recsize;
-
-	recsize = sizeof(struct c2_layout_rec) + l->l_ops->lo_recsize(l);
-	C2_POST(recsize <= c2_layout_max_recsize(l->l_dom));
-	return recsize;
-}
 
 static int pair_init(struct c2_db_pair *pair,
 		     struct c2_layout *l,
@@ -567,7 +553,7 @@ int c2_layout_add(struct c2_layout *l,
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	c2_mutex_lock(&l->l_lock);
-	recsize = l_recsize(l);
+	recsize = l->l_ops->lo_recsize(l);
 	rc = pair_init(pair, l, tx, C2_LXO_DB_ADD, recsize);
 	if (rc == 0) {
 		rc = c2_table_insert(tx, pair);
@@ -596,7 +582,7 @@ int c2_layout_update(struct c2_layout *l,
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	c2_mutex_lock(&l->l_lock);
-	recsize = l_recsize(l);
+	recsize = l->l_ops->lo_recsize(l);
 	rc = pair_init(pair, l, tx, C2_LXO_DB_UPDATE, recsize);
 	if (rc == 0) {
 		rc = c2_table_update(tx, pair);
@@ -625,7 +611,7 @@ int c2_layout_delete(struct c2_layout *l,
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	c2_mutex_lock(&l->l_lock);
-	recsize = l_recsize(l);
+	recsize = l->l_ops->lo_recsize(l);
 	rc = pair_init(pair, l, tx, C2_LXO_DB_DELETE, recsize);
 	if (rc == 0) {
 		rc = c2_table_delete(tx, pair);

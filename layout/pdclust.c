@@ -489,13 +489,16 @@ static c2_bcount_t pdclust_recsize(const struct c2_layout *l)
 {
 	struct c2_striped_layout *stl;
 	struct c2_layout_enum    *e;
-	c2_bcount_t               e_recsize;
+	c2_bcount_t               recsize;
 
 	C2_PRE(l!= NULL);
 	stl = c2_layout_to_striped(l);
 	e = c2_striped_layout_to_enum(stl);
-	e_recsize = e->le_ops->leo_recsize(e);
-	return sizeof(struct c2_layout_pdclust_rec) + e_recsize;
+	recsize = sizeof(struct c2_layout_rec) +
+		  sizeof(struct c2_layout_pdclust_rec) +
+		  e->le_ops->leo_recsize(e);
+	C2_POST(recsize <= c2_layout_max_recsize(l->l_dom));
+	return recsize;
 }
 
 /**
