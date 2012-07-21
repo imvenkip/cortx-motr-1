@@ -269,7 +269,6 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 		     struct c2_layout_enum *le,
 		     struct c2_pdclust_layout **out);
 
-/* todo Merge these 4 into one. */
 uint32_t c2_pdclust_N(const struct c2_pdclust_layout *pl);
 uint32_t c2_pdclust_K(const struct c2_pdclust_layout *pl);
 uint32_t c2_pdclust_P(const struct c2_pdclust_layout *pl);
@@ -305,7 +304,6 @@ int c2_pdclust_instance_build(struct c2_pdclust_layout *pl,
 struct c2_pdclust_instance *c2_layout_instance_to_pdi(
 					const struct c2_layout_instance *li);
 
-/* todo Change name of fns which operate upon instance and non pl */
 /**
  * Layout mapping function.
  *
@@ -313,18 +311,18 @@ struct c2_pdclust_instance *c2_layout_instance_to_pdi(
  * to target frames. It is used by client IO code to build IO requests and to
  * direct them to the target objects.
  */
-void c2_pdclust_layout_map(struct c2_pdclust_instance *pi,
-			   const struct c2_pdclust_src_addr *src,
-			   struct c2_pdclust_tgt_addr *tgt);
+void c2_pdclust_instance_map(struct c2_pdclust_instance *pi,
+			     const struct c2_pdclust_src_addr *src,
+			     struct c2_pdclust_tgt_addr *tgt);
 /**
  * Reverse layout mapping function.
  *
  * This function is a right inverse of layout mapping function. It is used by
  * SNS repair and other server side mechanisms.
  */
-void c2_pdclust_layout_inv(struct c2_pdclust_instance *pi,
-			   const struct c2_pdclust_tgt_addr *tgt,
-			   struct c2_pdclust_src_addr *src);
+void c2_pdclust_instance_inv(struct c2_pdclust_instance *pi,
+			     const struct c2_pdclust_tgt_addr *tgt,
+			     struct c2_pdclust_src_addr *src);
 
 extern struct c2_layout_type c2_pdclust_layout_type;
 

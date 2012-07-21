@@ -93,8 +93,8 @@ void layout_demo(struct c2_pdclust_instance *pi, uint32_t P, int R, int I)
 		src.sa_group = group;
 		for (unit = 0; unit < W; ++unit) {
 			src.sa_unit = unit;
-			c2_pdclust_layout_map(pi, &src, &tgt);
-			c2_pdclust_layout_inv(pi, &tgt, &src1);
+			c2_pdclust_instance_map(pi, &src, &tgt);
+			c2_pdclust_instance_inv(pi, &tgt, &src1);
 			C2_ASSERT(memcmp(&src, &src1, sizeof src) == 0);
 			if (tgt.ta_frame < R)
 				map[tgt.ta_frame][tgt.ta_obj] = src;

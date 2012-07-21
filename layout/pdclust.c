@@ -63,7 +63,7 @@
  * function an M-matrix can be re-arranged into an N-matrix in such a way the
  * element position in the ordering remains invariant.
  *
- * Layout mapping function c2_pdclust_layout_map() performs these
+ * Layout mapping function c2_pdclust_instance_map() performs these
  * re-arrangements in the following places:
  *
  * - to convert a parity group number to a (tile number, group in tile)
@@ -75,7 +75,7 @@
  * - to convert a (tile number, frame in tile) pair to a target frame
  *   number. This is a conversion of L-matrix to 1-matrix.
  *
- * Inverse layout mapping function c2_pdclust_layout_inv() performs reverse
+ * Inverse layout mapping function c2_pdclust_instance_inv() performs reverse
  * conversions.
  *
  * @{
@@ -645,9 +645,9 @@ static uint64_t permute_column(struct c2_pdclust_instance *pi,
 	return tc->tc_permute[t];
 }
 
-void c2_pdclust_layout_map(struct c2_pdclust_instance *pi,
-			   const struct c2_pdclust_src_addr *src,
-			   struct c2_pdclust_tgt_addr *tgt)
+void c2_pdclust_instance_map(struct c2_pdclust_instance *pi,
+			     const struct c2_pdclust_src_addr *src,
+			     struct c2_pdclust_tgt_addr *tgt)
 {
 	uint32_t N;
 	uint32_t K;
@@ -685,9 +685,9 @@ void c2_pdclust_layout_map(struct c2_pdclust_instance *pi,
 	C2_LEAVE("pi %p", pi);
 }
 
-void c2_pdclust_layout_inv(struct c2_pdclust_instance *pi,
-			   const struct c2_pdclust_tgt_addr *tgt,
-			   struct c2_pdclust_src_addr *src)
+void c2_pdclust_instance_inv(struct c2_pdclust_instance *pi,
+			     const struct c2_pdclust_tgt_addr *tgt,
+			     struct c2_pdclust_src_addr *src)
 {
 	uint32_t N;
 	uint32_t K;
@@ -711,8 +711,8 @@ void c2_pdclust_layout_inv(struct c2_pdclust_instance *pi,
 	C2_ASSERT(pdclust_instance_invariant(pi));
 
 	/*
-	 * Execute inverses of the steps of c2_pdclust_layout_map() in reverse
-	 * order.
+	 * Execute inverses of the steps of c2_pdclust_instance_map() in
+	 * reverse order.
 	 */
 	m_dec(L, tgt->ta_frame, &omega, &r);
 	permute_column(pi, omega, t); /* Force tile cache update */

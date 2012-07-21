@@ -25,7 +25,7 @@
 #include "lib/memory.h"     /* c2_alloc(), c2_free() */
 #include "lib/arith.h"      /* min_type() */
 #include "layout/pdclust.h" /* C2_PUT_*, c2_layout_to_pdl(),
-			     * c2_pdclust_layout_map */
+			     * c2_pdclust_instance_map */
 #include "c2t1fs/linux_kernel/c2t1fs.h"
 #include "rpc/rpclib.h"     /* c2_rpc_client_call() */
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
@@ -625,7 +625,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 			src_addr.sa_unit = unit;
 
-			c2_pdclust_layout_map(pi, &src_addr, &tgt_addr);
+			c2_pdclust_instance_map(pi, &src_addr, &tgt_addr);
 
 			C2_LOG("src [%lu:%lu] maps to tgt [0:%lu]",
 					(unsigned long)src_addr.sa_group,
