@@ -1892,9 +1892,6 @@ static void test_max_recsize(void)
 	rc = c2_layout_domain_init(&t_domain, &t_dbenv);
 	C2_UT_ASSERT(rc == 0);
 
-	max_size_from_api = c2_layout_max_recsize(&t_domain);
-	C2_UT_ASSERT(max_size_from_api == 0);
-
 	/* Register pdclust layout type and verify c2_layout_max_recsize(). */
 	rc = c2_layout_type_register(&t_domain, &c2_pdclust_layout_type);
 	C2_UT_ASSERT(rc == 0);
@@ -2302,8 +2299,6 @@ static void test_lookup_failure(void)
 {
 	uint64_t lid;
 
-	// todo Combine this test with test_lookup()
-
 	/*
 	 * Add a layout object with PDCLUST layout type and LINEAR enum type.
 	 * Then simulate error that c2_layout_decode() invoked through
@@ -2517,17 +2512,15 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 	pair_set(&pair, &lid, area, num_bytes);
 
 	rc = c2_layout_update(l1, &tx, &pair);
-	if (existing_test) {
-		C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == 0);
+	/*
+	 * Even a non-existing record can be written to the database using
+	 * the database update operation
+	 */
+
+	if (existing_test)
 		pdclust_layout_copy(enum_id, l1, &l1_copy);
-	}
-	else {
-		/*todo C2_UT_ASSERT(rc == -ENOENT);
-		 * looks like nonexisting DB rec can be updated.
-		 * analyze and fix as required.
-		 */
-		C2_UT_ASSERT(rc == 0); //todo
-	}
+
 	rc = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc == 0);
 

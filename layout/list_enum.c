@@ -278,22 +278,21 @@ static int list_register(struct c2_layout_domain *dom,
 	C2_ENTRY("Enum_type_id %lu", (unsigned long)et->let_id);
 	C2_ALLOC_PTR(lsd);
 	if (lsd == NULL) {
-		rc = -ENOMEM;
 		c2_layout__log("list_register", "C2_ALLOC_PTR() failed",
-			       &c2_addb_oom, &layout_global_ctx, LID_NONE, rc);
-		goto out;
+			       &c2_addb_oom, &layout_global_ctx, LID_NONE,
+			       -ENOMEM);
+		return -ENOMEM;
 	}
 	rc = c2_table_init(&lsd->lsd_cob_lists, dom->ld_dbenv,
 			   "cob_lists", DEFAULT_DB_FLAG, &cob_lists_table_ops);
-	if (rc != 0) {
+	if (rc == 0)
+		dom->ld_type_data[et->let_id] = lsd;
+	else {
 		c2_layout__log("list_register", "c2_table_init() failed",
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       LID_NONE, rc);
 		c2_free(lsd);
-		goto out;
 	}
-	dom->ld_type_data[et->let_id] = lsd;
-out:
 	C2_LEAVE("Enum_type_id %lu, rc %d", (unsigned long)et->let_id, rc);
 	return rc;
 }

@@ -60,7 +60,7 @@ struct c2_layout_list_enum {
 };
 
 /**
- * Builds list enumeration object.
+ * Allocates and builds list enumeration object.
  *
  * @param cob_list List of cob identifiers, allocated and supplied by the
  * user. User shall not free the memory allocated for this list but it will

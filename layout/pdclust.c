@@ -773,7 +773,8 @@ int c2_pdclust_instance_build(struct c2_pdclust_layout *pl,
 
 	} else {
 		rc = -ENOMEM;
-		c2_layout__log("c2_pdclust_instance_build", "C2_ALLOC() failed",
+		c2_layout__log("c2_pdclust_instance_build",
+			       "C2_ALLOC() failed",
 			       &c2_addb_oom, &l->l_addb, l->l_id, rc);
 	}
 

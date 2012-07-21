@@ -680,7 +680,6 @@ int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
 	C2_PRE(dbenv != NULL);
 
 	C2_SET0(dom);
-	layout_tlist_init(&dom->ld_layout_list);
 	dom->ld_dbenv = dbenv;
 	rc = c2_table_init(&dom->ld_layouts, dom->ld_dbenv, "layouts",
 			   DEFAULT_DB_FLAG, &layouts_table_ops);
@@ -692,6 +691,7 @@ int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
 		dom->ld_dbenv = NULL;
 		return rc;
 	}
+	layout_tlist_init(&dom->ld_layout_list);
 	c2_mutex_init(&dom->ld_lock);
 	C2_POST(c2_layout__domain_invariant(dom));
 	return rc;
@@ -716,9 +716,9 @@ void c2_layout_domain_fini(struct c2_layout_domain *dom)
 	       dom->ld_enum[i] == NULL));
 
 	c2_mutex_fini(&dom->ld_lock);
+	layout_tlist_fini(&dom->ld_layout_list);
 	c2_table_fini(&dom->ld_layouts);
 	dom->ld_dbenv = NULL;
-	layout_tlist_fini(&dom->ld_layout_list);
 }
 
 int c2_layout_standard_types_register(struct c2_layout_domain *dom)
@@ -961,9 +961,9 @@ int c2_layout_encode(struct c2_layout *l,
 		     struct c2_db_tx *tx,
 		     struct c2_bufvec_cursor *out)
 {
-	struct c2_layout_rec   rec;
-	c2_bcount_t            nbytes;
-	int                    rc;
+	struct c2_layout_rec  rec;
+	c2_bcount_t           nbytes;
+	int                   rc;
 
 	C2_PRE(c2_layout__invariant(l));
 	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
@@ -990,6 +990,7 @@ int c2_layout_encode(struct c2_layout *l,
 c2_bcount_t c2_layout_max_recsize(const struct c2_layout_domain *dom)
 {
 	C2_PRE(c2_layout__domain_invariant(dom));
+	C2_POST(dom->ld_max_recsize >= sizeof (struct c2_layout_rec));
 	return dom->ld_max_recsize;
 }
 

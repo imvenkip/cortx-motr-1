@@ -212,6 +212,7 @@ struct c2_layout_ops {
 	/**
 	 * Finalises the type specific layout object. It involves finalising
 	 * its enumeration object, if applicable.
+	 * Dual to layout type specific build procedure.
 	 * Called when the last reference on the layout object is released.
 	 */
 	void        (*lo_fini)(struct c2_layout *l);
@@ -577,6 +578,7 @@ int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *db);
 
 /**
  * Finalises the layout domain.
+ * Dual to c2_layout_domain_init().
  * @pre All the layout types and enum types should be unregistered.
  */
 void c2_layout_domain_fini(struct c2_layout_domain *dom);

@@ -162,6 +162,11 @@ int c2_layout_add(struct c2_layout *l,
  * The buffer size should be large enough to contain the data that is to be
  * written specifically to the layouts table. It means it needs to be at the
  * most the size returned by c2_layout_max_recsize().
+ *
+ * @note Even a non-existing record can be written to the database using
+ * the database update operation. In other words, not using c2_layout_add()
+ * and directly using c2_layout_update() results into the leyout cord being
+ * written to the disk.
  */
 int c2_layout_update(struct c2_layout *l,
 		     struct c2_db_tx *tx,

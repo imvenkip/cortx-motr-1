@@ -68,7 +68,7 @@ struct c2_layout_linear_enum {
 };
 
 /**
- * Builds linear enumeration object.
+ * Allocates and builds linear enumeration object.
  * @post ergo(rc == 0, linear_invariant_internal(lin_enum))
  *
  * @note Enum object is not to be finalised explicitly by the user. It is
