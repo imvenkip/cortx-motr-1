@@ -200,7 +200,8 @@
  * index from the array of c2_fid structures stored inline in the layouts
  * table.
  *
- * @subsection Layout-DB-lspec-schema-comp_layout_ext_map Table comp_layout_ext_map
+ * @subsection Layout-DB-lspec-schema-comp_layout_ext_map
+ * Table comp_layout_ext_map
  *
  * @verbatim
  * Table Name: comp_layout_ext_map

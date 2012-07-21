@@ -22,7 +22,6 @@
 #  include "config.h"
 #endif
 
-/* todo revise the c2_layout_schema related documentation. */
 /**
  * @addtogroup layout
  * @{
@@ -41,10 +40,12 @@
  *   to confirm that no layout object gets deleted while any user is associated
  *   with it. It also helps to confirm that the layout object gets deleted
  *   while its last reference gets released.
- * - Various tables those are part of layout DB, directly or indirectly
- *   pointed by struct c2_layout_schema, are protected by using
- *   c2_layout_schema::ls_lock.
  * - The in-memory c2_layout object is protected by using c2_layout::l_lock.
+ * - DB takes its own locks internally to guarantee that concurrent calls to
+ *   data-base operations for different layouts do not mess with each other.
+ * - c2_layout::l_lock is used to serialise data-base operations for a
+ *   particular layout. This relates to the concept of "key locking" in
+ *   data-base theory.
  *
  * - c2_layout_domain::ld_lock is held during the following operations:
  *   - Registration and unregistration routines for various layout types and
@@ -54,24 +55,9 @@
  *   - While increasing/decreasing references on the layout types and enum
  *     types through layout_type_get(), layout_type_put(), enum_type_get()
  *     and enum_type_put().
- * - c2_layout_schema::ls_lock is held during the following operations:
- *   - Part of the layout type and enum type registration and unregistration
- *     routines those deal with creating and deleting various DB tables.
+ * - c2_layout::l_lock is held during the following operations:
  *   - c2_layout_lookup(), c2_layout_add(), c2_layout_update(),
  *     c2_layout_delete().
- *
- * - Note: Having two separate locks for domain data and schema data helps
- *   to keep the locking separate for the in-memory structures and for the
- *   on-disk DB tables. It helps avoid conditional locking in the routines
- *   c2_layout__init(), layout_type_get() and enum_type_get() which need to
- *   lock the in-memory domain structure. If we had only one lock, that
- *   would have been acquired in c2_layout_lookup() (along with being
- *   acquired in c2_layout_add(), c2_layout_update(), and c2_layout_delete()),
- *   and then c2_layout__init(), layout_type_get() and enum_type_get()
- *   would have required conditional locking - lock only when
- *   c2_layout_decode() is invoked by an external user and not when it is
- *   invoked by c2_layout_lookup().
- *   todo Revise the locking related dfocumentation.
  */
 
 #include "lib/errno.h"
@@ -437,7 +423,7 @@ void c2_layout__striped_populate(struct c2_striped_layout *str_l,
 
 {
 	C2_PRE(c2_layout__striped_allocated_invariant(str_l));
-	C2_PRE(e != NULL); //todo enum_allocated_invariant
+	C2_PRE(e != NULL);
 
 	C2_ENTRY("lid %llu, enum-type-id %lu",
 		 (unsigned long long)str_l->sl_base.l_id,
@@ -449,10 +435,10 @@ void c2_layout__striped_populate(struct c2_striped_layout *str_l,
 	/*
 	 * c2_layout__enum_invariant() invoked internally from within
 	 * c2_layout__striped_invariant() verifies that
-	 * str_l->sl_base->le_sl is set appropriately.
+	 * str_l->sl_base->le_sl is set appropriately, using the enum
+	 * invariant.
 	 */
 	C2_POST(c2_layout__striped_invariant(str_l));
-	//todo enum invariant
 	C2_LEAVE("lid %llu", (unsigned long long)str_l->sl_base.l_id);
 }
 

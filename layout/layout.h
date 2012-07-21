@@ -236,7 +236,6 @@ struct c2_layout_ops {
 	 * @invariant l->l_ops->lo_recsize(l)
 	 *            <= l->l_type->lt_ops->lto_max_recsize(l->l_dom);
 	 */
-	//todo Include the size req'd for the generic data as well
 	c2_bcount_t (*lo_recsize)(const struct c2_layout *l);
 
 	/**
