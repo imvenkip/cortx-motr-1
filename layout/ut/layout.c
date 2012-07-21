@@ -32,6 +32,7 @@
 # include "c2t1fs/linux_kernel/c2t1fs.h" /* c2t1fs_globals */
 #else
 # include "lib/finject.h"
+# include "layout/ut/ldemo_internal.c"
 #endif
 
 #include "pool/pool.h" /* c2_pool_init(), c2_pool_fini() */
@@ -1977,6 +1978,101 @@ static void test_max_recsize(void)
 
 #ifndef __KERNEL__
 /*
+ * Tests the APIs supported for enumeration object build, layout object build
+ * and layout dstruction that happens using c2_layout_put(). Verifies that the
+ * newly build layout object is added to the list of layout objects maintained
+ * in the domain object. todo
+ */
+static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
+				     bool inline_test)
+{
+	struct c2_uint128             seed;
+	uint32_t                      N;
+	uint32_t                      K;
+	uint32_t                      P;
+	struct c2_pdclust_layout     *pl;
+	struct c2_layout_list_enum   *list_enum;
+	struct c2_layout_linear_enum *lin_enum;
+	struct c2_pdclust_instance   *pi;
+	struct c2_fid                 gfid;
+
+	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+
+	c2_uint128_init(&seed, "buildpdclustlayo");
+
+	NKP_assign_and_pool_init(enum_id,
+				 inline_test, 14, 114, 114,
+				 &N, &K, &P);
+
+	rc = pdclust_layout_build(enum_id, lid,
+				  N, K, P, &seed,
+				  10, 20,
+				  &pl, &list_enum, &lin_enum);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(list_lookup(lid) == &pl->pl_base.sl_base);
+
+	c2_fid_set(&gfid, 0, 999);
+	rc = c2_pdclust_instance_build(pl, &gfid, &pi);
+	C2_UT_ASSERT(rc == 0);
+
+	layout_demo(pi, P, 1, 1, false);
+
+	/*
+	 * Delete the pdclust instance object. It destroys the layout object
+	 * as well since there has been only one reference acquired on that
+	 * layout.
+	 */
+	pi->pi_base.li_ops->lio_fini(&pi->pi_base);
+	C2_UT_ASSERT(list_lookup(lid) == NULL);
+
+	c2_pool_fini(&pool);
+	return rc;
+}
+
+/*
+ * Tests the APIs supported for enumeration object build, layout object build
+ * and layout dstruction that happens using c2_layout_put(). todo
+ */
+static void test_pdclust_instance(void)
+{
+	uint64_t lid;
+
+	/*
+	 * Build a layout object with PDCLUST layout type, LIST enum type
+	 * with a few inline entries only and then destroy it.
+	 */
+	lid = 1001; //todo
+	rc = test_pdclust_instance_obj(LIST_ENUM_ID, lid, LESS_THAN_INLINE);
+	C2_UT_ASSERT(rc == 0);
+
+	/*
+	 * Build a layout object with PDCLUST layout type, LIST enum type
+	 * with a number of inline entries exactly equal to
+	 * LDB_MAX_INLINE_COB_ENTRIES and then destroy it.
+	 */
+	lid = 1002;
+	rc = test_pdclust_instance_obj(LIST_ENUM_ID, lid, EXACT_INLINE);
+	C2_UT_ASSERT(rc == 0);
+
+	/*
+	 * Build a layout object with PDCLUST layout type, LIST enum type
+	 * including noninline entries and then destroy it.
+	 */
+	lid = 1003;
+	rc = test_pdclust_instance_obj(LIST_ENUM_ID, lid, MORE_THAN_INLINE);
+	C2_UT_ASSERT(rc == 0);
+
+	/*
+	 * Build a layout object with PDCLUST layout type and LINEAR enum
+	 * type and then destroy it.
+	 */
+	lid = 1004;
+	rc = test_pdclust_instance_obj(LINEAR_ENUM_ID, lid,
+				       INLINE_NOT_APPLICABLE);
+	C2_UT_ASSERT(rc == 0);
+}
+
+/*
  * Calculates the recsize by considering the sizes of the internal data
  * structures and their values, as applicable. Then verifies that the recsize
  * provided as an argument matches the calcualted one.
@@ -2798,6 +2894,7 @@ const struct c2_test_suite layout_ut = {
 		{ "layout-enum-ops", test_enum_operations },
 		{ "layout-max-recsize", test_max_recsize },
 #ifndef __KERNEL__
+		{ "layout-pdclust-instance", test_pdclust_instance },
 		{ "layout-recsize", test_recsize },
 		{ "layout-lookup", test_lookup },
 		{ "layout-lookup-failure", test_lookup_failure },

@@ -34,131 +34,12 @@
 #include "layout/pdclust.h"
 #include "layout/linear_enum.h" /* c2_linear_enum_build() */
 
+#include "layout/ut/ldemo_internal.c"
+
 /**
    @addtogroup layout
    @{
 */
-
-enum c2_pdclust_unit_type classify(const struct c2_pdclust_layout *play,
-				   int unit)
-{
-	if (unit < play->pl_attr.pa_N)
-		return C2_PUT_DATA;
-	else if (unit < play->pl_attr.pa_N + play->pl_attr.pa_K)
-		return C2_PUT_PARITY;
-	else
-		return C2_PUT_SPARE;
-}
-
-void layout_demo(struct c2_pdclust_instance *pi, uint32_t P, int R, int I)
-{
-	uint64_t                   group;
-	uint64_t                   frame;
-	uint32_t                   unit;
-	uint32_t                   obj;
-	uint32_t                   N;
-	uint32_t                   K;
-	uint32_t                   W;
-	int                        i;
-	struct c2_pdclust_src_addr src;
-	struct c2_pdclust_tgt_addr tgt;
-	struct c2_pdclust_src_addr src1;
-	struct c2_pdclust_src_addr map[R][P];
-	uint32_t                   incidence[P][P];
-	uint32_t                   usage[P][C2_PUT_NR + 1];
-	uint32_t                   where[pi->pi_layout->pl_attr.pa_N +
-					 2*pi->pi_layout->pl_attr.pa_K];
-	const char                *brace[C2_PUT_NR] = { "[]", "<>", "{}" };
-	const char                *head[C2_PUT_NR+1] = { "D", "P", "S",
-							 "total" };
-
-	uint32_t                   min;
-	uint32_t                   max;
-	uint64_t                   sum;
-	uint32_t                   u;
-	double                     sq;
-	double                     avg;
-
-	C2_SET_ARR0(usage);
-	C2_SET_ARR0(incidence);
-
-	N = pi->pi_layout->pl_attr.pa_N;
-	K = pi->pi_layout->pl_attr.pa_K;
-	W = N + 2*K;
-
-	printf("layout: N: %u K: %u P: %u C: %u L: %u\n",
-	       N, K, P, pi->pi_layout->pl_C, pi->pi_layout->pl_L);
-
-	for (group = 0; group < I ; ++group) {
-		src.sa_group = group;
-		for (unit = 0; unit < W; ++unit) {
-			src.sa_unit = unit;
-			c2_pdclust_instance_map(pi, &src, &tgt);
-			c2_pdclust_instance_inv(pi, &tgt, &src1);
-			C2_ASSERT(memcmp(&src, &src1, sizeof src) == 0);
-			if (tgt.ta_frame < R)
-				map[tgt.ta_frame][tgt.ta_obj] = src;
-			where[unit] = tgt.ta_obj;
-			usage[tgt.ta_obj][C2_PUT_NR]++;
-			usage[tgt.ta_obj][classify(pi->pi_layout, unit)]++;
-		}
-		for (unit = 0; unit < W; ++unit) {
-			for (i = 0; i < W; ++i)
-				incidence[where[unit]][where[i]]++;
-		}
-	}
-	printf("map: \n");
-	for (frame = 0; frame < R; ++frame) {
-		printf("%5i : ", (int)frame);
-		for (obj = 0; obj < P; ++obj) {
-			int d;
-
-			d = classify(pi->pi_layout, map[frame][obj].sa_unit);
-			printf("%c%2i, %1i%c ",
-			       brace[d][0],
-			       (int)map[frame][obj].sa_group,
-			       (int)map[frame][obj].sa_unit,
-			       brace[d][1]);
-		}
-		printf("\n");
-	}
-	printf("usage : \n");
-	for (i = 0; i < C2_PUT_NR + 1; ++i) {
-		max = sum = sq = 0;
-		min = ~0;
-		printf("%5s : ", head[i]);
-		for (obj = 0; obj < P; ++obj) {
-			u = usage[obj][i];
-			printf("%7i ", u);
-			min = min32u(min, u);
-			max = max32u(max, u);
-			sum += u;
-			sq += u*u;
-		}
-		avg = ((double)sum)/P;
-		printf(" | %7i %7i %7i %7.2f%%\n", min, max, (int)avg,
-		       sqrt(sq/P - avg*avg)*100.0/avg);
-	}
-	printf("\nincidence:\n");
-	for (obj = 0; obj < P; ++obj) {
-		max = sum = sq = 0;
-		min = ~0;
-		for (i = 0; i < P; ++i) {
-			if (obj != i) {
-				u = incidence[obj][i];
-				min = min32u(min, u);
-				max = max32u(max, u);
-				sum += u;
-				sq += u*u;
-				printf("%5i ", u);
-			} else
-				printf("    * ");
-		}
-		avg = ((double)sum)/(P - 1);
-		printf(" | %5i %5i %5i %5.2f%%\n", min, max, (int)avg,
-		       sqrt(sq/(P - 1) - avg*avg)*100.0/avg);
-	}
-}
 
 /*
  * Creates dummy domain, registers pdclust layout type and linear
@@ -262,7 +143,7 @@ int main(int argc, char **argv)
 			c2_fid_set(&gfid, 0, 999);
 			rc = c2_pdclust_instance_build(play, &gfid, &pi);
 			if (rc == 0) {
-				layout_demo(pi, P, R, I);
+				layout_demo(pi, P, R, I, true);
 				pi->pi_base.li_ops->lio_fini(&pi->pi_base);
 			}
 			c2_layout_standard_types_unregister(&domain);
