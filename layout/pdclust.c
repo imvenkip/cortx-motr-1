@@ -152,7 +152,6 @@ static bool pdclust_instance_invariant(const struct c2_pdclust_instance *pi)
 	P  = pi->pi_layout->pl_attr.pa_P;
 	tc = &pi->pi_tile_cache;
 
-	C2_ENTRY(); //todo rm after confirming bt_check
 	return
 		c2_pdclust_instance_bob_check(pi) &&
 		pdclust_invariant(pi->pi_layout) &&
@@ -230,12 +229,7 @@ static int pdclust_allocate(struct c2_layout_domain *dom,
 	return 0;
 }
 
-/**
- * Implementation of lo_delete() for PDCLUST layout type.
- * Dual to pdclust_allocate(). Required only in case of failure handling.
- * In the success case, dual to the sequence of "pdclust_allocate() followed
- * by pdclust_populate()" is pdclust_fini().
- */
+/** Implementation of lo_delete() for PDCLUST layout type. */
 static void pdclust_delete(struct c2_layout *l)
 {
 	struct c2_pdclust_layout *pl;
@@ -387,17 +381,7 @@ static c2_bcount_t pdclust_max_recsize(struct c2_layout_domain *dom)
 		c2_layout__enum_max_recsize(dom);
 }
 
-/**
- * Implementation of lo_decode() for pdclust layout type.
- *
- * Continues to build the in-memory layout object from its representation
- * either 'stored in the Layout DB' or 'received through the buffer'.
- *
- * @param op This enum parameter indicates what, if a DB operation is to be
- * performed on the layout record and it could be LOOKUP if at all.
- * If it is BUFFER_OP, then the layout is decoded from its representation
- * received through the buffer.
- */
+/** Implementation of lo_decode() for pdclust layout type. */
 static int pdclust_decode(struct c2_layout *l,
 			  struct c2_bufvec_cursor *cur,
 			  enum c2_layout_xcode_op op,
@@ -439,32 +423,27 @@ static int pdclust_decode(struct c2_layout *l,
 	}
 	rc = e->le_ops->leo_decode(e, cur, op, tx, &pl->pl_base);
 	if (rc != 0) {
+		/* Finalise the allocated enum object. */
 		e->le_ops->leo_delete(e);
 		C2_LOG("lid %llu, leo_decode() failed, rc %d",
 		       (unsigned long long)l->l_id, rc);
 		goto out;
 	}
 	rc = pdclust_populate(pl, &pl_rec->pr_attr, e, ref_count);
-	if (rc == 0)
-		C2_POST(pdclust_invariant(pl));
+	if (rc != 0) {
+		/* Finalise the populated enum object. */
+		e->le_ops->leo_fini(e);
+		C2_LOG("lid %llu, pdclust_populate() failed, rc %d",
+		       (unsigned long long)l->l_id, rc);
+	}
 out:
+	C2_POST(ergo(rc == 0, pdclust_invariant(pl)));
 	C2_POST(ergo(rc != 0, pdclust_allocated_invariant(pl)));
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }
 
-/**
- * Implementation of lo_encode() for pdclust layout type.
- *
- * Continues to use the in-memory layout object and
- * - Either adds/updates/deletes it to/from the Layout DB
- * - Or converts it to a buffer.
- *
- * @param op This enum parameter indicates what is the DB operation to be
- * performed on the layout record if at all and it could be one of
- * ADD/UPDATE/DELETE. If it is BUFFER_OP, then the layout is stored in the
- * buffer.
- */
+/** Implementation of lo_encode() for pdclust layout type. */
 static int pdclust_encode(struct c2_layout *l,
 			  enum c2_layout_xcode_op op,
 			  struct c2_db_tx *tx,
@@ -504,7 +483,6 @@ static int pdclust_encode(struct c2_layout *l,
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }
-
 
 /** Implementation of lo_recsize() for pdclust layout type. */
 static c2_bcount_t pdclust_recsize(const struct c2_layout *l)
@@ -597,9 +575,7 @@ static void permute(uint32_t n, uint32_t *k, uint32_t *s, uint32_t *r)
 	r[s[n - 1]] = n - 1;
 }
 
-/**
- * Simple multiplicative hash.
- */
+/** Simple multiplicative hash. */
 static uint64_t hash(uint64_t x)
 {
 	uint64_t y;
@@ -809,17 +785,14 @@ int c2_pdclust_instance_build(struct c2_pdclust_layout *pl,
 	return rc;
 }
 
-/**
- * Implementation of lio_fini().
- * Dual to c2_pdclust_instance_build().
- */
+/** Implementation of lio_fini(). */
 void pdclust_instance_fini(struct c2_layout_instance *li)
 {
 	struct c2_pdclust_instance *pi;
 
 	pi = bob_of(li, struct c2_pdclust_instance,
 		    pi_base, &pdclust_instance_bob);
-	C2_PRE(pdclust_instance_invariant(pi)); //todo rm
+	C2_PRE(pdclust_instance_invariant(pi));
 
 	C2_ENTRY("pi %p", pi);
 	c2_layout_put(&pi->pi_layout->pl_base.sl_base);
@@ -837,11 +810,9 @@ struct c2_pdclust_instance *c2_layout_instance_to_pdi(
 					const struct c2_layout_instance *li)
 {
 	struct c2_pdclust_instance *pi;
-	C2_ENTRY(); //todo rm after confirming bt_check
 	pi = bob_of(li, struct c2_pdclust_instance, pi_base,
 		    &pdclust_instance_bob);
-	C2_POST(pdclust_instance_invariant(pi)); //todo tm
-	C2_LEAVE(); //todo rm
+	C2_POST(pdclust_instance_invariant(pi));
 	return pi;
 }
 

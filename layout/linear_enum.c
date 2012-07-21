@@ -83,9 +83,7 @@ static bool linear_invariant(const struct c2_layout_linear_enum *le)
 
 static const struct c2_layout_enum_ops linear_enum_ops;
 
-/**
- * Implementation of leto_allocate for LINEAR enumeration type.
- */
+/** Implementation of leto_allocate for LINEAR enumeration type. */
 static int linear_allocate(struct c2_layout_domain *dom,
 			   struct c2_layout_enum **out)
 {
@@ -158,21 +156,14 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
 		lin_enum = bob_of(e, struct c2_layout_linear_enum,
 			          lle_base, &linear_bob);
 		rc = linear_populate(lin_enum, attr);
-		if (rc == 0) {
-			C2_POST(linear_invariant_internal(lin_enum));
+		if (rc == 0)
 			*out = lin_enum;
-		}
+		else
+			linear_delete(e);
 	}
+	C2_POST(ergo(rc == 0, linear_invariant_internal(lin_enum)));
 	C2_LEAVE("domain %p, rc %d", dom, rc);
 	return rc;
-}
-
-void c2_linear_enum_fini(struct c2_layout_linear_enum *e)
-{
-	C2_PRE(linear_invariant_internal(e));
-	C2_PRE(e->lle_base.le_sl == NULL);
-
-	e->lle_base.le_ops->leo_fini(&e->lle_base);
 }
 
 static struct c2_layout_linear_enum
@@ -186,10 +177,7 @@ static struct c2_layout_linear_enum
 	return lin_enum;
 }
 
-/**
- * Implementation of leo_fini for LINEAR enumeration type.
- * Invoked internally by c2_layout__striped_fini().
- */
+/** Implementation of leo_fini for LINEAR enumeration type. */
 static void linear_fini(struct c2_layout_enum *e)
 {
 	struct c2_layout_linear_enum *lin_enum;
@@ -215,30 +203,19 @@ static int linear_register(struct c2_layout_domain *dom,
 	return 0;
 }
 
-/**
- * Implementation of leto_unregister for LINEAR enumeration type.
- */
+/** Implementation of leto_unregister for LINEAR enumeration type. */
 static void linear_unregister(struct c2_layout_domain *dom,
 			      const struct c2_layout_enum_type *et)
 {
 }
 
-/**
- * Implementation of leto_max_recsize() for linear enumeration type.
- *
- * Returns maximum record size for the part of the layouts table record,
- * required to store LINEAR enum details.
- */
+/** Implementation of leto_max_recsize() for linear enumeration type. */
 static c2_bcount_t linear_max_recsize(void)
 {
 	return sizeof(struct c2_layout_linear_attr);
 }
 
-/**
- * Implementation of leo_decode() for linear enumeration type.
- * Reads linear enumeration type specific attributes from the buffer into
- * the c2_layout_linear_enum::c2_layout_linear_attr object.
- */
+/** Implementation of leo_decode() for linear enumeration type. */
 static int linear_decode(struct c2_layout_enum *e,
 			 struct c2_bufvec_cursor *cur,
 			 enum c2_layout_xcode_op op,
@@ -266,19 +243,15 @@ static int linear_decode(struct c2_layout_enum *e,
 	lin_attr = c2_bufvec_cursor_addr(cur);
 	c2_bufvec_cursor_move(cur, sizeof *lin_attr);
 	rc = linear_populate(lin_enum, lin_attr);
-	if (rc == 0)
-		C2_POST(linear_invariant_internal(lin_enum));
-	else
-		C2_POST(linear_allocated_invariant(lin_enum));
+	if (rc != 0)
+		C2_LOG("linear_populate() failed");
+	C2_POST(ergo(rc == 0, linear_invariant_internal(lin_enum)));
+	C2_POST(ergo(rc != 0, linear_allocated_invariant(lin_enum)));
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
 }
 
-/**
- * Implementation of leo_encode() for linear enumeration type.
- * Reads linear enumeration type specific attributes from the
- * c2_layout_linear_enum object into the buffer.
- */
+/** Implementation of leo_encode() for linear enumeration type. */
 static int linear_encode(const struct c2_layout_enum *e,
 			 enum c2_layout_xcode_op op,
 			 struct c2_db_tx *tx,
@@ -305,10 +278,7 @@ static int linear_encode(const struct c2_layout_enum *e,
 	return 0;
 }
 
-/**
- * Implementation of leo_nr for LINEAR enumeration.
- * Returns number of objects in the enumeration.
- */
+/** Implementation of leo_nr for LINEAR enumeration. */
 static uint32_t linear_nr(const struct c2_layout_enum *e)
 {
 	struct c2_layout_linear_enum *lin_enum;
@@ -324,10 +294,7 @@ static uint32_t linear_nr(const struct c2_layout_enum *e)
 	return lin_enum->lle_attr.lla_nr;
 }
 
-/**
- * Implementation of leo_get for LINEAR enumeration.
- * Returns idx-th object from the enumeration.
- */
+/** Implementation of leo_get for LINEAR enumeration. */
 static void linear_get(const struct c2_layout_enum *e, uint32_t idx,
 		       const struct c2_fid *gfid, struct c2_fid *out)
 {
@@ -350,12 +317,7 @@ static void linear_get(const struct c2_layout_enum *e, uint32_t idx,
 	C2_ASSERT(c2_fid_is_valid(out));
 }
 
-/**
- * Implementation of leo_recsize() for linear enumeration type.
- *
- * Returns record size for the part of the layouts table record, required to
- * store LINEAR enum details for the specified enumeration object.
- */
+/** Implementation of leo_recsize() for linear enumeration type. */
 static c2_bcount_t linear_recsize(struct c2_layout_enum *e)
 {
 	return sizeof(struct c2_layout_linear_attr);

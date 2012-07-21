@@ -130,9 +130,10 @@ enum {
 
 /**
  * Layout domain.
- * It includes a pointer to the layouts table and some related
- * parameters. ld_type_data[] and ld_enum_data[] store pointers to tables
- * applicable, if any, for various layout types and enum types.
+ * It includes a pointer to the primary database table "layouts" and some
+ * related parameters. ld_type_data[] and ld_enum_data[] store pointers to
+ * the auxiliary tables applicable, if any, for the various layout types and
+ * enum types.
  * There is one instance of layout domain object per address space.
  */
 struct c2_layout_domain {
@@ -206,8 +207,8 @@ struct c2_layout {
 
 struct c2_layout_ops {
 	/**
-	 * Finalises the layout object. It involves finalising its enumeration
-	 * object, if applicable.
+	 * Finalises the type specific layout object. It involves finalising
+	 * its enumeration object, if applicable.
 	 * Called when the last reference on the layout object is released.
 	 */
 	void        (*lo_fini)(struct c2_layout *l);
@@ -216,8 +217,10 @@ struct c2_layout_ops {
 	 * Finalises the layout object that is only allocated and not
 	 * populated. Since it is not populated, it does not contain
 	 * enumeration object.
-	 * Called when an allocated layout object can not be populated for
-	 * some reason.
+	 * Dual to lto_allocate(). Called when an allocated layout object can
+	 * not be populated for some reason. In the success case, dual to the
+	 * sequence of "lto_allocate() followed by type specific populate
+	 * method" is lo_fini().
 	 */
 	void        (*lo_delete)(struct c2_layout *l);
 
@@ -229,15 +232,25 @@ struct c2_layout_ops {
 	 * @invariant l->l_ops->lo_recsize(l)
 	 *            <= l->l_type->lt_ops->lto_max_recsize(l->l_dom);
 	 */
+	//todo Include the size req'd for the generic data as well
 	c2_bcount_t (*lo_recsize)(const struct c2_layout *l);
 
 	/**
-	 * Continues building the in-memory layout object either from the
-	 * buffer or from the DB.
+	 * Continues building the in-memory layout object from its
+	 * representation either 'stored in the Layout DB' or 'received through
+	 * the buffer'.
+	 *
+	 * @param op This enum parameter indicates what, if a DB operation is
+	 * to be performed on the layout record and it could be LOOKUP if at
+	 * all. If it is BUFFER_OP, then the layout is decoded from its
+	 * representation received through the buffer.
+	 *
 	 * @pre C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP))
 	 * @pre ergo(op == C2_LXO_DB_LOOKUP, tx != NULL)
-	 * @post The cursor cur is advanced by the size of the data that is
-	 * read from it.
+	 * @post
+	 * - ergo(rc == 0, pdclust_invariant(pl))
+	 * - The cursor cur is advanced by the size of the data that is
+	 *   read from it.
 	 */
 	int         (*lo_decode)(struct c2_layout *l,
 				 struct c2_bufvec_cursor *cur,
@@ -246,8 +259,14 @@ struct c2_layout_ops {
 				 uint32_t ref_count);
 
 	/**
-	 * Continues storing the layout representation either in the buffer
-	 * provided by the caller or in the DB.
+	 * Continues to use the in-memory layout object and
+	 * - Either adds/updates/deletes it to/from the Layout DB
+	 * - Or converts it to a buffer.
+	 * @param op This enum parameter indicates what is the DB operation
+	 * to be performed on the layout record if at all and it could be one
+	 * of ADD/UPDATE/DELETE. If it is BUFFER_OP, then the layout is stored
+	 * in the buffer.
+	 *
 	 * @pre C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
 	 *                 C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP))
 	 * @pre ergo(op != C2_LXO_BUFFER_OP, tx != NULL)
@@ -333,9 +352,7 @@ struct c2_layout_type_ops {
 				    struct c2_layout **out);
 };
 
-/**
- * Layout enumeration.
- */
+/** Layout enumeration. */
 struct c2_layout_enum {
 	/** Layout enumeration type. */
 	struct c2_layout_enum_type      *le_type;
@@ -362,13 +379,25 @@ struct c2_layout_enum_ops {
 			       const struct c2_fid *gfid, struct c2_fid *out);
 
 	/**
-	 * Returns size of the enum type specific data stored in the "layouts"
-	 * (primary) table, for the specified enumeration.
+	 * Returns size of the part of the layouts table record required to
+	 * store enum details, for the specified enumeration object.
+	 *
 	 * @invariant e->le_ops->leo_recsize(e)
 	 *            <= e->le_type->let_ops->leto_max_recsize();
 	 */
 	c2_bcount_t (*leo_recsize)(struct c2_layout_enum *e);
 
+	/**
+	 * Finalises the enum object.
+	 *
+	 * Dual to enum type specific build procedure but not to be invoked
+	 * directly by the user in regular course of action since enum object
+	 * is finalised internally as a part finalising layout object.
+	 * This interface is required to be used by an external user in cases
+	 * where layout build operation fails and the user (for example c2t1fs)
+	 * needs to get rid of the enumeration object created prior to
+	 * attempting the layout build operation.
+	 */
 	void        (*leo_fini)(struct c2_layout_enum *e);
 
 	/**
@@ -378,8 +407,14 @@ struct c2_layout_enum_ops {
 	void        (*leo_delete)(struct c2_layout_enum *e);
 
 	/**
-	 * Continues building the in-memory layout object, either from
-	 * the buffer or from the DB.
+	 * Continues building the in-memory layout object, the enum part of it
+	 * specifically, either from the buffer or from the DB.
+	 *
+	 * @param op This enum parameter indicates what if a DB operation is
+	 *           to be performed on the layout record and it could be
+	 *           LOOKUP if at all. If it is BUFFER_OP, then the layout is
+	 *           decoded from its representation received through the
+	 *           buffer.
 	 * @pre C2_IN(op, (C2_LXO_DB_LOOKUP, C2_LXO_BUFFER_OP))
 	 * @pre ergo(op == C2_LXO_DB_LOOKUP, tx != NULL)
 	 * @post The cursor cur is advanced by the size of the data that is
@@ -392,8 +427,15 @@ struct c2_layout_enum_ops {
 				  struct c2_striped_layout *stl);
 
 	/**
-	 * Continues storing layout representation either in the buffer
-	 * provided by the caller or in the DB.
+	 * Continues to use the in-memory layout object, the enum part of it
+	 * specifically and either 'stores it in the Layout DB' or 'converts
+	 * it to a buffer'.
+	 *
+	 * @param op This enum parameter indicates what is the DB operation to
+	 *           be performed on the layout record if at all and it could
+	 *           be one of ADD/UPDATE/DELETE. If it is BUFFER_OP, then the
+	 *           layout is converted into a buffer.
+	 *
 	 * @pre C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
 	 *                 C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP))
 	 * @pre ergo(op != C2_LXO_BUFFER_OP, tx != NULL)
@@ -443,14 +485,17 @@ struct c2_layout_enum_type_ops {
 	void        (*leto_unregister)(struct c2_layout_domain *dom,
 				       const struct c2_layout_enum_type *et);
 
-	/** Returns applicable max record size for the layouts table. */
+	/**
+	 * Returns applicable max record size for the part of the layouts
+	 * table record, required to store enum details.
+	 */
 	c2_bcount_t (*leto_max_recsize)(void);
 
 	/**
-	 * Allocates an instance of some enum-type specific data-type
-	 * which embeds c2_layout_enum and stores the resultant
+	 * Allocates and builds an instance of some enum-type specific
+	 * data-type which embeds c2_layout_enum and stores the resultant
 	 * c2_layout_enum object in the parameter out.
-	 * @post ergo(result == 0, *out != NULL && (*out)->le_ops != NULL)
+	 * @post ergo(rc == 0, *out != NULL && (*out)->le_ops != NULL)
 	 */
 	int         (*leto_allocate)(struct c2_layout_domain *dom,
 				     struct c2_layout_enum **out);
@@ -481,11 +526,13 @@ struct c2_layout_instance {
 
 struct c2_layout_instance_ops {
 	/**
-	 * Finalises the layout instance object.
-	 * Releases a reference on the layout object
-	 * (pi->pi_layout->pl_base.sl_base) that was obtained through the
-	 * layout instance type specific build method, for example
+	 * Finalises the type specifc layout instance object.
+	 *
+	 * Releases a reference on the layout object that was obtained through
+	 * the layout instance type specific build method, for example
 	 * c2_pdclust_instance_init().
+	 *
+	 * Dual to layout type specific instance build procedure.
 	 */
 	void (*lio_fini)(struct c2_layout_instance *li);
 };

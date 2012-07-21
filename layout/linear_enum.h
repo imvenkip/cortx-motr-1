@@ -77,15 +77,6 @@ struct c2_layout_linear_enum {
 int c2_linear_enum_build(struct c2_layout_domain *dom,
 			 const struct c2_layout_linear_attr *attr,
 			 struct c2_layout_linear_enum **out);
-/**
- * Finalises linear enumeration object.
- * @note This interface is expected to be used only in cases where layout
- * build operation fails and the user (for example c2t1fs) needs to get rid of
- * the enumeration object created prior to attempting the layout build
- * operation. In the other regular cases, enumeration object is finalised
- * internally through c2_layout__striped_fini().
- */
-void c2_linear_enum_fini(struct c2_layout_linear_enum *e);
 
 extern struct c2_layout_enum_type c2_linear_enum_type;
 

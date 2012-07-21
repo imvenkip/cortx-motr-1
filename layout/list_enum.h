@@ -76,16 +76,6 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 		       struct c2_fid *cob_list, uint32_t nr,
 		       struct c2_layout_list_enum **out);
 
-/**
- * Finalises list enumeration object.
- * @note This interface is expected to be used only in cases where layout
- * build operation fails and the user (for example c2t1fs) needs to get rid of
- * the enumeration object created prior to attempting the layout build
- * operation. In the other regular cases, enumeration object is finalised
- * internally through c2_layout__striped_fini().
- */
-void c2_list_enum_fini(struct c2_layout_list_enum *e);
-
 extern struct c2_layout_enum_type c2_list_enum_type;
 
 /** @} end group list_enum */

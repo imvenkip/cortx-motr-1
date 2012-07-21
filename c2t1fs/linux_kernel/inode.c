@@ -392,7 +392,7 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 				ci->ci_layout_instance = &pi->pi_base;
 			}
 		else
-			c2_linear_enum_fini(le);
+			le->lle_base.le_ops->leo_fini(&le->lle_base);
 	}
 	C2_LEAVE("rc: %d", rc);
 	return rc;

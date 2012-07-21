@@ -138,9 +138,7 @@ static bool list_invariant(const struct c2_layout_list_enum *le)
 
 static const struct c2_layout_enum_ops list_enum_ops;
 
-/**
- * Implementation of leto_allocate for LIST enumeration type.
- */
+/** Implementation of leto_allocate for LIST enumeration type. */
 static int list_allocate(struct c2_layout_domain *dom,
 			 struct c2_layout_enum **out)
 {
@@ -183,6 +181,7 @@ static void list_delete(struct c2_layout_enum *e)
 	C2_LEAVE();
 }
 
+/* Populates the allocated list enum object using the supplied arguemnts. */
 static int list_populate(struct c2_layout_list_enum *list_enum,
 			 struct c2_fid *cob_list, uint32_t nr)
 {
@@ -226,21 +225,14 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 		list_enum = bob_of(e, struct c2_layout_list_enum,
 				   lle_base, &list_bob);
 		rc = list_populate(list_enum, cob_list, nr);
-		if (rc == 0) {
+		if (rc == 0)
 			*out = list_enum;
-			C2_POST(list_invariant_internal(*out));
-		}
+		else
+			list_delete(e);
 	}
+	C2_POST(ergo(rc == 0, list_invariant_internal(*out)));
 	C2_LEAVE("domain %p, rc %d", dom, rc);
 	return rc;
-}
-
-void c2_list_enum_fini(struct c2_layout_list_enum *e)
-{
-	C2_PRE(list_invariant_internal(e));
-	C2_PRE(e->lle_base.le_sl == NULL);
-
-	e->lle_base.le_ops->leo_fini(&e->lle_base);
 }
 
 static struct c2_layout_list_enum
@@ -254,10 +246,7 @@ static struct c2_layout_list_enum
 	return list_enum;
 }
 
-/**
- * Implementation of leo_fini for LIST enumeration type.
- * Invoked internally by c2_layout__striped_fini().
- */
+/** Implementation of leo_fini for LIST enumeration type. */
 static void list_fini(struct c2_layout_enum *e)
 {
 	struct c2_layout_list_enum *list_enum;
@@ -274,11 +263,7 @@ static void list_fini(struct c2_layout_enum *e)
 	C2_LEAVE();
 }
 
-/**
- * Implementation of leto_register for LIST enumeration type.
- *
- * Initialises table specifically required for LIST enum type.
- */
+/** Implementation of leto_register for LIST enumeration type. */
 static int list_register(struct c2_layout_domain *dom,
 			 const struct c2_layout_enum_type *et)
 {
@@ -313,11 +298,7 @@ out:
 	return rc;
 }
 
-/**
- * Implementation of leto_unregister for LIST enumeration type.
- *
- * Finalises table specifically required for LIST enum type.
- */
+/** Implementation of leto_unregister for LIST enumeration type. */
 static void list_unregister(struct c2_layout_domain *dom,
 			    const struct c2_layout_enum_type *et)
 {
@@ -334,12 +315,7 @@ static void list_unregister(struct c2_layout_domain *dom,
 	C2_LEAVE("Enum_type_id %lu", (unsigned long)et->let_id);
 }
 
-/**
- * Implementation of leto_max_recsize() for LIST enumeration type.
- *
- * Returns maximum record size for the part of the layouts table record,
- * required to store LIST enum details.
- */
+/** Implementation of leto_max_recsize() for LIST enumeration type. */
 static c2_bcount_t list_max_recsize(void)
 {
 	return sizeof(struct cob_entries_header) +
@@ -411,18 +387,7 @@ out:
 	return rc;
 }
 
-/**
- * Implementation of leo_decode() for LIST enumeration type.
- *
- * Reads LDB_MAX_INLINE_COB_ENTRIES cob identifiers from the buffer into
- * the c2_layout_list_enum object. Then reads further cob identifiers either
- * from the DB or from the buffer, as applicable.
- *
- * @param op This enum parameter indicates what if a DB operation is to be
- * performed on the layout record and it could be LOOKUP if at all.
- * If it is BUFFER_OP, then the layout is decoded from its representation
- * received through the buffer.
- */
+/** Implementation of leo_decode() for LIST enumeration type. */
 static int list_decode(struct c2_layout_enum *e,
 		       struct c2_bufvec_cursor *cur,
 		       enum c2_layout_xcode_op op,
@@ -493,9 +458,12 @@ static int list_decode(struct c2_layout_enum *e,
 		}
 	}
 	rc = list_populate(list_enum, cob_list, ce_header->ces_nr);
-	if (rc == 0)
-		C2_POST(list_invariant_internal(list_enum));
+	if (rc != 0)
+		C2_LOG("list_populate() failed");
 out:
+	if (rc != 0)
+		c2_free(cob_list);
+	C2_POST(ergo(rc == 0, list_invariant_internal(list_enum)));
 	C2_POST(ergo(rc != 0, list_allocated_invariant(list_enum)));
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
@@ -588,17 +556,7 @@ out:
 	return rc;
 }
 
-/**
- * Implementation of leo_encode() for LIST enumeration type.
- *
- * Continues to use the in-memory layout object and either 'stores it in the
- * Layout DB' or 'converts it to a buffer'.
-
- * @param op This enum parameter indicates what is the DB operation to be
- * performed on the layout record if at all and it could be one of
- * ADD/UPDATE/DELETE. If it is BUFFER_OP, then the layout is converted into a
- * buffer.
- */
+/** Implementation of leo_encode() for LIST enumeration type. */
 static int list_encode(const struct c2_layout_enum *e,
 		       enum c2_layout_xcode_op op,
 		       struct c2_db_tx *tx,
@@ -664,11 +622,7 @@ static int list_encode(const struct c2_layout_enum *e,
 	return rc;
 }
 
-/**
- * Implementation of leo_nr for LIST enumeration.
- * Returns number of objects in the enumeration.
- * Argument fid is ignored here for LIST enumeration type.
- */
+/** Implementation of leo_nr for LIST enumeration. */
 static uint32_t list_nr(const struct c2_layout_enum *e)
 {
 	struct c2_layout_list_enum *list_enum;
@@ -684,11 +638,7 @@ static uint32_t list_nr(const struct c2_layout_enum *e)
 	return list_enum->lle_nr;
 }
 
-/**
- * Implementation of leo_get for LIST enumeration.
- * Returns idx-th object from the enumeration.
- * Argument fid is ignored here for LIST enumeration type.
- */
+/** Implementation of leo_get for LIST enumeration. */
 static void list_get(const struct c2_layout_enum *e, uint32_t idx,
 		     const struct c2_fid *gfid, struct c2_fid *out)
 {
@@ -701,19 +651,14 @@ static void list_get(const struct c2_layout_enum *e, uint32_t idx,
 	C2_ENTRY("lid %llu, enum_pointer %p",
 		 (unsigned long long)e->le_sl->sl_base.l_id, e);
 	list_enum = enum_to_list_enum(e);
-	C2_ASSERT(idx < list_enum->lle_nr);
+	C2_PRE(idx < list_enum->lle_nr);
 	C2_ASSERT(c2_fid_is_valid(&list_enum->lle_list_of_cobs[idx]));
 	*out = list_enum->lle_list_of_cobs[idx];
 	C2_LEAVE("lid %llu, enum_pointer %p, fid_pointer %p",
 		 (unsigned long long)e->le_sl->sl_base.l_id, e, out);
 }
 
-/**
- * Implementation of leo_recsize() for list enumeration type.
- *
- * Returns record size for the part of the layouts table record required to
- * store LIST enum details, for the specified enumeration object.
- */
+/** Implementation of leo_recsize() for list enumeration type. */
 static c2_bcount_t list_recsize(struct c2_layout_enum *e)
 {
 	struct c2_layout_list_enum *list_enum;

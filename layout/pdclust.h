@@ -257,7 +257,7 @@ struct c2_pdclust_tgt_addr {
 };
 
 /**
- * Builds a layout object with pdclust layout type.
+ * Allocates and builds a layout object with the pdclust layout type.
  * @post ergo(rc == 0, pdclust_invariant(*out))
  *
  * @note The object with pdclust layout type is not to be finalised explicitly.
@@ -269,6 +269,7 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 		     struct c2_layout_enum *le,
 		     struct c2_pdclust_layout **out);
 
+/* todo Merge these 4 into one. */
 uint32_t c2_pdclust_N(const struct c2_pdclust_layout *pl);
 uint32_t c2_pdclust_K(const struct c2_pdclust_layout *pl);
 uint32_t c2_pdclust_P(const struct c2_pdclust_layout *pl);
@@ -286,9 +287,10 @@ c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 			 int unit);
 
 /**
- * Allocates and Builds a parity de-clustered layout instance using the
+ * Allocates and builds a parity de-clustered layout instance using the
  * supplied pdclust layout 'pl' and acquires an additional referece on
  * 'pl->pl_base.sl_base'.
+ * @pre pdclust_invariant(pl)
  * @post ergo(rc == 0, pdclust_instance_invariant(*out) &&
  *                     pl->pl_base.sl_base.l_ref > 0))
  *
@@ -298,15 +300,6 @@ c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 int c2_pdclust_instance_build(struct c2_pdclust_layout *pl,
 			      const struct c2_fid *fid,
 			      struct c2_pdclust_instance **out);
-
-/**
- * Finalises the parity de-clustered layout instance and releases a
- * reference on the pi->pi_layout->pl_base.sl_base that was obtained through
- * c2_pdclust_instance_init().
- *
- * Dual to c2_pdclust_instance_init().
- */
-void c2_pdclust_instance_fini(struct c2_pdclust_instance *pi);
 
 /** Returns c2_pdclust_instance object given a c2_layout_instance object. */
 struct c2_pdclust_instance *c2_layout_instance_to_pdi(
