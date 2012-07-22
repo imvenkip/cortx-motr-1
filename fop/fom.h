@@ -98,15 +98,15 @@ struct c2_fom_ops;
  * in c2_fom_locality::fl_lo_idle_threads_nr. When
  * c2_fom_block_leave() is called to mark completion of a blocking
  * point, two things should happen:
- * 
+ *
  *    - one of additional threads should be terminated,
- * 
+ *
  *    - locality lock released by c2_fom_block_enter() should be
  *      re-acquired.
- * 
+ *
  * To decrease the number of threads,
- * c2_fom_locality::fl_lo_idle_threads_nr is decremented. 
- * 
+ * c2_fom_locality::fl_lo_idle_threads_nr is decremented.
+ *
  * The counter is checked by each locality thread on each iteration of
  * main handler loop (in loc_handler_thread()). If a thread finds
  * that there are too many threads in the locality, it releases the
@@ -115,7 +115,7 @@ struct c2_fom_ops;
  * otherwise c2_fom_block_leave() might have to wait until
  * concurrent thread exhausts the FOM queue and releases the
  * locality lock.
- * 
+ *
  * Once the locality is initialised, the locality invariant,
  * should hold true until locality is finalised.
  *
@@ -194,8 +194,7 @@ struct c2_fom_locality {
 bool c2_locality_invariant(const struct c2_fom_locality *loc);
 
 /**
- * Domain is a collection of localities that compete for the resources. For
- * example, there would be typically a domain for each service (c2_service).
+ * Domain is a collection of localities that compete for the resources.
  *
  * Once the fom domain is initialised, fom domain invariant should hold
  * true until fom domain is finalised .
@@ -381,36 +380,34 @@ struct c2_fom {
 	 *
 	 * @see c2_fom_locality
 	 */
-	enum c2_fom_state	 fo_state;
+	enum c2_fom_state	  fo_state;
 	/** FOM phase under execution */
-	int			 fo_phase;
+	int			  fo_phase;
 	/** Locality this fom belongs to */
-	struct c2_fom_locality	*fo_loc;
-	struct c2_fom_type	*fo_type;
-	const struct c2_fom_ops	*fo_ops;
+	struct c2_fom_locality	 *fo_loc;
+	const struct c2_fom_type *fo_type;
+	const struct c2_fom_ops	 *fo_ops;
 	/** AST call-back to wake up the FOM */
-	struct c2_fom_callback	 fo_cb;
-	/** FOP ctx sent by the network service. */
-	struct c2_fop_ctx	*fo_fop_ctx;
+	struct c2_fom_callback	  fo_cb;
 	/** Request fop object, this fom belongs to */
-	struct c2_fop		*fo_fop;
+	struct c2_fop		 *fo_fop;
 	/** Reply fop object */
-	struct c2_fop		*fo_rep_fop;
+	struct c2_fop		 *fo_rep_fop;
 	/** Fol object for this fom */
-	struct c2_fol		*fo_fol;
+	struct c2_fol		 *fo_fol;
 	/** Transaction object to be used by this fom */
-	struct c2_dtx		 fo_tx;
+	struct c2_dtx		  fo_tx;
 	/** Pointer to service instance. */
-	struct c2_reqh_service  *fo_service;
+	struct c2_reqh_service   *fo_service;
 	/**
 	 *  FOM linkage in the locality runq list or wait list
 	 *  Every access to the FOM via this linkage is
 	 *  protected by the c2_fom_locality::fl_group.s_lock mutex.
 	 */
-	struct c2_list_link	 fo_linkage;
+	struct c2_list_link	  fo_linkage;
 
 	/** Result of fom execution, -errno on failure */
-	int32_t			 fo_rc;
+	int32_t			  fo_rc;
 };
 
 /**
