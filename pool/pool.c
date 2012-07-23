@@ -159,7 +159,7 @@ int c2_poolmach_state_query(struct c2_poolmach *pm,
 {
 	struct c2_pool_event *scan;
 	struct c2_pool_event *event;
-	int                   rc;
+	int                   rc = 0;
 
 	C2_PRE(pm != NULL && event_list_head != NULL);
 
@@ -201,7 +201,9 @@ int c2_poolmach_current_version_get(struct c2_poolmach *pm,
 {
 	C2_PRE(pm != NULL && curr != NULL);
 
+	c2_rwlock_read_lock(&pm->pm_lock);
 	*curr = pm->pm_state.pst_version;
+	c2_rwlock_read_unlock(&pm->pm_lock);
 	return 0;
 }
 
