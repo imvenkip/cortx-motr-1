@@ -127,10 +127,10 @@ const struct c2_rpc_item_ops io_req_rpc_item_ops = {
 };
 
 static const struct c2_rpc_item_type_ops io_item_type_ops = {
-        .rito_item_size   = c2_fop_item_type_default_onwire_size,
-        .rito_io_coalesce = item_io_coalesce,
-        .rito_encode	  = c2_fop_item_type_default_encode,
-        .rito_decode	  = c2_fop_item_type_default_decode,
+	.rito_item_size   = c2_fop_item_type_default_onwire_size,
+	.rito_io_coalesce = item_io_coalesce,
+	.rito_encode	  = c2_fop_item_type_default_encode,
+	.rito_decode	  = c2_fop_item_type_default_decode,
 };
 
 const struct c2_fop_type_ops io_fop_rwv_ops = {
@@ -194,14 +194,6 @@ C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_op_reply, "Cob create or delete reply",
 			&cob_fop_type_ops, C2_IOSERVICE_COB_OP_REPLY_OPCODE,
 			C2_RPC_ITEM_TYPE_REPLY, &cob_rpc_type_ops);
 
-static void cob_fom_type_attach(void)
-{
-#ifndef __KERNEL__
-	c2_fop_cob_create_fopt.ft_fom_type = cc_fom_type;
-	c2_fop_cob_delete_fopt.ft_fom_type = cd_fom_type;
-#endif
-}
-
 void c2_ioservice_fop_fini(void)
 {
 	c2_fop_type_fini_nr(ioservice_fops, ARRAY_SIZE(ioservice_fops));
@@ -223,11 +215,11 @@ int c2_ioservice_fop_init(void)
 				ARRAY_SIZE(ioservice_fops));
 
 #ifndef __KERNEL__
-        c2_fop_cob_readv_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
-        c2_fop_cob_writev_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
+	c2_fop_cob_readv_fopt.ft_fom_type  = c2_io_fom_cob_rw_mopt;
+	c2_fop_cob_writev_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
+	c2_fop_cob_create_fopt.ft_fom_type = cc_fom_type;
+	c2_fop_cob_delete_fopt.ft_fom_type = cd_fom_type;
 #endif
-
-	cob_fom_type_attach();
 
 	if (rc != 0)
 		c2_ioservice_fop_fini();
