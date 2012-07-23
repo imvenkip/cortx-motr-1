@@ -34,8 +34,8 @@
 #include "ioservice/cobfid_map.h"
 
 C2_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh", ,
-                   struct c2_rios_buffer_pool, rios_bp_linkage, rios_bp_magic,
-                   C2_RIOS_BUFFER_POOL_MAGIC, C2_RIOS_BUFFER_POOL_HEAD);
+		   struct c2_rios_buffer_pool, rios_bp_linkage, rios_bp_magic,
+		   C2_RIOS_BUFFER_POOL_MAGIC, C2_RIOS_BUFFER_POOL_HEAD);
 C2_TL_DEFINE(bufferpools, , struct c2_rios_buffer_pool);
 
 /* ADDB context for ios. */
@@ -75,24 +75,24 @@ static void buffer_pool_low(struct c2_net_buffer_pool *bp);
  * I/O Service type operations.
  */
 static const struct c2_reqh_service_type_ops ios_type_ops = {
-        .rsto_service_locate = ios_locate
+	.rsto_service_locate = ios_locate
 };
 
 /**
  * I/O Service operations.
  */
 static const struct c2_reqh_service_ops ios_ops = {
-        .rso_start = ios_start,
-        .rso_stop  = ios_stop,
-        .rso_fini  = ios_fini
+	.rso_start = ios_start,
+	.rso_stop  = ios_stop,
+	.rso_fini  = ios_fini
 };
 
 /**
  * Buffer pool operations.
  */
 struct c2_net_buffer_pool_ops buffer_pool_ops = {
-        .nbpo_not_empty       = buffer_pool_not_empty,
-        .nbpo_below_threshold = buffer_pool_low,
+	.nbpo_not_empty       = buffer_pool_not_empty,
+	.nbpo_below_threshold = buffer_pool_low,
 };
 
 C2_REQH_SERVICE_TYPE_DECLARE(c2_ios_type, &ios_type_ops, "ioservice");
@@ -107,14 +107,14 @@ C2_REQH_SERVICE_TYPE_DECLARE(c2_ios_type, &ios_type_ops, "ioservice");
  */
 static void buffer_pool_not_empty(struct c2_net_buffer_pool *bp)
 {
-        struct c2_rios_buffer_pool *buffer_desc = NULL;
+	struct c2_rios_buffer_pool *buffer_desc = NULL;
 
-        C2_PRE(bp != NULL);
+	C2_PRE(bp != NULL);
 
-        buffer_desc = container_of(bp, struct c2_rios_buffer_pool,
-                                   rios_bp);
+	buffer_desc = container_of(bp, struct c2_rios_buffer_pool,
+				   rios_bp);
 
-        c2_chan_signal(&buffer_desc->rios_bp_wait);
+	c2_chan_signal(&buffer_desc->rios_bp_wait);
 }
 
 /**
@@ -127,11 +127,11 @@ static void buffer_pool_not_empty(struct c2_net_buffer_pool *bp)
  */
 static void buffer_pool_low(struct c2_net_buffer_pool *bp)
 {
-        /*
-         * Currently ioservice is ignoring this signal.
-         * But in future io_service may grow
-         * buffer pool depending on some policy.
-         */
+	/*
+	 * Currently ioservice is ignoring this signal.
+	 * But in future io_service may grow
+	 * buffer pool depending on some policy.
+	 */
 }
 
 /**
@@ -140,8 +140,8 @@ static void buffer_pool_low(struct c2_net_buffer_pool *bp)
  */
 int c2_ios_register(void)
 {
-        c2_reqh_service_type_register(&c2_ios_type);
-        return c2_ioservice_fop_init();
+	c2_reqh_service_type_register(&c2_ios_type);
+	return c2_ioservice_fop_init();
 }
 
 /**
@@ -149,7 +149,7 @@ int c2_ios_register(void)
  */
 void c2_ios_unregister(void)
 {
-        c2_reqh_service_type_unregister(&c2_ios_type);
+	c2_reqh_service_type_unregister(&c2_ios_type);
 	c2_ioservice_fop_fini();
 }
 
@@ -168,21 +168,21 @@ void c2_ios_unregister(void)
  */
 static int ios_create_buffer_pool(struct c2_reqh_service *service)
 {
-        int                         nbuffs;
-        int                         colours;
-        int                         rc = 0;
-        struct c2_rpc_machine      *rpcmach;
-        struct c2_reqh_io_service  *serv_obj;
-        struct c2_rios_buffer_pool *bp;
+	int                         nbuffs;
+	int                         colours;
+	int                         rc = 0;
+	struct c2_rpc_machine      *rpcmach;
+	struct c2_reqh_io_service  *serv_obj;
+	struct c2_rios_buffer_pool *bp;
 	c2_bcount_t                 segment_size;
 	uint32_t                    segments_nr;
 	struct c2_reqh             *reqh;
 
-        serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
+	serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
 
 	reqh = service->rs_reqh;
 	c2_rwlock_read_lock(&reqh->rh_rwlock);
-        c2_tlist_for(&c2_reqh_rpc_mach_tl, &reqh->rh_rpc_machines, rpcmach) {
+	c2_tlist_for(&c2_reqh_rpc_mach_tl, &reqh->rh_rpc_machines, rpcmach) {
 		C2_ASSERT(c2_rpc_machine_bob_check(rpcmach));
 		struct c2_rios_buffer_pool *newbp;
 		bool                        bufpool_found = false;
@@ -191,13 +191,13 @@ static int ios_create_buffer_pool(struct c2_reqh_service *service)
 		 */
 		c2_tl_for(bufferpools, &serv_obj->rios_buffer_pools, bp) {
 
-                        if (bp->rios_ndom == rpcmach->rm_tm.ntm_dom) {
+			if (bp->rios_ndom == rpcmach->rm_tm.ntm_dom) {
 				/*
 				 * Found buffer pool for domain.
 				 * No need to create buffer pool
 				 * for this domain.
 				 */
-                                bufpool_found = true;
+				bufpool_found = true;
 				break;
 			}
 		} c2_tl_endfor; /* bufferpools */
@@ -251,10 +251,10 @@ static int ios_create_buffer_pool(struct c2_reqh_service *service)
 		bufferpools_tlink_init(newbp);
 		bufferpools_tlist_add(&serv_obj->rios_buffer_pools, newbp);
 
-        } c2_tl_endfor; /* rpc_machines */
+	} c2_tl_endfor; /* rpc_machines */
 	c2_rwlock_read_unlock(&reqh->rh_rwlock);
 
-        return rc;
+	return rc;
 }
 
 /**
@@ -267,25 +267,25 @@ static int ios_create_buffer_pool(struct c2_reqh_service *service)
  */
 static void ios_delete_buffer_pool(struct c2_reqh_service *service)
 {
-        struct c2_reqh_io_service  *serv_obj;
-        struct c2_rios_buffer_pool *bp;
+	struct c2_reqh_io_service  *serv_obj;
+	struct c2_rios_buffer_pool *bp;
 
-        C2_PRE(service != NULL);
+	C2_PRE(service != NULL);
 
-        serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
+	serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
 
-        c2_tl_for(bufferpools, &serv_obj->rios_buffer_pools, bp) {
+	c2_tl_for(bufferpools, &serv_obj->rios_buffer_pools, bp) {
 
-                C2_ASSERT(bp != NULL);
+		C2_ASSERT(bp != NULL);
 
-                c2_chan_fini(&bp->rios_bp_wait);
-                bufferpools_tlink_del_fini(bp);
-                c2_net_buffer_pool_fini(&bp->rios_bp);
+		c2_chan_fini(&bp->rios_bp_wait);
+		bufferpools_tlink_del_fini(bp);
+		c2_net_buffer_pool_fini(&bp->rios_bp);
 		c2_free(bp);
 
-        } c2_tl_endfor; /* bufferpools */
+	} c2_tl_endfor; /* bufferpools */
 
-        bufferpools_tlist_fini(&serv_obj->rios_buffer_pools);
+	bufferpools_tlist_fini(&serv_obj->rios_buffer_pools);
 }
 
 /**
@@ -301,28 +301,28 @@ static void ios_delete_buffer_pool(struct c2_reqh_service *service)
 static int ios_locate(struct c2_reqh_service_type *stype,
 			 struct c2_reqh_service **service)
 {
-        struct c2_reqh_service    *serv;
-        struct c2_reqh_io_service *serv_obj;
+	struct c2_reqh_service    *serv;
+	struct c2_reqh_io_service *serv_obj;
 
-        C2_PRE(stype != NULL && service != NULL);
+	C2_PRE(stype != NULL && service != NULL);
 
 	c2_addb_ctx_init(&ios_addb_ctx, &ios_addb_ctx_type,
 			 &c2_addb_global_ctx);
 
-        C2_ALLOC_PTR_ADDB(serv_obj, &ios_addb_ctx, &ios_addb_loc);
-        if (serv_obj == NULL)
-                return -ENOMEM;
+	C2_ALLOC_PTR_ADDB(serv_obj, &ios_addb_ctx, &ios_addb_loc);
+	if (serv_obj == NULL)
+		return -ENOMEM;
 
-        bufferpools_tlist_init(&serv_obj->rios_buffer_pools);
-        serv_obj->rios_magic = C2_REQH_IO_SERVICE_MAGIC;
-        serv = &serv_obj->rios_gen;
+	bufferpools_tlist_init(&serv_obj->rios_buffer_pools);
+	serv_obj->rios_magic = C2_REQH_IO_SERVICE_MAGIC;
+	serv = &serv_obj->rios_gen;
 
-        serv->rs_type = stype;
-        serv->rs_ops = &ios_ops;
+	serv->rs_type = stype;
+	serv->rs_ops = &ios_ops;
 
-        *service = serv;
+	*service = serv;
 
-        return 0;
+	return 0;
 }
 
 /**
@@ -335,14 +335,14 @@ static int ios_locate(struct c2_reqh_service_type *stype,
  */
 static void ios_fini(struct c2_reqh_service *service)
 {
-        struct c2_reqh_io_service *serv_obj;
+	struct c2_reqh_io_service *serv_obj;
 
-        C2_PRE(service != NULL);
+	C2_PRE(service != NULL);
 
 	c2_addb_ctx_fini(&ios_addb_ctx);
 
-        serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
-        c2_free(serv_obj);
+	serv_obj = container_of(service, struct c2_reqh_io_service, rios_gen);
+	c2_free(serv_obj);
 }
 
 /**
@@ -357,12 +357,12 @@ static void ios_fini(struct c2_reqh_service *service)
  */
 static int ios_start(struct c2_reqh_service *service)
 {
-        int			rc;
+	int			rc;
 	struct c2_cobfid_map   *cfm;
 
-        C2_PRE(service != NULL);
+	C2_PRE(service != NULL);
 
-        rc = ios_create_buffer_pool(service);
+	rc = ios_create_buffer_pool(service);
 	if (rc != 0) {
 		/* Cleanup required for already created buffer pools. */
 		ios_delete_buffer_pool(service);
@@ -373,7 +373,7 @@ static int ios_start(struct c2_reqh_service *service)
 	if (rc != 0)
 		ios_delete_buffer_pool(service);
 
-        return rc;
+	return rc;
 }
 
 /**
@@ -387,9 +387,9 @@ static int ios_start(struct c2_reqh_service *service)
  */
 static void ios_stop(struct c2_reqh_service *service)
 {
-        C2_PRE(service != NULL);
+	C2_PRE(service != NULL);
 
-        ios_delete_buffer_pool(service);
+	ios_delete_buffer_pool(service);
 	c2_cobfid_map_put(service->rs_reqh);
 }
 

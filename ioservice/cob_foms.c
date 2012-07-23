@@ -181,7 +181,7 @@ static size_t cob_fom_locality_get(const struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
 
-        return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
+	return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
 }
 
 static void cob_fom_populate(struct c2_fom *fom)
