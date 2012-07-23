@@ -36,13 +36,15 @@ enum c2_pdclust_unit_type classify(const struct c2_pdclust_layout *play,
 		return C2_PUT_SPARE;
 }
 
+/**
+ * @todo Allocate the arrays globally so that it does not result into
+ * going beyond the stack limit in the kernel mode.
+ */
 void layout_demo(struct c2_pdclust_instance *pi, uint32_t P, int R, int I,
 		 bool print)
 {
 	uint64_t                   group;
-	uint64_t                   frame;
 	uint32_t                   unit;
-	uint32_t                   obj;
 	uint32_t                   N;
 	uint32_t                   K;
 	uint32_t                   W;
@@ -55,16 +57,20 @@ void layout_demo(struct c2_pdclust_instance *pi, uint32_t P, int R, int I,
 	uint32_t                   usage[P][C2_PUT_NR + 1];
 	uint32_t                   where[pi->pi_layout->pl_attr.pa_N +
 					 2*pi->pi_layout->pl_attr.pa_K];
+
+#ifndef __KERNEL__
+	uint64_t                   frame;
+	uint32_t                   obj;
 	const char                *brace[C2_PUT_NR] = { "[]", "<>", "{}" };
 	const char                *head[C2_PUT_NR+1] = { "D", "P", "S",
 							 "total" };
-
 	uint32_t                   min;
 	uint32_t                   max;
 	uint64_t                   sum;
 	uint32_t                   u;
 	double                     sq;
 	double                     avg;
+#endif
 
 	C2_SET_ARR0(usage);
 	C2_SET_ARR0(incidence);
@@ -73,11 +79,13 @@ void layout_demo(struct c2_pdclust_instance *pi, uint32_t P, int R, int I,
 	K = pi->pi_layout->pl_attr.pa_K;
 	W = N + 2*K;
 
+#ifndef __KERNEL__
 	if (print) {
 		printf("layout: N: %u K: %u P: %u C: %u L: %u\n",
 				N, K, P, pi->pi_layout->pl_C,
 				pi->pi_layout->pl_L);
 	}
+#endif
 
 	for (group = 0; group < I ; ++group) {
 		src.sa_group = group;
@@ -100,6 +108,7 @@ void layout_demo(struct c2_pdclust_instance *pi, uint32_t P, int R, int I,
 	if (!print)
 		return;
 
+#ifndef __KERNEL__
 	printf("map: \n");
 	for (frame = 0; frame < R; ++frame) {
 		printf("%5i : ", (int)frame);
@@ -151,6 +160,7 @@ void layout_demo(struct c2_pdclust_instance *pi, uint32_t P, int R, int I,
 		printf(" | %5i %5i %5i %5.2f%%\n", min, max, (int)avg,
 		       sqrt(sq/(P - 1) - avg*avg)*100.0/avg);
 	}
+#endif
 }
 
 /** @} end of layout group */

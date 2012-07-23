@@ -32,7 +32,6 @@
 # include "c2t1fs/linux_kernel/c2t1fs.h" /* c2t1fs_globals */
 #else
 # include "lib/finject.h"
-# include "layout/ut/ldemo_internal.c"
 #endif
 
 #include "pool/pool.h"                   /* c2_pool_init(), c2_pool_fini() */
@@ -43,6 +42,7 @@
 #include "layout/pdclust.h"
 #include "layout/list_enum.h"
 #include "layout/linear_enum.h"
+# include "layout/ut/ldemo_internal.c"   /* layout_demo() */
 
 static struct c2_dbenv         dbenv;
 static const char              db_name[] = "ut-layout";
@@ -52,7 +52,7 @@ enum c2_addb_ev_level          orig_addb_level;
 static int                     rc;
 
 enum {
-	DBFLAGS                  = 0,    /* Flag used for dbenv and tx init */ 
+	DBFLAGS                  = 0,    /* Flag used for dbenv and tx init */
 	LIST_ENUM_ID             = 0x4C495354, /* "LIST" */
 	LINEAR_ENUM_ID           = 0x4C494E45, /* "LINE" */
 	ADDITIONAL_BYTES_NONE    = 0,    /* For buffer initialisation */
@@ -512,6 +512,10 @@ static void NKP_assign_and_pool_init(uint32_t enum_id,
 				     uint32_t linear_nr,
 				     uint32_t *N, uint32_t *K, uint32_t *P)
 {
+	C2_UT_ASSERT(ergo(enum_id == LIST_ENUM_ID,
+			  list_nr_less < LDB_MAX_INLINE_COB_ENTRIES &&
+			  list_nr_more > LDB_MAX_INLINE_COB_ENTRIES));
+
 	if (enum_id == LIST_ENUM_ID) {
 		switch (inline_test) {
 		case LESS_THAN_INLINE:
@@ -561,7 +565,7 @@ static void NKP_assign_and_pool_init(uint32_t enum_id,
  * Tests the APIs supported for enumeration object build, layout object build
  * and layout dstruction that happens using c2_layout_put(). Verifies that the
  * newly build layout object is added to the list of layout objects maintained
- * in the domain object.
+ * in the domain object and that c2_layout_find() returns the same object.
  */
 static int test_build_pdclust(uint32_t enum_id, uint64_t lid,
 			      uint32_t inline_test)
@@ -573,6 +577,7 @@ static int test_build_pdclust(uint32_t enum_id, uint64_t lid,
 	struct c2_pdclust_layout     *pl;
 	struct c2_layout_list_enum   *list_enum;
 	struct c2_layout_linear_enum *lin_enum;
+	struct c2_layout             *l;
 
 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
 
@@ -589,16 +594,22 @@ static int test_build_pdclust(uint32_t enum_id, uint64_t lid,
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(list_lookup(lid) == &pl->pl_base.sl_base);
 
+	/*
+	 * Verify that c2_layout_find() returns the same object by reading it
+	 * from memory.
+	 */
+	l = c2_layout_find(&domain, lid);
+	C2_UT_ASSERT(l == &pl->pl_base.sl_base);
+
 	/* Verify the layout object built earlier here. */
 	pdclust_layout_verify(enum_id, &pl->pl_base.sl_base, lid,
 			      N, K, P, &seed,
 			      10, 20);
 
 	/*
-	 * Delete the layout by first increasing a reference and then
-	 * releasing that only reference.
+	 * Delete the layout object by reducing the reference that
+	 * c2_layout_find() has acquired on it.
 	 */
-	c2_layout_get(&pl->pl_base.sl_base);
 	c2_layout_put(&pl->pl_base.sl_base);
 	C2_UT_ASSERT(list_lookup(lid) == NULL);
 
@@ -2100,8 +2111,6 @@ static void test_recsize(void)
 	C2_UT_ASSERT(rc == 0);
 }
 
-
-#ifndef __KERNEL__
 /* Tests the APIs supported for c2_pdclust_instance object. */
 static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 				     bool inline_test)
@@ -2121,7 +2130,7 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 	c2_uint128_init(&seed, "buildpdclustlayo");
 
 	NKP_assign_and_pool_init(enum_id,
-				 inline_test, 14, 114, 114,
+				 inline_test, 14, 30, 30,
 				 &N, &K, &P);
 
 	rc = pdclust_layout_build(enum_id, lid,
@@ -2192,6 +2201,7 @@ static void test_pdclust_instance(void)
 	C2_UT_ASSERT(rc == 0);
 }
 
+#ifndef __KERNEL__
 /*
  * Sets (or resets) the pair using the area pointer and the layout id provided
  * as arguments.
@@ -2864,7 +2874,7 @@ static void test_delete(void)
 				 INLINE_NOT_APPLICABLE);
 	C2_UT_ASSERT(rc == 0);
 }
-#endif
+#endif /* __KERNEL__ */
 
 const struct c2_test_suite layout_ut = {
 	.ts_name  = "layout-ut",
@@ -2884,8 +2894,8 @@ const struct c2_test_suite layout_ut = {
 		{ "layout-enum-ops", test_enum_operations },
 		{ "layout-max-recsize", test_max_recsize },
 		{ "layout-recsize", test_recsize },
-#ifndef __KERNEL__
 		{ "layout-pdclust-instance", test_pdclust_instance },
+#ifndef __KERNEL__
 		{ "layout-lookup", test_lookup },
 		{ "layout-lookup-failure", test_lookup_failure },
 		{ "layout-add", test_add },

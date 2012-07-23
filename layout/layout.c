@@ -870,6 +870,24 @@ void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
 	C2_LEAVE("Enum_type_id %lu", (unsigned long)let->let_id);
 }
 
+struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid)
+{
+	struct c2_layout *l;
+
+	C2_PRE(c2_layout__domain_invariant(dom));
+	C2_PRE(lid != LID_NONE);
+
+	C2_ENTRY("lid %llu", (unsigned long long)lid);
+	c2_mutex_lock(&dom->ld_lock);
+	l = c2_layout__list_lookup(dom, lid, true);
+	c2_mutex_unlock(&dom->ld_lock);
+
+	C2_POST(ergo(l != NULL, c2_layout__invariant(l) &&
+				l->l_ref > 0));
+	C2_LEAVE("lid %llu, l_pointer %p", (unsigned long long)lid, l);
+	return l;
+}
+
 /** Adds a reference to the layout. */
 void c2_layout_get(struct c2_layout *l)
 {
