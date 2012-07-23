@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -37,55 +37,60 @@
  * @{
  */
 
-/** @file io.ff
+/** @file io_fops_xc.ff
  *
  * <b>IO fop formats</b>
  *
  */
 
-FOPDEP("net/net_otw_types.ff");
-FOPDEP("addb/addbff/addb.ff");
+require "net/net_otw_types";
+require "addb/addbff/addb";
 
 /**
  * @section IO FOP Definitions
  */
-DEF(c2_fop_file_fid, RECORD,
+record {
 	/** Sequence number for given fid. */
-	_(f_seq, U64),
+	u64 f_seq;
 	/** Object Index for given fid. */
-	_(f_oid, U64));
+	u64 f_oid
+} c2_fop_file_fid;
 
 /**
  * A common sub structure to be referred by read and write reply fops.
  */
-DEF(c2_fop_cob_rw_reply, RECORD,
-	/** Status code of operation. */
-	_(rwr_rc, U32),
+record {
+        /** Status code of operation. */
+	u32 rwr_rc;
 	/** Number of bytes read or written. */
-	_(rwr_count, U64));
+	u64 rwr_count
+} c2_fop_cob_rw_reply;
 
 /**
  * Reply FOP for a readv request.
  */
-DEF(c2_fop_cob_readv_rep, RECORD,
+record {
 	/** Common read/write reply. */
-	_(c_rep, c2_fop_cob_rw_reply));
+	c2_fop_cob_rw_reply c_rep
+} c2_fop_cob_readv_rep;
 
 /**
  * Represents the extent information for an io segment. c2_ioseg typically
  * represents a user space data buffer or a kernel page.
  */
-DEF(c2_ioseg, RECORD,
-	_(ci_index, U64),
-	_(ci_count, U64));
+record {
+	u64 ci_index;
+	u64 ci_count
+} c2_ioseg;
 
 /**
  * Represents an index vector with {index, count}  tuples for a target
  * device (typically a cob).
  */
-DEF(c2_io_indexvec, SEQUENCE,
-	_(ci_nr, U32),
-	_(ci_iosegs, c2_ioseg));
+sequence {
+	u32      ci_nr;
+	c2_ioseg ci_iosegs
+} c2_io_indexvec;
 
 /**
  * Represents sequence of index vector, one per network buffer.
@@ -93,9 +98,10 @@ DEF(c2_io_indexvec, SEQUENCE,
  * buffers associated with an io fop. Hence a SEQUENCE of c2_io_indexvec
  * is needed, one per network buffer.
  */
-DEF(c2_io_indexvec_seq, SEQUENCE,
-	_(cis_nr, U32),
-	_(cis_ivecs, c2_io_indexvec));
+sequence {
+	u32            cis_nr;
+	c2_io_indexvec cis_ivecs
+} c2_io_indexvec_seq;
 
 /**
  * Sequence of net buf desc that can be accommodated in single io fop.
@@ -103,32 +109,33 @@ DEF(c2_io_indexvec_seq, SEQUENCE,
  * buffers associated with an io fop. Hence a SEQUENCE of c2_net_buf_desc
  * is needed.
  */
-DEF(c2_io_descs, SEQUENCE,
-	_(id_nr, U32),
-	_(id_descs, c2_net_buf_desc));
+sequence {
+	u32             id_nr;
+	c2_net_buf_desc id_descs
+} c2_io_descs;
 
 /**
  * Common structure for read and write request fops.
  */
-DEF(c2_fop_cob_rw, RECORD,
-
+record {
 	/** File identifier of read/write request. */
 
-	_(crw_fid, c2_fop_file_fid),
+	c2_fop_file_fid    crw_fid;
 
 	/** Net buf descriptors representing the c2_net_buffer containing
 	    the IO buffers. */
 
-	_(crw_desc, c2_io_descs),
+	c2_io_descs        crw_desc;
 
 	/** Index vectors representing the extent information for the
 	    IO request. */
 
-	_(crw_ivecs, c2_io_indexvec_seq),
+	c2_io_indexvec_seq crw_ivecs;
 
 	/** Miscellaneous flags. */
 
-	_(crw_flags, U64));
+	u64                crw_flags
+} c2_fop_cob_rw;
 
 /**
  * This fop is representation of a read component object request.
@@ -139,9 +146,10 @@ DEF(c2_fop_cob_rw, RECORD,
  * On completion, the reply FOP (c2_fop_cob_readv_rep) is created
  * and sent to the client.
  */
-DEF(c2_fop_cob_readv, RECORD,
+record {
 	/** Common definition of read/write fops. */
-	_(c_rwv, c2_fop_cob_rw));
+	c2_fop_cob_rw c_rwv
+} c2_fop_cob_readv;
 
 /**
  * Reply FOP for writev FOPs.
@@ -149,9 +157,10 @@ DEF(c2_fop_cob_readv, RECORD,
  * Data server to a client.
  * It contains the status code and number of bytes written.
  */
-DEF(c2_fop_cob_writev_rep, RECORD,
+record {
 	/** Common read/write reply structure. */
-	_(c_rep, c2_fop_cob_rw_reply));
+	c2_fop_cob_rw_reply c_rep
+} c2_fop_cob_writev_rep;
 
 /**
  * The c2_fop_cob_writev FOP is used to send write requests by a
@@ -162,47 +171,53 @@ DEF(c2_fop_cob_writev_rep, RECORD,
  * On completion, the reply FOP (c2_fop_cob_writev_rep) is created
  * and sent to the client.
  */
-DEF(c2_fop_cob_writev, RECORD,
+record {
 	/** Common definition of read/write fops. */
-	_(c_rwv, c2_fop_cob_rw));
+	c2_fop_cob_rw c_rwv
+} c2_fop_cob_writev;
 
 /**
  * Fops referring other remote fops (not present in this file).
  */
-DEF(c2_test_ios_fop, RECORD,
-	_(if_st, U64),
-	_(if_nbd, c2_net_buf_desc));
+record {
+	u64             if_st;
+	c2_net_buf_desc if_nbd
+} c2_test_ios_fop;
 
-DEF(c2_test_io_addb, RECORD,
-	_(if_st, U64),
-	_(if_addb, c2_addb_record));
+record {
+	u64            if_st;
+	c2_addb_record if_addb
+} c2_test_io_addb;
 
-DEF(c2_fop_cob_common, RECORD,
+record {
 	/**
 	 * Fid of global file.
 	 */
-	_(c_gobfid, c2_fop_file_fid),
+	c2_fop_file_fid c_gobfid;
 	/**
 	 * Fid of component object.
 	 */
-	_(c_cobfid, c2_fop_file_fid));
+	c2_fop_file_fid c_cobfid
+} c2_fop_cob_common;
 
 /**
  * Represents name of a cob being created.
  */
-DEF(c2_fop_cob_name, SEQUENCE,
-        _(cn_count, U32),
-        _(cn_name,  BYTE));
+sequence {
+	u32 cn_count;
+	u8  cn_name
+} c2_fop_cob_name;
 
 /**
  * On-wire representation of "cob create" request.
  * Cob create fops are sent to data servers when a new global file
  * is created.
  */
-DEF(c2_fop_cob_create, RECORD,
-	_(cc_common,  c2_fop_cob_common),
+record {
+	c2_fop_cob_common cc_common;
 	/** Name of global file. */
-	_(cc_cobname, c2_fop_cob_name));
+	c2_fop_cob_name   cc_cobname
+} c2_fop_cob_create;
 
 /**
  * On-wire representation of "cob delete" request.
@@ -211,15 +226,17 @@ DEF(c2_fop_cob_create, RECORD,
  * Cob is located based on stob-id. Currently, cob-id is same
  * as stob-id.
  */
-DEF(c2_fop_cob_delete, RECORD,
-	_(cd_common, c2_fop_cob_common));
+record {
+	c2_fop_cob_common cd_common
+} c2_fop_cob_delete;
 
 /**
  * On-wire representation of reply for both "cob create" and "cob delete"
  * requests.
  */
-DEF(c2_fop_cob_op_reply, RECORD,
-	_(cor_rc, U32));
+record {
+	u32 cor_rc
+} c2_fop_cob_op_reply;
 
 /** @} end of FOP_data_ops */
 

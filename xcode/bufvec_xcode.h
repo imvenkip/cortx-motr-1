@@ -182,9 +182,16 @@ size_t c2_xcode_fop_size_get(struct c2_fop *fop);
   @retval true if field type is a byte array.
   @retval false if field type is not a byte array.
 */
-bool c2_xcode_is_byte_array(const struct c2_fop_field_type *fftype);
+//bool c2_xcode_is_byte_array(const struct c2_fop_field_type *fftype);
 
-#endif
+/** Get the pad bytes required for message */
+int c2_xcode_pad_bytes_get(size_t size);
+
+/** Add zero padding to message */
+int c2_xcode_zero_padding_add(struct c2_bufvec_cursor *cur, uint64_t pad_bytes);
+
+#endif /* C2_BUFVEC_XCODE_H_ */
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
@@ -194,5 +201,3 @@ bool c2_xcode_is_byte_array(const struct c2_fop_field_type *fftype);
  *  scroll-step: 1
  *  End:
  */
-
-

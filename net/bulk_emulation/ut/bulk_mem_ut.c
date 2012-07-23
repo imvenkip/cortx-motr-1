@@ -25,6 +25,7 @@
 #include "lib/misc.h"
 #include "lib/thread.h"
 #include "lib/ut.h"
+#include "lib/bitmap.h"
 
 #include "net/bulk_emulation/mem_xprt_xo.c"
 #include "net/bulk_emulation/st/ping.c"

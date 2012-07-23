@@ -337,11 +337,15 @@ void *c2_xcode_addr(const struct c2_xcode_obj *obj, int fileno, uint64_t elno)
 	const struct c2_xcode_type  *ct   = f->xf_type;
 
 	C2_ASSERT(fileno < xt->xct_nr);
-	addr += f->xf_offset;
-	if (xt->xct_aggr == C2_XA_SEQUENCE && fileno == 1 && elno != ~0ULL)
-		addr = *((char **)addr) + elno * ct->xct_sizeof;
-	else if (ct == &C2_XT_OPAQUE && elno != ~0ULL)
-		addr = *((char **)addr);
+	if (addr != NULL) {
+		addr += f->xf_offset;
+		if (xt->xct_aggr == C2_XA_SEQUENCE && fileno == 1 &&
+		    elno != ~0ULL)
+			addr = *((char **)addr) + elno * ct->xct_sizeof;
+		else if (ct == &C2_XT_OPAQUE && elno != ~0ULL)
+			addr = *((char **)addr);
+	}
+
 	return addr;
 }
 
@@ -374,22 +378,27 @@ uint64_t c2_xcode_tag(const struct c2_xcode_obj *obj)
 	C2_PRE(xt->xct_aggr == C2_XA_SEQUENCE || xt->xct_aggr == C2_XA_UNION);
 	C2_PRE(f->xf_type->xct_aggr == C2_XA_ATOM);
 
-	switch (f->xf_type->xct_atype) {
-	case C2_XAT_VOID:
-		tag = f->xf_tag;
-		break;
-	case C2_XAT_U8:
-		tag = *C2_XCODE_VAL(obj, 0, 0, uint8_t);
-		break;
-	case C2_XAT_U32:
-		tag = *C2_XCODE_VAL(obj, 0, 0, uint32_t);
-		break;
-	case C2_XAT_U64:
-		tag = *C2_XCODE_VAL(obj, 0, 0, uint64_t);
-		break;
-	default:
-		C2_IMPOSSIBLE("atype");
-	}
+	if (obj->xo_ptr != NULL) {
+		switch (f->xf_type->xct_atype) {
+		case C2_XAT_VOID:
+			tag = f->xf_tag;
+			break;
+		case C2_XAT_U8:
+			tag = *C2_XCODE_VAL(obj, 0, 0, uint8_t);
+			break;
+		case C2_XAT_U32:
+			tag = *C2_XCODE_VAL(obj, 0, 0, uint32_t);
+			break;
+		case C2_XAT_U64:
+			tag = *C2_XCODE_VAL(obj, 0, 0, uint64_t);
+			break;
+		default:
+			C2_IMPOSSIBLE("atype");
+
+		}
+	} else
+		tag = 0;
+
 	return tag;
 }
 

@@ -31,12 +31,7 @@
 #include "stob/stob.h"
 #include "db/db.h"
 #include "addb/addb.h"
-
-#ifdef __KERNEL__
-# include "addb/addbff/addb_k.h"
-#else
-# include "addb/addbff/addb_u.h"
-#endif
+#include "addb/addbff/addb.h"
 
 #ifndef __KERNEL__
 
@@ -94,7 +89,7 @@ int c2_addb_stob_add(struct c2_addb_dp *dp, struct c2_dtx *tx,
 		io.si_stob.iv_index       = offset;
 
 		if (rec.ar_data.cmb_count != 0) {
-			char *   event_data = rec.ar_data.cmb_value;
+			char *   event_data = (char *) rec.ar_data.cmb_value;
 			uint32_t data_len   = rec.ar_data.cmb_count;
 
 			addr[1]   = c2_stob_addr_pack(event_data, bshift);

@@ -169,10 +169,13 @@ static int item_header_encdec(struct c2_bufvec_cursor *cur,
    rito_decode) for decoding an rpc item into/from a bufvec
 */
 int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
-		       enum c2_bufvec_what what)
+		enum c2_bufvec_what what)
 {
-	int		 rc;
-	struct	c2_fop	*fop;
+	int                  rc;
+	size_t               item_size;
+	size_t               padding;
+	struct	c2_fop      *fop;
+	struct c2_xcode_ctx  xc_ctx;
 
 	C2_PRE(item != NULL);
 	C2_PRE(cur != NULL);
@@ -184,34 +187,39 @@ int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
 	if(rc != 0)
 		return rc;
 
-	if (fop->f_type->ft_top == NULL) {
-		struct c2_xcode_ctx *xc_ctx = &fop->f_type->ft_xc_ctx;
-
-		if (what == C2_BUFVEC_ENCODE) {
-			c2_xcode_ctx_init(xc_ctx, &(struct c2_xcode_obj){
-					*fop->f_type->ft_xc_type,
-						c2_fop_data(fop)});
-			xc_ctx->xcx_buf = *cur;
-			rc = c2_xcode_encode(xc_ctx);
-			*cur = xc_ctx->xcx_buf;
-		} else {
-			c2_xcode_ctx_init(xc_ctx, &(struct c2_xcode_obj){
-					*fop->f_type->ft_xc_type,
-						NULL});
-			xc_ctx->xcx_alloc = c2_xcode_alloc;
-			xc_ctx->xcx_buf = *cur;
-			rc = c2_xcode_decode(xc_ctx);
-			*cur = xc_ctx->xcx_buf;
-			if (rc == 0) {
-				if (fop->f_data.fd_data != NULL)
-					c2_free(fop->f_data.fd_data);
-				fop->f_data.fd_data =
-					xc_ctx->xcx_it.xcu_stack[0].s_obj.xo_ptr;
-			}
-		}
+	if (what == C2_BUFVEC_ENCODE) {
+		c2_xcode_ctx_init(&xc_ctx, &(struct c2_xcode_obj){
+				 *fop->f_type->ft_xc_type,
+				 c2_fop_data(fop)});
+		item_size = c2_xcode_length(&xc_ctx);
+		padding   = c2_xcode_pad_bytes_get(item_size);
+		c2_xcode_ctx_init(&xc_ctx, &(struct c2_xcode_obj){
+				  *fop->f_type->ft_xc_type,
+				  c2_fop_data(fop)});
+		xc_ctx.xcx_buf = *cur;
+		rc = c2_xcode_encode(&xc_ctx);
+		*cur = xc_ctx.xcx_buf;
 	} else {
-		rc = c2_xcode_bufvec_fop(cur, fop, what);
+		c2_xcode_ctx_init(&xc_ctx, &(struct c2_xcode_obj){
+				  *fop->f_type->ft_xc_type,
+				  NULL});
+		xc_ctx.xcx_alloc = c2_xcode_alloc;
+		xc_ctx.xcx_buf   = *cur;
+		rc = c2_xcode_decode(&xc_ctx);
+		*cur = xc_ctx.xcx_buf;
+		if (rc == 0) {
+			fop->f_data.fd_data =
+				xc_ctx.xcx_it.xcu_stack[0].s_obj.xo_ptr;
+		}
+		c2_xcode_ctx_init(&xc_ctx, &(struct c2_xcode_obj){
+				  *fop->f_type->ft_xc_type,
+				  c2_fop_data(fop)});
+		item_size = c2_xcode_length(&xc_ctx);
+		padding   = c2_xcode_pad_bytes_get(item_size);
 	}
+
+	if (padding > 0)
+		rc = c2_xcode_zero_padding_add(cur, padding);
 
 	return rc;
 }
@@ -238,14 +246,14 @@ static bool each_bufsize_is_8aligned(struct c2_bufvec *buf)
 
 int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 {
-	struct c2_rpc_item		*item;
-	struct c2_bufvec_cursor		 cur;
-	size_t				 len;
-	size_t				 offset = 0;
-	c2_bcount_t			 bufvec_size;
-	int				 rc;
-	struct c2_rpc_item_type		*item_type;
-	void				*cur_addr;
+	struct c2_rpc_item	*item;
+	struct c2_bufvec_cursor	 cur;
+	size_t			 len;
+	size_t			 offset = 0;
+	c2_bcount_t		 bufvec_size;
+	int			 rc;
+	struct c2_rpc_item_type	*item_type;
+	void			*cur_addr;
 
 	C2_PRE(rpc_obj != NULL);
 	C2_PRE(nb != NULL);
@@ -271,7 +279,8 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
 	/* Iterate through the RPC items list in the RPC object
            and for each object serialize item and the payload */
         c2_list_for_each_entry(&rpc_obj->r_items, item,
-				struct c2_rpc_item, ri_rpcobject_linkage) {
+			       struct c2_rpc_item, ri_rpcobject_linkage) {
+
 		item_type = item->ri_type;
 		C2_ASSERT(item_type->rit_ops != NULL);
 		C2_ASSERT(item_type->rit_ops->rito_encode != NULL);
@@ -318,8 +327,7 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb,
 	C2_ASSERT(C2_IS_8ALIGNED(bufvec_size));
 	C2_ASSERT(each_bufsize_is_8aligned(&nb->nb_buffer));
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
-	if (offset > 0)
-		c2_bufvec_cursor_move(&cur, offset);
+	c2_bufvec_cursor_move(&cur, offset);
         cur_addr = c2_bufvec_cursor_addr(&cur);
 	C2_ASSERT(C2_IS_8ALIGNED(cur_addr));
 

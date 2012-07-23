@@ -25,20 +25,14 @@
 #include "lib/memory.h"
 #include "fop/fom.h"
 #include "fop/fop.h"
-#include "fop/fop_format_def.h"
-#ifdef __KERNEL__
-#include "ping_fop_k.h"
-#else
-#include "ping_fop_u.h"
-#endif
-#include "fop/fop_iterator.h"
+#include "rpc/it/ping_fop_xc.h"
 #include "rpc/it/ping_fop.h"
 #include "rpc/it/ping_fom.h"
-#include "rpc/it/ping_fop.ff"
 #include "lib/errno.h"
 #include "rpc/rpc2.h"
 #include "fop/fop_item_type.h"
 #include "xcode/bufvec_xcode.h"
+#include "xcode/xcode.h"
 
 /* Ops vector for ping request. */
 const struct c2_fop_type_ops c2_fop_ping_ops = {
@@ -55,17 +49,12 @@ const struct c2_fop_type_ops c2_fop_ping_rep_ops = {
 };
 
 /* Ping fop assignment */
-C2_FOP_TYPE_DECLARE(c2_fop_ping, "ping fop", &c2_fop_ping_ops,
-		    C2_RPC_PING_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
+C2_FOP_TYPE_DECLARE_XC(c2_fop_ping, "ping fop", &c2_fop_ping_ops,
+		       C2_RPC_PING_OPCODE,
+		       C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
 
-C2_FOP_TYPE_DECLARE(c2_fop_ping_rep, "ping fop reply", &c2_fop_ping_rep_ops,
-		    C2_RPC_PING_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
-
-static struct c2_fop_type_format *fmts[] = {
-        &c2_fop_ping_arr_tfmt,
-};
-
+C2_FOP_TYPE_DECLARE_XC(c2_fop_ping_rep, "ping fop reply", &c2_fop_ping_rep_ops,
+		       C2_RPC_PING_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
 
 static struct c2_fop_type *fops[] = {
         &c2_fop_ping_fopt,
@@ -75,6 +64,7 @@ static struct c2_fop_type *fops[] = {
 void c2_ping_fop_fini(void)
 {
         c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
+	c2_xc_ping_fop_xc_fini();
 }
 
 extern struct c2_fom_type c2_fom_ping_mopt;
@@ -82,7 +72,7 @@ extern struct c2_fom_type c2_fom_ping_mopt;
 int c2_ping_fop_init(void)
 {
         int result;
-	result = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
+	c2_xc_ping_fop_xc_init();
         result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
 	c2_fop_ping_fopt.ft_fom_type = c2_fom_ping_mopt;
         return result;

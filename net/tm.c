@@ -19,6 +19,7 @@
  * Original creation date: 04/07/2011
  */
 
+#include "lib/arith.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/misc.h"

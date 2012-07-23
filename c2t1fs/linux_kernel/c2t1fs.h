@@ -31,6 +31,7 @@
 #include "rpc/rpc2.h"
 #include "pool/pool.h"  /* c2_pool */
 #include "net/buffer_pool.h"
+#include "fid/fid.h"
 
 /**
   @defgroup c2t1fs c2t1fs

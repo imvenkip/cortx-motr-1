@@ -43,12 +43,7 @@
 #include "ioservice/io_fops.h"
 #include "ioservice/io_service.h"
 #include "colibri/colibri_setup.h"
-
-#ifdef __KERNEL__
-#include "ioservice/io_fops_k.h"
-#else
-#include "ioservice/io_fops_u.h"
-#endif
+#include "ioservice/io_fops_xc.h"
 
 /**
    @page DLD-bulk-server DLD of Bulk Server

@@ -27,6 +27,8 @@
 #include "lib/chan.h"
 #include "lib/cond.h"
 #include "lib/errno.h"
+#include "lib/arith.h"
+#include "lib/bitmap.h"
 #include "lib/memory.h"
 #include "lib/misc.h" /* C2_SET0 */
 #include "net/net.h"

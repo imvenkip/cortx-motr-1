@@ -23,21 +23,10 @@
 #endif
 
 #include "fop/fop.h"
-#include "fop/fop_iterator.h"
-#include "fop/fop_format_def.h"
-
-#ifdef __KERNEL__
-#include "reqh/reqh_fops_k.h"
-#else
-
-#include "reqh/reqh_fops_u.h"
-#endif
-
-#include "reqh/reqh_fops.ff"
+#include "reqh/reqh_fops_xc.h"
 #include "rpc/item.h"
 #include "rpc/rpc_opcodes.h"
 #include "xcode/bufvec_xcode.h"
-
 
 /**
    @addtogroup reqh
@@ -50,8 +39,8 @@ static struct c2_fop_type_ops reqh_err_fop_ops = {
 };
 
 
-C2_FOP_TYPE_DECLARE(c2_reqh_error_rep, "reqh error reply", &reqh_err_fop_ops,
-		    C2_REQH_ERROR_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE_XC(c2_reqh_error_rep, "reqh error reply", &reqh_err_fop_ops,
+		       C2_REQH_ERROR_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
 
 static struct c2_fop_type *reqh_fops[] = {
 	&c2_reqh_error_rep_fopt,
@@ -60,11 +49,13 @@ static struct c2_fop_type *reqh_fops[] = {
 void c2_reqh_fop_fini(void)
 {
 	c2_fop_type_fini_nr(reqh_fops, ARRAY_SIZE(reqh_fops));
+	c2_xc_reqh_fops_xc_fini();
 }
 
 int c2_reqh_fop_init(void)
 {
 	int result;
+	c2_xc_reqh_fops_xc_init();
 	result = c2_fop_type_build_nr(reqh_fops, ARRAY_SIZE(reqh_fops));
 	if (result != 0)
 		c2_reqh_fop_fini();

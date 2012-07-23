@@ -531,10 +531,10 @@ void *c2_xcode_alloc(struct c2_xcode_ctx *ctx, size_t nob);
 /**
    Returns the address of a sub-object within an object.
 
-   @param obj    - typed object
-   @param fileno - ordinal number of field
-   @param elno   - for a SEQUENCE field, index of the element to
-                   return the address of.
+   @param obj     - typed object
+   @param fieldno - ordinal number of field
+   @param elno    - for a SEQUENCE field, index of the element to
+                    return the address of.
 
    The behaviour of this function for SEQUENCE objects depends on "elno"
    value. SEQUENCE objects have the following structure:
@@ -549,7 +549,7 @@ void *c2_xcode_alloc(struct c2_xcode_ctx *ctx, size_t nob);
    where xs_nr stores a number of elements in the sequence and xs_body points to
    an array of the elements.
 
-   With fileno == 1, c2_xcode_addr() returns
+   With fieldno == 1, c2_xcode_addr() returns
 
        - &xseq->xs_body when (elno == ~0ULL) and
 

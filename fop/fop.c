@@ -24,7 +24,6 @@
 #include "lib/mutex.h"
 #include "lib/vec.h"
 #include "fop/fop.h"
-#include "fop/fop_iterator.h"
 #include "lib/errno.h"
 
 /**
@@ -42,12 +41,7 @@ int c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
 
 	fop->f_type = fopt;
 
-
-	if (fopt->ft_top != NULL) {
-		nob = fopt->ft_top->fft_layout->fm_sizeof;
-	} else {
-		nob = (*fopt->ft_xc_type)->xct_sizeof;
-	}
+	nob = (*fopt->ft_xc_type)->xct_sizeof;
 
 	if (data == NULL) {
 		data = c2_alloc(nob);
@@ -83,12 +77,50 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 }
 C2_EXPORTED(c2_fop_alloc);
 
+void fop_data_free(struct c2_fop *fop)
+{
+	struct c2_xcode_ctx     ctx;
+	struct c2_xcode_cursor *it;
+	int                     result;
+
+	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){*fop->f_type->ft_xc_type,
+				c2_fop_data(fop)});
+	it = &ctx.xcx_it;
+
+	while ((result = c2_xcode_next(it)) > 0) {
+		const struct c2_xcode_type         *xt;
+		struct c2_xcode_obj                *cur;
+		struct c2_xcode_cursor_frame       *top;
+		const struct c2_xcode_cursor_frame *prev;
+		const struct c2_xcode_obj          *par;
+
+		top  = c2_xcode_cursor_top(it);
+
+		if (top->s_flag != C2_XCODE_CURSOR_PRE)
+			continue;
+
+		cur  = &top->s_obj;
+		xt   = cur->xo_type;
+
+		if (xt->xct_aggr == C2_XA_ATOM) {
+			prev = top - 1;
+			par  = &prev->s_obj;
+
+			if (par->xo_type->xct_aggr == C2_XA_SEQUENCE &&
+			    top->s_fieldno == 1)
+				if (cur->xo_ptr != NULL)
+					c2_free(cur->xo_ptr);
+		}
+	}
+}
+
 void c2_fop_fini(struct c2_fop *fop)
 {
 	C2_ASSERT(fop != NULL);
 
 	c2_rpc_item_fini(&fop->f_item);
 	c2_addb_ctx_fini(&fop->f_addb);
+	//fop_data_free(fop);
 	c2_free(fop->f_data.fd_data);
 	c2_list_link_fini(&fop->f_link);
 }
@@ -104,7 +136,6 @@ void c2_fop_free(struct c2_fop *fop)
 void *c2_fop_data(struct c2_fop *fop)
 {
 	return fop->f_data.fd_data;
-
 }
 C2_EXPORTED(c2_fop_data);
 
@@ -177,7 +208,7 @@ static size_t fol_pack_size(struct c2_fol_rec_desc *desc)
 {
 	struct c2_fop *fop = desc->rd_type_private;
 
-	return fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+	return (*fop->f_type->ft_xc_type)->xct_sizeof;
 }
 
 static void fol_pack(struct c2_fol_rec_desc *desc, void *buf)

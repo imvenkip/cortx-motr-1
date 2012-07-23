@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -24,120 +24,125 @@
 
    @{
  */
-
-/**
-   FOP sent from sender to receiver to establish a new rpc connection.
- */
-DEF(c2_rpc_fop_conn_establish, RECORD,
-   _(rce_unused, U64));
+record {
+	u64 rce_unused
+} c2_rpc_fop_conn_establish;
 
 /**
    FOP sent by receiver back to sender as a reply to c2_rpc_fop_conn_establish
    FOP.
  */
-DEF(c2_rpc_fop_conn_establish_rep, RECORD,
+record {
    /**
       sender_id assigned by receiver to the established rpc-connection.
       Has value SENDER_ID_INVALID if CONN_ESTABLISH operation fails.
     */
-   _(rcer_sender_id, U64),
+	u64 rcer_sender_id;
    /**
       Contains 0 if CONN_ESTABLISH operation is successful, error code
       otherwise.
     */
-   _(rcer_rc, U32));
+	u32 rcer_rc
+} c2_rpc_fop_conn_establish_rep;
 
 /**
    Request FOP to terminate rpc-connection. Sent from sender to receiver.
  */
-DEF(c2_rpc_fop_conn_terminate, RECORD,
+record {
     /**
        sender_id of rpc-connection being terminated.
      */
-    _(ct_sender_id, U64));
+	u64 ct_sender_id
+} c2_rpc_fop_conn_terminate;
 
 /**
    Reply FOP to c2_rpc_conn_terminate. Sent from receiver to sender.
  */
-DEF(c2_rpc_fop_conn_terminate_rep, RECORD,
-   /**
+record {
+    /**
       sender_id of rpc-connection being terminated.
     */
-   _(ctr_sender_id, U64),
+	u64 ctr_sender_id;
    /**
       Contains 0 if CONN_TERMINATE operation is successful, error code
       otherwise.
     */
-   _(ctr_rc, U32));
+	u32 ctr_rc
+} c2_rpc_fop_conn_terminate_rep;
 
 /**
    Request FOP to establish a new session. Sent from sender to receiver.
  */
-DEF(c2_rpc_fop_session_establish, RECORD,
+record {
    /**
       sender_id of rpc-connection in which a new session is to be created.
     */
-   _(rse_sender_id, U64),
+	u64 rse_sender_id;
    /**
       Number of slots the new session should have.
     */
-   _(rse_slot_cnt, U32));
+	u32 rse_slot_cnt
+} c2_rpc_fop_session_establish;
 
 /**
    Reply of c2_rpc_fop_session_establish. Sent from receiver to
    sender.
  */
-DEF(c2_rpc_fop_session_establish_rep, RECORD,
+record {
    /**
       session_id assigned by receiver to the newly created session.
       Has value SESSION_ID_INVALID if SESSION_ESTABLISH operation fails.
     */
-   _(rser_session_id, U64),
+	u64 rser_session_id;
    /**
       sender_id copied from c2_rpc_fop_session_establish.
     */
-   _(rser_sender_id, U64),
+	u64 rser_sender_id;
    /**
       Contains 0 if SESSION_ESTABLISH operation is successful, error code
       otherwise.
     */
-   _(rser_rc, U32));
+	u32 rser_rc
+} c2_rpc_fop_session_establish_rep;
 
 /**
    Request FOP to terminate a session. Sent from sender to receiver.
  */
-DEF(c2_rpc_fop_session_terminate, RECORD,
+record {
    /**
       sender_id of rpc-connection to which the session being terminated
       belongs.
     */
-   _(rst_sender_id, U64),
+	u64 rst_sender_id;
    /**
       session_id of session being termianted.
     */
-   _(rst_session_id, U64));
+	u64 rst_session_id
+} c2_rpc_fop_session_terminate;
 
 /**
    Reply FOP to c2_rpc_fop_session_terminate. Sent from receiver to sender.
  */
-DEF(c2_rpc_fop_session_terminate_rep, RECORD,
+record {
    /**
       session_id of the session being terminated.
     */
-   _(rstr_session_id, U64),
+	u64 rstr_session_id;
    /**
       sender_id of rpc-connection to which the session being terminated
       belongs.
     */
-   _(rstr_sender_id, U64),
+	u64 rstr_sender_id;
    /**
       Contains 0 if SESSION_TERMINATE operation is successful, error code
       otherwise.
     */
-   _(rstr_rc, U32));
+	u32 rstr_rc
+} c2_rpc_fop_session_terminate_rep;
 
-DEF(c2_rpc_fop_noop, RECORD,
-   _(n_unused, U64));
+record {
+	u64 n_unused
+} c2_rpc_fop_noop;
 
 /** @} end of rpc_session group */
 

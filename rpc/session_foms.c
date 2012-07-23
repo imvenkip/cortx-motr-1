@@ -32,14 +32,6 @@
 #include "lib/misc.h"
 #include "lib/trace.h"
 #include "net/net.h"
-
-#ifdef __KERNEL__
-#include "rpc/session_k.h"
-#else
-#include "rpc/session_u.h"
-#endif
-
-#include "fop/fop_format_def.h"
 #include "rpc/session_internal.h"
 
 /**

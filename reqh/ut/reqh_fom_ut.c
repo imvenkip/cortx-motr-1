@@ -41,7 +41,6 @@
 #include "fop/fop.h"
 #include "reqh/reqh.h"
 #include "fop/fom.h"
-#include "fop/fop_iterator.h"
 #include "stob/stob.h"
 #include "stob/ad.h"
 #include "stob/linux.h"
@@ -50,19 +49,9 @@
 #include "fop/fop_item_type.h"
 #include "rpc/item.h"
 #include "xcode/bufvec_xcode.h"
-
-#include "fop/fop_format_def.h"
-
-#ifdef __KERNEL__
-#include "reqh/reqh_fops_k.h"
-#include "io_fop_k.h"
-#else
-#include "reqh/reqh_fops_u.h"
-#include "io_fop_u.h"
-#endif
-
+#include "reqh/reqh_fops_xc.h"
+#include "io_fop_xc.h"
 #include "io_fop.h"
-#include "reqh/reqh_fops.ff"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpclib.h"
 #include "ut/rpc.h"
@@ -364,16 +353,16 @@ void test_reqh(void)
 {
 	int                    result;
 	char                   opath[64];
-	const char             *path;
-	struct c2_net_xprt     *xprt = &c2_net_lnet_xprt;
-	struct c2_net_domain   net_dom = { };
+	const char            *path;
+	struct c2_net_xprt    *xprt        = &c2_net_lnet_xprt;
+	struct c2_net_domain   net_dom     = { };
 	struct c2_net_domain   srv_net_dom = { };
 	struct c2_dbenv        client_dbenv;
 	struct c2_cob_domain   client_cob_dom;
-	struct c2_stob_domain  *bdom;
+	struct c2_stob_domain *bdom;
 	struct c2_stob_id      backid;
-	struct c2_stob         *bstore;
-	struct c2_stob         *reqh_addb_stob;
+	struct c2_stob        *bstore;
+	struct c2_stob        *reqh_addb_stob;
 
 	struct c2_stob_id      reqh_addb_stob_id = {
 					.si_bits = {

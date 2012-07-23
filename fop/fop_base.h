@@ -57,10 +57,6 @@ struct c2_net_buf_desc;
 /* export */
 struct c2_fop_type;
 struct c2_fop_type_ops;
-struct c2_fop_field;
-struct c2_fop_field_type;
-struct c2_fop_memlayout;
-struct c2_fop_type_format;
 
 typedef uint32_t c2_fop_type_code_t;
 
@@ -75,13 +71,9 @@ struct c2_fop_type {
 	const char                       *ft_name;
 	/** Linkage into a list of all known operations. */
 	struct c2_tlink                   ft_linkage;
-	/** Type of a top level field in fops of this type. */
-	struct c2_fop_field_type         *ft_top;
 	const struct c2_fop_type_ops     *ft_ops;
-	/** Format of this fop's top field. */
-	struct c2_fop_type_format        *ft_fmt;
+	/** Xcode type representing this fop type. */
 	struct c2_xcode_type            **ft_xc_type;
-	struct c2_xcode_ctx               ft_xc_ctx;
 	struct c2_fol_rec_type            ft_rec_type;
 	/** State machine for this fop type */
 	struct c2_fom_type                ft_fom_type;
@@ -168,82 +160,6 @@ enum c2_fop_field_kind {
 	FFK_OTHER,
 
 	FFK_NR
-};
-
-/**
-   fop field.
- */
-struct c2_fop_field {
-	/** Field name. */
-	const char               *ff_name;
-	struct c2_fop_field_type *ff_type;
-	uint32_t                  ff_tag;
-	void                    **ff_decor;
-};
-
-
-enum c2_fop_field_aggr {
-	FFA_RECORD,
-	FFA_UNION,
-	FFA_SEQUENCE,
-	FFA_TYPEDEF,
-	FFA_ATOM,
-	FFA_NR
-};
-
-enum c2_fop_field_primitive_type {
-	FPF_VOID,
-	FPF_BYTE,
-	FPF_U32,
-	FPF_U64,
-
-	FPF_NR
-};
-
-/**
-   fop field type in a programming language "type" sense.
- */
-struct c2_fop_field_type {
-	enum c2_fop_field_aggr   fft_aggr;
-	const char              *fft_name;
-	union {
-		struct c2_fop_field_record {
-		} u_record;
-		struct c2_fop_field_union {
-		} u_union;
-		struct c2_fop_field_sequence {
-			uint64_t s_max;
-		} u_sequence;
-		struct c2_fop_field_typedef {
-		} u_typedef;
-		struct c2_fop_field_atom {
-			enum c2_fop_field_primitive_type a_type;
-		} u_atom;
-	} fft_u;
-	/* a fop must be decorated, see any dictionary. */
-	void                   **fft_decor;
-	size_t                   fft_nr;
-	struct c2_fop_field    **fft_child;
-	struct c2_fop_memlayout *fft_layout;
-};
-
-void c2_fop_field_type_fini(struct c2_fop_field_type *t);
-
-extern struct c2_fop_field_type C2_FOP_TYPE_VOID;
-extern struct c2_fop_field_type C2_FOP_TYPE_BYTE;
-extern struct c2_fop_field_type C2_FOP_TYPE_U32;
-extern struct c2_fop_field_type C2_FOP_TYPE_U64;
-
-/**
-   Contents of a given field in a given fop instance.
-
-   @note a fop field can potentially have multiple values in the same fop. For
-   example, an element field in the array field.
- */
-struct c2_fop_field_instance {
-	struct c2_fop       *ffi_fop;
-	struct c2_fop_field *ffi_field;
-	void                *ffi_val;
 };
 
 int  c2_fops_init(void);

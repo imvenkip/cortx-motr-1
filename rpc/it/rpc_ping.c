@@ -42,14 +42,14 @@
 #include "ut/rpc.h"     /* c2_rpc_client_init */
 #include "fop/fop.h"    /* c2_fop_default_item_ops */
 #include "reqh/reqh.h"  /* c2_reqh_rpc_mach_tl */
+#include "xcode/xcode.h"
+#include "rpc/it/ping_fop_xc.h"
 
 #ifdef __KERNEL__
 #include <linux/kernel.h>
-#include "ping_fop_k.h"
-#include "rpc_ping.h"
+#include "rpc/it/linux_kernel/rpc_ping.h"
 #define printf printk
 #else
-#include "ping_fop_u.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

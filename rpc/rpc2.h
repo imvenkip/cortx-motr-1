@@ -35,6 +35,7 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 #ifndef __COLIBRI_RPC_RPCCORE_H__
 #define __COLIBRI_RPC_RPCCORE_H__
 
+#include "lib/arith.h"
 #include "rpc/rpc_machine.h"
 #include "rpc/bulk.h"
 #include "net/buffer_pool.h"

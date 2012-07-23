@@ -231,18 +231,6 @@ struct c2_io_ioseg;
 int c2_ioservice_fop_init(void);
 void c2_ioservice_fop_fini(void);
 
-/**
- * FOP definitions and corresponding fop type formats
- * exported by ioservice.
- */
-extern struct c2_fop_type_format c2_fop_cob_writev_tfmt;
-extern struct c2_fop_type_format c2_fop_cob_readv_tfmt;
-extern struct c2_fop_type_format c2_fop_cob_writev_rep_tfmt;
-extern struct c2_fop_type_format c2_fop_cob_readv_rep_tfmt;
-extern struct c2_fop_type_format c2_fop_file_fid_tfmt;
-extern struct c2_fop_type_format c2_fop_cob_rw_tfmt;
-extern struct c2_fop_type_format c2_fop_cob_rw_reply_tfmt;
-
 extern struct c2_fop_type c2_fop_cob_readv_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_fopt;
 extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
@@ -262,7 +250,6 @@ static inline struct c2_net_transfer_mc *io_fop_tm_get(
 
 	return &fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm;
 }
-
 
 /* __COLIBRI_IOSERVICE_IO_FOPS_H__ */
 #endif

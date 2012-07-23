@@ -141,7 +141,7 @@ static struct c2_fit_type *fits[FIT_TYPE_MAX] = { NULL, };
  * Some helper functions.
  */
 
-static const struct ftype_fit *data_get(const struct c2_fop_field_type *ftype);
+static const struct ftype_fit *data_get(const struct c2_xcode_type *xct);
 static struct c2_fit_frame *fit_top(struct c2_fit *it);
 static const struct field_fit_data *top_field(struct c2_fit *it);
 static void *drill(const struct c2_fit *it, int depth);
@@ -240,7 +240,7 @@ void c2_fop_itype_watch_add(struct c2_fit_type *itype,
 	struct c2_fit_watch *scan;
 
 	c2_tl_for(wat, &itype->fit_watch, scan) {
-		C2_PRE(scan->fif_field != watch->fif_field);
+		C2_PRE(scan->fif_xct != watch->fif_xct);
 	} c2_tl_endfor;
 
 	wat_tlink_init_at(watch, &itype->fit_watch);
@@ -256,11 +256,11 @@ int c2_fit_field_add(struct c2_fit_watch *watch,
 		     struct c2_fop_type *ftype, const char *fname,
 		     uint64_t add_bits, uint64_t sub_bits)
 {
-	struct c2_fit_mod   *mod;
-	struct c2_fop_field *field;
-	int                  result;
+	struct c2_fit_mod     *mod;
+	struct c2_xcode_field *field;
+	int                    result;
 
-	field = c2_fop_type_field_find(ftype->ft_top, fname);
+	field = c2_fop_type_field_find(*ftype->ft_xc_type, fname);
 	if (field != NULL) {
 		C2_ALLOC_PTR_ADDB(mod, &ftype->ft_addb, &fit_addb_loc);
 		if (mod != NULL) {
@@ -290,21 +290,21 @@ static bool c2_fit_invariant(const struct c2_fit *it)
 		return false;
 	if (it->fi_depth == -1)
 		return true;
-	if (it->fi_stack[0].ff_type != it->fi_fop->f_type->ft_top)
+	if (it->fi_stack[0].ff_xc_type != *it->fi_fop->f_type->ft_xc_type)
 		return false;
 	for (i = 0; i <= it->fi_depth; ++i) {
 		const struct c2_fit_frame      *frame;
 		const struct ftype_fit         *data;
-		const struct c2_fop_field_type *ftype;
+		const struct c2_xcode_type     *xct;
 
 		frame = &it->fi_stack[i];
-		ftype = frame->ff_type;
-		if (ftype == NULL)
+		xct   = frame->ff_xc_type;
+		if (xct == NULL)
 			return false;
-		data = data_get(ftype);
-		if (frame->ff_pos > ftype->fft_nr)
+		data = data_get(xct);
+		if (frame->ff_pos > xct->xct_nr)
 			return false;
-		if (ftype->fft_nr != data->ff_nr)
+		if (xct->xct_nr != data->ff_nr)
 			return false;
 		if (!ftype_fit_invariant(data))
 			return false;
@@ -317,9 +317,9 @@ void c2_fit_init(struct c2_fit *it, struct c2_fit_type *itype,
 {
 	C2_SET0(it);
 
-	it->fi_type             = itype;
-	it->fi_fop              = fop;
-	it->fi_stack[0].ff_type = fop->f_type->ft_top;
+	it->fi_type                = itype;
+	it->fi_fop                 = fop;
+	it->fi_stack[0].ff_xc_type = *fop->f_type->ft_xc_type;
 }
 
 void c2_fit_fini(struct c2_fit *it)
@@ -342,14 +342,14 @@ int c2_fit_yield(struct c2_fit *it, struct c2_fit_yield *yield)
 		struct c2_fit_frame            *top;
 		/* field type of the current nesting level. This is invalidated
 		   when it->fi_depth is modified. */
-		const struct c2_fop_field_type *ftype;
+		const struct c2_xcode_type     *xct;
 		/* a field within the current nesting level, which the cursor is
 		   positioned over. This is invalidated when either stack depth
 		   or top->ff_pos changes. */
 		const struct field_fit_data    *el;
 
 		top   = fit_top(it);
-		ftype = top->ff_type;
+		xct   = top->ff_xc_type;
 		el    = top_field(it);
 
 		C2_ASSERT(c2_fit_invariant(it));
@@ -360,17 +360,17 @@ int c2_fit_yield(struct c2_fit *it, struct c2_fit_yield *yield)
 		 * First, advance it to the next valid position, if necessary,
 		 * or complete the iteration.
 		 */
-		switch (ftype->fft_aggr) {
-		case FFA_TYPEDEF:
-		case FFA_ATOM:
-		case FFA_RECORD:
+		switch (xct->xct_aggr) {
+		case C2_XA_TYPEDEF:
+		case C2_XA_ATOM:
+		case C2_XA_RECORD:
 			/*
 			 * For these aggregation types nothing has to be done:
 			 * either the position after last returned one is valid,
 			 * or the iteration is over.
 			 */
 			break;
-		case FFA_UNION:
+		case C2_XA_UNION:
 			/*
 			 * only one branch of union is actually present in the
 			 * fop. Check whether this branch is among the fields
@@ -386,7 +386,7 @@ int c2_fit_yield(struct c2_fit *it, struct c2_fit_yield *yield)
 				 * If check was already tried, move to the last
 				 * position.
 				 */
-				top->ff_pos = data_get(ftype)->ff_nr;
+				top->ff_pos = data_get(xct)->ff_nr;
 				C2_ASSERT(!el->ffd_valid);
 			} else {
 				tag_find(it);
@@ -394,7 +394,7 @@ int c2_fit_yield(struct c2_fit *it, struct c2_fit_yield *yield)
 			}
 			el = top_field(it);
 			break;
-		case FFA_SEQUENCE: {
+		case C2_XA_SEQUENCE: {
 			uint32_t seq_length;
 
 			if (el->ffd_valid)
@@ -444,14 +444,14 @@ int c2_fit_yield(struct c2_fit *it, struct c2_fit_yield *yield)
 		/* The cursor is positioned over a valid position. */
 		C2_ASSERT(el->ffd_valid);
 		if (el->ffd_recurse) {
-			struct c2_fop_field_type *field_type;
+			const struct c2_xcode_type *xc_type;
 
 			/* push next level onto the stack. */
-			field_type = ftype->fft_child[el->ffd_fieldno]->ff_type;
+			xc_type = xct->xct_child[el->ffd_fieldno].xf_type;
 			++it->fi_depth;
 			top = fit_top(it);
 			C2_SET0(top);
-			top->ff_type = field_type;
+			top->ff_xc_type = xc_type;
 			C2_ASSERT(top_field(it)->ffd_valid);
 			continue;
 		}
@@ -459,7 +459,7 @@ int c2_fit_yield(struct c2_fit *it, struct c2_fit_yield *yield)
 		C2_ASSERT(c2_fit_invariant(it));
 		/* The cursor is over a valid leaf position. */
 		yield->fy_val.ffi_fop   = it->fi_fop;
-		yield->fy_val.ffi_field = ftype->fft_child[el->ffd_fieldno];
+		yield->fy_val.ffi_field = &xct->xct_child[el->ffd_fieldno];
 		yield->fy_val.ffi_val   = drill(it, it->fi_depth);
 		yield->fy_bits          = el->ffd_bits;
 		top->ff_pos++;
@@ -493,7 +493,7 @@ static struct c2_fop_decorator fit_dec = {
    cumulative watch-bits.
  */
 static bool has_watches(struct c2_fit_type *itype,
-			const struct c2_fop_field *child, uint64_t *bits)
+			const struct c2_xcode_field *child, uint64_t *bits)
 {
 	struct c2_fit_watch *watch;
 	struct c2_fit_mod   *mod;
@@ -503,7 +503,7 @@ static bool has_watches(struct c2_fit_type *itype,
 
 	*bits = 0;
 	c2_tl_for(wat, &itype->fit_watch, watch) {
-		if (watch->fif_field == child->ff_type) {
+		if (watch->fif_xct == child->xf_type) {
 			*bits = watch->fif_bits;
 			c2_tl_for(mod, &watch->fif_mod, mod) {
 				if (mod->fm_field == child) {
@@ -517,7 +517,7 @@ static bool has_watches(struct c2_fit_type *itype,
 	return false;
 }
 
-int c2_fop_field_type_fit(struct c2_fop_field_type *fieldt)
+int c2_fop_xct_fit(struct c2_xcode_type *xct)
 {
 	struct ftype_fit *data;
 	int               i;
@@ -531,11 +531,11 @@ int c2_fop_field_type_fit(struct c2_fop_field_type *fieldt)
 	if (data == NULL)
 		return -ENOMEM;
 
-	c2_fop_type_decoration_set(fieldt, &fit_dec, data);
-	data->ff_nr = fieldt->fft_nr;
+	c2_fop_type_decoration_set(xct, &fit_dec, data);
+	data->ff_nr = xct->xct_nr;
 	for (t = 0; t < ARRAY_SIZE(data->ff_present); ++t) {
 		struct c2_fit_type *itype;
-                bool all_watches = false;
+                bool   all_watches = false;
 
 		itype = fits[t];
 		if (itype == NULL)
@@ -549,11 +549,11 @@ int c2_fop_field_type_fit(struct c2_fop_field_type *fieldt)
 			return -ENOMEM;
 
 		for (i = j = 0; i < data->ff_nr; ++i) {
-			const struct c2_fop_field   *child;
-			struct field_fit_data  *el;
-			const struct ftype_fit *child_data;
+			const struct c2_xcode_field *child;
+			struct field_fit_data       *el;
+			const struct ftype_fit      *child_data;
 
-			child = fieldt->fft_child[i];
+			child = &xct->xct_child[i];
 			el    = &data->ff_present[t][j];
 
 			/*
@@ -570,7 +570,7 @@ int c2_fop_field_type_fit(struct c2_fop_field_type *fieldt)
 				 */
 			}
 
-			child_data = data_get(child->ff_type);
+			child_data = data_get(child->xf_type);
 			/*
 			 * If any sub-field is watched...
 			 */
@@ -596,9 +596,9 @@ int c2_fop_field_type_fit(struct c2_fop_field_type *fieldt)
 /**
    Returns fop iterators decoration, associated with a fop field type.
  */
-static const struct ftype_fit *data_get(const struct c2_fop_field_type *ftype)
+static const struct ftype_fit *data_get(const struct c2_xcode_type *xct)
 {
-	return c2_fop_type_decoration_get(ftype, &fit_dec);
+	return c2_fop_type_decoration_get(xct, &fit_dec);
 }
 
 /**
@@ -617,7 +617,7 @@ frame_field(const struct c2_fit *it, const struct c2_fit_frame *frame)
 {
 	const struct ftype_fit *data;
 
-	data = data_get(frame->ff_type);
+	data = data_get(frame->ff_xc_type);
 	C2_ASSERT(data != NULL);
 	C2_ASSERT(frame->ff_pos <= data->ff_nr);
 	return &data->ff_present[it->fi_type->fit_index][frame->ff_pos];
@@ -634,6 +634,7 @@ static const struct field_fit_data *top_field(struct c2_fit *it)
 /**
    Returns the pointer to the instance of a field the iterator is over.
  */
+#if 0
 static void *drill(const struct c2_fit *it, int depth)
 {
 	int                        i;
@@ -651,6 +652,26 @@ static void *drill(const struct c2_fit *it, int depth)
 					      frame->ff_u.u_index);
 	return mark;
 }
+#else
+static void *drill(const struct c2_fit *it, int depth)
+{
+	int                        i;
+	void                      *mark;
+	const struct c2_fit_frame *frame;
+
+	C2_PRE(depth <= it->fi_depth);
+	C2_PRE(c2_fit_invariant(it));
+
+	frame = &it->fi_stack[0];
+	for (mark = c2_fop_data(it->fi_fop), i = 0; i <= depth; ++i, ++frame) {
+		mark = c2_xcode_addr(&(struct c2_xcode_obj){frame->ff_xc_type,
+					                    mark},
+			             frame_field(it, frame)->ffd_fieldno,
+			             frame->ff_u.u_index);
+	}
+	return mark;
+}
+#endif
 
 /**
    Assuming that current nesting level of the iterator is a union field type,
@@ -659,16 +680,16 @@ static void *drill(const struct c2_fit *it, int depth)
  */
 static bool tag_find(struct c2_fit *it)
 {
-	uint32_t                  tag;
-	struct field_fit_data    *el_array;
-	struct field_fit_data    *el;
-	struct c2_fop_field_type *ftype;
-	struct c2_fit_frame      *top;
+	uint32_t                    tag;
+	struct field_fit_data      *el_array;
+	struct field_fit_data      *el;
+	const struct c2_xcode_type *xct;
+	struct c2_fit_frame        *top;
 
 	top   = fit_top(it);
-	ftype = top->ff_type;
+	xct   = top->ff_xc_type;
 
-	C2_PRE(ftype->fft_aggr == FFA_UNION);
+	C2_PRE(xct->xct_aggr == C2_XA_UNION);
 	C2_PRE(c2_fit_invariant(it));
 
 	/*
@@ -676,14 +697,14 @@ static bool tag_find(struct c2_fit *it)
 	 * 4 bytes of an FFA_UNION field.
 	 */
 	tag      = *(uint32_t *)drill(it, it->fi_depth - 1);
-	el_array = data_get(ftype)->ff_present[it->fi_type->fit_index];
+	el_array = data_get(xct)->ff_present[it->fi_type->fit_index];
 
 	for (el = &el_array[top->ff_pos]; el->ffd_valid; ++el, ++top->ff_pos) {
-		struct c2_fop_field *field;
+		struct c2_xcode_field field;
 
-		C2_ASSERT(el->ffd_fieldno < ftype->fft_nr);
-		field = ftype->fft_child[el->ffd_fieldno];
-		if (field->ff_tag == tag)
+		C2_ASSERT(el->ffd_fieldno < xct->xct_nr);
+		field = xct->xct_child[el->ffd_fieldno];
+		if (field.xf_tag == tag)
 			return true;
 	}
 	C2_POST(c2_fit_invariant(it));
@@ -711,16 +732,16 @@ static struct c2_fit_type fop_all_object_itype = {
         .fit_index = -1
 };
 
-void c2_fop_object_init(const struct c2_fop_type_format *fid_fop_type)
+void c2_fop_object_init(const struct c2_xcode_type *fid_xc_type)
 {
-	struct c2_fop_field_type *fid_type;
+	const struct c2_xcode_type *xct;
 
-	fid_type = fid_fop_type->ftf_out;
-	C2_PRE(fid_type != NULL);
-	C2_PRE(fid_type->fft_nr == 2);
-	C2_PRE(fid_type->fft_layout->fm_sizeof == 2 * sizeof(uint64_t));
+	xct = fid_xc_type;
+	C2_PRE(xct != NULL);
+	C2_PRE(xct->xct_nr == 2);
+	C2_PRE(xct->xct_sizeof == 2 * sizeof(uint64_t));
 
-	fop_object_watch.fif_field = fid_type;
+	fop_object_watch.fif_xct   = xct;
 	fop_object_watch.fif_bits  = C2_FOB_LOAD;
 	c2_fop_itype_watch_add(&fop_object_itype, &fop_object_watch);
 }

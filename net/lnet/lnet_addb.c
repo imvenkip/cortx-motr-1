@@ -18,11 +18,8 @@
  * Original creation date: 2/01/2012
  */
 
-#ifdef __KERNEL__
-# include "addb/addbff/addb_k.h"
-#else
-# include "addb/addbff/addb_u.h"
-#endif
+#include "addb/addbff/addb.h"
+#include "lib/arith.h"
 
 /* forward references within this file */
 static int subst_name_uint64_t_qstats(struct c2_addb_dp *dp, const char *name,

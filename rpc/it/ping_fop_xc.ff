@@ -1,6 +1,7 @@
 /* -*- C -*- */
+
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,25 +15,22 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
- * Original creation date: 06/21/2011
+ * Original author: Anup Barve <Anup_Barve@xyratex.com>
+ * Original creation date: 07/07/2011
  */
 
-/**
-   @addtogroup reqh
-   @{
- */
+sequence {
+	u32 f_count;
+	u64 f_data
+} c2_fop_ping_arr;
 
-/**
- * @file reqh_fops.ff
- *
- * <b>Reqh generic error reply</b>
- */
+record {
+	c2_fop_ping_arr fp_arr
+} c2_fop_ping;
 
-DEF(c2_reqh_error_rep, RECORD,
-	_(rerr_rc, U32));
-
-/** @} end of reqh group */
+record {
+	u32 fpr_rc
+} c2_fop_ping_rep;
 
 /*
  *  Local variables:

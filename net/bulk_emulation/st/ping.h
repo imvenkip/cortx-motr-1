@@ -65,10 +65,10 @@ enum {
 	PART3_SERVER_ID = 141421,
 };
 
+#define PRId64 "lld" /* from <inttypes.h> */
 /* Debug printf macro */
 #ifdef __KERNEL__
 #define PING_ERR(fmt, ...) printk(KERN_ERR fmt , ## __VA_ARGS__)
-#define PRId64 "lld" /* from <inttypes.h> */
 #else
 #include <stdio.h>
 #define PING_ERR(fmt, ...) fprintf(stderr, fmt , ## __VA_ARGS__)

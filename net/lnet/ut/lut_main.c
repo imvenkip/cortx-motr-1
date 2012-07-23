@@ -22,8 +22,12 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
 
 #include "colibri/init.h"
+#include "lib/arith.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/memory.h"

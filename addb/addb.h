@@ -421,10 +421,6 @@ extern struct c2_addb_ctx c2_addb_global_ctx;
 
 extern struct c2_fop_type c2_addb_record_fopt; /* opcode = 14 */
 extern struct c2_fop_type c2_addb_reply_fopt;
-extern struct c2_fop_type_format c2_mem_buf_tfmt;
-extern struct c2_fop_type_format c2_addb_record_header_tfmt;
-extern struct c2_fop_type_format c2_addb_record_tfmt;
-extern struct c2_fop_type_format c2_addb_reply_tfmt;
 
 /** @} end of addb group */
 

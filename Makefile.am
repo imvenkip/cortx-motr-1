@@ -1,18 +1,16 @@
 SUBDIRS_BASE = m4 doc man patches
 
-# Order is important until fop/rt is reached. Fop needs all libs
-# before it in the list built in order to use fop2c addb_pseudo is
-# used only for build fop2c, with which full addb can be built. Keep
-# this list alphabetically sorted after "net".
+# Order is important until fid is reached. Fop needs all libs
+# before it in the built list.
+# Keep this list alphabetically sorted after "net".
 
 SUBDIRS_LIBS = \
                lib \
-               addb/addb_pseudo \
+               xcode/ff2c \
 	       addb/ut \
                fol \
                db \
                fid \
-               fop/rt \
                \
                addb/addbff \
                net \
@@ -39,7 +37,6 @@ SUBDIRS_LIBS = \
                udb \
                ut \
                xcode \
-               xcode/ff2c \
 	       yaml2db
 SUBDIR_IT = rpc/it
 SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut fol/ut \

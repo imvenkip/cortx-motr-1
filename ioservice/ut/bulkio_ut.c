@@ -1540,7 +1540,7 @@ const struct c2_test_suite bulkio_server_ut = {
 		 * bulkio_init() as .ts_init requires changing all
 		 * C2_UT_ASSERTS to C2_ASSERTS.
 		 */
-		{ "bulkio_init",	  bulkio_init},
+		{ "bulkio_init", bulkio_init},
 		{ "bulkio_server_single_read_write",
 		   bulkio_server_single_read_write},
 		{ "bulkio_server_read_write_state_test",
@@ -1551,7 +1551,7 @@ const struct c2_test_suite bulkio_server_ut = {
 		   bulkio_server_read_write_multiple_nb},
 		{ "bulkio_server_rw_state_transition_test",
 		   bulkio_server_rw_state_transition_test},
-		{ "bulkio_fini",	  bulkio_fini},
+		{ "bulkio_fini", bulkio_fini},
 		{ NULL, NULL }
 	}
 };

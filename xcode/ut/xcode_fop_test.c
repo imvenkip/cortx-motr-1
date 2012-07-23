@@ -180,8 +180,10 @@ static void test_fop_encdec(void)
 	struct c2_fop           *fd1;
 	struct c2_net_buffer    *nb;
 	struct c2_fop_test      *ccf1;
+	struct c2_xcode_ctx      xctx;
+	struct c2_xcode_ctx      xctx1;
 	size_t                   fop_size;
-	size_t                   act_fop_size = 6876; /* Please see comment block above */
+	size_t                   act_fop_size = 6876;
 	size_t                   allocated;
 
 	allocated = c2_allocated();
@@ -237,10 +239,10 @@ static void test_fop_encdec(void)
 	}
 
 	/* Check the size of the fop using the interfaces. */
-	c2_xcode_ctx_init(&f1->f_type->ft_xc_ctx,
+	c2_xcode_ctx_init(&xctx,
 			  &(struct c2_xcode_obj){*f1->f_type->ft_xc_type,
 					  ccf1});
-	fop_size = c2_xcode_length(&f1->f_type->ft_xc_ctx);
+	fop_size = c2_xcode_length(&xctx);
 	C2_UT_ASSERT(fop_size == act_fop_size);
 
 	/* Allocate a netbuf and a bufvec, check alignments. */
@@ -250,13 +252,13 @@ static void test_fop_encdec(void)
         cur_addr = c2_bufvec_cursor_addr(&cur);
 	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 
-	c2_xcode_ctx_init(&f1->f_type->ft_xc_ctx,
+	c2_xcode_ctx_init(&xctx,
 			  &(struct c2_xcode_obj){*f1->f_type->ft_xc_type,
 					  ccf1});
-	c2_bufvec_cursor_init(&f1->f_type->ft_xc_ctx.xcx_buf, &nb->nb_buffer);
+	c2_bufvec_cursor_init(&xctx.xcx_buf, &nb->nb_buffer);
 
 	/* Encode the fop into the bufvec. */
-	rc = c2_xcode_encode(&f1->f_type->ft_xc_ctx);
+	rc = c2_xcode_encode(&xctx);
 	C2_UT_ASSERT(rc == 0);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
 	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
@@ -270,18 +272,18 @@ static void test_fop_encdec(void)
 	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 
 	/* Decode the payload from bufvec into the fop. */
-	c2_xcode_ctx_init(&fd1->f_type->ft_xc_ctx,
+	c2_xcode_ctx_init(&xctx1,
 			  &(struct c2_xcode_obj){
 				  *fd1->f_type->ft_xc_type, NULL});
 
-	fd1->f_type->ft_xc_ctx.xcx_alloc = c2_xcode_alloc;
-	fd1->f_type->ft_xc_ctx.xcx_buf   = cur;
-	rc = c2_xcode_decode(&fd1->f_type->ft_xc_ctx);
+	xctx1.xcx_alloc = c2_xcode_alloc;
+	xctx1.xcx_buf   = cur;
+	rc = c2_xcode_decode(&xctx1);
 	if (rc == 0) {
 		if (fd1->f_data.fd_data != NULL)
 			c2_free(fd1->f_data.fd_data);
 		fd1->f_data.fd_data =
-			fd1->f_type->ft_xc_ctx.xcx_it.xcu_stack[0].s_obj.xo_ptr;
+			xctx1.xcx_it.xcu_stack[0].s_obj.xo_ptr;
 	}
 
 	C2_UT_ASSERT(rc == 0);

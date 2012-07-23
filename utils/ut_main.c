@@ -45,7 +45,6 @@ extern const struct c2_test_suite db_cursor_ut;
 extern const struct c2_test_suite emap_ut;
 extern const struct c2_test_suite fit_ut;
 extern const struct c2_test_suite fol_ut;
-extern const struct c2_test_suite fop_ut;
 extern const struct c2_test_suite c2_net_bulk_if_ut;
 extern const struct c2_test_suite c2_net_bulk_mem_ut;
 extern const struct c2_test_suite c2_net_lnet_ut;
@@ -93,7 +92,6 @@ void add_uts(void)
 	c2_ut_add(&emap_ut);
 	c2_ut_add(&fit_ut);
 	c2_ut_add(&fol_ut);
-	c2_ut_add(&fop_ut);
 	c2_ut_add(&c2_net_bulk_if_ut);
 	c2_ut_add(&c2_net_bulk_mem_ut);
 	c2_ut_add(&c2_net_lnet_ut);

@@ -628,9 +628,7 @@ AC_CONFIG_FILES([
                  fol/Makefile
                  fol/ut/Makefile
                  fop/Makefile
-                 fop/fop2c
-                 fop/rt/Makefile
-                 fop/ut/Makefile
+		 fop/ut/Makefile
                  ioservice/Makefile
                  ioservice/ut/Makefile
                  layout/Makefile

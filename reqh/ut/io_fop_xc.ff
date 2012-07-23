@@ -1,7 +1,6 @@
 /* -*- C -*- */
-
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,19 +14,55 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Anup Barve <Anup_Barve@xyratex.com>
- * Original creation date: 07/07/2011
+ * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
+ * Original creation date: 05/04/2011
  */
 
-DEF(c2_fop_ping_arr, SEQUENCE,
-	_(f_count, U32),
-	_(f_data, U64));
+/**
+   @addtogroup reqh
+   @{
+ */
 
-DEF(c2_fop_ping, RECORD,
-	_(fp_arr, c2_fop_ping_arr));
+/** @file io_fop_xc.ff
+ *
+ * <b>Simplistic IO fop formats</b>
+ *
+ */
 
-DEF(c2_fop_ping_rep, RECORD,
-	_(fpr_rc, U32));
+record {
+	u64 f_seq;
+	u64 f_oid
+} stob_io_fop_fid;
+
+record {
+	stob_io_fop_fid fiw_object;
+	u8              fiw_value
+} c2_stob_io_write;
+
+record {
+	u32 fiwr_rc;
+	u32 fiwr_count
+} c2_stob_io_write_rep;
+
+record {
+	stob_io_fop_fid fir_object
+} c2_stob_io_read;
+
+record {
+	u32 firr_rc;
+	u32 firr_count;
+	u8  firr_value
+} c2_stob_io_read_rep;
+
+record {
+	stob_io_fop_fid fic_object
+} c2_stob_io_create;
+
+record {
+	u32 ficr_rc
+} c2_stob_io_create_rep;
+
+/** @} end of reqh group */
 
 /*
  *  Local variables:

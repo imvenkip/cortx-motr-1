@@ -33,12 +33,7 @@
 #include "reqh/reqh.h"              /* c2_fom_state_generic() */
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
-
-#ifdef __KERNEL__
-#include "ioservice/io_fops_k.h"
-#else
-#include "ioservice/io_fops_u.h"
-#endif
+#include "ioservice/io_fops_xc.h"
 
 /* Forward Declarations. */
 static int  cob_fom_create(struct c2_fop *fop, struct c2_fom **out);
@@ -291,7 +286,7 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	fop = c2_fop_data(fom->fo_fop);
 
 	c2_cob_nskey_make(&nskey, cc->fco_cfid.f_container,
-			  cc->fco_cfid.f_key, fop->cc_cobname.cn_name);
+			  cc->fco_cfid.f_key, (char *)fop->cc_cobname.cn_name);
 	if (nskey == NULL) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    c2_addb_oom);

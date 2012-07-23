@@ -24,14 +24,8 @@
 
 #include "fop/fop.h"
 #include "fop/fop_format.h"
-
 #include "rpc/session_fops.h"
-#ifdef __KERNEL__
-#include "rpc/session_k.h"
-#else
-#include "rpc/session_u.h"
-#endif
-
+#include "rpc/session_xc.h"
 #include "fop/fom.h"
 /**
    @addtogroup rpc_session

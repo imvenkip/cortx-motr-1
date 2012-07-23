@@ -97,7 +97,9 @@ int ff2c_h_gen(const struct ff2c_ff *ff, const struct ff2c_gen_opt *opt)
 	    opt->go_basename);
 	out("#ifndef %s\n"
 	    "#define %s\n\n", opt->go_guardname, opt->go_guardname);
-	out("#include <sys/types.h>\n\n");
+	out("#ifndef __KERNEL__\n");
+	out("#include <sys/types.h>\n");
+	out("#endif /* __KERNEL__ */\n\n");
 	out("#include \"xcode/xcode.h\"\n\n");
 
 	for (r = ff->ff_require.l_head; r != NULL; r = r->r_next)

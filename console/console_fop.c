@@ -31,13 +31,10 @@
 #include "lib/memory.h"		/* C2_ALLOC_PTR */
 #include "lib/errno.h"		/* ENOMEM */
 #include "fop/fop_item_type.h"	/* default fop encode/decode */
-#include "fop/fop_format_def.h" /* console.ff */
-
 
 #include "console/console_fop.h" /*FOPs defs */
 #include "console/console_fom.h" /*FOMs defs */
-#include "console/console_u.h"	 /* FOP memory layout */
-#include "console/console.ff"
+#include "console/console_xc.h"	 /* FOP memory layout */
 #include "xcode/bufvec_xcode.h"  /* c2_xcode_fop_size_get() */
 
 /**
@@ -57,17 +54,17 @@ static const struct c2_fop_type_ops c2_cons_fop_reply_ops = {
 
 /* Fop and RPC Item type definitions for device failures and replies
    and replies */
-C2_FOP_TYPE_DECLARE(c2_cons_fop_device, "Device Failed",
-		    &c2_cons_fop_device_ops,
-		    C2_CONS_FOP_DEVICE_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST);
+C2_FOP_TYPE_DECLARE_XC(c2_cons_fop_device, "Device Failed",
+		       &c2_cons_fop_device_ops,
+		       C2_CONS_FOP_DEVICE_OPCODE,
+		       C2_RPC_ITEM_TYPE_REQUEST);
 
-C2_FOP_TYPE_DECLARE(c2_cons_fop_reply, "Console Reply",
-		    &c2_cons_fop_reply_ops,
-		    C2_CONS_FOP_REPLY_OPCODE,
-		    C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE_XC(c2_cons_fop_reply, "Console Reply",
+		       &c2_cons_fop_reply_ops,
+		       C2_CONS_FOP_REPLY_OPCODE,
+		       C2_RPC_ITEM_TYPE_REPLY);
 
-C2_FOP_TYPE_DECLARE(c2_cons_fop_test, "Console Test", NULL, C2_CONS_TEST, 0);
+C2_FOP_TYPE_DECLARE_XC(c2_cons_fop_test, "Console Test", NULL, C2_CONS_TEST, 0);
 
 static struct c2_fop_type *fops[] = {
         &c2_cons_fop_device_fopt,
@@ -75,25 +72,18 @@ static struct c2_fop_type *fops[] = {
         &c2_cons_fop_test_fopt
 };
 
-static struct c2_fop_type_format *fmts[] = {
-	&c2_cons_fop_fid_tfmt,
-	&c2_cons_fop_buf_tfmt,
-};
-
 void c2_console_fop_fini(void)
 {
         c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
-	c2_fop_type_format_fini_nr(fmts, ARRAY_SIZE(fmts));
+	c2_xc_console_xc_fini();
 }
 
 int c2_console_fop_init(void)
 {
         int result;
 
-
-	result = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
-	if (result == 0)
-		result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
+	c2_xc_console_xc_init();
+	result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
 
 	/* Initialize fom type once */
 	c2_cons_fop_device_fopt.ft_fom_type = c2_cons_fom_device_type;

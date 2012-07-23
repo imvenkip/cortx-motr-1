@@ -32,28 +32,26 @@
 #include "addb/addb.h"
 
 #ifdef __KERNEL__
-# include "addb/addbff/addb_k.h"
+# include "addb/addbff/addb.h"
 # define c2_addb_handler NULL
 #else
 
 int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 
-# include "addb/addbff/addb_u.h"
+# include "addb/addbff/addb.h"
 #endif
 
-#include "fop/fop_format_def.h"
-#include "addb/addbff/addb.ff"
 #include "rpc/rpc_opcodes.h"
 
 static struct c2_fop_type_ops addb_ops = {
 	.fto_execute = NULL,
 };
 
-C2_FOP_TYPE_DECLARE(c2_addb_record, "addb", &addb_ops,
-		    C2_ADDB_RECORD_REQUEST_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
+C2_FOP_TYPE_DECLARE_XC(c2_addb_record, "addb", &addb_ops,
+		       C2_ADDB_RECORD_REQUEST_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
 
-C2_FOP_TYPE_DECLARE(c2_addb_reply,  "addb reply", NULL, C2_ADDB_REPLY_OPCODE,
-		    C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE_XC(c2_addb_reply,  "addb reply", NULL, C2_ADDB_REPLY_OPCODE,
+		       C2_RPC_ITEM_TYPE_REPLY);
 /**
    ADDB record body for function fail event.
 
@@ -321,9 +319,6 @@ int c2_addb_trace_pack(struct c2_addb_dp *dp,
 	return rc;
 }
 
-extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U32_tfmt;
-extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U64_tfmt;
-extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_BYTE_tfmt;
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

@@ -111,7 +111,8 @@ struct c2_fit_type {
  */
 struct c2_fit_watch {
 	/** A fop field type that the iterator type watches for. */
-	const struct c2_fop_field_type *fif_field;
+	const struct c2_xcode_type     *fif_xct;
+
 	/**
 	    A collection of bit-flags associated with this watch.
 
@@ -154,22 +155,22 @@ struct c2_fit_mod {
 	/**
 	 * A field being watched.
 	 */
-	const struct c2_fop_field *fm_field;
+	const struct c2_xcode_field *fm_field;
 	/**
 	 * Bits added (|) to the watch bit flags.
 	 */
-	uint64_t                   fm_bits_add;
+	uint64_t                     fm_bits_add;
 	/**
 	 * Bits cleared (&~) from the watch bit flags.
 	 */
-	uint64_t                   fm_bits_sub;
+	uint64_t                     fm_bits_sub;
 	/**
 	 * Linkage to the list of all modifiers for the watch.
 	 *
 	 * @see c2_fit_watch::fif_mod.
 	 */
-	struct c2_tlink            fm_linkage;
-	uint64_t                   fm_magix;
+	struct c2_tlink              fm_linkage;
+	uint64_t                     fm_magix;
 };
 
 void c2_fop_itype_init(struct c2_fit_type *itype);
@@ -204,22 +205,22 @@ int c2_fit_field_add(struct c2_fit_watch *watch,
  */
 struct c2_fit_frame {
 	/** Field type for the level. */
-	struct c2_fop_field_type *ff_type;
+	const struct c2_xcode_type *ff_xc_type;
 	/** Position within the level. */
-	size_t                    ff_pos;
+	size_t                      ff_pos;
 	union {
 		/**
 		 * Element index reached by the cursor for FFA_SEQUENCE
 		 * field.
 		 */
-		uint64_t          u_index;
+		uint64_t            u_index;
 		/**
 		 * True iff union branch was already searched for on
 		 * this level.
 		 *
 		 * @see c2_fit_yield()
 		 */
-		bool              u_branch;
+		bool                u_branch;
 	} ff_u;
 };
 
@@ -303,7 +304,7 @@ void c2_fits_fini(void);
    Called from c2_fop_type_build() to construct fop-iterators related state for
    a newly built fop type.
  */
-int c2_fop_field_type_fit(struct c2_fop_field_type *fieldt);
+int c2_fop_xct_fit(struct c2_xcode_type *xct);
 
 /*
  * Standard fop iterator types.
@@ -321,7 +322,8 @@ enum c2_fop_object_bitflags {
 	C2_FOB_WRITE = 1 << 2
 };
 
-void c2_fop_object_init(const struct c2_fop_type_format *fid_type);
+//void c2_fop_object_init(const struct c2_fop_type_format *fid_type);
+void c2_fop_object_init(const struct c2_xcode_type *fid_xc_type);
 void c2_fop_object_fini(void);
 
 void c2_fop_object_it_init (struct c2_fit *it, struct c2_fop *fop);

@@ -24,15 +24,11 @@
 #include "lib/mutex.h"
 #include "lib/vec.h"
 #include "fop/fop_base.h"
-#include "fop/fop_iterator.h"
 
 /**
    @addtogroup fop
    @{
  */
-
-int  c2_fop_field_type_prepare  (struct c2_fop_field_type *ftype);
-void c2_fop_field_type_unprepare(struct c2_fop_field_type *ftype);
 
 /*
  * Imported either from fop/fop.c or from fop/rt/stub.c
@@ -70,56 +66,25 @@ C2_TL_DEFINE(ft, static, struct c2_fop_type);
  */
 bool fop_types_built = false;
 
-void c2_fop_field_type_fini(struct c2_fop_field_type *t)
-{
-	size_t i;
-
-	c2_fop_field_type_unprepare(t);
-	if (t->fft_child != NULL) {
-		for (i = 0; i < t->fft_nr; ++i) {
-			if (t->fft_child[i] != NULL)
-				c2_free(t->fft_child[i]);
-		}
-		c2_free(t->fft_child);
-		t->fft_child = NULL;
-	}
-}
-
 void c2_fop_type_fini(struct c2_fop_type *fopt)
 {
 	fop_fol_type_fini(fopt);
-	if (fopt->ft_top != NULL || *fopt->ft_xc_type != NULL) {
-		c2_mutex_lock(&fop_types_lock);
-		C2_ASSERT(&fopt->ft_rpc_item_type != NULL);
-		c2_rpc_item_type_deregister(&fopt->ft_rpc_item_type);
-		ft_tlink_del_fini(fopt);
-		fopt->ft_magix = 0;
-		c2_mutex_unlock(&fop_types_lock);
-	}
-	if (fopt->ft_fmt != NULL) {
-		c2_fop_type_format_fini(fopt->ft_fmt);
-		fopt->ft_fmt = NULL;
-	}
+	c2_mutex_lock(&fop_types_lock);
+	C2_ASSERT(&fopt->ft_rpc_item_type != NULL);
+	c2_rpc_item_type_deregister(&fopt->ft_rpc_item_type);
+	ft_tlink_del_fini(fopt);
+	fopt->ft_magix = 0;
+	c2_mutex_unlock(&fop_types_lock);
 	c2_addb_ctx_fini(&fopt->ft_addb);
 }
 
 int c2_fop_type_build(struct c2_fop_type *fopt)
 {
-	int                        result = 0;
-	struct c2_fop_type_format *fmt;
+	int                   result = 0;
 
-	C2_PRE(fopt->ft_top == NULL);
-
-	fmt    = fopt->ft_fmt;
-	if (fmt != NULL)
-		result = c2_fop_type_format_parse(fmt);
 	if (result == 0) {
 		result = fop_fol_type_init(fopt);
 		if (result == 0) {
-			if (fmt != NULL)
-				fopt->ft_top = fmt->ftf_out;
-			else
-				fopt->ft_top = NULL;
 			result =
 			c2_rpc_item_type_register(&fopt->ft_rpc_item_type);
 			c2_addb_ctx_init(&fopt->ft_addb,
@@ -177,89 +142,15 @@ void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr)
 }
 C2_EXPORTED(c2_fop_type_fini_nr);
 
-struct c2_fop_memlayout atom_void_memlayout = {
-	.fm_uxdr   = (xdrproc_t)xdr_void,
-	.fm_sizeof = 0
-};
-
-struct c2_fop_field_type C2_FOP_TYPE_VOID = {
-	.fft_aggr = FFA_ATOM,
-	.fft_name = "void",
-	.fft_u = {
-		.u_atom = {
-			.a_type = FPF_VOID
-		}
-	},
-	.fft_layout = &atom_void_memlayout
-};
-
-struct c2_fop_memlayout atom_byte_memlayout = {
-	.fm_uxdr   = (xdrproc_t)xdr_char,
-	.fm_sizeof = 1
-};
-
-struct c2_fop_field_type C2_FOP_TYPE_BYTE = {
-	.fft_aggr = FFA_ATOM,
-	.fft_name = "byte",
-	.fft_u = {
-		.u_atom = {
-			.a_type = FPF_BYTE
-		}
-	},
-	.fft_layout = &atom_byte_memlayout
-};
-
-struct c2_fop_memlayout atom_u32_memlayout = {
-	.fm_uxdr   = (xdrproc_t)xdr_uint32_t,
-	.fm_sizeof = 4
-};
-
-struct c2_fop_field_type C2_FOP_TYPE_U32 = {
-	.fft_aggr = FFA_ATOM,
-	.fft_name = "u32",
-	.fft_u = {
-		.u_atom = {
-			.a_type = FPF_U32
-		}
-	},
-	.fft_layout = &atom_u32_memlayout
-};
-
-struct c2_fop_memlayout atom_u64_memlayout = {
-	.fm_uxdr   = (xdrproc_t)xdr_uint64_t,
-	.fm_sizeof = 8
-};
-
-struct c2_fop_field_type C2_FOP_TYPE_U64 = {
-	.fft_aggr = FFA_ATOM,
-	.fft_name = "u64",
-	.fft_u = {
-		.u_atom = {
-			.a_type = FPF_U64
-		}
-	},
-	.fft_layout = &atom_u64_memlayout
-};
-
 int c2_fops_init(void)
 {
 	ft_tlist_init(&fop_types_list);
 	c2_mutex_init(&fop_types_lock);
-	c2_fits_init();
-	c2_fop_field_type_prepare(&C2_FOP_TYPE_VOID);
-	c2_fop_field_type_prepare(&C2_FOP_TYPE_BYTE);
-	c2_fop_field_type_prepare(&C2_FOP_TYPE_U32);
-	c2_fop_field_type_prepare(&C2_FOP_TYPE_U64);
 	return 0;
 }
 
 void c2_fops_fini(void)
 {
-	c2_fop_field_type_unprepare(&C2_FOP_TYPE_U64);
-	c2_fop_field_type_unprepare(&C2_FOP_TYPE_U32);
-	c2_fop_field_type_unprepare(&C2_FOP_TYPE_BYTE);
-	c2_fop_field_type_unprepare(&C2_FOP_TYPE_VOID);
-	c2_fits_fini();
 	c2_mutex_fini(&fop_types_lock);
 	ft_tlist_fini(&fop_types_list);
 }

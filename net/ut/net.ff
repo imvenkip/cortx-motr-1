@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -19,8 +19,9 @@
  * Original creation date: 12/05/2010
  */
 
-DEF(c2_nettest, RECORD,
-    _(siq_rc, U32));
+record {
+	u32 siq_rc
+} c2_nettest;
 
 /*
  *  Local variables:

@@ -1,22 +1,20 @@
-reqhdir                     = $(includedir)/colibri/reqh
-reqh_HEADERS                = reqh.h
+reqhdir                    = $(includedir)/colibri/reqh
+reqh_HEADERS               = reqh.h
 
-noinst_LTLIBRARIES          = libcolibri-reqh.la
+noinst_LTLIBRARIES         = libcolibri-reqh.la
 
-reqh_fops_u.h reqh_fops_u.c : reqh_fops.ff \
-                        $(top_builddir)/fop/rt/libc2rt.la \
-                        $(top_builddir)/fop/fop2c
-		$(top_builddir)/fop/fop2c -u $<
+REQH_FOPS                  = reqh_fops_xc.h reqh_fops_xc.c
 
-libcolibri_reqh_la_SOURCES  = reqh_fops_u.c reqh_fops_u.h \
-				reqh_fops.ff reqh.c reqh.h reqh_fops.c \
-				reqh_generic.c reqh_service.c \
-				reqh_service.h
+$(REQH_FOPS) : reqh_fops_xc.ff
+	$(top_builddir)/xcode/ff2c/ff2c $<
 
-INCLUDES                    = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
+libcolibri_reqh_la_SOURCES = $(REQH_FOPS)                   \
+			     reqh.c reqh.h reqh_fops.c      \
+			     reqh_generic.c reqh_service.c  \
+			     reqh_service.h
 
-EXTRA_DIST = reqh_fops.ff
+INCLUDES                   = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
 
-clean-local:
-	cd @SRCDIR@/reqh ; \
-	rm -fr reqh_fops_u.[ch]
+EXTRA_DIST                 = reqh_fops.ff
+
+MOSTLYCLEANFILES           = $(REQH_FOPS)

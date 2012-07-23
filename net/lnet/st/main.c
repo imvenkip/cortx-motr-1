@@ -31,6 +31,7 @@
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/getopts.h"
+#include "lib/bitmap.h"
 #include "lib/memory.h"
 #include "lib/thread.h"
 #include "net/net.h"

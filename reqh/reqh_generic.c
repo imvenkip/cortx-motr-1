@@ -30,17 +30,8 @@
 #include "net/net.h"
 #include "fop/fop.h"
 #include "fop/fom.h"
-#include "fop/fop_iterator.h"
 #include "dtm/dtm.h"
-#include "fop/fop_format_def.h"
-
-#ifdef __KERNEL__
-#include "reqh_fops_k.h"
-#else
-
-#include "reqh_fops_u.h"
-#endif
-
+#include "reqh_fops_xc.h"
 #include "reqh.h"
 
 /**

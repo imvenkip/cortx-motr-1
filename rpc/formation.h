@@ -27,6 +27,7 @@
 #include "lib/rwlock.h"
 #include "addb/addb.h"
 #include "net/net.h"
+#include "rpc/item.h"
 
 struct c2_fop;
 

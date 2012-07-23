@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
- * Original creation date: 05/04/2011
+ * Original creation date: 06/21/2011
  */
 
 /**
@@ -23,38 +23,15 @@
    @{
  */
 
-/** @file fom_io.ff
+/**
+ * @file reqh_fops.ff
  *
- * <b>Simplistic IO fop formats</b>
- *
+ * <b>Reqh generic error reply</b>
  */
 
-DEF(stob_io_fop_fid, RECORD,
-	_(f_seq, U64),
-	_(f_oid, U64));
-
-DEF(c2_stob_io_write, RECORD,
-	_(fiw_object, stob_io_fop_fid),
-	_(fiw_value, BYTE));
-
-DEF(c2_stob_io_write_rep, RECORD,
-	_(fiwr_rc, U32),
-	_(fiwr_count, U32));
-
-DEF(c2_stob_io_read, RECORD,
-	_(fir_object, stob_io_fop_fid));
-
-DEF(c2_stob_io_read_rep, RECORD,
-	_(firr_rc, U32),
-	_(firr_count, U32),
-	_(firr_value, BYTE));
-
-
-DEF(c2_stob_io_create, RECORD,
-	_(fic_object, stob_io_fop_fid));
-
-DEF(c2_stob_io_create_rep, RECORD,
-	_(ficr_rc, U32));
+record {
+	u32 rerr_rc
+} c2_reqh_error_rep;
 
 /** @} end of reqh group */
 

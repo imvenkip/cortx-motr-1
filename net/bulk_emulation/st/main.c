@@ -37,6 +37,7 @@
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/getopts.h"
+#include "lib/bitmap.h"
 #include "lib/memory.h"
 #include "lib/misc.h" /* C2_SET0 */
 #include "lib/thread.h"

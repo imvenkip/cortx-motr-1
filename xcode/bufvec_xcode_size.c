@@ -24,6 +24,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 
+#if 0
 /**
    @addtogroup xcode
 
@@ -293,7 +294,7 @@ void c2_xcode_fop_type_size_get(size_t *size,
 
 	return xcode_size_disp[fftype->fft_aggr](size, fftype, data);
 }
-
+#else
 /**
   Calculates the onwire size of fop data. This function internally calls
   the fop field type specific functions to calculate the size
@@ -305,24 +306,23 @@ void c2_xcode_fop_type_size_get(size_t *size,
 
 size_t c2_xcode_fop_size_get(struct c2_fop *fop)
 {
-	size_t		size = 0;
+	size_t              size;
+	size_t              padding;
+	struct c2_xcode_ctx ctx;
 
 	C2_PRE(fop != NULL);
 
-	if (fop->f_type->ft_top != NULL) {
-		c2_xcode_fop_type_size_get(&size, fop->f_type->ft_top,
-					   c2_fop_data(fop));
-	} else {
-		c2_xcode_ctx_init(&fop->f_type->ft_xc_ctx,
-				  &(struct c2_xcode_obj){
-					  *fop->f_type->ft_xc_type,
-						  c2_fop_data(fop)});
-		size = c2_xcode_length(&fop->f_type->ft_xc_ctx);
-	}
-	return size;
+	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){
+			  *fop->f_type->ft_xc_type,
+			  c2_fop_data(fop)});
+	size = c2_xcode_length(&ctx);
+
+	padding = c2_xcode_pad_bytes_get(size);
+
+	return size + padding;
 }
 C2_EXPORTED(c2_xcode_fop_size_get);
-
+#endif
 /** @} */
 
 /*

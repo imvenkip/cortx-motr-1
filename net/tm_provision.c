@@ -399,6 +399,7 @@ c2_net_domain_buffer_pool_not_empty(pool) {
 
  */
 
+#include "lib/arith.h"
 #include "net/net_internal.h"
 #include "net/buffer_pool.h"
 
