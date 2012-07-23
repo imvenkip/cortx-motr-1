@@ -263,13 +263,14 @@ static int xcode_bufvec_sequence(struct c2_fop_field_type *fftype,
 			return rc;
 
 		fseq->fs_count = nr;
-		fseq->fs_data = NULL;
 
-		if (nr == 0)
+		if (nr == 0) {
+			fseq->fs_data = NULL;
 			return 0;
+		}
 
 		/* Detect if it's byte sequence */
-		if( c2_xcode_is_byte_array(fftype)) {
+		if (c2_xcode_is_byte_array(fftype)) {
 			return xcode_bufvec_byte_seq(cur,
 				(char **)&fseq->fs_data, nr, what);
 		}
