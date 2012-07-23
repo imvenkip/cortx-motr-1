@@ -2377,18 +2377,6 @@ static void test_lookup(void)
 				 INLINE_NOT_APPLICABLE,
 				 !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
-
-	/*
-	 * Add a layout object with PDCLUST layout type and LINEAR enum type.
-	 * Then simulate error that c2_layout_decode() invoked through
-	 * c2_layout_lookup() has failed.
-	 */
-	lid = 9008;
-	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
-				 EXISTING_TEST,
-				 INLINE_NOT_APPLICABLE,
-				 !FAILURE_TEST);
-	C2_UT_ASSERT(rc == 0);
 }
 
 /* Tests the API c2_layout_lookup(). */
@@ -2398,10 +2386,10 @@ static void test_lookup_failure(void)
 
 	/*
 	 * Add a layout object with PDCLUST layout type and LINEAR enum type.
-	 * Then simulate error that c2_layout_decode() invoked through
+	 * Simulate error that c2_layout_decode() invoked through
 	 * c2_layout_lookup() has failed.
 	 */
-	lid = 9009;
+	lid = 9008;
 	c2_fi_enable_once("c2_layout_decode",
 			  "c2_l_decode_error_in_c2_l_lookup");
 	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
