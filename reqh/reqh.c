@@ -34,7 +34,6 @@
 #include "fop/fop.h"
 #include "fop/fom.h"
 #include "dtm/dtm.h"
-#include "fop/fop_format_def.h"
 #include "reqh/reqh_service.h"
 
 #include "reqh.h"

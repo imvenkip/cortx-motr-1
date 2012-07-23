@@ -15,6 +15,6 @@ libcolibri_reqh_la_SOURCES = $(REQH_FOPS)                   \
 
 INCLUDES                   = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
 
-EXTRA_DIST                 = reqh_fops.ff
+EXTRA_DIST                 = reqh_fops_xc.ff
 
 MOSTLYCLEANFILES           = $(REQH_FOPS)

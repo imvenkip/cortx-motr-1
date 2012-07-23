@@ -19,8 +19,7 @@ libcolibri_rpc_la_SOURCES  = $(SESSION_FOPS) session.c session.h  \
 			     packet.c packet.h                    \
 			     bulk.h bulk.c                        \
 			     formation.h formation.c              \
-			     formation2.h formation2_internal.h   \
-			     formation2.c frmops.c                \
+			     formation2.h formation2.c frmops.c   \
 			     rpc_onwire.c rpc_onwire.h            \
 			     rpclib.c rpclib.h rpc_opcodes.h      \
 			     service.c

@@ -337,9 +337,11 @@ static void test_cs_ut_service_one(void)
 
 static void dev_conf_file_create(void)
 {
+	int   ret;
 	FILE *f;
 
-	system("touch d1 d2");
+	ret = system("touch d1 d2");
+	C2_UT_ASSERT(ret == 0);
 	f = fopen("devices.conf", "w+");
 	C2_UT_ASSERT(f != NULL);
 	fprintf(f, "Devices:\n");
@@ -390,7 +392,10 @@ static void test_cs_ut_opts_jumbled(void)
  */
 static void test_cs_ut_linux_stob_cleanup(void)
 {
-	system("rm -f devices.conf");
+	int ret;
+
+	ret = system("rm -f devices.conf");
+	C2_UT_ASSERT(ret == 0);
 	dev_conf_file_create();
 	c2_fi_enable_once("cs_ad_stob_create", "ad_domain_locate_fail");
 	cs_ut_test_helper_failure(cs_ut_dev_stob_cmd,
@@ -399,7 +404,10 @@ static void test_cs_ut_linux_stob_cleanup(void)
 
 static void test_cs_ut_ad_stob_cleanup(void)
 {
-	system("rm -f devices.conf");
+	int ret;
+
+	ret = system("rm -f devices.conf");
+	C2_UT_ASSERT(ret == 0);
 	dev_conf_file_create();
 	c2_fi_enable_once("cs_ad_stob_create", "ad_stob_setup_fail");
 	cs_ut_test_helper_failure(cs_ut_dev_stob_cmd,
