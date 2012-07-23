@@ -384,7 +384,6 @@ struct c2_reqh_service_type *c2_reqh_service_type_find(const char *sname);
    @post c2_reqh_service_invariant(service)
 
    @see struct c2_reqh_service_ops
-   @see c2_service_init()
  */
 int c2_reqh_service_start(struct c2_reqh_service *service);
 
