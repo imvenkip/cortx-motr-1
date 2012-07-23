@@ -825,7 +825,6 @@ static int test_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	c2_free(area);
 
 	c2_pool_fini(&pool);
-
 	C2_LEAVE();
 	return rc;
 }
@@ -1035,7 +1034,6 @@ static int test_encode_pdclust(uint32_t enum_id, uint64_t lid,
 	c2_free(area);
 
 	c2_pool_fini(&pool);
-
 	C2_LEAVE();
 	return rc;
 }
@@ -1277,9 +1275,7 @@ static int test_decode_encode_pdclust(uint32_t enum_id, uint64_t lid,
 
 	c2_free(area1);
 	c2_free(area2);
-
 	c2_pool_fini(&pool);
-
 	C2_LEAVE();
 	return rc;
 }
@@ -1597,7 +1593,6 @@ static int test_encode_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	C2_UT_ASSERT(list_lookup(lid) == NULL);
 
 	c2_free(area);
-
 	c2_pool_fini(&pool);
 	C2_LEAVE();
 	return rc;
@@ -2107,12 +2102,7 @@ static void test_recsize(void)
 
 
 #ifndef __KERNEL__
-/*
- * Tests the APIs supported for enumeration object build, layout object build
- * and layout dstruction that happens using c2_layout_put(). Verifies that the
- * newly build layout object is added to the list of layout objects maintained
- * in the domain object. todo
- */
+/* Tests the APIs supported for c2_pdclust_instance object. */
 static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 				     bool inline_test)
 {
@@ -2160,8 +2150,8 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 }
 
 /*
- * Tests the APIs supported for enumeration object build, layout object build
- * and layout dstruction that happens using c2_layout_put(). todo
+ * Tests the APIs supported for c2_pdclust_instance object, for various enum
+ * types.
  */
 static void test_pdclust_instance(void)
 {
@@ -2171,7 +2161,7 @@ static void test_pdclust_instance(void)
 	 * Build a layout object with PDCLUST layout type, LIST enum type
 	 * with a few inline entries only and then destroy it.
 	 */
-	lid = 1001; //todo
+	lid = 9001;
 	rc = test_pdclust_instance_obj(LIST_ENUM_ID, lid, LESS_THAN_INLINE);
 	C2_UT_ASSERT(rc == 0);
 
@@ -2180,7 +2170,7 @@ static void test_pdclust_instance(void)
 	 * with a number of inline entries exactly equal to
 	 * LDB_MAX_INLINE_COB_ENTRIES and then destroy it.
 	 */
-	lid = 1002;
+	lid = 9002;
 	rc = test_pdclust_instance_obj(LIST_ENUM_ID, lid, EXACT_INLINE);
 	C2_UT_ASSERT(rc == 0);
 
@@ -2188,7 +2178,7 @@ static void test_pdclust_instance(void)
 	 * Build a layout object with PDCLUST layout type, LIST enum type
 	 * including noninline entries and then destroy it.
 	 */
-	lid = 1003;
+	lid = 9003;
 	rc = test_pdclust_instance_obj(LIST_ENUM_ID, lid, MORE_THAN_INLINE);
 	C2_UT_ASSERT(rc == 0);
 
@@ -2196,7 +2186,7 @@ static void test_pdclust_instance(void)
 	 * Build a layout object with PDCLUST layout type and LINEAR enum
 	 * type and then destroy it.
 	 */
-	lid = 1004;
+	lid = 9004;
 	rc = test_pdclust_instance_obj(LINEAR_ENUM_ID, lid,
 				       INLINE_NOT_APPLICABLE);
 	C2_UT_ASSERT(rc == 0);
@@ -2231,6 +2221,7 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 	struct c2_layout  *l1;
 	struct c2_layout  *l1_copy;
 	struct c2_layout  *l2;
+	struct c2_layout  *l3;
 	struct c2_db_pair  pair;
 	struct c2_db_tx    tx;
 
@@ -2250,9 +2241,22 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 		if (!failure_test)
 			pdclust_layout_copy(enum_id, l1, &l1_copy);
 
-		/* Destroy the layout object. */
-		c2_layout_get(l1);
+		/*
+		 * Lookup for the layout object to verify that the same object
+		 * is returned from the memory, not requiring a lookup from the
+		 * DB.
+		 */
+		rc = c2_layout_lookup(&domain, lid, &c2_pdclust_layout_type,
+				      &tx, &pair, &l2);
+		C2_UT_ASSERT(rc == 0);
+		C2_UT_ASSERT(l2 == l1);
+
+		/*
+		 * Destroy the layout object, c2_layout_lookup() has acquired
+		 * one reference on it.
+		 */
 		c2_layout_put(l1);
+		C2_UT_ASSERT(list_lookup(lid) == NULL);
 	}
 
 	C2_UT_ASSERT(list_lookup(lid) == NULL);
@@ -2266,7 +2270,7 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 	pair_set(&pair, &lid, area, num_bytes);
 
 	rc = c2_layout_lookup(&domain, lid, &c2_pdclust_layout_type,
-			      &tx, &pair, &l2);
+			      &tx, &pair, &l3);
 	if (failure_test)
 		C2_UT_ASSERT(rc == -501);
 	else if (existing_test)
@@ -2279,12 +2283,12 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 
 	/* Destroy the layout object. */
 	if (existing_test && !failure_test) {
-		C2_UT_ASSERT(list_lookup(lid) == l2);
-		pdclust_layout_compare(enum_id, l1_copy, l2, true);
+		C2_UT_ASSERT(list_lookup(lid) == l3);
+		pdclust_layout_compare(enum_id, l1_copy, l3, true);
 		pdclust_layout_copy_delete(enum_id, l1_copy);
 
 		/* Destroy the layout object. */
-		c2_layout_put(l2);
+		c2_layout_put(l3);
 		C2_UT_ASSERT(list_lookup(lid) == NULL);
 	}
 	c2_free(area);
@@ -2301,7 +2305,7 @@ static void test_lookup(void)
 	 * Lookup for a layout object with LIST enum type, that does not
 	 * exist in the DB.
 	 */
-	lid = 9001;
+	lid = 10001;
 	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
 				 !EXISTING_TEST,
 				 MORE_THAN_INLINE,
@@ -2313,7 +2317,7 @@ static void test_lookup(void)
 	 * with a few inline entries only.
 	 * Then perform lookup for it.
 	 */
-	lid = 9002;
+	lid = 10002;
 	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 LESS_THAN_INLINE,
@@ -2326,7 +2330,7 @@ static void test_lookup(void)
 	 * LDB_MAX_INLINE_COB_ENTRIES.
 	 * Then perform lookup for it.
 	 */
-	lid = 9003;
+	lid = 10003;
 	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 EXACT_INLINE,
@@ -2338,7 +2342,7 @@ static void test_lookup(void)
 	 * including noninline entries.
 	 * Then perform lookup for it.
 	 */
-	lid = 9004;
+	lid = 10004;
 	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 MORE_THAN_INLINE,
@@ -2349,7 +2353,7 @@ static void test_lookup(void)
 	 * Once again, lookup for a layout object that does not exist in the
 	 * DB.
 	 */
-	lid = 9005;
+	lid = 10005;
 	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
 				 !EXISTING_TEST,
 				 MORE_THAN_INLINE,
@@ -2360,7 +2364,7 @@ static void test_lookup(void)
 	 * Lookup for a layout object with LINEAR enum type, that does not
 	 * exist in the DB.
 	 */
-	lid = 9006;
+	lid = 10006;
 	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
 				 !EXISTING_TEST,
 				 INLINE_NOT_APPLICABLE,
@@ -2371,7 +2375,7 @@ static void test_lookup(void)
 	 * Add a layout object with PDCLUST layout type and LINEAR enum type.
 	 * Then perform lookup for it.
 	 */
-	lid = 9007;
+	lid = 10007;
 	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 INLINE_NOT_APPLICABLE,
@@ -2389,7 +2393,7 @@ static void test_lookup_failure(void)
 	 * Simulate error that c2_layout_decode() invoked through
 	 * c2_layout_lookup() has failed.
 	 */
-	lid = 9008;
+	lid = 10008;
 	c2_fi_enable_once("c2_layout_decode",
 			  "c2_l_decode_error_in_c2_l_lookup");
 	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
@@ -2416,7 +2420,6 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 	struct c2_uint128             seed;
 	struct c2_layout_list_enum   *list_enum;
 	struct c2_layout_linear_enum *lin_enum;
-	//tdo struct c2_layout             *l;
 
 	C2_ENTRY();
 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
@@ -2451,8 +2454,6 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 	C2_UT_ASSERT(rc == 0);
 
 	C2_UT_ASSERT(list_lookup(lid) == &pl->pl_base.sl_base);
-	/* todo rc = c2_layout_lookup(&domain, lid, NULL, NULL, NULL, &l);
-	C2_UT_ASSERT(l == &pl->pl_base.sl_base); */
 
 	/*
 	 * If duplicate_test is true, again try to add the same layout object
@@ -2494,7 +2495,7 @@ static void test_add(void)
 	 * Add a layout object with PDCLUST layout type, LIST enum type and
 	 * with a few inline entries only.
 	 */
-	lid = 10001;
+	lid = 11001;
 	rc = test_add_pdclust(LIST_ENUM_ID, lid,
 			      LESS_THAN_INLINE,
 			      DUPLICATE_TEST,
@@ -2506,7 +2507,7 @@ static void test_add(void)
 	 * with a number of inline entries exactly equal to
 	 * LDB_MAX_INLINE_COB_ENTRIES.
 	 */
-	lid = 10002;
+	lid = 11002;
 	rc = test_add_pdclust(LIST_ENUM_ID, lid,
 			      EXACT_INLINE,
 			      DUPLICATE_TEST,
@@ -2517,7 +2518,7 @@ static void test_add(void)
 	 * Add a layout object with PDCLUST layout type and LIST enum type
 	 * including noninline entries.
 	 */
-	lid = 10003;
+	lid = 11003;
 	rc = test_add_pdclust(LIST_ENUM_ID, lid,
 			      MORE_THAN_INLINE,
 			      DUPLICATE_TEST,
@@ -2525,7 +2526,7 @@ static void test_add(void)
 	C2_UT_ASSERT(rc == 0);
 
 	/* Add a layout object with PDCLUST layout type and LINEAR enum type. */
-	lid = 10004;
+	lid = 11004;
 	rc = test_add_pdclust(LINEAR_ENUM_ID, lid,
 			      INLINE_NOT_APPLICABLE,
 			      DUPLICATE_TEST,
@@ -2669,7 +2670,7 @@ static void test_update(void)
 	 * type, that does not exist in the DB to verify that the operation
 	 * fails with the error ENOENT.
 	 */
-	lid = 11001;
+	lid = 12001;
 	rc = test_update_pdclust(LIST_ENUM_ID, lid,
 				 !EXISTING_TEST,
 				 MORE_THAN_INLINE);
@@ -2679,7 +2680,7 @@ static void test_update(void)
 	 * Update a layout object with PDCLUST layout type, LIST enum type and
 	 * with a few inline entries only.
 	 */
-	lid = 11002;
+	lid = 12002;
 	rc = test_update_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 LESS_THAN_INLINE);
@@ -2690,7 +2691,7 @@ static void test_update(void)
 	 * with number of inline entries exactly equal to
 	 * LDB_MAX_INLINE_COB_ENTRIES.
 	 */
-	lid = 11003;
+	lid = 12003;
 	rc = test_update_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 EXACT_INLINE);
@@ -2700,7 +2701,7 @@ static void test_update(void)
 	 * Update a layout object with PDCLUST layout type and LIST enum
 	 * type including noninline entries.
 	 */
-	lid = 11004;
+	lid = 12004;
 	rc = test_update_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 MORE_THAN_INLINE);
@@ -2710,7 +2711,7 @@ static void test_update(void)
 	 * Update a layout object with PDCLUST layout type and LINEAR enum
 	 * type.
 	 */
-	lid = 11005;
+	lid = 12005;
 	rc = test_update_pdclust(LINEAR_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 INLINE_NOT_APPLICABLE);
@@ -2816,7 +2817,7 @@ static void test_delete(void)
 	 * enum type, that does not exist in the DB, to verify that it results
 	 * into the error ENOENT.
 	 */
-	lid = 12001;
+	lid = 13001;
 	rc = test_delete_pdclust(LINEAR_ENUM_ID, lid,
 				 !EXISTING_TEST,
 				 INLINE_NOT_APPLICABLE);
@@ -2826,7 +2827,7 @@ static void test_delete(void)
 	 * Delete a layout object with PDCLUST layout type, LIST enum type and
 	 * with a few inline entries only.
 	 */
-	lid = 12002;
+	lid = 13002;
 	rc = test_delete_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 LESS_THAN_INLINE);
@@ -2837,7 +2838,7 @@ static void test_delete(void)
 	 * with a number of inline entries exactly equal to
 	 * LDB_MAX_INLINE_COB_ENTRIES.
 	 */
-	lid = 12003;
+	lid = 13003;
 	rc = test_delete_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 EXACT_INLINE);
@@ -2847,7 +2848,7 @@ static void test_delete(void)
 	 * Delete a layout object with PDCLUST layout type and LIST enum
 	 * type including noninline entries.
 	 */
-	lid = 12004;
+	lid = 13004;
 	rc = test_delete_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 MORE_THAN_INLINE);
@@ -2857,7 +2858,7 @@ static void test_delete(void)
 	 * Delete a layout object with PDCLUST layout type and LINEAR enum
 	 * type.
 	 */
-	lid = 12005;
+	lid = 13005;
 	rc = test_delete_pdclust(LINEAR_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 INLINE_NOT_APPLICABLE);
