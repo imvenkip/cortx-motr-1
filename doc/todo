@@ -19,8 +19,6 @@ TODO
 
     Use lists based on C2_TL_{DEFINE,DESCR}()
 
-2012-May-09 Replace all debugging printf-s and printk-s with C2_LOG()-s
-
 2012-May-10 Embed c2_sm in c2_rpc_{session,conn,item}
 
 2012-May-14 Use #pragma once in headers
@@ -36,6 +34,8 @@ IN-PROGRESS
     to embed the fop in its fom and to use c2_fop_init() to initialize it. (The
     reason sessions allocate fops separately is that c2_fop_init() wasn't
     there.)
+
+2012-May-09 [Dima] Replace all debugging printf-s and printk-s with C2_LOG()-s
 
 
 DONE
