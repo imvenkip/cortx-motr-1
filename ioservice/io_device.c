@@ -247,9 +247,7 @@ int c2_ios_poolmach_init(struct c2_reqh *reqh)
 	struct c2_poolmach *poolmach;
 
 	C2_PRE(reqh != NULL);
-
-	if (poolmach_is_initialised)
-		return 0;
+	C2_PRE(!poolmach_is_initialised);
 
 	c2_rwlock_write_lock(&reqh->rh_rwlock);
 	poolmach_key = c2_reqh_key_init();

@@ -394,6 +394,7 @@ static void ios_stop(struct c2_reqh_service *service)
 {
 	C2_PRE(service != NULL);
 
+	c2_ios_poolmach_fini(service->rs_reqh);
 	ios_delete_buffer_pool(service);
 	c2_cobfid_map_put(service->rs_reqh);
 }
