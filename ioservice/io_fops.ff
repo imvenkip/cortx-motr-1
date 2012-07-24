@@ -164,11 +164,14 @@ DEF(c2_fop_cob_rw_reply, RECORD,
 	/** Number of bytes read or written. */
 	_(rwr_count, U64),
 
+	/** latest version number */
+	_(rwr_fv_version, c2_fv_version),
+
 	/**
 	 * Failure vector updates. This field is valid  iff rc is some
 	 * defined special code.
 	 */
-	_(fwr_fv_updates, c2_fv_updates));
+	_(rwr_fv_updates, c2_fv_updates));
 
 /**
  * Reply FOP for a readv request.
@@ -189,7 +192,7 @@ DEF(c2_fop_cob_writev_rep, RECORD,
 
 DEF(c2_fop_cob_common, RECORD,
 	/** Client known failure vector version number */
-	_(cd_version, c2_fv_version),
+	_(c_version, c2_fv_version),
 
 	/**
 	 * Fid of global file.
@@ -235,6 +238,9 @@ DEF(c2_fop_cob_delete, RECORD,
  */
 DEF(c2_fop_cob_op_reply, RECORD,
 	_(cor_rc, U32),
+
+	/** latest version number */
+	_(cor_fv_version, c2_fv_version),
 
 	/**
 	 * Failure vector updates. This field is valid  iff rc is some

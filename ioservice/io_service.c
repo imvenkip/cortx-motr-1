@@ -32,6 +32,7 @@
 #include "reqh/reqh.h"
 #include "ioservice/io_service.h"
 #include "ioservice/cobfid_map.h"
+#include "ioservice/io_device.h"
 
 C2_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh", ,
 		   struct c2_rios_buffer_pool, rios_bp_linkage, rios_bp_magic,
@@ -370,8 +371,12 @@ static int ios_start(struct c2_reqh_service *service)
 	}
 
 	rc = c2_cobfid_map_get(service->rs_reqh, &cfm);
-	if (rc != 0)
+	if (rc != 0) {
 		ios_delete_buffer_pool(service);
+		return rc;
+	}
+
+	rc = c2_ios_poolmach_init(service->rs_reqh);
 
 	return rc;
 }

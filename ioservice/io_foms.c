@@ -42,7 +42,9 @@
 #include "ioservice/io_foms.h"
 #include "ioservice/io_fops.h"
 #include "ioservice/io_service.h"
+#include "ioservice/io_device.h"
 #include "colibri/colibri_setup.h"
+#include "pool/pool.h"
 
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
@@ -838,9 +840,9 @@ void io_fom_cob_rw_fid_wire2mem(struct c2_fop_file_fid *in, struct c2_fid *out)
  * @pre out != NULL
  */
 static int  indexvec_wire2mem(struct c2_fom         *fom,
-					    struct c2_io_indexvec *in,
-					    struct c2_indexvec    *out,
-					    uint32_t               bshift)
+			      struct c2_io_indexvec *in,
+			      struct c2_indexvec    *out,
+			      uint32_t               bshift)
 {
 	int         i;
 
@@ -891,11 +893,11 @@ static int  indexvec_wire2mem(struct c2_fom         *fom,
  * @pre ibuf != NULL
  *
  */
-static int align_bufvec (struct c2_fom    *fom,
-				       struct c2_bufvec *obuf,
-				       struct c2_bufvec *ibuf,
-				       c2_bcount_t       ivec_count,
-				       uint32_t          bshift)
+static int align_bufvec(struct c2_fom    *fom,
+			struct c2_bufvec *obuf,
+			struct c2_bufvec *ibuf,
+			c2_bcount_t       ivec_count,
+			uint32_t          bshift)
 {
 	int                rc = 0;
 	int                i = 0;
@@ -994,7 +996,7 @@ static int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
 		    &ops, fop, rep_fop);
 
 	fom_obj->fcrw_fom_start_time = c2_time_now();
-	fom_obj->fcrw_stob       = NULL;
+	fom_obj->fcrw_stob = NULL;
 
 	rwfop = io_rw_get(fop);
 
@@ -1603,8 +1605,12 @@ static int io_finish(struct c2_fom *fom)
 static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 {
 	int                                       rc = 0;
+	struct c2_fop_cob_rw                     *rwfop;
 	struct c2_io_fom_cob_rw                  *fom_obj;
 	struct c2_io_fom_cob_rw_state_transition  st;
+	struct c2_poolmach                       *poolmach;
+	struct c2_reqh                           *reqh;
+	struct c2_pool_version_numbers            curr;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(c2_is_io_fop(fom->fo_fop));
@@ -1612,17 +1618,32 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 	fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
 	C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
 
+	/* first handle generic phase */
 	if (fom->fo_phase < C2_FOPH_NR) {
 		rc = c2_fom_state_generic(fom);
 		return rc;
 	}
 
-	if (c2_is_read_fop(fom->fo_fop))
-		st = io_fom_read_st[fom->fo_phase];
-	else
-		st = io_fom_write_st[fom->fo_phase];
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
+/*	reqh = fom->fo_service->rs_reqh;*//* The same? */
+	poolmach = c2_ios_poolmach_get(reqh);
+	c2_poolmach_current_version_get(poolmach, &curr);
+	rwfop = io_rw_get(fom->fo_fop);
 
-	rc = (*st.fcrw_st_state_function)(fom);
+	/* Check the client version and server version before any processing */
+	if (rwfop->crw_version.fvv_read  != curr.pvn_version[PVE_READ] ||
+	    rwfop->crw_version.fvv_write != curr.pvn_version[PVE_WRITE]) {
+		rc = C2_FSO_WAIT;
+		fom->fo_phase = C2_FOPH_FAILURE;
+		fom->fo_rc    = C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH;
+	} else {
+		if (c2_is_read_fop(fom->fo_fop))
+			st = io_fom_read_st[fom->fo_phase];
+		else
+			st = io_fom_write_st[fom->fo_phase];
+
+		rc = (*st.fcrw_st_state_function)(fom);
+	}
 	C2_ASSERT(rc == C2_FSO_AGAIN || rc == C2_FSO_WAIT);
 
 	/* Set operation status in reply fop if FOM ends.*/
@@ -1634,10 +1655,15 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 			       fom->fo_rc < 0));
 
 		rwrep = io_rw_rep_get(fom->fo_rep_fop);
-		rwrep->rwr_rc = fom->fo_rc;
+		rwrep->rwr_rc    = fom->fo_rc;
 		rwrep->rwr_count = fom_obj->fcrw_count;
-		rwrep->fwr_fv_updates.fvu_length = 0;
-		rwrep->fwr_fv_updates.fvu_updates = NULL;
+
+		c2_poolmach_current_version_get(poolmach, &curr);
+		rwrep->rwr_fv_version.fvv_read    = curr.pvn_version[PVE_READ];
+		rwrep->rwr_fv_version.fvv_write   = curr.pvn_version[PVE_WRITE];
+
+		rwrep->rwr_fv_updates.fvu_length  = 0;
+		rwrep->rwr_fv_updates.fvu_updates = NULL;
 		return rc;
 	}
 

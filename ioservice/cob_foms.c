@@ -30,8 +30,10 @@
 #include "ioservice/cob_foms.h"     /* c2_fom_cob_create, c2_fom_cob_delete */
 #include "ioservice/io_fops.h"      /* c2_is_cob_create_fop() */
 #include "ioservice/cobfid_map.h"   /* c2_cobfid_map_get() c2_cobfid_map_put()*/
+#include "ioservice/io_device.h"   /* c2_ios_poolmach_get() */
 #include "reqh/reqh.h"              /* c2_fom_state_generic() */
 #include "reqh/reqh_service.h"
+#include "pool/pool.h"
 #include "colibri/colibri_setup.h"
 
 #ifdef __KERNEL__
@@ -202,9 +204,14 @@ static void cob_fom_populate(struct c2_fom *fom)
 
 static int cc_fom_state(struct c2_fom *fom)
 {
-	int                          rc;
-	struct c2_fom_cob_op        *cc;
-	struct c2_fop_cob_op_reply *reply;
+	int                             rc;
+	struct c2_fom_cob_op           *cc;
+	struct c2_fop_cob_op_reply     *reply;
+	struct c2_poolmach             *poolmach;
+	struct c2_reqh                 *reqh;
+	struct c2_pool_version_numbers  curr;
+	struct c2_fop_cob_create *fop;
+
 
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_ops != NULL);
@@ -213,6 +220,18 @@ static int cc_fom_state(struct c2_fom *fom)
 	if (fom->fo_phase < C2_FOPH_NR) {
 		rc = c2_fom_state_generic(fom);
 		return rc;
+	}
+
+	fop  = c2_fop_data(fom->fo_fop);
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	poolmach = c2_ios_poolmach_get(reqh);
+	c2_poolmach_current_version_get(poolmach, &curr);
+	/* Check the client version and server version before any processing */
+	if (fop->cc_common.c_version.fvv_read  != curr.pvn_version[PVE_READ] ||
+	    fop->cc_common.c_version.fvv_write != curr.pvn_version[PVE_WRITE]) {
+		fom->fo_phase = C2_FOPH_FAILURE;
+		rc = fom->fo_rc = C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH;
+		goto out;
 	}
 
 	if (fom->fo_phase == C2_FOPH_CC_COB_CREATE) {
@@ -233,7 +252,12 @@ static int cc_fom_state(struct c2_fom *fom)
 out:
 	reply = c2_fop_data(fom->fo_rep_fop);
 	reply->cor_rc = rc;
-	reply->cor_fv_updates.fvu_length = 0;
+
+	c2_poolmach_current_version_get(poolmach, &curr);
+	reply->cor_fv_version.fvv_read    = curr.pvn_version[PVE_READ];
+	reply->cor_fv_version.fvv_write   = curr.pvn_version[PVE_WRITE];
+
+	reply->cor_fv_updates.fvu_length  = 0;
 	reply->cor_fv_updates.fvu_updates = NULL;
 
 	fom->fo_rc = rc;
@@ -391,17 +415,35 @@ static void cd_fom_fini(struct c2_fom *fom)
 
 static int cd_fom_state(struct c2_fom *fom)
 {
-	int                         rc;
-	struct c2_fom_cob_op       *cd;
-	struct c2_fop_cob_op_reply *reply;
+	int                             rc;
+	struct c2_fom_cob_op           *cd;
+	struct c2_fop_cob_op_reply     *reply;
+	struct c2_poolmach             *poolmach;
+	struct c2_reqh                 *reqh;
+	struct c2_pool_version_numbers  curr;
+	struct c2_fop_cob_delete       *fop;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_ops != NULL);
 	C2_PRE(fom->fo_type != NULL);
 
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
+
 	if (fom->fo_phase < C2_FOPH_NR) {
 		rc = c2_fom_state_generic(fom);
 		return rc;
+	}
+
+	fop  = c2_fop_data(fom->fo_fop);
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	poolmach = c2_ios_poolmach_get(reqh);
+	c2_poolmach_current_version_get(poolmach, &curr);
+	/* Check the client version and server version before any processing */
+	if (fop->cd_common.c_version.fvv_read  != curr.pvn_version[PVE_READ] ||
+	    fop->cd_common.c_version.fvv_write != curr.pvn_version[PVE_WRITE]) {
+		fom->fo_phase = C2_FOPH_FAILURE;
+		rc = fom->fo_rc = C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH;
+		goto out;
 	}
 
 	if (fom->fo_phase == C2_FOPH_CD_COB_DEL) {
@@ -422,7 +464,12 @@ static int cd_fom_state(struct c2_fom *fom)
 out:
 	reply = c2_fop_data(fom->fo_rep_fop);
 	reply->cor_rc = rc;
-	reply->cor_fv_updates.fvu_length = 0;
+
+	c2_poolmach_current_version_get(poolmach, &curr);
+	reply->cor_fv_version.fvv_read    = curr.pvn_version[PVE_READ];
+	reply->cor_fv_version.fvv_write   = curr.pvn_version[PVE_WRITE];
+
+	reply->cor_fv_updates.fvu_length  = 0;
 	reply->cor_fv_updates.fvu_updates = NULL;
 
 	fom->fo_rc = rc;
