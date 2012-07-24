@@ -18,6 +18,7 @@
  * Original creation date: 07/15/2010
  */
 
+#include "lib/misc.h"       /* C2_SET_ARR0 */
 #include "layout/pdclust.h"
 
 /**
