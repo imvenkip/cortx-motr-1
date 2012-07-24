@@ -11,16 +11,6 @@ TODO
 
     Use lists based on C2_TL_{DEFINE,DESCR}()
 
-2012-May-04 use heap consistency checking
-
-    http://www.gnu.org/software/libc/manual/html_node/Heap-Consistency-Checking.html
-
-    Modify build process to optionally use -lmcheck.
-
-    Investigate the possibility to use mprobe() from lib/bob.c (and some other
-    places, like lib/list.c, lib/tlist.c). This can be difficult, because
-    objects can be statically allocated.
-
 2012-May-04 cleanup "linux_kernel" directories
 
     Modify build process to cleanup linux_kernel directories.
