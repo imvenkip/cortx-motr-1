@@ -227,6 +227,7 @@ int ff2c_parse(struct ff2c_context *ctx, struct ff2c_term **out)
 
 void ff2c_term_fini(struct ff2c_term *term)
 {
+	free(term);
 }
 
 const char *ff2c_term_type_name[] = {

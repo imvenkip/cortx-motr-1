@@ -3,5 +3,4 @@ client
 kclient
 rclient
 rserver
-net_u.c
-net_u.h
+net.?

@@ -77,42 +77,39 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 }
 C2_EXPORTED(c2_fop_alloc);
 
-void fop_data_free(struct c2_fop *fop)
+int c2_fop_init_nodata(struct c2_fop *fop, struct c2_fop_type *fopt)
 {
-	struct c2_xcode_ctx     ctx;
-	struct c2_xcode_cursor *it;
-	int                     result;
+	C2_PRE(fop != NULL && fopt != NULL);
 
-	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){*fop->f_type->ft_xc_type,
-				c2_fop_data(fop)});
-	it = &ctx.xcx_it;
+	fop->f_type = fopt;
 
-	while ((result = c2_xcode_next(it)) > 0) {
-		const struct c2_xcode_type         *xt;
-		struct c2_xcode_obj                *cur;
-		struct c2_xcode_cursor_frame       *top;
-		const struct c2_xcode_cursor_frame *prev;
-		const struct c2_xcode_obj          *par;
+	c2_addb_ctx_init(&fop->f_addb, &c2_fop_addb_ctx,
+			 &fopt->ft_addb);
+	c2_list_link_init(&fop->f_link);
 
-		top  = c2_xcode_cursor_top(it);
+	c2_rpc_item_init(&fop->f_item);
+	fop->f_item.ri_type = &fop->f_type->ft_rpc_item_type;
 
-		if (top->s_flag != C2_XCODE_CURSOR_PRE)
-			continue;
-
-		cur  = &top->s_obj;
-		xt   = cur->xo_type;
-
-		if (xt->xct_aggr == C2_XA_ATOM) {
-			prev = top - 1;
-			par  = &prev->s_obj;
-
-			if (par->xo_type->xct_aggr == C2_XA_SEQUENCE &&
-			    top->s_fieldno == 1)
-				if (cur->xo_ptr != NULL)
-					c2_free(cur->xo_ptr);
-		}
-	}
+	return 0;
 }
+
+struct c2_fop *c2_fop_alloc_nodata(struct c2_fop_type *fopt)
+{
+	struct c2_fop *fop;
+	int            err;
+
+	C2_ALLOC_PTR(fop);
+	if (fop != NULL) {
+		err = c2_fop_init_nodata(fop, fopt);
+		if (err != 0) {
+			c2_free(fop);
+			fop = NULL;
+		} else
+			fop->f_item.ri_ops = &c2_fop_default_item_ops;
+	}
+	return fop;
+}
+C2_EXPORTED(c2_fop_alloc_nodata);
 
 void c2_fop_fini(struct c2_fop *fop)
 {
@@ -120,7 +117,6 @@ void c2_fop_fini(struct c2_fop *fop)
 
 	c2_rpc_item_fini(&fop->f_item);
 	c2_addb_ctx_fini(&fop->f_addb);
-	//fop_data_free(fop);
 	c2_free(fop->f_data.fd_data);
 	c2_list_link_fini(&fop->f_link);
 }

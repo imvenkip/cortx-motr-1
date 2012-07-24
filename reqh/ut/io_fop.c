@@ -633,7 +633,6 @@ int c2_stob_io_fop_init(void)
 	c2_xc_io_fop_xc_init();
 	result = c2_fop_type_build_nr(stob_fops, ARRAY_SIZE(stob_fops));
 	if (result == 0) {
-		//c2_fop_object_init(stob_io_fop_fid_xc);
 		for (i = 0; i < ARRAY_SIZE(stob_fops); ++i) {
 			fop_type = stob_fops[i];
 			if ((fop_type->ft_rpc_item_type.rit_flags &
@@ -655,7 +654,7 @@ int c2_stob_io_fop_init(void)
  */
 void c2_stob_io_fop_fini(void)
 {
-	//c2_fop_object_fini();
+	c2_fop_type_fini_nr(stob_fops, ARRAY_SIZE(stob_fops));
 	c2_xc_io_fop_xc_fini();
 }
 

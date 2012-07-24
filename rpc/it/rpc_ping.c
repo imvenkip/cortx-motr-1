@@ -140,7 +140,7 @@ module_param(tm_recv_queue_len, int, S_IRUGO);
 MODULE_PARM_DESC(tm_recv_queue_len, "minimum TM receive queue length");
 
 module_param(max_rpc_msg_size, int, S_IRUGO);
-MODULE_PARM_DESC(tm_recv_queue_len, "maximum RPC message size");
+MODULE_PARM_DESC(max_rpc_msg_size, "maximum RPC message size");
 #endif
 
 static int build_endpoint_addr(enum ep_type type, char *out_buf, size_t buf_size)
@@ -202,7 +202,11 @@ static void print_rpc_stats(struct c2_rpc_stats *stats)
 			  (double) stats->rs_rpcs_nr;
 	printf("                packing_density: %lf\n", packing_density);
 #else
-	packing_density = (uint64_t) stats->rs_items_nr / stats->rs_rpcs_nr;
+	if (stats->rs_rpcs_nr != 0)
+		packing_density = (uint64_t) stats->rs_items_nr /
+			stats->rs_rpcs_nr;
+	else
+		packing_density = 0;
 	printf("                packing_density: %llu\n", packing_density);
 #endif
 	sec = 0;
@@ -222,7 +226,10 @@ static void print_rpc_stats(struct c2_rpc_stats *stats)
 	msec = (double) sec * 1000;
 	printf("                min_latency:\t %lf # msec\n", msec);
 
-	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
+	if (sec != 0)
+		thruput = (double)stats->rs_bytes_nr/(sec*1000000);
+	else
+		thruput = 0;
 	printf("                max_throughput:\t %lf # MB/s\n", thruput);
 #endif
 
@@ -243,7 +250,10 @@ static void print_rpc_stats(struct c2_rpc_stats *stats)
 	msec = (double) sec * 1000;
 	printf("                max_latency:\t %lf # msec\n", msec);
 
-	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
+	if (sec != 0)
+		thruput = (double)stats->rs_bytes_nr/(sec*1000000);
+	else
+		thruput = 0;
 	printf("                min_throughput:\t %lf # MB/s\n", thruput);
 #endif
 }

@@ -24,6 +24,7 @@
 #include <sysexits.h>
 
 #include "lib/errno.h"		  /* ETIMEDOUT */
+#include "lib/memory.h"		  /* c2_free */
 #include "colibri/init.h"	  /* c2_init */
 #include "lib/processor.h"        /* c2_processors_init/fini */
 #include "lib/getopts.h"	  /* C2_GETOPTS */
@@ -63,6 +64,44 @@ static int fop_info_show(uint32_t opcode)
 	c2_cons_fop_name_print(ftype);
 	fprintf(stdout, "\n");
 	return c2_cons_fop_show(ftype);
+}
+
+void console_fop_free(struct c2_fop *fop)
+{
+	int                     result;
+	struct c2_xcode_ctx     ctx;
+	struct c2_xcode_cursor *it;
+
+	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){*fop->f_type->ft_xc_type,
+				c2_fop_data(fop)});
+	it = &ctx.xcx_it;
+
+	while ((result = c2_xcode_next(it)) > 0) {
+		const struct c2_xcode_type         *xt;
+		struct c2_xcode_obj                *cur;
+		struct c2_xcode_cursor_frame       *top;
+		const struct c2_xcode_cursor_frame *prev;
+		const struct c2_xcode_obj          *par;
+		const struct c2_xcode_type         *pt;
+
+
+		top = c2_xcode_cursor_top(it);
+
+		if (top->s_flag != C2_XCODE_CURSOR_PRE)
+			continue;
+
+		cur  = &top->s_obj;
+		prev = top - 1;
+		par  = &prev->s_obj;
+		xt   = cur->xo_type;
+		pt   = par->xo_type;
+
+		if (pt->xct_aggr == C2_XA_SEQUENCE &&
+		    prev->s_fieldno == 1 && prev->s_elno == 0) {
+			c2_free(c2_xcode_addr(par, prev->s_fieldno,
+					      prev->s_elno));
+		}
+	}
 }
 
 /**
@@ -114,6 +153,8 @@ static int fop_send_and_print(struct c2_rpc_client_ctx *cctx, uint32_t opcode)
 	/* Print reply */
 	fprintf(stdout, "Print reply FOP: \n");
 	c2_cons_fop_obj_output(rfop);
+
+	console_fop_free(fop);
 
 	return 0;
 }

@@ -118,6 +118,15 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data);
 void           c2_fop_free (struct c2_fop *fop);
 void          *c2_fop_data (struct c2_fop *fop);
 
+/*
+ * decoding in xcode is different from sunrpc xdr where top object is allocated
+ * by caller; in xcode, even the top object is allocated, so we don't need
+ * to allocate the fop->f_data->fd_data.
+ */
+int            c2_fop_init_nodata (struct c2_fop *fop,
+				   struct c2_fop_type *fopt);
+struct c2_fop *c2_fop_alloc_nodata(struct c2_fop_type *fopt);
+
 int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
 		       struct c2_db_tx *tx);
 

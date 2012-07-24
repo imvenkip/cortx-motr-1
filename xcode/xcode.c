@@ -32,24 +32,18 @@
    @{
  */
 
-#if 0
 static bool field_invariant(const struct c2_xcode_type *xt,
 			    const struct c2_xcode_field *field)
 {
 	return
 		field->xf_name != NULL && field->xf_type != NULL &&
 		ergo(xt == &C2_XT_OPAQUE, field->xf_opaque != NULL) &&
-		field->xf_offset + field->xf_type->xct_sizeof <= xt->xct_sizeof;
+		ergo(!(field->xf_type->xct_aggr == C2_XA_SEQUENCE ||
+		       xt->xct_aggr == C2_XA_SEQUENCE || field->xf_type !=
+		       C2_XAT_VOID),
+		     field->xf_offset + field->xf_type->xct_sizeof <=
+		     xt->xct_sizeof);
 }
-#else
-static bool field_invariant(const struct c2_xcode_type *xt,
-			    const struct c2_xcode_field *field)
-{
-	return
-		field->xf_name != NULL && field->xf_type != NULL &&
-		ergo(xt == &C2_XT_OPAQUE, field->xf_opaque != NULL);
-}
-#endif
 
 bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
 {

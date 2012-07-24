@@ -95,7 +95,7 @@ static void test_byte_arr_decode()
 	C2_UT_ASSERT(rc == 0);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
 	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
-
+	c2_free(byte_arr_decode);
 }
 static void test_uint32_encode()
 {
@@ -246,6 +246,7 @@ static void xcode_bufvec_test(void)
 	test_byte_decode();
 	test_arr_decode();
 	test_byte_arr_decode();
+	c2_bufvec_free(&vec);
 }
 
 const struct c2_test_suite xcode_bufvec_ut = {

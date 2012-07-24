@@ -75,24 +75,10 @@ int c2_fop_item_type_default_decode(struct c2_rpc_item_type *item_type,
 
 	ftype = c2_item_type_to_fop_type(item_type);
 	C2_ASSERT(ftype != NULL);
-	/*
-	 * We don't use `c2_fop_alloc' because xcode-decode is different from
-	 * sunrpc xdr where top object is allocated by caller. in xcode, even
-	 * top object is allocated.
-	 */
-	C2_ALLOC_PTR(fop);
+
+	fop = c2_fop_alloc_nodata(ftype);
 	if (fop == NULL)
 		return -ENOMEM;
-	else {
-		fop->f_type = ftype;
-		c2_addb_ctx_init(&fop->f_addb, &c2_fop_addb_ctx,
-				 &ftype->ft_addb);
-		c2_list_link_init(&fop->f_link);
-		c2_rpc_item_init(&fop->f_item);
-		fop->f_item.ri_type = &fop->f_type->ft_rpc_item_type;
-		fop->f_item.ri_ops = &c2_fop_default_item_ops;
-	}
-
 	*item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(*item != NULL);
 	rc = item_encdec(cur, *item, C2_BUFVEC_DECODE);
