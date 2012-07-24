@@ -49,31 +49,19 @@
    space).
 
    Fop formats are introduced in "fop format description files", usually having
-   .ff extension. See fop/ut/test_format.ff for an example. fop format
-   description file defines instances of struct c2_fop_type_format encoded via
-   helper macros from fop_format_def.h.
+   .ff extension. See xcode/ff2c/sample.ff for an example. fop format
+   description file defines instances of struct c2_xcode_type encoded via
+   helper functions generated from ff2c compiler
 
-   During build process, fop format description file is processed by fop/fop2c
-   "compiler". This compiler runs c2_fop_type_format_parse() function on
-   c2_fop_type_format instances from fop format descriptions. This function
-   builds c2_fop_field_type instances organized into a tree.
+   During build process, fop format description file is processed by xcode/ff2c/ff2c
+   "compiler". xcode provides interfaces to iterate over hierarchy of such
+   descriptors and to associate user defined state with types and fields.
 
-   After this, fop2c runs various functions from fop_format_c.c on the resulting
-   tree. These functions traverse the tree and generate C language files
-   containing data-type definitions corresponding to the fop format and an
-   additional auxiliary data-structure c2_fop_memlayout describing how fop
-   fields are laid out in memory.
-
-   @see fop/fop2c
+   @see xcode/ff2c/ff2c
 
    @{
 */
 
-#ifndef __KERNEL__
-# include "fop_user.h"
-#else
-# include "linux_kernel/fop_kernel.h"
-#endif
 #include "xcode/xcode.h"
 
 extern const struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops;
