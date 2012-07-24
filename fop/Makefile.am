@@ -9,4 +9,4 @@ fop_SOURCES                   = fop.c fop.h fom.c fom.h fop_format.h fop_item_ty
 libcolibri_fop_la_SOURCES     = $(fop_SOURCES)
 
 INCLUDES                      = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
-EXTRA_DIST                    = fop2c.in linux_kernel/fop_kernel.h
+EXTRA_DIST                    = linux_kernel/fop_kernel.h
