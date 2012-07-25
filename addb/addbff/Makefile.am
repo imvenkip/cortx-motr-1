@@ -1,16 +1,18 @@
 # fop generated files are required by other directories
 
-addbdir                     = $(includedir)/colibri/addb
+addbdir                      = $(includedir)/colibri/addb
 
-noinst_LTLIBRARIES          = libcolibri-addbff.la
-libcolibri_addbff_la_SOURCES = addb.h addb.c
+ADDB_FOPS                    = addb.h addb.c
 
-INCLUDES                    = -iquote . -iquote .. -iquote $(top_srcdir)/include
+noinst_LTLIBRARIES           = libcolibri-addbff.la
+libcolibri_addbff_la_SOURCES = $(ADDB_FOPS)
 
-EXTRA_DIST                  = addb.ff
+INCLUDES                     = -iquote . -iquote .. \
+			       -iquote $(top_srcdir)/include
 
-addb.h addb.c: addb.ff
+EXTRA_DIST                   = addb.ff
+
+$(ADDB_FOPS): addb.ff
 	$(top_builddir)/xcode/ff2c/ff2c $<
 
-clean-local:
-	rm -fr addb.[hc]
+MOSTLYCLEANFILES             = $(ADDB_FOPS)

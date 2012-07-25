@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -149,7 +149,7 @@ static void u64_set(const struct c2_xcode_type *xct,
 
 
 /**
- * @brief Methods to hadle U64, U32, etc.
+ * @brief Methods to handle U64, U32 etc.
  */
 static struct c2_cons_atom_ops atom_ops[C2_XAT_NR] = {
         [C2_XAT_VOID] = { void_get, void_set, default_show },
@@ -215,22 +215,25 @@ void c2_cons_fop_obj_input_output(struct c2_fop *fop,
 					}
 
 					atom_ops[atype].catom_val_set(
-						xt,
-						pt->xct_child[prev->s_fieldno].xf_name,
-						cur->xo_ptr);
+					    xt,
+					    pt->xct_child[
+						prev->s_fieldno].xf_name,
+					    cur->xo_ptr);
 					break;
 				case CONS_IT_OUTPUT:
 					atom_ops[atype].catom_val_get(
-						xt,
-						pt->xct_child[prev->s_fieldno].xf_name,
-						cur->xo_ptr);
+					    xt,
+					    pt->xct_child[
+						    prev->s_fieldno].xf_name,
+					    cur->xo_ptr);
 					break;
 				case CONS_IT_SHOW:
 				default:
 					atom_ops[atype].catom_val_show(
-						xt,
-						pt->xct_child[prev->s_fieldno].xf_name,
-						cur->xo_ptr);
+					    xt,
+					    pt->xct_child[
+						    prev->s_fieldno].xf_name,
+					    cur->xo_ptr);
 				}
 			}
 		} else if (top->s_flag == C2_XCODE_CURSOR_POST) {

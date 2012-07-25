@@ -153,7 +153,6 @@ static int fop_send_and_print(struct c2_rpc_client_ctx *cctx, uint32_t opcode)
 	/* Print reply */
 	fprintf(stdout, "Print reply FOP: \n");
 	c2_cons_fop_obj_output(rfop);
-
 	console_fop_free(fop);
 
 	return 0;

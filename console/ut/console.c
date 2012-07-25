@@ -223,8 +223,9 @@ static void check_values(struct c2_fop *fop)
 	struct c2_xcode_ctx     ctx;
 	struct c2_xcode_cursor *it;
 
-	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){*fop->f_type->ft_xc_type,
-				                       c2_fop_data(fop)});
+	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj) {
+			  *fop->f_type->ft_xc_type,
+			  c2_fop_data(fop) });
 	it = &ctx.xcx_it;
 	while ((result = c2_xcode_next(it)) > 0) {
 		const struct c2_xcode_type   *xt;

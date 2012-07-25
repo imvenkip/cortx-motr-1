@@ -1,5 +1,6 @@
 ioservicedir			= $(includedir)/colibri/ioservice
-ioservice_HEADERS		= io_foms.h io_fops.h io_fops_xc.h cobfid_map.h cob_foms.h
+ioservice_HEADERS		= io_foms.h io_fops.h io_fops_xc.h        \
+				  cobfid_map.h cob_foms.h
 
 IO_FOPS_SOURCES                 = io_fops_xc.h io_fops_xc.c
 
@@ -12,8 +13,9 @@ libcolibri_ioservice_la_SOURCES	= $(IO_FOPS_SOURCES)                      \
                                   io_service.h io_service.c               \
                                   cobfid_map.c cobfid_map.h cob_foms.c
 
-INCLUDES			= -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
+INCLUDES			= -iquote . -iquote $(top_srcdir) -iquote \
+				  $(top_srcdir)/include
 
 EXTRA_DIST			= io_fops_xc.ff
 
-MOSTLYCLEANFILES = $(IO_FOPS_SOURCES)
+MOSTLYCLEANFILES                = $(IO_FOPS_SOURCES)

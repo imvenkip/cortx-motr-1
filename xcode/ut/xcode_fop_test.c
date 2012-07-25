@@ -97,7 +97,7 @@ static void fop_verify( struct c2_fop *fop)
 			cnt = ftest->ft_arr.fta_data[i].da_pair[j].p_buf.tb_cnt;
 			C2_UT_ASSERT(cnt == TEST_BUF_SIZE);
 			c = (char *)
-				ftest->ft_arr.fta_data[i].da_pair[j].p_buf.tb_buf;
+			     ftest->ft_arr.fta_data[i].da_pair[j].p_buf.tb_buf;
 			temp = strcmp(c, fop_test_buf);
 			C2_UT_ASSERT(temp == 0);
 		}
@@ -221,27 +221,26 @@ static void test_fop_encdec(void)
 
 			ccf1->ft_arr.fta_data[i].da_pair[j].p_offset = ival++;
 			ccf1->ft_arr.fta_data[i].da_pair[j].p_cnt = cnt++;
-			ccf1->ft_arr.fta_data[i].da_pair[j].p_key.tk_index
-			= index++;
-			ccf1->ft_arr.fta_data[i].da_pair[j].p_key.tk_val
-			= index++;
-			ccf1->ft_arr.fta_data[i].da_pair[j].p_key.tk_flag
-			= flag;
+			ccf1->ft_arr.fta_data[i].da_pair[j].p_key.tk_index =
+				index++;
+			ccf1->ft_arr.fta_data[i].da_pair[j].p_key.tk_val   =
+				index++;
+			ccf1->ft_arr.fta_data[i].da_pair[j].p_key.tk_flag  =
+				flag;
 			C2_ALLOC_ARR(test_buf, TEST_BUF_SIZE);
 			C2_UT_ASSERT(test_buf != NULL);
 			ccf1->ft_arr.fta_data[i].da_pair[j].p_buf.tb_buf =
-			test_buf;
+				test_buf;
 			ccf1->ft_arr.fta_data[i].da_pair[j].p_buf.tb_cnt =
-			TEST_BUF_SIZE;
+				TEST_BUF_SIZE;
 			memcpy(ccf1->ft_arr.fta_data[i].da_pair[j].p_buf.tb_buf,
-			fop_test_buf, strlen(fop_test_buf));
+			       fop_test_buf, strlen(fop_test_buf));
 		}
 	}
 
 	/* Check the size of the fop using the interfaces. */
-	c2_xcode_ctx_init(&xctx,
-			  &(struct c2_xcode_obj){*f1->f_type->ft_xc_type,
-					  ccf1});
+	c2_xcode_ctx_init(&xctx, &(struct c2_xcode_obj) {
+			  *f1->f_type->ft_xc_type, ccf1 });
 	fop_size = c2_xcode_length(&xctx);
 	C2_UT_ASSERT(fop_size == act_fop_size);
 
@@ -252,9 +251,8 @@ static void test_fop_encdec(void)
         cur_addr = c2_bufvec_cursor_addr(&cur);
 	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 
-	c2_xcode_ctx_init(&xctx,
-			  &(struct c2_xcode_obj){*f1->f_type->ft_xc_type,
-					  ccf1});
+	c2_xcode_ctx_init(&xctx, &(struct c2_xcode_obj) {
+			  *f1->f_type->ft_xc_type, ccf1 });
 	c2_bufvec_cursor_init(&xctx.xcx_buf, &nb->nb_buffer);
 
 	/* Encode the fop into the bufvec. */
@@ -272,9 +270,8 @@ static void test_fop_encdec(void)
 	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 
 	/* Decode the payload from bufvec into the fop. */
-	c2_xcode_ctx_init(&xctx1,
-			  &(struct c2_xcode_obj){
-				  *fd1->f_type->ft_xc_type, NULL});
+	c2_xcode_ctx_init(&xctx1, &(struct c2_xcode_obj) {
+			  *fd1->f_type->ft_xc_type, NULL });
 
 	xctx1.xcx_alloc = c2_xcode_alloc;
 	xctx1.xcx_buf   = cur;

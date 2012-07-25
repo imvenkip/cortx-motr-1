@@ -102,9 +102,9 @@ int c2_xcode_next(struct c2_xcode_cursor *it)
 							 top->s_elno);
 				if (result != 0)
 					return result;
-					next->s_fieldno = 0;
-					next->s_elno    = 0;
-					next->s_flag    = C2_XCODE_CURSOR_PRE;
+				next->s_fieldno = 0;
+				next->s_elno    = 0;
+				next->s_flag    = C2_XCODE_CURSOR_PRE;
 			}
 		} else
 			top->s_flag = C2_XCODE_CURSOR_POST;

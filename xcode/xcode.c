@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -388,7 +388,6 @@ uint64_t c2_xcode_tag(const struct c2_xcode_obj *obj)
 			break;
 		default:
 			C2_IMPOSSIBLE("atype");
-
 		}
 	} else
 		tag = 0;

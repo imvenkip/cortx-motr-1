@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -336,30 +336,7 @@ int c2_bufvec_bytes(struct c2_bufvec_cursor *vc, char **cpp, size_t size,
 
 	return rc;
 }
-/*
-int c2_bufvec_fop(struct c2_bufvec_cursor *vc, struct c2_fop *fop,
-		  enum c2_bufvec_what what)
-{
-	int			 rc;
-	struct c2_fop_type	*ftype;
 
-	C2_PRE(fop != NULL);
-	C2_PRE(vc != NULL);
-
-	ftype = fop->f_type;
-	C2_ASSERT(ftype->ft_ops != NULL);
-
-	if (what == C2_BUFVEC_ENCODE)
-		rc = ftype->ft_ops->fto_bufvec_encode(fop, vc);
-
-	else if (what == C2_BUFVEC_DECODE)
-		rc = ftype->ft_ops->fto_bufvec_decode(fop, vc);
-	else
-		rc = -EFAULT;
-
-	return rc;
-}
-*/
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

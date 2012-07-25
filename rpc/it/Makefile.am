@@ -1,4 +1,6 @@
-INCLUDES             = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include -iquote /usr/include
+INCLUDES             = -iquote . -iquote $(top_srcdir)       \
+		       -iquote $(top_srcdir)/include         \
+		       -iquote /usr/include
 
 PING_FOPS            = ping_fop_xc.h ping_fop_xc.c
 

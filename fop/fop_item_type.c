@@ -18,7 +18,6 @@
  * Original creation date: 11/18/2011
  */
 
-#include "addb/addb.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "rpc/rpc_onwire.h"
@@ -59,8 +58,6 @@ int c2_fop_item_type_default_encode(struct c2_rpc_item_type *item_type,
 	rc = item_encdec(cur, item, C2_BUFVEC_ENCODE);
 	return rc;
 }
-
-extern struct c2_addb_ctx_type c2_fop_addb_ctx;
 
 int c2_fop_item_type_default_decode(struct c2_rpc_item_type *item_type,
 				    struct c2_rpc_item **item,

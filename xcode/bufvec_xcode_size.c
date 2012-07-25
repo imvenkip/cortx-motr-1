@@ -56,11 +56,10 @@ size_t c2_xcode_fop_size_get(struct c2_fop *fop)
 
 	C2_PRE(fop != NULL);
 
-	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){
+	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj) {
 			  *fop->f_type->ft_xc_type,
-			  c2_fop_data(fop)});
-	size = c2_xcode_length(&ctx);
-
+			  c2_fop_data(fop) });
+	size    = c2_xcode_length(&ctx);
 	padding = c2_xcode_pad_bytes_get(size);
 
 	return size + padding;

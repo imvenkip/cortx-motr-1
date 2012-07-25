@@ -30,15 +30,12 @@
 #include "fop/fop.h"
 #include "net/net.h"
 #include "addb/addb.h"
+#include "addb/addbff/addb.h"
 
 #ifdef __KERNEL__
-# include "addb/addbff/addb.h"
 # define c2_addb_handler NULL
 #else
-
 int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
-
-# include "addb/addbff/addb.h"
 #endif
 
 #include "rpc/rpc_opcodes.h"
