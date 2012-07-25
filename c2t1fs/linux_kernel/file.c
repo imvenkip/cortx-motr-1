@@ -540,11 +540,11 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 
 	// finds immediate lower number which is aligned to
         // parity group unit size.
-	ee->e_start = c2_round_down(oe->e_start, size);
+	ee->e_start = C2_ROUND_DOWN(oe->e_start, size);
 
 	// finds immediate higher number which is aligned to
         // parity group unit size.
-	ee->e_end = ee->e_start + c2_round_up(oe->e_start - ee->e_start +
+	ee->e_end = ee->e_start + C2_ROUND_UP(oe->e_start - ee->e_start +
 					      c2_ext_length(oe), size);
 
 	c2_mutex_unlock(&req->ir_mutex);
