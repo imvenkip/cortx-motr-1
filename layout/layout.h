@@ -763,6 +763,8 @@ struct c2_striped_layout *c2_layout_to_striped(const struct c2_layout *l);
 struct c2_layout_enum
 *c2_striped_layout_to_enum(const struct c2_striped_layout *stl);
 
+struct c2_layout_enum *c2_layout_to_enum(const struct c2_layout *l);
+
 /** Returns number of objects in the enumeration. */
 uint32_t c2_layout_enum_nr(const struct c2_layout_enum *e);
 
