@@ -400,7 +400,9 @@ static int pair_init(struct c2_db_pair *pair,
 	c2_db_pair_setup(pair, &l->l_dom->ld_layouts,
 			 key_buf, sizeof l->l_id,
 			 rec_buf, recsize);
-	if (op != C2_LXO_DB_LOOKUP) {
+	if (op == C2_LXO_DB_LOOKUP)
+		rc = 0;
+	else {
 		bv = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&rec_buf,
 						  &pair->dp_rec.db_buf.b_nob);
 		c2_bufvec_cursor_init(&rec_cur, &bv);
@@ -412,8 +414,7 @@ static int pair_init(struct c2_db_pair *pair,
 				       l->l_id, rc);
 			c2_db_pair_fini(pair);
 		}
-	} else
-		rc = 0;
+	}
 	return rc;
 }
 
