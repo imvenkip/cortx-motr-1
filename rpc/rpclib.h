@@ -110,7 +110,7 @@ struct c2_rpc_client_ctx {
 	 * Input parameters.
 	 *
 	 * They are initialized and filled in by a caller of
-	 * c2_rpc_server_start() and c2_rpc_client_start().
+	 * c2_rpc_client_start().
 	 */
 
 	/**
@@ -157,8 +157,7 @@ struct c2_rpc_client_ctx {
 	/**
 	 * Output parameters.
 	 *
-	 * They are initialized and filled in by c2_rpc_server_init() and
-	 * c2_rpc_client_start().
+	 * They are initialized and filled in by c2_rpc_client_start().
 	 */
 
 	struct c2_rpc_machine	   rcx_rpc_machine;
