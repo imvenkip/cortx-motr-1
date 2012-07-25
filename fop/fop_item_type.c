@@ -76,15 +76,31 @@ int c2_fop_item_type_default_decode(struct c2_rpc_item_type *item_type,
 	ftype = c2_item_type_to_fop_type(item_type);
 	C2_ASSERT(ftype != NULL);
 
-	fop = c2_fop_alloc_nodata(ftype);
-	if (fop == NULL)
+	/*
+	 * decoding in xcode is different from sunrpc xdr where top object is
+	 * allocated by caller; in xcode, even the top object is allocated,
+	 * so we don't need to allocate the fop->f_data->fd_data.
+	 */
+	C2_ALLOC_PTR(fop);
+	if (fop != NULL) {
+		fop->f_type = ftype;
+		rc = c2_fop_init_rest(fop, ftype);
+		if (rc == 0)
+			fop->f_item.ri_ops = &c2_fop_default_item_ops;
+		else
+			goto out;
+	} else
 		return -ENOMEM;
+
 	*item = c2_fop_to_rpc_item(fop);
 	C2_ASSERT(*item != NULL);
 	rc = item_encdec(cur, *item, C2_BUFVEC_DECODE);
 	if (rc != 0)
-		c2_fop_free(fop);
+		goto out;
 
+	return 0;
+out:
+	c2_fop_free(fop);
 	return rc;
 }
 

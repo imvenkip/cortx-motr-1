@@ -82,9 +82,10 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 		return -ENOMEM;
 
 	ctx->cec_sender_ep = NULL;
-	fop = &ctx->cec_fop;
+	fop         = &ctx->cec_fop;
+	fop->f_type = &c2_rpc_fop_conn_establish_fopt;
 
-	rc = c2_fop_init_nodata(fop, &c2_rpc_fop_conn_establish_fopt);
+	rc = c2_fop_init_rest(fop, &c2_rpc_fop_conn_establish_fopt);
 	if (rc != 0)
 		goto out;
 
