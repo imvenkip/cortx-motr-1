@@ -42,3 +42,4 @@ io_request           ir_magic                fea2303e31a3ce10 fearsomestanceto
 nw_xfer_request      nxr_magic               12ec0ffeea2ab1ca thecoffeearabica
 stripe_io_desc       sid_magic               fa1afe1611ab2ead falafelpitabread
 io_req_fop           irc_magic               de514ab11117302e desirabilitymore
+io_extent            ie_magic                19ca9de5ca91b61b incandescentbulb

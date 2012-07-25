@@ -406,6 +406,24 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    };
    @endcode
 
+   An IO extent binds together IO extent and associated data buffer.
+   These extents hung off stripe_io_desc::sid_extents list.
+
+   @code
+   struct io_extent {
+        uint64_t        ie_magic;
+
+        // Extent describing starting offset and its length.
+        struct c2_ext   ie_ext;
+
+        // Data buffer.
+        struct c2_buf   ie_buf;
+
+        // Linkage to link in to stripe_io_desc::sid_extents list.
+        struct c2_tlink ie_link;
+   };
+   @endcode
+
    stripe_io_desc - Collection of IO extents and buffers, directed towards each
    of the units (data_unit / parity_unit) in a parity group.
    These structures are created by struct io_request dividing the incoming
@@ -420,12 +438,8 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 	// Fid of component object.
 	struct c2_fid          sid_fid;
 
-	// List of c2t1fs_buf structures which hold file data.
-	// Length of ird_extents list is same as length of ird_buffers list.
-	struct c2_tl          *sid_buffers;
-
-	// List of c2_ext structures.
-	// Each extent infers starting offset and count.
+	// List of io_extent structures.
+	// Each extent infers starting offset, count and its data buffer.
 	// Since file data is divided uniformly into members of parity group,
 	// the offsets from this list are discontiguous.
 	struct c2_tl           sid_extents;
@@ -483,6 +497,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 	NWREQ_MAGIC  = 0x12ec0ffeea2ab1caULL, // thecoffeearabica
         STRIPE_MAGIC = 0xfa1afe1611ab2eadULL, // falafelpitabread
         IOFOP_MAGIC  = 0xde514ab11117302eULL, // desirabilitymore
+        IOEXT_MAGIC  = 0x19ca9de5ca91b61bULL, // incandescentbulb
    };
    @endcode
 
@@ -518,7 +533,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
         // Expanded file extent.
         const struct c2_ext  *ee = &req->ir_aux_extent;
 
-	C2_PRE(req != NULL);
+	C2_PRE(io_request_invariant(req));
 	C2_PRE(!io_req_spans_full_pg(ci, buf, c2_ext_length(oe), oe->e_start));
 
 	c2_mutex_lock(&req->ir_mutex);
@@ -588,17 +603,16 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    @code
    static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
    {
-	C2_PRE(xfer != NULL);
-
 	return
+                xfer != NULL &&
 		xfer->nxr_magic == NWREQ_MAGIC &&
 		xfer->nxr_state <= NXS_NR &&
 
-		ergo(xfer->xfr_state == NXS_INFLIGHT,
+		ergo(xfer->nxr_state == NXS_INFLIGHT,
 		     !c2_tlist_is_empty(xfer->nxr_descs) &&
                      xfer->nxr_iofops_nr > 0) &&
 
-		ergo(xfer->xfr_state == NXS_COMPLETE,
+		ergo(xfer->nxr_state == NXS_COMPLETE,
 		     c2_tlist_is_empty(xfer->nxr_descs) &&
                      xfer->nxr_iofops_nr == 0 && xfer->nxr_bytes > 0);
    }
@@ -616,7 +630,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
                   c2_fid_is_valid(desc->sid_fid) &&
                   c2_tlink_is_in(desc->sid_link) &&
                   ergo(!c2_tlist_is_empty(desc->sid_iofops),
-                       !c2_tlist_is_empty(desc->sid_buffers));
+                       !c2_tlist_is_empty(desc->sid_extents));
    }
    @endcode
 
@@ -627,7 +641,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    {
            return
                   irf != NULL &&
-                  irf->irf_magic  != IOFOP_MAGIC &&
+                  irf->irf_magic  == IOFOP_MAGIC &&
                   irf->irf_nwxfer != NULL;
    }
    @endcode
