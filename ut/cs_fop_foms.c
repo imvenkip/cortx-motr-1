@@ -44,8 +44,15 @@
 #include "cs_test_fops.ff"
 #include "rpc/rpc_opcodes.h"
 
+enum ds_phases {
+	C2_FOPH_DS1_REQ = C2_FOPH_NR + 1,
+	C2_FOPH_DS2_REQ = C2_FOPH_NR + 1,
+};
+
 static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item);
 
+static int ds1_request(struct c2_sm *sm);
+static int ds2_request(struct c2_sm *sm);
 /*
   RPC item operations structures.
  */
@@ -91,6 +98,30 @@ C2_FOP_TYPE_DECLARE(cs_ds2_req_fop, "ds2 request", &cs_ds2_req_fop_type_ops,
 		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO)
 C2_FOP_TYPE_DECLARE(cs_ds2_rep_fop, "ds2 reply", &cs_ds2_rep_fop_type_ops,
 		    C2_CS_DS2_REP_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
+
+struct c2_sm_state_descr ds1_fom_states[C2_FOPH_NR + 2] = {
+	[C2_FOPH_DS1_REQ] = {
+		.sd_flags     = 0,
+		.sd_name      = "ds1 request fop",
+		.sd_in        = &ds1_request,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_SUCCESS) |
+				(1 << C2_FOPH_FAILURE)
+	},
+};
+
+struct c2_sm_state_descr ds2_fom_states[C2_FOPH_NR + 2] = {
+	[C2_FOPH_DS2_REQ] = {
+		.sd_flags     = 0,
+		.sd_name      = "ds2 request fop",
+		.sd_in        = &ds2_request,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_SUCCESS) |
+				(1 << C2_FOPH_FAILURE)
+	},
+};
 
 /*
   Defines ds1 service fop types array.
@@ -144,6 +175,8 @@ static const struct c2_fom_type_ops cs_ds1_req_fop_fom_type_ops = {
 
 static struct c2_fom_type cs_ds1_req_fop_fom_mopt = {
 	.ft_ops = &cs_ds1_req_fop_fom_type_ops,
+	.ft_nr_phases = C2_FOPH_NR + 2,
+	.ft_phases    = ds1_fom_states,
 };
 
 /*
@@ -155,6 +188,8 @@ static const struct c2_fom_type_ops cs_ds2_req_fop_fom_type_ops = {
 
 static struct c2_fom_type cs_ds2_req_fop_fom_mopt = {
 	.ft_ops = &cs_ds2_req_fop_fom_type_ops,
+	.ft_nr_phases = C2_FOPH_NR + 2,
+	.ft_phases    = ds2_fom_states,
 };
 
 static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item)
@@ -202,6 +237,8 @@ int c2_cs_ut_ds1_fop_init(void)
 	cs_ds1_fopts[1]->ft_fmt = &cs_ds1_rep_fop_tfmt;
 	cs_ds1_fopts[0]->ft_fom_type = cs_ds1_req_fop_fom_mopt;
 	cs_ds1_fopts[1]->ft_fom_type = cs_ds1_req_fop_fom_mopt;
+	
+	c2_fom_type_register(&cs_ds1_req_fop_fom_mopt);
 
         result = c2_fop_type_build_nr(cs_ds1_fopts, ARRAY_SIZE(cs_ds1_fopts));
         if (result != 0)
@@ -231,6 +268,8 @@ int c2_cs_ut_ds2_fop_init(void)
 	cs_ds2_fopts[1]->ft_fmt = &cs_ds2_rep_fop_tfmt;
 	cs_ds2_fopts[0]->ft_fom_type = cs_ds2_req_fop_fom_mopt;
 	cs_ds2_fopts[1]->ft_fom_type = cs_ds2_req_fop_fom_mopt;
+	
+	c2_fom_type_register(&cs_ds2_req_fop_fom_mopt);
 
         result = c2_fop_type_build_nr(cs_ds2_fopts, ARRAY_SIZE(cs_ds2_fopts));
         if (result != 0)
@@ -299,57 +338,62 @@ static size_t cs_ut_find_fom_home_locality(const struct c2_fom *fom)
 static int cs_req_fop_fom_state(struct c2_fom *fom)
 {
 	int                    rc;
-	struct c2_fop         *rfop;
-	struct cs_ds1_req_fop *ds1_reqfop;
-	struct cs_ds1_rep_fop *ds1_repfop;
-	struct cs_ds2_req_fop *ds2_reqfop;
-	struct cs_ds2_rep_fop *ds2_repfop;
-	uint64_t               opcode;
 
 	C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
 	       C2_CS_DS1_REQ_OPCODE ||
 	       fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
 	       C2_CS_DS2_REQ_OPCODE);
 
-	if (fom->fo_phase < C2_FOPH_NR) {
-		rc = c2_fom_state_generic(fom);
-	} else {
-		opcode = fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
-		switch (opcode) {
-		case C2_CS_DS1_REQ_OPCODE:
-			rfop = c2_fop_alloc(&cs_ds1_rep_fop_fopt, NULL);
-			if (rfop == NULL) {
-				fom->fo_phase = C2_FOPH_FINISH;
-				return C2_FSO_WAIT;
-			}
-			ds1_reqfop = c2_fop_data(fom->fo_fop);
-			ds1_repfop = c2_fop_data(rfop);
-			ds1_repfop->csr_rc = ds1_reqfop->csr_value;
-			fom->fo_rep_fop = rfop;
-			fom->fo_rc = 0;
-			fom->fo_phase = C2_FOPH_SUCCESS;
-			rc = C2_FSO_AGAIN;
-			break;
-		case C2_CS_DS2_REQ_OPCODE:
-			rfop = c2_fop_alloc(&cs_ds2_rep_fop_fopt, NULL);
-			if (rfop == NULL) {
-				fom->fo_phase = C2_FOPH_FINISH;
-				return C2_FSO_WAIT;
-			}
-			ds2_reqfop = c2_fop_data(fom->fo_fop);
-			ds2_repfop = c2_fop_data(rfop);
-			ds2_repfop->csr_rc = ds2_reqfop->csr_value;
-			fom->fo_rep_fop = rfop;
-			fom->fo_rc = 0;
-			fom->fo_phase = C2_FOPH_SUCCESS;
-			rc = C2_FSO_AGAIN;
-			break;
-		default:
-			 C2_ASSERT("Invalid fop" == 0);
-		}
-	}
-
+	rc = c2_fom_state_generic(fom);
 	return rc;
+}
+
+static int ds1_request(struct c2_sm *sm)
+{
+	struct c2_fop         *rfop;
+	struct cs_ds1_req_fop *ds1_reqfop;
+	struct cs_ds1_rep_fop *ds1_repfop;
+	struct c2_fom	      *fom;
+		
+	fom = container_of(sm, struct c2_fom, fo_sm_phase);
+	C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
+	       C2_CS_DS1_REQ_OPCODE);
+
+	rfop = c2_fop_alloc(&cs_ds1_rep_fop_fopt, NULL);
+	if (rfop != NULL) {
+		ds1_reqfop = c2_fop_data(fom->fo_fop);
+		ds1_repfop = c2_fop_data(rfop);
+		ds1_repfop->csr_rc = ds1_reqfop->csr_value;
+		fom->fo_rep_fop = rfop;
+		fom->fo_rc = 0;
+		fom->fo_phase = C2_FOPH_SUCCESS;
+	} else
+		fom->fo_phase = C2_FOPH_FAILURE;
+	
+	return fom->fo_phase;
+}
+
+static int ds2_request(struct c2_sm *sm)
+{
+
+	struct c2_fop         *rfop;
+	struct cs_ds2_req_fop *ds2_reqfop;
+	struct cs_ds2_rep_fop *ds2_repfop;
+	struct c2_fom	      *fom;
+		
+	fom = container_of(sm, struct c2_fom, fo_sm_phase);
+	rfop = c2_fop_alloc(&cs_ds2_rep_fop_fopt, NULL);
+	if (rfop != NULL) {
+		ds2_reqfop = c2_fop_data(fom->fo_fop);
+		ds2_repfop = c2_fop_data(rfop);
+		ds2_repfop->csr_rc = ds2_reqfop->csr_value;
+		fom->fo_rep_fop = rfop;
+		fom->fo_rc = 0;
+		fom->fo_phase = C2_FOPH_SUCCESS;
+	} else
+		fom->fo_phase = C2_FOPH_FAILURE;
+		
+	return fom->fo_phase;
 }
 
 /*

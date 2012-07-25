@@ -59,6 +59,33 @@ static int    cob_op_fom_create(struct c2_fom **out);
 static size_t cob_fom_locality_get(const struct c2_fom *fom);
 static inline struct c2_fom_cob_op *cob_fom_get(struct c2_fom *fom);
 
+static int cob_create(struct c2_sm *sm);
+static int cob_delete(struct c2_sm *sm);
+
+struct c2_sm_state_descr cc_fom_states[C2_FOPH_NR + 2] = {
+	[C2_FOPH_CC_COB_CREATE] = {
+		.sd_flags     = 0,
+		.sd_name      = "Create cob",
+		.sd_in        = &cob_create,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_SUCCESS) |
+				(1 << C2_FOPH_FAILURE)
+	},
+};
+
+struct c2_sm_state_descr cd_fom_states[C2_FOPH_NR + 2] = {
+	[C2_FOPH_CD_COB_DEL] = {
+		.sd_flags     = 0,
+		.sd_name      = "Delete cob",
+		.sd_in        = &cob_delete,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_SUCCESS) |
+				(1 << C2_FOPH_FAILURE)
+	},
+};
+
 enum {
 	CC_COB_VERSION_INIT	= 0,
 	CC_COB_HARDLINK_NR	= 1,
@@ -87,6 +114,8 @@ static const struct c2_fom_type_ops cob_fom_type_ops = {
 
 struct c2_fom_type cc_fom_type = {
 	.ft_ops = &cob_fom_type_ops,
+	.ft_nr_phases = C2_FOPH_NR + 2,
+	.ft_phases    = cc_fom_states,
 };
 
 static const struct c2_addb_loc cd_fom_addb_loc = {
@@ -106,6 +135,8 @@ static const struct c2_fom_ops cd_fom_ops = {
 
 struct c2_fom_type cd_fom_type = {
 	.ft_ops = &cob_fom_type_ops,
+	.ft_nr_phases = C2_FOPH_NR + 2,
+	.ft_phases    = cd_fom_states,
 };
 
 static int cob_fom_create(struct c2_fop *fop, struct c2_fom **out)
@@ -202,41 +233,41 @@ static void cob_fom_populate(struct c2_fom *fom)
 
 static int cc_fom_state(struct c2_fom *fom)
 {
-	int                          rc;
-	struct c2_fom_cob_op        *cc;
-	struct c2_fop_cob_op_reply *reply;
-
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_ops != NULL);
 	C2_PRE(fom->fo_type != NULL);
 
-	if (fom->fo_phase < C2_FOPH_NR) {
-		rc = c2_fom_state_generic(fom);
-		return rc;
-	}
+	return c2_fom_state_generic(fom);
+}
 
-	if (fom->fo_phase == C2_FOPH_CC_COB_CREATE) {
-		cc = cob_fom_get(fom);
+static int cob_create(struct c2_sm *sm)
+{
+	int			    rc;
+	struct c2_fom_cob_op	   *cc;
+	struct c2_fop_cob_op_reply *reply;
+	struct c2_fom		   *fom;
+		
+	fom = container_of(sm, struct c2_fom, fo_sm_phase);
+	cc = cob_fom_get(fom);
 
-		rc = cc_stob_create(fom, cc);
-		if (rc != 0)
-			goto out;
+	rc = cc_stob_create(fom, cc);
+	if (rc != 0)
+		goto out;
 
-		rc = cc_cob_create(fom, cc);
-		if (rc != 0)
-			goto out;
+	rc = cc_cob_create(fom, cc);
+	if (rc != 0)
+		goto out;
 
-		rc = cc_cobfid_map_add(fom, cc);
-	} else
-		C2_IMPOSSIBLE("Invalid phase for cob create fom.");
+	rc = cc_cobfid_map_add(fom, cc);
 
 out:
 	reply = c2_fop_data(fom->fo_rep_fop);
 	reply->cor_rc = rc;
 
 	fom->fo_rc = rc;
-	fom->fo_phase = (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
-	return C2_FSO_AGAIN;
+	
+	return fom->fo_phase = (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
+	
 }
 
 static int cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
@@ -389,41 +420,40 @@ static void cd_fom_fini(struct c2_fom *fom)
 
 static int cd_fom_state(struct c2_fom *fom)
 {
-	int                         rc;
-	struct c2_fom_cob_op       *cd;
-	struct c2_fop_cob_op_reply *reply;
-
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_ops != NULL);
 	C2_PRE(fom->fo_type != NULL);
 
-	if (fom->fo_phase < C2_FOPH_NR) {
-		rc = c2_fom_state_generic(fom);
-		return rc;
-	}
+	return c2_fom_state_generic(fom);
+}
 
-	if (fom->fo_phase == C2_FOPH_CD_COB_DEL) {
-		cd = cob_fom_get(fom);
+static int cob_delete(struct c2_sm *sm)
+{
+	int			    rc;
+	struct c2_fom_cob_op	   *cd;
+	struct c2_fop_cob_op_reply *reply;
+	struct c2_fom		   *fom;
+		
+	fom = container_of(sm, struct c2_fom, fo_sm_phase);
+	
+	cd = cob_fom_get(fom);
 
-		rc = cd_cob_delete(fom, cd);
-		if (rc != 0)
-			goto out;
+	rc = cd_cob_delete(fom, cd);
+	if (rc != 0)
+		goto out;
 
-		rc = cd_stob_delete(fom, cd);
-		if (rc != 0)
-			goto out;
+	rc = cd_stob_delete(fom, cd);
+	if (rc != 0)
+		goto out;
 
-		rc = cd_cobfid_map_delete(fom, cd);
-	} else
-		C2_IMPOSSIBLE("Invalid phase for cob delete fom.");
+	rc = cd_cobfid_map_delete(fom, cd);
 
 out:
 	reply = c2_fop_data(fom->fo_rep_fop);
 	reply->cor_rc = rc;
 
 	fom->fo_rc = rc;
-	fom->fo_phase = (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
-	return C2_FSO_AGAIN;
+	return fom->fo_phase = (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
 }
 
 static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)

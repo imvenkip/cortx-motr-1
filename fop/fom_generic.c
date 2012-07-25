@@ -251,8 +251,7 @@ static int sm_specific_phase(struct c2_sm *mach)
 
 	fom = container_of(mach, struct c2_fom, fo_sm_phase);
 	fom->fo_phase = C2_FOPH_NR + 1;
-	fom->fo_sm_state.sm_rc = C2_FSO_AGAIN;
-	return -1;
+	return fom->fo_phase;
 }
 
 /**
@@ -729,8 +728,7 @@ int c2_fom_state_generic(struct c2_fom *fom)
 
 	fom_phase = fom->fo_phase;
 	c2_sm_state_set(&fom->fo_sm_phase, fom_phase);
-	rc = fom->fo_sm_state.sm_rc;
-	fom->fo_sm_state.sm_rc = 0;
+	rc = C2_FSO_WAIT;	
 	if (fom->fo_phase == C2_FOPH_FINISH)
 		rc = C2_FSO_WAIT;
 

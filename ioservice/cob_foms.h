@@ -58,6 +58,7 @@ enum c2_fom_cob_delete_phases {
 	C2_FOPH_CD_COB_DEL = C2_FOPH_NR + 1,
 };
 
+
 #endif    /* __COLIBRI_IOSERVICE_COB_FOMS_H__ */
 
 /*

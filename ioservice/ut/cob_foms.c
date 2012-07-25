@@ -507,6 +507,7 @@ static void fop_alloc(struct c2_fom *fom, enum cob_fom_type fomtype)
 	c->c_cobfid.f_oid = COB_TEST_ID;
 	fom->fo_fop = base_fop;
 	fom->fo_type = &base_fop->f_type->ft_fom_type;
+	c2_fom_type_register(fom->fo_type);
 
 	fom->fo_rep_fop = c2_fop_alloc(&c2_fop_cob_op_reply_fopt, NULL);
 	C2_UT_ASSERT(fom->fo_rep_fop != NULL);
@@ -865,8 +866,7 @@ static void cc_cobfid_map_add_test()
 	rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = cd_fom_state(dfom);
-	C2_UT_ASSERT(rc == C2_FSO_AGAIN);
+	cob_delete(&dfom->fo_sm_phase);
 	C2_UT_ASSERT(dfom->fo_phase == C2_FOPH_SUCCESS);
 
 	c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
@@ -892,11 +892,11 @@ static void cc_fom_state_test()
 	dbenv = cfom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
 	rc = c2_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
-	rc = cc_fom_state(cfom);
-	c2_db_tx_commit(&cfom->fo_tx.tx_dbtx);
 
-	C2_UT_ASSERT(rc == C2_FSO_AGAIN);
+	cob_create(&cfom->fo_sm_phase);
 	C2_UT_ASSERT(cfom->fo_phase == C2_FOPH_SUCCESS);
+
+	c2_db_tx_commit(&cfom->fo_tx.tx_dbtx);
 
 	cc = cob_fom_get(cfom);
 	C2_UT_ASSERT(cc->fco_stobid.si_bits.u_hi == COB_TEST_ID);
@@ -917,8 +917,7 @@ static void cc_fom_state_test()
 	rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = cd_fom_state(dfom);
-	C2_UT_ASSERT(rc == C2_FSO_AGAIN);
+	cob_delete(&dfom->fo_sm_phase);
 	C2_UT_ASSERT(dfom->fo_phase == C2_FOPH_SUCCESS);
 
 	c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
@@ -1041,11 +1040,10 @@ static struct c2_fom *cob_testdata_create()
 	rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = cc_fom_state(fom);
-	c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
-
-	C2_UT_ASSERT(rc == C2_FSO_AGAIN);
+	cob_create(&fom->fo_sm_phase);
 	C2_UT_ASSERT(fom->fo_phase == C2_FOPH_SUCCESS);
+
+	c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
 
 	return fom;
 }
@@ -1237,11 +1235,10 @@ static void cd_fom_state_test()
 	rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = cd_fom_state(dfom);
-	c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
-
+	cob_delete(&dfom->fo_sm_phase);
 	C2_UT_ASSERT(dfom->fo_phase == C2_FOPH_SUCCESS);
-	C2_UT_ASSERT(rc == C2_FSO_AGAIN);
+
+	c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
 
 	/*
 	 * Make sure that there are no records in the database.

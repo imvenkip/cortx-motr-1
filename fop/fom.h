@@ -500,7 +500,7 @@ enum c2_fom_state_outcome {
 	 *
 	 *  When C2_FSO_WAIT is returned, the fom is put on locality wait-list.
 	 */
-	C2_FSO_WAIT,
+	C2_FSO_WAIT = -1,
 	/**
 	 * State transition completed and another state transition is
 	 * immediately possible.
