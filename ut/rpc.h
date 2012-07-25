@@ -47,7 +47,7 @@ struct c2_rpc_client_ctx;
 
 /**
   A wrapper around c2_rpc_client_start(). It initializes dbenv and cob_domain
-  withing c2_rpc_client_ctx structure, and then calls c2_rpc_client_start().
+  within c2_rpc_client_ctx structure, and then calls c2_rpc_client_start().
 
   @param rctx  Initialized rpc context structure.
 */
@@ -55,7 +55,7 @@ int c2_rpc_client_init(struct c2_rpc_client_ctx *ctx);
 
 /**
   A wrapper around c2_rpc_client_stop(). It finalizes dbenv and cob_domain
-  withing c2_rpc_client_ctx structure, and then calls c2_rpc_client_stop().
+  within c2_rpc_client_ctx structure, and then calls c2_rpc_client_stop().
 
   @param rctx  Initialized rpc context structure.
 */

@@ -185,7 +185,7 @@ static void test_rpclib(void)
 
 	/*
 	 * There is no need to initialize xprt explicitly if client and server
-	 * run withing a single process, because in this case transport is
+	 * run within a single process, because in this case transport is
 	 * initialized by c2_rpc_server_start().
 	 */
 
