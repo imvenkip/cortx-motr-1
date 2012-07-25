@@ -18,10 +18,6 @@
  * Original creation date: 07/09/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 /**
  * @addtogroup layout
  * @{
@@ -59,6 +55,10 @@
  *   - c2_layout_lookup(), c2_layout_add(), c2_layout_update(),
  *     c2_layout_delete().
  */
+
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
 
 #include "lib/errno.h"
 #include "lib/memory.h" /* C2_ALLOC_PTR() */
@@ -680,17 +680,16 @@ int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
 	C2_PRE(dbenv != NULL);
 
 	C2_SET0(dom);
-	dom->ld_dbenv = dbenv;
-	rc = c2_table_init(&dom->ld_layouts, dom->ld_dbenv, "layouts",
+	rc = c2_table_init(&dom->ld_layouts, dbenv, "layouts",
 			   DEFAULT_DB_FLAG, &layouts_table_ops);
 	if (rc != 0) {
 		c2_layout__log("c2_layout_domain_init",
 			       "c2_table_init() failed",
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       LID_NONE, rc);
-		dom->ld_dbenv = NULL;
 		return rc;
 	}
+	dom->ld_dbenv = dbenv;
 	layout_tlist_init(&dom->ld_layout_list);
 	c2_mutex_init(&dom->ld_lock);
 	C2_POST(c2_layout__domain_invariant(dom));
