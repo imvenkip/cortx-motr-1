@@ -683,7 +683,7 @@ int c2_fom_state_generic(struct c2_fom *fom)
 
 	fom_phase = fom->fo_phase;
 	c2_sm_state_set(&fom->fo_sm_phase, fom_phase);
-	rc = C2_FSO_WAIT;	
+	rc = C2_FSO_WAIT;
 	if (fom->fo_phase == C2_FOPH_FINISH)
 		rc = C2_FSO_WAIT;
 

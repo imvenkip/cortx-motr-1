@@ -420,7 +420,7 @@ static int stob_create_fom_state(struct c2_fom *fom)
 	C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
 	       C2_STOB_IO_CREATE_REQ_OPCODE);
 	fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
-	
+
 	result = c2_fom_state_generic(fom);
 	if (fom->fo_phase == C2_FOPH_FINISH && fom->fo_rc == 0)
 		c2_stob_put(fom_obj->sif_stobj);
@@ -440,7 +440,7 @@ static int stob_create(struct c2_sm *sm)
 
 	fom = container_of(sm, struct c2_fom, fo_sm_phase);
 	fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
-	
+
 	in_fop = c2_fop_data(fom->fo_fop);
 	out_fop = c2_fop_data(fom_obj->sif_rep_fop);
 
@@ -476,7 +476,7 @@ static int stob_read_fom_state(struct c2_fom *fom)
         fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
         stio = &fom_obj->sif_stio;
         result = c2_fom_state_generic(fom);
-        
+
 	if (fom->fo_phase == C2_FOPH_FINISH) {
                 /*
                    If we fail in any of the generic phase, stob io
@@ -503,7 +503,7 @@ static int stob_read(struct c2_sm *sm)
         c2_bcount_t		    offset;
         uint32_t		    bshift;
         int			    result;
-	
+
 	fom = container_of(sm, struct c2_fom, fo_sm_phase);
         fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
         stio = &fom_obj->sif_stio;
@@ -554,7 +554,7 @@ static int stob_read_wait(struct c2_sm *sm)
 	struct c2_rpc_item	   *item;
 	struct c2_fop		   *fop;
         uint32_t		    bshift;
-	
+
 	fom = container_of(sm, struct c2_fom, fo_sm_phase);
         fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
         stio = &fom_obj->sif_stio;
@@ -613,7 +613,7 @@ static int stob_write_fom_state(struct c2_fom *fom)
         }
         return result;
 }
-       
+
 static int stob_write(struct c2_sm *sm)
 {
 	struct c2_fom		*fom;
@@ -699,7 +699,7 @@ static int stob_write_wait(struct c2_sm *sm)
 		item->ri_group = NULL;
 		fom->fo_rep_fop = fom_obj->sif_rep_fop;
 	}
-	
+
 	return fom->fo_phase;
 }
 

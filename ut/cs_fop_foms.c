@@ -237,7 +237,7 @@ int c2_cs_ut_ds1_fop_init(void)
 	cs_ds1_fopts[1]->ft_fmt = &cs_ds1_rep_fop_tfmt;
 	cs_ds1_fopts[0]->ft_fom_type = cs_ds1_req_fop_fom_mopt;
 	cs_ds1_fopts[1]->ft_fom_type = cs_ds1_req_fop_fom_mopt;
-	
+
 	c2_fom_type_register(&cs_ds1_req_fop_fom_mopt);
 
         result = c2_fop_type_build_nr(cs_ds1_fopts, ARRAY_SIZE(cs_ds1_fopts));
@@ -268,7 +268,7 @@ int c2_cs_ut_ds2_fop_init(void)
 	cs_ds2_fopts[1]->ft_fmt = &cs_ds2_rep_fop_tfmt;
 	cs_ds2_fopts[0]->ft_fom_type = cs_ds2_req_fop_fom_mopt;
 	cs_ds2_fopts[1]->ft_fom_type = cs_ds2_req_fop_fom_mopt;
-	
+
 	c2_fom_type_register(&cs_ds2_req_fop_fom_mopt);
 
         result = c2_fop_type_build_nr(cs_ds2_fopts, ARRAY_SIZE(cs_ds2_fopts));
@@ -354,7 +354,7 @@ static int ds1_request(struct c2_sm *sm)
 	struct cs_ds1_req_fop *ds1_reqfop;
 	struct cs_ds1_rep_fop *ds1_repfop;
 	struct c2_fom	      *fom;
-		
+
 	fom = container_of(sm, struct c2_fom, fo_sm_phase);
 	C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
 	       C2_CS_DS1_REQ_OPCODE);
@@ -369,7 +369,7 @@ static int ds1_request(struct c2_sm *sm)
 		fom->fo_phase = C2_FOPH_SUCCESS;
 	} else
 		fom->fo_phase = C2_FOPH_FAILURE;
-	
+
 	return fom->fo_phase;
 }
 
@@ -380,7 +380,7 @@ static int ds2_request(struct c2_sm *sm)
 	struct cs_ds2_req_fop *ds2_reqfop;
 	struct cs_ds2_rep_fop *ds2_repfop;
 	struct c2_fom	      *fom;
-		
+
 	fom = container_of(sm, struct c2_fom, fo_sm_phase);
 	rfop = c2_fop_alloc(&cs_ds2_rep_fop_fopt, NULL);
 	if (rfop != NULL) {
@@ -392,7 +392,7 @@ static int ds2_request(struct c2_sm *sm)
 		fom->fo_phase = C2_FOPH_SUCCESS;
 	} else
 		fom->fo_phase = C2_FOPH_FAILURE;
-		
+
 	return fom->fo_phase;
 }
 

@@ -1208,7 +1208,7 @@ static int release_net_buffer(struct c2_sm *sm)
 		fom->fo_phase = C2_FOPH_SUCCESS;
 		reply_fop_set(fom);
 	}
-	
+
 	return fom->fo_phase;
 }
 
@@ -1319,7 +1319,7 @@ static int initiate_zero_copy(struct c2_sm *sm)
         }
 
 	fom->fo_phase = C2_FOPH_IO_ZERO_COPY_WAIT;
-	
+
 	return C2_FSO_WAIT;
 }
 
@@ -1593,7 +1593,7 @@ static int io_finish(struct c2_sm *sm)
 
                 if (stio->si_rc != 0)
                         fom->fo_rc = stio->si_rc;
-                else 
+                else
                         fom_obj->fcrw_count += stio->si_count;
 
                 c2_free(stio->si_user.ov_vec.v_count);

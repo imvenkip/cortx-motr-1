@@ -152,7 +152,7 @@ static int bulkio_server_write_fom_state(struct c2_fom *fom)
 {
 	int 	      rc = 0;
 	struct c2_sm *io_phase = &fom->fo_sm_phase;
-	
+
 	switch(fom->fo_phase) {
 	case C2_FOPH_IO_FOM_BUFFER_ACQUIRE:
 		rc = acquire_net_buffer(io_phase);
@@ -185,7 +185,7 @@ static int bulkio_server_write_fom_state(struct c2_fom *fom)
 	default :
 		if (fom->fo_phase == C2_FOPH_SUCCESS) {
 			struct c2_rpc_item *item;
-			
+
 			item = c2_fop_to_rpc_item(fom->fo_rep_fop);
 			rc = c2_rpc_reply_post(&fom->fo_fop->f_item, item);
 			C2_UT_ASSERT(rc == 0);
@@ -194,7 +194,7 @@ static int bulkio_server_write_fom_state(struct c2_fom *fom)
 		} else fom->fo_phase = C2_FOPH_IO_FOM_BUFFER_ACQUIRE;
 	}
 
-	return rc != C2_FSO_WAIT ? C2_FSO_AGAIN: rc; 
+	return rc != C2_FSO_WAIT ? C2_FSO_AGAIN: rc;
 }
 
 /*
@@ -240,7 +240,7 @@ static int bulkio_server_read_fom_state(struct c2_fom *fom)
 	default :
 		if (fom->fo_phase == C2_FOPH_SUCCESS) {
 			struct c2_rpc_item *item;
-			
+
 			item = c2_fop_to_rpc_item(fom->fo_rep_fop);
 			rc = c2_rpc_reply_post(&fom->fo_fop->f_item, item);
 			C2_UT_ASSERT(rc == 0);
@@ -248,8 +248,8 @@ static int bulkio_server_read_fom_state(struct c2_fom *fom)
 			rc = C2_FSO_WAIT;
 		} else fom->fo_phase = C2_FOPH_IO_FOM_BUFFER_ACQUIRE;
 	}
-	
-	return rc != C2_FSO_WAIT ? C2_FSO_AGAIN: rc; 
+
+	return rc != C2_FSO_WAIT ? C2_FSO_AGAIN: rc;
 }
 
 /*
@@ -277,7 +277,7 @@ static int ut_io_fom_cob_rw_state(struct c2_fom *fom)
         else
                 rc = check_write_fom_state_transition(fom);
 
-	return rc != C2_FSO_WAIT ? C2_FSO_AGAIN: rc; 
+	return rc != C2_FSO_WAIT ? C2_FSO_AGAIN: rc;
 }
 
 enum fom_state_transition_tests {
@@ -363,7 +363,7 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                  */
 		if (fom->fo_phase == C2_FOPH_SUCCESS) {
 			struct c2_rpc_item *item;
-			
+
 			item = c2_fop_to_rpc_item(fom->fo_rep_fop);
 			rc = c2_rpc_reply_post(&fom->fo_fop->f_item, item);
 			C2_UT_ASSERT(rc == 0);
@@ -740,7 +740,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                  */
 		if (fom->fo_phase == C2_FOPH_SUCCESS) {
 			struct c2_rpc_item *item;
-			
+
 			item = c2_fop_to_rpc_item(fom->fo_rep_fop);
 			rc = c2_rpc_reply_post(&fom->fo_fop->f_item, item);
 			C2_UT_ASSERT(rc == 0);

@@ -246,7 +246,7 @@ static int cob_create(struct c2_sm *sm)
 	struct c2_fom_cob_op	   *cc;
 	struct c2_fop_cob_op_reply *reply;
 	struct c2_fom		   *fom;
-		
+
 	fom = container_of(sm, struct c2_fom, fo_sm_phase);
 	cc = cob_fom_get(fom);
 
@@ -265,9 +265,9 @@ out:
 	reply->cor_rc = rc;
 
 	fom->fo_rc = rc;
-	
+
 	return fom->fo_phase = (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
-	
+
 }
 
 static int cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
@@ -433,9 +433,9 @@ static int cob_delete(struct c2_sm *sm)
 	struct c2_fom_cob_op	   *cd;
 	struct c2_fop_cob_op_reply *reply;
 	struct c2_fom		   *fom;
-		
+
 	fom = container_of(sm, struct c2_fom, fo_sm_phase);
-	
+
 	cd = cob_fom_get(fom);
 
 	rc = cd_cob_delete(fom, cd);
