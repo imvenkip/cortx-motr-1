@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -60,12 +60,6 @@ enum {
 	FOP_FIELD_ZERO = 0,
 	ELEMENT_ZERO   = 0,
 	FOP_FIELD_ONE  = 1,
-};
-
-/** Format of fop sequence data */
-struct   c2_fop_sequence {
-	uint32_t         fs_count;
-	void		*fs_data;
 };
 
 /**
@@ -150,18 +144,6 @@ int c2_bufvec_array(struct c2_bufvec_cursor *vc, void *p_arr, uint64_t el_no,
 int c2_bufvec_bytes(struct c2_bufvec_cursor *vc, char **cpp, size_t size,
 		    size_t max_size, enum c2_bufvec_what what);
 
-/**
-  Encode/Decode a fop data into a bufvec. This function internally calls
-  the type specific encode/decode functions for a fop.
-  @param vc current position of the bufvec cursor.
-  @param fop The data for this fop is to be encoded/decoded.
-  @param what The type of operation to be performed - encode or decode.
-  @retval 0 On success.
-  @retval -errno on failure.
-*/
-int c2_xcode_bufvec_fop(struct c2_bufvec_cursor *vc, struct c2_fop *fop,
-		  enum c2_bufvec_what what);
-
 /** @} end of bufvec group */
 
 /**
@@ -173,16 +155,6 @@ int c2_xcode_bufvec_fop(struct c2_bufvec_cursor *vc, struct c2_fop *fop,
   @retval Onwire size of the fop in bytes.
 */
 size_t c2_xcode_fop_size_get(struct c2_fop *fop);
-
-/**
-  Returns true if the current fop field type is a byte array
-
-  @param fftype the fop field type.
-
-  @retval true if field type is a byte array.
-  @retval false if field type is not a byte array.
-*/
-//bool c2_xcode_is_byte_array(const struct c2_fop_field_type *fftype);
 
 /** Get the pad bytes required for message */
 int c2_xcode_pad_bytes_get(size_t size);

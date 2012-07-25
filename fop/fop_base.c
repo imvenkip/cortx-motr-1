@@ -80,23 +80,22 @@ void c2_fop_type_fini(struct c2_fop_type *fopt)
 
 int c2_fop_type_build(struct c2_fop_type *fopt)
 {
-	int                   result = 0;
+	int                   result;
 
+	result = fop_fol_type_init(fopt);
 	if (result == 0) {
-		result = fop_fol_type_init(fopt);
-		if (result == 0) {
-			result =
+		result =
 			c2_rpc_item_type_register(&fopt->ft_rpc_item_type);
-			c2_addb_ctx_init(&fopt->ft_addb,
-					 &c2_fop_type_addb_ctx,
-					 &c2_addb_global_ctx);
-			c2_mutex_lock(&fop_types_lock);
-			ft_tlink_init_at(fopt, &fop_types_list);
-			c2_mutex_unlock(&fop_types_lock);
-		}
-		if (result != 0)
-			c2_fop_type_fini(fopt);
+		c2_addb_ctx_init(&fopt->ft_addb,
+				 &c2_fop_type_addb_ctx,
+				 &c2_addb_global_ctx);
+		c2_mutex_lock(&fop_types_lock);
+		ft_tlink_init_at(fopt, &fop_types_list);
+		c2_mutex_unlock(&fop_types_lock);
 	}
+	if (result != 0)
+		c2_fop_type_fini(fopt);
+
 	fop_types_built = true;
 	return result;
 }

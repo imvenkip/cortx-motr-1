@@ -53,9 +53,10 @@
    description file defines instances of struct c2_xcode_type encoded via
    helper functions generated from ff2c compiler
 
-   During build process, fop format description file is processed by xcode/ff2c/ff2c
-   "compiler". xcode provides interfaces to iterate over hierarchy of such
-   descriptors and to associate user defined state with types and fields.
+   During build process, fop format description file is processed by
+   xcode/ff2c/ff2c compiler. xcode provides interfaces to iterate over
+   hierarchy of such descriptors and to associate user defined state with
+   types and fields.
 
    @see xcode/ff2c/ff2c
 

@@ -49,10 +49,10 @@ record {
 } c2_cons_fop_test;
 
 /** Device failure notification fop
-    - id	  : Console id.
+    - id          : Console id.
     - notify_type : Device failure notification.
-    - dev_id 	  : Device ID(Disk ID in case disk failure).
-    - dev_name 	  : Device name(In case of disk it could be volume name).
+    - dev_id      : Device ID(Disk ID in case disk failure).
+    - dev_name    : Device name(In case of disk it could be volume name).
  */
 record {
        c2_cons_fop_fid cons_id;
@@ -63,7 +63,7 @@ record {
 
 /** Reply fop to the notification fop
     - notify_type : Notification type of request fop.
-    - return 	  : Opcode of request fop.
+    - return      : Opcode of request fop.
  */
 record {
        u32 cons_notify_type;

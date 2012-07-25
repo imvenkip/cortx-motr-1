@@ -188,19 +188,14 @@ int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
 		return rc;
 
 	if (what == C2_BUFVEC_ENCODE) {
-		c2_xcode_ctx_init(&xc_ctx, &(struct c2_xcode_obj){
-				 *fop->f_type->ft_xc_type,
-				 c2_fop_data(fop)});
-		item_size = c2_xcode_length(&xc_ctx);
-		padding   = c2_xcode_pad_bytes_get(item_size);
-		c2_xcode_ctx_init(&xc_ctx, &(struct c2_xcode_obj){
+		c2_xcode_ctx_init(&xc_ctx, &(struct c2_xcode_obj) {
 				  *fop->f_type->ft_xc_type,
 				  c2_fop_data(fop)});
 		xc_ctx.xcx_buf = *cur;
 		rc = c2_xcode_encode(&xc_ctx);
 		*cur = xc_ctx.xcx_buf;
 	} else {
-		c2_xcode_ctx_init(&xc_ctx, &(struct c2_xcode_obj){
+		c2_xcode_ctx_init(&xc_ctx, &(struct c2_xcode_obj) {
 				  *fop->f_type->ft_xc_type,
 				  NULL});
 		xc_ctx.xcx_alloc = c2_xcode_alloc;
@@ -211,15 +206,18 @@ int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
 			fop->f_data.fd_data =
 				xc_ctx.xcx_it.xcu_stack[0].s_obj.xo_ptr;
 		}
-		c2_xcode_ctx_init(&xc_ctx, &(struct c2_xcode_obj){
+	}
+
+	/* Pad the message in buffer to 8 byte boundary */
+	if (rc == 0) {
+		c2_xcode_ctx_init(&xc_ctx, &(struct c2_xcode_obj) {
 				  *fop->f_type->ft_xc_type,
 				  c2_fop_data(fop)});
 		item_size = c2_xcode_length(&xc_ctx);
 		padding   = c2_xcode_pad_bytes_get(item_size);
+		if (padding > 0)
+			rc = c2_xcode_zero_padding_add(cur, padding);
 	}
-
-	if (padding > 0)
-		rc = c2_xcode_zero_padding_add(cur, padding);
 
 	return rc;
 }
