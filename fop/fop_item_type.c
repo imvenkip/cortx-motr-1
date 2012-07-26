@@ -79,14 +79,9 @@ int c2_fop_item_type_default_decode(struct c2_rpc_item_type *item_type,
 	 * so we don't need to allocate the fop->f_data->fd_data.
 	 */
 	C2_ALLOC_PTR(fop);
-	if (fop != NULL) {
-		fop->f_type = ftype;
-		rc = c2_fop_init_rest(fop, ftype);
-		if (rc == 0)
-			fop->f_item.ri_ops = &c2_fop_default_item_ops;
-		else
-			goto out;
-	} else
+	if (fop != NULL)
+		c2_fop_init(fop, ftype, NULL);
+	else
 		return -ENOMEM;
 
 	*item = c2_fop_to_rpc_item(fop);

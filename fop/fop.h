@@ -111,13 +111,28 @@ struct c2_fop {
 	struct c2_list_link	 f_link;
 };
 
-int            c2_fop_init_rest(struct c2_fop *fop, struct c2_fop_type *fopt);
-int            c2_fop_init (struct c2_fop *fop, struct c2_fop_type *fopt,
+/**
+   c2_fop_init does not allocate fop data.
+ */
+void           c2_fop_init (struct c2_fop *fop, struct c2_fop_type *fopt,
 			    void *data);
 void           c2_fop_fini (struct c2_fop *fop);
+
+/**
+   Allocate fop object
+
+   @param fopt fop type to assign to this fop object
+   @param data top level data object
+   if data == NULL, data is allocated by this function
+ */
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data);
 void           c2_fop_free (struct c2_fop *fop);
 void          *c2_fop_data (struct c2_fop *fop);
+
+/**
+   Allocate top level fop data
+ */
+int            c2_fop_data_alloc (struct c2_fop *fop);
 
 int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
 		       struct c2_db_tx *tx);

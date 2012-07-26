@@ -52,7 +52,7 @@ static char *fop_test_buf = "test fop encode/decode";
 struct c2_fop_type_ops test_ops = {
 };
 
-C2_FOP_TYPE_DECLARE_XC(c2_fop_test, "test", &test_ops, C2_XCODE_UT_OPCODE, 0);
+C2_FOP_TYPE_DECLARE(c2_fop_test, "test", &test_ops, C2_XCODE_UT_OPCODE, 0);
 
 static void fop_verify( struct c2_fop *fop)
 {

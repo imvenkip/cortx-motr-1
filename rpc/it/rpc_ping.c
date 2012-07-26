@@ -42,7 +42,6 @@
 #include "ut/rpc.h"     /* c2_rpc_client_init */
 #include "fop/fop.h"    /* c2_fop_default_item_ops */
 #include "reqh/reqh.h"  /* c2_reqh_rpc_mach_tl */
-#include "xcode/xcode.h"
 #include "rpc/it/ping_fop_xc.h"
 
 #ifdef __KERNEL__
@@ -202,11 +201,9 @@ static void print_rpc_stats(struct c2_rpc_stats *stats)
 			  (double) stats->rs_rpcs_nr;
 	printf("                packing_density: %lf\n", packing_density);
 #else
-	if (stats->rs_rpcs_nr != 0)
-		packing_density = (uint64_t) stats->rs_items_nr /
-			stats->rs_rpcs_nr;
-	else
-		packing_density = 0;
+	packing_density = stats->rs_rpcs_nr == 0 ? 0 :
+		stats->rs_items_nr / stats->rs_rpcs_nr;
+
 	printf("                packing_density: %llu\n", packing_density);
 #endif
 	sec = 0;
@@ -225,11 +222,7 @@ static void print_rpc_stats(struct c2_rpc_stats *stats)
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("                min_latency:\t %lf # msec\n", msec);
-
-	if (sec != 0)
-		thruput = (double)stats->rs_bytes_nr/(sec*1000000);
-	else
-		thruput = 0;
+	thruput = sec == 0 ? 0 : stats->rs_bytes_nr / (sec * 1000000);
 	printf("                max_throughput:\t %lf # MB/s\n", thruput);
 #endif
 

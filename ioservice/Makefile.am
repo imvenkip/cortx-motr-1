@@ -4,7 +4,8 @@ ioservice_HEADERS		= io_foms.h io_fops.h io_fops_xc.h        \
 
 IO_FOPS_SOURCES                 = io_fops_xc.h io_fops_xc.c
 
-$(IO_FOPS_SOURCES): io_fops_xc.ff
+$(IO_FOPS_SOURCES): io_fops_xc.ff \
+	$(top_builddir)/xcode/ff2c/ff2c
 	$(top_builddir)/xcode/ff2c/ff2c $<
 
 noinst_LTLIBRARIES		= libcolibri-ioservice.la

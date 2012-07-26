@@ -76,17 +76,17 @@ static const struct c2_fop_type_ops cs_ds2_rep_fop_type_ops = {
         .fto_io_coalesce = NULL,
 };
 
-C2_FOP_TYPE_DECLARE_XC(cs_ds1_req_fop, "ds1 request", &cs_ds1_req_fop_type_ops,
-		       C2_CS_DS1_REQ_OPCODE,
-		       C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO)
-C2_FOP_TYPE_DECLARE_XC(cs_ds1_rep_fop, "ds1 reply", &cs_ds1_rep_fop_type_ops,
-		       C2_CS_DS1_REP_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE(cs_ds1_req_fop, "ds1 request", &cs_ds1_req_fop_type_ops,
+		    C2_CS_DS1_REQ_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO)
+C2_FOP_TYPE_DECLARE(cs_ds1_rep_fop, "ds1 reply", &cs_ds1_rep_fop_type_ops,
+		    C2_CS_DS1_REP_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
 
-C2_FOP_TYPE_DECLARE_XC(cs_ds2_req_fop, "ds2 request", &cs_ds2_req_fop_type_ops,
-		       C2_CS_DS2_REQ_OPCODE,
-		       C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO)
-C2_FOP_TYPE_DECLARE_XC(cs_ds2_rep_fop, "ds2 reply", &cs_ds2_rep_fop_type_ops,
-		       C2_CS_DS2_REP_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE(cs_ds2_req_fop, "ds2 request", &cs_ds2_req_fop_type_ops,
+		    C2_CS_DS2_REQ_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO)
+C2_FOP_TYPE_DECLARE(cs_ds2_rep_fop, "ds2 reply", &cs_ds2_rep_fop_type_ops,
+		    C2_CS_DS2_REP_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
 
 /*
   Defines ds1 service fop types array.

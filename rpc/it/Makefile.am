@@ -4,7 +4,8 @@ INCLUDES             = -iquote . -iquote $(top_srcdir)       \
 
 PING_FOPS            = ping_fop_xc.h ping_fop_xc.c
 
-$(PING_FOPS) : ping_fop_xc.ff
+$(PING_FOPS) : ping_fop_xc.ff \
+	$(top_builddir)/xcode/ff2c/ff2c
 	$(top_builddir)/xcode/ff2c/ff2c $<
 
 noinst_PROGRAMS     = rpcping

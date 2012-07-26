@@ -433,6 +433,7 @@ const struct c2_xcode_type C2_XT_U32 = {
 	.xct_sizeof = sizeof(uint32_t),
 	.xct_nr     = 0
 };
+C2_EXPORTED(C2_XT_U32);
 
 const struct c2_xcode_type C2_XT_U64 = {
 	.xct_aggr   = C2_XA_ATOM,
@@ -441,6 +442,7 @@ const struct c2_xcode_type C2_XT_U64 = {
 	.xct_sizeof = sizeof(uint64_t),
 	.xct_nr     = 0
 };
+C2_EXPORTED(C2_XT_U64);
 
 const struct c2_xcode_type C2_XT_OPAQUE = {
 	.xct_aggr   = C2_XA_OPAQUE,

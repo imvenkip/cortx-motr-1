@@ -1,10 +1,11 @@
 rpcdir			   = $(includedir)/colibri/rpc
-rpc_HEADERS		   = session.h session_fops.h session_foms.h session_internal.h rpc_opcodes.h \
-			     service.h
+rpc_HEADERS		   = session.h session_fops.h session_foms.h \
+			     session_internal.h rpc_opcodes.h service.h
 
 SESSION_FOPS               = session_xc.h session_xc.c
 
-$(SESSION_FOPS) : session_xc.ff
+$(SESSION_FOPS) : session_xc.ff \
+	$(top_builddir)/xcode/ff2c/ff2c
 	$(top_builddir)/xcode/ff2c/ff2c $<
 
 noinst_LTLIBRARIES	   = libcolibri-rpc.la

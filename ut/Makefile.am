@@ -4,7 +4,8 @@ INCLUDES                 = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)
 
 CS_TEST_FOPS             = cs_test_fops.h cs_test_fops.c
 
-$(CS_TEST_FOPS) : cs_test_fops.ff
+$(CS_TEST_FOPS) : cs_test_fops.ff \
+	$(top_builddir)/xcode/ff2c/ff2c
 	$(top_builddir)/xcode/ff2c/ff2c $<
 
 EXTRA_DIST               = cs_test_fops.ff

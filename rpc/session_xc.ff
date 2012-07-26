@@ -33,15 +33,15 @@ record {
    FOP.
  */
 record {
-   /**
-      sender_id assigned by receiver to the established rpc-connection.
-      Has value SENDER_ID_INVALID if CONN_ESTABLISH operation fails.
-    */
+	/**
+	   sender_id assigned by receiver to the established rpc-connection.
+	   Has value SENDER_ID_INVALID if CONN_ESTABLISH operation fails.
+	 */
 	u64 rcer_sender_id;
-   /**
-      Contains 0 if CONN_ESTABLISH operation is successful, error code
-      otherwise.
-    */
+	/**
+	   Contains 0 if CONN_ESTABLISH operation is successful, error code
+	   otherwise.
+	 */
 	u32 rcer_rc
 } c2_rpc_fop_conn_establish_rep;
 
@@ -49,9 +49,9 @@ record {
    Request FOP to terminate rpc-connection. Sent from sender to receiver.
  */
 record {
-    /**
-       sender_id of rpc-connection being terminated.
-     */
+	/**
+	   sender_id of rpc-connection being terminated.
+	 */
 	u64 ct_sender_id
 } c2_rpc_fop_conn_terminate;
 
@@ -59,14 +59,14 @@ record {
    Reply FOP to c2_rpc_conn_terminate. Sent from receiver to sender.
  */
 record {
-    /**
-      sender_id of rpc-connection being terminated.
-    */
+	/**
+	   sender_id of rpc-connection being terminated.
+	 */
 	u64 ctr_sender_id;
-   /**
-      Contains 0 if CONN_TERMINATE operation is successful, error code
-      otherwise.
-    */
+	/**
+	   Contains 0 if CONN_TERMINATE operation is successful, error code
+	   otherwise.
+	 */
 	u32 ctr_rc
 } c2_rpc_fop_conn_terminate_rep;
 
@@ -74,13 +74,13 @@ record {
    Request FOP to establish a new session. Sent from sender to receiver.
  */
 record {
-   /**
-      sender_id of rpc-connection in which a new session is to be created.
-    */
+	/**
+	   sender_id of rpc-connection in which a new session is to be created.
+	 */
 	u64 rse_sender_id;
-   /**
-      Number of slots the new session should have.
-    */
+	/**
+	   Number of slots the new session should have.
+	 */
 	u32 rse_slot_cnt
 } c2_rpc_fop_session_establish;
 
@@ -89,19 +89,19 @@ record {
    sender.
  */
 record {
-   /**
-      session_id assigned by receiver to the newly created session.
-      Has value SESSION_ID_INVALID if SESSION_ESTABLISH operation fails.
-    */
+	/**
+	   session_id assigned by receiver to the newly created session.
+	   Has value SESSION_ID_INVALID if SESSION_ESTABLISH operation fails.
+	 */
 	u64 rser_session_id;
-   /**
-      sender_id copied from c2_rpc_fop_session_establish.
-    */
+	/**
+	   sender_id copied from c2_rpc_fop_session_establish.
+	 */
 	u64 rser_sender_id;
-   /**
-      Contains 0 if SESSION_ESTABLISH operation is successful, error code
-      otherwise.
-    */
+	/**
+	   Contains 0 if SESSION_ESTABLISH operation is successful, error code
+	   otherwise.
+	 */
 	u32 rser_rc
 } c2_rpc_fop_session_establish_rep;
 
@@ -109,14 +109,14 @@ record {
    Request FOP to terminate a session. Sent from sender to receiver.
  */
 record {
-   /**
-      sender_id of rpc-connection to which the session being terminated
-      belongs.
-    */
+	/**
+	   sender_id of rpc-connection to which the session being terminated
+	   belongs.
+	 */
 	u64 rst_sender_id;
-   /**
-      session_id of session being termianted.
-    */
+	/**
+	   session_id of session being terminated.
+	 */
 	u64 rst_session_id
 } c2_rpc_fop_session_terminate;
 
@@ -124,19 +124,19 @@ record {
    Reply FOP to c2_rpc_fop_session_terminate. Sent from receiver to sender.
  */
 record {
-   /**
-      session_id of the session being terminated.
-    */
+	/**
+	   session_id of the session being terminated.
+	 */
 	u64 rstr_session_id;
-   /**
-      sender_id of rpc-connection to which the session being terminated
-      belongs.
-    */
+	/**
+	   sender_id of rpc-connection to which the session being terminated
+	   belongs.
+	 */
 	u64 rstr_sender_id;
-   /**
-      Contains 0 if SESSION_TERMINATE operation is successful, error code
-      otherwise.
-    */
+	/**
+	   Contains 0 if SESSION_TERMINATE operation is successful, error code
+	   otherwise.
+	 */
 	u32 rstr_rc
 } c2_rpc_fop_session_terminate_rep;
 

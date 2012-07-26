@@ -38,9 +38,7 @@
 #include "ioservice/io_fops_xc.h"
 
 /*
- * Fops which are embedded in other fops need to be declared as extern
- * since their definitions are out of scope for present module. So they
- * have to be resolved at linking time.
+ * Cob delete and Cob create fom types.
  */
 extern struct c2_fom_type cd_fom_type;
 extern struct c2_fom_type cc_fom_type;
@@ -139,34 +137,34 @@ static const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
 	.fto_size_get = c2_xcode_fop_size_get
 };
 
-C2_FOP_TYPE_DECLARE_OPS_XC(c2_fop_cob_readv, "Read request",
-			   &io_fop_rwv_ops, C2_IOSERVICE_READV_OPCODE,
-			   C2_RPC_ITEM_TYPE_REQUEST, &io_item_type_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_readv, "Read request",
+			&io_fop_rwv_ops, C2_IOSERVICE_READV_OPCODE,
+			C2_RPC_ITEM_TYPE_REQUEST, &io_item_type_ops);
 
-C2_FOP_TYPE_DECLARE_OPS_XC(c2_fop_cob_writev, "Write request",
-			   &io_fop_rwv_ops, C2_IOSERVICE_WRITEV_OPCODE,
-			   C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
-			   &io_item_type_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_writev, "Write request",
+			&io_fop_rwv_ops, C2_IOSERVICE_WRITEV_OPCODE,
+			C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
+			&io_item_type_ops);
 
-C2_FOP_TYPE_DECLARE_XC(c2_fop_cob_writev_rep, "Write reply",
-		       &c2_io_rwv_rep_ops, C2_IOSERVICE_WRITEV_REP_OPCODE,
-		       C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply",
+		    &c2_io_rwv_rep_ops, C2_IOSERVICE_WRITEV_REP_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY);
 
-C2_FOP_TYPE_DECLARE_XC(c2_fop_cob_readv_rep, "Read reply",
-		       &c2_io_rwv_rep_ops, C2_IOSERVICE_READV_REP_OPCODE,
-		       C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply",
+		    &c2_io_rwv_rep_ops, C2_IOSERVICE_READV_REP_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY);
 
-C2_FOP_TYPE_DECLARE_OPS_XC(c2_fop_cob_create, "Cob create request",
-			   &cob_fop_type_ops, C2_IOSERVICE_COB_CREATE_OPCODE,
-			   C2_RPC_ITEM_TYPE_REQUEST, &cob_rpc_type_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_create, "Cob create request",
+			&cob_fop_type_ops, C2_IOSERVICE_COB_CREATE_OPCODE,
+			C2_RPC_ITEM_TYPE_REQUEST, &cob_rpc_type_ops);
 
-C2_FOP_TYPE_DECLARE_OPS_XC(c2_fop_cob_delete, "Cob delete request",
-			   &cob_fop_type_ops, C2_IOSERVICE_COB_DELETE_OPCODE,
-			   C2_RPC_ITEM_TYPE_REQUEST, &cob_rpc_type_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_delete, "Cob delete request",
+			&cob_fop_type_ops, C2_IOSERVICE_COB_DELETE_OPCODE,
+			C2_RPC_ITEM_TYPE_REQUEST, &cob_rpc_type_ops);
 
-C2_FOP_TYPE_DECLARE_OPS_XC(c2_fop_cob_op_reply, "Cob create or delete reply",
-			   &cob_fop_type_ops, C2_IOSERVICE_COB_OP_REPLY_OPCODE,
-			   C2_RPC_ITEM_TYPE_REPLY, &cob_rpc_type_ops);
+C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_op_reply, "Cob create or delete reply",
+			&cob_fop_type_ops, C2_IOSERVICE_COB_OP_REPLY_OPCODE,
+			C2_RPC_ITEM_TYPE_REPLY, &cob_rpc_type_ops);
 
 static void cob_fom_type_attach(void)
 {
@@ -553,7 +551,8 @@ int c2_io_fop_init(struct c2_io_fop *iofop, struct c2_fop_type *ftype)
 	C2_PRE(iofop != NULL);
 	C2_PRE(ftype != NULL);
 
-	rc = c2_fop_init(&iofop->if_fop, ftype, NULL);
+	c2_fop_init(&iofop->if_fop, ftype, NULL);
+	rc = c2_fop_data_alloc(&iofop->if_fop);
 	if (rc == 0) {
 		iofop->if_fop.f_item.ri_ops = &io_req_rpc_item_ops;
 		iofop->if_magic = C2_IO_FOP_MAGIC;
@@ -562,7 +561,7 @@ int c2_io_fop_init(struct c2_io_fop *iofop, struct c2_fop_type *ftype)
 		C2_POST(io_fop_invariant(iofop));
 	} else
 		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
-			    bulkclient_func_fail, "io fop init failed.", rc);
+			    bulkclient_func_fail, "io fop data alloc failed.", rc);
 	return rc;
 }
 C2_EXPORTED(c2_io_fop_init);

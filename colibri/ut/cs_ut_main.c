@@ -29,13 +29,11 @@
 #include "lib/tlist.h"
 
 #include "ut/rpc.h"
-#include "rpc/rpclib.h"
 #include "fop/fop.h"
 #include "net/bulk_mem.h"
 #include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
-#include "ut/cs_service.h"
 #include "ut/cs_fop_foms.h"
 #include "ut/cs_test_fops.h"
 #include "rpc/rpc_opcodes.h"

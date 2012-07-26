@@ -8,7 +8,8 @@ INCLUDES			= -iquote . -iquote $(top_srcdir) -iquote    \
 
 console_U_SOURCES		= console_xc.h console_xc.c
 
-$(console_U_SOURCES): console_xc.ff
+$(console_U_SOURCES): console_xc.ff \
+	$(top_builddir)/xcode/ff2c/ff2c
 	$(top_builddir)/xcode/ff2c/ff2c $<
 
 noinst_LTLIBRARIES		= libcolibri-console.la

@@ -46,8 +46,8 @@ struct c2_fop_type_ops onwire_test_ops = {
 	.fto_size_get = c2_xcode_fop_size_get,
 };
 
-C2_FOP_TYPE_DECLARE_XC(c2_fop_onwire_test, "onwire test", &onwire_test_ops,
-		       C2_RPC_ONWIRE_UT_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
+C2_FOP_TYPE_DECLARE(c2_fop_onwire_test, "onwire test", &onwire_test_ops,
+		    C2_RPC_ONWIRE_UT_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
 
 static struct c2_verno verno = {
 	.vn_lsn = 1111,

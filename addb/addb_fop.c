@@ -44,11 +44,11 @@ static struct c2_fop_type_ops addb_ops = {
 	.fto_execute = NULL,
 };
 
-C2_FOP_TYPE_DECLARE_XC(c2_addb_record, "addb", &addb_ops,
-		       C2_ADDB_RECORD_REQUEST_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
+C2_FOP_TYPE_DECLARE(c2_addb_record, "addb", &addb_ops,
+		    C2_ADDB_RECORD_REQUEST_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
 
-C2_FOP_TYPE_DECLARE_XC(c2_addb_reply,  "addb reply", NULL, C2_ADDB_REPLY_OPCODE,
-		       C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE(c2_addb_reply,  "addb reply", NULL, C2_ADDB_REPLY_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY);
 /**
    ADDB record body for function fail event.
 

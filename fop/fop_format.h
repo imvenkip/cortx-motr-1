@@ -69,20 +69,20 @@ extern const struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops;
 
 #define __paste_xc(x) x ## _xc
 
-#define C2_FOP_TYPE_DECLARE_OPS_XC(fopt, name, ops, opcode, itflags, itops) \
-struct c2_fop_type fopt ## _fopt = {				            \
-	.ft_name    = name,						    \
-        .ft_xc_type = &__paste_xc(fopt),                                    \
-	.ft_ops     = (ops),						    \
-	.ft_rpc_item_type = {						    \
-		.rit_opcode = (opcode),					    \
-		.rit_flags  = (itflags),				    \
-		.rit_ops    = (itops)					    \
-	}								    \
-};
+#define C2_FOP_TYPE_DECLARE_OPS(fopt, name, ops, opcode, itflags, itops) \
+	struct c2_fop_type fopt ## _fopt = {				\
+		.ft_name    = name,					\
+		.ft_xc_type = &__paste_xc(fopt),			\
+		.ft_ops     = (ops),					\
+		.ft_rpc_item_type = {					\
+			.rit_opcode = (opcode),				\
+			.rit_flags  = (itflags),			\
+			.rit_ops    = (itops)				\
+		}							\
+	};
 
-#define C2_FOP_TYPE_DECLARE_XC(fopt, name, ops, opcode, itflags)	    \
-        C2_FOP_TYPE_DECLARE_OPS_XC(fopt, name, ops, opcode, itflags,	    \
+#define C2_FOP_TYPE_DECLARE(fopt, name, ops, opcode, itflags)		\
+        C2_FOP_TYPE_DECLARE_OPS(fopt, name, ops, opcode, itflags,	\
 				&c2_rpc_fop_default_item_type_ops)
 /** @} end of fop group */
 

@@ -465,9 +465,9 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 		rc = -ENOMEM;
 	} else {
 		ctx->sec_session = session;
-
-		rc = c2_fop_init(&ctx->sec_fop,
-			         &c2_rpc_fop_session_establish_fopt, NULL);
+		c2_fop_init(&ctx->sec_fop,
+			    &c2_rpc_fop_session_establish_fopt, NULL);
+		rc = c2_fop_data_alloc(&ctx->sec_fop);
 		if (rc != 0)
 			c2_free(ctx);
 	}

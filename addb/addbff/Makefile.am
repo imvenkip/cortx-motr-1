@@ -12,7 +12,8 @@ INCLUDES                     = -iquote . -iquote .. \
 
 EXTRA_DIST                   = addb.ff
 
-$(ADDB_FOPS): addb.ff
+$(ADDB_FOPS): addb.ff \
+	$(top_builddir)/xcode/ff2c/ff2c
 	$(top_builddir)/xcode/ff2c/ff2c $<
 
 MOSTLYCLEANFILES             = $(ADDB_FOPS)

@@ -1,14 +1,15 @@
-PING_SRCDIR  = @SRCDIR@/rpc/it/linux_kernel
-PINGDIR      = @SRCDIR@/rpc/it
-FOPDIR       = @SRCDIR@/fop
-XCODE_DIR    = @SRCDIR@/xcode
+PING_SRCDIR          = @SRCDIR@/rpc/it/linux_kernel
+PINGDIR              = @SRCDIR@/rpc/it
+FOPDIR               = @SRCDIR@/fop
 
-obj-m       := krpcping.o
-shared_src  := rpc_ping.c ping_fop.c ping_fop_xc.c ping_fom.c xcode.c
-kernel_src  := rpcping_kernel.c
-krpcping-y  := $(shared_src:.c=.o) $(kernel_src:.c=.o)
-headers     := ping_fop_xc.h
-orig        := $(shared_src:%=../%) $(headers:%=../%) $(XCODE_DIR)/xcode.c
+KBUILD_EXTRA_SYMBOLS = kcolibri.symvers
+
+obj-m               := krpcping.o
+shared_src          := rpc_ping.c ping_fop.c ping_fop_xc.c ping_fom.c
+kernel_src          := rpcping_kernel.c
+krpcping-y          := $(shared_src:.c=.o) $(kernel_src:.c=.o)
+headers             := ping_fop_xc.h
+orig                := $(shared_src:%=../%) $(headers:%=../%)
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -iquote @SRCDIR@ @KCFLAGS@
 
@@ -16,10 +17,11 @@ prepare:
 	ln -fs $(orig) .
 
 clean distclean:
-	$(RM) ping_fop_xc.[ch] xcode.c
+	$(RM) ping_fop_xc.[ch]
 	$(RM) $(shared_src) Module.markers Module.symvers modules.order
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
 distdir:
-	cp $(PING_SRCDIR)/Makefile.in  $(PING_SRCDIR)/rpcping_kernel.c $(PING_SRCDIR)/rpc_ping.h\
-           @top_builddir@/@PACKAGE@-@VERSION@/rpc/it/linux_kernel
+	cp $(PING_SRCDIR)/Makefile.in $(PING_SRCDIR)/kcolibri.symvers \
+	   $(PING_SRCDIR)/rpcping_kernel.c $(PING_SRCDIR)/rpc_ping.h  \
+	   @top_builddir@/@PACKAGE@-@VERSION@/rpc/it/linux_kernel

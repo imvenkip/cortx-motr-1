@@ -3,7 +3,8 @@ INCLUDES             = -iquote . -iquote $(top_srcdir)/include -iquote $(top_src
 
 ITERATOR_FOPS        = iterator_test_xc.h iterator_test_xc.c
 
-$(ITERATOR_FOPS) : iterator_test_xc.ff
+$(ITERATOR_FOPS) : iterator_test_xc.ff \
+	$(top_builddir)/xcode/ff2c/ff2c
 	$(top_builddir)/xcode/ff2c/ff2c $<
 
 libfop_ut_la_SOURCES = $(ITERATOR_FOPS) iterator_test.c

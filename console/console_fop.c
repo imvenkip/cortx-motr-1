@@ -54,17 +54,17 @@ static const struct c2_fop_type_ops c2_cons_fop_reply_ops = {
 
 /* Fop and RPC Item type definitions for device failures and replies
    and replies */
-C2_FOP_TYPE_DECLARE_XC(c2_cons_fop_device, "Device Failed",
-		       &c2_cons_fop_device_ops,
-		       C2_CONS_FOP_DEVICE_OPCODE,
-		       C2_RPC_ITEM_TYPE_REQUEST);
+C2_FOP_TYPE_DECLARE(c2_cons_fop_device, "Device Failed",
+		    &c2_cons_fop_device_ops,
+		    C2_CONS_FOP_DEVICE_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST);
 
-C2_FOP_TYPE_DECLARE_XC(c2_cons_fop_reply, "Console Reply",
-		       &c2_cons_fop_reply_ops,
-		       C2_CONS_FOP_REPLY_OPCODE,
-		       C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE(c2_cons_fop_reply, "Console Reply",
+		    &c2_cons_fop_reply_ops,
+		    C2_CONS_FOP_REPLY_OPCODE,
+		    C2_RPC_ITEM_TYPE_REPLY);
 
-C2_FOP_TYPE_DECLARE_XC(c2_cons_fop_test, "Console Test", NULL, C2_CONS_TEST, 0);
+C2_FOP_TYPE_DECLARE(c2_cons_fop_test, "Console Test", NULL, C2_CONS_TEST, 0);
 
 static struct c2_fop_type *fops[] = {
         &c2_cons_fop_device_fopt,

@@ -39,8 +39,8 @@ static struct c2_fop_type_ops reqh_err_fop_ops = {
 };
 
 
-C2_FOP_TYPE_DECLARE_XC(c2_reqh_error_rep, "reqh error reply", &reqh_err_fop_ops,
-		       C2_REQH_ERROR_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE(c2_reqh_error_rep, "reqh error reply", &reqh_err_fop_ops,
+		    C2_REQH_ERROR_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
 
 static struct c2_fop_type *reqh_fops[] = {
 	&c2_reqh_error_rep_fopt,

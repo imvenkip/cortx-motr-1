@@ -17,5 +17,6 @@ EXTRA_DIST                 = net_otw_types.ff
 
 net.h net.c : $(OTW_SOURCES)
 tm_provision.c: net.h
-$(OTW_SOURCES): net_otw_types.ff
+$(OTW_SOURCES): net_otw_types.ff \
+	$(top_builddir)/xcode/ff2c/ff2c
 	$(top_builddir)/xcode/ff2c/ff2c $<

@@ -33,35 +33,31 @@
 
 extern struct c2_addb_ctx_type c2_fop_addb_ctx;
 
-int c2_fop_init_rest(struct c2_fop *fop, struct c2_fop_type *fopt)
+int c2_fop_data_alloc(struct c2_fop *fop)
 {
+	c2_bcount_t nob;
+
+	C2_PRE(fop->f_data.fd_data == NULL && fop->f_type != NULL);
+
+	nob = (*fop->f_type->ft_xc_type)->xct_sizeof;
+	fop->f_data.fd_data = c2_alloc(nob);
+
+	return fop->f_data.fd_data == NULL ? -ENOMEM : 0;
+}
+
+void c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
+{
+
 	C2_PRE(fop != NULL && fopt != NULL);
 
+	fop->f_type = fopt;
 	c2_addb_ctx_init(&fop->f_addb, &c2_fop_addb_ctx,
 			 &fopt->ft_addb);
 	c2_list_link_init(&fop->f_link);
 	c2_rpc_item_init(&fop->f_item);
 	fop->f_item.ri_type = &fop->f_type->ft_rpc_item_type;
-	return 0;
-}
-
-int c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
-{
-	c2_bcount_t nob;
-
-	C2_PRE(fop != NULL && fopt != NULL);
-
-	fop->f_type = fopt;
-	nob = (*fopt->ft_xc_type)->xct_sizeof;
-	if (data == NULL) {
-		data = c2_alloc(nob);
-		if (data == NULL)
-			return -ENOMEM;
-	}
+	fop->f_item.ri_ops = &c2_fop_default_item_ops;
 	fop->f_data.fd_data = data;
-	c2_fop_init_rest(fop, fopt);
-
-	return 0;
 }
 
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
@@ -71,17 +67,24 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 
 	C2_ALLOC_PTR(fop);
 	if (fop != NULL) {
-		err = c2_fop_init(fop, fopt, data);
-		if (err != 0) {
-			c2_free(fop);
-			fop = NULL;
-		} else
-			fop->f_item.ri_ops = &c2_fop_default_item_ops;
+		c2_fop_init(fop, fopt, data);
+		if (data == NULL) {
+			err = c2_fop_data_alloc(fop);
+			if (err != 0) {
+				c2_free(fop);
+				return NULL;
+			}
+		}
 	}
+
 	return fop;
 }
 C2_EXPORTED(c2_fop_alloc);
 
+/**
+   @todo Current implementation just deletes the top level object;
+   instead traverse and free entire tree of objects.
+ */
 void c2_fop_fini(struct c2_fop *fop)
 {
 	C2_ASSERT(fop != NULL);

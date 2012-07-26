@@ -49,12 +49,12 @@ const struct c2_fop_type_ops c2_fop_ping_rep_ops = {
 };
 
 /* Ping fop assignment */
-C2_FOP_TYPE_DECLARE_XC(c2_fop_ping, "ping fop", &c2_fop_ping_ops,
-		       C2_RPC_PING_OPCODE,
-		       C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
+C2_FOP_TYPE_DECLARE(c2_fop_ping, "ping fop", &c2_fop_ping_ops,
+		    C2_RPC_PING_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
 
-C2_FOP_TYPE_DECLARE_XC(c2_fop_ping_rep, "ping fop reply", &c2_fop_ping_rep_ops,
-		       C2_RPC_PING_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
+C2_FOP_TYPE_DECLARE(c2_fop_ping_rep, "ping fop reply", &c2_fop_ping_rep_ops,
+		    C2_RPC_PING_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
 
 static struct c2_fop_type *fops[] = {
         &c2_fop_ping_fopt,
