@@ -1610,6 +1610,7 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 	struct c2_io_fom_cob_rw_state_transition  st;
 	struct c2_poolmach                       *poolmach;
 	struct c2_reqh                           *reqh;
+	struct c2_pool_version_numbers           *verp;
 	struct c2_pool_version_numbers            curr;
 
 	C2_PRE(fom != NULL);
@@ -1629,10 +1630,10 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 	poolmach = c2_ios_poolmach_get(reqh);
 	c2_poolmach_current_version_get(poolmach, &curr);
 	rwfop = io_rw_get(fom->fo_fop);
+	verp = (struct c2_pool_version_numbers*)(&rwfop->crw_version);
 
 	/* Check the client version and server version before any processing */
-	if (rwfop->crw_version.fvv_read  != curr.pvn_version[PVE_READ] ||
-	    rwfop->crw_version.fvv_write != curr.pvn_version[PVE_WRITE]) {
+	if (!c2_poolmach_version_equal(verp, &curr)) {
 		rc = C2_FSO_WAIT;
 		fom->fo_phase = C2_FOPH_FAILURE;
 		fom->fo_rc    = C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH;
@@ -1659,8 +1660,8 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 		rwrep->rwr_count = fom_obj->fcrw_count;
 
 		c2_poolmach_current_version_get(poolmach, &curr);
-		rwrep->rwr_fv_version.fvv_read    = curr.pvn_version[PVE_READ];
-		rwrep->rwr_fv_version.fvv_write   = curr.pvn_version[PVE_WRITE];
+		verp = (struct c2_pool_version_numbers*)&rwrep->rwr_fv_version;
+		*verp = curr;
 
 		rwrep->rwr_fv_updates.fvu_length  = 0;
 		rwrep->rwr_fv_updates.fvu_updates = NULL;

@@ -603,16 +603,18 @@ static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 	 */
 	reply = c2_fop_data(c2_rpc_item_to_fop(fop->f_item.ri_reply));
 	if (reply->cor_rc == C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH) {
-		struct c2_pool_version_numbers *ver;
-		rc = -EAGAIN;
+		struct c2_pool_version_numbers *cli;
+		struct c2_pool_version_numbers *srv;
+
 		/* TODO */
 		/* Retrieve the latest server version and updates and apply
 		 * to the client's copy. When -EAGAIN is return, this system
 		 * call will be restarted.
 		 */
-		ver = &csb->csb_pool.po_mach->pm_state.pst_version;
-		ver->pvn_version[PVE_READ]  = reply->cor_fv_version.fvv_read;
-		ver->pvn_version[PVE_WRITE] = reply->cor_fv_version.fvv_write;
+		rc = -EAGAIN;
+		cli = &csb->csb_pool.po_mach->pm_state.pst_version;
+		srv = (struct c2_pool_version_numbers *)&reply->cor_fv_version;
+		*cli = *srv;
 	} else
 		rc = reply->cor_rc;
 
@@ -631,9 +633,10 @@ static int c2t1fs_cob_fop_populate(struct c2t1fs_sb    *csb,
 				   const struct c2_fid *cob_fid,
 				   const struct c2_fid *gob_fid)
 {
-	struct c2_fop_cob_create      *cc;
-	struct c2_fop_cob_common      *common;
-	struct c2_pool_version_numbers curr;
+	struct c2_fop_cob_create       *cc;
+	struct c2_fop_cob_common       *common;
+	struct c2_pool_version_numbers *cli;
+	struct c2_pool_version_numbers  curr;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(fop->f_type != NULL);
@@ -647,8 +650,8 @@ static int c2t1fs_cob_fop_populate(struct c2t1fs_sb    *csb,
 
 	/* fill in the current client known version */
 	c2_poolmach_current_version_get(csb->csb_pool.po_mach, &curr);
-	common->c_version.fvv_read  = curr.pvn_version[PVE_READ];
-	common->c_version.fvv_write = curr.pvn_version[PVE_WRITE];
+	cli = (struct c2_pool_version_numbers*)&common->c_version;
+	*cli = curr;
 
 	common->c_gobfid.f_seq = gob_fid->f_container;
 	common->c_gobfid.f_oid = gob_fid->f_key;

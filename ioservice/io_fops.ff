@@ -93,6 +93,10 @@ DEF(c2_io_descs, SEQUENCE,
 
 /**
  * Failure vector (pool machine state) version numbers.
+ * This is declared as a record, not a sequence (which is more like an
+ * array, such that to avoid dynamic memory allocation for every
+ * request and reply fop. The size of this struct will be assert to
+ * be the same of struct c2_pool_version_numbers.
  */
 DEF(c2_fv_version, RECORD,
 	_(fvv_read, U64),

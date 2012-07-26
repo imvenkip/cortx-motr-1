@@ -33,6 +33,8 @@
 #include "ioservice/io_service.h"
 #include "ioservice/cobfid_map.h"
 #include "ioservice/io_device.h"
+#include "pool/pool.h"
+#include "ioservice/io_fops_u.h"
 
 C2_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh", ,
 		   struct c2_rios_buffer_pool, rios_bp_linkage, rios_bp_magic,
@@ -141,6 +143,13 @@ static void buffer_pool_low(struct c2_net_buffer_pool *bp)
  */
 int c2_ios_register(void)
 {
+	/* The onwire version-number structure is declared as a struct,
+	 * not a sequence (which is more like an array.
+	 * This avoid dynamic memory for every request and reply fop.
+	 */
+	C2_CASSERT(sizeof (struct c2_pool_version_numbers) ==
+		   sizeof (struct c2_fv_version));
+
 	c2_reqh_service_type_register(&c2_ios_type);
 	return c2_ioservice_fop_init();
 }

@@ -800,7 +800,8 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 	int                     nr_pages_per_buf;
 	int                     rc;
 	int                     i;
-        struct c2_pool_version_numbers curr;
+        struct c2_pool_version_numbers  curr;
+        struct c2_pool_version_numbers *cli;
 
 #define SESSION_TO_NDOM(session) \
 	(session)->s_conn->c_rpc_machine->rm_tm.ntm_dom
@@ -862,8 +863,8 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 	/* fill in the current client known version */
 	csb = C2T1FS_SB(rw_desc->rd_inode->ci_inode.i_sb);
 	c2_poolmach_current_version_get(csb->csb_pool.po_mach, &curr);
-	rwfop->crw_version.fvv_read  = curr.pvn_version[PVE_READ];
-	rwfop->crw_version.fvv_write = curr.pvn_version[PVE_WRITE];
+	cli = (struct c2_pool_version_numbers*)&rwfop->crw_version;
+	*cli = curr;
 
 	rwfop->crw_fid.f_seq = rw_desc->rd_fid.f_container;
 	rwfop->crw_fid.f_oid = rw_desc->rd_fid.f_key;
@@ -1071,7 +1072,8 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 
 		rc = io_fop_do_sync_io(iofop, rw_desc->rd_session);
 		if (rc == C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH) {
-			struct c2_pool_version_numbers *ver;
+			struct c2_pool_version_numbers *cli;
+			struct c2_pool_version_numbers *srv;
 			struct c2t1fs_sb               *csb;
 			struct c2_fop                  *reply;
 			struct c2_rpc_item             *reply_item;
@@ -1083,17 +1085,17 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 			reply         = c2_rpc_item_to_fop(reply_item);
 			rw_reply      = io_rw_rep_get(reply);
 			reply_version = &rw_reply->rwr_fv_version;
+			srv = (struct c2_pool_version_numbers *)reply_version;
+			cli = &csb->csb_pool.po_mach->pm_state.pst_version;
 
-			rc = -EAGAIN;
 			/* TODO */
 			/* Retrieve the latest server version and
 			 * updates and apply to the client's copy.
 			 * When -EAGAIN is return, this system
 			 * call will be restarted.
 			 */
-			ver = &csb->csb_pool.po_mach->pm_state.pst_version;
-			ver->pvn_version[PVE_READ]  = reply_version->fvv_read;
-			ver->pvn_version[PVE_WRITE] = reply_version->fvv_write;
+			rc = -EAGAIN;
+			*cli = *srv;
 			return rc;
 		} else if (rc != 0) {
 			/* For now, if one io fails, fail entire IO. */

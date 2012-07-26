@@ -209,6 +209,7 @@ static int cc_fom_state(struct c2_fom *fom)
 	struct c2_fop_cob_op_reply     *reply;
 	struct c2_poolmach             *poolmach;
 	struct c2_reqh                 *reqh;
+	struct c2_pool_version_numbers *verp;
 	struct c2_pool_version_numbers  curr;
 	struct c2_fop_cob_create *fop;
 
@@ -226,9 +227,10 @@ static int cc_fom_state(struct c2_fom *fom)
 	reqh = fom->fo_loc->fl_dom->fd_reqh;
 	poolmach = c2_ios_poolmach_get(reqh);
 	c2_poolmach_current_version_get(poolmach, &curr);
+	verp = (struct c2_pool_version_numbers*)&fop->cc_common.c_version;
+
 	/* Check the client version and server version before any processing */
-	if (fop->cc_common.c_version.fvv_read  != curr.pvn_version[PVE_READ] ||
-	    fop->cc_common.c_version.fvv_write != curr.pvn_version[PVE_WRITE]) {
+	if (!c2_poolmach_version_equal(verp, &curr)) {
 		fom->fo_phase = C2_FOPH_FAILURE;
 		rc = fom->fo_rc = C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH;
 		goto out;
@@ -254,8 +256,8 @@ out:
 	reply->cor_rc = rc;
 
 	c2_poolmach_current_version_get(poolmach, &curr);
-	reply->cor_fv_version.fvv_read    = curr.pvn_version[PVE_READ];
-	reply->cor_fv_version.fvv_write   = curr.pvn_version[PVE_WRITE];
+	verp = (struct c2_pool_version_numbers*)&reply->cor_fv_version;
+	*verp = curr;
 
 	reply->cor_fv_updates.fvu_length  = 0;
 	reply->cor_fv_updates.fvu_updates = NULL;
@@ -420,6 +422,7 @@ static int cd_fom_state(struct c2_fom *fom)
 	struct c2_fop_cob_op_reply     *reply;
 	struct c2_poolmach             *poolmach;
 	struct c2_reqh                 *reqh;
+	struct c2_pool_version_numbers *verp;
 	struct c2_pool_version_numbers  curr;
 	struct c2_fop_cob_delete       *fop;
 
@@ -438,9 +441,10 @@ static int cd_fom_state(struct c2_fom *fom)
 	reqh = fom->fo_loc->fl_dom->fd_reqh;
 	poolmach = c2_ios_poolmach_get(reqh);
 	c2_poolmach_current_version_get(poolmach, &curr);
+	verp = (struct c2_pool_version_numbers*)&fop->cd_common.c_version;
+
 	/* Check the client version and server version before any processing */
-	if (fop->cd_common.c_version.fvv_read  != curr.pvn_version[PVE_READ] ||
-	    fop->cd_common.c_version.fvv_write != curr.pvn_version[PVE_WRITE]) {
+	if (!c2_poolmach_version_equal(verp, &curr)) {
 		fom->fo_phase = C2_FOPH_FAILURE;
 		rc = fom->fo_rc = C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH;
 		goto out;
@@ -466,8 +470,8 @@ out:
 	reply->cor_rc = rc;
 
 	c2_poolmach_current_version_get(poolmach, &curr);
-	reply->cor_fv_version.fvv_read    = curr.pvn_version[PVE_READ];
-	reply->cor_fv_version.fvv_write   = curr.pvn_version[PVE_WRITE];
+	verp = (struct c2_pool_version_numbers*)&reply->cor_fv_version;
+	*verp = curr;
 
 	reply->cor_fv_updates.fvu_length  = 0;
 	reply->cor_fv_updates.fvu_updates = NULL;
