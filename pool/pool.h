@@ -256,6 +256,9 @@ struct c2_poolmach {
 	struct c2_rwlock         pm_lock;
 };
 
+bool c2_poolmach_version_equal(const struct c2_pool_version_numbers *v1,
+			       const struct c2_pool_version_numbers *v2);
+
 int  c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm);
 void c2_poolmach_fini(struct c2_poolmach *pm);
 

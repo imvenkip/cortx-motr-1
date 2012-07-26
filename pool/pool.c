@@ -75,6 +75,12 @@ void c2_pools_fini(void)
 {
 }
 
+bool c2_poolmach_version_equal(const struct c2_pool_version_numbers *v1,
+			       const struct c2_pool_version_numbers *v2)
+{
+	return !memcmp(v1, v2, sizeof *v1);
+}
+
 int  c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm)
 {
 	uint32_t i;
