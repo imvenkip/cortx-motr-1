@@ -59,8 +59,6 @@ int c2_net_init()
 	c2_mutex_init(&c2_net_mutex);
 	c2_addb_ctx_init(&c2_net_addb, &c2_net_addb_ctx, &c2_addb_global_ctx);
 	c2_xc_net_otw_types_init();
-	c2_addb_ctx_fini(&c2_net_addb);
-	c2_mutex_fini(&c2_net_mutex);
 
 	return 0;
 }

@@ -21,6 +21,10 @@
 
 /* This file is included into mem_xprt_xo.c */
 
+#ifndef __KERNEL__
+#include <stdio.h>
+#endif
+
 /**
    @addtogroup bulkmem
    @{

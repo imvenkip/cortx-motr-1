@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #endif /* __KERNEL__ */
+
 /**
    @addtogroup LNetCore
    @{

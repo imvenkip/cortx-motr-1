@@ -19,9 +19,6 @@
  * Original creation date: 04/12/2011
  */
 
-#ifndef __KERNEL__
-#include <stdio.h>
-#endif
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "net/bulk_emulation/mem_xprt_pvt.h"
