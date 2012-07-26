@@ -40,6 +40,8 @@ TODO
             in_irq(). In user space, this should be based on
             pthread_getspecific(). Timer and chan call-backs should be handled.
 
+2012-Jul-26 Use type-safe lists in fom.[ch].
+
 IN-PROGRESS
 
 2012-May-09 [Dima] Replace all debugging printf-s and printk-s with C2_LOG()-s
