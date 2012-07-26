@@ -676,18 +676,11 @@ const struct c2_sm_conf	generic_conf = {
 
 int c2_fom_state_generic(struct c2_fom *fom)
 {
-	int	 rc;
-	uint32_t fom_phase;
-
 	C2_PRE(fom != NULL);
 
-	fom_phase = fom->fo_phase;
-	c2_sm_state_set(&fom->fo_sm_phase, fom_phase);
-	rc = C2_FSO_WAIT;
-	if (fom->fo_phase == C2_FOPH_FINISH)
-		rc = C2_FSO_WAIT;
+	c2_sm_state_set(&fom->fo_sm_phase, fom->fo_phase);
 
-	return rc;
+	return C2_FSO_WAIT;
 }
 
 void c2_fom_sm_init(struct c2_fom *fom)
