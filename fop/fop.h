@@ -57,7 +57,6 @@
 */
 
 /* import */
-struct c2_service;
 struct c2_fol;
 struct c2_db_tx;
 
@@ -65,24 +64,6 @@ struct c2_db_tx;
 struct c2_fop_ctx;
 struct c2_fop_data;
 struct c2_fop;
-
-/**
-   A context for fop processing in a service.
-
-   A context is created by a service and passed to
-   c2_fop_type_ops::fto_execute() as an argument. It is used to identify a
-   particular fop execution in a service.
- */
-struct c2_fop_ctx {
-	struct c2_service *ft_service;
-	/**
-	   Service-dependent cookie identifying fop execution. Passed to
-	   c2_service_ops::so_reply_post() to post a reply.
-
-	   @see c2_net_reply_post()
-	 */
-	void              *fc_cookie;
-};
 
 /**
     fop storage.

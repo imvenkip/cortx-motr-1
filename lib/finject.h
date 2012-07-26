@@ -21,6 +21,10 @@
 #ifndef __COLIBRI_LIB_FINJECT_H__
 #define __COLIBRI_LIB_FINJECT_H__
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"     /* ENABLE_FAULT_INJECTION */
+#endif
+
 #include "lib/cdefs.h"
 #include "lib/types.h"
 #include "lib/assert.h"   /* C2_PRE */

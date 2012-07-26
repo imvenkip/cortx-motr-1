@@ -196,8 +196,7 @@ struct c2_fom_locality {
 bool c2_locality_invariant(const struct c2_fom_locality *loc);
 
 /**
- * Domain is a collection of localities that compete for the resources. For
- * example, there would be typically a domain for each service (c2_service).
+ * Domain is a collection of localities that compete for the resources.
  *
  * Once the fom domain is initialised, fom domain invariant should hold
  * true until fom domain is finalised .
@@ -383,42 +382,40 @@ struct c2_fom {
 	 *
 	 * @see c2_fom_locality
 	 */
-	enum c2_fom_state	 fo_state;
+	enum c2_fom_state	  fo_state;
 	/** FOM phase under execution */
-	int			 fo_phase;
+	int			  fo_phase;
 	/** Locality this fom belongs to */
-	struct c2_fom_locality	*fo_loc;
-	struct c2_fom_type	*fo_type;
-	const struct c2_fom_ops	*fo_ops;
+	struct c2_fom_locality	 *fo_loc;
+	const struct c2_fom_type *fo_type;
+	const struct c2_fom_ops	 *fo_ops;
 	/** AST call-back to wake up the FOM */
-	struct c2_fom_callback	 fo_cb;
-	/** FOP ctx sent by the network service. */
-	struct c2_fop_ctx	*fo_fop_ctx;
+	struct c2_fom_callback	  fo_cb;
 	/** Request fop object, this fom belongs to */
-	struct c2_fop		*fo_fop;
+	struct c2_fop		 *fo_fop;
 	/** Reply fop object */
-	struct c2_fop		*fo_rep_fop;
+	struct c2_fop		 *fo_rep_fop;
 	/** Fol object for this fom */
-	struct c2_fol		*fo_fol;
+	struct c2_fol		 *fo_fol;
 	/** Transaction object to be used by this fom */
-	struct c2_dtx		 fo_tx;
+	struct c2_dtx		  fo_tx;
 	/** Pointer to service instance. */
-	struct c2_reqh_service  *fo_service;
+	struct c2_reqh_service   *fo_service;
 	/**
 	 *  FOM linkage in the locality runq list or wait list
 	 *  Every access to the FOM via this linkage is
 	 *  protected by the c2_fom_locality::fl_group.s_lock mutex.
 	 */
-	struct c2_list_link	 fo_linkage;
+	struct c2_list_link	  fo_linkage;
 	/** Transitions counter, coresponds to the number of
 	    c2_fom_ops::fo_state() calls */
-	unsigned		 fo_transitions;
+	unsigned		  fo_transitions;
 	/** Counter of transitions, used to ensure FOM was inactive,
 	    while waiting for a longlock. */
-	unsigned		 fo_transitions_saved;
+	unsigned		  fo_transitions_saved;
 
 	/** Result of fom execution, -errno on failure */
-	int32_t			 fo_rc;
+	int32_t			  fo_rc;
 };
 
 /**
