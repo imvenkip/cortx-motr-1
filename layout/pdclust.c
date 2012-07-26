@@ -19,6 +19,10 @@
  * Original creation date: 07/15/2010
  */
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 /**
  * @addtogroup pdclust
  *

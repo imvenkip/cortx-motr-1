@@ -18,6 +18,10 @@
  * Original creation date: 07/09/2010
  */
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 /**
  * @addtogroup layout
  * @{
@@ -55,10 +59,6 @@
  *   - c2_layout_lookup(), c2_layout_add(), c2_layout_update(),
  *     c2_layout_delete().
  */
-
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
 
 #include "lib/errno.h"
 #include "lib/memory.h" /* C2_ALLOC_PTR() */
