@@ -2923,6 +2923,7 @@ static void test_update_failure(void)
 {
 	uint64_t lid;
 
+#if 0
 	/* Simulate c2_layout_encode() failure in c2_layout_update(). */
 	lid = 12006;
 	c2_fi_enable_off_n_on_m("c2_layout_encode", "error_1", 1, 1);
@@ -2932,9 +2933,10 @@ static void test_update_failure(void)
 				 FAILURE_TEST);
 	C2_UT_ASSERT(rc == -505);
 	c2_fi_disable("c2_layout_encode", "error_1");
+#endif
 
 	/* July 26, continue from here. Need to debug why it does not work.*/
-#if 0
+#if 1
 	/* Simulate c2_table_update() failure in c2_layout_update(). */
 	lid = 12007;
 	c2_fi_enable_once("c2_layout_update", "error_1");

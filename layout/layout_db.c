@@ -595,6 +595,7 @@ int c2_layout_update(struct c2_layout *l,
 		IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_1", -601,
 						 error_1_injected);
 */
+		C2_ASSERT(C2_FI_ENABLED("error_1"));
 		if (C2_FI_ENABLED("error_1")) {
 			rc = -601;
 			goto error_1_injected;
