@@ -643,14 +643,32 @@ extern const struct c2_addb_ctx_type c2_fom_addb_ctx_type;
 C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, (name), (rc))
 
 /**
+ * It transtions through both standard and specfic phases until -1 is returned
+ * a state function.
+ * Each state function needs to return either next phase fom->fo_phase or -1.
+ *
+ * @param fom file operation machine under execution
+ * @retval C2_FSO_WAIT, It means fom execution is blocked and fom goes into
+ * 	   corresponding wait phase, or fom execution is completed, i.e
+ * 	   success or failure. C2_FOPH_FINISH state is reached.
+ */
+int c2_fom_state_generic(struct c2_fom *fom);
+
+/**
  * It initializes state machine in the FOM with C2_FOPH_SM_INIT state.
+ * @param fom file operation machine.
  * @pre c2_group_is_locked(fom)
  */
 void c2_fom_sm_init(struct c2_fom *fom);
 
+/**
+ * It combines generic FOM phases and FOM specific phases and return
+ * the resultant SM configuration in struct c2_fom_type::ft_conf.
+ * @param fom_type Fom type to be registered.
+ */
 void c2_fom_type_register(struct c2_fom_type *fom_type);
 
-extern const struct c2_sm_conf	fom_conf;
+extern const struct c2_sm_conf fom_conf;
 
 /** @} end of fom group */
 

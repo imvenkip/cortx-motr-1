@@ -714,6 +714,7 @@ void c2_fom_type_register(struct c2_fom_type *fom_type)
 		for (i = 0; i < C2_FOPH_NR; i++)
 			fom_type->ft_phases[i] = generic_states[i];
 
+		C2_ASSERT(fom_type->ft_phases != NULL);
 		conf->scf_nr_states = fom_type->ft_nr_phases;
 		conf->scf_state     = fom_type->ft_phases;
 

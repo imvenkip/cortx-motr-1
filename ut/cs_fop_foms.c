@@ -337,15 +337,12 @@ static size_t cs_ut_find_fom_home_locality(const struct c2_fom *fom)
  */
 static int cs_req_fop_fom_state(struct c2_fom *fom)
 {
-	int                    rc;
-
 	C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
 	       C2_CS_DS1_REQ_OPCODE ||
 	       fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
 	       C2_CS_DS2_REQ_OPCODE);
 
-	rc = c2_fom_state_generic(fom);
-	return rc;
+	return c2_fom_state_generic(fom);
 }
 
 static int ds1_request(struct c2_sm *sm)
