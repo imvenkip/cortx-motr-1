@@ -131,14 +131,21 @@ static const struct c2_sm_state_descr *sm_state(const struct c2_sm *mach)
 	return state_get(mach, mach->sm_state);
 }
 
-bool c2_sm_invariant(const struct c2_sm *mach)
+/**
+ * Weaker form of state machine invariant, that doesn't check that the group
+ * lock is held. Used in c2_sm_init() and c2_sm_fini().
+ */
+bool sm_invariant0(const struct c2_sm *mach)
 {
 	const struct c2_sm_state_descr *sd = sm_state(mach);
 
-	return
-		sm_is_locked(mach) &&
-		equi((mach->sm_rc != 0), (sd->sd_flags & C2_SDF_FAILURE)) &&
-		ergo(sd->sd_invariant != NULL, sd->sd_invariant(mach));
+	return equi((mach->sm_rc != 0), (sd->sd_flags & C2_SDF_FAILURE)) &&
+	       ergo(sd->sd_invariant != NULL, sd->sd_invariant(mach));
+}
+
+bool c2_sm_invariant(const struct c2_sm *mach)
+{
+	return sm_is_locked(mach) && sm_invariant0(mach);
 }
 
 static bool conf_invariant(const struct c2_sm_conf *conf)
@@ -185,12 +192,12 @@ void c2_sm_init(struct c2_sm *mach, const struct c2_sm_conf *conf,
 	mach->sm_addb  = ctx;
 	mach->sm_rc    = 0;
 	c2_chan_init(&mach->sm_chan);
-	C2_POST(c2_sm_invariant(mach));
+	C2_POST(sm_invariant0(mach));
 }
 
 void c2_sm_fini(struct c2_sm *mach)
 {
-	C2_ASSERT(c2_sm_invariant(mach));
+	C2_ASSERT(sm_invariant0(mach));
 	C2_PRE(sm_state(mach)->sd_flags & C2_SDF_TERMINAL);
 	c2_chan_fini(&mach->sm_chan);
 }

@@ -16,7 +16,7 @@
  *
  * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
  *		    Madhavrao Vemuri <madhav_vemuri@xyratex.com>
- * Original creation date: 07/19/2010
+ * Original creation date: 07/19/2011
  */
 
 #ifdef HAVE_CONFIG_H
@@ -690,7 +690,6 @@ void c2_fom_sm_init(struct c2_fom *fom)
 	const struct c2_sm_conf *conf;
 
 	C2_PRE(fom != NULL);
-	C2_PRE(c2_group_is_locked(fom));
 
 	conf	     = fom->fo_type->ft_conf;
 	fom_group    = &fom->fo_loc->fl_group;
@@ -698,7 +697,7 @@ void c2_fom_sm_init(struct c2_fom *fom)
 
 	c2_sm_init(&fom->fo_sm_phase, conf, C2_FOPH_SM_INIT, fom_group,
 		    fom_addb_ctx);
-	c2_sm_init(&fom->fo_sm_state, &fom_conf, C2_FOS_SM_INIT, fom_group,
+	c2_sm_init(&fom->fo_sm_state, &fom_conf, C2_FOS_INIT, fom_group,
 		    fom_addb_ctx);
 }
 

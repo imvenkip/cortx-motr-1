@@ -232,19 +232,18 @@ struct c2_fom_domain_ops {
  * States a fom can be in.
  */
 enum c2_fom_state {
-	C2_FOS_SM_INIT,
 	C2_FOS_INIT,
+	/**
+	 * Fom is in C2_FOS_READY state when it is on locality runq for
+	 * execution.
+	 */
+	C2_FOS_READY,
 	/**
 	 * Fom is in C2_FOS_RUNNING state when its state transition function is
 	 * being executed by a locality handler thread.  The fom is not on any
 	 * queue in this state.
 	 */
 	C2_FOS_RUNNING,
-	/**
-	 * Fom is in C2_FOS_READY state when it is on locality runq for
-	 * execution.
-	 */
-	C2_FOS_READY,
 	/**
 	 * Fom is in C2_FOS_WAITING state when some event must happen before
 	 * the next state transition would become possible.  The fom is on a
@@ -578,16 +577,6 @@ void c2_fom_block_enter(struct c2_fom *fom);
 void c2_fom_block_leave(struct c2_fom *fom);
 
 /**
- * Dequeues fom from the locality waiting queue and enqueues it into
- * locality runq list changing the state to C2_FOS_READY.
- *
- * @pre fom->fo_state == C2_FOS_WAITING
- * @pre is_locked(fom)
- * @param fom Ready to be executed fom, is put on locality runq
- */
-void c2_fom_ready(struct c2_fom *fom);
-
-/**
  * Registers AST call-back with the channel and a fom executing a blocking
  * operation. Both, the channel and the call-back (with initialized fc_bottom)
  * are provided by user.
@@ -669,6 +658,15 @@ void c2_fom_sm_init(struct c2_fom *fom);
 void c2_fom_type_register(struct c2_fom_type *fom_type);
 
 extern const struct c2_sm_conf fom_conf;
+
+/** It transitions the fom from waiting to ready state. */
+static inline void c2_fom_ready(struct c2_fom *fom)
+{
+	C2_PRE(fom != NULL);
+	C2_PRE(fom->fo_state == C2_FOS_WAITING);
+
+	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_READY);
+}
 
 /** @} end of fom group */
 

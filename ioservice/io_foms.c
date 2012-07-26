@@ -782,9 +782,8 @@ static void stobio_complete_cb(struct c2_fom_callback *cb)
         C2_PRE(fom->fo_state == C2_FOS_WAITING);
 
         C2_CNT_DEC(fom_obj->fcrw_num_stobio_launched);
-        if (fom_obj->fcrw_num_stobio_launched == 0) {
+        if (fom_obj->fcrw_num_stobio_launched == 0)
                 c2_fom_ready(fom);
-        }
 };
 
 /**
@@ -1638,7 +1637,7 @@ static void reply_fop_set(struct c2_fom *fom)
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
 
 	C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
-	
+
 	/* Set operation status in reply fop if FOM ends.*/
         if (fom->fo_phase == C2_FOPH_SUCCESS ||
             fom->fo_phase == C2_FOPH_FAILURE) {

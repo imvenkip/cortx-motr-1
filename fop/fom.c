@@ -30,6 +30,7 @@
 #include "lib/time.h"
 #include "lib/timer.h"
 #include "lib/arith.h"
+#include "lib/cdefs.h" /* ergo */
 
 #include "addb/addb.h"
 #include "fop/fom.h"
@@ -129,8 +130,8 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 
 		(fom->fo_state == C2_FOS_READY) == is_in_runq(fom) &&
 		(fom->fo_state == C2_FOS_WAITING) == is_in_wail(fom) &&
-		(fom->fo_state == C2_FOS_RUNNING) ==
-			(!is_in_runq(fom) && !is_in_wail(fom));
+		ergo(fom->fo_state == C2_FOS_RUNNING,
+		     !is_in_runq(fom) && !is_in_wail(fom));
 }
 
 static bool fom_wait_time_is_out(const struct c2_fom_domain *dom,
@@ -145,49 +146,37 @@ static bool fom_wait_time_is_out(const struct c2_fom_domain *dom,
  * This function is invoked when a new fom is submitted for
  * execution or a waiting fom is re scheduled for processing.
  *
+ * If fom is in loclaity wait queue then it dequeues it and enqueues
+ * it into locality runq list changing the state to C2_FOS_READY.
+ *
+ * @pre fom->fo_state == C2_FOS_WAITING || C2_FOS_INIT
+ * @pre is_locked(fom)
+ * @param fom Ready to be executed fom, is put on locality runq
+ *
  * @pre c2_fom_invariant(fom)
  * @param fom Ready to be executed fom, is put on locality runq
  */
-static void fom_ready(struct c2_fom *fom)
+static int fom_ready(struct c2_sm *sm)
 {
+	struct c2_fom	       *fom;
 	struct c2_fom_locality *loc;
 
+	fom = container_of(sm, struct c2_fom, fo_sm_state);
+	C2_PRE(fom->fo_state == C2_FOS_INIT ||
+	       fom->fo_state == C2_FOS_WAITING);
+	C2_PRE(c2_fom_invariant(fom));
+
 	loc = fom->fo_loc;
+	if (fom->fo_state == C2_FOS_WAITING) {
+		C2_ASSERT(is_in_wail(fom));
+		c2_list_del(&fom->fo_linkage);
+		C2_CNT_DEC(loc->fl_wail_nr);
+	}
+
 	fom->fo_state = C2_FOS_READY;
 	c2_list_add_tail(&loc->fl_runq, &fom->fo_linkage);
 	C2_CNT_INC(loc->fl_runq_nr);
 	c2_chan_signal(&loc->fl_runrun);
-}
-
-void c2_fom_ready(struct c2_fom *fom)
-{
-	struct c2_fom_locality *loc = fom->fo_loc;
-
-	C2_PRE(fom->fo_state == C2_FOS_WAITING);
-	C2_PRE(c2_fom_invariant(fom));
-
-	C2_ASSERT(is_in_wail(fom));
-	c2_list_del(&fom->fo_linkage);
-	C2_CNT_DEC(loc->fl_wail_nr);
-
-	fom_ready(fom);
-}
-
-int sm_fom_ready(struct c2_sm *mach)
-{
-	struct c2_fom *fom;
-
-	fom = container_of(mach, struct c2_fom, fo_sm_state);
-	fom_ready(fom);
-	return -1;
-}
-
-int c2_sm_fom_ready(struct c2_sm *mach)
-{
-	struct c2_fom *fom;
-
-	fom = container_of(mach, struct c2_fom, fo_sm_state);
-	c2_fom_ready(fom);
 	return -1;
 }
 
@@ -237,7 +226,7 @@ void c2_fom_queue(struct c2_fom *fom)
 	C2_PRE(c2_fom_invariant(fom));
 	C2_PRE(C2_IN(fom->fo_phase, (C2_FOPH_INIT, C2_FOPH_FAILURE)));
 
-	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_INIT);
+	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_READY);
 }
 
 /**
@@ -257,10 +246,12 @@ void c2_fom_queue(struct c2_fom *fom)
  * @param fom A fom blocking on an operation that is to be
  *		put on the locality wait list
  */
-static void fom_wait(struct c2_fom *fom)
+static int fom_wait(struct c2_sm *sm)
 {
+	struct c2_fom	       *fom;
 	struct c2_fom_locality *loc;
 
+	fom = container_of(sm, struct c2_fom, fo_sm_state);
 	C2_PRE(c2_fom_invariant(fom));
 	C2_PRE(fom->fo_state == C2_FOS_RUNNING);
 
@@ -268,14 +259,6 @@ static void fom_wait(struct c2_fom *fom)
 	fom->fo_state = C2_FOS_WAITING;
 	c2_list_add_tail(&loc->fl_wail, &fom->fo_linkage);
 	C2_CNT_INC(loc->fl_wail_nr);
-}
-
-int sm_fom_wait(struct c2_sm *mach)
-{
-	struct c2_fom *fom;
-
-	fom = container_of(mach, struct c2_fom, fo_sm_state);
-	fom_wait(fom);
 	return -1;
 }
 
@@ -289,7 +272,7 @@ int sm_fom_wait(struct c2_sm *mach)
  * function should register the AST callback (by calling
  * c2_fom_callback_arm() or c2_fom_wake_on()) with the channel
  * where the completion event will be signalled. The callback
- * should wake up the fom with c2_fom_ready().
+ * should wake up the fom with fom_ready().
  * If the state method returns C2_FSO_WAIT, and fom has not yet
  * finished its execution, then it is put on the locality wait list.
  *
@@ -300,13 +283,16 @@ int sm_fom_wait(struct c2_sm *mach)
  * @param fom A fom under execution
  * @pre fom->fo_state == C2_FOS_RUNNING
  */
-static void fom_exec(struct c2_fom *fom)
+static int fom_exec(struct c2_sm *sm)
 {
 	int			rc;
 	struct c2_fom_locality *loc;
+	struct c2_fom	       *fom;
 
-	C2_PRE(fom->fo_state == C2_FOS_RUNNING);
+	fom = container_of(sm, struct c2_fom, fo_sm_state);
+	fom->fo_state = C2_FOS_RUNNING;
 
+	C2_ASSERT(c2_fom_invariant(fom));
 	loc = fom->fo_loc;
 
 	do {
@@ -324,11 +310,9 @@ static void fom_exec(struct c2_fom *fom)
 			c2_sm_fini(&fom->fo_sm_state);
 		}
 		fom->fo_ops->fo_fini(fom);
-	} else {
-		c2_sm_state_set(&fom->fo_sm_state, C2_FOS_WAITING);
-		C2_ASSERT(fom->fo_state == C2_FOS_WAITING);
-		C2_ASSERT(is_in_wail(fom));
+		return -1;
 	}
+	return C2_FOS_WAITING;
 }
 
 /**
@@ -401,9 +385,7 @@ static void loc_handler_thread(struct c2_fom_hthread *th)
 				C2_CNT_DEC(loc->fl_idle_threads_nr);
 				idle = false;
 			}
-			fom->fo_state = C2_FOS_RUNNING;
 			c2_sm_state_set(&fom->fo_sm_state, C2_FOS_RUNNING);
-			fom_exec(fom);
 		} else {
 			if (!idle) {
 				C2_CNT_INC(loc->fl_idle_threads_nr);
@@ -778,7 +760,7 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
 	C2_PRE(fom != NULL);
 
 	fom->fo_phase   = C2_FOPH_INIT;
-	fom->fo_state   = C2_FOS_RUNNING;
+	fom->fo_state   = C2_FOS_INIT;
         fom->fo_rc      = 0;
 	fom->fo_type	= fom_type;
 	fom->fo_ops	= ops;
@@ -865,28 +847,19 @@ bool c2_fom_callback_cancel(struct c2_fom_callback *cb)
 }
 
 const struct c2_sm_state_descr fom_states[C2_FOS_SM_FINISH + 1] = {
-	[C2_FOS_SM_INIT] = {
+	[C2_FOS_INIT] = {
 		.sd_flags     = C2_SDF_INITIAL,
 		.sd_name      = "SM init",
 		.sd_in        = NULL,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOS_SM_FINISH) |
-				(1 << C2_FOS_INIT)
-	},
-	[C2_FOS_INIT] = {
-		.sd_flags     = 0,
-		.sd_name      = "SM init",
-		.sd_in        = &sm_fom_ready,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOS_WAITING) |
-				(1 << C2_FOS_RUNNING)
+				(1 << C2_FOS_READY)
 	},
 	[C2_FOS_READY] = {
 		.sd_flags     = 0,
 		.sd_name      = "fom ready",
-		.sd_in        = &c2_sm_fom_ready,
+		.sd_in        = &fom_ready,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOS_RUNNING)
@@ -894,16 +867,16 @@ const struct c2_sm_state_descr fom_states[C2_FOS_SM_FINISH + 1] = {
 	[C2_FOS_RUNNING] = {
 		.sd_flags     = 0,
 		.sd_name      = "fom running",
-		.sd_in        = NULL,
+		.sd_in        = &fom_exec,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOS_SM_FINISH) |
-				(1 << C2_FOS_WAITING)
+		.sd_allowed   = (1 << C2_FOS_WAITING) |
+				(1 << C2_FOS_SM_FINISH)
 	},
 	[C2_FOS_WAITING] = {
 		.sd_flags     = 0,
 		.sd_name      = "fom wait",
-		.sd_in        = &sm_fom_wait,
+		.sd_in        = &fom_wait,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOS_SM_FINISH) |
