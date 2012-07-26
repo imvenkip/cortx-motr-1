@@ -42,7 +42,7 @@
 #include "layout/pdclust.h"
 #include "layout/list_enum.h"
 #include "layout/linear_enum.h"
-# include "layout/ut/ldemo_internal.c"   /* layout_demo() */
+#include "layout/ut/ldemo_internal.c"    /* layout_demo() */
 
 static struct c2_dbenv         dbenv;
 static const char              db_name[] = "ut-layout";
