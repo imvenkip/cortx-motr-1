@@ -2687,7 +2687,8 @@ static void test_add(void)
 /* Tests the API c2_layout_update(), for the PDCLUST layout type. */
 static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 			       bool existing_test,
-			       uint32_t inline_test)
+			       uint32_t inline_test,
+			       bool failure_test)
 {
 	c2_bcount_t                   num_bytes;
 	void                         *area;
@@ -2704,6 +2705,7 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 	struct c2_pdclust_layout     *pl;
 	struct c2_layout_list_enum   *list_enum;
 	struct c2_layout_linear_enum *lin_enum;
+	int                           rc_tmp;
 
 	C2_ENTRY();
 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
@@ -2748,17 +2750,20 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 	pair_set(&pair, &lid, area, num_bytes);
 
 	rc = c2_layout_update(l1, &tx, &pair);
-	C2_UT_ASSERT(rc == 0);
+	if (failure_test)
+		C2_UT_ASSERT(rc == -505);
+	else
+		C2_UT_ASSERT(rc == 0);
 	/*
 	 * Even a non-existing record can be written to the database using
 	 * the database update operation
 	 */
 
-	if (existing_test)
+	if (existing_test && !failure_test)
 		pdclust_layout_copy(enum_id, l1, &l1_copy);
 
-	rc = c2_db_tx_commit(&tx);
-	C2_UT_ASSERT(rc == 0);
+	rc_tmp = c2_db_tx_commit(&tx);
+	C2_UT_ASSERT(rc_tmp == 0);
 
 	/* Release all the references obtained here but one. */
 	for (i = 0; i < 99 - 1; ++i)
@@ -2769,7 +2774,7 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 	c2_layout_put(l1);
 	C2_UT_ASSERT(list_lookup(lid) == NULL);
 
-	if (existing_test) {
+	if (existing_test && !failure_test) {
 		/*
 		 * Lookup for the layout object from the DB to verify that its
 		 * reference count is indeed updated.
@@ -2823,7 +2828,8 @@ static void test_update(void)
 	lid = 12001;
 	rc = test_update_pdclust(LIST_ENUM_ID, lid,
 				 !EXISTING_TEST,
-				 MORE_THAN_INLINE);
+				 MORE_THAN_INLINE,
+				 !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -2833,7 +2839,8 @@ static void test_update(void)
 	lid = 12002;
 	rc = test_update_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
-				 LESS_THAN_INLINE);
+				 LESS_THAN_INLINE,
+				 !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -2844,7 +2851,8 @@ static void test_update(void)
 	lid = 12003;
 	rc = test_update_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
-				 EXACT_INLINE);
+				 EXACT_INLINE,
+				 !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -2854,7 +2862,8 @@ static void test_update(void)
 	lid = 12004;
 	rc = test_update_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
-				 MORE_THAN_INLINE);
+				 MORE_THAN_INLINE,
+				 !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -2864,9 +2873,26 @@ static void test_update(void)
 	lid = 12005;
 	rc = test_update_pdclust(LINEAR_ENUM_ID, lid,
 				 EXISTING_TEST,
-				 INLINE_NOT_APPLICABLE);
+				 INLINE_NOT_APPLICABLE,
+				 !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 }
+
+static void test_update_failure(void)
+{
+	uint64_t lid;
+
+	/* Simulate c2_layout_encode() failure in c2_layout_update(). */
+	lid = 12006;
+	c2_fi_enable_off_n_on_m("c2_layout_encode", "error_1", 1, 1);
+	rc = test_update_pdclust(LIST_ENUM_ID, lid,
+				 EXISTING_TEST,
+				 MORE_THAN_INLINE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -505);
+	c2_fi_disable("c2_layout_encode", "error_1");
+}
+
 
 /* Tests the API c2_layout_delete(), for the PDCLUST layout type. */
 static int test_delete_pdclust(uint32_t enum_id, uint64_t lid,
@@ -3045,6 +3071,7 @@ const struct c2_test_suite layout_ut = {
 		{ "layout-lookup-failure", test_lookup_failure },
 		{ "layout-add", test_add },
 		{ "layout-update", test_update },
+		{ "layout-update-failure", test_update_failure },
 		{ "layout-delete", test_delete },
 #endif
 		{ NULL, NULL }

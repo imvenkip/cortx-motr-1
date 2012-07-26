@@ -410,7 +410,7 @@ static int pair_init(struct c2_db_pair *pair,
 		rc = c2_layout_encode(l, op, tx, &rec_cur);
 		if (rc != 0) {
 			c2_layout__log("pair_init", "c2_layout_encode() failed",
-				       &layout_add_fail, &l->l_addb,
+				       &c2_addb_func_fail, &l->l_addb,
 				       l->l_id, rc);
 			c2_db_pair_fini(pair);
 		}
@@ -450,7 +450,6 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 	if (dom->ld_type[lt->lt_id] != lt) {
-		/* Error covered in UT. */
 		c2_layout__log("c2_layout_lookup", "Unregistered layout type",
 			       &layout_lookup_fail, &layout_global_ctx,
 			       lid, -EPROTO);
@@ -566,7 +565,11 @@ int c2_layout_add(struct c2_layout *l,
 				       &layout_add_fail, &l->l_addb,
 				       l->l_id, rc);
 		c2_db_pair_fini(pair);
-	}
+	} else
+		c2_layout__log("c2_layout_add",
+			       "pair_init() failed",
+			       &layout_add_fail, &l->l_addb,
+			       l->l_id, rc);
 	c2_mutex_unlock(&l->l_lock);
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
@@ -595,7 +598,11 @@ int c2_layout_update(struct c2_layout *l,
 				       &layout_update_fail, &l->l_addb,
 				       l->l_id, rc);
 		c2_db_pair_fini(pair);
-	}
+	} else
+		c2_layout__log("c2_layout_update",
+			       "pair_init() failed",
+			       &layout_update_fail, &l->l_addb,
+			       l->l_id, rc);
 	c2_mutex_unlock(&l->l_lock);
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
@@ -624,7 +631,11 @@ int c2_layout_delete(struct c2_layout *l,
 				       &layout_delete_fail, &l->l_addb,
 				       l->l_id, rc);
 		c2_db_pair_fini(pair);
-	}
+	} else
+		c2_layout__log("c2_layout_delete",
+			       "pair_init() failed",
+			       &layout_delete_fail, &l->l_addb,
+			       l->l_id, rc);
 	c2_mutex_unlock(&l->l_lock);
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
