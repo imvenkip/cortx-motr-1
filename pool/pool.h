@@ -161,21 +161,26 @@ enum {
 
 /**
  * Pool Event, which is used to change the state of a node or device.
- * It is also used by pool machine to records all state change history.
- * All events hang on the c2_poolmach::pm_events_list, ordered.
  */
 struct c2_pool_event {
 	/** Event owner type */
 	enum c2_pool_event_owner_type  pe_type;
 
-	/** Event owner */
-	union {
-		struct c2_poolnode *pe_node;
-		struct c2_pooldev  *pe_device;
-	}                              pe_owner;
+	/** Event owner index */
+	uint32_t                       pe_index;
 
 	/** new state for this node/device */
-	enum c2_pool_nd_state          pe_new_state;
+	enum c2_pool_nd_state          pe_state;
+
+};
+
+/**
+ * This link is used by pool machine to records all state change history.
+ * All events hang on the c2_poolmach::pm_events_list, ordered.
+ */
+struct c2_pool_event_link {
+	/** the event itself */
+	struct c2_pool_event          *pel_event;
 
 	/**
 	 * Pool machine's new version when this event handled
@@ -183,15 +188,15 @@ struct c2_pool_event {
 	 * other module and passed to pool machine operations,
 	 * it is not used and undefined at that moment.
 	 */
-	struct c2_pool_version_numbers pe_new_version;
+	struct c2_pool_version_numbers pel_new_version;
 
 	/**
 	 * link to c2_poolmach::pm_events_list.
 	 * Used internally in pool machine.
 	 */
-	struct c2_tlink                pe_linkage;
+	struct c2_tlink                pel_linkage;
 
-	uint64_t                       pe_magic;
+	uint64_t                       pel_magic;
 };
 
 /**

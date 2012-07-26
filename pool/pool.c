@@ -35,10 +35,10 @@
  */
 
 C2_TL_DESCR_DEFINE(poolmach_events, "pool machine events list", static,
-                   struct c2_pool_event, pe_linkage, pe_magic,
+                   struct c2_pool_event_link, pel_linkage, pel_magic,
                    C2_POOL_EVENTS_LIST_MAGIC, C2_POOL_EVENTS_HEAD_MAGIC);
 
-C2_TL_DEFINE(poolmach_events, static, struct c2_pool_event);
+C2_TL_DEFINE(poolmach_events, static, struct c2_pool_event_link);
 
 
 int c2_pool_init(struct c2_pool *pool, uint32_t width)
@@ -125,8 +125,21 @@ int  c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm)
 
 void c2_poolmach_fini(struct c2_poolmach *pm)
 {
+	struct c2_pool_event_link *scan;
+
+	C2_PRE(pm != NULL);
+
 	c2_rwlock_write_lock(&pm->pm_lock);
 	/* TODO Sync the pool machine state onto persistent storage */
+
+	/* iterate through events and free them */
+	c2_tl_for(poolmach_events, &pm->pm_state.pst_events_list, scan) {
+		poolmach_events_tlink_del_fini(scan);
+		c2_free(scan->pel_event);
+		c2_free(scan);
+	} c2_tl_endfor;
+	c2_free(pm->pm_state.pst_devices_array);
+	c2_free(pm->pm_state.pst_nodes_array);
 	c2_rwlock_write_unlock(&pm->pm_lock);
 
 	pm->pm_is_initialised = false;
@@ -136,6 +149,8 @@ void c2_poolmach_fini(struct c2_poolmach *pm)
 int c2_poolmach_state_transit(struct c2_poolmach *pm,
 			      struct c2_pool_event *event)
 {
+	struct c2_pool_event      *new_event;
+	struct c2_pool_event_link *event_link;
 	C2_PRE(pm != NULL);
 	C2_PRE(event != NULL);
 
@@ -143,15 +158,37 @@ int c2_poolmach_state_transit(struct c2_poolmach *pm,
 	c2_rwlock_write_lock(&pm->pm_lock);
 
 	/* step 2: Update the state according to event */
-	/* TODO: parse the event, updating node/device array. */
+	new_event = c2_alloc(sizeof *new_event);
+	event_link = c2_alloc(sizeof *event_link);
+	if (new_event == NULL || event_link == NULL) {
+		c2_free(new_event);
+		c2_free(event_link);
+		c2_rwlock_write_unlock(&pm->pm_lock);
+		return -ENOMEM;
+	}
+	*new_event = *event;
+	event_link->pel_event = new_event;
+	if (event->pe_type == C2_POOL_NODE) {
+		/* TODO if this is a new node join event, the index might
+		 * larger than the current number. Then we need to create
+		 * a new larger array to hold nodes info.
+		 */
+		C2_ASSERT(new_event->pe_index < pm->pm_state.pst_nr_nodes);
+		pm->pm_state.pst_nodes_array[event->pe_index].pn_state =
+			new_event->pe_state;
+	} else {
+		C2_ASSERT(new_event->pe_index < pm->pm_state.pst_nr_devices);
+		pm->pm_state.pst_devices_array[event->pe_index].pd_state =
+			new_event->pe_state;
+	}
 
 	/* step 3: Increase the version */
 	++ pm->pm_state.pst_version.pvn_version[PVE_READ];
 	++ pm->pm_state.pst_version.pvn_version[PVE_WRITE];
 
 	/* Step 4: copy new version into event, and link it into list */
-	event->pe_new_version = pm->pm_state.pst_version;
-	poolmach_events_tlink_init_at(event, &pm->pm_state.pst_events_list);
+	event_link->pel_new_version = pm->pm_state.pst_version;
+	poolmach_events_tlink_init_at(event_link, &pm->pm_state.pst_events_list);
 
 	/* Step 5: unlock the poolmach */
 	c2_rwlock_write_unlock(&pm->pm_lock);
@@ -163,16 +200,18 @@ int c2_poolmach_state_query(struct c2_poolmach *pm,
 			    const struct c2_pool_version_numbers *to,
 			    struct c2_tl *event_list_head)
 {
-	struct c2_pool_event *scan;
-	struct c2_pool_event *event;
-	int                   rc = 0;
+	struct c2_pool_event_link *scan;
+	struct c2_pool_event      *event;
+	struct c2_pool_event_link *event_link;
+	int                        rc = 0;
 
 	C2_PRE(pm != NULL && event_list_head != NULL);
 
 	c2_rwlock_read_lock(&pm->pm_lock);
 	if (from != NULL) {
 		c2_tl_for(poolmach_events, &pm->pm_state.pst_events_list, scan){
-			if (memcmp(&scan->pe_new_version, from, sizeof *from) == 0)
+			if (c2_poolmach_version_equal(&scan->pel_new_version,
+						     from))
 				break;
 		} c2_tl_endfor;
 	} else {
@@ -181,17 +220,30 @@ int c2_poolmach_state_query(struct c2_poolmach *pm,
 	C2_ASSERT(scan != NULL);
 
 	while (scan != NULL) {
-		/* allocate a copy of the event, add it to output list. */
+		/* allocate a copy of the event and event link,
+		 * add it to output list.
+		 */
 		event = c2_alloc(sizeof *event);
-		if (event == NULL) {
+		event_link = c2_alloc(sizeof *event_link);
+		if (event == NULL || event_link == NULL) {
+			struct c2_pool_event_link *s;
+			c2_free(event);
+			c2_free(event_link);
 			rc = -ENOMEM;
-			/* TODO destroy all allocated event */
+			c2_tl_for(poolmach_events, event_list_head, s) {
+				poolmach_events_tlink_del_fini(s);
+				c2_free(s->pel_event);
+				c2_free(s);
+			} c2_tl_endfor;
 			break;
 		}
-		*event = *scan;
-		poolmach_events_tlink_init_at(event, event_list_head);
+		*event_link = *scan;
+		event_link->pel_event = event;
+		*event = *scan->pel_event;
+		poolmach_events_tlink_init_at(event_link, event_list_head);
 
-		if (to != NULL && memcmp(&scan->pe_new_version, to, sizeof *to) == 0)
+		if (to != NULL &&
+		    c2_poolmach_version_equal(&scan->pel_new_version, to))
 			break;
 		scan = poolmach_events_tlist_next(&pm->pm_state.pst_events_list,
 						  scan);
