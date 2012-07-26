@@ -591,6 +591,16 @@ static void addb_add(struct c2_addb_ctx *ctx,
 		     const char *err_msg,
 		     int rc)
 {
+
+	C2_PRE(C2_IN(ev->ae_id, (layout_decode_fail.ae_id,
+				 layout_encode_fail.ae_id,
+				 layout_lookup_fail.ae_id,
+				 layout_add_fail.ae_id,
+				 layout_update_fail.ae_id,
+				 layout_delete_fail.ae_id,
+				 c2_addb_func_fail.ae_id,
+				 c2_addb_oom.ae_id)));
+
 	switch (ev->ae_id) {
 	case C2_ADDB_EVENT_FUNC_FAIL:
 		C2_ADDB_ADD(ctx, &layout_addb_loc, c2_addb_func_fail,
@@ -617,8 +627,7 @@ static void addb_add(struct c2_addb_ctx *ctx,
 	case C2_ADDB_EVENT_LAYOUT_DELETE_FAIL:
 		C2_ADDB_ADD(ctx, &layout_addb_loc, layout_delete_fail, rc);
 		break;
-	default:
-		C2_ASSERT(0);
+	/* default: C2_ASSERT(0); This is covered by the C2_PRE() above. */
 	}
 }
 
@@ -641,18 +650,10 @@ void c2_layout__log(const char *fn_name,
 		    int rc)
 {
 	C2_PRE(fn_name != NULL);
+	C2_PRE(err_msg != NULL);
 	C2_PRE(ev != NULL);
 	C2_PRE(ctx != NULL);
 	C2_PRE(rc != 0);
-	C2_PRE(ergo(rc != 0, err_msg != NULL &&
-			     C2_IN(ev->ae_id, (layout_decode_fail.ae_id,
-					       layout_encode_fail.ae_id,
-					       layout_lookup_fail.ae_id,
-					       layout_add_fail.ae_id,
-					       layout_update_fail.ae_id,
-					       layout_delete_fail.ae_id,
-					       c2_addb_func_fail.ae_id,
-					       c2_addb_oom.ae_id))));
 
 	/* ADDB record logging. */
 	addb_add(ctx, ev, err_msg, rc);

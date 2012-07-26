@@ -2345,7 +2345,8 @@ static void pair_set(struct c2_db_pair *pair, uint64_t *lid,
 static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 			    uint32_t inline_test,
 			    bool duplicate_test,
-			    bool layout_destroy, struct c2_layout **l_obj);
+			    bool layout_destroy, struct c2_layout **l_obj,
+			    bool failure_test);
 
 /* Tests the API c2_layout_lookup(), for the PDCLUST layout type. */
 static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
@@ -2373,7 +2374,8 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 		rc = test_add_pdclust(enum_id, lid,
 				      inline_test,
 				      DUPLICATE_TEST,
-				      !LAYOUT_DESTROY, &l1);
+				      !LAYOUT_DESTROY, &l1,
+				      !FAILURE_TEST);
 		C2_UT_ASSERT(rc == 0);
 		if (!failure_test)
 			pdclust_layout_copy(enum_id, l1, &l1_copy);
@@ -2557,7 +2559,8 @@ static void test_lookup_failure(void)
 static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 			    uint32_t inline_test,
 			    bool duplicate_test,
-			    bool layout_destroy, struct c2_layout **l_obj)
+			    bool layout_destroy, struct c2_layout **l_obj,
+			    bool failure_test)
 {
 	c2_bcount_t                   num_bytes;
 	uint32_t                      N;
@@ -2570,11 +2573,13 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 	struct c2_uint128             seed;
 	struct c2_layout_list_enum   *list_enum;
 	struct c2_layout_linear_enum *lin_enum;
+	int                           rc_tmp;
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
 	C2_UT_ASSERT(ergo(layout_destroy, l_obj == NULL));
 	C2_UT_ASSERT(ergo(!layout_destroy, l_obj != NULL));
+	C2_UT_ASSERT(ergo(duplicate_test, !failure_test));
 
 	c2_uint128_init(&seed, "addpdclustlayout");
 
@@ -2598,10 +2603,13 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 	pair_set(&pair, &lid, area, num_bytes);
 
 	rc = c2_layout_add(&pl->pl_base.sl_base, &tx, &pair);
-	C2_UT_ASSERT(rc == 0);
+	if (failure_test)
+		C2_UT_ASSERT(rc == -505);
+	else
+		C2_UT_ASSERT(rc == 0);
 
-	rc = c2_db_tx_commit(&tx);
-	C2_UT_ASSERT(rc == 0);
+	rc_tmp = c2_db_tx_commit(&tx);
+	C2_UT_ASSERT(rc_tmp == 0);
 
 	C2_UT_ASSERT(list_lookup(lid) == &pl->pl_base.sl_base);
 
@@ -2617,9 +2625,10 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 
 		rc = c2_layout_add(&pl->pl_base.sl_base, &tx, &pair);
 		C2_UT_ASSERT(rc == -EEXIST);
+		rc = 0;
 
-		rc = c2_db_tx_commit(&tx);
-		C2_UT_ASSERT(rc == 0);
+		rc_tmp = c2_db_tx_commit(&tx);
+		C2_UT_ASSERT(rc_tmp == 0);
 	}
 
 	if (layout_destroy) {
@@ -2649,7 +2658,8 @@ static void test_add(void)
 	rc = test_add_pdclust(LIST_ENUM_ID, lid,
 			      LESS_THAN_INLINE,
 			      DUPLICATE_TEST,
-			      LAYOUT_DESTROY, NULL);
+			      LAYOUT_DESTROY, NULL,
+			      !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -2661,7 +2671,8 @@ static void test_add(void)
 	rc = test_add_pdclust(LIST_ENUM_ID, lid,
 			      EXACT_INLINE,
 			      DUPLICATE_TEST,
-			      LAYOUT_DESTROY, NULL);
+			      LAYOUT_DESTROY, NULL,
+			      !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -2672,7 +2683,8 @@ static void test_add(void)
 	rc = test_add_pdclust(LIST_ENUM_ID, lid,
 			      MORE_THAN_INLINE,
 			      DUPLICATE_TEST,
-			      LAYOUT_DESTROY, NULL);
+			      LAYOUT_DESTROY, NULL,
+			      !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Add a layout object with PDCLUST layout type and LINEAR enum type. */
@@ -2680,9 +2692,26 @@ static void test_add(void)
 	rc = test_add_pdclust(LINEAR_ENUM_ID, lid,
 			      INLINE_NOT_APPLICABLE,
 			      DUPLICATE_TEST,
-			      LAYOUT_DESTROY, NULL);
+			      LAYOUT_DESTROY, NULL,
+			      !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 }
+
+static void test_add_failure(void)
+{
+	uint64_t lid;
+
+	/* Simulate c2_layout_encode() failure in c2_layout_add(). */
+	lid = 11005;
+	c2_fi_enable_once("c2_layout_encode", "error_1");
+	rc = test_add_pdclust(LIST_ENUM_ID, lid,
+			      MORE_THAN_INLINE,
+			      !DUPLICATE_TEST,
+			      LAYOUT_DESTROY, NULL,
+			      FAILURE_TEST);
+	C2_UT_ASSERT(rc == -505);
+}
+
 
 /* Tests the API c2_layout_update(), for the PDCLUST layout type. */
 static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
@@ -2721,7 +2750,8 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 		rc = test_add_pdclust(enum_id, lid,
 				      inline_test,
 				      !DUPLICATE_TEST,
-				      !LAYOUT_DESTROY, &l1);
+				      !LAYOUT_DESTROY, &l1,
+				      !FAILURE_TEST);
 		C2_UT_ASSERT(rc == 0);
 	} else {
 		/* Build a layout object. */
@@ -2925,7 +2955,8 @@ static int test_delete_pdclust(uint32_t enum_id, uint64_t lid,
 		rc = test_add_pdclust(enum_id, lid,
 				      inline_test,
 				      !DUPLICATE_TEST,
-				      !LAYOUT_DESTROY, &l);
+				      !LAYOUT_DESTROY, &l,
+				      !FAILURE_TEST);
 		C2_UT_ASSERT(rc == 0);
 	} else {
 		/* Build a layout object. */
@@ -3070,6 +3101,7 @@ const struct c2_test_suite layout_ut = {
 		{ "layout-lookup", test_lookup },
 		{ "layout-lookup-failure", test_lookup_failure },
 		{ "layout-add", test_add },
+		{ "layout-add-failure", test_add_failure },
 		{ "layout-update", test_update },
 		{ "layout-update-failure", test_update_failure },
 		{ "layout-delete", test_delete },
