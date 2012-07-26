@@ -42,7 +42,7 @@
 #include "layout/pdclust.h"
 #include "layout/list_enum.h"
 #include "layout/linear_enum.h"
-# include "layout/ut/ldemo_internal.c"   /* layout_demo() */
+#include "layout/ut/ldemo_internal.c"    /* layout_demo() */
 
 static struct c2_dbenv         dbenv;
 static const char              db_name[] = "ut-layout";
@@ -2792,7 +2792,7 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 
 	rc = c2_layout_update(l1, &tx, &pair);
 	if (failure_test)
-		C2_UT_ASSERT(rc == -505);
+		C2_UT_ASSERT(rc == -505 || rc == 601);
 	else
 		C2_UT_ASSERT(rc == 0);
 	/*
@@ -2932,8 +2932,19 @@ static void test_update_failure(void)
 				 FAILURE_TEST);
 	C2_UT_ASSERT(rc == -505);
 	c2_fi_disable("c2_layout_encode", "error_1");
-}
 
+	/* July 26, continue from here. Need to debug why it does not work.*/
+#if 0
+	/* Simulate c2_table_update() failure in c2_layout_update(). */
+	lid = 12007;
+	c2_fi_enable_once("c2_layout_update", "error_1");
+	rc = test_update_pdclust(LINEAR_ENUM_ID, lid,
+				 EXISTING_TEST,
+				 INLINE_NOT_APPLICABLE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -601);
+#endif
+}
 
 /* Tests the API c2_layout_delete(), for the PDCLUST layout type. */
 static int test_delete_pdclust(uint32_t enum_id, uint64_t lid,
