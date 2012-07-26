@@ -450,6 +450,7 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 	if (dom->ld_type[lt->lt_id] != lt) {
+		/* Error covered in UT. */
 		c2_layout__log("c2_layout_lookup", "Unregistered layout type",
 			       &layout_lookup_fail, &layout_global_ctx,
 			       lid, -EPROTO);

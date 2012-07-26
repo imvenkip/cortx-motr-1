@@ -680,17 +680,19 @@ int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
 	C2_PRE(dbenv != NULL);
 
 	C2_SET0(dom);
-	dom->ld_dbenv = dbenv;
-	rc = c2_table_init(&dom->ld_layouts, dom->ld_dbenv, "layouts",
+
+	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_1", -501, error_1_injected);
+	rc = c2_table_init(&dom->ld_layouts, dbenv, "layouts",
 			   DEFAULT_DB_FLAG, &layouts_table_ops);
+error_1_injected:
 	if (rc != 0) {
 		c2_layout__log("c2_layout_domain_init",
 			       "c2_table_init() failed",
 			       &c2_addb_func_fail, &layout_global_ctx,
 			       LID_NONE, rc);
-		dom->ld_dbenv = NULL;
 		return rc;
 	}
+	dom->ld_dbenv = dbenv;
 	layout_tlist_init(&dom->ld_layout_list);
 	c2_mutex_init(&dom->ld_lock);
 	C2_POST(c2_layout__domain_invariant(dom));
@@ -727,15 +729,23 @@ int c2_layout_standard_types_register(struct c2_layout_domain *dom)
 
 	C2_PRE(c2_layout__domain_invariant(dom));
 
+	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_1", -502, error_1_injected);
 	rc = c2_layout_type_register(dom, &c2_pdclust_layout_type);
+error_1_injected:
 	if (rc != 0)
 		return rc;
+
+	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_2", -503, error_2_injected);
 	rc = c2_layout_enum_type_register(dom, &c2_list_enum_type);
+error_2_injected:
 	if (rc != 0) {
 		c2_layout_type_unregister(dom, &c2_pdclust_layout_type);
 		return rc;
 	}
+
+	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_3", -504, error_3_injected);
 	rc = c2_layout_enum_type_register(dom, &c2_linear_enum_type);
+error_3_injected:
 	if (rc != 0) {
 		c2_layout_type_unregister(dom, &c2_pdclust_layout_type);
 		c2_layout_enum_type_unregister(dom, &c2_list_enum_type);
@@ -773,7 +783,9 @@ int c2_layout_type_register(struct c2_layout_domain *dom,
 	dom->ld_type[lt->lt_id] = lt;
 
 	/* Allocate type specific schema data. */
+	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_1", -505, error_1_injected);
 	rc = lt->lt_ops->lto_register(dom, lt);
+error_1_injected:
 	if (rc == 0) {
 		max_recsize_update(dom);
 		lt->lt_domain = dom;
@@ -829,7 +841,9 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 	dom->ld_enum[let->let_id] = let;
 
 	/* Allocate enum type specific schema data. */
+	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_1", -506, error_1_injected);
 	rc = let->let_ops->leto_register(dom, let);
+error_1_injected:
 	if (rc == 0) {
 		max_recsize_update(dom);
 		let->let_domain = dom;
@@ -943,10 +957,6 @@ int c2_layout_decode(struct c2_layout *l,
 	C2_PRE(ergo(op == C2_LXO_DB_LOOKUP, tx != NULL));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-	if (C2_FI_ENABLED("c2_l_decode_error_in_c2_l_lookup")) {
-		C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, -501);
-		return -501;
-	}
 
 	rec = c2_bufvec_cursor_addr(cur);
 	C2_ASSERT(rec->lr_lt_id == l->l_type->lt_id);
@@ -960,7 +970,9 @@ int c2_layout_decode(struct c2_layout *l,
 	 * Hence, ignoring the return status of c2_bufvec_cursor_move() here.
 	 */
 
+	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_1", -507, error_1_injected);
 	rc = l->l_ops->lo_decode(l, cur, op, tx, rec->lr_ref_count);
+error_1_injected:
 	if (rc != 0)
 		c2_layout__log("c2_layout_decode", "lo_decode() failed",
 			       &layout_decode_fail, &l->l_addb,
@@ -996,7 +1008,9 @@ int c2_layout_encode(struct c2_layout *l,
 	nbytes = c2_bufvec_cursor_copyto(out, &rec, sizeof rec);
 	C2_ASSERT(nbytes == sizeof rec);
 
+	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_1", -508, error_1_injected);
 	rc = l->l_ops->lo_encode(l, op, tx, out);
+error_1_injected:
 	if (rc != 0)
 		c2_layout__log("c2_layout_encode", "lo_encode() failed",
 			       &layout_encode_fail, &l->l_addb, l->l_id, rc);

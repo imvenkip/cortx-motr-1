@@ -88,6 +88,7 @@
 #include "lib/arith.h"  /* c2_rnd() */
 #include "lib/misc.h"   /* c2_forall */
 #include "lib/bob.h"
+#include "lib/finject.h"
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
@@ -200,6 +201,7 @@ static void pdclust_fini(struct c2_layout *l)
 
 static const struct c2_layout_ops pdclust_ops;
 /** Implementation of lto_allocate() for PDCLUST layout type. */
+#if 0 //todo
 static int pdclust_allocate(struct c2_layout_domain *dom,
 			    uint64_t lid,
 			    struct c2_layout **out)
@@ -211,7 +213,9 @@ static int pdclust_allocate(struct c2_layout_domain *dom,
 	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
+	IF_FI_ENABLED_SET_VAR_AND_JUMP("error_1", pl, NULL, error_1_injected);
 	C2_ALLOC_PTR(pl);
+error_1_injected:
 	if (pl == NULL) {
 		c2_layout__log("pdclust_allocate", "C2_ALLOC_PTR() failed",
 			       &c2_addb_oom, &layout_global_ctx, lid, -ENOMEM);
@@ -228,6 +232,43 @@ static int pdclust_allocate(struct c2_layout_domain *dom,
 	C2_LEAVE("lid %llu, pl pointer %p", (unsigned long long)lid, pl);
 	return 0;
 }
+#endif
+
+static int pdclust_allocate(struct c2_layout_domain *dom,
+			    uint64_t lid,
+			    struct c2_layout **out)
+{
+	struct c2_pdclust_layout *pl;
+	int rc = 0;
+
+	C2_PRE(c2_layout__domain_invariant(dom));
+	C2_PRE(lid > 0);
+	C2_PRE(out != NULL);
+
+	C2_ENTRY("lid %llu", (unsigned long long)lid);
+	//todo
+	//IF_FI_ENABLED_SET_VAR_AND_JUMP("error_1", pl, NULL, error_1_injected);
+	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_1", -701, error_1_injected);
+	C2_ALLOC_PTR(pl);
+error_1_injected:
+	//if (pl == NULL || rc != 0) {
+	if (rc != 0) {
+		c2_layout__log("pdclust_allocate", "C2_ALLOC_PTR() failed",
+			       &c2_addb_oom, &layout_global_ctx, lid, -ENOMEM);
+		return -ENOMEM;
+	}
+	c2_layout__striped_init(&pl->pl_base, dom, lid,
+				&c2_pdclust_layout_type, &pdclust_ops);
+	c2_pdclust_layout_bob_init(pl);
+	c2_mutex_lock(&pl->pl_base.sl_base.l_lock);
+
+	*out = &pl->pl_base.sl_base;
+	C2_POST(pdclust_allocated_invariant(pl));
+	C2_POST(c2_mutex_is_locked(&(*out)->l_lock));
+	C2_LEAVE("lid %llu, pl pointer %p", (unsigned long long)lid, pl);
+	return 0;
+}
+
 
 /** Implementation of lo_delete() for PDCLUST layout type. */
 static void pdclust_delete(struct c2_layout *l)
