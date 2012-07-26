@@ -729,23 +729,17 @@ int c2_layout_standard_types_register(struct c2_layout_domain *dom)
 
 	C2_PRE(c2_layout__domain_invariant(dom));
 
-	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_1", -502, error_1_injected);
 	rc = c2_layout_type_register(dom, &c2_pdclust_layout_type);
-error_1_injected:
 	if (rc != 0)
 		return rc;
 
-	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_2", -503, error_2_injected);
 	rc = c2_layout_enum_type_register(dom, &c2_list_enum_type);
-error_2_injected:
 	if (rc != 0) {
 		c2_layout_type_unregister(dom, &c2_pdclust_layout_type);
 		return rc;
 	}
 
-	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_3", -504, error_3_injected);
 	rc = c2_layout_enum_type_register(dom, &c2_linear_enum_type);
-error_3_injected:
 	if (rc != 0) {
 		c2_layout_type_unregister(dom, &c2_pdclust_layout_type);
 		c2_layout_enum_type_unregister(dom, &c2_list_enum_type);
@@ -783,7 +777,7 @@ int c2_layout_type_register(struct c2_layout_domain *dom,
 	dom->ld_type[lt->lt_id] = lt;
 
 	/* Allocate type specific schema data. */
-	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_1", -505, error_1_injected);
+	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_1", -502, error_1_injected);
 	rc = lt->lt_ops->lto_register(dom, lt);
 error_1_injected:
 	if (rc == 0) {
@@ -841,7 +835,7 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 	dom->ld_enum[let->let_id] = let;
 
 	/* Allocate enum type specific schema data. */
-	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_1", -506, error_1_injected);
+	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_1", -503, error_1_injected);
 	rc = let->let_ops->leto_register(dom, let);
 error_1_injected:
 	if (rc == 0) {
@@ -970,7 +964,7 @@ int c2_layout_decode(struct c2_layout *l,
 	 * Hence, ignoring the return status of c2_bufvec_cursor_move() here.
 	 */
 
-	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_1", -507, error_1_injected);
+	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_1", -504, error_1_injected);
 	rc = l->l_ops->lo_decode(l, cur, op, tx, rec->lr_ref_count);
 error_1_injected:
 	if (rc != 0)
@@ -1008,7 +1002,7 @@ int c2_layout_encode(struct c2_layout *l,
 	nbytes = c2_bufvec_cursor_copyto(out, &rec, sizeof rec);
 	C2_ASSERT(nbytes == sizeof rec);
 
-	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_1", -508, error_1_injected);
+	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_1", -505, error_1_injected);
 	rc = l->l_ops->lo_encode(l, op, tx, out);
 error_1_injected:
 	if (rc != 0)

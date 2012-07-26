@@ -382,32 +382,40 @@ static void test_reg_unreg_failure(void)
 	C2_UT_ASSERT(rc == 0);
 
 	/*
-	 * Try to register all the available layout types and enum types by
+	 * Try to register all the standard layout types and enum types by
 	 * injecting errors.
 	 */
-	c2_fi_enable_once("c2_layout_standard_types_register", "error_1");
-	rc = c2_layout_standard_types_register(&t_domain);
-	C2_UT_ASSERT(rc == -502);
-
-	c2_fi_enable_once("c2_layout_standard_types_register", "error_2");
-	rc = c2_layout_standard_types_register(&t_domain);
-	C2_UT_ASSERT(rc == -503);
-
-	c2_fi_enable_once("c2_layout_standard_types_register", "error_3");
-	rc = c2_layout_standard_types_register(&t_domain);
-	C2_UT_ASSERT(rc == -504);
-
 	c2_fi_enable_once("c2_layout_type_register", "error_1");
 	rc = c2_layout_type_register(&t_domain, &c2_pdclust_layout_type);
-	C2_UT_ASSERT(rc == -505);
+	C2_UT_ASSERT(rc == -502);
 
 	c2_fi_enable_once("c2_layout_enum_type_register", "error_1");
 	rc = c2_layout_enum_type_register(&t_domain, &c2_list_enum_type);
-	C2_UT_ASSERT(rc == -506);
+	C2_UT_ASSERT(rc == -503);
 
-	/* Finalise the domain. */
+	c2_fi_enable_once("c2_layout_enum_type_register", "error_1");
+	rc = c2_layout_enum_type_register(&t_domain, &c2_linear_enum_type);
+	C2_UT_ASSERT(rc == -503);
+
+	/*
+	 * Now cover all the error cases from
+	 * c2_layout_standard_types_register().
+	 */
+	c2_fi_enable_once("c2_layout_type_register", "error_1");
+	rc = c2_layout_standard_types_register(&t_domain);
+	C2_UT_ASSERT(rc == -502);
+
+	c2_fi_enable_once("c2_layout_enum_type_register", "error_1");
+	rc = c2_layout_standard_types_register(&t_domain);
+	C2_UT_ASSERT(rc == -503);
+
+	c2_fi_enable_off_n_on_m("c2_layout_enum_type_register", "error_1",
+				1, 1);
+	rc = c2_layout_standard_types_register(&t_domain);
+	C2_UT_ASSERT(rc == -503);
+	c2_fi_disable("c2_layout_enum_type_register", "error_1");
+
 	c2_layout_domain_fini(&t_domain);
-
 	c2_dbenv_fini(&t_dbenv);
 
 	/*
@@ -1122,7 +1130,7 @@ static int test_encode_pdclust(uint32_t enum_id, uint64_t lid,
 	rc  = c2_layout_encode(&pl->pl_base.sl_base, C2_LXO_BUFFER_OP,
 			       NULL, &cur);
 	if (failure_test)
-		C2_UT_ASSERT(rc == -508);
+		C2_UT_ASSERT(rc == -505);
 	else
 		C2_UT_ASSERT(rc == 0);
 
@@ -1196,7 +1204,7 @@ static void test_encode_failure(void)
 	c2_fi_enable_once("c2_layout_encode", "error_1");
 	rc = test_encode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				 FAILURE_TEST);
-	C2_UT_ASSERT(rc == -508);
+	C2_UT_ASSERT(rc == -505);
 
 	lid = 3006; //todo rm
 	rc = test_encode_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
@@ -2402,7 +2410,7 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 	rc = c2_layout_lookup(&domain, lid, &c2_pdclust_layout_type,
 			      &tx, &pair, &l3);
 	if (failure_test)
-		C2_UT_ASSERT(rc == -507);
+		C2_UT_ASSERT(rc == -504);
 	else if (existing_test)
 		C2_UT_ASSERT(rc == 0);
 	else
