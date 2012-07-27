@@ -786,9 +786,6 @@ static void test_build(void)
 
 static void test_build_failure(void)
 {
-# if 0
-	// todo this test fails due to enum_invaraint checking for sl pointer
-	// during leo_fini op
 	uint64_t lid;
 
 	/*
@@ -800,10 +797,19 @@ static void test_build_failure(void)
 	rc = test_build_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				FAILURE_TEST);
 	C2_UT_ASSERT(rc == -ENOMEM);
-#endif
+
+	/*
+	 * Simulate memory allocation failure in pdclust_allocate() that is
+	 * in the path of c2_pdclust_build().
+	 */
+	lid = 1006;
+	c2_fi_enable_once("pdclust_allocate", "mem_alloc_error");
+	rc = test_build_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
+				FAILURE_TEST);
+	C2_UT_ASSERT(rc == -ENOMEM);
 }
 
-	
+
 /* Builds part of the buffer representing generic part of the layout object. */
 static void buf_build(uint32_t lt_id, struct c2_bufvec_cursor *dcur)
 {
@@ -1258,16 +1264,19 @@ static void test_encode_failure(void)
 	uint64_t lid;
 	int      rc;
 
+	/* Simulate c2_layout_encode() failure. */
 	lid = 3005;
 	c2_fi_enable_once("c2_layout_encode", "error_1");
 	rc = test_encode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				 FAILURE_TEST);
 	C2_UT_ASSERT(rc == -505);
 
-	lid = 3006; //todo rm
+	/* Simulate c2_layout_encode() failure. */
+	lid = 3006;
+	c2_fi_enable_once("c2_layout_encode", "error_1");
 	rc = test_encode_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
-				 !FAILURE_TEST);
-	C2_UT_ASSERT(rc == 0);
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -505);
 }
 
 
@@ -2835,7 +2844,7 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 					  N, K, P, &seed,
 					  10, 20,
 					  &pl, &list_enum, &lin_enum,
-				  	  !FAILURE_TEST);
+					  !FAILURE_TEST);
 		C2_UT_ASSERT(rc == 0);
 		l1 = &pl->pl_base.sl_base;
 	}
@@ -3049,7 +3058,7 @@ static int test_delete_pdclust(uint32_t enum_id, uint64_t lid,
 					  N, K, P, &seed,
 					  10, 20,
 					  &pl, &list_enum, &lin_enum,
-				  	  !FAILURE_TEST);
+					  !FAILURE_TEST);
 		C2_UT_ASSERT(rc == 0);
 		l = &pl->pl_base.sl_base;
 	}

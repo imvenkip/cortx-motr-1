@@ -119,24 +119,14 @@ static bool list_allocated_invariant(const struct c2_layout_list_enum *le)
 		le->lle_list_of_cobs == NULL;
 }
 
-/**
- * list_invariant() can not be invoked until an enumeration object
- * is associated with some layout object. Hence this separation.
- */
-static bool list_invariant_internal(const struct c2_layout_list_enum *le)
+static bool list_invariant(const struct c2_layout_list_enum *le)
 {
 	return
 		c2_layout_list_enum_bob_check(le) &&
 		le->lle_nr != 0 &&
 		le->lle_list_of_cobs != NULL &&
 		c2_forall(i, le->lle_nr,
-			  c2_fid_is_valid(&le->lle_list_of_cobs[i]));
-}
-
-static bool list_invariant(const struct c2_layout_list_enum *le)
-{
-	return
-		list_invariant_internal(le) &&
+			  c2_fid_is_valid(&le->lle_list_of_cobs[i])) &&
 		c2_layout__enum_invariant(&le->lle_base);
 }
 
@@ -199,7 +189,7 @@ static int list_populate(struct c2_layout_list_enum *list_enum,
 	}
 	list_enum->lle_nr = nr;
 	list_enum->lle_list_of_cobs = cob_list;
-	C2_POST(list_invariant_internal(list_enum));
+	C2_POST(list_invariant(list_enum));
 	return 0;
 }
 
@@ -234,7 +224,7 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 		else
 			list_delete(e);
 	}
-	C2_POST(ergo(rc == 0, list_invariant_internal(*out)));
+	C2_POST(ergo(rc == 0, list_invariant(*out)));
 	C2_LEAVE("domain %p, rc %d", dom, rc);
 	return rc;
 }
@@ -254,11 +244,12 @@ static struct c2_layout_list_enum
 static void list_fini(struct c2_layout_enum *e)
 {
 	struct c2_layout_list_enum *list_enum;
+	uint64_t                    lid;
 
 	C2_PRE(c2_layout__enum_invariant(e));
 
-	C2_ENTRY("lid %llu, enum_pointer %p",
-		 (unsigned long long)e->le_sl->sl_base.l_id, e);
+	lid = e->le_sl_is_set ? e->le_sl->sl_base.l_id : 0;
+	C2_ENTRY("lid %llu, enum_pointer %p", (unsigned long long)lid, e);
 	list_enum = enum_to_list_enum(e);
 	c2_layout_list_enum_bob_fini(list_enum);
 	c2_layout__enum_fini(&list_enum->lle_base);
@@ -466,7 +457,7 @@ static int list_decode(struct c2_layout_enum *e,
 out:
 	if (rc != 0)
 		c2_free(cob_list);
-	C2_POST(ergo(rc == 0, list_invariant_internal(list_enum)));
+	C2_POST(ergo(rc == 0, list_invariant(list_enum)));
 	C2_POST(ergo(rc != 0, list_allocated_invariant(list_enum)));
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;

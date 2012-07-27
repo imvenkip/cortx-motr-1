@@ -179,7 +179,8 @@ bool c2_layout__enum_invariant(const struct c2_layout_enum *e)
 	return
 		c2_layout_enum_bob_check(e) &&
 		e->le_type != NULL &&
-		e->le_sl != NULL &&
+		ergo(!e->le_sl_is_set, e->le_sl == NULL) &&
+		ergo(e->le_sl_is_set, e->le_sl != NULL) &&
 		e->le_ops != NULL;
 }
 
@@ -430,6 +431,7 @@ void c2_layout__striped_populate(struct c2_striped_layout *str_l,
 		 (unsigned long)e->le_type->let_id);
 	c2_layout__populate(&str_l->sl_base, ref_count);
 	str_l->sl_enum = e;
+	str_l->sl_enum->le_sl_is_set = true;
 	str_l->sl_enum->le_sl = str_l;
 
 	/*
@@ -484,6 +486,7 @@ void c2_layout__enum_init(struct c2_layout_domain *dom,
 
 	C2_ENTRY("Enum-type-id %lu", (unsigned long)let->let_id);
 	/* le->le_sl will be set through c2_layout__striped_populate(). */
+	le->le_sl_is_set = false;
 	le->le_sl = NULL;
 	le->le_ops = ops;
 	enum_type_get(let);
