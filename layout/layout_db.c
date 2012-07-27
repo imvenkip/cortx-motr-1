@@ -357,13 +357,9 @@
 extern const struct c2_addb_loc layout_addb_loc;
 extern struct c2_addb_ctx layout_global_ctx;
 
-extern const struct c2_addb_ev layout_lookup_success;
 extern const struct c2_addb_ev layout_lookup_fail;
-extern const struct c2_addb_ev layout_add_success;
 extern const struct c2_addb_ev layout_add_fail;
-extern const struct c2_addb_ev layout_update_success;
 extern const struct c2_addb_ev layout_update_fail;
-extern const struct c2_addb_ev layout_delete_success;
 extern const struct c2_addb_ev layout_delete_fail;
 
 /**
