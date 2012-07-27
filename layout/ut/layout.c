@@ -2433,9 +2433,11 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 	struct c2_layout  *l3;
 	struct c2_db_pair  pair;
 	struct c2_db_tx    tx;
+	int                rc_tmp;
 
 	C2_ENTRY();
 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+	C2_UT_ASSERT(ergo(!existing_test, failure_test));
 
 	/*
 	 * If existing_test is true, then first add a layout object to the
@@ -2483,16 +2485,13 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 	rc = c2_layout_lookup(&domain, lid, &c2_pdclust_layout_type,
 			      &tx, &pair, &l3);
 	if (failure_test)
-		C2_UT_ASSERT(rc == -504);
-	else if (existing_test)
-		C2_UT_ASSERT(rc == 0);
+		C2_UT_ASSERT(rc == -ENOENT || rc == -ENOMEM || rc == -504);
 	else
-		C2_UT_ASSERT(rc == -ENOENT);
+		C2_UT_ASSERT(rc == 0);
 
-	rc = c2_db_tx_commit(&tx);
-	C2_UT_ASSERT(rc == 0);
+	rc_tmp = c2_db_tx_commit(&tx);
+	C2_UT_ASSERT(rc_tmp == 0);
 
-	/* Destroy the layout object. */
 	if (existing_test && !failure_test) {
 		C2_UT_ASSERT(list_lookup(lid) == l3);
 		pdclust_layout_compare(enum_id, l1_copy, l3, true);
@@ -2520,13 +2519,12 @@ static void test_lookup(void)
 	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
 				 !EXISTING_TEST,
 				 MORE_THAN_INLINE,
-				 !FAILURE_TEST);
-	C2_UT_ASSERT(rc == 0);
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -ENOENT);
 
 	/*
 	 * Add a layout object with PDCLUST layout type, LIST enum type and
-	 * with a few inline entries only.
-	 * Then perform lookup for it.
+	 * with a few inline entries only. Then perform lookup for it.
 	 */
 	lid = 10002;
 	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
@@ -2538,8 +2536,7 @@ static void test_lookup(void)
 	/*
 	 * Add a layout object with PDCLUST layout type, LIST enum type and
 	 * with a number of inline entries exactly equal to
-	 * LDB_MAX_INLINE_COB_ENTRIES.
-	 * Then perform lookup for it.
+	 * LDB_MAX_INLINE_COB_ENTRIES. Then perform lookup for it.
 	 */
 	lid = 10003;
 	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
@@ -2561,32 +2558,21 @@ static void test_lookup(void)
 	C2_UT_ASSERT(rc == 0);
 
 	/*
-	 * Once again, lookup for a layout object that does not exist in the
-	 * DB.
+	 * Now that a few entries are added into the DB, once again, lookup
+	 * for a layout object that does not exist in the DB.
 	 */
 	lid = 10005;
 	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
 				 !EXISTING_TEST,
 				 MORE_THAN_INLINE,
-				 !FAILURE_TEST);
-	C2_UT_ASSERT(rc == 0);
-
-	/*
-	 * Lookup for a layout object with LINEAR enum type, that does not
-	 * exist in the DB.
-	 */
-	lid = 10006;
-	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
-				 !EXISTING_TEST,
-				 INLINE_NOT_APPLICABLE,
-				 !FAILURE_TEST);
-	C2_UT_ASSERT(rc == 0);
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -ENOENT);
 
 	/*
 	 * Add a layout object with PDCLUST layout type and LINEAR enum type.
 	 * Then perform lookup for it.
 	 */
-	lid = 10007;
+	lid = 10006;
 	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 INLINE_NOT_APPLICABLE,
@@ -2603,14 +2589,49 @@ static void test_lookup_failure(void)
 	struct c2_layout  *l;
 
 	C2_ENTRY();
-	/* Simulate c2_layout_decode() failure in c2_layout_lookup(). */
+
+	/*
+	 * Lookup for a layout object with LIST enum type, that does not
+	 * exist in the DB.
+	 */
+	lid = 10007;
+	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
+				 !EXISTING_TEST,
+				 MORE_THAN_INLINE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -ENOENT);
+
+	/*
+	 * Lookup for a layout object with LINEAR enum type, that does not
+	 * exist in the DB.
+	 */
 	lid = 10008;
+	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
+				 !EXISTING_TEST,
+				 INLINE_NOT_APPLICABLE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -ENOENT);
+
+	/* Simulate pdclust_allocate() failure in c2_layout_lookup(). */
+	lid = 10009;
+	c2_fi_enable_off_n_on_m("pdclust_allocate", "mem_alloc_error", 1, 1);
+	
+	//todo Check if allocate fails in the path of c2_pdclust_build() or in the path of c2_layout_lookup
+	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
+				 EXISTING_TEST,
+				 INLINE_NOT_APPLICABLE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -ENOMEM);
+	c2_fi_disable("pdclust_allocate", "mem_alloc_error");
+
+	/* Simulate c2_layout_decode() failure in c2_layout_lookup(). */
+	lid = 10010;
 	c2_fi_enable_once("c2_layout_decode", "error_1");
 	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 INLINE_NOT_APPLICABLE,
 				 FAILURE_TEST);
-	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc == -504);
 
 	/* Furnish c2_layout_lookup() with unregistered layout type. */
 	struct c2_layout_type test_layout_type = {
@@ -2619,7 +2640,7 @@ static void test_lookup_failure(void)
 		.lt_domain   = NULL,
 		.lt_ops      = NULL
 	};
-	lid = 10009;
+	lid = 10011;
 	rc = c2_layout_lookup(&domain, lid, &test_layout_type, &tx, &pair, &l);
 	C2_UT_ASSERT(rc == -EPROTO);
 
