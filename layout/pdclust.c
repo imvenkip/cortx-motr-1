@@ -216,9 +216,10 @@ static int pdclust_allocate(struct c2_layout_domain *dom,
 	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
-	IF_FI_ENABLED_SET_VAR_AND_JUMP("error_1", pl, NULL, error_1_injected); //todo cover this in UT
+	IF_FI_ENABLED_SET_VAR_AND_JUMP("mem_alloc_error", pl, NULL,
+				        mem_alloc_error_injected);
 	C2_ALLOC_PTR(pl);
-error_1_injected:
+mem_alloc_error_injected:
 	if (pl == NULL) {
 		c2_layout__log("pdclust_allocate", "C2_ALLOC_PTR() failed",
 			       &c2_addb_oom, &layout_global_ctx, lid, -ENOMEM);

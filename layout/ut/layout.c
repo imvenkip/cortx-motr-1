@@ -63,7 +63,8 @@ enum {
 	MORE_THAN_INLINE         = 3,    /* For list enumeration */
 	EXISTING_TEST            = true, /* Add a layout to the DB */
 	DUPLICATE_TEST           = true, /* Try to re-add a layout */
-	FAILURE_TEST             = true, /* Inject failure */
+	FAILURE_TEST             = true, /* Failure injected */
+	ALLOCATE_FAILURE_TEST    = true, /* lto_allocate() failure injected */
 	LAYOUT_DESTROY           = true, /* Delete layout object */
 	UNIT_SIZE                = 4096  /* For pdclust layout type */
 };
@@ -873,7 +874,8 @@ static void allocate_area(void **area,
 
 /* Tests the API c2_layout_decode() for PDCLUST layout type. */
 static int test_decode_pdclust(uint32_t enum_id, uint64_t lid,
-			       uint32_t inline_test)
+			       uint32_t inline_test,
+			       bool allocate_failure_test)
 {
 	void                    *area;
 	c2_bcount_t              num_bytes;
@@ -914,7 +916,14 @@ static int test_decode_pdclust(uint32_t enum_id, uint64_t lid,
 
 	lt = &c2_pdclust_layout_type;
 	rc = lt->lt_ops->lto_allocate(&domain, lid, &l);
-	C2_ASSERT(c2_layout__allocated_invariant(l));
+	if (allocate_failure_test) {
+		C2_UT_ASSERT(rc == -ENOMEM);
+		goto out;
+	}
+	else {
+		C2_UT_ASSERT(rc == 0);
+		C2_UT_ASSERT(c2_layout__allocated_invariant(l));
+	}
 
 	/* Decode the layout buffer into a layout object. */
 	rc = c2_layout_decode(l, &cur, C2_LXO_BUFFER_OP, NULL);
@@ -933,8 +942,9 @@ static int test_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	c2_layout_get(l);
 	c2_layout_put(l);
 	C2_UT_ASSERT(list_lookup(lid) == NULL);
-	c2_free(area);
 
+out:
+	c2_free(area);
 	c2_pool_fini(&pool);
 	C2_LEAVE();
 	return rc;
@@ -950,7 +960,8 @@ static void test_decode(void)
 	 * with a few inline entries only.
 	 */
 	lid = 2001;
-	rc = test_decode_pdclust(LIST_ENUM_ID, lid, LESS_THAN_INLINE);
+	rc = test_decode_pdclust(LIST_ENUM_ID, lid, LESS_THAN_INLINE,
+				 !ALLOCATE_FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -959,7 +970,8 @@ static void test_decode(void)
 	 * LDB_MAX_INLINE_COB_ENTRIES and then destroy it.
 	 */
 	lid = 2002;
-	rc = test_decode_pdclust(LIST_ENUM_ID, lid, EXACT_INLINE);
+	rc = test_decode_pdclust(LIST_ENUM_ID, lid, EXACT_INLINE,
+				 !ALLOCATE_FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -967,7 +979,8 @@ static void test_decode(void)
 	 * including noninline entries and then destroy it.
 	 */
 	lid = 2003;
-	rc = test_decode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE);
+	rc = test_decode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
+				 !ALLOCATE_FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -975,9 +988,26 @@ static void test_decode(void)
 	 * type.
 	 */
 	lid = 2004;
-	rc = test_decode_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE);
+	rc = test_decode_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
+				 !ALLOCATE_FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 }
+
+static void test_decode_failure(void)
+{
+	uint64_t lid;
+
+	/*
+	 * Simulate memory allocation failure in pdclust_allocate() that is
+	 * in the path of c2_layout_decode().
+	 */
+	lid = 2005;
+	c2_fi_enable_once("pdclust_allocate", "mem_alloc_error");
+	rc = test_decode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
+				 ALLOCATE_FAILURE_TEST);
+	C2_UT_ASSERT(rc == -ENOMEM);
+}
+
 
 /*
  * Verifies part of the layout buffer representing generic part of the layout
@@ -3107,6 +3137,7 @@ const struct c2_test_suite layout_ut = {
 					test_reg_unreg_failure },
 		{ "layout-build", test_build },
 		{ "layout-decode", test_decode },
+		{ "layout-decode-failure", test_decode_failure },
 		{ "layout-encode", test_encode },
 		{ "layout-encode-failure", test_encode_failure },
 		{ "layout-decode-encode", test_decode_encode },
