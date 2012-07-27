@@ -150,7 +150,7 @@ struct c2_net_buffer_pool * ut_get_buffer_pool(struct c2_fom *fom)
  */
 static int bulkio_server_write_fom_state(struct c2_fom *fom)
 {
-	int 	      rc = 0;
+	int	      rc = 0;
 	struct c2_sm *io_phase = &fom->fo_sm_phase;
 
 	switch(fom->fo_phase) {

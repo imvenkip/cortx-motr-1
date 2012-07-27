@@ -1349,7 +1349,7 @@ static int zero_copy_finish(struct c2_sm *sm)
                             c2_addb_func_fail, "zero_copy_finish", fom->fo_rc);
                 c2_mutex_unlock(&rbulk->rb_mutex);
 		reply_fop_set(fom);
-        	return fom->fo_phase;
+		return fom->fo_phase;
         }
 
         c2_mutex_unlock(&rbulk->rb_mutex);
