@@ -74,7 +74,7 @@
  * standard Linux loop device driver</a>, so it is also GPL-licensed.
  *
  * This document describes only the changes we made to the standard
- * loop device driver.
+ * loop device driver for c2loop.
  *
  * The problem with standard loop driver is that it tries to use system
  * cache to avoid odd data copying of the pages between block layer and
@@ -105,24 +105,31 @@
  *
  * Now, as appeared, Linux do not make the segments larger that 4K
  * (one page) and do not pass more than one 4K segment in the bio
- * structure. So we have separate bio request for each 4K buffer.
+ * request structure. So we have separate bio request for each 4K buffer.
  * Calling aio_read/aio_write() each time just for each 4K buffer is not
  * very effective.
  *
  * To solve this problem, we aggregate the segments (actually - the
- * pages) for one read/write operation from all the bio structures into
- * iov array and call aio_read/aio_write() with all of them.
+ * pages) for one read/write operation from all available bio requests
+ * in the list into iov array and call aio_read/aio_write() with all of
+ * them.
  *
  * <hr>
  * @section c2loop-dld-dep C2loop Dependencies
  *
- * As we can see by now – the size of one iovec from c2loop is limited
- * to 4K (one page). So in order to work effectively with c2loop driver
- * c2t1fs should effectively work with all the iov elements in the
- * array passed into the aio_read/aio_write() calls. In particular,
- * it should accumulate the pages across all iovecs (when needed) in
- * the same read or write call and do not limit its I/O size on the
- * size of some one iovec.
+ * Ext4 file system which is supposed to be used with c2loop block device
+ * has limitation for maximum block size - 4K. That is what statically
+ * configured for c2loop driver also (with blk_queue_logical_block_size).
+ * This means that c2t1fs must be able to handle 4K size buffers, possibly
+ * with help of read-modify-write (RMW) feature (in case stripe size is
+ * greater than 4K).
+ *
+ * The size of one iovec from c2loop is limited to 4K (one page).
+ * So in order to work effectively with c2loop driver c2t1fs should
+ * effectively handle all the iov elements in the array passed into the
+ * aio_read/aio_write() calls. In particular, it should accumulate the
+ * pages across all iovecs (when needed) in the same read or write call
+ * and do not limit its I/O size by the size of some one iovec.
  *
  * For example, if stripe unit size is 16K (four 4K pages), c2t1fs
  * should not handle each iovec from iov array separately, but it
@@ -134,9 +141,9 @@
  * @section c2loop-dld-lspec C2loop Logical Specification
  *
  * In this section we are going to describe how the segments from bio
- * requests are aggregated for iovecs. This is the core code customization
- * to the standard loop driver. Most of the rest is just deletion of
- * not relevant code.
+ * requests are aggregated for iovecs. This is the core customization to
+ * the standard loop driver we did for c2loop. Most of the rest is just
+ * deletion of not relevant code.
  *
  * The c2loop driver (as well as the standard one) handles bio requests
  * asynchronously, i.e. there is custom kernel thread (loop_thread)
@@ -164,7 +171,7 @@
  *   - the number of segments exceed the size of iovecs array.
  *
  * As soon as any on these condition happen - we close iovecs aggregation
- * and call do_iov_filebacked() function which is just convenient
+ * and call do_iov_filebacked() function with it which is just convenient
  * wrapper for aio_read/aio_write().
  *
  * <hr>
@@ -217,7 +224,7 @@
  * @section c2loop-dld-plan C2loop Implementation Plan
  *
  * The working prototype for c2loop is already implemented along with
- * correspondent fixes in c2t1fs (refer to c2loop branch). This was done
+ * correspondent changes in c2t1fs (refer to c2loop branch). This was done
  * as a part of experimentations and investigation (prepare) part of this
  * task.
  *
