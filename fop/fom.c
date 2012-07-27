@@ -181,7 +181,7 @@ static int fom_ready(struct c2_sm *sm)
 	return -1;
 }
 
-static void queueit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
+static void readyit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 {
 	struct c2_fom *fom = container_of(ast, struct c2_fom, fo_cb.fc_ast);
 
@@ -192,7 +192,7 @@ static void queueit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 
 void c2_fom_wakeup(struct c2_fom *fom)
 {
-	fom->fo_cb.fc_ast.sa_cb = queueit;
+	fom->fo_cb.fc_ast.sa_cb = readyit;
 	c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
 }
 

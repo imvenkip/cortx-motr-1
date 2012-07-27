@@ -650,8 +650,8 @@ C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, (name),
  *
  * @param fom file operation machine under execution
  * @retval C2_FSO_WAIT, It means fom execution is blocked and fom goes into
- * 	   corresponding wait phase, or fom execution is completed, i.e
- * 	   success or failure. C2_FOPH_FINISH state is reached.
+ *	   corresponding wait phase, or fom execution is completed, i.e
+ *	   success or failure. C2_FOPH_FINISH state is reached.
  */
 int c2_fom_state_generic(struct c2_fom *fom);
 
