@@ -783,7 +783,7 @@ static void stobio_complete_cb(struct c2_fom_callback *cb)
 
         C2_CNT_DEC(fom_obj->fcrw_num_stobio_launched);
         if (fom_obj->fcrw_num_stobio_launched == 0)
-                c2_fom_ready(fom);
+                c2_fom_wakeup(fom);
 };
 
 /**
@@ -1487,7 +1487,7 @@ static int io_launch(struct c2_sm *sm)
                                     c2_addb_func_fail, "io_launch", rc);
                         /*
                          * @todo: need to add memory free allocated in stio
-                         *        in thid function.
+                         *        in this function.
                          */
                         c2_stob_io_fini(stio);
                         c2_free(stio_desc);

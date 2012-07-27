@@ -62,11 +62,6 @@ enum {
  */
 struct c2_reqh {
 	struct c2_dtm		*rh_dtm;
-	/**
-	   @todo for now simply use storage object domain. In the future, this
-	   will be replaced with "stores".
-	 */
-	struct c2_stob_domain	*rh_stdom;
 
 	/** Database environment for this request handler. */
 	struct c2_dbenv         *rh_dbenv;
@@ -131,8 +126,7 @@ struct c2_reqh {
    @param cdom Cob domain for this request handler
    @param fol File operation log to record fop execution
 
-   @todo use iostores instead of c2_stob_domain and endpoints
-	or c2_rpc_machine instead of c2_service
+   @todo use iostores instead of c2_cob_domain
 
    @see c2_reqh
    @post c2_reqh_invariant()

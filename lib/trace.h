@@ -156,7 +156,7 @@
    i.e. explicitly typecast to the pointer. It is because typeof("foo")
    is not the same as typeof((char*)"foo").
 
-   @note The number of arguments after fmt is limited to 9!
+   @note The number of arguments after fmt is limited to 9
 
    C2_LOG() counts the number of arguments and calls correspondent C2_LOGx().
  */

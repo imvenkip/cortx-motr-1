@@ -41,6 +41,10 @@ int c2_fop_field_type_fit(struct c2_fop_field_type *fieldt)
 	return 0;
 }
 
+void c2_fom_ll_global_init(void)
+{
+}
+
 /** @} end of fop group */
 
 /*

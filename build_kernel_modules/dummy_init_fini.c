@@ -118,3 +118,11 @@ void c2_timers_fini(void)
 {
 
 }
+
+struct c2_reqh_service;
+struct c2_reqh;
+struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
+                                            struct c2_reqh *reqh)
+{
+	return NULL;
+}

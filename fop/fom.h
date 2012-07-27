@@ -52,6 +52,7 @@
 #include "lib/mutex.h"
 #include "lib/chan.h"
 #include "lib/atomic.h"
+#include "lib/tlist.h"
 
 #include "fol/fol.h"
 #include "stob/stob.h"
@@ -66,6 +67,7 @@ struct c2_fom_type;
 struct c2_fom_type_ops;
 struct c2_fom;
 struct c2_fom_ops;
+struct c2_long_lock;
 
 /**
  * A locality is a partition of computational resources dedicated to fom
@@ -194,8 +196,7 @@ struct c2_fom_locality {
 bool c2_locality_invariant(const struct c2_fom_locality *loc);
 
 /**
- * Domain is a collection of localities that compete for the resources. For
- * example, there would be typically a domain for each service (c2_service).
+ * Domain is a collection of localities that compete for the resources.
  *
  * Once the fom domain is initialised, fom domain invariant should hold
  * true until fom domain is finalised .
@@ -385,33 +386,37 @@ struct c2_fom {
 	 *
 	 * @see c2_fom_locality
 	 */
-	enum c2_fom_state	 fo_state;
+	enum c2_fom_state	  fo_state;
 	/** FOM phase under execution */
-	int			 fo_phase;
+	int			  fo_phase;
 	/** Locality this fom belongs to */
-	struct c2_fom_locality	*fo_loc;
-	struct c2_fom_type	*fo_type;
-	const struct c2_fom_ops	*fo_ops;
+	struct c2_fom_locality	 *fo_loc;
+	struct c2_fom_type	 *fo_type;
+	const struct c2_fom_ops	 *fo_ops;
 	/** AST call-back to wake up the FOM */
-	struct c2_fom_callback	 fo_cb;
-	/** FOP ctx sent by the network service. */
-	struct c2_fop_ctx	*fo_fop_ctx;
+	struct c2_fom_callback	  fo_cb;
 	/** Request fop object, this fom belongs to */
-	struct c2_fop		*fo_fop;
+	struct c2_fop		 *fo_fop;
 	/** Reply fop object */
-	struct c2_fop		*fo_rep_fop;
+	struct c2_fop		 *fo_rep_fop;
 	/** Fol object for this fom */
-	struct c2_fol		*fo_fol;
+	struct c2_fol		 *fo_fol;
 	/** Transaction object to be used by this fom */
-	struct c2_dtx		 fo_tx;
+	struct c2_dtx		  fo_tx;
 	/** Pointer to service instance. */
-	struct c2_reqh_service  *fo_service;
+	struct c2_reqh_service   *fo_service;
 	/**
 	 *  FOM linkage in the locality runq list or wait list
 	 *  Every access to the FOM via this linkage is
 	 *  protected by the c2_fom_locality::fl_group.s_lock mutex.
 	 */
-	struct c2_list_link	 fo_linkage;
+	struct c2_list_link	  fo_linkage;
+	/** Transitions counter, coresponds to the number of
+	    c2_fom_ops::fo_state() calls */
+	unsigned		  fo_transitions;
+	/** Counter of transitions, used to ensure FOM was inactive,
+	    while waiting for a longlock. */
+	unsigned		  fo_transitions_saved;
 
 	/** Result of fom execution, -errno on failure */
 	int32_t			 fo_rc;
@@ -430,10 +435,12 @@ struct c2_fom {
  * type is void.
  *
  * @param fom, A fom to be submitted for execution
+ * @param reqh, request handler processing the fom given fop
+ *
  * @pre is_locked(fom)
  * @pre fom->fo_phase == C2_FOPH_INIT || fom->fo_phase == C2_FOPH_FAILURE
  */
-void c2_fom_queue(struct c2_fom *fom);
+void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh);
 
 /**
  * Initialises fom allocated by caller.
@@ -577,6 +584,13 @@ void c2_fom_block_enter(struct c2_fom *fom);
 void c2_fom_block_leave(struct c2_fom *fom);
 
 /**
+ * Moves the fom from waiting to ready queue. Similar to c2_fom_ready(), but
+ * callable from a locality different from fom's locality (i.e., with a
+ * different locality group lock held).
+ */
+void c2_fom_wakeup(struct c2_fom *fom);
+
+/**
  * Registers AST call-back with the channel and a fom executing a blocking
  * operation. Both, the channel and the call-back (with initialized fc_bottom)
  * are provided by user.
@@ -623,8 +637,6 @@ void c2_fom_callback_fini(struct c2_fom_callback *cb);
  */
 bool c2_fom_callback_cancel(struct c2_fom_callback *cb);
 
-bool c2_group_is_locked(const struct c2_fom *fom);
-
 extern const struct c2_addb_loc c2_fom_addb_loc;
 extern const struct c2_addb_ctx_type c2_fom_addb_ctx_type;
 
@@ -659,15 +671,11 @@ void c2_fom_type_register(struct c2_fom_type *fom_type);
 
 extern const struct c2_sm_conf fom_conf;
 
-/** It transitions the fom from waiting to ready state. */
-static inline void c2_fom_ready(struct c2_fom *fom)
-{
-	C2_PRE(fom != NULL);
-	C2_PRE(fom->fo_state == C2_FOS_WAITING);
-
-	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_READY);
-}
-
+/**
+ * Returns the state of SM group for AST call-backs of locality, given fom is
+ * associated with.
+ */
+bool c2_fom_group_is_locked(const struct c2_fom *fom);
 /** @} end of fom group */
 
 /* __COLIBRI_FOP_FOM_H__ */

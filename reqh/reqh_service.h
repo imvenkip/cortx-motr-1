@@ -323,9 +323,9 @@ struct c2_reqh_service_type_ops {
 };
 
 /**
-   Represents a particular service type.
-   A c2_reqh_service_type instance is initialised and registered into a global
-   list of service types as a part of corresponding module initiasation process.
+   Represents a particular service type.  A c2_reqh_service_type instance is
+   initialised and registered into a global list of service types as a part of
+   corresponding module initialisation process.
 
    @see c2_reqh_service_type_init()
  */
@@ -384,7 +384,6 @@ struct c2_reqh_service_type *c2_reqh_service_type_find(const char *sname);
    @post c2_reqh_service_invariant(service)
 
    @see struct c2_reqh_service_ops
-   @see c2_service_init()
  */
 int c2_reqh_service_start(struct c2_reqh_service *service);
 

@@ -36,6 +36,7 @@
 #include "fop/fop_format_def.h"
 #include "sm/sm.h"
 #include "reqh/reqh.h"
+#include "rpc/rpc2.h"
 
 #ifdef __KERNEL__
 #include "fom_generic_fops_k.h"
@@ -287,8 +288,10 @@ static int fom_fol_rec_add(struct c2_sm *mach)
 	fom = container_of(mach, struct c2_fom, fo_sm_phase);
 	fom->fo_phase = C2_FOPH_TXN_COMMIT;
         c2_fom_block_enter(fom);
+#ifndef __KERNEL__
         fom->fo_rc = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
                                         &fom->fo_tx.tx_dbtx);
+#endif
         c2_fom_block_leave(fom);
 	return fom->fo_phase;
 }
@@ -691,6 +694,9 @@ void c2_fom_sm_init(struct c2_fom *fom)
 
 	C2_PRE(fom != NULL);
 
+	if (fom->fo_type->ft_conf == NULL)
+		c2_fom_type_register(fom->fo_type);
+
 	conf	     = fom->fo_type->ft_conf;
 	fom_group    = &fom->fo_loc->fl_group;
 	fom_addb_ctx = &fom->fo_loc->fl_dom->fd_addb_ctx;
@@ -720,7 +726,6 @@ void c2_fom_type_register(struct c2_fom_type *fom_type)
 		fom_type->ft_conf = conf;
 	} else
 		fom_type->ft_conf = &generic_conf;
-
 }
 
 /** @} endgroup fom */

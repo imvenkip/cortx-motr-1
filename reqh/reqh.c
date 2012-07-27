@@ -38,7 +38,7 @@
 #include "fop/fop_format_def.h"
 #include "reqh/reqh_service.h"
 
-#include "reqh.h"
+#include "reqh/reqh.h"
 
 /**
    @addtogroup reqh
@@ -157,19 +157,10 @@ int c2_reqhs_init(void)
 	return c2_fom_generic_fop_init();
 }
 
-static void queueit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
-{
-	struct c2_fom *fom = container_of(ast, struct c2_fom, fo_cb.fc_ast);
-
-	c2_fom_queue(fom);
-}
-
 void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 {
 	struct c2_fom	       *fom;
-	struct c2_fom_domain   *dom;
 	int			result;
-	size_t			loc_idx;
 	bool                    rsd;
 
 	C2_PRE(reqh != NULL);
@@ -189,31 +180,9 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 	C2_ASSERT(fop->f_type->ft_fom_type.ft_ops->fto_create != NULL);
 
 	result = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, &fom);
-	if (result == 0) {
-		C2_ASSERT(fom != NULL);
-		if (fom->fo_type->ft_conf == NULL)
-			c2_fom_type_register(fom->fo_type);
-		/**
-		 * To access service specific data,
-		 * FOM needs pointer to service instance.
-		 */
-		if (fom->fo_ops->fo_service_name != NULL) {
-			const char *service_name = NULL;
-			service_name = fom->fo_ops->fo_service_name(fom);
-			fom->fo_service = c2_reqh_service_get(service_name,
-							      reqh);
-		}
-		fom->fo_fol = reqh->rh_fol;
-		dom = &reqh->rh_fom_dom;
-		c2_atomic64_inc(&dom->fd_foms_nr);
-		loc_idx = fom->fo_ops->fo_home_locality(fom) %
-			  dom->fd_localities_nr;
-		C2_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
-		fom->fo_loc = &reqh->rh_fom_dom.fd_localities[loc_idx];
-		c2_fom_sm_init(fom);
-		fom->fo_cb.fc_ast.sa_cb = queueit;
-		c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
-	} else
+	if (result == 0) 
+		c2_fom_queue(fom, reqh);
+	else
 		REQH_ADDB_ADD(reqh->rh_addb, "c2_reqh_fop_handle", result);
 
 	c2_rwlock_read_unlock(&reqh->rh_rwlock);
