@@ -18,11 +18,11 @@
  * Original creation date: 05/25/2012
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_FORMATION
+#include "lib/trace.h"
 #include "lib/tlist.h"
 #include "lib/misc.h"
 #include "lib/vec.h"
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_FORMATION
-#include "lib/trace.h"
 #include "rpc/packet.h"
 #include "rpc/rpc2.h"
 #include "rpc/rpc_onwire.h"
@@ -84,7 +84,7 @@ void c2_rpc_packet_add_item(struct c2_rpc_packet *p,
 {
 	C2_ENTRY("packet: %p item: %p", p, item);
 	C2_PRE(c2_rpc_packet_invariant(p) && item != NULL);
-	C2_PRE(!c2_rpc_packet_is_carrying_item(p, item));
+	//C2_PRE(!packet_item_tlink_is_in(item)); XXX Uncomment this line
 
 	packet_item_tlink_init_at_tail(item, &p->rp_items);
 	++p->rp_nr_items;
@@ -113,7 +113,7 @@ void c2_rpc_packet_remove_item(struct c2_rpc_packet *p,
 			(unsigned long long)p->rp_nr_items,
 			(unsigned long long)p->rp_size);
 	C2_ASSERT(c2_rpc_packet_invariant(p));
-	C2_POST(!c2_rpc_packet_is_carrying_item(p, item));
+	C2_POST(!packet_item_tlink_is_in(item));
 	C2_LEAVE();
 }
 
@@ -122,7 +122,7 @@ void c2_rpc_packet_remove_all_items(struct c2_rpc_packet *p)
 	struct c2_rpc_item *item;
 
 	C2_ENTRY("packet: %p", p);
-	C2_PRE(c2_rpc_packet_invariant(p) && !c2_rpc_packet_is_empty(p));
+	C2_PRE(c2_rpc_packet_invariant(p));
 	C2_LOG("nr_items: %d", (int)p->rp_nr_items);
 
 	c2_tl_for(packet_item, &p->rp_items, item) {
@@ -249,3 +249,13 @@ void c2_rpc_packet_traverse_items(struct c2_rpc_packet *p,
 	C2_ASSERT(c2_rpc_packet_invariant(p));
 	C2_LEAVE();
 }
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

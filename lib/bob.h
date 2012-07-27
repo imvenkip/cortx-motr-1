@@ -83,6 +83,22 @@ struct c2_bob_type {
  */
 void c2_bob_type_tlist_init(struct c2_bob_type *bt,
 			    const struct c2_tl_descr *td);
+
+/**
+   Defines c2_bob_type instance.
+
+   Used in cases where c2_bob_type_tlist_init() cannot be used because
+   the branded object is not in any tlist.
+ */
+#define C2_BOB_TYPE(scope, bob_type, name, type, magix_field, magix, check) \
+scope struct c2_bob_type bob_type = {                                       \
+	.bt_name         = name,                                            \
+	.bt_magix_offset = offsetof(type, magix_field),                    \
+	.bt_magix        = magix,                                           \
+	.bt_check        = check,                                           \
+};                                                                          \
+C2_BASSERT(C2_HAS_TYPE(C2_FIELD_VALUE(type, magix_field), uint64_t))
+
 /**
  *  Initializes a branded object, by setting the magic field.
  */

@@ -28,7 +28,12 @@ struct c2_rpc_item;
 struct c2_rpc_frm;
 
 enum {
-	/** RPC version (4 bytes) + number of items in the packet (4 bytes) */
+	/**
+	   RPC version + number of items in the packet.
+	   NOTE: Current implementation in rpc/rpc_onwire.c encodes
+	         uint32_t as uint64_t. Hence two uint32_t fields
+	         will require 16 bytes.
+	 */
 	C2_RPC_PACKET_OW_HEADER_SIZE = 16
 };
 
@@ -61,7 +66,7 @@ void c2_rpc_packet_init(struct c2_rpc_packet *packet);
 void c2_rpc_packet_fini(struct c2_rpc_packet *packet);
 
 /**
-   @pre  !c2_rpc_packet_is_carrying_item(packet, item)
+   @pre  !packet_item_tlink_is_in(item)
    @post c2_rpc_packet_is_carrying_item(packet, item)
  */
 void c2_rpc_packet_add_item(struct c2_rpc_packet *packet,
@@ -69,13 +74,12 @@ void c2_rpc_packet_add_item(struct c2_rpc_packet *packet,
 
 /**
    @pre  c2_rpc_packet_is_carrying_item(packet, item)
-   @post !c2_rpc_packet_is_carrying_item(packet, item)
+   @post !packet_item_tlink_is_in(item)
  */
 void c2_rpc_packet_remove_item(struct c2_rpc_packet *packet,
 			       struct c2_rpc_item   *item);
 
 /**
-   @pre !c2_rpc_packet_is_empty(packet)
    @post c2_rpc_packet_is_empty(packet)
  */
 void c2_rpc_packet_remove_all_items(struct c2_rpc_packet *packet);
@@ -112,7 +116,7 @@ int c2_rpc_packet_decode_from_buf(struct c2_rpc_packet *packet,
 
 
 /**
-   Decodes packet from location pointed by bufvec.
+   Decodes packet from location pointed by bufvec cursor.
  */
 int c2_rpc_packet_decode_using_cursor(struct c2_rpc_packet    *packet,
 				      struct c2_bufvec_cursor *cursor);
@@ -127,4 +131,14 @@ void c2_rpc_packet_traverse_items(struct c2_rpc_packet *p,
 				  item_visit_fn        *visit,
 				  unsigned long         opaque_data);
 
-#endif
+#endif /* __COLIBRI_RPC_PACKET_H__ */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

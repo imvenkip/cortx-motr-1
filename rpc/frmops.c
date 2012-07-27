@@ -18,12 +18,13 @@
  * Original creation date: 06/04/2012
  */
 
-#include "lib/memory.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_FORMATION
 #include "lib/trace.h"
+#include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/errno.h"
 #include "lib/arith.h"
+#include "lib/bob.h"
 #include "rpc/formation2.h"
 #include "rpc/packet.h"
 #include "rpc/rpc2.h"
@@ -40,10 +41,10 @@ static int net_buffer_allocate(struct c2_net_buffer *netbuf,
 static void net_buffer_free(struct c2_net_buffer *netbuf,
 			    struct c2_net_domain *ndom);
 
-static void get_bufvec_geometry(struct c2_net_domain *ndom,
-				c2_bcount_t           buf_size,
-				int32_t              *out_nr_segments,
-				c2_bcount_t          *out_segment_size);
+static void bufvec_geometry(struct c2_net_domain *ndom,
+			    c2_bcount_t           buf_size,
+			    int32_t              *out_nr_segments,
+			    c2_bcount_t          *out_segment_size);
 
 static void item_done(struct c2_rpc_item *item, unsigned long rc);
 
@@ -67,6 +68,11 @@ struct rpc_buffer {
 	uint64_t               rb_magic;
 };
 
+C2_BOB_TYPE(static, rpc_buffer_bob_type, "rpc_buffer", struct rpc_buffer,
+	    rb_magic, RPC_BUF_MAGIC, NULL /* check_fn */);
+
+C2_BOB_DEFINE(static, &rpc_buffer_bob_type, rpc_buffer);
+
 static int rpc_buffer_init(struct rpc_buffer    *rpcbuf,
 			   struct c2_rpc_packet *p);
 
@@ -87,7 +93,7 @@ rpc_buffer__rmachine(const struct rpc_buffer *rpcbuf)
 {
 	struct c2_rpc_machine *rmachine;
 
-	C2_PRE(rpcbuf != NULL &&
+	C2_PRE(rpc_buffer_bob_check(rpcbuf) &&
 	       rpcbuf->rb_packet != NULL &&
 	       rpcbuf->rb_packet->rp_frm != NULL);
 
@@ -180,8 +186,7 @@ static int rpc_buffer_init(struct rpc_buffer    *rpcbuf,
 	netbuf->nb_ep     = rchan->rc_destep;
 
 	rpcbuf->rb_packet = p;
-
-	rpcbuf->rb_magic   = RPC_BUF_MAGIC;
+	rpc_buffer_bob_init(rpcbuf);
 
 out:
 	C2_LEAVE("rc: %d", rc);
@@ -203,7 +208,7 @@ static int net_buffer_allocate(struct c2_net_buffer *netbuf,
 						 (unsigned long long)buf_size);
 	C2_PRE(netbuf != NULL && ndom != NULL && buf_size > 0);
 
-	get_bufvec_geometry(ndom, buf_size, &nr_segments, &segment_size);
+	bufvec_geometry(ndom, buf_size, &nr_segments, &segment_size);
 
 	C2_SET0(netbuf);
 	rc = c2_bufvec_alloc_aligned(&netbuf->nb_buffer, nr_segments,
@@ -231,10 +236,10 @@ out:
    returns number and size of segments to required to carry contents of
    size buf_size.
  */
-static void get_bufvec_geometry(struct c2_net_domain *ndom,
-				c2_bcount_t           buf_size,
-				int32_t              *out_nr_segments,
-				c2_bcount_t          *out_segment_size)
+static void bufvec_geometry(struct c2_net_domain *ndom,
+			    c2_bcount_t           buf_size,
+			    int32_t              *out_nr_segments,
+			    c2_bcount_t          *out_segment_size)
 {
 	c2_bcount_t max_buf_size;
 	c2_bcount_t max_segment_size;
@@ -300,7 +305,7 @@ static int rpc_buffer_submit(struct rpc_buffer *rpcbuf)
 	int                    rc;
 
 	C2_ENTRY("rpcbuf: %p", rpcbuf);
-	C2_PRE(rpcbuf != NULL);
+	C2_PRE(rpc_buffer_bob_check(rpcbuf));
 
 	netbuf = &rpcbuf->rb_netbuf;
 
@@ -320,14 +325,14 @@ static void rpc_buffer_fini(struct rpc_buffer *rpcbuf)
 	struct c2_rpc_machine *machine;
 
 	C2_ENTRY("rpcbuf: %p", rpcbuf);
-	C2_PRE(rpcbuf != NULL);
+	C2_PRE(rpc_buffer_bob_check(rpcbuf));
 
 	machine = rpc_buffer__rmachine(rpcbuf);
 	ndom    = machine->rm_tm.ntm_dom;
 	C2_ASSERT(ndom != NULL);
 
 	net_buffer_free(&rpcbuf->rb_netbuf, ndom);
-	C2_SET0(rpcbuf);
+	rpc_buffer_bob_fini(rpcbuf);
 
 	C2_LEAVE();
 }
@@ -351,8 +356,8 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 		  netbuf->nb_qtype == C2_NET_QT_MSG_SEND &&
 		  (netbuf->nb_flags & C2_NET_BUF_QUEUED) == 0);
 
-	rpcbuf = container_of(netbuf, struct rpc_buffer, rb_netbuf);
-	C2_ASSERT(rpcbuf->rb_magic == RPC_BUF_MAGIC);
+	rpcbuf = bob_of(netbuf, struct rpc_buffer, rb_netbuf,
+			&rpc_buffer_bob_type);
 
 	machine = rpc_buffer__rmachine(rpcbuf);
 	c2_rpc_machine_lock(machine);
