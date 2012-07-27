@@ -360,6 +360,12 @@ struct c2_layout_enum {
 	/** Layout enumeration type. */
 	struct c2_layout_enum_type      *le_type;
 
+	/**
+	 * Flag indicating if this enum object is associated with any striped
+	 * layout object. This flag is used in invariants only.
+	 */
+	bool                             le_sl_is_set;
+
 	/** Striped layout object this enum is associated with. */
 	struct c2_striped_layout        *le_sl;
 

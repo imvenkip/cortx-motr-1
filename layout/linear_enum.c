@@ -70,18 +70,12 @@ static bool linear_allocated_invariant(const struct c2_layout_linear_enum *le)
  * linear_invariant() can not be invoked until an enumeration object
  * is associated with some layout object. Hence this separation.
  */
-static bool linear_invariant_internal(const struct c2_layout_linear_enum *le)
+static bool linear_invariant(const struct c2_layout_linear_enum *le)
 {
 	return
 		c2_layout_linear_enum_bob_check(le) &&
 		le->lle_attr.lla_nr != 0 &&
-		le->lle_attr.lla_B != 0;
-}
-
-static bool linear_invariant(const struct c2_layout_linear_enum *le)
-{
-	return
-		linear_invariant_internal(le) &&
+		le->lle_attr.lla_B != 0 &&
 		c2_layout__enum_invariant(&le->lle_base);
 }
 
@@ -141,7 +135,7 @@ static int linear_populate(struct c2_layout_linear_enum *lin_enum,
 		return -EINVAL;
 	}
 	lin_enum->lle_attr = *attr;
-	C2_POST(linear_invariant_internal(lin_enum));
+	C2_POST(linear_invariant(lin_enum));
 	return 0;
 }
 
@@ -165,7 +159,7 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
 		else
 			linear_delete(e);
 	}
-	C2_POST(ergo(rc == 0, linear_invariant_internal(lin_enum)));
+	C2_POST(ergo(rc == 0, linear_invariant(lin_enum)));
 	C2_LEAVE("domain %p, rc %d", dom, rc);
 	return rc;
 }
@@ -185,11 +179,12 @@ static struct c2_layout_linear_enum
 static void linear_fini(struct c2_layout_enum *e)
 {
 	struct c2_layout_linear_enum *lin_enum;
+	uint64_t                      lid;
 
-	C2_PRE(e != NULL);
+	C2_PRE(c2_layout__enum_invariant(e));
 
-	C2_ENTRY("lid %llu, enum_pointer %p",
-		 (unsigned long long)e->le_sl->sl_base.l_id, e);
+	lid = e->le_sl_is_set ? e->le_sl->sl_base.l_id : 0;
+	C2_ENTRY("lid %llu, enum_pointer %p", (unsigned long long)lid, e);
 	lin_enum = enum_to_linear_enum(e);
 	c2_layout_linear_enum_bob_fini(lin_enum);
 	c2_layout__enum_fini(e);
@@ -249,7 +244,7 @@ static int linear_decode(struct c2_layout_enum *e,
 	rc = linear_populate(lin_enum, lin_attr);
 	if (rc != 0)
 		C2_LOG("linear_populate() failed");
-	C2_POST(ergo(rc == 0, linear_invariant_internal(lin_enum)));
+	C2_POST(ergo(rc == 0, linear_invariant(lin_enum)));
 	C2_POST(ergo(rc != 0, linear_allocated_invariant(lin_enum)));
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
 	return rc;
