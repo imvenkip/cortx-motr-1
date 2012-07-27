@@ -189,13 +189,11 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 	c2_rwlock_read_unlock(&reqh->rh_rwlock);
 }
 
-struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
-                                            struct c2_reqh *reqh)
+struct c2_reqh_service *c2_reqh_service_find_by_name(const char *sname,
+						     struct c2_reqh *reqh)
 {
 	struct c2_reqh_service *service;
-
-	C2_PRE(reqh != NULL && service_name != NULL);
-
+	
 	c2_rwlock_read_lock(&reqh->rh_rwlock);
 	c2_tl_for(c2_reqh_svc, &reqh->rh_services, service) {
 		C2_ASSERT(c2_reqh_service_invariant(service));
@@ -205,6 +203,14 @@ struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
 	c2_rwlock_read_unlock(&reqh->rh_rwlock);
 
 	return service;
+}
+
+struct c2_reqh_service *c2_reqh_service_find(const struct c2_fom_type *ft,
+					struct c2_reqh *reqh)
+{
+	C2_PRE(ft != NULL && reqh != NULL);
+
+	return reqh->rh_key[ft->ft_rstype->rst_key];
 }
 
 void c2_reqh_shutdown_wait(struct c2_reqh *reqh)

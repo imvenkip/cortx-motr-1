@@ -338,6 +338,11 @@ struct c2_reqh_service_type {
 	const struct c2_reqh_service_type_ops *rst_ops;
 
 	/**
+	 * Reqh key to store and locate c2_reqh_service instance.
+	 */
+	unsigned                               rst_key;
+
+	/**
 	    Linkage into global service types list.
 
 	    @see c2_rstypes

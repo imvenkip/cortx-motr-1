@@ -85,9 +85,11 @@ static const struct c2_fom_type_ops cob_fom_type_ops = {
 	.fto_create = cob_fom_create,
 };
 
-struct c2_fom_type cc_fom_type = {
+/*struct c2_fom_type cc_fom_type = {
 	.ft_ops = &cob_fom_type_ops,
-};
+};*/
+
+C2_FOM_TYPE_DECLARE(cob_create, &cob_fom_type_ops, NULL);
 
 static const struct c2_addb_loc cd_fom_addb_loc = {
 	.al_name = "cob_delete_fom",
@@ -104,9 +106,11 @@ static const struct c2_fom_ops cd_fom_ops = {
 	.fo_service_name  = c2_io_fom_cob_rw_service_name,
 };
 
-struct c2_fom_type cd_fom_type = {
+/*struct c2_fom_type cd_fom_type = {
 	.ft_ops = &cob_fom_type_ops,
-};
+};*/
+
+C2_FOM_TYPE_DECLARE(cob_delete, &cd_fom_ops, NULL);
 
 static int cob_fom_create(struct c2_fop *fop, struct c2_fom **out)
 {

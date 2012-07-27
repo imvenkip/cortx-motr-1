@@ -58,6 +58,7 @@
 
 #include "fol/fol.h"
 #include "stob/stob.h"
+#include "reqh/reqh_service.h"
 
 struct c2_fop_type;
 
@@ -480,6 +481,8 @@ bool c2_fom_invariant(const struct c2_fom *fom);
 /** Type of fom. c2_fom_type is part of c2_fop_type. */
 struct c2_fom_type {
 	const struct c2_fom_type_ops *ft_ops;
+	/** Service type this FOM type belongs to. */
+	struct c2_reqh_service_type  *ft_rstype;
 };
 
 /**
@@ -642,6 +645,13 @@ bool c2_fom_callback_cancel(struct c2_fom_callback *cb);
  * associated with.
  */
 bool c2_fom_group_is_locked(const struct c2_fom *fom);
+
+#define C2_FOM_TYPE_DECLARE(fomt, ops, stype) \
+struct c2_fom_type fomt ## _fomt = {          \
+	.ft_ops = ops,                        \
+	.ft_stype = stype                     \
+};                                            \
+
 /** @} end of fom group */
 
 /* __COLIBRI_FOP_FOM_H__ */

@@ -81,7 +81,7 @@ static int get_ioservice_buffer_pool_count(struct c2_rpc_server_ctx *sctx)
 	struct c2_reqh            *reqh;
 
 	reqh     = c2_cs_reqh_get(&sctx->rsx_colibri_ctx, "ioservice");
-	reqh_ios = c2_reqh_service_get("ioservice", reqh);
+	reqh_ios = c2_reqh_service_find_by_name("ioservice", reqh);
 	serv_obj = container_of(reqh_ios, struct c2_reqh_io_service, rios_gen);
 
 	C2_UT_ASSERT(serv_obj != NULL);

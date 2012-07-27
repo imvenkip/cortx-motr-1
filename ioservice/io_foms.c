@@ -610,6 +610,8 @@ static int initiate_zero_copy(struct c2_fom *);
 static int zero_copy_finish(struct c2_fom *);
 static int release_net_buffer(struct c2_fom *);
 
+extern struct c2_reqh_service_type c2_ios_type;
+
 /**
  * I/O FOM operation vector.
  */
@@ -630,9 +632,11 @@ static const struct c2_fom_type_ops type_ops = {
 /**
  * I/O FOM type operation.
  */
-const struct c2_fom_type c2_io_fom_cob_rw_mopt = {
+/*struct c2_fom_type c2_io_fom_cob_rw_mopt = {
 	.ft_ops = &type_ops,
-};
+};*/
+
+C2_FOM_TYPE_DECLARE(c2_io_fom_cob_rw, &type_ops, &c2_ios_type);
 
 /**
  * I/O Read FOM state transition table.

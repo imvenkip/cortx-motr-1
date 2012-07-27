@@ -150,6 +150,7 @@ void c2_reqh_service_stop(struct c2_reqh_service *service)
 void c2_reqh_service_init(struct c2_reqh_service *service, struct c2_reqh *reqh)
 {
 	const char *sname;
+	unsigned    key;
 
 	C2_PRE(service != NULL && reqh != NULL &&
 		service->rs_state == C2_RST_INITIALISING);
@@ -165,6 +166,8 @@ void c2_reqh_service_init(struct c2_reqh_service *service, struct c2_reqh *reqh)
 	service->rs_reqh  = reqh;
 	c2_reqh_svc_tlink_init(service);
 	c2_mutex_init(&service->rs_mutex);
+	key = service->rs_type->rst_key;
+	reqh->rh_key[key] = service;
 	C2_POST(c2_reqh_service_invariant(service));
 }
 
@@ -187,6 +190,9 @@ int c2_reqh_service_type_register(struct c2_reqh_service_type *rstype)
 		return -EINVAL;
 
 	c2_reqh_service_type_bob_init(rstype);
+	c2_rwlock_write_lock(&reqh->rh_rwlock);
+	rstype->rst_key = c2_reqh_key_init();
+	c2_rwlock_write_unlock(&reqh->rh_rwlock);
 	c2_rwlock_write_lock(&rstypes_rwlock);
 	rstypes_tlink_init_at_tail(rstype, &rstypes);
 	c2_rwlock_write_unlock(&rstypes_rwlock);
