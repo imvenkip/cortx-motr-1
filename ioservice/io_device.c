@@ -228,9 +228,11 @@
 #endif
 
 #include "lib/errno.h"
+#include "lib/memory.h"
 #include "ioservice/io_device.h"
 #include "pool/pool.h"
 #include "reqh/reqh.h"
+#include "ioservice/io_fops_u.h"
 
 /**
    @addtogroup io_calls_params_dldDFS
@@ -295,6 +297,66 @@ void c2_ios_poolmach_fini(struct c2_reqh *reqh)
 	poolmach_is_initialised = false;
 	poolmach_key = 0;
 	c2_rwlock_write_unlock(&reqh->rh_rwlock);
+}
+
+int c2_ios_poolmach_version_updates_pack(struct c2_poolmach   *pm,
+					 struct c2_fv_version *cli,
+					 struct c2_fv_version *version,
+					 struct c2_fv_updates *updates)
+{
+	struct c2_pool_version_numbers  curr;
+	struct c2_pool_version_numbers *verp;
+	struct c2_tl			events_list;
+	struct c2_pool_event_link      *scan;
+	uint32_t			count;
+	uint32_t			index;
+	int				rc;
+
+	updates->fvu_count  = 0;
+	updates->fvu_events = NULL;
+
+	c2_poolmach_current_version_get(pm, &curr);
+	verp = (struct c2_pool_version_numbers*)version;
+	*verp = curr;
+
+	poolmach_events_tlist_init(&events_list);
+	rc = c2_poolmach_state_query(pm,
+				     (struct c2_pool_version_numbers *)cli,
+				     (struct c2_pool_version_numbers *)&curr,
+				     &events_list);
+	if (rc != 0)
+		goto out;
+
+	count = poolmach_events_tlist_length(&events_list);
+	updates->fvu_count  = count;
+	updates->fvu_events = c2_alloc(count * sizeof(struct c2_fv_event));
+	if (updates->fvu_events == NULL) {
+		rc = -ENOMEM;
+		goto out_free_list;
+	}
+
+	index = 0;
+	c2_tl_for(poolmach_events, &events_list, scan) {
+		updates->fvu_events[index].fve_type  = scan->pel_event->pe_type;
+		updates->fvu_events[index].fve_index = scan->pel_event->pe_index;
+		updates->fvu_events[index].fve_state = scan->pel_event->pe_state;
+		index++;
+		poolmach_events_tlink_del_fini(scan);
+		c2_free(scan->pel_event);
+		c2_free(scan);
+	} c2_tl_endfor;
+
+out:
+	poolmach_events_tlist_fini(&events_list);
+	return rc;
+
+out_free_list:
+	c2_tl_for(poolmach_events, &events_list, scan) {
+		poolmach_events_tlink_del_fini(scan);
+		c2_free(scan->pel_event);
+		c2_free(scan);
+	} c2_tl_endfor;
+	goto out;
 }
 
 /** @} */ /* end of io_calls_params_dldDFS */

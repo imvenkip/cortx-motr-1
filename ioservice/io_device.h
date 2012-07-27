@@ -21,6 +21,9 @@
 #ifndef __COLIBRI_IOSERVICE_IO_DEVICE_H__
 #define __COLIBRI_IOSERVICE_IO_DEVICE_H__
 
+struct c2_fv_version;
+struct c2_fv_updates;
+
 /**
    @page io_calls_params_dld-fspec I/O calls Parameters Functional Specification
 
@@ -98,6 +101,19 @@ struct c2_poolmach *c2_ios_poolmach_get(struct c2_reqh *reqh);
  * Finializes the pool machine when it is no longer used.
  */
 void c2_ios_poolmach_fini(struct c2_reqh *reqh);
+
+/**
+ * Pack the current server version and delta of failure vectors
+ * into (reply) buffers.
+ * @param pm the pool machine.
+ * @param cli the client known version.
+ * @param version [out] pack the server known version into this.
+ * @param updates [out] pack events from @cli to @version into this buffer.
+ */
+int c2_ios_poolmach_version_updates_pack(struct c2_poolmach   *pm,
+					 struct c2_fv_version *cli,
+					 struct c2_fv_version *version,
+					 struct c2_fv_updates *updates);
 
 /** @} */ /* io_calls_params_dldDFS end group */
 

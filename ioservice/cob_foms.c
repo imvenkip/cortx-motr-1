@@ -255,12 +255,10 @@ out:
 	reply = c2_fop_data(fom->fo_rep_fop);
 	reply->cor_rc = rc;
 
-	c2_poolmach_current_version_get(poolmach, &curr);
-	verp = (struct c2_pool_version_numbers*)&reply->cor_fv_version;
-	*verp = curr;
-
-	reply->cor_fv_updates.fvu_length  = 0;
-	reply->cor_fv_updates.fvu_updates = NULL;
+	c2_ios_poolmach_version_updates_pack(poolmach,
+					     &fop->cc_common.c_version,
+					     &reply->cor_fv_version,
+					     &reply->cor_fv_updates);
 
 	fom->fo_rc = rc;
 	fom->fo_phase = (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
@@ -469,12 +467,10 @@ out:
 	reply = c2_fop_data(fom->fo_rep_fop);
 	reply->cor_rc = rc;
 
-	c2_poolmach_current_version_get(poolmach, &curr);
-	verp = (struct c2_pool_version_numbers*)&reply->cor_fv_version;
-	*verp = curr;
-
-	reply->cor_fv_updates.fvu_length  = 0;
-	reply->cor_fv_updates.fvu_updates = NULL;
+	c2_ios_poolmach_version_updates_pack(poolmach,
+					     &fop->cd_common.c_version,
+					     &reply->cor_fv_version,
+					     &reply->cor_fv_updates);
 
 	fom->fo_rc = rc;
 	fom->fo_phase = (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;

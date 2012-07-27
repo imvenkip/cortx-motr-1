@@ -1658,13 +1658,10 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 		rwrep = io_rw_rep_get(fom->fo_rep_fop);
 		rwrep->rwr_rc    = fom->fo_rc;
 		rwrep->rwr_count = fom_obj->fcrw_count;
-
-		c2_poolmach_current_version_get(poolmach, &curr);
-		verp = (struct c2_pool_version_numbers*)&rwrep->rwr_fv_version;
-		*verp = curr;
-
-		rwrep->rwr_fv_updates.fvu_length  = 0;
-		rwrep->rwr_fv_updates.fvu_updates = NULL;
+		c2_ios_poolmach_version_updates_pack(poolmach,
+						     &rwfop->crw_version,
+						     &rwrep->rwr_fv_version,
+						     &rwrep->rwr_fv_updates);
 		return rc;
 	}
 

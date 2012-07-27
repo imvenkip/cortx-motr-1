@@ -34,11 +34,11 @@
    @{
  */
 
-C2_TL_DESCR_DEFINE(poolmach_events, "pool machine events list", static,
+C2_TL_DESCR_DEFINE(poolmach_events, "pool machine events list", ,
                    struct c2_pool_event_link, pel_linkage, pel_magic,
                    C2_POOL_EVENTS_LIST_MAGIC, C2_POOL_EVENTS_HEAD_MAGIC);
 
-C2_TL_DEFINE(poolmach_events, static, struct c2_pool_event_link);
+C2_TL_DEFINE(poolmach_events, , struct c2_pool_event_link);
 
 
 int c2_pool_init(struct c2_pool *pool, uint32_t width)
@@ -217,7 +217,6 @@ int c2_poolmach_state_query(struct c2_poolmach *pm,
 	} else {
 		scan = poolmach_events_tlist_head(&pm->pm_state.pst_events_list);
 	}
-	C2_ASSERT(scan != NULL);
 
 	while (scan != NULL) {
 		/* allocate a copy of the event and event link,

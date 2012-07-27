@@ -94,6 +94,7 @@ C2_ADDB_EV_DEFINE(bulkclient_func_fail, "bulkclient func failed.",
 static struct c2_fop_type_format *ioservice_fmts[] = {
 	&c2_fop_file_fid_tfmt,
 	&c2_fv_version_tfmt,
+	&c2_fv_event_tfmt,
 	&c2_fv_updates_tfmt,
 	&c2_ioseg_tfmt,
 	&c2_io_indexvec_tfmt,
@@ -144,6 +145,7 @@ const struct c2_fop_type_ops io_fop_rwv_ops = {
 const struct c2_rpc_item_ops cob_req_rpc_item_ops = {
 	.rio_sent        = NULL,
 	.rio_added       = NULL,
+	.rio_replied	 = NULL,
 	.rio_free        = cob_rpcitem_free,
 };
 
@@ -1395,7 +1397,7 @@ C2_EXPORTED(io_fop_desc_get);
 
 static void cob_rpcitem_free(struct c2_rpc_item *item)
 {
-	struct c2_fop *fop;
+	struct c2_fop              *fop;
 
 	C2_PRE(item != NULL);
 

@@ -319,6 +319,8 @@ int c2_poolmach_current_state_get(struct c2_poolmach *pm,
 void c2_poolmach_state_free(struct c2_poolmach *pm,
 			    struct c2_poolmach_state *state);
 
+C2_TL_DESCR_DECLARE(poolmach_events, extern);
+C2_TL_DECLARE(poolmach_events, extern, struct c2_pool_event_link);
 /** @} end of poolmach group */
 
 /**
