@@ -2792,7 +2792,7 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 
 	rc = c2_layout_update(l1, &tx, &pair);
 	if (failure_test)
-		C2_UT_ASSERT(rc == -505 || rc == 601);
+		C2_UT_ASSERT(rc == -505 || rc == -601);
 	else
 		C2_UT_ASSERT(rc == 0);
 	/*
@@ -2923,7 +2923,6 @@ static void test_update_failure(void)
 {
 	uint64_t lid;
 
-#if 0
 	/* Simulate c2_layout_encode() failure in c2_layout_update(). */
 	lid = 12006;
 	c2_fi_enable_off_n_on_m("c2_layout_encode", "error_1", 1, 1);
@@ -2933,10 +2932,7 @@ static void test_update_failure(void)
 				 FAILURE_TEST);
 	C2_UT_ASSERT(rc == -505);
 	c2_fi_disable("c2_layout_encode", "error_1");
-#endif
 
-	/* July 26, continue from here. Need to debug why it does not work.*/
-#if 1
 	/* Simulate c2_table_update() failure in c2_layout_update(). */
 	lid = 12007;
 	c2_fi_enable_once("c2_layout_update", "error_1");
@@ -2945,7 +2941,6 @@ static void test_update_failure(void)
 				 INLINE_NOT_APPLICABLE,
 				 FAILURE_TEST);
 	C2_UT_ASSERT(rc == -601);
-#endif
 }
 
 /* Tests the API c2_layout_delete(), for the PDCLUST layout type. */

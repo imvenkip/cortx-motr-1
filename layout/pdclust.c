@@ -19,6 +19,10 @@
  * Original creation date: 07/15/2010
  */
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 /**
  * @addtogroup pdclust
  *
@@ -201,7 +205,6 @@ static void pdclust_fini(struct c2_layout *l)
 
 static const struct c2_layout_ops pdclust_ops;
 /** Implementation of lto_allocate() for PDCLUST layout type. */
-#if 0 //todo
 static int pdclust_allocate(struct c2_layout_domain *dom,
 			    uint64_t lid,
 			    struct c2_layout **out)
@@ -213,7 +216,7 @@ static int pdclust_allocate(struct c2_layout_domain *dom,
 	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
-	IF_FI_ENABLED_SET_VAR_AND_JUMP("error_1", pl, NULL, error_1_injected);
+	IF_FI_ENABLED_SET_VAR_AND_JUMP("error_1", pl, NULL, error_1_injected); //todo cover this in UT
 	C2_ALLOC_PTR(pl);
 error_1_injected:
 	if (pl == NULL) {
@@ -232,8 +235,8 @@ error_1_injected:
 	C2_LEAVE("lid %llu, pl pointer %p", (unsigned long long)lid, pl);
 	return 0;
 }
-#endif
 
+#if 0 //todo
 static int pdclust_allocate(struct c2_layout_domain *dom,
 			    uint64_t lid,
 			    struct c2_layout **out)
@@ -268,7 +271,7 @@ error_1_injected:
 	C2_LEAVE("lid %llu, pl pointer %p", (unsigned long long)lid, pl);
 	return 0;
 }
-
+#endif
 
 /** Implementation of lo_delete() for PDCLUST layout type. */
 static void pdclust_delete(struct c2_layout *l)
