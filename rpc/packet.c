@@ -35,10 +35,10 @@ static int item_encode(struct c2_rpc_item       *item,
 enum {
 	PACKET_HEAD_MAGIC = 0x525041434b4554 /* "RPACKET" */
 };
-C2_TL_DESCR_DEFINE(packet_item, "packet_item", static, struct c2_rpc_item,
+C2_TL_DESCR_DEFINE(packet_item, "packet_item", /* global */, struct c2_rpc_item,
                    ri_plink, ri_link_magic, C2_RPC_ITEM_FIELD_MAGIC,
                    PACKET_HEAD_MAGIC);
-C2_TL_DEFINE(packet_item, static, struct c2_rpc_item);
+C2_TL_DEFINE(packet_item, /* global */, struct c2_rpc_item);
 
 bool c2_rpc_packet_invariant(const struct c2_rpc_packet *p)
 {
@@ -84,7 +84,7 @@ void c2_rpc_packet_add_item(struct c2_rpc_packet *p,
 {
 	C2_ENTRY("packet: %p item: %p", p, item);
 	C2_PRE(c2_rpc_packet_invariant(p) && item != NULL);
-	//C2_PRE(!packet_item_tlink_is_in(item)); XXX Uncomment this line
+	C2_PRE(!packet_item_tlink_is_in(item));
 
 	packet_item_tlink_init_at_tail(item, &p->rp_items);
 	++p->rp_nr_items;

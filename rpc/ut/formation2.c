@@ -202,6 +202,7 @@ static struct c2_rpc_item *new_item(int deadline, int kind)
 					  &twoway_item_type;
 	item->ri_slot_refs[0].sr_slot = kind == BOUND ? &slot : NULL;
 	item->ri_session = &session;
+	packet_item_tlink_init(item);
 
 	return item;
 }

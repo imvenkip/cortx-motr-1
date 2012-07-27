@@ -61,6 +61,9 @@ struct c2_rpc_packet {
 	struct c2_rpc_frm *rp_frm;
 };
 
+C2_TL_DESCR_DECLARE(packet_item, extern);
+C2_TL_DECLARE(packet_item, extern, struct c2_rpc_item);
+
 bool c2_rpc_packet_invariant(const struct c2_rpc_packet *packet);
 void c2_rpc_packet_init(struct c2_rpc_packet *packet);
 void c2_rpc_packet_fini(struct c2_rpc_packet *packet);
