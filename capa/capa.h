@@ -105,8 +105,6 @@ struct c2_object_capa {
    authorized, checked, etc.
 */
 struct c2_capa_ctxt {
-	/** running service */
-	struct c2_service *cc_service;
 	/** more fields go here */
 };
 

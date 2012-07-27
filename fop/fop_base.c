@@ -25,6 +25,7 @@
 #include "lib/vec.h"
 #include "fop/fop_base.h"
 #include "fop/fop_iterator.h"
+#include "fop/fom_long_lock.h" /* c2_fom_ll_global_init */
 
 /**
    @addtogroup fop
@@ -246,6 +247,7 @@ int c2_fops_init(void)
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_BYTE);
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_U32);
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_U64);
+	c2_fom_ll_global_init();
 	return 0;
 }
 

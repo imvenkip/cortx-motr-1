@@ -504,17 +504,12 @@ static const char *nlx_ucore_dev_name = "/dev/" C2_LNET_DEV;
  */
 static bool nlx_ucore_domain_invariant(const struct nlx_ucore_domain *ud)
 {
-	if (ud == NULL || ud->ud_magic != C2_NET_LNET_UCORE_DOM_MAGIC)
-		return false;
-	if (ud->ud_fd < 0) /* note: 0 is a valid fd */
-		return false;
-	if (ud->ud_max_buffer_size == 0 ||
-	    ud->ud_max_buffer_segment_size == 0 ||
-	    ud->ud_max_buffer_segments == 0)
-		return false;
-	if (ud->ud_nidstrs == NULL)
-		return false;
-	return true;
+	return ud != NULL && ud->ud_magic == C2_NET_LNET_UCORE_DOM_MAGIC &&
+	    ud->ud_fd >= 0 &&
+	    ud->ud_max_buffer_size > 0 &&
+	    ud->ud_max_buffer_segment_size > 0 &&
+	    ud->ud_max_buffer_segments > 0 &&
+	    ud->ud_nidstrs != NULL;
 }
 
 /**
@@ -522,9 +517,7 @@ static bool nlx_ucore_domain_invariant(const struct nlx_ucore_domain *ud)
  */
 static bool nlx_ucore_buffer_invariant(const struct nlx_ucore_buffer *ub)
 {
-	if (ub == NULL || ub->ub_magic != C2_NET_LNET_UCORE_BUF_MAGIC)
-		return false;
-	return true;
+	return ub != NULL && ub->ub_magic == C2_NET_LNET_UCORE_BUF_MAGIC;
 }
 
 /**
@@ -532,9 +525,7 @@ static bool nlx_ucore_buffer_invariant(const struct nlx_ucore_buffer *ub)
  */
 static bool nlx_ucore_tm_invariant(const struct nlx_ucore_transfer_mc *utm)
 {
-	if (utm == NULL || utm->utm_magic != C2_NET_LNET_UCORE_TM_MAGIC)
-		return false;
-	return true;
+	return utm != NULL && utm->utm_magic == C2_NET_LNET_UCORE_TM_MAGIC;
 }
 
 void *nlx_core_mem_alloc(size_t size, unsigned shift)
@@ -774,7 +765,6 @@ int nlx_core_buf_register(struct nlx_core_domain *cd,
 	C2_ALLOC_PTR_ADDB(ub, &ud->ud_addb, &nlx_addb_loc);
 	if (ub == NULL)
 		return -ENOMEM;
-	c2_addb_ctx_init(&ub->ub_addb, &nlx_core_domain_addb_ctx, &ud->ud_addb);
 	ub->ub_magic = C2_NET_LNET_UCORE_BUF_MAGIC;
 	C2_POST(nlx_ucore_buffer_invariant(ub));
 	cb->cb_upvt = ub;
@@ -783,12 +773,12 @@ int nlx_core_buf_register(struct nlx_core_domain *cd,
 	rc = nlx_ucore_ioctl(ud->ud_fd, C2_LNET_BUF_REGISTER, &rp);
 	if (rc < 0) {
 		cb->cb_upvt = NULL;
-		c2_addb_ctx_fini(&ub->ub_addb);
 		ub->ub_magic = 0;
 		c2_free(ub);
 		LNET_ADDB_FUNCFAIL_ADD(ud->ud_addb, rc);
 		return rc;
 	}
+	c2_addb_ctx_init(&ub->ub_addb, &nlx_core_domain_addb_ctx, &ud->ud_addb);
 	C2_ASSERT(cb->cb_kpvt != NULL);
 	C2_ASSERT(cb->cb_upvt == ub);
 

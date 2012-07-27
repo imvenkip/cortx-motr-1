@@ -36,7 +36,7 @@
 #include "xcode/bufvec_xcode.h"
 #include "lib/vec.h"
 #include "rpc/session_internal.h"
-#include "rpc/rpc_base.h"
+#include "rpc/item.h"
 #include "lib/ut.h"
 #include "rpc/rpc_opcodes.h"
 

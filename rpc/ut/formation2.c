@@ -24,7 +24,7 @@
 
 #include "lib/ut.h"
 #include "lib/mutex.h"
-#include "lib/timer.h"
+#include "lib/time.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/finject.h"
@@ -644,3 +644,4 @@ const struct c2_test_suite frm_ut = {
 		{ NULL,           NULL         }
 	}
 };
+C2_EXPORTED(frm_ut);

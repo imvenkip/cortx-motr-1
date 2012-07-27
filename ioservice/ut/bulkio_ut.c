@@ -27,6 +27,7 @@
 #include "net/lnet/lnet.h"
 #include "ioservice/io_fops.c"	/* To access static APIs. */
 #include "ioservice/io_foms.c"	/* To access static APIs. */
+#include "colibri/colibri_setup.h"
 
 static void bulkio_init();
 static void bulkio_fini();
@@ -322,6 +323,7 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
         struct c2_fid                 fid;
         struct c2_stob_id             stobid;
         struct c2_net_transfer_mc    *tm;
+	struct c2_reqh               *reqh;
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         fop = fom->fo_fop;
@@ -600,7 +602,9 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                 ffid = &rwfop->crw_fid;
                 io_fom_cob_rw_fid_wire2mem(ffid, &fid);
                 io_fom_cob_rw_fid2stob_map(&fid, &stobid);
-                fom_stdom = fom->fo_loc->fl_dom->fd_reqh->rh_stdom;
+		reqh = fom->fo_loc->fl_dom->fd_reqh;
+                fom_stdom = c2_cs_stob_domain_find(reqh, &stobid);
+		C2_UT_ASSERT(fom_stdom != NULL);
 
                 rc = c2_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
                 C2_UT_ASSERT(rc == 0);
@@ -690,6 +694,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
         struct c2_fid                 fid;
         struct c2_stob_id             stobid;
         struct c2_net_transfer_mc    *tm;
+	struct c2_reqh               *reqh;
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         fop = fom->fo_fop;
@@ -893,7 +898,9 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                 ffid = &rwfop->crw_fid;
                 io_fom_cob_rw_fid_wire2mem(ffid, &fid);
                 io_fom_cob_rw_fid2stob_map(&fid, &stobid);
-                fom_stdom = fom->fo_loc->fl_dom->fd_reqh->rh_stdom;
+		reqh = fom->fo_loc->fl_dom->fd_reqh;
+                fom_stdom = c2_cs_stob_domain_find(reqh, &stobid);
+		C2_UT_ASSERT(fom_stdom != NULL);
 
                 rc = c2_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
                 C2_UT_ASSERT(rc == 0);
@@ -1045,6 +1052,7 @@ static int bulkio_stob_create_fom_state(struct c2_fom *fom)
         struct c2_stob_id                stobid;
         int				 rc;
 	struct c2_fop_cob_writev_rep	*wrep;
+	struct c2_reqh                  *reqh;
 
         struct c2_io_fom_cob_rw  *fom_obj;
 	fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
@@ -1054,7 +1062,9 @@ static int bulkio_stob_create_fom_state(struct c2_fom *fom)
         ffid = &rwfop->crw_fid;
         io_fom_cob_rw_fid_wire2mem(ffid, &fid);
         io_fom_cob_rw_fid2stob_map(&fid, &stobid);
-        fom_stdom = fom->fo_loc->fl_dom->fd_reqh->rh_stdom;
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
+        fom_stdom = c2_cs_stob_domain_find(reqh, &stobid);
+	C2_UT_ASSERT(fom_stdom != NULL);
 
 	c2_dtx_init(&fom->fo_tx);
 	rc = fom_stdom->sd_ops->sdo_tx_make(fom_stdom, &fom->fo_tx);

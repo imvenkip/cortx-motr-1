@@ -631,6 +631,7 @@ AC_CONFIG_FILES([
                  fop/fop2c
                  fop/rt/Makefile
                  fop/ut/Makefile
+                 fop/ut/long_lock/Makefile
                  ioservice/Makefile
                  ioservice/ut/Makefile
                  layout/Makefile

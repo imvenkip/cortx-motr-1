@@ -162,7 +162,6 @@ void c2_tlist_move_tail(const struct c2_tl_descr *d,
 			struct c2_tl *list, void *obj)
 {
 	C2_PRE(c2_tlist_invariant(d, list));
-	C2_PRE(c2_tlink_is_in(d, obj));
 
 	c2_list_move_tail(&list->t_head, link(d, obj));
 }

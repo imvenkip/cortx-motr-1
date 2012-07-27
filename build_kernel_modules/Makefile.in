@@ -90,7 +90,7 @@ fid_SOURCES                     := fid.c
 fol_SOURCES                     := fol.c
 
 fop_SOURCES                     := fop.c fom.c fop_format.c fop_iterator.c    \
-                                   fop_base.c fop_item_type.c
+                                   fop_base.c fop_item_type.c fom_long_lock.c
 
 ioservice_SOURCES               := io_fops.c io_fops_k.c
 ioservice_HEADERS               := io_fops_k.h
@@ -126,15 +126,16 @@ net_ut_HEADERS                  := tm_provision_ut.c
 
 pool_SOURCES                    := pool.c
 
-rpc_SOURCES                     := formation.c rpc2.c rpc_base.c service.c    \
+rpc_SOURCES                     := formation.c rpc2.c service.c    \
                                    session.c session_foms.c conn.c slot.c     \
                                    session_utils.c session_fops.c             \
                                    rpc_onwire.c session_k.c rpclib.c          \
-                                   formation2.c frmops.c packet.c
+                                   formation2.c frmops.c packet.c item.c      \
+                                   bulk.c rpc_machine.c
 
 rpc_HEADERS                     := session_k.h
 
-rpc_ut_SOURCES                  := service.c
+rpc_ut_SOURCES                  := service.c formation2.c
 
 sm_SOURCES                      := sm.c
 sm_ut_SOURCES                   := sm.c

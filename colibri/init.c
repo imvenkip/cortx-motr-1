@@ -47,7 +47,7 @@
 #include "fol/fol.h"
 #include "reqh/reqh.h"
 #include "lib/timer.h"
-#include "rpc/rpc_base.h"
+#include "rpc/item.h"
 #include "rpc/session.h"
 #include "rpc/service.h"
 #include "colibri/init.h"

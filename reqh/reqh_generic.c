@@ -33,6 +33,7 @@
 #include "fop/fop_iterator.h"
 #include "dtm/dtm.h"
 #include "fop/fop_format_def.h"
+#include "rpc/rpc2.h"
 
 #ifdef __KERNEL__
 #include "reqh_fops_k.h"
@@ -48,14 +49,15 @@
    @{
  */
 
-extern const struct c2_addb_loc c2_reqh_addb_loc;
-
-extern const struct c2_addb_ctx_type c2_reqh_addb_ctx_type;
-
-extern struct c2_addb_ctx c2_reqh_addb_ctx;
+/**
+ * Reqh addb event location identifier object.
+ */
+static const struct c2_addb_loc reqh_gen_addb_loc = {
+        .al_name = "reqh generic"
+};
 
 #define REQH_GEN_ADDB_ADD(addb_ctx, name, rc)  \
-C2_ADDB_ADD(&(addb_ctx), &c2_reqh_addb_loc, c2_addb_func_fail, (name), (rc))
+C2_ADDB_ADD((addb_ctx), &reqh_gen_addb_loc, c2_addb_func_fail, (name), (rc))
 
 /**
  * Reqh generic error fop type.
@@ -495,6 +497,7 @@ int c2_fom_state_generic(struct c2_fom *fom)
 {
 	int			    rc;
 	const struct fom_phase_ops *fpo_phase;
+	struct c2_reqh             *reqh;
 
 	C2_PRE(IS_IN_ARRAY(fom->fo_phase, fpo_table));
 
@@ -505,11 +508,13 @@ int c2_fom_state_generic(struct c2_fom *fom)
 
 	rc = fpo_phase->fpo_action(fom);
 
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
 	if (rc == C2_FSO_AGAIN) {
 		if (fom->fo_rc != 0 && fom->fo_phase < C2_FOPH_FAILURE) {
 			fom->fo_phase = C2_FOPH_FAILURE;
-			REQH_GEN_ADDB_ADD(c2_reqh_addb_ctx,
-					fpo_phase->fpo_name, fom->fo_rc);
+			REQH_GEN_ADDB_ADD(reqh->rh_addb,
+						fpo_phase->fpo_name,
+						fom->fo_rc);
 		} else
 			fom->fo_phase = fpo_phase->fpo_nextphase;
 	}

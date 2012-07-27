@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -42,6 +42,7 @@
 #include "ioservice/io_foms.h"
 #include "ioservice/io_fops.h"
 #include "ioservice/io_service.h"
+#include "colibri/colibri_setup.h"
 
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
@@ -1001,6 +1002,7 @@ static int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
         fom_obj->fcrw_curr_desc_index     = 0;
         fom_obj->fcrw_curr_ivec_index     = 0;
         fom_obj->fcrw_batch_size          = 0;
+        fom_obj->fcrw_req_count           = 0;
         fom_obj->fcrw_count               = 0;
         fom_obj->fcrw_num_stobio_launched = 0;
         fom_obj->fcrw_bp                  = NULL;
@@ -1367,6 +1369,7 @@ static int io_launch(struct c2_fom *fom)
         struct c2_io_indexvec            wire_ivec;
 	struct c2_stob_domain		*fom_stdom;
 	struct c2_fop_file_fid		*ffid;
+	struct c2_reqh                  *reqh;
 
 	C2_PRE(fom != NULL);
         C2_PRE(c2_is_io_fop(fom->fo_fop));
@@ -1385,7 +1388,12 @@ static int io_launch(struct c2_fom *fom)
 	ffid = &rwfop->crw_fid;
 	io_fom_cob_rw_fid_wire2mem(ffid, &fid);
 	io_fom_cob_rw_fid2stob_map(&fid, &stobid);
-	fom_stdom = fom->fo_loc->fl_dom->fd_reqh->rh_stdom;
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	fom_stdom = c2_cs_stob_domain_find(reqh, &stobid);
+	if (fom_stdom == NULL) {
+		rc = -EINVAL;
+		goto cleanup;
+	}
 
 	rc = c2_stob_find(fom_stdom, &stobid, &fom_obj->fcrw_stob);
 	if (rc != 0)
@@ -1447,6 +1455,7 @@ static int io_launch(struct c2_fom *fom)
                  * Also trim network buffer as per I/O size.
                  */
                 ivec_count = c2_vec_count(&mem_ivec->iv_vec);
+                fom_obj->fcrw_req_count += ivec_count;
                 rc = align_bufvec(fom, &stio->si_user,
                                                 &nb->nb_buffer,
                                                 ivec_count,
@@ -1461,7 +1470,7 @@ static int io_launch(struct c2_fom *fom)
                                     "io_launch", rc);
                         /*
                          * @todo: need to add memory free allocated in stio
-                         *        in thid function.
+                         *        in this function.
                          */
                         c2_stob_io_fini(stio);
                         c2_free(stio_desc);
@@ -1568,6 +1577,9 @@ static int io_finish(struct c2_fom *fom)
         } c2_tl_endfor;
 
         c2_stob_put(fom_obj->fcrw_stob);
+
+        C2_ASSERT(ergo(fom->fo_rc == 0,
+                       fom_obj->fcrw_req_count == fom_obj->fcrw_count));
 
         if (fom->fo_rc != 0) {
 	        fom->fo_phase = C2_FOPH_FAILURE;

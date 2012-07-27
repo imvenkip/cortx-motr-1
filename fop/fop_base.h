@@ -29,7 +29,7 @@
 #include "fol/fol.h"
 #include "fop/fom.h"
 #include "lib/vec.h"
-#include "rpc/rpc_base.h"
+#include "rpc/item.h"
 
 /**
    @addtogroup fop

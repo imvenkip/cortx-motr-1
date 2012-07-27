@@ -473,8 +473,6 @@ struct c2_fid c2t1fs_cob_fid(const struct c2_fid *gob_fid, int index)
 {
 	struct c2_fid fid;
 
-	C2_ENTRY();
-
 	/* index 0 is currently reserved for gob_fid.f_container */
 	C2_ASSERT(gob_fid->f_container == 0);
 	C2_ASSERT(index > 0);

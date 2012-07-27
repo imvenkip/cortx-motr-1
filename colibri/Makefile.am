@@ -4,9 +4,12 @@ colibri_HEADERS           = init.h colibri_setup.h
 SUBDIRS                   = .
 
 sbin_PROGRAMS             = colibri_setup
-colibri_setup_SOURCES     = cs_main.c colibri_setup.c colibri_setup.h
+colibri_setup_SOURCES     = cs_main.c colibri_setup.c colibri_setup.h \
+                            cs_internal.h
 colibri_setup_LDADD       = $(top_builddir)/colibri/libcolibri.la
 colibri_setup_CFLAGS      = $(AM_CFLAGS)
+
+EXTRA_DIST                = devices.sh DS-Reqh.gif
 
 lib_LTLIBRARIES           = libcolibri.la
 libcolibri_la_SOURCES     = init.h init.c colibri_setup.c colibri_setup.h
