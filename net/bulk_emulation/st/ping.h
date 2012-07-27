@@ -21,6 +21,8 @@
 #ifndef __COLIBRI_NET_BULK_MEM_PING_H__
 #define __COLIBRI_NET_BULK_MEM_PING_H__
 
+#include "lib/bitmap.h"
+
 struct ping_ctx;
 struct ping_ops {
 	int (*pf)(const char *format, ...)

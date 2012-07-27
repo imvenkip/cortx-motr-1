@@ -489,7 +489,7 @@ HLD of Colibri LNet Transport</a>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <fcntl.h>
-#include <unistd.h>
+#include <unistd.h> /* close */
 
 /**
    @addtogroup ULNetCore

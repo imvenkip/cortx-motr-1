@@ -19,7 +19,7 @@
  */
 
 #include "addb/addbff/addb.h"
-#include "lib/arith.h"
+#include "lib/arith.h" /* c2_align */
 
 /* forward references within this file */
 static int subst_name_uint64_t_qstats(struct c2_addb_dp *dp, const char *name,

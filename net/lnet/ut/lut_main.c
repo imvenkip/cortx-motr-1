@@ -22,12 +22,11 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/types.h>
+#include <stdlib.h> /* exit */
+#include <unistd.h> /* getuid, close, read, write, lseek */
 
 #include "colibri/init.h"
-#include "lib/arith.h"
+#include "lib/arith.h" /* c2_is_po2 */
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/memory.h"

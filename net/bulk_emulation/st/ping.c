@@ -25,8 +25,7 @@
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "lib/bitmap.h"
-#include "lib/misc.h"
+#include "lib/misc.h" /* strlen */
 #include "net/net.h"
 #include "net/bulk_mem.h"
 #include "net/bulk_emulation/st/ping.h"

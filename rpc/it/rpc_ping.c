@@ -243,10 +243,8 @@ static void print_rpc_stats(struct c2_rpc_stats *stats)
 	msec = (double) sec * 1000;
 	printf("                max_latency:\t %lf # msec\n", msec);
 
-	if (sec != 0)
-		thruput = (double)stats->rs_bytes_nr/(sec*1000000);
-	else
-		thruput = 0;
+	thruput = sec == 0 ? 0 : stats->rs_bytes_nr / (sec * 1000000);
+
 	printf("                min_throughput:\t %lf # MB/s\n", thruput);
 #endif
 }

@@ -32,7 +32,6 @@
 #include "rpc/rpc2.h"
 #include "fop/fop_item_type.h"
 #include "xcode/bufvec_xcode.h"
-#include "xcode/xcode.h"
 
 /* Ops vector for ping request. */
 const struct c2_fop_type_ops c2_fop_ping_ops = {

@@ -20,8 +20,8 @@
  */
 
 #ifndef __KERNEL__
-#include <stdio.h>
-#include <stdlib.h>
+#include <stdio.h>   /* snprintf */
+#include <stdlib.h>  /* strtoull */
 #endif /* __KERNEL__ */
 
 /**
