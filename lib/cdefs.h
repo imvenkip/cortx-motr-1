@@ -72,6 +72,21 @@ extern void __dummy_function(void);
 #define C2_HAS_TYPE(expr, type) __builtin_types_compatible_p(typeof(expr), type)
 
 /**
+ * True iff type::field is of type "ftype".
+ */
+#define C2_FIELD_IS(type, field, ftype) \
+	C2_HAS_TYPE(C2_FIELD_VALUE(type, field), ftype)
+
+/**
+ * Computes offset of "magix" field, iff magix field is of type uint64_t.
+ * Otherwise causes compilation failure.
+ */
+#define C2_MAGIX_OFFSET(type, field)				\
+C2_FIELD_IS(type, field, uint64_t) ?				\
+	 offsetof(type, field) :				\
+	 sizeof(char [C2_FIELD_IS(type, field, uint64_t) - 1])
+
+/**
  * Returns the number of parameters given to this variadic macro (up to 9
  * parameters are supported)
  */

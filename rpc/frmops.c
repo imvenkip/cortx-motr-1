@@ -61,6 +61,18 @@ enum {
 	RPC_BUF_MAGIC = 0x5250435f425546, /* RPC_BUF */
 };
 
+/**
+   RPC layer's wrapper on c2_net_buffer. rpc_buffer carries one packet at
+   a time.
+
+   NOTE: rpc_buffer and packet are kept separate, even though their
+         lifetime is same at this point.
+         A buffer can carry only one packet at some point. There is a limit
+         on number of packets that can be "in-flight". In near future we
+         might want to keep per c2_rpc_chan buffer pool with few pre-allocated
+         buffers. In that case same buffer will carry many packets  during
+         its lifetime (but only one at a time).
+ */
 struct rpc_buffer {
 	struct c2_net_buffer   rb_netbuf;
 	struct c2_rpc_packet  *rb_packet;
@@ -68,8 +80,12 @@ struct rpc_buffer {
 	uint64_t               rb_magic;
 };
 
-C2_BOB_TYPE(static, rpc_buffer_bob_type, "rpc_buffer", struct rpc_buffer,
-	    rb_magic, RPC_BUF_MAGIC, NULL /* check_fn */);
+static struct c2_bob_type rpc_buffer_bob_type = {
+	.bt_name         = "rpc_buffer",
+	.bt_magix_offset = C2_MAGIX_OFFSET(struct rpc_buffer, rb_magic),
+	.bt_magix        = RPC_BUF_MAGIC,
+	.bt_check        = NULL,
+};
 
 C2_BOB_DEFINE(static, &rpc_buffer_bob_type, rpc_buffer);
 
