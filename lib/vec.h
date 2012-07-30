@@ -220,6 +220,13 @@ void  c2_bufvec_cursor_init(struct c2_bufvec_cursor *cur,
 bool c2_bufvec_cursor_move(struct c2_bufvec_cursor *cur, c2_bcount_t count);
 
 /**
+   Advances the cursor with some count such that cursor will be aligned to
+   "alignment".
+   Return convention is same as c2_bufvec_cursor_move().
+ */
+bool c2_bufvec_cursor_align(struct c2_bufvec_cursor *cur, uint64_t alignment);
+
+/**
    Return number of bytes that the cursor have to be moved to reach the next
    segment in its vector (or to move into end of the vector position, when the
    cursor is already at the last segment).

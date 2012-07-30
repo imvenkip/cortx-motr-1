@@ -177,6 +177,7 @@ int c2_rpc_packet_encode_using_cursor(struct c2_rpc_packet    *packet,
 				      struct c2_bufvec_cursor *cursor)
 {
 	struct c2_rpc_item *item;
+	bool                end_of_bufvec;
 	int                 rc;
 
 	C2_ENTRY("packet: %p cursor: %p", packet, cursor);
@@ -191,7 +192,9 @@ int c2_rpc_packet_encode_using_cursor(struct c2_rpc_packet    *packet,
 				break;
 		} c2_tl_endfor;
 	}
-
+	end_of_bufvec = c2_bufvec_cursor_align(cursor, 8);
+	C2_ASSERT(end_of_bufvec ||
+		  C2_IS_8ALIGNED(c2_bufvec_cursor_addr(cursor)));
 	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
