@@ -648,9 +648,9 @@ bool c2_fom_group_is_locked(const struct c2_fom *fom);
 
 #define C2_FOM_TYPE_DECLARE(fomt, ops, stype) \
 struct c2_fom_type fomt ## _fomt = {          \
-	.ft_ops = ops,                        \
-	.ft_stype = stype                     \
-};                                            \
+	.ft_ops = (ops),                      \
+	.ft_rstype = (stype),                 \
+}                                             \
 
 /** @} end of fom group */
 

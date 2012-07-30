@@ -36,6 +36,7 @@
 #include "fop/fop_iterator.h"
 #include "dtm/dtm.h"
 #include "fop/fop_format_def.h"
+#include "rpc/rpc2.h"
 #include "reqh/reqh_service.h"
 
 #include "reqh/reqh.h"
@@ -197,7 +198,7 @@ struct c2_reqh_service *c2_reqh_service_find_by_name(const char *sname,
 	c2_rwlock_read_lock(&reqh->rh_rwlock);
 	c2_tl_for(c2_reqh_svc, &reqh->rh_services, service) {
 		C2_ASSERT(c2_reqh_service_invariant(service));
-		if (strcmp(service->rs_type->rst_name, service_name) == 0)
+		if (strcmp(service->rs_type->rst_name, sname) == 0)
 			break;
 	} c2_tl_endfor;
 	c2_rwlock_read_unlock(&reqh->rh_rwlock);

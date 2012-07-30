@@ -190,10 +190,8 @@ int c2_reqh_service_type_register(struct c2_reqh_service_type *rstype)
 		return -EINVAL;
 
 	c2_reqh_service_type_bob_init(rstype);
-	c2_rwlock_write_lock(&reqh->rh_rwlock);
-	rstype->rst_key = c2_reqh_key_init();
-	c2_rwlock_write_unlock(&reqh->rh_rwlock);
 	c2_rwlock_write_lock(&rstypes_rwlock);
+	rstype->rst_key = c2_reqh_key_init();
 	rstypes_tlink_init_at_tail(rstype, &rstypes);
 	c2_rwlock_write_unlock(&rstypes_rwlock);
 

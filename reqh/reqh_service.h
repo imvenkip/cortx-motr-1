@@ -23,11 +23,10 @@
 #ifndef __COLIBRI_REQH_REQH_SERVICE_H__
 #define __COLIBRI_REQH_REQH_SERVICE_H__
 
-#include "lib/list.h"
+#include "lib/tlist.h"
 #include "lib/bob.h"
+#include "lib/mutex.h"
 
-#include "net/net.h"
-#include "rpc/rpc2.h"
 
 /**
    @addtogroup reqh

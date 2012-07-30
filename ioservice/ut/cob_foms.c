@@ -438,13 +438,13 @@ static void fom_create(struct c2_fom **fom, enum cob_fom_type fomtype)
 
 	base_fom = *fom;
 	c2_fom_init(base_fom,
-		    fomtype == COB_CREATE ? &cc_fom_type : &cd_fom_type,
+		    fomtype == COB_CREATE ? &cob_create_fomt : &cob_delete_fomt,
 		    fomtype == COB_CREATE ? &cc_fom_ops : &cd_fom_ops,
 		    NULL, NULL);
 	reqh = c2_cs_reqh_get(&cut->cu_sctx.rsx_colibri_ctx, "ioservice");
 	C2_UT_ASSERT(reqh != NULL);
 
-	base_fom->fo_service = c2_reqh_service_get("ioservice", reqh);
+	base_fom->fo_service = c2_reqh_service_find_by_name("ioservice", reqh);
 	C2_UT_ASSERT(base_fom->fo_service != NULL);
 
 	base_fom->fo_loc = &reqh->rh_fom_dom.fd_localities[0];

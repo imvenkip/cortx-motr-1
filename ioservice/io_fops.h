@@ -254,7 +254,7 @@ extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
 extern struct c2_fop_type c2_fop_cob_create_fopt;
 extern struct c2_fop_type c2_fop_cob_delete_fopt;
 extern struct c2_fop_type c2_fop_cob_op_reply_fopt;
-extern const struct c2_fom_type c2_io_fom_cob_rw_fomt;
+extern struct c2_fom_type c2_io_fom_cob_rw_fomt;
 
 struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
 struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop);
