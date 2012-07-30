@@ -45,12 +45,12 @@
 #include "rpc/formation2.h"    /* c2_rpc_frm_run_formation */
 #include "rpc/rpc_onwire.h"    /* c2_rpc_decode */
 #include "rpc/service.h"       /* c2_rpc_services_tlist_.* */
+#include "rpc/packet.h"        /* c2_rpc */
 
 /* Forward declarations. */
 static void rpc_net_buf_received(const struct c2_net_buffer_event *ev);
 static void rpc_tm_cleanup(struct c2_rpc_machine *machine);
 
-extern void frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
 extern void rpcobj_exit_stats_set(const struct c2_rpc *rpcobj,
 		struct c2_rpc_machine *mach, enum c2_rpc_item_path path);
 
@@ -74,15 +74,6 @@ C2_ADDB_EV_DEFINE_PUBLIC(c2_rpc_machine_func_fail, "rpc_machine_func_fail",
 const struct c2_net_buffer_callbacks c2_rpc_rcv_buf_callbacks = {
 	.nbc_cb = {
 		[C2_NET_QT_MSG_RECV] = rpc_net_buf_received,
-	}
-};
-
-/**
-   Callback for net buffer used in posting
- */
-const struct c2_net_buffer_callbacks c2_rpc_send_buf_callbacks = {
-	.nbc_cb = {
-		[C2_NET_QT_MSG_SEND] = frm_net_buffer_sent,
 	}
 };
 
@@ -451,8 +442,11 @@ static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 		nb->nb_callbacks	= &c2_rpc_rcv_buf_callbacks;
 		nb->nb_min_receive_size = nrsegs * seg_size;
 		nb->nb_max_receive_msgs = 1;
-	} else
-		nb->nb_callbacks = &c2_rpc_send_buf_callbacks;
+	} else {
+		/* This code path is no more used to allocate outgoing
+		   buffers. @see rpc_buffer_init() in rpc/frmops.c */
+		C2_ASSERT(false);
+	}
 
 	/* Register the buffer with given net domain. */
 	rc = c2_net_buffer_register(nb, net_dom);

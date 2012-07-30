@@ -39,6 +39,7 @@
 #include "rpc/item.h"
 #include "lib/ut.h"
 #include "rpc/rpc_opcodes.h"
+#include "rpc/packet.h"                  /* c2_rpc */
 
 extern struct c2_fop_type_format c2_fop_onwire_test_tfmt;
 extern struct c2_fop_type_format c2_fop_onwire_test_arr_tfmt;

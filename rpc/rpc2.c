@@ -55,13 +55,6 @@ void c2_rpc_module_fini(void)
 	c2_addb_ctx_fini(&c2_rpc_addb_ctx);
 }
 
-void c2_rpcobj_fini(struct c2_rpc *rpc)
-{
-	rpc->r_session = NULL;
-	c2_list_fini(&rpc->r_items);
-	c2_list_link_fini(&rpc->r_linkage);
-}
-
 int c2_rpc_post(struct c2_rpc_item *item)
 {
 	struct c2_rpc_machine *machine;

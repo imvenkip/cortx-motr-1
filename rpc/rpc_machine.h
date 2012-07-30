@@ -34,7 +34,6 @@
 
 #include "addb/addb.h"
 #include "rpc/formation2.h"  /* c2_rpc_frm         */
-#include "rpc/formation.h"   /* c2_rpc_frm_sm      */
 #include "net/net.h"         /* c2_net_transfer_mc, c2_net_domain */
 
 /**
@@ -187,8 +186,6 @@ struct c2_rpc_chan {
 	struct c2_list_link		  rc_linkage;
 	/** Number of c2_rpc_conn structures using this transfer machine.*/
 	struct c2_ref			  rc_ref;
-	/** @deprecated Formation state machine associated with chan. */
-	struct c2_rpc_frm_sm		  rc_frmsm;
 	/** Formation state machine associated with chan. */
 	struct c2_rpc_frm                 rc_frm;
 	/** Destination end point to which rpcs will be sent. */
