@@ -1081,7 +1081,6 @@ static int bulkio_stob_create_fom_state(struct c2_fom *fom)
 	wrep = c2_fop_data(fom->fo_rep_fop);
 	wrep->c_rep.rwr_rc = 0;
 	wrep->c_rep.rwr_count = rwfop->crw_ivecs.cis_nr;
-	fom->fo_rep_fop->f_item.ri_group = NULL;
 	rc = c2_rpc_reply_post(&fom->fo_fop->f_item, &fom->fo_rep_fop->f_item);
 	C2_UT_ASSERT(rc == 0);
 	fom->fo_phase = C2_FOPH_FINISH;

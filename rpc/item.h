@@ -31,9 +31,6 @@
    @{
  */
 
-/* Imports */
-struct c2_rpc;
-
 /* Forward declarations */
 struct c2_rpc_item_ops;
 struct c2_rpc_item_type;
@@ -98,7 +95,6 @@ struct c2_rpc_item {
 	struct c2_chan			 ri_chan;
 	enum c2_rpc_item_priority	 ri_prio;
 	c2_time_t			 ri_deadline;
-	struct c2_rpc_group		*ri_group;
 
 	enum c2_rpc_item_state		 ri_state;
 	enum c2_rpc_item_stage		 ri_stage;
@@ -110,22 +106,14 @@ struct c2_rpc_item {
 	int32_t				 ri_error;
 	/** Pointer to the type object for this item */
 	struct c2_rpc_item_type		*ri_type;
-	/** Linkage to the forming list, needed for formation */
+	/** @deprecated Linkage to the forming list, needed for formation */
 	struct c2_list_link		 ri_rpcobject_linkage;
-	/** Linkage to the unformed rpc items list, needed for formation */
-	struct c2_list_link		 ri_unformed_linkage;
-	/** Linkage to the group c2_rpc_group, needed for grouping */
-	struct c2_list_link		 ri_group_linkage;
-	/** Timer associated with this rpc item.*/
-	struct c2_timer			 ri_timer;
 	/** reply item */
 	struct c2_rpc_item		*ri_reply;
 	/** item operations */
 	const struct c2_rpc_item_ops	*ri_ops;
 	/** Time spent in rpc layer. */
 	c2_time_t			 ri_rpc_time;
-	/** Magic constant to verify sanity of ambient structure. */
-	uint64_t			 ri_head_magic;
 	/** List of compound items. */
 	struct c2_tl			 ri_compound_items;
 	/** Link through which items are anchored on list of
@@ -155,13 +143,6 @@ struct c2_rpc_item_ops {
 	   @note ri_added() has been called before invoking this function.
 	 */
 	void (*rio_sent)(struct c2_rpc_item *item);
-	/**
-	   Called when item's added to an RPC
-	   @param rpc reference to an RPC where item's added
-	   @param item reference to an item added to rpc
-	 */
-	void (*rio_added)(struct c2_rpc *rpc, struct c2_rpc_item *item);
-
 	/**
 	   Called when given item's replied.
 	   @param item reference to an RPC-item on which reply FOP was received.

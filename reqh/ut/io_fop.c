@@ -378,7 +378,6 @@ static int stob_create_fom_state(struct c2_fom *fom)
 		fop = fom_obj->sif_rep_fop;
 		item = c2_fop_to_rpc_item(fop);
 		item->ri_type = &fop->f_type->ft_rpc_item_type;
-		item->ri_group = NULL;
 		fom->fo_rep_fop = fom_obj->sif_rep_fop;
 		fom->fo_rc = result;
 		if (result != 0)
@@ -483,7 +482,6 @@ static int stob_read_fom_state(struct c2_fom *fom)
 			fop = fom_obj->sif_rep_fop;
 			item = c2_fop_to_rpc_item(fop);
 			item->ri_type = &fop->f_type->ft_rpc_item_type;
-                        item->ri_group = NULL;
                         fom->fo_rep_fop = fom_obj->sif_rep_fop;
                         result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
                                                         &fom->fo_tx.tx_dbtx);
@@ -591,7 +589,6 @@ static int stob_write_fom_state(struct c2_fom *fom)
 			fop = fom_obj->sif_rep_fop;
 			item = c2_fop_to_rpc_item(fop);
 			item->ri_type = &fop->f_type->ft_rpc_item_type;
-			item->ri_group = NULL;
                         fom->fo_rep_fop = fom_obj->sif_rep_fop;
                         result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
                                                         &fom->fo_tx.tx_dbtx);

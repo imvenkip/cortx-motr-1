@@ -78,7 +78,6 @@ int c2_fom_ping_state(struct c2_fom *fom)
         ping_fop_rep = c2_fop_data(fop);
         ping_fop_rep->fpr_rc = true;
 	item = c2_fop_to_rpc_item(fop);
-	item->ri_group = NULL;
         c2_rpc_reply_post(&fom_obj->fp_fop->f_item, item);
 	fom->fo_phase = C2_FOPH_FINISH;
 
