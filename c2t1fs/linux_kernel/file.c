@@ -1079,16 +1079,19 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 			struct c2_rpc_item             *reply_item;
 			struct c2_fop_cob_rw_reply     *rw_reply;
 			struct c2_fv_version           *reply_version;
+			struct c2_fv_updates           *reply_updates;
+			struct c2_fv_event             *event;
+			uint32_t                        i = 0;
 
 			csb = C2T1FS_SB(rw_desc->rd_inode->ci_inode.i_sb);
 			reply_item    = iofop->if_fop.f_item.ri_reply;
 			reply         = c2_rpc_item_to_fop(reply_item);
 			rw_reply      = io_rw_rep_get(reply);
 			reply_version = &rw_reply->rwr_fv_version;
+			reply_updates = &rw_reply->rwr_fv_updates;
 			srv = (struct c2_pool_version_numbers *)reply_version;
 			cli = &csb->csb_pool.po_mach->pm_state.pst_version;
 
-			/* TODO */
 			/* Retrieve the latest server version and
 			 * updates and apply to the client's copy.
 			 * When -EAGAIN is return, this system
@@ -1096,6 +1099,12 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 			 */
 			rc = -EAGAIN;
 			*cli = *srv;
+			while (i < reply_updates->fvu_count) {
+				event = &reply_updates->fvu_events[i];
+				c2_poolmach_state_transit(csb->csb_pool.po_mach,
+						  (struct c2_pool_event*)event);
+				i++;
+			}
 			return rc;
 		} else if (rc != 0) {
 			/* For now, if one io fails, fail entire IO. */

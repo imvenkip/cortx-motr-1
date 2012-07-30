@@ -605,8 +605,9 @@ static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 	if (reply->cor_rc == C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH) {
 		struct c2_pool_version_numbers *cli;
 		struct c2_pool_version_numbers *srv;
+		struct c2_fv_event             *event;
+		uint32_t                        i = 0;
 
-		/* TODO */
 		/* Retrieve the latest server version and updates and apply
 		 * to the client's copy. When -EAGAIN is return, this system
 		 * call will be restarted.
@@ -615,6 +616,12 @@ static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 		cli = &csb->csb_pool.po_mach->pm_state.pst_version;
 		srv = (struct c2_pool_version_numbers *)&reply->cor_fv_version;
 		*cli = *srv;
+		while (i < reply->cor_fv_updates.fvu_count) {
+			event = &reply->cor_fv_updates.fvu_events[i];
+			c2_poolmach_state_transit(csb->csb_pool.po_mach,
+						  (struct c2_pool_event*)event);
+			i++;
+		}
 	} else
 		rc = reply->cor_rc;
 

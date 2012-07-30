@@ -328,6 +328,9 @@ int c2_ios_poolmach_version_updates_pack(struct c2_poolmach   *pm,
 		goto out;
 
 	count = poolmach_events_tlist_length(&events_list);
+	/* Allocate memory for updates sequence object.
+	 * XXX When and where to free these memory?
+	 */
 	updates->fvu_count  = count;
 	updates->fvu_events = c2_alloc(count * sizeof(struct c2_fv_event));
 	if (updates->fvu_events == NULL) {

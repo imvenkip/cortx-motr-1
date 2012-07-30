@@ -211,8 +211,13 @@ int c2_poolmach_state_query(struct c2_poolmach *pm,
 	if (from != NULL) {
 		c2_tl_for(poolmach_events, &pm->pm_state.pst_events_list, scan){
 			if (c2_poolmach_version_equal(&scan->pel_new_version,
-						     from))
+						     from)) {
+				/* skip the current one and move to next */
+				scan = poolmach_events_tlist_next(
+						&pm->pm_state.pst_events_list,
+						scan);
 				break;
+			}
 		} c2_tl_endfor;
 	} else {
 		scan = poolmach_events_tlist_head(&pm->pm_state.pst_events_list);
