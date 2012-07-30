@@ -96,10 +96,6 @@ struct c2_rpc_machine {
 	    CONN_FAILED, CONN_TERMINATED} */
 	struct c2_list			  rm_incoming_conns;
 	struct c2_list			  rm_outgoing_conns;
-	/** @deprecated list of ready slots.
-	    Replaced by c2_rpc_session::s_ready_slots
-	 */
-	struct c2_list			  rm_ready_slots;
 	/** ADDB context for this rpc_machine */
 	struct c2_addb_ctx		  rm_addb;
 	/** Statistics for both incoming and outgoing paths */
@@ -165,7 +161,6 @@ struct c2_rpc_machine {
 	 * The default value is C2_BUFFER_ANY_COLOUR
 	 */
 	uint32_t			  rm_tm_colour;
-
 };
 
 /**
@@ -267,19 +262,6 @@ c2_time_t c2_rpc_avg_item_time(struct c2_rpc_machine *machine,
  */
 size_t c2_rpc_bytes_per_sec(struct c2_rpc_machine *machine,
 			    const enum c2_rpc_item_path path);
-
-struct c2_rpc_group {
-	struct c2_rpc_machine	*rg_mach;
-	/** List of rpc items linked through c2_rpc_item:ri_group_linkage. */
-	struct c2_list		 rg_items;
-	/** expected number of items in the group */
-	uint64_t		 rg_expected;
-        /** lock protecting fields of the struct */
-        struct c2_mutex		 rg_guard;
-	/** signalled when a reply is received or an error happens
-	     (usually a timeout). */
-	struct c2_chan		 rg_chan;
-};
 
 static struct c2_rpc_chan *frm_rchan(const struct c2_rpc_frm *frm)
 {

@@ -51,8 +51,9 @@
 static void rpc_net_buf_received(const struct c2_net_buffer_event *ev);
 static void rpc_tm_cleanup(struct c2_rpc_machine *machine);
 
-extern void rpcobj_exit_stats_set(const struct c2_rpc *rpcobj,
-		struct c2_rpc_machine *mach, enum c2_rpc_item_path path);
+static void rpcobj_exit_stats_set(const struct c2_rpc   *rpcobj,
+				  struct c2_rpc_machine *mach,
+				  enum c2_rpc_item_path  path);
 
 static void frm_worker_fn(struct c2_rpc_machine *machine);
 
@@ -487,7 +488,6 @@ static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 	c2_list_fini(&machine->rm_chans);
 	c2_list_fini(&machine->rm_incoming_conns);
 	c2_list_fini(&machine->rm_outgoing_conns);
-	c2_list_fini(&machine->rm_ready_slots);
 	c2_rpc_services_tlist_fini(&machine->rm_services);
 
 	c2_mutex_fini(&machine->rm_mutex);
@@ -535,7 +535,6 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 	c2_list_init(&machine->rm_chans);
 	c2_list_init(&machine->rm_incoming_conns);
 	c2_list_init(&machine->rm_outgoing_conns);
-	c2_list_init(&machine->rm_ready_slots);
 	c2_rpc_services_tlist_init(&machine->rm_services);
 #ifndef __KERNEL__
 	c2_rpc_machine_bob_init(machine);
@@ -643,14 +642,11 @@ void c2_rpc_machine_fini(struct c2_rpc_machine *machine)
 	c2_thread_join(&machine->rm_frm_worker);
 
 	c2_rpc_machine_lock(machine);
-
 	C2_PRE(c2_list_is_empty(&machine->rm_outgoing_conns));
 	conn_list_fini(&machine->rm_incoming_conns);
-
 	c2_rpc_machine_unlock(machine);
 
 	rpc_tm_cleanup(machine);
-
 	__rpc_machine_fini(machine);
 }
 C2_EXPORTED(c2_rpc_machine_fini);
