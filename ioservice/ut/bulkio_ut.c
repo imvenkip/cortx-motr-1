@@ -85,17 +85,7 @@ C2_FOM_TYPE_DECLARE(bulkio_server_read, &bulkio_server_read_fomt_ops,
 		    &c2_ios_type);
 C2_FOM_TYPE_DECLARE(bulkio_stob_create, &bulkio_stob_create_fomt_ops,
 		    &c2_ios_type);
-/*static struct c2_fom_type bulkio_server_write_fomt = {
-	.ft_ops = &bulkio_server_write_fomt_ops,
-};
 
-static struct c2_fom_type bulkio_server_read_fomt = {
-	.ft_ops = &bulkio_server_read_fomt_ops,
-};
-static struct c2_fom_type bulkio_stob_create_fomt = {
-	.ft_ops = &bulkio_stob_create_fomt_ops,
-};
-*/
 static inline struct c2_net_transfer_mc *fop_tm_get(
 		const struct c2_fop *fop)
 {

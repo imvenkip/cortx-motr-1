@@ -61,6 +61,7 @@ void c2_reqh_fop_fini(void)
 {
 	c2_fop_type_fini_nr(reqh_fops, ARRAY_SIZE(reqh_fops));
 }
+C2_EXPORTED(c2_reqh_fop_fini);
 
 int c2_reqh_fop_init(void)
 {
@@ -70,6 +71,7 @@ int c2_reqh_fop_init(void)
 		c2_reqh_fop_fini();
 	return result;
 }
+C2_EXPORTED(c2_reqh_fop_init);
 
 /** @} endgroup reqh */
 

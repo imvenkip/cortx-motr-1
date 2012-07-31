@@ -85,10 +85,6 @@ static const struct c2_fom_type_ops cob_fom_type_ops = {
 	.fto_create = cob_fom_create,
 };
 
-/*struct c2_fom_type cc_fom_type = {
-	.ft_ops = &cob_fom_type_ops,
-};*/
-
 extern struct c2_reqh_service_type c2_ios_type;
 
 C2_FOM_TYPE_DECLARE(cob_create, &cob_fom_type_ops, &c2_ios_type);
@@ -108,10 +104,6 @@ static const struct c2_fom_ops cd_fom_ops = {
 	.fo_home_locality = cob_fom_locality_get,
 	.fo_service_name  = c2_io_fom_cob_rw_service_name,
 };
-
-/*struct c2_fom_type cd_fom_type = {
-	.ft_ops = &cob_fom_type_ops,
-};*/
 
 static int cob_fom_create(struct c2_fop *fop, struct c2_fom **out)
 {

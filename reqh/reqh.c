@@ -194,7 +194,7 @@ struct c2_reqh_service *c2_reqh_service_find_by_name(const char *sname,
 						     struct c2_reqh *reqh)
 {
 	struct c2_reqh_service *service;
-	
+
 	c2_rwlock_read_lock(&reqh->rh_rwlock);
 	c2_tl_for(c2_reqh_svc, &reqh->rh_services, service) {
 		C2_ASSERT(c2_reqh_service_invariant(service));
@@ -213,6 +213,7 @@ struct c2_reqh_service *c2_reqh_service_find(const struct c2_fom_type *ft,
 
 	return reqh->rh_key[ft->ft_rstype->rst_key];
 }
+C2_EXPORTED(c2_reqh_service_find);
 
 void c2_reqh_shutdown_wait(struct c2_reqh *reqh)
 {

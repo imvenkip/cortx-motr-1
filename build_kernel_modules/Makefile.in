@@ -47,6 +47,7 @@ dirs  = addb                                                                  \
         net/lnet/ut                                                           \
         net/ut                                                                \
         pool                                                                  \
+	reqh                                                                  \
         rpc                                                                   \
         rpc/ut                                                                \
         sm                                                                    \
@@ -125,6 +126,11 @@ net_ut_SOURCES                  := bulk_if.c buffer_pool_ut.c
 net_ut_HEADERS                  := tm_provision_ut.c
 
 pool_SOURCES                    := pool.c
+
+reqh_SOURCES                    := reqh.c reqh_service.c reqh_fops.c          \
+				   reqh_fops_k.c
+
+reqh_HEADERS                    := reqh_fops_k.h
 
 rpc_SOURCES                     := rpc2.c service.c    \
                                    session.c session_foms.c conn.c slot.c     \

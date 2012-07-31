@@ -74,6 +74,7 @@ bool c2_reqh_service_invariant(const struct c2_reqh_service *svc)
 		svc->rs_state == C2_RST_STOPPING,
 		c2_reqh_svc_tlist_contains(&svc->rs_reqh->rh_services, svc));
 }
+C2_EXPORTED(c2_reqh_service_invariant);
 
 struct c2_reqh_service_type *c2_reqh_service_type_find(const char *sname)
 {
@@ -235,12 +236,14 @@ int c2_reqh_service_types_init(void)
 
 	return 0;
 }
+C2_EXPORTED(c2_reqh_service_types_init);
 
 void c2_reqh_service_types_fini(void)
 {
 	rstypes_tlist_fini(&rstypes);
 	c2_rwlock_fini(&rstypes_rwlock);
 }
+C2_EXPORTED(c2_reqh_service_types_fini);
 
 /** @} endgroup reqh */
 

@@ -147,10 +147,6 @@ static const struct c2_fom_type_ops cs_ds1_req_fop_fom_type_ops = {
 
 C2_FOM_TYPE_DECLARE(cs_ds1_req, &cs_ds1_req_fop_fom_type_ops, &ds1_service_type);
 
-/*static struct c2_fom_type cs_ds1_req_fomt = {
-	.ft_ops = &cs_ds1_req_fop_fom_type_ops,
-};*/
-
 /*
   Fom type operations for ds2 service foms.
  */
@@ -159,10 +155,6 @@ static const struct c2_fom_type_ops cs_ds2_req_fop_fom_type_ops = {
 };
 
 C2_FOM_TYPE_DECLARE(cs_ds2_req, &cs_ds2_req_fop_fom_type_ops, &ds2_service_type);
-
-/*static struct c2_fom_type cs_ds2_req_fomt = {
-	.ft_ops = &cs_ds2_req_fop_fom_type_ops,
-};*/
 
 static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item)
 {
