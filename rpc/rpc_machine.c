@@ -48,7 +48,8 @@
 #include "rpc/packet.h"        /* c2_rpc */
 
 /* Forward declarations. */
-static void rpc_net_buf_received(const struct c2_net_buffer_event *ev);
+static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
+		__attribute__((unused));
 static void rpc_tm_cleanup(struct c2_rpc_machine *machine);
 
 static void rpcobj_exit_stats_set(const struct c2_rpc   *rpcobj,
@@ -68,6 +69,18 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 			   uint64_t max_rpcs_in_flight);
 static void rpc_chan_ref_release(struct c2_ref *ref);
 static void rpc_recv_pool_buffer_put(struct c2_net_buffer *nb);
+static void net_buf_event_handler(const struct c2_net_buffer_event *ev);
+static void net_buf_received(struct c2_net_buffer    *nb,
+			     c2_bindex_t              offset,
+			     c2_bcount_t              length,
+			     struct c2_net_end_point *from_ep);
+static void packet_received(struct c2_rpc_packet    *p,
+			    struct c2_rpc_machine   *machine,
+			    struct c2_net_end_point *from_ep);
+static void item_received(struct c2_rpc_item      *item,
+			  struct c2_rpc_machine   *machine,
+			  struct c2_net_end_point *from_ep);
+static void net_buf_err(struct c2_net_buffer *nb, int32_t status);
 
 /* ADDB Instrumentation for rpccore. */
 static const struct c2_addb_ctx_type rpc_machine_addb_ctx_type = {
@@ -86,7 +99,7 @@ C2_ADDB_EV_DEFINE_PUBLIC(c2_rpc_machine_func_fail, "rpc_machine_func_fail",
  */
 const struct c2_net_buffer_callbacks c2_rpc_rcv_buf_callbacks = {
 	.nbc_cb = {
-		[C2_NET_QT_MSG_RECV] = rpc_net_buf_received,
+		[C2_NET_QT_MSG_RECV] = net_buf_event_handler,
 	}
 };
 
@@ -498,6 +511,83 @@ static void rpc_chan_ref_release(struct c2_ref *ref)
 	c2_free(chan);
 }
 
+static void net_buf_event_handler(const struct c2_net_buffer_event *ev)
+{
+	struct c2_net_buffer *nb;
+	bool                  buf_is_queued;
+
+	nb = ev->nbe_buffer;
+	C2_PRE(nb != NULL);
+
+	if (ev->nbe_status == 0) {
+		net_buf_received(nb, ev->nbe_offset, ev->nbe_length,
+				 ev->nbe_ep);
+	} else {
+		if (ev->nbe_status != -ECANCELED)
+			net_buf_err(nb, ev->nbe_status);
+	}
+	buf_is_queued = (nb->nb_flags & C2_NET_BUF_QUEUED);
+	if (!buf_is_queued)
+		rpc_recv_pool_buffer_put(nb);
+}
+
+#define tm_to_rpc_machine(tm) \
+	container_of(tm, struct c2_rpc_machine, rm_tm)
+
+static void net_buf_received(struct c2_net_buffer    *nb,
+			     c2_bindex_t              offset,
+			     c2_bcount_t              length,
+			     struct c2_net_end_point *from_ep)
+{
+	struct c2_rpc_machine *machine;
+	struct c2_rpc_packet   p;
+
+	machine = tm_to_rpc_machine(nb->nb_tm);
+	c2_rpc_packet_init(&p);
+	(void)c2_rpc_packet_decode(&p, &nb->nb_buffer, offset, length);
+	/* There might be items in packet p, which were successfully decoded
+	   before an error occured. */
+	packet_received(&p, machine, from_ep);
+	c2_rpc_packet_fini(&p);
+}
+
+static void packet_received(struct c2_rpc_packet    *p,
+			    struct c2_rpc_machine   *machine,
+			    struct c2_net_end_point *from_ep)
+{
+	struct c2_rpc_item *item;
+
+	/* packet p can also be empty */
+	for_each_item_in_packet(item, p) {
+		c2_rpc_packet_remove_item(p, item);
+		item_received(item, machine, from_ep);
+	} end_for_each_item_in_packet;
+}
+
+static void item_received(struct c2_rpc_item      *item,
+			  struct c2_rpc_machine   *machine,
+			  struct c2_net_end_point *from_ep)
+{
+	if (c2_rpc_item_is_conn_establish(item))
+		c2_rpc_fop_conn_establish_ctx_init(item, from_ep, machine);
+
+	item->ri_rpc_time = c2_time_now();
+
+	c2_rpc_machine_lock(machine);
+	c2_rpc_item_received(item, machine);
+	c2_rpc_machine_unlock(machine);
+}
+
+static void net_buf_err(struct c2_net_buffer *nb, int32_t status)
+{
+	struct c2_rpc_machine *machine;
+
+	machine = tm_to_rpc_machine(nb->nb_tm);
+	C2_ADDB_ADD(&machine->rm_addb, &c2_rpc_machine_addb_loc,
+		    c2_rpc_machine_func_fail, "Buffer event reported failure",
+		    status);
+}
+
 /**
    The callback routine to be called once the transfer machine
    receives a buffer. This subroutine later invokes decoding of
@@ -545,7 +635,6 @@ static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
 	c2_rpcobj_init(&rpc);
 	rc = c2_rpc_decode(&rpc, nb, ev->nbe_length, ev->nbe_offset);
 last:
-	C2_ASSERT(nb->nb_pool != NULL);
 	if (!(nb->nb_flags & C2_NET_BUF_QUEUED))
 		rpc_recv_pool_buffer_put(nb);
 
@@ -583,7 +672,7 @@ static void rpc_recv_pool_buffer_put(struct c2_net_buffer *nb)
 	tm = nb->nb_tm;
 
 	C2_PRE(tm != NULL);
-	C2_PRE(tm->ntm_recv_pool != NULL && nb->nb_pool !=NULL);
+	C2_PRE(tm->ntm_recv_pool != NULL && nb->nb_pool != NULL);
 	C2_PRE(tm->ntm_recv_pool == nb->nb_pool);
 
 	nb->nb_ep = NULL;

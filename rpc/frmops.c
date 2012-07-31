@@ -192,7 +192,7 @@ static int rpc_buffer_init(struct rpc_buffer    *rpcbuf,
 	if (rc != 0)
 		goto out;
 
-	rc = c2_rpc_packet_encode_in_buf(p, &netbuf->nb_buffer);
+	rc = c2_rpc_packet_encode(p, &netbuf->nb_buffer);
 	if (rc != 0) {
 		net_buffer_free(netbuf, ndom);
 		goto out;
