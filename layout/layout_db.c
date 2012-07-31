@@ -593,10 +593,10 @@ int c2_layout_update(struct c2_layout *l,
 	recsize = l->l_ops->lo_recsize(l);
 	rc = pair_init(pair, l, tx, C2_LXO_DB_UPDATE, recsize);
 	if (rc == 0) {
-		IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_1", -601,
-						 error_1_injected);
+		if (C2_FI_ENABLED("table_update_err"))
+			{ rc = -601; goto err1_injected; }
 		rc = c2_table_update(tx, pair);
-error_1_injected:
+err1_injected:
 		if (rc != 0)
 			c2_layout__log("c2_layout_update",
 				       "c2_table_update() failed",

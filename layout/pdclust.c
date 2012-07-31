@@ -216,15 +216,16 @@ static int pdclust_allocate(struct c2_layout_domain *dom,
 	C2_PRE(out != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
-	IF_FI_ENABLED_SET_VAR_AND_JUMP("mem_alloc_error", pl, NULL,
-				        mem_alloc_error_injected);
+
+	if (C2_FI_ENABLED("mem_alloc_err")) { pl = NULL; goto err1_injected; }
 	C2_ALLOC_PTR(pl);
-mem_alloc_error_injected:
+err1_injected:
 	if (pl == NULL) {
 		c2_layout__log("pdclust_allocate", "C2_ALLOC_PTR() failed",
 			       &c2_addb_oom, &layout_global_ctx, lid, -ENOMEM);
 		return -ENOMEM;
 	}
+
 	c2_layout__striped_init(&pl->pl_base, dom, lid,
 				&c2_pdclust_layout_type, &pdclust_ops);
 	c2_pdclust_layout_bob_init(pl);

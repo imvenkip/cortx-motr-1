@@ -110,22 +110,6 @@ void c2_layout__instance_init(struct c2_layout_instance *li,
 			      const struct c2_layout_instance_ops *ops);
 void c2_layout__instance_fini(struct c2_layout_instance *li);
 
-#define IF_FI_ENABLED_SET_ERROR_AND_JUMP(fault_point, return_code, label)     \
-{                                                                             \
-	if (C2_FI_ENABLED(fault_point)) {                                     \
-		rc = return_code;                                             \
-		goto label;                                                   \
-	}                                                                     \
-}
-
-#define IF_FI_ENABLED_SET_VAR_AND_JUMP(fault_point, var, val, label)          \
-{                                                                             \
-	if (C2_FI_ENABLED(fault_point)) {                                     \
-		var = val;                                                    \
-		goto label;                                                   \
-	}                                                                     \
-}
-
 /** @} end group layout */
 
 /* __COLIBRI_LAYOUT_LAYOUT_INTERNAL_H__ */

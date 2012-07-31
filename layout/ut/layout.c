@@ -181,7 +181,7 @@ static void test_domain_init_fini_failure(void)
 	rc = c2_dbenv_init(&t_dbenv, t_db_name, DBFLAGS);
 	C2_UT_ASSERT(rc == 0);
 
-	c2_fi_enable_once("c2_layout_domain_init", "error_1");
+	c2_fi_enable_once("c2_layout_domain_init", "table_init_err");
 	rc = c2_layout_domain_init(&t_domain, &t_dbenv);
 	C2_UT_ASSERT(rc == -501);
 
@@ -385,15 +385,15 @@ static void test_reg_unreg_failure(void)
 	 * Try to register all the standard layout types and enum types by
 	 * injecting errors.
 	 */
-	c2_fi_enable_once("c2_layout_type_register", "error_1");
+	c2_fi_enable_once("c2_layout_type_register", "lto_reg_err");
 	rc = c2_layout_type_register(&t_domain, &c2_pdclust_layout_type);
 	C2_UT_ASSERT(rc == -502);
 
-	c2_fi_enable_once("c2_layout_enum_type_register", "error_1");
+	c2_fi_enable_once("c2_layout_enum_type_register", "leto_reg_err");
 	rc = c2_layout_enum_type_register(&t_domain, &c2_list_enum_type);
 	C2_UT_ASSERT(rc == -503);
 
-	c2_fi_enable_once("c2_layout_enum_type_register", "error_1");
+	c2_fi_enable_once("c2_layout_enum_type_register", "leto_reg_err");
 	rc = c2_layout_enum_type_register(&t_domain, &c2_linear_enum_type);
 	C2_UT_ASSERT(rc == -503);
 
@@ -401,19 +401,19 @@ static void test_reg_unreg_failure(void)
 	 * Now cover all the error cases from
 	 * c2_layout_standard_types_register().
 	 */
-	c2_fi_enable_once("c2_layout_type_register", "error_1");
+	c2_fi_enable_once("c2_layout_type_register", "lto_reg_err");
 	rc = c2_layout_standard_types_register(&t_domain);
 	C2_UT_ASSERT(rc == -502);
 
-	c2_fi_enable_once("c2_layout_enum_type_register", "error_1");
+	c2_fi_enable_once("c2_layout_enum_type_register", "leto_reg_err");
 	rc = c2_layout_standard_types_register(&t_domain);
 	C2_UT_ASSERT(rc == -503);
 
-	c2_fi_enable_off_n_on_m("c2_layout_enum_type_register", "error_1",
+	c2_fi_enable_off_n_on_m("c2_layout_enum_type_register", "leto_reg_err",
 				1, 1);
 	rc = c2_layout_standard_types_register(&t_domain);
 	C2_UT_ASSERT(rc == -503);
-	c2_fi_disable("c2_layout_enum_type_register", "error_1");
+	c2_fi_disable("c2_layout_enum_type_register", "leto_reg_err");
 
 	c2_layout_domain_fini(&t_domain);
 	c2_dbenv_fini(&t_dbenv);
@@ -793,7 +793,7 @@ static void test_build_failure(void)
 	 * in the path of c2_pdclust_build().
 	 */
 	lid = 1005;
-	c2_fi_enable_once("pdclust_allocate", "mem_alloc_error");
+	c2_fi_enable_once("pdclust_allocate", "mem_alloc_err");
 	rc = test_build_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				FAILURE_TEST);
 	C2_UT_ASSERT(rc == -ENOMEM);
@@ -803,7 +803,7 @@ static void test_build_failure(void)
 	 * in the path of c2_pdclust_build().
 	 */
 	lid = 1006;
-	c2_fi_enable_once("pdclust_allocate", "mem_alloc_error");
+	c2_fi_enable_once("pdclust_allocate", "mem_alloc_err");
 	rc = test_build_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
 				FAILURE_TEST);
 	C2_UT_ASSERT(rc == -ENOMEM);
@@ -1266,14 +1266,14 @@ static void test_encode_failure(void)
 
 	/* Simulate c2_layout_encode() failure. */
 	lid = 3005;
-	c2_fi_enable_once("c2_layout_encode", "error_1");
+	c2_fi_enable_once("c2_layout_encode", "lo_encode_err");
 	rc = test_encode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				 FAILURE_TEST);
 	C2_UT_ASSERT(rc == -505);
 
 	/* Simulate c2_layout_encode() failure. */
 	lid = 3006;
-	c2_fi_enable_once("c2_layout_encode", "error_1");
+	c2_fi_enable_once("c2_layout_encode", "lo_encode_err");
 	rc = test_encode_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
 				 FAILURE_TEST);
 	C2_UT_ASSERT(rc == -505);
@@ -2753,17 +2753,17 @@ static void test_lookup_failure(void)
 
 	/* Simulate pdclust_allocate() failure in c2_layout_lookup(). */
 	lid = 10010;
-	c2_fi_enable_off_n_on_m("pdclust_allocate", "mem_alloc_error", 1, 1);
+	c2_fi_enable_off_n_on_m("pdclust_allocate", "mem_alloc_err", 1, 1);
 	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 INLINE_NOT_APPLICABLE,
 				 FAILURE_TEST);
 	C2_UT_ASSERT(rc == -ENOMEM);
-	c2_fi_disable("pdclust_allocate", "mem_alloc_error");
+	c2_fi_disable("pdclust_allocate", "mem_alloc_err");
 
 	/* Simulate c2_layout_decode() failure in c2_layout_lookup(). */
 	lid = 10011;
-	c2_fi_enable_once("c2_layout_decode", "error_1");
+	c2_fi_enable_once("c2_layout_decode", "lo_decode_err");
 	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 INLINE_NOT_APPLICABLE,
@@ -2932,7 +2932,7 @@ static void test_add_failure(void)
 
 	/* Simulate c2_layout_encode() failure in c2_layout_add(). */
 	lid = 11005;
-	c2_fi_enable_once("c2_layout_encode", "error_1");
+	c2_fi_enable_once("c2_layout_encode", "lo_encode_err");
 	rc = test_add_pdclust(LIST_ENUM_ID, lid,
 			      MORE_THAN_INLINE,
 			      LAYOUT_DESTROY, NULL,
@@ -3156,17 +3156,17 @@ static void test_update_failure(void)
 
 	/* Simulate c2_layout_encode() failure in c2_layout_update(). */
 	lid = 12006;
-	c2_fi_enable_off_n_on_m("c2_layout_encode", "error_1", 1, 1);
+	c2_fi_enable_off_n_on_m("c2_layout_encode", "lo_encode_err", 1, 1);
 	rc = test_update_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 MORE_THAN_INLINE,
 				 FAILURE_TEST);
 	C2_UT_ASSERT(rc == -505);
-	c2_fi_disable("c2_layout_encode", "error_1");
+	c2_fi_disable("c2_layout_encode", "lo_encode_err");
 
 	/* Simulate c2_table_update() failure in c2_layout_update(). */
 	lid = 12007;
-	c2_fi_enable_once("c2_layout_update", "error_1");
+	c2_fi_enable_once("c2_layout_update", "table_update_err");
 	rc = test_update_pdclust(LINEAR_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 INLINE_NOT_APPLICABLE,
@@ -3327,13 +3327,13 @@ static void test_delete_failure(void)
 
 	/* Simulate c2_layout_encode() failure in c2_layout_delete(). */
 	lid = 13005;
-	c2_fi_enable_off_n_on_m("c2_layout_encode", "error_1", 1, 1);
+	c2_fi_enable_off_n_on_m("c2_layout_encode", "lo_encode_err", 1, 1);
 	rc = test_delete_pdclust(LINEAR_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 INLINE_NOT_APPLICABLE,
 				 FAILURE_TEST);
 	C2_UT_ASSERT(rc == -505);
-	c2_fi_disable("c2_layout_encode", "error_1");
+	c2_fi_disable("c2_layout_encode", "lo_encode_err");
 
 	/*
 	 * Try to delete a layout object with PDCLUST layout type and LINEAR
