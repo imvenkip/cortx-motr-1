@@ -25,11 +25,11 @@
 #  include "config.h"
 #endif
 
-#include "fop/fop_base.h"	/* c2_fop_field_type */
+#include "fop/fop_base.h" /* c2_fop_field_type */
 #include "xcode/xcode.h"
 
 /**
-   @addtogroup console console iterator
+   @addtogroup console_it
    @{
  */
 
@@ -41,6 +41,7 @@ enum c2_cons_data_process_type {
 
 /**
  * @struct c2_cons_atom_ops
+ *
  * @brief operation to get/set values of ATOM type (i.e. CHAR, U64 etc).
  */
 struct c2_cons_atom_ops {
@@ -62,7 +63,8 @@ void c2_cons_fop_fields_show(struct c2_fop *fop);
 /**
  * @brief Iterate over FOP for Input and output.
  *
- * @param output false input, true output.
+ * @param fop Fop object
+ * @param type Data processing operation type
  */
 void c2_cons_fop_obj_input_output(struct c2_fop *fop,
 				  enum c2_cons_data_process_type type);

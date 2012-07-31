@@ -35,7 +35,7 @@
 #include "console/console_fop.h"
 
 /**
-   @addtogroup console main
+   @addtogroup console
    @{
  */
 

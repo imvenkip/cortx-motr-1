@@ -272,7 +272,6 @@ static void test_fop_encdec(void)
 	/* Decode the payload from bufvec into the fop. */
 	c2_xcode_ctx_init(&xctx1, &(struct c2_xcode_obj) {
 			  *fd1->f_type->ft_xc_type, NULL });
-
 	xctx1.xcx_alloc = c2_xcode_alloc;
 	xctx1.xcx_buf   = cur;
 	rc = c2_xcode_decode(&xctx1);
@@ -282,7 +281,6 @@ static void test_fop_encdec(void)
 		fd1->f_data.fd_data =
 			xctx1.xcx_it.xcu_stack[0].s_obj.xo_ptr;
 	}
-
 	C2_UT_ASSERT(rc == 0);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
 	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));

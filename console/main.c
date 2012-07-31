@@ -25,9 +25,9 @@
 
 #include "lib/errno.h"		  /* ETIMEDOUT */
 #include "lib/memory.h"		  /* c2_free */
-#include "colibri/init.h"	  /* c2_init */
 #include "lib/processor.h"        /* c2_processors_init/fini */
 #include "lib/getopts.h"	  /* C2_GETOPTS */
+#include "colibri/init.h"	  /* c2_init */
 #include "net/lnet/lnet.h"
 #include "rpc/rpclib.h"
 #include "ut/rpc.h"
@@ -39,17 +39,16 @@
 #include "console/console_fop.h"
 
 /**
-   @addtogroup console main
+   @addtogroup console
    @{
  */
 
 uint32_t timeout;
 
 /**
- * @brief Iterator over FOP and prints names of its members.
+ * @brief Iterate over FOP and print names of its members.
  *
- * @param type 0 shows list of FOPS.
- *	       ~0 displays info related to FOP.
+ * @param opcode Item type opcode
  */
 static int fop_info_show(uint32_t opcode)
 {
@@ -84,7 +83,6 @@ void console_fop_free(struct c2_fop *fop)
 		const struct c2_xcode_obj          *par;
 		const struct c2_xcode_type         *pt;
 
-
 		top = c2_xcode_cursor_top(it);
 
 		if (top->s_flag != C2_XCODE_CURSOR_PRE)
@@ -105,10 +103,10 @@ void console_fop_free(struct c2_fop *fop)
 }
 
 /**
- * @brief Build the RPC item using FOP(Embedded into item) and send it.
+ * @brief Build the RPC item using FOP (Embedded into item) and send it.
  *
- * @param cons Console object ref.
- * @param opcode FOP opcode.
+ * @param cctx RPC Client context
+ * @param opcode RPC item opcode
  */
 static int fop_send_and_print(struct c2_rpc_client_ctx *cctx, uint32_t opcode)
 {
@@ -187,8 +185,8 @@ static void usage(void)
  *
  *	  Usage:
  *	  c2console :	{ -l FOP list | -f FOP opcode }
- *			[-s server (e.g. 172.18.50.40@o2ib1:12345:34:1) ]
- *			[-c client (e.g. 172.18.50.40@o2ib1:12345:34:*) ]
+ *			[-s server (e.g. 172.18.50.40\@o2ib1:12345:34:1) ]
+ *			[-c client (e.g. 172.18.50.40\@o2ib1:12345:34:*) ]
  *			[-t timeout] [[-i] [-y yaml file path]] [-v]
  *
  * @return 0 success, -errno failure.

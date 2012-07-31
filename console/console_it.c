@@ -16,7 +16,10 @@
  *
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
  * Original creation date: 08/17/2011
+ * Revision              : Manish Honap <Manish_Honap@xyratex.com>
+ * Revision date         : 07/31/2012
  */
+
 #ifdef HAVE_CONFIG_H
 #  include "config.h"
 #endif
@@ -158,6 +161,41 @@ static struct c2_cons_atom_ops atom_ops[C2_XAT_NR] = {
         [C2_XAT_U64]  = { u64_get, u64_set, default_show }
 };
 
+static void console_xc_atom_process(struct c2_xcode_cursor_frame *top,
+				    enum c2_cons_data_process_type type)
+{
+	struct c2_xcode_obj                *cur   = &top->s_obj;
+	const struct c2_xcode_cursor_frame *prev;
+	const struct c2_xcode_type         *xt    = cur->xo_type;
+	const struct c2_xcode_type         *pt;
+	const struct c2_xcode_obj          *par;
+	size_t                              nob;
+	size_t                              size;
+	const char                         *name;
+	enum c2_xode_atom_type              atype = xt->xct_atype;
+
+	size = xt->xct_sizeof;
+	prev = top - 1;
+	par  = &prev->s_obj;
+	pt   = par->xo_type;
+	name = pt->xct_child[prev->s_fieldno].xf_name;
+	switch (type) {
+	case CONS_IT_INPUT:
+		if (par->xo_type->xct_aggr == C2_XA_SEQUENCE) {
+			nob = c2_xcode_tag(par) * size;
+			cur->xo_ptr = c2_alloc(nob);
+		}
+		atom_ops[atype].catom_val_set(xt, name, cur->xo_ptr);
+		break;
+	case CONS_IT_OUTPUT:
+		atom_ops[atype].catom_val_get(xt, name, cur->xo_ptr);
+		break;
+	case CONS_IT_SHOW:
+	default:
+		atom_ops[atype].catom_val_show(xt, name, cur->xo_ptr);
+	}
+}
+
 void c2_cons_fop_obj_input_output(struct c2_fop *fop,
 				  enum c2_cons_data_process_type type)
 {
@@ -177,18 +215,12 @@ void c2_cons_fop_obj_input_output(struct c2_fop *fop,
 	printf("\n");
 
         while((result = c2_xcode_next(it)) > 0) {
-		struct c2_xcode_obj                *cur;
-		struct c2_xcode_cursor_frame       *top;
-		const struct c2_xcode_cursor_frame *prev;
-		const struct c2_xcode_type         *pt;
-		const struct c2_xcode_obj          *par;
-		size_t                              nob;
-		size_t                              size;
+		struct c2_xcode_obj          *cur;
+		struct c2_xcode_cursor_frame *top;
 
 		top = c2_xcode_cursor_top(it);
 
 		if (top->s_flag == C2_XCODE_CURSOR_PRE) {
-
 			cur   = &top->s_obj;
 			xt    = cur->xo_type;
 			gtype = xt->xct_aggr;
@@ -197,44 +229,9 @@ void c2_cons_fop_obj_input_output(struct c2_fop *fop,
 				depth_print(fop_depth);
 				printf("%s\n", xt->xct_name);
 			} else if (gtype == C2_XA_ATOM) {
-				enum c2_xode_atom_type atype = xt->xct_atype;
-
-				++fop_depth;
-				depth_print(fop_depth);
-				size = xt->xct_sizeof;
-				prev = top - 1;
-				par  = &prev->s_obj;
-				pt   = par->xo_type;
-				switch (type) {
-				case CONS_IT_INPUT:
-					if (par->xo_type->xct_aggr ==
-					    C2_XA_SEQUENCE) {
-						nob = c2_xcode_tag(par) * size;
-						cur->xo_ptr =
-							c2_alloc(nob);
-					}
-
-					atom_ops[atype].catom_val_set(
-					    xt,
-					    pt->xct_child[
-						prev->s_fieldno].xf_name,
-					    cur->xo_ptr);
-					break;
-				case CONS_IT_OUTPUT:
-					atom_ops[atype].catom_val_get(
-					    xt,
-					    pt->xct_child[
-						    prev->s_fieldno].xf_name,
-					    cur->xo_ptr);
-					break;
-				case CONS_IT_SHOW:
-				default:
-					atom_ops[atype].catom_val_show(
-					    xt,
-					    pt->xct_child[
-						    prev->s_fieldno].xf_name,
-					    cur->xo_ptr);
-				}
+					++fop_depth;
+					depth_print(fop_depth);
+					console_xc_atom_process(top, type);
 			}
 		} else if (top->s_flag == C2_XCODE_CURSOR_POST) {
 			if (gtype != C2_XA_ATOM && verbose) {

@@ -14,10 +14,12 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
+ * Original author       : Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
  * Original creation date: 08/03/2011
+ * Revision              : Manish Honap <Manish_Honap@xyratex.com>
+ * Revision date         : 07/31/2012
  */
-/*
+/**
  * Failure fops should be defined by not yet existing "failure" module. For the
  * time being, it makes sense to put them in cm/ or console/. ioservice is not
  * directly responsible for handling failures, it is intersected by copy-machine
@@ -34,6 +36,7 @@
  * Init console FOP
  */
 int c2_console_fop_init(void);
+
 /**
  * Fini console FOP
  */

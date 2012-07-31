@@ -74,7 +74,7 @@ int c2_fop_item_type_default_decode(struct c2_rpc_item_type *item_type,
 	C2_ASSERT(ftype != NULL);
 
 	/*
-	 * decoding in xcode is different from sunrpc xdr where top object is
+	 * Decoding in xcode is different from sunrpc xdr where top object is
 	 * allocated by caller; in xcode, even the top object is allocated,
 	 * so we don't need to allocate the fop->f_data->fd_data.
 	 */

@@ -19,11 +19,12 @@
  */
 
 /**
-  @addtogroup rm
+  @addtogroup console
   @{
  */
 
-/** @file console_xc.ff
+/**
+ * @file console_xc.ff
  *
  * Failure fops should be defined by not yet existing "failure" module. For the
  * time being, it makes sense to put them in cm/ or console/. ioservice is not
@@ -48,11 +49,12 @@ record {
        u64             cons_test_id
 } c2_cons_fop_test;
 
-/** Device failure notification fop
-    - id          : Console id.
-    - notify_type : Device failure notification.
-    - dev_id      : Device ID(Disk ID in case disk failure).
-    - dev_name    : Device name(In case of disk it could be volume name).
+/**
+ *  Device failure notification fop
+ *  - id          : Console id.
+ *  - notify_type : Device failure notification.
+ *  - dev_id      : Device ID (Disk ID in case disk failure).
+ *  - dev_name    : Device name (In case of disk it could be volume name).
  */
 record {
        c2_cons_fop_fid cons_id;
@@ -61,9 +63,10 @@ record {
        c2_cons_fop_buf cons_dev_name
 } c2_cons_fop_device;
 
-/** Reply fop to the notification fop
-    - notify_type : Notification type of request fop.
-    - return      : Opcode of request fop.
+/**
+ *  Reply fop to the notification fop
+ *  - notify_type : Notification type of request fop.
+ *  - return      : Opcode of request fop.
  */
 record {
        u32 cons_notify_type;

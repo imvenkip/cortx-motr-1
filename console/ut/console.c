@@ -31,7 +31,6 @@
 #include "lib/types.h"            /* uint64_t */
 #include "lib/ut.h"
 #include "lib/assert.h"
-#include "lib/ub.h"
 #include "lib/memory.h"
 #include "lib/errno.h"            /* ETIMEDOUT */
 #include "lib/processor.h"        /* c2_processors_init/fini */

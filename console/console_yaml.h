@@ -64,8 +64,8 @@ int c2_cons_yaml_init(const char *path);
  * @brief  Search for specified string and get the respctive value
  *	   form YAML file. (like "name : console")
  *
- * @param value Search string(like name).
- * @param data  Respective data(like console).
+ * @param value Search string (like name).
+ * @param data  Respective data (like console).
  *
  * @return 0 success and -errno failure.
  */
@@ -75,8 +75,7 @@ int c2_cons_yaml_set_value(const char *value, void *data);
  * @brief  Search for specified string and set the respctive value
  *	   form YAML file. (like "name : console")
  *
- * @param value Search string(like name).
- * @param data  Respective data(like console).
+ * @param value Search string (like name).
  *
  * @return 0 success and -errno failure.
  */

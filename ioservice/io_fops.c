@@ -188,6 +188,9 @@ int c2_ioservice_fop_init(void)
 
 	c2_addb_ctx_init(&bulkclient_addb, &bulkclient_addb_ctx_type,
 			 &c2_addb_global_ctx);
+	/*
+	 * Provided by ff2c compiler after parsing io_fops_xc.ff
+	 */
 	c2_xc_io_fops_xc_init();
 	rc = c2_fop_type_build_nr(ioservice_fops,
 				  ARRAY_SIZE(ioservice_fops));

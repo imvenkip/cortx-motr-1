@@ -43,6 +43,8 @@
 
 extern bool verbose;
 
+/** @} end of console group */
+
 /* __COLIBRI_CONSOLE_H__ */
 #endif
 

@@ -14,22 +14,19 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Dipak Dudhabhate <Dipak_Dudhabhate@xyratex.com>
+ * Original author       : Dipak Dudhabhate <Dipak_Dudhabhate@xyratex.com>
  * Original creation date: 08/04/2011
- */
-/*
- * Failure fops should be defined by not yet existing "failure" module. For the
- * time being, it makes sense to put them in cm/ or console/. ioservice is not
- * directly responsible for handling failures, it is intersected by copy-machine
- * (cm).
+ * Revision              : Manish Honap <Manish_Honap@xyratex.com>
+ * Revision date         : 07/31/2012
  */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
-#include "lib/errno.h"		/* EINVAL */
-#include "lib/memory.h"		/* C2_ALLOC_PTR */
+#include "lib/errno.h" /* EINVAL */
+#include "lib/memory.h" /* C2_ALLOC_PTR */
+
 #include "console/console_fom.h"
 #include "console/console_fop.h"
 #include "console/console_mesg.h"

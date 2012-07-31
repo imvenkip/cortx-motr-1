@@ -14,14 +14,10 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
+ * Original author       : Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
  * Original creation date: 08/03/2011
- */
-/*
- * Failure fops should be defined by not yet existing "failure" module. For the
- * time being, it makes sense to put them in cm/ or console/. ioservice is not
- * directly responsible for handling failures, it is intersected by copy-machine
- * (cm).
+ * Revision              : Manish Honap <Manish_Honap@xyratex.com>
+ * Revision date         : 07/31/2012
  */
 
 #ifdef HAVE_CONFIG_H
@@ -32,22 +28,22 @@
 #include "lib/errno.h"		/* ENOMEM */
 #include "fop/fop_item_type.h"	/* default fop encode/decode */
 
-#include "console/console_fop.h" /*FOPs defs */
-#include "console/console_fom.h" /*FOMs defs */
+#include "console/console_fop.h" /* FOPs defs */
+#include "console/console_fom.h" /* FOMs defs */
 #include "console/console_xc.h"	 /* FOP memory layout */
 #include "xcode/bufvec_xcode.h"  /* c2_xcode_fop_size_get() */
 
 /**
-   @addtogroup console fops
+   @addtogroup console
    @{
 */
 
-/* Ops vector for device failure notification */
+/** Operations for device failure notification */
 static const struct c2_fop_type_ops c2_cons_fop_device_ops = {
 	.fto_size_get = c2_xcode_fop_size_get
 };
 
-/* Ops vector for reply of any failure notification */
+/** Operations for reply of any failure notification */
 static const struct c2_fop_type_ops c2_cons_fop_reply_ops = {
 	.fto_size_get = c2_xcode_fop_size_get
 };
@@ -83,11 +79,9 @@ int c2_console_fop_init(void)
         int result;
 
 	c2_xc_console_xc_init();
-	result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
-
 	/* Initialize fom type once */
 	c2_cons_fop_device_fopt.ft_fom_type = c2_cons_fom_device_type;
-
+	result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
 	if (result != 0)
 		c2_console_fop_fini();
 

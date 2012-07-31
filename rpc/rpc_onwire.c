@@ -278,7 +278,6 @@ int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb )
            and for each object serialize item and the payload */
         c2_list_for_each_entry(&rpc_obj->r_items, item,
 			       struct c2_rpc_item, ri_rpcobject_linkage) {
-
 		item_type = item->ri_type;
 		C2_ASSERT(item_type->rit_ops != NULL);
 		C2_ASSERT(item_type->rit_ops->rito_encode != NULL);
