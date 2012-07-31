@@ -119,8 +119,7 @@ static void linear_delete(struct c2_layout_enum *e)
 		          lle_base, &linear_bob);
 	C2_PRE(linear_allocated_invariant(lin_enum));
 
-	C2_ENTRY("lid %llu, enum_pointer %p",
-		 (unsigned long long)e->le_sl->sl_base.l_id, e);
+	C2_ENTRY("enum_pointer %p", e);
 	c2_layout_linear_enum_bob_fini(lin_enum);
 	c2_layout__enum_fini(e);
 	c2_free(lin_enum);

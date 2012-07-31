@@ -505,8 +505,9 @@ static int pdclust_layout_build(uint32_t enum_id,
 		for (i = 0; i < P; ++i)
 			c2_fid_set(&cob_list[i], i * 100 + 1, i + 1);
 
+		if (C2_FI_ENABLED("list_attr_err")) { P = 0; }
 		rc = c2_list_enum_build(&domain, cob_list, P, list_enum);
-		C2_UT_ASSERT(rc == 0 || rc == -ENOMEM);
+		C2_UT_ASSERT(rc == 0 || rc == -ENOMEM || rc == -EINVAL);
 
 		e = &(*list_enum)->lle_base;
 
@@ -514,8 +515,9 @@ static int pdclust_layout_build(uint32_t enum_id,
 		lin_attr.lla_nr = P;
 		lin_attr.lla_A  = A;
 		lin_attr.lla_B  = B;
+		if (C2_FI_ENABLED("lin_attr_err")) { lin_attr.lla_nr = 0; }
 		rc = c2_linear_enum_build(&domain, &lin_attr, lin_enum);
-		C2_UT_ASSERT(rc == 0 || rc == -ENOMEM);
+		C2_UT_ASSERT(rc == 0 || rc == -ENOMEM || rc == -EINVAL);
 
 		e = &(*lin_enum)->lle_base;
 	}
@@ -714,7 +716,7 @@ static int test_build_pdclust(uint32_t enum_id, uint64_t lid,
 				  &pl, &list_enum, &lin_enum,
 				  failure_test);
 	if (failure_test) {
-		C2_UT_ASSERT(rc == -ENOMEM);
+		C2_UT_ASSERT(rc == -ENOMEM || rc == -EINVAL);
 		goto out;
 	}
 	else
@@ -819,8 +821,8 @@ static void test_build_failure(void)
 	 * in the path of c2_pdclust_build().
 	 */
 	lid = 1007;
-	c2_fi_enable_once("linear_allocate", "mem_err");
-	rc = test_build_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
+	c2_fi_enable_once("list_allocate", "mem_err");
+	rc = test_build_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				FAILURE_TEST);
 	C2_UT_ASSERT(rc == -ENOMEM);
 
@@ -829,11 +831,24 @@ static void test_build_failure(void)
 	 * in the path of c2_pdclust_build().
 	 */
 	lid = 1008;
-	c2_fi_enable_once("list_allocate", "mem_err");
-	rc = test_build_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
+	c2_fi_enable_once("linear_allocate", "mem_err");
+	rc = test_build_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
 				FAILURE_TEST);
 	C2_UT_ASSERT(rc == -ENOMEM);
 
+	/* Simulate EINVAL error in c2_list_enum_build(). */
+	lid = 1009;
+	c2_fi_enable_once("pdclust_layout_build", "list_attr_err");
+	rc = test_build_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
+				FAILURE_TEST);
+	C2_UT_ASSERT(rc == -EINVAL);
+
+	/* Simulate EINVAL error in c2_linear_enum_build(). */
+	lid = 1010;
+	c2_fi_enable_once("pdclust_layout_build", "lin_attr_err");
+	rc = test_build_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
+				FAILURE_TEST);
+	C2_UT_ASSERT(rc == -EINVAL);
 }
 
 
