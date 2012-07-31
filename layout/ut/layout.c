@@ -2930,20 +2930,8 @@ static void test_add_failure(void)
 {
 	uint64_t lid;
 
-	/*
-	 * Simulate the error that entry already exists in the layout DB with
-	 * the dame layout id.
-	 */
-	lid = 11005;
-	rc = test_add_pdclust(LINEAR_ENUM_ID, lid,
-			      INLINE_NOT_APPLICABLE,
-			      LAYOUT_DESTROY, NULL,
-			      DUPLICATE_TEST,
-			      !FAILURE_TEST);
-	C2_UT_ASSERT(rc == -EEXIST);
-
 	/* Simulate c2_layout_encode() failure in c2_layout_add(). */
-	lid = 11006;
+	lid = 11005;
 	c2_fi_enable_once("c2_layout_encode", "error_1");
 	rc = test_add_pdclust(LIST_ENUM_ID, lid,
 			      MORE_THAN_INLINE,
@@ -2951,6 +2939,18 @@ static void test_add_failure(void)
 			      !DUPLICATE_TEST,
 			      FAILURE_TEST);
 	C2_UT_ASSERT(rc == -505);
+
+	/*
+	 * Simulate the error that entry already exists in the layout DB with
+	 * the dame layout id.
+	 */
+	lid = 11006;
+	rc = test_add_pdclust(LINEAR_ENUM_ID, lid,
+			      INLINE_NOT_APPLICABLE,
+			      LAYOUT_DESTROY, NULL,
+			      DUPLICATE_TEST,
+			      !FAILURE_TEST);
+	C2_UT_ASSERT(rc == -EEXIST);
 }
 
 
@@ -3177,7 +3177,8 @@ static void test_update_failure(void)
 /* Tests the API c2_layout_delete(), for the PDCLUST layout type. */
 static int test_delete_pdclust(uint32_t enum_id, uint64_t lid,
 			       bool existing_test,
-			       uint32_t inline_test)
+			       uint32_t inline_test,
+			       uint32_t failure_test)
 {
 	c2_bcount_t                   num_bytes;
 	void                         *area;
@@ -3191,6 +3192,7 @@ static int test_delete_pdclust(uint32_t enum_id, uint64_t lid,
 	struct c2_pdclust_layout     *pl;
 	struct c2_layout_list_enum   *list_enum;
 	struct c2_layout_linear_enum *lin_enum;
+	int                           rc_tmp;
 
 	C2_ENTRY();
 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
@@ -3231,33 +3233,36 @@ static int test_delete_pdclust(uint32_t enum_id, uint64_t lid,
 	C2_UT_ASSERT(rc == 0);
 
 	rc = c2_layout_delete(l, &tx, &pair);
-	if (existing_test)
-		C2_UT_ASSERT(rc == 0);
+	if (failure_test)
+		C2_UT_ASSERT(rc == -ENOENT || rc == -505);
 	else
-		C2_UT_ASSERT(rc == -ENOENT);
+		C2_UT_ASSERT(rc == 0);
 
-	rc = c2_db_tx_commit(&tx);
-	C2_UT_ASSERT(rc == 0);
+	rc_tmp = c2_db_tx_commit(&tx);
+	C2_UT_ASSERT(rc_tmp == 0);
 
 	/* Destroy the layout object. */
 	c2_layout_put(l);
 	C2_UT_ASSERT(list_lookup(lid) == NULL);
 
-	/*
-	 * Lookup for the layout object from the DB, to verify that it does not
-	 * exist there and that the lookup results into ENOENT error.
-	 */
-	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
-	C2_UT_ASSERT(rc == 0);
+	if (!failure_test) {
+		/*
+		 * Lookup for the layout object from the DB, to verify that it
+		 * does not exist there and that the lookup results into
+		 * ENOENT error.
+		 */
+		rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
+		C2_UT_ASSERT(rc == 0);
 
-	pair_set(&pair, &lid, area, num_bytes);
+		pair_set(&pair, &lid, area, num_bytes);
 
-	rc = c2_layout_lookup(&domain, lid, &c2_pdclust_layout_type,
-			      &tx, &pair, &l);
-	C2_UT_ASSERT(rc == -ENOENT);
+		rc_tmp = c2_layout_lookup(&domain, lid, &c2_pdclust_layout_type,
+				      &tx, &pair, &l);
+		C2_UT_ASSERT(rc_tmp == -ENOENT);
 
-	rc = c2_db_tx_commit(&tx);
-	C2_UT_ASSERT(rc == 0);
+		rc_tmp = c2_db_tx_commit(&tx);
+		C2_UT_ASSERT(rc_tmp == 0);
+	}
 
 	c2_free(area);
 	c2_pool_fini(&pool);
@@ -3271,24 +3276,14 @@ static void test_delete(void)
 	uint64_t lid;
 
 	/*
-	 * Try to delete a layout object with PDCLUST layout type and LINEAR
-	 * enum type, that does not exist in the DB, to verify that it results
-	 * into the error ENOENT.
-	 */
-	lid = 13001;
-	rc = test_delete_pdclust(LINEAR_ENUM_ID, lid,
-				 !EXISTING_TEST,
-				 INLINE_NOT_APPLICABLE);
-	C2_UT_ASSERT(rc == 0);
-
-	/*
 	 * Delete a layout object with PDCLUST layout type, LIST enum type and
 	 * with a few inline entries only.
 	 */
-	lid = 13002;
+	lid = 13001;
 	rc = test_delete_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
-				 LESS_THAN_INLINE);
+				 LESS_THAN_INLINE,
+				 !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -3296,32 +3291,63 @@ static void test_delete(void)
 	 * with a number of inline entries exactly equal to
 	 * LDB_MAX_INLINE_COB_ENTRIES.
 	 */
-	lid = 13003;
+	lid = 13002;
 	rc = test_delete_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
-				 EXACT_INLINE);
+				 EXACT_INLINE,
+				 !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
 	 * Delete a layout object with PDCLUST layout type and LIST enum
 	 * type including noninline entries.
 	 */
-	lid = 13004;
+	lid = 13003;
 	rc = test_delete_pdclust(LIST_ENUM_ID, lid,
 				 EXISTING_TEST,
-				 MORE_THAN_INLINE);
+				 MORE_THAN_INLINE,
+				 !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
 	 * Delete a layout object with PDCLUST layout type and LINEAR enum
 	 * type.
 	 */
-	lid = 13005;
+	lid = 13004;
 	rc = test_delete_pdclust(LINEAR_ENUM_ID, lid,
 				 EXISTING_TEST,
-				 INLINE_NOT_APPLICABLE);
+				 INLINE_NOT_APPLICABLE,
+				 !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 }
+
+static void test_delete_failure(void)
+{
+	uint64_t lid;
+
+	/* Simulate c2_layout_encode() failure in c2_layout_delete(). */
+	lid = 13005;
+	c2_fi_enable_off_n_on_m("c2_layout_encode", "error_1", 1, 1);
+	rc = test_delete_pdclust(LINEAR_ENUM_ID, lid,
+				 EXISTING_TEST,
+				 INLINE_NOT_APPLICABLE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -505);
+	c2_fi_disable("c2_layout_encode", "error_1");
+
+	/*
+	 * Try to delete a layout object with PDCLUST layout type and LINEAR
+	 * enum type, that does not exist in the DB, to verify that it results
+	 * into the error ENOENT.
+	 */
+	lid = 13006;
+	rc = test_delete_pdclust(LINEAR_ENUM_ID, lid,
+				 !EXISTING_TEST,
+				 INLINE_NOT_APPLICABLE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -ENOENT);
+}
+
 #endif /* __KERNEL__ */
 
 const struct c2_test_suite layout_ut = {
@@ -3358,6 +3384,7 @@ const struct c2_test_suite layout_ut = {
 		{ "layout-update", test_update },
 		{ "layout-update-failure", test_update_failure },
 		{ "layout-delete", test_delete },
+		{ "layout-delete-failure", test_delete_failure },
 #endif
 		{ NULL, NULL }
 	}
