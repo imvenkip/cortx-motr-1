@@ -210,7 +210,7 @@ declaration and
 
 	c2_ut_add(&foo_ut);
 
-to main().
+to add_uts().
 
 Add foo/ut to SUBDIR_UT in core/Makefile.am.
 
