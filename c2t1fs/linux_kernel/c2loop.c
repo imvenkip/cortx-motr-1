@@ -50,7 +50,7 @@
  */
 
 /**
- * @page c2loop-dld c2loop device driver DLD
+ * @page c2loop-dld The new c2loop device driver DLD
  *
  * - @ref c2loop-dld-ovw
  * - @ref c2loop-dld-req
@@ -73,22 +73,25 @@
  * href="http://lxr.linux.no/linux+v2.6.32/drivers/block/loop.c">
  * standard Linux loop device driver</a>, so it is also GPL-licensed.
  *
- * This document describes only the changes we made to the standard
+ * This document describes only the changes we will make to the standard
  * loop device driver for c2loop.
  *
- * The problem with standard loop driver is that it tries to use system
- * cache to avoid odd data copying of the pages between block layer and
- * file system layer. With c2t1fs this won't work, since c2t1fs do not
- * use system cache. Thus, it is needed to invent some other mechanism
- * to avoid odd data copying.
+ * The problem with standard loop driver is that copy data between pages
+ * (see transfer_none()). For writing it tries to use address space
+ * operations write_begin and write_end (which must be implemented by
+ * the file system) to directly manipulate with the pages in system
+ * cache and thus avoid one excess data copying. With c2t1fs this won't
+ * work, because it do not use system cache. Thus, it is needed to
+ * invent some other mechanism to avoid data copying and remove the use
+ * of transfer_none() from the data path altogether.
  *
  * <hr>
  * @section c2loop-dld-req C2loop Requirements
  *
  * - @b r.c2loop.map
- *   C2loop might represent a c2t1fs file as the block device.
+ *   C2loop should represent a c2t1fs file as the block device.
  * - @b r.c2loop.nocopy
- *   C2loop might avoid odd copying of the data between pages.
+ *   C2loop should avoid the copying of the data between pages.
  * - @b r.c2loop.bulk
  *   C2loop should efficiently use c2t1fs interface. In particular,
  *   it should call c2t1fs read/write functions with as much data as
@@ -99,30 +102,34 @@
  * <hr>
  * @section c2loop-dld-highlights C2loop Design Highlights
  *
- * For all the bio segments we directly call c2t1fs aio_read/aio_write()
- * functions with the iov array argument which points directly to the
- * pages data. Thus, we avoid odd copying.
+ * For all the bio segments, we directly call c2t1fs
+ * aio_read/aio_write() functions with the iovecs array argument, where
+ * each vector points directly to the pages data. Thus, we avoid data
+ * copying.
  *
- * Now, as appeared, Linux do not make the segments larger that 4K
- * (one page) and do not pass more than one 4K segment in the bio
- * request structure. So we have separate bio request for each 4K buffer.
- * Calling aio_read/aio_write() each time just for each 4K buffer is not
- * very effective.
+ * It appears, from empirical investigation, that Linux does not make
+ * segments larger than 4K (one page) and does not pass more than one 4K
+ * segment in the bio request structure; this results in separate bio
+ * requests for each 4K buffer. Calling aio_read/aio_write() each time
+ * just for each 4K buffer is not very effective.
  *
  * To solve this problem, we aggregate the segments (actually - the
- * pages) for one read/write operation from all available bio requests
- * in the list into iov array and call aio_read/aio_write() with all of
- * them.
+ * pages) which belongs to one particular read/write operation from
+ * all available bio requests in the list into iov array and call
+ * aio_read/aio_write() with all of them.
  *
  * <hr>
  * @section c2loop-dld-dep C2loop Dependencies
  *
- * Ext4 file system which is supposed to be used with c2loop block device
- * has limitation for maximum block size - 4K. That is what statically
- * configured for c2loop driver also (with blk_queue_logical_block_size).
- * This means that c2t1fs must be able to handle 4K size buffers, possibly
- * with help of read-modify-write (RMW) feature (in case stripe size is
- * greater than 4K).
+ * The ext4 file system which is likely to be used with c2loop
+ * block device has a maximum block size limit of 4K. For optimal
+ * performance we suppose such a 4K block size configuration of ext4
+ * file system and inform the kernel that our sector size is also 4K
+ * (with blk_queue_logical_block_size()). That will be the minimum
+ * segment size kernel give us in a bio request. This means that c2t1fs
+ * must be able to handle 4K size buffers, possibly with help of
+ * read-modify-write (RMW) feature (in case stripe size is greater than
+ * 4K).
  *
  * The size of one iovec from c2loop is limited to 4K (one page).
  * So in order to work effectively with c2loop driver c2t1fs should
@@ -142,7 +149,7 @@
  *
  * In this section we are going to describe how the segments from bio
  * requests are aggregated for iovecs. This is the core customization to
- * the standard loop driver we did for c2loop. Most of the rest is just
+ * the standard loop driver we provide in c2loop. Most of the rest is just
  * deletion of not relevant code.
  *
  * The c2loop driver (as well as the standard one) handles bio requests
@@ -206,7 +213,7 @@
  *   - mount ext4 file system on c2loop device;
  *   - run ext4 file system benchmark (like iozone);
  *   - umount ext4 file system on c2loop device;
- *   - delete c2loop<N> block device from c2t1fs file with losetup utility;
+ *   - delete c2loop<N> block device from c2t1fs file with losetup utility.
  *
  * <hr>
  * @section c2loop-dld-ref C2loop References
@@ -231,7 +238,7 @@
  * As for today, the work on read-modify-write in c2t1fs is ongoing,
  * which may implement the needed changes in c2t1fs (confirmed by Anand).
  *
- * After prototype code is inspected and became the real code, it must
+ * After prototype code is inspected and becomes the real code, it must
  * be carefully tested. Before RMW is ready, the only testing option -
  * it is with 4K c2t1fs stripe size.
  *
