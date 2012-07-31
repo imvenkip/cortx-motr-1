@@ -83,6 +83,7 @@ struct c2_bob_type {
  */
 void c2_bob_type_tlist_init(struct c2_bob_type *bt,
 			    const struct c2_tl_descr *td);
+
 /**
  *  Initializes a branded object, by setting the magic field.
  */
@@ -134,7 +135,7 @@ scope bool type ## _bob_check(const struct type *bob)
  */
 #define bob_of(ptr, type, field, bt)			\
 ({							\
-	void *__ptr = (ptr);				\
+	void *__ptr = (type *)(ptr);			\
 	type *__amb;					\
 							\
 	C2_ASSERT(__ptr != NULL);			\

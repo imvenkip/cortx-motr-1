@@ -55,6 +55,9 @@
 #include "rpc/rpc2.h"
 #include "xcode/bufvec_xcode.h"
 
+/* Import */
+struct c2_rpc;
+
 enum {
 	C2_RPC_VERSION_1 = 1,
 };

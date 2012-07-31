@@ -45,14 +45,15 @@
 #include "rpc/formation2.h"    /* c2_rpc_frm_run_formation */
 #include "rpc/rpc_onwire.h"    /* c2_rpc_decode */
 #include "rpc/service.h"       /* c2_rpc_services_tlist_.* */
+#include "rpc/packet.h"        /* c2_rpc */
 
 /* Forward declarations. */
 static void rpc_net_buf_received(const struct c2_net_buffer_event *ev);
 static void rpc_tm_cleanup(struct c2_rpc_machine *machine);
 
-extern void frm_net_buffer_sent(const struct c2_net_buffer_event *ev);
-extern void rpcobj_exit_stats_set(const struct c2_rpc *rpcobj,
-		struct c2_rpc_machine *mach, enum c2_rpc_item_path path);
+static void rpcobj_exit_stats_set(const struct c2_rpc   *rpcobj,
+				  struct c2_rpc_machine *mach,
+				  enum c2_rpc_item_path  path);
 
 static void frm_worker_fn(struct c2_rpc_machine *machine);
 
@@ -74,15 +75,6 @@ C2_ADDB_EV_DEFINE_PUBLIC(c2_rpc_machine_func_fail, "rpc_machine_func_fail",
 const struct c2_net_buffer_callbacks c2_rpc_rcv_buf_callbacks = {
 	.nbc_cb = {
 		[C2_NET_QT_MSG_RECV] = rpc_net_buf_received,
-	}
-};
-
-/**
-   Callback for net buffer used in posting
- */
-const struct c2_net_buffer_callbacks c2_rpc_send_buf_callbacks = {
-	.nbc_cb = {
-		[C2_NET_QT_MSG_SEND] = frm_net_buffer_sent,
 	}
 };
 
@@ -147,8 +139,7 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 	constraints.fc_max_nr_segments =
 				c2_net_domain_get_max_buffer_segments(ndom);
 
-	c2_rpc_frm_init(&ch->rc_frm, machine, ch,
-			constraints, &c2_rpc_frm_default_ops);
+	c2_rpc_frm_init(&ch->rc_frm, &constraints, &c2_rpc_frm_default_ops);
 	c2_list_add(&machine->rm_chans, &ch->rc_linkage);
 	*chan = ch;
 	return 0;
@@ -452,8 +443,11 @@ static int rpc_net_buffer_allocate(struct c2_net_domain *net_dom,
 		nb->nb_callbacks	= &c2_rpc_rcv_buf_callbacks;
 		nb->nb_min_receive_size = nrsegs * seg_size;
 		nb->nb_max_receive_msgs = 1;
-	} else
-		nb->nb_callbacks = &c2_rpc_send_buf_callbacks;
+	} else {
+		/* This code path is no more used to allocate outgoing
+		   buffers. @see rpc_buffer_init() in rpc/frmops.c */
+		C2_ASSERT(false);
+	}
 
 	/* Register the buffer with given net domain. */
 	rc = c2_net_buffer_register(nb, net_dom);
@@ -494,7 +488,6 @@ static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 	c2_list_fini(&machine->rm_chans);
 	c2_list_fini(&machine->rm_incoming_conns);
 	c2_list_fini(&machine->rm_outgoing_conns);
-	c2_list_fini(&machine->rm_ready_slots);
 	c2_rpc_services_tlist_fini(&machine->rm_services);
 
 	c2_mutex_fini(&machine->rm_mutex);
@@ -542,7 +535,6 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 	c2_list_init(&machine->rm_chans);
 	c2_list_init(&machine->rm_incoming_conns);
 	c2_list_init(&machine->rm_outgoing_conns);
-	c2_list_init(&machine->rm_ready_slots);
 	c2_rpc_services_tlist_init(&machine->rm_services);
 #ifndef __KERNEL__
 	c2_rpc_machine_bob_init(machine);
@@ -650,14 +642,11 @@ void c2_rpc_machine_fini(struct c2_rpc_machine *machine)
 	c2_thread_join(&machine->rm_frm_worker);
 
 	c2_rpc_machine_lock(machine);
-
 	C2_PRE(c2_list_is_empty(&machine->rm_outgoing_conns));
 	conn_list_fini(&machine->rm_incoming_conns);
-
 	c2_rpc_machine_unlock(machine);
 
 	rpc_tm_cleanup(machine);
-
 	__rpc_machine_fini(machine);
 }
 C2_EXPORTED(c2_rpc_machine_fini);

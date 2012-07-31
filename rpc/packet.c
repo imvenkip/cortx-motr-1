@@ -18,16 +18,14 @@
  * Original creation date: 05/25/2012
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_FORMATION
+#include "lib/trace.h"
 #include "lib/tlist.h"
 #include "lib/misc.h"
 #include "lib/vec.h"
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_FORMATION
-#include "lib/trace.h"
 #include "rpc/packet.h"
 #include "rpc/rpc2.h"
 #include "rpc/rpc_onwire.h"
-
-#define ULL unsigned long long
 
 static int packet_header_encode(struct c2_rpc_packet    *p,
 				struct c2_bufvec_cursor *cursor);
@@ -37,10 +35,10 @@ static int item_encode(struct c2_rpc_item       *item,
 enum {
 	PACKET_HEAD_MAGIC = 0x525041434b4554 /* "RPACKET" */
 };
-C2_TL_DESCR_DEFINE(packet_item, "packet_item", static, struct c2_rpc_item,
+C2_TL_DESCR_DEFINE(packet_item, "packet_item", /* global */, struct c2_rpc_item,
                    ri_plink, ri_link_magic, C2_RPC_ITEM_FIELD_MAGIC,
                    PACKET_HEAD_MAGIC);
-C2_TL_DEFINE(packet_item, static, struct c2_rpc_item);
+C2_TL_DEFINE(packet_item, /* global */, struct c2_rpc_item);
 
 bool c2_rpc_packet_invariant(const struct c2_rpc_packet *p)
 {
@@ -71,7 +69,8 @@ void c2_rpc_packet_init(struct c2_rpc_packet *p)
 
 void c2_rpc_packet_fini(struct c2_rpc_packet *p)
 {
-	C2_ENTRY("packet: %p nr_items: %llu", p, (ULL)p->rp_nr_items);
+	C2_ENTRY("packet: %p nr_items: %llu", p,
+					   (unsigned long long)p->rp_nr_items);
 	C2_PRE(c2_rpc_packet_invariant(p) && p->rp_nr_items == 0);
 
 	packet_item_tlist_fini(&p->rp_items);
@@ -85,14 +84,15 @@ void c2_rpc_packet_add_item(struct c2_rpc_packet *p,
 {
 	C2_ENTRY("packet: %p item: %p", p, item);
 	C2_PRE(c2_rpc_packet_invariant(p) && item != NULL);
-	C2_PRE(!c2_rpc_packet_is_carrying_item(p, item));
+	C2_PRE(!packet_item_tlink_is_in(item));
 
 	packet_item_tlink_init_at_tail(item, &p->rp_items);
 	++p->rp_nr_items;
 	p->rp_size += c2_rpc_item_size(item);
 
-	C2_LOG("nr_items: %llu packet size: %llu", (ULL)p->rp_nr_items,
-						   (ULL)p->rp_size);
+	C2_LOG("nr_items: %llu packet size: %llu",
+			(unsigned long long)p->rp_nr_items,
+			(unsigned long long)p->rp_size);
 	C2_ASSERT(c2_rpc_packet_invariant(p));
 	C2_POST(c2_rpc_packet_is_carrying_item(p, item));
 	C2_LEAVE();
@@ -109,10 +109,11 @@ void c2_rpc_packet_remove_item(struct c2_rpc_packet *p,
 	--p->rp_nr_items;
 	p->rp_size -= c2_rpc_item_size(item);
 
-	C2_LOG("nr_items: %llu packet size: %llu", (ULL)p->rp_nr_items,
-						   (ULL)p->rp_size);
+	C2_LOG("nr_items: %llu packet size: %llu",
+			(unsigned long long)p->rp_nr_items,
+			(unsigned long long)p->rp_size);
 	C2_ASSERT(c2_rpc_packet_invariant(p));
-	C2_POST(!c2_rpc_packet_is_carrying_item(p, item));
+	C2_POST(!packet_item_tlink_is_in(item));
 	C2_LEAVE();
 }
 
@@ -121,12 +122,12 @@ void c2_rpc_packet_remove_all_items(struct c2_rpc_packet *p)
 	struct c2_rpc_item *item;
 
 	C2_ENTRY("packet: %p", p);
-	C2_PRE(c2_rpc_packet_invariant(p) && !c2_rpc_packet_is_empty(p));
+	C2_PRE(c2_rpc_packet_invariant(p));
 	C2_LOG("nr_items: %d", (int)p->rp_nr_items);
 
-	c2_tl_for(packet_item, &p->rp_items, item)
+	c2_tl_for(packet_item, &p->rp_items, item) {
 		c2_rpc_packet_remove_item(p, item);
-	c2_tl_endfor;
+	} c2_tl_endfor;
 
 	C2_POST(c2_rpc_packet_invariant(p) && c2_rpc_packet_is_empty(p));
 	C2_LEAVE();
@@ -176,6 +177,7 @@ int c2_rpc_packet_encode_using_cursor(struct c2_rpc_packet    *packet,
 				      struct c2_bufvec_cursor *cursor)
 {
 	struct c2_rpc_item *item;
+	bool                end_of_bufvec;
 	int                 rc;
 
 	C2_ENTRY("packet: %p cursor: %p", packet, cursor);
@@ -190,7 +192,9 @@ int c2_rpc_packet_encode_using_cursor(struct c2_rpc_packet    *packet,
 				break;
 		} c2_tl_endfor;
 	}
-
+	end_of_bufvec = c2_bufvec_cursor_align(cursor, 8);
+	C2_ASSERT(end_of_bufvec ||
+		  C2_IS_8ALIGNED(c2_bufvec_cursor_addr(cursor)));
 	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
@@ -248,3 +252,32 @@ void c2_rpc_packet_traverse_items(struct c2_rpc_packet *p,
 	C2_ASSERT(c2_rpc_packet_invariant(p));
 	C2_LEAVE();
 }
+
+/** @deprecated */
+void c2_rpcobj_init(struct c2_rpc *rpc)
+{
+	C2_PRE(rpc != NULL);
+
+	c2_list_link_init(&rpc->r_linkage);
+	c2_list_init(&rpc->r_items);
+	rpc->r_session = NULL;
+	rpc->r_fbuf.fb_magic = C2_RPC_FRM_BUFFER_MAGIC;
+}
+
+/** @deprecated */
+void c2_rpcobj_fini(struct c2_rpc *rpc)
+{
+	rpc->r_session = NULL;
+	c2_list_fini(&rpc->r_items);
+	c2_list_link_fini(&rpc->r_linkage);
+}
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

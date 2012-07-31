@@ -188,7 +188,7 @@ static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
 /** Decrements a counter checking for underflow. */
 #define C2_CNT_DEC(cnt)					\
 ({							\
-        C2_ASSERT((cnt) > 0);				\
+        C2_ASSERT((cnt) != 0);				\
         --cnt;						\
 })
 
@@ -196,7 +196,7 @@ static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
 #define C2_CNT_INC(cnt)					\
 ({							\
         ++cnt;						\
-        C2_ASSERT((cnt) > 0);				\
+        C2_ASSERT((cnt) != 0);				\
 })
 
 /** @} end of arith group */

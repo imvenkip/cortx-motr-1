@@ -63,11 +63,11 @@ static const struct c2_reqh_service_ops ds2_service_ops = {
 C2_REQH_SERVICE_TYPE_DECLARE(ds1_service_type, &ds1_service_type_ops, "ds1");
 C2_REQH_SERVICE_TYPE_DECLARE(ds2_service_type, &ds2_service_type_ops, "ds2");
 
-struct c2_reqh_service_type *cs_default_stypes[] = {
+struct c2_reqh_service_type *c2_cs_default_stypes[] = {
 	&ds1_service_type,
 	&ds2_service_type,
 };
-size_t cs_default_stypes_nr = ARRAY_SIZE(cs_default_stypes);
+size_t c2_cs_default_stypes_nr = ARRAY_SIZE(c2_cs_default_stypes);
 
 static int ds1_service_locate(struct c2_reqh_service_type *stype,
                                  struct c2_reqh_service **service)

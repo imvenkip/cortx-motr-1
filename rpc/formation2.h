@@ -25,7 +25,7 @@
 /**
    Formation component for Colibri RPC layer is what IO scheduler is for
    block device. Because of network layer overhead associated with each
-   message(i.e. buffer), sending each individual RPC item directly to network
+   message (i.e. buffer), sending each individual RPC item directly to network
    layer can be inefficient. Instead, formation component tries to send
    multiple RPC items in same network layer message to improve performance.
 
@@ -58,13 +58,15 @@
 
    NOTE:
    - RPC Packet is also referred as "RPC" in some other parts of code and docs
-   - A "one-way" item is also referred as "unsolicited" items.
+   - A "one-way" item is also referred as "unsolicited" item.
 
    @todo XXX item merging support
    @todo XXX stats collection
    @todo XXX Support for "RPC Group"
    @todo XXX RPC item cancellation
    @todo XXX RPC item deadline timer based on generic state machine framework
+   @todo XXX Better RPC level flow control than the one provided by
+             c2_rpc_frm_constraints::fc_max_nr_packets_enqed
  */
 
 #include "lib/types.h"
@@ -184,7 +186,7 @@ enum c2_rpc_frm_itemq_type {
                       V  |
                     FRM_IDLE
                       |  ^
- c2_rpc_frm_enq_item()| | frm_itemq_remove() or c2_rpc_frm_packet_done()
+ c2_rpc_frm_enq_item()|  | frm_itemq_remove() or c2_rpc_frm_packet_done()
    [frm_is_idle()]    |  | [!frm_is_idle()]
                       V  |
                     FRM_BUSY
@@ -236,9 +238,7 @@ struct c2_rpc_frm {
 	/** Limits that formation should respect */
 	struct c2_rpc_frm_constraints  f_constraints;
 
-	struct c2_rpc_machine         *f_rmachine;
-	struct c2_rpc_chan            *f_rchan;
-	struct c2_rpc_frm_ops         *f_ops;
+	const struct c2_rpc_frm_ops   *f_ops;
 
 	struct c2_addb_ctx             f_addb_ctx;
 
@@ -260,9 +260,7 @@ struct c2_rpc_frm_ops {
 		   p are moved to FAILED state and are removed from p.
 		   c2_rpc_packet instance pointed by p is freed.
 	 */
-	bool (*fo_packet_ready)(struct c2_rpc_packet  *p,
-				struct c2_rpc_machine *machine,
-				struct c2_rpc_chan    *rchan);
+	bool (*fo_packet_ready)(struct c2_rpc_packet *p);
 
 	/**
 	   Bind a slot to the item.
@@ -280,7 +278,7 @@ struct c2_rpc_frm_ops {
 /**
    Default implementation of c2_rpc_frm_ops
  */
-extern struct c2_rpc_frm_ops c2_rpc_frm_default_ops;
+extern const struct c2_rpc_frm_ops c2_rpc_frm_default_ops;
 
 /**
    Load default values for various constraints, that just works.
@@ -290,19 +288,19 @@ void
 c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *constraint);
 
 /**
-   Initialise frm instance.
+   Initialises frm instance.
+
+   Object pointed by constraints is copied inside c2_rpc_frm.
 
    @pre  frm->f_state == FRM_UNINITIALISED
    @post frm->f_state == FRM_IDLE
  */
 void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
-		     struct c2_rpc_machine         *rmachine,
-		     struct c2_rpc_chan            *rchan,
-		     struct c2_rpc_frm_constraints  constraints,
-		     struct c2_rpc_frm_ops         *ops);
+		     struct c2_rpc_frm_constraints *constraints,
+		     const struct c2_rpc_frm_ops   *ops);
 
 /**
-   Finalise c2_rpc_frm instance.
+   Finalises c2_rpc_frm instance.
 
    @pre  frm->f_state == FRM_IDLE
    @post frm->f_state == FRM_UNINITIALISED

@@ -122,7 +122,6 @@ C2_EXPORTED(c2_fop_cob_readv_fopt);
 /* Used for IO REQUEST items only. */
 const struct c2_rpc_item_ops io_req_rpc_item_ops = {
 	.rio_sent	= NULL,
-	.rio_added	= NULL,
 	.rio_replied	= io_item_replied,
 	.rio_free	= io_item_free,
 };
@@ -144,7 +143,6 @@ const struct c2_fop_type_ops io_fop_rwv_ops = {
 /* Used for cob_create and cob_delete fops. */
 const struct c2_rpc_item_ops cob_req_rpc_item_ops = {
 	.rio_sent        = NULL,
-	.rio_added       = NULL,
 	.rio_replied	 = NULL,
 	.rio_free        = cob_rpcitem_free,
 };

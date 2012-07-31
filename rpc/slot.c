@@ -43,7 +43,6 @@
 #include "dtm/verno.h"
 #include "rpc/session_fops.h"
 #include "rpc/rpc2.h"
-#include "rpc/formation.h"
 
 /**
    @addtogroup rpc_session

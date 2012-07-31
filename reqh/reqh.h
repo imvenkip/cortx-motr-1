@@ -126,8 +126,7 @@ struct c2_reqh {
    @param cdom Cob domain for this request handler
    @param fol File operation log to record fop execution
 
-   @todo use iostores instead of c2_stob_domain and endpoints
-	or c2_rpc_machine instead of c2_service
+   @todo use iostores instead of c2_cob_domain
 
    @see c2_reqh
    @post c2_reqh_invariant()

@@ -80,7 +80,8 @@
 
    static bool callback(struct c2_clink *clink)
    {
-           struct wait_state *f = container_of(clink, struct foo, f_clink);
+           struct wait_state *f =
+                   container_of(clink, struct wait_state, f_clink);
 	   return !condition_is_right(f);
    }
 
@@ -90,7 +91,7 @@
 	   c2_clink_init(&g.f_clink, &callback);
 	   c2_clink_add(chan, &g.f_clink);
 	   ...
-	   while (!condition_is_right(g)) {
+	   while (!condition_is_right(&g)) {
 	           c2_chan_wait(&g.f_clink);
 	   }
    }

@@ -50,7 +50,6 @@ int c2_cons_fop_send(struct c2_fop *fop, struct c2_rpc_session *session,
 	c2_clink_add(&item->ri_chan, &clink);
 	item->ri_deadline = 0;
 	item->ri_prio     = C2_RPC_ITEM_PRIO_MAX;
-	item->ri_group    = NULL;
 	item->ri_session  = session;
 	item->ri_error    = 0;
         rc = c2_rpc_post(item);

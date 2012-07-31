@@ -27,7 +27,7 @@
 #include "rpc/session_internal.h"
 #include "rpc/rpc_onwire.h"
 #include "xcode/bufvec_xcode.h"
-
+#include "rpc/packet.h"                  /* c2_rpc */
 
 /* XXX : Return correct RPC version. */
 static uint32_t rpc_ver_get(void)
