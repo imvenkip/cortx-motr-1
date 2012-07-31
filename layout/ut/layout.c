@@ -506,7 +506,7 @@ static int pdclust_layout_build(uint32_t enum_id,
 			c2_fid_set(&cob_list[i], i * 100 + 1, i + 1);
 
 		rc = c2_list_enum_build(&domain, cob_list, P, list_enum);
-		C2_UT_ASSERT(rc == 0);
+		C2_UT_ASSERT(rc == 0 || rc == -ENOMEM);
 
 		e = &(*list_enum)->lle_base;
 
@@ -515,9 +515,15 @@ static int pdclust_layout_build(uint32_t enum_id,
 		lin_attr.lla_A  = A;
 		lin_attr.lla_B  = B;
 		rc = c2_linear_enum_build(&domain, &lin_attr, lin_enum);
-		C2_UT_ASSERT(rc == 0);
+		C2_UT_ASSERT(rc == 0 || rc == -ENOMEM);
 
 		e = &(*lin_enum)->lle_base;
+	}
+	if (rc != 0) {
+		C2_UT_ASSERT(failure_test);
+		if (enum_id == LIST_ENUM_ID)
+			c2_free(cob_list);
+		return rc;
 	}
 
 	/*
@@ -793,7 +799,7 @@ static void test_build_failure(void)
 	 * in the path of c2_pdclust_build().
 	 */
 	lid = 1005;
-	c2_fi_enable_once("pdclust_allocate", "mem_alloc_err");
+	c2_fi_enable_once("pdclust_allocate", "mem_err");
 	rc = test_build_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				FAILURE_TEST);
 	C2_UT_ASSERT(rc == -ENOMEM);
@@ -803,10 +809,31 @@ static void test_build_failure(void)
 	 * in the path of c2_pdclust_build().
 	 */
 	lid = 1006;
-	c2_fi_enable_once("pdclust_allocate", "mem_alloc_err");
+	c2_fi_enable_once("pdclust_allocate", "mem_err");
 	rc = test_build_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
 				FAILURE_TEST);
 	C2_UT_ASSERT(rc == -ENOMEM);
+
+	/*
+	 * Simulate memory allocation failure in linear_allocate() that is
+	 * in the path of c2_pdclust_build().
+	 */
+	lid = 1007;
+	c2_fi_enable_once("linear_allocate", "mem_err");
+	rc = test_build_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
+				FAILURE_TEST);
+	C2_UT_ASSERT(rc == -ENOMEM);
+
+	/*
+	 * Simulate memory allocation failure in linear_allocate() that is
+	 * in the path of c2_pdclust_build().
+	 */
+	lid = 1008;
+	c2_fi_enable_once("list_allocate", "mem_err");
+	rc = test_build_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
+				FAILURE_TEST);
+	C2_UT_ASSERT(rc == -ENOMEM);
+
 }
 
 
@@ -2753,13 +2780,13 @@ static void test_lookup_failure(void)
 
 	/* Simulate pdclust_allocate() failure in c2_layout_lookup(). */
 	lid = 10010;
-	c2_fi_enable_off_n_on_m("pdclust_allocate", "mem_alloc_err", 1, 1);
+	c2_fi_enable_off_n_on_m("pdclust_allocate", "mem_err", 1, 1);
 	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 INLINE_NOT_APPLICABLE,
 				 FAILURE_TEST);
 	C2_UT_ASSERT(rc == -ENOMEM);
-	c2_fi_disable("pdclust_allocate", "mem_alloc_err");
+	c2_fi_disable("pdclust_allocate", "mem_err");
 
 	/* Simulate c2_layout_decode() failure in c2_layout_lookup(). */
 	lid = 10011;

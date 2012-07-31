@@ -34,6 +34,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h" /* c2_forall() */
 #include "lib/bob.h"
+#include "lib/finject.h"
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
@@ -142,7 +143,10 @@ static int list_allocate(struct c2_layout_domain *dom,
 	C2_PRE(out != NULL);
 
 	C2_ENTRY();
+
+	if (C2_FI_ENABLED("mem_err")) { list_enum = NULL; goto err1_injected; }
 	C2_ALLOC_PTR(list_enum);
+err1_injected:
 	if (list_enum == NULL) {
 		c2_layout__log("list_allocate", "C2_ALLOC_PTR() failed",
 			       &c2_addb_oom, &layout_global_ctx, LID_NONE,

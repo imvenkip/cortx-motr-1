@@ -217,7 +217,7 @@ static int pdclust_allocate(struct c2_layout_domain *dom,
 
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
-	if (C2_FI_ENABLED("mem_alloc_err")) { pl = NULL; goto err1_injected; }
+	if (C2_FI_ENABLED("mem_err")) { pl = NULL; goto err1_injected; }
 	C2_ALLOC_PTR(pl);
 err1_injected:
 	if (pl == NULL) {
