@@ -370,7 +370,7 @@ void c2_layout__fini_internal(struct c2_layout *l)
 void c2_layout__delete(struct c2_layout *l)
 {
 	C2_PRE(c2_layout__allocated_invariant(l));
-	C2_PRE(list_lookup(l->l_dom, l->l_id) == NULL);
+	C2_PRE(list_lookup(l->l_dom, l->l_id) != l);
 	C2_PRE(c2_mutex_is_not_locked(&l->l_lock));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);

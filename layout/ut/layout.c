@@ -2468,7 +2468,6 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 		 * one reference on it.
 		 */
 		c2_layout_put(l1);
-		C2_UT_ASSERT(list_lookup(lid) == NULL);
 	}
 
 	C2_UT_ASSERT(list_lookup(lid) == NULL);
@@ -2502,6 +2501,136 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 		C2_UT_ASSERT(list_lookup(lid) == NULL);
 	}
 	c2_free(area);
+	C2_LEAVE();
+	return rc;
+}
+
+struct ghost_data {
+	uint64_t                 lid;
+	struct c2_layout        *l;
+	struct c2_bufvec_cursor *cur;
+};
+
+static bool ghost_create(void *d)
+{
+	struct ghost_data     *data = d;
+	struct c2_layout_type *lt;
+
+	C2_ENTRY();
+	C2_UT_ASSERT(list_lookup(data->lid) == NULL);
+
+	lt = &c2_pdclust_layout_type;
+	rc = lt->lt_ops->lto_allocate(&domain, data->lid, &data->l);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Decode the layout buffer stored in the ghost_data. */
+	rc = c2_layout_decode(data->l, data->cur, C2_LXO_BUFFER_OP, NULL);
+	C2_UT_ASSERT(rc == 0);
+
+	/* Unlock the layout, locked by lto_allocate() */
+	c2_mutex_unlock(&data->l->l_lock);
+
+	C2_LEAVE();
+	return rc;
+}
+
+static int test_lookup_with_ghost_creation(uint32_t enum_id, uint64_t lid,
+					   uint32_t inline_test)
+{
+	struct c2_layout        *l1;
+	struct c2_layout        *l1_copy;
+	struct ghost_data        g_data;
+	void                    *area_for_encode;
+	c2_bcount_t              num_bytes_for_encode;
+	struct c2_bufvec         bv_for_encode;
+	struct c2_bufvec_cursor  cur_for_encode;
+	struct c2_layout        *l_from_DB;
+	c2_bcount_t              num_bytes_for_lookup;
+	void                    *area_for_lookup;
+	struct c2_db_pair        pair;
+	struct c2_db_tx          tx;
+	int                      rc_tmp;
+
+	C2_ENTRY();
+	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
+
+	/* Create one layout object and add it to the LDB. */
+	rc = test_add_pdclust(enum_id, lid,
+			      inline_test,
+			      !LAYOUT_DESTROY, &l1,
+			      !DUPLICATE_TEST,
+			      !FAILURE_TEST);
+	C2_UT_ASSERT(rc == 0);
+	pdclust_layout_copy(enum_id, l1, &l1_copy);
+
+        /*
+	 * Encode the layout object and store its encoded representation into
+	 * the ghost_data (g_data.cur) so that the ghost can be created at a
+	 * later point.
+	 */
+	if (enum_id == LIST_ENUM_ID)
+		allocate_area(&area_for_encode, ADDITIONAL_BYTES_DEFAULT,
+			      &num_bytes_for_encode);
+	else
+		allocate_area(&area_for_encode, ADDITIONAL_BYTES_NONE,
+			      &num_bytes_for_encode);
+	bv_for_encode = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area_for_encode,
+						&num_bytes_for_encode);
+	c2_bufvec_cursor_init(&cur_for_encode, &bv_for_encode);
+	rc  = c2_layout_encode(l1, C2_LXO_BUFFER_OP, NULL, &cur_for_encode);
+	C2_UT_ASSERT(rc == 0);
+	/* Rewind the cursor. */
+	c2_bufvec_cursor_init(&cur_for_encode, &bv_for_encode);
+	g_data.cur = &cur_for_encode;
+	g_data.lid = lid;
+
+	/*
+	 * Destroy the layout object, so that the next c2_layout_lookup() does
+	 * not return right away with the layout object read from memory and
+	 * instead goes to the LDB to read it.
+	 */
+	c2_layout_get(l1);
+	c2_layout_put(l1);
+	C2_UT_ASSERT(list_lookup(lid) == NULL);
+
+	/*
+	 * Lookup for the layout object from the LDB, using c2_layout_lookup().
+	 * But while this c2_layout_lookup() is in progress, ghost_create()
+	 * will create another in-memory layout object using c2_layout_decode()
+	 * performed on the serialised representation of the same layout
+	 * created above and stored in g_data.cur.
+	 */
+	if (enum_id == LIST_ENUM_ID)
+		allocate_area(&area_for_lookup, ADDITIONAL_BYTES_DEFAULT,
+			      &num_bytes_for_lookup);
+	else
+		allocate_area(&area_for_lookup, ADDITIONAL_BYTES_NONE,
+			      &num_bytes_for_lookup);
+
+	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
+	C2_UT_ASSERT(rc == 0);
+
+	pair_set(&pair, &lid, area_for_lookup, num_bytes_for_lookup);
+	c2_fi_enable_func("c2_layout_lookup", "ghost_creation",
+			  ghost_create, &g_data);
+	rc = c2_layout_lookup(&domain, lid, &c2_pdclust_layout_type,
+			      &tx, &pair, &l_from_DB);
+	C2_UT_ASSERT(rc == 0);
+	c2_fi_disable("c2_layout_lookup", "ghost_creation");
+	rc_tmp = c2_db_tx_commit(&tx);
+	C2_UT_ASSERT(rc_tmp == 0);
+
+	C2_UT_ASSERT(l_from_DB == g_data.l);
+	C2_UT_ASSERT(list_lookup(lid) == l_from_DB);
+	pdclust_layout_compare(enum_id, l1_copy, l_from_DB, true);
+	pdclust_layout_copy_delete(enum_id, l1_copy);
+
+	/* Destroy the layout object. */
+	c2_layout_put(l_from_DB);
+	C2_UT_ASSERT(list_lookup(lid) == NULL);
+
+	c2_free(area_for_encode);
+	c2_free(area_for_lookup);
 	C2_LEAVE();
 	return rc;
 }
@@ -2578,6 +2707,16 @@ static void test_lookup(void)
 				 INLINE_NOT_APPLICABLE,
 				 !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
+
+	/*
+	 * Simulate that another layout object with the same layout id is
+	 * created while the first layout object is being allocated by
+	 * c2_layout_lookup() with having the domain lock released.
+	 */
+	lid = 10007;
+	rc = test_lookup_with_ghost_creation(LINEAR_ENUM_ID, lid,
+					     INLINE_NOT_APPLICABLE);
+	C2_UT_ASSERT(rc == 0);
 }
 
 /* Tests the API c2_layout_lookup(). */
@@ -2594,7 +2733,7 @@ static void test_lookup_failure(void)
 	 * Lookup for a layout object with LIST enum type, that does not
 	 * exist in the DB.
 	 */
-	lid = 10007;
+	lid = 10008;
 	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
 				 !EXISTING_TEST,
 				 MORE_THAN_INLINE,
@@ -2605,7 +2744,7 @@ static void test_lookup_failure(void)
 	 * Lookup for a layout object with LINEAR enum type, that does not
 	 * exist in the DB.
 	 */
-	lid = 10008;
+	lid = 10009;
 	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
 				 !EXISTING_TEST,
 				 INLINE_NOT_APPLICABLE,
@@ -2613,10 +2752,8 @@ static void test_lookup_failure(void)
 	C2_UT_ASSERT(rc == -ENOENT);
 
 	/* Simulate pdclust_allocate() failure in c2_layout_lookup(). */
-	lid = 10009;
+	lid = 10010;
 	c2_fi_enable_off_n_on_m("pdclust_allocate", "mem_alloc_error", 1, 1);
-	
-	//todo Check if allocate fails in the path of c2_pdclust_build() or in the path of c2_layout_lookup
 	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
 				 EXISTING_TEST,
 				 INLINE_NOT_APPLICABLE,
@@ -2625,7 +2762,7 @@ static void test_lookup_failure(void)
 	c2_fi_disable("pdclust_allocate", "mem_alloc_error");
 
 	/* Simulate c2_layout_decode() failure in c2_layout_lookup(). */
-	lid = 10010;
+	lid = 10011;
 	c2_fi_enable_once("c2_layout_decode", "error_1");
 	rc = test_lookup_pdclust(LINEAR_ENUM_ID, lid,
 				 EXISTING_TEST,
@@ -2640,7 +2777,7 @@ static void test_lookup_failure(void)
 		.lt_domain   = NULL,
 		.lt_ops      = NULL
 	};
-	lid = 10011;
+	lid = 10012;
 	rc = c2_layout_lookup(&domain, lid, &test_layout_type, &tx, &pair, &l);
 	C2_UT_ASSERT(rc == -EPROTO);
 

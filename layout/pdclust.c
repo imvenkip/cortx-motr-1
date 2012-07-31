@@ -237,43 +237,6 @@ mem_alloc_error_injected:
 	return 0;
 }
 
-#if 0 //todo
-static int pdclust_allocate(struct c2_layout_domain *dom,
-			    uint64_t lid,
-			    struct c2_layout **out)
-{
-	struct c2_pdclust_layout *pl;
-	int rc = 0;
-
-	C2_PRE(c2_layout__domain_invariant(dom));
-	C2_PRE(lid > 0);
-	C2_PRE(out != NULL);
-
-	C2_ENTRY("lid %llu", (unsigned long long)lid);
-	//todo
-	//IF_FI_ENABLED_SET_VAR_AND_JUMP("error_1", pl, NULL, error_1_injected);
-	IF_FI_ENABLED_SET_ERROR_AND_JUMP("error_1", -701, error_1_injected);
-	C2_ALLOC_PTR(pl);
-error_1_injected:
-	//if (pl == NULL || rc != 0) {
-	if (rc != 0) {
-		c2_layout__log("pdclust_allocate", "C2_ALLOC_PTR() failed",
-			       &c2_addb_oom, &layout_global_ctx, lid, -ENOMEM);
-		return -ENOMEM;
-	}
-	c2_layout__striped_init(&pl->pl_base, dom, lid,
-				&c2_pdclust_layout_type, &pdclust_ops);
-	c2_pdclust_layout_bob_init(pl);
-	c2_mutex_lock(&pl->pl_base.sl_base.l_lock);
-
-	*out = &pl->pl_base.sl_base;
-	C2_POST(pdclust_allocated_invariant(pl));
-	C2_POST(c2_mutex_is_locked(&(*out)->l_lock));
-	C2_LEAVE("lid %llu, pl pointer %p", (unsigned long long)lid, pl);
-	return 0;
-}
-#endif
-
 /** Implementation of lo_delete() for PDCLUST layout type. */
 static void pdclust_delete(struct c2_layout *l)
 {
