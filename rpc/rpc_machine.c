@@ -48,14 +48,7 @@
 #include "rpc/packet.h"        /* c2_rpc */
 
 /* Forward declarations. */
-static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
-		__attribute__((unused));
 static void rpc_tm_cleanup(struct c2_rpc_machine *machine);
-
-static void rpcobj_exit_stats_set(const struct c2_rpc   *rpcobj,
-				  struct c2_rpc_machine *mach,
-				  enum c2_rpc_item_path  path);
-
 static int rpc_tm_setup(struct c2_rpc_machine *machine,
 			struct c2_net_domain *net_dom, const char *ep_addr);
 static void __rpc_machine_fini(struct c2_rpc_machine *machine);
@@ -557,6 +550,7 @@ static void packet_received(struct c2_rpc_packet    *p,
 {
 	struct c2_rpc_item *item;
 
+	machine->rm_rpc_stats[C2_RPC_PATH_INCOMING].rs_rpcs_nr++;
 	/* packet p can also be empty */
 	for_each_item_in_packet(item, p) {
 		c2_rpc_packet_remove_item(p, item);
@@ -588,82 +582,6 @@ static void net_buf_err(struct c2_net_buffer *nb, int32_t status)
 		    status);
 }
 
-/**
-   The callback routine to be called once the transfer machine
-   receives a buffer. This subroutine later invokes decoding of
-   net buffer and then notifies sessions component about every
-   incoming rpc item.
- */
-static void rpc_net_buf_received(const struct c2_net_buffer_event *ev)
-{
-	int		       rc;
-	c2_time_t	       now;
-	struct c2_rpc	       rpc;
-	struct c2_rpc_item    *item;
-	struct c2_rpc_item    *next_item;
-	struct c2_net_buffer  *nb;
-	struct c2_rpc_chan    *chan;
-	struct c2_rpc_machine *machine;
-
-	C2_PRE(ev != NULL && ev->nbe_buffer != NULL);
-
-	/* Decode the buffer, get an RPC from it, traverse the
-	   list of rpc items from that rpc and post reply callbacks
-	   for each rpc item. */
-	nb	      = ev->nbe_buffer;
-	nb->nb_length = ev->nbe_length;
-	nb->nb_ep     = ev->nbe_ep;
-	machine       = container_of(nb->nb_tm, struct c2_rpc_machine, rm_tm);
-
-	c2_rpc_machine_lock(machine);
-
-	if (ev->nbe_status != 0) {
-		if (ev->nbe_status != -ECANCELED)
-			C2_ADDB_ADD(&machine->rm_addb,
-				    &c2_rpc_machine_addb_loc,
-				    c2_rpc_machine_func_fail,
-				    "Buffer event reported failure",
-				    ev->nbe_status);
-		rc = ev->nbe_status;
-		goto last;
-	}
-
-	chan = rpc_chan_locate(machine, nb->nb_ep);
-	if (chan != NULL) {
-		rpc_chan_put(chan);
-	}
-	c2_rpcobj_init(&rpc);
-	rc = c2_rpc_decode(&rpc, nb, ev->nbe_length, ev->nbe_offset);
-last:
-	if (!(nb->nb_flags & C2_NET_BUF_QUEUED))
-		rpc_recv_pool_buffer_put(nb);
-
-	if (rc == 0) {
-		rpcobj_exit_stats_set(&rpc, machine, C2_RPC_PATH_INCOMING);
-		now = c2_time_now();
-		c2_list_for_each_entry_safe(&rpc.r_items, item, next_item,
-					    struct c2_rpc_item,
-					    ri_rpcobject_linkage) {
-			c2_list_del(&item->ri_rpcobject_linkage);
-
-			if (c2_rpc_item_is_conn_establish(item))
-				c2_rpc_fop_conn_establish_ctx_init(item,
-								   ev->nbe_ep,
-								   machine);
-
-			item->ri_rpc_time = now;
-			rc = c2_rpc_item_received(item, machine);
-			/*
-			 * If 'item' is conn terminate reply then, do not
-			 * access item, after this point. In which case the
-			 * item might have already been freed.
-			 */
-			C2_ASSERT(rc == 0);
-		}
-	}
-	c2_rpc_machine_unlock(machine);
-}
-
 /* Put buffer back into the pool */
 static void rpc_recv_pool_buffer_put(struct c2_net_buffer *nb)
 {
@@ -680,21 +598,6 @@ static void rpc_recv_pool_buffer_put(struct c2_net_buffer *nb)
 	c2_net_buffer_pool_put(tm->ntm_recv_pool, nb,
 			       tm->ntm_pool_colour);
 	c2_net_buffer_pool_unlock(tm->ntm_recv_pool);
-}
-
-/**
-  Set the stats for outgoing rpc object
-  @param rpcobj - incoming or outgoing rpc object
-  @param mach - rpc_machine for which the rpc object belongs to
-  @param path - enum distinguishing whether the item is incoming or outgoing
- */
-void rpcobj_exit_stats_set(const struct c2_rpc *rpcobj,
-		struct c2_rpc_machine *mach, const enum c2_rpc_item_path path)
-{
-	C2_PRE(rpcobj != NULL);
-	C2_PRE(c2_rpc_machine_is_locked(mach));
-
-	mach->rm_rpc_stats[path].rs_rpcs_nr++;
 }
 
 /**
