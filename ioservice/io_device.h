@@ -46,9 +46,14 @@ struct c2_fv_updates;
           _(fvv_read, U64),
           _(fvv_write, U64));
 
+   DEF(c2_fv_event, RECORD,
+	_(fve_type, U32),
+	_(fve_index, U32),
+	_(fve_state, U32));
+
    DEF(c2_fv_updates, SEQUENCE,
-          _(fvu_length, U32),
-          _(fvu_updates, BYTE));
+          _(fvu_count, U32),
+          _(fvu_events, struct c2_fv_event));
 
    @endcode
 
