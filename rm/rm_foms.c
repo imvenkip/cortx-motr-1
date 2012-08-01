@@ -22,6 +22,7 @@
 #include "lib/errno.h"
 #include "lib/list.h"
 #include "lib/memory.h"
+#include "lib/misc.h"   /* C2_IN */
 #include "fop/fom.h"
 #include "rm/rm_fops.h"
 #include "rm/rm_foms.h"
@@ -45,6 +46,18 @@ static void rm_revoke_fom_fini(struct c2_fom *fom);
 static int rm_borrow_fom_state(struct c2_fom *);
 static int rm_revoke_fom_state(struct c2_fom *);
 static size_t rm_locality(const struct c2_fom *fom);
+
+static void remote_incoming_complete(struct c2_rm_incoming *in, int32_t rc);
+static void remote_incoming_conflict(struct c2_rm_incoming *in);
+
+/*
+ * As part of of incoming_complete(), call remote_incoming complete.
+ * This will call request specific functions.
+ */
+static struct c2_rm_incoming_ops remote_incoming_ops = {
+	.rio_complete = remote_incoming_complete,
+	.rio_conflict = remote_incoming_conflict,
+};
 
 /*
  * Borrow FOM ops.
@@ -80,6 +93,41 @@ struct c2_fom_type rm_revoke_fom_type = {
 	.ft_ops = &rm_revoke_fom_type_ops,
 };
 
+static void remote_incoming_complete(struct c2_rm_incoming *in, int32_t rc)
+{
+	struct c2_rm_remote_incoming *rem_in;
+
+	if (rc != 0)
+		return;
+
+	C2_ASSERT(c2_mutex_is_locked(&in->rin_want.ri_owner->ro_lock));
+
+	rem_in = container_of(in, struct c2_rm_remote_incoming, ri_incoming);
+	switch (in->rin_type) {
+	case C2_RIT_BORROW:
+		rc = c2_rm_borrow_commit(rem_in);
+		break;
+	case C2_RIT_REVOKE:
+		rc = c2_rm_revoke_commit(rem_in);
+		break;
+	default:
+		C2_IMPOSSIBLE("Unrecognized RM request");
+		break;
+	}
+	/*
+	 * Override the rc.
+	 */
+	in->rin_rc = rc;
+}
+
+/*
+ * Not used by base-RM code yet.
+ * @todo Revisit during inspection.
+ */
+static void remote_incoming_conflict(struct c2_rm_incoming *in)
+{
+}
+
 /*
  * Generic RM request-FOM constructor.
  */
@@ -99,18 +147,18 @@ static int request_fom_create(enum c2_rm_incoming_type type,
 	if (rqfom == NULL)
 		return -ENOMEM;
 
-	/*
-	 * The loan may be consumed by c2_rm_borrow_commit() or
-	 * c2_rm_revoke_commit(). It's de-allocated otherwise by the FOM.
-	 */
-	C2_ALLOC_PTR(rqfom->rf_in.ri_loan);
-	if (rqfom->rf_in.ri_loan == NULL) {
-		c2_free(rqfom);
-		return -ENOMEM;
-	}
 
 	switch (type) {
 	case C2_RIT_BORROW:
+		/*
+		 * The loan may be consumed by c2_rm_borrow_commit().
+		 * It's de-allocated otherwise by the FOM.
+		 */
+		C2_ALLOC_PTR(rqfom->rf_in.ri_loan);
+		if (rqfom->rf_in.ri_loan == NULL) {
+			c2_free(rqfom);
+			return -ENOMEM;
+		}
 		fopt = &c2_fop_rm_borrow_rep_fopt;
 		fom_ops = &rm_fom_borrow_ops;
 		break;
@@ -172,7 +220,7 @@ static int reply_prepare(const enum c2_rm_incoming_type type,
 {
 	struct c2_fop_rm_borrow_rep  *bfop;
 	struct rm_request_fom        *rfom;
-	struct c2_cookie	      cookie;
+	struct c2_rm_loan	     *loan;
 	void			    **buf;
 	c2_bcount_t		     *buflen;
 	int			      rc = 0;
@@ -182,19 +230,24 @@ static int reply_prepare(const enum c2_rm_incoming_type type,
 	switch (type) {
 	case C2_RIT_BORROW:
 		bfop = c2_fop_data(fom->fo_rep_fop);
-		c2_rm_loan_cookie_get(rfom->rf_in.ri_loan, &cookie);
-		bfop->br_loan.lo_cookie.co_hi = cookie.cv.u_hi;
-		bfop->br_loan.lo_cookie.co_lo = cookie.cv.u_lo;
+		bfop->br_loan.lo_cookie.co_hi =
+		rfom->rf_in.ri_loan_cookie.cv.u_hi;
+		bfop->br_loan.lo_cookie.co_lo
+		= rfom->rf_in.ri_loan_cookie.cv.u_lo;
 
-		bfop->br_loan.lo_id = rfom->rf_in.ri_loan->rl_id;
+		/*
+		 * The loan is consumed by c2_rm_borrow_commit().
+		 * Get the loan pointer for processing reply from the cookie.
+		 */
+		loan = c2_rm_loan_find(&rfom->rf_in.ri_loan_cookie);
+		bfop->br_loan.lo_id = loan->rl_id;
 
 		buf = (void **)&bfop->br_right.ri_opaque.op_bytes;
 		buflen = &bfop->br_right.ri_opaque.op_nr;
 		/*
 		 * Memory for the function is allocated by the function.
 		 */
-		rc = c2_rm_rdatum2buf(&rfom->rf_in.ri_loan->rl_right,
-				      buf, buflen);
+		rc = c2_rm_rdatum2buf(&loan->rl_right, buf, buflen);
 		break;
 	default:
 		break;
@@ -236,7 +289,6 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 	struct c2_rm_incoming	    *in;
 	struct c2_rm_owner	    *owner;
 	struct rm_request_fom	    *rfom;
-	struct c2_rm_loan	    *loan;
 	enum c2_rm_incoming_policy   policy;
 	struct c2_cookie	    *ccookie;
 	struct c2_cookie	    *dcookie;
@@ -292,10 +344,10 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		lcookie->cv.u_lo = rfop->rr_loan.lo_cookie.co_lo;
 		/*
 		 * Check if the loan cookie stale. If the cookie is stale
-		 * don't do further processing.
+		 * don't proceed with the reovke processing.
 		 */
-		loan = c2_rm_loan_find(lcookie);
-		rc = loan ? 0: -EPROTO;
+		rfom->rf_in.ri_loan = c2_rm_loan_find(lcookie);
+		rc = rfom->rf_in.ri_loan ? 0: -EPROTO;
 		break;
 
 	default:
@@ -311,13 +363,16 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 	if (rc == 0) {
 		in = &rfom->rf_in.ri_incoming;
 		c2_rm_incoming_init(in, owner, type, policy, flags);
+		in->rin_ops = &remote_incoming_ops;
 		c2_rm_right_init(&in->rin_want, owner);
-		c2_rm_right_init(&rfom->rf_in.ri_loan->rl_right, owner);
 		rc = c2_rm_buf2rdatum(&in->rin_want, datum_buf, datum_len);
 		if (rc != 0) {
-			c2_rm_right_fini(&rfom->rf_in.ri_loan->rl_right);
 			c2_rm_right_fini(&in->rin_want);
-		}
+		} else
+			if (type == C2_RIT_BORROW)
+				c2_rm_right_init(&rfom->rf_in.ri_loan->rl_right,
+						 owner);
+			
 	}
 	return rc;
 }
@@ -344,7 +399,7 @@ static int request_pre_process(struct c2_fom *fom,
 		 * copying of datum fails.
 		 */
 		reply_err_set(type, fom, rc);
-		return C2_FOPH_SUCCESS;
+		return C2_FOPH_FAILURE;
 	}
 
 	in = &rfom->rf_in.ri_incoming;
@@ -358,6 +413,10 @@ static int request_pre_process(struct c2_fom *fom,
 	if (in->rin_state == RI_WAIT) {
 		c2_fom_wait_on(fom, &in->rin_signal, &fom->fo_cb);
 	}
+	/*
+	 * In case of failure, we go ahead with post processing to
+	 * prepare a reply.
+	 */
 	return C2_FSO_WAIT;
 }
 
@@ -365,44 +424,32 @@ static int request_post_process(struct c2_fom *fom)
 {
 	struct rm_request_fom *rfom;
 	struct c2_rm_incoming *in;
-	struct c2_rm_owner    *owner;
 	int		       rc;
 
 	C2_PRE(fom != NULL);
 
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 	in = &rfom->rf_in.ri_incoming;
-	owner = in->rin_want.ri_owner;
 
-	C2_ASSERT(in->rin_state == RI_SUCCESS || in->rin_state == RI_FAILURE);
+	C2_ASSERT(C2_IN(in->rin_state, (RI_SUCCESS, RI_FAILURE)));
 
 	rc = in->rin_rc;
 	if (in->rin_state == RI_SUCCESS) {
 		C2_ASSERT(rc == 0);
-
 		rc = reply_prepare(in->rin_type, fom);
-
-		c2_mutex_lock(&owner->ro_lock);
-		switch (in->rin_type) {
-		case C2_RIT_BORROW:
-			rc = rc ?: c2_rm_borrow_commit(&rfom->rf_in);
-			break;
-		case C2_RIT_REVOKE:
-			rc = rc ?: c2_rm_revoke_commit(&rfom->rf_in);
-			break;
-		default:
-			C2_IMPOSSIBLE("Unrecognized RM request");
-			break;
-		}
-		c2_mutex_unlock(&owner->ro_lock);
 		c2_rm_right_put(in);
-	}
+	} else
+		/*
+		 * This will happen if request fails for a valid loan.
+		 * We should not free up the loan in this case.
+		 */
+		if (in->rin_type == C2_RIT_REVOKE)
+			rfom->rf_in.ri_loan = NULL;
 
 	reply_err_set(in->rin_type, fom, rc);
-	c2_rm_right_fini(&rfom->rf_in.ri_loan->rl_right);
 	c2_rm_right_fini(&in->rin_want);
 
-	return C2_FOPH_SUCCESS;
+	return rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
 }
 
 /**
@@ -502,6 +549,8 @@ static void rm_revoke_fom_fini(struct c2_fom *fom)
 {
 	request_fom_fini(fom);
 }
+
+/** @} */
 
 /**
  *  Local variables:

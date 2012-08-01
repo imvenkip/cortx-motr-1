@@ -31,8 +31,8 @@
 #include "fop/fop_format.h"
 
 /**
-  * RM:fop opcodes are defined here
-  */
+ * RM:fop opcodes are defined here
+ */
 enum c2_rm_fop_opcodes {
 	C2_RM_FOP_BORROW = 51,
 	C2_RM_FOP_BORROW_REPLY,
@@ -42,12 +42,18 @@ enum c2_rm_fop_opcodes {
 };
 
 /**
-  * Externs
-  */
+ * Externs
+ */
 extern struct c2_fop_type c2_fop_rm_borrow_fopt;
 extern struct c2_fop_type c2_fop_rm_borrow_rep_fopt;
 extern struct c2_fop_type c2_fop_rm_revoke_fopt;
 extern struct c2_fop_type c2_fop_rm_revoke_rep_fopt;
+
+/**
+ *
+ */
+int c2_rm_fop_init();
+void c2_rm_fop_fini();
 
 /* __COLIBRI_RM_FOPS_H__ */
 #endif

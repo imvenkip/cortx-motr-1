@@ -42,13 +42,13 @@
    These parts are used by the operation vectors (c2_rm_resource_ops,
    c2_rm_resource_type_ops and c2_rm_right_ops) provided by a resource type
    and called by the generic code. Type specific code, in turn, calls
-   generic entry-points described in the @@b Resource type interface
+   generic entry-points described in the @b Resource type interface
    section.
 
    In the documentation below, responsibilities of generic and type specific
    parts of the resource manager are delineated.
 
-   @@b Overview
+   @b Overview
 
    A resource (c2_rm_resource) is associated with various file system entities:
 
@@ -85,7 +85,7 @@
    See the documentation for individual resource management data-types and
    interfaces for more detailed description of their behaviour.
 
-   @@b Terminology.
+   @b Terminology.
 
    Various terms are used to described right ownership flow in a cluster.
 
@@ -109,7 +109,7 @@
 
    A debtor can voluntary return a loan. This is called a "cancel" operation.
 
-   @@b Concurrency control.</b>
+   @b Concurrency control.
 
    Generic resource manager makes no assumptions about threading model used by
    its callers. Generic resource data-structures and code are thread safe.
@@ -146,7 +146,7 @@
 
    Lock ordering: these locks do not nest.
 
-   @@b Liveness.</b>
+   @b Liveness.
 
    None of the resource manager structures, except for c2_rm_resource, require
    reference counting, because their liveness is strictly determined by the
@@ -171,13 +171,13 @@
    network by revoking the loans it sublet to and by retuning the loans it
    borrowed from other owners.
 
-   @@b Resource identification and location.</b>
+   @b Resource identification and location.
 
    @see c2_rm_remote
 
-   @@b Persistent state.</b>
+   @b Persistent state.
 
-   @@b Network protocol.</b>
+   @b Network protocol.
 
    @see https://docs.google.com/a/xyratex.com/Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfN2NiNXM1dHF3&hl=en
 
@@ -422,7 +422,7 @@ struct c2_rm_right_ops {
          */
         /** @{ */
         /**
-           @ret True, iff r0 can be intersects with r1.
+           @retval True, iff r0 can be intersects with r1.
 	    Rights intersect when there is some usage authorised by right r0 and
 	    by right r1.
 
@@ -442,12 +442,13 @@ struct c2_rm_right_ops {
         bool (*rro_intersects) (const struct c2_rm_right *r0,
                                 const struct c2_rm_right *r1);
         /**
-           @ret True, iff r0 can be joined with r1.
+           @retval True, iff r0 can be joined with r1. If r0 can be joined
+                with r1, destructively updates r0.
 	 */
-        bool (*rro_join) (const struct c2_rm_right *r0,
+        bool (*rro_join) (struct c2_rm_right *r0,
                           const struct c2_rm_right *r1);
 	/**
-           @ret True, iff r0 can be conflicts with r1.
+           @retval True, iff r0 can be conflicts with r1.
 	    Rights conflict iff one of them authorises a usage incompatible with
 	    another.
 
@@ -903,7 +904,8 @@ enum c2_rm_incoming_state {
 	/** Request cannot be fulfilled. */
 	RI_FAILURE,
 	/** Has to wait for some future event, like outgoing request completion
-	    or release of a locally held usage right. */
+	    or release of a locally held usage right.
+	 */
 	RI_WAIT
 };
 
@@ -1267,7 +1269,7 @@ enum c2_rm_pin_flags {
    incoming requests and rights: an incoming request has a list of pins "from"
    it and a right has a list of pins "to" it. A typical use case is as follows:
 
-   @@b Protection.</b>
+   @b Protection.
 
    While a right is actively used, it cannot be revoked. For example, while file
    write is going on, the right to write in the target file extent must be
@@ -1278,7 +1280,7 @@ enum c2_rm_pin_flags {
    c2_rm_right_get()). This pin is removed by the call to
    c2_rm_right_put(). Multiple incoming requests can pin the same right.
 
-   @@b Tracking.</b>
+   @b Tracking.
 
    An incoming request with a RIF_LOCAL_WAIT flag might need to wait until a
    conflicting pinned right becomes unpinned. To this end, an C2_RPF_TRACK pin
@@ -1296,7 +1298,7 @@ enum c2_rm_pin_flags {
    same outgoing request. When the outgoing request completes, the incoming
    requests waiting for it are checked as above.
 
-   @@b Barrier.</b>
+   @b Barrier.
 
    Not currently used. The idea is to avoid live-locks and guarantee progress of
    incoming request processing by pinning the rights with a C2_RPF_BARRIER pin.
@@ -1437,8 +1439,8 @@ int c2_rm_owner_selfadd(struct c2_rm_owner *owner, struct c2_rm_right *r);
    @pre owner->ro_state == ROS_ACTIVE || ROS_FINALISING
    @see c2_rm_owner_fini
 
-   @ret -EBUSY - If rights are under use.
-        0      - If all rights are finalised.
+   @retval -EBUSY - If rights are under use.
+           0      - If all rights are finalised.
  */
 int c2_rm_owner_retire(struct c2_rm_owner *owner);
 
@@ -1456,43 +1458,56 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner);
 void c2_rm_owner_fini(struct c2_rm_owner *owner);
 
 /**
-   Initialises generic fields in @right.
+   Initialises generic fields in struct c2_rm_right.
 
    This is called by generic RM code to initialise an empty right of any
    resource type and by resource type specific code to initialise generic fields
-   of a right structure being created.
+   of a struct c2_rm_right.
 
    This function calls c2_rm_resource_ops::rop_right_init().
  */
 void c2_rm_right_init(struct c2_rm_right *right, struct c2_rm_owner *owner);
 /**
-   Finalised generic fields in @right. Dual to c2_rm_right_init().
+   Finalised generic fields in struct c2_rm_right. Dual to c2_rm_right_init().
  */
 void c2_rm_right_fini(struct c2_rm_right *right);
 
 /**
-   Initialises the fields of @in.
-
+   Initialises the fields of for incoming structure.
    This creates an incoming request with an empty c2_rm_incoming::rin_want
    right.
+
+   @param in - incoming right request structure
+   @param owner - for which incoming request is intended.
+   @param type - incoming request type
+   @param policy - applicable policy
+   @param flags - type of request (borrow, revoke, local)
+   @see c2_rm_incoming_fini
  */
 void c2_rm_incoming_init(struct c2_rm_incoming *in, struct c2_rm_owner *owner,
 			 enum c2_rm_incoming_type type,
 			 enum c2_rm_incoming_policy policy, uint64_t flags);
 
 /**
-   Finalises the fields of @in. Dual to c2_rm_incoming_init().
+   Finalises the fields of
+   @param in
+   @see Dual to c2_rm_incoming_init().
  */
 void c2_rm_incoming_fini(struct c2_rm_incoming *in);
 
 /**
-   Initialises the fields of @rem.
+   Initialises the fields of remote owner.
+   @param rem
+   @param res - Resource for which proxy is obtained.
+   @see c2_rm_remote_fini
  */
 void c2_rm_remote_init(struct c2_rm_remote *rem, struct c2_rm_resource *res);
 
 /**
-   Finalises the fields of @rem. Dual to c2_rm_remote_init().
+   Finalises the fields of remote owner.
 
+   @param rem
+   @see c2_rm_remote_init
    @pre rem->rem_state == REM_INITIALIZED ||
         rem->rem_state == REM_SERVICE_LOCATED ||
 	rem->rem_state == REM_OWNER_LOCATED
@@ -1512,7 +1527,8 @@ void c2_rm_remote_fini(struct c2_rm_remote *rem);
 void c2_rm_right_get(struct c2_rm_incoming *in);
 
 /**
-   Waits until @in enters RI_SUCCESS or RI_FAILURE state or deadline expires.
+   Waits until incoming enters RI_SUCCESS or RI_FAILURE state or
+   deadline expires.
 
    @post ergo(result == 0, in->rin_state == RI_SUCCESS ||
                            in->rin_state == RU_FAILURE)
@@ -1538,15 +1554,17 @@ int c2_rm_rdatum2buf(struct c2_rm_right *right, void **buf,
 int c2_rm_buf2rdatum(struct c2_rm_right *right, void *buf, c2_bcount_t bytesnr);
 
 /**
-   Releases the right pinned by @in.
+   Releases the right pinned by struct c2_rm_incoming.
 
    @pre in->rin_state == RI_SUCCESS
    @post c2_tlist_empty(&in->rin_pins)
  */
 void c2_rm_right_put(struct c2_rm_incoming *in);
 
+/** @} */
+
 /**
-   @name Resource manager networking
+   @defgroup Resource manager networking
  */
 /** @{ */
 
@@ -1575,8 +1593,6 @@ void c2_rm_remote_service_set(struct c2_rm_remote *rem,
 void c2_rm_remote_owner_set(struct c2_rm_remote *rem, uint64_t id);
 
 /** @} end of Resource manager networking */
-
-/** @} end of rm group */
 
 /* __COLIBRI_RM_RM_H__ */
 #endif

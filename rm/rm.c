@@ -32,7 +32,6 @@
  */
 uint64_t node_gencount;
 struct owner_invariant_state;
-extern void c2_cookie_copy(struct c2_cookie *dst, const struct c2_cookie *src);
 extern int c2_cookie_remote_build(void *obj_ptr, struct c2_cookie *out);
 extern int c2_cookie_dereference(const struct c2_cookie *cookie, void **out);
 
@@ -98,11 +97,11 @@ C2_TL_DESCR_DEFINE(res, "resources", , struct c2_rm_resource,
 		   0xc1a551ca15eedbed /* classical seedbed */);
 C2_TL_DEFINE(res, , struct c2_rm_resource);
 
-C2_TL_DESCR_DEFINE(ur, "usage rights", , struct c2_rm_right,
+C2_TL_DESCR_DEFINE(c2_rm_ur, "usage rights", , struct c2_rm_right,
 		   ri_linkage, ri_magix,
 		   0xc0a1faceba5111ca /* coalface basilica */,
 		   0xca11ab1e5111c1de /* callable silicide */);
-C2_TL_DEFINE(ur, , struct c2_rm_right);
+C2_TL_DEFINE(c2_rm_ur, , struct c2_rm_right);
 
 enum {
 	PIN_MAGIX = 0xD15CA1CED0551C1E /* discalced ossicle */
@@ -259,9 +258,9 @@ static void owner_init_internal(struct c2_rm_owner *owner,
 	owner->ro_state = ROS_INITIALISING;
 	owner->ro_group = NULL;
 
-	ur_tlist_init(&owner->ro_borrowed);
-	ur_tlist_init(&owner->ro_sublet);
-	RM_OWNER_LISTS_FOR(owner, ur_tlist_init);
+	c2_rm_ur_tlist_init(&owner->ro_borrowed);
+	c2_rm_ur_tlist_init(&owner->ro_sublet);
+	RM_OWNER_LISTS_FOR(owner, c2_rm_ur_tlist_init);
 	c2_mutex_init(&owner->ro_lock);
 
 	resource_get(res);
@@ -287,8 +286,9 @@ C2_EXPORTED(c2_rm_owner_init);
 
 int c2_rm_owner_selfadd(struct c2_rm_owner *owner, struct c2_rm_right *r)
 {
-	struct c2_rm_loan *nominal_capital;
-	int                rc;
+	struct c2_rm_right *right_transfer;
+	struct c2_rm_loan  *nominal_capital;
+	int                 rc;
 
 	C2_PRE(C2_IN(owner->ro_state, (ROS_INITIALISING, ROS_ACTIVE)));
 	C2_PRE(r != NULL);
@@ -298,20 +298,35 @@ int c2_rm_owner_selfadd(struct c2_rm_owner *owner, struct c2_rm_right *r)
 
 	C2_ALLOC_PTR(nominal_capital);
 	if (nominal_capital != NULL) {
-		rc = c2_rm_loan_init(nominal_capital, r);
-		if (rc == 0) {
-			ur_tlist_add(&owner->ro_owned[OWOS_CACHED], r);
-			/* Add self-loan to the borrowed list. */
-			ur_tlist_add(&owner->ro_borrowed,
-				     &nominal_capital->rl_right);
-		} else
+		/*
+		 * Immediately transfer the rights. Otherwise owner will not
+		 * be balanced.
+		 */
+		C2_ALLOC_PTR(right_transfer);
+		if (right_transfer == NULL) {
 			c2_free(nominal_capital);
+			return -ENOMEM;
+		}
+		c2_rm_right_init(right_transfer, owner);
+		rc = right_copy(right_transfer, r);
+		rc = rc ?: c2_rm_loan_init(nominal_capital, r);
+		if (rc == 0) {
+			nominal_capital->rl_id = C2_RM_LOAN_SELF_ID;
+			/* Add capital to the borrowed list. */
+			c2_rm_ur_tlist_add(&owner->ro_borrowed,
+					   &nominal_capital->rl_right);
+			/* Add right transfer to the CACHED list. */
+			c2_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
+					   right_transfer);
+		} else {
+			c2_free(nominal_capital);
+			c2_free(right_transfer);
+		}
 	} else
 		rc = -ENOMEM;
 
 	C2_POST(ergo(rc == 0,
 		     C2_IN(owner->ro_state, (ROS_INITIALISING, ROS_ACTIVE)) &&
-		     ur_tlist_contains(&owner->ro_owned[OWOS_CACHED], r) &&
 		     owner_invariant(owner)));
 	return rc;
 }
@@ -325,7 +340,7 @@ static bool owner_busy(struct c2_rm_owner *owner)
 
 	for (i = 0; i < C2_RM_REQUEST_PRIORITY_NR; ++i)
 		for (j = 0; j < OQS_NR; ++j)
-			if (!ur_tlist_is_empty(&owner->ro_incoming[i][j])) {
+			if (!c2_rm_ur_tlist_is_empty(&owner->ro_incoming[i][j])) {
 				rc = true;
 				break;
 			}
@@ -368,7 +383,8 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 	 */
 	c2_rm_incoming_init(&in, owner, C2_RIT_REVOKE,
 			    RIP_NONE, RIF_MAY_REVOKE);
-	c2_tlist_for(&ur_tl, &owner->ro_sublet, right) {
+	in.rin_priority = 0;
+	c2_tlist_for(&c2_rm_ur_tl, &owner->ro_sublet, right) {
 		/**
 		 * This is convoluted. Now that user incoming requests have
 		 * drained, we add our incoming requests for REVOKE and CANCEL
@@ -381,25 +397,29 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 		rc = right_copy(&in.rin_want, right);
 		if (rc != 0)
 			return rc;
-		ur_tlist_add(&owner->ro_incoming[C2_RM_REQUEST_PRIORITY_NR - 1]\
+		c2_mutex_lock(&owner->ro_lock);
+		c2_rm_ur_tlist_add(&owner->ro_incoming[C2_RM_REQUEST_PRIORITY_NR - 1]\
 						[OQS_EXCITED],
 			     &in.rin_want);
 		owner_balance(owner);
+		c2_mutex_unlock(&owner->ro_lock);
 		c2_rm_right_timedwait(&in, 0);
 		if (in.rin_state == RI_FAILURE)
 			return in.rin_rc;
+		c2_rm_ur_tlink_del_fini(right);
 	} c2_tlist_endfor;
 
 	for (i = 0; i < ARRAY_SIZE(owner->ro_owned); ++i) {
-		c2_tlist_for(&ur_tl, &owner->ro_owned[i], right) {
-			ur_tlink_del_fini(right);
+		c2_tlist_for(&c2_rm_ur_tl, &owner->ro_owned[i], right) {
+			c2_rm_ur_tlink_del_fini(right);
+			c2_free(right);
 		} c2_tlist_endfor;
 	}
 
-	c2_tlist_for(&ur_tl, &owner->ro_borrowed, right) {
+	c2_tlist_for(&c2_rm_ur_tl, &owner->ro_borrowed, right) {
 		loan = container_of(right, struct c2_rm_loan, rl_right);
 		if (loan->rl_id == C2_RM_LOAN_SELF_ID) {
-			ur_tlink_del_fini(right);
+			c2_rm_ur_tlink_del_fini(right);
 			c2_free(loan);
 		} else {
 			/* @todo - pending cancel implementation */
@@ -423,7 +443,7 @@ void c2_rm_owner_fini(struct c2_rm_owner *owner)
 	C2_PRE(owner_invariant(owner));
 	C2_PRE(owner->ro_creditor == NULL);
 
-	RM_OWNER_LISTS_FOR(owner, ur_tlist_fini);
+	RM_OWNER_LISTS_FOR(owner, c2_rm_ur_tlist_fini);
 	owner->ro_resource = NULL;
 	c2_mutex_fini(&owner->ro_lock);
 
@@ -438,7 +458,7 @@ void c2_rm_right_init(struct c2_rm_right *right, struct c2_rm_owner *owner)
 	C2_PRE(owner->ro_resource->r_ops->rop_right_init != NULL);
 
 	right->ri_datum = 0;
-	ur_tlink_init(right);
+	c2_rm_ur_tlink_init(right);
 	pr_tlist_init(&right->ri_pins);
 	right->ri_owner = owner;
 	owner->ro_resource->r_ops->rop_right_init(owner->ro_resource, right);
@@ -449,7 +469,9 @@ C2_EXPORTED(c2_rm_right_init);
 
 void c2_rm_right_fini(struct c2_rm_right *right)
 {
-	ur_tlink_fini(right);
+	C2_PRE(right != NULL);
+
+	c2_rm_ur_tlink_fini(right);
 	pr_tlist_fini(&right->ri_pins);
 	right->ri_ops->rro_free(right);
 }
@@ -475,7 +497,7 @@ C2_EXPORTED(c2_rm_incoming_init);
 
 void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 {
-	C2_PRE(C2_IN(in->rin_state, (RI_SUCCESS, RI_FAILURE)));
+	C2_PRE(in->rin_state == 0);
 	C2_PRE(incoming_invariant(in));
 
 	in->rin_rc = 0;
@@ -506,7 +528,7 @@ int c2_rm_loan_init(struct c2_rm_loan *loan,
 	C2_PRE(right != NULL);
 
 	loan->rl_other = right->ri_owner->ro_creditor;
-	loan->rl_id = C2_RM_LOAN_SELF_ID;
+	loan->rl_id = 0;
 	c2_cookie_remote_build(loan, &loan->rl_cookie);
 	c2_rm_right_init(&loan->rl_right, right->ri_owner);
 
@@ -527,6 +549,7 @@ C2_EXPORTED(c2_rm_remote_init);
 
 void c2_rm_remote_fini(struct c2_rm_remote *rem)
 {
+	C2_PRE(rem != NULL);
 	C2_PRE(C2_IN(rem->rem_state, (REM_INITIALISED,
 				      REM_SERVICE_LOCATED,
 				      REM_OWNER_LOCATED)));
@@ -536,42 +559,48 @@ void c2_rm_remote_fini(struct c2_rm_remote *rem)
 }
 C2_EXPORTED(c2_rm_remote_fini);
 
-static int rights_integrate(struct c2_rm_incoming *in,
-			    struct c2_rm_right *intg_right)
+/*
+ * Flush the OWOS_CAHCED rights. If the right(s) completely intersects the
+ * incoming right, remove it(them) from the cache. If the CAHCED right partly
+ * intersects with the incoming right, retain the difference in the CACHE.
+ */
+static int rights_integrate(struct c2_rm_incoming *in)
 {
 	struct c2_rm_pin   *pin;
 	struct c2_rm_right *right;
-	struct c2_rm_owner *owner  = in->rin_want.ri_owner;
+	struct c2_rm_owner *owner = in->rin_want.ri_owner;
 	int		    rc = 0;
 
 	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
 
-	/* Constructs a single cumulative right */
 	c2_tlist_for(&pi_tl, &in->rin_pins, pin) {
 		C2_ASSERT(pin->rp_flags == C2_RPF_PROTECT);
 		right = pin->rp_right;
-		rc = right->ri_ops->rro_join(intg_right, right);
-		if (rc != 0)
+		rc  = right_diff(right, &in->rin_want);
+		if (rc == 0) {
+			if (right_is_empty(right)) {
+				pin_del(pin);
+				c2_rm_ur_tlink_del_fini(right);
+				c2_rm_right_fini(right);
+				c2_free(right);
+			}
+			/* else retain the difference */
+		} else
 			break;
-	} c2_tlist_endfor;
 
-	if (rc == 0) {
-		c2_tlist_for(&pi_tl, &in->rin_pins, pin) {
-			right = pin->rp_right;
-			pin_del(pin);
-			ur_tlink_del_fini(right);
-			c2_rm_right_fini(right);
-			c2_free(right);
-		} c2_tlist_endfor;
-	}
+	} c2_tlist_endfor;
 
 	return rc;
 }
 
-int c2_rm_borrow_commit(struct c2_rm_remote_incoming *bor)
+/*
+ * Commit the remote borrow request. It will result in updates
+ * to various owner queues and lists.
+ */
+int c2_rm_borrow_commit(struct c2_rm_remote_incoming *rem_in)
 {
-	struct c2_rm_incoming *in     = &bor->ri_incoming;
-	struct c2_rm_loan     *loan   = bor->ri_loan;
+	struct c2_rm_incoming *in     = &rem_in->ri_incoming;
+	struct c2_rm_loan     *loan   = rem_in->ri_loan;
 	struct c2_rm_owner    *owner  = in->rin_want.ri_owner;
 	int                    rc;
 
@@ -580,87 +609,79 @@ int c2_rm_borrow_commit(struct c2_rm_remote_incoming *bor)
 	C2_PRE(in->rin_type == C2_RIT_BORROW);
 	C2_PRE(loan->rl_right.ri_owner == owner);
 
-	rc = rights_integrate(in, &loan->rl_right);
+	/*
+	 * Flush the rights cache and remove incoming rights from the cache.
+	 */
+	rc = rights_integrate(in);
+	rc = rc ?: c2_rm_loan_init(loan, &in->rin_want);
 	if (rc == 0) {
+		/*
+		 * Store the loan in the sublet list.
+		 */
 		C2_ALLOC_PTR(loan->rl_other);
 		if (loan->rl_other != NULL) {
 			c2_rm_remote_init(loan->rl_other, owner->ro_resource);
 			loan->rl_other->rem_state = REM_OWNER_LOCATED;
-			c2_cookie_copy(&loan->rl_other->rem_cookie,
-				       &bor->ri_owner_cookie);
-			ur_tlist_add(&owner->ro_sublet, &loan->rl_right);
-			bor->ri_loan = NULL;
+			loan->rl_other->rem_cookie = rem_in->ri_owner_cookie;
+			c2_rm_ur_tlist_add(&owner->ro_sublet, &loan->rl_right);
+			rem_in->ri_loan = NULL;
 		} else
 			rc = -ENOMEM;
 	}
 
+	/*
+	 * Store loan cookie for reply processing.
+	 */
+	c2_rm_loan_cookie_get(loan, &rem_in->ri_loan_cookie);
 	C2_POST(owner_invariant(owner));
 	return rc;
 }
 C2_EXPORTED(c2_rm_borrow_commit);
 
-int c2_rm_revoke_commit(struct c2_rm_remote_incoming *rvk)
+int c2_rm_revoke_commit(struct c2_rm_remote_incoming *rem_in)
 {
-	struct c2_rm_incoming *in     = &rvk->ri_incoming;
-	struct c2_rm_loan     *loan   = rvk->ri_loan;
-	struct c2_rm_loan     *old_loan;
+	struct c2_rm_incoming *in     = &rem_in->ri_incoming;
+	struct c2_rm_loan     *loan   = rem_in->ri_loan;
 	struct c2_rm_owner    *owner  = in->rin_want.ri_owner;
 	int                    rc;
-	struct c2_rm_right     brwd_right;
 
 	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
 	C2_PRE(in->rin_state == RI_SUCCESS);
 	C2_PRE(in->rin_type == C2_RIT_REVOKE);
 
-	c2_rm_right_init(&brwd_right, in->rin_want.ri_owner);
 	/*
-	 * Incoming revoke right may be a subset of the borrowed right.
-	 * The borrowed right might have been split on the local node.
-	 * Go through all the rights and contruct a cumulative right.
+	 * Flush the rights cache and remove incoming rights from the cache.
 	 */
-	rc = rights_integrate(in, &brwd_right);
+	rc = rights_integrate(in);
 
 	/*
-	 * Calculate the diff. If incoming right is subset of the borrowed
-	 * right, add the remaining (borrowed - incoming) back to the CACHED and
-	 * borrowed lists.
-	 * Delete the old loan. Add a new loan (with same loan id) for the
-	 * remainder of the rights, if any.
+	 * Earlier, FOM verifies stale cookie. Hence we expect
+	 * loan pointer to be valid here
 	 */
-	rc = rc ?: right_diff(&brwd_right, &loan->rl_right);
+	C2_ASSERT(loan != NULL);
+	C2_ASSERT(c2_rm_ur_tlink_is_in(&loan->rl_right));
+
+	/*
+	 * Check the difference between the borrowed rights and the revoke
+	 * rights. If the revoke fully intersects the previously borrowed right,
+	 * remove it from the list and FOM will take care of releasing the
+	 * memory.
+	 *
+	 * If it's a partial revoke, right_diff() will retain the remnant
+	 * borrowed right. In such case make, rem_in->ri_loan NULL so that
+	 * the loan memory is not released. rights_integrate() will leave
+	 * remant right in the CACHE.
+	 */
+	rc = right_diff(&loan->rl_right, &in->rin_want);
 	if (rc == 0) {
-		/*
-		 * Earlier, FOM verifies stale cookie. Hence we expect
-		 * cookie to be valid here.
-		 */
-		old_loan = c2_rm_loan_find(&rvk->ri_loan_cookie);
-		C2_ASSERT(old_loan != NULL);
-
-		if (!right_is_empty(&brwd_right)) {
-			rc = right_copy(&loan->rl_right, &brwd_right);
-			if (rc == 0) {
-				loan->rl_other = old_loan->rl_other;
-				loan->rl_id = old_loan->rl_id;
-				c2_cookie_copy(&loan->rl_cookie,
-					       &old_loan->rl_cookie);
-				ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
-					     &loan->rl_right);
-				ur_tlist_add(&owner->ro_borrowed,
-					     &loan->rl_right);
-				rvk->ri_loan = NULL;
-
-			}
-		} else {
-			c2_rm_remote_fini(old_loan->rl_other);
-			c2_free(old_loan->rl_other);
-		}
-		/* Release the old loan */
-		ur_tlist_del(&old_loan->rl_right);
-		c2_rm_right_fini(&old_loan->rl_right);
-		c2_free(old_loan);
+		if (right_is_empty(&loan->rl_right)) {
+			c2_rm_ur_tlist_del(&loan->rl_right);
+			c2_rm_remote_fini(loan->rl_other);
+			c2_free(loan->rl_other);
+		} else
+			rem_in->ri_loan = NULL;
 	}
 
-	c2_rm_right_fini(&brwd_right);
 	C2_POST(owner_invariant(owner));
 	return rc;
 }
@@ -728,7 +749,7 @@ void c2_rm_right_get(struct c2_rm_incoming *in)
 		 * Mark incoming request "excited". owner_balance() will
 		 * process it.
 		 */
-		ur_tlist_add(&owner->ro_incoming[in->rin_priority][OQS_EXCITED],
+		c2_rm_ur_tlist_add(&owner->ro_incoming[in->rin_priority][OQS_EXCITED],
 			     &in->rin_want);
 		owner_balance(owner);
 	} else {
@@ -747,7 +768,8 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
 
 	c2_mutex_lock(&owner->ro_lock);
 	incoming_release(in);
-	ur_tlist_del(&in->rin_want);
+	in->rin_state = 0;
+	c2_rm_ur_tlist_del(&in->rin_want);
 	C2_POST(pi_tlist_is_empty(&in->rin_pins));
 	c2_mutex_unlock(&owner->ro_lock);
 }
@@ -771,7 +793,7 @@ static void owner_balance(struct c2_rm_owner *o)
 	C2_PRE(c2_mutex_is_locked(&o->ro_lock));
 	do {
 		todo = false;
-		c2_tlist_for(&ur_tl, &o->ro_outgoing[OQS_EXCITED], right) {
+		c2_tlist_for(&c2_rm_ur_tl, &o->ro_outgoing[OQS_EXCITED], right) {
 			todo = true;
 			loan = container_of(right, struct c2_rm_loan, rl_right);
 			out = container_of(loan, struct c2_rm_outgoing,
@@ -789,10 +811,10 @@ static void owner_balance(struct c2_rm_owner *o)
 				pin->rp_incoming->rin_rc = out->rog_rc;
 				pin_del(pin);
 			} c2_tlist_endfor;
-			ur_tlink_del_fini(right);
+			c2_rm_ur_tlink_del_fini(right);
 		} c2_tlist_endfor;
 		for (prio = ARRAY_SIZE(o->ro_incoming) - 1; prio >= 0; --prio) {
-			c2_tlist_for(&ur_tl,
+			c2_tlist_for(&c2_rm_ur_tl,
 				     &o->ro_incoming[prio][OQS_EXCITED], right) {
 				todo = true;
 				in = container_of(right, struct c2_rm_incoming,
@@ -803,7 +825,7 @@ static void owner_balance(struct c2_rm_owner *o)
 				 * All waits completed, go to CHECK
 				 * state.
 				 */
-				ur_tlist_move(&o->ro_incoming[prio][OQS_GROUND],
+				c2_rm_ur_tlist_move(&o->ro_incoming[prio][OQS_GROUND],
 					      &in->rin_want);
 				in->rin_state = RI_CHECK;
 				incoming_check(in);
@@ -889,16 +911,17 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 	int		    rc = 0;
 
 	C2_PRE(c2_mutex_is_locked(&o->ro_lock));
-	C2_PRE(ur_tlist_contains(&o->ro_incoming[in->rin_priority][OQS_GROUND],
+	C2_PRE(c2_rm_ur_tlist_contains(&o->ro_incoming[in->rin_priority][OQS_GROUND],
 				 want));
 	C2_PRE(in->rin_state == RI_CHECK);
 	C2_PRE(pi_tlist_is_empty(&in->rin_pins));
 
 	/*
+	 * 1. Scan owned lists first.
 	 * Check for "local" wait conditions.
 	 */
 	for (i = 0; i < ARRAY_SIZE(o->ro_owned); ++i) {
-		c2_tlist_for(&ur_tl, &o->ro_owned[i], r) {
+		c2_tlist_for(&c2_rm_ur_tl, &o->ro_owned[i], r) {
 			if (!right_intersects(r, want))
 				continue;
 			if (i == OWOS_HELD && (in->rin_flags & RIF_LOCAL_WAIT) &&
@@ -913,8 +936,12 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 		} c2_tlist_endfor;
 	}
 
+	/*
+	 * 2. If the right cannot still be statified check against the
+	 *    sublet list.
+	 */
 	if (!right_is_empty(rest)) {
-		c2_tlist_for(&ur_tl, &o->ro_sublet, r) {
+		c2_tlist_for(&c2_rm_ur_tl, &o->ro_sublet, r) {
 			if (!right_intersects(r, rest))
 				continue;
 			if (!(in->rin_flags & RIF_MAY_REVOKE))
@@ -936,6 +963,10 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 		} c2_tlist_endfor;
 	}
 
+	/*
+	 * 3. If the right still cannot be statified check if it's possible
+	 *    borrow further right.
+	 */
 	if (!right_is_empty(rest)) {
 		if (o->ro_creditor != NULL) {
 			if (!(in->rin_flags & RIF_MAY_BORROW))
@@ -960,8 +991,8 @@ void c2_rm_outgoing_complete(struct c2_rm_outgoing *og)
 	C2_PRE(og != NULL);
 
 	owner = og->rog_owner;
-	ur_tlist_move(&owner->ro_outgoing[OQS_EXCITED],
-		      &og->rog_want->rl_right);
+	c2_rm_ur_tlist_move(&owner->ro_outgoing[OQS_EXCITED],
+			    &og->rog_want->rl_right);
 	owner_balance(owner);
 }
 
@@ -984,7 +1015,7 @@ static void incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 	in->rin_state = rc == 0 ? RI_SUCCESS : RI_FAILURE;
 	if (rc != 0) {
 		incoming_release(in);
-		ur_tlist_del(&in->rin_want);
+		c2_rm_ur_tlist_del(&in->rin_want);
 		C2_POST(pi_tlist_is_empty(&in->rin_pins));
 	} else {
 		/*
@@ -995,7 +1026,7 @@ static void incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 		/**
 		 * @todo : Who moves the right to OWOS_HELD?
 		 */
-		ur_tlist_move(&in->rin_want.ri_owner->ro_incoming\
+		c2_rm_ur_tlist_move(&in->rin_want.ri_owner->ro_incoming\
 				[in->rin_priority][OQS_GROUND],
 			      &in->rin_want);
 		in->rin_ops->rio_complete(in, rc);
@@ -1045,7 +1076,7 @@ static int outgoing_check(struct c2_rm_incoming *in,
 	struct c2_rm_outgoing *out;
 
 	for (i = 0; i < ARRAY_SIZE(owner->ro_outgoing); ++i) {
-		c2_tlist_for(&ur_tl, &owner->ro_outgoing[i], scan) {
+		c2_tlist_for(&c2_rm_ur_tl, &owner->ro_outgoing[i], scan) {
 			loan = container_of(scan, struct c2_rm_loan, rl_right);
 			out = container_of(loan, struct c2_rm_outgoing,
 					   rog_want);
@@ -1251,7 +1282,7 @@ static bool owner_invariant_state(const struct c2_rm_owner *owner,
 	  Iterate over all rights lists:
 
 	      - checking their consistency as double-linked lists
-                (ur_tlist_invariant_ext());
+                (c2_rm_ur_tlist_invariant_ext());
 
 	      - making additional consistency checks:
 
@@ -1263,46 +1294,49 @@ static bool owner_invariant_state(const struct c2_rm_owner *owner,
 	      - accumulating total credit and debit.
 	*/
 	is->is_phase = OIS_BORROWED;
-	if (!ur_tlist_invariant_ext(&owner->ro_borrowed, &right_invariant, (void *)is))
+	if (!c2_rm_ur_tlist_invariant_ext(&owner->ro_borrowed, &right_invariant, (void *)is))
 		return false;
 	is->is_phase = OIS_SUBLET;
-	if (!ur_tlist_invariant_ext(&owner->ro_sublet,   &right_invariant, (void *)is))
+	if (!c2_rm_ur_tlist_invariant_ext(&owner->ro_sublet,   &right_invariant, (void *)is))
 		return false;
 	is->is_phase = OIS_OUTGOING;
-	if (!ur_tlist_invariant_ext(&owner->ro_outgoing[0], &right_invariant, (void *)is))
+	if (!c2_rm_ur_tlist_invariant_ext(&owner->ro_outgoing[0], &right_invariant, (void *)is))
 		return false;
 
 	is->is_phase = OIS_OWNED;
 	for (i = 0; i < ARRAY_SIZE(owner->ro_owned); ++i) {
 		is->is_owned_idx = i;
-		if (!ur_tlist_invariant_ext(&owner->ro_owned[i],
+		if (!c2_rm_ur_tlist_invariant_ext(&owner->ro_owned[i],
 					   &right_invariant, (void *)is))
 		    return false;
 	}
 	is->is_phase = OIS_INCOMING;
 	for (i = 0; i < ARRAY_SIZE(owner->ro_incoming); ++i) {
 		for (j = 0; j < ARRAY_SIZE(owner->ro_incoming[i]); ++j) {
-			if (!ur_tlist_invariant(&owner->ro_incoming[i][j]))
+			if (!c2_rm_ur_tlist_invariant(&owner->ro_incoming[i][j]))
 				return false;
 		}
 	}
 
-	/* Calculate debit */
-	c2_tlist_for(&ur_tl, &owner->ro_borrowed, right) {
-		if(!right->ri_ops->rro_join(&is->is_debit, right))
-			return false;
-	} c2_tlist_endfor;
-
+	/*
+	 * @todo Revisit during inspection. It may not be possible to join
+	 *       all the rights. This will make this invariant very complicated.
+	 */
 	/* Calculate credit */
 	for (i = 0; i < ARRAY_SIZE(owner->ro_owned); ++i) {
-		is->is_owned_idx = i;
-		c2_tlist_for(&ur_tl, &owner->ro_owned[i], right) {
+		c2_tlist_for(&c2_rm_ur_tl, &owner->ro_owned[i], right) {
 			if(!right->ri_ops->rro_join(&is->is_credit, right))
 				return false;
 		} c2_tlist_endfor;
 	}
-	c2_tlist_for(&ur_tl, &owner->ro_sublet, right) {
-		if(right->ri_ops->rro_join(&is->is_credit, right))
+	c2_tlist_for(&c2_rm_ur_tl, &owner->ro_sublet, right) {
+		if(!right->ri_ops->rro_join(&is->is_credit, right))
+			return false;
+	} c2_tlist_endfor;
+
+	/* Calculate debit */
+	c2_tlist_for(&c2_rm_ur_tl, &owner->ro_borrowed, right) {
+		if(!right->ri_ops->rro_join(&is->is_debit, right))
 			return false;
 	} c2_tlist_endfor;
 
@@ -1423,13 +1457,13 @@ static void pin_del(struct c2_rm_pin *pin)
 		/*
 		 * Last tracking pin removed, excite the request.
 		 */
-		ur_tlist_move(&owner->ro_incoming[in->rin_priority][OQS_EXCITED],
+		c2_rm_ur_tlist_move(&owner->ro_incoming[in->rin_priority][OQS_EXCITED],
 			      &in->rin_want);
 	c2_free(pin);
 }
 
 /**
-   Sticks a tracking pin on @right. When @right is released, the all incoming
+   Sticks a tracking pin on right. When right is released, the all incoming
    requests that stuck pins into it are notified.
  */
 int pin_add(struct c2_rm_incoming *in,
@@ -1701,6 +1735,9 @@ int c2_rm_rdatum2buf(struct c2_rm_right *right,
 
 	C2_PRE(buf != NULL);
 	C2_PRE(bytesnr != NULL);
+	C2_PRE(right->ri_ops != NULL);
+	C2_PRE(right->ri_ops->rro_len != NULL);
+	C2_PRE(right->ri_ops->rro_encode != NULL);
 
 	*bytesnr = right->ri_ops->rro_len(right);
 	*buf = c2_alloc(*bytesnr);
@@ -1716,6 +1753,9 @@ int c2_rm_buf2rdatum(struct c2_rm_right *right, void *buf, c2_bcount_t bytesnr)
 {
 	struct c2_bufvec	datum_buf = C2_BUFVEC_INIT_BUF(&buf, &bytesnr);
 	struct c2_bufvec_cursor cursor;
+
+	C2_PRE(right->ri_ops != NULL);
+	C2_PRE(right->ri_ops->rro_decode != NULL);
 
 	c2_bufvec_cursor_init(&cursor, &datum_buf);
 	return right->ri_ops->rro_decode(right, &cursor);

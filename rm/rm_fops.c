@@ -256,12 +256,12 @@ static void borrow_reply(struct c2_rpc_item *item)
 
 		c2_mutex_lock(&og->rog_owner->ro_lock);
 		/* Add loan to the borrowed list. */
-		ur_tlist_add(&og->rog_owner->ro_borrowed,
-			     &og->rog_want->rl_right);
+		c2_rm_ur_tlist_add(&og->rog_owner->ro_borrowed,
+				   &og->rog_want->rl_right);
 
 		/* Add loan to the CACHED list. */
-		ur_tlist_add(&og->rog_owner->ro_owned[OWOS_CACHED],
-			     &og->rog_want->rl_right);
+		c2_rm_ur_tlist_add(&og->rog_owner->ro_owned[OWOS_CACHED],
+				   &og->rog_want->rl_right);
 		og->rog_want = NULL;
 		c2_mutex_unlock(&og->rog_owner->ro_lock);
 	}
@@ -363,8 +363,8 @@ static void revoke_reply(struct c2_rpc_item *item)
 	if (og->rog_rc == 0) {
 		c2_mutex_lock(&og->rog_owner->ro_lock);
 		/* Move the loan from the sublet list to the CACHED list. */
-		ur_tlist_move(&og->rog_owner->ro_owned[OWOS_CACHED],
-			      &og->rog_want->rl_right);
+		c2_rm_ur_tlist_move(&og->rog_owner->ro_owned[OWOS_CACHED],
+				    &og->rog_want->rl_right);
 		og->rog_want = NULL;
 		c2_mutex_unlock(&og->rog_owner->ro_lock);
 	}
@@ -373,7 +373,6 @@ static void revoke_reply(struct c2_rpc_item *item)
 
 void c2_rm_fop_fini(void)
 {
-	c2_fop_object_fini();
 	c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
 	c2_fop_type_format_fini_nr(rm_fmts, ARRAY_SIZE(rm_fmts));
 }
@@ -395,14 +394,7 @@ int c2_rm_fop_init(void)
 	rc = c2_fop_type_format_parse_nr(rm_fmts, ARRAY_SIZE(rm_fmts));
 	if (rc == 0) {
 		rc = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
-		if (rc == 0) {
-			/* Initialize RM defined types */
-			c2_fop_object_init(&c2_fop_rm_cookie_tfmt);
-			c2_fop_object_init(&c2_fop_rm_opaque_tfmt);
-			c2_fop_object_init(&c2_fop_rm_owner_tfmt);
-			c2_fop_object_init(&c2_fop_rm_loan_tfmt);
-			c2_fop_object_init(&c2_fop_rm_right_tfmt);
-		} else
+		if (rc != 0)
 			c2_fop_type_format_fini_nr(rm_fmts,
 						   ARRAY_SIZE(rm_fmts));
 	}
@@ -414,17 +406,17 @@ C2_EXPORTED(c2_rm_fop_init);
 /*
  * @todo - Stubs. Remove later.
  */
-void c2_cookie_copy(struct c2_cookie *dst, const struct c2_cookie *src)
-{
-}
-
 int c2_cookie_remote_build(void *obj_ptr, struct c2_cookie *out)
 {
+	out->cv.u_hi = (uint64_t) obj_ptr;
 	return 0;
 }
 
 int c2_cookie_dereference(const struct c2_cookie *cookie, void **out)
 {
+	C2_PRE(out != NULL);
+
+	*out = (void *)cookie->cv.u_hi;
 	return 0;
 }
 

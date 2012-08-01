@@ -147,7 +147,7 @@ int c2_rm_revoke_out(struct c2_rm_incoming *in,
 		     struct c2_rm_loan *loan, struct c2_rm_right *right);
 
 /**
-   Initialises the fields of @out.
+   Initialises the fields of outgoing.
  */
 void c2_rm_outgoing_init(struct c2_rm_outgoing *out,
 			 enum c2_rm_outgoing_type type,
@@ -176,8 +176,8 @@ void c2_rm_outgoing_complete(struct c2_rm_outgoing *og);
 C2_TL_DESCR_DECLARE(res, extern);
 C2_TL_DECLARE(res, , struct c2_rm_resource);
 
-C2_TL_DESCR_DECLARE(ur, extern);
-C2_TL_DECLARE(ur, , struct c2_rm_right);
+C2_TL_DESCR_DECLARE(c2_rm_ur, extern);
+C2_TL_DECLARE(c2_rm_ur, , struct c2_rm_right);
 
 C2_TL_DESCR_DECLARE(pr, extern);
 C2_TL_DECLARE(pr, , struct c2_rm_pin);

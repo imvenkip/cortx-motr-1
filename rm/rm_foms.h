@@ -54,6 +54,8 @@ struct rm_request_fom {
 	struct c2_rm_remote_incoming rf_in;
 };
 
+/** @} */
+
 /* __COLIBRI_RM_FOMS_H__ */
 #endif
 
