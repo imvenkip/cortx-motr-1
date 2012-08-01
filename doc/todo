@@ -19,19 +19,19 @@ sub-team leads, contact them to add more things here.
             (nanoseconds since epoch). Replace calls to
             c2_time_{before,after,...}() with direct comparisons.
 
-2012-Jul-26 use gcc builtins __sync_fetch_and_add, ... for use-space
+2012-Jul-26 Use gcc builtins __sync_fetch_and_add, ... for use-space
             c2_atomic64. Check first, that this is supported by our target
             compiler version.
 
 2012-Jul-26 addb context should be embedded in reqh.
 
-2012-Jul-26 call c2_processors_init() in c2_init(). Get rid of explicit
+2012-Jul-26 Call c2_processors_init() in c2_init(). Get rid of explicit
             c2_processors_init() calls.
 
-2012-Jul-26 get rid of c2_fom::fo_fol, use fom->fo_loc->fl_dom->fd_reqh->rh_fol
+2012-Jul-26 Get rid of c2_fom::fo_fol, use fom->fo_loc->fl_dom->fd_reqh->rh_fol
             instead.
 
-2012-Jul-26 add lib/thread.h:c2_is_awkward(), implement in kernel and user
+2012-Jul-26 Add lib/thread.h:c2_is_awkward(), implement in kernel and user
             space. Tag code. c2_is_awkward() should return true iff the context
             is unsafe for blocking and locking (interrupt handler, signal
             handler, timer call-back, chan call-back, &c.). In kernel this is
@@ -40,9 +40,11 @@ sub-team leads, contact them to add more things here.
 
 2012-Jul-26 Use type-safe lists in fom.[ch].
 
-2012-Aug-01 replace all direct '#include "config.h" in *.[hc] files with a
-            '-include "config.h"' compiler option (probably should be added
-            to the CFLAGS in configure.ac).
+2012-Aug-01 -include "config.h"
+
+    Add `-include "config.h"' compiler option (possibly to CFLAGS of
+    configure.ac). Delete `#include "config.h"' directives from source
+    files; remove the corresponding stanza from doc/source-structure.
 
                           ***** IN-PROGRESS *****
 
