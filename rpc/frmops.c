@@ -80,7 +80,7 @@ struct rpc_buffer {
 	uint64_t               rb_magic;
 };
 
-static struct c2_bob_type rpc_buffer_bob_type = {
+static const struct c2_bob_type rpc_buffer_bob_type = {
 	.bt_name         = "rpc_buffer",
 	.bt_magix_offset = C2_MAGIX_OFFSET(struct rpc_buffer, rb_magic),
 	.bt_magix        = RPC_BUF_MAGIC,

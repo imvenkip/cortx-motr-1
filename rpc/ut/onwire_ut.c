@@ -53,21 +53,6 @@ struct c2_fop_type_ops onwire_test_ops = {
 	.fto_size_get = c2_xcode_fop_size_get,
 };
 
-size_t test_item_size_get(const struct c2_rpc_item *item)
-{
-	uint64_t	 len = 0;
-	struct c2_fop	*fop;
-
-	C2_UT_ASSERT(item != NULL);
-
-	fop = c2_rpc_item_to_fop(item);
-	if(fop != NULL)	{
-		len = fop->f_type->ft_ops->fto_size_get(fop);
-		len += ITEM_ONWIRE_HEADER_SIZE;
-	}
-	return (size_t)len;
-}
-
 C2_FOP_TYPE_DECLARE(c2_fop_onwire_test, "onwire test", &onwire_test_ops,
 		    C2_RPC_ONWIRE_UT_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
 

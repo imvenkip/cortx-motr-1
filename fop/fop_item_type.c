@@ -40,8 +40,8 @@ c2_bcount_t c2_fop_item_type_default_onwire_size(const struct c2_rpc_item *item)
 }
 
 int c2_fop_item_type_default_encode(struct c2_rpc_item_type *item_type,
-			      struct c2_rpc_item *item,
-			      struct c2_bufvec_cursor *cur)
+				    struct c2_rpc_item      *item,
+				    struct c2_bufvec_cursor *cur)
 {
 	int			rc;
 	uint32_t		opcode;
@@ -52,9 +52,8 @@ int c2_fop_item_type_default_encode(struct c2_rpc_item_type *item_type,
 	item_type = item->ri_type;
 	opcode = item_type->rit_opcode;
 	rc = c2_bufvec_uint32(cur, &opcode, C2_BUFVEC_ENCODE);
-	if(rc != 0)
-		return -EFAULT;
-	rc = item_encdec(cur, item, C2_BUFVEC_ENCODE);
+	if(rc == 0)
+		rc = item_encdec(cur, item, C2_BUFVEC_ENCODE);
 	return rc;
 }
 
