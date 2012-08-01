@@ -582,7 +582,7 @@ static void item_received(struct c2_rpc_item      *item,
 	item->ri_rpc_time = c2_time_now();
 
 	c2_rpc_machine_lock(machine);
-	/* NOTE: rpc_machine_lock is dropped and reaquired in
+	/* NOTE: rpc_machine_lock is dropped and reacquired in
 	   c2_rpc_item_received() code path */
 	c2_rpc_item_received(item, machine);
 	c2_rpc_machine_unlock(machine);
