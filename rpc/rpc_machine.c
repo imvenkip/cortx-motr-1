@@ -30,13 +30,12 @@
 #include "config.h"
 #endif
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
+#include "lib/trace.h"
 #include "lib/misc.h"
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/finject.h"       /* C2_FI_ENABLED */
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
-#include "lib/trace.h"
-
 #include "addb/addb.h"
 #include "net/net.h"
 #include "reqh/reqh.h"         /* c2_rpc_machine_bob.* :-( */

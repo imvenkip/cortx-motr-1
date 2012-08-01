@@ -148,50 +148,6 @@ void c2_rpc_packet_traverse_items(struct c2_rpc_packet *p,
 				  item_visit_fn        *visit,
 				  unsigned long         opaque_data);
 
-/** @deprecated */
-struct c2_rpc_frm_sm;
-
-/**
-   @deprecated
-   A magic constant to varify the sanity of c2_rpc_frm_buffer.
- */
-enum {
-	C2_RPC_FRM_BUFFER_MAGIC = 0x8135797531975313ULL,
-};
-
-/**
-   @deprecated
-   Formation attributes for an rpc.
- */
-struct c2_rpc_frm_buffer {
-	/** A magic constant to verify sanity of buffer. */
-	uint64_t		 fb_magic;
-	/** The c2_net_buffer on which callback will trigger. */
-	struct c2_net_buffer	 fb_buffer;
-	/** The associated fromation state machine. */
-	struct c2_rpc_frm_sm	*fb_frm_sm;
-};
-
-/**
-   @deprecated
-   c2_rpc is a container of c2_rpc_items.
- */
-struct c2_rpc {
-	/** Linkage into list of rpc objects just formed or into the list
-	    of rpc objects which are ready to be sent on wire. */
-	struct c2_list_link		 r_linkage;
-	/** List of member rpc items. */
-	struct c2_list			 r_items;
-	/** Items in this rpc are sent via this session. */
-	struct c2_rpc_session		*r_session;
-	/** Formation attributes (buffer, magic) for the rpc. */
-	struct c2_rpc_frm_buffer	 r_fbuf;
-};
-
-void c2_rpcobj_init(struct c2_rpc *rpc);
-
-void c2_rpcobj_fini(struct c2_rpc *rpc);
-
 #endif /* __COLIBRI_RPC_PACKET_H__ */
 
 /*

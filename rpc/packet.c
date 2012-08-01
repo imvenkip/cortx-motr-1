@@ -355,25 +355,6 @@ void c2_rpc_packet_traverse_items(struct c2_rpc_packet *p,
 	C2_LEAVE();
 }
 
-/** @deprecated */
-void c2_rpcobj_init(struct c2_rpc *rpc)
-{
-	C2_PRE(rpc != NULL);
-
-	c2_list_link_init(&rpc->r_linkage);
-	c2_list_init(&rpc->r_items);
-	rpc->r_session = NULL;
-	rpc->r_fbuf.fb_magic = C2_RPC_FRM_BUFFER_MAGIC;
-}
-
-/** @deprecated */
-void c2_rpcobj_fini(struct c2_rpc *rpc)
-{
-	rpc->r_session = NULL;
-	c2_list_fini(&rpc->r_items);
-	c2_list_link_fini(&rpc->r_linkage);
-}
-
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

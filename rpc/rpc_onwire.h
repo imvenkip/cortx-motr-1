@@ -56,37 +56,8 @@
 
 #include "xcode/bufvec_xcode.h"   /* enum c2_bufvec_what */
 
-/* Import */
-struct c2_rpc;
-
 enum {
 	C2_RPC_VERSION_1 = 1,
-};
-
-/** Header information present in an RPC object */
-struct c2_rpc_header {
-	/** RPC version, currently 1 */
-	uint32_t rh_ver;
-	/** No of items present in the RPC object */
-	uint32_t rh_item_count;
-};
-
-/**
-   Header information per rpc item in an rpc object. The detailed description
-   of the various fields is present in struct c2_rpc_item /rpc/rpc2.h.
-*/
-struct c2_rpc_item_header {
-	uint32_t			rih_opcode;
-	uint64_t			rih_item_size;
-	uint64_t			rih_sender_id;
-	uint64_t			rih_session_id;
-	uint32_t			rih_slot_id;
-	struct c2_rpc_sender_uuid	rih_uuid;
-	struct c2_verno			rih_verno;
-	struct c2_verno			rih_last_persistent_ver_no;
-	struct c2_verno			rih_last_seen_ver_no;
-	uint64_t			rih_xid;
-	uint64_t			rih_slot_gen;
 };
 
 /**
