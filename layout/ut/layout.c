@@ -397,6 +397,14 @@ static void test_reg_unreg_failure(void)
 	rc = c2_layout_enum_type_register(&t_domain, &c2_linear_enum_type);
 	C2_UT_ASSERT(rc == -503);
 
+	c2_fi_enable_once("list_register", "mem_err");
+	rc = c2_layout_enum_type_register(&t_domain, &c2_list_enum_type);
+	C2_UT_ASSERT(rc == -ENOMEM);
+
+	c2_fi_enable_once("list_register", "table_init_err");
+	rc = c2_layout_enum_type_register(&t_domain, &c2_list_enum_type);
+	C2_UT_ASSERT(rc == -EEXIST);
+
 	/*
 	 * Now cover all the error cases from
 	 * c2_layout_standard_types_register().

@@ -188,7 +188,7 @@ static int list_populate(struct c2_layout_list_enum *list_enum,
 	if (nr == 0) {
 		C2_LOG("list_enum %p, Invalid attributes (nr = 0), rc %d",
 		       list_enum, -EINVAL);
-		return -EINVAL; //todo EPROTO
+		return -EINVAL;
 	}
 	list_enum->lle_nr = nr;
 	list_enum->lle_list_of_cobs = cob_list;
@@ -276,15 +276,22 @@ static int list_register(struct c2_layout_domain *dom,
 	C2_PRE(dom->ld_type_data[et->let_id] == NULL);
 
 	C2_ENTRY("Enum_type_id %lu", (unsigned long)et->let_id);
+
+	if (C2_FI_ENABLED("mem_err")) { lsd = NULL; goto err1_injected; }
 	C2_ALLOC_PTR(lsd);
+err1_injected:
 	if (lsd == NULL) {
 		c2_layout__log("list_register", "C2_ALLOC_PTR() failed",
 			       &c2_addb_oom, &layout_global_ctx, LID_NONE,
 			       -ENOMEM);
 		return -ENOMEM;
 	}
+
+	if (C2_FI_ENABLED("table_init_err"))
+		{ rc = -EEXIST; goto err2_injected; }
 	rc = c2_table_init(&lsd->lsd_cob_lists, dom->ld_dbenv,
 			   "cob_lists", DEFAULT_DB_FLAG, &cob_lists_table_ops);
+err2_injected:
 	if (rc == 0)
 		dom->ld_type_data[et->let_id] = lsd;
 	else {
