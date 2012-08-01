@@ -470,9 +470,11 @@ static int pdclust_l_build(uint64_t lid, uint32_t N, uint32_t K, uint32_t P,
 	attr.pa_P         = P;
 	attr.pa_unit_size = UNIT_SIZE;
 	attr.pa_seed      = *seed;
+
+	if (C2_FI_ENABLED("attr_err")) { attr.pa_P = 1; }
 	rc = c2_pdclust_build(&domain, lid, &attr, le, pl);
 	if (failure_test)
-		C2_UT_ASSERT(rc == -ENOMEM);
+		C2_UT_ASSERT(rc == -ENOMEM || rc == -EINVAL);
 	else {
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(list_lookup(lid) == &(*pl)->pl_base.sl_base);
@@ -543,7 +545,7 @@ static int pdclust_layout_build(uint32_t enum_id,
 	 */
 	rc = pdclust_l_build(lid, N, K, P, seed, e, pl, failure_test);
 	if (failure_test) {
-		C2_UT_ASSERT(rc == -ENOMEM);
+		C2_UT_ASSERT(rc == -ENOMEM || rc == -EINVAL);
 		e->le_ops->leo_fini(e);
 		return rc;
 	}
@@ -739,7 +741,6 @@ static int test_build_pdclust(uint32_t enum_id, uint64_t lid,
 		pdclust_layout_verify(enum_id, &pl->pl_base.sl_base, lid,
 				      N, K, P, &seed,
 				      10, 20);
-
 		/*
 		 * Delete the layout object by reducing the reference that
 		 * c2_layout_find() has acquired on it.
@@ -823,10 +824,20 @@ static void test_build_failure(void)
 	C2_UT_ASSERT(rc == -ENOMEM);
 
 	/*
-	 * Simulate memory allocation failure in linear_allocate() that is
+	 * Simulate invalid attributes error in pdclust_populate() that is
 	 * in the path of c2_pdclust_build().
 	 */
 	lid = 1007;
+	c2_fi_enable_once("pdclust_l_build", "attr_err");
+	rc = test_build_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
+				FAILURE_TEST);
+	C2_UT_ASSERT(rc == -EINVAL);
+
+	/*
+	 * Simulate memory allocation failure in linear_allocate() that is
+	 * in the path of c2_pdclust_build().
+	 */
+	lid = 1008;
 	c2_fi_enable_once("list_allocate", "mem_err");
 	rc = test_build_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				FAILURE_TEST);
@@ -836,34 +847,32 @@ static void test_build_failure(void)
 	 * Simulate memory allocation failure in linear_allocate() that is
 	 * in the path of c2_pdclust_build().
 	 */
-	lid = 1008;
+	lid = 1009;
 	c2_fi_enable_once("linear_allocate", "mem_err");
 	rc = test_build_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
 				FAILURE_TEST);
 	C2_UT_ASSERT(rc == -ENOMEM);
 
 	/* Simulate attributes invalid error in c2_list_enum_build(). */
-	lid = 1009;
+	lid = 1010;
 	c2_fi_enable_once("pdclust_layout_build", "list_attr_err");
 	rc = test_build_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				FAILURE_TEST);
 	C2_UT_ASSERT(rc == -EINVAL);
 
 	/* Simulate attributes invalid error in c2_linear_enum_build(). */
-	lid = 1010;
+	lid = 1011;
 	c2_fi_enable_once("pdclust_layout_build", "lin_attr_err");
 	rc = test_build_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
 				FAILURE_TEST);
 	C2_UT_ASSERT(rc == -EINVAL);
 
 	/* Simulate fid invalid error in c2_list_enum_build(). */
-	lid = 1011;
+	lid = 1012;
 	c2_fi_enable_once("c2_list_enum_build", "fid_invalid_err");
 	rc = test_build_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				FAILURE_TEST);
 	C2_UT_ASSERT(rc == -EPROTO);
-
-
 }
 
 
@@ -2430,6 +2439,17 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 				  !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
+	/* Verify some pdclust APIs. */
+	C2_UT_ASSERT(c2_pdclust_N(pl) == N);
+	C2_UT_ASSERT(c2_pdclust_K(pl) == K);
+	C2_UT_ASSERT(c2_pdclust_P(pl) == P);
+	C2_UT_ASSERT(c2_pdclust_unit_size(pl) == UNIT_SIZE);
+
+	C2_UT_ASSERT(c2_pdclust_unit_classify(pl, N - 1) == C2_PUT_DATA);
+	C2_UT_ASSERT(c2_pdclust_unit_classify(pl, N) == C2_PUT_PARITY);
+	C2_UT_ASSERT(c2_pdclust_unit_classify(pl, N + 2 * K ) == C2_PUT_SPARE);
+
+	/* Build pdclust instance. */
 	c2_fid_set(&gfid, 0, 999);
 	rc = c2_pdclust_instance_build(pl, &gfid, &pi);
 	C2_UT_ASSERT(rc == 0);
