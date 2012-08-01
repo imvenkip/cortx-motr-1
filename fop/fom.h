@@ -234,6 +234,7 @@ struct c2_fom_domain_ops {
  */
 enum c2_fom_state {
 	C2_FOS_INIT,
+	C2_FOS_QUEUE,
 	/**
 	 * Fom is in C2_FOS_READY state when it is on locality runq for
 	 * execution.
@@ -378,17 +379,6 @@ struct c2_fom_callback {
  * @see c2_fom_invariant()
  */
 struct c2_fom {
-	/**
-	 * State a fom can be in at any given instance throughout its life
-	 * cycle. This field is protected by
-	 * c2_fom_locality:fl_group.s_lock mutex, except in reqh handler thread,
-	 * when a fom is dequeued from locality runq list for execution.
-	 *
-	 * @see c2_fom_locality
-	 */
-	enum c2_fom_state	  fo_state;
-	/** FOM phase under execution */
-	int			  fo_phase;
 	/** Locality this fom belongs to */
 	struct c2_fom_locality	 *fo_loc;
 	struct c2_fom_type	 *fo_type;
@@ -418,12 +408,13 @@ struct c2_fom {
 	    while waiting for a longlock. */
 	unsigned		  fo_transitions_saved;
 
-	/** Result of fom execution, -errno on failure */
-	int32_t			 fo_rc;
 	/** State machine for generic and specfic FOM phases. */
 	struct c2_sm		 fo_sm_phase;
+	/** Next FOM phase to be executed */
+	int			 fo_phase;
 	/** State machine for FOM states. */
 	struct c2_sm		 fo_sm_state;
+	int32_t			 fo_rc;
 };
 
 /**
@@ -644,8 +635,8 @@ extern const struct c2_addb_ctx_type c2_fom_addb_ctx_type;
 C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, (name), (rc))
 
 /**
- * It transtions through both standard and specfic phases until -1 is returned
- * a state function.
+ * Transtions through both standard and specfic phases until -1 is returned
+ * by a state function.
  * Each state function needs to return either next phase fom->fo_phase or -1.
  *
  * @param fom file operation machine under execution
@@ -656,15 +647,15 @@ C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, (name),
 int c2_fom_state_generic(struct c2_fom *fom);
 
 /**
- * It initializes state machine in the FOM with C2_FOPH_SM_INIT state.
+ * Initializes state machine in the FOM with C2_FOPH_SM_INIT state.
  * @param fom file operation machine.
  * @pre c2_group_is_locked(fom)
  */
 void c2_fom_sm_init(struct c2_fom *fom);
 
 /**
- * It combines generic FOM phases and FOM specific phases and return
- * the resultant SM configuration in struct c2_fom_type::ft_conf.
+ * Combines standard and FOM specific phases and return
+ * the resultant state machine configuration in fom_type->ft_conf.
  * @param fom_type Fom type to be registered.
  */
 void c2_fom_type_register(struct c2_fom_type *fom_type);
@@ -676,6 +667,12 @@ extern const struct c2_sm_conf fom_conf;
  * associated with.
  */
 bool c2_fom_group_is_locked(const struct c2_fom *fom);
+
+static inline struct c2_fom* c2_sm2fom(const struct c2_sm *sm)
+{
+	C2_PRE(sm != NULL);
+	return container_of(sm, struct c2_fom, fo_sm_phase);
+}
 /** @} end of fom group */
 
 /* __COLIBRI_FOP_FOM_H__ */

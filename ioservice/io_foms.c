@@ -779,8 +779,6 @@ static void stobio_complete_cb(struct c2_fom_callback *cb)
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
 
-        C2_PRE(fom->fo_state == C2_FOS_WAITING);
-
         C2_CNT_DEC(fom_obj->fcrw_num_stobio_launched);
         if (fom_obj->fcrw_num_stobio_launched == 0)
                 c2_fom_wakeup(fom);

@@ -396,8 +396,7 @@ static int fom_queue_reply(struct c2_sm *mach)
         item = c2_fop_to_rpc_item(fom->fo_rep_fop);
         c2_rpc_reply_post(&fom->fo_fop->f_item, item);
 
-	fom->fo_phase = C2_FOPH_FINISH;
-	return C2_FSO_WAIT;
+	return fom->fo_phase = C2_FOPH_FINISH;
 }
 
 /**
@@ -409,8 +408,7 @@ static int fom_queue_reply_wait(struct c2_sm *mach)
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	fom->fo_phase = C2_FOPH_FINISH;
-	return C2_FSO_WAIT;
+	return fom->fo_phase = C2_FOPH_FINISH;
 }
 
 static int fom_timeout(struct c2_sm *mach)
@@ -434,7 +432,7 @@ const struct c2_sm_state_descr generic_states[C2_FOPH_NR + 2] = {
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOPH_INIT) |
-				(1 << C2_FOPH_FINISH)
+				(1 << C2_FOPH_SM_FINISH)
 	},
 	[C2_FOPH_INIT] = {
 		.sd_flags     = 0,
@@ -662,7 +660,7 @@ const struct c2_sm_state_descr generic_states[C2_FOPH_NR + 2] = {
 				(1 << C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_SM_FINISH] = {
-		.sd_flags     = C2_SDF_TERMINAL | C2_SDF_FAILURE,
+		.sd_flags     = C2_SDF_TERMINAL,
 		.sd_name      = "SM finish",
 		.sd_in        = NULL,
 		.sd_ex        = NULL,
