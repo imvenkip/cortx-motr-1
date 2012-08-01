@@ -66,10 +66,7 @@ extern struct c2_fop_type c2_fom_generic_error_rep_fopt;
  */
 static int fom_phase_init(struct c2_sm *mach)
 {
-	struct c2_fom *fom;
-
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	return fom->fo_phase = C2_FOPH_AUTHENTICATE;
+	return C2_FOPH_AUTHENTICATE;
 }
 
 /**
@@ -78,10 +75,7 @@ static int fom_phase_init(struct c2_sm *mach)
  */
 static int fom_authen(struct c2_sm *mach)
 {
-	struct c2_fom *fom;
-
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	return fom->fo_phase = C2_FOPH_RESOURCE_LOCAL;
+	return C2_FOPH_RESOURCE_LOCAL;
 }
 
 /**
@@ -90,10 +84,7 @@ static int fom_authen(struct c2_sm *mach)
  */
 static int fom_authen_wait(struct c2_sm *mach)
 {
-	struct c2_fom *fom;
-
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	return fom->fo_phase = C2_FOPH_RESOURCE_LOCAL;
+	return C2_FOPH_RESOURCE_LOCAL;
 }
 
 /**
@@ -102,10 +93,7 @@ static int fom_authen_wait(struct c2_sm *mach)
  */
 static int fom_loc_resource(struct c2_sm *mach)
 {
-	struct c2_fom *fom;
-
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	return fom->fo_phase = C2_FOPH_RESOURCE_DISTRIBUTED;
+	return C2_FOPH_RESOURCE_DISTRIBUTED;
 }
 
 /**
@@ -114,10 +102,7 @@ static int fom_loc_resource(struct c2_sm *mach)
  */
 static int fom_loc_resource_wait(struct c2_sm *mach)
 {
-	struct c2_fom *fom;
-
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	return fom->fo_phase = C2_FOPH_RESOURCE_DISTRIBUTED;
+	return C2_FOPH_RESOURCE_DISTRIBUTED;
 }
 
 /**
@@ -125,10 +110,7 @@ static int fom_loc_resource_wait(struct c2_sm *mach)
  */
 static int fom_dist_resource(struct c2_sm *mach)
 {
-	struct c2_fom *fom;
-
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	return fom->fo_phase = C2_FOPH_OBJECT_CHECK;
+	return C2_FOPH_OBJECT_CHECK;
 }
 
 /**
@@ -137,10 +119,7 @@ static int fom_dist_resource(struct c2_sm *mach)
  */
 static int fom_dist_resource_wait(struct c2_sm *mach)
 {
-	struct c2_fom *fom;
-
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	return fom->fo_phase = C2_FOPH_OBJECT_CHECK;
+	return C2_FOPH_OBJECT_CHECK;
 }
 
 /**
@@ -149,10 +128,7 @@ static int fom_dist_resource_wait(struct c2_sm *mach)
  */
 static int fom_obj_check(struct c2_sm *mach)
 {
-	struct c2_fom *fom;
-
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	return fom->fo_phase = C2_FOPH_AUTHORISATION;
+	return C2_FOPH_AUTHORISATION;
 }
 
 /**
@@ -161,10 +137,7 @@ static int fom_obj_check(struct c2_sm *mach)
  */
 static int fom_obj_check_wait(struct c2_sm *mach)
 {
-	struct c2_fom *fom;
-
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	return fom->fo_phase = C2_FOPH_AUTHORISATION;
+	return C2_FOPH_AUTHORISATION;
 }
 
 /**
@@ -174,10 +147,7 @@ static int fom_obj_check_wait(struct c2_sm *mach)
  */
 static int fom_auth(struct c2_sm *mach)
 {
-	struct c2_fom *fom;
-
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	return fom->fo_phase = C2_FOPH_TXN_CONTEXT;
+	return C2_FOPH_TXN_CONTEXT;
 }
 
 /**
@@ -186,10 +156,7 @@ static int fom_auth(struct c2_sm *mach)
  */
 static int fom_auth_wait(struct c2_sm *mach)
 {
-	struct c2_fom *fom;
-
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	return fom->fo_phase = C2_FOPH_TXN_CONTEXT;
+	return C2_FOPH_TXN_CONTEXT;
 }
 
 /**
@@ -202,17 +169,15 @@ static int create_loc_ctx(struct c2_sm *mach)
 {
 	int		rc;
 	struct c2_reqh *reqh;
-	struct c2_fom  *fom;
+	struct c2_fom  *fom = c2_sm2fom(mach);
 
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
 	reqh = fom->fo_loc->fl_dom->fd_reqh;
 	rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, reqh->rh_dbenv, 0);
 	if (rc != 0) {
-		mach->sm_rc   = rc;
-		fom->fo_rc    = rc;
-		fom->fo_phase = C2_FOPH_FAILURE;
+		mach->sm_rc = rc;
+		return C2_FOPH_FAILURE;
 	}
-	return fom->fo_phase = C2_FOPH_NR + 1;
+	return C2_FOPH_NR + 1;
 }
 
 /**
@@ -221,17 +186,14 @@ static int create_loc_ctx(struct c2_sm *mach)
  */
 static int create_loc_ctx_wait(struct c2_sm *mach)
 {
-	struct c2_fom *fom;
-
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	return fom->fo_phase = C2_FOPH_NR + 1;
+	return C2_FOPH_NR + 1;
 }
 
 /**
  * Allocates generic error reply fop and sets the same
  * into fom->fo_rep_fop.
  */
-static int set_gen_err_reply(struct c2_fom *fom)
+static int set_gen_err_reply(struct c2_fom *fom, int rc)
 {
 	struct c2_fop			*rfop;
 	struct c2_fom_generic_error_rep	*out_fop;
@@ -242,7 +204,7 @@ static int set_gen_err_reply(struct c2_fom *fom)
 	if (rfop == NULL)
 		return -ENOMEM;
 	out_fop = c2_fop_data(rfop);
-	out_fop->rerr_rc = fom->fo_rc;
+	out_fop->rerr_rc = rc;
 	fom->fo_rep_fop = rfop;
 
 	return 0;
@@ -258,13 +220,13 @@ static int set_gen_err_reply(struct c2_fom *fom)
  */
 static int fom_failure(struct c2_sm *mach)
 {
-	struct c2_fom *fom;
+	struct c2_fom *fom = c2_sm2fom(mach);
 
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	fom->fo_phase = C2_FOPH_TXN_ABORT;
-	if (fom->fo_rc != 0 && fom->fo_rep_fop == NULL)
-		set_gen_err_reply(fom);
-	return fom->fo_phase;
+	C2_PRE(fom != NULL);
+	
+	if (mach->sm_rc < 0 && fom->fo_rep_fop == NULL)
+		set_gen_err_reply(fom, mach->sm_rc);
+	return C2_FOPH_TXN_ABORT;
 }
 
 /**
@@ -272,10 +234,7 @@ static int fom_failure(struct c2_sm *mach)
  */
 static int fom_success(struct c2_sm *mach)
 {
-	struct c2_fom *fom;
-
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	return fom->fo_phase = C2_FOPH_FOL_REC_ADD;
+	return C2_FOPH_FOL_REC_ADD;
 }
 
 /**
@@ -283,17 +242,19 @@ static int fom_success(struct c2_sm *mach)
  */
 static int fom_fol_rec_add(struct c2_sm *mach)
 {
-	struct c2_fom *fom;
+	struct c2_fom *fom = c2_sm2fom(mach);
 
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	fom->fo_phase = C2_FOPH_TXN_COMMIT;
         c2_fom_block_enter(fom);
 #ifndef __KERNEL__
-        fom->fo_rc = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
+	mach->sm_rc = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
                                         &fom->fo_tx.tx_dbtx);
+	if (mach->sm_rc != 0) {
+        	c2_fom_block_leave(fom);
+		return C2_FOPH_FAILURE;
+	}
 #endif
         c2_fom_block_leave(fom);
-	return fom->fo_phase;
+	return C2_FOPH_TXN_COMMIT;
 }
 
 /**
@@ -302,17 +263,14 @@ static int fom_fol_rec_add(struct c2_sm *mach)
  */
 static int fom_txn_commit(struct c2_sm *mach)
 {
-	struct c2_fom *fom;
+	struct c2_fom *fom = c2_sm2fom(mach);
 	int	       rc;
 
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	fom->fo_phase = C2_FOPH_QUEUE_REPLY;
 	rc = c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
-	if (rc != 0) {
-		fom->fo_rc = rc;
-		set_gen_err_reply(fom);
-	}
-	return fom->fo_phase;
+	if (rc < 0)
+		set_gen_err_reply(fom, rc);
+	
+	return C2_FOPH_QUEUE_REPLY;
 }
 
 /**
@@ -321,10 +279,7 @@ static int fom_txn_commit(struct c2_sm *mach)
  */
 static int fom_txn_commit_wait(struct c2_sm *mach)
 {
-	struct c2_fom *fom;
-
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	return fom->fo_phase = C2_FOPH_QUEUE_REPLY;
+	return C2_FOPH_QUEUE_REPLY;
 }
 
 /**
@@ -347,17 +302,15 @@ static bool is_tx_initialised(const struct c2_db_tx *tx)
 static int fom_txn_abort(struct c2_sm *mach)
 {
 	int	       rc = 0;
-	struct c2_fom *fom;
+	struct c2_fom *fom = c2_sm2fom(mach);
 
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
 	if (is_tx_initialised(&fom->fo_tx.tx_dbtx)) {
 		rc = c2_db_tx_abort(&fom->fo_tx.tx_dbtx);
 		if (rc != 0)
-			fom->fo_rc = rc;
-		mach->sm_rc = rc;
+			mach->sm_rc = rc;
 	}
 
-	return fom->fo_phase = C2_FOPH_QUEUE_REPLY;
+	return C2_FOPH_QUEUE_REPLY;
 }
 
 /**
@@ -366,10 +319,7 @@ static int fom_txn_abort(struct c2_sm *mach)
  */
 static int fom_txn_abort_wait(struct c2_sm *mach)
 {
-	struct c2_fom *fom;
-
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	return fom->fo_phase = C2_FOPH_QUEUE_REPLY;
+	return C2_FOPH_QUEUE_REPLY;
 }
 
 /**
@@ -387,9 +337,7 @@ static int fom_txn_abort_wait(struct c2_sm *mach)
 static int fom_queue_reply(struct c2_sm *mach)
 {
 	struct c2_rpc_item *item;
-	struct c2_fom	   *fom;
-
-	fom = container_of(mach, struct c2_fom, fo_sm_phase);
+	struct c2_fom	   *fom = c2_sm2fom(mach);
 
 	C2_PRE(fom->fo_rep_fop != NULL);
 
@@ -416,7 +364,7 @@ static int fom_timeout(struct c2_sm *mach)
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	return fom->fo_phase = C2_FOPH_FAILURE;
+	return C2_FOPH_FAILURE;
 }
 
 /**
