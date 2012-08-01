@@ -474,7 +474,7 @@ static int pdclust_l_build(uint64_t lid, uint32_t N, uint32_t K, uint32_t P,
 	if (C2_FI_ENABLED("attr_err")) { attr.pa_P = 1; }
 	rc = c2_pdclust_build(&domain, lid, &attr, le, pl);
 	if (failure_test)
-		C2_UT_ASSERT(rc == -ENOMEM || rc == -EINVAL);
+		C2_UT_ASSERT(rc == -ENOMEM || rc == -EPROTO);
 	else {
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(list_lookup(lid) == &(*pl)->pl_base.sl_base);
@@ -517,8 +517,7 @@ static int pdclust_layout_build(uint32_t enum_id,
 
 		if (C2_FI_ENABLED("list_attr_err")) { P = 0; }
 		rc = c2_list_enum_build(&domain, cob_list, P, list_enum);
-		C2_UT_ASSERT(rc == 0 || rc == -ENOMEM || rc == -EINVAL ||
-			     rc == -EPROTO);
+		C2_UT_ASSERT(rc == 0 || rc == -ENOMEM || rc == -EPROTO);
 
 		e = &(*list_enum)->lle_base;
 
@@ -528,7 +527,7 @@ static int pdclust_layout_build(uint32_t enum_id,
 		lin_attr.lla_B  = B;
 		if (C2_FI_ENABLED("lin_attr_err")) { lin_attr.lla_nr = 0; }
 		rc = c2_linear_enum_build(&domain, &lin_attr, lin_enum);
-		C2_UT_ASSERT(rc == 0 || rc == -ENOMEM || rc == -EINVAL);
+		C2_UT_ASSERT(rc == 0 || rc == -ENOMEM || rc == -EPROTO);
 
 		e = &(*lin_enum)->lle_base;
 	}
@@ -545,7 +544,7 @@ static int pdclust_layout_build(uint32_t enum_id,
 	 */
 	rc = pdclust_l_build(lid, N, K, P, seed, e, pl, failure_test);
 	if (failure_test) {
-		C2_UT_ASSERT(rc == -ENOMEM || rc == -EINVAL);
+		C2_UT_ASSERT(rc == -ENOMEM || rc == -EPROTO);
 		e->le_ops->leo_fini(e);
 		return rc;
 	}
@@ -727,7 +726,7 @@ static int test_build_pdclust(uint32_t enum_id, uint64_t lid,
 				  &pl, &list_enum, &lin_enum,
 				  failure_test);
 	if (failure_test)
-		C2_UT_ASSERT(rc == -ENOMEM || rc == -EINVAL || rc == -EPROTO);
+		C2_UT_ASSERT(rc == -ENOMEM || rc == -EPROTO);
 	else {
 		C2_UT_ASSERT(rc == 0);
 		/*
@@ -831,7 +830,7 @@ static void test_build_failure(void)
 	c2_fi_enable_once("pdclust_l_build", "attr_err");
 	rc = test_build_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				FAILURE_TEST);
-	C2_UT_ASSERT(rc == -EINVAL);
+	C2_UT_ASSERT(rc == -EPROTO);
 
 	/*
 	 * Simulate memory allocation failure in linear_allocate() that is
@@ -858,14 +857,14 @@ static void test_build_failure(void)
 	c2_fi_enable_once("pdclust_layout_build", "list_attr_err");
 	rc = test_build_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				FAILURE_TEST);
-	C2_UT_ASSERT(rc == -EINVAL);
+	C2_UT_ASSERT(rc == -EPROTO);
 
 	/* Simulate attributes invalid error in c2_linear_enum_build(). */
 	lid = 1011;
 	c2_fi_enable_once("pdclust_layout_build", "lin_attr_err");
 	rc = test_build_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
 				FAILURE_TEST);
-	C2_UT_ASSERT(rc == -EINVAL);
+	C2_UT_ASSERT(rc == -EPROTO);
 
 	/* Simulate fid invalid error in c2_list_enum_build(). */
 	lid = 1012;
@@ -1038,7 +1037,7 @@ static int test_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	/* Decode the layout buffer into a layout object. */
 	rc = c2_layout_decode(l, &cur, C2_LXO_BUFFER_OP, NULL);
 	if (failure_test)
-		C2_UT_ASSERT(rc == -EINVAL || rc == -ENOMEM || rc == -EPROTO);
+		C2_UT_ASSERT(rc == -ENOMEM || rc == -EPROTO);
 	else {
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(list_lookup(lid) == l);
@@ -1113,35 +1112,69 @@ static void test_decode_failure(void)
 {
 	uint64_t lid;
 
-	/* Simulate invalid attributes error in list_populate(). */
+	/* Simulate invalid attributes error in c2_layout_decode(). */
 	lid = 2005;
-	c2_fi_enable_once("list_decode", "list_attr_err");
+	c2_fi_enable_once("c2_layout_decode", "attr_err");
 	rc = test_decode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				 FAILURE_TEST);
-	C2_UT_ASSERT(rc == -EINVAL);
+	C2_UT_ASSERT(rc == -EPROTO);
+
+	/* Simulate invalid attributes error in pdclust_decode(). */
+	lid = 2006;
+	c2_fi_enable_once("pdclust_decode", "attr_err1");
+	rc = test_decode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -EPROTO);
+
+	/* Simulate invalid attributes error in pdclust_decode(). */
+	lid = 2007;
+	c2_fi_enable_once("pdclust_decode", "attr_err2");
+	rc = test_decode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -EPROTO);
+
+	/* Simulate invalid attributes error in list_populate(). */
+	lid = 2008;
+	c2_fi_enable_once("list_decode", "attr_err");
+	rc = test_decode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -EPROTO);
 
 	/* Simulate invalid attributes error in linear_populate(). */
-	lid = 2006;
-	c2_fi_enable_once("linear_decode", "lin_attr_err");
+	lid = 2009;
+	c2_fi_enable_once("linear_decode", "attr_err");
 	rc = test_decode_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
 				 FAILURE_TEST);
-	C2_UT_ASSERT(rc == -EINVAL);
+	C2_UT_ASSERT(rc == -EPROTO);
 
 	/* Simulate memory allocation failure in list_decode(). */
-	lid = 2007;
+	lid = 2010;
 	c2_fi_enable_once("list_decode", "mem_err");
 	rc = test_decode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				 FAILURE_TEST);
 	C2_UT_ASSERT(rc == -ENOMEM);
 
 	/* Simulate fid invalid error in list_decode(). */
-	lid = 2008;
+	lid = 2011;
 	c2_fi_enable_once("list_decode", "fid_invalid_err");
 	rc = test_decode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				 FAILURE_TEST);
 	C2_UT_ASSERT(rc == -EPROTO);
-}
 
+	/* Simulate leto_allocate() failure in pdclust_decode(). */
+	lid = 2012;
+	c2_fi_enable_once("linear_allocate", "mem_err");
+	rc = test_decode_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -ENOMEM);
+
+	/* Simulate pdclust_populate() failure in pdclust_decode(). */
+	lid = 2013;
+	c2_fi_enable_once("pdclust_decode", "attr_err3");
+	rc = test_decode_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -EPROTO);
+}
 
 /*
  * Verifies part of the layout buffer representing generic part of the layout

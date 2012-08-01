@@ -187,8 +187,8 @@ static int list_populate(struct c2_layout_list_enum *list_enum,
 
 	if (nr == 0) {
 		C2_LOG("list_enum %p, Invalid attributes (nr = 0), rc %d",
-		       list_enum, -EINVAL);
-		return -EINVAL;
+		       list_enum, -EPROTO);
+		return -EPROTO;
 	}
 	list_enum->lle_nr = nr;
 	list_enum->lle_list_of_cobs = cob_list;
@@ -478,7 +478,7 @@ err2_injected:
 		}
 	}
 
-	if (C2_FI_ENABLED("list_attr_err")) { ce_header->ces_nr = 0; }
+	if (C2_FI_ENABLED("attr_err")) { ce_header->ces_nr = 0; }
 	rc = list_populate(list_enum, cob_list, ce_header->ces_nr);
 	if (rc != 0)
 		C2_LOG("list_populate() failed");

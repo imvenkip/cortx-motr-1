@@ -134,8 +134,8 @@ static int linear_populate(struct c2_layout_linear_enum *lin_enum,
 
 	if (attr->lla_nr == 0 || attr->lla_B == 0) {
 		C2_LOG("lin_enum %p, attr %p,  Invalid attributes, rc %d",
-		       lin_enum, attr, -EINVAL);
-		return -EINVAL;
+		       lin_enum, attr, -EPROTO);
+		return -EPROTO;
 	}
 	lin_enum->lle_attr = *attr;
 	C2_POST(linear_invariant(lin_enum));
@@ -245,7 +245,7 @@ static int linear_decode(struct c2_layout_enum *e,
 	lin_attr = c2_bufvec_cursor_addr(cur);
 	c2_bufvec_cursor_move(cur, sizeof *lin_attr);
 
-	if (C2_FI_ENABLED("lin_attr_err")) { lin_attr->lla_nr = 0; }
+	if (C2_FI_ENABLED("attr_err")) { lin_attr->lla_nr = 0; }
 	rc = linear_populate(lin_enum, lin_attr);
 	if (rc != 0)
 		C2_LOG("linear_populate() failed");
