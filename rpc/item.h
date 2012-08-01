@@ -20,6 +20,8 @@
  * Original creation date: 06/27/2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_RPC_ITEM_H__
 #define __COLIBRI_RPC_ITEM_H__
 

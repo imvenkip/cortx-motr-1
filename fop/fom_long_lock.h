@@ -18,6 +18,8 @@
  * Original creation date: 18-Jun-2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LONG_LOCK_H__
 #define __COLIBRI_LONG_LOCK_H__
 

@@ -21,6 +21,8 @@
  * Revision date  : 09/14/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_IOSERVICE_IO_FOMS_H__
 #define __COLIBRI_IOSERVICE_IO_FOMS_H__
 

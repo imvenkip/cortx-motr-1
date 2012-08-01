@@ -18,6 +18,8 @@
  * Original creation date: 05/19/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_FOP_FOP_FORMAT_H__
 #define __COLIBRI_FOP_FOP_FORMAT_H__
 

@@ -18,6 +18,8 @@
  * Original creation date: 21-Jan-2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LIB_BOB_H__
 #define __COLIBRI_LIB_BOB_H__
 

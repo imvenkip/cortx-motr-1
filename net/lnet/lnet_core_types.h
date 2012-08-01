@@ -19,6 +19,8 @@
  * Original creation date: 4/04/2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_NET_LNET_TYPES_H__
 #define __COLIBRI_NET_LNET_CORE_TYPES_H__
 

@@ -19,6 +19,8 @@
  * Original creation date: 04/28/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_RPC_FORMATION2_H__
 #define __COLIBRI_RPC_FORMATION2_H__
 

@@ -18,6 +18,7 @@
  *                  Anand Vidwansa <anand_vidwansa@xyratex.com>
  * Original creation date: 05/08/2011
  */
+#pragma once
 
 #ifndef __COLIBRI_COLIBRI_COLIBRI_SETUP_H__
 #define __COLIBRI_COLIBRI_COLIBRI_SETUP_H__

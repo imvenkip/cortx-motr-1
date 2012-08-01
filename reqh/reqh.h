@@ -19,6 +19,8 @@
  * Original creation date: 05/19/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_REQH_REQH_H__
 #define __COLIBRI_REQH_REQH_H__
 

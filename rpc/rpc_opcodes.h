@@ -17,6 +17,7 @@
  * Original author: Subhash Arya <subhash_arya@xyratex.com>,
  * Original creation date: 11/4/2011
  */
+
 /**
    @addtogroup rpc_layer_core
 
@@ -27,6 +28,8 @@
 
    @{
  */
+
+#pragma once
 
 #ifndef __RPC_CORE_OPCODES_H__
 #define __RPC_CORE_OPCODES_H__

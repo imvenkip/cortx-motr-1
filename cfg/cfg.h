@@ -18,6 +18,8 @@
  * Original creation date: 09/27/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_CFG_CFG_H__
 #define __COLIBRI_CFG_CFG_H__
 

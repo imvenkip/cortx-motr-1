@@ -19,6 +19,8 @@
  * Original creation date: 12/10/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LIB_TIME_H__
 #define __COLIBRI_LIB_TIME_H__
 

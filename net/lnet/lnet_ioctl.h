@@ -18,6 +18,8 @@
  * Original creation date: 02/10/2012
  */
 
+#pragma once
+
 #ifndef __LNET_IOCTL_H__
 #define __LNET_IOCTL_H__
 

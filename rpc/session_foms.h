@@ -19,6 +19,8 @@
  * Original creation date: 04/15/2011
  */
 
+#pragma once
+
 #ifndef _C2_RPC_SESSION_FOM_H
 #define _C2_RPC_SESSION_FOM_H
 

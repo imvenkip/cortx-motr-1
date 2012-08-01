@@ -19,6 +19,8 @@
  * Original creation date: 06/19/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_ADDB_ADDB_H__
 #define __COLIBRI_ADDB_ADDB_H__
 

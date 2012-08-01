@@ -19,6 +19,8 @@
  * Original creation date: 05/04/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_C2T1FS_H
 #define __COLIBRI_C2T1FS_H
 

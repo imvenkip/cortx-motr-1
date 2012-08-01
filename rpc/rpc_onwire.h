@@ -18,6 +18,8 @@
  * Original creation date: 06/25/2011
  */
 
+#pragma once
+
 #ifndef C2_RPC_ONWIRE_H_
 #define C2_RPC_ONWIRE_H_
 

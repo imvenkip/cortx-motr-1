@@ -18,6 +18,8 @@
  * Original creation date: 03/28/2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_UTILS_FINJECT_DEBUGFS_H__
 #define __COLIBRI_UTILS_FINJECT_DEBUGFS_H__
 
