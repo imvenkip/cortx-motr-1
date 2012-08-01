@@ -158,7 +158,7 @@ static int bulkio_server_write_fom_state(struct c2_fom *fom)
 		rc = acquire_net_buffer(io_phase);
                 C2_UT_ASSERT(
                 fom->fo_phase ==  C2_FOPH_IO_FOM_BUFFER_WAIT ||
-                fom->fo_phase == C2_FOPH_IO_ZERO_COPY_INIT);
+                rc == C2_FOPH_IO_ZERO_COPY_INIT);
 		break;
 	case C2_FOPH_IO_ZERO_COPY_INIT:
 		rc = initiate_zero_copy(io_phase);
@@ -166,7 +166,7 @@ static int bulkio_server_write_fom_state(struct c2_fom *fom)
 		break;
 	case C2_FOPH_IO_ZERO_COPY_WAIT:
 		rc = zero_copy_finish(io_phase);
-                C2_UT_ASSERT(fom->fo_phase == C2_FOPH_IO_STOB_INIT);
+                C2_UT_ASSERT(rc == C2_FOPH_IO_STOB_INIT);
 		break;
 	case C2_FOPH_IO_STOB_INIT:
 		rc = io_launch(io_phase);
@@ -174,13 +174,13 @@ static int bulkio_server_write_fom_state(struct c2_fom *fom)
 		break;
 	case C2_FOPH_IO_STOB_WAIT:
 		rc = io_finish(io_phase);
-                C2_UT_ASSERT(fom->fo_phase == C2_FOPH_IO_BUFFER_RELEASE);
+                C2_UT_ASSERT(rc == C2_FOPH_IO_BUFFER_RELEASE);
 		break;
 	case C2_FOPH_IO_BUFFER_RELEASE:
 		rc = release_net_buffer(io_phase);
                 C2_UT_ASSERT(
-                fom->fo_phase == C2_FOPH_SUCCESS ||
-                fom->fo_phase == C2_FOPH_IO_FOM_BUFFER_ACQUIRE);
+                rc == C2_FOPH_SUCCESS ||
+                rc == C2_FOPH_IO_FOM_BUFFER_ACQUIRE);
 		break;
 	default :
 		if (fom->fo_phase == C2_FOPH_SUCCESS) {
@@ -191,10 +191,14 @@ static int bulkio_server_write_fom_state(struct c2_fom *fom)
 			C2_UT_ASSERT(rc == 0);
 			fom->fo_phase = C2_FOPH_FINISH;
 			rc = C2_FSO_WAIT;
-		} else fom->fo_phase = C2_FOPH_IO_FOM_BUFFER_ACQUIRE;
+		} else rc = C2_FOPH_IO_FOM_BUFFER_ACQUIRE;
 	}
-
-	return rc != C2_FSO_WAIT ? C2_FSO_AGAIN: rc;
+	
+	if (rc != C2_FSO_WAIT) {
+		fom->fo_phase = rc;
+		rc = C2_FSO_AGAIN;
+	}
+	return rc;
 }
 
 /*
@@ -213,7 +217,7 @@ static int bulkio_server_read_fom_state(struct c2_fom *fom)
 		rc = acquire_net_buffer(io_phase);
                 C2_UT_ASSERT(
                 fom->fo_phase ==  C2_FOPH_IO_FOM_BUFFER_WAIT ||
-                fom->fo_phase == C2_FOPH_IO_STOB_INIT);
+                rc == C2_FOPH_IO_STOB_INIT);
 		break;
 	case C2_FOPH_IO_ZERO_COPY_INIT:
 		rc = initiate_zero_copy(io_phase);
@@ -221,7 +225,7 @@ static int bulkio_server_read_fom_state(struct c2_fom *fom)
 		break;
 	case C2_FOPH_IO_ZERO_COPY_WAIT:
 		rc = zero_copy_finish(io_phase);
-                C2_UT_ASSERT(fom->fo_phase == C2_FOPH_IO_BUFFER_RELEASE);
+                C2_UT_ASSERT(rc == C2_FOPH_IO_BUFFER_RELEASE);
 		break;
 	case C2_FOPH_IO_STOB_INIT:
 		rc = io_launch(io_phase);
@@ -229,13 +233,13 @@ static int bulkio_server_read_fom_state(struct c2_fom *fom)
 		break;
 	case C2_FOPH_IO_STOB_WAIT:
 		rc = io_finish(io_phase);
-                C2_UT_ASSERT(fom->fo_phase == C2_FOPH_IO_ZERO_COPY_INIT);
+                C2_UT_ASSERT(rc == C2_FOPH_IO_ZERO_COPY_INIT);
 		break;
 	case C2_FOPH_IO_BUFFER_RELEASE:
 		rc = release_net_buffer(io_phase);
                 C2_UT_ASSERT(
-                fom->fo_phase == C2_FOPH_SUCCESS ||
-                fom->fo_phase == C2_FOPH_IO_FOM_BUFFER_ACQUIRE);
+                rc == C2_FOPH_SUCCESS ||
+                rc == C2_FOPH_IO_FOM_BUFFER_ACQUIRE);
 		break;
 	default :
 		if (fom->fo_phase == C2_FOPH_SUCCESS) {
@@ -246,10 +250,15 @@ static int bulkio_server_read_fom_state(struct c2_fom *fom)
 			C2_UT_ASSERT(rc == 0);
 			fom->fo_phase = C2_FOPH_FINISH;
 			rc = C2_FSO_WAIT;
-		} else fom->fo_phase = C2_FOPH_IO_FOM_BUFFER_ACQUIRE;
+		} else
+			rc = C2_FOPH_IO_FOM_BUFFER_ACQUIRE;
 	}
 
-	return rc != C2_FSO_WAIT ? C2_FSO_AGAIN: rc;
+	if (rc != C2_FSO_WAIT) {
+		fom->fo_phase = rc;
+		rc = C2_FSO_AGAIN;
+	}
+	return rc;
 }
 
 /*
@@ -277,7 +286,11 @@ static int ut_io_fom_cob_rw_state(struct c2_fom *fom)
         else
                 rc = check_write_fom_state_transition(fom);
 
-	return rc != C2_FSO_WAIT ? C2_FSO_AGAIN: rc;
+	if (rc != C2_FSO_WAIT) {
+		fom->fo_phase = rc;
+		rc = C2_FSO_AGAIN;
+	}
+	return rc;
 }
 
 enum fom_state_transition_tests {
@@ -349,8 +362,8 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
         struct c2_net_transfer_mc    *tm;
 	struct c2_reqh               *reqh;
 	struct c2_sm		     *io_phase = &fom->fo_sm_phase;
-
-        fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
+	
+	fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         fop = fom->fo_fop;
         rwfop = io_rw_get(fop);
 
@@ -369,7 +382,8 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
 			C2_UT_ASSERT(rc == 0);
 			fom->fo_phase = C2_FOPH_FINISH;
 			rc = C2_FSO_WAIT;
-		} else fom->fo_phase = TEST01;
+		} else
+			rc = TEST01;
         } else if (fom->fo_phase == TEST01) {
 
                 /* Acquire all buffer pool buffer test some of cases. */
@@ -387,12 +401,12 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                  *         Expected Output phase: C2_FOPH_IO_FOM_BUFFER_WAIT
                  */
 		rc = acquire_net_buffer(io_phase);
-                C2_UT_ASSERT(fom->fo_rc == 0 &&
+                C2_UT_ASSERT(io_phase->sm_rc == 0 &&
                              rc == C2_FSO_WAIT  &&
                              fom->fo_phase == C2_FOPH_IO_FOM_BUFFER_WAIT);
 
                 /* Cleanup & make clean FOM for next test. */
-                fom->fo_rc = 0;
+                io_phase->sm_rc = 0;
 
                 release_one_buffer(colour);
 
@@ -411,12 +425,12 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                 empty_buffers_pool(colour);
 
 		rc = acquire_net_buffer(io_phase);
-                C2_UT_ASSERT(fom->fo_rc == 0 &&
+                C2_UT_ASSERT(io_phase->sm_rc == 0 &&
                              rc == C2_FSO_WAIT  &&
                              fom->fo_phase ==  C2_FOPH_IO_FOM_BUFFER_WAIT);
 
                 /* Cleanup & rstore FOM for next test. */
-                fom->fo_rc = 0;
+                io_phase->sm_rc = 0;
 
                 release_one_buffer(colour);
 
@@ -433,9 +447,8 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                 fom->fo_phase =  C2_FOPH_IO_FOM_BUFFER_ACQUIRE;
 
 		rc = acquire_net_buffer(io_phase);
-                C2_UT_ASSERT(fom->fo_rc == 0 &&
-                             rc == fom->fo_phase &&
-                             fom->fo_phase == C2_FOPH_IO_ZERO_COPY_INIT);
+                C2_UT_ASSERT(io_phase->sm_rc == 0 &&
+                             rc == C2_FOPH_IO_ZERO_COPY_INIT);
 
                 /*
                  * Cleanup & restore FOM for next test.
@@ -456,7 +469,7 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                 c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
                 fom_obj->fcrw_batch_size = 0;
                 rc = 0;
-                fom->fo_rc = 0;
+                io_phase->sm_rc = 0;
 
                 /*
                  * Case 04 : Network buffer is available with the buffer pool.
@@ -466,9 +479,8 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                 fom->fo_phase =  C2_FOPH_IO_FOM_BUFFER_WAIT;
 
 		rc = acquire_net_buffer(io_phase);
-                C2_UT_ASSERT(fom->fo_rc == 0 &&
-                             rc == fom->fo_phase &&
-                             fom->fo_phase == C2_FOPH_IO_ZERO_COPY_INIT);
+                C2_UT_ASSERT(io_phase->sm_rc == 0 &&
+                             rc == C2_FOPH_IO_ZERO_COPY_INIT);
 
                 /*
                  * No need to cleanup here, since FOM will be  transitioned to
@@ -494,16 +506,15 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                 fom->fo_phase =  C2_FOPH_IO_ZERO_COPY_INIT;
 
                 rc = initiate_zero_copy(io_phase);
-                C2_UT_ASSERT(fom->fo_rc != 0 &&
-                             rc == fom->fo_phase &&
-                             fom->fo_phase == C2_FOPH_FAILURE);
+                C2_UT_ASSERT(io_phase->sm_rc != 0 &&
+                             rc == C2_FOPH_FAILURE);
 
                 /* Cleanup & restore FOM for next test. */
                 rwfop->crw_ivecs.cis_ivecs[cdi].ci_nr =
                 saved_segments_count;
                 c2_rpc_bulk_fini(&fom_obj->fcrw_bulk);
                 rc = 0;
-                fom->fo_rc = 0;
+                io_phase->sm_rc = 0;
 
                 /*
                  * Case 06 : Zero-copy success
@@ -517,7 +528,7 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                 fom->fo_phase =  C2_FOPH_IO_ZERO_COPY_INIT;
 
                 rc = initiate_zero_copy(io_phase);
-                C2_UT_ASSERT(fom->fo_rc == 0 &&
+                C2_UT_ASSERT(io_phase->sm_rc == 0 &&
                              rc == C2_FSO_WAIT  &&
                              fom->fo_phase == C2_FOPH_IO_ZERO_COPY_WAIT);
 
@@ -533,14 +544,13 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                 fom_obj->fcrw_bulk.rb_rc  = -1;
 
                 rc = zero_copy_finish(io_phase);
-                C2_UT_ASSERT(fom->fo_rc != 0 &&
-                             rc == fom->fo_phase &&
-                             fom->fo_phase == C2_FOPH_FAILURE);
+                C2_UT_ASSERT(io_phase->sm_rc != 0 &&
+                             rc == C2_FOPH_FAILURE);
 
                 /* Cleanup & make clean FOM for next test. */
                 fom_obj->fcrw_bulk.rb_rc  = 0;
                 rc = 0;
-                fom->fo_rc = 0;
+                io_phase->sm_rc = 0;
 
                 /*
                  * Case 08 : Zero-copy success from wait state.
@@ -550,9 +560,8 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                 fom->fo_phase =  C2_FOPH_IO_ZERO_COPY_WAIT;
 
                 rc = zero_copy_finish(io_phase);
-                C2_UT_ASSERT(fom->fo_rc == 0 &&
-                             rc == fom->fo_phase &&
-                             fom->fo_phase == C2_FOPH_IO_STOB_INIT);
+                C2_UT_ASSERT(io_phase->sm_rc == 0 &&
+                             rc == C2_FOPH_IO_STOB_INIT);
 
                 /*
                  * Case 09 : STOB I/O launch failure
@@ -571,13 +580,13 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                 fom->fo_phase = C2_FOPH_IO_STOB_INIT;
 
                 rc = io_launch(io_phase);
-                C2_UT_ASSERT(fom->fo_rc != 0 && rc == fom->fo_phase &&
-                             fom->fo_phase == C2_FOPH_FAILURE);
+                C2_UT_ASSERT(io_phase->sm_rc != 0 &&
+                             rc == C2_FOPH_FAILURE);
 
                 /* Cleanup & make clean FOM for next test. */
                 rwfop->crw_fid = saved_fid;
                 rc = 0;
-                fom->fo_rc = 0;
+                io_phase->sm_rc = 0;
 
                 /*
                  * Case 10 : STOB I/O launch success
@@ -591,7 +600,7 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                 fom->fo_phase =  C2_FOPH_IO_STOB_INIT;
 
                 rc = io_launch(io_phase);
-                C2_UT_ASSERT(fom->fo_rc == 0 && rc == C2_FSO_WAIT  &&
+                C2_UT_ASSERT(io_phase->sm_rc == 0 && rc == C2_FSO_WAIT  &&
                              fom->fo_phase == C2_FOPH_IO_STOB_WAIT);
 
                 fom->fo_phase = TEST11;
@@ -617,12 +626,12 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                 C2_UT_ASSERT(saved_stobio_desc != NULL);
                 stobio_tlist_del(saved_stobio_desc);
 
-                fom->fo_rc    = -1;
+                io_phase->sm_rc    = -1;
                 fom->fo_phase =  C2_FOPH_IO_STOB_WAIT;
 
                 rc = io_finish(io_phase);
-                C2_UT_ASSERT(fom->fo_rc != 0 && rc == fom->fo_phase &&
-                             fom->fo_phase == C2_FOPH_FAILURE);
+                C2_UT_ASSERT(io_phase->sm_rc != 0 &&
+                             rc == C2_FOPH_FAILURE);
 
                 /*
                  * Cleanup & make clean FOM for next test.
@@ -640,7 +649,7 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                 C2_UT_ASSERT(rc == 0);
 
                 rc = 0;
-                fom->fo_rc = 0;
+                io_phase->sm_rc = 0;
 
                 /*
                  * Case 12 : STOB I/O success
@@ -650,9 +659,8 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                 fom->fo_phase =  C2_FOPH_IO_STOB_WAIT;
 
                 rc = io_finish(io_phase);
-                C2_UT_ASSERT(fom->fo_rc == 0 &&
-                             rc == fom->fo_phase &&
-                             fom->fo_phase == C2_FOPH_IO_BUFFER_RELEASE);
+                C2_UT_ASSERT(io_phase->sm_rc == 0 &&
+                             rc == C2_FOPH_IO_BUFFER_RELEASE);
 
                 /*
                  * Case 13 : Processing of remaining buffer descriptors.
@@ -665,9 +673,8 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                 fom_obj->fcrw_ndesc = 2;
                 rwfop->crw_desc.id_nr = 2;
                 rc = release_net_buffer(io_phase);
-                C2_UT_ASSERT(fom->fo_rc == 0 &&
-                             rc == fom->fo_phase &&
-                             fom->fo_phase == C2_FOPH_IO_FOM_BUFFER_ACQUIRE);
+                C2_UT_ASSERT(io_phase->sm_rc == 0 &&
+                             rc == C2_FOPH_IO_FOM_BUFFER_ACQUIRE);
 
                 /* Cleanup & make clean FOM for next test. */
                 fom_obj->fcrw_ndesc = saved_ndesc;
@@ -681,9 +688,8 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                 fom->fo_phase = C2_FOPH_IO_BUFFER_RELEASE;
 
                 rc = release_net_buffer(io_phase);
-                C2_UT_ASSERT(fom->fo_rc == 0 &&
-                             rc == fom->fo_phase &&
-                             fom->fo_phase == C2_FOPH_SUCCESS);
+                C2_UT_ASSERT(io_phase->sm_rc == 0 &&
+                             rc == C2_FOPH_SUCCESS);
 
                 fill_buffers_pool(colour);
         } else {
@@ -746,7 +752,8 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
 			C2_UT_ASSERT(rc == 0);
 			fom->fo_phase = C2_FOPH_FINISH;
 			rc = C2_FSO_WAIT;
-		} else fom->fo_phase = TEST01;
+		} else
+			rc = TEST01;
 
         } else if (fom->fo_phase == TEST01) {
                 /* Acquire all buffer pool buffer test some of cases. */
@@ -767,11 +774,11 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                 fom->fo_phase =  C2_FOPH_IO_FOM_BUFFER_ACQUIRE;
 
 		rc = acquire_net_buffer(io_phase);
-                C2_UT_ASSERT(fom->fo_rc == 0 && rc == C2_FSO_WAIT  &&
+                C2_UT_ASSERT(io_phase->sm_rc == 0 && rc == C2_FSO_WAIT  &&
                              fom->fo_phase ==  C2_FOPH_IO_FOM_BUFFER_WAIT);
 
                 /* Cleanup & make clean FOM for next test. */
-                fom->fo_rc = 0;
+                io_phase->sm_rc = 0;
 
                 release_one_buffer(colour);
 
@@ -790,12 +797,12 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                 empty_buffers_pool(colour);
 
 		rc = acquire_net_buffer(io_phase);
-                C2_UT_ASSERT(fom->fo_rc == 0 &&
+                C2_UT_ASSERT(io_phase->sm_rc == 0 &&
                              rc == C2_FSO_WAIT  &&
                              fom->fo_phase ==  C2_FOPH_IO_FOM_BUFFER_WAIT);
 
                 /* Cleanup & make clean FOM for next test. */
-                fom->fo_rc = 0;
+                io_phase->sm_rc = 0;
 
                 release_one_buffer(colour);
 
@@ -810,8 +817,8 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                 fom->fo_phase =  C2_FOPH_IO_FOM_BUFFER_ACQUIRE;
 
 		rc = acquire_net_buffer(io_phase);
-                C2_UT_ASSERT(fom->fo_rc == 0 && rc == fom->fo_phase &&
-                             fom->fo_phase == C2_FOPH_IO_STOB_INIT);
+                C2_UT_ASSERT(io_phase->sm_rc == 0 &&
+                             rc == C2_FOPH_IO_STOB_INIT);
 
                 /*
                  * Cleanup & make clean FOM for next test.
@@ -833,7 +840,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                 c2_net_buffer_pool_unlock(fom_obj->fcrw_bp);
                 fom_obj->fcrw_batch_size = 0;
                 rc = 0;
-                fom->fo_rc = 0;
+                io_phase->sm_rc = 0;
 
                 /*
                  * Case 04 : Network buffer available with buffer pool.
@@ -843,9 +850,8 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                 fom->fo_phase =  C2_FOPH_IO_FOM_BUFFER_WAIT;
 
 		rc = acquire_net_buffer(io_phase);
-                C2_UT_ASSERT(fom->fo_rc == 0 &&
-                             rc == fom->fo_phase &&
-                             fom->fo_phase == C2_FOPH_IO_STOB_INIT);
+                C2_UT_ASSERT(io_phase->sm_rc == 0 &&
+                             rc == C2_FOPH_IO_STOB_INIT);
 
                 /* No need to cleanup here, since FOM will transitioned
                  * to expected phase.
@@ -868,14 +874,13 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                 fom->fo_phase = C2_FOPH_IO_STOB_INIT;
 
                 rc = io_launch(io_phase);
-                C2_UT_ASSERT(fom->fo_rc != 0 &&
-                             rc == fom->fo_phase &&
-                             fom->fo_phase == C2_FOPH_FAILURE);
+                C2_UT_ASSERT(io_phase->sm_rc != 0 &&
+                             rc == C2_FOPH_FAILURE);
 
                 /* Cleanup & make clean FOM for next test. */
                 rwfop->crw_fid = saved_fid;
                 rc = 0;
-                fom->fo_rc = 0;
+                io_phase->sm_rc = 0;
 
                 /*
                  * Case 06 : STOB I/O launch success
@@ -889,7 +894,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                 fom->fo_phase =  C2_FOPH_IO_STOB_INIT;
 
                 rc = io_launch(io_phase);
-                C2_UT_ASSERT(fom->fo_rc == 0 &&
+                C2_UT_ASSERT(io_phase->sm_rc == 0 &&
                              rc == C2_FSO_WAIT  &&
                              fom->fo_phase == C2_FOPH_IO_STOB_WAIT);
 
@@ -918,13 +923,12 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                 C2_UT_ASSERT(saved_stobio_desc != NULL);
                 stobio_tlist_del(saved_stobio_desc);
 
-                fom->fo_rc = -1;
+                io_phase->sm_rc = -1;
                 fom->fo_phase =  C2_FOPH_IO_STOB_WAIT;
 
                 rc = io_finish(io_phase);
-                C2_UT_ASSERT(fom->fo_rc != 0 &&
-                             rc == fom->fo_phase  &&
-                             fom->fo_phase == C2_FOPH_FAILURE);
+                C2_UT_ASSERT(io_phase->sm_rc != 0 &&
+                             rc == C2_FOPH_FAILURE);
 
                 /*
                  * Cleanup & make clean FOM for next test.
@@ -942,7 +946,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                 C2_UT_ASSERT(rc == 0);
 
                 rc = 0;
-                fom->fo_rc = 0;
+                io_phase->sm_rc = 0;
 
                 /*
                  * Case 08 : STOB I/O success
@@ -952,9 +956,8 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                 fom->fo_phase =  C2_FOPH_IO_STOB_WAIT;
 
                 rc = io_finish(io_phase);
-                C2_UT_ASSERT(fom->fo_rc == 0 &&
-                             rc == fom->fo_phase  &&
-                             fom->fo_phase == C2_FOPH_IO_ZERO_COPY_INIT);
+                C2_UT_ASSERT(io_phase->sm_rc == 0 &&
+                             rc == C2_FOPH_IO_ZERO_COPY_INIT);
 
                 /*
                  * Case 09 : Zero-copy failure
@@ -975,15 +978,14 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                 fom->fo_phase =  C2_FOPH_IO_ZERO_COPY_INIT;
 
                 rc = initiate_zero_copy(io_phase);
-                C2_UT_ASSERT(fom->fo_rc != 0 &&
-                             rc == fom->fo_phase  &&
-                             fom->fo_phase == C2_FOPH_FAILURE);
+                C2_UT_ASSERT(io_phase->sm_rc != 0 &&
+                             rc == C2_FOPH_FAILURE);
 
                 /* Cleanup & make clean FOM for next test. */
                 rwfop->crw_ivecs.cis_ivecs[cdi].ci_nr = saved_segments_count;
                 c2_rpc_bulk_fini(&fom_obj->fcrw_bulk);
                 rc = 0;
-                fom->fo_rc = 0;
+                io_phase->sm_rc = 0;
                 fom->fo_phase = TEST10;
 
                 /*
@@ -998,7 +1000,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                 fom->fo_phase =  C2_FOPH_IO_ZERO_COPY_INIT;
 
                 rc = initiate_zero_copy(io_phase);
-                C2_UT_ASSERT(fom->fo_rc == 0 &&
+                C2_UT_ASSERT(io_phase->sm_rc == 0 &&
                              rc == C2_FSO_WAIT  &&
                              fom->fo_phase == C2_FOPH_IO_ZERO_COPY_WAIT);
                 /*
@@ -1016,14 +1018,13 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                 fom_obj->fcrw_bulk.rb_rc  = -1;
 
                 rc = zero_copy_finish(io_phase);
-                C2_UT_ASSERT(fom->fo_rc != 0 &&
-                             rc == fom->fo_phase  &&
-                             fom->fo_phase == C2_FOPH_FAILURE);
+                C2_UT_ASSERT(io_phase->sm_rc != 0 &&
+                             rc == C2_FOPH_FAILURE);
 
                 /* Cleanup & make clean FOM for next test. */
                 fom_obj->fcrw_bulk.rb_rc  = 0;
                 rc = 0;
-                fom->fo_rc = 0;
+                io_phase->sm_rc = 0;
 
                 /*
                  * Case 12 : Zero-copy success
@@ -1033,9 +1034,8 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                 fom->fo_phase =  C2_FOPH_IO_ZERO_COPY_WAIT;
 
                 rc = zero_copy_finish(io_phase);
-                C2_UT_ASSERT(fom->fo_rc == 0 &&
-                             rc == fom->fo_phase  &&
-                             fom->fo_phase == C2_FOPH_IO_BUFFER_RELEASE);
+                C2_UT_ASSERT(io_phase->sm_rc == 0 &&
+                             rc == C2_FOPH_IO_BUFFER_RELEASE);
 
 
                 /*
@@ -1049,9 +1049,8 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                 fom_obj->fcrw_ndesc = 2;
                 rwfop->crw_desc.id_nr = 2;
                 rc = release_net_buffer(io_phase);
-                C2_UT_ASSERT(fom->fo_rc == 0 &&
-                             rc == fom->fo_phase &&
-                             fom->fo_phase == C2_FOPH_IO_FOM_BUFFER_ACQUIRE);
+                C2_UT_ASSERT(io_phase->sm_rc == 0 &&
+                             rc == C2_FOPH_IO_FOM_BUFFER_ACQUIRE);
 
                 /* Cleanup & make clean FOM for next test. */
                 fom_obj->fcrw_ndesc = saved_ndesc;
@@ -1065,9 +1064,8 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                 fom->fo_phase = C2_FOPH_IO_BUFFER_RELEASE;
 
                 rc = release_net_buffer(io_phase);
-                C2_UT_ASSERT(fom->fo_rc == 0 &&
-                             rc == fom->fo_phase &&
-                             fom->fo_phase == C2_FOPH_SUCCESS);
+                C2_UT_ASSERT(io_phase->sm_rc == 0 &&
+                             rc == C2_FOPH_SUCCESS);
 
                 fill_buffers_pool(colour);
         } else {

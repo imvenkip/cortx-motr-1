@@ -410,11 +410,10 @@ struct c2_fom {
 
 	/** State machine for generic and specfic FOM phases. */
 	struct c2_sm		 fo_sm_phase;
-	/** Next FOM phase to be executed */
-	int			 fo_phase;
 	/** State machine for FOM states. */
 	struct c2_sm		 fo_sm_state;
-	int32_t			 fo_rc;
+	/** Next FOM phase to be executed */
+	int			 fo_phase;
 };
 
 /**
