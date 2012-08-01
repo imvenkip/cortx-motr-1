@@ -969,7 +969,6 @@ static int test_decode_pdclust(uint32_t enum_id, uint64_t lid,
 			       uint32_t inline_test,
 			       bool failure_test)
 {
-	//todo Make use of failure_test
 	void                    *area;
 	c2_bcount_t              num_bytes;
 	struct c2_bufvec         bv;
@@ -1014,20 +1013,27 @@ static int test_decode_pdclust(uint32_t enum_id, uint64_t lid,
 
 	/* Decode the layout buffer into a layout object. */
 	rc = c2_layout_decode(l, &cur, C2_LXO_BUFFER_OP, NULL);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(list_lookup(lid) == l);
+	if (failure_test)
+		C2_UT_ASSERT(rc == -EINVAL);
+	else {
+		C2_UT_ASSERT(rc == 0);
+		C2_UT_ASSERT(list_lookup(lid) == l);
 
-	/* Verify the layout object built by c2_layout_decode(). */
-	pdclust_layout_verify(enum_id, l, lid,
-			      N, K, P, &seed,
-			      777, 888);
-
-	/* Unlock the layout, locked by lto_allocate() */
-	c2_mutex_unlock(&l->l_lock);
+		/* Verify the layout object built by c2_layout_decode(). */
+		pdclust_layout_verify(enum_id, l, lid,
+				      N, K, P, &seed,
+				      777, 888);
+	}
 
 	/* Destroy the layout object. */
-	c2_layout_get(l);
-	c2_layout_put(l);
+	if (failure_test)
+		l->l_ops->lo_delete(l);
+	else {
+		/* Unlock the layout, locked by lto_allocate() */
+		c2_mutex_unlock(&l->l_lock);
+		c2_layout_get(l);
+		c2_layout_put(l);
+	}
 	C2_UT_ASSERT(list_lookup(lid) == NULL);
 
 	c2_free(area);
@@ -1081,6 +1087,21 @@ static void test_decode(void)
 
 static void test_decode_failure(void)
 {
+	uint64_t lid;
+
+	/* Simulate EINVAL error in list_populate(). */
+	lid = 2005;
+	c2_fi_enable_once("list_decode", "list_attr_err");
+	rc = test_decode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -EINVAL);
+
+	/* Simulate EINVAL error in linear_populate(). */
+	lid = 2006;
+	c2_fi_enable_once("linear_decode", "lin_attr_err");
+	rc = test_decode_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -EINVAL);
 }
 
 

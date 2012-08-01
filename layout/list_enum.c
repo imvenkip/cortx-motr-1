@@ -454,6 +454,8 @@ static int list_decode(struct c2_layout_enum *e,
 			goto out;
 		}
 	}
+
+	if (C2_FI_ENABLED("list_attr_err")) { ce_header->ces_nr = 0; }
 	rc = list_populate(list_enum, cob_list, ce_header->ces_nr);
 	if (rc != 0)
 		C2_LOG("list_populate() failed");

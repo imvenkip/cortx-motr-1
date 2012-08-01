@@ -244,6 +244,8 @@ static int linear_decode(struct c2_layout_enum *e,
 
 	lin_attr = c2_bufvec_cursor_addr(cur);
 	c2_bufvec_cursor_move(cur, sizeof *lin_attr);
+
+	if (C2_FI_ENABLED("lin_attr_err")) { lin_attr->lla_nr = 0; }
 	rc = linear_populate(lin_enum, lin_attr);
 	if (rc != 0)
 		C2_LOG("linear_populate() failed");
