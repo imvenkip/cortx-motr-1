@@ -362,12 +362,11 @@ static int ds1_request(struct c2_sm *sm)
 		ds1_repfop = c2_fop_data(rfop);
 		ds1_repfop->csr_rc = ds1_reqfop->csr_value;
 		fom->fo_rep_fop = rfop;
-		fom->fo_rc = 0;
-		fom->fo_phase = C2_FOPH_SUCCESS;
+		sm->sm_rc = 0;
 	} else
-		fom->fo_phase = C2_FOPH_FAILURE;
+		sm->sm_rc = -ENOMEM;
 
-	return fom->fo_phase;
+	return sm->sm_rc < 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
 }
 
 static int ds2_request(struct c2_sm *sm)
@@ -385,12 +384,11 @@ static int ds2_request(struct c2_sm *sm)
 		ds2_repfop = c2_fop_data(rfop);
 		ds2_repfop->csr_rc = ds2_reqfop->csr_value;
 		fom->fo_rep_fop = rfop;
-		fom->fo_rc = 0;
-		fom->fo_phase = C2_FOPH_SUCCESS;
+		sm->sm_rc = 0;
 	} else
-		fom->fo_phase = C2_FOPH_FAILURE;
+		sm->sm_rc = -ENOMEM;
 
-	return fom->fo_phase;
+	return sm->sm_rc < 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
 }
 
 /*

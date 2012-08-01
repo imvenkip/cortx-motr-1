@@ -65,9 +65,8 @@
 enum stob_fom_phases {
 	C2_FOPH_CREATE_STOB   = C2_FOPH_NR + 1,
 	C2_FOPH_READ_STOB_IO  = C2_FOPH_NR + 1,
-	C2_FOPH_READ_STOB_IO_WAIT,
 	C2_FOPH_WRITE_STOB_IO = C2_FOPH_NR + 1,
-	C2_FOPH_WRITE_STOB_IO_WAIT,
+	C2_FOPH_STOB_IO_FINISH,
 };
 
 /**
@@ -112,9 +111,8 @@ C2_FOP_TYPE_DECLARE(c2_stob_io_write_rep, "stob_write reply",
 
 static int stob_create(struct c2_sm *sm);
 static int stob_read(struct c2_sm *sm);
-static int stob_read_wait(struct c2_sm *sm);
 static int stob_write(struct c2_sm *sm);
-static int stob_write_wait(struct c2_sm *sm);
+static int stob_io_finished(struct c2_sm *sm);
 
 struct c2_sm_state_descr stob_create_states[C2_FOPH_NR + 2] = {
 	[C2_FOPH_CREATE_STOB] = {
@@ -135,13 +133,13 @@ struct c2_sm_state_descr stob_read_states[C2_FOPH_NR + 3] = {
 		.sd_in        = &stob_read,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_READ_STOB_IO_WAIT) |
+		.sd_allowed   = (1 << C2_FOPH_STOB_IO_FINISH) |
 				(1 << C2_FOPH_FAILURE)
 	},
-	[C2_FOPH_READ_STOB_IO_WAIT] = {
+	[C2_FOPH_STOB_IO_FINISH] = {
 		.sd_flags     = 0,
-		.sd_name      = "Read stob wait",
-		.sd_in        = &stob_read_wait,
+		.sd_name      = "Read stob finished",
+		.sd_in        = &stob_io_finished,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOPH_SUCCESS)
@@ -155,13 +153,13 @@ struct c2_sm_state_descr stob_write_states[C2_FOPH_NR + 3] = {
 		.sd_in        = &stob_write,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_READ_STOB_IO_WAIT) |
+		.sd_allowed   = (1 << C2_FOPH_STOB_IO_FINISH) |
 				(1 << C2_FOPH_FAILURE)
 	},
-	[C2_FOPH_READ_STOB_IO_WAIT] = {
+	[C2_FOPH_STOB_IO_FINISH] = {
 		.sd_flags     = 0,
-		.sd_name      = "Write stob wait",
-		.sd_in        = &stob_write_wait,
+		.sd_name      = "Write stob finished",
+		.sd_in        = &stob_io_finished,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOPH_SUCCESS)
@@ -422,7 +420,7 @@ static int stob_create_fom_state(struct c2_fom *fom)
 	fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
 
 	result = c2_fom_state_generic(fom);
-	if (fom->fo_phase == C2_FOPH_FINISH && fom->fo_rc == 0)
+	if (fom->fo_phase == C2_FOPH_FINISH)
 		c2_stob_put(fom_obj->sif_stobj);
 
 	return result;
@@ -453,10 +451,9 @@ static int stob_create(struct c2_sm *sm)
 	item->ri_type = &fop->f_type->ft_rpc_item_type;
 	item->ri_group = NULL;
 	fom->fo_rep_fop = fom_obj->sif_rep_fop;
-	fom->fo_rc = result;
+	sm->sm_rc = result;
 
-	return fom->fo_phase = (result != 0) ? C2_FOPH_FAILURE :
-					       C2_FOPH_SUCCESS;
+	return (result != 0) ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
 }
 
 
@@ -536,51 +533,12 @@ static int stob_read(struct c2_sm *sm)
 
 	if (result != 0) {
 		c2_fom_callback_cancel(&fom->fo_cb);
-		fom->fo_rc = result;
-		fom->fo_phase = C2_FOPH_FAILURE;
-	} else
-		fom->fo_phase = C2_FOPH_READ_STOB_IO_WAIT;
-
-	return (result != 0) ? fom->fo_phase : C2_FSO_WAIT;
-}
-
-static int stob_read_wait(struct c2_sm *sm)
-{
-	struct c2_fom		   *fom;
-        struct c2_stob_io_read_rep *out_fop;
-        struct c2_stob_io_fom	   *fom_obj;
-        struct c2_stob_io	   *stio;
-        struct c2_stob		   *stobj;
-	struct c2_rpc_item	   *item;
-	struct c2_fop		   *fop;
-        uint32_t		    bshift;
-
-	fom = container_of(sm, struct c2_fom, fo_sm_phase);
-        fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
-        stio = &fom_obj->sif_stio;
-
-	out_fop = c2_fop_data(fom_obj->sif_rep_fop);
-
-	fom->fo_rc = stio->si_rc;
-	stobj = fom_obj->sif_stobj;
-	if (fom->fo_rc != 0)
-		fom->fo_phase = C2_FOPH_FAILURE;
-	else {
-		bshift = stobj->so_op->sop_block_shift(stobj);
-		out_fop->firr_count = stio->si_count << bshift;
-		fom->fo_phase = C2_FOPH_SUCCESS;
+		sm->sm_rc = result;
+		return C2_FOPH_FAILURE;
 	}
 
-	if (fom->fo_phase == C2_FOPH_FAILURE ||
-	    fom->fo_phase == C2_FOPH_SUCCESS) {
-		out_fop->firr_rc = fom->fo_rc;
-		fop = fom_obj->sif_rep_fop;
-		item = c2_fop_to_rpc_item(fop);
-		item->ri_type = &fop->f_type->ft_rpc_item_type;
-		item->ri_group = NULL;
-		fom->fo_rep_fop = fom_obj->sif_rep_fop;
-	}
-	return fom->fo_phase;
+	fom->fo_phase = C2_FOPH_STOB_IO_FINISH;
+	return C2_FSO_WAIT;
 }
 
 
@@ -657,15 +615,15 @@ static int stob_write(struct c2_sm *sm)
 
 	if (result != 0) {
 		c2_fom_callback_cancel(&fom->fo_cb);
-		fom->fo_rc = result;
-		fom->fo_phase = C2_FOPH_FAILURE;
-	} else
-		fom->fo_phase = C2_FOPH_WRITE_STOB_IO_WAIT;
-
-	return (result != 0) ? fom->fo_phase : C2_FSO_WAIT;
+		sm->sm_rc = result;
+		return C2_FOPH_FAILURE;
+	}
+	
+	fom->fo_phase = C2_FOPH_STOB_IO_FINISH;
+	return C2_FSO_WAIT;
 }
 
-static int stob_write_wait(struct c2_sm *sm)
+static int stob_io_finished(struct c2_sm *sm)
 {
 	struct c2_fom		    *fom;
         struct c2_stob_io_write_rep *out_fop;
@@ -680,27 +638,22 @@ static int stob_write_wait(struct c2_sm *sm)
         fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
         stio = &fom_obj->sif_stio;
 	out_fop = c2_fop_data(fom_obj->sif_rep_fop);
-	fom->fo_rc = stio->si_rc;
+	sm->sm_rc = stio->si_rc;
 	stobj = fom_obj->sif_stobj;
-	if (fom->fo_rc != 0)
-		fom->fo_phase = C2_FOPH_FAILURE;
-	else {
+		
+	out_fop->fiwr_rc = sm->sm_rc;
+	fop = fom_obj->sif_rep_fop;
+	item = c2_fop_to_rpc_item(fop);
+	item->ri_type = &fop->f_type->ft_rpc_item_type;
+	item->ri_group = NULL;
+	fom->fo_rep_fop = fom_obj->sif_rep_fop;
+	
+	if (sm->sm_rc == 0) {
 		bshift = stobj->so_op->sop_block_shift(stobj);
 		out_fop->fiwr_count = stio->si_count << bshift;
-		fom->fo_phase = C2_FOPH_SUCCESS;
-	}
-
-	if (fom->fo_phase == C2_FOPH_FAILURE ||
-	    fom->fo_phase == C2_FOPH_SUCCESS) {
-		out_fop->fiwr_rc = fom->fo_rc;
-		fop = fom_obj->sif_rep_fop;
-		item = c2_fop_to_rpc_item(fop);
-		item->ri_type = &fop->f_type->ft_rpc_item_type;
-		item->ri_group = NULL;
-		fom->fo_rep_fop = fom_obj->sif_rep_fop;
-	}
-
-	return fom->fo_phase;
+		return C2_FOPH_SUCCESS;
+	} else
+		return C2_FOPH_FAILURE;
 }
 
 /**
