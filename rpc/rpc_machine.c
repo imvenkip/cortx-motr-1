@@ -46,6 +46,7 @@
 #include "rpc/rpc_onwire.h"    /* c2_rpc_decode */
 #include "rpc/service.h"       /* c2_rpc_services_tlist_.* */
 #include "rpc/packet.h"        /* c2_rpc */
+#include "rpc/rpc2.h"          /* c2_rpc_max_msg_size, c2_rpc_max_recv_msgs */
 
 /* Forward declarations. */
 static void rpc_tm_cleanup(struct c2_rpc_machine *machine);

@@ -41,6 +41,7 @@
 #include "rpc/rpc_opcodes.h"
 #include "rpc/packet.h"                  /* c2_rpc */
 
+#if 0
 extern struct c2_fop_type_format c2_fop_onwire_test_tfmt;
 extern struct c2_fop_type_format c2_fop_onwire_test_arr_tfmt;
 
@@ -231,6 +232,8 @@ const struct c2_test_suite rpc_onwire_ut = {
                 { NULL, NULL }
         }
 };
+
+#endif
 
 /*
  *  Local variables:

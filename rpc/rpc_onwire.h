@@ -54,8 +54,7 @@
    @{
 */
 
-#include "rpc/rpc2.h"
-#include "xcode/bufvec_xcode.h"
+#include "xcode/bufvec_xcode.h"   /* enum c2_bufvec_what */
 
 /* Import */
 struct c2_rpc;
@@ -107,44 +106,9 @@ enum {
 	ITEM_ONWIRE_HEADER_SIZE = 112,
 };
 
-/**
-   This function encodes an c2_rpc object into the supplied network buffer. Each
-   rpc object contains a header and count of rpc items present in that rpc
-   object. These items are serialized directly onto the bufvec present in the
-   network buffer using the various bufvec encode/decode funtions for atomic
-   types.
-   The supplied network buffer is allocated and managed by the caller.
-   @param rpc_obj  pointer to the rpc object which will be serialized
-   into a network buffer
-   @param nb pointer to network buffer on which the rpc object is to be
-   serialized
-   @retval 0 on  success.
-   @retval -errno on failure.
-*/
-int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb);
-
-/**
-   Decodes an onwire rpc object in the network buffer into an incore rpc object.
-   The rpc object in the network buffer is deserialized using the bufvec
-   encode/decode funtions to extract the header. The header contains the count
-   of items present in the rpc object. For each rpc item we :-
-   - Deserialize the opcode and lookup the  corresponding item_type.
-   - Call the corresponding item decode function for that item type and
-     deserialize the item payload.
-   - Add the deserialized item to the r_items list of the rpc_obj.
-   @param rpc_obj The RPC object on which the onwire items would be
-   deserialized.
-   @param nb     The network buffer containing the onwire RPC object.
-   @param len    Length of RPC message received.
-   @param offset offset of the message in the received buffer.
-   @retval 0 on success.
-   @retval -errno on failure.
-*/
-int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb,
-		  c2_bcount_t len, c2_bcount_t offset);
-
-int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
-			enum c2_bufvec_what what);
+int c2_rpc_item_header_encdec(struct c2_rpc_item      *item,
+			      struct c2_bufvec_cursor *cur,
+			      enum c2_bufvec_what      what);
 
 /** @}  End of rpc_onwire group */
 

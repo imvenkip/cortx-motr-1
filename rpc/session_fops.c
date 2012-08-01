@@ -25,6 +25,7 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "net/net.h"        /* c2_net_end_point_get */
 #include "fop/fom.h"
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
@@ -97,7 +98,7 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 	if (rc != 0)
 		goto out;
 
-	rc = item_encdec(cur, &fop->f_item, C2_BUFVEC_DECODE);
+	rc = c2_fop_item_encdec(&fop->f_item, cur, C2_BUFVEC_DECODE);
 	if (rc != 0)
 		goto out;
 

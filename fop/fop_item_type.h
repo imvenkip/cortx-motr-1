@@ -68,6 +68,10 @@ int c2_fop_item_type_default_decode(struct c2_rpc_item_type *item_type,
 c2_bcount_t
 c2_fop_item_type_default_onwire_size(const struct c2_rpc_item *item);
 
+int c2_fop_item_encdec(struct c2_rpc_item      *item,
+		       struct c2_bufvec_cursor *cur,
+		       enum c2_bufvec_what      what);
+
 /** @} end of fop group */
 
 /* __COLIBRI_FOP_FOP_ONWIRE_H__ */
