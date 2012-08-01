@@ -306,11 +306,9 @@ void c2_reqhs_fini(void);
    @param service_name Name of the service of interest
    @param reqh Request handler instance
  */
-struct c2_reqh_service *c2_reqh_service_find(const struct c2_fom_type *ft,
-					     struct c2_reqh *reqh);
-
-struct c2_reqh_service *c2_reqh_service_find_by_name(const char *sname,
-						     struct c2_reqh *reqh);
+struct c2_reqh_service *
+c2_reqh_service_find(const struct c2_reqh_service_type *st,
+		     struct c2_reqh *reqh);
 
 /** Descriptor for tlist of request handler services. */
 C2_TL_DESCR_DECLARE(c2_reqh_svc, extern);

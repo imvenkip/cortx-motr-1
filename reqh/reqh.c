@@ -186,28 +186,13 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 	c2_rwlock_read_unlock(&reqh->rh_rwlock);
 }
 
-struct c2_reqh_service *c2_reqh_service_find_by_name(const char *sname,
-						     struct c2_reqh *reqh)
+struct c2_reqh_service *
+c2_reqh_service_find(const struct c2_reqh_service_type *st,
+		     struct c2_reqh *reqh)
 {
-	struct c2_reqh_service *service;
+	C2_PRE(st != NULL && reqh != NULL);
 
-	c2_rwlock_read_lock(&reqh->rh_rwlock);
-	c2_tl_for(c2_reqh_svc, &reqh->rh_services, service) {
-		C2_ASSERT(c2_reqh_service_invariant(service));
-		if (strcmp(service->rs_type->rst_name, sname) == 0)
-			break;
-	} c2_tl_endfor;
-	c2_rwlock_read_unlock(&reqh->rh_rwlock);
-
-	return service;
-}
-
-struct c2_reqh_service *c2_reqh_service_find(const struct c2_fom_type *ft,
-					struct c2_reqh *reqh)
-{
-	C2_PRE(ft != NULL && reqh != NULL);
-
-	return reqh->rh_key[ft->ft_rstype->rst_key];
+	return reqh->rh_key[st->rst_key];
 }
 C2_EXPORTED(c2_reqh_service_find);
 

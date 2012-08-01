@@ -429,22 +429,23 @@ static void cobfoms_del_nonexist_cob(void)
  */
 static void fom_create(struct c2_fom **fom, enum cob_fom_type fomtype)
 {
-	struct c2_fom  *base_fom;
-	struct c2_reqh *reqh;
-	int		rc;
+	struct c2_fom      *base_fom;
+	struct c2_reqh     *reqh;
+	struct c2_fom_type *ft;
+	int		    rc;
 
 	rc = cob_op_fom_create(fom);
 	C2_UT_ASSERT(rc == 0);
 
 	base_fom = *fom;
-	c2_fom_init(base_fom,
-		    fomtype == COB_CREATE ? &cob_create_fomt : &cob_delete_fomt,
+	ft = COB_CREATE ? &cob_create_fomt : &cob_delete_fomt;
+	c2_fom_init(base_fom, ft,
 		    fomtype == COB_CREATE ? &cc_fom_ops : &cd_fom_ops,
 		    NULL, NULL);
 	reqh = c2_cs_reqh_get(&cut->cu_sctx.rsx_colibri_ctx, "ioservice");
 	C2_UT_ASSERT(reqh != NULL);
 
-	base_fom->fo_service = c2_reqh_service_find_by_name("ioservice", reqh);
+	base_fom->fo_service = c2_reqh_service_find(ft->ft_rstype, reqh);
 	C2_UT_ASSERT(base_fom->fo_service != NULL);
 
 	base_fom->fo_loc = &reqh->rh_fom_dom.fd_localities[0];

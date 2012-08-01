@@ -243,22 +243,17 @@ void c2_fom_block_leave(struct c2_fom *fom)
 
 void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
 {
-	struct c2_fom_domain   *dom;
-	size_t			loc_idx;
+	struct c2_fom_domain        *dom;
+	struct c2_reqh_service_type *stype;
+	size_t			     loc_idx;
 
 	C2_PRE(reqh != NULL);
 	C2_PRE(fom != NULL);
 
-	/*
-	 * To access service specific data,
-	 * FOM needs pointer to service instance.
-	 */
-	if (fom->fo_ops->fo_service_name != NULL) {
-		const char *service_name = NULL;
-		service_name = fom->fo_ops->fo_service_name(fom);
-		fom->fo_service = c2_reqh_service_get(service_name,
-						      reqh);
-	}
+	stype = fom->fo_type->ft_rstype;
+	if (stype != NULL)
+		fom->fo_service = c2_reqh_service_find(stype, reqh);
+
 	fom->fo_fol = reqh->rh_fol;
 	dom = &reqh->rh_fom_dom;
 	c2_atomic64_inc(&dom->fd_foms_nr);
