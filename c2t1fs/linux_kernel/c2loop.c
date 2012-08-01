@@ -56,7 +56,9 @@
  * - @ref c2loop-dld-req
  * - @ref c2loop-dld-highlights
  * - @ref c2loop-dld-dep
+ * - @ref c2loop-dld-fspec
  * - @ref c2loop-dld-lspec
+ *    - @ref c2loop-dld-lspec-thread
  * - @ref c2loop-dld-conformance
  * - @ref c2loop-dld-ut
  * - @ref c2loop-dld-st
@@ -145,6 +147,23 @@
  * I/O.
  *
  * <hr>
+ * @section c2loop-dld-fspec C2loop Functional Specification
+ *
+ * C2loop driver represents a c2t1fs file as a /dev/c2loop<N> block
+ * device in the system. The same way as for standard loop device,
+ * losetup(8) utility is used to configure such a mapping between a
+ * file and particular /dev/c2loop<N> block device instance.
+ *
+ * Internally, c2loop driver works with the same kernel interfaces as
+ * standard loop driver. For example, from block layer it takes bio
+ * request structures from which the buffers are referenced. Struct file
+ * is used to call the file system operations on a mapped file
+ * (aio_read/aio_write). For block device request queue configuration,
+ * the same kernel blk_queue_*() API is used. The same ioctls are used
+ * by losetup(8) utility (like LOOP_SET_FD) to configure the mapping
+ * between a file and block device.
+ *
+ * <hr>
  * @section c2loop-dld-lspec C2loop Logical Specification
  *
  * In this section we are going to describe how the segments from bio
@@ -153,19 +172,33 @@
  * deletion of not relevant code.
  *
  * The c2loop driver (as well as the standard one) handles bio requests
- * asynchronously, i.e. there is custom kernel thread (loop_thread)
- * which handles all the bio requests one by one from the internal
- * queue (lo->lo_bio_list). So, it is more likely that there will be
- * several bio requests in the queue in the stable running system
- * before loop_thread will start to handle them. This allows us to
- * look into all available bio requests in the queue and aggregate the
- * relevant continuous segments for one specific read/write file
- * operation into correspondent iovecs for aio_read/aio_write() call.
+ * asynchronously, i.e. when kernel calls loop_make_request(), it
+ * just add bio request into lo->lo_bio_list queue and wakes up the
+ * loop_thread. When the latter starts running, it handles all the
+ * bio requests available in the queue one by one. In the stable
+ * running system it is more likely that there will be several bio
+ * requests in the queue before loop_thread will start to handle
+ * them. This allows us to analyze several bio requests available in
+ * the queue and aggregate the relevant continuous segments for one
+ * specific read/write file operation into correspondent iovecs for
+ * aio_read/aio_write() call. Here is the sequence diagram which shows
+ * this process:
  *
- * Here is how it works. In loop_thread we move all available bio reqs
- * from lo->lo_bio_list which is protected with spin locks to the local
- * queue which does not require protection. Thus we don't take the
- * lock for a long time.
+ * @msc
+ * kernel,loop;
+ *
+ * kernel->kernel [ label = "loop_add_bio(); wake_up(lo);" ] ;
+ * kernel->kernel [ label = "loop_add_bio(); wake_up(lo);" ] ;
+ * kernel->kernel [ label = "loop_add_bio(); wake_up(lo);" ] ;
+ * loop->loop [ label = "handle_bios(); wait_event(lo);" ] ;
+ * kernel->kernel [ label = "loop_add_bio(); wake_up(lo);" ] ;
+ * kernel->kernel [ label = "loop_add_bio(); wake_up(lo);" ] ;
+ * loop->loop [ label = "handle_bios(); wait_event(lo);" ] ;
+ * @endmsc
+ *
+ * In loop_thread we move all available bio reqs from lo->lo_bio_list
+ * which is protected with spin locks to the local queue which does not
+ * require protection. Thus we don't take the lock for a long time.
  *
  * Now, we call the core function loop_handle_bios() with this local
  * list of bio requests which do the main job. It scans the list and
@@ -178,8 +211,30 @@
  *   - the number of segments exceed the size of iovecs array.
  *
  * As soon as any on these condition happen - we close iovecs aggregation
- * and call do_iov_filebacked() function with it which is just convenient
- * wrapper for aio_read/aio_write().
+ * and pass it to do_iov_filebacked() function which is just convenient
+ * wrapper for aio_read/aio_write() calls.
+ *
+ * @subsection c2loop-dld-lspec-thread Threading and Concurrency
+ *
+ * As it can be seen by now, there are two threads involved in c2loop:
+ * the one that adds bio requests to the lo_bio_list queue (let's call
+ * it kernel thread) and loop_thread that handles these requests. If
+ * there are no more bio requests to handle in the queue, loop_thread
+ * just sleeps waiting for event from the kernel thread. The latter
+ * wakes it up after adding a new bio request to the queue.
+ *
+ * Obviously, lo_bio_list queue should be protected with the spin lock,
+ * because two threads can manipulate it concurrently (see lo->lo_lock).
+ * The lo_lock spin lock is provided by the standard loop driver code
+ * and we do not change its usage.
+ *
+ * There is also lo_ctl_mutex in c2loop, which protects the management
+ * interface to the driver. We also do not touch this code.
+ *
+ * @subsection c2loop-dld-lspec-losetup Losetup(8) Utility Support
+ *
+ * The support of losetup(8) utility is provided just by the code
+ * inherited from standard loop device driver, which we do not change.
  *
  * <hr>
  * @section c2loop-dld-conformance C2loop Conformance
