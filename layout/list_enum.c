@@ -349,7 +349,10 @@ static int noninline_read(struct c2_fid *cob_list,
 	lsd = stl->sl_base.l_dom->ld_type_data[c2_list_enum_type.let_id];
 	C2_ASSERT(lsd != NULL);
 
+	if (C2_FI_ENABLED("cursor_init_err"))
+		{ rc = -ENOENT; goto err1_injected; }
 	rc = c2_db_cursor_init(&cursor, &lsd->lsd_cob_lists, tx, 0);
+err1_injected:
 	if (rc != 0) {
 		c2_layout__log("noninline_read",
 			       "c2_db_cursor_init() failed",
@@ -363,10 +366,13 @@ static int noninline_read(struct c2_fid *cob_list,
 	c2_db_pair_setup(&pair, &lsd->lsd_cob_lists,
 			 &key, sizeof key, &rec, sizeof rec);
 	for (i = idx_start; i < idx_end; ++i) {
+		if (C2_FI_ENABLED("cursor_get_err"))
+			{ rc = -ENOMEM; goto err2_injected; }
 		if (i == idx_start)
 			rc = c2_db_cursor_get(&cursor, &pair);
 		else
 			rc = c2_db_cursor_next(&cursor, &pair);
+err2_injected:
 		if (rc != 0) {
 			c2_layout__log("noninline_read",
 				       "c2_db_cursor_get() failed",
@@ -375,7 +381,10 @@ static int noninline_read(struct c2_fid *cob_list,
 				       key.clk_lid, rc);
 			goto out;
 		}
+
+		if (C2_FI_ENABLED("invalid_fid_err")) { goto err3_injected; }
 		if (!c2_fid_is_valid(&rec.clr_cob_id)) {
+err3_injected:
 			rc = -EPROTO;
 			c2_layout__log("noninline_read",
 				       "fid invalid",
@@ -426,7 +435,9 @@ static int list_decode(struct c2_layout_enum *e,
 			   lle_base, &list_bob);
 	C2_ASSERT(list_allocated_invariant(list_enum));
 
+	if (C2_FI_ENABLED("mem_err")) { cob_list = NULL; goto err1_injected; }
 	C2_ALLOC_ARR(cob_list, ce_header->ces_nr);
+err1_injected:
 	if (cob_list == NULL) {
 		rc = -ENOMEM;
 		c2_layout__log("list_decode", "C2_ALLOC_ARR() failed",
@@ -444,7 +455,10 @@ static int list_decode(struct c2_layout_enum *e,
 	for (i = 0; i < num_inline; ++i) {
 		cob_id = c2_bufvec_cursor_addr(cur);
 		c2_bufvec_cursor_move(cur, sizeof *cob_id);
+
+		if (C2_FI_ENABLED("fid_invalid_err")) { goto err2_injected; }
 		if (!c2_fid_is_valid(cob_id)) {
+err2_injected:
 			rc = -EPROTO;
 			C2_LOG("fid invalid, i %lu", (unsigned long)i);
 			goto out;
@@ -503,8 +517,11 @@ static int noninline_write(const struct c2_layout_enum *e,
 	lsd = e->le_sl->sl_base.l_dom->ld_type_data[c2_list_enum_type.let_id];
 	C2_ASSERT(lsd != NULL);
 
+	if (C2_FI_ENABLED("cursor_init_err"))
+		{ rc = -ENOENT; goto err1_injected; }
 	rc = c2_db_cursor_init(&cursor, &lsd->lsd_cob_lists, tx,
 			       C2_DB_CURSOR_RMW);
+err1_injected:
 	if (rc != 0) {
 		c2_layout__log("noninline_write",
 			       "c2_db_cursor_init() failed",
@@ -522,7 +539,11 @@ static int noninline_write(const struct c2_layout_enum *e,
 
 		if (op == C2_LXO_DB_ADD) {
 			rec.clr_cob_id = cob_list[i];
+
+			if (C2_FI_ENABLED("cursor_add_err"))
+				{ rc = -ENOENT; goto err2_injected; }
 			rc = c2_db_cursor_add(&cursor, &pair);
+err2_injected:
 			if (rc != 0) {
 				c2_layout__log("noninline_write",
 					       "c2_db_cursor_add() failed",
@@ -532,10 +553,13 @@ static int noninline_write(const struct c2_layout_enum *e,
 				goto out;
 			}
 		} else if (op == C2_LXO_DB_DELETE) {
+			if (C2_FI_ENABLED("cursor_get_err"))
+				{ rc = -ENOENT; goto err3_injected; }
 			if (i == idx_start)
 				rc = c2_db_cursor_get(&cursor, &pair);
 			else
 				rc = c2_db_cursor_next(&cursor, &pair);
+err3_injected:
 			if (rc != 0) {
 				c2_layout__log("noninline_write",
 					       "c2_db_cursor_get() failed",
@@ -545,7 +569,11 @@ static int noninline_write(const struct c2_layout_enum *e,
 				goto out;
 			}
 			C2_ASSERT(c2_fid_eq(&rec.clr_cob_id, &cob_list[i]));
+
+			if (C2_FI_ENABLED("cursor_del_err"))
+				{ rc = -ENOMEM; goto err4_injected; }
 			rc = c2_db_cursor_del(&cursor);
+err4_injected:
 			if (rc != 0) {
 				c2_layout__log("noninline_write",
 					       "c2_db_cursor_del() failed",

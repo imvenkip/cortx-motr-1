@@ -1029,7 +1029,7 @@ static int test_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	/* Decode the layout buffer into a layout object. */
 	rc = c2_layout_decode(l, &cur, C2_LXO_BUFFER_OP, NULL);
 	if (failure_test)
-		C2_UT_ASSERT(rc == -EINVAL);
+		C2_UT_ASSERT(rc == -EINVAL || rc == -ENOMEM || rc == -EPROTO);
 	else {
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(list_lookup(lid) == l);
@@ -1104,19 +1104,33 @@ static void test_decode_failure(void)
 {
 	uint64_t lid;
 
-	/* Simulate EINVAL error in list_populate(). */
+	/* Simulate invalid attributes error in list_populate(). */
 	lid = 2005;
 	c2_fi_enable_once("list_decode", "list_attr_err");
 	rc = test_decode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				 FAILURE_TEST);
 	C2_UT_ASSERT(rc == -EINVAL);
 
-	/* Simulate EINVAL error in linear_populate(). */
+	/* Simulate invalid attributes error in linear_populate(). */
 	lid = 2006;
 	c2_fi_enable_once("linear_decode", "lin_attr_err");
 	rc = test_decode_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
 				 FAILURE_TEST);
 	C2_UT_ASSERT(rc == -EINVAL);
+
+	/* Simulate memory allocation failure in list_decode(). */
+	lid = 2007;
+	c2_fi_enable_once("list_decode", "mem_err");
+	rc = test_decode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -ENOMEM);
+
+	/* Simulate fid invalid error in list_decode(). */
+	lid = 2008;
+	c2_fi_enable_once("list_decode", "fid_invalid_err");
+	rc = test_decode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -EPROTO);
 }
 
 
@@ -2562,7 +2576,8 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 	rc = c2_layout_lookup(&domain, lid, &c2_pdclust_layout_type,
 			      &tx, &pair, &l3);
 	if (failure_test)
-		C2_UT_ASSERT(rc == -ENOENT || rc == -ENOMEM || rc == -504);
+		C2_UT_ASSERT(rc == -ENOENT || rc == -ENOMEM || rc == -504 ||
+			     rc == -EPROTO);
 	else
 		C2_UT_ASSERT(rc == 0);
 
@@ -2859,6 +2874,44 @@ static void test_lookup_failure(void)
 	rc = c2_layout_lookup(&domain, lid, &test_layout_type, &tx, &pair, &l);
 	C2_UT_ASSERT(rc == -EPROTO);
 
+	/*
+	 * Simulate cursor init error in noninline_read() that is in the path
+	 * of list_decode() that is in the path of c2_layout_decode().
+	 */
+	lid = 10013;
+	c2_fi_enable_once("noninline_read", "cursor_init_err");
+	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
+				 EXISTING_TEST,
+				 MORE_THAN_INLINE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -ENOENT);
+
+	/*
+	 * Simulate cursor get error in noninline_read() that is in the path
+	 * of list_decode() that is in the path of c2_layout_decode().
+	 */
+	lid = 10014;
+	c2_fi_enable_once("noninline_read", "cursor_get_err");
+	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
+				 EXISTING_TEST,
+				 MORE_THAN_INLINE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -ENOMEM);
+
+	/*
+	 * Simulate invalid fid error in noninline_read() that is in the path
+	 * of list_decode() that is in the path of c2_layout_decode().
+	 */
+	lid = 10015;
+	c2_fi_enable_once("noninline_read", "invalid_fid_err");
+	rc = test_lookup_pdclust(LIST_ENUM_ID, lid,
+				 EXISTING_TEST,
+				 MORE_THAN_INLINE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -EPROTO);
+
+
+
 	C2_LEAVE();
 }
 
@@ -2912,7 +2965,7 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 
 	rc = c2_layout_add(&pl->pl_base.sl_base, &tx, &pair);
 	if (failure_test)
-		C2_UT_ASSERT(rc == -505);
+		C2_UT_ASSERT(rc == -505 || rc == -ENOENT);
 	else
 		C2_UT_ASSERT(rc == 0);
 
@@ -3029,6 +3082,33 @@ static void test_add_failure(void)
 			      DUPLICATE_TEST,
 			      !FAILURE_TEST);
 	C2_UT_ASSERT(rc == -EEXIST);
+
+	/*
+	 * Simulate cursor init failure in noninline_write() that is in the
+	 * path of list_encode() which is in the path of c2_layout_encode().
+	 */
+	lid = 11007;
+	c2_fi_enable_once("noninline_write", "cursor_init_err");
+	rc = test_add_pdclust(LIST_ENUM_ID, lid,
+			      MORE_THAN_INLINE,
+			      LAYOUT_DESTROY, NULL,
+			      !DUPLICATE_TEST,
+			      FAILURE_TEST);
+	C2_UT_ASSERT(rc == -ENOENT);
+
+	/*
+	 * Simulate cursor add failure in noninline_write() that is in the
+	 * path of list_encode() which is in the path of c2_layout_encode().
+	 */
+	lid = 11008;
+	c2_fi_enable_once("noninline_write", "cursor_add_err");
+	rc = test_add_pdclust(LIST_ENUM_ID, lid,
+			      MORE_THAN_INLINE,
+			      LAYOUT_DESTROY, NULL,
+			      !DUPLICATE_TEST,
+			      FAILURE_TEST);
+	C2_UT_ASSERT(rc == -ENOENT);
+
 }
 
 
@@ -3312,7 +3392,7 @@ static int test_delete_pdclust(uint32_t enum_id, uint64_t lid,
 
 	rc = c2_layout_delete(l, &tx, &pair);
 	if (failure_test)
-		C2_UT_ASSERT(rc == -ENOENT || rc == -505);
+		C2_UT_ASSERT(rc == -ENOENT || rc == -505 || rc == -ENOMEM);
 	else
 		C2_UT_ASSERT(rc == 0);
 
@@ -3424,6 +3504,30 @@ static void test_delete_failure(void)
 				 INLINE_NOT_APPLICABLE,
 				 FAILURE_TEST);
 	C2_UT_ASSERT(rc == -ENOENT);
+
+	/*
+	 * Simulate cursor get failure in noninline_write() that is in the
+	 * path of list_encode() which is in the path of c2_layout_encode().
+	 */
+	lid = 13007;
+	c2_fi_enable_once("noninline_write", "cursor_get_err");
+	rc = test_delete_pdclust(LIST_ENUM_ID, lid,
+				 EXISTING_TEST,
+				 MORE_THAN_INLINE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -ENOENT);
+
+	/*
+	 * Simulate cursor delete failure in noninline_write() that is in the
+	 * path of list_encode() which is in the path of c2_layout_encode().
+	 */
+	lid = 13008;
+	c2_fi_enable_once("noninline_write", "cursor_del_err");
+	rc = test_delete_pdclust(LIST_ENUM_ID, lid,
+				 EXISTING_TEST,
+				 MORE_THAN_INLINE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -ENOMEM);
 }
 
 #endif /* __KERNEL__ */
