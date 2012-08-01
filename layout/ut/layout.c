@@ -507,7 +507,8 @@ static int pdclust_layout_build(uint32_t enum_id,
 
 		if (C2_FI_ENABLED("list_attr_err")) { P = 0; }
 		rc = c2_list_enum_build(&domain, cob_list, P, list_enum);
-		C2_UT_ASSERT(rc == 0 || rc == -ENOMEM || rc == -EINVAL);
+		C2_UT_ASSERT(rc == 0 || rc == -ENOMEM || rc == -EINVAL ||
+			     rc == -EPROTO);
 
 		e = &(*list_enum)->lle_base;
 
@@ -715,33 +716,30 @@ static int test_build_pdclust(uint32_t enum_id, uint64_t lid,
 				  10, 20,
 				  &pl, &list_enum, &lin_enum,
 				  failure_test);
-	if (failure_test) {
-		C2_UT_ASSERT(rc == -ENOMEM || rc == -EINVAL);
-		goto out;
-	}
-	else
+	if (failure_test)
+		C2_UT_ASSERT(rc == -ENOMEM || rc == -EINVAL || rc == -EPROTO);
+	else {
 		C2_UT_ASSERT(rc == 0);
+		/*
+		 * Verify that c2_layout_find() returns the same object by
+		 * reading it from the memory.
+		 */
+		l = c2_layout_find(&domain, lid);
+		C2_UT_ASSERT(l == &pl->pl_base.sl_base);
 
-	/*
-	 * Verify that c2_layout_find() returns the same object by reading it
-	 * from the memory.
-	 */
-	l = c2_layout_find(&domain, lid);
-	C2_UT_ASSERT(l == &pl->pl_base.sl_base);
+		/* Verify the layout object built earlier here. */
+		pdclust_layout_verify(enum_id, &pl->pl_base.sl_base, lid,
+				      N, K, P, &seed,
+				      10, 20);
 
-	/* Verify the layout object built earlier here. */
-	pdclust_layout_verify(enum_id, &pl->pl_base.sl_base, lid,
-			      N, K, P, &seed,
-			      10, 20);
+		/*
+		 * Delete the layout object by reducing the reference that
+		 * c2_layout_find() has acquired on it.
+		 */
+		c2_layout_put(&pl->pl_base.sl_base);
+		C2_UT_ASSERT(list_lookup(lid) == NULL);
+	}
 
-	/*
-	 * Delete the layout object by reducing the reference that
-	 * c2_layout_find() has acquired on it.
-	 */
-	c2_layout_put(&pl->pl_base.sl_base);
-	C2_UT_ASSERT(list_lookup(lid) == NULL);
-
-out:
 	c2_pool_fini(&pool);
 	return rc;
 }
@@ -836,19 +834,28 @@ static void test_build_failure(void)
 				FAILURE_TEST);
 	C2_UT_ASSERT(rc == -ENOMEM);
 
-	/* Simulate EINVAL error in c2_list_enum_build(). */
+	/* Simulate attributes invalid error in c2_list_enum_build(). */
 	lid = 1009;
 	c2_fi_enable_once("pdclust_layout_build", "list_attr_err");
 	rc = test_build_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				FAILURE_TEST);
 	C2_UT_ASSERT(rc == -EINVAL);
 
-	/* Simulate EINVAL error in c2_linear_enum_build(). */
+	/* Simulate attributes invalid error in c2_linear_enum_build(). */
 	lid = 1010;
 	c2_fi_enable_once("pdclust_layout_build", "lin_attr_err");
 	rc = test_build_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
 				FAILURE_TEST);
 	C2_UT_ASSERT(rc == -EINVAL);
+
+	/* Simulate fid invalid error in c2_list_enum_build(). */
+	lid = 1011;
+	c2_fi_enable_once("c2_list_enum_build", "fid_invalid_err");
+	rc = test_build_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
+				FAILURE_TEST);
+	C2_UT_ASSERT(rc == -EPROTO);
+
+
 }
 
 

@@ -188,7 +188,7 @@ static int list_populate(struct c2_layout_list_enum *list_enum,
 	if (nr == 0) {
 		C2_LOG("list_enum %p, Invalid attributes (nr = 0), rc %d",
 		       list_enum, -EINVAL);
-		return -EINVAL;
+		return -EINVAL; //todo EPROTO
 	}
 	list_enum->lle_nr = nr;
 	list_enum->lle_list_of_cobs = cob_list;
@@ -208,8 +208,10 @@ int c2_list_enum_build(struct c2_layout_domain *dom,
 	C2_PRE(out != NULL);
 
 	C2_ENTRY("domain %p", dom);
+	if (C2_FI_ENABLED("fid_invalid_err")) { goto err1_injected; }
 	for (i = 0; i < nr; ++i) {
 		if (!c2_fid_is_valid(&cob_list[i])) {
+err1_injected:
 			c2_layout__log("c2_list_enum_build", "fid invalid",
 				       &c2_addb_func_fail, &layout_global_ctx,
 				       LID_NONE, -EPROTO);
