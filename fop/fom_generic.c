@@ -226,6 +226,8 @@ static int fom_failure(struct c2_sm *mach)
 	
 	if (mach->sm_rc < 0 && fom->fo_rep_fop == NULL)
 		set_gen_err_reply(fom, mach->sm_rc);
+	
+	mach->sm_rc = 0;
 	return C2_FOPH_TXN_ABORT;
 }
 
@@ -549,7 +551,7 @@ const struct c2_sm_state_descr generic_states[C2_FOPH_NR + 2] = {
 		.sd_allowed   = (1 << C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_FAILURE] = {
-		.sd_flags     = 0,
+		.sd_flags     = C2_SDF_FAILURE,
 		.sd_name      = "fom_failure",
 		.sd_in        = &fom_failure,
 		.sd_ex        = NULL,

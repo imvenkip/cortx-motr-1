@@ -866,8 +866,8 @@ static void cc_cobfid_map_add_test()
 	rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 
-	cob_delete(&dfom->fo_sm_phase);
-	C2_UT_ASSERT(dfom->fo_phase == C2_FOPH_SUCCESS);
+	rc = cob_delete(&dfom->fo_sm_phase);
+	C2_UT_ASSERT(rc == C2_FOPH_SUCCESS);
 
 	c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
 
@@ -893,8 +893,8 @@ static void cc_fom_state_test()
 	rc = c2_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 
-	cob_create(&cfom->fo_sm_phase);
-	C2_UT_ASSERT(cfom->fo_phase == C2_FOPH_SUCCESS);
+	rc = cob_create(&cfom->fo_sm_phase);
+	C2_UT_ASSERT(rc == C2_FOPH_SUCCESS);
 
 	c2_db_tx_commit(&cfom->fo_tx.tx_dbtx);
 
@@ -917,8 +917,8 @@ static void cc_fom_state_test()
 	rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 
-	cob_delete(&dfom->fo_sm_phase);
-	C2_UT_ASSERT(dfom->fo_phase == C2_FOPH_SUCCESS);
+	rc = cob_delete(&dfom->fo_sm_phase);
+	C2_UT_ASSERT(rc == C2_FOPH_SUCCESS);
 
 	c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
 
@@ -1040,8 +1040,8 @@ static struct c2_fom *cob_testdata_create()
 	rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 
-	cob_create(&fom->fo_sm_phase);
-	C2_UT_ASSERT(fom->fo_phase == C2_FOPH_SUCCESS);
+	rc = cob_create(&fom->fo_sm_phase);
+	C2_UT_ASSERT(rc == C2_FOPH_SUCCESS);
 
 	c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
 
@@ -1235,8 +1235,8 @@ static void cd_fom_state_test()
 	rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 
-	cob_delete(&dfom->fo_sm_phase);
-	C2_UT_ASSERT(dfom->fo_phase == C2_FOPH_SUCCESS);
+	rc = cob_delete(&dfom->fo_sm_phase);
+	C2_UT_ASSERT(rc == C2_FOPH_SUCCESS);
 
 	c2_db_tx_commit(&dfom->fo_tx.tx_dbtx);
 

@@ -264,9 +264,9 @@ out:
 	reply = c2_fop_data(fom->fo_rep_fop);
 	reply->cor_rc = rc;
 
-	fom->fo_rc = rc;
+	sm->sm_rc = rc;
 
-	return fom->fo_phase = (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
+	return (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
 
 }
 
@@ -452,8 +452,8 @@ out:
 	reply = c2_fop_data(fom->fo_rep_fop);
 	reply->cor_rc = rc;
 
-	fom->fo_rc = rc;
-	return fom->fo_phase = (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
+	sm->sm_rc = rc;
+	return (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
 }
 
 static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)

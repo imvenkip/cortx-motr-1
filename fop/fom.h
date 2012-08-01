@@ -294,7 +294,7 @@ enum c2_fom_phase {
 	                                context. */
 	C2_FOPH_QUEUE_REPLY,        /*< queuing fop reply.  */
 	C2_FOPH_QUEUE_REPLY_WAIT,   /*< waiting for fop cache space. */
-	C2_FOPH_FINISH,	            /*< terminal state. */
+	C2_FOPH_FINISH,	            /*< final state. */
 	C2_FOPH_SM_FINISH,          /*< state machine terminal state. */
 	C2_FOPH_NR                  /*< number of standard phases. fom type
 	                                specific phases have numbers larger than
