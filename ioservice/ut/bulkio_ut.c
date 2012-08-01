@@ -1085,28 +1085,24 @@ static struct c2_fom_ops bulkio_stob_create_fom_ops = {
 	.fo_fini = bulkio_stob_fom_fini,
 	.fo_state = bulkio_stob_create_fom_state,
 	.fo_home_locality = c2_io_fom_cob_rw_locality_get,
-        .fo_service_name = c2_io_fom_cob_rw_service_name,
 };
 
 static struct c2_fom_ops bulkio_server_write_fom_ops = {
 	.fo_fini = c2_io_fom_cob_rw_fini,
 	.fo_state = bulkio_server_write_fom_state,
 	.fo_home_locality = c2_io_fom_cob_rw_locality_get,
-        .fo_service_name = c2_io_fom_cob_rw_service_name,
 };
 
 static struct c2_fom_ops ut_io_fom_cob_rw_ops = {
 	.fo_fini = c2_io_fom_cob_rw_fini,
 	.fo_state = ut_io_fom_cob_rw_state,
 	.fo_home_locality = c2_io_fom_cob_rw_locality_get,
-        .fo_service_name = c2_io_fom_cob_rw_service_name,
 };
 
 static struct c2_fom_ops bulkio_server_read_fom_ops = {
 	.fo_fini = c2_io_fom_cob_rw_fini,
 	.fo_state = bulkio_server_read_fom_state,
 	.fo_home_locality = c2_io_fom_cob_rw_locality_get,
-        .fo_service_name = c2_io_fom_cob_rw_service_name,
 };
 
 static int io_fop_stob_create_fom_create(struct c2_fop *fop, struct c2_fom **m)

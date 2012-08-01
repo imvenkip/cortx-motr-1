@@ -537,11 +537,6 @@ struct c2_fom_ops {
 	 *  array.
 	 */
 	size_t  (*fo_home_locality) (const struct c2_fom *fom);
-
-	/**
-	 * Get service name which executes this fom.
-	 */
-	const char *(*fo_service_name) (struct c2_fom *fom);
 };
 
 /** Handler thread. */

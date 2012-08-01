@@ -619,7 +619,6 @@ static const struct c2_fom_ops ops = {
 	.fo_fini = c2_io_fom_cob_rw_fini,
 	.fo_state = c2_io_fom_cob_rw_state,
 	.fo_home_locality = c2_io_fom_cob_rw_locality_get,
-        .fo_service_name = c2_io_fom_cob_rw_service_name,
 };
 
 /**
