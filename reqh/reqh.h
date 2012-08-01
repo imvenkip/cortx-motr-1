@@ -320,7 +320,6 @@ C2_BOB_DECLARE(extern, c2_reqh_service);
 /** Descriptor for tlist of rpc machines. */
 C2_TL_DESCR_DECLARE(c2_reqh_rpc_mach, extern);
 C2_TL_DECLARE(c2_reqh_rpc_mach, extern, struct c2_rpc_machine);
-C2_BOB_DECLARE(extern, c2_rpc_machine);
 
 /**
    @name reqhkey

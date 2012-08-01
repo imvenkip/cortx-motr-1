@@ -79,13 +79,10 @@ C2_BOB_DEFINE( , &rqsvc_bob, c2_reqh_service);
    Tlist descriptor for rpc machines.
  */
 C2_TL_DESCR_DEFINE(c2_reqh_rpc_mach, "rpc machines", , struct c2_rpc_machine,
-                   rm_rh_linkage, rm_magix, REQH_RPC_MACH_HEAD_MAGIX, C2_RPC_MACHINE_MAGIX);
+                   rm_rh_linkage, rm_magix, C2_RPC_MACHINE_MAGIX,
+		   REQH_RPC_MACH_HEAD_MAGIX);
 
 C2_TL_DEFINE(c2_reqh_rpc_mach, , struct c2_rpc_machine);
-
-struct c2_bob_type rqrpm_bob;
-C2_BOB_DEFINE( , &rqrpm_bob, c2_rpc_machine);
-
 
 /**
  * Reqh addb context.
@@ -154,7 +151,6 @@ int c2_reqhs_init(void)
 					&c2_addb_global_ctx);
 	c2_reqh_service_types_init();
 	c2_bob_type_tlist_init(&rqsvc_bob, &c2_reqh_svc_tl);
-	c2_bob_type_tlist_init(&rqrpm_bob, &c2_reqh_rpc_mach_tl);
 	return c2_reqh_fop_init();
 }
 
