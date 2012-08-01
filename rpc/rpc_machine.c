@@ -154,9 +154,7 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 	c2_list_init(&machine->rm_incoming_conns);
 	c2_list_init(&machine->rm_outgoing_conns);
 	c2_rpc_services_tlist_init(&machine->rm_services);
-#ifndef __KERNEL__
 	c2_rpc_machine_bob_init(machine);
-#endif
 	c2_mutex_init(&machine->rm_mutex);
 
 	c2_addb_ctx_init(&machine->rm_addb, &rpc_machine_addb_ctx_type,
@@ -227,9 +225,7 @@ static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 	c2_mutex_fini(&machine->rm_mutex);
 
 	c2_addb_ctx_fini(&machine->rm_addb);
-#ifndef __KERNEL__
 	c2_rpc_machine_bob_fini(machine);
-#endif
 }
 
 /**

@@ -338,6 +338,7 @@ struct c2_reqh_service_type {
 
 	/**
 	 * Reqh key to store and locate c2_reqh_service instance.
+	 * @see c2_reqh::rh_key
 	 */
 	unsigned                               rst_key;
 

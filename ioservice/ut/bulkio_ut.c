@@ -97,10 +97,6 @@ static inline struct c2_net_transfer_mc *fop_tm_get(
 /*
  * Intercepting FOM to test I/O FOM functions for different phases.
  */
-/*static struct c2_fom_type ut_io_fom_cob_rw_fomt = {
-	.ft_ops = &ut_io_fom_cob_rw_type_ops,
-};*/
-
 C2_FOM_TYPE_DECLARE(ut_io_fom_cob_rw, &ut_io_fom_cob_rw_type_ops, &c2_ios_type);
 
 static void bulkio_stob_fom_fini(struct c2_fom *fom)

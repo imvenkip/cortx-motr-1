@@ -168,6 +168,7 @@ void c2_reqh_service_init(struct c2_reqh_service *service, struct c2_reqh *reqh)
 	c2_reqh_svc_tlink_init(service);
 	c2_mutex_init(&service->rs_mutex);
 	key = service->rs_type->rst_key;
+	C2_ASSERT(reqh->rh_key[key] == NULL);
 	reqh->rh_key[key] = service;
 	C2_POST(c2_reqh_service_invariant(service));
 }
