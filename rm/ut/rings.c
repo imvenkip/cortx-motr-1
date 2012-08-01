@@ -63,7 +63,7 @@ static bool right_intersects(const struct c2_rm_right *r0,
       return (r0->ri_datum & r1->ri_datum) != 0;
 }
 
-static bool right_join(const struct c2_rm_right *r0, const struct c2_rm_right *r1)
+static bool right_join(struct c2_rm_right *r0, const struct c2_rm_right *r1)
 {
 	return true;
 }

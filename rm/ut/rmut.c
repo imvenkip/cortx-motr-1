@@ -47,8 +47,8 @@
 /*
  * Extern declarations
  */
-void ur_tlist_del(struct c2_rm_right *);
-void ur_tlist_move(struct c2_tl *list, struct c2_rm_right *);
+void c2_rm_ur_tlist_del(struct c2_rm_right *);
+void c2_rm_ur_tlist_move(struct c2_tl *list, struct c2_rm_right *);
 void pr_tlist_init(struct c2_tl *head);
 
 static struct c2_rm_domain dom;
@@ -198,8 +198,8 @@ static void rights_prune(struct c2_tl *rights_list)
 {
 	struct c2_rm_right *right;
 
-	c2_tlist_for(&ur_tl, rights_list, right) {
-		ur_tlist_del(right);
+	c2_tlist_for(&c2_rm_ur_tl, rights_list, right) {
+		c2_rm_ur_tlist_del(right);
 	} c2_tlist_endfor;
 }
 
@@ -230,7 +230,7 @@ static void rm_fini(void)
 	c2_rm_owner_fini(&dwarves);
 	elves.ro_state = ROS_FINAL;
 	c2_rm_owner_fini(&elves);
-	ur_tlist_del(&everything);
+	c2_rm_ur_tlist_del(&everything);
 	owner_prune(&Sauron);
 #endif
 	Sauron.ro_state = ROS_FINAL;
@@ -427,7 +427,7 @@ static void right_get_test3(void)
 	C2_ASSERT(result == 0);
 
 	c2_tlist_for(&pi_tl, &in.rin_pins, pin) {
-		ur_tlist_move(&Sauron.ro_owned[OWOS_HELD], pin->rp_right);
+		c2_rm_ur_tlist_move(&Sauron.ro_owned[OWOS_HELD], pin->rp_right);
 	} c2_tlist_endfor;
 
 	c2_chan_init(&inother.rin_signal);
@@ -477,7 +477,7 @@ static void rm_server_init(void)
 static void rm_server_fini(void)
 {
         Sauron.ro_state = ROS_FINAL;
-        ur_tlist_del(&everything);
+        c2_rm_ur_tlist_del(&everything);
 
 	owner_prune(&Sauron);
         c2_rm_owner_fini(&Sauron);
@@ -566,7 +566,7 @@ static void intent_server(int id)
         C2_ASSERT(result == 0);
 
 	c2_rm_right_put(&in);
-        ur_tlist_del(&in.rin_want);
+        c2_rm_ur_tlist_del(&in.rin_want);
         c2_rm_right_fini(&in.rin_want);
         c2_chan_fini(&in.rin_signal);
 
@@ -598,7 +598,7 @@ static void intent_client(int id)
 
 	/* Just put the right which is got from server */
 	c2_rm_right_put(&req->in);
-        ur_tlist_del(&req->in.rin_want);
+        c2_rm_ur_tlist_del(&req->in.rin_want);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
 
@@ -693,7 +693,7 @@ static void wbc_server(int id)
         result = c2_rm_right_get_wait(&req->in);
         C2_ASSERT(result == 0);
 
-        ur_tlist_del(&req->in.rin_want);
+        c2_rm_ur_tlist_del(&req->in.rin_want);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
 	c2_free(req);
@@ -716,7 +716,7 @@ static void wbc_client(int id)
 
 	/* Release the borrowed right */
 	c2_rm_right_put(&inother);
-        ur_tlist_del(&inother.rin_want);
+        c2_rm_ur_tlist_del(&inother.rin_want);
         c2_rm_right_fini(&inother.rin_want);
         c2_chan_fini(&inother.rin_signal);
 }
@@ -862,18 +862,18 @@ static void cancel_server(int id)
         C2_ASSERT(result == 0);
 
 	/* cleanup code */
-        ur_tlist_del(&req->in.rin_want);
+        c2_rm_ur_tlist_del(&req->in.rin_want);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
 	c2_free(req);
 
 	c2_rm_right_put(&inreq);
-        ur_tlist_del(&inreq.rin_want);
+        c2_rm_ur_tlist_del(&inreq.rin_want);
         c2_rm_right_fini(&inreq.rin_want);
         c2_chan_fini(&inreq.rin_signal);
 
 	c2_rm_right_put(&in);
-        ur_tlist_del(&in.rin_want);
+        c2_rm_ur_tlist_del(&in.rin_want);
         c2_rm_right_fini(&in.rin_want);
         c2_chan_fini(&in.rin_signal);
 }
@@ -924,13 +924,13 @@ static void cancel_client(int id)
 
 	/* cleanup code */
 	c2_rm_right_put(&req->in);
-        ur_tlist_del(&req->in.rin_want);
+        c2_rm_ur_tlist_del(&req->in.rin_want);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
 	c2_free(req);
 
 	c2_rm_right_put(&inother);
-        ur_tlist_del(&inother.rin_want);
+        c2_rm_ur_tlist_del(&inother.rin_want);
         c2_rm_right_fini(&inother.rin_want);
         c2_chan_fini(&inother.rin_signal);
 }
@@ -1013,7 +1013,7 @@ static void caching_server(int id)
 
 	/* Cleanup code */
 	c2_rm_right_put(&req->in);
-        ur_tlist_del(&req->in.rin_want);
+        c2_rm_ur_tlist_del(&req->in.rin_want);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
 	c2_free(req);
@@ -1038,7 +1038,7 @@ static void caching_client(int id)
 
 	/* Release right */
 	c2_rm_right_put(&inother);
-        ur_tlist_del(&inother.rin_want);
+        c2_rm_ur_tlist_del(&inother.rin_want);
         c2_rm_right_fini(&inother.rin_want);
         c2_chan_fini(&inother.rin_signal);
 
@@ -1058,7 +1058,7 @@ static void caching_client(int id)
         C2_ASSERT(result == 0);
 
         c2_rm_right_put(&inrep);
-        ur_tlist_del(&inrep.rin_want);
+        c2_rm_ur_tlist_del(&inrep.rin_want);
         c2_rm_right_fini(&inrep.rin_want);
         c2_chan_fini(&inrep.rin_signal);
 }
@@ -1139,7 +1139,7 @@ static void callback_server(int id)
         result = c2_rm_right_get_wait(&req->in);
         C2_ASSERT(result == 0);
 
-        ur_tlist_del(&req->in.rin_want);
+        c2_rm_ur_tlist_del(&req->in.rin_want);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
 	c2_free(req);
@@ -1170,7 +1170,7 @@ static void callback_server(int id)
         C2_ASSERT(result == 0);
 
         c2_rm_right_put(&req->in);
-        ur_tlist_del(&req->in.rin_want);
+        c2_rm_ur_tlist_del(&req->in.rin_want);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
 	c2_free(req);
@@ -1238,13 +1238,13 @@ static void callback_client(int id)
 
 	/* cleanup code */
 	c2_rm_right_put(&req->in);
-        ur_tlist_del(&req->in.rin_want);
+        c2_rm_ur_tlist_del(&req->in.rin_want);
         c2_rm_right_fini(&req->in.rin_want);
         c2_chan_fini(&req->in.rin_signal);
 	c2_free(req);
 
 	c2_rm_right_put(&inother);
-        ur_tlist_del(&inother.rin_want);
+        c2_rm_ur_tlist_del(&inother.rin_want);
         c2_rm_right_fini(&inother.rin_want);
         c2_chan_fini(&inother.rin_signal);
 }
@@ -1269,7 +1269,7 @@ static void callback_client1(int id)
         C2_ASSERT(result == 0);
 
 	c2_rm_right_put(&inconflict);
-        ur_tlist_del(&inconflict.rin_want);
+        c2_rm_ur_tlist_del(&inconflict.rin_want);
         c2_rm_right_fini(&inconflict.rin_want);
         c2_chan_fini(&inconflict.rin_signal);
 }
