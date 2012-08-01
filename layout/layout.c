@@ -952,8 +952,6 @@ int c2_layout_decode(struct c2_layout *l,
 	}
 
 	rec = c2_bufvec_cursor_addr(cur);
-	C2_ASSERT(rec->lr_lt_id == l->l_type->lt_id);
-
 	/* Move the cursor to point to the layout type specific payload. */
 	c2_bufvec_cursor_move(cur, sizeof *rec);
 	/*
@@ -962,6 +960,14 @@ int c2_layout_decode(struct c2_layout *l,
 	 * which will be caught by the respective lo_decode() implementation.
 	 * Hence, ignoring the return status of c2_bufvec_cursor_move() here.
 	 */
+
+	if (!IS_IN_ARRAY(rec->lr_lt_id, l->l_dom->ld_type)) {
+		c2_layout__log("c2_layout_decode", "Invalid layout type",
+			       &layout_decode_fail, &l->l_addb,
+			       l->l_id, -EPROTO);
+		return -EPROTO;
+	}
+	C2_ASSERT(rec->lr_lt_id == l->l_type->lt_id);
 
 	rc = l->l_ops->lo_decode(l, cur, op, tx, rec->lr_ref_count);
 	if (rc != 0)

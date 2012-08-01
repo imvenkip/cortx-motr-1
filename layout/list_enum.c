@@ -183,8 +183,8 @@ static int list_populate(struct c2_layout_list_enum *list_enum,
 
 	if (nr == 0) {
 		C2_LOG("list_enum %p, Invalid attributes (nr = 0), rc %d",
-		       list_enum, -EINVAL);
-		return -EINVAL;
+		       list_enum, -EPROTO);
+		return -EPROTO;
 	}
 	list_enum->lle_nr = nr;
 	list_enum->lle_list_of_cobs = cob_list;

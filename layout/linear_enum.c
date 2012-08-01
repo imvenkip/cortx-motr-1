@@ -130,8 +130,8 @@ static int linear_populate(struct c2_layout_linear_enum *lin_enum,
 
 	if (attr->lla_nr == 0 || attr->lla_B == 0) {
 		C2_LOG("lin_enum %p, attr %p,  Invalid attributes, rc %d",
-		       lin_enum, attr, -EINVAL);
-		return -EINVAL;
+		       lin_enum, attr, -EPROTO);
+		return -EPROTO;
 	}
 	lin_enum->lle_attr = *attr;
 	C2_POST(linear_invariant(lin_enum));

@@ -272,8 +272,8 @@ static int pdclust_populate(struct c2_pdclust_layout *pl,
 
 	if (N + 2 * K > P) {
 		C2_LOG("pl %p, attr %p, Invalid attributes, rc %d",
-		       pl, attr, -EINVAL);
-		return -EINVAL;
+		       pl, attr, -EPROTO);
+		return -EPROTO;
 	}
 
 	lid = pl->pl_base.sl_base.l_id;
@@ -413,7 +413,7 @@ static int pdclust_decode(struct c2_layout *l,
 	pl_rec = c2_bufvec_cursor_addr(cur);
 	c2_bufvec_cursor_move(cur, sizeof *pl_rec);
 	et = l->l_dom->ld_enum[pl_rec->pr_let_id];
-	if (et == NULL) {
+	if (!IS_IN_ARRAY(pl_rec->pr_let_id, l->l_dom->ld_enum) || et == NULL) {
 		rc = -EPROTO;
 		C2_LOG("lid %llu, unregistered enum type, rc %d",
 		       (unsigned long long)l->l_id, rc);
