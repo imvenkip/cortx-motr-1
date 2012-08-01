@@ -108,6 +108,14 @@ static struct c2_net_tm_callbacks c2_rpc_tm_callbacks = {
 	       .ntc_event_cb = rpc_tm_event_cb
 };
 
+static void rmachine_addb_failure(struct c2_rpc_machine *machine,
+				  const char            *msg,
+				  int                    rc)
+{
+	C2_ADDB_ADD(&machine->rm_addb, &c2_rpc_machine_addb_loc,
+		    c2_rpc_machine_func_fail, msg, rc);
+}
+
 int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 			struct c2_cob_domain      *dom,
 			struct c2_net_domain      *net_dom,
@@ -524,8 +532,11 @@ static void net_buf_event_handler(const struct c2_net_buffer_event *ev)
 		rpc_recv_pool_buffer_put(nb);
 }
 
-#define tm_to_rpc_machine(tm) \
-	container_of(tm, struct c2_rpc_machine, rm_tm)
+static struct c2_rpc_machine *
+tm_to_rpc_machine(const struct c2_net_transfer_mc *tm)
+{
+	return container_of(tm, struct c2_rpc_machine, rm_tm);
+}
 
 static void net_buf_received(struct c2_net_buffer    *nb,
 			     c2_bindex_t              offset,
@@ -534,10 +545,13 @@ static void net_buf_received(struct c2_net_buffer    *nb,
 {
 	struct c2_rpc_machine *machine;
 	struct c2_rpc_packet   p;
+	int                    rc;
 
 	machine = tm_to_rpc_machine(nb->nb_tm);
 	c2_rpc_packet_init(&p);
-	(void)c2_rpc_packet_decode(&p, &nb->nb_buffer, offset, length);
+	rc = c2_rpc_packet_decode(&p, &nb->nb_buffer, offset, length);
+	if (rc != 0)
+		rmachine_addb_failure(machine, "Buffer decode failed", rc);
 	/* There might be items in packet p, which were successfully decoded
 	   before an error occured. */
 	packet_received(&p, machine, from_ep);
@@ -568,6 +582,8 @@ static void item_received(struct c2_rpc_item      *item,
 	item->ri_rpc_time = c2_time_now();
 
 	c2_rpc_machine_lock(machine);
+	/* NOTE: rpc_machine_lock is dropped and reaquired in
+	   c2_rpc_item_received() code path */
 	c2_rpc_item_received(item, machine);
 	c2_rpc_machine_unlock(machine);
 }
@@ -577,9 +593,7 @@ static void net_buf_err(struct c2_net_buffer *nb, int32_t status)
 	struct c2_rpc_machine *machine;
 
 	machine = tm_to_rpc_machine(nb->nb_tm);
-	C2_ADDB_ADD(&machine->rm_addb, &c2_rpc_machine_addb_loc,
-		    c2_rpc_machine_func_fail, "Buffer event reported failure",
-		    status);
+	rmachine_addb_failure(machine, "Buffer event reported failure", status);
 }
 
 /* Put buffer back into the pool */

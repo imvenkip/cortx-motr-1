@@ -45,14 +45,16 @@ C2_TL_DEFINE(packet_item, /* global */, struct c2_rpc_item);
 
 bool c2_rpc_packet_invariant(const struct c2_rpc_packet *p)
 {
-	c2_bcount_t size;
+	struct c2_rpc_item *item;
+	c2_bcount_t         size;
 
 	size = 0;
+	for_each_item_in_packet(item, p)
+		size += c2_rpc_item_size(item)
+	end_for_each_item_in_packet;
+
 	return p != NULL &&
 	       p->rp_nr_items == packet_item_tlist_length(&p->rp_items) &&
-	       c2_tl_forall(packet_item, item, &p->rp_items,
-				size += c2_rpc_item_size(item);
-				true;) &&
 	       p->rp_size == size + C2_RPC_PACKET_OW_HEADER_SIZE;
 }
 
@@ -127,9 +129,9 @@ void c2_rpc_packet_remove_all_items(struct c2_rpc_packet *p)
 	C2_PRE(c2_rpc_packet_invariant(p));
 	C2_LOG("nr_items: %d", (int)p->rp_nr_items);
 
-	c2_tl_for(packet_item, &p->rp_items, item) {
+	for_each_item_in_packet(item, p)
 		c2_rpc_packet_remove_item(p, item);
-	} c2_tl_endfor;
+	end_for_each_item_in_packet;
 
 	C2_POST(c2_rpc_packet_invariant(p) && c2_rpc_packet_is_empty(p));
 	C2_LEAVE();
@@ -188,11 +190,11 @@ int c2_rpc_packet_encode_using_cursor(struct c2_rpc_packet    *packet,
 
 	rc = packet_header_encode(packet, cursor);
 	if (rc == 0) {
-		c2_tl_for(packet_item, &packet->rp_items, item) {
+		for_each_item_in_packet(item, packet) {
 			rc = item_encode(item, cursor);
 			if (rc != 0)
 				break;
-		} c2_tl_endfor;
+		} end_for_each_item_in_packet;
 	}
 	end_of_bufvec = c2_bufvec_cursor_align(cursor, 8);
 	C2_ASSERT(end_of_bufvec ||
@@ -342,9 +344,9 @@ void c2_rpc_packet_traverse_items(struct c2_rpc_packet *p,
 	C2_ASSERT(c2_rpc_packet_invariant(p));
 	C2_LOG("nr_items: %u", (unsigned int)p->rp_nr_items);
 
-	c2_tl_for(packet_item, &p->rp_items, item) {
+	for_each_item_in_packet(item, p) {
 		visit(item, opaque_data);
-	} c2_tl_endfor;
+	} end_for_each_item_in_packet;
 
 	C2_ASSERT(c2_rpc_packet_invariant(p));
 	C2_LEAVE();
