@@ -55,21 +55,6 @@
 extern struct c2_fop_type c2_fom_generic_error_rep_fopt;
 
 /**
- * Begins fom execution, transitions fom to its first
- * standard phase.
- *
- * @see c2_fom_state_generic()
- *
- * C2_FSO_AGAIN is used to execute next fom phase
- * C2_FSO_WAIT  is used to execute its wait phase when
-		returned from blocking state.
- */
-static int fom_phase_init(struct c2_sm *mach)
-{
-	return C2_FOPH_AUTHENTICATE;
-}
-
-/**
  * Performs authenticity checks on fop,
  * executed by the fom.
  */
@@ -223,10 +208,10 @@ static int fom_failure(struct c2_sm *mach)
 	struct c2_fom *fom = c2_sm2fom(mach);
 
 	C2_PRE(fom != NULL);
-	
+
 	if (mach->sm_rc < 0 && fom->fo_rep_fop == NULL)
 		set_gen_err_reply(fom, mach->sm_rc);
-	
+
 	mach->sm_rc = 0;
 	return C2_FOPH_TXN_ABORT;
 }
@@ -271,7 +256,7 @@ static int fom_txn_commit(struct c2_sm *mach)
 	rc = c2_db_tx_commit(&fom->fo_tx.tx_dbtx);
 	if (rc < 0)
 		set_gen_err_reply(fom, rc);
-	
+
 	return C2_FOPH_QUEUE_REPLY;
 }
 
@@ -346,7 +331,8 @@ static int fom_queue_reply(struct c2_sm *mach)
         item = c2_fop_to_rpc_item(fom->fo_rep_fop);
         c2_rpc_reply_post(&fom->fo_fop->f_item, item);
 
-	return fom->fo_next_phase = C2_FOPH_FINISH;
+	fom->fo_next_phase = C2_FOPH_FINISH;
+	return C2_FSO_WAIT;
 }
 
 /**
@@ -358,7 +344,8 @@ static int fom_queue_reply_wait(struct c2_sm *mach)
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	return fom->fo_next_phase = C2_FOPH_FINISH;
+	fom->fo_next_phase = C2_FOPH_FINISH;
+	return C2_FSO_WAIT;
 }
 
 static int fom_timeout(struct c2_sm *mach)
@@ -375,23 +362,14 @@ static int fom_timeout(struct c2_sm *mach)
  * State name is used to log addb event.
  */
 const struct c2_sm_state_descr generic_states[C2_FOPH_NR + 2] = {
-	[C2_FOPH_SM_INIT] = {
+	[C2_FOPH_INIT] = {
 		.sd_flags     = C2_SDF_INITIAL,
 		.sd_name      = "SM init",
 		.sd_in        = NULL,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_INIT) |
-				(1 << C2_FOPH_SM_FINISH)
-	},
-	[C2_FOPH_INIT] = {
-		.sd_flags     = 0,
-		.sd_name      = "fom_init",
-		.sd_in        = &fom_phase_init,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOPH_AUTHENTICATE) |
-				(1 << C2_FOPH_FAILURE)
+				(1 << C2_FOPH_FINISH)
 	},
 	[C2_FOPH_AUTHENTICATE] = {
 		.sd_flags     = 0,
@@ -593,12 +571,12 @@ const struct c2_sm_state_descr generic_states[C2_FOPH_NR + 2] = {
 		.sd_allowed   = (1 << C2_FOPH_FINISH)
 	},
 	[C2_FOPH_FINISH] = {
-		.sd_flags     = 0,
-		.sd_name      = "finished",
+		.sd_flags     = C2_SDF_TERMINAL,
+		.sd_name      = "SM finish",
 		.sd_in        = NULL,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_SM_FINISH)
+		.sd_allowed   = 0
 	},
 	[C2_FOPH_NR + 1] = {
 		.sd_flags     = 0,
@@ -608,14 +586,6 @@ const struct c2_sm_state_descr generic_states[C2_FOPH_NR + 2] = {
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOPH_SUCCESS) |
 				(1 << C2_FOPH_FAILURE)
-	},
-	[C2_FOPH_SM_FINISH] = {
-		.sd_flags     = C2_SDF_TERMINAL,
-		.sd_name      = "SM finish",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = 0
 	}
 };
 
@@ -624,6 +594,15 @@ const struct c2_sm_conf	generic_conf = {
 	.scf_nr_states = C2_FOPH_NR + 2,
 	.scf_state     = generic_states
 };
+
+/**
+ * Begins fom execution, transitions fom to its first
+ * standard phase.
+ *
+ * C2_FSO_AGAIN is used to execute next fom phase
+ * C2_FSO_WAIT  is used to execute its wait phase when
+ * 		returned from blocking state.
+ */
 
 int c2_fom_state_generic(struct c2_fom *fom)
 {
@@ -649,10 +628,12 @@ void c2_fom_sm_init(struct c2_fom *fom)
 	fom_group    = &fom->fo_loc->fl_group;
 	fom_addb_ctx = &fom->fo_loc->fl_dom->fd_addb_ctx;
 
-	c2_sm_init(&fom->fo_sm_phase, conf, C2_FOPH_SM_INIT, fom_group,
+	c2_sm_init(&fom->fo_sm_phase, conf, C2_FOPH_INIT, fom_group,
 		    fom_addb_ctx);
 	c2_sm_init(&fom->fo_sm_state, &fom_conf, C2_FOS_INIT, fom_group,
 		    fom_addb_ctx);
+
+	fom->fo_next_phase = C2_FOPH_AUTHENTICATE;
 }
 
 void c2_fom_type_register(struct c2_fom_type *fom_type)

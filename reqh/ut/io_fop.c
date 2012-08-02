@@ -428,7 +428,7 @@ static int stob_create_fom_state(struct c2_fom *fom)
 
 static int stob_create(struct c2_sm *sm)
 {
-	struct c2_fom		     *fom;
+	struct c2_fom		     *fom = c2_sm2fom(sm);
 	struct c2_stob_io_create     *in_fop;
 	struct c2_stob_io_create_rep *out_fop;
 	struct c2_stob_io_fom	     *fom_obj;
@@ -436,7 +436,6 @@ static int stob_create(struct c2_sm *sm)
 	struct c2_fop		     *fop;
 	int			      result;
 
-	fom = container_of(sm, struct c2_fom, fo_sm_phase);
 	fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
 
 	in_fop = c2_fop_data(fom->fo_fop);
@@ -489,7 +488,7 @@ static int stob_read_fom_state(struct c2_fom *fom)
 
 static int stob_read(struct c2_sm *sm)
 {
-	struct c2_fom		   *fom;
+	struct c2_fom		   *fom = c2_sm2fom(sm);
         struct c2_stob_io_read	   *in_fop;
         struct c2_stob_io_read_rep *out_fop;
         struct c2_stob_io_fom	   *fom_obj;
@@ -501,7 +500,6 @@ static int stob_read(struct c2_sm *sm)
         uint32_t		    bshift;
         int			    result;
 
-	fom = container_of(sm, struct c2_fom, fo_sm_phase);
         fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
         stio = &fom_obj->sif_stio;
 
@@ -574,7 +572,7 @@ static int stob_write_fom_state(struct c2_fom *fom)
 
 static int stob_write(struct c2_sm *sm)
 {
-	struct c2_fom		*fom;
+	struct c2_fom		*fom = c2_sm2fom(sm);
         struct c2_stob_io_write *in_fop;
         struct c2_stob_io_fom	*fom_obj;
         struct c2_stob_io	*stio;
@@ -585,7 +583,6 @@ static int stob_write(struct c2_sm *sm)
         uint32_t		 bshift;
         int			 result;
 
-	fom = container_of(sm, struct c2_fom, fo_sm_phase);
         fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
         stio = &fom_obj->sif_stio;
 
@@ -618,14 +615,14 @@ static int stob_write(struct c2_sm *sm)
 		sm->sm_rc = result;
 		return C2_FOPH_FAILURE;
 	}
-	
+
 	fom->fo_next_phase = C2_FOPH_STOB_IO_FINISH;
 	return C2_FSO_WAIT;
 }
 
 static int stob_io_finished(struct c2_sm *sm)
 {
-	struct c2_fom		    *fom;
+	struct c2_fom		    *fom = c2_sm2fom(sm);
         struct c2_stob_io_write_rep *out_fop;
         struct c2_stob_io_fom	    *fom_obj;
         struct c2_stob_io	    *stio;
@@ -634,20 +631,19 @@ static int stob_io_finished(struct c2_sm *sm)
 	struct c2_fop		    *fop;
         uint32_t		     bshift;
 
-	fom = container_of(sm, struct c2_fom, fo_sm_phase);
         fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
         stio = &fom_obj->sif_stio;
 	out_fop = c2_fop_data(fom_obj->sif_rep_fop);
 	sm->sm_rc = stio->si_rc;
 	stobj = fom_obj->sif_stobj;
-		
+
 	out_fop->fiwr_rc = sm->sm_rc;
 	fop = fom_obj->sif_rep_fop;
 	item = c2_fop_to_rpc_item(fop);
 	item->ri_type = &fop->f_type->ft_rpc_item_type;
 	item->ri_group = NULL;
 	fom->fo_rep_fop = fom_obj->sif_rep_fop;
-	
+
 	if (sm->sm_rc == 0) {
 		bshift = stobj->so_op->sop_block_shift(stobj);
 		out_fop->fiwr_count = stio->si_count << bshift;

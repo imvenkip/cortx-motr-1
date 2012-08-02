@@ -364,9 +364,23 @@ static int fom_exec(struct c2_sm *sm)
 	C2_ASSERT(c2_fom_group_is_locked(fom));
 
 	if (fom->fo_next_phase == C2_FOPH_FINISH)
-		return -1;
+		return C2_FOS_FINISH;
 	C2_POST(c2_fom_invariant(fom));
 	return C2_FOS_WAITING;
+}
+
+static void fom_finish(struct c2_fom *fom)
+{
+	C2_PRE(fom != NULL);
+
+	/* Todo: Can be removed once all the fom's
+	 * uses c2_fom_generic().
+	 */
+	c2_sm_state_set(&fom->fo_sm_phase, C2_FOPH_FINISH);
+
+	c2_sm_fini(&fom->fo_sm_phase);
+	c2_sm_fini(&fom->fo_sm_state);
+	fom->fo_ops->fo_fini(fom);
 }
 
 /**
@@ -439,16 +453,8 @@ static void loc_handler_thread(struct c2_fom_hthread *th)
 				idle = false;
 			}
 			c2_sm_state_set(&fom->fo_sm_state, C2_FOS_RUNNING);
-			if (fom->fo_next_phase == C2_FOPH_FINISH) {
-				/* until fom_generic is used every where */
-				c2_sm_state_set(&fom->fo_sm_phase,
-						C2_FOPH_SM_FINISH);
-				c2_sm_state_set(&fom->fo_sm_state,
-						C2_FOS_SM_FINISH);
-				c2_sm_fini(&fom->fo_sm_phase);
-				c2_sm_fini(&fom->fo_sm_state);
-				fom->fo_ops->fo_fini(fom);
-			}
+			if (fom->fo_next_phase == C2_FOPH_FINISH)
+				fom_finish(fom);
 		} else {
 			if (!idle) {
 				C2_CNT_INC(loc->fl_idle_threads_nr);
@@ -750,11 +756,11 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
 {
 	C2_PRE(fom != NULL);
 
-	fom->fo_type	= fom_type;
-	fom->fo_ops	= ops;
-	fom->fo_fop	= fop;
-	fom->fo_rep_fop = reply;
-	fom->fo_next_phase   = C2_FOPH_INIT;
+	fom->fo_type	   = fom_type;
+	fom->fo_ops	   = ops;
+	fom->fo_fop	   = fop;
+	fom->fo_rep_fop	   = reply;
+	fom->fo_next_phase = C2_FOPH_INIT;
 
 	c2_list_link_init(&fom->fo_linkage);
 
@@ -837,14 +843,14 @@ bool c2_fom_callback_cancel(struct c2_fom_callback *cb)
 	return result;
 }
 
-const struct c2_sm_state_descr fom_states[C2_FOS_SM_FINISH + 1] = {
+const struct c2_sm_state_descr fom_states[C2_FOS_FINISH + 1] = {
 	[C2_FOS_INIT] = {
 		.sd_flags     = C2_SDF_INITIAL,
 		.sd_name      = "SM init",
 		.sd_in        = NULL,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOS_SM_FINISH) |
+		.sd_allowed   = (1 << C2_FOS_FINISH) |
 				(1 << C2_FOS_QUEUE)
 	},
 	[C2_FOS_QUEUE] = {
@@ -870,7 +876,7 @@ const struct c2_sm_state_descr fom_states[C2_FOS_SM_FINISH + 1] = {
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOS_WAITING) |
-				(1 << C2_FOS_SM_FINISH)
+				(1 << C2_FOS_FINISH)
 	},
 	[C2_FOS_WAITING] = {
 		.sd_flags     = 0,
@@ -878,10 +884,10 @@ const struct c2_sm_state_descr fom_states[C2_FOS_SM_FINISH + 1] = {
 		.sd_in        = &fom_wait,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOS_SM_FINISH) |
+		.sd_allowed   = (1 << C2_FOS_FINISH) |
 				(1 << C2_FOS_READY)
 	},
-	[C2_FOS_SM_FINISH] = {
+	[C2_FOS_FINISH] = {
 		.sd_flags     = C2_SDF_TERMINAL,
 		.sd_name      = "finished",
 		.sd_in        = NULL,
@@ -893,7 +899,7 @@ const struct c2_sm_state_descr fom_states[C2_FOS_SM_FINISH + 1] = {
 
 const struct c2_sm_conf	fom_conf = {
 	.scf_name      = "FOM states",
-	.scf_nr_states = C2_FOS_SM_FINISH + 1,
+	.scf_nr_states = C2_FOS_FINISH + 1,
 	.scf_state     = fom_states
 };
 

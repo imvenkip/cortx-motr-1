@@ -252,7 +252,7 @@ enum c2_fom_state {
 	 * locality wait list in this state.
 	 */
 	C2_FOS_WAITING,
-	C2_FOS_SM_FINISH,
+	C2_FOS_FINISH,
 };
 
 /**
@@ -265,7 +265,6 @@ enum c2_fom_state {
  * @see c2_fom_state_generic()
  */
 enum c2_fom_phase {
-	C2_FOPH_SM_INIT,             /*< state machine initialised. */
 	C2_FOPH_INIT,                /*< fom has been initialised. */
 	C2_FOPH_AUTHENTICATE,        /*< authentication loop is in progress. */
 	C2_FOPH_AUTHENTICATE_WAIT,   /*< waiting for key cache miss. */
@@ -295,7 +294,6 @@ enum c2_fom_phase {
 	C2_FOPH_QUEUE_REPLY,        /*< queuing fop reply.  */
 	C2_FOPH_QUEUE_REPLY_WAIT,   /*< waiting for fop cache space. */
 	C2_FOPH_FINISH,	            /*< final state. */
-	C2_FOPH_SM_FINISH,          /*< state machine terminal state. */
 	C2_FOPH_NR                  /*< number of standard phases. fom type
 	                                specific phases have numbers larger than
 	                                this. */
@@ -634,19 +632,23 @@ extern const struct c2_addb_ctx_type c2_fom_addb_ctx_type;
 C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, (name), (rc))
 
 /**
- * Transtions through both standard and specfic phases until -1 is returned
+ * Transtions through both standard and specfic phases until C2_FSO_WAIT is returned
  * by a state function.
- * Each state function needs to return either next phase fom->fo_phase or -1.
+ * Each state function needs to return either next phase or set fom->fo_next_phase
+ * and return C2_FOS_WAIT.
  *
  * @param fom file operation machine under execution
- * @retval C2_FSO_WAIT, It means fom execution is blocked and fom goes into
- *	   corresponding wait phase, or fom execution is completed, i.e
- *	   success or failure. C2_FOPH_FINISH state is reached.
+ * @retval C2_FSO_WAIT, it means fom execution is blocked and fom goes into
+ *	   corresponding wait state and it needs to be wake up using
+ *	   c2_fom_wakeup(), and goes to fom->fo_next_phase or fom execution
+ *	   is completed and in C2_FOPH_FINISH phase and will be finalized.
+ *	   C2_FSO_AGAIN, it is used to execute next fom phase.
  */
 int c2_fom_state_generic(struct c2_fom *fom);
 
 /**
- * Initializes state machine in the FOM with C2_FOPH_SM_INIT state.
+ * Initializes state machines in the FOM , fo_sm_phase with C2_FOPH_INIT state.
+ * and fo_sm_state with C2_FOS_INIT.
  * @param fom file operation machine.
  * @pre c2_group_is_locked(fom)
  */
