@@ -3012,8 +3012,6 @@ static void test_lookup_failure(void)
 				 FAILURE_TEST);
 	C2_UT_ASSERT(rc == -EPROTO);
 
-
-
 	C2_LEAVE();
 }
 
