@@ -754,41 +754,50 @@ int c2_pdclust_instance_build(struct c2_pdclust_layout *pl,
 	P  = pl->pl_attr.pa_P;
 
 	C2_ALLOC_PTR(pi);
-	tc = &pi->pi_tile_cache;
-	C2_ALLOC_ARR(tc->tc_lcode, P);
-	C2_ALLOC_ARR(tc->tc_permute, P);
-	C2_ALLOC_ARR(tc->tc_inverse, P);
-	if (tc->tc_lcode != NULL &&
-	    tc->tc_permute != NULL &&
-	    tc->tc_inverse != NULL) {
-		pi->pi_layout = pl;
-		tc->tc_tile_no = 1;
-		permute_column(pi, 0, 0);
-		rc = c2_parity_math_init(&pi->pi_math, N, K);
-		if (rc == 0) {
-			c2_layout__instance_init(&pi->pi_base, fid,
-						 &pdclust_instance_ops);
-			c2_pdclust_instance_bob_init(pi);
-			c2_layout_get(l);
-		}
-		else
-			C2_LOG("pi %p, c2_parity_math_init() failed, rc %d",
-			        pi, rc);
-
-	} else {
+	if (pi != NULL) {
+		tc = &pi->pi_tile_cache;
+		C2_ALLOC_ARR(tc->tc_lcode, P);
+		C2_ALLOC_ARR(tc->tc_permute, P);
+		C2_ALLOC_ARR(tc->tc_inverse, P);
+		if (tc->tc_lcode != NULL &&
+		    tc->tc_permute != NULL &&
+		    tc->tc_inverse != NULL) {
+			pi->pi_layout = pl;
+			tc->tc_tile_no = 1;
+			permute_column(pi, 0, 0);
+			rc = c2_parity_math_init(&pi->pi_math, N, K);
+			if (rc == 0) {
+				c2_layout__instance_init(&pi->pi_base, fid,
+							&pdclust_instance_ops);
+				c2_pdclust_instance_bob_init(pi);
+				c2_layout_get(l);
+			}
+			else
+				C2_LOG("pi %p, c2_parity_math_init() failed, "
+				       "rc %d", pi, rc);
+		} else
+			rc = -ENOMEM;
+	} else
 		rc = -ENOMEM;
-		c2_layout__log("c2_pdclust_instance_build",
-			       "C2_ALLOC() failed",
-			       &c2_addb_oom, &l->l_addb, l->l_id, rc);
-	}
 
 	if (rc == 0) {
 		*out = pi;
 		C2_POST(pdclust_instance_invariant(*out));
 		C2_POST(l->l_ref > 0);
 	}
-	else
-		pdclust_instance_fini(&pi->pi_base);
+	else {
+		if (rc == -ENOMEM)
+			c2_layout__log("c2_pdclust_instance_build",
+				       "C2_ALLOC() failed",
+				       &c2_addb_oom, &l->l_addb, l->l_id, rc);
+		if (pi != NULL) {
+			c2_free(tc->tc_inverse);
+			c2_free(tc->tc_permute);
+			c2_free(tc->tc_lcode);
+		}
+		c2_free(pi);
+	}
+
 	C2_LEAVE("rc %d", rc);
 	return rc;
 }
