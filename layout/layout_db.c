@@ -646,6 +646,7 @@ int c2_layout_delete(struct c2_layout *l,
 	return rc;
 }
 
+
 /** @} end group LayoutDBDFS */
 
 /*
