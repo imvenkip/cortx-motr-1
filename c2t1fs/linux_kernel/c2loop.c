@@ -62,11 +62,12 @@
  * - @ref c2loop-dld-conformance
  * - @ref c2loop-dld-ut
  * - @ref c2loop-dld-st
+ * - @ref c2loop-dld-O
  * - @ref c2loop-dld-ref
  * - @ref c2loop-dld-plan
  *
  * <hr>
- * @section c2loop-dld-ovw C2loop Overview
+ * @section c2loop-dld-ovw Overview
  *
  * C2loop is <a href="http://en.wikipedia.org/wiki/Loop_device">loop
  * block device</a> Linux driver for Colibri c2t1fs.
@@ -88,7 +89,7 @@
  * of transfer_none() from the data path altogether.
  *
  * <hr>
- * @section c2loop-dld-req C2loop Requirements
+ * @section c2loop-dld-req Requirements
  *
  * - @b r.c2loop.map
  *   C2loop should represent a c2t1fs file as the block device.
@@ -102,7 +103,7 @@
  *   C2loop should be manageable with the standard losetup utility.
  *
  * <hr>
- * @section c2loop-dld-highlights C2loop Design Highlights
+ * @section c2loop-dld-highlights Design Highlights
  *
  * For all the bio segments, we directly call c2t1fs
  * aio_read/aio_write() functions with the iovecs array argument, where
@@ -121,7 +122,7 @@
  * aio_read/aio_write() with all of them.
  *
  * <hr>
- * @section c2loop-dld-dep C2loop Dependencies
+ * @section c2loop-dld-dep Dependencies
  *
  * The ext4 file system which is likely to be used with c2loop
  * block device has a maximum block size limit of 4K. For optimal
@@ -147,7 +148,7 @@
  * I/O.
  *
  * <hr>
- * @section c2loop-dld-fspec C2loop Functional Specification
+ * @section c2loop-dld-fspec Functional Specification
  *
  * C2loop driver represents a c2t1fs file as a /dev/c2loop<N> block
  * device in the system. The same way as for standard loop device,
@@ -164,7 +165,7 @@
  * between a file and block device.
  *
  * <hr>
- * @section c2loop-dld-lspec C2loop Logical Specification
+ * @section c2loop-dld-lspec Logical Specification
  *
  * In this section we are going to describe how the segments from bio
  * requests are aggregated for iovecs. This is the core customization to
@@ -196,14 +197,9 @@
  * loop->loop [ label = "handle_bios(); wait_event(lo);" ] ;
  * @endmsc
  *
- * In loop_thread we move all available bio reqs from lo->lo_bio_list
- * which is protected with spin locks to the local queue which does not
- * require protection. Thus we don't take the lock for a long time.
- *
- * Now, we call the core function loop_handle_bios() with this local
- * list of bio requests which do the main job. It scans the list and
- * creates the iovecs array from each bio request until any of the
- * following conditions happen:
+ * loop_handle_bios() is the core function which do the main job. It
+ * traverse the bio requests queue and creates the iovecs array until
+ * any of the following conditions happen:
  *
  *   - the position in the file where the data should be read/written
  *     changed;
@@ -237,7 +233,7 @@
  * inherited from standard loop device driver, which we do not change.
  *
  * <hr>
- * @section c2loop-dld-conformance C2loop Conformance
+ * @section c2loop-dld-conformance Conformance
  *
  * - @b i.c2loop.map
  *   C2loop represent a c2t1fs file as the block device by inheriting
@@ -254,12 +250,12 @@
  *   inheriting the code from the standard loop device driver.
  *
  * <hr>
- * @section c2loop-dld-ut C2loop Unit Tests
+ * @section c2loop-dld-ut Unit Tests
  *
  * Unit testing does not look reasonable for c2loop driver.
  *
  * <hr>
- * @section c2loop-dld-st C2loop System Tests
+ * @section c2loop-dld-st System Tests
  *
  * The following system testing should pass for c2loop:
  *
@@ -271,7 +267,34 @@
  *   - delete c2loop<N> block device from c2t1fs file with losetup utility.
  *
  * <hr>
- * @section c2loop-dld-ref C2loop References
+ * @section c2loop-dld-O Analysis
+ *
+ * C2loop does not take any additional resources compared to standard
+ * loop driver. Similar to loop, it does not make any memory allocations
+ * during normal workflow. Except spin lock (lo_lock), which just
+ * protects the bio requests queue between the kernel and loop thread,
+ * no any other locks are taken.
+ *
+ * There are no excessive CPU calculations. Similar to standard loop
+ * driver, there is only one loop, where we traverse the bio requests
+ * queue in the loop thread.
+ *
+ * Bio requests are gathered in the queue and eventually the loop
+ * thread processes all of them - exactly the same way standard loop
+ * driver does. No any additional delay for the bio resources is caused
+ * here.
+ *
+ * It could be possible to add a timer into loop thread to possibly
+ * wait for additional bio requests to form a complete stripe size I/O
+ * buffers and bypass additional read-modify-write logic in c2t1fs to
+ * optimize overall performance. But it is questionable for now, if
+ * we gain something from this. First, timer resource should be taken
+ * probably every time on each loop thread run. Second, it is not clear
+ * whether c2loop is authorized to cause any additional delay in the
+ * I/O path and for how long.
+ *
+ * <hr>
+ * @section c2loop-dld-ref References
  *
  * - <a href="http://en.wikipedia.org/wiki/Loop_device">Loop block device</a>
  *   On Wikipedia
@@ -283,7 +306,7 @@
  * - <a href="http://goo.gl/WzDPt">C2loop investigations log</a>
  *
  * <hr>
- * @section c2loop-dld-plan C2loop Implementation Plan
+ * @section c2loop-dld-plan Implementation Plan
  *
  * The working prototype for c2loop is already implemented along with
  * correspondent changes in c2t1fs (refer to c2loop branch). This was done
