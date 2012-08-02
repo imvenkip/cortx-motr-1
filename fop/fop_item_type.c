@@ -54,6 +54,7 @@ int c2_fop_item_type_default_encode(struct c2_rpc_item_type *item_type,
 	opcode = item_type->rit_opcode;
 	rc = c2_bufvec_uint32(cur, &opcode, C2_BUFVEC_ENCODE) ?:
 	     c2_fop_item_encdec(item, cur, C2_BUFVEC_ENCODE);
+
 	return rc;
 }
 
