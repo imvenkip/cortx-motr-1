@@ -38,6 +38,7 @@ extern const struct c2_test_suite bulkio_client_ut;
 extern const struct c2_test_suite ios_bufferpool_ut;
 extern const struct c2_test_suite cobfoms_ut;
 extern const struct c2_test_suite capa_ut;
+extern const struct c2_test_suite cm_ut;
 extern const struct c2_test_suite cob_ut;
 extern const struct c2_test_suite console_ut;
 extern const struct c2_test_suite db_ut;
@@ -86,6 +87,7 @@ void add_uts(void)
         c2_ut_add(&ios_bufferpool_ut);
 	c2_ut_add(&capa_ut);
 	c2_ut_add(&cfm_ut);
+	c2_ut_add(&cm_ut);
 	c2_ut_add(&cob_ut);
         c2_ut_add(&cobfoms_ut);
 	c2_ut_add(&colibri_setup_ut);
