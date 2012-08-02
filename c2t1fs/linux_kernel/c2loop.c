@@ -479,7 +479,7 @@ static inline void loop_handle_bio(struct loop_device *lo, struct bio *bio)
 	}
 }
 
-static inline void loop_handle_bios(struct loop_device *lo, struct bio_list *l)
+static inline void loop_handle_bios(struct loop_device *lo)
 {
 	int i;
 	int iov_idx = 0;
@@ -495,9 +495,15 @@ static inline void loop_handle_bios(struct loop_device *lo, struct bio_list *l)
 
 	bio_list_init(&cl);
 
-	while (!bio_list_empty(l)) {
+	while (!bio_list_empty(&lo->lo_bio_list)) {
 
-		bio = bio_list_pop(l);
+		spin_lock_irq(&lo->lo_lock);
+		bio = loop_get_bio(lo);
+		spin_unlock_irq(&lo->lo_lock);
+
+		BUG_ON(!bio);
+		if (unlikely(!bio->bi_bdev))
+			goto flush;
 
 		pos = ((loff_t) bio->bi_sector << 9) + lo->lo_offset;
 		if (init_pos == -1) {
@@ -525,6 +531,12 @@ flush:
 		}
 		if (bio == NULL)
 			return;
+
+		if (unlikely(!bio->bi_bdev)) {
+			do_loop_switch(lo, bio->bi_private);
+			bio_put(bio);
+			return;
+		}
 accumulate:
 		BUG_ON(bio->bi_vcnt > ARRAY_SIZE(iov_static));
 		if (iov_idx + bio->bi_vcnt > ARRAY_SIZE(iov_static))
@@ -543,7 +555,7 @@ accumulate:
 		/*printk("accum: op=%d idx=%d bio=%p pos=%d size=%d\n",
 		       (int)op, iov_idx, bio, (int)pos, size);*/
 
-		if (bio_list_empty(l)) {
+		if (bio_list_empty(&lo->lo_bio_list)) {
 			bio = NULL;
 			goto flush;
 		}
@@ -564,41 +576,17 @@ accumulate:
  */
 static int loop_thread(void *data)
 {
-	int i;
 	struct loop_device *lo = data;
-	struct bio *bio;
-	struct bio_list bios;
 
 	set_user_nice(current, -20);
 
 	while (!kthread_should_stop() || !bio_list_empty(&lo->lo_bio_list)) {
 
-		bio_list_init(&bios);
-
 		wait_event_interruptible(lo->lo_event,
 				!bio_list_empty(&lo->lo_bio_list) ||
 				kthread_should_stop());
 
-		for (i=0; i < BIO_MAX_PAGES; i++) {
-			if (bio_list_empty(&lo->lo_bio_list))
-				break;
-
-			spin_lock_irq(&lo->lo_lock);
-			bio = loop_get_bio(lo);
-			spin_unlock_irq(&lo->lo_lock);
-
-			BUG_ON(!bio);
-			if (unlikely(!bio->bi_bdev))
-				break;
-
-			bio_list_add(&bios, bio);
-		}
-
-		if (likely(!bio_list_empty(&bios)))
-			loop_handle_bios(lo, &bios);
-
-		if (unlikely(!bio->bi_bdev))
-			loop_handle_bio(lo, bio);
+		loop_handle_bios(lo);
 	}
 
 	return 0;
