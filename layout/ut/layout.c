@@ -2445,7 +2445,8 @@ static void test_recsize(void)
 
 /* Tests the APIs supported for c2_pdclust_instance object. */
 static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
-				     bool inline_test)
+				     bool inline_test,
+				     bool failure_test)
 {
 	struct c2_uint128             seed;
 	uint32_t                      N;
@@ -2456,6 +2457,8 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 	struct c2_layout_linear_enum *lin_enum;
 	struct c2_pdclust_instance   *pi;
 	struct c2_fid                 gfid;
+	struct c2_layout             *l;
+	struct c2_layout_instance    *li;
 
 	C2_UT_ASSERT(enum_id == LIST_ENUM_ID || enum_id == LINEAR_ENUM_ID);
 
@@ -2485,18 +2488,29 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 	/* Build pdclust instance. */
 	c2_fid_set(&gfid, 0, 999);
 	rc = c2_pdclust_instance_build(pl, &gfid, &pi);
-	C2_UT_ASSERT(rc == 0);
+	if (failure_test) {
+		C2_UT_ASSERT(rc == -ENOMEM || rc == -EPROTO);
+		l = c2_pdl_to_layout(pl);
+		c2_layout_get(l);
+		c2_layout_put(l);
+	}
+	else {
+		C2_UT_ASSERT(rc == 0);
+		layout_demo(pi, P, 1, 1, false);
 
-	layout_demo(pi, P, 1, 1, false);
+		/* Verify c2_layout_instance_to_pdi(). */
+		li = &pi->pi_base;
+		C2_UT_ASSERT(c2_layout_instance_to_pdi(li) == pi);
 
-	/*
-	 * Delete the pdclust instance object. It destroys the layout object
-	 * as well since there has been only one reference acquired on that
-	 * layout.
-	 */
-	pi->pi_base.li_ops->lio_fini(&pi->pi_base);
+		/*
+		 * Delete the pdclust instance object. It destroys the layout
+		 * object as well since there has been only one reference
+		 * acquired on that layout.
+		 */
+		pi->pi_base.li_ops->lio_fini(&pi->pi_base);
+	}
+
 	C2_UT_ASSERT(list_lookup(lid) == NULL);
-
 	c2_pool_fini(&pool);
 	return rc;
 }
@@ -2514,7 +2528,8 @@ static void test_pdclust_instance(void)
 	 * with a few inline entries only and then destroy it.
 	 */
 	lid = 9001;
-	rc = test_pdclust_instance_obj(LIST_ENUM_ID, lid, LESS_THAN_INLINE);
+	rc = test_pdclust_instance_obj(LIST_ENUM_ID, lid, LESS_THAN_INLINE,
+				       !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -2523,7 +2538,8 @@ static void test_pdclust_instance(void)
 	 * LDB_MAX_INLINE_COB_ENTRIES and then destroy it.
 	 */
 	lid = 9002;
-	rc = test_pdclust_instance_obj(LIST_ENUM_ID, lid, EXACT_INLINE);
+	rc = test_pdclust_instance_obj(LIST_ENUM_ID, lid, EXACT_INLINE,
+				       !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -2531,7 +2547,8 @@ static void test_pdclust_instance(void)
 	 * including noninline entries and then destroy it.
 	 */
 	lid = 9003;
-	rc = test_pdclust_instance_obj(LIST_ENUM_ID, lid, MORE_THAN_INLINE);
+	rc = test_pdclust_instance_obj(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
+				       !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
 
 	/*
@@ -2540,8 +2557,40 @@ static void test_pdclust_instance(void)
 	 */
 	lid = 9004;
 	rc = test_pdclust_instance_obj(LINEAR_ENUM_ID, lid,
-				       INLINE_NOT_APPLICABLE);
+				       INLINE_NOT_APPLICABLE,
+				       !FAILURE_TEST);
 	C2_UT_ASSERT(rc == 0);
+}
+
+static void test_pdclust_instance_failure(void)
+{
+	uint64_t lid;
+
+	/* Simulate memory allocation error in c2_pdclust_instance_build(). */
+	lid = 9005;
+	c2_fi_enable_once("c2_pdclust_instance_build", "mem_err1");
+	rc = test_pdclust_instance_obj(LIST_ENUM_ID, lid, LESS_THAN_INLINE,
+				       FAILURE_TEST);
+	C2_UT_ASSERT(rc == -ENOMEM);
+
+	/* Simulate memory allocation error in c2_pdclust_instance_build(). */
+	lid = 9006;
+	c2_fi_enable_once("c2_pdclust_instance_build", "mem_err2");
+	rc = test_pdclust_instance_obj(LINEAR_ENUM_ID, lid,
+				      INLINE_NOT_APPLICABLE,
+				       FAILURE_TEST);
+	C2_UT_ASSERT(rc == -ENOMEM);
+
+	/*
+	 * Simulate c2_parity_math_init() error in
+	 * c2_pdclust_instance_build().
+	 */
+	lid = 9007;
+	c2_fi_enable_once("c2_pdclust_instance_build", "parity_math_err");
+	rc = test_pdclust_instance_obj(LINEAR_ENUM_ID, lid,
+				      INLINE_NOT_APPLICABLE,
+				       FAILURE_TEST);
+	C2_UT_ASSERT(rc == -EPROTO);
 }
 
 #ifndef __KERNEL__
@@ -3164,7 +3213,6 @@ static void test_add_failure(void)
 
 }
 
-
 /* Tests the API c2_layout_update(), for the PDCLUST layout type. */
 static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 			       bool existing_test,
@@ -3611,6 +3659,8 @@ const struct c2_test_suite layout_ut = {
 		{ "layout-max-recsize", test_max_recsize },
 		{ "layout-recsize", test_recsize },
 		{ "layout-pdclust-instance", test_pdclust_instance },
+		{ "layout-pdclust-instance-failure",
+					test_pdclust_instance_failure },
 #ifndef __KERNEL__
 		{ "layout-lookup", test_lookup },
 		{ "layout-lookup-failure", test_lookup_failure },
