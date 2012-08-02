@@ -83,7 +83,7 @@ static int test_init(void)
 	 * Store the original addb level before changing it and change it to
 	 * AEL_WARN.
 	 * Note: This is a provision to avoid recompiling the whole ADDB module,
-	 * when interested in ADDB messages only for LAYOUT module.
+	 * when interested in ADDB messages only for the LAYOUT module.
 	 * Just changing the level to AEL_NONE here and recompiling the LAYOUT
 	 * module serves the purpose in that case.
 	 */
@@ -117,7 +117,7 @@ static int test_init(void)
 	c2_layout_standard_types_unregister(&c2t1fs_globals.g_layout_dom);
 #endif
 
-	/* Register all the available layout types and enum types. */
+	/* Register all the standard layout types and enum types. */
 	rc = c2_layout_standard_types_register(&domain);
 	C2_ASSERT(rc == 0);
 

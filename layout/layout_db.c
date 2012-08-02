@@ -499,7 +499,8 @@ int c2_layout_lookup(struct c2_layout_domain *dom,
 		*out = ghost;
 		C2_POST(c2_layout__invariant(*out));
 		C2_POST((*out)->l_ref > 0);
-		C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, 0);
+		C2_LEAVE("lid %llu, ghost found, rc %d",
+			 (unsigned long long)lid, 0);
 		return 0;
 	}
 	c2_mutex_unlock(&dom->ld_lock);
