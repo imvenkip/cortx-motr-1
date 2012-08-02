@@ -412,8 +412,8 @@ struct c2_fom {
 	struct c2_sm		 fo_sm_phase;
 	/** State machine for FOM states. */
 	struct c2_sm		 fo_sm_state;
-	/** Next FOM phase to be executed */
-	int			 fo_phase;
+	/** Next FOM phase to be executed after WAIT state. */
+	int			 fo_next_phase;
 };
 
 /**

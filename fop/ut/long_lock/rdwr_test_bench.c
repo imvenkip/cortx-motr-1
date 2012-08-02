@@ -151,7 +151,7 @@ static int fom_rdwr_state(struct c2_fom *fom)
 	 * Do NOT use this code as a template for the general purpose. It's
 	 * designed for tesing of c2_long_lock ONLY!
 	 */
-	if (fom->fo_phase == PH_REQ_LOCK) {
+	if (fom->fo_next_phase == PH_REQ_LOCK) {
 		if (rq_seqn == 0)
 			sleeper = fom;
 
@@ -177,13 +177,13 @@ static int fom_rdwr_state(struct c2_fom *fom)
 		case RQ_WAKE_UP:
 		default:
 			c2_fom_wakeup(sleeper);
-			fom->fo_phase = PH_GOT_LOCK;
+			fom->fo_next_phase = PH_GOT_LOCK;
 			result = C2_FSO_AGAIN;
 		}
 
 		/* notify, fom ready */
 		c2_chan_signal(&chan[rq_seqn]);
-	} else if (fom->fo_phase == PH_GOT_LOCK) {
+	} else if (fom->fo_next_phase == PH_GOT_LOCK) {
 		C2_UT_ASSERT(ergo(C2_IN(rq_type, (RQ_READ, RQ_WRITE)),
 				  lock_check(&long_lock, rq_type,
 					     request->fr_req->tr_owners.min,
@@ -208,7 +208,7 @@ static int fom_rdwr_state(struct c2_fom *fom)
 
 		/* notify, fom ready */
 		c2_chan_signal(&chan[rq_seqn]);
-		fom->fo_phase = C2_FOPH_FINISH;
+		fom->fo_next_phase = C2_FOPH_FINISH;
 		result = C2_FSO_WAIT;
         } else
 		C2_IMPOSSIBLE("");
@@ -236,10 +236,10 @@ static void test_req_handle(struct c2_reqh *reqh,
 	C2_UT_ASSERT(rc == 0);
 
 	obj = container_of(fom, struct fom_rdwr, fr_gen);
-	obj->fr_req	= rq;
-	obj->fr_seqn    = seqn;
+	obj->fr_req  = rq;
+	obj->fr_seqn = seqn;
 
-	fom->fo_phase	= PH_REQ_LOCK;
+	fom->fo_next_phase = PH_REQ_LOCK;
 	reqh_fop_handle(reqh, fom);
 }
 

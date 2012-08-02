@@ -206,11 +206,10 @@ struct c2_io_fom_cob_rw {
  */
 enum c2_io_fom_cob_rw_phases {
         C2_FOPH_IO_FOM_BUFFER_ACQUIRE = C2_FOPH_NR + 1,
-        C2_FOPH_IO_FOM_BUFFER_WAIT,
         C2_FOPH_IO_STOB_INIT,
-        C2_FOPH_IO_STOB_WAIT,
+        C2_FOPH_IO_STOB_FINISH,
         C2_FOPH_IO_ZERO_COPY_INIT,
-        C2_FOPH_IO_ZERO_COPY_WAIT,
+        C2_FOPH_IO_ZERO_COPY_FINISH,
         C2_FOPH_IO_BUFFER_RELEASE,
 	C2_IO_FOPH_NR,
 };

@@ -249,7 +249,7 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 		C2_LOG("Conn establish failed: rc [%d]\n", rc);
 	}
 
-	fom->fo_phase = C2_FOPH_FINISH;
+	fom->fo_next_phase = C2_FOPH_FINISH;
 	return C2_FSO_WAIT;
 }
 /*
@@ -379,7 +379,7 @@ out:
 	}
 
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
-	fom->fo_phase = C2_FOPH_FINISH;
+	fom->fo_next_phase = C2_FOPH_FINISH;
 	return C2_FSO_WAIT;
 }
 
@@ -468,7 +468,7 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	 */
 	c2_rpc_reply_post(&fom->fo_fop->f_item, &fom->fo_rep_fop->f_item);
 
-	fom->fo_phase = C2_FOPH_FINISH;
+	fom->fo_next_phase = C2_FOPH_FINISH;
 	return C2_FSO_WAIT;
 }
 
@@ -536,10 +536,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 		c2_rpc_conn_fini_locked(conn);
 
 		c2_rpc_machine_unlock(machine);
-
 		c2_free(conn);
-		fom->fo_phase = C2_FOPH_FINISH;
-		return C2_FSO_WAIT;
 	} else {
 		C2_ASSERT(C2_IN(conn->c_state, (C2_RPC_CONN_ACTIVE,
 						C2_RPC_CONN_TERMINATING)));
@@ -554,9 +551,9 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 		reply->ctr_rc = rc; /* rc can be -EBUSY */
 		C2_LOG("Conn terminate successful: conn [%p]\n", conn);
 		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
-		fom->fo_phase = C2_FOPH_FINISH;
-		return C2_FSO_WAIT;
 	}
+	fom->fo_next_phase = C2_FOPH_FINISH;
+	return C2_FSO_WAIT;
 }
 
 /** @} End of rpc_session group */

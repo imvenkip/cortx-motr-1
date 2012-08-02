@@ -180,7 +180,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 	C2_ASSERT(fop->f_type->ft_fom_type.ft_ops->fto_create != NULL);
 
 	result = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, &fom);
-	if (result == 0) 
+	if (result == 0)
 		c2_fom_queue(fom, reqh);
 	else
 		REQH_ADDB_ADD(reqh->rh_addb, "c2_reqh_fop_handle", result);

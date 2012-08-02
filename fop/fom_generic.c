@@ -346,7 +346,7 @@ static int fom_queue_reply(struct c2_sm *mach)
         item = c2_fop_to_rpc_item(fom->fo_rep_fop);
         c2_rpc_reply_post(&fom->fo_fop->f_item, item);
 
-	return fom->fo_phase = C2_FOPH_FINISH;
+	return fom->fo_next_phase = C2_FOPH_FINISH;
 }
 
 /**
@@ -358,7 +358,7 @@ static int fom_queue_reply_wait(struct c2_sm *mach)
 	struct c2_fom *fom;
 
 	fom = container_of(mach, struct c2_fom, fo_sm_phase);
-	return fom->fo_phase = C2_FOPH_FINISH;
+	return fom->fo_next_phase = C2_FOPH_FINISH;
 }
 
 static int fom_timeout(struct c2_sm *mach)
@@ -629,7 +629,7 @@ int c2_fom_state_generic(struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
 
-	c2_sm_state_set(&fom->fo_sm_phase, fom->fo_phase);
+	c2_sm_state_set(&fom->fo_sm_phase, fom->fo_next_phase);
 
 	return C2_FSO_WAIT;
 }

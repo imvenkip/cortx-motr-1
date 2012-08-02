@@ -242,12 +242,11 @@ static int cc_fom_state(struct c2_fom *fom)
 
 static int cob_create(struct c2_sm *sm)
 {
+	struct c2_fom		   *fom = c2_sm2fom(sm);
 	int			    rc;
 	struct c2_fom_cob_op	   *cc;
 	struct c2_fop_cob_op_reply *reply;
-	struct c2_fom		   *fom;
 
-	fom = container_of(sm, struct c2_fom, fo_sm_phase);
 	cc = cob_fom_get(fom);
 
 	rc = cc_stob_create(fom, cc);
@@ -429,12 +428,10 @@ static int cd_fom_state(struct c2_fom *fom)
 
 static int cob_delete(struct c2_sm *sm)
 {
+	struct c2_fom		   *fom = c2_sm2fom(sm);
 	int			    rc;
 	struct c2_fom_cob_op	   *cd;
 	struct c2_fop_cob_op_reply *reply;
-	struct c2_fom		   *fom;
-
-	fom = container_of(sm, struct c2_fom, fo_sm_phase);
 
 	cd = cob_fom_get(fom);
 

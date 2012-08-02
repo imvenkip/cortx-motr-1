@@ -420,7 +420,7 @@ static int stob_create_fom_state(struct c2_fom *fom)
 	fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
 
 	result = c2_fom_state_generic(fom);
-	if (fom->fo_phase == C2_FOPH_FINISH)
+	if (fom->fo_next_phase == C2_FOPH_FINISH)
 		c2_stob_put(fom_obj->sif_stobj);
 
 	return result;
@@ -474,7 +474,7 @@ static int stob_read_fom_state(struct c2_fom *fom)
         stio = &fom_obj->sif_stio;
         result = c2_fom_state_generic(fom);
 
-	if (fom->fo_phase == C2_FOPH_FINISH) {
+	if (fom->fo_next_phase == C2_FOPH_FINISH) {
                 /*
                    If we fail in any of the generic phase, stob io
                    is uninitialised, so no need to fini.
@@ -537,7 +537,7 @@ static int stob_read(struct c2_sm *sm)
 		return C2_FOPH_FAILURE;
 	}
 
-	fom->fo_phase = C2_FOPH_STOB_IO_FINISH;
+	fom->fo_next_phase = C2_FOPH_STOB_IO_FINISH;
 	return C2_FSO_WAIT;
 }
 
@@ -559,7 +559,7 @@ static int stob_write_fom_state(struct c2_fom *fom)
         stio = &fom_obj->sif_stio;
 
 	result = c2_fom_state_generic(fom);
-        if (fom->fo_phase == C2_FOPH_FINISH) {
+        if (fom->fo_next_phase == C2_FOPH_FINISH) {
                 /*
                    If we fail in any of the generic phase, stob io
                    is uninitialised, so no need to fini.
@@ -619,7 +619,7 @@ static int stob_write(struct c2_sm *sm)
 		return C2_FOPH_FAILURE;
 	}
 	
-	fom->fo_phase = C2_FOPH_STOB_IO_FINISH;
+	fom->fo_next_phase = C2_FOPH_STOB_IO_FINISH;
 	return C2_FSO_WAIT;
 }
 

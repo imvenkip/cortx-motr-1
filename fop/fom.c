@@ -124,6 +124,11 @@ static inline struct c2_fom * sm2fom(const struct c2_sm *sm)
 	return container_of(sm, struct c2_fom, fo_sm_state);
 }
 
+static inline int sm_state(const struct c2_fom *fom)
+{
+	return fom->fo_sm_state.sm_state;
+}
+
 bool c2_fom_invariant(const struct c2_fom *fom)
 {
 	return
@@ -134,8 +139,10 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 		c2_fom_group_is_locked(fom) &&
 		c2_list_link_invariant(&fom->fo_linkage) &&
 
-		ergo(C2_IN(fom->fo_sm_state.sm_state, (C2_FOS_RUNNING,
-						       C2_FOS_QUEUE)),
+		C2_IN(sm_state(fom), (C2_FOS_READY, C2_FOS_QUEUE)) ==
+				      is_in_runq(fom) &&
+		(sm_state(fom) == C2_FOS_WAITING) == is_in_wail(fom) &&
+		ergo((sm_state(fom) == C2_FOS_RUNNING),
 		     !is_in_runq(fom) && !is_in_wail(fom));
 }
 
@@ -159,11 +166,11 @@ static int fom_queue(struct c2_sm *sm)
 	struct c2_fom	       *fom  = sm2fom(sm);
 	struct c2_fom_locality *loc;
 
-	C2_PRE(c2_fom_invariant(fom));
 	loc = fom->fo_loc;
 	c2_list_add_tail(&loc->fl_runq, &fom->fo_linkage);
 	C2_CNT_INC(loc->fl_runq_nr);
 	c2_chan_signal(&loc->fl_runrun);
+	C2_POST(c2_fom_invariant(fom));
 	return -1;
 }
 
@@ -184,8 +191,6 @@ static int fom_ready(struct c2_sm *sm)
 {
 	struct c2_fom	       *fom = sm2fom(sm);
 	struct c2_fom_locality *loc;
-
-	C2_PRE(c2_fom_invariant(fom));
 
 	loc = fom->fo_loc;
 	c2_list_del(&fom->fo_linkage);
@@ -314,10 +319,10 @@ static int fom_wait(struct c2_sm *sm)
 	struct c2_fom	       *fom = sm2fom(sm);
 	struct c2_fom_locality *loc;
 
-	C2_PRE(c2_fom_invariant(fom));
 	loc = fom->fo_loc;
 	c2_list_add_tail(&loc->fl_wail, &fom->fo_linkage);
 	C2_CNT_INC(loc->fl_wail_nr);
+	C2_POST(c2_fom_invariant(fom));
 	return -1;
 }
 
@@ -358,7 +363,7 @@ static int fom_exec(struct c2_sm *sm)
 	C2_ASSERT(rc == C2_FSO_WAIT);
 	C2_ASSERT(c2_fom_group_is_locked(fom));
 
-	if (fom->fo_phase == C2_FOPH_FINISH)
+	if (fom->fo_next_phase == C2_FOPH_FINISH)
 		return -1;
 	C2_POST(c2_fom_invariant(fom));
 	return C2_FOS_WAITING;
@@ -434,7 +439,8 @@ static void loc_handler_thread(struct c2_fom_hthread *th)
 				idle = false;
 			}
 			c2_sm_state_set(&fom->fo_sm_state, C2_FOS_RUNNING);
-			if (fom->fo_phase == C2_FOPH_FINISH) {
+			if (fom->fo_next_phase == C2_FOPH_FINISH) {
+				/* until fom_generic is used every where */
 				c2_sm_state_set(&fom->fo_sm_phase,
 						C2_FOPH_SM_FINISH);
 				c2_sm_state_set(&fom->fo_sm_state,
@@ -748,7 +754,7 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
 	fom->fo_ops	= ops;
 	fom->fo_fop	= fop;
 	fom->fo_rep_fop = reply;
-	fom->fo_phase   = C2_FOPH_INIT;
+	fom->fo_next_phase   = C2_FOPH_INIT;
 
 	c2_list_link_init(&fom->fo_linkage);
 
