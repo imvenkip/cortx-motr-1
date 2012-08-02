@@ -342,7 +342,7 @@ static int cs_req_fop_fom_state(struct c2_fom *fom)
 	       fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
 	       C2_CS_DS2_REQ_OPCODE);
 
-	return c2_fom_state_generic(fom);
+	return c2_fom_state_transition(fom);
 }
 
 static int ds1_request(struct c2_sm *sm)

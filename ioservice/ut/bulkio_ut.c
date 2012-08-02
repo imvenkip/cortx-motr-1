@@ -150,7 +150,7 @@ struct c2_net_buffer_pool * ut_get_buffer_pool(struct c2_fom *fom)
  */
 static int bulkio_server_write_fom_state(struct c2_fom *fom)
 {
-	int	      rc = 0;
+	int	      rc;
 	struct c2_sm *io_phase = &fom->fo_sm_phase;
 
 	switch(fom->fo_next_phase) {
@@ -209,7 +209,7 @@ static int bulkio_server_write_fom_state(struct c2_fom *fom)
  */
 static int bulkio_server_read_fom_state(struct c2_fom *fom)
 {
-	int	      rc = 0;
+	int	      rc;
 	struct c2_sm *io_phase = &fom->fo_sm_phase;
 
 	switch(fom->fo_next_phase) {
@@ -399,7 +399,7 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                  * Case 01: No network buffer is available with the buffer pool.
                  *         Input phase          : C2_FOPH_IO_FOM_BUFFER_ACQUIRE
                  *         Expected Output phase: C2_FOPH_IO_FOM_BUFFER_ACQUIRE
-		 *         			  and rc == C2_FSO_WAIT
+		 *				  and rc == C2_FSO_WAIT
                  */
 		rc = acquire_net_buffer(io_phase);
                 C2_UT_ASSERT(io_phase->sm_rc == 0 &&
@@ -773,7 +773,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                  * Case 01 : No network buffer is available with buffer pool.
                  *         Input phase          : C2_FOPH_IO_FOM_BUFFER_ACQUIRE
                  *         Expected Output phase: C2_FOPH_IO_FOM_BUFFER_ACQUIRE
-		 *         			  and rc == C2_FSO_WAIT
+		 *				  and rc == C2_FSO_WAIT
                  */
                 fom->fo_next_phase =  C2_FOPH_IO_FOM_BUFFER_ACQUIRE;
 
@@ -797,7 +797,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                  *         used by other FOMs in the server).
                  *         Input phase          : C2_FOPH_IO_FOM_BUFFER_ACQUIRE
                  *         Expected Output phase: C2_FOPH_IO_FOM_BUFFER_ACQUIRE
-		 *         			 and rc == C2_FSO_WAIT
+		 *				  and rc == C2_FSO_WAIT
                  */
 
                 empty_buffers_pool(colour);

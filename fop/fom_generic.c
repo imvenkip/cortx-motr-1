@@ -236,7 +236,7 @@ static int fom_fol_rec_add(struct c2_sm *mach)
 	mach->sm_rc = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
                                         &fom->fo_tx.tx_dbtx);
 	if (mach->sm_rc != 0) {
-        	c2_fom_block_leave(fom);
+		c2_fom_block_leave(fom);
 		return C2_FOPH_FAILURE;
 	}
 #endif
@@ -601,10 +601,10 @@ const struct c2_sm_conf	generic_conf = {
  *
  * C2_FSO_AGAIN is used to execute next fom phase
  * C2_FSO_WAIT  is used to execute its wait phase when
- * 		returned from blocking state.
+ *		returned from blocking state.
  */
 
-int c2_fom_state_generic(struct c2_fom *fom)
+int c2_fom_state_transition(struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
 

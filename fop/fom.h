@@ -253,6 +253,8 @@ enum c2_fom_state {
 	 */
 	C2_FOS_WAITING,
 	C2_FOS_FINISH,
+	/** Returns from state function. */
+	C2_FOS_RETURN = -1,
 };
 
 /**
@@ -262,7 +264,7 @@ enum c2_fom_state {
  * fom type.
  *
  * @see https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjA2Zmc0N3I3Z2Y
- * @see c2_fom_state_generic()
+ * @see c2_fom_state_transition()
  */
 enum c2_fom_phase {
 	C2_FOPH_INIT,                /*< fom has been initialised. */
@@ -293,7 +295,7 @@ enum c2_fom_phase {
 	                                context. */
 	C2_FOPH_QUEUE_REPLY,        /*< queuing fop reply.  */
 	C2_FOPH_QUEUE_REPLY_WAIT,   /*< waiting for fop cache space. */
-	C2_FOPH_FINISH,	            /*< final state. */
+	C2_FOPH_FINISH,	            /*< terminal state. */
 	C2_FOPH_NR                  /*< number of standard phases. fom type
 	                                specific phases have numbers larger than
 	                                this. */
@@ -426,7 +428,6 @@ struct c2_fom {
  * @param reqh, request handler processing the fom given fop
  *
  * @pre is_locked(fom)
- * @pre fom->fo_phase == C2_FOPH_INIT || fom->fo_phase == C2_FOPH_FAILURE
  */
 void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh);
 
@@ -436,8 +437,7 @@ void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh);
  * Invoked from c2_fom_type_ops::fto_create implementation for corresponding
  * fom.
  *
- * Fom starts in C2_FOPH_INIT phase and C2_FOS_RUNNING state to begin its
- * execution.
+ * Fom starts in C2_FOPH_INIT phase to begin its execution.
  *
  * @param fom A fom to be initialized
  * @param fom_type Fom type
@@ -492,7 +492,8 @@ enum c2_fom_state_outcome {
 	 *  function registeres the fom's clink with the channel where this
 	 *  event will be signalled.
 	 *
-	 *  When C2_FSO_WAIT is returned, the fom is put on locality wait-list.
+	 *  When C2_FSO_WAIT is returned, the fom is put on locality wait-list
+	 * and finalises the fom if it's phase is C2_FOPH_FINISH.
 	 */
 	C2_FSO_WAIT = -1,
 	/**
@@ -644,10 +645,10 @@ C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, (name),
  *	   is completed and in C2_FOPH_FINISH phase and will be finalized.
  *	   C2_FSO_AGAIN, it is used to execute next fom phase.
  */
-int c2_fom_state_generic(struct c2_fom *fom);
+int c2_fom_state_transition(struct c2_fom *fom);
 
 /**
- * Initializes state machines in the FOM , fo_sm_phase with C2_FOPH_INIT state.
+ * Initialises state machines in the FOM , fo_sm_phase with C2_FOPH_INIT state.
  * and fo_sm_state with C2_FOS_INIT.
  * @param fom file operation machine.
  * @pre c2_group_is_locked(fom)
@@ -655,7 +656,7 @@ int c2_fom_state_generic(struct c2_fom *fom);
 void c2_fom_sm_init(struct c2_fom *fom);
 
 /**
- * Combines standard and FOM specific phases and return
+ * Combines standard and FOM specific phases and returns
  * the resultant state machine configuration in fom_type->ft_conf.
  * @param fom_type Fom type to be registered.
  */

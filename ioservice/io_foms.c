@@ -473,7 +473,7 @@
                        C2_FOPH_IO_FOM_BUFFER_ACQUIRE<br>
                Expected Output : Should not gets network buffer and NULL pointer
                                  set into FOM with phase changed to
-                                 C2_FOPH_IO_FOM_BUFFER_FINSIH and return
+                                 C2_FOPH_IO_FOM_BUFFER_FINISH and return
                                  value C2_FSO_WAIT.
 
    - Test 07 : Call c2_io_fom_cob_rw_state() with buffer pool size 0
@@ -487,7 +487,7 @@
    - Test 08 : Call c2_io_fom_cob_rw_state()<br>
                Input : Read FOM with current phase C2_FOPH_IO_STOB_INIT<br>
                Expected Output : Initiates STOB read with phase changed to
-                                 C2_FOPH_IO_STOB_FINSIH and return value C2_FSO_WAIT.
+                                 C2_FOPH_IO_STOB_FINISH and return value C2_FSO_WAIT.
 
    - Test 09 : Call c2_io_fom_cob_rw_state()<br>
                Input : Read FOM with current phase C2_FOPH_IO_ZERO_COPY_INIT<br>
@@ -1552,7 +1552,7 @@ static int io_finish(struct c2_sm *sm)
         c2_stob_put(fom_obj->fcrw_stob);
 
         C2_ASSERT(ergo(sm->sm_rc == 0,
-                       fom_obj->fcrw_req_count == fom_obj->fcrw_count));
+		       fom_obj->fcrw_req_count == fom_obj->fcrw_count));
 
         if (sm->sm_rc != 0) {
                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
@@ -1578,7 +1578,7 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 
         C2_PRE(fom != NULL);
 
-        return c2_fom_state_generic(fom);
+        return c2_fom_state_transition(fom);
 }
 
 static void reply_fop_set(struct c2_fom *fom)

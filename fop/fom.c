@@ -171,7 +171,7 @@ static int fom_queue(struct c2_sm *sm)
 	C2_CNT_INC(loc->fl_runq_nr);
 	c2_chan_signal(&loc->fl_runrun);
 	C2_POST(c2_fom_invariant(fom));
-	return -1;
+	return C2_FOS_RETURN;
 }
 
 /**
@@ -323,7 +323,7 @@ static int fom_wait(struct c2_sm *sm)
 	c2_list_add_tail(&loc->fl_wail, &fom->fo_linkage);
 	C2_CNT_INC(loc->fl_wail_nr);
 	C2_POST(c2_fom_invariant(fom));
-	return -1;
+	return C2_FOS_RETURN;
 }
 
 /**
@@ -336,13 +336,14 @@ static int fom_wait(struct c2_sm *sm)
  * function should register the AST callback (by calling
  * c2_fom_callback_arm() or c2_fom_wake_on()) with the channel
  * where the completion event will be signalled. The callback
- * should wake up the fom with fom_ready().
+ * should wake up the fom with c2_fom_wakeup().
  * If the state method returns C2_FSO_WAIT, and fom has not yet
  * finished its execution, then it is put on the locality wait list.
  *
  * @see c2_fom_state_outcome
  * @see c2_fom_wake_on()
  * @see c2_fom_callback_arm()
+ * @see c2_fom_wakeup()
  *
  * @param fom A fom under execution
  */
@@ -374,7 +375,7 @@ static void fom_finish(struct c2_fom *fom)
 	C2_PRE(fom != NULL);
 
 	/* Todo: Can be removed once all the fom's
-	 * uses c2_fom_generic().
+	 * uses c2_fom_state_transition().
 	 */
 	c2_sm_state_set(&fom->fo_sm_phase, C2_FOPH_FINISH);
 

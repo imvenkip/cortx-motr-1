@@ -255,7 +255,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop);
 
    If a generic phase handler function fails while executing a fom, then
    it just sets the c2_fom::fo_rc to the result of the operation and returns
-   C2_FSO_WAIT.  c2_fom_state_generic() then sets the c2_fom::fo_phase to
+   C2_FSO_WAIT.  c2_fom_state_transition() then sets the c2_fom::fo_phase to
    C2_FOPH_FAILURE, logs an ADDB event, and returns, later the fom execution
    proceeds as mentioned in above diagram.
 
@@ -266,7 +266,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop);
    @see c2_fom_phase
    @see c2_fom_state_outcome
 
-   @see c2_fom_state_generic(struct c2_fom *fom)
+   @see c2_fom_state_transition(struct c2_fom *fom)
  */
 
 /**

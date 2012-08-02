@@ -419,7 +419,7 @@ static int stob_create_fom_state(struct c2_fom *fom)
 	       C2_STOB_IO_CREATE_REQ_OPCODE);
 	fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
 
-	result = c2_fom_state_generic(fom);
+	result = c2_fom_state_transition(fom);
 	if (fom->fo_next_phase == C2_FOPH_FINISH)
 		c2_stob_put(fom_obj->sif_stobj);
 
@@ -471,7 +471,7 @@ static int stob_read_fom_state(struct c2_fom *fom)
 
         fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
         stio = &fom_obj->sif_stio;
-        result = c2_fom_state_generic(fom);
+        result = c2_fom_state_transition(fom);
 
 	if (fom->fo_next_phase == C2_FOPH_FINISH) {
                 /*
@@ -556,7 +556,7 @@ static int stob_write_fom_state(struct c2_fom *fom)
         fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
         stio = &fom_obj->sif_stio;
 
-	result = c2_fom_state_generic(fom);
+	result = c2_fom_state_transition(fom);
         if (fom->fo_next_phase == C2_FOPH_FINISH) {
                 /*
                    If we fail in any of the generic phase, stob io
@@ -588,8 +588,8 @@ static int stob_write(struct c2_sm *sm)
 
 	in_fop = c2_fop_data(fom->fo_fop);
 
-	fom_obj->sif_stobj = stob_object_find(&in_fop->fiw_object, &fom->fo_tx, fom);
-
+	fom_obj->sif_stobj = stob_object_find(&in_fop->fiw_object, &fom->fo_tx,
+					      fom);
 	stobj = fom_obj->sif_stobj;
 	bshift = stobj->so_op->sop_block_shift(stobj);
 

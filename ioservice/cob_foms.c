@@ -30,7 +30,7 @@
 #include "ioservice/cob_foms.h"     /* c2_fom_cob_create, c2_fom_cob_delete */
 #include "ioservice/io_fops.h"      /* c2_is_cob_create_fop() */
 #include "ioservice/cobfid_map.h"   /* c2_cobfid_map_get() c2_cobfid_map_put()*/
-#include "reqh/reqh.h"              /* c2_fom_state_generic() */
+#include "reqh/reqh.h"              /* c2_fom_state_transition() */
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
 
@@ -237,7 +237,7 @@ static int cc_fom_state(struct c2_fom *fom)
 	C2_PRE(fom->fo_ops != NULL);
 	C2_PRE(fom->fo_type != NULL);
 
-	return c2_fom_state_generic(fom);
+	return c2_fom_state_transition(fom);
 }
 
 static int cob_create(struct c2_sm *sm)
@@ -264,7 +264,6 @@ out:
 	reply->cor_rc = rc;
 
 	sm->sm_rc = rc;
-
 	return (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
 
 }
@@ -423,7 +422,7 @@ static int cd_fom_state(struct c2_fom *fom)
 	C2_PRE(fom->fo_ops != NULL);
 	C2_PRE(fom->fo_type != NULL);
 
-	return c2_fom_state_generic(fom);
+	return c2_fom_state_transition(fom);
 }
 
 static int cob_delete(struct c2_sm *sm)
