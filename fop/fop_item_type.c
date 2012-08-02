@@ -58,9 +58,9 @@ int c2_fop_item_type_default_encode(struct c2_rpc_item_type *item_type,
 	return rc;
 }
 
-int c2_fop_item_type_default_decode(struct c2_rpc_item_type *item_type,
-			      struct c2_rpc_item **item_out,
-			      struct c2_bufvec_cursor *cur)
+int c2_fop_item_type_default_decode(struct c2_rpc_item_type  *item_type,
+				    struct c2_rpc_item      **item_out,
+				    struct c2_bufvec_cursor  *cur)
 {
 	int			 rc;
 	struct c2_fop		*fop;
