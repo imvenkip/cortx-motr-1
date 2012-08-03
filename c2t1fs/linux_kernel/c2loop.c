@@ -152,8 +152,16 @@
  *
  * C2loop driver represents a c2t1fs file as a /dev/c2loop<N> block
  * device in the system. The same way as for standard loop device,
- * losetup(8) utility is used to configure such a mapping between a
- * file and particular /dev/c2loop<N> block device instance.
+ * losetup(8) utility is used to configure such an association between
+ * a file and particular /dev/c2loop<N> block device instance. The
+ * following losetup(8) options are supported for now:
+ *
+ *   - setup loop device:
+ *     losetup /dev/c2loop<N> c2t1fs_file
+ *   - delete loop device:
+ *     losetup -d /dev/c2loop<N>
+ *   - get info:
+ *     losetup /dev/c2loop<N>
  *
  * Internally, c2loop driver works with the same kernel interfaces as
  * standard loop driver. For example, from block layer it takes bio
@@ -161,16 +169,20 @@
  * is used to call the file system operations on a mapped file
  * (aio_read/aio_write). For block device request queue configuration,
  * the same kernel blk_queue_*() API is used. The same ioctls are used
- * by losetup(8) utility (like LOOP_SET_FD) to configure the mapping
+ * by losetup(8) utility (like LOOP_SET_FD) to configure the association
  * between a file and block device.
  *
  * <hr>
  * @section c2loop-dld-lspec Logical Specification
  *
- * In this section we are going to describe how the segments from bio
- * requests are aggregated for iovecs. This is the core customization to
- * the standard loop driver we provide in c2loop. Most of the rest is just
- * deletion of not relevant code.
+ * In this section we are going to describe mainly how the segments
+ * from bio requests are aggregated in iovecs. This is the core logic
+ * customization to the standard loop driver we provide in c2loop.
+ *
+ * For all the bio segments, we directly call c2t1fs
+ * aio_read/aio_write() functions with the iovecs array argument, where
+ * each vector points directly to the pages data from the segments.
+ * Thus, we avoid data copying inside c2loop driver.
  *
  * The c2loop driver (as well as the standard one) handles bio requests
  * asynchronously, i.e. when kernel calls loop_make_request(), it
