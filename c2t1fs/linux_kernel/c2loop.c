@@ -195,18 +195,24 @@
  * the queue and aggregate the relevant continuous segments for one
  * specific read/write file operation into correspondent iovecs for
  * aio_read/aio_write() call. Here is the sequence diagram which shows
- * this process:
+ * this process on several CPUs host:
  *
  * @msc
- * kernel,loop;
+ * kernel,loop_thread;
  *
- * kernel->kernel [ label = "loop_add_bio(); wake_up(lo);" ] ;
- * kernel->kernel [ label = "loop_add_bio(); wake_up(lo);" ] ;
- * kernel->kernel [ label = "loop_add_bio(); wake_up(lo);" ] ;
- * loop->loop [ label = "handle_bios(); wait_event(lo);" ] ;
- * kernel->kernel [ label = "loop_add_bio(); wake_up(lo);" ] ;
- * kernel->kernel [ label = "loop_add_bio(); wake_up(lo);" ] ;
- * loop->loop [ label = "handle_bios(); wait_event(lo);" ] ;
+ * |||;
+ * kernel box kernel [label = "loop_add_bio()"];
+ * kernel -> loop_thread [label = "wake_up(lo)"];
+ * kernel box kernel [label = "loop_add_bio()"];
+ * kernel -> loop_thread [label = "wake_up(lo)"];
+ * ...;
+ * --- [label = " loop thread scheduled "];
+ * kernel box kernel [label = "loop_add_bio()"],
+ * loop_thread box loop_thread [label = "handle_bios()"];
+ * kernel -> loop_thread [label = "wake_up(lo)"];
+ * loop_thread => loop_thread [label = "wait_event(lo)"];
+ * loop_thread note loop_thread [label = "handle_bios() is not called
+ *                                        since the queue is empty"];
  * @endmsc
  *
  * loop_handle_bios() is the core function which do the main job. It
