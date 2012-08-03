@@ -299,17 +299,6 @@ int c2_reqhs_init(void);
 */
 void c2_reqhs_fini(void);
 
-/**
-   Find a service instance for a given service-name within a give
-   request handler instance.
-
-   @param service_name Name of the service of interest
-   @param reqh Request handler instance
- */
-struct c2_reqh_service *
-c2_reqh_service_find(const struct c2_reqh_service_type *st,
-		     struct c2_reqh *reqh);
-
 /** Descriptor for tlist of request handler services. */
 C2_TL_DESCR_DECLARE(c2_reqh_svc, extern);
 C2_TL_DECLARE(c2_reqh_svc, extern, struct c2_reqh_service);

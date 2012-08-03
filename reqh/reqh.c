@@ -186,16 +186,6 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 	c2_rwlock_read_unlock(&reqh->rh_rwlock);
 }
 
-struct c2_reqh_service *
-c2_reqh_service_find(const struct c2_reqh_service_type *st,
-		     struct c2_reqh *reqh)
-{
-	C2_PRE(st != NULL && reqh != NULL);
-
-	return reqh->rh_key[st->rst_key];
-}
-C2_EXPORTED(c2_reqh_service_find);
-
 void c2_reqh_shutdown_wait(struct c2_reqh *reqh)
 {
 	struct c2_clink clink;

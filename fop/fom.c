@@ -251,8 +251,10 @@ void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
 	C2_PRE(fom != NULL);
 
 	stype = fom->fo_type->ft_rstype;
-	if (stype != NULL)
+	if (stype != NULL) {
 		fom->fo_service = c2_reqh_service_find(stype, reqh);
+		C2_ASSERT(fom->fo_service != NULL);
+	}
 
 	fom->fo_fol = reqh->rh_fol;
 	dom = &reqh->rh_fom_dom;

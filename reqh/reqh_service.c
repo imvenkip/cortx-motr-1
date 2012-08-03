@@ -33,7 +33,7 @@
 #include "reqh/reqh_service.h"
 
 /**
-   @addtogroup reqh
+   @addtogroup reqhservice
    @{
  */
 
@@ -114,6 +114,7 @@ int c2_reqh_service_locate(struct c2_reqh_service_type *stype,
 int c2_reqh_service_start(struct c2_reqh_service *service)
 {
 	int             rc;
+	unsigned        key;
 	struct c2_reqh *reqh;
 
 	C2_PRE(c2_reqh_service_invariant(service));
@@ -126,6 +127,9 @@ int c2_reqh_service_start(struct c2_reqh_service *service)
 		c2_reqh_svc_tlist_add_tail(&reqh->rh_services, service);
 		service->rs_state = C2_RST_STARTED;
 		C2_ASSERT(c2_reqh_service_invariant(service));
+		key = service->rs_type->rst_key;
+		C2_ASSERT(reqh->rh_key[key] == NULL);
+		reqh->rh_key[key] = service;
 		c2_rwlock_write_unlock(&reqh->rh_rwlock);
         } else
 		service->rs_state = C2_RST_FAILED;
@@ -136,6 +140,7 @@ int c2_reqh_service_start(struct c2_reqh_service *service)
 void c2_reqh_service_stop(struct c2_reqh_service *service)
 {
 	struct c2_reqh *reqh;
+	unsigned        key;
 
 	C2_ASSERT(c2_reqh_service_invariant(service));
 
@@ -144,14 +149,16 @@ void c2_reqh_service_stop(struct c2_reqh_service *service)
 	service->rs_ops->rso_stop(service);
 	c2_rwlock_write_lock(&reqh->rh_rwlock);
 	c2_reqh_svc_tlist_del(service);
-	c2_rwlock_write_unlock(&reqh->rh_rwlock);
 	service->rs_state = C2_RST_STOPPED;
+	key = service->rs_type->rst_key;
+	C2_ASSERT(reqh->rh_key[key] == service);
+	reqh->rh_key[key] = NULL;
+	c2_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 
 void c2_reqh_service_init(struct c2_reqh_service *service, struct c2_reqh *reqh)
 {
 	const char *sname;
-	unsigned    key;
 
 	C2_PRE(service != NULL && reqh != NULL &&
 		service->rs_state == C2_RST_INITIALISING);
@@ -167,9 +174,6 @@ void c2_reqh_service_init(struct c2_reqh_service *service, struct c2_reqh *reqh)
 	service->rs_reqh  = reqh;
 	c2_reqh_svc_tlink_init(service);
 	c2_mutex_init(&service->rs_mutex);
-	key = service->rs_type->rst_key;
-	C2_ASSERT(reqh->rh_key[key] == NULL);
-	reqh->rh_key[key] = service;
 	C2_POST(c2_reqh_service_invariant(service));
 }
 
@@ -246,7 +250,17 @@ void c2_reqh_service_types_fini(void)
 }
 C2_EXPORTED(c2_reqh_service_types_fini);
 
-/** @} endgroup reqh */
+struct c2_reqh_service *
+c2_reqh_service_find(const struct c2_reqh_service_type *st,
+		     struct c2_reqh *reqh)
+{
+	C2_PRE(st != NULL && reqh != NULL);
+
+	return reqh->rh_key[st->rst_key];
+}
+C2_EXPORTED(c2_reqh_service_find);
+
+/** @} endgroup reqhservice */
 
 /*
  *  Local variables:

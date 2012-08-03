@@ -29,7 +29,7 @@
 
 
 /**
-   @addtogroup reqh
+   @defgroup reqhservice Request handler service
 
    A colibri service is described to a request handler using a struct
    c2_reqh_service_type data structure.
@@ -474,11 +474,21 @@ void c2_reqh_service_types_fini(void);
  */
 bool c2_reqh_service_invariant(const struct c2_reqh_service *service);
 
+/**
+   Returns service intance of the given service type using the reqhkey
+   framework.
+
+   @see c2_reqh::rh_key
+ */
+struct c2_reqh_service *
+c2_reqh_service_find(const struct c2_reqh_service_type *st,
+		     struct c2_reqh *reqh);
+
 int c2_reqh_service_types_length(void);
 bool c2_reqh_service_is_registered(const char *sname);
 void c2_reqh_service_list_print(void);
 
-/** @} endgroup reqh */
+/** @} endgroup reqhservice */
 
 /* __COLIBRI_REQH_REQH_SERVICE_H__ */
 
