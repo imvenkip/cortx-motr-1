@@ -252,7 +252,41 @@
  * <hr>
  * @section c2loop-dld-ut Unit Tests
  *
- * Unit testing does not look reasonable for c2loop driver.
+ * The following UTs could be implemented for loop_handle_bios()
+ * routine.
+ *
+ * Basic functionality tests:
+ *
+ *   - One bio request (in the queue) with one segment. One
+ *     aio_read/write call expected with one element in iovecs array.
+ *   - One bio request with two segments. One aio_read/write call
+ *     expected with two elements in iovecs array.
+ *   - Two bio requests (for the same read/write operation), one segment
+ *     each, for contiguous file region. One aio_read/write call is
+ *     expected with two elements in iovecs array.
+ *
+ * Exception cases tests:
+ *
+ *   - Two bio requests (one segment each) but for different file
+ *     regions. Two aio_read/write calls are expected with one element
+ *     in each iovecs array.
+ *   - Two bio requests for contiguous file region, but for different
+ *     operations: one for read, another for write. Two calls are
+ *     expected with one element in each iovecs array: one aio_read
+ *     another - aio_write.
+ *
+ * Iovecs array boundary (BIO_MAX_PAGES) tests:
+ *
+ *   - BIO_MAX_PAGES bio requests (one segment each, for contiguous file
+ *     region). One aio_read/write call is expected with BIO_MAX_PAGES
+ *     elements in iovecs array.
+ *   - (BIO_MAX_PAGES + 1) bio requests. Two aio_read/write calls are
+ *     expected: one with BIO_MAX_PAGES elements in iovecs array,
+ *     another with one element.
+ *   - (BIO_MAX_PAGES - 1) bio requests one segment each and one bio
+ *     request with two segments. Two aio_read/write calls are expected:
+ *     one with BIO_MAX_PAGES elements in iovecs array, another with one
+ *     element.
  *
  * <hr>
  * @section c2loop-dld-st System Tests
@@ -274,6 +308,11 @@
  * during normal workflow. Except spin lock (lo_lock), which just
  * protects the bio requests queue between the kernel and loop thread,
  * no any other locks are taken.
+ *
+ * Upon each particular /dev/c2loop<N> block device instance bind to
+ * the file with losetup(8) utility, iovecs array of BIO_MAX_PAGES
+ * size is dynamically allocated. This is the only memory footprint
+ * increase in respect to standard loop driver.
  *
  * There are no excessive CPU calculations. Similar to standard loop
  * driver, there is only one loop, where we traverse the bio requests
