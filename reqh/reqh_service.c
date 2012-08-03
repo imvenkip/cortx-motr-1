@@ -33,7 +33,7 @@
 #include "reqh/reqh_service.h"
 
 /**
-   @addtogroup reqh
+   @addtogroup reqhservice
    @{
  */
 
@@ -74,6 +74,7 @@ bool c2_reqh_service_invariant(const struct c2_reqh_service *svc)
 		svc->rs_state == C2_RST_STOPPING,
 		c2_reqh_svc_tlist_contains(&svc->rs_reqh->rh_services, svc));
 }
+C2_EXPORTED(c2_reqh_service_invariant);
 
 struct c2_reqh_service_type *c2_reqh_service_type_find(const char *sname)
 {
@@ -113,6 +114,7 @@ int c2_reqh_service_locate(struct c2_reqh_service_type *stype,
 int c2_reqh_service_start(struct c2_reqh_service *service)
 {
 	int             rc;
+	unsigned        key;
 	struct c2_reqh *reqh;
 
 	C2_PRE(c2_reqh_service_invariant(service));
@@ -125,6 +127,9 @@ int c2_reqh_service_start(struct c2_reqh_service *service)
 		c2_reqh_svc_tlist_add_tail(&reqh->rh_services, service);
 		service->rs_state = C2_RST_STARTED;
 		C2_ASSERT(c2_reqh_service_invariant(service));
+		key = service->rs_type->rst_key;
+		C2_ASSERT(reqh->rh_key[key] == NULL);
+		reqh->rh_key[key] = service;
 		c2_rwlock_write_unlock(&reqh->rh_rwlock);
         } else
 		service->rs_state = C2_RST_FAILED;
@@ -135,6 +140,7 @@ int c2_reqh_service_start(struct c2_reqh_service *service)
 void c2_reqh_service_stop(struct c2_reqh_service *service)
 {
 	struct c2_reqh *reqh;
+	unsigned        key;
 
 	C2_ASSERT(c2_reqh_service_invariant(service));
 
@@ -143,8 +149,11 @@ void c2_reqh_service_stop(struct c2_reqh_service *service)
 	service->rs_ops->rso_stop(service);
 	c2_rwlock_write_lock(&reqh->rh_rwlock);
 	c2_reqh_svc_tlist_del(service);
-	c2_rwlock_write_unlock(&reqh->rh_rwlock);
 	service->rs_state = C2_RST_STOPPED;
+	key = service->rs_type->rst_key;
+	C2_ASSERT(reqh->rh_key[key] == service);
+	reqh->rh_key[key] = NULL;
+	c2_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 
 void c2_reqh_service_init(struct c2_reqh_service *service, struct c2_reqh *reqh)
@@ -188,6 +197,7 @@ int c2_reqh_service_type_register(struct c2_reqh_service_type *rstype)
 
 	c2_reqh_service_type_bob_init(rstype);
 	c2_rwlock_write_lock(&rstypes_rwlock);
+	rstype->rst_key = c2_reqh_key_init();
 	rstypes_tlink_init_at_tail(rstype, &rstypes);
 	c2_rwlock_write_unlock(&rstypes_rwlock);
 
@@ -231,14 +241,26 @@ int c2_reqh_service_types_init(void)
 
 	return 0;
 }
+C2_EXPORTED(c2_reqh_service_types_init);
 
 void c2_reqh_service_types_fini(void)
 {
 	rstypes_tlist_fini(&rstypes);
 	c2_rwlock_fini(&rstypes_rwlock);
 }
+C2_EXPORTED(c2_reqh_service_types_fini);
 
-/** @} endgroup reqh */
+struct c2_reqh_service *
+c2_reqh_service_find(const struct c2_reqh_service_type *st,
+		     struct c2_reqh *reqh)
+{
+	C2_PRE(st != NULL && reqh != NULL);
+
+	return reqh->rh_key[st->rst_key];
+}
+C2_EXPORTED(c2_reqh_service_find);
+
+/** @} endgroup reqhservice */
 
 /*
  *  Local variables:

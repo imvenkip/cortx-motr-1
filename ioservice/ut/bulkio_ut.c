@@ -63,15 +63,15 @@ struct c2_fop_type_ops bulkio_server_read_fop_ut_ops = {
 	.fto_io_desc_get = io_fop_desc_get,
 };
 
-static struct c2_fom_type_ops bulkio_server_write_fom_type_ops = {
+static struct c2_fom_type_ops bulkio_server_write_fomt_ops = {
 	.fto_create = io_fop_server_write_fom_create,
 };
 
-static struct c2_fom_type_ops bulkio_server_read_fom_type_ops = {
+static struct c2_fom_type_ops bulkio_server_read_fomt_ops = {
 	.fto_create = io_fop_server_read_fom_create,
 };
 
-static struct c2_fom_type_ops bulkio_stob_create_fom_type_ops = {
+static struct c2_fom_type_ops bulkio_stob_create_fomt_ops = {
 	.fto_create = io_fop_stob_create_fom_create,
 };
 
@@ -79,16 +79,17 @@ static struct c2_fom_type_ops ut_io_fom_cob_rw_type_ops = {
 	.fto_create = ut_io_fom_cob_rw_create,
 };
 
-static struct c2_fom_type bulkio_server_write_fom_type = {
-	.ft_ops = &bulkio_server_write_fom_type_ops,
-};
-
-static struct c2_fom_type bulkio_server_read_fom_type = {
-	.ft_ops = &bulkio_server_read_fom_type_ops,
-};
-static struct c2_fom_type bulkio_stob_create_fom_type = {
-	.ft_ops = &bulkio_stob_create_fom_type_ops,
-};
+/*
+ * These FOM types are used only for unit testing purposes and replace the
+ * original FOM types in the io fop types for specific unit testing cases, viz,
+ * bulkio_server_read_write_state_test() and bulkio_stob_create().
+ */
+C2_FOM_TYPE_DECLARE(bulkio_server_write, &bulkio_server_write_fomt_ops,
+		    &c2_ios_type);
+C2_FOM_TYPE_DECLARE(bulkio_server_read, &bulkio_server_read_fomt_ops,
+		    &c2_ios_type);
+C2_FOM_TYPE_DECLARE(bulkio_stob_create, &bulkio_stob_create_fomt_ops,
+		    &c2_ios_type);
 
 static inline struct c2_net_transfer_mc *fop_tm_get(
 		const struct c2_fop *fop)
@@ -101,9 +102,7 @@ static inline struct c2_net_transfer_mc *fop_tm_get(
 /*
  * Intercepting FOM to test I/O FOM functions for different phases.
  */
-static struct c2_fom_type ut_io_fom_cob_rw_type_mopt = {
-	.ft_ops = &ut_io_fom_cob_rw_type_ops,
-};
+C2_FOM_TYPE_DECLARE(ut_io_fom_cob_rw, &ut_io_fom_cob_rw_type_ops, &c2_ios_type);
 
 static void bulkio_stob_fom_fini(struct c2_fom *fom)
 {
@@ -1091,28 +1090,24 @@ static struct c2_fom_ops bulkio_stob_create_fom_ops = {
 	.fo_fini = bulkio_stob_fom_fini,
 	.fo_state = bulkio_stob_create_fom_state,
 	.fo_home_locality = c2_io_fom_cob_rw_locality_get,
-        .fo_service_name = c2_io_fom_cob_rw_service_name,
 };
 
 static struct c2_fom_ops bulkio_server_write_fom_ops = {
 	.fo_fini = c2_io_fom_cob_rw_fini,
 	.fo_state = bulkio_server_write_fom_state,
 	.fo_home_locality = c2_io_fom_cob_rw_locality_get,
-        .fo_service_name = c2_io_fom_cob_rw_service_name,
 };
 
 static struct c2_fom_ops ut_io_fom_cob_rw_ops = {
 	.fo_fini = c2_io_fom_cob_rw_fini,
 	.fo_state = ut_io_fom_cob_rw_state,
 	.fo_home_locality = c2_io_fom_cob_rw_locality_get,
-        .fo_service_name = c2_io_fom_cob_rw_service_name,
 };
 
 static struct c2_fom_ops bulkio_server_read_fom_ops = {
 	.fo_fini = c2_io_fom_cob_rw_fini,
 	.fo_state = bulkio_server_read_fom_state,
 	.fo_home_locality = c2_io_fom_cob_rw_locality_get,
-        .fo_service_name = c2_io_fom_cob_rw_service_name,
 };
 
 static int io_fop_stob_create_fom_create(struct c2_fop *fop, struct c2_fom **m)
@@ -1121,7 +1116,6 @@ static int io_fop_stob_create_fom_create(struct c2_fop *fop, struct c2_fom **m)
 	struct c2_fom *fom;
 	rc = c2_io_fom_cob_rw_create(fop, &fom);
         C2_UT_ASSERT(rc == 0);
-	fop->f_type->ft_fom_type = bulkio_stob_create_fom_type;
 	fom->fo_ops = &bulkio_stob_create_fom_ops;
 	*m = fom;
         C2_UT_ASSERT(fom->fo_fop != 0);
@@ -1134,7 +1128,6 @@ static int io_fop_server_write_fom_create(struct c2_fop *fop, struct c2_fom **m)
 	struct c2_fom *fom;
 	 rc = c2_io_fom_cob_rw_create(fop, &fom);
         C2_UT_ASSERT(rc == 0);
-	fop->f_type->ft_fom_type = bulkio_server_write_fom_type;
 	fom->fo_ops = &bulkio_server_write_fom_ops;
 	*m = fom;
         C2_UT_ASSERT(fom->fo_fop != 0);
@@ -1160,7 +1153,6 @@ static int ut_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **m)
                      fom->fo_type != NULL &&
                      fom->fo_ops != NULL);
 
-	fop->f_type->ft_fom_type = ut_io_fom_cob_rw_type_mopt;
 	fom->fo_ops = &ut_io_fom_cob_rw_ops;
 	*m = fom;
         C2_UT_ASSERT(fom->fo_fop != 0);
@@ -1173,7 +1165,6 @@ static int io_fop_server_read_fom_create(struct c2_fop *fop, struct c2_fom **m)
 	struct c2_fom *fom;
 	rc = c2_io_fom_cob_rw_create(fop, &fom);
         C2_UT_ASSERT(rc == 0);
-	fop->f_type->ft_fom_type = bulkio_server_read_fom_type;
 	fom->fo_ops = &bulkio_server_read_fom_ops;
 	*m = fom;
         C2_UT_ASSERT(fom->fo_fop != 0);
@@ -1194,8 +1185,12 @@ void bulkio_stob_create(void)
 		C2_ALLOC_PTR(bp->bp_wfops[i]);
                 rc = c2_io_fop_init(bp->bp_wfops[i], &c2_fop_cob_writev_fopt);
 		C2_UT_ASSERT(rc == 0);
+		/*
+		 * We replace the original ->ft_ops amd ->ft_fom_type for
+		 * regular io_fops. This is reset later.
+		 */
                 bp->bp_wfops[i]->if_fop.f_type->ft_fom_type =
-                bulkio_stob_create_fom_type;
+                bulkio_stob_create_fomt;
 
 		rw = io_rw_get(&bp->bp_wfops[i]->if_fop);
 		bp->bp_wfops[i]->if_fop.f_type->ft_ops =
@@ -1222,8 +1217,12 @@ void bulkio_server_single_read_write(void)
 	}
 	op = C2_IOSERVICE_WRITEV_OPCODE;
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
+	/*
+	 * Here we replace the original ->ft_ops amd ->ft_fom_type as they were
+	 * changed during bulkio_stob_create test.
+	 */
 	bp->bp_wfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
-        bp->bp_wfops[0]->if_fop.f_type->ft_fom_type = c2_io_fom_cob_rw_mopt;
+        bp->bp_wfops[0]->if_fop.f_type->ft_fom_type = c2_io_fom_cob_rw_fomt;
 	targ.ta_index = 0;
 	targ.ta_op = op;
 	targ.ta_bp = bp;
@@ -1236,7 +1235,7 @@ void bulkio_server_single_read_write(void)
 	op = C2_IOSERVICE_READV_OPCODE;
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
 	bp->bp_rfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
-        bp->bp_rfops[0]->if_fop.f_type->ft_fom_type = c2_io_fom_cob_rw_mopt;
+        bp->bp_rfops[0]->if_fop.f_type->ft_fom_type = c2_io_fom_cob_rw_fomt;
 	targ.ta_index = 0;
 	targ.ta_op = op;
 	targ.ta_bp = bp;
@@ -1244,6 +1243,10 @@ void bulkio_server_single_read_write(void)
 	io_fops_destroy(bp);
 }
 
+/*
+ * Sends regular write and read io fops, although replaces the original FOM
+ * types in each io fop type with UT specific FOM types.
+ */
 void bulkio_server_read_write_state_test(void)
 {
 	int		    j;
@@ -1258,7 +1261,7 @@ void bulkio_server_read_write_state_test(void)
 	op = C2_IOSERVICE_WRITEV_OPCODE;
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
         bp->bp_wfops[0]->if_fop.f_type->ft_fom_type =
-	bulkio_server_write_fom_type;
+	bulkio_server_write_fomt;
 	bp->bp_wfops[0]->if_fop.f_type->ft_ops =
 	&bulkio_server_write_fop_ut_ops;
 	targ.ta_index = 0;
@@ -1273,7 +1276,7 @@ void bulkio_server_read_write_state_test(void)
 	op = C2_IOSERVICE_READV_OPCODE;
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
         bp->bp_rfops[0]->if_fop.f_type->ft_fom_type =
-	bulkio_server_read_fom_type;
+	bulkio_server_read_fomt;
 	bp->bp_rfops[0]->if_fop.f_type->ft_ops = &bulkio_server_read_fop_ut_ops;
 	targ.ta_index = 0;
 	targ.ta_op = op;
@@ -1283,10 +1286,10 @@ void bulkio_server_read_write_state_test(void)
 }
 
 /*
- * This function sends write & read fop to UT FOM to check
- * state transition for I/O FOM.
+ * Sends regular write and read fops although replaces the original FOM types
+ * in each io fop type with UT specific FOM types to check state transition for
+ * I/O FOM.
  */
-
 void bulkio_server_rw_state_transition_test(void)
 {
 	int		    j;
@@ -1301,7 +1304,7 @@ void bulkio_server_rw_state_transition_test(void)
 	op = C2_IOSERVICE_WRITEV_OPCODE;
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
         bp->bp_wfops[0]->if_fop.f_type->ft_fom_type =
-		ut_io_fom_cob_rw_type_mopt;
+		ut_io_fom_cob_rw_fomt;
 	bp->bp_wfops[0]->if_fop.f_type->ft_ops =
 		&bulkio_server_write_fop_ut_ops;
 	targ.ta_index = 0;
@@ -1316,7 +1319,7 @@ void bulkio_server_rw_state_transition_test(void)
 	op = C2_IOSERVICE_READV_OPCODE;
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
         bp->bp_rfops[0]->if_fop.f_type->ft_fom_type =
-		ut_io_fom_cob_rw_type_mopt;
+		ut_io_fom_cob_rw_fomt;
 	bp->bp_rfops[0]->if_fop.f_type->ft_ops =
 		&bulkio_server_read_fop_ut_ops;
 	targ.ta_index = 0;
@@ -1352,9 +1355,9 @@ void bulkio_server_multiple_read_write(void)
 		io_fops = (op == C2_IOSERVICE_WRITEV_OPCODE) ? bp->bp_wfops :
 							       bp->bp_rfops;
 		for (i = 0; i < IO_FOPS_NR; ++i) {
-			io_fops[i]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
-                        io_fops[i]->if_fop.f_type->ft_fom_type =
-			c2_io_fom_cob_rw_mopt;
+			//io_fops[i]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
+                        //io_fops[i]->if_fop.f_type->ft_fom_type =
+			//c2_io_fom_cob_rw_fomt;
 			targ[i].ta_index = i;
 			targ[i].ta_op = op;
 			targ[i].ta_bp = bp;

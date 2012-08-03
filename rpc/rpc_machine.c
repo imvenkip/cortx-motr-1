@@ -38,7 +38,6 @@
 #include "lib/finject.h"       /* C2_FI_ENABLED */
 #include "addb/addb.h"
 #include "net/net.h"
-#include "reqh/reqh.h"         /* c2_rpc_machine_bob.* :-( */
 #include "net/buffer_pool.h"   /* c2_net_buffer_pool_[lock|unlock] */
 #include "rpc/rpc_machine.h"
 #include "rpc/formation2.h"    /* c2_rpc_frm_run_formation */
@@ -84,15 +83,24 @@ static void net_buf_err(struct c2_net_buffer *nb, int32_t status);
 
 /* ADDB Instrumentation for rpccore. */
 static const struct c2_addb_ctx_type rpc_machine_addb_ctx_type = {
-	        .act_name = "rpc-machine"
+        .act_name = "rpc-machine"
 };
 
 const struct c2_addb_loc c2_rpc_machine_addb_loc = {
-	        .al_name = "rpc-machine"
+        .al_name = "rpc-machine"
 };
 
 C2_ADDB_EV_DEFINE_PUBLIC(c2_rpc_machine_func_fail, "rpc_machine_func_fail",
-		                C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
+			 C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
+
+const static struct c2_bob_type rpc_machine_bob_type = {
+	.bt_name         = "rpc_machine",
+	.bt_magix_offset = C2_MAGIX_OFFSET(struct c2_rpc_machine, rm_magix),
+	.bt_magix        = C2_RPC_MACHINE_MAGIX,
+	.bt_check        = NULL
+};
+
+C2_BOB_DEFINE(/* global */, &rpc_machine_bob_type, c2_rpc_machine);
 
 /**
    Buffer callback for buffers added by rpc layer for receiving messages.
@@ -105,6 +113,7 @@ const struct c2_net_buffer_callbacks c2_rpc_rcv_buf_callbacks = {
 
 static void rpc_tm_event_cb(const struct c2_net_tm_event *ev)
 {
+	/* Do nothing */
 }
 
 /**
@@ -112,7 +121,7 @@ static void rpc_tm_event_cb(const struct c2_net_tm_event *ev)
     rpc layer.
  */
 static struct c2_net_tm_callbacks c2_rpc_tm_callbacks = {
-	       .ntc_event_cb = rpc_tm_event_cb
+	.ntc_event_cb = rpc_tm_event_cb
 };
 
 static void rmachine_addb_failure(struct c2_rpc_machine *machine,
@@ -189,25 +198,21 @@ static void __rpc_machine_init(struct c2_rpc_machine *machine)
 	c2_list_init(&machine->rm_incoming_conns);
 	c2_list_init(&machine->rm_outgoing_conns);
 	c2_rpc_services_tlist_init(&machine->rm_services);
-#ifndef __KERNEL__
-	c2_rpc_machine_bob_init(machine);
-#endif
 	c2_mutex_init(&machine->rm_mutex);
 	c2_addb_ctx_init(&machine->rm_addb, &rpc_machine_addb_ctx_type,
 			 &c2_addb_global_ctx);
+	c2_rpc_machine_bob_init(machine);
 }
 
 static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 {
 	c2_addb_ctx_fini(&machine->rm_addb);
 	c2_mutex_fini(&machine->rm_mutex);
-#ifndef __KERNEL__
-	c2_rpc_machine_bob_fini(machine);
-#endif
 	c2_rpc_services_tlist_fini(&machine->rm_services);
 	c2_list_fini(&machine->rm_outgoing_conns);
 	c2_list_fini(&machine->rm_incoming_conns);
 	c2_list_fini(&machine->rm_chans);
+	c2_rpc_machine_bob_fini(machine);
 }
 
 static int root_session_cob_create(struct c2_cob_domain *dom)

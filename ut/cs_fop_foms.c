@@ -135,6 +135,9 @@ static const struct c2_fom_ops cs_ds2_req_fop_fom_ops = {
         .fo_home_locality = cs_ut_find_fom_home_locality,
 };
 
+extern struct c2_reqh_service_type ds1_service_type;
+extern struct c2_reqh_service_type ds2_service_type;
+
 /*
   Fom type operations for ds1 service foms.
  */
@@ -142,9 +145,7 @@ static const struct c2_fom_type_ops cs_ds1_req_fop_fom_type_ops = {
         .fto_create = cs_ds1_req_fop_fom_create,
 };
 
-static struct c2_fom_type cs_ds1_req_fop_fom_mopt = {
-	.ft_ops = &cs_ds1_req_fop_fom_type_ops,
-};
+C2_FOM_TYPE_DECLARE(cs_ds1_req, &cs_ds1_req_fop_fom_type_ops, &ds1_service_type);
 
 /*
   Fom type operations for ds2 service foms.
@@ -153,9 +154,7 @@ static const struct c2_fom_type_ops cs_ds2_req_fop_fom_type_ops = {
         .fto_create = cs_ds2_req_fop_fom_create,
 };
 
-static struct c2_fom_type cs_ds2_req_fop_fom_mopt = {
-	.ft_ops = &cs_ds2_req_fop_fom_type_ops,
-};
+C2_FOM_TYPE_DECLARE(cs_ds2_req, &cs_ds2_req_fop_fom_type_ops, &ds2_service_type);
 
 static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item)
 {
@@ -200,8 +199,8 @@ int c2_cs_ut_ds1_fop_init(void)
          */
 	cs_ds1_fopts[0]->ft_fmt = &cs_ds1_req_fop_tfmt;
 	cs_ds1_fopts[1]->ft_fmt = &cs_ds1_rep_fop_tfmt;
-	cs_ds1_fopts[0]->ft_fom_type = cs_ds1_req_fop_fom_mopt;
-	cs_ds1_fopts[1]->ft_fom_type = cs_ds1_req_fop_fom_mopt;
+	cs_ds1_fopts[0]->ft_fom_type = cs_ds1_req_fomt;
+	cs_ds1_fopts[1]->ft_fom_type = cs_ds1_req_fomt;
 
         result = c2_fop_type_build_nr(cs_ds1_fopts, ARRAY_SIZE(cs_ds1_fopts));
         if (result != 0)
@@ -229,8 +228,8 @@ int c2_cs_ut_ds2_fop_init(void)
 	 */
 	cs_ds2_fopts[0]->ft_fmt = &cs_ds2_req_fop_tfmt;
 	cs_ds2_fopts[1]->ft_fmt = &cs_ds2_rep_fop_tfmt;
-	cs_ds2_fopts[0]->ft_fom_type = cs_ds2_req_fop_fom_mopt;
-	cs_ds2_fopts[1]->ft_fom_type = cs_ds2_req_fop_fom_mopt;
+	cs_ds2_fopts[0]->ft_fom_type = cs_ds2_req_fomt;
+	cs_ds2_fopts[1]->ft_fom_type = cs_ds2_req_fomt;
 
         result = c2_fop_type_build_nr(cs_ds2_fopts, ARRAY_SIZE(cs_ds2_fopts));
         if (result != 0)

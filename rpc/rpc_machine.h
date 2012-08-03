@@ -262,6 +262,8 @@ static bool frm_rmachine_is_locked(const struct c2_rpc_frm *frm)
 	return c2_rpc_machine_is_locked(frm_rmachine(frm));
 }
 
+C2_BOB_DECLARE(extern, c2_rpc_machine);
+
 /** @} end name stat_ifs */
 
 /** @} end of rpc-layer-core group */

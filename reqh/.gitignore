@@ -1,2 +1,4 @@
 reqh_fops_u.c
 reqh_fops_u.h
+reqh_fops_k.c
+reqh_fops_k.h

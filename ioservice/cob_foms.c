@@ -77,7 +77,6 @@ static struct c2_fom_ops cc_fom_ops = {
 	.fo_fini	  = cc_fom_fini,
 	.fo_state	  = cc_fom_state,
 	.fo_home_locality = cob_fom_locality_get,
-	.fo_service_name  = c2_io_fom_cob_rw_service_name,
 };
 
 /** Common fom_type_ops for c2_fop_cob_create and c2_fop_cob_delete fops. */
@@ -85,9 +84,10 @@ static const struct c2_fom_type_ops cob_fom_type_ops = {
 	.fto_create = cob_fom_create,
 };
 
-struct c2_fom_type cc_fom_type = {
-	.ft_ops = &cob_fom_type_ops,
-};
+extern struct c2_reqh_service_type c2_ios_type;
+
+C2_FOM_TYPE_DECLARE(cob_create, &cob_fom_type_ops, &c2_ios_type);
+C2_FOM_TYPE_DECLARE(cob_delete, &cob_fom_type_ops, &c2_ios_type);
 
 static const struct c2_addb_loc cd_fom_addb_loc = {
 	.al_name = "cob_delete_fom",
@@ -101,11 +101,6 @@ static const struct c2_fom_ops cd_fom_ops = {
 	.fo_fini	  = cd_fom_fini,
 	.fo_state	  = cd_fom_state,
 	.fo_home_locality = cob_fom_locality_get,
-	.fo_service_name  = c2_io_fom_cob_rw_service_name,
-};
-
-struct c2_fom_type cd_fom_type = {
-	.ft_ops = &cob_fom_type_ops,
 };
 
 static int cob_fom_create(struct c2_fop *fop, struct c2_fom **out)

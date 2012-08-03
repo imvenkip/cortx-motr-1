@@ -26,9 +26,6 @@
 #include "lib/vec.h"
 #include "lib/tlist.h"
 
-#include "net/net.h"  /* c2_net_buffer XXX Remove when c2_rpc_frm_buffer is
-			 dropped. */
-
 struct c2_rpc_item;
 struct c2_rpc_frm;
 

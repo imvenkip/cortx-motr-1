@@ -56,7 +56,7 @@ struct c2_net_xprt;
 struct c2_rpc_machine;
 
 enum {
-        REQH_KEY_MAX = 32
+        REQH_KEY_MAX = 64
 };
 
 /**
@@ -299,16 +299,6 @@ int c2_reqhs_init(void);
 */
 void c2_reqhs_fini(void);
 
-/**
-   Find a service instance for a given service-name within a give
-   request handler instance.
-
-   @param service_name Name of the service of interest
-   @param reqh Request handler instance
- */
-struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
-						struct c2_reqh *reqh);
-
 /** Descriptor for tlist of request handler services. */
 C2_TL_DESCR_DECLARE(c2_reqh_svc, extern);
 C2_TL_DECLARE(c2_reqh_svc, extern, struct c2_reqh_service);
@@ -317,7 +307,6 @@ C2_BOB_DECLARE(extern, c2_reqh_service);
 /** Descriptor for tlist of rpc machines. */
 C2_TL_DESCR_DECLARE(c2_reqh_rpc_mach, extern);
 C2_TL_DECLARE(c2_reqh_rpc_mach, extern, struct c2_rpc_machine);
-C2_BOB_DECLARE(extern, c2_rpc_machine);
 
 /**
    @name reqhkey
