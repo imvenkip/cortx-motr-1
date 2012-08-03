@@ -75,8 +75,7 @@ static struct c2_net_xprt *cs_xprts[] = {
 
 static int get_ioservice_buffer_pool_count(struct c2_rpc_server_ctx *sctx)
 {
-	int			   nbp;
-	struct c2_reqh_io_service *serv_obj = NULL;
+	struct c2_reqh_io_service *serv_obj;
 	struct c2_reqh_service    *reqh_ios;
 	struct c2_reqh            *reqh;
 
@@ -86,9 +85,7 @@ static int get_ioservice_buffer_pool_count(struct c2_rpc_server_ctx *sctx)
 
 	C2_UT_ASSERT(serv_obj != NULL);
 
-	nbp = bufferpools_tlist_length(&serv_obj->rios_buffer_pools);
-
-	return nbp;
+	return bufferpools_tlist_length(&serv_obj->rios_buffer_pools);
 }
 
 static int check_buffer_pool_per_domain(char *cs_argv[], int cs_argc, int nbp)
