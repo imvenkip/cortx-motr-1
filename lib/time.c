@@ -38,9 +38,6 @@ c2_time_t c2_time(uint64_t secs, long ns)
 	return t;
 }
 
-/**
-   Create a c2_time_t from seconds and ns
- */
 c2_time_t c2_time_set(c2_time_t *time, uint64_t secs, long ns)
 {
 	*time = secs * C2_TIME_ONE_BILLION + ns;
@@ -48,9 +45,6 @@ c2_time_t c2_time_set(c2_time_t *time, uint64_t secs, long ns)
 }
 C2_EXPORTED(c2_time_set);
 
-/**
-   Add t2 to t1
- */
 c2_time_t c2_time_add(const c2_time_t t1, const c2_time_t t2)
 {
 	c2_time_t res;
@@ -69,14 +63,11 @@ c2_time_t c2_time_add(const c2_time_t t1, const c2_time_t t2)
 }
 C2_EXPORTED(c2_time_add);
 
-/**
-   Subtract t2 from t1
- */
 c2_time_t c2_time_sub(const c2_time_t t1, const c2_time_t t2)
 {
 	c2_time_t res;
 	C2_PRE(C2_TIME_NEVER >= t1);
-	C2_PRE(C2_TIME_NEVER > t2);
+	C2_PRE(t2 < C2_TIME_NEVER);
 	C2_PRE(t1 >= t2);
 
 	if (t1 == C2_TIME_NEVER)
@@ -88,22 +79,12 @@ c2_time_t c2_time_sub(const c2_time_t t1, const c2_time_t t2)
 	return res;
 }
 
-/**
-   Get "second" part from the time
-
-   @retval second part of the time
- */
 uint64_t c2_time_seconds(const c2_time_t time)
 {
 	return time / C2_TIME_ONE_BILLION;
 }
 C2_EXPORTED(c2_time_seconds);
 
-/**
-   Get "nanosecond" part from the time
-
-   @retval nanosecond part of the time
- */
 uint64_t c2_time_nanoseconds(const c2_time_t time)
 {
 
@@ -111,9 +92,6 @@ uint64_t c2_time_nanoseconds(const c2_time_t time)
 }
 C2_EXPORTED(c2_time_nanoseconds);
 
-/**
-   Create a c2_time_t initialized with seconds + nanosecond in the future.
- */
 c2_time_t c2_time_from_now(uint64_t secs, long ns)
 {
 	return c2_time_now() + secs * C2_TIME_ONE_BILLION + ns;
