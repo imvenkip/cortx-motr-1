@@ -487,6 +487,7 @@ static void fom_exec(struct c2_fom *fom)
 
 	do {
 		C2_ASSERT(c2_fom_invariant(fom));
+		C2_ASSERT(fom->fo_phase != C2_FOM_PHASE_FINISH);
 		rc = fom->fo_ops->fo_tick(fom);
 		/*
 		 * (rc == C2_FSO_AGAIN) means that next phase transition is
