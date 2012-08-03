@@ -75,7 +75,7 @@ struct fom_phase_ops {
 
 	   @retval returns C2_FSO_AGAIN, this transitions fom to its next phase
 
-	   @see c2_fom_state_generic()
+	   @see c2_fom_tick_generic()
 	 */
         int (*fpo_action) (struct c2_fom *fom);
         /**
@@ -92,7 +92,7 @@ struct fom_phase_ops {
 	   This is used in pre condition checks before executing
 	   fom phase action.
 
-	   @see c2_fom_state_generic()
+	   @see c2_fom_tick_generic()
 	 */
 	uint64_t	   fpo_pre_phase;
 };
@@ -101,7 +101,7 @@ struct fom_phase_ops {
  * Begins fom execution, transitions fom to its first
  * standard phase.
  *
- * @see c2_fom_state_generic()
+ * @see c2_fom_tick_generic()
  *
  * @retval C2_FSO_AGAIN, to execute next fom phase
  */
@@ -493,7 +493,7 @@ static const struct fom_phase_ops fpo_table[] = {
 					      1 << C2_FOPH_QUEUE_REPLY_WAIT }
 };
 
-int c2_fom_state_generic(struct c2_fom *fom)
+int c2_fom_tick_generic(struct c2_fom *fom)
 {
 	int			    rc;
 	const struct fom_phase_ops *fpo_phase;

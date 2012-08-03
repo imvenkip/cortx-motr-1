@@ -91,7 +91,7 @@ static int cons_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
         return 0;
 }
 
-static int cons_fom_state(struct c2_fom *fom)
+static int cons_fom_tick(struct c2_fom *fom)
 {
         struct c2_cons_fop_reply *reply_fop;
         struct c2_rpc_item       *reply_item;
@@ -115,12 +115,12 @@ static int cons_fom_state(struct c2_fom *fom)
 
 	/* Reply item */
 	reply_item = &rfop->f_item;
-	fom->fo_phase = C2_FOPH_FINISH;
+	fom->fo_phase = C2_FOM_PHASE_FINISH;
         return c2_rpc_reply_post(req_item, reply_item);
 }
 
 const struct c2_fom_ops c2_cons_fom_device_ops = {
-        .fo_state	  = cons_fom_state,
+        .fo_tick	  = cons_fom_tick,
 	.fo_fini	  = default_fom_fini,
 	.fo_home_locality = home_locality,
 };

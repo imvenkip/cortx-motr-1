@@ -78,8 +78,8 @@
    @verbatim
    c2_io_fom_cob_rw_locality_get()   Request handler uses this interface to
                                      get the locality for this I/O FOM.
-   c2_io_fom_cob_rw_state()          Request handler uses this interface to
-                                     execute next state of I/O FOM.
+   c2_io_fom_cob_rw_tick()           Request handler uses this interface to
+                                     execute next phase of I/O FOM.
    c2_io_fom_cob_rw_fini()           Request handler uses this interface after
                                      I/O FOM finishes its execution.
    @endverbatim
@@ -133,6 +133,7 @@
  *  @{
  */
 
+#include "reqh/reqh.h"     /* C2_FOPH_NR */
 #include "fop/fop.h"
 #include "fop/fop_format.h"
 #include "ioservice/io_fops.h"

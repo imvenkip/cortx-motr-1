@@ -36,3 +36,5 @@ cs_ad_stob           as_magix                    414453544f42 ADSTOB
 astob                td_head_magic           414453544f424844 ADSTOBHD
 c2_long_lock_link    lll_magix	             B055B1E55EDF01D5 boss blessed folds
 c2_long_lock	     l_magix		     0B055B1E55EDBA55 boss blessed bass
+c2_fom_thread        lt_magix                fa151f1ab1ec0b01 falsifiable COBOL
+thr_tl               td_head_magic           dec1a551f1edcade declassified cade

@@ -460,14 +460,14 @@
                Expected Output : Initiates FOM with corresponding operation
                                  vectors and other pointers.
 
-   - Test 05 : Call c2_io_fom_cob_rw_state() with buffer pool size 1<br>
+   - Test 05 : Call c2_io_fom_cob_rw_tick() with buffer pool size 1<br>
                Input : Read FOM with current phase
                        C2_FOPH_IO_FOM_BUFFER_ACQUIRE<br>
                Expected Output : Gets network buffer and pointer set into FOM
                                  with phase changed to C2_FOPH_IO_STOB_INIT and
                                  return value C2_FSO_AGAIN.
 
-   - Test 06 : Call c2_io_fom_cob_rw_state() with buffer pool size 0
+   - Test 06 : Call c2_io_fom_cob_rw_tick() with buffer pool size 0
                (empty buffer_pool)<br>
                Input : Read FOM with current phase
                        C2_FOPH_IO_FOM_BUFFER_ACQUIRE<br>
@@ -476,7 +476,7 @@
                                  C2_FOPH_IO_FOM_BUFFER_WAIT and return
                                  value C2_FSO_WAIT.
 
-   - Test 07 : Call c2_io_fom_cob_rw_state() with buffer pool size 0
+   - Test 07 : Call c2_io_fom_cob_rw_tick() with buffer pool size 0
                (empty buffer_pool)<br>
                Input : Read FOM with current phase
                        C2_FOPH_IO_FOM_BUFFER_WAIT<br>
@@ -484,17 +484,17 @@
                                  set into FOM with phase not changed and return
                                  value C2_FSO_WAIT.
 
-   - Test 08 : Call c2_io_fom_cob_rw_state()<br>
+   - Test 08 : Call c2_io_fom_cob_rw_tick()<br>
                Input : Read FOM with current phase C2_FOPH_IO_STOB_INIT<br>
                Expected Output : Initiates STOB read with phase changed to
                                  C2_FOPH_IO_STOB_WAIT and return value C2_FSO_WAIT.
 
-   - Test 09 : Call c2_io_fom_cob_rw_state()<br>
+   - Test 09 : Call c2_io_fom_cob_rw_tick()<br>
                Input : Read FOM with current phase C2_FOPH_IO_ZERO_COPY_INIT<br>
                Expected Output : Initiates zero-copy with phase changed to
                                  C2_FOPH_IO_ZERO_COPY_WAIT return value C2_FSO_WAIT.
 
-   - Test 10 : Call c2_io_fom_cob_rw_state() with buffer pool size 1<br>
+   - Test 10 : Call c2_io_fom_cob_rw_tick() with buffer pool size 1<br>
                Input : Write FOM with current phase
                        C2_FOPH_IO_FOM_BUFFER_ACQUIRE<br>
                Expected Output : Gets network buffer and pointer set into FOM
@@ -506,17 +506,17 @@
                Input : Read FOM<br>
                Expected Output : Should de-allocate FOM.
 
-   - Test 12 : Call c2_io_fom_cob_rw_state()<br>
+   - Test 12 : Call c2_io_fom_cob_rw_tick()<br>
                Input : Read FOM with invalid STOB id and current phase
                        C2_FOPH_IO_STOB_INIT.<br>
                Expected Output : Should return error.
 
-   - Test 13 : Call c2_io_fom_cob_rw_state()<br>
+   - Test 13 : Call c2_io_fom_cob_rw_tick()<br>
                Input : Read FOM with current phase C2_FOPH_IO_ZERO_COPY_INIT
                        and wrong network buffer descriptor.<br>
                Expected Output : Should return error.
 
-   - Test 14 : Call c2_io_fom_cob_rw_state()<br>
+   - Test 14 : Call c2_io_fom_cob_rw_tick()<br>
                Input : Read FOM with current phase C2_FOPH_IO_STOB_WAIT with
                        result code of stob I/O c2_fom::c2_stob_io::si_rc set
                        to I/O error.<br>
@@ -597,7 +597,7 @@ extern bool c2_is_cob_create_fop(const struct c2_fop *fop);
 extern bool c2_is_cob_delete_fop(const struct c2_fop *fop);
 
 static int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out);
-static int c2_io_fom_cob_rw_state(struct c2_fom *fom);
+static int c2_io_fom_cob_rw_tick(struct c2_fom *fom);
 static void c2_io_fom_cob_rw_fini(struct c2_fom *fom);
 static size_t c2_io_fom_cob_rw_locality_get(const struct c2_fom *fom);
 const char *c2_io_fom_cob_rw_service_name (struct c2_fom *fom);
@@ -617,7 +617,7 @@ extern struct c2_reqh_service_type c2_ios_type;
  */
 static const struct c2_fom_ops ops = {
 	.fo_fini = c2_io_fom_cob_rw_fini,
-	.fo_state = c2_io_fom_cob_rw_state,
+	.fo_tick = c2_io_fom_cob_rw_tick,
 	.fo_home_locality = c2_io_fom_cob_rw_locality_get,
 };
 
@@ -672,7 +672,7 @@ static struct c2_io_fom_cob_rw_state_transition io_fom_read_st[] = {
  * I/O Write FOM state transition table.
  * @see DLD-bulk-server-lspec-state
  */
-static struct c2_io_fom_cob_rw_state_transition io_fom_write_st[] = {
+static const struct c2_io_fom_cob_rw_state_transition io_fom_write_st[] = {
 
 [C2_FOPH_IO_FOM_BUFFER_ACQUIRE] =
 { C2_FOPH_IO_FOM_BUFFER_ACQUIRE, &acquire_net_buffer,
@@ -1427,6 +1427,7 @@ static int io_launch(struct c2_fom *fom)
                 }
 
                 stio_desc->siod_magic = C2_STOB_IO_DESC_LINK_MAGIC;
+		c2_fom_callback_init(&stio_desc->siod_fcb);
 
 	        stio = &stio_desc->siod_stob_io;
 	        c2_stob_io_init(stio);
@@ -1498,6 +1499,7 @@ static int io_launch(struct c2_fom *fom)
                                     c2_addb_func_fail,
                                     "io_launch", rc);
                         c2_stob_io_fini(stio);
+			c2_fom_callback_fini(&stio_desc->siod_fcb);
                         c2_free(stio_desc);
                         break;
                 }
@@ -1599,9 +1601,9 @@ static int io_finish(struct c2_fom *fom)
  *
  * @pre fom != NULL
  */
-static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
+static int c2_io_fom_cob_rw_tick(struct c2_fom *fom)
 {
-        int                                       rc = 0;
+        int                                       rc;
         struct c2_io_fom_cob_rw                  *fom_obj;
         struct c2_io_fom_cob_rw_state_transition  st;
 
@@ -1611,10 +1613,8 @@ static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
 
-        if (fom->fo_phase < C2_FOPH_NR) {
-                rc = c2_fom_state_generic(fom);
-                return rc;
-        }
+        if (fom->fo_phase < C2_FOPH_NR)
+                return c2_fom_tick_generic(fom);
 
         if (c2_is_read_fop(fom->fo_fop))
                 st = io_fom_read_st[fom->fo_phase];

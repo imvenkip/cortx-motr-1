@@ -111,7 +111,7 @@ static struct c2_fop_type *cs_ds2_fopts[] = {
 /*
   Fom specific routines for corresponding fops.
  */
-static int cs_req_fop_fom_state(struct c2_fom *fom);
+static int cs_req_fop_fom_tick(struct c2_fom *fom);
 static int cs_ds1_req_fop_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static int cs_ds2_req_fop_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static void cs_ut_fom_fini(struct c2_fom *fom);
@@ -122,7 +122,7 @@ static size_t cs_ut_find_fom_home_locality(const struct c2_fom *fom);
  */
 static const struct c2_fom_ops cs_ds1_req_fop_fom_ops = {
         .fo_fini = cs_ut_fom_fini,
-        .fo_state = cs_req_fop_fom_state,
+        .fo_tick = cs_req_fop_fom_tick,
         .fo_home_locality = cs_ut_find_fom_home_locality,
 };
 
@@ -131,7 +131,7 @@ static const struct c2_fom_ops cs_ds1_req_fop_fom_ops = {
  */
 static const struct c2_fom_ops cs_ds2_req_fop_fom_ops = {
         .fo_fini = cs_ut_fom_fini,
-        .fo_state = cs_req_fop_fom_state,
+        .fo_tick = cs_req_fop_fom_tick,
         .fo_home_locality = cs_ut_find_fom_home_locality,
 };
 
@@ -295,7 +295,7 @@ static size_t cs_ut_find_fom_home_locality(const struct c2_fom *fom)
   Transitions fom through its generic phases and also
   performs corresponding fop specific execution.
  */
-static int cs_req_fop_fom_state(struct c2_fom *fom)
+static int cs_req_fop_fom_tick(struct c2_fom *fom)
 {
 	int                    rc;
 	struct c2_fop         *rfop;
@@ -311,7 +311,7 @@ static int cs_req_fop_fom_state(struct c2_fom *fom)
 	       C2_CS_DS2_REQ_OPCODE);
 
 	if (fom->fo_phase < C2_FOPH_NR) {
-		rc = c2_fom_state_generic(fom);
+		rc = c2_fom_tick_generic(fom);
 	} else {
 		opcode = fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
 		switch (opcode) {

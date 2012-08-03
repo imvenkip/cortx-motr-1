@@ -165,6 +165,50 @@ void c2_reqh_fini(struct c2_reqh *reqh);
 void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop);
 
 /**
+ * "Phases" through which fom execution typically passes.
+ *
+ * This enumerates standard phases, handled by the generic code independent of
+ * fom type.
+ *
+ * @see https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjA2Zmc0N3I3Z2Y
+ * @see c2_fom_tick_generic()
+ */
+enum c2_fom_standard_phase {
+	C2_FOPH_INIT = C2_FOM_PHASE_INIT,  /*< fom has been initialised. */
+	C2_FOPH_FINISH = C2_FOM_PHASE_FINISH,  /*< terminal phase. */
+	C2_FOPH_AUTHENTICATE,        /*< authentication loop is in progress. */
+	C2_FOPH_AUTHENTICATE_WAIT,   /*< waiting for key cache miss. */
+	C2_FOPH_RESOURCE_LOCAL,      /*< local resource reservation loop is in
+	                                 progress. */
+	C2_FOPH_RESOURCE_LOCAL_WAIT, /*< waiting for a local resource. */
+	C2_FOPH_RESOURCE_DISTRIBUTED,/*< distributed resource reservation loop
+	                                 is in progress. */
+	C2_FOPH_RESOURCE_DISTRIBUTED_WAIT, /*< waiting for a distributed
+	                                       resource. */
+	C2_FOPH_OBJECT_CHECK,       /*< object checking loop is in progress. */
+	C2_FOPH_OBJECT_CHECK_WAIT,  /*< waiting for object cache miss. */
+	C2_FOPH_AUTHORISATION,      /*< authorisation loop is in progress. */
+	C2_FOPH_AUTHORISATION_WAIT, /*< waiting for userdb cache miss. */
+	C2_FOPH_TXN_CONTEXT,        /*< creating local transactional context. */
+	C2_FOPH_TXN_CONTEXT_WAIT,   /*< waiting for log space. */
+	C2_FOPH_SUCCESS,            /*< fom execution completed succesfully. */
+	C2_FOPH_FOL_REC_ADD,        /*< add a FOL transaction record. */
+	C2_FOPH_TXN_COMMIT,         /*< commit local transaction context. */
+	C2_FOPH_TXN_COMMIT_WAIT,    /*< waiting to commit local transaction
+	                                context. */
+	C2_FOPH_TIMEOUT,            /*< fom timed out. */
+	C2_FOPH_FAILURE,            /*< fom execution failed. */
+	C2_FOPH_TXN_ABORT,          /*< abort local transaction context. */
+	C2_FOPH_TXN_ABORT_WAIT,	    /*< waiting to abort local transaction
+	                                context. */
+	C2_FOPH_QUEUE_REPLY,        /*< queuing fop reply.  */
+	C2_FOPH_QUEUE_REPLY_WAIT,   /*< waiting for fop cache space. */
+	C2_FOPH_NR                  /*< number of standard phases. fom type
+	                                specific phases have numbers larger than
+	                                this. */
+};
+
+/**
    Standard fom state transition function.
 
    This function handles standard fom phases from enum c2_fom_phase.
@@ -257,7 +301,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop);
 
    If a generic phase handler function fails while executing a fom, then
    it just sets the c2_fom::fo_rc to the result of the operation and returns
-   C2_FSO_WAIT.  c2_fom_state_generic() then sets the c2_fom::fo_phase to
+   C2_FSO_WAIT.  c2_fom_tick_generic() then sets the c2_fom::fo_phase to
    C2_FOPH_FAILED, logs an ADDB event, and returns, later the fom execution
    proceeds as mentioned in above diagram.
 
@@ -278,7 +322,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop);
    @todo standard fom phases implementation, depends on the support routines for
 	handling various standard operations on fop as mentioned above
  */
-int c2_fom_state_generic(struct c2_fom *fom);
+int c2_fom_tick_generic(struct c2_fom *fom);
 
 /**
    Waits on c2_reqh::rh_sd_signal using the given clink until

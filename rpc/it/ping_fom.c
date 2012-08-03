@@ -24,6 +24,7 @@
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
 #include "fop/fop_format.h"
+#include "reqh/reqh.h"     /* C2_FOPH_NR */
 #include "rpc/it/ping_fom.h"
 #include "rpc/it/ping_fop.h"
 #ifdef __KERNEL__
@@ -41,7 +42,7 @@ static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m);
 /** Generic ops object for ping */
 struct c2_fom_ops c2_fom_ping_ops = {
 	.fo_fini = c2_fop_ping_fom_fini,
-	.fo_state = c2_fom_ping_state,
+	.fo_tick = c2_fom_ping_state,
 	.fo_home_locality = c2_fom_ping_home_locality
 };
 
