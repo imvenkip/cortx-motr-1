@@ -31,7 +31,7 @@
 
    C2 time delivers resolution in nanoseconds. It is an unsigned 64-bit integer.
    @{
-*/
+ */
 
 #ifndef __KERNEL__
 #include "lib/user_space/time.h"
@@ -49,7 +49,7 @@ enum {
    Get the current time.  This may or may not relate to wall time.
 
    @retval current time
-*/
+ */
 c2_time_t c2_time_now(void);
 
 /**
@@ -59,7 +59,7 @@ c2_time_t c2_time_now(void);
    @param ns nanoseconds from now
 
    @retval the result time.
-*/
+ */
 c2_time_t c2_time_from_now(uint64_t secs, long ns);
 
 c2_time_t c2_time(uint64_t secs, long ns);
@@ -89,27 +89,13 @@ c2_time_t c2_time_add(const c2_time_t t1, const c2_time_t t2);
 c2_time_t c2_time_sub(const c2_time_t t1, const c2_time_t t2);
 
 /**
-   Is time a after time b?
- */
-bool c2_time_after(const c2_time_t a, const c2_time_t b);
-
-/**
-   Is time a after or equal to time b?
- */
-bool c2_time_after_eq(const c2_time_t a, const c2_time_t b);
-
-bool c2_time_before_eq(const c2_time_t a, const c2_time_t b);
-
-bool c2_time_eq(const c2_time_t a, const c2_time_t b);
-
-/**
    Sleep for requested time. If interrupted, remaining time returned.
 
    @param req requested time to sleep
-   @param rem [OUT] remaining time
+   @param rem [OUT] remaining time, NULL causes remaining time to be ignored.
    @retval 0 means success. -1 means error. remaining time will be stored
-           in @rem.
-*/
+           in rem.
+ */
 int c2_nanosleep(const c2_time_t req, c2_time_t *rem);
 
 /**
@@ -126,10 +112,9 @@ uint64_t c2_time_seconds(const c2_time_t time);
  */
 uint64_t c2_time_nanoseconds(const c2_time_t time);
 
-
 /**
    the biggest time that never reaches in system life.
-*/
+ */
 extern const c2_time_t C2_TIME_NEVER;
 
 /** @} end of time group */

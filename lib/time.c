@@ -55,16 +55,16 @@ c2_time_t c2_time_add(const c2_time_t t1, const c2_time_t t2)
 {
 	c2_time_t res;
 
-	C2_PRE(c2_time_after_eq(C2_TIME_NEVER, t1));
-	C2_PRE(c2_time_after_eq(C2_TIME_NEVER, t2));
+	C2_PRE(C2_TIME_NEVER >= t1);
+	C2_PRE(C2_TIME_NEVER >= t2);
 
-	if (t1 == C2_TIME_NEVER || t2 == C2_TIME_NEVER) {
+	if (t1 == C2_TIME_NEVER || t2 == C2_TIME_NEVER)
 		res = C2_TIME_NEVER;
-	} else {
+	else
 		res = t1 + t2;
-	}
-	C2_POST(c2_time_after_eq(res, t1));
-	C2_POST(c2_time_after_eq(res, t2));
+
+	C2_POST(res >= t1);
+	C2_POST(res >= t2);
 	return res;
 }
 C2_EXPORTED(c2_time_add);
@@ -75,43 +75,17 @@ C2_EXPORTED(c2_time_add);
 c2_time_t c2_time_sub(const c2_time_t t1, const c2_time_t t2)
 {
 	c2_time_t res;
-	C2_PRE(c2_time_after_eq(C2_TIME_NEVER, t1));
-	C2_PRE(c2_time_after   (C2_TIME_NEVER, t2));
-	C2_PRE(c2_time_after_eq(t1, t2));
+	C2_PRE(C2_TIME_NEVER >= t1);
+	C2_PRE(C2_TIME_NEVER > t2);
+	C2_PRE(t1 >= t2);
 
-	if (t1 == C2_TIME_NEVER) {
+	if (t1 == C2_TIME_NEVER)
 		res = C2_TIME_NEVER;
-	} else {
+	else
 		res = t1 - t2;
-	}
-	C2_POST(c2_time_after_eq(t1, res));
+
+	C2_POST(t1 >= res);
 	return res;
-}
-
-/**
-   Is time a after time b?
-*/
-bool c2_time_after(const c2_time_t a, const c2_time_t b)
-{
-	return a > b;
-}
-
-/**
-   Is time a after or equal to time b?
-*/
-bool c2_time_after_eq(const c2_time_t a, const c2_time_t b)
-{
-	return a >= b;
-}
-
-bool c2_time_before_eq(const c2_time_t a, const c2_time_t b)
-{
-	return a <= b;
-}
-
-bool c2_time_eq(const c2_time_t a, const c2_time_t b)
-{
-	return a == b;
 }
 
 /**
