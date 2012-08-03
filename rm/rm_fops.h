@@ -50,7 +50,7 @@ extern struct c2_fop_type c2_fop_rm_revoke_fopt;
 extern struct c2_fop_type c2_fop_rm_revoke_rep_fopt;
 
 /**
- *
+ * FOP init() and fini() functions.
  */
 int c2_rm_fop_init();
 void c2_rm_fop_fini();

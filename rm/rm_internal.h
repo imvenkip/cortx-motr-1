@@ -21,8 +21,8 @@
 #define __COLIBRI_RM_RM_INTERNAL_H__
 
 /**
-   Created as a result of remote request which is either BORROW ro REVOKE
-   (and CANCEL in future).
+ * Created as a result of remote request which is either BORROW ro REVOKE
+ * (and CANCEL in future).
  */
 struct c2_rm_remote_incoming {
 	struct c2_rm_incoming ri_incoming;
@@ -33,142 +33,140 @@ struct c2_rm_remote_incoming {
 };
 
 /**
-   Sticks a tracking pin on @right. When @right is released, the all incoming
-   requests that stuck pins into it are notified.
-*/
+ * Sticks a tracking pin on @right. When @right is released, the all incoming
+ * requests that stuck pins into it are notified.
+ */
 int pin_add(struct c2_rm_incoming *in, struct c2_rm_right *right,
 	    uint32_t flag);
 
 /**
-   @name rm-fop interface.
-
-   Functions and data-structures used for interaction between RM core and RM fops
-   (and fom)s.
+ * @name rm-fop interface.
+ *
+ * Functions and data-structures used for interaction between RM core and RM fops
+ * (and fom)s.
  */
 
 /** @{ */
 
 /**
-   Moves credited rights from "owned" to "sublet" list.
-
-   This is called by borrow fom code after successful processing of
-   bor->bi_incoming.
-
-   On success, this call transfers ownership of bor->bi_loan to the owner.
-
-   @pre bor->bi_loan is initialised.
-   @pre c2_mutex_is_locked(&owner->ro_lock)
-   @pre in->rin_state == RI_SUCCESS
-   @pre in->rin_type == RIT_BORROW
-   @pre loan->rl_right.ri_owner == owner
-
-   where "owner", "loan" and "in" are respective attributes of "bor".
+ * Moves credited rights from "owned" to "sublet" list.
+ *
+ * This is called by borrow fom code after successful processing of
+ * bor->bi_incoming.
+ *
+ * On success, this call transfers ownership of bor->bi_loan to the owner.
+ *
+ * @pre bor->bi_loan is initialised.
+ * @pre c2_mutex_is_locked(&owner->ro_lock)
+ * @pre in->rin_state == RI_SUCCESS
+ * @pre in->rin_type == RIT_BORROW
+ * @pre loan->rl_right.ri_owner == owner
+ *
+ * where "owner", "loan" and "in" are respective attributes of "bor".
  */
 int c2_rm_borrow_commit(struct c2_rm_remote_incoming *bor);
 
 /**
-   Removes revoked rights from "owned" and borrowed lists.
-
-   Called by revoke fom code to complete processing of revoke.
-
-   @pre c2_mutex_is_locked(&owner->ro_lock)
-   @pre in->rin_state == RI_SUCCESS
-   @pre in->rin_type == RIT_REVOKE
+ * Removes revoked rights from "owned" and borrowed lists.
+ *
+ * Called by revoke fom code to complete processing of revoke.
+ *
+ * @pre c2_mutex_is_locked(&owner->ro_lock)
+ * @pre in->rin_state == RI_SUCCESS
+ * @pre in->rin_type == RIT_REVOKE
  */
 int c2_rm_revoke_commit(struct c2_rm_remote_incoming *rvk);
 
 /**
-   Adds borrowed right to the "borrowed" and "owned" lists.
-
-   This is called on receiving a reply to an outgoing BORROW fop.
-
-   This function transfers ownership of the supplied "loan" structure to the
-   owner.
+ * Adds borrowed right to the "borrowed" and "owned" lists.
+ *
+ * This is called on receiving a reply to an outgoing BORROW fop.
+ *
+ * This function transfers ownership of the supplied "loan" structure to the
+ * owner.
  */
 int c2_rm_borrow_done(struct c2_rm_outgoing *out, struct c2_rm_loan *loan);
 
 /**
-   Moves revoked right from "sublet" to "owned" list.
-
-   This is called on receiving a reply to an outgoing REVOKE fop.
+ * Moves revoked right from "sublet" to "owned" list.
+ *
+ * This is called on receiving a reply to an outgoing REVOKE fop.
  */
 int c2_rm_revoke_done(struct c2_rm_outgoing *out);
 
 /**
-   Returns a cookie for a given owner.
+ * Returns a cookie for a given owner.
  */
 void c2_rm_owner_cookie_get(const struct c2_rm_owner *o,
 			    struct c2_cookie *cake);
 
 /**
-   Returns a cookie for a given loan.
+ * Returns a cookie for a given loan.
  */
 void c2_rm_loan_cookie_get(const struct c2_rm_loan *loan,
 			   struct c2_cookie *cake);
 
 /**
-   Returns the owner corresponding to a given cookie, or NULL when the cookie is
-   stale.
+ * Returns the owner corresponding to a given cookie, or NULL when the cookie is
+ * stale.
  */
 struct c2_rm_owner *c2_rm_owner_find(const struct c2_cookie *cake);
 
 /**
-   Returns the loan corresponding to a given cookie, or NULL when the cookie is
-   stale.
+ * Returns the loan corresponding to a given cookie, or NULL when the cookie is
+ * stale.
  */
 struct c2_rm_loan  *c2_rm_loan_find (const struct c2_cookie *cake);
 
 /**
-   Returns the owner locally managing the rights for a given resource.
-
-   This is used on the creditor side to identify an owner against which an
-   incoming BORROW request is to be processed.
+ * Returns the owner locally managing the rights for a given resource.
+ *
+ * This is used on the creditor side to identify an owner against which an
+ * incoming BORROW request is to be processed.
  */
 int c2_rm_resource_owner_find(const struct c2_rm_resource *resource,
 			      struct c2_rm_owner **owner);
 
 /**
-   Constructs and sends out an outgoing borrow request.
-
-   Allocates c2_rm_outgoing, adds a pin from "in" to the outgoing request.
-   Constructs and sends an outgoing borrow fop. Arranges
-   c2_rm_outgoing_complete() to be called on fop reply or timeout.
-
-   @see c2_rm_revoke_out().
+ * Constructs and sends out an outgoing borrow request.
+ *
+ * Allocates c2_rm_outgoing, adds a pin from "in" to the outgoing request.
+ * Constructs and sends an outgoing borrow fop. Arranges
+ * c2_rm_outgoing_complete() to be called on fop reply or timeout.
+ *
+ * @see c2_rm_revoke_out().
  */
 int c2_rm_borrow_out(struct c2_rm_incoming *in, struct c2_rm_right *right);
 
 /**
-   Constructs and sends out an outgoing revoke request.
-
-   @see c2_rm_borrow_out().
+ * Constructs and sends out an outgoing revoke request.
+ *
+ * @see c2_rm_borrow_out().
  */
 int c2_rm_revoke_out(struct c2_rm_incoming *in,
 		     struct c2_rm_loan *loan, struct c2_rm_right *right);
 
 /**
-   Initialises the fields of outgoing.
+ * Initialises the fields of outgoing.
  */
 void c2_rm_outgoing_init(struct c2_rm_outgoing *out,
-			 enum c2_rm_outgoing_type type,
-			 struct c2_rm_owner *owner);
+			 enum c2_rm_outgoing_type type);
 
 /**
-   Initialise the loan
+ * Initialise the loan
  */
 int c2_rm_loan_init(struct c2_rm_loan *loan, struct c2_rm_right *right);
 
 /**
-   Called when an outgoing request completes (possibly with an error, like a
-   timeout).
-*/
+ * Called when an outgoing request completes (possibly with an error, like a
+ * timeout).
+ */
 void c2_rm_outgoing_complete(struct c2_rm_outgoing *og);
-
 
 /** @} end of rm-fop interface. */
 
 /**
-   @name RM lists.
+ * @name RM lists.
  */
 
 /** @{ */
@@ -186,7 +184,7 @@ C2_TL_DESCR_DECLARE(pi, extern);
 C2_TL_DECLARE(pi, , struct c2_rm_pin);
 
 /**
-   Execute "expr" against all rights lists in a given owner.
+ * Execute "expr" against all rights lists in a given owner.
  */
 #define RM_OWNER_LISTS_FOR(owner, expr)					\
 ({									\
@@ -223,4 +221,3 @@ C2_TL_DECLARE(pi, , struct c2_rm_pin);
  *  scroll-step: 1
  *  End:
  */
-

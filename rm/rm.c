@@ -147,10 +147,10 @@ static struct c2_rm_resource *resource_find(const struct c2_rm_resource_type *rt
 
 	C2_PRE(rt->rt_ops->rto_eq != NULL);
 
-	c2_tlist_for(&res_tl, (struct c2_tl *)&rt->rt_resources, scan) {
+	c2_tl_for(res, (struct c2_tl *)&rt->rt_resources, scan) {
 		if (rt->rt_ops->rto_eq(res, scan))
 			break;
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	return scan;
 }
 
@@ -334,17 +334,10 @@ C2_EXPORTED(c2_rm_owner_selfadd);
 
 static bool owner_busy(struct c2_rm_owner *owner)
 {
-	bool rc = false;
-	int  i;
-	int  j;
-
-	for (i = 0; i < C2_RM_REQUEST_PRIORITY_NR; ++i)
-		for (j = 0; j < OQS_NR; ++j)
-			if (!c2_rm_ur_tlist_is_empty(&owner->ro_incoming[i][j])) {
-				rc = true;
-				break;
-			}
-	return rc;
+	return !c2_forall(i, C2_RM_REQUEST_PRIORITY_NR,
+			  c2_forall(j, OQS_NR,
+				    c2_rm_ur_tlist_is_empty
+					(&owner->ro_incoming[i][j])));
 }
 
 int c2_rm_owner_retire(struct c2_rm_owner *owner)
@@ -384,7 +377,7 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 	c2_rm_incoming_init(&in, owner, C2_RIT_REVOKE,
 			    RIP_NONE, RIF_MAY_REVOKE);
 	in.rin_priority = 0;
-	c2_tlist_for(&c2_rm_ur_tl, &owner->ro_sublet, right) {
+	c2_tl_for(c2_rm_ur, &owner->ro_sublet, right) {
 		/**
 		 * This is convoluted. Now that user incoming requests have
 		 * drained, we add our incoming requests for REVOKE and CANCEL
@@ -407,16 +400,16 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 		if (in.rin_state == RI_FAILURE)
 			return in.rin_rc;
 		c2_rm_ur_tlink_del_fini(right);
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 
 	for (i = 0; i < ARRAY_SIZE(owner->ro_owned); ++i) {
-		c2_tlist_for(&c2_rm_ur_tl, &owner->ro_owned[i], right) {
+		c2_tl_for(c2_rm_ur, &owner->ro_owned[i], right) {
 			c2_rm_ur_tlink_del_fini(right);
 			c2_free(right);
-		} c2_tlist_endfor;
+		} c2_tl_endfor;
 	}
 
-	c2_tlist_for(&c2_rm_ur_tl, &owner->ro_borrowed, right) {
+	c2_tl_for(c2_rm_ur, &owner->ro_borrowed, right) {
 		loan = container_of(right, struct c2_rm_loan, rl_right);
 		if (loan->rl_id == C2_RM_LOAN_SELF_ID) {
 			c2_rm_ur_tlink_del_fini(right);
@@ -425,7 +418,7 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 			/* @todo - pending cancel implementation */
 			/* cancel_send(in, loan, right) */
 		}
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 
 	c2_mutex_lock(&owner->ro_lock);
 	owner->ro_state = ROS_FINAL;
@@ -509,15 +502,12 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 C2_EXPORTED(c2_rm_incoming_fini);
 
 void c2_rm_outgoing_init(struct c2_rm_outgoing *out,
-			 enum c2_rm_outgoing_type req_type,
-			 struct c2_rm_owner *owner)
+			 enum c2_rm_outgoing_type req_type)
 {
 	C2_PRE(out != NULL);
-	C2_PRE(owner != NULL);
 
 	out->rog_rc = 0;
 	out->rog_type = req_type;
-	out->rog_owner = owner;
 }
 C2_EXPORTED(c2_rm_outgoing_init);
 
@@ -573,7 +563,7 @@ static int rights_integrate(struct c2_rm_incoming *in)
 
 	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
 
-	c2_tlist_for(&pi_tl, &in->rin_pins, pin) {
+	c2_tl_for(pi, &in->rin_pins, pin) {
 		C2_ASSERT(pin->rp_flags == C2_RPF_PROTECT);
 		right = pin->rp_right;
 		rc  = right_diff(right, &in->rin_want);
@@ -588,7 +578,7 @@ static int rights_integrate(struct c2_rm_incoming *in)
 		} else
 			break;
 
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 
 	return rc;
 }
@@ -793,7 +783,7 @@ static void owner_balance(struct c2_rm_owner *o)
 	C2_PRE(c2_mutex_is_locked(&o->ro_lock));
 	do {
 		todo = false;
-		c2_tlist_for(&c2_rm_ur_tl, &o->ro_outgoing[OQS_EXCITED], right) {
+		c2_tl_for(c2_rm_ur, &o->ro_outgoing[OQS_EXCITED], right) {
 			todo = true;
 			loan = container_of(right, struct c2_rm_loan, rl_right);
 			out = container_of(loan, struct c2_rm_outgoing,
@@ -806,15 +796,15 @@ static void owner_balance(struct c2_rm_owner *o)
 			 * Removing of pins might excite incoming requests
 			 * waiting for outgoing request completion.
 			 */
-			c2_tlist_for(&pr_tl, &right->ri_pins, pin) {
+			c2_tl_for(pr, &right->ri_pins, pin) {
 				C2_ASSERT(pin->rp_flags == C2_RPF_TRACK);
 				pin->rp_incoming->rin_rc = out->rog_rc;
 				pin_del(pin);
-			} c2_tlist_endfor;
+			} c2_tl_endfor;
 			c2_rm_ur_tlink_del_fini(right);
-		} c2_tlist_endfor;
+		} c2_tl_endfor;
 		for (prio = ARRAY_SIZE(o->ro_incoming) - 1; prio >= 0; --prio) {
-			c2_tlist_for(&c2_rm_ur_tl,
+			c2_tl_for(c2_rm_ur,
 				     &o->ro_incoming[prio][OQS_EXCITED], right) {
 				todo = true;
 				in = container_of(right, struct c2_rm_incoming,
@@ -829,7 +819,7 @@ static void owner_balance(struct c2_rm_owner *o)
 					      &in->rin_want);
 				in->rin_state = RI_CHECK;
 				incoming_check(in);
-			} c2_tlist_endfor;
+			} c2_tl_endfor;
 		}
 	} while (todo);
 }
@@ -921,7 +911,7 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 	 * Check for "local" wait conditions.
 	 */
 	for (i = 0; i < ARRAY_SIZE(o->ro_owned); ++i) {
-		c2_tlist_for(&c2_rm_ur_tl, &o->ro_owned[i], r) {
+		c2_tl_for(c2_rm_ur, &o->ro_owned[i], r) {
 			if (!right_intersects(r, want))
 				continue;
 			if (i == OWOS_HELD && (in->rin_flags & RIF_LOCAL_WAIT) &&
@@ -933,7 +923,7 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 			rc = rc ?: right_diff(rest, r);
 			if (rc != 0)
 				return rc;
-		} c2_tlist_endfor;
+		} c2_tl_endfor;
 	}
 
 	/*
@@ -941,7 +931,7 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 	 *    sublet list.
 	 */
 	if (!right_is_empty(rest)) {
-		c2_tlist_for(&c2_rm_ur_tl, &o->ro_sublet, r) {
+		c2_tl_for(c2_rm_ur, &o->ro_sublet, r) {
 			if (!right_intersects(r, rest))
 				continue;
 			if (!(in->rin_flags & RIF_MAY_REVOKE))
@@ -960,7 +950,7 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 			rc = rc ?: right_diff(rest, r);
 			if (rc != 0)
 				return rc;
-		} c2_tlist_endfor;
+		} c2_tl_endfor;
 	}
 
 	/*
@@ -990,9 +980,9 @@ void c2_rm_outgoing_complete(struct c2_rm_outgoing *og)
 
 	C2_PRE(og != NULL);
 
-	owner = og->rog_owner;
+	owner = og->rog_want.rl_right.ri_owner;
 	c2_rm_ur_tlist_move(&owner->ro_outgoing[OQS_EXCITED],
-			    &og->rog_want->rl_right);
+			    &og->rog_want.rl_right);
 	owner_balance(owner);
 }
 
@@ -1076,13 +1066,13 @@ static int outgoing_check(struct c2_rm_incoming *in,
 	struct c2_rm_outgoing *out;
 
 	for (i = 0; i < ARRAY_SIZE(owner->ro_outgoing); ++i) {
-		c2_tlist_for(&c2_rm_ur_tl, &owner->ro_outgoing[i], scan) {
+		c2_tl_for(c2_rm_ur, &owner->ro_outgoing[i], scan) {
 			loan = container_of(scan, struct c2_rm_loan, rl_right);
 			out = container_of(loan, struct c2_rm_outgoing,
 					   rog_want);
 			if (out->rog_type == otype && right_intersects(scan,
 								       right)) {
-				C2_ASSERT(out->rog_want->rl_other == other);
+				C2_ASSERT(out->rog_want.rl_other == other);
 				/**
 				 * @todo adjust outgoing requests priority
 				 * (priority inheritance)
@@ -1092,7 +1082,7 @@ static int outgoing_check(struct c2_rm_incoming *in,
 				if (rc != 0)
 					break;
 			}
-		} c2_tlist_endfor;
+		} c2_tl_endfor;
 
 		if (rc != 0)
 			break;
@@ -1324,21 +1314,21 @@ static bool owner_invariant_state(const struct c2_rm_owner *owner,
 	 */
 	/* Calculate credit */
 	for (i = 0; i < ARRAY_SIZE(owner->ro_owned); ++i) {
-		c2_tlist_for(&c2_rm_ur_tl, &owner->ro_owned[i], right) {
+		c2_tl_for(c2_rm_ur, &owner->ro_owned[i], right) {
 			if(!right->ri_ops->rro_join(&is->is_credit, right))
 				return false;
-		} c2_tlist_endfor;
+		} c2_tl_endfor;
 	}
-	c2_tlist_for(&c2_rm_ur_tl, &owner->ro_sublet, right) {
+	c2_tl_for(c2_rm_ur, &owner->ro_sublet, right) {
 		if(!right->ri_ops->rro_join(&is->is_credit, right))
 			return false;
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 
 	/* Calculate debit */
-	c2_tlist_for(&c2_rm_ur_tl, &owner->ro_borrowed, right) {
+	c2_tl_for(c2_rm_ur, &owner->ro_borrowed, right) {
 		if(!right->ri_ops->rro_join(&is->is_debit, right))
 			return false;
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 
 	return true;
 }
@@ -1380,10 +1370,10 @@ static int right_pin_nr(const struct c2_rm_right *right, uint32_t flags)
 	int		  nr = 0;
 	struct c2_rm_pin *pin;
 
-	c2_tlist_for(&pr_tl, &right->ri_pins, pin) {
+	c2_tl_for(pr, &right->ri_pins, pin) {
 		if (pin->rp_flags & flags)
 			++nr;
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	return nr;
 }
 
@@ -1397,10 +1387,10 @@ static int incoming_pin_nr(const struct c2_rm_incoming *in, uint32_t flags)
 	struct c2_rm_pin *pin;
 
 	nr = 0;
-	c2_tlist_for(&pi_tl, &in->rin_pins, pin) {
+	c2_tl_for(pi, &in->rin_pins, pin) {
 		if (pin->rp_flags & flags)
 			++nr;
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	return nr;
 }
 
@@ -1414,7 +1404,7 @@ static void incoming_release(struct c2_rm_incoming *in)
 	struct c2_rm_pin   *pin;
 	struct c2_rm_right *right;
 
-	c2_tlist_for(&pi_tl, &in->rin_pins, kingpin) {
+	c2_tl_for(pi, &in->rin_pins, kingpin) {
 		if (kingpin->rp_flags & C2_RPF_PROTECT) {
 			right = kingpin->rp_right;
 			/*
@@ -1426,14 +1416,14 @@ static void incoming_release(struct c2_rm_incoming *in)
 				 * I think we are introducing "thundering herd"
 				 * problem here.
 				 */
-				c2_tlist_for(&pr_tl, &right->ri_pins, pin) {
+				c2_tl_for(pr, &right->ri_pins, pin) {
 					if (pin->rp_flags & C2_RPF_TRACK)
 						pin_del(pin);
-				} c2_tlist_endfor;
+				} c2_tl_endfor;
 			}
 		}
 		pin_del(kingpin);
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 }
 
 /**
@@ -1664,12 +1654,12 @@ int c2_rm_net_locate(struct c2_rm_right *right, struct c2_rm_remote *other)
 
 	/* Search for resource having resource id equal to remote id */
 	c2_mutex_lock(&rtype->rt_lock);
-	c2_tlist_for(&res_tl, &rtype->rt_resources, res) {
-		if (rtype->rt_ops->rto_resource_is(res, other->rem_id)) {
+	c2_tl_for(res, &rtype->rt_resources, res) {
+		if (rtype->rt_ops->rto_is(res, other->rem_id)) {
 			other->rem_resource = res;
 			break;
 		}
-	} c2_tlist_endfor;
+	} c2_tl_endfor;
 	c2_mutex_unlock(&rtype->rt_lock);
 
 error:
@@ -1727,8 +1717,8 @@ void c2_rm_loan_cookie_get(const struct c2_rm_loan *loan,
 }
 C2_EXPORTED(c2_rm_loan_cookie);
 
-int c2_rm_rdatum2buf(struct c2_rm_right *right,
-		     void **buf, c2_bcount_t *bytesnr)
+int c2_rm_right_encode(const struct c2_rm_right *right,
+		       void **buf, c2_bcount_t *bytesnr)
 {
 	struct c2_bufvec	datum_buf = C2_BUFVEC_INIT_BUF(buf, bytesnr);
 	struct c2_bufvec_cursor cursor;
@@ -1747,9 +1737,10 @@ int c2_rm_rdatum2buf(struct c2_rm_right *right,
 	c2_bufvec_cursor_init(&cursor, &datum_buf);
 	return right->ri_ops->rro_encode(right, &cursor);
 }
-C2_EXPORTED(c2_rm_rdatum2buf);
+C2_EXPORTED(c2_rm_right_encode);
 
-int c2_rm_buf2rdatum(struct c2_rm_right *right, void *buf, c2_bcount_t bytesnr)
+int c2_rm_right_decode(struct c2_rm_right *right,
+		       void *buf, c2_bcount_t bytesnr)
 {
 	struct c2_bufvec	datum_buf = C2_BUFVEC_INIT_BUF(&buf, &bytesnr);
 	struct c2_bufvec_cursor cursor;
@@ -1760,7 +1751,7 @@ int c2_rm_buf2rdatum(struct c2_rm_right *right, void *buf, c2_bcount_t bytesnr)
 	c2_bufvec_cursor_init(&cursor, &datum_buf);
 	return right->ri_ops->rro_decode(right, &cursor);
 }
-C2_EXPORTED(c2_rm_buf2rdatum);
+C2_EXPORTED(c2_rm_right_decode);
 
 /** @} end of remote group */
 

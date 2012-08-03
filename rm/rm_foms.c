@@ -247,7 +247,7 @@ static int reply_prepare(const enum c2_rm_incoming_type type,
 		/*
 		 * Memory for the function is allocated by the function.
 		 */
-		rc = c2_rm_rdatum2buf(&loan->rl_right, buf, buflen);
+		rc = c2_rm_right_encode(&loan->rl_right, buf, buflen);
 		break;
 	default:
 		break;
@@ -365,14 +365,14 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		c2_rm_incoming_init(in, owner, type, policy, flags);
 		in->rin_ops = &remote_incoming_ops;
 		c2_rm_right_init(&in->rin_want, owner);
-		rc = c2_rm_buf2rdatum(&in->rin_want, datum_buf, datum_len);
+		rc = c2_rm_right_decode(&in->rin_want, datum_buf, datum_len);
 		if (rc != 0) {
 			c2_rm_right_fini(&in->rin_want);
 		} else
 			if (type == C2_RIT_BORROW)
 				c2_rm_right_init(&rfom->rf_in.ri_loan->rl_right,
 						 owner);
-			
+
 	}
 	return rc;
 }
@@ -526,7 +526,7 @@ static void rm_borrow_fom_fini(struct c2_fom *fom)
 	struct c2_fop_rm_borrow_rep *rply_fop;
 
 	/*
-	 * Free memory allocated by c2_rm_rdatum2buf().
+	 * Free memory allocated by c2_rm_right_encode().
 	 */
 	rply_fop = c2_fop_data(fom->fo_rep_fop);
 	c2_free(rply_fop->br_right.ri_opaque.op_bytes);

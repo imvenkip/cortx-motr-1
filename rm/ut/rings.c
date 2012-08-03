@@ -54,7 +54,7 @@ static bool resource_is(const struct c2_rm_resource *res, uint64_t res_id)
 
 const struct c2_rm_resource_type_ops rings_rtype_ops = {
 	.rto_eq		 = resources_are_equal,
-	.rto_resource_is = resource_is
+	.rto_is          = resource_is
 };
 
 static bool right_intersects(const struct c2_rm_right *r0,
@@ -121,4 +121,3 @@ const struct c2_rm_incoming_ops rings_incoming_ops = {
  *  scroll-step: 1
  *  End:
  */
-

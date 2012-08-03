@@ -28,12 +28,12 @@
 #include "rm/rm_internal.h"
 
 /**
-   @addtogroup rm
-
-   This file includes data structures used by RM:fop layer.
-
-   @{
-
+ * @addtogroup rm
+ *
+ * This file includes data structures used by RM:fop layer.
+ *
+ * @{
+ *
  */
 enum c2_rm_fom_phases {
 	FOPH_RM_BORROW = C2_FOPH_NR + 1,
@@ -44,9 +44,9 @@ enum c2_rm_fom_phases {
 };
 
 /**
-  * FOM to execute resource right request. The request could either be borrow,
-  * revoke or cancel.
-  */
+ * FOM to execute resource right request. The request could either be borrow,
+ * revoke or cancel.
+ */
 struct rm_request_fom {
 	/** Generic c2_fom object */
 	struct c2_fom	rf_fom;
