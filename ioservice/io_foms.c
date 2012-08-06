@@ -267,11 +267,10 @@
    - Enqueue response in fo_rep_fop for the request handler to send the response
      back to the client
 
-   On the basis of steps involved in these operations enumeration called
-   @ref c2_io_fom_cob_rw_phases will be defined, that extends the standard
-   FOM phases (enum c2_fom_phase) with new phases to handle the state machine
-   that sets up and executes read/write operations  respectively involving
-   bulk I/O.
+   On the basis of steps involved in these operations enumeration called @ref
+   c2_io_fom_cob_rw_phases will be defined, that extends the standard FOM phases
+   (enum c2_fom_standard_phase) with new phases to handle the state machine that
+   sets up and executes read/write operations respectively involving bulk I/O.
 
    <hr>
    @subsection DLD-bulk-server-lspec-state State Transition Diagrams

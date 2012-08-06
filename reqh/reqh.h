@@ -209,9 +209,9 @@ enum c2_fom_standard_phase {
 };
 
 /**
-   Standard fom state transition function.
+   Standard fom phase transition function.
 
-   This function handles standard fom phases from enum c2_fom_phase.
+   This function handles standard fom phases from enum c2_fom_standard_phase.
 
    First do "standard actions":
 
@@ -310,7 +310,7 @@ enum c2_fom_standard_phase {
    the c2_fom::fo_rc set to the result of the operation.
 
    @see c2_fom_phase
-   @see c2_fom_state_outcome
+   @see c2_fom_phase_outcome
 
    @param fom, fom under execution
 

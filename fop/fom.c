@@ -85,6 +85,7 @@
  *      INIT----------------------->IDLE
  *            loc_thr_create()      | ^
  *             ^                    | |
+ *             .                    | |
  *             .     signal(fl_idle)| |(unblocking > 0)
  *             .        ^           | |       ^
  *             .        .           | |       .
@@ -259,6 +260,7 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 				      C2_FOS_RUNNING)) &&
 		(fom->fo_state == C2_FOS_READY) == is_in_runq(fom) &&
 		(fom->fo_state == C2_FOS_WAITING) == is_in_wail(fom) &&
+		ergo(fom->fo_thread != NULL, fom->fo_state == C2_FOS_RUNNING) &&
 		ergo(fom->fo_pending != NULL,
 		     (fom->fo_state == C2_FOS_READY || fom_is_blocked(fom))) &&
 		ergo(fom->fo_cb.fc_state != C2_FCS_DONE,
@@ -492,8 +494,8 @@ static void fom_exec(struct c2_fom *fom)
 		/*
 		 * (rc == C2_FSO_AGAIN) means that next phase transition is
 		 * possible. Current policy is to execute the transition
-		 * immediately. Alternative is to put the fom on runqueue and
-		 * select "the best" fom from runqueue.
+		 * immediately. Alternative is to put the fom on the runqueue
+		 * and select "the best" fom from the runqueue.
 		 */
 		fom->fo_transitions++;
 	} while (rc == C2_FSO_AGAIN);
@@ -514,8 +516,8 @@ static void fom_exec(struct c2_fom *fom)
 		fom_wait(fom);
 		/*
 		 * If there are pending call-backs, execute them, until one of
-		 * them wakes the fom up. Don't both to optimize moving between
-		 * queues: this is a rare case.
+		 * them wakes the fom up. Don't bother to optimize moving
+		 * between queues: this is a rare case.
 		 *
 		 * Note: call-backs are executed in LIFO order.
 		 */
@@ -954,7 +956,7 @@ void c2_fom_wait_on(struct c2_fom *fom, struct c2_chan *chan,
 void c2_fom_callback_fini(struct c2_fom_callback *cb)
 {
 	C2_PRE(cb->fc_state == C2_FCS_DONE);
-	/* c2_clink_fini() is called in fom_ast_cb() */
+	/* c2_clink_fini() is called in cb_run() */
 }
 
 bool c2_fom_callback_cancel(struct c2_fom_callback *cb)

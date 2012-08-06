@@ -549,25 +549,23 @@ struct c2_fom_type {
 };
 
 /**
- * Potential outcome of a fom state transition.
+ * Potential outcome of a fom phase transition.
  *
  * @see c2_fom_ops::fo_tick().
  */
-enum c2_fom_state_outcome {
+enum c2_fom_phase_outcome {
 	/**
-	 *  State transition completed. The next state transition would be
-	 *  possible when some future event happens. The state transition
-	 *  function registeres the fom's clink with the channel where this
-	 *  event will be signalled.
+	 *  Phase transition completed. The next phase transition would be
+	 *  possible when some future event happens.
 	 *
 	 *  When C2_FSO_WAIT is returned, the fom is put on locality wait-list.
 	 */
 	C2_FSO_WAIT = 1,
 	/**
-	 * State transition completed and another state transition is
+	 * Phase transition completed and another phase transition is
 	 * immediately possible.
 	 *
-	 * When C2_FSO_AGAIN is returned, either the next state transition is
+	 * When C2_FSO_AGAIN is returned, either the next phase transition is
 	 * immediately executed (by the same or by a different handler thread)
 	 * or the fom is placed in the run-queue, depending on the scheduling
 	 * constraints.
@@ -588,7 +586,7 @@ struct c2_fom_ops {
 	/**
 	 *  Executes the next phase transition, "ticking" the fom machine.
 	 *
-	 *  Returns value of enum c2_fom_state_outcome or error code.
+	 *  Returns value of enum c2_fom_phase_outcome.
 	 */
 	int  (*fo_tick)(struct c2_fom *fom);
 
