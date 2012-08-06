@@ -36,6 +36,7 @@ SUBDIRS_LIBS = \
                rpc \
                sm \
                sns \
+               sns/repair \
                stob \
                udb \
                ut \

@@ -19,6 +19,8 @@
  * Original creation date: 02/22/2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_CM_CP_H__
 #define __COLIBRI_CM_CP_H__
 
@@ -29,7 +31,39 @@
 #include "fop/fom.h"
 
 /**
- * @addtogroup Agents
+ * @page DLD-cp-fspec Copy Packet Functional Specification
+ *
+ * - @ref DLD-cp-fspec-ds
+ * - @ref DLD-cp-fspec-sub
+ * - @ref cp "Copy Packet Functional Specification" <!-- Note link -->
+ *
+ * @section DLD-cp-fspec-ds Data Structures
+ *	- c2_cm_cp  : Generic copy packet.
+ *	- c2_cm_ops : Copy packet operations.
+ * @section DLD-cp-fspec-sub Subroutines
+ *	- c2_cm_cp_init()    : Initialises copy packet members and calls
+ *			       c_ops->init() to initialise specific data.
+ *	- c2_cm_cp_fini()    : Finalises copy packet members and calls
+ *			       c_ops->fini() internal to finalise specific data.
+ *	- c2_cm_cp_enqueue() : Post copy packet FOM for execution.
+ *
+ * @subsection DLD-cp-fspec-sub-acc Accessors and Invariants
+ *	- c2_cm_cp_invaraint()
+ *
+ * @subsection DLD-fspec-sub-opi Operational Interfaces
+ *	- cp_fom_fini()
+ *	- cp_fom_locality()
+ *	- cp_fom_state()
+ *
+ *	@see @ref cp
+ */
+
+/**
+ * @defgroup cp Copy Packet
+ *
+ * @see The @ref cp "Cop" its
+ * @ref DLD-cp-fspec "Copy Packet Functional Specification"
+ *
  * @{
  */
 
@@ -38,6 +72,7 @@ struct c2_cm;
 
 /**
  * Copy packets priority.
+ *
  * Copy packets are assigned a priority (greater numerical value
  * corresponds to higher priority). When multiple copy packets are
  * ready to be processed, higher priority ones have a preference.
@@ -48,51 +83,84 @@ enum c2_cm_cp_priority {
 	C2_CM_CP_PRIORITY_NR
 };
 
-/** Copy packet states */
-enum c2_cm_cp_state {
-	C2_CPS_INITIALISED,
-	C2_CPS_STORAGE_IN_WAIT,
-	C2_CPS_STORAGE_OUT_WAIT,
-	C2_CPS_NETWORK_IN_WAIT,
-	C2_CPS_NETWORK_OUT_WAIT,
-	C2_CPS_COLLECTING_WAIT,
-	C2_CPS_FINIALISED
+/**
+ * Copy packet FOM generic phases.
+ *
+ * Packet's FOM doesn't use standard phases, but we don't want to step on
+ * C2_FOPH_FINISH which has special meaning in fom.c.
+ */
+enum c2_cm_cp_phase {
+	/** Phase specific initialisation.*/
+	CCP_INIT = C2_FOPH_NR + 1,
+
+	/** Read and fill up the packet.*/
+	CCP_READ,
+
+	/** Write packet packet data.*/
+	CCP_WRITE,
+
+	/** Packet is to be transformed.*/
+	CCP_XFORM,
+
+	/** Send packet over network.*/
+	CCP_SEND,
+
+	/** Received packet from network.*/
+	CCP_RECV,
+
+	/** Finalisation of packet.*/
+	CCP_FINI
 };
 
 /**
  * Copy packet.
  *
- * Copy packet is used for data transfer between various copy machine agents.
- * Copy packet is linked to the aggregation group.
+ * Copy packet is the data structure used to describe the packet flowing between
+ * various copy machine replica nodes. It is entity which has data as well as
+ * operation to work. Copy packet has buffers to carry data and FOM for
+ * execution in context of request handler. It can perform various kind of work
+ * which depend on the it's stage (i.e. FOM phase) in execution. Phase_next()
+ * responsible for stage change of copy packet. It is a state machine, goes
+ * through following stages:
+ *
+ *	- READ
+ *	- WRITE
+ *	- XFORM
+ *	- SEND
+ *	- RECV
+ *	- Non-std: Copy packet FOM can have phases addition these phases.
+ *		   Additional phases will be used to do processing under one of
+ *		   above phases.
+ *
+ * Trasition of standard phases is done by phase_next().
+ *
+ * @todo c2_cm_cp:c_fom:fo_loc used for transformation (e.g XOR).
+ * @todo has_space in sliding window.
  *
  * Copy packet state diagram:
  *
  * @verbatim
  *
  *     New copy packet             new copy packet
- *            +<-------INITIALISED------->+
- *            |             |             |
- *            |         new |packet	  |
- *            |             |             |
- *    +-WAIT_STORAGE_IN     |	  WAIT_NETWORK_IN-+
- *    |       |             |             |       |
- *    |       |             |             |       |
- *    |       +------------>V<------------+       |
- *    |			WAIT_COLLECT	          |
- *    |       +<------------|------------>+	  |
- *    |       |             |             |	  |
- *    |       V             |             V	  |
- *    +->WAIT_NETWORK_OUT   |	WAIT_STORAGE_OUT<-+
- *            |             |             |
- *            |             |             |
- *	      |             V             |
- *            +--------->FINALISED<-------+
+ *          +<---------INIT-------->+
+ *          |	        |	    |
+ *          |           |           |
+ *    +----READ     new |packet	   RECV----+
+ *    |     |           |           |      |
+ *    |     +---------->V<----------+      |
+ *    |		      XFORM	           |
+ *    |     +<----------|---------->+	   |
+ *    |     |           |           |	   |
+ *    |     V           |           V	   |
+ *    +--->SEND	        |	  WRITE<---+
+ *	    |           V           |
+ *          +--------->FINI<--------+
  *
  * @endverbatim
  */
 struct c2_cm_cp {
-	/** Copy packet priority. @ref c2_cm_cp_priority */
-	uint32_t                   c_priority;
+	/** Copy packet priority.*/
+	enum c2_cm_cp_priority	   c_prio,
 
 	struct c2_fom		   c_fom;
 
@@ -105,51 +173,65 @@ struct c2_cm_cp {
         /** Array of starting extent indices. */
         c2_bindex_t               *c_index;
 
-        /** Aggregation group to which this copy packet belongs. */
+        /** Aggregation group to which this copy packet belongs.*/
         struct c2_cm_aggr_group   *c_ag;
 
+	/** Set and used in case of read/write.*/
+	struct c2_stob_id	   c_id;
+
+	/** Set and used in case of network send/recv.*/
+	struct c2_rpc_bulk	  *c_bulk;
 
 	struct c2_cm		  *c_cm;
 
 	uint64_t                   c_magix;
-
 };
 
-/** Copy packet operations */
+/**
+ * Copy packet operations
+ *
+ * A copy machine has a handler which handles FOP requests. A copy machine is
+ * responsible to create corresponding copy packet FOMs to do the actual work.
+ */
 struct c2_cm_cp_ops {
 
-	/** Allocates copy packet and it's data buffer. */
-	int  (*cpo_alloc)    (struct c2_cm *cm, struct c2_cm_cp **cp);
+	/**
+	 * Allocate, initialise copy packet structure and submit for execution.
+	 */
+	int  (*co_init)	    (struct c2_cm_cp *cp);
+
+	/** Fill up the copy packet data.*/
+	int  (*co_read)	    (struct c2_cm_cp *cp);
+
+	/** Write copy packet data.*/
+	int  (*co_write)    (struct c2_cm_cp *cp);
+
+	/** Send copy packet over network.*/
+	int  (*co_send)	    (struct c2_cm_cp *cp);
+
+	/** Receive and forward copy packet.*/
+	int  (*co_recv)	    (struct c2_cm_cp *cp);
+
+	/** Transform copy packet.*/
+	int  (*co_xform)    (struct c2_cm_cp *cp);
+
+	/** Non standard phases handled in this function.*/
+	int  (*co_state)    (struct c2_cm_cp *cp);
+
+	/** Called when copy packet processing is completed successfully.*/
+	void (*co_complete) (struct c2_cm_cp *cp);
 
 	/**
 	 * Releases any resources associated with the packet.
 	 * Called when the generic code is about to free a packet.
 	 */
-	void (*cpo_release)  (struct c2_cm_cp *cp);
-
-	/**
-	 * Called when copy packet processing is completed successfully.
-	 */
-	void (*cpo_complete) (struct c2_cm_cp *packet);
+	void (*co_fini)	    (struct c2_cm_cp *cp);
 };
 
-/**
- * Initialises copy packet.
- *
- * @post packet->cp_state == CPS_INITIALISED
- */
-void c2_cm_cp_init(struct c2_cm_cp *packet);
+void c2_cm_cp_init(struct c2_cm *cm, struct c2_cm_cp *cp);
 
-/**
- * Finalises copy packet.
- *
- * @pre packet->cp_state == CPS_FINIALISED
- */
-void c2_cm_cp_fini(struct c2_cm_cp *packet);
+void c2_cm_cp_fini(struct c2_cm_cp *cp);
 
-/**
- * Enqueues a copy packet into agent
- */
 void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp);
 
 bool c2_cm_cp_invariant(struct c2_cm_cp *cp);

@@ -667,6 +667,7 @@ AC_CONFIG_FILES([
                  sm/ut/Makefile
                  sns/Makefile
                  sns/ut/Makefile
+                 sns/repair/Makefile
                  stob/Makefile
                  stob/ut/Makefile
                  udb/Makefile
