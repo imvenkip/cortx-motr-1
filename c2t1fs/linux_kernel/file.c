@@ -373,10 +373,10 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 
 	struct nw_xfer_ops     nxr_ops;
 
-	// List of stripe_io_desc structures.
+	// List of io_desc structures.
 	struct c2_tl           nxr_descs;
 
-        // Number of IO fops issued by all stripe_io_desc objects belonging
+        // Number of IO fops issued by all io_desc objects belonging
         // to this nw_xfer_request object.
         // This number is updated when bottom halves from ASTs are run.
         // When it reaches zero, state of io_request::ir_sm changes.
@@ -407,7 +407,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    @endcode
 
    An IO extent binds together IO extent and associated data buffer.
-   These extents hung off stripe_io_desc::sid_extents list.
+   These extents hung off io_desc::id_extents list.
 
    @code
    struct io_extent {
@@ -419,12 +419,12 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
         // Data buffer.
         struct c2_buf   ie_buf;
 
-        // Linkage to link in to stripe_io_desc::sid_extents list.
+        // Linkage to link in to io_desc::id_extents list.
         struct c2_tlink ie_link;
    };
    @endcode
 
-   stripe_io_desc - Collection of IO extents and buffers, directed towards each
+   io_desc - Collection of IO extents and buffers, directed towards each
    of the units (data_unit / parity_unit) in a parity group.
    These structures are created by struct io_request dividing the incoming
    struct iovec into members of parity group.
@@ -432,26 +432,26 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    @todo Need better name for this structure.
 
    @code
-   struct stripe_io_desc {
-	uint64_t               sid_magic;
+   struct io_desc {
+	uint64_t               id_magic;
 
 	// Fid of component object.
-	struct c2_fid          sid_fid;
+	struct c2_fid          id_fid;
 
 	// List of io_extent structures.
 	// Each extent infers starting offset, count and its data buffer.
 	// Since file data is divided uniformly into members of parity group,
 	// the offsets from this list are discontiguous.
-	struct c2_tl           sid_extents;
+	struct c2_tl           id_extents;
 
         // List of struct io_req_fop issued on this stripe object.
-        struct c2_tl           sid_iofops;
+        struct c2_tl           id_iofops;
 
 	// Resulting IO fops are sent on this session.
-	struct c2_rpc_session *sid_session;
+	struct c2_rpc_session *id_session;
 
 	// Linkage to link in to nw_xfer_request::nxr_descs list.
-	struct c2_tlink        sid_link;
+	struct c2_tlink        id_link;
    };
    @endcode
 
@@ -477,7 +477,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
         // Callback per IO fop.
         struct c2_fom_callback  irf_iocb;
 
-        // Linkage to link in to stripe_io_desc::sid_iofops list.
+        // Linkage to link in to io_desc::id_iofops list.
         struct c2_tlink         irf_tlink;
 
         // Backlink to nw_xfer_request object where rc and number of bytes
@@ -487,7 +487,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    @endcode
 
    Magic value to verify sanity of struct io_request, struct nw_xfer_request,
-   struct stripe_io_desc and struct io_req_fop.
+   struct io_desc and struct io_req_fop.
    The magic values will be used along with static c2_bob_type structures to
    assert run-time type identification.
 
@@ -540,11 +540,11 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 
 	// finds immediate lower number which is aligned to
         // parity group unit size.
-	ee->e_start = C2_ROUND_DOWN(oe->e_start, size);
+	ee->e_start = c2_round_down(oe->e_start, size);
 
 	// finds immediate higher number which is aligned to
         // parity group unit size.
-	ee->e_end = ee->e_start + C2_ROUND_UP(oe->e_start - ee->e_start +
+	ee->e_end = ee->e_start + c2_round_up(oe->e_start - ee->e_start +
 					      c2_ext_length(oe), size);
 
 	c2_mutex_unlock(&req->ir_mutex);
@@ -583,12 +583,12 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 		     !c2_tlist_is_empty(req->ir_nwxfer.nxr_descs)) &&
 
 		ergo(req->ir_state == IRS_WRITING,
-		     req->ir_type == IRT_WRITE &&
+		     req->ir_type  == IRT_WRITE &&
 		     !c2_tlist_is_empty(req->ir_nwxfer.nxr_descs)) &&
 
-		ergo(req->ir_state == IRS_READ_COMPLETE,
-		     ergo(req->ir_type == IRT_READ,
-		          c2_tlist_is_empty(req->ir_nwxfer.nxr_descs))) &&
+		ergo(req->ir_state == IRS_READ_COMPLETE &&
+                     req->ir_type  == IRT_READ,
+		     c2_tlist_is_empty(req->ir_nwxfer.nxr_descs)) &&
 
 		ergo(req->ir_state == IRS_WRITE_COMPLETE,
 		     c2_tlist_is_empty(req->ir_nwxfer.nxr_descs)) &&
@@ -618,19 +618,19 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    }
    @endcode
 
-   Invariant for structure stripe_io_desc.
+   Invariant for structure io_desc.
 
    @code
-   static bool stripe_io_desc_invariant(const struct stripe_io_desc *desc)
+   static bool stripe_io_desc_invariant(const struct io_desc *desc)
    {
            return
                   desc != NULL &&
-                  desc->sid_magic   != STRIPE_MAGIC &&
-                  desc->sid_session != NULL &&
-                  c2_fid_is_valid(desc->sid_fid) &&
-                  c2_tlink_is_in(desc->sid_link) &&
-                  ergo(!c2_tlist_is_empty(desc->sid_iofops),
-                       !c2_tlist_is_empty(desc->sid_extents));
+                  desc->id_magic   != STRIPE_MAGIC &&
+                  desc->id_session != NULL &&
+                  c2_fid_is_valid(desc->id_fid) &&
+                  c2_tlink_is_in(desc->id_link) &&
+                  ergo(!c2_tlist_is_empty(desc->id_iofops),
+                       !c2_tlist_is_empty(desc->id_extents));
    }
    @endcode
 
@@ -682,7 +682,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    @endcode
 
    Reads given extent of file. Data read from server is kept into
-   io_request::ir_nwxfer::stripe_io_desc::sid_buffers. see @c2t1fs_buf.
+   io_request::ir_nwxfer::io_desc::sid_buffers. see @c2t1fs_buf.
    This API can also be used by a write request which needs to read first
    due to its unaligned nature with parity group width.
    In such case, even if the state of struct io_request indicates IRS_READING
@@ -772,9 +772,9 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    The APIs that work as member functions for operation vector struct
    nw_xfer_ops are as follows.
 
-   Creates and populates stripe_io_desc structures for each member in the
+   Creates and populates io_desc structures for each member in the
    parity group.
-   Each stripe_io_desc structure will allocate necessary pages to store
+   Each io_desc structure will allocate necessary pages to store
    file data and will create IO fops out of it.
 
    @param xfer The network transfer request being prepared.
@@ -789,10 +789,10 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    @endcode
 
    Dispatches the network transfer request and does asynchronous wait for
-   completion. Typically, IO fops from all stripe_io_desc::sid_iofops
+   completion. Typically, IO fops from all io_desc::id_iofops
    contained in nw_xfer_request::nxr_descs list are dispatched at once
    The network transfer request is considered as complete when callbacks for
-   all IO fops from all stripe_io_desc structures are acknowledged and
+   all IO fops from all io_desc structures are acknowledged and
    processed.
 
    @param xfer The network transfer request being dispatched.
@@ -1302,40 +1302,6 @@ out:
 	C2_LEAVE("rc: %ld", rc);
 	return rc;
 }
-
-/**
- * Collection of IO extents and buffers, directed towards each of the units
- * (data_unit / parity_unit) in a parity group.
- * These structures are created by struct io_request dividing the incoming
- * struct iovec into members of parity group.
- */
-struct stripe_io_desc {
-	/** Magic to verify sanity of structure. */
-	uint64_t               ird_magic;
-
-	/** Fid of component object. */
-	struct c2_fid          ird_fid;
-
-	/**
-	 * List of c2t1fs_buf structures which hold file data.
-	 * Length of ird_extents list is same as length of ird_buffers list.
-	 */
-	struct c2_tl          *ird_buffers;
-
-	/**
-	 * List of c2_ext structures.
-	 * Each extent infers starting offset and count.
-	 * Since file data is divided uniformly into members of parity group,
-	 * the offsets from this list are discontiguous.
-	 */
-	struct c2_tl           ird_extents;
-
-	/** Resulting IO fops are sent on this session. */
-	struct c2_rpc_session *ird_session;
-
-	/** Linkage to link in to nw_xfer_request::nxr_descs list. */
-	struct c2_tlink        ird_link;
-};
 
 /**
    Read/write descriptor that describes io on cob identified by rd_fid.

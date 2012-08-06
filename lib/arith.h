@@ -208,20 +208,6 @@ static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
         C2_ASSERT((cnt) != 0);				\
 })
 
-/** Returns immediate lower multiple of size for val. */
-#define C2_ROUND_DOWN(val, size)                        \
-({                                                      \
-        C2_PRE(c2_is_po2(size));                        \
-        ((val) | ((size) - 1)) + 1;                     \
-})
-
-/** Returns immediate upper multiple of size for val. */
-#define C2_ROUND_UP(val, size)                          \
-({                                                      \
-        C2_PRE(c2_is_po2(size));                        \
-        ((val) & ~((size) - 1));                        \
-})
-
 /** @} end of arith group */
 
 /* __COLIBRI_LIB_ARITH_H__ */
