@@ -1802,21 +1802,24 @@ void c2_rm_loan_cookie_get(const struct c2_rm_loan *loan,
 C2_EXPORTED(c2_rm_loan_cookie);
 
 int c2_rm_right_encode(const struct c2_rm_right *right,
-		       void **buf, c2_bcount_t *bytesnr)
+		       struct c2_buf *buf)
 {
-	struct c2_bufvec	datum_buf = C2_BUFVEC_INIT_BUF(buf, bytesnr);
+	struct c2_bufvec	datum_buf;
 	struct c2_bufvec_cursor cursor;
 
 	C2_PRE(buf != NULL);
-	C2_PRE(bytesnr != NULL);
 	C2_PRE(right->ri_ops != NULL);
 	C2_PRE(right->ri_ops->rro_len != NULL);
 	C2_PRE(right->ri_ops->rro_encode != NULL);
 
-	*bytesnr = right->ri_ops->rro_len(right);
-	*buf = c2_alloc(*bytesnr);
-	if (*buf == NULL)
+	buf->b_nob = right->ri_ops->rro_len(right);
+	buf->b_addr = c2_alloc(buf->b_nob);
+	if (buf->b_addr == NULL)
 		return -ENOMEM;
+
+	datum_buf.ov_buf = &buf->b_addr;
+	datum_buf.ov_vec.v_nr = 1;
+	datum_buf.ov_vec.v_count = &buf->b_nob;
 
 	c2_bufvec_cursor_init(&cursor, &datum_buf);
 	return right->ri_ops->rro_encode(right, &cursor);
@@ -1824,9 +1827,10 @@ int c2_rm_right_encode(const struct c2_rm_right *right,
 C2_EXPORTED(c2_rm_right_encode);
 
 int c2_rm_right_decode(struct c2_rm_right *right,
-		       void *buf, c2_bcount_t bytesnr)
+		       struct c2_buf *buf)
 {
-	struct c2_bufvec	datum_buf = C2_BUFVEC_INIT_BUF(&buf, &bytesnr);
+	struct c2_bufvec	datum_buf = C2_BUFVEC_INIT_BUF(&buf->b_addr,
+							       &buf->b_nob);
 	struct c2_bufvec_cursor cursor;
 
 	C2_PRE(right->ri_ops != NULL);

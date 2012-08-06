@@ -165,6 +165,7 @@ int c2_rm_borrow_out(struct c2_rm_incoming *in,
 	struct c2_fop		*fop;
 	struct c2_cookie	*cookie;
 	struct c2_cookie	 dcookie;
+	struct c2_buf		 buf;
 	int			 rc;
 
 	C2_PRE(in->rin_type == C2_RIT_BORROW);
@@ -194,14 +195,15 @@ int c2_rm_borrow_out(struct c2_rm_incoming *in,
 	/*
 	 * Encode right into the BORROW FOP.
 	 */
-	rc = c2_rm_right_encode(right,
-				(void **)&bfop->bo_right.ri_opaque.op_bytes,
-				&bfop->bo_right.ri_opaque.op_nr);
+	rc = c2_rm_right_encode(right, &buf);
 	if (rc != 0) {
 		c2_fop_fini(fop);
 		rm_out_fini(outreq);
 		goto out;
 	}
+
+	bfop->bo_right.ri_opaque.op_bytes = buf.b_addr;
+	bfop->bo_right.ri_opaque.op_nr = buf.b_nob;
 
 	pin_add(in, &outreq->ou_req.rog_want.rl_right, C2_RPF_TRACK);
 	++in->rin_out_req;
@@ -221,6 +223,7 @@ static void borrow_reply(struct c2_rpc_item *item)
 	struct rm_out		    *outreq;
 	struct c2_fop		    *reply_fop;
 	struct c2_fop		    *fop;
+	struct c2_buf		     buf;
 	int			     rc;
 
 	C2_PRE(item != NULL);
@@ -243,9 +246,10 @@ static void borrow_reply(struct c2_rpc_item *item)
 			borrow_reply->br_loan.lo_cookie.co_hi;
 		og->rog_want.rl_cookie.cv.u_lo =
 			borrow_reply->br_loan.lo_cookie.co_lo;
-		rc = c2_rm_right_decode(&og->rog_want.rl_right,
-				        borrow_reply->br_right.ri_opaque.op_bytes,
-				        borrow_reply->br_right.ri_opaque.op_nr);
+
+		c2_buf_init(&buf, borrow_reply->br_right.ri_opaque.op_bytes,
+				  borrow_reply->br_right.ri_opaque.op_nr);
+		rc = c2_rm_right_decode(&og->rog_want.rl_right, &buf);
 
 		og->rog_rc = rc;
 		if (rc == 0) {
@@ -289,6 +293,7 @@ int c2_rm_revoke_out(struct c2_rm_incoming *in,
 	struct c2_fop		*fop;
 	struct c2_cookie	*ocookie;
 	struct c2_cookie	 lcookie;
+	struct c2_buf		 buf;
 	int			 rc;
 
 	C2_PRE(in->rin_type == C2_RIT_REVOKE);
@@ -320,14 +325,15 @@ int c2_rm_revoke_out(struct c2_rm_incoming *in,
 	/*
 	 * Encode rights data into REVOKE FOP
 	 */
-	rc = c2_rm_right_encode(right,
-			        (void **)&rfop->rr_right.ri_opaque.op_bytes,
-			        &rfop->rr_right.ri_opaque.op_nr);
+	rc = c2_rm_right_encode(right, &buf);
 	if (rc != 0) {
 		c2_fop_fini(fop);
 		rm_out_fini(outreq);
 		goto out;
 	}
+
+	rfop->rr_right.ri_opaque.op_bytes = buf.b_addr;
+	rfop->rr_right.ri_opaque.op_nr = buf.b_nob;
 
 	pin_add(in, &outreq->ou_req.rog_want.rl_right, C2_RPF_TRACK);
 	++in->rin_out_req;

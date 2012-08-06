@@ -1578,14 +1578,13 @@ int c2_rm_right_get_wait(struct c2_rm_incoming *in);
 /**
  * Allocates suitably sized buffer and encode it into that buffer.
  */
-int c2_rm_right_encode(const struct c2_rm_right *right, void **buf,
-		     c2_bcount_t *bytesnr);
+int c2_rm_right_encode(const struct c2_rm_right *right, struct c2_buf *buf);
 
 /**
  * Decodes a right from its serialised presentation.
  */
 int c2_rm_right_decode(struct c2_rm_right *right,
-		       void *buf, c2_bcount_t bytesnr);
+		       struct c2_buf *buf);
 
 /**
  * Releases the right pinned by struct c2_rm_incoming.

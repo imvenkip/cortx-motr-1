@@ -218,12 +218,11 @@ static size_t rm_locality(const struct c2_fom *fom)
 static int reply_prepare(const enum c2_rm_incoming_type type,
 			 struct c2_fom *fom)
 {
-	struct c2_fop_rm_borrow_rep  *bfop;
-	struct rm_request_fom        *rfom;
-	struct c2_rm_loan	     *loan;
-	void			    **buf;
-	c2_bcount_t		     *buflen;
-	int			      rc = 0;
+	struct c2_fop_rm_borrow_rep *bfop;
+	struct rm_request_fom       *rfom;
+	struct c2_rm_loan	    *loan;
+	struct c2_buf		     buf;
+	int			     rc = 0;
 
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 
@@ -242,12 +241,12 @@ static int reply_prepare(const enum c2_rm_incoming_type type,
 		loan = c2_rm_loan_find(&rfom->rf_in.ri_loan_cookie);
 		bfop->br_loan.lo_id = loan->rl_id;
 
-		buf = (void **)&bfop->br_right.ri_opaque.op_bytes;
-		buflen = &bfop->br_right.ri_opaque.op_nr;
 		/*
-		 * Memory for the function is allocated by the function.
+		 * Memory for the buffer is allocated by the function.
 		 */
-		rc = c2_rm_right_encode(&loan->rl_right, buf, buflen);
+		rc = c2_rm_right_encode(&loan->rl_right, &buf);
+		bfop->br_right.ri_opaque.op_bytes = rc ? NULL : buf.b_addr;
+		bfop->br_right.ri_opaque.op_nr = rc ? 0 : buf.b_nob;
 		break;
 	default:
 		break;
@@ -293,8 +292,7 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 	struct c2_cookie	    *ccookie;
 	struct c2_cookie	    *dcookie;
 	struct c2_cookie	    *lcookie;
-	void			    *datum_buf;
-	c2_bcount_t		     datum_len;
+	struct c2_buf		     buf;
 	uint64_t		     flags;
 	int			     rc = 0;
 
@@ -304,8 +302,8 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		bfop = c2_fop_data(fom->fo_fop);
 		policy = bfop->bo_policy;
 		flags = bfop->bo_flags;
-		datum_buf = bfop->bo_right.ri_opaque.op_bytes;
-		datum_len = bfop->bo_right.ri_opaque.op_nr;
+		c2_buf_init(&buf, bfop->bo_right.ri_opaque.op_bytes,
+				  bfop->bo_right.ri_opaque.op_nr);
 		/*
 		 * Populate the owner cookie for creditor (local)
 		 * This is used later by rm_locality().
@@ -326,8 +324,8 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		rfop = c2_fop_data(fom->fo_fop);
 		policy = rfop->rr_policy;
 		flags = rfop->rr_flags;
-		datum_buf = rfop->rr_right.ri_opaque.op_bytes;
-		datum_len = rfop->rr_right.ri_opaque.op_nr;
+		c2_buf_init(&buf, rfop->rr_right.ri_opaque.op_bytes,
+				  rfop->rr_right.ri_opaque.op_nr);
 		/*
 		 * Populate the owner cookie for debtor (local)
 		 * This server is debtor; hence it received REVOKE reuest.
@@ -365,7 +363,7 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		c2_rm_incoming_init(in, owner, type, policy, flags);
 		in->rin_ops = &remote_incoming_ops;
 		c2_rm_right_init(&in->rin_want, owner);
-		rc = c2_rm_right_decode(&in->rin_want, datum_buf, datum_len);
+		rc = c2_rm_right_decode(&in->rin_want, &buf);
 		if (rc != 0) {
 			c2_rm_right_fini(&in->rin_want);
 		} else
