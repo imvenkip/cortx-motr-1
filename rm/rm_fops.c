@@ -204,6 +204,7 @@ int c2_rm_borrow_out(struct c2_rm_incoming *in,
 	}
 
 	pin_add(in, &outreq->ou_req.rog_want.rl_right, C2_RPF_TRACK);
+	++in->rin_out_req;
 	outreq->ou_fop.f_item.ri_ops = &rm_borrow_rpc_ops;
 	c2_rpc_post(&outreq->ou_fop.f_item);
 
@@ -234,6 +235,7 @@ static void borrow_reply(struct c2_rpc_item *item)
 	C2_ASSERT(og != NULL);
 
 	og->rog_rc = item->ri_error ? item->ri_error : borrow_reply->br_rc;
+	owner = og->rog_want.rl_right.ri_owner;
 
 	if (og->rog_rc == 0) {
 		og->rog_want.rl_id = borrow_reply->br_loan.lo_id;
@@ -247,7 +249,6 @@ static void borrow_reply(struct c2_rpc_item *item)
 
 		og->rog_rc = rc;
 		if (rc == 0) {
-			owner = og->rog_want.rl_right.ri_owner;
 			c2_mutex_lock(&owner->ro_lock);
 			/* Add loan to the borrowed list. */
 			c2_rm_ur_tlist_add(&owner->ro_borrowed,
@@ -259,7 +260,10 @@ static void borrow_reply(struct c2_rpc_item *item)
 			c2_mutex_unlock(&owner->ro_lock);
 		}
 	}
+
+	c2_mutex_lock(&owner->ro_lock);
 	c2_rm_outgoing_complete(og);
+	c2_mutex_unlock(&owner->ro_lock);
 }
 
 static void outreq_free(struct c2_rpc_item *item)
@@ -326,6 +330,7 @@ int c2_rm_revoke_out(struct c2_rm_incoming *in,
 	}
 
 	pin_add(in, &outreq->ou_req.rog_want.rl_right, C2_RPF_TRACK);
+	++in->rin_out_req;
 	outreq->ou_fop.f_item.ri_ops = &rm_revoke_rpc_ops;
 	c2_rpc_post(&outreq->ou_fop.f_item);
 
@@ -354,16 +359,16 @@ static void revoke_reply(struct c2_rpc_item *item)
 
 	C2_ASSERT(og != NULL);
 
+	owner = og->rog_want.rl_right.ri_owner;
+	c2_mutex_lock(&owner->ro_lock);
 	og->rog_rc = item->ri_error ? item->ri_error : revoke_reply->re_rc;
 	if (og->rog_rc == 0) {
-		owner = og->rog_want.rl_right.ri_owner;
-		c2_mutex_lock(&owner->ro_lock);
 		/* Move the loan from the sublet list to the CACHED list. */
 		c2_rm_ur_tlist_move(&owner->ro_owned[OWOS_CACHED],
 				    &og->rog_want.rl_right);
-		c2_mutex_unlock(&owner->ro_lock);
 	}
 	c2_rm_outgoing_complete(og);
+	c2_mutex_unlock(&owner->ro_lock);
 }
 
 void c2_rm_fop_fini(void)

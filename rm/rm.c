@@ -88,6 +88,9 @@ static bool right_conflicts        (const struct c2_rm_right *A,
 				    const struct c2_rm_right *B);
 static int  right_diff             (struct c2_rm_right *r0,
 				    const struct c2_rm_right *r1);
+static void retire_incoming_complete(struct c2_rm_incoming *in,
+				     int32_t rc);
+static void retire_incoming_conflict(struct c2_rm_incoming *in);
 
 static struct c2_rm_resource *resource_find(const struct c2_rm_resource_type *rt,
 					    const struct c2_rm_resource *res);
@@ -136,9 +139,14 @@ void c2_rm_domain_fini(struct c2_rm_domain *dom)
 }
 C2_EXPORTED(c2_rm_domain_fini);
 
+static struct c2_rm_incoming_ops retire_incoming_ops = {
+	.rio_complete = retire_incoming_complete,
+	.rio_conflict = retire_incoming_conflict,
+};
+
 /**
-   Returns a resource equal to a given one from a resource type's resource list
-   or NULL if none.
+ * Returns a resource equal to a given one from a resource type's resource list
+ * or NULL if none.
  */
 static struct c2_rm_resource *resource_find(const struct c2_rm_resource_type *rt,
 					    const struct c2_rm_resource *res)
@@ -251,6 +259,35 @@ static void resource_put(struct c2_rm_resource *res)
 	c2_mutex_unlock(&rtype->rt_lock);
 }
 
+static void owner_finalisation_check(struct c2_rm_owner *owner)
+{
+	if (owner->ro_state == ROS_FINALISING &&
+	    owner->ro_in_reqs == 0) {
+		/*
+		 * these lists may not be empty if some errors occurred
+		 * before the remote requests were sent.
+		 */
+		if (c2_rm_ur_tlist_is_empty(&owner->ro_sublet) &&
+		    c2_rm_ur_tlist_is_empty(&owner->ro_borrowed)) {
+			/*
+			 * If the owner has not transcated any loans,
+			 * we may end up here once owner reaches quiet state.
+			 * We may have to cleanup owned lists. This
+			 * should be done by calling c2_rm_owner_retire()
+			 * by the object of interest. Hence the notification
+			 * becomes important.
+			 */
+			/* Handle owner finalisation */
+			owner->ro_state = ROS_FINAL;
+			C2_POST(owner_invariant(owner));
+		}
+		/**
+		 * @todo Optionally send notification to objects waiting for
+		 *       finalising the owner.
+		 */
+	}
+}
+
 static void owner_init_internal(struct c2_rm_owner *owner,
 			        struct c2_rm_resource *res)
 {
@@ -265,6 +302,7 @@ static void owner_init_internal(struct c2_rm_owner *owner,
 
 	resource_get(res);
 	owner->ro_state = ROS_ACTIVE;
+	owner->ro_in_reqs = 0;
 	C2_POST(owner_invariant(owner));
 }
 
@@ -332,74 +370,77 @@ int c2_rm_owner_selfadd(struct c2_rm_owner *owner, struct c2_rm_right *r)
 }
 C2_EXPORTED(c2_rm_owner_selfadd);
 
-static bool owner_busy(struct c2_rm_owner *owner)
+/*
+ * @todo Stub. Mainline code does not call this callback yet.
+ */
+static void retire_incoming_conflict(struct c2_rm_incoming *in)
 {
-	return !c2_forall(i, C2_RM_REQUEST_PRIORITY_NR,
-			  c2_forall(j, OQS_NR,
-				    c2_rm_ur_tlist_is_empty
-					(&owner->ro_incoming[i][j])));
+}
+
+static void retire_incoming_complete(struct c2_rm_incoming *in, int32_t rc)
+{
+	struct c2_rm_owner *owner = in->rin_want.ri_owner;
+
+	C2_ASSERT(owner->ro_state == ROS_FINALISING);
+	--owner->ro_in_reqs;
 }
 
 int c2_rm_owner_retire(struct c2_rm_owner *owner)
 {
 	struct c2_rm_right    *right;
 	struct c2_rm_loan     *loan;
-	struct c2_rm_incoming  in;
+	struct c2_rm_incoming *in;
 	int		       rc = 0;
 	int		       i;
 
 	C2_PRE(C2_IN(owner->ro_state, (ROS_ACTIVE, ROS_FINALISING)));
 	/*
 	 * Put the owner in ROS_FINALISING. This will prevent any new
-	 * incoming requests on it. If it's already in FINALISING state
-	 * don't bother to check state variable; just set the state.
-	 * Check if there are any earlier pending incoming requests.
+	 * incoming requests on it. If it's already in FINALISING state,
+	 * or if there are pening incoming requests, return error.
 	 */
 	c2_mutex_lock(&owner->ro_lock);
-	owner->ro_state = ROS_FINALISING;
-	if (owner_busy(owner)) {
+	if (owner->ro_state == ROS_FINALISING ||
+	    owner->ro_in_reqs > 0) {
 		c2_mutex_unlock(&owner->ro_lock);
 		return -EBUSY;
 	}
-	c2_mutex_unlock(&owner->ro_lock);
+	owner->ro_state = ROS_FINALISING;
 
 	/*
-	 * Note that it's possible to asynchronously send multiple requests.
-	 * To do that we will have allocate 'c2_rm_incoming' in a loop and
-	 * wait on multiple channels.
-	 * If memory allocation fails, handling error may become difficult.
-	 * You have to wait for responses for all the revokes. Additionally
-	 * 'revoke_send()' may return error. Handling errors, releasing memory
-	 * and waiting on partial or all requests can be error prone.
-	 * Hence, there is inefficient revoke-wait per right.
-	 * Revisit during inspection.
+	 * While processing the queues, if -ENOMEM or other error occurs
+	 * then the owner will be in a limbo. A force cleanup remains one of
+	 * the options.
 	 */
-	c2_rm_incoming_init(&in, owner, C2_RIT_REVOKE,
-			    RIP_NONE, RIF_MAY_REVOKE);
-	in.rin_priority = 0;
 	c2_tl_for(c2_rm_ur, &owner->ro_sublet, right) {
+		C2_ALLOC_PTR(in);
+		if (in == NULL)
+			return -ENOMEM;
+		c2_rm_incoming_init(in, owner, C2_RIT_REVOKE,
+				    RIP_NONE, RIF_MAY_REVOKE);
+		in->rin_priority = 0;
+		in->rin_ops = &retire_incoming_ops;
 		/**
 		 * This is convoluted. Now that user incoming requests have
 		 * drained, we add our incoming requests for REVOKE and CANCEL
 		 * processing to the incoming queue.
 		 *
-		 * @todo : Should we ignore error and continue
-		 * finalising owner?? Accepting force flag as argument
-		 * to this function might be a good idea.
+		 * @todo : We are handling -ENOMEM right now. For other
+		 * errors, we will have to decide the logic. For now,
+		 * we will retain the rights and owner in the memory if
+		 * it's faulted. We will do the cleanup only when we introduce
+		 * force flag.
 		 */
-		rc = right_copy(&in.rin_want, right);
-		if (rc != 0)
+		rc = right_copy(&in->rin_want, right);
+		if (rc == -ENOMEM)
 			return rc;
-		c2_mutex_lock(&owner->ro_lock);
-		c2_rm_ur_tlist_add(&owner->ro_incoming[C2_RM_REQUEST_PRIORITY_NR - 1]\
-						[OQS_EXCITED],
-			     &in.rin_want);
-		owner_balance(owner);
-		c2_mutex_unlock(&owner->ro_lock);
-		c2_rm_right_timedwait(&in, 0);
-		if (in.rin_state == RI_FAILURE)
-			return in.rin_rc;
-		c2_rm_ur_tlink_del_fini(right);
+		if (rc == 0) {
+			++owner->ro_in_reqs;
+			c2_rm_ur_tlist_add(&owner->ro_incoming\
+						[in->rin_priority][OQS_EXCITED],
+					   &in->rin_want);
+			owner_balance(owner);
+		}
 	} c2_tl_endfor;
 
 	for (i = 0; i < ARRAY_SIZE(owner->ro_owned); ++i) {
@@ -419,12 +460,13 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 			/* cancel_send(in, loan, right) */
 		}
 	} c2_tl_endfor;
-
-	c2_mutex_lock(&owner->ro_lock);
-	owner->ro_state = ROS_FINAL;
-	C2_POST(ergo(rc == 0,
-		     owner->ro_state == ROS_FINAL && owner_invariant(owner)));
+	/*
+	 * Retire immediately, if no processing is required.
+	 */
+	if (owner->ro_in_reqs == 0)
+		owner->ro_state = ROS_FINAL;
 	c2_mutex_unlock(&owner->ro_lock);
+
 	return rc;
 }
 
@@ -678,40 +720,40 @@ int c2_rm_revoke_commit(struct c2_rm_remote_incoming *rem_in)
 C2_EXPORTED(c2_rm_revoke_commit);
 
 /**
-   @name Owner state machine
-
-   c2_rm_owner and c2_rm_incoming together form a state machine where basic
-   resource management functionality is implemented.
-
-   This state machine reacts to the following external events:
-
-       - an incoming request from a local user;
-
-       - an incoming loan request from another domain;
-
-       - an incoming revocation request from another domain;
-
-       - local user releases a pin on a right (as a by-product of destroying an
-         incoming request);
-
-       - completion of an outgoing request to another domain (including a
-         timeout or a failure).
-
-   Any event is processed in a uniform manner:
-
-       - c2_rm_owner::ro_lock is taken;
-
-       - c2_rm_owner lists are updated to reflect the event, see details
-         below. This temporarily violates the owner_invariant();
-
-       - owner_balance() is called to restore the invariant, this might create
-         new imbalances and go through several iterations;
-
-       - c2_rm_owner::ro_lock is released.
-
-   Event handling is serialised by the owner lock. It is not legal to wait for
-   networking or IO events under this lock.
-
+ * @name Owner state machine
+ *
+ * c2_rm_owner and c2_rm_incoming together form a state machine where basic
+ * resource management functionality is implemented.
+ *
+ * This state machine reacts to the following external events:
+ *
+ *     - an incoming request from a local user;
+ *
+ *     - an incoming loan request from another domain;
+ *
+ *     - an incoming revocation request from another domain;
+ *
+ *     - local user releases a pin on a right (as a by-product of destroying an
+ *       incoming request);
+ *
+ *     - completion of an outgoing request to another domain (including a
+ *       timeout or a failure).
+ *
+ * Any event is processed in a uniform manner:
+ *
+ *     - c2_rm_owner::ro_lock is taken;
+ *
+ *     - c2_rm_owner lists are updated to reflect the event, see details
+ *       below. This temporarily violates the owner_invariant();
+ *
+ *     - owner_balance() is called to restore the invariant, this might create
+ *       new imbalances and go through several iterations;
+ *
+ *     - c2_rm_owner::ro_lock is released.
+ *
+ * Event handling is serialised by the owner lock. It is not legal to wait for
+ * networking or IO events under this lock.
+ *
  */
 /** @{ */
 
@@ -755,20 +797,22 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
 
 	C2_PRE(in->rin_state == RI_SUCCESS);
 	C2_PRE(owner->ro_state == ROS_ACTIVE);
+	C2_PRE(!(in->rin_flags & RIF_INTERNAL));
 
 	c2_mutex_lock(&owner->ro_lock);
 	incoming_release(in);
 	in->rin_state = 0;
 	c2_rm_ur_tlist_del(&in->rin_want);
 	C2_POST(pi_tlist_is_empty(&in->rin_pins));
+	--owner->ro_in_reqs;
 	c2_mutex_unlock(&owner->ro_lock);
 }
 
 /**
-   Main owner state machine function.
-
-   Goes through the lists of excited incoming and outgoing requests until all
-   the excitement is gone.
+ * Main owner state machine function.
+ *
+ * Goes through the lists of excited incoming and outgoing requests until all
+ * the excitement is gone.
  */
 static void owner_balance(struct c2_rm_owner *o)
 {
@@ -798,7 +842,16 @@ static void owner_balance(struct c2_rm_owner *o)
 			 */
 			c2_tl_for(pr, &right->ri_pins, pin) {
 				C2_ASSERT(pin->rp_flags == C2_RPF_TRACK);
-				pin->rp_incoming->rin_rc = out->rog_rc;
+				C2_ASSERT(pin->rp_incoming->rin_out_req > 0);
+				--pin->rp_incoming->rin_out_req;
+				/*
+				 * If one outgoing request has set an error,
+				 * then don't overwrite the error code. It's
+				 * possible that an error code could be
+				 * reset to 0 as other requests succeed.
+				 */
+				pin->rp_incoming->rin_rc =
+				pin->rp_incoming->rin_rc ?: out->rog_rc;
 				pin_del(pin);
 			} c2_tl_endfor;
 			c2_rm_ur_tlink_del_fini(right);
@@ -822,14 +875,18 @@ static void owner_balance(struct c2_rm_owner *o)
 			} c2_tl_endfor;
 		}
 	} while (todo);
+	/*
+	 * Check if owner needs to be finliased.
+	 */
+	owner_finalisation_check(o);
 }
 
 /**
-   Takes an incoming request in RI_CHECK state and attempt to perform a
-   non-blocking state transition.
-
-   This function leaves the request either in RI_WAIT, RI_SUCCESS or RI_FAILURE
-   state.
+ * Takes an incoming request in RI_CHECK state and attempt to perform a
+ * non-blocking state transition.
+ *
+ * This function leaves the request either in RI_WAIT, RI_SUCCESS or RI_FAILURE
+ * state.
  */
 static void incoming_check(struct c2_rm_incoming *in)
 {
@@ -858,36 +915,45 @@ static void incoming_check(struct c2_rm_incoming *in)
 			C2_ASSERT(incoming_pin_nr(in, C2_RPF_TRACK) == 0);
 			incoming_policy_apply(in);
 		}
-		incoming_complete(in, rc);
+		/*
+		 * If one of the outgoing requests fails, it sets the
+		 * in->rin_rc.  Hence, we will come here while there are
+		 * other pending requests. Make sure we receive all the
+		 * responses before completing the incoming request.
+		 * If we remove incoming here, some pins may be left with
+		 * dangling reference.
+		 */
+		if (in->rin_out_req == 0)
+			incoming_complete(in, rc);
 	}
 }
 
 /**
-   Main helper function to incoming_check(), which starts with "rest" set to the
-   wanted right and goes though the sequence of checks, reducing "rest".
-
-   CHECK logic can be described by means of "want conditions". A wait condition
-   is something that prevents immediate fulfillment of the request.
-
-       - A request with RIF_LOCAL_WAIT bit set can be fulfilled iff the rights
-         on ->ro_owned[OWOS_CACHED] list together imply the wanted right;
-
-       - a request without RIF_LOCAL_WAIT bit can be fulfilled iff the rights on
-         all ->ro_owned[] lists together imply the wanted right.
-
-   If there is not enough rights on ->ro_owned[] lists, an incoming request has
-   to wait until some additional rights are borrowed from the upward creditor or
-   revoked from downward debtors.
-
-   A RIF_LOCAL_WAIT request, in addition, can wait until a right moves from
-   ->ro_owned[OWOS_HELD] to ->ro_owned[OWOS_CACHED].
-
-   This function performs no state transitions by itself. Instead its return
-   value indicates the target state:
-
-       - 0: the request is fulfilled, the target state is RI_SUCCESS,
-       - +ve: more waiting is needed, the target state is RI_WAIT,
-       - -ve: error, the target state is RI_FAILURE.
+ * Main helper function to incoming_check(), which starts with "rest" set to the
+ * wanted right and goes though the sequence of checks, reducing "rest".
+ *
+ * CHECK logic can be described by means of "want conditions". A wait condition
+ * is something that prevents immediate fulfillment of the request.
+ *
+ *     - A request with RIF_LOCAL_WAIT bit set can be fulfilled iff the rights
+ *       on ->ro_owned[OWOS_CACHED] list together imply the wanted right;
+ *
+ *     - a request without RIF_LOCAL_WAIT bit can be fulfilled iff the rights on
+ *       all ->ro_owned[] lists together imply the wanted right.
+ *
+ * If there is not enough rights on ->ro_owned[] lists, an incoming request has
+ * to wait until some additional rights are borrowed from the upward creditor or
+ * revoked from downward debtors.
+ *
+ * A RIF_LOCAL_WAIT request, in addition, can wait until a right moves from
+ * ->ro_owned[OWOS_HELD] to ->ro_owned[OWOS_CACHED].
+ *
+ * This function performs no state transitions by itself. Instead its return
+ * value indicates the target state:
+ *
+ *     - 0: the request is fulfilled, the target state is RI_SUCCESS,
+ *     - +ve: more waiting is needed, the target state is RI_WAIT,
+ *     - -ve: error, the target state is RI_FAILURE.
  */
 static int incoming_check_with(struct c2_rm_incoming *in,
 			       struct c2_rm_right *rest)
@@ -971,8 +1037,8 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 }
 
 /**
-   Called when an outgoing request completes (possibly with an error, like a
-   timeout).
+ * Called when an outgoing request completes (possibly with an error, like a
+ * timeout).
  */
 void c2_rm_outgoing_complete(struct c2_rm_outgoing *og)
 {
@@ -987,42 +1053,57 @@ void c2_rm_outgoing_complete(struct c2_rm_outgoing *og)
 }
 
 /**
-   Helper function called when an incoming request processing completes.
-
-   Sets c2_rm_incoming::rin_rc, updates request state, invokes completion
-   call-back, broadcasts request channel and releases request pins.
+ * Helper function called when an incoming request processing completes.
+ *
+ * Sets c2_rm_incoming::rin_rc, updates request state, invokes completion
+ * call-back, broadcasts request channel and releases request pins.
  */
 static void incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 {
+	struct c2_rm_owner *owner = in->rin_want.ri_owner;
+
 	C2_PRE(c2_mutex_is_locked(&in->rin_want.ri_owner->ro_lock));
 	C2_PRE(C2_IN(in->rin_state, (RI_INITIALISED, RI_CHECK)));
 	C2_PRE(in->rin_ops != NULL);
 	C2_PRE(in->rin_ops->rio_complete != NULL);
 	C2_PRE(in->rin_rc == 0);
+	C2_PRE(in->rin_out_req == 0);
 	C2_PRE(rc <= 0);
 
 	in->rin_rc = rc;
 	in->rin_state = rc == 0 ? RI_SUCCESS : RI_FAILURE;
+	/*
+	 * incoming_release() might have moved the request into excited
+	 * state when the last tracking pin was removed, shun it back
+	 * into obscurity.
+	 */
+	c2_rm_ur_tlist_move(&owner->ro_incoming[in->rin_priority]\
+						[OQS_GROUND],
+			    &in->rin_want);
+	in->rin_ops->rio_complete(in, rc);
 	if (rc != 0) {
 		incoming_release(in);
 		c2_rm_ur_tlist_del(&in->rin_want);
 		C2_POST(pi_tlist_is_empty(&in->rin_pins));
 	} else {
 		/*
-		 * incoming_release() might have moved the request into excited
-		 * state when the last tracking pin was removed, shun it back
-		 * into obscurity.
+		 * For external incoming request, we want to bump the
+		 * incoming reuquests count on successful completion.
 		 */
+		if (!(in->rin_flags & RIF_INTERNAL))
+			++owner->ro_in_reqs;
 		/**
 		 * @todo : Who moves the right to OWOS_HELD?
 		 */
-		c2_rm_ur_tlist_move(&in->rin_want.ri_owner->ro_incoming\
-				[in->rin_priority][OQS_GROUND],
-			      &in->rin_want);
-		in->rin_ops->rio_complete(in, rc);
 	}
-	C2_POST(owner_invariant(in->rin_want.ri_owner));
-	c2_chan_broadcast(&in->rin_signal);
+	C2_POST(owner_invariant(owner));
+	if (in->rin_flags & RIF_INTERNAL)
+		/*
+		 * Only internally allocated requests should be de-allocated.
+		 */
+		c2_free(in);
+	else
+		c2_chan_broadcast(&in->rin_signal);
 }
 
 static void incoming_policy_none(struct c2_rm_incoming *in)
@@ -1050,8 +1131,8 @@ static void incoming_policy_apply(struct c2_rm_incoming *in)
 }
 
 /**
-   Check if the outgoing request for requested right is already pending.
-   If yes, attach a tracking pin.
+ * Check if the outgoing request for requested right is already pending.
+ * If yes, attach a tracking pin.
  */
 static int outgoing_check(struct c2_rm_incoming *in,
 			  enum c2_rm_outgoing_type otype,
@@ -1078,6 +1159,7 @@ static int outgoing_check(struct c2_rm_incoming *in,
 				 * (priority inheritance)
 				 */
 				rc = pin_add(in, scan, C2_RPF_TRACK);
+				rc ?: ++in->rin_out_req;
 				rc = rc ?: right_diff(right, scan);
 				if (rc != 0)
 					break;
@@ -1091,9 +1173,9 @@ static int outgoing_check(struct c2_rm_incoming *in,
 }
 
 /**
-   Sends an outgoing revoke request to remote owner specified by the "loan". The
-   request will revoke the right "right", which might be a part of original
-   loan.
+ * Sends an outgoing revoke request to remote owner specified by the "loan". The
+ * request will revoke the right "right", which might be a part of original
+ * loan.
  */
 static int revoke_send(struct c2_rm_incoming *in,
 		       struct c2_rm_loan *loan, struct c2_rm_right *right)
@@ -1107,8 +1189,8 @@ static int revoke_send(struct c2_rm_incoming *in,
 }
 
 /**
-   Sends an outgoing borrow request to the upward creditor. The request will
-   borrow the right "right".
+ * Sends an outgoing borrow request to the upward creditor. The request will
+ * borrow the right "right".
  */
 static int borrow_send(struct c2_rm_incoming *in, struct c2_rm_right *right)
 {
@@ -1124,7 +1206,7 @@ static int borrow_send(struct c2_rm_incoming *in, struct c2_rm_right *right)
 }
 
 /**
-   Helper function to get right with timed wait (deadline).
+ * Helper function to get right with timed wait (deadline).
  */
 int c2_rm_right_timedwait(struct c2_rm_incoming *in, const c2_time_t deadline)
 {
@@ -1150,7 +1232,7 @@ int c2_rm_right_timedwait(struct c2_rm_incoming *in, const c2_time_t deadline)
 }
 
 /**
-   Helper function to get right with infinite wait time.
+ * Helper function to get right with infinite wait time.
  */
 int c2_rm_right_get_wait(struct c2_rm_incoming *in)
 {
@@ -1161,17 +1243,19 @@ int c2_rm_right_get_wait(struct c2_rm_incoming *in)
 /** @} end of Owner state machine group */
 
 /**
-   @name invariant Invariants group
-
-   Resource manager maintains a number of interrelated data-structures in
-   memory. Invariant checking functions, defined in this section assert internal
-   consistency of these structures.
-
+ * @name invariant Invariants group
+ *
+ * Resource manager maintains a number of interrelated data-structures in
+ * memory. Invariant checking functions, defined in this section assert internal
+ * consistency of these structures.
+ *
   @{
  */
 
-/** Helper function used by resource_type_invariant() to check all elements of
-    c2_rm_resource_type::rt_resources. */
+/**
+ * Helper function used by resource_type_invariant() to check all elements of
+ *  c2_rm_resource_type::rt_resources.
+ */
 static bool resource_list_check(const struct c2_rm_resource *res, void *datum)
 {
 	const struct c2_rm_resource_type *rt = datum;
@@ -1192,7 +1276,7 @@ static bool resource_type_invariant(const struct c2_rm_resource_type *rt)
 }
 
 /**
-   Invariant for c2_rm_incoming.
+ * Invariant for c2_rm_incoming.
  */
 static bool incoming_invariant(const struct c2_rm_incoming *in)
 {
@@ -1257,7 +1341,7 @@ static bool right_invariant(const struct c2_rm_right *right, void *data)
 }
 
 /**
-   Checks internal consistency of a resource owner.
+ * Checks internal consistency of a resource owner.
  */
 static bool owner_invariant_state(const struct c2_rm_owner *owner,
 				  struct owner_invariant_state *is)
@@ -1269,20 +1353,20 @@ static bool owner_invariant_state(const struct c2_rm_owner *owner,
 	if (owner->ro_state < ROS_FINAL || owner->ro_state > ROS_FINALISING)
 		return false;
 	/*
-	  Iterate over all rights lists:
-
-	      - checking their consistency as double-linked lists
-                (c2_rm_ur_tlist_invariant_ext());
-
-	      - making additional consistency checks:
-
-	            - that a right is for the same resource as the owner,
-
-		    - that a right on c2_rm_owner::ro_owned[X] is pinned iff X
-                      == OWOS_HELD.
-
-	      - accumulating total credit and debit.
-	*/
+	 * Iterate over all rights lists:
+	 *
+	 *    - checking their consistency as double-linked lists
+         *      (c2_rm_ur_tlist_invariant_ext());
+	 *
+	 *    - making additional consistency checks:
+	 *
+	 *    - that a right is for the same resource as the owner,
+	 *
+	 *    - that a right on c2_rm_owner::ro_owned[X] is pinned iff X
+         *            == OWOS_HELD.
+	 *
+	 *    - accumulating total credit and debit.
+	 */
 	is->is_phase = OIS_BORROWED;
 	if (!c2_rm_ur_tlist_invariant_ext(&owner->ro_borrowed, &right_invariant, (void *)is))
 		return false;
@@ -1315,18 +1399,18 @@ static bool owner_invariant_state(const struct c2_rm_owner *owner,
 	/* Calculate credit */
 	for (i = 0; i < ARRAY_SIZE(owner->ro_owned); ++i) {
 		c2_tl_for(c2_rm_ur, &owner->ro_owned[i], right) {
-			if(!right->ri_ops->rro_join(&is->is_credit, right))
+			if(right->ri_ops->rro_join(&is->is_credit, right))
 				return false;
 		} c2_tl_endfor;
 	}
 	c2_tl_for(c2_rm_ur, &owner->ro_sublet, right) {
-		if(!right->ri_ops->rro_join(&is->is_credit, right))
+		if(right->ri_ops->rro_join(&is->is_credit, right))
 			return false;
 	} c2_tl_endfor;
 
 	/* Calculate debit */
 	c2_tl_for(c2_rm_ur, &owner->ro_borrowed, right) {
-		if(!right->ri_ops->rro_join(&is->is_debit, right))
+		if(right->ri_ops->rro_join(&is->is_debit, right))
 			return false;
 	} c2_tl_endfor;
 
@@ -1334,7 +1418,7 @@ static bool owner_invariant_state(const struct c2_rm_owner *owner,
 }
 
 /**
-   Checks internal consistency of a resource owner.
+ * Checks internal consistency of a resource owner.
  */
 static bool owner_invariant(struct c2_rm_owner *owner)
 {
@@ -1363,7 +1447,7 @@ static bool owner_invariant(struct c2_rm_owner *owner)
  */
 
 /**
-   Number of pins with a given flag combination, stuck in a given right.
+ * Number of pins with a given flag combination, stuck in a given right.
  */
 static int right_pin_nr(const struct c2_rm_right *right, uint32_t flags)
 {
@@ -1378,8 +1462,8 @@ static int right_pin_nr(const struct c2_rm_right *right, uint32_t flags)
 }
 
 /**
-   Number of pins with a given flag combination, issued by a given incoming
-   request.
+ * Number of pins with a given flag combination, issued by a given incoming
+ * request.
  */
 static int incoming_pin_nr(const struct c2_rm_incoming *in, uint32_t flags)
 {
@@ -1395,8 +1479,8 @@ static int incoming_pin_nr(const struct c2_rm_incoming *in, uint32_t flags)
 }
 
 /**
-   Releases rights pinned by an incoming request, waking up other pending
-   incoming requests if necessary.
+ * Releases rights pinned by an incoming request, waking up other pending
+ * incoming requests if necessary.
  */
 static void incoming_release(struct c2_rm_incoming *in)
 {
@@ -1427,9 +1511,9 @@ static void incoming_release(struct c2_rm_incoming *in)
 }
 
 /**
-   Removes a pin on a resource usage right.
-
-   If this was a last tracking pin issued by the request---excite the latter.
+ * Removes a pin on a resource usage right.
+ *
+ * If this was a last tracking pin issued by the request---excite the latter.
  */
 static void pin_del(struct c2_rm_pin *pin)
 {
@@ -1453,8 +1537,8 @@ static void pin_del(struct c2_rm_pin *pin)
 }
 
 /**
-   Sticks a tracking pin on right. When right is released, the all incoming
-   requests that stuck pins into it are notified.
+ * Sticks a tracking pin on right. When right is released, the all incoming
+ * requests that stuck pins into it are notified.
  */
 int pin_add(struct c2_rm_incoming *in,
 	    struct c2_rm_right *right,
@@ -1479,9 +1563,9 @@ int pin_add(struct c2_rm_incoming *in,
 /** @} end of pin group */
 
 /**
-   @name right Right helpers
-
-  @{
+ *  @name right Right helpers
+ *
+ * @{
  */
 
 static bool right_intersects(const struct c2_rm_right *A,
@@ -1521,7 +1605,7 @@ static bool right_eq(const struct c2_rm_right *r0, const struct c2_rm_right *r1)
 }
 
 /**
-   Makes another copy of right struct.
+ * Makes another copy of right struct.
  */
 static int right_copy(struct c2_rm_right *dst, const struct c2_rm_right *src)
 {
@@ -1532,7 +1616,7 @@ static int right_copy(struct c2_rm_right *dst, const struct c2_rm_right *src)
 }
 
 /**
-   Returns true when ri_datum is 0, else returns false.
+ * Returns true when ri_datum is 0, else returns false.
  */
 static bool right_is_empty(const struct c2_rm_right *right)
 {
@@ -1542,9 +1626,9 @@ static bool right_is_empty(const struct c2_rm_right *right)
 /** @} end of right group */
 
 /**
-   @name remote Code to deal with remote owners
-
-  @{
+ * @name remote Code to deal with remote owners
+ *
+ * @{
  */
 
 int c2_rm_db_service_query(const char *name, struct c2_rm_remote *rem)
@@ -1563,7 +1647,7 @@ int c2_rm_remote_resource_locate(struct c2_rm_remote *rem)
 }
 
 /**
-   A distributed resource location data-base is consulted to locate the service.
+ * A distributed resource location data-base is consulted to locate the service.
  */
 static int service_locate(struct c2_rm_resource_type *rtype,
 			  struct c2_rm_remote *rem)
@@ -1598,9 +1682,9 @@ error:
 }
 
 /**
-   Sends a resource management fop to the service. The service responds
-   with the remote owner identifier (c2_rm_remote::rem_id) used for
-   further communications.
+ * Sends a resource management fop to the service. The service responds
+ * with the remote owner identifier (c2_rm_remote::rem_id) used for
+ * further communications.
  */
 static int resource_locate(struct c2_rm_resource_type *rtype,
 			   struct c2_rm_remote *rem)
