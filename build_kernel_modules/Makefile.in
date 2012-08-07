@@ -104,8 +104,8 @@ lib_SOURCES                     := bitstring.c vec.c list.c queue.c refs.c    \
                                    thread.c tlist.c bob.c trace.c finject.c
 
 lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c  \
-                                   kthread.c semaphore.c processor.c kvec.c   \
-                                   ktrace.c finject_init.c ut.c main.c
+                                   kthread.c semaphore.c processor.c kcookie.c \
+				   kvec.c ktrace.c finject_init.c ut.c main.c
 
 lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c    \
                                    mutex.c queue.c refs.c tlist.c time.c      \

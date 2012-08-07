@@ -11,7 +11,7 @@ libc2_HEADERS        = \
                        cdefs.h \
                        chan.h \
                        cond.h \
-		       cookie.h \
+                       cookie.h \
                        errno.h \
                        ext.h \
                        finject.h \
@@ -55,8 +55,8 @@ libc2_la_SOURCES     = \
                        chan.h \
                        cond.c \
                        cond.h \
-		       cookie.h \
-		       cookie.c \
+                       cookie.c \
+                       cookie.h \
                        errno.h \
                        ext.c \
                        ext.h \
@@ -103,6 +103,7 @@ libc2_la_SOURCES     = \
                        user_space/utrace.c \
                        user_space/trace.h \
                        user_space/types.h \
+                       user_space/ucookie.c \
                        user_space/user_x86_64_atomic.h \
                        user_space/uthread.c \
                        user_space/utime.c \
@@ -117,6 +118,7 @@ EXTRA_DIST             = \
                          linux_kernel/atomic64.h \
                          linux_kernel/cdefs.h \
                          linux_kernel/finject_init.c \
+                         linux_kernel/kcookie.c \
                          linux_kernel/kthread.c \
                          linux_kernel/ktrace.c \
                          linux_kernel/ktime.c \

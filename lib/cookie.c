@@ -17,62 +17,101 @@
  * Original author: Nachiket Sahasrabudhe <Nachiket_Sahasrabudhe@xyratex.com>
  * Original creation date: 12/07/2012
  */
-#include<stdlib.h>
-#include<string.h>
-#include<sys/time.h>
-#include<errno.h>
-#include"cookie.h"
-#include"lib/assert.h"
 
-struct c2_time_stamp cookie_generation;
+/**
+  @addtogroup cookie
+  @{
+ * The key data-structure in Lib-Cookie is c2_cookie. It holds the address of
+ * an object along with a generation-count which is used to check validity of a
+ * cookie.
+ *
+ * The constructor of an object calls c2_cookie_new, which increments a
+ * global counter cookie_generation, and embeds it in the object.
+ * On arrival of a query for the object, c2_cookie_init creates
+ * a cookie, and embeds the address for the object in c2_cookie along with a
+ * copy of cookie_generation embedded in the object.
+ *
+ * For subsequent requests for the same object, client communicates a cookie
+ * to a server. On server, function c2_cookie_dereference validates a cookie,
+ * and retrieves an address of the object for a valid cookie.
+ *
+ * c2_cookie_dereference checks the validity of a cookie in two steps.
+ * The first step validates an address embedded inside the cookie.
+ * The second step ensures that the cookie is not stale. To identify a stale
+ * cookie, it compares its generation count with the generation count in the
+ * object. In order to reduce the probability of false validation,
+ * the function c2_cookie_global_init initializes the cookie_generation with
+ * the system-time during initialisation of Colibri.
+ */
 
-/*This function checks if address is aligned to 8-byte-divisible memory location */
-static bool addr_is_sane(const void *obj)
+#include "lib/types.h"
+#include "lib/errno.h" /* -EPROTO */
+#include "lib/cookie.h"
+#include "lib/arith.h" /* C2_IS_8ALIGNED */
+#include "lib/time.h"  /* c2_time_now() */
+
+static uint64_t cookie_generation;
+
+extern bool c2_arch_addr_is_sane(const void *addr);
+extern int c2_arch_cookie_global_init(void);
+extern void c2_arch_cookie_global_fini(void);
+
+int c2_cookie_global_init(void)
 {
-	return obj != NULL || (uintptr_t)(const void*)obj%8 == 0;
+	cookie_generation = c2_time_now();
+	return c2_arch_cookie_global_init();
 }
 
-void c2_cookie_init(void)
+void c2_cookie_new(uint64_t *gen)
 {
-	cookie_generation.ts_time=c2_time_now();
+	C2_PRE(gen != NULL);
+
+	*gen = ++cookie_generation;
 }
 
-int c2_cookie_remote_build(void *obj_ptr, struct c2_cookie *out)
+void c2_cookie_init(struct c2_cookie *cookie, uint64_t *obj)
 {
+	C2_PRE(cookie != NULL);
+	C2_PRE(obj != NULL);
 
-       	C2_PRE(out != NULL);
-
-	if (cookie_generation.ts_time > 0) {
-		out->co_addr=(uint64_t)obj_ptr;
-		out->co_generation=cookie_generation.ts_time;
-		return 0;
-	} else
-		return -1;
+	cookie->co_addr = (uint64_t)obj;
+	cookie->co_generation = *obj;
 }
 
-int c2_cookie_dereference(const struct c2_cookie *cookie, void **out)
+bool c2_addr_is_sane(const uint64_t *addr)
 {
-	void *obj;
-	int flag;
+	return (addr > (uint64_t *)4096) && C2_IS_8ALIGNED(addr) &&
+		c2_arch_addr_is_sane(addr);
+}
+
+int c2_cookie_dereference(const struct c2_cookie *cookie, uint64_t **addr)
+{
+	uint64_t *obj;
 
 	C2_PRE(cookie != NULL);
-	C2_PRE(out != NULL);
+	C2_PRE(addr != NULL);
 
-	obj=(void*)cookie->co_addr;
-	flag=addr_is_sane(obj);
-	if (flag && cookie->co_generation == cookie_generation.ts_time) {
-		*out=obj;
+	obj = (uint64_t *)cookie->co_addr;
+	if (c2_addr_is_sane(obj) && cookie->co_generation == *obj) {
+		*addr = obj;
 		return 0;
-
-	} else {
-		return EPROTO;
-	}
+	} else
+		return -EPROTO;
 }
 
-void c2_cookie_copy(struct c2_cookie *des, const struct c2_cookie *src)
+void c2_cookie_global_fini(void)
 {
-		C2_PRE(des != NULL);
-		C2_PRE(src != NULL);
-
-		des=memcpy(des,src,sizeof(*src));
+	c2_arch_cookie_global_fini();
 }
+
+/** @} end of cookie group */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
