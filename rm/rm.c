@@ -264,19 +264,11 @@ static void owner_finalisation_check(struct c2_rm_owner *owner)
 	if (owner->ro_state == ROS_FINALISING &&
 	    owner->ro_in_reqs == 0) {
 		/*
-		 * these lists may not be empty if some errors occurred
+		 * These lists may not be empty if some errors occurred
 		 * before the remote requests were sent.
 		 */
 		if (c2_rm_ur_tlist_is_empty(&owner->ro_sublet) &&
 		    c2_rm_ur_tlist_is_empty(&owner->ro_borrowed)) {
-			/*
-			 * If the owner has not transcated any loans,
-			 * we may end up here once owner reaches quiet state.
-			 * We may have to cleanup owned lists. This
-			 * should be done by calling c2_rm_owner_retire()
-			 * by the object of interest. Hence the notification
-			 * becomes important.
-			 */
 			/* Handle owner finalisation */
 			owner->ro_state = ROS_FINAL;
 			C2_POST(owner_invariant(owner));
