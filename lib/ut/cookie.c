@@ -20,7 +20,6 @@
 
 #include "lib/types.h"
 #include "lib/errno.h"  /* -EPROTO */
-#include "lib/cdefs.h"  /* container_of */
 #include "lib/cookie.h"
 #include "lib/ut.h"
 #include "lib/memory.h" /* C2_ALLOC_PTR, C2_ALLOC_ARR */
@@ -94,6 +93,9 @@ void test_cookie(void)
 		     1);
 	flag = c2_cookie_dereference(&cookie_test, &addr_dummy);
 	C2_UT_ASSERT(flag == -EPROTO);
+
+	c2_free(dummy_test->ds_val);
+	c2_free(dummy_test);
 
 }
 C2_EXPORTED(test_cookie);
