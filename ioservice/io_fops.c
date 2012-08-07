@@ -112,6 +112,7 @@ static struct c2_fop_type *ioservice_fops[] = {
 	&c2_fop_cob_create_fopt,
 	&c2_fop_cob_delete_fopt,
 	&c2_fop_cob_op_reply_fopt,
+	&c2_fop_fv_notification_fopt,
 };
 
 /* Used for IO REQUEST items only. */
@@ -182,6 +183,11 @@ C2_FOP_TYPE_DECLARE(c2_fop_cob_delete, "Cob delete request",
 C2_FOP_TYPE_DECLARE(c2_fop_cob_op_reply, "Cob create or delete reply",
 		    &cob_fop_type_ops, C2_IOSERVICE_COB_OP_REPLY_OPCODE,
 		    C2_RPC_ITEM_TYPE_REPLY);
+
+/* one way notification from server to clients about fv update */
+C2_FOP_TYPE_DECLARE(c2_fop_fv_notification, "failure vector notification",
+		    &cob_fop_type_ops, C2_IOSERVICE_FV_NOTIFICATION_OPCODE,
+		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_UNSOLICITED);
 
 void c2_ioservice_fop_fini(void)
 {

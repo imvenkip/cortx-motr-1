@@ -90,23 +90,23 @@ enum C2_RPC_OPCODES {
 	/** Network rpc opcodes */
 	C2_NET_TEST_OPCODE                  = 39,
 
-	/** I/O service opcodes */
+	/** I/O service read & write opcodes */
 	C2_IOSERVICE_READV_OPCODE           = 40,
 	C2_IOSERVICE_WRITEV_OPCODE          = 41,
 	C2_IOSERVICE_READV_REP_OPCODE       = 42,
 	C2_IOSERVICE_WRITEV_REP_OPCODE      = 43,
+	/** I/O service Cob creation and deletion opcode */
+	C2_IOSERVICE_COB_CREATE_OPCODE      = 44,
+	C2_IOSERVICE_COB_DELETE_OPCODE      = 45,
+	C2_IOSERVICE_COB_OP_REPLY_OPCODE    = 46,
+	C2_IOSERVICE_FV_NOTIFICATION_OPCODE = 47,
 
 	/** Xcode rpc opcodes */
-	C2_XCODE_UT_OPCODE                  = 44,
-
-	/** Cob creation and deletion during IO. */
-	C2_IOSERVICE_COB_CREATE_OPCODE      = 45,
-	C2_IOSERVICE_COB_DELETE_OPCODE      = 46,
-	C2_IOSERVICE_COB_OP_REPLY_OPCODE    = 47,
+	C2_XCODE_UT_OPCODE                  = 48,
 
 	/** FOP module opcodes */
-	C2_FOP_RDWR_OPCODE                  = 48,
-	C2_FOP_RDWR_REPLY_OPCODE            = 49,
+	C2_FOP_RDWR_OPCODE                  = 49,
+	C2_FOP_RDWR_REPLY_OPCODE            = 50,
 };
 /** @} endgroup rpc_layer_core */
 
