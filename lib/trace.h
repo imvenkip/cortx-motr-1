@@ -282,7 +282,7 @@ void c2_console_vprintf(const char *fmt, va_list ap);
 	struct t_body DECL;						\
 	static const int _offset[NR] = OFFSET;				\
 	static const int _sizeof[NR] = SIZEOF;				\
-	static const struct c2_trace_descr td = {			\
+	static const struct c2_trace_descr __trace_descr = {		\
                 .td_fmt    = (FMT),					\
 		.td_func   = __func__,					\
 		.td_file   = __FILE__,					\
@@ -294,7 +294,7 @@ void c2_console_vprintf(const char *fmt, va_list ap);
 		.td_sizeof = _sizeof					\
 	};								\
 	printf_check(FMT , ## __VA_ARGS__);				\
-	c2_trace_allot(&td, &(const struct t_body){ __VA_ARGS__ });	\
+	c2_trace_allot(&__trace_descr, &(const struct t_body){ __VA_ARGS__ });	\
 })
 
 #ifndef C2_TRACE_SUBSYSTEM
