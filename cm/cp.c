@@ -159,7 +159,7 @@ static int cp_fom_state(struct c2_fom *fom)
         cp = container_of(fom, struct c2_cm_cp, c_fom);
         C2_ASSERT(c2_cm_cp_invariant(cp));
 
-	swicth (fom->fo_phase) {
+	switch (fom->fo_phase) {
 	case CCP_READ:
 		return cp->c_ops->co_read(cp);
 	case CCP_WRITE:
@@ -171,7 +171,8 @@ static int cp_fom_state(struct c2_fom *fom)
 	case CCP_RECV:
 		return cp->c_ops->co_recv(cp);
 	case CCP_FINI:
-		return cp->c_ops->co_fini(cp);
+		cp->c_ops->co_fini(cp);
+		break;
 	default:
 		return cp->c_ops->co_state(cp);
 	}

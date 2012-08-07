@@ -40,7 +40,7 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @Y
                             $(top_builddir)/reqh/libcolibri-reqh.la \
                             $(top_builddir)/sm/libcolibri-sm.la \
                             $(top_builddir)/sns/libcolibri-sns.la \
-                            $(top_builddir)/sns/repair/libcolibri-repair.la \
+                            $(top_builddir)/sns/repair/libcolibri-sns-repair.la \
                             $(top_builddir)/stob/libcolibri-stob.la \
                             $(top_builddir)/udb/libcolibri-udb.la \
                             $(top_builddir)/ut/libcolibri-ut.la \

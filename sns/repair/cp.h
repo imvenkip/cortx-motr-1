@@ -14,14 +14,18 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
- * Original creation date: 16/04/2012
+ * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
+ * Original creation date: 08/06/2012
  */
+
+#pragma once
 
 #ifndef __COLIBRI_SNS_REPAIR_CP_H__
 #define __COLIBRI_SNS_REPAIR_CP_H__
 
+#include "lib/ext.h"
 #include "cm/cp.h"
+
 
 /**
    @addtogroup snsrepair
@@ -29,14 +33,34 @@
    @{
 */
 
+/**
+ * In addition to c2_cm_cp_phase, these phases can be used. Transition between
+ * non-standard is handled by phase specific code and not by phase_next().
+ * This also help identifying specific operation as follows:
+ *
+ * @code
+ *
+ * if (fom->fo_phase == CCP_READ && rcp->rc_phase == CCP_IO_WAIT)
+ *	 This help to identify that wait was for read IO.
+ *
+ * @endcode
+ *
+ */
+enum c2_repair_cp_phase {
+        CCP_RESOURCE,
+        CCP_RESOURCE_WAIT,
+        CCP_IO_WAIT
+};
+
 struct c2_repair_cp {
-	struct c2_cm_cp rc_base;
+	enum c2_repair_cp_phase  rc_phase;
+	struct c2_cm_cp		 rc_cp;
 
         /** The gob fid which this data belongs to */
-        struct c2_fid   rc_gfid;
+        struct c2_fid		 rc_gfid;
 
         /** The extent in gob, similar to offset in a file */
-        struct c2_ext   rc_gext;
+        struct c2_ext		 rc_gext;
 
         /**
          * The cob fid which this data belongs to.
@@ -45,31 +69,21 @@ struct c2_repair_cp {
          * - When this cp is finished processing by collecting agent,
          *   it is the cob for storage-out agent to write to.
          */
-        struct c2_fid   rc_cfid;
+        struct c2_fid		 rc_cfid;
 
         /** The extent in cob */
-        struct c2_ext   rc_cext;
+        struct c2_ext		 rc_cext;
 };
 
-void c2_repair_cp_init(struct c2_repair_cp *scp,
-		       const struct c2_fid *gfid,
-		       const struct c2_ext *gext);
-
-void c2_repair_cp_fini(struct c2_repair_cp *scp);
-
-struct c2_repair_cp *c2_repair_cp_get(struct c2_cm *cm);
-
 /** @} snsrepair */
-/* __COLIBRI_SNS_REPAIR_H__ */
-
-#endif
-
+#endif /* __COLIBRI_SNS_REPAIR_CP_H__ */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 80
+ *  fill-column: 79
  *  scroll-step: 1
  *  End:
  */
+

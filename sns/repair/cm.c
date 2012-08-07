@@ -263,7 +263,7 @@ static void cm_done(struct c2_cm *cm);
 static void cm_stop(struct c2_cm *cm);
 static void cm_fini(struct c2_cm *cm);
 
-static const struct c2_cm_ops cm_ops = {
+const struct c2_cm_ops cm_ops = {
 	.cmo_start      = cm_start,
 	.cmo_config     = cm_config,
 	.cmo_next_agent = cm_next_agent,
@@ -279,7 +279,7 @@ static void cm_cb_container(struct c2_cm *cm, uint64_t cid);
 static void cm_cb_device(struct c2_cm *cm, uint64_t devid);
 static void cm_cb_sw(struct c2_cm *cm, struct c2_cm_sw *sw);
 
-static const struct c2_cm_cb cm_cb = {
+const struct c2_cm_cb cm_cb = {
 	.cmcb_container = cm_cb_container,
 	.cmcb_device    = cm_cb_device,
 	.cmcb_sl_window = cm_cb_sw
@@ -299,11 +299,11 @@ void c2_sns_repair_cm_type_deregister(void)
 
 static int cm_start(struct c2_cm *cm)
 {
-	int rc;
+	int rc = 0;
 
 	C2_ENTRY();
 
-	if (rc == 0 && C2_FI_ENABLED("agent_create_failure"))
+	if (C2_FI_ENABLED("agent_create_failure"))
 		return -EINVAL;
 
 	C2_LEAVE();

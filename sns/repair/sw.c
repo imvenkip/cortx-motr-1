@@ -43,16 +43,12 @@ static int cm_sw_advance(struct c2_cm_sw *slw);
 static int cm_sw_slide(struct c2_cm_sw *slw);
 static int cm_sw_expand(struct c2_cm_sw *slw);
 
-static const struct c2_cm_sw_ops cm_sw_ops = {
+const struct c2_cm_sw_ops cm_sw_ops = {
 	.swo_size_cal = cm_sw_size_cal,
 	.swo_advance  = cm_sw_advance,
 	.swo_slide    = cm_sw_slide,
 	.swo_expand   = cm_sw_expand
 };
-
-static void cm_cb_sw(struct c2_cm *cm, struct c2_cm_sw *sw)
-{
-}
 
 static size_t cm_sw_size_cal(struct c2_cm_sw *slw)
 {

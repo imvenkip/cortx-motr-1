@@ -60,11 +60,9 @@ C2_ADDB_EV_DEFINE(config_fetch_fail, "config_fetch_fail",
 /** Copy machine service type operations.*/
 static int service_allocate(struct c2_reqh_service_type *stype,
 			    struct c2_reqh_service **service);
-static void service_shutdown(struct c2_reqh_service *service);
 
 static const struct c2_reqh_service_type_ops service_type_ops = {
-	.rsto_service_allocate = service_allocate,
-	.rsto_service_shutdown = service_shutdown
+	.rsto_service_locate = service_allocate,
 };
 
 /** Copy machine service operations.*/
@@ -79,6 +77,10 @@ static const struct c2_reqh_service_ops service_ops = {
 };
 
 C2_CM_TYPE_DECLARE(sns_repair, &service_type_ops, "sns_repair");
+
+extern const struct c2_cm_ops cm_ops;
+extern const struct c2_cm_cb cm_cb;
+extern const struct c2_cm_sw_ops cm_sw_ops;
 
 static int service_allocate(struct c2_reqh_service_type *stype,
 			    struct c2_reqh_service **service)
@@ -113,21 +115,6 @@ static int service_allocate(struct c2_reqh_service_type *stype,
 
 	C2_LEAVE();
 	return rc;
-}
-
-static void service_shutdown(struct c2_reqh_service *service)
-{
-	struct c2_cm *cm;
-
-	C2_ENTRY();
-        C2_PRE(service != NULL);
-
-	cm = container_of(service, struct c2_cm, cm_service);
-	cm->cm_shutdown = true;
-	c2_cm_stop(cm);
-	c2_cm_agents_destroy(cm);
-
-	C2_LEAVE();
 }
 
 static int service_start(struct c2_reqh_service *service)
