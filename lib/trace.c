@@ -168,6 +168,7 @@ void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 	    (td->td_subsys & c2_trace_immediate_mask))
 		c2_trace_record_print(header, body);
 }
+C2_EXPORTED(c2_trace_allot);
 
 static char *subsys_str(uint64_t subsys, char *buf)
 {
