@@ -119,8 +119,6 @@
  * @{
  */
 
-
-
 static const struct c2_fom_type_ops cp_fom_type_ops = {
         .fto_create = NULL
 };
@@ -137,9 +135,7 @@ static void cp_fom_fini(struct c2_fom *fom)
         cp = container_of(fom, struct c2_cm_cp, c_fom);
         cm = cp->c_cm;
         C2_ASSERT(cm != NULL);
-        c2_cm_group_lock(cm);
-        c2_cm_cp_fini(cp);
-        c2_cm_group_unlock(cm);
+	cp->c_ops->co_free(cp);
 }
 
 static size_t cp_fom_locality(const struct c2_fom *fom)
@@ -171,8 +167,10 @@ static int cp_fom_state(struct c2_fom *fom)
 	case CCP_RECV:
 		return cp->c_ops->co_recv(cp);
 	case CCP_FINI:
-		return cp->c_ops->co_fini(cp);
+		fom->fo_phase = C2_FOPH_FINISH;
+		return C2_FSO_WAIT;
 	default:
+		/** Non statdnard phases execution */
 		return cp->c_ops->co_state(cp);
 	}
 }
@@ -199,21 +197,36 @@ bool c2_cm_cp_invariant(struct c2_cm_cp *cp)
 	return true;
 }
 
-void c2_cm_cp_init(struct c2_cm *cm, struct c2_cm_cp *packet)
+void c2_cm_cp_init(struct c2_cm *cm, struct c2_cm_cp *cp,
+		  struct c2_cm_cp_ops *ops)
 {
-	C2_POST(c2_cm_cp_invariant(packet));
+	struct c2_reqh *reqh = cm->cm_service.rs_reqh;
+
+	C2_PRE(reqh != NULL);
+	C2_PRE(cp->c_fom.fo_phase == CCP_INIT)
+
+	cp->c_prio = 0;
+	cp->c_ops = ops;
+	cp->c_cm = cm;
+	c2_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_type_ops, NULL, NULL);
 }
 
-void c2_cm_cp_fini(struct c2_cm_cp *packet)
+void c2_cm_cp_fini(struct c2_cm_cp *cp)
 {
-	C2_PRE(c2_cm_cp_invariant(packet));
+	C2_PRE(c2_cm_cp_invariant(cp));
+	C2_PRE(cp->c_fom.fo_phase == C2_FOPH_FINISH);
+
+        packet->c_prio = 0;
+        packet->c_ops = NULL;
+        packet->c_cm = NULL;
+	c2_fom_fini(&cp->c_fom);
 }
 
 void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
 }
 
-/** @} */ /* end-of-DLDFS */
+/** @} end-of-DLDFS */
 
 /*
  *  Local variables:

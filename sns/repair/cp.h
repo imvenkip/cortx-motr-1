@@ -20,15 +20,10 @@
 
 #pragma once
 
-#ifndef __COLIBRI_REPAIR_SNS_H__
+#ifndef __COLIBRI_REPAIR_CP_H__
 #define __COLIBRI_REPAIR_SNS_H__
 
 #include "cm/cp.h"
-
-struct c2_sns_repair_cm {
-	struct c2_cm		   rc_cm;
-	struct c2_net_buffer_pool *rc_pool;
-};
 
 /**
  * In addition to c2_cm_cp_phase, these phases can be used. Transition between
@@ -37,16 +32,16 @@ struct c2_sns_repair_cm {
  *
  * @code
  *
- * if (fom->fo_phase == CCP_READ && rcp->rc_phase == CCP_IO_WAIT)
+ * if (fom->fo_phase == CCP_READ && rcp->rc_phase == SRP_IO_WAIT)
  *	 This help to identify that wait was for read IO.
  *
  * @endcode
  *
  */
 enum c2_sns_repair_phase {
-        CCP_RESOURCE,
-        CCP_RESOURCE_WAIT,
-        CCP_IO_WAIT
+        SRP_RESOURCE_WAIT = 1,
+	SRP_EXTENT_LOCK_WAIT,
+        SRP_IO_WAIT
 };
 
 struct c2_sns_repair_cp {
@@ -72,7 +67,7 @@ struct c2_sns_repair_cp {
         struct c2_ext		 rc_cext;
 };
 
-#endif /* __COLIBRI_REPAIR_SNS_H__ */
+#endif /* __COLIBRI_REPAIR_CP_H__ */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
