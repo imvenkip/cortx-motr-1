@@ -61,7 +61,50 @@
 /**
  * @defgroup cp Copy Packet
  *
- * @see The @ref cp "Cop" its
+ * When an instance of a copy machine type is created, a data structure copy
+ * machine replica is created on each node (technically, in each request
+ * handler) that might participate in the re-structuring.
+ *
+ * Copy packets are FOM of special type, created when a data re-structuring
+ * request is posted to replica. Copy packet processing logic is implemented in
+ * non-blocking way.
+ *
+ * Copy packet functionality split into two parts:
+ *
+ *	- generic functionality, implemented by cm/cp.[hc] directory and
+ *
+ *	- copy packet type functionality which based on copy machine type.
+ *	  (e.g. SNS, Replication, &c).
+ *
+ * Copy packet creation:
+ *
+ *  Given the size of the buffer pool, the replica calculates its initial
+ *  sliding window (@see c2_cm_sw) size. Once the replica learns window
+ *  sizes of every other replica, it can produce copy packets that replicas
+ *  (including this one) are ready to process.
+ *
+ *	- start, device failure triggers copy machine data re-structuring
+ *	  and it should make sure that sliding windows has enough packets
+ *	  for processing by creating them at start of operation.
+ *
+ *	- has space, after completion of each copy packet, space in sliding
+ *	  window checked. Copy packet exists then copy packets will be created.
+ *
+ *
+ * Copy machine IO:
+ *
+ * Transformation:
+ *
+ * Cooperation within replica:
+ *
+ * Resource:
+ *	- Buffer pool
+ *	- Storage BW
+ *	- Extent Locks
+ *	- Network bandwidth
+ *	- CPU cycles
+ *
+ * @see The @ref cp "Copy packet" its
  * @ref DLD-cp-fspec "Copy Packet Functional Specification"
  *
  * @{
@@ -224,11 +267,23 @@ struct c2_cm_cp_ops {
 	void (*co_free)	    (struct c2_cm_cp *cp);
 };
 
+/**
+ * Initialises generic copy packet.
+ *
+ * @pre cp->c_fom.fo_phase == CCP_INIT
+ * @post cp->c_fom.fo_phase == C2_FOPH_INIT
+ */
 void c2_cm_cp_init(struct c2_cm *cm, struct c2_cm_cp *cp,
 		   const struct c2_cm_cp_ops *ops);
 
+/**
+ * Finalises generic copy packet.
+ *
+ * @pre cp->c_fom.fo_phase == C2_FOPH_FINISH
+ */
 void c2_cm_cp_fini(struct c2_cm_cp *cp);
 
+/** Submit copy packet for processing.*/
 void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp);
 
 bool c2_cm_cp_invariant(struct c2_cm_cp *cp);

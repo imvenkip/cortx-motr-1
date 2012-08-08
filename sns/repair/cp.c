@@ -24,6 +24,13 @@
 #include "sns/repair/cp.h"
 #include "sns/repair/cm.h"
 
+#if 0
+static bool repair_cp_invaraint(struct c2_cm_cp *cp)
+{
+	return c2_cm_cp_invariant(cp);
+}
+#endif
+
 static int repair_cp_alloc(struct c2_cm *cm, struct c2_cm_cp **cp)
 {
 	struct c2_sns_repair_cm *rcm;
