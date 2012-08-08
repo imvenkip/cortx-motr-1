@@ -1023,8 +1023,8 @@ enum c2_rm_incoming_flags {
 	 *        (C2_RIT_BORROW or C2_RIT_REVOKE);
 	 *
 	 *      - if RIF_LOCAL_TRY is set, the request will be immediately
-	 * denied, if there are conflicting local rights. This allows to
-	 * implement a "try-lock" like functionality.
+	 *        denied, if there are conflicting local rights. This allows to
+	 *        implement a "try-lock" like functionality.
 	 */
 	RIF_LOCAL_WAIT = (1 << 2),
 	/**

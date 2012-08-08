@@ -109,7 +109,7 @@ C2_FOP_TYPE_DECLARE(c2_fop_rm_revoke_rep, "Right Revoke Reply",
 		    C2_RPC_ITEM_TYPE_REPLY);
 
 /*
- * Allocate and initialize remote request tracking structure.
+ * Allocate and initialise remote request tracking structure.
  */
 static int rm_out_create(struct rm_out **out, struct c2_rm_incoming *in,
 			 struct c2_rm_loan *loan, struct c2_rm_right *right)
@@ -385,7 +385,7 @@ void c2_rm_fop_fini(void)
 C2_EXPORTED(c2_rm_fop_fini);
 
 /**
- * Initializes RM fops.
+ * Initialises RM fops.
  *
  * @retval 0 - on success
  *         non-zero - on failure

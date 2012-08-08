@@ -328,7 +328,7 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 				  rfop->rr_right.ri_opaque.op_nr);
 		/*
 		 * Populate the owner cookie for debtor (local)
-		 * This server is debtor; hence it received REVOKE reuest.
+		 * This server is debtor; hence it received REVOKE request.
 		 * This is used later by rm_locality().
 		 */
 		dcookie = &rfom->rf_in.ri_owner_cookie;
@@ -394,7 +394,7 @@ static int request_pre_process(struct c2_fom *fom,
 	if (rc != 0) {
 		/*
 		 * This will happen if owner cookie is stale or
-		 * copying of datum fails.
+		 * copying of right data fails.
 		 */
 		reply_err_set(type, fom, rc);
 		return C2_FOPH_FAILURE;

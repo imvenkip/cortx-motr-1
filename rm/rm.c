@@ -390,7 +390,7 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 	/*
 	 * Put the owner in ROS_FINALISING. This will prevent any new
 	 * incoming requests on it. If it's already in FINALISING state,
-	 * or if there are pening incoming requests, return error.
+	 * or if there are pending incoming requests, return error.
 	 */
 	c2_mutex_lock(&owner->ro_lock);
 	if (owner->ro_state == ROS_FINALISING ||
@@ -525,7 +525,6 @@ C2_EXPORTED(c2_rm_incoming_init);
 
 void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 {
-	C2_PRE(in->rin_state == 0);
 	C2_PRE(incoming_invariant(in));
 
 	in->rin_rc = 0;
@@ -695,7 +694,7 @@ int c2_rm_revoke_commit(struct c2_rm_remote_incoming *rem_in)
 	 * If it's a partial revoke, right_diff() will retain the remnant
 	 * borrowed right. In such case make, rem_in->ri_loan NULL so that
 	 * the loan memory is not released. rights_integrate() will leave
-	 * remant right in the CACHE.
+	 * remnant right in the CACHE.
 	 */
 	rc = right_diff(&loan->rl_right, &in->rin_want);
 	if (rc == 0) {
@@ -1059,18 +1058,18 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 	C2_PRE(pi_tlist_is_empty(&in->rin_pins));
 
 	/*
-	 * 1. Scan owned lists first.
-	 * Check for "local" wait conditions.
+	 * 1. Scan owned lists first. Check for "local" wait/try conditions.
 	 */
 	for (i = 0; i < ARRAY_SIZE(o->ro_owned); ++i) {
 		c2_tl_for(c2_rm_ur, &o->ro_owned[i], r) {
 			if (!right_intersects(r, want))
 				continue;
-			if (i == OWOS_HELD &&
-			    (in->rin_flags & RIF_LOCAL_WAIT) &&
-			    right_conflicts(r, want)) {
-				rc = pin_add(in, r, C2_RPF_TRACK);
-				wait++;
+			if (i == OWOS_HELD && right_conflicts(r, want)) {
+				if (in->rin_flags & RIF_LOCAL_WAIT) {
+					rc = pin_add(in, r, C2_RPF_TRACK);
+					wait++;
+				} else if (in->rin_flags & RIF_LOCAL_TRY)
+					return -EBUSY;
 			} else if (wait == 0)
 				rc = pin_add(in, r, C2_RPF_PROTECT);
 			rc = rc ?: right_diff(rest, r);
@@ -1080,7 +1079,7 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 	}
 
 	/*
-	 * 2. If the right cannot still be statified check against the
+	 * 2. If the right request cannot still be satisfied, check against the
 	 *    sublet list.
 	 */
 	if (!right_is_empty(rest)) {
@@ -1107,8 +1106,8 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 	}
 
 	/*
-	 * 3. If the right still cannot be statified check if it's possible
-	 *    borrow further right.
+	 * 3. If the right request still cannot be satisfied, check
+	 *    if it's possible borrow remaining right from the creditor.
 	 */
 	if (!right_is_empty(rest)) {
 		if (o->ro_creditor != NULL) {
@@ -1175,7 +1174,7 @@ static void incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 	} else {
 		/*
 		 * For external incoming request, we want to bump the
-		 * incoming reuquests count on successful completion.
+		 * incoming requests count on successful completion.
 		 */
 		if (!(in->rin_flags & RIF_INTERNAL))
 			++owner->ro_in_reqs;
