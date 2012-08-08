@@ -322,7 +322,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
         // would require conversion.
         struct iovec                *ir_iovec;
 
-        // Number of segments in ::io_iovec.
+        // Number of segments in ::ir_iovec.
         unsigned long                ir_seg_nr;
 
 	// Async state machine to handle state transitions.
