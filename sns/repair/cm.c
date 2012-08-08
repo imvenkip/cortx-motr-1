@@ -51,10 +51,10 @@
 
   <hr>
   @section DLD-snsrepair-ovw Overview
-  This module implements sns repair copy machine as a Colibri request handler
-  service and uses generic copy machine infrastructure. SNS Repair copy machine
-  is typically started during Colibri process startup, although it can also be
-  started separately.
+  This module implements sns repair copy machine using generic copy machine
+  infrastructure. SNS repair copy machine is built upon the request handler
+  service infrastructure. SNS Repair copy machine is typically started during
+  Colibri process startup, although it can also be started separately.
 
   <hr>
   @section DLD-snsrepair-def Definitions
@@ -71,27 +71,21 @@
     caused due to various kinds of failures as mentioned in the HLD of SNS
     Repair.
 
-  - @b r.sns.repair.agents.create The implementation should efficiently
-    fetch configuration information and create corresponding agents.
+  - @b r.sns.repair.buffer.acquire The implementation should efficiently provide
+    buffers for the repair operation without any deadlock.
+
+  - @b r.sns.repair.transform The implementation should provide its specific
+    implementation of transformation function for copy packets.
+
+  - @b r.sns.repair.next.agent The implementation should provide an efficient
+    next-agent phase function for the copy packet.
 
   - @b r.sns.repair.report.progress The implementation should efficiently report
     overall progress of data re-structuring and update corresponding layout
     information for re-structured objects.
 
-  - @b r.sns.repair.buffer.acquire The implementation should efficiently provide
-    buffers to its corresponding agents without any deadlock.
-
-  - @b r.sns.repair.transform The implementation should provide
-    its specific implementation of transformation function for copy packets.
-
-  - @b r.sns.repair.next.agent The implementation should provide an efficient
-    next-agent function based on aggregation function.
-
   <hr>
   @section DLD-snsrepair-depends Dependencies
-  - @b r.sns.repair.conf It must be possible to efficiently fetch the
-    configuration of the current node to create agents.
-
   - @b r.sns.repair.resources.manage It must be possible to efficiently
     manage and throttle resources.
 
@@ -100,7 +94,7 @@
 
   <hr>
   @section DLD-snsrepair-highlights Design Highlights
-  - SNS Repair copy machine is implemented as a request handler service.
+  - SNS Repair copy machine uses request handler service infrastructure.
   - SNS Repair copy machine specific data structure embeds generic copy machine
     and other sns repair specific objects.
   - Incoming and outgoing buffer pools are specific to sns repair copy machine.
@@ -117,10 +111,9 @@
   - @ref DLD-snsrepair-lspec-cm-stop
 
   @subsection DLD-snsrepair-lspec-comps Component overview
-  The focus of sns repair copy machine is on re-structuring the data with help
-  of its specific agents. Although the actual re-structuring is performed by
-  corresponding agents, SNS Repair copy machine is responsible to efficiently
-  co-ordinate all the agents working on a particular task.
+  The focus of sns repair copy machine is on re-structuring the data
+  efficiently. The re-structuring operation is split into various copy packet
+  phases.
 
   @subsection DLD-snsrepair-lspec-cm-start Copy machine startup
   SNS Repair defines its following specific data structure to represent a
@@ -197,9 +190,6 @@
   through generic copy machine interfaces which cause copy machine state
   transitions.
 
-  @b i.sns.repair.agents.create SNS Repair fetches configuration information from
-  configuration service in-order to create corresponding agents.
-
   @b i.sns.repair.report.progress Progress is reported using sliding window and
   layout updates.
   @todo Layout updates will be implemented at later stages of sns repair.
@@ -215,14 +205,6 @@
 
   <hr>
   @section DLD-snsrepair-ut Unit tests
-  @b Test 01  : Setup and start sns repair copy machine and its agents.
-  @b Response : All the agents should be created as per the available configuration.
-                Agent FOMs are started should initially transition to idle state
-                and wait in request handler's wait queue.
-
-  @b Test 02  : Destroy copy machine and agents.
-  @b Response : All the idle agent FOMs should be woken up and finalised as per
-                request handler framework.
 
   <hr>
   @section DLD-snsrepair-st System tests
@@ -246,9 +228,6 @@
   SNS Repair copy machine is typically started during colibri setup, but can
   also be started later. SNS Repair copy machine mainly uses reqh and generic
   copy machine framework, and thus implements their corresponding operations.
-  During startup, SNS Repair copy machine creates and starts its specific
-  agents and remains idle until an operation is triggered by some failure
-  event.
 
   @{
 */
@@ -302,9 +281,6 @@ static int cm_start(struct c2_cm *cm)
 	int rc = 0;
 
 	C2_ENTRY();
-
-	if (C2_FI_ENABLED("agent_create_failure"))
-		return -EINVAL;
 
 	C2_LEAVE();
 	return rc;
