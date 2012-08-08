@@ -215,10 +215,6 @@
 */
 
 enum {
-	/** Hex value of "ag_link". */
-	AGGR_GROUP_LINK_MAGIC = 0x61675f6c696e6b,
-	/** Hex value of "ag_head". */
-	AGGR_GROUP_LINK_HEAD = 0x61675f68656164,
 	/** Hex value of "CMT_HEAD" */
 	CM_TYPE_HEAD_MAGIX = 0x434D545F48454144,
 	/** Hex value of "CMT_LINK" */
@@ -240,11 +236,6 @@ C2_TL_DEFINE(cmtypes, , struct c2_cm_type);
 static struct c2_bob_type cmtypes_bob;
 C2_BOB_DEFINE( , &cmtypes_bob, c2_cm_type);
 
-C2_TL_DESCR_DEFINE(aggr_grps, "aggr_grp_list_descr", ,
-		  struct c2_cm_aggr_group, cag_sw_linkage, cag_magic,
-		  AGGR_GROUP_LINK_MAGIC, AGGR_GROUP_LINK_HEAD);
-
-C2_TL_DEFINE(aggr_grps, extern, struct c2_cm_aggr_group);
 
 C2_ADDB_EV_DEFINE(cm_init_fail, "cm_init_fail",
 		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);

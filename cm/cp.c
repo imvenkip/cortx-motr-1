@@ -172,7 +172,7 @@ static int cp_fom_state(struct c2_fom *fom)
 		return cp->c_ops->co_recv(cp);
 	case CCP_FINI:
 		cp->c_ops->co_fini(cp);
-		break;
+		return C2_FSO_AGAIN;
 	default:
 		return cp->c_ops->co_state(cp);
 	}
