@@ -14,30 +14,36 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
- * Original creation date: 08/06/2012
+ * Original author: Subhash Arya <subhash_arya@xyratex.com>
+ * Original creation date: 30/11/2011
  */
 
-#pragma once
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
 
-#ifndef __COLIBRI_REPAIR_CM_H__
-#define __COLIBRI_REPAIR_CM_H__
+#include "cm/ag.h"
+#include "lib/tlist.h"
 
-#include "cm/cm.h"
-
-struct c2_sns_repair_cm {
-	struct c2_cm		  rc_cm;
-	struct c2_net_buffer_pool rc_pool;
+enum {
+	/** Hex value of "ag_link". */
+	AGGR_GROUP_LINK_MAGIC = 0x61675f6c696e6b,
+	/** Hex value of "ag_head". */
+	AGGR_GROUP_LINK_HEAD = 0x61675f68656164,
 };
 
-#endif /* __COLIBRI_REPAIR_CM_H__ */
+C2_TL_DESCR_DEFINE(aggr_grps, "aggr_grp_list_descr", ,
+		   struct c2_cm_aggr_group, cag_sw_linkage, cag_magic,
+		   AGGR_GROUP_LINK_MAGIC, AGGR_GROUP_LINK_HEAD);
+
+C2_TL_DEFINE(aggr_grps, extern, struct c2_cm_aggr_group);
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */
-

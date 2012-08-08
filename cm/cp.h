@@ -183,8 +183,6 @@ struct c2_cm_cp {
 	struct c2_rpc_bulk	  *c_bulk;
 
 	struct c2_cm		  *c_cm;
-
-	uint64_t                   c_magix;
 };
 
 /**
@@ -195,10 +193,8 @@ struct c2_cm_cp {
  */
 struct c2_cm_cp_ops {
 
-	/**
-	 * Allocate, initialise copy packet structure and submit for execution.
-	 */
-	int  (*co_init)	    (struct c2_cm_cp *cp);
+	/** Allocate, initialise copy packet structure.*/
+	int  (*co_alloc)    (struct c2_cm *cm, struct c2_cm_cp **cp);
 
 	/** Fill up the copy packet data.*/
 	int  (*co_read)	    (struct c2_cm_cp *cp);
@@ -222,13 +218,14 @@ struct c2_cm_cp_ops {
 	void (*co_complete) (struct c2_cm_cp *cp);
 
 	/**
-	 * Releases any resources associated with the packet.
-	 * Called when the generic code is about to free a packet.
+	 * Releases resources associated with the packet, finalises members
+	 * and free the packet.
 	 */
-	void (*co_fini)	    (struct c2_cm_cp *cp);
+	void (*co_free)	    (struct c2_cm_cp *cp);
 };
 
-void c2_cm_cp_init(struct c2_cm *cm, struct c2_cm_cp *cp);
+void c2_cm_cp_init(struct c2_cm *cm, struct c2_cm_cp *cp,
+		   const struct c2_cm_cp_ops *ops);
 
 void c2_cm_cp_fini(struct c2_cm_cp *cp);
 
