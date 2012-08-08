@@ -18,46 +18,108 @@
  * Original creation date: 08/06/2012
  */
 
+#include "lib/errno.h"
+#include "lib/memory.h"
+
 #include "sns/repair/cp.h"
+#include "sns/repair/cm.h"
 
-/**
-   @addtogroup snsrepair
+static int repair_cp_alloc(struct c2_cm *cm, struct c2_cm_cp **cp)
+{
+	struct c2_sns_repair_cm *rcm;
+	struct c2_sns_repair_cp	*rcp;
+	struct c2_cm_cp		*lcp;
+	struct c2_net_buffer	*nb;
 
-   @{
-*/
+	/* Allocate SNS repair copy packet.*/
+	C2_ALLOC_PTR(rcp);
+	if (rcp == NULL)
+		return -ENOMEM;
+	lcp = &rcp->rc_cp;
 
-static int cp_init(struct c2_cm_cp *cp)
+	/* Request data buffer from buffer pool.*/
+	rcm = container_of(cm, struct c2_sns_repair_cm, rc_cm);
+	c2_net_buffer_pool_lock(&rcm->rc_pool);
+	nb = c2_net_buffer_pool_get(&rcm->rc_pool, C2_BUFFER_ANY_COLOUR);
+	c2_net_buffer_pool_unlock(&rcm->rc_pool);
+	C2_ASSERT(nb != NULL);
+	lcp->c_data = &nb->nb_buffer;
+	rcp->rc_phase = 0;
+
+	/* Initailise copy packet data memebers.*/
+	c2_cm_cp_init(cm, lcp, &c2_sns_repair_cp_ops);
+	*cp = lcp;
+
+	return 0;
+}
+
+static void repair_cp_free(struct c2_cm_cp *cp)
+{
+	struct c2_sns_repair_cm *rcm;
+	struct c2_sns_repair_cp	*rcp;
+	struct c2_net_buffer	*nb;
+
+	/* Release data buffer to buffer pool.*/
+	rcm = container_of(cp->c_cm, struct c2_sns_repair_cm, rc_cm);
+	rcp = container_of(cp, struct c2_sns_repair_cp, rc_cp);
+	nb = container_of(cp->c_data, struct c2_net_buffer, nb_buffer);
+	c2_net_buffer_pool_lock(&rcm->rc_pool);
+	c2_net_buffer_pool_put(&rcm->rc_pool, nb, C2_BUFFER_ANY_COLOUR);
+	c2_net_buffer_pool_unlock(&rcm->rc_pool);
+
+	/* finailise data members.*/
+	c2_cm_cp_fini(cp);
+
+	/* Free copy packet.*/
+	c2_free(rcp);
+}
+
+static int repair_cp_read(struct c2_cm_cp *cp)
+{
+        return 0;
+}
+
+static int repair_cp_write(struct c2_cm_cp *cp)
+{
+        return 0;
+}
+
+static int repair_cp_send(struct c2_cm_cp *cp)
+{
+        return 0;
+}
+
+static int repair_cp_recv(struct c2_cm_cp *cp)
+{
+        return 0;
+}
+
+int repair_cp_xform(struct c2_cm_cp *cp)
+{
+        return 0;
+}
+
+static int repair_cp_state(struct c2_cm_cp *cp)
 {
 	return 0;
 }
 
-static void cp_fini(struct c2_cm_cp *cp)
+static void repair_cp_complete(struct c2_cm_cp *cp)
 {
 }
 
-
-static int cp_state(struct c2_cm_cp *cp)
-{
-	return 0;
-}
-
-static void cp_complete(struct c2_cm_cp *cp)
-{
-}
-
-static const struct c2_cm_cp_ops cp_ops = {
-	.co_init     = &cp_init,
-	.co_fini     = &cp_fini,
-	.co_read     = NULL,
-	.co_write    = NULL,
-	.co_send     = NULL,
-	.co_recv     = NULL,
-	.co_xform    = NULL,
-	.co_state    = &cp_state,
-	.co_complete = &cp_complete
+const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
+	.co_alloc    = &repair_cp_alloc,
+	.co_free     = &repair_cp_free,
+	.co_read     = &repair_cp_read,
+	.co_write    = &repair_cp_write,
+	.co_send     = &repair_cp_send,
+	.co_recv     = &repair_cp_recv,
+	.co_xform    = &repair_cp_xform,
+	.co_state    = &repair_cp_state,
+	.co_complete = &repair_cp_complete
 };
 
-/** @} snsrepair */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
