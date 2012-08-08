@@ -35,7 +35,7 @@
 #include "ioservice/io_fops_ff.h"
 #include "colibri/magic.h"
 
-static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
+static struct c2_pdclust_layout *layout_to_pd_layout(struct c2_layout *l)
 {
 	return container_of(l, struct c2_pdclust_layout, pl_layout);
 }
@@ -98,7 +98,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 
    The read-modify-write feature provides support to do partial parity group
    IO requests on a Colibri client.
-   This feature is supported for write IO requests _only_.
+   This feature is needed for write IO requests _only_.
 
    Colibri uses notion of layout to represent how file data is spread
    over multiple objects. Colibri client is supposed to work with
@@ -106,9 +106,9 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    patterns like RAID5, parity declustered RAID can be supported.
 
    Often, incoming _write_ IO requests do not span whole parity group of
-   file data. The file data for such partial parity group requests have to be
-   read first so that all necessary data blocks are available with client,
-   then data is changed as per user request and later sent for write to server.
+   file data. In such cases, additional data must be read from the same
+   parity group to have enough information to compute new parity.
+   Then data is changed as per user request and later sent for write to server.
    Such actions are taken only for write IO path.
    Read IO requests do not need any such support.
 
@@ -123,10 +123,9 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 
    - @b R.c2t1fs.rmw_io.rmw The implementation shall provide support for
    partial parity group IO requests.
-   - @b R.c2t1fs.rmw_io.efficient The implementation shall provide efficient
-   way of implementing IO requests. Since Colibri follows async nature of APIs
-   as far as possible, the implementation will stick to async APIs and shall
-   try to avoid blocking calls.
+   - @b R.c2t1fs.rmw_io.efficient IO requests should be implemented efficiently.
+   Since Colibri follows async nature of APIs as far as possible, the
+   implementation will stick to async APIs and shall avoid blocking calls.
 
    <hr>
    @section rmw-depends Dependencies
@@ -137,15 +136,26 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    <hr>
    @section rmw-highlights Design Highlights
 
-   - All IO requests (spanning full/partial parity group) follow same code path.
+   - All IO requests (spanning full or partial parity group) follow same
+   code path.
+
    - For IO requests which span whole parity group/s, IO is issued immediately.
+
    - IO requests are issued _only_ for units with at least one single byte
-   of valid file data along with parity units.
+   of valid file data along with parity units. Ergo, no IO is done beyond
+   end-of-file.
+
    - In case of partial parity group write IO request, a read request is issued
    to read necessary data blocks and parity block.
+
+   - Read requests will be issued to read the data pages which are partially
+   spanned by the incoming IO requests. The data pages which are completely
+   spanned by IO request will be populated by copying data from user buffers.
+
    - Once read is complete, changes will be made to the data buffers
    (typically these are pages from page cache) and parity is calculated in
    _iterative_ manner. See the example below.
+
    - And then write requests are dispatched for the changed data blocks
    and the parity block from parity group/s.
 
@@ -177,7 +187,9 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 
    - First, rwm_io component works with generic layout component to retrieve
    list of data units and parity units for given parity group.
+
    - Then it interacts with rpc bulk API to send IO fops to data server.
+
    - All IO fops are dispatched asynchronously at once and the caller thread
    sleeps over the condition of all fops getting replies.
 
@@ -198,16 +210,23 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    This DLD addresses only rmw_io component.
 
    - The component will sit in IO path of Colibri client code.
+
    - It will detect if any incoming IO request spans a parity group only
    partially.
+
    - In case of partial groups, it issues an inline read request to read
    the necessary blocks from parity group and get the data in memory.
+
    - The thread blocks for completion of read IO.
+
    - If incoming IO request was read IO, the thread will be returned along
    with the status and number of bytes read.
+
    - If incoming IO request was write, the pages are modified in-place
    as per user request.
+
    - And then, write IO is issued for the whole parity group.
+
    - Completion of write IO will send the status back to the calling thread.
 
    @subsection rmw-lspec-smallIO Small IO requests
@@ -215,20 +234,29 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    For small IO requests which do not span even a single parity group
    due to end-of-file occurring before parity group boundary,
    - rest of the blocks are assumed to be zero and
+
    - parity is calculated from valid data blocks only.
 
    The file size will be updated in file inode and will keep a check on
    actual size.
 
    For instance, with configuration like
-   - parity_group_width  = 12K
+
+   - parity_group_width  = 20K
+
    - unit_size           = 4K
+
    - nr_data_units       = 3
+
+   - nr_parity_units     = 1
+
+   - nr_spare_units      = 1
 
    When a new file is written to with data worth 1K,
 
    there will be
    - 1 partial data unit and
+
    - 2 missing data units
    in the parity group.
 
@@ -242,10 +270,12 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    overcome by
    - issuing IO requests _only_ for units which have at least a single byte
    of valid file data and for parity units.
+
    - For missing data units, there is no need to use zeroed out buffers since
    such buffers does not change parity.
-   - Ergo, parity will be calculated from valid (falling within end-of-file)
-   data blocks only.
+
+   - Ergo, parity will be calculated from valid data blocks only (falling
+   within end-of-file)
 
    Since sending network requests for IO is under control of client, these
    changes can be accommodated for irrespective of layout type.
@@ -257,12 +287,11 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 
    @note Present implementation of c2t1fs IO path uses get_user_pages() API
    to pin user-space pages in memory. This works just fine with page aligned
-   IO requests. But for page unaligned IO requests, APIs like copy_from_user()
-   and copy_to_user() will be used (except for _direct-IO_ and device IO)
-   which can copy data to/from user-space and can work with both aligned and
-   non-aligned IO requests.
-   For _direct-IO_ and device IO requests, no copy will be done and it works
-   since direct IO mandates page aligned IO request.
+   IO requests. But read-modify-write IO will use APIs like copy_from_user()
+   and copy_to_user() which can copy data to or from user-space for both aligned
+   and non-aligned IO requests.
+   Although for _direct-IO_ and device IO requests, no copy will be done and
+   it uses get_user_pages() API since direct-IO is always page aligned.
 
    @subsubsection rmw-lspec-ds1 Subcomponent Data Structures
 
@@ -278,36 +307,37 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 
    @code
    struct io_request {
-	uint64_t               ir_magic;
+	uint64_t                     ir_magic;
 
-	int                    ir_rc;
+	int                          ir_rc;
 
         // File identifier.
-        struct c2_fid          ir_fid;
+        struct c2_fid                ir_fid;
 
 	// File extent spanned by io_request.
-	struct c2_ext          ir_extent;
+	struct c2_ext                ir_extent;
 
         // iovec structure containing user-space buffers.
         // iovec structure is used as it is since using a new structure
         // would require conversion.
-        struct iovec          *ir_iovec;
+        struct iovec                *ir_iovec;
+
+        // Number of segments in ::io_iovec.
+        unsigned long                ir_seg_nr;
 
 	// Async state machine to handle state transitions.
-	struct c2_sm           ir_sm;
+	struct c2_sm                 ir_sm;
 
-	enum io_req_type       ir_type;
+	enum io_req_type             ir_type;
 
-	struct c2_mutex        ir_mutex;
+	enum io_req_state            ir_state;
 
-	enum io_req_state      ir_state;
+	const struct io_request_ops *ir_ops;
 
-	struct io_request_ops  ir_ops;
-
-	struct nw_xfer_request ir_nwxfer;
+	struct nw_xfer_request       ir_nwxfer;
 
 	// Expanded file extent. Used in case of read-modify-write.
-	struct c2_ext          ir_aux_extent;
+	struct c2_ext                ir_aux_extent;
    };
    @endcode
 
@@ -371,12 +401,12 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 
 	enum nw_xfer_state     nxr_state;
 
-	struct nw_xfer_ops     nxr_ops;
+	struct nw_xfer_ops    *nxr_ops;
 
-	// List of io_desc structures.
-	struct c2_tl           nxr_descs;
+	// List of target_ioreq structures.
+	struct c2_tl           nxr_tioreqs;
 
-        // Number of IO fops issued by all io_desc objects belonging
+        // Number of IO fops issued by all target_ioreq objects belonging
         // to this nw_xfer_request object.
         // This number is updated when bottom halves from ASTs are run.
         // When it reaches zero, state of io_request::ir_sm changes.
@@ -406,52 +436,80 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    };
    @endcode
 
-   An IO extent binds together IO extent and associated data buffer.
-   These extents hung off io_desc::id_extents list.
+   data_buf - Represents a simple data buffer wrapper object. The embedded
+   c2_buf::b_addr points to a kernel page.
 
    @code
-   struct io_extent {
-        uint64_t        ie_magic;
+   struct data_buf {
+           uint64_t                  db_magic;
 
-        // Extent describing starting offset and its length.
-        struct c2_ext   ie_ext;
+           // Points to a kernel page.
+           struct c2_buf             db_buf;
 
-        // Data buffer.
-        struct c2_buf   ie_buf;
+           // Type of buffer in a parity group (data or parity).
+           enum c2_pdclust_unit_type db_type;
 
-        // Linkage to link in to io_desc::id_extents list.
-        struct c2_tlink ie_link;
+           // Parity group id to which this buffer belongs.
+           uint64_t                  db_pgid;
+
+           // Flags. Can reuse values from enum io_req_type here.
+           // Is used when doing read from read-modify-write since not all
+           // buffers from target_ieoxt need to be read from target.
+           // Can be used later for caching options.
+           uint64_t                  db_flags;
+   }
+   @endcode
+
+   target_ioext - Represents the frames of file data associated with given
+   target. It describes the span of IO request and number of data buffers
+   attached with it.
+
+   @code
+   struct target_ioext {
+        uint64_t          tie_magic;
+
+        // Extent describing starting cob offset and its length.
+        // Since all such IO requests read or write the target objects
+        // sequentially, one extent is enough to describe span of IO request.
+        struct c2_ext     tie_ext;
+
+        // Number of data_buf structures representing the extent.
+        uint64_t          tie_buf_nr;
+
+        // Array of data_buf structures.
+        // Each element typically refers to one kernel page.
+        // Intentionally kept as array since it makes iterating much easier
+        // as compared to a list, especially while calculating parity.
+        // Also, max number of buffers a target_ioext structure can span
+        // for given io_request is constant.
+        struct data_buf **tie_buffers;
    };
    @endcode
 
-   io_desc - Collection of IO extents and buffers, directed towards each
-   of the units (data_unit / parity_unit) in a parity group.
+   target_ioreq - Collection of IO extents and buffers, directed towards each
+   of the component objects in a parity group.
    These structures are created by struct io_request dividing the incoming
    struct iovec into members of parity group.
 
-   @todo Need better name for this structure.
-
    @code
-   struct io_desc {
-	uint64_t               id_magic;
+   struct target_ioreq {
+	uint64_t               tir_magic;
 
 	// Fid of component object.
-	struct c2_fid          id_fid;
+	struct c2_fid          tir_fid;
 
-	// List of io_extent structures.
-	// Each extent infers starting offset, count and its data buffer.
-	// Since file data is divided uniformly into members of parity group,
-	// the offsets from this list are discontiguous.
-	struct c2_tl           id_extents;
+        // Target object extent representing span of IO request on target object
+        // and array of data buffers.
+	struct target_ioext    tir_extent;
 
-        // List of struct io_req_fop issued on this stripe object.
-        struct c2_tl           id_iofops;
+        // List of struct io_req_fop issued on this target object.
+        struct c2_tl           tir_iofops;
 
 	// Resulting IO fops are sent on this session.
-	struct c2_rpc_session *id_session;
+	struct c2_rpc_session *tir_session;
 
-	// Linkage to link in to nw_xfer_request::nxr_descs list.
-	struct c2_tlink        id_link;
+	// Linkage to link in to nw_xfer_request::nxr_tioreqs list.
+	struct c2_tlink        tir_link;
    };
    @endcode
 
@@ -477,7 +535,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
         // Callback per IO fop.
         struct c2_fom_callback  irf_iocb;
 
-        // Linkage to link in to io_desc::id_iofops list.
+        // Linkage to link in to target_ioreq::tir_iofops list.
         struct c2_tlink         irf_tlink;
 
         // Backlink to nw_xfer_request object where rc and number of bytes
@@ -487,7 +545,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    @endcode
 
    Magic value to verify sanity of struct io_request, struct nw_xfer_request,
-   struct io_desc and struct io_req_fop.
+   struct target_ioreq and struct io_req_fop.
    The magic values will be used along with static c2_bob_type structures to
    assert run-time type identification.
 
@@ -495,9 +553,10 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    enum {
 	IOREQ_MAGIC  = 0xfea2303e31a3ce10ULL, // fearsomestanceto
 	NWREQ_MAGIC  = 0x12ec0ffeea2ab1caULL, // thecoffeearabica
-        STRIPE_MAGIC = 0xfa1afe1611ab2eadULL, // falafelpitabread
+        TIOREQ_MAGIC = 0xfa1afe1611ab2eadULL, // falafelpitabread
         IOFOP_MAGIC  = 0xde514ab11117302eULL, // desirabilitymore
-        IOEXT_MAGIC  = 0x19ca9de5ca91b61bULL, // incandescentbulb
+        TIOEXT_MAGIC = 0x19ca9de5ca91b61bULL, // incandescentbulb
+        DTBUF_MAGIC  = 0x191e2c09119e91a1ULL, // intercontinental
    };
    @endcode
 
@@ -508,7 +567,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 
    The following API will change the parity unit size unaligned IO request
    to make it align with parity group unit size.
-   It will populate io_request::ir_aux_extent so that further read/write IO
+   It will populate io_request::ir_aux_extent so that further read or write IO
    will be done according to auxiliary IO extent.
    The cumulative count of auxiliary extent will always be not less than
    size of original extent. However, while returning from system call, the
@@ -534,9 +593,9 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
         const struct c2_ext  *ee = &req->ir_aux_extent;
 
 	C2_PRE(io_request_invariant(req));
-	C2_PRE(!io_req_spans_full_pg(ci, buf, c2_ext_length(oe), oe->e_start));
 
-	c2_mutex_lock(&req->ir_mutex);
+        if (io_req_spans_full_pg(ci, buf, c2_ext_length(oe), oe->e_start);
+                return;
 
 	// finds immediate lower number which is aligned to
         // parity group unit size.
@@ -546,8 +605,6 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
         // parity group unit size.
 	ee->e_end = ee->e_start + c2_round_up(oe->e_start - ee->e_start +
 					      c2_ext_length(oe), size);
-
-	c2_mutex_unlock(&req->ir_mutex);
 
 	C2_POST(c2_ext_is_partof(ee, oe) && io_request_invariant(req));
    }
@@ -569,7 +626,6 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    static bool io_request_invariant(const struct io_request *req)
    {
 	C2_PRE(req != NULL);
-	C2_PRE(c2_mutex_is_locked(&req->ir_mutex));
 
 	return
 		req->ir_magic == IOREQ_MAGIC &&
@@ -580,21 +636,24 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
                 c2_fid_is_valid(&req->ir_fid) &&
 
 		ergo(req->ir_state == IRS_READING,
-		     !c2_tlist_is_empty(req->ir_nwxfer.nxr_descs)) &&
+		     !c2_tlist_is_empty(req->ir_nwxfer.nxr_tioreqs)) &&
 
 		ergo(req->ir_state == IRS_WRITING,
 		     req->ir_type  == IRT_WRITE &&
-		     !c2_tlist_is_empty(req->ir_nwxfer.nxr_descs)) &&
+		     !c2_tlist_is_empty(req->ir_nwxfer.nxr_tioreqs)) &&
 
 		ergo(req->ir_state == IRS_READ_COMPLETE &&
                      req->ir_type  == IRT_READ,
-		     c2_tlist_is_empty(req->ir_nwxfer.nxr_descs)) &&
+		     c2_tlist_is_empty(req->ir_nwxfer.nxr_tioreqs)) &&
 
 		ergo(req->ir_state == IRS_WRITE_COMPLETE,
-		     c2_tlist_is_empty(req->ir_nwxfer.nxr_descs)) &&
+		     c2_tlist_is_empty(req->ir_nwxfer.nxr_tioreqs)) &&
 
                 ergo(io_req_is_rmw(req),
-                     c2_ext_is_partof(&req->ir_aux_extent, &req->ir_extent));
+                     c2_ext_length(&req->ir_aux_extent) >
+                     c2_ext_length(&req->ir_extent)) &&
+
+                nw_xfer_request_invariant(&req->ir_nwxfer);
    }
    @endcode
 
@@ -609,28 +668,65 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 		xfer->nxr_state <= NXS_NR &&
 
 		ergo(xfer->nxr_state == NXS_INFLIGHT,
-		     !c2_tlist_is_empty(xfer->nxr_descs) &&
+		     !c2_tlist_is_empty(xfer->nxr_tioreqs) &&
                      xfer->nxr_iofops_nr > 0) &&
 
 		ergo(xfer->nxr_state == NXS_COMPLETE,
-		     c2_tlist_is_empty(xfer->nxr_descs) &&
-                     xfer->nxr_iofops_nr == 0 && xfer->nxr_bytes > 0);
+		     c2_tlist_is_empty(xfer->nxr_tioreqs) &&
+                     xfer->nxr_iofops_nr == 0 && xfer->nxr_bytes > 0) &&
+
+                c2_tl_forall(tioreqs, tioreq, &xfer->nxr_tioreqs,
+                             target_ioreq_invariant(tioreq)) &&
+
+                xfer->nxr_iofops_nr == c2_tlist_length(&xfer->nxr_tioreqs);
    }
    @endcode
 
-   Invariant for structure io_desc.
+   Invariant for structure target_ioreq.
 
    @code
-   static bool stripe_io_desc_invariant(const struct io_desc *desc)
+   static bool target_ioreq_invariant(const struct target_ioreq *tir)
    {
            return
-                  desc != NULL &&
-                  desc->id_magic   != STRIPE_MAGIC &&
-                  desc->id_session != NULL &&
-                  c2_fid_is_valid(desc->id_fid) &&
-                  c2_tlink_is_in(desc->id_link) &&
-                  ergo(!c2_tlist_is_empty(desc->id_iofops),
-                       !c2_tlist_is_empty(desc->id_extents));
+                  tir != NULL &&
+                  tir->tir_magic   == TIOREQ_MAGIC &&
+                  tir->tir_session != NULL &&
+                  c2_fid_is_valid(tir->tir_fid) &&
+                  c2_tlink_is_in(tir->tir_link) &&
+                  target_ioext_invariant(&tir->tir_extent) &&
+                  c2_tl_forall(iofops, iofop, &tir->tir_iofops,
+                               io_req_fop_invariant(iofop));
+   }
+   @endcode
+
+   Invariant for structure target_ioext.
+
+   @code
+   static bool target_ioext_invariant(const struct target_ioext *text)
+   {
+           uint64_t i;
+
+           return
+                  text != NULL &&
+                  text->tie_magic  == TIOEXT_MAGIC &&
+                  text->tie_buf_nr > 0 &&
+                  for (i = 0; i < text->tie_buf_nr; ++i)
+                          data_buf_invariant(text->tie_buffers[i])
+                  !c2_ext_is_empty(&text->tie_ext);
+   }
+   @endcode
+
+   Invariant for structure data_buf.
+
+   @code
+   static bool data_buf_invariant(const struct data_buf *db)
+   {
+           return
+                  db != NULL &&
+                  db->db_magic == DTBUF_MAGIC &&
+                  db->db_type  <  PUT_NR &&
+                  db->db_buf.b_addr != NULL &&
+                  db->db_buf.b_nob  > 0;
    }
    @endcode
 
@@ -642,7 +738,8 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
            return
                   irf != NULL &&
                   irf->irf_magic  == IOFOP_MAGIC &&
-                  irf->irf_nwxfer != NULL;
+                  irf->irf_nwxfer != NULL &&
+                  c2_tlink_is_in(irf->irf_tlink);
    }
    @endcode
 
@@ -651,22 +748,24 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 
    Initializes a newly allocated io_request structure.
 
-   @param req   IO request to be issued.
-   @param fid   File identifier.
-   @param ivec  Array of user-space buffers.
-   @param pos   Starting file offset.
-   @param rw    Flag indicating Read or write request.
+   @param req    IO request to be issued.
+   @param fid    File identifier.
+   @param ivec   Array of user-space buffers.
+   @param seg_nr Number of iovec structures.
+   @param pos    Starting file offset.
+   @param rw     Flag indicating Read or write request.
    @pre   req != NULL
    @post  io_request_invariant(req) &&
    @n     c2_fid_eq(&req->ir_fid, fid) && req->ir_iovec == ivec &&
    @n     req->ir_extent.e_start == pos && req->ir_type == rw
-   @n     req->ir_state == IRS_INITIALIZED
+   @n     req->ir_state == IRS_INITIALIZED && req->ir_seg_nr == seg_nr.
 
    @code
    int io_request_init(struct io_request *req,
                        struct c2_fid     *fid,
                        struct iovec      *ivec,
 		       loff_t             pos,
+                       unsigned long      seg_nr,
                        enum io_req_type   rw);
    @endcode
 
@@ -675,14 +774,14 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    @param req IO request to be processed.
    @pre   io_request_invariant(req) &&
    @n     req->ir_state == IRS_REQ_COMPLETE &&
-   @post  c2_tlist_is_empty(req->ir_nwxfer.nxr_descs)
+   @post  c2_tlist_is_empty(req->ir_nwxfer.nxr_tioreqs)
 
    @code
    void io_request_fini(struct io_request *req);
    @endcode
 
    Reads given extent of file. Data read from server is kept into
-   io_request::ir_nwxfer::io_desc::sid_buffers. see @c2t1fs_buf.
+   io_request::ir_nwxfer::target_ioreq::sid_buffers. see @c2t1fs_buf.
    This API can also be used by a write request which needs to read first
    due to its unaligned nature with parity group width.
    In such case, even if the state of struct io_request indicates IRS_READING
@@ -720,10 +819,10 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 
    @param req IO request to be committed.
    @pre   io_request_invariant(req) && req->ir_state == IRS_WRITING &&
-   @n     !c2_tlist_is_empty(req->ir_nwxfer.nxr_descs)
+   @n     !c2_tlist_is_empty(req->ir_nwxfer.nxr_tioreqs)
    @post  io_request_invariant(req) &&
    @n     req->ir_state == IRS_WRITE_COMPLETE &&
-   @n     c2_tlist_is_empty(req->ir_nwxfer.nxr_descs)
+   @n     c2_tlist_is_empty(req->ir_nwxfer.nxr_tioreqs)
 
    @code
    int io_request_write_commit(struct io_request *req);
@@ -732,6 +831,9 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    Post processing for read IO completion.
    For READ IO operations, this function will copy back the data from
    kernel space to user-space.
+   For read-modify-write IO operation, this function will kick-start the
+   copy_from_user() _only_ for partially spanned pages and then proceed with
+   write IO request processing.
 
    @param req IO request to be processed.
    @pre   io_request_invariant(req) && req->ir_state == IRS_READING
@@ -772,16 +874,16 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    The APIs that work as member functions for operation vector struct
    nw_xfer_ops are as follows.
 
-   Creates and populates io_desc structures for each member in the
+   Creates and populates target_ioreq structures for each member in the
    parity group.
-   Each io_desc structure will allocate necessary pages to store
+   Each target_ioreq structure will allocate necessary pages to store
    file data and will create IO fops out of it.
 
    @param xfer The network transfer request being prepared.
    @pre   nw_xfer_request_invariant(xfer) &&
    @n     xfer->nxr_state == UNINITIALIZED
    @post  nw_xfer_request_invariant(xfer) &&
-   @n     !c2_tlist_is_empty(xfer->nxr_descs) &&
+   @n     !c2_tlist_is_empty(xfer->nxr_tioreqs) &&
    @n     xfer->nxr_state == NXS_INITIALIZED.
 
    @code
@@ -789,18 +891,17 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    @endcode
 
    Dispatches the network transfer request and does asynchronous wait for
-   completion. Typically, IO fops from all io_desc::id_iofops
-   contained in nw_xfer_request::nxr_descs list are dispatched at once
+   completion. Typically, IO fops from all target_ioreq::tir_iofops
+   contained in nw_xfer_request::nxr_tioreqs list are dispatched at once
    The network transfer request is considered as complete when callbacks for
-   all IO fops from all io_desc structures are acknowledged and
+   all IO fops from all target_ioreq structures are acknowledged and
    processed.
 
    @param xfer The network transfer request being dispatched.
    @pre   nw_xfer_request_invariant(xfer) &&
-   @n     !c2_tlist_is_empty(xfer->nxr_descs) &&
+   @n     !c2_tlist_is_empty(xfer->nxr_tioreqs) &&
    @n     xfer->nxr_state == NXS_INITIALIZED.
-   @post  nw_xfer_request_invariant(xfer) &&
-   @n     xfer->nxr_state == xfer->nxr_state == NXS_INFLIGHT
+   @post  nw_xfer_request_invariant(xfer)
 
    @code
    int nw_xfer_req_dispatch(struct nw_xfer_request *xfer);
@@ -814,7 +915,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    @n     xfer->nxr_state == NXS_INFLIGHT
    @post  nw_xfer_request_invariant(xfer) &&
    @n     xfer->nxr_state == NXS_COMPLETE &&
-   @n     c2_tlist_is_empty(xfer->nxr_descs).
+   @n     c2_tlist_is_empty(xfer->nxr_tioreqs).
 
    @code
    int nw_xfer_req_complete(struct nw_xfer_request *xfer);
@@ -843,7 +944,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 	};
 	Sinit      -> Swriting   [ label = "io == write()", fontsize=9 ]
 	Sinit      -> Sreading   [ label = "io == read()", fontsize=9 ]
-	Sreading   -> Sreading   [ label = "!io_spans_full_stripe()",
+	Sreading   -> Sreading   [ label = "!io_spans_full_pg()",
 				   fontsize=9 ]
 	{
 	    rank = same; Swritedone; Sreaddone;
@@ -852,7 +953,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 			           weight=4 ]
 	Sreading   -> Sreaddone  [ label = "read_complete()", fontsize=9,
 			           weight=4 ]
-	Swriting   -> Sreading   [ label = "! io_spans_full_stripe()",
+	Swriting   -> Sreading   [ label = "! io_spans_full_pg()",
 				   fontsize=9 ]
 	Sreaddone  -> Sreqdone   [ label = "io == read()", fontsize=9 ]
 	Sreaddone  -> Swriting   [ label = "io == write()", fontsize=9 ]
@@ -866,7 +967,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    @subsection rmw-lspec-thread Threading and Concurrency Model
 
    All IO fops resulting from IO request will be dispatched at once and the
-   state machine (c2_sm) will wait for completion of read/write IO.
+   state machine (c2_sm) will wait for completion of read or write IO.
    Incoming callbacks will be registered with the c2_sm state machine where
    their respective top half functions will be executed on same thread while
    the bottom half functions will be executed when all ASTs are run.
@@ -875,7 +976,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    @see sm. Concurrency section of State machine.
 
    @todo In future, with introduction of Resource Manager, distributed extent
-   locks have to be acquired/released as needed.
+   locks have to be acquired or released as needed.
 
    @subsection rmw-lspec-numa NUMA optimizations
 
@@ -919,6 +1020,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    @test Write very small amount of data (10 - 20 bytes) to a newly created
    file and check if it is successful. This should stress 2 boundary conditions
    - a partial parity group write IO request and
+
    - unavailability of all data units in a parity group. In this case,
    the non-existing data units will be assumed as zero filled buffers and
    the parity will be calculated accordingly.
@@ -958,6 +1060,7 @@ Detailed level design HOWTO</a>,
    - The task can be decomposed into 2 subtasks as follows.
      - implementation of c2_sm and all state entry and exit functions.
        Referred to as subtask-sm-support henceforth.
+
      - implementation of primary data structures and interfaces needed to
        support read-modify-write. Referred to as subtask-rwm-support henceforth.
 
