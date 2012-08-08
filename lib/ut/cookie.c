@@ -51,34 +51,34 @@ void test_cookie(void)
 		     (uint64_t)(dummy_test->ds_val));
 	C2_UT_ASSERT(cookie_test.co_generation == dummy_test->ds_val[0]);
 
-	/*Testing c2_cookie_dereference for a valid cookie.
-	 */
+/*Testing c2_cookie_dereference for a valid cookie.
+*/
 	flag = c2_cookie_dereference(&cookie_test, &addr_dummy);
 	C2_UT_ASSERT(flag == 0);
 	C2_UT_ASSERT(addr_dummy == dummy_test->ds_val);
 
-	/*Testing of the macro c2_cookie_of(...).
-	 */
+/*Testing of the macro c2_cookie_of(...).
+*/
 	dummy_retrvd = c2_cookie_of(&cookie_test, struct dummy_struct, ds_val);
 	C2_UT_ASSERT(dummy_retrvd->ds_val == dummy_test->ds_val);
 
-	/*Testing c2_cookie_dereference when address in a cookie is
-	 * a NULL pointer.
-	 */
+/*Testing c2_cookie_dereference when address in a cookie is
+* a NULL pointer.
+*/
 	cookie_test.co_addr = (uint64_t)NULL;
 	flag = c2_cookie_dereference(&cookie_test, &addr_dummy);
 	C2_UT_ASSERT(flag == -EPROTO);
 
-	/*Testing c2_cookie_dereference when address in a cookie is not greater
-	 * than 4096.
-	 */
+/*Testing c2_cookie_dereference when address in a cookie is not greater
+* than 4096.
+*/
 	cookie_test.co_addr = 4093;
 	flag = c2_cookie_dereference(&cookie_test, &addr_dummy);
 	C2_UT_ASSERT(flag == -EPROTO);
 
-	/*Testing c2_cookie_dereference when address in a cookie is
-	 * not aligned to 8-bytes
-	 */
+/*Testing c2_cookie_dereference when address in a cookie is
+* not aligned to 8-bytes
+*/
 	fake_ptr = (char *)(dummy_test->ds_val);
 	++fake_ptr;
 	cookie_test.co_addr = (uint64_t)fake_ptr;
@@ -86,8 +86,8 @@ void test_cookie(void)
 	flag = c2_cookie_dereference(&cookie_test, &addr_dummy);
 	C2_UT_ASSERT(flag == -EPROTO);
 
-	/*Testing c2_cookie_dereference for a stale cookie.
-	 */
+/*Testing c2_cookie_dereference for a stale cookie.
+*/
 	c2_cookie_new(dummy_test->ds_val);
 	C2_UT_ASSERT(dummy_test->ds_val[0] - cookie_test.co_generation ==
 		     1);
