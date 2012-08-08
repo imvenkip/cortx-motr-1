@@ -19,17 +19,17 @@
  */
 
 #include "lib/errno.h"
-#include "colibri/init.h"
 #include "lib/memory.h"
 #include "lib/bitstring.h"
 #include "lib/misc.h"
-#include "fop/fop.h"
+#include "lib/vec.h"
 #include "lib/ut.h"
-#include "fop/fop_format.h"
+#include "colibri/init.h"
+#include "fop/fop.h"
 #include "fop/fop_base.h"
 #include "xcode/bufvec_xcode.h"
 #include "xcode/ut/xcode_fops.h"
-#include "lib/vec.h"
+
 #include "rpc/rpc_opcodes.h"
 
 /** Random test values. */

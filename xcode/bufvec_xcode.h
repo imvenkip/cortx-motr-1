@@ -23,6 +23,7 @@
 
 #ifndef C2_BUFVEC_XCODE_H_
 #define C2_BUFVEC_XCODE_H_
+
 /**
    @defgroup bufvec_xcode Generic Buffer Vector Encode/Decode routines.
 
@@ -38,6 +39,7 @@
    - Currently, we assume that the bufvecs supplied to the transcode routines
    have 8 byte aligned buffers with sizes multiple of 8 bytes.
 */
+
 /** This is the  number of bytes per unit of external data */
 enum {
 	MAX_PAD_BYTES = 7,
@@ -95,72 +97,7 @@ int c2_bufvec_uint32(struct c2_bufvec_cursor *vc, uint32_t *val,
 int c2_bufvec_uint16(struct c2_bufvec_cursor *vc, uint16_t *val,
 		     enum c2_bufvec_what what);
 
-/**
-  Encode/Decode a 8  bit unsigned value into c2_bufvecs.
-  @see c2_bufvec_uint64()
-*/
-int c2_bufvec_byte(struct c2_bufvec_cursor *vc, uint8_t *val,
-		     enum c2_bufvec_what what);
-
-/**
- Generic procedure for each data type for encode / decode. This can be used
- for creating bufvec encode/decode for user defined data types. This can also
- be passed as a callback function for xcoding each element when xcoding
- an array (see c2_bufvec_array).
- */
-typedef int (*c2_bufvec_xcode_t)(struct c2_bufvec_cursor *vc, void *val, ...);
-
-/**
-  Encode/Decode an array of arbitary elements into a bufvec.
-  @param vc current position of the bufvec cursor
-  @param p_arr pointer to the array.
-  @param el_no number of elements.
-  @param max_size max number of elements.
-  @param el_size size in bytes of each element.
-  @param el_proc The bufvec xcode procedure to handle the encode/decode of each
-  element of the array.
-  @param what The type of operation to be performed on the array-encode or
-  decode.
-  @retval 0 on success.
-  @retval -errno on failure.
-*/
-int c2_bufvec_array(struct c2_bufvec_cursor *vc, void *p_arr, uint64_t el_no,
-		    size_t max_size, size_t el_size, c2_bufvec_xcode_t el_proc,
-		    enum c2_bufvec_what what);
-
-/**
-  Encode/Decode a sequence of bytes into a bufvec. For proper alignment,
-  padding bytes are added at the end of the sequence if the size is not a
-  multiple of 8 bytes during encode. This ensures that the bufvec cursor
-  always has an 8 byte aligned address.
-  @param vc current position of the bufvec cursor.
-  @param cpp pointer to the byte array.
-  @param size  count of bytes to be encoded/decoded.
-  @param max_size max no of bytes that can be encoded/decoded.
-  @param what The type of operation to be performed - encode or decode.
-  @retval 0 on success.
-  @retval -errno on failure.
-*/
-int c2_bufvec_bytes(struct c2_bufvec_cursor *vc, char **cpp, size_t size,
-		    size_t max_size, enum c2_bufvec_what what);
-
 /** @} end of bufvec group */
-
-/**
-  Calculates the onwire size of fop data. This function internally calls
-  the fop field type specific functions to calculate the size
-
-  @param fop The data for this fop is to be encoded/decoded.
-
-  @retval Onwire size of the fop in bytes.
-*/
-size_t c2_xcode_fop_size_get(struct c2_fop *fop);
-
-/** Get the pad bytes required for message */
-int c2_xcode_pad_bytes_get(size_t size);
-
-/** Add zero padding to message */
-int c2_xcode_zero_padding_add(struct c2_bufvec_cursor *cur, uint64_t pad_bytes);
 
 #endif /* C2_BUFVEC_XCODE_H_ */
 

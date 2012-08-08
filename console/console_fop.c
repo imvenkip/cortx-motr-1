@@ -27,40 +27,34 @@
 #include "lib/memory.h"		/* C2_ALLOC_PTR */
 #include "lib/errno.h"		/* ENOMEM */
 #include "fop/fop_item_type.h"	/* default fop encode/decode */
+#include "fop/fop.h"            /* c2_fop_xcode_length */
 
 #include "console/console_fop.h" /* FOPs defs */
 #include "console/console_fom.h" /* FOMs defs */
 #include "console/console_xc.h"	 /* FOP memory layout */
-#include "xcode/bufvec_xcode.h"  /* c2_xcode_fop_size_get() */
 
 /**
    @addtogroup console
    @{
 */
 
-/** Operations for device failure notification */
-static const struct c2_fop_type_ops c2_cons_fop_device_ops = {
-	.fto_size_get = c2_xcode_fop_size_get
-};
-
-/** Operations for reply of any failure notification */
-static const struct c2_fop_type_ops c2_cons_fop_reply_ops = {
-	.fto_size_get = c2_xcode_fop_size_get
+/** Default fop type operations */
+static const struct c2_fop_type_ops c2_cons_fop_default_ops = {
+	.fto_size_get = c2_fop_xcode_length
 };
 
 /* Fop and RPC Item type definitions for device failures and replies
    and replies */
 C2_FOP_TYPE_DECLARE(c2_cons_fop_device, "Device Failed",
-		    &c2_cons_fop_device_ops,
-		    C2_CONS_FOP_DEVICE_OPCODE,
+		    &c2_cons_fop_default_ops, C2_CONS_FOP_DEVICE_OPCODE,
 		    C2_RPC_ITEM_TYPE_REQUEST);
 
 C2_FOP_TYPE_DECLARE(c2_cons_fop_reply, "Console Reply",
-		    &c2_cons_fop_reply_ops,
-		    C2_CONS_FOP_REPLY_OPCODE,
+		    &c2_cons_fop_default_ops, C2_CONS_FOP_REPLY_OPCODE,
 		    C2_RPC_ITEM_TYPE_REPLY);
 
-C2_FOP_TYPE_DECLARE(c2_cons_fop_test, "Console Test", NULL, C2_CONS_TEST, 0);
+C2_FOP_TYPE_DECLARE(c2_cons_fop_test, "Console Test",
+		    &c2_cons_fop_default_ops, C2_CONS_TEST, 0);
 
 static struct c2_fop_type *fops[] = {
         &c2_cons_fop_device_fopt,

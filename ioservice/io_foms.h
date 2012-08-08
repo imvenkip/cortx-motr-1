@@ -132,7 +132,6 @@
  */
 
 #include "fop/fop.h"
-#include "fop/fop_format.h"
 #include "ioservice/io_fops.h"
 #include "stob/stob.h"
 #include "net/net.h"

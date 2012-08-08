@@ -34,7 +34,6 @@
 #include "rpc/rpc2.h"
 #include "rpc/rpclib.h"
 #include "fop/fop_item_type.h"
-#include "xcode/bufvec_xcode.h"
 
 #include "cs_fop_foms.h"
 #include "cs_test_fops.h"
@@ -53,26 +52,26 @@ const struct c2_rpc_item_ops cs_ds_req_fop_rpc_item_ops = {
 /* DS1 service fop type operations.*/
 static const struct c2_fop_type_ops cs_ds1_req_fop_type_ops = {
         .fto_fop_replied = NULL,
-        .fto_size_get = c2_xcode_fop_size_get,
+        .fto_size_get = c2_fop_xcode_length,
         .fto_io_coalesce = NULL,
 };
 
 static const struct c2_fop_type_ops cs_ds1_rep_fop_type_ops = {
         .fto_fop_replied = NULL,
-        .fto_size_get = c2_xcode_fop_size_get,
+        .fto_size_get = c2_fop_xcode_length,
         .fto_io_coalesce = NULL,
 };
 
 /* DS2 service fop type operations */
 static const struct c2_fop_type_ops cs_ds2_req_fop_type_ops = {
         .fto_fop_replied = NULL,
-        .fto_size_get = c2_xcode_fop_size_get,
+        .fto_size_get = c2_fop_xcode_length,
         .fto_io_coalesce = NULL,
 };
 
 static const struct c2_fop_type_ops cs_ds2_rep_fop_type_ops = {
         .fto_fop_replied = NULL,
-        .fto_size_get = c2_xcode_fop_size_get,
+        .fto_size_get = c2_fop_xcode_length,
         .fto_io_coalesce = NULL,
 };
 

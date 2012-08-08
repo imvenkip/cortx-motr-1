@@ -21,7 +21,7 @@
 #ifndef __COLIBRI_PING_FOM_H__
 #define __COLIBRI_PING_FOM_H__
 
-#include "ping_fop.h"
+#include "rpc/it/ping_fop.h"
 
 /**
  * Object encompassing FOM for ping

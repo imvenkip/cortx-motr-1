@@ -139,7 +139,10 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb,
 		  c2_bcount_t len, c2_bcount_t offset);
 
 int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
-			enum c2_bufvec_what what);
+		enum c2_bufvec_what what);
+
+/** Get the pad bytes required for message */
+int c2_rpc_pad_bytes_get(size_t size);
 
 /** @}  End of rpc_onwire group */
 

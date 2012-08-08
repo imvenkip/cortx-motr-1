@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -390,6 +390,59 @@ int c2_0vec_cbuf_add(struct c2_0vec *zvec,
 	zvec->z_index[curr_seg] = *index;
 
 	C2_POST(c2_0vec_invariant(zvec));
+	return 0;
+}
+
+/**
+ * Initializes a c2_bufvec containing a single element of specified size
+ */
+static void data_to_bufvec(struct c2_bufvec *src_buf, void **data,
+			   size_t *len)
+{
+	C2_PRE(src_buf != NULL);
+	C2_PRE(len != 0);
+	C2_PRE(data != NULL);
+	C2_CASSERT(sizeof len == sizeof src_buf->ov_vec.v_count);
+
+	src_buf->ov_vec.v_nr = 1;
+	src_buf->ov_vec.v_count = (c2_bcount_t *)len;
+	src_buf->ov_buf = data;
+}
+
+int c2_data_to_bufvec_copy(struct c2_bufvec_cursor *cur, void *data,
+			   size_t len)
+{
+	c2_bcount_t		count;
+	struct c2_bufvec_cursor src_cur;
+	struct c2_bufvec	src_buf;
+
+	C2_PRE(cur  != NULL);
+	C2_PRE(data != NULL);
+
+	data_to_bufvec(&src_buf, &data, &len);
+	c2_bufvec_cursor_init(&src_cur, &src_buf);
+	count = c2_bufvec_cursor_copy(cur, &src_cur, len);
+	if (count != len)
+		return -EFAULT;
+	return 0;
+}
+
+int c2_bufvec_to_data_copy(struct c2_bufvec_cursor *cur, void *data,
+			   size_t len)
+{
+	c2_bcount_t		count;
+	struct c2_bufvec_cursor dcur;
+	struct c2_bufvec	dest_buf;
+
+	C2_PRE(cur  != NULL);
+	C2_PRE(data != NULL);
+	C2_PRE(len  != 0);
+
+	data_to_bufvec(&dest_buf, &data, &len);
+	c2_bufvec_cursor_init(&dcur, &dest_buf);
+	count = c2_bufvec_cursor_copy(&dcur, cur, len);
+	if (count != len)
+		return -EFAULT;
 	return 0;
 }
 

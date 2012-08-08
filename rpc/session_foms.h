@@ -23,7 +23,6 @@
 #define _C2_RPC_SESSION_FOM_H
 
 #include "fop/fop.h"
-#include "fop/fop_format.h"
 #include "rpc/session_fops.h"
 #include "rpc/session_xc.h"
 #include "fop/fom.h"

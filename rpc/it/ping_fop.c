@@ -31,19 +31,18 @@
 #include "lib/errno.h"
 #include "rpc/rpc2.h"
 #include "fop/fop_item_type.h"
-#include "xcode/bufvec_xcode.h"
 
 /* Ops vector for ping request. */
 const struct c2_fop_type_ops c2_fop_ping_ops = {
 	.fto_fop_replied = NULL,
-	.fto_size_get = c2_xcode_fop_size_get,
+	.fto_size_get = c2_fop_xcode_length,
 	.fto_io_coalesce = NULL,
 };
 
 /* Ops vector for ping reply. */
 const struct c2_fop_type_ops c2_fop_ping_rep_ops = {
         .fto_fop_replied = NULL,
-        .fto_size_get = c2_xcode_fop_size_get,
+        .fto_size_get = c2_fop_xcode_length,
         .fto_io_coalesce = NULL,
 };
 

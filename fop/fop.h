@@ -29,6 +29,7 @@
 #include "fop/fom.h"
 #include "fop/fop_base.h"
 #include "rpc/rpc2.h"
+#include "xcode/xcode.h"
 
 /**
    @defgroup fop File operation packet
@@ -130,6 +131,16 @@ void           c2_fop_free (struct c2_fop *fop);
 void          *c2_fop_data (struct c2_fop *fop);
 
 /**
+  Calculates the onwire size of fop data. This function internally calls
+  the fop field type specific functions to calculate the size
+
+  @param fop The data for this fop is to be encoded/decoded.
+
+  @retval Onwire size of the fop in bytes.
+*/
+size_t c2_fop_xcode_length(struct c2_fop *fop);
+
+/**
    Allocate top level fop data
  */
 int            c2_fop_data_alloc (struct c2_fop *fop);
@@ -153,7 +164,64 @@ void c2_fop_item_free(struct c2_rpc_item *item);
 
 extern const struct c2_rpc_item_ops c2_fop_default_item_ops;
 
-#include "fop/fop_format.h"
+/**
+   <b>Fop format</b>
+
+   A fop type contains as its part a "fop format". A fop format is a description
+   of structure of data in a fop instance. Fop format describes fop instance
+   data structure as a tree of fields. Leaves of this tree are fields of
+   "atomic" types (VOID, BYTE, U32 and U64) and non-leaf nodes are "aggregation
+   fields": record, union, sequence or typedef.
+
+   The key point of fop formats is that data structure description can be
+   analysed at run-time, by traversing the tree:
+
+   @li to pack and unpack fop instance between in-memory and on-wire
+   representation fop format tree is traversed recursively and fop fields are
+   serialized or de-serialized.
+
+   @li the same for converting fop between in-memory and data-base record
+   formats;
+
+   @li finally, when a new fop type is added, data-structure definitions for
+   instances of this type are also generated automatically by traversing the
+   format tree (by code in fop_format_c.c and fop2c). These data-structure
+   definitions can be different for different platforms (e.g., kernel and user
+   space).
+
+   Fop formats are introduced in "fop format description files", usually having
+   .ff extension. See xcode/ff2c/sample.ff for an example. fop format
+   description file defines instances of struct c2_xcode_type encoded via
+   helper functions generated from ff2c compiler
+
+   During build process, fop format description file is processed by
+   xcode/ff2c/ff2c compiler. xcode provides interfaces to iterate over
+   hierarchy of such descriptors and to associate user defined state with
+   types and fields.
+
+   @see xcode/ff2c/ff2c
+*/
+
+extern const struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops;
+
+
+#define __paste_xc(x) x ## _xc
+
+#define C2_FOP_TYPE_DECLARE_OPS(fopt, name, ops, opcode, itflags, itops) \
+	struct c2_fop_type fopt ## _fopt = {				\
+		.ft_name    = name,					\
+		.ft_xc_type = &__paste_xc(fopt),			\
+		.ft_ops     = (ops),					\
+		.ft_rpc_item_type = {					\
+			.rit_opcode = (opcode),				\
+			.rit_flags  = (itflags),			\
+			.rit_ops    = (itops)				\
+		}							\
+	};
+
+#define C2_FOP_TYPE_DECLARE(fopt, name, ops, opcode, itflags)		\
+        C2_FOP_TYPE_DECLARE_OPS(fopt, name, ops, opcode, itflags,	\
+				&c2_rpc_fop_default_item_type_ops)
 
 /** @} end of fop group */
 

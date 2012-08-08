@@ -27,8 +27,8 @@
 #include "lib/memory.h"
 #include "fop/fom.h"
 #include "fop/fop.h"
-#include "rpc/session_xc.h"
 #include "fop/fop_item_type.h"
+#include "rpc/session_xc.h"
 #include "rpc/session_fops.h"
 #include "rpc/session_foms.h"
 #include "rpc/session_internal.h"
@@ -104,15 +104,15 @@ out:
 }
 
 static const struct c2_fop_type_ops default_fop_type_ops = {
-	.fto_size_get = c2_xcode_fop_size_get,
+	.fto_size_get = c2_fop_xcode_length,
 };
 
 static const struct c2_fop_type_ops default_reply_fop_type_ops = {
-	.fto_size_get = c2_xcode_fop_size_get,
+	.fto_size_get = c2_fop_xcode_length,
 };
 
 const struct c2_fop_type_ops c2_rpc_fop_noop_ops = {
-	.fto_size_get = c2_xcode_fop_size_get,
+	.fto_size_get = c2_fop_xcode_length,
 	.fto_execute = c2_rpc_fop_noop_execute
 };
 

@@ -17,14 +17,15 @@
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
  * Original creation date: 05/19/2010
  */
-#include "lib/cdefs.h"  /* C2_EXPORTED */
+#include "lib/cdefs.h" /* C2_EXPORTED */
 #include "lib/memory.h"
-#include "lib/misc.h"   /* C2_SET0 */
+#include "lib/misc.h" /* C2_SET0 */
 #include "lib/list.h"
 #include "lib/mutex.h"
 #include "lib/vec.h"
-#include "fop/fop.h"
 #include "lib/errno.h"
+#include "fop/fop.h"
+#include "rpc/rpc_onwire.h" /* c2_rpc_pad_bytes_get */
 
 /**
    @addtogroup fop
@@ -33,13 +34,18 @@
 
 extern struct c2_addb_ctx_type c2_fop_addb_ctx;
 
+static size_t fop_data_size(const struct c2_fop *fop)
+{
+	return (*fop->f_type->ft_xc_type)->xct_sizeof;
+}
+
 int c2_fop_data_alloc(struct c2_fop *fop)
 {
-	c2_bcount_t nob;
+	size_t nob;
 
 	C2_PRE(fop->f_data.fd_data == NULL && fop->f_type != NULL);
 
-	nob = (*fop->f_type->ft_xc_type)->xct_sizeof;
+	nob = fop_data_size(fop);
 	fop->f_data.fd_data = c2_alloc(nob);
 
 	return fop->f_data.fd_data == NULL ? -ENOMEM : 0;
@@ -110,6 +116,24 @@ void *c2_fop_data(struct c2_fop *fop)
 }
 C2_EXPORTED(c2_fop_data);
 
+size_t c2_fop_xcode_length(struct c2_fop *fop)
+{
+	size_t              size;
+	size_t              padding;
+	struct c2_xcode_ctx ctx;
+
+	C2_PRE(fop != NULL);
+
+	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj) {
+			  *fop->f_type->ft_xc_type,
+			  c2_fop_data(fop) });
+	size    = c2_xcode_length(&ctx);
+	padding = c2_rpc_pad_bytes_get(size);
+
+	return size + padding;
+}
+C2_EXPORTED(c2_fop_xcode_length);
+
 /*
  * fop-fol interaction.
  */
@@ -179,7 +203,7 @@ static size_t fol_pack_size(struct c2_fol_rec_desc *desc)
 {
 	struct c2_fop *fop = desc->rd_type_private;
 
-	return (*fop->f_type->ft_xc_type)->xct_sizeof;
+	return fop_data_size(fop);
 }
 
 static void fol_pack(struct c2_fol_rec_desc *desc, void *buf)

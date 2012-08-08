@@ -60,17 +60,15 @@ int c2_xcode_next(struct c2_xcode_cursor *it)
 			++top->s_fieldno;
 			break;
 		case C2_XA_SEQUENCE:
-			if (top->s_fieldno == 1 &&
-			    ++top->s_elno < c2_xcode_tag(&top->s_obj))
-				; /* nothing */
-			else {
+			if (top->s_fieldno == 0) {
 				top->s_elno = 0;
-				++top->s_fieldno;
+				top->s_fieldno = 1;
+			} else
+				++top->s_elno;
+			if (top->s_elno >= c2_xcode_tag(&top->s_obj)) {
+				top->s_elno = 0;
+				top->s_fieldno = 2;
 			}
-
-			if (top->s_fieldno == 1 &&
-			    c2_xcode_tag(&top->s_obj) == 0)
-				++top->s_fieldno;
 			break;
 		case C2_XA_UNION:
 			if (top->s_fieldno != 0) {

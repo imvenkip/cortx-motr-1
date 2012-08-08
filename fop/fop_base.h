@@ -110,9 +110,6 @@ void c2_fop_type_fini(struct c2_fop_type *fopt);
 int  c2_fop_type_build_nr(struct c2_fop_type **fopt, int nr);
 void c2_fop_type_fini_nr(struct c2_fop_type **fopt, int nr);
 
-struct c2_list;
-struct c2_fop_ctx;
-
 /** fop type operations. */
 struct c2_fop_type_ops {
 	/** XXX temporary entry point for threaded fop execution. */
@@ -164,8 +161,6 @@ enum c2_fop_field_kind {
 
 int  c2_fops_init(void);
 void c2_fops_fini(void);
-
-#include "fop/fop_format.h"
 
 /** @} end of fop group */
 

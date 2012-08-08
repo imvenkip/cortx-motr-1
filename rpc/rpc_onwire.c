@@ -22,11 +22,11 @@
 #include "lib/memory.h"
 #include "lib/arith.h"
 #include "lib/trace.h"
+#include "lib/vec.h" /* c2_data_to_bufvec_copy */
+#include "lib/misc.h" /* c2_round_up */
 #include "fop/fop.h"
-#include "fop/fop_format.h"
 #include "rpc/session_internal.h"
 #include "rpc/rpc_onwire.h"
-#include "xcode/bufvec_xcode.h"
 #include "xcode/xcode.h"
 
 /* XXX : Return correct RPC version. */
@@ -165,6 +165,19 @@ static int item_header_encdec(struct c2_bufvec_cursor *cur,
 }
 
 /**
+  Adds padding bytes to the c2_bufvec_cursor to keep it aligned at 8 byte
+  boundaries.
+*/
+static int zero_padding_add(struct c2_bufvec_cursor *cur, uint64_t pad_bytes)
+{
+	uint64_t pad = 0;
+
+	C2_PRE(cur != NULL);
+
+	return c2_data_to_bufvec_copy(cur, &pad, pad_bytes);
+}
+
+/**
    Helper function used by encode/decode ops of each item type (rito_encode,
    rito_decode) for decoding an rpc item into/from a bufvec
 */
@@ -174,7 +187,7 @@ int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
 	int                  rc;
 	size_t               item_size;
 	size_t               padding;
-	struct	c2_fop      *fop;
+	struct c2_fop       *fop;
 	struct c2_xcode_ctx  xc_ctx;
 
 	C2_PRE(item != NULL);
@@ -214,9 +227,8 @@ int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
 				  *fop->f_type->ft_xc_type,
 				  c2_fop_data(fop)});
 		item_size = c2_xcode_length(&xc_ctx);
-		padding   = c2_xcode_pad_bytes_get(item_size);
-		if (padding > 0)
-			rc = c2_xcode_zero_padding_add(cur, padding);
+		padding   = c2_rpc_pad_bytes_get(item_size);
+		rc = zero_padding_add(cur, padding);
 	}
 
 	return rc;
@@ -358,6 +370,16 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb,
 		c2_list_add(&rpc_obj->r_items, &item->ri_rpcobject_linkage);
 	}
 	return rc;
+}
+
+/**
+   Returns no of padding bytes that would be needed to keep a cursor aligned
+   at 8 byte boundary.
+   @pre size > 0
+*/
+int c2_rpc_pad_bytes_get(size_t size)
+{
+	return c2_round_up(size, BYTES_PER_XCODE_UNIT) - size;
 }
 
 /*

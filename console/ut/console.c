@@ -46,7 +46,7 @@
 #include "console/console_it.h"
 #include "console/console_yaml.h"
 #include "console/console_mesg.h"
-#include "console/main.c"
+#include "console/console.c"
 
 /**
    @addtogroup console

@@ -48,8 +48,6 @@ static void default_fom_fini(struct c2_fom *fom)
 {
 	c2_fom_fini(fom);
 	c2_free(fom);
-
-        return;
 }
 
 static int cons_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)

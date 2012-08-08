@@ -28,12 +28,11 @@
 #include "lib/vec.h"	/* c2_0vec */
 #include "lib/memory.h"
 #include "lib/tlist.h"
-#include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
+#include "addb/addb.h"
+#include "fop/fop_item_type.h"
 #include "rpc/item.h"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpc2.h"
-#include "fop/fop_item_type.h"
-#include "addb/addb.h"
 #include "ioservice/io_fops.h"
 #include "ioservice/io_fops_xc.h"
 
@@ -107,7 +106,7 @@ static const struct c2_rpc_item_type_ops io_item_type_ops = {
 
 const struct c2_fop_type_ops io_fop_rwv_ops = {
 	.fto_fop_replied = io_fop_replied,
-	.fto_size_get	 = c2_xcode_fop_size_get,
+	.fto_size_get	 = c2_fop_xcode_length,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 };
@@ -121,7 +120,7 @@ const struct c2_rpc_item_ops cob_req_rpc_item_ops = {
 
 const struct c2_fop_type_ops cob_fop_type_ops = {
 	.fto_fop_replied = NULL,
-	.fto_size_get	 = c2_xcode_fop_size_get,
+	.fto_size_get	 = c2_fop_xcode_length,
 	.fto_io_coalesce = NULL,
 	.fto_io_desc_get = NULL,
 };
@@ -134,7 +133,7 @@ static const struct c2_rpc_item_type_ops cob_rpc_type_ops = {
 };
 
 static const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
-	.fto_size_get = c2_xcode_fop_size_get
+	.fto_size_get = c2_fop_xcode_length
 };
 
 C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_readv, "Read request",

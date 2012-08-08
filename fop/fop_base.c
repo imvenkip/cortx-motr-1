@@ -31,7 +31,7 @@
  */
 
 /*
- * Imported either from fop/fop.c or from fop/rt/stub.c
+ * Imported from fop/fop.c
  */
 int  fop_fol_type_init(struct c2_fop_type *fopt);
 void fop_fol_type_fini(struct c2_fop_type *fopt);
@@ -69,8 +69,8 @@ bool fop_types_built = false;
 void c2_fop_type_fini(struct c2_fop_type *fopt)
 {
 	fop_fol_type_fini(fopt);
+	c2_fol_rec_type_unregister(&fopt->ft_rec_type);
 	c2_mutex_lock(&fop_types_lock);
-	C2_ASSERT(&fopt->ft_rpc_item_type != NULL);
 	c2_rpc_item_type_deregister(&fopt->ft_rpc_item_type);
 	ft_tlink_del_fini(fopt);
 	fopt->ft_magix = 0;

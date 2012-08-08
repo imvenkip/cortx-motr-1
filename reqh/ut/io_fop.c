@@ -40,7 +40,6 @@
 #include "rpc/rpc_onwire.h"
 #include "rpc/rpc_opcodes.h"
 #include "fop/fop_item_type.h"
-#include "xcode/bufvec_xcode.h"
 #include "reqh/ut/io_fop_xc.h"
 
 /**
@@ -71,11 +70,11 @@ enum stob_write_fom_phase {
  * Fop operation structures for corresponding fops.
  */
 static const struct c2_fop_type_ops default_fop_ops = {
-        .fto_size_get = c2_xcode_fop_size_get,
+        .fto_size_get = c2_fop_xcode_length,
 };
 
 static const struct c2_fop_type_ops default_rep_fop_ops = {
-        .fto_size_get = c2_xcode_fop_size_get,
+        .fto_size_get = c2_fop_xcode_length,
 };
 
 /**

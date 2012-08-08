@@ -29,21 +29,16 @@
 #include "lib/tlist.h"
 #include "lib/assert.h"
 #include "addb/addb.h"
-#include "net/net.h"
 #include "net/net_internal.h"
 #include "net/buffer_pool.h"
-#include "fop/fop.h"
-#include "fop/fop_format.h"
-#include "stob/stob.h"
 #include "stob/linux.h"
 #include "fid/fid.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 #include "ioservice/io_foms.h"
-#include "ioservice/io_fops.h"
 #include "ioservice/io_service.h"
-#include "colibri/colibri_setup.h"
 #include "ioservice/io_fops_xc.h"
+#include "colibri/colibri_setup.h"
 
 /**
    @page DLD-bulk-server DLD of Bulk Server

@@ -22,7 +22,6 @@
 #define __COLIBRI_IOSERVICE_IO_FOPS_H__
 
 #include "fop/fop_base.h"
-#include "fop/fop_format.h"
 #include "lib/list.h"
 #include "fop/fop.h"
 

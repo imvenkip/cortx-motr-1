@@ -20,6 +20,6 @@ libcolibri_console_la_SOURCES	= $(console_U_SOURCES) console_fop.c \
 				  console_it.c console_mesg.h        \
 				  console_mesg.c console.h console.c
 
-EXTRA_DIST			= console_xc.ff main.c
+EXTRA_DIST			= console_xc.ff
 
 MOSTLYCLEANFILES		= $(console_U_SOURCES)

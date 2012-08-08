@@ -24,12 +24,10 @@
 #include "lib/misc.h"
 #include "lib/trace.h"
 #include "fop/fop.h"
-#include "fop/fop_format.h"
 #include "rpc/rpc2.h"
 #include "fop/fop_base.h"
 #include "fop/fop_item_type.h"
 #include "rpc/rpc_onwire.h"
-#include "xcode/bufvec_xcode.h"
 #include "lib/vec.h"
 #include "rpc/session_internal.h"
 #include "rpc/item.h"
@@ -43,7 +41,7 @@ struct c2_rpc_item   *item2;
 struct c2_rpc_item   *item3;
 
 struct c2_fop_type_ops onwire_test_ops = {
-	.fto_size_get = c2_xcode_fop_size_get,
+	.fto_size_get = c2_fop_xcode_length,
 };
 
 C2_FOP_TYPE_DECLARE(c2_fop_onwire_test, "onwire test", &onwire_test_ops,

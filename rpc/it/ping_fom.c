@@ -22,9 +22,7 @@
 #endif
 
 #include "fop/fop.h"
-#include "fop/fop_format.h"
 #include "rpc/it/ping_fom.h"
-#include "rpc/it/ping_fop.h"
 #include "rpc/it/ping_fop_xc.h"
 #include "lib/errno.h"
 #include "lib/memory.h"

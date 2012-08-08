@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -344,6 +344,16 @@ void c2_0vec_bufs_init(struct c2_0vec *zvec, void **bufs,
  */
 int c2_0vec_cbuf_add(struct c2_0vec *zvec, const struct c2_buf *buf,
 		     const c2_bindex_t *index);
+
+/**
+ * Helper functions to copy opaque data with specified size to and from a
+ * c2_bufvec
+ */
+int c2_data_to_bufvec_copy(struct c2_bufvec_cursor *cur, void *data,
+			   size_t len);
+
+int c2_bufvec_to_data_copy(struct c2_bufvec_cursor *cur, void *data,
+			   size_t len);
 
 /** @} end of vec group */
 
