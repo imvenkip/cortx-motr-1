@@ -22,7 +22,7 @@
 #endif
 
 #include "sns/sns.h"
-#include "sns/repair.h"
+#include "sns/repair/cm.h"
 
 int sns_init()
 {

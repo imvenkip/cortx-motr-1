@@ -123,7 +123,7 @@ static const struct c2_fom_type_ops cp_fom_type_ops = {
         .fto_create = NULL
 };
 
-static const struct c2_fom_type cp_fom_type = {
+static struct c2_fom_type cp_fom_type = {
         .ft_ops = &cp_fom_type_ops
 };
 
@@ -155,7 +155,7 @@ static int cp_fom_state(struct c2_fom *fom)
         cp = container_of(fom, struct c2_cm_cp, c_fom);
         C2_ASSERT(c2_cm_cp_invariant(cp));
 
-	swicth (fom->fo_phase) {
+	switch (fom->fo_phase) {
 	case CCP_READ:
 		return cp->c_ops->co_read(cp);
 	case CCP_WRITE:
@@ -198,17 +198,17 @@ bool c2_cm_cp_invariant(struct c2_cm_cp *cp)
 }
 
 void c2_cm_cp_init(struct c2_cm *cm, struct c2_cm_cp *cp,
-		  struct c2_cm_cp_ops *ops)
+		   const struct c2_cm_cp_ops *ops)
 {
 	struct c2_reqh *reqh = cm->cm_service.rs_reqh;
 
 	C2_PRE(reqh != NULL);
-	C2_PRE(cp->c_fom.fo_phase == CCP_INIT)
+	C2_PRE(cp->c_fom.fo_phase == CCP_INIT);
 
 	cp->c_prio = 0;
 	cp->c_ops = ops;
 	cp->c_cm = cm;
-	c2_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_type_ops, NULL, NULL);
+	c2_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL);
 }
 
 void c2_cm_cp_fini(struct c2_cm_cp *cp)
@@ -216,9 +216,9 @@ void c2_cm_cp_fini(struct c2_cm_cp *cp)
 	C2_PRE(c2_cm_cp_invariant(cp));
 	C2_PRE(cp->c_fom.fo_phase == C2_FOPH_FINISH);
 
-        packet->c_prio = 0;
-        packet->c_ops = NULL;
-        packet->c_cm = NULL;
+        cp->c_prio = 0;
+        cp->c_ops = NULL;
+        cp->c_cm = NULL;
 	c2_fom_fini(&cp->c_fom);
 }
 

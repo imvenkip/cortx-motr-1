@@ -23,6 +23,8 @@
 #ifndef __COLIBRI_REPAIR_CP_H__
 #define __COLIBRI_REPAIR_SNS_H__
 
+#include "lib/ext.h"
+
 #include "cm/cp.h"
 
 /**
@@ -45,7 +47,7 @@ enum c2_sns_repair_phase {
 };
 
 struct c2_sns_repair_cp {
-	enum c2_sns_repair_phase rc_phase,
+	enum c2_sns_repair_phase rc_phase;
 	struct c2_cm_cp		 rc_cp;
 
         /** The gob fid which this data belongs to */
@@ -66,6 +68,8 @@ struct c2_sns_repair_cp {
         /** The extent in cob */
         struct c2_ext		 rc_cext;
 };
+
+extern const struct c2_cm_cp_ops c2_sns_repair_cp_ops;
 
 #endif /* __COLIBRI_REPAIR_CP_H__ */
 /*

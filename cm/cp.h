@@ -160,7 +160,7 @@ enum c2_cm_cp_phase {
  */
 struct c2_cm_cp {
 	/** Copy packet priority.*/
-	enum c2_cm_cp_priority	   c_prio,
+	enum c2_cm_cp_priority	   c_prio;
 
 	struct c2_fom		   c_fom;
 
@@ -224,7 +224,8 @@ struct c2_cm_cp_ops {
 	void (*co_free)	    (struct c2_cm_cp *cp);
 };
 
-void c2_cm_cp_init(struct c2_cm *cm, struct c2_cm_cp *cp);
+void c2_cm_cp_init(struct c2_cm *cm, struct c2_cm_cp *cp,
+		   const struct c2_cm_cp_ops *ops);
 
 void c2_cm_cp_fini(struct c2_cm_cp *cp);
 
