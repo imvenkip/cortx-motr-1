@@ -95,7 +95,7 @@ bool c2_addr_is_sane(const uint64_t *addr);
 	uint64_t	 *__gen;			      \
 	struct c2_cookie *__cookie = (cookie);		      \
 	c2_cookie_dereference(__cookie, &__gen) != 0 ? NULL : \
-			container_of(&__gen, type, field);    \
+			container_of(__gen, type, field);     \
 })
 
 /** @} end of cookie group */
