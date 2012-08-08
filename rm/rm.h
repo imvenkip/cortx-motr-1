@@ -463,10 +463,23 @@ struct c2_rm_right_ops {
         bool (*rro_intersects) (const struct c2_rm_right *r0,
                                 const struct c2_rm_right *r1);
         /**
+         * @retval True if r0 is subset (or proper subset) of r1.
+	 */
+        bool (*rro_is_subset) (const struct c2_rm_right *r0,
+                               const struct c2_rm_right *r1);
+        /**
          * Adjoins r1 to r0, updating r0 in place to be the sum right.
 	 */
         int (*rro_join) (struct c2_rm_right *r0,
                           const struct c2_rm_right *r1);
+        /**
+         * Splits r0 into two parts - diff(r0,r1) and intersection(r0, r1)
+	 * Destructively updates r0 with diff(r0, r1) and updates
+	 * intersection with intersection of (r0, r1)
+	 */
+        int (*rro_disjoin) (struct c2_rm_right *r0,
+                            const struct c2_rm_right *r1,
+			    struct c2_rm_right *intersection);
 	/**
          * @retval True, iff r0 conflicts with r1.
 	 *  Rights conflict iff one of them authorises a usage incompatible with

@@ -91,6 +91,7 @@ static int  right_diff             (struct c2_rm_right *r0,
 static void retire_incoming_complete(struct c2_rm_incoming *in,
 				     int32_t rc);
 static void retire_incoming_conflict(struct c2_rm_incoming *in);
+static int cached_rights_hold       (struct c2_rm_incoming *in);
 
 static struct c2_rm_resource *resource_find(const struct c2_rm_resource_type *rt,
 					    const struct c2_rm_resource *res);
@@ -788,16 +789,103 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
 	struct c2_rm_owner *owner = in->rin_want.ri_owner;
 
 	C2_PRE(in->rin_state == RI_SUCCESS);
-	C2_PRE(owner->ro_state == ROS_ACTIVE);
+	C2_PRE(C2_IN(owner->ro_state, (ROS_ACTIVE, ROS_FINALISING)));
 	C2_PRE(!(in->rin_flags & RIF_INTERNAL));
 
 	c2_mutex_lock(&owner->ro_lock);
 	incoming_release(in);
+	--owner->ro_in_reqs;
 	in->rin_state = 0;
 	c2_rm_ur_tlist_del(&in->rin_want);
 	C2_POST(pi_tlist_is_empty(&in->rin_pins));
-	--owner->ro_in_reqs;
+
+	/*
+	 * Release of this right may excite other waiting incoming-requests.
+	 * Hence, call owner_balance() to process them.
+	 */
+	owner_balance(owner);
 	c2_mutex_unlock(&owner->ro_lock);
+}
+
+/*
+ * After successful completion of incoming request, move OWOS_CAHCED rights
+ * to OWOS_HELD rights.
+ */
+static int cached_rights_hold(struct c2_rm_incoming *in)
+{
+	struct c2_rm_pin   *pin;
+	struct c2_rm_owner *owner = in->rin_want.ri_owner;
+	struct c2_rm_right *right;
+	struct c2_rm_right *held_right;
+	struct c2_rm_right  rest;
+	int		    rc;
+
+	c2_rm_right_init(&rest, in->rin_want.ri_owner);
+	rc = right_copy(&rest, &in->rin_want);
+	if (rc != 0)
+		goto out;
+
+	c2_tl_for(pi, &in->rin_pins, pin) {
+		C2_ASSERT(pin->rp_flags == C2_RPF_PROTECT);
+		right = pin->rp_right;
+		C2_ASSERT(right_intersects(&rest, right));
+		C2_ASSERT(right->ri_ops != NULL);
+		C2_ASSERT(right->ri_ops->rro_is_subset != NULL);
+
+		/* If the right is already part of HELD list, skip it */
+		if (c2_rm_ur_tlist_contains(&owner->ro_owned[OWOS_HELD],
+		    right)) {
+			rc = right_diff(&rest, right);
+			if (rc != 0)
+				break;
+			else
+				continue;
+		}
+
+		/*
+		 * Check if the cached right is a subset (including a
+		 * proper subset) of incoming right (request).
+		 */
+		if (right->ri_ops->rro_is_subset(right, &rest)) {
+			/* Move the subset from CACHED list to HELD list */
+			c2_rm_ur_tlist_move(&owner->ro_owned[OWOS_HELD], right);
+			rc = right_diff(&rest, right);
+			if (rc != 0)
+				break;
+		} else {
+			C2_ALLOC_PTR(held_right);
+			if (held_right == NULL)
+				break;
+
+			c2_rm_right_init(held_right, owner);
+			/*
+			 * If incoming right partly intersects, then move
+			 * intersection to the HELD list. Retain the difference
+			 * in the CACHED list. This may lead to fragmentation of
+			 * rights.
+			 */
+			rc = right->ri_ops->rro_disjoin(right, &rest,
+							held_right);
+			if (rc != 0) {
+				c2_free(held_right);
+				break;
+			}
+			c2_rm_ur_tlist_add(&owner->ro_owned[OWOS_HELD],
+					   held_right);
+			rc = right_diff(&rest, held_right);
+			if (rc != 0)
+				break;
+			pin_add(in, held_right, C2_RPF_PROTECT);
+			pin_del(pin);
+		}
+
+	} c2_tl_endfor;
+
+	C2_POST(ergo(rc == 0, right_is_empty(&rest)));
+
+out:
+	c2_rm_right_fini(&rest);
+	return rc;
 }
 
 /**
@@ -906,14 +994,20 @@ static void incoming_check(struct c2_rm_incoming *in)
 		if (rc == 0) {
 			C2_ASSERT(incoming_pin_nr(in, C2_RPF_TRACK) == 0);
 			incoming_policy_apply(in);
+			/*
+			 * Transfer the CACHED rights to HELD list. Later
+			 * it may be subsumed by policy functions (or
+			 * vice versa).
+			 */
+			rc = cached_rights_hold(in);
 		}
 		/*
 		 * If one of the outgoing requests fails, it sets the
-		 * in->rin_rc.  Hence, we will come here while there are
+		 * in->rin_rc. Hence, we will come here while there are
 		 * other pending requests. Make sure we receive all the
 		 * responses before completing the incoming request.
-		 * If we remove incoming here, some pins may be left with
-		 * dangling reference.
+		 * If we remove incoming here, some (tracking) pins may be
+		 * left with dangling reference.
 		 */
 		if (in->rin_out_req == 0)
 			incoming_complete(in, rc);
@@ -972,7 +1066,8 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 		c2_tl_for(c2_rm_ur, &o->ro_owned[i], r) {
 			if (!right_intersects(r, want))
 				continue;
-			if (i == OWOS_HELD && (in->rin_flags & RIF_LOCAL_WAIT) &&
+			if (i == OWOS_HELD &&
+			    (in->rin_flags & RIF_LOCAL_WAIT) &&
 			    right_conflicts(r, want)) {
 				rc = pin_add(in, r, C2_RPF_TRACK);
 				wait++;
@@ -1214,6 +1309,7 @@ int c2_rm_right_timedwait(struct c2_rm_incoming *in, const c2_time_t deadline)
 	while (rc == 0 && in->rin_state == RI_WAIT)
 		rc = c2_chan_timedwait(&clink, deadline) ? 0 : -ETIMEDOUT;
 
+	in->rin_rc = in->rin_rc ?: rc;
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
 
@@ -1324,7 +1420,7 @@ static bool right_invariant(const struct c2_rm_right *right, void *data)
 	return
 		/* only held rights have PROTECT pins */
 		ergo((is->is_phase == OIS_OWNED &&
-		      is->is_owned_idx == OWOS_HELD),
+		     is->is_owned_idx == OWOS_HELD),
 		     right_pin_nr(right, C2_RPF_PROTECT) > 0) &&
 		ergo(is->is_phase == OIS_INCOMING,
 		     incoming_invariant(container_of(right,
@@ -1479,6 +1575,7 @@ static void incoming_release(struct c2_rm_incoming *in)
 	struct c2_rm_pin   *kingpin;
 	struct c2_rm_pin   *pin;
 	struct c2_rm_right *right;
+	struct c2_rm_owner *o = in->rin_want.ri_owner;
 
 	c2_tl_for(pi, &in->rin_pins, kingpin) {
 		if (kingpin->rp_flags & C2_RPF_PROTECT) {
@@ -1488,6 +1585,11 @@ static void incoming_release(struct c2_rm_incoming *in)
 			 * requests waiting on this right release.
 			 */
 			if (right_pin_nr(right, C2_RPF_PROTECT) == 1) {
+				/*
+				 * Move the right back to the CACHED list.
+				 */
+				c2_rm_ur_tlist_move(&o->ro_owned[OWOS_CACHED],
+						    right);
 				/*
 				 * I think we are introducing "thundering herd"
 				 * problem here.
@@ -1519,12 +1621,14 @@ static void pin_del(struct c2_rm_pin *pin)
 	pi_tlink_del_fini(pin);
 	pr_tlink_del_fini(pin);
 	if (incoming_pin_nr(in, C2_RPF_TRACK) == 0 &&
-	    (pin->rp_flags & C2_RPF_TRACK))
+	    (pin->rp_flags & C2_RPF_TRACK)) {
 		/*
 		 * Last tracking pin removed, excite the request.
 		 */
-		c2_rm_ur_tlist_move(&owner->ro_incoming[in->rin_priority][OQS_EXCITED],
-			      &in->rin_want);
+		c2_rm_ur_tlist_move(&owner->ro_incoming[in->rin_priority]\
+							[OQS_EXCITED],
+		 		    &in->rin_want);
+	}
 	c2_free(pin);
 }
 
@@ -1563,18 +1667,27 @@ int pin_add(struct c2_rm_incoming *in,
 static bool right_intersects(const struct c2_rm_right *A,
 			     const struct c2_rm_right *B)
 {
+	C2_PRE(A->ri_ops != NULL);
+	C2_PRE(A->ri_ops->rro_intersects != NULL);
+
 	return A->ri_ops->rro_intersects(A, B);
 }
 
 static bool right_conflicts(const struct c2_rm_right *A,
 			    const struct c2_rm_right *B)
 {
+	C2_PRE(A->ri_ops != NULL);
+	C2_PRE(A->ri_ops->rro_conflicts != NULL);
+
 	return A->ri_ops->rro_conflicts(A, B);
 }
 
 
 static int right_diff(struct c2_rm_right *r0, const struct c2_rm_right *r1)
 {
+	C2_PRE(r0->ri_ops != NULL);
+	C2_PRE(r0->ri_ops->rro_diff != NULL);
+
 	return r0->ri_ops->rro_diff(r0, r1);
 }
 
