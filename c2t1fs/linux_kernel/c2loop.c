@@ -198,7 +198,7 @@
  * this process on several CPUs host:
  *
  * @msc
- * kernel,loop_thread;
+ * kernel,loop_thread,c2t1fs;
  *
  * |||;
  * kernel box kernel [label = "loop_add_bio()"];
@@ -208,16 +208,21 @@
  * ...;
  * --- [label = " loop thread scheduled, two threads may run in parallel "];
  * kernel box kernel [label = "loop_add_bio()"],
- * loop_thread box loop_thread [label = "loop_handle_bios()"];
+ * loop_thread box loop_thread [label = "loop_handle_bios(): accumulate
+ *                                       segments into iovecs array"];
  * kernel -> loop_thread [label = "wake_up(lo)"];
+ * kernel box kernel [label = "loop_add_bio()"],
+ * loop_thread => c2t1fs [label = "loop_handle_bios(): aio_read/aio_write()"];
+ * kernel -> loop_thread [label = "wake_up(lo)"],
+ * loop_thread box loop_thread [label = "loop_handle_bios(): accumulate
+ *                                       segments into iovecs array"];
+ * loop_thread => c2t1fs [label = "loop_handle_bios(): aio_read/aio_write()"];
+ * ...;
  * loop_thread => loop_thread [label = "wait_event(lo, !bio_list_empty())"];
- * loop_thread note loop_thread [label = "Continue waiting
- *                                        if the newly added bio was already
- *                                        handled."];
  * @endmsc
  *
- * loop_handle_bios() do the main job of bio segments aggregation. It
- * traverse the bio requests queue and fills iovecs array until any of
+ * loop_handle_bios() does the main job of bio segments aggregation. It
+ * traverses the bio requests queue and fills iovecs array until any of
  * the following conditions happen:
  *
  *   - the position in the file where the data should be read/written
@@ -231,11 +236,14 @@
  *
  * @subsection c2loop-dld-lspec-thread Threading and Concurrency
  *
- * As it can be seen by now, there are two threads involved in c2loop:
- * the one that adds bio requests to the lo_bio_list queue (let's call
- * it kernel thread) and loop_thread that handles these requests. If
- * there are no more bio requests to handle in the queue, loop_thread
- * just sleeps waiting for event from the kernel thread. The latter
+ * As it can be seen by now, there are two threads involved in c2loop.
+ * The "kernel" thread adds bio requests to the lo_bio_list queue and
+ * the loop_thread handles these requests. We call it "kernel" thread
+ * conventionally, to note from where the request comes. In reality it
+ * may be a system call running in a user process/thread context.
+ *
+ * If there are no more bio requests to handle in the queue, loop_thread
+ * just sleeps waiting for event from the "kernel" thread. The latter
  * wakes it up after adding a new bio request to the queue.
  *
  * lo_bio_list queue should be protected with the spin lock, because two
@@ -327,7 +335,7 @@
  * C2loop does not take any additional resources compared to standard
  * loop driver. Similar to loop, it does not make any memory allocations
  * during normal workflow. Except spin lock (lo_lock), which just
- * protects the bio requests queue between the kernel and loop thread,
+ * protects the bio requests queue between the "kernel" and loop thread,
  * no any other locks are taken.
  *
  * Upon each particular /dev/c2loopN block device instance bind to
