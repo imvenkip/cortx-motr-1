@@ -195,6 +195,8 @@ C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_op_reply, "Cob create or delete reply",
 static void cob_fom_type_attach(void)
 {
 #ifndef __KERNEL__
+	c2_fom_type_register(&cc_fom_type);
+	c2_fom_type_register(&cd_fom_type);
 	c2_fop_cob_create_fopt.ft_fom_type = cc_fom_type;
 	c2_fop_cob_delete_fopt.ft_fom_type = cd_fom_type;
 #endif

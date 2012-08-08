@@ -118,19 +118,17 @@ bool c2_locality_invariant(const struct c2_fom_locality *loc)
 		c2_list_invariant(&loc->fl_threads);
 }
 
+/* Returns fom from state machine c2_fom::fo_sm_state */
 static inline struct c2_fom * sm2fom(const struct c2_sm *sm)
 {
 	C2_PRE(sm != NULL);
 	return container_of(sm, struct c2_fom, fo_sm_state);
 }
 
-static inline int sm_state(const struct c2_fom *fom)
-{
-	return fom->fo_sm_state.sm_state;
-}
-
 bool c2_fom_invariant(const struct c2_fom *fom)
 {
+	int state = fom->fo_sm_state.sm_state;
+
 	return
 		fom != NULL && fom->fo_loc != NULL &&
 		fom->fo_type != NULL && fom->fo_ops != NULL &&
@@ -139,10 +137,9 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 		c2_fom_group_is_locked(fom) &&
 		c2_list_link_invariant(&fom->fo_linkage) &&
 
-		C2_IN(sm_state(fom), (C2_FOS_READY, C2_FOS_QUEUE)) ==
-				      is_in_runq(fom) &&
-		(sm_state(fom) == C2_FOS_WAITING) == is_in_wail(fom) &&
-		ergo((sm_state(fom) == C2_FOS_RUNNING),
+		C2_IN(state, (C2_FOS_READY, C2_FOS_QUEUE)) == is_in_runq(fom) &&
+		(state == C2_FOS_WAITING) == is_in_wail(fom) &&
+		ergo((state == C2_FOS_RUNNING),
 		     !is_in_runq(fom) && !is_in_wail(fom));
 }
 
@@ -158,8 +155,7 @@ static bool fom_wait_time_is_out(const struct c2_fom_domain *dom,
  * This function is invoked when a new fom is submitted for
  * execution.
  *
- * @pre c2_fom_invariant(fom)
- * @param fom Ready to be executed fom, is put on locality runq
+ * @post c2_fom_invariant(fom)
  */
 static int fom_queue(struct c2_sm *sm)
 {
@@ -171,20 +167,17 @@ static int fom_queue(struct c2_sm *sm)
 	C2_CNT_INC(loc->fl_runq_nr);
 	c2_chan_signal(&loc->fl_runrun);
 	C2_POST(c2_fom_invariant(fom));
-	return C2_FOS_RETURN;
+	return C2_SM_BREAK;
 }
 
 /**
- * Enqueues fom into locality runq list and increments
- * number of items in runq, c2_fom_locality::fl_runq_nr.
+ * Enqueues fom into locality run queue. c2_fom_locality::fl_runq, and
+ * increments number of items in run queue, c2_fom_locality::fl_runq_nr.
  * This function is invoked when a waiting fom is re scheduled
  * for processing.
  *
- * It dequeues fom from loclaity wait queue then it enqueues
- * it into locality runq list.
- *
- * @pre c2_fom_invariant(fom)
- * @param fom Ready to be executed fom, is put on locality runq
+ * It dequeues fom from locality wait queue then enqueues fom into
+ * locality runq list.
  */
 
 static int fom_ready(struct c2_sm *sm)
@@ -205,12 +198,6 @@ static void queueit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 	C2_PRE(c2_fom_invariant(fom));
 
 	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_QUEUE);
-}
-
-static void fom_queueit(struct c2_fom *fom)
-{
-	fom->fo_cb.fc_ast.sa_cb = queueit;
-	c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
 }
 
 static void readyit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
@@ -295,7 +282,8 @@ void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
 	C2_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
 	fom->fo_loc = &reqh->rh_fom_dom.fd_localities[loc_idx];
 	c2_fom_sm_init(fom);
-	fom_queueit(fom);
+	fom->fo_cb.fc_ast.sa_cb = queueit;
+	c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
 }
 
 /**
@@ -310,9 +298,7 @@ void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
  * is performing a blocking operation and c2_fom::fo_state()
  * returns C2_FSO_WAIT.
  *
- * @pre c2_fom_invariant(fom)
- * @param fom A fom blocking on an operation that is to be
- *		put on the locality wait list
+ * @post c2_fom_invariant(fom)
  */
 static int fom_wait(struct c2_sm *sm)
 {
@@ -323,7 +309,7 @@ static int fom_wait(struct c2_sm *sm)
 	c2_list_add_tail(&loc->fl_wail, &fom->fo_linkage);
 	C2_CNT_INC(loc->fl_wail_nr);
 	C2_POST(c2_fom_invariant(fom));
-	return C2_FOS_RETURN;
+	return C2_SM_BREAK;
 }
 
 /**
@@ -344,8 +330,7 @@ static int fom_wait(struct c2_sm *sm)
  * @see c2_fom_wake_on()
  * @see c2_fom_callback_arm()
  * @see c2_fom_wakeup()
- *
- * @param fom A fom under execution
+ * @post c2_fom_invariant(fom)
  */
 static int fom_exec(struct c2_sm *sm)
 {
@@ -364,9 +349,9 @@ static int fom_exec(struct c2_sm *sm)
 	C2_ASSERT(rc == C2_FSO_WAIT);
 	C2_ASSERT(c2_fom_group_is_locked(fom));
 
+	C2_POST(c2_fom_invariant(fom));
 	if (fom->fo_next_phase == C2_FOPH_FINISH)
 		return C2_FOS_FINISH;
-	C2_POST(c2_fom_invariant(fom));
 	return C2_FOS_WAITING;
 }
 

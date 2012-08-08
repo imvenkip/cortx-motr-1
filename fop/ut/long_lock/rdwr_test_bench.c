@@ -39,7 +39,7 @@ enum tb_request_type {
 
 enum tb_request_phase {
 	/* See comment on PH_REQ_LOCK value in fom_rdwr_state() function */
-	PH_REQ_LOCK = C2_FOPH_INIT + 1,
+	PH_REQ_LOCK = C2_FOPH_AUTHENTICATE,
 	PH_GOT_LOCK = C2_FOPH_NR + 1,
 };
 

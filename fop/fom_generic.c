@@ -595,15 +595,6 @@ const struct c2_sm_conf	generic_conf = {
 	.scf_state     = generic_states
 };
 
-/**
- * Begins fom execution, transitions fom to its first
- * standard phase.
- *
- * C2_FSO_AGAIN is used to execute next fom phase
- * C2_FSO_WAIT  is used to execute its wait phase when
- *		returned from blocking state.
- */
-
 int c2_fom_state_transition(struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);

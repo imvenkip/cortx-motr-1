@@ -234,71 +234,19 @@ struct c2_fom_domain_ops {
  */
 enum c2_fom_state {
 	C2_FOS_INIT,
+	/** FOM is enqueued into locality run queue. */
 	C2_FOS_QUEUE,
-	/**
-	 * Fom is in C2_FOS_READY state when it is on locality runq for
-	 * execution.
-	 */
+	/** Fom is dequeued from wait queue and put in run queue. */
 	C2_FOS_READY,
 	/**
-	 * Fom is in C2_FOS_RUNNING state when its state transition function is
-	 * being executed by a locality handler thread.  The fom is not on any
-	 * queue in this state.
+	 * Fom state transition function is being executed by a locality handler
+	 * thread.  The fom is not on any queue in this state.
 	 */
 	C2_FOS_RUNNING,
-	/**
-	 * Fom is in C2_FOS_WAITING state when some event must happen before
-	 * the next state transition would become possible.  The fom is on a
-	 * locality wait list in this state.
+	/** FOM is enqueued into a locality wait list.
 	 */
 	C2_FOS_WAITING,
 	C2_FOS_FINISH,
-	/** Returns from state function. */
-	C2_FOS_RETURN = -1,
-};
-
-/**
- * "Phases" through which fom execution typically passes.
- *
- * This enumerates standard phases, handled by the generic code independent of
- * fom type.
- *
- * @see https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjA2Zmc0N3I3Z2Y
- * @see c2_fom_state_transition()
- */
-enum c2_fom_phase {
-	C2_FOPH_INIT,                /*< fom has been initialised. */
-	C2_FOPH_AUTHENTICATE,        /*< authentication loop is in progress. */
-	C2_FOPH_AUTHENTICATE_WAIT,   /*< waiting for key cache miss. */
-	C2_FOPH_RESOURCE_LOCAL,      /*< local resource reservation loop is in
-	                                 progress. */
-	C2_FOPH_RESOURCE_LOCAL_WAIT, /*< waiting for a local resource. */
-	C2_FOPH_RESOURCE_DISTRIBUTED,/*< distributed resource reservation loop
-	                                 is in progress. */
-	C2_FOPH_RESOURCE_DISTRIBUTED_WAIT, /*< waiting for a distributed
-	                                       resource. */
-	C2_FOPH_OBJECT_CHECK,       /*< object checking loop is in progress. */
-	C2_FOPH_OBJECT_CHECK_WAIT,  /*< waiting for object cache miss. */
-	C2_FOPH_AUTHORISATION,      /*< authorisation loop is in progress. */
-	C2_FOPH_AUTHORISATION_WAIT, /*< waiting for userdb cache miss. */
-	C2_FOPH_TXN_CONTEXT,        /*< creating local transactional context. */
-	C2_FOPH_TXN_CONTEXT_WAIT,   /*< waiting for log space. */
-	C2_FOPH_SUCCESS,            /*< fom execution completed succesfully. */
-	C2_FOPH_FOL_REC_ADD,        /*< add a FOL transaction record. */
-	C2_FOPH_TXN_COMMIT,         /*< commit local transaction context. */
-	C2_FOPH_TXN_COMMIT_WAIT,    /*< waiting to commit local transaction
-	                                context. */
-	C2_FOPH_TIMEOUT,            /*< fom timed out. */
-	C2_FOPH_FAILURE,            /*< fom execution failed. */
-	C2_FOPH_TXN_ABORT,          /*< abort local transaction context. */
-	C2_FOPH_TXN_ABORT_WAIT,	    /*< waiting to abort local transaction
-	                                context. */
-	C2_FOPH_QUEUE_REPLY,        /*< queuing fop reply.  */
-	C2_FOPH_QUEUE_REPLY_WAIT,   /*< waiting for fop cache space. */
-	C2_FOPH_FINISH,	            /*< terminal state. */
-	C2_FOPH_NR                  /*< number of standard phases. fom type
-	                                specific phases have numbers larger than
-	                                this. */
 };
 
 /**
@@ -489,13 +437,13 @@ enum c2_fom_state_outcome {
 	/**
 	 *  State transition completed. The next state transition would be
 	 *  possible when some future event happens. The state transition
-	 *  function registeres the fom's clink with the channel where this
+	 *  function registers the fom's clink with the channel where this
 	 *  event will be signalled.
 	 *
 	 *  When C2_FSO_WAIT is returned, the fom is put on locality wait-list
-	 * and finalises the fom if it's phase is C2_FOPH_FINISH.
+	 *  and finalises the fom if it's phase is C2_FOPH_FINISH.
 	 */
-	C2_FSO_WAIT = -1,
+	C2_FSO_WAIT = C2_SM_BREAK,
 	/**
 	 * State transition completed and another state transition is
 	 * immediately possible.
@@ -505,7 +453,7 @@ enum c2_fom_state_outcome {
 	 * or the fom is placed in the run-queue, depending on the scheduling
 	 * constraints.
 	 */
-	C2_FSO_AGAIN,
+	C2_FSO_AGAIN = C2_FSO_WAIT - 1,
 };
 
 /** Fom type operation vector. */
@@ -630,39 +578,8 @@ extern const struct c2_addb_loc c2_fom_addb_loc;
 extern const struct c2_addb_ctx_type c2_fom_addb_ctx_type;
 
 #define FOM_ADDB_ADD(fom, name, rc)  \
-C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, (name), (rc))
-
-/**
- * Transtions through both standard and specfic phases until C2_FSO_WAIT is returned
- * by a state function.
- * Each state function needs to return either next phase or set fom->fo_next_phase
- * and return C2_FOS_WAIT.
- *
- * @param fom file operation machine under execution
- * @retval C2_FSO_WAIT, it means fom execution is blocked and fom goes into
- *	   corresponding wait state and it needs to be wake up using
- *	   c2_fom_wakeup(), and goes to fom->fo_next_phase or fom execution
- *	   is completed and in C2_FOPH_FINISH phase and will be finalized.
- *	   C2_FSO_AGAIN, it is used to execute next fom phase.
- */
-int c2_fom_state_transition(struct c2_fom *fom);
-
-/**
- * Initialises state machines in the FOM , fo_sm_phase with C2_FOPH_INIT state.
- * and fo_sm_state with C2_FOS_INIT.
- * @param fom file operation machine.
- * @pre c2_group_is_locked(fom)
- */
-void c2_fom_sm_init(struct c2_fom *fom);
-
-/**
- * Combines standard and FOM specific phases and returns
- * the resultant state machine configuration in fom_type->ft_conf.
- * @param fom_type Fom type to be registered.
- */
-void c2_fom_type_register(struct c2_fom_type *fom_type);
-
-extern const struct c2_sm_conf fom_conf;
+C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, \
+	    (name), (rc))
 
 /**
  * Returns the state of SM group for AST call-backs of locality, given fom is
@@ -670,12 +587,7 @@ extern const struct c2_sm_conf fom_conf;
  */
 bool c2_fom_group_is_locked(const struct c2_fom *fom);
 
-static inline struct c2_fom* c2_sm2fom(const struct c2_sm *sm)
-{
-	C2_PRE(sm != NULL);
-	return container_of(sm, struct c2_fom, fo_sm_phase);
-}
-/** @} end of fom group */
+#include "fop/fom_generic.h"
 
 /* __COLIBRI_FOP_FOM_H__ */
 #endif
