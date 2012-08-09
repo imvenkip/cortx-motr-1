@@ -56,6 +56,8 @@ extern const struct c2_fom_ops c2_rpc_fom_conn_establish_ops;
 size_t c2_rpc_session_default_home_locality(const struct c2_fom *fom);
 int c2_rpc_fom_conn_establish_state(struct c2_fom *fom);
 void c2_rpc_fom_conn_establish_fini(struct c2_fom *fom);
+
+extern const struct c2_fom_ops c2_rpc_fom_session_ops;
 /*
  * FOM to execute "Session Create" request
  */
@@ -65,7 +67,6 @@ enum c2_rpc_fom_session_establish_phase {
 };
 
 extern struct c2_fom_type c2_rpc_fom_session_establish_type;
-extern const struct c2_fom_ops c2_rpc_fom_session_establish_ops;
 
 int c2_rpc_fom_session_establish_state(struct c2_fom *fom);
 void c2_rpc_fom_session_establish_fini(struct c2_fom *fom);
@@ -79,7 +80,6 @@ enum c2_rpc_fom_session_terminate_phase {
 };
 
 extern struct c2_fom_type c2_rpc_fom_session_terminate_type;
-extern const struct c2_fom_ops c2_rpc_fom_session_terminate_ops;
 
 int c2_rpc_fom_session_terminate_state(struct c2_fom *fom);
 void c2_rpc_fom_session_terminate_fini(struct c2_fom *fom);
@@ -93,7 +93,6 @@ enum c2_rpc_fom_conn_terminate_phase {
 };
 
 extern struct c2_fom_type c2_rpc_fom_conn_terminate_type;
-extern const struct c2_fom_ops c2_rpc_fom_conn_terminate_ops;
 
 int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom);
 void c2_rpc_fom_conn_terminate_fini(struct c2_fom *fom);

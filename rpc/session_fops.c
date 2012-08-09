@@ -211,6 +211,10 @@ int c2_rpc_session_fop_init(void)
 	if (result != 0)
 		c2_rpc_session_fop_fini();
 
+	c2_fom_type_register(&c2_rpc_fom_conn_establish_type);
+	c2_fom_type_register(&c2_rpc_fom_session_establish_type);
+	c2_fom_type_register(&c2_rpc_fom_conn_terminate_type);
+	c2_fom_type_register(&c2_rpc_fom_session_terminate_type);
 	c2_rpc_fop_conn_establish_fopt.ft_fom_type =
 		c2_rpc_fom_conn_establish_type;
 
