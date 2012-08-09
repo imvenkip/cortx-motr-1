@@ -22,6 +22,7 @@
 #include "lib/misc.h"   /* C2_SET_ARR0 */
 #include "lib/errno.h"  /* ETIMEDOUT */
 #include "lib/arith.h"  /* C2_CNT_{INC,DEC} */
+#include "lib/bob.h"
 
 #include "rm/rm.h"
 #include "rm/rm_internal.h"
@@ -101,14 +102,23 @@ C2_TL_DESCR_DEFINE(res, "resources", , struct c2_rm_resource,
 		   0xc1a551ca15eedbed /* classical seedbed */);
 C2_TL_DEFINE(res, , struct c2_rm_resource);
 
+static struct c2_bob_type res_tl_bob;
+C2_BOB_DEFINE(, &res_tl_bob, c2_rm_resource);
+
 C2_TL_DESCR_DEFINE(c2_rm_ur, "usage rights", , struct c2_rm_right,
 		   ri_linkage, ri_magix,
 		   0xc0a1faceba5111ca /* coalface basilica */,
 		   0xca11ab1e5111c1de /* callable silicide */);
 C2_TL_DEFINE(c2_rm_ur, , struct c2_rm_right);
 
+static struct c2_bob_type us_rgt_tl_bob;
+C2_BOB_DEFINE(, &us_rgt_tl_bob, c2_rm_right);
+
 enum {
-	PIN_MAGIX = 0xD15CA1CED0551C1E /* discalced ossicle */
+	PIN_MAGIX           = 0xD15CA1CED0551C1E, /* discalced ossicle */
+	LOAN_MAGIX          = 0x524D4C4F414E,     /* RMLOAN */
+	INCOMING_MAGIX      = 0x524D494E434D4E47, /* RMINCMNG */
+	OUTGOING_MAGIX      = 0x524D4F5554474E47, /* RMOUTGNG */
 };
 
 C2_TL_DESCR_DEFINE(pr, "pins-of-right", , struct c2_rm_pin,
@@ -123,12 +133,43 @@ C2_TL_DESCR_DEFINE(pi, "pins-of-incoming", , struct c2_rm_pin,
 		   0x11fe512e51da1cea /* lifesize sidalcea */);
 C2_TL_DEFINE(pi, , struct c2_rm_pin);
 
+static struct c2_bob_type pin_tl_bob;
+C2_BOB_DEFINE(, &pin_tl_bob, c2_rm_pin);
+
+static const struct c2_bob_type loan_bob = {
+	.bt_name         = "loan",
+	.bt_magix_offset = offsetof(struct c2_rm_loan, rl_magix),
+	.bt_magix        = LOAN_MAGIX,
+	.bt_check        = NULL
+};
+C2_BOB_DEFINE(, &loan_bob, c2_rm_loan);
+
+static const struct c2_bob_type incoming_bob = {
+	.bt_name         = "incoming request",
+	.bt_magix_offset = offsetof(struct c2_rm_incoming, rin_magix),
+	.bt_magix        = INCOMING_MAGIX,
+	.bt_check        = NULL
+};
+C2_BOB_DEFINE(, &incoming_bob, c2_rm_incoming);
+
+static const struct c2_bob_type outgoing_bob = {
+	.bt_name         = "outgoing request ",
+	.bt_magix_offset = offsetof(struct c2_rm_outgoing, rog_magix),
+	.bt_magix        = OUTGOING_MAGIX,
+	.bt_check        = NULL
+};
+C2_BOB_DEFINE(, &outgoing_bob, c2_rm_outgoing);
+
 void c2_rm_domain_init(struct c2_rm_domain *dom)
 {
 	C2_PRE(dom != NULL);
 
 	C2_SET_ARR0(dom->rd_types);
 	c2_mutex_init(&dom->rd_lock);
+	c2_bob_type_tlist_init(&res_tl_bob, &res_tl);
+	c2_bob_type_tlist_init(&us_rgt_tl_bob, &c2_rm_ur_tl);
+	c2_bob_type_tlist_init(&pin_tl_bob, &pr_tl);
+	c2_bob_type_tlist_init(&pin_tl_bob, &pi_tl);
 }
 C2_EXPORTED(c2_rm_domain_init);
 
@@ -157,8 +198,10 @@ static struct c2_rm_resource *resource_find(const struct c2_rm_resource_type *rt
 	C2_PRE(rt->rt_ops->rto_eq != NULL);
 
 	c2_tl_for(res, (struct c2_tl *)&rt->rt_resources, scan) {
-		if (rt->rt_ops->rto_eq(res, scan))
+		if (rt->rt_ops->rto_eq(res, scan)) {
+			C2_ASSERT(c2_rm_resource_bob_check(scan));
 			break;
+		}
 	} c2_tl_endfor;
 	return scan;
 }
@@ -424,6 +467,7 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 		 * it's faulted. We will do the cleanup only when we introduce
 		 * force flag.
 		 */
+		C2_ASSERT(c2_rm_right_bob_check(right));
 		rc = right_copy(&in->rin_want, right);
 		if (rc == -ENOMEM)
 			return rc;
@@ -444,7 +488,8 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 	}
 
 	c2_tl_for(c2_rm_ur, &owner->ro_borrowed, right) {
-		loan = container_of(right, struct c2_rm_loan, rl_right);
+		C2_ASSERT(c2_rm_right_bob_check(right));
+		loan = bob_of(right, struct c2_rm_loan, rl_right, &loan_bob);
 		if (loan->rl_id == C2_RM_LOAN_SELF_ID) {
 			c2_rm_ur_tlink_del_fini(right);
 			c2_free(loan);
@@ -519,6 +564,7 @@ void c2_rm_incoming_init(struct c2_rm_incoming *in, struct c2_rm_owner *owner,
 	pi_tlist_init(&in->rin_pins);
 	c2_chan_init(&in->rin_signal);
 	c2_rm_right_init(&in->rin_want, owner);
+	c2_rm_incoming_bob_init(in);
 	C2_POST(incoming_invariant(in));
 }
 C2_EXPORTED(c2_rm_incoming_init);
@@ -529,6 +575,7 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 
 	in->rin_rc = 0;
 	in->rin_state = 0;
+	c2_rm_incoming_bob_fini(in);
 	c2_rm_right_fini(&in->rin_want);
 	c2_chan_fini(&in->rin_signal);
 	pi_tlist_fini(&in->rin_pins);
@@ -542,6 +589,7 @@ void c2_rm_outgoing_init(struct c2_rm_outgoing *out,
 
 	out->rog_rc = 0;
 	out->rog_type = req_type;
+	c2_rm_outgoing_bob_init(out);
 }
 C2_EXPORTED(c2_rm_outgoing_init);
 
@@ -555,6 +603,7 @@ int c2_rm_loan_init(struct c2_rm_loan *loan,
 	loan->rl_id = 0;
 	c2_cookie_remote_build(loan, &loan->rl_cookie);
 	c2_rm_right_init(&loan->rl_right, right->ri_owner);
+	c2_rm_loan_bob_init(loan);
 
 	return right_copy(&loan->rl_right, right);
 }
@@ -598,6 +647,7 @@ static int rights_integrate(struct c2_rm_incoming *in)
 	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
 
 	c2_tl_for(pi, &in->rin_pins, pin) {
+		C2_ASSERT(c2_rm_pin_bob_check(pin));
 		C2_ASSERT(pin->rp_flags == C2_RPF_PROTECT);
 		right = pin->rp_right;
 		rc  = right_diff(right, &in->rin_want);
@@ -907,10 +957,12 @@ static void owner_balance(struct c2_rm_owner *o)
 	do {
 		todo = false;
 		c2_tl_for(c2_rm_ur, &o->ro_outgoing[OQS_EXCITED], right) {
+			C2_ASSERT(c2_rm_right_bob_check(right));
 			todo = true;
-			loan = container_of(right, struct c2_rm_loan, rl_right);
-			out = container_of(loan, struct c2_rm_outgoing,
-					   rog_want);
+			loan = bob_of(right, struct c2_rm_loan, rl_right,
+				      &loan_bob);
+			out = bob_of(loan, struct c2_rm_outgoing, rog_want,
+				     &outgoing_bob);
 			/*
 			 * Outgoing request completes: remove all pins stuck in
 			 * and finalise it. Also pass the processing error, if
@@ -920,6 +972,7 @@ static void owner_balance(struct c2_rm_owner *o)
 			 * waiting for outgoing request completion.
 			 */
 			c2_tl_for(pr, &right->ri_pins, pin) {
+				C2_ASSERT(c2_rm_pin_bob_check(pin));
 				C2_ASSERT(pin->rp_flags == C2_RPF_TRACK);
 				C2_ASSERT(pin->rp_incoming->rin_out_req > 0);
 				--pin->rp_incoming->rin_out_req;
@@ -939,8 +992,8 @@ static void owner_balance(struct c2_rm_owner *o)
 			c2_tl_for(c2_rm_ur,
 				     &o->ro_incoming[prio][OQS_EXCITED], right) {
 				todo = true;
-				in = container_of(right, struct c2_rm_incoming,
-						  rin_want);
+				in = bob_of(right, struct c2_rm_incoming,
+					    rin_want, &incoming_bob);
 				C2_ASSERT(in->rin_state == RI_WAIT ||
 					  in->rin_state == RI_INITIALISED);
 				/*
@@ -1062,6 +1115,7 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 	 */
 	for (i = 0; i < ARRAY_SIZE(o->ro_owned); ++i) {
 		c2_tl_for(c2_rm_ur, &o->ro_owned[i], r) {
+			C2_ASSERT(c2_rm_right_bob_check(r));
 			if (!right_intersects(r, want))
 				continue;
 			if (i == OWOS_HELD && right_conflicts(r, want)) {
@@ -1084,11 +1138,12 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 	 */
 	if (!right_is_empty(rest)) {
 		c2_tl_for(c2_rm_ur, &o->ro_sublet, r) {
+			C2_ASSERT(c2_rm_right_bob_check(r));
 			if (!right_intersects(r, rest))
 				continue;
 			if (!(in->rin_flags & RIF_MAY_REVOKE))
 				return -EREMOTE;
-			loan = container_of(r, struct c2_rm_loan, rl_right);
+			loan = bob_of(r, struct c2_rm_loan, rl_right, &loan_bob);
 			/*
 			 * It is possible that this loop emits multiple
 			 * outgoing requests toward the same remote
@@ -1234,9 +1289,11 @@ static int outgoing_check(struct c2_rm_incoming *in,
 
 	for (i = 0; i < ARRAY_SIZE(owner->ro_outgoing); ++i) {
 		c2_tl_for(c2_rm_ur, &owner->ro_outgoing[i], scan) {
-			loan = container_of(scan, struct c2_rm_loan, rl_right);
-			out = container_of(loan, struct c2_rm_outgoing,
-					   rog_want);
+			C2_ASSERT(c2_rm_right_bob_check(scan));
+			loan = bob_of(scan, struct c2_rm_loan, rl_right,
+				      &loan_bob);
+			out = bob_of(loan, struct c2_rm_outgoing, rog_want,
+				     &outgoing_bob);
 			if (out->rog_type == otype && right_intersects(scan,
 								       right)) {
 				C2_ASSERT(out->rog_want.rl_other == other);
@@ -1542,6 +1599,7 @@ static int right_pin_nr(const struct c2_rm_right *right, uint32_t flags)
 	struct c2_rm_pin *pin;
 
 	c2_tl_for(pr, &right->ri_pins, pin) {
+		C2_ASSERT(c2_rm_pin_bob_check(pin));
 		if (pin->rp_flags & flags)
 			++nr;
 	} c2_tl_endfor;
@@ -1559,6 +1617,7 @@ static int incoming_pin_nr(const struct c2_rm_incoming *in, uint32_t flags)
 
 	nr = 0;
 	c2_tl_for(pi, &in->rin_pins, pin) {
+		C2_ASSERT(c2_rm_pin_bob_check(pin));
 		if (pin->rp_flags & flags)
 			++nr;
 	} c2_tl_endfor;
@@ -1577,6 +1636,7 @@ static void incoming_release(struct c2_rm_incoming *in)
 	struct c2_rm_owner *o = in->rin_want.ri_owner;
 
 	c2_tl_for(pi, &in->rin_pins, kingpin) {
+		C2_ASSERT(c2_rm_pin_bob_check(kingpin));
 		if (kingpin->rp_flags & C2_RPF_PROTECT) {
 			right = kingpin->rp_right;
 			/*
@@ -1594,6 +1654,7 @@ static void incoming_release(struct c2_rm_incoming *in)
 				 * problem here.
 				 */
 				c2_tl_for(pr, &right->ri_pins, pin) {
+					C2_ASSERT(c2_rm_pin_bob_check(pin));
 					if (pin->rp_flags & C2_RPF_TRACK)
 						pin_del(pin);
 				} c2_tl_endfor;

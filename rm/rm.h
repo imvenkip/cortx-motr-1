@@ -348,7 +348,7 @@ struct c2_rm_resource_type {
 
 struct c2_rm_resource_type_ops {
 	/**
-	 * Checks if the two resources are euqal.
+	 * Checks if the two resources are equal.
 	 */
 	bool (*rto_eq)(const struct c2_rm_resource *resource0,
 		       const struct c2_rm_resource *resource1);
@@ -471,7 +471,7 @@ struct c2_rm_right_ops {
          * Adjoins r1 to r0, updating r0 in place to be the sum right.
 	 */
         int (*rro_join) (struct c2_rm_right *r0,
-                          const struct c2_rm_right *r1);
+			 const struct c2_rm_right *r1);
         /**
          * Splits r0 into two parts - diff(r0,r1) and intersection(r0, r1)
 	 * Destructively updates r0 with diff(r0, r1) and updates
@@ -927,6 +927,7 @@ struct c2_rm_loan {
 	 */
 	struct c2_cookie     rl_cookie;
 	uint64_t             rl_id;
+	uint64_t             rl_magix;
 };
 
 /**
@@ -1220,6 +1221,7 @@ struct c2_rm_incoming {
 	int				 rin_priority;
 	const struct c2_rm_incoming_ops *rin_ops;
 	struct c2_chan			 rin_signal;
+	uint64_t                         rin_magix;
 };
 
 /**
@@ -1288,7 +1290,8 @@ struct c2_rm_outgoing {
 	 */
 	int32_t			 rog_rc;
 	/** A right that is to be transferred. */
-	struct c2_rm_loan	rog_want;
+	struct c2_rm_loan        rog_want;
+	uint64_t                 rog_magix;
 };
 
 enum c2_rm_pin_flags {
