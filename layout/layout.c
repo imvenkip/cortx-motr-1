@@ -685,7 +685,8 @@ int c2_layout_domain_init(struct c2_layout_domain *dom, struct c2_dbenv *dbenv)
 
 	C2_SET0(dom);
 
-	if (C2_FI_ENABLED("table_init_err")) { rc = -501; goto err1_injected; }
+	if (C2_FI_ENABLED("table_init_err"))
+		{ rc = L_TABLE_INIT_ERR; goto err1_injected; }
 	rc = c2_table_init(&dom->ld_layouts, dbenv, "layouts",
 			   DEFAULT_DB_FLAG, &layouts_table_ops);
 err1_injected:
@@ -781,7 +782,8 @@ int c2_layout_type_register(struct c2_layout_domain *dom,
 	dom->ld_type[lt->lt_id] = lt;
 
 	/* Allocate type specific schema data. */
-	if (C2_FI_ENABLED("lto_reg_err")) { rc = -502; goto err1_injected; }
+	if (C2_FI_ENABLED("lto_reg_err"))
+		{ rc = LTO_REG_ERR; goto err1_injected; }
 	rc = lt->lt_ops->lto_register(dom, lt);
 err1_injected:
 	if (rc == 0) {
@@ -839,7 +841,8 @@ int c2_layout_enum_type_register(struct c2_layout_domain *dom,
 	dom->ld_enum[let->let_id] = let;
 
 	/* Allocate enum type specific schema data. */
-	if (C2_FI_ENABLED("leto_reg_err")) { rc = -503; goto err1_injected; }
+	if (C2_FI_ENABLED("leto_reg_err"))
+		{ rc = LETO_REG_ERR; goto err1_injected; }
 	rc = let->let_ops->leto_register(dom, let);
 err1_injected:
 	if (rc == 0) {
@@ -976,7 +979,8 @@ int c2_layout_decode(struct c2_layout *l,
 	}
 	C2_ASSERT(rec->lr_lt_id == l->l_type->lt_id);
 
-	if (C2_FI_ENABLED("lo_decode_err")) { rc = -504; goto err1_injected; }
+	if (C2_FI_ENABLED("lo_decode_err"))
+		{ rc = LO_DECODE_ERR; goto err1_injected; }
 	rc = l->l_ops->lo_decode(l, cur, op, tx, rec->lr_ref_count);
 err1_injected:
 	if (rc != 0)
@@ -1014,7 +1018,8 @@ int c2_layout_encode(struct c2_layout *l,
 	nbytes = c2_bufvec_cursor_copyto(out, &rec, sizeof rec);
 	C2_ASSERT(nbytes == sizeof rec);
 
-	if (C2_FI_ENABLED("lo_encode_err")) { rc = -505; goto err1_injected; }
+	if (C2_FI_ENABLED("lo_encode_err"))
+		{ rc = LO_ENCODE_ERR; goto err1_injected; }
 	rc = l->l_ops->lo_encode(l, op, tx, out);
 err1_injected:
 	if (rc != 0)

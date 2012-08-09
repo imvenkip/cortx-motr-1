@@ -37,7 +37,7 @@
 #include "pool/pool.h"                   /* c2_pool_init(), c2_pool_fini() */
 #include "fid/fid.h"                     /* c2_fid_set() */
 #include "layout/layout.h"
-#include "layout/layout_internal.h"      /* LDB_MAX_INLINE_COB_ENTRIES */
+#include "layout/layout_internal.h"      /* LDB_MAX_INLINE_COB_ENTRIES, *_ERR */
 #include "layout/layout_db.h"
 #include "layout/pdclust.h"
 #include "layout/list_enum.h"
@@ -183,7 +183,7 @@ static void test_domain_init_fini_failure(void)
 
 	c2_fi_enable_once("c2_layout_domain_init", "table_init_err");
 	rc = c2_layout_domain_init(&t_domain, &t_dbenv);
-	C2_UT_ASSERT(rc == -501);
+	C2_UT_ASSERT(rc == L_TABLE_INIT_ERR);
 
 	c2_dbenv_fini(&t_dbenv);
 	C2_LEAVE();
@@ -387,15 +387,15 @@ static void test_reg_unreg_failure(void)
 	 */
 	c2_fi_enable_once("c2_layout_type_register", "lto_reg_err");
 	rc = c2_layout_type_register(&t_domain, &c2_pdclust_layout_type);
-	C2_UT_ASSERT(rc == -502);
+	C2_UT_ASSERT(rc == LTO_REG_ERR);
 
 	c2_fi_enable_once("c2_layout_enum_type_register", "leto_reg_err");
 	rc = c2_layout_enum_type_register(&t_domain, &c2_list_enum_type);
-	C2_UT_ASSERT(rc == -503);
+	C2_UT_ASSERT(rc == LETO_REG_ERR);
 
 	c2_fi_enable_once("c2_layout_enum_type_register", "leto_reg_err");
 	rc = c2_layout_enum_type_register(&t_domain, &c2_linear_enum_type);
-	C2_UT_ASSERT(rc == -503);
+	C2_UT_ASSERT(rc == LETO_REG_ERR);
 
 	c2_fi_enable_once("list_register", "mem_err");
 	rc = c2_layout_enum_type_register(&t_domain, &c2_list_enum_type);
@@ -411,16 +411,16 @@ static void test_reg_unreg_failure(void)
 	 */
 	c2_fi_enable_once("c2_layout_type_register", "lto_reg_err");
 	rc = c2_layout_standard_types_register(&t_domain);
-	C2_UT_ASSERT(rc == -502);
+	C2_UT_ASSERT(rc == LTO_REG_ERR);
 
 	c2_fi_enable_once("c2_layout_enum_type_register", "leto_reg_err");
 	rc = c2_layout_standard_types_register(&t_domain);
-	C2_UT_ASSERT(rc == -503);
+	C2_UT_ASSERT(rc == LETO_REG_ERR);
 
 	c2_fi_enable_off_n_on_m("c2_layout_enum_type_register", "leto_reg_err",
 				1, 1);
 	rc = c2_layout_standard_types_register(&t_domain);
-	C2_UT_ASSERT(rc == -503);
+	C2_UT_ASSERT(rc == LETO_REG_ERR);
 	c2_fi_disable("c2_layout_enum_type_register", "leto_reg_err");
 
 	c2_layout_domain_fini(&t_domain);
@@ -1328,7 +1328,7 @@ static int test_encode_pdclust(uint32_t enum_id, uint64_t lid,
 	rc  = c2_layout_encode(&pl->pl_base.sl_base, C2_LXO_BUFFER_OP,
 			       NULL, &cur);
 	if (failure_test)
-		C2_UT_ASSERT(rc == -505);
+		C2_UT_ASSERT(rc == LO_ENCODE_ERR);
 	else
 		C2_UT_ASSERT(rc == 0);
 
@@ -1403,14 +1403,14 @@ static void test_encode_failure(void)
 	c2_fi_enable_once("c2_layout_encode", "lo_encode_err");
 	rc = test_encode_pdclust(LIST_ENUM_ID, lid, MORE_THAN_INLINE,
 				 FAILURE_TEST);
-	C2_UT_ASSERT(rc == -505);
+	C2_UT_ASSERT(rc == LO_ENCODE_ERR);
 
 	/* Simulate c2_layout_encode() failure. */
 	lid = 3006;
 	c2_fi_enable_once("c2_layout_encode", "lo_encode_err");
 	rc = test_encode_pdclust(LINEAR_ENUM_ID, lid, INLINE_NOT_APPLICABLE,
 				 FAILURE_TEST);
-	C2_UT_ASSERT(rc == -505);
+	C2_UT_ASSERT(rc == LO_ENCODE_ERR);
 }
 
 
@@ -2678,8 +2678,8 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 	rc = c2_layout_lookup(&domain, lid, &c2_pdclust_layout_type,
 			      &tx, &pair, &l3);
 	if (failure_test)
-		C2_UT_ASSERT(rc == -ENOENT || rc == -ENOMEM || rc == -504 ||
-			     rc == -EPROTO);
+		C2_UT_ASSERT(rc == -ENOENT || rc == -ENOMEM || rc == -EPROTO ||
+			     rc == LO_DECODE_ERR);
 	else
 		C2_UT_ASSERT(rc == 0);
 
@@ -2963,7 +2963,7 @@ static void test_lookup_failure(void)
 				 EXISTING_TEST,
 				 INLINE_NOT_APPLICABLE,
 				 FAILURE_TEST);
-	C2_UT_ASSERT(rc == -504);
+	C2_UT_ASSERT(rc == LO_DECODE_ERR);
 
 	/* Furnish c2_layout_lookup() with unregistered layout type. */
 	struct c2_layout_type test_layout_type = {
@@ -3065,7 +3065,7 @@ static int test_add_pdclust(uint32_t enum_id, uint64_t lid,
 
 	rc = c2_layout_add(&pl->pl_base.sl_base, &tx, &pair);
 	if (failure_test)
-		C2_UT_ASSERT(rc == -505 || rc == -ENOENT);
+		C2_UT_ASSERT(rc == -ENOENT || rc == LO_ENCODE_ERR);
 	else
 		C2_UT_ASSERT(rc == 0);
 
@@ -3169,7 +3169,7 @@ static void test_add_failure(void)
 			      LAYOUT_DESTROY, NULL,
 			      !DUPLICATE_TEST,
 			      FAILURE_TEST);
-	C2_UT_ASSERT(rc == -505);
+	C2_UT_ASSERT(rc == LO_ENCODE_ERR);
 
 	/*
 	 * Simulate the error that entry already exists in the layout DB with
@@ -3280,7 +3280,7 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 
 	rc = c2_layout_update(l1, &tx, &pair);
 	if (failure_test)
-		C2_UT_ASSERT(rc == -505 || rc == -601);
+		C2_UT_ASSERT(rc == LO_ENCODE_ERR || rc == L_TABLE_UPDATE_ERR);
 	else
 		C2_UT_ASSERT(rc == 0);
 	/*
@@ -3418,7 +3418,7 @@ static void test_update_failure(void)
 				 EXISTING_TEST,
 				 MORE_THAN_INLINE,
 				 FAILURE_TEST);
-	C2_UT_ASSERT(rc == -505);
+	C2_UT_ASSERT(rc == LO_ENCODE_ERR);
 	c2_fi_disable("c2_layout_encode", "lo_encode_err");
 
 	/* Simulate c2_table_update() failure in c2_layout_update(). */
@@ -3428,7 +3428,7 @@ static void test_update_failure(void)
 				 EXISTING_TEST,
 				 INLINE_NOT_APPLICABLE,
 				 FAILURE_TEST);
-	C2_UT_ASSERT(rc == -601);
+	C2_UT_ASSERT(rc == L_TABLE_UPDATE_ERR);
 }
 
 /* Tests the API c2_layout_delete(), for the PDCLUST layout type. */
@@ -3491,7 +3491,8 @@ static int test_delete_pdclust(uint32_t enum_id, uint64_t lid,
 
 	rc = c2_layout_delete(l, &tx, &pair);
 	if (failure_test)
-		C2_UT_ASSERT(rc == -ENOENT || rc == -505 || rc == -ENOMEM);
+		C2_UT_ASSERT(rc == -ENOENT || rc == -ENOMEM ||
+			     rc == LO_ENCODE_ERR);
 	else
 		C2_UT_ASSERT(rc == 0);
 
@@ -3589,7 +3590,7 @@ static void test_delete_failure(void)
 				 EXISTING_TEST,
 				 INLINE_NOT_APPLICABLE,
 				 FAILURE_TEST);
-	C2_UT_ASSERT(rc == -505);
+	C2_UT_ASSERT(rc == LO_ENCODE_ERR);
 	c2_fi_disable("c2_layout_encode", "lo_encode_err");
 
 	/*

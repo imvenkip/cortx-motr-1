@@ -594,7 +594,7 @@ int c2_layout_update(struct c2_layout *l,
 	rc = pair_init(pair, l, tx, C2_LXO_DB_UPDATE, recsize);
 	if (rc == 0) {
 		if (C2_FI_ENABLED("table_update_err"))
-			{ rc = -601; goto err1_injected; }
+			{ rc = L_TABLE_UPDATE_ERR; goto err1_injected; }
 		rc = c2_table_update(tx, pair);
 err1_injected:
 		if (rc != 0)

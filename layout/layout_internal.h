@@ -55,7 +55,43 @@ enum {
 	 * inline into the layouts table, while rest of those are stored into
 	 * the cob_lists table.
 	 */
-	LDB_MAX_INLINE_COB_ENTRIES = 20
+	LDB_MAX_INLINE_COB_ENTRIES = 20,
+
+	/*
+	 * Simulation for c2_table_init() facing error in
+	 * c2_layout_domain_init().
+	 */
+	L_TABLE_INIT_ERR           = -501,
+
+	/*
+	 * Simulation for lto_register() facing error in
+	 * c2_layout_type_register().
+	 */
+	LTO_REG_ERR                = -502,
+
+	/*
+	 * Simulation for leto_register() facing error in
+	 * c2_layout_enum_type_register().
+	 */
+	LETO_REG_ERR               = -503,
+
+	/*
+	 * Simulation for lo_decode() facing error in
+	 * c2_layout_decode().
+	 */
+	LO_DECODE_ERR              = -504,
+
+	/*
+	 * Simulation for lo_encode() facing error in
+	 * c2_layout_encode().
+	 */
+	LO_ENCODE_ERR              = -505,
+
+	/*
+	 * Simulation for c2_table_update() facing error in
+	 * c2_layout_update().
+	 */
+	L_TABLE_UPDATE_ERR         = -506
 };
 
 bool c2_layout__domain_invariant(const struct c2_layout_domain *dom);
