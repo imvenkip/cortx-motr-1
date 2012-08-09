@@ -61,7 +61,7 @@
 /**
  * @defgroup cp Copy Packet
  *
- * @see The @ref cp "Cop" its
+ * @see The @ref cp "Copy packet" its
  * @ref DLD-cp-fspec "Copy Packet Functional Specification"
  *
  * @{
@@ -112,52 +112,7 @@ enum c2_cm_cp_phase {
 	CCP_FINI
 };
 
-/**
- * Copy packet.
- *
- * Copy packet is the data structure used to describe the packet flowing between
- * various copy machine replica nodes. It is entity which has data as well as
- * operation to work. Copy packet has buffers to carry data and FOM for
- * execution in context of request handler. It can perform various kind of work
- * which depend on the it's stage (i.e. FOM phase) in execution. Phase_next()
- * responsible for stage change of copy packet. It is a state machine, goes
- * through following stages:
- *
- *	- READ
- *	- WRITE
- *	- XFORM
- *	- SEND
- *	- RECV
- *	- Non-std: Copy packet FOM can have phases addition these phases.
- *		   Additional phases will be used to do processing under one of
- *		   above phases.
- *
- * Trasition of standard phases is done by phase_next().
- *
- * @todo c2_cm_cp:c_fom:fo_loc used for transformation (e.g XOR).
- * @todo has_space in sliding window.
- *
- * Copy packet state diagram:
- *
- * @verbatim
- *
- *     New copy packet             new copy packet
- *          +<---------INIT-------->+
- *          |	        |	    |
- *          |           |           |
- *    +----READ     new |packet	   RECV----+
- *    |     |           |           |      |
- *    |     +---------->V<----------+      |
- *    |		      XFORM	           |
- *    |     +<----------|---------->+	   |
- *    |     |           |           |	   |
- *    |     V           |           V	   |
- *    +--->SEND	        |	  WRITE<---+
- *	    |           V           |
- *          +--------->FINI<--------+
- *
- * @endverbatim
- */
+/** Generic copy packet structure.*/
 struct c2_cm_cp {
 	/** Copy packet priority.*/
 	enum c2_cm_cp_priority	   c_prio;
@@ -220,17 +175,35 @@ struct c2_cm_cp_ops {
 	void (*co_complete) (struct c2_cm_cp *cp);
 
 	/**
+	 * Changes copy packet phase based on current phase and layout
+	 * information.
+	 */
+	int  (*co_phase)    (struct c2_cm_cp *cp);
+
+	/**
 	 * Releases resources associated with the packet, finalises members
 	 * and free the packet.
 	 */
 	void (*co_free)	    (struct c2_cm_cp *cp);
 };
 
+/**
+ * Initialises generic copy packet.
+ *
+ * @pre cp->c_fom.fo_phase == CCP_INIT
+ * @post cp->c_fom.fo_phase == C2_FOPH_INIT
+ */
 void c2_cm_cp_init(struct c2_cm *cm, struct c2_cm_cp *cp,
 		   const struct c2_cm_cp_ops *ops);
 
+/**
+ * Finalises generic copy packet.
+ *
+ * @pre cp->c_fom.fo_phase == C2_FOPH_FINISH
+ */
 void c2_cm_cp_fini(struct c2_cm_cp *cp);
 
+/** Submit copy packet for processing.*/
 void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp);
 
 bool c2_cm_cp_invariant(struct c2_cm_cp *cp);

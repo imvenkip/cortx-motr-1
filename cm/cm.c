@@ -155,11 +155,6 @@
    - Copy machine agents are started as foms and wait on their c2_chan for
      further event, until then the agents as foms, wait in the request handler's
      wait queue.
-   - Copy machine uses it's state machine's group mutex to
-     (cm::cm_mach:.sm_grp::s_lock) serialise it's state transitions.
-     Currently, this lock is used to protect the list of all agents
-     (cm_agent) embedded in c2_cm.
-     @see @ref Agents and @ref DLD-Agents-lspec
    - The cmtype_mutex is used to serialise the operation on cmtypes_list.
 
    <hr>

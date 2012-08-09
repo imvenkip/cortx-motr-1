@@ -28,7 +28,7 @@
 #include "cm/cm.h"
 
 /**
- *   @page DLD-cp DLD Copy Packet
+ * @page DLD-cp DLD Copy Packet
  *
  *   - @ref DLD-cp-ovw
  *   - @ref DLD-cp-def
@@ -49,9 +49,61 @@
  *   - @ref DLD-cp-ref
  *   - @ref DLD-cp-impl-plan
  *
- *
  *   <hr>
  *   @section DLD-cp-ovw Overview
+ *
+ *   When an instance of a copy machine type is created, a data structure copy
+ *   machine replica is created on each node (technically, in each request
+ *   handler) that might participate in the re-structuring.
+ *
+ *   Copy packet is the data structure used to describe the packet flowing
+ *   between various copy machine replica nodes. It is entity which has data as
+ *   well as operation to work. Copy packets are FOM of special type, created
+ *   when a data re-structuring request is posted to replica.
+ *
+ *   Copy packet processing logic is implemented in non-blocking way. Packet has
+ *   buffers to carry data and FOM for execution in context of request handler.
+ *   It can perform various kind of work which depend on the it's stage
+ *   (i.e. FOM phase) in execution. Phase_next() responsible for stage change
+ *   of copy packet.
+ *
+ *   Copy packet functionality split into two parts:
+ *
+ *	- generic functionality, implemented by cm/cp.[hc] directory and
+ *
+ *      - copy packet type functionality which based on copy machine type.
+ *        (e.g. SNS, Replication, &c).
+ *
+ *   Copy packet creation:
+ *
+ *   Given the size of the buffer pool, the replica calculates its initial
+ *   sliding window (see c2_cm_sw) size. Once the replica learns window sizes
+ *   of every other replica, it can produce copy packets that replicas
+ *   (including this one) are ready to process.
+ *
+ *      - start, device failure triggers copy machine data re-structuring
+ *        and it should make sure that sliding windows has enough packets
+ *        for processing by creating them at start of operation.
+ *
+ *      - has space, after completion of each copy packet, space in sliding
+ *        window checked. Copy packet exists then copy packets will be created.
+ *
+ *
+ *   Copy machine IO:
+ *
+ *   Transformation:
+ *
+ *   Cooperation within replica:
+ *
+ *   Resource:
+ *      - Buffer pool
+ *      - Storage BW
+ *      - Extent Locks
+ *      - Network bandwidth
+ *      - CPU cycles
+ *
+ *   @todo c2_cm_cp:c_fom:fo_loc used for transformation (e.g XOR).
+ *   @todo has_space in sliding window.
  *
  *   <hr>
  *   @section DLD-cp-def Definitions
@@ -59,11 +111,58 @@
  *   <hr>
  *   @section DLD-cp-req Requirements
  *
+ *   - <b>R.cm.cp</b> Copy-packet abstraction should be implemented such that it
+ *     represents the data to be transferred within replica.
+ *
+ *   - <b>R.cm.cp.FOM</b> Copy packets should be implemented as FOM.
+ *
+ *   - <b>R.cm.cp.async</b> Every read-write (receive-send) by replica
+ *     should follow non-blocking processing model of Colibri design.
+ *
+ *   - <b>R.cm.buffer_pool</b> Copy machine should provide a buffer pool, which
+ *     is efficiently used for copy packet data.
+ *
+ *   - <b>R.cm.cp.bulk_transfer</b> All data packets (except control packets)
+ *     that are sent over RPC should use bulk-interface for communication.
+ *
+ *   - <b>R.cm.addb</b> copy packet will use ADDB context of copy machine
+ *     replica. Each copy packet might have its own ADDB context as well.
+ *
  *   <hr>
  *   @section DLD-cp-depends Dependencies
  *
+ *   - <b>R.cm.service</b> Copy packets FOM are executed in context of copy
+ *     machine replica service.
+ *
+ *   - <b>R.cm.ops</b> Replica provides operation to create, configure and
+ *     execute copy packet FOMs.
+ *
+ *   - <b>R.layout</b> Data re-structure needs layout info.
+ *
+ *   - <b>R.layout.input-set</b> Iterate over layout info to create packets.
+ *
+ *   - <b>R.layout.output-set</b> Iterate over layout info to forward and write
+ *     copy packets.
+ *
+ *   - <b>R.resource</b> Resources like buffers, CPU cycles, network bandwidth,
+ *     storage bandwidth need by copy packet FOM during execution.
+ *
+ *   - <b>R.confc</b> Data from configuration will be used to initialise copy
+ *     packets.
+ *
  *   <hr>
  *   @section DLD-cp-highlights Design Highlights
+ *
+ *   - Copy packet are implemented as FOM, which inherently has non-blocking
+ *     model of colibri.
+ *
+ *   - Distributed sliding window algorithm is used to copy packet processing
+ *     within copy machine replica.
+ *
+ *   - Layout is updated periodically as the re-structuring progresses.
+ *
+ *   - Copy machine will adjust its operation when it encounters any changes
+ *     in the input and output set.
  *
  *   <hr>
  *   @section DLD-cp-lspec Logical Specification
@@ -72,8 +171,8 @@
  *   - @ref DLD-cp-lspec-sc1
  *      - @ref DLD-cp-lspec-ds1
  *      - @ref DLD-cp-lspec-sub1
- *      - @ref DLDCPDFSInternal  <!-- Note link -->
- *   - @ref DLD-c-lspec-state
+ *      - @ref DLDCPInternal  <!-- Note link -->
+ *   - @ref DLD-cp-lspec-state
  *   - @ref DLD-cp-lspec-thread
  *   - @ref DLD-cp-lspec-numa
  *
@@ -87,12 +186,60 @@
  *
  *   @subsection DLD-cp-lspec-state State Specification
  *
+ *   Copy packet is a state machine, goes through following stages:
+ *
+ *      - READ
+ *      - WRITE
+ *      - XFORM
+ *      - SEND
+ *      - RECV
+ *      - Non-std: Copy packet FOM can have phases addition these phases.
+ *                 Additional phases will be used to do processing under one of
+ *                 above phases.
+ *
+ *   Transition of standard phases is done by phase_next().
+ *
+ *   State diagram for copy packet phases:
+ *   @verbatim
+ *
+ *        New copy packet             new copy packet
+ *             +<---------INIT-------->+
+ *             |           |           |
+ *             |           |           |
+ *       +----READ     new |packet    RECV----+
+ *       |     |           |           |      |
+ *       |     +---------->V<----------+      |
+ *       |               XFORM                |
+ *       |     +<----------|---------->+      |
+ *       |     |           |           |      |
+ *       |     V           |           V      |
+ *       +--->SEND         |         WRITE<---+
+ *             |           V           |
+ *             +--------->FINI<--------+
+ *
+ *   @endverbatim
+ *
  *   @subsection DLD-cp-lspec-thread Threading and Concurrency Model
  *
  *   @subsection DLD-cp-lspec-numa NUMA optimizations
  *
  *   <hr>
  *   @section DLD-cp-conformance Conformance
+ *
+ *   - <b>I.cm.cp</b> Replicas communicate using copy packet structure.
+ *
+ *   - <b>I.cm.cp.FOM</b> Copy packets should be implemented as FOM.
+ *
+ *   - <b>I.cm.cp.async</b> Copy packet FOM in request handler infrastructure
+ *     makes it non-blocking.
+ *
+ *   - <b>I.cm.buffer_pool</b> Buffer pools are managed by copy machine which
+ *     cater to the requirements of copy packet data.
+ *
+ *   - <b>I.cm.cp.bulk_transfer</b> All data packets (except control packets)
+ *     that are sent over RPC, use bulk-interface for communication.
+ *
+ *   - <b>I.cm.cp.addb</b> copy packet uses ADDB context of copy machine.
  *
  *   <hr>
  *   @section DLD-cp-ut Unit Tests
@@ -112,7 +259,7 @@
  */
 
 /**
- * @defgroup DLDCPDFSInternal Colibri Sample Module Internals
+ * @defgroup DLDCPInternal Copy packet internal
  *
  * @see @ref DLD-cp and @ref DLD-cp-lspec
  *
@@ -183,12 +330,10 @@ static const struct c2_fom_ops cp_fom_ops = {
 };
 
 
-/** @} */ /* end internal */
+/** @} end internal */
 
 /**
-   External documentation can be continued if need be - usually it should
-   be fully documented in the header only.
-   @addtogroup DLDFS
+   @addtogroup cp
    @{
  */
 
@@ -209,6 +354,9 @@ void c2_cm_cp_init(struct c2_cm *cm, struct c2_cm_cp *cp,
 	cp->c_ops = ops;
 	cp->c_cm = cm;
 	c2_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL);
+
+	C2_POST(c2_cm_cp_invariant(cp));
+	C2_POST(cp->c_fom.fo_phase == C2_FOPH_INIT);
 }
 
 void c2_cm_cp_fini(struct c2_cm_cp *cp)
@@ -226,7 +374,7 @@ void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
 }
 
-/** @} end-of-DLDFS */
+/** @} end-of-DLD-cp-fspec */
 
 /*
  *  Local variables:

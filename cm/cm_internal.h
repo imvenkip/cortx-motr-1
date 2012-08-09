@@ -22,11 +22,6 @@
 #define __COLIBRI_CM_INTERNAL_H__
 
 #include "cm/cm.h"
-#include "cm/cp.h"
-
-C2_TL_DESCR_DECLARE(cp, extern);
-C2_TL_DECLARE(cp, extern, struct c2_cm_cp);
-extern struct c2_bob_type cp_bob;
 
 C2_TL_DESCR_DECLARE(aggr_grps, extern);
 C2_TL_DECLARE(aggr_grps, extern, struct c2_cm_aggr_group);
