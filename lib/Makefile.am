@@ -1,3 +1,5 @@
+include $(top_srcdir)/Makefile.xc
+
 SUBDIRS              = user_space
 
 libc2dir             = $(includedir)/colibri/lib
@@ -107,7 +109,8 @@ libc2_la_SOURCES     = \
                        ut.c \
                        ut.h \
                        vec.c \
-                       vec.h
+                       vec.h \
+                       vec_xc.c
 
 libc2_la_LDFLAGS       = @PTHREAD_LIBS@ -lrt
 EXTRA_DIST             = \
@@ -135,3 +138,5 @@ EXTRA_DIST             = \
                          linux_kernel/ut.c \
                          linux_kernel/main.c \
                          linux_kernel/types.h
+
+clean-local: clean-xc
