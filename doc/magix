@@ -12,14 +12,24 @@ c2_rpc_service_type  svt_magix               5356435f54595045 SVC_TYPE
 c2_rpc_service       svc_magix                 7270635f737663 rpc_svc
 c2_rpc_services_tl   td_head_magic           7270637376636864 rpcsvchd
 rpc_service_types_tl td_head_magic           5356435459504844 SVCTYPHD
+cs_buffer_pool       cs_bp_magic             4353504f4f4c4d41 CSPOOLMA
+cs_buffer_pools_tl   td_head_magic           4353504f4f4c4845 CSPOOLHE
+fi_dynamic_id        fdi_magic               666964796e69646c fidynidl
+fi_dynamic_id_tl     td_head_magic           666964796e696468 fidynidh
 cs_reqh_context      rc_magix                  52455148435458 REQHCTX
 rhctx_tl             td_head_magic             52484354584844 RHCTXHD
 c2_net_domain        nd_magix                    4E4554444F4D NETDOM
 ndom_tl              td_head_magic           4E4554444F4D4844 NETDOMHD
 cs_endpoint_and_xprt ex_magix                      43535F4550 CS_EP
 cs_eps_tl            td_head_magic             43535F45504844 CS_EPHD
+c2_db_tx_waiter      tw_magix                ab5c155a0fa1bed0 abscissa of albedo
+enw_tl               td_head_magic           da2edc0cc1d10515 dazed coccidiosis
+c2_reqh_service_type rst_magix               5248535643545950 RHSVCTYP
+rs_types_tl          td_head_magic           5248535459504844 RHSTYPHD
 c2_reqh_service      rs_magix                  52455148535643 REQHSVC
 c2_reqh_svc_tl       td_head_magic           5245515356434844 REQSVCHD
+c2_rpc_frm           f_magic                   5250435f46524d RPC_FRM
+rpc_buffer           rb_magic                  5250435f425546 RPC_BUF
 c2_rpc_machine       rm_magix                  5250434D414348 RPCMACH
 c2_reqh_rpc_mach_tl  td_head_magic           52455152504D4844 REQRPMHD
 cs_ad_stob           as_magix                    414453544f42 ADSTOB

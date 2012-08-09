@@ -51,7 +51,7 @@ static struct c2_rwlock rstypes_rwlock;
 
 C2_TL_DESCR_DEFINE(rstypes, "reqh service types", static,
                    struct c2_reqh_service_type, rst_linkage, rst_magix,
-                   C2_RHS_MAGIX, C2_RHS_MAGIX_HEAD);
+                   C2_RHS_TYPE_MAGIX, C2_RHS_TYPE_MAGIX_HEAD);
 
 C2_TL_DEFINE(rstypes, static, struct c2_reqh_service_type);
 
