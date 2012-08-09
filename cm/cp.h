@@ -214,6 +214,8 @@ struct c2_cm_cp_ops {
 	/** Non standard phases handled in this function.*/
 	int  (*co_state)    (struct c2_cm_cp *cp);
 
+	int  (*co_next)     (struct c2_cm_cp *cp);
+
 	/** Called when copy packet processing is completed successfully.*/
 	void (*co_complete) (struct c2_cm_cp *cp);
 

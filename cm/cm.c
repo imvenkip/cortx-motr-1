@@ -605,11 +605,6 @@ static void failure_exit(struct c2_sm *sm)
 	sm->sm_rc = 0;
 }
 
-struct c2_chan *c2_cm_signal(struct c2_cm *cm)
-{
-        return &cm->cm_mach.sm_grp->s_chan;
-}
-
 int c2_cm_failure_handle(struct c2_cm *cm)
 {
 	return 0;

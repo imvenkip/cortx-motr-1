@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_REPAIR_CP_H__
-#define __COLIBRI_REPAIR_SNS_H__
+#ifndef __COLIBRI_SNS_REPAIR_CP_H__
+#define __COLIBRI_SNS_REPAIR_CP_H__
 
 #include "lib/ext.h"
 
@@ -71,7 +71,7 @@ struct c2_sns_repair_cp {
 
 extern const struct c2_cm_cp_ops c2_sns_repair_cp_ops;
 
-#endif /* __COLIBRI_REPAIR_CP_H__ */
+#endif /* __COLIBRI_SNS_REPAIR_CP_H__ */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

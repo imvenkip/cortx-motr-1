@@ -78,7 +78,7 @@
     implementation of transformation function for copy packets.
 
   - @b r.sns.repair.next.agent The implementation should provide an efficient
-    next-agent phase function for the copy packet.
+    next-agent phase function for the copy packet FOM.
 
   - @b r.sns.repair.report.progress The implementation should efficiently report
     overall progress of data re-structuring and update corresponding layout
@@ -102,8 +102,8 @@
     interfaces.
   - Copy machine state transitions are performed by generic copy machine
     interfaces.
-  - SNS Repair defines its specific aggregation group structure which embeds
-    generic aggregation group.
+  - SNS Repair defines its specific aggregation group data structure which
+    embeds generic aggregation group.
 
   <hr>
   @section DLD-snsrepair-lspec Logical specification
@@ -155,7 +155,6 @@
   cm_start(cm)
   {
 	//Fetch configuration information for the node.
-	//Start copy machine agents.
   }
   @endcode
 
@@ -220,7 +219,7 @@
 */
 
 /**
-  @addtogroup snsrepair
+  @addtogroup snsrepair-cm
   SNS Repair copy machine implements a copy machine in-order to re-structure
   data efficiently in event of a failure. It uses GOB (global file object) and
   COB (component object) infrastructure and parity de-clustering layout.
@@ -246,22 +245,10 @@ const struct c2_cm_ops cm_ops = {
 	.cmo_start      = cm_start,
 	.cmo_config     = cm_config,
 	.cmo_next_agent = cm_next_agent,
-	.cmo_transform  = cm_transform,
 	.cmo_incoming   = cm_incoming,
 	.cmo_done       = cm_done,
 	.cmo_stop       = cm_stop,
 	.cmo_fini       = cm_fini
-};
-
-/** Copy machine callbacks.*/
-static void cm_cb_container(struct c2_cm *cm, uint64_t cid);
-static void cm_cb_device(struct c2_cm *cm, uint64_t devid);
-static void cm_cb_sw(struct c2_cm *cm, struct c2_cm_sw *sw);
-
-const struct c2_cm_cb cm_cb = {
-	.cmcb_container = cm_cb_container,
-	.cmcb_device    = cm_cb_device,
-	.cmcb_sl_window = cm_cb_sw
 };
 
 extern struct c2_cm_type sns_repair_cmt;
@@ -287,41 +274,6 @@ static int cm_start(struct c2_cm *cm)
 }
 
 /**
- * Transformation function for sns repair.
- *
- * Finds aggregation group c2_sns_aggr_group corresponding to the incoming
- * copy packet. Calculates the total number of copy packets
- * c2_sns_aggr_group::sag_cp_nr belonging
- * to c2_sns_aggr_group and checks it with the number of copy packets which are
- * transformed (c2_cm_aggr_group::cag_transformed_cp_nr).
- * If all the copy packets belonging to the aggregation group are transformed,
- * then creates a new copy packet and sends it to the next agent.
- *
- * Transformation involves XORing the c2_net_buffer's from copy packet
- * c2_cm_cp::cp_nb with c2_sns_aggr_group::sag_transformed_nb.
- * XORing is done using parity math operations like c2_parity_math_calculate().
- *
- * When first copy packet of the aggregation group is transformed, its
- * corresponding c2_cm_cp::cp_nb is set to
- * c2_sns_aggr_group::sag_transformed_nb.
- * Typically, all the copy packets will have same buffer size. Hence, there is
- * no need for any complex buffer manipulation like growing or shrinking the
- * c2_sns_aggr_group::sag_transformed_nb.
- *
- * Every copy packet once transformed is freed. It is safe to do so since the
- * collecting agent does not typically interact with remote agents. So there is
- * no risk of transformed copy packet getting lost during network
- * communication.
- *
- * @pre cp!= NULL && cp->cp_state == CPS_COLLECTING_WAIT
- * @param cp Copy packet that has to be transformed.
- */
-static int cm_transform(struct c2_cm_cp *cp)
-{
-	return 0;
-}
-
-/**
  * Defines the next_agent() for a sns repair copy machine.
  *
  * This routine return the next agent in [out] next_agent_id for this packet.
@@ -339,115 +291,11 @@ static int cm_transform(struct c2_cm_cp *cp)
  */
 static int cm_next_agent(struct c2_cm *cm, struct c2_cm_cp *packet)
 {
-	int rc = -ENOENT;
+	int rc = 0;
 
 	C2_PRE(cm != NULL);
 	C2_PRE(packet != NULL);
-/*
-	switch (packet->cp_state) {
-	case C2_CPS_STORAGE_IN_WAIT: {
-		struct c2_sns_repair_cp	*scp;
-		struct c2_cm_agent      *ca;
-		struct c2_tl		*tl;
-		uint64_t                 agents_nr;
-		uint32_t                 agents_idx;
-		enum c2_cm_agent_type    type;
-*/
-		/*
-		 * Finds a collecting agent as next agent.
-		 * TODO: This is temporary for single node demo. When layout
-		 * and configuration is ready, we will use them to find proper
-		 * next agent.
-		 */
-/*
-		type = C2_CM_AGENT_COLLECTING;
-		c2_cm_group_lock(cm);
-		tl = &cm->cm_agents;
-*/
-		/*
-		 * it's just a simple hash: hash with the fid key.
-		 * Assumptions: the number of agents will not change after sns
-		 * setup.
-		 */
-/*
-		agents_nr = cm->cm_agent_id_max;
-		scp = container_of(packet, struct c2_sns_repair_cp, rc_base);
-		agents_idx = scp->rc_gfid.f_key % agents_nr;
-		ca = agent_tlist_head(tl);
-		C2_ASSERT(ca != NULL);
-		while (agents_idx != 0) {
-			ca = agent_tlist_next(tl, ca);
-			C2_ASSERT(ca != NULL);
-			--agents_idx;
-		}
-*/
-		/* return this collecting agent */
-/*
-		*next_agent_id = ca->a_id;
-		c2_cm_group_unlock(cm);
-		rc = 0;
-		break;
-	}
-	case C2_CPS_STORAGE_OUT_WAIT:
-*/
-		/*
-		 * This is the end of pipeline. next_agent() should not
-		 * be called for this agent.
-		 */
-/*
-		C2_ASSERT(0);
-		rc = -ENOENT;
-		break;
-	case C2_CPS_NETWORK_IN_WAIT:
-	case C2_CPS_NETWORK_OUT_WAIT:
-		rc = -ENOENT;
-		break;
-	case C2_CPS_COLLECTING_WAIT: {
-		struct c2_sns_repair_cp	       *scp;
-		struct c2_cm_agent             *a;
-		struct c2_tl		       *tl;
-		struct c2_cm_storage_out_agent *so;
-*/
-		/*
-		 * Finds a storage-out agent as next agent.
-		 *
-		 * At this point, the cob fid and cob ext of current copy
-		 * packet should be ready and valid.
-		 *
-		 * TODO: This is temporary. When layout and configuration
-		 * is ready, they should be used to find proper next agent.
-		 */
-/*
-		c2_cm_group_lock(cm);
-		tl = &cm->cm_agents;
-		scp = container_of(packet, struct c2_sns_repair_cp, rc_base);
-		c2_tl_for(agent, tl, a) {
-			so = container_of(a, struct c2_cm_storage_out_agent,
-					  so_agent);
-			if (so->so_container_id == scp->rc_cfid.f_container) {
-*/
-				/* return this storage-out agent */
-/*
-				*next_agent_id = a->a_id;
-				rc = 0;
-				break;
-			}
-		} c2_tl_endfor;
-		C2_ASSERT(rc == 0);
-		c2_cm_group_unlock(cm);
-		break;
-	}
-	default:
-*/
-		/*
-		 * This should not happen.
-		 */
-/*
-		C2_ASSERT(0);
-		rc = -ENOENT;
-		break;
-	}
-*/
+
 	return rc;
 }
 
@@ -487,18 +335,6 @@ static void cm_fini(struct c2_cm *cm)
 {
 	C2_ENTRY();
 	C2_PRE(cm != NULL);
-}
-
-static void cm_cb_container(struct c2_cm *cm, uint64_t cid)
-{
-}
-
-static void cm_cb_device(struct c2_cm *cm, uint64_t devid)
-{
-}
-
-static void cm_cb_sw(struct c2_cm *cm, struct c2_cm_sw *sw)
-{
 }
 
 /** @} snsrepair */
