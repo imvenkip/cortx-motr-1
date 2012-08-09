@@ -241,7 +241,6 @@ static void borrow_reply(struct c2_rpc_item *item)
 	owner = og->rog_want.rl_right.ri_owner;
 
 	if (og->rog_rc == 0) {
-		og->rog_want.rl_id = borrow_reply->br_loan.lo_id;
 		og->rog_want.rl_cookie.cv.u_hi =
 			borrow_reply->br_loan.lo_cookie.co_hi;
 		og->rog_want.rl_cookie.cv.u_lo =
@@ -305,9 +304,6 @@ int c2_rm_revoke_out(struct c2_rm_incoming *in,
 	fop = &outreq->ou_fop;
 	c2_fop_init(fop, &c2_fop_rm_revoke_fopt, NULL);
 	rfop = c2_fop_data(fop);
-
-	/* Fill up the REVOKE FOP. */
-	rfop->rr_loan.lo_id = loan->rl_id;
 
 	/* Fetch the loan cookie and then copy it into the FOP */
 	c2_rm_loan_cookie_get(loan, &lcookie);

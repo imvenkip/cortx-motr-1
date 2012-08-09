@@ -69,8 +69,7 @@ DEF(c2_fop_rm_owner, RECORD,
     _(ow_resource, c2_fop_rm_opaque));
 
 DEF(c2_fop_rm_loan, RECORD,
-    _(lo_cookie, c2_fop_rm_cookie),
-    _(lo_id, U64));
+    _(lo_cookie, c2_fop_rm_cookie));
 
 DEF(c2_fop_rm_right, RECORD,
     _(ri_opaque, c2_fop_rm_opaque));

@@ -239,7 +239,6 @@ static int reply_prepare(const enum c2_rm_incoming_type type,
 		 * Get the loan pointer for processing reply from the cookie.
 		 */
 		loan = c2_rm_loan_find(&rfom->rf_in.ri_loan_cookie);
-		bfop->br_loan.lo_id = loan->rl_id;
 
 		/*
 		 * Memory for the buffer is allocated by the function.
