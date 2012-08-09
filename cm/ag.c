@@ -22,6 +22,7 @@
 #include <config.h>
 #endif
 
+#include "lib/bob.h"
 #include "cm/ag.h"
 #include "lib/tlist.h"
 
@@ -37,6 +38,9 @@ C2_TL_DESCR_DEFINE(aggr_grps, "aggr_grp_list_descr", ,
 		   AGGR_GROUP_LINK_MAGIC, AGGR_GROUP_LINK_HEAD);
 
 C2_TL_DEFINE(aggr_grps, extern, struct c2_cm_aggr_group);
+
+struct c2_bob_type aggr_grps_bob;
+C2_BOB_DEFINE( , &aggr_grps_bob, c2_cm_aggr_group);
 
 /*
  *  Local variables:

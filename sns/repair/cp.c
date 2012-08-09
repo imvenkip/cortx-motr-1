@@ -101,11 +101,6 @@ static int repair_cp_recv(struct c2_cm_cp *cp)
         return 0;
 }
 
-int repair_cp_xform(struct c2_cm_cp *cp)
-{
-        return 0;
-}
-
 static int repair_cp_state(struct c2_cm_cp *cp)
 {
 	return 0;

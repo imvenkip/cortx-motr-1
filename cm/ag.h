@@ -97,7 +97,7 @@ struct c2_cm_aggr_group_ops {
 	 * group on the local node. Typically this is calculated as,
 	 * number of data units per node * unit size / network buffer size.
 	 */
-	uint64_t (*cago_cp_nr)(struct c2_cm_aggr_group *ag);
+	uint64_t (*cago_local_cp_nr)(struct c2_cm_aggr_group *ag);
 };
 
 #endif

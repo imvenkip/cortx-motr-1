@@ -14,14 +14,20 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
+ * Original author: Anup Barve <anup_barve@xyratex.com>
  * Original creation date: 16/04/2012
  */
+
+#pragma once
 
 #ifndef __COLIBRI_SNS_REPAIR_AG_H__
 #define __COLIBRI_SNS_REPAIR_AG_H__
 
 #include "cm/cm.h"
+#include "cm/ag.h"
+#include "cm/cp.h"
+
+struct c2_cm_cp;
 
 /**
    @addtogroup snsrepair
@@ -29,16 +35,14 @@
    @{
 */
 
-struct c2_net_buffer;
-struct c2_cm_cp;
-
-struct c2_sns_repair_aggr_group {
-	/** Base aggregation group. */
+struct c2_sns_ag {
 	struct c2_cm_aggr_group  sag_base;
-	/** Transformed copy packet created by transformation function. */
-	struct c2_cm_cp         *sag_cp;
-	/** Resulting network buffer of outgoing transformed copy packet. */
-	struct c2_net_buffer    *sag_buf;
+	/** Resultant collected copy packet. */
+	struct c2_cm_cp         *sag_ccp;
+        /** Total number of copy packets that are collected. */
+        uint64_t                 sag_collected_cp_nr;
+        /** Total number of local copy packets */
+        uint64_t                 sag_local_cp_nr;
 };
 
 /** @} snsrepair */

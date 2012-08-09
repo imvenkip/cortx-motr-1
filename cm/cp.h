@@ -114,6 +114,13 @@ struct c2_cm_cp;
 struct c2_cm;
 
 /**
+ * @todo replace this hard coded size with actual number from confc.
+ */
+enum {
+        C2_CP_SIZE = 4096
+};
+
+/**
  * Copy packets priority.
  *
  * Copy packets are assigned a priority (greater numerical value
