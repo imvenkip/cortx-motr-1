@@ -237,6 +237,11 @@ sub get_info_about
             $item->{'xc_type'} = get_info_about($type_node)->{'xc_type'};
         }
 
+        when (/ArrayType/) {
+            $item->{'size'}    = $type_node->getAttribute('size');
+            $item->{'xc_type'} = '&C2_XT_VOID';
+        }
+
         when (/Struct|Union/) {
             my $entity_name    = lc $type_node->nodeName();
             my $item_type_name = $type_node->getAttribute('name') // 'anonymous';

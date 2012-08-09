@@ -604,7 +604,7 @@ extern const struct c2_xcode_type C2_XT_OPAQUE;
 /**
    Void type used by ff2c in places where C syntax requires a type name.
  */
-typedef struct {;} c2_void_t;
+typedef char c2_void_t[0];
 
 /**
    Returns a previously unused "decoration number", which can be used as an
