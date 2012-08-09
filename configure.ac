@@ -6,6 +6,7 @@ AC_CONFIG_MACRO_DIR([m4])
 
 AH_TEMPLATE([PACKAGE], [Package name.])
 AH_TEMPLATE([VERSION], [Version of the package.])
+AH_TEMPLATE([ENABLE_SYNC_ATOMIC], [Enable gcc built-in automic functions])
 AH_TEMPLATE([ENABLE_DEBUG], [Enable debug info.])
 AH_TEMPLATE([ENABLE_FAULT_INJECTION], [Enable fault injection.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT], [Have journal_abort() function])
@@ -260,6 +261,11 @@ AC_CHECK_TYPES([pthread_barrier_t], [AC_DEFINE([HAVE_PTHREAD_BARRIER_T])], [], [
 AC_FUNC_MALLOC
 
 # Configure options
+AC_ARG_ENABLE([sync_atomic],
+        [AC_HELP_STRING([--enable-sync_atomic], [enable gcc built-in __sync_atomic functions])], [],
+        [enable_sync_atomic=no]
+)
+
 AC_ARG_ENABLE([debug],
         [AC_HELP_STRING([--enable-debug], [enable debug information and logs])], [],
         [enable_debug=no]
@@ -533,6 +539,10 @@ AC_SEARCH_LIBS([io_getevents], [c aio], [], [AC_MSG_ERROR([io_getevents cannot b
 AIO_LIBS=$LIBS
 AC_SUBST([AIO_LIBS])
 LIBS=$OLD_LIBS
+
+if test x$enable_sync_atomic = xyes; then
+	AC_DEFINE([ENABLE_SYNC_ATOMIC])
+fi
 
 if test x$enable_debug = xyes; then
         # If debug options specified we are free to strip all the default

@@ -15,10 +15,6 @@ sub-team leads, contact them to add more things here.
             c2_fom_domain_is_idle() function that iterates over all localities
             and checks that queues are empty.
 
-2012-Jul-26 Use gcc builtins __sync_fetch_and_add, ... for use-space
-            c2_atomic64. Check first, that this is supported by our target
-            compiler version.
-
 2012-Jul-26 addb context should be embedded in reqh.
 
 2012-Jul-26 Get rid of c2_fom::fo_fol, use fom->fo_loc->fl_dom->fd_reqh->rh_fol
@@ -73,5 +69,9 @@ sub-team leads, contact them to add more things here.
 
     Use lists based on C2_TL_{DEFINE,DESCR}()
 
-2012-May-14 Use #pragma once in headers
+2012-May-14 Use #pragma once in headers [2012-Aug-01]
+
+2012-Jul-26 Use gcc builtins __sync_fetch_and_add, ... for use-space
+            c2_atomic64. Check first, that this is supported by our target
+            compiler version [2012-Aug-07]
 

@@ -101,6 +101,7 @@ libc2_la_SOURCES     = \
                        user_space/trace.h \
                        user_space/types.h \
                        user_space/user_x86_64_atomic.h \
+		       user_space/__sync_atomic.h \
                        user_space/uthread.c \
                        user_space/utime.c \
                        ut.c \
