@@ -28,7 +28,7 @@
 #include "cm/cm.h"
 
 /**
- *   @page DLD-cp DLD Copy Packet
+ * @page DLD-cp DLD Copy Packet
  *
  *   - @ref DLD-cp-ovw
  *   - @ref DLD-cp-def
@@ -51,6 +51,59 @@
  *
  *   <hr>
  *   @section DLD-cp-ovw Overview
+ *
+ *   When an instance of a copy machine type is created, a data structure copy
+ *   machine replica is created on each node (technically, in each request
+ *   handler) that might participate in the re-structuring.
+ *
+ *   Copy packet is the data structure used to describe the packet flowing
+ *   between various copy machine replica nodes. It is entity which has data as
+ *   well as operation to work. Copy packets are FOM of special type, created
+ *   when a data re-structuring request is posted to replica.
+ *
+ *   Copy packet processing logic is implemented in non-blocking way. Packet has
+ *   buffers to carry data and FOM for execution in context of request handler.
+ *   It can perform various kind of work which depend on the it's stage
+ *   (i.e. FOM phase) in execution. Phase_next() responsible for stage change
+ *   of copy packet.
+ *
+ *   Copy packet functionality split into two parts:
+ *
+ *	- generic functionality, implemented by cm/cp.[hc] directory and
+ *
+ *      - copy packet type functionality which based on copy machine type.
+ *        (e.g. SNS, Replication, &c).
+ *
+ *   Copy packet creation:
+ *
+ *   Given the size of the buffer pool, the replica calculates its initial
+ *   sliding window (see c2_cm_sw) size. Once the replica learns window sizes
+ *   of every other replica, it can produce copy packets that replicas
+ *   (including this one) are ready to process.
+ *
+ *      - start, device failure triggers copy machine data re-structuring
+ *        and it should make sure that sliding windows has enough packets
+ *        for processing by creating them at start of operation.
+ *
+ *      - has space, after completion of each copy packet, space in sliding
+ *        window checked. Copy packet exists then copy packets will be created.
+ *
+ *
+ *   Copy machine IO:
+ *
+ *   Transformation:
+ *
+ *   Cooperation within replica:
+ *
+ *   Resource:
+ *      - Buffer pool
+ *      - Storage BW
+ *      - Extent Locks
+ *      - Network bandwidth
+ *      - CPU cycles
+ *
+ *   @todo c2_cm_cp:c_fom:fo_loc used for transformation (e.g XOR).
+ *   @todo has_space in sliding window.
  *
  *   <hr>
  *   @section DLD-cp-def Definitions
@@ -118,7 +171,7 @@
  *   - @ref DLD-cp-lspec-sc1
  *      - @ref DLD-cp-lspec-ds1
  *      - @ref DLD-cp-lspec-sub1
- *      - @ref DLDCPDFSInternal  <!-- Note link -->
+ *      - @ref DLDCPInternal  <!-- Note link -->
  *   - @ref DLD-cp-lspec-state
  *   - @ref DLD-cp-lspec-thread
  *   - @ref DLD-cp-lspec-numa
@@ -133,6 +186,39 @@
  *
  *   @subsection DLD-cp-lspec-state State Specification
  *
+ *   Copy packet is a state machine, goes through following stages:
+ *
+ *      - READ
+ *      - WRITE
+ *      - XFORM
+ *      - SEND
+ *      - RECV
+ *      - Non-std: Copy packet FOM can have phases addition these phases.
+ *                 Additional phases will be used to do processing under one of
+ *                 above phases.
+ *
+ *   Transition of standard phases is done by phase_next().
+ *
+ *   State diagram for copy packet phases:
+ *   @verbatim
+ *
+ *        New copy packet             new copy packet
+ *             +<---------INIT-------->+
+ *             |           |           |
+ *             |           |           |
+ *       +----READ     new |packet    RECV----+
+ *       |     |           |           |      |
+ *       |     +---------->V<----------+      |
+ *       |               XFORM                |
+ *       |     +<----------|---------->+      |
+ *       |     |           |           |      |
+ *       |     V           |           V      |
+ *       +--->SEND         |         WRITE<---+
+ *             |           V           |
+ *             +--------->FINI<--------+
+ *
+ *   @endverbatim
+ *
  *   @subsection DLD-cp-lspec-thread Threading and Concurrency Model
  *
  *   @subsection DLD-cp-lspec-numa NUMA optimizations
@@ -142,7 +228,7 @@
  *
  *   - <b>I.cm.cp</b> Replicas communicate using copy packet structure.
  *
- *   - <b>I.cm.cp.FOM</b> Copy packets should be implementged as FOM.
+ *   - <b>I.cm.cp.FOM</b> Copy packets should be implemented as FOM.
  *
  *   - <b>I.cm.cp.async</b> Copy packet FOM in request handler infrastructure
  *     makes it non-blocking.
@@ -153,7 +239,7 @@
  *   - <b>I.cm.cp.bulk_transfer</b> All data packets (except control packets)
  *     that are sent over RPC, use bulk-interface for communication.
  *
- *   - <b>I.cm.cp.addb</b> copy packet uses addb context of copy machine.
+ *   - <b>I.cm.cp.addb</b> copy packet uses ADDB context of copy machine.
  *
  *   <hr>
  *   @section DLD-cp-ut Unit Tests
@@ -173,7 +259,7 @@
  */
 
 /**
- * @defgroup DLDCPDFSInternal Colibri Sample Module Internals
+ * @defgroup DLDCPInternal Copy packet internal
  *
  * @see @ref DLD-cp and @ref DLD-cp-lspec
  *
@@ -244,12 +330,10 @@ static const struct c2_fom_ops cp_fom_ops = {
 };
 
 
-/** @} */ /* end internal */
+/** @} end internal */
 
 /**
-   External documentation can be continued if need be - usually it should
-   be fully documented in the header only.
-   @addtogroup DLDFS
+   @addtogroup cp
    @{
  */
 
@@ -290,7 +374,7 @@ void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
 }
 
-/** @} end-of-DLDFS */
+/** @} end-of-DLD-cp-fspec */
 
 /*
  *  Local variables:

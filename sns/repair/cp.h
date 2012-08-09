@@ -47,8 +47,11 @@ enum c2_sns_repair_phase {
 };
 
 struct c2_sns_repair_cp {
-	enum c2_sns_repair_phase rc_phase;
+	/** Base class */
 	struct c2_cm_cp		 rc_cp;
+
+	/** SNS copy packet specific phases.*/
+	enum c2_sns_repair_phase rc_phase;
 
         /** The gob fid which this data belongs to */
         struct c2_fid		 rc_gfid;
@@ -58,10 +61,8 @@ struct c2_sns_repair_cp {
 
         /**
          * The cob fid which this data belongs to.
-         * - When this cp belongs to a storage-in agent, it is where
-         *   it reads from.
-         * - When this cp is finished processing by collecting agent,
-         *   it is the cob for storage-out agent to write to.
+         * - In READ phase, it is where it reads from.
+         * - In WRITE phase, it is where it write to.
          */
         struct c2_fid		 rc_cfid;
 
