@@ -54,15 +54,15 @@
 #include "fop/fop_format_def.h"
 
 #ifdef __KERNEL__
-#include "reqh/reqh_fops_k.h"
+#include "fop/fom_generic_k.h"
 #include "io_fop_k.h"
 #else
-#include "reqh/reqh_fops_u.h"
+#include "fop/fom_generic_u.h"
 #include "io_fop_u.h"
 #endif
 
 #include "io_fop.h"
-#include "reqh/reqh_fops.ff"
+#include "fop/fom_generic.ff"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpclib.h"
 #include "ut/rpc.h"

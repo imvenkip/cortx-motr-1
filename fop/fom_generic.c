@@ -34,14 +34,17 @@
 #include "dtm/dtm.h"
 #include "fop/fop_format_def.h"
 #include "rpc/rpc2.h"
+#include "rpc/rpc_opcodes.h"    /* C2_REQH_ERROR_REPLY_OPCODE */
 #include "reqh/reqh.h"
+#include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
 
 #ifdef __KERNEL__
-# include "reqh/reqh_fops_k.h"
+# include "fop/fom_generic_k.h"
 #else
-# include "reqh/reqh_fops_u.h"
+# include "fop/fom_generic_u.h"
 #endif
 
+#include "fop/fom_generic.ff"
 #include "fop/fom_generic.h"
 
 /**
@@ -59,10 +62,28 @@ static const struct c2_addb_loc reqh_gen_addb_loc = {
 #define REQH_GEN_ADDB_ADD(addb_ctx, name, rc)  \
 C2_ADDB_ADD((addb_ctx), &reqh_gen_addb_loc, c2_addb_func_fail, (name), (rc))
 
-/**
- * Reqh generic error fop type.
- */
-extern struct c2_fop_type c2_reqh_error_rep_fopt;
+static struct c2_fop_type_ops fom_err_fop_ops = {
+	.fto_size_get = c2_xcode_fop_size_get,
+	.fto_execute = NULL,
+};
+
+C2_FOP_TYPE_DECLARE(c2_fom_error_rep, "fom error reply", &fom_err_fop_ops,
+		    C2_REQH_ERROR_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
+
+static struct c2_fop_type *fom_fops[] = {
+	&c2_fom_error_rep_fopt,
+};
+
+void c2_fom_generic_fini(void)
+{
+	c2_fop_type_fini_nr(fom_fops, ARRAY_SIZE(fom_fops));
+}
+
+int c2_fom_generic_init(void)
+{
+	return c2_fop_type_build_nr(fom_fops, ARRAY_SIZE(fom_fops));
+}
+
 
 /**
  * Fom phase operations structure, helps to transition fom
@@ -235,11 +256,11 @@ static int create_loc_ctx_wait(struct c2_fom *fom)
 static int set_gen_err_reply(struct c2_fom *fom)
 {
 	struct c2_fop			*rfop;
-	struct c2_reqh_error_rep	*out_fop;
+	struct c2_fom_error_rep	*out_fop;
 
 	C2_PRE(fom != NULL);
 
-	rfop = c2_fop_alloc(&c2_reqh_error_rep_fopt, NULL);
+	rfop = c2_fop_alloc(&c2_fom_error_rep_fopt, NULL);
 	if (rfop == NULL)
 		return -ENOMEM;
 	out_fop = c2_fop_data(rfop);

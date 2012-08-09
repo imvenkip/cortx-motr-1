@@ -19,20 +19,20 @@
  */
 
 /**
-   @addtogroup reqh
+   @addtogroup fom
    @{
  */
 
 /**
- * @file reqh_fops.ff
+ * @file fom_generic.ff
  *
- * <b>Reqh generic error reply</b>
+ * <b>Fom generic error reply</b>
  */
 
-DEF(c2_reqh_error_rep, RECORD,
+DEF(c2_fom_error_rep, RECORD,
 	_(rerr_rc, U32));
 
-/** @} end of reqh group */
+/** @} end of fom group */
 
 /*
  *  Local variables:

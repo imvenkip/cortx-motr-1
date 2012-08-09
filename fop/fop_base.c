@@ -25,6 +25,7 @@
 #include "lib/vec.h"
 #include "fop/fop_base.h"
 #include "fop/fop_iterator.h"
+#include "fop/fom_generic.h"   /* c2_fom_generic_fini, c2_fom_generic_init */
 #include "fop/fom_long_lock.h" /* c2_fom_ll_global_init */
 
 /**

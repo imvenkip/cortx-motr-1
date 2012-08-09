@@ -321,7 +321,7 @@ static void queueit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 	struct c2_fom *fom = container_of(ast, struct c2_fom, fo_cb.fc_ast);
 
 	C2_PRE(c2_fom_invariant(fom));
-	C2_PRE(C2_IN(fom->fo_phase, (C2_FOPH_INIT, C2_FOPH_FAILURE)));
+	C2_PRE(fom->fo_phase == C2_FOM_PHASE_INIT);
 
 	fom_ready(fom);
 }

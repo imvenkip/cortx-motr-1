@@ -92,9 +92,6 @@ static struct c2_addb_ctx reqh_addb_ctx;
 #define REQH_ADDB_ADD(addb_ctx, name, rc)  \
 C2_ADDB_ADD((addb_ctx), &reqh_addb_loc, c2_addb_func_fail, (name), (rc))
 
-extern int c2_reqh_fop_init(void);
-extern void c2_reqh_fop_fini(void);
-
 bool c2_reqh_invariant(const struct c2_reqh *reqh)
 {
 	return reqh != NULL && reqh->rh_dbenv != NULL &&
@@ -142,7 +139,6 @@ void c2_reqhs_fini(void)
 {
 	c2_addb_ctx_fini(&reqh_addb_ctx);
 	c2_reqh_service_types_fini();
-	c2_reqh_fop_fini();
 }
 
 int c2_reqhs_init(void)
@@ -151,7 +147,7 @@ int c2_reqhs_init(void)
 					&c2_addb_global_ctx);
 	c2_reqh_service_types_init();
 	c2_bob_type_tlist_init(&rqsvc_bob, &c2_reqh_svc_tl);
-	return c2_reqh_fop_init();
+	return 0;
 }
 
 void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
