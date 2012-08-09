@@ -203,31 +203,17 @@ static int stob_create_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static int stob_read_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static int stob_write_fom_create(struct c2_fop *fop, struct c2_fom **out);
 
-static int stob_create_fom_state(struct c2_fom *fom);
-static int stob_read_fom_state(struct c2_fom *fom);
-static int stob_write_fom_state(struct c2_fom *fom);
-
+/** stob create, read and write state. */
+static int stob_crw_fom_state(struct c2_fom *fom);
 static void stob_io_fom_fini(struct c2_fom *fom);
 static size_t stob_find_fom_home_locality(const struct c2_fom *fom);
 
 /**
  * Operation structures for respective foms
  */
-static struct c2_fom_ops stob_create_fom_ops = {
+static struct c2_fom_ops stob_crw_fom_ops = {
 	.fo_fini = stob_io_fom_fini,
-	.fo_state = stob_create_fom_state,
-	.fo_home_locality = stob_find_fom_home_locality,
-};
-
-static struct c2_fom_ops stob_write_fom_ops = {
-	.fo_fini = stob_io_fom_fini,
-	.fo_state = stob_write_fom_state,
-	.fo_home_locality = stob_find_fom_home_locality,
-};
-
-static struct c2_fom_ops stob_read_fom_ops = {
-	.fo_fini = stob_io_fom_fini,
-	.fo_state = stob_read_fom_state,
+	.fo_state = stob_crw_fom_state,
 	.fo_home_locality = stob_find_fom_home_locality,
 };
 
@@ -339,7 +325,7 @@ static int stob_io_fop_fom_create_helper(struct c2_fop *fop,
  */
 static int stob_create_fom_create(struct c2_fop *fop, struct c2_fom **out)
 {
-	return stob_io_fop_fom_create_helper(fop, &stob_create_fom_ops,
+	return stob_io_fop_fom_create_helper(fop, &stob_crw_fom_ops,
 				      &c2_stob_io_create_rep_fopt, out);
 }
 
@@ -348,7 +334,7 @@ static int stob_create_fom_create(struct c2_fop *fop, struct c2_fom **out)
  */
 static int stob_write_fom_create(struct c2_fop *fop, struct c2_fom **out)
 {
-	return stob_io_fop_fom_create_helper(fop, &stob_write_fom_ops,
+	return stob_io_fop_fom_create_helper(fop, &stob_crw_fom_ops,
 				      &c2_stob_io_write_rep_fopt, out);
 }
 
@@ -357,7 +343,7 @@ static int stob_write_fom_create(struct c2_fop *fop, struct c2_fom **out)
  */
 static int stob_read_fom_create(struct c2_fop *fop, struct c2_fom **out)
 {
-	return stob_io_fop_fom_create_helper(fop, &stob_read_fom_ops,
+	return stob_io_fop_fom_create_helper(fop, &stob_crw_fom_ops,
 				      &c2_stob_io_read_rep_fopt, out);
 }
 
@@ -407,23 +393,16 @@ static size_t stob_find_fom_home_locality(const struct c2_fom *fom)
 }
 
 /**
- * A simple non blocking create fop specific fom
+ * A simple non blocking create , read and write fop specific fom
  * state method implemention.
  */
-static int stob_create_fom_state(struct c2_fom *fom)
+static int stob_crw_fom_state(struct c2_fom *fom)
 {
-	int		       result;
-	struct c2_stob_io_fom *fom_obj;
+	C2_PRE(C2_IN(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode,
+	       (C2_STOB_IO_CREATE_REQ_OPCODE, C2_STOB_IO_WRITE_REQ_OPCODE,
+	       C2_STOB_IO_READ_REQ_OPCODE)));
 
-	C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
-	       C2_STOB_IO_CREATE_REQ_OPCODE);
-	fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
-
-	result = c2_fom_state_transition(fom);
-	if (fom->fo_next_phase == C2_FOPH_FINISH)
-		c2_stob_put(fom_obj->sif_stobj);
-
-	return result;
+	return c2_fom_state_transition(fom);
 }
 
 static int stob_create(struct c2_sm *sm)
@@ -452,38 +431,8 @@ static int stob_create(struct c2_sm *sm)
 	fom->fo_rep_fop = fom_obj->sif_rep_fop;
 	sm->sm_rc = result;
 
+	c2_stob_put(fom_obj->sif_stobj);
 	return (result != 0) ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
-}
-
-
-/**
- * A simple non blocking read fop specific fom
- * state method implemention.
- */
-static int stob_read_fom_state(struct c2_fom *fom)
-{
-        int		       result;
-        struct c2_stob_io_fom *fom_obj;
-        struct c2_stob_io     *stio;
-
-        C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
-	       C2_STOB_IO_READ_REQ_OPCODE);
-
-        fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
-        stio = &fom_obj->sif_stio;
-        result = c2_fom_state_transition(fom);
-
-	if (fom->fo_next_phase == C2_FOPH_FINISH) {
-                /*
-                   If we fail in any of the generic phase, stob io
-                   is uninitialised, so no need to fini.
-                 */
-                if (stio->si_state != SIS_ZERO) {
-                        c2_stob_io_fini(stio);
-                        c2_stob_put(fom_obj->sif_stobj);
-                }
-        }
-        return result;
 }
 
 static int stob_read(struct c2_sm *sm)
@@ -537,37 +486,6 @@ static int stob_read(struct c2_sm *sm)
 
 	fom->fo_next_phase = C2_FOPH_STOB_IO_FINISH;
 	return C2_FSO_WAIT;
-}
-
-
-/**
- * A simple non blocking write fop specific fom
- * state method implemention.
- */
-static int stob_write_fom_state(struct c2_fom *fom)
-{
-        struct c2_stob_io_fom *fom_obj;
-        struct c2_stob_io     *stio;
-        int		       result;
-
-        C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
-	       C2_STOB_IO_WRITE_REQ_OPCODE);
-
-        fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
-        stio = &fom_obj->sif_stio;
-
-	result = c2_fom_state_transition(fom);
-        if (fom->fo_next_phase == C2_FOPH_FINISH) {
-                /*
-                   If we fail in any of the generic phase, stob io
-                   is uninitialised, so no need to fini.
-                 */
-                if (stio->si_state != SIS_ZERO) {
-                        c2_stob_io_fini(stio);
-                        c2_stob_put(fom_obj->sif_stobj);
-                }
-        }
-        return result;
 }
 
 static int stob_write(struct c2_sm *sm)
@@ -644,12 +562,17 @@ static int stob_io_finished(struct c2_sm *sm)
 	item->ri_group = NULL;
 	fom->fo_rep_fop = fom_obj->sif_rep_fop;
 
-	if (sm->sm_rc == 0) {
-		bshift = stobj->so_op->sop_block_shift(stobj);
-		out_fop->fiwr_count = stio->si_count << bshift;
-		return C2_FOPH_SUCCESS;
-	} else
-		return C2_FOPH_FAILURE;
+	bshift = stobj->so_op->sop_block_shift(stobj);
+	out_fop->fiwr_count = stio->si_count << bshift;
+	/*
+	   If we fail in any of the generic phase, stob io
+	   is uninitialised, so no need to fini.
+	 */
+	if (stio->si_state != SIS_ZERO) {
+		c2_stob_io_fini(stio);
+		c2_stob_put(fom_obj->sif_stobj);
+	}
+	return (sm->sm_rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
 }
 
 /**

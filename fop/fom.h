@@ -452,6 +452,7 @@ enum c2_fom_state_outcome {
 	 * immediately executed (by the same or by a different handler thread)
 	 * or the fom is placed in the run-queue, depending on the scheduling
 	 * constraints.
+	 * TODO: This needs to be removed after fop-lock-ut changes.
 	 */
 	C2_FSO_AGAIN = C2_FSO_WAIT - 1,
 };

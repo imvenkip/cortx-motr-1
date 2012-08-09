@@ -117,7 +117,7 @@ static int cons_fom_state(struct c2_fom *fom)
 	reply_item = &rfop->f_item;
         c2_rpc_reply_post(req_item, reply_item);
 	fom->fo_next_phase = C2_FOPH_FINISH;
-	return C2_FSO_WAIT;
+	return c2_fom_state_transition(fom);
 }
 
 const struct c2_fom_ops c2_cons_fom_device_ops = {

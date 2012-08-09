@@ -330,39 +330,26 @@ static int fom_wait(struct c2_sm *sm)
  * @see c2_fom_wake_on()
  * @see c2_fom_callback_arm()
  * @see c2_fom_wakeup()
+ * @pre c2_fom_invariant(fom)
  * @post c2_fom_invariant(fom)
  */
 static int fom_exec(struct c2_sm *sm)
 {
-	int			rc;
-	struct c2_fom_locality *loc;
-	struct c2_fom	       *fom = sm2fom(sm);
+	struct c2_fom *fom = sm2fom(sm);
 
-	loc = fom->fo_loc;
+	C2_PRE(c2_fom_invariant(fom));
 
-	do {
-		C2_ASSERT(c2_fom_invariant(fom));
-		rc = fom->fo_ops->fo_state(fom);
-		fom->fo_transitions++;
-	} while (rc == C2_FSO_AGAIN);
-
-	C2_ASSERT(rc == C2_FSO_WAIT);
-	C2_ASSERT(c2_fom_group_is_locked(fom));
+	C2_ASSERT(fom->fo_ops->fo_state(fom) == C2_FSO_WAIT);
+	fom->fo_transitions++;
 
 	C2_POST(c2_fom_invariant(fom));
-	if (fom->fo_next_phase == C2_FOPH_FINISH)
-		return C2_FOS_FINISH;
-	return C2_FOS_WAITING;
+	return (fom->fo_sm_phase.sm_state == C2_FOPH_FINISH) ? C2_FOS_FINISH :
+							       C2_FOS_WAITING;
 }
 
 static void fom_finish(struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
-
-	/* Todo: Can be removed once all the fom's
-	 * uses c2_fom_state_transition().
-	 */
-	c2_sm_state_set(&fom->fo_sm_phase, C2_FOPH_FINISH);
 
 	c2_sm_fini(&fom->fo_sm_phase);
 	c2_sm_fini(&fom->fo_sm_state);
@@ -439,7 +426,7 @@ static void loc_handler_thread(struct c2_fom_hthread *th)
 				idle = false;
 			}
 			c2_sm_state_set(&fom->fo_sm_state, C2_FOS_RUNNING);
-			if (fom->fo_next_phase == C2_FOPH_FINISH)
+			if (fom->fo_sm_phase.sm_state == C2_FOPH_FINISH)
 				fom_finish(fom);
 		} else {
 			if (!idle) {

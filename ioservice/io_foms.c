@@ -604,12 +604,12 @@ const char *c2_io_fom_cob_rw_service_name (struct c2_fom *fom);
 static bool c2_io_fom_cob_rw_invariant(const struct c2_io_fom_cob_rw *io);
 static void reply_fop_set(struct c2_fom *fom);
 
-static int acquire_net_buffer(struct c2_sm *sm);
+static int net_buffer_acquire(struct c2_sm *sm);
 static int io_launch(struct c2_sm *sm);
 static int io_finish(struct c2_sm *sm);
-static int initiate_zero_copy(struct c2_sm *sm);
+static int zero_copy_initiate (struct c2_sm *sm);
 static int zero_copy_finish(struct c2_sm *sm);
-static int release_net_buffer(struct c2_sm *sm);
+static int net_buffer_release (struct c2_sm *sm);
 
 /**
  * I/O FOM operation vector.
@@ -632,11 +632,11 @@ static const struct c2_fom_type_ops type_ops = {
  * I/O Read FOM state transition table.
  * @see DLD-bulk-server-lspec-state
  */
-struct c2_sm_state_descr io_states[C2_IO_FOPH_NR] = {
+struct c2_sm_state_descr io_phases[C2_IO_FOPH_NR] = {
 	[C2_FOPH_IO_FOM_BUFFER_ACQUIRE] = {
 		.sd_flags     = 0,
 		.sd_name      = "Network buffer acquire",
-		.sd_in        = &acquire_net_buffer,
+		.sd_in        = &net_buffer_acquire,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOPH_IO_STOB_INIT) |
@@ -665,7 +665,7 @@ struct c2_sm_state_descr io_states[C2_IO_FOPH_NR] = {
 	[C2_FOPH_IO_ZERO_COPY_INIT] = {
 		.sd_flags     = 0,
 		.sd_name      = "Zero-copy initiate",
-		.sd_in        = &initiate_zero_copy,
+		.sd_in        = &zero_copy_initiate,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
 		.sd_allowed   = ((uint64_t)1 << C2_FOPH_IO_ZERO_COPY_FINISH) |
@@ -684,7 +684,7 @@ struct c2_sm_state_descr io_states[C2_IO_FOPH_NR] = {
 	[C2_FOPH_IO_BUFFER_RELEASE] = {
 		.sd_flags     = 0,
 		.sd_name      = "Network buffer release",
-		.sd_in        = &release_net_buffer,
+		.sd_in        = &net_buffer_release,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOPH_IO_FOM_BUFFER_ACQUIRE) |
@@ -698,7 +698,7 @@ struct c2_sm_state_descr io_states[C2_IO_FOPH_NR] = {
 struct c2_fom_type c2_io_fom_cob_rw_mopt = {
 	.ft_ops       = &type_ops,
 	.ft_nr_phases = C2_IO_FOPH_NR,
-	.ft_phases    = io_states,
+	.ft_phases    = io_phases,
 };
 
 static bool c2_io_fom_cob_rw_invariant(const struct c2_io_fom_cob_rw *io)
@@ -769,7 +769,6 @@ static void stobio_complete_cb(struct c2_fom_callback *cb)
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
-
 
         C2_CNT_DEC(fom_obj->fcrw_num_stobio_launched);
         if (fom_obj->fcrw_num_stobio_launched == 0)
@@ -1017,7 +1016,7 @@ static int c2_io_fom_cob_rw_create(struct c2_fop *fop, struct c2_fom **out)
  * @pre fom != NULL
  * @pre fom->fo_service != NULL
  */
-static int acquire_net_buffer(struct c2_sm *sm)
+static int net_buffer_acquire(struct c2_sm *sm)
 {
 	struct c2_fom		  *fom = c2_sm2fom(sm);
         uint32_t		   colour;
@@ -1133,7 +1132,7 @@ static int acquire_net_buffer(struct c2_sm *sm)
  * @pre fom != NULL
  * @pre fom->fo_service != NULL
  */
-static int release_net_buffer(struct c2_sm *sm)
+static int net_buffer_release(struct c2_sm *sm)
 {
 	struct c2_fom		  *fom = c2_sm2fom(sm);
         uint32_t		   colour;
@@ -1190,7 +1189,7 @@ static int release_net_buffer(struct c2_sm *sm)
  * @param sm state machine embbedded inside FOM c2_fom::fo_sm_phase
  * @pre fom != NULL
  */
-static int initiate_zero_copy(struct c2_sm *sm)
+static int zero_copy_initiate(struct c2_sm *sm)
 {
 	struct c2_fom		 *fom = c2_sm2fom(sm);
         int			  rc = 0;
@@ -1245,7 +1244,7 @@ static int initiate_zero_copy(struct c2_sm *sm)
                         sm->sm_rc = rc;
                         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                                     c2_addb_func_fail,
-                                    "initiate_zero_copy", rc);
+                                    "zero_copy_initiate ", rc);
 			reply_fop_set(fom);
 			return C2_FOPH_FAILURE;
                 }
@@ -1275,7 +1274,7 @@ static int initiate_zero_copy(struct c2_sm *sm)
                 c2_rpc_bulk_fini(rbulk);
                 sm->sm_rc = rc;
                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
-                            c2_addb_func_fail, "initiate_zero_copy", rc);
+                            c2_addb_func_fail, "zero_copy_initiate", rc);
 		reply_fop_set(fom);
 		return C2_FOPH_FAILURE;
         }

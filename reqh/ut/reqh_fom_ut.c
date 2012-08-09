@@ -86,7 +86,7 @@ enum {
 	CLIENT_COB_DOM_ID	= 101,
 	SESSION_SLOTS		= 5,
 	MAX_RPCS_IN_FLIGHT	= 32,
-	CONNECT_TIMEOUT		= 5,
+	CONNECT_TIMEOUT		= 45,
 };
 
 static struct c2_stob_domain   *sdom;

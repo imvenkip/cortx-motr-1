@@ -67,10 +67,10 @@ enum c2_fom_generic_phase {
  * Transitions through both standard and specific phases until C2_FSO_WAIT is
  * returned by a state function.
  * Each FOM phase method needs to either return next phase to transition into or
- * set fom->fo_next_phase and return C2_FOS_WAIT in case the FOM executes a
+ * set fom->fo_next_phase and return C2_FSO_WAIT in case the FOM executes a
  * blocking function.
  *
- * @retval C2_FSO_WAIT,	 if FOM is blocking.
+ * @retval C2_FSO_WAIT, if FOM is blocking.
  */
 int c2_fom_state_transition(struct c2_fom *fom);
 

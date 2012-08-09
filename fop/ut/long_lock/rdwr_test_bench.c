@@ -209,7 +209,7 @@ static int fom_rdwr_state(struct c2_fom *fom)
 		/* notify, fom ready */
 		c2_chan_signal(&chan[rq_seqn]);
 		fom->fo_next_phase = C2_FOPH_FINISH;
-		result = C2_FSO_WAIT;
+		return c2_fom_state_transition(fom);
         } else
 		C2_IMPOSSIBLE("");
 
