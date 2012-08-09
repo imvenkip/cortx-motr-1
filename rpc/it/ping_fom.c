@@ -24,7 +24,7 @@
 #include "fop/fop.h"
 #include "fop/fop_format_def.h"
 #include "fop/fop_format.h"
-#include "reqh/reqh.h"     /* C2_FOPH_NR */
+#include "fop/fom_generic.h"     /* C2_FOPH_NR */
 #include "rpc/it/ping_fom.h"
 #include "rpc/it/ping_fop.h"
 #ifdef __KERNEL__

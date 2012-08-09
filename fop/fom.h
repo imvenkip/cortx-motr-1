@@ -56,7 +56,7 @@
  *
  * Fom operates by moving from "phase" to "phase". Current phase is recorded in
  * c2_fom::fo_phase. Generic code in fom.c pays no attention to this field,
- * except for special C2_FOP_PHASE_INIT and C2_FOP_PHASE_FINI values used to
+ * except for special C2_FOM_PHASE_INIT and C2_FOM_PHASE_FINI values used to
  * control fom life-time. ->fo_phase value is interpreted by fom-type-specific
  * code. core/reqh/ defines some "standard phases", that a typical fom related
  * to file operation processing passes through.
@@ -86,7 +86,7 @@
  *       performance globally, by selecting the "best" READY fom;
  *
  *     - C2_FSO_WAIT: no phase transitions are possible at the moment. As a
- *       special case, if fom->fo_phase == C2_FOP_PHASE_FINI, request handler
+ *       special case, if fom->fo_phase == C2_FOM_PHASE_FINI, request handler
  *       destroys the fom, by calling its c2_fom_ops::fo_fini()
  *       method. Otherwise, the fom is placed in WAITING state.
  *
@@ -219,7 +219,7 @@ struct c2_fom_ops;
 struct c2_long_lock;
 
 /* defined in fom.c */
-struct c2_fom_thread;
+struct c2_loc_thread;
 
 /**
  * A locality is a partition of computational resources dedicated to fom
@@ -265,7 +265,7 @@ struct c2_fom_locality {
 	 */
 	bool                         fl_shutdown;
 	/** Handler thread */
-	struct c2_fom_thread        *fl_handler;
+	struct c2_loc_thread        *fl_handler;
 	/** Idle threads */
 	struct c2_tl                 fl_threads;
 	struct c2_atomic64           fl_unblocking;
@@ -477,7 +477,7 @@ struct c2_fom {
 	/** Result of fom execution, -errno on failure */
 	int32_t			  fo_rc;
 	/** Thread executing current phase transition. */
-	struct c2_fom_thread     *fo_thread;
+	struct c2_loc_thread     *fo_thread;
 	/**
 	 * Stack of pending call-backs.
 	 */
@@ -496,7 +496,7 @@ struct c2_fom {
  * @param reqh, request handler processing the fom given fop
  *
  * @pre is_locked(fom)
- * @pre fom->fo_phase == C2_FOP_PHASE_INIT
+ * @pre fom->fo_phase == C2_FOM_PHASE_INIT
  */
 void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh);
 
@@ -506,7 +506,7 @@ void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh);
  * Invoked from c2_fom_type_ops::fto_create implementation for corresponding
  * fom.
  *
- * Fom starts in C2_FOP_PHASE_INIT phase and C2_FOS_RUNNING state to begin its
+ * Fom starts in C2_FOM_PHASE_INIT phase and C2_FOS_RUNNING state to begin its
  * execution.
  *
  * @param fom A fom to be initialized
@@ -528,7 +528,7 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
  * reaches 0.
  *
  * @param fom, A fom to be finalised
- * @pre fom->fo_phase == C2_FOP_PHASE_FINISH
+ * @pre fom->fo_phase == C2_FOM_PHASE_FINISH
 */
 void c2_fom_fini(struct c2_fom *fom);
 

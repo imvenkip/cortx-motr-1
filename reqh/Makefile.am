@@ -10,7 +10,7 @@ reqh_fops_u.h reqh_fops_u.c reqh_fops_k.h reqh_fops_k.c : reqh_fops.ff \
 
 libcolibri_reqh_la_SOURCES  = reqh_fops_u.c reqh_fops_u.h \
 				reqh_fops.ff reqh.c reqh.h reqh_fops.c \
-				reqh_generic.c reqh_service.c \
+				reqh_service.c \
 				reqh_service.h
 
 INCLUDES                    = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include

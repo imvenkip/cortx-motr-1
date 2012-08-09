@@ -30,7 +30,7 @@
 
 #include "lib/errno.h"		/* EINVAL */
 #include "lib/memory.h"		/* C2_ALLOC_PTR */
-#include "reqh/reqh.h"          /* C2_FOPH_FAILURE */
+#include "fop/fom_generic.h"    /* C2_FOPH_FAILURE */
 #include "console/console_fom.h"
 #include "console/console_fop.h"
 #include "console/console_mesg.h"

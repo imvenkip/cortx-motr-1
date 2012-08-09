@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -19,7 +19,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+# include "config.h"
 #endif
 
 #include "lib/errno.h"
@@ -34,18 +34,18 @@
 #include "dtm/dtm.h"
 #include "fop/fop_format_def.h"
 #include "rpc/rpc2.h"
+#include "reqh/reqh.h"
 
 #ifdef __KERNEL__
-#include "reqh_fops_k.h"
+# include "reqh/reqh_fops_k.h"
 #else
-
-#include "reqh_fops_u.h"
+# include "reqh/reqh_fops_u.h"
 #endif
 
-#include "reqh.h"
+#include "fop/fom_generic.h"
 
 /**
-   @addtogroup reqh
+   @addtogroup fom
    @{
  */
 
@@ -525,7 +525,7 @@ int c2_fom_tick_generic(struct c2_fom *fom)
 	return rc;
 }
 
-/** @} endgroup reqh */
+/** @} endgroup fom */
 
 /*
  *  Local variables:

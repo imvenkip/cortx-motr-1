@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -144,15 +144,15 @@ enum loc_thread_state {
  * Locality thread.
  *
  * Instances of this structure are allocated by loc_thr_create() and freed by
- * loc_thr_fini(). At any time c2_fom_thread::lt_linkage is in
- * c2_fom_locality::fl_threads list and c2_fom_thread::lt_link is registered
+ * loc_thr_fini(). At any time c2_loc_thread::lt_linkage is in
+ * c2_fom_locality::fl_threads list and c2_loc_thread::lt_link is registered
  * with some channel.
  *
  * ->lt_linkage is protected by the locality's group lock. ->lt_state is updated
  * under the group lock, so it can be used by invariants. Other fields are only
  * accessed by the current thread and require no locking.
  */
-struct c2_fom_thread {
+struct c2_loc_thread {
 	enum loc_thread_state   lt_state;
 	struct c2_thread        lt_thread;
 	struct c2_tlink         lt_linkage;
@@ -165,10 +165,10 @@ enum {
 	THREAD_MAGIX = 0xfa151f1ab1ec0b01 /* falsifiable COBOL */
 };
 
-C2_TL_DESCR_DEFINE(thr, "fom thread", static, struct c2_fom_thread, lt_linkage,
+C2_TL_DESCR_DEFINE(thr, "fom thread", static, struct c2_loc_thread, lt_linkage,
 		   lt_magix, THREAD_MAGIX,
 		   0xdec1a551f1edcade /* declassified cade */);
-C2_TL_DEFINE(thr, static, struct c2_fom_thread);
+C2_TL_DEFINE(thr, static, struct c2_loc_thread);
 
 static bool fom_wait_time_is_out(const struct c2_fom_domain *dom,
                                  const struct c2_fom *fom);
@@ -208,7 +208,7 @@ static bool is_in_wail(const struct c2_fom *fom)
 	return c2_list_contains(&fom->fo_loc->fl_wail, &fom->fo_linkage);
 }
 
-static bool thread_invariant(const struct c2_fom_thread *t)
+static bool thread_invariant(const struct c2_loc_thread *t)
 {
 	struct c2_fom_locality *loc = t->lt_loc;
 
@@ -335,7 +335,7 @@ void c2_fom_wakeup(struct c2_fom *fom)
 void c2_fom_block_enter(struct c2_fom *fom)
 {
 	struct c2_fom_locality *loc;
-	struct c2_fom_thread   *thr;
+	struct c2_loc_thread   *thr;
 
 	C2_PRE(c2_fom_invariant(fom));
 	C2_PRE(fom->fo_state == C2_FOS_RUNNING);
@@ -377,7 +377,7 @@ void c2_fom_block_enter(struct c2_fom *fom)
 void c2_fom_block_leave(struct c2_fom *fom)
 {
 	struct c2_fom_locality *loc;
-	struct c2_fom_thread   *thr;
+	struct c2_loc_thread   *thr;
 
 	loc = fom->fo_loc;
 	thr = fom->fo_thread;
@@ -558,7 +558,7 @@ static struct c2_fom *fom_dequeue(struct c2_fom_locality *loc)
 /**
  * Locality handler thread. See the "Locality internals" section.
  */
-static void loc_handler_thread(struct c2_fom_thread *th)
+static void loc_handler_thread(struct c2_loc_thread *th)
 {
 	c2_time_t		delta;
 	struct c2_clink	       *clink = &th->lt_clink;
@@ -644,12 +644,12 @@ static void loc_handler_thread(struct c2_fom_thread *th)
  * Init function for a locality thread. Confines the thread to the locality
  * core.
  */
-static int loc_thr_init(struct c2_fom_thread *th)
+static int loc_thr_init(struct c2_loc_thread *th)
 {
 	return c2_thread_confine(&th->lt_thread, &th->lt_loc->fl_processors);
 }
 
-static void loc_thr_fini(struct c2_fom_thread *th)
+static void loc_thr_fini(struct c2_loc_thread *th)
 {
 	C2_PRE(c2_mutex_is_locked(&th->lt_loc->fl_group.s_lock));
 	C2_PRE(th->lt_state == IDLE);
@@ -663,7 +663,7 @@ static void loc_thr_fini(struct c2_fom_thread *th)
 
 static int loc_thr_create(struct c2_fom_locality *loc)
 {
-	struct c2_fom_thread *thr;
+	struct c2_loc_thread *thr;
 	int                   result;
 
 	C2_PRE(c2_mutex_is_locked(&loc->fl_group.s_lock));
@@ -679,7 +679,7 @@ static int loc_thr_create(struct c2_fom_locality *loc)
 	c2_clink_init(&thr->lt_clink, NULL);
 	c2_clink_add(&loc->fl_idle, &thr->lt_clink);
 
-	result = C2_THREAD_INIT(&thr->lt_thread, struct c2_fom_thread *,
+	result = C2_THREAD_INIT(&thr->lt_thread, struct c2_loc_thread *,
 				loc_thr_init, &loc_handler_thread, thr,
 				"loc thread");
 	if (result != 0)
@@ -692,7 +692,7 @@ static int loc_thr_create(struct c2_fom_locality *loc)
  */
 static void loc_fini(struct c2_fom_locality *loc)
 {
-	struct c2_fom_thread *th;
+	struct c2_loc_thread *th;
 
 	loc->fl_shutdown = true;
 	c2_chan_broadcast(&loc->fl_runrun);

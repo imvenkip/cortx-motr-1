@@ -34,8 +34,9 @@
 #include "rpc/session_u.h"
 #endif
 
-#include "reqh/reqh.h"     /* C2_FOPH_NR */
 #include "fop/fom.h"
+#include "fop/fom_generic.h"     /* C2_FOPH_NR */
+
 /**
    @addtogroup rpc_session
 

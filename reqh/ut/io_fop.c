@@ -33,6 +33,7 @@
 #include "fop/fop.h"
 #include "reqh/reqh.h"
 #include "fop/fom.h"
+#include "fop/fom_generic.h"
 #include "fop/fop_iterator.h"
 #include "stob/stob.h"
 #include "stob/ad.h"
