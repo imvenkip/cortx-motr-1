@@ -629,7 +629,7 @@ static const struct c2_fom_type_ops type_ops = {
 };
 
 /**
- * I/O Read FOM state transition table.
+ * I/O Read and Write FOM phases descriptor table.
  * @see DLD-bulk-server-lspec-state
  */
 struct c2_sm_state_descr io_phases[C2_IO_FOPH_NR] = {

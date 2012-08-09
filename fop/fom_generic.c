@@ -217,7 +217,7 @@ static int fom_failure(struct c2_sm *mach)
 }
 
 /**
- * Fom execution is successfull.
+ * Fom execution is successful.
  */
 static int fom_success(struct c2_sm *mach)
 {
@@ -355,11 +355,11 @@ static int fom_timeout(struct c2_sm *mach)
 }
 
 /**
- * FOM generic states, allowed transitions from each state and their functions
+ * FOM generic phases, allowed transitions from each phase and their functions
  * are assigned to a state machine descriptor.
  * State name is used to log addb event.
  */
-const struct c2_sm_state_descr generic_states[C2_FOPH_NR + 2] = {
+const struct c2_sm_state_descr generic_phases[C2_FOPH_NR + 2] = {
 	[C2_FOPH_INIT] = {
 		.sd_flags     = C2_SDF_INITIAL,
 		.sd_name      = "SM init",
@@ -588,9 +588,9 @@ const struct c2_sm_state_descr generic_states[C2_FOPH_NR + 2] = {
 };
 
 const struct c2_sm_conf	generic_conf = {
-	.scf_name      = "FOM standard states",
+	.scf_name      = "FOM standard phases",
 	.scf_nr_states = C2_FOPH_NR + 2,
-	.scf_state     = generic_states
+	.scf_state     = generic_phases
 };
 
 int c2_fom_state_transition(struct c2_fom *fom)
@@ -635,7 +635,7 @@ void c2_fom_type_register(struct c2_fom_type *fom_type)
 	C2_ALLOC_PTR(conf);
 	if (fom_type->ft_nr_phases > C2_FOPH_NR) {
 		for (i = 0; i < C2_FOPH_NR; i++)
-			fom_type->ft_phases[i] = generic_states[i];
+			fom_type->ft_phases[i] = generic_phases[i];
 
 		C2_ASSERT(fom_type->ft_phases != NULL);
 		conf->scf_nr_states = fom_type->ft_nr_phases;

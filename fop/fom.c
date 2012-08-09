@@ -171,15 +171,12 @@ static int fom_queue(struct c2_sm *sm)
 }
 
 /**
- * Enqueues fom into locality run queue. c2_fom_locality::fl_runq, and
- * increments number of items in run queue, c2_fom_locality::fl_runq_nr.
- * This function is invoked when a waiting fom is re scheduled
+ * Dequeues fom from locality wait queue then enqueues fom into
+ * locality run queue.
+ * This function is invoked when a waiting fom is re-scheduled
  * for processing.
  *
- * It dequeues fom from locality wait queue then enqueues fom into
- * locality runq list.
  */
-
 static int fom_ready(struct c2_sm *sm)
 {
 	struct c2_fom	       *fom = sm2fom(sm);
