@@ -61,49 +61,6 @@
 /**
  * @defgroup cp Copy Packet
  *
- * When an instance of a copy machine type is created, a data structure copy
- * machine replica is created on each node (technically, in each request
- * handler) that might participate in the re-structuring.
- *
- * Copy packets are FOM of special type, created when a data re-structuring
- * request is posted to replica. Copy packet processing logic is implemented in
- * non-blocking way.
- *
- * Copy packet functionality split into two parts:
- *
- *	- generic functionality, implemented by cm/cp.[hc] directory and
- *
- *	- copy packet type functionality which based on copy machine type.
- *	  (e.g. SNS, Replication, &c).
- *
- * Copy packet creation:
- *
- *  Given the size of the buffer pool, the replica calculates its initial
- *  sliding window (@see c2_cm_sw) size. Once the replica learns window
- *  sizes of every other replica, it can produce copy packets that replicas
- *  (including this one) are ready to process.
- *
- *	- start, device failure triggers copy machine data re-structuring
- *	  and it should make sure that sliding windows has enough packets
- *	  for processing by creating them at start of operation.
- *
- *	- has space, after completion of each copy packet, space in sliding
- *	  window checked. Copy packet exists then copy packets will be created.
- *
- *
- * Copy machine IO:
- *
- * Transformation:
- *
- * Cooperation within replica:
- *
- * Resource:
- *	- Buffer pool
- *	- Storage BW
- *	- Extent Locks
- *	- Network bandwidth
- *	- CPU cycles
- *
  * @see The @ref cp "Copy packet" its
  * @ref DLD-cp-fspec "Copy Packet Functional Specification"
  *
@@ -155,52 +112,7 @@ enum c2_cm_cp_phase {
 	CCP_FINI
 };
 
-/**
- * Copy packet.
- *
- * Copy packet is the data structure used to describe the packet flowing between
- * various copy machine replica nodes. It is entity which has data as well as
- * operation to work. Copy packet has buffers to carry data and FOM for
- * execution in context of request handler. It can perform various kind of work
- * which depend on the it's stage (i.e. FOM phase) in execution. Phase_next()
- * responsible for stage change of copy packet. It is a state machine, goes
- * through following stages:
- *
- *	- READ
- *	- WRITE
- *	- XFORM
- *	- SEND
- *	- RECV
- *	- Non-std: Copy packet FOM can have phases addition these phases.
- *		   Additional phases will be used to do processing under one of
- *		   above phases.
- *
- * Trasition of standard phases is done by phase_next().
- *
- * @todo c2_cm_cp:c_fom:fo_loc used for transformation (e.g XOR).
- * @todo has_space in sliding window.
- *
- * Copy packet state diagram:
- *
- * @verbatim
- *
- *     New copy packet             new copy packet
- *          +<---------INIT-------->+
- *          |	        |	    |
- *          |           |           |
- *    +----READ     new |packet	   RECV----+
- *    |     |           |           |      |
- *    |     +---------->V<----------+      |
- *    |		      XFORM	           |
- *    |     +<----------|---------->+	   |
- *    |     |           |           |	   |
- *    |     V           |           V	   |
- *    +--->SEND	        |	  WRITE<---+
- *	    |           V           |
- *          +--------->FINI<--------+
- *
- * @endverbatim
- */
+/** Generic copy packet structure.*/
 struct c2_cm_cp {
 	/** Copy packet priority.*/
 	enum c2_cm_cp_priority	   c_prio;
@@ -259,6 +171,12 @@ struct c2_cm_cp_ops {
 
 	/** Called when copy packet processing is completed successfully.*/
 	void (*co_complete) (struct c2_cm_cp *cp);
+
+	/**
+	 * Changes copy packet phase based on current phase and layout
+	 * information.
+	 */
+	int  (*co_phase)    (struct c2_cm_cp *cp);
 
 	/**
 	 * Releases resources associated with the packet, finalises members
