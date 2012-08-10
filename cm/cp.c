@@ -88,11 +88,6 @@
  *      - has space, after completion of each copy packet, space in sliding
  *        window checked. Copy packet exists then copy packets will be created.
  *
- *
- *   Copy machine IO:
- *
- *   Transformation:
- *
  *   Cooperation within replica:
  *
  *   Resource:
@@ -102,7 +97,6 @@
  *      - Network bandwidth
  *      - CPU cycles
  *
- *   @todo c2_cm_cp:c_fom:fo_loc used for transformation (e.g XOR).
  *   @todo has_space in sliding window.
  *
  *   <hr>
@@ -188,20 +182,49 @@
  *
  *   Copy packet is a state machine, goes through following stages:
  *
- *	- INIT
- *      - READ
- *      - WRITE
- *      - XFORM
- *      - SEND
- *      - RECV
- *      - FINI
- *      - Non-std: Copy packet FOM can have phases addition these phases.
- *                 Additional phases will be used to do processing under one of
- *                 above phases.
+ *	- INIT	   Copy packet get initialised with input data to go next phase
+ *		   E.G In SNS, extent, COB, &c get initialised. Usually this
+ *		   will done with some iterator over layout info.
  *
- *   Transition of standard phases is done by phase().
+ *      - READ	   Reads data from its associated container or device according
+ *		   to the input set description, and places the data in a copy
+ *		   packet data buffer. Before doing this, it needs to grab
+ *		   necessary resources: memory, locks, permission, CPU/disk
+ *		   bandwidth, etc. These data/parity is encapsulated in copy
+ *		   packet, and the copy packets are transfered to next phase.
  *
- *   State diagram for copy packet phases:
+ *      - WRITE	   Write data from copy packet data buffer to the container or
+ *		   device. Spare container and offset to write identified from
+ *		   layout information.
+ *
+ *      - XFORM	   Data restructuring is done in this phase. It's important to
+ *		   understand that this phase would typically process a lot of
+ *		   local copy packets. E.g., for SNS repair machine, a file
+ *		   typically have a component object (cob) on each device in
+ *		   the pool, which means that a node could (and should)
+ *		   calculate "partial parity" of all local units, instead of
+ *		   sending each of them separately across the network to a
+ *		   remote copy machine replica.
+ *
+ *      - SEND	   Copy packet data send over network. Control FOP and bulk
+ *		   transfer are used for copy packet send.
+ *
+ *      - RECV	   Copy packet data Received from network. On receipt of control
+ *		   FOP for copy packet is created and FOM is submitted for
+ *		   execution and phase is set RECV, which will eventually
+ *		   receive data  using rpc bulk.
+ *
+ *      - FINI	   Finalises copy packet.
+ *
+ *	  Transition of standard phases is done by ->co_phase(). It will produce
+ *	  the next phase according to the configuration of the copy machine and
+ *	  the copy packet itself.
+ *
+ *      - Non-std: Specific copy packet can have states/phases addition these
+ *		   phases. Additional states will be used to do processing
+ *		   under one of above phases.
+ *
+ *   State diagram for copy packet:
  *   @verbatim
  *
  *        New copy packet             new copy packet
@@ -236,15 +259,14 @@
  *
  *	subgraph cluster_m2 {
  *	  rank = same;
- *	  n2_9 [label="phase()"];
- *	  n2_8 [label="init()"];
- *	  n2_7 [label="fini()"];
- *	  n2_6 [label="read()"];
- *	  n2_5 [label="write()"];
- *	  n2_4 [label="xform()"];
- *	  n2_3 [label="send()"];
- *	  n2_2 [label="recv()"];
- *	  n2_1 [label="state()"];
+ *	  n2_8 [label="phase()"];
+ *	  n2_7 [label="init()"];
+ *	  n2_6 [label="fini()"];
+ *	  n2_5 [label="read()"];
+ *	  n2_4 [label="write()"];
+ *	  n2_3 [label="xform()"];
+ *	  n2_2 [label="send()"];
+ *	  n2_1 [label="recv()"];
  *	  n2_0 [label="c2_cm:c_fom:fo_loc:fl_group:s_lock"];
  *	}
  *
