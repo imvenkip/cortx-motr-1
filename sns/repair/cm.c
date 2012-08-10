@@ -166,7 +166,6 @@
   SNS Repair copy machine is stopped when its corresponding service is
   stopped. Again, the service stop operation invokes generic c2_cm_stop(),
   which further invokes sns repair copy machine specific stop operation.
-  This stops all the copy machine agents.
 
   @subsection DLD-snsrepair-lspec-thread Threading and Concurrency Model
   SNS Repair copy machine is implemented as a request handler service, thus
@@ -193,8 +192,8 @@
   layout updates.
   @todo Layout updates will be implemented at later stages of sns repair.
 
-  @b i.sns.repair.buffer.acquire SNS Repair implements separate buffer pools for
-  incoming and outgoing buffers for corresponding agents.
+  @b i.sns.repair.buffer.acquire SNS Repair copy machine impllements its own
+  buffer pool used to create copy pckets. The buffers are allocated in 
 
   @b i.sns.repair.transform SNS Repair implements its specific transformation
   function and its corresponding copy machine operations.
@@ -235,7 +234,6 @@
 static int cm_start(struct c2_cm *cm);
 static int cm_config(struct c2_cm *cm);
 static int cm_transform(struct c2_cm_cp *packet);
-static int cm_next_agent(struct c2_cm *cm, struct c2_cm_cp *packet);
 static int cm_incoming(struct c2_cm *cm, struct c2_fom *fom);
 static void cm_done(struct c2_cm *cm);
 static void cm_stop(struct c2_cm *cm);
@@ -244,7 +242,6 @@ static void cm_fini(struct c2_cm *cm);
 const struct c2_cm_ops cm_ops = {
 	.cmo_start      = cm_start,
 	.cmo_config     = cm_config,
-	.cmo_next_agent = cm_next_agent,
 	.cmo_incoming   = cm_incoming,
 	.cmo_done       = cm_done,
 	.cmo_stop       = cm_stop,
@@ -270,32 +267,6 @@ static int cm_start(struct c2_cm *cm)
 	C2_ENTRY();
 
 	C2_LEAVE();
-	return rc;
-}
-
-/**
- * Defines the next_agent() for a sns repair copy machine.
- *
- * This routine return the next agent in [out] next_agent_id for this packet.
- * Caller will use the agent id to find the proper agent in its domain.
- *
- * Usually, copy packets flow from agent to agent, from storage-in agent,
- * to network-out agent, to network-in agent, to collecting agent, and finally
- * are written onto device/containers by storage-out agent. This forms the copy
- * packet pipeline.
- * For different copy packets, their pipeline may be different, because these
- * copy packets belong to different data/parity groups.
- *
- * Please @note a remote agent may be returned. The copy packet needs to
- * be transported on network between a network-in and network-out agent pair.
- */
-static int cm_next_agent(struct c2_cm *cm, struct c2_cm_cp *packet)
-{
-	int rc = 0;
-
-	C2_PRE(cm != NULL);
-	C2_PRE(packet != NULL);
-
 	return rc;
 }
 

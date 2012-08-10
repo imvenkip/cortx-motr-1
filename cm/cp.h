@@ -136,8 +136,6 @@ struct c2_cm_cp {
 
 	/** Set and used in case of network send/recv.*/
 	struct c2_rpc_bulk	  *c_bulk;
-
-	struct c2_cm		  *c_cm;
 };
 
 /**
@@ -147,10 +145,6 @@ struct c2_cm_cp {
  * responsible to create corresponding copy packet FOMs to do the actual work.
  */
 struct c2_cm_cp_ops {
-
-	/** Allocate, initialise copy packet structure.*/
-	int  (*co_alloc)    (struct c2_cm *cm, struct c2_cm_cp **cp);
-
 	/** Fill up the copy packet data.*/
 	int  (*co_read)	    (struct c2_cm_cp *cp);
 
@@ -168,8 +162,6 @@ struct c2_cm_cp_ops {
 
 	/** Non standard phases handled in this function.*/
 	int  (*co_state)    (struct c2_cm_cp *cp);
-
-	int  (*co_next)     (struct c2_cm_cp *cp);
 
 	/** Called when copy packet processing is completed successfully.*/
 	void (*co_complete) (struct c2_cm_cp *cp);
@@ -193,8 +185,8 @@ struct c2_cm_cp_ops {
  * @pre cp->c_fom.fo_phase == CCP_INIT
  * @post cp->c_fom.fo_phase == C2_FOPH_INIT
  */
-void c2_cm_cp_init(struct c2_cm *cm, struct c2_cm_cp *cp,
-		   const struct c2_cm_cp_ops *ops);
+void c2_cm_cp_init(struct c2_cm_cp *cp, const struct c2_cm_cp_ops *ops,
+		   struct c2_bufvec *buf);
 
 /**
  * Finalises generic copy packet.
