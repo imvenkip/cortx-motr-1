@@ -29,7 +29,6 @@
 #include <lib/misc.h>   /* C2_SET0() */
 #include <lib/assert.h> /* C2_PRE(), C2_POST() */
 #include <cm/cm.h>
-#include <cm/cm_internal.h>
 #include <reqh/reqh.h>
 
 /**
@@ -378,8 +377,7 @@ bool c2_cm_invariant(struct c2_cm *cm)
 
 	return
 		/* NULL checks */
-		cm != NULL && cm->cm_ops != NULL && cm->cm_cb != NULL &&
-		cm->cm_type != NULL &&
+		cm != NULL && cm->cm_ops != NULL && cm->cm_type != NULL &&
 		/* Copy machine error code checks */
 		C2_IN(cm->cm_mach.sm_rc, (C2_CM_SUCCESS, C2_CM_ERR_START,
 		C2_CM_ERR_CONF, C2_CM_ERR_OP, C2_CM_ERR_AGENT)) &&
@@ -500,18 +498,17 @@ static void cm_sm_fini(struct c2_cm *cm)
 }
 
 int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
-	       const struct c2_cm_ops *cm_ops, const struct c2_cm_cb *cm_cb,
+	       const struct c2_cm_ops *cm_ops,
 	       const struct c2_cm_sw_ops *sw_ops)
 {
 	int	 rc;
 
 	C2_ENTRY();
 	C2_PRE(cm != NULL && cm_type != NULL && cm_ops != NULL &&
-	       cm_cb != NULL && sw_ops!=NULL);
+	       sw_ops!=NULL);
 
 	cm->cm_type = cm_type;
 	cm->cm_ops = cm_ops;
-	cm->cm_cb = cm_cb;
 	C2_ASSERT(cm->cm_type->ct_stype.rst_name != NULL);
 
 	c2_sm_group_init(&cm->cm_sm_group);

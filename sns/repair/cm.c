@@ -233,7 +233,6 @@
 /** Copy machine operations.*/
 static int cm_start(struct c2_cm *cm);
 static int cm_config(struct c2_cm *cm);
-static int cm_transform(struct c2_cm_cp *packet);
 static int cm_incoming(struct c2_cm *cm, struct c2_fom *fom);
 static void cm_done(struct c2_cm *cm);
 static void cm_stop(struct c2_cm *cm);

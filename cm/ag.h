@@ -18,17 +18,16 @@
  * Original creation date: 08/08/2012
  */
 
-#ifndef __COLIBRI_CM_CM_H__
-#define __COLIBRI_CM_CM_H__
+#ifndef __COLIBRI_CM_AG_H__
+#define __COLIBRI_CM_AG_H__
 
-#include "cm/cm.h"
 #include "lib/types.h"
 #include "lib/tlist.h"
 #include "lib/mutex.h"
 #include "lib/ext.h"
+#include "lib/vec.h"
 
-C2_TL_DESCR_DECLARE(aggr_grps, extern);
-C2_TL_DECLARE(aggr_grps, extern, struct c2_cm_aggr_group);
+#include "cm/cm.h"
 
 /** Aggregation group states */
 enum c2_aggr_group_state {
@@ -105,6 +104,9 @@ struct c2_cm_aggr_group_ops {
 	 */
 	uint64_t (*cago_cp_nr)(struct c2_cm_aggr_group *ag);
 };
+
+C2_TL_DESCR_DECLARE(aggr_grps, extern);
+C2_TL_DECLARE(aggr_grps, extern, struct c2_cm_aggr_group);
 
 #endif
 /*

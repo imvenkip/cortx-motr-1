@@ -185,8 +185,8 @@ struct c2_cm_cp_ops {
  * @pre cp->c_fom.fo_phase == CCP_INIT
  * @post cp->c_fom.fo_phase == C2_FOPH_INIT
  */
-void c2_cm_cp_init(struct c2_cm_cp *cp, const struct c2_cm_cp_ops *ops,
-		   struct c2_bufvec *buf);
+void c2_cm_cp_init(struct c2_cm_cp *cp, struct c2_cm_aggr_group *ag,
+		   const struct c2_cm_cp_ops *ops, struct c2_bufvec *buf);
 
 /**
  * Finalises generic copy packet.

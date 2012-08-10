@@ -296,7 +296,7 @@ void c2_cms_fini(void);
  * @pre cm != NULL;
  */
 int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
-	       const struct c2_cm_ops *cm_ops, const struct c2_cm_cb *cb_ops,
+	       const struct c2_cm_ops *cm_ops,
 	       const struct c2_cm_sw_ops *sw_ops);
 
 /**

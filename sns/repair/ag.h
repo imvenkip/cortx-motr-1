@@ -22,6 +22,7 @@
 #define __COLIBRI_SNS_REPAIR_AG_H__
 
 #include "cm/cm.h"
+#include "cm/ag.h"
 
 /**
    @addtogroup snsrepair

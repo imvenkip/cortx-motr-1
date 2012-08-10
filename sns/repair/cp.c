@@ -29,7 +29,7 @@ static int repair_cp_init(struct c2_cm_cp *cp)
 	struct c2_sns_repair_cm *rcm;
 
 	C2_PRE(cp->c_fom.fo_phase == CCP_INIT);
-	rcm = container_of(&cp->c_cm, struct c2_sns_repair_cm, rc_cm);
+	rcm = container_of(cp->c_ag->cag_cm, struct c2_sns_repair_cm, rc_cm);
 	return C2_FSO_AGAIN;
 }
 
