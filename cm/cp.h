@@ -148,8 +148,8 @@ struct c2_cm_cp {
  */
 struct c2_cm_cp_ops {
 
-	/** Allocate, initialise copy packet structure.*/
-	int  (*co_alloc)    (struct c2_cm *cm, struct c2_cm_cp **cp);
+	/** Initialise specific copy packet members.*/
+	int  (*co_init)     (struct c2_cm_cp *cp);
 
 	/** Fill up the copy packet data.*/
 	int  (*co_read)	    (struct c2_cm_cp *cp);
@@ -166,9 +166,6 @@ struct c2_cm_cp_ops {
 	/** Transform copy packet.*/
 	int  (*co_xform)    (struct c2_cm_cp *cp);
 
-	/** Non standard phases handled in this function.*/
-	int  (*co_state)    (struct c2_cm_cp *cp);
-
 	/** Called when copy packet processing is completed successfully.*/
 	void (*co_complete) (struct c2_cm_cp *cp);
 
@@ -182,7 +179,7 @@ struct c2_cm_cp_ops {
 	 * Releases resources associated with the packet, finalises members
 	 * and free the packet.
 	 */
-	void (*co_free)	    (struct c2_cm_cp *cp);
+	void (*co_fini)	    (struct c2_cm_cp *cp);
 };
 
 /**
@@ -191,8 +188,7 @@ struct c2_cm_cp_ops {
  * @pre cp->c_fom.fo_phase == CCP_INIT
  * @post cp->c_fom.fo_phase == C2_FOPH_INIT
  */
-void c2_cm_cp_init(struct c2_cm *cm, struct c2_cm_cp *cp,
-		   const struct c2_cm_cp_ops *ops);
+void c2_cm_cp_init(struct c2_cm *cm, struct c2_cm_cp *cp);
 
 /**
  * Finalises generic copy packet.

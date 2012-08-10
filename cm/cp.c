@@ -188,16 +188,18 @@
  *
  *   Copy packet is a state machine, goes through following stages:
  *
+ *	- INIT
  *      - READ
  *      - WRITE
  *      - XFORM
  *      - SEND
  *      - RECV
+ *      - FINI
  *      - Non-std: Copy packet FOM can have phases addition these phases.
  *                 Additional phases will be used to do processing under one of
  *                 above phases.
  *
- *   Transition of standard phases is done by phase_next().
+ *   Transition of standard phases is done by phase().
  *
  *   State diagram for copy packet phases:
  *   @verbatim
@@ -221,6 +223,36 @@
  *
  *   @subsection DLD-cp-lspec-thread Threading and Concurrency Model
  *
+ *   @dot
+ *	digraph {
+ *	  node [shape=plaintext, style=filled, color=lightgray, fontsize=15]
+ *	  subgraph cluster_m1 { // represents mutex scope
+ *	  // sorted R-L so put mutex name last to align on the left
+ *	  rank = same;
+ *	  n1_2 [label="c2_cm_cp_init()"];  // procedure using mutex
+ *	  n1_1 [label="c2_cm_cp_fini"];
+ *	  n1_0 [label="c2_cm:c_fom:fo_loc:fl_group:s_lock"];// mutex name
+ *	}
+ *
+ *	subgraph cluster_m2 {
+ *	  rank = same;
+ *	  n2_9 [label="phase()"];
+ *	  n2_8 [label="init()"];
+ *	  n2_7 [label="fini()"];
+ *	  n2_6 [label="read()"];
+ *	  n2_5 [label="write()"];
+ *	  n2_4 [label="xform()"];
+ *	  n2_3 [label="send()"];
+ *	  n2_2 [label="recv()"];
+ *	  n2_1 [label="state()"];
+ *	  n2_0 [label="c2_cm:c_fom:fo_loc:fl_group:s_lock"];
+ *	}
+ *
+ *	label="Mutex usage and locking order in the Copy Machine Agents";
+ *	n1_0 -> n2_0;  // locking order
+ *   }
+ *   @enddot
+ *
  *   @subsection DLD-cp-lspec-numa NUMA optimizations
  *
  *   <hr>
@@ -243,6 +275,7 @@
  *
  *   <hr>
  *   @section DLD-cp-ut Unit Tests
+ *   - Basic Test: Alloc, Init, fini and free
  *
  *   <hr>
  *   @section DLD-cp-st System Tests
@@ -277,12 +310,14 @@ static struct c2_fom_type cp_fom_type = {
 static void cp_fom_fini(struct c2_fom *fom)
 {
         struct c2_cm_cp *cp;
-        struct c2_cm    *cm;
 
         cp = container_of(fom, struct c2_cm_cp, c_fom);
-        cm = cp->c_cm;
-        C2_ASSERT(cm != NULL);
-	cp->c_ops->co_free(cp);
+	/*
+         * @todo Before freeing copy packet check this is last packet
+         * from aggregation group, if yes then free aggregation group along
+         * with copy packet.
+         */
+	c2_cm_cp_fini(cp);
 }
 
 static size_t cp_fom_locality(const struct c2_fom *fom)
@@ -303,6 +338,8 @@ static int cp_fom_state(struct c2_fom *fom)
         C2_ASSERT(c2_cm_cp_invariant(cp));
 
 	switch (fom->fo_phase) {
+	case CCP_INIT:
+		return cp->c_ops->co_init(cp);
 	case CCP_READ:
 		return cp->c_ops->co_read(cp);
 	case CCP_WRITE:
@@ -317,8 +354,7 @@ static int cp_fom_state(struct c2_fom *fom)
 		fom->fo_phase = C2_FOPH_FINISH;
 		return C2_FSO_WAIT;
 	default:
-		/** Non statdnard phases execution */
-		return cp->c_ops->co_state(cp);
+		C2_IMPOSSIBLE("IMPOSSIBLE");
 	}
 }
 
@@ -329,7 +365,6 @@ static const struct c2_fom_ops cp_fom_ops = {
         .fo_home_locality = cp_fom_locality
 };
 
-
 /** @} end internal */
 
 /**
@@ -339,34 +374,18 @@ static const struct c2_fom_ops cp_fom_ops = {
 
 bool c2_cm_cp_invariant(struct c2_cm_cp *cp)
 {
-	return true;
+	uint32_t phase = cp->c_fom.fo_phase;
+
+	return phase >= CCP_INIT && phase <= CCP_FINI;
 }
 
-void c2_cm_cp_init(struct c2_cm *cm, struct c2_cm_cp *cp,
-		   const struct c2_cm_cp_ops *ops)
+void c2_cm_cp_init(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
-	struct c2_reqh *reqh = cm->cm_service.rs_reqh;
-
-	C2_PRE(reqh != NULL);
-	C2_PRE(cp->c_fom.fo_phase == CCP_INIT);
-
-	cp->c_prio = 0;
-	cp->c_ops = ops;
-	cp->c_cm = cm;
 	c2_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL);
-
-	C2_POST(c2_cm_cp_invariant(cp));
-	C2_POST(cp->c_fom.fo_phase == C2_FOPH_INIT);
 }
 
 void c2_cm_cp_fini(struct c2_cm_cp *cp)
 {
-	C2_PRE(c2_cm_cp_invariant(cp));
-	C2_PRE(cp->c_fom.fo_phase == C2_FOPH_FINISH);
-
-        cp->c_prio = 0;
-        cp->c_ops = NULL;
-        cp->c_cm = NULL;
 	c2_fom_fini(&cp->c_fom);
 }
 
