@@ -18,6 +18,8 @@
  * Original creation date: 08/24/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_STOB_AD_INTERNAL_H__
 #define __COLIBRI_STOB_AD_INTERNAL_H__
 

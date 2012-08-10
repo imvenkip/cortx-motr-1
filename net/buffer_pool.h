@@ -18,6 +18,8 @@
  * Original creation date: 10/12/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_BUFFER_POOL_H__
 #define __COLIBRI_BUFFER_POOL_H__
 

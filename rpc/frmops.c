@@ -80,7 +80,7 @@ struct rpc_buffer {
 	uint64_t               rb_magic;
 };
 
-static struct c2_bob_type rpc_buffer_bob_type = {
+static const struct c2_bob_type rpc_buffer_bob_type = {
 	.bt_name         = "rpc_buffer",
 	.bt_magix_offset = C2_MAGIX_OFFSET(struct rpc_buffer, rb_magic),
 	.bt_magix        = RPC_BUF_MAGIC,
@@ -192,7 +192,7 @@ static int rpc_buffer_init(struct rpc_buffer    *rpcbuf,
 	if (rc != 0)
 		goto out;
 
-	rc = c2_rpc_packet_encode_in_buf(p, &netbuf->nb_buffer);
+	rc = c2_rpc_packet_encode(p, &netbuf->nb_buffer);
 	if (rc != 0) {
 		net_buffer_free(netbuf, ndom);
 		goto out;

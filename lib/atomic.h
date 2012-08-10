@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -19,6 +19,8 @@
  * Original creation date: 04/08/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LIB_ATOMIC_H__
 #define __COLIBRI_LIB_ATOMIC_H__
 
@@ -26,10 +28,14 @@
 #include "assert.h"
 
 #ifndef __KERNEL__
-#include "user_space/user_x86_64_atomic.h"
+# ifdef ENABLE_SYNC_ATOMIC
+# include "user_space/__sync_atomic.h"
+# else
+# include "user_space/user_x86_64_atomic.h"
+# endif /* ENABLE_SYNC_ATOMIC */
 #else
 #include "linux_kernel/atomic64.h"
-#endif
+#endif /* __KERNEL__ */
 
 /**
    @defgroup atomic

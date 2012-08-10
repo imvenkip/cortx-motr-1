@@ -59,7 +59,6 @@ extern const struct c2_test_suite xcode_bufvec_ut;
 extern const struct c2_test_suite xcode_ff2c_ut;
 extern const struct c2_test_suite xcode_ut;
 extern const struct c2_test_suite reqh_ut;
-extern const struct c2_test_suite rpc_onwire_ut;
 extern const struct c2_test_suite colibri_setup_ut;
 extern const struct c2_test_suite rpclib_ut;
 extern const struct c2_test_suite cfm_ut;
@@ -104,7 +103,6 @@ void add_uts(void)
 	c2_ut_add(&frm_ut);
 	c2_ut_add(&reqh_ut);
 	c2_ut_add(&rpclib_ut);
-	c2_ut_add(&rpc_onwire_ut);
 	c2_ut_add(&rpc_service_ut);
 	c2_ut_add(&sm_ut);
 	c2_ut_add(&stobio_ut);

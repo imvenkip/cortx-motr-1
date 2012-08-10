@@ -18,6 +18,8 @@
  * Original creation date: 01/04/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_CAPA_CAPA_H__
 #define __COLIBRI_CAPA_CAPA_H__
 

@@ -32,6 +32,8 @@ V6NzJfMTljbTZ3anhjbg&hl=en
    @{
 */
 
+#pragma once
+
 #ifndef __COLIBRI_RPC_RPCCORE_H__
 #define __COLIBRI_RPC_RPCCORE_H__
 

@@ -52,8 +52,8 @@
 extern struct c2_fop_type_format c2_net_buf_desc_tfmt;
 extern struct c2_fop_type_format c2_addb_record_tfmt;
 
-extern struct c2_fom_type cd_fom_type;
-extern struct c2_fom_type cc_fom_type;
+extern struct c2_fom_type cob_delete_fomt;
+extern struct c2_fom_type cob_create_fomt;
 
 #include "ioservice/io_fops.ff"
 
@@ -209,10 +209,10 @@ int c2_ioservice_fop_init(void)
 				ARRAY_SIZE(ioservice_fops));
 
 #ifndef __KERNEL__
-	c2_fop_cob_readv_fopt.ft_fom_type  = c2_io_fom_cob_rw_mopt;
-	c2_fop_cob_writev_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
-	c2_fop_cob_create_fopt.ft_fom_type = cc_fom_type;
-	c2_fop_cob_delete_fopt.ft_fom_type = cd_fom_type;
+	c2_fop_cob_readv_fopt.ft_fom_type  = c2_io_fom_cob_rw_fomt;
+	c2_fop_cob_writev_fopt.ft_fom_type = c2_io_fom_cob_rw_fomt;
+	c2_fop_cob_create_fopt.ft_fom_type = cob_create_fomt;
+	c2_fop_cob_delete_fopt.ft_fom_type = cob_delete_fomt;
 #endif
 
 	if (rc != 0)

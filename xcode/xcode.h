@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,11 +18,14 @@
  * Original creation date: 25-Dec-2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_XCODE_XCODE_H__
 #define __COLIBRI_XCODE_XCODE_H__
 
 #include "lib/vec.h"                /* c2_bufvec_cursor */
 #include "lib/types.h"              /* c2_bcount_t */
+#include "xcode/xcode_attr.h"       /* C2_XC_ATTR */
 
 /**
    @defgroup xcode
@@ -601,7 +604,7 @@ extern const struct c2_xcode_type C2_XT_OPAQUE;
 /**
    Void type used by ff2c in places where C syntax requires a type name.
  */
-typedef struct {;} c2_void_t;
+typedef char c2_void_t[0];
 
 /**
    Returns a previously unused "decoration number", which can be used as an

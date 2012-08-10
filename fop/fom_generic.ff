@@ -14,25 +14,32 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>
- * Original creation date: 05/18/2010
+ * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
+ * Original creation date: 06/21/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
+/**
+   @addtogroup fom
+   @{
+ */
 
-#include <lib/cdefs.h>
+/**
+ * @file fom_generic.ff
+ *
+ * <b>Fom generic error reply</b>
+ */
 
-#include <rpc/types.h>
-#include <rpc/xdr.h>
+DEF(c2_fom_error_rep, RECORD,
+	_(rerr_rc, U32));
 
-#include <net/xdr.h>
-#include <rpc/rpc_types.h>
-#include <rpc/xdr/common.h>
+/** @} end of fom group */
 
-bool c2_xdr_session_id(void *x, struct c2_session_id *objp)
-{
-	return xdr_uint64_t(x, &objp->id);
-}
-
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

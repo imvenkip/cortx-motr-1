@@ -47,6 +47,7 @@ dirs  = addb                                                                  \
         net/lnet/ut                                                           \
         net/ut                                                                \
         pool                                                                  \
+	reqh                                                                  \
         rpc                                                                   \
         rpc/ut                                                                \
         sm                                                                    \
@@ -90,7 +91,10 @@ fid_SOURCES                     := fid.c
 fol_SOURCES                     := fol.c
 
 fop_SOURCES                     := fop.c fom.c fop_format.c fop_iterator.c    \
-                                   fop_base.c fop_item_type.c fom_long_lock.c
+                                   fop_base.c fop_item_type.c fom_long_lock.c \
+                                   fom_generic.c fom_generic_k.c
+
+fop_HEADERS                     := fom_generic_k.h
 
 ioservice_SOURCES               := io_fops.c io_fops_k.c
 ioservice_HEADERS               := io_fops_k.h
@@ -125,6 +129,8 @@ net_ut_SOURCES                  := bulk_if.c buffer_pool_ut.c
 net_ut_HEADERS                  := tm_provision_ut.c
 
 pool_SOURCES                    := pool.c
+
+reqh_SOURCES                    := reqh.c reqh_service.c
 
 rpc_SOURCES                     := rpc2.c service.c    \
                                    session.c session_foms.c conn.c slot.c     \

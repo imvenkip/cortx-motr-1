@@ -18,6 +18,8 @@
  * Original creation date: 09/28/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_RPC_RPCLIB_H__
 #define __COLIBRI_RPC_RPCLIB_H__
 

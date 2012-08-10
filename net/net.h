@@ -20,6 +20,8 @@
  * Original creation date: 04/01/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_NET_NET_H__
 #define __COLIBRI_NET_NET_H__
 

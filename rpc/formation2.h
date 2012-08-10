@@ -19,6 +19,8 @@
  * Original creation date: 04/28/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_RPC_FORMATION2_H__
 #define __COLIBRI_RPC_FORMATION2_H__
 
@@ -76,8 +78,6 @@
 /* Imports */
 struct c2_rpc_packet;
 struct c2_rpc_item;
-struct c2_rpc_machine;
-struct c2_rpc_chan;
 
 /* Forward references */
 struct c2_rpc_frm_ops;

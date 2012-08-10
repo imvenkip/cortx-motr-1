@@ -38,9 +38,9 @@ enum tb_request_type {
 };
 
 enum tb_request_phase {
-	/* See comment on PH_REQ_LOCK value in fom_rdwr_state() function */
-	PH_REQ_LOCK = C2_FOPH_INIT,
-	PH_GOT_LOCK = C2_FOPH_NR + 1,
+	/* See comment on PH_REQ_LOCK value in fom_rdwr_tick() function */
+	PH_REQ_LOCK = C2_FOM_PHASE_INIT,
+	PH_GOT_LOCK = C2_FOM_PHASE_NR + 1,
 };
 
 struct test_min_max {
@@ -131,7 +131,7 @@ static bool lock_check(struct c2_long_lock *lock, enum tb_request_type type,
 	return result;
 }
 
-static int fom_rdwr_state(struct c2_fom *fom)
+static int fom_rdwr_tick(struct c2_fom *fom)
 {
 	struct fom_rdwr	*request;
 	int		 rq_type;
@@ -143,7 +143,7 @@ static int fom_rdwr_state(struct c2_fom *fom)
 	rq_type = request->fr_req->tr_type;
 	rq_seqn = request->fr_seqn;
 
-	/**
+	/*
 	 * To pacify C2_PRE(C2_IN(fom->fo_phase,(C2_FOPH_INIT,C2_FOPH_FAILURE)))
 	 * precondition in c2_fom_queue(), special processing order of FOM
 	 * phases is used.
@@ -208,7 +208,7 @@ static int fom_rdwr_state(struct c2_fom *fom)
 
 		/* notify, fom ready */
 		c2_chan_signal(&chan[rq_seqn]);
-		fom->fo_phase = C2_FOPH_FINISH;
+		fom->fo_phase = C2_FOM_PHASE_FINISH;
 		result = C2_FSO_WAIT;
         } else
 		C2_IMPOSSIBLE("");

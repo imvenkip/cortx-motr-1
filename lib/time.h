@@ -19,6 +19,8 @@
  * Original creation date: 12/10/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LIB_TIME_H__
 #define __COLIBRI_LIB_TIME_H__
 
@@ -29,7 +31,7 @@
 
    C2 time delivers resolution in nanoseconds. It is an unsigned 64-bit integer.
    @{
-*/
+ */
 
 #ifndef __KERNEL__
 #include "lib/user_space/time.h"
@@ -46,8 +48,8 @@ enum {
 /**
    Get the current time.  This may or may not relate to wall time.
 
-   @retval current time
-*/
+   @return The current time.
+ */
 c2_time_t c2_time_now(void);
 
 /**
@@ -56,78 +58,63 @@ c2_time_t c2_time_now(void);
    @param secs seconds from now
    @param ns nanoseconds from now
 
-   @retval the result time.
-*/
+   @return The result time.
+ */
 c2_time_t c2_time_from_now(uint64_t secs, long ns);
 
+/**
+   Create and return a c2_time_t from seconds and nanoseconds.
+ */
 c2_time_t c2_time(uint64_t secs, long ns);
 
 /**
-   Create a c2_time_t from seconds and nanosecond
+   Create a c2_time_t from seconds and nanoseconds.
 
    @param time [OUT] the result time.
-   @param secs seconds from epoch
-   @param ns nanoseconds
+   @param secs Seconds from epoch.
+   @param ns Nanoseconds.
    @retval the result time.
  */
 c2_time_t c2_time_set(c2_time_t *time, uint64_t secs, long ns);
 
 /**
-   Add t2 to t1, and return that result
+   Add t2 to t1 and return that result.
 
-   @retval the result time
+   @return The result time. If either t1 or t2 is C2_TIME_NEVER, the result
+   is C2_TIME_NEVER.
  */
 c2_time_t c2_time_add(const c2_time_t t1, const c2_time_t t2);
 
 /**
-   Subtract t2 from t1, and return that result
+   Subtract t2 from t1 and return that result.
 
-   @retval the result time
+   @return The result time. If t1 == C2_TIME_NEVER, C2_TIME_NEVER is returned.
+   @pre t2 < C2_TIME_NEVER && t1 >= t2
  */
 c2_time_t c2_time_sub(const c2_time_t t1, const c2_time_t t2);
-
-/**
-   Is time a after time b?
- */
-bool c2_time_after(const c2_time_t a, const c2_time_t b);
-
-/**
-   Is time a after or equal to time b?
- */
-bool c2_time_after_eq(const c2_time_t a, const c2_time_t b);
-
-bool c2_time_before_eq(const c2_time_t a, const c2_time_t b);
-
-bool c2_time_eq(const c2_time_t a, const c2_time_t b);
 
 /**
    Sleep for requested time. If interrupted, remaining time returned.
 
    @param req requested time to sleep
-   @param rem [OUT] remaining time
-   @retval 0 means success. -1 means error. remaining time will be stored
-           in @rem.
-*/
+   @param rem [OUT] remaining time, NULL causes remaining time to be ignored.
+   @return 0 means success. -1 means error. Remaining time is stored in rem.
+ */
 int c2_nanosleep(const c2_time_t req, c2_time_t *rem);
 
 /**
-   Get "second" part from the time
-
-   @retval second part of the time
+   Get "second" part from the time.
  */
 uint64_t c2_time_seconds(const c2_time_t time);
 
 /**
-   Get "nanosecond" part from the time
-
-   @retval nanosecond part of the time
+   Get "nanosecond" part from the time.
  */
 uint64_t c2_time_nanoseconds(const c2_time_t time);
 
-
 /**
-   the biggest time that never reaches in system life.
-*/
+   The largest time that is never reached in system life.
+ */
 extern const c2_time_t C2_TIME_NEVER;
 
 /** @} end of time group */

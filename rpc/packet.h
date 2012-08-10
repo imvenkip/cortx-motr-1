@@ -18,14 +18,13 @@
  * Original creation date: 05/25/2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_RPC_PACKET_H__
 #define __COLIBRI_RPC_PACKET_H__
 
 #include "lib/vec.h"
 #include "lib/tlist.h"
-
-#include "net/net.h"  /* c2_net_buffer XXX Remove when c2_rpc_frm_buffer is
-			 dropped. */
 
 struct c2_rpc_item;
 struct c2_rpc_frm;
@@ -36,6 +35,8 @@ enum {
 	   NOTE: Current implementation in rpc/rpc_onwire.c encodes
 	         uint32_t as uint64_t. Hence two uint32_t fields
 	         will require 16 bytes.
+	   @todo XXX This is ugly. Define packet header and its size in
+		     .ff format.
 	 */
 	C2_RPC_PACKET_OW_HEADER_SIZE = 16
 };
@@ -66,6 +67,11 @@ struct c2_rpc_packet {
 
 C2_TL_DESCR_DECLARE(packet_item, extern);
 C2_TL_DECLARE(packet_item, extern, struct c2_rpc_item);
+
+#define for_each_item_in_packet(item, packet) \
+	c2_tl_for(packet_item, &packet->rp_items, item)
+
+#define end_for_each_item_in_packet c2_tl_endfor
 
 bool c2_rpc_packet_invariant(const struct c2_rpc_packet *packet);
 void c2_rpc_packet_init(struct c2_rpc_packet *packet);
@@ -103,8 +109,8 @@ bool c2_rpc_packet_is_carrying_item(const struct c2_rpc_packet *packet,
 
    @pre !c2_rpc_packet_is_empty(packet)
  */
-int c2_rpc_packet_encode_in_buf(struct c2_rpc_packet *packet,
-				struct c2_bufvec     *bufvec);
+int c2_rpc_packet_encode(struct c2_rpc_packet *packet,
+			 struct c2_bufvec     *bufvec);
 
 /**
    Serialises packet in location pointed by cursor.
@@ -117,15 +123,17 @@ int c2_rpc_packet_encode_using_cursor(struct c2_rpc_packet    *packet,
 /**
    Decodes packet from bufvec.
  */
-int c2_rpc_packet_decode_from_buf(struct c2_rpc_packet *packet,
-				  struct c2_bufvec     *bufvec);
-
+int c2_rpc_packet_decode(struct c2_rpc_packet *packet,
+			 struct c2_bufvec     *bufvec,
+			 c2_bindex_t           off,
+			 c2_bcount_t           len);
 
 /**
    Decodes packet from location pointed by bufvec cursor.
  */
 int c2_rpc_packet_decode_using_cursor(struct c2_rpc_packet    *packet,
-				      struct c2_bufvec_cursor *cursor);
+				      struct c2_bufvec_cursor *cursor,
+				      c2_bcount_t              len);
 
 typedef void item_visit_fn(struct c2_rpc_item *item, unsigned long data);
 
@@ -136,50 +144,6 @@ typedef void item_visit_fn(struct c2_rpc_item *item, unsigned long data);
 void c2_rpc_packet_traverse_items(struct c2_rpc_packet *p,
 				  item_visit_fn        *visit,
 				  unsigned long         opaque_data);
-
-/** @deprecated */
-struct c2_rpc_frm_sm;
-
-/**
-   @deprecated
-   A magic constant to varify the sanity of c2_rpc_frm_buffer.
- */
-enum {
-	C2_RPC_FRM_BUFFER_MAGIC = 0x8135797531975313ULL,
-};
-
-/**
-   @deprecated
-   Formation attributes for an rpc.
- */
-struct c2_rpc_frm_buffer {
-	/** A magic constant to verify sanity of buffer. */
-	uint64_t		 fb_magic;
-	/** The c2_net_buffer on which callback will trigger. */
-	struct c2_net_buffer	 fb_buffer;
-	/** The associated fromation state machine. */
-	struct c2_rpc_frm_sm	*fb_frm_sm;
-};
-
-/**
-   @deprecated
-   c2_rpc is a container of c2_rpc_items.
- */
-struct c2_rpc {
-	/** Linkage into list of rpc objects just formed or into the list
-	    of rpc objects which are ready to be sent on wire. */
-	struct c2_list_link		 r_linkage;
-	/** List of member rpc items. */
-	struct c2_list			 r_items;
-	/** Items in this rpc are sent via this session. */
-	struct c2_rpc_session		*r_session;
-	/** Formation attributes (buffer, magic) for the rpc. */
-	struct c2_rpc_frm_buffer	 r_fbuf;
-};
-
-void c2_rpcobj_init(struct c2_rpc *rpc);
-
-void c2_rpcobj_fini(struct c2_rpc *rpc);
 
 #endif /* __COLIBRI_RPC_PACKET_H__ */
 

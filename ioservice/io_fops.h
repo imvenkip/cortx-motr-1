@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,6 +18,9 @@
  *                  Anup Barve <Anup_Barve@xyratex.com>
  * Original creation date: 03/21/2011
  */
+
+#pragma once
+
 #ifndef __COLIBRI_IOSERVICE_IO_FOPS_H__
 #define __COLIBRI_IOSERVICE_IO_FOPS_H__
 
@@ -253,7 +256,7 @@ extern struct c2_fop_type c2_fop_cob_delete_fopt;
 extern struct c2_fop_type c2_fop_cob_op_reply_fopt;
 extern struct c2_fop_type c2_fop_fv_notification_fopt;
 
-extern const struct c2_fom_type c2_io_fom_cob_rw_mopt;
+extern struct c2_fom_type c2_io_fom_cob_rw_fomt;
 
 struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
 struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop);
