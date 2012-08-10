@@ -81,8 +81,6 @@ static int sns_res_cp_create(struct c2_sns_ag *sns_ag, struct c2_cm_cp *cp)
         C2_PRE(sns_ag != NULL);
         C2_PRE(cp != NULL);
 
-        res_cp = sns_ag->sag_ccp;
-
 	res_cp = sns_ag->sag_base.cag_ops->cago_cp_alloc(&sns_ag->sag_base,
 							 cp->c_data);
         if (res_cp == NULL)
@@ -93,6 +91,8 @@ static int sns_res_cp_create(struct c2_sns_ag *sns_ag, struct c2_cm_cp *cp)
 	res_cp->c_fom.fo_phase = cp->c_fom.fo_phase;
         res_cp->c_data = cp->c_data;
         res_cp->c_ag = &sns_ag->sag_base;
+
+	sns_ag->sag_ccp = res_cp;
 
         cp->c_data = NULL;
 
