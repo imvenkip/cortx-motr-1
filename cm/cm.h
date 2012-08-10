@@ -76,8 +76,6 @@
    Lists the various external interfaces exported by the copy machine.
    - c2_cm_configure()		 Fetches configuration from confc and configures
 				 a copy machine.
-   - c2_cm_aggr_group_locate()	 Locates an aggregation group based on
-				 aggregation group id.
    - c2_cm_failure_handle()	 Handles a copy machine failure.
    - c2_cm_done()		 Performs copy machine operation fini tasks.
    - c2_cm_operation_abort()	 Aborts a current ongoing copy machine
@@ -189,9 +187,6 @@ struct c2_cm {
 	/** ADDB context to log important events and failures. */
 	struct c2_addb_ctx               cm_addb;
 
-	/** Callback handlers for this copy machine. */
-	const struct c2_cm_cb           *cm_cb;
-
 	/** Sliding window controlled by this copy machine. */
 	struct c2_cm_sw                  cm_sw;
 
@@ -200,23 +195,6 @@ struct c2_cm {
          * operation should check this flag.
 	 */
 	bool				 cm_shutdown;
-};
-
-/**
- * Notification callbacks that will be invoked at various granularities like
- * - Completion of processing of an aggregation group, container, device and
- *   a pool server.
- * - Updates to the sliding window.
- */
-struct c2_cm_cb {
-	/** @todo Adding comments. */
-	void (*cmcb_container)(struct c2_cm *cm, uint64_t cid);
-
-	/** @todo Adding comments. */
-	void (*cmcb_device)(struct c2_cm *cm, uint64_t devid);
-
-	/** @todo Adding comments. */
-	void (*cmcb_sl_window)(struct c2_cm *cm, struct c2_cm_sw *sw);
 };
 
 /** Operations supported by a copy machine. */
@@ -244,38 +222,6 @@ struct c2_cm_ops {
 	 */
 	int (*cmo_next_agent)(struct c2_cm          *cm,
 			      struct c2_cm_cp       *packet);
-
-	/**
-	 * Transformation function.
-	 *
-	 * Transforms the incoming copy packet to create a list of transformed
-	 * copy packets.
-	 *
-	 * This is done by extracting the aggregation group to which the
-	 * incoming copy packet belongs and then by updating the aggregation
-	 * group type c2_cm_aggr_group_type corresponding to the aggregation
-	 * group. Aggregation group type keeps track of list of transformed
-	 * copy packets along with any copy machine type intermediate
-	 * information that is needed during transformation.
-	 *
-	 * For example: In case of SNS repair, the idea of transformation
-	 * function is to take all the copy packets belonging to an aggregation
-	 * group and transform them into a single copy packet. This involves
-	 * XORing of the c2_net_buffer's corresponding to all the copy packets
-	 * and creating a single c2_net_buffer which belongs to a new outgoing
-	 * copy packet.
-	 *
-	 * Tranformation function is called in context of a collecting agent
-	 * fom. Collecting agent uses some mechanism to make sure that all the
-	 * copy packets belonging to the aggregation group corresponding to the
-	 * incoming copy packet are transformed. This mechanism is copy machine
-	 * type specific.
-	 *
-	 * @param packet Copy packet that should be transformed by the
-	 * collecting agent.
-	 * @pre packet->cp_state == WAIT_COLLECT
-	 */
-	int (*cmo_transform)(struct c2_cm_cp *packet);
 
 	/**
 	 * Handles incoming request fop and performs copy machine
@@ -350,7 +296,7 @@ void c2_cms_fini(void);
  * @pre cm != NULL;
  */
 int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
-	       const struct c2_cm_ops *cm_ops, const struct c2_cm_cb *cb_ops,
+	       const struct c2_cm_ops *cm_ops,
 	       const struct c2_cm_sw_ops *sw_ops);
 
 /**
@@ -405,13 +351,9 @@ struct c2_cm_type cmtype ## _cmt = {              \
 /** Checks consistency of copy machine. */
 bool c2_cm_invariant(struct c2_cm *cm);
 
-bool c2_cm_service_is_cm(struct c2_reqh_service *service);
-
 /** Copy machine state mutators & accessors */
 void c2_cm_state_set(struct c2_cm *cm, int state);
 int  c2_cm_state_get(struct c2_cm *cm);
-
-struct c2_chan *c2_cm_signal(struct c2_cm *cm);
 
 /** @} endgroup cm */
 

@@ -398,12 +398,22 @@ bool c2_cm_cp_invariant(struct c2_cm_cp *cp)
 {
 	uint32_t phase = cp->c_fom.fo_phase;
 
-	return phase >= CCP_INIT && phase <= CCP_FINI;
+	return phase >= CCP_INIT && phase <= CCP_FINI &&
+	       c2_fom_invariant(&cp->c_fom) && cp->c_ops != NULL &&
+	       cp->c_data != NULL && cp->c_ag != NULL;
 }
 
-void c2_cm_cp_init(struct c2_cm *cm, struct c2_cm_cp *cp)
+void c2_cm_cp_init(struct c2_cm_cp *cp, struct c2_cm_aggr_group *ag,
+		   const struct c2_cm_cp_ops *ops, struct c2_bufvec *buf)
 {
+	C2_PRE(cp != NULL && ag != NULL && ops != NULL && buf != NULL);
+
+	cp->c_ag = ag;
+	cp->c_data = buf;
+	cp->c_ops = ops;
 	c2_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL);
+
+	C2_POST(c2_cm_cp_invariant(cp));
 }
 
 void c2_cm_cp_fini(struct c2_cm_cp *cp)

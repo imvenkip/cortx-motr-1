@@ -51,10 +51,10 @@
 
   <hr>
   @section DLD-snsrepair-ovw Overview
-  This module implements sns repair copy machine as a Colibri request handler
-  service and uses generic copy machine infrastructure. SNS Repair copy machine
-  is typically started during Colibri process startup, although it can also be
-  started separately.
+  This module implements sns repair copy machine using generic copy machine
+  infrastructure. SNS repair copy machine is built upon the request handler
+  service infrastructure. SNS Repair copy machine is typically started during
+  Colibri process startup, although it can also be started separately.
 
   <hr>
   @section DLD-snsrepair-def Definitions
@@ -71,27 +71,21 @@
     caused due to various kinds of failures as mentioned in the HLD of SNS
     Repair.
 
-  - @b r.sns.repair.agents.create The implementation should efficiently
-    fetch configuration information and create corresponding agents.
+  - @b r.sns.repair.buffer.acquire The implementation should efficiently provide
+    buffers for the repair operation without any deadlock.
+
+  - @b r.sns.repair.transform The implementation should provide its specific
+    implementation of transformation function for copy packets.
+
+  - @b r.sns.repair.next.agent The implementation should provide an efficient
+    next-agent phase function for the copy packet FOM.
 
   - @b r.sns.repair.report.progress The implementation should efficiently report
     overall progress of data re-structuring and update corresponding layout
     information for re-structured objects.
 
-  - @b r.sns.repair.buffer.acquire The implementation should efficiently provide
-    buffers to its corresponding agents without any deadlock.
-
-  - @b r.sns.repair.transform The implementation should provide
-    its specific implementation of transformation function for copy packets.
-
-  - @b r.sns.repair.next.agent The implementation should provide an efficient
-    next-agent function based on aggregation function.
-
   <hr>
   @section DLD-snsrepair-depends Dependencies
-  - @b r.sns.repair.conf It must be possible to efficiently fetch the
-    configuration of the current node to create agents.
-
   - @b r.sns.repair.resources.manage It must be possible to efficiently
     manage and throttle resources.
 
@@ -100,7 +94,7 @@
 
   <hr>
   @section DLD-snsrepair-highlights Design Highlights
-  - SNS Repair copy machine is implemented as a request handler service.
+  - SNS Repair copy machine uses request handler service infrastructure.
   - SNS Repair copy machine specific data structure embeds generic copy machine
     and other sns repair specific objects.
   - Incoming and outgoing buffer pools are specific to sns repair copy machine.
@@ -108,8 +102,8 @@
     interfaces.
   - Copy machine state transitions are performed by generic copy machine
     interfaces.
-  - SNS Repair defines its specific aggregation group structure which embeds
-    generic aggregation group.
+  - SNS Repair defines its specific aggregation group data structure which
+    embeds generic aggregation group.
 
   <hr>
   @section DLD-snsrepair-lspec Logical specification
@@ -117,10 +111,9 @@
   - @ref DLD-snsrepair-lspec-cm-stop
 
   @subsection DLD-snsrepair-lspec-comps Component overview
-  The focus of sns repair copy machine is on re-structuring the data with help
-  of its specific agents. Although the actual re-structuring is performed by
-  corresponding agents, SNS Repair copy machine is responsible to efficiently
-  co-ordinate all the agents working on a particular task.
+  The focus of sns repair copy machine is on re-structuring the data
+  efficiently. The re-structuring operation is split into various copy packet
+  phases.
 
   @subsection DLD-snsrepair-lspec-cm-start Copy machine startup
   SNS Repair defines its following specific data structure to represent a
@@ -162,7 +155,6 @@
   cm_start(cm)
   {
 	//Fetch configuration information for the node.
-	//Start copy machine agents.
   }
   @endcode
 
@@ -174,7 +166,6 @@
   SNS Repair copy machine is stopped when its corresponding service is
   stopped. Again, the service stop operation invokes generic c2_cm_stop(),
   which further invokes sns repair copy machine specific stop operation.
-  This stops all the copy machine agents.
 
   @subsection DLD-snsrepair-lspec-thread Threading and Concurrency Model
   SNS Repair copy machine is implemented as a request handler service, thus
@@ -197,15 +188,12 @@
   through generic copy machine interfaces which cause copy machine state
   transitions.
 
-  @b i.sns.repair.agents.create SNS Repair fetches configuration information from
-  configuration service in-order to create corresponding agents.
-
   @b i.sns.repair.report.progress Progress is reported using sliding window and
   layout updates.
   @todo Layout updates will be implemented at later stages of sns repair.
 
-  @b i.sns.repair.buffer.acquire SNS Repair implements separate buffer pools for
-  incoming and outgoing buffers for corresponding agents.
+  @b i.sns.repair.buffer.acquire SNS Repair copy machine impllements its own
+  buffer pool used to create copy pckets. The buffers are allocated in 
 
   @b i.sns.repair.transform SNS Repair implements its specific transformation
   function and its corresponding copy machine operations.
@@ -215,14 +203,6 @@
 
   <hr>
   @section DLD-snsrepair-ut Unit tests
-  @b Test 01  : Setup and start sns repair copy machine and its agents.
-  @b Response : All the agents should be created as per the available configuration.
-                Agent FOMs are started should initially transition to idle state
-                and wait in request handler's wait queue.
-
-  @b Test 02  : Destroy copy machine and agents.
-  @b Response : All the idle agent FOMs should be woken up and finalised as per
-                request handler framework.
 
   <hr>
   @section DLD-snsrepair-st System tests
@@ -238,7 +218,7 @@
 */
 
 /**
-  @addtogroup snsrepair
+  @addtogroup snsrepair-cm
   SNS Repair copy machine implements a copy machine in-order to re-structure
   data efficiently in event of a failure. It uses GOB (global file object) and
   COB (component object) infrastructure and parity de-clustering layout.
@@ -246,9 +226,6 @@
   SNS Repair copy machine is typically started during colibri setup, but can
   also be started later. SNS Repair copy machine mainly uses reqh and generic
   copy machine framework, and thus implements their corresponding operations.
-  During startup, SNS Repair copy machine creates and starts its specific
-  agents and remains idle until an operation is triggered by some failure
-  event.
 
   @{
 */
@@ -256,8 +233,6 @@
 /** Copy machine operations.*/
 static int cm_start(struct c2_cm *cm);
 static int cm_config(struct c2_cm *cm);
-static int cm_transform(struct c2_cm_cp *packet);
-static int cm_next_agent(struct c2_cm *cm, struct c2_cm_cp *packet);
 static int cm_incoming(struct c2_cm *cm, struct c2_fom *fom);
 static void cm_done(struct c2_cm *cm);
 static void cm_stop(struct c2_cm *cm);
@@ -266,23 +241,10 @@ static void cm_fini(struct c2_cm *cm);
 const struct c2_cm_ops cm_ops = {
 	.cmo_start      = cm_start,
 	.cmo_config     = cm_config,
-	.cmo_next_agent = cm_next_agent,
-	.cmo_transform  = cm_transform,
 	.cmo_incoming   = cm_incoming,
 	.cmo_done       = cm_done,
 	.cmo_stop       = cm_stop,
 	.cmo_fini       = cm_fini
-};
-
-/** Copy machine callbacks.*/
-static void cm_cb_container(struct c2_cm *cm, uint64_t cid);
-static void cm_cb_device(struct c2_cm *cm, uint64_t devid);
-static void cm_cb_sw(struct c2_cm *cm, struct c2_cm_sw *sw);
-
-const struct c2_cm_cb cm_cb = {
-	.cmcb_container = cm_cb_container,
-	.cmcb_device    = cm_cb_device,
-	.cmcb_sl_window = cm_cb_sw
 };
 
 extern struct c2_cm_type sns_repair_cmt;
@@ -303,175 +265,7 @@ static int cm_start(struct c2_cm *cm)
 
 	C2_ENTRY();
 
-	if (C2_FI_ENABLED("agent_create_failure"))
-		return -EINVAL;
-
 	C2_LEAVE();
-	return rc;
-}
-
-/**
- * Transformation function for sns repair.
- *
- * Finds aggregation group c2_sns_aggr_group corresponding to the incoming
- * copy packet. Calculates the total number of copy packets
- * c2_sns_aggr_group::sag_cp_nr belonging
- * to c2_sns_aggr_group and checks it with the number of copy packets which are
- * transformed (c2_cm_aggr_group::cag_transformed_cp_nr).
- * If all the copy packets belonging to the aggregation group are transformed,
- * then creates a new copy packet and sends it to the next agent.
- *
- * Transformation involves XORing the c2_net_buffer's from copy packet
- * c2_cm_cp::cp_nb with c2_sns_aggr_group::sag_transformed_nb.
- * XORing is done using parity math operations like c2_parity_math_calculate().
- *
- * When first copy packet of the aggregation group is transformed, its
- * corresponding c2_cm_cp::cp_nb is set to
- * c2_sns_aggr_group::sag_transformed_nb.
- * Typically, all the copy packets will have same buffer size. Hence, there is
- * no need for any complex buffer manipulation like growing or shrinking the
- * c2_sns_aggr_group::sag_transformed_nb.
- *
- * Every copy packet once transformed is freed. It is safe to do so since the
- * collecting agent does not typically interact with remote agents. So there is
- * no risk of transformed copy packet getting lost during network
- * communication.
- *
- * @pre cp!= NULL && cp->cp_state == CPS_COLLECTING_WAIT
- * @param cp Copy packet that has to be transformed.
- */
-static int cm_transform(struct c2_cm_cp *cp)
-{
-	return 0;
-}
-
-/**
- * Defines the next_agent() for a sns repair copy machine.
- *
- * This routine return the next agent in [out] next_agent_id for this packet.
- * Caller will use the agent id to find the proper agent in its domain.
- *
- * Usually, copy packets flow from agent to agent, from storage-in agent,
- * to network-out agent, to network-in agent, to collecting agent, and finally
- * are written onto device/containers by storage-out agent. This forms the copy
- * packet pipeline.
- * For different copy packets, their pipeline may be different, because these
- * copy packets belong to different data/parity groups.
- *
- * Please @note a remote agent may be returned. The copy packet needs to
- * be transported on network between a network-in and network-out agent pair.
- */
-static int cm_next_agent(struct c2_cm *cm, struct c2_cm_cp *packet)
-{
-	int rc = -ENOENT;
-
-	C2_PRE(cm != NULL);
-	C2_PRE(packet != NULL);
-/*
-	switch (packet->cp_state) {
-	case C2_CPS_STORAGE_IN_WAIT: {
-		struct c2_sns_repair_cp	*scp;
-		struct c2_cm_agent      *ca;
-		struct c2_tl		*tl;
-		uint64_t                 agents_nr;
-		uint32_t                 agents_idx;
-		enum c2_cm_agent_type    type;
-*/
-		/*
-		 * Finds a collecting agent as next agent.
-		 * TODO: This is temporary for single node demo. When layout
-		 * and configuration is ready, we will use them to find proper
-		 * next agent.
-		 */
-/*
-		type = C2_CM_AGENT_COLLECTING;
-		c2_cm_group_lock(cm);
-		tl = &cm->cm_agents;
-*/
-		/*
-		 * it's just a simple hash: hash with the fid key.
-		 * Assumptions: the number of agents will not change after sns
-		 * setup.
-		 */
-/*
-		agents_nr = cm->cm_agent_id_max;
-		scp = container_of(packet, struct c2_sns_repair_cp, rc_base);
-		agents_idx = scp->rc_gfid.f_key % agents_nr;
-		ca = agent_tlist_head(tl);
-		C2_ASSERT(ca != NULL);
-		while (agents_idx != 0) {
-			ca = agent_tlist_next(tl, ca);
-			C2_ASSERT(ca != NULL);
-			--agents_idx;
-		}
-*/
-		/* return this collecting agent */
-/*
-		*next_agent_id = ca->a_id;
-		c2_cm_group_unlock(cm);
-		rc = 0;
-		break;
-	}
-	case C2_CPS_STORAGE_OUT_WAIT:
-*/
-		/*
-		 * This is the end of pipeline. next_agent() should not
-		 * be called for this agent.
-		 */
-/*
-		C2_ASSERT(0);
-		rc = -ENOENT;
-		break;
-	case C2_CPS_NETWORK_IN_WAIT:
-	case C2_CPS_NETWORK_OUT_WAIT:
-		rc = -ENOENT;
-		break;
-	case C2_CPS_COLLECTING_WAIT: {
-		struct c2_sns_repair_cp	       *scp;
-		struct c2_cm_agent             *a;
-		struct c2_tl		       *tl;
-		struct c2_cm_storage_out_agent *so;
-*/
-		/*
-		 * Finds a storage-out agent as next agent.
-		 *
-		 * At this point, the cob fid and cob ext of current copy
-		 * packet should be ready and valid.
-		 *
-		 * TODO: This is temporary. When layout and configuration
-		 * is ready, they should be used to find proper next agent.
-		 */
-/*
-		c2_cm_group_lock(cm);
-		tl = &cm->cm_agents;
-		scp = container_of(packet, struct c2_sns_repair_cp, rc_base);
-		c2_tl_for(agent, tl, a) {
-			so = container_of(a, struct c2_cm_storage_out_agent,
-					  so_agent);
-			if (so->so_container_id == scp->rc_cfid.f_container) {
-*/
-				/* return this storage-out agent */
-/*
-				*next_agent_id = a->a_id;
-				rc = 0;
-				break;
-			}
-		} c2_tl_endfor;
-		C2_ASSERT(rc == 0);
-		c2_cm_group_unlock(cm);
-		break;
-	}
-	default:
-*/
-		/*
-		 * This should not happen.
-		 */
-/*
-		C2_ASSERT(0);
-		rc = -ENOENT;
-		break;
-	}
-*/
 	return rc;
 }
 
@@ -511,18 +305,6 @@ static void cm_fini(struct c2_cm *cm)
 {
 	C2_ENTRY();
 	C2_PRE(cm != NULL);
-}
-
-static void cm_cb_container(struct c2_cm *cm, uint64_t cid)
-{
-}
-
-static void cm_cb_device(struct c2_cm *cm, uint64_t devid)
-{
-}
-
-static void cm_cb_sw(struct c2_cm *cm, struct c2_cm_sw *sw)
-{
 }
 
 /** @} snsrepair */
