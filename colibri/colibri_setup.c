@@ -31,7 +31,6 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/getopts.h"
-#include "lib/processor.h"
 #include "lib/misc.h"
 #include "lib/finject.h"    /* C2_FI_ENABLED */
 
@@ -1458,7 +1457,7 @@ static void cs_colibri_fini(struct c2_colibri *cctx)
 /**
    Displays usage of colibri_setup program.
 
-   @param f File to which the output is written
+   @param out File to which the output is written
  */
 static void cs_usage(FILE *out)
 {
@@ -1478,7 +1477,7 @@ static void cs_usage(FILE *out)
 /**
    Displays help for colibri_setup program.
 
-   @param f File to which the output is written
+   @param out File to which the output is written
  */
 static void cs_help(FILE *out)
 {
@@ -1670,8 +1669,6 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
    required arguments are provided and valid.
    Every allocated request handler context is added to the list of the same
    in given colibri context.
-
-   @param cctx Colibri context to be setup
  */
 static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
 {
@@ -1857,8 +1854,6 @@ int c2_cs_start(struct c2_colibri *cctx)
 int c2_cs_init(struct c2_colibri *cctx, struct c2_net_xprt **xprts,
 	       size_t xprts_nr, FILE *out)
 {
-        int rc;
-
         C2_PRE(cctx != NULL && xprts != NULL && xprts_nr > 0 && out != NULL);
 
 	if (C2_FI_ENABLED("fake_error"))
@@ -1868,11 +1863,8 @@ int c2_cs_init(struct c2_colibri *cctx, struct c2_net_xprt **xprts,
 	cctx->cc_xprts_nr = xprts_nr;
 	cctx->cc_outfile = out;
 	cs_colibri_init(cctx);
-        rc = c2_processors_init();
-	if (rc != 0)
-		cs_colibri_fini(cctx);
 
-	return rc;
+	return 0;
 }
 
 void c2_cs_fini(struct c2_colibri *cctx)
@@ -1883,7 +1875,6 @@ void c2_cs_fini(struct c2_colibri *cctx)
 	cs_buffer_pool_fini(cctx);
 	cs_net_domains_fini(cctx);
         cs_colibri_fini(cctx);
-	c2_processors_fini();
 }
 
 /** @} endgroup colibri_setup */

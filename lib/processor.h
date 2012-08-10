@@ -28,7 +28,7 @@
 #include "lib/types.h"
 
 /**
-   @defgroup Processor
+   @defgroup Processor Processor information
 
    Interfaces to learn the number and characteristics of "processors"
    for a given system/node.
@@ -91,15 +91,7 @@ int c2_processors_init(void);
 void c2_processors_fini(void);
 
 /**
-   Query if processors interface is initialized.
-   @retval true if the interface is initialized
-   @retval false if the interface is not initalized.
- */
-bool c2_processor_is_initialized(void);
-
-/**
    Maximum processors this system can handle.
-
  */
 c2_processor_nr_t c2_processor_nr_max(void);
 
@@ -108,8 +100,8 @@ c2_processor_nr_t c2_processor_nr_max(void);
 
    @pre map->b_nr >= c2_processor_nr_max()
    @pre c2_processors_init() must be called before calling this function.
-   @pre The calling function should allocated memory for 'map' and initialize
-        it
+   @pre The calling function must allocate memory for 'map' and initialize it.
+   @note This function does not take any locks.
  */
 void c2_processors_possible(struct c2_bitmap *map);
 
@@ -118,27 +110,26 @@ void c2_processors_possible(struct c2_bitmap *map);
 
    @pre map->b_nr >= c2_processor_nr_max()
    @pre c2_processors_init() must be called before calling this function.
-   @pre The calling function should allocated memory for 'map' and initialize
-        it
+   @pre The calling function must allocate memory for 'map' and initialize it.
+   @note This function does not take any locks.
  */
 void c2_processors_available(struct c2_bitmap *map);
 
 /**
    Return the bitmap of online processors.
 
-
    @pre map->b_nr >= c2_processor_nr_max()
    @pre c2_processors_init() must be called before calling this function.
-   @pre The calling function should allocated memory for 'map' and initialize
-        it
+   @pre The calling function must allocate memory for 'map' and initialize it.
+   @note This function does not take any locks.
  */
 void c2_processors_online(struct c2_bitmap *map);
 
 /**
    Return the id of the processor on which the calling thread is running.
 
-   @retval logical processor id (as supplied by the system) on which the
-           calling thread is running, if the call is uspported.
+   @return logical processor id (as supplied by the system) on which the
+           calling thread is running, if the call is unsupported.
            It will return C2_PROCESSORS_INVALID_ID, if this call is not
            supported.
  */

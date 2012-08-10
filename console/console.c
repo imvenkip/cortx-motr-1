@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -26,7 +26,6 @@
 
 #include "lib/errno.h"		  /* ETIMEDOUT */
 #include "lib/memory.h"		  /* c2_free */
-#include "lib/processor.h"        /* c2_processors_init/fini */
 #include "lib/getopts.h"	  /* C2_GETOPTS */
 #include "colibri/init.h"	  /* c2_init */
 #include "net/lnet/lnet.h"
@@ -313,13 +312,6 @@ int main(int argc, char **argv)
 		fprintf(stderr, "c2_console_fop_init failed\n");
 		goto end0;
 	}
-
-	result = c2_processors_init();
-	if (result != 0) {
-		fprintf(stderr, "c2_processors_init failed\n");
-		result = EX_SOFTWARE;
-		goto end1;
-	}
 #endif
 	if (show && opcode <= 0) {
 		c2_cons_fop_list_show();
@@ -353,7 +345,7 @@ int main(int argc, char **argv)
 	if (result != 0) {
 		fprintf(stderr, "c2_rpc_client_init failed\n");
 		result = EX_SOFTWARE;
-		goto end2;
+		goto end1;
 	}
 
 	printf("Console Address = %s\n", cctx.rcx_local_addr);
@@ -370,10 +362,6 @@ int main(int argc, char **argv)
 cleanup:
 	result = c2_rpc_client_fini(&cctx);
 	C2_ASSERT(result == 0);
-end2:
-#ifndef CONSOLE_UT
-	c2_processors_fini();
-#endif
 end1:
 #ifndef CONSOLE_UT
 	c2_console_fop_fini();

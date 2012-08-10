@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,6 +18,10 @@
  * Original creation date: 03/11/2011
  */
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,6 +32,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <linux/limits.h>
+#include <sched.h> /* sched_getcpu() */
 
 #include "lib/processor.h"
 #include "lib/list.h"
@@ -57,7 +62,6 @@
    -  Run unit test and compare the processor info structure with expected
       results.
    @{
-
  */
 #define MAX_LINE_LEN	256
 
@@ -135,15 +139,15 @@ struct processor_sys_summary {
    encapsulates 'struct c2_processor_descr'.
    @see lib/processor.h
  */
-struct c2_processor_node {
+struct processor_node {
 	/** Linking structure for node */
-	struct c2_list_link	pn_link;
+	struct c2_list_link       pn_link;
 
 	/** Processor descritor strcture */
 	struct c2_processor_descr pn_info;
 };
 
-/**
+/*
 	Global Variables.
  */
 static struct processor_sys_summary sys_cpus;
@@ -152,17 +156,13 @@ static bool processor_init = false;
 /**
    This function converts a bitmap string into a bitmap of c2_bitmap type.
 
-   @pre map in not NULL.
-   @pre mapstr in not NULL.
+   @pre map != NULL
+   @pre mapstr != NULL
 
    @param map -> c2 bitmap structure that will store the bitmap. Memory
                  for this parameter should be allocated before calling.
    @param mapstr -> bitmap string
-
-   @retval -> 0, if successful
-              -1, upon failure.
    @see c2_processors_set_map_type()
-
  */
 static int processor_set_map(struct c2_bitmap *map, const char *mapstr)
 {
@@ -174,8 +174,8 @@ static int processor_set_map(struct c2_bitmap *map, const char *mapstr)
 	char *rangeset;
 	char *range;
 
-	C2_ASSERT(map != NULL);
-	C2_ASSERT(mapstr != NULL);
+	C2_PRE(map != NULL);
+	C2_PRE(mapstr != NULL);
 
 	/*
 	 * strtok() modifies string. Hence create a copy.
@@ -225,12 +225,8 @@ static int processor_set_map(struct c2_bitmap *map, const char *mapstr)
    Read map files under sysfs. Read the present cpu string and
    convert it into a bitmap.
 
-   @retval -> 0, if successful
-              -1, upon failure.
-   @pre Assumes the directory has been changed to approriate CPU
-        info dir.
+   @pre Assumes the directory has been changed to approriate CPU info dir.
    @see processor_set_map()
-
  */
 static int processor_set_map_type(enum map map_type)
 {
@@ -303,9 +299,8 @@ static int processor_set_map_type(enum map map_type)
    Reads a file. Returns an unsigned number.
 
    @param filename -> file to read
-   @retval -> unsigned number, if successful
-              C2_PROCESSORS_INVALID_ID, upon failure.
-
+   @return non-negative number, if successful;
+           C2_PROCESSORS_INVALID_ID, upon failure.
  */
 static uint32_t processor_read_number_from_file(const char *filename)
 {
@@ -331,28 +326,23 @@ static uint32_t processor_read_number_from_file(const char *filename)
    Read "cpu/kernel_max" file under sysfs. Read the kernel_max cpu string and
    convert it into a number.
 
-   @pre Assumes the directory has been changed to approriate CPU
-        info dir.
+   @pre Assumes the directory has been changed to approriate CPU info dir.
    @see processor_set_map()
    @see processor_set_map_type()
-
  */
 static void processor_get_maxsz()
 {
-	sys_cpus.pss_max
-	= processor_read_number_from_file(C2_PROCESSORS_MAX_FILE);
+	sys_cpus.pss_max =
+	    processor_read_number_from_file(C2_PROCESSORS_MAX_FILE);
 }
 
 /**
    Fetch NUMA node id for a given processor.
 
+   @pre Assumes the directory has been changed to approriate CPU info dir.
    @param id -> id of the processor for which information is requested.
-
-   @retval -> id of the NUMA node to which the processor belongs. If the
-              machine is not configured as NUMA, returns 0.
-
-   @pre Assumes the directory has been changed to approriate CPU
-        info dir.
+   @return id of the NUMA node to which the processor belongs. If the
+           machine is not configured as NUMA, returns 0.
  */
 static uint32_t processor_get_numanodeid(c2_processor_nr_t id)
 {
@@ -429,11 +419,9 @@ static uint32_t processor_get_numanodeid(c2_processor_nr_t id)
    Read "cpu/cpu<id>/toplology/core_id" file under sysfs. Read the core id
    string convert it into a number.
 
-   @pre Assumes the directory has been changed to approriate CPU
-        info dir.
+   @pre Assumes the directory has been changed to approriate CPU info dir.
    @param id -> id of the processor for which information is requested.
-
-   @retval "core" id for a given processor, on success.
+   @return "core" id for a given processor, on success.
            C2_PROCESSORS_INVALID_ID, on failure.
  */
 static uint32_t processor_get_coreid(c2_processor_nr_t id)
@@ -452,11 +440,9 @@ static uint32_t processor_get_coreid(c2_processor_nr_t id)
    Read "cpu/cpu<id>/toplology/physical_package_id" file under sysfs. Read
    the physical package id string convert it into a number.
 
-   @pre Assumes the directory has been changed to approriate CPU
-        info dir.
+   @pre Assumes the directory has been changed to approriate CPU info dir.
    @param id -> id of the processor for which information is requested.
-
-   @retval "phys" id for a given processor, on success.
+   @return "phys" id for a given processor, on success.
            C2_PROCESSORS_INVALID_ID, on failure.
  */
 static uint32_t processor_get_physid(c2_processor_nr_t id)
@@ -474,8 +460,7 @@ static uint32_t processor_get_physid(c2_processor_nr_t id)
 /**
    Read string bitmap and check if the other CPUs share the resource.
 
-   @param string_map -> a string representing a bitmap
-
+   @param mapstr -> a string representing a bitmap
    @retval 1 if the processor shares the map
    @retval 0 if the processor does not the map
  */
@@ -526,7 +511,7 @@ static int processor_is_cache_shared(const char *mapstr)
 
 	}/* while - entire string is parsed */
 
-	C2_ASSERT(shared_cpus >= 1);
+	C2_POST(shared_cpus >= 1);
 
 	/*
 	 * Free memory allocated by strdup()
@@ -539,12 +524,9 @@ static int processor_is_cache_shared(const char *mapstr)
 /**
    Fetch L1 cache size for a given processor.
 
+   @pre Assumes the directory has been changed to approriate CPU info dir.
    @param id -> id of the processor for which information is requested.
-
-   @retval size of L1 cache for the given processor.
-
-   @pre Assumes the directory has been changed to approriate CPU
-        info dir.
+   @return size of L1 cache for the given processor.
  */
 static size_t processor_get_l1_size(c2_processor_nr_t id)
 {
@@ -591,13 +573,10 @@ static size_t processor_get_l1_size(c2_processor_nr_t id)
 /**
    Fetch L2 cache size for a given processor.
 
+   @pre Assumes the directory has been changed to approriate CPU info dir.
    @param id -> id of the processor for which information is requested.
-
-   @retval size of L2 cache for the given processor, on success.
+   @return size of L2 cache for the given processor, on success.
            C2_PROCESSORS_INVALID_ID, on failure.
-
-   @pre Assumes the directory has been changed to approriate CPU
-        info dir.
  */
 static size_t processor_get_l2_size(c2_processor_nr_t id)
 {
@@ -658,12 +637,10 @@ static size_t processor_get_l2_size(c2_processor_nr_t id)
 /**
    Fetch L1 cache id for a given processor.
 
+   @pre Assumes the directory has been changed to approriate CPU info dir.
    @param id -> id of the processor for which information is requested.
-
-   @retval id of L1 cache for the given processor, on success.
+   @return id of L1 cache for the given processor, on success.
            C2_PROCESSORS_INVALID_ID, on failure.
-   @pre Assumes the directory has been changed to approriate CPU
-        info dir.
  */
 static uint32_t processor_get_l1_cacheid(c2_processor_nr_t id)
 {
@@ -725,13 +702,10 @@ static uint32_t processor_get_l1_cacheid(c2_processor_nr_t id)
 /**
    Fetch L2 cache id for a given processor.
 
+   @pre Assumes the directory has been changed to approriate CPU info dir.
    @param id -> id of the processor for which information is requested.
-
-   @retval id of L2 cache for the given processor, on success.
+   @return id of L2 cache for the given processor, on success.
            C2_PROCESSORS_INVALID_ID, on failure.
-
-   @pre Assumes the directory has been changed to approriate CPU
-        info dir.
  */
 static uint32_t processor_get_l2_cacheid(c2_processor_nr_t id)
 {
@@ -816,9 +790,7 @@ static uint32_t processor_get_l2_cacheid(c2_processor_nr_t id)
    Curently pipeline id is same as processor id.
 
    @param id -> id of the processor for which information is requested.
-
-   @retval id of pipeline for the given processor.
-
+   @return id of pipeline for the given processor.
  */
 static inline uint32_t processor_get_pipelineid(c2_processor_nr_t id)
 {
@@ -832,23 +804,19 @@ static inline uint32_t processor_get_pipelineid(c2_processor_nr_t id)
 
    This function will be called from processors_getsummary().
 
-   @param sysfs_dir -> Directory underwhich the information should be searched
    @param id -> id of the processor for which information is requested.
    @param pn -> A linked list node containing processor information.
 
-   @retval -> 0, if successful
-              -1, upon failure.
    @pre Memory to 'pn' must be allocated by the calling function
    @post pn structure will be filled with processor information
 
    @see processors_getsummary()
  */
-static int processor_getinfo(c2_processor_nr_t id,
-			     struct c2_processor_node *pn)
+static int processor_getinfo(c2_processor_nr_t id, struct processor_node *pn)
 {
 	int rc = -1;
 
-	C2_ASSERT(pn != NULL);
+	C2_PRE(pn != NULL);
 
 	pn->pn_info.pd_numa_node = processor_get_numanodeid(id);
 	if ( pn->pn_info.pd_numa_node == C2_PROCESSORS_INVALID_ID) {
@@ -894,11 +862,8 @@ static int processor_getinfo(c2_processor_nr_t id,
    @pre  C2_PROCESSORS_INFO_DIR/default directory must exist.
    @post A global variable of type processor_sys_summary will be filled in
 
-   @retval -> 0, if successful
-              -1, upon failure.
    @see lib/processor.h
    @see void c2_processors_init()
-
  */
 static int processors_getsummary()
 {
@@ -913,7 +878,7 @@ static int processors_getsummary()
 	char	*str;
 	char	cwd[PATH_MAX];
 
-	struct c2_processor_node *pinfo;
+	struct processor_node *pinfo;
 
 	dirp = getenv(C2_PROCESSORS_INFO_ENV);
 	if (dirp == NULL) {
@@ -980,8 +945,8 @@ static int processors_getsummary()
 	for (cpuid = 0; cpuid < sys_cpus.pss_avail_map.b_nr; cpuid++) {
 		present = c2_bitmap_get(&sys_cpus.pss_avail_map, cpuid);
 		if (present == true) {
-			pinfo = (struct c2_processor_node *)
-				calloc (1, sizeof(struct c2_processor_node));
+			pinfo = (struct processor_node *)
+				calloc (1, sizeof(struct processor_node));
 			rc = processor_getinfo(cpuid, pinfo);
 			if (rc != 0) {
 				free(pinfo);
@@ -1014,44 +979,23 @@ static int processors_getsummary()
 /**
    Copy c2_bitmap.
 
-   @param src -> Source bitmap.
    @param dst -> Destination bitmap
+   @param src -> Source bitmap.
  */
-static void processors_copy_c2bitmap(const struct c2_bitmap *src,
-			       struct c2_bitmap *dst)
+static void processors_c2bitmap_copy(struct c2_bitmap *dst,
+				     const struct c2_bitmap *src)
 {
-	C2_ASSERT(dst->b_nr <= sys_cpus.pss_max);
+	C2_PRE(dst->b_nr <= sys_cpus.pss_max);
 	c2_bitmap_copy(dst, src);
 }
 
 /* ---- Processor Interface Implementation ---- */
 
-/**
-   Initialize processors interface. This will allow the interface
-   to cache/populate the data, if necessary. The data is cached for
-   user mode. The data may not be cached for kernel mode as kernel already
-   has the data.
-
-   The calling function should not assume hot-plug CPU facility.
-   If the underlying OS supports the hot-plug CPU facility, the calling
-   program will have to re-initialize the interface (at least in user-mode)
-   after registering for platform specific CPU change notification.
-
-   To re-initialize the interface, c2_processors_fini() must be called first,
-   before initializing it again.
-
-   @retval -> 0, if successful
-              -1, upon failure.
-   @post Interface initialized.
-
-   Concurrency: The interface should not be initialized twice or simultaneously.
-                It's not MT-safe and can be called only once. It can be
-                called again after calling c2_processors_fini().
- */
 int c2_processors_init()
 {
 	int rc;
 
+	C2_PRE(!processor_init);
 	rc = processors_getsummary();
 	if (rc == 0) {
 		processor_init = true;
@@ -1059,17 +1003,12 @@ int c2_processors_init()
 	return rc;
 }
 
-/**
-   Close the processors interface. This function will destroy any cached data.
-   After calling this interface no meaningful data should be assumed.
-
-   Concurrency: Not MT-safe. Assumes no threads are using processor interface.
- */
 void c2_processors_fini()
 {
 	struct c2_list_link *node;
-	struct c2_processor_node *pinfo;
+	struct processor_node *pinfo;
 
+	C2_PRE(processor_init);
 	c2_bitmap_fini(&sys_cpus.pss_poss_map);
 	c2_bitmap_fini(&sys_cpus.pss_avail_map);
 	c2_bitmap_fini(&sys_cpus.pss_onln_map);
@@ -1080,7 +1019,7 @@ void c2_processors_fini()
 	 */
 	node = sys_cpus.pss_head.l_head;
 	while((struct c2_list *)node != &sys_cpus.pss_head) {
-		pinfo = c2_list_entry(node, struct c2_processor_node, pn_link);
+		pinfo = c2_list_entry(node, struct processor_node, pn_link);
 		c2_list_del(&pinfo->pn_link);
 		free(pinfo);
 		node = sys_cpus.pss_head.l_head;
@@ -1089,101 +1028,43 @@ void c2_processors_fini()
 	processor_init = false;
 }
 
-/**
-   Query if processors interface is initialized.
-   @retval true if the interface is initialized
-   @retval false if the interface is not initialized.
- */
-bool c2_processor_is_initialized(void)
-{
-	return processor_init;
-}
-
-/**
-   Maximum processors this system can handle.
-
- */
 c2_processor_nr_t c2_processor_nr_max(void)
 {
-	C2_ASSERT(c2_processor_is_initialized());
+	C2_PRE(processor_init);
 	return sys_cpus.pss_max;
 }
 
-/**
-   Return the bitmap of possible processors.
-
-   @pre map->b_nr >= c2_processor_nr_max()
-   @pre c2_processors_init() must be called before calling this function.
-   @pre The calling function should allocated memory for 'map' and initialize
-        it
- */
 void c2_processors_possible(struct c2_bitmap *map)
 {
-	C2_ASSERT(c2_processor_is_initialized());
-	C2_ASSERT(map != NULL);
-	processors_copy_c2bitmap(&sys_cpus.pss_poss_map, map);
+	C2_PRE(processor_init);
+	C2_PRE(map != NULL);
+	processors_c2bitmap_copy(map, &sys_cpus.pss_poss_map);
 }
 
-/**
-   Return the bitmap of available processors.
-
-   @pre map->b_nr >= c2_processor_nr_max()
-   @pre c2_processors_init() must be called before calling this function.
-   @pre The calling function should have allocated memory for 'map' and
-        initialize it
- */
 void c2_processors_available(struct c2_bitmap *map)
 {
-	C2_ASSERT(c2_processor_is_initialized());
-	C2_ASSERT(map != NULL);
-	processors_copy_c2bitmap(&sys_cpus.pss_avail_map, map);
+	C2_PRE(processor_init);
+	C2_PRE(map != NULL);
+	processors_c2bitmap_copy(map, &sys_cpus.pss_avail_map);
 }
 
-/**
-   Return the bitmap of online processors.
-
-
-   @pre map->b_nr >= c2_processor_nr_max()
-   @pre c2_processors_init() must be called before calling this function.
-   @pre The calling function should have allocated memory for 'map' and
-        initialize it
- */
 void c2_processors_online(struct c2_bitmap *map)
 {
-	C2_ASSERT(c2_processor_is_initialized());
-	C2_ASSERT(map != NULL);
-	processors_copy_c2bitmap(&sys_cpus.pss_onln_map, map);
+	C2_PRE(processor_init);
+	C2_PRE(map != NULL);
+	processors_c2bitmap_copy(map, &sys_cpus.pss_onln_map);
 }
 
-/**
-   Obtain information on the processor with a given id.
-   @param id -> id of the processor for which information is requested.
-   @param pd -> processor descripto structure. Memory for this should be
-                allocated by the calling function. Interface does not allocate
-                memory.
-
-   @retval 0 if a matching processor is found
-   @retval -EINVAL if id does not match with any of the processors.
-
-   @pre  Memory must be allocated for pd. Interface donot allocated memory.
-   @pre c2_processors_init() must be called before calling this function.
-   @post d->pd_id == id or none
-
-   Concurrency: This is read only data. Interface by itself does not do
-                any locking. When used in kernel-mode, the interface may
-                call some functions that may use some kind of locks.
- */
-int c2_processor_describe(c2_processor_nr_t id,
-			  struct c2_processor_descr *pd)
+int c2_processor_describe(c2_processor_nr_t id, struct c2_processor_descr *pd)
 {
 	int	rc = -EINVAL;
-	struct c2_processor_node *pinfo;
+	struct processor_node *pinfo;
 
-	C2_ASSERT(pd != NULL);
-	C2_ASSERT(c2_processor_is_initialized());
+	C2_PRE(processor_init);
+	C2_PRE(pd != NULL);
 
 	c2_list_for_each_entry(&sys_cpus.pss_head, pinfo,
-			 struct c2_processor_node, pn_link) {
+			 struct processor_node, pn_link) {
 		if (pinfo->pn_info.pd_id == id) {
 			*pd = pinfo->pn_info;
 			rc = 0;
@@ -1195,22 +1076,9 @@ int c2_processor_describe(c2_processor_nr_t id,
 	return rc;
 }
 
-/**
-   Return the id of the processor on which the calling thread is running.
-   If the call is not supported return -1.
-
-   @retval logical processor id (as supplied by the system) on which the
-           calling thread is running, if the call is uspported.
-           It will return C2_PROCESSORS_INVALID_ID, if this call is not
-           supported.
-
-   @note At this point in time this call requires glibc 2.6. Until we
-         standardize on tools, this call cannot be implented as that may
-         break the build.
- */
 c2_processor_nr_t c2_processor_getcpu(void)
 {
-	return C2_PROCESSORS_INVALID_ID;
+	return sched_getcpu();
 }
 
 /** @} end of processor group */
@@ -1224,4 +1092,3 @@ c2_processor_nr_t c2_processor_getcpu(void)
  *  scroll-step: 1
  *  End:
  */
-
