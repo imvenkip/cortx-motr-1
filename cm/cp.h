@@ -145,6 +145,9 @@ struct c2_cm_cp {
  * responsible to create corresponding copy packet FOMs to do the actual work.
  */
 struct c2_cm_cp_ops {
+	/** Initialise specific copy packet members.*/
+	int  (*co_init)     (struct c2_cm_cp *cp);
+
 	/** Fill up the copy packet data.*/
 	int  (*co_read)	    (struct c2_cm_cp *cp);
 
@@ -160,9 +163,6 @@ struct c2_cm_cp_ops {
 	/** Transform copy packet.*/
 	int  (*co_xform)    (struct c2_cm_cp *cp);
 
-	/** Non standard phases handled in this function.*/
-	int  (*co_state)    (struct c2_cm_cp *cp);
-
 	/** Called when copy packet processing is completed successfully.*/
 	void (*co_complete) (struct c2_cm_cp *cp);
 
@@ -176,7 +176,7 @@ struct c2_cm_cp_ops {
 	 * Releases resources associated with the packet, finalises members
 	 * and free the packet.
 	 */
-	void (*co_free)	    (struct c2_cm_cp *cp);
+	void (*co_fini)	    (struct c2_cm_cp *cp);
 };
 
 /**
