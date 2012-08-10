@@ -75,17 +75,10 @@ static const struct c2_fop_type_ops cs_ds2_rep_fop_type_ops = {
         .fto_io_coalesce = NULL,
 };
 
-C2_FOP_TYPE_DECLARE(cs_ds1_req_fop, "ds1 request", &cs_ds1_req_fop_type_ops,
-		    C2_CS_DS1_REQ_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO)
-C2_FOP_TYPE_DECLARE(cs_ds1_rep_fop, "ds1 reply", &cs_ds1_rep_fop_type_ops,
-		    C2_CS_DS1_REP_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
-
-C2_FOP_TYPE_DECLARE(cs_ds2_req_fop, "ds2 request", &cs_ds2_req_fop_type_ops,
-		    C2_CS_DS2_REQ_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO)
-C2_FOP_TYPE_DECLARE(cs_ds2_rep_fop, "ds2 reply", &cs_ds2_rep_fop_type_ops,
-		    C2_CS_DS2_REP_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
+struct c2_fop_type cs_ds1_req_fop_fopt;
+struct c2_fop_type cs_ds1_rep_fop_fopt;
+struct c2_fop_type cs_ds2_req_fop_fopt;
+struct c2_fop_type cs_ds2_rep_fop_fopt;
 
 /*
   Defines ds1 service fop types array.
@@ -176,14 +169,13 @@ static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item)
 
 void c2_cs_ut_ds1_fop_fini(void)
 {
-        c2_fop_type_fini_nr(cs_ds1_fopts, ARRAY_SIZE(cs_ds1_fopts));
+	c2_fop_type_fini(&cs_ds1_req_fop_fopt);
+	c2_fop_type_fini(&cs_ds1_rep_fop_fopt);
 	c2_xc_cs_test_fops_fini();
 }
 
 int c2_cs_ut_ds1_fop_init(void)
 {
-        int result;
-
         /*
            As we are finalising and initialising fop types multiple times
            per service for various colibri_setup commands, So reinitialise
@@ -193,22 +185,32 @@ int c2_cs_ut_ds1_fop_init(void)
 	cs_ds1_fopts[1]->ft_fom_type = cs_ds1_req_fop_fom_mopt;
 
 	c2_xc_cs_test_fops_init();
-        result = c2_fop_type_build_nr(cs_ds1_fopts, ARRAY_SIZE(cs_ds1_fopts));
-        if (result != 0)
-                c2_cs_ut_ds1_fop_fini();
-        return result;
+        return  C2_FOP_TYPE_INIT(&cs_ds1_req_fop_fopt,
+				 .name      = "ds1 request",
+				 .opcode    = C2_CS_DS1_REQ_OPCODE,
+				 .xt        = cs_ds1_req_fop_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
+					      C2_RPC_ITEM_TYPE_MUTABO,
+				 .fop_ops   = &cs_ds1_req_fop_type_ops,
+				 .fom_ops   = cs_ds1_req_fop_fom_mopt.ft_ops) ?:
+		C2_FOP_TYPE_INIT(&cs_ds1_rep_fop_fopt,
+				 .name      = "ds1 reply",
+				 .opcode    = C2_CS_DS1_REP_OPCODE,
+				 .xt        = cs_ds1_rep_fop_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
+				 .fop_ops   = &cs_ds1_rep_fop_type_ops,
+				 .fom_ops   = cs_ds1_req_fop_fom_mopt.ft_ops);
 }
 
 void c2_cs_ut_ds2_fop_fini(void)
 {
-        c2_fop_type_fini_nr(cs_ds2_fopts, ARRAY_SIZE(cs_ds2_fopts));
+	c2_fop_type_fini(&cs_ds2_rep_fop_fopt);
+	c2_fop_type_fini(&cs_ds2_req_fop_fopt);
 	c2_xc_cs_test_fops_fini();
 }
 
 int c2_cs_ut_ds2_fop_init(void)
 {
-        int result;
-
 	/*
 	   As we are finalising and initialising fop types multiple times
 	   per service for various colibri_setup commands, So reinitialise
@@ -218,10 +220,21 @@ int c2_cs_ut_ds2_fop_init(void)
 	cs_ds2_fopts[1]->ft_fom_type = cs_ds2_req_fop_fom_mopt;
 
 	c2_xc_cs_test_fops_init();
-        result = c2_fop_type_build_nr(cs_ds2_fopts, ARRAY_SIZE(cs_ds2_fopts));
-        if (result != 0)
-                c2_cs_ut_ds2_fop_fini();
-        return result;
+	return  C2_FOP_TYPE_INIT(&cs_ds2_req_fop_fopt,
+				 .name      = "ds2 request",
+				 .opcode    = C2_CS_DS2_REQ_OPCODE,
+				 .xt        = cs_ds2_req_fop_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
+					      C2_RPC_ITEM_TYPE_MUTABO,
+				 .fop_ops   = &cs_ds2_req_fop_type_ops,
+				 .fom_ops   = cs_ds2_req_fop_fom_mopt.ft_ops) ?:
+		C2_FOP_TYPE_INIT(&cs_ds2_rep_fop_fopt,
+				 .name      = "ds2 reply",
+				 .opcode    = C2_CS_DS2_REP_OPCODE,
+				 .xt        = cs_ds2_rep_fop_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
+				 .fop_ops   = &cs_ds2_rep_fop_type_ops,
+				 .fom_ops   = cs_ds2_req_fop_fom_mopt.ft_ops);
 }
 
 /*

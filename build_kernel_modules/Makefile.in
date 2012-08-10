@@ -89,7 +89,7 @@ fid_SOURCES                     := fid.c
 
 fol_SOURCES                     := fol.c
 
-fop_SOURCES                     := fop.c fom.c fop_base.c fop_item_type.c
+fop_SOURCES                     := fop.c fom.c fop_item_type.c
 
 ioservice_SOURCES               := io_fops.c io_fops_xc.c
 ioservice_HEADERS               := io_fops_xc.h

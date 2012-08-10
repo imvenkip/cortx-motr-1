@@ -20,7 +20,7 @@
 #include "lib/types.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
-#include "fop/fop_base.h"
+#include "fop/fop.h"
 #include "xcode/bufvec_xcode.h"
 
 static int bufvec_uint64_encode(struct c2_bufvec_cursor *cur, uint64_t *val)

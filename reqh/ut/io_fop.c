@@ -63,6 +63,13 @@ enum stob_write_fom_phase {
 	C2_FOPH_WRITE_STOB_IO_WAIT
 };
 
+struct c2_fop_type c2_stob_io_create_fopt;
+struct c2_fop_type c2_stob_io_read_fopt;
+struct c2_fop_type c2_stob_io_write_fopt;
+struct c2_fop_type c2_stob_io_create_rep_fopt;
+struct c2_fop_type c2_stob_io_read_rep_fopt;
+struct c2_fop_type c2_stob_io_write_rep_fopt;
+
 /**
  * RPC item operations structures
  */
@@ -76,32 +83,6 @@ static const struct c2_fop_type_ops default_fop_ops = {
 static const struct c2_fop_type_ops default_rep_fop_ops = {
         .fto_size_get = c2_fop_xcode_length,
 };
-
-/**
- * Fop type declarations for corresponding fops
- */
-C2_FOP_TYPE_DECLARE(c2_stob_io_create, "stob_create", &default_fop_ops,
-		    C2_STOB_IO_CREATE_REQ_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
-C2_FOP_TYPE_DECLARE(c2_stob_io_read, "stob_read", &default_fop_ops,
-		    C2_STOB_IO_READ_REQ_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
-C2_FOP_TYPE_DECLARE(c2_stob_io_write, "stob_write", &default_fop_ops,
-		    C2_STOB_IO_WRITE_REQ_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
-
-C2_FOP_TYPE_DECLARE(c2_stob_io_create_rep, "stob_create reply",
-		    &default_rep_fop_ops,
-		    C2_STOB_IO_CREATE_REPLY_OPCODE,
-		    C2_RPC_ITEM_TYPE_REPLY);
-C2_FOP_TYPE_DECLARE(c2_stob_io_read_rep, "stob_read reply",
-		    &default_rep_fop_ops,
-		    C2_STOB_IO_READ_REPLY_OPCODE,
-		    C2_RPC_ITEM_TYPE_REPLY);
-C2_FOP_TYPE_DECLARE(c2_stob_io_write_rep, "stob_write reply",
-		    &default_rep_fop_ops,
-		    C2_STOB_IO_WRITE_REPLY_OPCODE,
-		    C2_RPC_ITEM_TYPE_REPLY);
 
 /**
  * Fop type structures required for initialising corresponding fops.
@@ -630,7 +611,45 @@ int c2_stob_io_fop_init(void)
 	struct c2_fop_type *fop_type;
 
 	c2_xc_io_fop_xc_init();
-	result = c2_fop_type_build_nr(stob_fops, ARRAY_SIZE(stob_fops));
+	result = C2_FOP_TYPE_INIT(&c2_stob_io_create_fopt,
+				  .name      = "Stob create",
+				  .opcode    = C2_STOB_IO_CREATE_REQ_OPCODE,
+				  .xt        = c2_stob_io_create_xc,
+				  .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
+					       C2_RPC_ITEM_TYPE_MUTABO,
+				  .fop_ops   = &default_fop_ops) ?:
+		C2_FOP_TYPE_INIT(&c2_stob_io_read_fopt,
+				 .name      = "Stob read",
+				 .opcode    = C2_STOB_IO_READ_REQ_OPCODE,
+				 .xt        = c2_stob_io_read_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
+					      C2_RPC_ITEM_TYPE_MUTABO,
+				 .fop_ops   = &default_fop_ops) ?:
+		C2_FOP_TYPE_INIT(&c2_stob_io_write_fopt,
+				 .name      = "Stob write",
+				 .opcode    = C2_STOB_IO_WRITE_REQ_OPCODE,
+				 .xt        = c2_stob_io_write_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
+					      C2_RPC_ITEM_TYPE_MUTABO,
+				 .fop_ops   = &default_fop_ops) ?:
+		C2_FOP_TYPE_INIT(&c2_stob_io_create_rep_fopt,
+				 .name      = "Stob create reply",
+				 .opcode    = C2_STOB_IO_CREATE_REPLY_OPCODE,
+				 .xt        = c2_stob_io_create_rep_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
+				 .fop_ops   = &default_rep_fop_ops) ?:
+		C2_FOP_TYPE_INIT(&c2_stob_io_read_rep_fopt,
+				 .name      = "Stob read reply",
+				 .opcode    = C2_STOB_IO_READ_REPLY_OPCODE,
+				 .xt        = c2_stob_io_read_rep_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
+				 .fop_ops   = &default_rep_fop_ops) ?:
+		C2_FOP_TYPE_INIT(&c2_stob_io_write_rep_fopt,
+				 .name      = "Stob write reply",
+				 .opcode    = C2_STOB_IO_WRITE_REPLY_OPCODE,
+				 .xt        = c2_stob_io_write_rep_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
+				 .fop_ops   = &default_rep_fop_ops);
 	if (result == 0) {
 		for (i = 0; i < ARRAY_SIZE(stob_fops); ++i) {
 			fop_type = stob_fops[i];
@@ -642,9 +661,9 @@ int c2_stob_io_fop_init(void)
 			C2_ASSERT(fom_type != NULL);
 			fop_type->ft_fom_type = *fom_type;
 		}
-	}
-	if (result != 0)
+	} else
 		c2_stob_io_fop_fini();
+
 	return result;
 }
 
@@ -653,7 +672,12 @@ int c2_stob_io_fop_init(void)
  */
 void c2_stob_io_fop_fini(void)
 {
-	c2_fop_type_fini_nr(stob_fops, ARRAY_SIZE(stob_fops));
+	c2_fop_type_fini(&c2_stob_io_write_rep_fopt);
+	c2_fop_type_fini(&c2_stob_io_read_rep_fopt);
+	c2_fop_type_fini(&c2_stob_io_create_rep_fopt);
+	c2_fop_type_fini(&c2_stob_io_write_fopt);
+	c2_fop_type_fini(&c2_stob_io_read_fopt);
+	c2_fop_type_fini(&c2_stob_io_create_fopt);
 	c2_xc_io_fop_xc_fini();
 }
 

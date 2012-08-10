@@ -21,7 +21,6 @@
 #  include "config.h"
 #endif
 
-#include "lib/cdefs.h"
 #include "lib/arith.h"
 #include "lib/misc.h"
 #include "lib/memory.h"

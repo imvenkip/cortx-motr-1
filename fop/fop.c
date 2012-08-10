@@ -32,11 +32,33 @@
    @{
  */
 
-extern struct c2_addb_ctx_type c2_fop_addb_ctx;
+static const struct c2_fol_rec_type_ops c2_fop_fol_default_ops;
+
+const struct c2_addb_ctx_type c2_fop_addb_ctx = {
+	.act_name = "fop"
+};
+
+static const struct c2_addb_ctx_type c2_fop_type_addb_ctx = {
+	.act_name = "fop-type"
+};
+
+static const struct c2_addb_loc c2_fop_addb_loc = {
+	.al_name = "fop"
+};
+
+static struct c2_mutex fop_types_lock;
+static struct c2_tl    fop_types_list;
+
+C2_TL_DESCR_DEFINE(ft, "fop types", static, struct c2_fop_type,
+		   ft_linkage,	ft_magix,
+		   0xba11ab1ea5111dae /* bailable asilidae */,
+		   0xd15ea5e0fed1f1ce /* disease of edifice */);
+
+C2_TL_DEFINE(ft, static, struct c2_fop_type);
 
 static size_t fop_data_size(const struct c2_fop *fop)
 {
-	return (*fop->f_type->ft_xc_type)->xct_sizeof;
+	return fop->f_type->ft_xt->xct_sizeof;
 }
 
 int c2_fop_data_alloc(struct c2_fop *fop)
@@ -125,7 +147,7 @@ size_t c2_fop_xcode_length(struct c2_fop *fop)
 	C2_PRE(fop != NULL);
 
 	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj) {
-			  *fop->f_type->ft_xc_type,
+			  fop->f_type->ft_xt,
 			  c2_fop_data(fop) });
 	size    = c2_xcode_length(&ctx);
 	padding = c2_rpc_pad_bytes_get(size);
@@ -133,6 +155,107 @@ size_t c2_fop_xcode_length(struct c2_fop *fop)
 	return size + padding;
 }
 C2_EXPORTED(c2_fop_xcode_length);
+
+/**
+   Used to check that no new fop iterator types are registered once a fop type
+   has been built.
+ */
+bool fop_types_built = false;
+
+void c2_fop_type_fini(struct c2_fop_type *fopt)
+{
+	c2_fol_rec_type_unregister(&fopt->ft_rec_type);
+	c2_mutex_lock(&fop_types_lock);
+	c2_rpc_item_type_deregister(&fopt->ft_rpc_item_type);
+	ft_tlink_del_fini(fopt);
+	fopt->ft_magix = 0;
+	c2_mutex_unlock(&fop_types_lock);
+	c2_addb_ctx_fini(&fopt->ft_addb);
+}
+C2_EXPORTED(c2_fop_type_fini);
+
+int c2_fop_type_init(struct c2_fop_type *ft,
+		     const struct __c2_fop_type_init_args *args)
+{
+	struct c2_fol_rec_type  *fol_type;
+	struct c2_rpc_item_type *rpc_type;
+
+	C2_PRE(ft->ft_magix == 0);
+
+	fol_type = &ft->ft_rec_type;
+	rpc_type = &ft->ft_rpc_item_type;
+
+	ft->ft_name         = args->name;
+	ft->ft_xt           = args->xt;
+	ft->ft_ops          = args->fop_ops;
+	fol_type->rt_name   = args->name;
+	fol_type->rt_opcode = args->opcode;
+	fol_type->rt_ops    = args->fol_ops ?: &c2_fop_fol_default_ops;
+
+	ft->ft_fom_type.ft_ops = args->fom_ops;
+	rpc_type->rit_opcode   = args->opcode;
+	rpc_type->rit_flags    = args->rpc_flags;
+	rpc_type->rit_ops      = args->rpc_ops ?: &c2_rpc_fop_default_item_type_ops;
+
+	c2_rpc_item_type_register(&ft->ft_rpc_item_type);
+	c2_fol_rec_type_register(&ft->ft_rec_type);
+	c2_addb_ctx_init(&ft->ft_addb, &c2_fop_type_addb_ctx,
+			 &c2_addb_global_ctx);
+	c2_mutex_lock(&fop_types_lock);
+	ft_tlink_init_at(ft, &fop_types_list);
+	c2_mutex_unlock(&fop_types_lock);
+	fop_types_built = true;
+	return 0;
+}
+C2_EXPORTED(c2_fop_type_init);
+
+int c2_fop_type_init_nr(const struct c2_fop_type_batch *batch)
+{
+	int result = 0;
+
+	for (; batch->tb_type != NULL && result == 0; ++batch)
+		result = c2_fop_type_init(batch->tb_type, &batch->tb_args);
+	if (result != 0)
+		c2_fop_type_fini_nr(batch);
+	return result;
+}
+
+void c2_fop_type_fini_nr(const struct c2_fop_type_batch *batch)
+{
+	for (; batch->tb_type != NULL; ++batch) {
+		if (batch->tb_type->ft_magix != 0)
+			c2_fop_type_fini(batch->tb_type);
+	}
+}
+
+struct c2_fop_type *c2_fop_type_next(struct c2_fop_type *ftype)
+{
+	struct c2_fop_type *rtype;
+
+	c2_mutex_lock(&fop_types_lock);
+	if (ftype == NULL) {
+		/* Returns head of fop_types_list*/
+		rtype = ft_tlist_head(&fop_types_list);
+	} else {
+		/* Returns Next from fop_types_list*/
+		rtype = ft_tlist_next(&fop_types_list, ftype);
+	}
+	c2_mutex_unlock(&fop_types_lock);
+	return rtype;
+}
+
+int c2_fops_init(void)
+{
+	ft_tlist_init(&fop_types_list);
+	c2_mutex_init(&fop_types_lock);
+	return 0;
+}
+
+void c2_fops_fini(void)
+{
+	c2_mutex_fini(&fop_types_lock);
+	ft_tlist_fini(&fop_types_list);
+}
 
 /*
  * fop-fol interaction.

@@ -21,7 +21,6 @@
 #ifndef __COLIBRI_IOSERVICE_IO_FOPS_H__
 #define __COLIBRI_IOSERVICE_IO_FOPS_H__
 
-#include "fop/fop_base.h"
 #include "lib/list.h"
 #include "fop/fop.h"
 
@@ -237,6 +236,7 @@ extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
 extern struct c2_fop_type c2_fop_cob_create_fopt;
 extern struct c2_fop_type c2_fop_cob_delete_fopt;
 extern struct c2_fop_type c2_fop_cob_op_reply_fopt;
+
 extern const struct c2_fom_type c2_io_fom_cob_rw_mopt;
 
 struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);

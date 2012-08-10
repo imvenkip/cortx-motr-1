@@ -26,7 +26,6 @@
 #include "lib/ut.h"
 #include "colibri/init.h"
 #include "fop/fop.h"
-#include "fop/fop_base.h"
 #include "xcode/bufvec_xcode.h"
 #include "xcode/ut/xcode_fops.h"
 
@@ -52,7 +51,7 @@ static char *fop_test_buf = "test fop encode/decode";
 struct c2_fop_type_ops test_ops = {
 };
 
-C2_FOP_TYPE_DECLARE(c2_fop_test, "test", &test_ops, C2_XCODE_UT_OPCODE, 0);
+static struct c2_fop_type c2_fop_test_fopt;
 
 static void fop_verify( struct c2_fop *fop)
 {
@@ -188,7 +187,12 @@ static void test_fop_encdec(void)
 
 	allocated = c2_allocated();
 
-	rc = c2_fop_type_build(&c2_fop_test_fopt);
+	rc = C2_FOP_TYPE_INIT(&c2_fop_test_fopt,
+			      .name      = "xcode fop test",
+			      .opcode    = C2_XCODE_UT_OPCODE,
+			      .xt        = c2_fop_test_xc,
+			      .rpc_flags = 0,
+			      .fop_ops   = &test_ops);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Allocate a fop and populate its fields with test values. */
@@ -240,7 +244,7 @@ static void test_fop_encdec(void)
 
 	/* Check the size of the fop using the interfaces. */
 	c2_xcode_ctx_init(&xctx, &(struct c2_xcode_obj) {
-			  *f1->f_type->ft_xc_type, ccf1 });
+			  f1->f_type->ft_xt, ccf1 });
 	fop_size = c2_xcode_length(&xctx);
 	C2_UT_ASSERT(fop_size == act_fop_size);
 
@@ -252,7 +256,7 @@ static void test_fop_encdec(void)
 	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 
 	c2_xcode_ctx_init(&xctx, &(struct c2_xcode_obj) {
-			  *f1->f_type->ft_xc_type, ccf1 });
+			  f1->f_type->ft_xt, ccf1 });
 	c2_bufvec_cursor_init(&xctx.xcx_buf, &nb->nb_buffer);
 
 	/* Encode the fop into the bufvec. */
@@ -271,7 +275,7 @@ static void test_fop_encdec(void)
 
 	/* Decode the payload from bufvec into the fop. */
 	c2_xcode_ctx_init(&xctx1, &(struct c2_xcode_obj) {
-			  *fd1->f_type->ft_xc_type, NULL });
+			  fd1->f_type->ft_xt, NULL });
 	xctx1.xcx_alloc = c2_xcode_alloc;
 	xctx1.xcx_buf   = cur;
 	rc = c2_xcode_decode(&xctx1);

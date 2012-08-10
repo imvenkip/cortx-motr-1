@@ -22,7 +22,6 @@
 #  include "config.h"
 #endif
 
-#include "lib/cdefs.h"
 #include "lib/arith.h"
 #include "lib/misc.h"
 #include "lib/memory.h"
@@ -31,6 +30,7 @@
 #include "net/net.h"
 #include "addb/addb.h"
 #include "addb/addbff/addb.h"
+#include "rpc/rpc_opcodes.h"
 
 #ifdef __KERNEL__
 # define c2_addb_handler NULL
@@ -38,17 +38,39 @@
 int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 #endif
 
-#include "rpc/rpc_opcodes.h"
-
 static struct c2_fop_type_ops addb_ops = {
 	.fto_execute = NULL,
 };
 
-C2_FOP_TYPE_DECLARE(c2_addb_record, "addb", &addb_ops,
-		    C2_ADDB_RECORD_REQUEST_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
+struct c2_fop_type c2_addb_record_fopt;
+struct c2_fop_type c2_addb_reply_fopt;
 
-C2_FOP_TYPE_DECLARE(c2_addb_reply,  "addb reply", NULL, C2_ADDB_REPLY_OPCODE,
-		    C2_RPC_ITEM_TYPE_REPLY);
+int c2_addb_fop_init(void)
+{
+	c2_xc_addb_init();
+
+	return  C2_FOP_TYPE_INIT(&c2_addb_record_fopt,
+				 .name      = "addb record",
+				 .opcode    = C2_ADDB_RECORD_REQUEST_OPCODE,
+				 .xt        = c2_addb_record_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
+				 .fop_ops   = &addb_ops) ?:
+		C2_FOP_TYPE_INIT(&c2_addb_reply_fopt,
+				 .name      = "addb reply",
+				 .opcode    = C2_ADDB_REPLY_OPCODE,
+				 .xt        = c2_addb_reply_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY);
+}
+C2_EXPORTED(c2_addb_fop_init);
+
+void c2_addb_fop_fini(void)
+{
+	c2_fop_type_fini(&c2_addb_record_fopt);
+	c2_fop_type_fini(&c2_addb_reply_fopt);
+	c2_xc_addb_fini();
+}
+C2_EXPORTED(c2_addb_fop_fini);
+
 /**
    ADDB record body for function fail event.
 

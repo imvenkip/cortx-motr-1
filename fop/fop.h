@@ -27,7 +27,6 @@
 #include "addb/addb.h"
 #include "fol/fol.h"
 #include "fop/fom.h"
-#include "fop/fop_base.h"
 #include "rpc/rpc2.h"
 #include "xcode/xcode.h"
 
@@ -204,24 +203,114 @@ extern const struct c2_rpc_item_ops c2_fop_default_item_ops;
 
 extern const struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops;
 
+/**
+   Type of a file system operation.
 
-#define __paste_xc(x) x ## _xc
+   There is an instance of c2_fop_type for "make directory" command, an instance
+   for "write", "truncate", etc.
+ */
+struct c2_fop_type {
+	/** Operation name. */
+	const char                       *ft_name;
+	/** Linkage into a list of all known operations. */
+	struct c2_tlink                   ft_linkage;
+	const struct c2_fop_type_ops     *ft_ops;
+	/** Xcode type representing this fop type. */
+	struct c2_xcode_type             *ft_xt;
+	struct c2_fol_rec_type            ft_rec_type;
+	/** State machine for this fop type */
+	struct c2_fom_type                ft_fom_type;
+	/** The rpc_item_type associated with rpc_item
+	    embedded with this fop. */
+	struct c2_rpc_item_type		  ft_rpc_item_type;
+	/**
+	   ADDB context for events related to this fop type.
+	 */
+	struct c2_addb_ctx                ft_addb;
+	uint64_t                          ft_magix;
+};
 
-#define C2_FOP_TYPE_DECLARE_OPS(fopt, name, ops, opcode, itflags, itops) \
-	struct c2_fop_type fopt ## _fopt = {				\
-		.ft_name    = name,					\
-		.ft_xc_type = &__paste_xc(fopt),			\
-		.ft_ops     = (ops),					\
-		.ft_rpc_item_type = {					\
-			.rit_opcode = (opcode),				\
-			.rit_flags  = (itflags),			\
-			.rit_ops    = (itops)				\
-		}							\
-	};
+/**
+    Iterates through the registered fop types.
 
-#define C2_FOP_TYPE_DECLARE(fopt, name, ops, opcode, itflags)		\
-        C2_FOP_TYPE_DECLARE_OPS(fopt, name, ops, opcode, itflags,	\
-				&c2_rpc_fop_default_item_type_ops)
+    To iterate across all registered fop types, first call this function with
+    NULL parameter. NULL is returned to indicate end of the iteration.
+
+    If a fop type is registered or unregistered while an iteration is in
+    progress, behaviour is undefined.
+
+    @code
+    ftype = NULL;
+    while ((ftype = c2_fop_type_next(ftype)) != NULL) {
+            do something with ftype
+    }
+    @endcode
+ */
+struct c2_fop_type *c2_fop_type_next(struct c2_fop_type *ftype);
+
+/** fop type operations. */
+struct c2_fop_type_ops {
+	/** XXX temporary entry point for threaded fop execution. */
+	int (*fto_execute) (struct c2_fop *fop, struct c2_fop_ctx *ctx);
+	/** fol record type operations for this fop type, or NULL is standard
+	    operations are to be used. */
+	const struct c2_fol_rec_type_ops  *fto_rec_ops;
+	/** Action to be taken on receiving reply of a fop. */
+	void (*fto_fop_replied)(struct c2_fop *fop, struct c2_fop *bfop);
+	/** Return the size of fop object. */
+	size_t (*fto_size_get)(struct c2_fop *fop);
+	/** Try to coalesce multiple fops into one. */
+	int (*fto_io_coalesce)(struct c2_fop *fop, uint64_t rpc_size);
+	/** Returns the net buf desc in io fop. */
+	void (*fto_io_desc_get)(struct c2_fop *fop,
+			        struct c2_net_buf_desc **desc);
+};
+
+typedef uint32_t c2_fop_type_code_t;
+
+/**
+ * Parameters needed for fop type initialisation.
+ *
+ * This definition deliberately does not follow the "field name prefix" rule.
+ *
+ * @see C2_FOP_TYPE_INIT() c2_fop_type_init() c2_fop_type_init_nr()
+ */
+struct __c2_fop_type_init_args {
+	const char                        *name;
+	uint32_t                           opcode;
+	uint64_t                           rpc_flags;
+	struct c2_xcode_type              *xt;
+	const struct c2_fop_type_ops      *fop_ops;
+	const struct c2_fol_rec_type_ops  *fol_ops;
+	const struct c2_fom_type_ops      *fom_ops;
+	const struct c2_rpc_item_type_ops *rpc_ops;
+};
+
+int c2_fop_type_init(struct c2_fop_type *ft,
+		     const struct __c2_fop_type_init_args *args);
+
+/**
+ * Helper macro which can be used to submit fop type initialisation parameters
+ * partially and out of order.
+ *
+ * @see http://www.cofault.com/2005/08/named-formals.html
+ */
+#define C2_FOP_TYPE_INIT(ft, ...)                                        \
+        c2_fop_type_init((ft), &(const struct __c2_fop_type_init_args) { \
+                                 __VA_ARGS__ })
+
+void c2_fop_type_fini(struct c2_fop_type *fopt);
+
+struct c2_fop_type_batch {
+	struct c2_fop_type             *tb_type;
+	struct __c2_fop_type_init_args  tb_args;
+};
+
+int  c2_fop_type_init_nr(const struct c2_fop_type_batch *batch);
+void c2_fop_type_fini_nr(const struct c2_fop_type_batch *batch);
+
+int  c2_fops_init(void);
+void c2_fops_fini(void);
 
 /** @} end of fop group */
 

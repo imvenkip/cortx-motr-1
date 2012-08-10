@@ -25,7 +25,7 @@
 #  include "config.h"
 #endif
 
-#include "fop/fop_base.h" /* c2_fop_field_type */
+#include "fop/fop.h" /* c2_fop_field_type */
 #include "xcode/xcode.h"
 
 /**

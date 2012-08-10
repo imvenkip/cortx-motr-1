@@ -46,22 +46,13 @@ const struct c2_fop_type_ops c2_fop_ping_rep_ops = {
         .fto_io_coalesce = NULL,
 };
 
-/* Ping fop assignment */
-C2_FOP_TYPE_DECLARE(c2_fop_ping, "ping fop", &c2_fop_ping_ops,
-		    C2_RPC_PING_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
-
-C2_FOP_TYPE_DECLARE(c2_fop_ping_rep, "ping fop reply", &c2_fop_ping_rep_ops,
-		    C2_RPC_PING_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
-
-static struct c2_fop_type *fops[] = {
-        &c2_fop_ping_fopt,
-        &c2_fop_ping_rep_fopt,
-};
+struct c2_fop_type c2_fop_ping_fopt;
+struct c2_fop_type c2_fop_ping_rep_fopt;
 
 void c2_ping_fop_fini(void)
 {
-        c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
+	c2_fop_type_fini(&c2_fop_ping_rep_fopt);
+        c2_fop_type_fini(&c2_fop_ping_fopt);
 	c2_xc_ping_fop_xc_fini();
 }
 
@@ -69,11 +60,22 @@ extern struct c2_fom_type c2_fom_ping_mopt;
 
 int c2_ping_fop_init(void)
 {
-        int result;
-	c2_xc_ping_fop_xc_init();
-        result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
 	c2_fop_ping_fopt.ft_fom_type = c2_fom_ping_mopt;
-        return result;
+	c2_xc_ping_fop_xc_init();
+        return  C2_FOP_TYPE_INIT(&c2_fop_ping_fopt,
+				 .name      = "Ping fop",
+				 .opcode    = C2_RPC_PING_OPCODE,
+				 .xt        = c2_fop_ping_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
+					      C2_RPC_ITEM_TYPE_MUTABO,
+				 .fop_ops   = &c2_fop_ping_ops,
+				 .fom_ops   = c2_fom_ping_mopt.ft_ops) ?:
+		C2_FOP_TYPE_INIT(&c2_fop_ping_rep_fopt,
+				 .name      = "Ping fop reply",
+				 .opcode    = C2_RPC_PING_REPLY_OPCODE,
+				 .xt        = c2_fop_ping_rep_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
+				 .fop_ops   = &c2_fop_ping_rep_ops);
 }
 
 

@@ -42,7 +42,6 @@ int c2_console_fop_init(void);
  */
 void c2_console_fop_fini(void);
 
-extern struct c2_fop_type c2_cons_fop_disk_fopt;
 extern struct c2_fop_type c2_cons_fop_device_fopt;
 extern struct c2_fop_type c2_cons_fop_reply_fopt;
 extern struct c2_fop_type c2_cons_fop_test_fopt;

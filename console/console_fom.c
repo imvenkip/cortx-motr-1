@@ -120,7 +120,7 @@ const struct c2_fom_ops c2_cons_fom_device_ops = {
 	.fo_home_locality = home_locality,
 };
 
-static const struct c2_fom_type_ops c2_cons_fom_device_type_ops = {
+const struct c2_fom_type_ops c2_cons_fom_device_type_ops = {
         .fto_create = cons_fop_fom_create
 };
 

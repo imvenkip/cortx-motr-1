@@ -25,7 +25,6 @@
 #include "lib/trace.h"
 #include "fop/fop.h"
 #include "rpc/rpc2.h"
-#include "fop/fop_base.h"
 #include "fop/fop_item_type.h"
 #include "rpc/rpc_onwire.h"
 #include "lib/vec.h"
@@ -44,8 +43,7 @@ struct c2_fop_type_ops onwire_test_ops = {
 	.fto_size_get = c2_fop_xcode_length,
 };
 
-C2_FOP_TYPE_DECLARE(c2_fop_onwire_test, "onwire test", &onwire_test_ops,
-		    C2_RPC_ONWIRE_UT_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
+static struct c2_fop_type c2_fop_onwire_test_fopt;
 
 static struct c2_verno verno = {
 	.vn_lsn = 1111,
@@ -133,7 +131,12 @@ static void test_rpc_encdec(void)
 
 	allocated = c2_allocated();
 	/* Build and allocate test fops. */
-	rc = c2_fop_type_build(&c2_fop_onwire_test_fopt);
+	rc = C2_FOP_TYPE_INIT(&c2_fop_onwire_test_fopt,
+			      .name      = "Onwire test",
+			      .opcode    = C2_RPC_ONWIRE_UT_OPCODE,
+			      .xt        = c2_fop_onwire_test_xc,
+			      .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
+			      .fop_ops   = &onwire_test_ops);
 	C2_UT_ASSERT(rc == 0);
 
 	f1 = c2_fop_alloc(&c2_fop_onwire_test_fopt, NULL);

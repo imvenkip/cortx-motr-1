@@ -38,27 +38,21 @@
  *   - FFA_SEQUENCE.
  */
 
-C2_FOP_TYPE_DECLARE(c2_fop_iterator_test, "FOP iterator test", NULL,
-		    C2_FOP_ITERATOR_TEST_OPCODE, 0);
-
-static struct c2_fop_type *fops[] = {
-	&c2_fop_iterator_test_fopt,
-};
+static struct c2_fop_type c2_fop_iterator_test_fopt;
 
 static void fop_fini(void)
 {
-	c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
+	c2_fop_type_fini(&c2_fop_iterator_test_fopt);
 	c2_xc_iterator_test_xc_fini();
 }
 
 static int fop_init(void)
 {
-	int result;
-
 	c2_xc_iterator_test_xc_init();
-	result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
-	C2_UT_ASSERT(result == 0);
-	return result;
+	return C2_FOP_TYPE_INIT(&c2_fop_iterator_test_fopt,
+				.name   = "FOP Iterator Test",
+				.opcode = C2_FOP_ITERATOR_TEST_OPCODE,
+				.xt     = c2_fop_iterator_test_xc);
 }
 
 static void fop_obj_fini(struct c2_fop_iterator_test *fop)
@@ -135,8 +129,8 @@ static void fit_test(void)
 	fop = c2_fop_data(f);
 	fop_obj_init(fop);
 
-	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){*f->f_type->ft_xc_type,
-				                        fop});
+	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){f->f_type->ft_xt,
+				                       fop});
 	it = &ctx.xcx_it;
 
 	while ((result = c2_xcode_next(it)) > 0) {

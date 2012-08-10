@@ -29,9 +29,6 @@ void c2_ping_fop_fini(void);
 /**
  * FOP definitions and corresponding fop type formats
  */
-extern struct c2_fop_type_format c2_fop_ping_tfmt;
-extern struct c2_fop_type_format c2_fop_ping_rep_tfmt;
-
 extern struct c2_fop_type c2_fop_ping_fopt;
 extern struct c2_fop_type c2_fop_ping_rep_fopt;
 

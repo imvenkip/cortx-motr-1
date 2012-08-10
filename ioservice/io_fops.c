@@ -76,6 +76,17 @@ static const struct c2_addb_ctx_type bulkclient_addb_ctx_type = {
 C2_ADDB_EV_DEFINE(bulkclient_func_fail, "bulkclient func failed.",
 		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
+struct c2_fop_type c2_fop_cob_readv_fopt;
+struct c2_fop_type c2_fop_cob_writev_fopt;
+struct c2_fop_type c2_fop_cob_readv_rep_fopt;
+struct c2_fop_type c2_fop_cob_writev_rep_fopt;
+struct c2_fop_type c2_fop_cob_create_fopt;
+struct c2_fop_type c2_fop_cob_delete_fopt;
+struct c2_fop_type c2_fop_cob_op_reply_fopt;
+
+C2_EXPORTED(c2_fop_cob_writev_fopt);
+C2_EXPORTED(c2_fop_cob_readv_fopt);
+
 static struct c2_fop_type *ioservice_fops[] = {
 	&c2_fop_cob_readv_fopt,
 	&c2_fop_cob_writev_fopt,
@@ -85,9 +96,6 @@ static struct c2_fop_type *ioservice_fops[] = {
 	&c2_fop_cob_delete_fopt,
 	&c2_fop_cob_op_reply_fopt,
 };
-
-C2_EXPORTED(c2_fop_cob_writev_fopt);
-C2_EXPORTED(c2_fop_cob_readv_fopt);
 
 /* Used for IO REQUEST items only. */
 const struct c2_rpc_item_ops io_req_rpc_item_ops = {
@@ -136,46 +144,15 @@ static const struct c2_fop_type_ops c2_io_rwv_rep_ops = {
 	.fto_size_get = c2_fop_xcode_length
 };
 
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_readv, "Read request",
-			&io_fop_rwv_ops, C2_IOSERVICE_READV_OPCODE,
-			C2_RPC_ITEM_TYPE_REQUEST, &io_item_type_ops);
-
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_writev, "Write request",
-			&io_fop_rwv_ops, C2_IOSERVICE_WRITEV_OPCODE,
-			C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO,
-			&io_item_type_ops);
-
-C2_FOP_TYPE_DECLARE(c2_fop_cob_writev_rep, "Write reply",
-		    &c2_io_rwv_rep_ops, C2_IOSERVICE_WRITEV_REP_OPCODE,
-		    C2_RPC_ITEM_TYPE_REPLY);
-
-C2_FOP_TYPE_DECLARE(c2_fop_cob_readv_rep, "Read reply",
-		    &c2_io_rwv_rep_ops, C2_IOSERVICE_READV_REP_OPCODE,
-		    C2_RPC_ITEM_TYPE_REPLY);
-
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_create, "Cob create request",
-			&cob_fop_type_ops, C2_IOSERVICE_COB_CREATE_OPCODE,
-			C2_RPC_ITEM_TYPE_REQUEST, &cob_rpc_type_ops);
-
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_delete, "Cob delete request",
-			&cob_fop_type_ops, C2_IOSERVICE_COB_DELETE_OPCODE,
-			C2_RPC_ITEM_TYPE_REQUEST, &cob_rpc_type_ops);
-
-C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_op_reply, "Cob create or delete reply",
-			&cob_fop_type_ops, C2_IOSERVICE_COB_OP_REPLY_OPCODE,
-			C2_RPC_ITEM_TYPE_REPLY, &cob_rpc_type_ops);
-
-static void cob_fom_type_attach(void)
-{
-#ifndef __KERNEL__
-	c2_fop_cob_create_fopt.ft_fom_type = cc_fom_type;
-	c2_fop_cob_delete_fopt.ft_fom_type = cd_fom_type;
-#endif
-}
-
 void c2_ioservice_fop_fini(void)
 {
-	c2_fop_type_fini_nr(ioservice_fops, ARRAY_SIZE(ioservice_fops));
+	c2_fop_type_fini(&c2_fop_cob_op_reply_fopt);
+	c2_fop_type_fini(&c2_fop_cob_delete_fopt);
+	c2_fop_type_fini(&c2_fop_cob_create_fopt);
+	c2_fop_type_fini(&c2_fop_cob_writev_rep_fopt);
+	c2_fop_type_fini(&c2_fop_cob_readv_rep_fopt);
+	c2_fop_type_fini(&c2_fop_cob_writev_fopt);
+	c2_fop_type_fini(&c2_fop_cob_readv_fopt);
 	c2_xc_io_fops_xc_fini();
 	c2_addb_ctx_fini(&bulkclient_addb);
 }
@@ -183,28 +160,79 @@ C2_EXPORTED(c2_ioservice_fop_fini);
 
 int c2_ioservice_fop_init(void)
 {
-	int rc;
-
 	c2_addb_ctx_init(&bulkclient_addb, &bulkclient_addb_ctx_type,
 			 &c2_addb_global_ctx);
 	/*
 	 * Provided by ff2c compiler after parsing io_fops_xc.ff
 	 */
 	c2_xc_io_fops_xc_init();
-	rc = c2_fop_type_build_nr(ioservice_fops,
-				  ARRAY_SIZE(ioservice_fops));
 
 #ifndef __KERNEL__
-        c2_fop_cob_readv_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
-        c2_fop_cob_writev_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
+	c2_fop_cob_readv_fopt.ft_fom_type  = c2_io_fom_cob_rw_mopt;
+	c2_fop_cob_writev_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
+	c2_fop_cob_create_fopt.ft_fom_type = cc_fom_type;
+	c2_fop_cob_delete_fopt.ft_fom_type = cc_fom_type;
 #endif
-
-	cob_fom_type_attach();
-
-	if (rc != 0)
-		c2_ioservice_fop_fini();
-
-	return rc;
+	return  C2_FOP_TYPE_INIT(&c2_fop_cob_readv_fopt,
+				 .name      = "Read request",
+				 .opcode    =  C2_IOSERVICE_READV_OPCODE,
+				 .xt        = c2_fop_cob_readv_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
+				 .fop_ops   = &io_fop_rwv_ops,
+#ifndef __KERNEL__
+				 .fom_ops   = c2_io_fom_cob_rw_mopt.ft_ops,
+#endif
+				 .rpc_ops   = &io_item_type_ops) ?:
+		C2_FOP_TYPE_INIT(&c2_fop_cob_writev_fopt,
+				 .name      = "Write request",
+				 .opcode    =  C2_IOSERVICE_WRITEV_OPCODE,
+				 .xt        = c2_fop_cob_writev_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
+					      C2_RPC_ITEM_TYPE_MUTABO,
+				 .fop_ops   = &io_fop_rwv_ops,
+#ifndef __KERNEL__
+				 .fom_ops   = c2_io_fom_cob_rw_mopt.ft_ops,
+#endif
+				 .rpc_ops   = &io_item_type_ops) ?:
+		C2_FOP_TYPE_INIT(&c2_fop_cob_readv_rep_fopt,
+				 .name      = "Read reply",
+				 .opcode    =  C2_IOSERVICE_READV_REP_OPCODE,
+				 .xt        = c2_fop_cob_readv_rep_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
+				 .fop_ops   = &c2_io_rwv_rep_ops) ?:
+		C2_FOP_TYPE_INIT(&c2_fop_cob_writev_rep_fopt,
+				 .name      = "Write request",
+				 .opcode    =  C2_IOSERVICE_WRITEV_REP_OPCODE,
+				 .xt        = c2_fop_cob_writev_rep_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
+				 .fop_ops   = &c2_io_rwv_rep_ops) ?:
+		C2_FOP_TYPE_INIT(&c2_fop_cob_create_fopt,
+				 .name      = "Cob create request",
+				 .opcode    =  C2_IOSERVICE_COB_CREATE_OPCODE,
+				 .xt        = c2_fop_cob_create_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
+				 .fop_ops   = &cob_fop_type_ops,
+#ifndef __KERNEL__
+				 .fom_ops   = cc_fom_type.ft_ops,
+#endif
+				 .rpc_ops   = &cob_rpc_type_ops) ?:
+		C2_FOP_TYPE_INIT(&c2_fop_cob_delete_fopt,
+				 .name      = "Cob delete request",
+				 .opcode    =  C2_IOSERVICE_COB_DELETE_OPCODE,
+				 .xt        = c2_fop_cob_delete_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
+				 .fop_ops   = &cob_fop_type_ops,
+#ifndef __KERNEL__
+				 .fom_ops   = cc_fom_type.ft_ops,
+#endif
+				 .rpc_ops   = &cob_rpc_type_ops) ?:
+		C2_FOP_TYPE_INIT(&c2_fop_cob_op_reply_fopt,
+				 .name      = "Cob create or delete reply",
+				 .opcode    =  C2_IOSERVICE_COB_OP_REPLY_OPCODE,
+				 .xt        = c2_fop_cob_op_reply_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
+				 .fop_ops   = &cob_fop_type_ops,
+				 .rpc_ops   = &cob_rpc_type_ops);
 }
 C2_EXPORTED(c2_ioservice_fop_init);
 

@@ -43,43 +43,45 @@ static const struct c2_fop_type_ops c2_cons_fop_default_ops = {
 	.fto_size_get = c2_fop_xcode_length
 };
 
-/* Fop and RPC Item type definitions for device failures and replies
-   and replies */
-C2_FOP_TYPE_DECLARE(c2_cons_fop_device, "Device Failed",
-		    &c2_cons_fop_default_ops, C2_CONS_FOP_DEVICE_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST);
-
-C2_FOP_TYPE_DECLARE(c2_cons_fop_reply, "Console Reply",
-		    &c2_cons_fop_default_ops, C2_CONS_FOP_REPLY_OPCODE,
-		    C2_RPC_ITEM_TYPE_REPLY);
-
-C2_FOP_TYPE_DECLARE(c2_cons_fop_test, "Console Test",
-		    &c2_cons_fop_default_ops, C2_CONS_TEST, 0);
-
-static struct c2_fop_type *fops[] = {
-        &c2_cons_fop_device_fopt,
-        &c2_cons_fop_reply_fopt,
-        &c2_cons_fop_test_fopt
-};
+struct c2_fop_type c2_cons_fop_device_fopt;
+struct c2_fop_type c2_cons_fop_reply_fopt;
+struct c2_fop_type c2_cons_fop_test_fopt;
 
 void c2_console_fop_fini(void)
 {
-        c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
+	c2_fop_type_fini(&c2_cons_fop_device_fopt);
+	c2_fop_type_fini(&c2_cons_fop_reply_fopt);
+	c2_fop_type_fini(&c2_cons_fop_test_fopt);
 	c2_xc_console_xc_fini();
 }
 
 int c2_console_fop_init(void)
 {
-        int result;
-
 	c2_xc_console_xc_init();
-	/* Initialize fom type once */
-	c2_cons_fop_device_fopt.ft_fom_type = c2_cons_fom_device_type;
-	result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
-	if (result != 0)
-		c2_console_fop_fini();
 
-        return result;
+	/* Initialize fom type once */
+	c2_cons_fop_device_fopt.ft_fom_type =
+		c2_cons_fom_device_type;
+
+	return  C2_FOP_TYPE_INIT(&c2_cons_fop_device_fopt,
+			 .name      = "Device Failed",
+			 .opcode    = C2_CONS_FOP_DEVICE_OPCODE,
+			 .xt        = c2_cons_fop_device_xc,
+			 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
+			 .fop_ops   = &c2_cons_fop_default_ops,
+			 .fom_ops   = c2_cons_fom_device_type.ft_ops) ?:
+		C2_FOP_TYPE_INIT(&c2_cons_fop_reply_fopt,
+			 .name      = "Console Reply",
+			 .opcode    = C2_CONS_FOP_REPLY_OPCODE,
+			 .xt        = c2_cons_fop_reply_xc,
+			 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
+			 .fop_ops   = &c2_cons_fop_default_ops) ?:
+		C2_FOP_TYPE_INIT(&c2_cons_fop_test_fopt,
+			 .name      = "Console Test",
+			 .opcode    = C2_CONS_TEST,
+			 .xt        = c2_cons_fop_test_xc,
+			 .rpc_flags = 0,
+			 .fop_ops   = &c2_cons_fop_default_ops);
 }
 
 /** @} end of console */

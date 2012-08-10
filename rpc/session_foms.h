@@ -25,7 +25,7 @@
 #include "fop/fop.h"
 #include "rpc/session_fops.h"
 #include "rpc/session_xc.h"
-#include "fop/fom.h"
+
 /**
    @addtogroup rpc_session
 
