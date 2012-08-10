@@ -23,11 +23,10 @@
 #endif
 
 #include "lib/bob.h"
-#include "cm/cp.h"
 #include "cm/ag.h"
+#include "sns/repair/ag.h"
 #include "cm/cm_internal.h"
 #include "sns/parity_math.h"
-#include "sns/repair/ag.h"
 
 /**
  * XORs the source and destination bufvecs and stores the output in
@@ -45,6 +44,9 @@ static void bufvec_xor(struct c2_bufvec *dst, struct c2_bufvec *src)
         struct c2_buf           src_buf;
         struct c2_buf           dst_buf;
         c2_bcount_t             num_bytes = C2_CP_SIZE;
+
+	C2_PRE(dst != NULL);
+	C2_PRE(src != NULL);
 
         c2_bufvec_cursor_init(&s_cur, src);
         c2_bufvec_cursor_init(&d_cur, dst);
@@ -66,7 +68,6 @@ static void bufvec_xor(struct c2_bufvec *dst, struct c2_bufvec *src)
 
 /**
  * Creates resultant copy packet and saves the context of the first incoming
- * copy packet. After the context is saved, finalises the first incoming
  * copy packet.
  * @param sns_ag SNS specific aggregation group in which the context is to be
  * stored.
@@ -88,12 +89,11 @@ static int sns_res_cp_create(struct c2_sns_ag *sns_ag, struct c2_cm_cp *cp)
 
         sns_ag->sag_collected_cp_nr = 1;
         res_cp->c_prio = cp->c_prio;
-        res_cp->c_fom.fo_phase = cp->c_fom.fo_phase;
+	res_cp->c_fom.fo_phase = cp->c_fom.fo_phase;
         res_cp->c_data = cp->c_data;
         res_cp->c_ag = &sns_ag->sag_base;
 
         cp->c_data = NULL;
-        c2_cm_cp_fini(cp);
 
         return rc;
 }
@@ -108,22 +108,20 @@ static int sns_res_cp_create(struct c2_sns_ag *sns_ag, struct c2_cm_cp *cp)
  * transformed (c2_sns_ag::sag_collected_cp_nr, which is incremented after
  * every transformation).
  * If all the copy packets belonging to the aggregation group are transformed,
- * then creates a new copy packet and sends it to the next agent.
+ * then creates a new copy packet and its corresponding fom.
  *
  * Transformation involves XORing the c2_buf_vec's from copy packet
- * c2_cm_cp::cp_data with c2_sns_ag::sag_ccp::cp_data.
+ * c2_cm_cp::c_data with c2_sns_ag::sag_ccp::c_data.
  * XORing is done using parity math operation like c2_parity_math_buffer_xor().
  *
  * When first copy packet of the aggregation group is transformed, its
- * corresponding c2_sns_ag::sag_ccp::cp_data is set to c2_cm_cp::cp_data.
+ * corresponding c2_sns_ag::sag_ccp::c_data is set to c2_cm_cp::c_data.
  * Typically, all copy packets will have same buffer vector size.
  * Hence, there is no need for any complex buffer manipulation like growing or
- * shrinking the c2_sns_ag::sag_ccp::cp_data.
+ * shrinking the c2_sns_ag::sag_ccp::c_data.
  *
- * Every copy packet once transformed is freed. It is safe to do so since the
- * collecting agent does not typically interact with remote agents. So there is
- * no risk of transformed copy packet getting lost during network
- * communication.
+ * Every copy packet once transformed is freed. This is done by setting it's fom
+ * state to CCP_FINI.
  *
  * @pre cp != NULL && cp->cp_state == CCP_XFORM
  * @param cp Copy packet that has to be transformed.
@@ -133,21 +131,21 @@ int repair_cp_xform(struct c2_cm_cp *cp)
         int                      rc = 0;
         struct c2_sns_ag        *sns_ag;
         struct c2_cm_aggr_group *ag;
+	struct c2_cm_cp         *res_cp;
 
         C2_PRE(cp != NULL && cp->c_fom.fo_phase == CCP_XFORM);
 
-        c2_mutex_lock(&cp->c_ag->cag_lock);
-
         ag = cp->c_ag;
         sns_ag = bob_of(ag, struct c2_sns_ag, sag_base, &aggr_grps_bob);
-        if (sns_ag->sag_ccp == NULL) {
+	res_cp = sns_ag->sag_ccp;
+        if (res_cp == NULL) {
                 sns_ag->sag_local_cp_nr = ag->cag_ops->cago_local_cp_nr(ag);
                 /*
                  *  If there is only one copy packet in the aggregation group,
-                 *  call the next phase of the copy packet fom. 
+                 *  call the next phase of the copy packet fom.
                  */
                 if (sns_ag->sag_local_cp_nr == 1) {
-                        //rc = c2_cm_agent_cp_post(agent, cp);
+                        cp->c_fom.fo_rc = cp->c_ops->co_phase(cp);
                         goto out;
                 }
                 /*
@@ -157,25 +155,27 @@ int repair_cp_xform(struct c2_cm_cp *cp)
                  */
                 rc = sns_res_cp_create(sns_ag, cp);
         } else {
-                bufvec_xor(sns_ag->sag_ccp->c_data, cp->c_data);
+                bufvec_xor(res_cp->c_data, cp->c_data);
                 C2_CNT_INC(sns_ag->sag_collected_cp_nr);
                 /*
-                 * Once transformation is complete, release an finalise the copy
-                 * packet since it is not needed anymore, provided that it is
-                 * not the first copy packet.
+                 * Once transformation is complete, mark the copy
+                 * packet's fom to CCP_FINI since it is not needed anymore,
+                 * provided that it is not the first copy packet.
                  */
-                cp->c_ops->co_free(cp);
+                cp->c_fom.fo_phase = CCP_FINI;
                 /*
-                 * If all copy packets are processed at this stage. send the
-                 * resultant copy packet to the next phase.
+                 * If all copy packets are processed at this stage, post the
+                 * resultant copy packet to the request handler's queue for
+                 * processing.
                  */
-                //if(sns_ag->sag_local_cp_nr == sns_ag->sag_collected_cp_nr)
-                        //rc = c2_cm_agent_cp_post(agent, sns_ag->sag_ccp);
+                if(sns_ag->sag_local_cp_nr == sns_ag->sag_collected_cp_nr) {
+			c2_cm_cp_enqueue(res_cp->c_cm, res_cp);
+                        res_cp->c_fom.fo_rc = res_cp->c_ops->co_phase(res_cp);
+		}
         }
 
 out:
-        c2_mutex_unlock(&cp->c_ag->cag_lock);
-        return rc;
+        return C2_FSO_AGAIN;
 }
 
 /*
