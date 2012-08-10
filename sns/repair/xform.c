@@ -23,6 +23,7 @@
 #endif
 
 #include "lib/bob.h"
+#include "lib/errno.h"
 #include "cm/ag.h"
 #include "sns/repair/ag.h"
 #include "cm/cm_internal.h"
@@ -75,7 +76,6 @@ static void bufvec_xor(struct c2_bufvec *dst, struct c2_bufvec *src)
  */
 static int sns_res_cp_create(struct c2_sns_ag *sns_ag, struct c2_cm_cp *cp)
 {
-        int              rc;
         struct c2_cm_cp *res_cp;
 
         C2_PRE(sns_ag != NULL);
@@ -83,9 +83,10 @@ static int sns_res_cp_create(struct c2_sns_ag *sns_ag, struct c2_cm_cp *cp)
 
         res_cp = sns_ag->sag_ccp;
 
-        rc = cp->c_ops->co_alloc(cp->c_cm, &res_cp);
-        if (rc != 0)
-                return rc;
+	res_cp = sns_ag->sag_base.cag_ops->cago_cp_alloc(&sns_ag->sag_base,
+							 cp->c_data);
+        if (res_cp == NULL)
+                return -ENOMEM;
 
         sns_ag->sag_collected_cp_nr = 1;
         res_cp->c_prio = cp->c_prio;
@@ -95,7 +96,7 @@ static int sns_res_cp_create(struct c2_sns_ag *sns_ag, struct c2_cm_cp *cp)
 
         cp->c_data = NULL;
 
-        return rc;
+        return 0;
 }
 
 /**
@@ -128,7 +129,6 @@ static int sns_res_cp_create(struct c2_sns_ag *sns_ag, struct c2_cm_cp *cp)
  */
 int repair_cp_xform(struct c2_cm_cp *cp)
 {
-        int                      rc = 0;
         struct c2_sns_ag        *sns_ag;
         struct c2_cm_aggr_group *ag;
 	struct c2_cm_cp         *res_cp;
@@ -153,7 +153,7 @@ int repair_cp_xform(struct c2_cm_cp *cp)
                  * create the resultant copy packet and save context of the
                  * current copy packet.
                  */
-                rc = sns_res_cp_create(sns_ag, cp);
+                cp->c_fom.fo_rc = sns_res_cp_create(sns_ag, cp);
         } else {
                 bufvec_xor(res_cp->c_data, cp->c_data);
                 C2_CNT_INC(sns_ag->sag_collected_cp_nr);
@@ -169,7 +169,7 @@ int repair_cp_xform(struct c2_cm_cp *cp)
                  * processing.
                  */
                 if(sns_ag->sag_local_cp_nr == sns_ag->sag_collected_cp_nr) {
-			c2_cm_cp_enqueue(res_cp->c_cm, res_cp);
+			c2_cm_cp_enqueue(res_cp->c_ag->cag_cm, res_cp);
                         res_cp->c_fom.fo_rc = res_cp->c_ops->co_phase(res_cp);
 		}
         }

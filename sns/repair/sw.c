@@ -29,7 +29,7 @@
 #include "lib/misc.h"
 
 #include "sns/repair/cm.h"
-#include "reqh/reqh.h"
+#include "cm/sw.h"
 #include "lib/finject.h"
 
 /**
@@ -38,34 +38,34 @@
   @{
 */
 
-static size_t cm_sw_size_cal(struct c2_cm_sw *slw);
-static int cm_sw_advance(struct c2_cm_sw *slw);
-static int cm_sw_slide(struct c2_cm_sw *slw);
-static int cm_sw_expand(struct c2_cm_sw *slw);
+static size_t sw_size_cal(struct c2_cm_sw *slw);
+static int sw_advance(struct c2_cm_sw *slw);
+static int sw_slide(struct c2_cm_sw *slw);
+static int sw_expand(struct c2_cm_sw *slw);
 
-const struct c2_cm_sw_ops cm_sw_ops = {
-	.swo_size_cal = cm_sw_size_cal,
-	.swo_advance  = cm_sw_advance,
-	.swo_slide    = cm_sw_slide,
-	.swo_expand   = cm_sw_expand
+const struct c2_cm_sw_ops sw_ops = {
+	.swo_size_cal = sw_size_cal,
+	.swo_advance  = sw_advance,
+	.swo_slide    = sw_slide,
+	.swo_expand   = sw_expand
 };
 
-static size_t cm_sw_size_cal(struct c2_cm_sw *slw)
+static size_t sw_size_cal(struct c2_cm_sw *slw)
 {
 	return 0;
 }
 
-static int cm_sw_advance(struct c2_cm_sw *slw)
+static int sw_advance(struct c2_cm_sw *slw)
 {
 	return 0;
 }
 
-static int cm_sw_slide(struct c2_cm_sw *slw)
+static int sw_slide(struct c2_cm_sw *slw)
 {
 	return 0;
 }
 
-static int cm_sw_expand(struct c2_cm_sw *slw)
+static int sw_expand(struct c2_cm_sw *slw)
 {
 	return 0;
 }

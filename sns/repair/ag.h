@@ -23,11 +23,7 @@
 #ifndef __COLIBRI_SNS_REPAIR_AG_H__
 #define __COLIBRI_SNS_REPAIR_AG_H__
 
-#include "cm/cm.h"
 #include "cm/ag.h"
-#include "cm/cp.h"
-
-struct c2_cm_cp;
 
 /**
    @addtogroup snsrepair

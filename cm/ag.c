@@ -26,6 +26,8 @@
 #include "cm/ag.h"
 #include "lib/tlist.h"
 
+#include "cm/ag.h"
+
 enum {
 	/** Hex value of "ag_link". */
 	AGGR_GROUP_LINK_MAGIC = 0x61675f6c696e6b,
@@ -37,7 +39,7 @@ C2_TL_DESCR_DEFINE(aggr_grps, "aggr_grp_list_descr", ,
 		   struct c2_cm_aggr_group, cag_sw_linkage, cag_magic,
 		   AGGR_GROUP_LINK_MAGIC, AGGR_GROUP_LINK_HEAD);
 
-C2_TL_DEFINE(aggr_grps, extern, struct c2_cm_aggr_group);
+C2_TL_DEFINE(aggr_grps, , struct c2_cm_aggr_group);
 
 struct c2_bob_type aggr_grps_bob;
 C2_BOB_DEFINE( , &aggr_grps_bob, c2_cm_aggr_group);

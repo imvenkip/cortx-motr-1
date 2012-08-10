@@ -18,14 +18,16 @@
  * Original creation date: 08/08/2012
  */
 
-#ifndef __COLIBRI_CM_CM_H__
-#define __COLIBRI_CM_CM_H__
+#ifndef __COLIBRI_CM_AG_H__
+#define __COLIBRI_CM_AG_H__
 
-#include "cm/cm.h"
 #include "lib/types.h"
 #include "lib/tlist.h"
 #include "lib/mutex.h"
 #include "lib/ext.h"
+#include "lib/vec.h"
+
+#include "cm/cm.h"
 
 /** Aggregation group states */
 enum c2_aggr_group_state {
@@ -86,6 +88,9 @@ struct c2_cm_aggr_group {
 
 /** Colibri Copy Machine Aggregation Group Operations */
 struct c2_cm_aggr_group_ops {
+	/** Allocates and initialises a copy packet. */
+	struct c2_cm_cp *(*cago_cp_alloc) (struct c2_cm_aggr_group *ag,
+					   struct c2_bufvec *buf);
 	/** Returns extent from the input set matching to this group. */
 	int (*cago_get)(struct c2_cm_aggr_group *ag, struct c2_ext *ext_out);
 
@@ -100,5 +105,16 @@ struct c2_cm_aggr_group_ops {
 	uint64_t (*cago_local_cp_nr)(struct c2_cm_aggr_group *ag);
 };
 
-#endif
+C2_TL_DESCR_DECLARE(aggr_grps, extern);
+C2_TL_DECLARE(aggr_grps, extern, struct c2_cm_aggr_group);
 
+#endif
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 79
+ *  scroll-step: 1
+ *  End:
+ */

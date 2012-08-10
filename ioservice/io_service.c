@@ -61,7 +61,7 @@ enum {
 	C2_NET_BUFFER_POOL_SIZE = 32,
 };
 
-static int ios_locate(struct c2_reqh_service_type *stype,
+static int ios_allocate(struct c2_reqh_service_type *stype,
 			 struct c2_reqh_service **service);
 static void ios_fini(struct c2_reqh_service *service);
 
@@ -75,7 +75,7 @@ static void buffer_pool_low(struct c2_net_buffer_pool *bp);
  * I/O Service type operations.
  */
 static const struct c2_reqh_service_type_ops ios_type_ops = {
-        .rsto_service_locate = ios_locate
+        .rsto_service_allocate = ios_allocate
 };
 
 /**
@@ -298,7 +298,7 @@ static void ios_delete_buffer_pool(struct c2_reqh_service *service)
  *
  * @pre stype != NULL && service != NULL
  */
-static int ios_locate(struct c2_reqh_service_type *stype,
+static int ios_allocate(struct c2_reqh_service_type *stype,
 			 struct c2_reqh_service **service)
 {
         struct c2_reqh_service    *serv;
