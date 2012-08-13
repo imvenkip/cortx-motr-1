@@ -74,7 +74,7 @@ static void bufvec_xor(struct c2_bufvec *dst, struct c2_bufvec *src)
  * stored.
  * @param cp First incoming copy packet for transformation.
  */
-static int sns_res_cp_create(struct c2_sns_ag *sns_ag, struct c2_cm_cp *cp)
+static int sns_res_cp_create(struct c2_sns_repair_ag *sns_ag, struct c2_cm_cp *cp)
 {
         struct c2_cm_cp *res_cp;
 
@@ -102,41 +102,41 @@ static int sns_res_cp_create(struct c2_sns_ag *sns_ag, struct c2_cm_cp *cp)
 /**
  * Transformation function for sns repair.
  *
- * Finds aggregation group c2_sns_ag corresponding to the incoming
+ * Finds aggregation group c2_sns_repair_ag corresponding to the incoming
  * copy packet. Calculates the total number of copy packets
- * c2_sns_ag::sag_local_cp_nr belonging
- * to c2_sns_ag and checks it with the number of copy packets which are
- * transformed (c2_sns_ag::sag_collected_cp_nr, which is incremented after
+ * c2_sns_repair_ag::sag_local_cp_nr belonging
+ * to c2_sns_repair_ag and checks it with the number of copy packets which are
+ * transformed (c2_sns_repair_ag::sag_collected_cp_nr, which is incremented after
  * every transformation).
  * If all the copy packets belonging to the aggregation group are transformed,
  * then creates a new copy packet and its corresponding fom.
  *
  * Transformation involves XORing the c2_buf_vec's from copy packet
- * c2_cm_cp::c_data with c2_sns_ag::sag_ccp::c_data.
+ * c2_cm_cp::c_data with c2_sns_repair_ag::sag_ccp::c_data.
  * XORing is done using parity math operation like c2_parity_math_buffer_xor().
  *
  * When first copy packet of the aggregation group is transformed, its
- * corresponding c2_sns_ag::sag_ccp::c_data is set to c2_cm_cp::c_data.
+ * corresponding c2_sns_repair_ag::sag_ccp::c_data is set to c2_cm_cp::c_data.
  * Typically, all copy packets will have same buffer vector size.
  * Hence, there is no need for any complex buffer manipulation like growing or
- * shrinking the c2_sns_ag::sag_ccp::c_data.
+ * shrinking the c2_sns_repair_ag::sag_ccp::c_data.
  *
  * Every copy packet once transformed is freed. This is done by setting it's fom
  * state to CCP_FINI.
  *
- * @pre cp != NULL && cp->cp_state == CCP_XFORM
+ * @pre cp != NULL && cp->c_fom.fo_phase == CCP_XFORM
  * @param cp Copy packet that has to be transformed.
  */
 int repair_cp_xform(struct c2_cm_cp *cp)
 {
-        struct c2_sns_ag        *sns_ag;
+        struct c2_sns_repair_ag *sns_ag;
         struct c2_cm_aggr_group *ag;
 	struct c2_cm_cp         *res_cp;
 
         C2_PRE(cp != NULL && cp->c_fom.fo_phase == CCP_XFORM);
 
         ag = cp->c_ag;
-        sns_ag = bob_of(ag, struct c2_sns_ag, sag_base, &aggr_grps_bob);
+        sns_ag = bob_of(ag, struct c2_sns_repair_ag, sag_base, &aggr_grps_bob);
 	res_cp = sns_ag->sag_ccp;
         if (res_cp == NULL) {
                 sns_ag->sag_local_cp_nr = ag->cag_ops->cago_local_cp_nr(ag);
