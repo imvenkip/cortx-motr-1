@@ -90,7 +90,7 @@ static void thread_loop(struct sim *s, struct sim_thread *t, void *arg)
 					    &fid);
 			fid_to_stob_id(&fid, &stob_id);
 			result = c2_pool_alloc(&conf->ct_pool, &stob_id);
-			C2_ASSERT(result == 0);	
+			C2_ASSERT(result == 0);
 
 			sim_log(s, SLL_TRACE,
 				"%c [%3i:%3i] -> %4u@%3u [%4lu:%4lu] %6lu\n",
@@ -153,7 +153,7 @@ static void layout_build(struct c2t1fs_conf *conf)
 	lin_attr.lla_A = 0;
 	lin_attr.lla_B = 1;
 	result = c2_linear_enum_build(&conf->ct_l_dom, &lin_attr, &lin_enum);
- 	C2_ASSERT(result == 0);
+	C2_ASSERT(result == 0);
 
 	pl_attr.pa_N = conf->ct_N;
 	pl_attr.pa_K = conf->ct_K;
@@ -164,22 +164,22 @@ static void layout_build(struct c2t1fs_conf *conf)
 
 	result = c2_pdclust_build(&conf->ct_l_dom, lid, &pl_attr,
 				  &lin_enum->lle_base, &conf->ct_pdclust);
- 	C2_ASSERT(result == 0);
+	C2_ASSERT(result == 0);
 
 	/*
 	 * Acquire a reference on the layout so that it does not get vanished,
 	 * in between.
 	 */
-	c2_layout_get(&conf->ct_pdclust->pl_base.sl_base); 
+	c2_layout_get(&conf->ct_pdclust->pl_base.sl_base);
 }
 
 static void layout_fini(struct c2t1fs_conf *conf)
 {
 	/*
-	 * Delete the reference on the laout object that was acquired in
-	 * layout_build() so that the layou gets deleted.
+	 * Delete the reference on the layout object that was acquired in
+	 * layout_build() so that the layout gets deleted.
 	 */
-	c2_layout_put(&conf->ct_pdclust->pl_base.sl_base); 
+	c2_layout_put(&conf->ct_pdclust->pl_base.sl_base);
 
 	c2_layout_standard_types_unregister(&conf->ct_l_dom);
 	c2_layout_domain_fini(&conf->ct_l_dom);
