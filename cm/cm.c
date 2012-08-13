@@ -82,8 +82,6 @@
      using various interfaces and also from colibri setup.
    - Once started, each copy machine type is registered with the
      request handler as a service.
-   - Copy machine agents are implemented as FOMs. Thus the non blocking
-     architechture of colibri is exploited.
    - A copy machine service can be started using "colibri setup" utility or
      separately.
 
@@ -135,12 +133,6 @@
    @enddot
 
    @subsection DLD-cm-lspec-agents Copy machine interaction with agents
-   - Copy machine agents are implemented as foms.
-   - Copy machine creates its agents during copy machine service startup.
-   - All the started copy machine agents remain in request handler wait
-     queue in idle state.
-   - On receiving an operational fop, copy machine builds an input set
-     and configures appropriate agents.
 
    @subsection DLD-cm-lspec-thread Threading and Concurrency Model
    - Copy machine and its agents are implemented as state machines, and thus do

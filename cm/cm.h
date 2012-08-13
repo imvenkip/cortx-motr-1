@@ -42,17 +42,16 @@
 	- Handling a copy machine specific operation.
 	- Handling copy machine operation completion.
 	- Aborting a copy machine operation.
-	- Handling a copy machine failure or an agent failure.
+	- Handling a copy machine failure.
 	- Stopping a copy machine.
 	- The c2_cm_cb provides notification call-backs to be invoked at
           different granularities like
 	- Updates to the sliding window.
-	- Agent failure.
    - The c2_cm_aggr_group represents an aggregation group.
    - The c2_cm_aggr_group_ops defines the operations supported on an aggregation
    group.
    - The c2_cm_stats keeps copy machine operation progress data.
-   - The c2_cm_sw is used for co-operation among agents.
+   - The c2_cm_sw is used for co-operation among copy machine replicas.
 
    @subsection DLD-cm-fspec-if Interfaces
    Every copy machine type implements its own set of routines for
@@ -65,8 +64,7 @@
 
    - c2_cm_init()                    Initialises a copy machine.
    - c2_cm_fini()                    Finalises a copy machine.
-   - c2_cm_start()                   Starts a copy machine and corresponding
-				     agents.
+   - c2_cm_start()                   Starts a copy machine.
    - C2_CM_TYPE_DECLARE()            Declares a copy machine type.
 
    @subsection DLD-cm-fspec-sub-acc Accessors and Invariants
@@ -144,8 +142,6 @@ enum c2_cm_rc {
 	C2_CM_ERR_CONF,
 	/** Copy machine operational failure. */
 	C2_CM_ERR_OP,
-	/** Copy machine agent failure. */
-	C2_CM_ERR_AGENT,
 	C2_CM_NR
 };
 
@@ -226,7 +222,7 @@ struct c2_cm_ops {
 	 */
 	int (*cmo_start)(struct c2_cm *cm);
 
-	/** Configures copy machine and its corresponding agents. */
+	/** Configures copy machine. */
 	int (*cmo_config)(struct c2_cm *cm);
 
 	/**
