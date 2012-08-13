@@ -17,6 +17,7 @@ libcolibri_fop_la_SOURCES     = $(fop_SOURCES)
 
 INCLUDES                      = -iquote . -iquote $(top_srcdir)         \
 				-iquote $(top_srcdir)/include
-EXTRA_DIST                    = linux_kernel/fop_kernel.h
+
+EXTRA_DIST                    = linux_kernel/fop_kernel.h fom_generic_xc.ff
 
 MOSTLYCLEANFILES              = $(FOM_GENERIC_FOPS)

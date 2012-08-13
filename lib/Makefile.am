@@ -34,7 +34,8 @@ libc2_HEADERS        = \
                        types.h \
                        ub.h \
                        ut.h \
-                       vec.h
+                       vec.h \
+		       vec_xc.h
 
 noinst_LTLIBRARIES   = libc2.la
 libc2_la_SOURCES     = \

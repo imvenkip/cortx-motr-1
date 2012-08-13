@@ -13,6 +13,8 @@ $(XCODE_FOPS) : xcode_fops.ff \
 	$(top_builddir)/xcode/ff2c/ff2c
 	$(top_builddir)/xcode/ff2c/ff2c $<
 
-EXTRA_DIST              = xcode_fops.ff
+EXTRA_DIST              = xcode_fops.ff test_gccxml_simple.h    \
+			  test_gccxml_simple_xc.h test_gccxml.h \
+			  test_gccxml_xc.h
 
 MOSTLYCLEANFILES        = $(XCODE_FOPS)
