@@ -23,7 +23,7 @@
 #include "lib/trace.h"  /* C2_LOG() */
 
 #include "cm/sw.h"
-#include "cm/cm_internal.h"
+#include "cm/ag.h"
 
 int c2_cm_sw_init(struct c2_cm_sw *sw, const struct c2_cm_sw_ops *sw_ops)
 {

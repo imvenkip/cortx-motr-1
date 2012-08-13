@@ -14,25 +14,54 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
- * Original creation date: 06/26/2012
+ * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
+ * Original creation date: 16/04/2012
  */
 
-#ifndef __COLIBRI_CM_INTERNAL_H__
-#define __COLIBRI_CM_INTERNAL_H__
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
-#include "cm/cm.h"
+#include "lib/memory.h"
 
-C2_TL_DESCR_DECLARE(aggr_grps, extern);
-C2_TL_DECLARE(aggr_grps, extern, struct c2_cm_aggr_group);
+#include "sns/repair/ag.h"
+#include "sns/repair/cp.h"
 
-#endif /*  __COLIBRI_CM_INTERNAL_H__ */
+/**
+  @addtogroup snsrepair
+
+  @{
+*/
+
+static struct c2_cm_cp *cp_alloc(struct c2_cm_aggr_group *ag,
+				 struct c2_bufvec *buf)
+{
+	struct c2_sns_repair_cp *cp;
+
+	C2_PRE(ag != NULL && buf != NULL);
+
+	C2_ALLOC_PTR(cp);
+	if (cp != NULL)
+		c2_cm_cp_init(&cp->rc_cp, ag, &c2_sns_repair_cp_ops, buf);
+
+	return &cp->rc_cp;
+}
+
+static const struct c2_cm_aggr_group_ops group_ops = {
+	.cago_cp_alloc  = cp_alloc,
+	.cago_get       = NULL,
+	.cago_completed = NULL,
+	.cago_cp_nr     = NULL
+};
+
+
+/** @} snsrepair */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */
