@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,6 +18,8 @@
  * Original creation date: 09/28/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_RPC_RPCLIB_H__
 #define __COLIBRI_RPC_RPCLIB_H__
 
@@ -30,6 +32,7 @@
 #include "db/db.h"       /* struct c2_dbenv */
 #include "cob/cob.h"     /* struct c2_cob_domain */
 #include "net/net.h"     /* struct c2_net_end_point */
+#include "net/buffer_pool.h"
 
 #ifndef __KERNEL__
 #include "colibri/colibri_setup.h" /* struct c2_colibri */
@@ -109,61 +112,72 @@ struct c2_rpc_client_ctx {
 	 * Input parameters.
 	 *
 	 * They are initialized and filled in by a caller of
-	 * c2_rpc_server_start() and c2_rpc_client_stop().
+	 * c2_rpc_client_start().
 	 */
 
 	/**
 	 * A pointer to net domain struct which will be initialized and used by
 	 * c2_rpc_client_start()
 	 */
-	struct c2_net_domain    *rcx_net_dom;
+	struct c2_net_domain      *rcx_net_dom;
 
 	/** Transport specific local address (client's address) */
-	const char              *rcx_local_addr;
+	const char                *rcx_local_addr;
 
 	/** Transport specific remote address (server's address) */
-	const char              *rcx_remote_addr;
+	const char                *rcx_remote_addr;
 
 	/** Name of database used by the RPC machine */
-	const char              *rcx_db_name;
+	const char                *rcx_db_name;
 
 	/**
 	 * A pointer to dbenv struct which will be initialized and used by
 	 * c2_rpc_client_start()
 	 */
-	struct c2_dbenv         *rcx_dbenv;
+	struct c2_dbenv           *rcx_dbenv;
 
 	/** Identity of cob used by the RPC machine */
-	uint32_t                rcx_cob_dom_id;
+	uint32_t                   rcx_cob_dom_id;
 
 	/**
 	 * A pointer to cob domain struct which will be initialized and used by
 	 * c2_rpc_client_start()
 	 */
-	struct c2_cob_domain    *rcx_cob_dom;
+	struct c2_cob_domain      *rcx_cob_dom;
 
 	/** Number of session slots */
-	uint32_t                rcx_nr_slots;
+	uint32_t		   rcx_nr_slots;
 
-	uint64_t                rcx_max_rpcs_in_flight;
+	uint64_t		   rcx_max_rpcs_in_flight;
 
 	/**
 	 * Time in seconds after which connection/session
 	 * establishment is aborted.
 	 */
-	uint32_t                rcx_timeout_s;
+	uint32_t		   rcx_timeout_s;
 
 	/**
 	 * Output parameters.
 	 *
-	 * They are initialized and filled in by c2_rpc_server_init() and
-	 * c2_rpc_client_start().
+	 * They are initialized and filled in by c2_rpc_client_start().
 	 */
 
-	struct c2_rpc_machine    rcx_rpc_machine;
-	struct c2_net_end_point *rcx_remote_ep;
-	struct c2_rpc_conn       rcx_connection;
-	struct c2_rpc_session    rcx_session;
+	struct c2_rpc_machine	   rcx_rpc_machine;
+	struct c2_net_end_point	  *rcx_remote_ep;
+	struct c2_rpc_conn	   rcx_connection;
+	struct c2_rpc_session	   rcx_session;
+
+	/** Buffer pool used to provision TM receive queue. */
+	struct c2_net_buffer_pool  rcx_buffer_pool;
+
+	/**
+	 * List of buffer pools in colibri context.
+	 * @see c2_cs_buffer_pool::cs_bp_linkage
+	 */
+        uint32_t		   rcx_recv_queue_min_length;
+
+	/** Maximum RPC recive buffer size. */
+        uint32_t		   rcx_max_rpc_msg_size;
 };
 
 /**

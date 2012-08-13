@@ -1,4 +1,22 @@
 /* -*- C -*- */
+/*
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
+ * Original creation date: 2011-06-07
+ */
 
 #include "lib/cdefs.h"  /* C2_EXPORTED */
 #include "lib/memory.h"
@@ -7,6 +25,8 @@
 #include "lib/vec.h"
 #include "fop/fop_base.h"
 #include "fop/fop_iterator.h"
+#include "fop/fom_generic.h"   /* c2_fom_generic_fini, c2_fom_generic_init */
+#include "fop/fom_long_lock.h" /* c2_fom_ll_global_init */
 
 /**
    @addtogroup fop
@@ -84,7 +104,6 @@ void c2_fop_type_fini(struct c2_fop_type *fopt)
 	}
 	c2_addb_ctx_fini(&fopt->ft_addb);
 }
-
 
 int c2_fop_type_build(struct c2_fop_type *fopt)
 {
@@ -229,6 +248,7 @@ int c2_fops_init(void)
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_BYTE);
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_U32);
 	c2_fop_field_type_prepare(&C2_FOP_TYPE_U64);
+	c2_fom_ll_global_init();
 	return 0;
 }
 

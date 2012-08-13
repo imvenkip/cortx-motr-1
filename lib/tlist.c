@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -162,7 +162,6 @@ void c2_tlist_move_tail(const struct c2_tl_descr *d,
 			struct c2_tl *list, void *obj)
 {
 	C2_PRE(c2_tlist_invariant(d, list));
-	C2_PRE(c2_tlink_is_in(d, obj));
 
 	c2_list_move_tail(&list->t_head, link(d, obj));
 }
@@ -192,8 +191,6 @@ void *c2_tlist_next(const struct c2_tl_descr *d,
 {
 	struct c2_list_link *next;
 
-	C2_PRE(c2_tlist_contains(d, list, obj));
-
 	next = link(d, obj)->ll_next;
 	return (void *)next != &list->t_head ? amb(d, next) : NULL;
 }
@@ -202,8 +199,6 @@ void *c2_tlist_prev(const struct c2_tl_descr *d,
 		    const struct c2_tl *list, void *obj)
 {
 	struct c2_list_link *prev;
-
-	C2_PRE(c2_tlist_contains(d, list, obj));
 
 	prev = link(d, obj)->ll_prev;
 	return (void *)prev != &list->t_head ? amb(d, prev) : NULL;

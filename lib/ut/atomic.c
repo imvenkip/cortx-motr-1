@@ -29,6 +29,7 @@
 
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/ut.h"
+#include "lib/ub.h"
 #include "lib/thread.h"
 #include "lib/atomic.h"
 #include "lib/assert.h"
@@ -47,7 +48,7 @@ static void wait(pthread_barrier_t *b)
 	int result;
 
 	result = pthread_barrier_wait(b);
-	C2_UT_ASSERT(result == 0 || result == PTHREAD_BARRIER_SERIAL_THREAD);
+	C2_ASSERT(result == 0 || result == PTHREAD_BARRIER_SERIAL_THREAD);
 }
 
 static void worker(int id)
@@ -72,7 +73,7 @@ static void worker(int id)
 		delay.tv_nsec = (((id + i) % 4) + 1) * 1000;
 		nanosleep(&delay, NULL);
 		wait(&bar[i]);
-		C2_UT_ASSERT(c2_atomic64_get(&atom) == 0);
+		C2_ASSERT(c2_atomic64_get(&atom) == 0);
 	}
 }
 
@@ -104,9 +105,9 @@ static void breset(pthread_barrier_t *b, int n)
 	int result;
 
 	result = pthread_barrier_destroy(b);
-	C2_UT_ASSERT(result == 0);
+	C2_ASSERT(result == 0);
 	result = pthread_barrier_init(b, NULL, n);
-	C2_UT_ASSERT(result == 0);
+	C2_ASSERT(result == 0);
 }
 
 static void cas(int id)
@@ -156,32 +157,32 @@ void test_atomic(void)
 	for (i = 0; i < NR; ++i) {
 		c2_atomic64_add(&atom, i);
 		sum += i;
-		C2_UT_ASSERT(c2_atomic64_get(&atom) == sum);
+		C2_ASSERT(c2_atomic64_get(&atom) == sum);
 	}
 
 	for (i = sum; i > 0; --i) {
 		zero = c2_atomic64_dec_and_test(&atom);
-		C2_UT_ASSERT(zero == (i == 1));
+		C2_ASSERT(zero == (i == 1));
 	}
 
 	for (i = 0; i < ARRAY_SIZE(bar); ++i) {
 		result = pthread_barrier_init(&bar[i], NULL, NR + 1);
-		C2_UT_ASSERT(result == 0);
+		C2_ASSERT(result == 0);
 		result = pthread_barrier_init(&let[i], NULL, NR + 1);
-		C2_UT_ASSERT(result == 0);
+		C2_ASSERT(result == 0);
 	}
 
 	c2_atomic64_set(&atom, 0);
 
 	for (i = 0; i < ARRAY_SIZE(t); ++i) {
 		result = C2_THREAD_INIT(&t[i], int, NULL, &worker, i, "worker");
-		C2_UT_ASSERT(result == 0);
+		C2_ASSERT(result == 0);
 	}
 
 	for (i = 0; i < NR; ++i) {
 		wait(&let[i]);
 		wait(&bar[i]);
-		C2_UT_ASSERT(c2_atomic64_get(&atom) == 0);
+		C2_ASSERT(c2_atomic64_get(&atom) == 0);
 	}
 
 	for (i = 0; i < ARRAY_SIZE(t); ++i) {
@@ -212,7 +213,7 @@ void test_atomic(void)
 
 	for (i = 0; i < ARRAY_SIZE(t); ++i) {
 		result = C2_THREAD_INIT(&t[i], int, NULL, &cas, i, "cas");
-		C2_UT_ASSERT(result == 0);
+		C2_ASSERT(result == 0);
 	}
 
 	for (j = 0; j < NR; ++j) {
@@ -221,11 +222,11 @@ void test_atomic(void)
 
 		/* all threads inserted their identifiers in the list, check. */
 		for (i = 0, sum1 = 0, e = list; i < NR; ++i, e = e->next) {
-			C2_UT_ASSERT(e != NULL);
-			C2_UT_ASSERT(0 <= e->datum && e->datum < NR);
+			C2_ASSERT(e != NULL);
+			C2_ASSERT(0 <= e->datum && e->datum < NR);
 			sum1 += e->datum;
 		}
-		C2_UT_ASSERT(sum == sum1);
+		C2_ASSERT(sum == sum1);
 		list = NULL;
 		wait(&bar[2]);
 		breset(&bar[2], NR + 1);
@@ -233,16 +234,16 @@ void test_atomic(void)
 	for (j = 0; j < NR; ++j) {
 		wait(&bar[3]);
 		breset(&bar[3], NR + 1);
-		C2_UT_ASSERT(list == NULL);
+		C2_ASSERT(list == NULL);
 		wait(&bar[4]);
 		breset(&bar[4], NR + 1);
 	}
 
 	for (i = 0; i < ARRAY_SIZE(bar); ++i) {
 		result = pthread_barrier_destroy(&bar[i]);
-		C2_UT_ASSERT(result == 0);
+		C2_ASSERT(result == 0);
 		result = pthread_barrier_destroy(&let[i]);
-		C2_UT_ASSERT(result == 0);
+		C2_ASSERT(result == 0);
 	}
 
 	for (i = 0; i < ARRAY_SIZE(t); ++i) {
@@ -250,10 +251,32 @@ void test_atomic(void)
 		c2_thread_fini(&t[i]);
 	}
 #else
-        C2_UT_ASSERT("pthread barriers are not supported!" == NULL);
+        C2_ASSERT("pthread barriers are not supported!" == NULL);
 #endif
 
 }
+
+enum {
+	UB_ITER = 1000
+};
+
+static void atomic_ub(int i)
+{
+	test_atomic();
+}
+
+struct c2_ub_set c2_atomic_ub = {
+	.us_name = "atomic-ub",
+	.us_init = NULL,
+	.us_fini = NULL,
+	.us_run  = {
+		{ .ut_name  = "atomic",
+		  .ut_iter  = UB_ITER,
+		  .ut_round = atomic_ub },
+
+		{ .ut_name  = NULL }
+	}
+};
 
 /*
  *  Local variables:

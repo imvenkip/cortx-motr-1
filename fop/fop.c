@@ -41,7 +41,6 @@ int c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
 	C2_PRE(fop != NULL && fopt != NULL);
 
 	fop->f_type = fopt;
-	fop->f_private = NULL;
 
 	nob = fopt->ft_top->fft_layout->fm_sizeof;
 
@@ -72,8 +71,8 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 		if (err != 0) {
 			c2_free(fop);
 			fop = NULL;
-		}
-		fop->f_item.ri_ops = &c2_fop_default_item_ops;
+		} else
+			fop->f_item.ri_ops = &c2_fop_default_item_ops;
 	}
 	return fop;
 }
@@ -119,6 +118,12 @@ int fop_fol_type_init(struct c2_fop_type *fopt)
 
 void fop_fol_type_fini(struct c2_fop_type *fopt)
 {
+}
+
+int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
+		       struct c2_db_tx *tx)
+{
+	return 0;
 }
 
 #else /* !__KERNEL__ */

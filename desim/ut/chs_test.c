@@ -173,11 +173,15 @@ static void seek_test_thread(struct sim *s, struct sim_thread *t, void *arg)
 				sector_from = in_num_sect * i / LBA_D;
 				sector_to = in_num_sect * j / LBA_D;
 				/*
-				 * another loop to average rotational latency out.
+				 * another loop to average rotational latency
+				 * out.
 				 */
 				for (k = 0; k < TRACK_D; ++k) {
-					seekto(s, sector_from + TRACK_S*k/TRACK_D, 1);
-					latency = seekto(s, sector_to + TRACK_S*round/ROUNDS, 1);
+					seekto(s, sector_from +
+					       TRACK_S*k/TRACK_D, 1);
+					latency = seekto(s, sector_to +
+							 TRACK_S*round/ROUNDS,
+							 1);
 					seeklat[i][j] += latency;
 					seeksqr[i][j] += latency*latency;
 				}
@@ -190,7 +194,8 @@ static void seek_test_thread(struct sim *s, struct sim_thread *t, void *arg)
 		for (j = 0; j < LBA_D; ++j) {
 			latency = seeklat[i][j] / ROUNDS / TRACK_D;
 			printf("[%6.0f %4.0f]", latency,
-			       sqrt(seeksqr[i][j] / ROUNDS / TRACK_D - latency*latency));
+			       sqrt(seeksqr[i][j] / ROUNDS / TRACK_D -
+				    latency*latency));
 		}
 		printf("\n");
 	}

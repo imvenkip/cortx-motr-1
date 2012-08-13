@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,8 @@
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
  * Original creation date: 05/19/2010
  */
+
+#pragma once
 
 #ifndef __COLIBRI_FOP_FOP_FORMAT_H__
 #define __COLIBRI_FOP_FOP_FORMAT_H__
@@ -37,9 +39,7 @@
 
    @li to pack and unpack fop instance between in-memory and on-wire
    representation fop format tree is traversed recursively and fop fields are
-   serialized or de-serialized. The same generic "xdr" function
-   (c2_fop_uxdrproc() for user space, c2_kcall_enc() and c2_kcall_dec() for
-   Linux kernel) serializes and de-serializes all fop types;
+   serialized or de-serialized.
 
    @li the same for converting fop between in-memory and data-base record
    formats;
@@ -66,8 +66,6 @@
    additional auxiliary data-structure c2_fop_memlayout describing how fop
    fields are laid out in memory.
 
-   @see net/usunrpc/uxdr.c
-   @see net/ksunrpc/kxdr.c
    @see fop/fop2c
 
    @{

@@ -52,25 +52,18 @@ C2_TL_DESCR_DEFINE(cl, "client write extents", static, struct client_write_ext,
 		   0x0B501E5CE0FCACA0);
 C2_TL_DEFINE(cl, static, struct client_write_ext);
 
-static void client_rpc_send(struct sim_thread *t,
-			    struct client *c, struct client_conf *conf,
-			    unsigned long long offset, unsigned long count)
-{
-	struct net_rpc rpc;
-
-	net_rpc_init(&rpc, conf->cc_net, conf->cc_srv,
-		     c->cl_fid, offset, count);
-	net_rpc_send(t, &rpc);
-	net_rpc_bulk(t, &rpc);
-	net_rpc_fini(&rpc);
-}
-
 static void client_pageout(struct sim *s, struct sim_thread *t, void *arg)
 {
 	struct client           *c    = arg;
 	struct client_conf      *conf = c->cl_conf;
 	unsigned                 size = conf->cc_opt_count;
 	struct client_write_ext *ext;
+	struct c2_stob_id id = {
+		.si_bits = {
+			.u_hi = c->cl_fid,
+			.u_lo = c->cl_fid
+		}
+	};
 
 	while (1) {
 		while (c->cl_dirty - c->cl_io < size) {
@@ -87,7 +80,8 @@ static void client_pageout(struct sim *s, struct sim_thread *t, void *arg)
 			c->cl_inflight, c->cl_fid, ext->cwe_offset, size);
 		c->cl_io += size;
 		c->cl_inflight++;
-		client_rpc_send(t, c, conf, ext->cwe_offset, size);
+		net_rpc_process(t, conf->cc_net, conf->cc_srv,
+				&id, ext->cwe_offset, size);
 		c->cl_inflight--;
 		c->cl_io -= size;
 		C2_ASSERT(c->cl_cached >= size);
@@ -200,13 +194,22 @@ void client_fini(struct client_conf *conf)
 			sim_chan_fini(&c->cl_cache_free);
 			sim_chan_fini(&c->cl_cache_busy);
 			if (c->cl_thread != NULL) {
-				for (j = 0; j < conf->cc_nr_threads; ++j)
+				for (j = 0; j < conf->cc_nr_threads; ++j) {
+					/*
+					 * run simulation to drain events posted
+					 * during finalisation (e.g., by
+					 * sim_chan_broadcast() above).
+					 */
+					sim_run(c->cl_thread[j].st_sim);
 					sim_thread_fini(&c->cl_thread[j]);
+				}
 				sim_free(c->cl_thread);
 			}
 			if (c->cl_pageout != NULL) {
-				for (j = 0; j < conf->cc_inflight_max; ++j)
+				for (j = 0; j < conf->cc_inflight_max; ++j) {
+					sim_run(c->cl_pageout[j].st_sim);
 					sim_thread_fini(&c->cl_pageout[j]);
+				}
 				sim_free(c->cl_pageout);
 			}
 			cl_tlist_fini(&c->cl_write_ext);

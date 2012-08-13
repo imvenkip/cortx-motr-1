@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,8 @@
  * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
  * Original creation date: 08/12/2010
  */
+
+#pragma once
 
 #ifndef __COLIBRI_LIB_TRACE_H__
 #define __COLIBRI_LIB_TRACE_H__
@@ -156,7 +158,7 @@
    i.e. explicitly typecast to the pointer. It is because typeof("foo")
    is not the same as typeof((char*)"foo").
 
-   @note The number of arguments after fmt is limited to 9!
+   @note The number of arguments after fmt is limited to 9
 
    C2_LOG() counts the number of arguments and calls correspondent C2_LOGx().
  */
@@ -180,7 +182,8 @@ void c2_trace_fini(void);
   C2_TRACE_SUBSYS(MEMORY,	2)      \
   C2_TRACE_SUBSYS(C2T1FS,	3)      \
   C2_TRACE_SUBSYS(RPC,		4)      \
-  C2_TRACE_SUBSYS(LAYOUT,	5)
+  C2_TRACE_SUBSYS(FORMATION,    5)      \
+  C2_TRACE_SUBSYS(LAYOUT,	6)
 
 #define C2_TRACE_SUBSYS(name, value) C2_TRACE_SUBSYS_ ## name = (1 << value),
 /** The subsystem bitmask definitions */

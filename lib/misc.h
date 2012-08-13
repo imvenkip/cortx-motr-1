@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,6 +18,8 @@
  * Original creation date: 06/18/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LIB_MISC_H__
 #define __COLIBRI_LIB_MISC_H__
 
@@ -28,6 +30,7 @@
 #include <linux/bitops.h>         /* ffs */
 #endif
 
+#include "lib/types.h"
 #include "lib/assert.h"           /* C2_CASSERT */
 #include "lib/cdefs.h"            /* c2_is_array */
 
@@ -75,13 +78,13 @@
 })
 
 /**
-   Evaluates to true iff x is present in set.
+   Evaluates to true if x is present in set.
 
    e.g. C2_IN(session->s_state, (C2_RPC_SESSION_IDLE,
-				 C2_RPC_SESSION_BUSY,
-				 C2_RPC_SESSION_TERMINATING))
+                                 C2_RPC_SESSION_BUSY,
+                                 C2_RPC_SESSION_TERMINATING))
 
-   Parentheses around "set" members are mandatory.
+   Parenthesis around "set" members is mandatory.
  */
 #define C2_IN(x, set) C2_IN0(x, C2_UNPACK set)
 #define C2_UNPACK(...) __VA_ARGS__
@@ -98,6 +101,8 @@
 #define C2_IN_7(x, v, ...) ((x) == (v) || C2_IN_6(x, __VA_ARGS__))
 #define C2_IN_8(x, v, ...) ((x) == (v) || C2_IN_7(x, __VA_ARGS__))
 #define C2_IN_9(x, v, ...) ((x) == (v) || C2_IN_8(x, __VA_ARGS__))
+
+const char *c2_bool_to_str(bool b);
 
 /* __COLIBRI_LIB_MISC_H__ */
 #endif

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -34,42 +34,146 @@
 #include "addb/addb.h"
 #include "fop/fom.h"
 #include "fop/fop.h"
+#include "fop/fom_long_lock.h"
 #include "reqh/reqh.h"
 
 /**
-   @addtogroup fom
-   @{
+ * @addtogroup fom
+ *
+ * <b>Locality internals</b>
+ *
+ * A locality has 4 groups of threads associated with it:
+ *
+ *     - a handler thread: c2_fom_locality::fl_handler. This thread executes
+ *       main handler loop (loc_handler_thread()), where it waits until there
+ *       are foms in runqueue and executes their phase transitions. This thread
+ *       keeps group lock (c2_fom_locality::fl_group::s_lock) all the
+ *       time. As a result, if phase transitions do not block, group block is
+ *       rarely touched;
+ *
+ *     - blocked threads: threads that executed a c2_fom_block_enter(), but not
+ *       yet a matching c2_fom_block_leave() call as part of phase transition;
+ *
+ *     - unblocking threads: threads that are executing a c2_fom_block_leave()
+ *       call and trying to re-acquire the group lock to complete phase
+ *       transition.
+ *
+ *     - idle threads: these are waiting on c2_fom_locality::fl_idle to
+ *       become the new handler thread when the previous handler is blocked.
+ *
+ * Transitions between thread groups are as following:
+ *
+ *     - the handler thread and a pool of idle threads are created when the
+ *       locality is initialised;
+ *
+ *     - as part of c2_fom_block_leave() call, the blocked thread increments
+ *       c2_fom_locality::fl_unblocking counter and acquires the group
+ *       lock. When the group lock is acquired, the thread makes itself the
+ *       handler thread;
+ *
+ *     - on each iteration of the main handler thread loop, the handler checks
+ *       c2_fom_locality::fl_unblocking. If the counter is greater than 0, the
+ *       handler releases the group lock and makes itself idle;
+ *
+ *     - as part of c2_fom_block_enter() call, current handler thread releases
+ *       the group lock and checks c2_fom_locality::fl_unblocking. If the
+ *       counter is 0, the handler wakes up one of idle threads (creating one if
+ *       none exists), making it the new handler thread.
+ *
+ * @verbatim
+ *
+ *      INIT----------------------->IDLE
+ *            loc_thr_create()      | ^
+ *             ^                    | |
+ *             .                    | |
+ *             .     signal(fl_idle)| |(unblocking > 0)
+ *             .        ^           | |       ^
+ *             .        .           | |       .
+ *             .        .           | |       .
+ *           c2_fom_block_enter()   V |       .
+ *        +-----------------------HANDLER     .
+ *        |                          ^        .
+ *        V                          |        .
+ *     BLOCKED                  UNBLOCKING    .
+ *        |                          ^        .
+ *        |                          |        .
+ *        +--------------------------+        .
+ *           c2_fom_block_leave()             .
+ *                    .                       .
+ *                    .........................
+ *
+ * @endverbatim
+ *
+ * In the diagram above, dotted arrow means that the state transition causes a
+ * change making state transition for *other* thread possible.
+ *
+ * All threads are linked into c2_fom_locality::fl_threads. This list is used
+ * mostly for debugging and invariant checking purposes, but also for thread
+ * finalisation (loc_fini()).
+ *
+ * Thread state transitions, associated lists and counters are protected by
+ * the group mutex.
+ *
+ * @{
  */
-
-enum locality_ht_wait {
-	LOC_HT_WAIT = 1
-};
 
 enum {
-        MIN_CPU_NR = 1
+	LOC_HT_WAIT = 1,
+	LOC_IDLE_NR = 1
 };
 
-/**
- * Fom addb event location object
- */
 const struct c2_addb_loc c2_fom_addb_loc = {
 	.al_name = "fom"
 };
 
-/**
- * Fom addb context state.
- */
 const struct c2_addb_ctx_type c2_fom_addb_ctx_type = {
 	.act_name = "fom"
 };
+
+/**
+ * Locality thread states. Used for correctness checking.
+ */
+enum loc_thread_state {
+	HANDLER = 1,
+	BLOCKED,
+	UNBLOCKING,
+	IDLE
+};
+
+/**
+ * Locality thread.
+ *
+ * Instances of this structure are allocated by loc_thr_create() and freed by
+ * loc_thr_fini(). At any time c2_loc_thread::lt_linkage is in
+ * c2_fom_locality::fl_threads list and c2_loc_thread::lt_link is registered
+ * with some channel.
+ *
+ * ->lt_linkage is protected by the locality's group lock. ->lt_state is updated
+ * under the group lock, so it can be used by invariants. Other fields are only
+ * accessed by the current thread and require no locking.
+ */
+struct c2_loc_thread {
+	enum loc_thread_state   lt_state;
+	struct c2_thread        lt_thread;
+	struct c2_tlink         lt_linkage;
+	struct c2_fom_locality *lt_loc;
+	struct c2_clink         lt_clink;
+	uint64_t                lt_magix;
+};
+
+enum {
+	THREAD_MAGIX = 0xfa151f1ab1ec0b01 /* falsifiable COBOL */
+};
+
+C2_TL_DESCR_DEFINE(thr, "fom thread", static, struct c2_loc_thread, lt_linkage,
+		   lt_magix, THREAD_MAGIX,
+		   0xdec1a551f1edcade /* declassified cade */);
+C2_TL_DEFINE(thr, static, struct c2_loc_thread);
 
 static bool fom_wait_time_is_out(const struct c2_fom_domain *dom,
                                  const struct c2_fom *fom);
 static int loc_thr_create(struct c2_fom_locality *loc);
 static void fom_ast_cb(struct c2_sm_group *grp, struct c2_sm_ast *ast);
-
-#define FOM_ADDB_ADD(fom, name, rc)  \
-C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, (name), (rc))
 
 /**
  * Fom domain operations.
@@ -89,7 +193,7 @@ static void group_unlock(struct c2_fom_locality *loc)
 	c2_sm_group_unlock(&loc->fl_group);
 }
 
-static bool is_locked(const struct c2_fom *fom)
+bool c2_fom_group_is_locked(const struct c2_fom *fom)
 {
 	return c2_mutex_is_locked(&fom->fo_loc->fl_group.s_lock);
 }
@@ -104,6 +208,17 @@ static bool is_in_wail(const struct c2_fom *fom)
 	return c2_list_contains(&fom->fo_loc->fl_wail, &fom->fo_linkage);
 }
 
+static bool thread_invariant(const struct c2_loc_thread *t)
+{
+	struct c2_fom_locality *loc = t->lt_loc;
+
+	return
+		C2_IN(t->lt_state, (HANDLER, BLOCKED, UNBLOCKING, IDLE)) &&
+		(loc->fl_handler == t) == (t->lt_state == HANDLER) &&
+		ergo(t->lt_state == UNBLOCKING,
+		     c2_atomic64_get(&loc->fl_unblocking) > 0);
+}
+
 bool c2_fom_domain_invariant(const struct c2_fom_domain *dom)
 {
 	return dom != NULL && dom->fd_localities != NULL &&
@@ -116,7 +231,18 @@ bool c2_locality_invariant(const struct c2_fom_locality *loc)
 		c2_mutex_is_locked(&loc->fl_group.s_lock) &&
 		c2_list_invariant(&loc->fl_runq) &&
 		c2_list_invariant(&loc->fl_wail) &&
-		c2_list_invariant(&loc->fl_threads);
+		c2_tl_forall(thr, t, &loc->fl_threads,
+			     t->lt_loc == loc && thread_invariant(t)) &&
+		ergo(loc->fl_handler != NULL,
+		     thr_tlist_contains(&loc->fl_threads, loc->fl_handler));
+
+}
+
+static bool fom_is_blocked(const struct c2_fom *fom)
+{
+	return
+		fom->fo_state == C2_FOS_RUNNING &&
+		C2_IN(fom->fo_thread->lt_state, (BLOCKED, UNBLOCKING));
 }
 
 bool c2_fom_invariant(const struct c2_fom *fom)
@@ -126,14 +252,19 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 		fom->fo_type != NULL && fom->fo_ops != NULL &&
 		fom->fo_fop != NULL &&
 
-		is_locked(fom) &&
+		c2_fom_group_is_locked(fom) &&
 
 		c2_list_link_invariant(&fom->fo_linkage) &&
 
+		C2_IN(fom->fo_state, (C2_FOS_READY, C2_FOS_WAITING,
+				      C2_FOS_RUNNING)) &&
 		(fom->fo_state == C2_FOS_READY) == is_in_runq(fom) &&
 		(fom->fo_state == C2_FOS_WAITING) == is_in_wail(fom) &&
-		(fom->fo_state == C2_FOS_RUNNING) ==
-			(!is_in_runq(fom) && !is_in_wail(fom));
+		ergo(fom->fo_thread != NULL, fom->fo_state == C2_FOS_RUNNING) &&
+		ergo(fom->fo_pending != NULL,
+		     (fom->fo_state == C2_FOS_READY || fom_is_blocked(fom))) &&
+		ergo(fom->fo_cb.fc_state != C2_FCS_DONE,
+		     fom->fo_state == C2_FOS_WAITING);
 }
 
 static bool fom_wait_time_is_out(const struct c2_fom_domain *dom,
@@ -146,23 +277,22 @@ static bool fom_wait_time_is_out(const struct c2_fom_domain *dom,
  * Enqueues fom into locality runq list and increments
  * number of items in runq, c2_fom_locality::fl_runq_nr.
  * This function is invoked when a new fom is submitted for
- * execution or a waiting fom is re scheduled for processing.
+ * execution or a waiting fom is re-scheduled for processing.
  *
  * @pre c2_fom_invariant(fom)
- * @param fom Ready to be executed fom, is put on locality runq
  */
 static void fom_ready(struct c2_fom *fom)
 {
 	struct c2_fom_locality *loc;
-
-	C2_PRE(c2_fom_invariant(fom));
+	bool                    empty;
 
 	loc = fom->fo_loc;
-
 	fom->fo_state = C2_FOS_READY;
+	empty = c2_list_is_empty(&loc->fl_runq);
 	c2_list_add_tail(&loc->fl_runq, &fom->fo_linkage);
 	C2_CNT_INC(loc->fl_runq_nr);
-	c2_chan_signal(&loc->fl_runrun);
+	if (empty)
+		c2_chan_signal(&loc->fl_runrun);
 }
 
 void c2_fom_ready(struct c2_fom *fom)
@@ -175,88 +305,149 @@ void c2_fom_ready(struct c2_fom *fom)
 	C2_ASSERT(is_in_wail(fom));
 	c2_list_del(&fom->fo_linkage);
 	C2_CNT_DEC(loc->fl_wail_nr);
-	fom->fo_state = C2_FOS_RUNNING;
 
 	fom_ready(fom);
 }
 
+static void readyit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
+{
+	struct c2_fom *fom = container_of(ast, struct c2_fom, fo_cb.fc_ast);
+
+	c2_fom_ready(fom);
+}
+
+static void queueit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
+{
+	struct c2_fom *fom = container_of(ast, struct c2_fom, fo_cb.fc_ast);
+
+	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(fom->fo_phase == C2_FOM_PHASE_INIT);
+
+	fom_ready(fom);
+}
+
+void c2_fom_wakeup(struct c2_fom *fom)
+{
+	fom->fo_cb.fc_ast.sa_cb = readyit;
+	c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
+}
+
 void c2_fom_block_enter(struct c2_fom *fom)
 {
-	int			rc;
-	size_t			max_idle_threads;
 	struct c2_fom_locality *loc;
+	struct c2_loc_thread   *thr;
+
+	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(fom->fo_state == C2_FOS_RUNNING);
+	C2_PRE(!fom_is_blocked(fom));
 
 	loc = fom->fo_loc;
+	thr = fom->fo_thread;
 
+	C2_PRE(thr->lt_state == HANDLER);
+	C2_PRE(thr == loc->fl_handler);
+
+	/*
+	 * If there are unblocking threads, trying to complete
+	 * c2_fom_block_leave() call, do nothing and release the group lock. One
+	 * of these threads would grab it and become the handler.
+	 *
+	 * Otherwise, wake up one idle thread, creating it if necessary.
+	 *
+	 * Note that loc->fl_unblocking can change under us, but:
+	 *
+	 *     - it cannot become 0 if it wasn't, because it is decremented
+	 *       under the group lock and,
+	 *
+	 *     - if it were increased after we check it, nothing bad would
+	 *       happen: an extra idle thread wakeup is harmless.
+	 */
+	if (c2_atomic64_get(&loc->fl_unblocking) == 0) {
+		if (!c2_chan_has_waiters(&loc->fl_idle))
+			loc_thr_create(loc);
+		c2_chan_signal(&loc->fl_idle);
+	}
+
+	thr->lt_state = BLOCKED;
+	loc->fl_handler = NULL;
 	C2_ASSERT(c2_locality_invariant(loc));
 	group_unlock(loc);
-
-	c2_mutex_lock(&loc->fl_lock);
-	C2_CNT_INC(loc->fl_lo_idle_threads_nr);
-	max_idle_threads = max_check(loc->fl_lo_idle_threads_nr,
-	                             loc->fl_hi_idle_threads_nr);
-	while (loc->fl_idle_threads_nr < max_idle_threads) {
-		rc = loc_thr_create(loc);
-		if (rc != 0) {
-			FOM_ADDB_ADD(fom, "c2_fom_block_enter", rc);
-			break;
-		}
-	}
-	c2_mutex_unlock(&loc->fl_lock);
 }
 
 void c2_fom_block_leave(struct c2_fom *fom)
 {
 	struct c2_fom_locality *loc;
+	struct c2_loc_thread   *thr;
 
 	loc = fom->fo_loc;
+	thr = fom->fo_thread;
 
-	c2_mutex_lock(&loc->fl_lock);
-	/* See the description for c2_fom_locality to understand why
-	 * it is decremented before taking the group lock. */
-	C2_CNT_DEC(loc->fl_lo_idle_threads_nr);
-	c2_mutex_unlock(&loc->fl_lock);
-
+	C2_PRE(thr->lt_state == BLOCKED);
+	thr->lt_state = UNBLOCKING;
+	/*
+	 * Signal the handler that there is a thread that wants to unblock, just
+	 * in case the handler is sleeping on empty runqueue.
+	 *
+	 * It is enough to do this only when loc->fl_unblocking increments from
+	 * 0 to 1, because the handler won't go to sleep until
+	 * loc->fl_unblocking drops to 0.
+	 */
+	if (c2_atomic64_add_return(&loc->fl_unblocking, 1) == 1)
+		c2_chan_signal(&loc->fl_runrun);
 	group_lock(loc);
+	C2_ASSERT(c2_locality_invariant(loc));
+	C2_ASSERT(fom_is_blocked(fom));
+	C2_ASSERT(loc->fl_handler == NULL);
+	loc->fl_handler = thr;
+	thr->lt_state = HANDLER;
+	c2_atomic64_dec(&loc->fl_unblocking);
 	C2_ASSERT(c2_locality_invariant(loc));
 }
 
-void c2_fom_queue(struct c2_fom *fom)
+void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
 {
-	struct c2_fom_locality *loc;
+	struct c2_fom_domain        *dom;
+	struct c2_reqh_service_type *stype;
+	size_t			     loc_idx;
 
-	C2_PRE(c2_fom_invariant(fom));
-	C2_PRE(fom->fo_phase == C2_FOPH_INIT ||
-		fom->fo_phase == C2_FOPH_FAILURE);
+	C2_PRE(reqh != NULL);
+	C2_PRE(fom != NULL);
 
-	loc = fom->fo_loc;
-	c2_atomic64_inc(&loc->fl_dom->fd_foms_nr);
+	stype = fom->fo_type->ft_rstype;
+	if (stype != NULL) {
+		fom->fo_service = c2_reqh_service_find(stype, reqh);
+		C2_ASSERT(fom->fo_service != NULL);
+	}
 
-	fom_ready(fom);
+	fom->fo_fol = reqh->rh_fol;
+	dom = &reqh->rh_fom_dom;
+	c2_atomic64_inc(&dom->fd_foms_nr);
+	loc_idx = fom->fo_ops->fo_home_locality(fom) %
+		dom->fd_localities_nr;
+	C2_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
+	fom->fo_loc = &reqh->rh_fom_dom.fd_localities[loc_idx];
+
+	fom->fo_cb.fc_ast.sa_cb = queueit;
+	c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
 }
 
 /**
- * Puts fom on locality wait list if fom performs a blocking
- * operation, this releases the current thread to start
- * executing another fom from the runq, thus making the reqh
- * non blocking.
- * Fom state is changed to C2_FOS_WAITING.
- * c2_fom_locality::fl_group.s_lock should be held before putting
- * fom on the locality wait list.
- * This function is invoked from fom_exec(), if the fom
- * is performing a blocking operation and c2_fom::fo_state()
- * returns C2_FSO_WAIT.
+ * Puts fom on locality wait list if fom performs a blocking operation, this
+ * releases the handler thread to start executing another fom from the runq,
+ * thus making the reqh non blocking.
  *
- * @pre c2_fom_invariant(fom)
+ * Fom state is changed to C2_FOS_WAITING.  c2_fom_locality::fl_group.s_lock
+ * should be held before putting fom on the locality wait list.
+ *
+ * This function is invoked from fom_exec(), if the fom is performing a blocking
+ * operation and c2_fom_ops::fo_tick() returns C2_FSO_WAIT.
+ *
  * @pre fom->fo_state == C2_FOS_RUNNING
- * @param fom A fom blocking on an operation that is to be
- *		put on the locality wait list
  */
 static void fom_wait(struct c2_fom *fom)
 {
 	struct c2_fom_locality *loc;
 
-	C2_PRE(c2_fom_invariant(fom));
 	C2_PRE(fom->fo_state == C2_FOS_RUNNING);
 
 	loc = fom->fo_loc;
@@ -266,24 +457,23 @@ static void fom_wait(struct c2_fom *fom)
 }
 
 /**
- * Invokes fom state transition method, which transitions fom
+ * Helper to execute the bottom half of a fom call-back.
+ */
+static void cb_run(struct c2_fom_callback *cb)
+{
+	C2_PRE(cb->fc_state == C2_FCS_TOP_DONE);
+	C2_PRE(c2_fom_invariant(cb->fc_fom));
+
+	cb->fc_state = C2_FCS_DONE;
+	cb->fc_bottom(cb);
+	c2_clink_del(&cb->fc_clink);
+	c2_clink_fini(&cb->fc_clink);
+}
+
+/**
+ * Invokes fom phase transition method, which transitions fom
  * through various phases of its execution without blocking.
- * Fom state method is executed until it returns C2_FSO_WAIT,
- * indicating fom has either completed its execution or is
- * going to block on an operation.
- * If a fom needs to block on an operation, the state transition
- * function should register the AST callback (by calling
- * c2_fom_callback_arm() or c2_fom_wake_on()) with the channel
- * where the completion event will be signalled. The callback
- * should wake up the fom with c2_fom_ready().
- * If the state method returns C2_FSO_WAIT, and fom has not yet
- * finished its execution, then it is put on the locality wait list.
  *
- * @see c2_fom_state_outcome
- * @see c2_fom_wake_on()
- * @see c2_fom_callback_arm()
- *
- * @param fom A fom under execution
  * @pre fom->fo_state == C2_FOS_RUNNING
  */
 static void fom_exec(struct c2_fom *fom)
@@ -291,34 +481,64 @@ static void fom_exec(struct c2_fom *fom)
 	int			rc;
 	struct c2_fom_locality *loc;
 
-	C2_PRE(fom->fo_state == C2_FOS_RUNNING);
+	C2_PRE(fom->fo_state == C2_FOS_READY);
 
 	loc = fom->fo_loc;
+	fom->fo_thread = loc->fl_handler;
+	fom->fo_state = C2_FOS_RUNNING;
 
 	do {
 		C2_ASSERT(c2_fom_invariant(fom));
-		rc = fom->fo_ops->fo_state(fom);
+		C2_ASSERT(fom->fo_phase != C2_FOM_PHASE_FINISH);
+		rc = fom->fo_ops->fo_tick(fom);
+		/*
+		 * (rc == C2_FSO_AGAIN) means that next phase transition is
+		 * possible. Current policy is to execute the transition
+		 * immediately. Alternative is to put the fom on the runqueue
+		 * and select "the best" fom from the runqueue.
+		 */
+		fom->fo_transitions++;
 	} while (rc == C2_FSO_AGAIN);
 
-	C2_ASSERT(rc == C2_FSO_WAIT);
-	C2_ASSERT(is_locked(fom));
+	fom->fo_thread = NULL;
 
-	if (fom->fo_phase == C2_FOPH_FINISH) {
+	C2_ASSERT(rc == C2_FSO_WAIT);
+	C2_ASSERT(c2_fom_group_is_locked(fom));
+
+	if (fom->fo_phase == C2_FOM_PHASE_FINISH) {
 		fom->fo_ops->fo_fini(fom);
+		/*
+		 * Don't touch the fom after this point.
+		 */
 	} else {
+		struct c2_fom_callback *cb;
+
 		fom_wait(fom);
-		C2_ASSERT(fom->fo_state == C2_FOS_WAITING);
-		C2_ASSERT(is_in_wail(fom));
+		/*
+		 * If there are pending call-backs, execute them, until one of
+		 * them wakes the fom up. Don't bother to optimize moving
+		 * between queues: this is a rare case.
+		 *
+		 * Note: call-backs are executed in LIFO order.
+		 */
+		while ((cb = fom->fo_pending) != NULL) {
+			fom->fo_pending = (void *)cb->fc_ast.sa_next;
+			cb_run(cb);
+			/*
+			 * call-back is not allowed to destroy a fom.
+			 */
+			C2_ASSERT(fom->fo_phase != C2_FOM_PHASE_FINISH);
+			if (fom->fo_state != C2_FOS_WAITING)
+				break;
+		}
+		C2_ASSERT(c2_fom_invariant(fom));
 	}
 }
 
 /**
  * Dequeues a fom from runq list of the locality.
  *
- * @param loc Locality assigned for fom execution
- *
- * @retval c2_fom if succeeds
- *	else returns NULL
+ * @retval c2_fom if queue is not empty, NULL otherwise
  */
 static struct c2_fom *fom_dequeue(struct c2_fom_locality *loc)
 {
@@ -329,7 +549,6 @@ static struct c2_fom *fom_dequeue(struct c2_fom_locality *loc)
 	if (fom_link != NULL) {
 		c2_list_del(fom_link);
 		fom = container_of(fom_link, struct c2_fom, fo_linkage);
-		C2_ASSERT(fom != NULL);
 		C2_CNT_DEC(loc->fl_runq_nr);
 	}
 
@@ -337,200 +556,153 @@ static struct c2_fom *fom_dequeue(struct c2_fom_locality *loc)
 }
 
 /**
- * Locality handler thread.
- * Handler thread waits on re-scheduling channel for specific time.
- * Thread is then woken up either by fom enqueue operation in a locality runq
- * list, or if thread times out waiting on the channel.
- * When woken up, thread dequeue's a fom from the locality runq list and starts
- * executing it. If number of idle threads are higher than threshold value, they
- * are terminated.
- *
- * @see c2_fom_locality::fl_runrun
- * @see c2_fom_locality::fl_lo_idle_threads_nr
- *
- * @param th c2_fom_hthread, contains thread reference, locality reference
- *		and thread linkage in locality
- *
- * @pre th != NULL
+ * Locality handler thread. See the "Locality internals" section.
  */
-static void loc_handler_thread(struct c2_fom_hthread *th)
+static void loc_handler_thread(struct c2_loc_thread *th)
 {
 	c2_time_t		delta;
-	bool			idle;
-	struct c2_clink		th_clink;
-	struct c2_fom_locality *loc;
+	struct c2_clink	       *clink = &th->lt_clink;
+	struct c2_fom_locality *loc   = th->lt_loc;
 
-	C2_PRE(th != NULL);
-	loc = th->fht_locality;
-	idle = true;
 	c2_time_set(&delta, LOC_HT_WAIT, 0);
-	c2_clink_init(&th_clink, NULL);
-	c2_clink_attach(&th_clink, &loc->fl_group.s_clink, NULL);
-
-	group_lock(loc);
-	c2_clink_add(&loc->fl_runrun, &th_clink);
 
 	while (1) {
-		struct c2_fom *fom;
+		/*
+		 * start idle, wait for work to do. The clink was registered
+		 * with &loc->fl_idle by loc_thr_create().
+		 */
+		C2_ASSERT(th->lt_state == IDLE);
+		c2_chan_wait(clink);
 
-		C2_ASSERT(c2_locality_invariant(loc));
-
-		fom = fom_dequeue(loc);
-		if (fom != NULL) {
-			C2_ASSERT(fom->fo_state == C2_FOS_READY);
-			if (idle) {
-				C2_CNT_DEC(loc->fl_idle_threads_nr);
-				idle = false;
-			}
-			fom->fo_state = C2_FOS_RUNNING;
-			fom_exec(fom);
-		} else {
-			if (!idle) {
-				C2_CNT_INC(loc->fl_idle_threads_nr);
-				idle = true;
-			}
-		}
-		if (idle) {
-			group_unlock(loc);
-			c2_chan_timedwait(&th_clink,
-			                  c2_time_add(c2_time_now(), delta));
-			group_lock(loc);
-		}
-		if (loc->fl_idle_threads_nr > loc->fl_hi_idle_threads_nr)
-			break;
-		if (loc->fl_idle_threads_nr > loc->fl_lo_idle_threads_nr) {
-			/*
-			 * Get the other thread waiting in c2_fom_block_leave()
-			 * a chance to complete state transition.
-			 */
-			group_unlock(loc);
-			group_lock(loc);
-		}
-	}
-
-	if (idle)
-		C2_CNT_DEC(loc->fl_idle_threads_nr);
-	C2_CNT_DEC(loc->fl_threads_nr);
-	c2_clink_del(&th_clink);
-	group_unlock(loc);
-	c2_clink_fini(&th_clink);
-}
-
-/**
- * Init function for a reqh worker thread.
- * Adds thread to the locality thread list and
- * increments thread count in locality atomically.
- *
- * @param th c2_fom_hthread, contains thread reference, locality reference
- *		and thread linkage in locality
- */
-static int loc_thr_init(struct c2_fom_hthread *th)
-{
-	struct c2_fom_locality *loc;
-	int                     rc;
-
-	loc = th->fht_locality;
-	C2_ASSERT(loc != NULL);
-
-	rc = c2_thread_confine(&th->fht_thread, &loc->fl_processors);
-	if (rc == 0) {
+		/* become the handler thread */
 		group_lock(loc);
-		c2_list_add_tail(&loc->fl_threads, &th->fht_linkage);
-		group_unlock(loc);
-		c2_mutex_lock(&loc->fl_lock);
-		C2_CNT_INC(loc->fl_threads_nr);
-		C2_CNT_INC(loc->fl_idle_threads_nr);
-		c2_mutex_unlock(&loc->fl_lock);
-	}
+		C2_ASSERT(loc->fl_handler == NULL);
+		loc->fl_handler = th;
+		th->lt_state = HANDLER;
 
-	return rc;
+		/*
+		 * re-initialise the clink and arrange for it to receive group
+		 * AST notifications and runrun wakeups.
+		 */
+		c2_clink_del(clink);
+		c2_clink_fini(clink);
+		c2_clink_init(clink, NULL);
+		c2_clink_attach(clink, &loc->fl_group.s_clink, NULL);
+		c2_clink_add(&loc->fl_runrun, clink);
+
+		/*
+		 * main handler loop.
+		 *
+		 * This loop terminates when the locality is finalised
+		 * (loc->fl_shutdown) or this thread should go back to the idle
+		 * state.
+		 */
+		while (1) {
+			struct c2_fom *fom;
+
+			C2_ASSERT(c2_locality_invariant(loc));
+			/*
+			 * Check for a blocked thread that tries to unblock and
+			 * complete a phase transition.
+			 */
+			if (c2_atomic64_get(&loc->fl_unblocking) > 0)
+				/*
+				 * Idle ourselves. The unblocking thread (first
+				 * to grab the group lock in case there are
+				 * many), becomes the new handler.
+				 */
+				break;
+			c2_sm_asts_run(&loc->fl_group);
+			fom = fom_dequeue(loc);
+			if (fom != NULL)
+				fom_exec(fom);
+			else if (loc->fl_shutdown)
+				break;
+			else
+				/*
+				 * Yes, sleep with the lock held. Knock on
+				 * &loc->fl_runrun or &loc->fl_group.s_clink to
+				 * wake.
+				 */
+				c2_chan_timedwait(clink,
+						  c2_time_add(c2_time_now(),
+							      delta));
+		}
+		loc->fl_handler = NULL;
+		th->lt_state = IDLE;
+		c2_clink_del(clink);
+		c2_clink_fini(clink);
+		group_unlock(loc);
+		c2_clink_init(&th->lt_clink, NULL);
+		c2_clink_add(&loc->fl_idle, &th->lt_clink);
+		if (loc->fl_shutdown)
+			break;
+	}
 }
 
 /**
- * Creates and adds a request handler worker thread to the given
- * locality.
- *
- * @see loc_thr_init()
- *
- * @param loc Locality in which the threads are added
- *
- * @retval 0 If a thread is successfully created and
- *		added to the given locality
- *	-errno on failure
- *
- * @pre loc != NULL
+ * Init function for a locality thread. Confines the thread to the locality
+ * core.
  */
+static int loc_thr_init(struct c2_loc_thread *th)
+{
+	return c2_thread_confine(&th->lt_thread, &th->lt_loc->fl_processors);
+}
+
+static void loc_thr_fini(struct c2_loc_thread *th)
+{
+	C2_PRE(c2_mutex_is_locked(&th->lt_loc->fl_group.s_lock));
+	C2_PRE(th->lt_state == IDLE);
+	c2_clink_del(&th->lt_clink);
+	c2_clink_fini(&th->lt_clink);
+
+	c2_thread_fini(&th->lt_thread);
+	thr_tlink_del_fini(th);
+	c2_free(th);
+}
+
 static int loc_thr_create(struct c2_fom_locality *loc)
 {
-	int			result;
-	struct c2_fom_hthread  *locthr;
-	struct c2_addb_ctx     *fom_addb_ctx;
+	struct c2_loc_thread *thr;
+	int                   result;
 
-	C2_PRE(loc != NULL);
+	C2_PRE(c2_mutex_is_locked(&loc->fl_group.s_lock));
 
-	c2_mutex_unlock(&loc->fl_lock);
-
-	fom_addb_ctx = &loc->fl_dom->fd_addb_ctx;
-	C2_ALLOC_PTR_ADDB(locthr, fom_addb_ctx, &c2_fom_addb_loc);
-	if (locthr == NULL) {
-		c2_mutex_lock(&loc->fl_lock);
+	C2_ALLOC_PTR_ADDB(thr, &loc->fl_dom->fd_addb_ctx, &c2_fom_addb_loc);
+	if (thr == NULL)
 		return -ENOMEM;
-	}
-	/*
-	 * Initialize the linkage here so that c2_list_del() below can be safely
-	 * called even if thread creation failed before adding thread to the
-	 * list.
-	 */
-	c2_list_link_init(&locthr->fht_linkage);
-	locthr->fht_locality = loc;
-	result = C2_THREAD_INIT(&locthr->fht_thread, struct c2_fom_hthread *,
-			loc_thr_init, &loc_handler_thread, locthr,
-			"locality_thread");
+	thr->lt_state = IDLE;
+	thr->lt_magix = THREAD_MAGIX;
+	thr->lt_loc   = loc;
+	thr_tlink_init_at_tail(thr, &loc->fl_threads);
 
-	c2_mutex_lock(&loc->fl_lock);
-	if (result != 0) {
-		c2_list_del(&locthr->fht_linkage);
-		c2_free(locthr);
-	}
+	c2_clink_init(&thr->lt_clink, NULL);
+	c2_clink_add(&loc->fl_idle, &thr->lt_clink);
 
+	result = C2_THREAD_INIT(&thr->lt_thread, struct c2_loc_thread *,
+				loc_thr_init, &loc_handler_thread, thr,
+				"loc thread");
+	if (result != 0)
+		loc_thr_fini(thr);
 	return result;
 }
 
 /**
  * Finalises a given locality.
- * Sets c2_fom_locality::fl_lo_idle_threads_nr to 0, and
- * iterates over the c2_fom_locality::fl_threads list.
- * Extracts a thread, and waits until the thread exits,
- * finalises each thread. After removing all the threads
- * from the locality, other locality members are finalised.
- *
- * @param loc Locality to be finalised
- *
- * @pre loc != NULL
  */
-static void locality_fini(struct c2_fom_locality *loc)
+static void loc_fini(struct c2_fom_locality *loc)
 {
-	struct c2_list_link	*link;
-	struct c2_fom_hthread	*th;
+	struct c2_loc_thread *th;
 
-	C2_PRE(loc != NULL);
-
-	group_lock(loc);
-	C2_ASSERT(c2_locality_invariant(loc));
-	loc->fl_hi_idle_threads_nr = loc->fl_lo_idle_threads_nr = 0;
+	loc->fl_shutdown = true;
 	c2_chan_broadcast(&loc->fl_runrun);
-	while (!c2_list_is_empty(&loc->fl_threads)) {
-
-		link = c2_list_first(&loc->fl_threads);
-		C2_ASSERT(link != NULL);
-		c2_list_del(link);
+	c2_chan_broadcast(&loc->fl_idle);
+	group_lock(loc);
+	while ((th = thr_tlist_head(&loc->fl_threads)) != NULL) {
 		group_unlock(loc);
-		th = container_of(link, struct c2_fom_hthread, fht_linkage);
-		C2_ASSERT(th != NULL);
-		c2_thread_join(&th->fht_thread);
-		c2_thread_fini(&th->fht_thread);
-		c2_free(th);
+		c2_thread_join(&th->lt_thread);
 		group_lock(loc);
+		loc_thr_fini(th);
 	}
 	group_unlock(loc);
 
@@ -541,43 +713,34 @@ static void locality_fini(struct c2_fom_locality *loc)
 	C2_ASSERT(loc->fl_wail_nr == 0);
 
 	c2_sm_group_fini(&loc->fl_group);
-	c2_mutex_fini(&loc->fl_lock);
 	c2_chan_fini(&loc->fl_runrun);
-	c2_list_fini(&loc->fl_threads);
-	C2_ASSERT(loc->fl_threads_nr == 0);
+	thr_tlist_fini(&loc->fl_threads);
+	C2_ASSERT(c2_atomic64_get(&loc->fl_unblocking) == 0);
+	c2_chan_fini(&loc->fl_idle);
 
 	c2_bitmap_fini(&loc->fl_processors);
 }
 
 /**
- * Initialises a locality in fom domain.
- * Creates and adds threads to locality, every thread is
- * confined to the cpus represented by the pmap, this is
- * done in the thread init function.
- * Number of threads in the locality corresponds to the
- * number of cpus represented by the bits set in the pmap.
+ * Initialises a locality in fom domain.  Creates and adds threads to locality,
+ * every thread is confined to the cpus represented by the
+ * c2_fom_locality::fl_processors, this is done in the locality thread init
+ * function (loc_thr_init()).
  *
+ * A pool of LOC_IDLE_NR idle threads is created together with a handler thread.
+ *
+ * @see loc_thr_create()
  * @see loc_thr_init()
  *
- * @param loc  c2_fom_locality to be initialised
- * @param pmap Bitmap representing number of cpus
- *		present in the locality
- *
- * @retval 0 If locality is initialised
- *	-errno on failure
- *
- * @pre loc != NULL
+ * @param loc     c2_fom_locality to be initialised
+ * @param cpu     cpu assigned to the locality
+ * @param cpu_max maximum number of cpus that can be present in a locality
  */
-static int locality_init(struct c2_fom_locality *loc, struct c2_bitmap *pmap)
+static int loc_init(struct c2_fom_locality *loc, size_t cpu, size_t cpu_max)
 {
-	int			result;
-	int			i;
-	int			ncpus;
-	c2_processor_nr_t	max_proc;
+	int result;
 
 	C2_PRE(loc != NULL);
-
-	max_proc = c2_processor_nr_max();
 
 	c2_list_init(&loc->fl_runq);
 	loc->fl_runq_nr = 0;
@@ -586,136 +749,76 @@ static int locality_init(struct c2_fom_locality *loc, struct c2_bitmap *pmap)
 	loc->fl_wail_nr = 0;
 
 	c2_sm_group_init(&loc->fl_group);
-	c2_mutex_init(&loc->fl_lock);
 	c2_chan_init(&loc->fl_runrun);
-	c2_list_init(&loc->fl_threads);
+	thr_tlist_init(&loc->fl_threads);
+	c2_atomic64_set(&loc->fl_unblocking, 0);
+	c2_chan_init(&loc->fl_idle);
 
-	result = c2_bitmap_init(&loc->fl_processors, max_proc);
+	result = c2_bitmap_init(&loc->fl_processors, cpu_max);
 
 	if (result == 0) {
-		for (i = 0, ncpus = 0; i < max_proc; ++i) {
-			if (c2_bitmap_get(pmap, i)) {
-				c2_bitmap_set(&loc->fl_processors, i, true);
-				C2_CNT_INC(ncpus);
-			}
-		}
+		int i;
 
-                if (ncpus > MIN_CPU_NR)
-                        loc->fl_lo_idle_threads_nr = ncpus/2;
-                else
-                        loc->fl_lo_idle_threads_nr = ncpus;
-
-                loc->fl_hi_idle_threads_nr = ncpus;
-
-		c2_mutex_lock(&loc->fl_lock);
-		for (i = 0; i < ncpus; ++i) {
+		c2_bitmap_set(&loc->fl_processors, cpu, true);
+		/* create a pool of idle threads plus the handler thread. */
+		group_lock(loc);
+		for (i = 0; i < LOC_IDLE_NR + 1; ++i) {
 			result = loc_thr_create(loc);
 			if (result != 0)
 				break;
 		}
-		c2_mutex_unlock(&loc->fl_lock);
+		/* wake up one idle thread. It becomes the handler thread. */
+		c2_chan_signal(&loc->fl_idle);
+		group_unlock(loc);
 	}
-
 	if (result != 0)
-		locality_fini(loc);
+		loc_fini(loc);
 
 	return result;
 }
 
-/**
- * Checks if cpu resource is shared.
- *
- * @retval bool true if cpu resource is shared
- *		false if no cpu resource is shared
- */
-static bool resource_is_shared(const struct c2_processor_descr *cpu1,
-			const struct c2_processor_descr *cpu2)
+int c2_fom_domain_init(struct c2_fom_domain *dom)
 {
-	return cpu1->pd_l2 == cpu2->pd_l2 ||
-		cpu1->pd_numa_node == cpu2->pd_numa_node;
-}
+	int                     result;
+	size_t                  cpu;
+	size_t                  cpu_max;
+	struct c2_fom_locality *localities;
+	struct c2_bitmap        onln_cpu_map;
 
-int  c2_fom_domain_init(struct c2_fom_domain *dom)
-{
-	int				i;
-	int				j;
-	struct c2_processor_descr	cpui;
-	struct c2_processor_descr	cpuj;
-	c2_processor_nr_t		max_proc;
-	c2_processor_nr_t		result;
-	struct c2_bitmap		onln_cpu_map;
-	struct c2_bitmap		loc_cpu_map;
-	struct c2_fom_locality	       *localities;
 
 	C2_PRE(dom != NULL);
 
-	/*
-	 * Check number of processors online and create localities
-	 * between one's sharing common resources.
-	 * Currently considering shared L2 cache and numa node,
-	 * between cores, as shared resources.
-	 */
-	max_proc = c2_processor_nr_max();
+	cpu_max = c2_processor_nr_max();
 	dom->fd_ops = &c2_fom_dom_ops;
-	result = c2_bitmap_init(&onln_cpu_map, max_proc);
+	result = c2_bitmap_init(&onln_cpu_map, cpu_max);
 	if (result != 0)
 		return result;
 
-	result = c2_bitmap_init(&loc_cpu_map, max_proc);
-	if (result != 0) {
-		c2_bitmap_fini(&onln_cpu_map);
-		return result;
-	}
-
 	c2_processors_online(&onln_cpu_map);
-
         c2_addb_ctx_init(&dom->fd_addb_ctx, &c2_fom_addb_ctx_type,
-						&c2_addb_global_ctx);
-	C2_ALLOC_ARR_ADDB(dom->fd_localities, max_proc, &dom->fd_addb_ctx,
-							&c2_fom_addb_loc);
+			 &c2_addb_global_ctx);
+	C2_ALLOC_ARR_ADDB(dom->fd_localities, cpu_max, &dom->fd_addb_ctx,
+			  &c2_fom_addb_loc);
 	if (dom->fd_localities == NULL) {
 		c2_addb_ctx_fini(&dom->fd_addb_ctx);
 		c2_bitmap_fini(&onln_cpu_map);
-		c2_bitmap_fini(&loc_cpu_map);
 		return -ENOMEM;
 	}
 
 	localities = dom->fd_localities;
-	for (i = 0; i < max_proc; ++i) {
-		if (!c2_bitmap_get(&onln_cpu_map, i))
+	for (cpu = 0; cpu < cpu_max; ++cpu) {
+		if (!c2_bitmap_get(&onln_cpu_map, cpu))
 			continue;
-		result = c2_processor_describe(i, &cpui);
-		if (result != 0)
+		localities[dom->fd_localities_nr].fl_dom = dom;
+		result = loc_init(&localities[dom->fd_localities_nr], cpu,
+				  cpu_max);
+		if (result != 0) {
+			c2_fom_domain_fini(dom);
 			break;
-		for (j = i; j < max_proc; ++j) {
-			if (!c2_bitmap_get(&onln_cpu_map, j))
-				continue;
-			result = c2_processor_describe(j, &cpuj);
-			if (result == 0 && resource_is_shared(&cpui, &cpuj)) {
-				c2_bitmap_set(&loc_cpu_map, cpuj.pd_id, true);
-				c2_bitmap_set(&onln_cpu_map, j, false);
-			}
 		}
-		if (result == 0) {
-			localities[dom->fd_localities_nr].fl_dom = dom;
-			result = locality_init(&localities[dom->fd_localities_nr],
-						&loc_cpu_map);
-			if (result == 0) {
-				c2_bitmap_fini(&loc_cpu_map);
-				C2_CNT_INC(dom->fd_localities_nr);
-				result = c2_bitmap_init(&loc_cpu_map, max_proc);
-			}
-		}
-		if (result != 0)
-			break;
-
+		C2_CNT_INC(dom->fd_localities_nr);
 	}
-
-	if (result != 0)
-		c2_fom_domain_fini(dom);
-
 	c2_bitmap_fini(&onln_cpu_map);
-	c2_bitmap_fini(&loc_cpu_map);
 
 	return result;
 }
@@ -728,7 +831,7 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
 
 	fd_loc_nr = dom->fd_localities_nr;
 	while (fd_loc_nr > 0) {
-		locality_fini(&dom->fd_localities[fd_loc_nr - 1]);
+		loc_fini(&dom->fd_localities[fd_loc_nr - 1]);
 		--fd_loc_nr;
 	}
 
@@ -738,10 +841,17 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
 
 void c2_fom_fini(struct c2_fom *fom)
 {
-	C2_PRE(fom->fo_phase == C2_FOPH_FINISH);
+	struct c2_fom_domain *fdom;
+	struct c2_reqh       *reqh;
 
-	c2_atomic64_dec(&fom->fo_loc->fl_dom->fd_foms_nr);
+	C2_PRE(fom->fo_phase == C2_FOM_PHASE_FINISH);
+
+	fdom = fom->fo_loc->fl_dom;
+	reqh = fdom->fd_reqh;
 	c2_list_link_fini(&fom->fo_linkage);
+	c2_fom_callback_init(&fom->fo_cb);
+	if (c2_atomic64_dec_and_test(&fdom->fd_foms_nr))
+		c2_chan_signal(&reqh->rh_sd_signal);
 }
 C2_EXPORTED(c2_fom_fini);
 
@@ -751,15 +861,17 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
 {
 	C2_PRE(fom != NULL);
 
-	fom->fo_phase   = C2_FOPH_INIT;
+	fom->fo_phase   = C2_FOM_PHASE_INIT;
 	fom->fo_state   = C2_FOS_RUNNING;
         fom->fo_rc      = 0;
 	fom->fo_type	= fom_type;
 	fom->fo_ops	= ops;
 	fom->fo_fop	= fop;
 	fom->fo_rep_fop = reply;
-
+	c2_fom_callback_init(&fom->fo_cb);
 	c2_list_link_init(&fom->fo_linkage);
+
+	fom->fo_transitions = 0;
 }
 C2_EXPORTED(c2_fom_init);
 
@@ -767,9 +879,9 @@ static bool fom_clink_cb(struct c2_clink *link)
 {
 	struct c2_fom_callback *cb = container_of(link, struct c2_fom_callback,
 	                                          fc_clink);
-	C2_PRE(cb->fc_state >= C2_FCS_INIT);
+	C2_PRE(cb->fc_state >= C2_FCS_ARMED);
 
-	if (c2_atomic64_cas(&cb->fc_state, C2_FCS_INIT, C2_FCS_TOP_DONE) &&
+	if (c2_atomic64_cas(&cb->fc_state, C2_FCS_ARMED, C2_FCS_TOP_DONE) &&
 	    (cb->fc_top == NULL || !cb->fc_top(cb)))
 		c2_sm_ast_post(&cb->fc_fom->fo_loc->fl_group, &cb->fc_ast);
 
@@ -778,28 +890,52 @@ static bool fom_clink_cb(struct c2_clink *link)
 
 static void fom_ast_cb(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 {
-	struct c2_fom_callback *cb = container_of(ast, struct c2_fom_callback,
-	                                          fc_ast);
-	C2_PRE(c2_fom_invariant(cb->fc_fom));
-	C2_PRE(cb->fc_state >= C2_FCS_TOP_DONE);
+	struct c2_fom_callback *cb  = container_of(ast, struct c2_fom_callback,
+						   fc_ast);
+	struct c2_fom          *fom = cb->fc_fom;
 
-	if (c2_atomic64_cas(&cb->fc_state, C2_FCS_TOP_DONE, C2_FCS_DONE)) {
-		cb->fc_bottom(cb);
-		c2_clink_del(&cb->fc_clink);
-		c2_clink_fini(&cb->fc_clink);
+	C2_PRE(c2_fom_invariant(fom));
+	/*
+	 * there is no need to use CAS here, because this place is only reached
+	 * if CAS in fom_clink_cb() was successful and, hence, races with
+	 * c2_fom_callback_cancel() are no longer possible.
+	 */
+	C2_PRE(cb->fc_state == C2_FCS_TOP_DONE);
+
+	if (fom->fo_state == C2_FOS_WAITING)
+		cb_run(cb);
+	else {
+		C2_ASSERT(fom->fo_state == C2_FOS_READY || fom_is_blocked(fom));
+		/*
+		 * Call-back arrived while our fom is in READY state (hanging on
+		 * the runqueue, waiting for its turn) or RUNNING state (blocked
+		 * between c2_fom_block_enter() and
+		 * c2_fom_block_leave()). Instead of executing the call-back
+		 * immediately, add it to the stack of pending call-backs for
+		 * this fom. The call-back will be executed by fom_exec() when
+		 * the fom is about to return to the WAITING state.
+		 */
+		cb->fc_ast.sa_next = (void *)fom->fo_pending;
+		fom->fo_pending = cb;
 	}
+}
+
+void c2_fom_callback_init(struct c2_fom_callback *cb)
+{
+	cb->fc_state = C2_FCS_DONE;
 }
 
 void c2_fom_callback_arm(struct c2_fom *fom, struct c2_chan *chan,
                          struct c2_fom_callback *cb)
 {
 	C2_PRE(cb->fc_bottom != NULL);
+	C2_PRE(cb->fc_state == C2_FCS_DONE);
 
 	cb->fc_fom = fom;
 
 	c2_clink_init(&cb->fc_clink, &fom_clink_cb);
 	cb->fc_ast.sa_cb = &fom_ast_cb;
-	cb->fc_state = C2_FCS_INIT;
+	cb->fc_state = C2_FCS_ARMED;
 	/* XXX a memory barrier is required
 	 * if c2_clink_add() doesn't do its own locking. */
 	c2_clink_add(chan, &cb->fc_clink);
@@ -820,15 +956,15 @@ void c2_fom_wait_on(struct c2_fom *fom, struct c2_chan *chan,
 void c2_fom_callback_fini(struct c2_fom_callback *cb)
 {
 	C2_PRE(cb->fc_state == C2_FCS_DONE);
-	/* c2_clink_fini() is called in fom_ast_cb() */
+	/* c2_clink_fini() is called in cb_run() */
 }
 
 bool c2_fom_callback_cancel(struct c2_fom_callback *cb)
 {
 	bool result;
-	C2_PRE(cb->fc_state >= C2_FCS_INIT);
+	C2_PRE(cb->fc_state >= C2_FCS_ARMED);
 
-	result = c2_atomic64_cas(&cb->fc_state, C2_FCS_INIT, C2_FCS_DONE);
+	result = c2_atomic64_cas(&cb->fc_state, C2_FCS_ARMED, C2_FCS_DONE);
 
 	if (result) {
 		c2_clink_del(&cb->fc_clink);

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -41,6 +41,7 @@
 
 #include "fop/fop_format_def.h"
 #include "rpc/session_internal.h"
+#include "rpc/rpc2.h"
 
 /**
    @addtogroup rpc_session
@@ -133,7 +134,7 @@ out:
 
 const struct c2_fom_ops c2_rpc_fom_conn_establish_ops = {
 	.fo_fini = session_gen_fom_fini,
-	.fo_state = c2_rpc_fom_conn_establish_state,
+	.fo_tick = c2_rpc_fom_conn_establish_tick,
 	.fo_home_locality = c2_rpc_session_default_home_locality
 };
 
@@ -152,7 +153,7 @@ size_t c2_rpc_session_default_home_locality(const struct c2_fom *fom)
 	return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
 }
 
-int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
+int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 {
 	struct c2_rpc_fop_conn_establish_rep *reply;
 	struct c2_rpc_fop_conn_establish_ctx *ctx;
@@ -296,7 +297,7 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 
 const struct c2_fom_ops c2_rpc_fom_session_establish_ops = {
 	.fo_fini = session_gen_fom_fini,
-	.fo_state = c2_rpc_fom_session_establish_state,
+	.fo_tick = c2_rpc_fom_session_establish_tick,
 	.fo_home_locality = c2_rpc_session_default_home_locality
 };
 
@@ -308,7 +309,7 @@ struct c2_fom_type c2_rpc_fom_session_establish_type = {
 	.ft_ops = &c2_rpc_fom_session_establish_type_ops
 };
 
-int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
+int c2_rpc_fom_session_establish_tick(struct c2_fom *fom)
 {
 	struct c2_rpc_fop_session_establish_rep *reply;
 	struct c2_rpc_fop_session_establish     *request;
@@ -388,7 +389,7 @@ out:
 
 const struct c2_fom_ops c2_rpc_fom_session_terminate_ops = {
 	.fo_fini = session_gen_fom_fini,
-	.fo_state = c2_rpc_fom_session_terminate_state,
+	.fo_tick = c2_rpc_fom_session_terminate_tick,
 	.fo_home_locality = c2_rpc_session_default_home_locality
 };
 
@@ -400,7 +401,7 @@ struct c2_fom_type c2_rpc_fom_session_terminate_type = {
 	.ft_ops = &c2_rpc_fom_session_terminate_type_ops
 };
 
-int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
+int c2_rpc_fom_session_terminate_tick(struct c2_fom *fom)
 {
 	struct c2_rpc_fop_session_terminate_rep *reply;
 	struct c2_rpc_fop_session_terminate     *request;
@@ -476,7 +477,7 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
  */
 const struct c2_fom_ops c2_rpc_fom_conn_terminate_ops = {
 	.fo_fini = session_gen_fom_fini,
-	.fo_state = c2_rpc_fom_conn_terminate_state,
+	.fo_tick = c2_rpc_fom_conn_terminate_tick,
 	.fo_home_locality = c2_rpc_session_default_home_locality
 };
 
@@ -488,7 +489,7 @@ struct c2_fom_type c2_rpc_fom_conn_terminate_type = {
 	.ft_ops = &c2_rpc_fom_conn_terminate_type_ops
 };
 
-int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
+int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
 {
 	struct c2_rpc_fop_conn_terminate_rep *reply;
 	struct c2_rpc_fop_conn_terminate     *request;

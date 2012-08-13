@@ -19,6 +19,8 @@
  * Original creation date: 07/15/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LAYOUT_PDCLUST_H__
 #define __COLIBRI_LAYOUT_PDCLUST_H__
 

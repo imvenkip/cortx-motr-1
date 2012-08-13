@@ -20,6 +20,8 @@
  * Original creation date: 04/01/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_NET_NET_H__
 #define __COLIBRI_NET_NET_H__
 
@@ -70,14 +72,11 @@
    See <a href="https://docs.google.com/a/xyratex.com/document/d/1TZG__XViil3ATbWICojZydvKzFNbL7-JJdjBbXTLgP4/edit?hl=en_US">HLD of Colibri LNet Transport</a>
    for additional details on the design and use of this API.
 
-   See @ref netDep for the older interfaces.
-
    @{
 
  */
 
 /* import */
-struct c2_fop; /* deprecated */
 struct c2_bitmap;
 
 /* export */
@@ -94,14 +93,6 @@ struct c2_net_buffer_event;
 struct c2_net_buffer_callbacks;
 struct c2_net_qstats;
 
-struct c2_service_id;     /* deprecated */
-struct c2_service_id_ops; /* deprecated */
-struct c2_net_conn;       /* deprecated */
-struct c2_net_conn_ops;   /* deprecated */
-struct c2_service;        /* deprecated */
-struct c2_service_ops;    /* deprecated */
-struct c2_net_call;       /* deprecated */
-
 /**
  constructor for the network library
  */
@@ -114,11 +105,16 @@ int c2_net_init(void);
 void c2_net_fini(void);
 
 enum {
-	/* Hex value for "NET_DOM" */
-	C2_NET_DOMAIN_MAGIX = 0x4E45545F444F4D
+	/** Default minimum number of receive queue buffers for automatic
+	    provisioning.
+	 */
+	C2_NET_TM_RECV_QUEUE_DEF_LEN = 2,
+
+	/* Hex value for "NETDOM" */
+	C2_NET_DOMAIN_MAGIX = 0x4E4554444F4D
 };
 
-/** Network transport (e.g., lnet or sunrpc) */
+/** Network transport (e.g. lnet) */
 struct c2_net_xprt {
 	const char                   *nx_name;
 	const struct c2_net_xprt_ops *nx_ops;
@@ -351,28 +347,6 @@ struct c2_net_xprt_ops {
 	   @see c2_net_domain_get_max_buffer_segment_size()
 	 */
 	int32_t (*xo_get_max_buffer_segments)(const struct c2_net_domain *dom);
-
-	/**
-	   <b>Deprecated.</b>
-	   Initialise transport specific part of a service identifier.
-	 */
-	int  (*xo_service_id_init)(struct c2_service_id *sid, va_list varargs);
-
-	/**
-	   <b>Deprecated.</b>
-	   Initialise the server side part of a transport.
-	 */
-	int  (*xo_service_init)(struct c2_service *service);
-
-	/**
-	   <b>Deprecated.</b>
-	   Interface to return maxima for bulk I/O for network transport e.g.,
-	   lnet or sunrpc.
-
-	   The interface can be made generic enough to return any other property
-	   of network transport.
-	 */
-	size_t (*xo_net_bulk_size)(void);
 };
 
 /**
@@ -391,42 +365,6 @@ int  c2_net_xprt_init(struct c2_net_xprt *xprt);
  @param xprt Tranport pointer.
  */
 void c2_net_xprt_fini(struct c2_net_xprt *xprt);
-
-/** @}
-   @defgroup netDep Networking (Deprecated Interfaces)
-   @{
- */
-enum c2_net_stats_direction {
-        NS_STATS_IN  = 0,
-        NS_STATS_OUT = 1,
-        NS_STATS_NR
-};
-
-struct c2_net_stats {
-        struct c2_rwlock ns_lock;
-        /**
-         All counters are 64 bits wide and wrap naturally. We re-zero
-         the counters every time we examine the stats so that we have a known
-         timebase for rate calculations.
-	 */
-        c2_time_t        ns_time;
-        /** Counts how many FOPs have been seen by the service workers */
-        struct c2_atomic64 ns_reqs;
-        /** Bytes inside FOPs, as determined by fop type layout */
-        struct c2_atomic64 ns_bytes;
-        /**
-         Counts how many times an idle thread is woken to try to
-         receive some data from a transport.
-
-         This statistic tracks the circumstance where incoming
-         network-facing work is being handled quickly, which is a good
-         thing.  The ideal rate of change for this counter will be close
-         to but less than the rate of change of the ns_reqs counter.
-         */
-        struct c2_atomic64 ns_threads_woken;
-        uint64_t           ns_max;      /**< Max load seen so far */
-        bool               ns_got_busy; /**< We can believe max rate */
-};
 
 /** @}
  @addtogroup net
@@ -453,22 +391,11 @@ struct c2_net_domain {
 	 */
 	struct c2_list      nd_tms;
 
-	/** <b>Deprecated.</b> Network read-write lock */
-	struct c2_rwlock    nd_lock;
-
-	/** <b>Deprecated.</b> List of connections in this domain. */
-	struct c2_list      nd_conn;
-	/** <b>Deprecated.</b> List of services running in this domain. */
-	struct c2_list      nd_service;
-
 	/** Transport private domain data. */
 	void               *nd_xprt_private;
 
 	/** Pointer to transport */
 	struct c2_net_xprt *nd_xprt;
-
-        /** <b>Deprecated.</b> Domain network stats */
-        struct c2_net_stats nd_stats[NS_STATS_NR];
 
 	/** ADDB context for events related to this domain */
 	struct c2_addb_ctx  nd_addb;
@@ -477,10 +404,7 @@ struct c2_net_domain {
         struct c2_tlink     nd_app_linkage;
 
 	/** Network magic */
-	uint64_t            nd_magic;
-
-        /** Transfer machine pool colour counter */
-        int                 nd_pool_colour_counter;
+	uint64_t            nd_magix;
 };
 
 /**
@@ -926,17 +850,53 @@ struct c2_net_transfer_mc {
 	/** Domain linkage */
 	struct c2_list_link         ntm_dom_linkage;
 
-        /**
-         * Transfer machine colour. It is used to get
-         * buffer from buffer pool.
-         */
-        int                         ntm_pool_colour;
-
 	/** Transport private data */
         void                       *ntm_xprt_private;
 
 	/** Indicates if automatic delivery of buffer events will take place. */
 	bool                        ntm_bev_auto_deliver;
+
+	/**
+	   The buffer pool to use for automatic receive queue provisioning.
+	*/
+	struct c2_net_buffer_pool  *ntm_recv_pool;
+
+	/**
+	   Callbacks structure for automatically allocate receive queue
+	   buffers.
+	*/
+	const struct c2_net_buffer_callbacks *ntm_recv_pool_callbacks;
+
+	/**
+	   Minimum queue length for the receive queue when provisioning
+	   automatically.  The default value is ::C2_NET_TM_RECV_QUEUE_DEF_LEN.
+	 */
+	uint32_t                    ntm_recv_queue_min_length;
+
+	/**
+	   Atomic variable tracking the number of buffers needed for the
+	   receive queue when automatically provisioning and out of buffers.
+	 */
+	struct c2_atomic64          ntm_recv_queue_deficit;
+
+	/**
+	   The color assigned to the transfer machine for locality
+	   support when provisioning from a buffer pool.
+	   The value is initialized to @c ~0.
+	 */
+	uint32_t                    ntm_pool_colour;
+
+	/**
+	   Minimum remaining size in a buffer in TM receive queue to allow reuse
+	   for multiple messages.
+	 */
+	c2_bcount_t		    ntm_recv_queue_min_recv_size;
+
+	/**
+	   Maximum number of messages that may be received in the buffer in
+	   TM Receive queue.
+	 */
+	uint32_t		    ntm_recv_queue_max_recv_msgs;
 };
 
 /**
@@ -954,6 +914,8 @@ struct c2_net_transfer_mc {
    @note An initialized TM cannot be fini'd without first starting it.
    @param dom Network domain pointer.
    @post tm->ntm_bev_auto_deliver is set.
+   @post (tm->ntm_pool_colour == C2_NET_BUFFER_POOL_ANY_COLOR &&
+          tm->ntm_recv_pool_queue_min_length == C2_NET_TM_RECV_QUEUE_DEF_LEN)
    @retval 0 (success)
    @retval -errno (failure)
  */
@@ -1095,6 +1057,96 @@ int c2_net_tm_stats_get(struct c2_net_transfer_mc *tm,
 void c2_net_tm_event_post(const struct c2_net_tm_event *ev);
 
 /**
+   Associate a buffer pool color with a transfer machine.  This helps establish
+   an association between a network buffer and the transfer machine when
+   provisioning from a buffer pool, which can considerably improve the spatial
+   and temporal locality of future provisioning calls from the buffer pool.
+
+   Automatically provisioned receive queue network buffers will be allocated
+   with the specified color.  The application can also use this color when
+   provisioning buffers for this transfer machine in other network buffer pool
+   use cases.
+
+   A transfer machine's color is initialized to @c ~0.
+   @param tm Pointer to an initialized transfer machine.
+   @pre
+   (tm->ntm_state == C2_NET_TM_INITIALIZED ||
+    tm->ntm_state == C2_NET_TM_STARTED)
+   @see c2_net_tm_colour_get(), c2_net_tm_pool_attach()
+ */
+void c2_net_tm_colour_set(struct c2_net_transfer_mc *tm, uint32_t colour);
+
+/**
+   Recover the buffer pool color associated with a transfer machine.
+   @param tm Pointer to an initialized transfer machine.
+   @see c2_net_tm_colour_set()
+ */
+uint32_t c2_net_tm_colour_get(struct c2_net_transfer_mc *tm);
+
+/**
+   Enable the automatic provisioning of network buffers to the receive
+   queue of the transfer machine from the specified network buffer pool.
+
+   Provisioning takes place at the following times:
+   - Upon transfer machine startup
+   - Prior to delivery of a de-queueud receive message buffer
+   - When buffers are returned to an exhausted network buffer pool and there
+     are transfer machines that can be re-provisioned from that pool. This
+     requires that the application invoke the
+     c2_net_domain_buffer_pool_not_empty() subroutine from the pool's not-empty
+     callback.
+   - When the minimum length of the receive buffer queue is modified.
+   @param tm Pointer to an initialized transfer machine.
+   @param bufpool Pointer to a network buffer pool.
+   @param callbacks Pointer to the callbacks to be set in the provisioned
+   network buffer.
+   @param min_recv_size Minimum remaining size in a buffer in TM receive queue
+   to allow reuse for multiple messages.
+   @param max_recv_msgs Maximum number of messages that may be received in the
+   buffer in TM receive queue.
+   @param min_recv_queue_len Minimum nuber of buffers in TM receive queue.
+   @pre
+	(tm != NULL && tm->ntm_state == C2_NET_TM_INITIALIZED &&
+	bufpool != NULL && callbacks != NULL &&
+	callbacks->nbc_cb[C2_NET_QT_MSG_RECV] != NULL &&
+	min_recv_size > 0 && max_recv_msgs > 0)
+   @see c2_net_tm_colour_set(), c2_net_domain_buffer_pool_not_empty(),
+        c2_net_tm_pool_length_set()
+ */
+int c2_net_tm_pool_attach(struct c2_net_transfer_mc *tm,
+			  struct c2_net_buffer_pool *bufpool,
+			  const struct c2_net_buffer_callbacks *callbacks,
+			  c2_bcount_t min_recv_size, uint32_t max_recv_msgs,
+			  uint32_t min_recv_queue_len);
+
+/**
+   Set the minimum number of network buffers that should be present on the
+   receive queue of the transfer machine.  If the number falls below this
+   value and automatic provisioning is enabled, then additional buffers are
+   provisioned as needed.
+   Invoking this subroutine may trigger provisioning.
+   @param tm Pointer to an initialized or started transfer machine.
+   @param len Minimum receive queue length. The default value is
+   C2_NET_TM_RECV_QUEUE_DEF_LEN.
+   @see c2_net_tm_pool_attach()
+ */
+void c2_net_tm_pool_length_set(struct c2_net_transfer_mc *tm, uint32_t len);
+
+/**
+   This subroutine will reprovision all transfer machines in the network domain
+   of this buffer pool, that are associated with the pool.
+
+   The application typically arranges for this subroutine to be called from the
+   pool's not-empty callback operation.
+
+   The subroutine should be invoked while holding the pool lock, which is
+   normally the case in the pool not-empty callback.
+   @param pool A network buffer pool.
+   @see c2_net_tm_pool_attach()
+ */
+void c2_net_domain_buffer_pool_not_empty(struct c2_net_buffer_pool *pool);
+
+/**
    Buffer completion events are described by this data structure.
  */
 struct c2_net_buffer_event {
@@ -1142,7 +1194,7 @@ struct c2_net_buffer_event {
 	   Applications should take it into consideration when determining the
 	   starting location of the event data in the buffer.
 	 */
-	c2_bcount_t                nbe_offset;
+	c2_bindex_t                nbe_offset;
 
 	/**
 	   This field is used only in successful completion of buffers
@@ -1251,7 +1303,7 @@ struct c2_net_buffer {
 
 	   It is transport specific if a non-zero value is supported.
 	 */
-	c2_bcount_t                nb_offset;
+	c2_bindex_t                nb_offset;
 
 	/**
 	   Domain pointer. It is set automatically when the buffer
@@ -1406,6 +1458,11 @@ struct c2_net_buffer {
 	 */
 	uint32_t                   nb_max_receive_msgs;
 
+	/**
+	   Set when a buffer is provisioned from a pool using the
+	   c2_net_buffer_pool_get() subroutine call.
+	 */
+	struct c2_net_buffer_pool *nb_pool;
 	/** ADDB context for events related to this buffer */
 	struct c2_addb_ctx         nb_addb;
 };
@@ -1665,275 +1722,6 @@ C2_TL_DECLARE(c2_net_pool, extern, struct c2_net_buffer);
 C2_TL_DECLARE(c2_net_tm, extern, struct c2_net_buffer);
 
 /** @} */ /* end of networking group */
-
-/**
-   @addtogroup netDep
-   @{
- */
-void c2_net_domain_stats_init(struct c2_net_domain *dom);
-void c2_net_domain_stats_fini(struct c2_net_domain *dom);
-
-/**
-   Collects values for stats.
- */
-void c2_net_domain_stats_collect(struct c2_net_domain *dom,
-                                 enum c2_net_stats_direction dir,
-                                 uint64_t bytes,
-                                 bool *sleeping);
-/**
-   Reports the network loading rate for a direction (in/out).
-   @retval rate, in percent * 100 of maximum seen rate (e.g. 1234 = 12.34%)
- */
-int c2_net_domain_stats_get(struct c2_net_domain *dom,
-                            enum c2_net_stats_direction dir);
-
-
-enum {
-	C2_SERVICE_UUID_SIZE = 40
-};
-
-/**
-   Unique service identifier.
-
-   Each service has its own identifier. Different services running on
-   the same node have different identifiers.
-
-   An identifier contains enough information to locate a service in
-   the cluster and to connect to it.
-
-   A service identifier is used by service clients to open connections to the
-   service.
- */
-struct c2_service_id {
-	/** generic identifier */
-	char                            si_uuid[C2_SERVICE_UUID_SIZE];
-	/** a domain this service is addressed from */
-	struct c2_net_domain           *si_domain;
-	/** pointer to transport private service identifier */
-	void                           *si_xport_private;
-	const struct c2_service_id_ops *si_ops;
-};
-
-struct c2_service_id_ops {
-	/** Finalise service identifier */
-	void (*sis_fini)(struct c2_service_id *id);
-	/** Initialise a connection to this service */
-	int  (*sis_conn_init)(struct c2_service_id *id, struct c2_net_conn *c);
-};
-
-int  c2_service_id_init(struct c2_service_id *id, struct c2_net_domain *d, ...);
-void c2_service_id_fini(struct c2_service_id *id);
-
-/**
-   Compares node identifiers for equality.
- */
-bool c2_services_are_same(const struct c2_service_id *c1,
-			  const struct c2_service_id *c2);
-
-/**
-   Table of operations, supported by a service.
-
-   Operations supported by a service are identified by a scalar "opcode". A
-   server supports a continuous range of opcodes. This simple model simplifies
-   memory management and eliminates a loop over an array of a list in a service
-   hot path.
- */
-struct c2_net_op_table {
-	uint64_t             not_start;
-	uint64_t             not_nr;
-	struct c2_fop_type **not_fopt;
-};
-
-/**
-   Running service instance.
-
-   This structure describes an instance of a service running locally.
- */
-struct c2_service {
-	/** an identifier of this service */
-	struct c2_service_id           *s_id;
-	/** Domain this service is running in. */
-	struct c2_net_domain           *s_domain;
-	/** Table of operations. */
-	struct c2_net_op_table          s_table;
-	int                           (*s_handler)(struct c2_service *service,
-						   struct c2_fop *fop,
-						   void *cookie);
-	/**
-	    linkage in the list of all services running in the domain
-	 */
-	struct c2_list_link             s_linkage;
-	/** pointer to transport private service data */
-	void                           *s_xport_private;
-	const struct c2_service_ops    *s_ops;
-	struct c2_addb_ctx              s_addb;
-};
-
-struct c2_service_ops {
-	void (*so_fini)(struct c2_service *service);
-	void (*so_reply_post)(struct c2_service *service,
-			      struct c2_fop *fop, void *cookie);
-};
-
-/**
-   Client side of a logical network connection to a service.
- */
-struct c2_net_conn {
-	/**
-	    A domain this connection originates at.
-	 */
-	struct c2_net_domain         *nc_domain;
-	/**
-	   Entry to linkage structure into connection list.
-	 */
-	struct c2_list_link	      nc_link;
-	/**
-	   Service identifier of the service this connection is to.
-	 */
-	struct c2_service_id         *nc_id;
-	/**
-	   Reference counter.
-	 */
-	struct c2_ref		      nc_refs;
-	/**
-	   Pointer to transport private data.
-	 */
-	void                         *nc_xprt_private;
-	const struct c2_net_conn_ops *nc_ops;
-	/**
-	   ADDB context for events related to this connection.
-	 */
-	struct c2_addb_ctx            nc_addb;
-};
-
-struct c2_net_conn_ops {
-	/**
-	   Finalise connection resources.
-	 */
-	void (*sio_fini)(struct c2_net_conn *conn);
-	/**
-	   Synchronously call operation on the target service and wait for
-	   reply.
-	 */
-	int  (*sio_call)(struct c2_net_conn *conn, struct c2_net_call *c);
-	/**
-	   Post an asynchronous operation to the target service.
-
-	   The completion is announced by signalling c2_net_call::ac_chan.
-	 */
-	int  (*sio_send)(struct c2_net_conn *conn, struct c2_net_call *c);
-};
-
-/**
-   Creates a network connection to a given service.
-
-   Allocates resources and connects transport connection to some logical
-   connection.  Logical connection is used to send rpc in the context of one or
-   more sessions.
-
-   @param nid - service identifier
-
-   @retval 0 is OK
-   @retval <0 error is hit
- */
-int c2_net_conn_create(struct c2_service_id *nid);
-
-/**
-   Finds a connection to a specified service.
-
-   Scans the list of connections to find a logical connection associated with a
-   given nid.
-
-   @param nid service identifier
-
-   @retval NULL if none connections to the node
-   @retval !NULL connection info pointer
- */
-struct c2_net_conn *c2_net_conn_find(const struct c2_service_id *nid);
-
-/**
-   Releases a connection.
-
-   Releases a reference on network connection. Reference to transport connection
-   is released when the last reference to network connection has been released.
- */
-void c2_net_conn_release(struct c2_net_conn *conn);
-
-/**
-   Unlinks connection from connection list.
-
-   Transport connection(s) are released when the last reference on logical
-   connection is released.
- */
-void c2_net_conn_unlink(struct c2_net_conn *conn);
-
-/**
-   Service call description.
- */
-struct c2_net_call {
-	/** Connection over which the call is made. */
-	struct c2_net_conn     *ac_conn;
-	/** Argument. */
-	struct c2_fop          *ac_arg;
-	/** Result, only meaningful when c2_net_async_call::ac_rc is 0. */
-	struct c2_fop          *ac_ret;
-	/** Call result for asynchronous call. */
-	uint32_t                ac_rc;
-	/** Channel where asynchronous call completion is broadcast. */
-	struct c2_chan          ac_chan;
-	/** Linkage into the queue of pending calls. */
-	struct c2_queue_link    ac_linkage;
-};
-
-/**
-   Synchronous network call. Caller is blocked until reply message is received.
-
-   @param conn - network connection associated with replier
-   @param call - description of the call.
- */
-int c2_net_cli_call(struct c2_net_conn *conn, struct c2_net_call *call);
-
-/**
-   Asynchronous rpc call. Caller continues without waiting for an answer.
-
-   @param conn - network connection associated with replier
-   @param call - asynchronous call description
-
-   @retval 0 OK
-   @retval <0 ERROR
- */
-int c2_net_cli_send(struct c2_net_conn *conn, struct c2_net_call *call);
-
-
-/**
- initialize network service and setup incoming messages handler
-
- This function creates a number of service threads, installs request handlers,
- record the thread infomation for all services.
-
- @param service data structure to contain all service info
- @param sid service identifier
-
- @return 0 succees, other value indicates error.
- @see c2_net_service_stop
- */
-int c2_service_start(struct c2_service *service,
-		     struct c2_service_id *sid);
-/**
-   Stop network service and release resources associated with it.
-
-   @see c2_net_service_start
- */
-void c2_service_stop(struct c2_service *service);
-
-void c2_net_reply_post(struct c2_service *service, struct c2_fop *fop,
-		       void *cookie);
-
-
-extern struct c2_net_xprt c2_net_usunrpc_xprt;
-extern struct c2_net_xprt c2_net_ksunrpc_xprt;
-
-/** @} */ /* end of deprecated net group */
 
 #endif
 

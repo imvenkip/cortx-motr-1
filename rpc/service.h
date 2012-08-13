@@ -18,6 +18,8 @@
  * Original creation date: 02/23/2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_RPC_SERVICE_H__
 #define __COLIBRI_RPC_SERVICE_H__
 

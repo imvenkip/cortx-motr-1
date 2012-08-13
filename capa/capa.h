@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,8 @@
  * Original author: Huang Hua <hua_huang@xyratex.com>
  * Original creation date: 01/04/2011
  */
+
+#pragma once
 
 #ifndef __COLIBRI_CAPA_CAPA_H__
 #define __COLIBRI_CAPA_CAPA_H__
@@ -70,9 +72,11 @@ enum {
 
 /**
    Capability issuer.
+   @todo Use proper capability issuer
 */
+
 struct c2_capa_issuer {
-        struct c2_service_id ci_id;
+
 };
 
 struct c2_capa_ctxt;
@@ -103,8 +107,6 @@ struct c2_object_capa {
    authorized, checked, etc.
 */
 struct c2_capa_ctxt {
-	/** running service */
-	struct c2_service *cc_service;
 	/** more fields go here */
 };
 

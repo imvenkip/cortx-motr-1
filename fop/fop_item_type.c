@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -19,18 +19,13 @@
  */
 
 #include "lib/errno.h"
+#include "fop/fop_item_type.h"
 #include "rpc/rpc_onwire.h"
 #include "xcode/bufvec_xcode.h"
 
-
-struct c2_rpc_item;
-struct c2_fop;
-struct c2_rpc_item_type;
-struct c2_bufvec_cur;
-
-size_t c2_fop_item_type_default_onwire_size(const struct c2_rpc_item *item)
+c2_bcount_t c2_fop_item_type_default_onwire_size(const struct c2_rpc_item *item)
 {
-	size_t		 len;
+	c2_bcount_t      len;
 	struct c2_fop	*fop;
 
 	C2_PRE(item != NULL);
@@ -46,8 +41,8 @@ size_t c2_fop_item_type_default_onwire_size(const struct c2_rpc_item *item)
 }
 
 int c2_fop_item_type_default_encode(struct c2_rpc_item_type *item_type,
-			      struct c2_rpc_item *item,
-			      struct c2_bufvec_cursor *cur)
+				    struct c2_rpc_item      *item,
+				    struct c2_bufvec_cursor *cur)
 {
 	int			rc;
 	uint32_t		opcode;
@@ -57,35 +52,57 @@ int c2_fop_item_type_default_encode(struct c2_rpc_item_type *item_type,
 
 	item_type = item->ri_type;
 	opcode = item_type->rit_opcode;
-	rc = c2_bufvec_uint32(cur, &opcode, C2_BUFVEC_ENCODE);
-	if(rc != 0)
-		return -EFAULT;
-	rc = item_encdec(cur, item, C2_BUFVEC_ENCODE);
+	rc = c2_bufvec_uint32(cur, &opcode, C2_BUFVEC_ENCODE) ?:
+	     c2_fop_item_encdec(item, cur, C2_BUFVEC_ENCODE);
+
 	return rc;
 }
 
-int c2_fop_item_type_default_decode(struct c2_rpc_item_type *item_type,
-			      struct c2_rpc_item **item,
-			      struct c2_bufvec_cursor *cur)
+int c2_fop_item_type_default_decode(struct c2_rpc_item_type  *item_type,
+				    struct c2_rpc_item      **item_out,
+				    struct c2_bufvec_cursor  *cur)
 {
 	int			 rc;
 	struct c2_fop		*fop;
 	struct c2_fop_type	*ftype;
+	struct c2_rpc_item      *item;
 
-	C2_PRE(item != NULL);
+	C2_PRE(item_out != NULL);
 	C2_PRE(cur != NULL);
 
+	*item_out = NULL;
 	ftype = c2_item_type_to_fop_type(item_type);
 	C2_ASSERT(ftype != NULL);
 	fop = c2_fop_alloc(ftype, NULL);
 	if (fop == NULL)
 		return -ENOMEM;
-	*item = c2_fop_to_rpc_item(fop);
-	C2_ASSERT(*item != NULL);
-	rc = item_encdec(cur, *item, C2_BUFVEC_DECODE);
-	if (rc != 0)
+	item = c2_fop_to_rpc_item(fop);
+	rc = c2_fop_item_encdec(item, cur, C2_BUFVEC_DECODE);
+	if (rc == 0)
+		*item_out = item;
+	else
 		c2_fop_free(fop);
 
+	return rc;
+}
+
+/**
+   Helper function used by encode/decode ops of each item type (rito_encode,
+   rito_decode) for decoding an rpc item into/from a bufvec
+*/
+int c2_fop_item_encdec(struct c2_rpc_item      *item,
+		       struct c2_bufvec_cursor *cur,
+		       enum c2_bufvec_what      what)
+{
+	int		 rc;
+	struct	c2_fop	*fop;
+
+	C2_PRE(item != NULL);
+	C2_PRE(cur != NULL);
+
+	fop = c2_rpc_item_to_fop(item);
+	rc = c2_rpc_item_header_encdec(item, cur, what) ?:
+	     c2_xcode_bufvec_fop(cur, fop, what);
 	return rc;
 }
 

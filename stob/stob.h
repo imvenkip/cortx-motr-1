@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,8 @@
  * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
  * Original creation date: 04/28/2010
  */
+
+#pragma once
 
 #ifndef __COLIBRI_STOB_STOB_H__
 #define __COLIBRI_STOB_STOB_H__
@@ -538,13 +540,13 @@ int c2_stob_create_helper(struct c2_stob_domain    *dom,
    RDMA. To this end, IO operation must be completely set up and ready for
    queueing before RMDA starts, i.e., before data pages are available.
 
-   @todo implement barriers
-
    @{
  */
 
 /**
    Type of a storage object IO operation.
+
+   @todo implement barriers.
  */
 enum c2_stob_io_opcode {
 	SIO_INVALID,
@@ -770,6 +772,13 @@ void *c2_stob_addr_pack(const void *buf, uint32_t shift);
    @see c2_stob_addr_pack()
  */
 void *c2_stob_addr_open(const void *buf, uint32_t shift);
+
+/**
+ * Sorts index vecs from stob. It also move buffer vecs while sorting.
+ *
+ * @param stob storage object from which index vecs needs to sort.
+ */
+void c2_stob_iovec_sort(struct c2_stob_io *stob);
 
 /** @} end member group adieu */
 

@@ -19,6 +19,8 @@
  * Original creation date: 07/09/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LAYOUT_LAYOUT_H__
 #define __COLIBRI_LAYOUT_LAYOUT_H__
 

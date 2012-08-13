@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,8 @@
  * Original author: Rajanikant Chirmade <Rajanikant_Chirmade@xyratex.com>
  * Original creation date: 11/02/2011
  */
+
+#pragma once
 
 #ifndef __COLIBRI_IOSERVICE_IO_SERVICE_H__
 #define __COLIBRI_IOSERVICE_IO_SERVICE_H__
@@ -50,8 +52,8 @@
 #include "lib/chan.h"
 #include "lib/tlist.h"
 
-int c2_ioservice_register(void);
-void c2_ioservice_unregister(void);
+int c2_ios_register(void);
+void c2_ios_unregister(void);
 
 enum {
         C2_RIOS_BUFFER_POOL_MAGIC = 0x62756666657273,   /* buffers */

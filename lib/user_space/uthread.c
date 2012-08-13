@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Dave Cohrs <Dave_Cohrs@us.xyratex.com>,
+ * Original author: Dave Cohrs <Dave_Cohrs@xyratex.com>,
  *                  Nikita Danilov <Nikita_Danilov@xyratex.com>
  * Original creation date: 02/18/2011
  */
@@ -65,7 +65,7 @@ int c2_thread_join(struct c2_thread *q)
 
 int c2_thread_signal(struct c2_thread *q, int sig)
 {
-	return pthread_kill(q->t_h.h_id, sig);
+	return -pthread_kill(q->t_h.h_id, sig);
 }
 
 int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors)

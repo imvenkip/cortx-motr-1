@@ -14,11 +14,14 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 04/12/2011
  * Adapted for LNet: 04/11/2012
  */
+
+#pragma once
+
 #ifndef __COLIBRI_NET_LNET_PING_H__
 #define __COLIBRI_NET_LNET_PING_H__
 

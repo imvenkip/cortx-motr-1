@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -19,6 +19,8 @@
  * Original creation date: 05/04/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_C2T1FS_H
 #define __COLIBRI_C2T1FS_H
 
@@ -30,6 +32,7 @@
 #include "net/net.h"        /* c2_net_domain */
 #include "rpc/rpc2.h"
 #include "pool/pool.h"      /* c2_pool */
+#include "net/buffer_pool.h"
 #include "layout/layout.h"  /* c2_layout_domain */
 #include "layout/pdclust.h" /* c2_pdclust_instance */
 
@@ -47,12 +50,12 @@
   c2t1fs does not support caching. All read-write requests are directly
   forwarded to servers.
 
-  By default c2t1fs uses end-point address 127.0.0.1:12345:1 as its local
+  By default c2t1fs uses end-point address 0@lo:12345:45:6 as its local
   address. This address can be changed with local_addr module parameter.
-  e.g. to make c2t1fs use 192.168.10.20:12345:1 as its end-point address
+  e.g. to make c2t1fs use 172.18.50.40@o2ib1:12345:34:1 as its end-point address
   load module with command:
 
-  sudo insmod kcolibri.ko local_addr="192.168.10.20:12345:1"
+  sudo insmod kcolibri.ko local_addr="172.18.50.40@o2ib1:12345:34:1"
 
   c2t1fs can be mounted with mount command:
 
@@ -61,7 +64,7 @@
   where <options_list> is a comma separated list of option=value elements.
   Currently supported list of options is:
 
-  - mgs [value type: end-point address e.g. 127.0.0.1:123321:1 ]
+  - mgs [value type: end-point address e.g. 192.168.50.40@tcp:12345:34:1 ]
       end-point address of management service or confd.
       @note terms 'mgs' and 'confd' are used interchangably in the text.
 
@@ -87,9 +90,10 @@
   - pool_width [value type: number]
       Number of component objects over which file contents are striped.
       Optional parameter.
-      Default value is C2T1FS_DEFAULT_POOL_WIDTH.
+      Default value is computed as sum of effective nr_data_units and
+      (2 * nr_parity_units).
       pool_width >= nr_data_units + 2 * nr_parity_units. (2 to account for
-      nr_spare_units which is equal to nr_parity_units. P = N + 2 * K)
+      nr_spare_units which is equal to nr_parity_units. P >= N + 2 * K)
 
   - unit_size [value type: number]
       Size of each stripe unit. Optional parameter. Default value is
@@ -168,7 +172,7 @@
    <B> Read/Write: </B>
 
    c2t1fs currently supports only full stripe IO
-   i.e. iosize = nr_data_units * stripe_unit_size.
+   i.e. (iosize % (nr_data_units * stripe_unit_size) == 0)
 
    read-write operations on file are not synchronised.
 
@@ -192,8 +196,6 @@ enum {
 	C2T1FS_MAX_NR_RPC_IN_FLIGHT     = 100,
 	C2T1FS_DEFAULT_NR_DATA_UNITS    = 1,
 	C2T1FS_DEFAULT_NR_PARITY_UNITS  = 1,
-	C2T1FS_DEFAULT_POOL_WIDTH       = C2T1FS_DEFAULT_NR_DATA_UNITS +
-					    2 * C2T1FS_DEFAULT_NR_PARITY_UNITS,
 	C2T1FS_DEFAULT_STRIPE_UNIT_SIZE = PAGE_CACHE_SIZE,
 	C2T1FS_MAX_NR_CONTAINERS        = 1024,
 	C2T1FS_COB_ID_STRLEN		= 34,
@@ -202,16 +204,16 @@ enum {
 /** Anything that is global to c2t1fs module goes in this singleton structure.
     There is only one, global, instance of this type. */
 struct c2t1fs_globals {
-	struct c2_net_xprt      *g_xprt;
+	struct c2_net_xprt        *g_xprt;
 	/** local endpoint address */
-	char                    *g_laddr;
-	char                    *g_db_name;
-	struct c2_cob_domain_id  g_cob_dom_id;
-
-	struct c2_net_domain     g_ndom;
-	struct c2_rpc_machine    g_rpc_machine;
-	struct c2_cob_domain     g_cob_dom;
-	struct c2_dbenv          g_dbenv;
+	char                     *g_laddr;
+	char                     *g_db_name;
+	struct c2_cob_domain_id   g_cob_dom_id;
+	struct c2_net_domain      g_ndom;
+	struct c2_rpc_machine     g_rpc_machine;
+	struct c2_cob_domain      g_cob_dom;
+	struct c2_dbenv           g_dbenv;
+	struct c2_net_buffer_pool g_buffer_pool;
 	struct c2_layout_domain  g_layout_dom;
 };
 

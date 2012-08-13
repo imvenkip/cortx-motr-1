@@ -47,15 +47,14 @@ static void net_srv_loop(struct sim *s, struct sim_thread *t, void *arg)
 	unsigned sect       = srv->ns_el->e_dev->sd_conf->sc_sector_size;
 	unsigned trid;
 
-	for (trid = 0; trid < srv->ns_nr_threads; ++trid) {
-		if (t == &srv->ns_thread[trid])
-			break;
-	}
+	trid = t - srv->ns_thread;
 	C2_ASSERT(trid < srv->ns_nr_threads);
 
 	while (1) {
 		unsigned long long count;
 		unsigned long long offset;
+		unsigned dev;
+		unsigned long obj;
 
 		while (rpc_tlist_is_empty(&srv->ns_queue)) {
 			sim_chan_wait(&srv->ns_incoming, t);
@@ -67,11 +66,15 @@ static void net_srv_loop(struct sim *s, struct sim_thread *t, void *arg)
 		rpc = rpc_tlist_head(&srv->ns_queue);
 		rpc_tlist_del(rpc);
 		count = rpc->nr_todo;
-		offset = srv->ns_file_size * rpc->nr_fid + rpc->nr_offset;
+		dev = rpc->nr_id.si_bits.u_hi % srv->ns_nr_devices;
+		obj = rpc->nr_id.si_bits.u_lo;
+		offset = srv->ns_file_size * obj + rpc->nr_offset;
 
-		sim_log(s, SLL_TRACE, "S%2i/%2i: %6lu %10llu %8lu %10llu\n",
-			trid, srv->ns_active,
-			rpc->nr_fid, rpc->nr_offset, rpc->nr_todo, offset);
+		sim_log(s, SLL_TRACE, "S#%s %2i/%2i: [%lu/%u:%lu] "
+			"%10llu %8lu %10llu\n",
+			srv->ns_name, trid, srv->ns_active,
+			rpc->nr_id.si_bits.u_hi, dev, obj,
+			rpc->nr_offset, rpc->nr_todo, offset);
 		rpc->nr_srv_thread = t;
 		/* delay before bulk */
 		sim_sleep(t, sim_rnd(srv->ns_pre_bulk_min,
@@ -80,7 +83,8 @@ static void net_srv_loop(struct sim *s, struct sim_thread *t, void *arg)
 		/* wait for bulk completion */
 		sim_chan_wait(&rpc->nr_bulk_wait, t);
 		/* IO delay after bulk */
-		elevator_io(srv->ns_el, SRT_WRITE, offset / sect, count / sect);
+		elevator_io(&srv->ns_el[dev], SRT_WRITE,
+			    offset / sect, count / sect);
 		srv->ns_active--;
 	}
 }
@@ -100,9 +104,9 @@ static int net_srv_threads_start(struct sim_callout *call)
 void net_srv_init(struct sim *s, struct net_srv *srv)
 {
 	rpc_tlist_init(&srv->ns_queue);
-	sim_chan_init(&srv->ns_incoming, "srv::incoming");
-	srv->ns_thread = sim_alloc(srv->ns_nr_threads *
-				   sizeof srv->ns_thread[0]);
+	sim_chan_init(&srv->ns_incoming, "srv#%s::incoming", srv->ns_name);
+	srv->ns_thread = sim_alloc(srv->ns_nr_threads*sizeof srv->ns_thread[0]);
+	srv->ns_el = sim_alloc(srv->ns_nr_devices * sizeof srv->ns_el[0]);
 	sim_timer_add(s, 0, net_srv_threads_start, srv);
 }
 
@@ -115,8 +119,11 @@ void net_srv_fini(struct net_srv *srv)
 	sim_chan_broadcast(&srv->ns_incoming);
 
 	if (srv->ns_thread != NULL) {
-		for (i = 0; i < srv->ns_nr_threads; ++i)
+		for (i = 0; i < srv->ns_nr_threads; ++i) {
+			/* drain events added during finalisation. */
+			sim_run(srv->ns_thread[i].st_sim);
 			sim_thread_fini(&srv->ns_thread[i]);
+		}
 		sim_free(srv->ns_thread);
 	}
 	sim_chan_fini(&srv->ns_incoming);
@@ -137,12 +144,12 @@ void net_fini(struct net_conf *net)
 }
 
 void net_rpc_init(struct net_rpc *rpc, struct net_conf *conf,
-		  struct net_srv *srv, unsigned long fid,
+		  struct net_srv *srv, struct c2_stob_id *id,
 		  unsigned long long offset, unsigned long nob)
 {
 	rpc->nr_conf   = conf;
 	rpc->nr_srv    = srv;
-	rpc->nr_fid    = fid;
+	rpc->nr_id     = *id;
 	rpc->nr_offset = offset;
 	rpc->nr_todo   = nob;
 	rpc_tlink_init(rpc);
@@ -213,6 +220,19 @@ void net_rpc_bulk(struct sim_thread *t, struct net_rpc *rpc)
 	net_tx(t, n, rpc->nr_todo, tx_min, tx_max);
 	rpc->nr_todo = 0;
 	sim_chan_signal(&rpc->nr_bulk_wait);
+}
+
+void net_rpc_process(struct sim_thread *t,
+		     struct net_conf *net, struct net_srv *srv,
+		     struct c2_stob_id *id, unsigned long long offset,
+		     unsigned long count)
+{
+	struct net_rpc rpc;
+
+	net_rpc_init(&rpc, net, srv, id, offset, count);
+	net_rpc_send(t, &rpc);
+	net_rpc_bulk(t, &rpc);
+	net_rpc_fini(&rpc);
 }
 
 /** @} end of desim group */

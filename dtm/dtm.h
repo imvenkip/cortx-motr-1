@@ -18,6 +18,8 @@
  * Original creation date: 04/01/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_DTM_DTM_H__
 #define __COLIBRI_DTM_DTM_H__
 

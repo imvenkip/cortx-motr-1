@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -195,8 +195,6 @@ out:
 
 static bool address_is_page_aligned(unsigned long addr)
 {
-	C2_ENTRY();
-
 	C2_LOG("addr %lx mask %lx", addr, PAGE_CACHE_SIZE - 1);
 	return (addr & (PAGE_CACHE_SIZE - 1)) == 0;
 }
@@ -271,9 +269,9 @@ static int c2t1fs_pin_memory_area(char          *buf,
 		goto out;
 	}
 
-	C2_LOG("addr %lu off %d nr_pages %d", addr, off, nr_pages);
+	C2_LOG("addr 0x%lx off %d nr_pages %d", addr, off, nr_pages);
 
-	if (access_ok(rw == READ, addr, count)) {
+	if (current->mm != NULL && access_ok(rw == READ, addr, count)) {
 
 		/* addr points in user space */
 		down_read(&current->mm->mmap_sem);
@@ -404,10 +402,7 @@ struct rw_desc {
 	/** fid of component object */
 	struct c2_fid          rd_fid;
 
-	/** offset within component object */
-	loff_t                 rd_offset;
-
-	/** number of bytes to [read from|write to] rd_offset */
+	/** number of bytes to [read from|write to] */
 	size_t                 rd_count;
 
 	/** List of c2t1fs_buf objects hanging off cb_link */
@@ -430,6 +425,9 @@ struct c2t1fs_buf {
 	    and source for write operation */
 	struct c2_buf             cb_buf;
 
+	/** Offset within stob */
+	c2_bindex_t               cb_off;
+
 	/** type of contents in the cb_buf data, parity or spare */
 	enum c2_pdclust_unit_type cb_type;
 
@@ -445,32 +443,28 @@ C2_TL_DESCR_DEFINE(bufs, "buf list", static, struct c2t1fs_buf, cb_link,
 
 C2_TL_DEFINE(bufs, static, struct c2t1fs_buf);
 
-static void c2t1fs_buf_init(struct c2t1fs_buf *buf, char *addr, size_t len,
-			enum c2_pdclust_unit_type unit_type)
+static void c2t1fs_buf_init(struct c2t1fs_buf *buf,
+			    char              *addr,
+			    size_t             len,
+			    c2_bindex_t        off,
+			    enum c2_pdclust_unit_type unit_type)
 {
-	C2_ENTRY();
-
 	C2_LOG("buf %p addr %p len %lu", buf, addr, (unsigned long)len);
 
 	c2_buf_init(&buf->cb_buf, addr, len);
 	bufs_tlink_init(buf);
-	buf->cb_type = unit_type;
+	buf->cb_off   = off;
+	buf->cb_type  = unit_type;
 	buf->cb_magic = MAGIC_C2T1BUF;
-
-	C2_LEAVE();
 }
 
 static void c2t1fs_buf_fini(struct c2t1fs_buf *buf)
 {
-	C2_ENTRY();
-
 	if (buf->cb_type == C2_PUT_PARITY || buf->cb_type == C2_PUT_SPARE)
 		c2_free(buf->cb_buf.b_addr);
 
 	bufs_tlink_fini(buf);
 	buf->cb_magic = 0;
-
-	C2_LEAVE();
 }
 
 static struct rw_desc * rw_desc_get(struct c2_tl        *list,
@@ -478,9 +472,8 @@ static struct rw_desc * rw_desc_get(struct c2_tl        *list,
 {
 	struct rw_desc *rw_desc;
 
-	C2_ENTRY();
-	C2_LOG("fid [%lu:%lu]", (unsigned long)fid->f_container,
-				(unsigned long)fid->f_key);
+	C2_ENTRY("fid [%lu:%lu]", (unsigned long)fid->f_container,
+	                          (unsigned long)fid->f_key);
 
 	c2_tl_for(rwd, list, rw_desc) {
 
@@ -494,7 +487,6 @@ static struct rw_desc * rw_desc_get(struct c2_tl        *list,
 		goto out;
 
 	rw_desc->rd_fid     = *fid;
-	rw_desc->rd_offset  = C2_BSIGNED_MAX;
 	rw_desc->rd_count   = 0;
 	rw_desc->rd_session = NULL;
 	rw_desc->rd_magic   = MAGIC_RW_DESC;
@@ -528,9 +520,10 @@ static void rw_desc_fini(struct rw_desc *rw_desc)
 	C2_LEAVE();
 }
 
-static int rw_desc_add(struct rw_desc    *rw_desc,
+static int rw_desc_add(struct rw_desc           *rw_desc,
 		       char                     *addr,
 		       size_t                    len,
+		       c2_bindex_t               off,
 		       enum c2_pdclust_unit_type type)
 {
 	struct c2t1fs_buf *buf;
@@ -542,7 +535,7 @@ static int rw_desc_add(struct rw_desc    *rw_desc,
 		C2_LEAVE("rc: %d", -ENOMEM);
 		return -ENOMEM;
 	}
-	c2t1fs_buf_init(buf, addr, len, type);
+	c2t1fs_buf_init(buf, addr, len, off, type);
 
 	bufs_tlist_add_tail(&rw_desc->rd_buf_list, buf);
 
@@ -648,8 +641,6 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 				rc = -ENOMEM;
 				goto cleanup;
 			}
-			rw_desc->rd_offset  = min_check(rw_desc->rd_offset,
-							pos);
 			rw_desc->rd_count  += unit_size;
 			rw_desc->rd_session = c2t1fs_container_id_to_session(
 						     csb, tgt_fid.f_container);
@@ -658,7 +649,8 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 			case C2_PUT_DATA:
 				/* add data buffer to rw_desc */
 				rc = rw_desc_add(rw_desc, buf + offset_in_buf,
-						     unit_size, C2_PUT_DATA);
+						     unit_size, pos,
+						     C2_PUT_DATA);
 				if (rc != 0)
 					goto cleanup;
 
@@ -679,7 +671,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 				  address_is_page_aligned((unsigned long)ptr));
 
 				rc = rw_desc_add(rw_desc, ptr, unit_size,
-							C2_PUT_PARITY);
+							pos, C2_PUT_PARITY);
 				if (rc != 0) {
 					c2_free(ptr);
 					goto cleanup;
@@ -749,7 +741,8 @@ static struct page *addr_to_page(void *addr)
 	ul_addr = (unsigned long)addr;
 	C2_ASSERT(address_is_page_aligned(ul_addr));
 
-	if (access_ok(VERIFY_READ, addr, PAGE_CACHE_SIZE)) {
+	if (current->mm != NULL &&
+	    access_ok(VERIFY_READ, addr, PAGE_CACHE_SIZE)) {
 
 		/* addr points in user space */
 		down_read(&current->mm->mmap_sem);
@@ -892,12 +885,10 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 			(int)bufs_tlist_length(&rw_desc->rd_buf_list),
 			remaining_segments);
 
+	count = 0;
+	seg   = 0;
+
 	ndom            = SESSION_TO_NDOM(rw_desc->rd_session);
-
-	offset_in_stob  = rw_desc->rd_offset;
-	count           = 0;
-	seg             = 0;
-
 	rbulk           = &iofop->if_rbulk;
 
 	rc = add_rpc_buffer();
@@ -905,7 +896,8 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 		goto buflist_empty;
 
 	c2_tl_for(bufs, &rw_desc->rd_buf_list, cbuf) {
-		addr = cbuf->cb_buf.b_addr;
+		addr            = cbuf->cb_buf.b_addr;
+		offset_in_stob  = cbuf->cb_off;
 
 		/* See comments earlier in this function, to understand
 		   following assertion. */
@@ -1035,10 +1027,9 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 
 	c2_tl_for(rwd, rw_desc_list, rw_desc) {
 
-		C2_LOG("fid: [%lu:%lu] offset: %lu count: %lu",
+		C2_LOG("fid: [%lu:%lu] count: %lu",
 				(unsigned long)rw_desc->rd_fid.f_container,
 				(unsigned long)rw_desc->rd_fid.f_key,
-				(unsigned long)rw_desc->rd_offset,
 				(unsigned long)rw_desc->rd_count);
 
 		C2_LOG("Buf list");

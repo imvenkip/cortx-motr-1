@@ -19,6 +19,8 @@
  * Original creation date: 4/04/2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_NET_LNET_TYPES_H__
 #define __COLIBRI_NET_LNET_CORE_TYPES_H__
 
@@ -201,7 +203,7 @@ struct nlx_core_buffer_event {
 	c2_bcount_t                  cbe_length;
 
 	/** Offset of start of the data in the buffer. (Receive only) */
-	c2_bcount_t                  cbe_offset;
+	c2_bindex_t                  cbe_offset;
 
 	/** Address of the other end point.  (unsolicited Receive only)  */
 	struct nlx_core_ep_addr      cbe_sender;

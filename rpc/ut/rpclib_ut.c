@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -40,18 +40,18 @@
 #include "rpc/it/ping_fop_u.h"
 #endif
 #include "rpc/rpclib.h"
+#include "net/lnet/lnet.h"
 
 #include "ut/rpc.h"
 #include "ut/cs_service.h"
 #include "ut/cs_fop_foms.h"
 #include "ut/cs_test_fops_u.h"
 
-
-#define CLIENT_ENDPOINT_ADDR	"127.0.0.1:12345:2"
+#define CLIENT_ENDPOINT_ADDR    "0@lo:12345:34:*"
 #define CLIENT_DB_NAME		"rpclib_ut_client.db"
 
-#define SERVER_ENDPOINT_ADDR	"127.0.0.1:12345:1"
-#define SERVER_ENDPOINT		"bulk-sunrpc:" SERVER_ENDPOINT_ADDR
+#define SERVER_ENDPOINT_ADDR	"0@lo:12345:34:1"
+#define SERVER_ENDPOINT		"lnet:" SERVER_ENDPOINT_ADDR
 #define SERVER_DB_FILE_NAME	"rpclib_ut_server.db"
 #define SERVER_STOB_FILE_NAME	"rpclib_ut_server.stob"
 #define SERVER_LOG_FILE_NAME	"rpclib_ut_server.log"
@@ -63,24 +63,23 @@ enum {
 	CONNECT_TIMEOUT		= 5,
 };
 
-extern struct c2_net_xprt c2_net_bulk_sunrpc_xprt;
-
-struct c2_net_xprt    *xprt = &c2_net_bulk_sunrpc_xprt;
-struct c2_net_domain  client_net_dom = { };
-struct c2_dbenv       client_dbenv;
-struct c2_cob_domain  client_cob_dom;
+struct c2_net_xprt    *xprt = &c2_net_lnet_xprt;
+struct c2_net_domain   client_net_dom = { };
+struct c2_dbenv        client_dbenv;
+struct c2_cob_domain   client_cob_dom;
 
 struct c2_rpc_client_ctx cctx = {
-	.rcx_net_dom            = &client_net_dom,
-	.rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
-	.rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
-	.rcx_db_name            = CLIENT_DB_NAME,
-	.rcx_dbenv              = &client_dbenv,
-	.rcx_cob_dom_id         = CLIENT_COB_DOM_ID,
-	.rcx_cob_dom            = &client_cob_dom,
-	.rcx_nr_slots           = SESSION_SLOTS,
-	.rcx_timeout_s          = CONNECT_TIMEOUT,
-	.rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
+	.rcx_net_dom		   = &client_net_dom,
+	.rcx_local_addr            = CLIENT_ENDPOINT_ADDR,
+	.rcx_remote_addr           = SERVER_ENDPOINT_ADDR,
+	.rcx_db_name		   = CLIENT_DB_NAME,
+	.rcx_dbenv		   = &client_dbenv,
+	.rcx_cob_dom_id		   = CLIENT_COB_DOM_ID,
+	.rcx_cob_dom		   = &client_cob_dom,
+	.rcx_nr_slots		   = SESSION_SLOTS,
+	.rcx_timeout_s		   = CONNECT_TIMEOUT,
+	.rcx_max_rpcs_in_flight	   = MAX_RPCS_IN_FLIGHT,
+	.rcx_recv_queue_min_length = C2_NET_TM_RECV_QUEUE_DEF_LEN,
 };
 
 char *server_argv[] = {
@@ -94,7 +93,7 @@ struct c2_rpc_server_ctx sctx = {
 	.rsx_xprts_nr         = 1,
 	.rsx_argv             = server_argv,
 	.rsx_argc             = ARRAY_SIZE(server_argv),
-	.rsx_service_types    = cs_default_stypes,
+	.rsx_service_types    = c2_cs_default_stypes,
 	.rsx_service_types_nr = 2,
 	.rsx_log_file_name    = SERVER_LOG_FILE_NAME,
 };
@@ -182,7 +181,13 @@ out:
 
 static void test_rpclib(void)
 {
-	int rc;
+	int                    rc;
+
+	/*
+	 * There is no need to initialize xprt explicitly if client and server
+	 * run within a single process, because in this case transport is
+	 * initialized by c2_rpc_server_start().
+	 */
 
 	rc = c2_rpc_server_start(&sctx);
 	C2_UT_ASSERT(rc == 0);

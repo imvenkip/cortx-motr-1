@@ -19,6 +19,8 @@
  * Original creation date: 06/19/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_ADDB_ADDB_H__
 #define __COLIBRI_ADDB_ADDB_H__
 
@@ -214,10 +216,8 @@ struct c2_addb_ev_ops {
    To avoid event ID conflict, all event ID should be defined here.
 */
 enum c2_addb_event_id {
-	C2_ADDB_EVENT_USUNRPC_REQ           = 0x1ULL,
-	C2_ADDB_EVENT_USUNRPC_OPNOTSURPPORT = 0x2ULL,
-	C2_ADDB_EVENT_OOM                   = 0x3ULL,
-	C2_ADDB_EVENT_FUNC_FAIL             = 0x4ULL,
+	C2_ADDB_EVENT_OOM                   = 0x1ULL,
+	C2_ADDB_EVENT_FUNC_FAIL             = 0x2ULL,
 
 	C2_ADDB_EVENT_NET_SEND              = 0x10ULL,
 	C2_ADDB_EVENT_NET_CALL              = 0x11ULL,

@@ -38,7 +38,7 @@
 #include "lib/tlist.h"
 #include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
 #include "fop/fop_format_def.h"
-#include "rpc/rpc_base.h"
+#include "rpc/item.h"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpc2.h"
 #include "fop/fop_item_type.h"
@@ -52,8 +52,8 @@
 extern struct c2_fop_type_format c2_net_buf_desc_tfmt;
 extern struct c2_fop_type_format c2_addb_record_tfmt;
 
-extern struct c2_fom_type cd_fom_type;
-extern struct c2_fom_type cc_fom_type;
+extern struct c2_fom_type cob_delete_fomt;
+extern struct c2_fom_type cob_create_fomt;
 
 #include "ioservice/io_fops.ff"
 
@@ -119,7 +119,6 @@ C2_EXPORTED(c2_fop_cob_readv_fopt);
 /* Used for IO REQUEST items only. */
 const struct c2_rpc_item_ops io_req_rpc_item_ops = {
 	.rio_sent	= NULL,
-	.rio_added	= NULL,
 	.rio_replied	= io_item_replied,
 	.rio_free	= io_item_free,
 };
@@ -141,7 +140,6 @@ const struct c2_fop_type_ops io_fop_rwv_ops = {
 /* Used for cob_create and cob_delete fops. */
 const struct c2_rpc_item_ops cob_req_rpc_item_ops = {
 	.rio_sent        = NULL,
-	.rio_added       = NULL,
 	.rio_free        = cob_rpcitem_free,
 };
 
@@ -195,8 +193,8 @@ C2_FOP_TYPE_DECLARE_OPS(c2_fop_cob_op_reply, "Cob create or delete reply",
 static void cob_fom_type_attach(void)
 {
 #ifndef __KERNEL__
-	c2_fop_cob_create_fopt.ft_fom_type = cc_fom_type;
-	c2_fop_cob_delete_fopt.ft_fom_type = cd_fom_type;
+	c2_fop_cob_create_fopt.ft_fom_type = cob_create_fomt;
+	c2_fop_cob_delete_fopt.ft_fom_type = cob_delete_fomt;
 #endif
 }
 
@@ -221,8 +219,8 @@ int c2_ioservice_fop_init(void)
 				ARRAY_SIZE(ioservice_fops));
 
 #ifndef __KERNEL__
-        c2_fop_cob_readv_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
-        c2_fop_cob_writev_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
+        c2_fop_cob_readv_fopt.ft_fom_type = c2_io_fom_cob_rw_fomt;
+        c2_fop_cob_writev_fopt.ft_fom_type = c2_io_fom_cob_rw_fomt;
 #endif
 
 	cob_fom_type_attach();
@@ -831,14 +829,6 @@ static void io_fop_segments_coalesce(const struct c2_0vec *iovec,
 		ioseg_get(iovec, i, &seg);
 		io_fop_seg_coalesce(&seg, aggr_set);
 	}
-}
-
-static inline struct c2_net_transfer_mc *io_fop_tm_get(
-		const struct c2_fop *fop)
-{
-	C2_PRE(fop != NULL);
-
-	return &fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm;
 }
 
 static inline struct c2_net_domain *io_fop_netdom_get(const struct c2_fop *fop)

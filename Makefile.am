@@ -20,7 +20,7 @@ SUBDIRS_LIBS = \
                addb \
                balloc \
                c2t1fs/linux_kernel \
-               capa \
+	       capa \
                cfg \
                cob \
 	       console \
@@ -45,9 +45,9 @@ SUBDIR_IT = rpc/it
 SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut fol/ut \
 	    sns/ut desim/ut cob/ut console/ut colibri/ut net/ut \
 	    net/bulk_emulation/ut net/lnet/ut udb/ut capa/ut ioservice/ut \
-	    reqh/ut rpc/ut sm/ut xcode/ut yaml2db/ut
+	    reqh/ut rpc/ut sm/ut xcode/ut yaml2db/ut fop/ut/long_lock
 SUBDIR_KERNEL = build_kernel_modules
-SUBDIR_ST = console/st net/st net/bulk_emulation/st net/lnet/st yaml2db/st
+SUBDIR_ST = console/st net/bulk_emulation/st net/lnet/st yaml2db/st
 
 SUBDIR_UB =
 

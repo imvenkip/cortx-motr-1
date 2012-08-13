@@ -5,8 +5,8 @@
 # commands(that use c2-list-print) from this file.
 #
 
-printf "Loading gdb commands for Colibri\n"
-printf "NOTE: Do not forget to load gdbinit.py\n"
+printf "Loading gdb commands for Colibri...\n"
+printf "NOTE: If not already done, DO load gdbinit.py\n"
 
 define __visit_ft
 	set $ft = (struct c2_fop_type *)$arg0
@@ -37,4 +37,12 @@ document c2-rpc-conn-print-sessions
 	Prints list of sessions within connection
 
 	Usage: c2-rpc-conn-print-sessions &conn
+end
+
+define frm-item
+	set $item = (struct c2_rpc_item *)$arg0
+	printf "item: %p deadline: %lu prio: %u\n", $item, $item->ri_deadline, $item->ri_prio
+end
+define c2-rpc-frm-itemq-print
+	c2-list-print $arg0 struct c2_rpc_item ri_iq_link frm-item
 end

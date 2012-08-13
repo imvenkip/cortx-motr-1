@@ -18,6 +18,8 @@
  * Original creation date: 04/3/2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LNET_DRV_UT_H__
 #define __COLIBRI_LNET_DRV_UT_H__
 

@@ -1,3 +1,5 @@
+include $(top_srcdir)/Makefile.xc
+
 SUBDIRS              = user_space
 
 libc2dir             = $(includedir)/colibri/lib
@@ -59,6 +61,7 @@ libc2_la_SOURCES     = \
                        ext.h \
                        finject.c \
                        finject.h \
+		       finject_internal.h \
                        getopts.c \
                        getopts.h \
                        list.c \
@@ -100,12 +103,14 @@ libc2_la_SOURCES     = \
                        user_space/trace.h \
                        user_space/types.h \
                        user_space/user_x86_64_atomic.h \
+		       user_space/__sync_atomic.h \
                        user_space/uthread.c \
                        user_space/utime.c \
                        ut.c \
                        ut.h \
                        vec.c \
-                       vec.h
+                       vec.h \
+                       vec_xc.c
 
 libc2_la_LDFLAGS       = @PTHREAD_LIBS@ -lrt
 EXTRA_DIST             = \
@@ -133,3 +138,5 @@ EXTRA_DIST             = \
                          linux_kernel/ut.c \
                          linux_kernel/main.c \
                          linux_kernel/types.h
+
+clean-local: clean-xc

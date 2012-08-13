@@ -46,7 +46,7 @@ int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 #include "rpc/rpc_opcodes.h"
 
 static struct c2_fop_type_ops addb_ops = {
-	.fto_execute = c2_addb_handler,
+	.fto_execute = NULL,
 };
 
 C2_FOP_TYPE_DECLARE(c2_addb_record, "addb", &addb_ops,
@@ -98,66 +98,6 @@ struct c2_addb_inval_body {
 struct c2_addb_trace_body {
 	char     msg[0];
 };
-
-#ifndef __KERNEL__
-static int c2_addb_enable_dump = 0;
-
-static void c2_addb_record_dump(const struct c2_addb_record *rec)
-{
-	const struct c2_addb_record_header *header = &rec->ar_header;
-
-	if (c2_addb_enable_dump == 0)
-		return;
-
-	printf("addb record |- magic1    = %llX\n"
-	       "            |- version   = %lu\n"
-	       "            |- len       = %lu\n"
-	       "            |- event_id  = %llu\n"
-	       "            |- timestamp = %llx\n"
-	       "            |- magic2    = %llX\n"
-	       "            |- opaque data length = %lu\n",
-	       (unsigned long long)header->arh_magic1,
-	       (unsigned long)     header->arh_version,
-	       (unsigned long)     header->arh_len,
-	       (unsigned long long)header->arh_event_id,
-	       (unsigned long long)header->arh_timestamp,
-	       (unsigned long long)header->arh_magic2,
-	       (unsigned long)     rec->ar_data.cmb_count);
-
-	switch (header->arh_event_id) {
-	case C2_ADDB_EVENT_FUNC_FAIL: {
-		const struct c2_addb_func_fail_body *body;
-		body = (struct c2_addb_func_fail_body*) rec->ar_data.cmb_value;
-
-		printf("++func-fail++> rc = %d, msg = %s\n", body->rc, body->msg);
-		break;
-		}
-	default:
-		break;
-	}
-}
-
-int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
-{
-	struct c2_addb_record   *in;
-	struct c2_addb_reply    *ex;
-	struct c2_fop           *reply;
-
-	in = c2_fop_data(fop);
-	/* do something with the request, e.g. store it in stob, or in db */
-	c2_addb_record_dump(in);
-
-	/* prepare the reply */
-	reply = c2_fop_alloc(&c2_addb_reply_fopt, NULL);
-	if (reply != NULL) {
-		ex = c2_fop_data(reply);
-		ex->ar_rc = 0;
-	}
-
-	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
-	return 1;
-}
-#endif
 
 int c2_addb_record_header_pack(struct c2_addb_dp *dp,
 			       struct c2_addb_record_header *header,

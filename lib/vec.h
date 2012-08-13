@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,11 +18,14 @@
  * Original creation date: 05/12/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LIB_VEC_H__
 #define __COLIBRI_LIB_VEC_H__
 
 #include "lib/types.h"
 #include "lib/buf.h"
+#include "xcode/xcode_attr.h"
 
 #ifdef __KERNEL__
 #include "lib/linux_kernel/vec.h"
@@ -44,7 +47,7 @@ struct c2_vec {
 	uint32_t     v_nr;
 	/** array of segment counts */
 	c2_bcount_t *v_count;
-};
+} C2_XCA_RECORD;
 
 /** Returns total count of vector */
 c2_bcount_t c2_vec_count(const struct c2_vec *vec);
@@ -218,6 +221,13 @@ void  c2_bufvec_cursor_init(struct c2_bufvec_cursor *cur,
    @return false otherwise
  */
 bool c2_bufvec_cursor_move(struct c2_bufvec_cursor *cur, c2_bcount_t count);
+
+/**
+   Advances the cursor with some count such that cursor will be aligned to
+   "alignment".
+   Return convention is same as c2_bufvec_cursor_move().
+ */
+bool c2_bufvec_cursor_align(struct c2_bufvec_cursor *cur, uint64_t alignment);
 
 /**
    Return number of bytes that the cursor have to be moved to reach the next

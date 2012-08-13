@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -20,6 +20,8 @@
 
 /* Declarations of functions that are private to rpc-layer */
 
+#pragma once
+
 #ifndef _COLIBRI_RPC_SESSION_INT_H
 #define _COLIBRI_RPC_SESSION_INT_H
 
@@ -34,6 +36,7 @@
  */
 
 struct c2_rpc_item_ops;
+struct c2_fop;
 
 /**
    Initialises all the session related fop types
@@ -531,6 +534,8 @@ void c2_rpc_conn_remove_session(struct c2_rpc_session *session);
 bool c2_rpc_item_is_control_msg(const struct c2_rpc_item *item);
 
 bool c2_rpc_session_is_idle(const struct c2_rpc_session *session);
+
+bool c2_rpc_session_bind_item(struct c2_rpc_item *item);
 
 #ifndef __KERNEL__
 int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active,

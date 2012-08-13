@@ -18,6 +18,8 @@
  * Original creation date: 02/21/2012
  */
 
+#pragma once
+
 #ifndef __IOSERVICE_ST_COMMON_H__
 #define __IOSERVICE_ST_COMMON_H__
 
@@ -61,7 +63,7 @@ enum IO_UT_VALUES {
 	IO_RPC_SESSION_SLOTS	= 8,
 	IO_RPC_MAX_IN_FLIGHT	= 32,
 	IO_RPC_CONN_TIMEOUT	= 60,
-	IO_SERVER_ARGC		= 12,
+	IO_SERVER_ARGC		= 16,
 	IO_SERVER_SERVICE_NR	= 1,
 };
 
@@ -102,9 +104,9 @@ struct bulkio_params {
 	struct c2_cob_domain		  bp_ccbdom;
 	struct c2_net_domain		  bp_cnetdom;
 
-	char				 *bp_caddr;
+	const char			 *bp_caddr;
 	char				 *bp_cdbname;
-	char				 *bp_saddr;
+	const char			 *bp_saddr;
 	char				 *bp_slogfile;
 
 	struct c2_rpc_client_ctx	 *bp_cctx;
@@ -124,16 +126,14 @@ struct thrd_arg {
 };
 
 /* Common APIs used by bulk client as well as UT code. */
-int bulkio_client_start(struct bulkio_params *bp, const char *caddr, int cport,
-			const char *saddr, int sport);
+int bulkio_client_start(struct bulkio_params *bp, const char *caddr,
+			const char *saddr);
 
 void bulkio_client_stop(struct c2_rpc_client_ctx *cctx);
 
-int bulkio_server_start(struct bulkio_params *bp, const char *saddr, int port);
+int bulkio_server_start(struct bulkio_params *bp, const char *saddr);
 
 void bulkio_server_stop(struct c2_rpc_server_ctx *sctx);
-
-void bulkio_netep_form(const char *addr, int port, int svc_id, char *out);
 
 void bulkio_params_init(struct bulkio_params *bp);
 

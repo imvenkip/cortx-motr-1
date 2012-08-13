@@ -6,8 +6,12 @@ Detailed designs, ordered alphabetically:
 
 - @subpage c2t1fs "C2T1FS detailed level design specification"
            <!-- c2t1fs/main.c -->
+- @subpage conf
+           <!-- conf/obj.c -->
 - @subpage DLD_conf_schema "DLD for configuration schema"
            <!-- cfg/cfg.h -->
+- @subpage c2_long_lock-dld "FOM Long lock DLD"
+           <!-- fop/fom_long_lock.h -->
 - @subpage Layout-DB "Layout DB DLD"
            <!-- layout/layout_db.c -->
 - @subpage LNetDLD "LNet Transport DLD"
@@ -18,6 +22,8 @@ Detailed designs, ordered alphabetically:
            <!-- rpc/slot.h -->
 - @subpage snsrepair "SNS repair detailed level design"
            <!-- sns/repair.h -->
+- @subpage NetRQProvDLD "Auto-Provisioning of Receive Message Queue Buffers DLD"
+	   <!-- net/tm_provision.c -->
 - @subpage io_bulk_client "IO bulk transfer Detailed Level Design"
            <!-- ioservice/io_fops.c -->
 - @subpage DLD-bulk-server "DLD of Bulk Server"

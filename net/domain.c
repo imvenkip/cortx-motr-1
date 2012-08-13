@@ -55,13 +55,6 @@ int c2_net__domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 	C2_PRE(c2_mutex_is_locked(&c2_net_mutex));
 	C2_PRE(dom->nd_xprt == NULL);
 
-	/* begin deprecated */
-	c2_list_init(&dom->nd_conn);
-	c2_list_init(&dom->nd_service);
-	c2_rwlock_init(&dom->nd_lock);
-        c2_net_domain_stats_init(dom);
-	/* end deprecated */
-
 	c2_mutex_init(&dom->nd_mutex);
 	c2_list_init(&dom->nd_registered_bufs);
 	c2_list_init(&dom->nd_tms);
@@ -69,7 +62,6 @@ int c2_net__domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt)
 	dom->nd_xprt_private = NULL;
 	dom->nd_xprt = xprt;
 	c2_addb_ctx_init(&dom->nd_addb, &c2_net_dom_addb_ctx, &c2_net_addb);
-        dom->nd_pool_colour_counter = 0;
 
 	rc = xprt->nx_ops->xo_dom_init(xprt, dom);
 	if (rc != 0) {
@@ -97,13 +89,6 @@ void c2_net__domain_fini(struct c2_net_domain *dom)
 	c2_list_fini(&dom->nd_registered_bufs);
 
 	c2_mutex_fini(&dom->nd_mutex);
-
-	/* begin deprecated */
-        c2_net_domain_stats_fini(dom);
-	c2_rwlock_fini(&dom->nd_lock);
-	c2_list_fini(&dom->nd_service);
-	c2_list_fini(&dom->nd_conn);
-	/* end deprecated */
 }
 
 #define DOM_GET_PARAM(Fn, Type)				\

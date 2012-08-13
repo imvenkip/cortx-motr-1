@@ -31,6 +31,8 @@
    @{
 */
 
+C2_BASSERT(C2_SEG_SIZE == C2_0VEC_ALIGN);
+
 c2_bcount_t c2_vec_count(const struct c2_vec *vec)
 {
 	c2_bcount_t count;
@@ -175,10 +177,11 @@ C2_EXPORTED(c2_bufvec_free);
 
 void c2_bufvec_free_aligned(struct c2_bufvec *bufvec, unsigned shift)
 {
-	if (bufvec != NULL) {
+	if (shift == 0)
+		c2_bufvec_free(bufvec);
+	else if (bufvec != NULL) {
 		if (bufvec->ov_buf != NULL) {
 			uint32_t i;
-
 			for (i = 0; i < bufvec->ov_vec.v_nr; ++i)
 				c2_free_aligned(bufvec->ov_buf[i],
 					bufvec->ov_vec.v_count[i], shift);
@@ -228,6 +231,21 @@ void *c2_bufvec_cursor_addr(struct c2_bufvec_cursor *cur)
 	return bufvec_cursor_addr(cur);
 }
 C2_EXPORTED(c2_bufvec_cursor_addr);
+
+bool c2_bufvec_cursor_align(struct c2_bufvec_cursor *cur, uint64_t alignment)
+{
+	uint64_t addr;
+	uint64_t count;
+
+	if (c2_bufvec_cursor_move(cur, 0))
+		return true;
+
+	addr = (uint64_t)c2_bufvec_cursor_addr(cur);
+	count = c2_align(addr, alignment) - addr;
+
+	return c2_bufvec_cursor_move(cur, count);
+}
+C2_EXPORTED(c2_bufvec_cursor_align);
 
 c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
 				  struct c2_bufvec_cursor *scur,

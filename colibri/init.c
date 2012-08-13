@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -27,13 +27,11 @@
 
 #ifndef __KERNEL__
 #   include "lib/user_space/thread.h"
-#   include "net/usunrpc/usunrpc.h"
 #   include "desim/sim.h"
 #endif
 
 #include "stob/stob.h"
 #include "net/net.h"
-#include "net/bulk_emulation/sunrpc_xprt.h"
 #include "net/bulk_emulation/mem_xprt.h"
 #include "net/lnet/lnet.h"
 #include "rpc/rpc2.h"
@@ -49,14 +47,14 @@
 #include "fol/fol.h"
 #include "reqh/reqh.h"
 #include "lib/timer.h"
-#include "rpc/rpc_base.h"
+#include "rpc/item.h"
 #include "rpc/session.h"
 #include "rpc/service.h"
+#include "fop/fom_generic.h"
 #include "colibri/init.h"
 
 #ifdef __KERNEL__
 #   include "c2t1fs/linux_kernel/c2t1fs.h"
-#   include "net/ksunrpc/ksunrpc.h"
 #   include "build_kernel_modules/dummy_init_fini.h"
 #endif
 
@@ -65,6 +63,9 @@
 
 extern int  c2_memory_init(void);
 extern void c2_memory_fini(void);
+
+extern int  c2_rpc_module_init(void);
+extern void c2_rpc_module_fini(void);
 
 /** @addtogroup init @{ */
 
@@ -92,29 +93,31 @@ struct init_fini_call subsystem[] = {
 	{ &c2_fols_init,     &c2_fols_fini,     "fol" },
 	{ &c2_layouts_init,  &c2_layouts_fini, "layout" },
 	{ &c2_pools_init,    &c2_pools_fini,   "pool" },
+	/* fops must be initialised before network, because network build fop
+	   type for network descriptors. */
 	{ &c2_fops_init,     &c2_fops_fini,    "fop" },
 	{ &c2_net_init,      &c2_net_fini,     "net" },
 	{ &c2_rpc_base_init, &c2_rpc_base_fini, "rpc-base" },
+	{ &c2_rpc_module_init, &c2_rpc_module_fini, "rpc" },
 	{ &c2_rpc_service_module_init, &c2_rpc_service_module_fini,
 						"rpc-service" },
 	{ &c2_rpc_session_module_init, &c2_rpc_session_module_fini,
 						"rpc-session" },
+	/* fom generic must be after rpc, because it initialises rpc item
+	   type for generic error reply. */
+	{ &c2_fom_generic_init, &c2_fom_generic_fini, "fom-generic" },
 	{ &c2_mem_xprt_init, &c2_mem_xprt_fini, "bulk/mem" },
-	{ &c2_sunrpc_fop_init, &c2_sunrpc_fop_fini, "bulk/sunrpc" },
 	{ &c2_net_lnet_init, &c2_net_lnet_fini, "net/lnet" },
-#ifndef __KERNEL__
-	{ &usunrpc_init,          &usunrpc_fini,          "user/sunrpc"},
-#else
-	{ &c2_ksunrpc_init,       &c2_ksunrpc_fini,       "ksunrpc"},
+#ifdef __KERNEL__
 	{ &c2t1fs_init,           &c2t1fs_fini,           "c2t1fs" },
-#endif
+#endif /* __KERNEL__ */
 	{ &c2_linux_stobs_init, &c2_linux_stobs_fini, "linux-stob" },
 	{ &c2_ad_stobs_init,    &c2_ad_stobs_fini,    "ad-stob" },
 	{ &sim_global_init,  &sim_global_fini,  "desim" },
 	{ &c2_reqhs_init,    &c2_reqhs_fini,    "reqh" },
 #ifndef __KERNEL__
-	{ &c2_ioservice_register, &c2_ioservice_unregister, "ioservice" },
-#endif
+	{ &c2_ios_register, &c2_ios_unregister, "ioservice" },
+#endif /* __KERNEL__ */
 };
 
 static void fini_nr(int i)

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,8 +14,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Carl Braganza <Carl_Braganza@us.xyratex.com>,
- *                  Dave Cohrs <Dave_Cohrs@us.xyratex.com>
+ * Original author: Carl Braganza <Carl_Braganza@xyratex.com>,
+ *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 04/12/2011
  */
 #ifdef HAVE_CONFIG_H
@@ -27,7 +27,6 @@
 #include "lib/memory.h"
 #include "net/net.h"
 #include "net/bulk_mem.h"
-#include "net/bulk_sunrpc.h"
 #include "net/bulk_emulation/st/ping.h"
 
 #define DEF_RESPONSE "active pong"
@@ -805,21 +804,6 @@ int ping_init(struct ping_ctx *ctx)
 	if (rc != 0) {
 		PING_ERR("domain init failed: %d\n", rc);
 		goto fail;
-	}
-
-	if (ctx->pc_sunrpc_ep_delay >= 0 &&
-	    ctx->pc_dom.nd_xprt == &c2_net_bulk_sunrpc_xprt) {
-		ctx->pc_ops->pf("%s: setting EP release delay to %ds\n",
-				ctx->pc_ident, ctx->pc_sunrpc_ep_delay);
-		c2_net_bulk_sunrpc_dom_set_end_point_release_delay
-			(&ctx->pc_dom, ctx->pc_sunrpc_ep_delay);
-	}
-
-	if (ctx->pc_sunrpc_skulker_period > 0) {
-		ctx->pc_ops->pf("%s: setting skulker period to %ds\n",
-				ctx->pc_ident, ctx->pc_sunrpc_skulker_period);
-		c2_net_bulk_sunrpc_dom_set_skulker_period
-			(&ctx->pc_dom, ctx->pc_sunrpc_skulker_period);
 	}
 
 	rc = alloc_buffers(ctx->pc_nr_bufs, ctx->pc_segments, ctx->pc_seg_size,

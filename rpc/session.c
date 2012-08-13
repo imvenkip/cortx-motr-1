@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -45,6 +45,8 @@
 #include "dtm/verno.h"
 #include "rpc/session_fops.h"
 #include "rpc/rpc2.h"
+#include "rpc/packet.h"      /* C2_RPC_PACKET_OW_HEADER_SIZE */
+#include "rpc/formation2.h"
 
 /**
    @addtogroup rpc_session
@@ -127,9 +129,6 @@ static const struct c2_rpc_item_ops session_terminate_item_ops = {
 	.rio_free    = c2_fop_item_free,
 };
 
-extern void frm_item_ready(struct c2_rpc_item *item);
-extern void frm_slot_idle(struct c2_rpc_slot *slot);
-
 /**
    The routine is also called from session_foms.c, hence can't be static
  */
@@ -201,8 +200,7 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 bool c2_rpc_session_is_idle(const struct c2_rpc_session *session)
 {
 	return session->s_nr_active_items == 0 &&
-	       session->s_hold_cnt == 0 &&
-	       c2_list_is_empty(&session->s_unbound_items);
+	       session->s_hold_cnt == 0;
 }
 
 static int nr_active_items_count(const struct c2_rpc_session *session)
@@ -270,6 +268,7 @@ int c2_rpc_session_init_locked(struct c2_rpc_session *session,
 
 	c2_list_link_init(&session->s_link);
 	c2_list_init(&session->s_unbound_items);
+	c2_list_init(&session->s_ready_slots);
 
 	c2_cond_init(&session->s_state_changed);
 
@@ -347,6 +346,7 @@ static void __session_fini(struct c2_rpc_session *session)
 	}
 	c2_list_link_fini(&session->s_link);
 	c2_cond_fini(&session->s_state_changed);
+	c2_list_fini(&session->s_ready_slots);
 	c2_list_fini(&session->s_unbound_items);
 }
 
@@ -825,6 +825,13 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *item)
 	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 }
 
+c2_bcount_t
+c2_rpc_session_get_max_item_size(const struct c2_rpc_session *session)
+{
+	return session->s_conn->c_rpc_machine->rm_min_recv_size -
+		C2_RPC_PACKET_OW_HEADER_SIZE;
+}
+
 void c2_rpc_session_hold_busy(struct c2_rpc_session *session)
 {
 	struct c2_rpc_machine *machine;
@@ -864,6 +871,7 @@ void c2_rpc_session_release(struct c2_rpc_session *session)
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
 }
+
 int c2_rpc_session_cob_lookup(struct c2_cob   *conn_cob,
 			      uint64_t         session_id,
 			      struct c2_cob  **session_cob,
@@ -933,13 +941,43 @@ uint64_t session_id_allocate(void)
 
 static void snd_slot_idle(struct c2_rpc_slot *slot)
 {
-	C2_ASSERT(slot->sl_in_flight == 0);
-	frm_slot_idle(slot);
+	struct c2_rpc_frm *frm;
+
+	C2_PRE(slot != NULL);
+	C2_PRE(slot->sl_session != NULL);
+	C2_PRE(slot->sl_in_flight == 0);
+	C2_PRE(!c2_list_link_is_in(&slot->sl_link));
+
+	c2_list_add_tail(&slot->sl_session->s_ready_slots, &slot->sl_link);
+	frm = &slot->sl_session->s_conn->c_rpcchan->rc_frm;
+	c2_rpc_frm_run_formation(frm);
+}
+
+bool c2_rpc_session_bind_item(struct c2_rpc_item *item)
+{
+	struct c2_rpc_session *session;
+	struct c2_rpc_slot    *slot;
+
+	C2_PRE(item != NULL && item->ri_session != NULL);
+
+	session = item->ri_session;
+
+	if (c2_list_is_empty(&session->s_ready_slots)) {
+		return false;
+	}
+	slot = c2_list_entry(c2_list_first(&session->s_ready_slots),
+			     struct c2_rpc_slot, sl_link);
+	c2_list_del(&slot->sl_link);
+	c2_rpc_slot_item_add_internal(slot, item);
+
+	C2_POST(c2_rpc_item_is_bound(item));
+
+	return true;
 }
 
 static void snd_item_consume(struct c2_rpc_item *item)
 {
-	frm_item_ready(item);
+	c2_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm, item);
 }
 
 static void snd_reply_consume(struct c2_rpc_item *req,
@@ -966,7 +1004,8 @@ static void rcv_item_consume(struct c2_rpc_item *item)
 static void rcv_reply_consume(struct c2_rpc_item *req,
 			      struct c2_rpc_item *reply)
 {
-	frm_item_ready(reply);
+	c2_rpc_frm_enq_item(&req->ri_session->s_conn->c_rpcchan->rc_frm,
+			    reply);
 }
 
 int c2_rpc_rcv_session_establish(struct c2_rpc_session *session)
