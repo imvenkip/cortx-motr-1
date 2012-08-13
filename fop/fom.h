@@ -597,6 +597,7 @@ C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, \
  */
 bool c2_fom_group_is_locked(const struct c2_fom *fom);
 
+/** @} endgroup fom */
 /* __COLIBRI_FOP_FOM_H__ */
 #endif
 

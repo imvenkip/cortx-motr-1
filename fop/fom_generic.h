@@ -24,6 +24,8 @@
 
 #include "fop/fom.h"
 /**
+ * @addtogroup fom
+ * @{
  * "Phases" through which fom execution typically passes.
  *
  * This enumerates standard phases, handled by the generic code independent of
@@ -75,6 +77,7 @@ enum c2_fom_generic_phase {
  * blocking function.
  *
  * @retval C2_FSO_WAIT, if FOM is blocking.
+ *         C2_FSO_AGAIN, if fom operation is successful, transition to next
  */
 int c2_fom_state_transition(struct c2_fom *fom);
 
@@ -100,6 +103,7 @@ static inline struct c2_fom* c2_sm2fom(struct c2_sm *sm)
 	return container_of(sm, struct c2_fom, fo_sm_phase);
 }
 
+/** @} endgroup fom */
 /* __COLIBRI_FOP_FOM_GENERIC_H__ */
 #endif
 
