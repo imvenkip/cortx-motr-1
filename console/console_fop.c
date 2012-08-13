@@ -32,8 +32,7 @@
 #include "lib/errno.h"		/* ENOMEM */
 #include "fop/fop_item_type.h"	/* default fop encode/decode */
 #include "fop/fop_format_def.h" /* console.ff */
-
-
+#include "fop/fom_generic.h"
 #include "console/console_fop.h" /*FOPs defs */
 #include "console/console_fom.h" /*FOMs defs */
 #include "console/console_u.h"	 /* FOP memory layout */
@@ -95,6 +94,7 @@ int c2_console_fop_init(void)
 	if (result == 0)
 		result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
 
+	c2_fom_type_register(&c2_cons_fom_device_type);
 	/* Initialize fom type once */
 	c2_cons_fop_device_fopt.ft_fom_type = c2_cons_fom_device_type;
 

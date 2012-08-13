@@ -30,7 +30,7 @@
 #include "stob/stob.h"
 #include "net/net.h"
 #include "fop/fop.h"
-#include "fop/fom.h"
+#include "fop/fom_generic.h"
 #include "fop/fop_iterator.h"
 #include "dtm/dtm.h"
 #include "fop/fop_format_def.h"
@@ -49,10 +49,9 @@
    @{
  */
 
-/**
- * FOM generic error fop type.
- */
+/** FOM generic error fop type. */
 extern struct c2_fop_type c2_fom_generic_error_rep_fopt;
+extern const struct c2_sm_conf fom_conf;
 
 /**
  * Performs authenticity checks on fop,
@@ -359,7 +358,7 @@ static int fom_timeout(struct c2_sm *mach)
  * are assigned to a state machine descriptor.
  * State name is used to log addb event.
  */
-const struct c2_sm_state_descr generic_phases[C2_FOPH_NR + 2] = {
+const struct c2_sm_state_descr generic_phases[] = {
 	[C2_FOPH_INIT] = {
 		.sd_flags     = C2_SDF_INITIAL,
 		.sd_name      = "SM init",
@@ -589,7 +588,7 @@ const struct c2_sm_state_descr generic_phases[C2_FOPH_NR + 2] = {
 
 const struct c2_sm_conf	generic_conf = {
 	.scf_name      = "FOM standard phases",
-	.scf_nr_states = C2_FOPH_NR + 2,
+	.scf_nr_states = ARRAY_SIZE(generic_phases),
 	.scf_state     = generic_phases
 };
 
@@ -597,9 +596,7 @@ int c2_fom_state_transition(struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
 
-	c2_sm_state_set(&fom->fo_sm_phase, fom->fo_next_phase);
-
-	return C2_FSO_WAIT;
+	return c2_sm_state_set(&fom->fo_sm_phase, fom->fo_next_phase);
 }
 
 void c2_fom_sm_init(struct c2_fom *fom)
@@ -610,10 +607,9 @@ void c2_fom_sm_init(struct c2_fom *fom)
 
 	C2_PRE(fom != NULL);
 
-	if (fom->fo_type->ft_conf == NULL)
-		c2_fom_type_register(fom->fo_type);
+	conf = &fom->fo_type->ft_conf;
+	C2_ASSERT(conf->scf_nr_states != 0);
 
-	conf	     = fom->fo_type->ft_conf;
 	fom_group    = &fom->fo_loc->fl_group;
 	fom_addb_ctx = &fom->fo_loc->fl_dom->fd_addb_ctx;
 
@@ -627,23 +623,19 @@ void c2_fom_sm_init(struct c2_fom *fom)
 
 void c2_fom_type_register(struct c2_fom_type *fom_type)
 {
-	int		   i;
-	struct c2_sm_conf *conf;
+	int i;
 
 	C2_PRE(fom_type != NULL);
 
-	C2_ALLOC_PTR(conf);
-	if (fom_type->ft_nr_phases > C2_FOPH_NR) {
+	if (fom_type->ft_phases_nr > C2_FOPH_NR) {
 		for (i = 0; i < C2_FOPH_NR; i++)
 			fom_type->ft_phases[i] = generic_phases[i];
 
 		C2_ASSERT(fom_type->ft_phases != NULL);
-		conf->scf_nr_states = fom_type->ft_nr_phases;
-		conf->scf_state     = fom_type->ft_phases;
-
-		fom_type->ft_conf = conf;
+		fom_type->ft_conf.scf_state     = fom_type->ft_phases;
+		fom_type->ft_conf.scf_nr_states = fom_type->ft_phases_nr;
 	} else
-		fom_type->ft_conf = &generic_conf;
+		fom_type->ft_conf = generic_conf;
 }
 
 /** @} endgroup fom */

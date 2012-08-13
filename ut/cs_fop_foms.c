@@ -29,14 +29,12 @@
 
 #include "fop/fop.h"
 #include "reqh/reqh.h"
-#include "fop/fom.h"
 #include "fop/fop_iterator.h"
-
+#include "fop/fom_generic.h"        /* c2_fom_state_transition() */
 #include "rpc/rpc2.h"
 #include "rpc/rpclib.h"
 #include "fop/fop_item_type.h"
 #include "xcode/bufvec_xcode.h"
-
 #include "fop/fop_format_def.h"
 
 #include "cs_fop_foms.h"
@@ -99,7 +97,7 @@ C2_FOP_TYPE_DECLARE(cs_ds2_req_fop, "ds2 request", &cs_ds2_req_fop_type_ops,
 C2_FOP_TYPE_DECLARE(cs_ds2_rep_fop, "ds2 reply", &cs_ds2_rep_fop_type_ops,
 		    C2_CS_DS2_REP_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
 
-struct c2_sm_state_descr ds1_fom_states[C2_FOPH_NR + 2] = {
+struct c2_sm_state_descr ds1_fom_phases[] = {
 	[C2_FOPH_DS1_REQ] = {
 		.sd_flags     = 0,
 		.sd_name      = "ds1 request fop",
@@ -111,7 +109,7 @@ struct c2_sm_state_descr ds1_fom_states[C2_FOPH_NR + 2] = {
 	},
 };
 
-struct c2_sm_state_descr ds2_fom_states[C2_FOPH_NR + 2] = {
+struct c2_sm_state_descr ds2_fom_phases[] = {
 	[C2_FOPH_DS2_REQ] = {
 		.sd_flags     = 0,
 		.sd_name      = "ds2 request fop",
@@ -174,9 +172,9 @@ static const struct c2_fom_type_ops cs_ds1_req_fop_fom_type_ops = {
 };
 
 static struct c2_fom_type cs_ds1_req_fop_fom_mopt = {
-	.ft_ops = &cs_ds1_req_fop_fom_type_ops,
-	.ft_nr_phases = C2_FOPH_NR + 2,
-	.ft_phases    = ds1_fom_states,
+	.ft_ops	   = &cs_ds1_req_fop_fom_type_ops,
+	.ft_phases = ds1_fom_phases,
+	.ft_phases_nr = ARRAY_SIZE(ds2_fom_phases),
 };
 
 /*
@@ -187,9 +185,9 @@ static const struct c2_fom_type_ops cs_ds2_req_fop_fom_type_ops = {
 };
 
 static struct c2_fom_type cs_ds2_req_fop_fom_mopt = {
-	.ft_ops = &cs_ds2_req_fop_fom_type_ops,
-	.ft_nr_phases = C2_FOPH_NR + 2,
-	.ft_phases    = ds2_fom_states,
+	.ft_ops	      = &cs_ds2_req_fop_fom_type_ops,
+	.ft_phases    = ds2_fom_phases,
+	.ft_phases_nr = ARRAY_SIZE(ds2_fom_phases),
 };
 
 static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item)
@@ -235,10 +233,10 @@ int c2_cs_ut_ds1_fop_init(void)
          */
 	cs_ds1_fopts[0]->ft_fmt = &cs_ds1_req_fop_tfmt;
 	cs_ds1_fopts[1]->ft_fmt = &cs_ds1_rep_fop_tfmt;
+	c2_fom_type_register(&cs_ds1_req_fop_fom_mopt);
 	cs_ds1_fopts[0]->ft_fom_type = cs_ds1_req_fop_fom_mopt;
 	cs_ds1_fopts[1]->ft_fom_type = cs_ds1_req_fop_fom_mopt;
 
-	c2_fom_type_register(&cs_ds1_req_fop_fom_mopt);
 
         result = c2_fop_type_build_nr(cs_ds1_fopts, ARRAY_SIZE(cs_ds1_fopts));
         if (result != 0)
@@ -266,10 +264,10 @@ int c2_cs_ut_ds2_fop_init(void)
 	 */
 	cs_ds2_fopts[0]->ft_fmt = &cs_ds2_req_fop_tfmt;
 	cs_ds2_fopts[1]->ft_fmt = &cs_ds2_rep_fop_tfmt;
+	c2_fom_type_register(&cs_ds2_req_fop_fom_mopt);
 	cs_ds2_fopts[0]->ft_fom_type = cs_ds2_req_fop_fom_mopt;
 	cs_ds2_fopts[1]->ft_fom_type = cs_ds2_req_fop_fom_mopt;
 
-	c2_fom_type_register(&cs_ds2_req_fop_fom_mopt);
 
         result = c2_fop_type_build_nr(cs_ds2_fopts, ARRAY_SIZE(cs_ds2_fopts));
         if (result != 0)

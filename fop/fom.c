@@ -33,10 +33,10 @@
 #include "lib/cdefs.h" /* ergo */
 
 #include "addb/addb.h"
-#include "fop/fom.h"
 #include "fop/fop.h"
 #include "fop/fom_long_lock.h"
 #include "reqh/reqh.h"
+#include "fop/fom_generic.h"
 #include "sm/sm.h"
 /**
    @addtogroup fom
@@ -119,7 +119,7 @@ bool c2_locality_invariant(const struct c2_fom_locality *loc)
 }
 
 /* Returns fom from state machine c2_fom::fo_sm_state */
-static inline struct c2_fom * sm2fom(const struct c2_sm *sm)
+static inline struct c2_fom* sm2fom(struct c2_sm *sm)
 {
 	C2_PRE(sm != NULL);
 	return container_of(sm, struct c2_fom, fo_sm_state);
@@ -137,7 +137,7 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 		c2_fom_group_is_locked(fom) &&
 		c2_list_link_invariant(&fom->fo_linkage) &&
 
-		C2_IN(state, (C2_FOS_READY, C2_FOS_QUEUE)) == is_in_runq(fom) &&
+		(state == C2_FOS_READY) == is_in_runq(fom) &&
 		(state == C2_FOS_WAITING) == is_in_wail(fom) &&
 		ergo((state == C2_FOS_RUNNING),
 		     !is_in_runq(fom) && !is_in_wail(fom));
@@ -153,11 +153,12 @@ static bool fom_wait_time_is_out(const struct c2_fom_domain *dom,
  * Enqueues fom into locality runq list and increments
  * number of items in runq, c2_fom_locality::fl_runq_nr.
  * This function is invoked when a new fom is submitted for
- * execution.
+ * execution or when a waiting fom is re-scheduled
+ * for processing.
  *
  * @post c2_fom_invariant(fom)
  */
-static int fom_queue(struct c2_sm *sm)
+static int fom_ready(struct c2_sm *sm)
 {
 	struct c2_fom	       *fom  = sm2fom(sm);
 	struct c2_fom_locality *loc;
@@ -170,38 +171,26 @@ static int fom_queue(struct c2_sm *sm)
 	return C2_SM_BREAK;
 }
 
-/**
- * Dequeues fom from locality wait queue then enqueues fom into
- * locality run queue.
- * This function is invoked when a waiting fom is re-scheduled
- * for processing.
- *
- */
-static int fom_ready(struct c2_sm *sm)
+void c2_fom_ready(struct c2_fom *fom)
 {
-	struct c2_fom	       *fom = sm2fom(sm);
-	struct c2_fom_locality *loc;
-
-	loc = fom->fo_loc;
-	c2_list_del(&fom->fo_linkage);
-	C2_CNT_DEC(loc->fl_wail_nr);
-	return fom_queue(sm);
-}
-
-static void queueit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
-{
-	struct c2_fom *fom = container_of(ast, struct c2_fom, fo_cb.fc_ast);
-
 	C2_PRE(c2_fom_invariant(fom));
 
-	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_QUEUE);
+	c2_list_del(&fom->fo_linkage);
+	C2_CNT_DEC(fom->fo_loc->fl_wail_nr);
+
+	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_READY);
 }
 
 static void readyit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 {
 	struct c2_fom *fom = container_of(ast, struct c2_fom, fo_cb.fc_ast);
 
-	C2_PRE(c2_fom_invariant(fom));
+	c2_fom_ready(fom);
+}
+
+static void queueit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
+{
+	struct c2_fom *fom = container_of(ast, struct c2_fom, fo_cb.fc_ast);
 
 	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_READY);
 }
@@ -319,25 +308,27 @@ static int fom_wait(struct c2_sm *sm)
  * function should register the AST callback (by calling
  * c2_fom_callback_arm() or c2_fom_wake_on()) with the channel
  * where the completion event will be signalled. The callback
- * should wake up the fom with c2_fom_wakeup().
+ * should wake up the fom with c2_fom_ready().
  * If the state method returns C2_FSO_WAIT, and fom has not yet
  * finished its execution, then it is put on the locality wait list.
  *
  * @see c2_fom_state_outcome
  * @see c2_fom_wake_on()
  * @see c2_fom_callback_arm()
- * @see c2_fom_wakeup()
+ * @see c2_fom_ready()
  * @pre c2_fom_invariant(fom)
  * @post c2_fom_invariant(fom)
  */
 static int fom_exec(struct c2_sm *sm)
 {
 	struct c2_fom *fom = sm2fom(sm);
+	int	       rc;
 
-	C2_PRE(c2_fom_invariant(fom));
-
-	C2_ASSERT(fom->fo_ops->fo_state(fom) == C2_FSO_WAIT);
-	fom->fo_transitions++;
+	do {
+		C2_ASSERT(c2_fom_invariant(fom));
+		rc = fom->fo_ops->fo_state(fom);
+		fom->fo_transitions++;
+	} while (rc == C2_FSO_AGAIN);
 
 	C2_POST(c2_fom_invariant(fom));
 	return (fom->fo_sm_phase.sm_state == C2_FOPH_FINISH) ? C2_FOS_FINISH :
@@ -782,7 +773,7 @@ void c2_fom_callback_arm(struct c2_fom *fom, struct c2_chan *chan,
 
 static void fom_ready_cb(struct c2_fom_callback *cb)
 {
-	c2_fom_wakeup(cb->fc_fom);
+	c2_fom_ready(cb->fc_fom);
 }
 
 void c2_fom_wait_on(struct c2_fom *fom, struct c2_chan *chan,
@@ -813,7 +804,7 @@ bool c2_fom_callback_cancel(struct c2_fom_callback *cb)
 	return result;
 }
 
-const struct c2_sm_state_descr fom_states[C2_FOS_FINISH + 1] = {
+const struct c2_sm_state_descr fom_states[] = {
 	[C2_FOS_INIT] = {
 		.sd_flags     = C2_SDF_INITIAL,
 		.sd_name      = "SM init",
@@ -821,15 +812,7 @@ const struct c2_sm_state_descr fom_states[C2_FOS_FINISH + 1] = {
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOS_FINISH) |
-				(1 << C2_FOS_QUEUE)
-	},
-	[C2_FOS_QUEUE] = {
-		.sd_flags     = 0,
-		.sd_name      = "fom queue",
-		.sd_in        = &fom_queue,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOS_RUNNING)
+				(1 << C2_FOS_READY)
 	},
 	[C2_FOS_READY] = {
 		.sd_flags     = 0,
@@ -869,12 +852,11 @@ const struct c2_sm_state_descr fom_states[C2_FOS_FINISH + 1] = {
 
 const struct c2_sm_conf	fom_conf = {
 	.scf_name      = "FOM states",
-	.scf_nr_states = C2_FOS_FINISH + 1,
+	.scf_nr_states = ARRAY_SIZE(fom_states),
 	.scf_state     = fom_states
 };
 
 /** @} endgroup fom */
-
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

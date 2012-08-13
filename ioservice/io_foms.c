@@ -34,6 +34,7 @@
 #include "net/buffer_pool.h"
 #include "fop/fop.h"
 #include "fop/fop_format.h"
+#include "fop/fom_generic.h"    /* c2_fom_state_transition() */
 #include "stob/stob.h"
 #include "stob/linux.h"
 #include "fid/fid.h"
@@ -632,7 +633,7 @@ static const struct c2_fom_type_ops type_ops = {
  * I/O Read and Write FOM phases descriptor table.
  * @see DLD-bulk-server-lspec-state
  */
-struct c2_sm_state_descr io_phases[C2_IO_FOPH_NR] = {
+struct c2_sm_state_descr io_phases[] = {
 	[C2_FOPH_IO_FOM_BUFFER_ACQUIRE] = {
 		.sd_flags     = 0,
 		.sd_name      = "Network buffer acquire",
@@ -696,9 +697,9 @@ struct c2_sm_state_descr io_phases[C2_IO_FOPH_NR] = {
  * I/O FOM type operation.
  */
 struct c2_fom_type c2_io_fom_cob_rw_mopt = {
-	.ft_ops       = &type_ops,
-	.ft_nr_phases = C2_IO_FOPH_NR,
+	.ft_ops	      = &type_ops,
 	.ft_phases    = io_phases,
+	.ft_phases_nr = ARRAY_SIZE(io_phases),
 };
 
 static bool c2_io_fom_cob_rw_invariant(const struct c2_io_fom_cob_rw *io)
@@ -772,7 +773,7 @@ static void stobio_complete_cb(struct c2_fom_callback *cb)
 
         C2_CNT_DEC(fom_obj->fcrw_num_stobio_launched);
         if (fom_obj->fcrw_num_stobio_launched == 0)
-                c2_fom_wakeup(fom);
+                c2_fom_ready(fom);
 };
 
 /**

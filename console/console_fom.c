@@ -34,6 +34,7 @@
 #include "console/console_fop.h"
 #include "console/console_mesg.h"
 #include "console/console_u.h"
+#include "fop/fom_generic.h"    /* c2_fom_state_transition() */
 
 /**
    @addtogroup console

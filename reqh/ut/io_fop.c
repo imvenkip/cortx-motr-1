@@ -35,6 +35,7 @@
 #include "reqh/reqh.h"
 #include "fop/fom.h"
 #include "fop/fop_iterator.h"
+#include "fop/fom_generic.h"        /* C2_FOPH_NR */
 #include "stob/stob.h"
 #include "stob/ad.h"
 #include "stob/linux.h"
@@ -114,7 +115,7 @@ static int stob_read(struct c2_sm *sm);
 static int stob_write(struct c2_sm *sm);
 static int stob_io_finished(struct c2_sm *sm);
 
-struct c2_sm_state_descr stob_create_states[C2_FOPH_NR + 2] = {
+struct c2_sm_state_descr stob_create_phases[] = {
 	[C2_FOPH_CREATE_STOB] = {
 		.sd_flags     = 0,
 		.sd_name      = "Create stob",
@@ -126,7 +127,7 @@ struct c2_sm_state_descr stob_create_states[C2_FOPH_NR + 2] = {
 	},
 };
 
-struct c2_sm_state_descr stob_read_states[C2_FOPH_NR + 3] = {
+struct c2_sm_state_descr stob_read_phases[] = {
 	[C2_FOPH_READ_STOB_IO] = {
 		.sd_flags     = 0,
 		.sd_name      = "Read stob",
@@ -146,7 +147,7 @@ struct c2_sm_state_descr stob_read_states[C2_FOPH_NR + 3] = {
 	},
 };
 
-struct c2_sm_state_descr stob_write_states[C2_FOPH_NR + 3] = {
+struct c2_sm_state_descr stob_write_phases[] = {
 	[C2_FOPH_READ_STOB_IO] = {
 		.sd_flags     = 0,
 		.sd_name      = "Write stob",
@@ -233,21 +234,21 @@ static const struct c2_fom_type_ops stob_write_fom_type_ops = {
 };
 
 static struct c2_fom_type stob_create_fom_mopt = {
-	.ft_ops = &stob_create_fom_type_ops,
-	.ft_nr_phases = C2_FOPH_NR + 2,
-	.ft_phases    = stob_create_states,
+	.ft_ops	   = &stob_create_fom_type_ops,
+	.ft_phases = stob_create_phases,
+	.ft_phases_nr = ARRAY_SIZE(stob_create_phases),
 };
 
 static struct c2_fom_type stob_read_fom_mopt = {
-	.ft_ops = &stob_read_fom_type_ops,
-	.ft_nr_phases = C2_FOPH_NR + 3,
-	.ft_phases    = stob_read_states,
+	.ft_ops	      = &stob_read_fom_type_ops,
+	.ft_phases    = stob_read_phases,
+	.ft_phases_nr = ARRAY_SIZE(stob_read_phases),
 };
 
 static struct c2_fom_type stob_write_fom_mopt = {
-	.ft_ops = &stob_write_fom_type_ops,
-	.ft_nr_phases = C2_FOPH_NR + 3,
-	.ft_phases    = stob_write_states,
+	.ft_ops	   = &stob_write_fom_type_ops,
+	.ft_phases = stob_write_phases,
+	.ft_phases_nr = ARRAY_SIZE(stob_write_phases),
 };
 
 static struct c2_fom_type *stob_fom_types[] = {

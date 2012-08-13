@@ -19,6 +19,10 @@
  * Original creation date: 08/08/2012
  */
 
+#ifndef __COLIBRI_FOP_FOM_GENERIC_H__
+#define __COLIBRI_FOP_FOM_GENERIC_H__
+
+#include "fop/fom.h"
 /**
  * "Phases" through which fom execution typically passes.
  *
@@ -89,12 +93,22 @@ void c2_fom_sm_init(struct c2_fom *fom);
  */
 void c2_fom_type_register(struct c2_fom_type *fom_type);
 
-extern const struct c2_sm_conf fom_conf;
-
 /** Returns FOM from state machine c2_fom::fo_sm_phase. */
-static inline struct c2_fom* c2_sm2fom(const struct c2_sm *sm)
+static inline struct c2_fom* c2_sm2fom(struct c2_sm *sm)
 {
 	C2_PRE(sm != NULL);
 	return container_of(sm, struct c2_fom, fo_sm_phase);
 }
 
+/* __COLIBRI_FOP_FOM_GENERIC_H__ */
+#endif
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

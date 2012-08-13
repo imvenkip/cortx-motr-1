@@ -23,6 +23,7 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "fop/fom_generic.h"        /* c2_fom_type_register() */
 #include "lib/ut.h"
 #include "fop/fom_long_lock.h"
 
@@ -82,6 +83,7 @@ static int rdwr_fom_create(struct c2_fom **m)
         C2_UT_ASSERT(fom_obj != NULL);
 
 	fom = &fom_obj->fr_gen;
+	c2_fom_type_register(&rdwr_fom_type);
 	c2_fom_init(fom, &rdwr_fom_type, &fom_rdwr_ops,
 		    (struct c2_fop *) 1, NULL);
 

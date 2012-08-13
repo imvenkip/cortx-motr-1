@@ -25,14 +25,15 @@
 #include "lib/errno.h"
 #include "lib/memory.h"             /* c2_free(), C2_ALLOC_PTR() */
 #include "fid/fid.h"                /* c2_fid */
+#include "fop/fom_generic.h"        /* c2_fom_state_transition() */
 #include "ioservice/io_foms.h"      /* io_fom_cob_rw_fid2stob_map */
 #include "ioservice/io_fops.h"      /* c2_cobfop_common_get */
 #include "ioservice/cob_foms.h"     /* c2_fom_cob_create, c2_fom_cob_delete */
 #include "ioservice/io_fops.h"      /* c2_is_cob_create_fop() */
 #include "ioservice/cobfid_map.h"   /* c2_cobfid_map_get() c2_cobfid_map_put()*/
-#include "reqh/reqh.h"              /* c2_fom_state_transition() */
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
+#include "reqh/reqh.h"
 
 #ifdef __KERNEL__
 #include "ioservice/io_fops_k.h"
@@ -62,7 +63,7 @@ static inline struct c2_fom_cob_op *cob_fom_get(struct c2_fom *fom);
 static int cob_create(struct c2_sm *sm);
 static int cob_delete(struct c2_sm *sm);
 
-struct c2_sm_state_descr cc_fom_states[C2_FOPH_NR + 2] = {
+struct c2_sm_state_descr cc_fom_phases[] = {
 	[C2_FOPH_CC_COB_CREATE] = {
 		.sd_flags     = 0,
 		.sd_name      = "Create cob",
@@ -74,7 +75,7 @@ struct c2_sm_state_descr cc_fom_states[C2_FOPH_NR + 2] = {
 	},
 };
 
-struct c2_sm_state_descr cd_fom_states[C2_FOPH_NR + 2] = {
+struct c2_sm_state_descr cd_fom_phases[] = {
 	[C2_FOPH_CD_COB_DEL] = {
 		.sd_flags     = 0,
 		.sd_name      = "Delete cob",
@@ -113,9 +114,9 @@ static const struct c2_fom_type_ops cob_fom_type_ops = {
 };
 
 struct c2_fom_type cc_fom_type = {
-	.ft_ops = &cob_fom_type_ops,
-	.ft_nr_phases = C2_FOPH_NR + 2,
-	.ft_phases    = cc_fom_states,
+	.ft_ops	      = &cob_fom_type_ops,
+	.ft_phases    = cc_fom_phases,
+	.ft_phases_nr = ARRAY_SIZE(cc_fom_phases),
 };
 
 static const struct c2_addb_loc cd_fom_addb_loc = {
@@ -134,9 +135,9 @@ static const struct c2_fom_ops cd_fom_ops = {
 };
 
 struct c2_fom_type cd_fom_type = {
-	.ft_ops = &cob_fom_type_ops,
-	.ft_nr_phases = C2_FOPH_NR + 2,
-	.ft_phases    = cd_fom_states,
+	.ft_ops	      = &cob_fom_type_ops,
+	.ft_phases    = cd_fom_phases,
+	.ft_phases_nr = ARRAY_SIZE(cd_fom_phases),
 };
 
 static int cob_fom_create(struct c2_fop *fop, struct c2_fom **out)

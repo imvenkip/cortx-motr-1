@@ -104,8 +104,8 @@ static inline struct c2_net_transfer_mc *fop_tm_get(
  */
 static struct c2_fom_type ut_io_fom_cob_rw_type_mopt = {
 	.ft_ops	      = &ut_io_fom_cob_rw_type_ops,
-	.ft_nr_phases = C2_IO_FOPH_NR,
 	.ft_phases    = io_phases,
+	.ft_phases_nr = ARRAY_SIZE(io_phases),
 };
 
 static void bulkio_stob_fom_fini(struct c2_fom *fom)
@@ -1231,6 +1231,7 @@ void bulkio_stob_create(void)
 
 	op = C2_IOSERVICE_WRITEV_OPCODE;
 	C2_ALLOC_ARR(bp->bp_wfops, IO_FIDS_NR);
+	c2_fom_type_register(&bulkio_stob_create_fom_type);
 	for (i = 0; i < IO_FIDS_NR; ++i) {
 		C2_ALLOC_PTR(bp->bp_wfops[i]);
                 rc = c2_io_fop_init(bp->bp_wfops[i], &c2_fop_cob_writev_fopt);
@@ -1298,11 +1299,11 @@ void bulkio_server_read_write_state_test(void)
 	}
 	op = C2_IOSERVICE_WRITEV_OPCODE;
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
+	c2_fom_type_register(&bulkio_server_write_fom_type);
         bp->bp_wfops[0]->if_fop.f_type->ft_fom_type =
 	bulkio_server_write_fom_type;
 	bp->bp_wfops[0]->if_fop.f_type->ft_ops =
 	&bulkio_server_write_fop_ut_ops;
-	c2_fom_type_register(&bulkio_server_write_fom_type);
 	targ.ta_index = 0;
 	targ.ta_op = op;
 	targ.ta_bp = bp;
@@ -1314,10 +1315,10 @@ void bulkio_server_read_write_state_test(void)
 	}
 	op = C2_IOSERVICE_READV_OPCODE;
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
+	c2_fom_type_register(&bulkio_server_read_fom_type);
         bp->bp_rfops[0]->if_fop.f_type->ft_fom_type =
 	bulkio_server_read_fom_type;
 	bp->bp_rfops[0]->if_fop.f_type->ft_ops = &bulkio_server_read_fop_ut_ops;
-	c2_fom_type_register(&bulkio_server_read_fom_type);
 	targ.ta_index = 0;
 	targ.ta_op = op;
 	targ.ta_bp = bp;
@@ -1343,11 +1344,11 @@ void bulkio_server_rw_state_transition_test(void)
 	}
 	op = C2_IOSERVICE_WRITEV_OPCODE;
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
+	c2_fom_type_register(&ut_io_fom_cob_rw_type_mopt);
         bp->bp_wfops[0]->if_fop.f_type->ft_fom_type =
 		ut_io_fom_cob_rw_type_mopt;
 	bp->bp_wfops[0]->if_fop.f_type->ft_ops =
 		&bulkio_server_write_fop_ut_ops;
-	c2_fom_type_register(&ut_io_fom_cob_rw_type_mopt);
 	targ.ta_index = 0;
 	targ.ta_op = op;
 	targ.ta_bp = bp;

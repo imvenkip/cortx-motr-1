@@ -25,6 +25,7 @@
 #include "lib/memory.h"
 #include "lib/mutex.h"
 #include "reqh/reqh.h"
+#include "fop/fom_generic.h"        /* C2_FOPH_FINISH */
 #include "fop/fom_long_lock.h"
 
 C2_TL_DESCR_DECLARE(c2_lll, extern);

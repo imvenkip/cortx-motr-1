@@ -153,7 +153,7 @@ static int session_establish(struct c2_sm *sm);
 static int conn_terminate(struct c2_sm *sm);
 static int session_terminate(struct c2_sm *sm);
 
-struct c2_sm_state_descr conn_est_phases[C2_FOPH_NR + 2] = {
+struct c2_sm_state_descr conn_est_phases[] = {
 	[C2_FOPH_CONN_ESTABLISHING] = {
 		.sd_flags     = 0,
 		.sd_name      = "connection establish",
@@ -166,7 +166,7 @@ struct c2_sm_state_descr conn_est_phases[C2_FOPH_NR + 2] = {
 	},
 };
 
-struct c2_sm_state_descr session_est_phases[C2_FOPH_NR + 2] = {
+struct c2_sm_state_descr session_est_phases[] = {
 	[C2_FOPH_SESSION_ESTABLISHING] = {
 		.sd_flags     = 0,
 		.sd_name      = "session establish",
@@ -179,7 +179,7 @@ struct c2_sm_state_descr session_est_phases[C2_FOPH_NR + 2] = {
 	},
 };
 
-struct c2_sm_state_descr conn_term_phases[C2_FOPH_NR + 2] = {
+struct c2_sm_state_descr conn_term_phases[] = {
 	[C2_FOPH_CONN_TERMINATING] = {
 		.sd_flags     = 0,
 		.sd_name      = "connection terminate",
@@ -192,7 +192,7 @@ struct c2_sm_state_descr conn_term_phases[C2_FOPH_NR + 2] = {
 	},
 };
 
-struct c2_sm_state_descr session_term_phases[C2_FOPH_NR + 2] = {
+struct c2_sm_state_descr session_term_phases[] = {
 	[C2_FOPH_SESSION_TERMINATING] = {
 		.sd_flags     = 0,
 		.sd_name      = "session terminate",
@@ -206,9 +206,9 @@ struct c2_sm_state_descr session_term_phases[C2_FOPH_NR + 2] = {
 };
 
 struct c2_fom_type c2_rpc_fom_conn_establish_type = {
-	.ft_ops	      = &c2_rpc_fom_session_type_ops,
-	.ft_nr_phases = C2_FOPH_NR + 2,
+	.ft_ops       = &c2_rpc_fom_session_type_ops,
 	.ft_phases    = conn_est_phases,
+	.ft_phases_nr = ARRAY_SIZE(conn_est_phases),
 };
 
 static int conn_establish(struct c2_sm *sm)
@@ -353,8 +353,8 @@ static int conn_establish(struct c2_sm *sm)
  */
 struct c2_fom_type c2_rpc_fom_session_establish_type = {
 	.ft_ops	      = &c2_rpc_fom_session_type_ops,
-	.ft_nr_phases = C2_FOPH_NR + 2,
 	.ft_phases    = session_est_phases,
+	.ft_phases_nr = ARRAY_SIZE(session_est_phases),
 };
 
 static int session_establish(struct c2_sm *sm)
@@ -436,8 +436,8 @@ out:
  */
 struct c2_fom_type c2_rpc_fom_session_terminate_type = {
 	.ft_ops	      = &c2_rpc_fom_session_type_ops,
-	.ft_nr_phases = C2_FOPH_NR + 2,
 	.ft_phases    = session_term_phases,
+	.ft_phases_nr = ARRAY_SIZE(session_term_phases),
 };
 
 static int session_terminate(struct c2_sm *sm)
@@ -516,8 +516,8 @@ static int session_terminate(struct c2_sm *sm)
  */
 struct c2_fom_type c2_rpc_fom_conn_terminate_type = {
 	.ft_ops	      = &c2_rpc_fom_session_type_ops,
-	.ft_nr_phases = C2_FOPH_NR + 2,
 	.ft_phases    = conn_term_phases,
+	.ft_phases_nr = ARRAY_SIZE(conn_term_phases),
 };
 
 static int conn_terminate(struct c2_sm *sm)

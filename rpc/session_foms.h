@@ -24,6 +24,7 @@
 
 #include "fop/fop.h"
 #include "fop/fop_format.h"
+#include "fop/fom_generic.h"        /* c2_fom_state_transition() */
 
 #include "rpc/session_fops.h"
 #ifdef __KERNEL__

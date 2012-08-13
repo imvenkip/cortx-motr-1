@@ -234,8 +234,6 @@ struct c2_fom_domain_ops {
  */
 enum c2_fom_state {
 	C2_FOS_INIT,
-	/** FOM is enqueued into locality run queue. */
-	C2_FOS_QUEUE,
 	/** Fom is dequeued from wait queue and put in run queue. */
 	C2_FOS_READY,
 	/**
@@ -422,10 +420,12 @@ bool c2_fom_invariant(const struct c2_fom *fom);
 /** Type of fom. c2_fom_type is part of c2_fop_type. */
 struct c2_fom_type {
 	const struct c2_fom_type_ops *ft_ops;
-	const struct c2_sm_conf	     *ft_conf;
-	uint32_t		      ft_nr_phases;
+	struct c2_sm_conf	      ft_conf;
+	/** It points to either generic SM configuration or combined generic and
+	 * specific configuration.
+	 */
 	struct c2_sm_state_descr     *ft_phases;
-
+	uint32_t                      ft_phases_nr;
 };
 
 /**
@@ -452,7 +452,6 @@ enum c2_fom_state_outcome {
 	 * immediately executed (by the same or by a different handler thread)
 	 * or the fom is placed in the run-queue, depending on the scheduling
 	 * constraints.
-	 * TODO: This needs to be removed after fop-lock-ut changes.
 	 */
 	C2_FSO_AGAIN = C2_FSO_WAIT - 1,
 };
@@ -522,6 +521,16 @@ void c2_fom_block_enter(struct c2_fom *fom);
 void c2_fom_block_leave(struct c2_fom *fom);
 
 /**
+ * Dequeues fom from the locality waiting queue and enqueues it into
+ * locality runq list changing the state to C2_FOS_READY.
+ *
+ * @pre fom->fo_state == C2_FOS_WAITING
+ * @pre is_locked(fom)
+ * @param fom Ready to be executed fom, is put on locality runq
+ */
+void c2_fom_ready(struct c2_fom *fom);
+
+/**
  * Moves the fom from waiting to ready queue. Similar to c2_fom_ready(), but
  * callable from a locality different from fom's locality (i.e., with a
  * different locality group lock held).
@@ -587,8 +596,6 @@ C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, \
  * associated with.
  */
 bool c2_fom_group_is_locked(const struct c2_fom *fom);
-
-#include "fop/fom_generic.h"
 
 /* __COLIBRI_FOP_FOM_H__ */
 #endif

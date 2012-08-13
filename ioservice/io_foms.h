@@ -211,7 +211,6 @@ enum c2_io_fom_cob_rw_phases {
         C2_FOPH_IO_ZERO_COPY_INIT,
         C2_FOPH_IO_ZERO_COPY_FINISH,
         C2_FOPH_IO_BUFFER_RELEASE,
-	C2_IO_FOPH_NR,
 };
 
 /**

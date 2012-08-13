@@ -230,7 +230,7 @@ int c2_sm_timedwait(struct c2_sm *mach, uint64_t states, c2_time_t deadline)
 	return result;
 }
 
-static void state_set(struct c2_sm *mach, int state)
+static int state_set(struct c2_sm *mach, int state)
 {
 	const struct c2_sm_state_descr *sd;
 
@@ -256,6 +256,7 @@ static void state_set(struct c2_sm *mach, int state)
 		c2_chan_broadcast(&mach->sm_chan);
 	} while (state >= 0);
 	C2_POST(c2_sm_invariant(mach));
+	return state;
 }
 
 void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc)
@@ -269,10 +270,10 @@ void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc)
 	state_set(mach, fail_state);
 }
 
-void c2_sm_state_set(struct c2_sm *mach, int state)
+int c2_sm_state_set(struct c2_sm *mach, int state)
 {
 	C2_PRE(c2_sm_invariant(mach));
-	state_set(mach, state);
+	return state_set(mach, state);
 }
 
 /**
