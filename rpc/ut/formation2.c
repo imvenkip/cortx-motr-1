@@ -33,16 +33,19 @@
 #include "rpc/formation2.h"
 #include "rpc/rpc2.h"
 #include "rpc/packet.h"
+#include "rpc/item.h"
 
-static struct c2_rpc_frm             frm;
-static struct c2_rpc_frm_constraints constraints;
-static struct c2_rpc_machine         rmachine;
-static struct c2_rpc_chan            rchan;
-static struct c2_rpc_session         session;
-static struct c2_rpc_slot            slot;
+static struct c2_rpc_frm             *frm;
+static struct c2_rpc_frm_constraints  constraints;
+static struct c2_rpc_machine          rmachine;
+static struct c2_rpc_chan             rchan;
+static struct c2_rpc_session          session;
+static struct c2_rpc_slot             slot;
 
 static int frm_ut_init(void)
 {
+	rchan.rc_rpc_machine = &rmachine;
+	frm = &rchan.rc_frm;
 	c2_mutex_init(&rmachine.rm_mutex);
 	c2_mutex_lock(&rmachine.rm_mutex);
 	return 0;
@@ -90,12 +93,10 @@ static void flags_reset(void)
 	item_bind_count = 0;
 }
 
-static bool packet_ready(struct c2_rpc_packet  *p,
-			 struct c2_rpc_machine *machine,
-			 struct c2_rpc_chan    *rchanp)
+static bool packet_ready(struct c2_rpc_packet *p)
 {
-	C2_UT_ASSERT(machine == &rmachine);
-	C2_UT_ASSERT(rchanp == &rchan);
+	C2_UT_ASSERT(frm_rmachine(p->rp_frm) == &rmachine);
+	C2_UT_ASSERT(frm_rchan(p->rp_frm) == &rchan);
 	packet_stack_push(p);
 	packet_ready_called = true;
 	return true;
@@ -121,8 +122,8 @@ static struct c2_rpc_frm_ops frm_ops = {
 static void frm_init_test(void)
 {
 	c2_rpc_frm_constraints_get_defaults(&constraints);
-	c2_rpc_frm_init(&frm, &rmachine, &rchan, constraints, &frm_ops);
-	C2_UT_ASSERT(frm.f_state == FRM_IDLE);
+	c2_rpc_frm_init(frm, &constraints, &frm_ops);
+	C2_UT_ASSERT(frm->f_state == FRM_IDLE);
 }
 
 static c2_bcount_t twoway_item_size(const struct c2_rpc_item *item)
@@ -138,8 +139,8 @@ bool twoway_item_try_merge(struct c2_rpc_item *container,
 }
 
 static struct c2_rpc_item_type_ops twoway_item_type_ops = {
-	.rito_item_size = twoway_item_size,
-	.rito_try_merge = twoway_item_try_merge,
+	.rito_payload_size = twoway_item_size,
+	.rito_try_merge    = twoway_item_try_merge,
 };
 
 static struct c2_rpc_item_type twoway_item_type = {
@@ -153,7 +154,7 @@ static c2_bcount_t oneway_item_size(const struct c2_rpc_item *item)
 }
 
 static struct c2_rpc_item_type_ops oneway_item_type_ops = {
-	.rito_item_size = oneway_item_size
+	.rito_payload_size = oneway_item_size
 };
 
 static struct c2_rpc_item_type oneway_item_type = {
@@ -202,6 +203,7 @@ static struct c2_rpc_item *new_item(int deadline, int kind)
 					  &twoway_item_type;
 	item->ri_slot_refs[0].sr_slot = kind == BOUND ? &slot : NULL;
 	item->ri_session = &session;
+	packet_item_tlink_init(item);
 
 	return item;
 }
@@ -209,9 +211,9 @@ static struct c2_rpc_item *new_item(int deadline, int kind)
 static void
 check_frm(enum frm_state state, uint64_t nr_items, uint64_t nr_packets)
 {
-	C2_UT_ASSERT(frm.f_state == state &&
-		     frm.f_nr_items == nr_items &&
-		     frm.f_nr_packets_enqed == nr_packets);
+	C2_UT_ASSERT(frm->f_state == state &&
+		     frm->f_nr_items == nr_items &&
+		     frm->f_nr_packets_enqed == nr_packets);
 }
 
 static void packet_discard(struct c2_rpc_packet *p)
@@ -248,13 +250,13 @@ static void frm_test1(void)
 		set_timeout(100);
 		item = new_item(deadline, kind);
 		flags_reset();
-		c2_rpc_frm_enq_item(&frm, item);
+		c2_rpc_frm_enq_item(frm, item);
 		if (deadline == WAITING) {
 			C2_UT_ASSERT(!packet_ready_called &&
 				     !item_bind_called);
 			check_frm(FRM_BUSY, 1, 0);
 			c2_nanosleep(c2_time(0, 2 * timeout), NULL);
-			c2_rpc_frm_run_formation(&frm);
+			c2_rpc_frm_run_formation(frm);
 		}
 		C2_UT_ASSERT(packet_ready_called &&
 			     equi(kind == UNBOUND, item_bind_called));
@@ -264,7 +266,7 @@ static void frm_test1(void)
 	C2_ENTRY();
 
 	/* Do not let formation trigger because of size limit */
-	frm.f_constraints.fc_max_nr_bytes_accumulated = ~0;
+	frm->f_constraints.fc_max_nr_bytes_accumulated = ~0;
 
 	perform_test(TIMEDOUT, BOUND);
 	perform_test(TIMEDOUT, UNBOUND);
@@ -292,22 +294,22 @@ static void frm_test2(void)
 			items[i] = new_item(WAITING, kind);
 		item_size = c2_rpc_item_size(items[0]);
 		/* include all ready items */
-		frm.f_constraints.fc_max_packet_size = ~0;
+		frm->f_constraints.fc_max_packet_size = ~0;
 		/*
 		 * set fc_max_nr_bytes_accumulated such that, formation triggers
 		 * when last item from items[] is enqued
 		 */
-		frm.f_constraints.fc_max_nr_bytes_accumulated =
+		frm->f_constraints.fc_max_nr_bytes_accumulated =
 			(N - 1) * item_size + item_size / 2;
 
 		flags_reset();
 		for (i = 0; i < N - 1; ++i) {
-			c2_rpc_frm_enq_item(&frm, items[i]);
+			c2_rpc_frm_enq_item(frm, items[i]);
 			C2_UT_ASSERT(!packet_ready_called &&
 				     !item_bind_called);
 			check_frm(FRM_BUSY, i + 1, 0);
 		}
-		c2_rpc_frm_enq_item(&frm, items[N - 1]);
+		c2_rpc_frm_enq_item(frm, items[N - 1]);
 		C2_UT_ASSERT(packet_ready_called &&
 			     equi(kind == UNBOUND, item_bind_count == N));
 		check_frm(FRM_BUSY, 0, 1);
@@ -347,15 +349,15 @@ static void frm_test3(void)
 
 
 	item = new_item(TIMEDOUT, BOUND);
-	saved = frm.f_constraints.fc_max_nr_packets_enqed;
-	frm.f_constraints.fc_max_nr_packets_enqed = 0;
+	saved = frm->f_constraints.fc_max_nr_packets_enqed;
+	frm->f_constraints.fc_max_nr_packets_enqed = 0;
 	flags_reset();
-	c2_rpc_frm_enq_item(&frm, item);
+	c2_rpc_frm_enq_item(frm, item);
 	C2_UT_ASSERT(!packet_ready_called && !item_bind_called);
 	check_frm(FRM_BUSY, 1, 0);
 
-	frm.f_constraints.fc_max_nr_packets_enqed = saved;
-	c2_rpc_frm_run_formation(&frm);
+	frm->f_constraints.fc_max_nr_packets_enqed = saved;
+	c2_rpc_frm_run_formation(frm);
 	C2_UT_ASSERT(packet_ready_called && !item_bind_called);
 
 	check_ready_packet_has_item(item);
@@ -374,11 +376,11 @@ static void frm_test4(void)
 	item = new_item(TIMEDOUT, UNBOUND);
 	c2_fi_enable_once("item_bind", "slot_unavailable");
 	flags_reset();
-	c2_rpc_frm_enq_item(&frm, item);
+	c2_rpc_frm_enq_item(frm, item);
 	C2_UT_ASSERT(!packet_ready_called && item_bind_called);
 	check_frm(FRM_BUSY, 1, 0);
 
-	c2_rpc_frm_run_formation(&frm);
+	c2_rpc_frm_run_formation(frm);
 	C2_UT_ASSERT(packet_ready_called && item_bind_called);
 
 	check_ready_packet_has_item(item);
@@ -402,24 +404,24 @@ static void frm_do_test5(const int N, const int ITEMS_PER_PACKET)
 	for (i = 0; i < N; ++i)
 		items[i] = new_item(WAITING, BOUND);
 
-	saved_max_nr_bytes_acc = frm.f_constraints.fc_max_nr_bytes_accumulated;
-	frm.f_constraints.fc_max_nr_bytes_accumulated = ~0;
+	saved_max_nr_bytes_acc = frm->f_constraints.fc_max_nr_bytes_accumulated;
+	frm->f_constraints.fc_max_nr_bytes_accumulated = ~0;
 
 	flags_reset();
 	for (i = 0; i < N; ++i)
-		c2_rpc_frm_enq_item(&frm, items[i]);
+		c2_rpc_frm_enq_item(frm, items[i]);
 
 	C2_UT_ASSERT(!packet_ready_called && !item_bind_called);
 	check_frm(FRM_BUSY, N, 0);
 
-	saved_max_packet_size = frm.f_constraints.fc_max_packet_size;
+	saved_max_packet_size = frm->f_constraints.fc_max_packet_size;
 	/* Each packet should carry ITEMS_PER_PACKET items */
-	frm.f_constraints.fc_max_packet_size =
+	frm->f_constraints.fc_max_packet_size =
 			ITEMS_PER_PACKET * c2_rpc_item_size(items[0]) +
 			  C2_RPC_PACKET_OW_HEADER_SIZE;
 	/* trigger formation so that all items are formed */
-	frm.f_constraints.fc_max_nr_bytes_accumulated = 0;
-	c2_rpc_frm_run_formation(&frm);
+	frm->f_constraints.fc_max_nr_bytes_accumulated = 0;
+	c2_rpc_frm_run_formation(frm);
 	nr_packets = N / ITEMS_PER_PACKET + (N % ITEMS_PER_PACKET != 0 ? 1 : 0);
 	C2_UT_ASSERT(packet_ready_called && top == nr_packets);
 	check_frm(FRM_BUSY, 0, nr_packets);
@@ -438,8 +440,8 @@ static void frm_do_test5(const int N, const int ITEMS_PER_PACKET)
 	check_frm(FRM_IDLE, 0, 0);
 	for (i = 0; i < N; ++i)
 		c2_free(items[i]);
-	frm.f_constraints.fc_max_packet_size = saved_max_packet_size;
-	frm.f_constraints.fc_max_nr_bytes_accumulated = saved_max_nr_bytes_acc;
+	frm->f_constraints.fc_max_packet_size = saved_max_packet_size;
+	frm->f_constraints.fc_max_nr_bytes_accumulated = saved_max_nr_bytes_acc;
 	C2_UT_ASSERT(packet_stack_is_empty());
 
 	C2_LEAVE();
@@ -469,12 +471,12 @@ static void frm_test6(void)
 
 	c2_fi_enable_once("c2_alloc", "fail_allocation");
 
-	c2_rpc_frm_enq_item(&frm, item);
+	c2_rpc_frm_enq_item(frm, item);
 	C2_UT_ASSERT(!packet_ready_called);
 	check_frm(FRM_BUSY, 1, 0);
 
 	/* this time allocation succeds */
-	c2_rpc_frm_run_formation(&frm);
+	c2_rpc_frm_run_formation(frm);
 	C2_UT_ASSERT(packet_ready_called);
 	check_frm(FRM_BUSY, 0, 1);
 
@@ -500,26 +502,26 @@ static void frm_test7(void)
 	item2->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 
 	/* Only 1 item should be included per packet */
-	saved_max_packet_size = frm.f_constraints.fc_max_packet_size;
-	frm.f_constraints.fc_max_packet_size = c2_rpc_item_size(item1) +
+	saved_max_packet_size = frm->f_constraints.fc_max_packet_size;
+	frm->f_constraints.fc_max_packet_size = c2_rpc_item_size(item1) +
 		C2_RPC_PACKET_OW_HEADER_SIZE + c2_rpc_item_size(item1) / 2;
 
-	saved_max_nr_packets_enqed = frm.f_constraints.fc_max_nr_packets_enqed;
-	frm.f_constraints.fc_max_nr_packets_enqed = 0; /* disable formation */
+	saved_max_nr_packets_enqed = frm->f_constraints.fc_max_nr_packets_enqed;
+	frm->f_constraints.fc_max_nr_packets_enqed = 0; /* disable formation */
 
 	flags_reset();
 
-	c2_rpc_frm_enq_item(&frm, item1);
+	c2_rpc_frm_enq_item(frm, item1);
 	C2_UT_ASSERT(!packet_ready_called);
 	check_frm(FRM_BUSY, 1, 0);
 
-	c2_rpc_frm_enq_item(&frm, item2);
+	c2_rpc_frm_enq_item(frm, item2);
 	C2_UT_ASSERT(!packet_ready_called);
 	check_frm(FRM_BUSY, 2, 0);
 
 	/* Enable formation */
-	frm.f_constraints.fc_max_nr_packets_enqed = saved_max_nr_packets_enqed;
-	c2_rpc_frm_run_formation(&frm);
+	frm->f_constraints.fc_max_nr_packets_enqed = saved_max_nr_packets_enqed;
+	c2_rpc_frm_run_formation(frm);
 
 	/* Two packets should be generated */
 	C2_UT_ASSERT(packet_ready_called && top == 2);
@@ -541,7 +543,7 @@ static void frm_test7(void)
 	c2_free(item1);
 	c2_free(item2);
 
-	frm.f_constraints.fc_max_packet_size = saved_max_packet_size;
+	frm->f_constraints.fc_max_packet_size = saved_max_packet_size;
 
 	C2_LEAVE();
 }
@@ -565,8 +567,8 @@ static void frm_test8(void)
 	int                        kind;
 	int                        unbound_cnt;
 
-	saved_max_nr_packets_enqed = frm.f_constraints.fc_max_nr_packets_enqed;
-	frm.f_constraints.fc_max_nr_packets_enqed = 0; /* disable formation */
+	saved_max_nr_packets_enqed = frm->f_constraints.fc_max_nr_packets_enqed;
+	frm->f_constraints.fc_max_nr_packets_enqed = 0; /* disable formation */
 
 	/* start with some random seed */
 	seed_deadline = 13;
@@ -588,15 +590,15 @@ static void frm_test8(void)
 		items[i] = new_item(deadline, kind);
 		items[i]->ri_prio = prio;
 
-		c2_rpc_frm_enq_item(&frm, items[i]);
+		c2_rpc_frm_enq_item(frm, items[i]);
 		C2_UT_ASSERT(!packet_ready_called);
 		check_frm(FRM_BUSY, i + 1, 0);
 	}
-	frm.f_constraints.fc_max_nr_packets_enqed = ~0; /* enable formation */
-	saved_max_nr_bytes_acc = frm.f_constraints.fc_max_nr_bytes_accumulated;
+	frm->f_constraints.fc_max_nr_packets_enqed = ~0; /* enable formation */
+	saved_max_nr_bytes_acc = frm->f_constraints.fc_max_nr_bytes_accumulated;
 	/* Make frm to form all items */
-	frm.f_constraints.fc_max_nr_bytes_accumulated = 0;
-	c2_rpc_frm_run_formation(&frm);
+	frm->f_constraints.fc_max_nr_bytes_accumulated = 0;
+	c2_rpc_frm_run_formation(frm);
 	C2_UT_ASSERT(packet_ready_called);
 	if (unbound_cnt > 0)
 		C2_UT_ASSERT(item_bind_called &&
@@ -614,16 +616,16 @@ static void frm_test8(void)
 	for (i = 0; i < N; i++)
 		c2_free(items[i]);
 
-	frm.f_constraints.fc_max_nr_packets_enqed = saved_max_nr_packets_enqed;
-	frm.f_constraints.fc_max_nr_bytes_accumulated = saved_max_nr_bytes_acc;
+	frm->f_constraints.fc_max_nr_packets_enqed = saved_max_nr_packets_enqed;
+	frm->f_constraints.fc_max_nr_bytes_accumulated = saved_max_nr_bytes_acc;
 
 	C2_LEAVE();
 }
 
 static void frm_fini_test(void)
 {
-	c2_rpc_frm_fini(&frm);
-	C2_UT_ASSERT(frm.f_state == FRM_UNINITIALISED);
+	c2_rpc_frm_fini(frm);
+	C2_UT_ASSERT(frm->f_state == FRM_UNINITIALISED);
 }
 
 const struct c2_test_suite frm_ut = {

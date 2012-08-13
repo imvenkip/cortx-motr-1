@@ -1,3 +1,4 @@
+/* -*- C -*- */
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -13,18 +14,26 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original Author: Anand Vidwansa <Anand_Vidwansa@xyratex.com>
- * Original creation date: 08/14/2011
+ * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
+ * Original creation date: 06/21/2011
  */
-#ifndef __COLIBRI_RPC_RPC_KERNEL_H__
-#define __COLIBRI_RPC_RPC_KERNEL_H__
 
-#include <linux/module.h>
+/**
+   @addtogroup fom
+   @{
+ */
 
-size_t c2_fop_item_type_default_onwire_size(struct c2_rpc_item *item);
+/**
+ * @file fom_generic_xc.ff
+ *
+ * <b>Fom generic error reply</b>
+ */
 
-/* __COLIBRI_RPC_RPC_KERNEL_H__ */
-#endif
+record {
+	u32 rerr_rc
+} c2_fom_error_rep;
+
+/** @} end of fom group */
 
 /*
  *  Local variables:

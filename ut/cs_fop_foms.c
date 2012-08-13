@@ -28,8 +28,8 @@
 #include "lib/chan.h"
 
 #include "fop/fop.h"
-#include "reqh/reqh.h"
 #include "fop/fom.h"
+#include "fop/fom_generic.h"
 
 #include "rpc/rpc2.h"
 #include "rpc/rpclib.h"
@@ -73,7 +73,7 @@ static struct c2_fop_type *cs_ds2_fopts[] = {
 /*
   Fom specific routines for corresponding fops.
  */
-static int cs_req_fop_fom_state(struct c2_fom *fom);
+static int cs_req_fop_fom_tick(struct c2_fom *fom);
 static int cs_ds1_req_fop_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static int cs_ds2_req_fop_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static void cs_ut_fom_fini(struct c2_fom *fom);
@@ -84,7 +84,7 @@ static size_t cs_ut_find_fom_home_locality(const struct c2_fom *fom);
  */
 static const struct c2_fom_ops cs_ds1_req_fop_fom_ops = {
         .fo_fini = cs_ut_fom_fini,
-        .fo_state = cs_req_fop_fom_state,
+        .fo_tick = cs_req_fop_fom_tick,
         .fo_home_locality = cs_ut_find_fom_home_locality,
 };
 
@@ -93,9 +93,12 @@ static const struct c2_fom_ops cs_ds1_req_fop_fom_ops = {
  */
 static const struct c2_fom_ops cs_ds2_req_fop_fom_ops = {
         .fo_fini = cs_ut_fom_fini,
-        .fo_state = cs_req_fop_fom_state,
+        .fo_tick = cs_req_fop_fom_tick,
         .fo_home_locality = cs_ut_find_fom_home_locality,
 };
+
+extern struct c2_reqh_service_type ds1_service_type;
+extern struct c2_reqh_service_type ds2_service_type;
 
 /*
   Fom type operations for ds1 service foms.
@@ -104,9 +107,7 @@ static const struct c2_fom_type_ops cs_ds1_req_fop_fom_type_ops = {
         .fto_create = cs_ds1_req_fop_fom_create,
 };
 
-static struct c2_fom_type cs_ds1_req_fop_fom_mopt = {
-	.ft_ops = &cs_ds1_req_fop_fom_type_ops,
-};
+C2_FOM_TYPE_DECLARE(cs_ds1_req, &cs_ds1_req_fop_fom_type_ops, &ds1_service_type);
 
 /*
   Fom type operations for ds2 service foms.
@@ -115,9 +116,7 @@ static const struct c2_fom_type_ops cs_ds2_req_fop_fom_type_ops = {
         .fto_create = cs_ds2_req_fop_fom_create,
 };
 
-static struct c2_fom_type cs_ds2_req_fop_fom_mopt = {
-	.ft_ops = &cs_ds2_req_fop_fom_type_ops,
-};
+C2_FOM_TYPE_DECLARE(cs_ds2_req, &cs_ds2_req_fop_fom_type_ops, &ds2_service_type);
 
 static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item)
 {
@@ -155,8 +154,8 @@ int c2_cs_ut_ds1_fop_init(void)
            per service for various colibri_setup commands, So reinitialise
            fop_type_format for each corresponding service fop types.
          */
-	cs_ds1_fopts[0]->ft_fom_type = cs_ds1_req_fop_fom_mopt;
-	cs_ds1_fopts[1]->ft_fom_type = cs_ds1_req_fop_fom_mopt;
+	cs_ds1_fopts[0]->ft_fom_type = cs_ds1_req_fomt;
+	cs_ds1_fopts[1]->ft_fom_type = cs_ds1_req_fomt;
 
 	c2_xc_cs_test_fops_init();
         return  C2_FOP_TYPE_INIT(&cs_ds1_req_fop_fopt,
@@ -165,13 +164,13 @@ int c2_cs_ut_ds1_fop_init(void)
 				 .xt        = cs_ds1_req_fop_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
 					      C2_RPC_ITEM_TYPE_MUTABO,
-				 .fom_ops   = cs_ds1_req_fop_fom_mopt.ft_ops) ?:
+				 .fom_ops   = cs_ds1_req_fomt.ft_ops) ?:
 		C2_FOP_TYPE_INIT(&cs_ds1_rep_fop_fopt,
 				 .name      = "ds1 reply",
 				 .opcode    = C2_CS_DS1_REP_OPCODE,
 				 .xt        = cs_ds1_rep_fop_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
-				 .fom_ops   = cs_ds1_req_fop_fom_mopt.ft_ops);
+				 .fom_ops   = cs_ds1_req_fomt.ft_ops);
 }
 
 void c2_cs_ut_ds2_fop_fini(void)
@@ -188,8 +187,8 @@ int c2_cs_ut_ds2_fop_init(void)
 	   per service for various colibri_setup commands, So reinitialise
 	   fop_type_format for each corresponding service fop types.
 	 */
-	cs_ds2_fopts[0]->ft_fom_type = cs_ds2_req_fop_fom_mopt;
-	cs_ds2_fopts[1]->ft_fom_type = cs_ds2_req_fop_fom_mopt;
+	cs_ds2_fopts[0]->ft_fom_type = cs_ds2_req_fomt;
+	cs_ds2_fopts[1]->ft_fom_type = cs_ds2_req_fomt;
 
 	c2_xc_cs_test_fops_init();
 	return  C2_FOP_TYPE_INIT(&cs_ds2_req_fop_fopt,
@@ -198,13 +197,13 @@ int c2_cs_ut_ds2_fop_init(void)
 				 .xt        = cs_ds2_req_fop_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
 					      C2_RPC_ITEM_TYPE_MUTABO,
-				 .fom_ops   = cs_ds2_req_fop_fom_mopt.ft_ops) ?:
+				 .fom_ops   = cs_ds2_req_fomt.ft_ops) ?:
 		C2_FOP_TYPE_INIT(&cs_ds2_rep_fop_fopt,
 				 .name      = "ds2 reply",
 				 .opcode    = C2_CS_DS2_REP_OPCODE,
 				 .xt        = cs_ds2_rep_fop_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
-				 .fom_ops   = cs_ds2_req_fop_fom_mopt.ft_ops);
+				 .fom_ops   = cs_ds2_req_fomt.ft_ops);
 }
 
 /*
@@ -266,7 +265,7 @@ static size_t cs_ut_find_fom_home_locality(const struct c2_fom *fom)
   Transitions fom through its generic phases and also
   performs corresponding fop specific execution.
  */
-static int cs_req_fop_fom_state(struct c2_fom *fom)
+static int cs_req_fop_fom_tick(struct c2_fom *fom)
 {
 	int                    rc;
 	struct c2_fop         *rfop;
@@ -282,7 +281,7 @@ static int cs_req_fop_fom_state(struct c2_fom *fom)
 	       C2_CS_DS2_REQ_OPCODE);
 
 	if (fom->fo_phase < C2_FOPH_NR) {
-		rc = c2_fom_state_generic(fom);
+		rc = c2_fom_tick_generic(fom);
 	} else {
 		opcode = fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
 		switch (opcode) {

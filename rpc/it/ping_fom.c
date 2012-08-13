@@ -22,6 +22,7 @@
 #endif
 
 #include "fop/fop.h"
+#include "fop/fom_generic.h"     /* C2_FOPH_NR */
 #include "rpc/it/ping_fom.h"
 #include "rpc/it/ping_fop_xc.h"
 #include "lib/errno.h"
@@ -33,7 +34,7 @@ static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m);
 /** Generic ops object for ping */
 struct c2_fom_ops c2_fom_ping_ops = {
 	.fo_fini = c2_fop_ping_fom_fini,
-	.fo_state = c2_fom_ping_state,
+	.fo_tick = c2_fom_ping_state,
 	.fo_home_locality = c2_fom_ping_home_locality
 };
 
@@ -70,13 +71,11 @@ int c2_fom_ping_state(struct c2_fom *fom)
         ping_fop_rep = c2_fop_data(fop);
         ping_fop_rep->fpr_rc = true;
 	item = c2_fop_to_rpc_item(fop);
-	item->ri_group = NULL;
         c2_rpc_reply_post(&fom_obj->fp_fop->f_item, item);
 	fom->fo_phase = C2_FOPH_FINISH;
 
 	return 0;
 }
-
 
 /* Init for ping */
 static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)

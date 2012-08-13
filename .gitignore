@@ -50,6 +50,8 @@ missing
 *.gcno
 *.gcov
 *.swp
+*.gccxml
+*_xc.[hc]
 *~
 doc/html/
 .#*

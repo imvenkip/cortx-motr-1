@@ -19,6 +19,9 @@
  * Original creation date: 04/12/2011
  * Adapted for LNet: 04/11/2012
  */
+
+#pragma once
+
 #ifndef __COLIBRI_NET_LNET_PING_H__
 #define __COLIBRI_NET_LNET_PING_H__
 

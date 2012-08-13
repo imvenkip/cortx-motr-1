@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -85,7 +85,7 @@ int c2_timer_start(struct c2_timer *timer)
 
 	C2_ASSERT(timer->t_callback != NULL);
 
-	if (c2_time_after(timer->t_expire, now))
+	if (timer->t_expire > now)
 		rem = c2_time_sub(timer->t_expire, now);
 	else
 		c2_time_set(&rem, 0, 0);

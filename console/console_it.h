@@ -18,6 +18,8 @@
  * Original creation date: 08/17/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_CONSOLE_IT_H__
 #define __COLIBRI_CONSOLE_IT_H__
 

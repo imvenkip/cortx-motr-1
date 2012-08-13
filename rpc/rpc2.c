@@ -29,6 +29,7 @@
 #include "lib/misc.h"     /* C2_IN */
 #include "lib/types.h"
 #include "rpc/rpc2.h"
+#include "rpc/item.h"
 
 int c2_rpc__post_locked(struct c2_rpc_item *item);
 
@@ -55,13 +56,6 @@ void c2_rpc_module_fini(void)
 	c2_addb_ctx_fini(&c2_rpc_addb_ctx);
 }
 
-void c2_rpcobj_fini(struct c2_rpc *rpc)
-{
-	rpc->r_session = NULL;
-	c2_list_fini(&rpc->r_items);
-	c2_list_link_fini(&rpc->r_linkage);
-}
-
 int c2_rpc_post(struct c2_rpc_item *item)
 {
 	struct c2_rpc_machine *machine;
@@ -71,7 +65,7 @@ int c2_rpc_post(struct c2_rpc_item *item)
 	C2_PRE(item->ri_session != NULL);
 
 	machine	  = item->ri_session->s_conn->c_rpc_machine;
-	item_size = item->ri_type->rit_ops->rito_item_size(item);
+	item_size = c2_rpc_item_size(item);
 
 	c2_rpc_machine_lock(machine);
 	C2_ASSERT(item_size <= machine->rm_min_recv_size);

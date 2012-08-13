@@ -33,6 +33,7 @@
 #include "fop/fop.h"
 #include "reqh/reqh.h"
 #include "fop/fom.h"
+#include "fop/fom_generic.h"
 #include "stob/stob.h"
 #include "stob/ad.h"
 #include "stob/linux.h"
@@ -107,9 +108,9 @@ static int stob_create_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static int stob_read_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static int stob_write_fom_create(struct c2_fop *fop, struct c2_fom **out);
 
-static int stob_create_fom_state(struct c2_fom *fom);
-static int stob_read_fom_state(struct c2_fom *fom);
-static int stob_write_fom_state(struct c2_fom *fom);
+static int stob_create_fom_tick(struct c2_fom *fom);
+static int stob_read_fom_tick(struct c2_fom *fom);
+static int stob_write_fom_tick(struct c2_fom *fom);
 
 static void stob_io_fom_fini(struct c2_fom *fom);
 static size_t stob_find_fom_home_locality(const struct c2_fom *fom);
@@ -119,19 +120,19 @@ static size_t stob_find_fom_home_locality(const struct c2_fom *fom);
  */
 static struct c2_fom_ops stob_create_fom_ops = {
 	.fo_fini = stob_io_fom_fini,
-	.fo_state = stob_create_fom_state,
+	.fo_tick = stob_create_fom_tick,
 	.fo_home_locality = stob_find_fom_home_locality,
 };
 
 static struct c2_fom_ops stob_write_fom_ops = {
 	.fo_fini = stob_io_fom_fini,
-	.fo_state = stob_write_fom_state,
+	.fo_tick = stob_write_fom_tick,
 	.fo_home_locality = stob_find_fom_home_locality,
 };
 
 static struct c2_fom_ops stob_read_fom_ops = {
 	.fo_fini = stob_io_fom_fini,
-	.fo_state = stob_read_fom_state,
+	.fo_tick = stob_read_fom_tick,
 	.fo_home_locality = stob_find_fom_home_locality,
 };
 
@@ -308,7 +309,7 @@ static size_t stob_find_fom_home_locality(const struct c2_fom *fom)
  * A simple non blocking create fop specific fom
  * state method implemention.
  */
-static int stob_create_fom_state(struct c2_fom *fom)
+static int stob_create_fom_tick(struct c2_fom *fom)
 {
 	struct c2_stob_io_create	*in_fop;
 	struct c2_stob_io_create_rep	*out_fop;
@@ -322,7 +323,7 @@ static int stob_create_fom_state(struct c2_fom *fom)
 
 	fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
 	if (fom->fo_phase < C2_FOPH_NR) {
-		result = c2_fom_state_generic(fom);
+		result = c2_fom_tick_generic(fom);
 	} else {
 		in_fop = c2_fop_data(fom->fo_fop);
 		out_fop = c2_fop_data(fom_obj->sif_rep_fop);
@@ -335,7 +336,6 @@ static int stob_create_fom_state(struct c2_fom *fom)
 		fop = fom_obj->sif_rep_fop;
 		item = c2_fop_to_rpc_item(fop);
 		item->ri_type = &fop->f_type->ft_rpc_item_type;
-		item->ri_group = NULL;
 		fom->fo_rep_fop = fom_obj->sif_rep_fop;
 		fom->fo_rc = result;
 		if (result != 0)
@@ -359,7 +359,7 @@ static int stob_create_fom_state(struct c2_fom *fom)
  * A simple non blocking read fop specific fom
  * state method implemention.
  */
-static int stob_read_fom_state(struct c2_fom *fom)
+static int stob_read_fom_tick(struct c2_fom *fom)
 {
         struct c2_stob_io_read      *in_fop;
         struct c2_stob_io_read_rep  *out_fop;
@@ -380,7 +380,7 @@ static int stob_read_fom_state(struct c2_fom *fom)
         fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
         stio = &fom_obj->sif_stio;
         if (fom->fo_phase < C2_FOPH_NR) {
-                result = c2_fom_state_generic(fom);
+                result = c2_fom_tick_generic(fom);
         } else {
                 out_fop = c2_fop_data(fom_obj->sif_rep_fop);
                 C2_ASSERT(out_fop != NULL);
@@ -442,7 +442,6 @@ static int stob_read_fom_state(struct c2_fom *fom)
 			fop = fom_obj->sif_rep_fop;
 			item = c2_fop_to_rpc_item(fop);
 			item->ri_type = &fop->f_type->ft_rpc_item_type;
-                        item->ri_group = NULL;
                         fom->fo_rep_fop = fom_obj->sif_rep_fop;
                         result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
                                                         &fom->fo_tx.tx_dbtx);
@@ -470,7 +469,7 @@ static int stob_read_fom_state(struct c2_fom *fom)
  * A simple non blocking write fop specific fom
  * state method implemention.
  */
-static int stob_write_fom_state(struct c2_fom *fom)
+static int stob_write_fom_tick(struct c2_fom *fom)
 {
         struct c2_stob_io_write     *in_fop;
         struct c2_stob_io_write_rep *out_fop;
@@ -492,7 +491,7 @@ static int stob_write_fom_state(struct c2_fom *fom)
         stio = &fom_obj->sif_stio;
 
         if (fom->fo_phase < C2_FOPH_NR) {
-                result = c2_fom_state_generic(fom);
+                result = c2_fom_tick_generic(fom);
         } else {
                 out_fop = c2_fop_data(fom_obj->sif_rep_fop);
                 C2_ASSERT(out_fop != NULL);
@@ -553,7 +552,6 @@ static int stob_write_fom_state(struct c2_fom *fom)
 			fop = fom_obj->sif_rep_fop;
 			item = c2_fop_to_rpc_item(fop);
 			item->ri_type = &fop->f_type->ft_rpc_item_type;
-			item->ri_group = NULL;
                         fom->fo_rep_fop = fom_obj->sif_rep_fop;
                         result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
                                                         &fom->fo_tx.tx_dbtx);

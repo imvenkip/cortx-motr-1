@@ -112,9 +112,9 @@ static struct c2_rpc_server_ctx sctx = {
 	.rsx_xprts_nr         = 1,
 	.rsx_argv             = server_argv,
 	.rsx_argc             = ARRAY_SIZE(server_argv),
-	.rsx_service_types    = cs_default_stypes,
+	.rsx_service_types    = c2_cs_default_stypes,
 	/*
-	 * can't use cs_default_stypes_nr to initialize rsx_service_types_nr,
+	 * can't use c2_cs_default_stypes_nr to initialize rsx_service_types_nr,
 	 * since it leads to compile-time error 'initializer element is not
 	 * constant', because sctx here is a global/static variable, which not
 	 * allowed to be initialized with non-constant values
@@ -136,7 +136,7 @@ static int cons_init(void)
 
 	/*
 	 * There is no need to initialize xprt explicitly if client and server
-	 * run withing a single process, because in this case transport is
+	 * run within a single process, because in this case transport is
 	 * initialized by c2_rpc_server_start().
 	 */
 

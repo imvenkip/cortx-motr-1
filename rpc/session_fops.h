@@ -19,6 +19,8 @@
  * Original creation date: 04/15/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_RPC_SESSION_FOPS_H__
 #define __COLIBRI_RPC_SESSION_FOPS_H__
 

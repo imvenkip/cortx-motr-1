@@ -58,7 +58,6 @@ extern const struct c2_test_suite xcode_bufvec_ut;
 extern const struct c2_test_suite xcode_ff2c_ut;
 extern const struct c2_test_suite xcode_ut;
 extern const struct c2_test_suite reqh_ut;
-extern const struct c2_test_suite rpc_onwire_ut;
 extern const struct c2_test_suite colibri_setup_ut;
 extern const struct c2_test_suite rpclib_ut;
 extern const struct c2_test_suite cfm_ut;
@@ -68,6 +67,7 @@ extern const struct c2_test_suite addb_ut;
 extern const struct c2_test_suite balloc_ut;
 extern const struct c2_test_suite rpc_service_ut;
 extern const struct c2_test_suite frm_ut;
+extern const struct c2_test_suite c2_fop_lock_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -92,6 +92,7 @@ void add_uts(void)
 	c2_ut_add(&emap_ut);
 	c2_ut_add(&fit_ut);
 	c2_ut_add(&fol_ut);
+	c2_ut_add(&c2_fop_lock_ut);
 	c2_ut_add(&c2_net_bulk_if_ut);
 	c2_ut_add(&c2_net_bulk_mem_ut);
 	c2_ut_add(&c2_net_lnet_ut);
@@ -100,7 +101,6 @@ void add_uts(void)
 	c2_ut_add(&frm_ut);
 	c2_ut_add(&reqh_ut);
 	c2_ut_add(&rpclib_ut);
-	c2_ut_add(&rpc_onwire_ut);
 	c2_ut_add(&rpc_service_ut);
 	c2_ut_add(&sm_ut);
 	c2_ut_add(&stobio_ut);

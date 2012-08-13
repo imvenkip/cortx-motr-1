@@ -149,6 +149,10 @@ C2_BASSERT(equi(false, true)  == false);
 C2_BASSERT(equi(true,  false) == false);
 C2_BASSERT(equi(true,  true)  == true);
 
+const char *c2_bool_to_str(bool b)
+{
+	return b ? "true" : "false";
+}
 
 /*
  *  Local variables:

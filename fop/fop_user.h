@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,27 +14,26 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>,
- *                  Nikita Danilov <Nikita_Danilov@xyratex.com>
- * Original creation date: 04/21/2010
+ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
+ * Original creation date: 05/19/2010
  */
 
-#ifndef __COLIBRI_NET_XDR_H__
+#pragma once
 
-#define __COLIBRI_NET_XDR_H__
+#ifndef __COLIBRI_FOP_FOP_USER_H__
+#define __COLIBRI_FOP_FOP_USER_H__
 
-/**
-   @addtogroup netDep Networking (Deprecated Interfaces)
- */
+#include <rpc/rpc.h> /* xdrproc_t */
 
-struct c2_service_id;
-
-/**
-   XDR procedure to convert service_id from/to network representation
- */
-bool c2_xdr_service_id (void *xdrs, struct c2_service_id *node);
-
-/** @} end of net group */
-
+/* __COLIBRI_FOP_FOP_USER_H__ */
 #endif
 
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

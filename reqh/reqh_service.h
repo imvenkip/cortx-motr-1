@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,17 +18,18 @@
  * Original creation date: 05/08/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_REQH_REQH_SERVICE_H__
 #define __COLIBRI_REQH_REQH_SERVICE_H__
 
-#include "lib/list.h"
+#include "lib/tlist.h"
 #include "lib/bob.h"
+#include "lib/mutex.h"
 
-#include "net/net.h"
-#include "rpc/rpc2.h"
 
 /**
-   @addtogroup reqh
+   @defgroup reqhservice Request handler service
 
    A colibri service is described to a request handler using a struct
    c2_reqh_service_type data structure.
@@ -142,7 +143,9 @@ enum {
  */
 enum {
 	C2_RHS_MAGIX = 0x52455148535643, /* REQHSVC */
-	C2_RHS_MAGIX_HEAD = 0x5245515356434844 /* REQSVCHD */
+	C2_RHS_MAGIX_HEAD = 0x5245515356434844, /* REQSVCHD */
+	C2_RHS_TYPE_MAGIX = 0x5248535643545950, /* RHSVCTYP */
+	C2_RHS_TYPE_MAGIX_HEAD =  0x5248535459504844 /* RHSTYPHD */
 };
 
 /**
@@ -323,9 +326,9 @@ struct c2_reqh_service_type_ops {
 };
 
 /**
-   Represents a particular service type.
-   A c2_reqh_service_type instance is initialised and registered into a global
-   list of service types as a part of corresponding module initiasation process.
+   Represents a particular service type.  A c2_reqh_service_type instance is
+   initialised and registered into a global list of service types as a part of
+   corresponding module initialisation process.
 
    @see c2_reqh_service_type_init()
  */
@@ -334,6 +337,12 @@ struct c2_reqh_service_type {
 
 	/** Service type operations.*/
 	const struct c2_reqh_service_type_ops *rst_ops;
+
+	/**
+	 * Reqh key to store and locate c2_reqh_service instance.
+	 * @see c2_reqh::rh_key
+	 */
+	unsigned                               rst_key;
 
 	/**
 	    Linkage into global service types list.
@@ -384,7 +393,6 @@ struct c2_reqh_service_type *c2_reqh_service_type_find(const char *sname);
    @post c2_reqh_service_invariant(service)
 
    @see struct c2_reqh_service_ops
-   @see c2_service_init()
  */
 int c2_reqh_service_start(struct c2_reqh_service *service);
 
@@ -468,11 +476,21 @@ void c2_reqh_service_types_fini(void);
  */
 bool c2_reqh_service_invariant(const struct c2_reqh_service *service);
 
+/**
+   Returns service intance of the given service type using the reqhkey
+   framework.
+
+   @see c2_reqh::rh_key
+ */
+struct c2_reqh_service *
+c2_reqh_service_find(const struct c2_reqh_service_type *st,
+		     struct c2_reqh *reqh);
+
 int c2_reqh_service_types_length(void);
 bool c2_reqh_service_is_registered(const char *sname);
 void c2_reqh_service_list_print(void);
 
-/** @} endgroup reqh */
+/** @} endgroup reqhservice */
 
 /* __COLIBRI_REQH_REQH_SERVICE_H__ */
 

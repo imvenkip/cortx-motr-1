@@ -89,7 +89,7 @@ struct c2_rpc_server_ctx sctx = {
 	.rsx_xprts_nr         = 1,
 	.rsx_argv             = server_argv,
 	.rsx_argc             = ARRAY_SIZE(server_argv),
-	.rsx_service_types    = cs_default_stypes,
+	.rsx_service_types    = c2_cs_default_stypes,
 	.rsx_service_types_nr = 2,
 	.rsx_log_file_name    = SERVER_LOG_FILE_NAME,
 };
@@ -181,7 +181,7 @@ static void test_rpclib(void)
 
 	/*
 	 * There is no need to initialize xprt explicitly if client and server
-	 * run withing a single process, because in this case transport is
+	 * run within a single process, because in this case transport is
 	 * initialized by c2_rpc_server_start().
 	 */
 

@@ -18,8 +18,7 @@
  * Original creation date: 06/25/2011
  */
 
-#include "lib/vec.h"
-#include "fop/fop.h"
+#pragma once
 
 #ifndef C2_BUFVEC_XCODE_H_
 #define C2_BUFVEC_XCODE_H_
@@ -39,6 +38,9 @@
    - Currently, we assume that the bufvecs supplied to the transcode routines
    have 8 byte aligned buffers with sizes multiple of 8 bytes.
 */
+
+#include "lib/vec.h"
+#include "fop/fop.h"
 
 /** This is the  number of bytes per unit of external data */
 enum {

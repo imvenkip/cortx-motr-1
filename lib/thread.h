@@ -19,6 +19,8 @@
  * Original creation date: 05/01/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LIB_THREAD_H__
 #define __COLIBRI_LIB_THREAD_H__
 

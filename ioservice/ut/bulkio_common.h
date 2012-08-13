@@ -18,6 +18,8 @@
  * Original creation date: 02/21/2012
  */
 
+#pragma once
+
 #ifndef __IOSERVICE_ST_COMMON_H__
 #define __IOSERVICE_ST_COMMON_H__
 

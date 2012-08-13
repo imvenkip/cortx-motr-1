@@ -25,6 +25,7 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "net/net.h"        /* c2_net_end_point_get */
 #include "fop/fom.h"
 #include "fop/fop.h"
 #include "fop/fop_item_type.h"
@@ -90,7 +91,7 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 	 */
 	c2_fop_init(fop, &c2_rpc_fop_conn_establish_fopt, NULL);
 
-	rc = item_encdec(cur, &fop->f_item, C2_BUFVEC_DECODE);
+	rc = c2_fop_item_encdec(&fop->f_item, cur, C2_BUFVEC_DECODE);
 	if (rc != 0)
 		goto out;
 
@@ -109,9 +110,9 @@ const struct c2_fop_type_ops c2_rpc_fop_noop_ops = {
 
 
 static struct c2_rpc_item_type_ops conn_establish_item_type_ops = {
-	.rito_encode = c2_fop_item_type_default_encode,
-	.rito_decode = conn_establish_item_decode,
-        .rito_item_size = c2_fop_item_type_default_onwire_size,
+	.rito_encode       = c2_fop_item_type_default_encode,
+	.rito_decode       = conn_establish_item_decode,
+        .rito_payload_size = c2_fop_item_type_default_onwire_size,
 };
 
 struct c2_fop_type c2_rpc_fop_conn_establish_fopt;

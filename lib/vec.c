@@ -232,6 +232,21 @@ void *c2_bufvec_cursor_addr(struct c2_bufvec_cursor *cur)
 }
 C2_EXPORTED(c2_bufvec_cursor_addr);
 
+bool c2_bufvec_cursor_align(struct c2_bufvec_cursor *cur, uint64_t alignment)
+{
+	uint64_t addr;
+	uint64_t count;
+
+	if (c2_bufvec_cursor_move(cur, 0))
+		return true;
+
+	addr = (uint64_t)c2_bufvec_cursor_addr(cur);
+	count = c2_align(addr, alignment) - addr;
+
+	return c2_bufvec_cursor_move(cur, count);
+}
+C2_EXPORTED(c2_bufvec_cursor_align);
+
 c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
 				  struct c2_bufvec_cursor *scur,
 				  c2_bcount_t num_bytes)

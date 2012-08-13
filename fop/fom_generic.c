@@ -19,7 +19,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+# include "config.h"
 #endif
 
 #include "lib/errno.h"
@@ -30,11 +30,15 @@
 #include "net/net.h"
 #include "fop/fop.h"
 #include "dtm/dtm.h"
-#include "reqh_fops_xc.h"
-#include "reqh.h"
+#include "fop/fom_generic_xc.h"
+#include "rpc/rpc2.h"
+#include "rpc/rpc_opcodes.h"    /* C2_REQH_ERROR_REPLY_OPCODE */
+#include "reqh/reqh.h"
+#include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
+#include "fop/fom_generic.h"
 
 /**
-   @addtogroup reqh
+   @addtogroup fom
    @{
  */
 
@@ -48,10 +52,22 @@ static const struct c2_addb_loc reqh_gen_addb_loc = {
 #define REQH_GEN_ADDB_ADD(addb_ctx, name, rc)  \
 C2_ADDB_ADD((addb_ctx), &reqh_gen_addb_loc, c2_addb_func_fail, (name), (rc))
 
-/**
- * Reqh generic error fop type.
- */
-extern struct c2_fop_type c2_reqh_error_rep_fopt;
+struct c2_fop_type c2_fom_error_rep_fopt;
+
+void c2_fom_generic_fini(void)
+{
+	c2_fop_type_fini(&c2_fom_error_rep_fopt);
+}
+
+int c2_fom_generic_init(void)
+{
+	return C2_FOP_TYPE_INIT(&c2_fom_error_rep_fopt,
+				.name      = "fom error reply",
+				.opcode    = C2_REQH_ERROR_REPLY_OPCODE,
+				.xt        = c2_fom_error_rep_xc,
+				.rpc_flags = C2_RPC_ITEM_TYPE_REPLY);
+}
+
 
 /**
  * Fom phase operations structure, helps to transition fom
@@ -64,7 +80,7 @@ struct fom_phase_ops {
 
 	   @retval returns C2_FSO_AGAIN, this transitions fom to its next phase
 
-	   @see c2_fom_state_generic()
+	   @see c2_fom_tick_generic()
 	 */
         int (*fpo_action) (struct c2_fom *fom);
         /**
@@ -81,7 +97,7 @@ struct fom_phase_ops {
 	   This is used in pre condition checks before executing
 	   fom phase action.
 
-	   @see c2_fom_state_generic()
+	   @see c2_fom_tick_generic()
 	 */
 	uint64_t	   fpo_pre_phase;
 };
@@ -90,7 +106,7 @@ struct fom_phase_ops {
  * Begins fom execution, transitions fom to its first
  * standard phase.
  *
- * @see c2_fom_state_generic()
+ * @see c2_fom_tick_generic()
  *
  * @retval C2_FSO_AGAIN, to execute next fom phase
  */
@@ -224,11 +240,11 @@ static int create_loc_ctx_wait(struct c2_fom *fom)
 static int set_gen_err_reply(struct c2_fom *fom)
 {
 	struct c2_fop			*rfop;
-	struct c2_reqh_error_rep	*out_fop;
+	struct c2_fom_error_rep	*out_fop;
 
 	C2_PRE(fom != NULL);
 
-	rfop = c2_fop_alloc(&c2_reqh_error_rep_fopt, NULL);
+	rfop = c2_fop_alloc(&c2_fom_error_rep_fopt, NULL);
 	if (rfop == NULL)
 		return -ENOMEM;
 	out_fop = c2_fop_data(rfop);
@@ -482,7 +498,7 @@ static const struct fom_phase_ops fpo_table[] = {
 					      1 << C2_FOPH_QUEUE_REPLY_WAIT }
 };
 
-int c2_fom_state_generic(struct c2_fom *fom)
+int c2_fom_tick_generic(struct c2_fom *fom)
 {
 	int			    rc;
 	const struct fom_phase_ops *fpo_phase;
@@ -514,7 +530,7 @@ int c2_fom_state_generic(struct c2_fom *fom)
 	return rc;
 }
 
-/** @} endgroup reqh */
+/** @} endgroup fom */
 
 /*
  *  Local variables:

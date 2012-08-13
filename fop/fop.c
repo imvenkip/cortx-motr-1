@@ -251,6 +251,12 @@ void fop_fol_type_fini(struct c2_fop_type *fopt)
 {
 }
 
+int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
+		       struct c2_db_tx *tx)
+{
+	return 0;
+}
+
 #else /* !__KERNEL__ */
 
 static const struct c2_fol_rec_type_ops c2_fop_fol_default_ops;

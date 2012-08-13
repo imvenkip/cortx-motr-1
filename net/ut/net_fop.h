@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -13,31 +13,29 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>,
- *                  Nikita Danilov <Nikita_Danilov@xyratex.com>
- * Original creation date: 04/11/2010
+ * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
+ * Original creation date: 12/05/2010
  */
 
-#include <rpc/types.h>
-#include <rpc/xdr.h>
+#pragma once
 
-#include "lib/cdefs.h"
-#include "net/net.h"
-#include "net/xdr.h"
+#ifndef _NET_FOP_H_
+#define _NET_FOP_H_
 
-/**
-   @addtogroup netDep Networking (Deprecated Interfaces)
+#include "fop/fop.h"
 
-   @{
+extern struct c2_fop_type c2_nettest_fopt;
+
+int nettest_fop_init(void);
+void nettest_fop_fini(void);
+
+#endif /* !_NET_FOP_H_ */
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
  */
-
-bool c2_xdr_service_id (void *x, struct c2_service_id *objp)
-{
-	XDR *xdrs = x;
-
-	return xdr_vector(xdrs, (char *)objp->si_uuid,
-			  ARRAY_SIZE(objp->si_uuid),
-			  sizeof (char), (xdrproc_t) xdr_char);
-}
-
-/** @} end of net deprecated group */

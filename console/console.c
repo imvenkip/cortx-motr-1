@@ -30,7 +30,7 @@
 #include "lib/getopts.h"	  /* C2_GETOPTS */
 #include "colibri/init.h"	  /* c2_init */
 #include "net/lnet/lnet.h"
-#include "rpc/rpclib.h"
+#include "fop/fop.h"
 #include "ut/rpc.h"
 
 #include "console/console.h"

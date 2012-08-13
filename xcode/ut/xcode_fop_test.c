@@ -30,6 +30,7 @@
 #include "xcode/ut/xcode_fops.h"
 
 #include "rpc/rpc_opcodes.h"
+#include "net/net.h"
 
 /** Random test values. */
 enum {

@@ -26,6 +26,8 @@
  * (cm).
  */
 
+#pragma once
+
 #ifndef __COLIBRI_CONSOLE_FOP_H__
 #define __COLIBRI_CONSOLE_FOP_H__
 

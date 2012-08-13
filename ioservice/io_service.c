@@ -27,7 +27,6 @@
 #include "lib/tlist.h"
 #include "net/buffer_pool.h"
 #include "reqh/reqh_service.h"
-#include "rpc/rpc2.h"
 #include "reqh/reqh.h"
 #include "ioservice/io_fops.h"
 #include "ioservice/io_service.h"

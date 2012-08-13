@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -24,6 +24,8 @@
  * directly responsible for handling failures, it is intersected by copy-machine
  * (cm).
  */
+
+#pragma once
 
 #ifndef __COLIBRI_CONSOLE_FOM_H__
 #define __COLIBRI_CONSOLE_FOM_H__

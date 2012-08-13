@@ -40,8 +40,8 @@
 /*
  * Cob delete and Cob create fom types.
  */
-extern struct c2_fom_type cd_fom_type;
-extern struct c2_fom_type cc_fom_type;
+extern struct c2_fom_type cob_delete_fomt;
+extern struct c2_fom_type cob_create_fomt;
 
 /* tlists and tlist APIs referred from rpc layer. */
 C2_TL_DESCR_DECLARE(rpcbulk, extern);
@@ -101,16 +101,15 @@ static struct c2_fop_type *ioservice_fops[] = {
 /* Used for IO REQUEST items only. */
 const struct c2_rpc_item_ops io_req_rpc_item_ops = {
 	.rio_sent	= NULL,
-	.rio_added	= NULL,
 	.rio_replied	= io_item_replied,
 	.rio_free	= io_item_free,
 };
 
 static const struct c2_rpc_item_type_ops io_item_type_ops = {
-        .rito_item_size   = c2_fop_item_type_default_onwire_size,
-        .rito_io_coalesce = item_io_coalesce,
-        .rito_encode	  = c2_fop_item_type_default_encode,
-        .rito_decode	  = c2_fop_item_type_default_decode,
+        .rito_payload_size   = c2_fop_item_type_default_onwire_size,
+        .rito_io_coalesce    = item_io_coalesce,
+        .rito_encode	     = c2_fop_item_type_default_encode,
+        .rito_decode	     = c2_fop_item_type_default_decode,
 };
 
 const struct c2_fop_type_ops io_fop_rwv_ops = {
@@ -122,15 +121,14 @@ const struct c2_fop_type_ops io_fop_rwv_ops = {
 /* Used for cob_create and cob_delete fops. */
 const struct c2_rpc_item_ops cob_req_rpc_item_ops = {
 	.rio_sent        = NULL,
-	.rio_added       = NULL,
 	.rio_free        = cob_rpcitem_free,
 };
 
 static const struct c2_rpc_item_type_ops cob_rpc_type_ops = {
-	.rito_item_size   = c2_fop_item_type_default_onwire_size,
-	.rito_io_coalesce = NULL,
-	.rito_encode      = c2_fop_item_type_default_encode,
-	.rito_decode	  = c2_fop_item_type_default_decode,
+	.rito_payload_size   = c2_fop_item_type_default_onwire_size,
+	.rito_io_coalesce    = NULL,
+	.rito_encode         = c2_fop_item_type_default_encode,
+	.rito_decode	     = c2_fop_item_type_default_decode,
 };
 
 void c2_ioservice_fop_fini(void)
@@ -157,10 +155,10 @@ int c2_ioservice_fop_init(void)
 	c2_xc_io_fops_xc_init();
 
 #ifndef __KERNEL__
-	c2_fop_cob_readv_fopt.ft_fom_type  = c2_io_fom_cob_rw_mopt;
-	c2_fop_cob_writev_fopt.ft_fom_type = c2_io_fom_cob_rw_mopt;
-	c2_fop_cob_create_fopt.ft_fom_type = cc_fom_type;
-	c2_fop_cob_delete_fopt.ft_fom_type = cc_fom_type;
+	c2_fop_cob_readv_fopt.ft_fom_type  = c2_io_fom_cob_rw_fomt;
+	c2_fop_cob_writev_fopt.ft_fom_type = c2_io_fom_cob_rw_fomt;
+	c2_fop_cob_create_fopt.ft_fom_type = cob_create_fomt;
+	c2_fop_cob_delete_fopt.ft_fom_type = cob_delete_fomt;
 #endif
 	return  C2_FOP_TYPE_INIT(&c2_fop_cob_readv_fopt,
 				 .name      = "Read request",
@@ -169,7 +167,7 @@ int c2_ioservice_fop_init(void)
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
 				 .fop_ops   = &io_fop_rwv_ops,
 #ifndef __KERNEL__
-				 .fom_ops   = c2_io_fom_cob_rw_mopt.ft_ops,
+				 .fom_ops   = c2_io_fom_cob_rw_fomt.ft_ops,
 #endif
 				 .rpc_ops   = &io_item_type_ops) ?:
 		C2_FOP_TYPE_INIT(&c2_fop_cob_writev_fopt,
@@ -180,7 +178,7 @@ int c2_ioservice_fop_init(void)
 					      C2_RPC_ITEM_TYPE_MUTABO,
 				 .fop_ops   = &io_fop_rwv_ops,
 #ifndef __KERNEL__
-				 .fom_ops   = c2_io_fom_cob_rw_mopt.ft_ops,
+				 .fom_ops   = c2_io_fom_cob_rw_fomt.ft_ops,
 #endif
 				 .rpc_ops   = &io_item_type_ops) ?:
 		C2_FOP_TYPE_INIT(&c2_fop_cob_readv_rep_fopt,
@@ -199,7 +197,7 @@ int c2_ioservice_fop_init(void)
 				 .xt        = c2_fop_cob_create_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
 #ifndef __KERNEL__
-				 .fom_ops   = cc_fom_type.ft_ops,
+				 .fom_ops   = cob_create_fomt.ft_ops,
 #endif
 				 .rpc_ops   = &cob_rpc_type_ops) ?:
 		C2_FOP_TYPE_INIT(&c2_fop_cob_delete_fopt,
@@ -208,7 +206,7 @@ int c2_ioservice_fop_init(void)
 				 .xt        = c2_fop_cob_delete_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
 #ifndef __KERNEL__
-				 .fom_ops   = cc_fom_type.ft_ops,
+				 .fom_ops   = cob_create_fomt.ft_ops,
 #endif
 				 .rpc_ops   = &cob_rpc_type_ops) ?:
 		C2_FOP_TYPE_INIT(&c2_fop_cob_op_reply_fopt,
@@ -1150,15 +1148,15 @@ void c2_io_fop_destroy(struct c2_fop *fop)
 
 static inline size_t io_fop_size_get(struct c2_fop *fop)
 {
-	c2_bcount_t          len;
+	//c2_bcount_t          len;
 	struct c2_xcode_ctx  ctx;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(fop->f_type != NULL);
 
 	c2_xcode_ctx_init(&ctx, &C2_FOP_XCODE_OBJ(fop));
-	len = c2_xcode_length(&ctx);
-	return len + c2_rpc_pad_bytes_get(len);
+	//return len + c2_rpc_pad_bytes_get(len);
+	return c2_xcode_length(&ctx);
 }
 
 /**

@@ -18,6 +18,8 @@
  * Original creation date: 08/19/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LIB_GETOPTS_H__
 #define __COLIBRI_LIB_GETOPTS_H__
 
