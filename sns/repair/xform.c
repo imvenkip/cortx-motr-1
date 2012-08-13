@@ -24,27 +24,26 @@
 
 #include "lib/bob.h"
 #include "lib/errno.h"
-#include "cm/ag.h"
 #include "sns/repair/ag.h"
-#include "cm/cm_internal.h"
 #include "sns/parity_math.h"
 
 /**
  * XORs the source and destination bufvecs and stores the output in
  * destination bufvec.
  * This implementation assumes that both source and destination bufvecs
- * have same size which is equal to C2_CP_SIZE.
+ * have same size.
  * @param dst - destination bufvec containing the output of src XOR dest.
  * @param src - source bufvec.
+ * @param num_bytes - size of bufvec
  */
-static void bufvec_xor(struct c2_bufvec *dst, struct c2_bufvec *src)
+static void bufvec_xor(struct c2_bufvec *dst, struct c2_bufvec *src,
+		       c2_bcount_t num_bytes)
 {
         struct c2_bufvec_cursor s_cur;
         struct c2_bufvec_cursor d_cur;
         c2_bcount_t             frag_size = 0;
         struct c2_buf           src_buf;
         struct c2_buf           dst_buf;
-        c2_bcount_t             num_bytes = C2_CP_SIZE;
 
 	C2_PRE(dst != NULL);
 	C2_PRE(src != NULL);
@@ -68,61 +67,7 @@ static void bufvec_xor(struct c2_bufvec *dst, struct c2_bufvec *src)
 }
 
 /**
- * Creates resultant copy packet and saves the context of the first incoming
- * copy packet.
- * @param sns_ag SNS specific aggregation group in which the context is to be
- * stored.
- * @param cp First incoming copy packet for transformation.
- */
-static int sns_res_cp_create(struct c2_sns_repair_ag *sns_ag, struct c2_cm_cp *cp)
-{
-        struct c2_cm_cp *res_cp;
-
-        C2_PRE(sns_ag != NULL);
-        C2_PRE(cp != NULL);
-
-	res_cp = sns_ag->sag_base.cag_ops->cago_cp_alloc(&sns_ag->sag_base,
-							 cp->c_data);
-        if (res_cp == NULL)
-                return -ENOMEM;
-
-        sns_ag->sag_collected_cp_nr = 1;
-        res_cp->c_prio = cp->c_prio;
-	res_cp->c_fom.fo_phase = cp->c_fom.fo_phase;
-        res_cp->c_data = cp->c_data;
-        res_cp->c_ag = &sns_ag->sag_base;
-
-	sns_ag->sag_ccp = res_cp;
-
-        cp->c_data = NULL;
-
-        return 0;
-}
-
-/**
  * Transformation function for sns repair.
- *
- * Finds aggregation group c2_sns_repair_ag corresponding to the incoming
- * copy packet. Calculates the total number of copy packets
- * c2_sns_repair_ag::sag_local_cp_nr belonging
- * to c2_sns_repair_ag and checks it with the number of copy packets which are
- * transformed (c2_sns_repair_ag::sag_collected_cp_nr, which is incremented after
- * every transformation).
- * If all the copy packets belonging to the aggregation group are transformed,
- * then creates a new copy packet and its corresponding fom.
- *
- * Transformation involves XORing the c2_buf_vec's from copy packet
- * c2_cm_cp::c_data with c2_sns_repair_ag::sag_ccp::c_data.
- * XORing is done using parity math operation like c2_parity_math_buffer_xor().
- *
- * When first copy packet of the aggregation group is transformed, its
- * corresponding c2_sns_repair_ag::sag_ccp::c_data is set to c2_cm_cp::c_data.
- * Typically, all copy packets will have same buffer vector size.
- * Hence, there is no need for any complex buffer manipulation like growing or
- * shrinking the c2_sns_repair_ag::sag_ccp::c_data.
- *
- * Every copy packet once transformed is freed. This is done by setting it's fom
- * state to CCP_FINI.
  *
  * @pre cp != NULL && cp->c_fom.fo_phase == CCP_XFORM
  * @param cp Copy packet that has to be transformed.
@@ -132,6 +77,7 @@ int repair_cp_xform(struct c2_cm_cp *cp)
         struct c2_sns_repair_ag *sns_ag;
         struct c2_cm_aggr_group *ag;
 	struct c2_cm_cp         *res_cp;
+	c2_bcount_t              cp_bufvec_size;
 
         C2_PRE(cp != NULL && cp->c_fom.fo_phase == CCP_XFORM);
 
@@ -144,38 +90,53 @@ int repair_cp_xform(struct c2_cm_cp *cp)
                  *  If there is only one copy packet in the aggregation group,
                  *  call the next phase of the copy packet fom.
                  */
-                if (sns_ag->sag_local_cp_nr == 1) {
-                        cp->c_fom.fo_rc = cp->c_ops->co_phase(cp);
-                        goto out;
-                }
+                if (sns_ag->sag_local_cp_nr == 1)
+                        return cp->c_ops->co_phase(cp);
+
                 /*
                  * If this is the first copy packet for this aggregation group,
-                 * create the resultant copy packet and save context of the
-                 * current copy packet.
+                 * (with more copy packets from same aggregation group to be
+                 * yet transformed), store it's pointer in
+                 * c2_sns_repair_ag::sag_ccp. This copy packet will be used as
+                 * a resultant copy packet for transformation.
                  */
-                cp->c_fom.fo_rc = sns_res_cp_create(sns_ag, cp);
+		res_cp = cp;
+		sns_ag->sag_collected_cp_nr = 1;
+
+		/*
+		 * Put this copy packet to wait queue of request handler till
+		 * transformation of all copy packets belonging to the
+		 * aggregation group is complete.
+		 */
+		return C2_FSO_WAIT;
         } else {
-                bufvec_xor(res_cp->c_data, cp->c_data);
+		cp_bufvec_size = c2_cm_cp_size(cp);
+		/* Typically, all copy packets will have same buffer vector
+		 * size. Hence, there is no need for any complex buffer
+		 * manipulation like growing or shrinking the buffers.
+		 */
+                bufvec_xor(res_cp->c_data, cp->c_data, cp_bufvec_size);
                 C2_CNT_INC(sns_ag->sag_collected_cp_nr);
                 /*
                  * Once transformation is complete, mark the copy
                  * packet's fom to CCP_FINI since it is not needed anymore,
                  * provided that it is not the first copy packet.
+                 * This copy packet will be freed during CCP_FINI phase
+                 * execution.
                  */
                 cp->c_fom.fo_phase = CCP_FINI;
                 /*
-                 * If all copy packets are processed at this stage, post the
-                 * resultant copy packet to the request handler's queue for
-                 * processing.
+                 * If all copy packets are processed at this stage,
+                 * move the resultant copy packet's fom from waiting to ready
+                 * queue.
                  */
                 if(sns_ag->sag_local_cp_nr == sns_ag->sag_collected_cp_nr) {
-			c2_cm_cp_enqueue(res_cp->c_ag->cag_cm, res_cp);
-                        res_cp->c_fom.fo_rc = res_cp->c_ops->co_phase(res_cp);
+                        res_cp->c_ops->co_phase(res_cp);
+			c2_fom_wakeup(&res_cp->c_fom);
 		}
         }
 
-out:
-        return C2_FSO_AGAIN;
+	return C2_FSO_AGAIN;
 }
 
 /*

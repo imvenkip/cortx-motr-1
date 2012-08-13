@@ -208,6 +208,13 @@ void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp);
 bool c2_cm_cp_invariant(struct c2_cm_cp *cp);
 
 /**
+ * Returns the size of the bufvec of the copy packet.
+ * Initialized at time of configuration from layout info.
+ * It is also used for buffer pool provisioning.
+ */
+c2_bcount_t c2_cm_cp_size(struct c2_cm_cp *cp);
+
+/**
  @}
  */
 

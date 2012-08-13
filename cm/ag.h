@@ -107,6 +107,7 @@ struct c2_cm_aggr_group_ops {
 
 C2_TL_DESCR_DECLARE(aggr_grps, extern);
 C2_TL_DECLARE(aggr_grps, extern, struct c2_cm_aggr_group);
+extern struct c2_bob_type aggr_grps_bob;
 
 #endif
 /*
