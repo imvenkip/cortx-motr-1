@@ -463,7 +463,7 @@ enum {
 	C2_FOL_REC_TYPE_MAX = 64
 };
 
-const static struct c2_fol_rec_type *rtypes[C2_FOL_REC_TYPE_MAX];
+static const struct c2_fol_rec_type *rtypes[C2_FOL_REC_TYPE_MAX];
 static struct c2_mutex rtypes_lock;
 
 int c2_fols_init(void)

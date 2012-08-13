@@ -37,10 +37,6 @@ c2_bcount_t c2_fop_item_type_default_onwire_size(const struct c2_rpc_item *item)
 	C2_ASSERT(fop->f_type != NULL);
 	c2_xcode_ctx_init(&ctx, &C2_FOP_XCODE_OBJ(fop));
 	len = c2_xcode_length(&ctx);
-#if 0
-	len += c2_rpc_pad_bytes_get(len) + ITEM_ONWIRE_HEADER_SIZE;
-#endif
-	//len += ITEM_ONWIRE_HEADER_SIZE;
 	return len;
 }
 
@@ -98,43 +94,6 @@ int c2_fop_item_type_default_decode(struct c2_rpc_item_type  *item_type,
 	return rc;
 }
 
-#if 0
-/**
-   Helper function used by encode/decode ops of each item type (rito_encode,
-   rito_decode) for decoding an rpc item into/from a bufvec
-*/
-int c2_fop_item_encdec(struct c2_rpc_item      *item,
-		       struct c2_bufvec_cursor *cur,
-		       enum c2_bufvec_what      what)
-{
-	int		 rc;
-	struct	c2_fop	*fop;
-
-	C2_PRE(item != NULL);
-	C2_PRE(cur != NULL);
-
-	fop = c2_rpc_item_to_fop(item);
-	rc = c2_rpc_item_header_encdec(item, cur, what) ?:
-	     c2_xcode_bufvec_fop(cur, fop, what);
-	return rc;
-}
-
-/**
-  Adds padding bytes to the c2_bufvec_cursor to keep it aligned at 8 byte
-  boundaries.
-*/
-static int zero_padding_add(struct c2_bufvec_cursor *cur, uint64_t pad_bytes)
-{
-	uint64_t pad = 0;
-
-	C2_PRE(cur != NULL);
-	C2_PRE(pad_bytes <= sizeof pad);
-
-	return c2_data_to_bufvec_copy(cur, &pad, pad_bytes);
-}
-
-#else
-
 static void *xcode_top_obj(struct c2_xcode_ctx *ctx)
 {
 	return ctx->xcx_it.xcu_stack[0].s_obj.xo_ptr;
@@ -149,8 +108,6 @@ int c2_fop_item_encdec(struct c2_rpc_item      *item,
 		       enum c2_bufvec_what      what)
 {
 	int                  rc;
-	//size_t               item_size;
-	//size_t               padding;
 	struct c2_fop       *fop;
 	struct c2_xcode_ctx  xc_ctx;
 
@@ -176,18 +133,8 @@ int c2_fop_item_encdec(struct c2_rpc_item      *item,
 		*cur = xc_ctx.xcx_buf;
 	}
 
-#if 0
-	/* Pad the message in buffer to 8 byte boundary */
-	if (rc == 0) {
-		c2_xcode_ctx_init(&xc_ctx, &C2_FOP_XCODE_OBJ(fop));
-		item_size = c2_xcode_length(&xc_ctx);
-		padding   = c2_rpc_pad_bytes_get(item_size);
-		rc = zero_padding_add(cur, padding);
-	}
-#endif
 	return rc;
 }
-#endif
 
 /** Default rpc item type ops for fop item types */
 const struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops = {

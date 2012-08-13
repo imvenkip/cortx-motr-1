@@ -1148,14 +1148,12 @@ void c2_io_fop_destroy(struct c2_fop *fop)
 
 static inline size_t io_fop_size_get(struct c2_fop *fop)
 {
-	//c2_bcount_t          len;
 	struct c2_xcode_ctx  ctx;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(fop->f_type != NULL);
 
 	c2_xcode_ctx_init(&ctx, &C2_FOP_XCODE_OBJ(fop));
-	//return len + c2_rpc_pad_bytes_get(len);
 	return c2_xcode_length(&ctx);
 }
 

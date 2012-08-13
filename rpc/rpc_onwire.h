@@ -77,11 +77,6 @@ enum {
 	ITEM_ONWIRE_HEADER_SIZE = 112,
 };
 
-#if 0
-/** Get the pad bytes required for message */
-int c2_rpc_pad_bytes_get(const size_t size);
-#endif
-
 int c2_rpc_item_header_encdec(struct c2_rpc_item      *item,
 			      struct c2_bufvec_cursor *cur,
 			      enum c2_bufvec_what      what);

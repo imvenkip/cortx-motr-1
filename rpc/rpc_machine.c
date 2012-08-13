@@ -93,7 +93,7 @@ const struct c2_addb_loc c2_rpc_machine_addb_loc = {
 C2_ADDB_EV_DEFINE_PUBLIC(c2_rpc_machine_func_fail, "rpc_machine_func_fail",
 			 C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
-const static struct c2_bob_type rpc_machine_bob_type = {
+static const struct c2_bob_type rpc_machine_bob_type = {
 	.bt_name         = "rpc_machine",
 	.bt_magix_offset = C2_MAGIX_OFFSET(struct c2_rpc_machine, rm_magix),
 	.bt_magix        = C2_RPC_MACHINE_MAGIX,
