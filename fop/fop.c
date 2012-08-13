@@ -110,7 +110,7 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 C2_EXPORTED(c2_fop_alloc);
 
 /**
-   @todo Current implementation just deletes the top level object;
+   @todo Current implementation just frees the top level object;
    instead traverse and free entire tree of objects.
  */
 void c2_fop_fini(struct c2_fop *fop)
@@ -137,30 +137,6 @@ void *c2_fop_data(struct c2_fop *fop)
 	return fop->f_data.fd_data;
 }
 C2_EXPORTED(c2_fop_data);
-
-size_t c2_fop_xcode_length(struct c2_fop *fop)
-{
-	size_t              size;
-	size_t              padding;
-	struct c2_xcode_ctx ctx;
-
-	C2_PRE(fop != NULL);
-
-	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj) {
-			  fop->f_type->ft_xt,
-			  c2_fop_data(fop) });
-	size    = c2_xcode_length(&ctx);
-	padding = c2_rpc_pad_bytes_get(size);
-
-	return size + padding;
-}
-C2_EXPORTED(c2_fop_xcode_length);
-
-/**
-   Used to check that no new fop iterator types are registered once a fop type
-   has been built.
- */
-bool fop_types_built = false;
 
 void c2_fop_type_fini(struct c2_fop_type *fopt)
 {
@@ -190,12 +166,14 @@ int c2_fop_type_init(struct c2_fop_type *ft,
 	ft->ft_ops          = args->fop_ops;
 	fol_type->rt_name   = args->name;
 	fol_type->rt_opcode = args->opcode;
-	fol_type->rt_ops    = args->fol_ops ?: &c2_fop_fol_default_ops;
+	fol_type->rt_ops    = args->fol_ops ?:
+		&c2_fop_fol_default_ops;
 
 	ft->ft_fom_type.ft_ops = args->fom_ops;
 	rpc_type->rit_opcode   = args->opcode;
 	rpc_type->rit_flags    = args->rpc_flags;
-	rpc_type->rit_ops      = args->rpc_ops ?: &c2_rpc_fop_default_item_type_ops;
+	rpc_type->rit_ops      = args->rpc_ops ?:
+		&c2_rpc_fop_default_item_type_ops;
 
 	c2_rpc_item_type_register(&ft->ft_rpc_item_type);
 	c2_fol_rec_type_register(&ft->ft_rec_type);
@@ -204,7 +182,6 @@ int c2_fop_type_init(struct c2_fop_type *ft,
 	c2_mutex_lock(&fop_types_lock);
 	ft_tlink_init_at(ft, &fop_types_list);
 	c2_mutex_unlock(&fop_types_lock);
-	fop_types_built = true;
 	return 0;
 }
 C2_EXPORTED(c2_fop_type_init);
@@ -234,10 +211,10 @@ struct c2_fop_type *c2_fop_type_next(struct c2_fop_type *ftype)
 
 	c2_mutex_lock(&fop_types_lock);
 	if (ftype == NULL) {
-		/* Returns head of fop_types_list*/
+		/* Returns head of fop_types_list */
 		rtype = ft_tlist_head(&fop_types_list);
 	} else {
-		/* Returns Next from fop_types_list*/
+		/* Returns Next from fop_types_list */
 		rtype = ft_tlist_next(&fop_types_list, ftype);
 	}
 	c2_mutex_unlock(&fop_types_lock);

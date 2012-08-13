@@ -112,7 +112,9 @@ struct c2_fop {
 };
 
 /**
-   c2_fop_init does not allocate fop data.
+   c2_fop_init() does not allocate top level fop data object.
+
+   @see c2_fop_data_alloc()
  */
 void           c2_fop_init (struct c2_fop *fop, struct c2_fop_type *fopt,
 			    void *data);
@@ -128,16 +130,6 @@ void           c2_fop_fini (struct c2_fop *fop);
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data);
 void           c2_fop_free (struct c2_fop *fop);
 void          *c2_fop_data (struct c2_fop *fop);
-
-/**
-  Calculates the onwire size of fop data. This function internally calls
-  the fop field type specific functions to calculate the size
-
-  @param fop The data for this fop is to be encoded/decoded.
-
-  @retval Onwire size of the fop in bytes.
-*/
-size_t c2_fop_xcode_length(struct c2_fop *fop);
 
 /**
    Allocate top level fop data
@@ -216,7 +208,7 @@ struct c2_fop_type {
 	struct c2_tlink                   ft_linkage;
 	const struct c2_fop_type_ops     *ft_ops;
 	/** Xcode type representing this fop type. */
-	struct c2_xcode_type             *ft_xt;
+	const struct c2_xcode_type       *ft_xt;
 	struct c2_fol_rec_type            ft_rec_type;
 	/** State machine for this fop type */
 	struct c2_fom_type                ft_fom_type;
@@ -257,8 +249,6 @@ struct c2_fop_type_ops {
 	const struct c2_fol_rec_type_ops  *fto_rec_ops;
 	/** Action to be taken on receiving reply of a fop. */
 	void (*fto_fop_replied)(struct c2_fop *fop, struct c2_fop *bfop);
-	/** Return the size of fop object. */
-	size_t (*fto_size_get)(struct c2_fop *fop);
 	/** Try to coalesce multiple fops into one. */
 	int (*fto_io_coalesce)(struct c2_fop *fop, uint64_t rpc_size);
 	/** Returns the net buf desc in io fop. */
@@ -279,7 +269,7 @@ struct __c2_fop_type_init_args {
 	const char                        *name;
 	uint32_t                           opcode;
 	uint64_t                           rpc_flags;
-	struct c2_xcode_type              *xt;
+	const struct c2_xcode_type        *xt;
 	const struct c2_fop_type_ops      *fop_ops;
 	const struct c2_fol_rec_type_ops  *fol_ops;
 	const struct c2_fom_type_ops      *fom_ops;
@@ -311,6 +301,11 @@ void c2_fop_type_fini_nr(const struct c2_fop_type_batch *batch);
 
 int  c2_fops_init(void);
 void c2_fops_fini(void);
+
+#define C2_FOP_XCODE_OBJ(f) (struct c2_xcode_obj) {	\
+		.xo_type = f->f_type->ft_xt,		\
+		.xo_ptr  = c2_fop_data(f),		\
+}
 
 /** @} end of fop group */
 

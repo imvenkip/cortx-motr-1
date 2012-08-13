@@ -142,7 +142,7 @@ int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
 		enum c2_bufvec_what what);
 
 /** Get the pad bytes required for message */
-int c2_rpc_pad_bytes_get(size_t size);
+int c2_rpc_pad_bytes_get(const size_t size);
 
 /** @}  End of rpc_onwire group */
 

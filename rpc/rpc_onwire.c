@@ -173,6 +173,7 @@ static int zero_padding_add(struct c2_bufvec_cursor *cur, uint64_t pad_bytes)
 	uint64_t pad = 0;
 
 	C2_PRE(cur != NULL);
+	C2_PRE(pad_bytes <= sizeof pad);
 
 	return c2_data_to_bufvec_copy(cur, &pad, pad_bytes);
 }
@@ -375,9 +376,8 @@ int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb,
 /**
    Returns no of padding bytes that would be needed to keep a cursor aligned
    at 8 byte boundary.
-   @pre size > 0
 */
-int c2_rpc_pad_bytes_get(size_t size)
+int c2_rpc_pad_bytes_get(const size_t size)
 {
 	return c2_round_up(size, BYTES_PER_XCODE_UNIT) - size;
 }

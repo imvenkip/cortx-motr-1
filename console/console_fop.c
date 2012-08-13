@@ -38,11 +38,6 @@
    @{
 */
 
-/** Default fop type operations */
-static const struct c2_fop_type_ops c2_cons_fop_default_ops = {
-	.fto_size_get = c2_fop_xcode_length
-};
-
 struct c2_fop_type c2_cons_fop_device_fopt;
 struct c2_fop_type c2_cons_fop_reply_fopt;
 struct c2_fop_type c2_cons_fop_test_fopt;
@@ -68,20 +63,17 @@ int c2_console_fop_init(void)
 			 .opcode    = C2_CONS_FOP_DEVICE_OPCODE,
 			 .xt        = c2_cons_fop_device_xc,
 			 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
-			 .fop_ops   = &c2_cons_fop_default_ops,
 			 .fom_ops   = c2_cons_fom_device_type.ft_ops) ?:
 		C2_FOP_TYPE_INIT(&c2_cons_fop_reply_fopt,
 			 .name      = "Console Reply",
 			 .opcode    = C2_CONS_FOP_REPLY_OPCODE,
 			 .xt        = c2_cons_fop_reply_xc,
-			 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
-			 .fop_ops   = &c2_cons_fop_default_ops) ?:
+			 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY) ?:
 		C2_FOP_TYPE_INIT(&c2_cons_fop_test_fopt,
 			 .name      = "Console Test",
 			 .opcode    = C2_CONS_TEST,
 			 .xt        = c2_cons_fop_test_xc,
-			 .rpc_flags = 0,
-			 .fop_ops   = &c2_cons_fop_default_ops);
+			 .rpc_flags = 0);
 }
 
 /** @} end of console */

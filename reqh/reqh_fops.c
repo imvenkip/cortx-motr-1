@@ -33,11 +33,6 @@
    @{
  */
 
-static struct c2_fop_type_ops reqh_err_fop_ops = {
-	.fto_size_get = c2_fop_xcode_length,
-	.fto_execute = NULL,
-};
-
 struct c2_fop_type c2_reqh_error_rep_fopt;
 
 void c2_reqh_fop_fini(void)
@@ -53,8 +48,7 @@ int c2_reqh_fop_init(void)
 				.name      = "Reqh error reply",
 				.opcode    = C2_REQH_ERROR_REPLY_OPCODE,
 				.xt        = c2_reqh_error_rep_xc,
-				.rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
-				.fop_ops   = &reqh_err_fop_ops);
+				.rpc_flags = C2_RPC_ITEM_TYPE_REPLY);
 }
 
 /** @} endgroup reqh */

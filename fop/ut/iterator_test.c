@@ -129,8 +129,7 @@ static void fit_test(void)
 	fop = c2_fop_data(f);
 	fop_obj_init(fop);
 
-	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){f->f_type->ft_xt,
-				                       fop});
+	c2_xcode_ctx_init(&ctx, &C2_FOP_XCODE_OBJ(f));
 	it = &ctx.xcx_it;
 
 	while ((result = c2_xcode_next(it)) > 0) {

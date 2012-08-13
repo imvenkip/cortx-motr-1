@@ -44,21 +44,18 @@ static int check_read_fom_state_transition(struct c2_fom *fom);
 
 struct c2_fop_type_ops bulkio_stob_create_ops = {
 	.fto_fop_replied = io_fop_replied,
-	.fto_size_get    = c2_fop_xcode_length,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 };
 
 struct c2_fop_type_ops bulkio_server_write_fop_ut_ops = {
 	.fto_fop_replied = io_fop_replied,
-	.fto_size_get    = c2_fop_xcode_length,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 };
 
 struct c2_fop_type_ops bulkio_server_read_fop_ut_ops = {
 	.fto_fop_replied = io_fop_replied,
-	.fto_size_get    = c2_fop_xcode_length,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 };

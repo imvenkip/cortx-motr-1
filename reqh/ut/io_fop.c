@@ -73,16 +73,6 @@ struct c2_fop_type c2_stob_io_write_rep_fopt;
 /**
  * RPC item operations structures
  */
-/**
- * Fop operation structures for corresponding fops.
- */
-static const struct c2_fop_type_ops default_fop_ops = {
-        .fto_size_get = c2_fop_xcode_length,
-};
-
-static const struct c2_fop_type_ops default_rep_fop_ops = {
-        .fto_size_get = c2_fop_xcode_length,
-};
 
 /**
  * Fop type structures required for initialising corresponding fops.
@@ -616,40 +606,34 @@ int c2_stob_io_fop_init(void)
 				  .opcode    = C2_STOB_IO_CREATE_REQ_OPCODE,
 				  .xt        = c2_stob_io_create_xc,
 				  .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
-					       C2_RPC_ITEM_TYPE_MUTABO,
-				  .fop_ops   = &default_fop_ops) ?:
+					       C2_RPC_ITEM_TYPE_MUTABO) ?:
 		C2_FOP_TYPE_INIT(&c2_stob_io_read_fopt,
 				 .name      = "Stob read",
 				 .opcode    = C2_STOB_IO_READ_REQ_OPCODE,
 				 .xt        = c2_stob_io_read_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
-					      C2_RPC_ITEM_TYPE_MUTABO,
-				 .fop_ops   = &default_fop_ops) ?:
+					      C2_RPC_ITEM_TYPE_MUTABO) ?:
 		C2_FOP_TYPE_INIT(&c2_stob_io_write_fopt,
 				 .name      = "Stob write",
 				 .opcode    = C2_STOB_IO_WRITE_REQ_OPCODE,
 				 .xt        = c2_stob_io_write_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
-					      C2_RPC_ITEM_TYPE_MUTABO,
-				 .fop_ops   = &default_fop_ops) ?:
+					      C2_RPC_ITEM_TYPE_MUTABO) ?:
 		C2_FOP_TYPE_INIT(&c2_stob_io_create_rep_fopt,
 				 .name      = "Stob create reply",
 				 .opcode    = C2_STOB_IO_CREATE_REPLY_OPCODE,
 				 .xt        = c2_stob_io_create_rep_xc,
-				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
-				 .fop_ops   = &default_rep_fop_ops) ?:
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY) ?:
 		C2_FOP_TYPE_INIT(&c2_stob_io_read_rep_fopt,
 				 .name      = "Stob read reply",
 				 .opcode    = C2_STOB_IO_READ_REPLY_OPCODE,
 				 .xt        = c2_stob_io_read_rep_xc,
-				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
-				 .fop_ops   = &default_rep_fop_ops) ?:
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY) ?:
 		C2_FOP_TYPE_INIT(&c2_stob_io_write_rep_fopt,
 				 .name      = "Stob write reply",
 				 .opcode    = C2_STOB_IO_WRITE_REPLY_OPCODE,
 				 .xt        = c2_stob_io_write_rep_xc,
-				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
-				 .fop_ops   = &default_rep_fop_ops);
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY);
 	if (result == 0) {
 		for (i = 0; i < ARRAY_SIZE(stob_fops); ++i) {
 			fop_type = stob_fops[i];

@@ -32,20 +32,6 @@
 #include "rpc/rpc2.h"
 #include "fop/fop_item_type.h"
 
-/* Ops vector for ping request. */
-const struct c2_fop_type_ops c2_fop_ping_ops = {
-	.fto_fop_replied = NULL,
-	.fto_size_get = c2_fop_xcode_length,
-	.fto_io_coalesce = NULL,
-};
-
-/* Ops vector for ping reply. */
-const struct c2_fop_type_ops c2_fop_ping_rep_ops = {
-        .fto_fop_replied = NULL,
-        .fto_size_get = c2_fop_xcode_length,
-        .fto_io_coalesce = NULL,
-};
-
 struct c2_fop_type c2_fop_ping_fopt;
 struct c2_fop_type c2_fop_ping_rep_fopt;
 
@@ -68,14 +54,12 @@ int c2_ping_fop_init(void)
 				 .xt        = c2_fop_ping_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
 					      C2_RPC_ITEM_TYPE_MUTABO,
-				 .fop_ops   = &c2_fop_ping_ops,
 				 .fom_ops   = c2_fom_ping_mopt.ft_ops) ?:
 		C2_FOP_TYPE_INIT(&c2_fop_ping_rep_fopt,
 				 .name      = "Ping fop reply",
 				 .opcode    = C2_RPC_PING_REPLY_OPCODE,
 				 .xt        = c2_fop_ping_rep_xc,
-				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
-				 .fop_ops   = &c2_fop_ping_rep_ops);
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY);
 }
 
 

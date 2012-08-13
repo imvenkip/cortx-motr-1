@@ -49,32 +49,6 @@ const struct c2_rpc_item_ops cs_ds_req_fop_rpc_item_ops = {
 	.rio_free    = c2_fop_item_free,
 };
 
-/* DS1 service fop type operations.*/
-static const struct c2_fop_type_ops cs_ds1_req_fop_type_ops = {
-        .fto_fop_replied = NULL,
-        .fto_size_get = c2_fop_xcode_length,
-        .fto_io_coalesce = NULL,
-};
-
-static const struct c2_fop_type_ops cs_ds1_rep_fop_type_ops = {
-        .fto_fop_replied = NULL,
-        .fto_size_get = c2_fop_xcode_length,
-        .fto_io_coalesce = NULL,
-};
-
-/* DS2 service fop type operations */
-static const struct c2_fop_type_ops cs_ds2_req_fop_type_ops = {
-        .fto_fop_replied = NULL,
-        .fto_size_get = c2_fop_xcode_length,
-        .fto_io_coalesce = NULL,
-};
-
-static const struct c2_fop_type_ops cs_ds2_rep_fop_type_ops = {
-        .fto_fop_replied = NULL,
-        .fto_size_get = c2_fop_xcode_length,
-        .fto_io_coalesce = NULL,
-};
-
 struct c2_fop_type cs_ds1_req_fop_fopt;
 struct c2_fop_type cs_ds1_rep_fop_fopt;
 struct c2_fop_type cs_ds2_req_fop_fopt;
@@ -191,14 +165,12 @@ int c2_cs_ut_ds1_fop_init(void)
 				 .xt        = cs_ds1_req_fop_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
 					      C2_RPC_ITEM_TYPE_MUTABO,
-				 .fop_ops   = &cs_ds1_req_fop_type_ops,
 				 .fom_ops   = cs_ds1_req_fop_fom_mopt.ft_ops) ?:
 		C2_FOP_TYPE_INIT(&cs_ds1_rep_fop_fopt,
 				 .name      = "ds1 reply",
 				 .opcode    = C2_CS_DS1_REP_OPCODE,
 				 .xt        = cs_ds1_rep_fop_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
-				 .fop_ops   = &cs_ds1_rep_fop_type_ops,
 				 .fom_ops   = cs_ds1_req_fop_fom_mopt.ft_ops);
 }
 
@@ -226,14 +198,12 @@ int c2_cs_ut_ds2_fop_init(void)
 				 .xt        = cs_ds2_req_fop_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
 					      C2_RPC_ITEM_TYPE_MUTABO,
-				 .fop_ops   = &cs_ds2_req_fop_type_ops,
 				 .fom_ops   = cs_ds2_req_fop_fom_mopt.ft_ops) ?:
 		C2_FOP_TYPE_INIT(&cs_ds2_rep_fop_fopt,
 				 .name      = "ds2 reply",
 				 .opcode    = C2_CS_DS2_REP_OPCODE,
 				 .xt        = cs_ds2_rep_fop_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
-				 .fop_ops   = &cs_ds2_rep_fop_type_ops,
 				 .fom_ops   = cs_ds2_req_fop_fom_mopt.ft_ops);
 }
 

@@ -25,18 +25,18 @@
 
 c2_bcount_t c2_fop_item_type_default_onwire_size(const struct c2_rpc_item *item)
 {
-	c2_bcount_t      len;
-	struct c2_fop	*fop;
+	c2_bcount_t          len;
+	struct c2_fop       *fop;
+	struct c2_xcode_ctx  ctx;
 
 	C2_PRE(item != NULL);
 
 	fop = c2_rpc_item_to_fop(item);
 	C2_ASSERT(fop != NULL);
 	C2_ASSERT(fop->f_type != NULL);
-	C2_ASSERT(fop->f_type->ft_ops != NULL);
-	C2_ASSERT(fop->f_type->ft_ops->fto_size_get != NULL);
-	len = fop->f_type->ft_ops->fto_size_get(fop);
-	len += ITEM_ONWIRE_HEADER_SIZE;
+	c2_xcode_ctx_init(&ctx, &C2_FOP_XCODE_OBJ(fop));
+	len = c2_xcode_length(&ctx);
+	len += c2_rpc_pad_bytes_get(len) + ITEM_ONWIRE_HEADER_SIZE;
 	return len;
 }
 
