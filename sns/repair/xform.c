@@ -101,7 +101,11 @@ int repair_cp_xform(struct c2_cm_cp *cp)
                  * a resultant copy packet for transformation.
                  */
 		res_cp = cp;
-		sns_ag->sag_collected_cp_nr = 1;
+		/*
+		 *  Value of collected copy packets is zero at this stage, hence
+		 *  incrementing it will work fine.
+		 */
+                C2_CNT_INC(sns_ag->sag_collected_cp_nr);
 
 		/*
 		 * Put this copy packet to wait queue of request handler till
@@ -110,7 +114,7 @@ int repair_cp_xform(struct c2_cm_cp *cp)
 		 */
 		return C2_FSO_WAIT;
         } else {
-		cp_bufvec_size = c2_cm_cp_size(cp);
+		cp_bufvec_size = c2_cm_cp_data_size(cp);
 		/* Typically, all copy packets will have same buffer vector
 		 * size. Hence, there is no need for any complex buffer
 		 * manipulation like growing or shrinking the buffers.
@@ -134,9 +138,8 @@ int repair_cp_xform(struct c2_cm_cp *cp)
                         res_cp->c_ops->co_phase(res_cp);
 			c2_fom_wakeup(&res_cp->c_fom);
 		}
+		return C2_FSO_AGAIN;
         }
-
-	return C2_FSO_AGAIN;
 }
 
 /*

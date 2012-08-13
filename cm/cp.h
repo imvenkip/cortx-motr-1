@@ -212,7 +212,7 @@ bool c2_cm_cp_invariant(struct c2_cm_cp *cp);
  * Initialized at time of configuration from layout info.
  * It is also used for buffer pool provisioning.
  */
-c2_bcount_t c2_cm_cp_size(struct c2_cm_cp *cp);
+c2_bcount_t c2_cm_cp_data_size(struct c2_cm_cp *cp);
 
 /**
  @}

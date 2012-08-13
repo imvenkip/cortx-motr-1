@@ -31,6 +31,9 @@
    @{
 */
 
+/**
+ * SNS repair specific aggregation group.
+ */
 struct c2_sns_repair_ag {
 	struct c2_cm_aggr_group  sag_base;
 	/** Resultant collected copy packet. */

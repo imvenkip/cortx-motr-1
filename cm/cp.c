@@ -399,7 +399,7 @@ void c2_cm_cp_fini(struct c2_cm_cp *cp)
 	c2_fom_fini(&cp->c_fom);
 }
 
-c2_bcount_t c2_cm_cp_size(struct c2_cm_cp *cp)
+c2_bcount_t c2_cm_cp_data_size(struct c2_cm_cp *cp)
 {
 	return C2_CP_SIZE;
 }
