@@ -724,10 +724,6 @@ AC_CONFIG_FILES([
 AC_OUTPUT
 
 #
-# Set up execute bit on our "compiler" generated from fop2c.in above.
-#
-chmod +x fop/fop2c
-#
 # Set up execute bit for UT scripts.
 #
 chmod +x utils/ut.sh
