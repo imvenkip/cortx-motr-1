@@ -25,16 +25,14 @@
 #define __COLIBRI_SNS_REPAIR_CM_H__
 
 /**
-  @page DLD-snsrepair-fspec SNS-Repair copy machine functional specification
+  @page SNSRepairCMDLD-fspec SNS Repair copy machine functional specification
 
   - @ref DLD-snsrepair-fspec-ds
   - @ref DLD-snsrepair-fspec-if
   - @ref DLD-snsrepair-fspec-usecases
 
   @section DLD-snsrepair-fspec Functional Specification
-  SNS Repair copy machine is implemented using the data structures and
-  subroutines defined in reqh/reqh_service.h and cm/cm.h.
-
+  SNS Repair copy machine 
   @subsection DLD-snsrepair-fspec-ds Data Structures
   - c2_sns_repair_cm
     Represents sns repair copy machine, this embeds generic struct c2_cm and
@@ -57,7 +55,9 @@
  */
 
 /**
-  @defgroup snsrepair SNS Repair copy machine
+  @defgroup SNSRepairCM SNS Repair copy machine
+  @ingroup CM
+  
   SNS-Repair copy machine is a replicated state machine, which performs data
   re-structuring and handles device, container, node, &c failures.
   @see The @ref DLD-snsrepair
@@ -75,6 +75,7 @@ struct c2_sns_repair_cm {
 int c2_sns_repair_cm_type_register(void);
 void c2_sns_repair_cm_type_deregister(void);
 
+/** @} SNSRepair */
 #endif /* __COLIBRI_SNS_REPAIR_CM_H__ */
 /*
  *  Local variables:

@@ -18,6 +18,10 @@
  * Original creation date: 16/04/2012
  */
 
+/**
+    @page SNSRepairSW SNS Repair sliding window
+ */
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -33,7 +37,7 @@
 #include "lib/finject.h"
 
 /**
-  @addtogroup snsrepair
+  @addtogroup SNSRepairCM SNS Repair sliding window
 
   @{
 */
@@ -70,7 +74,7 @@ static int sw_expand(struct c2_cm_sw *slw)
 	return 0;
 }
 
-/** @} snsrepair */
+/** @} SNSRepairSW */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

@@ -23,7 +23,7 @@
 #define __COLIBRI_CM_CM_H__
 
 /**
-   @page DLD-cm-fspec Copy Machine Functional Specification
+   @page CMDLD-fspec Copy Machine Functional Specification
 
    - @ref DLD-cm-fspec-ds
    - @ref DLD-cm-fspec-if
@@ -92,7 +92,7 @@
  */
 
 /**
-   @defgroup cm Copy Machine
+   @defgroup CM Copy Machine
 
    Copy machine is a replicated state machine to restructure data in various
    ways (e.g. copying, moving, re-striping, reconstructing, encrypting,
@@ -199,35 +199,11 @@ struct c2_cm {
 
 /** Operations supported by a copy machine. */
 struct c2_cm_ops {
-	/**
-	 * Invoked from generic c2_cm_start ().
-	 */
+	/** Invoked from generic c2_cm_start ().*/
 	int (*cmo_start)(struct c2_cm *cm);
 
 	/** Configures copy machine and its corresponding agents. */
 	int (*cmo_config)(struct c2_cm *cm);
-
-	/**
-	 * Gets the next agent for this copy packet.
-	 *
-	 * The result agent may be a local agent on this node, but also
-	 * might be remote agent on other node.
-	 * Configuration information and layout information will be used
-	 * to find the next agent in the copy packet pipeline.
-	 *
-	 * @param cm this copy machine.
-	 * @param packet the current packet.
-	 * @param current_agent current agent.
-	 * @param next_agent_id [out] the next agent id returned.
-	 */
-	int (*cmo_next_agent)(struct c2_cm          *cm,
-			      struct c2_cm_cp       *packet);
-
-	/**
-	 * Handles incoming request fop and performs copy machine
-	 * specific operations.
-	 */
-	int (*cmo_incoming)(struct c2_cm *cm, struct c2_fom *fom);
 
 	/** Acknowledges the completion of copy machine operation. */
 	void (*cmo_done)(struct c2_cm *cm);

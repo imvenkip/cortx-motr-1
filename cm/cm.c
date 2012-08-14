@@ -32,7 +32,7 @@
 #include <reqh/reqh.h>
 
 /**
-   @page DLD-cm DLD of Copy Machine
+   @page CMDLD DLD of Copy Machine
 
    - @ref DLD-cm-ovw
    - @ref DLD-cm-def
@@ -204,7 +204,7 @@
  */
 
 /**
-   @addtogroup cm
+   @addtogroup CM
    @{
 */
 
