@@ -161,7 +161,8 @@ static int create_loc_ctx(struct c2_sm *mach)
 		mach->sm_rc = rc;
 		return C2_FOPH_FAILURE;
 	}
-	return C2_FOPH_NR + 1;
+	fom->fo_next_phase = C2_FOPH_NR + 1;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -366,7 +367,9 @@ const struct c2_sm_state_descr generic_phases[] = {
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOPH_AUTHENTICATE) |
-				(1 << C2_FOPH_FINISH)
+				(1 << C2_FOPH_FINISH) |
+				(1 << C2_FOPH_SUCCESS) |
+				(1 << C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_AUTHENTICATE] = {
 		.sd_flags     = 0,
@@ -594,9 +597,13 @@ const struct c2_sm_conf	generic_conf = {
 
 int c2_fom_state_transition(struct c2_fom *fom)
 {
+	int rc;
+
 	C2_PRE(fom != NULL);
 
-	return c2_sm_state_set(&fom->fo_sm_phase, fom->fo_next_phase);
+	rc = c2_sm_state_set(&fom->fo_sm_phase, fom->fo_next_phase);
+	C2_ASSERT(rc == C2_FSO_AGAIN || rc == C2_FSO_WAIT);
+	return rc;
 }
 
 void c2_fom_sm_init(struct c2_fom *fom)

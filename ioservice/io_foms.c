@@ -603,7 +603,6 @@ static void c2_io_fom_cob_rw_fini(struct c2_fom *fom);
 static size_t c2_io_fom_cob_rw_locality_get(const struct c2_fom *fom);
 const char *c2_io_fom_cob_rw_service_name (struct c2_fom *fom);
 static bool c2_io_fom_cob_rw_invariant(const struct c2_io_fom_cob_rw *io);
-static void reply_fop_set(struct c2_fom *fom);
 
 static int net_buffer_acquire(struct c2_sm *sm);
 static int io_launch(struct c2_sm *sm);
@@ -1119,8 +1118,9 @@ static int net_buffer_acquire(struct c2_sm *sm)
 
         fom_obj->fcrw_batch_size = acquired_net_bufs;
 
-        return c2_is_read_fop(fop) ? C2_FOPH_IO_STOB_INIT :
-				     C2_FOPH_IO_ZERO_COPY_INIT;
+        fom->fo_next_phase = c2_is_read_fop(fop) ? C2_FOPH_IO_STOB_INIT :
+						   C2_FOPH_IO_ZERO_COPY_INIT;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -1174,11 +1174,12 @@ static int net_buffer_release(struct c2_sm *sm)
         fom_obj->fcrw_batch_size = acquired_net_bufs;
 
         if (required_net_bufs == 0) {
-		reply_fop_set(fom);
-		return C2_FOPH_SUCCESS;
+		fom->fo_next_phase = C2_FOPH_SUCCESS;
+		return C2_FSO_AGAIN;
 	}
 
-	return C2_FOPH_IO_FOM_BUFFER_ACQUIRE;
+	fom->fo_next_phase = C2_FOPH_IO_FOM_BUFFER_ACQUIRE;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -1246,8 +1247,8 @@ static int zero_copy_initiate(struct c2_sm *sm)
                         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                                     c2_addb_func_fail,
                                     "zero_copy_initiate ", rc);
-			reply_fop_set(fom);
-			return C2_FOPH_FAILURE;
+			fom->fo_next_phase = C2_FOPH_FAILURE;
+			return C2_FSO_AGAIN;
                 }
 
                 fom_obj->fcrw_curr_desc_index++;
@@ -1276,8 +1277,8 @@ static int zero_copy_initiate(struct c2_sm *sm)
                 sm->sm_rc = rc;
                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                             c2_addb_func_fail, "zero_copy_initiate", rc);
-		reply_fop_set(fom);
-		return C2_FOPH_FAILURE;
+		fom->fo_next_phase = C2_FOPH_FAILURE;
+		return C2_FSO_AGAIN;
         }
 
 	fom->fo_next_phase = C2_FOPH_IO_ZERO_COPY_FINISH;
@@ -1312,15 +1313,16 @@ static int zero_copy_finish(struct c2_sm *sm)
                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                             c2_addb_func_fail, "zero_copy_finish", sm->sm_rc);
                 c2_mutex_unlock(&rbulk->rb_mutex);
-		reply_fop_set(fom);
-		return C2_FOPH_FAILURE;
+		fom->fo_next_phase = C2_FOPH_FAILURE;
+		return C2_FSO_AGAIN;
         }
 
         c2_mutex_unlock(&rbulk->rb_mutex);
         c2_rpc_bulk_fini(rbulk);
 
-	return c2_is_read_fop(fom->fo_fop) ? C2_FOPH_IO_BUFFER_RELEASE :
-					     C2_FOPH_IO_STOB_INIT;
+	fom->fo_next_phase = c2_is_read_fop(fom->fo_fop) ?
+			C2_FOPH_IO_BUFFER_RELEASE : C2_FOPH_IO_STOB_INIT;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -1499,8 +1501,8 @@ cleanup:
 	sm->sm_rc = rc;
         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc, c2_addb_func_fail,
                     "io_launch", rc);
-	reply_fop_set(fom);
-	return C2_FOPH_FAILURE;
+	fom->fo_next_phase = C2_FOPH_FAILURE;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -1557,12 +1559,14 @@ static int io_finish(struct c2_sm *sm)
         if (sm->sm_rc != 0) {
                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                             c2_addb_func_fail, "io_finish", sm->sm_rc);
-		reply_fop_set(fom);
-		return C2_FOPH_FAILURE;
+		fom->fo_next_phase = C2_FOPH_FAILURE;
+		return C2_FSO_AGAIN;
         }
 
-	return c2_is_read_fop(fom->fo_fop) ? C2_FOPH_IO_ZERO_COPY_INIT :
-					     C2_FOPH_IO_BUFFER_RELEASE;
+	fom->fo_next_phase = c2_is_read_fop(fom->fo_fop) ?
+			     C2_FOPH_IO_ZERO_COPY_INIT :
+			     C2_FOPH_IO_BUFFER_RELEASE;
+	return C2_FSO_AGAIN;
 }
 
 /**
@@ -1575,27 +1579,26 @@ static int io_finish(struct c2_sm *sm)
  */
 static int c2_io_fom_cob_rw_state(struct c2_fom *fom)
 {
+        int                                       rc;
+        struct c2_io_fom_cob_rw                  *fom_obj;
 
         C2_PRE(fom != NULL);
-
-        return c2_fom_state_transition(fom);
-}
-
-static void reply_fop_set(struct c2_fom *fom)
-{
-        struct c2_io_fom_cob_rw	   *fom_obj;
-	struct c2_fop_cob_rw_reply *rwrep;
-
-        C2_PRE(fom != NULL);
-	C2_PRE(c2_is_io_fop(fom->fo_fop));
+        C2_PRE(c2_is_io_fop(fom->fo_fop));
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
+        C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
 
-	C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
+        rc = c2_fom_state_transition(fom);
+        C2_ASSERT(fom->fo_next_phase <= C2_FOPH_IO_BUFFER_RELEASE);
+	if (fom->fo_next_phase == C2_FOPH_SUCCESS ||
+            fom->fo_next_phase == C2_FOPH_FAILURE) {
+		struct c2_fop_cob_rw_reply *rwrep;
 
-	rwrep = io_rw_rep_get(fom->fo_rep_fop);
-	rwrep->rwr_rc = fom->fo_sm_phase.sm_rc;
-	rwrep->rwr_count = fom_obj->fcrw_count;
+		rwrep = io_rw_rep_get(fom->fo_rep_fop);
+		rwrep->rwr_rc = fom->fo_sm_phase.sm_rc;
+		rwrep->rwr_count = fom_obj->fcrw_count;
+	}
+	return rc;
 }
 
 /**

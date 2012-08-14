@@ -84,17 +84,27 @@ static int session_gen_fom_create(struct c2_fop *fop, struct c2_fom **m)
 	if (fom == NULL)
 		return -ENOMEM;
 
-	fom_ops = &c2_rpc_fom_session_ops;
+	if (fop->f_type == &c2_rpc_fop_conn_establish_fopt) {
 
-	if (fop->f_type == &c2_rpc_fop_conn_establish_fopt)
 		reply_fopt = &c2_rpc_fop_conn_establish_rep_fopt;
-	else if (fop->f_type == &c2_rpc_fop_conn_terminate_fopt)
+		fom_ops = &c2_rpc_fom_conn_establish_ops;
+
+	} else if (fop->f_type == &c2_rpc_fop_conn_terminate_fopt) {
+
 		reply_fopt = &c2_rpc_fop_conn_terminate_rep_fopt;
-	else if (fop->f_type == &c2_rpc_fop_session_establish_fopt)
+		fom_ops = &c2_rpc_fom_conn_terminate_ops;
+
+	} else if (fop->f_type == &c2_rpc_fop_session_establish_fopt) {
+
 		reply_fopt = &c2_rpc_fop_session_establish_rep_fopt;
-	else if (fop->f_type == &c2_rpc_fop_session_terminate_fopt)
+		fom_ops = &c2_rpc_fom_session_establish_ops;
+
+	} else if (fop->f_type == &c2_rpc_fop_session_terminate_fopt) {
+
 		reply_fopt = &c2_rpc_fop_session_terminate_rep_fopt;
-	else {
+		fom_ops = &c2_rpc_fom_session_terminate_ops;
+
+	} else {
 		reply_fopt = NULL;
 		fom_ops = NULL;
 	}
@@ -122,14 +132,19 @@ out:
 	return rc;
 }
 
-int c2_rpc_fom_session_state(struct c2_fom *fom)
-{
-	C2_PRE(fom != NULL);
-	C2_PRE(fom->fo_ops != NULL);
-	C2_PRE(fom->fo_type != NULL);
+const struct c2_fom_ops c2_rpc_fom_conn_establish_ops = {
+	.fo_fini = session_gen_fom_fini,
+	.fo_state = c2_rpc_fom_conn_establish_state,
+	.fo_home_locality = c2_rpc_session_default_home_locality
+};
 
-	return c2_fom_state_transition(fom);
-}
+static struct c2_fom_type_ops c2_rpc_fom_conn_establish_type_ops = {
+	.fto_create = session_gen_fom_create
+};
+
+struct c2_fom_type c2_rpc_fom_conn_establish_type = {
+	.ft_ops = &c2_rpc_fom_conn_establish_type_ops
+};
 
 size_t c2_rpc_session_default_home_locality(const struct c2_fom *fom)
 {
@@ -138,82 +153,8 @@ size_t c2_rpc_session_default_home_locality(const struct c2_fom *fom)
 	return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
 }
 
-const struct c2_fom_ops c2_rpc_fom_session_ops = {
-	.fo_fini = session_gen_fom_fini,
-	.fo_state = c2_rpc_fom_session_state,
-	.fo_home_locality = c2_rpc_session_default_home_locality
-};
-
-static struct c2_fom_type_ops c2_rpc_fom_session_type_ops = {
-	.fto_create = session_gen_fom_create
-};
-
-static int conn_establish(struct c2_sm *sm);
-static int session_establish(struct c2_sm *sm);
-static int conn_terminate(struct c2_sm *sm);
-static int session_terminate(struct c2_sm *sm);
-
-struct c2_sm_state_descr conn_est_phases[] = {
-	[C2_FOPH_CONN_ESTABLISHING] = {
-		.sd_flags     = 0,
-		.sd_name      = "connection establish",
-		.sd_in        = &conn_establish,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_SUCCESS) |
-				(1 << C2_FOPH_FAILURE) |
-				(1 << C2_FOPH_FINISH)
-	},
-};
-
-struct c2_sm_state_descr session_est_phases[] = {
-	[C2_FOPH_SESSION_ESTABLISHING] = {
-		.sd_flags     = 0,
-		.sd_name      = "session establish",
-		.sd_in        = &session_establish,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_SUCCESS) |
-				(1 << C2_FOPH_FAILURE) |
-				(1 << C2_FOPH_FINISH)
-	},
-};
-
-struct c2_sm_state_descr conn_term_phases[] = {
-	[C2_FOPH_CONN_TERMINATING] = {
-		.sd_flags     = 0,
-		.sd_name      = "connection terminate",
-		.sd_in        = &conn_terminate,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_SUCCESS) |
-				(1 << C2_FOPH_FAILURE) |
-				(1 << C2_FOPH_FINISH)
-	},
-};
-
-struct c2_sm_state_descr session_term_phases[] = {
-	[C2_FOPH_SESSION_TERMINATING] = {
-		.sd_flags     = 0,
-		.sd_name      = "session terminate",
-		.sd_in        = &session_terminate,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_SUCCESS) |
-				(1 << C2_FOPH_FAILURE) |
-				(1 << C2_FOPH_FINISH)
-	},
-};
-
-struct c2_fom_type c2_rpc_fom_conn_establish_type = {
-	.ft_ops       = &c2_rpc_fom_session_type_ops,
-	.ft_phases    = conn_est_phases,
-	.ft_phases_nr = ARRAY_SIZE(conn_est_phases),
-};
-
-static int conn_establish(struct c2_sm *sm)
+int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 {
-	struct c2_fom			     *fom = c2_sm2fom(sm);
 	struct c2_rpc_fop_conn_establish_rep *reply;
 	struct c2_rpc_fop_conn_establish_ctx *ctx;
 	struct c2_rpc_fop_conn_establish     *request;
@@ -307,7 +248,9 @@ static int conn_establish(struct c2_sm *sm)
 		c2_free(ctx);
 		C2_LOG("Conn establish failed: rc [%d]\n", rc);
 	}
-	return C2_FOPH_FINISH;
+
+	fom->fo_next_phase = C2_FOPH_FINISH;
+	return c2_fom_state_transition(fom);
 }
 /*
  * [1]
@@ -351,15 +294,23 @@ static int conn_establish(struct c2_sm *sm)
 /*
  * FOM session create
  */
-struct c2_fom_type c2_rpc_fom_session_establish_type = {
-	.ft_ops	      = &c2_rpc_fom_session_type_ops,
-	.ft_phases    = session_est_phases,
-	.ft_phases_nr = ARRAY_SIZE(session_est_phases),
+
+const struct c2_fom_ops c2_rpc_fom_session_establish_ops = {
+	.fo_fini = session_gen_fom_fini,
+	.fo_state = c2_rpc_fom_session_establish_state,
+	.fo_home_locality = c2_rpc_session_default_home_locality
 };
 
-static int session_establish(struct c2_sm *sm)
+static struct c2_fom_type_ops c2_rpc_fom_session_establish_type_ops = {
+	.fto_create = session_gen_fom_create
+};
+
+struct c2_fom_type c2_rpc_fom_session_establish_type = {
+	.ft_ops = &c2_rpc_fom_session_establish_type_ops
+};
+
+int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 {
-	struct c2_fom				*fom = c2_sm2fom(sm);
 	struct c2_rpc_fop_session_establish_rep *reply;
 	struct c2_rpc_fop_session_establish     *request;
 	struct c2_rpc_item                      *item;
@@ -428,21 +379,30 @@ out:
 	}
 
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
-	return C2_FOPH_FINISH;
+	fom->fo_next_phase = C2_FOPH_FINISH;
+	return c2_fom_state_transition(fom);
 }
 
 /*
  * FOM session terminate
  */
-struct c2_fom_type c2_rpc_fom_session_terminate_type = {
-	.ft_ops	      = &c2_rpc_fom_session_type_ops,
-	.ft_phases    = session_term_phases,
-	.ft_phases_nr = ARRAY_SIZE(session_term_phases),
+
+const struct c2_fom_ops c2_rpc_fom_session_terminate_ops = {
+	.fo_fini = session_gen_fom_fini,
+	.fo_state = c2_rpc_fom_session_terminate_state,
+	.fo_home_locality = c2_rpc_session_default_home_locality
 };
 
-static int session_terminate(struct c2_sm *sm)
+static struct c2_fom_type_ops c2_rpc_fom_session_terminate_type_ops = {
+	.fto_create = session_gen_fom_create
+};
+
+struct c2_fom_type c2_rpc_fom_session_terminate_type = {
+	.ft_ops = &c2_rpc_fom_session_terminate_type_ops
+};
+
+int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 {
-	struct c2_fom				*fom = c2_sm2fom(sm);
 	struct c2_rpc_fop_session_terminate_rep *reply;
 	struct c2_rpc_fop_session_terminate     *request;
 	struct c2_rpc_item                      *item;
@@ -506,23 +466,31 @@ static int session_terminate(struct c2_sm *sm)
 	 * Note: request is received on SESSION_0, which is different from
 	 * current session being terminated. Reply will also go on SESSION_0.
 	 */
+	fom->fo_next_phase = C2_FOPH_FINISH;
 	c2_rpc_reply_post(&fom->fo_fop->f_item, &fom->fo_rep_fop->f_item);
 
-	return C2_FOPH_FINISH;
+	return c2_fom_state_transition(fom);
 }
 
 /*
  * FOM RPC connection terminate
  */
-struct c2_fom_type c2_rpc_fom_conn_terminate_type = {
-	.ft_ops	      = &c2_rpc_fom_session_type_ops,
-	.ft_phases    = conn_term_phases,
-	.ft_phases_nr = ARRAY_SIZE(conn_term_phases),
+const struct c2_fom_ops c2_rpc_fom_conn_terminate_ops = {
+	.fo_fini = session_gen_fom_fini,
+	.fo_state = c2_rpc_fom_conn_terminate_state,
+	.fo_home_locality = c2_rpc_session_default_home_locality
 };
 
-static int conn_terminate(struct c2_sm *sm)
+static struct c2_fom_type_ops c2_rpc_fom_conn_terminate_type_ops = {
+	.fto_create = session_gen_fom_create
+};
+
+struct c2_fom_type c2_rpc_fom_conn_terminate_type = {
+	.ft_ops = &c2_rpc_fom_conn_terminate_type_ops
+};
+
+int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 {
-	struct c2_fom				*fom = c2_sm2fom(sm);
 	struct c2_rpc_fop_conn_terminate_rep *reply;
 	struct c2_rpc_fop_conn_terminate     *request;
 	struct c2_rpc_item                   *item;
@@ -568,6 +536,7 @@ static int conn_terminate(struct c2_sm *sm)
 		c2_rpc_conn_fini_locked(conn);
 
 		c2_rpc_machine_unlock(machine);
+
 		c2_free(conn);
 	} else {
 		C2_ASSERT(C2_IN(conn->c_state, (C2_RPC_CONN_ACTIVE,
@@ -584,7 +553,8 @@ static int conn_terminate(struct c2_sm *sm)
 		C2_LOG("Conn terminate successful: conn [%p]\n", conn);
 		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	}
-	return C2_FOPH_FINISH;
+	fom->fo_next_phase = C2_FOPH_FINISH;
+	return c2_fom_state_transition(fom);
 }
 
 /** @} End of rpc_session group */
