@@ -52,6 +52,8 @@ static int  c2t1fs_fill_super(struct super_block *sb, void *data, int silent);
 static int  c2t1fs_sb_init(struct c2t1fs_sb *csb);
 static void c2t1fs_sb_fini(struct c2t1fs_sb *csb);
 
+extern void io_bob_tlists_init(void);
+
 static int  c2t1fs_config_fetch(struct c2t1fs_sb *csb);
 
 /* Mount options */
@@ -202,6 +204,8 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 		rc = -ENOMEM;
 		goto out_map_fini;
 	}
+
+        io_bob_tlists_init();
 
 	C2_LEAVE("rc: %d", rc);
 	return 0;
@@ -427,6 +431,7 @@ static int c2t1fs_sb_init(struct c2t1fs_sb *csb)
 	c2t1fs_mnt_opts_init(&csb->csb_mnt_opts);
 	svc_ctx_tlist_init(&csb->csb_service_contexts);
 	csb->csb_next_key = c2t1fs_root_fid.f_key + 1;
+        c2_sm_group_init(&csb->csb_iogroup);
 
 	C2_LEAVE("rc: 0");
 	return 0;

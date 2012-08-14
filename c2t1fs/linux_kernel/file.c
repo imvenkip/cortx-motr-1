@@ -21,8 +21,13 @@
 
 #include <asm/uaccess.h>    /* VERIFY_READ, VERIFY_WRITE */
 #include <linux/mm.h>       /* get_user_pages(), get_page(), put_page() */
+#include <linux/fs.h>
 
 #include "lib/memory.h"     /* c2_alloc(), c2_free() */
+#include "lib/misc.h"       /* c2_round_{up/down} */
+#include "lib/bob.h"        /* c2_bob_type */
+#include "lib/ext.h"        /* c2_ext */
+#include "lib/bitmap.h"     /* c2_bitmap */
 #include "lib/arith.h"      /* min_type() */
 #include "layout/pdclust.h" /* C2_PUT_*, c2_layout_to_pdl(),
 			     * c2_pdclust_instance_map */
@@ -35,7 +40,9 @@
 #include "ioservice/io_fops_ff.h"
 #include "colibri/magic.h"
 
-static struct c2_pdclust_layout *layout_to_pd_layout(struct c2_layout *l)
+void iov_iter_advance(struct iov_iter *i, size_t bytes);
+
+static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
 {
 	return container_of(l, struct c2_pdclust_layout, pl_layout);
 }
@@ -722,11 +729,11 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    static bool data_buf_invariant(const struct data_buf *db)
    {
            return
-                  db != NULL &&
-                  db->db_magic == DTBUF_MAGIC &&
-                  db->db_type  <  PUT_NR &&
-                  db->db_buf.b_addr != NULL &&
-                  db->db_buf.b_nob  > 0;
+                  ti->ti_session != NULL &&
+                  c2_fid_is_valid(ti->ti_fid) &&
+                  c2_tlink_is_in(ti->ti_link) &&
+                  ergo(!c2_tlist_is_empty(ti->ti_iofops),
+                       !c2_tlist_is_empty(ti->ti_buffers));
    }
    @endcode
 
@@ -1079,10 +1086,1312 @@ Detailed level design HOWTO</a>,
 
  */
 
+struct io_request;
+struct nw_xfer_request;
+struct target_ioreq;
+struct io_req_fop;
+enum   io_req_type;
+
+static bool io_req_is_rmw  (const struct io_request *req);
+static void io_request_init(struct io_request *req, struct file *file,
+                            struct iovec *ivec, loff_t pos,
+                            unsigned long seg_nr, enum io_req_type rw);
+
+static bool io_request_invariant(const struct io_request *req);
+static bool io_req_spans_full_pg(struct c2t1fs_inode *ci, char *buf,
+                                 size_t count, loff_t pos);
+
+/** State of struct nw_xfer_request. */
+enum nw_xfer_state {
+        NXS_UNINITIALIZED,
+        NXS_INITIALIZED,
+        NXS_INFLIGHT,
+        NXS_COMPLETE,
+        NXS_STATE_NR,
+};
+
+/** Operation vector for struct nw_xfer_request. */
+struct nw_xfer_ops {
+        int (*nxo_prepare)  (struct nw_xfer_request *xfer);
+        int (*nxo_dispatch) (struct nw_xfer_request *xfer);
+        int (*nxo_complete) (struct nw_xfer_request *xfer);
+};
+
+/**
+ * Structure representing the network transfer part for an IO request.
+ * This structure keeps track of request IO fops as well as individual
+ * completion callbacks and status of whole request.
+ * Typically, all IO requests are broken down into multiple fixed-size
+ * requests. struct io_req_rootcb will have multiple children each signifying
+ * a callback for an individual IO fop.
+ */
+struct nw_xfer_request {
+        /** Holds NWREQ_MAGIC */
+        uint64_t            nxr_magic;
+
+        /** Resultant status code for all IO fops issued by this structure. */
+        int                 nxr_rc;
+
+        /** Resultant number of bytes read/written by all IO fops. */
+        uint64_t            nxr_bytes;
+
+        enum nw_xfer_state  nxr_state;
+
+        struct nw_xfer_ops *nxr_ops;
+
+        /** List of all target_ioreq structures. */
+        struct c2_tl        nxr_tioreqs;
+
+        /**
+         * Number of IO fops issued by all target_ioreq structures
+         * belonging to this nw_xfer_request object.
+         * This number is updated when bottom halves from ASTs are run.
+         * When it reaches zero, state of io_request::ir_sm changes.
+         */
+        uint64_t            nxr_iofop_nr;
+};
+
+/**
+ * Represents state of IO request call.
+ * c2_sm_state_descr structure will be defined for description of all
+ * states mentioned below.
+ */
+enum io_req_state {
+        IRS_UNINITIALIZED,
+        IRS_INITIALIZED,
+        IRS_READING,
+        IRS_WRITING,
+        IRS_READ_COMPLETE,
+        IRS_WRITE_COMPLETE,
+        IRS_REQ_COMPLETE,
+        IRS_STATE_NR,
+};
+
+/** Represents type of IO request. */
+enum io_req_type {
+        IRT_READ,
+        IRT_WRITE,
+        IRT_TYPE_NR,
+};
+
+/**
+ * Operation vector for struct io_request.
+ */
+struct io_request_ops {
+        int (*iro_readextent)     (struct io_request *req);
+        int (*iro_preparewrite)   (struct io_request *req);
+        int (*iro_commit_write)   (struct io_request *req);
+        int (*iro_submit)         (struct io_request *req);
+        int (*iro_read_complete)  (struct io_request *req);
+        int (*iro_write_complete) (struct io_request *req);
+};
+
+/**
+ * io_request - Represents an IO request call. It contains the IO extent,
+ * struct nw_xfer_request and the state of IO request. This structure is
+ * primarily used to track progress of an IO request.
+ * The state transitions of io_request structure are handled by c2_sm
+ * structure and its support for chained state transitions.
+ */
+struct io_request {
+        /** Holds IOREQ_MAGIC */
+        uint64_t                 ir_magic;
+
+        int                      ir_rc;
+
+        /**
+         * struct file* can point to c2t1fs inode and hence its
+         * associated c2_fid structure.
+         */
+        struct file             *ir_file;
+
+        /** File extent spanned by io_request. */
+        struct c2_ext            ir_extent;
+
+        /**
+         * iovec structure containing user-space buffers.
+         * It is used as it as since using a new structure would require
+         * conversion.
+         */
+        struct iovec            *ir_iovec;
+
+        /** Number of segments in io_request::ir_iovec. */
+        unsigned long            ir_seg_nr;
+
+        /** Async state machine to handle state transitions and callbacks. */
+        struct c2_sm             ir_sm;
+
+        enum io_req_type         ir_type;
+
+        enum io_req_state        ir_state;
+
+        struct io_request_ops   *ir_ops;
+
+        struct nw_xfer_request   ir_nwxfer;
+
+        /** Expanded file extent. Used in case of read-modify-write. */
+        struct c2_ext            ir_aux_extent;
+};
+
+enum dt_buf_flags {
+        /**
+         * Needs regeneration of parity block. Mostly used in case of
+         * partial parity groups.
+         */
+        DBF_PARITYCALC,
+
+        /** Block needs to be read first from a rmw IO request. */
+        DBF_NEEDSREAD,
+}
+
+/**
+ * Represents a simple data buffer wrapper object. The embedded
+ * c2_buf::b_addr points to a kernel page.
+ */
+struct data_buf {
+        /** Holds DTBUF_MAGIC. */
+        uint64_t                  db_magic;
+
+        /** Inline buffer pointing to a kernel page. */
+        struct c2_buf             db_buf;
+
+        /**
+         * Type of buffer in parity group { data or parity }.
+         * This is needed where a partial parity group is written to
+         * and parity unit has to be read in order to calculate the
+         * new parity in _incremental_ fashion.
+         */
+        enum c2_pdclust_unit_type db_type;
+
+        /** Parity group id to which ::db_buf belongs. */
+        uint64_t                  db_pgid;
+
+        /**
+         * Buffer holding old version of data needed to calculate parity
+         * in _iterative_ fashion for partial parity groups.
+         */
+        struct c2_buf             db_olddata;
+
+        /**
+         * Miscellaneous flags. Can reuse values from enum io_req_type here.
+         * Is used when doing read from read-modify-write since not all
+         * buffers from target_ioext need to be read from target.
+         * Can be used later for caching options.
+         */
+        uint64_t                  db_flags;
+};
+
+/**
+ * Represents IO chunk consisting of one/multiple frames meant for a
+ * target object in a parity group. All such frames in target_ioext struct
+ * are contiguous with respect to target object offset.
+ */
+struct target_ioext {
+        /** Holds TIOEXT_MAGIC */
+        uint64_t                  ie_magic;
+
+        /**
+         * Extent describing starting offset and its length.
+         * Since all such IO requests read/write the target objects
+         * sequentially, one extent is enough to describe the span of
+         * IO request.
+         * This extent represents offsets for target object.
+         */
+        struct c2_ext             ie_ext;
+
+        /** Number of data_buf structures representing the extent. */
+        uint64_t                  ie_buf_nr;
+
+        /**
+         * Array of data_buf structures. Each element typically refers to
+         * one kernel page.
+         * This is intentionally kept as array since it makes iterating much
+         * easier as compared to a list, especially while calculating parity.
+         * And the max number of buffers an io extent can occupy is
+         * constant for a given struct io_request.
+         */
+        struct data_buf         **ie_buffers;
+};
+
+/**
+ * Collection of IO extents and buffers, directed towards each
+ * of target objects (data_unit / parity_unit) in a parity group.
+ * These structures are created by struct io_request dividing the incoming
+ * struct iovec into members of parity group.
+ */
+struct target_ioreq {
+        /** Holds TIOREQ_MAGIC */
+        uint64_t                ti_magic;
+
+        /** Fid of component object. */
+        struct c2_fid           ti_fid;
+
+        /**
+         * Extent representing span of IO request on target object and
+         * list of data buffers.
+         */
+        struct target_ioext     ti_extent;
+
+        /** List of io_req_fop structures issued on this target object. */
+        struct c2_tl            ti_iofops;
+
+        /** Resulting IO fops are sent on this rpc session. */
+        struct c2_rpc_session  *ti_session;
+
+        /** Linkage to link in to nw_xfer_request::nxr_tioreqs list. */
+        struct c2_tlink         ti_link;
+};
+
+/**
+ * Represents a wrapper over generic IO fop and its callback
+ * to keep track of such IO fops issued by same nw_xfer_request.
+ * When bottom halves for c2_sm_ast structures are run, it updates
+ * nw_xfer_request::nxr_rc and nw_xfer_request::nxr_bytes with data from
+ * IO reply fop.
+ * Then it decrements nw_xfer_request::nxr_iofop_nr, number of IO fops.
+ * When this count reaches zero, io_request::ir_sm changes its state.
+ */
+
+/**
+ * @note c2_fom_callback structure is reused as a wrapper over AST. No lock
+ * is needed while updating nw_xfer_request structure from ASTs since
+ * c2_sm_asts_run() executes ASTs in serial fashion.
+ */
+struct io_req_fop {
+        /** Holds IOFOP_MAGIC */
+        uint64_t                irf_magic;
+
+        /** In-memory handle for IO fop. */
+        struct c2_io_fop        irf_iofop;
+
+        /** Callback per IO fop. */
+        struct c2_fom_callback  irf_iocb;
+
+        /** Linkage to link in to target_ioreq::ti_iofops list. */
+        struct c2_tlink         irf_link;
+
+        /**
+         * Backlink to nw_xfer_request object where rc and number of bytes
+         * are updated.
+         */
+        struct nw_xfer_request *irf_nwxfer;
+};
+
+/**
+ * Magic values to verify sanity of struct
+ * - io_request, nw_xfer_request, target_ioreq and io_req_fop.
+ */
+enum {
+        IOREQ_MAGIC  = 0xfea2303e31a3ce10ULL, // fearsomestanceto
+        NWREQ_MAGIC  = 0x12ec0ffeea2ab1caULL, // thecoffeearabica
+        TIOREQ_MAGIC = 0xfa1afe1611ab2eadULL, // falafelpitabread
+        IOFOP_MAGIC  = 0xde514ab11117302eULL, // desirabilitymore
+        TIOEXT_MAGIC = 0x19ca9de5ca91b61bULL, // incandescentbulb
+        DTBUF_MAGIC  = 0x19c031960ffe9517ULL, // incomingoffensiv
+};
+
+C2_TL_DESCR_DEFINE(tiodescs, "List of target_ioreq objects", static,
+                   struct target_ioreq, ti_link, ti_magic,
+                   TIOREQ_MAGIC, NWREQ_MAGIC);
+
+C2_TL_DESCR_DEFINE(iofops, "List of IO fops", static,
+                   struct io_req_fop, irf_link, irf_magic,
+                   IOFOP_MAGIC, TIOREQ_MAGIC);
+
+C2_TL_DEFINE(tiodescs,  static, struct target_ioreq);
+C2_TL_DEFINE(iofops,    static, struct io_req_fop);
+
+static struct c2_bob_type tiodesc_bob;
+static struct c2_bob_type ioext_bob;
+static struct c2_bob_type iofop_bob;
+static struct c2_bob_type ioreq_bob;
+
+C2_BOB_DEFINE(static, &tiodesc_bob, target_ioreq);
+C2_BOB_DEFINE(static, &iofop_bob,   io_req_fop);
+
+/**
+ * Bob type for struct io_request is manually initialized since it is
+ * not associated with any c2_tl_descr.
+ * @todo Replace this with the macro for manual initialization of c2_bob_type.
+ */
+static struct c2_bob_type ioreq_bobtype = {
+        .bt_name         = "io_request_bobtype",
+        .bt_magix_offset = offsetof(struct io_request, ir_magic),
+        //.bt_magix        = C2_FIELD_VALUE(struct io_request, ir_magic),
+        .bt_magix        = IOREQ_MAGIC,
+        .bt_check        = NULL,
+};
+
+static struct c2_bob_type ioext_bobtype = {
+        .bt_name         = "io_extent_bobtype",
+        .bt_magix_offset = offsetof(struct target_ioext, ie_magic),
+        .bt_magix        = TIOEXT_MAGIC,
+        .bt_check        = NULL,
+};
+
+/** Invoked during c2t1fs mount. */
+void io_bob_tlists_init(void)
+{
+        c2_bob_type_tlist_init(&tiodesc_bob, &tiodescs_tl);
+        c2_bob_type_tlist_init(&iofop_bob,   &iofops_tl);
+}
+
+static int nw_xfer_io_prepare (struct nw_xfer_request *xfer);
+static int nw_xfer_io_dispatch(struct nw_xfer_request *xfer);
+static int nw_xfer_io_complete(struct nw_xfer_request *xfer);
+
+static struct nw_xfer_ops xfer_ops = {
+        .nxo_prepare  = nw_xfer_io_prepare,
+        .nxo_dispatch = nw_xfer_io_dispatch,
+        .nxo_complete = nw_xfer_io_complete,
+};
+
+static int io_request_readextent    (struct io_request *req);
+static int io_request_prepare_write (struct io_request *req);
+static int io_request_write_commit  (struct io_request *req);
+static int io_request_submit        (struct io_request *req);
+static int io_request_read_complete (struct io_request *req);
+static int io_request_write_complete(struct io_request *req);
+
+static struct io_request_ops ioreq_ops = {
+        .iro_readextent     = io_request_readextent,
+        .iro_preparewrite   = io_request_prepare_write,
+        .iro_commit_write   = io_request_write_commit,
+        .iro_submit         = io_request_submit,
+        .iro_read_complete  = io_request_read_complete,
+        .iro_write_complete = io_request_write_commit,
+};
+
+static int io_reading_state       (struct c2_sm *sm);
+static int io_read_complete_state (struct c2_sm *sm);
+static int io_writing_state       (struct c2_sm *sm);
+static int io_write_complete_state(struct c2_sm *sm);
+static int io_req_complete_state  (struct c2_sm *sm);
+
+static const struct c2_sm_state_descr io_sm_state_descr[IRS_STATE_NR] = {
+        [IRS_INITIALIZED]    = {
+                .sd_flags     = C2_SDF_INITIAL,
+                .sd_name      = "IO_initial",
+                .sd_in        = NULL,
+                .sd_ex        = NULL,
+                .sd_invariant = NULL,
+                .sd_allowed   = (1 << IRS_READING) | (1 << IRS_WRITING)
+        },
+        [IRS_READING]        = {
+                .sd_flags     = 0,
+                .sd_name      = "IO_reading",
+                .sd_in        = io_reading_state,
+                .sd_ex        = NULL,
+                .sd_invariant = NULL,
+                .sd_allowed   = 1 << IRS_READ_COMPLETE,
+        },
+        [IRS_READ_COMPLETE]  = {
+                .sd_flags     = 0,
+                .sd_name      = "IO_read_complete",
+                .sd_in        = io_read_complete_state,
+                .sd_ex        = NULL,
+                .sd_invariant = NULL,
+                .sd_allowed   = (1 << IRS_WRITING) | (1 << IRS_REQ_COMPLETE),
+        },
+        [IRS_WRITING] = {
+                .sd_flags     = 0,
+                .sd_name      = "IO_writing",
+                .sd_in        = io_writing_state,
+                .sd_ex        = NULL,
+                .sd_invariant = NULL,
+                .sd_allowed   = 1 << IRS_WRITE_COMPLETE,
+        },
+        [IRS_WRITE_COMPLETE] = {
+                .sd_flags     = 0,
+                .sd_name      = "IO_write_complete",
+                .sd_in        = io_write_complete_state,
+                .sd_ex        = NULL,
+                .sd_invariant = NULL,
+                .sd_allowed   = 1 << IRS_REQ_COMPLETE,
+        },
+        [IRS_REQ_COMPLETE]   = {
+                .sd_flags     = C2_SDF_TERMINAL,
+                .sd_name      = "IO_req_complete",
+                .sd_in        = io_req_complete_state,
+                .sd_ex        = NULL,
+                .sd_invariant = NULL,
+                .sd_allowed   = 0,
+        },
+};
+
+static const struct c2_sm_conf io_sm_conf = {
+        .scf_name      = "IO request state machine configuration",
+        .scf_nr_states = IRS_STATE_NR - 1,
+        .scf_state     = io_sm_state_descr,
+};
+
+#define FILE_TO_INODE(file)   ((file)->f_dentry->d_inode)
+#define FILE_TO_C2INODE(file) (C2T1FS_I(FILE_TO_INODE(file)))
+#define FILE_TO_FID(file)     (&FILE_TO_C2INODE(file)->ci_fid)
+#define FILE_TO_SMGROUP(file) \
+        (&C2T1FS_SB(FILE_TO_INODE(file)->i_sb)->csb_iogroup)
+
+static bool io_request_invariant(const struct io_request *req)
+{
+        C2_PRE(req != NULL);
+
+        return
+                req->ir_magic  == IOREQ_MAGIC &&
+                req->ir_type   <= IRT_TYPE_NR &&
+                req->ir_state  <= IRS_STATE_NR &&
+                req->ir_iovec  != NULL &&
+                req->ir_ops    != NULL &&
+                req->ir_seg_nr > 0 &&
+                !c2_ext_is_empty(&req->ir_extent) &&
+                c2_fid_is_valid(FILE_TO_FID(req->ir_file)) &&
+
+                ergo(req->ir_state == IRS_READING,
+                     !tiodescs_tlist_is_empty(&req->ir_nwxfer.nxr_tioreqs)) &&
+
+                ergo(req->ir_state == IRS_WRITING,
+                     !tiodescs_tlist_is_empty(&req->ir_nwxfer.nxr_tioreqs)) &&
+
+                ergo(req->ir_state == IRS_READ_COMPLETE,
+                     ergo(req->ir_type == IRT_READ,
+                          tiodescs_tlist_is_empty(
+                                  &req->ir_nwxfer.nxr_tioreqs))) &&
+
+                ergo(req->ir_state == IRS_WRITE_COMPLETE,
+                     tiodescs_tlist_is_empty(&req->ir_nwxfer.nxr_tioreqs)) &&
+
+                ergo(io_req_is_rmw(req),
+                     c2_ext_is_partof(&req->ir_aux_extent, &req->ir_extent));
+}
+
+static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
+{
+        return
+                xfer != NULL &&
+                xfer->nxr_magic == NWREQ_MAGIC &&
+                xfer->nxr_state <= NXS_STATE_NR &&
+
+                ergo(xfer->nxr_state == NXS_INITIALIZED,
+                     tiodescs_tlist_is_empty(&xfer->nxr_tioreqs) &&
+                     (xfer->nxr_rc == xfer->nxr_bytes) ==
+                     (xfer->nxr_iofop_nr == 0)) &&
+
+                ergo(xfer->nxr_state == NXS_INFLIGHT,
+                     !tiodescs_tlist_is_empty(&xfer->nxr_tioreqs) &&
+                     xfer->nxr_iofop_nr > 0) &&
+
+                ergo(xfer->nxr_state == NXS_COMPLETE,
+                     tiodescs_tlist_is_empty(&xfer->nxr_tioreqs) &&
+                     xfer->nxr_iofop_nr == 0 &&
+                     xfer->nxr_bytes > 0);
+}
+
+static bool target_ioreq_invariant(const struct target_ioreq *ti)
+{
+        return
+                ti != NULL &&
+                target_ioreq_bob_check(ti) &&
+                ti->ti_session != NULL &&
+                c2_fid_is_valid(&ti->ti_fid) &&
+                tiodescs_tlink_is_in(ti);
+}
+
+static bool target_ioext_invariant(const struct target_ioext *ext)
+{
+        return
+                ext != NULL &&
+                c2_bob_check(&ioext_bobtype, ext) &&
+                ergo(!c2_ext_is_empty(&ext->ie_ext),
+                     ext->ie_buf_nr > 0 && ext->ie_buffers != NULL);
+}
+
+static bool io_req_fop_invariant(const struct io_req_fop *fop)
+{
+        return
+                fop != NULL &&
+                fop->irf_nwxfer != NULL &&
+                fop->irf_iocb.fc_bottom != NULL &&
+                io_req_fop_bob_check(fop);
+}
+
+static void io_request_expand(struct c2t1fs_inode *ci, struct io_request *req)
+{
+        void          *buf  = req->ir_iovec[0].iov_base;
+        /* Original file extent. */
+        struct c2_ext *oe = &req->ir_extent;
+        /* Expanded file extent. */
+        struct c2_ext *ee = &req->ir_aux_extent;
+
+        C2_PRE(io_request_invariant(req));
+        if (io_req_spans_full_pg(ci, buf, c2_ext_length(oe), oe->e_start))
+                return;
+
+        /*
+         * finds immediate lower number which is aligned to
+         * parity group unit size.
+         */
+        ee->e_start = c2_round_down(oe->e_start, PAGE_CACHE_SIZE);
+
+        /*
+         * finds immediate higher number which is aligned to
+         * parity group unit size.
+         */
+        ee->e_end = ee->e_start + c2_round_up(oe->e_start - ee->e_start +
+                                              c2_ext_length(oe),
+                                              PAGE_CACHE_SIZE);
+
+        C2_POST(c2_ext_is_partof(ee, oe) && io_request_invariant(req));
+}
+
+/**
+ * Any partial parity group can lead to either "read-old" or "read-rest"
+ * of the approaches, which is a part of read-modify-write IO request.
+ */
+static bool io_req_is_group_unaligned(const struct io_request *req)
+{
+        struct c2_pdclust_layout *pl = layout_to_pd_layout(FILE_TO_C2INODE(
+                                                    req->ir_file));
+        uint64_t group_size = pl->pl_unit_size * pl->pl_N;
+
+        return
+               req->ir_extent.e_start % group_size != 0 ||
+               req->ir_extent.e_end   % group_size != 0;
+}
+
+static bool io_req_is_page_unaligned(const struct io_request *req)
+{
+        return
+               req->ir_extent.e_start % PAGE_CACHE_SIZE != 0 ||
+               req->ir_extent.e_end   % PAGE_CACHE_SIZE != 0;
+}
+
+static bool io_req_is_rmw(const struct io_request *req)
+{
+        return req->ir_type == IRT_WRITE && io_req_is_group_unaligned(req);
+}
+
+static void nw_xfer_request_init(struct nw_xfer_request *xfer)
+{
+        C2_PRE(xfer != NULL);
+
+        xfer->nxr_magic = NWREQ_MAGIC;
+        xfer->nxr_rc    = xfer->nxr_bytes = xfer->nxr_iofop_nr = 0;
+        xfer->nxr_state = NXS_INITIALIZED;
+        xfer->nxr_ops   = &xfer_ops;
+        tiodescs_tlist_init(&xfer->nxr_tioreqs);
+
+        C2_POST(nw_xfer_request_invariant(xfer));
+}
+
+static void nw_xfer_request_fini(struct nw_xfer_request *xfer)
+{
+        C2_PRE(xfer != NULL && xfer->nxr_state == NXS_COMPLETE);
+        C2_PRE(nw_xfer_request_invariant(xfer));
+
+        tiodescs_tlist_fini(&xfer->nxr_tioreqs);
+}
+
+static void io_request_init(struct io_request *req, struct file *file,
+                            struct iovec *ivec, loff_t pos,
+                            unsigned long seg_nr, enum io_req_type rw)
+{
+        C2_PRE(req    != NULL);
+        C2_PRE(file   != NULL);
+        C2_PRE(ivec   != NULL);
+        C2_PRE(rw     < IRT_TYPE_NR);
+        C2_PRE(seg_nr > 0);
+
+        req->ir_rc     = 0;
+        req->ir_ops    = &ioreq_ops;
+        req->ir_file   = file;
+        req->ir_iovec  = ivec;
+        req->ir_type   = rw;
+        req->ir_state  = IRS_INITIALIZED;
+        req->ir_seg_nr = seg_nr;
+
+        req->ir_extent.e_start     = pos;
+        req->ir_extent.e_end       = iov_length(ivec, seg_nr);
+        req->ir_aux_extent.e_start = req->ir_aux_extent.e_end = 0;
+
+        c2_bob_init(&ioreq_bobtype, req);
+        nw_xfer_request_init(&req->ir_nwxfer);
+        c2_sm_init(&req->ir_sm, &io_sm_conf, IRS_INITIALIZED,
+                   FILE_TO_SMGROUP(req->ir_file), NULL);
+
+        C2_POST(io_request_invariant(req));
+}
+
+static void io_request_fini(struct io_request *req)
+{
+        C2_PRE(io_request_invariant(req));
+
+        c2_sm_fini(&req->ir_sm);
+        c2_bob_fini(&ioreq_bobtype, req);
+        nw_xfer_request_fini(&req->ir_nwxfer);
+        req->ir_file  = NULL;
+        req->ir_iovec = NULL;
+}
+
+static void data_buf_init(struct data_buf *buf,
+                          void *addr, c2_bcount_t len,
+                          enum c2_pdclust_unit_type type)
+{
+        buf->db_magic = DTBUF_MAGIC;
+        buf->db_type  = type;
+        c2_buf_init(&buf->db_buf, addr, len);
+}
+
+static void data_buf_fini(struct data_buf *buf)
+{
+        buf->db_magic      = 0;
+        buf->db_buf.b_addr = NULL;
+        buf->db_buf.b_nob  = 0;
+        buf->db_type       = PUT_NR;
+}
+
+static int target_ioext_init(struct target_ioext *ext, uint64_t frame_nr_size)
+{
+        C2_PRE(ext != NULL);
+        C2_PRE(frame_nr_size > 0);
+        C2_PRE((frame_nr_size & (PAGE_CACHE_SIZE - 1)) == 0);
+
+        c2_bob_init(&ioext_bobtype, ext);
+        ext->ie_ext.e_start = ext->ie_ext.e_end = 0;
+        ext->ie_buf_nr  = frame_nr_size / PAGE_CACHE_SIZE;
+
+        /* Contents of ext->ie_buffers is set to NULL after allocation. */
+        C2_ALLOC_ARR(ext->ie_buffers, ext->ie_buf_nr);
+        C2_POST(target_ioext_invariant(ext));
+
+        return ext->ie_buffers == NULL ? -ENOMEM : 0;
+}
+
+#define WRITE_STATE_FROM_RMW(req) \
+        io_req_is_rmw(req) && (req)->ir_state == IRS_WRITING
+
+#define READ_STATE_FROM_RMW(req)  \
+        io_req_is_rmw(req) && (req)->ir_state == IRS_READING
+
+static uint64_t last_data_buf_id(struct target_ioext *ext)
+{
+        uint64_t i;
+
+        for (; ext->ie_buffers[i] != NULL; ++i);
+        return i;
+}
+
+/**
+ * Populates the target_ioreq::target_ioext with struct data_buf.
+ * @post rc == 0 || rc == -ENOMEM.
+ */
+static int target_ioext_populate(struct target_ioext      *ext,
+                                 c2_bindex_t               tgtpos,
+                                 c2_bindex_t               filepos,
+                                 c2_bcount_t               count,
+                                 enum c2_pdclust_unit_type type,
+                                 struct io_request        *req)
+{
+        int                       rc;
+        size_t                    written = 0;
+        uint64_t                  pg = 0;
+        uint64_t                  i = 0;
+        struct page              *page;
+        struct data_buf          *buf;
+        uint64_t                  anchor;
+
+        C2_PRE(target_ioext_invariant(ext));
+        C2_PRE(type < PUT_NR);
+        C2_PRE(io_request_invariant(req));
+
+        if (c2_ext_is_empty(&ext->ie_ext))
+                ext->ie_ext.e_start = tgtpos;
+
+        ext->ie_ext.e_end = tgtpos + count;
+        anchor            = last_data_buf_id(ext);
+
+        /*
+         * Write state from rmw IO operation (read + update + write)
+         * does not need to allocate new data buffers. Its data buffers
+         * are already allocated and populated by preceding read request.
+         * Rest all permutations like {un/}aligned read IO and
+         * aligned write IO need to allocate pages.
+         */
+        if (!WRITE_STATE_FROM_RMW(req)) {
+                do {
+                        page = (struct page *)__get_free_page(GFP_KERNEL);
+                        if (page == NULL) {
+                                rc = -ENOMEM;
+                                goto fail;
+                        }
+
+                        buf = c2_alloc(sizeof *buf);
+                        if (buf == NULL) {
+                                __free_page(page);
+                                rc = -ENOMEM;
+                                goto fail;
+                        }
+
+                        data_buf_init(buf, page_address(page),
+                                      min64u(count, PAGE_CACHE_SIZE), type);
+
+                        ext->ie_buffers[anchor + i] = buf;
+                        ++i;
+                        pg += PAGE_CACHE_SIZE;
+                } while (pg < count / PAGE_CACHE_SIZE);
+        }
+
+        /**
+         * For aligned write IO and rmw IO requests, data needs to be
+         * copied from user_space buffers.
+         */
+        if (type == PUT_DATA && req->ir_state == IRS_WRITING) {
+                struct iov_iter it;
+                iov_iter_init(&it, req->ir_iovec, req->ir_seg_nr, count,
+                              written);
+                i = 0;
+
+                do {
+                        c2_bindex_t poffset;
+                        c2_bindex_t pbytes;
+                        size_t      copied;
+
+                        C2_PRE(anchor + i < ext->ie_buf_nr);
+
+                        buf     = ext->ie_buffers[anchor + i];
+                        poffset = filepos & (PAGE_CACHE_SIZE - 1);
+                        pbytes  = min_type(c2_bindex_t,
+                                           PAGE_CACHE_SIZE - poffset,
+                                           iov_iter_count(&it));
+
+                        pagefault_disable();
+                        copied = iov_iter_copy_from_user_atomic(
+                                        buf->db_buf.b_addr, &it, poffset,
+                                        pbytes);
+                        pagefault_enable();
+
+                        if (copied != pbytes) {
+                                rc = -EFAULT;
+                                goto fail;
+                        }
+
+                        iov_iter_advance(&it, copied);
+                        written += copied;
+                        filepos += copied;
+                        ++i;
+                } while (buf != NULL);
+        }
+        C2_POST(written == count);
+        return 0;
+fail:
+        if (!WRITE_STATE_FROM_RMW(req)) {
+                i = 0;
+
+                do {
+                        buf = ext->ie_buffers[anchor + i];
+                        __free_page(buf->db_buf.b_addr);
+                        data_buf_fini(buf);
+                        c2_free(buf);
+                        ext->ie_buffers[anchor + i] = NULL;
+                        ++i;
+                } while (buf != NULL);
+        }
+        return rc;
+}
+
+/** Assumes associated buffer is already deallocated before fini. */
+static void target_ioext_fini(struct target_ioext *ext)
+{
+        C2_PRE(ext != NULL);
+        C2_PRE(!c2_ext_is_empty(&ext->ie_ext));
+
+        c2_bob_fini(&ioext_bobtype, ext);
+        c2_free(ext->ie_buffers);
+        ext->ie_buffers = NULL;
+        ext->ie_buf_nr  = 0;
+}
+
+void target_ioext_parity_get(struct target_ioext *ext, struct c2_bufvec *in)
+{
+        uint64_t i;
+        uint64_t id;
+
+        C2_PRE(target_ioext_invariant(ext));
+        C2_PRE(in != NULL);
+
+        for (i = 0, id = 0; i < ext->ie_buf_nr; ++i) {
+                if (ext->ie_buffers[i] &&
+                    ext->ie_buffers[i]->db_type == PUT_PARITY) {
+                        in->ov_buf[id] = ext->ie_buffers[i]->db_buf.b_addr;
+                        in->ov_vec.v_count[id] = ext->ie_buffers[i]->
+                                                 db_buf.b_nob;
+                        ++id;
+                        in->ov_vec.v_nr = id;
+                }
+        }
+}
+
+static int target_ioreq_init(struct target_ioreq   *ti,
+                             const struct c2_fid   *cobfid,
+                             struct c2_rpc_session *session,
+                             uint64_t               frame_nr_size)
+{
+        int rc;
+
+        C2_PRE(ti      != NULL);
+        C2_PRE(cobfid  != NULL);
+        C2_PRE(session != NULL);
+        C2_PRE(frame_nr_size > 0);
+
+        iofops_tlist_init(&ti->ti_iofops);
+        tiodescs_tlink_init(ti);
+        target_ioreq_bob_init(ti);
+
+        ti->ti_fid     = *cobfid;
+        ti->ti_session = session;
+        rc = target_ioext_init(&ti->ti_extent, frame_nr_size);
+
+        C2_POST(target_ioreq_invariant(ti));
+        return rc;
+}
+
+static void target_ioreq_fini(struct target_ioreq *ti)
+{
+        C2_PRE(target_ioreq_invariant(ti));
+
+        iofops_tlist_fini(&ti->ti_iofops);
+        tiodescs_tlink_fini(ti);
+        target_ioreq_bob_fini(ti);
+        ti->ti_session = NULL;
+}
+
+static int target_object_locate(struct nw_xfer_request  *xfer,
+                                struct c2_fid           *fid,
+                                struct c2_rpc_session   *session,
+                                uint64_t                 frame_nr_size,
+                                struct target_ioreq    **out)
+{
+        int                  rc = 0;
+        struct target_ioreq *ti;
+
+        C2_PRE(nw_xfer_request_invariant(xfer));
+        C2_PRE(session != NULL);
+        C2_PRE(fid     != NULL);
+        C2_PRE(out     != NULL);
+        C2_PRE(frame_nr_size > 0);
+
+        c2_tl_for (tiodescs, &xfer->nxr_tioreqs, ti) {
+                if (c2_fid_eq(&ti->ti_fid, fid))
+                        goto last;
+        } c2_tl_endfor;
+
+        ti = c2_alloc(sizeof *ti);
+        if (ti == NULL) {
+                rc = -ENOMEM;
+                goto last;
+        }
+
+        rc = target_ioreq_init(ti, fid, session, frame_nr_size);
+        tiodescs_tlist_add(&xfer->nxr_tioreqs, ti);
+last:
+        *out = ti;
+        return rc;
+}
+
+#define REQ_TO_FOP_TYPE(req) ((req)->ir_type == IRT_READ ? \
+                &c2_fop_cob_readv_fopt : &c2_fop_cob_writev_fopt)
+
+static int io_req_fop_init(struct io_req_fop      *fop,
+                           struct nw_xfer_request *xfer)
+{
+        int                rc;
+        struct io_request *req;
+
+        C2_PRE(fop  != NULL);
+        C2_PRE(xfer != NULL);
+
+        iofops_tlink_init(fop);
+        io_req_fop_bob_init(fop);
+        fop->irf_nwxfer = xfer;
+
+        fop->irf_iocb.fc_fom = NULL;
+        /** @todo assign bottom half function. */
+        fop->irf_iocb.fc_bottom = NULL;
+
+        req = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
+        rc  = c2_io_fop_init(&fop->irf_iofop, REQ_TO_FOP_TYPE(req));
+
+        C2_POST(io_req_fop_invariant(fop));
+        return rc;
+}
+
+static void io_req_fop_fini(struct io_req_fop *fop)
+{
+        C2_PRE(io_req_fop_invariant(fop));
+
+        /**
+         * IO fop is fini-ed (c2_io_fop_fini()) through rpc sessions code
+         * using c2_rpc_item::c2_rpc_item_ops::rio_free().
+         * @see io_item_free().
+         */
+
+        iofops_tlink_fini(fop);
+        io_req_fop_bob_fini(fop);
+        c2_fom_callback_fini(&fop->irf_iocb);
+        fop->irf_nwxfer = NULL;
+}
+
+/*
+ * A read request from rmw IO request can lead to either
+ *
+ * read_old - Read the old data for the extent spanned by current
+ * IO request, along with the old parity unit. This approach needs
+ * to calculate new parity in _iterative_ manner. This approach is
+ * selected only if current IO extent lies within file size.
+ *
+ * read_rest - Read rest of the parity group, which is _not_ spanned
+ * by current IO request, so that data for whole parity group can
+ * be availble for parity calculation.
+ *
+ * Typically, the approach which leads to least size of data to be
+ * read from server is selected.
+ */
+static void nw_xfer_io_read(struct nw_xfer_request *xfer)
+{
+        bool                      readold;
+        /* Size of IO request in bytes. */
+        uint64_t                  read_old;
+        /* Size of IO request in bytes. */
+        uint64_t                  read_rest;
+        uint64_t                  grpstart;
+        uint64_t                  grpend;
+        struct c2_ext            *ext;
+        struct io_request        *req;
+        struct c2_pdclust_layout *play;
+
+        C2_PRE(nw_xfer_request_invariant(xfer));
+
+        req = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
+        C2_ASSERT(io_request_invariant(req));
+        C2_ASSERT(io_req_is_rmw(req));
+
+        ci         = FILE_TO_C2INODE(req->ir_file);
+        play       = layout_to_pd_layout(ci->ci_layout);
+        ext        = io_req_is_page_unaligned(req) ? &req->ir_aux_extent :
+                     &req->ir_extent;
+        filepos    = ext->e_start;
+        unit_size  = play->pl_unit_size;
+        unit_nr    = play->pl_N + 2 * play->pl_K;
+        group_size = play->pl_N * unit_size;
+        group_nr   = c2_ext_length(ext) / group_size + 1;
+        grpstart   = ext->e_start / group_size;
+        groupend   = ext->e_end   / group_size;
+
+        /*
+         * - Iterate over number of groups.
+         * - Skip full parity groups. Current read requests apply only to
+         *   partial parity groups.
+         * - For every partial parity group, chose if read-old or read-rest
+         *   will be used.
+         * - Prepare target_ioreq structures.
+         * - Remember to read old parity unit in case of read-old.
+         */
+
+        for (; grpstart <= grpend; ++grpstart) {
+
+                if (filepos == grpstart * group_size &&
+                    filepos + group_size < ext->e_end)
+                        continue;
+
+                read_old  = c2_round_up(filepos, group_size) - filepos;
+                read_rest = filepos - c2_round_down(filepos, group_size);
+
+                if (read_old + unit_size < read_rest &&
+                    c2_round_up(filepos, group_size) <= ci->ci_inode.i_size) {
+                        unit = (filepos % group_size) / unit_size;
+                        readold = true;
+                } else
+                        unit = 0;
+
+                for (; unit < unit_nr; ++unit) {
+
+                        c2_bcount_t bcount;
+
+                        unit_type = c2_pdclust_unit_classify(play, unit);
+
+                        if (unit_type == PUT_SPARE ||
+                            (!readold && unit_type == PUT_PARITY))
+                                continue;
+
+                        src.sa_unit = unit;
+                        c2_pdclust_layout_map(play, &src, &tgt);
+
+                        tfid    = c2t1fs_cob_fid(&ci->ci_fid, tgt.ta_obj + 1);
+                        session = c2t1fs_container_id_to_session(csb,
+                                        tfid.f_container);
+                        bcount  = min_type(c2_bcount_t, c2_ext_length(ext),
+                                           unit_size);
+
+                        rc = target_object_locate(xfer, &tfid, session,
+                                                  unit_size * group_nr, &ti);
+
+                        if (rc != 0)
+                                goto fail;
+
+                        rc = target_ioext_populate(&ti->tir_extent,
+                                                   tgt.ta_frame * unit_size,
+                                                   filepos, bcount, unit_type,
+                                                   req);
+                        if (rc != 0)
+                                goto fail;
+
+                        filepos += bcount;
+
+                }
+        }
+}
+
+static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
+{
+        int                          rc;
+        struct io_request           *req;
+        /** Extent in file linear address space which is read/written to. */
+        struct c2_ext               *ext;
+        /** Fid of component object. */
+        struct c2_fid                tfid;
+        struct c2_pdclust_layout    *play;
+        enum c2_pdclust_unit_type    unit_type;
+        struct c2_pdclust_src_addr   src;
+        struct c2_pdclust_tgt_addr   tgt;
+        /** Number of parity groups to read/write. */
+        uint32_t                     group_nr;
+        uint32_t                     grp = 0;
+        /** Number of units in a parity group. */
+        uint32_t                     unit_nr;
+        uint32_t                     unit;
+        uint64_t                     unit_size;
+        uint64_t                     i;
+        /** Size of all data units in parity group. */
+        uint64_t                     group_size;
+        /** Offset in global file. */
+        c2_bindex_t                  filepos;
+        /*
+         * File offset corresponding to {start/end} of a parity group spanned
+         * by current io request.
+         */
+        c2_bindex_t                  pgspos;
+
+        struct target_ioreq         *ti;
+        struct c2t1fs_inode         *ci;
+        struct c2t1fs_sb            *csb;
+        struct c2_bufvec            *data_vecs;
+        struct c2_bufvec            *parity_vecs;
+        struct c2_rpc_session       *session;
+
+        C2_PRE(nw_xfer_request_invariant(xfer));
+
+        req = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
+        C2_ASSERT(io_request_invariant(req));
+
+        /*
+         * If this is reading state from rmw IO request, IO should be
+         * issued to read the unit_size unaligned data buffers first
+         * so that rest of the computation can be while data is being
+         * read from server.
+         */
+        if (READ_STATE_FROM_RMW(req))
+                nw_xfer_io_read(xfer);
+
+        ci   = FILE_TO_C2INODE(req->ir_file);
+        play = layout_to_pd_layout(ci->ci_layout);
+        csb  = C2T1FS_SB(ci->ci_inode.i_sb);
+        ext  = io_req_is_page_unaligned(req) ? &req->ir_aux_extent :
+               &req->ir_extent;
+
+        filepos    = ext->e_start;
+        unit_size  = play->pl_unit_size;
+        unit_nr    = play->pl_N + 2 * play->pl_K;
+        group_size = play->pl_N * unit_size;
+        group_nr   = c2_ext_length(ext) / group_size + 1;
+
+        C2_ALLOC_ARR(data_vecs,   unit_size / PAGE_CACHE_SIZE);
+        C2_ALLOC_ARR(parity_vecs, unit_size / PAGE_CACHE_SIZE);
+
+        if (data_vecs == NULL || parity_vecs == NULL) {
+                rc = -ENOMEM;
+                goto fail;
+        }
+
+        /** @todo Allocate memory for bufvec::ov_bufs and
+         * bufvec::ov_vec::v_count */
+
+        C2_ASSERT((unit_size & (PAGE_CACHE_SIZE - 1)) == 0);
+
+        unit         = (ext->e_start % group_size) / unit_size;
+        src.sa_group = ext->e_start / group_size;
+
+        do {
+
+                for (pgspos = filepos; unit < unit_nr; ++unit) {
+
+                        c2_bcount_t bcount;
+                        unit_type = c2_pdclust_unit_classify(play, unit);
+
+                        /**
+                         * @todo For spare units, a fop should be sent
+                         * which will allocate a block on the stob.
+                         */
+                        if (unit_type == PUT_SPARE)
+                                continue;
+
+                        src.sa_unit = unit;
+
+                        c2_pdclust_layout_map(play, &src, &tgt);
+                        tfid    = c2t1fs_cob_fid(&ci->ci_fid, tgt.ta_obj + 1);
+                        session = c2t1fs_container_id_to_session(csb,
+                                        tfid.f_container);
+                        bcount  = min_type(c2_bcount_t, c2_ext_length(ext),
+                                           unit_size);
+
+
+                        rc = target_object_locate(xfer, &tfid, session,
+                                                  unit_size * group_nr, &ti);
+                        if (ti == NULL) {
+                                rc = -ENOMEM;
+                                goto fail;
+                        }
+
+                        rc = target_ioext_populate(&ti->ti_extent,
+                                                   tgt.ta_frame * unit_size,
+                                                   filepos, bcount, unit_type,
+                                                   req);
+                        if (rc != 0)
+                                goto fail;
+
+                        if (unit_type == PUT_DATA) {
+                                filepos += bcount;
+                                for (i = 0; i < unit_size / PAGE_CACHE_SIZE;
+                                     ++i)
+                                        data_vecs[i].ov_buf[unit] = ti->
+                                                ti_extent.ie_buffers[grp *
+                                                unit_size / PAGE_CACHE_SIZE
+                                                + i];
+                        } else if (unit_type == PUT_PARITY) {
+                                for (i = 0; i < unit_size / PAGE_CACHE_SIZE;
+                                     ++i)
+                                        parity_vecs[i].ov_buf[unit] = ti->
+                                                ti_extent.ie_buffers[grp *
+                                                unit_size / PAGE_CACHE_SIZE
+                                                + i];
+                        }
+                        /**
+                         * Calculate parity unit for partial parity groups
+                         * as well.
+                         */
+                        if (req->ir_state == IRS_WRITING &&
+                            ((ext->e_end % group_size) / unit_size) + 1 <
+                             unit_nr && (grp + 1 == group_nr))
+                                unit = play->pl_N;
+                }
+
+                /** Parity need not be calculated for read requests. */
+                if (req->ir_state == IRS_WRITING) {
+                        /**
+                         * 1. If part/whole of current parity group lies
+                         * within EOF, there must be a pre-existing
+                         * parity unit for this group. Calculate delta
+                         * parity in this case.
+                         *
+                         * 2. If current parity group lies beyond EOF,
+                         * this is append operation and parity must be
+                         * calculated afresh.
+                         */
+                        if (pgspos > ci->ci_inode.i_size - 1) {
+                                uint32_t i;
+
+                                for (i = 0; i < unit_size / PAGE_CACHE_SIZE;
+                                     ++i)
+                                        c2_parity_math_calculate_bvec(
+                                                &play->pl_math,
+                                                data_vecs[i], parity_vecs);
+                        } else {
+                                //struct c2_bufvec bvec;
+
+                                //target_ioext_parity_get();
+                        }
+                }
+
+                ++grp;
+                ++src.sa_group;
+                unit = 0;
+        } while (grp < group_nr);
+}
+
+static ssize_t file_aio_write(struct kiocb *kcb, const struct iovec *ivec,
+                              unsigned long seg_nr, loff_t pos)
+{
+        int                  rc;
+        size_t               count = 0;
+        size_t               saved_count;
+        struct io_request   *req;
+
+	rc = generic_segment_checks(ivec, &seg_nr, &count, VERIFY_READ);
+	if (rc != 0)
+                return 0;
+
+	saved_count = count;
+	rc = generic_write_checks(kcb->ki_filp, &pos, &count, 0);
+	if (rc != 0 || count == 0)
+                return 0;
+
+	if (count != saved_count)
+		seg_nr = iov_shorten((struct iovec *)ivec, seg_nr, count);
+
+        req = c2_alloc(sizeof(struct io_request));
+        if (req == NULL)
+                return 0;
+
+        io_request_init(req, kcb->ki_filp, (struct iovec *)ivec,
+                        pos, seg_nr, IRT_WRITE);
+
+        c2_sm_state_set(&req->ir_sm, IRS_WRITING);
+        C2_POST(req->ir_sm.sm_state == IRS_REQ_COMPLETE);
+
+        count = req->ir_nwxfer.nxr_bytes;
+        io_request_fini(req);
+        c2_free(req);
+        return count;
+}
+
+static int io_reading_state(struct c2_sm *sm)
+{
+        struct io_request *req;
+
+        C2_PRE(sm != NULL);
+
+        req = bob_of(sm, struct io_request, ir_sm, &ioreq_bobtype);
+        C2_ASSERT(io_request_invariant(req));
+
+        if (io_req_is_page_unaligned(req))
+                io_request_expand(FILE_TO_C2INODE(req->ir_file), req);
+}
+
+static int io_writing_state(struct c2_sm *sm)
+{
+        struct io_request *req;
+
+        C2_PRE(sm != NULL);
+
+        req = bob_of(sm, struct io_request, ir_sm, &ioreq_bobtype);
+        C2_ASSERT(io_request_invariant(req));
+
+        if (io_req_is_rmw(req))
+                io_request_expand(FILE_TO_C2INODE(req->ir_file), req);
+}
+
 const struct file_operations c2t1fs_reg_file_operations = {
 	.llseek    = generic_file_llseek,   /* provided by linux kernel */
 	.aio_read  = c2t1fs_file_aio_read,
-	.aio_write = c2t1fs_file_aio_write,
+	//.aio_write = c2t1fs_file_aio_write,
+	.aio_write = file_aio_write,
 	.read      = do_sync_read,          /* provided by linux kernel */
 	.write     = do_sync_write,         /* provided by linux kernel */
 };

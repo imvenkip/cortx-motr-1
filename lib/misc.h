@@ -37,13 +37,11 @@
 
 /**
  * Returns rounded up value of @val in chunks of @size.
- * @pre c2_is_po2(size)
  */
 uint64_t c2_round_up(uint64_t val, uint64_t size);
 
 /**
  * Returns rounded down value of @val in chunks of @size.
- * @pre c2_is_po2(size)
  */
 uint64_t c2_round_down(uint64_t val, uint64_t size);
 
