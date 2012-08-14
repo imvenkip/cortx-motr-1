@@ -26,10 +26,9 @@
 #include "cm/ag.h"
 
 /**
-   @addtogroup snsrepair
-
-   @{
-*/
+ * @addtogroup snsrepair
+ * @{
+ */
 
 /**
  * SNS repair specific aggregation group.
