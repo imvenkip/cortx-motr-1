@@ -474,7 +474,7 @@
                        C2_FOPH_IO_FOM_BUFFER_ACQUIRE<br>
                Expected Output : Should not gets network buffer and NULL pointer
                                  set into FOM with phase changed to
-                                 C2_FOPH_IO_FOM_BUFFER_FINISH and return
+                                 C2_FOPH_IO_FOM_BUFFER_ACQUIRE and return
                                  value C2_FSO_WAIT.
 
    - Test 07 : Call c2_io_fom_cob_rw_state() with buffer pool size 0
@@ -1173,12 +1173,8 @@ static int net_buffer_release(struct c2_sm *sm)
 
         fom_obj->fcrw_batch_size = acquired_net_bufs;
 
-        if (required_net_bufs == 0) {
-		fom->fo_next_phase = C2_FOPH_SUCCESS;
-		return C2_FSO_AGAIN;
-	}
-
-	fom->fo_next_phase = C2_FOPH_IO_FOM_BUFFER_ACQUIRE;
+        fom->fo_next_phase = required_net_bufs == 0 ?
+			     C2_FOPH_SUCCESS : C2_FOPH_IO_FOM_BUFFER_ACQUIRE;
 	return C2_FSO_AGAIN;
 }
 
@@ -1321,7 +1317,7 @@ static int zero_copy_finish(struct c2_sm *sm)
         c2_rpc_bulk_fini(rbulk);
 
 	fom->fo_next_phase = c2_is_read_fop(fom->fo_fop) ?
-			C2_FOPH_IO_BUFFER_RELEASE : C2_FOPH_IO_STOB_INIT;
+			     C2_FOPH_IO_BUFFER_RELEASE : C2_FOPH_IO_STOB_INIT;
 	return C2_FSO_AGAIN;
 }
 

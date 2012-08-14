@@ -110,7 +110,7 @@ static struct c2_fom_type ut_io_fom_cob_rw_type_mopt = {
 
 static void bulkio_stob_fom_fini(struct c2_fom *fom)
 {
-	struct c2_io_fom_cob_rw *fom_obj = NULL;
+	struct c2_io_fom_cob_rw *fom_obj;
 
 	fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         c2_stob_put(fom_obj->fcrw_stob);
@@ -200,7 +200,7 @@ static int bulkio_server_write_fom_state(struct c2_fom *fom)
 		break;
 	default:
 		if (fom->fo_next_phase == C2_FOPH_SUCCESS)
-        		rc = reply_fop_send(fom);
+			rc = reply_fop_send(fom);
 		else {
 			fom->fo_next_phase = C2_FOPH_IO_FOM_BUFFER_ACQUIRE;
 			rc = C2_FSO_AGAIN;
@@ -252,7 +252,7 @@ static int bulkio_server_read_fom_state(struct c2_fom *fom)
 		break;
 	default :
 		if (fom->fo_next_phase == C2_FOPH_SUCCESS)
-        		rc = reply_fop_send(fom);
+			rc = reply_fop_send(fom);
 		else {
 			fom->fo_next_phase = C2_FOPH_IO_FOM_BUFFER_ACQUIRE;
 			rc = C2_FSO_AGAIN;
@@ -340,9 +340,9 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
         int                           saved_segments_count = 0;
         int                           saved_ndesc = 0;
         struct c2_fop_cob_rw         *rwfop;
-        struct c2_net_domain         *netdom = NULL;
+        struct c2_net_domain         *netdom;
         struct c2_fop                *fop;
-        struct c2_io_fom_cob_rw      *fom_obj = NULL;
+        struct c2_io_fom_cob_rw      *fom_obj;
         struct c2_fop_file_fid        saved_fid;
         struct c2_fop_file_fid        invalid_fid;
         struct c2_stob_io_desc       *saved_stobio_desc;
@@ -366,7 +366,7 @@ static int check_write_fom_state_transition(struct c2_fom *fom)
                  * No need to test generic phases.
                  */
 		if (fom->fo_next_phase == C2_FOPH_SUCCESS)
-        		rc = reply_fop_send(fom);
+			rc = reply_fop_send(fom);
 		else {
 			fom->fo_next_phase = TEST01;
 			rc = C2_FSO_AGAIN;
@@ -719,9 +719,9 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
         int                           saved_segments_count = 0;
         int                           saved_ndesc = 0;
         struct c2_fop_cob_rw         *rwfop;
-        struct c2_net_domain         *netdom = NULL;
+        struct c2_net_domain         *netdom;
         struct c2_fop                *fop;
-        struct c2_io_fom_cob_rw      *fom_obj = NULL;
+        struct c2_io_fom_cob_rw      *fom_obj;
         struct c2_fop_file_fid        saved_fid;
         struct c2_fop_file_fid        invalid_fid;
         struct c2_stob_io_desc       *saved_stobio_desc;
@@ -745,7 +745,7 @@ static int check_read_fom_state_transition(struct c2_fom *fom)
                  * No need to test generic phases.
                  */
 		if (fom->fo_next_phase == C2_FOPH_SUCCESS)
-        		rc = reply_fop_send(fom);
+			rc = reply_fop_send(fom);
 		else {
 			fom->fo_next_phase = TEST01;
 			rc = C2_FSO_AGAIN;
