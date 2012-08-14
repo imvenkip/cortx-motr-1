@@ -44,9 +44,8 @@ struct c2_sns_repair_ag {
 };
 
 /** @} snsrepair */
-/* __COLIBRI_SNS_REPAIR_AG_H__ */
 
-#endif
+#endif /* __COLIBRI_SNS_REPAIR_AG_H__ */
 
 /*
  *  Local variables:
