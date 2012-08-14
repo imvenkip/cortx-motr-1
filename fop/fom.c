@@ -158,17 +158,16 @@ static bool fom_wait_time_is_out(const struct c2_fom_domain *dom,
  *
  * @post c2_fom_invariant(fom)
  */
-static int fom_ready(struct c2_sm *sm)
+static void fom_ready(struct c2_fom *fom)
 {
-	struct c2_fom	       *fom  = sm2fom(sm);
 	struct c2_fom_locality *loc;
 
+	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_READY);
 	loc = fom->fo_loc;
 	c2_list_add_tail(&loc->fl_runq, &fom->fo_linkage);
 	C2_CNT_INC(loc->fl_runq_nr);
 	c2_chan_signal(&loc->fl_runrun);
 	C2_POST(c2_fom_invariant(fom));
-	return C2_SM_BREAK;
 }
 
 void c2_fom_ready(struct c2_fom *fom)
@@ -177,8 +176,7 @@ void c2_fom_ready(struct c2_fom *fom)
 
 	c2_list_del(&fom->fo_linkage);
 	C2_CNT_DEC(fom->fo_loc->fl_wail_nr);
-
-	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_READY);
+	fom_ready(fom);
 }
 
 static void readyit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
@@ -192,7 +190,7 @@ static void queueit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 {
 	struct c2_fom *fom = container_of(ast, struct c2_fom, fo_cb.fc_ast);
 
-	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_READY);
+	fom_ready(fom);
 }
 
 void c2_fom_wakeup(struct c2_fom *fom)
@@ -286,16 +284,26 @@ void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
  *
  * @post c2_fom_invariant(fom)
  */
-static int fom_wait(struct c2_sm *sm)
+static void fom_wait(struct c2_fom *fom)
 {
-	struct c2_fom	       *fom = sm2fom(sm);
 	struct c2_fom_locality *loc;
 
+	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_WAITING);
 	loc = fom->fo_loc;
 	c2_list_add_tail(&loc->fl_wail, &fom->fo_linkage);
 	C2_CNT_INC(loc->fl_wail_nr);
 	C2_POST(c2_fom_invariant(fom));
-	return C2_SM_BREAK;
+}
+
+static void fom_finish(struct c2_fom *fom)
+{
+	C2_PRE(fom != NULL);
+
+	C2_PRE(c2_fom_invariant(fom));
+	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_FINISH);
+	c2_sm_fini(&fom->fo_sm_phase);
+	c2_sm_fini(&fom->fo_sm_state);
+	fom->fo_ops->fo_fini(fom);
 }
 
 /**
@@ -319,29 +327,21 @@ static int fom_wait(struct c2_sm *sm)
  * @pre c2_fom_invariant(fom)
  * @post c2_fom_invariant(fom)
  */
-static int fom_exec(struct c2_sm *sm)
+static void fom_exec(struct c2_fom *fom)
 {
-	struct c2_fom *fom = sm2fom(sm);
 	int	       rc;
 
+	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_RUNNING);
 	do {
 		C2_ASSERT(c2_fom_invariant(fom));
 		rc = fom->fo_ops->fo_state(fom);
 		fom->fo_transitions++;
 	} while (rc == C2_FSO_AGAIN);
 
-	C2_POST(c2_fom_invariant(fom));
-	return (fom->fo_sm_phase.sm_state == C2_FOPH_FINISH) ? C2_FOS_FINISH :
-							       C2_FOS_WAITING;
-}
-
-static void fom_finish(struct c2_fom *fom)
-{
-	C2_PRE(fom != NULL);
-
-	c2_sm_fini(&fom->fo_sm_phase);
-	c2_sm_fini(&fom->fo_sm_state);
-	fom->fo_ops->fo_fini(fom);
+	if (fom->fo_sm_phase.sm_state == C2_FOPH_FINISH)
+		fom_finish(fom);
+	else
+		fom_wait(fom);
 }
 
 /**
@@ -413,9 +413,7 @@ static void loc_handler_thread(struct c2_fom_hthread *th)
 				C2_CNT_DEC(loc->fl_idle_threads_nr);
 				idle = false;
 			}
-			c2_sm_state_set(&fom->fo_sm_state, C2_FOS_RUNNING);
-			if (fom->fo_sm_phase.sm_state == C2_FOPH_FINISH)
-				fom_finish(fom);
+			fom_exec(fom);
 		} else {
 			if (!idle) {
 				C2_CNT_INC(loc->fl_idle_threads_nr);
@@ -817,7 +815,7 @@ const struct c2_sm_state_descr fom_states[] = {
 	[C2_FOS_READY] = {
 		.sd_flags     = 0,
 		.sd_name      = "fom ready",
-		.sd_in        = &fom_ready,
+		.sd_in        = NULL,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOS_RUNNING)
@@ -825,7 +823,7 @@ const struct c2_sm_state_descr fom_states[] = {
 	[C2_FOS_RUNNING] = {
 		.sd_flags     = 0,
 		.sd_name      = "fom running",
-		.sd_in        = &fom_exec,
+		.sd_in        = NULL,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOS_WAITING) |
@@ -834,7 +832,7 @@ const struct c2_sm_state_descr fom_states[] = {
 	[C2_FOS_WAITING] = {
 		.sd_flags     = 0,
 		.sd_name      = "fom wait",
-		.sd_in        = &fom_wait,
+		.sd_in        = NULL,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOS_FINISH) |
@@ -846,7 +844,7 @@ const struct c2_sm_state_descr fom_states[] = {
 		.sd_in        = NULL,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
-		.sd_allowed   = 0
+		.sd_allowed   = 0,
 	}
 };
 
