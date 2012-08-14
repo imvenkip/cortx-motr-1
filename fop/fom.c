@@ -119,7 +119,7 @@ bool c2_locality_invariant(const struct c2_fom_locality *loc)
 }
 
 /* Returns fom from state machine c2_fom::fo_sm_state */
-static inline struct c2_fom* sm2fom(struct c2_sm *sm)
+static inline struct c2_fom *sm2fom(struct c2_sm *sm)
 {
 	C2_PRE(sm != NULL);
 	return container_of(sm, struct c2_fom, fo_sm_state);
