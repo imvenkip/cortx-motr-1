@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anup Barve <anup_barve@xyratex.com>
- * Original creation date: 16/04/2012
+ * Original creation date: 04/16/2012
  */
 
 #pragma once

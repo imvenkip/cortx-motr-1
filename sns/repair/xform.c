@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anup Barve <anup_barve@xyratex.com>
- * Original creation date: 09/08/2012
+ * Original creation date: 08/09/2012
  */
 
 #ifdef HAVE_CONFIG_H
@@ -23,9 +23,13 @@
 #endif
 
 #include "lib/bob.h"
-#include "lib/errno.h"
 #include "sns/repair/ag.h"
 #include "sns/parity_math.h"
+
+/**
+ * @addtogroup snsrepair
+ * @{
+ */
 
 /**
  * XORs the source and destination bufvecs and stores the output in
@@ -50,9 +54,11 @@ static void bufvec_xor(struct c2_bufvec *dst, struct c2_bufvec *src,
 
         c2_bufvec_cursor_init(&s_cur, src);
         c2_bufvec_cursor_init(&d_cur, dst);
-        /* bitwise OR used below to ensure both cursors get moved
-           without short-circuit logic, also why cursor move is before
-           simpler num_bytes check */
+        /*
+	 * bitwise OR used below to ensure both cursors get moved
+         * without short-circuit logic, also why cursor move is before
+         * simpler num_bytes check.
+         */
         while (!(c2_bufvec_cursor_move(&d_cur, frag_size) |
                  c2_bufvec_cursor_move(&s_cur, frag_size)) &&
                num_bytes > 0) {
@@ -87,8 +93,8 @@ int repair_cp_xform(struct c2_cm_cp *cp)
         if (res_cp == NULL) {
                 sns_ag->sag_local_cp_nr = ag->cag_ops->cago_local_cp_nr(ag);
                 /*
-                 *  If there is only one copy packet in the aggregation group,
-                 *  call the next phase of the copy packet fom.
+                 * If there is only one copy packet in the aggregation group,
+                 * call the next phase of the copy packet fom.
                  */
                 if (sns_ag->sag_local_cp_nr == 1)
                         return cp->c_ops->co_phase(cp);
@@ -100,10 +106,10 @@ int repair_cp_xform(struct c2_cm_cp *cp)
                  * c2_sns_repair_ag::sag_ccp. This copy packet will be used as
                  * a resultant copy packet for transformation.
                  */
-		res_cp = cp;
+		sns_ag->sag_ccp = cp;
 		/*
-		 *  Value of collected copy packets is zero at this stage, hence
-		 *  incrementing it will work fine.
+		 * Value of collected copy packets is zero at this stage, hence
+		 * incrementing it will work fine.
 		 */
                 C2_CNT_INC(sns_ag->sag_collected_cp_nr);
 
@@ -115,7 +121,8 @@ int repair_cp_xform(struct c2_cm_cp *cp)
 		return C2_FSO_WAIT;
         } else {
 		cp_bufvec_size = c2_cm_cp_data_size(cp);
-		/* Typically, all copy packets will have same buffer vector
+		/*
+		 * Typically, all copy packets will have same buffer vector
 		 * size. Hence, there is no need for any complex buffer
 		 * manipulation like growing or shrinking the buffers.
 		 */
@@ -123,8 +130,7 @@ int repair_cp_xform(struct c2_cm_cp *cp)
                 C2_CNT_INC(sns_ag->sag_collected_cp_nr);
                 /*
                  * Once transformation is complete, mark the copy
-                 * packet's fom to CCP_FINI since it is not needed anymore,
-                 * provided that it is not the first copy packet.
+                 * packet's fom to CCP_FINI since it is not needed anymore.
                  * This copy packet will be freed during CCP_FINI phase
                  * execution.
                  */
@@ -142,6 +148,7 @@ int repair_cp_xform(struct c2_cm_cp *cp)
         }
 }
 
+/** @} snsrepair */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
