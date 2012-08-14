@@ -34,30 +34,30 @@
 
 /**
   @page SNSRepairCMDLD SNS Repair copy machine DLD
-  - @ref DLD-snsrepair-ovw
-  - @ref DLD-snsrepair-def
-  - @ref DLD-snsrepair-req
-  - @ref DLD-snsrepair-depends
-  - @ref DLD-snsrepair-highlights
-  - @subpage DLD-snsrepair-fspec
-     - @ref DLD-snsrepair-lspec
-     - @ref DLD-snsrepair-lspec-cm-start
-     - @ref DLD-snsrepair-lspec-cm-stop
-  - @ref DLD-snsrepair-conformance
-  - @ref DLD-snsrepair-ut
-  - @ref DLD-snsrepair-st
-  - @ref DLD-snsrepair-O
-  - @ref DLD-snsrepair-ref
+  - @ref SNSRepairCMDLD-ovw
+  - @ref SNSRepairCMDLD-def
+  - @ref SNSRepairCMDLD-req
+  - @ref SNSRepairCMDLD-depends
+  - @ref SNSRepairCMDLD-highlights
+  - @subpage SNSRepairCMDLD-fspec
+     - @ref SNSRepairCMDLD-lspec
+     - @ref SNSRepairCMDLD-lspec-cm-start
+     - @ref SNSRepairCMDLD-lspec-cm-stop
+  - @ref SNSRepairCMDLD-conformance
+  - @ref SNSRepairCMDLD-ut
+  - @ref SNSRepairCMDLD-st
+  - @ref SNSRepairCMDLD-O
+  - @ref SNSRepairCMDLD-ref
 
   <hr>
-  @section DLD-snsrepair-ovw Overview
+  @section SNSRepairCMDLD-ovw Overview
   This module implements sns repair copy machine using generic copy machine
   infrastructure. SNS repair copy machine is built upon the request handler
   service. SNS Repair copy machine is typically started during Colibri process
   startup, it can also be started later.
 
   <hr>
-  @section DLD-snsrepair-def Definitions
+  @section SNSRepairCMDLD-def Definitions
   Refer to <a ref https://docs.google.com/a/xyratex.com/document/d/
   1Yz25F3GjgQVXzvM1sdlGQvVDSUu-v7FhdUvFhiY_vwM/edit#heading=h.4493e2a5a920
 
@@ -66,7 +66,7 @@
 
 
   <hr>
-  @section DLD-snsrepair-req Requirements
+  @section SNSRepairCMDLD-req Requirements
   - @b r.sns.repair.trigger SNS repair copy machine should respond to triggers
     caused due to various kinds of failures as mentioned in the HLD of SNS
     Repair.
@@ -86,7 +86,7 @@
     information for re-structured objects.
 
   <hr>
-  @section DLD-snsrepair-depends Dependencies
+  @section SNSRepairCMDLD-depends Dependencies
   - @b r.sns.repair.resources.manage It must be possible to efficiently
     manage and throttle resources.
 
@@ -94,7 +94,7 @@
   1Yz25F3GjgQVXzvM1sdlGQvVDSUu-v7FhdUvFhiY_vwM/edit#heading=h.c7533697f11c
 
   <hr>
-  @section DLD-snsrepair-highlights Design Highlights
+  @section SNSRepairCMDLD-highlights Design Highlights
   - SNS Repair copy machine uses request handler service infrastructure.
   - SNS Repair copy machine specific data structure embeds generic copy machine
     and other sns repair specific objects.
@@ -103,17 +103,17 @@
     embeds generic aggregation group.
 
   <hr>
-  @section DLD-snsrepair-lspec Logical specification
-  - @ref DLD-snsrepair-lspec-cm-init
-  - @ref DLD-snsrepair-lspec-cm-start
-  - @ref DLD-snsrepair-lspec-cm-stop
+  @section SNSRepairCMDLD-lspec Logical specification
+  - @ref SNSRepairCMDLD-lspec-cm-init
+  - @ref SNSRepairCMDLD-lspec-cm-start
+  - @ref SNSRepairCMDLD-lspec-cm-stop
 
-  @subsection DLD-snsrepair-lspec-comps Component overview
+  @subsection SNSRepairCMDLD-lspec-comps Component overview
   The focus of sns repair copy machine is on re-structuring the data
   efficiently. The re-structuring operation is split into various copy packet
   phases.
 
-  @subsection DLD-snsrepair-lspec-cm-init Copy machine startup
+  @subsection SNSRepairCMDLD-lspec-cm-init Copy machine startup
   SNS Repair defines its following specific data structure to represent a
   copy machine.
   @code
@@ -136,12 +136,12 @@
   - Copy machine start operation can block as it fetches configuration
     information from configuration service.
 
-  @subsection DLD-snsrepair-lspec-cm-stop Copy machine stop
+  @subsection SNSRepairCMDLD-lspec-cm-stop Copy machine stop
   SNS Repair copy machine is stopped when its corresponding service is
   stopped. Again, the service stop operation invokes generic c2_cm_stop(),
   which further invokes sns repair copy machine specific stop operation.
 
-  @subsection DLD-snsrepair-lspec-thread Threading and Concurrency Model
+  @subsection SNSRepairCMDLD-lspec-thread Threading and Concurrency Model
   SNS Repair copy machine is implemented as a request handler service, thus
   it shares the request handler threading model and does not create its own
   threads. Thus all the copy machine operations are performed in context of
@@ -152,11 +152,11 @@
   infrastructure.
   @ref State machine <!-- sm/sm.h -->
 
-  @subsection DLD-snsrepair-lspec-numa NUMA optimizations
+  @subsection SNSRepairCMDLD-lspec-numa NUMA optimizations
   N/A
 
   <hr>
-  @section DLD-snsrepair-conformance Conformance
+  @section SNSRepairCMDLD-conformance Conformance
   @b i.sns.repair.trigger Various triggers are reported through FOPs, which create
   corresponding FOMs. FOMs invoke sns repair specific copy machine operations
   through generic copy machine interfaces which cause copy machine state
@@ -170,18 +170,18 @@
   buffer pool used to create copy pckets. The buffers are allocated in 
 
   <hr>
-  @section DLD-snsrepair-ut Unit tests
+  @section SNSRepairCMDLD-ut Unit tests
 
   <hr>
-  @section DLD-snsrepair-st System tests
+  @section SNSRepairCMDLD-st System tests
   N/A
 
   <hr>
-  @section DLD-snsrepair-O Analysis
+  @section SNSRepairCMDLD-O Analysis
   N/A
 
   <hr>
-  @section DLD-snsrepair-ref References
+  @section SNSRepairCMDLD-ref References
   @see @ref DLD-cm-ref
 */
 
@@ -268,7 +268,7 @@ static void cm_fini(struct c2_cm *cm)
 	C2_PRE(cm != NULL);
 }
 
-/** @} snsrepair */
+/** @} SNSRepairCM */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

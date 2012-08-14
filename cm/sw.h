@@ -25,6 +25,13 @@
 #include "lib/tlist.h"  /* struct c2_tlink */
 
 /**
+   @defgroup CMSW Copy machine sliding window
+   @ingroup CM
+   @{
+
+ */
+
+/**
  * While copy machine is processing a restructuring request, each replica
  * maintains a "sliding window" (SW), indicating how far it gets. This window is
  * a pair of group identifiers [LO, HI), with LO <= HI. The following invariant
@@ -80,8 +87,8 @@ int c2_cm_sw_init(struct c2_cm_sw *slw, const struct c2_cm_sw_ops *ops);
 /** Finalises sliding window. */
 void c2_cm_sw_fini(struct c2_cm_sw *slw);
 
+/** @} CMSW */
 #endif /* __COLIBRI_CM_SW_H__ */
-
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

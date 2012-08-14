@@ -34,7 +34,7 @@
 #include "lib/finject.h"
 
 /**
-  @defgroup SNSRepairSVC Copy machine service
+  @defgroup SNSRepairSVC SNS Repair service
   @ingroup SNSRepairCM
 
   @{

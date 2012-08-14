@@ -18,10 +18,6 @@
  * Original creation date: 16/04/2012
  */
 
-/**
-    @page SNSRepairSW SNS Repair sliding window
- */
-
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -37,7 +33,7 @@
 #include "lib/finject.h"
 
 /**
-  @addtogroup SNSRepairCM SNS Repair sliding window
+  @addtogroup SNSRepairSW
 
   @{
 */
