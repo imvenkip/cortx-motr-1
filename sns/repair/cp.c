@@ -17,9 +17,7 @@
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
  * Original creation date: 08/06/2012
  */
-
-#include "lib/errno.h"
-#include "lib/memory.h"
+#include "lib/memory.h" /* c2_free() */
 
 #include "sns/repair/cp.h"
 #include "sns/repair/cm.h"

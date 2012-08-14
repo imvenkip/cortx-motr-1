@@ -24,7 +24,6 @@
 #define __COLIBRI_SNS_REPAIR_CP_H__
 
 #include "lib/ext.h"
-
 #include "cm/cp.h"
 
 /**

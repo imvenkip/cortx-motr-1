@@ -24,10 +24,7 @@
 #ifndef __COLIBRI_CM_CP_H__
 #define __COLIBRI_CM_CP_H__
 
-#include "lib/mutex.h"
-#include "lib/tlist.h"
 #include "lib/vec.h"
-
 #include "fop/fom.h"
 
 /**
@@ -90,7 +87,7 @@ enum c2_cm_cp_priority {
  * C2_FOPH_FINISH which has special meaning in fom.c.
  */
 enum c2_cm_cp_phase {
-	/** Phase specific initialisation.*/
+	/** Copy packet specific initialisation.*/
 	CCP_INIT = C2_FOPH_NR + 1,
 
 	/** Read and fill up the packet.*/
