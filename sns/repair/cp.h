@@ -27,6 +27,12 @@
 #include "cm/cp.h"
 
 /**
+   @defgroup SNSRepairCP SNS Repair Copy packet
+   @ingroup SNSRepairCM
+
+ */
+
+/**
  * In addition to c2_cm_cp_phase, these phases can be used. Transition between
  * non-standard is handled by phase specific code and not by phase_next().
  * This also help identifying specific operation as follows:
@@ -71,6 +77,7 @@ struct c2_sns_repair_cp {
 
 extern const struct c2_cm_cp_ops c2_sns_repair_cp_ops;
 
+/** @} SNSRepairCP */
 #endif /* __COLIBRI_SNS_REPAIR_CP_H__ */
 /*
  *  Local variables:

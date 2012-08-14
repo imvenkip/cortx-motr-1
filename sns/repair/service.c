@@ -34,7 +34,8 @@
 #include "lib/finject.h"
 
 /**
-  @addtogroup snsrepair
+  @defgroup SNSRepairSVC SNS Repair service
+  @ingroup SNSRepairCM
 
   @{
 */
@@ -157,7 +158,7 @@ static void service_fini(struct c2_reqh_service *service)
 	C2_LEAVE();
 }
 
-/** @} snsrepair */
+/** @} SNSRepairSVC */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

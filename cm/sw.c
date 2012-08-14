@@ -25,6 +25,11 @@
 #include "cm/sw.h"
 #include "cm/ag.h"
 
+/**
+   @addtogroup CMSW
+   @{
+ */
+
 int c2_cm_sw_init(struct c2_cm_sw *sw, const struct c2_cm_sw_ops *sw_ops)
 {
         C2_PRE(sw != NULL && sw_ops != NULL);
@@ -47,6 +52,7 @@ void c2_cm_sw_fini(struct c2_cm_sw *sw)
         C2_LEAVE();
 }
 
+/** @} CMSW */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

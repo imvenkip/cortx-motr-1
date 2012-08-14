@@ -33,7 +33,7 @@
 #include "lib/finject.h"
 
 /**
-  @addtogroup snsrepair
+  @addtogroup SNSRepairSW
 
   @{
 */
@@ -70,7 +70,7 @@ static int sw_expand(struct c2_cm_sw *slw)
 	return 0;
 }
 
-/** @} snsrepair */
+/** @} SNSRepairSW */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

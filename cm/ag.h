@@ -29,6 +29,12 @@
 
 #include "cm/cm.h"
 
+/**
+   @defgroup CMAG Copy machine aggregation group
+   @ingroup CM
+
+   @{
+ */
 /** Aggregation group states */
 enum c2_aggr_group_state {
 	/**
@@ -108,6 +114,7 @@ struct c2_cm_aggr_group_ops {
 C2_TL_DESCR_DECLARE(aggr_grps, extern);
 C2_TL_DECLARE(aggr_grps, extern, struct c2_cm_aggr_group);
 
+/** @} CMAG */
 #endif
 /*
  *  Local variables:

@@ -22,6 +22,12 @@
 #include "sns/repair/cp.h"
 #include "sns/repair/cm.h"
 
+/**
+  @addtogroup SNSRepairCP
+
+  @{
+*/
+
 static int repair_cp_init(struct c2_cm_cp *cp)
 {
 	struct c2_sns_repair_cm *rcm;
@@ -89,6 +95,7 @@ const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
 	.co_complete = &repair_cp_complete
 };
 
+/** @} SNSRepairCP */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

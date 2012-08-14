@@ -32,33 +32,33 @@
 #include <reqh/reqh.h>
 
 /**
-   @page DLD-cm DLD of Copy Machine
+   @page CMDLD Copy Machine DLD
 
-   - @ref DLD-cm-ovw
-   - @ref DLD-cm-def
-   - @ref DLD-cm-req
-   - @ref DLD-cm-highlights
-   - @subpage DLD-cm-fspec
-   - @ref DLD-cm-lspec
-      - @ref DLD-cm-lspec-state
-      - @ref DLD-cm-lspec-thread
-   - @ref DLD-cm-conformance
-   - @ref DLD-cm-ut
+   - @ref CMDLD-ovw
+   - @ref CMDLD-def
+   - @ref CMDLD-req
+   - @ref CMDLD-highlights
+   - @subpage CMDLD-fspec
+   - @ref CMDLD-lspec
+      - @ref CMDLD-lspec-state
+      - @ref CMDLD-lspec-thread
+   - @ref CMDLD-conformance
+   - @ref CMDLD-ut
    - @ref DLD-O
-   - @ref DLD-cm-ref
+   - @ref CMDLD-ref
 
    <hr>
-   @section DLD-cm-ovw Overview
+   @section CMDLD-ovw Overview
    This document explains the detailed level design for generic part of the
    copy machine module.
 
    <hr>
-   @section DLD-cm-def Definitions
+   @section CMDLD-def Definitions
     Please refer to "Definitions" section in "HLD of copy machine and agents"
-    in @ref DLD-cm-ref
+    in @ref CMDLD-ref
 
    <hr>
-   @section DLD-cm-req Requirements
+   @section CMDLD-req Requirements
    The requirements below are grouped by various milestones.
 
   @subsection cm-setup-req CM-SETUP Requirements
@@ -75,7 +75,7 @@
    - @b r.cm.failure Copy machine should handle various types of failures.
 
    <hr>
-   @section DLD-cm-highlights Design Highlights
+   @section CMDLD-highlights Design Highlights
    - Copy machine is implemented as colibri state machine.
    - All the registered types of copy machines can be initialised
      using various interfaces and also from colibri setup.
@@ -87,11 +87,11 @@
      separately.
 
    <hr>
-   @section DLD-cm-lspec Logical Specification
+   @section CMDLD-lspec Logical Specification
     Please refer to "Logical Specification" section in "HLD of copy machine and
-    agents" in @ref DLD-cm-ref
+    agents" in @ref CMDLD-ref
 
-   @subsection DLD-cm-lspec-state State diagram
+   @subsection CMDLD-lspec-state State diagram
    @dot
    digraph copy_machine_states {
        size = "8,12"
@@ -133,7 +133,7 @@
    }
    @enddot
 
-   @subsection DLD-cm-lspec-agents Copy machine interaction with agents
+   @subsection CMDLD-lspec-agents Copy machine interaction with agents
    - Copy machine agents are implemented as foms.
    - Copy machine creates its agents during copy machine service startup.
    - All the started copy machine agents remain in request handler wait
@@ -141,7 +141,7 @@
    - On receiving an operational fop, copy machine builds an input set
      and configures appropriate agents.
 
-   @subsection DLD-cm-lspec-thread Threading and Concurrency Model
+   @subsection CMDLD-lspec-thread Threading and Concurrency Model
    - Copy machine and its agents are implemented as state machines, and thus do
      not have their own threads. They run in the context of reqh threads.
    - Copy machine starts as a service and is registered with the request
@@ -157,7 +157,7 @@
    - The cmtype_mutex is used to serialise the operation on cmtypes_list.
 
    <hr>
-   @section DLD-cm-conformance Conformance
+   @section CMDLD-conformance Conformance
    This section briefly describes interfaces and structures conforming to above
    mentioned copy machine requirements.
    - @b I.cm.type.register Different types of copy machines are registered as
@@ -177,14 +177,14 @@
    - <b>cm_start_fail</b> Copy machine failed to start.
 
    <hr>
-   @section DLD-cm-ut Unit Tests
+   @section CMDLD-ut Unit Tests
    - Start copy machine and SNS cm service. Check all the states of fom and copy
      machine such that they align to the state diagram.
    - Check if multiple agents get started. Check their configuration parameters.
    - Stop copy machine and check cleanup.
 
    <hr>
-    @section DLD-cm-st System Tests
+    @section CMDLD-st System Tests
     NA
 
    <hr>
@@ -192,7 +192,7 @@
    NA
 
    <hr>
-   @section DLD-cm-ref References
+   @section CMDLD-ref References
    Following are the references to the documents from which the design is
    derived,
 
@@ -204,7 +204,7 @@
  */
 
 /**
-   @addtogroup cm
+   @addtogroup CM
    @{
 */
 

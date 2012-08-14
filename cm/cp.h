@@ -28,26 +28,26 @@
 #include "fop/fom.h"
 
 /**
- * @page DLD-cp-fspec Copy Packet Functional Specification
+ * @page CPDLD-fspec Copy Packet Functional Specification
  *
- * - @ref DLD-cp-fspec-ds
- * - @ref DLD-cp-fspec-sub
+ * - @ref CPDLD-fspec-ds
+ * - @ref CPDLD-fspec-sub
  * - @ref cp "Copy Packet Functional Specification" <!-- Note link -->
  *
- * @section DLD-cp-fspec-ds Data Structures
+ * @section CPDLD-fspec-ds Data Structures
  *	- c2_cm_cp  : Generic copy packet.
  *	- c2_cm_ops : Copy packet operations.
- * @section DLD-cp-fspec-sub Subroutines
+ * @section CPDLD-fspec-sub Subroutines
  *	- c2_cm_cp_init()    : Initialises copy packet members and calls
  *			       c_ops->init() to initialise specific data.
  *	- c2_cm_cp_fini()    : Finalises copy packet members and calls
  *			       c_ops->fini() internal to finalise specific data.
  *	- c2_cm_cp_enqueue() : Post copy packet FOM for execution.
  *
- * @subsection DLD-cp-fspec-sub-acc Accessors and Invariants
+ * @subsection CPDLD-fspec-sub-acc Accessors and Invariants
  *	- c2_cm_cp_invaraint()
  *
- * @subsection DLD-fspec-sub-opi Operational Interfaces
+ * @subsection CPDLD-fspec-sub-opi Operational Interfaces
  *	- cp_fom_fini()
  *	- cp_fom_locality()
  *	- cp_fom_state()
@@ -56,10 +56,11 @@
  */
 
 /**
- * @defgroup cp Copy Packet
+ * @defgroup CP Copy Packet
+ * @ingroup CM
  *
  * @see The @ref cp "Copy packet" its
- * @ref DLD-cp-fspec "Copy Packet Functional Specification"
+ * @ref CPDLD-fspec "Copy Packet Functional Specification"
  *
  * @{
  */

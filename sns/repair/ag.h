@@ -25,7 +25,8 @@
 #include "cm/ag.h"
 
 /**
-   @addtogroup snsrepair
+   @defgroup SNSRepairAG SNS Repair aggregation group
+   @ingroup SNSRepairCM
 
    @{
 */
@@ -42,7 +43,7 @@ struct c2_sns_repair_aggr_group {
 	struct c2_net_buffer    *sag_buf;
 };
 
-/** @} snsrepair */
+/** @} SNSRepairAG */
 /* __COLIBRI_SNS_REPAIR_AG_H__ */
 
 #endif

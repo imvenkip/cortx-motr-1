@@ -23,25 +23,25 @@
 #include "cm/cm.h"
 
 /**
- * @page DLD-cp DLD of Copy Packet
+ * @page CPDLD Copy Packet DLD
  *
- *   - @ref DLD-cp-ovw
- *   - @ref DLD-cp-def
- *   - @ref DLD-cp-req
- *   - @ref DLD-cp-depends
- *   - @ref DLD-cp-highlights
- *   - @subpage DLD-cp-fspec "Functional Specification" <!-- Note @subpage -->
- *   - @ref DLD-cp-lspec
- *      - @ref DLD-cp-lspec-comps
- *      - @ref DLD-cp-lspec-state
- *      - @ref DLD-cp-lspec-thread
- *   - @ref DLD-cp-conformance
- *   - @ref DLD-cp-ut
- *   - @ref DLD-cp-st
- *   - @ref DLD-cp-ref
+ *   - @ref CPDLD-ovw
+ *   - @ref CPDLD-def
+ *   - @ref CPDLD-req
+ *   - @ref CPDLD-depends
+ *   - @ref CPDLD-highlights
+ *   - @subpage CPDLD-fspec "Functional Specification" <!-- Note @subpage -->
+ *   - @ref CPDLD-lspec
+ *      - @ref CPDLD-lspec-comps
+ *      - @ref CPDLD-lspec-state
+ *      - @ref CPDLD-lspec-thread
+ *   - @ref CPDLD-conformance
+ *   - @ref CPDLD-ut
+ *   - @ref CPDLD-st
+ *   - @ref CPDLD-ref
  *
  *   <hr>
- *   @section DLD-cp-ovw Overview
+ *   @section CPDLD-ovw Overview
  *
  *   When an instance of a copy machine type is created, a data structure copy
  *   machine replica is created on each node (technically, in each request
@@ -58,7 +58,7 @@
  *   (i.e. FOM phase) in execution.
  *
  *   <hr>
- *   @section DLD-cp-def Definitions
+ *   @section CPDLD-def Definitions
  *   - <b>Copy Packet:</b> A chunk of input data traversing through the copy
  *   machine.
  *
@@ -72,7 +72,7 @@
  *   machine.
  *
  *   <hr>
- *   @section DLD-cp-req Requirements
+ *   @section CPDLD-req Requirements
  *
  *   - <b>R.cm.cp</b> Copy-packet abstraction should be implemented such that it
  *     represents the data to be transferred within replica.
@@ -92,7 +92,7 @@
  *     replica. Each copy packet might have its own ADDB context as well.
  *
  *   <hr>
- *   @section DLD-cp-depends Dependencies
+ *   @section CPDLD-depends Dependencies
  *
  *   - <b>R.cm.service</b> Copy packets FOM are executed in context of copy
  *     machine replica service.
@@ -114,7 +114,7 @@
  *     packets.
  *
  *   <hr>
- *   @section DLD-cp-highlights Design Highlights
+ *   @section CPDLD-highlights Design Highlights
  *
  *   - Copy packet are implemented as FOM, which inherently has non-blocking
  *     model of colibri.
@@ -128,14 +128,14 @@
  *     in the input and output set.
  *
  *   <hr>
- *   @section DLD-cp-lspec Logical Specification
+ *   @section CPDLD-lspec Logical Specification
  *
- *   - @ref DLD-cp-lspec-comps
+ *   - @ref CPDLD-lspec-comps
  *      - @ref DLDCPInternal  <!-- Note link -->
- *   - @ref DLD-cp-lspec-state
- *   - @ref DLD-cp-lspec-thread
+ *   - @ref CPDLD-lspec-state
+ *   - @ref CPDLD-lspec-thread
  *
- *   @subsection DLD-cp-lspec-comps Component Overview
+ *   @subsection CPDLD-lspec-comps Component Overview
  *
  *   <b>Copy packet functionality split into two parts:</b>
  *
@@ -191,7 +191,7 @@
  *   Once the replica learns window sizes of every other replica, it can
  *   activate copy packet FOMs. Copy machine replica populate copy packets in
  *
- *   @subsection DLD-cp-lspec-state State Specification
+ *   @subsection CPDLD-lspec-state State Specification
  *
  *   <b>Copy packet is a state machine, goes through following stages:</b>
  *
@@ -258,7 +258,7 @@
  *   }
  *   @enddot
  *
- *   @subsection DLD-cp-lspec-thread Threading and Concurrency Model
+ *   @subsection CPDLD-lspec-thread Threading and Concurrency Model
  *
  *   @dot
  *	digraph {
@@ -290,7 +290,7 @@
  *   @enddot
  *
  *   <hr>
- *   @section DLD-cp-conformance Conformance
+ *   @section CPDLD-conformance Conformance
  *
  *   - <b>I.cm.cp</b> Replicas communicate using copy packet structure.
  *
@@ -308,21 +308,22 @@
  *   - <b>I.cm.cp.addb</b> copy packet uses ADDB context of copy machine.
  *
  *   <hr>
- *   @section DLD-cp-ut Unit Tests
+ *   @section CPDLD-ut Unit Tests
  *   - Basic Test: Alloc, Init, fini and free
  *
  *   <hr>
- *   @section DLD-cp-st System Tests
+ *   @section CPDLD-st System Tests
  *
  *   <hr>
- *   @section DLD-cp-ref References
+ *   @section CPDLD-ref References
  *
  */
 
 /**
  * @defgroup DLDCPInternal Copy packet internal
+ * @ingroup CP
  *
- * @see @ref DLD-cp and @ref DLD-cp-lspec
+ * @see @ref CPDLD and @ref CPDLD-lspec
  *
  * @{
  */
@@ -397,7 +398,7 @@ static const struct c2_fom_ops cp_fom_ops = {
 /** @} end internal */
 
 /**
-   @addtogroup cp
+   @addtogroup CP
    @{
  */
 
@@ -432,7 +433,7 @@ void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
 }
 
-/** @} end-of-DLD-cp-fspec */
+/** @} end-of-CPDLD */
 
 /*
  *  Local variables:
