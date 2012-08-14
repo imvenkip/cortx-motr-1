@@ -20,12 +20,9 @@
 #include "lib/cdefs.h" /* C2_EXPORTED */
 #include "lib/memory.h"
 #include "lib/misc.h" /* C2_SET0 */
-#include "lib/list.h"
-#include "lib/mutex.h"
-#include "lib/vec.h"
 #include "lib/errno.h"
 #include "fop/fop.h"
-#include "rpc/rpc_onwire.h" /* c2_rpc_pad_bytes_get */
+#include "fop/fom_long_lock.h" /* c2_fom_ll_global_init */
 
 /**
    @addtogroup fop
@@ -225,6 +222,7 @@ int c2_fops_init(void)
 {
 	ft_tlist_init(&fop_types_list);
 	c2_mutex_init(&fop_types_lock);
+	c2_fom_ll_global_init();
 	return 0;
 }
 

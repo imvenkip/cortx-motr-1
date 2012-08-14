@@ -239,8 +239,8 @@ static int create_loc_ctx_wait(struct c2_fom *fom)
  */
 static int set_gen_err_reply(struct c2_fom *fom)
 {
-	struct c2_fop			*rfop;
-	struct c2_fom_error_rep	*out_fop;
+	struct c2_fop           *rfop;
+	struct c2_fom_error_rep *out_fop;
 
 	C2_PRE(fom != NULL);
 

@@ -42,11 +42,11 @@ void c2_ping_fop_fini(void)
 	c2_xc_ping_fop_xc_fini();
 }
 
-extern struct c2_fom_type c2_fom_ping_mopt;
+extern struct c2_fom_type c2_fom_ping_fomt;
 
 int c2_ping_fop_init(void)
 {
-	c2_fop_ping_fopt.ft_fom_type = c2_fom_ping_mopt;
+	c2_fop_ping_fopt.ft_fom_type = c2_fom_ping_fomt;
 	c2_xc_ping_fop_xc_init();
         return  C2_FOP_TYPE_INIT(&c2_fop_ping_fopt,
 				 .name      = "Ping fop",
@@ -54,7 +54,7 @@ int c2_ping_fop_init(void)
 				 .xt        = c2_fop_ping_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
 					      C2_RPC_ITEM_TYPE_MUTABO,
-				 .fom_ops   = c2_fom_ping_mopt.ft_ops) ?:
+				 .fom_ops   = c2_fom_ping_fomt.ft_ops) ?:
 		C2_FOP_TYPE_INIT(&c2_fop_ping_rep_fopt,
 				 .name      = "Ping fop reply",
 				 .opcode    = C2_RPC_PING_REPLY_OPCODE,
