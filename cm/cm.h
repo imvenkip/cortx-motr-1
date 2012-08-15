@@ -37,19 +37,15 @@
    @subsection DLD-cm-fspec-ds Data Structures
 
    - The c2_cm represents a copy machine replica.
-   The c2_cm_ops provides copy machine specific routines for
+   - The c2_cm_ops provides copy machine specific routines for
 	- Starting a copy machine.
 	- Handling a copy machine specific operation.
 	- Handling copy machine operation completion.
 	- Aborting a copy machine operation.
 	- Handling a copy machine failure.
 	- Stopping a copy machine.
-	- The c2_cm_cb provides notification call-backs to be invoked at
-          different granularities like
-	- Updates to the sliding window.
-   - The c2_cm_aggr_group represents an aggregation group.
-   - The c2_cm_aggr_group_ops defines the operations supported on an aggregation
-   group.
+   - The c2_cm_type represents a copy machine type that a copy machine is an
+     instance of.
    - The c2_cm_stats keeps copy machine operation progress data.
    - The c2_cm_sw is used for co-operation among copy machine replicas.
 
@@ -204,22 +200,6 @@ struct c2_cm_ops {
 	int (*cmo_config)(struct c2_cm *cm);
 
 	/**
-	 * Gets the next agent for this copy packet.
-	 *
-	 * The result agent may be a local agent on this node, but also
-	 * might be remote agent on other node.
-	 * Configuration information and layout information will be used
-	 * to find the next agent in the copy packet pipeline.
-	 *
-	 * @param cm this copy machine.
-	 * @param packet the current packet.
-	 * @param current_agent current agent.
-	 * @param next_agent_id [out] the next agent id returned.
-	 */
-	int (*cmo_next_agent)(struct c2_cm          *cm,
-			      struct c2_cm_cp       *packet);
-
-	/**
 	 * Handles incoming request fop and performs copy machine
 	 * specific operations.
 	 */
@@ -306,9 +286,9 @@ void c2_cm_fini(struct c2_cm *cm);
 /**
  * Invokes copy machine service specific start routine, creates service
  * specific instance containing c2_reqh_service, invokes service type specific
- * implementation of service alloc and init () operation. Also, builds copy
- * machine specific fop types, creates and starts specific agents and
- * initialises service buffer pool.
+ * implementation of service alloc and init () operation.
+ * In case of SNS repair, enough copy packets are created to populate the
+ * sliding window by the copy machine specific service start routine.
  */
 int c2_cm_start(struct c2_cm *cm);
 
@@ -316,7 +296,7 @@ int c2_cm_start(struct c2_cm *cm);
 void c2_cm_stop(struct c2_cm *cm);
 
 /**
- * Configures copy machine agents.
+ * Configures a copy machine replica.
  * @pre C2_IN(cm->cm_mach.sm_state,(C2_CMS_IDLE, C2_CMS_DONE));
  */
 int c2_cm_configure(struct c2_cm *cm, struct c2_fop *fop);

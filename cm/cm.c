@@ -131,22 +131,14 @@
    }
    @enddot
 
-   @subsection DLD-cm-lspec-agents Copy machine interaction with agents
 
    @subsection DLD-cm-lspec-thread Threading and Concurrency Model
-   - Copy machine and its agents are implemented as state machines, and thus do
-     not have their own threads. They run in the context of reqh threads.
+   - Copy machine is implemented as a state machine, and thus do
+     not have its  own thread. It runs in the context of reqh threads.
    - Copy machine starts as a service and is registered with the request
      handler.
-   - Copy machine agents are started as foms and they register corresponding
-     c2_chan with the request handler (c2_fom_block_at()). This puts the agent
-     fom onto the reqh wait queue. The reqh thread is free to run the other reqh
-     requests. Once an operational fop is received, the c2_chan is signalled and
-     agent fom is removed from the wait queue and added to reqh run queue.
-   - Copy machine agents are started as foms and wait on their c2_chan for
-     further event, until then the agents as foms, wait in the request handler's
-     wait queue.
    - The cmtype_mutex is used to serialise the operation on cmtypes_list.
+   - The 
 
    <hr>
    @section DLD-cm-conformance Conformance
@@ -156,7 +148,7 @@
       colibri service types.
    - @b I.cm.start Generic api's are available to initialise and start
         any type of copy machine.
-   - @b I.cm.agent.create. Once a copy machine instance is intialised it
+      - @b I.cm.agent.create. Once a copy machine instance is intialised it
         creates and starts copy machine type specific agents.
    - @b I.cm.agent.fom  Copy machine agents are implemented as foms, and are
         started by copy machine using request handler.
