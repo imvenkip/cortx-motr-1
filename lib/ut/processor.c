@@ -327,7 +327,7 @@ static void maptostr(struct c2_bitmap *map, char **buf)
 	}
 }
 
-static void verify_getcpu()
+static void verify_id_get(void)
 {
 	int	id;
 	int	rc;
@@ -345,7 +345,7 @@ static void verify_getcpu()
 
 	c2_processors_online(&map);
 
-	id = c2_processor_getcpu();
+	id = c2_processor_id_get();
 	if (id != -1) {
 		C2_UT_ASSERT(c2_bitmap_get(&map, id));
 	}
@@ -757,7 +757,7 @@ static void verify_all_params()
 	verify_map(AVAIL_MAP);
 	verify_map(ONLN_MAP);
 	verify_processors();
-	verify_getcpu();
+	verify_id_get();
 }
 
 void test_processor(void)
