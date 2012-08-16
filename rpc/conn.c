@@ -23,6 +23,8 @@
 #include "config.h"
 #endif
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
@@ -37,12 +39,6 @@
 #include "db/db.h"
 #include "rpc/session_fops.h"
 #include "rpc/rpc2.h"
-
-#ifndef __KERNEL__
-#include <stdio.h>
-#else
-#define printf(...)
-#endif
 
 /**
    @addtogroup rpc_session
@@ -595,13 +591,14 @@ static void conn_failed(struct c2_rpc_conn *conn, int32_t error)
 {
 	struct c2_rpc_session *session0;
 
+	C2_ENTRY();
+
 	C2_ASSERT(c2_rpc_machine_is_locked(conn->c_rpc_machine));
 	C2_ASSERT(C2_IN(conn->c_state, (C2_RPC_CONN_INITIALISED,
 					C2_RPC_CONN_CONNECTING,
 					C2_RPC_CONN_ACTIVE,
 					C2_RPC_CONN_TERMINATING)));
 
-	printf("conn failed called\n");
 	conn->c_state = C2_RPC_CONN_FAILED;
 	conn->c_rc    = error;
 
@@ -610,6 +607,8 @@ static void conn_failed(struct c2_rpc_conn *conn, int32_t error)
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_POST(conn->c_state == C2_RPC_CONN_FAILED);
+
+	C2_LEAVE();
 }
 
 void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *item)
@@ -621,13 +620,14 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *item)
 	struct c2_fop                        *reply_fop;
 	int32_t                               rc;
 
+	C2_ENTRY();
+
 	C2_PRE(item != NULL &&
 	       item->ri_session != NULL &&
 	       item->ri_session->s_session_id == SESSION_ID_0);
 
 	reply_item = item->ri_reply;
 	rc         = item->ri_error;
-	printf("conn reply_received called\n");
 	C2_PRE(ergo(rc == 0, reply_item != NULL &&
 			     item->ri_session == reply_item->ri_session));
 
@@ -665,6 +665,7 @@ out:
 					C2_RPC_CONN_ACTIVE)));
 	c2_cond_broadcast(&conn->c_state_changed,
 			  c2_rpc_machine_mutex(machine));
+	C2_LEAVE();
 }
 
 int c2_rpc_conn_destroy(struct c2_rpc_conn *conn, uint32_t timeout_sec)

@@ -24,6 +24,8 @@
 #include "config.h"
 #endif
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
+#include "lib/trace.h"
 #include "lib/tlist.h"
 #include "lib/rwlock.h"
 #include "lib/misc.h"
@@ -152,7 +154,6 @@ enum {
 	WAITING_FOR_REPLY = C2_RPC_ITEM_WAITING_FOR_REPLY,
 	REPLIED           = C2_RPC_ITEM_REPLIED,
 	ACCEPTED          = C2_RPC_ITEM_ACCEPTED,
-	IGNORED           = C2_RPC_ITEM_IGNORED,
 	TIMEDOUT          = C2_RPC_ITEM_TIMEDOUT,
 	FAILED            = C2_RPC_ITEM_FAILED,
 };
@@ -168,7 +169,6 @@ static const struct c2_sm_state_descr item_state_descr[] = {
 		.sd_name    = "INITIALISED",
 		.sd_allowed = STATE_SET(WAITING_IN_STREAM,
 					ENQUEUED,
-					IGNORED,
 					ACCEPTED,
 					UNINITIALISED),
 	},
@@ -178,7 +178,7 @@ static const struct c2_sm_state_descr item_state_descr[] = {
 	},
 	[ENQUEUED] = {
 		.sd_name    = "ENQUEUED",
-		.sd_allowed = STATE_SET(SENDING, REPLIED, TIMEDOUT, FAILED),
+		.sd_allowed = STATE_SET(SENDING),
 	},
 	[SENDING] = {
 		.sd_name    = "SENDING",
@@ -189,24 +189,18 @@ static const struct c2_sm_state_descr item_state_descr[] = {
 		.sd_in      = item_entered_in_sent_state,
 		.sd_allowed = STATE_SET(REPLIED,
 					WAITING_FOR_REPLY,
-					FAILED,
-					ENQUEUED,
 					UNINITIALISED),
 	},
 	[WAITING_FOR_REPLY] = {
 		.sd_name    = "WAITING_FOR_REPLY",
-		.sd_allowed = STATE_SET(REPLIED, FAILED, TIMEDOUT, ENQUEUED),
+		.sd_allowed = STATE_SET(REPLIED, TIMEDOUT),
 	},
 	[REPLIED] = {
 		.sd_name    = "REPLIED",
-		.sd_allowed = STATE_SET(ENQUEUED, UNINITIALISED),
+		.sd_allowed = STATE_SET(UNINITIALISED),
 	},
 	[ACCEPTED] = {
 		.sd_name    = "ACCEPTED",
-		.sd_allowed = STATE_SET(UNINITIALISED),
-	},
-	[IGNORED] = {
-		.sd_name    = "IGNORED",
 		.sd_allowed = STATE_SET(UNINITIALISED),
 	},
 	[TIMEDOUT] = {
@@ -217,7 +211,7 @@ static const struct c2_sm_state_descr item_state_descr[] = {
 	[FAILED] = {
 		.sd_name    = "FAILED",
 		.sd_in      = item_entered_in_failed_state,
-		.sd_allowed = STATE_SET(ENQUEUED, UNINITIALISED),
+		.sd_allowed = STATE_SET(UNINITIALISED),
 	},
 };
 
@@ -348,9 +342,7 @@ void c2_rpc_item_sm_init(struct c2_rpc_item *item, struct c2_sm_group *grp)
 {
 	C2_PRE(item != NULL);
 
-#ifndef __KERNEL__
-	printf("transition %p UNINTIALISED to INITIALISED state\n", item);
-#endif
+	C2_LOG("%p UNINTIALISED -> INITIALISED", item);
 	c2_sm_init(&item->ri_sm, &item_sm_conf, INITIALISED, grp,
 		   NULL /* addb ctx */);
 }
@@ -371,13 +363,12 @@ void c2_rpc_item_change_state(struct c2_rpc_item     *item,
 {
 	C2_PRE(item != NULL);
 
-#ifndef __KERNEL__
-	printf("transition %p[%s] %s to %s state\n", item,
+	C2_LOG("%p[%s/%u] %s -> %s", item,
 	       c2_rpc_item_is_request(item) ? "REQUEST" : "REPLY",
+	       item->ri_type->rit_opcode,
 	       item_state_descr[item->ri_sm.sm_state].sd_name,
 	       item_state_descr[state].sd_name);
-#endif
-	c2_sm_state_set(&item->ri_sm, state);
+	       c2_sm_state_set(&item->ri_sm, state);
 }
 
 void c2_rpc_item_failed(struct c2_rpc_item *item, int32_t rc)
@@ -431,12 +422,11 @@ static int item_entered_in_sent_state(struct c2_sm *mach)
 
 	item = sm_to_item(mach);
 	/** @todo check for pending events */
-#ifndef __KERNEL__
 	if (c2_rpc_item_is_request(item)) {
-		printf("transition %p SENT to WAITING_FOR_REPLY state\n", item);
+		C2_LOG("%p [REQUEST/%u] SENT -> WAITING_FOR_REPLY",
+			item, item->ri_type->rit_opcode);
 	}
-#endif
-	/* Move sm to WAITING_FOR_REPLY state */
+
 	return c2_rpc_item_is_request(item) ? WAITING_FOR_REPLY : -1;
 }
 
@@ -445,13 +435,11 @@ static int item_entered_in_timedout_state(struct c2_sm *mach)
 	struct c2_rpc_item *item;
 
 	item = sm_to_item(mach);
-#ifndef __KERNEL__
-	printf("%p TIMEDOUT\n", item);
-#endif
+	C2_LOG("%p [%u] -> TIMEDOUT", item, item->ri_type->rit_opcode);
 	item->ri_error = -ETIMEDOUT;
 	c2_rpc_session_item_timedout(item);
 	c2_sm_timeout_fini(&item->ri_timeout);
-	/* Move sm to FAILED state */
+
 	return FAILED;
 }
 
@@ -460,9 +448,9 @@ static int item_entered_in_failed_state(struct c2_sm *mach)
 	struct c2_rpc_item *item;
 
 	item = sm_to_item(mach);
-#ifndef __KERNEL__
-	printf("%p FAILED\n", item);
-#endif
+	C2_LOG("%p [%u] FAILED rc: %d\n", item, item->ri_type->rit_opcode,
+	       item->ri_error);
+
 	C2_PRE(item->ri_error != 0);
 	item->ri_reply = NULL;
 
@@ -475,14 +463,11 @@ static int item_entered_in_failed_state(struct c2_sm *mach)
 int c2_rpc_item_start_timer(struct c2_rpc_item *item)
 {
 	if (item->ri_op_timeout != C2_TIME_NEVER) {
-#ifndef __KERNEL__
-	printf("%p Starting timer XXX\n", item);
-#endif
+		C2_LOG("%p Starting timer", item);
 		return c2_sm_timeout(&item->ri_sm, &item->ri_timeout,
 				     item->ri_op_timeout, TIMEDOUT);
-	} else {
-		return 0;
 	}
+	return 0;
 }
 
 /** @} end of rpc-layer-core group */

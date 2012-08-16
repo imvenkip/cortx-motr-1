@@ -399,24 +399,16 @@ struct c2_mutex *c2_rpc_machine_mutex(struct c2_rpc_machine *machine)
 
 void c2_rpc_machine_lock(struct c2_rpc_machine *machine)
 {
-	C2_ENTRY("machine %p", machine);
-
 	C2_PRE(machine != NULL);
 
 	c2_sm_group_lock(&machine->rm_sm_grp);
-
-	C2_LEAVE();
 }
 
 void c2_rpc_machine_unlock(struct c2_rpc_machine *machine)
 {
-	C2_ENTRY("machine %p", machine);
-
 	C2_PRE(machine != NULL);
 
 	c2_sm_group_unlock(&machine->rm_sm_grp);
-
-	C2_LEAVE();
 }
 
 bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine)
