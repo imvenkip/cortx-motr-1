@@ -221,18 +221,11 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 			continue;
 		}
 		reply = item->ri_reply;
-		if (reply != NULL) {
-			C2_ASSERT(reply->ri_ops != NULL &&
-				  reply->ri_ops->rio_free != NULL);
-			reply->ri_ops->rio_free(reply);
-		}
+		if (reply != NULL)
+			c2_rpc_item_free(reply);
 		item->ri_reply = NULL;
-
 		c2_list_del(&item->ri_slot_refs[0].sr_link);
-
-		C2_ASSERT(item->ri_ops != NULL &&
-			  item->ri_ops->rio_free != NULL);
-		item->ri_ops->rio_free(item);
+		c2_rpc_item_free(item);
 		count++;
 	}
         C2_ASSERT(c2_list_length(&slot->sl_item_list) == 1);
