@@ -5,6 +5,10 @@
 # structures from *.h files. For more information about xcode please refer to
 # xcode/xcode.h and xcode/gccxml2xcode documentation.
 
+# in order to suppress annoying automake warning "CFLAGS: non-POSIX variable name"
+# -Wno-portability automake option should be set for this makefile
+AUTOMAKE_OPTIONS = -Wno-portability
+
 # gccxml doesn't like -Werror and --coverage options so we need to remove them
 # from CFLAGS
 
