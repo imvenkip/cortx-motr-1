@@ -18,3 +18,5 @@ EXTRA_DIST              = xcode_fops.ff test_gccxml_simple.h    \
 			  test_gccxml_xc.h
 
 MOSTLYCLEANFILES        = $(XCODE_FOPS)
+
+clean-local: clean-xc
