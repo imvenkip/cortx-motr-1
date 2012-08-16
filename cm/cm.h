@@ -37,20 +37,16 @@
    @subsection CMDLD-fspec-ds Data Structures
 
    - The c2_cm represents a copy machine replica.
-   The c2_cm_ops provides copy machine specific routines for
+   - The c2_cm_ops provides copy machine specific routines for
 	- Starting a copy machine.
 	- Handling a copy machine specific operation.
 	- Handling copy machine operation completion.
-	- Aborting a copy machine operation.
 	- Handling a copy machine failure or an agent failure.
 	- Stopping a copy machine.
-	- The c2_cm_cb provides notification call-backs to be invoked at
-          different granularities like
 	- Updates to the sliding window.
-	- Agent failure.
    - The c2_cm_aggr_group represents an aggregation group.
    - The c2_cm_aggr_group_ops defines the operations supported on an aggregation
-   group.
+     group.
    - The c2_cm_stats keeps copy machine operation progress data.
    - The c2_cm_sw is used for co-operation among agents.
 
@@ -210,6 +206,9 @@ struct c2_cm_ops {
 
 	/** Invoked from c2_cm_stop (). */
 	void (*cmo_stop)(struct c2_cm *cm);
+
+	/** Creates copy packets after consulting sliding window. */
+	struct c2_cm_cp *(cmo_cp_alloc)(struct c2_cm *cm);
 
 	/** Copy machine specific finalisation routine. */
 	void (*cmo_fini)(struct c2_cm *cm);

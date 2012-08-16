@@ -32,7 +32,8 @@
   - @ref SNSRepairCMDLD-fspec-usecases
 
   @section SNSRepairCMDLD-fspec Functional Specification
-  SNS Repair copy machine 
+  SNS Repair copy machine
+
   @subsection SNSRepairCMDLD-fspec-ds Data Structures
   - c2_sns_repair_cm
     Represents sns repair copy machine, this embeds generic struct c2_cm and
@@ -68,12 +69,17 @@
 #include "cm/cm.h"
 
 struct c2_sns_repair_cm {
-	struct c2_cm		  rc_cm;
-	struct c2_net_buffer_pool rc_pool;
+	struct c2_cm		  rc_base;
+	struct c2_net_buffer_pool rc_bp;
 };
 
 int c2_sns_repair_cm_type_register(void);
 void c2_sns_repair_cm_type_deregister(void);
+
+static inline struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm)
+{
+	return container_of(cm, struct c2_sns_repair_cm, rc_base);
+}
 
 /** @} SNSRepairCM */
 #endif /* __COLIBRI_SNS_REPAIR_CM_H__ */

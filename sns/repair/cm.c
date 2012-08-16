@@ -27,10 +27,12 @@
 #include "lib/errno.h"
 #include "lib/trace.h"
 #include "lib/misc.h"
+#include "lib/finject.h"
 
 #include "sns/repair/cm.h"
+#include "sns/repair/cp.h"
+#include "net/net.h"
 #include "reqh/reqh.h"
-#include "lib/finject.h"
 
 /**
   @page SNSRepairCMDLD SNS Repair copy machine DLD
@@ -42,6 +44,7 @@
   - @subpage SNSRepairCMDLD-fspec
      - @ref SNSRepairCMDLD-lspec
      - @ref SNSRepairCMDLD-lspec-cm-start
+       - @ref SNSRepairCMDLD-lspec-cm-start-cp-create
      - @ref SNSRepairCMDLD-lspec-cm-stop
   - @ref SNSRepairCMDLD-conformance
   - @ref SNSRepairCMDLD-ut
@@ -104,7 +107,7 @@
 
   <hr>
   @section SNSRepairCMDLD-lspec Logical specification
-  - @ref SNSRepairCMDLD-lspec-cm-init
+  - @ref SNSRepairCMDLD-lspec-cm-setup
   - @ref SNSRepairCMDLD-lspec-cm-start
   - @ref SNSRepairCMDLD-lspec-cm-stop
 
@@ -113,7 +116,7 @@
   efficiently. The re-structuring operation is split into various copy packet
   phases.
 
-  @subsection SNSRepairCMDLD-lspec-cm-init Copy machine startup
+  @subsection SNSRepairCMDLD-lspec-cm-setup Copy machine setup
   SNS Repair defines its following specific data structure to represent a
   copy machine.
   @code
@@ -122,24 +125,49 @@
           struct c2_net_buffer_pool  rc_pool; 
   };
   @endcode
+  SNS Repair service allocates and initialises the copy machine.
+  @see @ref SNSRepairSVC "SNS Repair service" for details.
+  Once the copy machine is initialised it remains idle until any failure
+  happens.
 
-  SNS Repair implements its specific operations for
-  struct c2_reqh_service_type_ops, struct c2_reqh_service_ops, and
-  struct c2_cm_ops.
+  @subsection SNSRepairCMDLD-lspec-cm-start Copy machine startup
+  Failure events trigger the SNS Repair copy machine, which starts the
+  corresponding repair operation.This happens with the help of a trigger FOP.
+  On receiving the trigger FOP, its corresopding FOM activates the SNS Repair
+  copy machine by invoking c2_cm_start(). c2_cm_start() invokes SNS Repair
+  specific c2_cm_ops::cmo_start() routine.
+  Firstly, the copy machine initialises the buffer pool, viz. c2_sns_repair_cm::
+  rc_pool and provisions it with SR_BUF_NR number of buffers.
+  @note Buffer provisioning operation can block.
+ 
+  @subsubsection SNSRepairCMDLD-lspec-cm-start-cp-create Copy packet create
+  Once the buffer provisioning is complete, copy machine checks with the sliding
+  window if the copy packets can be created. Every copy packet is attached with
+  a data buffer.
+  Following pseudo code illustrates the copy packet creation,
 
-   
-
-  Note: Please refer reqh/reqh_service.c for further details on request handler
-  service.
-
-  Note:
-  - Copy machine start operation can block as it fetches configuration
-    information from configuration service.
-
+  @code
+  cm_start(struct c2_cm *cm)
+  {
+    struct c2_cm_cp *cp;
+    ...
+    do {
+         if (cm->cm_sw.sw_ops->swo_has_space(&cm->cm_sw)) {
+            cp = c2_cm_cp_create(cm);
+            if (cp != NULL)
+                c2_cm_cp_enqueue(cp);
+         } 
+    }while (cp != NULL);
+    ...
+  }
+  @endcode
+             
+  Further copy packet header details required for the operation are populated as
+  part of copy packet FOM init phase asynchronously.
+  @see @ref CPDLD "Copy Packet DLD" for more details.
+ 
   @subsection SNSRepairCMDLD-lspec-cm-stop Copy machine stop
-  SNS Repair copy machine is stopped when its corresponding service is
-  stopped. Again, the service stop operation invokes generic c2_cm_stop(),
-  which further invokes sns repair copy machine specific stop operation.
+  
 
   @subsection SNSRepairCMDLD-lspec-thread Threading and Concurrency Model
   SNS Repair copy machine is implemented as a request handler service, thus
@@ -199,21 +227,13 @@
   @{
 */
 
-/** Copy machine operations.*/
-static int cm_start(struct c2_cm *cm);
-static int cm_config(struct c2_cm *cm);
-static void cm_done(struct c2_cm *cm);
-static void cm_stop(struct c2_cm *cm);
-static void cm_fini(struct c2_cm *cm);
-
-const struct c2_cm_ops cm_ops = {
-	.cmo_start      = cm_start,
-	.cmo_config     = cm_config,
-	.cmo_done       = cm_done,
-	.cmo_stop       = cm_stop,
-	.cmo_fini       = cm_fini
+enum {
+	SNS_SEG_NR = 1,
+	SNS_SEG_SIZE = 4096,
+	SNS_COLORS = 1
 };
 
+extern struct c2_net_xprt c2_net_lnet_xprt;
 extern struct c2_cm_type sns_repair_cmt;
 
 int c2_sns_repair_cm_type_register(void)
@@ -226,11 +246,53 @@ void c2_sns_repair_cm_type_deregister(void)
 	c2_cm_type_deregister(&sns_repair_cmt);
 }
 
+static struct c2_cm_cp *cm_cp_alloc(struct c2_cm *cm)
+{
+	struct c2_sns_repair_cp *rcp;
+	struct c2_sns_repair_cm *rcm;
+	struct c2_net_buffer    *buf;
+
+	C2_PRE(c2_cm_invariant(cm));
+
+	rcm = cm2sns(cm);
+	buf = c2_net_buffer_pool_get(rcm->rc_bp, SNS_BUF_COLOR);
+	C2_ASSERT(buf != NULL);
+	C2_ALLOC_PTR(cp);
+	if (cp == NULL)
+		return NULL;
+	c2_cm_cp_init(&rcp->rc_base, &c2_sns_repair_cp_ops, &buf->nb_buffer);
+
+	return &rcp->rc_base;	
+}
+
 static int cm_start(struct c2_cm *cm)
 {
-	int rc = 0;
+	struct c2_cm_cp         *cp;
+	struct c2_sns_repair_cm  rcm;
+	struct c2_reqh          *reqh;
+	struct c2_net_domain     ndom;
+	int                      rc;
 
 	C2_ENTRY();
+
+	rcm = cm2sns(cm);
+	reqh = cm->cm_service.rs_reqh;
+	ndom = c2_cs_net_domain_locate(c2_cs_ctx_get(reqh),
+				       c2_net_lnet_xprt.nx_name);
+	/*
+	 * TODO: Provision copy machine buffer pool with buffers.
+	 * Send READY FOPs to other replicas in the cluster with sliding window
+	 * size, receive all the READY FOPs from other replicas, calculate the
+	 * minimum sliding window size to start with and create copy packets
+	 * accordngly.
+	 */
+	rc = c2_net_buffer_pool_init(&rcm->rc_bp,
+				     ndom,
+				     C2_NET_BUFFER_POOL_THRESHOLD,
+				     SNS_SEG_NR, SNS_SEG_SIZE,
+				     SNS_COLORS, C2_0VEC_SHIFT);
+
+	c2_cm_cp_create(cm);
 
 	C2_LEAVE();
 	return rc;
@@ -267,6 +329,16 @@ static void cm_fini(struct c2_cm *cm)
 	C2_ENTRY();
 	C2_PRE(cm != NULL);
 }
+
+/** Copy machine operations. */
+const struct c2_cm_ops cm_ops = {
+	.cmo_start      = cm_start,
+	.cmo_config     = cm_config,
+	.cmo_cp_create  = cm_cp_alloc,
+	.cmo_done       = cm_done,
+	.cmo_stop       = cm_stop,
+	.cmo_fini       = cm_fini
+};
 
 /** @} SNSRepairCM */
 /*

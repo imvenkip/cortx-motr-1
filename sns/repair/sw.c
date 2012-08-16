@@ -38,37 +38,41 @@
   @{
 */
 
-static size_t sw_size_cal(struct c2_cm_sw *slw);
-static int sw_advance(struct c2_cm_sw *slw);
-static int sw_slide(struct c2_cm_sw *slw);
-static int sw_expand(struct c2_cm_sw *slw);
+static size_t sw_size_cal(struct c2_cm_sw *sw)
+{
+	return 0;
+}
+
+static int sw_advance(struct c2_cm_sw *sw)
+{
+	return 0;
+}
+
+static int sw_slide(struct c2_cm_sw *sw)
+{
+	return 0;
+}
+
+/**
+ * Returns true if c2_cm_sw::sw_recv_size > 0, false otherwise.
+ */
+static bool sw_has_space(struct c2_cm_sw *sw)
+{
+	return true;
+}
+
+static int sw_expand(struct c2_cm_sw *sw)
+{
+	return 0;
+}
 
 const struct c2_cm_sw_ops sw_ops = {
-	.swo_size_cal = sw_size_cal,
-	.swo_advance  = sw_advance,
-	.swo_slide    = sw_slide,
-	.swo_expand   = sw_expand
+	.swo_size_cal  = sw_size_cal,
+	.swo_advance   = sw_advance,
+	.swo_slide     = sw_slide,
+	.swo_has_space = sw_has_space,
+	.swo_expand    = sw_expand
 };
-
-static size_t sw_size_cal(struct c2_cm_sw *slw)
-{
-	return 0;
-}
-
-static int sw_advance(struct c2_cm_sw *slw)
-{
-	return 0;
-}
-
-static int sw_slide(struct c2_cm_sw *slw)
-{
-	return 0;
-}
-
-static int sw_expand(struct c2_cm_sw *slw)
-{
-	return 0;
-}
 
 /** @} SNSRepairSW */
 /*

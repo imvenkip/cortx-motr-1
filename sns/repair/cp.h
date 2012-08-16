@@ -54,7 +54,7 @@ enum c2_sns_repair_phase {
 
 struct c2_sns_repair_cp {
 	/** Base class */
-	struct c2_cm_cp		 rc_cp;
+	struct c2_cm_cp		 rc_base;
 
 	/** SNS copy packet specific phases.*/
 	enum c2_sns_repair_phase rc_phase;
