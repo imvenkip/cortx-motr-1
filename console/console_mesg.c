@@ -53,10 +53,7 @@ int c2_cons_fop_send(struct c2_fop *fop, struct c2_rpc_session *session,
 		fprintf(stderr, "c2_rpc_post failed!\n");
 		goto out;
 	}
-	rc = c2_rpc_item_timedwait(item,
-				   STATE_SET(C2_RPC_ITEM_REPLIED,
-					     C2_RPC_ITEM_FAILED),
-				   deadline);
+	rc = c2_rpc_item_wait_for_reply(item, deadline);
 	if (rc != 0)
 		fprintf(stderr, "Error while waiting for reply: %d\n", rc);
 

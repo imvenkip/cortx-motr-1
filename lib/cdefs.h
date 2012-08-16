@@ -95,7 +95,7 @@ C2_FIELD_IS(type, field, uint64_t) ?				\
  *     e.g. C2_COUNT_PARAMS()        -> 0
  *          C2_COUNT_PARAMS(x)       -> 0
  *          C2_COUNT_PARAMS(x, y)    -> 1
- *          C2_COUNT_PARAMS(x, y, z) -> 3
+ *          C2_COUNT_PARAMS(x, y, z) -> 2
  */
 #define C2_COUNT_PARAMS(...) \
 	C2_COUNT_PARAMS2(__VA_ARGS__, 9,8,7,6,5,4,3,2,1,0)

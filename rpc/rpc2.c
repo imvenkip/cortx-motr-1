@@ -179,22 +179,6 @@ int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
 	return 0;
 }
 
-int c2_rpc_item_timedwait(struct c2_rpc_item *item,
-			  uint64_t            states,
-			  c2_time_t           timeout)
-{
-	struct c2_rpc_machine *machine;
-	int                    rc;
-
-	machine = item->ri_session->s_conn->c_rpc_machine;
-
-	c2_rpc_machine_lock(machine);
-	rc = c2_sm_timedwait(&item->ri_sm, states, timeout);
-	c2_rpc_machine_unlock(machine);
-
-	return rc;
-}
-
 static void buffer_pool_low(struct c2_net_buffer_pool *bp)
 {
 	/* Buffer pool is below threshold.  */

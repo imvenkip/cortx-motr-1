@@ -152,7 +152,6 @@ enum {
 	WAITING_FOR_REPLY = C2_RPC_ITEM_WAITING_FOR_REPLY,
 	REPLIED           = C2_RPC_ITEM_REPLIED,
 	ACCEPTED          = C2_RPC_ITEM_ACCEPTED,
-	DELIVERED         = C2_RPC_ITEM_DELIVERED,
 	IGNORED           = C2_RPC_ITEM_IGNORED,
 	TIMEDOUT          = C2_RPC_ITEM_TIMEDOUT,
 	FAILED            = C2_RPC_ITEM_FAILED,
@@ -204,10 +203,6 @@ static const struct c2_sm_state_descr item_state_descr[] = {
 	},
 	[ACCEPTED] = {
 		.sd_name    = "ACCEPTED",
-		.sd_allowed = STATE_SET(UNINITIALISED),
-	},
-	[DELIVERED] = { /* XXX NOT USED */
-		.sd_name    = "DELIVERED",
 		.sd_allowed = STATE_SET(UNINITIALISED),
 	},
 	[IGNORED] = {
@@ -393,6 +388,38 @@ void c2_rpc_item_failed(struct c2_rpc_item *item, int32_t rc)
 	c2_rpc_item_change_state(item, FAILED);
 }
 
+int c2_rpc_item_timedwait(struct c2_rpc_item *item,
+                          uint64_t            states,
+                          c2_time_t           timeout)
+{
+        struct c2_rpc_machine *machine;
+        int                    rc;
+
+        machine = item->ri_session->s_conn->c_rpc_machine;
+
+        c2_rpc_machine_lock(machine);
+        rc = c2_sm_timedwait(&item->ri_sm, states, timeout);
+        c2_rpc_machine_unlock(machine);
+
+        return rc;
+}
+
+int c2_rpc_item_wait_for_reply(struct c2_rpc_item *item, c2_time_t timeout)
+{
+	int rc;
+
+	C2_PRE(c2_rpc_item_is_request(item));
+
+	rc = c2_rpc_item_timedwait(item, STATE_SET(REPLIED, FAILED), timeout);
+	if (rc == 0) {
+		if (item->ri_sm.sm_state == FAILED)
+			rc = item->ri_error;
+	}
+
+	C2_POST(ergo(rc == 0, item->ri_sm.sm_state == REPLIED));
+	return rc;
+}
+
 struct c2_rpc_item *sm_to_item(struct c2_sm *mach)
 {
 	return container_of(mach, struct c2_rpc_item, ri_sm);
@@ -436,7 +463,7 @@ static int item_entered_in_failed_state(struct c2_sm *mach)
 #ifndef __KERNEL__
 	printf("%p FAILED\n", item);
 #endif
-	item->ri_error = -ETIMEDOUT;
+	C2_PRE(item->ri_error != 0);
 	item->ri_reply = NULL;
 
 	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)

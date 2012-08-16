@@ -55,7 +55,6 @@ enum c2_rpc_item_state {
 	C2_RPC_ITEM_WAITING_FOR_REPLY,
 	C2_RPC_ITEM_REPLIED,
 	C2_RPC_ITEM_ACCEPTED,
-	C2_RPC_ITEM_DELIVERED,
 	C2_RPC_ITEM_IGNORED,
 	C2_RPC_ITEM_TIMEDOUT,
 	C2_RPC_ITEM_FAILED,
@@ -203,6 +202,8 @@ bool c2_rpc_item_is_request(const struct c2_rpc_item *item);
 int c2_rpc_item_timedwait(struct c2_rpc_item *item,
 			  uint64_t            states,
 			  c2_time_t           timeout);
+
+int c2_rpc_item_wait_for_reply(struct c2_rpc_item *item, c2_time_t timeout);
 
 void c2_rpc_item_free(struct c2_rpc_item *item);
 

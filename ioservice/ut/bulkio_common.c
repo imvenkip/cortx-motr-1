@@ -304,7 +304,6 @@ void io_fops_rpc_submit(struct thrd_arg *t)
 	int		       i;
 	int		       j;
 	int		       rc;
-	c2_time_t	       timeout;
 	struct c2_rpc_item    *item;
 	struct c2_rpc_bulk    *rbulk;
 	struct c2_io_fop     **io_fops;
@@ -319,15 +318,12 @@ void io_fops_rpc_submit(struct thrd_arg *t)
 	item->ri_session = &bp->bp_cctx->rcx_session;
 
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
-	timeout = c2_time_from_now(IO_RPC_ITEM_TIMEOUT, 0);
-	item->ri_op_timeout = timeout;
+	item->ri_op_timeout = c2_time_from_now(IO_RPC_ITEM_TIMEOUT, 0);
 	rc = c2_rpc_post(item);
 	C2_ASSERT(rc == 0);
-	rc = c2_rpc_item_timedwait(item,
-				   STATE_SET(C2_RPC_ITEM_REPLIED,
-					     C2_RPC_ITEM_FAILED),
-				   C2_TIME_NEVER);
-	C2_ASSERT(rc == 0 && item->ri_sm.sm_state == C2_RPC_ITEM_REPLIED);
+
+	rc = c2_rpc_item_wait_for_reply(item, C2_TIME_NEVER);
+	C2_ASSERT(rc == 0);
 	if (c2_is_read_fop(&io_fops[i]->if_fop)) {
 		for (j = 0; j < bp->bp_iobuf[i]->nb_buffer.ov_vec.v_nr; ++j) {
 			rc = memcmp(bp->bp_iobuf[i]->nb_buffer.ov_buf[j],
