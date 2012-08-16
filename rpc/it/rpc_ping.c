@@ -304,11 +304,12 @@ static void send_ping_fop(struct c2_rpc_session *session)
 	C2_ALLOC_ARR(ping_fop->fp_arr.f_data, nr_arr_member);
 	if (ping_fop->fp_arr.f_data == NULL) {
 		rc = -ENOMEM;
-		goto free_fop;
+		c2_fop_free(fop);
+		goto out;
 	}
 
 	for (i = 0; i < nr_arr_member; i++) {
-		ping_fop->fp_arr.f_data[i] = i+100;
+		ping_fop->fp_arr.f_data[i] = i + 100;
 	}
 
 	rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
@@ -318,11 +319,7 @@ static void send_ping_fop(struct c2_rpc_session *session)
 	C2_ASSERT(fop->f_item.ri_reply != 0);
 
 	c2_free(ping_fop->fp_arr.f_data);
-free_fop:
-	/* FIXME: freeing fop here will lead to endless loop in
-	 * nr_active_items_count(), which is called from
-	 * c2_rpc_session_terminate() */
-	/*c2_fop_free(fop);*/
+
 out:
 	return;
 }

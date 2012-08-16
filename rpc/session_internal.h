@@ -141,7 +141,7 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
 			     struct c2_verno     last_persistent);
 
-int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
+void c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
                                          struct c2_rpc_item *item);
 
 /**
@@ -536,6 +536,8 @@ bool c2_rpc_item_is_control_msg(const struct c2_rpc_item *item);
 bool c2_rpc_session_is_idle(const struct c2_rpc_session *session);
 
 bool c2_rpc_session_bind_item(struct c2_rpc_item *item);
+
+void c2_rpc_session_item_timedout(struct c2_rpc_item *item);
 
 #ifndef __KERNEL__
 int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active,

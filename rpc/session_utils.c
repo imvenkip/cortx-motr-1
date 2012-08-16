@@ -79,11 +79,12 @@ int c2_rpc__fop_post(struct c2_fop                *fop,
 {
 	struct c2_rpc_item *item;
 
-	item              = &fop->f_item;
-	item->ri_session  = session;
-	item->ri_prio     = C2_RPC_ITEM_PRIO_MAX;
-	item->ri_deadline = 0;
-	item->ri_ops      = ops;
+	item                = &fop->f_item;
+	item->ri_session    = session;
+	item->ri_prio       = C2_RPC_ITEM_PRIO_MAX;
+	item->ri_deadline   = 0;
+	item->ri_ops        = ops;
+	item->ri_op_timeout = c2_time_from_now(2, 0);
 
 	return c2_rpc__post_locked(item);
 }

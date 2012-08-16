@@ -244,6 +244,7 @@ void c2_rpc_frm_enq_item(struct c2_rpc_frm  *frm,
 	C2_PRE(frm_invariant(frm) && item != NULL);
 
 	frm_itemq_insert(frm, item);
+	c2_rpc_item_change_state(item, C2_RPC_ITEM_ENQUEUED);
 	frm_balance(frm);
 
 	C2_LEAVE();
@@ -503,6 +504,7 @@ static void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 			}
 			C2_ASSERT(!item_will_exceed_packet_size(item, p, frm));
 			c2_rpc_packet_add_item(p, item);
+			c2_rpc_item_change_state(item, C2_RPC_ITEM_SENDING);
 		} c2_tl_endfor;
 	}
 

@@ -38,6 +38,12 @@
 #include "rpc/session_fops.h"
 #include "rpc/rpc2.h"
 
+#ifndef __KERNEL__
+#include <stdio.h>
+#else
+#define printf(...)
+#endif
+
 /**
    @addtogroup rpc_session
 
@@ -365,7 +371,8 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 
 	session0 = c2_rpc_conn_session0(conn);
 	while (session0->s_state != C2_RPC_SESSION_IDLE)
-		c2_cond_wait(&session0->s_state_changed, &machine->rm_mutex);
+		c2_cond_wait(&session0->s_state_changed,
+			     c2_rpc_machine_mutex(machine));
 
 	c2_rpc_conn_fini_locked(conn);
 	/* Don't look in conn after this point */
@@ -422,7 +429,7 @@ bool c2_rpc_conn_timedwait(struct c2_rpc_conn *conn,
 
 	while ((conn->c_state & state_flags) == 0 && got_event) {
 		got_event = c2_cond_timedwait(&conn->c_state_changed,
-					&machine->rm_mutex, abs_timeout);
+				c2_rpc_machine_mutex(machine), abs_timeout);
 		/*
 		 * If got_event == false then TIME_OUT has occured.
 		 * break the loop
@@ -573,7 +580,8 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 	C2_POST(ergo(rc != 0, conn->c_state == C2_RPC_CONN_FAILED));
 	C2_ASSERT(ergo(rc == 0, conn->c_state == C2_RPC_CONN_CONNECTING));
 
-	c2_cond_broadcast(&conn->c_state_changed, &machine->rm_mutex);
+	c2_cond_broadcast(&conn->c_state_changed,
+			  c2_rpc_machine_mutex(machine));
 	c2_rpc_machine_unlock(machine);
 
 	return rc;
@@ -593,6 +601,7 @@ static void conn_failed(struct c2_rpc_conn *conn, int32_t error)
 					C2_RPC_CONN_ACTIVE,
 					C2_RPC_CONN_TERMINATING)));
 
+	printf("conn failed called\n");
 	conn->c_state = C2_RPC_CONN_FAILED;
 	conn->c_rc    = error;
 
@@ -618,7 +627,7 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *item)
 
 	reply_item = item->ri_reply;
 	rc         = item->ri_error;
-
+	printf("conn reply_received called\n");
 	C2_PRE(ergo(rc == 0, reply_item != NULL &&
 			     item->ri_session == reply_item->ri_session));
 
@@ -654,7 +663,8 @@ out:
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_ASSERT(C2_IN(conn->c_state, (C2_RPC_CONN_FAILED,
 					C2_RPC_CONN_ACTIVE)));
-	c2_cond_broadcast(&conn->c_state_changed, &machine->rm_mutex);
+	c2_cond_broadcast(&conn->c_state_changed,
+			  c2_rpc_machine_mutex(machine));
 }
 
 int c2_rpc_conn_destroy(struct c2_rpc_conn *conn, uint32_t timeout_sec)
@@ -744,7 +754,8 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 	 * rpc_machine is unlocked.
 	 */
 	C2_ASSERT(ergo(rc == 0, conn->c_state == C2_RPC_CONN_TERMINATING));
-	c2_cond_broadcast(&conn->c_state_changed, &machine->rm_mutex);
+	c2_cond_broadcast(&conn->c_state_changed,
+			  c2_rpc_machine_mutex(machine));
 
 	c2_rpc_machine_unlock(machine);
 	/* see c2_rpc_conn_terminate_reply_received() */
@@ -821,7 +832,8 @@ out:
 		conn->c_state == C2_RPC_CONN_FAILED);
 	C2_POST(c2_rpc_machine_is_locked(machine));
 
-	c2_cond_broadcast(&conn->c_state_changed, &machine->rm_mutex);
+	c2_cond_broadcast(&conn->c_state_changed,
+			  c2_rpc_machine_mutex(machine));
 }
 
 int c2_rpc_conn_cob_lookup(struct c2_cob_domain *dom,

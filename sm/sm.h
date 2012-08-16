@@ -593,6 +593,38 @@ void c2_sm_ast_post(struct c2_sm_group *grp, struct c2_sm_ast *ast);
  */
 void c2_sm_asts_run(struct c2_sm_group *grp);
 
+/**
+   STATE_SET(...) returns bitmask of passed states.
+   e.g.
+@code
+   enum foo_states {
+	FOO_UNINITIALISED,
+	FOO_INITIALISED,
+	FOO_ACTIVE,
+	FOO_FAILED,
+	FOO_NR,
+   };
+@endcode
+
+   then @code STATE_SET(FOO_ACTIVE, FOO_FAILED) @endcode returns
+   (1 << FOO_ACTIVE) | (1 << FOO_FAILED)
+
+   @code STATE_SET() @endcode (STATE_SET macro with no parameters will cause
+   compilation failure.
+ */
+#define STATE_SET(...) \
+	C2_CAT(__STATE_SET_, C2_COUNT_PARAMS(__VA_ARGS__))(__VA_ARGS__)
+
+#define __STATE_SET_0(i)       (1 << (i))
+#define __STATE_SET_1(i, ...)  ((1 << (i)) | __STATE_SET_0(__VA_ARGS__))
+#define __STATE_SET_2(i, ...)  ((1 << (i)) | __STATE_SET_1(__VA_ARGS__))
+#define __STATE_SET_3(i, ...)  ((1 << (i)) | __STATE_SET_2(__VA_ARGS__))
+#define __STATE_SET_4(i, ...)  ((1 << (i)) | __STATE_SET_3(__VA_ARGS__))
+#define __STATE_SET_5(i, ...)  ((1 << (i)) | __STATE_SET_4(__VA_ARGS__))
+#define __STATE_SET_6(i, ...)  ((1 << (i)) | __STATE_SET_5(__VA_ARGS__))
+#define __STATE_SET_7(i, ...)  ((1 << (i)) | __STATE_SET_6(__VA_ARGS__))
+#define __STATE_SET_8(i, ...)  ((1 << (i)) | __STATE_SET_7(__VA_ARGS__))
+
 /** @} end of sm group */
 
 /* __COLIBRI_SM_SM_H__ */

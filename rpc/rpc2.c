@@ -63,6 +63,7 @@ int c2_rpc_post(struct c2_rpc_item *item)
 	uint64_t	       item_size;
 
 	C2_PRE(item->ri_session != NULL);
+	C2_PRE(item->ri_op_timeout > c2_time_now());
 
 	machine	  = item->ri_session->s_conn->c_rpc_machine;
 	item_size = c2_rpc_item_size(item);
@@ -106,8 +107,8 @@ int c2_rpc__post_locked(struct c2_rpc_item *item)
 
 	item->ri_rpc_time = c2_time_now();
 
-	item->ri_state = RPC_ITEM_SUBMITTED;
-	c2_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm, item);
+	c2_rpc_item_sm_init(item, &session->s_conn->c_rpc_machine->rm_sm_grp);
+	c2_rpc_frm_enq_item(&session->s_conn->c_rpcchan->rc_frm, item);
 	return 0;
 }
 
@@ -141,12 +142,12 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	reply->ri_prio     = request->ri_prio;
 	reply->ri_deadline = 0;
 	reply->ri_error    = 0;
-	reply->ri_state    = RPC_ITEM_SUBMITTED;
 
 	slot = sref->sr_slot;
 	machine = slot->sl_session->s_conn->c_rpc_machine;
 
 	c2_rpc_machine_lock(machine);
+	c2_rpc_item_sm_init(reply, &machine->rm_sm_grp);
 	/*
 	 * This hold will be released when the item is SENT or FAILED.
 	 * See rpc/frmops.c:item_done()
@@ -163,29 +164,36 @@ C2_EXPORTED(c2_rpc_reply_post);
 int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
 				 struct c2_rpc_item       *item)
 {
+	struct c2_rpc_machine *machine;
+
 	C2_PRE(conn != NULL);
 	C2_PRE(item != NULL && c2_rpc_item_is_unsolicited(item));
 
-	item->ri_state    = RPC_ITEM_SUBMITTED;
 	item->ri_rpc_time = c2_time_now();
 
-	c2_rpc_machine_lock(conn->c_rpc_machine);
-
+	machine = conn->c_rpc_machine;
+	c2_rpc_machine_lock(machine);
+	c2_rpc_item_sm_init(item, &machine->rm_sm_grp);
 	c2_rpc_frm_enq_item(&conn->c_rpcchan->rc_frm, item);
-
-	c2_rpc_machine_unlock(conn->c_rpc_machine);
+	c2_rpc_machine_unlock(machine);
 	return 0;
 }
 
-int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout)
+int c2_rpc_item_timedwait(struct c2_rpc_item *item,
+			  uint64_t            states,
+			  c2_time_t           timeout)
 {
-	C2_PRE(clink != NULL);
-	C2_PRE(c2_clink_is_armed(clink));
+	struct c2_rpc_machine *machine;
+	int                    rc;
 
-	return c2_chan_timedwait(clink, timeout) ? 0 : -ETIMEDOUT;
+	machine = item->ri_session->s_conn->c_rpc_machine;
+
+	c2_rpc_machine_lock(machine);
+	rc = c2_sm_timedwait(&item->ri_sm, states, timeout);
+	c2_rpc_machine_unlock(machine);
+
+	return rc;
 }
-C2_EXPORTED(c2_rpc_reply_timedwait);
-
 
 static void buffer_pool_low(struct c2_net_buffer_pool *bp)
 {

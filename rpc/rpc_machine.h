@@ -36,6 +36,7 @@
 #include "lib/arith.h"
 #include "lib/bob.h"
 
+#include "sm/sm.h"           /* c2_sm_group */
 #include "addb/addb.h"
 #include "rpc/formation2.h"  /* c2_rpc_frm         */
 #include "net/net.h"         /* c2_net_transfer_mc, c2_net_domain */
@@ -87,7 +88,7 @@ struct c2_rpc_stats {
    Several such contexts might be existing simultaneously.
  */
 struct c2_rpc_machine {
-	struct c2_mutex                   rm_mutex;
+	struct c2_sm_group                rm_sm_grp;
 
 	/** List of c2_rpc_chan structures. */
 	struct c2_list			  rm_chans;
@@ -221,6 +222,7 @@ void c2_rpc_machine_fini(struct c2_rpc_machine *machine);
 void c2_rpc_machine_lock(struct c2_rpc_machine *machine);
 void c2_rpc_machine_unlock(struct c2_rpc_machine *machine);
 bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine);
+struct c2_mutex *c2_rpc_machine_mutex(struct c2_rpc_machine *machine);
 
 /**
    @name stat_ifs STATISTICS IFs

@@ -34,6 +34,7 @@
 #include "rpc/rpc2.h"
 #include "rpc/packet.h"
 #include "rpc/item.h"
+#include "sm/sm.h"
 
 static struct c2_rpc_frm             *frm;
 static struct c2_rpc_frm_constraints  constraints;
@@ -46,15 +47,17 @@ static int frm_ut_init(void)
 {
 	rchan.rc_rpc_machine = &rmachine;
 	frm = &rchan.rc_frm;
-	c2_mutex_init(&rmachine.rm_mutex);
-	c2_mutex_lock(&rmachine.rm_mutex);
+	c2_sm_group_init(&rmachine.rm_sm_grp);
+	c2_rpc_machine_lock(&rmachine);
+
 	return 0;
 }
 
 static int frm_ut_fini(void)
 {
-	c2_mutex_unlock(&rmachine.rm_mutex);
-	c2_mutex_fini(&rmachine.rm_mutex);
+	c2_rpc_machine_unlock(&rmachine);
+	c2_sm_group_fini(&rmachine.rm_sm_grp);
+
 	return 0;
 }
 
@@ -187,6 +190,7 @@ static struct c2_rpc_item *new_item(int deadline, int kind)
 	C2_ALLOC_PTR(item);
 	C2_UT_ASSERT(item != NULL);
 
+	c2_rpc_item_sm_init(item, &rmachine.rm_sm_grp);
 	switch (deadline) {
 	case TIMEDOUT:
 		item->ri_deadline = 0;

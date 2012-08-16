@@ -124,7 +124,6 @@ static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item)
 	struct c2_fop *rep_fop;
 
         C2_PRE(item != NULL);
-	C2_PRE(c2_chan_has_waiters(&item->ri_chan));
 
 	req_fop = c2_rpc_item_to_fop(item);
 	rep_fop = c2_rpc_item_to_fop(item->ri_reply);

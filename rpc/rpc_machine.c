@@ -198,16 +198,16 @@ static void __rpc_machine_init(struct c2_rpc_machine *machine)
 	c2_list_init(&machine->rm_incoming_conns);
 	c2_list_init(&machine->rm_outgoing_conns);
 	c2_rpc_services_tlist_init(&machine->rm_services);
-	c2_mutex_init(&machine->rm_mutex);
 	c2_addb_ctx_init(&machine->rm_addb, &rpc_machine_addb_ctx_type,
 			 &c2_addb_global_ctx);
+	c2_sm_group_init(&machine->rm_sm_grp);
 	c2_rpc_machine_bob_init(machine);
 }
 
 static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 {
+	c2_sm_group_fini(&machine->rm_sm_grp);
 	c2_addb_ctx_fini(&machine->rm_addb);
-	c2_mutex_fini(&machine->rm_mutex);
 	c2_rpc_services_tlist_fini(&machine->rm_services);
 	c2_list_fini(&machine->rm_outgoing_conns);
 	c2_list_fini(&machine->rm_incoming_conns);
@@ -392,12 +392,18 @@ static void conn_list_fini(struct c2_list *list)
         }
 }
 
+struct c2_mutex *c2_rpc_machine_mutex(struct c2_rpc_machine *machine)
+{
+	return &machine->rm_sm_grp.s_lock;
+}
+
 void c2_rpc_machine_lock(struct c2_rpc_machine *machine)
 {
 	C2_ENTRY("machine %p", machine);
 
 	C2_PRE(machine != NULL);
-	c2_mutex_lock(&machine->rm_mutex);
+
+	c2_sm_group_lock(&machine->rm_sm_grp);
 
 	C2_LEAVE();
 }
@@ -407,7 +413,8 @@ void c2_rpc_machine_unlock(struct c2_rpc_machine *machine)
 	C2_ENTRY("machine %p", machine);
 
 	C2_PRE(machine != NULL);
-	c2_mutex_unlock(&machine->rm_mutex);
+
+	c2_sm_group_unlock(&machine->rm_sm_grp);
 
 	C2_LEAVE();
 }
@@ -415,7 +422,7 @@ void c2_rpc_machine_unlock(struct c2_rpc_machine *machine)
 bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine)
 {
 	C2_PRE(machine != NULL);
-	return c2_mutex_is_locked(&machine->rm_mutex);
+	return c2_mutex_is_locked(&machine->rm_sm_grp.s_lock);
 }
 C2_EXPORTED(c2_rpc_machine_is_locked);
 
@@ -593,15 +600,22 @@ static void item_received(struct c2_rpc_item      *item,
 			  struct c2_rpc_machine   *machine,
 			  struct c2_net_end_point *from_ep)
 {
+	int rc;
+
 	if (c2_rpc_item_is_conn_establish(item))
 		c2_rpc_fop_conn_establish_ctx_init(item, from_ep, machine);
 
 	item->ri_rpc_time = c2_time_now();
 
 	c2_rpc_machine_lock(machine);
+	c2_rpc_item_sm_init(item, &machine->rm_sm_grp);
 	/* NOTE: rpc_machine_lock is dropped and reacquired in
 	   c2_rpc_item_received() code path */
-	c2_rpc_item_received(item, machine);
+	rc = c2_rpc_item_received(item, machine);
+	if (rc == 0)
+		c2_rpc_item_change_state(item, C2_RPC_ITEM_ACCEPTED);
+	else
+		c2_rpc_item_free(item);
 	c2_rpc_machine_unlock(machine);
 }
 

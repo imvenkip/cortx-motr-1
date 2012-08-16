@@ -436,7 +436,7 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 			 */
 			session->s_state = C2_RPC_SESSION_BUSY;
 			c2_cond_broadcast(&session->s_state_changed,
-					  &machine->rm_mutex);
+					  c2_rpc_machine_mutex(machine));
 		}
 	}
 
@@ -454,7 +454,7 @@ void c2_rpc_slot_item_add_internal(struct c2_rpc_slot *slot,
 			false);  /* slot is not allowed to trigger events */
 }
 
-int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
+void c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
 					 struct c2_rpc_item *item)
 {
 	struct c2_rpc_item *reply;
@@ -465,20 +465,16 @@ int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
 	 * XXX We should've a special fop type to report session error
 	 */
 	fop = c2_fop_alloc(&c2_rpc_fop_noop_fopt, NULL);
-	if (fop == NULL)
-		return -ENOMEM;
+	if (fop != NULL) {
+		reply = &fop->f_item;
+		reply->ri_session = item->ri_session;
+		reply->ri_error = -EBADR;
+		reply->ri_slot_refs[0] = item->ri_slot_refs[0];
+		c2_list_link_init(&reply->ri_slot_refs[0].sr_link);
+		c2_list_link_init(&reply->ri_slot_refs[0].sr_ready_link);
 
-	reply = &fop->f_item;
-
-	reply->ri_session = item->ri_session;
-	reply->ri_error = -EBADR;
-
-	reply->ri_slot_refs[0] = item->ri_slot_refs[0];
-	c2_list_link_init(&reply->ri_slot_refs[0].sr_link);
-	c2_list_link_init(&reply->ri_slot_refs[0].sr_ready_link);
-
-	slot->sl_ops->so_reply_consume(item, reply);
-	return 0;
+		slot->sl_ops->so_reply_consume(item, reply);
+	}
 }
 
 int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
@@ -486,7 +482,7 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 {
 	struct c2_rpc_item *req;
 	int                 redoable;
-	int                 rc = 0;   /* init to 0, required */
+	int                 rc = -EPROTO;
 
 	C2_ASSERT(item != NULL);
 	C2_ASSERT(c2_rpc_slot_invariant(slot));
@@ -498,12 +494,12 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 	switch (redoable) {
 	case 0:
 		__slot_item_add(slot, item, true);
+		rc = 0;
 		break;
 	case -EALREADY:
 		req = item_find(slot, item->ri_slot_refs[0].sr_xid);
 		if (req == NULL) {
-			rc = c2_rpc_slot_misordered_item_received(slot,
-								 item);
+			c2_rpc_slot_misordered_item_received(slot, item);
 			break;
 		}
 		/*
@@ -533,10 +529,13 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 			/* item is already present but is not
 			   processed yet. Ignore it*/
 			/* do nothing */;
+			break;
+		case RPC_ITEM_STAGE_UNKNOWN:
+			C2_IMPOSSIBLE("Original request in UNKNOWN stage");
 		}
 		break;
 	case -EAGAIN:
-		rc = c2_rpc_slot_misordered_item_received(slot, item);
+		c2_rpc_slot_misordered_item_received(slot, item);
 		break;
 	}
 	C2_ASSERT(c2_rpc_slot_invariant(slot));
@@ -600,12 +599,20 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		 * received in the past. Compare with the original reply.
 		 * XXX find out how to compare two rpc items to be same
 		 */
+		/* Do nothing */;
 	} else {
 		/*
 		 * This is valid reply case.
 		 */
-		C2_ASSERT(req->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS);
+		C2_ASSERT(C2_IN(req->ri_stage, (RPC_ITEM_STAGE_IN_PROGRESS,
+						RPC_ITEM_STAGE_UNKNOWN)));
 		C2_ASSERT(slot->sl_in_flight > 0);
+
+		if (req->ri_stage == RPC_ITEM_STAGE_UNKNOWN) {
+			/* This is a delayed reply. The req has already
+			   timedout. Return without setting *req_out */
+			return;
+		}
 
 		session = slot->sl_session;
 		C2_ASSERT(session != NULL);
@@ -625,7 +632,7 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		if (c2_rpc_session_is_idle(session)) {
 			session->s_state = C2_RPC_SESSION_IDLE;
 			c2_cond_broadcast(&session->s_state_changed,
-					  &machine->rm_mutex);
+					  c2_rpc_machine_mutex(machine));
 		}
 		C2_ASSERT(c2_rpc_session_invariant(session));
 
@@ -721,21 +728,18 @@ find_conn(const struct c2_rpc_machine *machine,
 	use_uuid = (sref->sr_sender_id == SENDER_ID_INVALID);
 
 	c2_list_for_each_entry(conn_list, conn, struct c2_rpc_conn, c_link) {
-
 		if (use_uuid) {
-
 			if (c2_rpc_sender_uuid_cmp(&conn->c_uuid,
 						   &sref->sr_uuid) == 0)
 				return conn;
-
 		} else {
-
 			if (conn->c_sender_id == sref->sr_sender_id)
 				return conn;
 		}
 	}
 	return NULL;
 }
+
 static int associate_session_and_slot(struct c2_rpc_item    *item,
 				      struct c2_rpc_machine *machine)
 {
@@ -795,7 +799,6 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 		 * item except to discard it.
 		 * XXX generate ADDB record
 		 */
-		item->ri_ops->rio_free(item);
 		return rc;
 	}
 	C2_ASSERT(item->ri_session != NULL &&
@@ -805,12 +808,9 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 
 	slot = item->ri_slot_refs[0].sr_slot;
 	if (c2_rpc_item_is_request(item)) {
-
-		c2_rpc_slot_item_apply(slot, item);
-
+		rc = c2_rpc_slot_item_apply(slot, item);
 	} else {
 		c2_rpc_slot_reply_received(slot, item, &req);
-
 		/*
 		 * In case the reply is duplicate/unwanted then
 		 * c2_rpc_slot_reply_received() sets req to NULL.
@@ -823,8 +823,9 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 			 */
 			rpc_item_replied(req, item, 0);
 		}
+		rc = (req != NULL) ? 0 : -EPROTO;
 	}
-	return 0;
+	return rc;
 }
 
 /**
@@ -844,20 +845,9 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
 	machine = session->s_conn->c_rpc_machine;
 	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 
-	if (c2_rpc_item_is_control_msg(item)) {
-		if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
+	c2_rpc_item_change_state(item, C2_RPC_ITEM_REPLIED);
+	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
 			item->ri_ops->rio_replied(item);
-	} else {
-		c2_rpc_session_hold_busy(session);
-		c2_rpc_machine_unlock(machine);
-
-		if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
-			item->ri_ops->rio_replied(item);
-		c2_chan_broadcast(&item->ri_chan);
-
-		c2_rpc_machine_lock(machine);
-		c2_rpc_session_release(session);
-	}
 }
 
 int c2_rpc_slot_cob_lookup(struct c2_cob   *session_cob,

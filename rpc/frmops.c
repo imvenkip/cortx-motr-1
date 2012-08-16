@@ -402,9 +402,15 @@ static void item_done(struct c2_rpc_item *item, unsigned long rc)
 	C2_PRE(item != NULL);
 
 	/** @todo XXX implement SENT/FAILED callback */
-	item->ri_state = rc == 0 ? RPC_ITEM_SENT : RPC_ITEM_SEND_FAILED;
 	item->ri_error = rc;
 
+	if (rc == 0) {
+		c2_rpc_item_change_state(item, C2_RPC_ITEM_SENT);
+		if (c2_rpc_item_is_request(item))
+			c2_rpc_item_start_timer(item);
+	} else {
+		c2_rpc_item_failed(item, (int32_t)rc);
+	}
 	if (c2_rpc_item_is_bound(item))
 		c2_rpc_session_release(item->ri_session);
 

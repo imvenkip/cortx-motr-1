@@ -40,9 +40,9 @@ int c2_rpc_item_header_encdec(struct c2_rpc_item      *item,
 			      struct c2_bufvec_cursor *cur,
 			      enum c2_bufvec_what      what)
 {
-	uint64_t		 len;
-	int			 rc;
-	struct c2_rpc_item_type *item_type;
+	const struct c2_rpc_item_type *item_type;
+	uint64_t		       len;
+	int			       rc;
 
 	C2_PRE(cur != NULL);
 	C2_PRE(item != NULL);

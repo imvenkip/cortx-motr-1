@@ -56,7 +56,10 @@ static void conn_establish_item_free(struct c2_rpc_item *item)
 	struct c2_rpc_fop_conn_establish_ctx *ctx;
 	struct c2_fop                        *fop;
 
+	c2_rpc_item_sm_fini(item);
+	c2_rpc_item_fini(item);
 	fop = c2_rpc_item_to_fop(item);
+	/** @todo free fop->f_data */
 	ctx = container_of(fop, struct c2_rpc_fop_conn_establish_ctx, cec_fop);
 	c2_free(ctx);
 }
@@ -65,9 +68,9 @@ static const struct c2_rpc_item_ops rcv_conn_establish_item_ops = {
 	.rio_free = conn_establish_item_free,
 };
 
-static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
-				      struct c2_rpc_item     **item,
-				      struct c2_bufvec_cursor *cur)
+static int conn_establish_item_decode(const struct c2_rpc_item_type *item_type,
+				      struct c2_rpc_item           **item,
+				      struct c2_bufvec_cursor       *cur)
 {
 	struct c2_rpc_fop_conn_establish_ctx *ctx;
 	struct c2_fop                        *fop;

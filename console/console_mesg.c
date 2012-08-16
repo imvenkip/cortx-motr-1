@@ -22,6 +22,7 @@
 #endif
 
 #include "lib/errno.h" /* ENOTSUP */
+#include "sm/sm.h"     /* STATE_SET */
 
 #include "console/console_fop.h"
 #include "console/console_it.h"
@@ -37,38 +38,29 @@ int c2_cons_fop_send(struct c2_fop *fop, struct c2_rpc_session *session,
 		     c2_time_t deadline)
 {
 	struct c2_rpc_item *item;
-	struct c2_clink	    clink;
-	int		    rc = 0;
-	bool		    wait;
+	int		    rc;
 
 	C2_PRE(fop != NULL && session != NULL);
 
-	/* Init rpc item and assign priority, session, etc */
 	item = &fop->f_item;
-	/* Add link to wait for item reply */
-	c2_clink_init(&clink, NULL);
-	c2_clink_add(&item->ri_chan, &clink);
 	item->ri_deadline = 0;
 	item->ri_prio     = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_session  = session;
 	item->ri_error    = 0;
+
         rc = c2_rpc_post(item);
 	if (rc != 0) {
 		fprintf(stderr, "c2_rpc_post failed!\n");
-		goto error;
+		goto out;
 	}
+	rc = c2_rpc_item_timedwait(item,
+				   STATE_SET(C2_RPC_ITEM_REPLIED,
+					     C2_RPC_ITEM_FAILED),
+				   deadline);
+	if (rc != 0)
+		fprintf(stderr, "Error while waiting for reply: %d\n", rc);
 
-	/* Wait for reply */
-	wait = c2_chan_timedwait(&clink, deadline);
-	if (!wait) {
-		fprintf(stderr, "Timed out for reply.\n");
-		rc = -ETIMEDOUT;
-	}
-error:
-	/* Fini clink */
-	c2_clink_del(&clink);
-	c2_clink_fini(&clink);
-
+out:
 	return rc;
 }
 

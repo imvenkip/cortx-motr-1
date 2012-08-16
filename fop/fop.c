@@ -76,13 +76,12 @@ void c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
 	C2_PRE(fop != NULL && fopt != NULL);
 
 	fop->f_type = fopt;
-	c2_addb_ctx_init(&fop->f_addb, &c2_fop_addb_ctx,
-			 &fopt->ft_addb);
-	c2_list_link_init(&fop->f_link);
-	c2_rpc_item_init(&fop->f_item);
-	fop->f_item.ri_type = &fop->f_type->ft_rpc_item_type;
-	fop->f_item.ri_ops = &c2_fop_default_item_ops;
 	fop->f_data.fd_data = data;
+	c2_addb_ctx_init(&fop->f_addb, &c2_fop_addb_ctx, &fopt->ft_addb);
+	c2_list_link_init(&fop->f_link);
+
+	c2_rpc_item_init(&fop->f_item, &fopt->ft_rpc_item_type);
+	fop->f_item.ri_ops = &c2_fop_default_item_ops;
 }
 
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
@@ -356,6 +355,7 @@ void c2_fop_item_free(struct c2_rpc_item *item)
 {
 	struct c2_fop *fop;
 
+	c2_rpc_item_sm_fini(item);
 	fop = c2_rpc_item_to_fop(item);
 	/* c2_fop_free() internally calls c2_fop_fini() on the fop, which
 	   calls c2_rpc_item_fini() on the rpc-item */

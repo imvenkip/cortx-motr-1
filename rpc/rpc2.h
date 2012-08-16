@@ -155,18 +155,6 @@ int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
 				 struct c2_rpc_item *item);
 
 /**
-   Wait for the reply on item being sent.
-
-   @param The clink on which caller is waiting for item reply.
-   @param timeout time to wait for item being sent
-   @note c2_rpc_core_init() and c2_rpc_machine_init() have been called before
-   invoking this function
-   @return 0 success
-   @return ETIMEDOUT The wait timed out wihout being sent
- */
-int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout);
-
-/**
    Create a buffer pool per net domain which to be shared by TM's in it.
    @pre ndom != NULL && app_pool != NULL
    @pre bufs_nr != 0

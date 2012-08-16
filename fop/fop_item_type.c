@@ -40,9 +40,9 @@ c2_bcount_t c2_fop_item_type_default_onwire_size(const struct c2_rpc_item *item)
 	return len;
 }
 
-int c2_fop_item_type_default_encode(struct c2_rpc_item_type *item_type,
-				    struct c2_rpc_item      *item,
-				    struct c2_bufvec_cursor *cur)
+int c2_fop_item_type_default_encode(const struct c2_rpc_item_type *item_type,
+				    struct c2_rpc_item            *item,
+				    struct c2_bufvec_cursor       *cur)
 {
 	int	 rc;
 	uint32_t opcode;
@@ -50,7 +50,6 @@ int c2_fop_item_type_default_encode(struct c2_rpc_item_type *item_type,
 	C2_PRE(item != NULL);
 	C2_PRE(cur != NULL);
 
-	item_type = item->ri_type;
 	opcode = item_type->rit_opcode;
 	rc = c2_bufvec_uint32(cur, &opcode, C2_BUFVEC_ENCODE) ?:
 	     c2_fop_item_encdec(item, cur, C2_BUFVEC_ENCODE);
@@ -58,9 +57,9 @@ int c2_fop_item_type_default_encode(struct c2_rpc_item_type *item_type,
 	return rc;
 }
 
-int c2_fop_item_type_default_decode(struct c2_rpc_item_type  *item_type,
-				    struct c2_rpc_item      **item_out,
-				    struct c2_bufvec_cursor  *cur)
+int c2_fop_item_type_default_decode(const struct c2_rpc_item_type  *item_type,
+				    struct c2_rpc_item            **item_out,
+				    struct c2_bufvec_cursor        *cur)
 {
 	int			 rc;
 	struct c2_fop		*fop;

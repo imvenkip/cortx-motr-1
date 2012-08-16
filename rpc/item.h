@@ -26,6 +26,7 @@
 #define __COLIBRI_RPC_ITEM_H__
 
 #include "rpc/session_internal.h"
+#include "sm/sm.h"                 /* c2_sm */
 
 /**
    @addtogroup rpc_layer_core
@@ -45,23 +46,22 @@ enum c2_rpc_item_priority {
 };
 
 enum c2_rpc_item_state {
-	/** Newly allocated object is in uninitialized state */
-	RPC_ITEM_UNINITIALIZED = 0,
-	/** After successful initialization item enters to "in use" state */
-	RPC_ITEM_IN_USE = (1 << 0),
-	/** After item's added to the formation cache */
-	RPC_ITEM_SUBMITTED = (1 << 1),
-	/** After item's added to an RPC it enters added state */
-	RPC_ITEM_ADDED = (1 << 2),
-	/** After item's sent  it enters sent state */
-	RPC_ITEM_SENT = (1 << 3),
-	/** After item's sent is failed, it enters send failed state */
-	RPC_ITEM_SEND_FAILED = (1 << 4),
-	/** After item's replied  it enters replied state */
-	RPC_ITEM_REPLIED = (1 << 5),
-	/** After finalization item enters finalized state*/
-	RPC_ITEM_FINALIZED = (1 << 6)
+	C2_RPC_ITEM_UNINITIALISED,
+	C2_RPC_ITEM_INITIALISED,
+	C2_RPC_ITEM_WAITING_IN_STREAM,
+	C2_RPC_ITEM_ENQUEUED,
+	C2_RPC_ITEM_SENDING,
+	C2_RPC_ITEM_SENT,
+	C2_RPC_ITEM_WAITING_FOR_REPLY,
+	C2_RPC_ITEM_REPLIED,
+	C2_RPC_ITEM_ACCEPTED,
+	C2_RPC_ITEM_DELIVERED,
+	C2_RPC_ITEM_IGNORED,
+	C2_RPC_ITEM_TIMEDOUT,
+	C2_RPC_ITEM_FAILED,
+	C2_RPC_ITEM_NR_STATES,
 };
+
 /** Stages of item in slot */
 enum c2_rpc_item_stage {
 	/** the reply for the item was received and the receiver confirmed
@@ -72,6 +72,7 @@ enum c2_rpc_item_stage {
 	/** the item was sent (i.e., placed into an rpc) and no reply is
 	    received */
 	RPC_ITEM_STAGE_IN_PROGRESS,
+	RPC_ITEM_STAGE_UNKNOWN,
 	/** the item is not sent */
 	RPC_ITEM_STAGE_FUTURE,
 };
@@ -94,11 +95,10 @@ enum {
    @see c2_fop.
  */
 struct c2_rpc_item {
-	struct c2_chan			 ri_chan;
 	enum c2_rpc_item_priority	 ri_prio;
 	c2_time_t			 ri_deadline;
-
-	enum c2_rpc_item_state		 ri_state;
+	c2_time_t                        ri_op_timeout;
+	struct c2_sm                     ri_sm;
 	enum c2_rpc_item_stage		 ri_stage;
 	uint64_t			 ri_flags;
 	struct c2_rpc_session		*ri_session;
@@ -107,11 +107,12 @@ struct c2_rpc_item {
 	struct c2_list_link		 ri_unbound_link;
 	int32_t				 ri_error;
 	/** Pointer to the type object for this item */
-	struct c2_rpc_item_type		*ri_type;
+	const struct c2_rpc_item_type	*ri_type;
 	/** @deprecated Linkage to the forming list, needed for formation */
 	struct c2_list_link		 ri_rpcobject_linkage;
 	/** reply item */
 	struct c2_rpc_item		*ri_reply;
+	struct c2_sm_timeout             ri_timeout;
 	/** item operations */
 	const struct c2_rpc_item_ops	*ri_ops;
 	/** Time spent in rpc layer. */
@@ -166,7 +167,8 @@ struct c2_rpc_item_ops {
 	void (*rio_free)(struct c2_rpc_item *item);
 };
 
-void c2_rpc_item_init(struct c2_rpc_item *item);
+void c2_rpc_item_init(struct c2_rpc_item *item,
+		      const struct c2_rpc_item_type *itype);
 
 void c2_rpc_item_fini(struct c2_rpc_item *item);
 
@@ -176,8 +178,17 @@ bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item);
 
 bool c2_rpc_item_is_unsolicited(const struct c2_rpc_item *item);
 
+void c2_rpc_item_sm_init(struct c2_rpc_item *item, struct c2_sm_group *grp);
+void c2_rpc_item_sm_fini(struct c2_rpc_item *item);
+
+void c2_rpc_item_change_state(struct c2_rpc_item     *item,
+			      enum c2_rpc_item_state  state);
+
+void c2_rpc_item_failed(struct c2_rpc_item *item, int32_t rc);
 
 c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item);
+
+int c2_rpc_item_start_timer(struct c2_rpc_item *item);
 
 /**
    Returns true if item modifies file system state, false otherwise
@@ -188,6 +199,12 @@ bool c2_rpc_item_is_update(const struct c2_rpc_item *item);
    Returns true if item is request item. False if it is a reply item
  */
 bool c2_rpc_item_is_request(const struct c2_rpc_item *item);
+
+int c2_rpc_item_timedwait(struct c2_rpc_item *item,
+			  uint64_t            states,
+			  c2_time_t           timeout);
+
+void c2_rpc_item_free(struct c2_rpc_item *item);
 
 /** @todo: different callbacks called on events occured while processing
    in update stream */
@@ -212,13 +229,13 @@ struct c2_rpc_item_type_ops {
 	/**
 	   Serialise @item on provided xdr stream @xdrs
 	 */
-	int (*rito_encode)(struct c2_rpc_item_type *item_type,
+	int (*rito_encode)(const struct c2_rpc_item_type *item_type,
 		           struct c2_rpc_item *item,
 	                   struct c2_bufvec_cursor *cur);
 	/**
 	   Create in memory item from serialised representation of item
 	 */
-	int (*rito_decode)(struct c2_rpc_item_type *item_type,
+	int (*rito_decode)(const struct c2_rpc_item_type *item_type,
 			   struct c2_rpc_item **item,
 			   struct c2_bufvec_cursor *cur);
 

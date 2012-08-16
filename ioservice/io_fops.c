@@ -1409,13 +1409,19 @@ static void io_item_replied(struct c2_rpc_item *item)
 {
 	struct c2_fop		   *fop;
 	struct c2_fop		   *rfop;
-	struct c2_fop		   *bkpfop;
-	struct c2_rpc_item	   *ritem;
+	/* struct c2_fop           *bkpfop; */
+	/* struct c2_rpc_item	   *ritem;  */
 	struct c2_rpc_bulk	   *rbulk;
 	struct c2_fop_cob_rw_reply *reply;
 
 	C2_PRE(item != NULL);
 
+	if (item->ri_error != 0) {
+		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
+			    bulkclient_func_fail, "io fop failed.",
+			    item->ri_error);
+		return;
+	}
 	fop = c2_rpc_item_to_fop(item);
 	rbulk = c2_fop_to_rpcbulk(fop);
 	rfop = c2_rpc_item_to_fop(item->ri_reply);
@@ -1424,11 +1430,10 @@ static void io_item_replied(struct c2_rpc_item *item)
 	C2_ASSERT(ergo(reply->rwr_rc == 0,
 		       reply->rwr_count == rbulk->rb_bytes));
 
-	if (reply->rwr_rc != 0)
-		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
-			    bulkclient_func_fail, "io fop failed.",
-			    item->ri_error);
-
+#if 0
+	/** @todo Rearrange IO item merging code to work with new
+		  formation code.
+	 */
 	/*
 	 * Restores the contents of master coalesced fop from the first
 	 * rpc item in c2_rpc_item::ri_compound_items list. This item
@@ -1462,8 +1467,13 @@ static void io_item_replied(struct c2_rpc_item *item)
 		/* Notifies all member coalesced items of completion status. */
 		rbulk->rb_rc = item->ri_error;
 		c2_mutex_unlock(&rbulk->rb_mutex);
-		c2_chan_broadcast(&ritem->ri_chan);
+		/* XXX Use rpc_item_replied()
+		       But we'll fix it later because this code path will need
+		       significant changes because of new formation code.
+		 */
+		/* c2_chan_broadcast(&ritem->ri_chan); */
 	} c2_tl_endfor;
+#endif
 }
 
 static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
