@@ -67,7 +67,7 @@ static void bufvec_xor(struct c2_bufvec *dst, struct c2_bufvec *src,
                                  num_bytes);
                 c2_buf_init(&src_buf, c2_bufvec_cursor_addr(&s_cur), frag_size);
                 c2_buf_init(&dst_buf, c2_bufvec_cursor_addr(&d_cur), frag_size);
-                c2_parity_math_buffer_xor(&src_buf, &dst_buf);
+                c2_parity_math_buffer_xor(&dst_buf, &src_buf);
                 num_bytes -= frag_size;
         }
 }
