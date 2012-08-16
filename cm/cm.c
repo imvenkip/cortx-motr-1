@@ -32,50 +32,53 @@
 #include <reqh/reqh.h>
 
 /**
-   @page DLD-cm DLD of Copy Machine
+   @page CMDLD Copy Machine DLD
 
-   - @ref DLD-cm-ovw
-   - @ref DLD-cm-def
-   - @ref DLD-cm-req
-   - @ref DLD-cm-highlights
-   - @subpage DLD-cm-fspec
-   - @ref DLD-cm-lspec
-      - @ref DLD-cm-lspec-state
-      - @ref DLD-cm-lspec-thread
-   - @ref DLD-cm-conformance
-   - @ref DLD-cm-ut
+   - @ref CMDLD-ovw
+   - @ref CMDLD-def
+   - @ref CMDLD-req
+   - @ref CMDLD-highlights
+   - @subpage CMDLD-fspec
+   - @ref CMDLD-lspec
+      - @ref CMDLD-lspec-state
+      - @ref CMDLD-lspec-thread
+   - @ref CMDLD-conformance
+   - @ref CMDLD-ut
    - @ref DLD-O
-   - @ref DLD-cm-ref
+   - @ref CMDLD-ref
 
    <hr>
-   @section DLD-cm-ovw Overview
+   @section CMDLD-ovw Overview
    This document explains the detailed level design for generic part of the
    copy machine module.
 
    <hr>
-   @section DLD-cm-def Definitions
+   @section CMDLD-def Definitions
     Please refer to "Definitions" section in "HLD of copy machine and agents"
-    in @ref DLD-cm-ref
+    in @ref CMDLD-ref
 
    <hr>
-   @section DLD-cm-req Requirements
+   @section CMDLD-req Requirements
    The requirements below are grouped by various milestones.
 
   @subsection cm-setup-req CM-SETUP Requirements
+   - @b r.cm.type Different types of copy machines are registered and
+        implemented as colibri service types.
    - @b r.cm.generic.invoke All the copy machine generic routines should be
         invoked from copy machine service specific code.
    - @b r.cm.generic.specific Copy machine generic routines should accordingly
         invoke copy machine specific operations.
-   - @b r.cm.state.transition Copy machine state transition  should be performed
-        by cm generic routines only.
    - @b r.cm.synchronise Copy machine generic should provide synchronised access
         to members of cm.
-   - @b r.cm.start Generic api's should be available to initialise and start
-        any type of copy machine.
+   - @b r.cm.sm Copy machine is implemented as colibri state machine.
+   - @b r.cm.cp.fom  Copy machine copy packets are implemented as foms, and are
+        started by copy machine using request handler.
+   - @b r.cm.async The complete data restructuring process of copy machine
+        follows non-blocking processing model of colibri design.
    - @b r.cm.failure Copy machine should handle various types of failures.
 
    <hr>
-   @section DLD-cm-highlights Design Highlights
+   @section CMDLD-highlights Design Highlights
    - Copy machine is implemented as colibri state machine.
    - All the registered types of copy machines can be initialised
      using various interfaces and also from colibri setup.
@@ -85,11 +88,11 @@
      separately.
 
    <hr>
-   @section DLD-cm-lspec Logical Specification
+   @section CMDLD-lspec Logical Specification
     Please refer to "Logical Specification" section in "HLD of copy machine and
-    agents" in @ref DLD-cm-ref
+    agents" in @ref CMDLD-ref
 
-   @subsection DLD-cm-lspec-state State diagram
+   @subsection CMDLD-lspec-state Copy Machine State diagram
    @dot
    digraph copy_machine_states {
        size = "8,12"
@@ -118,7 +121,7 @@
    }
    @enddot
 
-   @subsection DLD-aggr_group-lspec-state State diagram
+   @subsection CMDLD-aggr_group-lspec-state Aggregation group State diagram
    @dot
    digraph aggregation_group_states {
        size = "8,12"
@@ -131,28 +134,31 @@
    }
    @enddot
 
-
-   @subsection DLD-cm-lspec-thread Threading and Concurrency Model
+   @subsection CMDLD-lspec-thread Threading and Concurrency Model
    - Copy machine is implemented as a state machine, and thus do
      not have its  own thread. It runs in the context of reqh threads.
    - Copy machine starts as a service and is registered with the request
      handler.
    - The cmtype_mutex is used to serialise the operation on cmtypes_list.
-   - The 
+   - Access to the  members of struct c2_cm is serialised using the
+     c2_cm::c2_sm_group::s_mutex.
 
    <hr>
-   @section DLD-cm-conformance Conformance
+   @section CMDLD-conformance Conformance
    This section briefly describes interfaces and structures conforming to above
    mentioned copy machine requirements.
+   - @b I.cm.generic All copy machine generic routines are invoked from copy
+        machine specific code.
    - @b I.cm.type.register Different types of copy machines are registered as
-      colibri service types.
+        colibri service types.
+   - @b I.cm.sm Copy machine is implemented as colibri state machine.
    - @b I.cm.start Generic api's are available to initialise and start
         any type of copy machine.
-      - @b I.cm.agent.create. Once a copy machine instance is intialised it
-        creates and starts copy machine type specific agents.
-   - @b I.cm.agent.fom  Copy machine agents are implemented as foms, and are
+   - @b I.cm.synchronise Copy machine provides synchronised access to the its
+        members.
+   - @b I.cm.cp.fom  Copy machine copy packets are implemented as foms, and are
         started by copy machine using request handler.
-   - @b I.cm.agent.async Every read-write (receive-send) by any agent follows
+   - @b I.cm.async The complete data restructuring process of copy machine
         follows non-blocking processing model of Colibri design.
    - @b I.cm.failure Copy machine handles various types of failures.
 
@@ -161,14 +167,15 @@
    - <b>cm_start_fail</b> Copy machine failed to start.
 
    <hr>
-   @section DLD-cm-ut Unit Tests
-   - Start copy machine and SNS cm service. Check all the states of fom and copy
-     machine such that they align to the state diagram.
-   - Check if multiple agents get started. Check their configuration parameters.
-   - Stop copy machine and check cleanup.
+   @section CMDLD-ut Unit Tests
+
+   @subsection CMSETUP-ut CM SETUP Unit Tests
+     - Start copy machine and SNS cm service. Check all the states of
+	copy machine such that they align to the state diagram.
+     - Stop copy machine and check cleanup.
 
    <hr>
-    @section DLD-cm-st System Tests
+    @section CMDLD-st System Tests
     NA
 
    <hr>
@@ -176,10 +183,10 @@
    NA
 
    <hr>
-   @section DLD-cm-ref References
+   @section CMDLD-ref References
    Following are the references to the documents from which the design is
    derived,
-
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/1FX-TTaM5VttwoG4wd0Q4-AbyVUi3XL_Oc6cnC4lxLB0/edit">Copy Machine redesign.</a>
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1ZlkjayQoXVm-prMx
    Tkzxb1XncB6HU19I19kwrV-8eQc/edit?hl=en_US">HLD of copy machine and agents.</a
    >
@@ -188,7 +195,7 @@
  */
 
 /**
-   @addtogroup cm
+   @addtogroup CM
    @{
 */
 
@@ -364,8 +371,7 @@ bool c2_cm_invariant(struct c2_cm *cm)
 		cm != NULL && cm->cm_ops != NULL && cm->cm_type != NULL &&
 		/* Copy machine error code checks */
 		C2_IN(cm->cm_mach.sm_rc, (C2_CM_SUCCESS, C2_CM_ERR_START,
-		C2_CM_ERR_CONF, C2_CM_ERR_OP, C2_CM_ERR_AGENT)) &&
-		/* Agent list invariant checks */
+		C2_CM_ERR_CONF, C2_CM_ERR_OP)) &&
 		ergo(C2_IN(state, (C2_CMS_IDLE, C2_CMS_READY, C2_CMS_ACTIVE,
 		     C2_CMS_DONE, C2_CMS_STOP)) || (state == C2_CMS_FAIL &&
 		     C2_IN(cm->cm_mach.sm_rc, (C2_CM_ERR_CONF, C2_CM_ERR_OP))),

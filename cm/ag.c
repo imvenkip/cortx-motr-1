@@ -26,6 +26,11 @@
 
 #include "cm/ag.h"
 
+/**
+   @addtogroup CMAG
+   @{
+ */
+
 enum {
 	/** Hex value of "ag_link". */
 	AGGR_GROUP_LINK_MAGIC = 0x61675f6c696e6b,
@@ -39,6 +44,7 @@ C2_TL_DESCR_DEFINE(aggr_grps, "aggr_grp_list_descr", ,
 
 C2_TL_DEFINE(aggr_grps, , struct c2_cm_aggr_group);
 
+/** @} CMAG */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

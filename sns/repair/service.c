@@ -34,7 +34,8 @@
 #include "lib/finject.h"
 
 /**
-  @addtogroup snsrepair
+  @defgroup SNSRepairSVC SNS Repair service
+  @ingroup SNSRepairCM
 
   @{
 */
@@ -50,8 +51,6 @@ const struct c2_addb_ctx_type sns_repair_addb_ctx_type = {
 C2_ADDB_EV_DEFINE(svc_init_fail, "svc_init_fail",
                   C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 C2_ADDB_EV_DEFINE(service_start_fail, "service_start_fail",
-                  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
-C2_ADDB_EV_DEFINE(agents_create_fail, "agents_create_fail",
                   C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 C2_ADDB_EV_DEFINE(config_fetch_fail, "config_fetch_fail",
                   C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
@@ -157,7 +156,7 @@ static void service_fini(struct c2_reqh_service *service)
 	C2_LEAVE();
 }
 
-/** @} snsrepair */
+/** @} SNSRepairSVC */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

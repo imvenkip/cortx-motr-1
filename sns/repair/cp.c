@@ -17,12 +17,16 @@
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
  * Original creation date: 08/06/2012
  */
-
-#include "lib/errno.h"
-#include "lib/memory.h"
+#include "lib/memory.h" /* c2_free() */
 
 #include "sns/repair/cp.h"
 #include "sns/repair/cm.h"
+
+/**
+  @addtogroup SNSRepairCP
+
+  @{
+*/
 
 static int repair_cp_init(struct c2_cm_cp *cp)
 {
@@ -91,6 +95,7 @@ const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
 	.co_complete = &repair_cp_complete
 };
 
+/** @} SNSRepairCP */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

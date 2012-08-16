@@ -28,7 +28,7 @@
 #include "sns/repair/cp.h"
 
 /**
-  @addtogroup snsrepair
+  @addtogroup SNSRepairAG
 
   @{
 */
@@ -55,7 +55,7 @@ static const struct c2_cm_aggr_group_ops group_ops = {
 };
 
 
-/** @} snsrepair */
+/** @} SNSRepairAG */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
