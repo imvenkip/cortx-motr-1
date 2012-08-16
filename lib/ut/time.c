@@ -30,14 +30,12 @@ void test_time(void)
 
 	c2_time_set(&t1, 1, 0);
 	c2_time_set(&t2, 2, 0);
-	C2_UT_ASSERT(c2_time_after(t2, t1));
-	C2_UT_ASSERT(!c2_time_after(t1, t2));
-	C2_UT_ASSERT(c2_time_after(C2_TIME_NEVER, t1));
-	C2_UT_ASSERT(!c2_time_after(t1, C2_TIME_NEVER));
+	C2_UT_ASSERT(t2 > t1);
+	C2_UT_ASSERT(C2_TIME_NEVER > t1);
+	C2_UT_ASSERT(t2 < C2_TIME_NEVER);
 
 	c2_time_set(&t1, 1234, 0);
-	C2_UT_ASSERT(c2_time_after(C2_TIME_NEVER, t1));
-	C2_UT_ASSERT(!c2_time_after(t1, C2_TIME_NEVER));
+	C2_UT_ASSERT(C2_TIME_NEVER > t1);
 
 	t1 = c2_time_now();
 	t2 = t1;
@@ -47,10 +45,10 @@ void test_time(void)
 	C2_UT_ASSERT(t1 == 1234987654321);
 
 	t2 = t1;
-	C2_UT_ASSERT(c2_time_after_eq(t2, t1));
+	C2_UT_ASSERT(t2 == t1);
 
 	c2_time_set(&t2, 1235, 987654322);
-	C2_UT_ASSERT(c2_time_after(t2, t1));
+	C2_UT_ASSERT(t2 > t1);
 
 	t3 = c2_time_sub(t2, t1);
 	C2_UT_ASSERT(t3 == 1000000001);
@@ -76,7 +74,6 @@ void test_time(void)
 	t2 = c2_time_sub(C2_TIME_NEVER, t1);
 	C2_UT_ASSERT(t2 == C2_TIME_NEVER);
 }
-
 
 /*
  *  Local variables:

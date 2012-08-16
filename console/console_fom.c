@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,14 +14,10 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Dipak Dudhabhate <Dipak_Dudhabhate@xyratex.com>
+ * Original author       : Dipak Dudhabhate <Dipak_Dudhabhate@xyratex.com>
  * Original creation date: 08/04/2011
- */
-/*
- * Failure fops should be defined by not yet existing "failure" module. For the
- * time being, it makes sense to put them in cm/ or console/. ioservice is not
- * directly responsible for handling failures, it is intersected by copy-machine
- * (cm).
+ * Revision              : Manish Honap <Manish_Honap@xyratex.com>
+ * Revision date         : 07/31/2012
  */
 
 #ifdef HAVE_CONFIG_H
@@ -30,10 +26,11 @@
 
 #include "lib/errno.h"		/* EINVAL */
 #include "lib/memory.h"		/* C2_ALLOC_PTR */
+#include "fop/fom_generic.h"    /* C2_FOPH_FAILURE */
 #include "console/console_fom.h"
 #include "console/console_fop.h"
 #include "console/console_mesg.h"
-#include "console/console_u.h"
+#include "console/console_xc.h"
 
 /**
    @addtogroup console
@@ -51,8 +48,6 @@ static void default_fom_fini(struct c2_fom *fom)
 {
 	c2_fom_fini(fom);
 	c2_free(fom);
-
-        return;
 }
 
 static int cons_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
@@ -91,7 +86,7 @@ static int cons_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
         return 0;
 }
 
-static int cons_fom_state(struct c2_fom *fom)
+static int cons_fom_tick(struct c2_fom *fom)
 {
         struct c2_cons_fop_reply *reply_fop;
         struct c2_rpc_item       *reply_item;
@@ -103,8 +98,10 @@ static int cons_fom_state(struct c2_fom *fom)
 
 	/* Reply fop */
         reply_fop = c2_fop_data(rfop);
-	if (reply_fop == NULL)
-		return -EINVAL;
+	if (reply_fop == NULL) {
+		fom->fo_phase = C2_FOPH_FAILURE;
+		return C2_FSO_AGAIN;
+	}
 
 	/* Request item */
         req_item = &fop->f_item;
@@ -115,17 +112,18 @@ static int cons_fom_state(struct c2_fom *fom)
 
 	/* Reply item */
 	reply_item = &rfop->f_item;
-	fom->fo_phase = C2_FOPH_FINISH;
-        return c2_rpc_reply_post(req_item, reply_item);
+	fom->fo_phase = C2_FOM_PHASE_FINISH;
+        c2_rpc_reply_post(req_item, reply_item);
+	return C2_FSO_WAIT;
 }
 
 const struct c2_fom_ops c2_cons_fom_device_ops = {
-        .fo_state	  = cons_fom_state,
+        .fo_tick	  = cons_fom_tick,
 	.fo_fini	  = default_fom_fini,
 	.fo_home_locality = home_locality,
 };
 
-static const struct c2_fom_type_ops c2_cons_fom_device_type_ops = {
+const struct c2_fom_type_ops c2_cons_fom_device_type_ops = {
         .fto_create = cons_fop_fom_create
 };
 

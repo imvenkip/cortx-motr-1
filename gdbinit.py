@@ -315,4 +315,4 @@ C2BufvecPrint()
 C2IndexvecPrint()
 
 print "Loading gdb commands for Colibri..."
-print "NOTE: You may also want to load core/gdbinit"
+print "NOTE: If you've not already loaded, you may also want to load core/gdbinit"

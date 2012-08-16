@@ -47,6 +47,7 @@ dirs  = addb                                                                  \
         net/lnet/ut                                                           \
         net/ut                                                                \
         pool                                                                  \
+	reqh                                                                  \
         rpc                                                                   \
         rpc/ut                                                                \
         sm                                                                    \
@@ -59,14 +60,14 @@ dirs  = addb                                                                  \
 
 #       Source Listing
 
-#       NOTE: Currently due to the way `.ff' files are processed, a `*_k.c' file
-#       searches for its corresponding `*_k.h' in the same directory; So only
+#       NOTE: Currently due to the way `.ff' files are processed, a `*_xc.c' file
+#       searches for its corresponding `*_xc.h' in the same directory; So only
 #       headers that need to be included in following listing are those of
-#       type `*_k.h'; rest of the headers will be assumed relative to `core/'
+#       type `*_xc.h'; rest of the headers will be assumed relative to `core/'
 
 addb_SOURCES                    := addb.c addb_fop.c
-addb_addbff_SOURCES             := addb_k.c
-addb_addbff_HEADERS             := addb_k.h
+addb_addbff_SOURCES             := addb.c
+addb_addbff_HEADERS             := addb.h
 
 addb_linux_kernel_SOURCES       := addb_console.c
 
@@ -89,33 +90,35 @@ fid_SOURCES                     := fid.c
 
 fol_SOURCES                     := fol.c
 
-fop_SOURCES                     := fop.c fom.c fop_format.c fop_iterator.c    \
-                                   fop_base.c fop_item_type.c
+fop_SOURCES                     := fop.c fom.c fop_item_type.c fom_long_lock.c \
+				   fom_generic.c fom_generic_xc.c
 
-ioservice_SOURCES               := io_fops.c io_fops_k.c
-ioservice_HEADERS               := io_fops_k.h
+fop_HEADERS                     := fom_generic_xc.h
+
+ioservice_SOURCES               := io_fops.c io_fops_xc.c
+ioservice_HEADERS               := io_fops_xc.h
 
 ioservice_ut_SOURCES            := bulkio_client.c
 
 layout_SOURCES                  := layout.c pdclust.c
 
-lib_SOURCES                     := bitstring.c vec.c list.c queue.c refs.c    \
-                                   time.c bitmap.c chan.c misc.c buf.c cond.c \
+lib_SOURCES                     := bitstring.c vec.c list.c queue.c refs.c     \
+                                   time.c bitmap.c chan.c misc.c buf.c cond.c  \
                                    thread.c tlist.c bob.c trace.c finject.c
 
-lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c  \
-                                   kthread.c semaphore.c processor.c kvec.c   \
+lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c   \
+                                   kthread.c semaphore.c processor.c kvec.c    \
                                    ktrace.c finject_init.c ut.c main.c
 
-lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c    \
-                                   mutex.c queue.c refs.c tlist.c time.c      \
-                                   vec.c zerovec.c thread.c bob.c trace.c     \
+lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c     \
+                                   mutex.c queue.c refs.c tlist.c time.c       \
+                                   vec.c zerovec.c thread.c bob.c trace.c      \
                                    memory.c finject.c
 
-net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c    \
-                                   tm.c net_otw_types_k.c tm_provision.c
+net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c     \
+                                   tm.c net_otw_types.c tm_provision.c
 
-net_HEADERS                     := net_otw_types_k.h
+net_HEADERS                     := net_otw_types.h
 
 net_bulk_emulation_ut_SOURCES   := bulk_mem_ut.c
 
@@ -126,29 +129,30 @@ net_ut_HEADERS                  := tm_provision_ut.c
 
 pool_SOURCES                    := pool.c
 
-rpc_SOURCES                     := formation.c rpc2.c service.c    \
-                                   session.c session_foms.c conn.c slot.c     \
-                                   session_utils.c session_fops.c             \
-                                   rpc_onwire.c session_k.c rpclib.c          \
-                                   formation2.c frmops.c packet.c item.c      \
+reqh_SOURCES                    := reqh.c reqh_service.c
+
+rpc_SOURCES                     := rpc2.c service.c                            \
+                                   session.c session_foms.c conn.c slot.c      \
+                                   session_utils.c session_fops.c              \
+                                   rpc_onwire.c session_xc.c rpclib.c          \
+                                   formation2.c frmops.c packet.c item.c       \
                                    bulk.c rpc_machine.c
 
-rpc_HEADERS                     := session_k.h
+rpc_HEADERS                     := session_xc.h
 
 rpc_ut_SOURCES                  := service.c formation2.c
 
 sm_SOURCES                      := sm.c
 sm_ut_SOURCES                   := sm.c
 
-sns_SOURCES                     := ls_solve.c matvec.c parity_math.c          \
-                                   parity_ops.c
+sns_SOURCES                     := ls_solve.c matvec.c parity_math.c           \
+				   parity_ops.c
 
 stob_SOURCES                    := stob.c stob_id.c
 
 ut_SOURCES                      := rpc.c
 
-xcode_SOURCES                   := bufvec_xcode.c bufvec_xcode_fop.c          \
-                                   bufvec_xcode_size.c xcode.c
+xcode_SOURCES                   := bufvec_xcode.c xcode.c
 
 xcode_ut_SOURCES                := xcode.c
 

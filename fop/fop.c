@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,47 +17,72 @@
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
  * Original creation date: 05/19/2010
  */
-#include "lib/cdefs.h"  /* C2_EXPORTED */
+#include "lib/cdefs.h" /* C2_EXPORTED */
 #include "lib/memory.h"
-#include "lib/misc.h"   /* C2_SET0 */
-#include "lib/list.h"
-#include "lib/mutex.h"
-#include "lib/vec.h"
-#include "fop/fop.h"
-#include "fop/fop_iterator.h"
+#include "lib/misc.h" /* C2_SET0 */
 #include "lib/errno.h"
+#include "fop/fop.h"
+#include "fop/fom_long_lock.h" /* c2_fom_ll_global_init */
 
 /**
    @addtogroup fop
    @{
  */
 
-extern struct c2_addb_ctx_type c2_fop_addb_ctx;
+static const struct c2_fol_rec_type_ops c2_fop_fol_default_ops;
 
-int c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
+const struct c2_addb_ctx_type c2_fop_addb_ctx = {
+	.act_name = "fop"
+};
+
+static const struct c2_addb_ctx_type c2_fop_type_addb_ctx = {
+	.act_name = "fop-type"
+};
+
+static const struct c2_addb_loc c2_fop_addb_loc = {
+	.al_name = "fop"
+};
+
+static struct c2_mutex fop_types_lock;
+static struct c2_tl    fop_types_list;
+
+C2_TL_DESCR_DEFINE(ft, "fop types", static, struct c2_fop_type,
+		   ft_linkage,	ft_magix,
+		   0xba11ab1ea5111dae /* bailable asilidae */,
+		   0xd15ea5e0fed1f1ce /* disease of edifice */);
+
+C2_TL_DEFINE(ft, static, struct c2_fop_type);
+
+static size_t fop_data_size(const struct c2_fop *fop)
 {
-	c2_bcount_t nob;
+	return fop->f_type->ft_xt->xct_sizeof;
+}
+
+int c2_fop_data_alloc(struct c2_fop *fop)
+{
+	size_t nob;
+
+	C2_PRE(fop->f_data.fd_data == NULL && fop->f_type != NULL);
+
+	nob = fop_data_size(fop);
+	fop->f_data.fd_data = c2_alloc(nob);
+
+	return fop->f_data.fd_data == NULL ? -ENOMEM : 0;
+}
+
+void c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
+{
 
 	C2_PRE(fop != NULL && fopt != NULL);
 
 	fop->f_type = fopt;
-
-	nob = fopt->ft_top->fft_layout->fm_sizeof;
-
-	if (data == NULL) {
-		data = c2_alloc(nob);
-		if (data == NULL)
-			return -ENOMEM;
-	}
-	fop->f_data.fd_data = data;
 	c2_addb_ctx_init(&fop->f_addb, &c2_fop_addb_ctx,
 			 &fopt->ft_addb);
 	c2_list_link_init(&fop->f_link);
-
 	c2_rpc_item_init(&fop->f_item);
 	fop->f_item.ri_type = &fop->f_type->ft_rpc_item_type;
-
-	return 0;
+	fop->f_item.ri_ops = &c2_fop_default_item_ops;
+	fop->f_data.fd_data = data;
 }
 
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
@@ -67,24 +92,32 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 
 	C2_ALLOC_PTR(fop);
 	if (fop != NULL) {
-		err = c2_fop_init(fop, fopt, data);
-		if (err != 0) {
-			c2_free(fop);
-			fop = NULL;
-		} else
-			fop->f_item.ri_ops = &c2_fop_default_item_ops;
+		c2_fop_init(fop, fopt, data);
+		if (data == NULL) {
+			err = c2_fop_data_alloc(fop);
+			if (err != 0) {
+				c2_free(fop);
+				return NULL;
+			}
+		}
 	}
+
 	return fop;
 }
 C2_EXPORTED(c2_fop_alloc);
 
+/**
+   @todo Current implementation just frees the top level object;
+   instead traverse and free entire tree of objects.
+ */
 void c2_fop_fini(struct c2_fop *fop)
 {
 	C2_ASSERT(fop != NULL);
 
 	c2_rpc_item_fini(&fop->f_item);
 	c2_addb_ctx_fini(&fop->f_addb);
-	c2_free(fop->f_data.fd_data);
+	if (fop->f_data.fd_data != NULL)
+		c2_free(fop->f_data.fd_data);
 	c2_list_link_fini(&fop->f_link);
 }
 
@@ -99,9 +132,105 @@ void c2_fop_free(struct c2_fop *fop)
 void *c2_fop_data(struct c2_fop *fop)
 {
 	return fop->f_data.fd_data;
-
 }
 C2_EXPORTED(c2_fop_data);
+
+void c2_fop_type_fini(struct c2_fop_type *fopt)
+{
+	c2_fol_rec_type_unregister(&fopt->ft_rec_type);
+	c2_mutex_lock(&fop_types_lock);
+	c2_rpc_item_type_deregister(&fopt->ft_rpc_item_type);
+	ft_tlink_del_fini(fopt);
+	fopt->ft_magix = 0;
+	c2_mutex_unlock(&fop_types_lock);
+	c2_addb_ctx_fini(&fopt->ft_addb);
+}
+C2_EXPORTED(c2_fop_type_fini);
+
+int c2_fop_type_init(struct c2_fop_type *ft,
+		     const struct __c2_fop_type_init_args *args)
+{
+	struct c2_fol_rec_type  *fol_type;
+	struct c2_rpc_item_type *rpc_type;
+
+	C2_PRE(ft->ft_magix == 0);
+
+	fol_type = &ft->ft_rec_type;
+	rpc_type = &ft->ft_rpc_item_type;
+
+	ft->ft_name         = args->name;
+	ft->ft_xt           = args->xt;
+	ft->ft_ops          = args->fop_ops;
+	fol_type->rt_name   = args->name;
+	fol_type->rt_opcode = args->opcode;
+	fol_type->rt_ops    = args->fol_ops ?:
+		&c2_fop_fol_default_ops;
+
+	ft->ft_fom_type.ft_ops = args->fom_ops;
+	rpc_type->rit_opcode   = args->opcode;
+	rpc_type->rit_flags    = args->rpc_flags;
+	rpc_type->rit_ops      = args->rpc_ops ?:
+		&c2_rpc_fop_default_item_type_ops;
+
+	c2_rpc_item_type_register(&ft->ft_rpc_item_type);
+	c2_fol_rec_type_register(&ft->ft_rec_type);
+	c2_addb_ctx_init(&ft->ft_addb, &c2_fop_type_addb_ctx,
+			 &c2_addb_global_ctx);
+	c2_mutex_lock(&fop_types_lock);
+	ft_tlink_init_at(ft, &fop_types_list);
+	c2_mutex_unlock(&fop_types_lock);
+	return 0;
+}
+C2_EXPORTED(c2_fop_type_init);
+
+int c2_fop_type_init_nr(const struct c2_fop_type_batch *batch)
+{
+	int result = 0;
+
+	for (; batch->tb_type != NULL && result == 0; ++batch)
+		result = c2_fop_type_init(batch->tb_type, &batch->tb_args);
+	if (result != 0)
+		c2_fop_type_fini_nr(batch);
+	return result;
+}
+
+void c2_fop_type_fini_nr(const struct c2_fop_type_batch *batch)
+{
+	for (; batch->tb_type != NULL; ++batch) {
+		if (batch->tb_type->ft_magix != 0)
+			c2_fop_type_fini(batch->tb_type);
+	}
+}
+
+struct c2_fop_type *c2_fop_type_next(struct c2_fop_type *ftype)
+{
+	struct c2_fop_type *rtype;
+
+	c2_mutex_lock(&fop_types_lock);
+	if (ftype == NULL) {
+		/* Returns head of fop_types_list */
+		rtype = ft_tlist_head(&fop_types_list);
+	} else {
+		/* Returns Next from fop_types_list */
+		rtype = ft_tlist_next(&fop_types_list, ftype);
+	}
+	c2_mutex_unlock(&fop_types_lock);
+	return rtype;
+}
+
+int c2_fops_init(void)
+{
+	ft_tlist_init(&fop_types_list);
+	c2_mutex_init(&fop_types_lock);
+	c2_fom_ll_global_init();
+	return 0;
+}
+
+void c2_fops_fini(void)
+{
+	c2_mutex_fini(&fop_types_lock);
+	ft_tlist_fini(&fop_types_list);
+}
 
 /*
  * fop-fol interaction.
@@ -118,6 +247,12 @@ int fop_fol_type_init(struct c2_fop_type *fopt)
 
 void fop_fol_type_fini(struct c2_fop_type *fopt)
 {
+}
+
+int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
+		       struct c2_db_tx *tx)
+{
+	return 0;
 }
 
 #else /* !__KERNEL__ */
@@ -172,7 +307,7 @@ static size_t fol_pack_size(struct c2_fol_rec_desc *desc)
 {
 	struct c2_fop *fop = desc->rd_type_private;
 
-	return fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+	return fop_data_size(fop);
 }
 
 static void fol_pack(struct c2_fol_rec_desc *desc, void *buf)

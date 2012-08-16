@@ -25,7 +25,7 @@
 #include "lib/trace.h"           /* C2_LOG and C2_ENTRY */
 #include "fop/fop.h"             /* c2_fop_alloc() */
 #include "ioservice/io_fops.h"   /* c2_fop_cob_create_fopt */
-#include "ioservice/io_fops_k.h" /* c2_fop_cob_create */
+#include "ioservice/io_fops_xc.h" /* c2_fop_cob_create */
 #include "rpc/rpclib.h"          /* c2_rpc_client_call */
 
 extern const struct c2_rpc_item_ops cob_req_rpc_item_ops;

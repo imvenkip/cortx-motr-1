@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -25,15 +25,14 @@
  * (cm).
  */
 
+#pragma once
+
 #ifndef __COLIBRI_CONSOLE_FOM_H__
 #define __COLIBRI_CONSOLE_FOM_H__
 
 #include "fop/fop.h" /* c2_fop_ */
-#include "fop/fom.h" /* c2_fom_ */
 
-extern const struct c2_fom_ops c2_cons_fom_disk_ops;
 extern const struct c2_fom_ops c2_cons_fom_device_ops;
-extern struct c2_fom_type c2_cons_fom_disk_type;
 extern struct c2_fom_type c2_cons_fom_device_type;
 
 /* __COLIBRI_CONSOLE_FOM_H__ */

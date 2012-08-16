@@ -20,6 +20,8 @@
  * Original creation date: 04/01/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_NET_NET_H__
 #define __COLIBRI_NET_NET_H__
 
@@ -38,12 +40,7 @@
 #include "lib/thread.h"
 #include "lib/vec.h"
 #include "addb/addb.h"
-
-#ifdef __KERNEL__
-#include "net/net_otw_types_k.h"
-#else
-#include "net/net_otw_types_u.h"
-#endif
+#include "net/net_otw_types.h"
 
 /**
    @defgroup net Networking

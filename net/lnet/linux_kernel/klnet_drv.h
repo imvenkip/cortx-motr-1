@@ -18,6 +18,8 @@
  * Original creation date: 02/08/2012
  */
 
+#pragma once
+
 #ifndef __KLNET_DRV_H__
 #define __KLNET_DRV_H__
 

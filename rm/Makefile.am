@@ -1,14 +1,15 @@
-rm_u.h rm_u.c: rm.ff \
-		  $(top_builddir)/fop/rt/libc2rt.la \
-		  $(top_builddir)/fop/fop2c
-	$(top_builddir)/fop/fop2c -uk $<
-
-noinst_LTLIBRARIES       = libcolibri-rm.la
-libcolibri_rm_la_SOURCES = rm_u.h rm_u.c rm_fops.c rm_fops.h \
-			   rm.h rm.c rm_foms.c rm_foms.h
 INCLUDES                 = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 
-EXTRA_DIST       = rm.ff
+RM_FOPS                  = rm_xc.h rm_xc.c
 
-clean-local:
-	rm -fr rm_[uk].[hc]
+noinst_LTLIBRARIES       = libcolibri-rm.la
+libcolibri_rm_la_SOURCES = $(RM_FOPS) rm_fops.c rm_fops.h \
+			   rm.h rm.c rm_foms.c rm_foms.h
+
+$(RM_FOPS): rm_xc.ff                    \
+	$(top_builddir)/xcode/ff2c/ff2c
+	$(top_builddir)/xcode/ff2c/ff2c $<
+
+EXTRA_DIST       = rm_xc.ff
+
+MOSTLYCLEANFILES = $(RM_FOPS)

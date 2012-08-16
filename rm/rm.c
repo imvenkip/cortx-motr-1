@@ -18,6 +18,8 @@
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
  * Original creation date: 04/28/2011
  */
+#include <stdio.h>      /* fprintf */
+
 #include "lib/memory.h" /* C2_ALLOC_PTR */
 #include "lib/misc.h"   /* C2_SET_ARR0 */
 #include "lib/errno.h"  /* ETIMEDOUT */

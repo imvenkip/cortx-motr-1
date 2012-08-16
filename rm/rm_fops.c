@@ -20,18 +20,13 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "fop/fop_format_def.h"
-#include "fop/fop_item_type.h"
-#include "fop/fop_iterator.h"
 #include "rm_fops.h"
-#include "xcode/bufvec_xcode.h"
 #include "rpc/item.h"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpc2.h"
 #include "rm/rm.h"
 #include "rm/rm_internal.h"
-
-#include "rm/rm.ff"
+#include "rm/rm_xc.h"
 
 /*
  * Data structures.
@@ -51,23 +46,9 @@ static void borrow_reply(struct c2_rpc_item *);
 static void outreq_free(struct c2_rpc_item *);
 static void revoke_reply(struct c2_rpc_item *);
 
-/**
- * FOP operation vector for right borrow.
- */
-static const struct c2_fop_type_ops rm_borrow_fop_ops = {
-	.fto_size_get = c2_xcode_fop_size_get,
-};
-
 const struct c2_rpc_item_ops rm_borrow_rpc_ops = {
 	.rio_replied = borrow_reply,
 	.rio_free = outreq_free,
-};
-
-/**
- * FOP operation vector for right revoke.
- */
-static const struct c2_fop_type_ops rm_revoke_fop_ops = {
-	.fto_size_get = c2_xcode_fop_size_get,
 };
 
 const struct c2_rpc_item_ops rm_revoke_rpc_ops = {
@@ -75,38 +56,24 @@ const struct c2_rpc_item_ops rm_revoke_rpc_ops = {
 	.rio_free = outreq_free,
 };
 
-static struct c2_fop_type *fops[] = {
+struct c2_fop_type *fops[] = {
 	&c2_fop_rm_borrow_fopt,
 	&c2_fop_rm_borrow_rep_fopt,
 	&c2_fop_rm_revoke_fopt,
 	&c2_fop_rm_revoke_rep_fopt,
 };
 
-static struct c2_fop_type_format *rm_fmts[] = {
-	&c2_fop_rm_cookie_tfmt,
-	&c2_fop_rm_opaque_tfmt,
-	&c2_fop_rm_owner_tfmt,
-	&c2_fop_rm_loan_tfmt,
-	&c2_fop_rm_right_tfmt,
-};
-
 /**
  * FOP definitions for resource-right borrow request and reply.
  */
-C2_FOP_TYPE_DECLARE(c2_fop_rm_borrow, "Right Borrow", &rm_borrow_fop_ops,
-		    C2_RM_FOP_BORROW, C2_RPC_ITEM_TYPE_REQUEST);
-C2_FOP_TYPE_DECLARE(c2_fop_rm_borrow_rep, "Right Borrow Reply",
-		    &rm_borrow_fop_ops, C2_RM_FOP_BORROW_REPLY,
-		    C2_RPC_ITEM_TYPE_REPLY);
+struct c2_fop_type c2_fop_rm_borrow_fopt;
+struct c2_fop_type c2_fop_rm_borrow_rep_fopt;
 
 /**
  * FOP definitions for resource-right revoke request and reply.
  */
-C2_FOP_TYPE_DECLARE(c2_fop_rm_revoke, "Right Revoke", &rm_revoke_fop_ops,
-		    C2_RM_FOP_REVOKE, C2_RPC_ITEM_TYPE_REQUEST);
-C2_FOP_TYPE_DECLARE(c2_fop_rm_revoke_rep, "Right Revoke Reply",
-		    &rm_revoke_fop_ops, C2_RM_FOP_REVOKE_REPLY,
-		    C2_RPC_ITEM_TYPE_REPLY);
+struct c2_fop_type c2_fop_rm_revoke_fopt;
+struct c2_fop_type c2_fop_rm_revoke_rep_fopt;
 
 /*
  * Allocate and initialise remote request tracking structure.
@@ -375,8 +342,11 @@ static void revoke_reply(struct c2_rpc_item *item)
 
 void c2_rm_fop_fini(void)
 {
-	c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
-	c2_fop_type_format_fini_nr(rm_fmts, ARRAY_SIZE(rm_fmts));
+	c2_fop_type_fini(&c2_fop_rm_revoke_rep_fopt);
+	c2_fop_type_fini(&c2_fop_rm_revoke_fopt);
+	c2_fop_type_fini(&c2_fop_rm_borrow_rep_fopt);
+	c2_fop_type_fini(&c2_fop_rm_borrow_fopt);
+	c2_xc_rm_xc_fini();
 }
 C2_EXPORTED(c2_rm_fop_fini);
 
@@ -390,18 +360,27 @@ C2_EXPORTED(c2_rm_fop_fini);
  */
 int c2_rm_fop_init(void)
 {
-	int rc;
-
-	/* Parse RM defined types */
-	rc = c2_fop_type_format_parse_nr(rm_fmts, ARRAY_SIZE(rm_fmts));
-	if (rc == 0) {
-		rc = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
-		if (rc != 0)
-			c2_fop_type_format_fini_nr(rm_fmts,
-						   ARRAY_SIZE(rm_fmts));
-	}
-
-	return rc;
+	c2_xc_rm_xc_init();
+	return  C2_FOP_TYPE_INIT(&c2_fop_rm_borrow_fopt,
+				 .name      = "Right Borrow",
+				 .opcode    = C2_RM_FOP_BORROW,
+				 .xt        = c2_fop_rm_borrow_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST) ?:
+		C2_FOP_TYPE_INIT(&c2_fop_rm_borrow_rep_fopt,
+				 .name      = "Right Borrow Reply",
+				 .opcode    = C2_RM_FOP_BORROW_REPLY,
+				 .xt        = c2_fop_rm_borrow_rep_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY) ?:
+		C2_FOP_TYPE_INIT(&c2_fop_rm_revoke_fopt,
+				 .name      = "Right Revoke",
+				 .opcode    = C2_RM_FOP_REVOKE,
+				 .xt        = c2_fop_rm_revoke_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST) ?:
+		C2_FOP_TYPE_INIT(&c2_fop_rm_revoke_rep_fopt,
+				 .name      = "Right Revoke Reply",
+				 .opcode    = C2_RM_FOP_REVOKE_REPLY,
+				 .xt        = c2_fop_rm_revoke_rep_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY);
 }
 C2_EXPORTED(c2_rm_fop_init);
 

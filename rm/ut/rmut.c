@@ -24,6 +24,7 @@
 #include "lib/ub.h"
 #include "lib/memory.h"
 #include "lib/thread.h"
+#include "rpc/rpc_opcodes.h"
 
 #include "rm/rm.h"
 #include "rm/rm_internal.h"

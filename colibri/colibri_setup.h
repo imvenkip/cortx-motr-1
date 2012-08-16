@@ -18,9 +18,12 @@
  *                  Anand Vidwansa <anand_vidwansa@xyratex.com>
  * Original creation date: 05/08/2011
  */
+#pragma once
 
 #ifndef __COLIBRI_COLIBRI_COLIBRI_SETUP_H__
 #define __COLIBRI_COLIBRI_COLIBRI_SETUP_H__
+
+#include <stdio.h> /* FILE */
 
 #include "lib/tlist.h"
 #include "reqh/reqh_service.h"
@@ -134,7 +137,7 @@ struct c2_colibri {
 	/**
 	   Size of cc_xprts array.
 	 */
-	int                       cc_xprts_nr;
+	size_t                    cc_xprts_nr;
 
         /**
            List of network domain per colibri context.
@@ -170,12 +173,12 @@ struct c2_colibri {
 	 * @see c2_net_transfer_mc:ntm_recv_queue_length
 	 * Default is set to C2_NET_TM_RECV_QUEUE_DEF_LEN.
 	 */
-	uint32_t                 cc_recv_queue_min_length;
+	size_t                   cc_recv_queue_min_length;
 
 	/** Maximum RPC message size. */
-	uint32_t                  cc_max_rpc_msg_size;
+	size_t                   cc_max_rpc_msg_size;
 
-	struct c2_addb_ctx        cc_addb;
+	struct c2_addb_ctx       cc_addb;
 };
 
 /**
@@ -187,7 +190,7 @@ struct c2_colibri {
    @param out File descriptor to which output is written
  */
 int c2_cs_init(struct c2_colibri *cs_colibri, struct c2_net_xprt **xprts,
-	       int xprts_nr, FILE *out);
+	       size_t xprts_nr, FILE *out);
 
 /**
    Finalises colibri context.

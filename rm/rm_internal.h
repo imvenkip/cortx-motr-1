@@ -17,6 +17,8 @@
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
  * Original creation date: 09/15/2011
  */
+#pragma once
+
 #ifndef __COLIBRI_RM_RM_INTERNAL_H__
 #define __COLIBRI_RM_RM_INTERNAL_H__
 

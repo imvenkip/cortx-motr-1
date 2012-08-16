@@ -75,7 +75,7 @@ static int nlx_tm_timeout_buffers(struct c2_net_transfer_mc *tm, c2_time_t now)
 	for (i = 0, qt = C2_NET_QT_MSG_RECV; qt < C2_NET_QT_NR; ++qt) {
 		c2_tl_for(c2_net_tm, &tm->ntm_q[qt], nb) {
 			/* nb_timeout set to C2_TIME_NEVER if disabled */
-			if (c2_time_after(nb->nb_timeout, now))
+			if (nb->nb_timeout > now)
 				continue;
 			nb->nb_flags |= C2_NET_BUF_TIMED_OUT;
 			nlx_xo_buf_del(nb); /* cancel if possible; !dequeued */
@@ -190,9 +190,9 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 		else
 			timeout = c2_time_from_now(
 					    C2_NET_LNET_EVT_LONG_WAIT_SECS, 0);
-		if (c2_time_after(timeout, next_stat_time))
+		if (timeout > next_stat_time)
 			timeout = next_stat_time;
-		if (c2_time_after(timeout, next_buffer_timeout))
+		if (timeout > next_buffer_timeout)
 			timeout = next_buffer_timeout;
 
 		if (tm->ntm_bev_auto_deliver) {
@@ -225,13 +225,13 @@ static void nlx_tm_ev_worker(struct c2_net_transfer_mc *tm)
 		c2_mutex_lock(&tm->ntm_mutex);
 		next_stat_time = c2_time_add(last_stat_time,
 					     tp->xtm_stat_interval);
-		if (c2_time_after_eq(now, next_stat_time)) {
+		if (now >= next_stat_time) {
 			nlx_tm_stats_report(tm);
 			last_stat_time = now;
 			next_stat_time = c2_time_add(last_stat_time,
 						     tp->xtm_stat_interval);
 		}
-		if (c2_time_after_eq(now, next_buffer_timeout)) {
+		if (now >= next_buffer_timeout) {
 			NLX_tm_timeout_buffers(tm, now);
 			next_buffer_timeout = c2_time_add(now,
 							  buffer_timeout_tick);

@@ -148,8 +148,9 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 					C2T1FS_DEFAULT_NR_PARITY_UNITS;
 	csb->csb_unit_size       = mntopts->mo_unit_size ?:
 					C2T1FS_DEFAULT_STRIPE_UNIT_SIZE;
-	pool_width               = mntopts->mo_pool_width ?:
-					C2T1FS_DEFAULT_POOL_WIDTH;
+	pool_width = mntopts->mo_pool_width ?:
+			csb->csb_nr_data_units + 2 * csb->csb_nr_parity_units;
+
 	/* See "Containers and component objects" section in c2t1fs.h for more
 	   information on following line */
 	csb->csb_nr_containers   = pool_width + 1;

@@ -20,6 +20,8 @@
 
 /* Declarations of functions that are private to rpc-layer */
 
+#pragma once
+
 #ifndef _COLIBRI_RPC_SESSION_INT_H
 #define _COLIBRI_RPC_SESSION_INT_H
 
