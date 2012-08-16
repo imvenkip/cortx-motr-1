@@ -279,9 +279,8 @@ int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
 void c2_cm_fini(struct c2_cm *cm);
 
 /**
- * Invokes copy machine service specific start routine, creates service
- * specific instance containing c2_reqh_service, invokes service type specific
- * implementation of service alloc and init () operation.
+ * Starts the copy machine data restructuring process on receiving the "POST"
+ * fop. Internally invokes copy machine specific start routine.
  * In case of SNS repair, enough copy packets are created to populate the
  * sliding window by the copy machine specific service start routine.
  */
