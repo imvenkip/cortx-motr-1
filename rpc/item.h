@@ -25,6 +25,7 @@
 #ifndef __COLIBRI_RPC_ITEM_H__
 #define __COLIBRI_RPC_ITEM_H__
 
+#include "lib/misc.h"              /* C2_IN() */
 #include "rpc/session_internal.h"
 #include "sm/sm.h"                 /* c2_sm */
 
@@ -197,6 +198,13 @@ bool c2_rpc_item_is_update(const struct c2_rpc_item *item);
    Returns true if item is request item. False if it is a reply item
  */
 bool c2_rpc_item_is_request(const struct c2_rpc_item *item);
+
+__attribute__((unused))
+static bool item_is_active(const struct c2_rpc_item *item)
+{
+	return C2_IN(item->ri_stage, (RPC_ITEM_STAGE_IN_PROGRESS,
+				      RPC_ITEM_STAGE_FUTURE));
+}
 
 int c2_rpc_item_timedwait(struct c2_rpc_item *item,
 			  uint64_t            states,

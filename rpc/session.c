@@ -82,6 +82,7 @@ static int nr_active_items_count(const struct c2_rpc_session *session);
 static int slot_table_alloc_and_init(struct c2_rpc_session *session);
 static void __session_fini(struct c2_rpc_session *session);
 static void session_failed(struct c2_rpc_session *session, int32_t error);
+static void session_idle_x_busy(struct c2_rpc_session *session);
 
 static const struct c2_rpc_slot_ops snd_slot_ops = {
 	.so_slot_idle = snd_slot_idle,
@@ -210,15 +211,13 @@ static int nr_active_items_count(const struct c2_rpc_session *session)
 				       struct c2_rpc_item,
 				       ri_slot_refs[0].sr_link) {
 
-			if (C2_IN(item->ri_stage, (RPC_ITEM_STAGE_IN_PROGRESS,
-						   RPC_ITEM_STAGE_FUTURE))) {
+			if (item_is_active(item))
 				count++;
-			}
-
 		}
 	}
 	return count;
 }
+
 
 int c2_rpc_session_init(struct c2_rpc_session *session,
 			struct c2_rpc_conn    *conn,
@@ -833,42 +832,58 @@ c2_rpc_session_get_max_item_size(const struct c2_rpc_session *session)
 
 void c2_rpc_session_hold_busy(struct c2_rpc_session *session)
 {
-	struct c2_rpc_machine *machine;
-
-	machine = session->s_conn->c_rpc_machine;
-	C2_PRE(c2_rpc_machine_is_locked(machine));
-	C2_ASSERT(c2_rpc_session_invariant(session));
-	C2_PRE(C2_IN(session->s_state, (C2_RPC_SESSION_IDLE,
-					C2_RPC_SESSION_BUSY)));
-
 	++session->s_hold_cnt;
-	if (session->s_state == C2_RPC_SESSION_IDLE) {
-		session->s_state = C2_RPC_SESSION_BUSY;
-		c2_cond_broadcast(&session->s_state_changed,
-				  c2_rpc_machine_mutex(machine));
-	}
-	C2_ASSERT(c2_rpc_session_invariant(session));
-	C2_POST(session->s_state == C2_RPC_SESSION_BUSY);
+	session_idle_x_busy(session);
 }
 
 void c2_rpc_session_release(struct c2_rpc_session *session)
+{
+	C2_PRE(session->s_state == C2_RPC_SESSION_BUSY);
+	C2_PRE(session->s_hold_cnt > 0);
+
+	--session->s_hold_cnt;
+	session_idle_x_busy(session);
+}
+
+void c2_rpc_session_inc_nr_active_items(struct c2_rpc_session *session)
+{
+	++session->s_nr_active_items;
+	session_idle_x_busy(session);
+}
+
+void c2_rpc_session_dec_nr_active_items(struct c2_rpc_session *session)
+{
+	--session->s_nr_active_items;
+	session_idle_x_busy(session);
+}
+
+static void session_idle_x_busy(struct c2_rpc_session *session)
 {
 	struct c2_rpc_machine *machine;
 
 	machine = session->s_conn->c_rpc_machine;
 	C2_PRE(c2_rpc_machine_is_locked(machine));
-	C2_ASSERT(c2_rpc_session_invariant(session));
-	C2_PRE(session->s_state == C2_RPC_SESSION_BUSY);
-	C2_PRE(session->s_hold_cnt > 0);
+	C2_PRE(C2_IN(session->s_state, (C2_RPC_SESSION_IDLE,
+					C2_RPC_SESSION_BUSY)));
 
-	--session->s_hold_cnt;
-	if (c2_rpc_session_is_idle(session)) {
+	if (session->s_state == C2_RPC_SESSION_IDLE &&
+	    !c2_rpc_session_is_idle(session)) {
+
+		session->s_state = C2_RPC_SESSION_BUSY;
+		c2_cond_broadcast(&session->s_state_changed,
+				  c2_rpc_machine_mutex(machine));
+
+	} else if (session->s_state == C2_RPC_SESSION_BUSY &&
+		   c2_rpc_session_is_idle(session)) {
+
 		session->s_state = C2_RPC_SESSION_IDLE;
 		c2_cond_broadcast(&session->s_state_changed,
 				  c2_rpc_machine_mutex(machine));
 	}
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
+	C2_POST(C2_IN(session->s_state, (C2_RPC_SESSION_IDLE,
+					 C2_RPC_SESSION_BUSY)));
 }
 
 int c2_rpc_session_cob_lookup(struct c2_cob   *conn_cob,
@@ -1162,19 +1177,8 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 
 void c2_rpc_session_item_timedout(struct c2_rpc_item *item)
 {
-	struct c2_rpc_session *session;
-
-	session = item->ri_session;
-	C2_ASSERT(session != NULL);
-
 	item->ri_stage = RPC_ITEM_STAGE_UNKNOWN;
-	C2_CNT_DEC(session->s_nr_active_items);
-	if (c2_rpc_session_is_idle(session)) {
-		session->s_state = C2_RPC_SESSION_IDLE;
-		c2_cond_broadcast(&session->s_state_changed,
-			c2_rpc_machine_mutex(session->s_conn->c_rpc_machine));
-	}
-	C2_ASSERT(c2_rpc_session_invariant(session));
+	c2_rpc_session_dec_nr_active_items(item->ri_session);
 }
 
 /**

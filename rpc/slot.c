@@ -54,6 +54,11 @@ void frm_item_reply_received(struct c2_rpc_item *reply_item,
 
 void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
                       uint32_t rc);
+void c2_rpc_slot_process_reply(struct c2_rpc_item *req);
+void c2_rpc_item_set_stage(struct c2_rpc_item     *item,
+			   enum c2_rpc_item_stage  stage);
+void c2_rpc_slot_postpone_reply_processing(struct c2_rpc_item *req,
+					   struct c2_rpc_item *reply);
 
 static struct c2_rpc_machine *
 slot_get_rpc_machine(const struct c2_rpc_slot *slot)
@@ -419,19 +424,8 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 	sref->sr_item     = item;
 	c2_list_link_init(&sref->sr_link);
 	c2_list_add_tail(&slot->sl_item_list, &sref->sr_link);
-	if (session != NULL) {
-		session->s_nr_active_items++;
-		if (session->s_state == C2_RPC_SESSION_IDLE) {
-			/*
-			 * XXX When formation adds an item to
-			 * c2_rpc_session::s_unbound_items it should
-			 * set session->s_state as BUSY
-			 */
-			session->s_state = C2_RPC_SESSION_BUSY;
-			c2_cond_broadcast(&session->s_state_changed,
-					  c2_rpc_machine_mutex(machine));
-		}
-	}
+	if (session != NULL)
+		c2_rpc_session_inc_nr_active_items(session);
 
 	__slot_balance(slot, allow_events);
 }
@@ -541,8 +535,8 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 {
 	struct c2_rpc_item     *req;
 	struct c2_rpc_slot_ref *sref;
-	struct c2_rpc_session  *session;
 	struct c2_rpc_machine  *machine;
+	uint64_t                req_state;
 
 	C2_PRE(slot != NULL && reply != NULL && req_out != NULL);
 
@@ -585,57 +579,92 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		 * Such reply must be ignored
 		 */
 		;
-	} else if (req->ri_stage == RPC_ITEM_STAGE_PAST_COMMITTED ||
-		   req->ri_stage == RPC_ITEM_STAGE_PAST_VOLATILE) {
+	} else if (C2_IN(req->ri_stage, (RPC_ITEM_STAGE_PAST_COMMITTED,
+					 RPC_ITEM_STAGE_PAST_VOLATILE))) {
 		/*
 		 * Got a reply to an item for which the reply was already
 		 * received in the past. Compare with the original reply.
 		 * XXX find out how to compare two rpc items to be same
 		 */
 		/* Do nothing */;
+	} else if (req->ri_stage == RPC_ITEM_STAGE_UNKNOWN) {
+		/*
+		 * The reply is valid but too late. The req has already
+		 * timedout. Return without setting *req_out.
+		 */
 	} else {
 		/*
 		 * This is valid reply case.
 		 */
-		C2_ASSERT(C2_IN(req->ri_stage, (RPC_ITEM_STAGE_IN_PROGRESS,
-						RPC_ITEM_STAGE_UNKNOWN)));
+		C2_ASSERT(req->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS);
 		C2_ASSERT(slot->sl_in_flight > 0);
 
-		if (req->ri_stage == RPC_ITEM_STAGE_UNKNOWN) {
-			/* This is a delayed reply. The req has already
-			   timedout. Return without setting *req_out */
-			return;
+		req_state = req->ri_sm.sm_state;
+		if (C2_IN(req_state,(C2_RPC_ITEM_ACCEPTED,
+				     C2_RPC_ITEM_WAITING_FOR_REPLY))) {
+			req->ri_reply = reply;
+			c2_rpc_slot_process_reply(req);
+			*req_out = req;
+		} else if (req_state == C2_RPC_ITEM_SENDING) {
+			/* buffer sent callback is still pending */
+			c2_rpc_slot_postpone_reply_processing(req, reply);
+		} else {
+			/* XXX Remove this assert */
+			C2_ASSERT(false);
 		}
-
-		session = slot->sl_session;
-		C2_ASSERT(session != NULL);
-
-		C2_ASSERT(c2_rpc_session_invariant(session));
-		C2_ASSERT(session->s_state == C2_RPC_SESSION_BUSY);
-		C2_ASSERT(session->s_nr_active_items > 0);
-
-		req->ri_stage = RPC_ITEM_STAGE_PAST_VOLATILE;
-		req->ri_reply = reply;
-		*req_out      = req;
-		slot->sl_in_flight--;
-
-		session->s_nr_active_items--;
-		slot_balance(slot);
-
-		if (c2_rpc_session_is_idle(session)) {
-			session->s_state = C2_RPC_SESSION_IDLE;
-			c2_cond_broadcast(&session->s_state_changed,
-					  c2_rpc_machine_mutex(machine));
-		}
-		C2_ASSERT(c2_rpc_session_invariant(session));
-
-		/*
-		 * On receiver, ->so_reply_consume(req, reply) will hand over
-		 * @reply to formation, to send it back to sender.
-		 * see: rcv_reply_consume(), snd_reply_consume()
-		 */
-		slot->sl_ops->so_reply_consume(req, reply);
 	}
+}
+
+void c2_rpc_slot_process_reply(struct c2_rpc_item *req)
+{
+	struct c2_rpc_slot    *slot;
+
+	C2_PRE(req != NULL && req->ri_reply != NULL);
+
+	c2_rpc_item_set_stage(req, RPC_ITEM_STAGE_PAST_VOLATILE);
+	slot = req->ri_slot_refs[0].sr_slot;
+	slot->sl_in_flight--;
+	slot_balance(slot);
+	/*
+	 * On receiver, ->so_reply_consume(req, reply) will hand over
+	 * @reply to formation, to send it back to sender.
+	 * see: rcv_reply_consume(), snd_reply_consume()
+	 */
+	slot->sl_ops->so_reply_consume(req, req->ri_reply);
+}
+
+void c2_rpc_item_set_stage(struct c2_rpc_item     *item,
+			   enum c2_rpc_item_stage  stage)
+{
+	struct c2_rpc_machine *machine;
+	struct c2_rpc_session *session;
+	struct c2_rpc_slot    *slot;
+	bool                   item_was_active;
+
+	session = item->ri_session;
+	machine = session->s_conn->c_rpc_machine;
+	slot    = item->ri_slot_refs[0].sr_slot;
+
+	C2_ASSERT(c2_rpc_session_invariant(session));
+	item_was_active = item_is_active(item);
+	C2_ASSERT(ergo(item_was_active,
+		       session->s_state == C2_RPC_SESSION_BUSY));
+
+	item->ri_stage = stage;
+
+	if (item_was_active && !item_is_active(item))
+		c2_rpc_session_dec_nr_active_items(session);
+
+	if (!item_was_active && item_is_active(item))
+		c2_rpc_session_inc_nr_active_items(session);
+
+	C2_ASSERT(c2_rpc_session_invariant(session));
+}
+
+void c2_rpc_slot_postpone_reply_processing(struct c2_rpc_item *req,
+					   struct c2_rpc_item *reply)
+{
+
 }
 
 void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
