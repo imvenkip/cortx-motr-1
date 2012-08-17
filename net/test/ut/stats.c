@@ -278,7 +278,7 @@ void c2_net_test_timestamp_ut(void)
 
 	C2_UT_ASSERT(c2_time_after_eq(ts.ntt_time, before));
 	C2_UT_ASSERT(c2_time_after_eq(after, ts.ntt_time));
-	C2_UT_ASSERT(ts.ntt_magic = C2_NET_TEST_TIMESTAMP_MAGIC);
+	C2_UT_ASSERT(ts.ntt_magic == C2_NET_TEST_TIMESTAMP_MAGIC);
 
 	serialized_len = c2_net_test_timestamp_serialize(C2_NET_TEST_SERIALIZE,
 							 &ts, &bv, 0);
