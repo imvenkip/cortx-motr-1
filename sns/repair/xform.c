@@ -23,6 +23,7 @@
 #endif
 
 #include "lib/bob.h"
+#include "cm/cp.h"
 #include "sns/repair/ag.h"
 #include "sns/parity_math.h"
 
@@ -89,29 +90,29 @@ int repair_cp_xform(struct c2_cm_cp *cp)
 
         ag = cp->c_ag;
         sns_ag = bob_of(ag, struct c2_sns_repair_ag, sag_base, &aggr_grps_bob);
-	res_cp = sns_ag->sag_ccp;
+	res_cp = sns_ag->sag_cp;
         if (res_cp == NULL) {
-                sns_ag->sag_local_cp_nr = ag->cag_ops->cago_local_cp_nr(ag);
+                ag->cag_cp_nr = ag->cag_ops->cago_local_cp_nr(ag);
                 /*
                  * If there is only one copy packet in the aggregation group,
                  * call the next phase of the copy packet fom.
                  */
-                if (sns_ag->sag_local_cp_nr == 1)
+                if (ag->cag_cp_nr == 1)
                         return cp->c_ops->co_phase(cp);
 
                 /*
                  * If this is the first copy packet for this aggregation group,
                  * (with more copy packets from same aggregation group to be
                  * yet transformed), store it's pointer in
-                 * c2_sns_repair_ag::sag_ccp. This copy packet will be used as
+                 * c2_sns_repair_ag::sag_cp. This copy packet will be used as
                  * a resultant copy packet for transformation.
                  */
-		sns_ag->sag_ccp = cp;
+		sns_ag->sag_cp = cp;
 		/*
 		 * Value of collected copy packets is zero at this stage, hence
 		 * incrementing it will work fine.
 		 */
-                C2_CNT_INC(sns_ag->sag_collected_cp_nr);
+                C2_CNT_INC(ag->cag_transformed_cp_nr);
 
 		/*
 		 * Put this copy packet to wait queue of request handler till
@@ -127,7 +128,7 @@ int repair_cp_xform(struct c2_cm_cp *cp)
 		 * manipulation like growing or shrinking the buffers.
 		 */
                 bufvec_xor(res_cp->c_data, cp->c_data, cp_bufvec_size);
-                C2_CNT_INC(sns_ag->sag_collected_cp_nr);
+                C2_CNT_INC(ag->cag_transformed_cp_nr);
                 /*
                  * Once transformation is complete, mark the copy
                  * packet's fom to CCP_FINI since it is not needed anymore.
@@ -140,7 +141,7 @@ int repair_cp_xform(struct c2_cm_cp *cp)
                  * move the resultant copy packet's fom from waiting to ready
                  * queue.
                  */
-                if(sns_ag->sag_local_cp_nr == sns_ag->sag_collected_cp_nr) {
+                if(ag->cag_cp_nr == ag->cag_transformed_cp_nr) {
                         res_cp->c_ops->co_phase(res_cp);
 			c2_fom_wakeup(&res_cp->c_fom);
 		}
@@ -151,7 +152,7 @@ int repair_cp_xform(struct c2_cm_cp *cp)
 /** @} snsrepair */
 /*
  *  Local variables:
- *  c-indentation-style: "K&R"
+ *  c-indentation-style: "K&Rns_ag->sag_ag.cag_transformed_cp_nr
  *  c-basic-offset: 8
  *  tab-width: 8
  *  fill-column: 80

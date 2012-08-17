@@ -24,8 +24,13 @@
 #define __COLIBRI_SNS_REPAIR_CP_H__
 
 #include "lib/ext.h"
-
 #include "cm/cp.h"
+
+/**
+   @defgroup SNSRepairCP SNS Repair Copy packet
+   @ingroup SNSRepairCM
+
+ */
 
 /**
  * In addition to c2_cm_cp_phase, these phases can be used. Transition between
@@ -48,7 +53,7 @@ enum c2_sns_repair_phase {
 
 struct c2_sns_repair_cp {
 	/** Base class */
-	struct c2_cm_cp		 rc_cp;
+	struct c2_cm_cp		 rc_base;
 
 	/** SNS copy packet specific phases.*/
 	enum c2_sns_repair_phase rc_phase;
@@ -74,6 +79,7 @@ extern const struct c2_cm_cp_ops c2_sns_repair_cp_ops;
 
 int repair_cp_xform(struct c2_cm_cp *cp);
 
+/** @} SNSRepairCP */
 #endif /* __COLIBRI_SNS_REPAIR_CP_H__ */
 /*
  *  Local variables:

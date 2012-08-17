@@ -63,8 +63,6 @@ static void free_bv()
 }
 
 static const struct c2_cm_aggr_group_ops group_ops = {
-        .cago_cp_alloc    = NULL,
-        .cago_get         = NULL,
         .cago_completed   = NULL,
         .cago_local_cp_nr = local_cp_nr,
 };

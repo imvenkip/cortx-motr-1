@@ -34,7 +34,8 @@
 #include "lib/finject.h"
 
 /**
-  @addtogroup snsrepair
+  @defgroup SNSRepairSVC SNS Repair service
+  @ingroup SNSRepairCM
 
   @{
 */
@@ -50,8 +51,6 @@ const struct c2_addb_ctx_type sns_repair_addb_ctx_type = {
 C2_ADDB_EV_DEFINE(svc_init_fail, "svc_init_fail",
                   C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 C2_ADDB_EV_DEFINE(service_start_fail, "service_start_fail",
-                  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
-C2_ADDB_EV_DEFINE(agents_create_fail, "agents_create_fail",
                   C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 C2_ADDB_EV_DEFINE(config_fetch_fail, "config_fetch_fail",
                   C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
@@ -81,6 +80,11 @@ C2_CM_TYPE_DECLARE(sns_repair, &service_type_ops, "sns_repair");
 extern const struct c2_cm_ops cm_ops;
 extern const struct c2_cm_sw_ops sw_ops;
 
+/**
+ * Allocates and initialises SNS Repair copy machine.
+ * This allocates struct c2_sns_repair_cm and invokes c2_cm_init() to initialise
+ * c2_sns_repair_cm::rc_base.
+ */
 static int service_allocate(struct c2_reqh_service_type *stype,
 			    struct c2_reqh_service **service)
 {
@@ -94,7 +98,7 @@ static int service_allocate(struct c2_reqh_service_type *stype,
 
 	C2_ALLOC_PTR(rmach);
 	if (rmach != NULL) {
-		cm = &rmach->rc_cm;
+		cm = &rmach->rc_base;
 		cm_type = container_of(stype, struct c2_cm_type, ct_stype);
 		*service = &cm->cm_service;
 		(*service)->rs_type = stype;
@@ -116,16 +120,19 @@ static int service_allocate(struct c2_reqh_service_type *stype,
 	return rc;
 }
 
+/**
+ * Registers SNS Repair specific FOP types.
+ */
 static int service_start(struct c2_reqh_service *service)
 {
-	int           rc;
+	int           rc = 0;
 	struct c2_cm *cm;
 
 	C2_ENTRY();
 	C2_PRE(service != NULL);
 
+        /* XXX Register SNS Repair FOP types */
 	cm = container_of(service, struct c2_cm, cm_service);
-	rc = c2_cm_start(cm);
 	if (rc != 0)
 		C2_ADDB_ADD(&cm->cm_addb, &sns_repair_addb_loc,
 			    service_start_fail,
@@ -135,29 +142,38 @@ static int service_start(struct c2_reqh_service *service)
 	return rc;
 }
 
+/**
+ * Destroys SNS Repair specific FOP types and stops the copy machine.
+ */
 static void service_stop(struct c2_reqh_service *service)
 {
 	C2_ENTRY();
 	C2_PRE(service != NULL);
+
+        /* XXX Destroy SNS Repair FOP types. */
+
 	C2_LEAVE();
 }
 
+/**
+ * Destorys SNS Repair copy machine.
+ */
 static void service_fini(struct c2_reqh_service *service)
 {
-	struct c2_cm            *mach;
-	struct c2_sns_repair_cm *smach;
+	struct c2_cm            *cm;
+	struct c2_sns_repair_cm *sns_cm;
 
 	C2_ENTRY();
 	C2_PRE(service != NULL);
 
-	mach = container_of(service, struct c2_cm, cm_service);
-	c2_cm_fini(mach);
-	smach = container_of(mach, struct c2_sns_repair_cm, rc_cm);
-	c2_free(smach);
+	cm = container_of(service, struct c2_cm, cm_service);
+	c2_cm_fini(cm);
+	sns_cm = cm2sns(cm);
+	c2_free(sns_cm);
 	C2_LEAVE();
 }
 
-/** @} snsrepair */
+/** @} SNSRepairSVC */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

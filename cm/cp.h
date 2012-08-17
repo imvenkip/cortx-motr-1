@@ -24,33 +24,32 @@
 #ifndef __COLIBRI_CM_CP_H__
 #define __COLIBRI_CM_CP_H__
 
-#include "lib/mutex.h"
-#include "lib/tlist.h"
 #include "lib/vec.h"
 
 #include "fop/fom.h"
+#include "rpc/bulk.h"
 
 /**
- * @page DLD-cp-fspec Copy Packet Functional Specification
+ * @page CPDLD-fspec Copy Packet Functional Specification
  *
- * - @ref DLD-cp-fspec-ds
- * - @ref DLD-cp-fspec-sub
+ * - @ref CPDLD-fspec-ds
+ * - @ref CPDLD-fspec-sub
  * - @ref cp "Copy Packet Functional Specification" <!-- Note link -->
  *
- * @section DLD-cp-fspec-ds Data Structures
+ * @section CPDLD-fspec-ds Data Structures
  *	- c2_cm_cp  : Generic copy packet.
  *	- c2_cm_ops : Copy packet operations.
- * @section DLD-cp-fspec-sub Subroutines
+ * @section CPDLD-fspec-sub Subroutines
  *	- c2_cm_cp_init()    : Initialises copy packet members and calls
  *			       c_ops->init() to initialise specific data.
  *	- c2_cm_cp_fini()    : Finalises copy packet members and calls
  *			       c_ops->fini() internal to finalise specific data.
  *	- c2_cm_cp_enqueue() : Post copy packet FOM for execution.
  *
- * @subsection DLD-cp-fspec-sub-acc Accessors and Invariants
+ * @subsection CPDLD-fspec-sub-acc Accessors and Invariants
  *	- c2_cm_cp_invaraint()
  *
- * @subsection DLD-fspec-sub-opi Operational Interfaces
+ * @subsection CPDLD-fspec-sub-opi Operational Interfaces
  *	- cp_fom_fini()
  *	- cp_fom_locality()
  *	- cp_fom_state()
@@ -59,10 +58,11 @@
  */
 
 /**
- * @defgroup cp Copy Packet
+ * @defgroup CP Copy Packet
+ * @ingroup CM
  *
  * @see The @ref cp "Copy packet" its
- * @ref DLD-cp-fspec "Copy Packet Functional Specification"
+ * @ref CPDLD-fspec "Copy Packet Functional Specification"
  *
  * @{
  */
@@ -97,7 +97,7 @@ enum c2_cm_cp_priority {
  * C2_FOPH_FINISH which has special meaning in fom.c.
  */
 enum c2_cm_cp_phase {
-	/** Phase specific initialisation.*/
+	/** Copy packet specific initialisation.*/
 	CCP_INIT = C2_FOPH_NR + 1,
 
 	/** Read and fill up the packet.*/
@@ -129,20 +129,20 @@ struct c2_cm_cp {
 	/** Copy packet operations */
 	const struct c2_cm_cp_ops *c_ops;
 
-	/** Buffer representing the copy packet data */
-	struct c2_bufvec          *c_data;
-
-        /** Array of starting extent indices. */
-        c2_bindex_t               *c_index;
+	/** Set and used in case of read/write.*/
+	struct c2_stob_id	   c_id;
 
         /** Aggregation group to which this copy packet belongs.*/
         struct c2_cm_aggr_group   *c_ag;
 
-	/** Set and used in case of read/write.*/
-	struct c2_stob_id	   c_id;
+        /** Array of starting extent indices. */
+        c2_bindex_t               *c_index;
+
+	/** Buffer representing the copy packet data */
+	struct c2_bufvec          *c_data;
 
 	/** Set and used in case of network send/recv.*/
-	struct c2_rpc_bulk	  *c_bulk;
+	struct c2_rpc_bulk	   c_bulk;
 };
 
 /**
@@ -192,8 +192,8 @@ struct c2_cm_cp_ops {
  * @pre cp->c_fom.fo_phase == CCP_INIT
  * @post cp->c_fom.fo_phase == C2_FOPH_INIT
  */
-void c2_cm_cp_init(struct c2_cm_cp *cp, struct c2_cm_aggr_group *ag,
-		   const struct c2_cm_cp_ops *ops, struct c2_bufvec *buf);
+void c2_cm_cp_init(struct c2_cm_cp *cp, const struct c2_cm_cp_ops *ops,
+		   struct c2_bufvec *buf);
 
 /**
  * Finalises generic copy packet.
@@ -201,6 +201,8 @@ void c2_cm_cp_init(struct c2_cm_cp *cp, struct c2_cm_aggr_group *ag,
  * @pre cp->c_fom.fo_phase == C2_FOPH_FINISH
  */
 void c2_cm_cp_fini(struct c2_cm_cp *cp);
+
+int c2_cm_cp_create(struct c2_cm *cm);
 
 /** Submit copy packet for processing.*/
 void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp);

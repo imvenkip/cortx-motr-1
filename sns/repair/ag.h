@@ -26,24 +26,22 @@
 #include "cm/ag.h"
 
 /**
- * @addtogroup snsrepair
- * @{
- */
+   @defgroup SNSRepairAG SNS Repair aggregation group
+   @ingroup SNSRepairCM
+
+   @{
+*/
 
 /**
  * SNS repair specific aggregation group.
  */
 struct c2_sns_repair_ag {
 	struct c2_cm_aggr_group  sag_base;
-	/** Resultant collected copy packet. */
-	struct c2_cm_cp         *sag_ccp;
-        /** Total number of copy packets that are collected. */
-        uint64_t                 sag_collected_cp_nr;
-        /** Total number of local copy packets */
-        uint64_t                 sag_local_cp_nr;
+	/** Transformed copy packet created by transformation function. */
+	struct c2_cm_cp         *sag_cp;
 };
 
-/** @} snsrepair */
+/** @} SNSRepairAG */
 
 #endif /* __COLIBRI_SNS_REPAIR_AG_H__ */
 

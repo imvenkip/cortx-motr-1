@@ -23,103 +23,89 @@
 #define __COLIBRI_CM_CM_H__
 
 /**
-   @page DLD-cm-fspec Copy Machine Functional Specification
+   @page CMDLD-fspec Copy Machine Functional Specification
 
-   - @ref DLD-cm-fspec-ds
-   - @ref DLD-cm-fspec-if
-   - @ref DLD-cm-fspec-sub-cons
-   - @ref DLD-cm-fspec-sub-acc
-   - @ref DLD-cm-fspec-sub-opi
-   - @ref DLD-cm-fspec-usecases
+   - @ref CMDLD-fspec-ds
+   - @ref CMDLD-fspec-if
+   - @ref CMDLD-fspec-sub-cons
+   - @ref CMDLD-fspec-sub-acc
+   - @ref CMDLD-fspec-sub-opi
+   - @ref CMDLD-fspec-usecases
 
-   @section DLD-cm-fspec Functional Specification
+   @section CMDLD-fspec Functional Specification
 
-   @subsection DLD-cm-fspec-ds Data Structures
+   @subsection CMDLD-fspec-ds Data Structures
 
    - The c2_cm represents a copy machine replica.
-   The c2_cm_ops provides copy machine specific routines for
+   - The c2_cm_ops provides copy machine specific routines for
 	- Starting a copy machine.
 	- Handling a copy machine specific operation.
 	- Handling copy machine operation completion.
 	- Aborting a copy machine operation.
-	- Handling a copy machine failure or an agent failure.
+	- Handling a copy machine failure.
 	- Stopping a copy machine.
-	- The c2_cm_cb provides notification call-backs to be invoked at
-          different granularities like
-	- Updates to the sliding window.
-	- Agent failure.
-   - The c2_cm_aggr_group represents an aggregation group.
-   - The c2_cm_aggr_group_ops defines the operations supported on an aggregation
-   group.
+   - The c2_cm_type represents a copy machine type that a copy machine is an
+     instance of.
    - The c2_cm_stats keeps copy machine operation progress data.
-   - The c2_cm_sw is used for co-operation among agents.
 
-   @subsection DLD-cm-fspec-if Interfaces
-   Every copy machine type implements its own set of routines for
-   type-specific operations, although there may exist few operations common
-   to all the copy machine types.
+   @subsection CMDLD-fspec-if Interfaces
+   Every copy machine type implements its own set of routines for type-specific
+   operations, although there may exist few operations common to all the copy
+   machine types.
 
-   @subsection DLD-cm-fspec-sub-cons Constructors and Destructors
+   @subsection CMDLD-fspec-sub-cons Constructors and Destructors
    This section describes the sub-routines which act as constructors and
    destructors for various copy machine related data structures.
 
    - c2_cm_init()                    Initialises a copy machine.
    - c2_cm_fini()                    Finalises a copy machine.
-   - c2_cm_start()                   Starts a copy machine and corresponding
-				     agents.
+   - c2_cm_start()                   Starts copy machine operation.
    - C2_CM_TYPE_DECLARE()            Declares a copy machine type.
 
-   @subsection DLD-cm-fspec-sub-acc Accessors and Invariants
+   @subsection CMDLD-fspec-sub-acc Accessors and Invariants
    The invariants would be implemented in source files.
 
-   @subsection DLD-cm-fspec-sub-opi Operational Interfaces
+   @subsection CMDLD-fspec-sub-opi Operational Interfaces
    Lists the various external interfaces exported by the copy machine.
    - c2_cm_configure()		 Fetches configuration from confc and configures
 				 a copy machine.
    - c2_cm_failure_handle()	 Handles a copy machine failure.
    - c2_cm_done()		 Performs copy machine operation fini tasks.
-   - c2_cm_operation_abort()	 Aborts a current ongoing copy machine
-				 operation.
 
-   @subsection DLD-cm-fspec-sub-opi-ext External operational Interfaces
+   @subsection CMDLD-fspec-sub-opi-ext External operational Interfaces
    @todo This would be re-written when configuration api's would be implemented.
    - c2_confc_open()		   Opens an individual confc object.
 				   processing.
 
-   @section DLD-cm-fspec-usecases Recipes
+   @section CMDLD-fspec-usecases Recipes
    @todo This section would be re-written when the other copy machine
    functionalities would be implemented.
  */
 
 /**
-   @defgroup cm Copy Machine
+   @defgroup CM Copy Machine
 
    Copy machine is a replicated state machine to restructure data in various
    ways (e.g. copying, moving, re-striping, reconstructing, encrypting,
-   compressing, re-integrating, etc.).
+   compressing, reintegrating, etc.).
 
    @{
 */
 
 #include "lib/ext.h"
 #include "lib/tlist.h"  /* struct c2_tlink */
+
 #include "addb/addb.h"  /* struct c2_addb_ctx */
 #include "sm/sm.h"	/* struct c2_sm */
-#include "cm/cp.h"
-#include "cm/sw.h"
-#include "net/buffer_pool.h" /* struct c2_net_buffer_pool */
 #include "reqh/reqh_service.h" /* struct c2_reqh_service_type */
-#include "cm/ag.h" /* struct c2_cm_aggr_group */
+#include "cm/sw.h"
 
 /* Import */
 struct c2_fop;
 
-/* Forward declarations */
-struct c2_cm_sw;
-
 /**
  * Copy machine states.
- * @see The @ref DLD-cm-lspec-state
+ * @see The @ref CMDLD-lspec-state
  */
 enum c2_cm_state {
 	C2_CMS_INIT,
@@ -142,8 +128,6 @@ enum c2_cm_rc {
 	C2_CM_ERR_CONF,
 	/** Copy machine operational failure. */
 	C2_CM_ERR_OP,
-	/** Copy machine agent failure. */
-	C2_CM_ERR_AGENT,
 	C2_CM_NR
 };
 
@@ -199,41 +183,23 @@ struct c2_cm {
 
 /** Operations supported by a copy machine. */
 struct c2_cm_ops {
-	/**
-	 * Invoked from generic c2_cm_start ().
-	 */
+	/** Invoked from generic c2_cm_start ().*/
 	int (*cmo_start)(struct c2_cm *cm);
 
-	/** Configures copy machine and its corresponding agents. */
+	/** Configures copy machine. */
 	int (*cmo_config)(struct c2_cm *cm);
-
-	/**
-	 * Gets the next agent for this copy packet.
-	 *
-	 * The result agent may be a local agent on this node, but also
-	 * might be remote agent on other node.
-	 * Configuration information and layout information will be used
-	 * to find the next agent in the copy packet pipeline.
-	 *
-	 * @param cm this copy machine.
-	 * @param packet the current packet.
-	 * @param current_agent current agent.
-	 * @param next_agent_id [out] the next agent id returned.
-	 */
-	int (*cmo_next_agent)(struct c2_cm          *cm,
-			      struct c2_cm_cp       *packet);
-
-	/**
-	 * Handles incoming request fop and performs copy machine
-	 * specific operations.
-	 */
-	int (*cmo_incoming)(struct c2_cm *cm, struct c2_fom *fom);
 
 	/** Acknowledges the completion of copy machine operation. */
 	void (*cmo_done)(struct c2_cm *cm);
 
 	/** Invoked from c2_cm_stop (). */
 	void (*cmo_stop)(struct c2_cm *cm);
+
+	/** Creates copy packets after consulting sliding window. */
+	struct c2_cm_cp *(*cmo_cp_alloc)(struct c2_cm *cm);
+
+	/** Populates copy packet meta data, i.e. fid, aggregation group, &c. */
+	int (*cmo_cp_data_next)(struct c2_cm *cm, struct c2_cm_cp *cp);
 
 	/** Copy machine specific finalisation routine. */
 	void (*cmo_fini)(struct c2_cm *cm);
@@ -308,11 +274,10 @@ int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
 void c2_cm_fini(struct c2_cm *cm);
 
 /**
- * Invokes copy machine service specific start routine, creates service
- * specific instance containing c2_reqh_service, invokes service type specific
- * implementation of service alloc and init () operation. Also, builds copy
- * machine specific fop types, creates and starts specific agents and
- * initialises service buffer pool.
+ * Starts the copy machine data restructuring process on receiving the "POST"
+ * fop. Internally invokes copy machine specific start routine.
+ * In case of SNS repair, enough copy packets are created to populate the
+ * sliding window by the copy machine specific service start routine.
  */
 int c2_cm_start(struct c2_cm *cm);
 
@@ -320,7 +285,7 @@ int c2_cm_start(struct c2_cm *cm);
 void c2_cm_stop(struct c2_cm *cm);
 
 /**
- * Configures copy machine agents.
+ * Configures a copy machine replica.
  * @pre C2_IN(cm->cm_mach.sm_state,(C2_CMS_IDLE, C2_CMS_DONE));
  */
 int c2_cm_configure(struct c2_cm *cm, struct c2_fop *fop);

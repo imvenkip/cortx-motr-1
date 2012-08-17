@@ -29,6 +29,12 @@
 
 #include "cm/cm.h"
 
+/**
+   @defgroup CMAG Copy machine aggregation group
+   @ingroup CM
+
+   @{
+ */
 /** Aggregation group states */
 enum c2_aggr_group_state {
 	/**
@@ -37,7 +43,7 @@ enum c2_aggr_group_state {
 	 */
 	C2_AGS_INITIALISED,
 	/**
-	 * The aggregation group is being processed by the agents in the
+	 * The aggregation group is being processed by the copy packets in the
 	 * pipeline.
 	 */
 	C2_AGS_IN_PROCESS,
@@ -56,27 +62,8 @@ struct c2_cm_aggr_group {
 	/** Aggregation state. */
 	enum c2_aggr_group_state           cag_state;
 
-	/** Input set reference. */
-	struct c2_cm_ioset                *cag_iset;
-
-	/** Output set reference. */
-	struct c2_cm_ioset                *cag_oset;
-
 	/** Its operations. */
 	const struct c2_cm_aggr_group_ops *cag_ops;
-
-	/**
-	 * Linkage into the sorted sliding window queue of aggregation group
-	 * ids, Hanging to c2_cm_sw::sw_aggr_grps.
-	 */
-	struct c2_tlink			   cag_sw_linkage;
-
-	/** List of copy packets belonging to this group. */
-	struct c2_tl                       cag_cpl;
-	uint64_t                           cag_magic;
-
-	/** Mutex lock to protect this group. */
-	struct c2_mutex                    cag_lock;
 
 	/** Number of copy packets that correspond to this aggregation group. */
 	uint64_t                           cag_cp_nr;
@@ -84,16 +71,20 @@ struct c2_cm_aggr_group {
 	/** Number of copy packets that are transformed. */
 	uint64_t                           cag_transformed_cp_nr;
 
+	/**
+	 * Linkage into the sorted sliding window queue of aggregation group
+	 * ids, Hanging to c2_cm_sw::sw_aggr_grps.
+	 */
+	struct c2_tlink			   cag_sw_linkage;
+
+	/** Mutex lock to protect this group. */
+	struct c2_mutex                    cag_lock;
+
+	uint64_t                           cag_magic;
 };
 
 /** Colibri Copy Machine Aggregation Group Operations */
 struct c2_cm_aggr_group_ops {
-	/** Allocates and initialises a copy packet. */
-	struct c2_cm_cp *(*cago_cp_alloc) (struct c2_cm_aggr_group *ag,
-					   struct c2_bufvec *buf);
-	/** Returns extent from the input set matching to this group. */
-	int (*cago_get)(struct c2_cm_aggr_group *ag, struct c2_ext *ext_out);
-
 	/** Aggregation group processing completion notification. */
 	int (*cago_completed)(struct c2_cm_aggr_group *ag);
 
@@ -109,6 +100,7 @@ C2_TL_DESCR_DECLARE(aggr_grps, extern);
 C2_TL_DECLARE(aggr_grps, extern, struct c2_cm_aggr_group);
 extern struct c2_bob_type aggr_grps_bob;
 
+/** @} CMAG */
 #endif
 /*
  *  Local variables:

@@ -25,22 +25,21 @@
 #define __COLIBRI_SNS_REPAIR_CM_H__
 
 /**
-  @page DLD-snsrepair-fspec SNS-Repair copy machine functional specification
+  @page SNSRepairCMDLD-fspec SNS Repair copy machine functional specification
 
-  - @ref DLD-snsrepair-fspec-ds
-  - @ref DLD-snsrepair-fspec-if
-  - @ref DLD-snsrepair-fspec-usecases
+  - @ref SNSRepairCMDLD-fspec-ds
+  - @ref SNSRepairCMDLD-fspec-if
+  - @ref SNSRepairCMDLD-fspec-usecases
 
-  @section DLD-snsrepair-fspec Functional Specification
-  SNS Repair copy machine is implemented using the data structures and
-  subroutines defined in reqh/reqh_service.h and cm/cm.h.
+  @section SNSRepairCMDLD-fspec Functional Specification
+  SNS Repair copy machine
 
-  @subsection DLD-snsrepair-fspec-ds Data Structures
+  @subsection SNSRepairCMDLD-fspec-ds Data Structures
   - c2_sns_repair_cm
     Represents sns repair copy machine, this embeds generic struct c2_cm and
     sns specific copy machine objects.
 
-  @subsection DLD-snsrepair-fspec-if Interfaces
+  @subsection SNSRepairCMDLD-fspec-if Interfaces
   - c2_sns_repair_cm_type_register
     Registers sns repair copy machine type and its corresponding request
     handler service type.
@@ -51,16 +50,19 @@
     handler service type.
     @see c2_sns_fini()
 
-  @subsection DLD-snsrepair-fspec-usecases Recipes
+  @subsection SNSRepairCMDLD-fspec-usecases Recipes
   Test: Start sns repair copy machine service using colibri_setup
-  Response: SNS repair copy machine service is started.
+  Response: SNS repair copy machine service is started and copy machine is
+            initialised.
  */
 
 /**
-  @defgroup snsrepair SNS Repair copy machine
+  @defgroup SNSRepairCM SNS Repair copy machine
+  @ingroup CM
+  
   SNS-Repair copy machine is a replicated state machine, which performs data
-  re-structuring and handles device, container, node, &c failures.
-  @see The @ref DLD-snsrepair
+  restructuring and handles device, container, node, &c failures.
+  @see The @ref SNSRepairCMDLD
 
   @{
 */
@@ -68,13 +70,19 @@
 #include "cm/cm.h"
 
 struct c2_sns_repair_cm {
-	struct c2_cm		  rc_cm;
-	struct c2_net_buffer_pool rc_pool;
+	struct c2_cm		  rc_base;
+	struct c2_net_buffer_pool rc_bp;
 };
 
 int c2_sns_repair_cm_type_register(void);
 void c2_sns_repair_cm_type_deregister(void);
 
+static inline struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm)
+{
+	return container_of(cm, struct c2_sns_repair_cm, rc_base);
+}
+
+/** @} SNSRepairCM */
 #endif /* __COLIBRI_SNS_REPAIR_CM_H__ */
 /*
  *  Local variables:
