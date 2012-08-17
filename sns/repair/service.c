@@ -52,8 +52,6 @@ C2_ADDB_EV_DEFINE(svc_init_fail, "svc_init_fail",
                   C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 C2_ADDB_EV_DEFINE(service_start_fail, "service_start_fail",
                   C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
-C2_ADDB_EV_DEFINE(agents_create_fail, "agents_create_fail",
-                  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 C2_ADDB_EV_DEFINE(config_fetch_fail, "config_fetch_fail",
                   C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 

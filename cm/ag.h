@@ -43,7 +43,7 @@ enum c2_aggr_group_state {
 	 */
 	C2_AGS_INITIALISED,
 	/**
-	 * The aggregation group is being processed by the agents in the
+	 * The aggregation group is being processed by the copy packets in the
 	 * pipeline.
 	 */
 	C2_AGS_IN_PROCESS,

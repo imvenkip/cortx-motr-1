@@ -41,14 +41,16 @@
 	- Starting a copy machine.
 	- Handling a copy machine specific operation.
 	- Handling copy machine operation completion.
-	- Handling a copy machine failure or an agent failure.
+	- Aborting a copy machine operation.
+	- Handling a copy machine failure.
 	- Stopping a copy machine.
-	- Updates to the sliding window.
+   - The c2_cm_type represents a copy machine type that a copy machine is an
+     instance of.
    - The c2_cm_aggr_group represents an aggregation group.
    - The c2_cm_aggr_group_ops defines the operations supported on an aggregation
      group.
    - The c2_cm_stats keeps copy machine operation progress data.
-   - The c2_cm_sw is used for co-operation among agents.
+   - The c2_cm_sw is used for co-operation among copy machine replicas.
 
    @subsection CMDLD-fspec-if Interfaces
    Every copy machine type implements its own set of routines for
@@ -61,8 +63,7 @@
 
    - c2_cm_init()                    Initialises a copy machine.
    - c2_cm_fini()                    Finalises a copy machine.
-   - c2_cm_start()                   Starts a copy machine and corresponding
-				     agents.
+   - c2_cm_start()                   Starts a copy machine.
    - C2_CM_TYPE_DECLARE()            Declares a copy machine type.
 
    @subsection CMDLD-fspec-sub-acc Accessors and Invariants
@@ -138,8 +139,6 @@ enum c2_cm_rc {
 	C2_CM_ERR_CONF,
 	/** Copy machine operational failure. */
 	C2_CM_ERR_OP,
-	/** Copy machine agent failure. */
-	C2_CM_ERR_AGENT,
 	C2_CM_NR
 };
 
@@ -198,7 +197,7 @@ struct c2_cm_ops {
 	/** Invoked from generic c2_cm_start ().*/
 	int (*cmo_start)(struct c2_cm *cm);
 
-	/** Configures copy machine and its corresponding agents. */
+	/** Configures copy machine. */
 	int (*cmo_config)(struct c2_cm *cm);
 
 	/** Acknowledges the completion of copy machine operation. */
@@ -283,11 +282,10 @@ int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
 void c2_cm_fini(struct c2_cm *cm);
 
 /**
- * Invokes copy machine service specific start routine, creates service
- * specific instance containing c2_reqh_service, invokes service type specific
- * implementation of service alloc and init () operation. Also, builds copy
- * machine specific fop types, creates and starts specific agents and
- * initialises service buffer pool.
+ * Starts the copy machine data restructuring process on receiving the "POST"
+ * fop. Internally invokes copy machine specific start routine.
+ * In case of SNS repair, enough copy packets are created to populate the
+ * sliding window by the copy machine specific service start routine.
  */
 int c2_cm_start(struct c2_cm *cm);
 
@@ -295,7 +293,7 @@ int c2_cm_start(struct c2_cm *cm);
 void c2_cm_stop(struct c2_cm *cm);
 
 /**
- * Configures copy machine agents.
+ * Configures a copy machine replica.
  * @pre C2_IN(cm->cm_mach.sm_state,(C2_CMS_IDLE, C2_CMS_DONE));
  */
 int c2_cm_configure(struct c2_cm *cm, struct c2_fop *fop);

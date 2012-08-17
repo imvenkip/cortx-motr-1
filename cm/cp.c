@@ -20,11 +20,6 @@
  * Original creation date: 02/22/2012
  */
 
-#include "lib/bob.h"    /* c2_bob */
-#include "lib/misc.h"   /* C2_IN */
-#include "lib/errno.h"  /* ENOMEM */
-#include "lib/memory.h" /* C2_ALLOC_PTR */
-
 #include "cm/cp.h"
 #include "cm/cm.h"
 
@@ -239,35 +234,36 @@
  *		       these phases. Additional states will be used to do
  *		       processing under one of above phases.
  *
- *   Transition of standard phases is done by ->co_phase(). It will produce the
- *   next phase according to the configuration of the copy machine and the copy
- *   packet itself.
+ *   Transition of standard phases is done by next phase function. It will
+ *   produce the next phase according to the configuration of the copy machine
+ *   and the copy packet itself.
  *
  *   <b>State diagram for copy packet:</b>
- *   @verbatim
- *
- *        New copy packet             new copy packet
- *             +<---------INIT-------->+
- *             |           |           |
- *             |           |           |
- *       +----READ     new |packet    RECV----+
- *       |     |           |           |      |
- *       |     +---------->V<----------+      |
- *       |               XFORM                |
- *       |     +<----------|---------->+      |
- *       |     |           |           |      |
- *       |     V           |           V      |
- *       +--->SEND         |         WRITE<---+
- *             |           V           |
- *             +--------->FINI<--------+
- *
- *   @endverbatim
+ *   @dot
+ *   digraph {
+ *	subgraph A1 {
+ *	   start [shape=Mdiamond];
+ *	   end [shape=doublecircle];
+ *	}
+ *	subgraph A2 {
+ *	   size = "4,8"
+ *	   node [shape=ellipse, fontsize=12]
+ *	   start -> INIT
+ *	   INIT  -> READ -> SEND -> FINI
+ *	   INIT  -> RECV -> WRITE -> FINI
+ *	   INIT  -> XFORM -> FINI
+ *	   READ  -> XFORM -> SEND
+ *	   RECV  -> XFORM -> WRITE
+ *	   FINI  -> end
+ *	}
+ *   }
+ *   @enddot
  *
  *   @subsection CPDLD-lspec-thread Threading and Concurrency Model
  *
  *   @dot
  *	digraph {
- *	  node [shape=plaintext, style=filled, color=lightgray, fontsize=10]
+ *	  node [shape=plaintext, fontsize=12]
  *	  subgraph cluster_m1 { // represents mutex scope
  *	  // sorted R-L so put mutex name last to align on the left
  *	  rank = same;
