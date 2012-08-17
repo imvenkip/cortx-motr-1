@@ -98,7 +98,7 @@ static int service_allocate(struct c2_reqh_service_type *stype,
 
 	C2_ALLOC_PTR(rmach);
 	if (rmach != NULL) {
-		cm = &rmach->rc_cm;
+		cm = &rmach->rc_base;
 		cm_type = container_of(stype, struct c2_cm_type, ct_stype);
 		*service = &cm->cm_service;
 		(*service)->rs_type = stype;
@@ -160,16 +160,16 @@ static void service_stop(struct c2_reqh_service *service)
  */
 static void service_fini(struct c2_reqh_service *service)
 {
-	struct c2_cm            *mach;
-	struct c2_sns_repair_cm *smach;
+	struct c2_cm            *cm;
+	struct c2_sns_repair_cm *sns_cm;
 
 	C2_ENTRY();
 	C2_PRE(service != NULL);
 
-	mach = container_of(service, struct c2_cm, cm_service);
-	c2_cm_fini(mach);
-	smach = container_of(mach, struct c2_sns_repair_cm, rc_cm);
-	c2_free(smach);
+	cm = container_of(service, struct c2_cm, cm_service);
+	c2_cm_fini(cm);
+	sns_cm = cm2sns(cm);
+	c2_free(sns_cm);
 	C2_LEAVE();
 }
 

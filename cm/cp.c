@@ -20,6 +20,8 @@
  * Original creation date: 02/22/2012
  */
 
+#include "lib/errno.h"
+
 #include "cm/cp.h"
 #include "cm/cm.h"
 
@@ -417,7 +419,6 @@ void c2_cm_cp_init(struct c2_cm_cp *cp, const struct c2_cm_cp_ops *ops,
 {
 	C2_PRE(cp != NULL && ops != NULL && buf != NULL);
 
-	cp->c_ag = ag;
 	cp->c_ops = ops;
 	cp->c_data = buf;
 	c2_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL);
@@ -436,6 +437,7 @@ void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp)
 
 int c2_cm_cp_create(struct c2_cm *cm)
 {
+	struct c2_cm_cp *cp;
 	struct c2_cm_sw *sw = &cm->cm_sw;
 
 	while (sw->sw_ops->swo_has_space(sw)) {

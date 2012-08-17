@@ -61,7 +61,7 @@
    @section CMDLD-req Requirements
    The requirements below are grouped by various milestones.
 
-  @subsection cm-setup-req CM-SETUP Requirements
+  @subsection cm-setup-req Copy machine Requirements
    - @b r.cm.type Different types of copy machines are registered and
         implemented as colibri service types.
    - @b r.cm.generic.invoke All the copy machine generic routines should be
@@ -86,6 +86,7 @@
      request handler as a service.
    - A copy machine service can be started using "colibri setup" utility or
      separately.
+   - Once started copy machine remains idle until further event happens.
 
    <hr>
    @section CMDLD-lspec Logical Specification
@@ -428,11 +429,6 @@ void c2_cm_stop(struct c2_cm *cm)
 }
 
 int c2_cm_configure(struct c2_cm *cm, struct c2_fop *fop)
-{
-	return 0;
-}
-
-int c2_cm_operation_abort(struct c2_cm *cm)
 {
 	return 0;
 }

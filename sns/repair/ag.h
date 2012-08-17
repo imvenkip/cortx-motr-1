@@ -39,8 +39,6 @@ struct c2_sns_repair_aggr_group {
 	struct c2_cm_aggr_group  sag_base;
 	/** Transformed copy packet created by transformation function. */
 	struct c2_cm_cp         *sag_cp;
-	/** Resulting network buffer of outgoing transformed copy packet. */
-	struct c2_net_buffer    *sag_buf;
 };
 
 /** @} SNSRepairAG */

@@ -46,16 +46,12 @@
 	- Stopping a copy machine.
    - The c2_cm_type represents a copy machine type that a copy machine is an
      instance of.
-   - The c2_cm_aggr_group represents an aggregation group.
-   - The c2_cm_aggr_group_ops defines the operations supported on an aggregation
-     group.
    - The c2_cm_stats keeps copy machine operation progress data.
-   - The c2_cm_sw is used for co-operation among copy machine replicas.
 
    @subsection CMDLD-fspec-if Interfaces
-   Every copy machine type implements its own set of routines for
-   type-specific operations, although there may exist few operations common
-   to all the copy machine types.
+   Every copy machine type implements its own set of routines for type-specific
+   operations, although there may exist few operations common to all the copy
+   machine types.
 
    @subsection CMDLD-fspec-sub-cons Constructors and Destructors
    This section describes the sub-routines which act as constructors and
@@ -63,7 +59,7 @@
 
    - c2_cm_init()                    Initialises a copy machine.
    - c2_cm_fini()                    Finalises a copy machine.
-   - c2_cm_start()                   Starts a copy machine.
+   - c2_cm_start()                   Starts copy machine operation.
    - C2_CM_TYPE_DECLARE()            Declares a copy machine type.
 
    @subsection CMDLD-fspec-sub-acc Accessors and Invariants
@@ -75,8 +71,6 @@
 				 a copy machine.
    - c2_cm_failure_handle()	 Handles a copy machine failure.
    - c2_cm_done()		 Performs copy machine operation fini tasks.
-   - c2_cm_operation_abort()	 Aborts a current ongoing copy machine
-				 operation.
 
    @subsection CMDLD-fspec-sub-opi-ext External operational Interfaces
    @todo This would be re-written when configuration api's would be implemented.
@@ -93,26 +87,21 @@
 
    Copy machine is a replicated state machine to restructure data in various
    ways (e.g. copying, moving, re-striping, reconstructing, encrypting,
-   compressing, re-integrating, etc.).
+   compressing, reintegrating, etc.).
 
    @{
 */
 
 #include "lib/ext.h"
 #include "lib/tlist.h"  /* struct c2_tlink */
+
 #include "addb/addb.h"  /* struct c2_addb_ctx */
 #include "sm/sm.h"	/* struct c2_sm */
-#include "cm/cp.h"
-#include "cm/sw.h"
-#include "net/buffer_pool.h" /* struct c2_net_buffer_pool */
 #include "reqh/reqh_service.h" /* struct c2_reqh_service_type */
-#include "cm/ag.h" /* struct c2_cm_aggr_group */
+#include "cm/sw.h"
 
 /* Import */
 struct c2_fop;
-
-/* Forward declarations */
-struct c2_cm_sw;
 
 /**
  * Copy machine states.
@@ -207,7 +196,10 @@ struct c2_cm_ops {
 	void (*cmo_stop)(struct c2_cm *cm);
 
 	/** Creates copy packets after consulting sliding window. */
-	struct c2_cm_cp *(cmo_cp_alloc)(struct c2_cm *cm);
+	struct c2_cm_cp *(*cmo_cp_alloc)(struct c2_cm *cm);
+
+	/** Populates copy packet meta data, i.e. fid, aggregation group, &c. */
+	int (*cmo_cp_data_next)(struct c2_cm *cm, struct c2_cm_cp *cp);
 
 	/** Copy machine specific finalisation routine. */
 	void (*cmo_fini)(struct c2_cm *cm);

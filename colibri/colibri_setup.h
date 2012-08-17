@@ -241,7 +241,7 @@ struct c2_reqh *c2_cs_reqh_get(struct c2_colibri *cctx,
 struct c2_colibri *c2_cs_ctx_get(struct c2_reqh *reqh);
 
 struct c2_net_domain *c2_cs_net_domain_locate(struct c2_colibri *cctx,
-					      const char *xprt_name)
+					      const char *xprt_name);
 
 /** @} endgroup colibri_setup */
 

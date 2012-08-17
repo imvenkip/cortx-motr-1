@@ -52,7 +52,8 @@
 
   @subsection SNSRepairCMDLD-fspec-usecases Recipes
   Test: Start sns repair copy machine service using colibri_setup
-  Response: SNS repair copy machine service is started.
+  Response: SNS repair copy machine service is started and copy machine is
+            initialised.
  */
 
 /**
@@ -60,7 +61,7 @@
   @ingroup CM
   
   SNS-Repair copy machine is a replicated state machine, which performs data
-  re-structuring and handles device, container, node, &c failures.
+  restructuring and handles device, container, node, &c failures.
   @see The @ref SNSRepairCMDLD
 
   @{

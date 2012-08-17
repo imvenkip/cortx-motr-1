@@ -25,7 +25,9 @@
 #define __COLIBRI_CM_CP_H__
 
 #include "lib/vec.h"
+
 #include "fop/fom.h"
+#include "rpc/bulk.h"
 
 /**
  * @page CPDLD-fspec Copy Packet Functional Specification
