@@ -19,8 +19,13 @@
  * Original creation date: 04/12/2011
  * Adapted for LNet: 04/11/2012
  */
+
+#pragma once
+
 #ifndef __COLIBRI_NET_LNET_PING_H__
 #define __COLIBRI_NET_LNET_PING_H__
+
+#include "lib/bitmap.h" /* c2_bitmap */
 
 struct nlx_ping_ctx;
 struct nlx_ping_ops {

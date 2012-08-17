@@ -1,5 +1,6 @@
+/* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -13,23 +14,33 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>
- * Original creation date: 05/18/2010
+ * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
+ * Original creation date: 06/21/2011
  */
 
-#ifndef __COLIBRI_XDR_COMMON_H__
-#define __COLIBRI_XDR_COMMON_H__
+/**
+   @addtogroup fom
+   @{
+ */
 
 /**
- the xdr functions
+ * @file fom_generic_xc.ff
+ *
+ * <b>Fom generic error reply</b>
+ */
 
- each function is converted one type from network to local representations.
- function must return true iif conversion successuly
-*/
+record {
+	u32 rerr_rc
+} c2_fom_error_rep;
 
+/** @} end of fom group */
 
-struct c2_session_id;
-
-bool c2_xdr_session_id(void *, struct c2_session_id *);
-
-#endif
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

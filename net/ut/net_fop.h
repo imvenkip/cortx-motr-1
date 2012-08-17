@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -16,6 +16,8 @@
  * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
  * Original creation date: 12/05/2010
  */
+
+#pragma once
 
 #ifndef _NET_FOP_H_
 #define _NET_FOP_H_

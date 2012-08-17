@@ -18,6 +18,8 @@
  * Original creation date: 03/22/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_IOSERVICE_COB_FOMS_H__
 #define __COLIBRI_IOSERVICE_COB_FOMS_H__
 

@@ -7,7 +7,7 @@ License: Xyratex
 Source: %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}
 Requires: CUnit = 2.1-2 libyaml galois db4 lustre-modules
-BuildRequires: CUnit = 2.1-2 libyaml-devel galois-devel db4-devel automake autoconf libtool lustre-source
+BuildRequires: CUnit = 2.1-2 libyaml-devel galois-devel db4-devel automake autoconf libtool lustre-source gccxml gcc-c++ perl perl-XML-LibXML perl-List-MoreUtils
 
 %description
 Colibri filesystem runtime environment and servers.

@@ -21,6 +21,8 @@
  * Revision date  : 09/14/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_IOSERVICE_IO_FOMS_H__
 #define __COLIBRI_IOSERVICE_IO_FOMS_H__
 
@@ -76,8 +78,8 @@
    @verbatim
    c2_io_fom_cob_rw_locality_get()   Request handler uses this interface to
                                      get the locality for this I/O FOM.
-   c2_io_fom_cob_rw_state()          Request handler uses this interface to
-                                     execute next state of I/O FOM.
+   c2_io_fom_cob_rw_tick()           Request handler uses this interface to
+                                     execute next phase of I/O FOM.
    c2_io_fom_cob_rw_fini()           Request handler uses this interface after
                                      I/O FOM finishes its execution.
    @endverbatim
@@ -131,8 +133,8 @@
  *  @{
  */
 
+#include "reqh/reqh.h"     /* C2_FOPH_NR */
 #include "fop/fop.h"
-#include "fop/fop_format.h"
 #include "ioservice/io_fops.h"
 #include "stob/stob.h"
 #include "net/net.h"
@@ -206,10 +208,11 @@ struct c2_io_fom_cob_rw {
  */
 enum c2_io_fom_cob_rw_phases {
         C2_FOPH_IO_FOM_BUFFER_ACQUIRE = C2_FOPH_NR + 1,
+        C2_FOPH_IO_FOM_BUFFER_WAIT,
         C2_FOPH_IO_STOB_INIT,
-        C2_FOPH_IO_STOB_FINISH,
+        C2_FOPH_IO_STOB_WAIT,
         C2_FOPH_IO_ZERO_COPY_INIT,
-        C2_FOPH_IO_ZERO_COPY_FINISH,
+        C2_FOPH_IO_ZERO_COPY_WAIT,
         C2_FOPH_IO_BUFFER_RELEASE,
 };
 

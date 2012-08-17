@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,11 +18,14 @@
  * Original creation date: 05/12/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LIB_VEC_H__
 #define __COLIBRI_LIB_VEC_H__
 
 #include "lib/types.h"
 #include "lib/buf.h"
+#include "xcode/xcode_attr.h"
 
 #ifdef __KERNEL__
 #include "lib/linux_kernel/vec.h"
@@ -44,7 +47,7 @@ struct c2_vec {
 	uint32_t     v_nr;
 	/** array of segment counts */
 	c2_bcount_t *v_count;
-};
+} C2_XCA_RECORD;
 
 /** Returns total count of vector */
 c2_bcount_t c2_vec_count(const struct c2_vec *vec);
@@ -220,6 +223,13 @@ void  c2_bufvec_cursor_init(struct c2_bufvec_cursor *cur,
 bool c2_bufvec_cursor_move(struct c2_bufvec_cursor *cur, c2_bcount_t count);
 
 /**
+   Advances the cursor with some count such that cursor will be aligned to
+   "alignment".
+   Return convention is same as c2_bufvec_cursor_move().
+ */
+bool c2_bufvec_cursor_align(struct c2_bufvec_cursor *cur, uint64_t alignment);
+
+/**
    Return number of bytes that the cursor have to be moved to reach the next
    segment in its vector (or to move into end of the vector position, when the
    cursor is already at the last segment).
@@ -344,6 +354,16 @@ void c2_0vec_bufs_init(struct c2_0vec *zvec, void **bufs,
  */
 int c2_0vec_cbuf_add(struct c2_0vec *zvec, const struct c2_buf *buf,
 		     const c2_bindex_t *index);
+
+/**
+ * Helper functions to copy opaque data with specified size to and from a
+ * c2_bufvec
+ */
+int c2_data_to_bufvec_copy(struct c2_bufvec_cursor *cur, void *data,
+			   size_t len);
+
+int c2_bufvec_to_data_copy(struct c2_bufvec_cursor *cur, void *data,
+			   size_t len);
 
 /** @} end of vec group */
 

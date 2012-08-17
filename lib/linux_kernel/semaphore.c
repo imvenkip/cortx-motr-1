@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -31,7 +31,7 @@
    <b>Implementation of c2_semaphore on top of Linux struct semaphore.</b>
 
    @{
-*/
+ */
 
 int c2_semaphore_init(struct c2_semaphore *semaphore, unsigned value)
 {
@@ -66,14 +66,13 @@ unsigned c2_semaphore_value(struct c2_semaphore *semaphore)
 bool c2_semaphore_timeddown(struct c2_semaphore *semaphore,
 			    const c2_time_t abs_timeout)
 {
-	c2_time_t nowtime;
+	c2_time_t nowtime = c2_time_now();
 	c2_time_t reltime;
 	unsigned long reljiffies;
 	struct timespec ts;
 
-	nowtime = c2_time_now();
 	/* same semantics as user_space semaphore: allow abs_time < now */
-	if (c2_time_after(abs_timeout, nowtime))
+	if (abs_timeout > nowtime)
 		reltime = c2_time_sub(abs_timeout, nowtime);
 	else
 		reltime = 0;

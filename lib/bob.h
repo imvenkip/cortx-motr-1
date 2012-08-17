@@ -18,6 +18,8 @@
  * Original creation date: 21-Jan-2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LIB_BOB_H__
 #define __COLIBRI_LIB_BOB_H__
 
@@ -83,6 +85,7 @@ struct c2_bob_type {
  */
 void c2_bob_type_tlist_init(struct c2_bob_type *bt,
 			    const struct c2_tl_descr *td);
+
 /**
  *  Initializes a branded object, by setting the magic field.
  */

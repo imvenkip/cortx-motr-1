@@ -18,6 +18,8 @@
  * Original creation date: 02/22/2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LIB_FINJECT_H__
 #define __COLIBRI_LIB_FINJECT_H__
 

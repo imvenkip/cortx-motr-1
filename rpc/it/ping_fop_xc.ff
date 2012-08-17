@@ -1,6 +1,7 @@
 /* -*- C -*- */
+
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,25 +15,29 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>
- * Original creation date: 05/18/2010
+ * Original author: Anup Barve <Anup_Barve@xyratex.com>
+ * Original creation date: 07/07/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
+sequence {
+	u32 f_count;
+	u64 f_data
+} c2_fop_ping_arr;
 
-#include <lib/cdefs.h>
+record {
+	c2_fop_ping_arr fp_arr
+} c2_fop_ping;
 
-#include <rpc/types.h>
-#include <rpc/xdr.h>
+record {
+	u32 fpr_rc
+} c2_fop_ping_rep;
 
-#include <net/xdr.h>
-#include <rpc/rpc_types.h>
-#include <rpc/xdr/common.h>
-
-bool c2_xdr_session_id(void *x, struct c2_session_id *objp)
-{
-	return xdr_uint64_t(x, &objp->id);
-}
-
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

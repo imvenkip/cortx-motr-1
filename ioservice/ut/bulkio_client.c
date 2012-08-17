@@ -23,13 +23,7 @@
 #include "lib/cdefs.h"
 #include "lib/misc.h"
 #include "ioservice/io_fops.h"	/* c2_io_fop */
-
-#ifdef __KERNEL__
-#include "ioservice/io_fops_k.h"
-#else
-#include "ioservice/io_fops_u.h"
-#endif
-
+#include "ioservice/io_fops_xc.h"
 #include "rpc/rpc2.h"		/* c2_rpc_bulk, c2_rpc_bulk_buf */
 #include "net/lnet/lnet.h"
 

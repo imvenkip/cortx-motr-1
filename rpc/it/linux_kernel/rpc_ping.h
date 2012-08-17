@@ -17,6 +17,12 @@
  * Original creation date: 07/09/2011
  */
 
+#pragma once
+
+#ifndef __RPC_PING_H__
+#define __RPC_PING_H__
+
 int c2_rpc_ping_init(void);
 void c2_rpc_ping_fini(void);
 
+#endif /* __RPC_PING_H__ */

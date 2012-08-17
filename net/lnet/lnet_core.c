@@ -19,6 +19,11 @@
  * Original creation date: 11/16/2011
  */
 
+#ifndef __KERNEL__
+#include <stdio.h>   /* snprintf */
+#include <stdlib.h>  /* strtoull */
+#endif /* __KERNEL__ */
+
 /**
    @addtogroup LNetCore
    @{

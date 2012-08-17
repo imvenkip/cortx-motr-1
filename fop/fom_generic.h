@@ -14,29 +14,33 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
- *		    Madhavrao Vemuri <madhav_vemuri@xyratex.com>
- * Original creation date: 08/08/2012
+ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>,
+ * Original creation date: 09-Aug-2012
  */
+
+#pragma once
 
 #ifndef __COLIBRI_FOP_FOM_GENERIC_H__
 #define __COLIBRI_FOP_FOM_GENERIC_H__
 
 #include "fop/fom.h"
+
 /**
  * @addtogroup fom
- * @{
+ */
+
+/**
  * "Phases" through which fom execution typically passes.
  *
  * This enumerates standard phases, handled by the generic code independent of
  * fom type.
  *
  * @see https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfMjA2Zmc0N3I3Z2Y
- * @see c2_fom_state_transition()
+ * @see c2_fom_tick_generic()
  */
-enum c2_fom_generic_phase {
-	C2_FOPH_INIT,		     /*< fom has been initialised. */
-	C2_FOPH_FINISH,		     /*< terminal state. */
+enum c2_fom_standard_phase {
+	C2_FOPH_INIT = C2_FOM_PHASE_INIT,  /*< fom has been initialised. */
+	C2_FOPH_FINISH = C2_FOM_PHASE_FINISH,  /*< terminal phase. */
 	C2_FOPH_AUTHENTICATE,        /*< authentication loop is in progress. */
 	C2_FOPH_AUTHENTICATE_WAIT,   /*< waiting for key cache miss. */
 	C2_FOPH_RESOURCE_LOCAL,      /*< local resource reservation loop is in
@@ -70,16 +74,120 @@ enum c2_fom_generic_phase {
 };
 
 /**
- * Transitions through both standard and specific phases until C2_FSO_WAIT is
- * returned by a state function.
- * Each FOM phase method needs to either return next phase to transition into or
- * set fom->fo_next_phase and return C2_FSO_WAIT in case the FOM executes a
- * blocking function.
- *
- * @retval C2_FSO_WAIT, if FOM is blocking.
- *         C2_FSO_AGAIN, if fom operation is successful, transition to next
+   Standard fom phase transition function.
+
+   This function handles standard fom phases from enum c2_fom_standard_phase.
+
+   First do "standard actions":
+
+   - authenticity checks: reqh verifies that protected state in the fop is
+     authentic. Various bits of information in C2 are protected by cryptographic
+     signatures made by a node that issued this information: object identifiers
+     (including container identifiers and fids), capabilities, locks, layout
+     identifiers, other resources identifiers, etc. reqh verifies authenticity
+     of such information by fetching corresponding node keys, re-computing the
+     signature locally and checking it with one in the fop;
+
+   - resource limits: reqh estimates local resources (memory, cpu cycles,
+     storage and network bandwidths) necessary for operation execution. The
+     execution of operation is delayed if it would overload the server or
+     exhaust resource quotas associated with operation source (client, group of
+     clients, user, group of users, job, etc.);
+
+   - resource usage and conflict resolution: reqh determines what distributed
+     resources will be consumed by the operation execution and call resource
+     management infrastructure to request the resources and deal with resource
+     usage conflicts (by calling DLM if necessary);
+
+   - object existence: reqh extracts identities of file system objects affected
+     by the fop and requests appropriate stores to load object representations
+     together with their basic attributes;
+
+   - authorization control: reqh extracts the identity of a user (or users) on
+     whose behalf the operation is executed. reqh then uses enterprise user data
+     base to map user identities into internal form. Resulting internal user
+     identifiers are matched against protection and authorization information
+     stored in the file system objects (loaded on the previous step);
+
+   - distributed transactions: for operations mutating file system state, reqh
+     sets up local transaction context where the rest of the operation is
+     executed.
+
+   Once the standard actions are performed successfully, request handler
+   delegates the rest of operation execution to the fom type specific state
+   transition function.
+
+   Fom execution proceeds as follows:
+
+   @verbatim
+
+	fop
+	 |
+	 v                fom->fo_state = FOS_READY
+     c2_reqh_fop_handle()-------------->FOM
+					 | fom->fo_state = FOS_RUNNING
+					 v
+				     FOPH_INIT
+					 |
+			failed		 v         fom->fo_state = FOS_WAITING
+		     +<-----------FOPH_AUTHETICATE------------->+
+		     |			 |           FOPH_AUTHENTICATE_WAIT
+		     |			 v<---------------------+
+		     +<----------FOPH_RESOURCE_LOCAL----------->+
+		     |			 |           FOPH_RESOURCE_LOCAL_WAIT
+		     |			 v<---------------------+
+		     +<-------FOPH_RESOURCE_DISTRIBUTED-------->+
+		     |			 |	  FOPH_RESOURCE_DISTRIBUTED_WAIT
+		     |			 v<---------------------+
+		     +<---------FOPH_OBJECT_CHECK-------------->+
+		     |                   |              FOPH_OBJECT_CHECK
+		     |		         v<---------------------+
+		     +<---------FOPH_AUTHORISATION------------->+
+		     |			 |            FOPH_AUTHORISATION
+	             |	                 v<---------------------+
+		     +<---------FOPH_TXN_CONTEXT--------------->+
+		     |			 |            FOPH_TXN_CONTEXT_WAIT
+		     |			 v<---------------------+
+		     +<-------------FOPH_NR_+_1---------------->+
+		     |			 |            FOPH_NR_+_1_WAIT
+		     v			 v<---------------------+
+		 FOPH_FAILED        FOPH_SUCCESS
+		     |			 |
+		     v			 v
+	  +-----FOPH_TXN_ABORT    FOPH_TXN_COMMIT-------------->+
+	  |	     |			 |            FOPH_TXN_COMMIT_WAIT
+	  |	     |	    send reply	 v<---------------------+
+	  |	     +----------->FOPH_QUEUE_REPLY------------->+
+          |	     ^			 |            FOPH_QUEUE_REPLY_WAIT
+	  v	     |			 v<---------------------+
+   FOPH_TXN_ABORT_WAIT		     FOPH_FINISH ---> c2_fom_fini()
+
+   @endverbatim
+
+   If a generic phase handler function fails while executing a fom, then
+   it just sets the c2_fom::fo_rc to the result of the operation and returns
+   C2_FSO_WAIT.  c2_fom_tick_generic() then sets the c2_fom::fo_phase to
+   C2_FOPH_FAILED, logs an ADDB event, and returns, later the fom execution
+   proceeds as mentioned in above diagram.
+
+   If fom fails while executing fop specific operation, the c2_fom::fo_phase
+   is set to C2_FOPH_FAILED already by the fop specific operation handler, and
+   the c2_fom::fo_rc set to the result of the operation.
+
+   @see c2_fom_phase
+   @see c2_fom_phase_outcome
+
+   @param fom, fom under execution
+
+   @retval C2_FSO_AGAIN, if fom operation is successful, transition to next
+	   phase, C2_FSO_WAIT, if fom execution blocks and fom goes into
+	   corresponding wait phase, or if fom execution is complete, i.e
+	   success or failure
+
+   @todo standard fom phases implementation, depends on the support routines for
+	handling various standard operations on fop as mentioned above
  */
-int c2_fom_state_transition(struct c2_fom *fom);
+int c2_fom_tick_generic(struct c2_fom *fom);
 
 /**
  * Initialises FOM state machines,
@@ -96,14 +204,11 @@ void c2_fom_sm_init(struct c2_fom *fom);
  */
 void c2_fom_type_register(struct c2_fom_type *fom_type);
 
-/** Returns FOM from state machine c2_fom::fo_sm_phase. */
-static inline struct c2_fom* c2_sm2fom(struct c2_sm *sm)
-{
-	C2_PRE(sm != NULL);
-	return container_of(sm, struct c2_fom, fo_sm_phase);
-}
+void c2_fom_generic_fini(void);
+int  c2_fom_generic_init(void);
 
-/** @} endgroup fom */
+/** @} end of fom group */
+
 /* __COLIBRI_FOP_FOM_GENERIC_H__ */
 #endif
 

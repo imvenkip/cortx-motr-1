@@ -25,7 +25,6 @@
 #include "lib/memory.h"
 #include "lib/mutex.h"
 #include "reqh/reqh.h"
-#include "fop/fom_generic.h"        /* C2_FOPH_FINISH */
 #include "fop/fom_long_lock.h"
 
 C2_TL_DESCR_DECLARE(c2_lll, extern);
@@ -132,7 +131,7 @@ static bool lock_check(struct c2_long_lock *lock, enum tb_request_type type,
 	return result;
 }
 
-static int fom_rdwr_state(struct c2_fom *fom)
+static int fom_rdwr_tick(struct c2_fom *fom)
 {
 	struct fom_rdwr	*request;
 	int		 rq_type;
@@ -144,7 +143,7 @@ static int fom_rdwr_state(struct c2_fom *fom)
 	rq_type = request->fr_req->tr_type;
 	rq_seqn = request->fr_seqn;
 
-	/**
+	/*
 	 * To pacify C2_PRE(C2_IN(fom->fo_phase,(C2_FOPH_INIT,C2_FOPH_FAILURE)))
 	 * precondition in c2_fom_queue(), special processing order of FOM
 	 * phases is used.
@@ -152,7 +151,7 @@ static int fom_rdwr_state(struct c2_fom *fom)
 	 * Do NOT use this code as a template for the general purpose. It's
 	 * designed for tesing of c2_long_lock ONLY!
 	 */
-	if (fom->fo_next_phase == PH_REQ_LOCK) {
+	if (fom->fo_phase == PH_REQ_LOCK) {
 		if (rq_seqn == 0)
 			sleeper = fom;
 
@@ -178,13 +177,13 @@ static int fom_rdwr_state(struct c2_fom *fom)
 		case RQ_WAKE_UP:
 		default:
 			c2_fom_wakeup(sleeper);
-			fom->fo_next_phase = PH_GOT_LOCK;
+			fom->fo_phase = PH_GOT_LOCK;
 			result = C2_FSO_AGAIN;
 		}
 
 		/* notify, fom ready */
 		c2_chan_signal(&chan[rq_seqn]);
-	} else if (fom->fo_next_phase == PH_GOT_LOCK) {
+	} else if (fom->fo_phase == PH_GOT_LOCK) {
 		C2_UT_ASSERT(ergo(C2_IN(rq_type, (RQ_READ, RQ_WRITE)),
 				  lock_check(&long_lock, rq_type,
 					     request->fr_req->tr_owners.min,
@@ -209,8 +208,8 @@ static int fom_rdwr_state(struct c2_fom *fom)
 
 		/* notify, fom ready */
 		c2_chan_signal(&chan[rq_seqn]);
-		fom->fo_next_phase = C2_FOPH_FINISH;
-		return c2_fom_state_transition(fom);
+		fom->fo_phase = C2_FOM_PHASE_FINISH;
+		result = C2_FSO_WAIT;
         } else
 		C2_IMPOSSIBLE("");
 
@@ -240,7 +239,7 @@ static void test_req_handle(struct c2_reqh *reqh,
 	obj->fr_req  = rq;
 	obj->fr_seqn = seqn;
 
-	fom->fo_next_phase = PH_REQ_LOCK;
+	fom->fo_phase = PH_REQ_LOCK;
 	reqh_fop_handle(reqh, fom);
 }
 

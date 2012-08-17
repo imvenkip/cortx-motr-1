@@ -19,6 +19,8 @@
  * Original creation date: 05/19/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_FOP_FOM_H__
 #define __COLIBRI_FOP_FOM_H__
 
@@ -27,19 +29,167 @@
  *
  * <b>Fop state machine (fom)</b>
  *
- * Fop state machine executes the fop. In addition to fop fields (which are file
- * operation parameters), fom stores all the intermediate state necessary for
- * the fop execution.
+ * A fom is a non-blocking state machine. Almost all server-side Colibri
+ * activities are implemented as foms. Specifically, all file system operation
+ * requests, received from clients are executed as foms (hence the name).
+ *
+ * Fom execution is controlled by request handler (reqh) which can be thought of
+ * as a specialised scheduler. Request handler is similar to a typical OS kernel
+ * scheduler: it maintains lists of ready (runnable) and waiting foms. Colibri
+ * request handler tries to optimise utilisation of processor caches. To this
+ * end, it is partitioned into a set of "localities", typically, one locality
+ * for a processor core. Each locality has its own ready and waiting lists and
+ * each fom is assigned to a locality.
  *
  * A fom is not associated with any particular thread: each state transition is
  * executed in the context of a certain handler thread, but the next state
- * transition can be executed by a different thread.
+ * transition can be executed by a different thread. Usually, all these threads
+ * run in the same locality (on the same core), but a fom can be migrated
+ * between localities for load-balancing purposes (@todo load balancing is not
+ * implemented at the moment).
  *
  * The aim of interfaces defined below is to simplify construction of a
  * non-blocking file server (see HLD referenced below for a more detailed
  * exposition).
  *
+ * <b>Fom phase and state</b>
+ *
+ * Fom operates by moving from "phase" to "phase". Current phase is recorded in
+ * c2_fom::fo_phase. Generic code in fom.c pays no attention to this field,
+ * except for special C2_FOM_PHASE_INIT and C2_FOM_PHASE_FINI values used to
+ * control fom life-time. ->fo_phase value is interpreted by fom-type-specific
+ * code. core/reqh/ defines some "standard phases", that a typical fom related
+ * to file operation processing passes through.
+ *
+ * Each phase transition should be non-blocking. When a fom cannot move to the
+ * next phase immediately, it waits for an event that would make non-blocking
+ * phase transition possible.
+ *
+ * Internally, request handler maintains, in addition to phase, a
+ * c2_fom::fo_state field, recording fom state, which can be RUNNING
+ * (C2_FOS_RUNNING), READY (C2_FOS_READY) and WAITING (C2_FOS_WAITING). A fom is
+ * in RUNNING state, when its phase transition is currently being executed. A
+ * fom is in READY state, when its phase transition can be executed immediately
+ * and a fom is in WAITING state, when no phase transition can be executed
+ * immediately.
+ *
+ * Request handler, according to some policy, selects a fom in READY state,
+ * moves it to RUNNING state and calls its c2_fom_ops::fo_tick() function to
+ * execute phase transition. This function has 2 possible return values:
+ *
+ *     - C2_FSO_AGAIN: more phase transitions are possible immediately. When
+ *       this value is returned, request handler returns the fom back to the
+ *       READY state and guarantees that c2_fom_ops::fo_tick() will be called
+ *       eventually as determined by policy. The reason to return C2_FSO_AGAIN
+ *       instead of immediately executing the next phase transition right within
+ *       ->fo_tick() is to get request handler a better chance to optimise
+ *       performance globally, by selecting the "best" READY fom;
+ *
+ *     - C2_FSO_WAIT: no phase transitions are possible at the moment. As a
+ *       special case, if fom->fo_phase == C2_FOM_PHASE_FINI, request handler
+ *       destroys the fom, by calling its c2_fom_ops::fo_fini()
+ *       method. Otherwise, the fom is placed in WAITING state.
+ *
+ * A fom moves WAITING to READY state by the following means:
+ *
+ *     - before returning C2_FSO_WAIT, its ->fo_tick() function can arrange a
+ *       wakeup, by calling c2_fom_wait_on(fom, chan, cb). When chan is
+ *       signalled, the fom is moved to READY state. More generally,
+ *       c2_fom_callback_arm(fom, chan, cb) call arranges for an arbitrary
+ *       call-back to be called when the chan is signalled. The call-back can
+ *       wake up the fom by calling c2_fom_ready();
+ *
+ *     - a WAITING fom can be woken up by calling c2_fom_wakeup() function that
+ *       moves it in READY state.
+ *
+ * These two methods should not be mixed: internally they use the same
+ * data-structure c2_fom::fo_cb.fc_ast.
+ *
+ * Typical ->fo_tick() function looks like
+ *
+ * @code
+ * static int foo_tick(struct c2_fom *fom)
+ * {
+ *         struct foo_fom *obj = container_of(fom, struct foo_fom, ff_base);
+ *
+ *         if (fom->fo_phase < C2_FOPH_NR)
+ *                 return c2_fom_tick_generic(fom);
+ *         else if (fom->fo_phase == FOO_PHASE_0) {
+ *                 ...
+ *                 if (!ready)
+ *                         c2_fom_wait_on(fom, chan, &fom->fo_cb);
+ *                 return ready ? C2_FSO_AGAIN : C2_FSO_WAIT;
+ *         } else if (fom->fo_phase == FOO_PHASE_1) {
+ *                 ...
+ *         } else if (fom->fo_phase == FOO_PHASE_2) {
+ *                 ...
+ *         } else
+ *                 C2_IMPOSSIBLE("Wrong phase.");
+ * }
+ * @endcode
+ *
+ * @see fom_long_lock.h for a higher level fom synchronisation mechanism.
+ *
+ * <b>Concurrency</b>
+ *
+ * The following types of activity are associated with a fom:
+ *
+ *     - fom phase transition function: c2_fom_ops::fo_tick()
+ *
+ *     - "top-half" of a call-back armed for a fom: c2_fom_callback::fc_top()
+ *
+ *     - "bottom-half" of a call-back armed for a fom:
+ *       c2_fom_callback::fc_bottom()
+ *
+ * Phase transitions and bottom-halves are serialised: neither 2 phase
+ * transitions, nor 2 bottom-halves, nor state transition and bottom-halve can
+ * execute concurrently. Top-halves are not serialised and, moreover, executed
+ * in an "awkward context": they are not allowed to block or take locks. It is
+ * best to avoid using top-halves whenever possible.
+ *
+ * If a bottom-half becomes ready to execute for a fom in READY or RUNNING
+ * state, the bottom-half remains pending until the fom goes into WAITING
+ * state. Similarly, if c2_fom_wakeup() is called for a non-WAITING fom, the
+ * wakeup remains pending until the fom moves into WAITING state.
+ *
+ * Fom-type-specific code should make no assumptions about request handler
+ * threading model. Specifically, it is possible that phase transitions and
+ * call-back halves for the same fom are executed by different
+ * threads. In addition, no assumptions should be made about concurrency of
+ * call-backs and phase transitions of *different* foms.
+ *
+ * <b>Blocking phase transitions</b>
+ *
+ * Sometimes the non-blockingness requirement for phase transitions is difficult
+ * to satisfy, for example, if a fom has to call some external blocking code,
+ * like db5. In these situations, phase transition function must notify request
+ * handler that it is about to block the thread executing the phase
+ * transition. This achieved by c2_fom_block_enter() call. Matching
+ * c2_fom_block_leave() call notifies request handler that phase transition is
+ * no longer blocked. These calls do not nest.
+ *
+ * Internally, c2_fom_block_enter() call hijacks the current request handler
+ * thread into exclusive use by this fom. The fom remains in RUNNING state while
+ * blocked. The code, executed between c2_fom_block_enter() and
+ * c2_fom_block_leave() can arm call-backs, their bottom-halves won't be
+ * executed until phase transition completes and fom returns back to WAITING
+ * state. Similarly, a c2_fom_wakeup() wakeup posted for a blocked fom, remains
+ * pending until fom moves into WAITING state. In other words, concurrency
+ * guarantees listed in the "Concurrency" section are upheld for blocking phase
+ * transitions.
+ *
+ * <b>Locality</b>
+ *
+ * Request handler partitions resources into "localities" to improve resource
+ * utilisation by increasing locality of reference. A locality, represented by
+ * c2_fom_locality owns a processor core and some other resources. Each locality
+ * runs its own fom scheduler and maintains lists of ready and waiting foms. A
+ * fom is assigned its "home" locality when it is created
+ * (c2_fom_ops::fo_home_locality()).
+ *
  * @see https://docs.google.com/a/xyratex.com/Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTNkOGNjZmdnYg
+ *
+ * @todo describe intended fom and reqh usage on client.
  *
  * @{
  */
@@ -56,8 +206,7 @@
 
 #include "fol/fol.h"
 #include "stob/stob.h"
-
-struct c2_fop_type;
+#include "reqh/reqh_service.h"
 
 /* export */
 struct c2_fom_domain;
@@ -68,6 +217,9 @@ struct c2_fom_type_ops;
 struct c2_fom;
 struct c2_fom_ops;
 struct c2_long_lock;
+
+/* defined in fom.c */
+struct c2_loc_thread;
 
 /**
  * A locality is a partition of computational resources dedicated to fom
@@ -81,49 +233,11 @@ struct c2_long_lock;
  *
  * - part of primary store.
  *
- * Lock ordering:
- *
- * - no lock ordering is needed here as access to all the locality members
- *   is protected by a common locality lock, c2_fom_locality::fl_lock.
- *   All the operations on locality members are performed independently using
- *   simple locking and unlocking semantics.
- *
- * Threading & concurrency.
- *
- * The FOM states transitions are running under locality lock. The
- * only places the lock is released during a state transition is in
- * a "blocking point" (between c2_fom_block_enter() and matching
- * c2_fom_block_leave()). At these points another thread is created
- * to possibly run the next FOM and utilize the CPU as much as
- * possible. As a result, a locality has as many additional threads
- * created as there are outstanding calls to c2_fom_enter()---counted
- * in c2_fom_locality::fl_lo_idle_threads_nr. When
- * c2_fom_block_leave() is called to mark completion of a blocking
- * point, two things should happen:
- *
- *    - one of additional threads should be terminated,
- *
- *    - locality lock released by c2_fom_block_enter() should be
- *      re-acquired.
- *
- * To decrease the number of threads,
- * c2_fom_locality::fl_lo_idle_threads_nr is decremented.
- *
- * The counter is checked by each locality thread on each iteration of
- * main handler loop (in loc_handler_thread()). If a thread finds
- * that there are too many threads in the locality, it releases the
- * locality lock and terminates. The idle threads counter is
- * protected by a separate c2_fom_locality::fl_lock, because
- * otherwise c2_fom_block_leave() might have to wait until
- * concurrent thread exhausts the FOM queue and releases the
- * locality lock.
- *
  * Once the locality is initialised, the locality invariant,
  * should hold true until locality is finalised.
  *
  * @see c2_locality_invaraint()
  */
-
 struct c2_fom_locality {
 	struct c2_fom_domain        *fl_dom;
 
@@ -139,47 +253,23 @@ struct c2_fom_locality {
 	struct c2_sm_group	     fl_group;
 
 	/**
-	 *  Private lock for API protection
-	 *
-	 *  Some operations should be performed atomically though without
-	 *  dependence on locality lock (fl_group.s_lock). For example,
-	 *  decrementing of fl_lo_idle_threads_nr counter in block_leave().
-	 *  Else, it could take a while to get locality lock in block_leave()
-	 *  as long as another thread will run all FOMs states until its
-	 *  "block time" when the lock is released.
-	 *
-	 *  This lock is never held together with locality lock.
-	 *
-	 *  This lock is a `private' data, i.e. it is not intended for direct
-	 *  usage by fom users.
-	 */
-	struct c2_mutex		     fl_lock;
-
-	/**
-	 *  Re-scheduling channel that idle threads of locality wait on for new
-	 *  work.
+	 *  Re-scheduling channel that the handler thread waits on for new work.
 	 *
 	 *  @see http://www.tom-yam.or.jp/2238/src/slp.c.html#line2142 for
 	 *  the explanation of the name.
 	 */
 	struct c2_chan		     fl_runrun;
-
-	/** Handler threads */
-	struct c2_list		     fl_threads;
-	size_t			     fl_idle_threads_nr;
-	size_t			     fl_threads_nr;
-
 	/**
-	 *  Minimum number of idle threads, that should be present in a
-	 *  locality.
+	 * Set to true when the locality is finalised. This signals locality
+	 * threads to exit.
 	 */
-	size_t			     fl_lo_idle_threads_nr;
-
-	/**
-	 *  Maximum number of idle threads, that should be present in a
-	 *  locality.
-	 */
-	size_t			     fl_hi_idle_threads_nr;
+	bool                         fl_shutdown;
+	/** Handler thread */
+	struct c2_loc_thread        *fl_handler;
+	/** Idle threads */
+	struct c2_tl                 fl_threads;
+	struct c2_atomic64           fl_unblocking;
+	struct c2_chan               fl_idle;
 
 	/** Resources allotted to the partition */
 	struct c2_bitmap	     fl_processors;
@@ -247,6 +337,13 @@ enum c2_fom_state {
 	C2_FOS_FINISH,
 };
 
+enum c2_fom_phase {
+	C2_FOM_PHASE_INIT,   /*< fom has been initialised. */
+	C2_FOM_PHASE_FINISH, /*< terminal phase. */
+	C2_FOM_PHASE_NR
+};
+
+
 /**
  * Initialises c2_fom_domain object provided by the caller.
  * Creates and initialises localities with handler threads.
@@ -278,9 +375,9 @@ bool c2_fom_domain_invariant(const struct c2_fom_domain *dom);
  * Fom call-back states
  */
 enum c2_fc_state {
-	C2_FCS_INIT,
-	C2_FCS_TOP_DONE,	/**< AST top-half done */
-	C2_FCS_DONE,		/**< AST bottom-half done */
+	C2_FCS_ARMED = 1,       /**< Armed */
+	C2_FCS_TOP_DONE,	/**< Top-half done */
+	C2_FCS_DONE,		/**< Bottom-half done */
 };
 
 /**
@@ -293,24 +390,25 @@ struct c2_fom_callback {
 	 * announced.
 	 */
 	struct c2_clink   fc_clink;
-
 	/**
 	 * AST to execute the call-back.
 	 */
 	struct c2_sm_ast  fc_ast;
-
+	/**
+	 * State, from enum c2_fc_state. int64_t is needed for
+	 * c2_atomic64_cas().
+	 */
 	int64_t           fc_state;
-
 	struct c2_fom    *fc_fom;
 	/**
 	 * Optional filter function executed from the clink call-back
 	 * to filter out some events. This is top half of call-back.
-	 * It can be executed concurrently with fom state transition function.
+	 * It can be executed concurrently with fom phase transition function.
 	 */
 	bool (*fc_top)(struct c2_fom_callback *cb);
 	/**
 	 * The bottom half of call-back. Never executed concurrently with the
-	 * fom state transition function.
+	 * fom phase transition function.
 	 */
 	void (*fc_bottom)(struct c2_fom_callback *cb);
 };
@@ -321,6 +419,12 @@ struct c2_fom_callback {
  * Once the fom is initialised, fom invariant,
  * should hold true as fom execution enters various
  * phases, including before fom is finalised.
+ *
+ * c2_fom is usually embedded into an ambient fom-type-specific object allocated
+ * by c2_fom_type_ops::fto_create() or other means.
+ *
+ * c2_fom is geared towards supporting foms executing file operation requests
+ * (fops), but can be used for any kind of server activity.
  *
  * @see c2_fom_invariant()
  */
@@ -358,8 +462,16 @@ struct c2_fom {
 	struct c2_sm		 fo_sm_phase;
 	/** State machine for FOM states. */
 	struct c2_sm		 fo_sm_state;
-	/** Next FOM phase to be executed after WAIT state. */
-	int			 fo_next_phase;
+	/** Next FOM phase to be executed. */
+	int			 fo_phase;
+	/** Result of fom execution, -errno on failure */
+	int32_t			  fo_rc;
+	/** Thread executing current phase transition. */
+	struct c2_loc_thread     *fo_thread;
+	/**
+	 * Stack of pending call-backs.
+	 */
+	struct c2_fom_callback   *fo_pending;
 };
 
 /**
@@ -374,6 +486,7 @@ struct c2_fom {
  * @param reqh, request handler processing the fom given fop
  *
  * @pre is_locked(fom)
+ * @pre fom->fo_phase == C2_FOM_PHASE_INIT
  */
 void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh);
 
@@ -383,7 +496,8 @@ void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh);
  * Invoked from c2_fom_type_ops::fto_create implementation for corresponding
  * fom.
  *
- * Fom starts in C2_FOPH_INIT phase to begin its execution.
+ * Fom starts in C2_FOM_PHASE_INIT phase and C2_FOS_RUNNING state to begin its
+ * execution.
  *
  * @param fom A fom to be initialized
  * @param fom_type Fom type
@@ -404,7 +518,7 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
  * reaches 0.
  *
  * @param fom, A fom to be finalised
- * @pre fom->fo_phase == C2_FOPH_FINISH
+ * @pre fom->fo_phase == C2_FOM_PHASE_FINISH
 */
 void c2_fom_fini(struct c2_fom *fom);
 
@@ -420,40 +534,39 @@ bool c2_fom_invariant(const struct c2_fom *fom);
 /** Type of fom. c2_fom_type is part of c2_fop_type. */
 struct c2_fom_type {
 	const struct c2_fom_type_ops *ft_ops;
-	struct c2_sm_conf	      ft_conf;
-	/** It points to either generic SM configuration or combined generic and
-	 * specific configuration.
+	struct c2_sm_conf             ft_conf;
+	/** It points to either generic SM phases or combined generic and
+	 * specific phases.
 	 */
 	struct c2_sm_state_descr     *ft_phases;
 	uint32_t                      ft_phases_nr;
+	/** Service type this FOM type belongs to. */
+	struct c2_reqh_service_type  *ft_rstype;
 };
 
 /**
- * Potential outcome of a fom state transition.
+ * Potential outcome of a fom phase transition.
  *
- * @see c2_fom_ops::fo_state().
+ * @see c2_fom_ops::fo_tick().
  */
-enum c2_fom_state_outcome {
+enum c2_fom_phase_outcome {
 	/**
-	 *  State transition completed. The next state transition would be
-	 *  possible when some future event happens. The state transition
-	 *  function registers the fom's clink with the channel where this
-	 *  event will be signalled.
+	 *  Phase transition completed. The next phase transition would be
+	 *  possible when some future event happens.
 	 *
-	 *  When C2_FSO_WAIT is returned, the fom is put on locality wait-list
-	 *  and finalises the fom if it's phase is C2_FOPH_FINISH.
+	 *  When C2_FSO_WAIT is returned, the fom is put on locality wait-list.
 	 */
-	C2_FSO_WAIT = C2_SM_BREAK,
+	C2_FSO_WAIT = 1,
 	/**
-	 * State transition completed and another state transition is
+	 * Phase transition completed and another phase transition is
 	 * immediately possible.
 	 *
-	 * When C2_FSO_AGAIN is returned, either the next state transition is
+	 * When C2_FSO_AGAIN is returned, either the next phase transition is
 	 * immediately executed (by the same or by a different handler thread)
 	 * or the fom is placed in the run-queue, depending on the scheduling
 	 * constraints.
 	 */
-	C2_FSO_AGAIN = C2_FSO_WAIT - 1,
+	C2_FSO_AGAIN,
 };
 
 /** Fom type operation vector. */
@@ -467,11 +580,11 @@ struct c2_fom_ops {
 	/** Finalise this fom. */
 	void (*fo_fini)(struct c2_fom *fom);
 	/**
-	 *  Executes the next state transition.
+	 *  Executes the next phase transition, "ticking" the fom machine.
 	 *
-	 *  Returns value of enum c2_fom_state_outcome or error code.
+	 *  Returns value of enum c2_fom_phase_outcome.
 	 */
-	int  (*fo_state)(struct c2_fom *fom);
+	int  (*fo_tick)(struct c2_fom *fom);
 
 	/**
 	 *  Finds home locality for this fom.
@@ -481,30 +594,10 @@ struct c2_fom_ops {
 	 *  array.
 	 */
 	size_t  (*fo_home_locality) (const struct c2_fom *fom);
-
-	/**
-	 * Get service name which executes this fom.
-	 */
-	const char *(*fo_service_name) (struct c2_fom *fom);
-};
-
-/** Handler thread. */
-struct c2_fom_hthread {
-	struct c2_thread	fht_thread;
-	/** Linkage into c2_fom_locality::fl_threads. */
-	struct c2_list_link	fht_linkage;
-	/** locality this thread belongs to */
-	struct c2_fom_locality	*fht_locality;
 };
 
 /**
  * This function is called before potential blocking point.
- * Checks whether the fom locality has "enough" idle threads.
- * If not, additional threads are started to cope with possible
- * blocking point.
- * Increments c2_fom_locality::fl_lo_idle_threads_nr, so that
- * there exists atleast one idle thread to handle incoming fop if
- * the calling thread blocks.
  *
  * @param fom, A fom executing a possible blocking operation
  * @see c2_fom_locality
@@ -513,8 +606,6 @@ void c2_fom_block_enter(struct c2_fom *fom);
 
 /**
  * This function is called after potential blocking point.
- * Decrements c2_fom_locality::fl_lo_idle_threads_nr, so that
- * extra idle threads are destroyed automatically.
  *
  * @param fom, A fom done executing a blocking operation
  */
@@ -536,6 +627,11 @@ void c2_fom_ready(struct c2_fom *fom);
  * different locality group lock held).
  */
 void c2_fom_wakeup(struct c2_fom *fom);
+
+/**
+ * Initialises the call-back structure.
+ */
+void c2_fom_callback_init(struct c2_fom_callback *cb);
 
 /**
  * Registers AST call-back with the channel and a fom executing a blocking
@@ -567,10 +663,15 @@ void c2_fom_wait_on(struct c2_fom *fom, struct c2_chan *chan,
                     struct c2_fom_callback *cb);
 
 /**
- * Optional call just to make sure that the call-back can be freed.
- * The actual fini is performed automatically in the AST call-back
- * after bottom half is called or (in exception situation) when call-back
- * is cancelled.
+ * Finalises the call-back. This is only safe to be called when:
+ *
+ *     - the call-back was never armed, or
+ *
+ *     - the last arming completely finished (both top- and bottom- halves were
+ *       executed) or,
+ *
+ *     - the call-back was armed and the call to c2_fom_callback_cancel()
+ *       returned true.
  */
 void c2_fom_callback_fini(struct c2_fom_callback *cb);
 
@@ -597,7 +698,15 @@ C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, \
  */
 bool c2_fom_group_is_locked(const struct c2_fom *fom);
 
-/** @} endgroup fom */
+#define C2_FOM_TYPE_DECLARE(fomt, ops, stype, phases) \
+struct c2_fom_type fomt ## _fomt = {                  \
+	.ft_ops = (ops),                              \
+	.ft_rstype = (stype),                         \
+	.ft_phases = (phases),                        \
+	.ft_phases_nr = ARRAY_SIZE(phases),           \
+}                                                     \
+
+/** @} end of fom group */
 /* __COLIBRI_FOP_FOM_H__ */
 #endif
 

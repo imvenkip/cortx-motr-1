@@ -168,7 +168,7 @@ static bool lock(struct c2_long_lock *lock, struct c2_long_lock_link *link,
 		fom->fo_transitions_saved = fom->fo_transitions;
 		c2_lll_tlist_add_tail(&lock->l_waiters, link);
 	}
-	fom->fo_next_phase = next_phase;
+	fom->fo_phase = next_phase;
 	C2_POST(lock_invariant(lock));
 	c2_mutex_unlock(&lock->l_lock);
 	return got_lock;

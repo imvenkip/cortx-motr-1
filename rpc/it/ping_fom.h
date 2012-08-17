@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,10 +18,12 @@
  * Original creation date: 07/07/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_PING_FOM_H__
 #define __COLIBRI_PING_FOM_H__
 
-#include "ping_fop.h"
+#include "rpc/it/ping_fop.h"
 
 /**
  * Object encompassing FOM for ping

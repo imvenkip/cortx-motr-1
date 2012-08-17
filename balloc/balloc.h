@@ -18,6 +18,8 @@
  * Original creation date: 07/27/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_BALLOC_BALLOC_H__
 #define __COLIBRI_BALLOC_BALLOC_H__
 

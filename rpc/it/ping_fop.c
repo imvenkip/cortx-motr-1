@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -25,67 +25,41 @@
 #include "lib/memory.h"
 #include "fop/fom.h"
 #include "fop/fop.h"
-#include "fop/fop_format_def.h"
-#ifdef __KERNEL__
-#include "ping_fop_k.h"
-#else
-#include "ping_fop_u.h"
-#endif
-#include "fop/fop_iterator.h"
+#include "rpc/it/ping_fop_xc.h"
 #include "rpc/it/ping_fop.h"
 #include "rpc/it/ping_fom.h"
-#include "rpc/it/ping_fop.ff"
 #include "lib/errno.h"
 #include "rpc/rpc2.h"
 #include "fop/fop_item_type.h"
-#include "xcode/bufvec_xcode.h"
 
-/* Ops vector for ping request. */
-const struct c2_fop_type_ops c2_fop_ping_ops = {
-	.fto_fop_replied = NULL,
-	.fto_size_get = c2_xcode_fop_size_get,
-	.fto_io_coalesce = NULL,
-};
-
-/* Ops vector for ping reply. */
-const struct c2_fop_type_ops c2_fop_ping_rep_ops = {
-        .fto_fop_replied = NULL,
-        .fto_size_get = c2_xcode_fop_size_get,
-        .fto_io_coalesce = NULL,
-};
-
-/* Ping fop assignment */
-C2_FOP_TYPE_DECLARE(c2_fop_ping, "ping fop", &c2_fop_ping_ops,
-		    C2_RPC_PING_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
-
-C2_FOP_TYPE_DECLARE(c2_fop_ping_rep, "ping fop reply", &c2_fop_ping_rep_ops,
-		    C2_RPC_PING_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
-
-static struct c2_fop_type_format *fmts[] = {
-        &c2_fop_ping_arr_tfmt,
-};
-
-
-static struct c2_fop_type *fops[] = {
-        &c2_fop_ping_fopt,
-        &c2_fop_ping_rep_fopt,
-};
+struct c2_fop_type c2_fop_ping_fopt;
+struct c2_fop_type c2_fop_ping_rep_fopt;
 
 void c2_ping_fop_fini(void)
 {
-        c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
+	c2_fop_type_fini(&c2_fop_ping_rep_fopt);
+        c2_fop_type_fini(&c2_fop_ping_fopt);
+	c2_xc_ping_fop_xc_fini();
 }
 
-extern struct c2_fom_type c2_fom_ping_mopt;
+extern struct c2_fom_type c2_fom_ping_fomt;
 
 int c2_ping_fop_init(void)
 {
-        int result;
-	result = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
-        result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
-	c2_fop_ping_fopt.ft_fom_type = c2_fom_ping_mopt;
-        return result;
+	c2_fop_ping_fopt.ft_fom_type = c2_fom_ping_fomt;
+	c2_xc_ping_fop_xc_init();
+        return  C2_FOP_TYPE_INIT(&c2_fop_ping_fopt,
+				 .name      = "Ping fop",
+				 .opcode    = C2_RPC_PING_OPCODE,
+				 .xt        = c2_fop_ping_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
+					      C2_RPC_ITEM_TYPE_MUTABO,
+				 .fom_ops   = c2_fom_ping_fomt.ft_ops) ?:
+		C2_FOP_TYPE_INIT(&c2_fop_ping_rep_fopt,
+				 .name      = "Ping fop reply",
+				 .opcode    = C2_RPC_PING_REPLY_OPCODE,
+				 .xt        = c2_fop_ping_rep_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY);
 }
 
 

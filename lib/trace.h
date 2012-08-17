@@ -18,6 +18,8 @@
  * Original creation date: 08/12/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LIB_TRACE_H__
 #define __COLIBRI_LIB_TRACE_H__
 
