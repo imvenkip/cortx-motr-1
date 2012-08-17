@@ -90,6 +90,7 @@ static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
         fom_obj= c2_alloc(sizeof(struct c2_fom_ping));
         if (fom_obj == NULL)
                 return -ENOMEM;
+	c2_fom_type_register(&c2_fom_ping_fomt);
         fom_type = &c2_fom_ping_fomt;
         C2_ASSERT(fom_type != NULL);
         fop->f_type->ft_fom_type = *fom_type;

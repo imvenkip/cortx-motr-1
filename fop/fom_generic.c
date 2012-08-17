@@ -806,6 +806,7 @@ void c2_fom_type_register(struct c2_fom_type *fom_type)
 	} else
 		fom_type->ft_conf = generic_conf;
 }
+C2_EXPORTED(c2_fom_type_register);
 
 /** @} end of fom group */
 /*

@@ -593,6 +593,11 @@ void c2_sm_ast_post(struct c2_sm_group *grp, struct c2_sm_ast *ast);
  */
 void c2_sm_asts_run(struct c2_sm_group *grp);
 
+enum c2_sm_return {
+	/** Returns from state function without transitioning to next state. */
+	C2_SM_BREAK = -1,
+};
+
 /** @} end of sm group */
 
 /* __COLIBRI_SM_SM_H__ */
