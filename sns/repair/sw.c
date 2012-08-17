@@ -33,7 +33,8 @@
 #include "lib/finject.h"
 
 /**
-  @addtogroup SNSRepairSW
+   @defgroup SNSRepairSW SNS Repair sliding window
+   @ingroup SNSRepairCM
 
   @{
 */
