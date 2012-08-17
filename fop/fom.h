@@ -538,7 +538,7 @@ struct c2_fom_type {
 	/** It points to either generic SM phases or combined generic and
 	 * specific phases.
 	 */
-	struct c2_sm_state_descr     *ft_phases;
+	struct c2_sm_state_descr      *ft_phases;
 	uint32_t                      ft_phases_nr;
 	/** Service type this FOM type belongs to. */
 	struct c2_reqh_service_type  *ft_rstype;
@@ -703,7 +703,7 @@ struct c2_fom_type fomt ## _fomt = {                  \
 	.ft_ops = (ops),                              \
 	.ft_rstype = (stype),                         \
 	.ft_phases = (phases),                        \
-	.ft_phases_nr = ARRAY_SIZE(phases),           \
+	.ft_phases_nr = (ARRAY_SIZE(phases)),         \
 }                                                     \
 
 /** @} end of fom group */

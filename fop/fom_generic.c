@@ -773,7 +773,7 @@ void c2_fom_sm_init(struct c2_fom *fom)
 {
 	struct c2_sm_group	*fom_group;
 	struct c2_addb_ctx	*fom_addb_ctx;
-	struct c2_sm_conf	*conf;
+	const struct c2_sm_conf	*conf;
 
 	C2_PRE(fom != NULL);
 

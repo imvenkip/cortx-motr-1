@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,8 +17,6 @@
  * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
  * Original creation date: 04/01/2010
  */
-
-#pragma once
 
 #ifndef __COLIBRI_SM_SM_H__
 #define __COLIBRI_SM_SM_H__
@@ -529,7 +527,7 @@ void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc);
    @pre c2_mutex_is_locked(&mach->sm_grp->s_lock)
    @post c2_mutex_is_locked(&mach->sm_grp->s_lock)
  */
-void c2_sm_state_set(struct c2_sm *mach, int state);
+int c2_sm_state_set(struct c2_sm *mach, int state);
 
 /**
    Structure used by c2_sm_timeout() to record timeout state.
