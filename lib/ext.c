@@ -61,6 +61,31 @@ void c2_ext_intersection(const struct c2_ext *e0, const struct c2_ext *e1,
 	result->e_end   = min_check(e0->e_end,   e1->e_end);
 }
 
+/*
+ * The subtrahend extent should align with minuend extent either on
+ * extent->e_start boundary or extent->e_end.
+ * Otherwise, the substraction can result into multiple discontiguous
+ * extents.
+ * */
+void c2_ext_sub(const struct c2_ext *minuend, const struct c2_ext *subtrahend,
+		struct c2_ext *difference)
+{
+        C2_PRE(minuend != NULL && subtrahend != NULL && difference != NULL);
+        C2_PRE(c2_ext_is_partof(minuend, subtrahend));
+        C2_PRE(minuend->e_start == subtrahend->e_start ||
+               minuend->e_end   == subtrahend->e_end);
+
+        if (minuend->e_start == subtrahend->e_start) {
+                difference->e_start = subtrahend->e_end;
+                difference->e_end   = minuend->e_end;
+        } else {
+                difference->e_end   = subtrahend->e_start;
+                difference->e_start = minuend->e_start;
+        }
+
+        C2_POST(c2_ext_is_partof(minuend, difference));
+}
+
 /** @} end of ext group */
 
 /*
