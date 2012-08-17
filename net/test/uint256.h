@@ -18,16 +18,20 @@
  * Original creation date: 07/09/2012
  */
 
-#ifndef __NET_TEST_INT256_H__
-#define __NET_TEST_INT256_H__
+#ifndef __NET_TEST_UINT256_H__
+#define __NET_TEST_UINT256_H__
 
 #include "lib/types.h"		/* bool */
 #include "lib/assert.h"		/* C2_BASSERT */
 
 #include "net/test/serialize.h"	/* c2_net_test_serialize_op */
 
+#ifndef __KERNEL__
+#include "net/test/user_space/uint256_u.h" /* c2_net_test_uint256_double_get */
+#endif
+
 /**
-   @defgroup NetTestInt256DFS int256
+   @defgroup NetTestInt256DFS uint256
    @ingroup NetTestDFS
 
    @see
@@ -132,7 +136,7 @@ c2_bcount_t c2_net_test_uint256_serialize(enum c2_net_test_serialize_op op,
    @} end of NetTestInt256DFS group
  */
 
-#endif /*  __NET_TEST_INT256_H__ */
+#endif /*  __NET_TEST_UINT256_H__ */
 
 /*
  *  Local variables:

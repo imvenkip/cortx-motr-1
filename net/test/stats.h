@@ -24,6 +24,10 @@
 #include "lib/time.h"		/* c2_time_t */
 #include "net/test/uint256.h"	/* c2_net_test_uint256 */
 
+#ifndef __KERNEL__
+#include "net/test/user_space/stats_u.h"	/* c2_net_test_stats_avg */
+#endif
+
 /**
    @defgroup NetTestStatsDFS Statistics Collector
    @ingroup NetTestDFS
@@ -151,20 +155,6 @@ unsigned long c2_net_test_stats_min(const struct c2_net_test_stats *stats);
 unsigned long c2_net_test_stats_max(const struct c2_net_test_stats *stats);
 
 /**
-   Get sample average (arithmetic mean).
-   @note This functions isn't defined for kernel mode.
-   @pre c2_net_test_stats_invariant(stats)
- */
-double c2_net_test_stats_avg(const struct c2_net_test_stats *stats);
-
-/**
-   Get sample standard deviation.
-   @note This functions isn't defined for kernel mode.
-   @pre c2_net_test_stats_invariant(stats)
- */
-double c2_net_test_stats_stddev(const struct c2_net_test_stats *stats);
-
-/**
    Serialize/deserialize c2_net_test_stats.
    @see c2_net_test_serialize().
  */
@@ -196,18 +186,6 @@ c2_time_t c2_net_test_stats_time_min(struct c2_net_test_stats *stats);
    @see c2_net_test_stats_time_add()
  */
 c2_time_t c2_net_test_stats_time_max(struct c2_net_test_stats *stats);
-
-/**
-   @see c2_net_test_stats_time_add()
-   @note This functions isn't defined for kernel mode.
- */
-c2_time_t c2_net_test_stats_time_avg(struct c2_net_test_stats *stats);
-
-/**
-   @see c2_net_test_stats_time_add()
-   @note This functions isn't defined for kernel mode.
- */
-c2_time_t c2_net_test_stats_time_stddev(struct c2_net_test_stats *stats);
 
 /**
    Timestamp.

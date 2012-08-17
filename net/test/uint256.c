@@ -158,24 +158,6 @@ bool c2_net_test_uint256_is_eq(const struct c2_net_test_uint256 *a,
 	return true;
 }
 
-#ifndef __KERNEL__
-double c2_net_test_uint256_double_get(const struct c2_net_test_uint256 *a)
-{
-	const double base   = 1. + ULONG_MAX;
-	double	     pow    = 1.;
-	double	     result = .0;
-	int	     i;
-
-	C2_PRE(a != NULL);
-
-	for (i = 0; i < C2_NET_TEST_UINT256_QWORDS_NR; ++i) {
-		result += pow * c2_net_test_uint256_qword_get(a, i);
-		pow *= base;
-	}
-	return result;
-}
-#endif
-
 c2_bcount_t c2_net_test_uint256_serialize(enum c2_net_test_serialize_op op,
 					  struct c2_net_test_uint256 *a,
 					  struct c2_bufvec *bv,

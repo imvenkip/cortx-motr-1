@@ -22,10 +22,6 @@
 #  include "config.h"
 #endif
 
-#ifndef __KERNEL__
-#include <math.h>	/* sqrt */
-#endif
-
 #include "lib/misc.h"	/* C2_SET0 */
 #include "lib/arith.h"	/* min_check */
 
@@ -117,39 +113,6 @@ unsigned long c2_net_test_stats_max(const struct c2_net_test_stats *stats)
 	return stats->nts_max;
 }
 
-#ifndef __KERNEL__
-double c2_net_test_stats_avg(const struct c2_net_test_stats *stats)
-{
-	double sum;
-
-	C2_PRE(c2_net_test_stats_invariant(stats));
-
-	sum = c2_net_test_uint256_double_get(&stats->nts_sum);
-	return stats->nts_count == 0 ? 0. : sum / stats->nts_count;
-}
-
-double c2_net_test_stats_stddev(const struct c2_net_test_stats *stats)
-{
-	double mean;
-	double stddev;
-	double N;
-	double sum_sqr;
-
-	C2_PRE(c2_net_test_stats_invariant(stats));
-
-	if (stats->nts_count == 0 || stats->nts_count == 1)
-		return 0.;
-
-	mean	= c2_net_test_stats_avg(stats);
-	N	= stats->nts_count;
-	sum_sqr	= c2_net_test_uint256_double_get(&stats->nts_sum_sqr);
-	stddev	= (sum_sqr - N * mean * mean) / (N - 1.);
-	stddev  = stddev < 0. ? 0. : stddev;
-	stddev	= sqrt(stddev);
-	return stddev;
-}
-#endif
-
 TYPE_DESCR(c2_net_test_stats) = {
 	FIELD_DESCR(struct c2_net_test_stats, nts_count),
 	FIELD_DESCR(struct c2_net_test_stats, nts_min),
@@ -211,29 +174,6 @@ c2_time_t c2_net_test_stats_time_max(struct c2_net_test_stats *stats)
 {
 	return unsigned_long2c2_time_t(c2_net_test_stats_max(stats));
 }
-
-#ifndef __KERNEL__
-static c2_time_t double2c2_time_t(double value)
-{
-	c2_time_t time;
-	uint64_t  seconds;
-	uint64_t  nanoseconds;
-
-	seconds	    = (uint64_t) floor(value / C2_TIME_ONE_BILLION);
-	nanoseconds = (uint64_t) (value - seconds * C2_TIME_ONE_BILLION);
-	return c2_time_set(&time, seconds, nanoseconds);
-}
-
-c2_time_t c2_net_test_stats_time_avg(struct c2_net_test_stats *stats)
-{
-	return double2c2_time_t(c2_net_test_stats_avg(stats));
-}
-
-c2_time_t c2_net_test_stats_time_stddev(struct c2_net_test_stats *stats)
-{
-	return double2c2_time_t(c2_net_test_stats_stddev(stats));
-}
-#endif
 
 void c2_net_test_timestamp_init(struct c2_net_test_timestamp *t)
 {
