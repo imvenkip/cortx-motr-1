@@ -36,7 +36,7 @@
    \f[ \overline{x} = \frac {1}{N} \sum\limits_{i=1}^N {x_i} \f]
    It is assumed that arithmetic mean = 0 if N == 0.
 
-   Sample stantard deviation calculation:
+   Sample standard deviation calculation:
    \f[ s =
        \sqrt {\frac {1}{N - 1}  \sum\limits_{i=1}^N {(x_i - \overline{x})^2} } =
        \sqrt {\frac {1}{N - 1} (\sum\limits_{i=1}^N {x_i^2} +
