@@ -49,6 +49,345 @@
  *
  */
 
+/**
+ * @page c2loop-dld The new c2loop device driver DLD
+ *
+ * - @ref c2loop-dld-ovw
+ * - @ref c2loop-dld-req
+ * - @ref c2loop-dld-highlights
+ * - @ref c2loop-dld-dep
+ * - @ref c2loop-dld-fspec
+ * - @ref c2loop-dld-lspec
+ *    - @ref c2loop-dld-lspec-thread
+ * - @ref c2loop-dld-conformance
+ * - @ref c2loop-dld-ut
+ * - @ref c2loop-dld-st
+ * - @ref c2loop-dld-O
+ * - @ref c2loop-dld-ref
+ * - @ref c2loop-dld-plan
+ *
+ * <hr>
+ * @section c2loop-dld-ovw Overview
+ *
+ * C2loop is <a href="http://en.wikipedia.org/wiki/Loop_device">loop
+ * block device</a> Linux driver for Colibri c2t1fs.
+ *
+ * C2loop driver was based on <a
+ * href="http://lxr.linux.no/linux+v2.6.32/drivers/block/loop.c">
+ * standard Linux loop device driver</a>, so it is also GPL-licensed.
+ *
+ * This document describes only the changes we will make to the standard
+ * loop device driver for c2loop.
+ *
+ * The problem with standard loop driver is that it copies data between
+ * pages (see transfer_none()). For writing it tries to use address
+ * space operations write_begin and write_end (which must be implemented
+ * by the file system) to directly manipulate with the pages in system
+ * cache and thus avoid one excess data copy. With c2t1fs this won't
+ * work, because it does not use system cache. Thus, it is needed to
+ * invent some other mechanism to avoid data copying and remove the use
+ * of transfer_none() from the data path altogether.
+ *
+ * <hr>
+ * @section c2loop-dld-req Requirements
+ *
+ * - @b r.c2loop.map
+ *   C2loop should represent a c2t1fs file as the block device.
+ * - @b r.c2loop.nocopy
+ *   C2loop should avoid the copying of the data between pages.
+ * - @b r.c2loop.bulk
+ *   C2loop should efficiently use c2t1fs interface. In particular,
+ *   it should call c2t1fs read/write functions with as much data as
+ *   possible in a one call.
+ * - @b r.c2loop.losetup
+ *   C2loop should be manageable with the standard losetup utility.
+ *
+ * <hr>
+ * @section c2loop-dld-highlights Design Highlights
+ *
+ * For all the bio segments, we directly call c2t1fs
+ * aio_read/aio_write() functions with the iovecs array argument, where
+ * each vector points directly to the pages data. Thus, we avoid data
+ * copying.
+ *
+ * It appears, from empirical investigation, that Linux does not make
+ * segments larger than 4K (one page) and does not pass more than one 4K
+ * segment in the bio request structure; this results in separate bio
+ * requests for each 4K buffer. Calling aio_read/aio_write() each time
+ * just for each 4K buffer is not very effective.
+ *
+ * To solve this problem, we aggregate the segments (actually - the
+ * pages) which belongs to one particular read/write operation from
+ * all available bio requests in the list into iov array and call
+ * aio_read/aio_write() with all of them.
+ *
+ * <hr>
+ * @section c2loop-dld-dep Dependencies
+ *
+ * The ext4 file system which is likely to be used with c2loop
+ * block device has a maximum block size limit of 4K. For optimal
+ * performance we suppose such a 4K block size configuration of ext4
+ * file system and inform the kernel that our sector size is also 4K
+ * (with blk_queue_logical_block_size()). That will be the minimum
+ * segment size kernel give us in a bio request. This means that c2t1fs
+ * must be able to handle 4K size buffers, possibly with help of
+ * read-modify-write (RMW) feature (in case stripe size is greater than
+ * 4K).
+ *
+ * The size of one iovec from c2loop is limited to 4K (one page).
+ * So in order to work effectively with c2loop driver c2t1fs should
+ * effectively handle all the iov elements in the array passed into the
+ * aio_read/aio_write() calls. In particular, it should accumulate the
+ * pages across all iovecs (when needed) in the same read or write call
+ * and do not limit its I/O size by the size of some one iovec.
+ *
+ * For example, if stripe unit size is 16K (four 4K pages), c2t1fs
+ * should not handle each iovec from iov array separately, but it
+ * should try to get all available iovecs from the same request to
+ * form as close to 16K (stripe unit size) buffer as possible for its
+ * I/O.
+ *
+ * <hr>
+ * @section c2loop-dld-fspec Functional Specification
+ *
+ * C2loop driver represents a c2t1fs file as a /dev/c2loopN block
+ * device in the system. The same way as for standard loop device,
+ * losetup(8) utility is used to configure such an association between
+ * a file and particular /dev/c2loopN block device instance. The
+ * following losetup(8) options are supported for now:
+ *
+ *   - setup loop device:
+ *     losetup /dev/c2loopN c2t1fs_file
+ *   - delete loop device:
+ *     losetup -d /dev/c2loopN
+ *   - get info:
+ *     losetup /dev/c2loopN
+ *
+ * <hr>
+ * @section c2loop-dld-lspec Logical Specification
+ *
+ * In this section we are going to describe mainly how the segments
+ * from bio requests are aggregated in iovecs. This is the core logic
+ * customization to the standard loop driver we provide in c2loop.
+ *
+ * Internally, c2loop driver works with the same kernel interfaces as
+ * standard loop driver. For example, from block layer it takes bio
+ * request structures from which the buffers are referenced. Struct file
+ * is used to call the file system operations on a mapped file
+ * (aio_read/aio_write). For block device request queue configuration,
+ * the same kernel blk_queue_*() API is used. The same ioctls are used
+ * by losetup(8) utility (like LOOP_SET_FD) to configure the association
+ * between a file and block device.
+ *
+ * For all the bio segments, we directly call c2t1fs
+ * aio_read/aio_write() functions with the iovecs array argument, where
+ * each vector points directly to the pages data from the segments.
+ * Thus, we avoid data copying inside c2loop driver.
+ *
+ * The c2loop driver (as well as the standard one) handles bio requests
+ * asynchronously, i.e. when kernel calls loop_make_request(), it
+ * just add bio request into lo->lo_bio_list queue and wakes up the
+ * loop_thread. When the latter starts running, it handles all the
+ * bio requests available in the queue one by one. In the stable
+ * running system it is more likely that there will be several bio
+ * requests in the queue before loop_thread will start to handle
+ * them. This allows us to analyze several bio requests available in
+ * the queue and aggregate the relevant continuous segments for one
+ * specific read/write file operation into correspondent iovecs for
+ * aio_read/aio_write() call. Here is the sequence diagram which shows
+ * this process on several CPUs host:
+ *
+ * @msc
+ * requestor,loop_thread,c2t1fs;
+ *
+ * |||;
+ * requestor box requestor [label = "loop_add_bio()"];
+ * requestor -> loop_thread [label = "wake_up(lo)"];
+ * requestor box requestor [label = "loop_add_bio()"];
+ * requestor -> loop_thread [label = "wake_up(lo)"];
+ * ...;
+ * --- [label = " loop thread scheduled, two threads may run in parallel "];
+ * requestor box requestor [label = "loop_add_bio()"],
+ * loop_thread box loop_thread [label = "loop_handle_bios(): accumulate
+ *                                       segments into iovecs array"];
+ * requestor -> loop_thread [label = "wake_up(lo)"];
+ * requestor box requestor [label = "loop_add_bio()"],
+ * loop_thread => c2t1fs [label = "loop_handle_bios(): aio_read/aio_write()"];
+ * requestor -> loop_thread [label = "wake_up(lo)"],
+ * loop_thread box loop_thread [label = "loop_handle_bios(): accumulate
+ *                                       segments into iovecs array"];
+ * loop_thread => c2t1fs [label = "loop_handle_bios(): aio_read/aio_write()"];
+ * ...;
+ * loop_thread => loop_thread [label = "wait_event(lo, !bio_list_empty())"];
+ * @endmsc
+ *
+ * loop_handle_bios() does the main job of bio segments aggregation. It
+ * traverses the bio requests queue and fills iovecs array until any of
+ * the following conditions happen:
+ *
+ *   - the position in the file where the data should be read/written
+ *     changed;
+ *   - bio request changed from read to write (or vise versa);
+ *   - the number of segments exceed the size of iovecs array.
+ *
+ * As soon as any on these conditions happen, we close iovecs
+ * aggregation and pass it to do_iov_filebacked() function which is just
+ * convenient wrapper for aio_read/aio_write() calls.
+ *
+ * @subsection c2loop-dld-lspec-thread Threading and Concurrency
+ *
+ * As it can be seen by now, there are two threads involved in c2loop.
+ * The requestor thread adds bio requests to the lo_bio_list queue and
+ * the loop_thread handles these requests.
+ *
+ * If there are no more bio requests to handle in the queue, loop_thread
+ * just sleeps waiting for event from the requestor thread. The latter
+ * wakes it up after adding a new bio request to the queue.
+ *
+ * lo_bio_list queue should be protected with the spin lock, because two
+ * threads can manipulate it concurrently (see lo->lo_lock). The lo_lock
+ * spin lock is provided by the standard loop driver code and we do not
+ * change its usage.
+ *
+ * There is also lo_ctl_mutex in c2loop, which protects the management
+ * interface to the driver. We also do not touch this code.
+ *
+ * @subsection c2loop-dld-lspec-losetup Losetup(8) Utility Support
+ *
+ * The support of losetup(8) utility is provided just by the code
+ * inherited from standard loop device driver, which we do not change.
+ *
+ * <hr>
+ * @section c2loop-dld-conformance Conformance
+ *
+ * - @b i.c2loop.map
+ *   C2loop represents a c2t1fs file as the block device by inheriting
+ *   the code from the standard loop device driver.
+ * - @b i.c2loop.nocopy
+ *   C2loop avoids copying of the data between pages by calling directly
+ *   aio_read/aio_write() system call implemented by c2t1fs with the
+ *   iovecs which points directly to the data pages.
+ * - @b i.c2loop.bulk
+ *   C2loop implements aggregation of segments from different bio requests
+ *   in iovecs array.
+ * - @b i.c2loop.losetup
+ *   C2loop is manageable with the standard losetup utility mainly by
+ *   inheriting the code from the standard loop device driver.
+ *
+ * <hr>
+ * @section c2loop-dld-ut Unit Tests
+ *
+ * The following UTs could be implemented for loop_handle_bios()
+ * routine.
+ *
+ * Basic functionality tests:
+ *
+ *   - One bio request (in the queue) with one segment. One
+ *     aio_read/write call expected with one element in iovecs array.
+ *   - One bio request with two segments. One aio_read/write call
+ *     expected with two elements in iovecs array.
+ *   - Two bio requests (for the same read/write operation), one segment
+ *     each, for contiguous file region. One aio_read/write call is
+ *     expected with two elements in iovecs array.
+ *
+ * Exception cases tests:
+ *
+ *   - Two bio requests (one segment each) but for different file
+ *     regions. Two aio_read/write calls are expected with one element
+ *     in each iovecs array.
+ *   - Two bio requests for contiguous file region, but for different
+ *     operations: one for read, another for write. Two calls are
+ *     expected with one element in each iovecs array: one aio_read
+ *     another - aio_write.
+ *
+ * Iovecs array boundary (BIO_MAX_PAGES) tests:
+ *
+ *   - BIO_MAX_PAGES bio requests (one segment each, for contiguous file
+ *     region). One aio_read/write call is expected with BIO_MAX_PAGES
+ *     elements in iovecs array.
+ *   - (BIO_MAX_PAGES + 1) bio requests. Two aio_read/write calls are
+ *     expected: one with BIO_MAX_PAGES elements in iovecs array,
+ *     another with one element.
+ *   - (BIO_MAX_PAGES - 1) bio requests one segment each and one bio
+ *     request with two segments. Two aio_read/write calls are expected:
+ *     one with BIO_MAX_PAGES elements in iovecs array, another with one
+ *     element.
+ *
+ * UT should fake upper (bio_request) and lower (c2t1fs aio_) interfaces.
+ *
+ * <hr>
+ * @section c2loop-dld-st System Tests
+ *
+ * The following system testing should pass for c2loop:
+ *
+ *   - create c2loopN block device on a c2t1fs file with losetup utility;
+ *   - mkfs.ext4 with 4K block size (lower block sizes are not supported);
+ *   - mount ext4 file system on c2loop device;
+ *   - run ext4 file system benchmark (like iozone);
+ *   - umount ext4 file system on c2loop device;
+ *   - delete c2loopN block device from c2t1fs file with losetup utility.
+ *
+ * <hr>
+ * @section c2loop-dld-O Analysis
+ *
+ * C2loop does not take any additional resources compared to standard
+ * loop driver. Similar to loop, it does not make any memory allocations
+ * during normal workflow. Except spin lock (lo_lock), which just
+ * protects the bio requests queue between the requestor and loop threads,
+ * no any other locks are taken.
+ *
+ * Upon each particular /dev/c2loopN block device instance bind to
+ * the file with losetup(8) utility, iovecs array of BIO_MAX_PAGES
+ * size is dynamically allocated. This is the only memory footprint
+ * increase in respect to standard loop driver.
+ *
+ * There are no excessive CPU calculations. Similar to standard loop
+ * driver, there is only one loop, where we traverse the bio requests
+ * queue in the loop thread.
+ *
+ * Bio requests are gathered in the queue and eventually the loop
+ * thread processes all of them - exactly the same way standard loop
+ * driver does. No any additional delay for the bio resources is caused
+ * here.
+ *
+ * It could be possible to add a timer into loop thread to possibly
+ * wait for additional bio requests to form a complete stripe size I/O
+ * buffers and bypass additional read-modify-write logic in c2t1fs to
+ * optimize overall performance. But it is questionable for now, if
+ * we gain something from this. First, timer resource should be taken
+ * probably every time on each loop thread run. Second, it is not clear
+ * whether c2loop is authorized to cause any additional delay in the
+ * I/O path and for how long.
+ *
+ * <hr>
+ * @section c2loop-dld-ref References
+ *
+ * - <a href="http://en.wikipedia.org/wiki/Loop_device">Loop block device</a>
+ *   On Wikipedia
+ * - <a href="http://lxr.linux.no/linux+v2.6.32/drivers/block/loop.c">
+ *   Standard Linux loop device driver</a>, the base source code.
+ * - <a href="http://www.makelinux.net/ldd3/chp-16-sect-3">Request
+ *   Processing</a> section in LDD3 book to get into some Linux block
+ *   device drivers internals.
+ * - <a href="http://goo.gl/WzDPt">C2loop investigations log</a>
+ *
+ * <hr>
+ * @section c2loop-dld-plan Implementation Plan
+ *
+ * The working prototype for c2loop is already implemented along with
+ * correspondent changes in c2t1fs (refer to c2loop branch). This was done
+ * as a part of experimentations and investigation (prepare) part of this
+ * task.
+ *
+ * As for today, the work on read-modify-write in c2t1fs is ongoing,
+ * which may implement the needed changes in c2t1fs (confirmed by Anand).
+ *
+ * After prototype code is inspected and becomes the real code, it must
+ * be carefully tested. Before RMW is ready, the only testing option -
+ * it is with 4K c2t1fs stripe size.
+ *
+ */
+
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/sched.h>
