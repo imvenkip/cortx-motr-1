@@ -159,7 +159,6 @@ int c2_ioservice_fop_init(void)
 	c2_fom_type_register(&cob_create_fomt);
 	c2_fom_type_register(&cob_delete_fomt);
 	c2_fom_type_register(&c2_io_fom_cob_rw_fomt);
-
 	c2_fop_cob_readv_fopt.ft_fom_type  = c2_io_fom_cob_rw_fomt;
 	c2_fop_cob_writev_fopt.ft_fom_type = c2_io_fom_cob_rw_fomt;
 	c2_fop_cob_create_fopt.ft_fom_type = cob_create_fomt;

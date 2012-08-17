@@ -734,7 +734,8 @@ const struct c2_sm_state_descr generic_phases[] = {
 				(1 << C2_FOPH_FAILURE)
 	}
 };
-const struct c2_sm_conf        generic_conf = {
+
+const struct c2_sm_conf generic_conf = {
 	.scf_name      = "FOM standard phases",
 	.scf_nr_states = ARRAY_SIZE(generic_phases),
 	.scf_state     = generic_phases
@@ -746,24 +747,22 @@ int c2_fom_tick_generic(struct c2_fom *fom)
 	const struct fom_phase_ops *fpo_phase;
 	struct c2_reqh             *reqh;
 
-	fpo_phase = &fpo_table[fom->fo_phase];
-
-	c2_sm_state_set(&fom->fo_sm_phase, fom->fo_phase);
+	fpo_phase = &fpo_table[c2_fom_phase(fom)];
 
 	rc = fpo_phase->fpo_action(fom);
 
 	reqh = fom->fo_loc->fl_dom->fd_reqh;
 	if (rc == C2_FSO_AGAIN) {
-		if (fom->fo_rc != 0 && fom->fo_phase < C2_FOPH_FAILURE) {
-			fom->fo_phase = C2_FOPH_FAILURE;
+		if (fom->fo_rc != 0 && c2_fom_phase(fom) < C2_FOPH_FAILURE) {
+			c2_fom_phase_set(fom, C2_FOPH_FAILURE);
 			REQH_GEN_ADDB_ADD(reqh->rh_addb,
 						fpo_phase->fpo_name,
 						fom->fo_rc);
 		} else
-			fom->fo_phase = fpo_phase->fpo_nextphase;
+			c2_fom_phase_set(fom, fpo_phase->fpo_nextphase);
 	}
 
-	if (fom->fo_phase == C2_FOPH_FINISH)
+	if (c2_fom_phase(fom) == C2_FOPH_FINISH)
 		rc = C2_FSO_WAIT;
 
 	return rc;
@@ -787,8 +786,6 @@ void c2_fom_sm_init(struct c2_fom *fom)
 		    fom_addb_ctx);
 	c2_sm_init(&fom->fo_sm_state, &fom_conf, C2_FOS_INIT, fom_group,
 		    fom_addb_ctx);
-
-	fom->fo_phase = C2_FOPH_AUTHENTICATE;
 }
 
 void c2_fom_type_register(struct c2_fom_type *fom_type)
@@ -800,7 +797,6 @@ void c2_fom_type_register(struct c2_fom_type *fom_type)
 	if (fom_type->ft_phases_nr > C2_FOPH_NR) {
 		for (i = 0; i < C2_FOPH_NR; i++)
 			fom_type->ft_phases[i] = generic_phases[i];
-		C2_ASSERT(fom_type->ft_phases != NULL);
 		fom_type->ft_conf.scf_state     = fom_type->ft_phases;
 		fom_type->ft_conf.scf_nr_states = fom_type->ft_phases_nr;
 	} else

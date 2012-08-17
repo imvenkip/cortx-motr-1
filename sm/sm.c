@@ -257,6 +257,7 @@ static void state_set(struct c2_sm *mach, int state)
 	} while (state >= 0);
 	C2_POST(c2_sm_invariant(mach));
 }
+C2_EXPORTED(c2_sm_state_set);
 
 void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc)
 {

@@ -216,12 +216,12 @@ static int cc_fom_tick(struct c2_fom *fom)
 	C2_PRE(fom->fo_ops != NULL);
 	C2_PRE(fom->fo_type != NULL);
 
-	if (fom->fo_phase < C2_FOPH_NR) {
+	if (c2_fom_phase(fom) < C2_FOPH_NR) {
 		rc = c2_fom_tick_generic(fom);
 		return rc;
 	}
 
-	if (fom->fo_phase == C2_FOPH_CC_COB_CREATE) {
+	if (c2_fom_phase(fom) == C2_FOPH_CC_COB_CREATE) {
 		cc = cob_fom_get(fom);
 
 		rc = cc_stob_create(fom, cc);
@@ -241,7 +241,7 @@ out:
 	reply->cor_rc = rc;
 
 	fom->fo_rc = rc;
-	fom->fo_phase = (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
+	c2_fom_phase_set(fom, (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE);
 	return C2_FSO_AGAIN;
 }
 
@@ -403,12 +403,12 @@ static int cd_fom_tick(struct c2_fom *fom)
 	C2_PRE(fom->fo_ops != NULL);
 	C2_PRE(fom->fo_type != NULL);
 
-	if (fom->fo_phase < C2_FOPH_NR) {
+	if (c2_fom_phase(fom) < C2_FOPH_NR) {
 		rc = c2_fom_tick_generic(fom);
 		return rc;
 	}
 
-	if (fom->fo_phase == C2_FOPH_CD_COB_DEL) {
+	if (c2_fom_phase(fom) == C2_FOPH_CD_COB_DEL) {
 		cd = cob_fom_get(fom);
 
 		rc = cd_cob_delete(fom, cd);
@@ -428,7 +428,7 @@ out:
 	reply->cor_rc = rc;
 
 	fom->fo_rc = rc;
-	fom->fo_phase = (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE;
+	c2_fom_phase_set(fom, (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE);
 	return C2_FSO_AGAIN;
 }
 

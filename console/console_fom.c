@@ -99,7 +99,7 @@ static int cons_fom_tick(struct c2_fom *fom)
 	/* Reply fop */
         reply_fop = c2_fop_data(rfop);
 	if (reply_fop == NULL) {
-		fom->fo_phase = C2_FOPH_FAILURE;
+		c2_fom_phase_set(fom, C2_FOPH_FAILURE);
 		return C2_FSO_AGAIN;
 	}
 
@@ -112,7 +112,7 @@ static int cons_fom_tick(struct c2_fom *fom)
 
 	/* Reply item */
 	reply_item = &rfop->f_item;
-	fom->fo_phase = C2_FOM_PHASE_FINISH;
+	c2_fom_phase_set(fom, C2_FOM_PHASE_FINISH);
         c2_rpc_reply_post(req_item, reply_item);
 	return C2_FSO_WAIT;
 }

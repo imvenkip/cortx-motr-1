@@ -239,10 +239,16 @@ bool c2_locality_invariant(const struct c2_fom_locality *loc)
 
 }
 
+static inline int fom_state(const struct c2_fom *fom)
+{
+	C2_PRE(fom != NULL);
+	return fom->fo_sm_state.sm_state;
+}
+
 static bool fom_is_blocked(const struct c2_fom *fom)
 {
 	return
-		fom->fo_sm_state.sm_state == C2_FOS_RUNNING &&
+		fom_state(fom) == C2_FOS_RUNNING &&
 		C2_IN(fom->fo_thread->lt_state, (BLOCKED, UNBLOCKING));
 }
 
@@ -255,8 +261,6 @@ static inline struct c2_fom *sm2fom(struct c2_sm *sm)
 
 bool c2_fom_invariant(const struct c2_fom *fom)
 {
-	int state = fom->fo_sm_state.sm_state;
-
 	return
 		fom != NULL && fom->fo_loc != NULL &&
 		fom->fo_type != NULL && fom->fo_ops != NULL &&
@@ -265,14 +269,15 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 		c2_fom_group_is_locked(fom) &&
 		c2_list_link_invariant(&fom->fo_linkage) &&
 
-		C2_IN(state, (C2_FOS_READY, C2_FOS_WAITING, C2_FOS_RUNNING)) &&
-		(state == C2_FOS_READY) == is_in_runq(fom) &&
-		(state == C2_FOS_WAITING) == is_in_wail(fom) &&
-		ergo(fom->fo_thread != NULL, state == C2_FOS_RUNNING) &&
+		C2_IN(fom_state(fom), (C2_FOS_READY, C2_FOS_WAITING,
+				       C2_FOS_RUNNING, C2_FOS_INIT)) &&
+		(fom_state(fom) == C2_FOS_READY) == is_in_runq(fom) &&
+		(fom_state(fom) == C2_FOS_WAITING) == is_in_wail(fom) &&
+		ergo(fom->fo_thread != NULL, fom_state(fom) == C2_FOS_RUNNING) &&
 		ergo(fom->fo_pending != NULL,
-		     (state == C2_FOS_READY || fom_is_blocked(fom))) &&
+		     (fom_state(fom) == C2_FOS_READY || fom_is_blocked(fom))) &&
 		ergo(fom->fo_cb.fc_state != C2_FCS_DONE,
-		     state == C2_FOS_WAITING);
+		     fom_state(fom) == C2_FOS_WAITING);
 }
 
 static bool fom_wait_time_is_out(const struct c2_fom_domain *dom,
@@ -324,7 +329,8 @@ static void queueit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 {
 	struct c2_fom *fom = container_of(ast, struct c2_fom, fo_cb.fc_ast);
 
-	C2_PRE(fom->fo_sm_phase.sm_state == C2_FOM_PHASE_INIT);
+	C2_PRE(c2_fom_invariant(fom));
+	C2_PRE(c2_fom_phase(fom) == C2_FOM_PHASE_INIT);
 
 	fom_ready(fom);
 }
@@ -341,7 +347,7 @@ void c2_fom_block_enter(struct c2_fom *fom)
 	struct c2_loc_thread   *thr;
 
 	C2_PRE(c2_fom_invariant(fom));
-	C2_PRE(fom->fo_sm_state.sm_state == C2_FOS_RUNNING);
+	C2_PRE(fom_state(fom) == C2_FOS_RUNNING);
 	C2_PRE(!fom_is_blocked(fom));
 
 	loc = fom->fo_loc;
@@ -464,7 +470,8 @@ static void fom_finish(struct c2_fom *fom)
 
 	C2_PRE(c2_fom_invariant(fom));
 	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_FINISH);
-	c2_sm_state_set(&fom->fo_sm_phase, C2_FOM_PHASE_FINISH);
+	if (c2_fom_phase(fom) != C2_FOM_PHASE_FINISH)
+		c2_sm_state_set(&fom->fo_sm_phase, C2_FOM_PHASE_FINISH);
 	c2_sm_fini(&fom->fo_sm_phase);
 	c2_sm_fini(&fom->fo_sm_state);
 	fom->fo_ops->fo_fini(fom);
@@ -500,7 +507,7 @@ static void fom_exec(struct c2_fom *fom)
 	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_RUNNING);
 	do {
 		C2_ASSERT(c2_fom_invariant(fom));
-		C2_ASSERT(fom->fo_sm_phase.sm_state != C2_FOM_PHASE_FINISH);
+		C2_ASSERT(fom_state(fom) != C2_FOM_PHASE_FINISH);
 		rc = fom->fo_ops->fo_tick(fom);
 		/*
 		 * (rc == C2_FSO_AGAIN) means that next phase transition is
@@ -516,7 +523,7 @@ static void fom_exec(struct c2_fom *fom)
 	C2_ASSERT(rc == C2_FSO_WAIT);
 	C2_ASSERT(c2_fom_group_is_locked(fom));
 
-	if (fom->fo_phase == C2_FOM_PHASE_FINISH) {
+	if (c2_fom_phase(fom) == C2_FOM_PHASE_FINISH) {
 		fom_finish(fom);
 		/*
 		 * Don't touch the fom after this point.
@@ -538,8 +545,8 @@ static void fom_exec(struct c2_fom *fom)
 			/*
 			 * call-back is not allowed to destroy a fom.
 			 */
-			C2_ASSERT(fom->fo_sm_phase.sm_state != C2_FOM_PHASE_FINISH);
-			if (fom->fo_sm_state.sm_state != C2_FOS_WAITING)
+			C2_ASSERT(c2_fom_phase(fom) != C2_FOM_PHASE_FINISH);
+			if (fom_state(fom) != C2_FOS_WAITING)
 				break;
 		}
 		C2_ASSERT(c2_fom_invariant(fom));
@@ -855,7 +862,7 @@ void c2_fom_fini(struct c2_fom *fom)
 	struct c2_fom_domain *fdom;
 	struct c2_reqh       *reqh;
 
-	C2_PRE(fom->fo_phase == C2_FOM_PHASE_FINISH);
+	C2_PRE(c2_fom_phase(fom) == C2_FOM_PHASE_FINISH);
 
 	fdom = fom->fo_loc->fl_dom;
 	reqh = fdom->fd_reqh;
@@ -872,7 +879,6 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
 {
 	C2_PRE(fom != NULL);
 
-	fom->fo_phase   = C2_FOM_PHASE_INIT;
 	fom->fo_type	= fom_type;
 	fom->fo_ops	= ops;
 	fom->fo_fop	= fop;
@@ -911,10 +917,10 @@ static void fom_ast_cb(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 	 */
 	C2_PRE(cb->fc_state == C2_FCS_TOP_DONE);
 
-	if (fom->fo_sm_state.sm_state == C2_FOS_WAITING)
+	if (fom_state(fom) == C2_FOS_WAITING)
 		cb_run(cb);
 	else {
-		C2_ASSERT(fom->fo_sm_state.sm_state == C2_FOS_READY || fom_is_blocked(fom));
+		C2_ASSERT(fom_state(fom) == C2_FOS_READY || fom_is_blocked(fom));
 		/*
 		 * Call-back arrived while our fom is in READY state (hanging on
 		 * the runqueue, waiting for its turn) or RUNNING state (blocked

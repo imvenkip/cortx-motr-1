@@ -86,7 +86,7 @@
  *       performance globally, by selecting the "best" READY fom;
  *
  *     - C2_FSO_WAIT: no phase transitions are possible at the moment. As a
- *       special case, if fom->fo_phase == C2_FOM_PHASE_FINI, request handler
+ *       special case, if c2_fom_phase(fom) == C2_FOM_PHASE_FINI, request handler
  *       destroys the fom, by calling its c2_fom_ops::fo_fini()
  *       method. Otherwise, the fom is placed in WAITING state.
  *
@@ -112,16 +112,16 @@
  * {
  *         struct foo_fom *obj = container_of(fom, struct foo_fom, ff_base);
  *
- *         if (fom->fo_phase < C2_FOPH_NR)
+ *         if (c2_fom_phase(fom) < C2_FOPH_NR)
  *                 return c2_fom_tick_generic(fom);
- *         else if (fom->fo_phase == FOO_PHASE_0) {
+ *         else if (c2_fom_phase(fom) == FOO_PHASE_0) {
  *                 ...
  *                 if (!ready)
  *                         c2_fom_wait_on(fom, chan, &fom->fo_cb);
  *                 return ready ? C2_FSO_AGAIN : C2_FSO_WAIT;
- *         } else if (fom->fo_phase == FOO_PHASE_1) {
+ *         } else if (c2_fom_phase(fom) == FOO_PHASE_1) {
  *                 ...
- *         } else if (fom->fo_phase == FOO_PHASE_2) {
+ *         } else if (c2_fom_phase(fom) == FOO_PHASE_2) {
  *                 ...
  *         } else
  *                 C2_IMPOSSIBLE("Wrong phase.");
@@ -337,7 +337,7 @@ enum c2_fom_state {
 	C2_FOS_FINISH,
 };
 
-enum c2_fom_phase {
+enum c2_fom_phases {
 	C2_FOM_PHASE_INIT,   /*< fom has been initialised. */
 	C2_FOM_PHASE_FINISH, /*< terminal phase. */
 	C2_FOM_PHASE_NR
@@ -462,8 +462,6 @@ struct c2_fom {
 	struct c2_sm		 fo_sm_phase;
 	/** State machine for FOM states. */
 	struct c2_sm		 fo_sm_state;
-	/** Next FOM phase to be executed. */
-	int			 fo_phase;
 	/** Result of fom execution, -errno on failure */
 	int32_t			  fo_rc;
 	/** Thread executing current phase transition. */
@@ -486,7 +484,7 @@ struct c2_fom {
  * @param reqh, request handler processing the fom given fop
  *
  * @pre is_locked(fom)
- * @pre fom->fo_phase == C2_FOM_PHASE_INIT
+ * @pre c2_fom_phase(fom) == C2_FOM_PHASE_INIT
  */
 void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh);
 
@@ -518,7 +516,7 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
  * reaches 0.
  *
  * @param fom, A fom to be finalised
- * @pre fom->fo_phase == C2_FOM_PHASE_FINISH
+ * @pre c2_fom_phase(fom) == C2_FOM_PHASE_FINISH
 */
 void c2_fom_fini(struct c2_fom *fom);
 
@@ -538,7 +536,7 @@ struct c2_fom_type {
 	/** It points to either generic SM phases or combined generic and
 	 * specific phases.
 	 */
-	struct c2_sm_state_descr      *ft_phases;
+	struct c2_sm_state_descr     *ft_phases;
 	uint32_t                      ft_phases_nr;
 	/** Service type this FOM type belongs to. */
 	struct c2_reqh_service_type  *ft_rstype;
@@ -685,26 +683,39 @@ void c2_fom_callback_fini(struct c2_fom_callback *cb);
  */
 bool c2_fom_callback_cancel(struct c2_fom_callback *cb);
 
-extern const struct c2_addb_loc c2_fom_addb_loc;
-extern const struct c2_addb_ctx_type c2_fom_addb_ctx_type;
-
-#define FOM_ADDB_ADD(fom, name, rc)  \
-C2_ADDB_ADD(&(fom)->fo_fop->f_addb, &c2_fom_addb_loc, c2_addb_func_fail, \
-	    (name), (rc))
-
 /**
  * Returns the state of SM group for AST call-backs of locality, given fom is
  * associated with.
  */
 bool c2_fom_group_is_locked(const struct c2_fom *fom);
 
+static inline void c2_fom_phase_set(struct c2_fom *fom, int phase)
+{
+	C2_PRE(fom != NULL);
+
+	c2_sm_state_set(&fom->fo_sm_phase, phase);
+}
+
+static inline int c2_fom_phase(struct c2_fom *fom)
+{
+	C2_PRE(fom != NULL);
+	return fom->fo_sm_phase.sm_state;
+}
+
 #define C2_FOM_TYPE_DECLARE(fomt, ops, stype, phases) \
-struct c2_fom_type fomt ## _fomt = {                  \
+struct c2_fom_type fomt ## _fomt = {          	      \
 	.ft_ops = (ops),                              \
 	.ft_rstype = (stype),                         \
 	.ft_phases = (phases),                        \
 	.ft_phases_nr = (ARRAY_SIZE(phases)),         \
 }                                                     \
+
+#define C2_FOM_CONF_DEFINE(conf, name, phases)   \
+struct c2_sm_conf conf = {                       \
+	.scf_name      = (name),                 \
+	.scf_nr_states = (ARRAY_SIZE(phases)),   \
+	.scf_state     = (phases)                \
+}                                                \
 
 /** @} end of fom group */
 /* __COLIBRI_FOP_FOM_H__ */

@@ -39,7 +39,7 @@ enum tb_request_type {
 
 enum tb_request_phase {
 	/* See comment on PH_REQ_LOCK value in fom_rdwr_state() function */
-	PH_REQ_LOCK = C2_FOPH_AUTHENTICATE,
+	PH_REQ_LOCK = C2_FOPH_INIT,
 	PH_GOT_LOCK = C2_FOPH_NR + 1,
 };
 
@@ -144,14 +144,14 @@ static int fom_rdwr_tick(struct c2_fom *fom)
 	rq_seqn = request->fr_seqn;
 
 	/*
-	 * To pacify C2_PRE(C2_IN(fom->fo_phase,(C2_FOPH_INIT,C2_FOPH_FAILURE)))
+	 * To pacify C2_PRE(C2_IN(c2_fom_phase(fom),(C2_FOPH_INIT,C2_FOPH_FAILURE)))
 	 * precondition in c2_fom_queue(), special processing order of FOM
 	 * phases is used.
 	 *
 	 * Do NOT use this code as a template for the general purpose. It's
 	 * designed for tesing of c2_long_lock ONLY!
 	 */
-	if (fom->fo_phase == PH_REQ_LOCK) {
+	if (c2_fom_phase(fom) == PH_REQ_LOCK) {
 		if (rq_seqn == 0)
 			sleeper = fom;
 
@@ -177,13 +177,13 @@ static int fom_rdwr_tick(struct c2_fom *fom)
 		case RQ_WAKE_UP:
 		default:
 			c2_fom_wakeup(sleeper);
-			fom->fo_phase = PH_GOT_LOCK;
+			c2_fom_phase_set(fom, PH_GOT_LOCK);
 			result = C2_FSO_AGAIN;
 		}
 
 		/* notify, fom ready */
 		c2_chan_signal(&chan[rq_seqn]);
-	} else if (fom->fo_phase == PH_GOT_LOCK) {
+	} else if (c2_fom_phase(fom) == PH_GOT_LOCK) {
 		C2_UT_ASSERT(ergo(C2_IN(rq_type, (RQ_READ, RQ_WRITE)),
 				  lock_check(&long_lock, rq_type,
 					     request->fr_req->tr_owners.min,
@@ -208,7 +208,7 @@ static int fom_rdwr_tick(struct c2_fom *fom)
 
 		/* notify, fom ready */
 		c2_chan_signal(&chan[rq_seqn]);
-		fom->fo_phase = C2_FOM_PHASE_FINISH;
+		c2_fom_phase_set(fom, C2_FOM_PHASE_FINISH);
 		result = C2_FSO_WAIT;
         } else
 		C2_IMPOSSIBLE("");
@@ -239,7 +239,7 @@ static void test_req_handle(struct c2_reqh *reqh,
 	obj->fr_req  = rq;
 	obj->fr_seqn = seqn;
 
-	fom->fo_phase = PH_REQ_LOCK;
+	c2_fom_phase_set(fom, PH_REQ_LOCK);
 	reqh_fop_handle(reqh, fom);
 }
 
