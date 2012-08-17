@@ -368,7 +368,8 @@ void c2_rpc_item_change_state(struct c2_rpc_item     *item,
 	       item->ri_type->rit_opcode,
 	       item_state_descr[item->ri_sm.sm_state].sd_name,
 	       item_state_descr[state].sd_name);
-	       c2_sm_state_set(&item->ri_sm, state);
+
+	c2_sm_state_set(&item->ri_sm, state);
 }
 
 void c2_rpc_item_failed(struct c2_rpc_item *item, int32_t rc)
