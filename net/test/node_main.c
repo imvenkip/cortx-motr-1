@@ -259,7 +259,7 @@ finished.up();\l", shape=box];
      S4:w -> S7   [label="yes"];
      S5   -> S6;
      S6:e -> SA:n [label="yes"];
-     S6:w -> SB:n [label="no"];;
+     S6:w -> SB:n [label="no"];
      SA:s -> SC;
      SB:s -> SC;
      SC   -> SD;
