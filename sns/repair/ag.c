@@ -51,7 +51,7 @@ static const struct c2_cm_aggr_group_ops group_ops = {
 	.cago_cp_alloc    = cp_alloc,
 	.cago_get         = NULL,
 	.cago_completed   = NULL,
-	.cago_local_cp_nr = NULL
+	.cago_local_cp_nr = NULL 
 };
 
 

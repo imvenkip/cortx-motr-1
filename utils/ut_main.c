@@ -71,6 +71,7 @@ extern const struct c2_test_suite balloc_ut;
 extern const struct c2_test_suite rpc_service_ut;
 extern const struct c2_test_suite frm_ut;
 extern const struct c2_test_suite c2_fop_lock_ut;
+extern const struct c2_test_suite snsrepair_xform_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -109,6 +110,7 @@ void add_uts(void)
 	c2_ut_add(&rpc_onwire_ut);
 	c2_ut_add(&rpc_service_ut);
 	c2_ut_add(&sm_ut);
+	c2_ut_add(&snsrepair_xform_ut);
 	c2_ut_add(&stobio_ut);
 	c2_ut_add(&udb_ut);
 	c2_ut_add(&xcode_bufvec_fop_ut);

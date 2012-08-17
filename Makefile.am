@@ -45,7 +45,7 @@ SUBDIRS_LIBS = \
 	       yaml2db
 SUBDIR_IT = rpc/it
 SUBDIR_UT = fop/ut lib/ut stob/ut layout/ut balloc/ut db/ut fol/ut \
-	    sns/ut desim/ut cob/ut console/ut colibri/ut net/ut \
+	    sns/ut sns/repair/ut desim/ut cob/ut console/ut colibri/ut net/ut \
 	    net/bulk_emulation/ut net/lnet/ut udb/ut capa/ut ioservice/ut \
 	    reqh/ut rpc/ut sm/ut xcode/ut yaml2db/ut fop/ut/long_lock cm/ut
 SUBDIR_KERNEL = build_kernel_modules
