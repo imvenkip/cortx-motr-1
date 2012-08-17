@@ -133,7 +133,6 @@ double c2_net_test_stats_stddev(const struct c2_net_test_stats *stats)
 	double mean;
 	double stddev;
 	double N;
-	double sum;
 	double sum_sqr;
 
 	C2_PRE(c2_net_test_stats_invariant(stats));
@@ -144,9 +143,8 @@ double c2_net_test_stats_stddev(const struct c2_net_test_stats *stats)
 	mean	= c2_net_test_stats_avg(stats);
 	N	= stats->nts_count;
 	sum_sqr	= c2_net_test_uint256_double_get(&stats->nts_sum_sqr);
-	sum	= c2_net_test_uint256_double_get(&stats->nts_sum);
-	stddev	= (sum_sqr + N * mean * mean - 2 * mean * sum) / (N - 1.);
-	stddev  = stddev < 0. ? 0 : stddev;
+	stddev	= (sum_sqr - N * mean * mean) / (N - 1.);
+	stddev  = stddev < 0. ? 0. : stddev;
 	stddev	= sqrt(stddev);
 	return stddev;
 }

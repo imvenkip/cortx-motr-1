@@ -29,17 +29,27 @@
    @ingroup NetTestDFS
 
    Arithmetic mean calculation (LaTeX):
-   $ \overline{x} = \frac {1}{N} \sum\limits_{i=1}^N {x_i} $
+   \f[ \overline{x} = \frac {1}{N} \sum\limits_{i=1}^N {x_i} \f]
    It is assumed that arithmetic mean = 0 if N == 0.
 
    Sample stantard deviation calculation:
-     $ \sqrt {\frac {1}{N - 1}  \sum\limits_{i=1}^N {(x_i - \overline{x})^2} } =
+   \f[ s =
+       \sqrt {\frac {1}{N - 1}  \sum\limits_{i=1}^N {(x_i - \overline{x})^2} } =
        \sqrt {\frac {1}{N - 1} (\sum\limits_{i=1}^N {x_i^2} +
 			        \sum\limits_{i=1}^N {\overline{x}^2} -
-			      2 \sum\limits_{i=1}^N {x_i \overline{x}} )}
-     = \sqrt {\frac {1}{N - 1} (\sum\limits_{i=1}^N {x_i^2} +
+			      2 \sum\limits_{i=1}^N {x_i \overline{x}} )} =
+       \sqrt {\frac {1}{N - 1} (\sum\limits_{i=1}^N {x_i^2} +
 			      N {\overline{x}^2} -
-			      2 \overline{x} \sum\limits_{i=1}^N {x_i}}) $
+			      2 \overline{x} \sum\limits_{i=1}^N {x_i})}
+   \f]
+   We have \f$ N \overline{x} = \sum\limits_{i=1}^N {x_i} \f$, so
+   \f[ s =
+       \sqrt {\frac {1}{N - 1} (\sum\limits_{i=1}^N {x_i^2} +
+			      N {\overline{x}^2} -
+			      2 \overline{x} \cdot N \overline{x} )} =
+       \sqrt {\frac {1}{N - 1} (\sum\limits_{i=1}^N {x_i^2} -
+			      N {\overline{x}^2})}
+   \f]
    It is assumed that sample standard deviation = 0 if N == 0 || N == 1.
 
    @see
