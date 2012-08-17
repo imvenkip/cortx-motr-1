@@ -766,6 +766,7 @@ RPC Bulk Transfer Task Plan</a>
  End of DLD
  ******************************************************************************
  */
+
 #ifdef __KERNEL__
 #include "build_kernel_modules/lustre_config.h" /* required by lnet/types.h */
 /* lustre config defines package macros also defined by c2 config */
