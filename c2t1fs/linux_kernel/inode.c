@@ -120,11 +120,14 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 
 	dir_ents_tlist_fini(&ci->ci_dir_ents);
 
-	if (!is_root) {
-		C2_ASSERT(ci->ci_layout_instance != NULL);
+	/*
+	 * c2t1fs_inode_fini() may be called even when c2t1fs_create()
+	 * might have failed. Hence, ci->ci_layout_instance == NULL is a
+	 * valid exception.
+	 */
+	if (!is_root && ci->ci_layout_instance != NULL)
 		ci->ci_layout_instance->li_ops->lio_fini(
 						ci->ci_layout_instance);
-	}
 	C2_LEAVE();
 }
 
