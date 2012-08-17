@@ -527,7 +527,7 @@ void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc);
    @pre c2_mutex_is_locked(&mach->sm_grp->s_lock)
    @post c2_mutex_is_locked(&mach->sm_grp->s_lock)
  */
-int c2_sm_state_set(struct c2_sm *mach, int state);
+void c2_sm_state_set(struct c2_sm *mach, int state);
 
 /**
    Structure used by c2_sm_timeout() to record timeout state.

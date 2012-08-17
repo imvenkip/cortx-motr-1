@@ -269,7 +269,7 @@ void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc)
 	state_set(mach, fail_state);
 }
 
-int c2_sm_state_set(struct c2_sm *mach, int state)
+void c2_sm_state_set(struct c2_sm *mach, int state)
 {
 	C2_PRE(c2_sm_invariant(mach));
 	state_set(mach, state);
