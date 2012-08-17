@@ -486,13 +486,13 @@ static int xor_init(struct loop_device *lo, const struct loop_info64 *info)
 static struct loop_func_table none_funcs = {
 	.number = LO_CRYPT_NONE,
 	.transfer = transfer_none,
-}; 	
+};
 
 static struct loop_func_table xor_funcs = {
 	.number = LO_CRYPT_XOR,
 	.transfer = transfer_xor,
 	.init = xor_init
-}; 	
+};
 
 /* xfer_funcs[0] is special - its release function is never called */
 static struct loop_func_table *xfer_funcs[MAX_LO_CRYPT] = {
@@ -528,7 +528,7 @@ figure_loop_size(struct loop_device *lo)
 		return -EFBIG;
 
 	set_capacity(lo->lo_disk, x);
-	return 0;					
+	return 0;
 }
 
 static inline int
@@ -715,6 +715,7 @@ static int do_bio_filebacked(struct loop_device *lo, struct bio *bio)
 	set_fs(old_fs);
 	if (likely(bio->bi_size == bw))
 		return 0;
+
 	return -EIO;
 }
 
@@ -1240,7 +1241,7 @@ loop_set_status(struct loop_device *lo, const struct loop_info64 *info)
 		memcpy(lo->lo_encrypt_key, info->lo_encrypt_key,
 		       info->lo_encrypt_key_size);
 		lo->lo_key_owner = uid;
-	}	
+	}
 
 	return 0;
 }
