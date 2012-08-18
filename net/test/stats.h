@@ -32,6 +32,8 @@
    @defgroup NetTestStatsDFS Statistics Collector
    @ingroup NetTestDFS
 
+   @todo Move to lib/stats.h
+
    Arithmetic mean calculation (LaTeX):
    \f[ \overline{x} = \frac {1}{N} \sum\limits_{i=1}^N {x_i} \f]
    It is assumed that arithmetic mean = 0 if N == 0.
