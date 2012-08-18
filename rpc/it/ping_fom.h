@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_PING_FOM_H__
-#define __COLIBRI_PING_FOM_H__
+#ifndef __COLIBRI_RPC_IT_PING_FOM_H__
+#define __COLIBRI_RPC_IT_PING_FOM_H__
 
 #include "rpc/it/ping_fop.h"
 
@@ -45,7 +45,7 @@ int c2_fom_ping_state(struct c2_fom *fom);
 size_t c2_fom_ping_home_locality(const struct c2_fom *fom);
 void c2_fop_ping_fom_fini(struct c2_fom *fom);
 
-/* __COLIBRI_PING_FOM_H__ */
+/* __COLIBRI_RPC_IT_PING_FOM_H__ */
 #endif
 
 /*

@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef _C2_RPC_SESSION_FOM_H
-#define _C2_RPC_SESSION_FOM_H
+#ifndef __COLIBRI_RPC_SESSION_FOM_H__
+#define __COLIBRI_RPC_SESSION_FOM_H__
 
 #include "fop/fop.h"
 #include "rpc/session_fops.h"

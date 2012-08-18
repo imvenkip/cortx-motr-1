@@ -17,6 +17,13 @@
  * Original creation date: 04/08/2010
  */
 
+#pragma once
+
+#ifndef __COLIBRI_UTILS_PLOSS_HELPER_H__
+#define __COLIBRI_UTILS_PLOSS_HELPER_H__
+
 #include <stdarg.h>
 
 extern void show_msg (int level, const char *fmt, ...);
+
+#endif /* __COLIBRI_UTILS_PLOSS_HELPER_H__ */

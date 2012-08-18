@@ -22,8 +22,8 @@
 
 #pragma once
 
-#ifndef CLIENT_H
-#define CLIENT_H
+#ifndef __COLIBRI_DESIM_CLIENT_H__
+#define __COLIBRI_DESIM_CLIENT_H__
 
 /**
    @addtogroup desim desim
@@ -72,7 +72,7 @@ struct client_conf {
 void client_init(struct sim *s, struct client_conf *conf);
 void client_fini(struct client_conf *conf);
 
-#endif /* CLIENT_H */
+#endif /* __COLIBRI_DESIM_CLIENT_H__ */
 
 /** @} end of desim group */
 

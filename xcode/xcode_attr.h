@@ -18,6 +18,8 @@
  * Original creation date: 18-Jul-2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_XCODE_XCODE_ATTR_H__
 #define __COLIBRI_XCODE_XCODE_ATTR_H__
 

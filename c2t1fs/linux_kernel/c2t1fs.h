@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_C2T1FS_H
-#define __COLIBRI_C2T1FS_H
+#ifndef __COLIBRI_C2T1FS_C2T1FS_H__
+#define __COLIBRI_C2T1FS_C2T1FS_H__
 
 #include <linux/fs.h>
 #include <linux/pagemap.h>
@@ -451,4 +451,4 @@ void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
 
 void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de);
 
-#endif /* __COLIBRI_C2T1FS_H */
+#endif /* __COLIBRI_C2T1FS_C2T1FS_H__ */

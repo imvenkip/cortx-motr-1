@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_PING_FOP_H__
-#define __COLIBRI_PING_FOP_H__
+#ifndef __COLIBRI_RPC_IT_PING_FOP_H__
+#define __COLIBRI_RPC_IT_PING_FOP_H__
 
 #include "fop/fop.h"
 #include "rpc/rpc_opcodes.h"
@@ -41,7 +41,7 @@ extern const struct c2_fop_type_ops c2_fop_ping_rep_ops;
 extern const struct c2_rpc_item_type c2_rpc_item_type_ping;
 extern const struct c2_rpc_item_type c2_rpc_item_type_ping_rep;
 
-/* __COLIBRI_PING_FOP_H__ */
+/* __COLIBRI_RPC_IT_PING_FOP_H__ */
 #endif
 
 /*
