@@ -34,28 +34,35 @@
 struct c2_net_test_stats;
 
 /**
+   Get sum of all elements from sample.
+   @pre c2_net_test_stats_invariant(stats)
+ */
+double c2_net_test_stats_sum(const struct c2_net_test_stats *stats);
+
+/**
    Get sample average (arithmetic mean).
-   @note This functions isn't defined for kernel mode.
    @pre c2_net_test_stats_invariant(stats)
  */
 double c2_net_test_stats_avg(const struct c2_net_test_stats *stats);
 
 /**
    Get sample standard deviation.
-   @note This functions isn't defined for kernel mode.
    @pre c2_net_test_stats_invariant(stats)
  */
 double c2_net_test_stats_stddev(const struct c2_net_test_stats *stats);
 
 /**
    @see c2_net_test_stats_time_add()
-   @note This functions isn't defined for kernel mode.
+ */
+c2_time_t c2_net_test_stats_time_sum(struct c2_net_test_stats *stats);
+
+/**
+   @see c2_net_test_stats_time_add()
  */
 c2_time_t c2_net_test_stats_time_avg(struct c2_net_test_stats *stats);
 
 /**
    @see c2_net_test_stats_time_add()
-   @note This functions isn't defined for kernel mode.
  */
 c2_time_t c2_net_test_stats_time_stddev(struct c2_net_test_stats *stats);
 

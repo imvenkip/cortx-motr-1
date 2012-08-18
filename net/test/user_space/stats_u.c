@@ -35,6 +35,13 @@
    @{
  */
 
+double c2_net_test_stats_sum(const struct c2_net_test_stats *stats)
+{
+	C2_PRE(c2_net_test_stats_invariant(stats));
+
+	return c2_net_test_uint256_double_get(&stats->nts_sum);
+}
+
 double c2_net_test_stats_avg(const struct c2_net_test_stats *stats)
 {
 	double sum;
@@ -75,6 +82,11 @@ static c2_time_t double2c2_time_t(double value)
 	seconds	    = (uint64_t) floor(value / C2_TIME_ONE_BILLION);
 	nanoseconds = (uint64_t) (value - seconds * C2_TIME_ONE_BILLION);
 	return c2_time_set(&time, seconds, nanoseconds);
+}
+
+c2_time_t c2_net_test_stats_time_sum(struct c2_net_test_stats *stats)
+{
+	return double2c2_time_t(c2_net_test_stats_sum(stats));
 }
 
 c2_time_t c2_net_test_stats_time_avg(struct c2_net_test_stats *stats)

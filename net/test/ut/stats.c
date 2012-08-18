@@ -47,13 +47,24 @@ struct stats_expected {
 	unsigned long se_min;
 	unsigned long se_max;
 #ifndef __KERNEL__
+	double	      se_sum;
 	double	      se_avg;
 	double	      se_stddev;
 #else
+	unsigned      se_sum:1;
 	unsigned      se_avg:1;
 	unsigned      se_stddev:1;
 #endif
 };
+
+#ifndef __KERNEL__
+static bool is_in_eps_neighborhood(double a, double b)
+{
+	const double eps = 1E-5;
+
+	return a * (1. - eps) <= b && b <= a * (1. + eps);
+}
+#endif
 
 static void sample_check(struct c2_net_test_stats *stats,
 			 struct stats_expected *expected)
@@ -61,14 +72,12 @@ static void sample_check(struct c2_net_test_stats *stats,
 	unsigned long ul;
 #ifndef __KERNEL__
 	double	      d;
-	double	      eps = 1E-5;
 #endif
 
 	C2_PRE(stats	!= NULL);
 	C2_PRE(expected != NULL);
 
-	ul = c2_net_test_stats_count(stats);
-	C2_UT_ASSERT(ul == expected->se_count);
+	C2_UT_ASSERT(stats->nts_count == expected->se_count);
 
 	ul = c2_net_test_stats_min(stats);
 	C2_UT_ASSERT(ul == expected->se_min);
@@ -77,13 +86,14 @@ static void sample_check(struct c2_net_test_stats *stats,
 	C2_UT_ASSERT(ul == expected->se_max);
 
 #ifndef __KERNEL__
+	d = c2_net_test_stats_sum(stats);
+	C2_UT_ASSERT(is_in_eps_neighborhood(expected->se_sum, d));
+
 	d = c2_net_test_stats_avg(stats);
-	C2_UT_ASSERT(expected->se_avg * (1. - eps) <= d &&
-		     d <= expected->se_avg * (1. + eps));
+	C2_UT_ASSERT(is_in_eps_neighborhood(expected->se_avg, d));
 
 	d = c2_net_test_stats_stddev(stats);
-	C2_UT_ASSERT(expected->se_stddev * (1. - eps) <= d &&
-		     d <= expected->se_stddev * (1. + eps));
+	C2_UT_ASSERT(is_in_eps_neighborhood(expected->se_stddev, d));
 #endif
 }
 
@@ -108,10 +118,11 @@ static void stats_serialize_ut(struct c2_net_test_stats *stats)
 					  &stats2, &bv, STATS_BUF_OFFSET);
 	C2_UT_ASSERT(len == serialized_len);
 
-	expected.se_count  = c2_net_test_stats_count(stats);
+	expected.se_count  = stats->nts_count;
 	expected.se_min	   = c2_net_test_stats_min(stats);
 	expected.se_max	   = c2_net_test_stats_max(stats);
 #ifndef __KERNEL__
+	expected.se_sum	   = c2_net_test_stats_sum(stats);
 	expected.se_avg	   = c2_net_test_stats_avg(stats);
 	expected.se_stddev = c2_net_test_stats_stddev(stats);
 #endif
@@ -134,11 +145,12 @@ static void add_one_by_one(struct c2_net_test_stats *stats,
 #define STATS_SAMPLE(sample_name)					\
 	static unsigned long sample_name ## _sample[]
 
-#define STATS__EXPECTED(sample_name, count, min, max, avg, stddev) \
+#define STATS__EXPECTED(sample_name, count, min, max, sum, avg, stddev) \
 	static struct stats_expected sample_name ## _expected = {	\
 		.se_count  = (count),					\
 		.se_min	   = (min),					\
 		.se_max    = (max),					\
+		.se_sum    = (sum),					\
 		.se_avg    = (avg),					\
 		.se_stddev = (stddev),					\
 	}
@@ -146,8 +158,8 @@ static void add_one_by_one(struct c2_net_test_stats *stats,
 #ifndef __KERNEL__
 #define STATS_EXPECTED STATS__EXPECTED
 #else
-#define STATS_EXPECTED(sample_name, count, min, max, avg, stddev) \
-	STATS__EXPECTED(sample_name, count, min, max, 0, 0)
+#define STATS_EXPECTED(sample_name, count, min, max, sum, avg, stddev) \
+	STATS__EXPECTED(sample_name, count, min, max, 0, 0, 0)
 #endif
 
 #define STATS_SAMPLE_ADD(stats_name, sample_name)			\
@@ -167,17 +179,18 @@ static void add_one_by_one(struct c2_net_test_stats *stats,
 
 
 STATS_SAMPLE(one_value) = { 1 };
-STATS_EXPECTED(one_value, 1, 1, 1, 1., 0.);
+STATS_EXPECTED(one_value, 1, 1, 1, 1., 1., 0.);
 
 STATS_SAMPLE(five_values) = { 1, 2, 3, 4, 5 };
-STATS_EXPECTED(five_values, 5, 1, 5, 3., 1.58113883);
+STATS_EXPECTED(five_values, 5, 1, 5, 15., 3., 1.58113883);
 
-STATS_EXPECTED(zero_values, 0, 0, 0, 0., 0.);
+STATS_EXPECTED(zero_values, 0, 0, 0, 0., 0., 0.);
 
 STATS_EXPECTED(million_values, STATS_ONE_MILLION,
-	       ULONG_MAX, ULONG_MAX, ULONG_MAX, 0.);
+	       ULONG_MAX, ULONG_MAX, 1. * ULONG_MAX * STATS_ONE_MILLION,
+	       ULONG_MAX, 0.);
 
-STATS_EXPECTED(one_plus_five_values, 6, 1, 5, 16./6, 1.632993161);
+STATS_EXPECTED(one_plus_five_values, 6, 1, 5, 16., 16./6, 1.632993161);
 
 static void stats_time_ut(void)
 {
@@ -200,6 +213,9 @@ static void stats_time_ut(void)
 	C2_UT_ASSERT(c2_time_seconds(time) == 4);
 	C2_UT_ASSERT(c2_time_nanoseconds(time) == 500000000);
 #ifndef __KERNEL__
+	time = c2_net_test_stats_time_sum(&stats);
+	C2_UT_ASSERT(c2_time_seconds(time) == 12);
+	C2_UT_ASSERT(c2_time_nanoseconds(time) == 500000000);
 	time = c2_net_test_stats_time_avg(&stats);
 	C2_UT_ASSERT(c2_time_seconds(time) == 2);
 	C2_UT_ASSERT(c2_time_nanoseconds(time) == 500000000);

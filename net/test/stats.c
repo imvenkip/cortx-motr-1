@@ -92,13 +92,6 @@ void c2_net_test_stats_add_stats(struct c2_net_test_stats *stats,
 					&stats2->nts_sum_sqr);
 }
 
-unsigned long c2_net_test_stats_count(const struct c2_net_test_stats *stats)
-{
-	C2_PRE(c2_net_test_stats_invariant(stats));
-
-	return stats->nts_count;
-}
-
 unsigned long c2_net_test_stats_min(const struct c2_net_test_stats *stats)
 {
 	C2_PRE(c2_net_test_stats_invariant(stats));

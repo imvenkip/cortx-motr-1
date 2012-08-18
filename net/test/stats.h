@@ -139,12 +139,6 @@ void c2_net_test_stats_add_stats(struct c2_net_test_stats *stats,
 				 const struct c2_net_test_stats *stats2);
 
 /**
-   Get sample size, in elements.
-   @pre c2_net_test_stats_invariant(stats)
- */
-unsigned long c2_net_test_stats_count(const struct c2_net_test_stats *stats);
-
-/**
    Get the smallest value from a given sample.
    @pre c2_net_test_stats_invariant(stats)
  */
@@ -171,6 +165,7 @@ c2_bcount_t c2_net_test_stats_serialize(enum c2_net_test_serialize_op op,
    obtain c2_time_t results:
    - c2_net_test_stats_time_min()
    - c2_net_test_stats_time_max()
+   - c2_net_test_stats_time_sum()
    - c2_net_test_stats_time_avg()
    - c2_net_test_stats_time_stddev()
    Mixing c2_net_test_stats_add() and c2_net_test_stats_time_add()
