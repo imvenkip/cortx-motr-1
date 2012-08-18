@@ -744,7 +744,7 @@ sub set_global_vars
         $header_file_path = $header_file_name;
     }
 
-    $include_protector_name = '__COLIBRI___' . uc $xcode_name . '_XC_H__';
+    $include_protector_name = '__COLIBRI_' . uc $xcode_name . '_XC_H__';
 }
 
 sub main
