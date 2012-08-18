@@ -25,20 +25,20 @@
 
 #include "lib/assert.h"
 
-C2_BASSERT(((uint32_t) 0) - 1 == ~(uint32_t) 0);
+C2_BASSERT(((uint32_t)0) - 1 == ~(uint32_t)0);
 
-#define UINT8_MAX  ((uint8_t) 0xff)
-#define INT8_MIN   ( (int8_t) 0x80)
-#define INT8_MAX   ( (int8_t) 0x7f)
+#define UINT8_MAX  ((uint8_t)0xff)
+#define INT8_MIN   ((int8_t)0x80)
+#define INT8_MAX   ((int8_t)0x7f)
 #define UINT16_MAX ((uint16_t)0xffff)
-#define INT16_MIN  ( (int16_t)0x8000)
-#define INT16_MAX  ( (int16_t)0x7fff)
+#define INT16_MIN  ((int16_t)0x8000)
+#define INT16_MAX  ((int16_t)0x7fff)
 #define UINT32_MAX ((uint32_t)0xffffffff)
-#define INT32_MIN  ( (int32_t)0x80000000)
-#define INT32_MAX  ( (int32_t)0x7fffffff)
+#define INT32_MIN  ((int32_t)0x80000000)
+#define INT32_MAX  ((int32_t)0x7fffffff)
 #define UINT64_MAX ((uint64_t)0xffffffffffffffff)
-#define INT64_MIN  ( (int64_t)0x8000000000000000)
-#define INT64_MAX  ( (int64_t)0x7fffffffffffffff)
+#define INT64_MIN  ((int64_t)0x8000000000000000)
+#define INT64_MAX  ((int64_t)0x7fffffffffffffff)
 
 C2_BASSERT(INT8_MIN < 0);
 C2_BASSERT(INT8_MAX > 0);
