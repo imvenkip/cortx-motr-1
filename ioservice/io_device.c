@@ -299,10 +299,10 @@ void c2_ios_poolmach_fini(struct c2_reqh *reqh)
 	c2_rwlock_write_unlock(&reqh->rh_rwlock);
 }
 
-int c2_ios_poolmach_version_updates_pack(struct c2_poolmach   *pm,
-					 struct c2_fv_version *cli,
-					 struct c2_fv_version *version,
-					 struct c2_fv_updates *updates)
+int c2_ios_poolmach_version_updates_pack(struct c2_poolmach         *pm,
+					 const struct c2_fv_version *cli,
+					 struct c2_fv_version       *version,
+					 struct c2_fv_updates       *updates)
 {
 	struct c2_pool_version_numbers  curr;
 	struct c2_pool_version_numbers *verp;
@@ -321,9 +321,9 @@ int c2_ios_poolmach_version_updates_pack(struct c2_poolmach   *pm,
 
 	poolmach_events_tlist_init(&events_list);
 	rc = c2_poolmach_state_query(pm,
-				     (struct c2_pool_version_numbers *)cli,
-				     (struct c2_pool_version_numbers *)&curr,
-				     &events_list);
+				  (const struct c2_pool_version_numbers *)cli,
+				  (const struct c2_pool_version_numbers *)&curr,
+				   &events_list);
 	if (rc != 0)
 		goto out;
 
@@ -335,7 +335,12 @@ int c2_ios_poolmach_version_updates_pack(struct c2_poolmach   *pm,
 	updates->fvu_events = c2_alloc(count * sizeof(struct c2_fv_event));
 	if (updates->fvu_events == NULL) {
 		rc = -ENOMEM;
-		goto out_free_list;
+		c2_tl_for(poolmach_events, &events_list, scan) {
+			poolmach_events_tlink_del_fini(scan);
+			c2_free(scan->pel_event);
+			c2_free(scan);
+		} c2_tl_endfor;
+		goto out;
 	}
 
 	index = 0;
@@ -353,13 +358,6 @@ out:
 	poolmach_events_tlist_fini(&events_list);
 	return rc;
 
-out_free_list:
-	c2_tl_for(poolmach_events, &events_list, scan) {
-		poolmach_events_tlink_del_fini(scan);
-		c2_free(scan->pel_event);
-		c2_free(scan);
-	} c2_tl_endfor;
-	goto out;
 }
 
 /** @} */ /* end of io_calls_params_dldDFS */

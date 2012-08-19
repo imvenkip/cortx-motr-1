@@ -99,7 +99,7 @@ int  c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm)
 	pm->pm_state.pst_nodes_array = c2_alloc(pm->pm_state.pst_nr_nodes *
 						sizeof (struct c2_poolnode));
 	for (i = 0; i < pm->pm_state.pst_nr_nodes; i++) {
-		pm->pm_state.pst_nodes_array[i].pn_state = PNDS_ONLINE;
+		pm->pm_state.pst_nodes_array[i].pn_state = C2_PNDS_ONLINE;
 		/* TODO use real node id */
 		pm->pm_state.pst_nodes_array[i].pn_id = NULL;
 	}
@@ -108,7 +108,7 @@ int  c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm)
 	pm->pm_state.pst_devices_array = c2_alloc(pm->pm_state.pst_nr_devices *
 						  sizeof (struct c2_pooldev));
 	for (i = 0; i < pm->pm_state.pst_nr_devices; i++) {
-		pm->pm_state.pst_devices_array[i].pd_state = PNDS_ONLINE;
+		pm->pm_state.pst_devices_array[i].pd_state = C2_PNDS_ONLINE;
 		/* TODO use real device id */
 		pm->pm_state.pst_devices_array[i].pd_id = NULL;
 		pm->pm_state.pst_devices_array[i].pd_node = NULL;
@@ -149,50 +149,65 @@ void c2_poolmach_fini(struct c2_poolmach *pm)
 int c2_poolmach_state_transit(struct c2_poolmach *pm,
 			      struct c2_pool_event *event)
 {
+	struct c2_poolmach_state  *pm_state;
 	struct c2_pool_event      *new_event;
 	struct c2_pool_event_link *event_link;
+	int                        rc = 0;
 	C2_PRE(pm != NULL);
 	C2_PRE(event != NULL);
+
+	pm_state = &pm->pm_state;
+
+	if (!C2_IN(event->pe_type, (C2_POOL_NODE, C2_POOL_DEVICE)))
+		return -EINVAL;
+	if (!C2_IN(event->pe_state, (C2_PNDS_ONLINE, C2_PNDS_FAILED,
+				     C2_PNDS_OFFLINE, C2_PNDS_RECOVERING)))
+		return -EINVAL;
+	if ((event->pe_type == C2_POOL_NODE &&
+	     event->pe_index >= pm_state->pst_nr_nodes) ||
+	    (event->pe_type == C2_POOL_DEVICE &&
+	     event->pe_index >= pm_state->pst_nr_devices))
+		return -EINVAL;
 
 	/* Step 1: lock the poolmach */
 	c2_rwlock_write_lock(&pm->pm_lock);
 
 	/* step 2: Update the state according to event */
-	new_event = c2_alloc(sizeof *new_event);
+	new_event  = c2_alloc(sizeof *new_event);
 	event_link = c2_alloc(sizeof *event_link);
 	if (new_event == NULL || event_link == NULL) {
 		c2_free(new_event);
 		c2_free(event_link);
-		c2_rwlock_write_unlock(&pm->pm_lock);
-		return -ENOMEM;
+		rc = -ENOMEM;
+		goto out_unlock;
 	}
 	*new_event = *event;
 	event_link->pel_event = new_event;
 	if (event->pe_type == C2_POOL_NODE) {
-		/* TODO if this is a new node join event, the index might
-		 * larger than the current number. Then we need to create
-		 * a new larger array to hold nodes info.
+		/* TODO if this is a new node join event, the index
+		 * might larger than the current number. Then we need
+		 * to create a new larger array to hold nodes info.
 		 */
-		C2_ASSERT(new_event->pe_index < pm->pm_state.pst_nr_nodes);
-		pm->pm_state.pst_nodes_array[event->pe_index].pn_state =
-			new_event->pe_state;
-	} else {
-		C2_ASSERT(new_event->pe_index < pm->pm_state.pst_nr_devices);
-		pm->pm_state.pst_devices_array[event->pe_index].pd_state =
-			new_event->pe_state;
+		pm_state->pst_nodes_array[event->pe_index].pn_state =
+				new_event->pe_state;
+	} else if (event->pe_type == C2_POOL_DEVICE) {
+		pm_state->pst_devices_array[event->pe_index].pd_state =
+				new_event->pe_state;
 	}
 
 	/* step 3: Increase the version */
-	++ pm->pm_state.pst_version.pvn_version[PVE_READ];
-	++ pm->pm_state.pst_version.pvn_version[PVE_WRITE];
+	++ pm_state->pst_version.pvn_version[PVE_READ];
+	++ pm_state->pst_version.pvn_version[PVE_WRITE];
 
 	/* Step 4: copy new version into event, and link it into list */
-	event_link->pel_new_version = pm->pm_state.pst_version;
-	poolmach_events_tlink_init_at(event_link, &pm->pm_state.pst_events_list);
+	event_link->pel_new_version = pm_state->pst_version;
+	poolmach_events_tlink_init_at_tail(event_link,
+					   &pm_state->pst_events_list);
 
+out_unlock:
 	/* Step 5: unlock the poolmach */
 	c2_rwlock_write_unlock(&pm->pm_lock);
-	return 0;
+	return rc;
 }
 
 int c2_poolmach_state_query(struct c2_poolmach *pm,
@@ -200,15 +215,16 @@ int c2_poolmach_state_query(struct c2_poolmach *pm,
 			    const struct c2_pool_version_numbers *to,
 			    struct c2_tl *event_list_head)
 {
-	struct c2_pool_event_link *scan;
-	struct c2_pool_event      *event;
-	struct c2_pool_event_link *event_link;
-	int                        rc = 0;
+	struct c2_pool_version_numbers zero = { {0, 0} };
+	struct c2_pool_event_link     *scan;
+	struct c2_pool_event          *event;
+	struct c2_pool_event_link     *event_link;
+	int                            rc = 0;
 
 	C2_PRE(pm != NULL && event_list_head != NULL);
 
 	c2_rwlock_read_lock(&pm->pm_lock);
-	if (from != NULL) {
+	if (from != NULL && !c2_poolmach_version_equal(&zero, from)) {
 		c2_tl_for(poolmach_events, &pm->pm_state.pst_events_list, scan){
 			if (c2_poolmach_version_equal(&scan->pel_new_version,
 						     from)) {
@@ -244,7 +260,7 @@ int c2_poolmach_state_query(struct c2_poolmach *pm,
 		*event_link = *scan;
 		event_link->pel_event = event;
 		*event = *scan->pel_event;
-		poolmach_events_tlink_init_at(event_link, event_list_head);
+		poolmach_events_tlink_init_at_tail(event_link, event_list_head);
 
 		if (to != NULL &&
 		    c2_poolmach_version_equal(&scan->pel_new_version, to))

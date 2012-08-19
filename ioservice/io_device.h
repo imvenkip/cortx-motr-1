@@ -115,10 +115,10 @@ void c2_ios_poolmach_fini(struct c2_reqh *reqh);
  * @param version [out] pack the server known version into this.
  * @param updates [out] pack events from @cli to @version into this buffer.
  */
-int c2_ios_poolmach_version_updates_pack(struct c2_poolmach   *pm,
-					 struct c2_fv_version *cli,
-					 struct c2_fv_version *version,
-					 struct c2_fv_updates *updates);
+int c2_ios_poolmach_version_updates_pack(struct c2_poolmach         *pm,
+					 const struct c2_fv_version *cli,
+					 struct c2_fv_version       *version,
+					 struct c2_fv_updates       *updates);
 
 /** @} */ /* io_calls_params_dldDFS end group */
 

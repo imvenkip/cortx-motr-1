@@ -88,16 +88,19 @@ enum c2_poolmach_version {
  */
 enum c2_pool_nd_state {
 	/** a node/device is online and serving IO */
-	PNDS_ONLINE,
+	C2_PNDS_ONLINE,
 
 	/** a node/device is considered failed */
-	PNDS_FAILED,
+	C2_PNDS_FAILED,
 
 	/** a node/device turned off-line by an administrative request */
-	PNDS_OFFLINE,
+	C2_PNDS_OFFLINE,
 
 	/** a node/device is active, but not yet serving IO */
-	PNDS_RECOVERING
+	C2_PNDS_RECOVERING,
+
+	/** number of state */
+	C2_PNDS_NR
 };
 
 /**
