@@ -19,6 +19,8 @@
  * Original creation date: 11/11/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_CM_SW_H__
 #define __COLIBRI_CM_SW_H__
 
@@ -47,6 +49,13 @@ struct c2_cm_sw {
         /** Sliding window operations. */
         const struct c2_cm_sw_ops  *sw_ops;
 
+	/**
+	 * Min size of the receiver end within the cluster.
+	 * @note: For single node this is equivalent to the size of the local
+	 * copy machine buffer pool.
+	 */
+	size_t                      sw_recv_sz;
+
         /** List of aggregation groups to be processed by the copy machine.*/
         struct c2_tl                sw_aggr_grps;
 
@@ -62,24 +71,30 @@ struct c2_cm_sw {
 /** Copy Machine sliding window operations. */
 struct c2_cm_sw_ops {
         /** Returns the size of the sliding window (HI - LO) */
-        size_t (*swo_size_cal)(struct c2_cm_sw *slw);
+        size_t (*swo_size_cal)(struct c2_cm_sw *sw);
         /** Increase the sw_high. Such that HI := NEXT (HI).
          * Here, NEXT (X) = min{ id | id >= X and aggregation group has packets
          * for this replica }
          * NEXT (X) will run in a loop until it finds an aggregation group
          * that needs processing.
          */
-        int  (*swo_advance)(struct c2_cm_sw *slw);
+        int  (*swo_advance)(struct c2_cm_sw *sw);
         /**
          * Increase the sw_high and sw_low. Such that
          * HI := NEXT (HI)
          * LO := NEXT (LO + 1)
          */
-        int  (*swo_slide)(struct c2_cm_sw *slw);
-        /** If resources permit, expand the SW. */
-        int  (*swo_expand)(struct c2_cm_sw *slw);
-};
+        int  (*swo_slide)(struct c2_cm_sw *sw);
 
+	/**
+	 * Performs checks if required resources are availble to create a new
+	 * copy packet and returns true or false accordingly.
+	 */
+	bool (*swo_has_space)(struct c2_cm_sw *sw);
+
+        /** If resources permit, expand the SW. */
+        int  (*swo_expand)(struct c2_cm_sw *sw);
+};
 
 /** Initialises sliding window. */
 int c2_cm_sw_init(struct c2_cm_sw *slw, const struct c2_cm_sw_ops *ops);

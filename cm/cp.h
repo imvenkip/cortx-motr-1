@@ -25,7 +25,9 @@
 #define __COLIBRI_CM_CP_H__
 
 #include "lib/vec.h"
+
 #include "fop/fom.h"
+#include "rpc/bulk.h"
 
 /**
  * @page CPDLD-fspec Copy Packet Functional Specification
@@ -125,20 +127,20 @@ struct c2_cm_cp {
 	/** Copy packet operations */
 	const struct c2_cm_cp_ops *c_ops;
 
-	/** Buffer representing the copy packet data */
-	struct c2_bufvec          *c_data;
-
-        /** Array of starting extent indices. */
-        c2_bindex_t               *c_index;
+	/** Set and used in case of read/write.*/
+	struct c2_stob_id	   c_id;
 
         /** Aggregation group to which this copy packet belongs.*/
         struct c2_cm_aggr_group   *c_ag;
 
-	/** Set and used in case of read/write.*/
-	struct c2_stob_id	   c_id;
+        /** Array of starting extent indices. */
+        c2_bindex_t               *c_index;
+
+	/** Buffer representing the copy packet data */
+	struct c2_bufvec          *c_data;
 
 	/** Set and used in case of network send/recv.*/
-	struct c2_rpc_bulk	  *c_bulk;
+	struct c2_rpc_bulk	   c_bulk;
 };
 
 /**
@@ -168,8 +170,8 @@ struct c2_cm_cp_ops {
  * @pre cp->c_fom.fo_phase == CCP_INIT
  * @post cp->c_fom.fo_phase == C2_FOPH_INIT
  */
-void c2_cm_cp_init(struct c2_cm_cp *cp, struct c2_cm_aggr_group *ag,
-		   const struct c2_cm_cp_ops *ops, struct c2_bufvec *buf);
+void c2_cm_cp_init(struct c2_cm_cp *cp, const struct c2_cm_cp_ops *ops,
+		   struct c2_bufvec *buf);
 
 /**
  * Finalises generic copy packet.
@@ -182,6 +184,8 @@ void c2_cm_cp_fini(struct c2_cm_cp *cp);
 void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp);
 
 bool c2_cm_cp_invariant(struct c2_cm_cp *cp);
+
+int c2_cm_cp_create(struct c2_cm *cm);
 
 /**
  @}

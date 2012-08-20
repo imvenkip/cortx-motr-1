@@ -24,6 +24,8 @@
 #ifndef __COLIBRI_SNS_REPAIR_CM_H__
 #define __COLIBRI_SNS_REPAIR_CM_H__
 
+#include "cm/cm.h"
+
 /**
   @page SNSRepairCMDLD-fspec SNS Repair copy machine functional specification
 
@@ -32,7 +34,8 @@
   - @ref SNSRepairCMDLD-fspec-usecases
 
   @section SNSRepairCMDLD-fspec Functional Specification
-  SNS Repair copy machine 
+  SNS Repair copy machine
+
   @subsection SNSRepairCMDLD-fspec-ds Data Structures
   - c2_sns_repair_cm
     Represents sns repair copy machine, this embeds generic struct c2_cm and
@@ -51,29 +54,33 @@
 
   @subsection SNSRepairCMDLD-fspec-usecases Recipes
   Test: Start sns repair copy machine service using colibri_setup
-  Response: SNS repair copy machine service is started.
+  Response: SNS repair copy machine service is started and copy machine is
+            initialised.
  */
 
 /**
   @defgroup SNSRepairCM SNS Repair copy machine
   @ingroup CM
-  
+
   SNS-Repair copy machine is a replicated state machine, which performs data
-  re-structuring and handles device, container, node, &c failures.
+  restructuring and handles device, container, node, &c failures.
   @see The @ref SNSRepairCMDLD
 
   @{
 */
 
-#include "cm/cm.h"
-
 struct c2_sns_repair_cm {
-	struct c2_cm		  rc_cm;
-	struct c2_net_buffer_pool rc_pool;
+	struct c2_cm		  rc_base;
+	struct c2_net_buffer_pool rc_bp;
 };
 
 int c2_sns_repair_cm_type_register(void);
 void c2_sns_repair_cm_type_deregister(void);
+
+static inline struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm)
+{
+	return container_of(cm, struct c2_sns_repair_cm, rc_base);
+}
 
 /** @} SNSRepairCM */
 #endif /* __COLIBRI_SNS_REPAIR_CM_H__ */
@@ -82,7 +89,7 @@ void c2_sns_repair_cm_type_deregister(void);
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */

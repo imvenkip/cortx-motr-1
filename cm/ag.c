@@ -22,8 +22,6 @@
 #include <config.h>
 #endif
 
-#include "lib/tlist.h"
-
 #include "cm/ag.h"
 
 /**

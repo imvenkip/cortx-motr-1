@@ -16,8 +16,11 @@
  *
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
  *                  Anup Barve <anup_barve@xyratex.com>
+ *                  Mandar Sawant <mandar_sawant@xyratex.com>
  * Original creation date: 02/22/2012
  */
+
+#include "lib/errno.h"
 
 #include "cm/cp.h"
 #include "cm/cm.h"
@@ -182,8 +185,8 @@
  *   sliding window size.
  *
  *   Once the replica learns window sizes of every other replica, it can
- *   activates copy packet FOMs. Copy machine replica populate copy packets FOMs
- *   in request handler queues.
+ *   activates copy packet FOMs. Copy machine replica submits copy packets FOMs
+ *   to request handler.
  *
  *   @subsection CPDLD-lspec-state State Specification
  *
@@ -377,14 +380,13 @@ bool c2_cm_cp_invariant(struct c2_cm_cp *cp)
 	       cp->c_data != NULL && cp->c_ag != NULL;
 }
 
-void c2_cm_cp_init(struct c2_cm_cp *cp, struct c2_cm_aggr_group *ag,
-		   const struct c2_cm_cp_ops *ops, struct c2_bufvec *buf)
+void c2_cm_cp_init(struct c2_cm_cp *cp, const struct c2_cm_cp_ops *ops,
+		   struct c2_bufvec *buf)
 {
-	C2_PRE(cp != NULL && ag != NULL && ops != NULL && buf != NULL);
+	C2_PRE(cp != NULL && ops != NULL && buf != NULL);
 
-	cp->c_ag = ag;
-	cp->c_data = buf;
 	cp->c_ops = ops;
+	cp->c_data = buf;
 	c2_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL);
 
 	C2_POST(c2_cm_cp_invariant(cp));
@@ -397,6 +399,21 @@ void c2_cm_cp_fini(struct c2_cm_cp *cp)
 
 void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
+}
+
+int c2_cm_cp_create(struct c2_cm *cm)
+{
+	struct c2_cm_cp *cp;
+	struct c2_cm_sw *sw = &cm->cm_sw;
+
+	while (sw->sw_ops->swo_has_space(sw)) {
+	       cp = cm->cm_ops->cmo_cp_alloc(cm);
+	       if (cp == NULL)
+		   return -ENOMEM;
+	       c2_cm_cp_enqueue(cm, cp);
+        }
+
+	return 0;
 }
 
 /** @} end-of-CPDLD */
