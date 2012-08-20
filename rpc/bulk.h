@@ -19,6 +19,9 @@
  *                  Anup Barve <Anup_Barve@xyratex.com>
  * Original creation date: 06/27/2012
  */
+
+#pragma once
+
 #ifndef __COLIBRI_RPC_BULK_H__
 #define __COLIBRI_RPC_BULK_H__
 

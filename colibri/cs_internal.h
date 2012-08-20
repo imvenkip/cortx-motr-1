@@ -22,6 +22,7 @@
 #define __COLIBRI_COLIBRI_CS_INTERNAL_H__
 
 #include "colibri/colibri_setup.h"
+#include "cob/cob.h"
 #include "dtm/dtm.h"
 #include "yaml.h"
 

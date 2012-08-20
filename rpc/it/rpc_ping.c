@@ -42,14 +42,13 @@
 #include "ut/rpc.h"     /* c2_rpc_client_init */
 #include "fop/fop.h"    /* c2_fop_default_item_ops */
 #include "reqh/reqh.h"  /* c2_reqh_rpc_mach_tl */
+#include "rpc/it/ping_fop_xc.h"
 
 #ifdef __KERNEL__
 #include <linux/kernel.h>
-#include "ping_fop_k.h"
-#include "rpc_ping.h"
+#include "rpc/it/linux_kernel/rpc_ping.h"
 #define printf printk
 #else
-#include "ping_fop_u.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -140,7 +139,7 @@ module_param(tm_recv_queue_len, int, S_IRUGO);
 MODULE_PARM_DESC(tm_recv_queue_len, "minimum TM receive queue length");
 
 module_param(max_rpc_msg_size, int, S_IRUGO);
-MODULE_PARM_DESC(tm_recv_queue_len, "maximum RPC message size");
+MODULE_PARM_DESC(max_rpc_msg_size, "maximum RPC message size");
 #endif
 
 static int build_endpoint_addr(enum ep_type type, char *out_buf, size_t buf_size)
@@ -202,7 +201,9 @@ static void print_rpc_stats(struct c2_rpc_stats *stats)
 			  (double) stats->rs_rpcs_nr;
 	printf("                packing_density: %lf\n", packing_density);
 #else
-	packing_density = (uint64_t) stats->rs_items_nr / stats->rs_rpcs_nr;
+	packing_density = stats->rs_rpcs_nr == 0 ? 0 :
+		stats->rs_items_nr / stats->rs_rpcs_nr;
+
 	printf("                packing_density: %llu\n", packing_density);
 #endif
 	sec = 0;
@@ -221,8 +222,7 @@ static void print_rpc_stats(struct c2_rpc_stats *stats)
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("                min_latency:\t %lf # msec\n", msec);
-
-	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
+	thruput = sec == 0 ? 0 : stats->rs_bytes_nr / (sec * 1000000);
 	printf("                max_throughput:\t %lf # MB/s\n", thruput);
 #endif
 
@@ -243,7 +243,8 @@ static void print_rpc_stats(struct c2_rpc_stats *stats)
 	msec = (double) sec * 1000;
 	printf("                max_latency:\t %lf # msec\n", msec);
 
-	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
+	thruput = sec == 0 ? 0 : stats->rs_bytes_nr / (sec * 1000000);
+
 	printf("                min_throughput:\t %lf # MB/s\n", thruput);
 #endif
 }

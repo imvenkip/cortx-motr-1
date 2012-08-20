@@ -23,6 +23,7 @@
 #include "lib/ub.h"
 #include "utils/common.h"
 
+extern struct c2_ub_set c2_atomic_ub;
 extern struct c2_ub_set c2_list_ub;
 extern struct c2_ub_set c2_tlist_ub;
 extern struct c2_ub_set c2_bitmap_ub;
@@ -66,7 +67,7 @@ int main(int argc, char *argv[])
 		c2_ub_set_add(&c2_thread_ub);
 		c2_ub_set_add(&c2_trace_ub);
 		c2_ub_set_add(&c2_rm_ub);
-
+		c2_ub_set_add(&c2_atomic_ub);
 		c2_ub_run(rounds);
 
 		unit_end(UB_SANDBOX, false);

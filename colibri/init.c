@@ -50,6 +50,7 @@
 #include "rpc/item.h"
 #include "rpc/session.h"
 #include "rpc/service.h"
+#include "fop/fom_generic.h"
 #include "colibri/init.h"
 
 #ifdef __KERNEL__
@@ -92,6 +93,8 @@ struct init_fini_call subsystem[] = {
 	{ &c2_fols_init,     &c2_fols_fini,     "fol" },
 	{ &c2_layouts_init,  &c2_layouts_fini, "layout" },
 	{ &c2_pools_init,    &c2_pools_fini,   "pool" },
+	/* fops must be initialised before network, because network build fop
+	   type for network descriptors. */
 	{ &c2_fops_init,     &c2_fops_fini,    "fop" },
 	{ &c2_net_init,      &c2_net_fini,     "net" },
 	{ &c2_rpc_base_init, &c2_rpc_base_fini, "rpc-base" },
@@ -100,6 +103,9 @@ struct init_fini_call subsystem[] = {
 						"rpc-service" },
 	{ &c2_rpc_session_module_init, &c2_rpc_session_module_fini,
 						"rpc-session" },
+	/* fom generic must be after rpc, because it initialises rpc item
+	   type for generic error reply. */
+	{ &c2_fom_generic_init, &c2_fom_generic_fini, "fom-generic" },
 	{ &c2_mem_xprt_init, &c2_mem_xprt_fini, "bulk/mem" },
 	{ &c2_net_lnet_init, &c2_net_lnet_fini, "net/lnet" },
 #ifdef __KERNEL__

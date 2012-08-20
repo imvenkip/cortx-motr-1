@@ -18,6 +18,8 @@
  * Original creation date: 09/28/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_RPC_RPCLIB_H__
 #define __COLIBRI_RPC_RPCLIB_H__
 
@@ -25,7 +27,8 @@
 #include <stdio.h> /* FILE */
 #endif
 
-#include "rpc/rpc2.h"    /* struct c2_rpc_machine, c2_rpc_item */
+#include "rpc/item.h"    /* struct c2_rpc_machine, c2_rpc_item */
+#include "rpc/rpc2.h"
 #include "rpc/session.h" /* struct c2_rpc_conn, c2_rpc_session */
 #include "db/db.h"       /* struct c2_dbenv */
 #include "cob/cob.h"     /* struct c2_cob_domain */
@@ -110,7 +113,7 @@ struct c2_rpc_client_ctx {
 	 * Input parameters.
 	 *
 	 * They are initialized and filled in by a caller of
-	 * c2_rpc_server_start() and c2_rpc_client_stop().
+	 * c2_rpc_client_start().
 	 */
 
 	/**
@@ -157,8 +160,7 @@ struct c2_rpc_client_ctx {
 	/**
 	 * Output parameters.
 	 *
-	 * They are initialized and filled in by c2_rpc_server_init() and
-	 * c2_rpc_client_start().
+	 * They are initialized and filled in by c2_rpc_client_start().
 	 */
 
 	struct c2_rpc_machine	   rcx_rpc_machine;

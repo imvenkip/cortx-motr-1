@@ -1,15 +1,23 @@
 fopdir                        = $(includedir)/colibri/fop
 noinst_LTLIBRARIES            = libcolibri-fop.la
 
-fop_HEADERS                   = fop.h fop_base.h fom.h fop_format.h fop_iterator.h \
-                                fop_user.h fop_format_def.h fop_item_type.h
+FOM_GENERIC_FOPS              = fom_generic_xc.h fom_generic_xc.c
 
-fop_SOURCES                   = fop.c fop.h fom.c fom.h fop_format.c \
-				fop_format.h fop_item_type.c fop_item_type.h \
-				fop_user.h fop_format_def.h fop_format_c.c \
-                                fop_iterator.h fop_iterator.c fop_base.c fop_base.h
+$(FOM_GENERIC_FOPS): fom_generic_xc.ff  \
+	$(top_builddir)/xcode/ff2c/ff2c
+	$(top_builddir)/xcode/ff2c/ff2c $<
+
+fop_HEADERS                   = fop.h fom.h fop_item_type.h fom_generic.h
+
+fop_SOURCES                   = fop.c fop.h fom.c fom.h fop_item_type.c \
+				fop_item_type.h $(FOM_GENERIC_FOPS)     \
+				fom_generic.c fom_long_lock.h fom_long_lock.c
 
 libcolibri_fop_la_SOURCES     = $(fop_SOURCES)
 
-INCLUDES                      = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
-EXTRA_DIST                    = fop2c.in linux_kernel/fop_kernel.h
+INCLUDES                      = -iquote . -iquote $(top_srcdir)         \
+				-iquote $(top_srcdir)/include
+
+EXTRA_DIST                    = linux_kernel/fop_kernel.h fom_generic_xc.ff
+
+MOSTLYCLEANFILES              = $(FOM_GENERIC_FOPS)

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,8 @@
  * Original author: Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>
  * Original creation date: 04/08/2010
  */
+
+#pragma once
 
 #ifndef __COLIBRI_LIB_REFS_H__
 #define __COLIBRI_LIB_REFS_H__

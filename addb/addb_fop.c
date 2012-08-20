@@ -22,7 +22,6 @@
 #  include "config.h"
 #endif
 
-#include "lib/cdefs.h"
 #include "lib/arith.h"
 #include "lib/misc.h"
 #include "lib/memory.h"
@@ -30,30 +29,48 @@
 #include "fop/fop.h"
 #include "net/net.h"
 #include "addb/addb.h"
+#include "addb/addbff/addb.h"
+#include "rpc/rpc_opcodes.h"
 
 #ifdef __KERNEL__
-# include "addb/addbff/addb_k.h"
 # define c2_addb_handler NULL
 #else
-
 int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
-
-# include "addb/addbff/addb_u.h"
 #endif
-
-#include "fop/fop_format_def.h"
-#include "addb/addbff/addb.ff"
-#include "rpc/rpc_opcodes.h"
 
 static struct c2_fop_type_ops addb_ops = {
 	.fto_execute = NULL,
 };
 
-C2_FOP_TYPE_DECLARE(c2_addb_record, "addb", &addb_ops,
-		    C2_ADDB_RECORD_REQUEST_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
+struct c2_fop_type c2_addb_record_fopt;
+struct c2_fop_type c2_addb_reply_fopt;
 
-C2_FOP_TYPE_DECLARE(c2_addb_reply,  "addb reply", NULL, C2_ADDB_REPLY_OPCODE,
-		    C2_RPC_ITEM_TYPE_REPLY);
+int c2_addb_fop_init(void)
+{
+	c2_xc_addb_init();
+
+	return  C2_FOP_TYPE_INIT(&c2_addb_record_fopt,
+				 .name      = "addb record",
+				 .opcode    = C2_ADDB_RECORD_REQUEST_OPCODE,
+				 .xt        = c2_addb_record_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
+				 .fop_ops   = &addb_ops) ?:
+		C2_FOP_TYPE_INIT(&c2_addb_reply_fopt,
+				 .name      = "addb reply",
+				 .opcode    = C2_ADDB_REPLY_OPCODE,
+				 .xt        = c2_addb_reply_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY);
+}
+C2_EXPORTED(c2_addb_fop_init);
+
+void c2_addb_fop_fini(void)
+{
+	c2_fop_type_fini(&c2_addb_record_fopt);
+	c2_fop_type_fini(&c2_addb_reply_fopt);
+	c2_xc_addb_fini();
+}
+C2_EXPORTED(c2_addb_fop_fini);
+
 /**
    ADDB record body for function fail event.
 
@@ -98,73 +115,6 @@ struct c2_addb_inval_body {
 struct c2_addb_trace_body {
 	char     msg[0];
 };
-
-#ifndef __KERNEL__
-
-#if 0
-/**
-   @todo Please remove deprecated interfaces and use new net interface
- */
-static int c2_addb_enable_dump = 0;
-
-static void c2_addb_record_dump(const struct c2_addb_record *rec)
-{
-	const struct c2_addb_record_header *header = &rec->ar_header;
-
-	if (c2_addb_enable_dump == 0)
-		return;
-
-	printf("addb record |- magic1    = %llX\n"
-	       "            |- version   = %lu\n"
-	       "            |- len       = %lu\n"
-	       "            |- event_id  = %llu\n"
-	       "            |- timestamp = %llx\n"
-	       "            |- magic2    = %llX\n"
-	       "            |- opaque data length = %lu\n",
-	       (unsigned long long)header->arh_magic1,
-	       (unsigned long)     header->arh_version,
-	       (unsigned long)     header->arh_len,
-	       (unsigned long long)header->arh_event_id,
-	       (unsigned long long)header->arh_timestamp,
-	       (unsigned long long)header->arh_magic2,
-	       (unsigned long)     rec->ar_data.cmb_count);
-
-	switch (header->arh_event_id) {
-	case C2_ADDB_EVENT_FUNC_FAIL: {
-		const struct c2_addb_func_fail_body *body;
-		body = (struct c2_addb_func_fail_body*) rec->ar_data.cmb_value;
-
-		printf("++func-fail++> rc = %d, msg = %s\n", body->rc, body->msg);
-		break;
-		}
-	default:
-		break;
-	}
-}
-
-int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx)
-{
-	struct c2_addb_record   *in;
-	struct c2_addb_reply    *ex;
-	struct c2_fop           *reply;
-
-	in = c2_fop_data(fop);
-	/* do something with the request, e.g. store it in stob, or in db */
-	c2_addb_record_dump(in);
-
-	/* prepare the reply */
-	reply = c2_fop_alloc(&c2_addb_reply_fopt, NULL);
-	if (reply != NULL) {
-		ex = c2_fop_data(reply);
-		ex->ar_rc = 0;
-	}
-
-	c2_net_reply_post(ctx->ft_service, reply, ctx->fc_cookie);
-	return 1;
-}
-#endif /* 0 */
-
-#endif
 
 int c2_addb_record_header_pack(struct c2_addb_dp *dp,
 			       struct c2_addb_record_header *header,
@@ -321,9 +271,6 @@ int c2_addb_trace_pack(struct c2_addb_dp *dp,
 	return rc;
 }
 
-extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U32_tfmt;
-extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U64_tfmt;
-extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_BYTE_tfmt;
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

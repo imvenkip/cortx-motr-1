@@ -1,18 +1,10 @@
-noinst_LTLIBRARIES   	= libnet-ut.la
-INCLUDES        	= -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include -iquote $(top_srcdir)/net
+noinst_LTLIBRARIES      = libnet-ut.la
+INCLUDES                = -iquote . -iquote $(top_srcdir)       \
+			  -iquote $(top_srcdir)/include -iquote \
+			  $(top_srcdir)/net
 
-net_u.h net_u.c: net.ff \
-                  $(top_builddir)/fop/rt/libc2rt.la \
-                  $(top_builddir)/fop/fop2c
-	$(top_builddir)/fop/fop2c -u $<
+libnet_ut_la_SOURCES	= bulk_if.c buffer_pool_ut.c
 
-libnet_ut_la_SOURCES	= bulk_if.c \
-                          net_u.h net_u.c net_fop_init.c net_fop.h \
-                          buffer_pool_ut.c
 libnet_ut_la_LIBADD     = $(top_builddir)/colibri/libcolibri.la
 
-EXTRA_DIST              = net.ff tm_provision_ut.c
-
-clean-local:
-	cd @SRCDIR@/net/ut ; \
-	rm -fr net_[uk].[hc]
+EXTRA_DIST              = tm_provision_ut.c

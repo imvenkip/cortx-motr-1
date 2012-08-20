@@ -200,7 +200,7 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 	timeout = c2_time_add(c2_time_now(), timeout);
 
 	rc = c2_rpc_post(item);
-	if (rc != 0)
+	if (rc != 0 || timeout_s == 0)
 		goto clean;
 
 	rc = c2_rpc_reply_timedwait(&clink, timeout);

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,8 @@
  * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
  * Original creation date: 04/01/2010
  */
+
+#pragma once
 
 #ifndef __COLIBRI_SM_SM_H__
 #define __COLIBRI_SM_SM_H__
@@ -78,8 +80,9 @@
    state comes with a description. All descriptions for a particular state
    machine are packed into a c2_sm_conf::scf_state[] array.
 
-   State machine transferred from one state to another by a call to
-   c2_sm_state_set() (or its variant c2_sm_fail()).
+   State machine is transferred from one state to another by a call to
+   c2_sm_state_set() (or its variant c2_sm_fail()) or via "chained" transitions,
+   see below.
 
    <b>Concurrency.</b>
 
@@ -105,8 +108,8 @@
    similar. Acquiring the group's mutex, necessary for state transition in such
    places is undesirable for multiple reasons:
 
-       - to avoid self-deadlock in a case where an interrupt of signal is
-         services by a thread that already holds the mutex, the latter must be
+       - to avoid self-deadlock in a case where an interrupt or signal is
+         serviced by a thread that already holds the mutex, the latter must be
          made "async-safe", which is quite expensive;
 
        - implementation of a module that provides a call-back must take into
@@ -121,6 +124,64 @@
 
    The solution to these problems comes from operating system kernels design,
    see the AST section below.
+
+   There are 2 ways to implement state machine input event processing:
+
+       - "external" state transition, where input event processing is done
+         outside of state machine, and c2_sm_state_set() is called to record
+         state change:
+
+@code
+struct foo {
+	struct c2_sm f_sm;
+	...
+};
+
+void event_X(struct foo *f)
+{
+	c2_sm_group_lock(f->f_sm.sm_grp);
+	process_X(f);
+	c2_sm_state_set(&f->f_sm, NEXT_STATE);
+	c2_sm_group_unlock(f->f_sm.sm_grp);
+}
+@endcode
+
+      - "chained" state transition, where event processing logic is encoded in
+      c2_sm_state_descr::sd_in() methods and a call to c2_sm_state_set() causes
+      actual event processing to happen:
+
+@code
+int X_in(struct c2_sm *mach)
+{
+        struct foo *f = container_of(mach, struct foo, f_sm);
+	// group lock is held.
+	process_X(f);
+	return NEXT_STATE;
+}
+
+const struct c2_sm_conf foo_sm_conf = {
+	...
+	.scf_state = foo_sm_states
+};
+
+const struct c2_sm_state_descr foo_sm_states[] = {
+	...
+	[STATE_X] = {
+		...
+		.sd_in = X_in
+	},
+	...
+};
+
+void event_X(struct foo *f)
+{
+	c2_sm_group_lock(f->f_sm.sm_grp);
+	// this calls X_in() and goes through the chain of state transitions.
+	c2_sm_state_set(&f->f_sm, STATE_X);
+	c2_sm_group_unlock(f->f_sm.sm_grp);
+}
+
+@endcode
 
    <b>Accounting and statistics.</b>
 
@@ -299,8 +360,17 @@ struct c2_sm_state_descr {
 	/**
 	   This function (if non-NULL) is called by c2_sm_state_set() when the
 	   state is entered.
+
+	   If this function returns a non-negative number, the state machine
+	   immediately transits to the returned state (this transition includes
+	   all usual side-effects, like machine channel broadcast and invocation
+	   of the target state ->sd_in() method). This process repeats until
+	   ->sd_in() returns negative number. Such state transitions are called
+	   "chained", see "chain" UT for examples. To fail the state machine,
+	   set c2_sm::sm_rc manually and return one of C2_SDF_FAILURE states,
+	   see C_OVER -> C_LOSE transition in the "chain" UT.
 	 */
-	void      (*sd_in)(struct c2_sm *mach);
+	int       (*sd_in)(struct c2_sm *mach);
 	/**
 	   This function (if non-NULL) is called by c2_sm_state_set() when the
 	   state is left.
@@ -335,7 +405,7 @@ enum c2_sm_state_descr_flags {
 	/**
 	    An initial state.
 
-	    State machine, must starts execution in a state marked with this
+	    State machine, must start execution in a state marked with this
 	    flag. Multiple states can be marked with this flag, for example, to
 	    share a code between similar state machines, that only differ in
 	    initial conditions.
@@ -391,7 +461,6 @@ struct c2_sm_group {
 	struct c2_mutex   s_lock;
 	struct c2_clink   s_clink;
 	struct c2_sm_ast *s_forkq;
-	struct c2_tl      s_ast_free;
 	struct c2_chan    s_chan;
 };
 
@@ -454,8 +523,10 @@ void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc);
    Calls ex- and in- methods of the corresponding states (even if the state
    doesn't change after all).
 
+   The (mach->sm_state == state) post-condition cannot be asserted, because of
+   chained state transitions.
+
    @pre c2_mutex_is_locked(&mach->sm_grp->s_lock)
-   @post mach->sm_state == state
    @post c2_mutex_is_locked(&mach->sm_grp->s_lock)
  */
 void c2_sm_state_set(struct c2_sm *mach, int state);

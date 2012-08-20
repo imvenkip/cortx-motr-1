@@ -321,7 +321,7 @@ int c2_fol_rec_pack(struct c2_fol_rec_desc *desc, struct c2_buf *out)
 		desc->rd_header.rh_sibling_nr * sizeof desc->rd_sibling[0] +
 		data_len;
 	desc->rd_header.rh_opcode = rtype->rt_opcode;
-	C2_ASSERT((size & 7) == 0);
+	//C2_ASSERT((size & 7) == 0);
 
 	buf = c2_alloc(size);
 	if (buf != NULL) {
@@ -463,7 +463,7 @@ enum {
 	C2_FOL_REC_TYPE_MAX = 64
 };
 
-const static struct c2_fol_rec_type *rtypes[C2_FOL_REC_TYPE_MAX];
+static const struct c2_fol_rec_type *rtypes[C2_FOL_REC_TYPE_MAX];
 static struct c2_mutex rtypes_lock;
 
 int c2_fols_init(void)

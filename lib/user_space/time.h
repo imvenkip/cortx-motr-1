@@ -18,6 +18,8 @@
  * Original creation date: 12/08/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LIB_USER_SPACE_TIME_H__
 #define __COLIBRI_LIB_USER_SPACE_TIME_H__
 

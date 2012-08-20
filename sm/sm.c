@@ -137,6 +137,7 @@ bool c2_sm_invariant(const struct c2_sm *mach)
 
 	return
 		sm_is_locked(mach) &&
+		equi((mach->sm_rc != 0), (sd->sd_flags & C2_SDF_FAILURE)) &&
 		ergo(sd->sd_invariant != NULL, sd->sd_invariant(mach));
 }
 
@@ -222,6 +223,34 @@ int c2_sm_timedwait(struct c2_sm *mach, uint64_t states, c2_time_t deadline)
 	return result;
 }
 
+static void state_set(struct c2_sm *mach, int state)
+{
+	const struct c2_sm_state_descr *sd;
+
+	/*
+	 * Iterate over a possible chain of state transitions.
+	 *
+	 * State machine invariant can be temporarily violated because ->sm_rc
+	 * is set by c2_sm_fail() before ->sm_state is updated and, similarly,
+	 * ->sd_in() might set ->sm_rc before the next state is entered. In any
+	 * case, the invariant is restored the moment->sm_state is updated and
+	 * must hold on the loop termination.
+	 */
+	do {
+		sd = sm_state(mach);
+		C2_PRE(sd->sd_allowed & (1 << state));
+
+		if (sd->sd_ex != NULL)
+			sd->sd_ex(mach);
+		mach->sm_state = state;
+		C2_PRE(c2_sm_invariant(mach));
+		sd = sm_state(mach);
+		state = sd->sd_in != NULL ? sd->sd_in(mach) : -1;
+		c2_chan_broadcast(&mach->sm_chan);
+	} while (state >= 0);
+	C2_POST(c2_sm_invariant(mach));
+}
+
 void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc)
 {
 	C2_PRE(rc != 0);
@@ -229,27 +258,14 @@ void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc)
 	C2_PRE(mach->sm_rc == 0);
 	C2_PRE(state_get(mach, fail_state)->sd_flags & C2_SDF_FAILURE);
 
-	c2_sm_state_set(mach, fail_state);
 	mach->sm_rc = rc;
+	state_set(mach, fail_state);
 }
 
 void c2_sm_state_set(struct c2_sm *mach, int state)
 {
-	const struct c2_sm_state_descr *sd;
-
 	C2_PRE(c2_sm_invariant(mach));
-
-	sd = sm_state(mach);
-	C2_PRE(sd->sd_allowed & (1 << state));
-
-	if (sd->sd_ex != NULL)
-		sd->sd_ex(mach);
-	mach->sm_state = state;
-	sd = sm_state(mach);
-	if (sd->sd_in != NULL)
-		sd->sd_in(mach);
-	c2_chan_broadcast(&mach->sm_chan);
-	C2_POST(c2_sm_invariant(mach));
+	state_set(mach, state);
 }
 
 /**

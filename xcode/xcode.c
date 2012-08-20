@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -22,6 +22,7 @@
 #include "lib/misc.h"                           /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/assert.h"
+#include "lib/memory.h"
 
 #include "xcode/xcode.h"
 
@@ -31,13 +32,21 @@
    @{
  */
 
+static bool is_pointer(const struct c2_xcode_type *xt,
+		       const struct c2_xcode_field *field)
+{
+	return xt->xct_aggr == C2_XA_SEQUENCE && field == &xt->xct_child[1];
+}
+
 static bool field_invariant(const struct c2_xcode_type *xt,
 			    const struct c2_xcode_field *field)
 {
 	return
 		field->xf_name != NULL && field->xf_type != NULL &&
 		ergo(xt == &C2_XT_OPAQUE, field->xf_opaque != NULL) &&
-		field->xf_offset + field->xf_type->xct_sizeof <= xt->xct_sizeof;
+		field->xf_offset +
+		(is_pointer(xt, field) ?
+		 sizeof(void *) : field->xf_type->xct_sizeof) <= xt->xct_sizeof;
 }
 
 bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
@@ -313,6 +322,11 @@ int c2_xcode_length(struct c2_xcode_ctx *ctx)
 	return ctx_walk(ctx, XO_LEN);
 }
 
+void *c2_xcode_alloc(struct c2_xcode_ctx *ctx, size_t nob)
+{
+	return c2_alloc(nob);
+}
+
 void *c2_xcode_addr(const struct c2_xcode_obj *obj, int fileno, uint64_t elno)
 {
 	char                        *addr = (char *)obj->xo_ptr;
@@ -322,7 +336,8 @@ void *c2_xcode_addr(const struct c2_xcode_obj *obj, int fileno, uint64_t elno)
 
 	C2_ASSERT(fileno < xt->xct_nr);
 	addr += f->xf_offset;
-	if (xt->xct_aggr == C2_XA_SEQUENCE && fileno == 1 && elno != ~0ULL)
+	if (xt->xct_aggr == C2_XA_SEQUENCE && fileno == 1 &&
+	    elno != ~0ULL)
 		addr = *((char **)addr) + elno * ct->xct_sizeof;
 	else if (ct == &C2_XT_OPAQUE && elno != ~0ULL)
 		addr = *((char **)addr);
@@ -396,7 +411,7 @@ const struct c2_xcode_type C2_XT_VOID = {
 	.xct_aggr   = C2_XA_ATOM,
 	.xct_name   = "void",
 	.xct_atype  = C2_XAT_VOID,
-	.xct_sizeof = sizeof(void),
+	.xct_sizeof = 0,
 	.xct_nr     = 0
 };
 
@@ -415,6 +430,7 @@ const struct c2_xcode_type C2_XT_U32 = {
 	.xct_sizeof = sizeof(uint32_t),
 	.xct_nr     = 0
 };
+C2_EXPORTED(C2_XT_U32);
 
 const struct c2_xcode_type C2_XT_U64 = {
 	.xct_aggr   = C2_XA_ATOM,
@@ -423,6 +439,7 @@ const struct c2_xcode_type C2_XT_U64 = {
 	.xct_sizeof = sizeof(uint64_t),
 	.xct_nr     = 0
 };
+C2_EXPORTED(C2_XT_U64);
 
 const struct c2_xcode_type C2_XT_OPAQUE = {
 	.xct_aggr   = C2_XA_OPAQUE,

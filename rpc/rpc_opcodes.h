@@ -17,6 +17,7 @@
  * Original author: Subhash Arya <subhash_arya@xyratex.com>,
  * Original creation date: 11/4/2011
  */
+
 /**
    @addtogroup rpc_layer_core
 
@@ -27,6 +28,8 @@
 
    @{
  */
+
+#pragma once
 
 #ifndef __RPC_CORE_OPCODES_H__
 #define __RPC_CORE_OPCODES_H__
@@ -103,6 +106,17 @@ enum C2_RPC_OPCODES {
 	C2_IOSERVICE_COB_CREATE_OPCODE      = 45,
 	C2_IOSERVICE_COB_DELETE_OPCODE      = 46,
 	C2_IOSERVICE_COB_OP_REPLY_OPCODE    = 47,
+
+	/** FOP module opcodes */
+	C2_FOP_RDWR_OPCODE                  = 48,
+	C2_FOP_RDWR_REPLY_OPCODE            = 49,
+
+	/** Resource manager opcodes */
+	C2_RM_FOP_BORROW                    = 50,
+	C2_RM_FOP_BORROW_REPLY              = 51,
+	C2_RM_FOP_REVOKE                    = 52,
+	C2_RM_FOP_REVOKE_REPLY              = 53,
+	C2_RM_FOP_CANCEL                    = 54,
 };
 /** @} endgroup rpc_layer_core */
 

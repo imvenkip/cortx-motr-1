@@ -20,6 +20,8 @@
  * Original creation date: 04/09/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_RPC_SESSION_H__
 #define __COLIBRI_RPC_SESSION_H__
 

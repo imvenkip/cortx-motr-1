@@ -33,7 +33,7 @@
 #include "fop/fop.h"
 #include "reqh/reqh.h"
 #include "fop/fom.h"
-#include "fop/fop_iterator.h"
+#include "fop/fom_generic.h"
 #include "stob/stob.h"
 #include "stob/ad.h"
 #include "stob/linux.h"
@@ -41,17 +41,7 @@
 #include "rpc/rpc_onwire.h"
 #include "rpc/rpc_opcodes.h"
 #include "fop/fop_item_type.h"
-#include "xcode/bufvec_xcode.h"
-
-#include "fop/fop_format_def.h"
-
-#ifdef __KERNEL__
-#include "io_fop_k.h"
-#else
-#include "io_fop_u.h"
-#endif
-
-#include "io_fop.ff"
+#include "reqh/ut/io_fop_xc.h"
 
 /**
    @defgroup stobio
@@ -74,45 +64,16 @@ enum stob_write_fom_phase {
 	C2_FOPH_WRITE_STOB_IO_WAIT
 };
 
+struct c2_fop_type c2_stob_io_create_fopt;
+struct c2_fop_type c2_stob_io_read_fopt;
+struct c2_fop_type c2_stob_io_write_fopt;
+struct c2_fop_type c2_stob_io_create_rep_fopt;
+struct c2_fop_type c2_stob_io_read_rep_fopt;
+struct c2_fop_type c2_stob_io_write_rep_fopt;
+
 /**
  * RPC item operations structures
  */
-/**
- * Fop operation structures for corresponding fops.
- */
-static const struct c2_fop_type_ops default_fop_ops = {
-        .fto_size_get = c2_xcode_fop_size_get,
-};
-
-static const struct c2_fop_type_ops default_rep_fop_ops = {
-        .fto_size_get = c2_xcode_fop_size_get,
-};
-
-/**
- * Fop type declarations for corresponding fops
- */
-C2_FOP_TYPE_DECLARE(c2_stob_io_create, "stob_create", &default_fop_ops,
-		    C2_STOB_IO_CREATE_REQ_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
-C2_FOP_TYPE_DECLARE(c2_stob_io_read, "stob_read", &default_fop_ops,
-		    C2_STOB_IO_READ_REQ_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
-C2_FOP_TYPE_DECLARE(c2_stob_io_write, "stob_write", &default_fop_ops,
-		    C2_STOB_IO_WRITE_REQ_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO);
-
-C2_FOP_TYPE_DECLARE(c2_stob_io_create_rep, "stob_create reply",
-		    &default_rep_fop_ops,
-		    C2_STOB_IO_CREATE_REPLY_OPCODE,
-		    C2_RPC_ITEM_TYPE_REPLY);
-C2_FOP_TYPE_DECLARE(c2_stob_io_read_rep, "stob_read reply",
-		    &default_rep_fop_ops,
-		    C2_STOB_IO_READ_REPLY_OPCODE,
-		    C2_RPC_ITEM_TYPE_REPLY);
-C2_FOP_TYPE_DECLARE(c2_stob_io_write_rep, "stob_write reply",
-		    &default_rep_fop_ops,
-		    C2_STOB_IO_WRITE_REPLY_OPCODE,
-		    C2_RPC_ITEM_TYPE_REPLY);
 
 /**
  * Fop type structures required for initialising corresponding fops.
@@ -125,10 +86,6 @@ static struct c2_fop_type *stob_fops[] = {
 	&c2_stob_io_create_rep_fopt,
 	&c2_stob_io_write_rep_fopt,
 	&c2_stob_io_read_rep_fopt,
-};
-
-static struct c2_fop_type_format *stob_fmts[] = {
-        &stob_io_fop_fid_tfmt,
 };
 
 /**
@@ -151,9 +108,9 @@ static int stob_create_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static int stob_read_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static int stob_write_fom_create(struct c2_fop *fop, struct c2_fom **out);
 
-static int stob_create_fom_state(struct c2_fom *fom);
-static int stob_read_fom_state(struct c2_fom *fom);
-static int stob_write_fom_state(struct c2_fom *fom);
+static int stob_create_fom_tick(struct c2_fom *fom);
+static int stob_read_fom_tick(struct c2_fom *fom);
+static int stob_write_fom_tick(struct c2_fom *fom);
 
 static void stob_io_fom_fini(struct c2_fom *fom);
 static size_t stob_find_fom_home_locality(const struct c2_fom *fom);
@@ -163,19 +120,19 @@ static size_t stob_find_fom_home_locality(const struct c2_fom *fom);
  */
 static struct c2_fom_ops stob_create_fom_ops = {
 	.fo_fini = stob_io_fom_fini,
-	.fo_state = stob_create_fom_state,
+	.fo_tick = stob_create_fom_tick,
 	.fo_home_locality = stob_find_fom_home_locality,
 };
 
 static struct c2_fom_ops stob_write_fom_ops = {
 	.fo_fini = stob_io_fom_fini,
-	.fo_state = stob_write_fom_state,
+	.fo_tick = stob_write_fom_tick,
 	.fo_home_locality = stob_find_fom_home_locality,
 };
 
 static struct c2_fom_ops stob_read_fom_ops = {
 	.fo_fini = stob_io_fom_fini,
-	.fo_state = stob_read_fom_state,
+	.fo_tick = stob_read_fom_tick,
 	.fo_home_locality = stob_find_fom_home_locality,
 };
 
@@ -352,7 +309,7 @@ static size_t stob_find_fom_home_locality(const struct c2_fom *fom)
  * A simple non blocking create fop specific fom
  * state method implemention.
  */
-static int stob_create_fom_state(struct c2_fom *fom)
+static int stob_create_fom_tick(struct c2_fom *fom)
 {
 	struct c2_stob_io_create	*in_fop;
 	struct c2_stob_io_create_rep	*out_fop;
@@ -366,19 +323,19 @@ static int stob_create_fom_state(struct c2_fom *fom)
 
 	fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
 	if (fom->fo_phase < C2_FOPH_NR) {
-		result = c2_fom_state_generic(fom);
+		result = c2_fom_tick_generic(fom);
 	} else {
 		in_fop = c2_fop_data(fom->fo_fop);
 		out_fop = c2_fop_data(fom_obj->sif_rep_fop);
 
-		fom_obj->sif_stobj = stob_object_find(&in_fop->fic_object, &fom->fo_tx, fom);
+		fom_obj->sif_stobj = stob_object_find(&in_fop->fic_object,
+						      &fom->fo_tx, fom);
 
 		result = c2_stob_create(fom_obj->sif_stobj, &fom->fo_tx);
 		out_fop->ficr_rc = result;
 		fop = fom_obj->sif_rep_fop;
 		item = c2_fop_to_rpc_item(fop);
 		item->ri_type = &fop->f_type->ft_rpc_item_type;
-		item->ri_group = NULL;
 		fom->fo_rep_fop = fom_obj->sif_rep_fop;
 		fom->fo_rc = result;
 		if (result != 0)
@@ -386,7 +343,8 @@ static int stob_create_fom_state(struct c2_fom *fom)
 		 else
 			fom->fo_phase = C2_FOPH_SUCCESS;
 
-		result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol, &fom->fo_tx.tx_dbtx);
+		result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
+					    &fom->fo_tx.tx_dbtx);
 		C2_ASSERT(result == 0);
 		result = C2_FSO_AGAIN;
 	}
@@ -401,7 +359,7 @@ static int stob_create_fom_state(struct c2_fom *fom)
  * A simple non blocking read fop specific fom
  * state method implemention.
  */
-static int stob_read_fom_state(struct c2_fom *fom)
+static int stob_read_fom_tick(struct c2_fom *fom)
 {
         struct c2_stob_io_read      *in_fop;
         struct c2_stob_io_read_rep  *out_fop;
@@ -422,7 +380,7 @@ static int stob_read_fom_state(struct c2_fom *fom)
         fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
         stio = &fom_obj->sif_stio;
         if (fom->fo_phase < C2_FOPH_NR) {
-                result = c2_fom_state_generic(fom);
+                result = c2_fom_tick_generic(fom);
         } else {
                 out_fop = c2_fop_data(fom_obj->sif_rep_fop);
                 C2_ASSERT(out_fop != NULL);
@@ -431,8 +389,9 @@ static int stob_read_fom_state(struct c2_fom *fom)
 
                         in_fop = c2_fop_data(fom->fo_fop);
                         C2_ASSERT(in_fop != NULL);
-                        fom_obj->sif_stobj = stob_object_find(&in_fop->fir_object,
-                                                                &fom->fo_tx, fom);
+                        fom_obj->sif_stobj = stob_object_find(
+				&in_fop->fir_object,
+				&fom->fo_tx, fom);
 
                         stobj =  fom_obj->sif_stobj;
                         bshift = stobj->so_op->sop_block_shift(stobj);
@@ -443,8 +402,8 @@ static int stob_read_fom_state(struct c2_fom *fom)
 
                         c2_stob_io_init(stio);
 
-                        stio->si_user = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&addr,
-                                                                                &count);
+                        stio->si_user = (struct c2_bufvec)
+				C2_BUFVEC_INIT_BUF(&addr, &count);
 
                         stio->si_stob.iv_vec.v_nr    = 1;
                         stio->si_stob.iv_vec.v_count = &count;
@@ -483,7 +442,6 @@ static int stob_read_fom_state(struct c2_fom *fom)
 			fop = fom_obj->sif_rep_fop;
 			item = c2_fop_to_rpc_item(fop);
 			item->ri_type = &fop->f_type->ft_rpc_item_type;
-                        item->ri_group = NULL;
                         fom->fo_rep_fop = fom_obj->sif_rep_fop;
                         result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
                                                         &fom->fo_tx.tx_dbtx);
@@ -511,7 +469,7 @@ static int stob_read_fom_state(struct c2_fom *fom)
  * A simple non blocking write fop specific fom
  * state method implemention.
  */
-static int stob_write_fom_state(struct c2_fom *fom)
+static int stob_write_fom_tick(struct c2_fom *fom)
 {
         struct c2_stob_io_write     *in_fop;
         struct c2_stob_io_write_rep *out_fop;
@@ -533,7 +491,7 @@ static int stob_write_fom_state(struct c2_fom *fom)
         stio = &fom_obj->sif_stio;
 
         if (fom->fo_phase < C2_FOPH_NR) {
-                result = c2_fom_state_generic(fom);
+                result = c2_fom_tick_generic(fom);
         } else {
                 out_fop = c2_fop_data(fom_obj->sif_rep_fop);
                 C2_ASSERT(out_fop != NULL);
@@ -542,7 +500,8 @@ static int stob_write_fom_state(struct c2_fom *fom)
                         in_fop = c2_fop_data(fom->fo_fop);
                         C2_ASSERT(in_fop != NULL);
 
-                        fom_obj->sif_stobj = stob_object_find(&in_fop->fiw_object, &fom->fo_tx, fom);
+                        fom_obj->sif_stobj = stob_object_find(
+				&in_fop->fiw_object, &fom->fo_tx, fom);
 
                         stobj = fom_obj->sif_stobj;
                         bshift = stobj->so_op->sop_block_shift(stobj);
@@ -553,7 +512,8 @@ static int stob_write_fom_state(struct c2_fom *fom)
 
                         c2_stob_io_init(stio);
 
-                        stio->si_user = (struct c2_bufvec)C2_BUFVEC_INIT_BUF(&addr, &count);
+                        stio->si_user = (struct c2_bufvec)
+				C2_BUFVEC_INIT_BUF(&addr, &count);
 
                         stio->si_stob.iv_vec.v_nr    = 1;
                         stio->si_stob.iv_vec.v_count = &count;
@@ -562,7 +522,8 @@ static int stob_write_fom_state(struct c2_fom *fom)
                         stio->si_flags  = 0;
 
                         c2_fom_wait_on(fom, &stio->si_wait, &fom->fo_cb);
-                        result = c2_stob_io_launch(stio, stobj, &fom->fo_tx, NULL);
+                        result = c2_stob_io_launch(stio,
+						   stobj, &fom->fo_tx, NULL);
 
                         if (result != 0) {
                                 c2_fom_callback_cancel(&fom->fo_cb);
@@ -591,7 +552,6 @@ static int stob_write_fom_state(struct c2_fom *fom)
 			fop = fom_obj->sif_rep_fop;
 			item = c2_fop_to_rpc_item(fop);
 			item->ri_type = &fop->f_type->ft_rpc_item_type;
-			item->ri_group = NULL;
                         fom->fo_rep_fop = fom_obj->sif_rep_fop;
                         result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
                                                         &fom->fo_tx.tx_dbtx);
@@ -638,11 +598,41 @@ int c2_stob_io_fop_init(void)
 	struct c2_fom_type *fom_type;
 	struct c2_fop_type *fop_type;
 
-	result = c2_fop_type_format_parse_nr(stob_fmts, ARRAY_SIZE(stob_fmts));
-	if (result == 0)
-		result = c2_fop_type_build_nr(stob_fops, ARRAY_SIZE(stob_fops));
+	c2_xc_io_fop_xc_init();
+	result = C2_FOP_TYPE_INIT(&c2_stob_io_create_fopt,
+				  .name      = "Stob create",
+				  .opcode    = C2_STOB_IO_CREATE_REQ_OPCODE,
+				  .xt        = c2_stob_io_create_xc,
+				  .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
+					       C2_RPC_ITEM_TYPE_MUTABO) ?:
+		C2_FOP_TYPE_INIT(&c2_stob_io_read_fopt,
+				 .name      = "Stob read",
+				 .opcode    = C2_STOB_IO_READ_REQ_OPCODE,
+				 .xt        = c2_stob_io_read_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
+					      C2_RPC_ITEM_TYPE_MUTABO) ?:
+		C2_FOP_TYPE_INIT(&c2_stob_io_write_fopt,
+				 .name      = "Stob write",
+				 .opcode    = C2_STOB_IO_WRITE_REQ_OPCODE,
+				 .xt        = c2_stob_io_write_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
+					      C2_RPC_ITEM_TYPE_MUTABO) ?:
+		C2_FOP_TYPE_INIT(&c2_stob_io_create_rep_fopt,
+				 .name      = "Stob create reply",
+				 .opcode    = C2_STOB_IO_CREATE_REPLY_OPCODE,
+				 .xt        = c2_stob_io_create_rep_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY) ?:
+		C2_FOP_TYPE_INIT(&c2_stob_io_read_rep_fopt,
+				 .name      = "Stob read reply",
+				 .opcode    = C2_STOB_IO_READ_REPLY_OPCODE,
+				 .xt        = c2_stob_io_read_rep_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY) ?:
+		C2_FOP_TYPE_INIT(&c2_stob_io_write_rep_fopt,
+				 .name      = "Stob write reply",
+				 .opcode    = C2_STOB_IO_WRITE_REPLY_OPCODE,
+				 .xt        = c2_stob_io_write_rep_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY);
 	if (result == 0) {
-		c2_fop_object_init(&stob_io_fop_fid_tfmt);
 		for (i = 0; i < ARRAY_SIZE(stob_fops); ++i) {
 			fop_type = stob_fops[i];
 			if ((fop_type->ft_rpc_item_type.rit_flags &
@@ -653,9 +643,9 @@ int c2_stob_io_fop_init(void)
 			C2_ASSERT(fom_type != NULL);
 			fop_type->ft_fom_type = *fom_type;
 		}
-	}
-	if (result != 0)
+	} else
 		c2_stob_io_fop_fini();
+
 	return result;
 }
 
@@ -664,8 +654,13 @@ int c2_stob_io_fop_init(void)
  */
 void c2_stob_io_fop_fini(void)
 {
-	c2_fop_object_fini();
-	c2_fop_type_fini_nr(stob_fops, ARRAY_SIZE(stob_fops));
+	c2_fop_type_fini(&c2_stob_io_write_rep_fopt);
+	c2_fop_type_fini(&c2_stob_io_read_rep_fopt);
+	c2_fop_type_fini(&c2_stob_io_create_rep_fopt);
+	c2_fop_type_fini(&c2_stob_io_write_fopt);
+	c2_fop_type_fini(&c2_stob_io_read_fopt);
+	c2_fop_type_fini(&c2_stob_io_create_fopt);
+	c2_xc_io_fop_xc_fini();
 }
 
 /*
