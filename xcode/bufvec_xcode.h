@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef C2_BUFVEC_XCODE_H_
-#define C2_BUFVEC_XCODE_H_
+#ifndef __COLIBRI_BUFVEC_XCODE_H__
+#define __COLIBRI_BUFVEC_XCODE_H__
 
 /**
    @defgroup bufvec_xcode Generic Buffer Vector Encode/Decode routines.
@@ -101,7 +101,7 @@ int c2_bufvec_uint16(struct c2_bufvec_cursor *vc, uint16_t *val,
 
 /** @} end of bufvec group */
 
-#endif /* C2_BUFVEC_XCODE_H_ */
+#endif /* __COLIBRI_BUFVEC_XCODE_H__ */
 
 /*
  *  Local variables:

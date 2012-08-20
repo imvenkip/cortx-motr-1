@@ -19,8 +19,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_UB_H_
-#define __COLIBRI_LIB_UB_H_
+#ifndef __COLIBRI_LIB_UB_H__
+#define __COLIBRI_LIB_UB_H__
 
 #include "lib/types.h"
 #include "lib/cdefs.h"
@@ -56,7 +56,7 @@ void c2_ub_run(uint32_t rounds);
 
 /** @} end of ub group. */
 
-/* __COLIBRI_LIB_UB_H_ */
+/* __COLIBRI_LIB_UB_H__ */
 #endif
 
 /*

@@ -19,8 +19,10 @@
  * Original creation date: 04/25/2011
  */
 
-#ifndef __C2_RPC_FORMATION_H__
-#define __C2_RPC_FORMATION_H__
+#pragma once
+
+#ifndef __COLIBRI_RPC_FORMATION_H__
+#define __COLIBRI_RPC_FORMATION_H__
 
 #include "lib/list.h"
 #include "lib/mutex.h"
@@ -300,4 +302,4 @@ void c2_rpc_frm_item_group_set(struct c2_rpc_item *item,
 
 /** @} endgroup of rpc_formation */
 
-#endif /* __C2_RPC_FORMATION_H__ */
+#endif /* __COLIBRI_RPC_FORMATION_H__ */

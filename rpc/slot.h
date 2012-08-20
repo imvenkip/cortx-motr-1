@@ -18,9 +18,11 @@
  * Original creation date: 05/12/2010
  */
 
-#ifndef __COLIBRY_RPC_SLOT_H__
+#pragma once
 
-#define __COLIBRY_RPC_SLOT_H__
+#ifndef __COLIBRI_RPC_SLOT_H__
+#define __COLIBRI_RPC_SLOT_H__
+
 /**
 	@page rpc-slot RPC Slot
 

@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_BUF_H__
-#define __COLIBRI_BUF_H__
+#ifndef __COLIBRI_LIB_BUF_H__
+#define __COLIBRI_LIB_BUF_H__
 
 #include "lib/types.h"
 #include "lib/cdefs.h"
@@ -41,7 +41,7 @@ void c2_buf_init(struct c2_buf *buf, void *data, uint32_t nob);
 /** @} end of buf group */
 
 
-/* __COLIBRI_BUF_H__ */
+/* __COLIBRI_LIB_BUF_H__ */
 #endif
 
 /*

@@ -1,6 +1,11 @@
 /* config.h.  Generated from config.h.in by configure.  */
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+#pragma once
+
+#ifndef __COLIBRI_LUSTRE_CONFIG_H__
+#define __COLIBRI_LUSTRE_CONFIG_H__
+
 /* disable libcfs CDEBUG, CWARN */
 #define CDEBUG_ENABLED 1
 
@@ -827,3 +832,5 @@
 
 /* size of xattr acl */
 #define XATTR_ACL_SIZE 260
+
+#endif /* __COLIBRI_LUSTRE_CONFIG_H__ */
