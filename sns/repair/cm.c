@@ -128,7 +128,7 @@
   @code
   struct c2_sns_repair_cm {
           struct c2_cm               rc_base;
-          struct c2_net_buffer_pool  rc_pool; 
+          struct c2_net_buffer_pool  rc_pool;
   };
   @endcode
   SNS Repair service allocates and initialises the corresponding copy machine.
@@ -159,7 +159,7 @@
   the minimum of the sliding window sizes in the cluster and updates its
   local sliding window size accordingly.
   @note Buffer provisioning operation can block.
- 
+
   @subsubsection SNSRepairCMDLD-lspec-cm-start-cp-create Copy packet create
   Once the sliding window size is updated to minimum within the cluster, the
   copy machine checks if sliding window has space (c2_cm_sw_ops::swo_has_space()
@@ -190,7 +190,7 @@
     ...
   }
   @endcode
-             
+
   Further copy packet header details, required for the operation are populated as
   part of copy packet FOM init phase asynchronously using the next function
   implemented by the copy machine.
@@ -301,7 +301,7 @@ static struct c2_cm_cp *cm_cp_alloc(struct c2_cm *cm)
 		return NULL;
 	c2_cm_cp_init(&rcp->rc_base, &c2_sns_repair_cp_ops, &buf->nb_buffer);
 
-	return &rcp->rc_base;	
+	return &rcp->rc_base;
 }
 
 static int cm_start(struct c2_cm *cm)

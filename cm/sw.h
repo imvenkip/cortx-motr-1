@@ -19,6 +19,8 @@
  * Original creation date: 11/11/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_CM_SW_H__
 #define __COLIBRI_CM_SW_H__
 
@@ -85,8 +87,8 @@ struct c2_cm_sw_ops {
         int  (*swo_slide)(struct c2_cm_sw *sw);
 
 	/**
-	 * Returns a pre-allocated buffer if possible, to create new copy
-	 * packet, NULL otherwise.
+	 * Performs checks if required resources are availble to create a new
+	 * copy packet and returns true or false accordingly.
 	 */
 	bool (*swo_has_space)(struct c2_cm_sw *sw);
 

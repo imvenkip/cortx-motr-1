@@ -24,6 +24,8 @@
 #ifndef __COLIBRI_SNS_REPAIR_CM_H__
 #define __COLIBRI_SNS_REPAIR_CM_H__
 
+#include "cm/cm.h"
+
 /**
   @page SNSRepairCMDLD-fspec SNS Repair copy machine functional specification
 
@@ -59,15 +61,13 @@
 /**
   @defgroup SNSRepairCM SNS Repair copy machine
   @ingroup CM
-  
+
   SNS-Repair copy machine is a replicated state machine, which performs data
   restructuring and handles device, container, node, &c failures.
   @see The @ref SNSRepairCMDLD
 
   @{
 */
-
-#include "cm/cm.h"
 
 struct c2_sns_repair_cm {
 	struct c2_cm		  rc_base;
@@ -89,7 +89,7 @@ static inline struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm)
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */

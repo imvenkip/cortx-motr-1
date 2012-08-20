@@ -18,6 +18,8 @@
  * Original creation date: 16/04/2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_SNS_REPAIR_AG_H__
 #define __COLIBRI_SNS_REPAIR_AG_H__
 
@@ -30,9 +32,6 @@
 
    @{
 */
-
-struct c2_net_buffer;
-struct c2_cm_cp;
 
 struct c2_sns_repair_aggr_group {
 	/** Base aggregation group. */

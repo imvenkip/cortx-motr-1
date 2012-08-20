@@ -110,11 +110,10 @@
        IDLE -> FAIL [label="Timed out or self destruct"]
        READY -> ACTIVE [label="All READY fops received"]
        READY -> FAIL [label="Timed out waiting for READY fops"]
-       ACTIVE -> FAIL [label="Agent failure"]
+       ACTIVE -> FAIL [label="Operation failure"]
        ACTIVE -> DONE [label="Broadcast DONE fop"]
        ACTIVE -> STOP [label="Received ABORT fop"]
        FAIL -> IDLE [label="All replies received"]
-       ACTIVE -> FAIL [label="Agent failure"]
        DONE -> IDLE [label="All DONE fops received"]
        DONE -> FAIL [label="Timed out waiting for DONE fops"]
        STOP -> IDLE [label="All STOP fops received"]
@@ -137,11 +136,11 @@
 
    @subsection CMDLD-lspec-thread Threading and Concurrency Model
    - Copy machine is implemented as a state machine, and thus do
-     not have its  own thread. It runs in the context of reqh threads.
+     not have its own thread. It runs in the context of reqh threads.
    - Copy machine starts as a service and is registered with the request
      handler.
    - The cmtype_mutex is used to serialise the operation on cmtypes_list.
-   - Access to the  members of struct c2_cm is serialised using the
+   - Access to the members of struct c2_cm is serialised using the
      c2_cm::c2_sm_group::s_mutex.
 
    <hr>
@@ -372,11 +371,12 @@ bool c2_cm_invariant(struct c2_cm *cm)
 		cm != NULL && cm->cm_ops != NULL && cm->cm_type != NULL &&
 		/* Copy machine error code checks */
 		C2_IN(cm->cm_mach.sm_rc, (C2_CM_SUCCESS, C2_CM_ERR_START,
-		C2_CM_ERR_CONF, C2_CM_ERR_OP)) &&
+					  C2_CM_ERR_CONF, C2_CM_ERR_OP)) &&
 		ergo(C2_IN(state, (C2_CMS_IDLE, C2_CMS_READY, C2_CMS_ACTIVE,
-		     C2_CMS_DONE, C2_CMS_STOP)) || (state == C2_CMS_FAIL &&
-		     C2_IN(cm->cm_mach.sm_rc, (C2_CM_ERR_CONF, C2_CM_ERR_OP))),
-		     c2_reqh_service_invariant(&cm->cm_service));
+				   C2_CMS_DONE, C2_CMS_STOP)) ||
+		(state == C2_CMS_FAIL && C2_IN(cm->cm_mach.sm_rc,
+					      (C2_CM_ERR_CONF, C2_CM_ERR_OP))),
+		c2_reqh_service_invariant(&cm->cm_service));
 }
 
 int c2_cm_start(struct c2_cm *cm)
@@ -509,6 +509,7 @@ int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
 		C2_ADDB_ADD(&cm->cm_addb, &c2_cm_addb_loc, cm_init_fail,
 			    "c2_cm_init", cm->cm_mach.sm_rc);
 		c2_addb_ctx_fini(&cm->cm_addb);
+		c2_sm_group_fini(&cm->cm_sm_group);
 		goto out;
 	}
 

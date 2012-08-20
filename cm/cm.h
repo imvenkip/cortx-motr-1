@@ -19,8 +19,17 @@
  * Original creation date: 11/11/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_CM_CM_H__
 #define __COLIBRI_CM_CM_H__
+
+#include "lib/tlist.h"         /* struct c2_tlink */
+
+#include "addb/addb.h"         /* struct c2_addb_ctx */
+#include "reqh/reqh_service.h" /* struct c2_reqh_service_type */
+#include "sm/sm.h"	       /* struct c2_sm */
+#include "cm/sw.h"
 
 /**
    @page CMDLD-fspec Copy Machine Functional Specification
@@ -91,14 +100,6 @@
 
    @{
 */
-
-#include "lib/ext.h"
-#include "lib/tlist.h"  /* struct c2_tlink */
-
-#include "addb/addb.h"  /* struct c2_addb_ctx */
-#include "sm/sm.h"	/* struct c2_sm */
-#include "reqh/reqh_service.h" /* struct c2_reqh_service_type */
-#include "cm/sw.h"
 
 /* Import */
 struct c2_fop;
@@ -198,7 +199,11 @@ struct c2_cm_ops {
 	/** Creates copy packets after consulting sliding window. */
 	struct c2_cm_cp *(*cmo_cp_alloc)(struct c2_cm *cm);
 
-	/** Populates copy packet meta data, i.e. fid, aggregation group, &c. */
+	/**
+	 * Iterates over the copy machine data set and populates the copy packet
+	 * with meta data of next data object to be restructured, i.e. fid,
+	 * aggregation group, &c.
+	 */
 	int (*cmo_cp_data_next)(struct c2_cm *cm, struct c2_cm_cp *cp);
 
 	/** Copy machine specific finalisation routine. */
