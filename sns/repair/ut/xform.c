@@ -28,16 +28,15 @@
 #include "sns/repair/cp.h"
 #include "sns/repair/ag.h"
 
-struct c2_sns_repair_ag sns_ag;
-struct c2_cm_cp         cp;
-struct c2_bufvec        bv;
-
 enum {
 	NR = 255,
 	LOCAL_CP_SINGLE_NR = 1,
-	LOCAL_CP_DOUBLE_NR = 2,
-	LOCAL_CP_MULTIPLE_NR = 10,
+	LOCAL_CP_MULTIPLE_NR = 1024,
 };
+
+static struct c2_sns_repair_ag sns_ag;
+static struct c2_cm_cp         cp[LOCAL_CP_MULTIPLE_NR];
+static struct c2_bufvec        bv[LOCAL_CP_MULTIPLE_NR];
 
 static int next_phase(struct c2_cm_cp *cp)
 {
@@ -65,15 +64,6 @@ static const struct c2_cm_aggr_group_ops group_single_ops = {
         .cago_local_cp_nr = &local_cp_single_nr,
 };
 
-static uint64_t local_cp_double_nr(struct c2_cm_aggr_group *ag)
-{
-	return LOCAL_CP_DOUBLE_NR;
-}
-
-static const struct c2_cm_aggr_group_ops group_double_ops = {
-        .cago_local_cp_nr = &local_cp_double_nr,
-};
-
 static uint64_t local_cp_multiple_nr(struct c2_cm_aggr_group *ag)
 {
 	return LOCAL_CP_MULTIPLE_NR;
@@ -83,37 +73,82 @@ static const struct c2_cm_aggr_group_ops group_multiple_ops = {
         .cago_local_cp_nr = &local_cp_multiple_nr,
 };
 
-static void populate_bv()
+static void populate_bv(struct c2_bufvec *b)
 {
 	int i;
 
-        C2_UT_ASSERT(c2_bufvec_alloc(&bv, NR, C2_SEG_SIZE) == 0);
-        C2_UT_ASSERT(bv.ov_vec.v_nr == NR);
+	C2_UT_ASSERT(b != NULL);
+        C2_UT_ASSERT(c2_bufvec_alloc(b, NR, C2_SEG_SIZE) == 0);
+        C2_UT_ASSERT(b->ov_vec.v_nr == NR);
         for (i = 0; i < NR; ++i) {
-                C2_UT_ASSERT(bv.ov_vec.v_count[i] == C2_SEG_SIZE);
-                C2_UT_ASSERT(bv.ov_buf[i] != NULL);
-		memset(bv.ov_buf[i], i, C2_SEG_SIZE);
+                C2_UT_ASSERT(b->ov_vec.v_count[i] == C2_SEG_SIZE);
+                C2_UT_ASSERT(b->ov_buf[i] != NULL);
+		memset(b->ov_buf[i], i, C2_SEG_SIZE);
         }
 }
 
-static void free_bv()
+static void free_bv(struct c2_bufvec *b)
 {
-        c2_bufvec_free(&bv);
-        C2_UT_ASSERT(bv.ov_vec.v_nr == 0);
-        C2_UT_ASSERT(bv.ov_buf == NULL);
+        c2_bufvec_free(b);
+        C2_UT_ASSERT(b->ov_vec.v_nr == 0);
+        C2_UT_ASSERT(b->ov_buf == NULL);
+}
+
+static void prepare_cp(struct c2_cm_cp *cp, struct c2_bufvec *bv,
+		       struct c2_sns_repair_ag *sns_ag)
+{
+	C2_UT_ASSERT(cp != NULL);
+	C2_UT_ASSERT(bv != NULL);
+	C2_UT_ASSERT(sns_ag != NULL);
+
+	populate_bv(bv);
+	cp->c_data = bv;
+	cp->c_fom.fo_phase = CCP_XFORM;
+	cp->c_ops = &cp_ops;
+	cp->c_ag = &sns_ag->sag_base;
 }
 
 static void test_single_cp(void)
 {
-	populate_bv();
-	cp.c_data = &bv;
-	cp.c_fom.fo_phase = CCP_XFORM;
-	cp.c_ops = &cp_ops;
-	cp.c_ag = &sns_ag.sag_base;
-	cp.c_ag->cag_ops = &group_single_ops;
-	C2_UT_ASSERT(repair_cp_xform(&cp) == C2_FSO_AGAIN);
-	C2_UT_ASSERT(cp.c_fom.fo_phase == CCP_WRITE);
-	free_bv();
+	prepare_cp(&cp[0], &bv[0], &sns_ag);
+	cp[0].c_ag->cag_ops = &group_single_ops;
+
+	C2_UT_ASSERT(repair_cp_xform(&cp[0]) == C2_FSO_AGAIN);
+	C2_UT_ASSERT(cp[0].c_fom.fo_phase == CCP_WRITE);
+
+	free_bv(&bv[0]);
+}
+
+static void test_multiple_cp(void)
+{
+	int i;
+	int rc;
+
+	for (i = 0; i < LOCAL_CP_MULTIPLE_NR; ++i) {
+		prepare_cp(&cp[i], &bv[i], &sns_ag);
+		cp[i].c_ag->cag_ops = &group_multiple_ops;
+
+		rc = repair_cp_xform(&cp[i]);
+		if (i == 0) {
+			C2_UT_ASSERT(rc == C2_FSO_WAIT);
+			C2_UT_ASSERT(cp[i].c_fom.fo_phase == CCP_XFORM);
+			continue;
+		}
+		if (i != 0 && i != LOCAL_CP_MULTIPLE_NR) {
+			C2_UT_ASSERT(rc == C2_FSO_AGAIN);
+			C2_UT_ASSERT(cp[i].c_fom.fo_phase == CCP_FINI);
+		}
+		if (i == LOCAL_CP_MULTIPLE_NR) {
+			C2_UT_ASSERT(rc == C2_FSO_AGAIN);
+			C2_UT_ASSERT(cp[i].c_fom.fo_phase == CCP_XFORM);
+		}
+
+		free_bv(&bv[i]);
+
+	}
+	C2_UT_ASSERT(sns_ag.sag_base.cag_transformed_cp_nr ==
+		     LOCAL_CP_MULTIPLE_NR);
+	free_bv(&bv[0]);
 }
 
 const struct c2_test_suite snsrepair_xform_ut = {
@@ -122,6 +157,7 @@ const struct c2_test_suite snsrepair_xform_ut = {
         .ts_fini = NULL,
         .ts_tests = {
                 { "single_cp_passthrough", test_single_cp },
+                { "multiple_cp_bufvec_xor", test_multiple_cp },
                 { NULL, NULL }
         }
 };

@@ -129,6 +129,7 @@ int repair_cp_xform(struct c2_cm_cp *cp)
 		 */
                 bufvec_xor(res_cp->c_data, cp->c_data, cp_bufvec_size);
                 C2_CNT_INC(ag->cag_transformed_cp_nr);
+		C2_ASSERT(ag->cag_cp_nr >= ag->cag_transformed_cp_nr);
                 /*
                  * Once transformation is complete, mark the copy
                  * packet's fom to CCP_FINI since it is not needed anymore.
@@ -143,7 +144,7 @@ int repair_cp_xform(struct c2_cm_cp *cp)
                  */
                 if(ag->cag_cp_nr == ag->cag_transformed_cp_nr) {
                         res_cp->c_ops->co_phase(res_cp);
-			c2_fom_wakeup(&res_cp->c_fom);
+			//c2_fom_wakeup(&res_cp->c_fom);
 		}
 		return C2_FSO_AGAIN;
         }
