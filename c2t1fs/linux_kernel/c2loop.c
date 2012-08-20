@@ -685,41 +685,6 @@ static int do_lo_send_write(struct loop_device *lo, struct bio_vec *bvec,
 }
 #endif
 
-static int do_bio_filebacked(struct loop_device *lo, struct bio *bio)
-{
-	loff_t pos;
-	struct file *file = lo->lo_backing_file;
-	struct iovec *iov;
- 	struct bio_vec *bvec;
-	int i;
-	ssize_t bw;
-	struct kiocb kiocb;
-	mm_segment_t old_fs = get_fs();
-
-	init_sync_kiocb(&kiocb, file);
-	kiocb.ki_nbytes = kiocb.ki_left = bio->bi_size;
-
-	pos = ((loff_t) bio->bi_sector << 9) + lo->lo_offset;
-        kiocb.ki_pos = pos;
- 	bio_for_each_segment(bvec, bio, i) {
-		iov = &lo->lo_iovecs[i];
-		iov->iov_base = page_address(bvec->bv_page) + bvec->bv_offset;
-		iov->iov_len = bvec->bv_len;
- 	}
-
-	set_fs(get_ds());
-	if (bio_rw(bio) == READ)
-		bw = file->f_op->aio_read(&kiocb, lo->lo_iovecs, i, pos);
-	else
-		bw = file->f_op->aio_write(&kiocb, lo->lo_iovecs, i, pos);
-	set_fs(old_fs);
-
-	if (likely(bio->bi_size == bw))
-		return 0;
-
-	return -EIO;
-}
-
 static int do_iov_filebacked(struct loop_device *lo, unsigned long op, int n,
                              loff_t pos, unsigned size)
 {
@@ -805,17 +770,6 @@ struct switch_request {
 };
 
 static void do_loop_switch(struct loop_device *, struct switch_request *);
-
-static inline void loop_handle_bio(struct loop_device *lo, struct bio *bio)
-{
-	if (unlikely(!bio->bi_bdev)) {
-		do_loop_switch(lo, bio->bi_private);
-		bio_put(bio);
-	} else {
-		int ret = do_bio_filebacked(lo, bio);
-		bio_endio(bio, ret);
-	}
-}
 
 static inline void loop_handle_bios(struct loop_device *lo)
 {
@@ -1305,15 +1259,9 @@ loop_set_status(struct loop_device *lo, const struct loop_info64 *info)
 	if (err)
 		return err;
 
-	if (info->lo_encrypt_type) {
-		unsigned int type = info->lo_encrypt_type;
-
-		if (type >= MAX_LO_CRYPT)
-			return -EINVAL;
-		xfer = xfer_funcs[type];
-		if (xfer == NULL)
-			return -EINVAL;
-	} else
+	if (info->lo_encrypt_type)
+		return -ENOTSUPP;
+	else
 		xfer = NULL;
 
 	err = loop_init_xfer(lo, xfer, info);
