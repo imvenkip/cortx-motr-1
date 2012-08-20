@@ -18,6 +18,9 @@
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
  * Original creation date: 04/28/2011
  */
+
+#pragma once
+
 #ifndef __COLIBRI_RM_RM_H__
 #define __COLIBRI_RM_RM_H__
 
@@ -471,7 +474,7 @@ struct c2_rm_right_ops {
          * Adjoins r1 to r0, updating r0 in place to be the sum right.
 	 */
         int (*rro_join) (struct c2_rm_right *r0,
-			 const struct c2_rm_right *r1);
+                          const struct c2_rm_right *r1);
         /**
          * Splits r0 into two parts - diff(r0,r1) and intersection(r0, r1)
 	 * Destructively updates r0 with diff(r0, r1) and updates

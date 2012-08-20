@@ -1,7 +1,4 @@
 /* -*- C -*- */
-#ifndef __COLIBRI_RM_FOPS_H__
-#define __COLIBRI_RM_FOPS_H__
-
 /*
  * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
@@ -21,25 +18,13 @@
  * Original creation date: 07/07/2011
  */
 
-#ifndef _KERNEL_
-#include "rm/rm_u.h"
-#else
-#include "rm/rm_k.h"
-#endif
+#pragma once
+
+#ifndef __COLIBRI_RM_FOPS_H__
+#define __COLIBRI_RM_FOPS_H__
 
 #include "fop/fop.h"
-#include "fop/fop_format.h"
-
-/**
- * RM:fop opcodes are defined here
- */
-enum c2_rm_fop_opcodes {
-	C2_RM_FOP_BORROW = 51,
-	C2_RM_FOP_BORROW_REPLY,
-	C2_RM_FOP_REVOKE,
-	C2_RM_FOP_REVOKE_REPLY,
-	C2_RM_FOP_CANCEL
-};
+#include "rm/rm_xc.h"
 
 /**
  * Externs

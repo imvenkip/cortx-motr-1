@@ -23,10 +23,9 @@
 #include "lib/list.h"
 #include "lib/memory.h"
 #include "lib/misc.h"   /* C2_IN */
-#include "fop/fom.h"
+#include "fop/fom_generic.h"
 #include "rm/rm_fops.h"
 #include "rm/rm_foms.h"
-#include "reqh/reqh.h"
 
 /**
    @addtogroup rm
@@ -43,8 +42,8 @@ static int rm_borrow_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static void rm_borrow_fom_fini(struct c2_fom *fom);
 static int rm_revoke_fom_create(struct c2_fop *fop, struct c2_fom **out);
 static void rm_revoke_fom_fini(struct c2_fom *fom);
-static int rm_borrow_fom_state(struct c2_fom *);
-static int rm_revoke_fom_state(struct c2_fom *);
+static int rm_borrow_fom_tick(struct c2_fom *);
+static int rm_revoke_fom_tick(struct c2_fom *);
 static size_t rm_locality(const struct c2_fom *fom);
 
 static void remote_incoming_complete(struct c2_rm_incoming *in, int32_t rc);
@@ -63,8 +62,8 @@ static struct c2_rm_incoming_ops remote_incoming_ops = {
  * Borrow FOM ops.
  */
 static struct c2_fom_ops rm_fom_borrow_ops = {
-	.fo_fini = rm_borrow_fom_fini,
-	.fo_state = rm_borrow_fom_state,
+	.fo_fini          = rm_borrow_fom_fini,
+	.fo_tick          = rm_borrow_fom_tick,
 	.fo_home_locality = rm_locality,
 };
 
@@ -80,8 +79,8 @@ struct c2_fom_type rm_borow_fom_type = {
  * Revoke/Cancel FOM ops.
  */
 static struct c2_fom_ops rm_fom_revoke_ops = {
-	.fo_fini = rm_revoke_fom_fini,
-	.fo_state = rm_revoke_fom_state,
+	.fo_fini          = rm_revoke_fom_fini,
+	.fo_tick          = rm_revoke_fom_tick,
 	.fo_home_locality = rm_locality,
 };
 
@@ -456,12 +455,12 @@ static int request_post_process(struct c2_fom *fom)
  * @param fom -> fom processing the RIGHT_BORROW request on the server
  *
  */
-static int rm_borrow_fom_state(struct c2_fom *fom)
+static int rm_borrow_fom_tick(struct c2_fom *fom)
 {
 	int rc;
 
 	if (fom->fo_phase < C2_FOPH_NR)
-		rc = c2_fom_state_generic(fom);
+		rc = c2_fom_tick_generic(fom);
 	else {
 		C2_PRE(fom->fo_phase == FOPH_RM_BORROW ||
 		       fom->fo_phase == FOPH_RM_BORROW_WAIT);
@@ -486,12 +485,12 @@ static int rm_borrow_fom_state(struct c2_fom *fom)
  * @param fom -> fom processing the RIGHT_REVOKE request on the server
  *
  */
-static int rm_revoke_fom_state(struct c2_fom *fom)
+static int rm_revoke_fom_tick(struct c2_fom *fom)
 {
 	int rc;
 
 	if (fom->fo_phase < C2_FOPH_NR)
-		rc = c2_fom_state_generic(fom);
+		rc = c2_fom_tick_generic(fom);
 	else {
 		C2_PRE(fom->fo_phase == FOPH_RM_REVOKE ||
 		       fom->fo_phase == FOPH_RM_REVOKE_WAIT);

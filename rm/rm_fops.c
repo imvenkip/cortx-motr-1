@@ -18,20 +18,21 @@
  * Original creation date: 07/18/2011
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "fop/fop_format_def.h"
-#include "fop/fop_item_type.h"
-#include "fop/fop_iterator.h"
+#include "lib/misc.h"
+#include "lib/finject.h"
 #include "rm_fops.h"
-#include "xcode/bufvec_xcode.h"
 #include "rpc/item.h"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpc2.h"
 #include "rm/rm.h"
 #include "rm/rm_internal.h"
-
-#include "rm/rm.ff"
+#include "rm/rm_xc.h"
 
 /*
  * Data structures.
@@ -51,23 +52,9 @@ static void borrow_reply(struct c2_rpc_item *);
 static void outreq_free(struct c2_rpc_item *);
 static void revoke_reply(struct c2_rpc_item *);
 
-/**
- * FOP operation vector for right borrow.
- */
-static const struct c2_fop_type_ops rm_borrow_fop_ops = {
-	.fto_size_get = c2_xcode_fop_size_get,
-};
-
 const struct c2_rpc_item_ops rm_borrow_rpc_ops = {
 	.rio_replied = borrow_reply,
 	.rio_free = outreq_free,
-};
-
-/**
- * FOP operation vector for right revoke.
- */
-static const struct c2_fop_type_ops rm_revoke_fop_ops = {
-	.fto_size_get = c2_xcode_fop_size_get,
 };
 
 const struct c2_rpc_item_ops rm_revoke_rpc_ops = {
@@ -75,44 +62,31 @@ const struct c2_rpc_item_ops rm_revoke_rpc_ops = {
 	.rio_free = outreq_free,
 };
 
-static struct c2_fop_type *fops[] = {
+struct c2_fop_type *fops[] = {
 	&c2_fop_rm_borrow_fopt,
 	&c2_fop_rm_borrow_rep_fopt,
 	&c2_fop_rm_revoke_fopt,
 	&c2_fop_rm_revoke_rep_fopt,
 };
 
-static struct c2_fop_type_format *rm_fmts[] = {
-	&c2_fop_rm_cookie_tfmt,
-	&c2_fop_rm_opaque_tfmt,
-	&c2_fop_rm_owner_tfmt,
-	&c2_fop_rm_loan_tfmt,
-	&c2_fop_rm_right_tfmt,
-};
-
 /**
  * FOP definitions for resource-right borrow request and reply.
  */
-C2_FOP_TYPE_DECLARE(c2_fop_rm_borrow, "Right Borrow", &rm_borrow_fop_ops,
-		    C2_RM_FOP_BORROW, C2_RPC_ITEM_TYPE_REQUEST);
-C2_FOP_TYPE_DECLARE(c2_fop_rm_borrow_rep, "Right Borrow Reply",
-		    &rm_borrow_fop_ops, C2_RM_FOP_BORROW_REPLY,
-		    C2_RPC_ITEM_TYPE_REPLY);
+struct c2_fop_type c2_fop_rm_borrow_fopt;
+struct c2_fop_type c2_fop_rm_borrow_rep_fopt;
 
 /**
  * FOP definitions for resource-right revoke request and reply.
  */
-C2_FOP_TYPE_DECLARE(c2_fop_rm_revoke, "Right Revoke", &rm_revoke_fop_ops,
-		    C2_RM_FOP_REVOKE, C2_RPC_ITEM_TYPE_REQUEST);
-C2_FOP_TYPE_DECLARE(c2_fop_rm_revoke_rep, "Right Revoke Reply",
-		    &rm_revoke_fop_ops, C2_RM_FOP_REVOKE_REPLY,
-		    C2_RPC_ITEM_TYPE_REPLY);
+struct c2_fop_type c2_fop_rm_revoke_fopt;
+struct c2_fop_type c2_fop_rm_revoke_rep_fopt;
 
 /*
  * Allocate and initialise remote request tracking structure.
  */
-static int rm_out_create(struct rm_out **out, struct c2_rm_incoming *in,
-			 struct c2_rm_loan *loan, struct c2_rm_right *right)
+static int rm_out_create(struct rm_out **out,
+			 struct c2_rm_incoming *in,
+			 struct c2_rm_right *right)
 {
 	struct rm_out *outreq;
 	int	       rc = 0;
@@ -124,23 +98,13 @@ static int rm_out_create(struct rm_out **out, struct c2_rm_incoming *in,
 		rc = -ENOMEM;
 		goto out;
 	}
+	C2_SET0(outreq);
 
-	/*
-	 * In case of BORROW, there is no existing loan.
-	 * If BORROW request completes successfully, the loan structure will
-	 * be added to the borrowed and owned lists.
-	 *
-	 * Whereas REVOKE request has a loan (to be revoked). After successful
-	 * completion of REVOKE, move the loan to the owned list.
-	 */
-	if (loan == NULL) {
-		rc = c2_rm_loan_init(&outreq->ou_req.rog_want, right);
-		if (rc != 0) {
-			c2_free(outreq);
-			goto out;
-		};
-	} else
-		outreq->ou_req.rog_want = *loan;
+	rc = c2_rm_loan_init(&outreq->ou_req.rog_want, right);
+	if (rc != 0) {
+		c2_free(outreq);
+		goto out;
+	};
 
 	c2_rm_outgoing_init(&outreq->ou_req, in->rin_type);
 	*out = outreq;
@@ -149,34 +113,24 @@ out:
 	return rc;
 }
 
-/*
- * De-allocate the remote request tracking structure.
- */
-static void rm_out_fini(struct rm_out *out)
-{
-	c2_free(out);
-}
-
-int c2_rm_borrow_out(struct c2_rm_incoming *in,
-		     struct c2_rm_right *right)
+static int borrow_fop_fill(struct rm_out *outreq,
+			   struct c2_rm_incoming *in,
+			   struct c2_rm_right *right)
 {
 	struct c2_fop_rm_borrow *bfop;
-	struct rm_out		*outreq;
 	struct c2_fop		*fop;
 	struct c2_cookie	*cookie;
 	struct c2_cookie	 dcookie;
 	struct c2_buf		 buf;
 	int			 rc;
 
-	C2_PRE(in->rin_type == C2_RIT_BORROW);
-
-	rc = rm_out_create(&outreq, in, NULL, right);
-	if (rc != 0)
-		goto out;
-
 	fop = &outreq->ou_fop;
 	c2_fop_init(fop, &c2_fop_rm_borrow_fopt, NULL);
-	bfop = c2_fop_data(fop);
+	rc = c2_fop_data_alloc(fop);
+	if (rc == 0)
+		bfop = c2_fop_data(fop);
+	else
+		return rc;
 
 	/* Fill up the BORROW FOP. */
 	bfop->bo_policy = in->rin_policy;
@@ -196,18 +150,108 @@ int c2_rm_borrow_out(struct c2_rm_incoming *in,
 	 * Encode right into the BORROW FOP.
 	 */
 	rc = c2_rm_right_encode(right, &buf);
+	if (rc == 0) {
+		bfop->bo_right.ri_opaque.op_bytes = buf.b_addr;
+		bfop->bo_right.ri_opaque.op_nr = buf.b_nob;
+	}
+
+	return rc;
+}
+
+static int revoke_fop_fill(struct rm_out *outreq,
+			   struct c2_rm_incoming *in,
+			   struct c2_rm_loan *loan,
+			   struct c2_rm_right *right)
+{
+	struct c2_fop_rm_revoke *rfop;
+	struct c2_fop		*fop;
+	struct c2_cookie	*ocookie;
+	struct c2_cookie	 lcookie;
+	struct c2_buf		 buf;
+	int			 rc;
+
+	fop = &outreq->ou_fop;
+	c2_fop_init(fop, &c2_fop_rm_revoke_fopt, NULL);
+	rc = c2_fop_data_alloc(fop);
+	if (rc == 0)
+		rfop = c2_fop_data(fop);
+	else
+		return rc;
+
+	/* Fill up the REVOKE FOP. */
+	rfop->rr_policy = in->rin_policy;
+	rfop->rr_flags = in->rin_flags;
+
+	/* Fetch the loan cookie and then copy it into the FOP */
+	c2_rm_loan_cookie_get(loan, &lcookie);
+	rfop->rr_loan.lo_cookie.co_hi = lcookie.cv.u_hi;
+	rfop->rr_loan.lo_cookie.co_lo = lcookie.cv.u_lo;
+
+	/*
+	 * Fill up the debtor cookie so that the other end can identify
+	 * its owner structure.
+	 */
+	ocookie = &loan->rl_other->rem_cookie;
+	rfop->rr_debtor.ow_cookie.co_hi = ocookie->cv.u_hi;
+	rfop->rr_debtor.ow_cookie.co_lo = ocookie->cv.u_lo;
+
+	/*
+	 * Encode rights data into REVOKE FOP
+	 */
+	rc = c2_rm_right_encode(right, &buf);
+	if (rc == 0) {
+		rfop->rr_right.ri_opaque.op_bytes = buf.b_addr;
+		rfop->rr_right.ri_opaque.op_nr = buf.b_nob;
+	}
+
+	return rc;
+}
+
+/*
+ * De-allocate the remote request tracking structure.
+ */
+static void rm_out_fini(struct rm_out *out)
+{
+	c2_free(out);
+}
+
+int c2_rm_request_out(struct c2_rm_incoming *in,
+		     struct c2_rm_loan *loan,
+		     struct c2_rm_right *right)
+{
+	struct rm_out		*outreq;
+	int			 rc;
+
+	C2_PRE(C2_IN(in->rin_type, (C2_RIT_BORROW, C2_RIT_REVOKE)));
+
+	rc = rm_out_create(&outreq, in, right);
+	if (rc != 0)
+		goto out;
+
+	switch (in->rin_type) {
+	case C2_RIT_BORROW:
+		C2_ASSERT(loan == NULL);
+		rc = borrow_fop_fill(outreq, in, right);
+		break;
+	case C2_RIT_REVOKE:
+		rc = revoke_fop_fill(outreq, in, loan, right);
+		break;
+	default:
+		break;
+	}
+
 	if (rc != 0) {
-		c2_fop_fini(fop);
+		c2_fop_fini(&outreq->ou_fop);
 		rm_out_fini(outreq);
 		goto out;
 	}
 
-	bfop->bo_right.ri_opaque.op_bytes = buf.b_addr;
-	bfop->bo_right.ri_opaque.op_nr = buf.b_nob;
-
 	pin_add(in, &outreq->ou_req.rog_want.rl_right, C2_RPF_TRACK);
 	++in->rin_out_req;
 	outreq->ou_fop.f_item.ri_ops = &rm_borrow_rpc_ops;
+	if (C2_FI_ENABLED("no-rpc"))
+		goto out;
+
 	c2_rpc_post(&outreq->ou_fop.f_item);
 
 out:
@@ -220,6 +264,9 @@ static void borrow_reply(struct c2_rpc_item *item)
 	struct c2_fop_rm_borrow_rep *borrow_reply;
 	struct c2_rm_owner	    *owner;
 	struct c2_rm_outgoing	    *og;
+	struct c2_rm_loan	    *loan;
+	struct c2_rm_right	    *right;
+	struct c2_rm_right	    *bright;
 	struct rm_out		    *outreq;
 	struct c2_fop		    *reply_fop;
 	struct c2_fop		    *fop;
@@ -237,33 +284,56 @@ static void borrow_reply(struct c2_rpc_item *item)
 
 	C2_ASSERT(og != NULL);
 
-	og->rog_rc = item->ri_error ? item->ri_error : borrow_reply->br_rc;
-	owner = og->rog_want.rl_right.ri_owner;
+	rc = item->ri_error ? item->ri_error : borrow_reply->br_rc;
+	bright = &og->rog_want.rl_right;
+	owner = bright->ri_owner;
 
-	if (og->rog_rc == 0) {
-		og->rog_want.rl_cookie.cv.u_hi =
-			borrow_reply->br_loan.lo_cookie.co_hi;
-		og->rog_want.rl_cookie.cv.u_lo =
-			borrow_reply->br_loan.lo_cookie.co_lo;
-
+	if (rc == 0) {
+		/*
+		 * Allocate loan and right for the borrowed right.
+		 * loan goes to the borrowed list. Right goes to the CACHED
+		 * list.
+		 */
+		C2_ALLOC_PTR(loan);
+		if (loan == NULL) {
+			rc = -ENOMEM;
+			goto out;
+		}
+		C2_ALLOC_PTR(right);
+		if (loan == NULL) {
+			rc = -ENOMEM;
+			goto out;
+		}
+		/* Get the data for a right from the FOP */
 		c2_buf_init(&buf, borrow_reply->br_right.ri_opaque.op_bytes,
 				  borrow_reply->br_right.ri_opaque.op_nr);
-		rc = c2_rm_right_decode(&og->rog_want.rl_right, &buf);
+		rc = c2_rm_right_decode(bright, &buf);
+		if (rc != 0)
+			goto out;
 
-		og->rog_rc = rc;
+		/* Copy the "right" data */
+		c2_rm_right_init(right, owner);
+		rc = c2_rm_loan_init(loan, bright);
+		rc = rc ?: bright->ri_ops->rro_copy(bright, right);
+
+		/* @todo - Process cookie */
+		loan->rl_cookie.cv.u_hi = borrow_reply->br_loan.lo_cookie.co_hi;
+		loan->rl_cookie.cv.u_lo = borrow_reply->br_loan.lo_cookie.co_lo;
+
 		if (rc == 0) {
 			c2_mutex_lock(&owner->ro_lock);
 			/* Add loan to the borrowed list. */
 			c2_rm_ur_tlist_add(&owner->ro_borrowed,
-					   &og->rog_want.rl_right);
+					   &loan->rl_right);
 
-			/* Add loan to the CACHED list. */
+			/* Add right to the CACHED list. */
 			c2_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
-					   &og->rog_want.rl_right);
+					   right);
 			c2_mutex_unlock(&owner->ro_lock);
 		}
 	}
-
+out:
+	og->rog_rc = rc;
 	c2_mutex_lock(&owner->ro_lock);
 	c2_rm_outgoing_complete(og);
 	c2_mutex_unlock(&owner->ro_lock);
@@ -283,69 +353,13 @@ static void outreq_free(struct c2_rpc_item *item)
 	rm_out_fini(out);
 }
 
-int c2_rm_revoke_out(struct c2_rm_incoming *in,
-		     struct c2_rm_loan *loan,
-		     struct c2_rm_right *right)
-{
-	struct c2_fop_rm_revoke *rfop;
-	struct rm_out		*outreq;
-	struct c2_fop		*fop;
-	struct c2_cookie	*ocookie;
-	struct c2_cookie	 lcookie;
-	struct c2_buf		 buf;
-	int			 rc;
-
-	C2_PRE(in->rin_type == C2_RIT_REVOKE);
-
-	rc = rm_out_create(&outreq, in, loan, right);
-	if (rc != 0)
-		goto out;
-
-	fop = &outreq->ou_fop;
-	c2_fop_init(fop, &c2_fop_rm_revoke_fopt, NULL);
-	rfop = c2_fop_data(fop);
-
-	/* Fetch the loan cookie and then copy it into the FOP */
-	c2_rm_loan_cookie_get(loan, &lcookie);
-	rfop->rr_loan.lo_cookie.co_hi = lcookie.cv.u_hi;
-	rfop->rr_loan.lo_cookie.co_lo = lcookie.cv.u_lo;
-
-	/*
-	 * Fill up the debtor cookie so that the other end can identify
-	 * its owner structure.
-	 */
-	ocookie = &loan->rl_other->rem_cookie;
-	rfop->rr_debtor.ow_cookie.co_hi = ocookie->cv.u_hi;
-	rfop->rr_debtor.ow_cookie.co_lo = ocookie->cv.u_lo;
-
-	/*
-	 * Encode rights data into REVOKE FOP
-	 */
-	rc = c2_rm_right_encode(right, &buf);
-	if (rc != 0) {
-		c2_fop_fini(fop);
-		rm_out_fini(outreq);
-		goto out;
-	}
-
-	rfop->rr_right.ri_opaque.op_bytes = buf.b_addr;
-	rfop->rr_right.ri_opaque.op_nr = buf.b_nob;
-
-	pin_add(in, &outreq->ou_req.rog_want.rl_right, C2_RPF_TRACK);
-	++in->rin_out_req;
-	outreq->ou_fop.f_item.ri_ops = &rm_revoke_rpc_ops;
-	c2_rpc_post(&outreq->ou_fop.f_item);
-
-out:
-	return rc;
-}
-C2_EXPORTED(c2_rm_revoke_out);
-
 static void revoke_reply(struct c2_rpc_item *item)
 {
 	struct c2_fop_rm_revoke_rep *revoke_reply;
 	struct c2_rm_outgoing	    *og;
 	struct c2_rm_owner	    *owner;
+	struct c2_rm_right	    *right = NULL;
+	struct c2_rm_right	    *out_right;
 	struct rm_out		    *outreq;
 	struct c2_fop		    *reply_fop;
 	struct c2_fop		    *fop;
@@ -361,13 +375,28 @@ static void revoke_reply(struct c2_rpc_item *item)
 
 	C2_ASSERT(og != NULL);
 
-	owner = og->rog_want.rl_right.ri_owner;
-	c2_mutex_lock(&owner->ro_lock);
+	out_right = &og->rog_want.rl_right;
+	owner = out_right->ri_owner;
 	og->rog_rc = item->ri_error ? item->ri_error : revoke_reply->re_rc;
+
 	if (og->rog_rc == 0) {
-		/* Move the loan from the sublet list to the CACHED list. */
-		c2_rm_ur_tlist_move(&owner->ro_owned[OWOS_CACHED],
-				    &og->rog_want.rl_right);
+		C2_ALLOC_PTR(right);
+		if (right == NULL)
+			og->rog_rc = -ENOMEM;
+		else {
+			c2_rm_right_init(right, owner);
+			og->rog_rc = out_right->ri_ops->rro_copy(right,
+								 out_right);
+			if (og->rog_rc != 0)
+				c2_free(right);
+		}
+	}
+	c2_mutex_lock(&owner->ro_lock);
+	if (og->rog_rc == 0) {
+		og->rog_rc = c2_rm_sublet_remove(out_right);
+		if (og->rog_rc == 0)
+			c2_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
+					   right);
 	}
 	c2_rm_outgoing_complete(og);
 	c2_mutex_unlock(&owner->ro_lock);
@@ -375,33 +404,41 @@ static void revoke_reply(struct c2_rpc_item *item)
 
 void c2_rm_fop_fini(void)
 {
-	c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
-	c2_fop_type_format_fini_nr(rm_fmts, ARRAY_SIZE(rm_fmts));
+	c2_fop_type_fini(&c2_fop_rm_revoke_rep_fopt);
+	c2_fop_type_fini(&c2_fop_rm_revoke_fopt);
+	c2_fop_type_fini(&c2_fop_rm_borrow_rep_fopt);
+	c2_fop_type_fini(&c2_fop_rm_borrow_fopt);
+	c2_xc_rm_xc_fini();
 }
 C2_EXPORTED(c2_rm_fop_fini);
 
 /**
  * Initialises RM fops.
- *
- * @retval 0 - on success
- *         non-zero - on failure
- *
  * @see rm_fop_fini()
  */
 int c2_rm_fop_init(void)
 {
-	int rc;
-
-	/* Parse RM defined types */
-	rc = c2_fop_type_format_parse_nr(rm_fmts, ARRAY_SIZE(rm_fmts));
-	if (rc == 0) {
-		rc = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
-		if (rc != 0)
-			c2_fop_type_format_fini_nr(rm_fmts,
-						   ARRAY_SIZE(rm_fmts));
-	}
-
-	return rc;
+	c2_xc_rm_xc_init();
+	return  C2_FOP_TYPE_INIT(&c2_fop_rm_borrow_fopt,
+				 .name      = "Right Borrow",
+				 .opcode    = C2_RM_FOP_BORROW,
+				 .xt        = c2_fop_rm_borrow_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST) ?:
+		C2_FOP_TYPE_INIT(&c2_fop_rm_borrow_rep_fopt,
+				 .name      = "Right Borrow Reply",
+				 .opcode    = C2_RM_FOP_BORROW_REPLY,
+				 .xt        = c2_fop_rm_borrow_rep_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY) ?:
+		C2_FOP_TYPE_INIT(&c2_fop_rm_revoke_fopt,
+				 .name      = "Right Revoke",
+				 .opcode    = C2_RM_FOP_REVOKE,
+				 .xt        = c2_fop_rm_revoke_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST) ?:
+		C2_FOP_TYPE_INIT(&c2_fop_rm_revoke_rep_fopt,
+				 .name      = "Right Revoke Reply",
+				 .opcode    = C2_RM_FOP_REVOKE_REPLY,
+				 .xt        = c2_fop_rm_revoke_rep_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY);
 }
 C2_EXPORTED(c2_rm_fop_init);
 

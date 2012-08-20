@@ -1,7 +1,4 @@
 /* -*- C -*- */
-#ifndef __COLIBRI_RM_FOMS_H__
-#define __COLIBRI_RM_FOMS_H__
-
 /*
  * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
@@ -21,9 +18,12 @@
  * Original creation date: 07/07/2011
  */
 
+#pragma once
+
+#ifndef __COLIBRI_RM_FOMS_H__
+#define __COLIBRI_RM_FOMS_H__
+
 #include "fop/fop.h"
-#include "fop/fop_format.h"
-#include "fop/fom.h"
 #include "rm/rm.h"
 #include "rm/rm_internal.h"
 

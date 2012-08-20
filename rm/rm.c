@@ -18,6 +18,8 @@
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
  * Original creation date: 04/28/2011
  */
+#include <stdio.h>      /* fprintf */
+
 #include "lib/memory.h" /* C2_ALLOC_PTR */
 #include "lib/misc.h"   /* C2_SET_ARR0 */
 #include "lib/errno.h"  /* ETIMEDOUT */
@@ -136,7 +138,7 @@ C2_TL_DEFINE(pi, , struct c2_rm_pin);
 static struct c2_bob_type pin_tl_bob;
 C2_BOB_DEFINE(, &pin_tl_bob, c2_rm_pin);
 
-static const struct c2_bob_type loan_bob = {
+const struct c2_bob_type loan_bob = {
 	.bt_name         = "loan",
 	.bt_magix_offset = offsetof(struct c2_rm_loan, rl_magix),
 	.bt_magix        = LOAN_MAGIX,
@@ -1327,7 +1329,7 @@ static int revoke_send(struct c2_rm_incoming *in,
 
 	rc = outgoing_check(in, C2_ROT_REVOKE, right, loan->rl_other);
 	if (!right_is_empty(right) && rc == 0)
-		rc = c2_rm_revoke_out(in, loan, right);
+		rc = c2_rm_request_out(in, loan, right);
 	return rc;
 }
 
@@ -1344,7 +1346,7 @@ static int borrow_send(struct c2_rm_incoming *in, struct c2_rm_right *right)
 	rc = outgoing_check(in, C2_ROT_BORROW, right,
 				in->rin_want.ri_owner->ro_creditor);
 	if (!right_is_empty(right) && rc == 0)
-		rc = c2_rm_borrow_out(in, right);
+		rc = c2_rm_request_out(in, NULL, right);
 	return rc;
 }
 
@@ -1373,6 +1375,35 @@ int c2_rm_right_timedwait(struct c2_rm_incoming *in, const c2_time_t deadline)
 		       C2_IN(in->rin_state, (RI_SUCCESS, RI_FAILURE))));
 
 	return rc ?: in->rin_rc;
+}
+
+/*
+ * 1. If sublet is subset of the right, remove sublet completely.
+ * 2. If right is subset of sublet, reduce the right inside loan.
+ */
+int c2_rm_sublet_remove(struct c2_rm_right *right)
+{
+	struct c2_rm_owner *owner = right->ri_owner;
+	struct c2_rm_right *sublet;
+	struct c2_rm_loan  *loan;
+	int		    rc = 0;
+
+	C2_PRE(right != NULL);
+	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
+
+	c2_tl_for(c2_rm_ur, &owner->ro_sublet, sublet) {
+		if (right->ri_ops->rro_is_subset(sublet, right)) {
+			c2_rm_ur_tlink_del_fini(sublet);
+			loan = bob_of(sublet, struct c2_rm_loan, rl_right,
+				      &loan_bob);
+			c2_free(loan);
+		} else {
+			rc = right_diff(sublet, right);
+			if (rc != 0)
+				break;
+		}
+	} c2_tl_endfor;
+	return rc;
 }
 
 /**

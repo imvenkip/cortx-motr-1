@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -55,48 +55,56 @@
  *     - loan: identified by a 128-bit cookie (c2_rm_cookie).
  *
  */
+record {
+	u64 co_hi;
+	u64 co_lo
+} c2_fop_rm_cookie;
 
-DEF(c2_fop_rm_cookie, RECORD,
-    _(co_hi, U64),
-    _(co_lo, U64));
+sequence {
+	u64 op_nr;
+	u8  op_bytes
+} c2_fop_rm_opaque;
 
-DEF(c2_fop_rm_opaque, SEQUENCE,
-    _(op_nr, U64),
-    _(op_bytes, BYTE));
+record {
+	c2_fop_rm_cookie ow_cookie;
+	c2_fop_rm_opaque ow_resource
+} c2_fop_rm_owner;
 
-DEF(c2_fop_rm_owner, RECORD,
-    _(ow_cookie, c2_fop_rm_cookie),
-    _(ow_resource, c2_fop_rm_opaque));
+record {
+	c2_fop_rm_cookie lo_cookie
+} c2_fop_rm_loan;
 
-DEF(c2_fop_rm_loan, RECORD,
-    _(lo_cookie, c2_fop_rm_cookie));
+record {
+	c2_fop_rm_opaque ri_opaque
+} c2_fop_rm_right;
 
-DEF(c2_fop_rm_right, RECORD,
-    _(ri_opaque, c2_fop_rm_opaque));
+record {
+	c2_fop_rm_owner bo_debtor;
+	c2_fop_rm_owner bo_creditor;
+	c2_fop_rm_right bo_right;
+	u64             bo_policy;
+	u64             bo_flags
+} c2_fop_rm_borrow;
 
-DEF(c2_fop_rm_borrow, RECORD,
-    _(bo_debtor, c2_fop_rm_owner),
-    _(bo_creditor, c2_fop_rm_owner),
-    _(bo_right, c2_fop_rm_right),
-    _(bo_policy, U64),
-    _(bo_flags, U64));
+record {
+	u32              br_rc;
+	c2_fop_rm_loan   br_loan;
+	c2_fop_rm_right  br_right;
+	c2_fop_rm_opaque br_lvb
+} c2_fop_rm_borrow_rep;
 
-DEF(c2_fop_rm_borrow_rep, RECORD,
-    _(br_rc, U32),
-    _(br_loan, c2_fop_rm_loan),
-    _(br_right, c2_fop_rm_right),
-    _(br_lvb, c2_fop_rm_opaque));
-
-DEF(c2_fop_rm_revoke, RECORD,
-    _(rr_debtor, c2_fop_rm_owner),
-    _(rr_loan, c2_fop_rm_loan),
-    _(rr_right, c2_fop_rm_right),
-    _(rr_policy, U64),
-    _(rr_flags, U64));
+record {
+	c2_fop_rm_owner rr_debtor;
+	c2_fop_rm_loan  rr_loan;
+	c2_fop_rm_right rr_right;
+	u64             rr_policy;
+	u64             rr_flags
+} c2_fop_rm_revoke;
 
 /* Should we add creditor in reply */
-DEF(c2_fop_rm_revoke_rep, RECORD,
-    _(re_rc, U32));
+record {
+	u32 re_rc
+} c2_fop_rm_revoke_rep;
 
 /** @} end of rm group */
 
