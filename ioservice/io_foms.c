@@ -1458,7 +1458,8 @@ static int io_launch(struct c2_fom *fom)
                  */
                 ivec_count = c2_vec_count(&mem_ivec->iv_vec);
                 fom_obj->fcrw_req_count += ivec_count;
-                C2_LOG("iv_count %d, req_count %d", (int)ivec_count, (int)fom_obj->fcrw_req_count);
+                C2_LOG("iv_count %d, req_count %d",
+                       (int)ivec_count, (int)fom_obj->fcrw_req_count);
                 rc = align_bufvec(fom, &stio->si_user,
                                                 &nb->nb_buffer,
                                                 ivec_count,
