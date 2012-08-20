@@ -400,7 +400,6 @@
 #include <linux/init.h>
 #include <linux/swap.h>
 #include <linux/slab.h>
-#include <linux/loop.h>
 #include <linux/compat.h>
 #include <linux/suspend.h>
 #include <linux/freezer.h>
@@ -413,6 +412,7 @@
 
 #include <asm/uaccess.h>
 
+#include "c2loop.h"
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/cdefs.h"    /* C2_EXPORTED */
@@ -685,7 +685,6 @@ static int do_lo_send_write(struct loop_device *lo, struct bio_vec *bvec,
 }
 #endif
 
-static struct iovec iov_static[BIO_MAX_PAGES];
 static int do_bio_filebacked(struct loop_device *lo, struct bio *bio)
 {
 	loff_t pos;
@@ -703,16 +702,16 @@ static int do_bio_filebacked(struct loop_device *lo, struct bio *bio)
 	pos = ((loff_t) bio->bi_sector << 9) + lo->lo_offset;
         kiocb.ki_pos = pos;
  	bio_for_each_segment(bvec, bio, i) {
-		iov = &iov_static[i];
+		iov = &lo->lo_iovecs[i];
 		iov->iov_base = page_address(bvec->bv_page) + bvec->bv_offset;
 		iov->iov_len = bvec->bv_len;
  	}
 
 	set_fs(get_ds());
 	if (bio_rw(bio) == READ)
-		bw = file->f_op->aio_read(&kiocb, iov_static, i, pos);
+		bw = file->f_op->aio_read(&kiocb, lo->lo_iovecs, i, pos);
 	else
-		bw = file->f_op->aio_write(&kiocb, iov_static, i, pos);
+		bw = file->f_op->aio_write(&kiocb, lo->lo_iovecs, i, pos);
 	set_fs(old_fs);
 
 	if (likely(bio->bi_size == bw))
@@ -735,9 +734,9 @@ static int do_iov_filebacked(struct loop_device *lo, unsigned long op, int n,
 
 	set_fs(get_ds());
 	if (op == READ)
-		bw = file->f_op->aio_read(&kiocb, iov_static, n, pos);
+		bw = file->f_op->aio_read(&kiocb, lo->lo_iovecs, n, pos);
 	else
-		bw = file->f_op->aio_write(&kiocb, iov_static, n, pos);
+		bw = file->f_op->aio_write(&kiocb, lo->lo_iovecs, n, pos);
 	set_fs(old_fs);
 
 	if (likely(size == bw))
@@ -877,12 +876,12 @@ flush:
 			return;
 		}
 accumulate:
-		BUG_ON(bio->bi_vcnt > ARRAY_SIZE(iov_static));
-		if (iov_idx + bio->bi_vcnt > ARRAY_SIZE(iov_static))
+		BUG_ON(bio->bi_vcnt > BIO_MAX_PAGES);
+		if (iov_idx + bio->bi_vcnt > BIO_MAX_PAGES)
 			goto flush;
 
 		bio_for_each_segment(bvec, bio, i) {
-			iov = &iov_static[iov_idx++];
+			iov = &lo->lo_iovecs[iov_idx++];
 			iov->iov_base = page_address(bvec->bv_page)
 					+ bvec->bv_offset;
 			iov->iov_len = bvec->bv_len;
@@ -1157,6 +1156,9 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 	blk_queue_bounce_limit(lo->lo_queue, BLK_BOUNCE_ANY);
 	blk_queue_logical_block_size(lo->lo_queue, PAGE_SIZE);
 
+	lo->lo_iovecs = kzalloc(BIO_MAX_PAGES * sizeof(*lo->lo_iovecs),
+	                        GFP_KERNEL);
+
 	lo->lo_thread = kthread_create(loop_thread, lo, "c2loop%d",
 						lo->lo_number);
 	if (IS_ERR(lo->lo_thread)) {
@@ -1266,6 +1268,7 @@ static int loop_clr_fd(struct loop_device *lo, struct block_device *bdev)
 	if (bdev)
 		bd_set_size(bdev, 0);
 	mapping_set_gfp_mask(filp->f_mapping, gfp);
+	kfree(lo->lo_iovecs);
 	lo->lo_state = Lo_unbound;
 	/* This is safe: open() is still holding a reference. */
 	module_put(THIS_MODULE);
