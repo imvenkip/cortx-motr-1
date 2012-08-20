@@ -50,7 +50,6 @@ static void thread_loop(struct sim *s, struct sim_thread *t, void *arg)
 	int64_t                     nob;
 	c2_bindex_t                 grp;
 	c2_bcount_t                 unit;
-	int                         result;
 
 	C2_ASSERT(t == &cth->cth_thread);
 
@@ -89,8 +88,6 @@ static void thread_loop(struct sim *s, struct sim_thread *t, void *arg)
 			le->le_ops->leo_get(le, obj, &pi->pi_base.li_gfid,
 					    &fid);
 			fid_to_stob_id(&fid, &stob_id);
-			result = c2_pool_alloc(&conf->ct_pool, &stob_id);
-			C2_ASSERT(result == 0);
 
 			sim_log(s, SLL_TRACE,
 				"%c [%3i:%3i] -> %4u@%3u [%4lu:%4lu] %6lu\n",
@@ -188,10 +185,10 @@ static void layout_fini(struct c2t1fs_conf *conf)
 
 void c2t1fs_init(struct sim *s, struct c2t1fs_conf *conf)
 {
-	unsigned                  i;
-	unsigned                  j;
-	struct c2_fid             gfid;
-	int                       result;
+	unsigned      i;
+	unsigned      j;
+	struct c2_fid gfid0;
+	int           result;
 
 	c2_pool_init(&conf->ct_pool, conf->ct_nr_servers * conf->ct_nr_devices);
 	conf->ct_srv = sim_alloc(conf->ct_nr_servers * sizeof conf->ct_srv[0]);
@@ -208,7 +205,7 @@ void c2t1fs_init(struct sim *s, struct c2t1fs_conf *conf)
 				    sizeof conf->ct_client[0]);
 
 	layout_build(conf);
-	c2_fid_set(&gfid, 0, 999);
+	c2_fid_set(&gfid0, 0, 999);
 
 	for (i = 0; i < conf->ct_nr_clients; ++i) {
 		struct c2t1fs_client *c = &conf->ct_client[i];
@@ -224,14 +221,22 @@ void c2t1fs_init(struct sim *s, struct c2t1fs_conf *conf)
 				      "inflight:%i:%i", i, j);
 		for (j = 0; j < conf->ct_nr_threads; ++j) {
 			struct c2t1fs_thread *th = &c->cc_thread[j];
+			uint64_t              delta;
+			struct c2_fid         gfid;
 
 			th->cth_id     = j;
 			th->cth_client = c;
+
+			delta = i * conf->ct_client_step +
+				j * conf->ct_thread_step;
+
+			gfid.f_container = gfid0.f_container + delta;
+			gfid.f_key       = gfid0.f_key       - delta;
+
 			result = c2_pdclust_instance_build(conf->ct_pdclust,
 						&gfid,
 						&th->cth_pdclust_instance);
 			C2_ASSERT(result == 0);
-			//todo tgt_reuse(conf, i, j);
 		}
 	}
 	sim_timer_add(s, 0, threads_start, conf);

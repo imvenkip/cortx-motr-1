@@ -497,7 +497,7 @@ static int pdclust_layout_build(uint32_t enum_id,
 				struct c2_layout_linear_enum **lin_enum,
 				bool failure_test)
 {
-	struct c2_fid                *cob_list;
+	struct c2_fid                *cob_list = NULL; /* to keep gcc happy. */
 	int                           i;
 	struct c2_layout_enum        *e;
 	struct c2_layout_linear_attr  lin_attr;

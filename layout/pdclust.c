@@ -745,7 +745,7 @@ int c2_pdclust_instance_build(struct c2_pdclust_layout *pl,
 			      struct c2_pdclust_instance **out)
 {
 	struct c2_pdclust_instance *pi;
-	struct tile_cache          *tc;
+	struct tile_cache          *tc = NULL; /* to keep gcc happy */
 	struct c2_layout           *l;
 	uint32_t                    N;
 	uint32_t                    K;
@@ -806,8 +806,7 @@ err3_injected:
 		*out = pi;
 		C2_POST(pdclust_instance_invariant(*out));
 		C2_POST(l->l_ref > 0);
-	}
-	else {
+	} else {
 		if (rc == -ENOMEM)
 			c2_layout__log("c2_pdclust_instance_build",
 				       "C2_ALLOC() failed",
