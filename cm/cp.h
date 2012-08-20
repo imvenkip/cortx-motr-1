@@ -32,7 +32,7 @@
  *
  * - @ref CPDLD-fspec-ds
  * - @ref CPDLD-fspec-sub
- * - @ref cp "Copy Packet Functional Specification" <!-- Note link -->
+ * - @ref CP "Copy Packet Functional Specification" <!-- Note link -->
  *
  * @section CPDLD-fspec-ds Data Structures
  *	- c2_cm_cp  : Generic copy packet.
@@ -42,7 +42,7 @@
  *			       c_ops->init() to initialise specific data.
  *	- c2_cm_cp_fini()    : Finalises copy packet members and calls
  *			       c_ops->fini() internal to finalise specific data.
- *	- c2_cm_cp_enqueue() : Post copy packet FOM for execution.
+ *	- c2_cm_cp_enqueue() : Posts copy packet FOM for execution.
  *
  * @subsection CPDLD-fspec-sub-acc Accessors and Invariants
  *	- c2_cm_cp_invaraint()
@@ -52,15 +52,15 @@
  *	- cp_fom_locality()
  *	- cp_fom_state()
  *
- *	@see @ref cp
+ *	@see @ref CP
  */
 
 /**
- * @defgroup CP Copy Packet
+ * @defgroup CP Copy packet
  * @ingroup CM
  *
- * @see The @ref cp "Copy packet" its
- * @ref CPDLD-fspec "Copy Packet Functional Specification"
+ * @see The @ref CP "Copy Packet" its @ref CPDLD-fspec "Copy Packet Functional
+ * Specification"
  *
  * @{
  */
@@ -69,7 +69,7 @@ struct c2_cm_cp;
 struct c2_cm;
 
 /**
- * Copy packets priority.
+ * Copy packet priority.
  *
  * Copy packets are assigned a priority (greater numerical value
  * corresponds to higher priority). When multiple copy packets are
@@ -84,30 +84,35 @@ enum c2_cm_cp_priority {
 /**
  * Copy packet FOM generic phases.
  *
- * Packet's FOM doesn't use standard phases, but we don't want to step on
- * C2_FOPH_FINISH which has special meaning in fom.c.
+ * Packet's FOM doesn't use standard phases, but don't step on C2_FOPH_FINISH
+ * which has special meaning in fom.c.
  */
 enum c2_cm_cp_phase {
 	/** Copy packet specific initialisation.*/
-	CCP_INIT = C2_FOPH_NR + 1,
+	C2_CCP_INIT = C2_FOPH_NR + 1,
 
 	/** Read and fill up the packet.*/
-	CCP_READ,
+	C2_CCP_READ,
 
-	/** Write packet packet data.*/
-	CCP_WRITE,
+	/** Write packet data.*/
+	C2_CCP_WRITE,
 
-	/** Packet is to be transformed.*/
-	CCP_XFORM,
+	/** Transform the packet.*/
+	C2_CCP_XFORM,
 
 	/** Send packet over network.*/
-	CCP_SEND,
+	C2_CCP_SEND,
 
 	/** Received packet from network.*/
-	CCP_RECV,
+	C2_CCP_RECV,
 
-	/** Finalisation of packet.*/
-	CCP_FINI
+	/**
+	 * Releases resources associated with the packet, finalises members
+	 * and free the packet.
+	 */
+	C2_CCP_FINI,
+
+	C2_CM_CP_PHASE_NR
 };
 
 /** Generic copy packet structure.*/
@@ -137,44 +142,24 @@ struct c2_cm_cp {
 };
 
 /**
- * Copy packet operations
+ * Copy packet operations.
  *
  * A copy machine has a handler which handles FOP requests. A copy machine is
  * responsible to create corresponding copy packet FOMs to do the actual work.
  */
 struct c2_cm_cp_ops {
-	/** Initialise specific copy packet members.*/
-	int  (*co_init)     (struct c2_cm_cp *cp);
-
-	/** Fill up the copy packet data.*/
-	int  (*co_read)	    (struct c2_cm_cp *cp);
-
-	/** Write copy packet data.*/
-	int  (*co_write)    (struct c2_cm_cp *cp);
-
-	/** Send copy packet over network.*/
-	int  (*co_send)	    (struct c2_cm_cp *cp);
-
-	/** Receive and forward copy packet.*/
-	int  (*co_recv)	    (struct c2_cm_cp *cp);
-
-	/** Transform copy packet.*/
-	int  (*co_xform)    (struct c2_cm_cp *cp);
+	/** Per phase action for copy packet */
+	int  (*co_action[C2_CM_CP_PHASE_NR]) (struct c2_cm_cp *cp);
 
 	/** Called when copy packet processing is completed successfully.*/
 	void (*co_complete) (struct c2_cm_cp *cp);
 
 	/**
 	 * Changes copy packet phase based on current phase and layout
-	 * information.
+	 * information. FOM pahse should be set internally and should return
+	 * C2_FSO_WAIT or C2_FSO_AGAIN.
 	 */
-	int  (*co_phase)    (struct c2_cm_cp *cp);
-
-	/**
-	 * Releases resources associated with the packet, finalises members
-	 * and free the packet.
-	 */
-	void (*co_fini)	    (struct c2_cm_cp *cp);
+	int  (*co_phase) (struct c2_cm_cp *cp);
 };
 
 /**
@@ -193,7 +178,7 @@ void c2_cm_cp_init(struct c2_cm_cp *cp, struct c2_cm_aggr_group *ag,
  */
 void c2_cm_cp_fini(struct c2_cm_cp *cp);
 
-/** Submit copy packet for processing.*/
+/** Submits copy packet FOM to request handler for processing.*/
 void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp);
 
 bool c2_cm_cp_invariant(struct c2_cm_cp *cp);

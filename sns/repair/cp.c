@@ -32,12 +32,12 @@ static int repair_cp_init(struct c2_cm_cp *cp)
 {
 	struct c2_sns_repair_cm *rcm;
 
-	C2_PRE(cp->c_fom.fo_phase == CCP_INIT);
+	C2_PRE(cp->c_fom.fo_phase == C2_CCP_INIT);
 	rcm = container_of(cp->c_ag->cag_cm, struct c2_sns_repair_cm, rc_cm);
 	return C2_FSO_AGAIN;
 }
 
-static void repair_cp_fini(struct c2_cm_cp *cp)
+static int repair_cp_fini(struct c2_cm_cp *cp)
 {
 	struct c2_sns_repair_cp	*rcp;
 
@@ -47,6 +47,7 @@ static void repair_cp_fini(struct c2_cm_cp *cp)
 	c2_cm_cp_fini(cp);
 	/* Free copy packet.*/
 	c2_free(rcp);
+	return C2_FSO_AGAIN;
 }
 
 static int repair_cp_read(struct c2_cm_cp *cp)
@@ -84,15 +85,15 @@ static void repair_cp_complete(struct c2_cm_cp *cp)
 }
 
 const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
-	.co_init     = &repair_cp_init,
-	.co_fini     = &repair_cp_fini,
-	.co_read     = &repair_cp_read,
-	.co_write    = &repair_cp_write,
-	.co_send     = &repair_cp_send,
-	.co_recv     = &repair_cp_recv,
-	.co_xform    = &repair_cp_xform,
-	.co_phase    = &repair_cp_phase,
-	.co_complete = &repair_cp_complete
+	.co_action[C2_CCP_INIT]  = &repair_cp_init,
+	.co_action[C2_CCP_READ]  = &repair_cp_read,
+	.co_action[C2_CCP_WRITE] = &repair_cp_write,
+	.co_action[C2_CCP_XFORM] = &repair_cp_xform,
+	.co_action[C2_CCP_SEND]  = &repair_cp_send,
+	.co_action[C2_CCP_RECV]  = &repair_cp_recv,
+	.co_action[C2_CCP_FINI]  = &repair_cp_fini,
+	.co_complete		 = &repair_cp_complete,
+	.co_phase		 = &repair_cp_phase
 };
 
 /** @} SNSRepairCP */
