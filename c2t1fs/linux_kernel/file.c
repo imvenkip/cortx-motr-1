@@ -2133,36 +2133,8 @@ static void io_req_fop_fini(struct io_req_fop *fop)
         fop->irf_nwxfer = NULL;
 }
 
-/**
- * @verbatim
- *
- *  Read-rest approach
- *
- *   a     x
- *   +---+---+---+---+---+---+---+
- *   |   | P | F | F | F | # | * |  PG#0
- *   +---+---+---+---+---+---+---+
- *   | F | F | F | F | F | # | * |  PG#1
- *   +---+---+---+---+---+---+---+
- *   | F | F | F | P |   | # | * |  PG#2
- *   +---+---+---+---+---+---+---+
- *     N   N   N   N   N   K   P
- *                 y     b
- *
- *   N = 5, P = 1, K = 1, unit_size = 4k
- *   F => Fully occupied
- *   P => Partially occupied
- *   # => Parity unit
- *   * => Spare unit
- *   x => Start of actual file extent.
- *   y => End of actual file extent.
- *   a => Rounded down value of x.
- *   b => Rounded up value of y.
- *
- * @endverbatim
- * */
 
-/*
+/**
  * A read request from rmw IO request can lead to either
  *
  * read_old - Read the old data for the extent spanned by current
@@ -2178,6 +2150,57 @@ static void io_req_fop_fini(struct io_req_fop *fop)
  *
  * Typically, the approach which leads to least size of data to be
  * read from server is selected.
+ *
+ * @verbatim
+ *
+ *  Read-rest approach
+ *
+ *   a     x
+ *   +---+---+---+---+---+---+---+
+ *   |   | P'| F | F | F | # | * |  PG#0
+ *   +---+---+---+---+---+---+---+
+ *   | F | F | F | F | F | # | * |  PG#1
+ *   +---+---+---+---+---+---+---+
+ *   | F | F | F | P |   | # | * |  PG#2
+ *   +---+---+---+---+---+---+---+
+ *     N   N   N   N   N   K   P
+ *                 y     b
+ *
+ *   N = 5, P = 1, K = 1, unit_size = 4k
+ *   F  => Fully occupied
+ *   P' => Partially occupied
+ *   #  => Parity unit
+ *   *  => Spare unit
+ *   x  => Start of actual file extent.
+ *   y  => End of actual file extent.
+ *   a  => Rounded down value of x.
+ *   b  => Rounded up value of y.
+ *
+ *
+ *  Read-old approach
+ *
+ *   a     x
+ *   +---+---+---+---+---+---+---+
+ *   |   |   |   | P'| F | # | * |  PG#0
+ *   +---+---+---+---+---+---+---+
+ *   | F | F | F | F | F | # | * |  PG#1
+ *   +---+---+---+---+---+---+---+
+ *   | F | P'|   |   |   | # | * |  PG#2
+ *   +---+---+---+---+---+---+---+
+ *     N   N   N   N   N   K   P
+ *                 y     b
+ *
+ *   N = 5, P = 1, K = 1, unit_size = 4k
+ *   F  => Fully occupied
+ *   P' => Partially occupied
+ *   #  => Parity unit
+ *   *  => Spare unit
+ *   x  => Start of actual file extent.
+ *   y  => End of actual file extent.
+ *   a  => Rounded down value of x.
+ *   b  => Rounded up value of y.
+ *
+ * @endverbatim
  */
 static int nw_xfer_io_read(struct nw_xfer_request *xfer)
 {
@@ -2226,21 +2249,11 @@ static int nw_xfer_io_read(struct nw_xfer_request *xfer)
         grp        = ext->e_start / group_size;
         grpend     = ext->e_end   / group_size;
 
-        /*
-         * - Iterate over number of groups.
-         * - Skip full parity groups. Current read requests apply only to
-         *   partial parity groups.
-         * - For every partial parity group, chose if read-old or read-rest
-         *   will be used.
-         * - Prepare target_ioreq structures.
-         * - Remember to read old parity unit in case of read-old.
-         */
-
         for (; grp <= grpend; ++grp) {
 
-                /* Extent on which read IO is issued. */
+                /* Extent on which new read IO is issued. */
                 struct c2_ext readext;
-                /* Extent spanning the whole current parity group. */
+                /* Extent equivalent to whole current parity group. */
                 struct c2_ext pgrpext;
                 /* Extent spanned IO request in current parity group. */
                 struct c2_ext ioext;
@@ -2344,6 +2357,12 @@ fail:
         return rc;
 }
 
+/*
+ * Is used by use-cases like
+ * - parity group aligned read IO.
+ * - unaligned (to parity group or unit or page) read IO.
+ * - parity group aligned write IO.
+ */
 static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 {
         int                          rc;
@@ -2378,8 +2397,8 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 
         /*
          * If this is reading state from rmw IO request, IO should be
-         * issued to read the unit_size unaligned data buffers first
-         * so that rest of the computation can be while data is being
+         * issued to read the units from partial parity groups first
+         * so that rest of the computation can proceed while data is being
          * read from server.
          */
         if (READ_STATE_FROM_RMW(req)) {
@@ -2468,8 +2487,8 @@ fail:
                 tioreqs_tlist_del(ti);
                 target_ioreq_fini(ti);
         } c2_tl_endfor;
-                unit = 0;
-        } while (grp < group_nr);
+
+        return rc;
 }
 
 static ssize_t file_aio_write(struct kiocb *kcb, const struct iovec *ivec,
