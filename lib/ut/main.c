@@ -45,6 +45,7 @@ extern void test_trace(void);
 extern void test_vec(void);
 extern void test_zerovec(void);
 extern void test_bob(void);
+extern void test_buf(void);
 
 const struct c2_test_suite libc2_ut = {
 	.ts_name = "libc2-ut",
@@ -54,6 +55,7 @@ const struct c2_test_suite libc2_ut = {
 		{ "atomic",    test_atomic    },
 		{ "bitmap",    test_bitmap    },
 		{ "bob",       test_bob       },
+		{ "buf",       test_buf       },
 		{ "chan",      test_chan      },
 #ifdef ENABLE_FAULT_INJECTION
 		{ "finject",   test_finject   },
