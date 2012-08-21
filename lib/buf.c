@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -37,6 +37,13 @@ void c2_buf_init(struct c2_buf *buf, void *data, uint32_t nob)
 {
 	buf->b_addr = data;
 	buf->b_nob  = nob;
+}
+
+void c2_buf_free(struct c2_buf *buf)
+{
+	c2_free(buf->b_addr);
+	buf->b_addr = NULL;
+	buf->b_nob = 0;
 }
 
 bool c2_buf_eq(const struct c2_buf *x, const struct c2_buf *y)

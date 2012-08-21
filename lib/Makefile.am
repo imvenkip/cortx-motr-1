@@ -10,6 +10,8 @@ libc2_HEADERS        = \
                        atomic.h \
                        bitmap.h \
                        bob.h \
+                       buf.h \
+                       buf_xc.h \
                        cdefs.h \
                        chan.h \
                        cond.h \
@@ -51,6 +53,7 @@ libc2_la_SOURCES     = \
                        bob.h \
                        buf.c \
                        buf.h \
+                       buf_xc.c \
                        c2lib.c \
                        cdefs.h \
                        chan.c \

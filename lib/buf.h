@@ -25,6 +25,7 @@
 
 #include "lib/types.h"
 #include "lib/cdefs.h"
+#include "xcode/xcode_attr.h"
 
 /**
    @defgroup buf Basic buffer type
@@ -34,7 +35,7 @@
 struct c2_buf {
 	c2_bcount_t b_nob;
 	void       *b_addr;
-};
+} C2_XCA_SEQUENCE;
 
 /*
  * Initialisers for struct c2_buf.
@@ -56,6 +57,11 @@ int c2_buf_copy(struct c2_buf *dest, const struct c2_buf *src);
 
 /** Initialises struct c2_buf */
 void c2_buf_init(struct c2_buf *buf, void *data, uint32_t nob);
+
+/**
+ * Frees the contents of the buffer and zeroes its fields.
+ */
+void c2_buf_free(struct c2_buf *buf);
 
 /** @} end of buf group */
 

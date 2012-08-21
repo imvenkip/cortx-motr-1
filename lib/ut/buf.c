@@ -29,60 +29,57 @@ static bool bit_is_set(int bits, int index)
 	return (bool)(bits & (1 << index));
 }
 
-void test_buf(void)
+void c2_ut_lib_buf_test(void)
 {
 	struct c2_buf copy = C2_BUF_INIT0;
-	int i[] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
-	char *s = "1234567890";
-	char *t = "123";
+	static int d0[] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+	static char *d1 = "1234567890";
+	static char *d2 = "123";
 	bool equal;
 	int k;
 	int j;
 	int rc;
 
 	struct /* test */ {
-		int equality_mask;
+		int equality_mask; /* equality to self is implied */
 		struct c2_buf buf;
 	} test[] = {
-		[0] = { (1 << 0) | (1 << 1), C2_BUF_INIT(strlen(s), s) },
-	        [1] = { (1 << 1) | (1 << 0), C2_BUF_INITS(s) },
-		[2] = { (1 << 2) | (1 << 4), C2_BUF_INITS(t) },
+		[0] = { (1 << 1), C2_BUF_INIT(strlen(d1), d1) },
+	        [1] = { (1 << 0), C2_BUF_INITS(d1) },
+		[2] = { (1 << 4), C2_BUF_INITS(d2) },
+		[3] = { (1 << 6) | (1 << 7), C2_BUF_INIT(sizeof(d0), d0) },
+		[4] = { (1 << 2), C2_BUF_INIT(strlen(d2), d1) },
+		[5] = { 0, C2_BUF_INIT(sizeof(d0) - 1, d0) },
 
-		[3] = { (1 << 3) | (1 << 6) | (1 << 7),
-			C2_BUF_INIT(ARRAY_SIZE(i) * sizeof(i), i) },
-
-		[4] = { (1 << 4) | (1 << 2), C2_BUF_INIT(strlen(t), s) },
-
-		[5] = { (1 << 5),
-			C2_BUF_INIT((ARRAY_SIZE(i) - 1) * sizeof(i), i) },
-
-		[6] = { (1 << 6) | (1 << 3) | (1 << 7), C2_BUF_INIT0 },
-		[7] = { (1 << 7) | (1 << 3) | (1 << 6), C2_BUF_INIT0 },
+		/* [6] and [7] are placeholders and will be overwriten with
+		 * c2_buf_init() */
+		[6] = { (1 << 3) | (1 << 7), C2_BUF_INIT0 },
+		[7] = { (1 << 3) | (1 << 6), C2_BUF_INIT0 },
 	};
 
-	c2_buf_init(&test[ARRAY_SIZE(test) - 1].buf, i,
-		    ARRAY_SIZE(i) * sizeof(i));
-	c2_buf_init(&test[ARRAY_SIZE(test) - 2].buf, i,
-		    ARRAY_SIZE(i) * sizeof(i));
+	c2_buf_init(&test[6].buf, d0, sizeof(d0));
+	c2_buf_init(&test[7].buf, d0, sizeof(d0));
 
 	for (k = 0; k < ARRAY_SIZE(test); ++k) {
 		rc = c2_buf_copy(&copy, &test[k].buf);
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(c2_buf_eq(&copy, &test[k].buf));
 
-		c2_free(copy.b_addr);
-		copy.b_addr = NULL;
-		copy.b_nob = 0;
+		c2_buf_free(&copy);
 	}
 
 	for (k = 0; k < ARRAY_SIZE(test); ++k) {
 		for (j = 0; j < ARRAY_SIZE(test); ++j) {
+			if (j == k)
+				continue;
+
 			equal = c2_buf_eq(&test[j].buf, &test[k].buf);
 			C2_UT_ASSERT(equal == bit_is_set(test[j].equality_mask,
 							 k));
 		}
 	}
 }
+C2_EXPORTED(c2_ut_lib_buf_test);
 
 /*
  *  Local variables:

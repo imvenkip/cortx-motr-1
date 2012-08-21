@@ -75,3 +75,4 @@ sub-team leads, contact them to add more things here.
             c2_atomic64. Check first, that this is supported by our target
             compiler version [2012-Aug-07]
 
+2012-Aug-22 Add c2_ut_ prefixes to all non-static unit test functions.

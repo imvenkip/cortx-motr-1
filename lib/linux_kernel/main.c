@@ -46,31 +46,33 @@ extern void test_vec(void);
 extern void test_zerovec(void);
 extern void test_memory(void);
 extern void test_bob(void);
+extern void c2_ut_lib_buf_test(void);
 
 const struct c2_test_suite c2_klibc2_ut = {
 	.ts_name = "klibc2-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
-		{ "bitmap",    test_bitmap    },
-		{ "memory",    test_memory    },
-		{ "bob",       test_bob       },
-		{ "chan",      test_chan      },
+		{ "bitmap",    test_bitmap        },
+		{ "memory",    test_memory        },
+		{ "bob",       test_bob           },
+		{ "buf",       c2_ut_lib_buf_test },
+		{ "chan",      test_chan          },
 #ifdef ENABLE_FAULT_INJECTION
-		{ "finject",   test_finject   },
+		{ "finject",   test_finject       },
 #endif
-		{ "list",      test_list      },
-		{ "tlist",     test_tlist     },
-		{ "mutex",     test_mutex     },
-		{ "queue",     test_queue     },
-		{ "refs",      test_refs      },
-		{ "rwlock",    test_rw        },
-		{ "thread",    test_thread    },
-		{ "time",      test_time      },
-		{ "trace",     test_trace     },
-		{ "vec",       test_vec       },
-		{ "zerovec",   test_zerovec   },
-		{ NULL,        NULL           }
+		{ "list",      test_list          },
+		{ "tlist",     test_tlist         },
+		{ "mutex",     test_mutex         },
+		{ "queue",     test_queue         },
+		{ "refs",      test_refs          },
+		{ "rwlock",    test_rw            },
+		{ "thread",    test_thread        },
+		{ "time",      test_time          },
+		{ "trace",     test_trace         },
+		{ "vec",       test_vec           },
+		{ "zerovec",   test_zerovec       },
+		{ NULL,        NULL               }
 	}
 };
 C2_EXPORTED(c2_klibc2_ut);
