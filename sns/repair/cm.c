@@ -115,9 +115,9 @@
   - @ref SNSRepairCMDLD-lspec-cm-stop
 
   @subsection SNSRepairCMDLD-lspec-comps Component overview
-  The focus of sns repair copy machine is on restructuring the data
-  efficiently. The restructuring operation is split into various copy packet
-  phases.
+  The focus of sns repair copy machine is to efficiently repair and restructure
+  data in case of failures, viz. device, node, etc. The restructuring operation
+  is split into various copy packet phases.
 
   @subsection SNSRepairCMDLD-lspec-cm-setup Copy machine setup
   SNS Repair defines its following specific data structure to represent a
@@ -151,10 +151,10 @@
   buffers. Once the buffer provisioning is done, copy machine updates the
   sliding window size to the size of its buffer pool and broadcasts the same
   to other replicas in the cluster. Similarly other replicas broadcast their
-  corresponding sliding window sizes. After receiving sliding window sizes
-  from each replica in the cluster, every SNS Repair copy machine selects
-  the minimum of the sliding window sizes in the cluster and updates its
-  local sliding window size accordingly.
+  corresponding sliding window sizes. After receiving sliding window sizes from
+  each replica in the cluster, every SNS Repair copy machine selects the minimum
+  sliding window size in the cluster and updates its local sliding window size
+  accordingly.
   @note Buffer provisioning operation can block.
 
   @subsubsection SNSRepairCMDLD-lspec-cm-start-cp-create Copy packet create
@@ -188,7 +188,7 @@
   }
   @endcode
 
-  Further copy packet header details, required for the operation are populated as
+  Further copy packet header details required for the operation are populated as
   part of copy packet FOM init phase asynchronously using the next function
   implemented by the copy machine.
   @see @ref CPDLD "Copy Packet DLD" for more details.
@@ -220,7 +220,7 @@
   operations through generic copy machine interfaces which cause copy machine
   state transitions.
 
-  @b i.sns.repair.buffer.acquire SNS Repair copy machine impllements its own
+  @b i.sns.repair.buffer.acquire SNS Repair copy machine implements its own
   buffer pool used to create copy pckets. The buffer pool is provisioned during
   the start of the repair operation.
 
@@ -273,7 +273,12 @@
 enum {
 	SNS_SEG_NR = 1,
 	SNS_SEG_SIZE = 4096,
-	SNS_BUF_COLOR = 1
+	SNS_BUF_COLOR = 1,
+	/*
+	 * Minimum number of buffers to provision c2_sns_repair_cm::rc_bp
+	 * buffer pool.
+	 */
+	SNS_BUF_NR = 4
 };
 
 extern struct c2_net_xprt c2_net_lnet_xprt;
@@ -308,39 +313,62 @@ static struct c2_cm_cp *cm_cp_alloc(struct c2_cm *cm)
 	return &rcp->rc_base;
 }
 
-static int cm_start(struct c2_cm *cm)
+static int cm_cp_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
-	struct c2_sns_repair_cm *rcm;
+	struct c2_cobfid_map    *cfm;
+	struct c2_sns_repair_cm *sns_cm;
+	uint64_t                 fdata;
+
+	C2_PRE(cm != NULL && cp != NULL);
+
+	sns_cm = cm2sns(cm);
+	fdata = sns_cm->rc_fdata;
+	cfm = sns_cm->rc_cfm;
+	/* XXX Implementation in progress. */
+	return 0;
+}
+
+static int cm_setup(struct c2_cm *cm)
+{
 	struct c2_reqh          *reqh;
 	struct c2_net_domain    *ndom;
+	struct c2_sns_repair_cm *rcm;
 	int                      rc;
-
-	C2_ENTRY();
 
 	rcm = cm2sns(cm);
 	reqh = cm->cm_service.rs_reqh;
 	ndom = c2_cs_net_domain_locate(c2_cs_ctx_get(reqh),
 				       c2_net_lnet_xprt.nx_name);
-	/*
-	 * TODO: Send READY FOPs to other replicas in the cluster with sliding window
-	 * size, calculate the minimum sliding window size within the cluster to start
-	 * and create copy packets accordngly.
-	 */
 	rc = c2_net_buffer_pool_init(&rcm->rc_bp,
 				     ndom,
 				     C2_NET_BUFFER_POOL_THRESHOLD,
 				     SNS_SEG_NR, SNS_SEG_SIZE,
 				     SNS_BUF_COLOR, C2_0VEC_SHIFT);
+	if (rc == 0)
+		rc = c2_cobfid_map_get(reqh, &rcm->rc_cfm);
 
-	c2_cm_cp_create(cm);
-
-	C2_LEAVE();
 	return rc;
 }
 
-static int cm_config(struct c2_cm *cm)
+static int cm_start(struct c2_cm *cm)
 {
-	return 0;
+	struct c2_sns_repair_cm *rcm;
+	int                      rc;
+
+	C2_ENTRY();
+
+	rcm = cm2sns(cm);
+	/*
+	 * TODO: Send READY FOPs to other replicas in the cluster with sliding window
+	 * size, calculate the minimum sliding window size within the cluster to start
+	 * and create copy packets accordngly.
+	 */
+	rc = c2_net_buffer_pool_provision(&rcm->rc_bp, SNS_BUF_NR);
+	if (rc == 0)
+		c2_cm_cp_create(cm);
+
+	C2_LEAVE();
+	return rc;
 }
 
 static void cm_done(struct c2_cm *cm)
@@ -372,12 +400,13 @@ static void cm_fini(struct c2_cm *cm)
 
 /** Copy machine operations. */
 const struct c2_cm_ops cm_ops = {
-	.cmo_start      = cm_start,
-	.cmo_config     = cm_config,
-	.cmo_cp_alloc   = cm_cp_alloc,
-	.cmo_done       = cm_done,
-	.cmo_stop       = cm_stop,
-	.cmo_fini       = cm_fini
+	.cmo_setup        = cm_setup,
+	.cmo_start        = cm_start,
+	.cmo_cp_alloc     = cm_cp_alloc,
+	.cmo_cp_data_next = cm_cp_data_next,
+	.cmo_done         = cm_done,
+	.cmo_stop         = cm_stop,
+	.cmo_fini         = cm_fini
 };
 
 /** @} SNSRepairCM */

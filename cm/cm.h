@@ -186,11 +186,19 @@ struct c2_cm {
 
 /** Operations supported by a copy machine. */
 struct c2_cm_ops {
-	/** Invoked from generic c2_cm_start ().*/
-	int (*cmo_start)(struct c2_cm *cm);
+	/**
+	 * Initialises copy machine specific data structures.
+	 * This is invoked from generic c2_cm_setup() routine. Once the copy
+	 * machine is setup successfully it transitions into C2_CMS_IDLE state.
+	 */
+	int (*cmo_setup)(struct c2_cm *cm);
 
-	/** Configures copy machine. */
-	int (*cmo_config)(struct c2_cm *cm);
+	/**
+	 * Starts copy machine operation. Acquires copy machine specific
+	 * resources, broadcasts READY FOPs and starts copy machine operation
+	 * based on the TRIGGER event.
+	 */
+	int (*cmo_start)(struct c2_cm *cm);
 
 	/** Acknowledges the completion of copy machine operation. */
 	void (*cmo_done)(struct c2_cm *cm);
@@ -279,6 +287,8 @@ int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
  * @post c2_cm_state == C2_CMS_FINI;
  */
 void c2_cm_fini(struct c2_cm *cm);
+
+int c2_cm_setup(struct c2_cm *cm);
 
 /**
  * Starts the copy machine data restructuring process on receiving the "POST"

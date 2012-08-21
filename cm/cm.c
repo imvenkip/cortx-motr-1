@@ -379,6 +379,11 @@ bool c2_cm_invariant(struct c2_cm *cm)
 		c2_reqh_service_invariant(&cm->cm_service));
 }
 
+int c2_cm_setup(struct c2_cm *cm)
+{
+	return 0;
+}
+
 int c2_cm_start(struct c2_cm *cm)
 {
 	int	rc;
@@ -426,11 +431,6 @@ void c2_cm_stop(struct c2_cm *cm)
 	C2_POST(c2_cm_invariant(cm));
 	c2_cm_group_unlock(cm);
 	C2_LEAVE();
-}
-
-int c2_cm_configure(struct c2_cm *cm, struct c2_fop *fop)
-{
-	return 0;
 }
 
 int c2_cms_init(void)

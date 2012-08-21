@@ -306,6 +306,12 @@
  *   <hr>
  *   @section CPDLD-ref References
  *
+ *   - <a href="https://docs.google.com/a/xyratex.com/document/d/1Yz25F3GjgQVXzvM1sdlGQvVDSUu-v7FhdUvFhiY_vwM/edit#">
+ *   HLD of SNS Repair</a>
+ *
+ *   - <a href="https://docs.google.com/a/xyratex.com/document/d/1ZlkjayQoXVm-prMxTkzxb1XncB6HU19I19kwrV-8eQc/edit#">
+ *   HLD of Copy machine and agents</a>
+ *
  */
 
 /**
@@ -377,7 +383,7 @@ bool c2_cm_cp_invariant(struct c2_cm_cp *cp)
 
 	return phase >= C2_CCP_INIT && phase <= C2_CCP_FINI &&
 	       c2_fom_invariant(&cp->c_fom) && cp->c_ops != NULL &&
-	       cp->c_data != NULL && cp->c_ag != NULL;
+	       cp->c_data != NULL;
 }
 
 void c2_cm_cp_init(struct c2_cm_cp *cp, const struct c2_cm_cp_ops *ops,
