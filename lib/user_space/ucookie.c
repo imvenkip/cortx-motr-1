@@ -41,7 +41,7 @@ static void sigsegv(int sig)
 
 	buf = pthread_getspecific(addr_check_key);
 	if (buf != NULL)
-		longjmp(*buf, 1);
+		siglongjmp(*buf, 1);
 	else
 		abort();
 }
@@ -59,7 +59,7 @@ bool c2_arch_addr_is_sane(const void *addr)
 
 	ret = pthread_setspecific(addr_check_key, &buf);
 	C2_ASSERT(ret == 0);
-	ret = setjmp(buf);
+	ret = sigsetjmp(buf, 1);
 	if (ret == 0) {
 		dummy = *(uint64_t *)addr;
 		result = true;
