@@ -1,17 +1,8 @@
-reqhdir                     = $(includedir)/colibri/reqh
-reqh_HEADERS                = reqh.h
+reqhdir                    = $(includedir)/colibri/reqh
+reqh_HEADERS               = reqh.h reqh_service.h
+INCLUDES                   = -iquote . -iquote $(top_srcdir) \
+			     -iquote $(top_srcdir)/include
 
-noinst_LTLIBRARIES          = libcolibri-reqh.la
+noinst_LTLIBRARIES         = libcolibri-reqh.la
 
-libcolibri_reqh_la_SOURCES  = \
-				reqh_fops.ff reqh.c reqh.h \
-				reqh_service.c \
-				reqh_service.h
-
-INCLUDES                    = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
-
-EXTRA_DIST = reqh_fops.ff
-
-clean-local:
-	cd @SRCDIR@/reqh ; \
-	rm -fr reqh_fops_[uk].[ch]
+libcolibri_reqh_la_SOURCES = reqh.c reqh.h reqh_service.c reqh_service.h

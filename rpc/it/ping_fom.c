@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -22,17 +22,9 @@
 #endif
 
 #include "fop/fop.h"
-#include "fop/fop_format_def.h"
-#include "fop/fop_format.h"
 #include "fop/fom_generic.h"     /* C2_FOPH_NR */
 #include "rpc/it/ping_fom.h"
-#include "rpc/it/ping_fop.h"
-#ifdef __KERNEL__
-#include "ping_fop_k.h"
-#else
-#include "ping_fop_u.h"
-#endif
-
+#include "rpc/it/ping_fop_xc.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "rpc/rpc2.h"
@@ -41,8 +33,8 @@ static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m);
 
 /** Generic ops object for ping */
 struct c2_fom_ops c2_fom_ping_ops = {
-	.fo_fini = c2_fop_ping_fom_fini,
-	.fo_tick = c2_fom_ping_state,
+	.fo_fini          = c2_fop_ping_fom_fini,
+	.fo_tick          = c2_fom_ping_state,
 	.fo_home_locality = c2_fom_ping_home_locality
 };
 
@@ -52,7 +44,7 @@ static const struct c2_fom_type_ops c2_fom_ping_type_ops = {
 };
 
 /** Ping specific FOM type operations vector. */
-struct c2_fom_type c2_fom_ping_mopt = {
+struct c2_fom_type c2_fom_ping_fomt = {
         .ft_ops = &c2_fom_ping_type_ops,
 };
 
@@ -82,9 +74,8 @@ int c2_fom_ping_state(struct c2_fom *fom)
         c2_rpc_reply_post(&fom_obj->fp_fop->f_item, item);
 	fom->fo_phase = C2_FOPH_FINISH;
 
-	return 0;
+	return C2_FSO_WAIT;
 }
-
 
 /* Init for ping */
 static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
@@ -99,7 +90,7 @@ static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
         fom_obj= c2_alloc(sizeof(struct c2_fom_ping));
         if (fom_obj == NULL)
                 return -ENOMEM;
-        fom_type = &c2_fom_ping_mopt;
+        fom_type = &c2_fom_ping_fomt;
         C2_ASSERT(fom_type != NULL);
         fop->f_type->ft_fom_type = *fom_type;
 	fom = &fom_obj->fp_gen;

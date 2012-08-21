@@ -490,7 +490,7 @@ static void fop_alloc(struct c2_fom *fom, enum cob_fom_type fomtype)
 		if (base_fop != NULL) {
 			cf = c2_fop_data(base_fop);
 			cf->cc_cobname.cn_count = strlen(test_cobname);
-			cf->cc_cobname.cn_name = test_cobname;
+			cf->cc_cobname.cn_name = (uint8_t *) test_cobname;
 		}
 		break;
 	case COB_DELETE:

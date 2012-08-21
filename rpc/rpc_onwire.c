@@ -48,11 +48,9 @@ int c2_rpc_item_header_encdec(struct c2_rpc_item      *item,
 	C2_PRE(item != NULL);
 
 	item_type = item->ri_type;
-	if (what == C2_BUFVEC_ENCODE) {
-		C2_ASSERT(item_type->rit_ops != NULL);
-		C2_ASSERT(item_type->rit_ops->rito_item_size != NULL);
-		len = item_type->rit_ops->rito_item_size(item);
-	}
+	if (what == C2_BUFVEC_ENCODE)
+		len = c2_rpc_item_size(item);
+
 	rc = c2_bufvec_uint64(cur, &len, what) ?:
 	     slot_ref_encdec(cur, item->ri_slot_refs, what);
 	return rc;

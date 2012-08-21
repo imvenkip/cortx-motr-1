@@ -27,7 +27,8 @@
 #include <stdio.h> /* FILE */
 #endif
 
-#include "rpc/rpc2.h"    /* struct c2_rpc_machine, c2_rpc_item */
+#include "rpc/item.h"    /* struct c2_rpc_machine, c2_rpc_item */
+#include "rpc/rpc2.h"
 #include "rpc/session.h" /* struct c2_rpc_conn, c2_rpc_session */
 #include "db/db.h"       /* struct c2_dbenv */
 #include "cob/cob.h"     /* struct c2_cob_domain */

@@ -21,19 +21,12 @@
 
 #pragma once
 
-#ifndef _C2_RPC_SESSION_FOM_H
-#define _C2_RPC_SESSION_FOM_H
+#ifndef __COLIBRI_RPC_SESSION_FOM_H__
+#define __COLIBRI_RPC_SESSION_FOM_H__
 
 #include "fop/fop.h"
-#include "fop/fop_format.h"
-
 #include "rpc/session_fops.h"
-#ifdef __KERNEL__
-#include "rpc/session_k.h"
-#else
-#include "rpc/session_u.h"
-#endif
-
+#include "rpc/session_xc.h"
 #include "fop/fom.h"
 #include "fop/fom_generic.h"     /* C2_FOPH_NR */
 

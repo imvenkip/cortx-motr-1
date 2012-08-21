@@ -44,21 +44,18 @@ static int check_read_fom_tick(struct c2_fom *fom);
 
 struct c2_fop_type_ops bulkio_stob_create_ops = {
 	.fto_fop_replied = io_fop_replied,
-	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 };
 
 struct c2_fop_type_ops bulkio_server_write_fop_ut_ops = {
 	.fto_fop_replied = io_fop_replied,
-	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 };
 
 struct c2_fop_type_ops bulkio_server_read_fop_ut_ops = {
 	.fto_fop_replied = io_fop_replied,
-	.fto_size_get = c2_xcode_fop_size_get,
 	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 };
@@ -1525,7 +1522,7 @@ const struct c2_test_suite bulkio_server_ut = {
 		 * bulkio_init() as .ts_init requires changing all
 		 * C2_UT_ASSERTS to C2_ASSERTS.
 		 */
-		{ "bulkio_init",	  bulkio_init},
+		{ "bulkio_init", bulkio_init},
 		{ "bulkio_server_single_read_write",
 		   bulkio_server_single_read_write},
 		{ "bulkio_server_read_write_state_test",
@@ -1536,7 +1533,7 @@ const struct c2_test_suite bulkio_server_ut = {
 		   bulkio_server_read_write_multiple_nb},
 		{ "bulkio_server_rw_state_transition_test",
 		   bulkio_server_rw_state_transition_test},
-		{ "bulkio_fini",	  bulkio_fini},
+		{ "bulkio_fini", bulkio_fini},
 		{ NULL, NULL }
 	}
 };

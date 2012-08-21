@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,14 +14,10 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
+ * Original author       : Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
  * Original creation date: 08/03/2011
- */
-/*
- * Failure fops should be defined by not yet existing "failure" module. For the
- * time being, it makes sense to put them in cm/ or console/. ioservice is not
- * directly responsible for handling failures, it is intersected by copy-machine
- * (cm).
+ * Revision              : Manish Honap <Manish_Honap@xyratex.com>
+ * Revision date         : 07/31/2012
  */
 
 #ifdef HAVE_CONFIG_H
@@ -31,77 +27,53 @@
 #include "lib/memory.h"		/* C2_ALLOC_PTR */
 #include "lib/errno.h"		/* ENOMEM */
 #include "fop/fop_item_type.h"	/* default fop encode/decode */
-#include "fop/fop_format_def.h" /* console.ff */
+#include "fop/fop.h"            /* c2_fop_xcode_length */
 
-
-#include "console/console_fop.h" /*FOPs defs */
-#include "console/console_fom.h" /*FOMs defs */
-#include "console/console_u.h"	 /* FOP memory layout */
-#include "console/console.ff"
-#include "xcode/bufvec_xcode.h"  /* c2_xcode_fop_size_get() */
+#include "console/console_fop.h" /* FOPs defs */
+#include "console/console_fom.h" /* FOMs defs */
+#include "console/console_xc.h"	 /* FOP memory layout */
 
 /**
-   @addtogroup console fops
+   @addtogroup console
    @{
 */
 
-/* Ops vector for device failure notification */
-static const struct c2_fop_type_ops c2_cons_fop_device_ops = {
-	.fto_size_get = c2_xcode_fop_size_get
-};
-
-/* Ops vector for reply of any failure notification */
-static const struct c2_fop_type_ops c2_cons_fop_reply_ops = {
-	.fto_size_get = c2_xcode_fop_size_get
-};
-
-/* Fop and RPC Item type definitions for device failures and replies
-   and replies */
-C2_FOP_TYPE_DECLARE(c2_cons_fop_device, "Device Failed",
-		    &c2_cons_fop_device_ops,
-		    C2_CONS_FOP_DEVICE_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST);
-
-C2_FOP_TYPE_DECLARE(c2_cons_fop_reply, "Console Reply",
-		    &c2_cons_fop_reply_ops,
-		    C2_CONS_FOP_REPLY_OPCODE,
-		    C2_RPC_ITEM_TYPE_REPLY);
-
-C2_FOP_TYPE_DECLARE(c2_cons_fop_test, "Console Test", NULL, C2_CONS_TEST, 0);
-
-static struct c2_fop_type *fops[] = {
-        &c2_cons_fop_device_fopt,
-        &c2_cons_fop_reply_fopt,
-        &c2_cons_fop_test_fopt
-};
-
-static struct c2_fop_type_format *fmts[] = {
-	&c2_cons_fop_fid_tfmt,
-	&c2_cons_fop_buf_tfmt,
-};
+struct c2_fop_type c2_cons_fop_device_fopt;
+struct c2_fop_type c2_cons_fop_reply_fopt;
+struct c2_fop_type c2_cons_fop_test_fopt;
 
 void c2_console_fop_fini(void)
 {
-        c2_fop_type_fini_nr(fops, ARRAY_SIZE(fops));
-	c2_fop_type_format_fini_nr(fmts, ARRAY_SIZE(fmts));
+	c2_fop_type_fini(&c2_cons_fop_device_fopt);
+	c2_fop_type_fini(&c2_cons_fop_reply_fopt);
+	c2_fop_type_fini(&c2_cons_fop_test_fopt);
+	c2_xc_console_xc_fini();
 }
 
 int c2_console_fop_init(void)
 {
-        int result;
-
-
-	result = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
-	if (result == 0)
-		result = c2_fop_type_build_nr(fops, ARRAY_SIZE(fops));
+	c2_xc_console_xc_init();
 
 	/* Initialize fom type once */
-	c2_cons_fop_device_fopt.ft_fom_type = c2_cons_fom_device_type;
+	c2_cons_fop_device_fopt.ft_fom_type =
+		c2_cons_fom_device_type;
 
-	if (result != 0)
-		c2_console_fop_fini();
-
-        return result;
+	return  C2_FOP_TYPE_INIT(&c2_cons_fop_device_fopt,
+			 .name      = "Device Failed",
+			 .opcode    = C2_CONS_FOP_DEVICE_OPCODE,
+			 .xt        = c2_cons_fop_device_xc,
+			 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
+			 .fom_ops   = c2_cons_fom_device_type.ft_ops) ?:
+		C2_FOP_TYPE_INIT(&c2_cons_fop_reply_fopt,
+			 .name      = "Console Reply",
+			 .opcode    = C2_CONS_FOP_REPLY_OPCODE,
+			 .xt        = c2_cons_fop_reply_xc,
+			 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY) ?:
+		C2_FOP_TYPE_INIT(&c2_cons_fop_test_fopt,
+			 .name      = "Console Test",
+			 .opcode    = C2_CONS_TEST,
+			 .xt        = c2_cons_fop_test_xc,
+			 .rpc_flags = 0);
 }
 
 /** @} end of console */

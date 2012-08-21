@@ -1,20 +1,22 @@
 include $(top_srcdir)/Makefile.xc
 
-xcodeutdir        = $(includedir)/xcode/ut
-noinst_LTLIBRARIES   = libxcode-ut.la
+xcodeutdir              = $(includedir)/xcode/ut
+noinst_LTLIBRARIES      = libxcode-ut.la
 
-#xcode_ut_LDADD = $(top_builddir)/colibri/libcolibri.la
+libxcode_ut_la_SOURCES  = $(XCODE_FOPS) xcode_fop_test.c xcode_test.c \
+			  xcode.c ff2c.c test_gccxml_simple_xc.c      \
+			  test_gccxml_xc.c
 
-libxcode_ut_la_SOURCES  = test_u.h test_u.c xcode_fop_test.c xcode_test.c \
-			xcode.c ff2c.c test_gccxml_simple_xc.c test_gccxml_xc.c
+XCODE_FOPS              = xcode_fops.c xcode_fops.h
 
-test_u.h test_u.c : test.ff \
-	$(top_builddir)/fop/rt/libc2rt.la
-	$(top_builddir)/fop/fop2c
-	$(top_builddir)/fop/fop2c -u $<
+$(XCODE_FOPS) : xcode_fops.ff \
+	$(top_builddir)/xcode/ff2c/ff2c
+	$(top_builddir)/xcode/ff2c/ff2c $<
 
-EXTRA_DIST = test.ff
+EXTRA_DIST              = xcode_fops.ff test_gccxml_simple.h    \
+			  test_gccxml_simple_xc.h test_gccxml.h \
+			  test_gccxml_xc.h
+
+MOSTLYCLEANFILES        = $(XCODE_FOPS)
 
 clean-local: clean-xc
-	cd @SRCDIR@/xcode/ut ; \
-	rm -fr test_[uk].[ch]

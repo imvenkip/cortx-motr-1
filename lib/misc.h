@@ -33,7 +33,19 @@
 #include "lib/types.h"
 #include "lib/assert.h"           /* C2_CASSERT */
 #include "lib/cdefs.h"            /* c2_is_array */
+#include "lib/types.h"
 
+/**
+ * Returns rounded up value of @val in chunks of @size.
+ * @pre c2_is_po2(size)
+ */
+uint64_t c2_round_up(uint64_t val, uint64_t size);
+
+/**
+ * Returns rounded down value of @val in chunks of @size.
+ * @pre c2_is_po2(size)
+ */
+uint64_t c2_round_down(uint64_t val, uint64_t size);
 
 #define C2_SET0(obj)				\
 ({						\

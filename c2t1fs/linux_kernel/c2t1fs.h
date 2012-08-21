@@ -21,18 +21,21 @@
 
 #pragma once
 
-#ifndef __COLIBRI_C2T1FS_H
-#define __COLIBRI_C2T1FS_H
+#ifndef __COLIBRI_C2T1FS_C2T1FS_H__
+#define __COLIBRI_C2T1FS_C2T1FS_H__
 
 #include <linux/fs.h>
 #include <linux/pagemap.h>
 
 #include "lib/tlist.h"
 #include "lib/mutex.h"
-#include "net/net.h"        /* c2_net_domain */
-#include "rpc/rpc2.h"
-#include "pool/pool.h"      /* c2_pool */
+#include "net/net.h"    /* c2_net_domain */
+#include "rpc/session.h"
+#include "rpc/rpc_machine.h"
+#include "pool/pool.h"  /* c2_pool */
 #include "net/buffer_pool.h"
+#include "fid/fid.h"
+#include "cob/cob.h"    /* c2_cob_domain_id */
 #include "layout/layout.h"  /* c2_layout_domain */
 #include "layout/pdclust.h" /* c2_pdclust_instance */
 
@@ -450,4 +453,4 @@ void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
 
 void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de);
 
-#endif /* __COLIBRI_C2T1FS_H */
+#endif /* __COLIBRI_C2T1FS_C2T1FS_H__ */

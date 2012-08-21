@@ -18,6 +18,8 @@
  * Original creation date: 11/16/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LAYOUT_LIST_ENUM_H__
 #define __COLIBRI_LAYOUT_LIST_ENUM_H__
 

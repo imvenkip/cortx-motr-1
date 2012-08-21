@@ -25,9 +25,10 @@
  @{
  */
 
-DEF(c2_net_buf_desc, SEQUENCE,
-    _(nbd_len,  U32),
-    _(nbd_data, BYTE));
+sequence {
+	u32 nbd_len;
+	u8  nbd_data
+} c2_net_buf_desc;
 
 /** @} end of net group */
 

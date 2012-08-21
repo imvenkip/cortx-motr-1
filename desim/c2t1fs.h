@@ -19,8 +19,8 @@
 
 #pragma once
 
-#ifndef __DESIM_C2T1FS_H__
-#define __DESIM_C2T1FS_H__
+#ifndef __COLIBRI_DESIM_C2T1FS_H__
+#define __COLIBRI_DESIM_C2T1FS_H__
 
 /**
    @addtogroup desim desim
@@ -82,7 +82,7 @@ struct c2t1fs_conf {
 void c2t1fs_init(struct sim *s, struct c2t1fs_conf *conf);
 void c2t1fs_fini(struct c2t1fs_conf *conf);
 
-#endif /* __DESIM_C2T1FS_H__ */
+#endif /* __COLIBRI_DESIM_C2T1FS_H__ */
 
 /** @} end of desim group */
 

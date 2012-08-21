@@ -93,7 +93,7 @@ const struct c2_addb_loc c2_rpc_machine_addb_loc = {
 C2_ADDB_EV_DEFINE_PUBLIC(c2_rpc_machine_func_fail, "rpc_machine_func_fail",
 			 C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
-const static struct c2_bob_type rpc_machine_bob_type = {
+static const struct c2_bob_type rpc_machine_bob_type = {
 	.bt_name         = "rpc_machine",
 	.bt_magix_offset = C2_MAGIX_OFFSET(struct c2_rpc_machine, rm_magix),
 	.bt_magix        = C2_RPC_MACHINE_MAGIX,
@@ -417,6 +417,7 @@ bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine)
 	C2_PRE(machine != NULL);
 	return c2_mutex_is_locked(&machine->rm_mutex);
 }
+C2_EXPORTED(c2_rpc_machine_is_locked);
 
 struct c2_rpc_chan *rpc_chan_get(struct c2_rpc_machine *machine,
 				 struct c2_net_end_point *dest_ep,

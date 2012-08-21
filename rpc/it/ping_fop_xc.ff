@@ -1,4 +1,5 @@
 /* -*- C -*- */
+
 /*
  * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
@@ -14,19 +15,22 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- * Original creation date: 05/19/2010
+ * Original author: Anup Barve <Anup_Barve@xyratex.com>
+ * Original creation date: 07/07/2011
  */
 
-#pragma once
+sequence {
+	u32 f_count;
+	u64 f_data
+} c2_fop_ping_arr;
 
-#ifndef __COLIBRI_FOP_FOP_USER_H__
-#define __COLIBRI_FOP_FOP_USER_H__
+record {
+	c2_fop_ping_arr fp_arr
+} c2_fop_ping;
 
-#include <rpc/rpc.h> /* xdrproc_t */
-
-/* __COLIBRI_FOP_FOP_USER_H__ */
-#endif
+record {
+	u32 fpr_rc
+} c2_fop_ping_rep;
 
 /*
  *  Local variables:

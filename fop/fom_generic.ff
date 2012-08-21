@@ -24,13 +24,14 @@
  */
 
 /**
- * @file fom_generic.ff
+ * @file fom_generic_xc.ff
  *
  * <b>Fom generic error reply</b>
  */
 
-DEF(c2_fom_error_rep, RECORD,
-	_(rerr_rc, U32));
+record {
+	u32 rerr_rc
+} c2_fom_error_rep;
 
 /** @} end of fom group */
 

@@ -18,6 +18,8 @@
  * Original creation date: 01/11/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LAYOUT_LAYOUT_INTERNAL_H__
 #define __COLIBRI_LAYOUT_LAYOUT_INTERNAL_H__
 

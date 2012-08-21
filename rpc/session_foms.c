@@ -23,23 +23,13 @@
 #include "config.h"
 #endif
 
-#include "fop/fop.h"
-#include "rpc/session_foms.h"
-#include "rpc/session_fops.h"
-#include "stob/stob.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/trace.h"
+#include "rpc/session_foms.h"
+#include "stob/stob.h"
 #include "net/net.h"
-
-#ifdef __KERNEL__
-#include "rpc/session_k.h"
-#else
-#include "rpc/session_u.h"
-#endif
-
-#include "fop/fop_format_def.h"
 #include "rpc/session_internal.h"
 #include "rpc/rpc2.h"
 

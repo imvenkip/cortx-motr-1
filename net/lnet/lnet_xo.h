@@ -27,6 +27,7 @@
 
 #include "net/lnet/lnet_core.h"
 #include "lib/thread.h"
+#include "lib/bitmap.h" /* c2_bitmap */
 
 /**
    @defgroup LNetXODFS LNet Transport XO Interface

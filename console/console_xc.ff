@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -19,11 +19,12 @@
  */
 
 /**
-  @addtogroup rm
+  @addtogroup console
   @{
  */
 
-/** @file console.ff
+/**
+ * @file console_xc.ff
  *
  * Failure fops should be defined by not yet existing "failure" module. For the
  * time being, it makes sense to put them in cm/ or console/. ioservice is not
@@ -32,38 +33,45 @@
  * <b>Console fop formats</b>
  */
 
-DEF(c2_cons_fop_fid, RECORD,
-    _(cons_seq, U64),
-    _(cons_oid, U64));
+record {
+	u64 cons_seq;
+	u64 cons_oid
+} c2_cons_fop_fid;
 
-DEF(c2_cons_fop_buf, SEQUENCE,
-    _(cons_size, U32),
-    _(cons_buf, BYTE));
+sequence {
+	u32 cons_size;
+	u8  cons_buf
+} c2_cons_fop_buf;
 
-DEF(c2_cons_fop_test, RECORD,
-    _(cons_id, c2_cons_fop_fid),
-    _(cons_test_type, BYTE),
-    _(cons_test_id, U64));
+record {
+       c2_cons_fop_fid cons_id;
+       u8              cons_test_type;
+       u64             cons_test_id
+} c2_cons_fop_test;
 
-/** Device failure notification fop
-    - id	  : Console id.
-    - notify_type : Device failure notification.
-    - dev_id 	  : Device ID(Disk ID in case disk failure).
-    - dev_name 	  : Device name(In case of disk it could be volume name).
+/**
+ *  Device failure notification fop
+ *  - id          : Console id.
+ *  - notify_type : Device failure notification.
+ *  - dev_id      : Device ID (Disk ID in case disk failure).
+ *  - dev_name    : Device name (In case of disk it could be volume name).
  */
-DEF(c2_cons_fop_device, RECORD,
-    _(cons_id, c2_cons_fop_fid),
-    _(cons_notify_type, U32),
-    _(cons_dev_id, U64),
-    _(cons_dev_name, c2_cons_fop_buf));
+record {
+       c2_cons_fop_fid cons_id;
+       u32             cons_notify_type;
+       u64             cons_dev_id;
+       c2_cons_fop_buf cons_dev_name
+} c2_cons_fop_device;
 
-/** Reply fop to the notification fop
-    - notify_type : Notification type of request fop.
-    - return 	  : Opcode of request fop.
+/**
+ *  Reply fop to the notification fop
+ *  - notify_type : Notification type of request fop.
+ *  - return      : Opcode of request fop.
  */
-DEF(c2_cons_fop_reply, RECORD,
-    _(cons_notify_type, U32),
-    _(cons_return, U32));
+record {
+       u32 cons_notify_type;
+       u32 cons_return
+} c2_cons_fop_reply;
 
 /** @} end of console group */
 
@@ -76,4 +84,3 @@ DEF(c2_cons_fop_reply, RECORD,
  *  scroll-step: 1
  *  End:
  */
-

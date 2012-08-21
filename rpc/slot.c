@@ -29,15 +29,8 @@
 #include "lib/bitstring.h"
 #include "cob/cob.h"
 #include "fop/fop.h"
-#include "fop/fop_format_def.h"
 #include "lib/arith.h"
-
-#ifdef __KERNEL__
-#include "rpc/session_k.h"
-#else
-#include "rpc/session_u.h"
-#endif
-
+#include "rpc/session_xc.h"
 #include "rpc/session_internal.h"
 #include "db/db.h"
 #include "dtm/verno.h"

@@ -23,8 +23,10 @@
 #include "lib/trace.h"
 #include "lib/misc.h"    /* C2_SET0 */
 #include "lib/memory.h"
+#include "lib/tlist.h"
 #include "addb/addb.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc_machine.h"
+#include "rpc/item.h"
 #include "rpc/formation2.h"
 #include "rpc/packet.h"
 

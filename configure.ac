@@ -334,6 +334,16 @@ AX_PROG_PERL_MODULES(List::MoreUtils, , AC_MSG_ERROR(No List::MoreUtils Perl \
 module found: it can be installed from perl-List-MoreUtils package on Red Hat \
 based systems))
 
+# following two perl modules are required for scripts/check-include-guards
+# script
+AX_PROG_PERL_MODULES(File::Find::Rule, , AC_MSG_ERROR(No File::Find::Rule Perl \
+module found: it can be installed from perl-File-Find-Rule package on Red Hat \
+based systems))
+
+AX_PROG_PERL_MODULES(IO::All, , AC_MSG_ERROR(No IO::All Perl \
+module found: it can be installed from perl-IO-All package on Red Hat \
+based systems))
+
 AC_ARG_ENABLE([coverage],
 	[AC_HELP_STRING([--enable-coverage], [build for test coverage analysis])],
 	[case "${enableval}" in
@@ -639,8 +649,7 @@ AC_SUBST([KCFLAGS])
 AC_CONFIG_FILES([
                  Makefile
                  addb/Makefile
-                 addb/addb_pseudo/Makefile
-                 addb/addbff/Makefile
+		 addb/addbff/Makefile
 		 addb/ut/Makefile
                  balloc/Makefile
                  balloc/ut/Makefile
@@ -668,8 +677,6 @@ AC_CONFIG_FILES([
                  fol/Makefile
                  fol/ut/Makefile
                  fop/Makefile
-                 fop/fop2c
-                 fop/rt/Makefile
                  fop/ut/Makefile
                  fop/ut/long_lock/Makefile
                  ioservice/Makefile
@@ -701,6 +708,7 @@ AC_CONFIG_FILES([
                  rpc/ut/Makefile
                  rpc/it/Makefile
 		 rpc/it/linux_kernel/Makefile
+		 scripts/Makefile
                  sm/Makefile
                  sm/ut/Makefile
                  sns/Makefile
@@ -726,10 +734,6 @@ AC_CONFIG_FILES([
                 ])
 AC_OUTPUT
 
-#
-# Set up execute bit on our "compiler" generated from fop2c.in above.
-#
-chmod +x fop/fop2c
 #
 # Set up execute bit for UT scripts.
 #

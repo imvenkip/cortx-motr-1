@@ -31,7 +31,7 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"      /* C2_LOG and C2_ENTRY */
 #include "ioservice/io_fops.h"
-#include "ioservice/io_fops_k.h"
+#include "ioservice/io_fops_xc.h"
 
 /* Imports */
 struct c2_net_domain;

@@ -20,21 +20,15 @@
 
 #pragma once
 
-#ifndef __IOSERVICE_ST_COMMON_H__
-#define __IOSERVICE_ST_COMMON_H__
+#ifndef __COLIBRI_IOSERVICE_ST_COMMON_H__
+#define __COLIBRI_IOSERVICE_ST_COMMON_H__
 
 #include "lib/list.h"
 #include "colibri/init.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "ioservice/io_fops.h"	/* c2_io_fop */
-
-#ifdef __KERNEL__
-#include "ioservice/io_fops_k.h"
-#else
-#include "ioservice/io_fops_u.h"
-#endif
-
+#include "ioservice/io_fops_xc.h"
 #include "rpc/rpc2.h"		/* c2_rpc_bulk, c2_rpc_bulk_buf */
 #include "rpc/rpc_opcodes.h"	/* enum C2_RPC_OPCODES */
 #include "rpc/rpclib.h"		/* c2_rpc_ctx */
@@ -152,4 +146,4 @@ void io_fops_destroy(struct bulkio_params *bp);
 void io_fops_create(struct bulkio_params *bp, enum C2_RPC_OPCODES op,
 		    int fids_nr, int fops_nr, int segs_nr);
 
-#endif /* __IOSERVICE_ST_COMMON_H__ */
+#endif /* __COLIBRI_IOSERVICE_ST_COMMON_H__ */

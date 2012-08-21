@@ -32,13 +32,9 @@
 #include "stob/stob.h"
 #include "net/net.h"
 #include "fop/fop.h"
-#include "fop/fom.h"
-#include "fop/fop_iterator.h"
 #include "dtm/dtm.h"
-#include "fop/fop_format_def.h"
 #include "rpc/rpc2.h"
 #include "reqh/reqh_service.h"
-
 #include "reqh/reqh.h"
 
 /**
