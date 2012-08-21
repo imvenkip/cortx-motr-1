@@ -409,14 +409,9 @@ static void cm_fini(struct c2_cm *cm)
 	C2_ENTRY();
 	C2_PRE(c2_cm_invariant(cm));
 
-	/*
-	 * Destroy buffer pool and cobfid_map only if cm_setup() was successful.
-	 */
-	if (cm->cm_mach.sm_state == C2_CMS_IDLE) {
-		rcm = cm2sns(cm);
-		c2_net_buffer_pool_fini(&rcm->rc_bp);
-		c2_cobfid_map_put(cm->cm_service.rs_reqh);
-	}
+	rcm = cm2sns(cm);
+	c2_net_buffer_pool_fini(&rcm->rc_bp);
+	c2_cobfid_map_put(cm->cm_service.rs_reqh);
 
 	C2_LEAVE();
 }

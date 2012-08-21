@@ -560,7 +560,9 @@ void c2_cm_fini(struct c2_cm *cm)
 
 	cm_sm_fini(cm);
 	C2_ASSERT(c2_cm_invariant(cm));
-	cm->cm_ops->cmo_fini(cm);
+	/* Call ->cmo_fini() only if c2_cm_setup() was successful. */
+	if (C2_IN(cm->cm_mach.sm_state, (C2_CMS_IDLE, C2_CMS_FAIL)))
+		cm->cm_ops->cmo_fini(cm);
 	c2_cm_sw_fini(&cm->cm_sw);
 	c2_addb_ctx_fini(&cm->cm_addb);
 	C2_LOG("CM:Copy Machine: %s:ID: %lu: STATE: %i",
