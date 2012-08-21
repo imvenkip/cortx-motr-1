@@ -9,6 +9,7 @@ libc2_ut_la_SOURCES  = main.c \
                        getopts.c \
                        list.c \
                        memory.c \
+		       misc.c \
                        mutex.c \
                        processor.c \
                        queue.c \

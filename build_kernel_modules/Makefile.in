@@ -117,7 +117,7 @@ lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c  \
 lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c    \
                                    mutex.c queue.c refs.c tlist.c time.c      \
                                    vec.c zerovec.c thread.c bob.c trace.c     \
-                                   memory.c finject.c
+                                   memory.c finject.c misc.c
 
 net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c    \
                                    tm.c connection.c net_cli.c net_utils.c    \

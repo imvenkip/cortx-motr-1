@@ -35,7 +35,8 @@ struct c2_uint128 {
 bool c2_uint128_eq (const struct c2_uint128 *u0, const struct c2_uint128 *u1);
 int  c2_uint128_cmp(const struct c2_uint128 *u0, const struct c2_uint128 *u1);
 void c2_uint128_init(struct c2_uint128 *u128, const char *magic);
-void c2_uint128_set(struct c2_uint128 *u128, uint64_t hi, uint64_t lo);
+struct c2_uint128 *
+c2_uint128_set(struct c2_uint128 *u128, uint64_t hi, uint64_t lo);
 /** u128 += v128; */
 void c2_uint128_add(struct c2_uint128 *u128, const struct c2_uint128 *v128);
 /** u128 = a * b; */
