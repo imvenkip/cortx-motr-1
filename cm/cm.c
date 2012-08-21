@@ -388,12 +388,12 @@ int c2_cm_start(struct c2_cm *cm)
 	C2_PRE(cm->cm_type != NULL);
 
 	c2_cm_group_lock(cm);
-	C2_PRE(c2_cm_state_get(cm) == C2_CMS_INIT);
+	C2_PRE(c2_cm_state_get(cm) == C2_CMS_IDLE);
 	C2_PRE(c2_cm_invariant(cm));
 
+	c2_cm_state_set(cm, C2_CMS_ACTIVE);
 	rc = cm->cm_ops->cmo_start(cm);
 	if (rc == 0) {
-		c2_cm_state_set(cm, C2_CMS_IDLE);
 		cm->cm_mach.sm_rc = C2_CM_SUCCESS;
 		C2_LOG("CM:%s copy machine:ID: %lu: STATE: %i",
 		       (char *)cm->cm_type->ct_stype.rst_name, cm->cm_id,

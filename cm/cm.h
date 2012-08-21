@@ -123,6 +123,8 @@ enum c2_cm_state {
 /** Various copy machine related error codes. */
 enum c2_cm_rc {
 	C2_CM_SUCCESS,
+	/** Copy machine setup failure */
+	C2_CM_ERR_SETUP,
 	/** Copy machine start failure */
 	C2_CM_ERR_START,
 	/** Copy machine configuration failure. */
