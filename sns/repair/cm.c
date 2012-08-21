@@ -368,9 +368,10 @@ static int cm_start(struct c2_cm *cm)
 		 */
 		cm->cm_sw.sw_sz = bufs_nr;
 		/*
-		 * TODO: Send READY FOPs to other replicas in the cluster with sliding window
-		 * size, calculate the minimum sliding window size within the cluster, update
-		 * local sliding window size and create copy packets accordingly.
+		 * TODO: Send READY FOPs to other replicas in the cluster with
+		 * sliding window size, calculate the minimum sliding window size
+		 * within the cluster, update local sliding window size and
+		 * create copy packets accordingly.
 		 */
 		c2_cm_cp_create(cm);
 	} else
