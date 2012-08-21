@@ -306,6 +306,12 @@
  *   <hr>
  *   @section CPDLD-ref References
  *
+ *   - <a href="https://docs.google.com/a/xyratex.com/document/d/1Yz25F3GjgQVXzvM1sdlGQvVDSUu-v7FhdUvFhiY_vwM/edit#">
+ *   HLD of SNS Repair</a>
+ *
+ *   - <a href="https://docs.google.com/a/xyratex.com/document/d/1ZlkjayQoXVm-prMxTkzxb1XncB6HU19I19kwrV-8eQc/edit#">
+ *   HLD of Copy machine and agents</a>
+ *
  */
 
 /**
