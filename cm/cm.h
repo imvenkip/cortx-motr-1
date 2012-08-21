@@ -202,7 +202,7 @@ struct c2_cm_ops {
 	void (*cmo_done)(struct c2_cm *cm);
 
 	/** Invoked from c2_cm_stop (). */
-	void (*cmo_stop)(struct c2_cm *cm);
+	int (*cmo_stop)(struct c2_cm *cm);
 
 	/** Creates copy packets after consulting sliding window. */
 	struct c2_cm_cp *(*cmo_cp_alloc)(struct c2_cm *cm);

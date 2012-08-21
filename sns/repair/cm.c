@@ -353,19 +353,28 @@ static int cm_setup(struct c2_cm *cm)
 static int cm_start(struct c2_cm *cm)
 {
 	struct c2_sns_repair_cm *rcm;
+	int                      bufs_nr;
 	int                      rc;
 
 	C2_ENTRY();
 
 	rcm = cm2sns(cm);
-	/*
-	 * TODO: Send READY FOPs to other replicas in the cluster with sliding window
-	 * size, calculate the minimum sliding window size within the cluster to start
-	 * and create copy packets accordngly.
-	 */
-	rc = c2_net_buffer_pool_provision(&rcm->rc_bp, SNS_BUF_NR);
-	if (rc == 0)
+	bufs_nr = c2_net_buffer_pool_provision(&rcm->rc_bp, SNS_BUF_NR);
+	if (bufs_nr > 0) {
+		/*
+		 * Set sliding size to number of available buffers in the buffer
+		 * pool. This may change later after receiving sliding window
+		 * sizes of other replicas. The minimum of all is selected.
+		 */
+		cm->cm_sw.sw_sz = bufs_nr;
+		/*
+		 * TODO: Send READY FOPs to other replicas in the cluster with sliding window
+		 * size, calculate the minimum sliding window size within the cluster, update
+		 * local sliding window size and create copy packets accordingly.
+		 */
 		c2_cm_cp_create(cm);
+	} else
+		rc = -ENOMEM;
 
 	C2_LEAVE();
 	return rc;
@@ -381,21 +390,35 @@ static void cm_done(struct c2_cm *cm)
      */
 }
 
-static void cm_stop(struct c2_cm *cm)
+static int cm_stop(struct c2_cm *cm)
 {
 	C2_PRE(cm != NULL);
 
-    /*
-     * Broadcast STOP FOPs to all other replicas and wait for
-     * for STOP FOPs from all other replicas.
-     * Transition CM to STOP state.
-     */
+	/*
+	* Broadcast STOP FOPs to all other replicas and wait for
+	* for STOP FOPs from all other replicas.
+	* Transition CM to IDLE state.
+	*/
+	return 0;
 }
 
 static void cm_fini(struct c2_cm *cm)
 {
+	struct c2_sns_repair_cm *rcm;
+
 	C2_ENTRY();
-	C2_PRE(cm != NULL);
+	C2_PRE(c2_cm_invariant(cm));
+
+	/*
+	 * Destroy buffer pool and cobfid_map only if cm_setup() was successful.
+	 */
+	if (cm->cm_mach.sm_state == C2_CMS_IDLE) {
+		rcm = cm2sns(cm);
+		c2_net_buffer_pool_fini(&rcm->rc_bp);
+		c2_cobfid_map_put(cm->cm_service.rs_reqh);
+	}
+
+	C2_LEAVE();
 }
 
 /** Copy machine operations. */

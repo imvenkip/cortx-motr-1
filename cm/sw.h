@@ -54,7 +54,7 @@ struct c2_cm_sw {
 	 * @note: For single node this is equivalent to the size of the local
 	 * copy machine buffer pool.
 	 */
-	size_t                      sw_recv_sz;
+	size_t                      sw_sz;
 
         /** List of aggregation groups to be processed by the copy machine.*/
         struct c2_tl                sw_aggr_grps;

@@ -526,7 +526,7 @@ void c2_cm_fini(struct c2_cm *cm)
 	C2_ENTRY();
 	C2_PRE(cm != NULL);
 	C2_PRE(C2_IN(cm->cm_mach.sm_state, (C2_CMS_STOP, C2_CMS_INIT,
-					   C2_CMS_FAIL)));
+					    C2_CMS_FAIL)));
 
 	cm_sm_fini(cm);
 	C2_ASSERT(c2_cm_invariant(cm));
