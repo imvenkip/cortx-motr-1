@@ -381,7 +381,7 @@ static void cm_done(struct c2_cm *cm)
      */
 }
 
-static void cm_stop(struct c2_cm *cm)
+static int cm_stop(struct c2_cm *cm)
 {
 	C2_PRE(cm != NULL);
 
@@ -390,6 +390,7 @@ static void cm_stop(struct c2_cm *cm)
      * for STOP FOPs from all other replicas.
      * Transition CM to STOP state.
      */
+	return 0;
 }
 
 static void cm_fini(struct c2_cm *cm)

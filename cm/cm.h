@@ -132,6 +132,8 @@ enum c2_cm_rc {
 	C2_CM_ERR_CONF,
 	/** Copy machine operational failure. */
 	C2_CM_ERR_OP,
+	/** Copy machine stop failure */
+	C2_CM_ERR_STOP,
 	C2_CM_NR
 };
 
@@ -205,7 +207,7 @@ struct c2_cm_ops {
 	void (*cmo_done)(struct c2_cm *cm);
 
 	/** Invoked from c2_cm_stop (). */
-	void (*cmo_stop)(struct c2_cm *cm);
+	int (*cmo_stop)(struct c2_cm *cm);
 
 	/** Creates copy packets after consulting sliding window. */
 	struct c2_cm_cp *(*cmo_cp_alloc)(struct c2_cm *cm);
@@ -307,8 +309,14 @@ int c2_cm_setup(struct c2_cm *cm);
  */
 int c2_cm_start(struct c2_cm *cm);
 
-/** Invokes copy machine specific stop routine (->cmo_stop()). */
-void c2_cm_stop(struct c2_cm *cm);
+/**
+ * Stops the copy machine data restructuring process by sending the "STOP" fop.
+ * Invokes copy machine specific stop routine (->cmo_stop()).
+ * @pre cm!= NULL && cm->mach &&
+ * C2_PRE(C2_IN(cm->mach.sm_state, (C2_CMS_ACTIVE, C2_CMS_IDLE)));
+ * @post (C2_IN(cm->mach.sm_state, (C2_CMS_IDLE, C2_CMS_FAIL2_cm_stop)));
+ */
+int c2_cm_stop(struct c2_cm *cm);
 
 /**
  * Configures a copy machine replica.

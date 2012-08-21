@@ -219,6 +219,9 @@ C2_ADDB_EV_DEFINE(cm_setup_fail, "cm_setup_fail",
 C2_ADDB_EV_DEFINE(cm_start_fail, "cm_start_fail",
 		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
+C2_ADDB_EV_DEFINE(cm_stop_fail, "cm_stop_fail",
+		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
+
 const struct c2_addb_loc c2_cm_addb_loc = {
 	.al_name = "copy machine"
 };
@@ -246,7 +249,7 @@ const struct c2_sm_state_descr c2_cm_state_descr[C2_CMS_NR] = {
 		.sd_ex		= NULL,
 		.sd_invariant	= NULL,
 		.sd_allowed	= (1 << C2_CMS_FAIL)|(1 << C2_CMS_READY)|
-				  (1 << C2_CMS_STOP)
+				  (1 << C2_CMS_STOP) | (1 << C2_CMS_FINI)
 	},
 	[C2_CMS_READY] = {
 		.sd_flags	= 0,
@@ -421,7 +424,7 @@ int c2_cm_start(struct c2_cm *cm)
 		        c2_cm_state_get(cm));
 	} else {
 		c2_sm_fail(&cm->cm_mach, C2_CMS_FAIL, C2_CM_ERR_START);
-		C2_ADDB_ADD(&cm->cm_addb, &c2_cm_addb_loc,cm_start_fail,
+		C2_ADDB_ADD(&cm->cm_addb, &c2_cm_addb_loc, cm_start_fail,
 			    "c2_cm_start", cm->cm_mach.sm_rc);
 	}
 	C2_POST(c2_cm_invariant(cm));
@@ -430,8 +433,9 @@ int c2_cm_start(struct c2_cm *cm)
 	return rc;
 }
 
-void c2_cm_stop(struct c2_cm *cm)
+int c2_cm_stop(struct c2_cm *cm)
 {
+	int	rc;
 	C2_ENTRY();
 	C2_PRE(cm != NULL);
 
@@ -439,15 +443,25 @@ void c2_cm_stop(struct c2_cm *cm)
 	C2_PRE(C2_IN(c2_cm_state_get(cm), (C2_CMS_ACTIVE, C2_CMS_IDLE)));
 	C2_PRE(c2_cm_invariant(cm));
 
-	cm->cm_ops->cmo_stop(cm);
 	c2_cm_state_set(cm, C2_CMS_STOP);
-	C2_LOG("CM:%s copy machine:ID: %lu: STATE: %i",
-	      (char *)cm->cm_type->ct_stype.rst_name, cm->cm_id,
-	      c2_cm_state_get(cm));
+	rc = cm->cm_ops->cmo_stop(cm);
+	if (rc == 0) {
+		cm->cm_mach.sm_rc = C2_CM_SUCCESS;
+		c2_cm_state_set(cm, C2_CMS_IDLE);
+		C2_LOG("CM:%s copy machine:ID: %lu: STATE: %i",
+	              (char *)cm->cm_type->ct_stype.rst_name, cm->cm_id,
+	      	      c2_cm_state_get(cm));
+	} else {
+		c2_sm_fail(&cm->cm_mach, C2_CMS_FAIL, C2_CM_ERR_STOP);
+		C2_ADDB_ADD(&cm->cm_addb, &c2_cm_addb_loc,cm_stop_fail,
+			    "c2_cm_stop", cm->cm_mach.sm_rc);
+	}
 	C2_POST(c2_cm_invariant(cm));
 	c2_cm_group_unlock(cm);
 	C2_LEAVE();
+	return rc;
 }
+
 
 int c2_cms_init(void)
 {
@@ -541,7 +555,7 @@ void c2_cm_fini(struct c2_cm *cm)
 {
 	C2_ENTRY();
 	C2_PRE(cm != NULL);
-	C2_PRE(C2_IN(cm->cm_mach.sm_state, (C2_CMS_STOP, C2_CMS_INIT,
+	C2_PRE(C2_IN(cm->cm_mach.sm_state, (C2_CMS_STOP, C2_CMS_IDLE,
 					   C2_CMS_FAIL)));
 
 	cm_sm_fini(cm);
