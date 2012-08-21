@@ -19,8 +19,9 @@
  */
 
 /**
- * This files has 7 test-cases in all. Out of these seven cases, six cases deal
- * with cookie-APIs, and one case tests the function c2_addr_is_sane.
+ * This file has seven test-cases in all. Out of these seven cases, 
+ * six cases deal with cookie-APIs, and one case tests the function 
+ * c2_addr_is_sane.
  * The six cases related to cookie-APIs are as below:
  * Test No.0: Test for a valid cookie.
  * Test No.1: Test for a cookie holding a NULL pointer.
