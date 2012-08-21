@@ -23,7 +23,6 @@
 
 #include "lib/time.h"		/* c2_time_t */
 #include "net/test/stats.h"	/* c2_net_test_stats */
-#include "net/test/uint256.h"	/* c2_net_test_uint256 */
 
 /**
    @addtogroup NetTestStatsDFS

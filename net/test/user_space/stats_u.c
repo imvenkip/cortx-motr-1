@@ -23,6 +23,8 @@
 #endif
 
 #include <math.h>	/* sqrt */
+#include "lib/types.h"	/* UINT64_MAX */
+#include "lib/assert.h"	/* C2_PRE */
 
 #include "net/test/stats.h"
 
@@ -35,11 +37,16 @@
    @{
  */
 
+static double double_get(const struct c2_uint128 *v128)
+{
+	return v128->u_lo * 1. + v128->u_hi * (UINT64_MAX + 1.);
+}
+
 double c2_net_test_stats_sum(const struct c2_net_test_stats *stats)
 {
 	C2_PRE(c2_net_test_stats_invariant(stats));
 
-	return c2_net_test_uint256_double_get(&stats->nts_sum);
+	return double_get(&stats->nts_sum);
 }
 
 double c2_net_test_stats_avg(const struct c2_net_test_stats *stats)
@@ -48,7 +55,7 @@ double c2_net_test_stats_avg(const struct c2_net_test_stats *stats)
 
 	C2_PRE(c2_net_test_stats_invariant(stats));
 
-	sum = c2_net_test_uint256_double_get(&stats->nts_sum);
+	sum = double_get(&stats->nts_sum);
 	return stats->nts_count == 0 ? 0. : sum / stats->nts_count;
 }
 
@@ -66,7 +73,7 @@ double c2_net_test_stats_stddev(const struct c2_net_test_stats *stats)
 
 	mean	= c2_net_test_stats_avg(stats);
 	N	= stats->nts_count;
-	sum_sqr	= c2_net_test_uint256_double_get(&stats->nts_sum_sqr);
+	sum_sqr	= double_get(&stats->nts_sum_sqr);
 	stddev	= (sum_sqr - N * mean * mean) / (N - 1.);
 	stddev  = stddev < 0. ? 0. : stddev;
 	stddev	= sqrt(stddev);

@@ -24,6 +24,10 @@
 #include "lib/arith.h"      /* C2_3WAY */
 #include "lib/misc.h"
 
+#ifndef __KERNEL__
+#include <limits.h>	    /* CHAR_BIT */
+#endif
+
 void __dummy_function(void)
 {
 }
@@ -39,6 +43,47 @@ bool c2_uint128_eq(const struct c2_uint128 *u0, const struct c2_uint128 *u1)
 int c2_uint128_cmp(const struct c2_uint128 *u0, const struct c2_uint128 *u1)
 {
 	return C2_3WAY(u0->u_hi, u1->u_hi) ?: C2_3WAY(u0->u_lo, u1->u_lo);
+}
+
+void c2_uint128_set(struct c2_uint128 *u128, uint64_t hi, uint64_t lo)
+{
+	u128->u_hi = hi;
+	u128->u_lo = lo;
+}
+
+void c2_uint128_add(struct c2_uint128 *u128, const struct c2_uint128 *v128)
+{
+	bool carry = u128->u_lo + v128->u_lo < u128->u_lo;
+
+	u128->u_lo += v128->u_lo;
+	u128->u_hi += v128->u_hi + carry;
+}
+
+void c2_uint128_mul(struct c2_uint128 *u128, uint64_t a, uint64_t b)
+{
+	struct c2_uint128 v128;
+	uint64_t	  low1 = (1ul << 32) - 1;
+	uint64_t	  a_lo = a & low1;
+	uint64_t	  a_hi = a >> 32;
+	uint64_t	  b_lo = b & low1;
+	uint64_t	  b_hi = b >> 32;
+	uint64_t	  c;
+
+	C2_CASSERT((sizeof a) * CHAR_BIT == 64);
+
+	/*
+	 * a * b = a_hi * b_hi * (1 << 64) +
+	 *	   a_lo * b_lo +
+	 *	   a_lo * b_hi * (1 << 32) +
+	 *	   a_hi * b_lo * (1 << 32)
+	 */
+	c2_uint128_set(u128, a_hi * b_hi, a_lo * b_lo);
+	c = a_lo * b_hi;
+	c2_uint128_set(&v128, c >> 32, (c & low1) << 32);
+	c2_uint128_add(u128, &v128);
+	c = a_hi * b_lo;
+	c2_uint128_set(&v128, c >> 32, (c & low1) << 32);
+	c2_uint128_add(u128, &v128);
 }
 
 #if 0

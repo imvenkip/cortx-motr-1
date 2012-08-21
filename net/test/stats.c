@@ -45,20 +45,26 @@ void c2_net_test_stats_init(struct c2_net_test_stats *stats)
 
 bool c2_net_test_stats_invariant(const struct c2_net_test_stats *stats)
 {
+	static const struct c2_uint128 zero = {
+		.u_hi = 0,
+		.u_lo = 0
+	};
+
 	if (stats == NULL)
 		return false;
-	if (stats->nts_count == 0) {
-	       if (stats->nts_min != 0 || stats->nts_max != 0 ||
-		   !c2_net_test_uint256_is_eq(&stats->nts_sum, 0) ||
-		   !c2_net_test_uint256_is_eq(&stats->nts_sum_sqr, 0))
-		       return false;
-	}
+	if (stats->nts_count == 0 &&
+	    (stats->nts_min != 0 || stats->nts_max != 0 ||
+	     !c2_uint128_eq(&stats->nts_sum, &zero) ||
+	     !c2_uint128_eq(&stats->nts_sum_sqr, &zero)))
+	       return false;
 	return true;
 }
 
 void c2_net_test_stats_add(struct c2_net_test_stats *stats,
 			   unsigned long value)
 {
+	struct c2_uint128 v128;
+
 	C2_PRE(c2_net_test_stats_invariant(stats));
 
 	stats->nts_count++;
@@ -69,8 +75,11 @@ void c2_net_test_stats_add(struct c2_net_test_stats *stats,
 		stats->nts_min = min_check(stats->nts_min, value);
 		stats->nts_max = max_check(stats->nts_max, value);
 	}
-	c2_net_test_uint256_add(&stats->nts_sum, value);
-	c2_net_test_uint256_add_sqr(&stats->nts_sum_sqr, value);
+	C2_CASSERT(sizeof value <= sizeof stats->nts_sum.u_hi);
+	c2_uint128_set(&v128, 0, value);
+	c2_uint128_add(&stats->nts_sum, &v128);
+	c2_uint128_mul(&v128, value, value);
+	c2_uint128_add(&stats->nts_sum_sqr, &v128);
 }
 
 void c2_net_test_stats_add_stats(struct c2_net_test_stats *stats,
@@ -87,9 +96,8 @@ void c2_net_test_stats_add_stats(struct c2_net_test_stats *stats,
 		stats->nts_max = max_check(stats->nts_max, stats2->nts_max);
 	}
 	stats->nts_count += stats2->nts_count;
-	c2_net_test_uint256_add_uint256(&stats->nts_sum, &stats2->nts_sum);
-	c2_net_test_uint256_add_uint256(&stats->nts_sum_sqr,
-					&stats2->nts_sum_sqr);
+	c2_uint128_add(&stats->nts_sum, &stats2->nts_sum);
+	c2_uint128_add(&stats->nts_sum_sqr, &stats2->nts_sum_sqr);
 }
 
 unsigned long c2_net_test_stats_min(const struct c2_net_test_stats *stats)
@@ -112,15 +120,20 @@ TYPE_DESCR(c2_net_test_stats) = {
 	FIELD_DESCR(struct c2_net_test_stats, nts_max),
 };
 
+TYPE_DESCR(c2_uint128) = {
+	FIELD_DESCR(struct c2_uint128, u_hi),
+	FIELD_DESCR(struct c2_uint128, u_lo),
+};
+
 c2_bcount_t c2_net_test_stats_serialize(enum c2_net_test_serialize_op op,
 					struct c2_net_test_stats *stats,
 					struct c2_bufvec *bv,
 					c2_bcount_t bv_offset)
 {
-	struct c2_net_test_uint256 *p_uint256;
-	c2_bcount_t		    len_total;
-	c2_bcount_t		    len;
-	int			    i;
+	struct c2_uint128 *pv128;
+	c2_bcount_t	   len_total;
+	c2_bcount_t	   len;
+	int		   i;
 
 	len = c2_net_test_serialize(op, stats,
 				    USE_TYPE_DESCR(c2_net_test_stats),
@@ -128,10 +141,11 @@ c2_bcount_t c2_net_test_stats_serialize(enum c2_net_test_serialize_op op,
 	len_total = len;
 	for (i = 0; i < 2; ++i) {
 		if (len != 0) {
-			p_uint256 = stats == NULL ? NULL : i == 0 ?
-				    &stats->nts_sum : &stats->nts_sum_sqr;
-			len = c2_net_test_uint256_serialize(op, p_uint256, bv,
-							bv_offset + len_total);
+			pv128 = stats == NULL ? NULL : i == 0 ?
+				&stats->nts_sum : &stats->nts_sum_sqr;
+			len = c2_net_test_serialize(op, pv128,
+						    USE_TYPE_DESCR(c2_uint128),
+						    bv, bv_offset + len_total);
 			len_total += len;
 		}
 	}

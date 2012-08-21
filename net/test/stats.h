@@ -22,7 +22,8 @@
 #define __NET_TEST_STATS_H__
 
 #include "lib/time.h"		/* c2_time_t */
-#include "net/test/uint256.h"	/* c2_net_test_uint256 */
+
+#include "net/test/serialize.h"	/* c2_net_test_serialize */
 
 #ifndef __KERNEL__
 #include "net/test/user_space/stats_u.h"	/* c2_net_test_stats_avg */
@@ -34,7 +35,7 @@
 
    @todo Move to lib/stats.h
 
-   Arithmetic mean calculation (LaTeX):
+   Arithmetic mean calculation:
    \f[ \overline{x} = \frac {1}{N} \sum\limits_{i=1}^N {x_i} \f]
    It is assumed that arithmetic mean = 0 if N == 0.
 
@@ -75,25 +76,18 @@ enum {
    standard deviation can be calculated using this structure.
    When the new value is added to sample, c2_net_test_stats is
    updating according to this.
-
-   int64_t isn't enough to hold sum value (if it is number of bytes).
-   Reason:
-   100'000 (hosts) * 37'500'000 (bytes per second) EDR 12x Infiniband *
-   1000 (2012-2032 moore's law network speed increase) =
-   3.75 * 10^15 bytes per second in the cluster
-   ~3.1 * 10^7 seconds in year => ~10^23 bytes can be in sum field.
  */
 struct c2_net_test_stats {
 	/** sample size */
-	unsigned long		   nts_count;
+	unsigned long	  nts_count;
 	/** min value from sample */
-	unsigned long		   nts_min;
+	unsigned long	  nts_min;
 	/** max value from sample */
-	unsigned long		   nts_max;
+	unsigned long	  nts_max;
 	/** sum of all values from sample */
-	struct c2_net_test_uint256 nts_sum;
+	struct c2_uint128 nts_sum;
 	/** sum of squares of all values from sample */
-	struct c2_net_test_uint256 nts_sum_sqr;
+	struct c2_uint128 nts_sum_sqr;
 };
 
 /**
