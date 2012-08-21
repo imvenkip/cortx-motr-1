@@ -25,6 +25,7 @@
 #define __COLIBRI_SNS_REPAIR_CM_H__
 
 #include "cm/cm.h"
+#include "ioservice/cobfid_map.h"
 
 /**
   @page SNSRepairCMDLD-fspec SNS Repair copy machine functional specification
@@ -71,6 +72,10 @@
 
 struct c2_sns_repair_cm {
 	struct c2_cm		  rc_base;
+	/** Failure data received in trigger FOP. */
+	uint64_t                  rc_fdata;
+	struct c2_cobfid_map_iter rc_cfm_it;
+	/** Buffer pool to create copy packets. */
 	struct c2_net_buffer_pool rc_bp;
 };
 

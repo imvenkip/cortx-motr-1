@@ -304,6 +304,23 @@ static struct c2_cm_cp *cm_cp_alloc(struct c2_cm *cm)
 	return &rcp->rc_base;
 }
 
+static int cm_cp_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
+{
+	struct c2_cobfid_map    *cfm;
+	struct c2_sns_repair_cm *sns_cm;
+	uint64_t                 fdata;
+	int                      rc;
+
+	C2_PRE(cm != NULL && cp != NULL);
+
+	sns_cm = cm2sns(cm);
+	fdata = sns_cm->rc_fdata;
+	rc = c2_cobfid_map_get(cm->cm_service->rs_reqh, &cfm);
+	C2_ASSERT(rc == 0 && cfm != NULL);
+
+	return 0;
+}
+
 static int cm_start(struct c2_cm *cm)
 {
 	struct c2_sns_repair_cm *rcm;
@@ -368,12 +385,13 @@ static void cm_fini(struct c2_cm *cm)
 
 /** Copy machine operations. */
 const struct c2_cm_ops cm_ops = {
-	.cmo_start      = cm_start,
-	.cmo_config     = cm_config,
-	.cmo_cp_alloc   = cm_cp_alloc,
-	.cmo_done       = cm_done,
-	.cmo_stop       = cm_stop,
-	.cmo_fini       = cm_fini
+	.cmo_start        = cm_start,
+	.cmo_config       = cm_config,
+	.cmo_cp_alloc     = cm_cp_alloc,
+	.cmo_cp_data_next = cm_cp_data_next,
+	.cmo_done         = cm_done,
+	.cmo_stop         = cm_stop,
+	.cmo_fini         = cm_fini
 };
 
 /** @} SNSRepairCM */
