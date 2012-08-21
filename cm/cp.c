@@ -73,41 +73,41 @@
  *   <hr>
  *   @section CPDLD-req Requirements
  *
- *   - <b>R.cm.cp</b> Copy packet abstraction implemented such that it
- *     represents the data to be transferred within replica.
+ *   - @b r.cm.cp Copy packet abstraction implemented such that it
+ *	  represents the data to be transferred within replica.
  *
- *   - <b>R.cm.cp.async</b> Every read-write (receive-send) by replica
- *     should follow non-blocking processing model of Colibri design.
+ *   - @b r.cm.cp.async Every read-write (receive-send) by replica
+ *	  should follow non-blocking processing model of Colibri design.
  *
- *   - <b>R.cm.buffer_pool</b> Copy machine should provide a buffer pool, which
- *     is efficiently used for copy packet data.
+ *   - @b r.cm.buffer_pool Copy machine should provide a buffer pool, which
+ *	  is efficiently used for copy packet data.
  *
- *   - <b>R.cm.cp.bulk_transfer</b> All data packets (except control packets)
- *     that are sent over RPC should use bulk-interface for communication.
+ *   - @b r.cm.cp.bulk_transfer All data packets (except control packets)
+ *	  that are sent over RPC should use bulk-interface for communication.
  *
- *   - <b>R.cm.addb</b> Copy packet should have its own addb context, (similar
- *     to fop), although it uses various different addb locations, this will
- *     trace the entire path of the copy packet.
+ *   - @b r.cm.addb Copy packet should have its own addb context, (similar
+ *	  to fop), although it uses various different addb locations, this will
+ *	  trace the entire path of the copy packet.
  *
  *   <hr>
  *   @section CPDLD-depends Dependencies
  *
- *   - <b>R.cm.service</b> Copy packets FOMs are executed in context of copy
- *     machine replica service.
+ *   - @b r.cm.service Copy packets FOMs are executed in context of copy
+ *	  machine replica service.
  *
- *   - <b>R.cm.ops</b> Replica provides operations to create, configure and
- *     execute copy packet FOMs.
+ *   - @b r.cm.ops Replica provides operations to create, configure and
+ *	  execute copy packet FOMs.
  *
- *   - <b>R.layout</b> Data restructuring needs layout info.
+ *   - @b r.layout Data restructuring needs layout info.
  *
- *   - <b>R.layout.input-iterator</b> Iterate over layout info to create
- *   packets and forward it in replica.
+ *   - @b r.layout.input-iterator Iterate over layout info to create packets
+ *	  and forward it in replica.
  *
- *   - <b>R.resource</b> Resources like buffers, CPU cycles, network bandwidth,
- *     storage bandwidth are needed by copy packet FOM during execution.
+ *   - @b r.resource Resources like buffers, CPU cycles, network bandwidth,
+ *	  storage bandwidth are needed by copy packet FOM during execution.
  *
- *   - <b>R.confc</b> Data from configuration will be used to initialise copy
- *     packets.
+ *   - @b r.confc Data from configuration will be used to initialise copy
+ *	  packets.
  *
  *   <hr>
  *   @section CPDLD-highlights Design Highlights
@@ -192,38 +192,38 @@
  *
  *   <b>Copy packet is a state machine, goes through following stages:</b>
  *
- *   - <b>INIT</b>  Copy packet gets initialised with input data. e.g In SNS,
- *		    extent, COB, &c gets initialised. Usually this will be done
- *		    with some iterator over layout info.
+ *   - @b INIT   Copy packet gets initialised with input data. e.g In SNS,
+ *		 extent, COB, &c gets initialised. Usually this will be done
+ *		 with some iterator over layout info.
  *
- *   - <b>READ</b>  Reads data from its associated container or device according
- *		    to the input information, and places the data in a copy
- *		    packet data buffer. Before doing this, it needs to grab
- *		    necessary resources: memory, locks, permissions, CPU/disk
- *		    bandwidth, etc. Data/parity is encapsulated in copy packet,
- *		    and the copy packets are transfered to next phase.
+ *   - @b READ   Reads data from its associated container or device according
+ *		 to the input information, and places the data in a copy packet
+ *		 data buffer. Before doing this, it needs to grab necessary
+ *		 resources: memory, locks, permissions, CPU/disk bandwidth,
+ *		 etc. Data/parity is encapsulated in copy packet, and the copy
+ *		 packets are transfered to next phase.
  *
- *   - <b>WRITE</b> Writes data from copy packet data buffer to the container or
- *		    device. Spare container and offset to write is identified
- *		    from layout information.
+ *   - @b WRITE  Writes data from copy packet data buffer to the container or
+ *		 device. Spare container and offset to write is identified from
+ *		 layout information.
  *
- *   - <b>XFORM</b> Data restructuring is done in this phase. This phase would
- *		    typically process a lot of local copy packets. E.g., for
- *		    SNS repair machine, a file typically has a component object
- *		    (cob) on each device in the pool, which means that a node
- *		    could (and should) calculate "partial parity" of all local
- *		    units, instead of sending each of them separately across the
- *		    network to a remote copy machine replica.
+ *   - @b XFORM  Data restructuring is done in this phase. This phase would
+ *		 typically process a lot of local copy packets. E.g., for SNS
+ *		 repair machine, a file typically has a component object (cob)
+ *		 on each device in the pool, which means that a node could
+ *		 (and should) calculate "partial parity" of all local units,
+ *		 instead of sending each of them separately across the network
+ *		 to a remote copy machine replica.
  *
- *   - <b>SEND</b>  Send copy packet over network. Control FOP and bulk
- *		    transfer are used for sending copy packet.
+ *   - @b SEND   Send copy packet over network. Control FOP and bulk transfer
+ *		 are used for sending copy packet.
  *
- *   - <b>RECV</b>  Copy packet data is received from network. On receipt of
- *		    control FOP, copy packet is created and FOM is submitted
- *		    for execution and phase is set RECV, which will eventually
- *		    receive data using rpc bulk.
+ *   - @b RECV   Copy packet data is received from network. On receipt of
+ *		 control FOP, copy packet is created and FOM is submitted for
+ *		 execution and phase is set RECV, which will eventually receive
+ *		 data using rpc bulk.
  *
- *   - <b>FINI</b>  Finalises copy packet.
+ *   - @b FINI  Finalises copy packet.
  *
  *   Specific copy packet can have states/phases in addition to these phases.
  *   Additional states may be used to do processing under one of above phases.
@@ -283,18 +283,18 @@
  *   <hr>
  *   @section CPDLD-conformance Conformance
  *
- *   - <b>I.cm.cp</b> Replicas communicate using copy packet structure.
+ *   - @b i.cm.cp Replicas communicate using copy packet structure.
  *
- *   - <b>I.cm.cp.async</b> Copy packet are implemented as FOM. FOM in request
- *     handler infrastructure makes it non-blocking.
+ *   - @b i.cm.cp.async Copy packet are implemented as FOM. FOM in request
+ *	  handler infrastructure makes it non-blocking.
  *
- *   - <b>I.cm.buffer_pool</b> Buffer pools are managed by copy machine which
- *     cater to the requirements of copy packet data.
+ *   - @b i.cm.buffer_pool Buffer pools are managed by copy machine which
+ *	  cater to the requirements of copy packet data.
  *
- *   - <b>I.cm.cp.bulk_transfer</b> All data packets (except control packets)
- *     that are sent over RPC, use bulk-interface for communication.
+ *   - @b i.cm.cp.bulk_transfer All data packets (except control packets)
+ *	  that are sent over RPC, use bulk-interface for communication.
  *
- *   - <b>I.cm.cp.addb</b> copy packet uses ADDB context of copy machine.
+ *   - @b i.cm.cp.addb copy packet uses ADDB context of copy machine.
  *
  *   <hr>
  *   @section CPDLD-ut Unit Tests

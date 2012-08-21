@@ -64,17 +64,14 @@
   @subsection cm-setup-req Copy machine Requirements
    - @b r.cm.type Different types of copy machines are registered and
         implemented as colibri service types.
-   - @b r.cm.generic.invoke All the copy machine generic routines should be
-        invoked from copy machine service specific code.
+   - @b r.cm.generic.invoke Copy machine generic routines should be invoked from
+        copy machine service specific code.
    - @b r.cm.generic.specific Copy machine generic routines should accordingly
         invoke copy machine specific operations.
    - @b r.cm.synchronise Copy machine generic should provide synchronised access
         to members of cm.
-   - @b r.cm.sm Copy machine is implemented as colibri state machine.
-   - @b r.cm.cp.fom  Copy machine copy packets are implemented as foms, and are
-        started by copy machine using request handler.
-   - @b r.cm.async The complete data restructuring process of copy machine
-        follows non-blocking processing model of colibri design.
+   - @b r.cm.resource.manage Copy machine specific resources should be managed
+        by copy machine specific implementation, e.g. buffer pool, &c.
    - @b r.cm.failure Copy machine should handle various types of failures.
 
    <hr>
@@ -87,6 +84,13 @@
    - A copy machine service can be started using "colibri setup" utility or
      separately.
    - Once started copy machine remains idle until further event happens.
+   - Copy machine copy packets are implemented as foms, and are started by copy
+     machine using request handler.
+   - Copy machine type specific event triggers copy machine operation, (e.g.
+     TRIGGER FOP for SNS Repair). This allocates copy machine specific resources
+     and creates copy packets.
+  -  The complete data restructuring process of copy machine follows non-blocking
+     processing model of Colibri design.
 
    <hr>
    @section CMDLD-lspec Logical Specification
@@ -121,19 +125,6 @@
    }
    @enddot
 
-   @subsection CMDLD-aggr_group-lspec-state Aggregation group State diagram
-   @dot
-   digraph aggregation_group_states {
-       size = "8,12"
-       node [shape=record, fontsize=12]
-       INITIALISED [label="INTIALISED"]
-       INPROCESS [label="IN-PROCESS"]
-       FINALISED [label="FINALISED"]
-       INITIALISED -> INPROCESS [label="All cps added to aggr grp list"]
-       INPROCESS -> FINALISED [label="All cps in aggr grp have been processed"]
-   }
-   @enddot
-
    @subsection CMDLD-lspec-thread Threading and Concurrency Model
    - Copy machine is implemented as a state machine, and thus do
      not have its own thread. It runs in the context of reqh threads.
@@ -147,20 +138,17 @@
    @section CMDLD-conformance Conformance
    This section briefly describes interfaces and structures conforming to above
    mentioned copy machine requirements.
-   - @b I.cm.generic All copy machine generic routines are invoked from copy
+   - @b i.cm.generic Copy machine generic routines are invoked from copy
         machine specific code.
-   - @b I.cm.type.register Different types of copy machines are registered as
+   - @b i.cm.type.register Different types of copy machines are registered as
         colibri service types.
-   - @b I.cm.sm Copy machine is implemented as colibri state machine.
-   - @b I.cm.start Generic api's are available to initialise and start
-        any type of copy machine.
-   - @b I.cm.synchronise Copy machine provides synchronised access to the its
-        members.
-   - @b I.cm.cp.fom  Copy machine copy packets are implemented as foms, and are
-        started by copy machine using request handler.
-   - @b I.cm.async The complete data restructuring process of copy machine
-        follows non-blocking processing model of Colibri design.
-   - @b I.cm.failure Copy machine handles various types of failures.
+   - @b i.cm.generic.specific Copy machine generic routines accordingly
+        invoke copy machine specific operations.
+   - @b i.cm.synchronise Copy machine provides synchronised access to the its
+        members using c2_cm::cm_sm_group::s_mutex.
+   - @b i.cm.failure Copy machine handles various types of failures.
+   - @b i.cm.resource.manage Copy machine specific resources are managed by copy
+        machine specific implementation, e.g. buffer pool, &c.
 
    @section DLD-Agents-addb ADDB events
    - <b>cm_init_fail</b> Copy machine failed to initialise.
@@ -225,7 +213,13 @@ C2_BOB_DEFINE( , &cmtypes_bob, c2_cm_type);
 C2_ADDB_EV_DEFINE(cm_init_fail, "cm_init_fail",
 		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
+C2_ADDB_EV_DEFINE(cm_setup_fail, "cm_setup_fail",
+		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
+
 C2_ADDB_EV_DEFINE(cm_start_fail, "cm_start_fail",
+		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
+
+C2_ADDB_EV_DEFINE(cm_stop_fail, "cm_stop_fail",
 		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
 const struct c2_addb_loc c2_cm_addb_loc = {
@@ -255,7 +249,7 @@ const struct c2_sm_state_descr c2_cm_state_descr[C2_CMS_NR] = {
 		.sd_ex		= NULL,
 		.sd_invariant	= NULL,
 		.sd_allowed	= (1 << C2_CMS_FAIL)|(1 << C2_CMS_READY)|
-				  (1 << C2_CMS_STOP)
+				  (1 << C2_CMS_STOP) | (1 << C2_CMS_FINI)
 	},
 	[C2_CMS_READY] = {
 		.sd_flags	= 0,
@@ -381,7 +375,32 @@ bool c2_cm_invariant(struct c2_cm *cm)
 
 int c2_cm_setup(struct c2_cm *cm)
 {
-	return 0;
+	int	rc;
+
+	C2_ENTRY();
+	C2_PRE(cm != NULL);
+	C2_PRE(cm->cm_type != NULL);
+
+	c2_cm_group_lock(cm);
+	C2_PRE(c2_cm_state_get(cm) == C2_CMS_INIT);
+	C2_PRE(c2_cm_invariant(cm));
+
+	rc = cm->cm_ops->cmo_setup(cm);
+	if (rc == 0) {
+		cm->cm_mach.sm_rc = C2_CM_SUCCESS;
+		c2_cm_state_set(cm, C2_CMS_IDLE);
+		C2_LOG("CM:%s copy machine:ID: %lu: STATE: %i",
+		       (char *)cm->cm_type->ct_stype.rst_name, cm->cm_id,
+		        c2_cm_state_get(cm));
+	} else {
+		c2_sm_fail(&cm->cm_mach, C2_CMS_FAIL, C2_CM_ERR_SETUP);
+		C2_ADDB_ADD(&cm->cm_addb, &c2_cm_addb_loc,cm_setup_fail,
+			    "c2_cm_setup", cm->cm_mach.sm_rc);
+	}
+	C2_POST(c2_cm_invariant(cm));
+	c2_cm_group_unlock(cm);
+	C2_LEAVE();
+	return rc;
 }
 
 int c2_cm_start(struct c2_cm *cm)
@@ -393,19 +412,19 @@ int c2_cm_start(struct c2_cm *cm)
 	C2_PRE(cm->cm_type != NULL);
 
 	c2_cm_group_lock(cm);
-	C2_PRE(c2_cm_state_get(cm) == C2_CMS_INIT);
+	C2_PRE(c2_cm_state_get(cm) == C2_CMS_IDLE);
 	C2_PRE(c2_cm_invariant(cm));
 
+	c2_cm_state_set(cm, C2_CMS_ACTIVE);
 	rc = cm->cm_ops->cmo_start(cm);
 	if (rc == 0) {
-		c2_cm_state_set(cm, C2_CMS_IDLE);
 		cm->cm_mach.sm_rc = C2_CM_SUCCESS;
 		C2_LOG("CM:%s copy machine:ID: %lu: STATE: %i",
 		       (char *)cm->cm_type->ct_stype.rst_name, cm->cm_id,
 		        c2_cm_state_get(cm));
 	} else {
 		c2_sm_fail(&cm->cm_mach, C2_CMS_FAIL, C2_CM_ERR_START);
-		C2_ADDB_ADD(&cm->cm_addb, &c2_cm_addb_loc,cm_start_fail,
+		C2_ADDB_ADD(&cm->cm_addb, &c2_cm_addb_loc, cm_start_fail,
 			    "c2_cm_start", cm->cm_mach.sm_rc);
 	}
 	C2_POST(c2_cm_invariant(cm));
@@ -414,8 +433,9 @@ int c2_cm_start(struct c2_cm *cm)
 	return rc;
 }
 
-void c2_cm_stop(struct c2_cm *cm)
+int c2_cm_stop(struct c2_cm *cm)
 {
+	int	rc;
 	C2_ENTRY();
 	C2_PRE(cm != NULL);
 
@@ -423,15 +443,25 @@ void c2_cm_stop(struct c2_cm *cm)
 	C2_PRE(C2_IN(c2_cm_state_get(cm), (C2_CMS_ACTIVE, C2_CMS_IDLE)));
 	C2_PRE(c2_cm_invariant(cm));
 
-	cm->cm_ops->cmo_stop(cm);
 	c2_cm_state_set(cm, C2_CMS_STOP);
-	C2_LOG("CM:%s copy machine:ID: %lu: STATE: %i",
-	      (char *)cm->cm_type->ct_stype.rst_name, cm->cm_id,
-	      c2_cm_state_get(cm));
+	rc = cm->cm_ops->cmo_stop(cm);
+	if (rc == 0) {
+		cm->cm_mach.sm_rc = C2_CM_SUCCESS;
+		c2_cm_state_set(cm, C2_CMS_IDLE);
+		C2_LOG("CM:%s copy machine:ID: %lu: STATE: %i",
+		       (char *)cm->cm_type->ct_stype.rst_name, cm->cm_id,
+		       c2_cm_state_get(cm));
+	} else {
+		c2_sm_fail(&cm->cm_mach, C2_CMS_FAIL, C2_CM_ERR_STOP);
+		C2_ADDB_ADD(&cm->cm_addb, &c2_cm_addb_loc,cm_stop_fail,
+			    "c2_cm_stop", cm->cm_mach.sm_rc);
+	}
 	C2_POST(c2_cm_invariant(cm));
 	c2_cm_group_unlock(cm);
 	C2_LEAVE();
+	return rc;
 }
+
 
 int c2_cms_init(void)
 {
@@ -525,7 +555,7 @@ void c2_cm_fini(struct c2_cm *cm)
 {
 	C2_ENTRY();
 	C2_PRE(cm != NULL);
-	C2_PRE(C2_IN(cm->cm_mach.sm_state, (C2_CMS_STOP, C2_CMS_INIT,
+	C2_PRE(C2_IN(cm->cm_mach.sm_state, (C2_CMS_INIT, C2_CMS_IDLE,
 					    C2_CMS_FAIL)));
 
 	cm_sm_fini(cm);
