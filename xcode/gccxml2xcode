@@ -292,6 +292,24 @@ sub get_global_namespace_id
 sub get_header_file_id
 {
     my ($header_file_node) = $dom->findnodes(qq{//File[\@name='$header_file_path']});
+
+    croak "Error: unable to find xml tag for header file '$header_file_path' in"
+          . " the gccxml's output.\n\nPlease, notice that gccxml writes an exact"
+          . " path of it's input arguments into output xml, so input files for"
+          . " gccxml and gccxml2xcode should use the same path, for example:\n"
+          . "   gccxml -fxml=my_header.gccxml path/to/header/my_header.h\n"
+          . "   gccxml2xcode -i path/to/header/my_header.gccxml\n"
+          . "\n"
+          . "But not a:\n"
+          . "   gccxml -fxml=my_header.gccxml path/to/header/my_header.h\n"
+          . "   gccxml2xcode -i my_header.gccxml\n"
+          . "\n"
+          . "Or:\n"
+          . "   gccxml -fxml=my_header.gccxml my_header.h\n"
+          . "   gccxml2xcode -i path/to/header/my_header.gccxml\n"
+          . "\n"
+        if !defined $header_file_node;
+
     return $header_file_node->getAttribute('id');
 }
 
