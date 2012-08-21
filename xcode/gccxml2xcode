@@ -216,7 +216,9 @@ sub get_info_about
         when (/FundamentalType/) {
             $item->{'size'}    = $type_node->getAttribute('size');
             $item->{'type'}    = $type_node->getAttribute('name');
-            $item->{'xc_type'} = '&C2_XT_U' . $item->{'size'};
+            $item->{'xc_type'} = $item->{'type'} eq 'void'
+                                    ? 'C2_XT_UNDEFINED'
+                                    : '&C2_XT_U' . $item->{'size'};
         }
 
         when (/Typedef/) {
@@ -234,7 +236,10 @@ sub get_info_about
         when (/PointerType/) {
             $item->{'size'}    = $type_node->getAttribute('size');
             $item->{'type'}    = get_info_about($type_node)->{'type'} . '*';
-            $item->{'xc_type'} = get_info_about($type_node)->{'xc_type'};
+            $item->{'xc_type'}
+                = get_info_about($type_node)->{'type'} eq 'void'
+                    ? '&C2_XT_U' . $item->{'size'}
+                    : get_info_about($type_node)->{'xc_type'};
         }
 
         when (/ArrayType/) {
