@@ -59,6 +59,13 @@
    \f]
    It is assumed that sample standard deviation = 0 if N == 0 || N == 1.
 
+   Limits:
+   - Sample size \f$ \in \f$ [0, 2^{64} - 1];
+   - Any value from sample \f$ \in \f$ [0, 2^{64} - 1];
+   - Min and max value from sample \f$ \in \f$ [0, 2^{64} - 1];
+   - Sum of all values from sample \f$ \in [0, 2^{128} - 1] \f$;
+   - Sum of squares of all values from sample \f$ \in [0, 2^{128} - 1] \f$.
+
    @see
    @ref net-test
 
