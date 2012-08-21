@@ -58,11 +58,11 @@
  */
 
 /**
- * @defgroup CP Copy packet
+ * @defgroup CP Copy Packet
  * @ingroup CM
  *
- * @see The @ref CP "Copy Packet" its @ref CPDLD-fspec "Copy Packet Functional
- * Specification"
+ * @see The @ref CP "Copy Packet" its
+ * @ref CPDLD-fspec "Copy Packet Functional Specification"
  *
  * @{
  */
