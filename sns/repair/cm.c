@@ -63,11 +63,8 @@
 
   <hr>
   @section SNSRepairCMDLD-def Definitions
-  Refer to <a ref https://docs.google.com/a/xyratex.com/document/d/
-  1Yz25F3GjgQVXzvM1sdlGQvVDSUu-v7FhdUvFhiY_vwM/edit#heading=h.4493e2a5a920
-
-  Refer to <a ref https://docs.google.com/a/xyratex.com/document/d/
-  1ZlkjayQoXVm-prMxTkzxb1XncB6HU19I19kwrV-8eQc/edit#heading=h.8c396c004f1f>
+    Please refer to "Definitions" section in "HLD of copy machine and agents" and
+    "HLD of SNS Repair" in @ref SNSRepairCMDLD-ref
 
 
   <hr>
@@ -94,8 +91,8 @@
   - @b r.sns.repair.resources.manage It must be possible to efficiently
     manage and throttle resources.
 
-  Refer to <a ref https://docs.google.com/a/xyratex.com/document/d/
-  1Yz25F3GjgQVXzvM1sdlGQvVDSUu-v7FhdUvFhiY_vwM/edit#heading=h.c7533697f11c
+    Please refer to "Dependencies" section in "HLD of copy machine and agents"
+    and "HLD of SNS Repair" in @ref SNSRepairCMDLD-ref
 
   <hr>
   @section SNSRepairCMDLD-highlights Design Highlights
@@ -253,7 +250,14 @@
 
   <hr>
   @section SNSRepairCMDLD-ref References
-  @see @ref DLD-cm-ref
+   Following are the references to the documents from which the design is
+   derived,
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/1FX-TTaM5VttwoG4wd0Q4-AbyVUi3XL_Oc6cnC4lxLB0/edit">Copy Machine redesign.</a>
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/1ZlkjayQoXVm-prMx
+   Tkzxb1XncB6HU19I19kwrV-8eQc/edit?hl=en_US">HLD of copy machine and agents.</a
+   >
+   - <a href="https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkN
+   Xg4cXpfMTc5ZjYybjg4Y3Q&hl=en_US">HLD of SNS Repair.</a>
 */
 
 /**
