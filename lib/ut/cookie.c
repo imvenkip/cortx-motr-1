@@ -112,7 +112,7 @@ static void test_c2_cookie_dereference(struct c2_cookie *cookie_test,
 
 	/* Restoring an address in cookie, that got tampered in the last Test.
 	 */
-	cookie_test->co_addr = (uint64_t)(&obj->os_val);
+	cookie_test->co_addr = (uint64_t)&obj->os_val;
 	flag = c2_cookie_dereference(cookie_test, &addr_dummy);
 	C2_UT_ASSERT(flag == -EPROTO);
 }
