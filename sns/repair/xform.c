@@ -144,7 +144,7 @@ int repair_cp_xform(struct c2_cm_cp *cp)
                  */
                 if(ag->cag_cp_nr == ag->cag_transformed_cp_nr) {
                         res_cp->c_ops->co_phase(res_cp);
-			//c2_fom_wakeup(&res_cp->c_fom);
+			c2_fom_wakeup(&res_cp->c_fom);
 		}
 		return C2_FSO_AGAIN;
         }

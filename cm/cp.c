@@ -409,8 +409,8 @@ bool c2_cm_cp_invariant(struct c2_cm_cp *cp)
 {
 	uint32_t phase = cp->c_fom.fo_phase;
 
-	return phase >= CCP_INIT && phase <= CCP_FINI &&
-	       c2_fom_invariant(&cp->c_fom) && cp->c_ops != NULL &&
+	return phase >= C2_FOPH_INIT && phase <= CCP_FINI &&
+	       cp->c_ops != NULL &&
 	       cp->c_data != NULL && cp->c_ag != NULL;
 }
 
