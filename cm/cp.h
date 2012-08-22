@@ -37,22 +37,22 @@
  * - @ref CP "Copy Packet Functional Specification" <!-- Note link -->
  *
  * @section CPDLD-fspec-ds Data Structures
- *	- c2_cm_cp  : Generic copy packet.
- *	- c2_cm_ops : Copy packet operations.
+ *	- @b c2_cm_cp  : Generic copy packet.
+ *	- @b c2_cm_ops : Copy packet operations.
  * @section CPDLD-fspec-sub Subroutines
- *	- c2_cm_cp_init()    : Initialises copy packet members and calls
+ *	- @b c2_cm_cp_init() : Initialises copy packet members and calls
  *			       c_ops->init() to initialise specific data.
- *	- c2_cm_cp_fini()    : Finalises copy packet members and calls
+ *	- @b c2_cm_cp_fini() : Finalises copy packet members and calls
  *			       c_ops->fini() internal to finalise specific data.
- *	- c2_cm_cp_enqueue() : Posts copy packet FOM for execution.
+ *	- @b c2_cm_cp_enqueue() : Posts copy packet FOM for execution.
  *
  * @subsection CPDLD-fspec-sub-acc Accessors and Invariants
- *	- c2_cm_cp_invaraint()
+ *	- @b c2_cm_cp_invaraint()
  *
  * @subsection CPDLD-fspec-sub-opi Operational Interfaces
- *	- cp_fom_fini()
- *	- cp_fom_locality()
- *	- cp_fom_state()
+ *	- @b cp_fom_fini()
+ *	- @b cp_fom_locality()
+ *	- @b cp_fom_state()
  *
  *	@see @ref CP
  */
@@ -86,7 +86,7 @@ enum c2_cm_cp_priority {
 /**
  * Copy packet FOM generic phases.
  *
- * Packet's FOM doesn't use standard phases, but don't step on C2_FOPH_FINISH
+ * Packet's FOM doesn't use standard phases, but don't step on @b C2_FOPH_FINISH
  * which has special meaning in fom.c.
  */
 enum c2_cm_cp_phase {
@@ -159,7 +159,7 @@ struct c2_cm_cp_ops {
 	/**
 	 * Changes copy packet phase based on current phase and layout
 	 * information. FOM pahse should be set internally and should return
-	 * C2_FSO_WAIT or C2_FSO_AGAIN.
+	 * @b C2_FSO_WAIT or @b C2_FSO_AGAIN.
 	 */
 	int  (*co_phase) (struct c2_cm_cp *cp);
 };
