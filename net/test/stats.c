@@ -78,7 +78,7 @@ void c2_net_test_stats_add(struct c2_net_test_stats *stats,
 	C2_CASSERT(sizeof value <= sizeof stats->nts_sum.u_hi);
 	c2_uint128_add(&stats->nts_sum, stats->nts_sum,
 		       C2_UINT128(0, value));
-	c2_uint128_mul(&v128, value, value);
+	c2_uint128_mul64(&v128, value, value);
 	c2_uint128_add(&stats->nts_sum_sqr, stats->nts_sum_sqr, v128);
 }
 

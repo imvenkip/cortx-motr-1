@@ -70,7 +70,7 @@ static void uint128_mul_check(uint64_t a,
 {
 	struct c2_uint128 result;
 
-	c2_uint128_mul(&result, a, b);
+	c2_uint128_mul64(&result, a, b);
 	C2_UT_ASSERT(c2_uint128_eq(&result, c));
 }
 

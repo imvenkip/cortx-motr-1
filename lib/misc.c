@@ -53,7 +53,7 @@ void c2_uint128_add(struct c2_uint128 *res,
 	res->u_hi = a.u_hi + b.u_hi + (res->u_lo < a.u_lo);
 }
 
-void c2_uint128_mul(struct c2_uint128 *res, uint64_t a, uint64_t b)
+void c2_uint128_mul64(struct c2_uint128 *res, uint64_t a, uint64_t b)
 {
 	uint64_t low1 = (1ul << 32) - 1;
 	uint64_t a_lo = a & low1;

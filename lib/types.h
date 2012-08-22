@@ -42,7 +42,7 @@ void c2_uint128_add(struct c2_uint128 *res,
 		    const struct c2_uint128 a,
 		    const struct c2_uint128 b);
 /** res = a * b; */
-void c2_uint128_mul(struct c2_uint128 *res, uint64_t a, uint64_t b);
+void c2_uint128_mul64(struct c2_uint128 *res, uint64_t a, uint64_t b);
 
 /** count of bytes (in extent, IO operation, etc.) */
 typedef uint64_t c2_bcount_t;
