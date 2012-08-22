@@ -457,8 +457,17 @@ figure_loop_size(struct loop_device *lo)
 	return 0;
 }
 
+/*
+ * Do vectored I/O over backed file
+ *
+ *   - op : operation (read or write);
+ *   - n  : number of vectors in iovecs array;
+ *   - pos: position in file to read from or write to.
+ *
+ * Returns: the number of bytes processed (same as aio_read/write).
+ */
 static int do_iov_filebacked(struct loop_device *lo, unsigned long op, int n,
-                             loff_t pos, unsigned size)
+                             loff_t pos)
 {
 	struct file *file = lo->lo_backing_file;
 	ssize_t bw;
@@ -476,10 +485,7 @@ static int do_iov_filebacked(struct loop_device *lo, unsigned long op, int n,
 		bw = file->f_op->aio_write(&kiocb, lo->lo_iovecs, n, pos);
 	set_fs(old_fs);
 
-	if (likely(size == bw))
-		return 0;
-
-	return -EIO;
+	return bw;
 }
 
 
@@ -575,15 +581,18 @@ static inline void loop_handle_bios(struct loop_device *lo)
 			op = bio_rw(bio);
 		}
 
-		if ((prev_end_pos == 0 || pos == prev_end_pos)
-		    && bio_rw(bio) == op)
+		if ((prev_end_pos == 0 || pos == prev_end_pos) &&
+		    bio_rw(bio) == op)
 			goto accumulate;
 flush:
 		/*printk("flush: op=%d idx=%d bio=%p pos=%d size=%d\n",
 		       (int)op, iov_idx, bio, (int)init_pos, size);*/
 		if (iov_idx > 0) {
-			int ret = do_iov_filebacked(lo, op, iov_idx,
-						    init_pos, size);
+			int ret;
+
+			ret = do_iov_filebacked(lo, op, iov_idx, init_pos);
+			ret = (ret == size) ? 0 : -EIO;
+
 			if (bio != NULL) {
 				iov_idx = size = 0;
 				init_pos = pos;
@@ -608,8 +617,8 @@ accumulate:
 
 		bio_for_each_segment(bvec, bio, i) {
 			iov = &lo->lo_iovecs[iov_idx++];
-			iov->iov_base = page_address(bvec->bv_page)
-					+ bvec->bv_offset;
+			iov->iov_base = page_address(bvec->bv_page) +
+					bvec->bv_offset;
 			iov->iov_len = bvec->bv_len;
 		}
 
@@ -884,6 +893,10 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 
 	lo->lo_iovecs = kzalloc(BIO_MAX_PAGES * sizeof(*lo->lo_iovecs),
 	                        GFP_KERNEL);
+	if (lo->lo_iovecs == NULL)
+		error = -ENOMEM;
+		goto out_clr;
+	}
 
 	lo->lo_thread = kthread_create(loop_thread, lo, "c2loop%d",
 						lo->lo_number);
