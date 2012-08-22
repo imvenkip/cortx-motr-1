@@ -425,80 +425,6 @@ static int max_part;
 static int part_shift;
 static int C2LOOP_MAJOR;
 
-/*
- * Transfer functions
- */
-static int transfer_none(struct loop_device *lo, int cmd,
-			 struct page *raw_page, unsigned raw_off,
-			 struct page *loop_page, unsigned loop_off,
-			 int size, sector_t real_block)
-{
-	char *raw_buf = kmap_atomic(raw_page, KM_USER0) + raw_off;
-	char *loop_buf = kmap_atomic(loop_page, KM_USER1) + loop_off;
-
-	if (cmd == READ)
-		memcpy(loop_buf, raw_buf, size);
-	else
-		memcpy(raw_buf, loop_buf, size);
-
-	kunmap_atomic(raw_buf, KM_USER0);
-	kunmap_atomic(loop_buf, KM_USER1);
-	cond_resched();
-	return 0;
-}
-
-static int transfer_xor(struct loop_device *lo, int cmd,
-			struct page *raw_page, unsigned raw_off,
-			struct page *loop_page, unsigned loop_off,
-			int size, sector_t real_block)
-{
-	char *raw_buf = kmap_atomic(raw_page, KM_USER0) + raw_off;
-	char *loop_buf = kmap_atomic(loop_page, KM_USER1) + loop_off;
-	char *in, *out, *key;
-	int i, keysize;
-
-	if (cmd == READ) {
-		in = raw_buf;
-		out = loop_buf;
-	} else {
-		in = loop_buf;
-		out = raw_buf;
-	}
-
-	key = lo->lo_encrypt_key;
-	keysize = lo->lo_encrypt_key_size;
-	for (i = 0; i < size; i++)
-		*out++ = *in++ ^ key[(i & 511) % keysize];
-
-	kunmap_atomic(raw_buf, KM_USER0);
-	kunmap_atomic(loop_buf, KM_USER1);
-	cond_resched();
-	return 0;
-}
-
-static int xor_init(struct loop_device *lo, const struct loop_info64 *info)
-{
-	if (unlikely(info->lo_encrypt_key_size <= 0))
-		return -EINVAL;
-	return 0;
-}
-
-static struct loop_func_table none_funcs = {
-	.number = LO_CRYPT_NONE,
-	.transfer = transfer_none,
-};
-
-static struct loop_func_table xor_funcs = {
-	.number = LO_CRYPT_XOR,
-	.transfer = transfer_xor,
-	.init = xor_init
-};
-
-/* xfer_funcs[0] is special - its release function is never called */
-static struct loop_func_table *xfer_funcs[MAX_LO_CRYPT] = {
-	&none_funcs,
-	&xor_funcs
-};
 
 static loff_t get_loop_size(struct loop_device *lo, struct file *file)
 {
@@ -530,160 +456,6 @@ figure_loop_size(struct loop_device *lo)
 	set_capacity(lo->lo_disk, x);
 	return 0;
 }
-
-static inline int
-lo_do_transfer(struct loop_device *lo, int cmd,
-	       struct page *rpage, unsigned roffs,
-	       struct page *lpage, unsigned loffs,
-	       int size, sector_t rblock)
-{
-	if (unlikely(!lo->transfer))
-		return 0;
-
-	return lo->transfer(lo, cmd, rpage, roffs, lpage, loffs, size, rblock);
-}
-
-#if 0
-/**
- * do_lo_send_aops - helper for writing data to a loop device
- *
- * This is the fast version for backing filesystems which implement the address
- * space operations write_begin and write_end.
- */
-static int do_lo_send_aops(struct loop_device *lo, struct bio_vec *bvec,
-		loff_t pos, struct page *unused)
-{
-	struct file *file = lo->lo_backing_file; /* kudos to NFsckingS */
-	struct address_space *mapping = file->f_mapping;
-	pgoff_t index;
-	unsigned offset, bv_offs;
-	int len, ret;
-
-	mutex_lock(&mapping->host->i_mutex);
-	index = pos >> PAGE_CACHE_SHIFT;
-	offset = pos & ((pgoff_t)PAGE_CACHE_SIZE - 1);
-	bv_offs = bvec->bv_offset;
-	len = bvec->bv_len;
-	while (len > 0) {
-		sector_t IV;
-		unsigned size, copied;
-		int transfer_result;
-		struct page *page;
-		void *fsdata;
-
-		IV = ((sector_t)index << (PAGE_CACHE_SHIFT - 9))+(offset >> 9);
-		size = PAGE_CACHE_SIZE - offset;
-		if (size > len)
-			size = len;
-
-		ret = pagecache_write_begin(file, mapping, pos, size, 0,
-							&page, &fsdata);
-		if (ret)
-			goto fail;
-
-		file_update_time(file);
-
-		transfer_result = lo_do_transfer(lo, WRITE, page, offset,
-				bvec->bv_page, bv_offs, size, IV);
-		copied = size;
-		if (unlikely(transfer_result))
-			copied = 0;
-
-		ret = pagecache_write_end(file, mapping, pos, size, copied,
-							page, fsdata);
-		if (ret < 0 || ret != copied)
-			goto fail;
-
-		if (unlikely(transfer_result))
-			goto fail;
-
-		bv_offs += copied;
-		len -= copied;
-		offset = 0;
-		index++;
-		pos += copied;
-	}
-	ret = 0;
-out:
-	mutex_unlock(&mapping->host->i_mutex);
-	return ret;
-fail:
-	ret = -1;
-	goto out;
-}
-
-/**
- * __do_lo_send_write - helper for writing data to a loop device
- *
- * This helper just factors out common code between do_lo_send_direct_write()
- * and do_lo_send_write().
- */
-static int __do_lo_send_write(struct file *file,
-		u8 *buf, const int len, loff_t pos)
-{
-	ssize_t bw;
-	mm_segment_t old_fs = get_fs();
-
-	set_fs(get_ds());
-	bw = file->f_op->write(file, buf, len, &pos);
-	set_fs(old_fs);
-	if (likely(bw == len))
-		return 0;
-	printk(KERN_ERR "c2loop: Write error at byte offset %llu, length %i.\n",
-			(unsigned long long)pos, len);
-	if (bw >= 0)
-		bw = -EIO;
-	return bw;
-}
-
-/**
- * do_lo_send_direct_write - helper for writing data to a loop device
- *
- * This is the fast, non-transforming version for backing filesystems which do
- * not implement the address space operations write_begin and write_end.
- * It uses the write file operation which should be present on all writeable
- * filesystems.
- */
-static int do_lo_send_direct_write(struct loop_device *lo,
-		struct bio_vec *bvec, loff_t pos, struct page *page)
-{
-	ssize_t bw = __do_lo_send_write(lo->lo_backing_file,
-			kmap(bvec->bv_page) + bvec->bv_offset,
-			bvec->bv_len, pos);
-	kunmap(bvec->bv_page);
-	cond_resched();
-	return bw;
-}
-
-/**
- * do_lo_send_write - helper for writing data to a loop device
- *
- * This is the slow, transforming version for filesystems which do not
- * implement the address space operations write_begin and write_end.  It
- * uses the write file operation which should be present on all writeable
- * filesystems.
- *
- * Using fops->write is slower than using aops->{prepare,commit}_write in the
- * transforming case because we need to double buffer the data as we cannot do
- * the transformations in place as we do not have direct access to the
- * destination pages of the backing file.
- */
-static int do_lo_send_write(struct loop_device *lo, struct bio_vec *bvec,
-		loff_t pos, struct page *page)
-{
-	int ret = lo_do_transfer(lo, WRITE, page, 0, bvec->bv_page,
-			bvec->bv_offset, bvec->bv_len, pos >> 9);
-	if (likely(!ret))
-		return __do_lo_send_write(lo->lo_backing_file,
-				page_address(page), bvec->bv_len,
-				pos);
-	printk(KERN_ERR "c2loop: Transfer error at byte offset %llu, "
-			"length %i.\n", (unsigned long long)pos, bvec->bv_len);
-	if (ret > 0)
-		ret = -EIO;
-	return ret;
-}
-#endif
 
 static int do_iov_filebacked(struct loop_device *lo, unsigned long op, int n,
                              loff_t pos, unsigned size)
@@ -1083,7 +855,7 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 	lo->lo_device = bdev;
 	lo->lo_flags = lo_flags;
 	lo->lo_backing_file = file;
-	lo->transfer = transfer_none;
+	lo->transfer = NULL;;
 	lo->ioctl = NULL;
 	lo->lo_sizelimit = 0;
 	lo->old_gfp_mask = mapping_gfp_mask(mapping);
@@ -1143,43 +915,6 @@ out_clr:
 	return error;
 }
 
-static int
-loop_release_xfer(struct loop_device *lo)
-{
-	int err = 0;
-	struct loop_func_table *xfer = lo->lo_encryption;
-
-	if (xfer) {
-		if (xfer->release)
-			err = xfer->release(lo);
-		lo->transfer = NULL;
-		lo->lo_encryption = NULL;
-		module_put(xfer->owner);
-	}
-	return err;
-}
-
-static int
-loop_init_xfer(struct loop_device *lo, struct loop_func_table *xfer,
-	       const struct loop_info64 *i)
-{
-	int err = 0;
-
-	if (xfer) {
-		struct module *owner = xfer->owner;
-
-		if (!try_module_get(owner))
-			return -EINVAL;
-		if (xfer->init)
-			err = xfer->init(lo, i);
-		if (err)
-			module_put(owner);
-		else
-			lo->lo_encryption = xfer;
-	}
-	return err;
-}
-
 static int loop_clr_fd(struct loop_device *lo, struct block_device *bdev)
 {
 	struct file *filp = lo->lo_backing_file;
@@ -1203,7 +938,6 @@ static int loop_clr_fd(struct loop_device *lo, struct block_device *bdev)
 	lo->lo_queue->unplug_fn = NULL;
 	lo->lo_backing_file = NULL;
 
-	loop_release_xfer(lo);
 	lo->transfer = NULL;
 	lo->ioctl = NULL;
 	lo->lo_device = NULL;
@@ -1242,8 +976,6 @@ static int loop_clr_fd(struct loop_device *lo, struct block_device *bdev)
 static int
 loop_set_status(struct loop_device *lo, const struct loop_info64 *info)
 {
-	int err;
-	struct loop_func_table *xfer;
 	uid_t uid = current_uid();
 
 	if (lo->lo_encrypt_key_size &&
@@ -1255,18 +987,8 @@ loop_set_status(struct loop_device *lo, const struct loop_info64 *info)
 	if ((unsigned int) info->lo_encrypt_key_size > LO_KEY_SIZE)
 		return -EINVAL;
 
-	err = loop_release_xfer(lo);
-	if (err)
-		return err;
-
 	if (info->lo_encrypt_type)
 		return -ENOTSUPP;
-	else
-		xfer = NULL;
-
-	err = loop_init_xfer(lo, xfer, info);
-	if (err)
-		return err;
 
 	if (lo->lo_offset != info->lo_offset ||
 	    lo->lo_sizelimit != info->lo_sizelimit) {
@@ -1281,10 +1003,8 @@ loop_set_status(struct loop_device *lo, const struct loop_info64 *info)
 	lo->lo_file_name[LO_NAME_SIZE-1] = 0;
 	lo->lo_crypt_name[LO_NAME_SIZE-1] = 0;
 
-	if (!xfer)
-		xfer = &none_funcs;
-	lo->transfer = xfer->transfer;
-	lo->ioctl = xfer->ioctl;
+	lo->transfer = NULL;
+	lo->ioctl = NULL;
 
 	if ((lo->lo_flags & LO_FLAGS_AUTOCLEAR) !=
 	     (info->lo_flags & LO_FLAGS_AUTOCLEAR))
@@ -1728,38 +1448,14 @@ MODULE_PARM_DESC(max_loop, "Maximum number of loop devices");
 module_param(max_part, int, 0);
 MODULE_PARM_DESC(max_part, "Maximum number of partitions per loop device");
 MODULE_LICENSE("GPL");
-//MODULE_ALIAS_BLOCKDEV_MAJOR(C2LOOP_MAJOR);
 
 int loop_register_transfer(struct loop_func_table *funcs)
 {
-	unsigned int n = funcs->number;
-
-	if (n >= MAX_LO_CRYPT || xfer_funcs[n])
-		return -EINVAL;
-	xfer_funcs[n] = funcs;
 	return 0;
 }
 
 int loop_unregister_transfer(int number)
 {
-	unsigned int n = number;
-	struct loop_device *lo;
-	struct loop_func_table *xfer;
-
-	if (n == 0 || n >= MAX_LO_CRYPT || (xfer = xfer_funcs[n]) == NULL)
-		return -EINVAL;
-
-	xfer_funcs[n] = NULL;
-
-	list_for_each_entry(lo, &loop_devices, lo_list) {
-		mutex_lock(&lo->lo_ctl_mutex);
-
-		if (lo->lo_encryption == xfer)
-			loop_release_xfer(lo);
-
-		mutex_unlock(&lo->lo_ctl_mutex);
-	}
-
 	return 0;
 }
 
