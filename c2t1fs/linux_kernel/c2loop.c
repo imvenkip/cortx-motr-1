@@ -462,12 +462,13 @@ figure_loop_size(struct loop_device *lo)
  *
  *   - op : operation (read or write);
  *   - n  : number of vectors in iovecs array;
- *   - pos: position in file to read from or write to.
+ *   - pos: position in file to read from or write to;
+ *   - size: number of bytes.
  *
  * Returns: the number of bytes processed (same as aio_read/write).
  */
 static int do_iov_filebacked(struct loop_device *lo, unsigned long op, int n,
-                             loff_t pos)
+                             loff_t pos, unsigned size)
 {
 	struct file *file = lo->lo_backing_file;
 	ssize_t bw;
@@ -485,7 +486,10 @@ static int do_iov_filebacked(struct loop_device *lo, unsigned long op, int n,
 		bw = file->f_op->aio_write(&kiocb, lo->lo_iovecs, n, pos);
 	set_fs(old_fs);
 
-	return bw;
+	if (likely(size == bw))
+		return 0;
+
+	return -EIO;
 }
 
 
@@ -588,11 +592,8 @@ flush:
 		/*printk("flush: op=%d idx=%d bio=%p pos=%d size=%d\n",
 		       (int)op, iov_idx, bio, (int)init_pos, size);*/
 		if (iov_idx > 0) {
-			int ret;
-
-			ret = do_iov_filebacked(lo, op, iov_idx, init_pos);
-			ret = (ret == size) ? 0 : -EIO;
-
+			int ret = do_iov_filebacked(lo, op, iov_idx, init_pos,
+			                            size);
 			if (bio != NULL) {
 				iov_idx = size = 0;
 				init_pos = pos;
@@ -893,7 +894,7 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 
 	lo->lo_iovecs = kzalloc(BIO_MAX_PAGES * sizeof(*lo->lo_iovecs),
 	                        GFP_KERNEL);
-	if (lo->lo_iovecs == NULL)
+	if (lo->lo_iovecs == NULL) {
 		error = -ENOMEM;
 		goto out_clr;
 	}
