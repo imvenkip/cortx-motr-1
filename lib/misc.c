@@ -55,10 +55,9 @@ void c2_uint128_add(struct c2_uint128 *res,
 
 void c2_uint128_mul64(struct c2_uint128 *res, uint64_t a, uint64_t b)
 {
-	uint64_t low1 = (1ul << 32) - 1;
-	uint64_t a_lo = a & low1;
+	uint64_t a_lo = a & UINT32_MAX;
 	uint64_t a_hi = a >> 32;
-	uint64_t b_lo = b & low1;
+	uint64_t b_lo = b & UINT32_MAX;
 	uint64_t b_hi = b >> 32;
 	uint64_t c;
 
@@ -72,9 +71,9 @@ void c2_uint128_mul64(struct c2_uint128 *res, uint64_t a, uint64_t b)
 	 */
 	*res = C2_UINT128(a_hi * b_hi, a_lo * b_lo);
 	c = a_lo * b_hi;
-	c2_uint128_add(res, *res, C2_UINT128(c >> 32, (c & low1) << 32));
+	c2_uint128_add(res, *res, C2_UINT128(c >> 32, (c & UINT32_MAX) << 32));
 	c = a_hi * b_lo;
-	c2_uint128_add(res, *res, C2_UINT128(c >> 32, (c & low1) << 32));
+	c2_uint128_add(res, *res, C2_UINT128(c >> 32, (c & UINT32_MAX) << 32));
 }
 
 #if 0
