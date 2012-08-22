@@ -45,32 +45,22 @@ int c2_uint128_cmp(const struct c2_uint128 *u0, const struct c2_uint128 *u1)
 	return C2_3WAY(u0->u_hi, u1->u_hi) ?: C2_3WAY(u0->u_lo, u1->u_lo);
 }
 
-struct c2_uint128 *
-c2_uint128_set(struct c2_uint128 *u128, uint64_t hi, uint64_t lo)
+void c2_uint128_add(struct c2_uint128 *res,
+		    const struct c2_uint128 a,
+		    const struct c2_uint128 b)
 {
-	u128->u_hi = hi;
-	u128->u_lo = lo;
-
-	return u128;
+	res->u_lo = a.u_lo + b.u_lo;
+	res->u_hi = a.u_hi + b.u_hi + (res->u_lo < a.u_lo);
 }
 
-void c2_uint128_add(struct c2_uint128 *u128, const struct c2_uint128 *v128)
+void c2_uint128_mul(struct c2_uint128 *res, uint64_t a, uint64_t b)
 {
-	bool carry = u128->u_lo + v128->u_lo < u128->u_lo;
-
-	u128->u_lo += v128->u_lo;
-	u128->u_hi += v128->u_hi + carry;
-}
-
-void c2_uint128_mul(struct c2_uint128 *u128, uint64_t a, uint64_t b)
-{
-	struct c2_uint128 v128;
-	uint64_t	  low1 = (1ul << 32) - 1;
-	uint64_t	  a_lo = a & low1;
-	uint64_t	  a_hi = a >> 32;
-	uint64_t	  b_lo = b & low1;
-	uint64_t	  b_hi = b >> 32;
-	uint64_t	  c;
+	uint64_t low1 = (1ul << 32) - 1;
+	uint64_t a_lo = a & low1;
+	uint64_t a_hi = a >> 32;
+	uint64_t b_lo = b & low1;
+	uint64_t b_hi = b >> 32;
+	uint64_t c;
 
 	C2_CASSERT((sizeof a) * CHAR_BIT == 64);
 
@@ -80,11 +70,11 @@ void c2_uint128_mul(struct c2_uint128 *u128, uint64_t a, uint64_t b)
 	 *	   a_lo * b_hi * (1 << 32) +
 	 *	   a_hi * b_lo * (1 << 32)
 	 */
-	c2_uint128_set(u128, a_hi * b_hi, a_lo * b_lo);
+	*res = C2_UINT128(a_hi * b_hi, a_lo * b_lo);
 	c = a_lo * b_hi;
-	c2_uint128_add(u128, c2_uint128_set(&v128, c >> 32, (c & low1) << 32));
+	c2_uint128_add(res, *res, C2_UINT128(c >> 32, (c & low1) << 32));
 	c = a_hi * b_lo;
-	c2_uint128_add(u128, c2_uint128_set(&v128, c >> 32, (c & low1) << 32));
+	c2_uint128_add(res, *res, C2_UINT128(c >> 32, (c & low1) << 32));
 }
 
 #if 0

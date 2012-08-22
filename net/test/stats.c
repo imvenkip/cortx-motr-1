@@ -76,10 +76,10 @@ void c2_net_test_stats_add(struct c2_net_test_stats *stats,
 		stats->nts_max = max_check(stats->nts_max, value);
 	}
 	C2_CASSERT(sizeof value <= sizeof stats->nts_sum.u_hi);
-	c2_uint128_set(&v128, 0, value);
-	c2_uint128_add(&stats->nts_sum, &v128);
+	c2_uint128_add(&stats->nts_sum, stats->nts_sum,
+		       C2_UINT128(0, value));
 	c2_uint128_mul(&v128, value, value);
-	c2_uint128_add(&stats->nts_sum_sqr, &v128);
+	c2_uint128_add(&stats->nts_sum_sqr, stats->nts_sum_sqr, v128);
 }
 
 void c2_net_test_stats_add_stats(struct c2_net_test_stats *stats,
@@ -96,8 +96,9 @@ void c2_net_test_stats_add_stats(struct c2_net_test_stats *stats,
 		stats->nts_max = max_check(stats->nts_max, stats2->nts_max);
 	}
 	stats->nts_count += stats2->nts_count;
-	c2_uint128_add(&stats->nts_sum, &stats2->nts_sum);
-	c2_uint128_add(&stats->nts_sum_sqr, &stats2->nts_sum_sqr);
+	c2_uint128_add(&stats->nts_sum, stats->nts_sum, stats2->nts_sum);
+	c2_uint128_add(&stats->nts_sum_sqr, stats->nts_sum_sqr,
+		       stats2->nts_sum_sqr);
 }
 
 unsigned long c2_net_test_stats_min(const struct c2_net_test_stats *stats)
