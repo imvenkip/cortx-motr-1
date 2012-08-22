@@ -156,11 +156,7 @@ void test_cookie(void)
 	addr_sanity(dynamic, true);
 	addr_sanity(&bss, true);
 	addr_sanity(&readonly, true);
-
-	if (C2_IS_8ALIGNED(&test_cookie))
-		addr_sanity((uint64_t *)&test_cookie, true);
-	else
-		addr_sanity((uint64_t *)&test_cookie, false);
+	addr_sanity((uint64_t *)&test_cookie, C2_IS_8ALIGNED(&test_cookie));
 
 	c2_free(dynamic);
 
