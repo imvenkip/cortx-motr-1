@@ -245,7 +245,7 @@ add send buf to send queue", shape=box];
 add bulk buf to PASSIVE_RECV queue\l\
 add 2 buf descriptors to MSG_SEND queue\l", shape=box];
      SC [label="", height=0, width=0, shape=plaintext];
-     S7 [label="stop.down();\lfree_buf.up();\l", style=box];
+     S7 [label="stop.down();\lbuf_free.up();\l", style=box];
      S8 [label="for (i = 0; i < concurrency; ++i)\l  buf_free.down();\l\
 finished.up();\l", shape=box];
      S9 [label="exit point"];
