@@ -18,6 +18,8 @@
  * Original creation date: 03/22/2012
  */
 
+#pragma once
+
 #ifndef __NET_TEST_STATS_H__
 #define __NET_TEST_STATS_H__
 

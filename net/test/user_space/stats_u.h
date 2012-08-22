@@ -18,6 +18,8 @@
  * Original creation date: 08/18/2012
  */
 
+#pragma once
+
 #ifndef __NET_TEST_USER_SPACE_STATS_U_H__
 #define __NET_TEST_USER_SPACE_STATS_U_H__
 
