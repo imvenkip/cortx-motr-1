@@ -52,10 +52,10 @@ static void sigsegv(int sig)
  */
 bool c2_arch_addr_is_sane(const void *addr)
 {
-	jmp_buf  buf;
-	uint64_t dummy;
-	int      ret;
-	bool     result;
+	jmp_buf           buf;
+	volatile uint64_t dummy;
+	int               ret;
+	bool              result;
 
 	ret = pthread_setspecific(addr_check_key, &buf);
 	C2_ASSERT(ret == 0);
