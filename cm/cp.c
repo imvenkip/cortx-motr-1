@@ -381,8 +381,11 @@ bool c2_cm_cp_invariant(struct c2_cm_cp *cp)
 {
 	int phase = cp->c_fom.fo_phase;
 
-	return phase >= C2_FOPH_INIT && phase <= C2_CCP_FINI &&
-	       cp->c_ops != NULL && cp->c_data != NULL;
+	return cp->c_ops != NULL && cp->c_data != NULL &&
+	       (phase == C2_FOPH_INIT || (phase >= C2_CCP_INIT &&
+					  phase <= C2_CCP_FINI)) &&
+	       ergo(phase > C2_CCP_INIT && phase <= C2_CCP_FINI,
+		    c2_stob_id_is_set(&cp->c_id) && cp->c_ag != NULL);
 }
 
 void c2_cm_cp_init(struct c2_cm_cp *cp, const struct c2_cm_cp_ops *ops,
@@ -414,7 +417,7 @@ int c2_cm_cp_create(struct c2_cm *cm)
 	while (sw->sw_ops->swo_has_space(sw)) {
 	       cp = cm->cm_ops->cmo_cp_alloc(cm);
 	       if (cp == NULL)
-		   return -ENOMEM;
+		   return -ENOENT;
 	       c2_cm_cp_enqueue(cm, cp);
         }
 

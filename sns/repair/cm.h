@@ -76,8 +76,13 @@ struct c2_sns_repair_cm {
 	uint64_t                   rc_fdata;
 	struct c2_cobfid_map      *rc_cfm;
 	struct c2_cobfid_map_iter  rc_cfm_it;
-	/** Buffer pool to create copy packets. */
-	struct c2_net_buffer_pool  rc_bp;
+	/**
+	 * Buffer pool for incoming copy packets, this is used by sliding
+	 * window.
+	 */
+	struct c2_net_buffer_pool  rc_ibp;
+	/** Buffer pool for outgoing copy packets. */
+	struct c2_net_buffer_pool  rc_obp;
 };
 
 int c2_sns_repair_cm_type_register(void);

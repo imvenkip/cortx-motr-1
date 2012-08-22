@@ -125,17 +125,22 @@
   @code
   struct c2_sns_repair_cm {
           struct c2_cm               rc_base;
-          struct c2_net_buffer_pool  rc_pool;
+          struct c2_cobfid_map      *rc_cfm;
+          struct c2_net_buffer_pool  rc_ibp;
+          struct c2_net_buffer_pool  rc_obp;
   };
   @endcode
   SNS Repair service allocates and initialises the corresponding copy machine.
   @see @ref SNSRepairSVC "SNS Repair service" for details.
-  Once the copy machine is initialised it remains idle until failure happens.
-  As mentioned in the HLD, failure information is a broadcast to all the
-  replicas in the cluster using TRIGGER FOP. The FOM corresponding to the
-  TRIGGER FOP activates the SNS Repair copy machine by invoking c2_cm_start(),
-  this invokes SNS Repair specific start routine which initialises specific
-  data structures.
+  Once the copy machine is initialised, as part of copy machine setup, SNS
+  Repair copy machine specific resources are initialised, viz. incoming and
+  outgoing buffer pools (c2_sns_repair_cm::rc_ibp and ::rc_obp) and cobfid_map.
+  Once the cm_setup() is sucessful, the copy machine transitions to C2_CMS_IDLE
+  state and waits until failure happens. As mentioned in the HLD, failure
+  information is a broadcast to all the replicas in the cluster using TRIGGER
+  FOP. The FOM corresponding to the TRIGGER FOP activates the SNS Repair copy
+  machine by invoking c2_cm_start(), this invokes SNS Repair specific start
+  routine which initialises specific data structures.
   @code
   int c2_cm_start(struct c2_cm *cm)
   {
@@ -146,23 +151,23 @@
   @endcode
 
   @subsection SNSRepairCMDLD-lspec-cm-start Copy machine startup
-  SNS Repair specific start routine initialises the buffer pool,
-  viz. c2_sns_repair_cm::rc_pool and provisions it with some N number of
-  buffers. Once the buffer provisioning is done, copy machine updates the
-  sliding window size to the size of its buffer pool and broadcasts the same
-  to other replicas in the cluster. Similarly other replicas broadcast their
-  corresponding sliding window sizes. After receiving sliding window sizes from
-  each replica in the cluster, every SNS Repair copy machine selects the minimum
-  sliding window size in the cluster and updates its local sliding window size
-  accordingly.
+  The SNS Repair specific start routine provisions the buffer pools,
+  viz. c2_sns_repair_cm::rc_ibp c2_sns_repair_cm::rc_obp with
+  SNS_INCOMING_BUF_NR and SNS_OUTGOING_BUF_NR number of buffers. Once the buffer
+  provisioning is done, copy machine updates the sliding window size to the size
+  of its incoming buffer pool and broadcasts the same to other replicas in the
+  cluster. After receiving sliding window sizes from each replica in the cluster,
+  every SNS Repair copy machine selects the minimum sliding window size in the
+  cluster and updates its local sliding window size accordingly.
   @note Buffer provisioning operation can block.
 
   @subsubsection SNSRepairCMDLD-lspec-cm-start-cp-create Copy packet create
-  Once the sliding window size is updated to minimum within the cluster, the
+  Once the sliding window size is updated to minimum size within the cluster, the
   copy machine checks if sliding window has space (c2_cm_sw_ops::swo_has_space()
   and accordingly creates copy packets. Every newly created copy packet is
-  attached with a blank data buffer and corresponding copy packet FOM is
-  submitted to the request handler for further processing.
+  attached with a blank data buffer from outgoing buffer pool
+  (c2_sns_repair_cm::rc_obp)and corresponding copy packet FOM is submitted to
+  the request handler for further processing.
   Following pseudo code illustrates the copy packet creation,
 
   @code
@@ -182,7 +187,9 @@
   cm_start(struct c2_cm *cm)
   {
     struct c2_cm_cp *cp;
-    ...
+
+    // provision incoming and outgoing buffer pools.
+    // Send ready FOPs and update sliding window size.
     cp = c2_cm_cp_create(cm);
     ...
   }
@@ -220,9 +227,10 @@
   operations through generic copy machine interfaces which cause copy machine
   state transitions.
 
-  @b i.sns.repair.buffer.acquire SNS Repair copy machine implements its own
-  buffer pool used to create copy pckets. The buffer pool is provisioned during
-  the start of the repair operation.
+  @b i.sns.repair.buffer.acquire SNS Repair copy machine implements its incoming
+  and outgoing buffer pools. The outgoing buffer pool is used to create copy
+  packets. The respective buffer pools are provisioned during the start of the
+  repair operation.
 
   @b r.sns.repair.sliding.window Minimum sliding window size in the cluster is
   selected which is a broadcast by every replica using READY FOPs when repair
@@ -275,10 +283,11 @@ enum {
 	SNS_SEG_SIZE = 4096,
 	SNS_BUF_COLOR = 1,
 	/*
-	 * Minimum number of buffers to provision c2_sns_repair_cm::rc_bp
-	 * buffer pool.
+	 * Minimum number of buffers to provision c2_sns_repair_cm::rc_ibp
+	 * and c2_sns_repair_cm::rc_obp buffer pools.
 	 */
-	SNS_BUF_NR = 4
+	SNS_INCOMING_BUF_NR = 4,
+	SNS_OUTGOING_BUF_NR = 4
 };
 
 extern struct c2_net_xprt c2_net_lnet_xprt;
@@ -303,8 +312,14 @@ static struct c2_cm_cp *cm_cp_alloc(struct c2_cm *cm)
 	C2_PRE(c2_cm_invariant(cm));
 
 	rcm = cm2sns(cm);
-	buf = c2_net_buffer_pool_get(&rcm->rc_bp, SNS_BUF_COLOR);
-	C2_ASSERT(buf != NULL);
+	buf = c2_net_buffer_pool_get(&rcm->rc_obp, SNS_BUF_COLOR);
+	/*
+	 * XXX If sliding window has space and outgoing buffer pool is empty
+	 * then try growing the buffer pool, if required. Currently returning
+	 * NULL.
+	 */
+	if (buf == NULL)
+		return NULL;
 	C2_ALLOC_PTR(rcp);
 	if (rcp == NULL)
 		return NULL;
@@ -339,11 +354,19 @@ static int cm_setup(struct c2_cm *cm)
 	reqh = cm->cm_service.rs_reqh;
 	ndom = c2_cs_net_domain_locate(c2_cs_ctx_get(reqh),
 				       c2_net_lnet_xprt.nx_name);
-	rc = c2_net_buffer_pool_init(&rcm->rc_bp,
-				     ndom,
-				     C2_NET_BUFFER_POOL_THRESHOLD,
-				     SNS_SEG_NR, SNS_SEG_SIZE,
-				     SNS_BUF_COLOR, C2_0VEC_SHIFT);
+	rc = c2_net_buffer_pool_init(&rcm->rc_ibp, ndom,
+				     C2_NET_BUFFER_POOL_THRESHOLD, SNS_SEG_NR,
+				     SNS_SEG_SIZE, SNS_BUF_COLOR,
+				     C2_0VEC_SHIFT);
+	if (rc == 0) {
+		rc = c2_net_buffer_pool_init(&rcm->rc_obp, ndom,
+					     C2_NET_BUFFER_POOL_THRESHOLD,
+					     SNS_SEG_NR, SNS_SEG_SIZE,
+					     SNS_BUF_COLOR, C2_0VEC_SHIFT);
+		if (rc != 0)
+			c2_net_buffer_pool_fini(&rcm->rc_ibp);
+	}
+
 	if (rc == 0)
 		rc = c2_cobfid_map_get(reqh, &rcm->rc_cfm);
 
@@ -354,30 +377,39 @@ static int cm_start(struct c2_cm *cm)
 {
 	struct c2_sns_repair_cm *rcm;
 	int                      bufs_nr;
-	int                      rc;
 
 	C2_ENTRY();
 
 	rcm = cm2sns(cm);
-	bufs_nr = c2_net_buffer_pool_provision(&rcm->rc_bp, SNS_BUF_NR);
-	if (bufs_nr > 0) {
-		/*
-		 * Set sliding size to number of available buffers in the buffer
-		 * pool. This may change later after receiving sliding window
-		 * sizes of other replicas. The minimum of all is selected.
-		 */
-		cm->cm_sw.sw_sz = bufs_nr;
-		/*
-		 * TODO: Send READY FOPs to other replicas in the cluster with sliding window
-		 * size, calculate the minimum sliding window size within the cluster, update
-		 * local sliding window size and create copy packets accordingly.
-		 */
-		c2_cm_cp_create(cm);
-	} else
-		rc = -ENOMEM;
+	bufs_nr = c2_net_buffer_pool_provision(&rcm->rc_ibp,
+					       SNS_INCOMING_BUF_NR);
+	if (bufs_nr == 0)
+		return -ENOMEM;
+	/*
+	 * Set sliding window size to number of available buffers in the
+	 * incoming buffer pool. This may change later after receiving
+	 * sliding window sizes of other replicas. The minimum of all is
+	 * selected.
+	 */
+	cm->cm_sw.sw_sz = bufs_nr;
+	bufs_nr = c2_net_buffer_pool_provision(&rcm->rc_obp,
+					       SNS_OUTGOING_BUF_NR);
+	/*
+	 * If bufs_nr is 0, then just return -ENOMEM, as cm_setup() was
+	 * successful, both the buffer pools (incoming and outgoing) will be
+	 * finalised in cm_fini().
+	 */
+	if (bufs_nr == 0)
+		return -ENOMEM;
+	/*
+	 * TODO: Send READY FOPs to other replicas in the cluster with sliding window
+	 * size, calculate the minimum sliding window size within the cluster, update
+	 * local sliding window size and create copy packets accordingly.
+	 */
+	c2_cm_cp_create(cm);
 
 	C2_LEAVE();
-	return rc;
+	return 0;
 }
 
 static void cm_done(struct c2_cm *cm)
@@ -410,7 +442,8 @@ static void cm_fini(struct c2_cm *cm)
 	C2_PRE(c2_cm_invariant(cm));
 
 	rcm = cm2sns(cm);
-	c2_net_buffer_pool_fini(&rcm->rc_bp);
+	c2_net_buffer_pool_fini(&rcm->rc_ibp);
+	c2_net_buffer_pool_fini(&rcm->rc_obp);
 	c2_cobfid_map_put(cm->cm_service.rs_reqh);
 
 	C2_LEAVE();
