@@ -25,12 +25,14 @@
 #include "lib/ut.h"	/* C2_UT_ASSERT */
 #include "lib/types.h"	/* c2_uint128 */
 
-static const struct c2_uint128 zero   = C2_UINT128(0, 0);
-static const struct c2_uint128 one    = C2_UINT128(0, 1);
-static const struct c2_uint128 two    = C2_UINT128(0, 2);
-static const struct c2_uint128 three  = C2_UINT128(0, 3);
-static const struct c2_uint128 max64  = C2_UINT128(0,	       UINT64_MAX);
-static const struct c2_uint128 max128 = C2_UINT128(UINT64_MAX, UINT64_MAX);
+static const struct c2_uint128 zero    = C2_UINT128(0, 0);
+static const struct c2_uint128 one     = C2_UINT128(0, 1);
+static const struct c2_uint128 two     = C2_UINT128(0, 2);
+static const struct c2_uint128 three   = C2_UINT128(0, 3);
+static const struct c2_uint128 max64   = C2_UINT128(0,		UINT64_MAX);
+static const struct c2_uint128 max64_1 = C2_UINT128(1,	        0);
+static const struct c2_uint128 max64_2 = C2_UINT128(1,	        1);
+static const struct c2_uint128 max128  = C2_UINT128(UINT64_MAX, UINT64_MAX);
 
 /* a + b = c */
 static void uint128_add_check(const struct c2_uint128 a,
@@ -53,14 +55,18 @@ static void uint128_add_check1(const struct c2_uint128 a,
 
 static void uint128_add_ut(void)
 {
-	uint128_add_check1(zero,   zero, zero);
-	uint128_add_check1(zero,   one,  one);
-	uint128_add_check1(one,    one,  two);
-	uint128_add_check1(one,    two,  three);
-	uint128_add_check1(max128, one,  zero);
-	uint128_add_check1(max128, one,  zero);
-	uint128_add_check1(max128, one,  zero);
-	uint128_add_check1(max128, two,  one);
+	uint128_add_check1(zero,   zero,    zero);
+	uint128_add_check1(zero,   one,     one);
+	uint128_add_check1(one,    one,     two);
+	uint128_add_check1(one,    two,     three);
+	uint128_add_check1(max64,  zero,    max64);
+	uint128_add_check1(max64,  one,	    max64_1);
+	uint128_add_check1(max64,  two,     max64_2);
+	uint128_add_check1(max128, one,     zero);
+	uint128_add_check1(max128, two,     one);
+	uint128_add_check1(max128, three,   two);
+	uint128_add_check1(max128, max64_1, max64);
+	uint128_add_check1(max128, max64_2, max64_1);
 }
 
 /* a * b = c */
@@ -94,11 +100,10 @@ static void uint128_mul_ut(void)
 	uint128_mul_check1(3, UINT64_MAX, &C2_UINT128(2, UINT64_MAX - 2));
 	uint128_mul_check1(UINT64_MAX, UINT64_MAX,
 			   &C2_UINT128(UINT64_MAX - 1, 1));
-	uint128_mul_check1(UINT32_MAX + 1ul, UINT32_MAX + 1ul,
-			   &C2_UINT128(1, 0));
+	uint128_mul_check1(UINT32_MAX + 1ul, UINT32_MAX + 1ul, &max64_1);
 	uint128_mul_check1(UINT32_MAX + 1ul, UINT64_MAX,
-			   &C2_UINT128((1ul << 32) - 1,
-				       ((1ul << 32) - 1) << 32));
+			   &C2_UINT128(UINT32_MAX,
+				       (uint64_t) UINT32_MAX << 32));
 	uint128_mul_check1(UINT32_MAX + 2ul, UINT32_MAX, &max64);
 }
 
