@@ -457,6 +457,16 @@ figure_loop_size(struct loop_device *lo)
 	return 0;
 }
 
+static void wait_on_retry_sync_kiocb(struct kiocb *iocb)
+{
+	set_current_state(TASK_UNINTERRUPTIBLE);
+	if (!kiocbIsKicked(iocb))
+		schedule();
+	else
+		kiocbClearKicked(iocb);
+	__set_current_state(TASK_RUNNING);
+}
+
 /*
  * Do vectored I/O over backed file
  *
@@ -471,22 +481,30 @@ static int do_iov_filebacked(struct loop_device *lo, unsigned long op, int n,
                              loff_t pos, unsigned size)
 {
 	struct file *file = lo->lo_backing_file;
-	ssize_t bw;
+	ssize_t ret;
 	struct kiocb kiocb;
+	ssize_t (*aio_rw) (struct kiocb *, const struct iovec *,
+	                   unsigned long, loff_t);
 	mm_segment_t old_fs = get_fs();
 
 	init_sync_kiocb(&kiocb, file);
 	kiocb.ki_nbytes = kiocb.ki_left = size;
         kiocb.ki_pos = pos;
 
+	aio_rw = (op == READ) ? file->f_op->aio_read :
+	                        file->f_op->aio_write;
 	set_fs(get_ds());
-	if (op == READ)
-		bw = file->f_op->aio_read(&kiocb, lo->lo_iovecs, n, pos);
-	else
-		bw = file->f_op->aio_write(&kiocb, lo->lo_iovecs, n, pos);
+	for (;;) {
+		ret = aio_rw(&kiocb, lo->lo_iovecs, n, pos);
+		if (ret != -EIOCBRETRY)
+			break;
+		wait_on_retry_sync_kiocb(&kiocb);
+	}
+	if (ret == -EIOCBQUEUED)
+		ret = wait_on_sync_kiocb(&kiocb);
 	set_fs(old_fs);
 
-	if (likely(size == bw))
+	if (likely(size == ret))
 		return 0;
 
 	return -EIO;
