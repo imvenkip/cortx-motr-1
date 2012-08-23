@@ -56,6 +56,26 @@ SUBDIRS    = $(SUBDIRS_BASE) $(SUBDIRS_LIBS) colibri $(SUBDIR_IT)    \
              $(SUBDIR_UT) $(SUBDIR_ST) $(SUBDIR_KERNEL) $(SUBDIR_UB) \
              $(SUBDIR_BIN)
 
+# BUILT_SOURCES automake variable is a standard way to execute commands
+# before the main build commands (`make all`), for more information please
+# refer to section "Built Sources" in automake documentation
+BUILT_SOURCES = pre-all
+
+# this is executed just before 'all' target
+.PHONY: pre-all
+pre-all: check-sources-prebuild
+
+# this is executed just after 'all' target
+all-local: check-sources-postbuild
+
+check-sources-prebuild:
+	@echo "Checking source files..."
+	@$(top_srcdir)/scripts/check-include-guards --noisy $(top_srcdir)
+
+check-sources-postbuild:
+	@#$(top_srcdir)/scripts/check-include-guards $(top_srcdir)
+	@$(top_srcdir)/scripts/check-include-guards --noisy $(top_srcdir)
+
 etags:
 	find . -name '*.[ch]' | xargs etags
 

@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __IOSERVICE_ST_COMMON_H__
-#define __IOSERVICE_ST_COMMON_H__
+#ifndef __COLIBRI_IOSERVICE_ST_COMMON_H__
+#define __COLIBRI_IOSERVICE_ST_COMMON_H__
 
 #include "lib/list.h"
 #include "colibri/init.h"
@@ -146,4 +146,4 @@ void io_fops_destroy(struct bulkio_params *bp);
 void io_fops_create(struct bulkio_params *bp, enum C2_RPC_OPCODES op,
 		    int fids_nr, int fops_nr, int segs_nr);
 
-#endif /* __IOSERVICE_ST_COMMON_H__ */
+#endif /* __COLIBRI_IOSERVICE_ST_COMMON_H__ */

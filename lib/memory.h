@@ -19,8 +19,8 @@
 
 #pragma once
 
-#ifndef _COLIBRI_LIB_MEMORY_H_
-#define _COLIBRI_LIB_MEMORY_H_
+#ifndef __COLIBRI_LIB_MEMORY_H__
+#define __COLIBRI_LIB_MEMORY_H__
 
 #include "lib/types.h"
 #include "lib/assert.h" /* C2_CASSERT */

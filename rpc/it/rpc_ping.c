@@ -30,8 +30,6 @@
 #include "lib/memory.h"
 #include "lib/misc.h" /* C2_SET0 */
 #include "lib/thread.h"
-#include "lib/processor.h"
-#include "lib/trace.h"
 #include "lib/time.h"
 #include "net/net.h"
 #include "net/lnet/lnet.h"
@@ -404,14 +402,10 @@ static int run_client(void)
 	rc = c2_init();
 	if (rc != 0)
 		return rc;
-
-	rc = c2_processors_init();
-	if (rc != 0)
-		goto c2_fini;
 #endif
 	rc = c2_ping_fop_init();
 	if (rc != 0)
-		goto proc_fini;
+		goto c2_fini;
 
 	rc = c2_net_xprt_init(xprt);
 	if (rc != 0)
@@ -467,10 +461,8 @@ xprt_fini:
 	c2_net_xprt_fini(xprt);
 fop_fini:
 	c2_ping_fop_fini();
-proc_fini:
-#ifndef __KERNEL__
-	c2_processors_fini();
 c2_fini:
+#ifndef __KERNEL__
 	c2_fini();
 #endif
 	return rc;

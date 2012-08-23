@@ -21,8 +21,6 @@
 #include "config.h"
 #endif
 #include "lib/ut.h"
-#include "lib/memory.h"
-#include "lib/processor.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
 #include "rpc/rpclib.h"
@@ -58,11 +56,6 @@ static int test_long_lock_init(void)
 	int rc;
 	int i;
 
-	if (!c2_processor_is_initialized()) {
-		rc = c2_processors_init();
-		C2_ASSERT(rc == 0);
-	}
-
 	/*
 	 * Instead of using colibri_setup and dealing with network, database and
 	 * other subsystems, request handler is initialised in a 'special way'.
@@ -84,8 +77,6 @@ static int test_long_lock_fini(void)
 
 	for (i = 0; i < REQH_IN_UT_MAX; ++i)
 		c2_reqh_fini(&reqh[i]);
-
-	c2_processors_fini();
 
 	return 0;
 }

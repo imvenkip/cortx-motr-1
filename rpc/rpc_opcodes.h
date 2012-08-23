@@ -31,8 +31,8 @@
 
 #pragma once
 
-#ifndef __RPC_CORE_OPCODES_H__
-#define __RPC_CORE_OPCODES_H__
+#ifndef __COLIBRI_RPC_CORE_OPCODES_H__
+#define __COLIBRI_RPC_CORE_OPCODES_H__
 
 enum C2_RPC_OPCODES {
 
@@ -113,7 +113,7 @@ enum C2_RPC_OPCODES {
 };
 /** @} endgroup rpc_layer_core */
 
-#endif /* __RPC_CORE_OPCODES_H__ */
+#endif /* __COLIBRI_RPC_CORE_OPCODES_H__ */
 
 /*
  *  Local variables:

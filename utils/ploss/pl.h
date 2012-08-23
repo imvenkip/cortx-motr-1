@@ -23,8 +23,10 @@
  * Written by Jay <jinshan.xiong@clusterstor.com>
  */
 
-#ifndef _PL_H_RPCGEN
-#define _PL_H_RPCGEN
+#pragma once
+
+#ifndef __COLIBRI_UTIL_PLOSS_PL_H__
+#define __COLIBRI_UTIL_PLOSS_PL_H__
 
 #include <rpc/rpc.h>
 
@@ -130,4 +132,4 @@ extern bool_t xdr_c2_pl_ping_res ();
 }
 #endif
 
-#endif /* !_PL_H_RPCGEN */
+#endif /* __COLIBRI_UTIL_PLOSS_PL_H__ */

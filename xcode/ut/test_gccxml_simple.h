@@ -1,5 +1,7 @@
-#ifndef __COLIBRI___TEST_GCCXML_SIMPLE_H__
-#define __COLIBRI___TEST_GCCXML_SIMPLE_H__
+#pragma once
+
+#ifndef __COLIBRI_XCODE_UT_TEST_GCCXML_SIMPLE_H__
+#define __COLIBRI_XCODE_UT_TEST_GCCXML_SIMPLE_H__
 
 #include <sys/types.h>
 #include <stdint.h>
@@ -41,9 +43,8 @@ struct testtypes {
     int           tt_int;
     long long     tt_ll;
     unsigned int  tt_ui;
+    void         *tt_buf;
 } C2_XCA_RECORD;
 
-
-/* __COLIBRI___TEST_GCCXML_SIMPLE_H__ */
-#endif
+#endif /* __COLIBRI_XCODE_UT_TEST_GCCXML_SIMPLE_H__ */
 

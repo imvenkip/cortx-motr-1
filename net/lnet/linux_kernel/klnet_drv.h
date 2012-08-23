@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __KLNET_DRV_H__
-#define __KLNET_DRV_H__
+#ifndef __COLIBRI_NET_LNET_KLNET_DRV_H__
+#define __COLIBRI_NET_LNET_KLNET_DRV_H__
 
 /**
    @page LNetDRVDLD-fspec LNet Transport Device Functional Specification
@@ -161,7 +161,7 @@ void nlx_dev_fini(void);
 
 /** @} */ /* LNetDev */
 
-#endif /*  __KLNET_DRV_H__ */
+#endif /*  __COLIBRI_NET_LNET_KLNET_DRV_H__ */
 
 /*
  *  Local variables:

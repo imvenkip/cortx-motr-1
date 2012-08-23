@@ -285,6 +285,24 @@ try to adhere to some higher level idioms.
       un-initialized in a conditional branch or in a loop that might
       execute 0 times, the initializer suppresses compiler warning).
 
+    * all header files should begin with '#pragma once' followed by a
+      conventional '#ifndef' include guard:
+
+        #pragma once
+
+        #ifndef __COLIBRI_SUBSYS_HEADER_H__
+        #define __COLIBRI_SUBSYS_HEADER_H__
+        ...
+        #endif /* __COLIBRI_SUBSYS_HEADER_H__ */
+
+      notice, that include guards should use names conforming to the
+      following regular expression:
+
+              __COLIBRI_\w+_H__
+
+      this is required for a build script which automatically checks
+      correctness of include guards and reports duplicates.
+
 
 Things to look after:
 
