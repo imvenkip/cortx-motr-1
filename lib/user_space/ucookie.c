@@ -29,7 +29,6 @@
    @{
  */
 
-extern int	     errno;
 static pthread_key_t addr_check_key;
 
 /**
@@ -41,7 +40,7 @@ static void sigsegv(int sig)
 
 	buf = pthread_getspecific(addr_check_key);
 	if (buf != NULL)
-		siglongjmp(*buf, 1);
+		longjmp(*buf, 1);
 	else
 		abort();
 }
@@ -59,7 +58,7 @@ bool c2_arch_addr_is_sane(const void *addr)
 
 	ret = pthread_setspecific(addr_check_key, &buf);
 	C2_ASSERT(ret == 0);
-	ret = sigsetjmp(buf, 1);
+	ret = setjmp(buf);
 	if (ret == 0) {
 		dummy = *(uint64_t *)addr;
 		result = true;
@@ -81,7 +80,7 @@ int c2_arch_cookie_global_init(void)
 
 	C2_SET0(&sa_sigsegv);
 	sa_sigsegv.sa_handler = sigsegv;
-
+	sa_sigsegv.sa_flags   = SA_NODEFER;
 	ret = sigemptyset(&sa_sigsegv.sa_mask);
 	if (ret == -1)
 		return -errno;
