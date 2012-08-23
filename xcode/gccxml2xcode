@@ -245,7 +245,12 @@ sub get_info_about
             $item->{'type'}    = get_info_about($type_node)->{'type'} . '*';
             $item->{'xc_type'}
                 = get_info_about($type_node)->{'type'} eq 'void'
-                    ? '&C2_XT_U' . $item->{'size'}
+                    # pointer to 'void' is treated specially, because 'void'
+                    # type doesn't have size, but 'void*' is a commonly used
+                    # type for buffers; in order to be able to serialize such
+                    # buffers with xcode, we set it the same as pointer to
+                    # 'unsigned char' or 'u8'.
+                    ? '&C2_XT_U8'
                     : get_info_about($type_node)->{'xc_type'};
         }
 
