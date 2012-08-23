@@ -23,7 +23,7 @@
    @{
  */
 
-/** @file io_fop_xc.ff
+/** @file io_fop.ff
  *
  * <b>Simplistic IO fop formats</b>
  *

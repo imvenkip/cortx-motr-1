@@ -61,14 +61,14 @@ dirs  = addb                                                                  \
 
 #       Source Listing
 
-#       NOTE: Currently due to the way `.ff' files are processed, a `*_xc.c' file
-#       searches for its corresponding `*_xc.h' in the same directory; So only
+#       NOTE: Currently due to the way `.ff' files are processed, a `*_ff.c' file
+#       searches for its corresponding `*_ff.h' in the same directory; So only
 #       headers that need to be included in following listing are those of
-#       type `*_xc.h'; rest of the headers will be assumed relative to `core/'
+#       type `*_ff.h'; rest of the headers will be assumed relative to `core/'
 
 addb_SOURCES                    := addb.c addb_fop.c
-addb_addbff_SOURCES             := addb.c
-addb_addbff_HEADERS             := addb.h
+addb_addbff_SOURCES             := addb_ff.c
+addb_addbff_HEADERS             := addb_ff.h
 
 addb_linux_kernel_SOURCES       := addb_console.c
 
@@ -92,12 +92,12 @@ fid_SOURCES                     := fid.c
 fol_SOURCES                     := fol.c
 
 fop_SOURCES                     := fop.c fom.c fop_item_type.c fom_long_lock.c \
-				   fom_generic.c fom_generic_xc.c
+				   fom_generic.c fom_generic_ff.c
 
-fop_HEADERS                     := fom_generic_xc.h
+fop_HEADERS                     := fom_generic_ff.h
 
-ioservice_SOURCES               := io_fops.c io_fops_xc.c
-ioservice_HEADERS               := io_fops_xc.h
+ioservice_SOURCES               := io_fops.c io_fops_ff.c
+ioservice_HEADERS               := io_fops_ff.h
 
 ioservice_ut_SOURCES            := bulkio_client.c
 
@@ -120,9 +120,9 @@ lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c     \
                                    memory.c finject.c
 
 net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c     \
-                                   tm.c net_otw_types.c tm_provision.c
+                                   tm.c net_otw_types_ff.c tm_provision.c
 
-net_HEADERS                     := net_otw_types.h
+net_HEADERS                     := net_otw_types_ff.h
 
 net_bulk_emulation_ut_SOURCES   := bulk_mem_ut.c
 
@@ -138,11 +138,11 @@ reqh_SOURCES                    := reqh.c reqh_service.c
 rpc_SOURCES                     := rpc2.c service.c                            \
                                    session.c session_foms.c conn.c slot.c      \
                                    session_utils.c session_fops.c              \
-                                   rpc_onwire.c session_xc.c rpclib.c          \
+                                   rpc_onwire.c session_ff.c rpclib.c          \
                                    formation2.c frmops.c packet.c item.c       \
                                    bulk.c rpc_machine.c
 
-rpc_HEADERS                     := session_xc.h
+rpc_HEADERS                     := session_ff.h
 
 rpc_ut_SOURCES                  := service.c formation2.c
 

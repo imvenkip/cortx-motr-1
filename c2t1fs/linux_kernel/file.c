@@ -32,7 +32,7 @@
 #include "lib/trace.h"      /* C2_LOG and C2_ENTRY */
 #include "lib/bob.h"
 #include "ioservice/io_fops.h"
-#include "ioservice/io_fops_xc.h"
+#include "ioservice/io_fops_ff.h"
 
 /* Imports */
 struct c2_net_domain;

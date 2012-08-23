@@ -30,7 +30,7 @@
 #include "cob/cob.h"
 #include "fop/fop.h"
 #include "lib/arith.h"
-#include "rpc/session_xc.h"
+#include "rpc/session_ff.h"
 #include "rpc/session_internal.h"
 #include "db/db.h"
 #include "dtm/verno.h"

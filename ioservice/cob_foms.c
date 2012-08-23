@@ -33,7 +33,7 @@
 #include "ioservice/cobfid_map.h"   /* c2_cobfid_map_get() c2_cobfid_map_put()*/
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
-#include "ioservice/io_fops_xc.h"
+#include "ioservice/io_fops_ff.h"
 
 /* Forward Declarations. */
 static int  cob_fom_create(struct c2_fop *fop, struct c2_fom **out);

@@ -1,0 +1,9 @@
+# This file contains build rules for *_ff.[ch] files, which are automatically
+# generated from corresponding *.ff files by ff2c compiler.
+
+FF2C = $(top_builddir)/xcode/ff2c/ff2c
+
+#$(top_srcdir)/%_ff.h $(top_srcdir)/%_ff.c: $(top_srcdir)/%.ff $(FF2C)
+%_ff.h %_ff.c: %.ff $(FF2C)
+	$(FF2C) $<
+

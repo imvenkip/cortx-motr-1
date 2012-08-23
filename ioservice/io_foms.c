@@ -39,7 +39,7 @@
 #include "reqh/reqh_service.h"
 #include "ioservice/io_foms.h"
 #include "ioservice/io_service.h"
-#include "ioservice/io_fops_xc.h"
+#include "ioservice/io_fops_ff.h"
 #include "colibri/colibri_setup.h"
 
 /**

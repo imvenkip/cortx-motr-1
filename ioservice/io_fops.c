@@ -35,7 +35,7 @@
 #include "rpc/rpc2.h"
 #include "rpc/rpc_onwire.h"
 #include "ioservice/io_fops.h"
-#include "ioservice/io_fops_xc.h"
+#include "ioservice/io_fops_ff.h"
 
 /*
  * Cob delete and Cob create fom types.
@@ -140,7 +140,7 @@ void c2_ioservice_fop_fini(void)
 	c2_fop_type_fini(&c2_fop_cob_readv_rep_fopt);
 	c2_fop_type_fini(&c2_fop_cob_writev_fopt);
 	c2_fop_type_fini(&c2_fop_cob_readv_fopt);
-	c2_xc_io_fops_xc_fini();
+	c2_xc_io_fops_fini();
 	c2_addb_ctx_fini(&bulkclient_addb);
 }
 C2_EXPORTED(c2_ioservice_fop_fini);
@@ -152,7 +152,7 @@ int c2_ioservice_fop_init(void)
 	/*
 	 * Provided by ff2c compiler after parsing io_fops_xc.ff
 	 */
-	c2_xc_io_fops_xc_init();
+	c2_xc_io_fops_init();
 
 #ifndef __KERNEL__
 	c2_fop_cob_readv_fopt.ft_fom_type  = c2_io_fom_cob_rw_fomt;

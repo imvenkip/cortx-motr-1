@@ -24,7 +24,7 @@
 #include "fop/fop.h"
 #include "fop/fom_generic.h"     /* C2_FOPH_NR */
 #include "rpc/it/ping_fom.h"
-#include "rpc/it/ping_fop_xc.h"
+#include "rpc/it/ping_fop_ff.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "rpc/rpc2.h"

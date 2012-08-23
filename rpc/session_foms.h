@@ -26,7 +26,7 @@
 
 #include "fop/fop.h"
 #include "rpc/session_fops.h"
-#include "rpc/session_xc.h"
+#include "rpc/session_ff.h"
 #include "fop/fom.h"
 #include "fop/fom_generic.h"     /* C2_FOPH_NR */
 

@@ -41,7 +41,7 @@
 #include "rpc/rpc_onwire.h"
 #include "rpc/rpc_opcodes.h"
 #include "fop/fop_item_type.h"
-#include "reqh/ut/io_fop_xc.h"
+#include "reqh/ut/io_fop_ff.h"
 
 /**
    @defgroup stobio
@@ -598,7 +598,7 @@ int c2_stob_io_fop_init(void)
 	struct c2_fom_type *fom_type;
 	struct c2_fop_type *fop_type;
 
-	c2_xc_io_fop_xc_init();
+	c2_xc_io_fop_init();
 	result = C2_FOP_TYPE_INIT(&c2_stob_io_create_fopt,
 				  .name      = "Stob create",
 				  .opcode    = C2_STOB_IO_CREATE_REQ_OPCODE,
@@ -660,7 +660,7 @@ void c2_stob_io_fop_fini(void)
 	c2_fop_type_fini(&c2_stob_io_write_fopt);
 	c2_fop_type_fini(&c2_stob_io_read_fopt);
 	c2_fop_type_fini(&c2_stob_io_create_fopt);
-	c2_xc_io_fop_xc_fini();
+	c2_xc_io_fop_fini();
 }
 
 /*
