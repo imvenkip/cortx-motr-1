@@ -80,7 +80,7 @@ int c2_arch_cookie_global_init(void)
 
 	C2_SET0(&sa_sigsegv);
 	sa_sigsegv.sa_handler = sigsegv;
-	sa_sigsegv.sa_flags   = SA_NODEFER;
+	sa_sigsegv.sa_flags = SA_NODEFER;
 	ret = sigemptyset(&sa_sigsegv.sa_mask);
 	if (ret == -1)
 		return -errno;
