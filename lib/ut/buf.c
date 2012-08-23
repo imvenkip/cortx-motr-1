@@ -23,6 +23,7 @@
 #include "lib/assert.h"
 #include "lib/cdefs.h"
 #include "lib/memory.h"
+#include "lib/finject.h"
 
 static bool bit_is_set(int bits, int index)
 {
@@ -56,6 +57,13 @@ void c2_ut_lib_buf_test(void)
 		[6] = { (1 << 3) | (1 << 7), C2_BUF_INIT0 },
 		[7] = { (1 << 3) | (1 << 6), C2_BUF_INIT0 },
 	};
+
+#ifdef ENABLE_FAULT_INJECTION
+	struct c2_buf inj_copy = C2_BUF_INIT0;
+	c2_fi_enable_once("c2_alloc", "fail_allocation");
+	rc = c2_buf_copy(&inj_copy, &test[0].buf);
+	C2_UT_ASSERT(rc == -ENOMEM);
+#endif
 
 	c2_buf_init(&test[6].buf, d0, sizeof(d0));
 	c2_buf_init(&test[7].buf, d0, sizeof(d0));

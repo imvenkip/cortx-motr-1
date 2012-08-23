@@ -22,14 +22,35 @@
 #  include "config.h"
 #endif
 
-int libc2_init()
+#include "lib/cdefs.h"
+#include "lib/buf_xc.h"
+#include "lib/vec_xc.h"
+
+static void xc_types_init(void)
 {
-	return 0;
+	c2_xc_buf_init();
+	c2_xc_vec_init();
 }
 
-void libc2_fini()
+static void xc_types_fini(void)
 {
+	c2_xc_buf_fini();
+	c2_xc_vec_fini();
 }
+
+int libc2_init(void)
+{
+	xc_types_init();
+
+	return 0;
+}
+C2_EXPORTED(libc2_init);
+
+void libc2_fini(void)
+{
+	xc_types_fini();
+}
+C2_EXPORTED(libc2_fini);
 
 /*
  *  Local variables:

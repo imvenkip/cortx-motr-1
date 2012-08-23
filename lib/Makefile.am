@@ -54,7 +54,6 @@ libc2_la_SOURCES     = \
                        buf.c \
                        buf.h \
                        buf_xc.c \
-                       c2lib.c \
                        cdefs.h \
                        chan.c \
                        chan.h \
@@ -114,7 +113,8 @@ libc2_la_SOURCES     = \
                        ut.h \
                        vec.c \
                        vec.h \
-                       vec_xc.c
+                       vec_xc.c \
+                       c2lib.c
 
 libc2_la_LDFLAGS       = @PTHREAD_LIBS@ -lrt
 EXTRA_DIST             = \

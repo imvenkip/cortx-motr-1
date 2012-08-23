@@ -68,6 +68,9 @@ extern void c2_memory_fini(void);
 extern int  c2_rpc_module_init(void);
 extern void c2_rpc_module_fini(void);
 
+extern int  libc2_init(void);
+extern void libc2_fini(void);
+
 /**
    @addtogroup init
    @{
@@ -123,6 +126,7 @@ struct init_fini_call subsystem[] = {
 #ifndef __KERNEL__
 	{ &c2_ios_register,     &c2_ios_unregister,   "ioservice" },
 #endif /* __KERNEL__ */
+	{ &libc2_init,          &libc2_fini,          "libc2" },
 };
 
 static void fini_nr(int i)
