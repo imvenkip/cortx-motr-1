@@ -135,7 +135,8 @@ static int bulkio_server_write_fom_tick(struct c2_fom *fom)
 	switch (phase0) {
 	case C2_FOPH_IO_FOM_BUFFER_ACQUIRE :
 		C2_UT_ASSERT(C2_IN(c2_fom_phase(fom),
-		(C2_FOPH_IO_FOM_BUFFER_WAIT, C2_FOPH_IO_ZERO_COPY_INIT)));
+				   (C2_FOPH_IO_FOM_BUFFER_WAIT,
+				    C2_FOPH_IO_ZERO_COPY_INIT)));
 		break;
 	case C2_FOPH_IO_ZERO_COPY_INIT:
                 C2_UT_ASSERT(c2_fom_phase(fom) == C2_FOPH_IO_ZERO_COPY_WAIT);
@@ -151,7 +152,8 @@ static int bulkio_server_write_fom_tick(struct c2_fom *fom)
 		break;
 	case C2_FOPH_IO_BUFFER_RELEASE:
                 C2_UT_ASSERT(C2_IN(c2_fom_phase(fom),
-		(C2_FOPH_IO_FOM_BUFFER_ACQUIRE, C2_FOPH_SUCCESS)));
+				   (C2_FOPH_IO_FOM_BUFFER_ACQUIRE,
+				    C2_FOPH_SUCCESS)));
 		break;
 	}
 	return rc;
@@ -174,7 +176,8 @@ static int bulkio_server_read_fom_tick(struct c2_fom *fom)
 	switch (phase0) {
 	case C2_FOPH_IO_FOM_BUFFER_ACQUIRE :
                 C2_UT_ASSERT(C2_IN(c2_fom_phase(fom),
-		(C2_FOPH_IO_FOM_BUFFER_WAIT, C2_FOPH_IO_STOB_INIT)));
+				   (C2_FOPH_IO_FOM_BUFFER_WAIT,
+				    C2_FOPH_IO_STOB_INIT)));
 		break;
 	case C2_FOPH_IO_ZERO_COPY_INIT:
                 C2_UT_ASSERT(c2_fom_phase(fom) == C2_FOPH_IO_ZERO_COPY_WAIT);
@@ -190,7 +193,8 @@ static int bulkio_server_read_fom_tick(struct c2_fom *fom)
 		break;
 	case C2_FOPH_IO_BUFFER_RELEASE:
                 C2_UT_ASSERT(C2_IN(c2_fom_phase(fom),
-		(C2_FOPH_IO_FOM_BUFFER_ACQUIRE, C2_FOPH_SUCCESS)));
+				   (C2_FOPH_IO_FOM_BUFFER_ACQUIRE,
+				    C2_FOPH_SUCCESS)));
 		break;
 	}
 	return rc;
@@ -1173,7 +1177,7 @@ void bulkio_server_single_read_write(void)
 	 * changed during bulkio_stob_create test.
 	 */
 	bp->bp_wfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
-        bp->bp_wfops[0]->if_fop.f_type->ft_fom_type.ft_ops = &type_ops;
+        bp->bp_wfops[0]->if_fop.f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
 	targ.ta_index = 0;
 	targ.ta_op = op;
 	targ.ta_bp = bp;
@@ -1186,7 +1190,7 @@ void bulkio_server_single_read_write(void)
 	op = C2_IOSERVICE_READV_OPCODE;
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
 	bp->bp_rfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
-        bp->bp_rfops[0]->if_fop.f_type->ft_fom_type.ft_ops = &type_ops;
+        bp->bp_rfops[0]->if_fop.f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
 	targ.ta_index = 0;
 	targ.ta_op = op;
 	targ.ta_bp = bp;

@@ -613,7 +613,7 @@ static const struct c2_fom_ops ops = {
 /**
  * I/O FOM type operation vector.
  */
-const struct c2_fom_type_ops type_ops = {
+const struct c2_fom_type_ops io_fom_type_ops = {
 	.fto_create = c2_io_fom_cob_rw_create,
 };
 

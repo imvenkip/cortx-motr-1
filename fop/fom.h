@@ -56,7 +56,7 @@
  *
  * Fom operates by moving from "phase" to "phase". Current phase is recorded in
  * c2_fom::fo_phase. Generic code in fom.c pays no attention to this field,
- * except for special C2_FOM_PHASE_INIT and C2_FOM_PHASE_FINI values used to
+ * except for special C2_FOM_PHASE_INIT and C2_FOM_PHASE_FINISH values used to
  * control fom life-time. ->fo_phase value is interpreted by fom-type-specific
  * code. core/reqh/ defines some "standard phases", that a typical fom related
  * to file operation processing passes through.
@@ -86,7 +86,7 @@
  *       performance globally, by selecting the "best" READY fom;
  *
  *     - C2_FSO_WAIT: no phase transitions are possible at the moment. As a
- *       special case, if c2_fom_phase(fom) == C2_FOM_PHASE_FINI, request handler
+ *       special case, if c2_fom_phase(fom) == C2_FOM_PHASE_FINISH, request handler
  *       destroys the fom, by calling its c2_fom_ops::fo_fini()
  *       method. Otherwise, the fom is placed in WAITING state.
  *
@@ -331,13 +331,12 @@ enum c2_fom_state {
 	 * thread.  The fom is not on any queue in this state.
 	 */
 	C2_FOS_RUNNING,
-	/** FOM is enqueued into a locality wait list.
-	 */
+	/** FOM is enqueued into a locality wait list. */
 	C2_FOS_WAITING,
 	C2_FOS_FINISH,
 };
 
-enum c2_fom_phases {
+enum c2_fom_phase {
 	C2_FOM_PHASE_INIT,   /*< fom has been initialised. */
 	C2_FOM_PHASE_FINISH, /*< terminal phase. */
 	C2_FOM_PHASE_NR
@@ -684,24 +683,21 @@ bool c2_fom_callback_cancel(struct c2_fom_callback *cb);
 bool c2_fom_group_is_locked(const struct c2_fom *fom);
 
 /**
- * Initialises FOM state machines,
+ * Initialises FOM state machines for phases and states.
  * @see c2_fom::fo_sm_phase
  * @see c2_fom::fo_sm_state
  *
- * @pre c2_group_is_locked(fom)
+ * @pre fom->fo_loc != NULL
  */
 void c2_fom_sm_init(struct c2_fom *fom);
 
 static inline void c2_fom_phase_set(struct c2_fom *fom, int phase)
 {
-	C2_PRE(fom != NULL);
-
 	c2_sm_state_set(&fom->fo_sm_phase, phase);
 }
 
 static inline int c2_fom_phase(struct c2_fom *fom)
 {
-	C2_PRE(fom != NULL);
 	return fom->fo_sm_phase.sm_state;
 }
 

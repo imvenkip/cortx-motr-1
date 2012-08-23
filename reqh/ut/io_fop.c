@@ -612,8 +612,8 @@ int c2_stob_io_fop_init(void)
 				  .name      = "Stob create",
 				  .opcode    = C2_STOB_IO_CREATE_REQ_OPCODE,
 				  .xt        = c2_stob_io_create_xc,
-				 .fom_ops   = &stob_create_fom_type_ops,
-				 .sm        = &c2_generic_conf,
+				  .fom_ops   = &stob_create_fom_type_ops,
+				  .sm        = &c2_generic_conf,
 				  .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
 					       C2_RPC_ITEM_TYPE_MUTABO) ?:
 		C2_FOP_TYPE_INIT(&c2_stob_io_read_fopt,

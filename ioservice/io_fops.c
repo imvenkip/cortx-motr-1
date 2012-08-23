@@ -147,8 +147,8 @@ void c2_ioservice_fop_fini(void)
 C2_EXPORTED(c2_ioservice_fop_fini);
 
 extern struct c2_reqh_service_type c2_ios_type;
-extern const struct c2_fom_type_ops type_ops;
 extern const struct c2_fom_type_ops cob_fom_type_ops;
+extern const struct c2_fom_type_ops io_fom_type_ops;
 
 extern const struct c2_sm_conf io_conf;
 extern struct c2_sm_state_descr io_phases[];
@@ -172,7 +172,7 @@ int c2_ioservice_fop_init(void)
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
 				 .fop_ops   = &io_fop_rwv_ops,
 #ifndef __KERNEL__
-				 .fom_ops   = &type_ops,
+				 .fom_ops   = &io_fom_type_ops,
 				 .sm        = &io_conf,
 				 .svc_type  = &c2_ios_type,
 #endif
@@ -185,7 +185,7 @@ int c2_ioservice_fop_init(void)
 					      C2_RPC_ITEM_TYPE_MUTABO,
 				 .fop_ops   = &io_fop_rwv_ops,
 #ifndef __KERNEL__
-				 .fom_ops   = &type_ops,
+				 .fom_ops   = &io_fom_type_ops,
 				 .sm        = &io_conf,
 				 .svc_type  = &c2_ios_type,
 #endif

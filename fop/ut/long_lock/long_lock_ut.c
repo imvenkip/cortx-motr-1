@@ -26,6 +26,7 @@
 #include "rpc/rpclib.h"
 #include "net/lnet/lnet.h"
 #include "ut/rpc.h"
+#include "fop/fom_generic.h"        /* c2_generic_conf */
 
 enum {
 	RDWR_REQUEST_MAX = 48,
@@ -35,6 +36,8 @@ enum {
 #include "fop/ut/long_lock/rdwr_fom.c"
 #include "fop/ut/long_lock/rdwr_test_bench.c"
 
+extern struct c2_fom_type rdwr_fom_type;
+extern const struct c2_fom_type_ops fom_rdwr_type_ops;
 static struct c2_reqh reqh[REQH_IN_UT_MAX];
 
 static void test_long_lock_n(void)
@@ -67,7 +70,8 @@ static int test_long_lock_init(void)
 				  (void *)1, (void *)1);
 		C2_ASSERT(rc == 0);
 	}
-
+	c2_fom_type_init(&rdwr_fom_type, &fom_rdwr_type_ops, NULL,
+			 &c2_generic_conf);
 	return rc;
 }
 

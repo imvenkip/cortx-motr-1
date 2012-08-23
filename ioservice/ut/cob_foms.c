@@ -461,6 +461,8 @@ static void fom_create(struct c2_fom **fom, enum cob_fom_type fomtype)
 
 	base_fom->fo_fol = reqh->rh_fol;
 	base_fom->fo_loc->fl_dom->fd_reqh = reqh;
+	base_fom->fo_type = &ft;
+	c2_fom_sm_init(base_fom);
 }
 
 /*
@@ -468,7 +470,7 @@ static void fom_create(struct c2_fom **fom, enum cob_fom_type fomtype)
  */
 static void fom_fini(struct c2_fom *fom, enum cob_fom_type fomtype)
 {
-	fom->fo_sm_phase.sm_state = C2_FOPH_FINISH;
+	fom_phase_set(fom, C2_FOPH_FINISH);
 
 	switch (fomtype) {
 	case COB_CREATE:
@@ -663,7 +665,6 @@ static struct c2_fom *cc_fom_alloc()
 	fop_alloc(fom, COB_CREATE);
 	C2_UT_ASSERT(fom->fo_fop != NULL);
 	cob_fom_populate(fom);
-	c2_fom_sm_init(fom);
 	fom_phase_set(fom, C2_FOPH_CC_COB_CREATE);
 	return fom;
 }
@@ -981,7 +982,6 @@ static struct c2_fom *cd_fom_alloc()
 	fop_alloc(fom, COB_DELETE);
 	C2_UT_ASSERT(fom->fo_fop != NULL);
 	cob_fom_populate(fom);
-	c2_fom_sm_init(fom);
 	fom_phase_set(fom, C2_FOPH_CD_COB_DEL);
 
 	return fom;
@@ -1267,7 +1267,7 @@ static void cd_fom_state_test(void)
 
 static void cob_create_api_test(void)
 {
-	c2_fi_enable("sm_is_locked", "no_lock");
+	c2_fi_enable("c2_sm_invariant", "no_lock");
 	/* Test for cc_fom_create() */
 	cc_fom_create_test();
 
@@ -1291,12 +1291,12 @@ static void cob_create_api_test(void)
 
 	/* Test for cc_fom_tick() */
 	cc_fom_state_test();
-	c2_fi_disable("sm_is_locked", "no_lock");
+	c2_fi_disable("c2_sm_invariant", "no_lock");
 }
 
 static void cob_delete_api_test(void)
 {
-	c2_fi_enable("sm_is_locked", "no_lock");
+	c2_fi_enable("c2_sm_invariant", "no_lock");
 	/* Test for cd_fom_create() */
 	cd_fom_create_test();
 
@@ -1320,7 +1320,7 @@ static void cob_delete_api_test(void)
 
 	/* Test for cd_fom_tick() */
 	cd_fom_state_test();
-	c2_fi_disable("sm_is_locked", "no_lock");
+	c2_fi_disable("c2_sm_invariant", "no_lock");
 }
 
 const struct c2_test_suite cobfoms_ut = {

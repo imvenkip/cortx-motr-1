@@ -110,8 +110,6 @@ static void sm_unlock(struct c2_sm *mach)
 
 static bool sm_is_locked(const struct c2_sm *mach)
 {
-	if (C2_FI_ENABLED("no_lock"))
-		return true;
 	return grp_is_locked(mach->sm_grp);
 }
 
@@ -148,6 +146,8 @@ bool sm_invariant0(const struct c2_sm *mach)
 
 bool c2_sm_invariant(const struct c2_sm *mach)
 {
+	if (C2_FI_ENABLED("no_lock"))
+		return sm_invariant0(mach);
 	return sm_is_locked(mach) && sm_invariant0(mach);
 }
 
@@ -248,6 +248,7 @@ static void state_set(struct c2_sm *mach, int state)
 	 */
 	do {
 		sd = sm_state(mach);
+		/* Used in UT's where out of order state transitions are done.*/
 		if (C2_FI_ENABLED("no_pre"))
 			goto skip_pre_cond;
 		C2_PRE(sd->sd_allowed & (1ULL << state));

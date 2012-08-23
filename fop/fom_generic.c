@@ -50,7 +50,7 @@ static const struct c2_addb_loc reqh_gen_addb_loc = {
         .al_name = "reqh generic"
 };
 
-#define REQH_GEN_ADDB_ADD(addb_ctx, name, rc)  \
+#define FOM_GEN_ADDB_ADD(addb_ctx, name, rc)  \
 C2_ADDB_ADD((addb_ctx), &reqh_gen_addb_loc, c2_addb_func_fail, (name), (rc))
 
 struct c2_fop_type c2_fom_error_rep_fopt;
@@ -71,7 +71,7 @@ int c2_fom_generic_init(void)
 
 
 /**
- * Fom phase operations structure, helps to transition fom
+ * Fom phase descriptor structure, helps to transition fom
  * through its standard phases
  */
 struct fom_phase_desc {
@@ -83,16 +83,16 @@ struct fom_phase_desc {
 
 	   @see c2_fom_tick_generic()
 	 */
-        int (*fpo_action) (struct c2_fom *fom);
+        int (*fpd_action) (struct c2_fom *fom);
         /**
 	   Next phase the fom should transition into, after successfully
 	   completing the current phase execution.
 	 */
-        int		   fpo_nextphase;
+        int		   fpd_nextphase;
 	/**
 	   Fom phase name in user readable format.
 	 */
-	const char	  *fpo_name;
+	const char	  *fpd_name;
 	/**
 	   Bitmap representation of the fom phase.
 	   This is used in pre condition checks before executing
@@ -100,7 +100,7 @@ struct fom_phase_desc {
 
 	   @see c2_fom_tick_generic()
 	 */
-	uint64_t	   fpo_pre_phase;
+	uint64_t	   fpd_pre_phase;
 };
 
 /**
@@ -404,7 +404,7 @@ static int fom_timeout(struct c2_fom *fom)
  *
  * @see struct fom_phase_desc
  */
-static const struct fom_phase_desc fpo_table[] = {
+static const struct fom_phase_desc fpd_table[] = {
 	[C2_FOPH_INIT] =		   { &fom_phase_init,
 					      C2_FOPH_AUTHENTICATE,
 					     "fom_init",
@@ -741,26 +741,26 @@ const struct c2_sm_conf c2_generic_conf = {
 	.scf_nr_states = ARRAY_SIZE(generic_phases),
 	.scf_state     = generic_phases
 };
+C2_EXPORTED(c2_generic_conf);
 
 int c2_fom_tick_generic(struct c2_fom *fom)
 {
 	int			     rc;
-	const struct fom_phase_desc *fpo_phase;
+	const struct fom_phase_desc *fpd_phase;
 	struct c2_reqh              *reqh;
 
-	fpo_phase = &fpo_table[c2_fom_phase(fom)];
+	fpd_phase = &fpd_table[c2_fom_phase(fom)];
 
-	rc = fpo_phase->fpo_action(fom);
+	rc = fpd_phase->fpd_action(fom);
 
 	reqh = fom->fo_loc->fl_dom->fd_reqh;
 	if (rc == C2_FSO_AGAIN) {
 		if (fom->fo_rc != 0 && c2_fom_phase(fom) < C2_FOPH_FAILURE) {
 			c2_fom_phase_set(fom, C2_FOPH_FAILURE);
-			REQH_GEN_ADDB_ADD(reqh->rh_addb,
-						fpo_phase->fpo_name,
-						fom->fo_rc);
+			FOM_GEN_ADDB_ADD(reqh->rh_addb, fpd_phase->fpd_name,
+					 fom->fo_rc);
 		} else
-			c2_fom_phase_set(fom, fpo_phase->fpo_nextphase);
+			c2_fom_phase_set(fom, fpd_phase->fpd_nextphase);
 	}
 
 	if (c2_fom_phase(fom) == C2_FOPH_FINISH)

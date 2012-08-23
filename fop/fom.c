@@ -241,13 +241,11 @@ bool c2_locality_invariant(const struct c2_fom_locality *loc)
 
 static inline enum c2_fom_state fom_state(const struct c2_fom *fom)
 {
-	C2_PRE(fom != NULL);
 	return fom->fo_sm_state.sm_state;
 }
 
 static inline void fom_state_set(struct c2_fom *fom, enum c2_fom_state state)
 {
-	C2_PRE(fom != NULL);
 	c2_sm_state_set(&fom->fo_sm_state, state);
 }
 
@@ -261,7 +259,6 @@ static bool fom_is_blocked(const struct c2_fom *fom)
 /* Returns fom from state machine c2_fom::fo_sm_state */
 static inline struct c2_fom *sm2fom(struct c2_sm *sm)
 {
-	C2_PRE(sm != NULL);
 	return container_of(sm, struct c2_fom, fo_sm_state);
 }
 
@@ -470,19 +467,6 @@ static void fom_wait(struct c2_fom *fom)
 	C2_POST(c2_fom_invariant(fom));
 }
 
-static void fom_finish(struct c2_fom *fom)
-{
-	C2_PRE(fom != NULL);
-
-	C2_PRE(c2_fom_invariant(fom));
-	fom_state_set(fom, C2_FOS_FINISH);
-	if (c2_fom_phase(fom) != C2_FOM_PHASE_FINISH)
-		c2_fom_phase_set(fom, C2_FOM_PHASE_FINISH);
-	c2_sm_fini(&fom->fo_sm_phase);
-	c2_sm_fini(&fom->fo_sm_state);
-	fom->fo_ops->fo_fini(fom);
-}
-
 /**
  * Helper to execute the bottom half of a fom call-back.
  */
@@ -530,7 +514,7 @@ static void fom_exec(struct c2_fom *fom)
 	C2_ASSERT(c2_fom_group_is_locked(fom));
 
 	if (c2_fom_phase(fom) == C2_FOM_PHASE_FINISH) {
-		fom_finish(fom);
+		fom->fo_ops->fo_fini(fom);
 		/*
 		 * Don't touch the fom after this point.
 		 */
@@ -872,6 +856,9 @@ void c2_fom_fini(struct c2_fom *fom)
 
 	fdom = fom->fo_loc->fl_dom;
 	reqh = fdom->fd_reqh;
+	fom_state_set(fom, C2_FOS_FINISH);
+	c2_sm_fini(&fom->fo_sm_phase);
+	c2_sm_fini(&fom->fo_sm_state);
 	c2_list_link_fini(&fom->fo_linkage);
 	c2_fom_callback_init(&fom->fo_cb);
 	if (c2_atomic64_dec_and_test(&fdom->fd_foms_nr))
@@ -1066,6 +1053,7 @@ void c2_fom_sm_init(struct c2_fom *fom)
 	const struct c2_sm_conf	*conf;
 
 	C2_PRE(fom != NULL);
+	C2_PRE(fom->fo_loc != NULL);
 
 	conf = fom->fo_type->ft_conf;
 	C2_ASSERT(conf->scf_nr_states != 0);
