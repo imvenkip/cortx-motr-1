@@ -23,8 +23,8 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "fop/fom_generic.h"        /* c2_fom_type_register() */
 #include "lib/ut.h"
+#include "fop/fom_generic.h"        /* c2_generic_conf */
 #include "fop/fom_long_lock.h"
 
 struct test_request;
@@ -60,9 +60,7 @@ static const struct c2_fom_type_ops fom_rdwr_type_ops = {
 };
 
 /** Rdwr specific FOM type operations vector. */
-static struct c2_fom_type rdwr_fom_type = {
-        .ft_ops = &fom_rdwr_type_ops,
-};
+static struct c2_fom_type rdwr_fom_type;
 
 static size_t fom_rdwr_home_locality(const struct c2_fom *fom)
 {
@@ -83,7 +81,8 @@ static int rdwr_fom_create(struct c2_fom **m)
         C2_UT_ASSERT(fom_obj != NULL);
 
 	fom = &fom_obj->fr_gen;
-	c2_fom_type_register(&rdwr_fom_type);
+	c2_fom_type_init(&rdwr_fom_type, &fom_rdwr_type_ops, NULL,
+			 &c2_generic_conf);
 	c2_fom_init(fom, &rdwr_fom_type, &fom_rdwr_ops,
 		    (struct c2_fop *) 1, NULL);
 

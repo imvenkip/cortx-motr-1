@@ -127,10 +127,6 @@ const struct c2_fom_type_ops c2_cons_fom_device_type_ops = {
         .fto_create = cons_fop_fom_create
 };
 
-struct c2_fom_type c2_cons_fom_device_type = {
-        .ft_ops = &c2_cons_fom_device_type_ops
-};
-
 /** @} end of console */
 
 /*

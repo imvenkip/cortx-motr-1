@@ -51,7 +51,7 @@
 /**
  * Create, Write and Read fop specific fom execution phases
  */
-enum stob_read_fom_phase {
+enum stob_fom_phases {
 	C2_FOPH_CREATE_STOB  = C2_FOPH_NR + 1,
 	C2_FOPH_READ_STOB_IO = C2_FOPH_NR + 1,
 	C2_FOPH_READ_STOB_IO_WAIT,
@@ -86,6 +86,12 @@ struct c2_sm_state_descr stob_read_phases[] = {
 	},
 };
 
+const struct c2_sm_conf read_conf = {
+	.scf_name      = "Stob read phases",
+	.scf_nr_states = ARRAY_SIZE(stob_read_phases),
+	.scf_state     = stob_read_phases,
+};
+
 struct c2_sm_state_descr stob_write_phases[] = {
 	[C2_FOPH_READ_STOB_IO] = {
 		.sd_name      = "Write stob",
@@ -96,6 +102,12 @@ struct c2_sm_state_descr stob_write_phases[] = {
 		.sd_name      = "Write stob wait",
 		.sd_allowed   = (1 << C2_FOPH_SUCCESS)
 	},
+};
+
+const struct c2_sm_conf write_conf = {
+	.scf_name      = "Stob write phases",
+	.scf_nr_states = ARRAY_SIZE(stob_write_phases),
+	.scf_state     = stob_write_phases,
 };
 
 /**
@@ -173,41 +185,6 @@ static const struct c2_fom_type_ops stob_read_fom_type_ops = {
 static const struct c2_fom_type_ops stob_write_fom_type_ops = {
 	.fto_create = stob_write_fom_create,
 };
-
-static struct c2_fom_type stob_create_fom_mopt = {
-	.ft_ops = &stob_create_fom_type_ops,
-	.ft_phases = stob_create_phases,
-	.ft_phases_nr = ARRAY_SIZE(stob_create_phases),
-};
-
-static struct c2_fom_type stob_read_fom_mopt = {
-	.ft_ops = &stob_read_fom_type_ops,
-	.ft_phases = stob_read_phases,
-	.ft_phases_nr = ARRAY_SIZE(stob_read_phases),
-};
-
-static struct c2_fom_type stob_write_fom_mopt = {
-	.ft_ops = &stob_write_fom_type_ops,
-	.ft_phases = stob_write_phases,
-	.ft_phases_nr = ARRAY_SIZE(stob_write_phases),
-};
-
-static struct c2_fom_type *stob_fom_types[] = {
-	&stob_create_fom_mopt,
-	&stob_write_fom_mopt,
-	&stob_read_fom_mopt,
-};
-
-/**
- * Function to map a fop to its corresponding fom
- */
-static struct c2_fom_type *stob_fom_type_map(c2_fop_type_code_t code)
-{
-	C2_ASSERT(IS_IN_ARRAY((code - C2_STOB_IO_CREATE_REQ_OPCODE),
-			      stob_fom_types));
-
-	return stob_fom_types[code - C2_STOB_IO_CREATE_REQ_OPCODE];
-}
 
 /**
  * Function to locate a storage object.
@@ -624,26 +601,35 @@ int c2_stob_io_fop_init(void)
 	int		    result;
 	int		    i;
 	c2_fop_type_code_t  code;
-	struct c2_fom_type *fom_type;
 	struct c2_fop_type *fop_type;
 
+	c2_sm_conf_extend(c2_generic_conf.scf_state, stob_read_phases,
+			  c2_generic_conf.scf_nr_states);
+	c2_sm_conf_extend(c2_generic_conf.scf_state, stob_write_phases,
+			  c2_generic_conf.scf_nr_states);
 	c2_xc_io_fop_xc_init();
 	result = C2_FOP_TYPE_INIT(&c2_stob_io_create_fopt,
 				  .name      = "Stob create",
 				  .opcode    = C2_STOB_IO_CREATE_REQ_OPCODE,
 				  .xt        = c2_stob_io_create_xc,
+				 .fom_ops   = &stob_create_fom_type_ops,
+				 .sm        = &c2_generic_conf,
 				  .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
 					       C2_RPC_ITEM_TYPE_MUTABO) ?:
 		C2_FOP_TYPE_INIT(&c2_stob_io_read_fopt,
 				 .name      = "Stob read",
 				 .opcode    = C2_STOB_IO_READ_REQ_OPCODE,
 				 .xt        = c2_stob_io_read_xc,
+				 .fom_ops   = &stob_read_fom_type_ops,
+				 .sm        = &read_conf,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
 					      C2_RPC_ITEM_TYPE_MUTABO) ?:
 		C2_FOP_TYPE_INIT(&c2_stob_io_write_fopt,
 				 .name      = "Stob write",
 				 .opcode    = C2_STOB_IO_WRITE_REQ_OPCODE,
 				 .xt        = c2_stob_io_write_xc,
+				 .fom_ops   = &stob_write_fom_type_ops,
+				 .sm        = &write_conf,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
 					      C2_RPC_ITEM_TYPE_MUTABO) ?:
 		C2_FOP_TYPE_INIT(&c2_stob_io_create_rep_fopt,
@@ -668,10 +654,6 @@ int c2_stob_io_fop_init(void)
 						C2_RPC_ITEM_TYPE_REQUEST) == 0)
 				continue;
 			code = fop_type->ft_rpc_item_type.rit_opcode;
-			fom_type = stob_fom_type_map(code);
-			C2_ASSERT(fom_type != NULL);
-			c2_fom_type_register(fom_type);
-			fop_type->ft_fom_type = *fom_type;
 		}
 	} else
 		c2_stob_io_fop_fini();

@@ -54,7 +54,6 @@ static const struct c2_addb_loc reqh_gen_addb_loc = {
 C2_ADDB_ADD((addb_ctx), &reqh_gen_addb_loc, c2_addb_func_fail, (name), (rc))
 
 struct c2_fop_type c2_fom_error_rep_fopt;
-extern const struct c2_sm_conf fom_conf;
 
 void c2_fom_generic_fini(void)
 {
@@ -75,7 +74,7 @@ int c2_fom_generic_init(void)
  * Fom phase operations structure, helps to transition fom
  * through its standard phases
  */
-struct fom_phase_ops {
+struct fom_phase_desc {
         /**
 	   Perfoms actions corresponding to a particular standard fom
 	   phase, as defined.
@@ -398,14 +397,14 @@ static int fom_timeout(struct c2_fom *fom)
 }
 
 /**
- * Fom phase operations table, this defines a fom_phase_ops object
+ * Fom phase operations table, this defines a fom_phase_desc object
  * for every generic phase of the fom, containing a function pointer
  * to the phase handler, the next phase fom should transition into
  * and a phase name in user visible format inorder to log addb event.
  *
- * @see struct fom_phase_ops
+ * @see struct fom_phase_desc
  */
-static const struct fom_phase_ops fpo_table[] = {
+static const struct fom_phase_desc fpo_table[] = {
 	[C2_FOPH_INIT] =		   { &fom_phase_init,
 					      C2_FOPH_AUTHENTICATE,
 					     "fom_init",
@@ -505,7 +504,7 @@ static const struct fom_phase_ops fpo_table[] = {
  * are assigned to a state machine descriptor.
  * State name is used to log addb event.
  */
-const struct c2_sm_state_descr generic_phases[] = {
+static const struct c2_sm_state_descr generic_phases[] = {
 	[C2_FOPH_INIT] = {
 		.sd_flags     = C2_SDF_INITIAL,
 		.sd_name      = "SM init",
@@ -515,7 +514,8 @@ const struct c2_sm_state_descr generic_phases[] = {
 		.sd_allowed   = (1 << C2_FOPH_AUTHENTICATE) |
 				(1 << C2_FOPH_FINISH) |
 				(1 << C2_FOPH_SUCCESS) |
-				(1 << C2_FOPH_FAILURE)
+				(1 << C2_FOPH_FAILURE) |
+				(1 << (C2_FOPH_NR + 1))
 	},
 	[C2_FOPH_AUTHENTICATE] = {
 		.sd_flags     = 0,
@@ -731,11 +731,12 @@ const struct c2_sm_state_descr generic_phases[] = {
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOPH_SUCCESS) |
-				(1 << C2_FOPH_FAILURE)
+				(1 << C2_FOPH_FAILURE) |
+				(1 << C2_FOPH_FINISH)
 	}
 };
 
-const struct c2_sm_conf generic_conf = {
+const struct c2_sm_conf c2_generic_conf = {
 	.scf_name      = "FOM standard phases",
 	.scf_nr_states = ARRAY_SIZE(generic_phases),
 	.scf_state     = generic_phases
@@ -743,9 +744,9 @@ const struct c2_sm_conf generic_conf = {
 
 int c2_fom_tick_generic(struct c2_fom *fom)
 {
-	int			    rc;
-	const struct fom_phase_ops *fpo_phase;
-	struct c2_reqh             *reqh;
+	int			     rc;
+	const struct fom_phase_desc *fpo_phase;
+	struct c2_reqh              *reqh;
 
 	fpo_phase = &fpo_table[c2_fom_phase(fom)];
 
@@ -767,42 +768,6 @@ int c2_fom_tick_generic(struct c2_fom *fom)
 
 	return rc;
 }
-
-void c2_fom_sm_init(struct c2_fom *fom)
-{
-	struct c2_sm_group	*fom_group;
-	struct c2_addb_ctx	*fom_addb_ctx;
-	const struct c2_sm_conf	*conf;
-
-	C2_PRE(fom != NULL);
-
-	conf = &fom->fo_type->ft_conf;
-	C2_ASSERT(conf->scf_nr_states != 0);
-
-	fom_group    = &fom->fo_loc->fl_group;
-	fom_addb_ctx = &fom->fo_loc->fl_dom->fd_addb_ctx;
-
-	c2_sm_init(&fom->fo_sm_phase, conf, C2_FOPH_INIT, fom_group,
-		    fom_addb_ctx);
-	c2_sm_init(&fom->fo_sm_state, &fom_conf, C2_FOS_INIT, fom_group,
-		    fom_addb_ctx);
-}
-
-void c2_fom_type_register(struct c2_fom_type *fom_type)
-{
-	int i;
-
-	C2_PRE(fom_type != NULL);
-
-	if (fom_type->ft_phases_nr > C2_FOPH_NR) {
-		for (i = 0; i < C2_FOPH_NR; i++)
-			fom_type->ft_phases[i] = generic_phases[i];
-		fom_type->ft_conf.scf_state     = fom_type->ft_phases;
-		fom_type->ft_conf.scf_nr_states = fom_type->ft_phases_nr;
-	} else
-		fom_type->ft_conf = generic_conf;
-}
-C2_EXPORTED(c2_fom_type_register);
 
 /** @} end of fom group */
 /*

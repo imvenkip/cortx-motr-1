@@ -189,24 +189,10 @@ enum c2_fom_standard_phase {
  */
 int c2_fom_tick_generic(struct c2_fom *fom);
 
-/**
- * Initialises FOM state machines,
- * @see c2_fom::fo_sm_phase
- * @see c2_fom::fo_sm_state
- *
- * @pre c2_group_is_locked(fom)
- */
-void c2_fom_sm_init(struct c2_fom *fom);
-
-/**
- * Combines standard and specific FOM phases and returns
- * the resultant state machine configuration in fom_type->ft_conf.
- */
-void c2_fom_type_register(struct c2_fom_type *fom_type);
-
 void c2_fom_generic_fini(void);
 int  c2_fom_generic_init(void);
 
+extern const struct c2_sm_conf c2_generic_conf;
 
 /** @} end of fom group */
 

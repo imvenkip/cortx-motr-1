@@ -166,12 +166,13 @@ int c2_fop_type_init(struct c2_fop_type *ft,
 	fol_type->rt_ops    = args->fol_ops ?:
 		&c2_fop_fol_default_ops;
 
-	ft->ft_fom_type.ft_ops = args->fom_ops;
 	rpc_type->rit_opcode   = args->opcode;
 	rpc_type->rit_flags    = args->rpc_flags;
 	rpc_type->rit_ops      = args->rpc_ops ?:
 		&c2_rpc_fop_default_item_type_ops;
 
+	c2_fom_type_init(&ft->ft_fom_type, args->fom_ops, args->svc_type,
+			 args->sm);
 	c2_rpc_item_type_register(&ft->ft_rpc_item_type);
 	c2_fol_rec_type_register(&ft->ft_rec_type);
 	c2_addb_ctx_init(&ft->ft_addb, &c2_fop_type_addb_ctx,

@@ -75,30 +75,9 @@ static const struct c2_fom_ops cc_fom_ops = {
 };
 
 /** Common fom_type_ops for c2_fop_cob_create and c2_fop_cob_delete fops. */
-static const struct c2_fom_type_ops cob_fom_type_ops = {
+const struct c2_fom_type_ops cob_fom_type_ops = {
 	.fto_create = cob_fom_create,
 };
-
-extern struct c2_reqh_service_type c2_ios_type;
-
-struct c2_sm_state_descr cc_fom_phases[] = {
-	[C2_FOPH_CC_COB_CREATE] = {
-		.sd_name      = "Create cob",
-		.sd_allowed   = (1 << C2_FOPH_SUCCESS) |
-				(1 << C2_FOPH_FAILURE)
-	},
-};
-
-struct c2_sm_state_descr cd_fom_phases[] = {
-	[C2_FOPH_CD_COB_DEL] = {
-		.sd_name      = "Delete cob",
-		.sd_allowed   = (1 << C2_FOPH_SUCCESS) |
-				(1 << C2_FOPH_FAILURE)
-	},
-};
-
-C2_FOM_TYPE_DECLARE(cob_create, &cob_fom_type_ops, &c2_ios_type, cc_fom_phases);
-C2_FOM_TYPE_DECLARE(cob_delete, &cob_fom_type_ops, &c2_ios_type, cd_fom_phases);
 
 static const struct c2_addb_loc cd_fom_addb_loc = {
 	.al_name = "cob_delete_fom",

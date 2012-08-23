@@ -431,7 +431,7 @@ struct c2_fom_callback {
 struct c2_fom {
 	/** Locality this fom belongs to */
 	struct c2_fom_locality	 *fo_loc;
-	struct c2_fom_type	 *fo_type;
+	const struct c2_fom_type *fo_type;
 	const struct c2_fom_ops	 *fo_ops;
 	/** AST call-back to wake up the FOM */
 	struct c2_fom_callback	  fo_cb;
@@ -531,15 +531,9 @@ bool c2_fom_invariant(const struct c2_fom *fom);
 
 /** Type of fom. c2_fom_type is part of c2_fop_type. */
 struct c2_fom_type {
-	const struct c2_fom_type_ops *ft_ops;
-	struct c2_sm_conf             ft_conf;
-	/** It points to either generic SM phases or combined generic and
-	 * specific phases.
-	 */
-	struct c2_sm_state_descr     *ft_phases;
-	uint32_t                      ft_phases_nr;
-	/** Service type this FOM type belongs to. */
-	struct c2_reqh_service_type  *ft_rstype;
+	const struct c2_fom_type_ops	  *ft_ops;
+	const struct c2_sm_conf		  *ft_conf;
+	const struct c2_reqh_service_type *ft_rstype;
 };
 
 /**
@@ -689,6 +683,15 @@ bool c2_fom_callback_cancel(struct c2_fom_callback *cb);
  */
 bool c2_fom_group_is_locked(const struct c2_fom *fom);
 
+/**
+ * Initialises FOM state machines,
+ * @see c2_fom::fo_sm_phase
+ * @see c2_fom::fo_sm_state
+ *
+ * @pre c2_group_is_locked(fom)
+ */
+void c2_fom_sm_init(struct c2_fom *fom);
+
 static inline void c2_fom_phase_set(struct c2_fom *fom, int phase)
 {
 	C2_PRE(fom != NULL);
@@ -702,20 +705,10 @@ static inline int c2_fom_phase(struct c2_fom *fom)
 	return fom->fo_sm_phase.sm_state;
 }
 
-#define C2_FOM_TYPE_DECLARE(fomt, ops, stype, phases) \
-struct c2_fom_type fomt ## _fomt = {          	      \
-	.ft_ops = (ops),                              \
-	.ft_rstype = (stype),                         \
-	.ft_phases = (phases),                        \
-	.ft_phases_nr = (ARRAY_SIZE(phases)),         \
-}                                                     \
-
-#define C2_FOM_CONF_DEFINE(conf, name, phases)   \
-struct c2_sm_conf conf = {                       \
-	.scf_name      = (name),                 \
-	.scf_nr_states = (ARRAY_SIZE(phases)),   \
-	.scf_state     = (phases)                \
-}                                                \
+void c2_fom_type_init(struct c2_fom_type *type,
+		      const struct c2_fom_type_ops *ops,
+		      const struct c2_reqh_service_type  *svc_type,
+		      const struct c2_sm_conf *sm);
 
 /** @} end of fom group */
 /* __COLIBRI_FOP_FOM_H__ */

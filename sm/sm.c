@@ -25,6 +25,7 @@
 #include "lib/arith.h"              /* c2_is_po2 */
 #include "addb/addb.h"
 #include "sm/sm.h"
+#include "lib/finject.h"
 
 /**
    @addtogroup sm
@@ -109,6 +110,8 @@ static void sm_unlock(struct c2_sm *mach)
 
 static bool sm_is_locked(const struct c2_sm *mach)
 {
+	if (C2_FI_ENABLED("no_lock"))
+		return true;
 	return grp_is_locked(mach->sm_grp);
 }
 
@@ -245,8 +248,10 @@ static void state_set(struct c2_sm *mach, int state)
 	 */
 	do {
 		sd = sm_state(mach);
-		C2_PRE(sd->sd_allowed & ((uint64_t)1 << state));
-
+		if (C2_FI_ENABLED("no_pre"))
+			goto skip_pre_cond;
+		C2_PRE(sd->sd_allowed & (1ULL << state));
+skip_pre_cond:
 		if (sd->sd_ex != NULL)
 			sd->sd_ex(mach);
 		mach->sm_state = state;
@@ -375,6 +380,17 @@ void c2_sm_timeout_fini(struct c2_sm_timeout *to)
 	if (c2_clink_is_armed(&to->st_clink))
 		c2_clink_del(&to->st_clink);
 	c2_clink_fini(&to->st_clink);
+}
+
+void c2_sm_conf_extend(const struct c2_sm_state_descr *base,
+		       struct c2_sm_state_descr *sub, uint32_t nr)
+{
+	uint32_t i;
+
+	for (i = 0; i < nr; ++i) {
+		if (sub[i].sd_name == NULL && base[i].sd_name != NULL)
+			sub[i] = base[i];
+	}
 }
 
 /** @} end of sm group */

@@ -601,8 +601,6 @@ static int zero_copy_initiate(struct c2_fom *);
 static int zero_copy_finish(struct c2_fom *);
 static int net_buffer_release(struct c2_fom *);
 
-extern struct c2_reqh_service_type c2_ios_type;
-
 /**
  * I/O FOM operation vector.
  */
@@ -615,10 +613,9 @@ static const struct c2_fom_ops ops = {
 /**
  * I/O FOM type operation vector.
  */
-static const struct c2_fom_type_ops type_ops = {
+const struct c2_fom_type_ops type_ops = {
 	.fto_create = c2_io_fom_cob_rw_create,
 };
-
 
 /**
  * I/O Read FOM state transition table.
@@ -713,17 +710,17 @@ struct c2_sm_state_descr io_phases[] = {
 	[C2_FOPH_IO_STOB_WAIT] = {
 		.sd_name      = "STOB I/O finish",
 		.sd_allowed   = (1 << C2_FOPH_IO_ZERO_COPY_INIT) |
-				((uint64_t)1 << C2_FOPH_IO_BUFFER_RELEASE) |
+				(1 << C2_FOPH_IO_BUFFER_RELEASE) |
 				(1 << C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_IO_ZERO_COPY_INIT] = {
 		.sd_name      = "Zero-copy initiate",
-		.sd_allowed   = ((uint64_t)1 << C2_FOPH_IO_ZERO_COPY_WAIT) |
+		.sd_allowed   = (1 << C2_FOPH_IO_ZERO_COPY_WAIT) |
 				(1 << C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_IO_ZERO_COPY_WAIT] = {
 		.sd_name      = "Zero-copy finish",
-		.sd_allowed   = ((uint64_t)1 << C2_FOPH_IO_BUFFER_RELEASE) |
+		.sd_allowed   = (1 << C2_FOPH_IO_BUFFER_RELEASE) |
 				(1 << C2_FOPH_IO_STOB_INIT) |
 				(1 << C2_FOPH_FAILURE)
 	},
@@ -734,10 +731,11 @@ struct c2_sm_state_descr io_phases[] = {
 	},
 };
 
-/**
- * I/O FOM type operation.
- */
-C2_FOM_TYPE_DECLARE(c2_io_fom_cob_rw, &type_ops, &c2_ios_type, io_phases);
+const struct c2_sm_conf io_conf = {
+	.scf_name      = "IO phases",
+	.scf_nr_states = ARRAY_SIZE(io_phases),
+	.scf_state     = io_phases
+};
 
 static bool c2_io_fom_cob_rw_invariant(const struct c2_io_fom_cob_rw *io)
 {

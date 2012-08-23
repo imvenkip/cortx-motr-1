@@ -151,25 +151,13 @@ void c2_rpc_session_fop_fini(void)
 	c2_xc_session_xc_fini();
 }
 
+extern struct c2_fom_type_ops c2_rpc_fom_conn_establish_type_ops;
+extern struct c2_fom_type_ops c2_rpc_fom_session_establish_type_ops;
+extern struct c2_fom_type_ops c2_rpc_fom_conn_terminate_type_ops;
+extern struct c2_fom_type_ops c2_rpc_fom_session_terminate_type_ops;
+
 int c2_rpc_session_fop_init(void)
 {
-	c2_fom_type_register(&c2_rpc_fom_conn_establish_type);
-	c2_fom_type_register(&c2_rpc_fom_session_establish_type);
-	c2_fom_type_register(&c2_rpc_fom_conn_terminate_type);
-	c2_fom_type_register(&c2_rpc_fom_session_terminate_type);
-
-	c2_rpc_fop_conn_establish_fopt.ft_fom_type =
-		c2_rpc_fom_conn_establish_type;
-
-	c2_rpc_fop_conn_terminate_fopt.ft_fom_type =
-		c2_rpc_fom_conn_terminate_type;
-
-	c2_rpc_fop_session_establish_fopt.ft_fom_type =
-		c2_rpc_fom_session_establish_type;
-
-	c2_rpc_fop_session_terminate_fopt.ft_fom_type =
-		c2_rpc_fom_session_terminate_type;
-
 	c2_xc_session_xc_init();
 	return  C2_FOP_TYPE_INIT(&c2_rpc_fop_conn_establish_fopt,
 			 .name      = "Rpc conn establish",
@@ -178,28 +166,32 @@ int c2_rpc_session_fop_init(void)
 			 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
 				      C2_RPC_ITEM_TYPE_MUTABO,
 			 .rpc_ops   = &conn_establish_item_type_ops,
-			 .fom_ops   = c2_rpc_fom_conn_establish_type.ft_ops) ?:
+			 .fom_ops   = &c2_rpc_fom_conn_establish_type_ops,
+			 .sm        = &c2_generic_conf) ?:
 		C2_FOP_TYPE_INIT(&c2_rpc_fop_conn_terminate_fopt,
 			 .name      = "Rpc conn terminate",
 			 .opcode    = C2_RPC_CONN_TERMINATE_OPCODE,
 			 .xt        = c2_rpc_fop_conn_terminate_xc,
 			 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
 				      C2_RPC_ITEM_TYPE_MUTABO,
-			 .fom_ops   = c2_rpc_fom_conn_terminate_type.ft_ops ) ?:
+			 .fom_ops   = &c2_rpc_fom_conn_terminate_type_ops,
+			 .sm        = &c2_generic_conf) ?:
 		C2_FOP_TYPE_INIT(&c2_rpc_fop_session_establish_fopt,
 			 .name      = "Rpc session establish",
 			 .opcode    = C2_RPC_SESSION_ESTABLISH_OPCODE,
 			 .xt        = c2_rpc_fop_session_establish_xc,
 			 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
 				      C2_RPC_ITEM_TYPE_MUTABO,
-			 .fom_ops   = c2_rpc_fom_session_establish_type.ft_ops) ?:
+			 .fom_ops   = &c2_rpc_fom_session_establish_type_ops,
+			 .sm        = &c2_generic_conf) ?:
 		C2_FOP_TYPE_INIT(&c2_rpc_fop_session_terminate_fopt,
 			 .name      = "Rpc session terminate",
 			 .opcode    = C2_RPC_SESSION_TERMINATE_OPCODE,
 			 .xt        = c2_rpc_fop_session_terminate_xc,
 			 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
 				      C2_RPC_ITEM_TYPE_MUTABO,
-			 .fom_ops   = c2_rpc_fom_session_terminate_type.ft_ops) ?:
+			 .fom_ops   = &c2_rpc_fom_session_terminate_type_ops,
+			 .sm        = &c2_generic_conf) ?:
 		C2_FOP_TYPE_INIT(&c2_rpc_fop_conn_establish_rep_fopt,
 			 .name      = "Rpc conn establish reply",
 			 .opcode    = C2_RPC_CONN_ESTABLISH_REP_OPCODE,

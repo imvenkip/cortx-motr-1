@@ -36,8 +36,8 @@
 #include "fop/fop.h"
 #include "fop/fom_long_lock.h"
 #include "reqh/reqh.h"
-#include "fop/fom_generic.h"
 #include "sm/sm.h"
+
 /**
  * @addtogroup fom
  *
@@ -239,10 +239,16 @@ bool c2_locality_invariant(const struct c2_fom_locality *loc)
 
 }
 
-static inline int fom_state(const struct c2_fom *fom)
+static inline enum c2_fom_state fom_state(const struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
 	return fom->fo_sm_state.sm_state;
+}
+
+static inline void fom_state_set(struct c2_fom *fom, enum c2_fom_state state)
+{
+	C2_PRE(fom != NULL);
+	c2_sm_state_set(&fom->fo_sm_state, state);
 }
 
 static bool fom_is_blocked(const struct c2_fom *fom)
@@ -299,7 +305,7 @@ static void fom_ready(struct c2_fom *fom)
 	struct c2_fom_locality *loc;
 	bool                    empty;
 
-	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_READY);
+	fom_state_set(fom, C2_FOS_READY);
 	loc = fom->fo_loc;
 	empty = c2_list_is_empty(&loc->fl_runq);
 	c2_list_add_tail(&loc->fl_runq, &fom->fo_linkage);
@@ -415,9 +421,9 @@ void c2_fom_block_leave(struct c2_fom *fom)
 
 void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
 {
-	struct c2_fom_domain        *dom;
-	struct c2_reqh_service_type *stype;
-	size_t			     loc_idx;
+	struct c2_fom_domain		  *dom;
+	const struct c2_reqh_service_type *stype;
+	size_t				   loc_idx;
 
 	C2_PRE(reqh != NULL);
 	C2_PRE(fom != NULL);
@@ -457,7 +463,7 @@ static void fom_wait(struct c2_fom *fom)
 {
 	struct c2_fom_locality *loc;
 
-	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_WAITING);
+	fom_state_set(fom, C2_FOS_WAITING);
 	loc = fom->fo_loc;
 	c2_list_add_tail(&loc->fl_wail, &fom->fo_linkage);
 	C2_CNT_INC(loc->fl_wail_nr);
@@ -469,9 +475,9 @@ static void fom_finish(struct c2_fom *fom)
 	C2_PRE(fom != NULL);
 
 	C2_PRE(c2_fom_invariant(fom));
-	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_FINISH);
+	fom_state_set(fom, C2_FOS_FINISH);
 	if (c2_fom_phase(fom) != C2_FOM_PHASE_FINISH)
-		c2_sm_state_set(&fom->fo_sm_phase, C2_FOM_PHASE_FINISH);
+		c2_fom_phase_set(fom, C2_FOM_PHASE_FINISH);
 	c2_sm_fini(&fom->fo_sm_phase);
 	c2_sm_fini(&fom->fo_sm_state);
 	fom->fo_ops->fo_fini(fom);
@@ -504,7 +510,7 @@ static void fom_exec(struct c2_fom *fom)
 
 	loc = fom->fo_loc;
 	fom->fo_thread = loc->fl_handler;
-	c2_sm_state_set(&fom->fo_sm_state, C2_FOS_RUNNING);
+	fom_state_set(fom, C2_FOS_RUNNING);
 	do {
 		C2_ASSERT(c2_fom_invariant(fom));
 		C2_ASSERT(fom_state(fom) != C2_FOM_PHASE_FINISH);
@@ -879,6 +885,7 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
 {
 	C2_PRE(fom != NULL);
 
+	fom->fo_rc      = 0;
 	fom->fo_type	= fom_type;
 	fom->fo_ops	= ops;
 	fom->fo_fop	= fop;
@@ -989,7 +996,17 @@ bool c2_fom_callback_cancel(struct c2_fom_callback *cb)
 	return result;
 }
 
-const struct c2_sm_state_descr fom_states[] = {
+void c2_fom_type_init(struct c2_fom_type *type,
+		      const struct c2_fom_type_ops *ops,
+		      const struct c2_reqh_service_type  *svc_type,
+		      const struct c2_sm_conf *sm)
+{
+	type->ft_ops    = ops;
+	type->ft_conf   = sm;
+	type->ft_rstype = svc_type;
+}
+
+static const struct c2_sm_state_descr fom_states[] = {
 	[C2_FOS_INIT] = {
 		.sd_flags     = C2_SDF_INITIAL,
 		.sd_name      = "SM init",
@@ -1014,6 +1031,7 @@ const struct c2_sm_state_descr fom_states[] = {
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOS_WAITING) |
+				(1 << C2_FOS_READY) |
 				(1 << C2_FOS_FINISH)
 	},
 	[C2_FOS_WAITING] = {
@@ -1035,11 +1053,31 @@ const struct c2_sm_state_descr fom_states[] = {
 	}
 };
 
-const struct c2_sm_conf	fom_conf = {
+static const struct c2_sm_conf	fom_conf = {
 	.scf_name      = "FOM states",
 	.scf_nr_states = ARRAY_SIZE(fom_states),
 	.scf_state     = fom_states
 };
+
+void c2_fom_sm_init(struct c2_fom *fom)
+{
+	struct c2_sm_group	*fom_group;
+	struct c2_addb_ctx	*fom_addb_ctx;
+	const struct c2_sm_conf	*conf;
+
+	C2_PRE(fom != NULL);
+
+	conf = fom->fo_type->ft_conf;
+	C2_ASSERT(conf->scf_nr_states != 0);
+
+	fom_group    = &fom->fo_loc->fl_group;
+	fom_addb_ctx = &fom->fo_loc->fl_dom->fd_addb_ctx;
+
+	c2_sm_init(&fom->fo_sm_phase, conf, C2_FOM_PHASE_INIT, fom_group,
+		    fom_addb_ctx);
+	c2_sm_init(&fom->fo_sm_state, &fom_conf, C2_FOS_INIT, fom_group,
+		    fom_addb_ctx);
+}
 
 /** @} endgroup fom */
 /*

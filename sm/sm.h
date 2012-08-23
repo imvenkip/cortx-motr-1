@@ -592,9 +592,21 @@ void c2_sm_ast_post(struct c2_sm_group *grp, struct c2_sm_ast *ast);
 void c2_sm_asts_run(struct c2_sm_group *grp);
 
 enum c2_sm_return {
-	/** Returns from state function without transitioning to next state. */
+	/**
+	 * Negative mumbers are used to return from state function without
+	 * transitioning to next state.
+	 */
 	C2_SM_BREAK = -1,
 };
+
+/**
+ * "Extends" base state descriptions with the given sub descriptions.
+ *
+ * Updates sub in place to become a merged state machine descriptions array that
+ * uses base state descriptors, unless overridden by sub.
+ */
+void c2_sm_conf_extend(const struct c2_sm_state_descr *base,
+		       struct c2_sm_state_descr *sub, uint32_t nr);
 
 /** @} end of sm group */
 
