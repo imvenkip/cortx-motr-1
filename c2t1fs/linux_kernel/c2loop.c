@@ -457,6 +457,12 @@ figure_loop_size(struct loop_device *lo)
 	return 0;
 }
 
+/*
+ * wait_on_retry_sync_kiocb:
+ *   this routine was just copy/pasted from kernel's
+ *   src/fs/read_write.c file. Looks like there is
+ *   no other choice nowadays.
+ */
 static void wait_on_retry_sync_kiocb(struct kiocb *iocb)
 {
 	set_current_state(TASK_UNINTERRUPTIBLE);
@@ -468,14 +474,14 @@ static void wait_on_retry_sync_kiocb(struct kiocb *iocb)
 }
 
 /*
- * Do vectored I/O over backed file
+ * do_iov_filebacked: do vectored I/O over backed file
  *
  *   - op : operation (read or write);
  *   - n  : number of vectors in iovecs array;
  *   - pos: position in file to read from or write to;
  *   - size: number of bytes.
  *
- * Returns: the number of bytes processed (same as aio_read/write).
+ * Returns: 0 on success or -EIO (ready to be feed for bio_end()).
  */
 static int do_iov_filebacked(struct loop_device *lo, unsigned long op, int n,
                              loff_t pos, unsigned size)
@@ -509,7 +515,6 @@ static int do_iov_filebacked(struct loop_device *lo, unsigned long op, int n,
 
 	return -EIO;
 }
-
 
 /*
  * Add bio to back of pending list
@@ -883,7 +888,7 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 	lo->lo_device = bdev;
 	lo->lo_flags = lo_flags;
 	lo->lo_backing_file = file;
-	lo->transfer = NULL;;
+	lo->transfer = NULL;
 	lo->ioctl = NULL;
 	lo->lo_sizelimit = 0;
 	lo->old_gfp_mask = mapping_gfp_mask(mapping);
