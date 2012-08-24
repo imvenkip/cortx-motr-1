@@ -30,11 +30,13 @@
 #include "rpc/rpclib.h"     /* c2_rpc_client_call() */
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"      /* C2_LOG and C2_ENTRY */
+#include "lib/bob.h"
 #include "ioservice/io_fops.h"
 #include "ioservice/io_fops_xc.h"
 
 /* Imports */
 struct c2_net_domain;
+extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
 
 static ssize_t c2t1fs_file_aio_read(struct kiocb       *iocb,
 				    const struct iovec *iov,
@@ -339,6 +341,7 @@ static ssize_t c2t1fs_read_write(struct file *file,
 
 	inode = file->f_dentry->d_inode;
 	ci    = C2T1FS_I(inode);
+	C2_PRE(c2t1fs_inode_bob_check(ci));
 
 	if (rw == READ) {
 		if (pos > inode->i_size) {

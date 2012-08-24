@@ -255,8 +255,9 @@ enum c2t1fs_service_type {
 };
 
 enum {
-	MAGIC_SVC_CTX  = 0x5356435f435458,   /* "SVC_CTX" */
-	MAGIC_SVCCTXHD = 0x5356434354584844, /* "SVCCTXHD" */
+	MAGIC_SVC_CTX      = 0x5356435f435458,   /* "SVC_CTX" */
+	MAGIC_SVCCTXHD     = 0x5356434354584844, /* "SVCCTXHD" */
+	MAGIC_C2T1FS_INODE = 0x433254314653494E  /* C2T1FSIN */
 };
 
 /**
@@ -381,6 +382,8 @@ struct c2t1fs_inode {
 	    List descriptor dir_ents_tl. Valid for only directory inode.
 	    Empty for regular file inodes. */
 	struct c2_tl               ci_dir_ents;
+
+	uint64_t                   ci_magic;
 };
 
 static inline struct c2t1fs_sb *C2T1FS_SB(const struct super_block *sb)

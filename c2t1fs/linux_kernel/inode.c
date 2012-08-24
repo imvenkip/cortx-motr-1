@@ -39,6 +39,15 @@ C2_TL_DESCR_DEFINE(dir_ents, "Dir entries", , struct c2t1fs_dir_ent,
 
 C2_TL_DEFINE(dir_ents, , struct c2t1fs_dir_ent);
 
+static const struct c2_bob_type c2t1fs_inode_bob = {
+	.bt_name         = "c2t1fs_inode",
+	.bt_magix_offset = offsetof(struct c2t1fs_inode, ci_magic),
+	.bt_magix        = MAGIC_C2T1FS_INODE,
+	.bt_check        = NULL
+};
+
+C2_BOB_DEFINE(, &c2t1fs_inode_bob, c2t1fs_inode);
+
 bool c2t1fs_inode_is_root(const struct inode *inode)
 {
 	struct c2t1fs_inode *ci;
@@ -110,6 +119,10 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 
 	C2_ENTRY("ci: %p, is_root %s, layout_instance %p",
 		 ci, is_root ? "true" : "false", ci->ci_layout_instance);
+	C2_PRE(ergo(!is_root, c2t1fs_inode_bob_check(ci)));
+
+	if (!is_root)
+		c2t1fs_inode_bob_fini(ci);
 
 	c2_tl_for(dir_ents, &ci->ci_dir_ents, de) {
 		dir_ents_tlist_del(de);
@@ -120,14 +133,11 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 
 	dir_ents_tlist_fini(&ci->ci_dir_ents);
 
-	/*
-	 * c2t1fs_inode_fini() may be called even when c2t1fs_create()
-	 * might have failed. Hence, ci->ci_layout_instance == NULL is a
-	 * valid exception.
-	 */
-	if (!is_root && ci->ci_layout_instance != NULL)
+	if (!is_root) {
+		C2_ASSERT(ci->ci_layout_instance != NULL);
 		ci->ci_layout_instance->li_ops->lio_fini(
 						ci->ci_layout_instance);
+	}
 	C2_LEAVE();
 }
 
