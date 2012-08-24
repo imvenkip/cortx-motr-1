@@ -656,7 +656,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
 		ergo(req->ir_state == IRS_WRITE_COMPLETE,
 		     c2_tlist_is_empty(req->ir_nwxfer.nxr_tioreqs)) &&
 
-                ergo(io_req_is_rmw(req),
+                ergo(io_request_is_rmw(req),
                      c2_ext_length(&req->ir_aux_extent) >
                      c2_ext_length(&req->ir_extent)) &&
 
@@ -992,7 +992,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
    <hr>
    @section rmw-conformance Conformance
 
-   - @b I.c2t1fs.rmw_io.rmw The implementation uses an API io_req_is_rmw()
+   - @b I.c2t1fs.rmw_io.rmw The implementation uses an API io_request_is_rmw()
    to find out if the incoming IO request would be read-modify-write IO.
    The IO extent is modified if the request is unaligned with parity group
    unit size width. The missing data will be read first from data server
@@ -1092,10 +1092,10 @@ struct target_ioreq;
 struct io_req_fop;
 enum   io_req_type;
 
-static bool io_req_is_rmw  (const struct io_request *req);
-static void io_request_init(struct io_request *req, struct file *file,
-                            struct iovec *ivec, loff_t pos,
-                            unsigned long seg_nr, enum io_req_type rw);
+static bool io_request_is_rmw(const struct io_request *req);
+static void io_request_init  (struct io_request *req, struct file *file,
+                              struct iovec *ivec, loff_t pos,
+                              unsigned long seg_nr, enum io_req_type rw);
 
 static bool io_request_invariant(const struct io_request *req);
 static bool io_req_spans_full_pg(struct c2t1fs_inode *ci, char *buf,
@@ -1275,6 +1275,24 @@ struct data_buf {
         struct c2_buf             db_buf;
 
         /**
+         * An extent is used to store the span of incoming IO request
+         * with respect to this page if it is
+         * - not page aligned OR
+         * - size of IO request is not equal to page size OR
+         * - all of above.
+         *
+         * Please note that extent start and end are with respect to given
+         * page and do not relate to _file offset_. So they always will be
+         * less than or equal to page size.
+         *
+         * For instance, an RMW IO request could span this page partially
+         * such that it falls on extent [1k, 2k) of this page. In such case,
+         * old page is read first. And data from old page is copied into
+         * new page at extents [0k, 1k) and [2k, 4k).
+         */
+        struct c2_ext             db_bufpartial;
+
+        /**
          * Type of buffer in parity group { data or parity }.
          * This is needed where a partial parity group is written to
          * and parity unit has to be read in order to calculate the
@@ -1288,6 +1306,9 @@ struct data_buf {
         /**
          * Buffer holding old version of data needed to calculate parity
          * in _iterative_ fashion for partial parity groups.
+         * This page will always be aligned on page boundary unless file
+         * is sparse. However, number of valid bytes in page could be
+         * less than 4k, subject to file size.
          */
         struct c2_buf             db_olddata;
 
@@ -1578,7 +1599,7 @@ static bool io_request_invariant(const struct io_request *req)
                 ergo(req->ir_state == IRS_WRITE_COMPLETE,
                      tioreqs_tlist_is_empty(&req->ir_nwxfer.nxr_tioreqs)) &&
 
-                ergo(io_req_is_rmw(req),
+                ergo(io_request_is_rmw(req),
                      c2_ext_is_partof(&req->ir_aux_extent, &req->ir_extent));
 }
 
@@ -1683,7 +1704,7 @@ static bool io_req_is_page_unaligned(const struct io_request *req)
                req->ir_extent.e_end   % PAGE_CACHE_SIZE != 0;
 }
 
-static bool io_req_is_rmw(const struct io_request *req)
+static bool io_request_is_rmw(const struct io_request *req)
 {
         return req->ir_type == IRT_WRITE && io_req_is_group_unaligned(req);
 }
@@ -1750,19 +1771,29 @@ static void io_request_fini(struct io_request *req)
         req->ir_iovec = NULL;
 }
 
-static void data_buf_init(struct data_buf *buf,
-                          void *addr, c2_bcount_t len,
+static void data_buf_init(struct data_buf *buf, void *addr,
+                          c2_bindex_t start, c2_bcount_t len,
                           enum c2_pdclust_unit_type type,
-                          uint64_t flags)
+                          uint64_t group, uint64_t flags)
 {
-        C2_PRE(flags & (DBF_READREST | DBF_READOLD));
+        C2_PRE(buf  != NULL);
+        C2_PRE(addr != NULL);
+        C2_PRE(type < PUT_NR);
 
         buf->db_magic = DTBUF_MAGIC;
         buf->db_type  = type;
+        buf->db_flags = flags;
+        buf->db_pgid  = group;
+        buf->db_bufpartial.e_start = start;
+        buf->db_bufpartial.e_end   = start + len;
+
         if (flags & DBF_READOLD)
                 c2_buf_init(&buf->db_olddata, addr, len);
         else if (flags & DBF_READREST)
                 c2_buf_init(&buf->db_buf, addr, len);
+
+        if (start > 0 || len < PAGE_CACHE_SIZE)
+                buf->db_flags |= DBF_PARTIALPAGE;
 }
 
 static void data_buf_freepage(struct c2_buf *buf)
@@ -1801,10 +1832,10 @@ static int target_ioext_init(struct target_ioext *ext, uint64_t frame_nr_size)
 }
 
 #define WRITE_STATE_FROM_RMW(req) \
-        io_req_is_rmw(req) && (req)->ir_state == IRS_WRITING
+        (io_request_is_rmw(req) && (req)->ir_state == IRS_WRITING)
 
 #define READ_STATE_FROM_RMW(req)  \
-        io_req_is_rmw(req) && (req)->ir_state == IRS_READING
+        (io_request_is_rmw(req) && (req)->ir_state == IRS_READING)
 
 static uint64_t data_buf_anchor(struct target_ioext *ext,
                                 c2_bindex_t          framepos)
@@ -1814,7 +1845,7 @@ static uint64_t data_buf_anchor(struct target_ioext *ext,
         C2_PRE(!c2_ext_is_empty(&ext->tie_ext));
 
         for (i = 0; ext->tie_ext.e_start + (PAGE_CACHE_SIZE * i) !=
-             framepos; ++i);
+             c2_round_down(framepos, PAGE_CACHE_SIZE); ++i);
 
         C2_POST(i < ext->tie_buf_nr);
         return i;
@@ -1838,8 +1869,9 @@ static int target_ioext_usercopy(struct target_ioext *ext, c2_bindex_t filepos,
 
         unit_size = layout_to_pd_layout(FILE_TO_C2INODE(req->ir_file)->
                                         ci_layout)->pl_unit_size;
-        anchor = data_buf_anchor(ext, filepos % unit_size);
+        anchor    = data_buf_anchor(ext, filepos % unit_size);
         iov_iter_init(&it, req->ir_iovec, req->ir_seg_nr, count, written);
+
         do {
 
                 C2_PRE(anchor + i < ext->tie_buf_nr);
@@ -1852,30 +1884,16 @@ static int target_ioext_usercopy(struct target_ioext *ext, c2_bindex_t filepos,
                 buf     = ext->tie_buffers[anchor + i];
                 poffset = filepos & (PAGE_CACHE_SIZE - 1);
 
-                /*
-                 * Flag partial pages so that once read is complete,
-                 * old data can be copied to page containing
-                 * new version of data in the unchanged part of page.
-                 *
-                 * For instance, if file extent [5k, 8k) is written,
-                 * file data at extent [4k, 8K) has to be read in
-                 * first. Then new data is copied from user-space
-                 * in extent [5K, 8k) in a new page.
-                 * Now in order to correctly reflect new version
-                 * of data, file data from extent [4k, 5k) has to be
-                 * copied from old page to new page.
-                 */
-                if (poffset != 0)
-                        buf->db_flags |= DBF_PARTIALPAGE;
-
                 pbytes  = min_type(c2_bindex_t,
-                                PAGE_CACHE_SIZE - poffset,
-                                iov_iter_count(&it));
+                                   PAGE_CACHE_SIZE - poffset,
+                                   iov_iter_count(&it));
+
+                C2_ASSERT(ergo((poffset != 0 || pbytes != PAGE_CACHE_SIZE),
+                                buf->db_flags & DBF_PARTIALPAGE));
 
                 pagefault_disable();
-                copied = iov_iter_copy_from_user_atomic(
-                                buf->db_buf.b_addr, &it, poffset,
-                                pbytes);
+                copied = iov_iter_copy_from_user_atomic(buf->db_buf.b_addr,
+                                                        &it, poffset, pbytes);
                 pagefault_enable();
 
                 if (copied != pbytes)
@@ -1901,6 +1919,7 @@ static int target_ioext_allocate(struct target_ioext      *ext,
                                  c2_bcount_t               count,
                                  enum c2_pdclust_unit_type type,
                                  struct io_request        *req,
+                                 uint64_t                  group,
                                  uint64_t                  flags)
 {
         int                       rc;
@@ -1914,7 +1933,6 @@ static int target_ioext_allocate(struct target_ioext      *ext,
         C2_PRE(target_ioext_invariant(ext));
         C2_PRE(type < PUT_NR);
         C2_PRE(io_request_invariant(req));
-        C2_PRE(flags & (DBF_READREST | DBF_READOLD));
 
         unit_size = layout_to_pd_layout(FILE_TO_C2INODE(req->ir_file)->
                                         ci_layout)->pl_unit_size;
@@ -1924,45 +1942,38 @@ static int target_ioext_allocate(struct target_ioext      *ext,
         ext->tie_ext.e_end = tgtpos + count;
         anchor             = data_buf_anchor(ext, filepos % unit_size);
 
-        /*
-         * Write state from rmw IO operation (read + update + write)
-         * does not need to allocate new data buffers. Its data buffers
-         * are already allocated and populated by preceding read request.
-         * Rest all permutations like {un/}aligned read IO and
-         * aligned write IO need to allocate pages.
-         */
-        if (!WRITE_STATE_FROM_RMW(req)) {
-                do {
-                        /*
-                         * Due to read-old approach, this extent could
-                         * have been allocated earlier by read operation
-                         * from RMW.
-                         */
-                        if (ext->tie_buffers[anchor + i] != NULL)
-                                continue;
+        do {
+                /*
+                 * Due to read-old approach, this extent could
+                 * have been allocated earlier by read operation
+                 * from RMW.
+                 */
+                if (ext->tie_buffers[anchor + i] != NULL)
+                        continue;
 
-                        page = (struct page *)__get_free_page(GFP_KERNEL);
-                        if (page == NULL) {
-                                rc = -ENOMEM;
-                                goto fail;
-                        }
+                page = (struct page *)__get_free_page(GFP_KERNEL);
+                if (page == NULL) {
+                        rc = -ENOMEM;
+                        goto fail;
+                }
 
-                        buf = c2_alloc(sizeof *buf);
-                        if (buf == NULL) {
-                                __free_page(page);
-                                rc = -ENOMEM;
-                                goto fail;
-                        }
+                buf = c2_alloc(sizeof *buf);
+                if (buf == NULL) {
+                        __free_page(page);
+                        rc = -ENOMEM;
+                        goto fail;
+                }
 
-                        data_buf_init(buf, page_address(page),
-                                      min64u(count, PAGE_CACHE_SIZE), type,
-                                      flags);
+                data_buf_init(buf, page_address(page),
+                              filepos % PAGE_CACHE_SIZE,
+                              min64u(count, PAGE_CACHE_SIZE),
+                              type, group, flags);
 
-                        ext->tie_buffers[anchor + i] = buf;
-                        ++i;
-                        pg += PAGE_CACHE_SIZE;
-                } while (pg < count / PAGE_CACHE_SIZE);
-        }
+                ext->tie_buffers[anchor + i] = buf;
+                ++i;
+                pg += PAGE_CACHE_SIZE;
+                filepos = c2_round_up(filepos, PAGE_CACHE_SIZE);
+        } while (pg < count / PAGE_CACHE_SIZE);
 
         /**
          * @todo If user buffer is not aligned on page boundary, it needs
@@ -1971,17 +1982,15 @@ static int target_ioext_allocate(struct target_ioext      *ext,
          */
         return 0;
 fail:
-        if (!WRITE_STATE_FROM_RMW(req)) {
-                i = 0;
+        i = 0;
+        do {
+                buf = ext->tie_buffers[anchor + i];
+                data_buf_fini(buf);
+                c2_free(buf);
+                ext->tie_buffers[anchor + i] = NULL;
+                ++i;
+        } while (buf != NULL);
 
-                do {
-                        buf = ext->tie_buffers[anchor + i];
-                        data_buf_fini(buf);
-                        c2_free(buf);
-                        ext->tie_buffers[anchor + i] = NULL;
-                        ++i;
-                } while (buf != NULL);
-        }
         return rc;
 }
 
@@ -2236,12 +2245,11 @@ static int nw_xfer_io_read(struct nw_xfer_request *xfer)
 
         req = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
         C2_ASSERT(io_request_invariant(req));
-        C2_ASSERT(io_req_is_rmw(req));
+        C2_ASSERT(io_request_is_rmw(req));
 
         ci         = FILE_TO_C2INODE(req->ir_file);
         play       = layout_to_pd_layout(ci->ci_layout);
-        ext        = io_req_is_page_unaligned(req) ? &req->ir_aux_extent :
-                     &req->ir_extent;
+        ext        = &req->ir_extent;
         filepos    = ext->e_start;
         unit_size  = play->pl_unit_size;
         group_size = play->pl_N * unit_size;
@@ -2266,7 +2274,7 @@ static int nw_xfer_io_read(struct nw_xfer_request *xfer)
                 }
 
                 pgrpext.e_start = grp * group_size;
-                pgrpext.e_end   = (grp + 1) * group_size;
+                pgrpext.e_end   = pgrpext.e_start + group_size;
                 ioext.e_start   = filepos;
                 ioext.e_end     = min_type(c2_bcount_t,
                                            c2_round_up(filepos, group_size),
@@ -2335,7 +2343,7 @@ static int nw_xfer_io_read(struct nw_xfer_request *xfer)
                         rc = target_ioext_allocate(&ti->ti_extent,
                                                    tgt.ta_frame * unit_size,
                                                    filepos, bcount, unit_type,
-                                                   req, readrest ?
+                                                   req, grp, readrest ?
                                                    DBF_READREST : DBF_READOLD);
                         if (rc != 0)
                                 goto fail;
@@ -2356,6 +2364,9 @@ fail:
 
         return rc;
 }
+
+#define WRITE_STATE_FROM_ALIGNED_WRITE(req) \
+        (io_req_is_group_unaligned(req) && (req)->ir_state == IRS_WRITING)
 
 /*
  * Is used by use-cases like
@@ -2410,8 +2421,14 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
         ci   = FILE_TO_C2INODE(req->ir_file);
         play = layout_to_pd_layout(ci->ci_layout);
         csb  = C2T1FS_SB(ci->ci_inode.i_sb);
-        ext  = io_req_is_page_unaligned(req) ? &req->ir_aux_extent :
-               &req->ir_extent;
+
+        /*
+         * For group_size aligned read, write IO requests, mapping can
+         * start from incoming aligned file offset.
+         * For rmw IO, read IO has been issused so far. So data can be
+         * can be copied from user buffers.
+         */
+        ext  = &req->ir_extent;
 
         filepos    = ext->e_start;
         unit_size  = play->pl_unit_size;
@@ -2457,11 +2474,12 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
                         rc = target_ioext_allocate(&ti->ti_extent,
                                                    tgt.ta_frame * unit_size,
                                                    filepos, bcount, unit_type,
-                                                   req, 0);
+                                                   req, grp, 0);
                         if (rc != 0)
                                 goto fail;
 
-                        if (READ_STATE_FROM_RMW(req)) {
+                        if (READ_STATE_FROM_RMW(req) ||
+                            WRITE_STATE_FROM_ALIGNED_WRITE(req)) {
                                 rc = target_ioext_usercopy(&ti->ti_extent,
                                                            filepos,
                                                            req, bcount);
@@ -2473,12 +2491,11 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
                                 filepos += bcount;
                 }
 
-                /* Parity need not be calculated for read requests. */
-                if (req->ir_state == IRS_WRITING) {
-                }
-
                 ++src.sa_group;
         }
+
+        if (!io_request_is_rmw(req))
+                /* issue io request. */
 
         return rc;
 
@@ -2489,6 +2506,88 @@ fail:
         } c2_tl_endfor;
 
         return rc;
+}
+
+static int parity_recompute(struct io_request *req)
+{
+        uint64_t                     group;
+        uint64_t                     group_end;
+        uint64_t                     unit_size;
+        uint64_t                     bufid;
+        uint64_t                     unit_nr;
+        uint64_t                     group_size;
+        uint64_t                     group_nr;
+        uint64_t                     groupend;
+        uint64_t                     id;
+        struct page                 *pg;
+        struct c2_buf               *data;
+        uint64_t                     dataid;
+        struct c2_ext               *ext;
+        struct data_buf             *db;
+        struct nw_xfer_request      *xfer;
+        struct target_ioreq         *ti;
+        struct data_buf             *parity;
+        struct c2_pdclust_layout    *play;
+
+        C2_PRE(req != NULL);
+        C2_PRE(io_request_invariant(req));
+
+        xfer       = &req->ir_nwxfer;
+        ext        = &req->ir_extent;
+        play       = layout_to_pd_layout(FILE_TO_C2INODE(req->ir_file)->
+                                         ci_layout);
+        unit_size  = play->pl_unit_size;
+        group_size = play->pl_N * unit_size;
+        group      = ext->e_start / group_size;
+        group_end  = ext->e_end   / group_size;
+        group_nr   = c2_ext_length(ext) / group_size + 1;
+        unit_nr    = play->pl_N + 2 * play->pl_K;
+
+        data = c2_alloc(unit_nr * sizeof(struct c2_buf));
+        if (data == NULL)
+                return -ENOMEM;
+
+        /*
+         * Used where we don't have enough data buffers.
+         * Doing XOR with zero buffer does not change parity.
+         */
+        pg = (struct page*)get_zeroed_page(GFP_KERNEL);
+        if (pg == NULL) {
+                c2_free(data);
+                return -ENOMEM;
+        }
+
+        for (; group <= groupend; ++group) {
+
+                for (dataid = 0, bufid = 0; bufid < unit_size /
+                     PAGE_CACHE_SIZE; ++bufid) {
+
+                        c2_tl_for (tioreqs, &xfer->nxr_tioreqs, ti) {
+
+                                db = ti->ti_extent.tie_buffers[bufid];
+                                C2_ASSERT(ergo(db, db->db_pgid == group));
+
+                                if (db == NULL && parity != NULL) {
+                                        data[dataid].b_addr = page_address(pg);
+                                        ++id;
+                                }
+
+                                if (db->db_buf.b_addr == NULL) {
+                                        db->db_buf.b_addr = page_address(pg);
+                                        db->db_buf.b_nob  = PAGE_CACHE_SIZE;
+                                }
+
+                                if (db->db_type == PUT_PARITY) {
+                                        parity = db;
+                                        continue;
+                                }
+                        } c2_tl_endfor;
+                }
+                parity = NULL;
+        }
+
+        __free_page(pg);
+        c2_free(data);
 }
 
 static ssize_t file_aio_write(struct kiocb *kcb, const struct iovec *ivec,
@@ -2538,6 +2637,12 @@ static int io_reading_state(struct c2_sm *sm)
 
         if (io_req_is_page_unaligned(req))
                 io_request_expand(FILE_TO_C2INODE(req->ir_file), req);
+
+        /*
+         * Stub code!
+         * Done in order to compile the code.
+         */
+        return 0;
 }
 
 static int io_writing_state(struct c2_sm *sm)
@@ -2549,8 +2654,14 @@ static int io_writing_state(struct c2_sm *sm)
         req = bob_of(sm, struct io_request, ir_sm, &ioreq_bobtype);
         C2_ASSERT(io_request_invariant(req));
 
-        if (io_req_is_rmw(req))
+        if (io_request_is_rmw(req))
                 io_request_expand(FILE_TO_C2INODE(req->ir_file), req);
+
+        /*
+         * Stub code!
+         * Done in order to compile the code.
+         */
+        return 0;
 }
 
 const struct file_operations c2t1fs_reg_file_operations = {
