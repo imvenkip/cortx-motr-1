@@ -90,6 +90,7 @@ struct init_fini_call subsystem[] = {
 	{ &c2_trace_init,       &c2_trace_fini,       "trace" },
 	{ &c2_fi_init,          &c2_fi_fini,          "finject" },
 	{ &c2_memory_init,      &c2_memory_fini,      "memory" },
+	{ &libc2_init,          &libc2_fini,          "libc2" },
 	{ &c2_uts_init,         &c2_uts_fini,         "ut" },
 	{ &c2_processors_init,  &c2_processors_fini,  "processors" },
 	{ &c2_threads_init,     &c2_threads_fini,     "thread" },
@@ -126,7 +127,6 @@ struct init_fini_call subsystem[] = {
 #ifndef __KERNEL__
 	{ &c2_ios_register,     &c2_ios_unregister,   "ioservice" },
 #endif /* __KERNEL__ */
-	{ &libc2_init,          &libc2_fini,          "libc2" },
 };
 
 static void fini_nr(int i)

@@ -111,7 +111,7 @@ lib_SOURCES                     := bitstring.c vec.c list.c queue.c refs.c     \
                                    thread.c tlist.c bob.c trace.c finject.c \
                                    vec_xc.c vec.c buf_xc.c buf.c c2lib.c
 
-lib_HEADERS                     := vec.h vec_xc.h
+lib_HEADERS                     := vec.h vec_xc.h buf.h buf_xc.h
 
 lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c   \
                                    kthread.c semaphore.c processor.c kvec.c    \
