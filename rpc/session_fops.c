@@ -29,7 +29,7 @@
 #include "fop/fom.h"
 #include "fop/fop.h"
 #include "fop/fop_item_type.h"
-#include "rpc/session_xc.h"
+#include "rpc/session_ff.h"
 #include "rpc/session_fops.h"
 #include "rpc/session_foms.h"
 #include "rpc/session_internal.h"
@@ -148,7 +148,7 @@ void c2_rpc_session_fop_fini(void)
 	c2_fop_type_fini(&c2_rpc_fop_session_establish_fopt);
 	c2_fop_type_fini(&c2_rpc_fop_conn_terminate_fopt);
 	c2_fop_type_fini(&c2_rpc_fop_conn_establish_fopt);
-	c2_xc_session_xc_fini();
+	c2_xc_session_fini();
 }
 
 extern struct c2_fom_type_ops c2_rpc_fom_conn_establish_type_ops;
@@ -158,7 +158,7 @@ extern struct c2_fom_type_ops c2_rpc_fom_session_terminate_type_ops;
 
 int c2_rpc_session_fop_init(void)
 {
-	c2_xc_session_xc_init();
+	c2_xc_session_init();
 	return  C2_FOP_TYPE_INIT(&c2_rpc_fop_conn_establish_fopt,
 			 .name      = "Rpc conn establish",
 			 .opcode    = C2_RPC_CONN_ESTABLISH_OPCODE,

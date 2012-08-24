@@ -12,6 +12,8 @@ Detailed designs, ordered alphabetically:
            <!-- cfg/cfg.h -->
 - @subpage c2_long_lock-dld "FOM Long lock DLD"
            <!-- fop/fom_long_lock.h -->
+- @subpage Layout-DB "Layout DB DLD"
+           <!-- layout/layout_db.c -->
 - @subpage LNetDLD "LNet Transport DLD"
            <!-- net/lnet/lnet_main.c -->
 - @subpage rpc-layer-core-dld "RPC layer core DLD"

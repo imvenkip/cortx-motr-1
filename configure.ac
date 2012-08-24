@@ -25,7 +25,8 @@ COLIBRI_MINOR_VERSION=1
 PACKAGE=colibri
 VERSION=$COLIBRI_MAJOR_VERSION.$COLIBRI_MINOR_VERSION
 
-AM_INIT_AUTOMAKE([nostdinc])
+AM_INIT_AUTOMAKE([nostdinc silent-rules])
+AM_SILENT_RULES([yes])
 
 LT_RELEASE=$COLIBRI_MAJOR_VERSION.$COLIBRI_MINOR_VERSION
 AC_SUBST([LT_RELEASE])
@@ -593,6 +594,13 @@ fi
 if test x$enable_mcheck = xyes; then
 	LDFLAGS="$LDFLAGS -lmcheck"
 fi
+
+MAKEFLAGS=""
+if test x$enable_silent_rules = xyes; then
+	MAKEFLAGS="--no-print-directory"
+fi
+AC_SUBST([MAKEFLAGS])
+
 
 # Check if gcc option is supported in current gcc version.
 AC_DEFUN([COLIBRI_COMPILER_OPTION_CHECK],

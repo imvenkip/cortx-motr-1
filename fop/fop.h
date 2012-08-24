@@ -30,7 +30,7 @@
 #include "fol/fol.h"
 #include "fop/fom.h"
 #include "rpc/item.h"
-#include "net/net_otw_types.h"
+#include "net/net_otw_types_ff.h"
 
 /**
    @defgroup fop File operation packet

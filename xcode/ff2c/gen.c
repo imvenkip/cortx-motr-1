@@ -202,7 +202,7 @@ int ff2c_c_gen(const struct ff2c_ff *ff, const struct ff2c_gen_opt *opt)
 	out("#include \"lib/cdefs.h\"                       /* offsetof */\n");
 	out("#include \"lib/assert.h\"\n");
 	out("#include \"xcode/xcode.h\"\n\n");
-	out("#include \"%s.h\"\n\n", opt->go_basename);
+	out("#include \"%s_ff.h\"\n\n", opt->go_basename);
 
 	for (t = ff->ff_type.l_head; t != NULL; t = t->t_next) {
 		if (t->t_public) {

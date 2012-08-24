@@ -1,13 +1,11 @@
+include $(top_srcdir)/Makefile.ff
+
 rpcdir			   = $(includedir)/colibri/rpc
 rpc_HEADERS		   = session.h session_fops.h session_foms.h \
 			     session_internal.h rpc_opcodes.h        \
 			     service.h
 
-SESSION_FOPS               = session_xc.h session_xc.c
-
-$(SESSION_FOPS) : session_xc.ff \
-	$(top_builddir)/xcode/ff2c/ff2c
-	$(top_builddir)/xcode/ff2c/ff2c $<
+SESSION_FOPS               = session_ff.h session_ff.c
 
 noinst_LTLIBRARIES	   = libcolibri-rpc.la
 
@@ -29,6 +27,6 @@ INCLUDES		  = -iquote . -iquote $(top_srcdir)       \
 			    -iquote $(top_srcdir)/include         \
 			    -iquote /usr/include
 
-EXTRA_DIST                = session_xc.ff
+EXTRA_DIST                = session.ff
 
 MOSTLYCLEANFILES          = $(SESSION_FOPS)

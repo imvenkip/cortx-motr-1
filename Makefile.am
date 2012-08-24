@@ -1,3 +1,11 @@
+# control verbosity level of make depending on 'V' command-line argument and
+# --enable-silent-rules option of configure script
+make_verbose   = $(make_verbose_$(V))
+make_verbose_  = $(make_verbose_$(AM_DEFAULT_VERBOSITY))
+make_verbose_0 = --no-print-directory
+
+MAKEFLAGS = $(make_verbose)
+
 SUBDIRS_BASE = m4 doc man patches
 
 # Order is important until fid is reached. Fop needs all libs
@@ -52,9 +60,11 @@ SUBDIR_UB =
 
 SUBDIR_BIN = console/bin mds utils
 
+SUBDIR_SCRIPT = scripts
+
 SUBDIRS    = $(SUBDIRS_BASE) $(SUBDIRS_LIBS) colibri $(SUBDIR_IT)    \
              $(SUBDIR_UT) $(SUBDIR_ST) $(SUBDIR_KERNEL) $(SUBDIR_UB) \
-             $(SUBDIR_BIN)
+             $(SUBDIR_BIN) $(SUBDIR_SCRIPT)
 
 # BUILT_SOURCES automake variable is a standard way to execute commands
 # before the main build commands (`make all`), for more information please

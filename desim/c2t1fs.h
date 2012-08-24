@@ -39,10 +39,10 @@ struct c2t1fs_thread;
 struct c2t1fs_client;
 
 struct c2t1fs_thread {
-	struct sim_thread         cth_thread;
-	struct c2t1fs_client     *cth_client;
-	unsigned                  cth_id;
-	struct c2_pdclust_layout *cth_pdclust;
+	struct sim_thread           cth_thread;
+	struct c2t1fs_client       *cth_client;
+	unsigned                    cth_id;
+	struct c2_pdclust_instance *cth_pdclust_instance;
 };
 
 struct c2t1fs_client {
@@ -56,24 +56,27 @@ struct c2t1fs_client {
 };
 
 struct c2t1fs_conf {
-	unsigned                 ct_nr_clients;
-	unsigned                 ct_nr_threads;
-	unsigned                 ct_nr_servers;
-	unsigned                 ct_nr_devices;
-	struct c2_pool           ct_pool;
-	uint32_t                 ct_N;
-	uint32_t                 ct_K;
-	uint64_t                 ct_unitsize;
-	unsigned long            ct_client_step;
-	unsigned long            ct_thread_step;
-	unsigned                 ct_inflight_max;
-	c2_bcount_t              ct_total;
-	sim_time_t               ct_delay_min;
-	sim_time_t               ct_delay_max;
-	struct net_conf         *ct_net;
-	struct net_srv          *ct_srv0;
-	struct net_srv          *ct_srv;
-	struct c2t1fs_client    *ct_client;
+	unsigned                  ct_nr_clients;
+	unsigned                  ct_nr_threads;
+	unsigned                  ct_nr_servers;
+	unsigned                  ct_nr_devices;
+	struct c2_dbenv           ct_dbenv;
+	struct c2_layout_domain   ct_l_dom;
+	struct c2_pdclust_layout *ct_pdclust;
+	struct c2_pool            ct_pool;
+	uint32_t                  ct_N;
+	uint32_t                  ct_K;
+	uint64_t                  ct_unitsize;
+	unsigned long             ct_client_step;
+	unsigned long             ct_thread_step;
+	unsigned                  ct_inflight_max;
+	c2_bcount_t               ct_total;
+	sim_time_t                ct_delay_min;
+	sim_time_t                ct_delay_max;
+	struct net_conf          *ct_net;
+	struct net_srv           *ct_srv0;
+	struct net_srv           *ct_srv;
+	struct c2t1fs_client     *ct_client;
 };
 
 void c2t1fs_init(struct sim *s, struct c2t1fs_conf *conf);

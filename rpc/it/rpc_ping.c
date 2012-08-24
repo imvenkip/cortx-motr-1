@@ -40,7 +40,7 @@
 #include "ut/rpc.h"     /* c2_rpc_client_init */
 #include "fop/fop.h"    /* c2_fop_default_item_ops */
 #include "reqh/reqh.h"  /* c2_reqh_rpc_mach_tl */
-#include "rpc/it/ping_fop_xc.h"
+#include "rpc/it/ping_fop_ff.h"
 
 #ifdef __KERNEL__
 #include <linux/kernel.h>

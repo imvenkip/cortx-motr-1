@@ -30,7 +30,7 @@
 #include "console/console.h"	  /* verbose */
 #include "console/console_it.h"	  /* c2_fit */
 #include "console/console_yaml.h" /* c2_cons_yaml_get_value */
-#include "console/console_xc.h"
+#include "console/console_ff.h"
 
 /**
    @addtogroup console_it

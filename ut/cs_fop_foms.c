@@ -36,7 +36,7 @@
 #include "fop/fop_item_type.h"
 
 #include "cs_fop_foms.h"
-#include "cs_test_fops.h"
+#include "cs_test_fops_ff.h"
 #include "rpc/rpc_opcodes.h"
 
 static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item);

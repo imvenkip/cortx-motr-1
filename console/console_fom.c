@@ -30,7 +30,7 @@
 #include "console/console_fom.h"
 #include "console/console_fop.h"
 #include "console/console_mesg.h"
-#include "console/console_xc.h"
+#include "console/console_ff.h"
 
 /**
    @addtogroup console

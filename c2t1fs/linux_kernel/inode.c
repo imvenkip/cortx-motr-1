@@ -18,14 +18,16 @@
  * Original creation date: 10/14/2011
  */
 
-#include <linux/slab.h>      /* kmem_cache */
+#include <linux/slab.h>         /* kmem_cache */
 
-#include "layout/pdclust.h"  /* c2_pdclust_build(), c2_pdclust_fini() */
-#include "lib/misc.h"        /* C2_SET0()                             */
-#include "lib/memory.h"      /* C2_ALLOC_PTR(), c2_free()             */
+#include "layout/pdclust.h"     /* c2_pdclust_build(), c2_pdl_to_layout(),
+				 * c2_pdclust_instance_build()           */
+#include "layout/linear_enum.h" /* c2_linear_enum_build()                */
+#include "lib/misc.h"           /* C2_SET0()                             */
+#include "lib/memory.h"         /* C2_ALLOC_PTR(), c2_free()             */
 #include "c2t1fs/linux_kernel/c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
-#include "lib/trace.h"       /* C2_LOG and C2_ENTRY */
+#include "lib/trace.h"          /* C2_LOG and C2_ENTRY */
 
 static int c2t1fs_inode_test(struct inode *inode, void *opaque);
 static int c2t1fs_inode_set(struct inode *inode, void *opaque);
@@ -36,6 +38,15 @@ C2_TL_DESCR_DEFINE(dir_ents, "Dir entries", , struct c2t1fs_dir_ent,
 			de_link, de_magic, MAGIC_DIRENT, MAGIC_DIRENTHD);
 
 C2_TL_DEFINE(dir_ents, , struct c2t1fs_dir_ent);
+
+static const struct c2_bob_type c2t1fs_inode_bob = {
+	.bt_name         = "c2t1fs_inode",
+	.bt_magix_offset = offsetof(struct c2t1fs_inode, ci_magic),
+	.bt_magix        = MAGIC_C2T1FS_INODE,
+	.bt_check        = NULL
+};
+
+C2_BOB_DEFINE(, &c2t1fs_inode_bob, c2t1fs_inode);
 
 bool c2t1fs_inode_is_root(const struct inode *inode)
 {
@@ -92,7 +103,7 @@ void c2t1fs_inode_init(struct c2t1fs_inode *ci)
 	C2_ENTRY("ci: %p", ci);
 
 	C2_SET0(&ci->ci_fid);
-	ci->ci_layout = NULL;
+	ci->ci_layout_instance = NULL;
 
 	dir_ents_tlist_init(&ci->ci_dir_ents);
 
@@ -101,10 +112,17 @@ void c2t1fs_inode_init(struct c2t1fs_inode *ci)
 
 void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 {
-	struct c2_pdclust_layout *pd_layout;
 	struct c2t1fs_dir_ent    *de;
+	bool                      is_root;
 
-	C2_ENTRY("ci: %p", ci);
+	is_root = c2t1fs_inode_is_root(&ci->ci_inode);
+
+	C2_ENTRY("ci: %p, is_root %s, layout_instance %p",
+		 ci, is_root ? "true" : "false", ci->ci_layout_instance);
+	C2_PRE(ergo(!is_root, c2t1fs_inode_bob_check(ci)));
+
+	if (!is_root)
+		c2t1fs_inode_bob_fini(ci);
 
 	c2_tl_for(dir_ents, &ci->ci_dir_ents, de) {
 		dir_ents_tlist_del(de);
@@ -115,10 +133,11 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 
 	dir_ents_tlist_fini(&ci->ci_dir_ents);
 
-	pd_layout = container_of(ci->ci_layout, struct c2_pdclust_layout,
-				 pl_layout);
-	c2_pdclust_fini(pd_layout);
-
+	if (!is_root) {
+		C2_ASSERT(ci->ci_layout_instance != NULL);
+		ci->ci_layout_instance->li_ops->lio_fini(
+						ci->ci_layout_instance);
+	}
 	C2_LEAVE();
 }
 
@@ -340,10 +359,13 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 			     uint32_t             K,
 			     uint64_t             unit_size)
 {
-	struct c2_pdclust_layout *pd_layout;
-	struct c2_uint128         layout_id;
-	struct c2_uint128         seed;
-	int                       rc;
+	uint64_t                      layout_id;
+	struct c2_layout_linear_attr  lin_attr;
+	struct c2_layout_linear_enum *le;
+	struct c2_pdclust_attr        pl_attr;
+	struct c2_pdclust_layout     *pl;
+	struct c2_pdclust_instance   *pi;
+	int                           rc;
 
 	C2_ENTRY();
 	C2_PRE(ci != NULL && pool != NULL && pool->po_width > 0);
@@ -353,13 +375,38 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 			(unsigned long)ci->ci_fid.f_key,
 			N, K, pool->po_width);
 
-	c2_uint128_init(&layout_id, "jinniesisjillous");
-	c2_uint128_init(&seed,      "upjumpandpumpim,");
-
-	rc = c2_pdclust_build(pool, &layout_id, N, K, unit_size,
-				&seed, &pd_layout);
-	ci->ci_layout = rc == 0 ? &pd_layout->pl_layout : NULL;
-
+	/**
+	 * @todo A dummy enumeration object is being created here.
+	 * c2t1fs code is not making use of this enumeration object, at this
+	 * point. It will be taken care of by the task c2t1fs.LayoutDB.
+	 */
+	lin_attr.lla_nr = pool->po_width;
+	lin_attr.lla_A  = 100;
+	lin_attr.lla_B  = 200;
+	rc = c2_linear_enum_build(&c2t1fs_globals.g_layout_dom,
+				  &lin_attr, &le);
+	if (rc == 0) {
+		layout_id = 0x4A494E4E49455349; /* "jinniesi" */
+		pl_attr.pa_N         = N;
+		pl_attr.pa_K         = K;
+		pl_attr.pa_P         = pool->po_width;
+		pl_attr.pa_unit_size = unit_size;
+		c2_uint128_init(&pl_attr.pa_seed, "upjumpandpumpim,");
+		rc = c2_pdclust_build(&c2t1fs_globals.g_layout_dom, layout_id,
+				      &pl_attr, &le->lle_base, &pl);
+		if (rc == 0)
+			rc = c2_pdclust_instance_build(pl, &ci->ci_fid, &pi);
+			if (rc == 0) {
+				/*
+				 * c2_pdclust_instance_build() has now
+				 * acquired an additional reference on the
+				 * layout object 'pl'.
+				 */
+				ci->ci_layout_instance = &pi->pi_base;
+			}
+		else
+			le->lle_base.le_ops->leo_fini(&le->lle_base);
+	}
 	C2_LEAVE("rc: %d", rc);
 	return rc;
 }

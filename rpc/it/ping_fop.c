@@ -25,7 +25,7 @@
 #include "lib/memory.h"
 #include "fop/fom.h"
 #include "fop/fop.h"
-#include "rpc/it/ping_fop_xc.h"
+#include "rpc/it/ping_fop_ff.h"
 #include "rpc/it/ping_fop.h"
 #include "rpc/it/ping_fom.h"
 #include "lib/errno.h"
@@ -40,14 +40,14 @@ void c2_ping_fop_fini(void)
 {
 	c2_fop_type_fini(&c2_fop_ping_rep_fopt);
         c2_fop_type_fini(&c2_fop_ping_fopt);
-	c2_xc_ping_fop_xc_fini();
+	c2_xc_ping_fop_fini();
 }
 
 extern const struct c2_fom_type_ops c2_fom_ping_type_ops;
 
 int c2_ping_fop_init(void)
 {
-	c2_xc_ping_fop_xc_init();
+	c2_xc_ping_fop_init();
         return  C2_FOP_TYPE_INIT(&c2_fop_ping_fopt,
 				 .name      = "Ping fop",
 				 .opcode    = C2_RPC_PING_OPCODE,

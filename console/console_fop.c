@@ -32,7 +32,7 @@
 
 #include "console/console_fop.h" /* FOPs defs */
 #include "console/console_fom.h" /* FOMs defs */
-#include "console/console_xc.h"	 /* FOP memory layout */
+#include "console/console_ff.h"	 /* FOP memory layout */
 
 /**
    @addtogroup console
@@ -48,14 +48,14 @@ void c2_console_fop_fini(void)
 	c2_fop_type_fini(&c2_cons_fop_device_fopt);
 	c2_fop_type_fini(&c2_cons_fop_reply_fopt);
 	c2_fop_type_fini(&c2_cons_fop_test_fopt);
-	c2_xc_console_xc_fini();
+	c2_xc_console_fini();
 }
 
 extern const struct c2_fom_type_ops c2_cons_fom_device_type_ops;
 
 int c2_console_fop_init(void)
 {
-	c2_xc_console_xc_init();
+	c2_xc_console_init();
 
 	return  C2_FOP_TYPE_INIT(&c2_cons_fop_device_fopt,
 			 .name      = "Device Failed",

@@ -31,7 +31,7 @@
 #include "cob/cob.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
-#include "rpc/session_xc.h"
+#include "rpc/session_ff.h"
 #include "rpc/session_fops.h"
 #include "rpc/session_internal.h"
 #include "rpc/rpc_machine.h"

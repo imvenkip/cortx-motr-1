@@ -35,7 +35,7 @@
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
 #include "ut/cs_fop_foms.h"
-#include "ut/cs_test_fops.h"
+#include "ut/cs_test_fops_ff.h"
 #include "rpc/rpc_opcodes.h"
 
 #include "colibri/colibri_setup.c"

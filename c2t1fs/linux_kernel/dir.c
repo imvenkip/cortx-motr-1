@@ -23,12 +23,15 @@
 #include "c2t1fs/linux_kernel/c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"           /* C2_LOG and C2_ENTRY */
+#include "lib/bob.h"
 #include "fop/fop.h"             /* c2_fop_alloc() */
 #include "ioservice/io_fops.h"   /* c2_fop_cob_create_fopt */
-#include "ioservice/io_fops_xc.h" /* c2_fop_cob_create */
+#include "ioservice/io_fops_ff.h" /* c2_fop_cob_create */
 #include "rpc/rpclib.h"          /* c2_rpc_client_call */
 
 extern const struct c2_rpc_item_ops cob_req_rpc_item_ops;
+extern void c2t1fs_inode_bob_init(struct c2t1fs_inode *bob);
+extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
 
 static int c2t1fs_create(struct inode     *dir,
 			 struct dentry    *dentry,
@@ -161,6 +164,7 @@ static int c2t1fs_create(struct inode     *dir,
 	if (rc != 0)
 		goto out;
 
+	c2t1fs_inode_bob_init(ci);
 	c2t1fs_fs_unlock(csb);
 
 	d_instantiate(dentry, inode);
@@ -436,6 +440,7 @@ static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	inode = dentry->d_inode;
 	csb   = C2T1FS_SB(inode->i_sb);
 	ci    = C2T1FS_I(inode);
+	C2_ASSERT(c2t1fs_inode_bob_check(ci));
 
 	c2t1fs_fs_lock(csb);
 	de = c2t1fs_dir_ent_find(dir, dentry->d_name.name, dentry->d_name.len);

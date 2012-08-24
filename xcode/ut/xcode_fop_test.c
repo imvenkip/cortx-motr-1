@@ -27,7 +27,7 @@
 #include "colibri/init.h"
 #include "fop/fop.h"
 #include "xcode/bufvec_xcode.h"
-#include "xcode/ut/xcode_fops.h"
+#include "xcode/ut/xcode_fops_ff.h"
 
 #include "rpc/rpc_opcodes.h"
 #include "net/net.h"

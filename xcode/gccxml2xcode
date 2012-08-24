@@ -216,8 +216,15 @@ sub get_info_about
         when (/FundamentalType/) {
             $item->{'size'}    = $type_node->getAttribute('size');
             $item->{'type'}    = $type_node->getAttribute('name');
+
+            # Normally, a 'void' C type can't be a valid type of a variable and
+            # thus it doesn't have a corresponding xcode C2_XT_XXX type. But
+            # just in case of some internal logic error in this scrip, when
+            # 'void' could "leak" into generated code, we set xc_type for 'void'
+            # to 'UNDEFINED' which will lead to compilation error, so it would
+            # be easier to sort such error out.
             $item->{'xc_type'} = $item->{'type'} eq 'void'
-                                    ? 'C2_XT_UNDEFINED'
+                                    ? 'UNDEFINED'
                                     : '&C2_XT_U' . $item->{'size'};
         }
 
@@ -238,7 +245,12 @@ sub get_info_about
             $item->{'type'}    = get_info_about($type_node)->{'type'} . '*';
             $item->{'xc_type'}
                 = get_info_about($type_node)->{'type'} eq 'void'
-                    ? '&C2_XT_U' . $item->{'size'}
+                    # pointer to 'void' is treated specially, because 'void'
+                    # type doesn't have size, but 'void*' is a commonly used
+                    # type for buffers; in order to be able to serialize such
+                    # buffers with xcode, we set it the same as pointer to
+                    # 'unsigned char' or 'u8'.
+                    ? '&C2_XT_U8'
                     : get_info_about($type_node)->{'xc_type'};
         }
 
