@@ -1,3 +1,11 @@
+# control verbosity level of make depending on 'V' command-line argument and
+# --enable-silent-rules option of configure script
+make_verbose   = $(make_verbose_$(V))
+make_verbose_  = $(make_verbose_$(AM_DEFAULT_VERBOSITY))
+make_verbose_0 = --no-print-directory
+
+MAKEFLAGS = $(make_verbose)
+
 SUBDIRS_BASE = m4 doc man patches
 
 # Order is important until fid is reached. Fop needs all libs
