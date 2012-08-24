@@ -607,6 +607,7 @@ int c2_stob_io_fop_init(void)
 			  c2_generic_conf.scf_nr_states);
 	c2_sm_conf_extend(c2_generic_conf.scf_state, stob_write_phases,
 			  c2_generic_conf.scf_nr_states);
+	c2_xc_io_fop_init();
 	result = C2_FOP_TYPE_INIT(&c2_stob_io_create_fopt,
 				  .name      = "Stob create",
 				  .opcode    = C2_STOB_IO_CREATE_REQ_OPCODE,

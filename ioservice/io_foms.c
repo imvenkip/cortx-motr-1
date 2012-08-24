@@ -866,12 +866,12 @@ void io_fom_cob_rw_fid_wire2mem(struct c2_fop_file_fid *in, struct c2_fid *out)
  * @pre in != NULL
  * @pre out != NULL
  */
-static int  indexvec_wire2mem(struct c2_fom         *fom,
-                                            struct c2_io_indexvec *in,
-                                            struct c2_indexvec    *out,
-                                            uint32_t               bshift)
+static int indexvec_wire2mem(struct c2_fom	    *fom,
+			     struct c2_io_indexvec *in,
+			     struct c2_indexvec    *out,
+			     uint32_t		    bshift)
 {
-        int         i;
+        int i;
 
         C2_PRE(fom != NULL);
         C2_PRE(in != NULL);
@@ -920,11 +920,11 @@ static int  indexvec_wire2mem(struct c2_fom         *fom,
  * @pre ibuf != NULL
  *
  */
-static int align_bufvec (struct c2_fom    *fom,
-                                       struct c2_bufvec *obuf,
-                                       struct c2_bufvec *ibuf,
-                                       c2_bcount_t       ivec_count,
-                                       uint32_t          bshift)
+static int align_bufvec(struct c2_fom    *fom,
+			struct c2_bufvec *obuf,
+			struct c2_bufvec *ibuf,
+			c2_bcount_t       ivec_count,
+			uint32_t          bshift)
 {
         int                rc = 0;
         int                i = 0;
