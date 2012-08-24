@@ -152,9 +152,13 @@ static void bv_free(struct c2_bufvec *b)
 
 static size_t dummy_fom_locality(const struct c2_fom *fom)
 {
+	/* By default, use locality0. */
         return 0;
 }
 
+/**
+ * Dummy fom state routine to emulate only selective copy packet states.
+ */
 static int dummy_fom_state(struct c2_fom *fom)
 {
 	struct c2_cm_cp *cp;
@@ -182,10 +186,12 @@ static void dummy_fom_fini(struct c2_fom *fom)
 	cp = container_of(fom, struct c2_cm_cp, c_fom);
 	cp->c_fom.fo_phase = C2_FOPH_FINISH;
 	bv_free(cp->c_data);
-	//printf("inside fini");
 	c2_cm_cp_fini(cp);
 }
 
+/**
+ * Over-ridden copy packet FOM ops.
+ */
 static const struct c2_fom_ops cp_fom_ops = {
         .fo_fini          = dummy_fom_fini,
         .fo_state         = dummy_fom_state,
@@ -194,7 +200,7 @@ static const struct c2_fom_ops cp_fom_ops = {
 
 static void cp_prepare(struct c2_cm_cp *cp, struct c2_bufvec *bv,
 		       struct c2_sns_repair_ag *sns_ag,
-		       int data)
+		       char data)
 {
 	C2_UT_ASSERT(cp != NULL);
 	C2_UT_ASSERT(bv != NULL);
@@ -204,17 +210,26 @@ static void cp_prepare(struct c2_cm_cp *cp, struct c2_bufvec *bv,
 	cp->c_ag = &sns_ag->sag_base;
 	c2_cm_cp_init(cp, &cp_ops, bv);
 	cp->c_fom.fo_ops = &cp_fom_ops;
+	/** Required to pass the fom invariant */
 	cp->c_fom.fo_fop = (void *)1;
 }
 
-void test_single_cp(void)
+/**
+ * Test to check that single copy packet is treated as passthrough by the
+ * transformation function.
+ */
+static void test_single_cp(void)
 {
 	cp_prepare(&s_cp, &s_bv, &s_sns_ag, 'e');
 	s_cp.c_ag->cag_ops = &group_single_ops;
 	c2_fom_queue(&s_cp.c_fom, &reqh);
 }
 
-void test_multiple_cp(void)
+/**
+ * Test to check that multiple copy packets are collected by the
+ * transformation function.
+ */
+static void test_multiple_cp(void)
 {
 	int i;
 
@@ -225,6 +240,10 @@ void test_multiple_cp(void)
 	}
 }
 
+/**
+ * Initialise the request handler since copy packet fom has to be tested using
+ * request handler infrastructure.
+ */
 static int xform_init(void)
 {
 	int rc;
@@ -240,23 +259,44 @@ static int xform_init(void)
 
 static int xform_fini(void)
 {
+	/**
+	 * Wait till all the foms in the request handler locality runq are
+	 * processed.
+	 */
+	c2_reqh_shutdown_wait(&reqh);
 	c2_reqh_fini(&reqh);
         if (c2_processor_is_initialized())
                 c2_processors_fini();
 
+	/**
+	 * These asserts ensure that the single copy packet has been treated
+	 * as passthrough.
+	 */
         C2_ASSERT(s_sns_ag.sag_base.cag_transformed_cp_nr == 0);
         C2_ASSERT(s_sns_ag.sag_base.cag_cp_nr == 1);
 
+	/**
+	 * These asserts ensure that all the copy packets have been collected
+	 * by the transformation function.
+	 */
         C2_ASSERT(m_sns_ag.sag_base.cag_transformed_cp_nr == CP_MULTI);
 	C2_ASSERT(m_sns_ag.sag_base.cag_cp_nr == CP_MULTI);
 
 	return 0;
 }
 
+/**
+ * Tests the correctness of the bufvec_xor function.
+ */
 static void test_bufvec_xor()
 {
 	bv_populate(&src, '4');
 	bv_populate(&dst, 'D');
+	/**
+	 * Actual result is anticipated and stored in new bufvec, which is
+	 * used for comparison with xor'ed output.
+	 * 4 XOR D = p
+	 */
 	bv_populate(&xor, 'p');
 	bufvec_xor(&dst, &src, (SEG_SIZE * NR));
 	bv_compare(&dst, &xor);
