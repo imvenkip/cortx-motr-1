@@ -108,7 +108,10 @@ layout_ut_SOURCES               := layout.c
 
 lib_SOURCES                     := bitstring.c vec.c list.c queue.c refs.c     \
                                    time.c bitmap.c chan.c misc.c buf.c cond.c  \
-                                   thread.c tlist.c bob.c trace.c finject.c
+                                   thread.c tlist.c bob.c trace.c finject.c \
+                                   vec_xc.c
+
+lib_HEADERS                     := vec.h vec_xc.h
 
 lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c   \
                                    kthread.c semaphore.c processor.c kvec.c    \

@@ -407,7 +407,9 @@ sub gen_xc_h_header
 #ifndef $include_protector_name
 #define $include_protector_name
 
+#ifndef __KERNEL__
 #include <sys/types.h>
+#endif
 
 #include "xcode/xcode.h"
 
