@@ -60,9 +60,11 @@ SUBDIR_UB =
 
 SUBDIR_BIN = console/bin mds utils
 
+SUBDIR_SCRIPT = scripts
+
 SUBDIRS    = $(SUBDIRS_BASE) $(SUBDIRS_LIBS) colibri $(SUBDIR_IT)    \
              $(SUBDIR_UT) $(SUBDIR_ST) $(SUBDIR_KERNEL) $(SUBDIR_UB) \
-             $(SUBDIR_BIN)
+             $(SUBDIR_BIN) $(SUBDIR_SCRIPT)
 
 # BUILT_SOURCES automake variable is a standard way to execute commands
 # before the main build commands (`make all`), for more information please
