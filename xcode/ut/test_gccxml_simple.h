@@ -43,6 +43,7 @@ struct testtypes {
     int           tt_int;
     long long     tt_ll;
     unsigned int  tt_ui;
+    void         *tt_buf;
 } C2_XCA_RECORD;
 
 #endif /* __COLIBRI_XCODE_UT_TEST_GCCXML_SIMPLE_H__ */
