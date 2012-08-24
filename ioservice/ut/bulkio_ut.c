@@ -260,9 +260,9 @@ static void fill_buffers_pool(uint32_t colour)
         c2_net_buffer_pool_unlock(buf_pool);
 }
 
-static inline void fom_phase_set(struct c2_fom *fom, int phase)
+void fom_phase_set(struct c2_fom *fom, int phase)
 {
-	c2_fi_enable_once("state_set", "no_pre");
+	c2_fi_enable_once("state_set", "skip_sd_allowed_chk");
 	c2_fom_phase_set(fom, phase);
 }
 

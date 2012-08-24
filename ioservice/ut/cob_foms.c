@@ -41,11 +41,7 @@ static struct c2_cob *test_cob = NULL;
 static struct c2_fom *cd_fom_alloc();
 static void cd_fom_dealloc(struct c2_fom *fom);
 
-static inline void fom_phase_set(struct c2_fom *fom, int phase)
-{
-	c2_fi_enable_once("state_set", "no_pre");
-	c2_fom_phase_set(fom, phase);
-}
+extern void fom_phase_set(struct c2_fom *fom, int phase);
 
 enum cob_fom_type {
 	COB_CREATE = 1,

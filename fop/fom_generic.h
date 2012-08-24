@@ -174,7 +174,7 @@ enum c2_fom_standard_phase {
    is set to C2_FOPH_FAILED already by the fop specific operation handler, and
    the c2_fom::fo_rc set to the result of the operation.
 
-   @see c2_fom_phases
+   @see c2_fom_phase
    @see c2_fom_phase_outcome
 
    @param fom, fom under execution
