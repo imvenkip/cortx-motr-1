@@ -29,78 +29,125 @@
 #include "reqh/reqh.h"
 #include "sns/repair/cp.h"
 #include "sns/repair/ag.h"
+#include "sns/repair/xform.c"
 
 enum {
-	NR = 255,
-	LOCAL_CP_SINGLE_NR = 1,
-	LOCAL_CP_MULTIPLE_NR = 20000,
+	NR = 16,
+	SEG_SIZE = 256,
+	CP_SINGLE = 1,
+	CP_MULTI = 512,
 };
 
+static struct c2_reqh	       reqh;
+
+/**
+ * Global structures for single copy packet test.
+ */
 static struct c2_sns_repair_ag s_sns_ag;
 static struct c2_cm_cp         s_cp;
 static struct c2_bufvec        s_bv;
 
-static struct c2_sns_repair_ag sns_ag;
-static struct c2_cm_cp         cp[LOCAL_CP_MULTIPLE_NR];
-static struct c2_bufvec        bv[LOCAL_CP_MULTIPLE_NR];
+/**
+ * Global structures for multiple copy packet test.
+ */
+static struct c2_sns_repair_ag m_sns_ag;
+static struct c2_cm_cp         m_cp[CP_MULTI];
+static struct c2_bufvec        m_bv[CP_MULTI];
 
-static struct c2_reqh	       reqh;
+/**
+ * Global structures for testing bufvec xor correctness.
+ */
+struct c2_bufvec src;
+struct c2_bufvec dst;
+struct c2_bufvec xor;
 
+/**
+ * Typically, the next phase after CC_XFORM is CCP_WRITE.
+ * i.e. after transformation, the copy packet gets written to the
+ * device. Hence, mimic this phase change.
+ * @todo This function can be removed once actual next phase function
+ * is implemented.
+ */
 static int next_phase(struct c2_cm_cp *cp)
 {
-	/**
-	 * Typically, the next phase after CC_XFORM is CCP_WRITE.
-	 * i.e. after transformation, the copy packet gets written to the
-	 * device. Hence, mimic this phase change.
-	 * @todo This function can be removed once actual next phase function
-	 * is implemented.
-	 */
 	cp->c_fom.fo_phase = CCP_WRITE;
 	return C2_FSO_AGAIN;
 }
 
-const struct c2_cm_cp_ops cp_ops = {
-        .co_phase    = &next_phase,
+/**
+ * Dummy copy packet ops in order to get mimicked next_phase() in the
+ * code flow.
+ */
+static const struct c2_cm_cp_ops cp_ops = {
+	.co_phase    = &next_phase,
 	.co_xform    = &repair_cp_xform,
 };
 
-static uint64_t local_cp_single_nr(struct c2_cm_aggr_group *ag)
+static uint64_t cp_single_get(struct c2_cm_aggr_group *ag)
 {
-	return LOCAL_CP_SINGLE_NR;
+	return CP_SINGLE;
 }
 
 static const struct c2_cm_aggr_group_ops group_single_ops = {
-        .cago_local_cp_nr = &local_cp_single_nr,
+        .cago_local_cp_nr = &cp_single_get,
 };
 
-static uint64_t local_cp_multiple_nr(struct c2_cm_aggr_group *ag)
+static uint64_t cp_multi_get(struct c2_cm_aggr_group *ag)
 {
-	return LOCAL_CP_MULTIPLE_NR;
+	return CP_MULTI;
 }
 
-static const struct c2_cm_aggr_group_ops group_multiple_ops = {
-        .cago_local_cp_nr = &local_cp_multiple_nr,
+static const struct c2_cm_aggr_group_ops group_multi_ops = {
+        .cago_local_cp_nr = &cp_multi_get,
 };
 
-static void populate_bv(struct c2_bufvec *b, int data)
+/**
+ * Populates the bufvec with a character value.
+ */
+static void bv_populate(struct c2_bufvec *b, char data)
 {
 	int i;
+	int j;
 
 	C2_UT_ASSERT(b != NULL);
-        C2_UT_ASSERT(c2_bufvec_alloc(b, NR, C2_SEG_SIZE) == 0);
+        C2_UT_ASSERT(c2_bufvec_alloc(b, NR, SEG_SIZE) == 0);
         C2_UT_ASSERT(b->ov_vec.v_nr == NR);
         for (i = 0; i < NR; ++i) {
-                C2_UT_ASSERT(b->ov_vec.v_count[i] == C2_SEG_SIZE);
-                C2_UT_ASSERT(b->ov_buf[i] != NULL);
-		memset(b->ov_buf[i], data, C2_SEG_SIZE);
+		C2_UT_ASSERT(b->ov_vec.v_count[i] == SEG_SIZE);
+		C2_UT_ASSERT(b->ov_buf[i] != NULL);
+		for (j = 0; j < SEG_SIZE; ++j) {
+			*(char*)(b->ov_buf[i] + j) = data;
+		}
         }
 }
 
-static void free_bv(struct c2_bufvec *b)
+/**
+ * Compares 2 bufvecs and asserts if not equal.
+ */
+static void bv_compare(struct c2_bufvec *b1, struct c2_bufvec *b2)
+{
+	int i;
+	int j;
+
+	C2_UT_ASSERT(b1 != NULL);
+	C2_UT_ASSERT(b2 != NULL);
+        C2_UT_ASSERT(b1->ov_vec.v_nr == NR);
+        C2_UT_ASSERT(b2->ov_vec.v_nr == NR);
+        for (i = 0; i < NR; ++i) {
+		C2_UT_ASSERT(b1->ov_vec.v_count[i] == SEG_SIZE);
+		C2_UT_ASSERT(b1->ov_buf[i] != NULL);
+		C2_UT_ASSERT(b2->ov_vec.v_count[i] == SEG_SIZE);
+		C2_UT_ASSERT(b2->ov_buf[i] != NULL);
+		for (j = 0; j < SEG_SIZE; ++j) {
+			C2_UT_ASSERT(*(char*)(b1->ov_buf[i] + j) ==
+				     *(char*)(b2->ov_buf[i] + j));
+		}
+        }
+}
+
+static void bv_free(struct c2_bufvec *b)
 {
         c2_bufvec_free(b);
-        C2_UT_ASSERT(b->ov_vec.v_nr == 0);
-        C2_UT_ASSERT(b->ov_buf == NULL);
 }
 
 static size_t dummy_fom_locality(const struct c2_fom *fom)
@@ -134,7 +181,8 @@ static void dummy_fom_fini(struct c2_fom *fom)
 
 	cp = container_of(fom, struct c2_cm_cp, c_fom);
 	cp->c_fom.fo_phase = C2_FOPH_FINISH;
-	free_bv(cp->c_data);
+	bv_free(cp->c_data);
+	//printf("inside fini");
 	c2_cm_cp_fini(cp);
 }
 
@@ -152,28 +200,28 @@ static void cp_prepare(struct c2_cm_cp *cp, struct c2_bufvec *bv,
 	C2_UT_ASSERT(bv != NULL);
 	C2_UT_ASSERT(sns_ag != NULL);
 
-	populate_bv(bv, data);
+	bv_populate(bv, data);
 	cp->c_ag = &sns_ag->sag_base;
 	c2_cm_cp_init(cp, &cp_ops, bv);
 	cp->c_fom.fo_ops = &cp_fom_ops;
 	cp->c_fom.fo_fop = (void *)1;
 }
 
-static void test_single_cp(void)
+void test_single_cp(void)
 {
-	cp_prepare(&s_cp, &s_bv, &s_sns_ag, 1);
+	cp_prepare(&s_cp, &s_bv, &s_sns_ag, 'e');
 	s_cp.c_ag->cag_ops = &group_single_ops;
 	c2_fom_queue(&s_cp.c_fom, &reqh);
 }
 
-static void test_multiple_cp(void)
+void test_multiple_cp(void)
 {
 	int i;
 
-	for (i = 0; i < LOCAL_CP_MULTIPLE_NR; ++i) {
-		cp_prepare(&cp[i], &bv[i], &sns_ag, i);
-		cp[i].c_ag->cag_ops = &group_multiple_ops;
-		c2_fom_queue(&cp[i].c_fom, &reqh);
+	for (i = 0; i < CP_MULTI; ++i) {
+		cp_prepare(&m_cp[i], &m_bv[i], &m_sns_ag, 'r');
+		m_cp[i].c_ag->cag_ops = &group_multi_ops;
+		c2_fom_queue(&m_cp[i].c_fom, &reqh);
 	}
 }
 
@@ -195,7 +243,26 @@ static int xform_fini(void)
 	c2_reqh_fini(&reqh);
         if (c2_processor_is_initialized())
                 c2_processors_fini();
+
+        C2_ASSERT(s_sns_ag.sag_base.cag_transformed_cp_nr == 0);
+        C2_ASSERT(s_sns_ag.sag_base.cag_cp_nr == 1);
+
+        C2_ASSERT(m_sns_ag.sag_base.cag_transformed_cp_nr == CP_MULTI);
+	C2_ASSERT(m_sns_ag.sag_base.cag_cp_nr == CP_MULTI);
+
 	return 0;
+}
+
+static void test_bufvec_xor()
+{
+	bv_populate(&src, '4');
+	bv_populate(&dst, 'D');
+	bv_populate(&xor, 'p');
+	bufvec_xor(&dst, &src, (SEG_SIZE * NR));
+	bv_compare(&dst, &xor);
+	bv_free(&src);
+	bv_free(&dst);
+	bv_free(&xor);
 }
 
 const struct c2_test_suite snsrepair_xform_ut = {
@@ -205,6 +272,7 @@ const struct c2_test_suite snsrepair_xform_ut = {
         .ts_tests = {
                 { "single_cp_passthrough", test_single_cp },
                 { "multiple_cp_bufvec_xor", test_multiple_cp },
+                { "bufvec_xor_correctness", test_bufvec_xor },
                 { NULL, NULL }
         }
 };
