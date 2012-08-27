@@ -91,7 +91,7 @@ enum c2_cm_cp_priority {
  */
 enum c2_cm_cp_phase {
 	/** Copy packet specific initialisation.*/
-	C2_CCP_INIT = C2_FOPH_NR + 1,
+	C2_CCP_INIT = C2_FOM_PHASE_NR + 1,
 
 	/** Read and fill up the packet.*/
 	C2_CCP_READ,

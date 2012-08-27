@@ -24,6 +24,7 @@
 #ifndef __COLIBRI_SNS_REPAIR_CM_H__
 #define __COLIBRI_SNS_REPAIR_CM_H__
 
+#include "net/buffer_pool.h"
 #include "cm/cm.h"
 #include "ioservice/cobfid_map.h"
 

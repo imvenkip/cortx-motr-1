@@ -360,7 +360,7 @@ static int cp_fom_state(struct c2_fom *fom)
         struct c2_cm_cp *cp = container_of(fom, struct c2_cm_cp, c_fom);
 
         C2_PRE(c2_cm_cp_invariant(cp));
-	return cp->c_ops->co_action[fom->fo_phase](cp);
+	return cp->c_ops->co_action[c2_fom_phase(fom)](cp);
 }
 
 /** Copy packet FOM operations */
@@ -382,8 +382,8 @@ bool c2_cm_cp_invariant(struct c2_cm_cp *cp)
 	int phase = cp->c_fom.fo_phase;
 
 	return cp->c_ops != NULL && cp->c_data != NULL &&
-	       (phase == C2_FOPH_INIT || (phase >= C2_CCP_INIT &&
-					  phase <= C2_CCP_FINI)) &&
+	       (phase == C2_FOM_PHASE_INIT || (phase >= C2_CCP_INIT &&
+					       phase <= C2_CCP_FINI)) &&
 	       ergo(phase > C2_CCP_INIT && phase <= C2_CCP_FINI,
 		    c2_stob_id_is_set(&cp->c_id) && cp->c_ag != NULL);
 }
