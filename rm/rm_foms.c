@@ -406,7 +406,7 @@ static int request_pre_process(struct c2_fom *fom,
 	 * If request is waiting, it will enter the next phase after wake-up.
 	 */
 	fom->fo_phase = next_phase;
-	if (in->rin_state == RI_WAIT) {
+	if (in->rin_sm_state.sm_state == RI_WAIT) {
 		c2_fom_wait_on(fom, &in->rin_signal, &fom->fo_cb);
 	}
 	/*
@@ -427,10 +427,8 @@ static int request_post_process(struct c2_fom *fom)
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 	in = &rfom->rf_in.ri_incoming;
 
-	C2_ASSERT(C2_IN(in->rin_state, (RI_SUCCESS, RI_FAILURE)));
-
 	rc = in->rin_rc;
-	if (in->rin_state == RI_SUCCESS) {
+	if (in->rin_sm_state.sm_state == RI_SUCCESS) {
 		C2_ASSERT(rc == 0);
 		rc = reply_prepare(in->rin_type, fom);
 		c2_rm_right_put(in);

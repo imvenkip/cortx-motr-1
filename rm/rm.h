@@ -26,6 +26,7 @@
 
 #include "lib/tlist.h"
 #include "net/net.h"
+#include "sm/sm.h"
 
 /**
  * @defgroup rm Resource management
@@ -673,16 +674,27 @@ struct c2_rm_group {
 };
 
 /**
- * c2_rm_owner state machine states.
+   c2_rm_owner state machine states.
+
+   @dot
+   digraph rm_owner {
+	ROS_INITIAL -> ROS_INITIAL
+	ROS_INITIAL -> ROS_INITIALISING
+	ROS_INITIALISING -> ROS_FINAL
+	ROS_INITIALISING -> ROS_ACTIVE
+	ROS_ACTIVE -> ROS_FINALISING
+	ROS_FINALISING -> ROS_FINAL
+   }
+   @enddot
  */
 enum c2_rm_owner_state {
 	/**
-	 *  Terminal and initial state.
+	 *  Initial state.
 	 *
 	 *  In this state owner rights lists are empty (including incoming and
 	 *  outgoing request lists).
 	 */
-	ROS_FINAL = 1,
+	ROS_INITIAL = 1,
 	/**
 	 * Initial network setup state:
 	 *
@@ -701,7 +713,14 @@ enum c2_rm_owner_state {
 	 *
 	 * The owner collects from debtors and repays creditors.
 	 */
-	ROS_FINALISING
+	ROS_FINALISING,
+	/**
+	 *  Final state.
+	 *
+	 *  In this state owner rights lists are empty (including incoming and
+	 *  outgoing request lists).
+	 */
+	ROS_FINAL
 };
 
 enum {
@@ -809,11 +828,11 @@ enum c2_rm_owner_queue_state {
  *
  * @verbatim
  *
- *                            +----->FINAL<---------+
- *                            |        |            |
- *                            |        |            |
- *                            |        V            |
- *                            +---INITIALISING      |
+ *                                  INITIAL
+ *                                     |
+ *                                     |
+ *                                     V
+ *                               INITIALISING-------+
  *                                     |            |
  *                                     |            |
  *                                     |            |
@@ -822,8 +841,8 @@ enum c2_rm_owner_queue_state {
  *                                     |            |
  *                                     |            |
  *                                     |            |
- *                                     V            |
- *                                 FINALISING-------+
+ *                                     V            V
+ *                                 FINALISING---->FINAL
  *
  * @endverbatim
  *
@@ -845,7 +864,8 @@ enum c2_rm_owner_queue_state {
  * }
  */
 struct c2_rm_owner {
-	enum c2_rm_owner_state ro_state;
+	/** State machine for owner states */
+	struct c2_sm           ro_sm_state;
 	/**
 	 * Tracks incoming requests.
 	 */
@@ -934,7 +954,19 @@ struct c2_rm_loan {
 };
 
 /**
- * States of incoming request. See c2_rm_incoming for description.
+   States of incoming request. See c2_rm_incoming for description.
+
+   @dot
+   digraph rm_incoming_state {
+	RI_INITIALISED -> RI_CHECK
+	RI_CHECK -> RI_SUCCESS
+	RI_CHECK -> RI_FAILURE [label="Live lock"]
+	RI_CHECK -> RI_WAIT [label="Pins placed"]
+	RI_WAIT -> RI_FAILURE [label="Timeout"]
+	RI_WAIT -> RI_CHECK [label="Last completion"]
+	RI_WAIT -> RI_WAIT [label="Completion"]
+   }
+   @enddot
  */
 enum c2_rm_incoming_state {
 	RI_INITIALISED = 1,
@@ -1152,7 +1184,7 @@ enum c2_rm_incoming_flags {
  * All policy questions are settled by per-request flags and owner settings,
  * based on access pattern analysis.
  *
- * Following is a state diagram, where are stages that are performed without
+ * Following is a state diagram, where stages that are performed without
  * blocking (for network communication) are lumped into a single state:
  *
  * @verbatim
@@ -1193,7 +1225,8 @@ enum c2_rm_incoming_flags {
  */
 struct c2_rm_incoming {
 	enum c2_rm_incoming_type	 rin_type;
-	enum c2_rm_incoming_state	 rin_state;
+	/** State machine for incoming states */
+	struct c2_sm                     rin_sm_state;
 	enum c2_rm_incoming_policy	 rin_policy;
 	uint64_t			 rin_flags;
 	/** Number of outgoing, pending requests as a result of this incoming */
@@ -1382,7 +1415,7 @@ enum c2_rm_pin_flags {
  *
  * The topmost incoming request waits for 2 possessed rights to become unpinned
  * and also waiting for completion of 2 outgoing requests. The incoming request
- * an the bottom waits for completion of the same outgoing request.
+ * on the bottom waits for completion of the same outgoing request.
  *
  * c2_rm_right_put() scans the request's pin list (horizontal direction) and
  * removes all pins. If the last pin was removed from a right, right's pin list

@@ -25,7 +25,7 @@
 #include "lib/bob.h"
 
 /**
- * Created as a result of remote request which is either BORROW ro REVOKE
+ * Created as a result of remote request which is either BORROW or REVOKE
  * (and CANCEL in future).
  */
 struct c2_rm_remote_incoming {

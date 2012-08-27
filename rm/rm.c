@@ -25,6 +25,7 @@
 #include "lib/errno.h"  /* ETIMEDOUT */
 #include "lib/arith.h"  /* C2_CNT_{INC,DEC} */
 #include "lib/bob.h"
+#include "sm/sm.h"
 
 #include "rm/rm.h"
 #include "rm/rm_internal.h"
@@ -162,12 +163,22 @@ static const struct c2_bob_type outgoing_bob = {
 };
 C2_BOB_DEFINE(, &outgoing_bob, c2_rm_outgoing);
 
+const struct c2_addb_ctx_type c2_rm_addb_type = {
+	.act_name = "Resource Manager"
+};
+
+struct c2_addb_ctx rm_addb;
+struct c2_sm_group rm_sm_grp;
+
 void c2_rm_domain_init(struct c2_rm_domain *dom)
 {
 	C2_PRE(dom != NULL);
 
 	C2_SET_ARR0(dom->rd_types);
 	c2_mutex_init(&dom->rd_lock);
+	c2_sm_group_init(&rm_sm_grp);
+	c2_addb_ctx_init(&rm_addb, &c2_rm_addb_type,
+			 &c2_addb_global_ctx);
 	c2_bob_type_tlist_init(&res_tl_bob, &res_tl);
 	c2_bob_type_tlist_init(&us_rgt_tl_bob, &c2_rm_ur_tl);
 	c2_bob_type_tlist_init(&pin_tl_bob, &pr_tl);
@@ -179,6 +190,8 @@ void c2_rm_domain_fini(struct c2_rm_domain *dom)
 {
 	C2_PRE(c2_forall(i, ARRAY_SIZE(dom->rd_types),
 			 dom->rd_types[i] == NULL));
+	c2_addb_ctx_fini(&rm_addb);
+	c2_sm_group_fini(&rm_sm_grp);
 	c2_mutex_fini(&dom->rd_lock);
 }
 C2_EXPORTED(c2_rm_domain_fini);
@@ -305,9 +318,74 @@ static void resource_put(struct c2_rm_resource *res)
 	c2_mutex_unlock(&rtype->rt_lock);
 }
 
+static const struct c2_sm_state_descr owner_states[] = {
+	[ROS_INITIAL] = {
+		.sd_flags     = C2_SDF_INITIAL,
+		.sd_name      = "Owner init",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << ROS_INITIALISING) |
+		                (1 << ROS_FINAL)
+	},
+	[ROS_INITIALISING] = {
+		.sd_flags     = 0,
+		.sd_name      = "Owner Initialising",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << ROS_ACTIVE) |
+				(1 << ROS_FINAL)
+	},
+	[ROS_ACTIVE] = {
+		.sd_flags     = 0,
+		.sd_name      = "Owner Active",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << ROS_FINALISING)
+	},
+	[ROS_FINALISING] = {
+		.sd_flags     = 0,
+		.sd_name      = "Owner Finalising",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << ROS_FINAL)
+	},
+	[ROS_FINAL] = {
+		.sd_flags     = C2_SDF_TERMINAL,
+		.sd_name      = "Owner Fini",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = 0
+	}
+};
+
+static const struct c2_sm_conf owner_conf = {
+	.scf_name      = "Owner States",
+	.scf_nr_states = ARRAY_SIZE(owner_states),
+	.scf_state     = owner_states
+};
+
+static inline void owner_state_set(struct c2_rm_owner *owner,
+				   enum c2_rm_owner_state state)
+{
+	c2_sm_group_lock(&rm_sm_grp);
+	c2_sm_state_set(&owner->ro_sm_state, state);
+	c2_sm_group_unlock(&rm_sm_grp);
+}
+
+static inline enum c2_rm_owner_state owner_state(const
+						 struct c2_rm_owner *owner)
+{
+	return owner->ro_sm_state.sm_state;
+}
+
 static void owner_finalisation_check(struct c2_rm_owner *owner)
 {
-	if (owner->ro_state == ROS_FINALISING &&
+	if (owner_state(owner) == ROS_FINALISING &&
 	    owner->ro_in_reqs == 0) {
 		/*
 		 * These lists may not be empty if some errors occurred
@@ -316,7 +394,7 @@ static void owner_finalisation_check(struct c2_rm_owner *owner)
 		if (c2_rm_ur_tlist_is_empty(&owner->ro_sublet) &&
 		    c2_rm_ur_tlist_is_empty(&owner->ro_borrowed)) {
 			/* Handle owner finalisation */
-			owner->ro_state = ROS_FINAL;
+			owner_state_set(owner, ROS_FINAL);
 			C2_POST(owner_invariant(owner));
 		}
 		/**
@@ -330,7 +408,7 @@ static void owner_init_internal(struct c2_rm_owner *owner,
 			        struct c2_rm_resource *res)
 {
 	owner->ro_resource = res;
-	owner->ro_state = ROS_INITIALISING;
+	owner_state_set(owner, ROS_INITIALISING);
 	owner->ro_group = NULL;
 
 	c2_rm_ur_tlist_init(&owner->ro_borrowed);
@@ -339,7 +417,7 @@ static void owner_init_internal(struct c2_rm_owner *owner,
 	c2_mutex_init(&owner->ro_lock);
 
 	resource_get(res);
-	owner->ro_state = ROS_ACTIVE;
+	owner_state_set(owner, ROS_ACTIVE);
 	owner->ro_in_reqs = 0;
 	C2_POST(owner_invariant(owner));
 }
@@ -347,15 +425,18 @@ static void owner_init_internal(struct c2_rm_owner *owner,
 void c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res,
 		      struct c2_rm_remote *creditor)
 {
-	C2_PRE(owner->ro_state == ROS_FINAL);
 	C2_PRE(ergo(creditor != NULL,
 		    creditor->rem_state >= REM_SERVICE_LOCATED));
+
+	c2_sm_group_lock(&rm_sm_grp);
+	c2_sm_init(&owner->ro_sm_state, &owner_conf, ROS_INITIAL,
+		   &rm_sm_grp, &rm_addb);
+	c2_sm_group_unlock(&rm_sm_grp);
 
 	owner_init_internal(owner, res);
 	owner->ro_creditor = creditor;
 
-	C2_POST((C2_IN(owner->ro_state,(ROS_INITIALISING, ROS_ACTIVE))) &&
-		 owner->ro_resource == res);
+	C2_POST(owner->ro_resource == res);
 
 }
 C2_EXPORTED(c2_rm_owner_init);
@@ -366,7 +447,6 @@ int c2_rm_owner_selfadd(struct c2_rm_owner *owner, struct c2_rm_right *r)
 	struct c2_rm_loan  *nominal_capital;
 	int                 rc;
 
-	C2_PRE(C2_IN(owner->ro_state, (ROS_INITIALISING, ROS_ACTIVE)));
 	C2_PRE(r != NULL);
 	C2_PRE(r->ri_owner == owner);
 	/* Owner must be "top-most" */
@@ -402,7 +482,6 @@ int c2_rm_owner_selfadd(struct c2_rm_owner *owner, struct c2_rm_right *r)
 		rc = -ENOMEM;
 
 	C2_POST(ergo(rc == 0,
-		     C2_IN(owner->ro_state, (ROS_INITIALISING, ROS_ACTIVE)) &&
 		     owner_invariant(owner)));
 	return rc;
 }
@@ -419,7 +498,6 @@ static void retire_incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 {
 	struct c2_rm_owner *owner = in->rin_want.ri_owner;
 
-	C2_ASSERT(owner->ro_state == ROS_FINALISING);
 	--owner->ro_in_reqs;
 }
 
@@ -431,19 +509,18 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 	int		       rc = 0;
 	int		       i;
 
-	C2_PRE(C2_IN(owner->ro_state, (ROS_ACTIVE, ROS_FINALISING)));
 	/*
 	 * Put the owner in ROS_FINALISING. This will prevent any new
 	 * incoming requests on it. If it's already in FINALISING state,
 	 * or if there are pending incoming requests, return error.
 	 */
 	c2_mutex_lock(&owner->ro_lock);
-	if (owner->ro_state == ROS_FINALISING ||
+	if (owner_state(owner) == ROS_FINALISING ||
 	    owner->ro_in_reqs > 0) {
 		c2_mutex_unlock(&owner->ro_lock);
 		return -EBUSY;
 	}
-	owner->ro_state = ROS_FINALISING;
+	owner_state_set(owner, ROS_FINALISING);
 
 	/*
 	 * While processing the queues, if -ENOMEM or other error occurs
@@ -504,7 +581,7 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 	 * Retire immediately, if no processing is required.
 	 */
 	if (owner->ro_in_reqs == 0)
-		owner->ro_state = ROS_FINAL;
+		owner_state_set(owner, ROS_FINAL);
 	c2_mutex_unlock(&owner->ro_lock);
 
 	return rc;
@@ -514,11 +591,15 @@ void c2_rm_owner_fini(struct c2_rm_owner *owner)
 {
 	struct c2_rm_resource *res = owner->ro_resource;
 
-	C2_PRE(owner->ro_state == ROS_FINAL);
 	C2_PRE(owner_invariant(owner));
 	C2_PRE(owner->ro_creditor == NULL);
 
 	RM_OWNER_LISTS_FOR(owner, c2_rm_ur_tlist_fini);
+
+	c2_sm_group_lock(&rm_sm_grp);
+	c2_sm_fini(&owner->ro_sm_state);
+	c2_sm_group_unlock(&rm_sm_grp);
+
 	owner->ro_resource = NULL;
 	c2_mutex_fini(&owner->ro_lock);
 
@@ -552,6 +633,73 @@ void c2_rm_right_fini(struct c2_rm_right *right)
 }
 C2_EXPORTED(c2_rm_right_fini);
 
+static const struct c2_sm_state_descr inc_states[] = {
+	[RI_INITIALISED] = {
+		.sd_flags     = C2_SDF_INITIAL,
+		.sd_name      = "Incoming Initialised",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << RI_CHECK) |
+				(1 << RI_FAILURE)
+	},
+	[RI_CHECK] = {
+		.sd_flags     = 0,
+		.sd_name      = "Incoming Check",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << RI_SUCCESS) |
+				(1 << RI_FAILURE) |
+				(1 << RI_WAIT)
+	},
+	[RI_SUCCESS] = {
+		.sd_flags     = C2_SDF_TERMINAL,
+		.sd_name      = "Incoming Success",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = 0
+	},
+	[RI_FAILURE] = {
+		.sd_flags     = C2_SDF_TERMINAL,
+		.sd_name      = "Incoming Failure",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = 0
+	},
+	[RI_WAIT] = {
+		.sd_flags     = 0,
+		.sd_name      = "Incoming Wait",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << RI_WAIT)    |
+				(1 << RI_FAILURE) |
+				(1 << RI_CHECK)
+	}
+};
+
+static const struct c2_sm_conf inc_conf = {
+	.scf_name      = "Incoming States",
+	.scf_nr_states = ARRAY_SIZE(inc_states),
+	.scf_state     = inc_states
+};
+
+static inline void incoming_state_set(struct c2_rm_incoming *in,
+				      enum c2_rm_incoming_state state)
+{
+	c2_sm_group_lock(&rm_sm_grp);
+	c2_sm_state_set(&in->rin_sm_state, state);
+	c2_sm_group_unlock(&rm_sm_grp);
+}
+
+static inline enum c2_rm_incoming_state incoming_state(const struct c2_rm_incoming *in)
+{
+	return in->rin_sm_state.sm_state;
+}
+
 void c2_rm_incoming_init(struct c2_rm_incoming *in, struct c2_rm_owner *owner,
 			 enum c2_rm_incoming_type type,
 			 enum c2_rm_incoming_policy policy, uint64_t flags)
@@ -559,7 +707,10 @@ void c2_rm_incoming_init(struct c2_rm_incoming *in, struct c2_rm_owner *owner,
 	C2_PRE(in != NULL);
 
 	C2_SET0(in);
-	in->rin_state  = RI_INITIALISED;
+	c2_sm_group_lock(&rm_sm_grp);
+	c2_sm_init(&in->rin_sm_state, &inc_conf, RI_INITIALISED,
+		   &rm_sm_grp, &rm_addb);
+	c2_sm_group_unlock(&rm_sm_grp);
 	in->rin_type   = type;
 	in->rin_policy = policy;
 	in->rin_flags  = flags;
@@ -576,7 +727,10 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 	C2_PRE(incoming_invariant(in));
 
 	in->rin_rc = 0;
-	in->rin_state = 0;
+	in->rin_sm_state.sm_state = in->rin_rc == 0 ? RI_SUCCESS : RI_FAILURE;
+	c2_sm_group_lock(&rm_sm_grp);
+	c2_sm_fini(&in->rin_sm_state);
+	c2_sm_group_unlock(&rm_sm_grp);
 	c2_rm_incoming_bob_fini(in);
 	c2_rm_right_fini(&in->rin_want);
 	c2_chan_fini(&in->rin_signal);
@@ -681,7 +835,6 @@ int c2_rm_borrow_commit(struct c2_rm_remote_incoming *rem_in)
 	int                    rc;
 
 	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
-	C2_PRE(in->rin_state == RI_SUCCESS);
 	C2_PRE(in->rin_type == C2_RIT_BORROW);
 	C2_PRE(loan->rl_right.ri_owner == owner);
 
@@ -722,7 +875,6 @@ int c2_rm_revoke_commit(struct c2_rm_remote_incoming *rem_in)
 	int                    rc;
 
 	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
-	C2_PRE(in->rin_state == RI_SUCCESS);
 	C2_PRE(in->rin_type == C2_RIT_REVOKE);
 
 	/*
@@ -810,7 +962,6 @@ void c2_rm_right_get(struct c2_rm_incoming *in)
 	struct c2_rm_owner *owner = in->rin_want.ri_owner;
 
 	C2_PRE(IS_IN_ARRAY(in->rin_priority, owner->ro_incoming));
-	C2_PRE(in->rin_state == RI_INITIALISED);
 	C2_PRE(in->rin_rc == 0);
 	C2_PRE(pi_tlist_is_empty(&in->rin_pins));
 
@@ -820,17 +971,17 @@ void c2_rm_right_get(struct c2_rm_incoming *in)
 	 * while owner is in ACTIVE state. This will take care
 	 * of races between owner state transition and right requests.
 	 */
-	if (owner->ro_state == ROS_ACTIVE) {
+	if (owner_state(owner) == ROS_ACTIVE) {
 		/*
 		 * Mark incoming request "excited". owner_balance() will
 		 * process it.
 		 */
-		c2_rm_ur_tlist_add(&owner->ro_incoming[in->rin_priority][OQS_EXCITED],
-			     &in->rin_want);
+		c2_rm_ur_tlist_add(&owner->ro_incoming[in->rin_priority]\
+				   [OQS_EXCITED], &in->rin_want);
 		owner_balance(owner);
 	} else {
 		in->rin_rc = -ENODEV;
-		in->rin_state = RI_FAILURE;
+		incoming_state_set(in, RI_FAILURE);
 	}
 	c2_mutex_unlock(&owner->ro_lock);
 }
@@ -839,14 +990,12 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
 {
 	struct c2_rm_owner *owner = in->rin_want.ri_owner;
 
-	C2_PRE(in->rin_state == RI_SUCCESS);
-	C2_PRE(C2_IN(owner->ro_state, (ROS_ACTIVE, ROS_FINALISING)));
 	C2_PRE(!(in->rin_flags & RIF_INTERNAL));
 
 	c2_mutex_lock(&owner->ro_lock);
 	incoming_release(in);
 	--owner->ro_in_reqs;
-	in->rin_state = 0;
+	in->rin_sm_state.sm_state = 0;
 	c2_rm_ur_tlist_del(&in->rin_want);
 	C2_POST(pi_tlist_is_empty(&in->rin_pins));
 
@@ -992,25 +1141,24 @@ static void owner_balance(struct c2_rm_owner *o)
 		} c2_tl_endfor;
 		for (prio = ARRAY_SIZE(o->ro_incoming) - 1; prio >= 0; --prio) {
 			c2_tl_for(c2_rm_ur,
-				     &o->ro_incoming[prio][OQS_EXCITED], right) {
+				  &o->ro_incoming[prio][OQS_EXCITED], right) {
 				todo = true;
 				in = bob_of(right, struct c2_rm_incoming,
 					    rin_want, &incoming_bob);
-				C2_ASSERT(in->rin_state == RI_WAIT ||
-					  in->rin_state == RI_INITIALISED);
 				/*
 				 * All waits completed, go to CHECK
 				 * state.
 				 */
-				c2_rm_ur_tlist_move(&o->ro_incoming[prio][OQS_GROUND],
-					      &in->rin_want);
-				in->rin_state = RI_CHECK;
+				c2_rm_ur_tlist_move(&o->ro_incoming[prio]\
+						    [OQS_GROUND],
+						    &in->rin_want);
+				incoming_state_set(in, RI_CHECK);
 				incoming_check(in);
 			} c2_tl_endfor;
 		}
 	} while (todo);
 	/*
-	 * Check if owner needs to be finliased.
+	 * Check if owner needs to be finalised.
 	 */
 	owner_finalisation_check(o);
 }
@@ -1043,7 +1191,7 @@ static void incoming_check(struct c2_rm_incoming *in)
 
 	if (rc > 0) {
 		C2_ASSERT(incoming_pin_nr(in, C2_RPF_PROTECT) == 0);
-		in->rin_state = RI_WAIT;
+		incoming_state_set(in, RI_WAIT);
 	} else {
 		if (rc == 0) {
 			C2_ASSERT(incoming_pin_nr(in, C2_RPF_TRACK) == 0);
@@ -1109,7 +1257,6 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 	C2_PRE(c2_mutex_is_locked(&o->ro_lock));
 	C2_PRE(c2_rm_ur_tlist_contains(&o->ro_incoming[in->rin_priority][OQS_GROUND],
 				 want));
-	C2_PRE(in->rin_state == RI_CHECK);
 	C2_PRE(pi_tlist_is_empty(&in->rin_pins));
 
 	/*
@@ -1206,7 +1353,6 @@ static void incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 	struct c2_rm_owner *owner = in->rin_want.ri_owner;
 
 	C2_PRE(c2_mutex_is_locked(&in->rin_want.ri_owner->ro_lock));
-	C2_PRE(C2_IN(in->rin_state, (RI_INITIALISED, RI_CHECK)));
 	C2_PRE(in->rin_ops != NULL);
 	C2_PRE(in->rin_ops->rio_complete != NULL);
 	C2_PRE(in->rin_rc == 0);
@@ -1214,7 +1360,7 @@ static void incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 	C2_PRE(rc <= 0);
 
 	in->rin_rc = rc;
-	in->rin_state = rc == 0 ? RI_SUCCESS : RI_FAILURE;
+	incoming_state_set(in, rc == 0 ? RI_SUCCESS : RI_FAILURE);
 	/*
 	 * incoming_release() might have moved the request into excited
 	 * state when the last tracking pin was removed, shun it back
@@ -1358,21 +1504,16 @@ int c2_rm_right_timedwait(struct c2_rm_incoming *in, const c2_time_t deadline)
 	struct c2_clink clink;
 	int             rc;
 
-	C2_PRE(in->rin_state > RI_CHECK);
-
 	c2_clink_init(&clink, NULL);
 	c2_clink_add(&in->rin_signal, &clink);
 	rc = 0;
 
-	while (rc == 0 && in->rin_state == RI_WAIT)
+	while (rc == 0 && incoming_state(in) == RI_WAIT)
 		rc = c2_chan_timedwait(&clink, deadline) ? 0 : -ETIMEDOUT;
 
 	in->rin_rc = in->rin_rc ?: rc;
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
-
-	C2_ASSERT(ergo(rc == 0,
-		       C2_IN(in->rin_state, (RI_SUCCESS, RI_FAILURE))));
 
 	return rc ?: in->rin_rc;
 }
@@ -1456,29 +1597,29 @@ static bool resource_type_invariant(const struct c2_rm_resource_type *rt)
 static bool incoming_invariant(const struct c2_rm_incoming *in)
 {
 	return
-		(in->rin_rc != 0) == (in->rin_state == RI_FAILURE) &&
+		(in->rin_rc != 0) == (incoming_state(in) == RI_FAILURE) &&
 		!(in->rin_flags & ~(RIF_MAY_REVOKE|RIF_MAY_BORROW|RIF_LOCAL_WAIT|
 				    RIF_LOCAL_TRY)) &&
 		IS_IN_ARRAY(in->rin_priority,
 			    in->rin_want.ri_owner->ro_incoming) &&
 		/* a request can be in "check" state only during owner_balance()
 		   execution. */
-		in->rin_state != RI_CHECK &&
+		incoming_state(in) != RI_CHECK &&
 		pi_tlist_invariant(&in->rin_pins) &&
 		/* a request in the WAIT state... */
-		ergo(in->rin_state == RI_WAIT,
+		ergo(incoming_state(in) == RI_WAIT,
 		     /* waits on something... */
 		     incoming_pin_nr(in, C2_RPF_TRACK) > 0 &&
 		     /* and doesn't hold anything. */
 		     incoming_pin_nr(in, C2_RPF_PROTECT) == 0) &&
 		/* a fulfilled request... */
-		ergo(in->rin_state == RI_SUCCESS,
+		ergo(incoming_state(in) == RI_SUCCESS,
 		     /* holds something... */
 		     incoming_pin_nr(in, C2_RPF_PROTECT) > 0 &&
 		     /* and waits on nothing. */
 		     incoming_pin_nr(in, C2_RPF_TRACK) == 0) &&
-		ergo(in->rin_state == RI_FAILURE ||
-		     in->rin_state == RI_INITIALISED,
+		ergo(incoming_state(in) == RI_FAILURE ||
+		     incoming_state(in) == RI_INITIALISED,
 		     incoming_pin_nr(in, ~0) == 0) &&
 		pr_tlist_is_empty(&in->rin_want.ri_pins);
 }
@@ -1525,8 +1666,6 @@ static bool owner_invariant_state(const struct c2_rm_owner *owner,
 	int		    i;
 	int		    j;
 
-	if (owner->ro_state < ROS_FINAL || owner->ro_state > ROS_FINALISING)
-		return false;
 	/*
 	 * Iterate over all rights lists:
 	 *
