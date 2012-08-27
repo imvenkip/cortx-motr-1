@@ -127,9 +127,9 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
    Takes care of duplicate replies. Sets *req_out to NULL if @reply is
    duplicate or unexpected.
  */
-void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
-				struct c2_rpc_item  *reply,
-				struct c2_rpc_item **req_out);
+int c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
+			       struct c2_rpc_item  *reply,
+			       struct c2_rpc_item **req_out);
 
 /**
    Reports slot that effects of item with verno <= @last_pesistent, are
@@ -541,6 +541,9 @@ void c2_rpc_session_item_timedout(struct c2_rpc_item *item);
 
 void c2_rpc_session_inc_nr_active_items(struct c2_rpc_session *session);
 void c2_rpc_session_dec_nr_active_items(struct c2_rpc_session *session);
+
+void c2_rpc_slot_process_reply(struct c2_rpc_item *req);
+
 #ifndef __KERNEL__
 int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active,
 				int count);

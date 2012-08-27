@@ -56,6 +56,7 @@ enum c2_rpc_item_state {
 	C2_RPC_ITEM_WAITING_FOR_REPLY,
 	C2_RPC_ITEM_REPLIED,
 	C2_RPC_ITEM_ACCEPTED,
+	C2_RPC_ITEM_IGNORED,
 	C2_RPC_ITEM_TIMEDOUT,
 	C2_RPC_ITEM_FAILED,
 	C2_RPC_ITEM_NR_STATES,
@@ -107,10 +108,9 @@ struct c2_rpc_item {
 	int32_t				 ri_error;
 	/** Pointer to the type object for this item */
 	const struct c2_rpc_item_type	*ri_type;
-	/** @deprecated Linkage to the forming list, needed for formation */
-	struct c2_list_link		 ri_rpcobject_linkage;
 	/** reply item */
 	struct c2_rpc_item		*ri_reply;
+	bool                             ri_reply_pending;
 	struct c2_sm_timeout             ri_timeout;
 	/** item operations */
 	const struct c2_rpc_item_ops	*ri_ops;
@@ -198,6 +198,8 @@ bool c2_rpc_item_is_update(const struct c2_rpc_item *item);
    Returns true if item is request item. False if it is a reply item
  */
 bool c2_rpc_item_is_request(const struct c2_rpc_item *item);
+
+bool c2_rpc_item_is_reply(const struct c2_rpc_item *item);
 
 __attribute__((unused))
 static bool item_is_active(const struct c2_rpc_item *item)

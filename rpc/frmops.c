@@ -406,8 +406,14 @@ static void item_done(struct c2_rpc_item *item, unsigned long rc)
 
 	if (rc == 0) {
 		c2_rpc_item_change_state(item, C2_RPC_ITEM_SENT);
-		if (c2_rpc_item_is_request(item))
-			c2_rpc_item_start_timer(item);
+		if (c2_rpc_item_is_request(item)) {
+			if (item->ri_reply_pending) {
+				c2_rpc_slot_process_reply(item);
+				item->ri_reply_pending = false;
+			} else {
+				c2_rpc_item_start_timer(item);
+			}
+		}
 	} else {
 		c2_rpc_item_failed(item, (int32_t)rc);
 	}

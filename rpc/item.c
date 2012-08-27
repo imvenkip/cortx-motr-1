@@ -154,6 +154,7 @@ enum {
 	WAITING_FOR_REPLY = C2_RPC_ITEM_WAITING_FOR_REPLY,
 	REPLIED           = C2_RPC_ITEM_REPLIED,
 	ACCEPTED          = C2_RPC_ITEM_ACCEPTED,
+	IGNORED           = C2_RPC_ITEM_IGNORED,
 	TIMEDOUT          = C2_RPC_ITEM_TIMEDOUT,
 	FAILED            = C2_RPC_ITEM_FAILED,
 };
@@ -201,6 +202,10 @@ static const struct c2_sm_state_descr item_state_descr[] = {
 	},
 	[ACCEPTED] = {
 		.sd_name    = "ACCEPTED",
+		.sd_allowed = STATE_SET(REPLIED, UNINITIALISED),
+	},
+	[IGNORED] = {
+		.sd_name    = "IGNORED",
 		.sd_allowed = STATE_SET(UNINITIALISED),
 	},
 	[TIMEDOUT] = {
@@ -245,7 +250,6 @@ void c2_rpc_item_init(struct c2_rpc_item            *item,
 
         c2_list_link_init(&item->ri_unbound_link);
 
-        c2_list_link_init(&item->ri_rpcobject_linkage);
 	packet_item_tlink_init(item);
         rpcitem_tlink_init(item);
 	rpcitem_tlist_init(&item->ri_compound_items);
@@ -274,7 +278,6 @@ void c2_rpc_item_fini(struct c2_rpc_item *item)
 
         c2_list_link_fini(&item->ri_unbound_link);
 
-        c2_list_link_fini(&item->ri_rpcobject_linkage);
 	packet_item_tlink_fini(item);
 	rpcitem_tlink_fini(item);
 	rpcitem_tlist_fini(&item->ri_compound_items);
