@@ -34,18 +34,14 @@
 
 #include "rpc/session.h"
 #include "rpc/it/ping_fop.h"
-#ifdef __KERNEL__
-#include "rpc/it/ping_fop_k.h"
-#else
-#include "rpc/it/ping_fop_u.h"
-#endif
+#include "rpc/it/ping_fop_ff.h"
 #include "rpc/rpclib.h"
 #include "net/lnet/lnet.h"
 
 #include "ut/rpc.h"
 #include "ut/cs_service.h"
 #include "ut/cs_fop_foms.h"
-#include "ut/cs_test_fops_u.h"
+#include "ut/cs_test_fops_ff.h"
 
 #define CLIENT_ENDPOINT_ADDR    "0@lo:12345:34:*"
 #define CLIENT_DB_NAME		"rpclib_ut_client.db"

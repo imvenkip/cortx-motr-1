@@ -14,6 +14,7 @@ ut_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/console/ut/libconsole-ut.la     \
                $(top_builddir)/fol/ut/libfol-ut.la   \
                $(top_builddir)/fop/ut/libfop-ut.la   \
+               $(top_builddir)/layout/ut/liblayout-ut.la \
                $(top_builddir)/sns/ut/libparity-ut.la \
                $(top_builddir)/net/ut/libnet-ut.la \
                $(top_builddir)/net/bulk_emulation/ut/libnet-bulkem-ut.la \

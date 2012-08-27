@@ -61,13 +61,13 @@
  *	fom_obj = container_of(fom, struct fom_object_type, fp_gen);
  *	link = &fom_obj->fp_link;
  *	//...
- *	if (fom->fo_phase == PH_CURRENT) {
+ *	if (c2_fom_phase(fom) == PH_CURRENT) {
  *		// try to obtain a lock, when it's obtained FOM is
  *		// transitted into PH_GOT_LOCK
  *
  *		return C2_FOM_LONG_LOCK_RETURN(
  *		     c2_long_read_lock(lock, link, PH_GOT_LOCK));
- *	} else if (fom->fo_phase == PH_GOT_LOCK) {
+ *	} else if (c2_fom_phase(fom) == PH_GOT_LOCK) {
  *		// ...
  *		c2_long_read_unlock(lock, link);
  *		// ...
@@ -205,7 +205,7 @@ void c2_long_lock_fini(struct c2_long_lock *lock);
  * @pre link->lll_fom != NULL
  * @pre !c2_long_is_read_locked(lock, link)
  * @pre !c2_tlink_is_in(&link->lll_lock_linkage)
- * @post fom->fo_phase == next_phase
+ * @post c2_fom_phase(fom) == next_phase
  *
  * @return true iff the lock is taken.
  */
@@ -224,7 +224,7 @@ bool c2_long_read_lock(struct c2_long_lock *lock,
  * @pre link->lll_fom != NULL
  * @pre !c2_long_is_write_locked(lock, fom)
  * @pre !c2_tlink_is_in(&link->lll_lock_linkage)
- * @post fom->fo_phase == next_phase
+ * @post c2_fom_phase(fom) == next_phase
  *
  * @return true iff the lock is taken.
  */

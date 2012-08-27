@@ -51,6 +51,10 @@ void c2_tlist_fini(const struct c2_tl_descr *d, struct c2_tl *list)
 {
 	C2_PRE(c2_tlist_invariant(d, list));
 	c2_list_fini(&list->t_head);
+	/*
+	 * We don't unset the magic field (list->t_magic), because it can be
+	 * shared by multiple tlinks embedded in the same ambient object.
+	 */
 }
 
 void c2_tlink_init(const struct c2_tl_descr *d, void *obj)

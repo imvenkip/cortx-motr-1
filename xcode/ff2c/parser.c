@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -227,6 +227,7 @@ int ff2c_parse(struct ff2c_context *ctx, struct ff2c_term **out)
 
 void ff2c_term_fini(struct ff2c_term *term)
 {
+	free(term);
 }
 
 const char *ff2c_term_type_name[] = {

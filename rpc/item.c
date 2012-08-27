@@ -29,6 +29,7 @@
 #include "lib/misc.h"
 #include "rpc/rpc2.h"
 #include "rpc/item.h"
+#include "rpc/rpc_onwire.h" /* ITEM_ONWIRE_HEADER_SIZE */
 #include "rpc/packet.h" /* packet_item_tlink_init() */
 /**
    @addtogroup rpc_layer_core
@@ -192,9 +193,10 @@ c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item)
 {
 	C2_PRE(item->ri_type != NULL &&
 	       item->ri_type->rit_ops != NULL &&
-	       item->ri_type->rit_ops->rito_item_size != NULL);
+	       item->ri_type->rit_ops->rito_payload_size != NULL);
 
-	return item->ri_type->rit_ops->rito_item_size(item);
+	return  item->ri_type->rit_ops->rito_payload_size(item) +
+		ITEM_ONWIRE_HEADER_SIZE;
 }
 
 bool c2_rpc_item_is_update(const struct c2_rpc_item *item)

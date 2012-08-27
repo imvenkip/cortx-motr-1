@@ -33,7 +33,19 @@
 #include "lib/types.h"
 #include "lib/assert.h"           /* C2_CASSERT */
 #include "lib/cdefs.h"            /* c2_is_array */
+#include "lib/types.h"
 
+/**
+ * Returns rounded up value of @val in chunks of @size.
+ * @pre c2_is_po2(size)
+ */
+uint64_t c2_round_up(uint64_t val, uint64_t size);
+
+/**
+ * Returns rounded down value of @val in chunks of @size.
+ * @pre c2_is_po2(size)
+ */
+uint64_t c2_round_down(uint64_t val, uint64_t size);
 
 #define C2_SET0(obj)				\
 ({						\
@@ -60,7 +72,7 @@
  * @code
  * bool foo_invariant(const struct foo *f)
  * {
- *         return c2_forall(i, ARRAY_SIZE(f->f_nr_bar), f->f_bar[i].b_count > 0);
+ *        return c2_forall(i, ARRAY_SIZE(f->f_nr_bar), f->f_bar[i].b_count > 0);
  * }
  * @endcode
  *
@@ -78,13 +90,13 @@
 })
 
 /**
-   Evaluates to true if x is present in set.
+   Evaluates to true iff x is present in set.
 
    e.g. C2_IN(session->s_state, (C2_RPC_SESSION_IDLE,
                                  C2_RPC_SESSION_BUSY,
                                  C2_RPC_SESSION_TERMINATING))
 
-   Parenthesis around "set" members is mandatory.
+   Parentheses around "set" members are mandatory.
  */
 #define C2_IN(x, set) C2_IN0(x, C2_UNPACK set)
 #define C2_UNPACK(...) __VA_ARGS__

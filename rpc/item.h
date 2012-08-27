@@ -193,9 +193,9 @@ bool c2_rpc_item_is_request(const struct c2_rpc_item *item);
    in update stream */
 struct c2_rpc_item_type_ops {
 	/**
-	   Find out the size of rpc item.
+	   Find out the size of rpc payload.
 	 */
-	c2_bcount_t (*rito_item_size)(const struct c2_rpc_item *item);
+	c2_bcount_t (*rito_payload_size)(const struct c2_rpc_item *item);
 
 	/**
 	  Return true iff item1 and item2 are equal.

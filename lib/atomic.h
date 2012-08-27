@@ -28,10 +28,14 @@
 #include "assert.h"
 
 #ifndef __KERNEL__
-#include "user_space/user_x86_64_atomic.h"
+# ifdef ENABLE_SYNC_ATOMIC
+# include "user_space/__sync_atomic.h"
+# else
+# include "user_space/user_x86_64_atomic.h"
+# endif /* ENABLE_SYNC_ATOMIC */
 #else
 #include "linux_kernel/atomic64.h"
-#endif
+#endif /* __KERNEL__ */
 
 /**
    @defgroup atomic

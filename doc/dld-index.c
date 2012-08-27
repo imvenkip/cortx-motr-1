@@ -16,6 +16,8 @@ Detailed designs, ordered alphabetically:
            <!-- cm/cm.c -->
 - @subpage CPDLD "Copy Packet DLD"
            <!-- cm/cp.c -->
+- @subpage Layout-DB "Layout DB DLD"
+           <!-- layout/layout_db.c -->
 - @subpage LNetDLD "LNet Transport DLD"
            <!-- net/lnet/lnet_main.c -->
 - @subpage rpc-layer-core-dld "RPC layer core DLD"

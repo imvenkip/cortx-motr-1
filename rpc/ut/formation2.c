@@ -33,6 +33,7 @@
 #include "rpc/formation2.h"
 #include "rpc/rpc2.h"
 #include "rpc/packet.h"
+#include "rpc/item.h"
 
 static struct c2_rpc_frm             *frm;
 static struct c2_rpc_frm_constraints  constraints;
@@ -138,8 +139,8 @@ bool twoway_item_try_merge(struct c2_rpc_item *container,
 }
 
 static struct c2_rpc_item_type_ops twoway_item_type_ops = {
-	.rito_item_size = twoway_item_size,
-	.rito_try_merge = twoway_item_try_merge,
+	.rito_payload_size = twoway_item_size,
+	.rito_try_merge    = twoway_item_try_merge,
 };
 
 static struct c2_rpc_item_type twoway_item_type = {
@@ -153,7 +154,7 @@ static c2_bcount_t oneway_item_size(const struct c2_rpc_item *item)
 }
 
 static struct c2_rpc_item_type_ops oneway_item_type_ops = {
-	.rito_item_size = oneway_item_size
+	.rito_payload_size = oneway_item_size
 };
 
 static struct c2_rpc_item_type oneway_item_type = {

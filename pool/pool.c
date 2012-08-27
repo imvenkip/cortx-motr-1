@@ -21,6 +21,7 @@
 #  include "config.h"
 #endif
 
+#include "lib/errno.h"
 #include "stob/stob.h"
 #include "pool/pool.h"
 
@@ -37,7 +38,7 @@ int c2_pool_init(struct c2_pool *pool, uint32_t width)
 	return 0;
 }
 
-void c2_pool_fini(struct c2_pool *lay)
+void c2_pool_fini(struct c2_pool *pool)
 {
 }
 

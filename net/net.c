@@ -26,7 +26,6 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "net/net_internal.h"
-#include "fop/fop_format_def.h"
 
 /**
    @addtogroup net
@@ -55,29 +54,18 @@ const struct c2_addb_ctx_type c2_net_addb_ctx = {
 
 struct c2_addb_ctx c2_net_addb;
 
-#include "net/net_otw_types.ff"
-
-static struct c2_fop_type_format *fmts[] = {
-	&c2_net_buf_desc_tfmt,
-};
-
 int c2_net_init()
 {
-	int rc;
-
 	c2_mutex_init(&c2_net_mutex);
 	c2_addb_ctx_init(&c2_net_addb, &c2_net_addb_ctx, &c2_addb_global_ctx);
-	rc = c2_fop_type_format_parse_nr(fmts, ARRAY_SIZE(fmts));
-	if (rc != 0) {
-		c2_addb_ctx_fini(&c2_net_addb);
-		c2_mutex_fini(&c2_net_mutex);
-	}
-	return rc;
+	c2_xc_net_otw_types_init();
+
+	return 0;
 }
 
 void c2_net_fini()
 {
-	c2_fop_type_format_fini_nr(fmts, ARRAY_SIZE(fmts));
+	c2_xc_net_otw_types_fini();
 	c2_addb_ctx_fini(&c2_net_addb);
 	c2_mutex_fini(&c2_net_mutex);
 }

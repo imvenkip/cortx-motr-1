@@ -26,6 +26,7 @@
 #include "lib/assert.h"
 
 static void test_bufvec_cursor(void);
+static void test_bufvec_cursor_copyto_copyfrom(void);
 
 enum {
 	NR = 255,
@@ -115,6 +116,8 @@ void test_vec(void)
 	c2_bufvec_free_aligned(&bv, C2_SEG_SHIFT);    /* no-op */
 
 	test_bufvec_cursor();
+
+	test_bufvec_cursor_copyto_copyfrom();
 }
 
 static void test_bufvec_cursor(void)
@@ -266,6 +269,131 @@ static void test_bufvec_cursor(void)
 	/* free buffer pool */
 	for (i = 0; i < ARRAY_SIZE(bufs); ++i)
 		c2_bufvec_free(&bufs[i]);
+}
+
+static void test_bufvec_cursor_copyto_copyfrom(void)
+{
+	struct struct_int {
+		uint32_t int1;
+		uint32_t int2;
+		uint32_t int3;
+	};
+
+	struct struct_char {
+		char char1;
+		char char2;
+		char char3;
+	};
+
+	static const struct struct_int struct_int1 = {
+		.int1 = 111,
+		.int2 = 112,
+		.int3 = 113
+	};
+
+	static const struct struct_char struct_char1 = {
+		.char1 = 'L',
+		.char2 = 'M',
+		.char3 = 'N'
+	};
+
+	void                    *area1;
+	struct c2_bufvec         bv1;
+	struct c2_bufvec_cursor  dcur1;
+	struct struct_int       *struct_int2 = NULL;
+	struct struct_char      *struct_char2 = NULL;
+	struct struct_int        struct_int3;
+	struct struct_char       struct_char3;
+	c2_bcount_t              nbytes;
+	c2_bcount_t              nbytes_copied;
+	uint32_t                 i;
+	int                      rc;
+
+	/* Prepare for the destination buffer and the cursor. */
+	nbytes = sizeof struct_int1 * 4 + sizeof struct_char1 * 4 + 1;
+
+	area1 = c2_alloc(nbytes);
+	C2_UT_ASSERT(area1 != NULL);
+
+	bv1 = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area1, &nbytes);
+	c2_bufvec_cursor_init(&dcur1, &bv1);
+
+	C2_UT_ASSERT(c2_bufvec_cursor_step(&dcur1) == nbytes);
+
+	/*
+	 * Copy data to the destination cursor using the API
+	 * c2_bufvec_cursor_copyto().
+	 */
+	for (i = 0; i < 4; ++i) {
+		/* Copy struct_int1 to the bufvec. */
+		nbytes_copied = c2_bufvec_cursor_copyto(&dcur1,
+							(void *)&struct_int1,
+							sizeof struct_int1);
+		C2_UT_ASSERT(nbytes_copied == sizeof struct_int1);
+
+		/* Copy struct_char1 to the bufvec. */
+		nbytes_copied = c2_bufvec_cursor_copyto(&dcur1,
+							(void *)&struct_char1,
+							 sizeof struct_char1);
+		C2_UT_ASSERT(nbytes_copied == sizeof struct_char1);
+	}
+
+	/* Rewind the cursor. */
+	c2_bufvec_cursor_init(&dcur1, &bv1);
+	C2_UT_ASSERT(c2_bufvec_cursor_step(&dcur1) == nbytes);
+
+	/* Verify data from the destination cursor. */
+	for (i = 0; i < 3; ++i) {
+		/* Read data into struct_int2 and verify it. */
+		struct_int2 = c2_bufvec_cursor_addr(&dcur1);
+		C2_UT_ASSERT(struct_int2 != NULL);
+
+		C2_UT_ASSERT(struct_int2->int1 == struct_int1.int1);
+		C2_UT_ASSERT(struct_int2->int2 == struct_int1.int2);
+		C2_UT_ASSERT(struct_int2->int3 == struct_int1.int3);
+
+		rc = c2_bufvec_cursor_move(&dcur1, sizeof *struct_int2);
+		C2_UT_ASSERT(rc == 0);
+
+		/* Read data into struct_char2 and verify it. */
+		struct_char2 = c2_bufvec_cursor_addr(&dcur1);
+		C2_UT_ASSERT(struct_char2 != NULL);
+
+		C2_UT_ASSERT(struct_char2->char1 == struct_char1.char1);
+		C2_UT_ASSERT(struct_char2->char2 == struct_char1.char2);
+		C2_UT_ASSERT(struct_char2->char3 == struct_char1.char3);
+
+		rc = c2_bufvec_cursor_move(&dcur1, sizeof *struct_char2);
+		C2_UT_ASSERT(rc == 0);
+	}
+
+	/* Rewind the cursor. */
+	c2_bufvec_cursor_init(&dcur1, &bv1);
+	C2_UT_ASSERT(c2_bufvec_cursor_step(&dcur1) == nbytes);
+
+	/*
+	 * Copy data from the cursor using the API c2_bufvec_cursor_copyfrom().
+	 */
+
+	for (i = 0; i < 3; ++i) {
+		/* Copy data from dcur into the struct_int3 and verify it. */
+		nbytes_copied = c2_bufvec_cursor_copyfrom(&dcur1, &struct_int3,
+							  sizeof struct_int3);
+		C2_UT_ASSERT(nbytes_copied == sizeof struct_int3);
+
+		C2_UT_ASSERT(struct_int3.int2 == struct_int1.int2);
+		C2_UT_ASSERT(struct_int3.int2 == struct_int1.int2);
+		C2_UT_ASSERT(struct_int3.int3 == struct_int1.int3);
+
+		/* Copy data from dcur into the struct_char3 and verify it. */
+		nbytes_copied = c2_bufvec_cursor_copyfrom(&dcur1, &struct_char3,
+							  sizeof struct_char3);
+		C2_UT_ASSERT(nbytes_copied == sizeof struct_char3);
+
+		C2_UT_ASSERT(struct_char3.char1 == struct_char1.char1);
+		C2_UT_ASSERT(struct_char3.char2 == struct_char1.char2);
+		C2_UT_ASSERT(struct_char3.char3 == struct_char1.char3);
+	}
 }
 
 /*
