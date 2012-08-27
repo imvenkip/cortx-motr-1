@@ -141,7 +141,6 @@ enum c2_cm_rc {
 struct c2_cm_type {
 	/** Service type corresponding to this copy machine type. */
 	struct c2_reqh_service_type   ct_stype;
-
 	/** Linkage into the list of copy machine types (struct c2_tl cmtypes)*/
 	struct c2_tlink               ct_linkage;
 	uint64_t                      ct_magix;
@@ -152,18 +151,18 @@ struct c2_cm {
 	struct c2_sm			 cm_mach;
 
 	/**
-	 * State machine group for this copy machine type.
-	 * Each replica uses the mutex embedded in their state machine group to
-	 * serialise their state transitions and operations (ct_sm_group.s_lock)
-	 */
-	struct c2_sm_group		 cm_sm_group;
-
-	/**
 	 * Copy machine id. Copy machines are identified by this id.
 	 * Copy machines can be located with this id by querying some
 	 * configuration information.
 	 */
 	uint64_t                         cm_id;
+
+	/**
+	 * State machine group for this copy machine type.
+	 * Each replica uses the mutex embedded in their state machine group to
+	 * serialise their state transitions and operations (ct_sm_group.s_lock)
+	 */
+	struct c2_sm_group		 cm_sm_group;
 
 	/** Copy machine operations. */
 	const struct c2_cm_ops          *cm_ops;
