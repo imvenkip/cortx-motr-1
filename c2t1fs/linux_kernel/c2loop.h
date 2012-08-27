@@ -65,6 +65,7 @@ struct loop_device {
 	struct request_queue	*lo_queue;
 	struct gendisk		*lo_disk;
 	struct list_head	lo_list;
+	struct iovec		*lo_iovecs;
 };
 
 #endif /* __KERNEL__ */
