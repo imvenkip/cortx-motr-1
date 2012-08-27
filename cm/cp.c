@@ -355,7 +355,7 @@ static size_t cp_fom_locality(const struct c2_fom *fom)
         return 0;
 }
 
-static int cp_fom_state(struct c2_fom *fom)
+static int cp_fom_tick(struct c2_fom *fom)
 {
         struct c2_cm_cp *cp = container_of(fom, struct c2_cm_cp, c_fom);
 
@@ -366,7 +366,7 @@ static int cp_fom_state(struct c2_fom *fom)
 /** Copy packet FOM operations */
 static const struct c2_fom_ops cp_fom_ops = {
         .fo_fini          = cp_fom_fini,
-        .fo_state         = cp_fom_state,
+        .fo_tick          = cp_fom_tick,
         .fo_home_locality = cp_fom_locality
 };
 
@@ -379,7 +379,7 @@ static const struct c2_fom_ops cp_fom_ops = {
 
 bool c2_cm_cp_invariant(struct c2_cm_cp *cp)
 {
-	int phase = cp->c_fom.fo_phase;
+	int phase = c2_fom_phase(&cp->c_fom);
 
 	return cp->c_ops != NULL && cp->c_data != NULL &&
 	       (phase == C2_FOM_PHASE_INIT || (phase >= C2_CCP_INIT &&

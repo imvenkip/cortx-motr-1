@@ -28,7 +28,8 @@ SUBDIRS_LIBS =                     \
                c2t1fs/linux_kernel \
                capa                \
                cfg                 \
-               cob                 \
+               cm		   \
+	       cob                 \
                console             \
                desim               \
                dtm                 \
