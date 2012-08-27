@@ -205,7 +205,6 @@ all:
 	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_HEADERS),      \
 		$(create_links)))
 	ln -sf $(CORE_SRCDIR)/c2t1fs/linux_kernel/c2loop.c c2t1fs/linux_kernel/
-	ln -sf $(CORE_SRCDIR)/c2t1fs/linux_kernel/c2loop.h c2t1fs/linux_kernel/
 #       DO NOT append 'modules' target to the following $(MAKE)
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd`
 
