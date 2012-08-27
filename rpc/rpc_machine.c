@@ -602,6 +602,10 @@ static void item_received(struct c2_rpc_item      *item,
 	c2_rpc_machine_lock(machine);
 	c2_rpc_item_sm_init(item, &machine->rm_sm_grp);
 	rc = c2_rpc_item_received(item, machine);
+	if (rc == 0)
+		c2_rpc_item_change_state(item, C2_RPC_ITEM_ACCEPTED);
+	else
+		c2_rpc_item_free(item);
 	c2_rpc_machine_unlock(machine);
 }
 

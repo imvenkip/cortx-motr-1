@@ -816,34 +816,23 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 	C2_ASSERT(item != NULL);
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 
+	/** @todo XXX This code path assumes item is of kind request or reply.
+		      Add handling for one-way items.
+	 */
 	rc = associate_session_and_slot(item, machine);
 	if (rc == 0) {
 		item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
 		rc = c2_rpc_slot_item_received(item);
-		C2_ASSERT(C2_IN(item->ri_sm.sm_state, (C2_RPC_ITEM_ACCEPTED,
-						       C2_RPC_ITEM_IGNORED)));
-		if (rc != 0) {
-			C2_ASSERT(item->ri_sm.sm_state == C2_RPC_ITEM_IGNORED);
-			c2_rpc_item_free(item);
-		}
+	} else if (c2_rpc_item_is_conn_establish(item)) {
+		c2_rpc_item_dispatch(item);
+		rc = 0;
 	} else {
 		/*
-		 * stats for conn establish item are updated in its
-		 * fom's state() method.
+		 * If we cannot associate the item with its slot
+		 * then there is nothing that we can do with this
+		 * item except to discard it.
+		 * XXX generate ADDB record
 		 */
-		if (c2_rpc_item_is_conn_establish(item)) {
-			c2_rpc_item_change_state(item, C2_RPC_ITEM_ACCEPTED);
-			c2_rpc_item_dispatch(item);
-			rc = 0;
-		} else {
-			/*
-			 * If we cannot associate the item with its slot
-			 * then there is nothing that we can do with this
-			 * item except to discard it.
-			 * XXX generate ADDB record
-			 */
-			c2_rpc_item_free(item);
-		}
 	}
 	return rc;
 }
@@ -861,11 +850,6 @@ int c2_rpc_slot_item_received(struct c2_rpc_item *item)
 		rc = c2_rpc_slot_item_apply(slot, item);
 	else if (c2_rpc_item_is_reply(item))
 		rc = c2_rpc_slot_reply_received(slot, item, &req);
-
-	if (rc == 0)
-		c2_rpc_item_change_state(item, C2_RPC_ITEM_ACCEPTED);
-	else
-		c2_rpc_item_change_state(item, C2_RPC_ITEM_IGNORED);
 
 	return rc;
 }
