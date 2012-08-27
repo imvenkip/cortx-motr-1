@@ -105,7 +105,6 @@ static const struct c2_cm_aggr_group_ops group_multi_ops = {
 static void bv_populate(struct c2_bufvec *b, char data)
 {
 	int i;
-	int j;
 
 	C2_UT_ASSERT(b != NULL);
         C2_UT_ASSERT(c2_bufvec_alloc(b, NR, SEG_SIZE) == 0);
@@ -113,9 +112,7 @@ static void bv_populate(struct c2_bufvec *b, char data)
         for (i = 0; i < NR; ++i) {
 		C2_UT_ASSERT(b->ov_vec.v_count[i] == SEG_SIZE);
 		C2_UT_ASSERT(b->ov_buf[i] != NULL);
-		for (j = 0; j < SEG_SIZE; ++j) {
-			*(char*)(b->ov_buf[i] + j) = data;
-		}
+		memset(b->ov_buf[i], data, SEG_SIZE);
         }
 }
 
@@ -125,21 +122,19 @@ static void bv_populate(struct c2_bufvec *b, char data)
 static void bv_compare(struct c2_bufvec *b1, struct c2_bufvec *b2)
 {
 	int i;
-	int j;
 
 	C2_UT_ASSERT(b1 != NULL);
 	C2_UT_ASSERT(b2 != NULL);
         C2_UT_ASSERT(b1->ov_vec.v_nr == NR);
         C2_UT_ASSERT(b2->ov_vec.v_nr == NR);
+
         for (i = 0; i < NR; ++i) {
 		C2_UT_ASSERT(b1->ov_vec.v_count[i] == SEG_SIZE);
 		C2_UT_ASSERT(b1->ov_buf[i] != NULL);
 		C2_UT_ASSERT(b2->ov_vec.v_count[i] == SEG_SIZE);
 		C2_UT_ASSERT(b2->ov_buf[i] != NULL);
-		for (j = 0; j < SEG_SIZE; ++j) {
-			C2_UT_ASSERT(*(char*)(b1->ov_buf[i] + j) ==
-				     *(char*)(b2->ov_buf[i] + j));
-		}
+		C2_UT_ASSERT(memcmp(b1->ov_buf[i], b2->ov_buf[i],
+				    SEG_SIZE) == 0);
         }
 }
 
