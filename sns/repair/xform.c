@@ -153,7 +153,7 @@ int repair_cp_xform(struct c2_cm_cp *cp)
 /** @} snsrepair */
 /*
  *  Local variables:
- *  c-indentation-style: "K&Rns_ag->sag_ag.cag_transformed_cp_nr
+ *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
  *  fill-column: 80

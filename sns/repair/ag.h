@@ -30,7 +30,7 @@
    @ingroup SNSRepairCM
 
    @{
-*/
+ */
 
 /**
  * SNS repair specific aggregation group.

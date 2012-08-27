@@ -24,8 +24,6 @@
 
 #include "lib/processor.h"
 #include "lib/ut.h"
-#include "lib/vec.h"
-#include "colibri/init.h"
 #include "reqh/reqh.h"
 #include "sns/repair/cp.h"
 #include "sns/repair/ag.h"
@@ -145,7 +143,7 @@ static void bv_compare(struct c2_bufvec *b1, struct c2_bufvec *b2)
         }
 }
 
-static void bv_free(struct c2_bufvec *b)
+static inline void bv_free(struct c2_bufvec *b)
 {
         c2_bufvec_free(b);
 }
@@ -161,9 +159,8 @@ static size_t dummy_fom_locality(const struct c2_fom *fom)
  */
 static int dummy_fom_state(struct c2_fom *fom)
 {
-	struct c2_cm_cp *cp;
+	struct c2_cm_cp *cp = container_of(fom, struct c2_cm_cp, c_fom);
 
-	cp = container_of(fom, struct c2_cm_cp, c_fom);
 	switch (fom->fo_phase) {
 	case C2_FOPH_INIT:
 		cp->c_fom.fo_phase = CCP_XFORM;
@@ -181,9 +178,7 @@ static int dummy_fom_state(struct c2_fom *fom)
 
 static void dummy_fom_fini(struct c2_fom *fom)
 {
-	struct c2_cm_cp *cp;
-
-	cp = container_of(fom, struct c2_cm_cp, c_fom);
+	struct c2_cm_cp *cp = container_of(fom, struct c2_cm_cp, c_fom);
 	cp->c_fom.fo_phase = C2_FOPH_FINISH;
 	bv_free(cp->c_data);
 	c2_cm_cp_fini(cp);
@@ -260,7 +255,7 @@ static int xform_init(void)
 static int xform_fini(void)
 {
 	/**
-	 * Wait till all the foms in the request handler locality runq are
+	 * Wait until all the foms in the request handler locality runq are
 	 * processed.
 	 */
 	c2_reqh_shutdown_wait(&reqh);
@@ -298,7 +293,7 @@ static void test_bufvec_xor()
 	 * 4 XOR D = p
 	 */
 	bv_populate(&xor, 'p');
-	bufvec_xor(&dst, &src, (SEG_SIZE * NR));
+	bufvec_xor(&dst, &src, SEG_SIZE * NR);
 	bv_compare(&dst, &xor);
 	bv_free(&src);
 	bv_free(&dst);
