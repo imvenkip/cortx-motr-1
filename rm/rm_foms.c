@@ -460,8 +460,8 @@ static int rm_borrow_fom_tick(struct c2_fom *fom)
 	if (fom->fo_phase < C2_FOPH_NR)
 		rc = c2_fom_tick_generic(fom);
 	else {
-		C2_PRE(fom->fo_phase == FOPH_RM_BORROW ||
-		       fom->fo_phase == FOPH_RM_BORROW_WAIT);
+		C2_PRE(C2_IN(fom->fo_phase,
+			     (FOPH_RM_BORROW, FOPH_RM_BORROW_WAIT)));
 
 		if (fom->fo_phase == FOPH_RM_BORROW)
 			rc = request_pre_process(fom, C2_RIT_BORROW,
@@ -490,8 +490,8 @@ static int rm_revoke_fom_tick(struct c2_fom *fom)
 	if (fom->fo_phase < C2_FOPH_NR)
 		rc = c2_fom_tick_generic(fom);
 	else {
-		C2_PRE(fom->fo_phase == FOPH_RM_REVOKE ||
-		       fom->fo_phase == FOPH_RM_REVOKE_WAIT);
+		C2_PRE(C2_IN(fom->fo_phase,
+			     (FOPH_RM_REVOKE, FOPH_RM_REVOKE_WAIT)));
 
 		if (fom->fo_phase == FOPH_RM_REVOKE)
 			rc = request_pre_process(fom, C2_RIT_REVOKE,

@@ -127,11 +127,10 @@ static int borrow_fop_fill(struct rm_out *outreq,
 	fop = &outreq->ou_fop;
 	c2_fop_init(fop, &c2_fop_rm_borrow_fopt, NULL);
 	rc = c2_fop_data_alloc(fop);
-	if (rc == 0)
-		bfop = c2_fop_data(fop);
-	else
+	if (rc != 0)
 		return rc;
 
+	bfop = c2_fop_data(fop);
 	/* Fill up the BORROW FOP. */
 	bfop->bo_policy = in->rin_policy;
 	bfop->bo_flags = in->rin_flags;
@@ -173,11 +172,10 @@ static int revoke_fop_fill(struct rm_out *outreq,
 	fop = &outreq->ou_fop;
 	c2_fop_init(fop, &c2_fop_rm_revoke_fopt, NULL);
 	rc = c2_fop_data_alloc(fop);
-	if (rc == 0)
-		rfop = c2_fop_data(fop);
-	else
+	if (rc != 0)
 		return rc;
 
+	rfop = c2_fop_data(fop);
 	/* Fill up the REVOKE FOP. */
 	rfop->rr_policy = in->rin_policy;
 	rfop->rr_flags = in->rin_flags;
