@@ -330,26 +330,6 @@ static struct c2_cm_cp *cm_cp_alloc(struct c2_cm *cm)
 
 static int cm_cp_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
-	struct c2_cobfid_map      *cfm;
-	struct c2_sns_repair_cm   *sns_cm;
-	struct c2_cobfid_map_iter *it;
-	uint64_t                   fdata;
-	uint64_t                   cid;
-	struct c2_fid              fid;
-	struct c2_uint128          cob_fid;
-	int                        rc;
-
-	C2_PRE(cm != NULL && cp != NULL);
-
-	sns_cm = cm2sns(cm);
-	fdata = sns_cm->rc_fdata;
-	cfm = sns_cm->rc_cfm;
-	it = &sns_cm->rc_cfm_it;
-	c2_cobfid_map_enum(cfm, it);
-	while ((rc = c2_cobfid_map_iter_next(it, &cid, &fid, &cob_fid)) == 0) {
-		
-	}
-	/* XXX Implementation in progress. */
 	return 0;
 }
 
