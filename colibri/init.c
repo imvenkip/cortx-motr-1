@@ -53,6 +53,7 @@
 #include "rpc/service.h"
 #include "fop/fom_generic.h"
 #include "colibri/init.h"
+#include "lib/cookie.h"
 
 #ifdef __KERNEL__
 #   include "c2t1fs/linux_kernel/c2t1fs.h"
@@ -91,6 +92,7 @@ struct init_fini_call subsystem[] = {
 	{ &c2_fi_init,          &c2_fi_fini,          "finject" },
 	{ &c2_memory_init,      &c2_memory_fini,      "memory" },
 	{ &libc2_init,          &libc2_fini,          "libc2" },
+	{ &c2_cookie_global_init, &c2_cookie_global_fini, "cookie" },
 	{ &c2_uts_init,         &c2_uts_fini,         "ut" },
 	{ &c2_processors_init,  &c2_processors_fini,  "processors" },
 	{ &c2_threads_init,     &c2_threads_fini,     "thread" },
