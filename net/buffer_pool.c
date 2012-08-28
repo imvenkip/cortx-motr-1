@@ -19,8 +19,10 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+# include "config.h"
 #endif
+
+#include "lib/misc.h"  /* c2_forall */
 #include "lib/memory.h"/* C2_ALLOC_PTR */
 #include "lib/errno.h" /* ENOMEM */
 #include "lib/arith.h" /* C2_CNT_INC, C2_CNT_DEC */
@@ -60,28 +62,16 @@ bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool)
 
 static bool pool_colour_check(const struct c2_net_buffer_pool *pool)
 {
-	int		      i;
-	struct c2_net_buffer *nb;
-
-	for (i = 0; i < pool->nbp_colours_nr; i++) {
-		c2_tl_for(c2_net_tm, &pool->nbp_colours[i], nb) {
-			if (!c2_net_pool_tlink_is_in(nb))
-				return false;
-		} c2_tl_endfor;
-	}
-	return true;
+	return c2_forall(i, pool->nbp_colours_nr,
+			 c2_tl_forall(c2_net_tm, nb, &pool->nbp_colours[i],
+				      c2_net_pool_tlink_is_in(nb)));
 }
 
 static bool pool_lru_buffer_check(const struct c2_net_buffer_pool *pool)
 {
-	struct c2_net_buffer *nb;
-
-	c2_tl_for(c2_net_pool, &pool->nbp_lru, nb) {
-		if ((nb->nb_flags & C2_NET_BUF_QUEUED) ||
-		    !(nb->nb_flags & C2_NET_BUF_REGISTERED))
-			return false;
-	} c2_tl_endfor;
-	return true;
+	return c2_tl_forall(c2_net_pool, nb, &pool->nbp_lru,
+			    !(nb->nb_flags & C2_NET_BUF_QUEUED) &&
+			    (nb->nb_flags & C2_NET_BUF_REGISTERED));
 }
 
 int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
