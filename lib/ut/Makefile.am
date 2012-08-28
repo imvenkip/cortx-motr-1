@@ -4,7 +4,9 @@ libc2_ut_la_SOURCES  = main.c \
                        atomic.c \
                        bitmap.c \
                        bob.c \
+                       buf.c \
                        chan.c \
+		       cookie.c \
 		       finject.c \
                        getopts.c \
                        list.c \

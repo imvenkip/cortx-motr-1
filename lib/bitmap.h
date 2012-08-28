@@ -18,6 +18,8 @@
  * Original creation date: 02/18/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LIB_BITMAP_H__
 #define __COLIBRI_LIB_BITMAP_H__
 

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,8 +18,10 @@
  * Original creation date: 04/01/2010
  */
 
-#ifndef __COLIBRI_ADT_H__
-#define __COLIBRI_ADT_H__
+#pragma once
+
+#ifndef __COLIBRI_LIB_ADT_H__
+#define __COLIBRI_LIB_ADT_H__
 
 #include "lib/types.h"
 #include "lib/cdefs.h"
@@ -44,7 +46,7 @@ bool c2_stack_link_is_in(const struct c2_stack_link *stack);
 /** @} end of adt group */
 
 
-/* __COLIBRI_ADT_H__ */
+/* __COLIBRI_LIB_ADT_H__ */
 #endif
 
 /*

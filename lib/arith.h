@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,8 @@
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
  * Original creation date: 05/08/2010
  */
+
+#pragma once
 
 #ifndef __COLIBRI_LIB_ARITH_H__
 #define __COLIBRI_LIB_ARITH_H__
@@ -188,7 +190,7 @@ static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
 /** Decrements a counter checking for underflow. */
 #define C2_CNT_DEC(cnt)					\
 ({							\
-        C2_ASSERT((cnt) > 0);				\
+        C2_ASSERT((cnt) != 0);				\
         --cnt;						\
 })
 
@@ -196,7 +198,7 @@ static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
 #define C2_CNT_INC(cnt)					\
 ({							\
         ++cnt;						\
-        C2_ASSERT((cnt) > 0);				\
+        C2_ASSERT((cnt) != 0);				\
 })
 
 /** @} end of arith group */

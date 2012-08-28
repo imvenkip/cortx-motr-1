@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,6 +18,8 @@
  *		    Alexey Lyashkov <Alexey_Lyashkov@xyratex.com>
  * Original creation date: 04/07/2010
  */
+
+#pragma once
 
 #ifndef __COLIBRI_LIB_CDEFS_H__
 #define __COLIBRI_LIB_CDEFS_H__
@@ -70,6 +72,21 @@ extern void __dummy_function(void);
  * True if an expression has a given type.
  */
 #define C2_HAS_TYPE(expr, type) __builtin_types_compatible_p(typeof(expr), type)
+
+/**
+ * True iff type::field is of type "ftype".
+ */
+#define C2_FIELD_IS(type, field, ftype) \
+	C2_HAS_TYPE(C2_FIELD_VALUE(type, field), ftype)
+
+/**
+ * Computes offset of "magix" field, iff magix field is of type uint64_t.
+ * Otherwise causes compilation failure.
+ */
+#define C2_MAGIX_OFFSET(type, field)				\
+C2_FIELD_IS(type, field, uint64_t) ?				\
+	 offsetof(type, field) :				\
+	 sizeof(char [C2_FIELD_IS(type, field, uint64_t) - 1])
 
 /**
  * Returns the number of parameters given to this variadic macro (up to 9

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,8 @@
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
  * Original creation date: 05/13/2010
  */
+
+#pragma once
 
 #ifndef __COLIBRI_LIB_CHAN_H__
 #define __COLIBRI_LIB_CHAN_H__
@@ -80,7 +82,8 @@
 
    static bool callback(struct c2_clink *clink)
    {
-           struct wait_state *f = container_of(clink, struct foo, f_clink);
+           struct wait_state *f =
+                   container_of(clink, struct wait_state, f_clink);
 	   return !condition_is_right(f);
    }
 
@@ -90,7 +93,7 @@
 	   c2_clink_init(&g.f_clink, &callback);
 	   c2_clink_add(chan, &g.f_clink);
 	   ...
-	   while (!condition_is_right(g)) {
+	   while (!condition_is_right(&g)) {
 	           c2_chan_wait(&g.f_clink);
 	   }
    }

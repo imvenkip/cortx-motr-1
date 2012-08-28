@@ -31,8 +31,6 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/getopts.h"
-#include "lib/processor.h"
-#include "lib/time.h"
 #include "lib/misc.h"
 #include "lib/finject.h"    /* C2_FI_ENABLED */
 
@@ -166,9 +164,9 @@ static bool cs_reqh_context_invariant(const struct cs_reqh_context *rctx)
  */
 static struct c2_net_xprt *cs_xprt_lookup(const char *xprt_name,
 					  struct c2_net_xprt **xprts,
-					  int xprts_nr)
+					  size_t xprts_nr)
 {
-        int i;
+        size_t i;
 
 	C2_PRE(xprt_name != NULL && xprts != NULL && xprts_nr > 0);
 
@@ -181,7 +179,7 @@ static struct c2_net_xprt *cs_xprt_lookup(const char *xprt_name,
 /**
    Lists supported network transports.
  */
-static void cs_xprts_list(FILE *out, struct c2_net_xprt **xprts, int xprts_nr)
+static void cs_xprts_list(FILE *out, struct c2_net_xprt **xprts, size_t xprts_nr)
 {
         int i;
 
@@ -844,6 +842,7 @@ static int cs_ad_stob_init(struct cs_stobs *stob, struct c2_dbenv *db,
 
         C2_PRE(stob != NULL);
 
+	astob_tlist_init(&stob->s_adoms);
 	if (stob->s_sfile.sf_is_initialised) {
 		doc = &stob->s_sfile.sf_document;
 		for (node = doc->nodes.start; node < doc->nodes.top; ++node) {
@@ -885,7 +884,7 @@ static int cs_linux_stob_init(const char *stob_path, struct cs_stobs *stob)
 	return rc;
 }
 
-void cs_ad_stob_fini(struct cs_stobs *stob)
+static void cs_ad_stob_fini(struct cs_stobs *stob)
 {
 	struct c2_stob        *bstob;
 	struct cs_ad_stob     *adstob;
@@ -905,6 +904,7 @@ void cs_ad_stob_fini(struct cs_stobs *stob)
 		cs_ad_stob_bob_fini(adstob);
 		c2_free(adstob);
 	} c2_tl_endfor;
+	astob_tlist_fini(&stob->s_adoms);
 }
 
 void cs_linux_stob_fini(struct cs_stobs *stob)
@@ -922,7 +922,7 @@ struct c2_stob_domain *c2_cs_stob_domain_find(struct c2_reqh *reqh,
 	struct cs_stobs         *stob;
 	struct cs_ad_stob       *adstob;
 
-	rqctx = container_of(reqh, struct cs_reqh_context, rc_reqh);
+	rqctx = bob_of(reqh, struct cs_reqh_context, rc_reqh, &rhctx_bob);
 	stob = &rqctx->rc_stob;
 
 	if (strcasecmp(stob->s_stype, cs_stypes[LINUX_STOB]) == 0)
@@ -930,8 +930,9 @@ struct c2_stob_domain *c2_cs_stob_domain_find(struct c2_reqh *reqh,
 	else if (strcasecmp(stob->s_stype, cs_stypes[AD_STOB]) == 0) {
 		c2_tl_for(astob, &stob->s_adoms, adstob) {
 			C2_ASSERT(cs_ad_stob_bob_check(adstob));
-			if (adstob->as_id_back.si_bits.u_hi ==
-				stob_id->si_bits.u_hi)
+			if (!stob->s_sfile.sf_is_initialised ||
+			    adstob->as_id_back.si_bits.u_hi ==
+			    stob_id->si_bits.u_hi)
 				return adstob->as_dom;
 		} c2_tl_endfor;
 	}
@@ -983,7 +984,6 @@ static int cs_storage_init(const char *stob_type, const char *stob_path,
 		c2_dtx_done(tx);
 		goto out;
 	}
-	astob_tlist_init(&stob->s_adoms);
 	rc = cs_linux_stob_init(stob_path, stob);
 	if (rc != 0)
 		goto out;
@@ -1005,7 +1005,8 @@ static void cs_storage_fini(struct cs_stobs *stob)
 	C2_PRE(stob != NULL);
 
 	c2_dtx_done(&stob->s_tx);
-        cs_ad_stob_fini(stob);
+	if (strcasecmp(stob->s_stype, cs_stypes[AD_STOB]) == 0)
+		cs_ad_stob_fini(stob);
         cs_linux_stob_fini(stob);
 	if (stob->s_sfile.sf_is_initialised)
 		yaml_document_delete(&stob->s_sfile.sf_document);
@@ -1126,7 +1127,7 @@ static void cs_services_fini(struct c2_reqh *reqh)
 static int cs_net_domains_init(struct c2_colibri *cctx)
 {
 	int                          rc;
-	int                          xprts_nr;
+	size_t                       xprts_nr;
 	FILE                        *ofd;
 	struct c2_net_xprt         **xprts;
 	struct c2_net_xprt          *xprt;
@@ -1189,7 +1190,7 @@ static void cs_net_domains_fini(struct c2_colibri *cctx)
 {
 	struct c2_net_domain  *ndom;
 	struct c2_net_xprt   **xprts;
-	int                    idx;
+	size_t                 idx;
 
 	C2_PRE(cctx != NULL);
 
@@ -1397,7 +1398,7 @@ static struct cs_reqh_context *cs_reqh_ctx_get(struct c2_reqh *reqh)
 
 	C2_PRE(c2_reqh_invariant(reqh));
 
-	rqctx = container_of(reqh, struct cs_reqh_context, rc_reqh);
+	rqctx = bob_of(reqh, struct cs_reqh_context, rc_reqh, &rhctx_bob);
 	C2_POST(cs_reqh_context_invariant(rqctx));
 
 	return rqctx;
@@ -1456,7 +1457,7 @@ static void cs_colibri_fini(struct c2_colibri *cctx)
 /**
    Displays usage of colibri_setup program.
 
-   @param f File to which the output is written
+   @param out File to which the output is written
  */
 static void cs_usage(FILE *out)
 {
@@ -1476,7 +1477,7 @@ static void cs_usage(FILE *out)
 /**
    Displays help for colibri_setup program.
 
-   @param f File to which the output is written
+   @param out File to which the output is written
  */
 static void cs_help(FILE *out)
 {
@@ -1668,8 +1669,6 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
    required arguments are provided and valid.
    Every allocated request handler context is added to the list of the same
    in given colibri context.
-
-   @param cctx Colibri context to be setup
  */
 static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
 {
@@ -1853,10 +1852,8 @@ int c2_cs_start(struct c2_colibri *cctx)
 }
 
 int c2_cs_init(struct c2_colibri *cctx, struct c2_net_xprt **xprts,
-	       int xprts_nr, FILE *out)
+	       size_t xprts_nr, FILE *out)
 {
-        int rc;
-
         C2_PRE(cctx != NULL && xprts != NULL && xprts_nr > 0 && out != NULL);
 
 	if (C2_FI_ENABLED("fake_error"))
@@ -1866,11 +1863,8 @@ int c2_cs_init(struct c2_colibri *cctx, struct c2_net_xprt **xprts,
 	cctx->cc_xprts_nr = xprts_nr;
 	cctx->cc_outfile = out;
 	cs_colibri_init(cctx);
-        rc = c2_processors_init();
-	if (rc != 0)
-		cs_colibri_fini(cctx);
 
-	return rc;
+	return 0;
 }
 
 void c2_cs_fini(struct c2_colibri *cctx)
@@ -1881,7 +1875,6 @@ void c2_cs_fini(struct c2_colibri *cctx)
 	cs_buffer_pool_fini(cctx);
 	cs_net_domains_fini(cctx);
         cs_colibri_fini(cctx);
-	c2_processors_fini();
 }
 
 /** @} endgroup colibri_setup */

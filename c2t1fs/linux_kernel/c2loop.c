@@ -400,6 +400,7 @@
 #include <linux/init.h>
 #include <linux/swap.h>
 #include <linux/slab.h>
+#include <linux/loop.h>
 #include <linux/compat.h>
 #include <linux/suspend.h>
 #include <linux/freezer.h>
@@ -412,7 +413,6 @@
 
 #include <asm/uaccess.h>
 
-#include "c2loop.h"
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/cdefs.h"    /* C2_EXPORTED */
@@ -501,7 +501,7 @@ static int do_iov_filebacked(struct loop_device *lo, unsigned long op, int n,
 	                        file->f_op->aio_write;
 	set_fs(get_ds());
 	for (;;) {
-		ret = aio_rw(&kiocb, lo->lo_iovecs, n, pos);
+		ret = aio_rw(&kiocb, (struct iovec*)lo->key_data, n, pos);
 		if (ret != -EIOCBRETRY)
 			break;
 		wait_on_retry_sync_kiocb(&kiocb);
@@ -640,7 +640,7 @@ accumulate:
 			goto flush;
 
 		bio_for_each_segment(bvec, bio, i) {
-			iov = &lo->lo_iovecs[iov_idx++];
+			iov = &((struct iovec*)lo->key_data)[iov_idx++];
 			iov->iov_base = page_address(bvec->bv_page) +
 					bvec->bv_offset;
 			iov->iov_len = bvec->bv_len;
@@ -915,9 +915,13 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 	blk_queue_bounce_limit(lo->lo_queue, BLK_BOUNCE_ANY);
 	blk_queue_logical_block_size(lo->lo_queue, PAGE_SIZE);
 
-	lo->lo_iovecs = kzalloc(BIO_MAX_PAGES * sizeof(*lo->lo_iovecs),
+	/*
+	 * Encryption is never used for c2loop, so we can
+	 * reuse lo->key_data pointer for iovecs array.
+	 */
+	lo->key_data = kzalloc(BIO_MAX_PAGES * sizeof(struct iovec),
 	                        GFP_KERNEL);
-	if (lo->lo_iovecs == NULL) {
+	if (lo->key_data == NULL) {
 		error = -ENOMEM;
 		goto out_clr;
 	}
@@ -993,7 +997,7 @@ static int loop_clr_fd(struct loop_device *lo, struct block_device *bdev)
 	if (bdev)
 		bd_set_size(bdev, 0);
 	mapping_set_gfp_mask(filp->f_mapping, gfp);
-	kfree(lo->lo_iovecs);
+	kfree(lo->key_data);
 	lo->lo_state = Lo_unbound;
 	/* This is safe: open() is still holding a reference. */
 	module_put(THIS_MODULE);

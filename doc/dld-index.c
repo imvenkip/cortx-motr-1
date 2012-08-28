@@ -6,8 +6,14 @@ Detailed designs, ordered alphabetically:
 
 - @subpage c2t1fs "C2T1FS detailed level design specification"
            <!-- c2t1fs/main.c -->
+- @subpage conf
+           <!-- conf/obj.c -->
 - @subpage DLD_conf_schema "DLD for configuration schema"
            <!-- cfg/cfg.h -->
+- @subpage c2_long_lock-dld "FOM Long lock DLD"
+           <!-- fop/fom_long_lock.h -->
+- @subpage Layout-DB "Layout DB DLD"
+           <!-- layout/layout_db.c -->
 - @subpage LNetDLD "LNet Transport DLD"
            <!-- net/lnet/lnet_main.c -->
 - @subpage rpc-layer-core-dld "RPC layer core DLD"

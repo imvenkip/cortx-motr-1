@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,8 +17,10 @@
  * Original creation date: 12/05/2010
  */
 
-#ifndef _NET_FOP_H_
-#define _NET_FOP_H_
+#pragma once
+
+#ifndef __COLIBRI_NET_UT_NET_FOP_H__
+#define __COLIBRI_NET_UT_NET_FOP_H__
 
 #include "fop/fop.h"
 
@@ -27,7 +29,7 @@ extern struct c2_fop_type c2_nettest_fopt;
 int nettest_fop_init(void);
 void nettest_fop_fini(void);
 
-#endif /* !_NET_FOP_H_ */
+#endif /* __COLIBRI_NET_UT_NET_FOP_H__ */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

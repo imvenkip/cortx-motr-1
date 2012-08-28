@@ -18,6 +18,8 @@
  * Original creation date: 08/12/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LIB_TRACE_H__
 #define __COLIBRI_LIB_TRACE_H__
 
@@ -156,7 +158,7 @@
    i.e. explicitly typecast to the pointer. It is because typeof("foo")
    is not the same as typeof((char*)"foo").
 
-   @note The number of arguments after fmt is limited to 9!
+   @note The number of arguments after fmt is limited to 9
 
    C2_LOG() counts the number of arguments and calls correspondent C2_LOGx().
  */
@@ -180,8 +182,15 @@ void c2_trace_fini(void);
   C2_TRACE_SUBSYS(MEMORY,	2)      \
   C2_TRACE_SUBSYS(C2T1FS,	3)      \
   C2_TRACE_SUBSYS(RPC,		4)      \
-  C2_TRACE_SUBSYS(FORMATION,    5)      \
-  C2_TRACE_SUBSYS(IOSERVICE,    6)
+  C2_TRACE_SUBSYS(FORMATION,    5)	\
+  C2_TRACE_SUBSYS(ADDB,		6)	\
+  C2_TRACE_SUBSYS(LNET,		7)	\
+  C2_TRACE_SUBSYS(SNS,		8)	\
+  C2_TRACE_SUBSYS(NET,		9)	\
+  C2_TRACE_SUBSYS(COB,		10)	\
+  C2_TRACE_SUBSYS(BALLOC,	11)	\
+  C2_TRACE_SUBSYS(LAYOUT,       12)	\
+  C2_TRACE_SUBSYS(IOSERVICE,    13)
 
 #define C2_TRACE_SUBSYS(name, value) C2_TRACE_SUBSYS_ ## name = (1 << value),
 /** The subsystem bitmask definitions */
@@ -218,6 +227,7 @@ enum {
 
 extern void      *c2_logbuf;      /**< Trace buffer pointer */
 extern uint32_t   c2_logbufsize;  /**< The real buffer size */
+
 
 /**
  * Record header structure
@@ -281,7 +291,7 @@ void c2_console_vprintf(const char *fmt, va_list ap);
 	struct t_body DECL;						\
 	static const int _offset[NR] = OFFSET;				\
 	static const int _sizeof[NR] = SIZEOF;				\
-	static const struct c2_trace_descr td = {			\
+	static const struct c2_trace_descr __trace_descr = {		\
                 .td_fmt    = (FMT),					\
 		.td_func   = __func__,					\
 		.td_file   = __FILE__,					\
@@ -293,7 +303,7 @@ void c2_console_vprintf(const char *fmt, va_list ap);
 		.td_sizeof = _sizeof					\
 	};								\
 	printf_check(FMT , ## __VA_ARGS__);				\
-	c2_trace_allot(&td, &(const struct t_body){ __VA_ARGS__ });	\
+	c2_trace_allot(&__trace_descr, &(const struct t_body){ __VA_ARGS__ });	\
 })
 
 #ifndef C2_TRACE_SUBSYSTEM

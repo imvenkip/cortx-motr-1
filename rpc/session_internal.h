@@ -20,8 +20,10 @@
 
 /* Declarations of functions that are private to rpc-layer */
 
-#ifndef _COLIBRI_RPC_SESSION_INT_H
-#define _COLIBRI_RPC_SESSION_INT_H
+#pragma once
+
+#ifndef __COLIBRI_RPC_SESSION_INT_H__
+#define __COLIBRI_RPC_SESSION_INT_H__
 
 #include "cob/cob.h"
 #include "rpc/session.h"

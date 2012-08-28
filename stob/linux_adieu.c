@@ -500,7 +500,7 @@ static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 	}
 }
 
-const static struct timespec ioq_timeout_default = {
+static const struct timespec ioq_timeout_default = {
 	.tv_sec  = 1,
 	.tv_nsec = 0
 };

@@ -25,6 +25,7 @@
 #include "lib/arith.h"              /* c2_is_po2 */
 #include "addb/addb.h"
 #include "sm/sm.h"
+#include "lib/finject.h"
 
 /**
    @addtogroup sm
@@ -131,13 +132,23 @@ static const struct c2_sm_state_descr *sm_state(const struct c2_sm *mach)
 	return state_get(mach, mach->sm_state);
 }
 
-bool c2_sm_invariant(const struct c2_sm *mach)
+/**
+ * Weaker form of state machine invariant, that doesn't check that the group
+ * lock is held. Used in c2_sm_init() and c2_sm_fini().
+ */
+bool sm_invariant0(const struct c2_sm *mach)
 {
 	const struct c2_sm_state_descr *sd = sm_state(mach);
 
-	return
-		sm_is_locked(mach) &&
-		ergo(sd->sd_invariant != NULL, sd->sd_invariant(mach));
+	return equi((mach->sm_rc != 0), (sd->sd_flags & C2_SDF_FAILURE)) &&
+	       ergo(sd->sd_invariant != NULL, sd->sd_invariant(mach));
+}
+
+bool c2_sm_invariant(const struct c2_sm *mach)
+{
+	if (C2_FI_ENABLED("no_lock"))
+		return sm_invariant0(mach);
+	return sm_is_locked(mach) && sm_invariant0(mach);
 }
 
 static bool conf_invariant(const struct c2_sm_conf *conf)
@@ -184,12 +195,12 @@ void c2_sm_init(struct c2_sm *mach, const struct c2_sm_conf *conf,
 	mach->sm_addb  = ctx;
 	mach->sm_rc    = 0;
 	c2_chan_init(&mach->sm_chan);
-	C2_POST(c2_sm_invariant(mach));
+	C2_POST(sm_invariant0(mach));
 }
 
 void c2_sm_fini(struct c2_sm *mach)
 {
-	C2_ASSERT(c2_sm_invariant(mach));
+	C2_ASSERT(sm_invariant0(mach));
 	C2_PRE(sm_state(mach)->sd_flags & C2_SDF_TERMINAL);
 	c2_chan_fini(&mach->sm_chan);
 }
@@ -222,6 +233,38 @@ int c2_sm_timedwait(struct c2_sm *mach, uint64_t states, c2_time_t deadline)
 	return result;
 }
 
+static void state_set(struct c2_sm *mach, int state)
+{
+	const struct c2_sm_state_descr *sd;
+
+	/*
+	 * Iterate over a possible chain of state transitions.
+	 *
+	 * State machine invariant can be temporarily violated because ->sm_rc
+	 * is set by c2_sm_fail() before ->sm_state is updated and, similarly,
+	 * ->sd_in() might set ->sm_rc before the next state is entered. In any
+	 * case, the invariant is restored the moment->sm_state is updated and
+	 * must hold on the loop termination.
+	 */
+	do {
+		sd = sm_state(mach);
+		/* Used in UT's where out of order state transitions are done.*/
+		if (C2_FI_ENABLED("skip_sd_allowed_chk"))
+			goto skip_sd_allowed;
+		C2_PRE(sd->sd_allowed & (1ULL << state));
+skip_sd_allowed:
+		if (sd->sd_ex != NULL)
+			sd->sd_ex(mach);
+		mach->sm_state = state;
+		C2_PRE(c2_sm_invariant(mach));
+		sd = sm_state(mach);
+		state = sd->sd_in != NULL ? sd->sd_in(mach) : -1;
+		c2_chan_broadcast(&mach->sm_chan);
+	} while (state >= 0);
+	C2_POST(c2_sm_invariant(mach));
+}
+C2_EXPORTED(c2_sm_state_set);
+
 void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc)
 {
 	C2_PRE(rc != 0);
@@ -229,27 +272,14 @@ void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc)
 	C2_PRE(mach->sm_rc == 0);
 	C2_PRE(state_get(mach, fail_state)->sd_flags & C2_SDF_FAILURE);
 
-	c2_sm_state_set(mach, fail_state);
 	mach->sm_rc = rc;
+	state_set(mach, fail_state);
 }
 
 void c2_sm_state_set(struct c2_sm *mach, int state)
 {
-	const struct c2_sm_state_descr *sd;
-
 	C2_PRE(c2_sm_invariant(mach));
-
-	sd = sm_state(mach);
-	C2_PRE(sd->sd_allowed & (1 << state));
-
-	if (sd->sd_ex != NULL)
-		sd->sd_ex(mach);
-	mach->sm_state = state;
-	sd = sm_state(mach);
-	if (sd->sd_in != NULL)
-		sd->sd_in(mach);
-	c2_chan_broadcast(&mach->sm_chan);
-	C2_POST(c2_sm_invariant(mach));
+	state_set(mach, state);
 }
 
 /**
@@ -351,6 +381,17 @@ void c2_sm_timeout_fini(struct c2_sm_timeout *to)
 	if (c2_clink_is_armed(&to->st_clink))
 		c2_clink_del(&to->st_clink);
 	c2_clink_fini(&to->st_clink);
+}
+
+void c2_sm_conf_extend(const struct c2_sm_state_descr *base,
+		       struct c2_sm_state_descr *sub, uint32_t nr)
+{
+	uint32_t i;
+
+	for (i = 0; i < nr; ++i) {
+		if (sub[i].sd_name == NULL && base[i].sd_name != NULL)
+			sub[i] = base[i];
+	}
 }
 
 /** @} end of sm group */

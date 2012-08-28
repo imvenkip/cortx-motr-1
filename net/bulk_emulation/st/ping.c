@@ -25,6 +25,7 @@
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "lib/misc.h" /* strlen */
 #include "net/net.h"
 #include "net/bulk_mem.h"
 #include "net/bulk_emulation/st/ping.h"
@@ -533,7 +534,8 @@ void s_m_recv_cb(const struct c2_net_buffer_event *ev)
 		  ev->nbe_buffer->nb_qtype == C2_NET_QT_MSG_RECV);
 	server_event_ident(idbuf, ctx->pc_ident, ev);
 	count = c2_atomic64_add_return(&s_msg_recv_counter, 1);
-	ctx->pc_ops->pf("%s: Msg Recv CB %" PRId64 "\n", idbuf, count);
+	ctx->pc_ops->pf("%s: Msg Recv CB %" PRId64 "\n", idbuf,
+			(long long int) count);
 	if (ev->nbe_status < 0) {
 		if (ev->nbe_status == -ECANCELED && server_stop)
 			ctx->pc_ops->pf("%s: msg recv canceled on shutdown\n",

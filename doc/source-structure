@@ -55,6 +55,27 @@ it. Add bar.c to he corresponding _SOURCES entry in
 core/foo/Makefile.am. Add the file to git (git add foo/bar.c) and
 commit your changes.
 
+If you are planning to add file foo.h then foo.h should typically start with
+
+#pragma once
+
+#ifndef __FOO_H__
+#define __FOO_H__
+
+End the file foo.h with
+
+#endif /* __FOO_H__ */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+
 How headers should be included in C sources?
 --------------------------------------------
 
@@ -210,7 +231,7 @@ declaration and
 
 	c2_ut_add(&foo_ut);
 
-to main().
+to add_uts().
 
 Add foo/ut to SUBDIR_UT in core/Makefile.am.
 

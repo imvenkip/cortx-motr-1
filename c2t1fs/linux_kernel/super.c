@@ -19,14 +19,14 @@
  */
 
 #include <linux/mount.h>
-#include <linux/parser.h>     /* substring_t               */
-#include <linux/slab.h>       /* kmalloc(), kfree()        */
+#include <linux/parser.h>     /* substring_t                    */
+#include <linux/slab.h>       /* kmalloc(), kfree()             */
 
-#include "lib/misc.h"         /* C2_SET0()                 */
-#include "lib/memory.h"       /* C2_ALLOC_PTR(), c2_free() */
+#include "lib/misc.h"         /* C2_SET0()                      */
+#include "lib/memory.h"       /* C2_ALLOC_PTR(), c2_free()      */
 #include "c2t1fs/linux_kernel/c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
-#include "lib/trace.h"        /* C2_LOG and C2_ENTRY */
+#include "lib/trace.h"        /* C2_LOG and C2_ENTRY            */
 #include "pool/pool.h"        /* c2_pool_init(), c2_pool_fini() */
 
 /* Super block */
@@ -148,8 +148,9 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 					C2T1FS_DEFAULT_NR_PARITY_UNITS;
 	csb->csb_unit_size       = mntopts->mo_unit_size ?:
 					C2T1FS_DEFAULT_STRIPE_UNIT_SIZE;
-	pool_width               = mntopts->mo_pool_width ?:
-					C2T1FS_DEFAULT_POOL_WIDTH;
+	pool_width = mntopts->mo_pool_width ?:
+			csb->csb_nr_data_units + 2 * csb->csb_nr_parity_units;
+
 	/* See "Containers and component objects" section in c2t1fs.h for more
 	   information on following line */
 	csb->csb_nr_containers   = pool_width + 1;

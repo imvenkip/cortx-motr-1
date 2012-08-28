@@ -17,6 +17,12 @@
  * Original creation date: 07/09/2011
  */
 
+#pragma once
+
+#ifndef __COLIBRI_RPC_IT_RPC_PING_H__
+#define __COLIBRI_RPC_IT_RPC_PING_H__
+
 int c2_rpc_ping_init(void);
 void c2_rpc_ping_fini(void);
 
+#endif /* __COLIBRI_RPC_IT_RPC_PING_H__ */

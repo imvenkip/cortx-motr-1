@@ -203,16 +203,14 @@ static void io_fop_populate(struct bulkio_params *bp, int index,
 	 * Adds a c2_rpc_bulk_buf structure to list of such structures
 	 * in c2_rpc_bulk.
 	 */
-	C2_ASSERT(io_fops[index]->if_fop.f_type->ft_ops->fto_size_get != NULL);
 	rc = c2_rpc_bulk_buf_add(rbulk, segs_nr, &bp->bp_cnetdom, NULL, &rbuf);
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(rbuf != NULL);
 
 
-	rw = io_rw_get(&iofop->if_fop);
+	rw          = io_rw_get(&iofop->if_fop);
 	rw->crw_fid = bp->bp_fids[off_index];
 
-	C2_ASSERT(io_fops[index]->if_fop.f_type->ft_ops->fto_size_get != NULL);
 	/* Adds io buffers to c2_rpc_bulk_buf structure. */
 	for (i = 0; i < segs_nr; ++i) {
 		rc = c2_rpc_bulk_buf_databuf_add(rbuf,
@@ -225,15 +223,12 @@ static void io_fop_populate(struct bulkio_params *bp, int index,
 		bp->bp_offsets[off_index] +=
 			bp->bp_iobuf[index]->nb_buffer.ov_vec.v_count[i];
 	}
-	C2_ASSERT(io_fops[index]->if_fop.f_type->ft_ops->fto_size_get != NULL);
 
 	/*
 	 * Allocates memory for array of net buf descriptors and array of
 	 * index vectors from io fop.
 	 */
-	C2_ASSERT(io_fops[index]->if_fop.f_type->ft_ops->fto_size_get != NULL);
 	rc = c2_io_fop_prepare(&iofop->if_fop);
-	C2_ASSERT(io_fops[index]->if_fop.f_type->ft_ops->fto_size_get != NULL);
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(rw->crw_desc.id_nr ==
 		     c2_tlist_length(&rpcbulk_tl, &rbulk->rb_buflist));
@@ -243,10 +238,8 @@ static void io_fop_populate(struct bulkio_params *bp, int index,
 	 * Stores the net buf desc/s after adding the corresponding
 	 * net buffers to transfer machine to io fop wire format.
 	 */
-	C2_ASSERT(io_fops[index]->if_fop.f_type->ft_ops->fto_size_get != NULL);
 	rc = c2_rpc_bulk_store(rbulk, &bp->bp_cctx->rcx_connection,
 			       rw->crw_desc.id_descs);
-	C2_ASSERT(io_fops[index]->if_fop.f_type->ft_ops->fto_size_get != NULL);
 	C2_ASSERT(rc == 0);
 }
 
@@ -281,8 +274,6 @@ void io_fops_create(struct bulkio_params *bp, enum C2_RPC_OPCODES op,
 		C2_ALLOC_PTR(io_fops[i]);
 		C2_ASSERT(io_fops[i] != NULL);
 		rc = c2_io_fop_init(io_fops[i], fopt);
-		C2_ASSERT(io_fops[i]->if_fop.f_type->ft_ops->fto_size_get
-				!= NULL);
 		C2_ASSERT(rc == 0);
 	}
 
@@ -296,8 +287,6 @@ void io_fops_create(struct bulkio_params *bp, enum C2_RPC_OPCODES op,
 
 		io_fops = (op == C2_IOSERVICE_WRITEV_OPCODE) ? bp->bp_wfops :
 			   bp->bp_rfops;
-		C2_ASSERT(io_fops[i]->if_fop.f_type->ft_ops->fto_size_get
-				!= NULL);
 		io_fop_populate(bp, i, rnd, io_fops, segs_nr);
 	}
 }
@@ -328,7 +317,6 @@ void io_fops_rpc_submit(struct thrd_arg *t)
 		  bp->bp_rfops;
 	rbulk = c2_fop_to_rpcbulk(&io_fops[i]->if_fop);
 	item = &io_fops[i]->if_fop.f_item;
-	C2_ASSERT(io_fops[i]->if_fop.f_type->ft_ops->fto_size_get != NULL);
 	item->ri_session = &bp->bp_cctx->rcx_session;
 	c2_time_set(&timeout, IO_RPC_ITEM_TIMEOUT, 0);
 

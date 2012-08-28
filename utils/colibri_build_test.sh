@@ -188,12 +188,17 @@ run_command()
 
 copy_core_dump()
 {
-    cur_branch_dir="$TESTROOT/$DIRTIME/$current_branch"
 
-    if [ -f $COLIBRI_CORE_PATH/utils/ut-sandbox/core.* ]; then
-        cp $COLIBRI_CORE_PATH/utils/ut-sandbox/core.* $cur_branch_dir/core-dumps/
-        cp $COLIBRI_CORE_PATH/utils/.libs/lt-ut $cur_branch_dir/core-dumps/
-        print_msg "INFO:::A core is copied at $cur_branch_dir/core-dumps/" 1
+    if [ "$(id -u)" -eq 0 ]; then
+	cur_branch_dir="$TESTROOT/$DIRTIME/$current_branch"
+	cp $TESTROOT/$DIRTIME/sandbox/ut-sandbox/core.* $cur_branch_dir/core-dumps/ &> /dev/null
+	rc=$?
+	sudo cp $COLIBRI_CORE_PATH/utils/.libs/lt-ut $cur_branch_dir/core-dumps/ &> /dev/null
+	if [ $rc -eq 0 ]; then
+	    print_msg "INFO:::A core is copied at $cur_branch_dir/core-dumps/" 1
+	fi
+    else
+	print_msg "INFO:::A core is generated at $TESTROOT/$DIRTIME/sandbox/ut-sandbox/" 1
     fi
 }
 
@@ -261,9 +266,8 @@ run_test_automate()
            run_command "$COLIBRI_SOURCE/core" 'make'; then
 
 	    pushd 2>/dev/null $TESTROOT/$DIRTIME/sandbox > /dev/null
-            run_command '' "sudo $COLIBRI_SOURCE/core/utils/ut.sh" '-a' 1
+            run_command '' "sudo $COLIBRI_SOURCE/core/utils/ut.sh" '' 1
 	    rc=$?
-	    sudo mv $TESTROOT/$DIRTIME/sandbox/*.xml $TESTROOT/$DIRTIME/$current_branch/logs/ &> /dev/null
 	    popd &>/dev/null
 
             if [ $UB_ROUNDS -ne 0 ] && [ $rc -eq 0 ]; then

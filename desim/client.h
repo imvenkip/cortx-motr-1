@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -19,8 +19,11 @@
  *
  * Nikita Danilov.
  */
-#ifndef CLIENT_H
-#define CLIENT_H
+
+#pragma once
+
+#ifndef __COLIBRI_DESIM_CLIENT_H__
+#define __COLIBRI_DESIM_CLIENT_H__
 
 /**
    @addtogroup desim desim
@@ -69,7 +72,7 @@ struct client_conf {
 void client_init(struct sim *s, struct client_conf *conf);
 void client_fini(struct client_conf *conf);
 
-#endif /* CLIENT_H */
+#endif /* __COLIBRI_DESIM_CLIENT_H__ */
 
 /** @} end of desim group */
 

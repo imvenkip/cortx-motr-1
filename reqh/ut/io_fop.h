@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,8 @@
  * Original author: Dmitriy Chumak <dmitriy_chumak@xyratex.com>
  * Original creation date: 10/29/2011
  */
+
+#pragma once
 
 #ifndef __COLIBRI_STOB_IO_FOP_H__
 #define __COLIBRI_STOB_IO_FOP_H__

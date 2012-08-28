@@ -30,17 +30,11 @@
 #include "lib/bitstring.h"
 #include "cob/cob.h"
 #include "fop/fop.h"
-#include "fop/fop_format_def.h"
 #include "reqh/reqh.h"
-
-#ifdef __KERNEL__
-#include "rpc/session_k.h"
-#else
-#include "rpc/session_u.h"
-#endif
-
+#include "rpc/session_ff.h"
 #include "rpc/session_fops.h"
 #include "rpc/session_internal.h"
+#include "rpc/rpc_machine.h"
 #include "db/db.h"
 
 /**

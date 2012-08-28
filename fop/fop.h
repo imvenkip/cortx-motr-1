@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,6 +18,8 @@
  * Original creation date: 05/19/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_FOP_FOP_H__
 #define __COLIBRI_FOP_FOP_H__
 
@@ -27,8 +29,8 @@
 #include "addb/addb.h"
 #include "fol/fol.h"
 #include "fop/fom.h"
-#include "fop/fop_base.h"
-#include "rpc/rpc2.h"
+#include "rpc/item.h"
+#include "net/net_otw_types_ff.h"
 
 /**
    @defgroup fop File operation packet
@@ -57,32 +59,14 @@
 */
 
 /* import */
-struct c2_service;
 struct c2_fol;
 struct c2_db_tx;
+struct c2_xcode_type;
 
 /* export */
 struct c2_fop_ctx;
 struct c2_fop_data;
 struct c2_fop;
-
-/**
-   A context for fop processing in a service.
-
-   A context is created by a service and passed to
-   c2_fop_type_ops::fto_execute() as an argument. It is used to identify a
-   particular fop execution in a service.
- */
-struct c2_fop_ctx {
-	struct c2_service *ft_service;
-	/**
-	   Service-dependent cookie identifying fop execution. Passed to
-	   c2_service_ops::so_reply_post() to post a reply.
-
-	   @see c2_net_reply_post()
-	 */
-	void              *fc_cookie;
-};
 
 /**
     fop storage.
@@ -111,12 +95,30 @@ struct c2_fop {
 	struct c2_list_link	 f_link;
 };
 
-int            c2_fop_init (struct c2_fop *fop, struct c2_fop_type *fopt,
+/**
+   c2_fop_init() does not allocate top level fop data object.
+
+   @see c2_fop_data_alloc()
+ */
+void           c2_fop_init (struct c2_fop *fop, struct c2_fop_type *fopt,
 			    void *data);
 void           c2_fop_fini (struct c2_fop *fop);
+
+/**
+   Allocate fop object
+
+   @param fopt fop type to assign to this fop object
+   @param data top level data object
+   if data == NULL, data is allocated by this function
+ */
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data);
 void           c2_fop_free (struct c2_fop *fop);
 void          *c2_fop_data (struct c2_fop *fop);
+
+/**
+   Allocate top level fop data
+ */
+int            c2_fop_data_alloc (struct c2_fop *fop);
 
 int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
 		       struct c2_db_tx *tx);
@@ -137,7 +139,159 @@ void c2_fop_item_free(struct c2_rpc_item *item);
 
 extern const struct c2_rpc_item_ops c2_fop_default_item_ops;
 
-#include "fop/fop_format.h"
+/**
+   <b>Fop format</b>
+
+   A fop type contains as its part a "fop format". A fop format is a description
+   of structure of data in a fop instance. Fop format describes fop instance
+   data structure as a tree of fields. Leaves of this tree are fields of
+   "atomic" types (VOID, BYTE, U32 and U64) and non-leaf nodes are "aggregation
+   fields": record, union, sequence or typedef.
+
+   The key point of fop formats is that data structure description can be
+   analysed at run-time, by traversing the tree:
+
+   @li to pack and unpack fop instance between in-memory and on-wire
+   representation fop format tree is traversed recursively and fop fields are
+   serialized or de-serialized.
+
+   @li the same for converting fop between in-memory and data-base record
+   formats;
+
+   @li finally, when a new fop type is added, data-structure definitions for
+   instances of this type are also generated automatically by traversing the
+   format tree (by code in fop_format_c.c and fop2c). These data-structure
+   definitions can be different for different platforms (e.g., kernel and user
+   space).
+
+   Fop formats are introduced in "fop format description files", usually having
+   .ff extension. See xcode/ff2c/sample.ff for an example. fop format
+   description file defines instances of struct c2_xcode_type encoded via
+   helper functions generated from ff2c compiler
+
+   During build process, fop format description file is processed by
+   xcode/ff2c/ff2c compiler. xcode provides interfaces to iterate over
+   hierarchy of such descriptors and to associate user defined state with
+   types and fields.
+
+   @see xcode/ff2c/ff2c
+*/
+
+extern const struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops;
+
+/**
+   Type of a file system operation.
+
+   There is an instance of c2_fop_type for "make directory" command, an instance
+   for "write", "truncate", etc.
+ */
+struct c2_fop_type {
+	/** Operation name. */
+	const char                       *ft_name;
+	/** Linkage into a list of all known operations. */
+	struct c2_tlink                   ft_linkage;
+	const struct c2_fop_type_ops     *ft_ops;
+	/** Xcode type representing this fop type. */
+	const struct c2_xcode_type       *ft_xt;
+	struct c2_fol_rec_type            ft_rec_type;
+	/** State machine for this fop type */
+	struct c2_fom_type                ft_fom_type;
+	/** The rpc_item_type associated with rpc_item
+	    embedded with this fop. */
+	struct c2_rpc_item_type		  ft_rpc_item_type;
+	/**
+	   ADDB context for events related to this fop type.
+	 */
+	struct c2_addb_ctx                ft_addb;
+	uint64_t                          ft_magix;
+};
+
+/**
+    Iterates through the registered fop types.
+
+    To iterate across all registered fop types, first call this function with
+    NULL parameter. NULL is returned to indicate end of the iteration.
+
+    If a fop type is registered or unregistered while an iteration is in
+    progress, behaviour is undefined.
+
+    @code
+    ftype = NULL;
+    while ((ftype = c2_fop_type_next(ftype)) != NULL) {
+            do something with ftype
+    }
+    @endcode
+ */
+struct c2_fop_type *c2_fop_type_next(struct c2_fop_type *ftype);
+
+/** fop type operations. */
+struct c2_fop_type_ops {
+	/** XXX temporary entry point for threaded fop execution. */
+	int (*fto_execute) (struct c2_fop *fop, struct c2_fop_ctx *ctx);
+	/** fol record type operations for this fop type, or NULL is standard
+	    operations are to be used. */
+	const struct c2_fol_rec_type_ops  *fto_rec_ops;
+	/** Action to be taken on receiving reply of a fop. */
+	void (*fto_fop_replied)(struct c2_fop *fop, struct c2_fop *bfop);
+	/** Try to coalesce multiple fops into one. */
+	int (*fto_io_coalesce)(struct c2_fop *fop, uint64_t rpc_size);
+	/** Returns the net buf desc in io fop. */
+	void (*fto_io_desc_get)(struct c2_fop *fop,
+			        struct c2_net_buf_desc **desc);
+};
+
+typedef uint32_t c2_fop_type_code_t;
+
+/**
+ * Parameters needed for fop type initialisation.
+ *
+ * This definition deliberately does not follow the "field name prefix" rule.
+ *
+ * @see C2_FOP_TYPE_INIT() c2_fop_type_init() c2_fop_type_init_nr()
+ */
+struct __c2_fop_type_init_args {
+	const char                        *name;
+	uint32_t                           opcode;
+	uint64_t                           rpc_flags;
+	const struct c2_xcode_type        *xt;
+	const struct c2_fop_type_ops      *fop_ops;
+	const struct c2_fol_rec_type_ops  *fol_ops;
+	const struct c2_fom_type_ops      *fom_ops;
+	const struct c2_rpc_item_type_ops *rpc_ops;
+	const struct c2_sm_conf		  *sm;
+	const struct c2_reqh_service_type *svc_type;
+};
+
+int c2_fop_type_init(struct c2_fop_type *ft,
+		     const struct __c2_fop_type_init_args *args);
+
+/**
+ * Helper macro which can be used to submit fop type initialisation parameters
+ * partially and out of order.
+ *
+ * @see http://www.cofault.com/2005/08/named-formals.html
+ */
+#define C2_FOP_TYPE_INIT(ft, ...)                                        \
+        c2_fop_type_init((ft), &(const struct __c2_fop_type_init_args) { \
+                                 __VA_ARGS__ })
+
+void c2_fop_type_fini(struct c2_fop_type *fopt);
+
+struct c2_fop_type_batch {
+	struct c2_fop_type             *tb_type;
+	struct __c2_fop_type_init_args  tb_args;
+};
+
+int  c2_fop_type_init_nr(const struct c2_fop_type_batch *batch);
+void c2_fop_type_fini_nr(const struct c2_fop_type_batch *batch);
+
+int  c2_fops_init(void);
+void c2_fops_fini(void);
+
+#define C2_FOP_XCODE_OBJ(f) (struct c2_xcode_obj) {	\
+		.xo_type = f->f_type->ft_xt,		\
+		.xo_ptr  = c2_fop_data(f),		\
+}
 
 /** @} end of fop group */
 

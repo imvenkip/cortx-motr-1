@@ -19,6 +19,8 @@
  * Original creation date: 04/04/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_NET_NET_INTERNAL_H__
 #define __COLIBRI_NET_NET_INTERNAL_H__
 

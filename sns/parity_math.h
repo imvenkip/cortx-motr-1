@@ -19,6 +19,8 @@
  * Revision date  : 06/14/2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_SNS_PARITY_MATH_H__
 #define __COLIBRI_SNS_PARITY_MATH_H__
 

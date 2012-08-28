@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,8 @@
  * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
  * Original creation date: 08/26/2011
  */
+
+#pragma once
 
 #ifndef __COLIBRI_LIB_TLIST_H__
 #define __COLIBRI_LIB_TLIST_H__
@@ -405,12 +407,12 @@ do {									\
 	for (obj = c2_tlist_head(descr, head);				\
 	     obj != NULL &&						\
              ((void)(__tl = c2_tlist_next(descr, head, obj)), true);	\
-	     obj = __tl) {
+	     obj = __tl)
 
 /**
    Terminates c2_tlist_for() loop.
  */
-#define c2_tlist_endfor ;} (void)__tl; } while (0)
+#define c2_tlist_endfor ;(void)__tl; } while (0)
 
 /**
  * Returns a conjunction (logical AND) of an expression evaluated for each list

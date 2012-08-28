@@ -30,21 +30,13 @@
 #include "lib/bitstring.h"
 #include "cob/cob.h"
 #include "fop/fop.h"
-#include "fop/fop_format_def.h"
 #include "lib/arith.h"
 #include "lib/finject.h"
-
-#ifdef __KERNEL__
-#include "rpc/session_k.h"
-#else
-#include "rpc/session_u.h"
-#endif
-
+#include "rpc/session_ff.h"
 #include "rpc/session_internal.h"
 #include "db/db.h"
 #include "rpc/session_fops.h"
 #include "rpc/rpc2.h"
-#include "rpc/formation.h"
 
 /**
    @addtogroup rpc_session
@@ -346,11 +338,7 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
 	conn->c_flags = RCF_RECV_END;
 	conn->c_uuid = *uuid;
 
-	/** @todo XXX temporarily max_rpcs_in_flight is taken arbitrarily
-	    to be 128.
-	    FIXME: set max_rpcs_in_flight to some sane number
-	 */
-	rc = __conn_init(conn, ep, machine, 128);
+	rc = __conn_init(conn, ep, machine, 8 /* max packets in flight */);
 	if (rc == 0) {
 		c2_list_add(&machine->rm_incoming_conns, &conn->c_link);
 		conn->c_state = C2_RPC_CONN_INITIALISED;

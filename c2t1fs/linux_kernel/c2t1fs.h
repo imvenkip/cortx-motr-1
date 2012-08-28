@@ -19,8 +19,10 @@
  * Original creation date: 05/04/2010
  */
 
-#ifndef __COLIBRI_C2T1FS_H
-#define __COLIBRI_C2T1FS_H
+#pragma once
+
+#ifndef __COLIBRI_C2T1FS_C2T1FS_H__
+#define __COLIBRI_C2T1FS_C2T1FS_H__
 
 #include <linux/fs.h>
 #include <linux/pagemap.h>
@@ -28,9 +30,14 @@
 #include "lib/tlist.h"
 #include "lib/mutex.h"
 #include "net/net.h"    /* c2_net_domain */
-#include "rpc/rpc2.h"
+#include "rpc/session.h"
+#include "rpc/rpc_machine.h"
 #include "pool/pool.h"  /* c2_pool */
 #include "net/buffer_pool.h"
+#include "fid/fid.h"
+#include "cob/cob.h"    /* c2_cob_domain_id */
+#include "layout/layout.h"  /* c2_layout_domain */
+#include "layout/pdclust.h" /* c2_pdclust_instance */
 
 /**
   @defgroup c2t1fs c2t1fs
@@ -86,9 +93,10 @@
   - pool_width [value type: number]
       Number of component objects over which file contents are striped.
       Optional parameter.
-      Default value is C2T1FS_DEFAULT_POOL_WIDTH.
+      Default value is computed as sum of effective nr_data_units and
+      (2 * nr_parity_units).
       pool_width >= nr_data_units + 2 * nr_parity_units. (2 to account for
-      nr_spare_units which is equal to nr_parity_units. P = N + 2 * K)
+      nr_spare_units which is equal to nr_parity_units. P >= N + 2 * K)
 
   - unit_size [value type: number]
       Size of each stripe unit. Optional parameter. Default value is
@@ -167,7 +175,7 @@
    <B> Read/Write: </B>
 
    c2t1fs currently supports only full stripe IO
-   i.e. iosize = nr_data_units * stripe_unit_size.
+   i.e. (iosize % (nr_data_units * stripe_unit_size) == 0)
 
    read-write operations on file are not synchronised.
 
@@ -177,7 +185,6 @@
    component objects.
  */
 
-struct c2_pdclust_layout;
 struct c2t1fs_dir_ent;
 
 int  c2t1fs_init(void);
@@ -192,8 +199,6 @@ enum {
 	C2T1FS_MAX_NR_RPC_IN_FLIGHT     = 100,
 	C2T1FS_DEFAULT_NR_DATA_UNITS    = 1,
 	C2T1FS_DEFAULT_NR_PARITY_UNITS  = 1,
-	C2T1FS_DEFAULT_POOL_WIDTH       = C2T1FS_DEFAULT_NR_DATA_UNITS +
-					    2 * C2T1FS_DEFAULT_NR_PARITY_UNITS,
 	C2T1FS_DEFAULT_STRIPE_UNIT_SIZE = PAGE_CACHE_SIZE,
 	C2T1FS_MAX_NR_CONTAINERS        = 1024,
 	C2T1FS_COB_ID_STRLEN		= 34,
@@ -212,6 +217,7 @@ struct c2t1fs_globals {
 	struct c2_cob_domain      g_cob_dom;
 	struct c2_dbenv           g_dbenv;
 	struct c2_net_buffer_pool g_buffer_pool;
+	struct c2_layout_domain  g_layout_dom;
 };
 
 extern struct c2t1fs_globals c2t1fs_globals;
@@ -249,8 +255,9 @@ enum c2t1fs_service_type {
 };
 
 enum {
-	MAGIC_SVC_CTX  = 0x5356435f435458,   /* "SVC_CTX" */
-	MAGIC_SVCCTXHD = 0x5356434354584844, /* "SVCCTXHD" */
+	MAGIC_SVC_CTX      = 0x5356435f435458,   /* "SVC_CTX" */
+	MAGIC_SVCCTXHD     = 0x5356434354584844, /* "SVCCTXHD" */
+	MAGIC_C2T1FS_INODE = 0x433254314653494E  /* C2T1FSIN */
 };
 
 /**
@@ -363,18 +370,20 @@ struct c2t1fs_dir_ent {
  */
 struct c2t1fs_inode {
 	/** vfs inode */
-	struct inode              ci_inode;
+	struct inode               ci_inode;
 
 	/** fid of gob */
-	struct c2_fid             ci_fid;
+	struct c2_fid              ci_fid;
 
-	/** layout of file's data */
-	struct c2_layout         *ci_layout;
+	/** layout and related information for the file's data */
+	struct c2_layout_instance *ci_layout_instance;
 
 	/** List of c2t1fs_dir_ent objects placed using de_link.
 	    List descriptor dir_ents_tl. Valid for only directory inode.
 	    Empty for regular file inodes. */
-	struct c2_tl              ci_dir_ents;
+	struct c2_tl               ci_dir_ents;
+
+	uint64_t                   ci_magic;
 };
 
 static inline struct c2t1fs_sb *C2T1FS_SB(const struct super_block *sb)
@@ -447,4 +456,4 @@ void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
 
 void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de);
 
-#endif /* __COLIBRI_C2T1FS_H */
+#endif /* __COLIBRI_C2T1FS_C2T1FS_H__ */
