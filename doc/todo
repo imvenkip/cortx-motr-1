@@ -35,6 +35,17 @@ sub-team leads, contact them to add more things here.
     configure.ac). Delete `#include "config.h"' directives from source
     files; remove the corresponding stanza from doc/source-structure.
 
+2012-Aug-28 Magic delimiters
+
+    Change magic values to follow 0x33xxxxxxxxxxxx77 pattern.
+    .
+    Such "delimiters" are supposed to increase discoverability of
+    magic values in a memory dump.
+    .
+    Numbers 0x33 and 0x77 originate from Nikita's response to "magic
+    numbers generator" thread:
+    https://groups.google.com/a/xyratex.com/forum/#!msg/grp-colibri-dev/q6BpJsA4hSU/_jzBzjKeMbYJ
+
                           ***** IN-PROGRESS *****
 
                           ***** DONE *****
