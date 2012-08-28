@@ -208,31 +208,38 @@
  * ...;
  * --- [label = " loop thread scheduled, two threads may run in parallel "];
  * requestor box requestor [label = "loop_add_bio()"],
- * loop_thread box loop_thread [label = "loop_handle_bios(): accumulate
+ * loop_thread box loop_thread [label = "accumulate_bios(): accumulate bio
  *                                       segments into iovecs array"];
  * requestor -> loop_thread [label = "wake_up(lo)"];
  * requestor box requestor [label = "loop_add_bio()"],
- * loop_thread => c2t1fs [label = "loop_handle_bios(): aio_read/aio_write()"];
+ * loop_thread => c2t1fs [label = "aio_read/aio_write()"];
  * requestor -> loop_thread [label = "wake_up(lo)"],
- * loop_thread box loop_thread [label = "loop_handle_bios(): accumulate
+ * loop_thread box loop_thread [label = "accumulate_bios(): accumulate bio
  *                                       segments into iovecs array"];
- * loop_thread => c2t1fs [label = "loop_handle_bios(): aio_read/aio_write()"];
+ * loop_thread => c2t1fs [label = "aio_read/aio_write()"];
  * ...;
  * loop_thread => loop_thread [label = "wait_event(lo, !bio_list_empty())"];
  * @endmsc
  *
- * loop_handle_bios() does the main job of bio segments aggregation. It
- * traverses the bio requests queue and fills iovecs array until any of
- * the following conditions happen:
+ * accumulate_bios() does the main job of contiguous bio segments
+ * aggregation. It takes the bio requests from the queue head and fills
+ * iovecs array from the bio segments until any of the following
+ * conditions happen:
  *
  *   - the position in the file where the data should be read/written
  *     changed;
  *   - bio request changed from read to write (or vise versa);
  *   - the number of segments exceed the size of iovecs array.
  *
- * As soon as any on these conditions happen, we close iovecs
- * aggregation and pass it to do_iov_filebacked() function which is just
- * convenient wrapper for aio_read/aio_write() calls.
+ * As soon as any on these conditions happen, we stop aggregating the
+ * segments and return from accumulate_bios() routine with number of
+ * accumulated segments and with the list of accumulated bio requests.
+ * The list will be needed later when we will call bio_end() for each
+ * bio with the status of I/O operation.
+ *
+ * Aggregated segments in iovecs array are passed to do_iov_filebacked()
+ * function which is just convenient wrapper for aio_read/aio_write()
+ * calls.
  *
  * @subsection c2loop-dld-lspec-thread Threading and Concurrency
  *
@@ -277,43 +284,42 @@
  * <hr>
  * @section c2loop-dld-ut Unit Tests
  *
- * The following UTs could be implemented for loop_handle_bios()
+ * The following UTs could be implemented for accumulate_bios()
  * routine.
  *
  * Basic functionality tests:
  *
- *   - One bio request (in the queue) with one segment. One
- *     aio_read/write call expected with one element in iovecs array.
- *   - One bio request with two segments. One aio_read/write call
- *     expected with two elements in iovecs array.
+ *   - One bio request (in the queue) with one segment. One element in
+ *     iovecs array is returned with correct file pos and I/O size.
+ *   - One bio request with two segments. Two elements in iovecs array
+ *     are returned with correct file pos and summary I/O size.
  *   - Two bio requests (for the same read/write operation), one segment
- *     each, for contiguous file region. One aio_read/write call is
- *     expected with two elements in iovecs array.
+ *     each, for contiguous file region. Two elements in iovecs array
+ *     are returned with correct file pos and summary I/O size.
  *
  * Exception cases tests:
  *
- *   - Two bio requests (one segment each) but for different file
- *     regions. Two aio_read/write calls are expected with one element
- *     in each iovecs array.
+ *   - Two bio requests (one segment each) but for non-contiguous file
+ *     regions. Two calls are expected with one element in iovecs array
+ *     returned each time.
  *   - Two bio requests for contiguous file region, but for different
  *     operations: one for read, another for write. Two calls are
- *     expected with one element in each iovecs array: one aio_read
- *     another - aio_write.
+ *     expected with one element in iovecs array returned each time.
  *
- * Iovecs array boundary (BIO_MAX_PAGES) tests:
+ * Iovecs array boundary (BIO_MAX_PAGES) tests (contiguous file region):
  *
- *   - BIO_MAX_PAGES bio requests (one segment each, for contiguous file
- *     region). One aio_read/write call is expected with BIO_MAX_PAGES
- *     elements in iovecs array.
- *   - (BIO_MAX_PAGES + 1) bio requests. Two aio_read/write calls are
- *     expected: one with BIO_MAX_PAGES elements in iovecs array,
- *     another with one element.
+ *   - BIO_MAX_PAGES bio requests in the list (one segment each).
+ *     BIO_MAX_PAGES elements in iovecs array are returned in one call.
+ *   - (BIO_MAX_PAGES + 1) bio requests in the list. Two calls are
+ *     expected: one with BIO_MAX_PAGES elements in iovecs array
+ *     returned, another with one element returned.
  *   - (BIO_MAX_PAGES - 1) bio requests one segment each and one bio
- *     request with two segments. Two aio_read/write calls are expected:
- *     one with BIO_MAX_PAGES elements in iovecs array, another with one
- *     element.
+ *     request with two segments. Two calls are expected: one with
+ *     BIO_MAX_PAGES elements in iovecs array returned, another with one
+ *     element returned.
  *
- * UT should fake upper (bio_request) and lower (c2t1fs aio_) interfaces.
+ * UT should fake upper (bio_request) interface by constructing
+ * correspondent bio requests in the list by itself.
  *
  * <hr>
  * @section c2loop-dld-st System Tests
@@ -484,7 +490,7 @@ static void wait_on_retry_sync_kiocb(struct kiocb *iocb)
  * Returns: 0 on success or -EIO (ready to be feed for bio_end()).
  */
 static int do_iov_filebacked(struct loop_device *lo, unsigned long op, int n,
-                             loff_t pos, unsigned size)
+			     loff_t pos, unsigned size)
 {
 	struct file *file = lo->lo_backing_file;
 	ssize_t ret;
@@ -495,13 +501,13 @@ static int do_iov_filebacked(struct loop_device *lo, unsigned long op, int n,
 
 	init_sync_kiocb(&kiocb, file);
 	kiocb.ki_nbytes = kiocb.ki_left = size;
-        kiocb.ki_pos = pos;
+	kiocb.ki_pos = pos;
 
 	aio_rw = (op == READ) ? file->f_op->aio_read :
 	                        file->f_op->aio_write;
 	set_fs(get_ds());
 	for (;;) {
-		ret = aio_rw(&kiocb, (struct iovec*)lo->key_data, n, pos);
+		ret = aio_rw(&kiocb, lo->key_data, n, pos);
 		if (ret != -EIOCBRETRY)
 			break;
 		wait_on_retry_sync_kiocb(&kiocb);
@@ -514,22 +520,6 @@ static int do_iov_filebacked(struct loop_device *lo, unsigned long op, int n,
 		return 0;
 
 	return -EIO;
-}
-
-/*
- * Add bio to back of pending list
- */
-static void loop_add_bio(struct loop_device *lo, struct bio *bio)
-{
-	bio_list_add(&lo->lo_bio_list, bio);
-}
-
-/*
- * Grab first pending buffer
- */
-static struct bio *loop_get_bio(struct loop_device *lo)
-{
-	return bio_list_pop(&lo->lo_bio_list);
 }
 
 static int loop_make_request(struct request_queue *q, struct bio *old_bio)
@@ -547,7 +537,7 @@ static int loop_make_request(struct request_queue *q, struct bio *old_bio)
 		goto out;
 	if (unlikely(rw == WRITE && (lo->lo_flags & LO_FLAGS_READ_ONLY)))
 		goto out;
-	loop_add_bio(lo, old_bio);
+	bio_list_add(&lo->lo_bio_list, old_bio);
 	wake_up(&lo->lo_event);
 	spin_unlock_irq(&lo->lo_lock);
 	return 0;
@@ -576,87 +566,77 @@ struct switch_request {
 
 static void do_loop_switch(struct loop_device *, struct switch_request *);
 
-static inline void loop_handle_bios(struct loop_device *lo)
+/*
+ * accumulate_bios: accumulate continuous bio requests
+ *
+ * Accumulate continuous (in respect to file I/O operation) bio requests
+ * into iovecs array for aio_{read,write}() call.
+ *
+ * - bios  : accumulated bio reqs list (out);
+ * - iovecs: accumulated iovecs array (out);
+ * - ppos  : I/O start position in file (out);
+ * - psize : accumulated I/O size (out).
+ *
+ * Returns: number of iovecs array elements accumulated.
+ */
+static inline int
+accumulate_bios(struct loop_device *lo, struct bio_list *bios,
+		struct iovec *iovecs, loff_t *ppos, unsigned *psize)
 {
 	int i;
 	int iov_idx = 0;
-	unsigned size = 0;
 	unsigned long op = READ;
-	loff_t init_pos = -1;
 	loff_t pos;
-	loff_t prev_end_pos = 0;
+	loff_t next_pos = 0;
 	struct bio *bio;
 	struct iovec *iov;
 	struct bio_vec *bvec;
-	struct bio_list cl; /* contiguous bios list */
 
-	bio_list_init(&cl);
+	bio_list_init(bios);
 
 	while (!bio_list_empty(&lo->lo_bio_list)) {
 
-		spin_lock_irq(&lo->lo_lock);
-		bio = loop_get_bio(lo);
-		spin_unlock_irq(&lo->lo_lock);
+		bio = bio_list_peek(&lo->lo_bio_list);
 
-		BUG_ON(!bio);
 		if (unlikely(!bio->bi_bdev))
-			goto flush;
+			break;
 
 		pos = ((loff_t) bio->bi_sector << 9) + lo->lo_offset;
-		if (init_pos == -1) {
-			init_pos = pos;
+		if (iov_idx == 0) {
+			*ppos = pos;
 			op = bio_rw(bio);
 		}
 
-		if ((prev_end_pos == 0 || pos == prev_end_pos) &&
-		    bio_rw(bio) == op)
-			goto accumulate;
-flush:
-		/*printk("flush: op=%d idx=%d bio=%p pos=%d size=%d\n",
-		       (int)op, iov_idx, bio, (int)init_pos, size);*/
-		if (iov_idx > 0) {
-			int ret = do_iov_filebacked(lo, op, iov_idx, init_pos,
-			                            size);
-			if (bio != NULL) {
-				iov_idx = size = 0;
-				init_pos = pos;
-				op = bio_rw(bio);
-			}
+		/* Contiguous && same operation */
+		if ((next_pos != 0 && pos != next_pos) ||
+		    bio_rw(bio) != op)
+			break;
 
-			while (!bio_list_empty(&cl))
-				bio_endio(bio_list_pop(&cl), ret);
-		}
-		if (bio == NULL)
-			return;
-
-		if (unlikely(!bio->bi_bdev)) {
-			do_loop_switch(lo, bio->bi_private);
-			bio_put(bio);
-			return;
-		}
-accumulate:
+		/* Fit into iovecs array */
 		BUG_ON(bio->bi_vcnt > BIO_MAX_PAGES);
 		if (iov_idx + bio->bi_vcnt > BIO_MAX_PAGES)
-			goto flush;
+			break;
+
+		/* Ok, take it out */
+		spin_lock_irq(&lo->lo_lock);
+		bio_list_pop(&lo->lo_bio_list);
+		spin_unlock_irq(&lo->lo_lock);
 
 		bio_for_each_segment(bvec, bio, i) {
-			iov = &((struct iovec*)lo->key_data)[iov_idx++];
+			iov = &iovecs[iov_idx++];
 			iov->iov_base = page_address(bvec->bv_page) +
 					bvec->bv_offset;
 			iov->iov_len = bvec->bv_len;
 		}
 
-		bio_list_add(&cl, bio);
-		prev_end_pos = pos + bio->bi_size;
-		size += bio->bi_size;
+		bio_list_add(bios, bio);
+		next_pos = pos + bio->bi_size;
+		*psize += bio->bi_size;
 		/*printk("accum: op=%d idx=%d bio=%p pos=%d size=%d\n",
-		       (int)op, iov_idx, bio, (int)pos, size);*/
-
-		if (bio_list_empty(&lo->lo_bio_list)) {
-			bio = NULL;
-			goto flush;
-		}
+		       (int)op, iov_idx, bio, (int)*ppos, *psize);*/
 	}
+
+	return iov_idx;
 }
 
 /*
@@ -674,6 +654,11 @@ accumulate:
 static int loop_thread(void *data)
 {
 	struct loop_device *lo = data;
+	struct bio *bio;
+	int iovecs_nr;
+	struct bio_list bios;
+	loff_t pos;
+	unsigned size;
 
 	set_user_nice(current, -20);
 
@@ -683,7 +668,25 @@ static int loop_thread(void *data)
 				!bio_list_empty(&lo->lo_bio_list) ||
 				kthread_should_stop());
 
-		loop_handle_bios(lo);
+		iovecs_nr = accumulate_bios(lo, &bios, lo->key_data,
+		                            &pos, &size);
+
+		bio = bio_list_peek(&bios);
+		if (bio != NULL) {
+			int ret = do_iov_filebacked(lo, bio_rw(bio), iovecs_nr,
+			                            pos, size);
+			while (!bio_list_empty(&bios))
+				bio_endio(bio_list_pop(&bios), ret);
+		}
+
+		bio = bio_list_peek(&lo->lo_bio_list);
+		if (unlikely(bio && !bio->bi_bdev)) {
+			spin_lock_irq(&lo->lo_lock);
+			bio_list_pop(&lo->lo_bio_list);
+			spin_unlock_irq(&lo->lo_lock);
+			do_loop_switch(lo, bio->bi_private);
+			bio_put(bio);
+		}
 	}
 
 	return 0;
@@ -872,6 +875,12 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 		goto out_putf;
 	}
 
+	/* c2t1fs must have it */
+	if (!file->f_op->aio_read || !file->f_op->aio_write) {
+		error = -EINVAL;
+		goto out_putf;
+	}
+
 	size = get_loop_size(lo, file);
 
 	if ((loff_t)(sector_t)size != size) {
@@ -920,7 +929,7 @@ static int loop_set_fd(struct loop_device *lo, fmode_t mode,
 	 * reuse lo->key_data pointer for iovecs array.
 	 */
 	lo->key_data = kzalloc(BIO_MAX_PAGES * sizeof(struct iovec),
-	                        GFP_KERNEL);
+	                       GFP_KERNEL);
 	if (lo->key_data == NULL) {
 		error = -ENOMEM;
 		goto out_clr;
