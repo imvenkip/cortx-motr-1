@@ -164,23 +164,28 @@ void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool)
 
 	C2_PRE(c2_net_buffer_pool_is_not_locked(pool));
 
-	c2_net_buffer_pool_lock(pool);
-	C2_ASSERT(c2_net_buffer_pool_invariant(pool));
-	C2_ASSERT(pool->nbp_free == pool->nbp_buf_nr);
-
 	if (pool->nbp_colours == NULL && pool->nbp_colours_nr != 0)
 		return;
+	/*
+	 * The lock here is only needed to keep c2_net_buffer_pool_invariant()
+	 * happy. The caller must guarantee that there is no concurrency at this
+	 * point.
+	 */
+	c2_net_buffer_pool_lock(pool);
+	C2_ASSERT(c2_net_buffer_pool_invariant(pool));
+
+	C2_ASSERT(pool->nbp_free == pool->nbp_buf_nr);
 
 	c2_tl_for(c2_net_pool, &pool->nbp_lru, nb) {
 		C2_CNT_DEC(pool->nbp_free);
 		buffer_remove(pool, nb);
 	} c2_tl_endfor;
+	c2_net_buffer_pool_unlock(pool);
 	c2_net_pool_tlist_fini(&pool->nbp_lru);
 	for (i = 0; i < pool->nbp_colours_nr; i++)
 		c2_net_tm_tlist_fini(&pool->nbp_colours[i]);
 	if (pool->nbp_colours != NULL)
 		c2_free(pool->nbp_colours);
-	c2_net_buffer_pool_unlock(pool);
 	c2_mutex_fini(&pool->nbp_mutex);
 }
 
