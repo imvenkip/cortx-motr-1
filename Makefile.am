@@ -8,21 +8,16 @@ MAKEFLAGS = $(make_verbose)
 
 SUBDIRS_BASE = m4 doc man patches
 
-# Order is important until fid is reached. Fop needs all libs
-# before it in the built list.
-# Keep this list alphabetically sorted after "net".
+# xcode/ff2c must be built first, because it is used by other modules to compile
+# their .ff files. net/ and addb/addbff must be built next, because their .ff
+# files are used by other modules. The rest can be built in an arbitrary order.
+# Keep the rest sorted lexicographically.
 
 SUBDIRS_LIBS =                     \
-               lib                 \
                xcode/ff2c          \
-               addb/ut             \
-               fol                 \
-               db                  \
-               fid                 \
-                                   \
                addb/addbff         \
                net                 \
-               fop                 \
+                                   \
                addb                \
                balloc              \
                c2t1fs/linux_kernel \
@@ -30,10 +25,15 @@ SUBDIRS_LIBS =                     \
                cfg                 \
                cob                 \
                console             \
+               db                  \
                desim               \
                dtm                 \
+               fid                 \
+               fol                 \
+               fop                 \
                ioservice           \
                layout              \
+               lib                 \
                mw                  \
                nrs                 \
                pool                \
@@ -48,7 +48,7 @@ SUBDIRS_LIBS =                     \
                yaml2db
 SUBDIR_IT = rpc/it
 
-SUBDIR_UT = fop/ut fop/ut/long_lock lib/ut stob/ut layout/ut balloc/ut    \
+SUBDIR_UT = addb/ut fop/ut fop/ut/long_lock lib/ut stob/ut layout/ut balloc/ut \
 	    db/ut fol/ut sns/ut desim/ut cob/ut console/ut colibri/ut     \
 	    net/ut net/bulk_emulation/ut net/lnet/ut udb/ut capa/ut       \
 	    ioservice/ut reqh/ut rpc/ut sm/ut xcode/ut yaml2db/ut
