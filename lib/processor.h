@@ -28,17 +28,11 @@
 #include "lib/types.h"
 
 /**
-   @defgroup Processor
+   @defgroup processor Processor Information
 
    Interfaces to learn the number and characteristics of "processors"
    for a given system/node.
 
-   @{
- */
-
-#define C2_PROCESSORS_INVALID_ID	((uint32_t)-1)
-
-/**
    @section Definitions
 
    @subsection Processor
@@ -57,7 +51,13 @@
    @subsection Online-Processors
    The number of processors that are currently enabled/under use/online under
    this OS.
+
+   @{
  */
+
+#define C2_PROCESSORS_INVALID_ID	((uint32_t)-1)
+
+/** A processor number/identifier. */
 typedef uint32_t c2_processor_nr_t;
 
 /**
@@ -91,15 +91,7 @@ int c2_processors_init(void);
 void c2_processors_fini(void);
 
 /**
-   Query if processors interface is initialized.
-   @retval true if the interface is initialized
-   @retval false if the interface is not initalized.
- */
-bool c2_processor_is_initialized(void);
-
-/**
    Maximum processors this system can handle.
-
  */
 c2_processor_nr_t c2_processor_nr_max(void);
 
@@ -108,8 +100,8 @@ c2_processor_nr_t c2_processor_nr_max(void);
 
    @pre map->b_nr >= c2_processor_nr_max()
    @pre c2_processors_init() must be called before calling this function.
-   @pre The calling function should allocated memory for 'map' and initialize
-        it
+   @pre The calling function must allocate memory for 'map' and initialize it.
+   @note This function does not take any locks.
  */
 void c2_processors_possible(struct c2_bitmap *map);
 
@@ -118,31 +110,30 @@ void c2_processors_possible(struct c2_bitmap *map);
 
    @pre map->b_nr >= c2_processor_nr_max()
    @pre c2_processors_init() must be called before calling this function.
-   @pre The calling function should allocated memory for 'map' and initialize
-        it
+   @pre The calling function must allocate memory for 'map' and initialize it.
+   @note This function does not take any locks.
  */
 void c2_processors_available(struct c2_bitmap *map);
 
 /**
    Return the bitmap of online processors.
 
-
    @pre map->b_nr >= c2_processor_nr_max()
    @pre c2_processors_init() must be called before calling this function.
-   @pre The calling function should allocated memory for 'map' and initialize
-        it
+   @pre The calling function must allocate memory for 'map' and initialize it.
+   @note This function does not take any locks.
  */
 void c2_processors_online(struct c2_bitmap *map);
 
 /**
    Return the id of the processor on which the calling thread is running.
 
-   @retval logical processor id (as supplied by the system) on which the
-           calling thread is running, if the call is uspported.
+   @return logical processor id (as supplied by the system) on which the
+           calling thread is running, if the call is unsupported.
            It will return C2_PROCESSORS_INVALID_ID, if this call is not
            supported.
  */
-c2_processor_nr_t c2_processor_getcpu(void);
+c2_processor_nr_t c2_processor_id_get(void);
 
 /**
    Description of a processor in the system.
@@ -150,6 +141,7 @@ c2_processor_nr_t c2_processor_getcpu(void);
    program.
 
    Example : Id generation on Linux (user-mode)
+   @verbatim
    +---------------+-----------------------------------------------------------+
    | Name          |    Identifier Description                                 |
    +---------------+-----------------------------------------------------------+
@@ -171,11 +163,12 @@ c2_processor_nr_t c2_processor_getcpu(void);
    +---------------+-----------------------------------------------------------+
    | pd_pipeline   | Same as pd_id                                             |
    +---------------+-----------------------------------------------------------+
+   @endverbatim
  */
 struct c2_processor_descr {
-	/** processor identifier. */
+	/** Processor identifier. */
 	c2_processor_nr_t pd_id;
-	/** all processors in the same numa node share this */
+	/** All processors in the same numa node share this */
 	uint32_t          pd_numa_node;
 	/** Id for L1 cache. If multiple processors share L1 cache, all of them
 	    will have same L1 cache id */
@@ -187,7 +180,7 @@ struct c2_processor_descr {
 	size_t            pd_l1_sz;
 	/** L2 cache size (in bytes) for this processor */
 	size_t            pd_l2_sz;
-	/** all processors sharing the same pipeline have the same value of
+	/** All processors sharing the same pipeline have the same value of
 	    this. */
 	uint32_t          pd_pipeline;
 };

@@ -60,7 +60,7 @@ struct c2_bufvec dst;
 struct c2_bufvec xor;
 
 /**
- * Typically, the next phase after CC_XFORM is CCP_WRITE.
+ * Typically, the next phase after C2_CC_XFORM is C2_CCP_WRITE.
  * i.e. after transformation, the copy packet gets written to the
  * device. Hence, mimic this phase change.
  * @todo This function can be removed once actual next phase function
@@ -68,7 +68,7 @@ struct c2_bufvec xor;
  */
 static int next_phase(struct c2_cm_cp *cp)
 {
-	cp->c_fom.fo_phase = CCP_WRITE;
+	c2_fom_phase_set(&cp->c_fom, C2_CCP_WRITE);
 	return C2_FSO_AGAIN;
 }
 
@@ -77,8 +77,8 @@ static int next_phase(struct c2_cm_cp *cp)
  * code flow.
  */
 static const struct c2_cm_cp_ops cp_ops = {
-	.co_phase    = &next_phase,
-	.co_xform    = &repair_cp_xform,
+	.co_phase                = &next_phase,
+	.co_action[C2_CCP_XFORM] = &repair_cp_xform,
 };
 
 static uint64_t cp_single_get(struct c2_cm_aggr_group *ag)
@@ -152,19 +152,18 @@ static size_t dummy_fom_locality(const struct c2_fom *fom)
 /**
  * Dummy fom state routine to emulate only selective copy packet states.
  */
-static int dummy_fom_state(struct c2_fom *fom)
+static int dummy_fom_tick(struct c2_fom *fom)
 {
 	struct c2_cm_cp *cp = container_of(fom, struct c2_cm_cp, c_fom);
 
-	switch (fom->fo_phase) {
-	case C2_FOPH_INIT:
-		cp->c_fom.fo_phase = CCP_XFORM;
-		return cp->c_ops->co_xform(cp);
-	case CCP_FINI:
-		fom->fo_phase = C2_FOPH_FINISH;
+	switch (c2_fom_phase(fom)) {
+	case C2_FOM_PHASE_INIT:
+		c2_fom_phase_set(fom, C2_CCP_XFORM);
+		return cp->c_ops->co_action[C2_CCP_XFORM](cp);
+	case C2_CCP_FINI:
                 return C2_FSO_WAIT;
-	case CCP_WRITE:
-		fom->fo_phase = C2_FOPH_FINISH;
+	case C2_CCP_WRITE:
+		c2_fom_phase_set(fom, C2_CCP_FINI);
                 return C2_FSO_WAIT;
 	default:
 		C2_IMPOSSIBLE("Bad State");
@@ -174,7 +173,6 @@ static int dummy_fom_state(struct c2_fom *fom)
 static void dummy_fom_fini(struct c2_fom *fom)
 {
 	struct c2_cm_cp *cp = container_of(fom, struct c2_cm_cp, c_fom);
-	cp->c_fom.fo_phase = C2_FOPH_FINISH;
 	bv_free(cp->c_data);
 	c2_cm_cp_fini(cp);
 }
@@ -184,7 +182,7 @@ static void dummy_fom_fini(struct c2_fom *fom)
  */
 static const struct c2_fom_ops cp_fom_ops = {
         .fo_fini          = dummy_fom_fini,
-        .fo_state         = dummy_fom_state,
+        .fo_tick          = dummy_fom_tick,
         .fo_home_locality = dummy_fom_locality
 };
 
@@ -236,13 +234,6 @@ static void test_multiple_cp(void)
  */
 static int xform_init(void)
 {
-	int rc;
-
-	if (!c2_processor_is_initialized()) {
-		rc = c2_processors_init();
-                C2_ASSERT(rc == 0);
-        }
-
 	c2_reqh_init(&reqh, NULL, (void*)1, (void*)1, (void*)1);
 	return 0;
 }
@@ -255,8 +246,6 @@ static int xform_fini(void)
 	 */
 	c2_reqh_shutdown_wait(&reqh);
 	c2_reqh_fini(&reqh);
-        if (c2_processor_is_initialized())
-                c2_processors_fini();
 
 	/**
 	 * These asserts ensure that the single copy packet has been treated

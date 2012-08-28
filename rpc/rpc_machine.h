@@ -33,6 +33,8 @@
 #include "lib/chan.h"
 #include "lib/refs.h"
 #include "lib/thread.h"
+#include "lib/arith.h"
+#include "lib/bob.h"
 
 #include "addb/addb.h"
 #include "rpc/formation2.h"  /* c2_rpc_frm         */
@@ -137,32 +139,11 @@ struct c2_rpc_machine {
 
 	uint64_t                          rm_magix;
 
-	/** Buffer pool from which TM receive buffers are provisioned. */
-	struct c2_net_buffer_pool	 *rm_buffer_pool;
-
-	/**
-	 *  @see c2_net_transfer_mc:ntm_recv_queue_length
-	 *  The default value is C2_NET_TM_RECV_QUEUE_DEF_LEN
-	 */
-	uint32_t			  rm_tm_recv_queue_min_length;
-
 	/**
 	 * @see c2_net_transfer_mc:ntm_recv_queue_min_recv_size
 	 * The default value is c2_net_domain_get_max_buffer_size()
 	 */
 	uint32_t			  rm_min_recv_size;
-
-	/**
-	 * @see c2_net_transfer_mc:ntm_recv_queue_max_recv_msgs
-	 * The default value is 1.
-	 */
-	uint32_t			  rm_max_recv_msgs;
-
-	/**
-	 * @see c2_net_transfer_mc:ntm_pool_colour
-	 * The default value is C2_BUFFER_ANY_COLOUR
-	 */
-	uint32_t			  rm_tm_colour;
 };
 
 /**
@@ -282,6 +263,8 @@ static bool frm_rmachine_is_locked(const struct c2_rpc_frm *frm)
 {
 	return c2_rpc_machine_is_locked(frm_rmachine(frm));
 }
+
+C2_BOB_DECLARE(extern, c2_rpc_machine);
 
 /** @} end name stat_ifs */
 

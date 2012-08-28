@@ -786,6 +786,9 @@ RPC Bulk Transfer Task Plan</a>
 #  include "config.h"
 #endif
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LNET
+#include "lib/trace.h"        /* C2_LOG and C2_ENTRY */
+
 #include "lib/errno.h"
 #include "lib/misc.h"
 #include "lib/memory.h"
@@ -813,18 +816,14 @@ static struct nlx_debug nlx_debug = {
 }; /* global debug control */
 
 /* note Linux uses the LP64 standard */
-#ifdef __KERNEL__
-#define NLXP(fmt, ...) printk(KERN_ERR fmt, ## __VA_ARGS__)
-#else
-#define NLXP(fmt, ...) fprintf(stderr, fmt, ## __VA_ARGS__)
-#endif
+#define NLXP(fmt, ...) C2_LOG(fmt, ## __VA_ARGS__)
 
-#define NLXDBG(ptr, dbg, stmt)				\
-do {							\
-	if ((ptr)->_debug_ >= (dbg)) {			\
-		NLXP("%s: %d:\n", __FILE__, __LINE__);	\
-		stmt;					\
-	}						\
+#define NLXDBG(ptr, dbg, stmt)					\
+do {								\
+	if ((ptr)->_debug_ >= (dbg)) {				\
+		C2_LOG("%s: %d:\n", (char*) __FILE__, __LINE__);\
+		stmt;						\
+	}							\
 } while (0)
 
 #define NLXDBGnl(ptr, dbg, stmt)		\
@@ -834,18 +833,17 @@ do {						\
 	}					\
 } while (0)
 
-#define NLXDBGP(ptr, dbg, fmt, ...)			\
-do {							\
-	if ((ptr)->_debug_ >= (dbg)) {			\
-		NLXP("%s: %d:\n", __FILE__, __LINE__);	\
-		NLXP(fmt, ## __VA_ARGS__);		\
-	}						\
+#define NLXDBGP(ptr, dbg, fmt, ...)				\
+do {								\
+	if ((ptr)->_debug_ >= (dbg)) {				\
+		C2_LOG(fmt, ## __VA_ARGS__);			\
+	}							\
 } while (0)
 
 #define NLXDBGPnl(ptr, dbg, fmt, ...)		\
 do {						\
 	if ((ptr)->_debug_ >= (dbg)) {		\
-		NLXP(fmt, ## __VA_ARGS__);	\
+		C2_LOG(fmt, ## __VA_ARGS__);	\
 	}					\
 } while (0)
 

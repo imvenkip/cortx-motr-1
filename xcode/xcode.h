@@ -25,6 +25,7 @@
 
 #include "lib/vec.h"                /* c2_bufvec_cursor */
 #include "lib/types.h"              /* c2_bcount_t */
+#include "xcode/xcode_attr.h"       /* C2_XC_ATTR */
 
 /**
    @defgroup xcode
@@ -526,17 +527,17 @@ int c2_xcode_encode(struct c2_xcode_ctx *ctx);
 
 /** Calculates the length of serialized representation. */
 int c2_xcode_length(struct c2_xcode_ctx *ctx);
-
+void *c2_xcode_alloc(struct c2_xcode_ctx *ctx, size_t nob);
 /** @} xcoding. */
 
 
 /**
    Returns the address of a sub-object within an object.
 
-   @param obj    - typed object
-   @param fileno - ordinal number of field
-   @param elno   - for a SEQUENCE field, index of the element to
-                   return the address of.
+   @param obj     - typed object
+   @param fieldno - ordinal number of field
+   @param elno    - for a SEQUENCE field, index of the element to
+                    return the address of.
 
    The behaviour of this function for SEQUENCE objects depends on "elno"
    value. SEQUENCE objects have the following structure:
@@ -551,7 +552,7 @@ int c2_xcode_length(struct c2_xcode_ctx *ctx);
    where xs_nr stores a number of elements in the sequence and xs_body points to
    an array of the elements.
 
-   With fileno == 1, c2_xcode_addr() returns
+   With fieldno == 1, c2_xcode_addr() returns
 
        - &xseq->xs_body when (elno == ~0ULL) and
 
@@ -603,7 +604,7 @@ extern const struct c2_xcode_type C2_XT_OPAQUE;
 /**
    Void type used by ff2c in places where C syntax requires a type name.
  */
-typedef struct {;} c2_void_t;
+typedef char c2_void_t[0];
 
 /**
    Returns a previously unused "decoration number", which can be used as an

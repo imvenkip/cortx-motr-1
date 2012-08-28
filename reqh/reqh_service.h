@@ -23,14 +23,13 @@
 #ifndef __COLIBRI_REQH_REQH_SERVICE_H__
 #define __COLIBRI_REQH_REQH_SERVICE_H__
 
-#include "lib/list.h"
+#include "lib/tlist.h"
 #include "lib/bob.h"
+#include "lib/mutex.h"
 
-#include "net/net.h"
-#include "rpc/rpc2.h"
 
 /**
-   @addtogroup reqh
+   @defgroup reqhservice Request handler service
 
    A colibri service is described to a request handler using a struct
    c2_reqh_service_type data structure.
@@ -144,7 +143,9 @@ enum {
  */
 enum {
 	C2_RHS_MAGIX = 0x52455148535643, /* REQHSVC */
-	C2_RHS_MAGIX_HEAD = 0x5245515356434844 /* REQSVCHD */
+	C2_RHS_MAGIX_HEAD = 0x5245515356434844, /* REQSVCHD */
+	C2_RHS_TYPE_MAGIX = 0x5248535643545950, /* RHSVCTYP */
+	C2_RHS_TYPE_MAGIX_HEAD =  0x5248535459504844 /* RHSTYPHD */
 };
 
 /**
@@ -337,6 +338,12 @@ struct c2_reqh_service_type {
 	const struct c2_reqh_service_type_ops *rst_ops;
 
 	/**
+	 * Reqh key to store and locate c2_reqh_service instance.
+	 * @see c2_reqh::rh_key
+	 */
+	unsigned                               rst_key;
+
+	/**
 	    Linkage into global service types list.
 
 	    @see c2_rstypes
@@ -468,11 +475,21 @@ void c2_reqh_service_types_fini(void);
  */
 bool c2_reqh_service_invariant(const struct c2_reqh_service *service);
 
+/**
+   Returns service intance of the given service type using the reqhkey
+   framework.
+
+   @see c2_reqh::rh_key
+ */
+struct c2_reqh_service *
+c2_reqh_service_find(const struct c2_reqh_service_type *st,
+		     struct c2_reqh *reqh);
+
 int c2_reqh_service_types_length(void);
 bool c2_reqh_service_is_registered(const char *sname);
 void c2_reqh_service_list_print(void);
 
-/** @} endgroup reqh */
+/** @} endgroup reqhservice */
 
 /* __COLIBRI_REQH_REQH_SERVICE_H__ */
 

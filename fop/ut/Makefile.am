@@ -1,25 +1,12 @@
-noinst_LTLIBRARIES = libfop-ut.la
-INCLUDES           = -iquote . -iquote $(top_srcdir)/include -iquote $(top_srcdir)
+include $(top_srcdir)/Makefile.ff
 
-test_format_u.h test_format_u.c test_format_k.h test_format_k.c: \
-                                     test_format.ff \
-                                     $(top_builddir)/fop/rt/libc2rt.la \
-                                     $(top_builddir)/fop/fop2c
-	$(top_builddir)/fop/fop2c -ku $<
+noinst_LTLIBRARIES   = libfop-ut.la
+INCLUDES             = -iquote . -iquote $(top_srcdir)/include -iquote $(top_srcdir)
 
-iterator_test_u.h iterator_test_u.c: \
-                                     iterator_test.ff \
-                                     $(top_builddir)/colibri/libcolibri.la \
-                                     $(top_builddir)/fop/fop2c
-	$(top_builddir)/fop/fop2c -u $<
+ITERATOR_FOPS        = iterator_test_ff.h iterator_test_ff.c
 
-libfop_ut_la_SOURCES = iterator_test_u.h iterator_test_u.c \
-			test_format_u.h test_format_u.c \
-			fmt_test.c test_format.ff \
-			iterator_test.c
+libfop_ut_la_SOURCES = $(ITERATOR_FOPS) iterator_test.c
 
-EXTRA_DIST = test_format.ff iterator_test.ff
+EXTRA_DIST           = iterator_test.ff
 
-clean-local:
-	cd @SRCDIR@/fop/ut ; \
-	rm -fr test_format_[uk].[ch] iterator_test_u.[ch]
+MOSTLYCLEANFILES     = $(ITERATOR_FOPS)

@@ -27,11 +27,10 @@
 #include "lib/errno.h"
 #include "lib/trace.h"
 #include "lib/misc.h"
-
-#include "sns/repair/cm.h"
-#include "reqh/reqh_service.h"
-#include "reqh/reqh.h"
 #include "lib/finject.h"
+
+#include "reqh/reqh_service.h"
+#include "sns/repair/cm.h"
 
 /**
   @defgroup SNSRepairSVC SNS Repair service
@@ -125,14 +124,15 @@ static int service_allocate(struct c2_reqh_service_type *stype,
  */
 static int service_start(struct c2_reqh_service *service)
 {
-	int           rc = 0;
 	struct c2_cm *cm;
+	int           rc;
 
 	C2_ENTRY();
 	C2_PRE(service != NULL);
 
         /* XXX Register SNS Repair FOP types */
 	cm = container_of(service, struct c2_cm, cm_service);
+	rc = c2_cm_setup(cm);
 	if (rc != 0)
 		C2_ADDB_ADD(&cm->cm_addb, &sns_repair_addb_loc,
 			    service_start_fail,
@@ -147,10 +147,15 @@ static int service_start(struct c2_reqh_service *service)
  */
 static void service_stop(struct c2_reqh_service *service)
 {
+	struct c2_cm *cm;
+
 	C2_ENTRY();
 	C2_PRE(service != NULL);
 
-        /* XXX Destroy SNS Repair FOP types. */
+        /* XXX Destroy SNS Repair FOP types and finlise copy machine. */
+	cm = container_of(service, struct c2_cm, cm_service);
+	/* Firstly stop and then finalise the copy machine. */
+	c2_cm_stop(cm);
 
 	C2_LEAVE();
 }
@@ -170,6 +175,7 @@ static void service_fini(struct c2_reqh_service *service)
 	c2_cm_fini(cm);
 	sns_cm = cm2sns(cm);
 	c2_free(sns_cm);
+
 	C2_LEAVE();
 }
 

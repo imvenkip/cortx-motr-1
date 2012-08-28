@@ -53,7 +53,7 @@ static struct net_srv srv0 = {
 	.ns_nr_threads     =      64,
 	.ns_pre_bulk_min   =       0,
 	.ns_pre_bulk_max   =    1000,
-	.ns_file_size      = 1024*1024*1024
+	.ns_file_size      = 1024*1024
 };
 
 static struct c2t1fs_conf c2t1fs = {

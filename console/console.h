@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_CONSOLE_H__
-#define __COLIBRI_CONSOLE_H__
+#ifndef __COLIBRI_CONSOLE_CONSOLE_H__
+#define __COLIBRI_CONSOLE_CONSOLE_H__
 
 #include <stdbool.h>
 
@@ -45,7 +45,9 @@
 
 extern bool verbose;
 
-/* __COLIBRI_CONSOLE_H__ */
+/** @} end of console group */
+
+/* __COLIBRI_CONSOLE_CONSOLE_H__ */
 #endif
 
 /*

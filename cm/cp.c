@@ -22,6 +22,7 @@
 
 #include "lib/errno.h"
 
+#include "fop/fom_generic.h"
 #include "cm/cp.h"
 #include "cm/cm.h"
 
@@ -46,18 +47,14 @@
  *   <hr>
  *   @section CPDLD-ovw Overview
  *
- *   When an instance of a copy machine type is created, a data structure copy
- *   machine replica is created on each node (technically, in each request
- *   handler) that might participate in the re-structuring.
- *
  *   Copy packet is the data structure used to describe the packet flowing
- *   between various copy machine replica nodes. It is entity which has data as
- *   well as operation to work. Copy packets are FOM of special type, created
- *   when a data re-structuring request is posted to replica.
+ *   between various copy machine replica nodes. It is an entity which has data
+ *   as well as operation to work. Copy packets are FOMs of special type,
+ *   created when a data re-structuring request is posted to replica.
  *
  *   Copy packet processing logic is implemented in non-blocking way. Packet has
  *   buffers to carry data and FOM for execution in context of request handler.
- *   It can perform various kind of work which depend on the it's stage
+ *   It can perform various kind of work which depends on the it's stage
  *   (i.e. FOM phase) in execution.
  *
  *   <hr>
@@ -69,66 +66,60 @@
  *   successful processing of the copy packet. With this acknowledgement, copy
  *   packet release various resources, update its internal state.
  *
- *   - <b>Next phase function:</b> Given a copy packet this identify the phase
- *   that has to be assigned to this copy packet. The next phase function
+ *   - <b>Next phase function:</b> Given a copy packet, this identifies the
+ *   phase that has to be assigned to this copy packet. The next phase function
  *   determines the routing and execution of copy packets through the copy
  *   machine.
  *
  *   <hr>
  *   @section CPDLD-req Requirements
  *
- *   - <b>R.cm.cp</b> Copy-packet abstraction should be implemented such that it
- *     represents the data to be transferred within replica.
+ *   - @b r.cm.cp Copy packet abstraction implemented such that it
+ *	  represents the data to be transferred within replica.
  *
- *   - <b>R.cm.cp.FOM</b> Copy packets should be implemented as FOM.
+ *   - @b r.cm.cp.async Every read-write (receive-send) by replica
+ *	  should follow non-blocking processing model of Colibri design.
  *
- *   - <b>R.cm.cp.async</b> Every read-write (receive-send) by replica
- *     should follow non-blocking processing model of Colibri design.
+ *   - @b r.cm.buffer_pool Copy machine should provide a buffer pool, which
+ *	  is efficiently used for copy packet data.
  *
- *   - <b>R.cm.buffer_pool</b> Copy machine should provide a buffer pool, which
- *     is efficiently used for copy packet data.
+ *   - @b r.cm.cp.bulk_transfer All data packets (except control packets)
+ *	  that are sent over RPC should use bulk-interface for communication.
  *
- *   - <b>R.cm.cp.bulk_transfer</b> All data packets (except control packets)
- *     that are sent over RPC should use bulk-interface for communication.
- *
- *   - <b>R.cm.addb</b> copy packet will use ADDB context of copy machine
- *     replica. Each copy packet might have its own ADDB context as well.
+ *   - @b r.cm.addb Copy packet should have its own addb context, (similar
+ *	  to fop), although it uses various different addb locations, this will
+ *	  trace the entire path of the copy packet.
  *
  *   <hr>
  *   @section CPDLD-depends Dependencies
  *
- *   - <b>R.cm.service</b> Copy packets FOM are executed in context of copy
- *     machine replica service.
+ *   - @b r.cm.service Copy packets FOMs are executed in context of copy
+ *	  machine replica service.
  *
- *   - <b>R.cm.ops</b> Replica provides operation to create, configure and
- *     execute copy packet FOMs.
+ *   - @b r.cm.ops Replica provides operations to create, configure and
+ *	  execute copy packet FOMs.
  *
- *   - <b>R.layout</b> Data re-structure needs layout info.
+ *   - @b r.layout Data restructuring needs layout info.
  *
- *   - <b>R.layout.input-set</b> Iterate over layout info to create packets.
+ *   - @b r.layout.input-iterator Iterate over layout info to create packets
+ *	  and forward it in replica.
  *
- *   - <b>R.layout.output-set</b> Iterate over layout info to forward and write
- *     copy packets.
+ *   - @b r.resource Resources like buffers, CPU cycles, network bandwidth,
+ *	  storage bandwidth are needed by copy packet FOM during execution.
  *
- *   - <b>R.resource</b> Resources like buffers, CPU cycles, network bandwidth,
- *     storage bandwidth need by copy packet FOM during execution.
- *
- *   - <b>R.confc</b> Data from configuration will be used to initialise copy
- *     packets.
+ *   - @b r.confc Data from configuration will be used to initialise copy
+ *	  packets.
  *
  *   <hr>
  *   @section CPDLD-highlights Design Highlights
  *
- *   - Copy packet are implemented as FOM, which inherently has non-blocking
+ *   - Copy packet is implemented as FOM, which inherently has non-blocking
  *     model of colibri.
  *
- *   - Distributed sliding window algorithm is used to copy packet processing
+ *   - Distributed sliding window algorithm is used to process copy packets
  *     within copy machine replica.
  *
- *   - Layout is updated periodically as the re-structuring progresses.
- *
- *   - Copy machine will adjust its operation when it encounters any changes
- *     in the input and output set.
+ *   - Layout is updated periodically as the restructuring progresses.
  *
  *   <hr>
  *   @section CPDLD-lspec Logical Specification
@@ -140,9 +131,9 @@
  *
  *   @subsection CPDLD-lspec-comps Component Overview
  *
- *   <b>Copy packet functionality split into two parts:</b>
+ *   <b>Copy packet functionality is split into two parts:</b>
  *
- *	- generic functionality, implemented by cm/cp.[hc] directory and
+ *	- generic functionality, implemented by cm/cp.[hc] and
  *
  *      - copy packet type functionality which based on copy machine type.
  *        (e.g. SNS, Replication, &c).
@@ -158,83 +149,86 @@
  *        for processing by creating them at start of operation.
  *
  *      - has space, after completion of each copy packet, space in sliding
- *        window checked. If space exists then copy packets will be created.
+ *        window is checked. If space exists, then copy packets will be created.
  *
  *   <b>Copy Packet destruction:</b>
  *   Copy packet is destroyed by setting it's phase to FINI. Following are some
  *   cases where copy packet is finalised.
- *   - On notification of copy packet data written to device/container.
- *   - During transformation unwanted packets are finalised.
- *   - On completion copy packet transfer over network.
+ *
+ *	- On notification of copy packet data written to device/container.
+ *
+ *	- During transformation, unwanted packets are finalised.
+ *
+ *	- On completion of copy packet transfer over network.
  *
  *   <b>Copy packet cooperation within replica:</b>
- *   Copy packet need resources (memory, processor, &c.) to do processing:
+ *   Copy packet needs resources (memory, processor, &c.) to do processing:
  *
  *	- Needs buffers to keep data during IO;
  *
- *	- needs buffers to keep data until the transfer is finished;
+ *	- Needs buffers to keep data until the transfer is finished;
  *
- *	- needs buffers to keep intermediate checksum until all units of an
+ *	- Needs buffers to keep intermediate checksum until all units of an
  *	  aggregation group have been received.
  *
- *   The same copy packet (and its associated buffers) will go through stages.
- *   Data read from device creates a copy packet, then copy packet transitions
- *   to data transformation phase, which, after reconstructing the data,
- *   transitions to data write or send, which submits IO. On IO completion, the
- *   copy packet is destroyed.
+ *   The same copy packet (and its associated buffers) will go through various
+ *   stages. Data read from device creates a copy packet, then copy packet
+ *   transitions to data transformation phase, which, after reconstructing the
+ *   data, transitions to data write or send, which submits IO. On IO
+ *   completion, the copy packet is destroyed.
  *
  *   At the re-structuring start time, replica is given a certain (configurable)
  *   amount of memory. This memory is allocated by copy machine buffer pool and
- *   used for copy packet data buffers. Buffers get provisioned during the
- *   configuration operation of the copy machine.
+ *   used for copy packet data buffers. Buffers get provisioned when trigger
+ *   happens.
  *
  *   Given the size of the buffer pool, the replica calculates its initial
  *   sliding window size.
  *
  *   Once the replica learns window sizes of every other replica, it can
- *   activate copy packet FOMs. Copy machine replica populate copy packets in
+ *   activates copy packet FOMs. Copy machine replica submits copy packets FOMs
+ *   to request handler.
  *
  *   @subsection CPDLD-lspec-state State Specification
  *
  *   <b>Copy packet is a state machine, goes through following stages:</b>
  *
- *   - <b>INIT</b>  Copy packet get initialised with input data to go next phase
- *		    e.g In SNS, extent, COB, &c get initialised. Usually this
- *		    will done with some iterator over layout info.
+ *   - @b INIT   Copy packet gets initialised with input data. e.g In SNS,
+ *		 extent, COB, &c gets initialised. Usually this will be done
+ *		 with some iterator over layout info.
  *
- *   - <b>READ</b>  Reads data from its associated container or device according
- *		    to the input set description, and places the data in a copy
- *		    packet data buffer. Before doing this, it needs to grab
- *		    necessary resources: memory, locks, permission, CPU/disk
- *		    bandwidth, etc. These data/parity is encapsulated in copy
- *		    packet, and the copy packets are transfered to next phase.
+ *   - @b READ   Reads data from its associated container or device according
+ *		 to the input information, and places the data in a copy packet
+ *		 data buffer. Before doing this, it needs to grab necessary
+ *		 resources: memory, locks, permissions, CPU/disk bandwidth,
+ *		 etc. Data/parity is encapsulated in copy packet, and the copy
+ *		 packets are transfered to next phase.
  *
- *   - <b>WRITE</b> Write data from copy packet data buffer to the container or
- *		    device. Spare container and offset to write identified from
- *		    layout information.
+ *   - @b WRITE  Writes data from copy packet data buffer to the container or
+ *		 device. Spare container and offset to write is identified from
+ *		 layout information.
  *
- *   - <b>XFORM</b> Data restructuring is done in this phase. It's important to
- *		    understand that this phase would typically process a lot of
- *		    local copy packets. E.g., for SNS repair machine, a file
- *		    typically have a component object (cob) on each device in
- *		    the pool, which means that a node could (and should)
- *		    calculate "partial parity" of all local units, instead of
- *		    sending each of them separately across the network to a
- *		    remote copy machine replica.
+ *   - @b XFORM  Data restructuring is done in this phase. This phase would
+ *		 typically process a lot of local copy packets. E.g., for SNS
+ *		 repair machine, a file typically has a component object (cob)
+ *		 on each device in the pool, which means that a node could
+ *		 (and should) calculate "partial parity" of all local units,
+ *		 instead of sending each of them separately across the network
+ *		 to a remote copy machine replica.
  *
- *   - <b>SEND</b>  Send copy packet over network. Control FOP and bulk
- *		    transfer are used for copy packet send.
+ *   - @b SEND   Send copy packet over network. Control FOP and bulk transfer
+ *		 are used for sending copy packet.
  *
- *   - <b>RECV</b>  Copy packet data Received from network. On receipt of
- *		    control FOP for copy packet is created and FOM is submitted
- *		    for execution and phase is set RECV, which will eventually
- *		    receive data using rpc bulk.
+ *   - @b RECV   Copy packet data is received from network. On receipt of
+ *		 control FOP, copy packet is created and FOM is submitted for
+ *		 execution and phase is set RECV, which will eventually receive
+ *		 data using rpc bulk.
  *
- *   - <b>FINI</b>  Finalises copy packet.
+ *   - @b FINI  Finalises copy packet.
  *
- *   - <b>Non-std:</b> Specific copy packet can have states/phases addition
- *		       these phases. Additional states will be used to do
- *		       processing under one of above phases.
+ *   Specific copy packet can have states/phases in addition to these phases.
+ *   Additional states may be used to do processing under one of above phases.
+ *   Handling of additional stages/states is done by specific code.
  *
  *   Transition of standard phases is done by next phase function. It will
  *   produce the next phase according to the configuration of the copy machine
@@ -248,7 +242,7 @@
  *	   end [shape=doublecircle];
  *	}
  *	subgraph A2 {
- *	   size = "4,8"
+ *	   size = "4,4"
  *	   node [shape=ellipse, fontsize=12]
  *	   start -> INIT
  *	   INIT  -> READ -> SEND -> FINI
@@ -276,18 +270,13 @@
  *
  *	subgraph cluster_m2 {
  *	  rank = same;
- *	  n2_8 [label="phase()"];
- *	  n2_7 [label="init()"];
- *	  n2_6 [label="fini()"];
- *	  n2_5 [label="read()"];
- *	  n2_4 [label="write()"];
- *	  n2_3 [label="xform()"];
- *	  n2_2 [label="send()"];
- *	  n2_1 [label="recv()"];
+ *	  n2_3 [label="phase()"];
+ *	  n2_2 [label="complete()"];
+ *	  n2_1 [label="action()"];
  *	  n2_0 [label="c2_cm:c_fom:fo_loc:fl_group:s_lock"];
  *	}
  *
- *	label="Mutex usage and locking order in the Copy Machine Agents";
+ *	label="Mutex usage and locking order in the copy packet";
  *	n1_0 -> n2_0;  // locking order
  *   }
  *   @enddot
@@ -295,20 +284,18 @@
  *   <hr>
  *   @section CPDLD-conformance Conformance
  *
- *   - <b>I.cm.cp</b> Replicas communicate using copy packet structure.
+ *   - @b i.cm.cp Replicas communicate using copy packet structure.
  *
- *   - <b>I.cm.cp.FOM</b> Copy packets should be implemented as FOM.
+ *   - @b i.cm.cp.async Copy packet are implemented as FOM. FOM in request
+ *	  handler infrastructure makes it non-blocking.
  *
- *   - <b>I.cm.cp.async</b> Copy packet FOM in request handler infrastructure
- *     makes it non-blocking.
+ *   - @b i.cm.buffer_pool Buffer pools are managed by copy machine which
+ *	  cater to the requirements of copy packet data.
  *
- *   - <b>I.cm.buffer_pool</b> Buffer pools are managed by copy machine which
- *     cater to the requirements of copy packet data.
+ *   - @b i.cm.cp.bulk_transfer All data packets (except control packets)
+ *	  that are sent over RPC, use bulk-interface for communication.
  *
- *   - <b>I.cm.cp.bulk_transfer</b> All data packets (except control packets)
- *     that are sent over RPC, use bulk-interface for communication.
- *
- *   - <b>I.cm.cp.addb</b> copy packet uses ADDB context of copy machine.
+ *   - @b i.cm.cp.addb copy packet uses ADDB context of copy machine.
  *
  *   <hr>
  *   @section CPDLD-ut Unit Tests
@@ -319,6 +306,12 @@
  *
  *   <hr>
  *   @section CPDLD-ref References
+ *
+ *   - <a href="https://docs.google.com/a/xyratex.com/document/d/1Yz25F3GjgQVXzvM1sdlGQvVDSUu-v7FhdUvFhiY_vwM/edit#">
+ *   HLD of SNS Repair</a>
+ *
+ *   - <a href="https://docs.google.com/a/xyratex.com/document/d/1ZlkjayQoXVm-prMxTkzxb1XncB6HU19I19kwrV-8eQc/edit#">
+ *   HLD of Copy machine and agents</a>
  *
  */
 
@@ -363,39 +356,87 @@ static size_t cp_fom_locality(const struct c2_fom *fom)
         return 0;
 }
 
-static int cp_fom_state(struct c2_fom *fom)
+static int cp_fom_tick(struct c2_fom *fom)
 {
-        struct c2_cm_cp *cp;
+        struct c2_cm_cp *cp = container_of(fom, struct c2_cm_cp, c_fom);
 
-        cp = container_of(fom, struct c2_cm_cp, c_fom);
-        C2_ASSERT(c2_cm_cp_invariant(cp));
-
-	switch (fom->fo_phase) {
-	case CCP_INIT:
-		return cp->c_ops->co_init(cp);
-	case CCP_READ:
-		return cp->c_ops->co_read(cp);
-	case CCP_WRITE:
-		return cp->c_ops->co_write(cp);
-	case CCP_XFORM:
-		return cp->c_ops->co_xform(cp);
-	case CCP_SEND:
-		return cp->c_ops->co_send(cp);
-	case CCP_RECV:
-		return cp->c_ops->co_recv(cp);
-	case CCP_FINI:
-		fom->fo_phase = C2_FOPH_FINISH;
-		return C2_FSO_WAIT;
-	default:
-		C2_IMPOSSIBLE("IMPOSSIBLE");
-	}
+        C2_PRE(c2_cm_cp_invariant(cp));
+	return cp->c_ops->co_action[c2_fom_phase(fom)](cp);
 }
 
 /** Copy packet FOM operations */
 static const struct c2_fom_ops cp_fom_ops = {
         .fo_fini          = cp_fom_fini,
-        .fo_state         = cp_fom_state,
+        .fo_tick          = cp_fom_tick,
         .fo_home_locality = cp_fom_locality
+};
+
+
+const struct c2_sm_state_descr c2_cm_cp_state_descr[] = {
+	[C2_CCP_INIT] = {
+		.sd_flags       = C2_SDF_INITIAL,
+                .sd_name        = "cp_init",
+                .sd_in          = NULL,
+                .sd_ex          = NULL,
+                .sd_invariant   = NULL,
+                .sd_allowed     = (1 << C2_CCP_READ)|(1 << C2_CCP_RECV)|
+                                  (1 << C2_CCP_XFORM)
+	},
+	[C2_CCP_READ] = {
+		.sd_flags       = 0,
+                .sd_name        = "cp_read",
+                .sd_in          = NULL,
+                .sd_ex          = NULL,
+                .sd_invariant   = NULL,
+                .sd_allowed     = (1 << C2_CCP_XFORM)|(1 << C2_CCP_SEND)
+	},
+	[C2_CCP_WRITE] = {
+		.sd_flags       = 0,
+                .sd_name        = "cp_write",
+                .sd_in          = NULL,
+                .sd_ex          = NULL,
+                .sd_invariant   = NULL,
+                .sd_allowed     = (1 << C2_CCP_FINI)
+	},
+	[C2_CCP_XFORM] = {
+		.sd_flags       = 0,
+                .sd_name        = "cp_xform",
+                .sd_in          = NULL,
+                .sd_ex          = NULL,
+                .sd_invariant   = NULL,
+                .sd_allowed     = (1 << C2_CCP_WRITE)|(1 << C2_CCP_FINI)|
+                                  (1 << C2_CCP_SEND)
+	},
+	[C2_CCP_SEND] = {
+		.sd_flags       = 0,
+                .sd_name        = "cp_send",
+                .sd_in          = NULL,
+                .sd_ex          = NULL,
+                .sd_invariant   = NULL,
+                .sd_allowed     = (1 << C2_CCP_FINI)
+	},
+	[C2_CCP_RECV] = {
+		.sd_flags       = 0,
+                .sd_name        = "cp_recv",
+                .sd_in          = NULL,
+                .sd_ex          = NULL,
+                .sd_invariant   = NULL,
+                .sd_allowed     = (1 << C2_CCP_WRITE)|(1 << C2_CCP_XFORM)
+	},
+	[C2_CCP_FINI] = {
+		.sd_flags       = C2_SDF_TERMINAL,
+                .sd_name        = "cp_fini",
+                .sd_in          = NULL,
+                .sd_ex          = NULL,
+                .sd_invariant   = NULL,
+                .sd_allowed     = 0
+	},
+};
+
+const struct c2_sm_conf c2_cm_cp_sm_conf = {
+        .scf_name       = "sm:cp conf",
+        .scf_nr_states  = ARRAY_SIZE(c2_cm_cp_state_descr),
+        .scf_state      = c2_cm_cp_state_descr
 };
 
 /** @} end internal */
@@ -407,11 +448,13 @@ static const struct c2_fom_ops cp_fom_ops = {
 
 bool c2_cm_cp_invariant(struct c2_cm_cp *cp)
 {
-	uint32_t phase = cp->c_fom.fo_phase;
+	int phase = c2_fom_phase(&cp->c_fom);
 
-	return phase >= C2_FOPH_INIT && phase <= CCP_FINI &&
-	       cp->c_ops != NULL &&
-	       cp->c_data != NULL && cp->c_ag != NULL;
+	return cp->c_ops != NULL && cp->c_data != NULL &&
+	       (phase == C2_FOM_PHASE_INIT || (phase >= C2_CCP_INIT &&
+					       phase <= C2_CCP_FINI)) &&
+	       ergo(phase > C2_CCP_INIT && phase <= C2_CCP_FINI,
+		    c2_stob_id_is_set(&cp->c_id) && cp->c_ag != NULL);
 }
 
 void c2_cm_cp_init(struct c2_cm_cp *cp, const struct c2_cm_cp_ops *ops,
@@ -421,6 +464,8 @@ void c2_cm_cp_init(struct c2_cm_cp *cp, const struct c2_cm_cp_ops *ops,
 
 	cp->c_ops = ops;
 	cp->c_data = buf;
+	c2_fom_type_init(&cp_fom_type, &cp_fom_type_ops, NULL,
+			 &c2_cm_cp_sm_conf);
 	c2_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL);
 
 	C2_POST(c2_cm_cp_invariant(cp));
@@ -448,7 +493,7 @@ int c2_cm_cp_create(struct c2_cm *cm)
 	while (sw->sw_ops->swo_has_space(sw)) {
 	       cp = cm->cm_ops->cmo_cp_alloc(cm);
 	       if (cp == NULL)
-		   return -ENOMEM;
+		   return -ENOENT;
 	       c2_cm_cp_enqueue(cm, cp);
         }
 

@@ -75,6 +75,10 @@ For example, merging branch "net_buffer_pool" into master:
 Don't forget to explicitly push the new "landing" tag, because tags don't
 get pushed automatically.
 
+NOTICE: landing tags are created as "lightweight" tags (without -a -s -u or -m
+`git tag` options). This is required in order to make `git describe` to report
+based on sprint tags and not on landing tags.
+
 Tagging of each merge into master allows to track the history of master
 branch easily and helps to see more clearly it's evolution.
 
@@ -106,6 +110,16 @@ where P, L and S are decimal numbers with the following meaning:
 
 Sprint and landing tags intended to be a kind of release points. They allow
 to see which tasks were finished within a sprint.
+
+NOTICE: sprint tags are created as unsigned annotated tags, for example
+
+    $ git tag -m 'T1.4 Sprint 19' t1.4-s19
+
+This allows `git describe` to report based on sprint tags and not on landing
+tags:
+
+    $ git describe master@{july}
+    t1.4-s19-281-gf887320
 
 
 MERGE POLICY

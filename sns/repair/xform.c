@@ -76,7 +76,7 @@ static void bufvec_xor(struct c2_bufvec *dst, struct c2_bufvec *src,
 /**
  * Transformation function for sns repair.
  *
- * @pre cp != NULL && cp->c_fom.fo_phase == CCP_XFORM
+ * @pre cp != NULL && c2_fom_phase(&cp->c_fom) == C2_CCP_XFORM
  * @param cp Copy packet that has to be transformed.
  */
 int repair_cp_xform(struct c2_cm_cp *cp)
@@ -86,7 +86,7 @@ int repair_cp_xform(struct c2_cm_cp *cp)
 	struct c2_cm_cp         *res_cp;
 	c2_bcount_t              cp_bufvec_size;
 
-        C2_PRE(cp != NULL && cp->c_fom.fo_phase == CCP_XFORM);
+        C2_PRE(cp != NULL && c2_fom_phase(&cp->c_fom) == C2_CCP_XFORM);
 
         ag = cp->c_ag;
         sns_ag = bob_of(ag, struct c2_sns_repair_ag, sag_base, &aggr_grps_bob);
@@ -132,11 +132,11 @@ int repair_cp_xform(struct c2_cm_cp *cp)
 		C2_ASSERT(ag->cag_cp_nr >= ag->cag_transformed_cp_nr);
                 /*
                  * Once transformation is complete, mark the copy
-                 * packet's fom to CCP_FINI since it is not needed anymore.
-                 * This copy packet will be freed during CCP_FINI phase
-                 * execution.
+                 * packet's fom's sm state to C2_CCP_FINI since it is not
+                 * needed anymore. This copy packet will be freed during
+                 * C2_CCP_FINI phase execution.
                  */
-                cp->c_fom.fo_phase = CCP_FINI;
+		c2_fom_phase_set(&cp->c_fom, C2_CCP_FINI);
                 /*
                  * If all copy packets are processed at this stage,
                  * move the resultant copy packet's fom from waiting to ready

@@ -55,11 +55,13 @@ static int sw_slide(struct c2_cm_sw *sw)
 }
 
 /**
- * Returns true if c2_cm_sw::sw_recv_size > 0, false otherwise.
+ * Return true if c2_cm_sw::sw_size > 0, false otherwise.
+ * Eventually this may also check availability of more resources,
+ * viz, cpu cycles, device bandwidth, &c.
  */
 static bool sw_has_space(struct c2_cm_sw *sw)
 {
-	return true;
+	return sw->sw_sz > 0;
 }
 
 static int sw_expand(struct c2_cm_sw *sw)

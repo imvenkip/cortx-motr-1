@@ -18,14 +18,14 @@
  * Original creation date: 08/08/2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_CM_AG_H__
 #define __COLIBRI_CM_AG_H__
 
 #include "lib/types.h"
 #include "lib/tlist.h"
 #include "lib/mutex.h"
-#include "lib/ext.h"
-#include "lib/vec.h"
 
 #include "cm/cm.h"
 
@@ -35,21 +35,6 @@
 
    @{
  */
-/** Aggregation group states */
-enum c2_aggr_group_state {
-	/**
-	 * Aggregation group data structure is initialised and is ready for
-	 * processing.
-	 */
-	C2_AGS_INITIALISED,
-	/**
-	 * The aggregation group is being processed by the copy packets in the
-	 * pipeline.
-	 */
-	C2_AGS_IN_PROCESS,
-	/** The restructuring for this aggregation group has been completed. */
-	C2_AGS_FINALISED
-};
 
 /** Copy Machine Aggregation Group. */
 struct c2_cm_aggr_group {
@@ -59,10 +44,6 @@ struct c2_cm_aggr_group {
 	/** Aggregation group id */
 	struct c2_uint128		   cag_id;
 
-	/** Aggregation state. */
-	enum c2_aggr_group_state           cag_state;
-
-	/** Its operations. */
 	const struct c2_cm_aggr_group_ops *cag_ops;
 
 	/** Number of copy packets that correspond to this aggregation group. */
@@ -76,9 +57,6 @@ struct c2_cm_aggr_group {
 	 * ids, Hanging to c2_cm_sw::sw_aggr_grps.
 	 */
 	struct c2_tlink			   cag_sw_linkage;
-
-	/** Mutex lock to protect this group. */
-	struct c2_mutex                    cag_lock;
 
 	uint64_t                           cag_magic;
 };
@@ -107,7 +85,7 @@ extern struct c2_bob_type aggr_grps_bob;
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */

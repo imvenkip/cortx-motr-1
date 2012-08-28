@@ -23,8 +23,10 @@
 #include "lib/trace.h"
 #include "lib/misc.h"    /* C2_SET0 */
 #include "lib/memory.h"
+#include "lib/tlist.h"
 #include "addb/addb.h"
-#include "rpc/rpc2.h"
+#include "rpc/rpc_machine.h"
+#include "rpc/item.h"
 #include "rpc/formation2.h"
 #include "rpc/packet.h"
 
@@ -142,10 +144,9 @@ static bool itemq_invariant(const struct c2_tl *q)
 static bool item_less_or_equal(const struct c2_rpc_item *i0,
 			       const struct c2_rpc_item *i1)
 {
-	return
-		i0->ri_prio > i1->ri_prio ||
+	return	i0->ri_prio > i1->ri_prio ||
 		(i0->ri_prio == i1->ri_prio &&
-		 c2_time_before_eq(i0->ri_deadline, i1->ri_deadline));
+		 i0->ri_deadline <= i1->ri_deadline);
 }
 
 /**
@@ -290,7 +291,7 @@ frm_which_queue(struct c2_rpc_frm *frm, const struct c2_rpc_item *item)
 
 	oneway          = c2_rpc_item_is_unsolicited(item);
 	bound           = oneway ? false : c2_rpc_item_is_bound(item);
-	deadline_passed = c2_time_after_eq(c2_time_now(), item->ri_deadline);
+	deadline_passed = c2_time_now() >= item->ri_deadline;
 
 	C2_LOG("deadline: [%llu:%llu] bound: %s oneway: %s deadline_passed: %s",
 		(unsigned long long)c2_time_seconds(item->ri_deadline),
@@ -397,11 +398,6 @@ static void frm_balance(struct c2_rpc_frm *frm)
  * - No slot is available to bind with any of these items.
  */
 
-static bool item_timedout(const struct c2_rpc_item *item)
-{
-	return c2_time_after_eq(c2_time_now(), item->ri_deadline);
-}
-
 /**
    Moves all timed-out items from WAITING_* queues to TIMEDOUT_* queues.
 
@@ -421,6 +417,7 @@ static void frm_filter_timedout_items(struct c2_rpc_frm *frm)
 	struct c2_rpc_item         *item;
 	struct c2_tl               *q;
 	int                         i;
+	c2_time_t                   now = c2_time_now();
 
 	C2_ENTRY("frm: %p", frm);
 	C2_PRE(frm_invariant(frm));
@@ -429,7 +426,7 @@ static void frm_filter_timedout_items(struct c2_rpc_frm *frm)
 		qtype = qtypes[i];
 		q     = &frm->f_itemq[qtype];
 		c2_tl_for(itemq, q, item) {
-			if (item_timedout(item)) {
+			if (item->ri_deadline <= now) {
 				frm_itemq_remove(frm, item);
 				/*
 				 * This time the item will be inserted in

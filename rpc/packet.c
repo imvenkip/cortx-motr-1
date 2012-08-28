@@ -247,6 +247,7 @@ static int item_encode(struct c2_rpc_item       *item,
 	       item->ri_type->rit_ops->rito_encode != NULL);
 
 	rc = item->ri_type->rit_ops->rito_encode(item->ri_type, item, cursor);
+
 	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
@@ -262,6 +263,8 @@ int c2_rpc_packet_decode(struct c2_rpc_packet *p,
 	C2_PRE(c2_rpc_packet_invariant(p) && bufvec != NULL && len > 0);
 	C2_PRE(len <= c2_vec_count(&bufvec->ov_vec));
 	C2_PRE(C2_IS_8ALIGNED(off) && C2_IS_8ALIGNED(len));
+	C2_ASSERT(c2_forall(i, bufvec->ov_vec.v_nr,
+			    C2_IS_8ALIGNED(bufvec->ov_vec.v_count[i])));
 
 	c2_bufvec_cursor_init(&cursor, bufvec);
 	c2_bufvec_cursor_move(&cursor, off);
@@ -350,25 +353,6 @@ void c2_rpc_packet_traverse_items(struct c2_rpc_packet *p,
 
 	C2_ASSERT(c2_rpc_packet_invariant(p));
 	C2_LEAVE();
-}
-
-/** @deprecated */
-void c2_rpcobj_init(struct c2_rpc *rpc)
-{
-	C2_PRE(rpc != NULL);
-
-	c2_list_link_init(&rpc->r_linkage);
-	c2_list_init(&rpc->r_items);
-	rpc->r_session = NULL;
-	rpc->r_fbuf.fb_magic = C2_RPC_FRM_BUFFER_MAGIC;
-}
-
-/** @deprecated */
-void c2_rpcobj_fini(struct c2_rpc *rpc)
-{
-	rpc->r_session = NULL;
-	c2_list_fini(&rpc->r_items);
-	c2_list_link_fini(&rpc->r_linkage);
 }
 
 /*

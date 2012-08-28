@@ -29,6 +29,7 @@
 #include "lib/errno.h"
 #include "net/net.h"
 #include "rpc/bulk.h"
+#include "rpc/session.h"
 #include "rpc/rpc2.h"
 
 /**

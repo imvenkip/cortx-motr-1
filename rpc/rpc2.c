@@ -29,6 +29,7 @@
 #include "lib/misc.h"     /* C2_IN */
 #include "lib/types.h"
 #include "rpc/rpc2.h"
+#include "rpc/item.h"
 
 int c2_rpc__post_locked(struct c2_rpc_item *item);
 
@@ -64,7 +65,7 @@ int c2_rpc_post(struct c2_rpc_item *item)
 	C2_PRE(item->ri_session != NULL);
 
 	machine	  = item->ri_session->s_conn->c_rpc_machine;
-	item_size = item->ri_type->rit_ops->rito_item_size(item);
+	item_size = c2_rpc_item_size(item);
 
 	c2_rpc_machine_lock(machine);
 	C2_ASSERT(item_size <= machine->rm_min_recv_size);

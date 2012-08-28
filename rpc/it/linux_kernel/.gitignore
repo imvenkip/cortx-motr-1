@@ -1,4 +1,5 @@
 ping_fop.c
 ping_fom.c
-ping_fop_[ku].[ch]
+ping_fop_xc.?
 rpc_ping.c
+xcode.c

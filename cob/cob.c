@@ -21,6 +21,9 @@
 #  include "config.h"
 #endif
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_COB
+#include "lib/trace.h"        /* C2_LOG and C2_ENTRY */
+
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/cdefs.h"
 #include "lib/arith.h"   /* C2_3WAY */
@@ -30,10 +33,6 @@
 #include "lib/bitstring.h"
 
 #include "cob/cob.h"
-
-#ifdef __KERNEL__
-#define printf printk
-#endif
 
 /**
    @addtogroup cob
@@ -724,24 +723,25 @@ void c2_cob_namespace_traverse(struct c2_cob_domain	*dom)
 	c2_db_tx_init(&tx, dom->cd_dbenv, 0);
 	rc = c2_db_cursor_init(&cursor, &dom->cd_namespace, &tx, 0);
 	if (rc != 0) {
-		printf("ns_traverse: error during cursor init %d\n", rc);
+		C2_LOG("ns_traverse: error during cursor init %d\n", rc);
 		return;
 	}
 
-	printf("=============== Namespace Table ================\n");
+	C2_LOG("=============== Namespace Table ================\n");
 	c2_db_pair_setup(&pair, &dom->cd_namespace, nskey, sizeof (*nskey) + 20,
 				&nsrec, sizeof nsrec);
 	while ((rc = c2_db_cursor_next(&cursor, &pair)) == 0) {
 #ifndef __KERNEL__
-		printf("[%lx:%lx:%s] -> [%lx:%lx]\n", nskey->cnk_pfid.si_bits.u_hi,
-				nskey->cnk_pfid.si_bits.u_lo,
-				nskey->cnk_name.b_data,
-				nsrec.cnr_stobid.si_bits.u_hi,
-				nsrec.cnr_stobid.si_bits.u_lo);
+		C2_LOG("[%lx:%lx:%s] -> [%lx:%lx]\n",
+			nskey->cnk_pfid.si_bits.u_hi,
+			nskey->cnk_pfid.si_bits.u_lo,
+			(char*) nskey->cnk_name.b_data,
+			nsrec.cnr_stobid.si_bits.u_hi,
+			nsrec.cnr_stobid.si_bits.u_lo);
 #endif
 	}
 
-	printf("=================================================\n");
+	C2_LOG("=================================================\n");
 	c2_db_cursor_fini(&cursor);
 	c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);
@@ -761,23 +761,23 @@ void c2_cob_fb_traverse(struct c2_cob_domain	*dom)
 	c2_db_tx_init(&tx, dom->cd_dbenv, 0);
 	rc = c2_db_cursor_init(&cursor, &dom->cd_fileattr_basic, &tx, 0);
 	if (rc != 0) {
-		printf("fb_traverse: error during cursor init %d\n", rc);
+		C2_LOG("fb_traverse: error during cursor init %d\n", rc);
 		return;
 	}
 
-	printf("=============== FB Table ================\n");
+	C2_LOG("=============== FB Table ================\n");
 	c2_db_pair_setup(&pair, &dom->cd_fileattr_basic, &key, sizeof key,
 				&rec, sizeof rec);
 	while ((rc = c2_db_cursor_next(&cursor, &pair)) == 0) {
 #ifndef __KERNEL__
-		printf("[%lx:%lx] -> [%lu:%lu]\n", key.si_bits.u_hi,
+		C2_LOG("[%lx:%lx] -> [%lu:%lu]\n", key.si_bits.u_hi,
 				key.si_bits.u_lo,
 				rec.cfb_version.vn_lsn,
 				rec.cfb_version.vn_vc);
 #endif
 	}
 
-	printf("=================================================\n");
+	C2_LOG("=================================================\n");
 	c2_db_cursor_fini(&cursor);
 	c2_db_pair_release(&pair);
 	c2_db_pair_fini(&pair);

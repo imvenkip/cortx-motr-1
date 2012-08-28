@@ -32,6 +32,7 @@
 /* These unit tests are done in the kernel */
 extern void test_bitmap(void);
 extern void test_chan(void);
+extern void test_cookie(void);
 extern void test_finject(void);
 extern void test_list(void);
 extern void test_tlist(void);
@@ -56,6 +57,7 @@ const struct c2_test_suite c2_klibc2_ut = {
 		{ "memory",    test_memory    },
 		{ "bob",       test_bob       },
 		{ "chan",      test_chan      },
+		{ "cookie",    test_cookie    },
 #ifdef ENABLE_FAULT_INJECTION
 		{ "finject",   test_finject   },
 #endif

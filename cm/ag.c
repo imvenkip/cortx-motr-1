@@ -22,10 +22,6 @@
 #include <config.h>
 #endif
 
-#include "lib/bob.h"
-#include "cm/ag.h"
-#include "lib/tlist.h"
-
 #include "cm/ag.h"
 
 /**

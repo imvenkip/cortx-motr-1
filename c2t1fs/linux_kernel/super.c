@@ -19,14 +19,14 @@
  */
 
 #include <linux/mount.h>
-#include <linux/parser.h>     /* substring_t               */
-#include <linux/slab.h>       /* kmalloc(), kfree()        */
+#include <linux/parser.h>     /* substring_t                    */
+#include <linux/slab.h>       /* kmalloc(), kfree()             */
 
-#include "lib/misc.h"         /* C2_SET0()                 */
-#include "lib/memory.h"       /* C2_ALLOC_PTR(), c2_free() */
+#include "lib/misc.h"         /* C2_SET0()                      */
+#include "lib/memory.h"       /* C2_ALLOC_PTR(), c2_free()      */
 #include "c2t1fs/linux_kernel/c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
-#include "lib/trace.h"        /* C2_LOG and C2_ENTRY */
+#include "lib/trace.h"        /* C2_LOG and C2_ENTRY            */
 #include "pool/pool.h"        /* c2_pool_init(), c2_pool_fini() */
 
 /* Super block */
