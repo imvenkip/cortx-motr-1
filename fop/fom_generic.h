@@ -68,9 +68,11 @@ enum c2_fom_standard_phase {
 	                                context. */
 	C2_FOPH_QUEUE_REPLY,        /*< queuing fop reply.  */
 	C2_FOPH_QUEUE_REPLY_WAIT,   /*< waiting for fop cache space. */
-	C2_FOPH_NR                  /*< number of standard phases. fom type
+	C2_FOPH_NR,                  /*< number of standard phases. fom type
 	                                specific phases have numbers larger than
 	                                this. */
+	C2_FOPH_TYPE_SPECIFIC        /*< used when only single specific phase
+					 present in FOM. */
 };
 
 /**

@@ -450,11 +450,11 @@ static const struct fom_phase_desc fpd_table[] = {
 					     "fom_auth_wait",
 					      1 << C2_FOPH_AUTHORISATION_WAIT },
 	[C2_FOPH_TXN_CONTEXT] =		   { &create_loc_ctx,
-					      C2_FOPH_NR + 1,
+					      C2_FOPH_TYPE_SPECIFIC,
 					     "create_loc_ctx",
 					      1 << C2_FOPH_TXN_CONTEXT },
 	[C2_FOPH_TXN_CONTEXT_WAIT] =	   { &create_loc_ctx_wait,
-					      C2_FOPH_NR + 1,
+					      C2_FOPH_TYPE_SPECIFIC,
 					     "create_loc_ctx_wait",
 					      1 << C2_FOPH_TXN_CONTEXT_WAIT },
 	[C2_FOPH_SUCCESS] =		   { &fom_success,
@@ -515,7 +515,7 @@ static const struct c2_sm_state_descr generic_phases[] = {
 				(1 << C2_FOPH_FINISH) |
 				(1 << C2_FOPH_SUCCESS) |
 				(1 << C2_FOPH_FAILURE) |
-				(1 << (C2_FOPH_NR + 1))
+				(1 << C2_FOPH_TYPE_SPECIFIC)
 	},
 	[C2_FOPH_AUTHENTICATE] = {
 		.sd_flags     = 0,
@@ -621,7 +621,7 @@ static const struct c2_sm_state_descr generic_phases[] = {
 		.sd_allowed   = (1 << C2_FOPH_TXN_CONTEXT_WAIT) |
 				(1 << C2_FOPH_SUCCESS) |
 				(1 << C2_FOPH_FAILURE) |
-				(1 << (C2_FOPH_NR + 1))
+				(1 << C2_FOPH_TYPE_SPECIFIC)
 	},
 	[C2_FOPH_TXN_CONTEXT_WAIT] = {
 		.sd_flags     = 0,
@@ -631,7 +631,7 @@ static const struct c2_sm_state_descr generic_phases[] = {
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOPH_SUCCESS) |
 				(1 << C2_FOPH_FAILURE) |
-				(1 << (C2_FOPH_NR + 1))
+				(1 << C2_FOPH_TYPE_SPECIFIC)
 	},
 	[C2_FOPH_SUCCESS] = {
 		.sd_flags     = 0,
@@ -724,9 +724,9 @@ static const struct c2_sm_state_descr generic_phases[] = {
 		.sd_invariant = NULL,
 		.sd_allowed   = 0
 	},
-	[C2_FOPH_NR + 1] = {
+	[C2_FOPH_TYPE_SPECIFIC] = {
 		.sd_flags     = 0,
-		.sd_name      = "dummy specific phase ",
+		.sd_name      = "Specific phase ",
 		.sd_in        = NULL,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
