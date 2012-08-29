@@ -28,6 +28,7 @@ dirs  = addb                                                                  \
         addb/addbff                                                           \
         addb/linux_kernel                                                     \
         c2t1fs/linux_kernel                                                   \
+        c2t1fs/linux_kernel/ut                                                \
         cob                                                                   \
         colibri                                                               \
         db                                                                    \
@@ -76,6 +77,9 @@ addb_linux_kernel_SOURCES       := addb_console.c
 #       for d_SOURCES is relative to $(CORE_SRCDIR)/d;
 
 c2t1fs_linux_kernel_SOURCES     := c2t1fs.c super.c inode.c dir.c file.c
+
+c2t1fs_linux_kernel_c2loop_SOURCES     := c2loop.c
+c2t1fs_linux_kernel_ut_c2loop_SOURCES  := c2loop.c
 
 cob_SOURCES                     := cob.c
 
@@ -184,11 +188,15 @@ kcolibri_objects = $(foreach d, $(dirs), $(foreach f,                         \
                         $($(subst /,_,$(d))_SOURCES), $(addprefix $(d)/,      \
                                 $(subst .c,.o, $(notdir $(f))))))
 
+c2loop_objects = $(foreach d, $(dirs), $(foreach f,                         \
+                    $($(subst /,_,$(d))_c2loop_SOURCES), $(addprefix $(d)/, \
+                                $(subst .c,.o, $(notdir $(f))))))
+
 obj-m += kcolibri.o c2loop.o
 
 kcolibri-y += main.o dummy_init_fini.o $(kcolibri_objects)
 
-c2loop-y += c2t1fs/linux_kernel/c2loop.o
+c2loop-y += $(c2loop_objects)
 
 #       Besides the kcolibri.ko, the UT's would be build separately by
 #       recursing into directories specified by $(testdirs)
@@ -216,7 +224,8 @@ all:
 		$(create_links)))
 	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_HEADERS),      \
 		$(create_links)))
-	ln -sf $(CORE_SRCDIR)/c2t1fs/linux_kernel/c2loop.c c2t1fs/linux_kernel/
+	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_c2loop_SOURCES),\
+		$(create_links)))
 #       DO NOT append 'modules' target to the following $(MAKE)
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd`
 

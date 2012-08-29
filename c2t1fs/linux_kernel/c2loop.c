@@ -208,20 +208,20 @@
  * ...;
  * --- [label = " loop thread scheduled, two threads may run in parallel "];
  * requestor box requestor [label = "loop_add_bio()"],
- * loop_thread box loop_thread [label = "accumulate_bios(): accumulate bio
+ * loop_thread box loop_thread [label = "c2loop_accum_bios(): accumulate bio
  *                                       segments into iovecs array"];
  * requestor -> loop_thread [label = "wake_up(lo)"];
  * requestor box requestor [label = "loop_add_bio()"],
  * loop_thread => c2t1fs [label = "aio_read/aio_write()"];
  * requestor -> loop_thread [label = "wake_up(lo)"],
- * loop_thread box loop_thread [label = "accumulate_bios(): accumulate bio
+ * loop_thread box loop_thread [label = "c2loop_accum_bios(): accumulate bio
  *                                       segments into iovecs array"];
  * loop_thread => c2t1fs [label = "aio_read/aio_write()"];
  * ...;
  * loop_thread => loop_thread [label = "wait_event(lo, !bio_list_empty())"];
  * @endmsc
  *
- * accumulate_bios() does the main job of contiguous bio segments
+ * c2loop_accum_bios() does the main job of contiguous bio segments
  * aggregation. It takes the bio requests from the queue head and fills
  * iovecs array from the bio segments until any of the following
  * conditions happen:
@@ -232,7 +232,7 @@
  *   - the number of segments exceed the size of iovecs array.
  *
  * As soon as any on these conditions happen, we stop aggregating the
- * segments and return from accumulate_bios() routine with number of
+ * segments and return from c2loop_accum_bios() routine with number of
  * accumulated segments and with the list of accumulated bio requests.
  * The list will be needed later when we will call bio_end() for each
  * bio with the status of I/O operation.
@@ -284,7 +284,7 @@
  * <hr>
  * @section c2loop-dld-ut Unit Tests
  *
- * The following UTs could be implemented for accumulate_bios()
+ * The following UTs could be implemented for c2loop_accum_bios()
  * routine.
  *
  * Basic functionality tests:
@@ -315,8 +315,8 @@
  *     returned, another with one element returned.
  *   - (BIO_MAX_PAGES - 1) bio requests one segment each and one bio
  *     request with two segments. Two calls are expected: one with
- *     BIO_MAX_PAGES elements in iovecs array returned, another with one
- *     element returned.
+ *     (BIO_MAX_PAGES - 1) elements in iovecs array returned, another
+ *     with two elements returned.
  *
  * UT should fake upper (bio_request) interface by constructing
  * correspondent bio requests in the list by itself.
@@ -567,7 +567,7 @@ struct switch_request {
 static void do_loop_switch(struct loop_device *, struct switch_request *);
 
 /*
- * accumulate_bios: accumulate continuous bio requests
+ * c2loop_accum_bios: accumulate continuous bio requests
  *
  * Accumulate continuous (in respect to file I/O operation) bio requests
  * into iovecs array for aio_{read,write}() call.
@@ -579,20 +579,18 @@ static void do_loop_switch(struct loop_device *, struct switch_request *);
  *
  * Returns: number of iovecs array elements accumulated.
  */
-static inline int
-accumulate_bios(struct loop_device *lo, struct bio_list *bios,
-		struct iovec *iovecs, loff_t *ppos, unsigned *psize)
+int
+c2loop_accum_bios(struct loop_device *lo, struct bio_list *bios,
+		  struct iovec *iovecs, loff_t *ppos, unsigned *psize)
 {
 	int i;
 	int iov_idx = 0;
-	unsigned long op = READ;
+	unsigned long op;
 	loff_t pos;
 	loff_t next_pos = 0;
 	struct bio *bio;
 	struct iovec *iov;
 	struct bio_vec *bvec;
-
-	bio_list_init(bios);
 
 	while (!bio_list_empty(&lo->lo_bio_list)) {
 
@@ -604,6 +602,7 @@ accumulate_bios(struct loop_device *lo, struct bio_list *bios,
 		pos = ((loff_t) bio->bi_sector << 9) + lo->lo_offset;
 		if (iov_idx == 0) {
 			*ppos = pos;
+			*psize = 0;
 			op = bio_rw(bio);
 		}
 
@@ -633,11 +632,12 @@ accumulate_bios(struct loop_device *lo, struct bio_list *bios,
 		next_pos = pos + bio->bi_size;
 		*psize += bio->bi_size;
 		/*printk("accum: op=%d idx=%d bio=%p pos=%d size=%d\n",
-		       (int)op, iov_idx, bio, (int)*ppos, *psize);*/
+		       (int)op, iov_idx, bio, (int)pos, *psize);*/
 	}
 
 	return iov_idx;
 }
+C2_EXPORTED(c2loop_accum_bios); /* For UTs */
 
 /*
  * worker thread that handles reads/writes to file backed loop devices,
@@ -668,8 +668,10 @@ static int loop_thread(void *data)
 				!bio_list_empty(&lo->lo_bio_list) ||
 				kthread_should_stop());
 
-		iovecs_nr = accumulate_bios(lo, &bios, lo->key_data,
-		                            &pos, &size);
+		bio_list_init(&bios);
+
+		iovecs_nr = c2loop_accum_bios(lo, &bios, lo->key_data,
+		                              &pos, &size);
 
 		bio = bio_list_peek(&bios);
 		if (bio != NULL) {
@@ -1519,9 +1521,18 @@ static struct loop_device *loop_alloc(int i)
 	if (!lo)
 		goto out;
 
+	spin_lock_init(&lo->lo_lock);
+
 	lo->lo_queue = blk_alloc_queue(GFP_KERNEL);
 	if (!lo->lo_queue)
 		goto out_free_dev;
+	/*
+	 * RedHat's blk_throtl_exit() use queue_lock,
+	 * so we have to initialize it here to something
+	 * (lo_lock seems to be ok) to be able
+	 * to unload the module without kernel crash.
+	 */
+	lo->lo_queue->queue_lock = &lo->lo_lock;
 
 	disk = lo->lo_disk = alloc_disk(1 << part_shift);
 	if (!disk)
@@ -1531,7 +1542,6 @@ static struct loop_device *loop_alloc(int i)
 	lo->lo_number		= i;
 	lo->lo_thread		= NULL;
 	init_waitqueue_head(&lo->lo_event);
-	spin_lock_init(&lo->lo_lock);
 	disk->major		= C2LOOP_MAJOR;
 	disk->first_minor	= i << part_shift;
 	disk->fops		= &lo_fops;
