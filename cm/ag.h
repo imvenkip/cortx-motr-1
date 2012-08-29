@@ -25,7 +25,6 @@
 
 #include "lib/types.h"
 #include "lib/tlist.h"
-#include "lib/mutex.h"
 
 #include "cm/cm.h"
 
@@ -53,8 +52,8 @@ struct c2_cm_aggr_group {
 	uint64_t                           cag_transformed_cp_nr;
 
 	/**
-	 * Linkage into the sorted sliding window queue of aggregation group
-	 * ids, Hanging to c2_cm_sw::sw_aggr_grps.
+	 * Linkage into the sorted sliding window queue of aggregation groups
+	 * (c2_cm_sw:: sw_aggr_grps), sorted by indentifiers.
 	 */
 	struct c2_tlink			   cag_sw_linkage;
 
@@ -68,14 +67,15 @@ struct c2_cm_aggr_group_ops {
 
 	/**
 	 * Returns number of copy packets corresponding to the aggregation
-	 * group on the local node. Typically this is calculated as,
+	 * group on the local node. For example, for sns repair copy machine,
+	 * this is calculated as
 	 * number of data units per node * unit size / network buffer size.
 	 */
 	uint64_t (*cago_cp_nr)(struct c2_cm_aggr_group *ag);
 };
 
-C2_TL_DESCR_DECLARE(aggr_grps, extern);
-C2_TL_DECLARE(aggr_grps, extern, struct c2_cm_aggr_group);
+C2_TL_DESCR_DECLARE(c2_cm_ag, extern);
+C2_TL_DECLARE(c2_cm_ag, extern, struct c2_cm_aggr_group);
 
 /** @} CMAG */
 #endif
