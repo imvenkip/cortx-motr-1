@@ -53,7 +53,7 @@
  *
  *   Copy packet processing logic is implemented in non-blocking way. Packet has
  *   buffers to carry data and FOM for execution in context of request handler.
- *   It can perform various kind of work which depends on the it's stage
+ *   It can perform various kind of work which depends on the it's phase
  *   (i.e. FOM phase) in execution.
  *
  *   <hr>
@@ -139,19 +139,18 @@
  *
  *   <b>Copy packet creation:</b>
  *   Given the size of the buffer pool, the replica calculates its initial
- *   sliding window (see c2_cm_sw) size. Once the replica learns window sizes
- *   of every other replica, it can produce copy packets that replicas
- *   (including this one) are ready to process.
+ *   sliding window (see c2_cm_sw). Once the replica learns window of every
+ *   other replica, it can produce copy packets that replicas (including this
+ *   one) are ready to process.
  *
- *      - start, device failure triggers copy machine data re-structuring
- *        and it should make sure that sliding windows has enough packets
- *        for processing by creating them at start of operation.
+ *      - start, replica should make sure that sliding window has enough packets
+ *        for processing by creating them at start..
  *
  *      - has space, after completion of each copy packet, space in sliding
  *        window is checked. If space exists, then copy packets will be created.
  *
  *   <b>Copy Packet destruction:</b>
- *   Copy packet is destroyed by setting it's phase to FINI. Following are some
+ *   Copy packet is destroyed by setting its phase to FINI. Following are some
  *   cases where copy packet is finalised.
  *
  *	- On notification of copy packet data written to device/container.
@@ -171,10 +170,10 @@
  *	  aggregation group have been received.
  *
  *   The same copy packet (and its associated buffers) will go through various
- *   stages. Data read from device creates a copy packet, then copy packet
- *   transitions to data transformation phase, which, after reconstructing the
- *   data, transitions to data write or send, which submits IO. On IO
- *   completion, the copy packet is destroyed.
+ *   phases. In a perticular scenario where data read from device creates a
+ *   copy packet, then copy packet transitions to data transformation phase,
+ *   which, after reconstructing the data, transitions to data write or send,
+ *   which submits IO. On IO completion, the copy packet is destroyed.
  *
  *   At the re-structuring start time, replica is given a certain (configurable)
  *   amount of memory. This memory is allocated by copy machine buffer pool and
@@ -182,15 +181,13 @@
  *   happens.
  *
  *   Given the size of the buffer pool, the replica calculates its initial
- *   sliding window size.
- *
- *   Once the replica learns window sizes of every other replica, it can
- *   activates copy packet FOMs. Copy machine replica submits copy packets FOMs
- *   to request handler.
+ *   sliding window. Once the replica learns window of every other replica, it
+ *   can activates copy packet FOMs. Copy machine replica submits copy packets
+ *   FOMs to request handler.
  *
  *   @subsection CPDLD-lspec-state State Specification
  *
- *   <b>Copy packet is a state machine, goes through following stages:</b>
+ *   <b>Copy packet is a state machine that goes through following phases:</b>
  *
  *   - @b INIT   Copy packet gets initialised with input data. e.g In SNS,
  *		 extent, COB, &c gets initialised. Usually this will be done
@@ -225,11 +222,11 @@
  *
  *   - @b FINI  Finalises copy packet.
  *
- *   Specific copy packet can have states/phases in addition to these phases.
- *   Additional states may be used to do processing under one of above phases.
- *   Handling of additional stages/states is done by specific code.
+ *   Specific copy packet can have phases in addition to these phases.
+ *   Additional phases may be used to do processing under one of above phases.
+ *   Handling of additional phases is done by specific code.
  *
- *   Transition of standard phases is done by next phase function. It will
+ *   Transition between standard phases is done by next phase function. It will
  *   produce the next phase according to the configuration of the copy machine
  *   and the copy packet itself.
  *
@@ -379,11 +376,12 @@ static const struct c2_fom_ops cp_fom_ops = {
 
 bool c2_cm_cp_invariant(struct c2_cm_cp *cp)
 {
-	int phase = cp->c_fom.fo_phase;
+	int phase = c2_fom_pahse(&cp->c_fom);
 
 	return cp->c_ops != NULL && cp->c_data != NULL &&
 	       (phase == C2_FOPH_INIT || (phase >= C2_CCP_INIT &&
 					  phase <= C2_CCP_FINI)) &&
+	       IS_IN_ARRAY(phase, cp->c_ops->co_action) &&
 	       ergo(phase > C2_CCP_INIT && phase <= C2_CCP_FINI,
 		    c2_stob_id_is_set(&cp->c_id) && cp->c_ag != NULL);
 }

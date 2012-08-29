@@ -73,6 +73,9 @@ struct c2_sns_repair_cp {
 
         /** The extent in cob. */
         struct c2_ext		 rc_cext;
+
+        /** Set and used in case of read/write.*/
+        struct c2_stob_id	 rc_sid;
 };
 
 extern const struct c2_cm_cp_ops c2_sns_repair_cp_ops;
