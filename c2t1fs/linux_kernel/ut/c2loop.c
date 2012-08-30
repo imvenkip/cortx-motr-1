@@ -41,7 +41,7 @@ static struct iovec iovecs[BIO_MAX_PAGES];
  *   - One bio request (in the queue) with one segment. One element in
  *     iovecs array is returned with correct file pos and I/O size.
  */
-static void accumulate_basic_test1(void)
+static void accum_bios_basic1(void)
 {
 	struct loop_device lo;
 	struct bio *bio;
@@ -74,7 +74,7 @@ static void accumulate_basic_test1(void)
  *   - One bio request with two segments. Two elements in iovecs array
  *     are returned with correct file pos and summary I/O size.
  */
-static void accumulate_basic_test2(void)
+static void accum_bios_basic2(void)
 {
 	struct loop_device lo;
 	struct bio *bio;
@@ -108,7 +108,7 @@ static void accumulate_basic_test2(void)
  *     each, for contiguous file region. Two elements in iovecs array
  *     are returned with correct file pos and summary I/O size.
  */
-static void accumulate_basic_test3(void)
+static void accum_bios_basic3(void)
 {
 	struct loop_device lo;
 	struct bio *bio;
@@ -150,7 +150,7 @@ static void accumulate_basic_test3(void)
  *     regions. Two calls are expected with one element in iovecs array
  *     returned each time.
  */
-static void accumulate_except_test1(void)
+static void accum_bios_except1(void)
 {
 	struct loop_device lo;
 	struct bio *bio;
@@ -195,7 +195,7 @@ static void accumulate_except_test1(void)
  *     operations: one for read, another for write. Two calls are
  *     expected with one element in iovecs array returned each time.
  */
-static void accumulate_except_test2(void)
+static void accum_bios_except2(void)
 {
 	struct loop_device lo;
 	struct bio *bio;
@@ -242,7 +242,7 @@ static void accumulate_except_test2(void)
  *   - BIO_MAX_PAGES bio requests in the list (one segment each).
  *     BIO_MAX_PAGES elements in iovecs array are returned in one call.
  */
-static void accumulate_bound_test1(void)
+static void accum_bios_bound1(void)
 {
 	struct loop_device lo;
 	struct bio *bio;
@@ -282,7 +282,7 @@ static void accumulate_bound_test1(void)
  *     expected: one with BIO_MAX_PAGES elements in iovecs array
  *     returned, another with one element returned.
  */
-static void accumulate_bound_test2(void)
+static void accum_bios_bound2(void)
 {
 	struct loop_device lo;
 	struct bio *bio;
@@ -328,7 +328,7 @@ static void accumulate_bound_test2(void)
  *     (BIO_MAX_PAGES - 1) elements in iovecs array returned, another
  *     with two elements returned.
  */
-static void accumulate_bound_test3(void)
+static void accum_bios_bound3(void)
 {
 	struct loop_device lo;
 	struct bio *bio;
@@ -383,14 +383,14 @@ const struct c2_test_suite c2loop_ut = {
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
-		{ "accumulate_basic_test1", accumulate_basic_test1},
-		{ "accumulate_basic_test2", accumulate_basic_test2},
-		{ "accumulate_basic_test3", accumulate_basic_test3},
-		{ "accumulate_except_test1", accumulate_except_test1},
-		{ "accumulate_except_test2", accumulate_except_test2},
-		{ "accumulate_bound_test1", accumulate_bound_test1},
-		{ "accumulate_bound_test2", accumulate_bound_test2},
-		{ "accumulate_bound_test3", accumulate_bound_test3},
+		{ "accum_bios_basic1", accum_bios_basic1},
+		{ "accum_bios_basic2", accum_bios_basic2},
+		{ "accum_bios_basic3", accum_bios_basic3},
+		{ "accum_bios_except1", accum_bios_except1},
+		{ "accum_bios_except2", accum_bios_except2},
+		{ "accum_bios_bound1", accum_bios_bound1},
+		{ "accum_bios_bound2", accum_bios_bound2},
+		{ "accum_bios_bound3", accum_bios_bound3},
 		{ NULL, NULL }
 	}
 };
