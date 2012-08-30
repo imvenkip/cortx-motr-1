@@ -36,11 +36,11 @@ enum {
 	AGGR_GROUP_LINK_HEAD = 0x61675f68656164,
 };
 
-C2_TL_DESCR_DEFINE(aggr_grps, "aggr_grp_list_descr", ,
+C2_TL_DESCR_DEFINE(c2_cm_ag, "aggr_grp_list_descr", ,
 		   struct c2_cm_aggr_group, cag_sw_linkage, cag_magic,
 		   AGGR_GROUP_LINK_MAGIC, AGGR_GROUP_LINK_HEAD);
 
-C2_TL_DEFINE(aggr_grps, , struct c2_cm_aggr_group);
+C2_TL_DEFINE(c2_cm_ag, , struct c2_cm_aggr_group);
 
 /** @} CMAG */
 /*

@@ -309,7 +309,7 @@ const struct c2_sm_conf c2_cm_sm_conf = {
 	.scf_state	= c2_cm_state_descr
 };
 
-void c2_cm_group_lock(struct c2_cm *cm)
+void c2_cm_lock(struct c2_cm *cm)
 {
 	C2_ENTRY();
 	C2_PRE(cm != NULL);
@@ -318,7 +318,7 @@ void c2_cm_group_lock(struct c2_cm *cm)
 	C2_LEAVE();
 }
 
-void c2_cm_group_unlock(struct c2_cm *cm)
+void c2_cm_unlock(struct c2_cm *cm)
 {
 	C2_ENTRY();
 	C2_PRE(cm != NULL);
@@ -327,7 +327,7 @@ void c2_cm_group_unlock(struct c2_cm *cm)
 	C2_LEAVE();
 }
 
-bool c2_cm_group_is_locked(struct c2_cm *cm)
+bool c2_cm_is_locked(const struct c2_cm *cm)
 {
 	C2_ENTRY();
 	C2_PRE(cm != NULL);
@@ -336,27 +336,27 @@ bool c2_cm_group_is_locked(struct c2_cm *cm)
 	return c2_mutex_is_locked(&cm->cm_sm_group.s_lock);
 }
 
-int c2_cm_state_get(struct c2_cm *cm)
+enum c2_cm_state c2_cm_state_get(const struct c2_cm *cm)
 {
 	C2_ENTRY();
 	C2_PRE(cm != NULL);
-	C2_PRE(c2_cm_group_is_locked(cm));
+	C2_PRE(c2_cm_is_locked(cm));
 
 	C2_LEAVE();
-	return cm->cm_mach.sm_state;
+	return (enum c2_cm_state)cm->cm_mach.sm_state;
 }
 
-void c2_cm_state_set(struct c2_cm *cm, int state)
+void c2_cm_state_set(struct c2_cm *cm, enum c2_cm_state state)
 {
 	C2_ENTRY();
 	C2_PRE(cm != NULL);
-	C2_PRE(c2_cm_group_is_locked(cm));
+	C2_PRE(c2_cm_is_locked(cm));
 
 	c2_sm_state_set(&cm->cm_mach, state);
 	C2_LEAVE();
 }
 
-bool c2_cm_invariant(struct c2_cm *cm)
+bool c2_cm_invariant(const struct c2_cm *cm)
 {
 	int state = cm->cm_mach.sm_state;
 
@@ -381,7 +381,7 @@ int c2_cm_setup(struct c2_cm *cm)
 	C2_PRE(cm != NULL);
 	C2_PRE(cm->cm_type != NULL);
 
-	c2_cm_group_lock(cm);
+	c2_cm_lock(cm);
 	C2_PRE(c2_cm_state_get(cm) == C2_CMS_INIT);
 	C2_PRE(c2_cm_invariant(cm));
 
@@ -398,7 +398,7 @@ int c2_cm_setup(struct c2_cm *cm)
 			    "c2_cm_setup", cm->cm_mach.sm_rc);
 	}
 	C2_POST(c2_cm_invariant(cm));
-	c2_cm_group_unlock(cm);
+	c2_cm_unlock(cm);
 	C2_LEAVE();
 	return rc;
 }
@@ -411,7 +411,7 @@ int c2_cm_start(struct c2_cm *cm)
 	C2_PRE(cm != NULL);
 	C2_PRE(cm->cm_type != NULL);
 
-	c2_cm_group_lock(cm);
+	c2_cm_lock(cm);
 	C2_PRE(c2_cm_state_get(cm) == C2_CMS_IDLE);
 	C2_PRE(c2_cm_invariant(cm));
 
@@ -428,7 +428,7 @@ int c2_cm_start(struct c2_cm *cm)
 			    "c2_cm_start", cm->cm_mach.sm_rc);
 	}
 	C2_POST(c2_cm_invariant(cm));
-	c2_cm_group_unlock(cm);
+	c2_cm_unlock(cm);
 	C2_LEAVE();
 	return rc;
 }
@@ -439,7 +439,7 @@ int c2_cm_stop(struct c2_cm *cm)
 	C2_ENTRY();
 	C2_PRE(cm != NULL);
 
-	c2_cm_group_lock(cm);
+	c2_cm_lock(cm);
 	C2_PRE(C2_IN(c2_cm_state_get(cm), (C2_CMS_ACTIVE, C2_CMS_IDLE)));
 	C2_PRE(c2_cm_invariant(cm));
 
@@ -457,7 +457,7 @@ int c2_cm_stop(struct c2_cm *cm)
 			    "c2_cm_stop", cm->cm_mach.sm_rc);
 	}
 	C2_POST(c2_cm_invariant(cm));
-	c2_cm_group_unlock(cm);
+	c2_cm_unlock(cm);
 	C2_LEAVE();
 	return rc;
 }
