@@ -330,16 +330,6 @@ static struct c2_cm_cp *cm_cp_alloc(struct c2_cm *cm)
 
 static int cm_cp_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
-	struct c2_cobfid_map    *cfm;
-	struct c2_sns_repair_cm *sns_cm;
-	uint64_t                 fdata;
-
-	C2_PRE(cm != NULL && cp != NULL);
-
-	sns_cm = cm2sns(cm);
-	fdata = sns_cm->rc_fdata;
-	cfm = sns_cm->rc_cfm;
-	/* XXX Implementation in progress. */
 	return 0;
 }
 

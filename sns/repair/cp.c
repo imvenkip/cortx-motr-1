@@ -29,7 +29,7 @@
   @{
 */
 
-static bool repair_cp_invariant(struct c2_cm_cp *cp)
+static bool repair_cp_invariant(const struct c2_cm_cp *cp)
 {
 	return true;
 }
@@ -38,7 +38,7 @@ static int repair_cp_init(struct c2_cm_cp *cp)
 {
 	struct c2_sns_repair_cm *rcm;
 
-	C2_PRE(cp->c_fom.fo_phase == C2_CCP_INIT);
+	C2_PRE(c2_fom_phase(&cp->c_fom) == C2_CCP_INIT);
 	rcm = cm2sns(cp->c_ag->cag_cm);
 	return C2_FSO_AGAIN;
 }
@@ -102,7 +102,7 @@ const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
 	},
 	.co_complete	       = &repair_cp_complete,
 	.co_phase	       = &repair_cp_phase,
-	.co_invaraint	       = &repair_cp_invariant
+	.co_invariant	       = &repair_cp_invariant
 };
 
 /** @} SNSRepairCP */

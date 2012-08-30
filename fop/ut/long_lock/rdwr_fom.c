@@ -44,24 +44,22 @@ struct fom_rdwr {
 
 static size_t fom_rdwr_home_locality(const struct c2_fom *fom);
 static void fop_rdwr_fom_fini(struct c2_fom *fom);
-static int fom_rdwr_state(struct c2_fom *fom);
+static int fom_rdwr_tick(struct c2_fom *fom);
 
 /** Generic ops object for rdwr */
 static const struct c2_fom_ops fom_rdwr_ops = {
 	.fo_fini = fop_rdwr_fom_fini,
-	.fo_state = fom_rdwr_state,
+	.fo_tick = fom_rdwr_tick,
 	.fo_home_locality = fom_rdwr_home_locality
 };
 
 /** FOM type specific functions for rdwr FOP. */
-static const struct c2_fom_type_ops fom_rdwr_type_ops = {
+const struct c2_fom_type_ops fom_rdwr_type_ops = {
 	.fto_create = NULL
 };
 
 /** Rdwr specific FOM type operations vector. */
-static struct c2_fom_type rdwr_fom_type = {
-        .ft_ops = &fom_rdwr_type_ops,
-};
+struct c2_fom_type rdwr_fom_type;
 
 static size_t fom_rdwr_home_locality(const struct c2_fom *fom)
 {
@@ -84,7 +82,6 @@ static int rdwr_fom_create(struct c2_fom **m)
 	fom = &fom_obj->fr_gen;
 	c2_fom_init(fom, &rdwr_fom_type, &fom_rdwr_ops,
 		    (struct c2_fop *) 1, NULL);
-
 	c2_long_lock_link_init(&fom_obj->fr_link, fom);
 
 	*m = fom;

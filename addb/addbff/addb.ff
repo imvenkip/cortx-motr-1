@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -21,27 +21,31 @@
 
 
 /* buf in memory */
-DEF(c2_mem_buf, SEQUENCE,
-    _(cmb_count, U32),
-    _(cmb_value, BYTE));
+sequence {
+	u32 cmb_count;
+	u8  cmb_value
+} c2_mem_buf;
 
 /* on-wire and on-disk addb record header */
-DEF(c2_addb_record_header, RECORD,
-    _(arh_magic1,     U64),
-    _(arh_version,    U32),
-    _(arh_len,        U32),
-    _(arh_event_id,   U64),
-    _(arh_timestamp,  U64),
-    _(arh_magic2,     U64));
+record {
+	u64 arh_magic1;
+	u32 arh_version;
+	u32 arh_len;
+	u64 arh_event_id;
+	u64 arh_timestamp;
+	u64 arh_magic2
+} c2_addb_record_header;
 
 /* on wire addb record */
-DEF(c2_addb_record, RECORD,
-    _(ar_header,     c2_addb_record_header),
-    _(ar_data,       c2_mem_buf));
+record {
+	c2_addb_record_header ar_header;
+	c2_mem_buf            ar_data
+} c2_addb_record;
 
 /* on wire addb record reply */
-DEF(c2_addb_reply, RECORD,
-    _(ar_rc, U32));
+record {
+	u32 ar_rc
+} c2_addb_reply;
 
 /*
  *  Local variables:

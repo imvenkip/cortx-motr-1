@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -30,73 +30,7 @@ enum {
 
 static struct c2_bufvec		vec;
 static struct c2_bufvec_cursor	cur;
-static uint32_t                 test_arr[NO_OF_ELEMENTS];
-static char                     *byte_arr = "bufvec encode/decode tests";
 
-static void test_arr_encode()
-{
-	int		rc, i;
-	size_t		el_size;
-	void		*cur_addr;
-
-	for ( i = 0; i < NO_OF_ELEMENTS; ++i)
-		test_arr[i] = i;
-
-	el_size = sizeof test_arr[0];
-	rc = c2_bufvec_array(&cur, test_arr, NO_OF_ELEMENTS, ~0, el_size,
-			    (c2_bufvec_xcode_t)c2_bufvec_uint32, C2_BUFVEC_ENCODE);
-	C2_UT_ASSERT(rc == 0);
-	cur_addr = c2_bufvec_cursor_addr(&cur);
-	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
-}
-
-static void test_arr_decode()
-{
-	int		rc;
-	size_t		el_size;
-	uint32_t	dec_arr[NO_OF_ELEMENTS];
-	void		*cur_addr;
-
-	el_size = sizeof dec_arr[0];
-	rc = c2_bufvec_array(&cur, dec_arr, NO_OF_ELEMENTS, ~0, el_size,
-			    (c2_bufvec_xcode_t)c2_bufvec_uint32,
-			    C2_BUFVEC_DECODE);
-	C2_UT_ASSERT(rc == 0);
-	cur_addr = c2_bufvec_cursor_addr(&cur);
-	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
-
-	rc = memcmp(test_arr, dec_arr, sizeof test_arr);
-	C2_UT_ASSERT(rc == 0);
-}
-
-static void test_byte_arr_encode()
-{
-	int	rc;
-	void    *cur_addr;
-
-	rc = c2_bufvec_bytes(&cur, &byte_arr, strlen(byte_arr), ~0,
-			     C2_BUFVEC_ENCODE);
-	C2_UT_ASSERT(rc == 0);
-	cur_addr = c2_bufvec_cursor_addr(&cur);
-	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
-}
-
-static void test_byte_arr_decode()
-{
-	int		 rc;
-	void		*cur_addr;
-	char		*byte_arr_decode;
-	size_t		 arr_size;
-
-	arr_size = strlen(byte_arr);
-	C2_ALLOC_ARR(byte_arr_decode, arr_size);
-	rc = c2_bufvec_bytes(&cur, &byte_arr_decode, arr_size, ~0,
-			     C2_BUFVEC_DECODE);
-	C2_UT_ASSERT(rc == 0);
-	cur_addr = c2_bufvec_cursor_addr(&cur);
-	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
-
-}
 static void test_uint32_encode()
 {
 	int	 rc;
@@ -163,22 +97,6 @@ static void test_uint16_encode()
 	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 }
 
-static void test_byte_encode()
-{
-	int	 rc;
-	void    *cur_addr;
-	uint8_t  enc_val;
-
-	enc_val = UCHAR_MAX;
-	rc = c2_bufvec_byte(&cur, &enc_val, C2_BUFVEC_ENCODE);
-	C2_UT_ASSERT(rc == 0);
-	enc_val = SCHAR_MIN;;
-	rc = c2_bufvec_byte(&cur, &enc_val, C2_BUFVEC_ENCODE);
-	C2_UT_ASSERT(rc == 0);
-	cur_addr = c2_bufvec_cursor_addr(&cur);
-	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
-}
-
 static void test_uint64_decode()
 {
 	int		rc;
@@ -209,20 +127,6 @@ static void test_uint16_decode()
 	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 }
 
-static void test_byte_decode()
-{
-	int		 rc;
-	uint8_t		 dec_val;
-	void		*cur_addr;
-
-	rc = c2_bufvec_byte(&cur, &dec_val, C2_BUFVEC_DECODE);
-	C2_UT_ASSERT(rc == 0 && dec_val == UCHAR_MAX);
-
-	rc = c2_bufvec_byte(&cur, &dec_val, C2_BUFVEC_DECODE);
-	C2_UT_ASSERT(rc == 0 && (char)dec_val == SCHAR_MIN);
-	cur_addr = c2_bufvec_cursor_addr(&cur);
-	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
-}
 static void xcode_bufvec_test(void)
 {
 	void	*cur_addr;
@@ -235,17 +139,12 @@ static void xcode_bufvec_test(void)
 	test_uint32_encode();
 	test_uint64_encode();
 	test_uint16_encode();
-	test_byte_encode();
-	test_arr_encode();
-	test_byte_arr_encode();
 	c2_bufvec_cursor_init(&cur, &vec);
 	/* Decode tests */
 	test_uint32_decode();
 	test_uint64_decode();
 	test_uint16_decode();
-	test_byte_decode();
-	test_arr_decode();
-	test_byte_arr_decode();
+	c2_bufvec_free(&vec);
 }
 
 const struct c2_test_suite xcode_bufvec_ut = {
@@ -267,5 +166,3 @@ const struct c2_test_suite xcode_bufvec_ut = {
  *  scroll-step: 1
  *  End:
  */
-
-

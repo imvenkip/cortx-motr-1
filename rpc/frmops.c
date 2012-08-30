@@ -28,6 +28,8 @@
 #include "rpc/formation2.h"
 #include "rpc/packet.h"
 #include "rpc/rpc2.h"
+#include "rpc/rpc_machine.h"
+#include "rpc/item.h"
 #include "net/net.h"
 #include "rpc/session_internal.h"
 
@@ -198,7 +200,7 @@ static int rpc_buffer_init(struct rpc_buffer    *rpcbuf,
 		goto out;
 	}
 	rchan = frm_rchan(p->rp_frm);
-	netbuf->nb_length = p->rp_size;
+	netbuf->nb_length = c2_vec_count(&netbuf->nb_buffer.ov_vec);
 	netbuf->nb_ep     = rchan->rc_destep;
 
 	rpcbuf->rb_packet = p;

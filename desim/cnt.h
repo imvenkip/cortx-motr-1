@@ -22,8 +22,8 @@
 
 #pragma once
 
-#ifndef CNT_H
-#define CNT_H
+#ifndef __COLIBRI_DESIM_CNT_H__
+#define __COLIBRI_DESIM_CNT_H__
 
 /**
    @addtogroup desim desim
@@ -57,7 +57,7 @@ void cnt_mod(struct cnt *cnt, cnt_t val);
 void cnt_global_init(void);
 void cnt_global_fini(void);
 
-#endif /* CNT_H */
+#endif /* __COLIBRI_DESIM_CNT_H__ */
 
 /** @} end of desim group */
 

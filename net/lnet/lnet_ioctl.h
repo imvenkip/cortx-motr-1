@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __LNET_IOCTL_H__
-#define __LNET_IOCTL_H__
+#ifndef __COLIBRI_LNET_IOCTL_H__
+#define __COLIBRI_LNET_IOCTL_H__
 
 #include "lib/vec.h"   /* c2_bufvec, standard types */
 
@@ -206,7 +206,7 @@ struct c2_lnet_dev_bev_bless_params {
 
 /** @} */ /* LNetDev */
 
-#endif /* __LNET_IOCTL_H__ */
+#endif /* __COLIBRI_LNET_IOCTL_H__ */
 
 /*
  *  Local variables:

@@ -97,17 +97,6 @@ void sim_global_fini(void)
 
 }
 
-int c2_reqhs_init(void)
-{
-	DUMMY_IMPLEMENTATION;
-	return 0;
-}
-
-void c2_reqhs_fini(void)
-{
-
-}
-
 int c2_timers_init(void)
 {
 	DUMMY_IMPLEMENTATION;

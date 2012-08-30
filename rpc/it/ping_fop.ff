@@ -1,7 +1,7 @@
 /* -*- C -*- */
 
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -19,15 +19,18 @@
  * Original creation date: 07/07/2011
  */
 
-DEF(c2_fop_ping_arr, SEQUENCE,
-	_(f_count, U32),
-	_(f_data, U64));
+sequence {
+	u32 f_count;
+	u64 f_data
+} c2_fop_ping_arr;
 
-DEF(c2_fop_ping, RECORD,
-	_(fp_arr, c2_fop_ping_arr));
+record {
+	c2_fop_ping_arr fp_arr
+} c2_fop_ping;
 
-DEF(c2_fop_ping_rep, RECORD,
-	_(fpr_rc, U32));
+record {
+	u32 fpr_rc
+} c2_fop_ping_rep;
 
 /*
  *  Local variables:

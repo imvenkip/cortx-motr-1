@@ -30,8 +30,6 @@
 #include "lib/memory.h"
 #include "lib/misc.h" /* C2_SET0 */
 #include "lib/thread.h"
-#include "lib/processor.h"
-#include "lib/trace.h"
 #include "lib/time.h"
 #include "net/net.h"
 #include "net/lnet/lnet.h"
@@ -42,14 +40,13 @@
 #include "ut/rpc.h"     /* c2_rpc_client_init */
 #include "fop/fop.h"    /* c2_fop_default_item_ops */
 #include "reqh/reqh.h"  /* c2_reqh_rpc_mach_tl */
+#include "rpc/it/ping_fop_ff.h"
 
 #ifdef __KERNEL__
 #include <linux/kernel.h>
-#include "ping_fop_k.h"
-#include "rpc_ping.h"
+#include "rpc/it/linux_kernel/rpc_ping.h"
 #define printf printk
 #else
-#include "ping_fop_u.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -140,7 +137,7 @@ module_param(tm_recv_queue_len, int, S_IRUGO);
 MODULE_PARM_DESC(tm_recv_queue_len, "minimum TM receive queue length");
 
 module_param(max_rpc_msg_size, int, S_IRUGO);
-MODULE_PARM_DESC(tm_recv_queue_len, "maximum RPC message size");
+MODULE_PARM_DESC(max_rpc_msg_size, "maximum RPC message size");
 #endif
 
 static int build_endpoint_addr(enum ep_type type, char *out_buf, size_t buf_size)
@@ -202,7 +199,9 @@ static void print_rpc_stats(struct c2_rpc_stats *stats)
 			  (double) stats->rs_rpcs_nr;
 	printf("                packing_density: %lf\n", packing_density);
 #else
-	packing_density = (uint64_t) stats->rs_items_nr / stats->rs_rpcs_nr;
+	packing_density = stats->rs_rpcs_nr == 0 ? 0 :
+		stats->rs_items_nr / stats->rs_rpcs_nr;
+
 	printf("                packing_density: %llu\n", packing_density);
 #endif
 	sec = 0;
@@ -221,8 +220,7 @@ static void print_rpc_stats(struct c2_rpc_stats *stats)
 	sec += (double) nsec/1000000000;
 	msec = (double) sec * 1000;
 	printf("                min_latency:\t %lf # msec\n", msec);
-
-	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
+	thruput = sec == 0 ? 0 : stats->rs_bytes_nr / (sec * 1000000);
 	printf("                max_throughput:\t %lf # MB/s\n", thruput);
 #endif
 
@@ -243,7 +241,8 @@ static void print_rpc_stats(struct c2_rpc_stats *stats)
 	msec = (double) sec * 1000;
 	printf("                max_latency:\t %lf # msec\n", msec);
 
-	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
+	thruput = sec == 0 ? 0 : stats->rs_bytes_nr / (sec * 1000000);
+
 	printf("                min_throughput:\t %lf # MB/s\n", thruput);
 #endif
 }
@@ -403,14 +402,10 @@ static int run_client(void)
 	rc = c2_init();
 	if (rc != 0)
 		return rc;
-
-	rc = c2_processors_init();
-	if (rc != 0)
-		goto c2_fini;
 #endif
 	rc = c2_ping_fop_init();
 	if (rc != 0)
-		goto proc_fini;
+		goto c2_fini;
 
 	rc = c2_net_xprt_init(xprt);
 	if (rc != 0)
@@ -466,10 +461,8 @@ xprt_fini:
 	c2_net_xprt_fini(xprt);
 fop_fini:
 	c2_ping_fop_fini();
-proc_fini:
-#ifndef __KERNEL__
-	c2_processors_fini();
 c2_fini:
+#ifndef __KERNEL__
 	c2_fini();
 #endif
 	return rc;
@@ -596,7 +589,7 @@ int main(int argc, char *argv[])
 		C2_FORMATARG('n', "number of ping items", "%i", &nr_ping_item),
 		C2_FORMATARG('q', "minimum TM receive queue length", "%i",
 						&tm_recv_queue_len),
-		C2_FORMATARG('m', "max rpc msg size", "%i",
+		C2_FORMATARG('m', "maximum RPC msg size", "%i",
 						&max_rpc_msg_size),
 		C2_FLAGARG('v', "verbose", &verbose)
 		);
