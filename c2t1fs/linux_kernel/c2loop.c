@@ -192,7 +192,7 @@
  * running system it is more likely that there will be several bio
  * requests in the queue before loop_thread will start to handle
  * them. This allows us to analyze several bio requests available in
- * the queue and aggregate the relevant continuous segments for one
+ * the queue and aggregate the relevant contiguous segments for one
  * specific read/write file operation into correspondent iovecs for
  * aio_read/aio_write() call. Here is the sequence diagram which shows
  * this process on several CPUs host:
@@ -567,9 +567,9 @@ struct switch_request {
 static void do_loop_switch(struct loop_device *, struct switch_request *);
 
 /*
- * c2loop_accum_bios: accumulate continuous bio requests
+ * c2loop_accum_bios: accumulate contiguous bio requests
  *
- * Accumulate continuous (in respect to file I/O operation) bio requests
+ * Accumulate contiguous (in respect to file I/O operation) bio requests
  * into iovecs array for aio_{read,write}() call.
  *
  * - bios  : accumulated bio reqs list (out);
@@ -579,9 +579,8 @@ static void do_loop_switch(struct loop_device *, struct switch_request *);
  *
  * Returns: number of iovecs array elements accumulated.
  */
-int
-c2loop_accum_bios(struct loop_device *lo, struct bio_list *bios,
-		  struct iovec *iovecs, loff_t *ppos, unsigned *psize)
+int c2loop_accum_bios(struct loop_device *lo, struct bio_list *bios,
+		      struct iovec *iovecs, loff_t *ppos, unsigned *psize)
 {
 	int i;
 	int iov_idx = 0;
