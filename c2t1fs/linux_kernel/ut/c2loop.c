@@ -57,9 +57,6 @@ static void accumulate_basic_test1(void)
 	C2_UT_ASSERT(bio != NULL);
 
 	bio->bi_bdev = (void*)1;
-	bio->bi_io_vec[0].bv_page = NULL;
-	bio->bi_io_vec[0].bv_len = PAGE_SIZE;
-	bio->bi_io_vec[0].bv_offset = 0;
 	bio->bi_vcnt = 1;
 	bio->bi_size = PAGE_SIZE;
 
@@ -91,12 +88,6 @@ static void accumulate_basic_test2(void)
 	C2_UT_ASSERT(bio != NULL);
 
 	bio->bi_bdev = (void*)1;
-	bio->bi_io_vec[0].bv_page = NULL;
-	bio->bi_io_vec[0].bv_len = PAGE_SIZE;
-	bio->bi_io_vec[0].bv_offset = 0;
-	bio->bi_io_vec[1].bv_page = NULL;
-	bio->bi_io_vec[1].bv_len = PAGE_SIZE;
-	bio->bi_io_vec[1].bv_offset = 0;
 	bio->bi_vcnt = 2;
 	bio->bi_size = bio->bi_vcnt * PAGE_SIZE;
 
@@ -132,9 +123,6 @@ static void accumulate_basic_test3(void)
 
 		bio->bi_bdev = (void*)1;
 		bio->bi_sector = PAGE_SIZE / 512 * i;
-		bio->bi_io_vec[0].bv_page = NULL;
-		bio->bi_io_vec[0].bv_len = PAGE_SIZE;
-		bio->bi_io_vec[0].bv_offset = 0;
 		bio->bi_vcnt = 1;
 		bio->bi_size = bio->bi_vcnt * PAGE_SIZE;
 
@@ -176,9 +164,6 @@ static void accumulate_except_test1(void)
 
 		bio->bi_bdev = (void*)1;
 		bio->bi_sector = 0; /* XXX */
-		bio->bi_io_vec[0].bv_page = NULL;
-		bio->bi_io_vec[0].bv_len = PAGE_SIZE;
-		bio->bi_io_vec[0].bv_offset = 0;
 		bio->bi_vcnt = 1;
 		bio->bi_size = bio->bi_vcnt * PAGE_SIZE;
 
@@ -223,9 +208,6 @@ static void accumulate_except_test2(void)
 		bio->bi_bdev = (void*)1;
 		bio->bi_sector = PAGE_SIZE / 512 * i;
 		bio->bi_rw = i; /* XXX */
-		bio->bi_io_vec[0].bv_page = NULL;
-		bio->bi_io_vec[0].bv_len = PAGE_SIZE;
-		bio->bi_io_vec[0].bv_offset = 0;
 		bio->bi_vcnt = 1;
 		bio->bi_size = bio->bi_vcnt * PAGE_SIZE;
 
@@ -270,9 +252,6 @@ static void accumulate_bound_test1(void)
 
 		bio->bi_bdev = (void*)1;
 		bio->bi_sector = PAGE_SIZE / 512 * i;
-		bio->bi_io_vec[0].bv_page = NULL;
-		bio->bi_io_vec[0].bv_len = PAGE_SIZE;
-		bio->bi_io_vec[0].bv_offset = 0;
 		bio->bi_vcnt = 1;
 		bio->bi_size = bio->bi_vcnt * PAGE_SIZE;
 
@@ -312,9 +291,6 @@ static void accumulate_bound_test2(void)
 
 		bio->bi_bdev = (void*)1;
 		bio->bi_sector = PAGE_SIZE / 512 * i;
-		bio->bi_io_vec[0].bv_page = NULL;
-		bio->bi_io_vec[0].bv_len = PAGE_SIZE;
-		bio->bi_io_vec[0].bv_offset = 0;
 		bio->bi_vcnt = 1;
 		bio->bi_size = bio->bi_vcnt * PAGE_SIZE;
 
@@ -359,9 +335,6 @@ static void accumulate_bound_test3(void)
 
 		bio->bi_bdev = (void*)1;
 		bio->bi_sector = PAGE_SIZE / 512 * i;
-		bio->bi_io_vec[0].bv_page = NULL;
-		bio->bi_io_vec[0].bv_len = PAGE_SIZE;
-		bio->bi_io_vec[0].bv_offset = 0;
 		bio->bi_vcnt = 1;
 		bio->bi_size = bio->bi_vcnt * PAGE_SIZE;
 
@@ -373,12 +346,6 @@ static void accumulate_bound_test3(void)
 
 	bio->bi_bdev = (void*)1;
 	bio->bi_sector = PAGE_SIZE / 512 * i;
-	bio->bi_io_vec[0].bv_page = NULL;
-	bio->bi_io_vec[0].bv_len = PAGE_SIZE;
-	bio->bi_io_vec[0].bv_offset = 0;
-	bio->bi_io_vec[1].bv_page = NULL;
-	bio->bi_io_vec[1].bv_len = PAGE_SIZE;
-	bio->bi_io_vec[1].bv_offset = 0;
 	bio->bi_vcnt = 2;
 	bio->bi_size = bio->bi_vcnt * PAGE_SIZE;
 
