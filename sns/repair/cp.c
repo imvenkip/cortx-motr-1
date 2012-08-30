@@ -29,6 +29,11 @@
   @{
 */
 
+static bool repair_cp_invariant(const struct c2_cm_cp *cp)
+{
+	return true;
+}
+
 static int repair_cp_init(struct c2_cm_cp *cp)
 {
 	struct c2_sns_repair_cm *rcm;
@@ -85,16 +90,25 @@ static void repair_cp_complete(struct c2_cm_cp *cp)
 {
 }
 
+static int repair_cp_tick(struct c2_cm_cp *cp)
+{
+	return 0;
+}
+
 const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
-	.co_action[C2_CCP_INIT]  = &repair_cp_init,
-	.co_action[C2_CCP_READ]  = &repair_cp_read,
-	.co_action[C2_CCP_WRITE] = &repair_cp_write,
-	.co_action[C2_CCP_XFORM] = &repair_cp_xform,
-	.co_action[C2_CCP_SEND]  = &repair_cp_send,
-	.co_action[C2_CCP_RECV]  = &repair_cp_recv,
-	.co_action[C2_CCP_FINI]  = &repair_cp_fini,
-	.co_complete		 = &repair_cp_complete,
-	.co_phase		 = &repair_cp_phase
+	.co_action = {
+		[C2_CCP_INIT]  = &repair_cp_init,
+		[C2_CCP_READ]  = &repair_cp_read,
+		[C2_CCP_WRITE] = &repair_cp_write,
+		[C2_CCP_XFORM] = &repair_cp_xform,
+		[C2_CCP_SEND]  = &repair_cp_send,
+		[C2_CCP_RECV]  = &repair_cp_recv,
+		[C2_CCP_FINI]  = &repair_cp_fini
+	},
+	.co_complete	       = &repair_cp_complete,
+	.co_phase	       = &repair_cp_phase,
+	.co_tick	       = &repair_cp_tick,
+	.co_invariant	       = &repair_cp_invariant
 };
 
 /** @} SNSRepairCP */

@@ -602,6 +602,14 @@ int c2_cm_done(struct c2_cm *cm)
 	return 0;
 }
 
+void c2_cm_sw_fill(struct c2_cm *cm)
+{
+	struct c2_cm_cp *cp;
+
+	while ((cp = cm->cm_ops->cmo_cp_alloc(cm)) != NULL)
+	       c2_cm_cp_enqueue(cm, cp);
+}
+
 /** @} endgroup cm */
 
 /*

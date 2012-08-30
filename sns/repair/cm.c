@@ -396,7 +396,7 @@ static int cm_start(struct c2_cm *cm)
 	 * size, calculate the minimum sliding window size within the cluster, update
 	 * local sliding window size and create copy packets accordingly.
 	 */
-	c2_cm_cp_create(cm);
+	c2_cm_sw_fill(cm);
 
 	C2_LEAVE();
 	return 0;

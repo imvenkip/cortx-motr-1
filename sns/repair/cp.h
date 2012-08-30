@@ -34,29 +34,17 @@
 
 /**
  * In addition to c2_cm_cp_phase, these phases can be used. Transition between
- * non-standard phase handled by phase specific code and not by next phase
- * function (co_phase()). This also helps identifying specific operation as
- * follows:
- *
- * @code
- *
- * if (fom->fo_phase == C2_CCP_READ && rcp->rc_phase == SRP_IO_WAIT)
- *	 This helps to identify that wait was for read IO.
- *
- * @endcode
- *
+ * non-standard phases too handled by specific implementation of next phase
+ * function.
  */
 enum c2_sns_repair_phase {
-        SRP_RESOURCE_WAIT = 1,
+        SRP_RESOURCE_WAIT = C2_CCP_NR + 1,
 	SRP_EXTENT_LOCK_WAIT,
         SRP_IO_WAIT
 };
 
 struct c2_sns_repair_cp {
 	struct c2_cm_cp		 rc_base;
-
-	/** SNS copy packet specific phases.*/
-	enum c2_sns_repair_phase rc_phase;
 
         /** The gob fid which this data belongs to. */
         struct c2_fid		 rc_gfid;
@@ -73,6 +61,9 @@ struct c2_sns_repair_cp {
 
         /** The extent in cob. */
         struct c2_ext		 rc_cext;
+
+        /** Set and used in case of read/write.*/
+        struct c2_stob_id	 rc_sid;
 };
 
 extern const struct c2_cm_cp_ops c2_sns_repair_cp_ops;
