@@ -20,9 +20,9 @@
  * Original creation date: 02/22/2012
  */
 
-#include "lib/errno.h"
-
+#include "lib/misc.h" /* c2_forall */
 #include "cm/cp.h"
+#include "cm/ag.h"
 #include "cm/cm.h"
 
 /**
@@ -143,8 +143,8 @@
  *   other replica, it can produce copy packets that replicas (including this
  *   one) are ready to process.
  *
- *      - start, replica should make sure that sliding window has enough packets
- *        for processing by creating them at start..
+ *      - replica start, it should make sure that sliding window has enough
+ *        packets for processing by creating them at start.
  *
  *      - has space, after completion of each copy packet, space in sliding
  *        window is checked. If space exists, then copy packets will be created.
@@ -320,6 +320,15 @@
  * @{
  */
 
+static const struct c2_bob_type cp_bob = {
+	.bt_name = "copy packet",
+	.bt_magix_offset = C2_MAGIX_OFFSET(struct c2_cm_cp, c_magix),
+	.bt_magix = 0xca5eb007d4011e51, /* casebook drollest */
+	.bt_check = NULL
+};
+
+C2_BOB_DEFINE(static, &cp_bob, c2_cm_cp);
+
 static const struct c2_fom_type_ops cp_fom_type_ops = {
         .fto_create = NULL
 };
@@ -349,15 +358,20 @@ static size_t cp_fom_locality(const struct c2_fom *fom)
         cp = container_of(fom, struct c2_cm_cp, c_fom);
         C2_PRE(c2_cm_cp_invariant(cp));
 
-        return 0;
+        return cp->c_ag->cag_id.u_lo;
 }
 
 static int cp_fom_tick(struct c2_fom *fom)
 {
         struct c2_cm_cp *cp = container_of(fom, struct c2_cm_cp, c_fom);
+	int		 phase = c2_fom_phase(fom);
 
         C2_PRE(c2_cm_cp_invariant(cp));
-	return cp->c_ops->co_action[c2_fom_phase(fom)](cp);
+
+	if (phase < C2_CCP_NR)
+		return cp->c_ops->co_action[phase](cp);
+	else
+		return cp->c_ops->co_tick(cp);
 }
 
 /** Copy packet FOM operations */
@@ -378,7 +392,8 @@ bool c2_cm_cp_invariant(struct c2_cm_cp *cp)
 {
 	int phase = c2_fom_phase(&cp->c_fom);
 
-	return cp->c_ops != NULL && cp->c_data != NULL && cp->c_ag != NULL &&
+	return c2_cm_cp_bob_check(cp) && cp->c_ops != NULL &&
+	       cp->c_data != NULL && cp->c_ag != NULL &&
 	       IS_IN_ARRAY(phase, cp->c_ops->co_action) &&
 	       cp->c_ops->co_invariant(cp);
 }
@@ -387,9 +402,12 @@ void c2_cm_cp_init(struct c2_cm_cp *cp, const struct c2_cm_cp_ops *ops,
 		   struct c2_bufvec *buf)
 {
 	C2_PRE(cp != NULL && ops != NULL && buf != NULL);
+	C2_PRE(c2_forall(i, ARRAY_SIZE(ops->co_action),
+			 ops->co_action[i] != NULL));
 
 	cp->c_ops = ops;
 	cp->c_data = buf;
+	c2_cm_cp_bob_init(cp);
 	c2_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL);
 
 	C2_POST(c2_cm_cp_invariant(cp));
@@ -398,25 +416,11 @@ void c2_cm_cp_init(struct c2_cm_cp *cp, const struct c2_cm_cp_ops *ops,
 void c2_cm_cp_fini(struct c2_cm_cp *cp)
 {
 	c2_fom_fini(&cp->c_fom);
+	c2_cm_cp_bob_fini(cp);
 }
 
 void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
-}
-
-int c2_cm_cp_create(struct c2_cm *cm)
-{
-	struct c2_cm_cp *cp;
-	struct c2_cm_sw *sw = &cm->cm_sw;
-
-	while (sw->sw_ops->swo_has_space(sw)) {
-	       cp = cm->cm_ops->cmo_cp_alloc(cm);
-	       if (cp == NULL)
-		   return -ENOENT;
-	       c2_cm_cp_enqueue(cm, cp);
-        }
-
-	return 0;
 }
 
 /** @} end-of-CPDLD */

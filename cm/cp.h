@@ -109,7 +109,7 @@ enum c2_cm_cp_phase {
 	/** Received packet from network.*/
 	C2_CCP_RECV,
 
-	C2_CCP_PHASE_NR
+	C2_CCP_NR
 };
 
 /** Generic copy packet structure.*/
@@ -145,7 +145,7 @@ struct c2_cm_cp {
  */
 struct c2_cm_cp_ops {
 	/** Per phase action for copy packet */
-	int  (*co_action[C2_CCP_PHASE_NR]) (struct c2_cm_cp *cp);
+	int  (*co_action[C2_CCP_NR]) (struct c2_cm_cp *cp);
 
 	/** Called when copy packet processing is completed successfully.*/
 	void (*co_complete) (struct c2_cm_cp *cp);
@@ -159,6 +159,9 @@ struct c2_cm_cp_ops {
 
 	/** Specific copy packet invariant.*/
 	bool (*co_invariant) (const struct c2_cm_cp *cp);
+
+	/** Handles non-generic phases.*/
+	int  (*co_tick) (struct c2_cm_cp *cp);
 };
 
 /**
@@ -181,8 +184,6 @@ void c2_cm_cp_fini(struct c2_cm_cp *cp);
 void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp);
 
 bool c2_cm_cp_invariant(struct c2_cm_cp *cp);
-
-int c2_cm_cp_create(struct c2_cm *cm);
 
 /**
  @}

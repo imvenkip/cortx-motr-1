@@ -29,6 +29,7 @@
 #include <lib/misc.h>   /* C2_SET0() */
 #include <lib/assert.h> /* C2_PRE(), C2_POST() */
 #include <cm/cm.h>
+#include <cm/cp.h>
 #include <reqh/reqh.h>
 
 /**
@@ -624,6 +625,14 @@ int c2_cm_failure_handle(struct c2_cm *cm)
 int c2_cm_done(struct c2_cm *cm)
 {
 	return 0;
+}
+
+void c2_cm_sw_fill(struct c2_cm *cm)
+{
+	struct c2_cm_cp *cp;
+
+	while ((cp = cm->cm_ops->cmo_cp_alloc(cm)) != NULL)
+	       c2_cm_cp_enqueue(cm, cp);
 }
 
 /** @} endgroup cm */

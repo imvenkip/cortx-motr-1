@@ -90,6 +90,11 @@ static void repair_cp_complete(struct c2_cm_cp *cp)
 {
 }
 
+static int repair_cp_tick(struct c2_cm_cp *cp)
+{
+	return 0;
+}
+
 const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
 	.co_action = {
 		[C2_CCP_INIT]  = &repair_cp_init,
@@ -102,6 +107,7 @@ const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
 	},
 	.co_complete	       = &repair_cp_complete,
 	.co_phase	       = &repair_cp_phase,
+	.co_tick	       = &repair_cp_tick,
 	.co_invariant	       = &repair_cp_invariant
 };
 
