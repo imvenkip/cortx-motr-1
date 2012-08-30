@@ -23,13 +23,12 @@
 #include <config.h>
 #endif
 
-#include <lib/arith.h>  /* c2_u128() */
-#include <lib/trace.h>  /* C2_LOG() */
-#include <lib/bob.h>    /* C2_BOB_DEFINE */
-#include <lib/misc.h>   /* C2_SET0() */
-#include <lib/assert.h> /* C2_PRE(), C2_POST() */
-#include <cm/cm.h>
-#include <reqh/reqh.h>
+#include "lib/trace.h"  /* C2_LOG */
+#include "lib/bob.h"    /* C2_BOB_DEFINE */
+#include "lib/misc.h"   /* C2_SET0 */
+#include "lib/assert.h" /* C2_PRE, C2_POST */
+#include "cm/cm.h"
+#include "reqh/reqh.h"
 
 /**
    @page CMDLD Copy Machine DLD
@@ -204,7 +203,7 @@ C2_TL_DESCR_DEFINE(cmtypes, "copy machine types", ,
                    struct c2_cm_type, ct_linkage, ct_magix,
                    CM_TYPE_LINK_MAGIX, CM_TYPE_HEAD_MAGIX);
 
-C2_TL_DEFINE(cmtypes, , struct c2_cm_type);
+C2_TL_DEFINE(cmtypes, static, struct c2_cm_type);
 
 static struct c2_bob_type cmtypes_bob;
 C2_BOB_DEFINE( , &cmtypes_bob, c2_cm_type);
@@ -236,69 +235,46 @@ const struct c2_sm_state_descr c2_cm_state_descr[C2_CMS_NR] = {
 	[C2_CMS_INIT] = {
 		.sd_flags	= C2_SDF_INITIAL,
 		.sd_name	= "cm_init",
-		.sd_in		= NULL,
-		.sd_ex		= NULL,
-		.sd_invariant	= NULL,
-		.sd_allowed	= (1 << C2_CMS_IDLE)|(1 << C2_CMS_FAIL)|
-				  (1 << C2_CMS_FINI)
+		.sd_allowed	= C2_BITS(C2_CMS_IDLE, C2_CMS_FAIL)
+		//C2_CMS_FINI);
 	},
 	[C2_CMS_IDLE] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_idle",
-		.sd_in		= NULL,
-		.sd_ex		= NULL,
-		.sd_invariant	= NULL,
 		.sd_allowed	= (1 << C2_CMS_FAIL)|(1 << C2_CMS_READY)|
 				  (1 << C2_CMS_STOP) | (1 << C2_CMS_FINI)
 	},
 	[C2_CMS_READY] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_ready",
-		.sd_in		= NULL,
-		.sd_ex		= NULL,
-		.sd_invariant	= NULL,
 		.sd_allowed	= (1 << C2_CMS_ACTIVE)|(1 << C2_CMS_FAIL)
 	},
 	[C2_CMS_ACTIVE] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_active",
-		.sd_in		= NULL,
-		.sd_ex		= NULL,
-		.sd_invariant	= NULL,
 		.sd_allowed	= (1 << C2_CMS_DONE)|(1 << C2_CMS_STOP)|
 				  (1 << C2_CMS_FAIL)
 	},
 	[C2_CMS_FAIL] = {
 		.sd_flags	= C2_SDF_FAILURE,
 		.sd_name	= "cm_fail",
-		.sd_in		= NULL,
 		.sd_ex		= failure_exit,
-		.sd_invariant	= NULL,
 		.sd_allowed	= (1 << C2_CMS_IDLE)|(1 << C2_CMS_FINI)
 	},
 	[C2_CMS_DONE] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_done",
-		.sd_in		= NULL,
-		.sd_ex		= NULL,
-		.sd_invariant	= NULL,
 		.sd_allowed	= (1 << C2_CMS_FAIL)|(1 << C2_CMS_IDLE)
 	},
 	[C2_CMS_STOP] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_stop",
-		.sd_in		= NULL,
-		.sd_ex		= NULL,
-		.sd_invariant	= NULL,
 		.sd_allowed	= (1 << C2_CMS_FAIL)|(1 << C2_CMS_IDLE)|
 				  (1 << C2_CMS_FINI)
 	},
 	[C2_CMS_FINI] = {
 		.sd_flags	= C2_SDF_TERMINAL,
 		.sd_name	= "cm_fini",
-		.sd_in		= NULL,
-		.sd_ex		= NULL,
-		.sd_invariant	= NULL,
 		.sd_allowed	= 0
 	},
 };
