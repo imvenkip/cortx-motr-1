@@ -20,9 +20,9 @@
  * Original creation date: 02/22/2012
  */
 
-#include "lib/errno.h"
-
+#include "lib/misc.h" /* c2_forall */
 #include "cm/cp.h"
+#include "cm/ag.h"
 #include "cm/cm.h"
 
 /**
@@ -53,7 +53,7 @@
  *
  *   Copy packet processing logic is implemented in non-blocking way. Packet has
  *   buffers to carry data and FOM for execution in context of request handler.
- *   It can perform various kind of work which depends on the it's stage
+ *   It can perform various kind of work which depends on the it's phase
  *   (i.e. FOM phase) in execution.
  *
  *   <hr>
@@ -139,19 +139,18 @@
  *
  *   <b>Copy packet creation:</b>
  *   Given the size of the buffer pool, the replica calculates its initial
- *   sliding window (see c2_cm_sw) size. Once the replica learns window sizes
- *   of every other replica, it can produce copy packets that replicas
- *   (including this one) are ready to process.
+ *   sliding window (see c2_cm_sw). Once the replica learns window of every
+ *   other replica, it can produce copy packets that replicas (including this
+ *   one) are ready to process.
  *
- *      - start, device failure triggers copy machine data re-structuring
- *        and it should make sure that sliding windows has enough packets
- *        for processing by creating them at start of operation.
+ *      - replica start, it should make sure that sliding window has enough
+ *        packets for processing by creating them at start.
  *
  *      - has space, after completion of each copy packet, space in sliding
  *        window is checked. If space exists, then copy packets will be created.
  *
  *   <b>Copy Packet destruction:</b>
- *   Copy packet is destroyed by setting it's phase to FINI. Following are some
+ *   Copy packet is destroyed by setting its phase to FINI. Following are some
  *   cases where copy packet is finalised.
  *
  *	- On notification of copy packet data written to device/container.
@@ -171,10 +170,10 @@
  *	  aggregation group have been received.
  *
  *   The same copy packet (and its associated buffers) will go through various
- *   stages. Data read from device creates a copy packet, then copy packet
- *   transitions to data transformation phase, which, after reconstructing the
- *   data, transitions to data write or send, which submits IO. On IO
- *   completion, the copy packet is destroyed.
+ *   phases. In a perticular scenario where data read from device creates a
+ *   copy packet, then copy packet transitions to data transformation phase,
+ *   which, after reconstructing the data, transitions to data write or send,
+ *   which submits IO. On IO completion, the copy packet is destroyed.
  *
  *   At the re-structuring start time, replica is given a certain (configurable)
  *   amount of memory. This memory is allocated by copy machine buffer pool and
@@ -182,15 +181,13 @@
  *   happens.
  *
  *   Given the size of the buffer pool, the replica calculates its initial
- *   sliding window size.
- *
- *   Once the replica learns window sizes of every other replica, it can
- *   activates copy packet FOMs. Copy machine replica submits copy packets FOMs
- *   to request handler.
+ *   sliding window. Once the replica learns window of every other replica, it
+ *   can activates copy packet FOMs. Copy machine replica submits copy packets
+ *   FOMs to request handler.
  *
  *   @subsection CPDLD-lspec-state State Specification
  *
- *   <b>Copy packet is a state machine, goes through following stages:</b>
+ *   <b>Copy packet is a state machine that goes through following phases:</b>
  *
  *   - @b INIT   Copy packet gets initialised with input data. e.g In SNS,
  *		 extent, COB, &c gets initialised. Usually this will be done
@@ -225,11 +222,11 @@
  *
  *   - @b FINI  Finalises copy packet.
  *
- *   Specific copy packet can have states/phases in addition to these phases.
- *   Additional states may be used to do processing under one of above phases.
- *   Handling of additional stages/states is done by specific code.
+ *   Specific copy packet can have phases in addition to these phases.
+ *   Additional phases may be used to do processing under one of above phases.
+ *   Handling of additional phases is done by specific code.
  *
- *   Transition of standard phases is done by next phase function. It will
+ *   Transition between standard phases is done by next phase function. It will
  *   produce the next phase according to the configuration of the copy machine
  *   and the copy packet itself.
  *
@@ -323,6 +320,15 @@
  * @{
  */
 
+static const struct c2_bob_type cp_bob = {
+	.bt_name = "copy packet",
+	.bt_magix_offset = C2_MAGIX_OFFSET(struct c2_cm_cp, c_magix),
+	.bt_magix = 0xca5eb007d4011e51, /* casebook drollest */
+	.bt_check = NULL
+};
+
+C2_BOB_DEFINE(static, &cp_bob, c2_cm_cp);
+
 static const struct c2_fom_type_ops cp_fom_type_ops = {
         .fto_create = NULL
 };
@@ -342,7 +348,7 @@ static void cp_fom_fini(struct c2_fom *fom)
          * with copy packet.
          */
 	c2_cm_cp_fini(cp);
-	/*todo It will check for has_space if yes call packet creating logic.*/
+	/*@todo It will check for has_space if yes call packet creating logic.*/
 }
 
 static size_t cp_fom_locality(const struct c2_fom *fom)
@@ -358,9 +364,14 @@ static size_t cp_fom_locality(const struct c2_fom *fom)
 static int cp_fom_tick(struct c2_fom *fom)
 {
         struct c2_cm_cp *cp = container_of(fom, struct c2_cm_cp, c_fom);
+	int		 phase = c2_fom_phase(fom);
 
         C2_PRE(c2_cm_cp_invariant(cp));
-	return cp->c_ops->co_action[c2_fom_phase(fom)](cp);
+
+	if (phase < C2_CCP_NR)
+		return cp->c_ops->co_action[phase](cp);
+	else
+		return cp->c_ops->co_tick(cp);
 }
 
 /** Copy packet FOM operations */
@@ -381,20 +392,22 @@ bool c2_cm_cp_invariant(struct c2_cm_cp *cp)
 {
 	int phase = c2_fom_phase(&cp->c_fom);
 
-	return cp->c_ops != NULL && cp->c_data != NULL &&
-	       (phase == C2_FOM_PHASE_INIT || (phase >= C2_CCP_INIT &&
-					       phase <= C2_CCP_FINI)) &&
-	       ergo(phase > C2_CCP_INIT && phase <= C2_CCP_FINI,
-		    c2_stob_id_is_set(&cp->c_id) && cp->c_ag != NULL);
+	return c2_cm_cp_bob_check(cp) && cp->c_ops != NULL &&
+	       cp->c_data != NULL && cp->c_ag != NULL &&
+	       IS_IN_ARRAY(phase, cp->c_ops->co_action) &&
+	       cp->c_ops->co_invariant(cp);
 }
 
 void c2_cm_cp_init(struct c2_cm_cp *cp, const struct c2_cm_cp_ops *ops,
 		   struct c2_bufvec *buf)
 {
 	C2_PRE(cp != NULL && ops != NULL && buf != NULL);
+	C2_PRE(c2_forall(i, ARRAY_SIZE(ops->co_action),
+			 ops->co_action[i] != NULL));
 
 	cp->c_ops = ops;
 	cp->c_data = buf;
+	c2_cm_cp_bob_init(cp);
 	c2_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL);
 
 	C2_POST(c2_cm_cp_invariant(cp));
@@ -403,6 +416,7 @@ void c2_cm_cp_init(struct c2_cm_cp *cp, const struct c2_cm_cp_ops *ops,
 void c2_cm_cp_fini(struct c2_cm_cp *cp)
 {
 	c2_fom_fini(&cp->c_fom);
+	c2_cm_cp_bob_fini(cp);
 }
 
 void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp)

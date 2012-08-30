@@ -328,6 +328,8 @@ bool c2_cm_invariant(const struct c2_cm *cm);
 void c2_cm_state_set(struct c2_cm *cm, enum c2_cm_state state);
 enum c2_cm_state c2_cm_state_get(const struct c2_cm *cm);
 
+void c2_cm_sw_fill(struct c2_cm *cm);
+
 /** @} endgroup cm */
 
 /* __COLIBRI_CM_CM_H__ */

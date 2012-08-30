@@ -26,7 +26,7 @@
 
 #include "lib/vec.h"
 
-#include "fop/fom.h"
+#include "fop/fom_generic.h"
 #include "rpc/bulk.h"
 
 /**
@@ -37,22 +37,22 @@
  * - @ref CP "Copy Packet Functional Specification" <!-- Note link -->
  *
  * @section CPDLD-fspec-ds Data Structures
- *	- c2_cm_cp  : Generic copy packet.
- *	- c2_cm_ops : Copy packet operations.
+ *	- @b c2_cm_cp  : Generic copy packet.
+ *	- @b c2_cm_ops : Copy packet operations.
  * @section CPDLD-fspec-sub Subroutines
- *	- c2_cm_cp_init()    : Initialises copy packet members and calls
+ *	- @b c2_cm_cp_init() : Initialises copy packet members and calls
  *			       c_ops->init() to initialise specific data.
- *	- c2_cm_cp_fini()    : Finalises copy packet members and calls
+ *	- @b c2_cm_cp_fini() : Finalises copy packet members and calls
  *			       c_ops->fini() internal to finalise specific data.
- *	- c2_cm_cp_enqueue() : Posts copy packet FOM for execution.
+ *	- @b c2_cm_cp_enqueue() : Posts copy packet FOM for execution.
  *
  * @subsection CPDLD-fspec-sub-acc Accessors and Invariants
- *	- c2_cm_cp_invaraint()
+ *	- @b c2_cm_cp_invaraint()
  *
  * @subsection CPDLD-fspec-sub-opi Operational Interfaces
- *	- cp_fom_fini()
- *	- cp_fom_locality()
- *	- cp_fom_state()
+ *	- @b cp_fom_fini()
+ *	- @b cp_fom_locality()
+ *	- @b cp_fom_state()
  *
  *	@see @ref CP
  */
@@ -83,15 +83,16 @@ enum c2_cm_cp_priority {
 	C2_CM_CP_PRIORITY_NR
 };
 
-/**
- * Copy packet FOM generic phases.
- *
- * Packet's FOM doesn't use standard phases, but don't step on C2_FOPH_FINISH
- * which has special meaning in fom.c.
- */
+/** Copy packet FOM generic phases.*/
 enum c2_cm_cp_phase {
 	/** Copy packet specific initialisation.*/
-	C2_CCP_INIT = C2_FOM_PHASE_NR + 1,
+	C2_CCP_INIT = C2_FOM_PHASE_INIT,
+
+	/**
+	 * Releases resources associated with the packet, finalises members
+	 * and free the packet.
+	 */
+	C2_CCP_FINI,
 
 	/** Read and fill up the packet.*/
 	C2_CCP_READ,
@@ -108,13 +109,7 @@ enum c2_cm_cp_phase {
 	/** Received packet from network.*/
 	C2_CCP_RECV,
 
-	/**
-	 * Releases resources associated with the packet, finalises members
-	 * and free the packet.
-	 */
-	C2_CCP_FINI,
-
-	C2_CM_CP_PHASE_NR
+	C2_CCP_NR
 };
 
 /** Generic copy packet structure.*/
@@ -127,9 +122,6 @@ struct c2_cm_cp {
 	/** Copy packet operations */
 	const struct c2_cm_cp_ops *c_ops;
 
-	/** Set and used in case of read/write.*/
-	struct c2_stob_id	   c_id;
-
         /** Aggregation group to which this copy packet belongs.*/
         struct c2_cm_aggr_group   *c_ag;
 
@@ -141,6 +133,8 @@ struct c2_cm_cp {
 
 	/** Set and used in case of network send/recv.*/
 	struct c2_rpc_bulk	   c_bulk;
+
+	uint64_t		   c_magix;
 };
 
 /**
@@ -151,7 +145,7 @@ struct c2_cm_cp {
  */
 struct c2_cm_cp_ops {
 	/** Per phase action for copy packet */
-	int  (*co_action[C2_CM_CP_PHASE_NR]) (struct c2_cm_cp *cp);
+	int  (*co_action[C2_CCP_NR]) (struct c2_cm_cp *cp);
 
 	/**
 	 * Calculates identifier based on copy packet details, used to identify
@@ -159,15 +153,21 @@ struct c2_cm_cp_ops {
 	 */
 	uint64_t (*co_home_loc_helper) (struct c2_cm_cp *cp);
 
+	/** Called when copy packet processing is completed successfully. */
+	void (*co_complete) (struct c2_cm_cp *cp);
+
 	/**
 	 * Changes copy packet phase based on current phase and layout
-	 * information. FOM pahse should be set internally and should return
-	 * C2_FSO_WAIT or C2_FSO_AGAIN.
+	 * information. This function should set FOM phase internally and return
+	 * @b C2_FSO_WAIT or @b C2_FSO_AGAIN.
 	 */
 	int  (*co_phase_next) (struct c2_cm_cp *cp);
 
-	/** Called when copy packet processing is completed successfully.*/
-	void (*co_complete) (struct c2_cm_cp *cp);
+	/** Specific copy packet invariant.*/
+	bool (*co_invariant) (const struct c2_cm_cp *cp);
+
+	/** Handles non-generic phases.*/
+	int  (*co_tick) (struct c2_cm_cp *cp);
 };
 
 /**
@@ -190,8 +190,6 @@ void c2_cm_cp_fini(struct c2_cm_cp *cp);
 void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp);
 
 bool c2_cm_cp_invariant(struct c2_cm_cp *cp);
-
-int c2_cm_cp_create(struct c2_cm *cm);
 
 /**
  @}

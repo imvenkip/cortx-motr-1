@@ -29,6 +29,7 @@
 #include <lib/misc.h>   /* C2_SET0() */
 #include <lib/assert.h> /* C2_PRE(), C2_POST() */
 #include <cm/cm.h>
+#include <cm/cp.h>
 #include <reqh/reqh.h>
 
 /**
