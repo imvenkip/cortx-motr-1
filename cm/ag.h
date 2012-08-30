@@ -23,6 +23,7 @@
 #ifndef __COLIBRI_CM_AG_H__
 #define __COLIBRI_CM_AG_H__
 
+#include "lib/atomic.h"
 #include "lib/types.h"
 #include "lib/tlist.h"
 #include "lib/mutex.h"
@@ -47,10 +48,10 @@ struct c2_cm_aggr_group {
 	const struct c2_cm_aggr_group_ops *cag_ops;
 
 	/** Number of copy packets that correspond to this aggregation group. */
-	uint64_t                           cag_cp_nr;
+	int64_t                            cag_cp_nr;
 
 	/** Number of copy packets that are transformed. */
-	uint64_t                           cag_transformed_cp_nr;
+	struct c2_atomic64                 cag_transformed_cp_nr;
 
 	/**
 	 * Linkage into the sorted sliding window queue of aggregation group

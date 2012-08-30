@@ -28,7 +28,7 @@
 #include "sns/parity_math.h"
 
 /**
- * @addtogroup snsrepair
+ * @addtogroup SNSRepairCP
  * @{
  */
 
@@ -112,7 +112,7 @@ int repair_cp_xform(struct c2_cm_cp *cp)
 		 * Value of collected copy packets is zero at this stage, hence
 		 * incrementing it will work fine.
 		 */
-                C2_CNT_INC(ag->cag_transformed_cp_nr);
+                c2_atomic64_inc(&ag->cag_transformed_cp_nr);
 
 		/*
 		 * Put this copy packet to wait queue of request handler till
@@ -128,8 +128,9 @@ int repair_cp_xform(struct c2_cm_cp *cp)
 		 * manipulation like growing or shrinking the buffers.
 		 */
                 bufvec_xor(res_cp->c_data, cp->c_data, cp_bufvec_size);
-                C2_CNT_INC(ag->cag_transformed_cp_nr);
-		C2_ASSERT(ag->cag_cp_nr >= ag->cag_transformed_cp_nr);
+                c2_atomic64_inc(&ag->cag_transformed_cp_nr);
+		C2_ASSERT(ag->cag_cp_nr >=
+			  c2_atomic64_get(&ag->cag_transformed_cp_nr));
                 /*
                  * Once transformation is complete, mark the copy
                  * packet's fom's sm state to C2_CCP_FINI since it is not
@@ -142,7 +143,8 @@ int repair_cp_xform(struct c2_cm_cp *cp)
                  * move the resultant copy packet's fom from waiting to ready
                  * queue.
                  */
-                if(ag->cag_cp_nr == ag->cag_transformed_cp_nr) {
+                if(ag->cag_cp_nr ==
+		   c2_atomic64_get(&ag->cag_transformed_cp_nr)) {
                         res_cp->c_ops->co_phase(res_cp);
 			c2_fom_wakeup(&res_cp->c_fom);
 		}
@@ -150,7 +152,7 @@ int repair_cp_xform(struct c2_cm_cp *cp)
         }
 }
 
-/** @} snsrepair */
+/** @} SNSRepairCP */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

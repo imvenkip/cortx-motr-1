@@ -41,14 +41,14 @@ static struct c2_reqh	       reqh;
 /**
  * Global structures for single copy packet test.
  */
-static struct c2_sns_repair_ag s_sns_ag;
+static struct c2_sns_repair_ag s_sag;
 static struct c2_cm_cp         s_cp;
 static struct c2_bufvec        s_bv;
 
 /**
  * Global structures for multiple copy packet test.
  */
-static struct c2_sns_repair_ag m_sns_ag;
+static struct c2_sns_repair_ag m_sag;
 static struct c2_cm_cp         m_cp[CP_MULTI];
 static struct c2_bufvec        m_bv[CP_MULTI];
 
@@ -170,9 +170,18 @@ static int dummy_fom_tick(struct c2_fom *fom)
 	}
 }
 
-static void dummy_fom_fini(struct c2_fom *fom)
+static void single_cp_fom_fini(struct c2_fom *fom)
 {
 	struct c2_cm_cp *cp = container_of(fom, struct c2_cm_cp, c_fom);
+
+	bv_free(cp->c_data);
+	c2_cm_cp_fini(cp);
+}
+
+static void multiple_cp_fom_fini(struct c2_fom *fom)
+{
+	struct c2_cm_cp *cp = container_of(fom, struct c2_cm_cp, c_fom);
+
 	bv_free(cp->c_data);
 	c2_cm_cp_fini(cp);
 }
@@ -180,15 +189,24 @@ static void dummy_fom_fini(struct c2_fom *fom)
 /**
  * Over-ridden copy packet FOM ops.
  */
-static const struct c2_fom_ops cp_fom_ops = {
-        .fo_fini          = dummy_fom_fini,
+static struct c2_fom_ops single_cp_fom_ops = {
+        .fo_fini          = single_cp_fom_fini,
+        .fo_tick          = dummy_fom_tick,
+        .fo_home_locality = dummy_fom_locality
+};
+
+/**
+ * Over-ridden copy packet FOM ops.
+ */
+static struct c2_fom_ops multiple_cp_fom_ops = {
+        .fo_fini          = multiple_cp_fom_fini,
         .fo_tick          = dummy_fom_tick,
         .fo_home_locality = dummy_fom_locality
 };
 
 static void cp_prepare(struct c2_cm_cp *cp, struct c2_bufvec *bv,
 		       struct c2_sns_repair_ag *sns_ag,
-		       char data)
+		       char data, struct c2_fom_ops *cp_fom_ops)
 {
 	C2_UT_ASSERT(cp != NULL);
 	C2_UT_ASSERT(bv != NULL);
@@ -197,7 +215,7 @@ static void cp_prepare(struct c2_cm_cp *cp, struct c2_bufvec *bv,
 	bv_populate(bv, data);
 	cp->c_ag = &sns_ag->sag_base;
 	c2_cm_cp_init(cp, &cp_ops, bv);
-	cp->c_fom.fo_ops = &cp_fom_ops;
+	cp->c_fom.fo_ops = cp_fom_ops;
 	/** Required to pass the fom invariant */
 	cp->c_fom.fo_fop = (void *)1;
 }
@@ -208,9 +226,24 @@ static void cp_prepare(struct c2_cm_cp *cp, struct c2_bufvec *bv,
  */
 static void test_single_cp(void)
 {
-	cp_prepare(&s_cp, &s_bv, &s_sns_ag, 'e');
+	c2_atomic64_set(&s_sag.sag_base.cag_transformed_cp_nr, 0);
+	cp_prepare(&s_cp, &s_bv, &s_sag, 'e', &single_cp_fom_ops);
 	s_cp.c_ag->cag_ops = &group_single_ops;
 	c2_fom_queue(&s_cp.c_fom, &reqh);
+
+	/**
+	 * Wait until all the foms in the request handler locality runq are
+	 * processed. This is required for further validity checks.
+	 */
+	c2_reqh_shutdown_wait(&reqh);
+
+	/**
+	 * These asserts ensure that the single copy packet has been treated
+	 * as passthrough.
+	 */
+        C2_UT_ASSERT(c2_atomic64_get(&s_sag.sag_base.cag_transformed_cp_nr) ==
+		     0);
+        C2_UT_ASSERT(s_sag.sag_base.cag_cp_nr == 1);
 }
 
 /**
@@ -220,12 +253,27 @@ static void test_single_cp(void)
 static void test_multiple_cp(void)
 {
 	int i;
-
+	c2_atomic64_set(&m_sag.sag_base.cag_transformed_cp_nr, 0);
 	for (i = 0; i < CP_MULTI; ++i) {
-		cp_prepare(&m_cp[i], &m_bv[i], &m_sns_ag, 'r');
+		cp_prepare(&m_cp[i], &m_bv[i], &m_sag, 'r',
+			   &multiple_cp_fom_ops);
 		m_cp[i].c_ag->cag_ops = &group_multi_ops;
 		c2_fom_queue(&m_cp[i].c_fom, &reqh);
 	}
+
+	/**
+	 * Wait until the fom in the request handler locality runq is
+	 * processed. This is required for further validity checks.
+	 */
+	c2_reqh_shutdown_wait(&reqh);
+
+	/**
+	 * These asserts ensure that all the copy packets have been collected
+	 * by the transformation function.
+	 */
+        C2_UT_ASSERT(c2_atomic64_get(&m_sag.sag_base.cag_transformed_cp_nr) ==
+		     CP_MULTI);
+	C2_UT_ASSERT(m_sag.sag_base.cag_cp_nr == CP_MULTI);
 }
 
 /**
@@ -240,26 +288,7 @@ static int xform_init(void)
 
 static int xform_fini(void)
 {
-	/**
-	 * Wait until all the foms in the request handler locality runq are
-	 * processed.
-	 */
-	c2_reqh_shutdown_wait(&reqh);
 	c2_reqh_fini(&reqh);
-
-	/**
-	 * These asserts ensure that the single copy packet has been treated
-	 * as passthrough.
-	 */
-        C2_ASSERT(s_sns_ag.sag_base.cag_transformed_cp_nr == 0);
-        C2_ASSERT(s_sns_ag.sag_base.cag_cp_nr == 1);
-
-	/**
-	 * These asserts ensure that all the copy packets have been collected
-	 * by the transformation function.
-	 */
-        C2_ASSERT(m_sns_ag.sag_base.cag_transformed_cp_nr == CP_MULTI);
-	C2_ASSERT(m_sns_ag.sag_base.cag_cp_nr == CP_MULTI);
 
 	return 0;
 }
