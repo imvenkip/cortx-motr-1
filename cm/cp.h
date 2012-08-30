@@ -153,15 +153,21 @@ struct c2_cm_cp_ops {
 	/** Per phase action for copy packet */
 	int  (*co_action[C2_CM_CP_PHASE_NR]) (struct c2_cm_cp *cp);
 
-	/** Called when copy packet processing is completed successfully.*/
-	void (*co_complete) (struct c2_cm_cp *cp);
+	/**
+	 * Calculates identifier based on copy packet details, used to identify
+	 * copy packet FOM's home locality. This is specific to copy machine.
+	 */
+	uint64_t (*co_home_loc_helper) (struct c2_cm_cp *cp);
 
 	/**
 	 * Changes copy packet phase based on current phase and layout
 	 * information. FOM pahse should be set internally and should return
 	 * C2_FSO_WAIT or C2_FSO_AGAIN.
 	 */
-	int  (*co_phase) (struct c2_cm_cp *cp);
+	int  (*co_phase_next) (struct c2_cm_cp *cp);
+
+	/** Called when copy packet processing is completed successfully.*/
+	void (*co_complete) (struct c2_cm_cp *cp);
 };
 
 /**

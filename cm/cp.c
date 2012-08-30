@@ -352,7 +352,7 @@ static size_t cp_fom_locality(const struct c2_fom *fom)
         cp = container_of(fom, struct c2_cm_cp, c_fom);
         C2_PRE(c2_cm_cp_invariant(cp));
 
-        return 0;
+        return cp->c_ops->co_home_loc_helper(cp);
 }
 
 static int cp_fom_tick(struct c2_fom *fom)
@@ -407,21 +407,6 @@ void c2_cm_cp_fini(struct c2_cm_cp *cp)
 
 void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
-}
-
-int c2_cm_cp_create(struct c2_cm *cm)
-{
-	struct c2_cm_cp *cp;
-	struct c2_cm_sw *sw = &cm->cm_sw;
-
-	while (sw->sw_ops->swo_has_space(sw)) {
-	       cp = cm->cm_ops->cmo_cp_alloc(cm);
-	       if (cp == NULL)
-		   return -ENOENT;
-	       c2_cm_cp_enqueue(cm, cp);
-        }
-
-	return 0;
 }
 
 /** @} end-of-CPDLD */

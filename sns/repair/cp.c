@@ -29,7 +29,14 @@
   @{
 */
 
-static int repair_cp_init(struct c2_cm_cp *cp)
+static size_t cp_home_loc_helper(struct c2_cm_cp *cp)
+{
+	C2_PRE(cp->c_ag != NULL);
+
+	return cp->c_ag->cag_id.u_lo;
+}
+
+static int cp_init(struct c2_cm_cp *cp)
 {
 	struct c2_sns_repair_cm *rcm;
 
@@ -38,11 +45,11 @@ static int repair_cp_init(struct c2_cm_cp *cp)
 	return C2_FSO_AGAIN;
 }
 
-static int repair_cp_fini(struct c2_cm_cp *cp)
+static int cp_fini(struct c2_cm_cp *cp)
 {
-	struct c2_sns_repair_cp	*rcp;
+	struct c2_sns_cp	*rcp;
 
-	rcp = container_of(cp, struct c2_sns_repair_cp, rc_base);
+	rcp = container_of(cp, struct c2_sns_cp, rc_base);
 	/*@todo Release data buffer to buffer pool.*/
 	/* finailise data members.*/
 	c2_cm_cp_fini(cp);
@@ -51,50 +58,51 @@ static int repair_cp_fini(struct c2_cm_cp *cp)
 	return C2_FSO_AGAIN;
 }
 
-static int repair_cp_read(struct c2_cm_cp *cp)
+static int cp_read(struct c2_cm_cp *cp)
 {
         return 0;
 }
 
-static int repair_cp_write(struct c2_cm_cp *cp)
+static int cp_write(struct c2_cm_cp *cp)
 {
         return 0;
 }
 
-static int repair_cp_send(struct c2_cm_cp *cp)
+static int cp_send(struct c2_cm_cp *cp)
 {
         return 0;
 }
 
-static int repair_cp_recv(struct c2_cm_cp *cp)
+static int cp_recv(struct c2_cm_cp *cp)
 {
         return 0;
 }
 
-int repair_cp_xform(struct c2_cm_cp *cp)
+int cp_xform(struct c2_cm_cp *cp)
 {
         return 0;
 }
 
-static int repair_cp_phase(struct c2_cm_cp *cp)
+static int cp_phase_next(struct c2_cm_cp *cp)
 {
 	return 0;
 }
 
-static void repair_cp_complete(struct c2_cm_cp *cp)
+static void cp_complete(struct c2_cm_cp *cp)
 {
 }
 
 const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
-	.co_action[C2_CCP_INIT]  = &repair_cp_init,
-	.co_action[C2_CCP_READ]  = &repair_cp_read,
-	.co_action[C2_CCP_WRITE] = &repair_cp_write,
-	.co_action[C2_CCP_XFORM] = &repair_cp_xform,
-	.co_action[C2_CCP_SEND]  = &repair_cp_send,
-	.co_action[C2_CCP_RECV]  = &repair_cp_recv,
-	.co_action[C2_CCP_FINI]  = &repair_cp_fini,
-	.co_complete		 = &repair_cp_complete,
-	.co_phase		 = &repair_cp_phase
+	.co_action[C2_CCP_INIT]  = cp_init,
+	.co_action[C2_CCP_READ]  = cp_read,
+	.co_action[C2_CCP_WRITE] = cp_write,
+	.co_action[C2_CCP_XFORM] = cp_xform,
+	.co_action[C2_CCP_SEND]  = cp_send,
+	.co_action[C2_CCP_RECV]  = cp_recv,
+	.co_action[C2_CCP_FINI]  = cp_fini,
+	.co_home_loc_helper      = cp_home_loc_helper,
+	.co_complete		 = cp_complete,
+	.co_phase_next		 = cp_phase_next
 };
 
 /** @} SNSRepairCP */

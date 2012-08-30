@@ -120,84 +120,37 @@
   is split into various copy packet phases.
 
   @subsection SNSRepairCMDLD-lspec-cm-setup Copy machine setup
-  SNS Repair defines its following specific data structure to represent a
-  copy machine.
-  @code
-  struct c2_sns_repair_cm {
-          struct c2_cm               rc_base;
-          struct c2_cobfid_map      *rc_cfm;
-          struct c2_net_buffer_pool  rc_ibp;
-          struct c2_net_buffer_pool  rc_obp;
-  };
-  @endcode
   SNS Repair service allocates and initialises the corresponding copy machine.
   @see @ref SNSRepairSVC "SNS Repair service" for details.
   Once the copy machine is initialised, as part of copy machine setup, SNS
   Repair copy machine specific resources are initialised, viz. incoming and
   outgoing buffer pools (c2_sns_repair_cm::rc_ibp and ::rc_obp) and cobfid_map.
+  Both the buffer pools are initialised with colours equal to total number of
+  localities in the request handler.
   Once the cm_setup() is sucessful, the copy machine transitions to C2_CMS_IDLE
   state and waits until failure happens. As mentioned in the HLD, failure
   information is a broadcast to all the replicas in the cluster using TRIGGER
   FOP. The FOM corresponding to the TRIGGER FOP activates the SNS Repair copy
   machine by invoking c2_cm_start(), this invokes SNS Repair specific start
   routine which initialises specific data structures.
-  @code
-  int c2_cm_start(struct c2_cm *cm)
-  {
-    ...
-    cm->cm_ops->cmo_start(cm);
-    ...
-  }
-  @endcode
 
   @subsection SNSRepairCMDLD-lspec-cm-start Copy machine startup
   The SNS Repair specific start routine provisions the buffer pools,
   viz. c2_sns_repair_cm::rc_ibp c2_sns_repair_cm::rc_obp with
-  SNS_INCOMING_BUF_NR and SNS_OUTGOING_BUF_NR number of buffers. Once the buffer
-  provisioning is done, copy machine updates the sliding window size to the size
-  of its incoming buffer pool and broadcasts the same to other replicas in the
-  cluster. After receiving sliding window sizes from each replica in the cluster,
-  every SNS Repair copy machine selects the minimum sliding window size in the
-  cluster and updates its local sliding window size accordingly.
+  SNS_INCOMING_BUF_NR and SNS_OUTGOING_BUF_NR number of buffers.
   @note Buffer provisioning operation can block.
 
   @subsubsection SNSRepairCMDLD-lspec-cm-start-cp-create Copy packet create
-  Once the sliding window size is updated to minimum size within the cluster, the
-  copy machine checks if sliding window has space (c2_cm_sw_ops::swo_has_space()
-  and accordingly creates copy packets. Every newly created copy packet is
-  attached with a blank data buffer from outgoing buffer pool
-  (c2_sns_repair_cm::rc_obp)and corresponding copy packet FOM is submitted to
-  the request handler for further processing.
-  Following pseudo code illustrates the copy packet creation,
+  Once the buffer pools are provisioned, copy machine checks if sliding window
+  has space (c2_cm_sw_ops::swo_has_space()) and accordingly creates and
+  initialises copy packets. Now, by invoking c2_cm_cp_data_next(), a copy packet
+  is assigned an aggregation group and stobid. This operation can block,
+  although its fine being a startup operation. Once the copy packet is ready, an
+  empty buffer is fetched from the out going buffer pool (i.e c2_sns_repair_cm::
+  rc_obp) and attached to the copy packet (c2_cm_cp::c_data). Copy packet FOM
+  viz. c2_cm_cp::c_fom, is then submitted to the request handler for further
+  processing.
 
-  @code
-  int c2_cm_cp_create(struct c2_cm *cm)
-  {
-    ...
-    // Check if sliding window has space and create copy packets.
-    while (sw->sw_ops->swo_has_space(sw)) {
-           cp = cm->cm_ops->cmo_cp_alloc(cm);
-            if (cp == NULL)
-	        return -ENOMEM;
-           c2_cm_cp_enqueue(cm, cp);
-    }
-    ...
-  }
-
-  cm_start(struct c2_cm *cm)
-  {
-    struct c2_cm_cp *cp;
-
-    // provision incoming and outgoing buffer pools.
-    // Send ready FOPs and update sliding window size.
-    cp = c2_cm_cp_create(cm);
-    ...
-  }
-  @endcode
-
-  Further copy packet header details required for the operation are populated as
-  part of copy packet FOM init phase asynchronously using the next function
-  implemented by the copy machine.
   @see @ref CPDLD "Copy Packet DLD" for more details.
 
   @subsection SNSRepairCMDLD-lspec-cm-stop Copy machine stop
@@ -281,13 +234,12 @@
 enum {
 	SNS_SEG_NR = 1,
 	SNS_SEG_SIZE = 4096,
-	SNS_BUF_COLOR = 1,
 	/*
 	 * Minimum number of buffers to provision c2_sns_repair_cm::rc_ibp
 	 * and c2_sns_repair_cm::rc_obp buffer pools.
 	 */
-	SNS_INCOMING_BUF_NR = 4,
-	SNS_OUTGOING_BUF_NR = 4
+	SNS_INCOMING_BUF_NR = 1 << 16,
+	SNS_OUTGOING_BUF_NR = 1 << 16
 };
 
 extern struct c2_net_xprt c2_net_lnet_xprt;
@@ -308,20 +260,34 @@ static struct c2_cm_cp *cm_cp_alloc(struct c2_cm *cm)
 	struct c2_sns_repair_cp *rcp;
 	struct c2_sns_repair_cm *rcm;
 	struct c2_net_buffer    *buf;
+	size_t                   colour;
+	int                      rc;
 
 	C2_PRE(c2_cm_invariant(cm));
 
 	rcm = cm2sns(cm);
-	buf = c2_net_buffer_pool_get(&rcm->rc_obp, SNS_BUF_COLOR);
+	C2_ALLOC_PTR(rcp);
+	if (rcp == NULL)
+		return NULL;
+	rc = c2_cm_cp_data_next(cm, &rcp->rc_base);
+	if (rc != 0) {
+		c2_free(rcp);
+		return NULL;
+	}
+
+	/*
+	 * Using ->co_home_loc_helper(), select specific colour for this copy
+	 * packet to fetch buffer from the outgoing buffer pool.
+	 */
+	colour = c2_sns_repair_cp_ops->co_home_loc_helper(&rcp->rc_base) %
+		 rcm->rc_obp.nbp_colours_nr;
+	buf = c2_net_buffer_pool_get(&rcm->rc_obp, colour);
 	/*
 	 * XXX If sliding window has space and outgoing buffer pool is empty
 	 * then try growing the buffer pool, if required. Currently returning
 	 * NULL.
 	 */
 	if (buf == NULL)
-		return NULL;
-	C2_ALLOC_PTR(rcp);
-	if (rcp == NULL)
 		return NULL;
 	c2_cm_cp_init(&rcp->rc_base, &c2_sns_repair_cp_ops, &buf->nb_buffer);
 
@@ -338,21 +304,26 @@ static int cm_setup(struct c2_cm *cm)
 	struct c2_reqh          *reqh;
 	struct c2_net_domain    *ndom;
 	struct c2_sns_repair_cm *rcm;
+	uint64_t                 colours;
 	int                      rc;
 
 	rcm = cm2sns(cm);
 	reqh = cm->cm_service.rs_reqh;
+	/*
+	 * Total number of colours in incoming and outgoing buffer pools is
+	 * is same as the total number of localities in the reqh fom domain.
+	 */
+	colours = reqh->rh_fom_dom.fd_localities_nr;
 	ndom = c2_cs_net_domain_locate(c2_cs_ctx_get(reqh),
 				       c2_net_lnet_xprt.nx_name);
 	rc = c2_net_buffer_pool_init(&rcm->rc_ibp, ndom,
 				     C2_NET_BUFFER_POOL_THRESHOLD, SNS_SEG_NR,
-				     SNS_SEG_SIZE, SNS_BUF_COLOR,
-				     C2_0VEC_SHIFT);
+				     SNS_SEG_SIZE, colours, C2_0VEC_SHIFT);
 	if (rc == 0) {
 		rc = c2_net_buffer_pool_init(&rcm->rc_obp, ndom,
 					     C2_NET_BUFFER_POOL_THRESHOLD,
 					     SNS_SEG_NR, SNS_SEG_SIZE,
-					     SNS_BUF_COLOR, C2_0VEC_SHIFT);
+					     colours, C2_0VEC_SHIFT);
 		if (rc != 0)
 			c2_net_buffer_pool_fini(&rcm->rc_ibp);
 	}

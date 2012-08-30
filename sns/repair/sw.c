@@ -61,7 +61,7 @@ static int sw_slide(struct c2_cm_sw *sw)
  */
 static bool sw_has_space(struct c2_cm_sw *sw)
 {
-	return sw->sw_sz > 0;
+	return true;
 }
 
 static int sw_expand(struct c2_cm_sw *sw)
