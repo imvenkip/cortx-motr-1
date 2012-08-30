@@ -36,7 +36,7 @@ int c2_cm_sw_init(struct c2_cm_sw *sw, const struct c2_cm_sw_ops *sw_ops)
         C2_ENTRY();
 
         sw->sw_ops = sw_ops;
-        aggr_grps_tlist_init(&sw->sw_aggr_grps);
+        c2_cm_ag_tlist_init(&sw->sw_aggr_grps);
         sw->sw_high = NULL;
         sw->sw_low = NULL;
         C2_LEAVE();
@@ -48,7 +48,7 @@ void c2_cm_sw_fini(struct c2_cm_sw *sw)
         C2_PRE(sw != NULL);
         C2_ENTRY();
 
-        aggr_grps_tlist_fini(&sw->sw_aggr_grps);
+        c2_cm_ag_tlist_fini(&sw->sw_aggr_grps);
         C2_LEAVE();
 }
 
