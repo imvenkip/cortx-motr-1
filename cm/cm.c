@@ -415,9 +415,9 @@ int c2_cm_start(struct c2_cm *cm)
 	C2_PRE(c2_cm_state_get(cm) == C2_CMS_IDLE);
 	C2_PRE(c2_cm_invariant(cm));
 
-	c2_cm_state_set(cm, C2_CMS_ACTIVE);
 	rc = cm->cm_ops->cmo_start(cm);
 	if (rc == 0) {
+		c2_cm_state_set(cm, C2_CMS_ACTIVE);
 		cm->cm_mach.sm_rc = C2_CM_SUCCESS;
 		C2_LOG("CM:%s copy machine:ID: %lu: STATE: %i",
 		       (char *)cm->cm_type->ct_stype.rst_name, cm->cm_id,
@@ -631,6 +631,9 @@ int c2_cm_sw_fill(struct c2_cm *cm)
         struct c2_cm_cp *cp;
         struct c2_cm_sw *sw = &cm->cm_sw;
 
+	C2_PRE(c2_cm_invariant(cm));
+	C2_PRE(c2_cm_is_locked(cm));
+
         while (sw->sw_ops->swo_has_space(sw)) {
                cp = cm->cm_ops->cmo_cp_alloc(cm);
                if (cp == NULL)
@@ -643,6 +646,11 @@ int c2_cm_sw_fill(struct c2_cm *cm)
 
 int c2_cm_cp_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
+	C2_PRE(c2_cm_invariant(cm));
+	C2_PRE(c2_cm_is_locked(cm));
+	C2_PRE(cp != NULL);
+
+	cm->cm_ops->cmo_cp_data_next(cm, cp);
 }
 
 /** @} endgroup cm */

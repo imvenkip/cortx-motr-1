@@ -33,6 +33,11 @@
 
  */
 
+enum c2_cm_sw_intent {
+	C2_SW_ADVANCE = 1,
+	C2_SW_SLIDE,
+};
+
 /**
  * While copy machine is processing a restructuring request, each replica
  * maintains a "sliding window" (SW), indicating how far it gets. This window is
@@ -49,14 +54,7 @@ struct c2_cm_sw {
         /** Sliding window operations. */
         const struct c2_cm_sw_ops  *sw_ops;
 
-	/**
-	 * Min size of the receiver end within the cluster.
-	 * @note: For single node this is equivalent to the size of the local
-	 * copy machine buffer pool.
-	 */
-	size_t                      sw_sz;
-
-        /** List of aggregation groups to be processed by the copy machine.*/
+        /** List of aggregation groups being processed by the copy machine.*/
         struct c2_tl                sw_aggr_grps;
 
         /** Upper bound of this sliding window. */
@@ -64,15 +62,12 @@ struct c2_cm_sw {
 
         /** Lower bound of this sliding window. */
         struct c2_cm_aggr_group    *sw_low;
-
-        uint64_t                    sw_magic;
 };
 
 /** Copy Machine sliding window operations. */
 struct c2_cm_sw_ops {
-        /** Returns the size of the sliding window (HI - LO) */
-        size_t (*swo_size_cal)(struct c2_cm_sw *sw);
-        /** Increase the sw_high. Such that HI := NEXT (HI).
+	/**
+	 * Increase the sw_high. Such that HI := NEXT (HI).
          * Here, NEXT (X) = min{ id | id >= X and aggregation group has packets
          * for this replica }
          * NEXT (X) will run in a loop until it finds an aggregation group
@@ -91,9 +86,6 @@ struct c2_cm_sw_ops {
 	 * copy packet and returns true or false accordingly.
 	 */
 	bool (*swo_has_space)(struct c2_cm_sw *sw);
-
-        /** If resources permit, expand the SW. */
-        int  (*swo_expand)(struct c2_cm_sw *sw);
 };
 
 /** Initialises sliding window. */
@@ -102,6 +94,8 @@ int c2_cm_sw_init(struct c2_cm_sw *slw, const struct c2_cm_sw_ops *ops);
 /** Finalises sliding window. */
 void c2_cm_sw_fini(struct c2_cm_sw *slw);
 
+void c2_cm_sw_update(struct c2_cm_sw *slw, struct c2_cm_aggr_group *ag,
+		     int intent);
 /** @} CMSW */
 #endif /* __COLIBRI_CM_SW_H__ */
 /*

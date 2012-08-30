@@ -55,7 +55,6 @@
 	- Stopping a copy machine.
    - The c2_cm_type represents a copy machine type that a copy machine is an
      instance of.
-   - The c2_cm_stats keeps copy machine operation progress data.
 
    @subsection CMDLD-fspec-if Interfaces
    Every copy machine type implements its own set of routines for type-specific

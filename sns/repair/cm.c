@@ -255,6 +255,20 @@ void c2_sns_repair_cm_type_deregister(void)
 	c2_cm_type_deregister(&sns_repair_cmt);
 }
 
+struct c2_net_buffer *c2_sns_repair_buffer_get(struct c2_net_buffer_pool *bp,
+					   size_t colour)
+{
+	struct c2_net_buffer *buf;
+
+	C2_PRE(c2_net_buffer_pool_invariant(bp));
+
+	c2_net_buffer_pool_lock(bp);
+	buf = c2_net_buffer_pool_get(bp, colour);
+	c2_net_buffer_pool_unlock(bp);
+
+	return buf;
+}
+
 static struct c2_cm_cp *cm_cp_alloc(struct c2_cm *cm)
 {
 	struct c2_sns_repair_cp *rcp;
@@ -281,7 +295,7 @@ static struct c2_cm_cp *cm_cp_alloc(struct c2_cm *cm)
 	 */
 	colour = c2_sns_repair_cp_ops->co_home_loc_helper(&rcp->rc_base) %
 		 rcm->rc_obp.nbp_colours_nr;
-	buf = c2_net_buffer_pool_get(&rcm->rc_obp, colour);
+	buf = c2_sns_repair_buffer_get(&rcm->rc_obp, colour);
 	/*
 	 * XXX If sliding window has space and outgoing buffer pool is empty
 	 * then try growing the buffer pool, if required. Currently returning
@@ -334,6 +348,20 @@ static int cm_setup(struct c2_cm *cm)
 	return rc;
 }
 
+static size_t cm_buffer_pool_provision(struct c2_net_buffer_pool *bp,
+				       size_t bufs_nr)
+{
+	int bufs_nr;
+
+	C2_PRE(c2_net_buffer_pool_invariant(bp));
+
+	c2_net_buffer_pool_lock(bp);
+	bufs_nr = c2_net_buffer_pool_provision(bp, bufs_nr);
+	c2_net_buffer_pool_unlock(bp);
+
+	return bufs_nr;
+}
+
 static int cm_start(struct c2_cm *cm)
 {
 	struct c2_sns_repair_cm *rcm;
@@ -342,8 +370,8 @@ static int cm_start(struct c2_cm *cm)
 	C2_ENTRY();
 
 	rcm = cm2sns(cm);
-	bufs_nr = c2_net_buffer_pool_provision(&rcm->rc_ibp,
-					       SNS_INCOMING_BUF_NR);
+
+	bufs_nr = cm_buffer_pool_provision(&rcm->rc_ibp, SNS_INCOMING_BUF_NR);
 	if (bufs_nr == 0)
 		return -ENOMEM;
 	/*
@@ -353,8 +381,7 @@ static int cm_start(struct c2_cm *cm)
 	 * selected.
 	 */
 	cm->cm_sw.sw_sz = bufs_nr;
-	bufs_nr = c2_net_buffer_pool_provision(&rcm->rc_obp,
-					       SNS_OUTGOING_BUF_NR);
+	bufs_nr = cm_buffer_pool_provision(&rcm->rc_obp, SNS_OUTGOING_BUF_NR);
 	/*
 	 * If bufs_nr is 0, then just return -ENOMEM, as cm_setup() was
 	 * successful, both the buffer pools (incoming and outgoing) will be
@@ -367,7 +394,7 @@ static int cm_start(struct c2_cm *cm)
 	 * size, calculate the minimum sliding window size within the cluster, update
 	 * local sliding window size and create copy packets accordingly.
 	 */
-	c2_cm_cp_create(cm);
+	c2_cm_sw_fill(cm);
 
 	C2_LEAVE();
 	return 0;
@@ -388,10 +415,10 @@ static int cm_stop(struct c2_cm *cm)
 	C2_PRE(cm != NULL);
 
 	/*
-	* Broadcast STOP FOPs to all other replicas and wait for
-	* for STOP FOPs from all other replicas.
-	* Transition CM to IDLE state.
-	*/
+	 * Broadcast STOP FOPs to all other replicas and wait for
+	 * for STOP FOPs from all other replicas.
+	 * Transition CM to IDLE state.
+	 */
 	return 0;
 }
 
