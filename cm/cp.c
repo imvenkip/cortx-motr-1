@@ -223,8 +223,10 @@
  *   - @b FINI  Finalises copy packet.
  *
  *   Specific copy packet can have phases in addition to these phases.
- *   Additional phases may be used to do processing under one of above phases.
- *   Handling of additional phases is done by specific code.
+ *   Additional phases may be used to do processing specific copy packet
+ *   functionality. Handling of additional phases also can be done using next
+ *   phase fuction, as implementaion of next phase function is also specific to
+ *   copy packet type.
  *
  *   Transition between standard phases is done by next phase function. It will
  *   produce the next phase according to the configuration of the copy machine
@@ -253,28 +255,11 @@
  *
  *   @subsection CPDLD-lspec-thread Threading and Concurrency Model
  *
- *   @dot
- *	digraph {
- *	  node [shape=plaintext, fontsize=12]
- *	  subgraph cluster_m1 { // represents mutex scope
- *	  // sorted R-L so put mutex name last to align on the left
- *	  rank = same;
- *	  n1_2 [label="c2_cm_cp_init()"];  // procedure using mutex
- *	  n1_1 [label="c2_cm_cp_fini()"];
- *	  n1_0 [label="c2_cm:c_fom:fo_loc:fl_group:s_lock"];// mutex name
- *	}
+ *   Copy packet is implemented as a FOM and thus do not have its own thread.
+ *   It runs in the context of reqh threads. So FOM locality group lock
+ *   (i.e c2_cm_cp:c_fom:fo_loc:fl_group:s_lock) is used to serialise access
+ *   to c2_cm_cp and its operation.
  *
- *	subgraph cluster_m2 {
- *	  rank = same;
- *	  n2_3 [label="phase()"];
- *	  n2_2 [label="complete()"];
- *	  n2_1 [label="action()"];
- *	  n2_0 [label="c2_cm:c_fom:fo_loc:fl_group:s_lock"];
- *	}
- *
- *	label="Mutex usage and locking order in the copy packet";
- *	n1_0 -> n2_0;  // locking order
- *   }
  *   @enddot
  *
  *   <hr>

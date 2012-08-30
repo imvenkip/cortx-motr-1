@@ -44,26 +44,32 @@ enum c2_sns_repair_phase {
 };
 
 struct c2_sns_repair_cp {
-	struct c2_cm_cp		 rc_base;
+	struct c2_cm_cp	   rc_base;
 
         /** The gob fid which this data belongs to. */
-        struct c2_fid		 rc_gfid;
+        struct c2_fid	   rc_gfid;
 
         /** The extent in gob, similar to offset in a file. */
-        struct c2_ext		 rc_gext;
+        struct c2_ext	   rc_gext;
 
         /**
          * The cob fid which this data belongs to.
          * - In READ phase, it is where it reads from.
          * - In WRITE phase, it is where it write to.
          */
-        struct c2_fid		 rc_cfid;
+        struct c2_fid	   rc_cfid;
 
         /** The extent in cob. */
-        struct c2_ext		 rc_cext;
+        struct c2_ext	   rc_cext;
 
         /** Set and used in case of read/write.*/
-        struct c2_stob_id	 rc_sid;
+        struct c2_stob_id  rc_sid;
+
+	/**
+         * Read/write of starting extent indices. Used for STOB IO.
+         * For more deatils @see c2_stob_io:si_stob
+         */
+        c2_bindex_t	  *rc_index;
 };
 
 extern const struct c2_cm_cp_ops c2_sns_repair_cp_ops;
