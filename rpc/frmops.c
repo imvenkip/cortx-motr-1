@@ -406,8 +406,14 @@ static void item_done(struct c2_rpc_item *item, unsigned long rc)
 
 	if (rc == 0) {
 		c2_rpc_item_change_state(item, C2_RPC_ITEM_SENT);
+		/*
+		 * request items will automatically move to
+		 * WAITING_FOR_REPLY state.
+		 */
 		if (c2_rpc_item_is_request(item)) {
 			if (item->ri_reply_pending) {
+				/* Reply has already been received when we
+				   were waiting for buffer callback */
 				c2_rpc_slot_process_reply(item);
 				item->ri_reply_pending = false;
 			} else {
@@ -417,6 +423,11 @@ static void item_done(struct c2_rpc_item *item, unsigned long rc)
 	} else {
 		c2_rpc_item_failed(item, (int32_t)rc);
 	}
+	/*
+	 * Request and Reply items take hold on session until
+	 * they are SENT/FAILED.
+	 * See: c2_rpc__post_locked(), c2_rpc_reply_post()
+	 */
 	if (c2_rpc_item_is_bound(item))
 		c2_rpc_session_release(item->ri_session);
 

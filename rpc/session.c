@@ -1175,10 +1175,30 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 	return rc;
 }
 
-void c2_rpc_session_item_timedout(struct c2_rpc_item *item)
+void c2_rpc_session_item_failed(struct c2_rpc_item *item)
 {
-	item->ri_stage = RPC_ITEM_STAGE_UNKNOWN;
-	c2_rpc_session_dec_nr_active_items(item->ri_session);
+	C2_PRE(item != NULL && item->ri_error != 0);
+	C2_PRE(item->ri_sm.sm_state == C2_RPC_ITEM_FAILED);
+
+	if (item->ri_error == -ETIMEDOUT)
+		c2_rpc_item_set_stage(item, RPC_ITEM_STAGE_UNKNOWN);
+	else
+		c2_rpc_item_set_stage(item, RPC_ITEM_STAGE_FAILED);
+	/*
+	 * Note that the slot is not marked as idle. Because we cannot
+	 * use this slot to send more items.
+	 * When session->s_nr_slots number of items fail then there will be
+	 * no slot left to send further items.
+	 *
+	 * @todo Replay mechanism should bring items from UNKNOWN stage to
+	 *       some known stage e.g. {PAST_VOLATILE, PAST_COMMITTED}
+	 * @todo If item is failed _before_ placing on network, then we
+	 *       can keep the slot in usable state, by performing inverse
+	 *       operation of c2_rpc_slot_item_apply(). But this will
+	 *       require reference counting implemented for RPC items.
+	 *       Otherwise how the item (which was removed from slot) will
+	 *       be freed?
+	 */
 }
 
 /**

@@ -187,9 +187,7 @@ static const struct c2_sm_state_descr item_state_descr[] = {
 	[SENT] = {
 		.sd_name    = "SENT",
 		.sd_in      = item_entered_in_sent_state,
-		.sd_allowed = STATE_SET(REPLIED,
-					WAITING_FOR_REPLY,
-					UNINITIALISED),
+		.sd_allowed = STATE_SET(WAITING_FOR_REPLY, UNINITIALISED),
 	},
 	[WAITING_FOR_REPLY] = {
 		.sd_name    = "WAITING_FOR_REPLY",
@@ -420,7 +418,6 @@ static int item_entered_in_sent_state(struct c2_sm *mach)
 	struct c2_rpc_item *item;
 
 	item = sm_to_item(mach);
-	/** @todo check for pending events */
 	if (c2_rpc_item_is_request(item)) {
 		C2_LOG("%p [REQUEST/%u] SENT -> WAITING_FOR_REPLY",
 			item, item->ri_type->rit_opcode);
@@ -436,7 +433,6 @@ static int item_entered_in_timedout_state(struct c2_sm *mach)
 	item = sm_to_item(mach);
 	C2_LOG("%p [%u] -> TIMEDOUT", item, item->ri_type->rit_opcode);
 	item->ri_error = -ETIMEDOUT;
-	c2_rpc_session_item_timedout(item);
 	c2_sm_timeout_fini(&item->ri_timeout);
 
 	return FAILED;
@@ -455,6 +451,8 @@ static int item_entered_in_failed_state(struct c2_sm *mach)
 
 	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
 		item->ri_ops->rio_replied(item);
+
+	c2_rpc_session_item_failed(item);
 
 	return -1;
 }

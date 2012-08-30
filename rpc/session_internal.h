@@ -537,7 +537,7 @@ bool c2_rpc_session_is_idle(const struct c2_rpc_session *session);
 
 bool c2_rpc_session_bind_item(struct c2_rpc_item *item);
 
-void c2_rpc_session_item_timedout(struct c2_rpc_item *item);
+void c2_rpc_session_item_failed(struct c2_rpc_item *item);
 
 void c2_rpc_session_inc_nr_active_items(struct c2_rpc_session *session);
 void c2_rpc_session_dec_nr_active_items(struct c2_rpc_session *session);

@@ -340,7 +340,7 @@ static void __slot_balance(struct c2_rpc_slot *slot,
 				     ri_slot_refs[0].sr_link);
 
 		if (item->ri_stage == RPC_ITEM_STAGE_FUTURE)
-			item->ri_stage = RPC_ITEM_STAGE_IN_PROGRESS;
+			c2_rpc_item_set_stage(item, RPC_ITEM_STAGE_IN_PROGRESS);
 
 		if (item->ri_reply != NULL && !c2_rpc_item_is_update(item)) {
 			/*
@@ -390,7 +390,6 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 
 	sref                = &item->ri_slot_refs[0];
-	item->ri_stage      = RPC_ITEM_STAGE_FUTURE;
 	sref->sr_session_id = session->s_session_id;
 	sref->sr_sender_id  = session->s_conn->c_sender_id;
 	sref->sr_uuid       = session->s_conn->c_uuid;
@@ -422,6 +421,7 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 	sref->sr_item     = item;
 	c2_list_link_init(&sref->sr_link);
 	c2_list_add_tail(&slot->sl_item_list, &sref->sr_link);
+	item->ri_stage = RPC_ITEM_STAGE_FUTURE;
 	if (session != NULL)
 		c2_rpc_session_inc_nr_active_items(session);
 
@@ -516,7 +516,8 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 			/* do nothing */;
 			break;
 		case RPC_ITEM_STAGE_UNKNOWN:
-			C2_IMPOSSIBLE("Original request in UNKNOWN stage");
+		case RPC_ITEM_STAGE_FAILED:
+			C2_IMPOSSIBLE("Original req in UNKNOWN/FAILED stage");
 		}
 		/*
 		 * Irrespective of any of above cases, we're going to
@@ -709,7 +710,8 @@ void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
 					(RPC_ITEM_STAGE_PAST_COMMITTED,
 					 RPC_ITEM_STAGE_PAST_VOLATILE)));
 
-			item->ri_stage = RPC_ITEM_STAGE_PAST_COMMITTED;
+			c2_rpc_item_set_stage(item,
+					      RPC_ITEM_STAGE_PAST_COMMITTED);
 			slot->sl_last_persistent = item;
 		} else {
 			break;
