@@ -68,24 +68,32 @@ struct c2_cm_sw {
 struct c2_cm_sw_ops {
 	/**
 	 * Increase the sw_high. Such that HI := NEXT (HI).
-         * Here, NEXT (X) = min{ id | id >= X and aggregation group has packets
-         * for this replica }
-         * NEXT (X) will run in a loop until it finds an aggregation group
-         * that needs processing.
-         */
-        int  (*swo_advance)(struct c2_cm_sw *sw);
-        /**
-         * Increase the sw_high and sw_low. Such that
-         * HI := NEXT (HI)
-         * LO := NEXT (LO + 1)
-         */
-        int  (*swo_slide)(struct c2_cm_sw *sw);
+	 * Here, NEXT (X) = min{ id | id >= X and aggregation group has packets
+	 * for this replica }
+	 * NEXT (X) will run in a loop until it finds an aggregation group
+	 * that needs processing.
+	 */
+	int  (*swo_advance)(struct c2_cm_sw *sw);
+	/**
+	 * Increase the sw_high and sw_low. Such that
+	 * HI := NEXT (HI)
+	 * LO := NEXT (LO + 1)
+	 */
+	int  (*swo_slide)(struct c2_cm_sw *sw);
 
 	/**
 	 * Performs checks if required resources are availble to create a new
 	 * copy packet and returns true or false accordingly.
 	 */
 	bool (*swo_has_space)(struct c2_cm_sw *sw);
+
+	/**
+	 * Searches for an aggregation group in c2_cm_sw::sw_aggr_grps list for
+	 * the given aggregation group id. If not found, creates a new
+	 * aggregation group and updates the sliding window accordingly.
+	 */
+	struct c2_cm_aggr_group *(swo_ag_find)(struct c2_cm_sw *sw,
+					       struct c2_uint128 *ag_id);
 };
 
 /** Initialises sliding window. */

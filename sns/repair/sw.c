@@ -39,11 +39,6 @@
   @{
 */
 
-static size_t sw_size_cal(struct c2_cm_sw *sw)
-{
-	return 0;
-}
-
 static int sw_advance(struct c2_cm_sw *sw)
 {
 	return 0;
@@ -54,27 +49,22 @@ static int sw_slide(struct c2_cm_sw *sw)
 	return 0;
 }
 
-/**
- * Return true if c2_cm_sw::sw_size > 0, false otherwise.
- * Eventually this may also check availability of more resources,
- * viz, cpu cycles, device bandwidth, &c.
- */
 static bool sw_has_space(struct c2_cm_sw *sw)
 {
-	return ;
+	return true;
 }
 
-static int sw_expand(struct c2_cm_sw *sw)
+struct c2_cm_aggr_group *sw_ag_find(struct c2_cm_sw *sw,
+				    struct c2_uint128 ag_id)
 {
-	return 0;
+	return NULL;
 }
 
 const struct c2_cm_sw_ops sw_ops = {
-	.swo_size_cal  = sw_size_cal,
 	.swo_advance   = sw_advance,
 	.swo_slide     = sw_slide,
 	.swo_has_space = sw_has_space,
-	.swo_expand    = sw_expand
+	.swo_ag_find   = sw_ag_find,
 };
 
 /** @} SNSRepairSW */

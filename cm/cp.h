@@ -92,7 +92,7 @@ enum c2_cm_cp_phase {
 	 * Releases resources associated with the packet, finalises members
 	 * and free the packet.
 	 */
-	C2_CCP_FINI,
+	C2_CCP_FINI = C2_FOM_PHASE_FINISH,
 
 	/** Read and fill up the packet.*/
 	C2_CCP_READ,
@@ -124,9 +124,6 @@ struct c2_cm_cp {
 
         /** Aggregation group to which this copy packet belongs.*/
         struct c2_cm_aggr_group   *c_ag;
-
-        /** Array of starting extent indices. */
-        c2_bindex_t               *c_index;
 
 	/** Buffer representing the copy packet data */
 	struct c2_bufvec          *c_data;

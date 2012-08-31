@@ -627,22 +627,18 @@ int c2_cm_done(struct c2_cm *cm)
 	return 0;
 }
 
-int c2_cm_sw_fill(struct c2_cm *cm)
+void c2_cm_sw_fill(struct c2_cm *cm)
 {
-        struct c2_cm_cp *cp;
-        struct c2_cm_sw *sw = &cm->cm_sw;
+	struct c2_cm_cp *cp;
+	struct c2_cm_sw *sw = &cm->cm_sw;
 
 	C2_PRE(c2_cm_invariant(cm));
 	C2_PRE(c2_cm_is_locked(cm));
 
-        while (sw->sw_ops->swo_has_space(sw)) {
-               cp = cm->cm_ops->cmo_cp_alloc(cm);
-               if (cp == NULL)
-                   return -ENOMEM;
-               c2_cm_cp_enqueue(cm, cp);
-        }
-
-        return 0;
+	while (sw->sw_ops->swo_has_space(sw)) {
+	       if (cm->cm_ops->cmo_cp_alloc(cm) != NULL)
+		   c2_cm_cp_enqueue(cm, cp);
+	}
 }
 
 int c2_cm_cp_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)

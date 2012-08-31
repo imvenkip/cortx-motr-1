@@ -36,6 +36,11 @@ static size_t cp_home_loc_helper(struct c2_cm_cp *cp)
 	return cp->c_ag->cag_id.u_lo;
 }
 
+static bool cp_invariant(const struct c2_cm_cp *cp)
+{
+	return true;
+}
+
 static int cp_init(struct c2_cm_cp *cp)
 {
 	struct c2_sns_repair_cm *rcm;
