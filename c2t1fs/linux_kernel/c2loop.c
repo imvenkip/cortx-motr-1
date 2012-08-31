@@ -584,7 +584,7 @@ int accumulate_bios(struct loop_device *lo, struct bio_list *bios,
 {
 	int i;
 	int iov_idx = 0;
-	unsigned long op;
+	unsigned long op = READ; /* init this to avoid gcc warning */
 	loff_t pos;
 	loff_t next_pos = 0;
 	struct bio *bio;

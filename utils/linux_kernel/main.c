@@ -43,8 +43,7 @@ extern const struct c2_test_suite sm_ut;
 extern const struct c2_test_suite frm_ut;
 extern const struct c2_test_suite layout_ut;
 
-/* separate c2loop module */
-extern const struct c2_test_suite c2loop_ut;
+extern const struct c2_test_suite c2_loop_ut; /* c2loop driver */
 
 static struct c2_thread ut_thread;
 
@@ -67,7 +66,7 @@ static void run_kernel_ut(int ignored)
 	c2_ut_add(&frm_ut);
 	c2_ut_add(&layout_ut);
 
-	c2_ut_add(&c2loop_ut);
+	c2_ut_add(&c2_loop_ut); /* c2loop driver */
 
 	c2_ut_run();
 	c2_uts_fini();

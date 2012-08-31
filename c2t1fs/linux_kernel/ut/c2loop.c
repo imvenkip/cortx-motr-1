@@ -24,7 +24,7 @@
 #include "lib/ut.h"
 
 int accumulate_bios(struct loop_device *lo, struct bio_list *bios,
-		      struct iovec *iovecs, loff_t *ppos, unsigned *psize);
+		    struct iovec *iovecs, loff_t *ppos, unsigned *psize);
 
 static void loop_dev_init(struct loop_device *lo)
 {
@@ -168,7 +168,7 @@ static void accum_bios_except1(void)
 		C2_UT_ASSERT(bio != NULL);
 
 		bio->bi_bdev = (void*)1;
-		bio->bi_sector = 0; /* XXX */
+		bio->bi_sector = 0;
 		bio->bi_vcnt = 1;
 		bio->bi_size = bio->bi_vcnt * PAGE_SIZE;
 
@@ -179,13 +179,16 @@ static void accum_bios_except1(void)
 	C2_UT_ASSERT(n == 1);
 	C2_UT_ASSERT(pos == 0);
 	C2_UT_ASSERT(size == PAGE_SIZE);
+	C2_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 1);
+	C2_UT_ASSERT(bio_list_size(&bios) == 1);
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
 	C2_UT_ASSERT(n == 1);
 	C2_UT_ASSERT(pos == 0);
 	C2_UT_ASSERT(size == PAGE_SIZE);
-
+	C2_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 0);
 	C2_UT_ASSERT(bio_list_size(&bios) == 2);
+
 	while (!bio_list_empty(&bios))
 		bio_put(bio_list_pop(&bios));
 }
@@ -214,7 +217,7 @@ static void accum_bios_except2(void)
 
 		bio->bi_bdev = (void*)1;
 		bio->bi_sector = PAGE_SIZE / 512 * i;
-		bio->bi_rw = i; /* XXX */
+		bio->bi_rw = i;
 		bio->bi_vcnt = 1;
 		bio->bi_size = bio->bi_vcnt * PAGE_SIZE;
 
@@ -225,13 +228,16 @@ static void accum_bios_except2(void)
 	C2_UT_ASSERT(n == 1);
 	C2_UT_ASSERT(pos == 0);
 	C2_UT_ASSERT(size == PAGE_SIZE);
+	C2_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 1);
+	C2_UT_ASSERT(bio_list_size(&bios) == 1);
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
 	C2_UT_ASSERT(n == 1);
 	C2_UT_ASSERT(pos == PAGE_SIZE);
 	C2_UT_ASSERT(size == PAGE_SIZE);
-
+	C2_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 0);
 	C2_UT_ASSERT(bio_list_size(&bios) == 2);
+
 	while (!bio_list_empty(&bios))
 		bio_put(bio_list_pop(&bios));
 }
@@ -271,8 +277,9 @@ static void accum_bios_bound1(void)
 	C2_UT_ASSERT(n == BIO_MAX_PAGES);
 	C2_UT_ASSERT(pos == 0);
 	C2_UT_ASSERT(size == BIO_MAX_PAGES * PAGE_SIZE);
-
+	C2_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 0);
 	C2_UT_ASSERT(bio_list_size(&bios) == BIO_MAX_PAGES);
+
 	while (!bio_list_empty(&bios))
 		bio_put(bio_list_pop(&bios));
 }
@@ -311,13 +318,16 @@ static void accum_bios_bound2(void)
 	C2_UT_ASSERT(n == BIO_MAX_PAGES);
 	C2_UT_ASSERT(pos == 0);
 	C2_UT_ASSERT(size == BIO_MAX_PAGES * PAGE_SIZE);
+	C2_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 1);
+	C2_UT_ASSERT(bio_list_size(&bios) == BIO_MAX_PAGES);
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
 	C2_UT_ASSERT(n == 1);
 	C2_UT_ASSERT(pos == BIO_MAX_PAGES * PAGE_SIZE);
 	C2_UT_ASSERT(size == PAGE_SIZE);
+	C2_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 0);
+	C2_UT_ASSERT(bio_list_size(&bios) == BIO_MAX_PAGES + 1);
 
-	C2_UT_ASSERT(bio_list_size(&bios) == BIO_MAX_PAGES+1);
 	while (!bio_list_empty(&bios))
 		bio_put(bio_list_pop(&bios));
 }
@@ -367,18 +377,21 @@ static void accum_bios_bound3(void)
 	C2_UT_ASSERT(n == BIO_MAX_PAGES - 1);
 	C2_UT_ASSERT(pos == 0);
 	C2_UT_ASSERT(size == (BIO_MAX_PAGES - 1) * PAGE_SIZE);
+	C2_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 1);
+	C2_UT_ASSERT(bio_list_size(&bios) == BIO_MAX_PAGES - 1);
 
 	n = accumulate_bios(&lo, &bios, iovecs, &pos, &size);
 	C2_UT_ASSERT(n == 2);
 	C2_UT_ASSERT(pos == (BIO_MAX_PAGES - 1) * PAGE_SIZE);
 	C2_UT_ASSERT(size == 2 * PAGE_SIZE);
-
+	C2_UT_ASSERT(bio_list_size(&lo.lo_bio_list) == 0);
 	C2_UT_ASSERT(bio_list_size(&bios) == BIO_MAX_PAGES);
+
 	while (!bio_list_empty(&bios))
 		bio_put(bio_list_pop(&bios));
 }
 
-const struct c2_test_suite c2loop_ut = {
+const struct c2_test_suite c2_loop_ut = {
 	.ts_name = "c2loop-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
@@ -394,7 +407,7 @@ const struct c2_test_suite c2loop_ut = {
 		{ NULL, NULL }
 	}
 };
-C2_EXPORTED(c2loop_ut);
+C2_EXPORTED(c2_loop_ut);
 
 /*
  *  Local variables:
