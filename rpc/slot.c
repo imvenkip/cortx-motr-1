@@ -49,7 +49,7 @@
 void item_exit_stats_set(struct c2_rpc_item    *item,
 			 enum c2_rpc_item_path  path);
 
-void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
+void rpc_item_done(struct c2_rpc_item *item, struct c2_rpc_item *reply,
                       uint32_t rc);
 void c2_rpc_slot_process_reply(struct c2_rpc_item *req);
 void c2_rpc_item_set_stage(struct c2_rpc_item     *item,
@@ -635,7 +635,7 @@ void c2_rpc_slot_process_reply(struct c2_rpc_item *req)
 	slot = req->ri_slot_refs[0].sr_slot;
 	slot->sl_in_flight--;
 	slot_balance(slot);
-	rpc_item_replied(req, req->ri_reply, 0);
+	rpc_item_done(req, req->ri_reply, 0);
 	/*
 	 * On receiver, ->so_reply_consume(req, reply) will hand over
 	 * @reply to formation, to send it back to sender.
@@ -828,19 +828,15 @@ int c2_rpc_slot_item_received(struct c2_rpc_item *item)
 	return rc;
 }
 
-/**
- * @TODO XXX ->replied() callback should be triggered
- * iff item is in WAITING_FOR_REPLY state.
- */
-void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
-                      uint32_t rc)
+void rpc_item_done(struct c2_rpc_item *item, struct c2_rpc_item *reply,
+                   uint32_t rc)
 {
 	item->ri_error = rc;
 	item->ri_reply = reply;
 
 	c2_rpc_item_change_state(item, C2_RPC_ITEM_REPLIED);
-	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
-			item->ri_ops->rio_replied(item);
+	if (item->ri_ops != NULL && item->ri_ops->rio_done != NULL)
+			item->ri_ops->rio_done(item);
 }
 
 int c2_rpc_slot_cob_lookup(struct c2_cob   *session_cob,

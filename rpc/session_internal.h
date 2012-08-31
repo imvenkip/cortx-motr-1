@@ -407,32 +407,32 @@ void c2_rpc_slot_item_add_internal(struct c2_rpc_slot *slot,
 				   struct c2_rpc_item *item);
 
 /**
-   Callback routine called through item->ri_ops->rio_replied().
+   Callback routine called through item->ri_ops->rio_done().
 
    The routine is executed when reply to conn create fop is received
  */
-void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *req);
+void c2_rpc_conn_establish_done_cb(struct c2_rpc_item *req);
 
 /**
-   Callback routine called through item->ri_ops->rio_replied().
+   Callback routine called through item->ri_ops->rio_done().
 
    The routine is executed when reply to conn terminate fop is received
  */
-void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *req);
+void c2_rpc_conn_terminate_done_cb(struct c2_rpc_item *req);
 
 /**
-   Callback routine called through item->ri_ops->rio_replied().
+   Callback routine called through item->ri_ops->rio_done().
 
    The routine is executed when reply to session create fop is received
  */
-void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req);
+void c2_rpc_session_establish_done_cb(struct c2_rpc_item *req);
 
 /**
-   Callback routine called through item->ri_ops->rio_replied().
+   Callback routine called through item->ri_ops->rio_done().
 
    The routine is executed when reply to session terminate fop is received
  */
-void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req);
+void c2_rpc_session_terminate_done_cb(struct c2_rpc_item *req);
 /**
   A callback called when conn terminate reply has been put on network.
   Finalizes and frees conn.

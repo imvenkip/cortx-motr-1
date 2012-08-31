@@ -393,7 +393,7 @@ enum c2_rpc_conn_flags {
          |                          V
          +---------------------- CONNECTING
          | time-out ||              |
-         |     reply.rc != 0        | c2_rpc_conn_establish_reply_received() &&
+         |     reply.rc != 0        | c2_rpc_conn_establish_done_cb() &&
          |                          |    reply.rc == 0
          V                          |
        FAILED                       |
@@ -405,7 +405,7 @@ enum c2_rpc_conn_flags {
          |  |                       V
          |  +-------------------TERMINATING
 	 |                          |
-         |                          | c2_rpc_conn_terminate_reply_received() &&
+         |                          | c2_rpc_conn_terminate_done_cb() &&
          |                          |              rc== 0
 	 |                          V
 	 |                      TERMINATED
@@ -567,7 +567,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
 /**
     Sends handshake CONN_ESTABLISH fop to the remote end.
     When reply to CONN_ESTABLISH is received,
-    c2_rpc_conn_establish_reply_received() is called.
+    c2_rpc_conn_establish_done_cb() is called.
 
     @pre conn->c_state == C2_RPC_CONN_INITIALISED
     @post ergo(result != 0, conn->c_state == C2_RPC_CONN_FAILED)
@@ -603,7 +603,7 @@ int c2_rpc_conn_create(struct c2_rpc_conn      *conn,
    Sends "conn_terminate" FOP to receiver.
    c2_rpc_conn_terminate() is a no-op if @conn is already in TERMINATING
    state.
-   c2_rpc_conn_terminate_reply_received() is called when reply to
+   c2_rpc_conn_terminate_done_cb() is called when reply to
    CONN_TERMINATE is received.
 
    @pre (conn->c_state == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0 &&
@@ -829,7 +829,7 @@ enum c2_rpc_session_state {
    item->ri_session = session;
    item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
    item->ri_deadline = absolute_time;
-   item->ri_ops = item_ops;   // item_ops contains ->replied() callback which
+   item->ri_ops = item_ops;   // item_ops contains ->done() callback which
 			      // will be called when reply to this item is
 			      // received. DO NOT FREE THIS ITEM.
 
@@ -952,7 +952,7 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
 /**
     Sends a SESSION_ESTABLISH fop across pre-defined session-0 in
     session->s_conn.
-    c2_rpc_session_establish_reply_received() is called when reply to
+    c2_rpc_session_establish_done_cb() is called when reply to
     SESSION_ESTABLISH fop is received.
 
     @pre session->s_state == C2_RPC_SESSION_INITIALISED
@@ -989,7 +989,7 @@ int c2_rpc_session_create(struct c2_rpc_session *session,
 /**
    Sends terminate session fop to receiver.
    Acts as no-op if session is already in TERMINATING state.
-   c2_rpc_session_terminate_reply_received() is called when reply to
+   c2_rpc_session_terminate_done_cb() is called when reply to
    CONN_TERMINATE fop is received.
 
    @pre session->s_state == C2_RPC_SESSION_IDLE ||

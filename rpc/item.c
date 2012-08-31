@@ -481,8 +481,8 @@ static int item_entered_in_failed_state(struct c2_sm *mach)
 	C2_PRE(item->ri_error != 0);
 	item->ri_reply = NULL;
 
-	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
-		item->ri_ops->rio_replied(item);
+	if (item->ri_ops != NULL && item->ri_ops->rio_done != NULL)
+		item->ri_ops->rio_done(item);
 
 	c2_rpc_session_item_failed(item);
 

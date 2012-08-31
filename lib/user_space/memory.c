@@ -108,11 +108,10 @@ void *c2_alloc(size_t size)
 	if (C2_FI_ENABLED("fail_allocation"))
 		return NULL;
 
-	C2_ENTRY("%lu", size);
 	ret = __malloc(size);
 	if (ret)
 		memset(ret, 0, size);
-	C2_LEAVE("%lu %lx", size, (long unsigned)ret);
+
 	return ret;
 }
 

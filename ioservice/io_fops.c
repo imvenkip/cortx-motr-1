@@ -50,7 +50,7 @@ C2_TL_DECLARE(rpcbulk, extern, struct c2_rpc_bulk_buf);
 C2_TL_DECLARE(rpcitem, extern, struct c2_rpc_item);
 
 static struct c2_fop_file_fid *io_fop_fid_get(struct c2_fop *fop);
-static void   io_item_replied(struct c2_rpc_item *item);
+static void   io_item_done(struct c2_rpc_item *item);
 static void   item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 			       uint64_t size);
 int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **m);
@@ -100,8 +100,8 @@ static struct c2_fop_type *ioservice_fops[] = {
 
 /* Used for IO REQUEST items only. */
 const struct c2_rpc_item_ops io_req_rpc_item_ops = {
-	.rio_replied	= io_item_replied,
-	.rio_free	= io_item_free,
+	.rio_done = io_item_done,
+	.rio_free = io_item_free,
 };
 
 static const struct c2_rpc_item_type_ops io_item_type_ops = {
@@ -1404,7 +1404,7 @@ static void cob_rpcitem_free(struct c2_rpc_item *item)
 }
 
 /* Rpc item ops for IO operations. */
-static void io_item_replied(struct c2_rpc_item *item)
+static void io_item_done(struct c2_rpc_item *item)
 {
 	struct c2_fop		   *fop;
 	struct c2_fop		   *rfop;
@@ -1452,7 +1452,7 @@ static void io_item_replied(struct c2_rpc_item *item)
 
 	/*
 	 * The rpc_item->ri_chan is signaled by sessions code
-	 * (rpc_item_replied()) which is why only member coalesced items
+	 * (rpc_item_done()) which is why only member coalesced items
 	 * (items which were member of a parent coalesced item) are
 	 * signaled from here as they are not sent on wire but hang off
 	 * a list from parent coalesced item.
@@ -1466,7 +1466,7 @@ static void io_item_replied(struct c2_rpc_item *item)
 		/* Notifies all member coalesced items of completion status. */
 		rbulk->rb_rc = item->ri_error;
 		c2_mutex_unlock(&rbulk->rb_mutex);
-		/* XXX Use rpc_item_replied()
+		/* XXX Use rpc_item_done()
 		       But we'll fix it later because this code path will need
 		       significant changes because of new formation code.
 		 */
