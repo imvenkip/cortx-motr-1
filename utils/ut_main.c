@@ -52,6 +52,7 @@ extern const struct c2_test_suite c2_net_lnet_ut;
 extern const struct c2_test_suite c2_net_tm_prov_ut;
 extern const struct c2_test_suite parity_math_ut;
 extern const struct c2_test_suite sm_ut;
+extern const struct c2_test_suite snsrepair_xform_ut;
 extern const struct c2_test_suite stobio_ut;
 extern const struct c2_test_suite udb_ut;
 extern const struct c2_test_suite xcode_bufvec_fop_ut;
@@ -70,7 +71,6 @@ extern const struct c2_test_suite rpc_service_ut;
 extern const struct c2_test_suite frm_ut;
 extern const struct c2_test_suite c2_fop_lock_ut;
 extern const struct c2_test_suite layout_ut;
-extern const struct c2_test_suite snsrepair_xform_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 

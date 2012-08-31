@@ -77,7 +77,7 @@ struct c2_sns_repair_cp {
 
 extern const struct c2_cm_cp_ops c2_sns_repair_cp_ops;
 
-int repair_cp_xform(struct c2_cm_cp *cp);
+int c2_repair_cp_xform(struct c2_cm_cp *cp);
 
 /** @} SNSRepairCP */
 #endif /* __COLIBRI_SNS_REPAIR_CP_H__ */

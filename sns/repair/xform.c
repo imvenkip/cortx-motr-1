@@ -79,7 +79,7 @@ static void bufvec_xor(struct c2_bufvec *dst, struct c2_bufvec *src,
  * @pre cp != NULL && c2_fom_phase(&cp->c_fom) == C2_CCP_XFORM
  * @param cp Copy packet that has to be transformed.
  */
-int repair_cp_xform(struct c2_cm_cp *cp)
+int c2_repair_cp_xform(struct c2_cm_cp *cp)
 {
         struct c2_sns_repair_ag *sns_ag;
         struct c2_cm_aggr_group *ag;

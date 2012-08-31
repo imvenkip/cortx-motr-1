@@ -78,7 +78,7 @@ static int next_phase(struct c2_cm_cp *cp)
  */
 static const struct c2_cm_cp_ops cp_ops = {
 	.co_phase                = &next_phase,
-	.co_action[C2_CCP_XFORM] = &repair_cp_xform,
+	.co_action[C2_CCP_XFORM] = &c2_repair_cp_xform,
 };
 
 static uint64_t cp_single_get(struct c2_cm_aggr_group *ag)
