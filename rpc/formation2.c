@@ -219,7 +219,7 @@ void c2_rpc_frm_fini(struct c2_rpc_frm *frm)
 
 	C2_ENTRY("frm: %p", frm);
 	C2_PRE(frm_invariant(frm));
-	C2_LOG("frm state: %d", frm->f_state);
+	C2_LOG(C2_DEBUG, "frm state: %d", frm->f_state);
 	C2_PRE(frm->f_state == FRM_IDLE);
 
 	c2_addb_ctx_fini(&frm->f_addb_ctx);
@@ -251,7 +251,7 @@ frm_itemq_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *new_item)
 
 	C2_ENTRY("frm: %p item: %p", frm, new_item);
 	C2_PRE(new_item != NULL);
-	C2_LOG("priority: %d", new_item->ri_prio);
+	C2_LOG(C2_DEBUG, "priority: %d", new_item->ri_prio);
 
 	q = frm_which_queue(frm, new_item);
 
@@ -288,7 +288,8 @@ frm_which_queue(struct c2_rpc_frm *frm, const struct c2_rpc_item *item)
 	bound           = oneway ? false : c2_rpc_item_is_bound(item);
 	deadline_passed = c2_time_now() >= item->ri_deadline;
 
-	C2_LOG("deadline: [%llu:%llu] bound: %s oneway: %s deadline_passed: %s",
+	C2_LOG(C2_DEBUG,
+		"deadline: [%llu:%llu] bound: %s oneway: %s deadline_passed: %s",
 		(unsigned long long)c2_time_seconds(item->ri_deadline),
 		(unsigned long long)c2_time_nanoseconds(item->ri_deadline),
 		c2_bool_to_str(bound), c2_bool_to_str(oneway),
@@ -349,14 +350,14 @@ static void frm_balance(struct c2_rpc_frm *frm)
 	C2_PRE(frm_rmachine_is_locked(frm));
 	C2_PRE(frm_invariant(frm));
 
-	C2_LOG("ready: %s", c2_bool_to_str(frm_is_ready(frm)));
+	C2_LOG(C2_DEBUG, "ready: %s", c2_bool_to_str(frm_is_ready(frm)));
 	packet_count = item_count = 0;
 
 	frm_filter_timedout_items(frm);
 	while (frm_is_ready(frm)) {
 		C2_ALLOC_PTR_ADDB(p, &frm->f_addb_ctx, &frm_addb_loc);
 		if (p == NULL) {
-			C2_LOG("Error: packet allocation failed");
+			C2_LOG(C2_ERROR, "Error: packet allocation failed");
 			break;
 		}
 		c2_rpc_packet_init(p);
@@ -550,7 +551,7 @@ frm_try_to_bind_item(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
 	       c2_rpc_item_is_unbound(item));
 	C2_PRE(frm->f_ops != NULL &&
 	       frm->f_ops->fo_item_bind != NULL);
-	C2_LOG("session: %p id: %llu", item->ri_session,
+	C2_LOG(C2_DEBUG, "session: %p id: %llu", item->ri_session,
 		   (unsigned long long)item->ri_session->s_session_id);
 
 	/* See item_bind() in rpc/frmops.c */
@@ -601,7 +602,7 @@ static bool frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 
 	C2_PRE(frm != NULL && p != NULL && !c2_rpc_packet_is_empty(p));
 	C2_PRE(frm->f_ops != NULL && frm->f_ops->fo_packet_ready != NULL);
-	C2_LOG("nr_items: %llu", (unsigned long long)p->rp_nr_items);
+	C2_LOG(C2_DEBUG, "nr_items: %llu", (unsigned long long)p->rp_nr_items);
 
 	p->rp_frm = frm;
 	/* See packet_ready() in rpc/frmops.c */
@@ -634,7 +635,7 @@ void c2_rpc_frm_packet_done(struct c2_rpc_packet *p)
 	C2_PRE(frm_rmachine_is_locked(frm));
 
 	C2_CNT_DEC(frm->f_nr_packets_enqed);
-	C2_LOG("nr_packets_enqed: %llu",
+	C2_LOG(C2_DEBUG, "nr_packets_enqed: %llu",
 		(unsigned long long)frm->f_nr_packets_enqed);
 
 	if (frm_is_idle(frm))

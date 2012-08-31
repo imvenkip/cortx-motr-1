@@ -221,7 +221,7 @@ int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 		reply->rcer_sender_id = conn->c_sender_id;
 		reply->rcer_rc        = 0;
 
-		C2_LOG("Conn established: conn [%p] id [%lu]\n", conn,
+		C2_LOG(C2_INFO, "Conn established: conn [%p] id [%lu]\n", conn,
 				(unsigned long)conn->c_sender_id);
 
 		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
@@ -232,7 +232,7 @@ int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 		/* No reply is sent if conn establish failed. See [4] */
 		c2_fop_fini(&ctx->cec_fop); /* CONN_ESTABLISH fop */
 		c2_free(ctx);
-		C2_LOG("Conn establish failed: rc [%d]\n", rc);
+		C2_LOG(C2_ERROR, "Conn establish failed: rc [%d]\n", rc);
 	}
 
 	c2_fom_phase_set(fom, C2_FOPH_FINISH);
@@ -446,7 +446,7 @@ int c2_rpc_fom_session_terminate_tick(struct c2_fom *fom)
 	c2_rpc_machine_unlock(machine);
 
 	reply->rstr_rc = rc;
-	C2_LOG("Session terminate %s: session [%p] rc [%d]\n",
+	C2_LOG(C2_INFO, "Session terminate %s: session [%p] rc [%d]\n",
 			(rc == 0) ? "successful" : "failed", session, rc);
 	/*
 	 * Note: request is received on SESSION_0, which is different from
@@ -518,7 +518,7 @@ int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
 		 * set sender side conn to FAILED state.
 		 * XXX generate ADDB record here.
 		 */
-		C2_LOG("Conn terminate failed: conn [%p]\n", conn);
+		C2_LOG(C2_ERROR, "Conn terminate failed: conn [%p]\n", conn);
 		c2_rpc_conn_fini_locked(conn);
 
 		c2_rpc_machine_unlock(machine);
@@ -539,7 +539,7 @@ int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
 		 */
 		reply->ctr_rc = rc; /* rc can be -EBUSY */
 		c2_fom_phase_set(fom, C2_FOPH_FINISH);
-		C2_LOG("Conn terminate successful: conn [%p]\n", conn);
+		C2_LOG(C2_INFO, "Conn terminate successful: conn [%p]\n", conn);
 		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 		return C2_FSO_WAIT;
 	}

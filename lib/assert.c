@@ -63,7 +63,7 @@ void c2_panic(const char *expr, const char *func, const char *file, int lineno)
 		backtrace_symbols_fd(trace, nr, 2);
 	}
 #endif
-	C2_LOG("panic: %s %s() (%s:%i)", expr, func, file, lineno);
+	C2_LOG(C2_FATAL, "panic: %s %s() (%s:%i)", expr, func, file, lineno);
 	abort();
 }
 

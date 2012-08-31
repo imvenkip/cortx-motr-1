@@ -38,7 +38,7 @@ void trace_thread_func(int d)
 	int j;
 
 	for (j = 0; j < NR_INNER; ++j)
-		C2_LOG("d: %i, d*j: %i", d, d * j);
+		C2_LOG(C2_DEBUG, "d: %i, d*j: %i", d, d * j);
 }
 
 void test_trace(void)
@@ -47,10 +47,11 @@ void test_trace(void)
 	int result;
 	uint64_t u64;
 
-	C2_LOG("forty two: %i", 42);
-	C2_LOG("forty three and tree: %i %llu", 43, (unsigned long long)(u64 = 3));
+	C2_LOG(C2_DEBUG, "forty two: %i", 42);
+	C2_LOG(C2_DEBUG, "forty three and tree: %i %llu", 43,
+			(unsigned long long)(u64 = 3));
 	for (i = 0; i < NR_INNER; ++i)
-		C2_LOG("c: %i, d: %i", i, i*i);
+		C2_LOG(C2_DEBUG, "c: %i, d: %i", i, i*i);
 
 	C2_SET_ARR0(t);
 	for (i = 0; i < NR; ++i) {
@@ -62,8 +63,8 @@ void test_trace(void)
 		c2_thread_join(&t[i]);
 		c2_thread_fini(&t[i]);
 	}
-	C2_LOG("X: %i and Y: %i", 43, result + 1);
-	C2_LOG("%llx char: %c %llx string: %s",
+	C2_LOG(C2_DEBUG, "X: %i and Y: %i", 43, result + 1);
+	C2_LOG(C2_DEBUG, "%llx char: %c %llx string: %s",
 		0x1234567887654321ULL,
 		'c',
 		0xfefefefefefefefeULL,
@@ -76,17 +77,17 @@ enum {
 
 static void ub_empty(int i)
 {
-	C2_LOG("msg");
+	C2_LOG(C2_DEBUG, "msg");
 }
 
 static void ub_8(int i)
 {
-	C2_LOG("%i", i);
+	C2_LOG(C2_DEBUG, "%i", i);
 }
 
 static void ub_64(int i)
 {
-	C2_LOG("%i %i %i %i %i %i %i %i",
+	C2_LOG(C2_DEBUG, "%i %i %i %i %i %i %i %i",
 		i, i + 1, i + 2, i + 3, i + 4, i + 5,
 		i + 6, i + 7);
 }

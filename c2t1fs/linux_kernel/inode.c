@@ -166,7 +166,7 @@ void c2t1fs_destroy_inode(struct inode *inode)
 	C2_ENTRY("inode: %p", inode);
 
 	ci = C2T1FS_I(inode);
-	C2_LOG("fid [%lu:%lu]", (unsigned long)ci->ci_fid.f_container,
+	C2_LOG(C2_DEBUG, "fid [%lu:%lu]", (unsigned long)ci->ci_fid.f_container,
 				(unsigned long)ci->ci_fid.f_key);
 
 	c2t1fs_inode_fini(ci);
@@ -213,7 +213,7 @@ static int c2t1fs_inode_test(struct inode *inode, void *opaque)
 
 	ci = C2T1FS_I(inode);
 
-	C2_LOG("inode(%p) [%lu:%lu] opaque [%lu:%lu]", inode,
+	C2_LOG(C2_DEBUG, "inode(%p) [%lu:%lu] opaque [%lu:%lu]", inode,
 				(unsigned long)ci->ci_fid.f_container,
 				(unsigned long)ci->ci_fid.f_key,
 				(unsigned long)fid->f_container,
@@ -231,7 +231,7 @@ static int c2t1fs_inode_set(struct inode *inode, void *opaque)
 	struct c2_fid       *fid = opaque;
 
 	C2_ENTRY();
-	C2_LOG("inode(%p) [%lu:%lu]", inode,
+	C2_LOG(C2_DEBUG, "inode(%p) [%lu:%lu]", inode,
 			(unsigned long)fid->f_container,
 			(unsigned long)fid->f_key);
 
@@ -353,8 +353,9 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci)
 	int                        rc;
 
 	C2_ENTRY();
-	C2_LOG("fid[%lu:%lu]:", (unsigned long)ci->ci_fid.f_container,
-				(unsigned long)ci->ci_fid.f_key);
+	C2_LOG(C2_DEBUG, "fid[%lu:%lu]:",
+			(unsigned long)ci->ci_fid.f_container,
+			(unsigned long)ci->ci_fid.f_key);
 
 	C2_ASSERT(ci->ci_layout_id != 0);
 	rc = c2t1fs_build_layout_instance(ci->ci_layout_id,
