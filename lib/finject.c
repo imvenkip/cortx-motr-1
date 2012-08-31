@@ -115,29 +115,6 @@ static void fi_state_info_init(struct c2_fi_fpoint_state_info *si)
 	C2_SET_ARR0(si->si_data);
 }
 
-/**
- * Extracts a "colibri core" file name from a full-path file name.
- *
- * For example, given the following full-path file name:
- *
- *     /data/colibri/core/build_kernel_modules/lib/ut/finject.c
- *
- * The "colibri core" file name is:
- *
- *     build_kernel_modules/lib/ut/finject.c
- */
-static inline const char *core_file_name(const char *fname)
-{
-	static const char  core[] = "core/";
-	const char        *cfn;
-
-	cfn = strstr(fname, core);
-	if (cfn == NULL)
-		return fname;
-
-	return cfn + strlen(core);
-}
-
 void c2_fi_states_get_state_info(const struct c2_fi_fpoint_state *s,
 				 struct c2_fi_fpoint_state_info *si)
 {
@@ -158,7 +135,7 @@ void c2_fi_states_get_state_info(const struct c2_fi_fpoint_state *s,
 	 */
 	if (fp != NULL) {
 		si->si_module = fp->fp_module;
-		si->si_file = core_file_name(fp->fp_file);
+		si->si_file = c2_core_file_name(fp->fp_file);
 		si->si_line_num = fp->fp_line_num;
 	}
 

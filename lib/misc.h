@@ -24,9 +24,9 @@
 #define __COLIBRI_LIB_MISC_H__
 
 #ifndef __KERNEL__
-#include <string.h>               /* memset, ffs */
+#include <string.h>               /* memset, ffs, strstr */
 #else
-#include <linux/string.h>         /* memset */
+#include <linux/string.h>         /* memset, strstr */
 #include <linux/bitops.h>         /* ffs */
 #endif
 
@@ -115,6 +115,29 @@ uint64_t c2_round_down(uint64_t val, uint64_t size);
 #define C2_IN_9(x, v, ...) ((x) == (v) || C2_IN_8(x, __VA_ARGS__))
 
 const char *c2_bool_to_str(bool b);
+
+/**
+ * Extracts a "colibri core" file name from a full-path file name.
+ *
+ * For example, given the following full-path file name:
+ *
+ *     /data/colibri/core/lib/ut/finject.c
+ *
+ * The "colibri core" file name is:
+ *
+ *     lib/ut/finject.c
+ */
+static inline const char *c2_core_file_name(const char *fname)
+{
+	static const char  core[] = "core/";
+	const char        *cfn;
+
+	cfn = strstr(fname, core);
+	if (cfn == NULL)
+		return fname;
+
+	return cfn + strlen(core);
+}
 
 /* __COLIBRI_LIB_MISC_H__ */
 #endif
