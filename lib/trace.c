@@ -284,6 +284,18 @@ out:
 	return 0;
 }
 
+void c2_trace_print_subsystems(void)
+{
+	int i;
+
+	c2_console_printf("# YAML\n");
+	c2_console_printf("---\n");
+	c2_console_printf("trace_subsystems:\n");
+
+	for (i = 0; i < ARRAY_SIZE(trace_subsys_str); i++)
+		c2_console_printf("    - %s\n", trace_subsys_str[i]);
+}
+
 void
 c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 {

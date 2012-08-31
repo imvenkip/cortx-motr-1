@@ -125,10 +125,12 @@ int main(int argc, char *argv[])
 	bool keep_sandbox         = false;
 	bool finject_stats_before = false;
 	bool finject_stats_after  = false;
+	bool parse_trace          = false;
 	char *test_list_str       = NULL;
 	char *exclude_list_str    = NULL;
 	const char *fault_point   = NULL;
 	const char *fp_file_name  = NULL;
+	const char *trace_mask    = NULL;
 	struct c2_list test_list;
 	struct c2_list exclude_list;
 
@@ -146,9 +148,20 @@ int main(int argc, char *argv[])
 
 	result = C2_GETOPTS("ut", argc, argv,
 		    C2_HELPARG('h'),
-		    C2_VOIDARG('T', "parse trace log produced earlier",
+		    C2_FLAGARG('T', "parse trace log produced earlier"
+			       " (trace data is read from STDIN)",
+				&parse_trace),
+		    C2_STRINGARG('m', "trace mask, either numeric (HEX/DEC) or"
+			         " comma-separated list of subsystem names"
+				 " (use ! at the beginning to invert)",
+				LAMBDA(void, (const char *str) {
+					trace_mask = strdup(str);
+				})
+				),
+		    C2_VOIDARG('M', "print available trace subsystems",
 				LAMBDA(void, (void) {
-						exit(c2_trace_parse());
+					c2_trace_print_subsystems();
+					exit(EXIT_SUCCESS);
 				})),
 		    C2_FLAGARG('k', "keep the sandbox directory",
 				&keep_sandbox),
@@ -208,6 +221,15 @@ int main(int argc, char *argv[])
 		    );
 	if (result != 0)
 		goto out;
+
+	result = c2_trace_set_immediate_mask(trace_mask);
+	if (result != 0)
+		goto out;
+
+	if (parse_trace) {
+		result = c2_trace_parse();
+		goto out;
+	}
 
 	/* enable fault points as early as possible */
 	if (fault_point != NULL) {
