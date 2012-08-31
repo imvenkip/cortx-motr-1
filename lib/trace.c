@@ -68,6 +68,8 @@ uint32_t   c2_logbufsize = sizeof bootbuf;
 unsigned long c2_trace_immediate_mask = 0;
 C2_BASSERT(sizeof(c2_trace_immediate_mask) == 8);
 
+unsigned int c2_trace_level         = C2_WARN | C2_ERROR | C2_FATAL;
+
 static uint32_t           bufmask;
 static struct c2_atomic64 cur;
 
@@ -76,6 +78,21 @@ static struct c2_atomic64 cur;
 /** The array of subsystem names */
 static const char *trace_subsys_str[] = {
 	C2_TRACE_SUBSYSTEMS
+};
+
+/** The array of trace level names */
+static struct {
+	const char          *name;
+	enum c2_trace_level  level;
+} trace_levels[] = {
+	[0] = { .name = "NONE",   .level = C2_NONE   },
+	[1] = { .name = "FATAL",  .level = C2_FATAL  },
+	[2] = { .name = "ERROR",  .level = C2_ERROR  },
+	[3] = { .name = "WARN",   .level = C2_WARN   },
+	[4] = { .name = "NOTICE", .level = C2_NOTICE },
+	[5] = { .name = "INFO",   .level = C2_INFO   },
+	[6] = { .name = "DEBUG",  .level = C2_DEBUG  },
+	[7] = { .name = "CALL",   .level = C2_CALL   },
 };
 
 extern int  c2_arch_trace_init(void);
@@ -168,7 +185,9 @@ void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 	/** @todo put memory barrier here before writing the magic */
 	header->trh_magic = C2_TRACE_MAGIC;
 	if (C2_TRACE_IMMEDIATE_DEBUG &&
-	    (td->td_subsys & c2_trace_immediate_mask))
+	    (td->td_subsys & c2_trace_immediate_mask ||
+	     td->td_level & (C2_WARN|C2_ERROR|C2_FATAL)) &&
+	    td->td_level & c2_trace_level)
 		c2_trace_record_print(header, body);
 }
 C2_EXPORTED(c2_trace_allot);
@@ -284,6 +303,91 @@ out:
 	return 0;
 }
 
+static const char *trace_level_name(enum c2_trace_level level)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(trace_levels); i++)
+		if (level == trace_levels[i].level)
+			return trace_levels[i].name;
+
+	return NULL;
+}
+
+static enum c2_trace_level trace_level_value(char *level_name)
+{
+	int i;
+
+	/* uppercase level name to match names in trace_levels array */
+	uppercase(level_name);
+
+	for (i = 0; i < ARRAY_SIZE(trace_levels); i++) {
+		if (strcmp(level_name, trace_levels[i].name) == 0)
+			return trace_levels[i].level;
+
+	}
+
+	return C2_NONE;
+}
+
+static enum c2_trace_level trace_level_value_plus(char *level_name)
+{
+	enum c2_trace_level  level = C2_NONE;
+	size_t               n = strlen(level_name);
+	bool                 is_plus_level = false;
+
+	if (level_name[n - 1] == '+') {
+		level_name[n - 1] = '\0';
+		is_plus_level = true;
+	}
+
+	level = trace_level_value(level_name);
+	if (level == C2_NONE)
+		return C2_NONE;
+
+	/*
+	 * enable requested level and all other levels with higher precedance if
+	 * it's a "plus" level, otherwise just the requested level
+	 */
+	return is_plus_level ? level | (level - 1) : level;
+}
+
+/**
+ * Parses textual trace level specification and returns a corresponding
+ * c2_trace_level enum value.
+ *
+ * @param str textual trace level specification in form "level[+][,level[+]]",
+ *            where level is one of "call|debug|info|warn|error|fatal",
+ *            for example: 'warn+' or 'debug', 'trace,warn,error'
+ *
+ * @return c2_trace_level enum value, on success
+ * @return C2_NONE on failure
+ */
+enum c2_trace_level parse_trace_level(char *str)
+{
+	char                *level_str = str;
+	char                *p = level_str;
+	enum c2_trace_level  level = C2_NONE;
+	enum c2_trace_level  l;
+
+	while (p != NULL) {
+		p = strchr(level_str, ',');
+		if (p != NULL)
+			*p++ = '\0';
+		l = trace_level_value_plus(level_str);
+		if (l == C2_NONE) {
+			c2_console_printf("colibri: failed to initialize trace"
+					  " level: no such level '%s'\n",
+					  lowercase(level_str));
+			return C2_NONE;
+		}
+		level |= l;
+		level_str = p;
+	}
+
+	return level;
+}
+
 void c2_trace_print_subsystems(void)
 {
 	int i;
@@ -309,12 +413,13 @@ c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 	} v[C2_TRACE_ARGC_MAX];
 	char subsys_map_str[sizeof(uint64_t) * CHAR_BIT + 3];
 
-	c2_console_printf("%8.8llu %15.15llu %5.5x %-18s %-20s "
+	c2_console_printf("%8.8llu %15.15llu %5.5x %-18s %-7s %-20s "
 			  "%15s:%-3i\n\t",
 			  (unsigned long long)trh->trh_no,
 			  (unsigned long long)trh->trh_timestamp,
 			  (unsigned) (trh->trh_sp & 0xfffff),
 			  subsys_str(td->td_subsys, subsys_map_str),
+			  trace_level_name(td->td_level),
 			  td->td_func, c2_short_file_name(td->td_file),
 			  td->td_line);
 
@@ -341,6 +446,7 @@ c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 			C2_IMPOSSIBLE("sizeof");
 		}
 	}
+	c2_console_printf("colibri: %7s", trace_level_str[td->td_level]);
 	c2_console_printf(td->td_fmt, v[0], v[1], v[2], v[3], v[4], v[5], v[6],
 			  v[7], v[8]);
 	c2_console_printf("\n");

@@ -41,7 +41,13 @@ MODULE_PARM_DESC(trace_immediate_mask,
 		 "A bitmask or comma separated list of subsystem names"
 		 " of what should be printed immediately to console");
 
-static int parse_trace_immediate_mask(void)
+static char *trace_level;
+module_param(trace_level, charp, 0644);
+MODULE_PARM_DESC(trace_level,
+		 " trace level: level[+][,level[+]] where level is one of"
+		 " call|debug|info|notice|warn|error|fatal");
+
+static int set_trace_immediate_mask(void)
 {
 	int            rc;
 	char          *mask_str;
@@ -79,11 +85,38 @@ out:
 	return 0;
 }
 
+static int set_trace_level(void)
+{
+	char *level_str;
+
+	/* check if argument was specified for 'trace_level' param */
+	if (trace_level == NULL)
+		return 0;
+
+	level_str = kstrdup(trace_level, GFP_KERNEL);
+	if (level_str == NULL)
+		return -ENOMEM;
+
+	c2_trace_level = parse_trace_level(level_str);
+	kfree(level_str);
+
+	if (c2_trace_level == C2_NONE)
+		return -EINVAL;
+
+	pr_info("Colibri trace level: %s\n", trace_level);
+
+	return 0;
+}
+
 int c2_arch_trace_init(void)
 {
 	int rc;
 
-	rc = parse_trace_immediate_mask();
+	rc = set_trace_immediate_mask();
+	if (rc != 0)
+		return rc;
+
+	rc = set_trace_level();
 	if (rc != 0)
 		return rc;
 

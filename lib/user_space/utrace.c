@@ -124,13 +124,36 @@ int c2_trace_set_immediate_mask(const char *mask)
 	return 0;
 }
 
+int c2_trace_set_level(const char *level)
+{
+	if (level != NULL) {
+		char *s = strdup(level);
+		if (s == NULL)
+			return -ENOMEM;
+		c2_trace_level = parse_trace_level(s);
+		free(s);
+		if (c2_trace_level == C2_NONE)
+			return -EINVAL;
+	}
+
+	return 0;
+}
+
 int c2_arch_trace_init()
 {
 	int         rc;
-	const char *mask_str;
+	const char *var;
 
-	mask_str = getenv("C2_TRACE_IMMEDIATE_MASK");
-	rc = c2_trace_set_immediate_mask(mask_str);
+	var = getenv("C2_TRACE_IMMEDIATE_MASK");
+	rc = c2_trace_set_immediate_mask(var);
+	if (rc != 0)
+		return rc;
+
+	var = getenv("C2_TRACE_LEVEL");
+	rc = c2_trace_set_level(var);
+	if (rc != 0)
+		return rc;
+
 	if (rc != 0)
 		return rc;
 
