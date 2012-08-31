@@ -329,6 +329,9 @@ void c2_cm_state_set(struct c2_cm *cm, enum c2_cm_state state)
 	C2_PRE(c2_cm_is_locked(cm));
 
 	c2_sm_state_set(&cm->cm_mach, state);
+	C2_LOG("CM:%s copy machine:ID: %lu: STATE: %i",
+	      (char *)cm->cm_type->ct_stype.rst_name, cm->cm_id,
+	      c2_cm_state_get(cm));
 	C2_LEAVE();
 }
 
@@ -391,9 +394,9 @@ int c2_cm_start(struct c2_cm *cm)
 	C2_PRE(c2_cm_state_get(cm) == C2_CMS_IDLE);
 	C2_PRE(c2_cm_invariant(cm));
 
-	c2_cm_state_set(cm, C2_CMS_ACTIVE);
 	rc = cm->cm_ops->cmo_start(cm);
 	if (rc == 0) {
+		c2_cm_state_set(cm, C2_CMS_ACTIVE);
 		cm->cm_mach.sm_rc = C2_CM_SUCCESS;
 		C2_LOG("CM:%s copy machine:ID: %lu: STATE: %i",
 		       (char *)cm->cm_type->ct_stype.rst_name, cm->cm_id,
@@ -421,13 +424,9 @@ int c2_cm_stop(struct c2_cm *cm)
 
 	c2_cm_state_set(cm, C2_CMS_STOP);
 	rc = cm->cm_ops->cmo_stop(cm);
-	if (rc == 0) {
-		cm->cm_mach.sm_rc = C2_CM_SUCCESS;
+	if (rc == 0)
 		c2_cm_state_set(cm, C2_CMS_IDLE);
-		C2_LOG("CM:%s copy machine:ID: %lu: STATE: %i",
-		       (char *)cm->cm_type->ct_stype.rst_name, cm->cm_id,
-		       c2_cm_state_get(cm));
-	} else {
+	else {
 		c2_sm_fail(&cm->cm_mach, C2_CMS_FAIL, C2_CM_ERR_STOP);
 		C2_ADDB_ADD(&cm->cm_addb, &c2_cm_addb_loc,cm_stop_fail,
 			    "c2_cm_stop", cm->cm_mach.sm_rc);
@@ -461,32 +460,10 @@ void c2_cms_fini(void)
  * Temporary implementation to generate unique cm ids.
  * @todo Rewrite this when mechanism to generate unique ids is in place.
  */
-static uint64_t cm_id_generate(const char* s)
+static uint64_t cm_id_generate(void)
 {
-	uint64_t seed = (uint64_t)s + s[0];
-	return c2_rnd(~0ULL >> 16, &seed);
-}
-
-static void cm_sm_init(struct c2_cm *cm)
-{
-	C2_ENTRY();
-	C2_PRE(cm != NULL);
-
-	cm->cm_mach.sm_grp = &cm->cm_sm_group;
-	c2_sm_init(&cm->cm_mach, &c2_cm_sm_conf, C2_CMS_INIT,
-		   cm->cm_mach.sm_grp, &cm->cm_addb);
-	C2_ASSERT(cm->cm_mach.sm_state == C2_CMS_INIT);
-	C2_LEAVE();
-}
-
-static void cm_sm_fini(struct c2_cm *cm)
-{
-	C2_ENTRY();
-	C2_PRE(cm != NULL);
-
-	cm->cm_mach.sm_state = C2_CMS_FINI;
-	c2_sm_fini(&cm->cm_mach);
-	C2_LEAVE();
+	static uint64_t id = 0;
+	return ++id;
 }
 
 int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
@@ -501,26 +478,18 @@ int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
 
 	cm->cm_type = cm_type;
 	cm->cm_ops = cm_ops;
-	C2_ASSERT(cm->cm_type->ct_stype.rst_name != NULL);
-
-	c2_sm_group_init(&cm->cm_sm_group);
-	c2_addb_ctx_init(&cm->cm_addb, &c2_cm_addb_ctx, &c2_addb_global_ctx);
 	rc = c2_cm_sw_init(&cm->cm_sw, sw_ops);
-	if (rc == 0) {
-		cm->cm_mach.sm_rc = C2_CM_SUCCESS;
-		C2_LOG("CM:%s copy machine:ID: %lu: STATE: %i",
-		       (char *)cm_type->ct_stype.rst_name, cm->cm_id,
-		        cm->cm_mach.sm_state);
-	} else {
-		C2_ADDB_ADD(&cm->cm_addb, &c2_cm_addb_loc, cm_init_fail,
-			    "c2_cm_init", cm->cm_mach.sm_rc);
-		c2_addb_ctx_fini(&cm->cm_addb);
-		c2_sm_group_fini(&cm->cm_sm_group);
+	if (rc != 0) {
 		goto out;
 	}
-
-	cm_sm_init(cm);
-	cm->cm_id = cm_id_generate(cm->cm_type->ct_stype.rst_name);
+	cm->cm_id = cm_id_generate();
+	c2_addb_ctx_init(&cm->cm_addb, &c2_cm_addb_ctx, &c2_addb_global_ctx);
+	/* State machine initialisation */
+	c2_sm_group_init(&cm->cm_sm_group);
+	cm->cm_mach.sm_grp = &cm->cm_sm_group;
+	c2_sm_init(&cm->cm_mach, &c2_cm_sm_conf, C2_CMS_INIT,
+		   &cm->cm_sm_group, &cm->cm_addb);
+	C2_ASSERT(cm->cm_mach.sm_state == C2_CMS_INIT);
 	C2_POST(c2_cm_invariant(cm));
 out:
 	C2_LEAVE();
@@ -534,18 +503,22 @@ void c2_cm_fini(struct c2_cm *cm)
 	C2_PRE(C2_IN(cm->cm_mach.sm_state, (C2_CMS_INIT, C2_CMS_IDLE,
 					    C2_CMS_FAIL)));
 
-	cm_sm_fini(cm);
 	C2_ASSERT(c2_cm_invariant(cm));
 	/* Call ->cmo_fini() only if c2_cm_setup() was successful. */
 	if (C2_IN(cm->cm_mach.sm_state, (C2_CMS_IDLE, C2_CMS_FAIL)))
 		cm->cm_ops->cmo_fini(cm);
-	c2_cm_sw_fini(&cm->cm_sw);
-	c2_addb_ctx_fini(&cm->cm_addb);
 	C2_LOG("CM:Copy Machine: %s:ID: %lu: STATE: %i",
 	       (char *)cm->cm_type->ct_stype.rst_name, cm->cm_id,
 	        cm->cm_mach.sm_state);
-
+	/*
+	 * Explicitly set state here instead of calling c2_cm_set_state() which
+	 * needs to be protected by the group mutex.
+	 */
+	cm->cm_mach.sm_state = C2_CMS_FINI;
+	c2_sm_fini(&cm->cm_mach);
 	c2_sm_group_fini(&cm->cm_sm_group);
+	c2_addb_ctx_fini(&cm->cm_addb);
+	c2_cm_sw_fini(&cm->cm_sw);
 	C2_LEAVE();
 }
 
@@ -561,7 +534,7 @@ int c2_cm_type_register(struct c2_cm_type *cmtype)
 		cmtypes_tlink_init(cmtype);
 		c2_cm_type_bob_init(cmtype);
 		c2_mutex_lock(&cmtypes_mutex);
-		cmtypes_tlist_add_tail(&cmtypes, cmtype);
+		cmtypes_tlist_init_add_tail(&cmtypes, cmtype);
 		c2_mutex_unlock(&cmtypes_mutex);
 	}
 	C2_LEAVE();
@@ -573,7 +546,9 @@ void c2_cm_type_deregister(struct c2_cm_type *cmtype)
 	C2_PRE(cmtype != NULL && c2_cm_type_bob_check(cmtype));
 	C2_ENTRY();
 
+	c2_mutex_lock(&cmtypes_mutex);
 	cmtypes_tlink_del_fini(cmtype);
+	c2_mutex_unlock(&cmtypes_mutex);
 	c2_cm_type_bob_fini(cmtype);
 	c2_reqh_service_type_unregister(&cmtype->ct_stype);
 	C2_LEAVE();
