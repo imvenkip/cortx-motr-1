@@ -125,10 +125,7 @@ struct c2_cm_cp {
         /** Aggregation group to which this copy packet belongs.*/
         struct c2_cm_aggr_group   *c_ag;
 
-        /** Array of starting extent indices. */
-        c2_bindex_t               *c_index;
-
-	/** Buffer representing the copy packet data */
+	/** Buffer representing the copy packet data.*/
 	struct c2_bufvec          *c_data;
 
 	/** Set and used in case of network send/recv.*/
@@ -147,9 +144,6 @@ struct c2_cm_cp_ops {
 	/** Per phase action for copy packet */
 	int  (*co_action[C2_CCP_NR]) (struct c2_cm_cp *cp);
 
-	/** Called when copy packet processing is completed successfully.*/
-	void (*co_complete) (struct c2_cm_cp *cp);
-
 	/**
 	 * Changes copy packet phase based on current phase and layout
 	 * information. This function should set FOM phase internally and return
@@ -162,6 +156,9 @@ struct c2_cm_cp_ops {
 
 	/** Handles non-generic phases.*/
 	int  (*co_tick) (struct c2_cm_cp *cp);
+
+	/** Called when copy packet processing is completed successfully.*/
+	void (*co_complete) (struct c2_cm_cp *cp);
 };
 
 /**
