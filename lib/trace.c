@@ -32,6 +32,7 @@
 #include "lib/misc.h"   /* c2_short_file_name */
 #include "lib/memory.h" /* c2_pagesize_get */
 #include "lib/trace.h"
+#include "lib/trace_internal.h"
 
 #include "colibri/magic.h"
 
@@ -185,6 +186,102 @@ static char *subsys_str(uint64_t subsys, char *buf)
 	*s = '\0';
 
 	return buf;
+}
+
+static inline char *uppercase(char *s)
+{
+	char *p;
+
+	for (p = s; *p != '\0'; ++p)
+		*p = toupper(*p);
+
+	return s;
+}
+
+static inline char *lowercase(char *s)
+{
+	char *p;
+
+	for (p = s; *p != '\0'; ++p)
+		*p = tolower(*p);
+
+	return s;
+}
+
+static unsigned long subsys_name_to_mask(char *subsys_name)
+{
+	int            i;
+	unsigned long  mask;
+
+	/* uppercase subsys_name to match names in trace_subsys_str array */
+	uppercase(subsys_name);
+
+	for (mask = 0, i = 0; i < ARRAY_SIZE(trace_subsys_str); i++)
+		if (strcmp(subsys_name, trace_subsys_str[i]) == 0) {
+			mask = 1 << i;
+			break;
+		}
+
+	return mask;
+}
+
+/**
+ * Produces a numeric bitmask from a comma-separated list of subsystem names.
+ * If '!' is present at the beginning of list, then mask is inverted
+ *
+ * @param subsys_names comma-separated list of subsystem names with optional
+ *                     '!' at the beginning
+ *
+ * @param ret_mask     a pointer to a variable where to store mask, the stored
+ *                     value is valid only if no error is returned
+ *
+ * @return 0 on success
+ * @return -EINVAL on failure
+ */
+int subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask)
+{
+	char          *p;
+	char          *subsys = subsys_names;
+	unsigned long  mask;
+	unsigned long  m;
+
+	/*
+	 * there can be an optional '!' symbol at the beginning of mask,
+	 * skip it if it present
+	 */
+	subsys = subsys_names[0] == '!' ? subsys_names + 1 : subsys_names;
+
+	/*
+	 * a special pseudo-subsystem 'all' represents all available subsystems;
+	 * it's valid only when it's the only subsystem in a list
+	 */
+	if (strcmp(subsys, "all") == 0 || strcmp(subsys, "ALL") == 0) {
+		mask = ~0UL;
+		goto out;
+	}
+
+	mask = 0;
+	p = subsys;
+
+	while (p != NULL) {
+		p = strchr(subsys, ',');
+		if (p != NULL)
+			*p++ = '\0';
+		m = subsys_name_to_mask(subsys);
+		if (m == 0) {
+			c2_console_printf("colibri: failed to initialize trace"
+					  " immediate mask: subsystem '%s' not"
+					  " found\n", lowercase(subsys));
+			return -EINVAL;
+		}
+		mask |= m;
+		subsys = p;
+	}
+out:
+	/* invert mask if there is '!' at the beginning */
+	*ret_mask = subsys_names[0] == '!' ? ~mask : mask;
+
+	return 0;
 }
 
 void
