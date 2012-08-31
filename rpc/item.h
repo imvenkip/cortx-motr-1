@@ -56,7 +56,6 @@ enum c2_rpc_item_state {
 	C2_RPC_ITEM_WAITING_FOR_REPLY,
 	C2_RPC_ITEM_REPLIED,
 	C2_RPC_ITEM_ACCEPTED,
-	C2_RPC_ITEM_IGNORED,
 	C2_RPC_ITEM_TIMEDOUT,
 	C2_RPC_ITEM_FAILED,
 	C2_RPC_ITEM_NR_STATES,
@@ -144,14 +143,14 @@ struct c2_rpc_item {
 
 struct c2_rpc_item_ops {
 	/**
-	   Called when given item's sent.
-	   @param item reference to an RPC-item sent
-	   @note ri_added() has been called before invoking this function.
+	   Called when given item is sent over the network. It does not state
+	   anything about whether item is received on receiver or not.
+
+	   IMP: Called with rpc-machine mutex held. Do not reenter in RPC.
 	 */
 	void (*rio_sent)(struct c2_rpc_item *item);
 	/**
 	   Called when given item's replied.
-	   @param item reference to an RPC-item on which reply FOP was received.
 
 	   @note ri_added() and ri_sent() have been called before invoking this
 	   function.

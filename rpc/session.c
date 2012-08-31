@@ -1180,10 +1180,12 @@ void c2_rpc_session_item_failed(struct c2_rpc_item *item)
 	C2_PRE(item != NULL && item->ri_error != 0);
 	C2_PRE(item->ri_sm.sm_state == C2_RPC_ITEM_FAILED);
 
-	if (item->ri_error == -ETIMEDOUT)
-		c2_rpc_item_set_stage(item, RPC_ITEM_STAGE_UNKNOWN);
-	else
-		c2_rpc_item_set_stage(item, RPC_ITEM_STAGE_FAILED);
+	if (c2_rpc_item_is_request(item)) {
+		if (item->ri_error == -ETIMEDOUT)
+			c2_rpc_item_set_stage(item, RPC_ITEM_STAGE_UNKNOWN);
+		else
+			c2_rpc_item_set_stage(item, RPC_ITEM_STAGE_FAILED);
+	}
 	/*
 	 * Note that the slot is not marked as idle. Because we cannot
 	 * use this slot to send more items.

@@ -334,6 +334,34 @@ bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item)
 	return !c2_rpc_item_is_bound(item) && !c2_rpc_item_is_unsolicited(item);
 }
 
+void c2_rpc_item_set_stage(struct c2_rpc_item     *item,
+			   enum c2_rpc_item_stage  stage)
+{
+	struct c2_rpc_machine *machine;
+	struct c2_rpc_session *session;
+	struct c2_rpc_slot    *slot;
+	bool                   item_was_active;
+
+	session = item->ri_session;
+	machine = session->s_conn->c_rpc_machine;
+	slot    = item->ri_slot_refs[0].sr_slot;
+
+	C2_ASSERT(c2_rpc_session_invariant(session));
+	item_was_active = item_is_active(item);
+	C2_ASSERT(ergo(item_was_active,
+		       session->s_state == C2_RPC_SESSION_BUSY));
+
+	item->ri_stage = stage;
+
+	if (item_was_active && !item_is_active(item))
+		c2_rpc_session_dec_nr_active_items(session);
+
+	if (!item_was_active && item_is_active(item))
+		c2_rpc_session_inc_nr_active_items(session);
+
+	C2_ASSERT(c2_rpc_session_invariant(session));
+}
+
 void c2_rpc_item_sm_init(struct c2_rpc_item *item, struct c2_sm_group *grp)
 {
 	C2_PRE(item != NULL);
@@ -418,6 +446,10 @@ static int item_entered_in_sent_state(struct c2_sm *mach)
 	struct c2_rpc_item *item;
 
 	item = sm_to_item(mach);
+
+	if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
+		item->ri_ops->rio_sent(item);
+
 	if (c2_rpc_item_is_request(item)) {
 		C2_LOG("%p [REQUEST/%u] SENT -> WAITING_FOR_REPLY",
 			item, item->ri_type->rit_opcode);

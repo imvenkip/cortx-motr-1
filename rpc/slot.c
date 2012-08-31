@@ -644,34 +644,6 @@ void c2_rpc_slot_process_reply(struct c2_rpc_item *req)
 	slot->sl_ops->so_reply_consume(req, req->ri_reply);
 }
 
-void c2_rpc_item_set_stage(struct c2_rpc_item     *item,
-			   enum c2_rpc_item_stage  stage)
-{
-	struct c2_rpc_machine *machine;
-	struct c2_rpc_session *session;
-	struct c2_rpc_slot    *slot;
-	bool                   item_was_active;
-
-	session = item->ri_session;
-	machine = session->s_conn->c_rpc_machine;
-	slot    = item->ri_slot_refs[0].sr_slot;
-
-	C2_ASSERT(c2_rpc_session_invariant(session));
-	item_was_active = item_is_active(item);
-	C2_ASSERT(ergo(item_was_active,
-		       session->s_state == C2_RPC_SESSION_BUSY));
-
-	item->ri_stage = stage;
-
-	if (item_was_active && !item_is_active(item))
-		c2_rpc_session_dec_nr_active_items(session);
-
-	if (!item_was_active && item_is_active(item))
-		c2_rpc_session_inc_nr_active_items(session);
-
-	C2_ASSERT(c2_rpc_session_invariant(session));
-}
-
 void c2_rpc_slot_postpone_reply_processing(struct c2_rpc_item *req,
 					   struct c2_rpc_item *reply)
 {
