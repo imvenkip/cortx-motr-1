@@ -447,15 +447,24 @@ static int item_entered_in_sent_state(struct c2_sm *mach)
 
 	item = sm_to_item(mach);
 
-	if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
-		item->ri_ops->rio_sent(item);
-
 	if (c2_rpc_item_is_request(item)) {
-		C2_LOG("%p [REQUEST/%u] SENT -> WAITING_FOR_REPLY",
-			item, item->ri_type->rit_opcode);
-	}
 
-	return c2_rpc_item_is_request(item) ? WAITING_FOR_REPLY : -1;
+		if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
+			item->ri_ops->rio_sent(item);
+
+		C2_LOG("%p [REQUEST/%u] SENT -> WAITING_FOR_REPLY",
+		       item, item->ri_type->rit_opcode);
+		return WAITING_FOR_REPLY;
+
+	} else {
+
+		C2_ASSERT(c2_rpc_item_is_reply(item) ||
+			  c2_rpc_item_is_unsolicited(item));
+
+		if (item->ri_ops != NULL && item->ri_ops->rio_done != NULL)
+			item->ri_ops->rio_done(item);
+		return -1;
+	}
 }
 
 static int item_entered_in_timedout_state(struct c2_sm *mach)
