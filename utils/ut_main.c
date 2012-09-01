@@ -23,6 +23,7 @@
 
 #include "lib/ut.h"
 #include "lib/trace.h"
+#include "lib/user_space/trace.h" /* c2_trace_set_print_context */
 #include "lib/thread.h"    /* LAMBDA */
 #include "lib/getopts.h"
 #include "lib/finject.h"   /* c2_fi_print_info */
@@ -167,6 +168,12 @@ int main(int argc, char *argv[])
 					c2_trace_print_subsystems();
 					exit(EXIT_SUCCESS);
 				})),
+		    C2_STRINGARG('p', "trace print context, values:"
+				 " none, func, full",
+				LAMBDA(void, (const char *str) {
+					trace_print_context = str;
+				})
+				),
 		    C2_STRINGARG('e', "trace level: level[+][,level[+]]"
 				 " where level is one of call|debug|info|"
 				 "notice|warn|error|fatal",
@@ -240,6 +247,13 @@ int main(int argc, char *argv[])
 	result = c2_trace_set_level(trace_level);
 	if (result != 0)
 		goto out;
+
+	result = c2_trace_set_print_context(trace_print_context);
+	if (result != 0) {
+		fprintf(stderr, "Error: invalid value for -p option,"
+				" allowed are: 0, 1, 2\n");
+		goto out;
+	}
 
 	if (parse_trace) {
 		result = c2_trace_parse();

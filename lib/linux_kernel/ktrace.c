@@ -38,7 +38,7 @@
 static char *trace_immediate_mask;
 module_param(trace_immediate_mask, charp, 0644);
 MODULE_PARM_DESC(trace_immediate_mask,
-		 "A bitmask or comma separated list of subsystem names"
+		 " a bitmask or comma separated list of subsystem names"
 		 " of what should be printed immediately to console");
 
 static char *trace_level;
@@ -46,6 +46,13 @@ module_param(trace_level, charp, 0644);
 MODULE_PARM_DESC(trace_level,
 		 " trace level: level[+][,level[+]] where level is one of"
 		 " call|debug|info|notice|warn|error|fatal");
+
+static char *trace_print_context;
+module_param(trace_print_context, charp, 0644);
+MODULE_PARM_DESC(trace_print_context,
+		 " controls whether to display additional trace point"
+		 " info, like subsystem, file, func, etc.; values:"
+		 " none, func, full");
 
 static int set_trace_immediate_mask(void)
 {
@@ -108,6 +115,25 @@ static int set_trace_level(void)
 	return 0;
 }
 
+static int set_trace_print_context(void)
+{
+	enum c2_trace_print_context ctx;
+
+	/* check if argument was specified for 'trace_print_context' param */
+	if (trace_print_context == NULL)
+		return 0;
+
+	ctx = parse_trace_print_context(trace_print_context);
+	if (ctx == C2_TRACE_PCTX_INVALID)
+		return -EINVAL;
+
+	c2_trace_print_context = ctx;
+
+	pr_info("Colibri trace print context: %s\n", trace_print_context);
+
+	return 0;
+}
+
 int c2_arch_trace_init(void)
 {
 	int rc;
@@ -117,6 +143,10 @@ int c2_arch_trace_init(void)
 		return rc;
 
 	rc = set_trace_level();
+	if (rc != 0)
+		return rc;
+
+	rc = set_trace_print_context();
 	if (rc != 0)
 		return rc;
 

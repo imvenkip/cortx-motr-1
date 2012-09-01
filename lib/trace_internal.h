@@ -27,6 +27,8 @@ int subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask);
 
 enum c2_trace_level parse_trace_level(char *str);
 
+enum c2_trace_print_context parse_trace_print_context(const char *ctx_name);
+
 #endif /* __COLIBRI_LIB_TRACE_INTERNAL_H__ */
 
 /*

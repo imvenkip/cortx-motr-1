@@ -91,6 +91,21 @@ static int logbuf_map()
 	return -errno;
 }
 
+int c2_trace_set_print_context(const char *ctx_name)
+{
+	if (ctx_name != NULL) {
+		enum c2_trace_print_context ctx =
+			parse_trace_print_context(ctx_name);
+
+		if (ctx == C2_TRACE_PCTX_INVALID)
+			return -EINVAL;
+
+		c2_trace_print_context = ctx;
+	}
+
+	return 0;
+}
+
 int c2_trace_set_immediate_mask(const char *mask)
 {
 	if (mask != NULL) {
@@ -154,6 +169,8 @@ int c2_arch_trace_init()
 	if (rc != 0)
 		return rc;
 
+	var = getenv("C2_TRACE_PRINT_CONTEXT");
+	rc = c2_trace_set_print_context(var);
 	if (rc != 0)
 		return rc;
 

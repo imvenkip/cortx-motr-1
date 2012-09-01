@@ -204,7 +204,7 @@ extern unsigned long c2_trace_immediate_mask;
  * Controls whether to display additional trace point info, like
  * timestamp, subsystem, file, func, etc.
  *
- * Acceptable values: 0 - none, 1 - only func name, 2 - full
+ * Acceptable values are elements of enum c2_trace_print_context.
  */
 /* XXX: maybe c2_trace_verbose would be a better name? */
 extern unsigned int c2_trace_print_context;
@@ -294,6 +294,14 @@ enum c2_trace_level {
 	 * function calls, should _not_ be used directly with C2_LOG();
 	 */
 	C2_CALL   = 1 << 6,
+};
+
+enum c2_trace_print_context {
+	C2_TRACE_PCTX_NONE = 0,
+	C2_TRACE_PCTX_FUNC = 1,
+	C2_TRACE_PCTX_FULL = 2,
+
+	C2_TRACE_PCTX_INVALID
 };
 
 struct c2_trace_descr {

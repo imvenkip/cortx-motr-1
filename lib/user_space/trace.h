@@ -34,6 +34,8 @@ int  c2_trace_parse(void);
 
 int  c2_trace_set_immediate_mask(const char *mask);
 
+int  c2_trace_set_print_context(const char *ctx_name);
+
 int  c2_trace_set_level(const char *level);
 
 /** @} end of trace group */

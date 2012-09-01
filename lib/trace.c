@@ -68,6 +68,7 @@ uint32_t   c2_logbufsize = sizeof bootbuf;
 unsigned long c2_trace_immediate_mask = 0;
 C2_BASSERT(sizeof(c2_trace_immediate_mask) == 8);
 
+unsigned int c2_trace_print_context = C2_TRACE_PCTX_NONE;
 unsigned int c2_trace_level         = C2_WARN | C2_ERROR | C2_FATAL;
 
 static uint32_t           bufmask;
@@ -93,6 +94,13 @@ static struct {
 	[5] = { .name = "INFO",   .level = C2_INFO   },
 	[6] = { .name = "DEBUG",  .level = C2_DEBUG  },
 	[7] = { .name = "CALL",   .level = C2_CALL   },
+};
+
+/** Array of trace print context names */
+static const char *trace_print_ctx_str[] = {
+	[C2_TRACE_PCTX_NONE] = "none",
+	[C2_TRACE_PCTX_FUNC] = "func",
+	[C2_TRACE_PCTX_FULL] = "full",
 };
 
 extern int  c2_arch_trace_init(void);
@@ -388,6 +396,20 @@ enum c2_trace_level parse_trace_level(char *str)
 	return level;
 }
 
+enum c2_trace_print_context parse_trace_print_context(const char *ctx_name)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(trace_print_ctx_str); ++i)
+		if (strcmp(ctx_name, trace_print_ctx_str[i]) == 0)
+			return i;
+
+	c2_console_printf("colibri: failed to initialize trace print context:"
+			  " invalid value '%s'\n", ctx_name);
+
+	return C2_TRACE_PCTX_INVALID;
+}
+
 void c2_trace_print_subsystems(void)
 {
 	int i;
@@ -413,15 +435,17 @@ c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 	} v[C2_TRACE_ARGC_MAX];
 	char subsys_map_str[sizeof(uint64_t) * CHAR_BIT + 3];
 
-	c2_console_printf("%8.8llu %15.15llu %5.5x %-18s %-7s %-20s "
-			  "%15s:%-3i\n\t",
-			  (unsigned long long)trh->trh_no,
-			  (unsigned long long)trh->trh_timestamp,
-			  (unsigned) (trh->trh_sp & 0xfffff),
-			  subsys_str(td->td_subsys, subsys_map_str),
-			  trace_level_name(td->td_level),
-			  td->td_func, c2_short_file_name(td->td_file),
-			  td->td_line);
+	if (c2_trace_print_context == C2_TRACE_PCTX_FULL) {
+		c2_console_printf("%8.8llu %15.15llu %5.5x %-18s %-7s %-20s "
+				  "%15s:%-3i\n\t",
+				  (unsigned long long)trh->trh_no,
+				  (unsigned long long)trh->trh_timestamp,
+				  (unsigned) (trh->trh_sp & 0xfffff),
+				  subsys_str(td->td_subsys, subsys_map_str),
+				  trace_level_name(td->td_level),
+				  td->td_func, c2_short_file_name(td->td_file),
+				  td->td_line);
+	}
 
 	for (i = 0; i < td->td_nr; ++i) {
 		const char *addr;
@@ -446,7 +470,12 @@ c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 			C2_IMPOSSIBLE("sizeof");
 		}
 	}
-	c2_console_printf("colibri: %7s", trace_level_str[td->td_level]);
+
+	if (c2_trace_print_context == C2_TRACE_PCTX_FUNC)
+		c2_console_printf("colibri: %s: ", td->td_func);
+	else
+		c2_console_printf("colibri: ");
+
 	c2_console_printf(td->td_fmt, v[0], v[1], v[2], v[3], v[4], v[5], v[6],
 			  v[7], v[8]);
 	c2_console_printf("\n");
