@@ -26,6 +26,7 @@
 
 #include "net/test/slist.h"		/* c2_net_test_slist */
 #include "net/test/ringbuf.h"		/* c2_net_test_ringbuf */
+#include "net/test/stats.h"		/* c2_net_test_stats */
 #include "net/test/node_config.h"	/* c2_net_test_role */
 #include "net/test/network.h"		/* c2_net_test_network_ctx */
 
@@ -53,20 +54,20 @@ enum c2_net_test_cmd_type {
 	C2_NET_TEST_CMD_INIT,
 	C2_NET_TEST_CMD_INIT_DONE,
 	C2_NET_TEST_CMD_START,
-	C2_NET_TEST_CMD_START_ACK,
+	C2_NET_TEST_CMD_START_DONE,
 	C2_NET_TEST_CMD_STATUS,
 	C2_NET_TEST_CMD_STATUS_DATA,
 	C2_NET_TEST_CMD_STOP,
-	C2_NET_TEST_CMD_STOP_ACK,
+	C2_NET_TEST_CMD_STOP_DONE,
 	C2_NET_TEST_CMD_NR,
 };
 
 /**
-   C2_NET_TEST_CMD_*_ACK.
+   C2_NET_TEST_CMD_*_DONE.
    @see c2_net_test_cmd
  */
-struct c2_net_test_cmd_ack {
-	int ntca_errno;
+struct c2_net_test_cmd_done {
+	int ntcd_errno;
 };
 
 /**
@@ -78,12 +79,20 @@ struct c2_net_test_cmd_init {
 	enum c2_net_test_role	 ntci_role;
 	/** node type */
 	enum c2_net_test_type	 ntci_type;
-	/** number of test messages */
+	/** number of test messages for the test client */
 	unsigned long		 ntci_msg_nr;
-	/** buffer size for bulk transfer */
+	/** test message size */
 	c2_bcount_t		 ntci_msg_size;
-	/** number of network buffers */
-	size_t			 ntci_buf_nr;
+	/**
+	 * Test messages concurrency.
+	 * Test server will allocate ntci_concurrency buffers.
+	 * Test client will allocate (ntci_concurrency * 2) buffers (one for
+	 * sending and another for receiving) for each test server
+	 * from endpoints list ntci_ep.
+	 */
+	size_t			 ntci_concurrency;
+	/** buffer send timeout */
+	c2_time_t		 ntci_buf_send_timeout;
 	/** transfer machine endpoint for data transfers */
 	char			*ntci_tm_ep;
 	/** endpoints list */
@@ -91,12 +100,35 @@ struct c2_net_test_cmd_init {
 };
 
 /**
-   C2_NET_TEST_CMD_STOP.
-   @see c2_net_test_cmd
+   C2_NET_TEST_CMD_STATUS_DATA.
+   @see c2_net_test_cmd, c2_net_test_msg_nr, c2_net_test_stats
  */
-struct c2_net_test_cmd_stop {
-	/** cancel the current operations */
-	bool ntcs_cancel;
+struct c2_net_test_cmd_status_data {
+	/** number of sent test messages */
+	size_t			 ntcsd_msg_sent;
+	/** number of received test messages */
+	size_t			 ntcsd_msg_rcvd;
+	/** number of failed test messages while sending */
+	size_t			 ntcsd_msg_send_failed;
+	/** number of failed test messages while receiving */
+	size_t			 ntcsd_msg_recv_failed;
+	/** total number of bytes sent */
+	c2_bcount_t		 ntcsd_bytes_sent;
+	/** total number of bytes received */
+	c2_bcount_t		 ntcsd_bytes_rcvd;
+	/** Test start time */
+	c2_time_t		 ntcsd_time_start;
+	/** Current time on the test node */
+	c2_time_t		 ntcsd_time_now;
+	/** 'send' bandwidth statistics with 1 sec interval */
+	struct c2_net_test_stats ntcsd_bandwidth_1s_send;
+	/** 'receive' bandwidth statistics with 1 sec interval */
+	struct c2_net_test_stats ntcsd_bandwidth_1s_recv;
+	/** RTT statistics (without lost messages) */
+	struct c2_net_test_stats ntcsd_rtt;
+	/** @todo send/recv RTT
+	   (needs time synchronization over clients/servers) */
+	/** @todo msg stats for bulk test */
 };
 
 /**
@@ -110,11 +142,10 @@ struct c2_net_test_cmd {
 	/** command type */
 	enum c2_net_test_cmd_type ntc_type;
 	/** command structures */
-	/** @todo add others commands */
 	union {
-		struct c2_net_test_cmd_ack  ntc_ack;
-		struct c2_net_test_cmd_init ntc_init;
-		struct c2_net_test_cmd_stop ntc_stop;
+		struct c2_net_test_cmd_done	   ntc_done;
+		struct c2_net_test_cmd_init	   ntc_init;
+		struct c2_net_test_cmd_status_data ntc_status_data;
 	};
 	/**
 	   Endpoint index in commands context.
@@ -243,6 +274,7 @@ void c2_net_test_commands_send_wait_all(struct c2_net_test_cmd_ctx *ctx);
 	      c2_net_test_received_free() should be called for cmd to free
 	      resources that can be allocated while decoding.
    @param deadline Functon will wait until deadline reached. Absolute time.
+   @return -ETIMEDOUT command wasn't received before deadline
 
    @note cmd->ntc_buf_index will be set to buffer index with received command.
    This buffer will be removed from receive queue and should be added using

@@ -44,6 +44,11 @@ extern void c2_net_test_cmd_ut_multiple(void);
 extern void c2_net_test_stats_ut(void);
 extern void c2_net_test_timestamp_ut(void);
 
+extern void c2_net_test_service_ut(void);
+
+extern void c2_net_test_client_server_ping_ut(void);
+extern void c2_net_test_client_server_bulk_ut(void);
+
 static int net_test_init(void)
 {
 	return c2_net_test_network_init();
@@ -60,18 +65,21 @@ const struct c2_test_suite c2_net_test_ut = {
 	.ts_init = net_test_init,
 	.ts_fini = net_test_fini,
 	.ts_tests = {
-		{ "ringbuf",		c2_net_test_ringbuf_ut		 },
-		{ "serialize",		c2_net_test_serialize_ut	 },
-		{ "str",		c2_net_test_str_ut		 },
-		{ "slist",		c2_net_test_slist_ut		 },
-		{ "network-buf-desc",	c2_net_test_network_ut_buf_desc	 },
-		{ "network-ping",	c2_net_test_network_ut_ping	 },
-		{ "network-bulk",	c2_net_test_network_ut_bulk	 },
-		{ "cmd-single",		c2_net_test_cmd_ut_single	 },
-		{ "cmd-multiple",	c2_net_test_cmd_ut_multiple	 },
-		{ "stats",		c2_net_test_stats_ut		 },
-		{ "timestamp",		c2_net_test_timestamp_ut	 },
-		{ NULL,			NULL				 }
+		{ "ringbuf",		c2_net_test_ringbuf_ut		  },
+		{ "serialize",		c2_net_test_serialize_ut	  },
+		{ "str",		c2_net_test_str_ut		  },
+		{ "slist",		c2_net_test_slist_ut		  },
+		{ "network-buf-desc",	c2_net_test_network_ut_buf_desc	  },
+		{ "network-ping",	c2_net_test_network_ut_ping	  },
+		{ "network-bulk",	c2_net_test_network_ut_bulk	  },
+		{ "cmd-single",		c2_net_test_cmd_ut_single	  },
+		{ "cmd-multiple",	c2_net_test_cmd_ut_multiple	  },
+		{ "stats",		c2_net_test_stats_ut		  },
+		{ "timestamp",		c2_net_test_timestamp_ut	  },
+		{ "service",		c2_net_test_service_ut		  },
+		{ "client-server-ping",	c2_net_test_client_server_ping_ut },
+		{ "client-server-bulk",	c2_net_test_client_server_bulk_ut },
+		{ NULL,			NULL				  }
 	}
 };
 

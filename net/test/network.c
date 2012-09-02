@@ -116,14 +116,15 @@ static uint32_t cb_buf_index_extract(const struct c2_net_buffer_event *ev,
    Calls user-defined callback for the buffer.
    @see net_test_buf_init()
  */
-static void cb_default(const struct c2_net_buffer_event *ev,
-		       enum c2_net_queue_type q)
+static void cb_default(const struct c2_net_buffer_event *ev)
 {
-	struct c2_net_buffer *buf = ev->nbe_buffer;
+	struct c2_net_buffer	       *buf = ev->nbe_buffer;
 	struct c2_net_test_network_ctx *ctx;
-	uint32_t buf_index;
+	uint32_t			buf_index;
+	enum c2_net_queue_type		q;
 
 	C2_PRE(buf != NULL);
+	q = ev->nbe_buffer->nb_qtype;
 
 	ctx = cb_ctx_extract(ev);
 	C2_ASSERT(ctx != NULL);
@@ -139,44 +140,14 @@ static void cb_default(const struct c2_net_buffer_event *ev,
 	ctx->ntc_buf_cb.ntnbc_cb[q](ctx, buf_index, q, ev);
 }
 
-static void cb_msg_recv(const struct c2_net_buffer_event *ev)
-{
-	cb_default(ev, C2_NET_QT_MSG_RECV);
-}
-
-static void cb_msg_send(const struct c2_net_buffer_event *ev)
-{
-	cb_default(ev, C2_NET_QT_MSG_SEND);
-}
-
-static void cb_active_send(const struct c2_net_buffer_event *ev)
-{
-	cb_default(ev, C2_NET_QT_ACTIVE_BULK_SEND);
-}
-
-static void cb_passive_send(const struct c2_net_buffer_event *ev)
-{
-	cb_default(ev, C2_NET_QT_PASSIVE_BULK_SEND);
-}
-
-static void cb_active_recv(const struct c2_net_buffer_event *ev)
-{
-	cb_default(ev, C2_NET_QT_ACTIVE_BULK_RECV);
-}
-
-static void cb_passive_recv(const struct c2_net_buffer_event *ev)
-{
-	cb_default(ev, C2_NET_QT_PASSIVE_BULK_RECV);
-}
-
 static struct c2_net_buffer_callbacks net_test_network_buf_cb = {
 	.nbc_cb = {
-		[C2_NET_QT_MSG_RECV]		= cb_msg_recv,
-		[C2_NET_QT_MSG_SEND]		= cb_msg_send,
-		[C2_NET_QT_PASSIVE_BULK_RECV]	= cb_passive_recv,
-		[C2_NET_QT_PASSIVE_BULK_SEND]	= cb_passive_send,
-		[C2_NET_QT_ACTIVE_BULK_RECV]	= cb_active_recv,
-		[C2_NET_QT_ACTIVE_BULK_SEND]	= cb_active_send,
+		[C2_NET_QT_MSG_RECV]		= cb_default,
+		[C2_NET_QT_MSG_SEND]		= cb_default,
+		[C2_NET_QT_PASSIVE_BULK_RECV]	= cb_default,
+		[C2_NET_QT_PASSIVE_BULK_SEND]	= cb_default,
+		[C2_NET_QT_ACTIVE_BULK_RECV]	= cb_default,
+		[C2_NET_QT_ACTIVE_BULK_SEND]	= cb_default,
 	}
 };
 
@@ -469,20 +440,31 @@ static int net_test_buf_queue(struct c2_net_test_network_ctx *ctx,
 	return c2_net_buffer_add(nb, &ctx->ntc_tm);
 }
 
-int c2_net_test_network_msg_send(struct c2_net_test_network_ctx *ctx,
-				 uint32_t buf_ping_index,
-				 uint32_t ep_index)
+int c2_net_test_network_msg_send_ep(struct c2_net_test_network_ctx *ctx,
+				    uint32_t buf_ping_index,
+				    struct c2_net_end_point *ep)
 {
 	struct c2_net_buffer *nb;
 
 	C2_PRE(c2_net_test_network_ctx_invariant(ctx));
 	C2_PRE(buf_ping_index < ctx->ntc_buf_ping_nr);
-	C2_PRE(ep_index < ctx->ntc_ep_nr);
 
 	nb = &ctx->ntc_buf_ping[buf_ping_index];
-	nb->nb_ep = ctx->ntc_ep[ep_index];
+	nb->nb_ep = ep;
 
 	return net_test_buf_queue(ctx, nb, C2_NET_QT_MSG_SEND);
+}
+
+int c2_net_test_network_msg_send(struct c2_net_test_network_ctx *ctx,
+				 uint32_t buf_ping_index,
+				 uint32_t ep_index)
+{
+	C2_PRE(c2_net_test_network_ctx_invariant(ctx));
+	C2_PRE(buf_ping_index < ctx->ntc_buf_ping_nr);
+	C2_PRE(ep_index < ctx->ntc_ep_nr);
+
+	return c2_net_test_network_msg_send_ep(ctx, buf_ping_index,
+					       ctx->ntc_ep[ep_index]);
 }
 
 int c2_net_test_network_msg_recv(struct c2_net_test_network_ctx *ctx,

@@ -32,9 +32,9 @@
 
 /* NTC_ == NET_TEST_COMMANDS_ */
 enum {
-	NTC_PORT	      = 30,
-	NTC_SVC_ID_CONSOLE    = 3000,
-	NTC_SVC_ID_NODE	      = 3001,
+	NTC_PORTAL	      = 30,
+	NTC_TMID_CONSOLE      = 3000,
+	NTC_TMID_NODE	      = 3001,
 	NTC_MULTIPLE_COMMANDS = 64,
 	NTC_ADDR_LEN_MAX      = 0x100,
 	NTC_TIMEOUT_MS	      = 1000,
@@ -103,12 +103,12 @@ static void fill_addr(uint32_t nr)
 	uint32_t i;
 
 	/* console */
-	make_addr(addr_console, NTC_ADDR_LEN_MAX, NTC_PORT,
-		  NTC_SVC_ID_CONSOLE, false);
+	make_addr(addr_console, NTC_ADDR_LEN_MAX, NTC_PORTAL,
+		  NTC_TMID_CONSOLE, false);
 	/* nodes */
 	for (i = 0; i < nr; ++i)
-		pos += make_addr(pos, NTC_ADDR_LEN_MAX, NTC_PORT,
-				 NTC_SVC_ID_NODE + i, i != nr - 1);
+		pos += make_addr(pos, NTC_ADDR_LEN_MAX, NTC_PORTAL,
+				 NTC_TMID_NODE + i, i != nr - 1);
 }
 
 /**
@@ -227,8 +227,8 @@ static void commands_ut_send(struct net_test_cmd_node *node,
 	int		       rc;
 
 	C2_SET0(&cmd);
-	cmd.ntc_type = C2_NET_TEST_CMD_STOP_ACK;
-	cmd.ntc_ack.ntca_errno = -node->ntcn_index;
+	cmd.ntc_type = C2_NET_TEST_CMD_STOP_DONE;
+	cmd.ntc_done.ntcd_errno = -node->ntcn_index;
 	cmd.ntc_ep_index = 0;
 	rc = c2_net_test_commands_send(ctx, &cmd);
 	commands_ut_assert(node, rc == 0);
@@ -248,7 +248,6 @@ static void commands_ut_recv(struct net_test_cmd_node *node,
 	rc = c2_net_test_commands_recv_enqueue(ctx, cmd.ntc_buf_index);
 	commands_ut_assert(node, rc == 0);
 	commands_ut_assert(node, cmd.ntc_type == C2_NET_TEST_CMD_STOP);
-	commands_ut_assert(node, cmd.ntc_stop.ntcs_cancel);
 	commands_ut_assert(node, cmd.ntc_ep_index == 0);
 	c2_net_test_commands_received_free(&cmd);
 	flag_set(node->ntcn_index);
@@ -301,7 +300,7 @@ static void commands_ut_send_all(size_t nr)
 
 	C2_SET0(&cmd);
 	cmd.ntc_type = C2_NET_TEST_CMD_STOP;
-	cmd.ntc_stop.ntcs_cancel = true;
+	cmd.ntc_init.ntci_msg_size = 42;
 	for (i = 0; i < nr; ++i) {
 		cmd.ntc_ep_index = i;
 		rc = c2_net_test_commands_send(&console, &cmd);
@@ -323,8 +322,8 @@ static void commands_ut_recv_all(size_t nr, c2_time_t deadline)
 		rc = c2_net_test_commands_recv_enqueue(&console,
 						       cmd.ntc_buf_index);
 		C2_UT_ASSERT(rc == 0);
-		C2_UT_ASSERT(cmd.ntc_type == C2_NET_TEST_CMD_STOP_ACK);
-		C2_UT_ASSERT(cmd.ntc_ack.ntca_errno == -cmd.ntc_ep_index);
+		C2_UT_ASSERT(cmd.ntc_type == C2_NET_TEST_CMD_STOP_DONE);
+		C2_UT_ASSERT(cmd.ntc_done.ntcd_errno == -cmd.ntc_ep_index);
 		c2_net_test_commands_received_free(&cmd);
 		flag_set(cmd.ntc_ep_index);
 	}

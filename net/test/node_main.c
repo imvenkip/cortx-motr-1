@@ -330,8 +330,10 @@ finished.up();\l", shape=box];
    ---                [label = "waiting for all clients"];
    console => server  [label = "START command"];
    server => console  [label = "START ACK response"];
+   ---                [label = "waiting for all servers"];
    console => client  [label = "START command"];
    client => console  [label = "START ACK response"];
+   ---                [label = "waiting for all clients"];
    ---                [label = "running..."];
    console => client  [label = "STATUS command"];
    client => console  [label = "STATUS DATA response"];
@@ -371,23 +373,16 @@ finished.up();\l", shape=box];
    digraph {
      node [style=box];
      label = "Test Client and Test Server States";
-     S0 [label="", shape="plaintext"];
-     S1 [label="Initialized"];
-     S2 [label="Ready"];
-     S3 [label="Running"];
-     S4 [label="Stopped"];
-     S5 [label="Uninitialized"];
-     S6 [label="", shape="plaintext"];
-     { rank=same; S3; S4 }
-     S0 -> S1 [label="start"];
-     S1 -> S2 [label="INIT command from console"];
-     S2 -> S3 [label="START command from console"];
-     S2 -> S4 [label="STOP command from console"];
-     S3 -> S4 [label="receive STOP command from console"];
-     S3 -> S4 [label="send FINISHED command to console (for client)\l\
-receive FINISHED command from console (for server)"];
-     S4 -> S5 [label="send stats to console"];
-     S5 -> S6 [label="finish"];
+     S0 [label="Uninitialized"];
+     S1 [label="Ready"];
+     S2 [label="Finished"];
+     S3 [label="Failed"];
+     S0 -> S1 [label="succesful c2_net_test_service_init()"];
+     S1 -> S0 [label="c2_net_test_service_fini()"];
+     S1 -> S2 [label="service state change: service was finished"];
+     S1 -> S3 [label="service state change: service was failed"];
+     S2 -> S0 [label="c2_net_test_service_fini()"];
+     S3 -> S0 [label="c2_net_test_service_fini()"];
    }
    @enddot
 

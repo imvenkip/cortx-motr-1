@@ -177,6 +177,15 @@ int c2_net_test_network_msg_send(struct c2_net_test_network_ctx *ctx,
 				 uint32_t ep_index);
 
 /**
+   Add message buffer to network messages send queue.
+   Use struct c2_net_end_point instead of endpoint index.
+   @see c2_net_test_network_msg_send()
+ */
+int c2_net_test_network_msg_send_ep(struct c2_net_test_network_ctx *ctx,
+				    uint32_t buf_ping_index,
+				    struct c2_net_end_point *ep);
+
+/**
    Add message to network messages receive queue.
    @see @ref c2_net_test_network_msg_send()
  */
