@@ -136,7 +136,7 @@ c2_bcount_t c2_net_test_str_serialize(enum c2_net_test_serialize_op op,
 				      c2_bcount_t bv_offset);
 
 /**
-   Finalize c2_net_test_pchar.
+   Finalize c2_net_test_str.
    @see c2_net_test_str_serialize().
  */
 void c2_net_test_str_fini(char **str);
