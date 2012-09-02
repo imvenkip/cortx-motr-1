@@ -4,7 +4,7 @@ NET_TEST_DIR	:= @SRCDIR@/net/test/linux_kernel
 obj-m		:= $(NET_TEST).o
 
 shared_src	:=
-kernel_src	:= main.c node_config_k.c
+kernel_src	:= node_k.c
 
 $(NET_TEST)-y	:= $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig		:= $(shared_src:%=../%)

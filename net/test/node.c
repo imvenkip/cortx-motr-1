@@ -467,47 +467,238 @@ LNETSelfTest.html">LNET Self-Test manual</a>
 #  include "config.h"
 #endif
 
-#include "lib/cdefs.h"
-#include "lib/thread.h"
-
-#include "net/test/node_config.h"
-#include "net/test/node_main.h"
+#include "lib/errno.h"		/* ETIMEDOUT */
+#include "net/test/node.h"	/* c2_net_test_node_ctx */
+#include "net/test/node_ping.h"	/* c2_net_test_node_ping_ops */
+#include "net/test/node_bulk.h"	/* c2_net_test_node_bulk_ops */
 
 /**
    @defgroup NetTestInternals Internals
    @ingroup NetTestDFS
 
    @see @ref net-test
+ */
+
+/**
+   @defgroup NetTestNodeInternals Test Node Internals
+   @ingroup NetTestInternals
+
+   @see @ref net-test
 
    @{
  */
 
-static struct c2_thread net_test_main_thread;
+enum {
+	NODE_WAIT_CMD_GRANULARITY_MS = 20,
+};
+
+static void node_tm_event_cb(const struct c2_net_tm_event *ev)
+{
+}
+
+static const struct c2_net_tm_callbacks node_tm_cb = {
+	.ntc_event_cb = node_tm_event_cb
+};
+
+static struct c2_net_test_service_ops
+*service_ops_get(struct c2_net_test_cmd *cmd)
+{
+	C2_PRE(cmd->ntc_type == C2_NET_TEST_CMD_INIT);
+
+	if (cmd->ntc_init.ntci_type == C2_NET_TEST_TYPE_PING) {
+		return &c2_net_test_node_ping_ops;
+	} else {
+		return NULL;
+	}
+}
+
+static int node_cmd_get(struct c2_net_test_cmd_ctx *cmd_ctx,
+			struct c2_net_test_cmd *cmd,
+			c2_time_t deadline)
+{
+	int rc = c2_net_test_commands_recv(cmd_ctx, cmd, deadline);
+	if (rc == 0)
+		rc = c2_net_test_commands_recv_enqueue(cmd_ctx,
+						       cmd->ntc_buf_index);
+	return rc;
+}
+
+static int node_cmd_wait(struct c2_net_test_node_ctx *ctx,
+			 struct c2_net_test_cmd *cmd,
+			 enum c2_net_test_cmd_type type)
+{
+	c2_time_t deadline;
+	const int TIME_ONE_MS = C2_TIME_ONE_BILLION / 1000;
+	int	  rc;
+
+	C2_PRE(ctx != NULL);
+	do {
+		deadline = c2_time_from_now(0, NODE_WAIT_CMD_GRANULARITY_MS *
+					       TIME_ONE_MS);
+		rc = node_cmd_get(&ctx->ntnc_cmd, cmd, deadline);
+		if (rc != 0 && rc != -ETIMEDOUT)
+			return rc;	/** @todo add retry count */
+	} while (cmd->ntc_type != type && !ctx->ntnc_exit_flag);
+	return 0;
+}
+
+static void node_thread(struct c2_net_test_node_ctx *ctx)
+{
+	struct c2_net_test_service	svc;
+	struct c2_net_test_service_ops *svc_ops;
+	enum c2_net_test_service_state	svc_state;
+	struct c2_net_test_cmd		cmd;
+	struct c2_net_test_cmd		reply;
+	int				rc;
+
+	C2_PRE(ctx != NULL);
+
+	/* wait for INIT command */
+	rc = node_cmd_wait(ctx, &cmd, C2_NET_TEST_CMD_INIT);
+	if (ctx->ntnc_exit_flag) {
+		c2_net_test_commands_received_free(&cmd);
+		return;
+	}
+	if ((ctx->ntnc_errno = rc) != 0)
+		return;
+	/* we have configuration; initialize test service */
+	svc_ops = service_ops_get(&cmd);
+	if (svc_ops == NULL) {
+		c2_net_test_commands_received_free(&cmd);
+		return;
+	}
+	rc = c2_net_test_service_init(&svc, ctx, svc_ops);
+	if (rc != 0) {
+		c2_net_test_commands_received_free(&cmd);
+		return;
+	}
+	/* handle INIT command inside main loop */
+	rc = -EINPROGRESS;
+	/* test service is initialized. start main loop */
+	do {
+		/* get command */
+		if (rc == 0)
+			rc = node_cmd_get(&ctx->ntnc_cmd, &cmd, c2_time_now());
+		if (rc == 0 && cmd.ntc_ep_index >= 0) {
+			/* we have command. handle it */
+			rc = c2_net_test_service_cmd_handle(&svc, &cmd, &reply);
+			reply.ntc_ep_index = cmd.ntc_ep_index;
+			c2_net_test_commands_received_free(&cmd);
+			/* send reply */
+			c2_net_test_commands_send_wait_all(&ctx->ntnc_cmd);
+			c2_net_test_commands_send(&ctx->ntnc_cmd, &reply);
+		} else if (rc == -ETIMEDOUT) {
+			/* we haven't command. take a step. */
+			rc = c2_net_test_service_step(&svc);
+		} else {
+			break;
+		}
+		svc_state = c2_net_test_service_state_get(&svc);
+	} while (svc_state != C2_NET_TEST_SERVICE_FAILED &&
+		 svc_state != C2_NET_TEST_SERVICE_FINISHED &&
+		 !ctx->ntnc_exit_flag &&
+		 rc == 0);
+
+	ctx->ntnc_errno = rc;
+	/* finalize test service */
+	c2_net_test_service_fini(&svc);
+
+	c2_semaphore_up(&ctx->ntnc_thread_finished_sem);
+}
+
+static int node_init_fini(struct c2_net_test_node_ctx *ctx,
+			  struct c2_net_test_node_cfg *cfg,
+			  bool init)
+{
+	struct c2_net_test_slist ep_list;
+	int			 rc;
+
+	C2_PRE(ctx != NULL);
+	C2_PRE(ergo(init, cfg != NULL));
+	if (!init)
+		goto fini;
+
+	rc = c2_net_test_slist_init(&ep_list, cfg->ntnc_addr_console, '`');
+	if (rc != 0)
+		goto failed;
+	rc = c2_net_test_commands_init(&ctx->ntnc_cmd,
+				       cfg->ntnc_addr,
+				       cfg->ntnc_send_timeout,
+				       NULL,
+				       &ep_list);
+	c2_net_test_slist_fini(&ep_list);
+	if (rc != 0)
+		goto failed;
+	rc = c2_semaphore_init(&ctx->ntnc_thread_finished_sem, 0);
+	if (rc != 0)
+		goto commands_fini;
+
+	return 0;
+fini:
+	rc = 0;
+	c2_semaphore_fini(&ctx->ntnc_thread_finished_sem);
+commands_fini:
+	c2_net_test_commands_fini(&ctx->ntnc_cmd);
+failed:
+	return rc;
+}
+
+int c2_net_test_node_init(struct c2_net_test_node_ctx *ctx,
+			  struct c2_net_test_node_cfg *cfg)
+{
+	return node_init_fini(ctx, cfg, true);
+}
+
+void c2_net_test_node_fini(struct c2_net_test_node_ctx *ctx)
+{
+	int rc = node_init_fini(ctx, NULL, false);
+	C2_POST(rc == 0);
+}
+
+int c2_net_test_node_start(struct c2_net_test_node_ctx *ctx)
+{
+	int rc;
+
+	C2_PRE(ctx != NULL);
+
+	ctx->ntnc_exit_flag = false;
+	ctx->ntnc_errno	    = 0;
+
+	rc = C2_THREAD_INIT(&ctx->ntnc_thread, struct c2_net_test_node_ctx *,
+			    NULL, &node_thread, ctx, "net_test_node_thread");
+	return rc;
+}
+
+void c2_net_test_node_stop(struct c2_net_test_node_ctx *ctx)
+{
+	int rc;
+
+	C2_PRE(ctx != NULL);
+
+	ctx->ntnc_exit_flag = true;
+	c2_net_test_commands_send_wait_all(&ctx->ntnc_cmd);
+	rc = c2_thread_join(&ctx->ntnc_thread);
+	/*
+	 * In either case when rc != 0 there is an unmatched
+	 * c2_net_test_node_start() and c2_net_test_node_stop()
+	 * or deadlock. If non-zero rc is returned as result of this function,
+	 * then c2_net_test_node_stop() leaves c2_net_test_node_ctx in
+	 * inconsistent state (also possible resource leak).
+	 */
+	C2_ASSERT(rc == 0);
+	c2_thread_fini(&ctx->ntnc_thread);
+}
+
+struct c2_net_test_node_ctx
+*c2_net_test_node_ctx_from_net_ctx(struct c2_net_test_network_ctx *net_ctx)
+{
+	return (struct c2_net_test_node_ctx *)
+	       ((char *) net_ctx -
+                offsetof(struct c2_net_test_node_ctx, ntnc_net));
+}
 
 /**
-   Entry point for test node.
- */
-static void net_test_main(int ignored)
-{
-	/** @todo */
-}
-
-int c2_net_test_init(struct c2_net_test_node_config *cfg)
-{
-	return C2_THREAD_INIT(&net_test_main_thread, int, NULL,
-		            &net_test_main, 0, "net_test_main");
-}
-C2_EXPORTED(c2_net_test_init);
-
-void c2_net_test_fini(void)
-{
-	/** @todo */
-	c2_thread_join(&net_test_main_thread);
-}
-C2_EXPORTED(c2_net_test_fini);
-
-/**
-   @} end NetTestInternals group
+   @} end NetTestNodeInternals group
  */
 
 /*

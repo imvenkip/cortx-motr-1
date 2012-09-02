@@ -15,14 +15,19 @@
  * http://www.xyratex.com/contact
  *
  * Original author Maxim Medved <max_medved@xyratex.com>
- * Original creation date: 03/22/2012
+ * Original creation date: 09/03/2012
  */
 
-#ifndef __NET_TEST_SERVER_H__
-#define __NET_TEST_SERVER_H__
+#pragma once
+
+#ifndef __NET_TEST_STR_H__
+#define __NET_TEST_STR_H__
+
+#include "net/test/serialize.h"
+
 
 /**
-   @defgroup NetTestServerDFS Test Server
+   @defgroup NetTestStrDFS Serialization of ASCIIZ string
    @ingroup NetTestDFS
 
    @see
@@ -31,45 +36,33 @@
    @{
  */
 
-struct c2_net_test_server_cfg {
+enum {
+	C2_NET_TEST_STR_MAGIC = 0x474e49525453544e,	/**< NTSTRING */
 };
 
-struct c2_net_test_server_ctx {
-};
+/**
+   Serialize or deserialize ASCIIZ string.
+   @pre op == C2_NET_TEST_SERIALIZE || op == C2_NET_TEST_DESERIALIZE
+   @pre str != NULL
+   @note str should be finalized after deserializing using
+   c2_net_test_str_fini() to prevent memory leak.
+ */
+c2_bcount_t c2_net_test_str_serialize(enum c2_net_test_serialize_op op,
+				      char **str,
+				      struct c2_bufvec *bv,
+				      c2_bcount_t bv_offset);
 
 /**
-   Initialize server data structures.
-   @see @ref net-test-lspec
+   Finalize c2_net_test_str.
+   @see c2_net_test_str_serialize().
  */
-int c2_net_test_server_init(struct c2_net_test_server_ctx *ctx,
-			    struct c2_net_test_server_cfg *cfg);
+void c2_net_test_str_fini(char **str);
 
 /**
-   Finalize server data structures.
-   @see @ref net-test-lspec
- */
-void c2_net_test_server_fini(struct c2_net_test_server_ctx *ctx);
-
-/**
-   Start test server.
-   This function will return only after test server finished or interrupted
-   with c2_net_test_server_stop().
-   @see @ref net-test-lspec
- */
-int c2_net_test_server_start(struct c2_net_test_server_ctx *ctx);
-
-/**
-   Stop test server.
-   @see @ref net-test-lspec
- */
-void c2_net_test_server_stop(struct c2_net_test_server_ctx *ctx);
-
-
-/**
-   @} end of NetTestServerDFS group
+   @} end of NetTestStrDFS group
  */
 
-#endif /*  __NET_TEST_SERVER_H__ */
+#endif /*  __NET_TEST_STR_H__ */
 
 /*
  *  Local variables:

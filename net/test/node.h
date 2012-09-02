@@ -18,8 +18,13 @@
  * Original creation date: 03/22/2012
  */
 
-#ifndef __NET_TEST_NODE_MAIN_H__
-#define __NET_TEST_NODE_MAIN_H__
+#pragma once
+
+#ifndef __NET_TEST_NODE_H__
+#define __NET_TEST_NODE_H__
+
+#include "net/test/commands.h"	/* c2_net_test_cmd_ctx */
+#include "net/test/network.h"	/* c2_net_test_network_ctx */
 
 /**
    @page net-test-fspec Functional Specification
@@ -181,37 +186,118 @@
    @see @ref net-test
  */
 
-#include "net/test/node_config.h"
-
 /**
    @defgroup NetTestDFS Network Benchmark
    @brief Detailed functional specification for Colibri Network Benchmark.
+
+   @see @ref net-test
+ */
+
+/**
+   @defgroup NetTestNodeDFS Test Node
+   @ingroup NetTestDFS
 
    @see @ref net-test
 
    @{
  */
 
-/**
-   Start c2_net_test on the test node.
-   It will determine whether it is a client or a server and
-   will run corresponding subroutine.
-   @todo implement as service
- */
-int c2_net_test_init(struct c2_net_test_node_config *cfg);
+/** Node state */
+enum c2_net_test_node_state {
+	C2_NET_TEST_NODE_UNINITIALIZED,
+	C2_NET_TEST_NODE_INITIALIZED,
+	C2_NET_TEST_NODE_RUNNING,
+	C2_NET_TEST_NODE_FAILED,
+	C2_NET_TEST_NODE_DONE,
+	C2_NET_TEST_NODE_STOPPED,
+};
+
+/** Node configuration */
+struct c2_net_test_node_cfg {
+	/** Node endpoint address (for commands) */
+	char	 *ntnc_addr;
+	/** Console endpoint address (for commands) */
+	char	 *ntnc_addr_console;
+	/** Send commands timeout. @see c2_net_test_commands_init(). */
+	c2_time_t ntnc_send_timeout;
+};
+
+/** Node context. */
+struct c2_net_test_node_ctx {
+	/** Commands context. Connected to the test console. */
+	struct c2_net_test_cmd_ctx     ntnc_cmd;
+	/** Network context for testing */
+	struct c2_net_test_network_ctx ntnc_net;
+	/** Test service */
+	struct c2_net_test_service    *ntnc_svc;
+	/** Service private data. Set and used in service implementations. */
+	void			      *ntnc_svc_private;
+	/** Node thread */
+	struct c2_thread	       ntnc_thread;
+	/**
+	   Exit flag for the node thread.
+	   Node thread will check this flag and will terminate if it is set.
+	 */
+	bool			       ntnc_exit_flag;
+	/** Error code. Set in node thread if something goes wrong. */
+	int			       ntnc_errno;
+	/**
+	 * 'node-thread-was-finished' semaphore.
+	 * Initialized to 0. External routines can down() or timeddown()
+	 * this semaphore to wait for the node thread.
+	 * up() at the end of the node thread.
+	 */
+	struct c2_semaphore	       ntnc_thread_finished_sem;
+};
 
 /**
-   Stop c2_net_test on the test node.
-   Will interrupt all running tests.
-   Will block until all tests stopped.
+   Initialize node data structures.
+   @param ctx node context.
+   @param cfg node configuration.
+   @see @ref net-test-lspec
+   @note ctx->ntnc_cfg should be set and should not be changed after
+   c2_net_test_node_init().
  */
-void c2_net_test_fini(void);
+int c2_net_test_node_init(struct c2_net_test_node_ctx *ctx,
+			  struct c2_net_test_node_cfg *cfg);
 
 /**
-   @} end of NetTestDFS group
+   Finalize node data structures.
+   @see @ref net-test-lspec
+ */
+void c2_net_test_node_fini(struct c2_net_test_node_ctx *ctx);
+
+/**
+   Invariant for c2_net_test_node_ctx.
+ */
+bool c2_net_test_node_invariant(struct c2_net_test_node_ctx *ctx);
+
+/**
+   Start test node.
+   This function will return only after test node finished or interrupted
+   with c2_net_test_node_stop().
+   @see @ref net-test-lspec
+ */
+int c2_net_test_node_start(struct c2_net_test_node_ctx *ctx);
+
+/**
+   Stop test node.
+   @see @ref net-test-lspec
+ */
+void c2_net_test_node_stop(struct c2_net_test_node_ctx *ctx);
+
+/**
+   Get c2_net_test_node_ctx from c2_net_test_network_ctx.
+   Useful in the network buffer callbacks.
+ */
+struct c2_net_test_node_ctx
+*c2_net_test_node_ctx_from_net_ctx(struct c2_net_test_network_ctx *net_ctx);
+
+/**
+   @} end of NetTestNodeDFS group
  */
 
-#endif /*  __NET_TEST_NODE_MAIN_H__ */
+#endif /*  __NET_TEST_NODE_H__ */
 
 /*
  *  Local variables:

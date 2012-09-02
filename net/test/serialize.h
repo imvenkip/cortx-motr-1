@@ -18,6 +18,8 @@
  * Original creation date: 06/28/2012
  */
 
+#pragma once
+
 #ifndef __NET_TEST_SERIALIZE_H__
 #define __NET_TEST_SERIALIZE_H__
 
@@ -106,43 +108,6 @@ c2_bcount_t c2_net_test_serialize(enum c2_net_test_serialize_op op,
 
 /**
    @} end of NetTestSerializeDFS group
- */
-
-/**
-   @defgroup NetTestPCharDFS Serialization of ASCIIZ string
-   @ingroup NetTestDFS
-
-   @see
-   @ref net-test
-   @todo move to net/test/str.h
-
-   @{
- */
-
-enum {
-	C2_NET_TEST_STR_MAGIC = 0x474e49525453544e,	/**< NTSTRING */
-};
-
-/**
-   Serialize or deserialize ASCIIZ string.
-   @pre op == C2_NET_TEST_SERIALIZE || op == C2_NET_TEST_DESERIALIZE
-   @pre str != NULL
-   @note str should be finalized after deserializing using
-   c2_net_test_str_fini() to prevent memory leak.
- */
-c2_bcount_t c2_net_test_str_serialize(enum c2_net_test_serialize_op op,
-				      char **str,
-				      struct c2_bufvec *bv,
-				      c2_bcount_t bv_offset);
-
-/**
-   Finalize c2_net_test_str.
-   @see c2_net_test_str_serialize().
- */
-void c2_net_test_str_fini(char **str);
-
-/**
-   @} end of NetTestPCharDFS group
  */
 
 #endif /*  __NET_TEST_SERIALIZE_H__ */

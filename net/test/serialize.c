@@ -23,7 +23,6 @@
 #endif
 
 #include "lib/cdefs.h"		/* container_of */
-#include "lib/types.h"		/* c2_bcount_t */
 #include "lib/misc.h"		/* C2_SET0 */
 #include "lib/memory.h"		/* c2_alloc */
 #include "lib/errno.h"		/* ENOMEM */
@@ -213,74 +212,6 @@ c2_bcount_t c2_net_test_serialize(enum c2_net_test_serialize_op op,
 
 /**
    @} end of NetTestSerializeInternals group
- */
-
-/**
-   @defgroup NetTestPCharInternals Serialization
-   @ingroup NetTestInternals
-
-   @todo move to net/test/str.h
-
-   @see
-   @ref net-test
-
-   @{
- */
-
-struct net_test_str_len {
-	size_t   ntsl_len;
-	uint64_t ntsl_magic;
-};
-
-TYPE_DESCR(net_test_str_len) = {
-	FIELD_DESCR(struct net_test_str_len, ntsl_len),
-	FIELD_DESCR(struct net_test_str_len, ntsl_magic),
-};
-
-c2_bcount_t c2_net_test_str_serialize(enum c2_net_test_serialize_op op,
-				      char **str,
-				      struct c2_bufvec *bv,
-				      c2_bcount_t bv_offset)
-{
-	struct net_test_str_len str_len;
-	c2_bcount_t		len = 0;
-	c2_bcount_t		len_total;
-
-	C2_PRE(op == C2_NET_TEST_SERIALIZE || op == C2_NET_TEST_DESERIALIZE);
-	C2_PRE(str != NULL);
-
-	if (op == C2_NET_TEST_SERIALIZE) {
-		str_len.ntsl_len = strlen(*str) + 1;
-		str_len.ntsl_magic = C2_NET_TEST_STR_MAGIC;
-	}
-	len_total = c2_net_test_serialize(op, &str_len,
-					  USE_TYPE_DESCR(net_test_str_len),
-					  bv, bv_offset);
-	if (len_total != 0) {
-		if (op == C2_NET_TEST_DESERIALIZE) {
-			if (str_len.ntsl_magic != C2_NET_TEST_STR_MAGIC)
-				return 0;
-			*str = c2_alloc(str_len.ntsl_len);
-			if (*str == NULL)
-				return 0;
-		}
-		len = c2_net_test_serialize_data(op, *str, str_len.ntsl_len,
-						 true,
-						 bv, bv_offset + len_total);
-		len_total += len;
-	};
-
-	return len == 0 ? 0 : len_total;
-}
-
-void c2_net_test_str_fini(char **str)
-{
-	c2_free(*str);
-	*str = NULL;
-}
-
-/**
-   @} end of NetTestPCharInternals group
  */
 
 /*

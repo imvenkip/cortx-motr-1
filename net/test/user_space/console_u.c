@@ -18,22 +18,14 @@
  * Original creation date: 03/22/2012
  */
 
-#ifndef __NET_TEST_USER_SPACE_NODE_CONFIG_U_H__
-#define __NET_TEST_USER_SPACE_NODE_CONFIG_U_H__
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
 
-#include "net/test/node_config.h"
-
-/*
-   Set c2_net_test_node_config structure according to command line parameters.
- */
-int c2_net_test_node_config_init(struct c2_net_test_node_config *cfg);
-
-/**
-   Finalize c2_net_test_node_config structure (free memory etc.)
- */
-void c2_net_test_node_config_fini(struct c2_net_test_node_config *cfg);
-
-#endif /* __NET_TEST_USER_SPACE_NODE_CONFIG_U_H__ */
+int main(int argc, char *argv[])
+{
+	return 0;
+}
 
 /*
  *  Local variables:

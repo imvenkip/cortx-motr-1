@@ -18,6 +18,8 @@
  * Original creation date: 06/28/2012
  */
 
+#pragma once
+
 #ifndef __NET_TEST_SLIST_H__
 #define __NET_TEST_SLIST_H__
 

@@ -15,13 +15,23 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Maxim Medved <max_medved@xyratex.com>
- * Original creation date: 03/22/2012
+ * Original creation date: 04/30/2012
  */
 
-#ifndef __NET_TEST_USER_SPACE_CONSOLE_CONFIG_H__
-#define __NET_TEST_USER_SPACE_CONSOLE_CONFIG_H__
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
 
-#endif /*  __NET_TEST_USER_SPACE_CONSOLE_CONFIG_H__ */
+int main(int argc, char *argv[])
+{
+	int rc = 0;
+
+	/** @todo add Ctrl+C handler
+	   c2_net_test_fini()+c2_net_test_config_fini() */
+	/** @todo atexit() */
+
+	return rc;
+}
 
 /*
  *  Local variables:

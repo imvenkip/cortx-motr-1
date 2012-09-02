@@ -15,13 +15,31 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Maxim Medved <max_medved@xyratex.com>
- * Original creation date: 03/22/2012
+ * Original creation date: 4/10/2012
  */
 
 #ifdef HAVE_CONFIG_H
 #  include "config.h"
 #endif
 
+/* @todo proper kernel module init */
+/* node_config_k.h */
+#if 0
+#include "net/test/node_config.h"
+
+/*
+   Set c2_net_test_node_config structure according to kernel module parameters.
+ */
+int c2_net_test_node_config_init(struct c2_net_test_node_config *cfg);
+
+/**
+   Finalize c2_net_test_node_config structure (free memory etc.)
+ */
+void c2_net_test_node_config_fini(struct c2_net_test_node_config *cfg);
+#endif
+
+/* node_config_k.c */
+#if 0
 #include <linux/module.h>
 #include <linux/kernel.h>
 
@@ -78,6 +96,42 @@ int c2_net_test_node_config_init(struct c2_net_test_node_config *cfg)
 void c2_net_test_node_config_fini(struct c2_net_test_node_config *cfg)
 {
 }
+#endif
+
+#if 0
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/init.h>
+
+#include "net/test/node_main.h"
+#include "net/test/linux_kernel/node_config_k.h"
+
+MODULE_AUTHOR("Xyratex International");
+MODULE_DESCRIPTION("Colibri Network Benchmark Module");
+MODULE_LICENSE("proprietary");
+
+static struct c2_net_test_node_config node_config;
+
+static int __init c2_net_test_module_init(void)
+{
+	int rc;
+
+	rc = c2_net_test_node_config_init(&node_config);
+	if (rc == 0)
+		rc = c2_net_test_init(&node_config);
+
+	return rc;
+}
+
+static void __exit c2_net_test_module_fini(void)
+{
+	c2_net_test_fini();
+	c2_net_test_node_config_fini(&node_config);
+}
+
+module_init(c2_net_test_module_init)
+module_exit(c2_net_test_module_fini)
+#endif
 
 /*
  *  Local variables:

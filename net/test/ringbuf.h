@@ -18,6 +18,8 @@
  * Original creation date: 07/02/2012
  */
 
+#pragma once
+
 #ifndef __NET_TEST_RINGBUF_H__
 #define __NET_TEST_RINGBUF_H__
 

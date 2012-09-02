@@ -14,15 +14,31 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Maxim Medved <max_medved@xyratex.com>
- * Original creation date: 04/30/2012
+ * Original author Maxim Medved <max_medved@xyratex.com>
+ * Original creation date: 09/03/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
+#pragma once
 
-#include "net/test/user_space/console_config.h"
+#ifndef __NET_TEST_NODE_BULK_H__
+#define __NET_TEST_NODE_BULK_H__
+
+#include "net/test/service.h"		/* c2_net_test_service_ops */
+
+/**
+   @defgroup NetTestBulkNodeDFS Bulk Node
+   @ingroup NetTestDFS
+
+   @{
+ */
+
+extern struct c2_net_test_service_ops c2_net_test_node_bulk_ops;
+
+/**
+   @} end of NetTestBulkNodeDFS group
+ */
+
+#endif /*  __NET_TEST_NODE_BULK_H__ */
 
 /*
  *  Local variables:

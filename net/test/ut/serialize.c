@@ -32,7 +32,7 @@
 
 #include "lib/misc.h"		/* C2_SET0 */
 #include "lib/ut.h"		/* C2_UT_ASSERT */
-#include "lib/vec.h"		/* C2_BUFVEC */
+#include "lib/vec.h"		/* c2_bufvec */
 
 #include "net/test/serialize.h"
 
@@ -94,33 +94,33 @@ TYPE_DESCR(simple_struct) = {
 	FIELD_DESCR(struct simple_struct, ss_u64),
 };
 
-c2_bcount_t simple_struct_serialize(enum c2_net_test_serialize_op op,
-				    struct simple_struct *ss,
-				    struct c2_bufvec *bv,
-				    c2_bcount_t bv_offset)
+static c2_bcount_t simple_struct_serialize(enum c2_net_test_serialize_op op,
+					   struct simple_struct *ss,
+					   struct c2_bufvec *bv,
+					   c2_bcount_t bv_offset)
 {
 	return c2_net_test_serialize(op, ss, USE_TYPE_DESCR(simple_struct),
 				     bv, bv_offset);
 }
 
-void simple_struct_test(char		   c,
-			unsigned char	   uc,
-			short		   s,
-			unsigned short	   us,
-			int		   i,
-			unsigned int	   ui,
-			long		   l,
-			unsigned long	   ul,
-			long long	   ll,
-			unsigned long long ull,
-			int8_t		   i8,
-			uint8_t		   u8,
-			int16_t		   i16,
-			uint16_t	   u16,
-			int32_t		   i32,
-			uint32_t	   u32,
-			int64_t		   i64,
-			uint64_t	   u64)
+static void simple_struct_test(char		   c,
+			       unsigned char	   uc,
+			       short		   s,
+			       unsigned short	   us,
+			       int		   i,
+			       unsigned int	   ui,
+			       long		   l,
+			       unsigned long	   ul,
+			       long long	   ll,
+			       unsigned long long ull,
+			       int8_t		   i8,
+			       uint8_t		   u8,
+			       int16_t		   i16,
+			       uint16_t		   u16,
+			       int32_t		   i32,
+			       uint32_t		   u32,
+			       int64_t		   i64,
+			       uint64_t		   u64)
 {
 	c2_bcount_t	     ss_serialized_len;
 	c2_bcount_t	     rc_bcount;
@@ -214,49 +214,6 @@ void c2_net_test_serialize_ut(void)
 			   LLONG_MAX, ULLONG_MAX, INT8_MAX, UINT8_MAX,
 			   INT16_MAX, UINT16_MAX, INT32_MAX, UINT32_MAX,
 			   INT64_MAX, UINT64_MAX);
-}
-
-/** @todo move to net/test/str.c */
-enum {
-	STR_BUF_LEN    = 0x100,
-	STR_BUF_OFFSET = 42,
-};
-
-void try_serialize(char *str)
-{
-	char		 buf[STR_BUF_LEN];
-	void		*addr = buf;
-	c2_bcount_t	 buf_len = STR_BUF_LEN;
-	struct c2_bufvec bv = C2_BUFVEC_INIT_BUF(&addr, &buf_len);
-	c2_bcount_t	 serialized_len;
-	c2_bcount_t	 len;
-	char		*str2;
-	int		 str_len;
-	int		 rc;
-
-	serialized_len = c2_net_test_str_serialize(C2_NET_TEST_SERIALIZE,
-						   &str, &bv, STR_BUF_OFFSET);
-	C2_UT_ASSERT(serialized_len > 0);
-
-	str2 = NULL;
-	len = c2_net_test_str_serialize(C2_NET_TEST_DESERIALIZE,
-					&str2, &bv, STR_BUF_OFFSET);
-	C2_UT_ASSERT(len == serialized_len);
-
-	str_len = strlen(str);
-	rc = strncmp(str, str2, str_len + 1);
-	C2_UT_ASSERT(rc == 0);
-	c2_net_test_str_fini(&str2);
-}
-
-void c2_net_test_str_ut(void)
-{
-	try_serialize("");
-	try_serialize("asdf");
-	try_serialize("SGVsbG8sIHdvcmxkIQo=");
-	try_serialize("0123456789!@#$%^&*()qwertyuiopasdfghjklzxcvbnm"
-		      "ABCDEFGHIJKLMNOPQRSTUVWXYZ");
-	try_serialize(__FILE__);
 }
 
 /*

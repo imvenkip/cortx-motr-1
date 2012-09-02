@@ -22,8 +22,10 @@
 #  include "config.h"
 #endif
 
-#include "lib/misc.h"	/* C2_SET0 */
-#include "lib/arith.h"	/* min_check */
+#include "lib/misc.h"		/* C2_SET0 */
+#include "lib/arith.h"		/* min_check */
+
+#include "net/test/commands.h"	/* c2_net_test_cmd_status_data */
 
 #include "net/test/stats.h"
 
@@ -221,6 +223,138 @@ c2_time_t c2_net_test_timestamp_get(struct c2_net_test_timestamp *t)
 
 /**
    @} end of NetTestStatsInternals group
+ */
+
+/**
+   @defgroup NetTestStatsBandwidthInternals Bandwidth Statistics
+   @ingroup NetTestInternals
+
+   @{
+ */
+
+void c2_net_test_stats_bandwidth_init(struct c2_net_test_stats_bandwidth *sb,
+				      c2_bcount_t bytes,
+				      c2_time_t timestamp,
+				      c2_time_t interval)
+{
+	C2_PRE(sb != NULL);
+
+	c2_net_test_stats_init(&sb->ntsb_stats);
+
+	sb->ntsb_bytes_last    = bytes;
+	sb->ntsb_time_last     = timestamp;
+	sb->ntsb_time_interval = interval;
+}
+
+c2_time_t
+c2_net_test_stats_bandwidth_add(struct c2_net_test_stats_bandwidth *sb,
+				c2_bcount_t bytes,
+				c2_time_t timestamp)
+{
+	c2_bcount_t   bytes_delta;
+	c2_time_t     time_delta;
+	c2_time_t     time_next;
+	uint64_t      time_delta_ns;
+	unsigned long bandwidth;
+	unsigned long M_10;		/* M^10 */
+	unsigned long M;
+
+	C2_PRE(sb != NULL);
+	C2_PRE(bytes >= sb->ntsb_bytes_last);
+	C2_PRE(c2_time_after_eq(timestamp, sb->ntsb_time_last));
+
+	bytes_delta = bytes - sb->ntsb_bytes_last;
+	time_delta  = c2_time_sub(timestamp, sb->ntsb_time_last);
+	time_next   = c2_time_add(timestamp, sb->ntsb_time_interval);
+
+	if (!c2_time_after_eq(timestamp, time_next))
+		return time_next;
+
+	sb->ntsb_bytes_last = bytes;
+	/** @todo problem with small sb->ntsb_time_interval can be here */
+	sb->ntsb_time_last  = time_next;
+
+	time_delta_ns = c2_time_seconds(time_delta) * C2_TIME_ONE_BILLION +
+			c2_time_nanoseconds(time_delta);
+	/*
+	   To measure bandwidth in bytes/sec it needs to be calculated
+	   (bytes_delta / time_delta_ns) * 1'000'000'000 =
+	   (bytes_delta * 1'000'000'000) / time_delta_ns =
+	   ((bytes_delta * (10^M)) / time_delta_ns) * (10^(9-M)),
+	   where M is some parameter. To perform integer division M
+	   should be maximized in range [0, 9] - in case if M < 9
+	   there is a loss of precision.
+	 */
+	if (C2_BCOUNT_MAX / C2_TIME_ONE_BILLION > bytes_delta) {
+		/* simple case. M = 9 */
+		bandwidth = bytes_delta * C2_TIME_ONE_BILLION / time_delta_ns;
+	} else {
+		/* harder case. M is in range [0, 9) */
+		M_10 = 1;
+		for (M = 0; M < 8; ++M) {
+			if (C2_BCOUNT_MAX / (M_10 * 10) > bytes_delta)
+				M_10 *= 10;
+			else
+				break;
+		}
+		/* M is maximized */
+		bandwidth = (bytes_delta * M_10 / time_delta_ns) *
+			    (C2_TIME_ONE_BILLION / M_10);
+	}
+	c2_net_test_stats_add(&sb->ntsb_stats, bandwidth);
+
+	return time_next;
+}
+
+/**
+   @} end of NetTestStatsBandwidthInternals group
+ */
+
+/**
+   @defgroup NetTestMsgNRInternals Messages Number
+   @ingroup NetTestInternals
+
+   @{
+ */
+
+void c2_net_test_msg_nr_reset(struct c2_net_test_msg_nr *msg_nr)
+{
+	c2_atomic64_set(&msg_nr->ntmn_sent, 0);
+	c2_atomic64_set(&msg_nr->ntmn_rcvd, 0);
+	c2_atomic64_set(&msg_nr->ntmn_send_failed, 0);
+	c2_atomic64_set(&msg_nr->ntmn_recv_failed, 0);
+}
+
+void c2_net_test_msg_nr_get_lockfree(struct c2_net_test_msg_nr *msg_nr,
+				     struct c2_net_test_cmd_status_data *sd)
+{
+	uint64_t sent;
+	uint64_t rcvd;
+	uint64_t send_failed;
+	uint64_t recv_failed;
+
+	C2_PRE(msg_nr != NULL);
+	C2_PRE(sd);
+
+	do {
+		sent	    = sd->ntcsd_msg_sent;
+		rcvd	    = sd->ntcsd_msg_rcvd;
+		send_failed = sd->ntcsd_msg_send_failed;
+		recv_failed = sd->ntcsd_msg_recv_failed;
+		sd->ntcsd_msg_sent = c2_atomic64_get(&msg_nr->ntmn_sent);
+		sd->ntcsd_msg_rcvd = c2_atomic64_get(&msg_nr->ntmn_rcvd);
+		sd->ntcsd_msg_send_failed =
+			c2_atomic64_get(&msg_nr->ntmn_send_failed);
+		sd->ntcsd_msg_recv_failed =
+			c2_atomic64_get(&msg_nr->ntmn_recv_failed);
+	} while (sent	     != sd->ntcsd_msg_sent ||
+		 rcvd	     != sd->ntcsd_msg_rcvd ||
+		 send_failed != sd->ntcsd_msg_send_failed ||
+		 recv_failed != sd->ntcsd_msg_recv_failed);
+}
+
+/**
+   @} end of NetTestMsgNRInternals group
  */
 
 /*

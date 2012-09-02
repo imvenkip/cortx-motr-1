@@ -24,6 +24,7 @@
 #define __NET_TEST_STATS_H__
 
 #include "lib/time.h"		/* c2_time_t */
+#include "lib/atomic.h"		/* c2_atomic64 */
 
 #include "net/test/serialize.h"	/* c2_net_test_serialize */
 
@@ -225,6 +226,105 @@ c2_time_t c2_net_test_timestamp_get(struct c2_net_test_timestamp *t);
 
 /**
    @} end of NetTestStatsDFS group
+ */
+
+/**
+   @defgroup NetTestStatsBandwidthDFS Bandwidth Statistics
+   @ingroup NetTestDFS
+
+   @see
+   @ref net-test
+
+   @{
+ */
+
+/** Bandwidth statistics, measured in bytes/sec */
+struct c2_net_test_stats_bandwidth {
+	/** Statistics */
+	struct c2_net_test_stats ntsb_stats;
+	/** Last check number of bytes */
+	c2_bcount_t		 ntsb_bytes_last;
+	/** Last check time */
+	c2_time_t		 ntsb_time_last;
+	/** Time interval to check */
+	c2_time_t		 ntsb_time_interval;
+};
+
+/**
+   Initialize bandwidth statistics.
+   @param sb Bandwidth statistics structure.
+   @param bytes Next call to c2_net_test_stats_bandwidth_add() will use
+		this value as previous value to measure number of bytes
+		transferred in time interval.
+   @param timestamp The same as bytes, but for time difference.
+   @param interval Bandwidth measure interval.
+		   c2_net_test_stats_bandwidth_add() will not add sample
+		   to stats if interval from last addition to statistics
+		   is less than interval.
+ */
+void c2_net_test_stats_bandwidth_init(struct c2_net_test_stats_bandwidth *sb,
+				      c2_bcount_t bytes,
+				      c2_time_t timestamp,
+				      c2_time_t interval);
+
+/**
+   Add sample to the bandwidth statistics if time interval
+   [sb->ntsb_time_last, timestamp] is greater than sb->ntsb_interval.
+   This function will use previous call (or initializer) parameters to
+   calculate bandwidth: number of bytes [sb->ntsb_bytes_last, bytes]
+   in the time range [sb->ntsb_time_last, timestamp].
+   @param sb Bandwidth statistics structure.
+   @param bytes Total number of bytes transferred.
+   @param timestamp Timestamp of bytes value.
+   @return Value will not be added to the sample before this time.
+ */
+c2_time_t
+c2_net_test_stats_bandwidth_add(struct c2_net_test_stats_bandwidth *sb,
+				c2_bcount_t bytes,
+				c2_time_t timestamp);
+
+/**
+   @} end of NetTestStatsBandwidthDFS group
+ */
+
+/**
+   @defgroup NetTestMsgNRDFS Messages Number
+   @ingroup NetTestDFS
+
+   @{
+ */
+
+struct c2_net_test_cmd_status_data;
+
+/** Sent/received test messages number. */
+struct c2_net_test_msg_nr {
+	/** Number of sent test messages */
+	struct c2_atomic64 ntmn_sent;
+	/** Number of received test messages */
+	struct c2_atomic64 ntmn_rcvd;
+	/** Number of errors while receiving test messages */
+	struct c2_atomic64 ntmn_send_failed;
+	/** Number of errors while sending test messages */
+	struct c2_atomic64 ntmn_recv_failed;
+};
+
+/**
+   Reset all messages number statistics to 0.
+ */
+void c2_net_test_msg_nr_reset(struct c2_net_test_msg_nr *msg_nr);
+
+/**
+   Copy messages number statistics to c2_net_test_cmd_status_data.
+   Algorithm:
+   1. Copy statistics from sd to local variables, one by one field.
+   2. Copy statistics from msg_nr to sd, one by one field.
+   3. Compare values in sd and local variables - goto 1 if they aren't equal.
+ */
+void c2_net_test_msg_nr_get_lockfree(struct c2_net_test_msg_nr *msg_nr,
+				     struct c2_net_test_cmd_status_data *sd);
+
+/**
+   @} end of NetTestMsgNRDFS group
  */
 
 #endif /*  __NET_TEST_STATS_H__ */

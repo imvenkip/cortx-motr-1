@@ -14,38 +14,31 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Maxim Medved <max_medved@xyratex.com>
- * Original creation date: 03/22/2012
+ * Original author Maxim Medved <max_medved@xyratex.com>
+ * Original creation date: 09/03/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
+#pragma once
 
-#include "lib/cdefs.h"
+#ifndef __NET_TEST_NODE_PING_H__
+#define __NET_TEST_NODE_PING_H__
 
-#include "net/test/node_config.h"
+#include "net/test/service.h"		/* c2_net_test_service_ops */
 
 /**
-   @defgroup NetTestNodeConfigInternals Node Configuration
-   @ingroup NetTestInternals
-
-   @see
-   @ref net-test
+   @defgroup NetTestPingNodeDFS Ping Node
+   @ingroup NetTestDFS
 
    @{
  */
 
-bool c2_net_test_node_config_invariant(
-		const struct c2_net_test_node_config *cfg)
-{
-	/** @todo */
-	return false;
-}
+extern struct c2_net_test_service_ops c2_net_test_node_ping_ops;
 
 /**
-   @} end of NetTestNodeConfigInternals group
+   @} end of NetTestPingNodeDFS group
  */
+
+#endif /*  __NET_TEST_NODE_PING_H__ */
 
 /*
  *  Local variables:

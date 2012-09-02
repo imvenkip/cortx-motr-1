@@ -29,6 +29,7 @@
 #include "lib/errno.h"		/* ENOMEM */
 
 #include "net/test/serialize.h"	/* c2_net_test_serialize */
+#include "net/test/str.h"	/* c2_net_test_str */
 
 #include "net/test/commands.h"
 

@@ -18,16 +18,16 @@
  * Original creation date: 05/05/2012
  */
 
+#pragma once
+
 #ifndef __NET_TEST_COMMANDS_H__
 #define __NET_TEST_COMMANDS_H__
 
-#include "lib/errno.h"			/* E2BIG */
 #include "lib/semaphore.h"		/* c2_semaphore */
 
 #include "net/test/slist.h"		/* c2_net_test_slist */
 #include "net/test/ringbuf.h"		/* c2_net_test_ringbuf */
 #include "net/test/stats.h"		/* c2_net_test_stats */
-#include "net/test/node_config.h"	/* c2_net_test_role */
 #include "net/test/network.h"		/* c2_net_test_network_ctx */
 
 /**
@@ -44,6 +44,22 @@ enum {
 	/** @todo 16k, change */
 	/** @todo send size, ack size, send command */
 	C2_NET_TEST_CMD_SIZE_MAX     = 16384,
+};
+
+/**
+   Test node role - node can be test client or test server.
+ */
+enum c2_net_test_role {
+	C2_NET_TEST_ROLE_CLIENT,
+	C2_NET_TEST_ROLE_SERVER
+};
+
+/**
+   Test type - can be ping test or bulk test.
+ */
+enum c2_net_test_type {
+	C2_NET_TEST_TYPE_PING,
+	C2_NET_TEST_TYPE_BULK
 };
 
 /**
