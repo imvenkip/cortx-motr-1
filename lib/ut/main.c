@@ -32,7 +32,7 @@ extern void test_finject(void);
 extern void test_getopts(void);
 extern void test_list(void);
 extern void test_memory(void);
-extern void test_misc(void);
+extern void c2_test_misc(void);
 extern void test_mutex(void);
 extern void test_processor(void);
 extern void test_queue(void);
@@ -62,7 +62,7 @@ const struct c2_test_suite libc2_ut = {
 		{ "getopts",   test_getopts   },
 		{ "list",      test_list      },
 		{ "memory",    test_memory    },
-		{ "misc",      test_misc      },
+		{ "misc",      c2_test_misc   },
 		{ "mutex",     test_mutex     },
 		{ "rwlock",    test_rw        },
 		{ "processor", test_processor },

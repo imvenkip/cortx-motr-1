@@ -107,7 +107,7 @@ static void uint128_mul_ut(void)
 	uint128_mul_check1(UINT32_MAX + 2ul, UINT32_MAX, &max64);
 }
 
-void test_misc(void)
+void c2_test_misc(void)
 {
 	uint128_add_ut();
 	uint128_mul_ut();
