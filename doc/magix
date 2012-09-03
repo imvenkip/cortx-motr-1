@@ -41,6 +41,6 @@ thr_tl               td_head_magic           dec1a551f1edcade declassified cade
 io_request           ir_magic                fea2303e31a3ce10 fearsomestanceto
 nw_xfer_request      nxr_magic               12ec0ffeea2ab1ca thecoffeearabica
 target_ioreq         ti_magic                fa1afe1611ab2ead falafelpitabread
-io_req_fop           irc_magic               de514ab11117302e desirabilitymore
-target_ioext         ie_magic                19ca9de5ca91b61b incandescentbulb
-data_buf             db_magic                19c031960ffe9517 incomingoffensiv
+io_req_fop           irf_magic               de514ab11117302e desirabilitymore
+data_buf             db_magic                191e2c09119e91a1 intercontinental
+pargrp_iomap         pi_magic                19ca9de5ce91b21b incandescentbulb

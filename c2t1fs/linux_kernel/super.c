@@ -53,6 +53,8 @@ static int  c2t1fs_sb_init(struct c2t1fs_sb *csb);
 static void c2t1fs_sb_fini(struct c2t1fs_sb *csb);
 
 extern void io_bob_tlists_init(void);
+extern const struct c2_addb_ctx_type c2t1fs_addb_type;
+extern struct c2_addb_ctx c2t1fs_addb;
 
 static int  c2t1fs_config_fetch(struct c2t1fs_sb *csb);
 
@@ -432,6 +434,7 @@ static int c2t1fs_sb_init(struct c2t1fs_sb *csb)
 	svc_ctx_tlist_init(&csb->csb_service_contexts);
 	csb->csb_next_key = c2t1fs_root_fid.f_key + 1;
         c2_sm_group_init(&csb->csb_iogroup);
+        c2_addb_ctx_init(&c2t1fs_addb, &c2t1fs_addb_type, &c2_addb_global_ctx);
 
 	C2_LEAVE("rc: 0");
 	return 0;
@@ -447,6 +450,7 @@ static void c2t1fs_sb_fini(struct c2t1fs_sb *csb)
 	c2_mutex_fini(&csb->csb_mutex);
 	c2t1fs_mnt_opts_fini(&csb->csb_mnt_opts);
 	csb->csb_next_key = 0;
+        c2_addb_ctx_fini(&c2t1fs_addb);
 
 	C2_LEAVE();
 }
