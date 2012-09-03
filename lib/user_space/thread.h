@@ -74,11 +74,66 @@ void c2_threads_fini(void);
 
    @note Be careful if using LAMBDA in kernel code, as the code could be
    generated on the stack and would fault in the kernel as it is execution
-   protected in the kernel.  If someone figures out the secret allocation
-   sauce, update this note with the recipe; one observed problem was when a
-   reference was made to an automatic variable from a lambda function, and that
-   problem went away when the variable was made global.  Other lambda functions
-   that simply returned values caused no problems in the kernel.
+   protected in the kernel.
+
+   The long story. Consider an arrangement like
+
+   @code
+   int foo(int x)
+   {
+           int y = x + 1;
+
+	   bar(LAMBDA(int, (int z) { return z + y; }));
+	   ...
+   }
+   @endcode
+
+   Let's call the lambda function defined above L. 'y' is called a "free
+   variable" of L, because it is neither declared in L's body nor passed as a
+   parameter. When bar() or some of the functions (transitively) called by bar()
+   calls L, L needs access to its parameters (z), supplied by its caller, and
+   also to its free variables (y). y is stored in foo's stack frame and y's
+   location on the stack, relative to L's frame is, in general, impossible to
+   determine statically. For example, bar() can call baz(), which can store L in
+   some data-structure, call quux() that will extract L from the data-structure
+   and call it.
+
+   This means that to call L, in addition, to the address of L's executable
+   code, one also has to supply references to all its free variables. A
+   structure, containing address of a function, together with references to the
+   function's free variables is called a "closure"
+   (http://en.wikipedia.org/wiki/Closure_(computer_science)). A closure is
+   sufficient to call a function, but it is incompatible with the format of
+   other function pointers. For example, given a value of type int (*func)(int),
+   it is impossible to tell whether func is a pointer to a closure or a "normal"
+   function pointer to a function without free variable. To work about this, gcc
+   dynamically creates for each closure a small "trampoline function" that
+   effectively build closure and calls it. For example, the trampoline for L
+   would look like
+
+   @code
+   int __L_trampoline(int z)
+   {
+           int *y = (int *)LITERAL_ADDRESS_OF_y;
+	   L(z, *y);
+   }
+   @endcode
+
+   The trampoline is built when foo() is called and y's address is known. Once
+   it is built, __L_trampoline()'s address can be passed to other functions
+   safely. Note that __L_trampoline code is generated dynamically at
+   run-time. Moreover gcc stores trampoline's code at the stack. And in kernel
+   stack pages has to execution bit, to prevent exploits.
+
+   Summary:
+
+       - if your LAMBDA() has no free variables, you are safe;
+
+       - if your LAMBDA() has only free variables with statically known
+         addresses (e.g., global variables) you are safe, because gcc doesn't
+         generate trampoline in this case;
+
+       - otherwise you are unsafe in kernel.
 
    @see http://en.wikipedia.org/wiki/Lambda_calculus
  */
