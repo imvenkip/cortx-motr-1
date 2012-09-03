@@ -333,17 +333,16 @@ static void cp_fom_fini(struct c2_fom *fom)
          * with copy packet.
          */
 	c2_cm_cp_fini(cp);
-	/*@todo It will check for has_space if yes call packet creating logic.*/
 }
 
-static size_t cp_fom_locality(const struct c2_fom *fom)
+static uint64_t cp_fom_locality(const struct c2_fom *fom)
 {
         struct c2_cm_cp *cp;
 
         cp = container_of(fom, struct c2_cm_cp, c_fom);
         C2_PRE(c2_cm_cp_invariant(cp));
 
-        return cp->c_ops->co_home_loc_helper(cp);
+        return cp->c_ag->cag_id.u_lo;
 }
 
 static int cp_fom_tick(struct c2_fom *fom)

@@ -33,11 +33,6 @@
 
  */
 
-enum c2_cm_sw_intent {
-	C2_SW_ADVANCE = 1,
-	C2_SW_SLIDE,
-};
-
 /**
  * While copy machine is processing a restructuring request, each replica
  * maintains a "sliding window" (SW), indicating how far it gets. This window is
@@ -48,7 +43,7 @@ enum c2_cm_sw_intent {
  *   with identifiers less than LO;
  *
  * - the replica is ready to accept copy packets for groups with identifiers ID
- *   such that LO <= ID < HI.
+ *   such that LO <= ID <= HI.
  */
 struct c2_cm_sw {
         /** Sliding window operations. */
@@ -74,26 +69,13 @@ struct c2_cm_sw_ops {
 	 * that needs processing.
 	 */
 	int  (*swo_advance)(struct c2_cm_sw *sw);
+
 	/**
 	 * Increase the sw_high and sw_low. Such that
 	 * HI := NEXT (HI)
 	 * LO := NEXT (LO + 1)
 	 */
 	int  (*swo_slide)(struct c2_cm_sw *sw);
-
-	/**
-	 * Performs checks if required resources are availble to create a new
-	 * copy packet and returns true or false accordingly.
-	 */
-	bool (*swo_has_space)(struct c2_cm_sw *sw);
-
-	/**
-	 * Searches for an aggregation group in c2_cm_sw::sw_aggr_grps list for
-	 * the given aggregation group id. If not found, creates a new
-	 * aggregation group and updates the sliding window accordingly.
-	 */
-	struct c2_cm_aggr_group *(swo_ag_find)(struct c2_cm_sw *sw,
-					       struct c2_uint128 *ag_id);
 };
 
 /** Initialises sliding window. */
@@ -102,8 +84,15 @@ int c2_cm_sw_init(struct c2_cm_sw *slw, const struct c2_cm_sw_ops *ops);
 /** Finalises sliding window. */
 void c2_cm_sw_fini(struct c2_cm_sw *slw);
 
-void c2_cm_sw_update(struct c2_cm_sw *slw, struct c2_cm_aggr_group *ag,
-		     int intent);
+/**
+ * Finds an aggregartion group corresponding to given aggregation group id.
+ * Invokes copy machine specific implementation c2_cm_ops::cmo_ag_create(),
+ * to create a new aggregation group if not already exist and updates the
+ * sliding window accordingly.
+ */
+struct c2_cm_aggr_group *c2_cm_sw_ag_find(struct c2_cm_sw *sw,
+					  struct c2_uint128 *ag_id);
+
 /** @} CMSW */
 #endif /* __COLIBRI_CM_SW_H__ */
 /*

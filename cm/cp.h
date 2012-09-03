@@ -144,12 +144,6 @@ struct c2_cm_cp_ops {
 	/** Per phase action for copy packet */
 	int  (*co_action[C2_CCP_NR]) (struct c2_cm_cp *cp);
 
-	/**
-	 * Calculates identifier based on copy packet details, used to identify
-	 * copy packet FOM's home locality. This is specific to copy machine.
-	 */
-	uint64_t (*co_home_loc_helper) (struct c2_cm_cp *cp);
-
 	/** Called when copy packet processing is completed successfully. */
 	void (*co_complete) (struct c2_cm_cp *cp);
 
@@ -165,9 +159,6 @@ struct c2_cm_cp_ops {
 
 	/** Handles non-generic phases.*/
 	int  (*co_tick) (struct c2_cm_cp *cp);
-
-	/** Called when copy packet processing is completed successfully.*/
-	void (*co_complete) (struct c2_cm_cp *cp);
 };
 
 /**

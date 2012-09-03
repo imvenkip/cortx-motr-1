@@ -24,9 +24,10 @@
 #ifndef __COLIBRI_SNS_REPAIR_CM_H__
 #define __COLIBRI_SNS_REPAIR_CM_H__
 
-#include "net/buffer_pool.h"
 #include "cm/cm.h"
 #include "ioservice/cobfid_map.h"
+#include "net/buffer_pool.h"
+#include "layout/pdclust.h"
 
 /**
   @page SNSRepairCMDLD-fspec SNS Repair copy machine functional specification
@@ -77,6 +78,12 @@ struct c2_sns_repair_cm {
 	uint64_t                   rc_fdata;
 	struct c2_cobfid_map      *rc_cfm;
 	struct c2_cobfid_map_iter  rc_cfm_it;
+	/*
+	 * XXX Temporary location for server side pdclust layout instance, until
+	 * the set_attr() and get_attr() for a GOB is implemented.
+	 */
+	struct c2_pdclust_layout   rc_pl;
+	struct c2_layout_domain    rc_lay_dom;
 	/**
 	 * Buffer pool for incoming copy packets, this is used by sliding
 	 * window.

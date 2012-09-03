@@ -49,22 +49,9 @@ static int sw_slide(struct c2_cm_sw *sw)
 	return 0;
 }
 
-static bool sw_has_space(struct c2_cm_sw *sw)
-{
-	return true;
-}
-
-struct c2_cm_aggr_group *sw_ag_find(struct c2_cm_sw *sw,
-				    struct c2_uint128 ag_id)
-{
-	return NULL;
-}
-
 const struct c2_cm_sw_ops sw_ops = {
 	.swo_advance   = sw_advance,
 	.swo_slide     = sw_slide,
-	.swo_has_space = sw_has_space,
-	.swo_ag_find   = sw_ag_find,
 };
 
 /** @} SNSRepairSW */

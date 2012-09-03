@@ -29,13 +29,6 @@
   @{
 */
 
-static size_t cp_home_loc_helper(struct c2_cm_cp *cp)
-{
-	C2_PRE(cp->c_ag != NULL);
-
-	return cp->c_ag->cag_id.u_lo;
-}
-
 static bool cp_invariant(const struct c2_cm_cp *cp)
 {
 	return true;
@@ -52,9 +45,9 @@ static int cp_init(struct c2_cm_cp *cp)
 
 static int cp_fini(struct c2_cm_cp *cp)
 {
-	struct c2_sns_cp	*rcp;
+	struct c2_sns_repair_cp	*rcp;
 
-	rcp = container_of(cp, struct c2_sns_cp, rc_base);
+	rcp = container_of(cp, struct c2_sns_repair_cp, rc_base);
 	/*@todo Release data buffer to buffer pool.*/
 	/* finailise data members.*/
 	c2_cm_cp_fini(cp);
@@ -102,7 +95,7 @@ static int cp_tick(struct c2_cm_cp *cp)
 	return 0;
 }
 
-const struct c2_cm_cp_ops c2_sns_cp_ops = {
+const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
 	.co_action = {
 		[C2_CCP_INIT]  = &cp_init,
 		[C2_CCP_READ]  = &cp_read,
@@ -113,9 +106,9 @@ const struct c2_cm_cp_ops c2_sns_cp_ops = {
 		[C2_CCP_FINI]  = &cp_fini
 	},
 	.co_complete	       = &cp_complete,
-	.co_phase	       = &cp_phase,
+	.co_phase_next	       = &cp_phase_next,
+	.co_invariant	       = &cp_invariant,
 	.co_tick	       = &cp_tick,
-	.co_invariant	       = &cp_invariant
 };
 
 /** @} SNSRepairCP */
