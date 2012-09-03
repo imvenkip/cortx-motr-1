@@ -92,7 +92,7 @@ enum c2_cm_cp_phase {
 	 * Releases resources associated with the packet, finalises members
 	 * and free the packet.
 	 */
-	C2_CCP_FINI,
+	C2_CCP_FINI = C2_FOM_PHASE_FINISH,
 
 	/** Read and fill up the packet.*/
 	C2_CCP_READ,
@@ -144,21 +144,21 @@ struct c2_cm_cp_ops {
 	/** Per phase action for copy packet */
 	int  (*co_action[C2_CCP_NR]) (struct c2_cm_cp *cp);
 
+	/** Called when copy packet processing is completed successfully. */
+	void (*co_complete) (struct c2_cm_cp *cp);
+
 	/**
 	 * Changes copy packet phase based on current phase and layout
 	 * information. This function should set FOM phase internally and return
 	 * @b C2_FSO_WAIT or @b C2_FSO_AGAIN.
 	 */
-	int  (*co_phase) (struct c2_cm_cp *cp);
+	int  (*co_phase_next) (struct c2_cm_cp *cp);
 
 	/** Specific copy packet invariant.*/
 	bool (*co_invariant) (const struct c2_cm_cp *cp);
 
 	/** Handles non-generic phases.*/
 	int  (*co_tick) (struct c2_cm_cp *cp);
-
-	/** Called when copy packet processing is completed successfully.*/
-	void (*co_complete) (struct c2_cm_cp *cp);
 };
 
 /**

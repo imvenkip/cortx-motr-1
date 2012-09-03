@@ -45,6 +45,8 @@ struct c2_cm_aggr_group {
 
 	const struct c2_cm_aggr_group_ops *cag_ops;
 
+	struct c2_layout                  *cag_layout;
+
 	/** Number of copy packets that correspond to this aggregation group. */
 	uint64_t                           cag_cp_nr;
 

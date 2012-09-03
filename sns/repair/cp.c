@@ -29,12 +29,12 @@
   @{
 */
 
-static bool repair_cp_invariant(const struct c2_cm_cp *cp)
+static bool cp_invariant(const struct c2_cm_cp *cp)
 {
 	return true;
 }
 
-static int repair_cp_init(struct c2_cm_cp *cp)
+static int cp_init(struct c2_cm_cp *cp)
 {
 	struct c2_sns_repair_cm *rcm;
 
@@ -43,7 +43,7 @@ static int repair_cp_init(struct c2_cm_cp *cp)
 	return C2_FSO_AGAIN;
 }
 
-static int repair_cp_fini(struct c2_cm_cp *cp)
+static int cp_fini(struct c2_cm_cp *cp)
 {
 	struct c2_sns_repair_cp	*rcp;
 
@@ -56,59 +56,59 @@ static int repair_cp_fini(struct c2_cm_cp *cp)
 	return C2_FSO_AGAIN;
 }
 
-static int repair_cp_read(struct c2_cm_cp *cp)
+static int cp_read(struct c2_cm_cp *cp)
 {
         return 0;
 }
 
-static int repair_cp_write(struct c2_cm_cp *cp)
+static int cp_write(struct c2_cm_cp *cp)
 {
         return 0;
 }
 
-static int repair_cp_send(struct c2_cm_cp *cp)
+static int cp_send(struct c2_cm_cp *cp)
 {
         return 0;
 }
 
-static int repair_cp_recv(struct c2_cm_cp *cp)
+static int cp_recv(struct c2_cm_cp *cp)
 {
         return 0;
 }
 
-int repair_cp_xform(struct c2_cm_cp *cp)
+int cp_xform(struct c2_cm_cp *cp)
 {
         return 0;
 }
 
-static int repair_cp_phase(struct c2_cm_cp *cp)
+static int cp_phase_next(struct c2_cm_cp *cp)
 {
 	return 0;
 }
 
-static void repair_cp_complete(struct c2_cm_cp *cp)
+static void cp_complete(struct c2_cm_cp *cp)
 {
 }
 
-static int repair_cp_tick(struct c2_cm_cp *cp)
+static int cp_tick(struct c2_cm_cp *cp)
 {
 	return 0;
 }
 
 const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
 	.co_action = {
-		[C2_CCP_INIT]  = &repair_cp_init,
-		[C2_CCP_READ]  = &repair_cp_read,
-		[C2_CCP_WRITE] = &repair_cp_write,
-		[C2_CCP_XFORM] = &repair_cp_xform,
-		[C2_CCP_SEND]  = &repair_cp_send,
-		[C2_CCP_RECV]  = &repair_cp_recv,
-		[C2_CCP_FINI]  = &repair_cp_fini
+		[C2_CCP_INIT]  = &cp_init,
+		[C2_CCP_READ]  = &cp_read,
+		[C2_CCP_WRITE] = &cp_write,
+		[C2_CCP_XFORM] = &cp_xform,
+		[C2_CCP_SEND]  = &cp_send,
+		[C2_CCP_RECV]  = &cp_recv,
+		[C2_CCP_FINI]  = &cp_fini
 	},
-	.co_complete	       = &repair_cp_complete,
-	.co_phase	       = &repair_cp_phase,
-	.co_tick	       = &repair_cp_tick,
-	.co_invariant	       = &repair_cp_invariant
+	.co_complete	       = &cp_complete,
+	.co_phase_next	       = &cp_phase_next,
+	.co_invariant	       = &cp_invariant,
+	.co_tick	       = &cp_tick,
 };
 
 /** @} SNSRepairCP */

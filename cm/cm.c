@@ -28,6 +28,7 @@
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/assert.h" /* C2_PRE, C2_POST */
 #include "cm/cm.h"
+#include "cm/cp.h"
 #include "reqh/reqh.h"
 
 /**
@@ -74,10 +75,10 @@
    <hr>
    @section CMDLD-highlights Design Highlights
    - Copy machine is implemented as colibri state machine.
-   - All the registered types of copy machines can be initialised
-     using various interfaces and also from colibri setup.
-   - Once started, each copy machine type is registered with the
-     request handler as a service.
+   - All the registered types of copy machines can be initialised using various
+     interfaces and also from colibri setup.
+   - Once started, each copy machine type is registered with the request handler
+     as a service.
    - A copy machine service can be started using "colibri setup" utility or
      separately.
    - Once started copy machine remains idle until further event happens.
@@ -88,6 +89,8 @@
      and creates copy packets.
   -  The complete data restructuring process of copy machine follows non-blocking
      processing model of Colibri design.
+  -  Copy machine implements sliding window to keep track of restructuring process
+     manage resources efficiently.
 
    <hr>
    @section CMDLD-lspec Logical Specification
@@ -190,10 +193,10 @@ enum {
 };
 
 /** List containing the copy machines registered on a colibri server. */
-static struct c2_tl	cmtypes;
+static struct c2_tl cmtypes;
 
 /** Protects access to the list c2_cmtypes. */
-static struct c2_mutex	cmtypes_mutex;
+static struct c2_mutex cmtypes_mutex;
 
 C2_TL_DESCR_DEFINE(cmtypes, "copy machine types", ,
                    struct c2_cm_type, ct_linkage, ct_magix,
@@ -539,10 +542,9 @@ int c2_cm_type_register(struct c2_cm_type *cmtype)
 
 	rc = c2_reqh_service_type_register(&cmtype->ct_stype);
 	if (rc == 0) {
-		cmtypes_tlink_init(cmtype);
 		c2_cm_type_bob_init(cmtype);
 		c2_mutex_lock(&cmtypes_mutex);
-		cmtypes_tlist_init_add_tail(&cmtypes, cmtype);
+		cmtypes_tlink_init_at_tail(cmtype, &cmtypes);
 		c2_mutex_unlock(&cmtypes_mutex);
 	}
 	C2_LEAVE();
@@ -584,8 +586,20 @@ void c2_cm_sw_fill(struct c2_cm *cm)
 {
 	struct c2_cm_cp *cp;
 
+	C2_PRE(c2_cm_invariant(cm));
+	C2_PRE(c2_cm_is_locked(cm));
+
 	while ((cp = cm->cm_ops->cmo_cp_alloc(cm)) != NULL)
-	       c2_cm_cp_enqueue(cm, cp);
+		   c2_cm_cp_enqueue(cm, cp);
+}
+
+int c2_cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
+{
+	C2_PRE(c2_cm_invariant(cm));
+	C2_PRE(c2_cm_is_locked(cm));
+	C2_PRE(cp != NULL);
+
+	return cm->cm_ops->cmo_data_next(cm, cp);
 }
 
 /** @} endgroup cm */
