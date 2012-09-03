@@ -28,6 +28,8 @@ main()
 		echo "Failed: IO failed.."
 	fi
 
+	c2loop_st
+
 	colibri_service stop
 	if [ $? -ne "0" ]
 	then
