@@ -135,7 +135,7 @@ void c2_fi_states_get_state_info(const struct c2_fi_fpoint_state *s,
 	 */
 	if (fp != NULL) {
 		si->si_module = fp->fp_module;
-		si->si_file = c2_core_file_name(fp->fp_file);
+		si->si_file = c2_short_file_name(fp->fp_file);
 		si->si_line_num = fp->fp_line_num;
 	}
 

@@ -154,6 +154,23 @@ const char *c2_bool_to_str(bool b)
 	return b ? "true" : "false";
 }
 
+const char *c2_short_file_name(const char *fname)
+{
+	static const char  bkm[]  = "core/build_kernel_modules/";
+	static const char  core[] = "core/";
+	const char        *p;
+
+	p = strstr(fname, bkm);
+	if (p != NULL)
+		return p + strlen(bkm);
+
+	p = strstr(fname, core);
+	if (p != NULL)
+		return p + strlen(core);
+
+	return fname;
+}
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

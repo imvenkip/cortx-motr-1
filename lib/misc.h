@@ -117,27 +117,38 @@ uint64_t c2_round_down(uint64_t val, uint64_t size);
 const char *c2_bool_to_str(bool b);
 
 /**
- * Extracts a "colibri core" file name from a full-path file name.
+ * Extracts the file name, relative to a colibri sources directory, from a
+ * full-path file name. A colibri source directory is detected by a name
+ * "core/".
  *
  * For example, given the following full-path file name:
  *
  *     /data/colibri/core/lib/ut/finject.c
  *
- * The "colibri core" file name is:
+ * A short file name, relative to the "core/" directory, is:
  *
  *     lib/ut/finject.c
+ *
+ * If there is a "core/build_kernel_modules/" directory in the file's full path,
+ * then short file name is stripped relative to this directory:
+ *
+ *     /data/colibri/core/build_kernel_modules/rpc/packet.c => rpc/packet.c
+ *
+ * @bug {
+ *     This function doesn't search for the right-most occurrence of "core/"
+ *     in a file path, if "core/" encounters several times in the path the first
+ *     one will be picked up:
+ *
+ *       /prj/core/fs/colibri/core/lib/misc.h => fs/colibri/core/lib/misc.h
+ * }
+ *
+ * @param   fname  full path
+ *
+ * @return  short file name - a pointer inside fname string to the remaining
+ *          file path, after colibri source directory;
+ *          if short file name cannot be found, then full fname is returned.
  */
-static inline const char *c2_core_file_name(const char *fname)
-{
-	static const char  core[] = "core/";
-	const char        *cfn;
-
-	cfn = strstr(fname, core);
-	if (cfn == NULL)
-		return fname;
-
-	return cfn + strlen(core);
-}
+const char *c2_short_file_name(const char *fname);
 
 /* __COLIBRI_LIB_MISC_H__ */
 #endif

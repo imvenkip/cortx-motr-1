@@ -28,8 +28,8 @@
 
 #include "lib/errno.h"
 #include "lib/atomic.h"
-#include "lib/arith.h" /* c2_align */
-#include "lib/misc.h"
+#include "lib/arith.h"  /* c2_align */
+#include "lib/misc.h"   /* c2_short_file_name */
 #include "lib/memory.h" /* c2_pagesize_get */
 #include "lib/trace.h"
 
@@ -206,7 +206,8 @@ c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 			  (unsigned long long)trh->trh_timestamp,
 			  (unsigned) (trh->trh_sp & 0xfffff),
 			  subsys_str(td->td_subsys, subsys_map_str),
-			  td->td_func, td->td_file, td->td_line);
+			  td->td_func, c2_short_file_name(td->td_file),
+			  td->td_line);
 
 	for (i = 0; i < td->td_nr; ++i) {
 		const char *addr;
