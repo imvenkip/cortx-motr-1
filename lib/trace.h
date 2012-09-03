@@ -241,7 +241,7 @@ extern unsigned int c2_trace_level;
  * Below is the internal implementation stuff.
  */
 
-#ifdef ENABLE_DEBUG
+#ifdef ENABLE_IMMEDIATE_TRACE
 #  define C2_TRACE_IMMEDIATE_DEBUG (1)
 #else
 #  define C2_TRACE_IMMEDIATE_DEBUG (0)

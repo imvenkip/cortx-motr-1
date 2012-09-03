@@ -9,6 +9,7 @@ AH_TEMPLATE([VERSION], [Version of the package.])
 AH_TEMPLATE([ENABLE_SYNC_ATOMIC], [Enable gcc built-in automic functions])
 AH_TEMPLATE([ENABLE_DEBUG], [Enable debug info.])
 AH_TEMPLATE([ENABLE_FAULT_INJECTION], [Enable fault injection.])
+AH_TEMPLATE([ENABLE_IMMEDIATE_TRACE], [Enable immediate tracing.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT], [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV], [Have fops->readv function])
 AH_TEMPLATE([HAVE_FILE_AIO_READ], [Have fops->aio_read function])
@@ -275,6 +276,11 @@ AC_ARG_ENABLE([debug],
 AC_ARG_ENABLE([finject],
         [AC_HELP_STRING([--disable-finject], [disable fault injection support])], [],
         [enable_finject=yes]
+)
+
+AC_ARG_ENABLE([immediate-trace],
+        [AC_HELP_STRING([--disable-immediate-trace], [disable immediate tracing])], [],
+        [enable_immediate_trace=yes]
 )
 
 AC_ARG_ENABLE([mcheck],
@@ -589,6 +595,10 @@ fi
 
 if test x$enable_finject = xyes; then
         AC_DEFINE([ENABLE_FAULT_INJECTION])
+fi
+
+if test x$enable_immediate_trace = xyes; then
+        AC_DEFINE([ENABLE_IMMEDIATE_TRACE])
 fi
 
 if test x$enable_mcheck = xyes; then
