@@ -55,7 +55,6 @@
 	- Stopping a copy machine.
    - The c2_cm_type represents a copy machine type that a copy machine is an
      instance of.
-   - The c2_cm_stats keeps copy machine operation progress data.
 
    @subsection CMDLD-fspec-if Interfaces
    Every copy machine type implements its own set of routines for type-specific
@@ -121,20 +120,18 @@ enum c2_cm_state {
 	C2_CMS_NR
 };
 
-/** Various copy machine related error codes. */
-enum c2_cm_rc {
-	C2_CM_SUCCESS,
+/**
+ * Various copy machine failures which are used to index into failure descriptor
+ * table to perform copy machine failure processing.
+ */
+enum c2_cm_failure {
 	/** Copy machine setup failure */
 	C2_CM_ERR_SETUP,
 	/** Copy machine start failure */
 	C2_CM_ERR_START,
-	/** Copy machine configuration failure. */
-	C2_CM_ERR_CONF,
-	/** Copy machine operational failure. */
-	C2_CM_ERR_OP,
 	/** Copy machine stop failure */
 	C2_CM_ERR_STOP,
-	C2_CM_NR
+	C2_CM_ERR_NR
 };
 
 /** Copy Machine type, implemented as a request handler service. */
@@ -312,7 +309,7 @@ int c2_cm_done(struct c2_cm *cm);
  * recoverable failures (configuration failure, restructuring failure) the
  * current operation aborts.
  */
-int c2_cm_failure_handle(struct c2_cm *cm);
+void c2_cm_fail(struct c2_cm *cm, enum c2_cm_failure failure);
 
 #define C2_CM_TYPE_DECLARE(cmtype, ops, name)     \
 struct c2_cm_type cmtype ## _cmt = {              \

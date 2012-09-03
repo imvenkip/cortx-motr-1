@@ -61,8 +61,6 @@
    The requirements below are grouped by various milestones.
 
   @subsection cm-setup-req Copy machine Requirements
-   - @b r.cm.type Different types of copy machines are registered and
-        implemented as colibri service types.
    - @b r.cm.generic.invoke Copy machine generic routines should be invoked from
         copy machine service specific code.
    - @b r.cm.generic.specific Copy machine generic routines should accordingly
@@ -137,10 +135,8 @@
    @section CMDLD-conformance Conformance
    This section briefly describes interfaces and structures conforming to above
    mentioned copy machine requirements.
-   - @b i.cm.generic Copy machine generic routines are invoked from copy
+   - @b i.cm.generic.invoke Copy machine generic routines are invoked from copy
         machine specific code.
-   - @b i.cm.type.register Different types of copy machines are registered as
-        colibri service types.
    - @b i.cm.generic.specific Copy machine generic routines accordingly
         invoke copy machine specific operations.
    - @b i.cm.synchronise Copy machine provides synchronised access to the its
@@ -209,9 +205,6 @@ static struct c2_bob_type cmtypes_bob;
 C2_BOB_DEFINE( , &cmtypes_bob, c2_cm_type);
 
 
-C2_ADDB_EV_DEFINE(cm_init_fail, "cm_init_fail",
-		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
-
 C2_ADDB_EV_DEFINE(cm_setup_fail, "cm_setup_fail",
 		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
@@ -235,8 +228,7 @@ const struct c2_sm_state_descr c2_cm_state_descr[C2_CMS_NR] = {
 	[C2_CMS_INIT] = {
 		.sd_flags	= C2_SDF_INITIAL,
 		.sd_name	= "cm_init",
-		.sd_allowed	= C2_BITS(C2_CMS_IDLE, C2_CMS_FAIL)
-		//C2_CMS_FINI);
+		.sd_allowed	= C2_BITS(C2_CMS_IDLE, C2_CMS_FAIL, C2_CMS_FINI)
 	},
 	[C2_CMS_IDLE] = {
 		.sd_flags	= 0,
@@ -284,6 +276,39 @@ const struct c2_sm_conf c2_cm_sm_conf = {
 	.scf_nr_states  = C2_CMS_NR,
 	.scf_state	= c2_cm_state_descr
 };
+
+struct cm_fail_descr = {
+	struct c2_addb_ev *cfi_ev;
+	void (*failure_action)(struct c2_cm *cm);
+};
+
+const struct cm_fail_descr cm_fail_descr_table[C2_CM_ERR_NR] = {
+	[C2_CM_ERR_SETUP] = {
+		.cfd_ev   = &cm_setup_fail
+	},
+	[C2_CM_ERR_START] = {
+		.cfd_ev   = &cm_start_fail
+	},
+	[C2_CM_ERR_STOP]  = {
+		.cfd_ev   = &cm_stop_fail
+	},
+};
+
+void c2_cm_fail(struct c2_cm *cm, enum c2_cm_failure failure, int rc)
+{
+	/** Send the addb message corresponding to the failure */
+	C2_ADDB_ADD(&cm->cm_addb, &c2_cm_addb_loc,
+		    cm_fail_descr_table[failure].cfd_ev,
+		    cm_fail_descr_table[failure].cfd_ev->ae_name,
+		    cm->cm_mach.sm_rc);
+
+	/** Set the corresponding error code in sm */
+	c2_sm_fail(&cm->cm_mach, C2_CMS_FAIL, rc);
+
+	/* Perform specific failure processing */
+	if(cm_fail_descr_table[failure].failure_action != NULL)
+		cm_fail_descr_table[failure].failure_action(cm);
+}
 
 void c2_cm_lock(struct c2_cm *cm)
 {
@@ -342,9 +367,7 @@ bool c2_cm_invariant(const struct c2_cm *cm)
 	return
 		/* NULL checks */
 		cm != NULL && cm->cm_ops != NULL && cm->cm_type != NULL &&
-		/* Copy machine error code checks */
-		C2_IN(cm->cm_mach.sm_rc, (C2_CM_SUCCESS, C2_CM_ERR_START,
-					  C2_CM_ERR_CONF, C2_CM_ERR_OP)) &&
+		/* Copy machine state sanity checks */
 		ergo(C2_IN(state, (C2_CMS_IDLE, C2_CMS_READY, C2_CMS_ACTIVE,
 				   C2_CMS_DONE, C2_CMS_STOP)) ||
 		(state == C2_CMS_FAIL && C2_IN(cm->cm_mach.sm_rc,
@@ -365,16 +388,11 @@ int c2_cm_setup(struct c2_cm *cm)
 	C2_PRE(c2_cm_invariant(cm));
 
 	rc = cm->cm_ops->cmo_setup(cm);
-	if (rc == 0) {
-		cm->cm_mach.sm_rc = C2_CM_SUCCESS;
-		c2_cm_state_set(cm, C2_CMS_IDLE);
-		C2_LOG("CM:%s copy machine:ID: %lu: STATE: %i",
-		       (char *)cm->cm_type->ct_stype.rst_name, cm->cm_id,
-		        c2_cm_state_get(cm));
+	if (rc != 0) {
+		c2_cm_fail(cm, C2_CM_ERR_SETUP, rc);
 	} else {
-		c2_sm_fail(&cm->cm_mach, C2_CMS_FAIL, C2_CM_ERR_SETUP);
-		C2_ADDB_ADD(&cm->cm_addb, &c2_cm_addb_loc,cm_setup_fail,
-			    "c2_cm_setup", cm->cm_mach.sm_rc);
+		cm->cm_mach.sm_rc = rc;
+		c2_cm_state_set(cm, C2_CMS_IDLE);
 	}
 	C2_POST(c2_cm_invariant(cm));
 	c2_cm_unlock(cm);
@@ -395,17 +413,10 @@ int c2_cm_start(struct c2_cm *cm)
 	C2_PRE(c2_cm_invariant(cm));
 
 	rc = cm->cm_ops->cmo_start(cm);
-	if (rc == 0) {
+	if (rc != 0)
+		c2_cm_fail(cm, C2_CM_ERR_START, rc);
+	else
 		c2_cm_state_set(cm, C2_CMS_ACTIVE);
-		cm->cm_mach.sm_rc = C2_CM_SUCCESS;
-		C2_LOG("CM:%s copy machine:ID: %lu: STATE: %i",
-		       (char *)cm->cm_type->ct_stype.rst_name, cm->cm_id,
-		        c2_cm_state_get(cm));
-	} else {
-		c2_sm_fail(&cm->cm_mach, C2_CMS_FAIL, C2_CM_ERR_START);
-		C2_ADDB_ADD(&cm->cm_addb, &c2_cm_addb_loc, cm_start_fail,
-			    "c2_cm_start", cm->cm_mach.sm_rc);
-	}
 	C2_POST(c2_cm_invariant(cm));
 	c2_cm_unlock(cm);
 	C2_LEAVE();
@@ -422,15 +433,12 @@ int c2_cm_stop(struct c2_cm *cm)
 	C2_PRE(C2_IN(c2_cm_state_get(cm), (C2_CMS_ACTIVE, C2_CMS_IDLE)));
 	C2_PRE(c2_cm_invariant(cm));
 
-	c2_cm_state_set(cm, C2_CMS_STOP);
 	rc = cm->cm_ops->cmo_stop(cm);
-	if (rc == 0)
-		c2_cm_state_set(cm, C2_CMS_IDLE);
-	else {
-		c2_sm_fail(&cm->cm_mach, C2_CMS_FAIL, C2_CM_ERR_STOP);
-		C2_ADDB_ADD(&cm->cm_addb, &c2_cm_addb_loc,cm_stop_fail,
-			    "c2_cm_stop", cm->cm_mach.sm_rc);
-	}
+	if (rc != 0)
+		c2_cm_fail(cm, C2_CM_ERR_STOP, rc);
+	else
+		c2_cm_state_set(cm, C2_CMS_STOP);
+
 	C2_POST(c2_cm_invariant(cm));
 	c2_cm_unlock(cm);
 	C2_LEAVE();
@@ -565,11 +573,6 @@ static void failure_exit(struct c2_sm *sm)
 	C2_PRE(sm->sm_rc != 0);
 
 	sm->sm_rc = 0;
-}
-
-int c2_cm_failure_handle(struct c2_cm *cm)
-{
-	return 0;
 }
 
 int c2_cm_done(struct c2_cm *cm)
