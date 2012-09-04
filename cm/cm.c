@@ -280,37 +280,43 @@ const struct c2_sm_conf c2_cm_sm_conf = {
 	.scf_state	= c2_cm_state_descr
 };
 
-struct cm_fail_descr = {
-	struct c2_addb_ev *cfi_ev;
-	void (*failure_action)(struct c2_cm *cm);
-};
-
-const struct cm_fail_descr cm_fail_descr_table[C2_CM_ERR_NR] = {
-	[C2_CM_ERR_SETUP] = {
-		.cfd_ev   = &cm_setup_fail
-	},
-	[C2_CM_ERR_START] = {
-		.cfd_ev   = &cm_start_fail
-	},
-	[C2_CM_ERR_STOP]  = {
-		.cfd_ev   = &cm_stop_fail
-	},
-};
-
 void c2_cm_fail(struct c2_cm *cm, enum c2_cm_failure failure, int rc)
 {
-	/** Send the addb message corresponding to the failure */
-	C2_ADDB_ADD(&cm->cm_addb, &c2_cm_addb_loc,
-		    cm_fail_descr_table[failure].cfd_ev,
-		    cm_fail_descr_table[failure].cfd_ev->ae_name,
-		    cm->cm_mach.sm_rc);
+	C2_ENTRY();
+
+	C2_PRE(cm!= NULL);
+	C2_PRE(rc != 0);
+
+	/*
+	 * Send the addb message corresponding to the failure. A better
+	 * implementation would have been creating a failure descriptor table
+	 * which would contain a ADDB event and an "failure_action" op for each
+	 * failure. However, due to limitations of C2_ADDB_ADD macro, this is
+	 * currently difficult to implement
+	 */
+	switch (failure) {
+	case C2_CM_ERR_SETUP:
+		C2_ADDB_ADD(&cm->cm_addb , &c2_cm_addb_loc, cm_setup_fail,
+		    	    "cm_setup_fail", rc);
+		break;
+
+	case C2_CM_ERR_START:
+		C2_ADDB_ADD(&cm->cm_addb , &c2_cm_addb_loc, cm_start_fail,
+		    	    "cm_start_fail", rc);
+		break;
+
+	case C2_CM_ERR_STOP:
+		C2_ADDB_ADD(&cm->cm_addb , &c2_cm_addb_loc, cm_stop_fail,
+		    	    "cm_stop_fail", rc);
+		break;
+
+	default:
+		C2_ASSERT(failure >= C2_CM_ERR_NR);
+	}
 
 	/** Set the corresponding error code in sm */
 	c2_sm_fail(&cm->cm_mach, C2_CMS_FAIL, rc);
-
-	/* Perform specific failure processing */
-	if(cm_fail_descr_table[failure].failure_action != NULL)
-		cm_fail_descr_table[failure].failure_action(cm);
+	C2_LEAVE();
 }
 
 void c2_cm_lock(struct c2_cm *cm)
@@ -372,10 +378,8 @@ bool c2_cm_invariant(const struct c2_cm *cm)
 		cm != NULL && cm->cm_ops != NULL && cm->cm_type != NULL &&
 		/* Copy machine state sanity checks */
 		ergo(C2_IN(state, (C2_CMS_IDLE, C2_CMS_READY, C2_CMS_ACTIVE,
-				   C2_CMS_DONE, C2_CMS_STOP)) ||
-		(state == C2_CMS_FAIL && C2_IN(cm->cm_mach.sm_rc,
-					      (C2_CM_ERR_CONF, C2_CM_ERR_OP))),
-		c2_reqh_service_invariant(&cm->cm_service));
+				   C2_CMS_DONE, C2_CMS_STOP)),
+		     c2_reqh_service_invariant(&cm->cm_service));
 }
 
 int c2_cm_setup(struct c2_cm *cm)
@@ -391,9 +395,9 @@ int c2_cm_setup(struct c2_cm *cm)
 	C2_PRE(c2_cm_invariant(cm));
 
 	rc = cm->cm_ops->cmo_setup(cm);
-	if (rc != 0) {
+	if (rc != 0) 
 		c2_cm_fail(cm, C2_CM_ERR_SETUP, rc);
-	} else {
+	else {
 		cm->cm_mach.sm_rc = rc;
 		c2_cm_state_set(cm, C2_CMS_IDLE);
 	}

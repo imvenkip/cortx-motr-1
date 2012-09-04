@@ -78,7 +78,7 @@
    Lists the various external interfaces exported by the copy machine.
    - c2_cm_setup()		     Setup a copy machine.
    - c2_cm_start()                   Starts copy machine operation.
-   - c2_cm_failure_handle()	     Handles a copy machine failure.
+   - c2_cm_fail()	     	     Handles a copy machine failure.
    - c2_cm_done()		     Performs copy machine operation fini tasks.
 
    @subsection CMDLD-fspec-sub-opi-ext External operational Interfaces
@@ -121,8 +121,9 @@ enum c2_cm_state {
 };
 
 /**
- * Various copy machine failures which are used to index into failure descriptor
- * table to perform copy machine failure processing.
+ * Various copy machine failures. c2_cm_fail() uses these to perform failure
+ * specific processing like sending ADDB messages etc.
+ * @see c2_cm_fail()
  */
 enum c2_cm_failure {
 	/** Copy machine setup failure */
@@ -307,13 +308,21 @@ int c2_cm_configure(struct c2_cm *cm, struct c2_fop *fop);
 int c2_cm_done(struct c2_cm *cm);
 
 /**
- * Handles various type of copy machine failures based on the failure code.
- * In case of non-recoverable failure (eg: copy machine init failure),
- * it transitions the copy machine to C2_CMS_UNDEFINED state. In case of other
- * recoverable failures (configuration failure, restructuring failure) the
- * current operation aborts.
+ * Handles various type of copy machine failures based on the failure code and
+ * errno.
+ * Currently, all this function does is send failure specific addb events and
+ * sets corresponding c2_sm->sm_rc. A better implementation would be creating
+ * a failure descriptor table based on various failures which would contain
+ * an ADDB event for each failure and an "failure_action" op.
+ * However, due to limitations in the current ADDB infrastructure, this is not
+ * feasible.
+ *
+ * @todo Rewrite this function when new ADDB infrastucture is in place.
+ * @param cm Failed copy machine.
+ * @param failure Copy machine failure code.
+ * @param rc errno to which sm rc will be set to.
  */
-void c2_cm_fail(struct c2_cm *cm, enum c2_cm_failure failure);
+void c2_cm_fail(struct c2_cm *cm, enum c2_cm_failure failure, int rc);
 
 #define C2_CM_TYPE_DECLARE(cmtype, ops, name)     \
 struct c2_cm_type cmtype ## _cmt = {              \
