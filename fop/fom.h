@@ -249,6 +249,13 @@ struct c2_fom_locality {
 	struct c2_list		     fl_wail;
 	size_t			     fl_wail_nr;
 
+	/**
+	 * Total number of active foms in this locality. Equals the length of
+	 * runq plus the length of wail plus the number of C2_FOS_RUNNING foms
+	 * in all locality threads.
+	 */
+	unsigned                     fl_foms;
+
 	/** State Machine (SM) group for AST call-backs */
 	struct c2_sm_group	     fl_group;
 
@@ -298,8 +305,6 @@ struct c2_fom_domain {
 	struct c2_fom_locality		*fd_localities;
 	/** Number of localities in the domain. */
 	size_t				 fd_localities_nr;
-	/** Number of foms under execution in this fom domain. */
-	struct c2_atomic64               fd_foms_nr;
 	/** Domain operations. */
 	const struct c2_fom_domain_ops	*fd_ops;
 	/** Request handler this domain belongs to */
@@ -363,6 +368,14 @@ int c2_fom_domain_init(struct c2_fom_domain *dom);
  * @pre dom != NULL && dom->fd_localities != NULL
  */
 void c2_fom_domain_fini(struct c2_fom_domain *dom);
+
+/**
+ * True iff no locality in the domain has a fom to execute.
+ *
+ * This function is, by intention, racy. To guarantee that the domain is idle,
+ * the caller must first guarantee that no new foms can be queued.
+ */
+bool c2_fom_domain_is_idle(const struct c2_fom_domain *dom);
 
 /**
  * This function iterates over c2_fom_domain members and checks
@@ -471,8 +484,9 @@ struct c2_fom {
 
 /**
  * Queues a fom for the execution in a locality runq.
- * Increments the number of foms in execution (c2_fom_domain::fd_foms_nr)
- * in fom domain atomically.
+ *
+ * Increments the number of foms in execution (c2_fom_locality::fl_foms).
+ *
  * The fom is placed in the locality run-queue and scheduled for the execution.
  * Possible errors are reported through fom state and phase, hence the return
  * type is void.
@@ -512,9 +526,9 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
 /**
  * Finalises a fom after it completes its execution,
  * i.e success or failure.
- * Also decrements the number of foms under execution in fom domain
- * atomically.
- * Also signals c2_reqh::rh_sd_signal once c2_fom_domain::fd_foms_nr
+ *
+ * Decrements the number of foms under execution in the locality
+ * (c2_fom_locality::fl_foms). Signals c2_reqh::rh_sd_signal once this counter
  * reaches 0.
  *
  * @param fom, A fom to be finalised

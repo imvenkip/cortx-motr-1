@@ -433,10 +433,11 @@ static void cobfoms_del_nonexist_cob(void)
  */
 static void fom_create(struct c2_fom **fom, enum cob_fom_type fomtype)
 {
-	struct c2_fom      *base_fom;
-	struct c2_reqh     *reqh;
-	struct c2_fom_type  ft;
-	int		    rc;
+	struct c2_fom          *base_fom;
+	struct c2_reqh         *reqh;
+	struct c2_fom_locality *loc;
+	struct c2_fom_type      ft;
+	int		        rc;
 
 	rc = cob_op_fom_create(fom);
 	C2_UT_ASSERT(rc == 0);
@@ -456,6 +457,9 @@ static void fom_create(struct c2_fom **fom, enum cob_fom_type fomtype)
 	c2_atomic64_inc(&base_fom->fo_loc->fl_dom->fd_foms_nr);
 
 	base_fom->fo_loc->fl_dom->fd_reqh = reqh;
+	loc = base_fom->fo_loc = &reqh->rh_fom_dom.fd_localities[0];
+	C2_CNT_INC(loc->fl_foms);
+	loc->fl_dom->fd_reqh = reqh;
 	base_fom->fo_type = &ft;
 	c2_fom_sm_init(base_fom);
 }
