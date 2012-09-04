@@ -139,6 +139,7 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	struct c2t1fs_mnt_opts *mntopts;
 	struct c2t1fs_sb       *csb;
 	struct inode           *root_inode;
+	struct c2_layout_enum  *layout_enum;
 	uint32_t                pool_width;
 	int                     rc;
 
@@ -214,15 +215,15 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	sb->s_maxbytes       = MAX_LFS_FILESIZE;
 	sb->s_op             = &c2t1fs_super_operations;
 
-	rc = c2t1fs_build_cob_id_enum(pool_width, &c2t1fs_globals.g_inode_le);
+	rc = c2t1fs_build_cob_id_enum(pool_width, &layout_enum);
 	if (rc == 0) {
 		rc = c2t1fs_build_inode_layout(csb->csb_nr_data_units,
 					       csb->csb_nr_parity_units,
 					       pool_width, csb->csb_unit_size,
-					       c2t1fs_globals.g_inode_le,
-					       &c2t1fs_globals.g_inode_layout);
+					       layout_enum,
+					       &csb->csb_file_layout);
 		if (rc != 0)
-			c2_layout_enum_fini(c2t1fs_globals.g_inode_le);
+			c2_layout_enum_fini(layout_enum);
 	}
 	if (rc != 0)
 		goto out_map_fini;
@@ -304,15 +305,11 @@ c2t1fs_build_inode_layout(const uint32_t               N,
 {
 	struct c2_pdclust_attr    pl_attr;
 	struct c2_pdclust_layout *pdlayout;
-	uint64_t                  random;
-	uint64_t                  layout_id;
 	int                       rc;
 
 	C2_PRE(pool_width > 0);
 	C2_PRE(le != NULL && layout != NULL);
 
-	random = c2_time_nanoseconds(c2_time_now());
-	layout_id = c2_rnd(~0ULL >> 16, &random);
 	pl_attr = (struct c2_pdclust_attr) {
 		.pa_N         = N,
 		.pa_K         = K,
@@ -322,8 +319,9 @@ c2t1fs_build_inode_layout(const uint32_t               N,
 	c2_uint128_init(&pl_attr.pa_seed, "upjumpandpumpim,");
 
 	*layout = NULL;
-	rc = c2_pdclust_build(&c2t1fs_globals.g_layout_dom, layout_id,
-			      &pl_attr, le, &pdlayout);
+	rc = c2_pdclust_build(&c2t1fs_globals.g_layout_dom,
+			      C2T1FS_FILE_LAYOUT_ID, &pl_attr, le,
+			      &pdlayout);
 	if (rc == 0)
 		*layout = c2_pdl_to_layout(pdlayout);
 	return rc;

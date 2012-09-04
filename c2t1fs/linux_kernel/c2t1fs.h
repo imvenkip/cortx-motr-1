@@ -201,6 +201,7 @@ enum {
 	C2T1FS_DEFAULT_STRIPE_UNIT_SIZE = PAGE_CACHE_SIZE,
 	C2T1FS_MAX_NR_CONTAINERS        = 1024,
 	C2T1FS_COB_ID_STRLEN		= 34,
+	C2T1FS_FILE_LAYOUT_ID           = 0x4A494E4E49455349, /* "jinniesi" */
 };
 
 /** Anything that is global to c2t1fs module goes in this singleton structure.
@@ -217,10 +218,6 @@ struct c2t1fs_globals {
 	struct c2_dbenv           g_dbenv;
 	struct c2_net_buffer_pool g_buffer_pool;
 	struct c2_layout_domain   g_layout_dom;
-	/** Layout for inode */
-	struct c2_layout         *g_inode_layout;
-	/** Enumerator for cob identifiers */
-	struct c2_layout_enum    *g_inode_le;
 };
 
 extern struct c2t1fs_globals c2t1fs_globals;
@@ -342,10 +339,14 @@ struct c2t1fs_sb {
 	/** used by temporary implementation of c2t1fs_fid_alloc(). */
 	uint64_t                      csb_next_key;
 
-	struct c2t1fs_container_location_map csb_cl_map;
+	struct
+	c2t1fs_container_location_map csb_cl_map;
 
 	/** mutex that serialises all file and directory operations */
 	struct c2_mutex               csb_mutex;
+
+	/** Layout for file */
+	struct c2_layout             *csb_file_layout;
 };
 
 enum {
@@ -382,6 +383,9 @@ struct c2t1fs_inode {
 
 	/** layout and related information for the file's data */
 	struct c2_layout_instance *ci_layout_instance;
+
+	/** File layout ID */
+	uint64_t                   ci_layout_id;
 
 	/** List of c2t1fs_dir_ent objects placed using de_link.
 	    List descriptor dir_ents_tl. Valid for only directory inode.

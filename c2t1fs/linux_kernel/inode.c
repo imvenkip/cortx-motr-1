@@ -32,7 +32,8 @@
 static int c2t1fs_inode_test(struct inode *inode, void *opaque);
 static int c2t1fs_inode_set(struct inode *inode, void *opaque);
 
-static int c2t1fs_build_layout_instance(const struct c2_fid        *fid,
+static int c2t1fs_build_layout_instance(const uint64_t              layout_id,
+					const struct c2_fid        *fid,
 					struct c2_layout_instance **linst);
 
 static struct kmem_cache *c2t1fs_inode_cachep = NULL;
@@ -362,7 +363,8 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 			(unsigned long)ci->ci_fid.f_key,
 			N, K, pool->po_width);
 
-	rc = c2t1fs_build_layout_instance(&ci->ci_fid, &linst);
+	rc = c2t1fs_build_layout_instance(ci->ci_layout_id,
+					  &ci->ci_fid, &linst);
 	if (rc == 0)
 		ci->ci_layout_instance = linst;
 
@@ -370,20 +372,25 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 	return rc;
 }
 
-static int c2t1fs_build_layout_instance(const struct c2_fid        *fid,
+static int c2t1fs_build_layout_instance(const uint64_t              layout_id,
+					const struct c2_fid        *fid,
 					struct c2_layout_instance **linst)
 {
+	struct c2_layout           *layout;
 	struct c2_pdclust_layout   *pdlayout;
 	struct c2_pdclust_instance *pdinst;
 	int                         rc;
 
 	C2_PRE(fid != NULL && pdinst != NULL);
 
-	pdlayout = c2_layout_to_pdl(c2t1fs_globals.g_inode_layout);
-	*linst = NULL;
+	layout   = c2_layout_find(&c2t1fs_globals.g_layout_dom, layout_id);
+	pdlayout = c2_layout_to_pdl(layout);
+	*linst   = NULL;
 
 	rc = c2_pdclust_instance_build(pdlayout, fid, &pdinst);
 	if (rc == 0)
 		*linst = &pdinst->pi_base;
+
+	c2_layout_put(layout);
 	return rc;
 }

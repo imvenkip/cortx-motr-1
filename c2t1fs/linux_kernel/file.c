@@ -564,6 +564,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 	struct c2_fid                tgt_fid;
 	struct c2_buf               *data_bufs;
 	struct c2_buf               *parity_bufs;
+	const struct c2_layout_enum *le;
 	loff_t                       pos;
 	size_t                       offset_in_buf;
 	uint64_t                     unit_size;
@@ -608,6 +609,8 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 	src_addr.sa_group = gob_pos / nr_data_bytes_per_group;
 	offset_in_buf = 0;
 
+	le = c2_layout_instance_to_enum(ci->ci_layout_instance);
+
 	for (i = 0; i < nr_groups_to_rw; i++, src_addr.sa_group++) {
 
 		for (unit = 0; unit < nr_units_per_group; unit++) {
@@ -630,7 +633,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 			pos = tgt_addr.ta_frame * unit_size;
 
-			tgt_fid = c2t1fs_cob_fid(c2t1fs_globals.g_inode_le,
+			tgt_fid = c2t1fs_cob_fid(le,
 						 &gob_fid, tgt_addr.ta_obj);
 
 			rw_desc = rw_desc_get(&rw_desc_list, &tgt_fid);

@@ -140,9 +140,10 @@ static int c2t1fs_create(struct inode     *dir,
 	inode->i_fop    = &c2t1fs_reg_file_operations;
 	inode->i_mode   = mode;
 
-	ci              = C2T1FS_I(inode);
-	ci->ci_fid      = c2t1fs_fid_alloc(csb);
-	inode->i_ino    = ci->ci_fid.f_key;
+	ci               = C2T1FS_I(inode);
+	ci->ci_fid       = c2t1fs_fid_alloc(csb);
+	ci->ci_layout_id = C2T1FS_FILE_LAYOUT_ID;
+	inode->i_ino     = ci->ci_fid.f_key;
 
 	insert_inode_hash(inode);
 	mark_inode_dirty(inode);
@@ -508,12 +509,13 @@ static int c2t1fs_component_objects_op(struct c2t1fs_inode *ci,
 					           const struct c2_fid *cfid,
 						   const struct c2_fid *gfid))
 {
-	struct c2t1fs_sb *csb;
-	struct c2_fid     gob_fid;
-	struct c2_fid     cob_fid;
-	int               pool_width;
-	int               i;
-	int rc;
+	struct c2t1fs_sb            *csb;
+	struct c2_fid                gob_fid;
+	struct c2_fid                cob_fid;
+	const struct c2_layout_enum *le;
+	int                          pool_width;
+	int                          i;
+	int                          rc;
 
 	C2_PRE(ci != NULL);
 	C2_PRE(func != NULL);
@@ -531,9 +533,9 @@ static int c2t1fs_component_objects_op(struct c2t1fs_inode *ci,
 	pool_width = csb->csb_pool.po_width;
 	C2_ASSERT(pool_width >= 1);
 
+	le = c2_layout_instance_to_enum(ci->ci_layout_instance);
 	for (i = 0; i < pool_width; ++i) {
-		cob_fid = c2t1fs_cob_fid(c2t1fs_globals.g_inode_le,
-					 &gob_fid, i);
+		cob_fid = c2t1fs_cob_fid(le, &gob_fid, i);
 		rc      = func(csb, &cob_fid, &gob_fid);
 		if (rc != 0) {
 			C2_LOG("Failed: cob %s : [%lu:%lu]",

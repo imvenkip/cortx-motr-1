@@ -252,7 +252,7 @@ c2loop_st()
 	pid=$!
 	c2loop_st_run &>> $COLIBRI_TEST_LOGFILE
 	status=$?
-	exec 2> /dev/null; kill $pid; sleep 0.2; exec 2>1
+	exec 2> /dev/null; kill $pid; sleep 0.2; exec 2>&1
 	[ $status -eq 0 ] || return 1
 	echo " Done: PASSED."
 }
