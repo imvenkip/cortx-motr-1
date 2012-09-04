@@ -236,36 +236,35 @@ const struct c2_sm_state_descr c2_cm_state_descr[C2_CMS_NR] = {
 	[C2_CMS_IDLE] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_idle",
-		.sd_allowed	= (1 << C2_CMS_FAIL)|(1 << C2_CMS_READY)|
-				  (1 << C2_CMS_STOP) | (1 << C2_CMS_FINI)
+		.sd_allowed	= C2_BITS(C2_CMS_FAIL, C2_CMS_READY, C2_CMS_STOP,
+					  C2_CMS_FINI)
 	},
 	[C2_CMS_READY] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_ready",
-		.sd_allowed	= (1 << C2_CMS_ACTIVE)|(1 << C2_CMS_FAIL)
+		.sd_allowed	= C2_BITS(C2_CMS_ACTIVE, C2_CMS_FAIL)
 	},
 	[C2_CMS_ACTIVE] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_active",
-		.sd_allowed	= (1 << C2_CMS_DONE)|(1 << C2_CMS_STOP)|
-				  (1 << C2_CMS_FAIL)
+		.sd_allowed	= C2_BITS(C2_CMS_DONE, C2_CMS_STOP, C2_CMS_FAIL)
 	},
 	[C2_CMS_FAIL] = {
 		.sd_flags	= C2_SDF_FAILURE,
 		.sd_name	= "cm_fail",
 		.sd_ex		= failure_exit,
-		.sd_allowed	= (1 << C2_CMS_IDLE)|(1 << C2_CMS_FINI)
+		.sd_ex		= failure_exit,
+		.sd_allowed	= C2_BITS(C2_CMS_IDLE, C2_CMS_FINI)
 	},
 	[C2_CMS_DONE] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_done",
-		.sd_allowed	= (1 << C2_CMS_FAIL)|(1 << C2_CMS_IDLE)
+		.sd_allowed	= C2_BITS(C2_CMS_FAIL, C2_CMS_IDLE)
 	},
 	[C2_CMS_STOP] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_stop",
-		.sd_allowed	= (1 << C2_CMS_FAIL)|(1 << C2_CMS_IDLE)|
-				  (1 << C2_CMS_FINI)
+		.sd_allowed	= C2_BITS(C2_CMS_FAIL, C2_CMS_IDLE, C2_CMS_FINI)
 	},
 	[C2_CMS_FINI] = {
 		.sd_flags	= C2_SDF_TERMINAL,
@@ -297,17 +296,17 @@ void c2_cm_fail(struct c2_cm *cm, enum c2_cm_failure failure, int rc)
 	switch (failure) {
 	case C2_CM_ERR_SETUP:
 		C2_ADDB_ADD(&cm->cm_addb , &c2_cm_addb_loc, cm_setup_fail,
-		    	    "cm_setup_fail", rc);
+		"cm_setup_fail", rc);
 		break;
 
 	case C2_CM_ERR_START:
 		C2_ADDB_ADD(&cm->cm_addb , &c2_cm_addb_loc, cm_start_fail,
-		    	    "cm_start_fail", rc);
+		"cm_start_fail", rc);
 		break;
 
 	case C2_CM_ERR_STOP:
 		C2_ADDB_ADD(&cm->cm_addb , &c2_cm_addb_loc, cm_stop_fail,
-		    	    "cm_stop_fail", rc);
+		"cm_stop_fail", rc);
 		break;
 
 	default:
@@ -395,7 +394,7 @@ int c2_cm_setup(struct c2_cm *cm)
 	C2_PRE(c2_cm_invariant(cm));
 
 	rc = cm->cm_ops->cmo_setup(cm);
-	if (rc != 0) 
+	if (rc != 0)
 		c2_cm_fail(cm, C2_CM_ERR_SETUP, rc);
 	else {
 		cm->cm_mach.sm_rc = rc;

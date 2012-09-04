@@ -78,7 +78,7 @@
    Lists the various external interfaces exported by the copy machine.
    - c2_cm_setup()		     Setup a copy machine.
    - c2_cm_start()                   Starts copy machine operation.
-   - c2_cm_fail()	     	     Handles a copy machine failure.
+   - c2_cm_fail()		     Handles a copy machine failure.
    - c2_cm_done()		     Performs copy machine operation fini tasks.
 
    @subsection CMDLD-fspec-sub-opi-ext External operational Interfaces
