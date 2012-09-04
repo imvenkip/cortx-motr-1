@@ -106,16 +106,16 @@ void c2_threads_fini(void);
    sufficient to call a function, but it is incompatible with the format of
    other function pointers. For example, given a value of type int (*func)(int),
    it is impossible to tell whether func is a pointer to a closure or a "normal"
-   function pointer to a function without free variable. To work about this, gcc
+   function pointer to a function without free variable. To work around this, gcc
    dynamically creates for each closure a small "trampoline function" that
-   effectively build closure and calls it. For example, the trampoline for L
+   effectively builds closure and calls it. For example, the trampoline for L
    would look like
 
    @code
    int __L_trampoline(int z)
    {
            int *y = (int *)LITERAL_ADDRESS_OF_y;
-	   L(z, *y);
+	   return L(z, *y);
    }
    @endcode
 
@@ -123,7 +123,7 @@ void c2_threads_fini(void);
    it is built, __L_trampoline()'s address can be passed to other functions
    safely. Note that __L_trampoline code is generated dynamically at
    run-time. Moreover gcc stores trampoline's code at the stack. And in kernel
-   stack pages has to execution bit, to prevent exploits.
+   stack pages has no execution bit, to prevent exploits.
 
    Summary:
 
@@ -133,7 +133,14 @@ void c2_threads_fini(void);
          addresses (e.g., global variables) you are safe, because gcc doesn't
          generate trampoline in this case;
 
-       - otherwise you are unsafe in kernel.
+       - otherwise
+
+           - you are unsafe in kernel;
+
+           - you are safe in user space, provided a lambda function is never
+             called after the function in which the lambda function is defined
+             returns (because when foo() returns, __L_trampoline() is
+             destroyed).
 
    @see http://en.wikipedia.org/wiki/Lambda_calculus
  */
