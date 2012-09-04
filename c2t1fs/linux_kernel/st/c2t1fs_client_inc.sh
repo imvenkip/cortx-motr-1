@@ -1,15 +1,10 @@
 colibri_module=kcolibri
 
-bulkio_test()
+mount_c2t1fs()
 {
-	local stride_size=`expr $1 '*' 1024`
-	io_counts=$2
-
 	c2t1fs_mount_dir=$COLIBRI_C2T1FS_MOUNT_DIR
 	io_service=$COLIBRI_IOSERVICE_ENDPOINT
-	local_input=$COLIBRI_C2T1FS_TEST_DIR/file1.data
-	local_output=$COLIBRI_C2T1FS_TEST_DIR/file2.data
-	c2t1fs_file=$c2t1fs_mount_dir/file.data
+	local stride_size=`expr $1 '*' 1024`
 
 	# Create mount directory
 	mkdir $c2t1fs_mount_dir
@@ -35,6 +30,32 @@ none $c2t1fs_mount_dir"
 		echo "Failed to	mount c2t1fs file system."
 		return 1
 	fi
+}
+
+unmount_and_clean()
+{
+	c2t1fs_mount_dir=$COLIBRI_C2T1FS_MOUNT_DIR
+	echo "Unmounting file system ..."
+	umount $c2t1fs_mount_dir &>/dev/null
+
+	echo "Cleaning up test directory..."
+	rm -rf $c2t1fs_mount_dir &>/dev/null
+
+	# Removes the stob files created in stob domain since
+	# there is no support for c2_stob_delete() and after unmounting
+	# the client file system, from next mount, fids are generated
+	# from same baseline which results in failure of cob_create fops.
+	rm -rf $COLIBRI_STOB_PATH/o/*
+}
+
+bulkio_test()
+{
+	local_input=$COLIBRI_C2T1FS_TEST_DIR/file1.data
+	local_output=$COLIBRI_C2T1FS_TEST_DIR/file2.data
+	c2t1fs_file=$c2t1fs_mount_dir/file.data
+	io_counts=$2
+
+	mount_c2t1fs $1 &>> $COLIBRI_TEST_LOGFILE || return 1
 
 	echo "Creating local input file of I/O size ..."
 	local cmd="dd if=/dev/urandom of=$local_input bs=$io_size count=$io_counts"
@@ -86,17 +107,7 @@ none $c2t1fs_mount_dir"
 
 	rm -f $c2t1fs_file
 
-	echo "Unmounting file system ..."
-	umount $c2t1fs_mount_dir &>/dev/null
-
-	echo "Cleaning up test directory..."
-	rm -rf $c2t1fs_mount_dir &>/dev/null
-
-	# Removes the stob files created in stob domain since
-	# there is no support for c2_stob_delete() and after unmounting
-	# the client file system, from next mount, fids are generated
-	# from same baseline which results in failure of cob_create fops.
-	rm -rf $COLIBRI_STOB_PATH/o/*
+	unmount_and_clean &>> $COLIBRI_TEST_LOGFILE
 
 	return 0
 }
@@ -244,4 +255,24 @@ c2loop_st()
 	exec 2> /dev/null; kill $pid; sleep 0.2; exec 2>1
 	[ $status -eq 0 ] || return 1
 	echo " Done: PASSED."
+}
+
+file_creation_test()
+{
+	pool_width=$1
+	data_units=$2
+	parity_units=$3
+	nr_files=$4
+	mount_c2t1fs 4 &>> $COLIBRI_TEST_LOGFILE || return 1
+	echo "Test: Creating $nr_files files on c2t1fs..." \
+	    >> $COLIBRI_TEST_LOGFILE
+	for((i=0; i<$nr_files; ++i)); do
+		touch $c2t1fs_mount_dir/file$i
+	done
+	echo "Removing files..." >> $COLIBRI_TEST_LOGFILE
+	rm -f $c2t1fs_mount_dir/file*
+	unmount_and_clean &>> $COLIBRI_TEST_LOGFILE
+	echo "Test: file creation: Success." | tee $COLIBRI_TEST_LOGFILE
+
+	return 0
 }

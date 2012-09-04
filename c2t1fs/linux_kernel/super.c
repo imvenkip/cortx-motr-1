@@ -28,9 +28,22 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"        /* C2_LOG and C2_ENTRY            */
 #include "pool/pool.h"        /* c2_pool_init(), c2_pool_fini() */
+#include "layout/linear_enum.h"
+#include "layout/pdclust.h"
+
+static int
+c2t1fs_build_cob_id_enum(const uint32_t          pool_width,
+			 struct c2_layout_enum **lay_enum);
+
+static int
+c2t1fs_build_inode_layout(const uint32_t               N,
+			  const uint32_t               K,
+			  const uint32_t               pool_width,
+			  const uint64_t               unit_size,
+			  struct c2_layout_enum       *le,
+			  struct c2_layout           **layout);
 
 /* Super block */
-
 static int  c2t1fs_fill_super(struct super_block *sb, void *data, int silent);
 static int  c2t1fs_sb_init(struct c2t1fs_sb *csb);
 static void c2t1fs_sb_fini(struct c2t1fs_sb *csb);
@@ -201,6 +214,19 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	sb->s_maxbytes       = MAX_LFS_FILESIZE;
 	sb->s_op             = &c2t1fs_super_operations;
 
+	rc = c2t1fs_build_cob_id_enum(pool_width, &c2t1fs_globals.g_inode_le);
+	if (rc == 0) {
+		rc = c2t1fs_build_inode_layout(csb->csb_nr_data_units,
+					       csb->csb_nr_parity_units,
+					       pool_width, csb->csb_unit_size,
+					       c2t1fs_globals.g_inode_le,
+					       &c2t1fs_globals.g_inode_layout);
+		if (rc != 0)
+			c2_layout_enum_fini(c2t1fs_globals.g_inode_le);
+	}
+	if (rc != 0)
+		goto out_map_fini;
+
 	root_inode = c2t1fs_root_iget(sb);
 	if (root_inode == NULL) {
 		rc = -ENOMEM;
@@ -240,6 +266,70 @@ out:
 	return rc;
 }
 
+static int
+c2t1fs_build_cob_id_enum(const uint32_t          pool_width,
+			 struct c2_layout_enum **lay_enum)
+{
+	struct c2_layout_linear_attr  lin_attr;
+	struct c2_layout_linear_enum *lle;
+	int                           rc;
+
+	C2_PRE(pool_width > 0 && lay_enum != NULL);
+	/*
+	 * cob_fid = fid { B * idx + A, gob_fid.key }
+	 * where idx is in [0, pool_width)
+	 */
+	lin_attr = (struct c2_layout_linear_attr) {
+		.lla_nr = pool_width,
+		.lla_A  = 1,
+		.lla_B  = 1
+	};
+
+	*lay_enum = NULL;
+	rc = c2_linear_enum_build(&c2t1fs_globals.g_layout_dom,
+				  &lin_attr, &lle);
+	if (rc == 0)
+		*lay_enum = &lle->lle_base;
+
+	return rc;
+}
+
+static int
+c2t1fs_build_inode_layout(const uint32_t               N,
+			  const uint32_t               K,
+			  const uint32_t               pool_width,
+			  const uint64_t               unit_size,
+			  struct c2_layout_enum       *le,
+			  struct c2_layout           **layout)
+{
+	struct c2_pdclust_attr    pl_attr;
+	struct c2_pdclust_layout *pdlayout;
+	uint64_t                  random;
+	uint64_t                  layout_id;
+	int                       rc;
+
+	C2_PRE(pool_width > 0);
+	C2_PRE(le != NULL && layout != NULL);
+
+	random = c2_time_nanoseconds(c2_time_now());
+	layout_id = c2_rnd(~0ULL >> 16, &random);
+	pl_attr = (struct c2_pdclust_attr) {
+		.pa_N         = N,
+		.pa_K         = K,
+		.pa_P         = pool_width,
+		.pa_unit_size = unit_size,
+	};
+	c2_uint128_init(&pl_attr.pa_seed, "upjumpandpumpim,");
+
+	*layout = NULL;
+	rc = c2_pdclust_build(&c2t1fs_globals.g_layout_dom, layout_id,
+			      &pl_attr, le, &pdlayout);
+	if (rc == 0)
+		*layout = c2_pdl_to_layout(pdlayout);
+	return rc;
+}
+
+
 /**
    Implementation of file_system_type::kill_sb() interface.
  */
@@ -258,6 +348,7 @@ void c2t1fs_kill_sb(struct super_block *sb)
 	 */
 	if (csb != NULL) {
 		c2t1fs_destroy_all_dir_ents(sb);
+		c2_layout_put(c2t1fs_globals.g_inode_layout);
 		c2t1fs_container_location_map_fini(&csb->csb_cl_map);
 		c2t1fs_disconnect_from_all_services(csb);
 		c2t1fs_service_contexts_discard(csb);

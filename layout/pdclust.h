@@ -261,9 +261,12 @@ struct c2_pdclust_tgt_addr {
 /**
  * Allocates and builds a layout object with the pdclust layout type.
  * @post ergo(rc == 0, pdclust_invariant(*out))
+ * @post In case of successful return, the layout has its reference count set
+ * to 1 which needs to be released by the user when done with the usage
  *
  * @note The object with pdclust layout type is not to be finalised explicitly.
  * It is finalised internally when its last reference is released.
+ * @see c2_layout_put()
  */
 int c2_pdclust_build(struct c2_layout_domain *dom,
 		     uint64_t lid,

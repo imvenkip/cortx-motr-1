@@ -5,6 +5,7 @@ COLIBRI_MODULE=kcolibri
 COLIBRI_MODULE_TRACE_MASK=0x00
 COLIBRI_TEST_LOGFILE=`pwd`/bulkio_`date +"%Y-%m-%d_%T"`.log
 POOL_WIDTH=3
+MAX_NR_FILES=500
 TM_MIN_RECV_QUEUE_LEN=2
 # Maximum value needed to run current ST is 160k.
 MAX_RPC_MSG_SIZE=163840
@@ -29,7 +30,7 @@ load_kernel_module()
 	if [ $? -eq "0" ]
 	then
 		echo "Module $colibri_module already present."
-		echo "Removing existing module to for clean test."
+		echo "Removing existing module for clean test."
 		unload_kernel_module || return $?
 	fi
 

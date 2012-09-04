@@ -148,9 +148,9 @@ static int c2t1fs_create(struct inode     *dir,
 	mark_inode_dirty(inode);
 
 	rc = c2t1fs_inode_layout_init(ci, &csb->csb_pool,
-					   csb->csb_nr_data_units,
-					   csb->csb_nr_parity_units,
-					   csb->csb_unit_size);
+				      csb->csb_nr_data_units,
+				      csb->csb_nr_parity_units,
+				      csb->csb_unit_size);
 	if (rc != 0)
 		goto out;
 
@@ -487,16 +487,16 @@ out:
    See "Containers and component objects" section in c2t1fs.h for
    more information.
  */
-struct c2_fid c2t1fs_cob_fid(const struct c2_fid *gob_fid, int index)
+struct c2_fid c2t1fs_cob_fid(const struct c2_layout_enum *le,
+			     const struct c2_fid *gob_fid, int index)
 {
 	struct c2_fid fid;
 
-	/* index 0 is currently reserved for gob_fid.f_container */
-	C2_ASSERT(gob_fid->f_container == 0);
-	C2_ASSERT(index > 0);
+	C2_PRE(le != NULL);
+	C2_PRE(gob_fid->f_container == 0);
+	C2_PRE(index >= 0);
 
-	fid.f_container = index;
-	fid.f_key       = gob_fid->f_key;
+	c2_layout_enum_get(le, index, gob_fid, &fid);
 
 	C2_LEAVE("fid: [%lu:%lu]", (unsigned long)fid.f_container,
 				   (unsigned long)fid.f_key);
@@ -531,9 +531,9 @@ static int c2t1fs_component_objects_op(struct c2t1fs_inode *ci,
 	pool_width = csb->csb_pool.po_width;
 	C2_ASSERT(pool_width >= 1);
 
-	for (i = 1; i <= pool_width; i++) { /* i = 1 is intentional */
-
-		cob_fid = c2t1fs_cob_fid(&gob_fid, i);
+	for (i = 0; i < pool_width; ++i) {
+		cob_fid = c2t1fs_cob_fid(c2t1fs_globals.g_inode_le,
+					 &gob_fid, i);
 		rc      = func(csb, &cob_fid, &gob_fid);
 		if (rc != 0) {
 			C2_LOG("Failed: cob %s : [%lu:%lu]",

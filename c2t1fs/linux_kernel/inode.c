@@ -32,6 +32,9 @@
 static int c2t1fs_inode_test(struct inode *inode, void *opaque);
 static int c2t1fs_inode_set(struct inode *inode, void *opaque);
 
+static int c2t1fs_build_layout_instance(const struct c2_fid        *fid,
+					struct c2_layout_instance **linst);
+
 static struct kmem_cache *c2t1fs_inode_cachep = NULL;
 
 C2_TL_DESCR_DEFINE(dir_ents, "Dir entries", , struct c2t1fs_dir_ent,
@@ -121,12 +124,11 @@ void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 	C2_PRE(dir_ents_tlist_is_empty(&ci->ci_dir_ents));
 
 	dir_ents_tlist_fini(&ci->ci_dir_ents);
-	if (!c2t1fs_inode_is_root(&ci->ci_inode)) {
-		C2_ASSERT(ci->ci_layout_instance != NULL);
-		ci->ci_layout_instance->li_ops->lio_fini(
-						ci->ci_layout_instance);
-	}
+
+	if (!c2t1fs_inode_is_root(&ci->ci_inode))
+		c2_layout_instance_fini(ci->ci_layout_instance);
 	c2t1fs_inode_bob_fini(ci);
+
 	C2_LEAVE();
 }
 
@@ -348,13 +350,9 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 			     uint32_t             K,
 			     uint64_t             unit_size)
 {
-	uint64_t                      layout_id;
-	struct c2_layout_linear_attr  lin_attr;
-	struct c2_layout_linear_enum *le;
-	struct c2_pdclust_attr        pl_attr;
-	struct c2_pdclust_layout     *pl;
-	struct c2_pdclust_instance   *pi;
-	int                           rc;
+
+	struct c2_layout_instance *linst;
+	int                        rc;
 
 	C2_ENTRY();
 	C2_PRE(ci != NULL && pool != NULL && pool->po_width > 0);
@@ -364,39 +362,28 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 			(unsigned long)ci->ci_fid.f_key,
 			N, K, pool->po_width);
 
-	/**
-	 * @todo A dummy enumeration object is being created here.
-	 * c2t1fs code is not making use of this enumeration object, at this
-	 * point. It will be taken care of by the task c2t1fs.LayoutDB.
-	 */
-	lin_attr.lla_nr = pool->po_width;
-	lin_attr.lla_A  = 100;
-	lin_attr.lla_B  = 200;
-	rc = c2_linear_enum_build(&c2t1fs_globals.g_layout_dom,
-				  &lin_attr, &le);
-	if (rc == 0) {
-		layout_id = 0x4A494E4E49455349; /* "jinniesi" */
-		pl_attr.pa_N         = N;
-		pl_attr.pa_K         = K;
-		pl_attr.pa_P         = pool->po_width;
-		pl_attr.pa_unit_size = unit_size;
-		c2_uint128_init(&pl_attr.pa_seed, "upjumpandpumpim,");
-		rc = c2_pdclust_build(&c2t1fs_globals.g_layout_dom, layout_id,
-				      &pl_attr, &le->lle_base, &pl);
-		if (rc == 0)
-			rc = c2_pdclust_instance_build(pl, &ci->ci_fid, &pi);
-			if (rc == 0) {
-				/*
-				 * c2_pdclust_instance_build() has now
-				 * acquired an additional reference on the
-				 * layout object 'pl'.
-				 */
-				ci->ci_layout_instance = &pi->pi_base;
-			}
-		else
-			le->lle_base.le_ops->leo_fini(&le->lle_base);
-	}
+	rc = c2t1fs_build_layout_instance(&ci->ci_fid, &linst);
+	if (rc == 0)
+		ci->ci_layout_instance = linst;
+
 	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
 
+static int c2t1fs_build_layout_instance(const struct c2_fid        *fid,
+					struct c2_layout_instance **linst)
+{
+	struct c2_pdclust_layout   *pdlayout;
+	struct c2_pdclust_instance *pdinst;
+	int                         rc;
+
+	C2_PRE(fid != NULL && pdinst != NULL);
+
+	pdlayout = c2_layout_to_pdl(c2t1fs_globals.g_inode_layout);
+	*linst = NULL;
+
+	rc = c2_pdclust_instance_build(pdlayout, fid, &pdinst);
+	if (rc == 0)
+		*linst = &pdinst->pi_base;
+	return rc;
+}

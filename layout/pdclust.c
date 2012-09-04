@@ -155,6 +155,7 @@ static bool pdclust_instance_invariant(const struct c2_pdclust_instance *pi)
 
 	return
 		c2_pdclust_instance_bob_check(pi) &&
+		c2_layout__instance_invariant(&pi->pi_base) &&
 		pdclust_invariant(pi->pi_layout) &&
 		/*
 		 * tc->tc_permute[] and tc->tc_inverse[] are mutually inverse
@@ -314,7 +315,7 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 			    pl_base.sl_base, &pdclust_bob);
 		C2_ASSERT(pdclust_allocated_invariant(pl));
 
-		rc = pdclust_populate(pl, attr, le, 0);
+		rc = pdclust_populate(pl, attr, le, 1);
 		if (rc == 0) {
 			*out = pl;
 			c2_mutex_unlock(&l->l_lock);
@@ -363,6 +364,15 @@ struct c2_layout *c2_pdl_to_layout(struct c2_pdclust_layout *pl)
 {
 	C2_PRE(pdclust_invariant(pl));
 	return &pl->pl_base.sl_base;
+}
+
+static struct c2_layout_enum *
+pdclust_instance_to_enum(const struct c2_layout_instance *li)
+{
+	struct c2_pdclust_instance *pdi;
+
+	pdi = c2_layout_instance_to_pdi(li);
+	return c2_striped_layout_to_enum(&pdi->pi_layout->pl_base);
 }
 
 enum c2_pdclust_unit_type
@@ -874,7 +884,8 @@ struct c2_layout_type c2_pdclust_layout_type = {
 };
 
 static const struct c2_layout_instance_ops pdclust_instance_ops = {
-	.lio_fini = pdclust_instance_fini
+	.lio_fini    = pdclust_instance_fini,
+	.lio_to_enum = pdclust_instance_to_enum
 };
 
 /** @} end group pdclust */

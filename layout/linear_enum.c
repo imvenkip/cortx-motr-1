@@ -163,8 +163,8 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
 	return rc;
 }
 
-static struct c2_layout_linear_enum
-*enum_to_linear_enum(const struct c2_layout_enum *e)
+static struct c2_layout_linear_enum *
+enum_to_linear_enum(const struct c2_layout_enum *e)
 {
 	struct c2_layout_linear_enum *lin_enum;
 

@@ -144,11 +144,8 @@
 
    Currently c2t1fs implements simple and temporary mechanism to build
    container location map. Number of containers is assumed to be equal to
-   pool_width(i.e. P) + 1. pool_width is a mount option. And additional 1 for
+   pool_width (i.e. P) + 1. pool_width is a mount option and additional 1 for
    meta-data container.
-
-   In the absense of feature of layout (called layout_enumeration), c2t1fs
-   implements a primitive mechanism to obtain fid of component objects.
 
    Assume a user-visible file F. A gob representing F is assigned fid
    <0, K>, where K is taken from a monotonically increasing counter
@@ -156,6 +153,8 @@
    by container location map.
    There are P number of component objects of file F, having fids
    { <i, K> | i = 1, 2..., P}. Here P is equal to pool_width mount option.
+   Mapping from <gob_fid, cob_index> -> cob_fid is implemented using
+   linear enumeration (B * x + A) with both A and B parameters set to 1.
    Container location map, maps container-ids from 1 to P, to io-services.
 
    Container location map is populated at mount time.
@@ -207,7 +206,7 @@ enum {
 /** Anything that is global to c2t1fs module goes in this singleton structure.
     There is only one, global, instance of this type. */
 struct c2t1fs_globals {
-	struct c2_net_xprt        *g_xprt;
+	struct c2_net_xprt       *g_xprt;
 	/** local endpoint address */
 	char                     *g_laddr;
 	char                     *g_db_name;
@@ -217,7 +216,11 @@ struct c2t1fs_globals {
 	struct c2_cob_domain      g_cob_dom;
 	struct c2_dbenv           g_dbenv;
 	struct c2_net_buffer_pool g_buffer_pool;
-	struct c2_layout_domain  g_layout_dom;
+	struct c2_layout_domain   g_layout_dom;
+	/** Layout for inode */
+	struct c2_layout         *g_inode_layout;
+	/** Enumerator for cob identifiers */
+	struct c2_layout_enum    *g_inode_le;
 };
 
 extern struct c2t1fs_globals c2t1fs_globals;
@@ -446,7 +449,8 @@ int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
 			     uint32_t             K,
 			     uint64_t             unit_size);
 
-struct c2_fid c2t1fs_cob_fid(const struct c2_fid *gob_fid, int index);
+struct c2_fid c2t1fs_cob_fid(const struct c2_layout_enum *le,
+			     const struct c2_fid *gob_fid, int index);
 
 C2_TL_DESCR_DECLARE(dir_ents, extern);
 C2_TL_DECLARE(dir_ents, extern, struct c2t1fs_dir_ent);
