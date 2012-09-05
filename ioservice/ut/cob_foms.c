@@ -723,8 +723,8 @@ static void cob_verify(struct c2_fom *fom, const bool exists)
 	struct c2_cob_nskey  *nskey;
 	struct c2_dbenv	     *dbenv;
 
-	cobdom = fom->fo_loc->fl_dom->fd_reqh->rh_cob_domain;
-	dbenv = fom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
+	cobdom = c2_fom_reqh(fom)->rh_cob_domain;
+	dbenv = c2_fom_reqh(fom)->rh_dbenv;
 
 	c2_cob_nskey_make(&nskey, COB_TEST_ID, COB_TEST_ID, test_cobname);
 
@@ -767,7 +767,7 @@ static void cc_cob_create_test()
 	 * Set the FOM phase and set transaction context
 	 * Test-case 1: Test successful creation of COB
 	 */
-	dbenv = fom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
+	dbenv = c2_fom_reqh(fom)->rh_dbenv;
 	rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 	rc = cc_cob_create(fom, cc);
@@ -832,7 +832,7 @@ static void cc_cobfid_map_add_test()
 	 * Set the FOM phase and set transaction context
 	 * Test-case 1: Test successful creation of COB
 	 */
-	dbenv = cfom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
+	dbenv = c2_fom_reqh(cfom)->rh_dbenv;
 	rc = c2_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 	rc = cc_cob_create(cfom, cc);
@@ -893,7 +893,7 @@ static void cc_fom_state_test(void)
 	cfom = cc_fom_alloc();
 	C2_UT_ASSERT(cfom != NULL);
 
-	dbenv = cfom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
+	dbenv = c2_fom_reqh(cfom)->rh_dbenv;
 	rc = c2_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 	rc = cc_fom_tick(cfom);
@@ -1041,7 +1041,7 @@ static struct c2_fom *cob_testdata_create()
 	fom = cc_fom_alloc();
 	C2_UT_ASSERT(fom != NULL);
 
-	dbenv = fom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
+	dbenv = c2_fom_reqh(fom)->rh_dbenv;
 	rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 
@@ -1110,7 +1110,7 @@ static void cd_cob_delete_test()
 	C2_UT_ASSERT(dfom != NULL);
 
 	cd = cob_fom_get(dfom);
-	dbenv = dfom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
+	dbenv = c2_fom_reqh(dfom)->rh_dbenv;
 	/*
 	 * Test-case 1: Delete cob. The test should succeed.
 	 */
@@ -1178,7 +1178,7 @@ static void cd_cobfid_map_delete_test()
 	/*
 	 * Test-case 1: Delete cob-fid mapping. The test should succeed.
 	 */
-	dbenv = cfom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
+	dbenv = c2_fom_reqh(cfom)->rh_dbenv;
 	rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 	rc = cd_cobfid_map_delete(dfom, cd);
@@ -1237,7 +1237,7 @@ static void cd_fom_state_test(void)
 	dfom = cd_fom_alloc();
 	C2_UT_ASSERT(dfom != NULL);
 
-	dbenv = cfom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
+	dbenv = c2_fom_reqh(cfom)->rh_dbenv;
 	rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 

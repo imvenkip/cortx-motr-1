@@ -213,7 +213,7 @@ static int create_loc_ctx(struct c2_fom *fom)
 	int		rc;
 	struct c2_reqh *reqh;
 
-	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	reqh = c2_fom_reqh(fom);
 	rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, reqh->rh_dbenv, 0);
 	if (rc != 0)
 		fom->fo_rc = rc;
@@ -749,7 +749,7 @@ int c2_fom_tick_generic(struct c2_fom *fom)
 
 	rc = fpd_phase->fpd_action(fom);
 
-	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	reqh = c2_fom_reqh(fom);
 	if (rc == C2_FSO_AGAIN) {
 		if (fom->fo_rc != 0 && c2_fom_phase(fom) < C2_FOPH_FAILURE) {
 			c2_fom_phase_set(fom, C2_FOPH_FAILURE);

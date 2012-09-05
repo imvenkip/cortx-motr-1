@@ -1415,7 +1415,7 @@ static int io_launch(struct c2_fom *fom)
 	ffid = &rwfop->crw_fid;
 	io_fom_cob_rw_fid_wire2mem(ffid, &fid);
 	io_fom_cob_rw_fid2stob_map(&fid, &stobid);
-	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	reqh = c2_fom_reqh(fom);
 	fom_stdom = c2_cs_stob_domain_find(reqh, &stobid);
 	if (fom_stdom == NULL) {
 		rc = -EINVAL;
