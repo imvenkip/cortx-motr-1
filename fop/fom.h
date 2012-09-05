@@ -438,8 +438,6 @@ struct c2_fom {
 	struct c2_fop		 *fo_fop;
 	/** Reply fop object */
 	struct c2_fop		 *fo_rep_fop;
-	/** Fol object for this fom */
-	struct c2_fol		 *fo_fol;
 	/** Transaction object to be used by this fom */
 	struct c2_dtx		  fo_tx;
 	/** Pointer to service instance. */
@@ -486,6 +484,11 @@ struct c2_fom {
  * @pre c2_fom_phase(fom) == C2_FOM_PHASE_INIT
  */
 void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh);
+
+/**
+ * Returns reqh the fom belongs to
+ */
+struct c2_reqh *c2_fom_reqh(const struct c2_fom *fom);
 
 /**
  * Initialises fom allocated by caller.

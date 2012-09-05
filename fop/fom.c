@@ -235,6 +235,11 @@ bool c2_locality_invariant(const struct c2_fom_locality *loc)
 
 }
 
+struct c2_reqh *c2_fom_reqh(const struct c2_fom *fom)
+{
+	return fom->fo_loc->fl_dom->fd_reqh;
+}
+
 static inline enum c2_fom_state fom_state(const struct c2_fom *fom)
 {
 	return fom->fo_sm_state.sm_state;
@@ -427,7 +432,6 @@ void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
 		C2_ASSERT(fom->fo_service != NULL);
 	}
 
-	fom->fo_fol = reqh->rh_fol;
 	dom = &reqh->rh_fom_dom;
 	c2_atomic64_inc(&dom->fd_foms_nr);
 	loc_idx = fom->fo_ops->fo_home_locality(fom) %

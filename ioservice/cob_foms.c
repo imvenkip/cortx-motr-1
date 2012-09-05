@@ -282,7 +282,8 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	nsrec.cnr_stobid = cc->fco_stobid;
 	nsrec.cnr_nlink = CC_COB_HARDLINK_NR;
 
-	fabrec.cfb_version.vn_lsn = c2_fol_lsn_allocate(fom->fo_fol);
+	fabrec.cfb_version.vn_lsn =
+	             c2_fol_lsn_allocate(c2_fom_reqh(fom)->rh_fol);
 	fabrec.cfb_version.vn_vc = CC_COB_VERSION_INIT;
 
 	rc = c2_cob_create(cdom, nskey, &nsrec, &fabrec, CA_NSKEY_FREE, &cob,

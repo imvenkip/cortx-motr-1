@@ -345,7 +345,8 @@ static int stob_create_fom_tick(struct c2_fom *fom)
 		 else
 			c2_fom_phase_set(fom, C2_FOPH_SUCCESS);
 
-		result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
+		result = c2_fop_fol_rec_add(fom->fo_fop,
+		                            c2_fom_reqh(fom)->rh_fol,
 					    &fom->fo_tx.tx_dbtx);
 		C2_ASSERT(result == 0);
 		result = C2_FSO_AGAIN;
@@ -445,8 +446,9 @@ static int stob_read_fom_tick(struct c2_fom *fom)
 			item = c2_fop_to_rpc_item(fop);
 			item->ri_type = &fop->f_type->ft_rpc_item_type;
                         fom->fo_rep_fop = fom_obj->sif_rep_fop;
-                        result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
-                                                        &fom->fo_tx.tx_dbtx);
+			result = c2_fop_fol_rec_add(fom->fo_fop,
+			                            c2_fom_reqh(fom)->rh_fol,
+			                            &fom->fo_tx.tx_dbtx);
                         C2_ASSERT(result == 0);
                         result = C2_FSO_AGAIN;
                 }
@@ -555,8 +557,9 @@ static int stob_write_fom_tick(struct c2_fom *fom)
 			item = c2_fop_to_rpc_item(fop);
 			item->ri_type = &fop->f_type->ft_rpc_item_type;
                         fom->fo_rep_fop = fom_obj->sif_rep_fop;
-                        result = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
-                                                        &fom->fo_tx.tx_dbtx);
+			result = c2_fop_fol_rec_add(fom->fo_fop,
+			                            c2_fom_reqh(fom)->rh_fol,
+			                            &fom->fo_tx.tx_dbtx);
                         C2_ASSERT(result == 0);
                         result = C2_FSO_AGAIN;
                 }

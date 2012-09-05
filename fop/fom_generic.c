@@ -280,10 +280,10 @@ static int fom_success(struct c2_fom *fom)
  */
 static int fom_fol_rec_add(struct c2_fom *fom)
 {
-        c2_fom_block_enter(fom);
-        fom->fo_rc = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
-                                        &fom->fo_tx.tx_dbtx);
-        c2_fom_block_leave(fom);
+	c2_fom_block_enter(fom);
+	fom->fo_rc = c2_fop_fol_rec_add(fom->fo_fop, c2_fom_reqh(fom)->rh_fol,
+	                                &fom->fo_tx.tx_dbtx);
+	c2_fom_block_leave(fom);
 
 	return C2_FSO_AGAIN;
 }

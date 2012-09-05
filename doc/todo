@@ -15,9 +15,6 @@ sub-team leads, contact them to add more things here.
             c2_fom_domain_is_idle() function that iterates over all localities
             and checks that queues are empty.
 
-2012-Jul-26 Get rid of c2_fom::fo_fol, use fom->fo_loc->fl_dom->fd_reqh->rh_fol
-            instead.
-
 2012-Jul-26 Add lib/thread.h:c2_is_awkward(), implement in kernel and user
             space. Tag code. c2_is_awkward() should return true iff the context
             is unsafe for blocking and locking (interrupt handler, signal
@@ -120,3 +117,6 @@ sub-team leads, contact them to add more things here.
     Add `-include "config.h"' compiler option (possibly to CFLAGS of
     configure.ac). Delete `#include "config.h"' directives from source
     files; remove the corresponding stanza from doc/source-structure.
+
+2012-Jul-26 Get rid of c2_fom::fo_fol, use fom->fo_loc->fl_dom->fd_reqh->rh_fol
+            instead. [2012-Sep-04]

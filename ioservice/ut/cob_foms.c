@@ -455,7 +455,6 @@ static void fom_create(struct c2_fom **fom, enum cob_fom_type fomtype)
 	base_fom->fo_loc = &reqh->rh_fom_dom.fd_localities[0];
 	c2_atomic64_inc(&base_fom->fo_loc->fl_dom->fd_foms_nr);
 
-	base_fom->fo_fol = reqh->rh_fol;
 	base_fom->fo_loc->fl_dom->fd_reqh = reqh;
 	base_fom->fo_type = &ft;
 	c2_fom_sm_init(base_fom);
