@@ -20,7 +20,8 @@
  * Original creation date: 02/22/2012
  */
 
-#include "lib/misc.h" /* c2_forall */
+#include "lib/misc.h"   /* c2_forall */
+
 #include "cm/cp.h"
 #include "cm/ag.h"
 #include "cm/cm.h"
@@ -352,10 +353,7 @@ static int cp_fom_tick(struct c2_fom *fom)
 
         C2_PRE(c2_cm_cp_invariant(cp));
 
-	if (phase < C2_CCP_NR)
-		return cp->c_ops->co_action[phase](cp);
-	else
-		return cp->c_ops->co_tick(cp);
+	return cp->c_ops->co_action[phase](cp);
 }
 
 /** Copy packet FOM operations */
@@ -374,11 +372,9 @@ static const struct c2_fom_ops cp_fom_ops = {
 
 bool c2_cm_cp_invariant(struct c2_cm_cp *cp)
 {
-	int phase = c2_fom_phase(&cp->c_fom);
-
 	return c2_cm_cp_bob_check(cp) && cp->c_ops != NULL &&
 	       cp->c_data != NULL && cp->c_ag != NULL &&
-	       IS_IN_ARRAY(phase, cp->c_ops->co_action) &&
+	       c2_fom_phase(&cp->c_fom) >= C2_CCP_INIT &&
 	       cp->c_ops->co_invariant(cp);
 }
 
@@ -386,8 +382,7 @@ void c2_cm_cp_init(struct c2_cm_cp *cp, const struct c2_cm_cp_ops *ops,
 		   struct c2_bufvec *buf)
 {
 	C2_PRE(cp != NULL && ops != NULL && buf != NULL);
-	C2_PRE(c2_forall(i, ARRAY_SIZE(ops->co_action),
-			 ops->co_action[i] != NULL));
+	C2_PRE(c2_forall(i, C2_CCP_NR, ops->co_action[i] != NULL));
 
 	cp->c_ops = ops;
 	cp->c_data = buf;

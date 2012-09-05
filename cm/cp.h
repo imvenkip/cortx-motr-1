@@ -141,9 +141,6 @@ struct c2_cm_cp {
  * responsible to create corresponding copy packet FOMs to do the actual work.
  */
 struct c2_cm_cp_ops {
-	/** Per phase action for copy packet */
-	int  (*co_action[C2_CCP_NR]) (struct c2_cm_cp *cp);
-
 	/** Called when copy packet processing is completed successfully. */
 	void (*co_complete) (struct c2_cm_cp *cp);
 
@@ -157,8 +154,12 @@ struct c2_cm_cp_ops {
 	/** Specific copy packet invariant.*/
 	bool (*co_invariant) (const struct c2_cm_cp *cp);
 
-	/** Handles non-generic phases.*/
-	int  (*co_tick) (struct c2_cm_cp *cp);
+	/**
+         * Per phase action for copy packet. This function should return
+	 * @b C2_FSO_WAIT or @b C2_FSO_AGAIN.
+	 */
+	int  (*co_action[]) (struct c2_cm_cp *cp);
+
 };
 
 /**

@@ -38,9 +38,8 @@
  * function.
  */
 enum c2_sns_repair_phase {
-        SRP_RESOURCE_WAIT = C2_CCP_NR + 1,
-	SRP_EXTENT_LOCK_WAIT,
-        SRP_IO_WAIT
+        SRP_IO_WAIT = C2_CCP_NR + 1,
+	SRP_NR
 };
 
 struct c2_sns_repair_cp {

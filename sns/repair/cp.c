@@ -18,7 +18,9 @@
  * Original creation date: 08/06/2012
  */
 #include "lib/memory.h" /* c2_free() */
+#include "lib/misc.h"   /* c2_forall */
 
+#include "fop/fom.h"
 #include "cm/ag.h"
 #include "sns/repair/cp.h"
 #include "sns/repair/cm.h"
@@ -31,7 +33,11 @@
 
 static bool cp_invariant(const struct c2_cm_cp *cp)
 {
-	return true;
+	const struct c2_cm_cp_ops *ops = cp->c_ops;
+
+	return ops != NULL && c2_fom_phase(&cp->c_fom) < SRP_NR &&
+	       c2_forall(i, SRP_NR, i != C2_CCP_NR ? ops->co_action[i] != NULL :
+	       ops->co_action[i] == NULL);
 }
 
 static int cp_init(struct c2_cm_cp *cp)
@@ -76,7 +82,7 @@ static int cp_recv(struct c2_cm_cp *cp)
         return 0;
 }
 
-int cp_xform(struct c2_cm_cp *cp)
+static int cp_xform(struct c2_cm_cp *cp)
 {
         return 0;
 }
@@ -90,7 +96,7 @@ static void cp_complete(struct c2_cm_cp *cp)
 {
 }
 
-static int cp_tick(struct c2_cm_cp *cp)
+static int cp_io_wait(struct c2_cm_cp *cp)
 {
 	return 0;
 }
@@ -103,12 +109,12 @@ const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
 		[C2_CCP_XFORM] = &cp_xform,
 		[C2_CCP_SEND]  = &cp_send,
 		[C2_CCP_RECV]  = &cp_recv,
-		[C2_CCP_FINI]  = &cp_fini
+		[C2_CCP_FINI]  = &cp_fini,
+		[SRP_IO_WAIT]  = &cp_io_wait
 	},
 	.co_complete	       = &cp_complete,
 	.co_phase_next	       = &cp_phase_next,
 	.co_invariant	       = &cp_invariant,
-	.co_tick	       = &cp_tick,
 };
 
 /** @} SNSRepairCP */
