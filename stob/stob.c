@@ -17,10 +17,6 @@
  * Original creation date: 04/28/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/cdefs.h"
 #include "lib/arith.h"   /* C2_3WAY */

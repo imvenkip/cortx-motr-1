@@ -27,12 +27,6 @@ sub-team leads, contact them to add more things here.
 
 2012-Jul-26 Use type-safe lists in fom.[ch].
 
-2012-Aug-01 -include "config.h"
-
-    Add `-include "config.h"' compiler option (possibly to CFLAGS of
-    configure.ac). Delete `#include "config.h"' directives from source
-    files; remove the corresponding stanza from doc/source-structure.
-
 2012-Aug-28 Magic delimiters
 
     Change magic values to follow 0x33xxxxxxxxxxxx77 pattern.
@@ -120,3 +114,9 @@ sub-team leads, contact them to add more things here.
 2012-Jul-26 addb context should be embedded in reqh.
 2012-Sep-04 addb context should be embedded in reqh, instead of being referenced
             by pointer (c2_reqh::rh_addb).
+
+2012-Aug-01 [Manish] -include "config.h"
+
+    Add `-include "config.h"' compiler option (possibly to CFLAGS of
+    configure.ac). Delete `#include "config.h"' directives from source
+    files; remove the corresponding stanza from doc/source-structure.

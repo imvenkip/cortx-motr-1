@@ -18,11 +18,6 @@
  * Original creation date: 28-Oct-2011
  */
 
-
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/ut.h"
 #include "lib/ub.h"
 #include "lib/time.h"

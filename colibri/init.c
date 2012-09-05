@@ -18,10 +18,6 @@
  * Original creation date: 06/19/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/cdefs.h"
 #include "fop/fop.h"
 

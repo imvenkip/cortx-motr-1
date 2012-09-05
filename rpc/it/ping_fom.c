@@ -17,10 +17,6 @@
  * Original creation date: 07/07/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "fop/fop.h"
 #include "rpc/it/ping_fom.h"
 #include "rpc/it/ping_fop_ff.h"

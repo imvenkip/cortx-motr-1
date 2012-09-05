@@ -18,10 +18,6 @@
  * Original creation date: 02/24/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include <linux/cpu.h>
 #include <linux/cpumask.h>
 #include <asm/processor.h>

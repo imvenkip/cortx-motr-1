@@ -25,10 +25,6 @@
 
 #include <stdarg.h>
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h" /* ENABLE_DEBUG */
-#endif
-
 #include "lib/types.h"
 #include "lib/arith.h"
 

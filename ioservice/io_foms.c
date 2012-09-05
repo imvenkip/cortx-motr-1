@@ -20,10 +20,6 @@
  * Revision date  : 09/14/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/tlist.h"

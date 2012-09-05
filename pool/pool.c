@@ -17,10 +17,6 @@
  * Original creation date: 07/15/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/errno.h"
 #include "stob/stob.h"
 #include "pool/pool.h"

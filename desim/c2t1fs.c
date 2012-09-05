@@ -16,9 +16,6 @@
  * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
  * Original creation date: 2012-Jun-16
  */
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
 
 #include "lib/assert.h"
 #include "stob/stob_id.h"

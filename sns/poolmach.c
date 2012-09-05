@@ -17,10 +17,6 @@
  * Original creation date: 04/28/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "sns/repair.h"
 
 static const struct c2_persistent_sm_ops;

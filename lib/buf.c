@@ -18,10 +18,6 @@
  * Original creation date: 12/02/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/memory.h"
 #include "lib/cdefs.h"
 #include "lib/errno.h"

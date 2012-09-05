@@ -17,9 +17,6 @@
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
  * Original creation date: 22/03/2011
  */
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
 
 #include "lib/errno.h"
 #include "lib/ut.h"

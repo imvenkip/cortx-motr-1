@@ -18,10 +18,6 @@
  * Original creation date: 05/04/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/misc.h"
 #include "lib/errno.h"
 #include "lib/assert.h"

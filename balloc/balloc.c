@@ -18,10 +18,6 @@
  * Original creation date: 07/27/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_BALLOC
 #include "lib/trace.h"        /* C2_LOG and C2_ENTRY */
 

@@ -19,10 +19,6 @@
  * Original creation date: 03/21/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/vec.h"	/* c2_0vec */

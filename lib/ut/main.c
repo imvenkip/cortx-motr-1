@@ -18,10 +18,6 @@
  * Original creation date: 05/23/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/ut.h"
 
 /* sort test suites in alphabetic order */

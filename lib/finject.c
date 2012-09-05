@@ -18,11 +18,6 @@
  * Original creation date: 02/22/2012
  */
 
-
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #ifdef ENABLE_FAULT_INJECTION
 
 #ifdef __KERNEL__

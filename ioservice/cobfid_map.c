@@ -19,10 +19,6 @@
  * Original creation date: 08/23/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <sys/stat.h>
 #include "lib/memory.h"
 #include "lib/errno.h"

@@ -18,10 +18,6 @@
  * Original creation date: 11/16/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 /**
  * @addtogroup linear_enum
  *

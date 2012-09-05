@@ -23,10 +23,6 @@
  * Written by Jay <jinshan.xiong@clusterstor.com>
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "pl.h"
 
 bool_t

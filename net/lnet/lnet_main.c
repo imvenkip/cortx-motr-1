@@ -768,22 +768,30 @@ RPC Bulk Transfer Task Plan</a>
  */
 
 #ifdef __KERNEL__
-#include "build_kernel_modules/lustre_config.h" /* required by lnet/types.h */
 /* lustre config defines package macros also defined by c2 config */
-#undef PACKAGE
+#undef PACKAGE             /* to avoid conflicts */
 #undef PACKAGE_BUGREPORT
 #undef PACKAGE_NAME
 #undef PACKAGE_STRING
 #undef PACKAGE_TARNAME
 #undef PACKAGE_VERSION
 #undef VERSION
-
+#include "build_kernel_modules/lustre_config.h" /* required by lnet/types.h */
 #include "libcfs/libcfs.h" /* lnet/types.h fails if this is not included */
 #include "lnet/types.h"
-#endif
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
+#undef PACKAGE             /* suppress lustre specific values */
+#undef PACKAGE_BUGREPORT
+#undef PACKAGE_NAME
+#undef PACKAGE_STRING
+#undef PACKAGE_TARNAME
+#undef PACKAGE_VERSION
+#undef VERSION
+/*
+ * Above values were lustre specific, change them again to colibri specific.
+ * since there are no guard macros around, this will not be a problem.
+ */
+#include "config.h"        /* Colibri specific */
 #endif
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LNET

@@ -18,10 +18,6 @@
  * Original creation date: 10/11/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "ioservice/cobfid_map.h"
 #include "lib/ut.h"
 #include "lib/memory.h"

@@ -20,10 +20,6 @@
  * Original creation date: 06/27/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/tlist.h"
 #include "lib/rwlock.h"
 #include "lib/misc.h"

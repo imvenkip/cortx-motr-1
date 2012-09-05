@@ -18,10 +18,6 @@
  * Original creation date: 10/18/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 /**
  * @page Layout-DB Layout DB DLD
  *

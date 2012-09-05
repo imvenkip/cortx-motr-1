@@ -18,10 +18,6 @@
  * Original creation date: 01/23/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/cdefs.h"
 #include "lib/buf_xc.h"
 #include "lib/vec_xc.h"
