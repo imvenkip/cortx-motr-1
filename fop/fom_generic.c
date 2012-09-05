@@ -757,7 +757,7 @@ int c2_fom_tick_generic(struct c2_fom *fom)
 	if (rc == C2_FSO_AGAIN) {
 		if (fom->fo_rc != 0 && c2_fom_phase(fom) < C2_FOPH_FAILURE) {
 			c2_fom_phase_set(fom, C2_FOPH_FAILURE);
-			FOM_GEN_ADDB_ADD(reqh->rh_addb, fpd_phase->fpd_name,
+			FOM_GEN_ADDB_ADD(&reqh->rh_addb, fpd_phase->fpd_name,
 					 fom->fo_rc);
 		} else
 			c2_fom_phase_set(fom, fpd_phase->fpd_nextphase);

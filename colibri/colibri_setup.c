@@ -1036,7 +1036,7 @@ static int cs_service_init(const char *service_name, struct c2_reqh *reqh)
         if (stype == NULL)
                 return -EINVAL;
 
-	rc = c2_reqh_service_locate(stype, &service);
+	rc = c2_reqh_service_allocate(stype, &service);
 	if (rc == 0) {
 		c2_reqh_service_init(service, reqh);
 		rc = c2_reqh_service_start(service);

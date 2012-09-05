@@ -103,7 +103,7 @@ struct c2_reqh {
 	 */
 	bool                     rh_shutdown;
 
-	struct c2_addb_ctx      *rh_addb;
+	struct c2_addb_ctx       rh_addb;
 
 	/**
 	    Channel to wait on for reqh shutdown.

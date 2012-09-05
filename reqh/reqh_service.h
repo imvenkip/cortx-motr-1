@@ -58,7 +58,7 @@
    First, we have to define service type operations,
    @code
    static const struct c2_reqh_service_type_ops dummy_service_type_ops = {
-        .rsto_service_locate = dummy_service_locate
+        .rsto_service_allocate = dummy_service_allocate
    };
    @endcode
 
@@ -107,7 +107,7 @@
      cs_service_init()
           |
           v                 allocated
-     rsto_service_locate()+------------>C2_RST_INITIALISING
+     rsto_service_allocate()+------------>C2_RST_INITIALISING
                                             |
                                             | c2_reqh_service_init()
                                             v
@@ -157,7 +157,7 @@ enum c2_reqh_service_state {
 	   in service specific start routine, once the service specific
 	   initialisation is complete, generic part of service is initialised.
 
-           @see c2_reqh_service_locate()
+           @see c2_reqh_service_allocate()
 	 */
 	C2_RST_INITIALISING,
 	/**
@@ -321,8 +321,8 @@ struct c2_reqh_service_type_ops {
 	   @param stype Type of service to be located
 	   @param service successfully located service
 	 */
-	int (*rsto_service_locate)(struct c2_reqh_service_type *stype,
-                                     struct c2_reqh_service **service);
+	int (*rsto_service_allocate)(struct c2_reqh_service_type *stype,
+				     struct c2_reqh_service **service);
 };
 
 /**
@@ -365,7 +365,7 @@ struct c2_reqh_service_type {
 
    @see struct c2_reqh_service_type_ops
  */
-int c2_reqh_service_locate(struct c2_reqh_service_type *stype,
+int c2_reqh_service_allocate(struct c2_reqh_service_type *stype,
                               struct c2_reqh_service **service);
 
 /**
