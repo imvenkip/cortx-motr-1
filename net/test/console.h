@@ -54,6 +54,10 @@ struct c2_net_test_console_cfg {
 	struct c2_net_test_slist ntcc_servers;
 	/** List of client command endpoints */
 	struct c2_net_test_slist ntcc_clients;
+	/** List of server command endpoints */
+	struct c2_net_test_slist ntcc_data_servers;
+	/** List of client command endpoints */
+	struct c2_net_test_slist ntcc_data_clients;
 	/** Commands send timeout for the test nodes */
 	c2_time_t		 ntcc_cmd_send_timeout;
 	/** Commands receive timeout for the test nodes */

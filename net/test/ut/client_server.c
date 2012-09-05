@@ -50,8 +50,8 @@ enum {
 	NTCS_PORTAL		  = 30,
 	NTCS_NODES_MAX		  = 128,
 	NTCS_NODE_ADDR_MAX	  = 0x100,
-	NTCS_TIMEOUT_SEND_MS	  = 1000,
-	NTCS_TIMEOUT_RECV_MS	  = 1000,
+	NTCS_TIMEOUT_SEND_MS	  = 20000,
+	NTCS_TIMEOUT_RECV_MS	  = 20000,
 	NTCS_TMID_CONSOLE4CLIENTS = 2998,
 	NTCS_TMID_CONSOLE4SERVERS = 2999,
 	NTCS_TMID_NODES		  = 3000,
@@ -68,6 +68,10 @@ static char *addr_console4clients;
 static char *addr_console4servers;
 static char  clients[(NTCS_NODES_MAX + 1) * NTCS_NODE_ADDR_MAX];
 static char  servers[(NTCS_NODES_MAX + 1) * NTCS_NODE_ADDR_MAX];
+static char  clients_data[(NTCS_NODES_MAX + 1) * NTCS_NODE_ADDR_MAX];
+static char  servers_data[(NTCS_NODES_MAX + 1) * NTCS_NODE_ADDR_MAX];
+c2_time_t    timeout_send;
+c2_time_t    timeout_recv;
 
 static char *addr_get(const char *nid, int tmid)
 {
@@ -117,6 +121,26 @@ static c2_time_t ms2time(int ms)
 			   (NTCS_TIMEOUT_SEND_MS % 1000) * 1000000);
 }
 
+static void node_cfg_fill(struct c2_net_test_node_cfg *ncfg,
+			  char *addr_cmd,
+			  char *addr_cmd_list,
+			  char *addr_data,
+			  char *addr_data_list,
+			  char *addr_console,
+			  bool last_node)
+{
+	ncfg->ntnc_addr		= addr_cmd;
+	ncfg->ntnc_addr_console = addr_console;
+	ncfg->ntnc_send_timeout = timeout_send;
+
+	strncat(addr_cmd_list, ncfg->ntnc_addr, NTCS_NODE_ADDR_MAX);
+	strncat(addr_cmd_list, last_node ? "" : ",", 2);
+	strncat(addr_data_list, addr_data, NTCS_NODE_ADDR_MAX);
+	strncat(addr_data_list, last_node ? "" : ",", 2);
+
+	addr_free(addr_data);
+}
+
 /*
  * Real situation - no explicit synchronization
  * between test console and test nodes.
@@ -134,9 +158,6 @@ static void net_test_client_server(const char *nid,
 	struct c2_net_test_console_ctx console;
 	int			       rc;
 	int			       i;
-	c2_time_t		       timeout_send;
-	c2_time_t		       timeout_recv;
-	struct c2_net_test_node_cfg   *ncfg;
 
 	C2_PRE(clients_nr <= NTCS_NODES_MAX);
 	C2_PRE(servers_nr <= NTCS_NODES_MAX);
@@ -147,21 +168,19 @@ static void net_test_client_server(const char *nid,
 	addr_console4servers = addr_get(nid, NTCS_TMID_CONSOLE4SERVERS);
 	clients[0] = '\0';
 	for (i = 0; i < clients_nr; ++i) {
-		ncfg = &node_cfg[i];
-		ncfg->ntnc_addr = addr_get(nid, NTCS_TMID_CMD_CLIENTS + i);
-		ncfg->ntnc_addr_console = addr_console4clients;
-		ncfg->ntnc_send_timeout = timeout_send;
-		strncat(clients, ncfg->ntnc_addr, NTCS_NODE_ADDR_MAX);
-		strncat(clients, i == clients_nr - 1 ? "" : ",", 2);
+		node_cfg_fill(&node_cfg[i],
+			      addr_get(nid, NTCS_TMID_CMD_CLIENTS + i), clients,
+			      addr_get(nid, NTCS_TMID_DATA_CLIENTS + i),
+			      clients_data, addr_console4clients,
+			      i == clients_nr - 1);
 	}
 	servers[0] = '\0';
 	for (i = 0; i < servers_nr; ++i) {
-		ncfg = &node_cfg[clients_nr + i];
-		ncfg->ntnc_addr = addr_get(nid, NTCS_TMID_CMD_SERVERS + i);
-		ncfg->ntnc_addr_console = addr_console4servers;
-		ncfg->ntnc_send_timeout = timeout_send;
-		strncat(servers, ncfg->ntnc_addr, NTCS_NODE_ADDR_MAX);
-		strncat(servers, i == servers_nr - 1 ? "" : ",", 2);
+		node_cfg_fill(&node_cfg[clients_nr + i],
+			      addr_get(nid, NTCS_TMID_CMD_SERVERS + i), servers,
+			      addr_get(nid, NTCS_TMID_DATA_SERVERS + i),
+			      servers_data, addr_console4servers,
+			      i == servers_nr - 1);
 	}
 	/* spawn test clients and test servers */
 	for (i = 0; i < clients_nr + servers_nr; ++i) {
@@ -174,9 +193,21 @@ static void net_test_client_server(const char *nid,
 	/* prepare console config */
 	console_cfg.ntcc_addr_console4servers = addr_console4servers;
 	console_cfg.ntcc_addr_console4clients = addr_console4clients;
+	LOGD("addr_console4servers = %s\n", addr_console4servers);
+	LOGD("addr_console4clients = %s\n", addr_console4clients);
+	LOGD("clients		   = %s\n", clients);
+	LOGD("servers		   = %s\n", servers);
+	LOGD("clients_data	   = %s\n", clients_data);
+	LOGD("servers_data	   = %s\n", servers_data);
 	rc = c2_net_test_slist_init(&console_cfg.ntcc_clients, clients, ',');
 	C2_UT_ASSERT(rc == 0);
 	rc = c2_net_test_slist_init(&console_cfg.ntcc_servers, servers, ',');
+	C2_UT_ASSERT(rc == 0);
+	rc = c2_net_test_slist_init(&console_cfg.ntcc_data_clients,
+				    clients_data, ',');
+	C2_UT_ASSERT(rc == 0);
+	rc = c2_net_test_slist_init(&console_cfg.ntcc_data_servers,
+				    servers_data, ',');
 	C2_UT_ASSERT(rc == 0);
 	console_cfg.ntcc_cmd_send_timeout   = timeout_send;
 	console_cfg.ntcc_cmd_recv_timeout   = timeout_recv;
@@ -193,9 +224,19 @@ static void net_test_client_server(const char *nid,
 	/* send INIT to the test servers */
 	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_SERVER,
 				     C2_NET_TEST_CMD_INIT);
-	LOGD("%d\n", rc);
 	C2_UT_ASSERT(rc == servers_nr);
 	/* send INIT to the test clients */
+	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_CLIENT,
+				     C2_NET_TEST_CMD_INIT);
+	C2_UT_ASSERT(rc == clients_nr);
+	/* send START command to the test servers */
+	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_SERVER,
+				     C2_NET_TEST_CMD_START);
+	C2_UT_ASSERT(rc == servers_nr);
+	/* send START command to the test clients */
+	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_CLIENT,
+				     C2_NET_TEST_CMD_START);
+	C2_UT_ASSERT(rc == servers_nr);
 	/* finalize console */
 	c2_net_test_slist_fini(&console_cfg.ntcc_servers);
 	c2_net_test_slist_fini(&console_cfg.ntcc_clients);
@@ -214,7 +255,7 @@ static void net_test_client_server(const char *nid,
 void c2_net_test_client_server_ping_ut(void)
 {
 	net_test_client_server("0@lo", C2_NET_TEST_TYPE_PING,
-			       1, 1, 1, 1, 1, 0x100);
+			       1, 1, 1, 1, 2, 0x100);
 	//net_test_client_server("0@lo", C2_NET_TEST_TYPE_PING,
 	//		       8, 8, 4, 16, 0x100, 0x100);
 }

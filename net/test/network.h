@@ -74,11 +74,11 @@ struct c2_net_test_network_timeouts {
  */
 struct c2_net_test_network_ctx {
 	/** Network domain. */
-	struct c2_net_domain			    ntc_dom;
+	struct c2_net_domain			   *ntc_dom;
 	/** Transfer machine callbacks. */
 	struct c2_net_tm_callbacks		    ntc_tm_cb;
 	/** Transfer machine. */
-	struct c2_net_transfer_mc		    ntc_tm;
+	struct c2_net_transfer_mc		   *ntc_tm;
 	/** Buffer callbacks. */
 	struct c2_net_test_network_buffer_callbacks ntc_buf_cb;
 	/** Array of message buffers. Used for message send/recv. */

@@ -465,7 +465,7 @@ void c2_net_test_network_ut_buf_desc(void)
 	C2_UT_ASSERT(rc == 0);
 
 	/* add some ep - tranfer machine ep */
-	rc = c2_net_test_network_ep_add(&ctx, ctx.ntc_tm.ntm_ep->nep_addr);
+	rc = c2_net_test_network_ep_add(&ctx, ctx.ntc_tm->ntm_ep->nep_addr);
 	C2_UT_ASSERT(rc == 0);
 
 	/* obtain some c2_net_buf_desc */
@@ -482,7 +482,7 @@ void c2_net_test_network_ut_buf_desc(void)
 
 	/* remove bulk buffer from queue */
 	c2_clink_init(&tmwait, NULL);
-	c2_clink_add(&ctx.ntc_tm.ntm_chan, &tmwait);
+	c2_clink_add(&ctx.ntc_tm->ntm_chan, &tmwait);
 	c2_net_test_network_buffer_dequeue(&ctx, C2_NET_TEST_BUF_BULK, 0);
 	c2_chan_wait(&tmwait);
 	c2_net_test_network_buffer_dequeue(&ctx, C2_NET_TEST_BUF_BULK, 1);

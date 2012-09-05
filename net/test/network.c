@@ -174,7 +174,7 @@ static int net_test_buf_init(struct c2_net_buffer *buf,
 
 	C2_SET0(buf);
 
-	dom = &ctx->ntc_dom;
+	dom = ctx->ntc_dom;
 
 	buf_size_max = c2_net_domain_get_max_buffer_size(dom);
 	if (size > buf_size_max)
@@ -240,7 +240,7 @@ static int net_test_bufs_init(struct c2_net_buffer *buf,
 {
 	int		      i;
 	int		      rc = 0;
-	struct c2_net_domain *dom = &ctx->ntc_dom;
+	struct c2_net_domain *dom = ctx->ntc_dom;
 
 	for (i = 0; i < buf_nr; ++i) {
 		rc = net_test_buf_init(&buf[i], size, ctx);
@@ -304,9 +304,13 @@ int c2_net_test_network_ctx_init(struct c2_net_test_network_ctx *ctx,
 
 	C2_SET0(ctx);
 
-	rc = c2_net_domain_init(&ctx->ntc_dom, &c2_net_lnet_xprt);
+	C2_ALLOC_PTR(ctx->ntc_dom);
+	if (ctx->ntc_dom == NULL)
+		return -ENOMEM;
+
+	rc = c2_net_domain_init(ctx->ntc_dom, &c2_net_lnet_xprt);
 	if (rc != 0)
-		return rc;
+		goto free_dom;
 
 	ctx->ntc_tm_cb	     = *tm_cb;
 	ctx->ntc_buf_cb	     = *buf_cb;
@@ -318,24 +322,28 @@ int c2_net_test_network_ctx_init(struct c2_net_test_network_ctx *ctx,
 			       c2_net_test_network_timeouts_never();
 
 	/* init and start tm */
-	ctx->ntc_tm.ntm_state     = C2_NET_TM_UNDEFINED;
-	ctx->ntc_tm.ntm_callbacks = &ctx->ntc_tm_cb;
-
-
-	rc = c2_net_tm_init(&ctx->ntc_tm, &ctx->ntc_dom);
-	if (rc != 0)
+	C2_ALLOC_PTR(ctx->ntc_tm);
+	if (ctx->ntc_tm == NULL)
 		goto fini_dom;
 
+	ctx->ntc_tm->ntm_state     = C2_NET_TM_UNDEFINED;
+	ctx->ntc_tm->ntm_callbacks = &ctx->ntc_tm_cb;
+
+
+	rc = c2_net_tm_init(ctx->ntc_tm, ctx->ntc_dom);
+	if (rc != 0)
+		goto free_tm;
+
 	c2_clink_init(&tmwait, NULL);
-	c2_clink_add(&ctx->ntc_tm.ntm_chan, &tmwait);
-	rc = c2_net_tm_start(&ctx->ntc_tm, tm_addr);
+	c2_clink_add(&ctx->ntc_tm->ntm_chan, &tmwait);
+	rc = c2_net_tm_start(ctx->ntc_tm, tm_addr);
 	c2_chan_wait(&tmwait);
 	c2_clink_del(&tmwait);
 	c2_clink_fini(&tmwait);
 	if (rc != 0)
 		goto fini_tm;
 	rc = -ECONNREFUSED;
-	if (ctx->ntc_tm.ntm_state != C2_NET_TM_STARTED)
+	if (ctx->ntc_tm->ntm_state != C2_NET_TM_STARTED)
 		goto fini_tm;
 
 	rc = -ENOMEM;
@@ -365,7 +373,7 @@ int c2_net_test_network_ctx_init(struct c2_net_test_network_ctx *ctx,
 
     free_bufs_ping:
 	net_test_bufs_fini(ctx->ntc_buf_ping, ctx->ntc_buf_ping_nr,
-			&ctx->ntc_dom);
+			   ctx->ntc_dom);
     free_ep:
 	c2_free(ctx->ntc_ep);
     free_buf_bulk:
@@ -373,11 +381,15 @@ int c2_net_test_network_ctx_init(struct c2_net_test_network_ctx *ctx,
     free_buf_ping:
 	c2_free(ctx->ntc_buf_ping);
     stop_tm:
-	net_test_tm_stop(&ctx->ntc_tm);
+	net_test_tm_stop(ctx->ntc_tm);
     fini_tm:
-	c2_net_tm_fini(&ctx->ntc_tm);
+	c2_net_tm_fini(ctx->ntc_tm);
+    free_tm:
+	c2_free(ctx->ntc_tm);
     fini_dom:
-	c2_net_domain_fini(&ctx->ntc_dom);
+	c2_net_domain_fini(ctx->ntc_dom);
+    free_dom:
+	c2_free(ctx->ntc_dom);
     success:
 	return rc;
 }
@@ -391,15 +403,15 @@ void c2_net_test_network_ctx_fini(struct c2_net_test_network_ctx *ctx)
 	for (i = 0; i < ctx->ntc_ep_nr; ++i)
 		c2_net_end_point_put(ctx->ntc_ep[i]);
 	net_test_bufs_fini(ctx->ntc_buf_bulk, ctx->ntc_buf_bulk_nr,
-			&ctx->ntc_dom);
+			   ctx->ntc_dom);
 	net_test_bufs_fini(ctx->ntc_buf_ping, ctx->ntc_buf_ping_nr,
-			&ctx->ntc_dom);
+			   ctx->ntc_dom);
 	c2_free(ctx->ntc_ep);
 	c2_free(ctx->ntc_buf_bulk);
 	c2_free(ctx->ntc_buf_ping);
-	net_test_tm_stop(&ctx->ntc_tm);
-	c2_net_tm_fini(&ctx->ntc_tm);
-	c2_net_domain_fini(&ctx->ntc_dom);
+	net_test_tm_stop(ctx->ntc_tm);
+	c2_net_tm_fini(ctx->ntc_tm);
+	c2_net_domain_fini(ctx->ntc_dom);
 }
 
 int c2_net_test_network_ep_add(struct c2_net_test_network_ctx *ctx,
@@ -412,7 +424,7 @@ int c2_net_test_network_ep_add(struct c2_net_test_network_ctx *ctx,
 
 	if (ctx->ntc_ep_nr != ctx->ntc_ep_max) {
 		rc = c2_net_end_point_create(&ctx->ntc_ep[ctx->ntc_ep_nr],
-				&ctx->ntc_tm, ep_addr);
+					     ctx->ntc_tm, ep_addr);
 		C2_ASSERT(rc <= 0);
 		if (rc == 0)
 			rc = ctx->ntc_ep_nr++;
@@ -437,7 +449,7 @@ static int net_test_buf_queue(struct c2_net_test_network_ctx *ctx,
 	nb->nb_timeout = timeout == C2_TIME_NEVER ?
 			 C2_TIME_NEVER : c2_time_add(c2_time_now(), timeout);
 
-	return c2_net_buffer_add(nb, &ctx->ntc_tm);
+	return c2_net_buffer_add(nb, ctx->ntc_tm);
 }
 
 int c2_net_test_network_msg_send_ep(struct c2_net_test_network_ctx *ctx,
@@ -506,7 +518,7 @@ void c2_net_test_network_buffer_dequeue(struct c2_net_test_network_ctx *ctx,
 {
 	C2_PRE(c2_net_test_network_ctx_invariant(ctx));
 	c2_net_buffer_del(c2_net_test_network_buf(ctx, buf_type, buf_index),
-			&ctx->ntc_tm);
+			  ctx->ntc_tm);
 }
 
 void c2_net_test_network_bd_reset(struct c2_net_test_network_ctx *ctx,
@@ -736,7 +748,7 @@ int c2_net_test_network_buf_resize(struct c2_net_test_network_ctx *ctx,
 	buf = c2_net_test_network_buf(ctx, buf_type, buf_index);
 	C2_ASSERT(buf != NULL);
 
-	net_test_buf_fini(buf, &ctx->ntc_dom);
+	net_test_buf_fini(buf, ctx->ntc_dom);
 	return net_test_buf_init(buf, new_size, ctx);
 }
 

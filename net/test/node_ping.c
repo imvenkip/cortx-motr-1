@@ -119,6 +119,10 @@ struct buf_state {
 	int		       bs_status;
 	/* Buffer queue type. Set before adding buffer to queue. */
 	enum c2_net_queue_type bs_qtype;
+	/* Number of retries. */
+	size_t		       bs_retry_nr;
+	/* Last retry time. */
+	c2_time_t	       bs_retry_time;
 };
 
 /** Ping node context */
@@ -127,15 +131,13 @@ struct node_ping_ctx {
 	struct c2_net_test_node_ctx	  *npc_node_ctx;
 	/** Node role */
 	enum c2_net_test_role		   npc_node_role;
-	/** Number of network buffers to send/receive test messages. */
+	/**
+	   Number of network buffers to send/receive test messages.
+	   @see c2_net_test_cmd_init.ntci_concurrency
+	 */
 	size_t				   npc_buf_nr;
 	/** Size of network buffers. */
 	c2_bcount_t			   npc_buf_size;
-	/**
-	 * Test messages concurrency.
-	 * @see c2_net_test_cmd_init.ntci_concurrency
-	 */
-	size_t				   npc_concurrency;
 	/** Timeout for test message sending */
 	c2_time_t			   npc_buf_send_timeout;
 	/** Network-context-was-initialized flag */
@@ -187,10 +189,10 @@ static const struct c2_net_tm_callbacks node_ping_tm_cb = {
 	.ntc_event_cb = node_ping_tm_event_cb
 };
 
-static void node_ping_msg_stats_update(struct node_ping_ctx *ctx,
-				       const struct buf_state *bs,
-				       enum c2_net_queue_type q,
-				       const struct c2_net_buffer_event *ev)
+static int64_t node_ping_msg_stats_update(struct node_ping_ctx *ctx,
+					  const struct buf_state *bs,
+					  enum c2_net_queue_type q,
+					  const struct c2_net_buffer_event *ev)
 {
 	struct c2_atomic64 *pa64;
 	bool		    success = ev->nbe_status == 0;
@@ -227,8 +229,8 @@ static bool node_ping_buf_enqueue(struct c2_net_test_network_ctx *net_ctx,
 	bs->bs_qtype = q;
 	rc = q == C2_NET_QT_MSG_SEND ?
 		  ep == NULL ?
-		  c2_net_test_network_msg_send_ep(net_ctx, buf_index, ep) :
 		  c2_net_test_network_msg_send(net_ctx, buf_index, ep_index) :
+		  c2_net_test_network_msg_send_ep(net_ctx, buf_index, ep) :
 		  c2_net_test_network_msg_recv(net_ctx, buf_index);
 	return (bs->bs_errno = rc) != 0;
 }
@@ -362,10 +364,11 @@ static int node_ping_init_fini(struct c2_net_test_node_ctx *node_ctx, bool init)
 
 	rc = -ENOMEM;
 	C2_ALLOC_PTR(ctx);
-	node_ctx->ntnc_svc_private = ctx;
 	if (ctx == NULL)
 		goto failed;
-	ctx->npc_node_ctx = node_ctx;
+
+	node_ctx->ntnc_svc_private = ctx;
+	ctx->npc_node_ctx	   = node_ctx;
 
 	rc = c2_semaphore_init(&ctx->npc_buf_q_sem, 0);
 	if (rc != 0)
@@ -378,6 +381,7 @@ fini:
 	ctx = node_ctx->ntnc_svc_private;
 	if (ctx->npc_net_initialized)
 		c2_net_test_network_ctx_fini(&node_ctx->ntnc_net);
+	c2_free(ctx->npc_buf_state);
 	c2_mutex_fini(&ctx->npc_rtt_lock);
 	c2_semaphore_fini(&ctx->npc_buf_q_sem);
 free_ping_ctx:
@@ -434,6 +438,8 @@ static int node_ping_cmd_init(struct c2_net_test_node_ctx *node_ctx,
 	C2_PRE(cmd != NULL);
 	C2_PRE(reply != NULL);
 
+	LOGD(__FUNCTION__);
+
 	/* ep wasn't recognized */
 	if (cmd->ntc_ep_index == -1) {
 		rc = -ENOENT;
@@ -445,6 +451,8 @@ static int node_ping_cmd_init(struct c2_net_test_node_ctx *node_ctx,
 		rc = -EINVAL;
 		goto reply;
 	}
+	/* check command type */
+	C2_ASSERT(cmd->ntc_init.ntci_type == C2_NET_TEST_TYPE_PING);
 	/* parse INIT command */
 	ctx->npc_node_role	  = cmd->ntc_init.ntci_role;
 	ctx->npc_buf_size	  = cmd->ntc_init.ntci_msg_size;
@@ -453,6 +461,10 @@ static int node_ping_cmd_init(struct c2_net_test_node_ctx *node_ctx,
 	ctx->npc_buf_nr	 = cmd->ntc_init.ntci_concurrency;
 	ctx->npc_buf_nr *= ctx->npc_node_role == C2_NET_TEST_ROLE_CLIENT ?
 			   2 * cmd->ntc_init.ntci_ep.ntsl_nr : 1;
+
+	C2_ALLOC_ARR(ctx->npc_buf_state, ctx->npc_buf_nr);
+	if (ctx->npc_buf_state == NULL)
+		goto reply;
 	/* initialize network context */
 	timeouts = c2_net_test_network_timeouts_never();
 	timeouts.ntnt_timeout[C2_NET_QT_MSG_SEND] = ctx->npc_buf_send_timeout;
@@ -466,7 +478,7 @@ static int node_ping_cmd_init(struct c2_net_test_node_ctx *node_ctx,
 					  cmd->ntc_init.ntci_ep.ntsl_nr,
 					  &timeouts);
 	if (rc != 0)
-		goto reply;
+		goto free_buf_state;
 	/* add test node endpoints to the network context endpoint list */
 	for (i = 0; i < cmd->ntc_init.ntci_ep.ntsl_nr; ++i) {
 		if ((rc = c2_net_test_network_ep_add(&node_ctx->ntnc_net,
@@ -482,6 +494,8 @@ static int node_ping_cmd_init(struct c2_net_test_node_ctx *node_ctx,
 	goto reply;
 free_net_ctx:
 	c2_net_test_network_ctx_fini(&node_ctx->ntnc_net);
+free_buf_state:
+	c2_free(ctx->npc_buf_state);
 reply:
 	/* fill reply */
 	reply->ntc_type = C2_NET_TEST_CMD_INIT_DONE;
@@ -497,10 +511,13 @@ static int node_ping_cmd_start(struct c2_net_test_node_ctx *node_ctx,
 	int		      rc;
 	int		      i;
 	c2_time_t	      one_sec;
+	size_t		      concurrency_client;
 
 	C2_PRE(node_ctx != NULL);
 	C2_PRE(cmd != NULL);
 	C2_PRE(reply != NULL);
+
+	LOGD(__FUNCTION__);
 
 	ctx = node_ping_ctx_from_node_ctx(node_ctx);
 	if (ctx->npc_buf_nr == 0) {
@@ -515,24 +532,29 @@ static int node_ping_cmd_start(struct c2_net_test_node_ctx *node_ctx,
 	c2_net_test_stats_bandwidth_init(&ctx->npc_bandwidth_1s_recv, 0,
 					 ctx->npc_time_start, one_sec);
 	/* enqueue all buffers */
+	if (ctx->npc_node_role == C2_NET_TEST_ROLE_CLIENT)
+		concurrency_client = ctx->npc_buf_nr /
+			             (2 * node_ctx->ntnc_net.ntc_ep_nr);
 	for (i = 0; i < ctx->npc_buf_nr; ++i) {
 		if (ctx->npc_node_role == C2_NET_TEST_ROLE_SERVER) {
 			node_ping_buf_enqueue(&node_ctx->ntnc_net, i,
 					      C2_NET_QT_MSG_RECV, NULL, 0,
 					      &ctx->npc_buf_state[i]);
 		} else {
-			if ((i % 2) == 0)
+			if ((i % 2) == 1)
 				node_ping_timestamp_put(&node_ctx->ntnc_net, i);
+			/* enqueue RECV buffers before SEND buffers */
 			node_ping_buf_enqueue(&node_ctx->ntnc_net, i,
-					      i % 2 == 0 ? C2_NET_QT_MSG_SEND :
-							   C2_NET_QT_MSG_RECV,
+					      i % 2 == 0 ? C2_NET_QT_MSG_RECV :
+							   C2_NET_QT_MSG_SEND,
 					      NULL,
-					      i / (2 * ctx->npc_concurrency),
+					      i / (2 * concurrency_client),
 					      &ctx->npc_buf_state[i]);
 		}
 		if (ctx->npc_buf_state[i].bs_errno != 0)
 			c2_semaphore_up(&ctx->npc_buf_q_sem);
 	}
+	rc = 0;
 reply:
 	/* fill reply */
 	reply->ntc_type = C2_NET_TEST_CMD_START_DONE;
@@ -550,6 +572,8 @@ static int node_ping_cmd_stop(struct c2_net_test_node_ctx *node_ctx,
 	C2_PRE(node_ctx != NULL);
 	C2_PRE(cmd != NULL);
 	C2_PRE(reply != NULL);
+
+	LOGD(__FUNCTION__);
 
 	ctx = node_ping_ctx_from_node_ctx(node_ctx);
 	/* dequeue all buffers */
@@ -577,6 +601,8 @@ static int node_ping_cmd_status(struct c2_net_test_node_ctx *node_ctx,
 	C2_PRE(node_ctx != NULL);
 	C2_PRE(cmd != NULL);
 	C2_PRE(reply != NULL);
+
+	LOGD(__FUNCTION__);
 
 	ctx = node_ping_ctx_from_node_ctx(node_ctx);
 

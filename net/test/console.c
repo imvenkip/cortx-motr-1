@@ -149,7 +149,8 @@ static void console_cmd_init_fill(struct c2_net_test_console_cfg *cfg,
 				       cfg->ntcc_concurrency_server;
 	cinit->ntci_buf_send_timeout = cfg->ntcc_buf_send_timeout;
 	cinit->ntci_ep		     = role == C2_NET_TEST_ROLE_CLIENT ?
-				       cfg->ntcc_servers : cfg->ntcc_clients;
+				       cfg->ntcc_data_servers :
+				       cfg->ntcc_data_clients;
 }
 
 static void status_data_add(struct c2_net_test_cmd_status_data *sd,
@@ -176,9 +177,11 @@ size_t c2_net_test_console_cmd(struct c2_net_test_console_ctx *ctx,
 	int				     j;
 	int				     rc;
 	struct c2_net_test_slist	    *nodes;
+	struct c2_net_test_slist	    *nodes_data;
 	bool				     role_client;
 	c2_time_t			     deadline;
 	size_t				     success_nr = 0;
+	size_t				     rcvd_nr = 0;
 	enum c2_net_test_cmd_type	     answer[] = {
 		[C2_NET_TEST_CMD_INIT]	 = C2_NET_TEST_CMD_INIT_DONE,
 		[C2_NET_TEST_CMD_START]	 = C2_NET_TEST_CMD_START_DONE,
@@ -203,20 +206,22 @@ size_t c2_net_test_console_cmd(struct c2_net_test_console_ctx *ctx,
 	role_client  = role == C2_NET_TEST_ROLE_CLIENT;
 	cmd.ntc_type = cmd_type;
 	nodes	     = role_client ? &cfg->ntcc_clients : &cfg->ntcc_servers;
+	nodes_data   = role_client ? &cfg->ntcc_data_clients :
+				     &cfg->ntcc_data_servers;
 	rctx	     = role_client ? &ctx->ntcc_clients : &ctx->ntcc_servers;
 	cmd_ctx	     = rctx->ntcrc_cmd;
 
+	/** @todo clear recv queue */
 	/* send all commands */
 	for (i = 0; i < nodes->ntsl_nr; ++i) {
 		if (cmd_type == C2_NET_TEST_CMD_INIT)
-			cmd.ntc_init.ntci_tm_ep = nodes->ntsl_list[i];
+			cmd.ntc_init.ntci_tm_ep = nodes_data->ntsl_list[i];
 		cmd.ntc_ep_index     = i;
 		rctx->ntcrc_errno[i] = c2_net_test_commands_send(cmd_ctx, &cmd);
 	}
 	c2_net_test_commands_send_wait_all(cmd_ctx);
 
 	/* receive answers */
-	deadline = c2_time_add(c2_time_now(), cfg->ntcc_cmd_recv_timeout);
 	if (answer[cmd_type] == C2_NET_TEST_CMD_STATUS_DATA) {
 		sd = rctx->ntcrc_sd;
 		C2_SET0(sd);
@@ -224,7 +229,9 @@ size_t c2_net_test_console_cmd(struct c2_net_test_console_ctx *ctx,
 		c2_net_test_stats_init(&sd->ntcsd_bandwidth_1s_recv);
 		c2_net_test_stats_init(&sd->ntcsd_rtt);
 	}
-	while (!c2_time_after(c2_time_now(), deadline)) {
+	deadline = c2_time_add(c2_time_now(), cfg->ntcc_cmd_recv_timeout);
+	while (!c2_time_after(c2_time_now(), deadline) &&
+	       rcvd_nr < nodes->ntsl_nr) {
 		rc = c2_net_test_commands_recv(cmd_ctx, &cmd, deadline);
 		/* deadline reached */
 		if (rc == -ETIMEDOUT)
@@ -232,6 +239,7 @@ size_t c2_net_test_console_cmd(struct c2_net_test_console_ctx *ctx,
 		/** @todo possible spinlock if all recv fails instantly? */
 		if (rc != 0)
 			continue;
+		rcvd_nr++;
 		/* reject unknown sender */
 		if ((j = cmd.ntc_ep_index) < 0)
 			goto reuse_cmd;
@@ -258,6 +266,8 @@ reuse_cmd:
 							  cmd.ntc_buf_index);
 		c2_net_test_commands_received_free(&cmd);
 	}
+
+	LOGD("console: rc = %d\n", rc);
 
 	return success_nr;
 }

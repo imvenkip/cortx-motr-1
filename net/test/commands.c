@@ -22,6 +22,18 @@
 #  include "config.h"
 #endif
 
+/* @todo remove */
+#ifndef __KERNEL__
+#include <stdio.h>		/* printf */
+#endif
+
+/* @todo debug only, remove it */
+#ifndef __KERNEL__
+#define LOGD(format, ...) printf(format, ##__VA_ARGS__)
+#else
+#define LOGD(format, ...) do {} while (0)
+#endif
+
 #include "lib/cdefs.h"		/* container_of */
 #include "lib/types.h"		/* c2_bcount_t */
 #include "lib/misc.h"		/* C2_SET0 */
@@ -73,6 +85,7 @@ TYPE_DESCR(c2_net_test_cmd_status_data) = {
 	FIELD_DESCR(struct c2_net_test_cmd_status_data, ntcsd_bytes_rcvd),
 	FIELD_DESCR(struct c2_net_test_cmd_status_data, ntcsd_time_start),
 	FIELD_DESCR(struct c2_net_test_cmd_status_data, ntcsd_time_now),
+	FIELD_DESCR(struct c2_net_test_cmd_status_data, ntcsd_finished),
 };
 
 static c2_bcount_t
@@ -453,6 +466,13 @@ int c2_net_test_commands_send(struct c2_net_test_cmd_ctx *ctx,
 	C2_PRE(c2_net_test_commands_invariant(ctx));
 	C2_PRE(cmd != NULL);
 
+	LOGD("c2_net_test_commands_send:\n");
+	LOGD("> from:\t\t%s\n", ctx->ntcc_net.ntc_tm->ntm_ep->nep_addr);
+	LOGD("> to %lu:\t\t%s\n", cmd->ntc_ep_index,
+	     ctx->ntcc_net.ntc_ep[cmd->ntc_ep_index]->nep_addr);
+	LOGD("> cmd->ntc_type = %d\n", cmd->ntc_type);
+	LOGD("end.\n");
+
 	buf_index = cmd->ntc_ep_index;
 	buf = c2_net_test_network_buf(&ctx->ntcc_net, C2_NET_TEST_BUF_PING,
 				      buf_index);
@@ -527,6 +547,14 @@ int c2_net_test_commands_recv(struct c2_net_test_cmd_ctx *ctx,
 
 	/* buffer now not in receive queue */
 	ctx->ntcc_buf_status[buf_index].ntcbs_in_recv_queue = false;
+
+	LOGD("c2_net_test_commands_recv:\n");
+	LOGD("> rc = %d\n", rc);
+	LOGD("> from %lu:\t%s\n", cmd->ntc_ep_index,
+	     ctx->ntcc_net.ntc_ep[cmd->ntc_ep_index]->nep_addr);
+	LOGD("> to:\t\t%s\n", ctx->ntcc_net.ntc_tm->ntm_ep->nep_addr);
+	LOGD("> cmd->ntc_type = %d\n", cmd->ntc_type);
+	LOGD("end.\n");
 
 	return rc;
 }

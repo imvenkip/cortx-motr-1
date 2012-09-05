@@ -67,7 +67,7 @@ enum c2_net_test_type {
    @see c2_net_test_cmd
  */
 enum c2_net_test_cmd_type {
-	C2_NET_TEST_CMD_INIT,
+	C2_NET_TEST_CMD_INIT = 0,
 	C2_NET_TEST_CMD_INIT_DONE,
 	C2_NET_TEST_CMD_START,
 	C2_NET_TEST_CMD_START_DONE,
@@ -136,6 +136,8 @@ struct c2_net_test_cmd_status_data {
 	c2_time_t		 ntcsd_time_start;
 	/** Current time on the test node */
 	c2_time_t		 ntcsd_time_now;
+	/** Test was finished */
+	bool			 ntcsd_finished;
 	/** 'send' bandwidth statistics with 1 sec interval */
 	struct c2_net_test_stats ntcsd_bandwidth_1s_send;
 	/** 'receive' bandwidth statistics with 1 sec interval */

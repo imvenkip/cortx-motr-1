@@ -26,6 +26,7 @@
 #include "lib/misc.h"		/* C2_SET0 */
 #include "lib/semaphore.h"	/* c2_semaphore */
 #include "lib/memory.h"		/* c2_alloc */
+#include "lib/time.h"		/* c2_time_seconds */
 #include "net/lnet/lnet.h"	/* c2_net_lnet_ifaces_get */
 
 #include "net/test/commands.h"
@@ -122,6 +123,7 @@ static void fill_addr(uint32_t nr)
 static bool commands_ut_assert(struct net_test_cmd_node *node, bool value)
 {
 	node->ntcn_failures += !value;
+	C2_UT_ASSERT(value);
 	return value;
 }
 
@@ -237,7 +239,8 @@ static void commands_ut_send(struct net_test_cmd_node *node,
 
 static void commands_ut_recv(struct net_test_cmd_node *node,
 			     struct c2_net_test_cmd_ctx *ctx,
-			     c2_time_t deadline)
+			     c2_time_t deadline,
+			     ssize_t *ep_index)
 {
 	struct c2_net_test_cmd cmd;
 	int		       rc;
@@ -245,10 +248,54 @@ static void commands_ut_recv(struct net_test_cmd_node *node,
 	C2_SET0(&cmd);
 	rc = c2_net_test_commands_recv(ctx, &cmd, deadline);
 	commands_ut_assert(node, rc == 0);
-	rc = c2_net_test_commands_recv_enqueue(ctx, cmd.ntc_buf_index);
-	commands_ut_assert(node, rc == 0);
+	if (ep_index == NULL) {
+		rc = c2_net_test_commands_recv_enqueue(ctx, cmd.ntc_buf_index);
+		commands_ut_assert(node, rc == 0);
+	} else {
+		*ep_index = cmd.ntc_buf_index;
+	}
 	commands_ut_assert(node, cmd.ntc_type == C2_NET_TEST_CMD_STOP);
 	commands_ut_assert(node, cmd.ntc_ep_index == 0);
+	c2_net_test_commands_received_free(&cmd);
+	flag_set(node->ntcn_index);
+}
+
+static void commands_ut_recv_type(struct net_test_cmd_node *node,
+				  struct c2_net_test_cmd_ctx *ctx,
+				  c2_time_t deadline,
+				  enum c2_net_test_cmd_type type)
+{
+	struct c2_net_test_cmd_init *cmd_init;
+	struct c2_net_test_cmd	     cmd;
+	int			     rc;
+	c2_time_t		     timeout;
+
+	C2_SET0(&cmd);
+	rc = c2_net_test_commands_recv(ctx, &cmd, deadline);
+	commands_ut_assert(node, rc == 0);
+	rc = c2_net_test_commands_recv_enqueue(ctx, cmd.ntc_buf_index);
+	commands_ut_assert(node, rc == 0);
+	commands_ut_assert(node, cmd.ntc_type == type);
+	if (cmd.ntc_type == C2_NET_TEST_CMD_INIT) {
+		cmd_init = &cmd.ntc_init;
+		commands_ut_assert(node, cmd_init->ntci_role ==
+					 C2_NET_TEST_ROLE_SERVER);
+		commands_ut_assert(node, cmd_init->ntci_type ==
+					 C2_NET_TEST_TYPE_BULK);
+		commands_ut_assert(node, cmd_init->ntci_msg_nr	 == 0x10000);
+		commands_ut_assert(node, cmd_init->ntci_msg_size == 0x100000);
+		commands_ut_assert(node, cmd_init->ntci_concurrency == 0x100);
+		timeout = cmd_init->ntci_buf_send_timeout;
+		commands_ut_assert(node, c2_time_seconds(timeout) == 2);
+		commands_ut_assert(node, c2_time_nanoseconds(timeout) == 3);
+		commands_ut_assert(node, strncmp(cmd_init->ntci_tm_ep,
+					         "0@lo:1:2:3", 64) == 0);
+		/*
+		 * c2_net_test_slist serialize/deserialize already checked
+		 * in slist UT
+		 */
+		commands_ut_assert(node, cmd_init->ntci_ep.ntsl_nr == 3);
+	}
 	c2_net_test_commands_received_free(&cmd);
 	flag_set(node->ntcn_index);
 }
@@ -257,6 +304,7 @@ static void commands_node_thread(struct net_test_cmd_node *node)
 {
 	struct c2_net_test_cmd_ctx *ctx;
 	int			    rc;
+	ssize_t			    buf_index;
 
 	if (node == NULL)
 		return;
@@ -270,7 +318,7 @@ static void commands_node_thread(struct net_test_cmd_node *node)
 		return barrier_disable(node);
 
 	barrier_with_main(node);	/* barrier #0 */
-	commands_ut_recv(node, ctx, C2_TIME_NEVER);	/* test #1 */
+	commands_ut_recv(node, ctx, C2_TIME_NEVER, NULL);/* test #1 */
 	barrier_with_main(node);	/* barrier #1.0 */
 	/* main thread will check flags here */
 	barrier_with_main(node);	/* barrier #1.1 */
@@ -278,34 +326,90 @@ static void commands_node_thread(struct net_test_cmd_node *node)
 	barrier_with_main(node);	/* barrier #2 */
 	if (node->ntcn_index % 2 != 0)			/* test #3 */
 		commands_ut_send(node, ctx);
-	barrier_with_main(node);	/* barrier #3 */
-	if (node->ntcn_index % 2 != 0)			/* test #4 */
-		commands_ut_recv(node, ctx, timeout_get_abs());
+	barrier_with_main(node);	/* barrier #3.0 */
 	barrier_with_main(node);	/* barrier #4.0 */
-	/* main thread will check flags here */
+	if (node->ntcn_index % 2 != 0)			/* test #4 */
+		commands_ut_recv(node, ctx, timeout_get_abs(), &buf_index);
 	barrier_with_main(node);	/* barrier #4.1 */
+	if (node->ntcn_index % 2 != 0) {
+		rc = c2_net_test_commands_recv_enqueue(ctx, buf_index);
+	}
+	barrier_with_main(node);	/* barrier #4.2 */
+	/* main thread will check flags here */
+	barrier_with_main(node);	/* barrier #4.3 */
+	if (node->ntcn_index % 2 == 0) {
+		commands_ut_recv(node, ctx, timeout_get_abs(), NULL);
+	}
 	commands_ut_send(node, ctx);			/* test #5 */
 	commands_ut_send(node, ctx);
 	barrier_with_main(node);	/* barrier #5.0 */
 	/* main thread will start receiving here */
 	barrier_with_main(node);	/* barrier #5.1 */
+							/* test #6 */
+	barrier_with_main(node);	/* barrier #6.0 */
+	commands_ut_recv_type(node, ctx, C2_TIME_NEVER, C2_NET_TEST_CMD_INIT);
+	barrier_with_main(node);	/* barrier #6.1 */
+	barrier_with_main(node);	/* barrier #6.2 */
+	commands_ut_recv_type(node, ctx, C2_TIME_NEVER, C2_NET_TEST_CMD_START);
+	barrier_with_main(node);	/* barrier #6.3 */
+	barrier_with_main(node);	/* barrier #6.4 */
+	commands_ut_recv_type(node, ctx, C2_TIME_NEVER, C2_NET_TEST_CMD_STOP);
+	barrier_with_main(node);	/* barrier #6.5 */
+	barrier_with_main(node);	/* barrier #6.6 */
+	commands_ut_recv_type(node, ctx, C2_TIME_NEVER, C2_NET_TEST_CMD_STATUS);
+	barrier_with_main(node);	/* barrier #6.7 */
+	barrier_with_main(node);	/* barrier #6.8 */
 	c2_net_test_commands_fini(&node->ntcn_ctx);
+}
+
+static void send_all(size_t nr, struct c2_net_test_cmd *cmd)
+{
+	int i;
+	int rc;
+
+	for (i = 0; i < nr; ++i) {
+		cmd->ntc_ep_index = i;
+		rc = c2_net_test_commands_send(&console, cmd);
+		C2_UT_ASSERT(rc == 0);
+	}
+	c2_net_test_commands_send_wait_all(&console);
 }
 
 static void commands_ut_send_all(size_t nr)
 {
 	struct c2_net_test_cmd cmd;
-	int		       i;
-	int		       rc;
 
 	C2_SET0(&cmd);
 	cmd.ntc_type = C2_NET_TEST_CMD_STOP;
-	cmd.ntc_init.ntci_msg_size = 42;
-	for (i = 0; i < nr; ++i) {
-		cmd.ntc_ep_index = i;
-		rc = c2_net_test_commands_send(&console, &cmd);
-		C2_UT_ASSERT(rc == 0);
+	send_all(nr, &cmd);
+}
+
+static void commands_ut_send_all_type(size_t nr,
+				      enum c2_net_test_cmd_type type)
+{
+	struct c2_net_test_cmd_init *cmd_init;
+	struct c2_net_test_cmd	     cmd;
+
+	C2_SET0(&cmd);
+	cmd.ntc_type = type;
+	if (type == C2_NET_TEST_CMD_INIT) {
+		cmd_init		   = &cmd.ntc_init;
+		cmd_init->ntci_role	   = C2_NET_TEST_ROLE_SERVER;
+		cmd_init->ntci_type	   = C2_NET_TEST_TYPE_BULK;
+		cmd_init->ntci_msg_nr	   = 0x10000;
+		cmd_init->ntci_msg_size	   = 0x100000;
+		cmd_init->ntci_concurrency = 0x100;
+		c2_time_set(&cmd_init->ntci_buf_send_timeout, 2, 3);
+		cmd_init->ntci_tm_ep	   = "0@lo:1:2:3";
+		c2_net_test_slist_init(&cmd_init->ntci_ep, "1,2,3", ',');
+	} else if (type != C2_NET_TEST_CMD_START &&
+		   type != C2_NET_TEST_CMD_STOP &&
+		   type != C2_NET_TEST_CMD_STATUS) {
+		C2_IMPOSSIBLE("net-test commands UT: invalid command type");
 	}
+	send_all(nr, &cmd);
+	if (type == C2_NET_TEST_CMD_INIT)
+		c2_net_test_slist_fini(&cmd_init->ntci_ep);
 }
 
 static void commands_ut_recv_all(size_t nr, c2_time_t deadline)
@@ -381,9 +485,8 @@ static void net_test_command_ut(size_t nr)
 	 */
 	flags_reset(nr);
 	commands_ut_send_all(nr);
-	c2_net_test_commands_send_wait_all(&console);
 	barrier_with_nodes();				/* barrier #1.0 */
-	C2_ASSERT(is_flags_set(nr, true));
+	C2_UT_ASSERT(is_flags_set(nr, true));
 	barrier_with_nodes();				/* barrier #1.1 */
 	/*
 	   Test #2: every node sends command to console.
@@ -400,18 +503,19 @@ static void net_test_command_ut(size_t nr)
 	flags_reset(nr);
 	commands_ut_recv_all(nr, timeout_get_abs());
 	C2_UT_ASSERT(is_flags_set_odd(nr));
-	barrier_with_nodes();				/* barrier #3 */
+	barrier_with_nodes();				/* barrier #3.0 */
 	/*
 	   Test #4: half of nodes (node #0, #2, #4, #6, ...) do not start
 	   waiting for commands, but other half of nodes start.
 	   Console sends commands to every node.
 	 */
+	barrier_with_nodes();				/* barrier #4.0 */
 	flags_reset(nr);
 	commands_ut_send_all(nr);
-	c2_net_test_commands_send_wait_all(&console);
-	barrier_with_nodes();				/* barrier #4.0 */
-	C2_UT_ASSERT(is_flags_set_odd(nr));
 	barrier_with_nodes();				/* barrier #4.1 */
+	C2_UT_ASSERT(is_flags_set_odd(nr));
+	barrier_with_nodes();				/* barrier #4.2 */
+	barrier_with_nodes();				/* barrier #4.3 */
 	/*
 	   Test #5: every node sends two commands, and only after that console
 	   starts to receive.
@@ -421,8 +525,32 @@ static void net_test_command_ut(size_t nr)
 	commands_ut_recv_all(nr, C2_TIME_NEVER);
 	flags_reset(nr);
 	commands_ut_recv_all(nr, timeout_get_abs());
-	C2_ASSERT(is_flags_set(nr, false));
+	C2_UT_ASSERT(is_flags_set(nr, false));
 	barrier_with_nodes();				/* barrier #5.1 */
+	/*
+	   Test #6: console sends all types of commands to every node.
+	 */
+	barrier_with_nodes();				/* barrier #6.0 */
+	flags_reset(nr);
+	commands_ut_send_all_type(nr, C2_NET_TEST_CMD_INIT);
+	barrier_with_nodes();				/* barrier #6.1 */
+	C2_UT_ASSERT(is_flags_set(nr, true));
+	barrier_with_nodes();				/* barrier #6.2 */
+	flags_reset(nr);
+	commands_ut_send_all_type(nr, C2_NET_TEST_CMD_START);
+	barrier_with_nodes();				/* barrier #6.3 */
+	C2_UT_ASSERT(is_flags_set(nr, true));
+	barrier_with_nodes();				/* barrier #6.4 */
+	flags_reset(nr);
+	commands_ut_send_all_type(nr, C2_NET_TEST_CMD_STOP);
+	barrier_with_nodes();				/* barrier #6.5 */
+	C2_UT_ASSERT(is_flags_set(nr, true));
+	barrier_with_nodes();				/* barrier #6.6 */
+	flags_reset(nr);
+	commands_ut_send_all_type(nr, C2_NET_TEST_CMD_STATUS);
+	barrier_with_nodes();				/* barrier #6.7 */
+	C2_UT_ASSERT(is_flags_set(nr, true));
+	barrier_with_nodes();				/* barrier #6.8 */
 	/* stop all threads */
 	for (i = 0; i < nr; ++i) {
 		rc = c2_thread_join(&node[i].ntcn_thread);

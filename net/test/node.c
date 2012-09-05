@@ -17,6 +17,29 @@
  * Original creation date: 03/22/2012
  */
 
+#ifdef HAVE_CONFIG_H
+#  include "config.h"
+#endif
+
+/* @todo remove */
+#ifndef __KERNEL__
+#include <stdio.h>		/* printf */
+#endif
+
+/* @todo debug only, remove it */
+#ifndef __KERNEL__
+#define LOGD(format, ...) printf(format, ##__VA_ARGS__)
+#else
+#define LOGD(format, ...) do {} while (0)
+#endif
+
+#include "lib/errno.h"		/* ETIMEDOUT */
+#include "lib/misc.h"		/* C2_SET0 */
+
+#include "net/test/node.h"	/* c2_net_test_node_ctx */
+#include "net/test/node_ping.h"	/* c2_net_test_node_ping_ops */
+#include "net/test/node_bulk.h"	/* c2_net_test_node_bulk_ops */
+
 /**
    @page net-test Colibri Network Benchmark
 
@@ -463,15 +486,6 @@ LNETSelfTest.html">LNET Self-Test manual</a>
 
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
-#include "lib/errno.h"		/* ETIMEDOUT */
-#include "net/test/node.h"	/* c2_net_test_node_ctx */
-#include "net/test/node_ping.h"	/* c2_net_test_node_ping_ops */
-#include "net/test/node_bulk.h"	/* c2_net_test_node_bulk_ops */
-
 /**
    @defgroup NetTestInternals Internals
    @ingroup NetTestDFS
@@ -505,9 +519,12 @@ static struct c2_net_test_service_ops
 {
 	C2_PRE(cmd->ntc_type == C2_NET_TEST_CMD_INIT);
 
-	if (cmd->ntc_init.ntci_type == C2_NET_TEST_TYPE_PING) {
+	switch (cmd->ntc_init.ntci_type) {
+	case C2_NET_TEST_TYPE_PING:
 		return &c2_net_test_node_ping_ops;
-	} else {
+	case C2_NET_TEST_TYPE_BULK:
+		return &c2_net_test_node_bulk_ops;
+	default:
 		return NULL;
 	}
 }
@@ -520,6 +537,12 @@ static int node_cmd_get(struct c2_net_test_cmd_ctx *cmd_ctx,
 	if (rc == 0)
 		rc = c2_net_test_commands_recv_enqueue(cmd_ctx,
 						       cmd->ntc_buf_index);
+	if (rc == 0) {
+		LOGD("node_cmd_get: rc = %d\n", rc);
+		LOGD("node_cmd_get: cmd->ntc_type = %d\n", cmd->ntc_type);
+		LOGD("node_cmd_get: cmd->ntc_init.ntci_msg_nr = %lu\n",
+		     cmd->ntc_init.ntci_msg_nr);
+	}
 	return rc;
 }
 
@@ -538,7 +561,7 @@ static int node_cmd_wait(struct c2_net_test_node_ctx *ctx,
 		rc = node_cmd_get(&ctx->ntnc_cmd, cmd, deadline);
 		if (rc != 0 && rc != -ETIMEDOUT)
 			return rc;	/** @todo add retry count */
-	} while (cmd->ntc_type != type && !ctx->ntnc_exit_flag);
+	} while (!(rc == 0 && cmd->ntc_type == type) && !ctx->ntnc_exit_flag);
 	return 0;
 }
 
@@ -550,10 +573,12 @@ static void node_thread(struct c2_net_test_node_ctx *ctx)
 	struct c2_net_test_cmd		cmd;
 	struct c2_net_test_cmd		reply;
 	int				rc;
+	bool				skip_cmd_get;
 
 	C2_PRE(ctx != NULL);
 
 	/* wait for INIT command */
+	C2_SET0(&cmd);
 	rc = node_cmd_wait(ctx, &cmd, C2_NET_TEST_CMD_INIT);
 	if (ctx->ntnc_exit_flag) {
 		c2_net_test_commands_received_free(&cmd);
@@ -573,20 +598,32 @@ static void node_thread(struct c2_net_test_node_ctx *ctx)
 		return;
 	}
 	/* handle INIT command inside main loop */
-	rc = -EINPROGRESS;
+	skip_cmd_get = true;
 	/* test service is initialized. start main loop */
 	do {
 		/* get command */
-		if (rc == 0)
+		if (rc == 0 && !skip_cmd_get)
 			rc = node_cmd_get(&ctx->ntnc_cmd, &cmd, c2_time_now());
+		else
+			skip_cmd_get = false;
+		if (rc == 0)
+			LOGD("node_thread: cmd_get, "
+			     "rc = %d, cmd.ntc_ep_index = %lu\n",
+			     rc, cmd.ntc_ep_index);
 		if (rc == 0 && cmd.ntc_ep_index >= 0) {
+			LOGD("node_thread: have command\n");
 			/* we have command. handle it */
 			rc = c2_net_test_service_cmd_handle(&svc, &cmd, &reply);
+			LOGD("node_thread: cmd handle: rc = %d\n", rc);
 			reply.ntc_ep_index = cmd.ntc_ep_index;
 			c2_net_test_commands_received_free(&cmd);
 			/* send reply */
+			LOGD("node_thread: reply.ntc_ep_index = %lu\n",
+			     reply.ntc_ep_index);
 			c2_net_test_commands_send_wait_all(&ctx->ntnc_cmd);
-			c2_net_test_commands_send(&ctx->ntnc_cmd, &reply);
+			rc = c2_net_test_commands_send(&ctx->ntnc_cmd, &reply);
+			LOGD("node_thread: send reply: rc = %d\n", rc);
+			C2_SET0(&cmd);
 		} else if (rc == -ETIMEDOUT) {
 			/* we haven't command. take a step. */
 			rc = c2_net_test_service_step(&svc);
@@ -599,6 +636,7 @@ static void node_thread(struct c2_net_test_node_ctx *ctx)
 		 !ctx->ntnc_exit_flag &&
 		 rc == 0);
 
+	LOGD("6, rc = %d\n", rc);
 	ctx->ntnc_errno = rc;
 	/* finalize test service */
 	c2_net_test_service_fini(&svc);
