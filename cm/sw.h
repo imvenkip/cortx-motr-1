@@ -84,15 +84,6 @@ int c2_cm_sw_init(struct c2_cm_sw *slw, const struct c2_cm_sw_ops *ops);
 /** Finalises sliding window. */
 void c2_cm_sw_fini(struct c2_cm_sw *slw);
 
-/**
- * Finds an aggregartion group corresponding to given aggregation group id.
- * Invokes copy machine specific implementation c2_cm_ops::cmo_ag_create(),
- * to create a new aggregation group if not already exist and updates the
- * sliding window accordingly.
- */
-struct c2_cm_aggr_group *c2_cm_sw_ag_find(struct c2_cm_sw *sw,
-					  struct c2_uint128 *ag_id);
-
 /** @} CMSW */
 #endif /* __COLIBRI_CM_SW_H__ */
 /*

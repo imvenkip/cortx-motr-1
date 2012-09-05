@@ -209,10 +209,6 @@ struct c2_cm_ops {
 	/** Creates copy packets only if resources permit. */
 	struct c2_cm_cp *(*cmo_cp_alloc)(struct c2_cm *cm);
 
-        /** Creates new aggregation group for the given aggregation group id. */
-        struct c2_cm_aggr_group *(*cmo_ag_create)(struct c2_cm *cm,
-						 struct c2_uint128 *ag_id);
-
 	/**
 	 * Iterates over the copy machine data set and populates the copy packet
 	 * with meta data of next data object to be restructured, i.e. fid,

@@ -74,6 +74,15 @@ struct c2_cm_aggr_group_ops {
 	 * number of data units per node * unit size / network buffer size.
 	 */
 	uint64_t (*cago_cp_nr)(struct c2_cm_aggr_group *ag);
+
+	/**
+	 * 3-way comparision function for comparing aggregation groups.
+	 * retval > 0 if ag1 > ag2.
+	 * retval 0   if ag1 = ag2.
+	 * retval < 0 if ag1 < ag2.
+	 */
+	int (*cago_ag_cmp)(const struct c2_cm_aggr_group *ag1,
+			   const struct c2_cm_aggr_group *ag2);
 };
 
 C2_TL_DESCR_DECLARE(c2_cm_ag, extern);
