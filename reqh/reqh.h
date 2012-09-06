@@ -166,7 +166,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop);
 
 /**
    Waits on c2_reqh::rh_sd_signal using the given clink until
-   until c2_fom_domain::fd_foms_nr is 0.
+   c2_fom_domain_is_idle().
 
    @param reqh request handler to be shutdown
  */

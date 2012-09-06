@@ -178,7 +178,7 @@ void c2_reqh_shutdown_wait(struct c2_reqh *reqh)
         c2_clink_init(&clink, NULL);
         c2_clink_add(&reqh->rh_sd_signal, &clink);
 
-	while (c2_atomic64_get(&reqh->rh_fom_dom.fd_foms_nr) > 0)
+	while (!c2_fom_domain_is_idle(&reqh->rh_fom_dom))
 		c2_chan_wait(&clink);
 
 	c2_clink_del(&clink);
