@@ -63,6 +63,7 @@ enum {
 
 static struct c2_net_test_node_cfg node_cfg[NTCS_NODES_MAX * 2];
 static struct c2_thread		   node_thread[NTCS_NODES_MAX * 2];
+static struct c2_semaphore	   node_init_sem;
 
 static char *addr_console4clients;
 static char *addr_console4servers;
@@ -106,6 +107,7 @@ static void net_test_node(struct c2_net_test_node_cfg *node_cfg)
 	C2_UT_ASSERT(rc == 0);
 	rc = c2_net_test_node_start(ctx);
 	C2_UT_ASSERT(rc == 0);
+	c2_semaphore_up(&node_init_sem);
 	/* wait for the test node thread */
 	c2_semaphore_down(&ctx->ntnc_thread_finished_sem);
 	c2_net_test_node_stop(ctx);
@@ -183,6 +185,7 @@ static void net_test_client_server(const char *nid,
 			      i == servers_nr - 1);
 	}
 	/* spawn test clients and test servers */
+	c2_semaphore_init(&node_init_sem, 0);
 	for (i = 0; i < clients_nr + servers_nr; ++i) {
 		rc = C2_THREAD_INIT(&node_thread[i],
 				    struct c2_net_test_node_cfg *,
@@ -190,6 +193,10 @@ static void net_test_client_server(const char *nid,
 				    "node_thread#%d", i);
 		C2_UT_ASSERT(rc == 0);
 	}
+	/* wait until test node started */
+	for (i = 0; i < clients_nr + servers_nr; ++i)
+		c2_semaphore_down(&node_init_sem);
+	c2_semaphore_fini(&node_init_sem);
 	/* prepare console config */
 	console_cfg.ntcc_addr_console4servers = addr_console4servers;
 	console_cfg.ntcc_addr_console4clients = addr_console4clients;
@@ -236,6 +243,22 @@ static void net_test_client_server(const char *nid,
 	/* send START command to the test clients */
 	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_CLIENT,
 				     C2_NET_TEST_CMD_START);
+	C2_UT_ASSERT(rc == clients_nr);
+	/* send STATUS command to the test clients until it finishes. */
+	while (1) {
+		rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_CLIENT,
+					     C2_NET_TEST_CMD_STATUS);
+		C2_UT_ASSERT(rc == clients_nr);
+		if (console.ntcc_clients.ntcrc_sd->ntcsd_finished)
+			break;
+	}
+	/* send STOP command to the test clients */
+	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_CLIENT,
+				     C2_NET_TEST_CMD_STOP);
+	C2_UT_ASSERT(rc == clients_nr);
+	/* send STOP command to the test servers */
+	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_SERVER,
+				     C2_NET_TEST_CMD_STOP);
 	C2_UT_ASSERT(rc == servers_nr);
 	/* finalize console */
 	c2_net_test_slist_fini(&console_cfg.ntcc_servers);

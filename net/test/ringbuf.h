@@ -51,11 +51,13 @@ struct c2_net_test_ringbuf {
    @param size maximum number of elements.
  */
 int c2_net_test_ringbuf_init(struct c2_net_test_ringbuf *rb, size_t size);
+
 /**
    Finalize ring buffer.
    @pre c2_net_test_ringbuf_invariant(rb)
  */
 void c2_net_test_ringbuf_fini(struct c2_net_test_ringbuf *rb);
+/** Ring buffer invariant. */
 bool c2_net_test_ringbuf_invariant(const struct c2_net_test_ringbuf *rb);
 
 /**
@@ -64,12 +66,20 @@ bool c2_net_test_ringbuf_invariant(const struct c2_net_test_ringbuf *rb);
    @post c2_net_test_ringbuf_invariant(rb)
  */
 void c2_net_test_ringbuf_push(struct c2_net_test_ringbuf *rb, size_t value);
+
 /**
    Pop item from the ring buffer.
    @pre c2_net_test_ringbuf_invariant(rb)
    @post c2_net_test_ringbuf_invariant(rb)
  */
 size_t c2_net_test_ringbuf_pop(struct c2_net_test_ringbuf *rb);
+
+/**
+   Is ring buffer empty?
+   Useful with MPSC/SPSC access pattern.
+   @pre c2_net_test_ringbuf_invariant(rb)
+ */
+bool c2_net_test_ringbuf_is_empty(struct c2_net_test_ringbuf *rb);
 
 /**
    @} end of NetTestRingbufDFS group

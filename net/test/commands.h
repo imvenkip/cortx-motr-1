@@ -120,30 +120,22 @@ struct c2_net_test_cmd_init {
    @see c2_net_test_cmd, c2_net_test_msg_nr, c2_net_test_stats
  */
 struct c2_net_test_cmd_status_data {
-	/** number of sent test messages */
-	size_t			 ntcsd_msg_sent;
-	/** number of received test messages */
-	size_t			 ntcsd_msg_rcvd;
-	/** number of failed test messages while sending */
-	size_t			 ntcsd_msg_send_failed;
-	/** number of failed test messages while receiving */
-	size_t			 ntcsd_msg_recv_failed;
-	/** total number of bytes sent */
-	c2_bcount_t		 ntcsd_bytes_sent;
-	/** total number of bytes received */
-	c2_bcount_t		 ntcsd_bytes_rcvd;
+	struct c2_net_test_msg_nr ntcsd_msg_nr_send;
+	struct c2_net_test_msg_nr ntcsd_msg_nr_recv;
 	/** Test start time */
-	c2_time_t		 ntcsd_time_start;
+	c2_time_t		  ntcsd_time_start;
+	/** Test finish time */
+	c2_time_t		  ntcsd_time_finish;
 	/** Current time on the test node */
-	c2_time_t		 ntcsd_time_now;
+	c2_time_t		  ntcsd_time_now;
 	/** Test was finished */
-	bool			 ntcsd_finished;
-	/** 'send' bandwidth statistics with 1 sec interval */
-	struct c2_net_test_stats ntcsd_bandwidth_1s_send;
-	/** 'receive' bandwidth statistics with 1 sec interval */
-	struct c2_net_test_stats ntcsd_bandwidth_1s_recv;
+	bool			  ntcsd_finished;
+	/** 'send' packets per second statistics with 1s interval */
+	struct c2_net_test_mps	  ntcsd_mps_send;
+	/** 'receive' packets per second statistics with 1s interval */
+	struct c2_net_test_mps	  ntcsd_mps_recv;
 	/** RTT statistics (without lost messages) */
-	struct c2_net_test_stats ntcsd_rtt;
+	struct c2_net_test_stats  ntcsd_rtt;
 	/** @todo send/recv RTT
 	   (needs time synchronization over clients/servers) */
 	/** @todo msg stats for bulk test */

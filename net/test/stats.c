@@ -25,8 +25,6 @@
 #include "lib/misc.h"		/* C2_SET0 */
 #include "lib/arith.h"		/* min_check */
 
-#include "net/test/commands.h"	/* c2_net_test_cmd_status_data */
-
 #include "net/test/stats.h"
 
 /**
@@ -39,7 +37,7 @@
    @{
  */
 
-void c2_net_test_stats_init(struct c2_net_test_stats *stats)
+void c2_net_test_stats_reset(struct c2_net_test_stats *stats)
 {
 	C2_SET0(stats);
 	C2_POST(c2_net_test_stats_invariant(stats));
@@ -226,135 +224,109 @@ c2_time_t c2_net_test_timestamp_get(struct c2_net_test_timestamp *t)
  */
 
 /**
-   @defgroup NetTestStatsBandwidthInternals Bandwidth Statistics
+   @defgroup NetTestStatsMPSInternals Messages Per Second Statistics
    @ingroup NetTestInternals
 
    @{
  */
 
-void c2_net_test_stats_bandwidth_init(struct c2_net_test_stats_bandwidth *sb,
-				      c2_bcount_t bytes,
-				      c2_time_t timestamp,
-				      c2_time_t interval)
+void c2_net_test_mps_init(struct c2_net_test_mps *mps,
+			  c2_bcount_t packets,
+			  c2_time_t timestamp,
+			  c2_time_t interval)
 {
-	C2_PRE(sb != NULL);
+	C2_PRE(mps != NULL);
 
-	c2_net_test_stats_init(&sb->ntsb_stats);
+	c2_net_test_stats_reset(&mps->ntmps_stats);
 
-	sb->ntsb_bytes_last    = bytes;
-	sb->ntsb_time_last     = timestamp;
-	sb->ntsb_time_interval = interval;
+	mps->ntmps_last_nr	 = packets;
+	mps->ntmps_last_time     = timestamp;
+	mps->ntmps_time_interval = interval;
 }
 
-c2_time_t
-c2_net_test_stats_bandwidth_add(struct c2_net_test_stats_bandwidth *sb,
-				c2_bcount_t bytes,
-				c2_time_t timestamp)
+c2_time_t c2_net_test_mps_add(struct c2_net_test_mps *mps,
+			      c2_bcount_t packets,
+			      c2_time_t timestamp)
 {
-	c2_bcount_t   bytes_delta;
+	c2_bcount_t   packets_delta;
 	c2_time_t     time_delta;
 	c2_time_t     time_next;
 	uint64_t      time_delta_ns;
-	unsigned long bandwidth;
+	unsigned long m_per_sec;
 	unsigned long M_10;		/* M^10 */
 	unsigned long M;
 
-	C2_PRE(sb != NULL);
-	C2_PRE(bytes >= sb->ntsb_bytes_last);
-	C2_PRE(c2_time_after_eq(timestamp, sb->ntsb_time_last));
+	C2_PRE(mps != NULL);
+	C2_PRE(packets >= mps->ntmps_last_nr);
+	C2_PRE(c2_time_after_eq(timestamp, mps->ntmps_last_time));
 
-	bytes_delta = bytes - sb->ntsb_bytes_last;
-	time_delta  = c2_time_sub(timestamp, sb->ntsb_time_last);
-	time_next   = c2_time_add(timestamp, sb->ntsb_time_interval);
+	packets_delta = packets - mps->ntmps_last_nr;
+	time_delta  = c2_time_sub(timestamp, mps->ntmps_last_time);
+	time_next   = c2_time_add(timestamp, mps->ntmps_time_interval);
 
 	if (!c2_time_after_eq(timestamp, time_next))
 		return time_next;
 
-	sb->ntsb_bytes_last = bytes;
-	/** @todo problem with small sb->ntsb_time_interval can be here */
-	sb->ntsb_time_last  = time_next;
+	mps->ntmps_last_nr = packets;
+	/** @todo problem with small mps->ntmps_time_interval can be here */
+	mps->ntmps_last_time  = time_next;
 
 	time_delta_ns = c2_time_seconds(time_delta) * C2_TIME_ONE_BILLION +
 			c2_time_nanoseconds(time_delta);
 	/*
-	   To measure bandwidth in bytes/sec it needs to be calculated
-	   (bytes_delta / time_delta_ns) * 1'000'000'000 =
-	   (bytes_delta * 1'000'000'000) / time_delta_ns =
-	   ((bytes_delta * (10^M)) / time_delta_ns) * (10^(9-M)),
+	   To measure bandwidth in packets/sec it needs to be calculated
+	   (packets_delta / time_delta_ns) * 1'000'000'000 =
+	   (packets_delta * 1'000'000'000) / time_delta_ns =
+	   ((packets_delta * (10^M)) / time_delta_ns) * (10^(9-M)),
 	   where M is some parameter. To perform integer division M
 	   should be maximized in range [0, 9] - in case if M < 9
 	   there is a loss of precision.
 	 */
-	if (C2_BCOUNT_MAX / C2_TIME_ONE_BILLION > bytes_delta) {
+	if (C2_BCOUNT_MAX / C2_TIME_ONE_BILLION > packets_delta) {
 		/* simple case. M = 9 */
-		bandwidth = bytes_delta * C2_TIME_ONE_BILLION / time_delta_ns;
+		m_per_sec = packets_delta * C2_TIME_ONE_BILLION / time_delta_ns;
 	} else {
 		/* harder case. M is in range [0, 9) */
 		M_10 = 1;
 		for (M = 0; M < 8; ++M) {
-			if (C2_BCOUNT_MAX / (M_10 * 10) > bytes_delta)
+			if (C2_BCOUNT_MAX / (M_10 * 10) > packets_delta)
 				M_10 *= 10;
 			else
 				break;
 		}
 		/* M is maximized */
-		bandwidth = (bytes_delta * M_10 / time_delta_ns) *
+		m_per_sec = (packets_delta * M_10 / time_delta_ns) *
 			    (C2_TIME_ONE_BILLION / M_10);
 	}
-	c2_net_test_stats_add(&sb->ntsb_stats, bandwidth);
+	c2_net_test_stats_add(&mps->ntmps_stats, m_per_sec);
 
 	return time_next;
 }
 
 /**
-   @} end of NetTestStatsBandwidthInternals group
+   @} end of NetTestStatsMPSInternals group
  */
 
 /**
-   @defgroup NetTestMsgNRInternals Messages Number
+   @defgroup NetTestStatsMsgNRInternals Messages Per Second Statistics
    @ingroup NetTestInternals
 
    @{
  */
 
-void c2_net_test_msg_nr_reset(struct c2_net_test_msg_nr *msg_nr)
+void c2_net_test_msg_nr_add(struct c2_net_test_msg_nr *msg_nr,
+			    const struct c2_net_test_msg_nr *msg_nr2)
 {
-	c2_atomic64_set(&msg_nr->ntmn_sent, 0);
-	c2_atomic64_set(&msg_nr->ntmn_rcvd, 0);
-	c2_atomic64_set(&msg_nr->ntmn_send_failed, 0);
-	c2_atomic64_set(&msg_nr->ntmn_recv_failed, 0);
-}
-
-void c2_net_test_msg_nr_get_lockfree(struct c2_net_test_msg_nr *msg_nr,
-				     struct c2_net_test_cmd_status_data *sd)
-{
-	uint64_t sent;
-	uint64_t rcvd;
-	uint64_t send_failed;
-	uint64_t recv_failed;
-
 	C2_PRE(msg_nr != NULL);
-	C2_PRE(sd);
+	C2_PRE(msg_nr2 != NULL);
 
-	do {
-		sent	    = sd->ntcsd_msg_sent;
-		rcvd	    = sd->ntcsd_msg_rcvd;
-		send_failed = sd->ntcsd_msg_send_failed;
-		recv_failed = sd->ntcsd_msg_recv_failed;
-		sd->ntcsd_msg_sent = c2_atomic64_get(&msg_nr->ntmn_sent);
-		sd->ntcsd_msg_rcvd = c2_atomic64_get(&msg_nr->ntmn_rcvd);
-		sd->ntcsd_msg_send_failed =
-			c2_atomic64_get(&msg_nr->ntmn_send_failed);
-		sd->ntcsd_msg_recv_failed =
-			c2_atomic64_get(&msg_nr->ntmn_recv_failed);
-	} while (sent	     != sd->ntcsd_msg_sent ||
-		 rcvd	     != sd->ntcsd_msg_rcvd ||
-		 send_failed != sd->ntcsd_msg_send_failed ||
-		 recv_failed != sd->ntcsd_msg_recv_failed);
+	msg_nr->ntmn_total   += msg_nr2->ntmn_total;
+	msg_nr->ntmn_fails   += msg_nr2->ntmn_fails;
+	msg_nr->ntmn_retries += msg_nr2->ntmn_retries;
 }
 
 /**
-   @} end of NetTestMsgNRInternals group
+   @} end of NetTestStatsMsgNRInternals group
  */
 
 /*

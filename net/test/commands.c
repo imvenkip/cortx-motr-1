@@ -75,15 +75,17 @@ TYPE_DESCR(c2_net_test_cmd_init) = {
 	FIELD_DESCR(struct c2_net_test_cmd_init, ntci_buf_send_timeout),
 };
 
+/* c2_net_test_msg_nr_descr */
+TYPE_DESCR(c2_net_test_msg_nr) = {
+	FIELD_DESCR(struct c2_net_test_msg_nr, ntmn_total),
+	FIELD_DESCR(struct c2_net_test_msg_nr, ntmn_fails),
+	FIELD_DESCR(struct c2_net_test_msg_nr, ntmn_retries),
+};
+
 /* c2_net_test_cmd_status_data_descr */
 TYPE_DESCR(c2_net_test_cmd_status_data) = {
-	FIELD_DESCR(struct c2_net_test_cmd_status_data, ntcsd_msg_sent),
-	FIELD_DESCR(struct c2_net_test_cmd_status_data, ntcsd_msg_rcvd),
-	FIELD_DESCR(struct c2_net_test_cmd_status_data, ntcsd_msg_send_failed),
-	FIELD_DESCR(struct c2_net_test_cmd_status_data, ntcsd_msg_recv_failed),
-	FIELD_DESCR(struct c2_net_test_cmd_status_data, ntcsd_bytes_sent),
-	FIELD_DESCR(struct c2_net_test_cmd_status_data, ntcsd_bytes_rcvd),
 	FIELD_DESCR(struct c2_net_test_cmd_status_data, ntcsd_time_start),
+	FIELD_DESCR(struct c2_net_test_cmd_status_data, ntcsd_time_finish),
 	FIELD_DESCR(struct c2_net_test_cmd_status_data, ntcsd_time_now),
 	FIELD_DESCR(struct c2_net_test_cmd_status_data, ntcsd_finished),
 };
@@ -94,10 +96,14 @@ cmd_status_data_serialize(enum c2_net_test_serialize_op op,
 			  struct c2_bufvec *bv,
 			  c2_bcount_t offset)
 {
-	struct c2_net_test_stats *stats;
-	c2_bcount_t		  len;
-	c2_bcount_t		  len_total;
-	int			  i;
+	struct c2_net_test_msg_nr *msg_nr;
+	struct c2_net_test_stats  *stats;
+	c2_bcount_t		   len;
+	c2_bcount_t		   len_total;
+	int			   i;
+
+	if (op == C2_NET_TEST_DESERIALIZE)
+		C2_SET0(status_data);
 
 	len = c2_net_test_serialize(op, status_data,
 			USE_TYPE_DESCR(c2_net_test_cmd_status_data),
@@ -105,16 +111,23 @@ cmd_status_data_serialize(enum c2_net_test_serialize_op op,
 	if ((len_total = len) == 0)
 		return len;
 
-	for (i = 0; i < 3; ++i) {
+	for (i = 0; i < 2 && len != 0; ++i) {
+		msg_nr = status_data == NULL ? NULL :
+			i == 0 ? &status_data->ntcsd_msg_nr_send :
+			i == 1 ? &status_data->ntcsd_msg_nr_recv : NULL;
+		len = c2_net_test_serialize(op, msg_nr,
+					    USE_TYPE_DESCR(c2_net_test_msg_nr),
+					    bv, offset + len_total);
+		len_total += len;
+	}
+	for (i = 0; i < 3 && len != 0; ++i) {
 		stats = status_data == NULL ? NULL :
-			i == 0 ? &status_data->ntcsd_bandwidth_1s_send :
-			i == 1 ? &status_data->ntcsd_bandwidth_1s_recv :
+			i == 0 ? &status_data->ntcsd_mps_send.ntmps_stats :
+			i == 1 ? &status_data->ntcsd_mps_recv.ntmps_stats :
 			i == 2 ? &status_data->ntcsd_rtt : NULL;
 
 		len = c2_net_test_stats_serialize(op, stats, bv,
 						  offset + len_total);
-		if (len == 0)
-			break;
 		len_total += len;
 	}
 	return len == 0 ? 0 : len_total;

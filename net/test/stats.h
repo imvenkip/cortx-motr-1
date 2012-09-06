@@ -25,6 +25,7 @@
 
 #include "lib/time.h"		/* c2_time_t */
 #include "lib/atomic.h"		/* c2_atomic64 */
+#include "lib/misc.h"		/* C2_SET0 */
 
 #include "net/test/serialize.h"	/* c2_net_test_serialize */
 
@@ -62,7 +63,7 @@
    \f]
    It is assumed that sample standard deviation = 0 if N == 0 || N == 1.
 
-   Limits:
+   Constraints:
    - Sample size \f$ \in [0, 2^{64} - 1] \f$;
    - Any value from sample \f$ \in [0, 2^{64} - 1] \f$;
    - Min and max value from sample \f$ \in [0, 2^{64} - 1] \f$;
@@ -113,10 +114,10 @@ struct c2_net_test_stats {
 }
 
 /**
-   Initializer for c2_net_test_stats structure.
+   Reset c2_net_test_stats structure.
    @post c2_net_test_stats_invariant(stats)
  */
-void c2_net_test_stats_init(struct c2_net_test_stats *stats);
+void c2_net_test_stats_reset(struct c2_net_test_stats *stats);
 
 /**
    Invariant for c2_net_test_stats.
@@ -229,8 +230,10 @@ c2_time_t c2_net_test_timestamp_get(struct c2_net_test_timestamp *t);
  */
 
 /**
-   @defgroup NetTestStatsBandwidthDFS Bandwidth Statistics
+   @defgroup NetTestStatsMPSDFS Messages Per Second Statistics
    @ingroup NetTestDFS
+
+   @todo XXX FIXME adjust doc, s/packets/messages/g
 
    @see
    @ref net-test
@@ -238,53 +241,52 @@ c2_time_t c2_net_test_timestamp_get(struct c2_net_test_timestamp *t);
    @{
  */
 
-/** Bandwidth statistics, measured in bytes/sec */
-struct c2_net_test_stats_bandwidth {
+/** Messages Per Second statistics */
+struct c2_net_test_mps {
 	/** Statistics */
-	struct c2_net_test_stats ntsb_stats;
-	/** Last check number of bytes */
-	c2_bcount_t		 ntsb_bytes_last;
+	struct c2_net_test_stats ntmps_stats;
+	/** Last check number of packets */
+	c2_bcount_t		 ntmps_last_nr;
 	/** Last check time */
-	c2_time_t		 ntsb_time_last;
+	c2_time_t		 ntmps_last_time;
 	/** Time interval to check */
-	c2_time_t		 ntsb_time_interval;
+	c2_time_t		 ntmps_time_interval;
 };
 
 /**
-   Initialize bandwidth statistics.
-   @param sb Bandwidth statistics structure.
-   @param bytes Next call to c2_net_test_stats_bandwidth_add() will use
-		this value as previous value to measure number of bytes
-		transferred in time interval.
-   @param timestamp The same as bytes, but for time difference.
-   @param interval Bandwidth measure interval.
-		   c2_net_test_stats_bandwidth_add() will not add sample
-		   to stats if interval from last addition to statistics
+   Initialize MPS statistics.
+   @param mps MPS statistics structure.
+   @param packets Next call to c2_net_test_mps_add() will use
+		  this value as previous value to measure number of messages
+		  transferred in time interval.
+   @param timestamp The same as packets, but for time difference.
+   @param interval MPS measure interval.
+		   c2_net_test_mps_add() will not add sample
+		   to stats if time from last addition to statistics
 		   is less than interval.
  */
-void c2_net_test_stats_bandwidth_init(struct c2_net_test_stats_bandwidth *sb,
-				      c2_bcount_t bytes,
-				      c2_time_t timestamp,
-				      c2_time_t interval);
+void c2_net_test_mps_init(struct c2_net_test_mps *mps,
+			  c2_bcount_t packets,
+			  c2_time_t timestamp,
+			  c2_time_t interval);
 
 /**
-   Add sample to the bandwidth statistics if time interval
-   [sb->ntsb_time_last, timestamp] is greater than sb->ntsb_interval.
+   Add sample to the MPS statistics if time interval
+   [mps->ntmps_last_time, timestamp] is greater than mps->ntmps_interval.
    This function will use previous call (or initializer) parameters to
-   calculate bandwidth: number of bytes [sb->ntsb_bytes_last, bytes]
-   in the time range [sb->ntsb_time_last, timestamp].
-   @param sb Bandwidth statistics structure.
-   @param bytes Total number of bytes transferred.
-   @param timestamp Timestamp of bytes value.
+   calculate MPS: number of packets [mps->ntmps_last_nr, packets]
+   in the time range [mps->ntmps_last_time, timestamp].
+   @param mps MPS statistics structure.
+   @param packets Total number of packets transferred.
+   @param timestamp Timestamp of packets value.
    @return Value will not be added to the sample before this time.
  */
-c2_time_t
-c2_net_test_stats_bandwidth_add(struct c2_net_test_stats_bandwidth *sb,
-				c2_bcount_t bytes,
-				c2_time_t timestamp);
+c2_time_t c2_net_test_mps_add(struct c2_net_test_mps *mps,
+			      c2_bcount_t packets,
+			      c2_time_t timestamp);
 
 /**
-   @} end of NetTestStatsBandwidthDFS group
+   @} end of NetTestStatsMPSDFS group
  */
 
 /**
@@ -294,34 +296,29 @@ c2_net_test_stats_bandwidth_add(struct c2_net_test_stats_bandwidth *sb,
    @{
  */
 
-struct c2_net_test_cmd_status_data;
-
 /** Sent/received test messages number. */
 struct c2_net_test_msg_nr {
-	/** Number of sent test messages */
-	struct c2_atomic64 ntmn_sent;
-	/** Number of received test messages */
-	struct c2_atomic64 ntmn_rcvd;
-	/** Number of errors while receiving test messages */
-	struct c2_atomic64 ntmn_send_failed;
-	/** Number of errors while sending test messages */
-	struct c2_atomic64 ntmn_recv_failed;
+	/** Total number of test messages */
+	size_t ntmn_total;
+	/** Number of failed test messages */
+	size_t ntmn_fails;
+	/** Number of retries */
+	size_t ntmn_retries;
 };
 
 /**
    Reset all messages number statistics to 0.
  */
-void c2_net_test_msg_nr_reset(struct c2_net_test_msg_nr *msg_nr);
+static inline void c2_net_test_msg_nr_reset(struct c2_net_test_msg_nr *msg_nr)
+{
+	C2_SET0(msg_nr);
+}
 
 /**
-   Copy messages number statistics to c2_net_test_cmd_status_data.
-   Algorithm:
-   1. Copy statistics from sd to local variables, one by one field.
-   2. Copy statistics from msg_nr to sd, one by one field.
-   3. Compare values in sd and local variables - goto 1 if they aren't equal.
+   Accumulate messages number.
  */
-void c2_net_test_msg_nr_get_lockfree(struct c2_net_test_msg_nr *msg_nr,
-				     struct c2_net_test_cmd_status_data *sd);
+void c2_net_test_msg_nr_add(struct c2_net_test_msg_nr *msg_nr,
+			    const struct c2_net_test_msg_nr *msg_nr2);
 
 /**
    @} end of NetTestMsgNRDFS group

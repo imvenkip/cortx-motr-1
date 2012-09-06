@@ -153,15 +153,35 @@ static void console_cmd_init_fill(struct c2_net_test_console_cfg *cfg,
 				       cfg->ntcc_data_clients;
 }
 
+static void status_data_reset(struct c2_net_test_cmd_status_data *sd)
+{
+	C2_SET0(sd);
+	c2_net_test_msg_nr_reset(&sd->ntcsd_msg_nr_send);
+	c2_net_test_msg_nr_reset(&sd->ntcsd_msg_nr_recv);
+	c2_net_test_stats_reset(&sd->ntcsd_mps_send.ntmps_stats);
+	c2_net_test_stats_reset(&sd->ntcsd_mps_recv.ntmps_stats);
+	c2_net_test_stats_reset(&sd->ntcsd_rtt);
+	sd->ntcsd_finished = true;
+}
+
 static void status_data_add(struct c2_net_test_cmd_status_data *sd,
 			    const struct c2_net_test_cmd_status_data *cmd_sd)
 {
-	c2_net_test_stats_add_stats(&sd->ntcsd_bandwidth_1s_send,
-				    &cmd_sd->ntcsd_bandwidth_1s_send);
-	c2_net_test_stats_add_stats(&sd->ntcsd_bandwidth_1s_recv,
-				    &cmd_sd->ntcsd_bandwidth_1s_recv);
-	c2_net_test_stats_add_stats(&sd->ntcsd_rtt,
-				    &cmd_sd->ntcsd_rtt);
+	LOGD("new STATUS_DATA:\n");
+	LOGD("send total = %lu\n", cmd_sd->ntcsd_msg_nr_send.ntmn_total);
+	LOGD("recv total = %lu\n", cmd_sd->ntcsd_msg_nr_recv.ntmn_total);
+	LOGD("finished = %d\n", cmd_sd->ntcsd_finished);
+	LOGD("end of STATUS_DATA\n");
+	c2_net_test_msg_nr_add(&sd->ntcsd_msg_nr_send,
+			       &cmd_sd->ntcsd_msg_nr_send);
+	c2_net_test_msg_nr_add(&sd->ntcsd_msg_nr_recv,
+			       &cmd_sd->ntcsd_msg_nr_recv);
+	c2_net_test_stats_add_stats(&sd->ntcsd_mps_send.ntmps_stats,
+				    &cmd_sd->ntcsd_mps_send.ntmps_stats);
+	c2_net_test_stats_add_stats(&sd->ntcsd_mps_recv.ntmps_stats,
+				    &cmd_sd->ntcsd_mps_recv.ntmps_stats);
+	c2_net_test_stats_add_stats(&sd->ntcsd_rtt, &cmd_sd->ntcsd_rtt);
+	sd->ntcsd_finished &= cmd_sd->ntcsd_finished;
 }
 
 size_t c2_net_test_console_cmd(struct c2_net_test_console_ctx *ctx,
@@ -224,10 +244,7 @@ size_t c2_net_test_console_cmd(struct c2_net_test_console_ctx *ctx,
 	/* receive answers */
 	if (answer[cmd_type] == C2_NET_TEST_CMD_STATUS_DATA) {
 		sd = rctx->ntcrc_sd;
-		C2_SET0(sd);
-		c2_net_test_stats_init(&sd->ntcsd_bandwidth_1s_send);
-		c2_net_test_stats_init(&sd->ntcsd_bandwidth_1s_recv);
-		c2_net_test_stats_init(&sd->ntcsd_rtt);
+		status_data_reset(sd);
 	}
 	deadline = c2_time_add(c2_time_now(), cfg->ntcc_cmd_recv_timeout);
 	while (!c2_time_after(c2_time_now(), deadline) &&
@@ -251,11 +268,14 @@ size_t c2_net_test_console_cmd(struct c2_net_test_console_ctx *ctx,
 		if (rctx->ntcrc_errno[j] != 0)
 			goto reuse_cmd;
 		/* handle incoming command */
-		if (answer[cmd_type] == C2_NET_TEST_CMD_STATUS_DATA)
+		if (answer[cmd_type] == C2_NET_TEST_CMD_STATUS_DATA) {
 			status_data_add(sd, &cmd.ntc_status_data);
-		/* if received errno == 0 */
-		if ((rctx->ntcrc_status[j] = cmd.ntc_done.ntcd_errno) == 0)
 			success_nr++;
+		} else if ((rctx->ntcrc_status[j] =
+			    cmd.ntc_done.ntcd_errno) == 0) {
+			/* if received errno == 0 */
+			success_nr++;
+		}
 		/*
 		 * @todo console user can't recover from this error -
 		 * cmd.ntc_buf_index is lost. use ringbuf to save?

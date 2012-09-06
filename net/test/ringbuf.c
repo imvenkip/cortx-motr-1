@@ -98,6 +98,13 @@ size_t c2_net_test_ringbuf_pop(struct c2_net_test_ringbuf *rb)
 	return rb->ntr_buf[index % rb->ntr_size];
 }
 
+bool c2_net_test_ringbuf_is_empty(struct c2_net_test_ringbuf *rb)
+{
+	C2_PRE(c2_net_test_ringbuf_invariant(rb));
+
+	return c2_atomic64_get(&rb->ntr_end) == c2_atomic64_get(&rb->ntr_start);
+}
+
 /**
    @} end of NetTestRingbufInternals group
  */

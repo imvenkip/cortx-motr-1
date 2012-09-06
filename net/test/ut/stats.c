@@ -198,7 +198,7 @@ static void stats_time_ut(void)
 	c2_time_t		 time;
 	int			 i;
 
-	c2_net_test_stats_init(&stats);
+	c2_net_test_stats_reset(&stats);
 	/* sample: .5s, 1.5s, 2.5s, 3.5s, 4.5s */
 	for (i = 0; i < 5; ++i) {
 		c2_time_set(&time, i, 500000000);
@@ -233,41 +233,41 @@ void c2_net_test_stats_ut(void)
 	int			 i;
 
 	/* test #0: no elements in sample */
-	c2_net_test_stats_init(&stats);
+	c2_net_test_stats_reset(&stats);
 	STATS_CHECK(&stats, zero_values);
 	stats_serialize_ut(&stats);
 	/* test #1: one value in sample */
-	c2_net_test_stats_init(&stats);
+	c2_net_test_stats_reset(&stats);
 	STATS_ADD_CHECK(&stats, one_value);
 	/* test #2: five values in sample */
-	c2_net_test_stats_init(&stats);
+	c2_net_test_stats_reset(&stats);
 	STATS_ADD_CHECK(&stats, five_values);
 	/* test #3: one million identical values */
-	c2_net_test_stats_init(&stats);
+	c2_net_test_stats_reset(&stats);
 	for (i = 0; i < STATS_ONE_MILLION; ++i)
 		c2_net_test_stats_add(&stats, ULONG_MAX);
 	STATS_CHECK(&stats, million_values);
 	/* test #4: six values */
-	c2_net_test_stats_init(&stats);
+	c2_net_test_stats_reset(&stats);
 	STATS_SAMPLE_ADD(&stats, one_value);
 	STATS_SAMPLE_ADD(&stats, five_values);
 	STATS_CHECK(&stats, one_plus_five_values);
 	/* test #5: merge two stats */
-	c2_net_test_stats_init(&stats);
+	c2_net_test_stats_reset(&stats);
 	STATS_SAMPLE_ADD(&stats, one_value);
-	c2_net_test_stats_init(&stats2);
+	c2_net_test_stats_reset(&stats2);
 	STATS_SAMPLE_ADD(&stats2, five_values);
 	c2_net_test_stats_add_stats(&stats, &stats2);
 	STATS_CHECK(&stats, one_plus_five_values);
 	/* test #6: merge two stats, second is empty */
-	c2_net_test_stats_init(&stats);
+	c2_net_test_stats_reset(&stats);
 	STATS_SAMPLE_ADD(&stats, one_value);
-	c2_net_test_stats_init(&stats2);
+	c2_net_test_stats_reset(&stats2);
 	c2_net_test_stats_add_stats(&stats, &stats2);
 	STATS_CHECK(&stats, one_value);
 	/* test #7: merge two stats, first is empty */
-	c2_net_test_stats_init(&stats);
-	c2_net_test_stats_init(&stats2);
+	c2_net_test_stats_reset(&stats);
+	c2_net_test_stats_reset(&stats2);
 	STATS_SAMPLE_ADD(&stats2, five_values);
 	c2_net_test_stats_add_stats(&stats, &stats2);
 	STATS_CHECK(&stats, five_values);
