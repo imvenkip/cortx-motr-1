@@ -478,7 +478,7 @@ struct c2_fom {
  * type is void.
  *
  * @param fom, A fom to be submitted for execution
- * @param reqh, request handler processing the fom given fop
+ * @param reqh, request handler processing the fom
  *
  * @pre is_locked(fom)
  * @pre c2_fom_phase(fom) == C2_FOM_PHASE_INIT
