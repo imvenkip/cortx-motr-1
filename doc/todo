@@ -48,6 +48,8 @@ sub-team leads, contact them to add more things here.
     space, each buffer should be mapped to a separate file. Modify
     initialisation and parsing code accordingly.
 
+                          ***** IN-PROGRESS *****
+
 2012-Sep-04 External lock in c2_chan.
 
     c2_chan::ch_guard is used to protect list of channel waiters
@@ -65,8 +67,6 @@ sub-team leads, contact them to add more things here.
 
     Identify locks protecting existing channels and add such locks when there is
     none.
-
-                          ***** IN-PROGRESS *****
 
                           ***** DONE *****
 
@@ -86,7 +86,7 @@ sub-team leads, contact them to add more things here.
     files, located in the corresponding modules, with top-level .gdbinit loading
     them.
 
-2012-May-04 [Andriy] Add all magic numbers to doc/magix
+2012-May-04 Add all magic numbers to doc/magix
 
 2012-May-04 Use tailored type-safe lists in reqh_service.c
 
