@@ -357,6 +357,8 @@ struct c2t1fs_dir_ent {
 	char            de_name[C2T1FS_MAX_NAME_LEN + 1];
 	struct c2_fid   de_fid;
 
+	struct dentry  *de_dentry;
+
 	/** Link in c2t1fs_inode::ci_dir_ents list.
 	    List descriptor dir_ents_tl */
 	struct c2_tlink de_link;
@@ -453,6 +455,8 @@ void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
 			 const unsigned char   *name,
 			 int                    namelen,
 			 const struct c2_fid   *fid);
+
+int c2t1fs_dir_ent_remove(struct c2t1fs_dir_ent *de);
 
 void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de);
 

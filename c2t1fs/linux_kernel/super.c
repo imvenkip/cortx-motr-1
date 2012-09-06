@@ -74,6 +74,10 @@ c2t1fs_container_location_map_fini(struct c2t1fs_container_location_map *map);
 
 static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb);
 
+/* Others */
+
+static void c2t1fs_destroy_all_dir_ents(struct super_block *sb);
+
 /* global instances */
 
 static const struct super_operations c2t1fs_super_operations = {
@@ -253,6 +257,7 @@ void c2t1fs_kill_sb(struct super_block *sb)
 	 * But still not sure, such csb != NULL handling is a good idea.
 	 */
 	if (csb != NULL) {
+		c2t1fs_destroy_all_dir_ents(sb);
 		c2t1fs_container_location_map_fini(&csb->csb_cl_map);
 		c2t1fs_disconnect_from_all_services(csb);
 		c2t1fs_service_contexts_discard(csb);
@@ -263,6 +268,23 @@ void c2t1fs_kill_sb(struct super_block *sb)
 	kill_anon_super(sb);
 
 	C2_LEAVE();
+}
+
+static void c2t1fs_destroy_all_dir_ents(struct super_block *sb)
+{
+	struct c2t1fs_dir_ent *de;
+	struct c2t1fs_inode   *root_inode;
+
+	if (sb->s_root == NULL)
+		return;
+
+	C2_ASSERT(sb->s_root->d_inode != NULL);
+	root_inode = C2T1FS_I(sb->s_root->d_inode);
+
+	c2_tl_for(dir_ents, &root_inode->ci_dir_ents, de) {
+		c2t1fs_dir_ent_remove(de);
+		/* c2t1fs_dir_ent_remove has freed de */
+	} c2_tl_endfor;
 }
 
 static int c2t1fs_sb_init(struct c2t1fs_sb *csb)
