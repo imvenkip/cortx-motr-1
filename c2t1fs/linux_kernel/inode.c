@@ -345,24 +345,16 @@ out_err:
 	return ERR_PTR(-EIO);
 }
 
-int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
-			     struct c2_pool      *pool,
-			     uint32_t             N,
-			     uint32_t             K,
-			     uint64_t             unit_size)
+int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci)
 {
-
 	struct c2_layout_instance *linst;
 	int                        rc;
 
 	C2_ENTRY();
-	C2_PRE(ci != NULL && pool != NULL && pool->po_width > 0);
+	C2_LOG("fid[%lu:%lu]:", (unsigned long)ci->ci_fid.f_container,
+				(unsigned long)ci->ci_fid.f_key);
 
-	C2_LOG("fid[%lu:%lu]: N: %d K: %d P: %d",
-			(unsigned long)ci->ci_fid.f_container,
-			(unsigned long)ci->ci_fid.f_key,
-			N, K, pool->po_width);
-
+	C2_ASSERT(ci->ci_layout_id != 0);
 	rc = c2t1fs_build_layout_instance(ci->ci_layout_id,
 					  &ci->ci_fid, &linst);
 	if (rc == 0)
@@ -377,20 +369,21 @@ static int c2t1fs_build_layout_instance(const uint64_t              layout_id,
 					struct c2_layout_instance **linst)
 {
 	struct c2_layout           *layout;
-	struct c2_pdclust_layout   *pdlayout;
-	struct c2_pdclust_instance *pdinst;
 	int                         rc;
 
-	C2_PRE(fid != NULL && pdinst != NULL);
+	C2_ENTRY();
+	C2_PRE(fid != NULL && linst != NULL);
 
 	layout   = c2_layout_find(&c2t1fs_globals.g_layout_dom, layout_id);
-	pdlayout = c2_layout_to_pdl(layout);
+	/**
+	 * During c2t1fs mount we have build a layout, so during c2_layout_find
+	 * will always return a registered layout.
+	 */
+	C2_ASSERT(layout != NULL);
 	*linst   = NULL;
-
-	rc = c2_pdclust_instance_build(pdlayout, fid, &pdinst);
-	if (rc == 0)
-		*linst = &pdinst->pi_base;
-
+	rc = c2_layout_instance_build(layout, fid, linst);
 	c2_layout_put(layout);
+
+	C2_LEAVE("rc: %d", rc);
 	return rc;
 }

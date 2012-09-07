@@ -2437,13 +2437,13 @@ static void test_recsize(void)
 
 /* Tests the APIs supported for c2_pdclust_instance object. */
 static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
-				     bool inline_test,
-				     bool failure_test)
+				     bool inline_test, bool failure_test)
 {
 	struct c2_uint128             seed;
 	uint32_t                      N;
 	uint32_t                      K;
 	uint32_t                      P;
+	struct c2_layout             *l;
 	struct c2_pdclust_layout     *pl;
 	struct c2_layout_list_enum   *list_enum;
 	struct c2_layout_linear_enum *lin_enum;
@@ -2478,12 +2478,14 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 
 	/* Build pdclust instance. */
 	c2_fid_set(&gfid, 0, 999);
-	rc = c2_pdclust_instance_build(pl, &gfid, &pi);
+	l  = c2_pdl_to_layout(pl);
+	rc = c2_layout_instance_build(l, &gfid, &li);
 	if (failure_test) {
 		C2_UT_ASSERT(rc == -ENOMEM || rc == -EPROTO);
 	}
 	else {
 		C2_UT_ASSERT(rc == 0);
+		pi = c2_layout_instance_to_pdi(li);
 		layout_demo(pi, P, 1, 1, false);
 
 		/* Verify c2_layout_instance_to_pdi(). */
@@ -2564,14 +2566,14 @@ static void test_pdclust_instance_failure(void)
 
 	/* Simulate memory allocation error in c2_pdclust_instance_build(). */
 	lid = 9005;
-	c2_fi_enable_once("c2_pdclust_instance_build", "mem_err1");
+	c2_fi_enable_once("pdclust_instance_build", "mem_err1");
 	rc = test_pdclust_instance_obj(LIST_ENUM_ID, lid, LESS_THAN_INLINE,
 				       FAILURE_TEST);
 	C2_UT_ASSERT(rc == -ENOMEM);
 
 	/* Simulate memory allocation error in c2_pdclust_instance_build(). */
 	lid = 9006;
-	c2_fi_enable_once("c2_pdclust_instance_build", "mem_err2");
+	c2_fi_enable_once("pdclust_instance_build", "mem_err2");
 	rc = test_pdclust_instance_obj(LINEAR_ENUM_ID, lid,
 				      INLINE_NOT_APPLICABLE,
 				       FAILURE_TEST);
@@ -2582,7 +2584,7 @@ static void test_pdclust_instance_failure(void)
 	 * c2_pdclust_instance_build().
 	 */
 	lid = 9007;
-	c2_fi_enable_once("c2_pdclust_instance_build", "parity_math_err");
+	c2_fi_enable_once("pdclust_instance_build", "parity_math_err");
 	rc = test_pdclust_instance_obj(LINEAR_ENUM_ID, lid,
 				      INLINE_NOT_APPLICABLE,
 				       FAILURE_TEST);

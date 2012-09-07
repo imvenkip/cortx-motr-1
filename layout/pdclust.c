@@ -746,13 +746,24 @@ void c2_pdclust_instance_inv(struct c2_pdclust_instance *pi,
 static const struct c2_layout_instance_ops pdclust_instance_ops;
 void pdclust_instance_fini(struct c2_layout_instance *li);
 
-int c2_pdclust_instance_build(struct c2_pdclust_layout *pl,
-			      const struct c2_fid *fid,
-			      struct c2_pdclust_instance **out)
+/**
+ * Allocates and builds a parity de-clustered layout instance using the
+ * supplied pdclust layout 'pl' and acquires an additional reference on
+ * 'pl->pl_base.sl_base'.
+ * @pre pdclust_invariant(pl)
+ * @post ergo(rc == 0, pdclust_instance_invariant(*out) &&
+ *                     pl->pl_base.sl_base.l_ref > 0))
+ *
+ * @note This layout instance object is to be finalised explicitly by the user,
+ * using c2_layout_instance_fini().
+ */
+static int pdclust_instance_build(struct c2_layout           *l,
+				  const struct c2_fid        *fid,
+				  struct c2_layout_instance **out)
 {
+	struct c2_pdclust_layout   *pl = c2_layout_to_pdl(l);
 	struct c2_pdclust_instance *pi;
 	struct tile_cache          *tc = NULL; /* to keep gcc happy */
-	struct c2_layout           *l;
 	uint32_t                    N;
 	uint32_t                    K;
 	uint32_t                    P;
@@ -762,7 +773,6 @@ int c2_pdclust_instance_build(struct c2_pdclust_layout *pl,
 	C2_PRE(c2_fid_is_valid(fid));
 	C2_PRE(out != NULL);
 
-	l = &pl->pl_base.sl_base;
 	C2_ENTRY("lid %llu, gfid container %llu, gfid key %llu",
 		 (unsigned long long)l->l_id,
 		 (unsigned long long)fid->f_container,
@@ -809,8 +819,8 @@ err3_injected:
 		rc = -ENOMEM;
 
 	if (rc == 0) {
-		*out = pi;
-		C2_POST(pdclust_instance_invariant(*out));
+		*out = &pi->pi_base;
+		C2_POST(pdclust_instance_invariant(pi));
 		C2_POST(l->l_ref > 0);
 	} else {
 		if (rc == -ENOMEM)
@@ -861,11 +871,12 @@ struct c2_pdclust_instance *c2_layout_instance_to_pdi(
 }
 
 static const struct c2_layout_ops pdclust_ops = {
-	.lo_fini    = pdclust_fini,
-	.lo_delete  = pdclust_delete,
-	.lo_recsize = pdclust_recsize,
-	.lo_decode  = pdclust_decode,
-	.lo_encode  = pdclust_encode
+	.lo_fini           = pdclust_fini,
+	.lo_delete         = pdclust_delete,
+	.lo_recsize        = pdclust_recsize,
+	.lo_instance_build = pdclust_instance_build,
+	.lo_decode         = pdclust_decode,
+	.lo_encode         = pdclust_encode
 };
 
 static const struct c2_layout_type_ops pdclust_type_ops = {

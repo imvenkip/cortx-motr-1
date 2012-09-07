@@ -79,22 +79,23 @@ static int dummy_create(struct c2_layout_domain *domain,
 
 int main(int argc, char **argv)
 {
-	uint32_t N;
-	uint32_t K;
-	uint32_t P;
-	int      R;
-	int      I;
-	int      rc;
-	uint64_t unitsize = 4096;
-	struct c2_pdclust_layout      *play;
-	struct c2_pdclust_attr         attr;
-	struct c2_pool                 pool;
-	uint64_t                       id;
-	struct c2_uint128              seed;
-	struct c2_layout_domain        domain;
-	struct c2_dbenv                dbenv;
-	struct c2_pdclust_instance    *pi;
-	struct c2_fid                  gfid;
+	uint32_t                    N;
+	uint32_t                    K;
+	uint32_t                    P;
+	int                         R;
+	int                         I;
+	int                         rc;
+	uint64_t                    unitsize = 4096;
+	struct c2_pdclust_layout   *play;
+	struct c2_pdclust_attr      attr;
+	struct c2_pool              pool;
+	uint64_t                    id;
+	struct c2_uint128           seed;
+	struct c2_layout_domain     domain;
+	struct c2_dbenv             dbenv;
+	struct c2_pdclust_instance *pi;
+	struct c2_fid               gfid;
+	struct c2_layout_instance  *li;
 	if (argc != 6) {
 		printf(
 "\t\tldemo N K P R I\nwhere\n"
@@ -141,11 +142,14 @@ int main(int argc, char **argv)
 		rc = dummy_create(&domain, &dbenv, id, &attr, &play);
 		if (rc == 0) {
 			c2_fid_set(&gfid, 0, 999);
-			rc = c2_pdclust_instance_build(play, &gfid, &pi);
+			rc = c2_layout_instance_build(c2_pdl_to_layout(play),
+						      &gfid, &li);
+			pi = c2_layout_instance_to_pdi(li);
 			if (rc == 0) {
 				layout_demo(pi, P, R, I, true);
 				pi->pi_base.li_ops->lio_fini(&pi->pi_base);
 			}
+			c2_layout_put(c2_pdl_to_layout(play));
 			c2_layout_standard_types_unregister(&domain);
 			c2_layout_domain_fini(&domain);
 			c2_dbenv_fini(&dbenv);

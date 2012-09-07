@@ -201,7 +201,6 @@ enum {
 	C2T1FS_DEFAULT_STRIPE_UNIT_SIZE = PAGE_CACHE_SIZE,
 	C2T1FS_MAX_NR_CONTAINERS        = 1024,
 	C2T1FS_COB_ID_STRLEN		= 34,
-	C2T1FS_FILE_LAYOUT_ID           = 0x4A494E4E49455349, /* "jinniesi" */
 };
 
 /** Anything that is global to c2t1fs module goes in this singleton structure.
@@ -325,17 +324,6 @@ struct c2t1fs_sb {
 	/** Total number of containers. */
 	uint32_t                      csb_nr_containers;
 
-	struct c2_pool                csb_pool;
-
-	/** Number of data units per parity group. N */
-	uint32_t                      csb_nr_data_units;
-
-	/** Number of parity units per group. K */
-	uint32_t                      csb_nr_parity_units;
-
-	/** Stripe unit size */
-	uint32_t                      csb_unit_size;
-
 	/** used by temporary implementation of c2t1fs_fid_alloc(). */
 	uint64_t                      csb_next_key;
 
@@ -347,6 +335,9 @@ struct c2t1fs_sb {
 
 	/** Layout for file */
 	struct c2_layout             *csb_file_layout;
+
+	/** File layout ID */
+	uint64_t                      csb_layout_id;
 };
 
 enum {
@@ -447,14 +438,9 @@ struct inode *c2t1fs_iget(struct super_block *sb, const struct c2_fid *fid);
 struct inode *c2t1fs_alloc_inode(struct super_block *sb);
 void          c2t1fs_destroy_inode(struct inode *inode);
 
-int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
-			     struct c2_pool      *pool,
-			     uint32_t             N,
-			     uint32_t             K,
-			     uint64_t             unit_size);
+int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci);
 
-struct c2_fid c2t1fs_cob_fid(const struct c2_layout_enum *le,
-			     const struct c2_fid *gob_fid, int index);
+struct c2_fid c2t1fs_cob_fid(const struct c2t1fs_inode *ci, const int index);
 
 C2_TL_DESCR_DECLARE(dir_ents, extern);
 C2_TL_DECLARE(dir_ents, extern, struct c2t1fs_dir_ent);

@@ -1101,7 +1101,17 @@ void c2_layout__instance_fini(struct c2_layout_instance *li)
 	c2_layout_instance_bob_fini(li);
 }
 
-/**
+int c2_layout_instance_build(struct c2_layout           *l,
+			     const struct c2_fid        *fid,
+			     struct c2_layout_instance **out)
+{
+	C2_PRE(c2_layout__invariant(l));
+	C2_PRE(l->l_ops->lo_instance_build != NULL);
+
+	return l->l_ops->lo_instance_build(l, fid, out);
+}
+
+/*
  * Finalises the layout instance object.
  *
  * Releases a reference on the layout object that was obtained
@@ -1115,6 +1125,7 @@ void c2_layout_instance_fini(struct c2_layout_instance *li)
 	C2_PRE(c2_layout__instance_invariant(li));
 	C2_PRE(li->li_ops->lio_fini != NULL);
 
+	/* see pdclust_instance_fini() in layout/pdclust.c */
 	li->li_ops->lio_fini(li);
 }
 

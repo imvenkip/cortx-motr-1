@@ -243,6 +243,15 @@ struct c2_layout_ops {
 	c2_bcount_t (*lo_recsize)(const struct c2_layout *l);
 
 	/**
+	 * Allocates and builds a layout instance using the supplied layout
+	 *
+	 * Dual to c2_layout_instance_fini()
+	 */
+	int         (*lo_instance_build)(struct c2_layout           *l,
+					 const struct c2_fid        *fid,
+					 struct c2_layout_instance **linst);
+
+	/**
 	 * Continues building the in-memory layout object from its
 	 * representation either 'stored in the Layout DB' or 'received through
 	 * the buffer'.
@@ -572,6 +581,13 @@ struct c2_layout_enum *
 c2_layout_instance_to_enum(const struct c2_layout_instance *li);
 
 /**
+ * Allocates and builds a layout instance using the supplied layout
+ */
+int c2_layout_instance_build(struct c2_layout           *l,
+			     const struct c2_fid        *fid,
+			     struct c2_layout_instance **out);
+
+/**
  * Finalises the layout instance object.
  * Dual to any layout type specific instance build procedure.
  */
@@ -731,8 +747,7 @@ void c2_layout_put(struct c2_layout *l);
  * - ergo(rc != 0, c2_layout__allocated_invariant(l)
  * - c2_mutex_is_locked(&l->l_lock)
  * - The cursor cur is advanced by the size of the data that is read from it.
- * - The layout has its reference count set to 1 which needs to be released by
- *   the user when done with the usage
+ * - ergo(rc == 0, l->l_ref == 1)
  *
  * @note User is expected to add rererence/s to this layout object while using
  * it. Releasing the last reference will finalise the layout object by freeing
