@@ -106,12 +106,11 @@ C2_REQH_SERVICE_TYPE_DECLARE(c2_ios_type, &ios_type_ops, "ioservice");
  */
 static void buffer_pool_not_empty(struct c2_net_buffer_pool *bp)
 {
-        struct c2_rios_buffer_pool *buffer_desc = NULL;
+        struct c2_rios_buffer_pool *buffer_desc;
 
         C2_PRE(bp != NULL);
 
-        buffer_desc = container_of(bp, struct c2_rios_buffer_pool,
-                                   rios_bp);
+        buffer_desc = container_of(bp, struct c2_rios_buffer_pool, rios_bp);
 
         c2_chan_signal(&buffer_desc->rios_bp_wait);
 }
