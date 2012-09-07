@@ -484,12 +484,13 @@ out:
    See "Containers and component objects" section in c2t1fs.h for
    more information.
  */
-struct c2_fid c2t1fs_cob_fid(const struct c2t1fs_inode *ci, const int index)
+struct c2_fid c2t1fs_cob_fid(const struct c2t1fs_inode *ci, int index)
 {
 	struct c2_layout_enum *le;
 	struct c2_fid          fid;
 
 	C2_PRE(ci->ci_fid.f_container == 0);
+	C2_PRE(ci->ci_layout_instance != NULL);
 	C2_PRE(index >= 0);
 
 	le = c2_layout_instance_to_enum(ci->ci_layout_instance);

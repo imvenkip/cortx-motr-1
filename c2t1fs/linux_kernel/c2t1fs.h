@@ -324,6 +324,9 @@ struct c2t1fs_sb {
 	/** Total number of containers. */
 	uint32_t                      csb_nr_containers;
 
+	/** pool width */
+	uint32_t                      csb_pool_width;
+
 	/** used by temporary implementation of c2t1fs_fid_alloc(). */
 	uint64_t                      csb_next_key;
 
@@ -440,7 +443,7 @@ void          c2t1fs_destroy_inode(struct inode *inode);
 
 int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci);
 
-struct c2_fid c2t1fs_cob_fid(const struct c2t1fs_inode *ci, const int index);
+struct c2_fid c2t1fs_cob_fid(const struct c2t1fs_inode *ci, int index);
 
 C2_TL_DESCR_DECLARE(dir_ents, extern);
 C2_TL_DECLARE(dir_ents, extern, struct c2t1fs_dir_ent);
