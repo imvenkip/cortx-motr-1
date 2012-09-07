@@ -43,8 +43,7 @@ static struct dentry *c2t1fs_lookup(struct inode     *dir,
 				    struct nameidata *nd);
 
 static int c2t1fs_dir_ent_add(struct inode        *dir,
-			      const unsigned char *name,
-			      int                  namelen,
+			      struct dentry       *dentry,
 			      const struct c2_fid *fid);
 
 static int c2t1fs_readdir(struct file *f,
@@ -159,12 +158,10 @@ static int c2t1fs_create(struct inode     *dir,
 	if (rc != 0)
 		goto out;
 
-	rc = c2t1fs_dir_ent_add(dir, dentry->d_name.name, dentry->d_name.len,
-					&ci->ci_fid);
+	rc = c2t1fs_dir_ent_add(dir, dentry, &ci->ci_fid);
 	if (rc != 0)
 		goto out;
 
-	c2t1fs_inode_bob_init(ci);
 	c2t1fs_fs_unlock(csb);
 
 	d_instantiate(dentry, inode);
@@ -207,12 +204,13 @@ void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de)
 }
 
 static int c2t1fs_dir_ent_add(struct inode        *dir,
-			      const unsigned char *name,
-			      int                  namelen,
+			      struct dentry       *dentry,
 			      const struct c2_fid *fid)
 {
 	struct c2t1fs_inode   *ci;
 	struct c2t1fs_dir_ent *de;
+	const unsigned char   *name    = dentry->d_name.name;
+	int                    namelen = dentry->d_name.len;
 	int                    rc;
 
 	C2_ENTRY("name=\"%s\" namelen=%d", name, namelen);
@@ -243,13 +241,27 @@ static int c2t1fs_dir_ent_add(struct inode        *dir,
 	C2_LOG("Added name: %s[%lu:%lu]", (char *)de->de_name,
 					  (unsigned long)fid->f_container,
 					  (unsigned long)fid->f_key);
-
+	dget(dentry);     /* See comment C2T1FS_DIR_ENT_ADD_FOOTNOTE1 */
+	de->de_dentry = dentry;
 	mark_inode_dirty(dir);
 	rc = 0;
 out:
 	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
+/*
+ * C2T1FS_DIR_ENT_ADD_FOOTNOTE1:
+ * Why dget(dentry)?
+ * When no application has opened a file its dentry will've ref count 0, and
+ * inode will have i_count 1 (this one reference is from very dentry).
+ * In case of low memory, such dentry might get freed causing the inode getting
+ * freed too.
+ * We don't want inode to be freed until umount. So we get a reference on
+ * dentry during c2t1fs_dir_ent_add(). And put this reference during
+ * umount via c2t1fs_dir_ent_remove().
+ * See https://docs.google.com/a/xyratex.com/document/d/1UHJDHnfOba_miI1vl7aNd1Qyw8U3bxcdB-S_QlYhBeE/edit# for more information about the issue.
+ */
+
 
 static bool name_eq(const unsigned char *name, const char *buf, int len)
 {
@@ -412,11 +424,12 @@ out:
 	return 0;
 }
 
-static int c2t1fs_dir_ent_remove(struct inode *dir, struct c2t1fs_dir_ent *de)
+int c2t1fs_dir_ent_remove(struct c2t1fs_dir_ent *de)
 {
 	C2_ENTRY();
 
 	C2_LOG("Name: %s", (char *)de->de_name);
+	dput(de->de_dentry); /* Why? See comment C2T1FS_DIR_ENT_ADD_FOOTNOTE1 */
 	dir_ents_tlist_del(de);
 	c2t1fs_dir_ent_fini(de);
 	c2_free(de);
@@ -455,7 +468,7 @@ static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
 		goto out;
 	}
 
-	rc = c2t1fs_dir_ent_remove(dir, de);
+	rc = c2t1fs_dir_ent_remove(de);
 	if (rc != 0)
 		goto out;
 

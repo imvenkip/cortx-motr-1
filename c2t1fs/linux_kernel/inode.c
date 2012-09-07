@@ -106,38 +106,27 @@ void c2t1fs_inode_init(struct c2t1fs_inode *ci)
 	ci->ci_layout_instance = NULL;
 
 	dir_ents_tlist_init(&ci->ci_dir_ents);
+	c2t1fs_inode_bob_init(ci);
 
 	C2_LEAVE();
 }
 
 void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 {
-	struct c2t1fs_dir_ent    *de;
-	bool                      is_root;
-
-	is_root = c2t1fs_inode_is_root(&ci->ci_inode);
-
 	C2_ENTRY("ci: %p, is_root %s, layout_instance %p",
-		 ci, is_root ? "true" : "false", ci->ci_layout_instance);
-	C2_PRE(ergo(!is_root, c2t1fs_inode_bob_check(ci)));
+		 ci, c2_bool_to_str(c2t1fs_inode_is_root(&ci->ci_inode)),
+		 ci->ci_layout_instance);
 
-	if (!is_root)
-		c2t1fs_inode_bob_fini(ci);
-
-	c2_tl_for(dir_ents, &ci->ci_dir_ents, de) {
-		dir_ents_tlist_del(de);
-
-		c2t1fs_dir_ent_fini(de);
-		c2_free(de);
-	} c2_tl_endfor;
+	C2_PRE(c2t1fs_inode_bob_check(ci));
+	C2_PRE(dir_ents_tlist_is_empty(&ci->ci_dir_ents));
 
 	dir_ents_tlist_fini(&ci->ci_dir_ents);
-
-	if (!is_root) {
+	if (!c2t1fs_inode_is_root(&ci->ci_inode)) {
 		C2_ASSERT(ci->ci_layout_instance != NULL);
 		ci->ci_layout_instance->li_ops->lio_fini(
 						ci->ci_layout_instance);
 	}
+	c2t1fs_inode_bob_fini(ci);
 	C2_LEAVE();
 }
 
