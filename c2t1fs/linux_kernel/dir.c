@@ -241,7 +241,7 @@ static int c2t1fs_dir_ent_add(struct inode        *dir,
 	C2_LOG("Added name: %s[%lu:%lu]", (char *)de->de_name,
 					  (unsigned long)fid->f_container,
 					  (unsigned long)fid->f_key);
-	dget(dentry);
+	dget(dentry);     /* See comment C2T1FS_DIR_ENT_ADD_FOOTNOTE1 */
 	de->de_dentry = dentry;
 	mark_inode_dirty(dir);
 	rc = 0;
@@ -249,6 +249,19 @@ out:
 	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
+/*
+ * C2T1FS_DIR_ENT_ADD_FOOTNOTE1:
+ * Why dget(dentry)?
+ * When no application has opened a file its dentry will've ref count 0, and
+ * inode will have i_count 1 (this one reference is from very dentry).
+ * In case of low memory, such dentry might get freed causing the inode getting
+ * freed too.
+ * We don't want inode to be freed until umount. So we get a reference on
+ * dentry during c2t1fs_dir_ent_add(). And put this reference during
+ * umount via c2t1fs_dir_ent_remove().
+ * See https://docs.google.com/a/xyratex.com/document/d/1UHJDHnfOba_miI1vl7aNd1Qyw8U3bxcdB-S_QlYhBeE/edit# for more information about the issue.
+ */
+
 
 static bool name_eq(const unsigned char *name, const char *buf, int len)
 {
@@ -416,7 +429,7 @@ int c2t1fs_dir_ent_remove(struct c2t1fs_dir_ent *de)
 	C2_ENTRY();
 
 	C2_LOG("Name: %s", (char *)de->de_name);
-	dput(de->de_dentry);
+	dput(de->de_dentry); /* Why? See comment C2T1FS_DIR_ENT_ADD_FOOTNOTE1 */
 	dir_ents_tlist_del(de);
 	c2t1fs_dir_ent_fini(de);
 	c2_free(de);

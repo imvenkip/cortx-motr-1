@@ -274,17 +274,24 @@ static void c2t1fs_destroy_all_dir_ents(struct super_block *sb)
 {
 	struct c2t1fs_dir_ent *de;
 	struct c2t1fs_inode   *root_inode;
+	struct inode          *inode;
+	C2_ENTRY();
 
-	if (sb->s_root == NULL)
+	if (sb->s_root == NULL) {
+		C2_LEAVE();
 		return;
+	}
 
-	C2_ASSERT(sb->s_root->d_inode != NULL);
-	root_inode = C2T1FS_I(sb->s_root->d_inode);
+	inode = sb->s_root->d_inode;
+	C2_ASSERT(inode != NULL && c2t1fs_inode_is_root(inode));
 
+	root_inode = C2T1FS_I(inode);
 	c2_tl_for(dir_ents, &root_inode->ci_dir_ents, de) {
 		c2t1fs_dir_ent_remove(de);
 		/* c2t1fs_dir_ent_remove has freed de */
 	} c2_tl_endfor;
+
+	C2_LEAVE();
 }
 
 static int c2t1fs_sb_init(struct c2t1fs_sb *csb)
