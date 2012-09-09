@@ -543,7 +543,7 @@ void *c2_xcode_alloc(struct c2_xcode_cursor *it, size_t nob);
  *     S           ::= RECORD | UNION | SEQUENCE | ATOM
  *     RECORD      ::= '(' [S-LIST] ')'
  *     S-LIST      ::= S | S-LIST ',' S
- *     UNION       ::= '{ TAG ':' [S] '}'
+ *     UNION       ::= '{ TAG '|' [S] '}'
  *     SEQUENCE    ::= STRING | ARRAY
  *     STRING      ::= '"' CHAR* '"'
  *     ARRAY       ::= '[' COUNT ':' [S-LIST] ']'
@@ -560,9 +560,9 @@ void *c2_xcode_alloc(struct c2_xcode_cursor *it, size_t nob);
  * (0, 1)
  * (0, (1, 2))
  * ()
- * {1: (1, 2)}
- * {2: 6}
- * {3:}               -- a union with invalid discriminant or with a void value
+ * {1| (1, 2)}
+ * {2| 6}
+ * {3|}               -- a union with invalid discriminant or with a void value
  * [0:]               -- 0 sized array
  * [3: 6, 5, 4]
  * [: 1, 2, 3]        -- fixed size sequence
@@ -570,7 +570,7 @@ void *c2_xcode_alloc(struct c2_xcode_cursor *it, size_t nob);
  * 10                 -- number 10
  * 0xa                -- number 10
  * 012                -- number 10
- * (0, "katavothron", {42: [3: ("x"), ("y"), ("z")]}, "paradiorthosis")
+ * (0, "katavothron", {42| [3: ("x"), ("y"), ("z")]}, "paradiorthosis")
  * @endverbatim
  *
  * Typedefs and opaque types require no special syntax.
