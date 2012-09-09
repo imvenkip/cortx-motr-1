@@ -61,7 +61,7 @@ void c2_semaphore_up(struct c2_semaphore *semaphore);
 
    Returns true iff the P-operation succeeded without blocking.
  */
-int c2_semaphore_trydown(struct c2_semaphore *semaphore);
+bool c2_semaphore_trydown(struct c2_semaphore *semaphore);
 
 
 /**

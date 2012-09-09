@@ -48,7 +48,7 @@ void c2_semaphore_down(struct c2_semaphore *semaphore)
 	down(&semaphore->s_sem);
 }
 
-int c2_semaphore_trydown(struct c2_semaphore *semaphore)
+bool c2_semaphore_trydown(struct c2_semaphore *semaphore)
 {
 	return !down_trylock(&semaphore->s_sem);
 }

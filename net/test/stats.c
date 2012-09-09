@@ -321,7 +321,7 @@ void c2_net_test_msg_nr_add(struct c2_net_test_msg_nr *msg_nr,
 	C2_PRE(msg_nr2 != NULL);
 
 	msg_nr->ntmn_total   += msg_nr2->ntmn_total;
-	msg_nr->ntmn_fails   += msg_nr2->ntmn_fails;
+	msg_nr->ntmn_failed  += msg_nr2->ntmn_failed;
 	msg_nr->ntmn_retries += msg_nr2->ntmn_retries;
 }
 

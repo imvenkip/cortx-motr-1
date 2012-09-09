@@ -301,7 +301,7 @@ struct c2_net_test_msg_nr {
 	/** Total number of test messages */
 	size_t ntmn_total;
 	/** Number of failed test messages */
-	size_t ntmn_fails;
+	size_t ntmn_failed;
 	/** Number of retries */
 	size_t ntmn_retries;
 };

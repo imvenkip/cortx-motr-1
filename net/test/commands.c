@@ -29,7 +29,10 @@
 
 /* @todo debug only, remove it */
 #ifndef __KERNEL__
+/*
 #define LOGD(format, ...) printf(format, ##__VA_ARGS__)
+*/
+#define LOGD(format, ...) do {} while (0)
 #else
 #define LOGD(format, ...) do {} while (0)
 #endif
@@ -78,7 +81,7 @@ TYPE_DESCR(c2_net_test_cmd_init) = {
 /* c2_net_test_msg_nr_descr */
 TYPE_DESCR(c2_net_test_msg_nr) = {
 	FIELD_DESCR(struct c2_net_test_msg_nr, ntmn_total),
-	FIELD_DESCR(struct c2_net_test_msg_nr, ntmn_fails),
+	FIELD_DESCR(struct c2_net_test_msg_nr, ntmn_failed),
 	FIELD_DESCR(struct c2_net_test_msg_nr, ntmn_retries),
 };
 

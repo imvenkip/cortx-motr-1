@@ -50,8 +50,8 @@ enum {
 	NTCS_PORTAL		  = 30,
 	NTCS_NODES_MAX		  = 128,
 	NTCS_NODE_ADDR_MAX	  = 0x100,
-	NTCS_TIMEOUT_SEND_MS	  = 20000,
-	NTCS_TIMEOUT_RECV_MS	  = 20000,
+	NTCS_TIMEOUT_SEND_MS	  = 2000,
+	NTCS_TIMEOUT_RECV_MS	  = 2000,
 	NTCS_TMID_CONSOLE4CLIENTS = 2998,
 	NTCS_TMID_CONSOLE4SERVERS = 2999,
 	NTCS_TMID_NODES		  = 3000,
@@ -245,13 +245,20 @@ static void net_test_client_server(const char *nid,
 				     C2_NET_TEST_CMD_START);
 	C2_UT_ASSERT(rc == clients_nr);
 	/* send STATUS command to the test clients until it finishes. */
-	while (1) {
+	do {
 		rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_CLIENT,
 					     C2_NET_TEST_CMD_STATUS);
 		C2_UT_ASSERT(rc == clients_nr);
-		if (console.ntcc_clients.ntcrc_sd->ntcsd_finished)
-			break;
-	}
+	} while (!console.ntcc_clients.ntcrc_sd->ntcsd_finished);
+	/* send STATUS command to the test clients */
+	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_CLIENT,
+				     C2_NET_TEST_CMD_STATUS);
+	C2_UT_ASSERT(rc == clients_nr);
+	C2_UT_ASSERT(console.ntcc_clients.ntcrc_sd->ntcsd_finished == true);
+	C2_UT_ASSERT(console.ntcc_clients.ntcrc_sd->
+		     ntcsd_msg_nr_send.ntmn_total == clients_nr * msg_nr);
+	C2_UT_ASSERT(console.ntcc_clients.ntcrc_sd->
+		     ntcsd_msg_nr_recv.ntmn_total == clients_nr * msg_nr);
 	/* send STOP command to the test clients */
 	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_CLIENT,
 				     C2_NET_TEST_CMD_STOP);
