@@ -453,12 +453,13 @@ static int item_entered_in_sent_state(struct c2_sm *mach)
 		return WAITING_FOR_REPLY;
 
 	} else {
-
+/*
 		C2_ASSERT(c2_rpc_item_is_reply(item) ||
 			  c2_rpc_item_is_unsolicited(item));
 
 		if (item->ri_ops != NULL && item->ri_ops->rio_done != NULL)
 			item->ri_ops->rio_done(item);
+*/
 		return -1;
 	}
 }
@@ -486,8 +487,8 @@ static int item_entered_in_failed_state(struct c2_sm *mach)
 	C2_PRE(item->ri_error != 0);
 	item->ri_reply = NULL;
 
-	if (item->ri_ops != NULL && item->ri_ops->rio_done != NULL)
-		item->ri_ops->rio_done(item);
+	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
+		item->ri_ops->rio_replied(item);
 
 	c2_rpc_session_item_failed(item);
 

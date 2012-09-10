@@ -150,20 +150,15 @@ struct c2_rpc_item_ops {
 	 */
 	void (*rio_sent)(struct c2_rpc_item *item);
 	/**
-	   RPC calls this callback when processing on item is complete, i.e.
-	   after sending one-way or reply items and when reply to a request
-	   item is received.
-	   This callback is also called when item moves to FAILED state.
-	   Implementation of this callback can find out reason for failure
-	   in item->ri_error.
+	   Called when given item's replied.
 
-	   IMP: Called with rpc-machine mutex held. Do not reenter in RPC.
+	   @note ri_added() and ri_sent() have been called before invoking this
+	   function.
 
-	   @pre c2_rpc_machine_is_locked(item_to_rpc_machine(item))
-	   @pre ergo(c2_rpc_item_is_request(item) && item->ri_error == 0,
-		     item->ri_reply != NULL)
+	   c2_rpc_item::ri_error and c2_rpc_item::ri_reply are already set by
+	   the time this method is called.
 	 */
-	void (*rio_done)(struct c2_rpc_item *item);
+	void (*rio_replied)(struct c2_rpc_item *item);
 
 	/**
 	   Finalise and free item.

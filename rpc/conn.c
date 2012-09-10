@@ -100,13 +100,13 @@ static uint64_t sender_id_allocate(void);
  * rcv_conn_establish_item_ops defined in rpc/session_fops.c
  */
 static const struct c2_rpc_item_ops conn_establish_item_ops = {
-	.rio_done = c2_rpc_conn_establish_done_cb,
-	.rio_free = c2_fop_item_free,
+	.rio_replied = c2_rpc_conn_establish_reply_received,
+	.rio_free    = c2_fop_item_free,
 };
 
 static const struct c2_rpc_item_ops conn_terminate_item_ops = {
-	.rio_done = c2_rpc_conn_terminate_done_cb,
-	.rio_free = c2_fop_item_free,
+	.rio_replied = c2_rpc_conn_terminate_reply_received,
+	.rio_free    = c2_fop_item_free,
 };
 
 /**
@@ -607,7 +607,7 @@ static void conn_failed(struct c2_rpc_conn *conn, int32_t error)
 	C2_LEAVE();
 }
 
-void c2_rpc_conn_establish_done_cb(struct c2_rpc_item *item)
+void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *item)
 {
 	struct c2_rpc_fop_conn_establish_rep *reply;
 	struct c2_rpc_machine                *machine;
@@ -755,7 +755,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 			  c2_rpc_machine_mutex(machine));
 
 	c2_rpc_machine_unlock(machine);
-	/* see c2_rpc_conn_terminate_done_cb() */
+	/* see c2_rpc_conn_terminate_reply_received() */
 	return rc;
 }
 C2_EXPORTED(c2_rpc_conn_terminate);
@@ -777,7 +777,7 @@ C2_EXPORTED(c2_rpc_conn_terminate);
  * to alternative 1, iff required.
  */
 
-void c2_rpc_conn_terminate_done_cb(struct c2_rpc_item *item)
+void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *item)
 {
 	struct c2_rpc_fop_conn_terminate_rep *reply;
 	struct c2_fop                        *reply_fop;

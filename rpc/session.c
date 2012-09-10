@@ -110,13 +110,13 @@ struct fop_session_establish_ctx
 static void fop_session_establish_item_free(struct c2_rpc_item *item);
 
 static const struct c2_rpc_item_ops session_establish_item_ops = {
-	.rio_done = c2_rpc_session_establish_done_cb,
-	.rio_free = fop_session_establish_item_free,
+	.rio_replied = c2_rpc_session_establish_reply_received,
+	.rio_free    = fop_session_establish_item_free,
 };
 
 static const struct c2_rpc_item_ops session_terminate_item_ops = {
-	.rio_done = c2_rpc_session_terminate_done_cb,
-	.rio_free = c2_fop_item_free,
+	.rio_replied = c2_rpc_session_terminate_reply_received,
+	.rio_free    = c2_fop_item_free,
 };
 
 /**
@@ -511,7 +511,7 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 			  c2_rpc_machine_mutex(machine));
 	c2_rpc_machine_unlock(machine);
 
-	/* see c2_rpc_session_establish_done_cb() */
+	/* see c2_rpc_session_establish_reply_received() */
 	return rc;
 }
 C2_EXPORTED(c2_rpc_session_establish);
@@ -542,7 +542,7 @@ static void session_failed(struct c2_rpc_session *session, int32_t error)
 	C2_ASSERT(c2_rpc_session_invariant(session));
 }
 
-void c2_rpc_session_establish_done_cb(struct c2_rpc_item *item)
+void c2_rpc_session_establish_reply_received(struct c2_rpc_item *item)
 {
 	struct c2_rpc_fop_session_establish_rep *reply;
 	struct fop_session_establish_ctx        *ctx;
@@ -758,7 +758,7 @@ C2_EXPORTED(c2_rpc_session_terminate);
  */
 
 
-void c2_rpc_session_terminate_done_cb(struct c2_rpc_item *item)
+void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *item)
 {
 	struct c2_rpc_fop_session_terminate_rep *reply;
 	struct c2_rpc_fop_session_terminate     *args;

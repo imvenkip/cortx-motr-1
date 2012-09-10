@@ -128,7 +128,7 @@ static inline uint32_t c2_rpc_max_recv_msgs(struct c2_net_domain *ndom,
 
   Rpc layer does not provide any API, to "wait until reply is received".
   Upon receiving reply to item, item->ri_chan is signaled.
-  If item->ri_ops->rio_done() callback is set, then it will be called.
+  If item->ri_ops->rio_replied() callback is set, then it will be called.
   Pointer to reply item can be retrieved from item->ri_reply.
   If any error occured, item->ri_error is set to non-zero value.
 

@@ -35,14 +35,14 @@
 #include "cs_test_fops_ff.h"
 #include "rpc/rpc_opcodes.h"
 
-static void cs_ut_rpc_item_done_cb(struct c2_rpc_item *item);
+static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item);
 
 /*
   RPC item operations structures.
  */
 const struct c2_rpc_item_ops cs_ds_req_fop_rpc_item_ops = {
-        .rio_done = cs_ut_rpc_item_done_cb,
-	.rio_free = c2_fop_item_free,
+        .rio_replied = cs_ut_rpc_item_reply_cb,
+	.rio_free    = c2_fop_item_free,
 };
 
 struct c2_fop_type cs_ds1_req_fop_fopt;
@@ -99,7 +99,7 @@ static const struct c2_fom_type_ops cs_ds2_req_fop_fom_type_ops = {
         .fto_create = cs_ds2_req_fop_fom_create,
 };
 
-static void cs_ut_rpc_item_done_cb(struct c2_rpc_item *item)
+static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item)
 {
 	struct c2_fop *req_fop;
 	struct c2_fop *rep_fop;
