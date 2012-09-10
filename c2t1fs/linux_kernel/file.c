@@ -560,7 +560,6 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 	struct rw_desc              *rw_desc;
 	struct c2t1fs_sb            *csb;
 	struct c2_tl                 rw_desc_list;
-	struct c2_fid                gob_fid;
 	struct c2_fid                tgt_fid;
 	struct c2_buf               *data_bufs;
 	struct c2_buf               *parity_bufs;
@@ -585,7 +584,6 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 	pi = c2_layout_instance_to_pdi(ci->ci_layout_instance);
 	pl = pi->pi_layout;
 
-	gob_fid   = ci->ci_fid;
 	unit_size = c2_pdclust_unit_size(pl);
 
 	C2_LOG("Unit size: %lu", (unsigned long)unit_size);
@@ -630,14 +628,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 			pos = tgt_addr.ta_frame * unit_size;
 
-			/*
-			 * 1 must be added to tgt_addr.ta_obj, because ta_obj
-			 * is in range [0, P - 1] inclusive. But our component
-			 * objects are indexed in range [1, P] inclusive.
-			 * For more info see "Containers and component objects"
-			 * section in c2t1fs.h
-			 */
-			tgt_fid = c2t1fs_cob_fid(&gob_fid, tgt_addr.ta_obj + 1);
+			tgt_fid = c2t1fs_cob_fid(ci, tgt_addr.ta_obj);
 
 			rw_desc = rw_desc_get(&rw_desc_list, &tgt_fid);
 			if (rw_desc == NULL) {

@@ -140,17 +140,14 @@ static int c2t1fs_create(struct inode     *dir,
 	inode->i_fop    = &c2t1fs_reg_file_operations;
 	inode->i_mode   = mode;
 
-	ci              = C2T1FS_I(inode);
-	ci->ci_fid      = c2t1fs_fid_alloc(csb);
-	inode->i_ino    = ci->ci_fid.f_key;
+	ci               = C2T1FS_I(inode);
+	ci->ci_fid       = c2t1fs_fid_alloc(csb);
+	ci->ci_layout_id = csb->csb_layout_id;
 
 	insert_inode_hash(inode);
 	mark_inode_dirty(inode);
 
-	rc = c2t1fs_inode_layout_init(ci, &csb->csb_pool,
-					   csb->csb_nr_data_units,
-					   csb->csb_nr_parity_units,
-					   csb->csb_unit_size);
+	rc = c2t1fs_inode_layout_init(ci);
 	if (rc != 0)
 		goto out;
 
@@ -487,16 +484,18 @@ out:
    See "Containers and component objects" section in c2t1fs.h for
    more information.
  */
-struct c2_fid c2t1fs_cob_fid(const struct c2_fid *gob_fid, int index)
+struct c2_fid c2t1fs_cob_fid(const struct c2t1fs_inode *ci, int index)
 {
-	struct c2_fid fid;
+	struct c2_layout_enum *le;
+	struct c2_fid          fid;
 
-	/* index 0 is currently reserved for gob_fid.f_container */
-	C2_ASSERT(gob_fid->f_container == 0);
-	C2_ASSERT(index > 0);
+	C2_PRE(ci->ci_fid.f_container == 0);
+	C2_PRE(ci->ci_layout_instance != NULL);
+	C2_PRE(index >= 0);
 
-	fid.f_container = index;
-	fid.f_key       = gob_fid->f_key;
+	le = c2_layout_instance_to_enum(ci->ci_layout_instance);
+
+	c2_layout_enum_get(le, index, &ci->ci_fid, &fid);
 
 	C2_LEAVE("fid: [%lu:%lu]", (unsigned long)fid.f_container,
 				   (unsigned long)fid.f_key);
@@ -509,32 +508,28 @@ static int c2t1fs_component_objects_op(struct c2t1fs_inode *ci,
 						   const struct c2_fid *gfid))
 {
 	struct c2t1fs_sb *csb;
-	struct c2_fid     gob_fid;
 	struct c2_fid     cob_fid;
 	int               pool_width;
 	int               i;
-	int rc;
+	int               rc;
 
 	C2_PRE(ci != NULL);
 	C2_PRE(func != NULL);
 
 	C2_ENTRY();
 
-	gob_fid = ci->ci_fid;
-
 	C2_LOG("Component object %s for [%lu:%lu]",
-		func == c2t1fs_cob_create? "create" : "delete",
-		(unsigned long)gob_fid.f_container,
-		(unsigned long)gob_fid.f_key);
+	       func == c2t1fs_cob_create? "create" : "delete",
+	       (unsigned long)ci->ci_fid.f_container,
+	       (unsigned long)ci->ci_fid.f_key);
 
 	csb = C2T1FS_SB(ci->ci_inode.i_sb);
-	pool_width = csb->csb_pool.po_width;
+	pool_width = csb->csb_mnt_opts.mo_pool_width;
 	C2_ASSERT(pool_width >= 1);
 
-	for (i = 1; i <= pool_width; i++) { /* i = 1 is intentional */
-
-		cob_fid = c2t1fs_cob_fid(&gob_fid, i);
-		rc      = func(csb, &cob_fid, &gob_fid);
+	for (i = 0; i < pool_width; ++i) {
+		cob_fid = c2t1fs_cob_fid(ci, i);
+		rc      = func(csb, &cob_fid, &ci->ci_fid);
 		if (rc != 0) {
 			C2_LOG("Failed: cob %s : [%lu:%lu]",
 				func == c2t1fs_cob_create? "create" : "delete",

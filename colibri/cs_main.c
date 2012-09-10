@@ -68,6 +68,7 @@ static void cs_wait_for_termination(void)
 	sigaction(SIGINT,  &term_act, NULL);
 	sigaction(SIGQUIT, &term_act, NULL);
 
+	printf("Press CTRL+C to quit.\n");
 	pause();
 }
 

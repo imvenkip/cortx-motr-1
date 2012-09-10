@@ -27,10 +27,26 @@
 #include "c2t1fs/linux_kernel/c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"        /* C2_LOG and C2_ENTRY            */
-#include "pool/pool.h"        /* c2_pool_init(), c2_pool_fini() */
+#include "layout/linear_enum.h"
+#include "layout/pdclust.h"
 
+static int c2t1fs_sb_layout_init(struct c2t1fs_sb *csb);
+
+static int
+c2t1fs_build_cob_id_enum(const uint32_t          pool_width,
+			 struct c2_layout_enum **lay_enum);
+
+static int
+c2t1fs_build_layout(const uint64_t         layout_id,
+		    const uint32_t         N,
+		    const uint32_t         K,
+		    const uint32_t         pool_width,
+		    const uint64_t         unit_size,
+		    struct c2_layout_enum *le,
+		    struct c2_layout     **layout);
+
+static void c2t1fs_sb_layout_fini(struct c2t1fs_sb *csb);
 /* Super block */
-
 static int  c2t1fs_fill_super(struct super_block *sb, void *data, int silent);
 static int  c2t1fs_sb_init(struct c2t1fs_sb *csb);
 static void c2t1fs_sb_fini(struct c2t1fs_sb *csb);
@@ -126,7 +142,6 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	struct c2t1fs_mnt_opts *mntopts;
 	struct c2t1fs_sb       *csb;
 	struct inode           *root_inode;
-	uint32_t                pool_width;
 	int                     rc;
 
 	C2_ENTRY();
@@ -146,55 +161,28 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	if (rc != 0)
 		goto out_fini;
 
-	csb->csb_nr_data_units   = mntopts->mo_nr_data_units ?:
-					C2T1FS_DEFAULT_NR_DATA_UNITS;
-	csb->csb_nr_parity_units = mntopts->mo_nr_parity_units ?:
-					C2T1FS_DEFAULT_NR_PARITY_UNITS;
-	csb->csb_unit_size       = mntopts->mo_unit_size ?:
-					C2T1FS_DEFAULT_STRIPE_UNIT_SIZE;
-	pool_width = mntopts->mo_pool_width ?:
-			csb->csb_nr_data_units + 2 * csb->csb_nr_parity_units;
-
-	/* See "Containers and component objects" section in c2t1fs.h for more
-	   information on following line */
-	csb->csb_nr_containers   = pool_width + 1;
-
-	C2_LOG("P = %d, N = %d, K = %d unit_size %d",
-			pool_width, csb->csb_nr_data_units,
-			csb->csb_nr_parity_units, csb->csb_unit_size);
-
-	/* P >= N + 2 * K ??*/
-	if (pool_width <
-	    csb->csb_nr_data_units + 2 * csb->csb_nr_parity_units ||
-		csb->csb_nr_containers > C2T1FS_MAX_NR_CONTAINERS) {
-
-		rc = -EINVAL;
-		goto out_fini;
-	}
-
 	rc = c2t1fs_config_fetch(csb);
-	if (rc != 0)
-		goto out_fini;
-
-	rc = c2_pool_init(&csb->csb_pool, pool_width);
 	if (rc != 0)
 		goto out_fini;
 
 	rc = c2t1fs_connect_to_all_services(csb);
 	if (rc != 0)
-		goto pool_fini;
+		goto out_fini;
+
+	rc = c2t1fs_sb_layout_init(csb);
+	if (rc != 0)
+		goto disconnect_all;
 
 	rc = c2t1fs_container_location_map_init(&csb->csb_cl_map,
 						csb->csb_nr_containers);
 	if (rc != 0)
-		goto disconnect_all;
+		goto layout_fini;
 
 	rc = c2t1fs_container_location_map_build(csb);
 	if (rc != 0)
 		goto out_map_fini;
 
-	sb->s_fs_info = csb;
-
+	sb->s_fs_info        = csb;
 	sb->s_blocksize      = PAGE_CACHE_SIZE;
 	sb->s_blocksize_bits = PAGE_CACHE_SHIFT;
 	sb->s_magic          = C2T1FS_SUPER_MAGIC;
@@ -220,11 +208,11 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 out_map_fini:
 	c2t1fs_container_location_map_fini(&csb->csb_cl_map);
 
+layout_fini:
+	c2t1fs_sb_layout_fini(csb);
+
 disconnect_all:
 	c2t1fs_disconnect_from_all_services(csb);
-
-pool_fini:
-	c2_pool_fini(&csb->csb_pool);
 
 out_fini:
 	c2t1fs_sb_fini(csb);
@@ -236,6 +224,127 @@ out:
 	sb->s_fs_info = NULL;
 
 	C2_ASSERT(rc != 0);
+	C2_LEAVE("rc: %d", rc);
+	return rc;
+}
+
+static int c2t1fs_sb_layout_init(struct c2t1fs_sb *csb)
+{
+	struct c2t1fs_mnt_opts *mntopts = &csb->csb_mnt_opts;
+	struct c2_layout_enum  *layout_enum;
+	uint32_t                pool_width;
+	uint32_t                nr_data_units;
+	uint32_t                nr_parity_units;
+	uint32_t                unit_size;
+	int                     rc;
+
+	C2_ENTRY();
+	nr_data_units   = mntopts->mo_nr_data_units ?:
+				C2T1FS_DEFAULT_NR_DATA_UNITS;
+	nr_parity_units = mntopts->mo_nr_parity_units ?:
+				C2T1FS_DEFAULT_NR_PARITY_UNITS;
+	unit_size       = mntopts->mo_unit_size ?:
+				C2T1FS_DEFAULT_STRIPE_UNIT_SIZE;
+	pool_width = mntopts->mo_pool_width ?:
+			nr_data_units + 2 * nr_parity_units;
+
+	/* See "Containers and component objects" section in c2t1fs.h for more
+	   information on following line */
+	csb->csb_nr_containers = pool_width + 1;
+	csb->csb_pool_width    = pool_width;
+
+	C2_LOG("P = %d, N = %d, K = %d unit_size %d",
+			pool_width, nr_data_units, nr_parity_units, unit_size);
+
+	/* P >= N + 2 * K ??*/
+	if (pool_width < nr_data_units + 2 * nr_parity_units ||
+	    csb->csb_nr_containers > C2T1FS_MAX_NR_CONTAINERS) {
+		C2_LEAVE("rc: -EINVAL");
+		return -EINVAL;
+	}
+
+	rc = c2t1fs_build_cob_id_enum(pool_width, &layout_enum);
+	if (rc == 0) {
+		uint64_t random;
+
+		random = c2_time_nanoseconds(c2_time_now());
+		csb->csb_layout_id = c2_rnd(~0ULL >> 16, &random);
+
+		rc = c2t1fs_build_layout(csb->csb_layout_id, nr_data_units,
+					 nr_parity_units, pool_width, unit_size,
+					 layout_enum, &csb->csb_file_layout);
+		if (rc != 0)
+			c2_layout_enum_fini(layout_enum);
+	}
+
+	C2_POST(equi(rc == 0, csb->csb_file_layout != NULL &&
+		     csb->csb_file_layout->l_ref > 0));
+	C2_LEAVE("rc: %d", rc);
+	return rc;
+}
+
+static int
+c2t1fs_build_cob_id_enum(const uint32_t          pool_width,
+			 struct c2_layout_enum **lay_enum)
+{
+	struct c2_layout_linear_attr  lin_attr;
+	struct c2_layout_linear_enum *lle;
+	int                           rc;
+
+	C2_ENTRY();
+	C2_PRE(pool_width > 0 && lay_enum != NULL);
+	/*
+	 * cob_fid = fid { B * idx + A, gob_fid.key }
+	 * where idx is in [0, pool_width)
+	 */
+	lin_attr = (struct c2_layout_linear_attr) {
+		.lla_nr = pool_width,
+		.lla_A  = 1,
+		.lla_B  = 1
+	};
+
+	*lay_enum = NULL;
+	rc = c2_linear_enum_build(&c2t1fs_globals.g_layout_dom,
+				  &lin_attr, &lle);
+	if (rc == 0)
+		*lay_enum = &lle->lle_base;
+
+	C2_LEAVE("rc: %d", rc);
+	return rc;
+}
+
+static int
+c2t1fs_build_layout(const uint64_t          layout_id,
+		    const uint32_t          N,
+		    const uint32_t          K,
+		    const uint32_t          pool_width,
+		    const uint64_t          unit_size,
+		    struct c2_layout_enum  *le,
+		    struct c2_layout      **layout)
+{
+	struct c2_pdclust_attr    pl_attr;
+	struct c2_pdclust_layout *pdlayout;
+	int                       rc;
+
+	C2_ENTRY();
+	C2_PRE(pool_width > 0);
+	C2_PRE(le != NULL && layout != NULL);
+
+	pl_attr = (struct c2_pdclust_attr) {
+		.pa_N         = N,
+		.pa_K         = K,
+		.pa_P         = pool_width,
+		.pa_unit_size = unit_size,
+	};
+	c2_uint128_init(&pl_attr.pa_seed, "upjumpandpumpim,");
+
+	*layout = NULL;
+	rc = c2_pdclust_build(&c2t1fs_globals.g_layout_dom,
+			      layout_id, &pl_attr, le,
+			      &pdlayout);
+	if (rc == 0)
+		*layout = c2_pdl_to_layout(pdlayout);
+
 	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
@@ -258,14 +367,25 @@ void c2t1fs_kill_sb(struct super_block *sb)
 	 */
 	if (csb != NULL) {
 		c2t1fs_destroy_all_dir_ents(sb);
+		c2t1fs_sb_layout_fini(csb);
 		c2t1fs_container_location_map_fini(&csb->csb_cl_map);
 		c2t1fs_disconnect_from_all_services(csb);
 		c2t1fs_service_contexts_discard(csb);
-		c2_pool_fini(&csb->csb_pool);
 		c2t1fs_sb_fini(csb);
 		c2_free(csb);
 	}
 	kill_anon_super(sb);
+
+	C2_LEAVE();
+}
+
+static void c2t1fs_sb_layout_fini(struct c2t1fs_sb *csb)
+{
+	C2_ENTRY();
+
+	if (csb->csb_file_layout != NULL)
+		c2_layout_put(csb->csb_file_layout);
+	csb->csb_file_layout = NULL;
 
 	C2_LEAVE();
 }

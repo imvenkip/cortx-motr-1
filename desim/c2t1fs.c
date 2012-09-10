@@ -40,9 +40,9 @@ static void thread_loop(struct sim *s, struct sim_thread *t, void *arg)
 	struct c2t1fs_thread       *cth  = arg;
 	struct c2t1fs_client       *cl   = cth->cth_client;
 	struct c2t1fs_conf         *conf = cl->cc_conf;
-	struct c2_pdclust_instance *pi   = cth->cth_pdclust_instance;
-	uint32_t                    pl_N = pi->pi_layout->pl_attr.pa_N;
-	uint32_t                    pl_K = pi->pi_layout->pl_attr.pa_K;
+	struct c2_pdclust_instance *pi;
+	uint32_t                    pl_N;
+	uint32_t                    pl_K;
 	struct c2_layout_enum      *le;
 	int64_t                     nob;
 	c2_bindex_t                 grp;
@@ -50,6 +50,9 @@ static void thread_loop(struct sim *s, struct sim_thread *t, void *arg)
 
 	C2_ASSERT(t == &cth->cth_thread);
 
+	pi   = c2_layout_instance_to_pdi(cth->cth_layout_instance);
+	pl_N = pi->pi_layout->pl_attr.pa_N;
+	pl_K = pi->pi_layout->pl_attr.pa_K;
 	sim_log(s, SLL_TRACE, "thread [%i:%i]: seed: [%16lx:%16lx]\n",
 		cl->cc_id, cth->cth_id, pi->pi_layout->pl_attr.pa_seed.u_hi,
 		pi->pi_layout->pl_attr.pa_seed.u_lo);
@@ -159,12 +162,6 @@ static void layout_build(struct c2t1fs_conf *conf)
 	result = c2_pdclust_build(&conf->ct_l_dom, lid, &pl_attr,
 				  &lin_enum->lle_base, &conf->ct_pdclust);
 	C2_ASSERT(result == 0);
-
-	/*
-	 * Acquire a reference on the layout so that it does not get vanished,
-	 * in between.
-	 */
-	c2_layout_get(&conf->ct_pdclust->pl_base.sl_base);
 }
 
 static void layout_fini(struct c2t1fs_conf *conf)
@@ -230,9 +227,9 @@ void c2t1fs_init(struct sim *s, struct c2t1fs_conf *conf)
 			gfid.f_container = gfid0.f_container + delta;
 			gfid.f_key       = gfid0.f_key       - delta;
 
-			result = c2_pdclust_instance_build(conf->ct_pdclust,
-						&gfid,
-						&th->cth_pdclust_instance);
+			result = c2_layout_instance_build(
+					c2_pdl_to_layout(conf->ct_pdclust),
+					&gfid, &th->cth_layout_instance);
 			C2_ASSERT(result == 0);
 		}
 	}
@@ -243,7 +240,6 @@ void c2t1fs_fini(struct c2t1fs_conf *conf)
 {
 	unsigned                    i;
 	unsigned                    j;
-	struct c2_pdclust_instance *pi;
 
 	if (conf->ct_client != NULL) {
 		for (i = 0; i < conf->ct_nr_clients; ++i) {
@@ -254,10 +250,9 @@ void c2t1fs_fini(struct c2t1fs_conf *conf)
 					struct c2t1fs_thread *cth;
 
 					cth = &c->cc_thread[j];
-					pi  = cth->cth_pdclust_instance;
 					sim_thread_fini(&cth->cth_thread);
-					pi->pi_base.li_ops->lio_fini(
-								&pi->pi_base);
+					c2_layout_instance_fini(
+						cth->cth_layout_instance);
 				}
 				sim_free(c->cc_thread);
 			}

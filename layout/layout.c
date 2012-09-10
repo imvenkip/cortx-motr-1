@@ -160,7 +160,7 @@ bool c2_layout__allocated_invariant(const struct c2_layout *l)
 {
 	return
 		layout_invariant_internal(l) &&
-		l->l_ref == 0;
+		l->l_ref == 1;
 }
 
 bool c2_layout__invariant(const struct c2_layout *l)
@@ -326,7 +326,7 @@ void c2_layout__init(struct c2_layout *l,
 
 	l->l_id   = lid;
 	l->l_dom  = dom;
-	l->l_ref  = 0;
+	l->l_ref  = 1;
 	l->l_ops  = ops;
 	l->l_type = lt;
 
@@ -504,6 +504,15 @@ void c2_layout__enum_fini(struct c2_layout_enum *le)
 	le->le_type = NULL;
 	c2_layout_enum_bob_fini(le);
 	C2_LEAVE();
+}
+
+void c2_layout_enum_fini(struct c2_layout_enum *le)
+{
+	C2_PRE(le != NULL);
+	C2_PRE(le->le_ops != NULL);
+	C2_PRE(le->le_ops->leo_fini != NULL);
+
+	le->le_ops->leo_fini(le);
 }
 
 /**
@@ -894,7 +903,7 @@ struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid)
 	c2_mutex_unlock(&dom->ld_lock);
 
 	C2_POST(ergo(l != NULL, c2_layout__invariant(l) &&
-				l->l_ref > 0));
+				l->l_ref > 1));
 	C2_LEAVE("lid %llu, l_pointer %p", (unsigned long long)lid, l);
 	return l;
 }
@@ -1043,8 +1052,8 @@ struct c2_striped_layout *c2_layout_to_striped(const struct c2_layout *l)
 	return stl;
 }
 
-struct c2_layout_enum
-*c2_striped_layout_to_enum(const struct c2_striped_layout *stl)
+struct c2_layout_enum *
+c2_striped_layout_to_enum(const struct c2_striped_layout *stl)
 {
 	C2_PRE(c2_layout__striped_invariant(stl));
 	return stl->sl_enum;
@@ -1091,6 +1100,35 @@ void c2_layout__instance_fini(struct c2_layout_instance *li)
 	C2_PRE(c2_layout__instance_invariant(li));
 	c2_layout_instance_bob_fini(li);
 }
+
+int c2_layout_instance_build(struct c2_layout           *l,
+			     const struct c2_fid        *fid,
+			     struct c2_layout_instance **out)
+{
+	C2_PRE(c2_layout__invariant(l));
+	C2_PRE(l->l_ops->lo_instance_build != NULL);
+
+	return l->l_ops->lo_instance_build(l, fid, out);
+}
+
+void c2_layout_instance_fini(struct c2_layout_instance *li)
+{
+	C2_PRE(c2_layout__instance_invariant(li));
+	C2_PRE(li->li_ops->lio_fini != NULL);
+
+	/* For example, see pdclust_instance_fini() in layout/pdclust.c */
+	li->li_ops->lio_fini(li);
+}
+
+struct c2_layout_enum *
+c2_layout_instance_to_enum(const struct c2_layout_instance *li)
+{
+	C2_PRE(c2_layout__instance_invariant(li));
+	C2_PRE(li->li_ops->lio_to_enum != NULL);
+
+	return li->li_ops->lio_to_enum(li);
+}
+
 /** @} end group layout */
 
 /*

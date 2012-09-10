@@ -22,6 +22,12 @@ main()
 
 	sleep 5 #Give time to start service properly.
 
+	file_creation_test $POOL_WIDTH 1 1 $MAX_NR_FILES
+	if [ $? -ne "0" ]
+        then
+                echo "Failed: File creation test failed."
+        fi
+
 	io_combinations $POOL_WIDTH 1 1
 	if [ $? -ne "0" ]
 	then

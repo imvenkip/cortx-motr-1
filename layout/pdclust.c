@@ -155,6 +155,7 @@ static bool pdclust_instance_invariant(const struct c2_pdclust_instance *pi)
 
 	return
 		c2_pdclust_instance_bob_check(pi) &&
+		c2_layout__instance_invariant(&pi->pi_base) &&
 		pdclust_invariant(pi->pi_layout) &&
 		/*
 		 * tc->tc_permute[] and tc->tc_inverse[] are mutually inverse
@@ -314,7 +315,7 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 			    pl_base.sl_base, &pdclust_bob);
 		C2_ASSERT(pdclust_allocated_invariant(pl));
 
-		rc = pdclust_populate(pl, attr, le, 0);
+		rc = pdclust_populate(pl, attr, le, 1);
 		if (rc == 0) {
 			*out = pl;
 			c2_mutex_unlock(&l->l_lock);
@@ -363,6 +364,15 @@ struct c2_layout *c2_pdl_to_layout(struct c2_pdclust_layout *pl)
 {
 	C2_PRE(pdclust_invariant(pl));
 	return &pl->pl_base.sl_base;
+}
+
+static struct c2_layout_enum *
+pdclust_instance_to_enum(const struct c2_layout_instance *li)
+{
+	struct c2_pdclust_instance *pdi;
+
+	pdi = c2_layout_instance_to_pdi(li);
+	return c2_striped_layout_to_enum(&pdi->pi_layout->pl_base);
 }
 
 enum c2_pdclust_unit_type
@@ -736,13 +746,21 @@ void c2_pdclust_instance_inv(struct c2_pdclust_instance *pi,
 static const struct c2_layout_instance_ops pdclust_instance_ops;
 void pdclust_instance_fini(struct c2_layout_instance *li);
 
-int c2_pdclust_instance_build(struct c2_pdclust_layout *pl,
-			      const struct c2_fid *fid,
-			      struct c2_pdclust_instance **out)
+/**
+ * Allocates and builds a parity de-clustered layout instance using the
+ * supplied pdclust layout 'pl' and acquires an additional reference on
+ * 'pl->pl_base.sl_base'.
+ * @pre pdclust_invariant(pl)
+ * @post ergo(rc == 0, pdclust_instance_invariant(*out) &&
+ *                     pl->pl_base.sl_base.l_ref > 0))
+ */
+static int pdclust_instance_build(struct c2_layout           *l,
+				  const struct c2_fid        *fid,
+				  struct c2_layout_instance **out)
 {
+	struct c2_pdclust_layout   *pl = c2_layout_to_pdl(l);
 	struct c2_pdclust_instance *pi;
 	struct tile_cache          *tc = NULL; /* to keep gcc happy */
-	struct c2_layout           *l;
 	uint32_t                    N;
 	uint32_t                    K;
 	uint32_t                    P;
@@ -752,7 +770,6 @@ int c2_pdclust_instance_build(struct c2_pdclust_layout *pl,
 	C2_PRE(c2_fid_is_valid(fid));
 	C2_PRE(out != NULL);
 
-	l = &pl->pl_base.sl_base;
 	C2_ENTRY("lid %llu, gfid container %llu, gfid key %llu",
 		 (unsigned long long)l->l_id,
 		 (unsigned long long)fid->f_container,
@@ -799,8 +816,8 @@ err3_injected:
 		rc = -ENOMEM;
 
 	if (rc == 0) {
-		*out = pi;
-		C2_POST(pdclust_instance_invariant(*out));
+		*out = &pi->pi_base;
+		C2_POST(pdclust_instance_invariant(pi));
 		C2_POST(l->l_ref > 0);
 	} else {
 		if (rc == -ENOMEM)
@@ -851,11 +868,12 @@ struct c2_pdclust_instance *c2_layout_instance_to_pdi(
 }
 
 static const struct c2_layout_ops pdclust_ops = {
-	.lo_fini    = pdclust_fini,
-	.lo_delete  = pdclust_delete,
-	.lo_recsize = pdclust_recsize,
-	.lo_decode  = pdclust_decode,
-	.lo_encode  = pdclust_encode
+	.lo_fini           = pdclust_fini,
+	.lo_delete         = pdclust_delete,
+	.lo_recsize        = pdclust_recsize,
+	.lo_instance_build = pdclust_instance_build,
+	.lo_decode         = pdclust_decode,
+	.lo_encode         = pdclust_encode
 };
 
 static const struct c2_layout_type_ops pdclust_type_ops = {
@@ -874,7 +892,8 @@ struct c2_layout_type c2_pdclust_layout_type = {
 };
 
 static const struct c2_layout_instance_ops pdclust_instance_ops = {
-	.lio_fini = pdclust_instance_fini
+	.lio_fini    = pdclust_instance_fini,
+	.lio_to_enum = pdclust_instance_to_enum
 };
 
 /** @} end group pdclust */
