@@ -2,9 +2,9 @@ colibri_module=kcolibri
 
 mount_c2t1fs()
 {
-	c2t1fs_mount_dir=$COLIBRI_C2T1FS_MOUNT_DIR
+	c2t1fs_mount_dir=$1
+	local stride_size=`expr $2 '*' 1024`
 	io_service=$COLIBRI_IOSERVICE_ENDPOINT
-	local stride_size=`expr $1 '*' 1024`
 
 	# Create mount directory
 	mkdir $c2t1fs_mount_dir
@@ -52,10 +52,12 @@ bulkio_test()
 {
 	local_input=$COLIBRI_C2T1FS_TEST_DIR/file1.data
 	local_output=$COLIBRI_C2T1FS_TEST_DIR/file2.data
+	c2t1fs_mount_dir=$COLIBRI_C2T1FS_MOUNT_DIR
 	c2t1fs_file=$c2t1fs_mount_dir/file.data
+	stride_size=$1
 	io_counts=$2
 
-	mount_c2t1fs $1 &>> $COLIBRI_TEST_LOGFILE || return 1
+	mount_c2t1fs $c2t1fs_mount_dir $stride_size &>> $COLIBRI_TEST_LOGFILE || return 1
 
 	echo "Creating local input file of I/O size ..."
 	local cmd="dd if=/dev/urandom of=$local_input bs=$io_size count=$io_counts"
@@ -237,10 +239,9 @@ none $COLIBRI_C2T1FS_MOUNT_DIR"
 	echo $cmd && $cmd || return 1
 	cmd="umount $COLIBRI_C2T1FS_MOUNT_DIR"
 	echo $cmd && $cmd || return 1
-	rm -r $COLIBRI_C2T1FS_MOUNT_DIR $local_file1 $local_file2
 	cmd="rmmod c2loop"
 	echo $cmd && $cmd || return 1
-
+	rm -r $COLIBRI_C2T1FS_MOUNT_DIR $local_file1 $local_file2
 	echo "Successfully passed c2loop ST tests."
 	return 0
 }
@@ -263,7 +264,7 @@ file_creation_test()
 	data_units=$2
 	parity_units=$3
 	nr_files=$4
-	mount_c2t1fs 4 &>> $COLIBRI_TEST_LOGFILE || return 1
+	mount_c2t1fs $COLIBRI_C2T1FS_MOUNT_DIR 4 &>> $COLIBRI_TEST_LOGFILE || return 1
 	echo "Test: Creating $nr_files files on c2t1fs..." \
 	    >> $COLIBRI_TEST_LOGFILE
 	for((i=0; i<$nr_files; ++i)); do

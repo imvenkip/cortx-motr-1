@@ -379,17 +379,6 @@ void c2t1fs_kill_sb(struct super_block *sb)
 	C2_LEAVE();
 }
 
-static void c2t1fs_sb_layout_fini(struct c2t1fs_sb *csb)
-{
-	C2_ENTRY();
-
-	if (csb->csb_file_layout != NULL)
-		c2_layout_put(csb->csb_file_layout);
-	csb->csb_file_layout = NULL;
-
-	C2_LEAVE();
-}
-
 static void c2t1fs_destroy_all_dir_ents(struct super_block *sb)
 {
 	struct c2t1fs_dir_ent *de;
@@ -410,6 +399,17 @@ static void c2t1fs_destroy_all_dir_ents(struct super_block *sb)
 		c2t1fs_dir_ent_remove(de);
 		/* c2t1fs_dir_ent_remove has freed de */
 	} c2_tl_endfor;
+
+	C2_LEAVE();
+}
+
+static void c2t1fs_sb_layout_fini(struct c2t1fs_sb *csb)
+{
+	C2_ENTRY();
+
+	if (csb->csb_file_layout != NULL)
+		c2_layout_put(csb->csb_file_layout);
+	csb->csb_file_layout = NULL;
 
 	C2_LEAVE();
 }
