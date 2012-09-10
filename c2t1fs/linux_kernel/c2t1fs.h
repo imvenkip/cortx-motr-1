@@ -21,8 +21,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_C2T1FS_H
-#define __COLIBRI_C2T1FS_H
+#ifndef __COLIBRI_C2T1FS_C2T1FS_H__
+#define __COLIBRI_C2T1FS_C2T1FS_H__
 
 #include <linux/fs.h>
 #include <linux/pagemap.h>
@@ -36,6 +36,8 @@
 #include "net/buffer_pool.h"
 #include "fid/fid.h"
 #include "cob/cob.h"    /* c2_cob_domain_id */
+#include "layout/layout.h"  /* c2_layout_domain */
+#include "layout/pdclust.h" /* c2_pdclust_instance */
 
 /**
   @defgroup c2t1fs c2t1fs
@@ -183,7 +185,6 @@
    component objects.
  */
 
-struct c2_pdclust_layout;
 struct c2t1fs_dir_ent;
 
 int  c2t1fs_init(void);
@@ -216,6 +217,7 @@ struct c2t1fs_globals {
 	struct c2_cob_domain      g_cob_dom;
 	struct c2_dbenv           g_dbenv;
 	struct c2_net_buffer_pool g_buffer_pool;
+	struct c2_layout_domain  g_layout_dom;
 };
 
 extern struct c2t1fs_globals c2t1fs_globals;
@@ -253,8 +255,9 @@ enum c2t1fs_service_type {
 };
 
 enum {
-	MAGIC_SVC_CTX  = 0x5356435f435458,   /* "SVC_CTX" */
-	MAGIC_SVCCTXHD = 0x5356434354584844, /* "SVCCTXHD" */
+	MAGIC_SVC_CTX      = 0x5356435f435458,   /* "SVC_CTX" */
+	MAGIC_SVCCTXHD     = 0x5356434354584844, /* "SVCCTXHD" */
+	MAGIC_C2T1FS_INODE = 0x433254314653494E  /* C2T1FSIN */
 };
 
 /**
@@ -354,6 +357,8 @@ struct c2t1fs_dir_ent {
 	char            de_name[C2T1FS_MAX_NAME_LEN + 1];
 	struct c2_fid   de_fid;
 
+	struct dentry  *de_dentry;
+
 	/** Link in c2t1fs_inode::ci_dir_ents list.
 	    List descriptor dir_ents_tl */
 	struct c2_tlink de_link;
@@ -367,18 +372,20 @@ struct c2t1fs_dir_ent {
  */
 struct c2t1fs_inode {
 	/** vfs inode */
-	struct inode              ci_inode;
+	struct inode               ci_inode;
 
 	/** fid of gob */
-	struct c2_fid             ci_fid;
+	struct c2_fid              ci_fid;
 
-	/** layout of file's data */
-	struct c2_layout         *ci_layout;
+	/** layout and related information for the file's data */
+	struct c2_layout_instance *ci_layout_instance;
 
 	/** List of c2t1fs_dir_ent objects placed using de_link.
 	    List descriptor dir_ents_tl. Valid for only directory inode.
 	    Empty for regular file inodes. */
-	struct c2_tl              ci_dir_ents;
+	struct c2_tl               ci_dir_ents;
+
+	uint64_t                   ci_magic;
 };
 
 static inline struct c2t1fs_sb *C2T1FS_SB(const struct super_block *sb)
@@ -449,6 +456,8 @@ void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
 			 int                    namelen,
 			 const struct c2_fid   *fid);
 
+int c2t1fs_dir_ent_remove(struct c2t1fs_dir_ent *de);
+
 void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de);
 
-#endif /* __COLIBRI_C2T1FS_H */
+#endif /* __COLIBRI_C2T1FS_C2T1FS_H__ */

@@ -18,11 +18,6 @@
  * Original creation date: 09/28/2011
  */
 
-
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #ifndef __KERNEL__
 #include <errno.h> /* errno */
 #include <stdio.h> /* fopen(), fclose() */

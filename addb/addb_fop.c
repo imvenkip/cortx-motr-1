@@ -18,10 +18,6 @@
  * Original creation date: 06/19/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/arith.h"
 #include "lib/misc.h"
 #include "lib/memory.h"
@@ -29,7 +25,7 @@
 #include "fop/fop.h"
 #include "net/net.h"
 #include "addb/addb.h"
-#include "addb/addbff/addb.h"
+#include "addb/addbff/addb_ff.h"
 #include "rpc/rpc_opcodes.h"
 
 #ifdef __KERNEL__

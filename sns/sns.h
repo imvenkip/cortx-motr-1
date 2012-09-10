@@ -20,10 +20,10 @@
 
 #pragma once
 
-#ifndef __COLIBRI_SNS_H__
-#define __COLIBRI_SNS_H__
+#ifndef __COLIBRI_SNS_SNS_H__
+#define __COLIBRI_SNS_SNS_H__
 
-/* __COLIBRI_SNS_H__ */
+/* __COLIBRI_SNS_SNS_H__ */
 #endif
 
 /*

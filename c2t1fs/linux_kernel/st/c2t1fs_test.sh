@@ -25,8 +25,10 @@ main()
 	io_combinations $POOL_WIDTH 1 1
 	if [ $? -ne "0" ]
 	then
-		echo "Failed : IO failed.."
+		echo "Failed: IO failed.."
 	fi
+
+	c2loop_st
 
 	colibri_service stop
 	if [ $? -ne "0" ]

@@ -18,11 +18,6 @@
  * Original creation date: 09/28/2011
  */
 
-
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/ut.h"
 #include "lib/memory.h"
 #include "lib/processor.h"
@@ -34,14 +29,14 @@
 
 #include "rpc/session.h"
 #include "rpc/it/ping_fop.h"
-#include "rpc/it/ping_fop_xc.h"
+#include "rpc/it/ping_fop_ff.h"
 #include "rpc/rpclib.h"
 #include "net/lnet/lnet.h"
 
 #include "ut/rpc.h"
 #include "ut/cs_service.h"
 #include "ut/cs_fop_foms.h"
-#include "ut/cs_test_fops.h"
+#include "ut/cs_test_fops_ff.h"
 
 #define CLIENT_ENDPOINT_ADDR    "0@lo:12345:34:*"
 #define CLIENT_DB_NAME		"rpclib_ut_client.db"

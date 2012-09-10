@@ -14,55 +14,36 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
- * Original creation date: 05/04/2011
+ * Original author: Nachiket Sahasrabudhe <Nachiket_Sahasrabudhe@xyratex.com>
+ * Original creation date: 19/07/2012
  */
 
 /**
-   @addtogroup reqh
-   @{
+  @addtogroup cookie
+  @{
  */
+#include <linux/uaccess.h> /* probe_kernel_address */
 
-/** @file io_fop_xc.ff
- *
- * <b>Simplistic IO fop formats</b>
- *
+bool c2_arch_addr_is_sane(const uint64_t *addr)
+{
+	uint64_t dummy;
+
+	return probe_kernel_address(addr, dummy) == 0;
+}
+
+int c2_arch_cookie_global_init(void)
+{
+	return 0;
+}
+
+/**
+ * This function is intentionally kept blank.
  */
+void c2_arch_cookie_global_fini(void)
+{
+}
 
-record {
-	u64 f_seq;
-	u64 f_oid
-} stob_io_fop_fid;
-
-record {
-	stob_io_fop_fid fiw_object;
-	u8              fiw_value
-} c2_stob_io_write;
-
-record {
-	u32 fiwr_rc;
-	u32 fiwr_count
-} c2_stob_io_write_rep;
-
-record {
-	stob_io_fop_fid fir_object
-} c2_stob_io_read;
-
-record {
-	u32 firr_rc;
-	u32 firr_count;
-	u8  firr_value
-} c2_stob_io_read_rep;
-
-record {
-	stob_io_fop_fid fic_object
-} c2_stob_io_create;
-
-record {
-	u32 ficr_rc
-} c2_stob_io_create_rep;
-
-/** @} end of reqh group */
+/** @} end of cookie group */
 
 /*
  *  Local variables:

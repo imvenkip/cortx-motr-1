@@ -18,11 +18,6 @@
  * Original creation date: 06/27/2011
  */
 
-
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "colibri/init.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
@@ -30,8 +25,6 @@
 #include "lib/memory.h"
 #include "lib/misc.h" /* C2_SET0 */
 #include "lib/thread.h"
-#include "lib/processor.h"
-#include "lib/trace.h"
 #include "lib/time.h"
 #include "net/net.h"
 #include "net/lnet/lnet.h"
@@ -42,7 +35,7 @@
 #include "ut/rpc.h"     /* c2_rpc_client_init */
 #include "fop/fop.h"    /* c2_fop_default_item_ops */
 #include "reqh/reqh.h"  /* c2_reqh_rpc_mach_tl */
-#include "rpc/it/ping_fop_xc.h"
+#include "rpc/it/ping_fop_ff.h"
 
 #ifdef __KERNEL__
 #include <linux/kernel.h>
@@ -401,14 +394,10 @@ static int run_client(void)
 	rc = c2_init();
 	if (rc != 0)
 		return rc;
-
-	rc = c2_processors_init();
-	if (rc != 0)
-		goto c2_fini;
 #endif
 	rc = c2_ping_fop_init();
 	if (rc != 0)
-		goto proc_fini;
+		goto c2_fini;
 
 	rc = c2_net_xprt_init(xprt);
 	if (rc != 0)
@@ -467,10 +456,8 @@ xprt_fini:
 	c2_net_xprt_fini(xprt);
 fop_fini:
 	c2_ping_fop_fini();
-proc_fini:
-#ifndef __KERNEL__
-	c2_processors_fini();
 c2_fini:
+#ifndef __KERNEL__
 	c2_fini();
 #endif
 	return rc;
@@ -597,7 +584,7 @@ int main(int argc, char *argv[])
 		C2_FORMATARG('n', "number of ping items", "%i", &nr_ping_item),
 		C2_FORMATARG('q', "minimum TM receive queue length", "%i",
 						&tm_recv_queue_len),
-		C2_FORMATARG('m', "max rpc msg size", "%i",
+		C2_FORMATARG('m', "maximum RPC msg size", "%i",
 						&max_rpc_msg_size),
 		C2_FLAGARG('v', "verbose", &verbose)
 		);

@@ -18,10 +18,6 @@
  * Original creation date: 05/06/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include <stdio.h>  /* fprintf, fflush */
 #include <stdlib.h> /* abort */
 

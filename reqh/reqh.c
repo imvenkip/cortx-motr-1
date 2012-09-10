@@ -19,10 +19,6 @@
  * Original creation date: 05/19/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -80,11 +76,6 @@ C2_TL_DESCR_DEFINE(c2_reqh_rpc_mach, "rpc machines", , struct c2_rpc_machine,
 
 C2_TL_DEFINE(c2_reqh_rpc_mach, , struct c2_rpc_machine);
 
-/**
- * Reqh addb context.
- */
-static struct c2_addb_ctx reqh_addb_ctx;
-
 #define REQH_ADDB_ADD(addb_ctx, name, rc)  \
 C2_ADDB_ADD((addb_ctx), &reqh_addb_loc, c2_addb_func_fail, (name), (rc))
 
@@ -95,29 +86,30 @@ bool c2_reqh_invariant(const struct c2_reqh *reqh)
 		c2_fom_domain_invariant(&reqh->rh_fom_dom);
 }
 
-int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm, struct c2_dbenv *db,
-		  struct c2_cob_domain *cdom, struct c2_fol *fol)
+int c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm, struct c2_dbenv *db,
+		 struct c2_cob_domain *cdom, struct c2_fol *fol)
 {
 	int result;
 
 	C2_PRE(reqh != NULL);
 
 	result = c2_fom_domain_init(&reqh->rh_fom_dom);
-	if (result == 0) {
-                reqh->rh_dtm = dtm;
-                reqh->rh_dbenv = db;
-                reqh->rh_cob_domain = cdom;
-                reqh->rh_fol = fol;
-		reqh->rh_shutdown = false;
-                reqh->rh_fom_dom.fd_reqh = reqh;
-		reqh->rh_addb = &reqh_addb_ctx;
-                c2_reqh_svc_tlist_init(&reqh->rh_services);
-                c2_reqh_rpc_mach_tlist_init(&reqh->rh_rpc_machines);
-		c2_chan_init(&reqh->rh_sd_signal);
-		c2_rwlock_init(&reqh->rh_rwlock);
-		C2_POST(c2_reqh_invariant(reqh));
-	} else
-		REQH_ADDB_ADD(&reqh_addb_ctx, "c2_reqh_init", result);
+	if (result != 0)
+		return result;
+
+	reqh->rh_dtm = dtm;
+	reqh->rh_dbenv = db;
+	reqh->rh_cob_domain = cdom;
+	reqh->rh_fol = fol;
+	reqh->rh_shutdown = false;
+	reqh->rh_fom_dom.fd_reqh = reqh;
+	c2_addb_ctx_init(&reqh->rh_addb, &reqh_addb_ctx_type,
+			 &c2_addb_global_ctx);
+	c2_reqh_svc_tlist_init(&reqh->rh_services);
+	c2_reqh_rpc_mach_tlist_init(&reqh->rh_rpc_machines);
+	c2_chan_init(&reqh->rh_sd_signal);
+	c2_rwlock_init(&reqh->rh_rwlock);
+	C2_POST(c2_reqh_invariant(reqh));
 
 	return result;
 }
@@ -125,6 +117,7 @@ int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm, struct c2_dbenv *db,
 void c2_reqh_fini(struct c2_reqh *reqh)
 {
         C2_PRE(reqh != NULL);
+	c2_addb_ctx_fini(&reqh->rh_addb);
         c2_fom_domain_fini(&reqh->rh_fom_dom);
         c2_reqh_svc_tlist_fini(&reqh->rh_services);
         c2_reqh_rpc_mach_tlist_fini(&reqh->rh_rpc_machines);
@@ -133,14 +126,11 @@ void c2_reqh_fini(struct c2_reqh *reqh)
 
 void c2_reqhs_fini(void)
 {
-	c2_addb_ctx_fini(&reqh_addb_ctx);
 	c2_reqh_service_types_fini();
 }
 
 int c2_reqhs_init(void)
 {
-	c2_addb_ctx_init(&reqh_addb_ctx, &reqh_addb_ctx_type,
-					&c2_addb_global_ctx);
 	c2_reqh_service_types_init();
 	c2_bob_type_tlist_init(&rqsvc_bob, &c2_reqh_svc_tl);
 	return 0;
@@ -158,7 +148,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 	c2_rwlock_read_lock(&reqh->rh_rwlock);
 	rsd = reqh->rh_shutdown;
 	if (rsd) {
-		REQH_ADDB_ADD(reqh->rh_addb, "c2_reqh_fop_handle",
+		REQH_ADDB_ADD(&reqh->rh_addb, "c2_reqh_fop_handle",
                               ESHUTDOWN);
 		c2_rwlock_read_unlock(&reqh->rh_rwlock);
 		return;
@@ -169,11 +159,10 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 	C2_ASSERT(fop->f_type->ft_fom_type.ft_ops->fto_create != NULL);
 
 	result = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, &fom);
-
 	if (result == 0)
 		c2_fom_queue(fom, reqh);
 	else
-		REQH_ADDB_ADD(reqh->rh_addb, "c2_reqh_fop_handle", result);
+		REQH_ADDB_ADD(&reqh->rh_addb, "c2_reqh_fop_handle", result);
 
 	c2_rwlock_read_unlock(&reqh->rh_rwlock);
 }
@@ -189,7 +178,7 @@ void c2_reqh_shutdown_wait(struct c2_reqh *reqh)
         c2_clink_init(&clink, NULL);
         c2_clink_add(&reqh->rh_sd_signal, &clink);
 
-	while (c2_atomic64_get(&reqh->rh_fom_dom.fd_foms_nr) > 0)
+	while (!c2_fom_domain_is_idle(&reqh->rh_fom_dom))
 		c2_chan_wait(&clink);
 
 	c2_clink_del(&clink);
@@ -212,7 +201,7 @@ void *c2_reqh_key_find(struct c2_reqh *reqh, unsigned key, c2_bcount_t size)
 
 	data = &reqh->rh_key[key];
 	if (*data == NULL)
-		C2_ALLOC_ADDB(*data, size, reqh->rh_addb, &reqh_addb_loc);
+		C2_ALLOC_ADDB(*data, size, &reqh->rh_addb, &reqh_addb_loc);
 	return *data;
 }
 

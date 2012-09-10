@@ -17,10 +17,6 @@
  * Original creation date: 08/06/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/ut.h"
@@ -54,14 +50,12 @@ static const struct c2_fom_ops fom_rdwr_ops = {
 };
 
 /** FOM type specific functions for rdwr FOP. */
-static const struct c2_fom_type_ops fom_rdwr_type_ops = {
+const struct c2_fom_type_ops fom_rdwr_type_ops = {
 	.fto_create = NULL
 };
 
 /** Rdwr specific FOM type operations vector. */
-static struct c2_fom_type rdwr_fom_type = {
-        .ft_ops = &fom_rdwr_type_ops,
-};
+struct c2_fom_type rdwr_fom_type;
 
 static size_t fom_rdwr_home_locality(const struct c2_fom *fom)
 {
@@ -84,7 +78,6 @@ static int rdwr_fom_create(struct c2_fom **m)
 	fom = &fom_obj->fr_gen;
 	c2_fom_init(fom, &rdwr_fom_type, &fom_rdwr_ops,
 		    (struct c2_fop *) 1, NULL);
-
 	c2_long_lock_link_init(&fom_obj->fr_link, fom);
 
 	*m = fom;

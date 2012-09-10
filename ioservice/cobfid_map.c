@@ -19,10 +19,6 @@
  * Original creation date: 08/23/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <sys/stat.h>
 #include "lib/memory.h"
 #include "lib/errno.h"
@@ -719,7 +715,7 @@ int c2_cobfid_map_get(struct c2_reqh *reqh, struct c2_cobfid_map **out)
 
 	cfm = c2_reqh_key_find(reqh, cfm_key, sizeof *cfm);
 	if (!cfm->cfm_is_initialised) {
-		rc = c2_cobfid_map_init(cfm, reqh->rh_dbenv, reqh->rh_addb,
+		rc = c2_cobfid_map_init(cfm, reqh->rh_dbenv, &reqh->rh_addb,
 					cobfid_map_name);
 		if (rc != 0) {
 			c2_reqh_key_fini(reqh, cfm_key);

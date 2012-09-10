@@ -15,11 +15,6 @@ sub-team leads, contact them to add more things here.
             c2_fom_domain_is_idle() function that iterates over all localities
             and checks that queues are empty.
 
-2012-Jul-26 addb context should be embedded in reqh.
-
-2012-Jul-26 Get rid of c2_fom::fo_fol, use fom->fo_loc->fl_dom->fd_reqh->rh_fol
-            instead.
-
 2012-Jul-26 Add lib/thread.h:c2_is_awkward(), implement in kernel and user
             space. Tag code. c2_is_awkward() should return true iff the context
             is unsafe for blocking and locking (interrupt handler, signal
@@ -29,20 +24,56 @@ sub-team leads, contact them to add more things here.
 
 2012-Jul-26 Use type-safe lists in fom.[ch].
 
-2012-Aug-01 -include "config.h"
+2012-Aug-28 Magic delimiters
 
-    Add `-include "config.h"' compiler option (possibly to CFLAGS of
-    configure.ac). Delete `#include "config.h"' directives from source
-    files; remove the corresponding stanza from doc/source-structure.
+    Change magic values to follow 0x33xxxxxxxxxxxx77 pattern.
+    Such "delimiters" are supposed to increase discoverability of
+    magic values in a memory dump.
+
+    Numbers 0x33 and 0x77 originate from Nikita's response to "magic
+    numbers generator" thread[1].  Magic values can be generated with
+    vvv's script[2].
+
+        [1] https://groups.google.com/a/xyratex.com/forum/#!msg/grp-colibri-dev/q6BpJsA4hSU/_jzBzjKeMbYJ
+        [2] https://github.com/vvv/dotfiles/blob/master/bin/magic-gen.pl
+
+2012-Sep-04 Non-atomic trace
+
+    lib/trace.c uses a global shared atomic variable to allocate space in the
+    trace buffer. This introduces cache contention between cores. Eliminate the
+    contention by allocating a separate buffer for each core. Find out how to do
+    this in user space (assembly is allowed). In kernel, use per-cpu
+    variables. Each core should still use an atomic variable, because tracing
+    can be called asynchronously from signal or interrupt handler. In user
+    space, each buffer should be mapped to a separate file. Modify
+    initialisation and parsing code accordingly.
 
                           ***** IN-PROGRESS *****
 
-2012-Jul-26 [Dave] Call c2_processors_init() in c2_init(). Get rid of explicit
-            c2_processors_init() calls.
+2012-Sep-04 External lock in c2_chan.
+
+    c2_chan::ch_guard is used to protect list of channel waiters
+    (c2_chan::ch_links). However, in majority of cases, this list is accessed
+    when some other lock is already held. This results in taking and releasing
+    lock for no actual reason.
+
+    Remove ->ch_guard and modify c2_chan interface to take a pointer to an
+    external lock as a parameter to c2_chan_init(). Check that this lock is held
+    when c2_clink_{add,del}(), c2_chan_{signal,broadcast}(), &c. are
+    called. c2_chan_wait() and c2_clink_signal() do not need the lock.
+
+    The same lock protects the lock invariant and it should be temporarily taken
+    to check the invariant, if necessary.
+
+    Identify locks protecting existing channels and add such locks when there is
+    none.
+
+                          ***** DONE *****
 
 2012-May-09 [Dima] Replace all debugging printf-s and printk-s with C2_LOG()-s
 
-                          ***** DONE *****
+2012-Jul-26 [Dave] Call c2_processors_init() in c2_init(). Get rid of explicit
+            c2_processors_init() calls.
 
 2012-Jul-26 [Dave] c2_time_t is now a scalar with architecture-independent
             semantics (nanoseconds since epoch). Replace calls to
@@ -55,7 +86,7 @@ sub-team leads, contact them to add more things here.
     files, located in the corresponding modules, with top-level .gdbinit loading
     them.
 
-2012-May-04 [Andriy] Add all magic numbers to doc/magix
+2012-May-04 Add all magic numbers to doc/magix
 
 2012-May-04 Use tailored type-safe lists in reqh_service.c
 
@@ -75,3 +106,17 @@ sub-team leads, contact them to add more things here.
             c2_atomic64. Check first, that this is supported by our target
             compiler version [2012-Aug-07]
 
+2012-Aug-22 Add c2_ut_ prefixes to all non-static unit test functions.
+
+2012-Jul-26 addb context should be embedded in reqh.
+2012-Sep-04 addb context should be embedded in reqh, instead of being referenced
+            by pointer (c2_reqh::rh_addb).
+
+2012-Aug-01 [Manish] -include "config.h"
+
+    Add `-include "config.h"' compiler option (possibly to CFLAGS of
+    configure.ac). Delete `#include "config.h"' directives from source
+    files; remove the corresponding stanza from doc/source-structure.
+
+2012-Jul-26 Get rid of c2_fom::fo_fol, use fom->fo_loc->fl_dom->fd_reqh->rh_fol
+            instead. [2012-Sep-04]

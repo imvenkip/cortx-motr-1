@@ -18,10 +18,6 @@
  * Original creation date: 03/26/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/ub.h"
 #include "lib/ut.h"
 #include "lib/finject.h"

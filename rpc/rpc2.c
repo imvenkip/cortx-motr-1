@@ -20,10 +20,6 @@
  * Original creation date: 04/28/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/misc.h"     /* C2_IN */

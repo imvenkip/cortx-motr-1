@@ -19,10 +19,6 @@
  * Original creation date: 03/17/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
@@ -32,7 +28,7 @@
 #include "fop/fop.h"
 #include "lib/arith.h"             /* C2_CNT_DEC */
 #include "lib/finject.h"
-#include "rpc/session_xc.h"
+#include "rpc/session_ff.h"
 #include "rpc/session_internal.h"
 #include "db/db.h"
 #include "dtm/verno.h"

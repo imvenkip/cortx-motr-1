@@ -19,10 +19,6 @@
  * Original creation date: 08/24/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
 #include "lib/errno.h"
@@ -34,7 +30,7 @@
 #include "fop/fop.h"
 #include "lib/arith.h"
 #include "lib/finject.h"
-#include "rpc/session_xc.h"
+#include "rpc/session_ff.h"
 #include "rpc/session_internal.h"
 #include "db/db.h"
 #include "rpc/session_fops.h"

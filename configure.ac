@@ -25,7 +25,8 @@ COLIBRI_MINOR_VERSION=1
 PACKAGE=colibri
 VERSION=$COLIBRI_MAJOR_VERSION.$COLIBRI_MINOR_VERSION
 
-AM_INIT_AUTOMAKE([nostdinc])
+AM_INIT_AUTOMAKE([nostdinc silent-rules])
+AM_SILENT_RULES([yes])
 
 LT_RELEASE=$COLIBRI_MAJOR_VERSION.$COLIBRI_MINOR_VERSION
 AC_SUBST([LT_RELEASE])
@@ -334,6 +335,16 @@ AX_PROG_PERL_MODULES(List::MoreUtils, , AC_MSG_ERROR(No List::MoreUtils Perl \
 module found: it can be installed from perl-List-MoreUtils package on Red Hat \
 based systems))
 
+# following two perl modules are required for scripts/check-include-guards
+# script
+AX_PROG_PERL_MODULES(File::Find::Rule, , AC_MSG_ERROR(No File::Find::Rule Perl \
+module found: it can be installed from perl-File-Find-Rule package on Red Hat \
+based systems))
+
+AX_PROG_PERL_MODULES(IO::All, , AC_MSG_ERROR(No IO::All Perl \
+module found: it can be installed from perl-IO-All package on Red Hat \
+based systems))
+
 AC_ARG_ENABLE([coverage],
 	[AC_HELP_STRING([--enable-coverage], [build for test coverage analysis])],
 	[case "${enableval}" in
@@ -584,6 +595,13 @@ if test x$enable_mcheck = xyes; then
 	LDFLAGS="$LDFLAGS -lmcheck"
 fi
 
+MAKEFLAGS=""
+if test x$enable_silent_rules = xyes; then
+	MAKEFLAGS="--no-print-directory"
+fi
+AC_SUBST([MAKEFLAGS])
+
+
 # Check if gcc option is supported in current gcc version.
 AC_DEFUN([COLIBRI_COMPILER_OPTION_CHECK],
 [AC_MSG_CHECKING([whether compiler $CC supports $1 option])
@@ -627,6 +645,9 @@ KCFLAGS="-Wall -Werror -Wno-attributes $KCFLAGS $GALOIS_INCLUDES"
 COLIBRI_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable])
 
 LDFLAGS="-rdynamic $LDFLAGS"
+
+CFLAGS="$CFLAGS -include config.h"
+KCFLAGS="$KCFLAGS -include config.h"
 
 # trim spaces at the end of flags
 CFLAGS=$(echo $CFLAGS | sed 's/[[[:blank:]]]*$//')
@@ -698,6 +719,7 @@ AC_CONFIG_FILES([
                  rpc/ut/Makefile
                  rpc/it/Makefile
 		 rpc/it/linux_kernel/Makefile
+		 scripts/Makefile
                  sm/Makefile
                  sm/ut/Makefile
                  sns/Makefile
@@ -723,10 +745,6 @@ AC_CONFIG_FILES([
                 ])
 AC_OUTPUT
 
-#
-# Set up execute bit on our "compiler" generated from fop2c.in above.
-#
-chmod +x fop/fop2c
 #
 # Set up execute bit for UT scripts.
 #

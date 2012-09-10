@@ -39,10 +39,14 @@ main()
 	echo "Prepare done, starting tests..."
 
 	io_combinations $POOL_WIDTH 1 1
-        if [ $? -ne "0" ]
-        then
-                echo "Failed : IO failed.."
-        fi
+	if [ $? -ne "0" ]
+	then
+		echo "Failed: IO failed.."
+		return 1
+	fi
+
+	c2loop_st || return 1
+
         return 0
 }
 

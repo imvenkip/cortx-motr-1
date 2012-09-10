@@ -17,10 +17,6 @@
  * Original creation date: 05/04/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>	/* mkdir */
@@ -28,15 +24,7 @@
 #include <err.h>
 
 #include "lib/ut.h"
-#include "lib/misc.h"
-#include "lib/errno.h"
-#include "lib/assert.h"
-#include "lib/memory.h"
-#include "lib/chan.h"
-#include "lib/processor.h"
-#include "lib/list.h"
 
-#include "colibri/init.h"
 #include "net/net.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
@@ -48,8 +36,8 @@
 #include "fop/fop_item_type.h"
 #include "rpc/item.h"
 #include "xcode/bufvec_xcode.h"
-#include "fop/fom_generic_xc.h"
-#include "io_fop_xc.h"
+#include "fop/fom_generic_ff.h"
+#include "io_fop_ff.h"
 #include "io_fop.h"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpclib.h"
@@ -391,12 +379,6 @@ void test_reqh(void)
 
 	path = "reqh_ut_stob";
 
-	/* Initialize processors */
-	if (!c2_processor_is_initialized()) {
-		result = c2_processors_init();
-		C2_UT_ASSERT(result == 0);
-	}
-
 	result = c2_stob_io_fop_init();
 	C2_UT_ASSERT(result == 0);
 
@@ -437,9 +419,6 @@ void test_reqh(void)
 	c2_net_domain_fini(&srv_net_dom);
 	c2_net_xprt_fini(xprt);
 	c2_stob_io_fop_fini();
-
-	if (c2_processor_is_initialized())
-		c2_processors_fini();
 }
 
 const struct c2_test_suite reqh_ut = {

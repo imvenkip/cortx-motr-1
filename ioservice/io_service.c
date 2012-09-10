@@ -60,7 +60,7 @@ enum {
 	C2_NET_BUFFER_POOL_SIZE = 32,
 };
 
-static int ios_locate(struct c2_reqh_service_type *stype,
+static int ios_allocate(struct c2_reqh_service_type *stype,
 			 struct c2_reqh_service **service);
 static void ios_fini(struct c2_reqh_service *service);
 
@@ -74,7 +74,7 @@ static void buffer_pool_low(struct c2_net_buffer_pool *bp);
  * I/O Service type operations.
  */
 static const struct c2_reqh_service_type_ops ios_type_ops = {
-        .rsto_service_locate = ios_locate
+        .rsto_service_allocate = ios_allocate
 };
 
 /**
@@ -106,12 +106,11 @@ C2_REQH_SERVICE_TYPE_DECLARE(c2_ios_type, &ios_type_ops, "ioservice");
  */
 static void buffer_pool_not_empty(struct c2_net_buffer_pool *bp)
 {
-        struct c2_rios_buffer_pool *buffer_desc = NULL;
+        struct c2_rios_buffer_pool *buffer_desc;
 
         C2_PRE(bp != NULL);
 
-        buffer_desc = container_of(bp, struct c2_rios_buffer_pool,
-                                   rios_bp);
+        buffer_desc = container_of(bp, struct c2_rios_buffer_pool, rios_bp);
 
         c2_chan_signal(&buffer_desc->rios_bp_wait);
 }
@@ -297,8 +296,8 @@ static void ios_delete_buffer_pool(struct c2_reqh_service *service)
  *
  * @pre stype != NULL && service != NULL
  */
-static int ios_locate(struct c2_reqh_service_type *stype,
-			 struct c2_reqh_service **service)
+static int ios_allocate(struct c2_reqh_service_type *stype,
+			struct c2_reqh_service **service)
 {
         struct c2_reqh_service    *serv;
         struct c2_reqh_io_service *serv_obj;

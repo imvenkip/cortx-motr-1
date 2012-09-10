@@ -17,17 +17,13 @@
  * Original creation date: 08/06/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
 #include "lib/ut.h"
-#include "lib/memory.h"
-#include "lib/processor.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
 #include "rpc/rpclib.h"
 #include "net/lnet/lnet.h"
 #include "ut/rpc.h"
+#include "fop/fom_generic.h"        /* c2_generic_conf */
 
 enum {
 	RDWR_REQUEST_MAX = 48,
@@ -37,6 +33,8 @@ enum {
 #include "fop/ut/long_lock/rdwr_fom.c"
 #include "fop/ut/long_lock/rdwr_test_bench.c"
 
+extern struct c2_fom_type rdwr_fom_type;
+extern const struct c2_fom_type_ops fom_rdwr_type_ops;
 static struct c2_reqh reqh[REQH_IN_UT_MAX];
 
 static void test_long_lock_n(void)
@@ -58,11 +56,6 @@ static int test_long_lock_init(void)
 	int rc;
 	int i;
 
-	if (!c2_processor_is_initialized()) {
-		rc = c2_processors_init();
-		C2_ASSERT(rc == 0);
-	}
-
 	/*
 	 * Instead of using colibri_setup and dealing with network, database and
 	 * other subsystems, request handler is initialised in a 'special way'.
@@ -74,7 +67,8 @@ static int test_long_lock_init(void)
 				  (void *)1, (void *)1);
 		C2_ASSERT(rc == 0);
 	}
-
+	c2_fom_type_init(&rdwr_fom_type, &fom_rdwr_type_ops, NULL,
+			 &c2_generic_conf);
 	return rc;
 }
 
@@ -84,8 +78,6 @@ static int test_long_lock_fini(void)
 
 	for (i = 0; i < REQH_IN_UT_MAX; ++i)
 		c2_reqh_fini(&reqh[i]);
-
-	c2_processors_fini();
 
 	return 0;
 }

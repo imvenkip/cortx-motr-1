@@ -18,11 +18,6 @@
  * Original creation date: 11/23/2011
  */
 
-
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/cdefs.h"
 #include "lib/types.h"
 #include "lib/memory.h"

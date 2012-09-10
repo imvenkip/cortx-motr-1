@@ -24,16 +24,19 @@
 
 #include "lib/memory.h"     /* c2_alloc(), c2_free() */
 #include "lib/arith.h"      /* min_type() */
-#include "layout/pdclust.h" /* PUT_* */
+#include "layout/pdclust.h" /* C2_PUT_*, c2_layout_to_pdl(),
+			     * c2_pdclust_instance_map */
 #include "c2t1fs/linux_kernel/c2t1fs.h"
 #include "rpc/rpclib.h"     /* c2_rpc_client_call() */
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"      /* C2_LOG and C2_ENTRY */
+#include "lib/bob.h"
 #include "ioservice/io_fops.h"
-#include "ioservice/io_fops_xc.h"
+#include "ioservice/io_fops_ff.h"
 
 /* Imports */
 struct c2_net_domain;
+extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
 
 static ssize_t c2t1fs_file_aio_read(struct kiocb       *iocb,
 				    const struct iovec *iov,
@@ -58,11 +61,6 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 					  int                  rw);
 
 static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw);
-
-static struct  c2_pdclust_layout * layout_to_pd_layout(struct c2_layout *l)
-{
-	return container_of(l, struct c2_pdclust_layout, pl_layout);
-}
 
 const struct file_operations c2t1fs_reg_file_operations = {
 	.llseek    = generic_file_llseek,   /* provided by linux kernel */
@@ -208,19 +206,21 @@ static bool io_req_spans_full_stripe(struct c2t1fs_inode *ci,
 				     size_t               count,
 				     loff_t               pos)
 {
-	struct c2_pdclust_layout *pd_layout;
-	uint64_t                  stripe_width;
-	unsigned long             addr;
-	bool                      result;
+	struct c2_pdclust_instance *pi;
+	struct c2_pdclust_layout   *pl;
+	uint64_t                    stripe_width;
+	unsigned long               addr;
+	bool                        result;
 
 	C2_ENTRY();
 
 	addr = (unsigned long)buf;
 
-	pd_layout = layout_to_pd_layout(ci->ci_layout);
+	pi = c2_layout_instance_to_pdi(ci->ci_layout_instance);
+	pl = pi->pi_layout;
 
 	/* stripe width = number of data units * size of each unit */
-	stripe_width = pd_layout->pl_N * pd_layout->pl_unit_size;
+	stripe_width = c2_pdclust_N(pl) * c2_pdclust_unit_size(pl);
 
 	/*
 	 * Requested IO size and position within file must be
@@ -341,6 +341,7 @@ static ssize_t c2t1fs_read_write(struct file *file,
 
 	inode = file->f_dentry->d_inode;
 	ci    = C2T1FS_I(inode);
+	C2_PRE(c2t1fs_inode_bob_check(ci));
 
 	if (rw == READ) {
 		if (pos > inode->i_size) {
@@ -462,7 +463,7 @@ static void c2t1fs_buf_init(struct c2t1fs_buf *buf,
 
 static void c2t1fs_buf_fini(struct c2t1fs_buf *buf)
 {
-	if (buf->cb_type == PUT_PARITY || buf->cb_type == PUT_SPARE)
+	if (buf->cb_type == C2_PUT_PARITY || buf->cb_type == C2_PUT_SPARE)
 		c2_free(buf->cb_buf.b_addr);
 
 	bufs_tlink_fini(buf);
@@ -554,7 +555,8 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 	enum   c2_pdclust_unit_type  unit_type;
 	struct c2_pdclust_src_addr   src_addr;
 	struct c2_pdclust_tgt_addr   tgt_addr;
-	struct c2_pdclust_layout    *pd_layout;
+	struct c2_pdclust_instance  *pi;
+	struct c2_pdclust_layout    *pl;
 	struct rw_desc              *rw_desc;
 	struct c2t1fs_sb            *csb;
 	struct c2_tl                 rw_desc_list;
@@ -580,17 +582,19 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 	csb = C2T1FS_SB(ci->ci_inode.i_sb);
 
-	pd_layout = layout_to_pd_layout(ci->ci_layout);
+	pi = c2_layout_instance_to_pdi(ci->ci_layout_instance);
+	pl = pi->pi_layout;
+
 	gob_fid   = ci->ci_fid;
-	unit_size = pd_layout->pl_unit_size;
+	unit_size = c2_pdclust_unit_size(pl);
 
 	C2_LOG("Unit size: %lu", (unsigned long)unit_size);
 
 	/* unit_size should be multiple of PAGE_CACHE_SIZE */
 	C2_ASSERT((unit_size & (PAGE_CACHE_SIZE - 1)) == 0);
 
-	nr_data_units           = pd_layout->pl_N;
-	nr_parity_units         = pd_layout->pl_K;
+	nr_data_units           = c2_pdclust_N(pl);
+	nr_parity_units         = c2_pdclust_K(pl);
 	nr_units_per_group      = nr_data_units + 2 * nr_parity_units;
 	nr_data_bytes_per_group = nr_data_units * unit_size;
 	/* only full stripe read write */
@@ -608,8 +612,8 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 		for (unit = 0; unit < nr_units_per_group; unit++) {
 
-			unit_type = c2_pdclust_unit_classify(pd_layout, unit);
-			if (unit_type == PUT_SPARE) {
+			unit_type = c2_pdclust_unit_classify(pl, unit);
+			if (unit_type == C2_PUT_SPARE) {
 				/* No need to read/write spare units */
 				C2_LOG("Skipped spare unit %d", unit);
 				continue;
@@ -617,7 +621,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 			src_addr.sa_unit = unit;
 
-			c2_pdclust_layout_map(pd_layout, &src_addr, &tgt_addr);
+			c2_pdclust_instance_map(pi, &src_addr, &tgt_addr);
 
 			C2_LOG("src [%lu:%lu] maps to tgt [0:%lu]",
 					(unsigned long)src_addr.sa_group,
@@ -645,10 +649,11 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 						     csb, tgt_fid.f_container);
 
 			switch (unit_type) {
-			case PUT_DATA:
+			case C2_PUT_DATA:
 				/* add data buffer to rw_desc */
 				rc = rw_desc_add(rw_desc, buf + offset_in_buf,
-						     unit_size, pos, PUT_DATA);
+						     unit_size, pos,
+						     C2_PUT_DATA);
 				if (rc != 0)
 					goto cleanup;
 
@@ -659,7 +664,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 				offset_in_buf += unit_size;
 				break;
 
-			case PUT_PARITY:
+			case C2_PUT_PARITY:
 				/* Allocate buffer for parity and add it to
 				   rw_desc */
 				parity_index = unit - nr_data_units;
@@ -669,7 +674,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 				  address_is_page_aligned((unsigned long)ptr));
 
 				rc = rw_desc_add(rw_desc, ptr, unit_size,
-							pos, PUT_PARITY);
+							pos, C2_PUT_PARITY);
 				if (rc != 0) {
 					c2_free(ptr);
 					goto cleanup;
@@ -686,14 +691,13 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 						rw == WRITE) {
 					C2_LOG("Compute parity of grp %lu",
 					     (unsigned long)src_addr.sa_group);
-					c2_parity_math_calculate(
-							&pd_layout->pl_math,
-							data_bufs,
-							parity_bufs);
+					c2_parity_math_calculate(&pi->pi_math,
+								 data_bufs,
+								 parity_bufs);
 				}
 				break;
 
-			case PUT_SPARE:
+			case C2_PUT_SPARE:
 				/* we've decided to skip spare units. So we
 				   shouldn't reach here */
 				C2_ASSERT(0);
@@ -1039,12 +1043,12 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 				buf->cb_buf.b_addr,
 				(unsigned long)buf->cb_buf.b_nob,
 				(char *)(
-				(buf->cb_type == PUT_DATA) ? "DATA" :
-				 (buf->cb_type == PUT_PARITY) ? "PARITY" :
-				 (buf->cb_type == PUT_SPARE) ? "SPARE" :
+				(buf->cb_type == C2_PUT_DATA) ? "DATA" :
+				 (buf->cb_type == C2_PUT_PARITY) ? "PARITY" :
+				 (buf->cb_type == C2_PUT_SPARE) ? "SPARE" :
 					"UNKNOWN"));
 
-			if (buf->cb_type == PUT_DATA)
+			if (buf->cb_type == C2_PUT_DATA)
 				count += buf->cb_buf.b_nob;
 
 		} c2_tl_endfor;

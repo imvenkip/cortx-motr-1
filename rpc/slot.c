@@ -18,9 +18,6 @@
  *                  Amit Jambure <Amit_Jambure@xyratex.com>
  * Original creation date: 08/24/2011
  */
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
 
 #include "lib/errno.h"
 #include "lib/memory.h"
@@ -30,7 +27,7 @@
 #include "cob/cob.h"
 #include "fop/fop.h"
 #include "lib/arith.h"
-#include "rpc/session_xc.h"
+#include "rpc/session_ff.h"
 #include "rpc/session_internal.h"
 #include "db/db.h"
 #include "dtm/verno.h"

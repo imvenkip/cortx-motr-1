@@ -17,11 +17,6 @@
  * Original creation date: 05/17/2010
  */
 
-
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -108,16 +103,17 @@ void *c2_alloc(size_t size)
 	if (C2_FI_ENABLED("fail_allocation"))
 		return NULL;
 
+	C2_ENTRY("size=%lu", size);
 	ret = __malloc(size);
 	if (ret)
 		memset(ret, 0, size);
-
+	C2_LEAVE("ptr=%p size=%lu", ret, size);
 	return ret;
 }
 
 void c2_free(void *data)
 {
-	C2_ENTRY("%lx", (long unsigned)data);
+	C2_ENTRY("ptr=%p", data);
 	__free(data);
 	C2_LEAVE();
 }

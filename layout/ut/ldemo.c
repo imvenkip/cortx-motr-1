@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -30,130 +30,51 @@
 
 #include "pool/pool.h"
 #include "layout/layout.h"
+#include "layout/layout_db.h"
 #include "layout/pdclust.h"
+#include "layout/linear_enum.h" /* c2_linear_enum_build() */
+
+#include "layout/ut/ldemo_internal.c"
 
 /**
    @addtogroup layout
    @{
 */
 
-enum c2_pdclust_unit_type classify(const struct c2_pdclust_layout *play,
-				   int unit)
+/*
+ * Creates dummy domain, registers pdclust layout type and linear
+ * enum type and creates dummy enum object.
+ * These objects are called as dummy since they are not used by this ldemo
+ * test.
+ */
+static int dummy_create(struct c2_layout_domain *domain,
+			struct c2_dbenv *dbenv,
+			uint64_t lid,
+			struct c2_pdclust_attr *attr,
+			struct c2_pdclust_layout **pl)
 {
-	if (unit < play->pl_N)
-		return PUT_DATA;
-	else if (unit < play->pl_N + play->pl_K)
-		return PUT_PARITY;
-	else
-		return PUT_SPARE;
-}
+	int                           rc;
+	struct c2_layout_linear_attr  lin_attr;
+	struct c2_layout_linear_enum *lin_enum;
 
-void layout_demo(struct c2_pdclust_layout *play, uint32_t P, int R, int I)
-{
-	uint64_t                   group;
-	uint64_t                   frame;
-	uint32_t                   unit;
-	uint32_t                   obj;
-	uint32_t                   N;
-	uint32_t                   K;
-	uint32_t                   W;
-	int                        i;
-	struct c2_pdclust_src_addr src;
-	struct c2_pdclust_tgt_addr tgt;
-	struct c2_pdclust_src_addr src1;
-	struct c2_pdclust_src_addr map[R][P];
-	uint32_t                   incidence[P][P];
-	uint32_t                   usage[P][PUT_NR + 1];
-	uint32_t                   where[play->pl_N + 2*play->pl_K];
-	const char                *brace[PUT_NR] = { "[]", "<>", "{}" };
-	const char                *head[PUT_NR+1] = { "D", "P", "S", "total" };
+	rc = c2_dbenv_init(dbenv, "ldemo-db", 0);
+	C2_ASSERT(rc == 0);
 
-	uint32_t min;
-	uint32_t max;
-	uint64_t sum;
-	uint32_t u;
-	double   sq;
-	double   avg;
+	rc = c2_layout_domain_init(domain, dbenv);
+	C2_ASSERT(rc == 0);
 
-	C2_SET_ARR0(usage);
-	C2_SET_ARR0(incidence);
+	rc = c2_layout_standard_types_register(domain);
+	C2_ASSERT(rc == 0);
 
-	N = play->pl_N;
-	K = play->pl_K;
-	W = N + 2*K;
+	lin_attr.lla_nr = attr->pa_P;
+	lin_attr.lla_A  = 100;
+	lin_attr.lla_B  = 200;
+	rc = c2_linear_enum_build(domain, &lin_attr, &lin_enum);
+	C2_ASSERT(rc == 0);
 
-	printf("layout: N: %u K: %u P: %u C: %u L: %u\n",
-	       N, K, P, play->pl_C, play->pl_L);
-
-	for (group = 0; group < I ; ++group) {
-		src.sa_group = group;
-		for (unit = 0; unit < W; ++unit) {
-			src.sa_unit = unit;
-			c2_pdclust_layout_map(play, &src, &tgt);
-			c2_pdclust_layout_inv(play, &tgt, &src1);
-			C2_ASSERT(memcmp(&src, &src1, sizeof src) == 0);
-			if (tgt.ta_frame < R)
-				map[tgt.ta_frame][tgt.ta_obj] = src;
-			where[unit] = tgt.ta_obj;
-			usage[tgt.ta_obj][PUT_NR]++;
-			usage[tgt.ta_obj][classify(play, unit)]++;
-		}
-		for (unit = 0; unit < W; ++unit) {
-			for (i = 0; i < W; ++i)
-				incidence[where[unit]][where[i]]++;
-		}
-	}
-	printf("map: \n");
-	for (frame = 0; frame < R; ++frame) {
-		printf("%5i : ", (int)frame);
-		for (obj = 0; obj < P; ++obj) {
-			int d;
-
-			d = classify(play, map[frame][obj].sa_unit);
-			printf("%c%2i, %1i%c ",
-			       brace[d][0],
-			       (int)map[frame][obj].sa_group,
-			       (int)map[frame][obj].sa_unit,
-			       brace[d][1]);
-		}
-		printf("\n");
-	}
-	printf("usage : \n");
-	for (i = 0; i < PUT_NR + 1; ++i) {
-		max = sum = sq = 0;
-		min = ~0;
-		printf("%5s : ", head[i]);
-		for (obj = 0; obj < P; ++obj) {
-			u = usage[obj][i];
-			printf("%7i ", u);
-			min = min32u(min, u);
-			max = max32u(max, u);
-			sum += u;
-			sq += u*u;
-		}
-		avg = ((double)sum)/P;
-		printf(" | %7i %7i %7i %7.2f%%\n", min, max, (int)avg,
-		       sqrt(sq/P - avg*avg)*100.0/avg);
-	}
-	printf("\nincidence:\n");
-	for (obj = 0; obj < P; ++obj) {
-		max = sum = sq = 0;
-		min = ~0;
-		for (i = 0; i < P; ++i) {
-			if (obj != i) {
-				u = incidence[obj][i];
-				min = min32u(min, u);
-				max = max32u(max, u);
-				sum += u;
-				sq += u*u;
-				printf("%5i ", u);
-			} else
-				printf("    * ");
-		}
-		avg = ((double)sum)/(P - 1);
-		printf(" | %5i %5i %5i %5.2f%%\n", min, max, (int)avg,
-		       sqrt(sq/(P - 1) - avg*avg)*100.0/avg);
-	}
+	rc = c2_pdclust_build(domain, lid, attr, &lin_enum->lle_base, pl);
+	C2_ASSERT(rc == 0);
+	return rc;
 }
 
 int main(int argc, char **argv)
@@ -163,13 +84,17 @@ int main(int argc, char **argv)
 	uint32_t P;
 	int      R;
 	int      I;
-	int      result;
+	int      rc;
 	uint64_t unitsize = 4096;
-	struct c2_pdclust_layout  *play;
-	struct c2_pool             pool;
-	struct c2_uint128          id;
-	struct c2_uint128          seed;
-
+	struct c2_pdclust_layout      *play;
+	struct c2_pdclust_attr         attr;
+	struct c2_pool                 pool;
+	uint64_t                       id;
+	struct c2_uint128              seed;
+	struct c2_layout_domain        domain;
+	struct c2_dbenv                dbenv;
+	struct c2_pdclust_instance    *pi;
+	struct c2_fid                  gfid;
 	if (argc != 6) {
 		printf(
 "\t\tldemo N K P R I\nwhere\n"
@@ -198,22 +123,38 @@ int main(int argc, char **argv)
 	R = atoi(argv[4]);
 	I = atoi(argv[5]);
 
-	c2_uint128_init(&id,   "jinniesisjillous");
+	id = 0x4A494E4E49455349; /* "jinniesi" */
 	c2_uint128_init(&seed, "upjumpandpumpim,");
 
-	result = c2_init();
-	if (result == 0) {
-		result = c2_pool_init(&pool, P);
-		if (result == 0) {
-			result = c2_pdclust_build(&pool, &id, N, K, unitsize,
-						  &seed, &play);
-			if (result == 0)
-				layout_demo(play, P, R, I);
-			c2_pool_fini(&pool);
+	rc = c2_init();
+	if (rc != 0)
+		return rc;
+
+	rc = c2_pool_init(&pool, P);
+	if (rc == 0) {
+		attr.pa_N = N;
+		attr.pa_K = K;
+		attr.pa_P = pool.po_width;
+		attr.pa_unit_size = unitsize;
+		attr.pa_seed = seed;
+
+		rc = dummy_create(&domain, &dbenv, id, &attr, &play);
+		if (rc == 0) {
+			c2_fid_set(&gfid, 0, 999);
+			rc = c2_pdclust_instance_build(play, &gfid, &pi);
+			if (rc == 0) {
+				layout_demo(pi, P, R, I, true);
+				pi->pi_base.li_ops->lio_fini(&pi->pi_base);
+			}
+			c2_layout_standard_types_unregister(&domain);
+			c2_layout_domain_fini(&domain);
+			c2_dbenv_fini(&dbenv);
 		}
-		c2_fini();
+		c2_pool_fini(&pool);
 	}
-	return result;
+
+	c2_fini();
+	return rc;
 }
 
 /** @} end of layout group */

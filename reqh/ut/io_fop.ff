@@ -15,25 +15,54 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
- * Original creation date: 06/21/2011
+ * Original creation date: 05/04/2011
  */
 
 /**
-   @addtogroup fom
+   @addtogroup reqh
    @{
  */
 
-/**
- * @file fom_generic_xc.ff
+/** @file io_fop.ff
  *
- * <b>Fom generic error reply</b>
+ * <b>Simplistic IO fop formats</b>
+ *
  */
 
 record {
-	u32 rerr_rc
-} c2_fom_error_rep;
+	u64 f_seq;
+	u64 f_oid
+} stob_io_fop_fid;
 
-/** @} end of fom group */
+record {
+	stob_io_fop_fid fiw_object;
+	u8              fiw_value
+} c2_stob_io_write;
+
+record {
+	u32 fiwr_rc;
+	u32 fiwr_count
+} c2_stob_io_write_rep;
+
+record {
+	stob_io_fop_fid fir_object
+} c2_stob_io_read;
+
+record {
+	u32 firr_rc;
+	u32 firr_count;
+	u8  firr_value
+} c2_stob_io_read_rep;
+
+record {
+	stob_io_fop_fid fic_object
+} c2_stob_io_create;
+
+record {
+	u32 ficr_rc
+} c2_stob_io_create_rep;
+
+/** @} end of reqh group */
 
 /*
  *  Local variables:

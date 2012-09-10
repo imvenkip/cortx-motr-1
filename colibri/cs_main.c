@@ -18,10 +18,6 @@
  * Original creation date: 05/08/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <stdio.h>     /* fprintf */
 #include <unistd.h>    /* pause */
 #include <signal.h>    /* sigaction */

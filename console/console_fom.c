@@ -20,17 +20,13 @@
  * Revision date         : 07/31/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/errno.h"		/* EINVAL */
 #include "lib/memory.h"		/* C2_ALLOC_PTR */
 #include "fop/fom_generic.h"    /* C2_FOPH_FAILURE */
 #include "console/console_fom.h"
 #include "console/console_fop.h"
 #include "console/console_mesg.h"
-#include "console/console_xc.h"
+#include "console/console_ff.h"
 
 /**
    @addtogroup console
@@ -99,7 +95,7 @@ static int cons_fom_tick(struct c2_fom *fom)
 	/* Reply fop */
         reply_fop = c2_fop_data(rfop);
 	if (reply_fop == NULL) {
-		fom->fo_phase = C2_FOPH_FAILURE;
+		c2_fom_phase_set(fom, C2_FOPH_FAILURE);
 		return C2_FSO_AGAIN;
 	}
 
@@ -112,7 +108,7 @@ static int cons_fom_tick(struct c2_fom *fom)
 
 	/* Reply item */
 	reply_item = &rfop->f_item;
-	fom->fo_phase = C2_FOM_PHASE_FINISH;
+	c2_fom_phase_set(fom, C2_FOM_PHASE_FINISH);
         c2_rpc_reply_post(req_item, reply_item);
 	return C2_FSO_WAIT;
 }
@@ -125,10 +121,6 @@ const struct c2_fom_ops c2_cons_fom_device_ops = {
 
 const struct c2_fom_type_ops c2_cons_fom_device_type_ops = {
         .fto_create = cons_fop_fom_create
-};
-
-struct c2_fom_type c2_cons_fom_device_type = {
-        .ft_ops = &c2_cons_fom_device_type_ops
 };
 
 /** @} end of console */

@@ -17,10 +17,6 @@
  * Original creation date: 05/21/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/errno.h"
 #include "lib/memory.h"
@@ -29,6 +25,8 @@
 #include "lib/queue.h"
 #include "lib/arith.h"
 #include "lib/thread.h"
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_IOSERVICE
+#include "lib/trace.h"
 #include "addb/addb.h"
 
 #include "linux.h"
@@ -294,6 +292,8 @@ static int linux_stob_io_launch(struct c2_stob_io *io)
 			default:
 				C2_ASSERT(0);
 			}
+			C2_LOG("frag=%d op=%d sz=%d, off=%d", i, io->si_opcode,
+			       (int)frag_size, (int)off);
 
 			c2_vec_cursor_move(&src, frag_size);
 			c2_vec_cursor_move(&dst, frag_size);
@@ -482,6 +482,8 @@ static void ioq_complete(struct linux_domain *ldom, struct ioq_qev *qev,
 	if (res < 0 && qev->iq_io->si_rc == 0)
 		qev->iq_io->si_rc = res;
 	++lio->si_done;
+	C2_LOG("done=%d res=%d si_rc=%d", (int)lio->si_done, (int)res,
+	       (int)qev->iq_io->si_rc);
 	done = lio->si_done == lio->si_nr;
 	c2_mutex_unlock(&lio->si_endlock);
 

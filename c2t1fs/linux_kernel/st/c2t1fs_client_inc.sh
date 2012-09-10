@@ -54,7 +54,18 @@ none $c2t1fs_mount_dir"
 		return 1
 	fi
 
-	echo "Reading data from c2t1fs file ..."
+	echo -n "Reading data from c2t1fs file "
+	if [ $io_counts -gt 1 ]; then
+		trigger=`expr \( ${trigger:-0} + 1 \) % 2`
+		# run 50% of such tests with different io_size
+		if [ $trigger -eq 0 ]; then
+			echo -n "with different io_size "
+			io_suffix=${io_size//[^KM]}
+			io_size=`expr ${io_size%[KM]} '*' $io_counts`$io_suffix
+			io_counts=1
+		fi
+	fi
+	echo "..."
 	cmd="dd if=$c2t1fs_file of=$local_output bs=$io_size count=$io_counts"
 	echo $cmd
 	if ! $cmd
@@ -66,10 +77,11 @@ none $c2t1fs_mount_dir"
 	echo "Comparing data written and data read from c2t1fs file ..."
 	if ! cmp $local_input $local_output
 	then
-		echo "Failed, data written and data read from c2t1fs file" \
-		     "are not same."
+		echo -n "Failed: data written and data read from c2t1fs file "
+		echo    "are not same."
 		return 1
 	fi
+
 	echo "Successfully tested $io_counts I/O(s) of size $io_size."
 
 	rm -f $c2t1fs_file
@@ -109,10 +121,11 @@ io_combinations()
 	# Since current I/O supports full stripe I/O,
 	# I/O sizes are multiple of stripe size
 
-	# stripe size is in K
+	# stripe unit (stride) size in K
 	for stride_size in 4 12 20 28
 	do
 	    stripe_size=`expr $stride_size '*' $data_units`
+
 	    # Small I/Os (KBs)
 	    for io_size in 1 2 3 4 5 6 7 8
 	    do
@@ -165,4 +178,70 @@ io_combinations()
 	done
 	echo "Test log available at $COLIBRI_TEST_LOGFILE."
 	return 0
+}
+
+c2loop_st_run()
+{
+	echo "Load c2loop module... "
+	cmd="insmod `dirname $0`/../../../build_kernel_modules/c2loop.ko"
+	echo $cmd && $cmd || return 1
+	echo "Mount c2t1fs file system..."
+	mkdir $COLIBRI_C2T1FS_MOUNT_DIR
+	cmd="mount -t c2t1fs -o ios=$COLIBRI_IOSERVICE_ENDPOINT,\
+unit_size=4096,pool_width=$POOL_WIDTH,nr_data_units=1,nr_parity_units=1 \
+none $COLIBRI_C2T1FS_MOUNT_DIR"
+	echo $cmd && $cmd || return 1
+	echo "Create c2t1fs file..."
+	c2t1fs_file=$COLIBRI_C2T1FS_MOUNT_DIR/file.img
+	cmd="dd if=/dev/zero of=$c2t1fs_file bs=1M count=20"
+	echo $cmd && $cmd || return 1
+	echo "Associate c2t1fs file c2loop device..."
+	cmd="losetup /dev/c2loop0 $c2t1fs_file"
+	echo $cmd && $cmd || return 1
+	echo "Make ext4 fs on c2loop block device..."
+	cmd="mkfs.ext4 -b 4096 /dev/c2loop0"
+	echo $cmd && $cmd || return 1
+	echo "Mount new ext4 fs..."
+	ext4fs_mpoint=${COLIBRI_C2T1FS_MOUNT_DIR}-ext4fs
+	cmd="mkdir $ext4fs_mpoint"
+	echo $cmd && $cmd || return 1
+	cmd="mount /dev/c2loop0 $ext4fs_mpoint"
+	echo $cmd && $cmd || return 1
+	echo "Write, read and compare some file..."
+	local_file1=$COLIBRI_C2T1FS_TEST_DIR/file1
+	cmd="dd if=/dev/urandom of=$local_file1 bs=1M count=2"
+	echo $cmd && $cmd || return 1
+	ext4fs_file=$ext4fs_mpoint/file
+	cmd="dd if=$local_file1 of=$ext4fs_file bs=1M count=2"
+	echo $cmd && $cmd || return 1
+	local_file2=$COLIBRI_C2T1FS_TEST_DIR/file2
+	cmd="dd if=$ext4fs_file of=$local_file2 bs=1M count=2"
+	echo $cmd && $cmd || return 1
+	cmd="cmp $local_file1 $local_file2"
+	echo $cmd && $cmd || return 1
+	echo "Clean up..."
+	cmd="umount $ext4fs_mpoint"
+	echo $cmd && $cmd || return 1
+	cmd="losetup -d /dev/c2loop0"
+	echo $cmd && $cmd || return 1
+	cmd="umount $COLIBRI_C2T1FS_MOUNT_DIR"
+	echo $cmd && $cmd || return 1
+	rm -r $COLIBRI_C2T1FS_MOUNT_DIR $local_file1 $local_file2
+	cmd="rmmod c2loop"
+	echo $cmd && $cmd || return 1
+
+	echo "Successfully passed c2loop ST tests."
+	return 0
+}
+
+c2loop_st()
+{
+	echo -n "Running c2loop system tests"
+	while true; do echo -n .; sleep 1; done &
+	pid=$!
+	c2loop_st_run &>> $COLIBRI_TEST_LOGFILE
+	status=$?
+	exec 2> /dev/null; kill $pid; sleep 0.2; exec 2>1
+	[ $status -eq 0 ] || return 1
+	echo " Done: PASSED."
 }

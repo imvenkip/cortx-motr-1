@@ -18,11 +18,6 @@
  * Original creation date: 28-Oct-2011
  */
 
-
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/ut.h"
 #include "lib/ub.h"
 #include "lib/time.h"
@@ -263,7 +258,7 @@ static int genesis_4_8(struct c2_sm *mach)
 
 	s = container_of(mach, struct story, cain);
 	c2_sm_fail(&s->abel, S_TERMINAL, -EINTR);
-	return -1;
+	return C2_SM_BREAK;
 }
 
 /**

@@ -30,7 +30,7 @@
 #include "fol/fol.h"
 #include "fop/fom.h"
 #include "rpc/item.h"
-#include "net/net_otw_types.h"
+#include "net/net_otw_types_ff.h"
 
 /**
    @defgroup fop File operation packet
@@ -258,6 +258,8 @@ struct __c2_fop_type_init_args {
 	const struct c2_fol_rec_type_ops  *fol_ops;
 	const struct c2_fom_type_ops      *fom_ops;
 	const struct c2_rpc_item_type_ops *rpc_ops;
+	const struct c2_sm_conf		  *sm;
+	const struct c2_reqh_service_type *svc_type;
 };
 
 int c2_fop_type_init(struct c2_fop_type *ft,

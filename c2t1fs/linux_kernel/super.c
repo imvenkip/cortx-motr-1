@@ -19,14 +19,14 @@
  */
 
 #include <linux/mount.h>
-#include <linux/parser.h>     /* substring_t               */
-#include <linux/slab.h>       /* kmalloc(), kfree()        */
+#include <linux/parser.h>     /* substring_t                    */
+#include <linux/slab.h>       /* kmalloc(), kfree()             */
 
-#include "lib/misc.h"         /* C2_SET0()                 */
-#include "lib/memory.h"       /* C2_ALLOC_PTR(), c2_free() */
+#include "lib/misc.h"         /* C2_SET0()                      */
+#include "lib/memory.h"       /* C2_ALLOC_PTR(), c2_free()      */
 #include "c2t1fs/linux_kernel/c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
-#include "lib/trace.h"        /* C2_LOG and C2_ENTRY */
+#include "lib/trace.h"        /* C2_LOG and C2_ENTRY            */
 #include "pool/pool.h"        /* c2_pool_init(), c2_pool_fini() */
 
 /* Super block */
@@ -73,6 +73,10 @@ static void
 c2t1fs_container_location_map_fini(struct c2t1fs_container_location_map *map);
 
 static int c2t1fs_container_location_map_build(struct c2t1fs_sb *csb);
+
+/* Others */
+
+static void c2t1fs_destroy_all_dir_ents(struct super_block *sb);
 
 /* global instances */
 
@@ -253,6 +257,7 @@ void c2t1fs_kill_sb(struct super_block *sb)
 	 * But still not sure, such csb != NULL handling is a good idea.
 	 */
 	if (csb != NULL) {
+		c2t1fs_destroy_all_dir_ents(sb);
 		c2t1fs_container_location_map_fini(&csb->csb_cl_map);
 		c2t1fs_disconnect_from_all_services(csb);
 		c2t1fs_service_contexts_discard(csb);
@@ -261,6 +266,30 @@ void c2t1fs_kill_sb(struct super_block *sb)
 		c2_free(csb);
 	}
 	kill_anon_super(sb);
+
+	C2_LEAVE();
+}
+
+static void c2t1fs_destroy_all_dir_ents(struct super_block *sb)
+{
+	struct c2t1fs_dir_ent *de;
+	struct c2t1fs_inode   *root_inode;
+	struct inode          *inode;
+	C2_ENTRY();
+
+	if (sb->s_root == NULL) {
+		C2_LEAVE();
+		return;
+	}
+
+	inode = sb->s_root->d_inode;
+	C2_ASSERT(inode != NULL && c2t1fs_inode_is_root(inode));
+
+	root_inode = C2T1FS_I(inode);
+	c2_tl_for(dir_ents, &root_inode->ci_dir_ents, de) {
+		c2t1fs_dir_ent_remove(de);
+		/* c2t1fs_dir_ent_remove has freed de */
+	} c2_tl_endfor;
 
 	C2_LEAVE();
 }

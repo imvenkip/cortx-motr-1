@@ -12,6 +12,8 @@ Detailed designs, ordered alphabetically:
            <!-- cfg/cfg.h -->
 - @subpage c2_long_lock-dld "FOM Long lock DLD"
            <!-- fop/fom_long_lock.h -->
+- @subpage Layout-DB "Layout DB DLD"
+           <!-- layout/layout_db.c -->
 - @subpage LNetDLD "LNet Transport DLD"
            <!-- net/lnet/lnet_main.c -->
 - @subpage rpc-layer-core-dld "RPC layer core DLD"
@@ -26,6 +28,8 @@ Detailed designs, ordered alphabetically:
            <!-- ioservice/io_fops.c -->
 - @subpage DLD-bulk-server "DLD of Bulk Server"
            <!-- ioservice/io_foms.c -->
+- @subpage c2loop-dld "The new c2loop device driver DLD"
+           <!-- c2t1fs/linux_kernel/c2loop.c -->
 
 Detailed designs should use the <i>@subpage DLD "Colibri DLD Template"
 <!-- doc/dld-template.c --> </i> as a style guide.

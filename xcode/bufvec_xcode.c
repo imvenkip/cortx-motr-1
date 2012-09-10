@@ -25,18 +25,24 @@
 
 static int bufvec_uint64_encode(struct c2_bufvec_cursor *cur, uint64_t *val)
 {
+	c2_bcount_t count;
+
 	C2_PRE(cur != NULL);
 	C2_PRE(val != NULL);
 
-	return c2_data_to_bufvec_copy(cur, val, sizeof *val);
+	count = c2_bufvec_cursor_copyto(cur, val, sizeof *val);
+	return count == sizeof *val ? 0 : -EFAULT;
 }
 
 static int bufvec_uint64_decode(struct c2_bufvec_cursor *cur, uint64_t *val)
 {
+	c2_bcount_t count;
+
 	C2_PRE(cur != NULL);
 	C2_PRE(val != NULL);
 
-	return c2_bufvec_to_data_copy(cur, val, sizeof *val);
+	count = c2_bufvec_cursor_copyfrom(cur, val, sizeof *val);
+	return count == sizeof *val ? 0 : -EFAULT;
 }
 
 static int bufvec_uint32_encode(struct c2_bufvec_cursor *cur, uint32_t *val)

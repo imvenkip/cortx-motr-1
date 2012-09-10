@@ -1,12 +1,12 @@
-IO_FOPS                 = io_fop_xc.h io_fop_xc.c
-$(IO_FOPS) : io_fop_xc.ff
-	$(top_builddir)/xcode/ff2c/ff2c $<
+include $(top_srcdir)/Makefile.ff
 
-EXTRA_DIST              = io_fop_xc.ff
+IO_FOPS                 = io_fop_ff.h io_fop_ff.c
 
-libreqh_ut_la_SOURCES   = reqh_fom_ut.c io_fop.c io_fop.h io_fop_xc.c
+EXTRA_DIST              = io_fop.ff
 
-reqh_fom_ut.c : io_fop_xc.h
+libreqh_ut_la_SOURCES   = reqh_fom_ut.c io_fop.c io_fop.h io_fop_ff.c
+
+reqh_fom_ut.c : io_fop_ff.h
 
 INCLUDES                = -iquote . -iquote $(top_srcdir)/include -iquote $(top_srcdir)
 

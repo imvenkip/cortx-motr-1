@@ -18,10 +18,6 @@
  * Original creation date: 05/08/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/rwlock.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
@@ -95,14 +91,14 @@ struct c2_reqh_service_type *c2_reqh_service_type_find(const char *sname)
         return stype;
 }
 
-int c2_reqh_service_locate(struct c2_reqh_service_type *stype,
-                              struct c2_reqh_service **service)
+int c2_reqh_service_allocate(struct c2_reqh_service_type *stype,
+			     struct c2_reqh_service **service)
 {
 	int rc;
 
 	C2_PRE(stype != NULL && service != NULL);
 
-        rc = stype->rst_ops->rsto_service_locate(stype, service);
+        rc = stype->rst_ops->rsto_service_allocate(stype, service);
         if (rc == 0) {
 		c2_reqh_service_bob_init(*service);
 		C2_ASSERT(c2_reqh_service_invariant(*service));

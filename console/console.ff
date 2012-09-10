@@ -24,7 +24,7 @@
  */
 
 /**
- * @file console_xc.ff
+ * @file console.ff
  *
  * Failure fops should be defined by not yet existing "failure" module. For the
  * time being, it makes sense to put them in cm/ or console/. ioservice is not

@@ -1,12 +1,10 @@
+include $(top_srcdir)/Makefile.ff
+
 noinst_LTLIBRARIES       = libcolibri-ut.la
 
 INCLUDES                 = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
 
-CS_TEST_FOPS             = cs_test_fops.h cs_test_fops.c
-
-$(CS_TEST_FOPS) : cs_test_fops.ff \
-	$(top_builddir)/xcode/ff2c/ff2c
-	$(top_builddir)/xcode/ff2c/ff2c $<
+CS_TEST_FOPS             = cs_test_fops_ff.h cs_test_fops_ff.c
 
 EXTRA_DIST               = cs_test_fops.ff
 
