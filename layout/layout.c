@@ -1111,21 +1111,12 @@ int c2_layout_instance_build(struct c2_layout           *l,
 	return l->l_ops->lo_instance_build(l, fid, out);
 }
 
-/*
- * Finalises the layout instance object.
- *
- * Releases a reference on the layout object that was obtained
- * through the layout instance type specific
- * build method, for example c2_pdclust_instance_init().
- * The layout gets deleted when its last reference is released.
- * @see c2_layout_put()
- */
 void c2_layout_instance_fini(struct c2_layout_instance *li)
 {
 	C2_PRE(c2_layout__instance_invariant(li));
 	C2_PRE(li->li_ops->lio_fini != NULL);
 
-	/* see pdclust_instance_fini() in layout/pdclust.c */
+	/* For example, see pdclust_instance_fini() in layout/pdclust.c */
 	li->li_ops->lio_fini(li);
 }
 

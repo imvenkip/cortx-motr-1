@@ -753,9 +753,6 @@ void pdclust_instance_fini(struct c2_layout_instance *li);
  * @pre pdclust_invariant(pl)
  * @post ergo(rc == 0, pdclust_instance_invariant(*out) &&
  *                     pl->pl_base.sl_base.l_ref > 0))
- *
- * @note This layout instance object is to be finalised explicitly by the user,
- * using c2_layout_instance_fini().
  */
 static int pdclust_instance_build(struct c2_layout           *l,
 				  const struct c2_fid        *fid,

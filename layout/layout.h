@@ -244,8 +244,6 @@ struct c2_layout_ops {
 
 	/**
 	 * Allocates and builds a layout instance using the supplied layout
-	 *
-	 * Dual to c2_layout_instance_fini()
 	 */
 	int         (*lo_instance_build)(struct c2_layout           *l,
 					 const struct c2_fid        *fid,
@@ -581,15 +579,21 @@ struct c2_layout_enum *
 c2_layout_instance_to_enum(const struct c2_layout_instance *li);
 
 /**
- * Allocates and builds a layout instance using the supplied layout
+ * Allocates and builds a layout instance using the supplied layout;
+ * Acquires an additional reference on the layout pointed by 'l'.
+ * @post ergo(rc == 0, l->l_ref > 1))
+ *
+ * Dual to c2_layout_instance_fini()
  */
 int c2_layout_instance_build(struct c2_layout           *l,
 			     const struct c2_fid        *fid,
 			     struct c2_layout_instance **out);
 
 /**
- * Finalises the layout instance object.
- * Dual to any layout type specific instance build procedure.
+ * Finalises the layout instance object; Releases reference on the layout
+ * that was obtained through c2_layout_instance_build().
+ *
+ * Dual to c2_layout_instance_build()
  */
 void c2_layout_instance_fini(struct c2_layout_instance *li);
 
@@ -749,9 +753,7 @@ void c2_layout_put(struct c2_layout *l);
  * - The cursor cur is advanced by the size of the data that is read from it.
  * - ergo(rc == 0, l->l_ref == 1)
  *
- * @note User is expected to add rererence/s to this layout object while using
- * it. Releasing the last reference will finalise the layout object by freeing
- * it.
+ * @see c2_layout_put()
  */
 int c2_layout_decode(struct c2_layout *l,
 		     struct c2_bufvec_cursor *cur,

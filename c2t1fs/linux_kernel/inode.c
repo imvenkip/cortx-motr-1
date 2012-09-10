@@ -376,7 +376,7 @@ static int c2t1fs_build_layout_instance(const uint64_t              layout_id,
 
 	layout   = c2_layout_find(&c2t1fs_globals.g_layout_dom, layout_id);
 	/**
-	 * During c2t1fs mount we have build a layout, so c2_layout_find
+	 * During c2t1fs mount we have built a layout, so c2_layout_find
 	 * will always return a registered layout.
 	 */
 	C2_ASSERT(layout != NULL);
