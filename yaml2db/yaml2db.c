@@ -149,7 +149,7 @@ void c2_yaml2db_fini(struct c2_yaml2db_ctx *yctx)
   Function to detect and print parsing errors
   @param parser - yaml_parser structure
  */
-static void yaml_parser_error_detect(const yaml_parser_t *parser)
+void c2_yaml_parser_error_detect(const yaml_parser_t *parser)
 {
 	C2_PRE(parser != NULL);
 
@@ -192,6 +192,11 @@ static void yaml_parser_error_detect(const yaml_parser_t *parser)
 			parser->problem, parser->problem_mark.line+1,
 			parser->problem_mark.column+1);
 		break;
+	case YAML_COMPOSER_ERROR:
+        case YAML_WRITER_ERROR:
+        case YAML_EMITTER_ERROR:
+        case YAML_NO_ERROR:
+                break;
 	default:
 		C2_IMPOSSIBLE("Invalid error");
 	}
@@ -228,7 +233,7 @@ int c2_yaml2db_doc_load(struct c2_yaml2db_ctx *yctx)
 	return 0;
 
 parser_error:
-	yaml_parser_error_detect(&yctx->yc_parser);
+	c2_yaml_parser_error_detect(&yctx->yc_parser);
 	return -EINVAL;
 }
 
