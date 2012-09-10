@@ -837,7 +837,7 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
 
 	c2_rpc_item_change_state(item, C2_RPC_ITEM_REPLIED);
 	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
-			item->ri_ops->rio_replied(item);
+		item->ri_ops->rio_replied(item);
 }
 
 int c2_rpc_slot_cob_lookup(struct c2_cob   *session_cob,

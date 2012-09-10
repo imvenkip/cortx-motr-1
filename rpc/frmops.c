@@ -401,8 +401,9 @@ static void item_done(struct c2_rpc_item *item, unsigned long rc)
 	C2_ENTRY("item: %p rc: %lu", item, rc);
 	C2_PRE(item != NULL);
 
-	/** @todo XXX implement SENT/FAILED callback */
 	item->ri_error = rc;
+	if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
+		item->ri_ops->rio_sent(item);
 
 	if (rc == 0) {
 		c2_rpc_item_change_state(item, C2_RPC_ITEM_SENT);
