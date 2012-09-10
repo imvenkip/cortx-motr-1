@@ -26,6 +26,7 @@
 #include <err.h>
 #include <math.h>
 
+#include "colibri/magic.h"
 #include "desim/sim.h"
 #include "desim/cnt.h"
 
@@ -35,8 +36,8 @@
  */
 
 C2_TL_DESCR_DEFINE(cnts, "counters", static, struct cnt,
-		   c_linkage, c_magic, 0xFACE1E550FF1C1A1,
-		   0x5CA1AB1E011F1E1D);
+		   c_linkage, c_magic, C2_DESIM_CNT_MAGIC,
+		   C2_DESIM_CNTS_HEAD_MAGIC);
 C2_TL_DEFINE(cnts, static, struct cnt);
 
 static struct c2_tl cnts;

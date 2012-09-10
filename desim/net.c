@@ -23,6 +23,7 @@
 #include <stdio.h>
 
 #include "lib/assert.h"
+#include "colibri/magic.h"
 #include "desim/sim.h"
 #include "desim/net.h"
 #include "desim/elevator.h"
@@ -33,8 +34,8 @@
  */
 
 C2_TL_DESCR_DEFINE(rpc, "rpcs", static, struct net_rpc,
-		   nr_inqueue, nr_magic, 0xACCE551B1E0FF1CE,
-		   0xA55A11AB1E5EABED);
+		   nr_inqueue, nr_magic, C2_DESIM_NET_RPC_MAGIC,
+		   C2_DESIM_NET_RPC_HEAD_MAGIC);
 C2_TL_DEFINE(rpc, static, struct net_rpc);
 
 static void net_srv_loop(struct sim *s, struct sim_thread *t, void *arg)

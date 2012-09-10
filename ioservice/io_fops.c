@@ -501,11 +501,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
    @{
  */
 
-enum {
-	IO_SEGMENT_MAGIC = 0x293925012f191354ULL,
-	IO_SEGMENT_SET_MAGIC = 0x2ac196c1ee1a1239ULL,
-};
-
 /**
  * Generic io segment that represents a contiguous stream of bytes
  * along with io extent. This structure is typically used by io coalescing
@@ -537,7 +532,7 @@ struct io_seg_set {
 
 C2_TL_DESCR_DEFINE(iosegset, "list of coalesced io segments", static,
 		   struct ioseg, is_linkage, is_magic,
-		   IO_SEGMENT_MAGIC, IO_SEGMENT_SET_MAGIC);
+		   C2_IOS_IO_SEGMENT_MAGIC, C2_IOS_IO_SEGMENT_SET_MAGIC);
 
 C2_TL_DEFINE(iosegset, static, struct ioseg);
 
@@ -1213,7 +1208,7 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 	}
 	tm = io_fop_tm_get(res_fop);
 	bkp_fop = &cfop->if_fop;
-	aggr_set.iss_magic = IO_SEGMENT_SET_MAGIC;
+	aggr_set.iss_magic = C2_IOS_IO_SEGMENT_SET_MAGIC;
 	iosegset_tlist_init(&aggr_set.iss_list);
 
 	/*

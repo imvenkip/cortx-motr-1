@@ -60,6 +60,18 @@ enum c2_magic_satchel {
 	/* dir_ents_tl::td_head_magic (lidless slide) */
 	C2_T1FS_DIRENT_HEAD_MAGIC = 0x3311d1e55511de77,
 
+	/* rw_desc::rd_magic (alfalfa alibi) */
+	C2_T1FS_RW_DESC_MAGIC = 0x33a1fa1faa11b177,
+
+	/* rwd_tl::td_head_magic (assail assoil) */
+	C2_T1FS_RW_DESC_HEAD_MAGIC = 0x33a55a11a5501177,
+
+	/* c2t1fs_buf::cb_magic (balled azalia) */
+	C2_T1FS_BUF_MAGIC = 0x33ba11eda2a11a77,
+
+	/* bufs_tl::td_head_magic (bedded celiac) */
+	C2_T1FS_BUF_HEAD_MAGIC = 0x33beddedce11ac77,
+
 /* Colibri Setup */
 	/* cs_buffer_pool::cs_bp_magic (felicia feliz) */
 	C2_CS_BUFFER_POOL_MAGIC = 0x33fe11c1afe11277,
@@ -87,6 +99,43 @@ enum c2_magic_satchel {
 
 	/* ndom_tl::td_head_magic (baffled basis) */
 	C2_CS_NET_DOMAIN_HEAD_MAGIC = 0x33baff1edba51577,
+
+/* desim */
+	/* client_write_ext::cwe_magic (abasic access) */
+	C2_DESIM_CLIENT_WRITE_EXT_MAGIC = 0x33aba51cacce5577,
+
+	/* cl_tl::td_head_magic (abscessed ace) */
+	C2_DESIM_CLIENT_WRITE_EXT_HEAD_MAGIC = 0x33ab5ce55edace77,
+
+	/* cnt::c_magic (al azollaceae) */
+	C2_DESIM_CNT_MAGIC = 0x33a1a2011aceae77,
+
+	/* cnts_tl::td_head_magic (biased balzac) */
+	C2_DESIM_CNTS_HEAD_MAGIC = 0x33b1a5edba12ac77,
+
+	/* io_req::ir_magic (biblical bias) */
+	C2_DESIM_IO_REQ_MAGIC = 0x33b1b11ca1b1a577,
+
+	/* req_tl::td_head_magic (bifolded case) */
+	C2_DESIM_IO_REQ_HEAD_MAGIC = 0x33b1f01dedca5e77,
+
+	/* net_rpc::nr_magic (das classless) */
+	C2_DESIM_NET_RPC_MAGIC = 0x33da5c1a551e5577,
+
+	/* rpc_tl::td_head_magic (delible diazo) */
+	C2_DESIM_NET_RPC_HEAD_MAGIC = 0x33de11b1ed1a2077,
+
+	/* sim_callout::sc_magic (escalade fall) */
+	C2_DESIM_SIM_CALLOUT_MAGIC = 0x33e5ca1adefa1177,
+
+	/* ca_tl::td_head_magic (leaded lescol) */
+	C2_DESIM_SIM_CALLOUT_HEAD_MAGIC = 0x331eaded1e5c0177,
+
+	/* sim_callout::sc_magic (odessa saddle) */
+	C2_DESIM_SIM_THREAD_MAGIC = 0x330de55a5add1e77,
+
+	/* ca_tl::td_head_magic (scaffold sale) */
+	C2_DESIM_SIM_THREAD_HEAD_MAGIC = 0x335caff01d5a1e77,
 
 /* DB */
 	/* c2_db_tx_waiter::tw_magix (ascii salidas) */
@@ -148,6 +197,12 @@ enum c2_magic_satchel {
 
 	/* c2_io_fop::if_magic (affable aided) */
 	C2_IO_FOP_MAGIC = 0x33affab1ea1ded77,
+
+	/* ioseg::is_magic (soleless zeal) */
+	C2_IOS_IO_SEGMENT_MAGIC = 0x33501e1e552ea177,
+
+	/* iosegset::td_head_magic (doddle fascia) */
+	C2_IOS_IO_SEGMENT_SET_MAGIC = 0x33d0dd1efa5c1a77,
 
 /* Layout */
 	/* c2_layout::l_magic (edible sassie) */
