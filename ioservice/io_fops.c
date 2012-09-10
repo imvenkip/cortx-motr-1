@@ -25,6 +25,7 @@
 #include "lib/memory.h"
 #include "lib/tlist.h"
 #include "addb/addb.h"
+#include "colibri/magic.h"
 #include "fop/fop_item_type.h"
 #include "rpc/item.h"
 #include "rpc/rpc_opcodes.h"

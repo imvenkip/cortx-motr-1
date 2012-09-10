@@ -152,13 +152,6 @@
  */
 
 /**
-   A magic constant to check sanity of struct c2_io_fop.
- */
-enum {
-	C2_IO_FOP_MAGIC = 0x34832752309bdfeaULL,
-};
-
-/**
    This data structure is used to associate an io fop with its
    rpc bulk data. It abstracts the c2_net_buffer and net layer APIs.
    Client side implementations use this structure to represent

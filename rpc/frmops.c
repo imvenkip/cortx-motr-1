@@ -25,6 +25,7 @@
 #include "lib/errno.h"
 #include "lib/arith.h"
 #include "lib/bob.h"
+#include "colibri/magic.h"
 #include "rpc/formation2.h"
 #include "rpc/packet.h"
 #include "rpc/rpc2.h"
@@ -58,11 +59,6 @@ const struct c2_rpc_frm_ops c2_rpc_frm_default_ops = {
 	.fo_item_bind    = item_bind,
 };
 
-enum {
-	/** value of rpc_buffer::rb_magic */
-	RPC_BUF_MAGIC = 0x5250435f425546, /* RPC_BUF */
-};
-
 /**
    RPC layer's wrapper on c2_net_buffer. rpc_buffer carries one packet at
    a time.
@@ -78,14 +74,14 @@ enum {
 struct rpc_buffer {
 	struct c2_net_buffer   rb_netbuf;
 	struct c2_rpc_packet  *rb_packet;
-	/** see RPC_BUF_MAGIC */
+	/** see C2_RPC_BUF_MAGIC */
 	uint64_t               rb_magic;
 };
 
 static const struct c2_bob_type rpc_buffer_bob_type = {
 	.bt_name         = "rpc_buffer",
 	.bt_magix_offset = C2_MAGIX_OFFSET(struct rpc_buffer, rb_magic),
-	.bt_magix        = RPC_BUF_MAGIC,
+	.bt_magix        = C2_RPC_BUF_MAGIC,
 	.bt_check        = NULL,
 };
 

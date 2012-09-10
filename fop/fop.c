@@ -21,6 +21,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h" /* C2_SET0 */
 #include "lib/errno.h"
+#include "colibri/magic.h"
 #include "fop/fop.h"
 #include "fop/fom_long_lock.h" /* c2_fom_ll_global_init */
 
@@ -48,8 +49,7 @@ static struct c2_tl    fop_types_list;
 
 C2_TL_DESCR_DEFINE(ft, "fop types", static, struct c2_fop_type,
 		   ft_linkage,	ft_magix,
-		   0xba11ab1ea5111dae /* bailable asilidae */,
-		   0xd15ea5e0fed1f1ce /* disease of edifice */);
+		   C2_FOP_TYPE_MAGIC, C2_FOP_TYPE_HEAD_MAGIC);
 
 C2_TL_DEFINE(ft, static, struct c2_fop_type);
 

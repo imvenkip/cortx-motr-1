@@ -804,6 +804,7 @@ RPC Bulk Transfer Task Plan</a>
 #include "net/lnet/lnet_core.h"
 #include "net/lnet/lnet_xo.h"
 #include "net/lnet/lnet_pvt.h"
+#include "colibri/magic.h"
 
 #include <asm/byteorder.h>  /* byte swapping macros */
 

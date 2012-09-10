@@ -190,7 +190,6 @@ int  c2t1fs_init(void);
 void c2t1fs_fini(void);
 
 enum {
-	C2T1FS_SUPER_MAGIC              = 0x4332543153555052, /* "C2T1SUPR" */
 	MAX_NR_EP_PER_SERVICE_TYPE      = 10,
 	C2T1FS_MAX_NAME_LEN             = 256,
 	C2T1FS_RPC_TIMEOUT              = 10, /* seconds */
@@ -253,12 +252,6 @@ enum c2t1fs_service_type {
 	C2T1FS_ST_IOS
 };
 
-enum {
-	MAGIC_SVC_CTX      = 0x5356435f435458,   /* "SVC_CTX" */
-	MAGIC_SVCCTXHD     = 0x5356434354584844, /* "SVCCTXHD" */
-	MAGIC_C2T1FS_INODE = 0x433254314653494E  /* C2T1FSIN */
-};
-
 /**
    For each <mounted_fs, target_service> pair, there is one instance of
    c2t1fs_service_context.
@@ -284,7 +277,7 @@ struct c2t1fs_service_context {
 	/** link in c2t1fs_sb::csb_service_contexts list */
 	struct c2_tlink           sc_link;
 
-	/** magic = MAGIC_SVC_CTX */
+	/** magic = C2_T1FS_SVC_CTX_MAGIC */
 	uint64_t                  sc_magic;
 };
 
@@ -343,11 +336,6 @@ struct c2t1fs_sb {
 	uint64_t                      csb_layout_id;
 };
 
-enum {
-	MAGIC_DIRENT   = 0x444952454e54,     /* "DIRENT" */
-	MAGIC_DIRENTHD = 0x444952454e544844  /* "DIRENTHD" */
-};
-
 /**
    Directory entry.
  */
@@ -361,7 +349,7 @@ struct c2t1fs_dir_ent {
 	    List descriptor dir_ents_tl */
 	struct c2_tlink de_link;
 
-	/** magic == MAGIC_DIRENT */
+	/** magic == C2_T1FS_DIRENT_MAGIC */
 	uint64_t        de_magic;
 };
 

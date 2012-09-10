@@ -38,6 +38,7 @@
 #include "ioservice/io_foms.h"
 #include "ioservice/io_service.h"
 #include "ioservice/io_fops_ff.h"
+#include "colibri/magic.h"
 #include "colibri/colibri_setup.h"
 
 /**
@@ -560,7 +561,7 @@ C2_TL_DEFINE(stobio, static, struct c2_stob_io_desc);
 
 C2_TL_DESCR_DEFINE(netbufs, "Aquired net buffers", static,
 		   struct c2_net_buffer, nb_ioservice_linkage, nb_magic,
-		   C2_NET_BUFFER_LINK_MAGIC, C2_NET_BUFFER_HEAD_MAGIC_IOFOM);
+		   C2_NET_BUFFER_LINK_MAGIC, C2_IOS_NET_BUFFER_HEAD_MAGIC);
 C2_TL_DEFINE(netbufs, static, struct c2_net_buffer);
 
 C2_TL_DESCR_DEFINE(rpcbulkbufs, "rpc bulk buffers", static,
@@ -775,7 +776,7 @@ static bool c2_stob_io_desc_invariant(const struct c2_stob_io_desc *stobio_desc)
 
 static bool c2_reqh_io_service_invariant(const struct c2_reqh_io_service *rios)
 {
-        if (rios->rios_magic != C2_REQH_IO_SERVICE_MAGIC)
+        if (rios->rios_magic != C2_IOS_REQH_SVC_MAGIC)
                 return false;
 
         return true;

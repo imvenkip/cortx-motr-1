@@ -28,6 +28,7 @@
 #include "colibri/colibri_setup.h"
 #include "lib/refs.h"
 #include "reqh/reqh.h"
+#include "colibri/magic.h"
 
 /**
  * @addtogroup cobfidmap
@@ -35,8 +36,6 @@
  */
 
 enum {
-	CFM_MAP_MAGIC  = 0x6d4d4643000a7061,
-	CFM_ITER_MAGIC = 0x694d46430a726574,
 	CFM_ITER_THUNK = 16 /* #records in an iter buffer */
 };
 
@@ -115,7 +114,7 @@ C2_ADDB_EV_DEFINE(cfm_func_fail, "cobfid_map_func_fail",
  */
 static bool cobfid_map_invariant(const struct c2_cobfid_map *cfm)
 {
-	if (cfm == NULL || cfm->cfm_magic != CFM_MAP_MAGIC ||
+	if (cfm == NULL || cfm->cfm_magic != C2_CFM_MAP_MAGIC ||
 	    !cfm->cfm_is_initialised)
 		return false;
 	return true;
@@ -153,7 +152,7 @@ int c2_cobfid_map_init(struct c2_cobfid_map *cfm, struct c2_dbenv *db_env,
 	}
 
 	cfm->cfm_last_mod = c2_time_now();
-	cfm->cfm_magic = CFM_MAP_MAGIC;
+	cfm->cfm_magic = C2_CFM_MAP_MAGIC;
 	c2_mutex_init(&cfm->cfm_mutex);
 	cfm->cfm_is_initialised = true;
 	C2_POST(cobfid_map_invariant(cfm));
@@ -271,7 +270,7 @@ int c2_cobfid_map_del(struct c2_cobfid_map *cfm, const uint64_t container_id,
  */
 static bool cobfid_map_iter_invariant(const struct c2_cobfid_map_iter *iter)
 {
-	if (iter == NULL || iter->cfmi_magic != CFM_ITER_MAGIC)
+	if (iter == NULL || iter->cfmi_magic != C2_CFM_ITER_MAGIC)
 		return false;
 	if (!cobfid_map_invariant(iter->cfmi_cfm))
 		return false;
@@ -345,7 +344,7 @@ static int cobfid_map_iter_init(struct c2_cobfid_map *cfm,
 
 	/* force a query by positioning at the end */
 	iter->cfmi_rec_idx = iter->cfmi_last_rec + 1;
-	iter->cfmi_magic = CFM_ITER_MAGIC;
+	iter->cfmi_magic = C2_CFM_ITER_MAGIC;
 
 	C2_POST(cobfid_map_iter_invariant(iter));
 	C2_POST(iter->cfmi_error == 0);
