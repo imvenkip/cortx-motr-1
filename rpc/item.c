@@ -163,49 +163,49 @@ static const struct c2_sm_state_descr item_state_descr[] = {
 	[INITIALISED] = {
 		.sd_flags   = C2_SDF_INITIAL,
 		.sd_name    = "INITIALISED",
-		.sd_allowed = STATE_SET(WAITING_IN_STREAM,
+		.sd_allowed = C2_BITS(WAITING_IN_STREAM,
 					ENQUEUED,
 					ACCEPTED,
 					UNINITIALISED),
 	},
 	[WAITING_IN_STREAM] = {
 		.sd_name    = "WAITING_IN_STREAM",
-		.sd_allowed = STATE_SET(ENQUEUED),
+		.sd_allowed = C2_BITS(ENQUEUED),
 	},
 	[ENQUEUED] = {
 		.sd_name    = "ENQUEUED",
-		.sd_allowed = STATE_SET(SENDING),
+		.sd_allowed = C2_BITS(SENDING),
 	},
 	[SENDING] = {
 		.sd_name    = "SENDING",
-		.sd_allowed = STATE_SET(SENT, FAILED),
+		.sd_allowed = C2_BITS(SENT, FAILED),
 	},
 	[SENT] = {
 		.sd_name    = "SENT",
 		.sd_in      = item_entered_in_sent_state,
-		.sd_allowed = STATE_SET(WAITING_FOR_REPLY, UNINITIALISED),
+		.sd_allowed = C2_BITS(WAITING_FOR_REPLY, UNINITIALISED),
 	},
 	[WAITING_FOR_REPLY] = {
 		.sd_name    = "WAITING_FOR_REPLY",
-		.sd_allowed = STATE_SET(REPLIED, TIMEDOUT),
+		.sd_allowed = C2_BITS(REPLIED, TIMEDOUT),
 	},
 	[REPLIED] = {
 		.sd_name    = "REPLIED",
-		.sd_allowed = STATE_SET(UNINITIALISED),
+		.sd_allowed = C2_BITS(UNINITIALISED),
 	},
 	[ACCEPTED] = {
 		.sd_name    = "ACCEPTED",
-		.sd_allowed = STATE_SET(REPLIED, UNINITIALISED),
+		.sd_allowed = C2_BITS(REPLIED, UNINITIALISED),
 	},
 	[TIMEDOUT] = {
 		.sd_name    = "TIMEDOUT",
 		.sd_in      = item_entered_in_timedout_state,
-		.sd_allowed = STATE_SET(FAILED),
+		.sd_allowed = C2_BITS(FAILED),
 	},
 	[FAILED] = {
 		.sd_name    = "FAILED",
 		.sd_in      = item_entered_in_failed_state,
-		.sd_allowed = STATE_SET(UNINITIALISED),
+		.sd_allowed = C2_BITS(UNINITIALISED),
 	},
 };
 
@@ -422,7 +422,7 @@ int c2_rpc_item_wait_for_reply(struct c2_rpc_item *item, c2_time_t timeout)
 
 	C2_PRE(c2_rpc_item_is_request(item));
 
-	rc = c2_rpc_item_timedwait(item, STATE_SET(REPLIED, FAILED), timeout);
+	rc = c2_rpc_item_timedwait(item, C2_BITS(REPLIED, FAILED), timeout);
 	if (rc == 0) {
 		if (item->ri_sm.sm_state == FAILED)
 			rc = item->ri_error;

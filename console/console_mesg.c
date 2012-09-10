@@ -19,7 +19,7 @@
  */
 
 #include "lib/errno.h" /* ENOTSUP */
-#include "sm/sm.h"     /* STATE_SET */
+#include "lib/misc.h"  /* C2_BITS */
 
 #include "console/console_fop.h"
 #include "console/console_it.h"
