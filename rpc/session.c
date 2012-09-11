@@ -625,7 +625,7 @@ static void fop_session_establish_item_free(struct c2_rpc_item *item)
 	struct c2_fop                    *fop;
 
 	fop = c2_rpc_item_to_fop(item);
-	/** @todo XXX free fop data */
+	c2_fop_fini(fop);
 	ctx = container_of(fop, struct fop_session_establish_ctx, sec_fop);
 	c2_free(ctx);
 }
