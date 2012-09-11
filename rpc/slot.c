@@ -825,10 +825,6 @@ int c2_rpc_slot_item_received(struct c2_rpc_item *item)
 	return rc;
 }
 
-/**
- * @TODO XXX ->replied() callback should be triggered
- * iff item is in WAITING_FOR_REPLY state.
- */
 void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
                       uint32_t rc)
 {
