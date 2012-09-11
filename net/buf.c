@@ -22,6 +22,7 @@
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/time.h"
+#include "colibri/magic.h"
 #include "net/net_internal.h"
 
 /**

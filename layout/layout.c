@@ -66,6 +66,7 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
+#include "colibri/magic.h"
 #include "layout/layout_internal.h"
 #include "layout/layout_db.h"
 #include "layout/layout.h"
@@ -74,17 +75,10 @@ extern struct c2_layout_type c2_pdclust_layout_type;
 extern struct c2_layout_enum_type c2_list_enum_type;
 extern struct c2_layout_enum_type c2_linear_enum_type;
 
-enum {
-	LAYOUT_MAGIC           = 0x4C41594F55544D41, /* LAYOUTMA */
-	LAYOUT_ENUM_MAGIC      = 0x454E554D4D414749, /* ENUMMAGI */
-	LAYOUT_LIST_HEAD_MAGIC = 0x4C484541444D4147, /* LHEADMAG */
-	LAYOUT_INSTANCE_MAGIC  = 0x4C494E53544D4147  /* LINSTMAG */
-};
-
 static const struct c2_bob_type layout_bob = {
 	.bt_name         = "layout",
 	.bt_magix_offset = offsetof(struct c2_layout, l_magic),
-	.bt_magix        = LAYOUT_MAGIC,
+	.bt_magix        = C2_LAYOUT_MAGIC,
 	.bt_check        = NULL
 };
 C2_BOB_DEFINE(static, &layout_bob, c2_layout);
@@ -92,7 +86,7 @@ C2_BOB_DEFINE(static, &layout_bob, c2_layout);
 static const struct c2_bob_type enum_bob = {
 	.bt_name         = "enum",
 	.bt_magix_offset = offsetof(struct c2_layout_enum, le_magic),
-	.bt_magix        = LAYOUT_ENUM_MAGIC,
+	.bt_magix        = C2_LAYOUT_ENUM_MAGIC,
 	.bt_check        = NULL
 };
 C2_BOB_DEFINE(static, &enum_bob, c2_layout_enum);
@@ -100,7 +94,7 @@ C2_BOB_DEFINE(static, &enum_bob, c2_layout_enum);
 static const struct c2_bob_type layout_instance_bob = {
 	.bt_name         = "layout_instance",
 	.bt_magix_offset = offsetof(struct c2_layout_instance, li_magic),
-	.bt_magix        = LAYOUT_INSTANCE_MAGIC,
+	.bt_magix        = C2_LAYOUT_INSTANCE_MAGIC,
 	.bt_check        = NULL
 };
 C2_BOB_DEFINE(static, &layout_instance_bob, c2_layout_instance);
@@ -135,7 +129,7 @@ C2_ADDB_EV_DEFINE(layout_delete_fail, "layout_delete_fail",
 
 C2_TL_DESCR_DEFINE(layout, "layout-list", static,
 		   struct c2_layout, l_list_linkage, l_magic,
-		   LAYOUT_MAGIC, LAYOUT_LIST_HEAD_MAGIC);
+		   C2_LAYOUT_MAGIC, C2_LAYOUT_HEAD_MAGIC);
 C2_TL_DEFINE(layout, static, struct c2_layout);
 
 bool c2_layout__domain_invariant(const struct c2_layout_domain *dom)

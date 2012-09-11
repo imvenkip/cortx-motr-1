@@ -22,6 +22,7 @@
 #include "lib/memory.h"/* C2_ALLOC_PTR */
 #include "lib/errno.h" /* ENOMEM */
 #include "lib/arith.h" /* C2_CNT_INC, C2_CNT_DEC */
+#include "colibri/magic.h"
 #include "net/buffer_pool.h"
 
 /**

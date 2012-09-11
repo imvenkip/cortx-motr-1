@@ -29,6 +29,7 @@
 #include "lib/cdefs.h" /* ergo */
 
 #include "addb/addb.h"
+#include "colibri/magic.h"
 #include "fop/fop.h"
 #include "fop/fom_long_lock.h"
 #include "reqh/reqh.h"
@@ -158,13 +159,8 @@ struct c2_loc_thread {
 	uint64_t                lt_magix;
 };
 
-enum {
-	THREAD_MAGIX = 0xfa151f1ab1ec0b01 /* falsifiable COBOL */
-};
-
 C2_TL_DESCR_DEFINE(thr, "fom thread", static, struct c2_loc_thread, lt_linkage,
-		   lt_magix, THREAD_MAGIX,
-		   0xdec1a551f1edcade /* declassified cade */);
+		   lt_magix, C2_FOM_THREAD_MAGIC, C2_FOM_THREAD_HEAD_MAGIC);
 C2_TL_DEFINE(thr, static, struct c2_loc_thread);
 
 static bool fom_wait_time_is_out(const struct c2_fom_domain *dom,
@@ -680,7 +676,7 @@ static int loc_thr_create(struct c2_fom_locality *loc)
 	if (thr == NULL)
 		return -ENOMEM;
 	thr->lt_state = IDLE;
-	thr->lt_magix = THREAD_MAGIX;
+	thr->lt_magix = C2_FOM_THREAD_MAGIC;
 	thr->lt_loc   = loc;
 	thr_tlink_init_at_tail(thr, &loc->fl_threads);
 

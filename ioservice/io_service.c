@@ -25,6 +25,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/tlist.h"
+#include "colibri/magic.h"
 #include "net/buffer_pool.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"
@@ -34,7 +35,7 @@
 
 C2_TL_DESCR_DEFINE(bufferpools, "rpc machines associated with reqh", ,
                    struct c2_rios_buffer_pool, rios_bp_linkage, rios_bp_magic,
-                   C2_RIOS_BUFFER_POOL_MAGIC, C2_RIOS_BUFFER_POOL_HEAD);
+                   C2_IOS_BUFFER_POOL_MAGIC, C2_IOS_BUFFER_POOL_HEAD_MAGIC);
 C2_TL_DEFINE(bufferpools, , struct c2_rios_buffer_pool);
 
 /* ADDB context for ios. */
@@ -209,7 +210,7 @@ static int ios_create_buffer_pool(struct c2_reqh_service *service)
 			return -ENOMEM;
 
 		newbp->rios_ndom = rpcmach->rm_tm.ntm_dom;
-		newbp->rios_bp_magic = C2_RIOS_BUFFER_POOL_MAGIC;
+		newbp->rios_bp_magic = C2_IOS_BUFFER_POOL_MAGIC;
 
 		colours = c2_list_length(&newbp->rios_ndom->nd_tms);
 
@@ -312,7 +313,7 @@ static int ios_allocate(struct c2_reqh_service_type *stype,
                 return -ENOMEM;
 
         bufferpools_tlist_init(&serv_obj->rios_buffer_pools);
-        serv_obj->rios_magic = C2_REQH_IO_SERVICE_MAGIC;
+        serv_obj->rios_magic = C2_IOS_REQH_SVC_MAGIC;
         serv = &serv_obj->rios_gen;
 
         serv->rs_type = stype;

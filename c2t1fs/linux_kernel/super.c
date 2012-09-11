@@ -29,6 +29,7 @@
 #include "lib/trace.h"        /* C2_LOG and C2_ENTRY            */
 #include "layout/linear_enum.h"
 #include "layout/pdclust.h"
+#include "colibri/magic.h"
 
 static int c2t1fs_sb_layout_init(struct c2t1fs_sb *csb);
 
@@ -113,7 +114,7 @@ const struct c2_fid c2t1fs_root_fid = {
  */
 C2_TL_DESCR_DEFINE(svc_ctx, "Service contexts", static,
 		   struct c2t1fs_service_context, sc_link, sc_magic,
-		   MAGIC_SVC_CTX, MAGIC_SVCCTXHD);
+		   C2_T1FS_SVC_CTX_MAGIC, C2_T1FS_SVC_CTX_HEAD_MAGIC);
 
 C2_TL_DEFINE(svc_ctx, static, struct c2t1fs_service_context);
 
@@ -185,7 +186,7 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	sb->s_fs_info        = csb;
 	sb->s_blocksize      = PAGE_CACHE_SIZE;
 	sb->s_blocksize_bits = PAGE_CACHE_SHIFT;
-	sb->s_magic          = C2T1FS_SUPER_MAGIC;
+	sb->s_magic          = C2_T1FS_SUPER_MAGIC;
 	sb->s_maxbytes       = MAX_LFS_FILESIZE;
 	sb->s_op             = &c2t1fs_super_operations;
 
@@ -707,7 +708,7 @@ static void c2t1fs_service_context_init(struct c2t1fs_service_context *ctx,
 	ctx->sc_csb   = csb;
 	ctx->sc_type  = type;
 	ctx->sc_addr  = ep_addr;
-	ctx->sc_magic = MAGIC_SVC_CTX;
+	ctx->sc_magic = C2_T1FS_SVC_CTX_MAGIC;
 
 	svc_ctx_tlink_init(ctx);
 

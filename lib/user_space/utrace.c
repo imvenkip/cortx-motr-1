@@ -32,6 +32,8 @@
 #include "lib/memory.h"
 #include "lib/trace.h"
 
+#include "colibri/magic.h"
+
 /**
    @addtogroup trace
 

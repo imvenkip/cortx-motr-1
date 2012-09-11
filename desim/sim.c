@@ -28,6 +28,7 @@
 
 #include <execinfo.h>
 
+#include "colibri/magic.h"
 #include "lib/assert.h"
 #include "desim/sim.h"
 
@@ -37,13 +38,13 @@
  */
 
 C2_TL_DESCR_DEFINE(ca, "call-outs", static, struct sim_callout,
-		   sc_linkage, sc_magic, 0xADDED0FF1C1A1E5E,
-		   0xEFFACEAB1E1ADD1E);
+		   sc_linkage, sc_magic, C2_DESIM_SIM_CALLOUT_MAGIC,
+		   C2_DESIM_SIM_CALLOUT_HEAD_MAGIC);
 C2_TL_DEFINE(ca, static, struct sim_callout);
 
 C2_TL_DESCR_DEFINE(thr, "threads", static, struct sim_thread,
-		   st_block, st_magic, 0x10ADEDC0110CA11A,
-		   0xCEA5E1E551CEFA11);
+		   st_block, st_magic, C2_DESIM_SIM_THREAD_MAGIC,
+		   C2_DESIM_SIM_THREAD_HEAD_MAGIC);
 C2_TL_DEFINE(thr, static, struct sim_thread);
 
 extern int vasprintf(char **strp, const char *fmt, va_list ap);

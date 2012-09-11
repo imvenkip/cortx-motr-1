@@ -44,14 +44,10 @@ static void c2_rpc_service_type_bob_fini(struct c2_rpc_service_type *)
 
 C2_BOB_DEFINE(static, &rpc_service_type_bob, c2_rpc_service_type);
 
-enum {
-	RPC_SERVICE_TYPES_LIST_HEAD_MAGIX = 0x5356435459504844, /* "SVCTYPHD" */
-};
-
 C2_TL_DESCR_DEFINE(service_type, "rpc_service_type", static,
 		   struct c2_rpc_service_type, svt_tlink, svt_magix,
-		   C2_RPC_SERVICE_TYPE_MAGIX,
-		   RPC_SERVICE_TYPES_LIST_HEAD_MAGIX);
+		   C2_RPC_SERVICE_TYPE_MAGIC,
+		   C2_RPC_SERVICE_TYPES_HEAD_MAGIC);
 
 C2_TL_DEFINE(service_type, static, struct c2_rpc_service_type);
 
@@ -64,8 +60,8 @@ C2_BOB_DEFINE(/* global scope */, &rpc_service_bob, c2_rpc_service);
 
 C2_TL_DESCR_DEFINE(c2_rpc_services, "rpc_service", static,
                    struct c2_rpc_service, svc_tlink, svc_magix,
-                   C2_RPC_SERVICE_MAGIX,
-                   C2_RPC_SERVICES_LIST_HEAD_MAGIX);
+                   C2_RPC_SERVICE_MAGIC,
+                   C2_RPC_SERVICES_HEAD_MAGIC);
 
 C2_TL_DEFINE(c2_rpc_services, , struct c2_rpc_service);
 
@@ -330,4 +326,3 @@ void c2_rpc_service_conn_detach(struct c2_rpc_service *service)
  *  scroll-step: 1
  *  End:
  */
-
