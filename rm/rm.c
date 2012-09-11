@@ -1858,7 +1858,7 @@ static void pin_del(struct c2_rm_pin *pin)
 		 */
 		c2_rm_ur_tlist_move(&owner->ro_incoming[in->rin_priority]\
 							[OQS_EXCITED],
-		 		    &in->rin_want);
+				    &in->rin_want);
 	}
 	c2_free(pin);
 }
