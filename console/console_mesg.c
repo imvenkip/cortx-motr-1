@@ -43,19 +43,17 @@ int c2_cons_fop_send(struct c2_fop *fop, struct c2_rpc_session *session,
 	item->ri_deadline   = 0;
 	item->ri_prio       = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_session    = session;
-	item->ri_error      = 0;
 	item->ri_op_timeout = timeout;
 
         rc = c2_rpc_post(item);
-	if (rc != 0) {
+	if (rc == 0) {
+		rc = c2_rpc_item_wait_for_reply(item, C2_TIME_NEVER);
+		if (rc != 0)
+			fprintf(stderr, "Error while waiting for reply: %d\n",
+				rc);
+	} else {
 		fprintf(stderr, "c2_rpc_post failed!\n");
-		goto out;
 	}
-	rc = c2_rpc_item_wait_for_reply(item, C2_TIME_NEVER);
-	if (rc != 0)
-		fprintf(stderr, "Error while waiting for reply: %d\n", rc);
-
-out:
 	return rc;
 }
 

@@ -316,7 +316,6 @@ void io_fops_rpc_submit(struct thrd_arg *t)
 	rbulk = c2_fop_to_rpcbulk(&io_fops[i]->if_fop);
 	item = &io_fops[i]->if_fop.f_item;
 	item->ri_session = &bp->bp_cctx->rcx_session;
-
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
 	item->ri_op_timeout = c2_time_from_now(IO_RPC_ITEM_TIMEOUT, 0);
 	rc = c2_rpc_post(item);

@@ -143,25 +143,32 @@ struct c2_rpc_item {
 
 struct c2_rpc_item_ops {
 	/**
-	   Called when given item is sent over the network. It does not state
-	   anything about whether item is received on receiver or not.
+	   RPC layer executes this callback when,
+	   - item is sent over the network;
+	   - or item sending failed in which case item->ri_error != 0.
+
+	   Note that it does not state anything about whether item
+	   is received on receiver or not.
 
 	   IMP: Called with rpc-machine mutex held. Do not reenter in RPC.
 	 */
 	void (*rio_sent)(struct c2_rpc_item *item);
 	/**
-	   Called when given item's replied.
+	   RPC layer executes this callback only for request items when,
+	   - a reply is received to the request item;
+	   - or any failure is occured (including timeout) in which case
+	     item->ri_error != 0
 
-	   @note ri_added() and ri_sent() have been called before invoking this
-	   function.
-
-	   c2_rpc_item::ri_error and c2_rpc_item::ri_reply are already set by
-	   the time this method is called.
+	   IMP: Called with rpc-machine mutex held. Do not reenter in RPC.
 	 */
 	void (*rio_replied)(struct c2_rpc_item *item);
 
 	/**
 	   Finalise and free item.
+
+	   Implementation must finalise item->ri_sm using
+	   c2_rpc_item_sm_fini().
+
 	   @see c2_fop_default_item_ops
 	   @see c2_fop_item_free(), can be used with fops that are not embedded
 	   in any other object.

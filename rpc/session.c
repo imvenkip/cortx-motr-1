@@ -853,6 +853,7 @@ void c2_rpc_session_dec_nr_active_items(struct c2_rpc_session *session)
 	session_idle_x_busy(session);
 }
 
+/** Perform (IDLE -> BUSY) or (BUSY -> IDLE) transition if required */
 static void session_idle_x_busy(struct c2_rpc_session *session)
 {
 	struct c2_rpc_machine *machine;
