@@ -525,7 +525,7 @@ static int c2t1fs_component_objects_op(struct c2t1fs_inode *ci,
 	       (unsigned long)ci->ci_fid.f_key);
 
 	csb = C2T1FS_SB(ci->ci_inode.i_sb);
-	pool_width = csb->csb_mnt_opts.mo_pool_width;
+	pool_width = csb->csb_pool_width;
 	C2_ASSERT(pool_width >= 1);
 
 	for (i = 0; i < pool_width; ++i) {
