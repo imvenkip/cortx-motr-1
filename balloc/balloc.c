@@ -33,6 +33,7 @@
 #include "lib/arith.h"	  /* min_check, c2_is_po2 */
 #include "lib/memory.h"
 #include "balloc.h"
+#include "colibri/magic.h"
 
 /**
    C2 Data Block Allocator.

@@ -35,6 +35,7 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
+#include "colibri/magic.h"
 #include "fid/fid.h"    /* c2_fid_set(), c2_fid_is_valid() */
 #include "layout/layout_internal.h"
 #include "layout/linear_enum.h"
@@ -42,14 +43,10 @@
 extern const struct c2_addb_loc layout_addb_loc;
 extern struct c2_addb_ctx layout_global_ctx;
 
-enum {
-	LINEAR_ENUM_MAGIC = 0x4C494E2D454E554DULL /* LIN-ENUM */
-};
-
 static const struct c2_bob_type linear_bob = {
 	.bt_name         = "linear_enum",
 	.bt_magix_offset = offsetof(struct c2_layout_linear_enum, lla_magic),
-	.bt_magix        = LINEAR_ENUM_MAGIC,
+	.bt_magix        = C2_LAYOUT_LINEAR_ENUM_MAGIC,
 	.bt_check        = NULL
 };
 

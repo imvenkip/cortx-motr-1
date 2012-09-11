@@ -211,11 +211,6 @@ extern unsigned long c2_trace_immediate_mask;
 #  define C2_TRACE_IMMEDIATE_DEBUG (0)
 #endif
 
-/** Magic number to locate the record */
-enum {
-	C2_TRACE_MAGIC = 0xc0de1eafacc01adeULL,
-};
-
 /** Default buffer size, the real buffer size is at c2_logbufsize */
 enum {
 	C2_TRACE_BUFSIZE  = 1 << (10 + 12) /* 4MB */

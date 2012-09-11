@@ -28,6 +28,7 @@
 #include "ioservice/io_fops.h"   /* c2_fop_cob_create_fopt */
 #include "ioservice/io_fops_ff.h" /* c2_fop_cob_create */
 #include "rpc/rpclib.h"          /* c2_rpc_client_call */
+#include "colibri/magic.h"
 
 extern const struct c2_rpc_item_ops cob_req_rpc_item_ops;
 extern void c2t1fs_inode_bob_init(struct c2t1fs_inode *bob);
@@ -183,7 +184,7 @@ void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
 	memcpy(&de->de_name, name, namelen);
 	de->de_name[namelen] = '\0';
 	de->de_fid           = *fid;
-	de->de_magic         = MAGIC_DIRENT;
+	de->de_magic         = C2_T1FS_DIRENT_MAGIC;
 
 	dir_ents_tlink_init(de);
 

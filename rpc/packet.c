@@ -24,6 +24,7 @@
 #include "lib/misc.h"
 #include "lib/vec.h"
 #include "lib/errno.h"
+#include "colibri/magic.h"
 #include "rpc/packet.h"
 #include "rpc/rpc2.h"
 #include "rpc/rpc_onwire.h"
@@ -35,12 +36,9 @@ static int item_encode(struct c2_rpc_item       *item,
 static int item_decode(struct c2_bufvec_cursor  *cursor,
 		       struct c2_rpc_item      **item_out);
 
-enum {
-	PACKET_HEAD_MAGIC = 0x525041434b4554 /* "RPACKET" */
-};
 C2_TL_DESCR_DEFINE(packet_item, "packet_item", /* global */, struct c2_rpc_item,
-                   ri_plink, ri_link_magic, C2_RPC_ITEM_FIELD_MAGIC,
-                   PACKET_HEAD_MAGIC);
+                   ri_plink, ri_link_magic, C2_RPC_ITEM_MAGIC,
+                   C2_RPC_PACKET_HEAD_MAGIC);
 C2_TL_DEFINE(packet_item, /* global */, struct c2_rpc_item);
 
 bool c2_rpc_packet_invariant(const struct c2_rpc_packet *p)

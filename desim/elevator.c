@@ -25,6 +25,7 @@
 #include <stdlib.h>
 
 #include "lib/assert.h"
+#include "colibri/magic.h"
 #include "desim/elevator.h"
 
 /**
@@ -42,8 +43,8 @@ struct io_req {
 };
 
 C2_TL_DESCR_DEFINE(req, "io requests", static, struct io_req,
-		   ir_linkage, ir_magic, 0xBE111C05E0DDBA11,
-		   0xFA110FFB100D1EAF);
+		   ir_linkage, ir_magic, C2_DESIM_IO_REQ_MAGIC,
+		   C2_DESIM_IO_REQ_HEAD_MAGIC);
 C2_TL_DEFINE(req, static, struct io_req);
 
 static void elevator_submit(struct elevator *el,

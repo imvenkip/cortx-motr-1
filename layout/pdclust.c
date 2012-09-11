@@ -93,21 +93,17 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
+#include "colibri/magic.h"
 #include "layout/layout_internal.h"
 #include "layout/pdclust.h"
 
 extern const struct c2_addb_loc layout_addb_loc;
 extern struct c2_addb_ctx layout_global_ctx;
 
-enum {
-	PDCLUST_MAGIC     = 0x5044434C5553544CULL, /* PDCLUSTL */
-	PD_INSTANCE_MAGIC = 0x5044494E5354414EULL  /* PDINSTAN */
-};
-
 static const struct c2_bob_type pdclust_bob = {
 	.bt_name         = "pdclust",
 	.bt_magix_offset = offsetof(struct c2_pdclust_layout, pl_magic),
-	.bt_magix        = PDCLUST_MAGIC,
+	.bt_magix        = C2_LAYOUT_PDCLUST_MAGIC,
 	.bt_check        = NULL
 };
 
@@ -116,7 +112,7 @@ C2_BOB_DEFINE(static, &pdclust_bob, c2_pdclust_layout);
 static const struct c2_bob_type pdclust_instance_bob = {
 	.bt_name         = "pd_instance",
 	.bt_magix_offset = offsetof(struct c2_pdclust_instance, pi_magic),
-	.bt_magix        = PD_INSTANCE_MAGIC,
+	.bt_magix        = C2_LAYOUT_PDCLUST_INSTANCE_MAGIC,
 	.bt_check        = NULL
 };
 

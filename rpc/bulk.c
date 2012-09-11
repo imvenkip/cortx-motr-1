@@ -23,6 +23,7 @@
 #include "lib/tlist.h"
 #include "lib/memory.h"
 #include "lib/errno.h"
+#include "colibri/magic.h"
 #include "net/net.h"
 #include "rpc/bulk.h"
 #include "rpc/session.h"

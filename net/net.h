@@ -104,9 +104,6 @@ enum {
 	    provisioning.
 	 */
 	C2_NET_TM_RECV_QUEUE_DEF_LEN = 2,
-
-	/* Hex value for "NETDOM" */
-	C2_NET_DOMAIN_MAGIX = 0x4E4554444F4D
 };
 
 /** Network transport (e.g. lnet) */
@@ -1702,13 +1699,6 @@ int c2_net_desc_copy(const struct c2_net_buf_desc *from_desc,
    cleared after this operation.
  */
 void c2_net_desc_free(struct c2_net_buf_desc *desc);
-
-enum {
-	/* Hex ASCII value of "nb_lru" */
-	C2_NET_BUFFER_LINK_MAGIC	 = 0x6e625f6c7275,
-	/* Hex ASCII value of "nb_head" */
-	C2_NET_BUFFER_HEAD_MAGIC	 = 0x6e625f68656164,
-};
 
 /** Descriptor for the tlist of buffers. */
 C2_TL_DESCR_DECLARE(c2_net_pool, extern);

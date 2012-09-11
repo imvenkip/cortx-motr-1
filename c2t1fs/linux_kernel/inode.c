@@ -28,6 +28,7 @@
 #include "c2t1fs/linux_kernel/c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
 #include "lib/trace.h"          /* C2_LOG and C2_ENTRY */
+#include "colibri/magic.h"
 
 static int c2t1fs_inode_test(struct inode *inode, void *opaque);
 static int c2t1fs_inode_set(struct inode *inode, void *opaque);
@@ -39,14 +40,15 @@ static int c2t1fs_build_layout_instance(const uint64_t              layout_id,
 static struct kmem_cache *c2t1fs_inode_cachep = NULL;
 
 C2_TL_DESCR_DEFINE(dir_ents, "Dir entries", , struct c2t1fs_dir_ent,
-			de_link, de_magic, MAGIC_DIRENT, MAGIC_DIRENTHD);
+		   de_link, de_magic,
+		   C2_T1FS_DIRENT_MAGIC, C2_T1FS_DIRENT_HEAD_MAGIC);
 
 C2_TL_DEFINE(dir_ents, , struct c2t1fs_dir_ent);
 
 static const struct c2_bob_type c2t1fs_inode_bob = {
 	.bt_name         = "c2t1fs_inode",
 	.bt_magix_offset = offsetof(struct c2t1fs_inode, ci_magic),
-	.bt_magix        = MAGIC_C2T1FS_INODE,
+	.bt_magix        = C2_T1FS_INODE_MAGIC,
 	.bt_check        = NULL
 };
 
