@@ -356,7 +356,6 @@ void c2_fop_item_free(struct c2_rpc_item *item)
 {
 	struct c2_fop *fop;
 
-	c2_rpc_item_sm_fini(item);
 	fop = c2_rpc_item_to_fop(item);
 	/* c2_fop_free() internally calls c2_fop_fini() on the fop, which
 	   calls c2_rpc_item_fini() on the rpc-item */

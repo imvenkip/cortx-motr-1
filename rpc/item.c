@@ -242,6 +242,7 @@ void c2_rpc_item_init(struct c2_rpc_item            *item,
 	packet_item_tlink_init(item);
         rpcitem_tlink_init(item);
 	rpcitem_tlist_init(&item->ri_compound_items);
+	/* item->ri_sm will be initialised when the item is posted */
 }
 C2_EXPORTED(c2_rpc_item_init);
 
@@ -255,6 +256,10 @@ void c2_rpc_item_fini(struct c2_rpc_item *item)
 {
 	struct c2_rpc_slot_ref	*sref;
 
+	/*
+	 * c2_rpc_item_free() must have already finalised item->ri_sm
+	 * using c2_rpc_item_sm_fini().
+	 */
 	C2_PRE(item->ri_sm.sm_state == UNINITIALISED);
 
 	sref = &item->ri_slot_refs[0];
@@ -288,6 +293,7 @@ void c2_rpc_item_free(struct c2_rpc_item *item)
 {
 	C2_ASSERT(item->ri_ops != NULL &&
 		  item->ri_ops->rio_free != NULL);
+	c2_rpc_item_sm_fini(item);
 	item->ri_ops->rio_free(item);
 }
 

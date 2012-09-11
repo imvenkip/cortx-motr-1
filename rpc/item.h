@@ -164,10 +164,9 @@ struct c2_rpc_item_ops {
 	void (*rio_replied)(struct c2_rpc_item *item);
 
 	/**
-	   Finalise and free item.
-
-	   Implementation must finalise item->ri_sm using
-	   c2_rpc_item_sm_fini().
+	   RPC triggers this callback to free the item.
+	   Implementation should call c2_rpc_item_fini() on the item.
+	   Note: item->ri_sm is already finalised.
 
 	   @see c2_fop_default_item_ops
 	   @see c2_fop_item_free(), can be used with fops that are not embedded

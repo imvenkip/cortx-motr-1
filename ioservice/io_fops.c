@@ -116,7 +116,7 @@ const struct c2_fop_type_ops io_fop_rwv_ops = {
 
 /* Used for cob_create and cob_delete fops. */
 const struct c2_rpc_item_ops cob_req_rpc_item_ops = {
-	.rio_free        = cob_rpcitem_free,
+	.rio_free = cob_rpcitem_free,
 };
 
 static const struct c2_rpc_item_type_ops cob_rpc_type_ops = {
@@ -1401,7 +1401,6 @@ static void cob_rpcitem_free(struct c2_rpc_item *item)
 
 	C2_PRE(item != NULL);
 
-	c2_rpc_item_sm_fini(item);
 	fop = c2_rpc_item_to_fop(item);
 	C2_ASSERT(c2_is_cob_create_delete_fop(fop));
 
@@ -1563,7 +1562,6 @@ static void io_item_free_internal(struct c2_rpc_item *item)
 
 	C2_PRE(item != NULL);
 
-	c2_rpc_item_sm_fini(item);
 	fop = c2_rpc_item_to_fop(item);
 	iofop = container_of(fop, struct c2_io_fop, if_fop);
 	c2_io_fop_destroy(&iofop->if_fop);

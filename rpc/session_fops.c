@@ -52,7 +52,6 @@ static void conn_establish_item_free(struct c2_rpc_item *item)
 	struct c2_rpc_fop_conn_establish_ctx *ctx;
 	struct c2_fop                        *fop;
 
-	c2_rpc_item_sm_fini(item);
 	c2_rpc_item_fini(item);
 	fop = c2_rpc_item_to_fop(item);
 	/** @todo free fop->f_data */
