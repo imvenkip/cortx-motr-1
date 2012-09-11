@@ -25,6 +25,7 @@
 #include "lib/errno.h"  /* ETIMEDOUT */
 #include "lib/arith.h"  /* C2_CNT_{INC,DEC} */
 #include "lib/bob.h"
+#include "lib/cookie.h"
 #include "sm/sm.h"
 
 #include "rm/rm.h"
@@ -36,8 +37,6 @@
  */
 uint64_t node_gencount;
 struct owner_invariant_state;
-extern int c2_cookie_remote_build(void *obj_ptr, struct c2_cookie *out);
-extern int c2_cookie_dereference(const struct c2_cookie *cookie, void **out);
 
 static void resource_get           (struct c2_rm_resource *res);
 static void resource_put           (struct c2_rm_resource *res);
@@ -435,6 +434,7 @@ void c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res,
 
 	owner_init_internal(owner, res);
 	owner->ro_creditor = creditor;
+	c2_cookie_new(&owner->ro_gen);
 
 	C2_POST(owner->ro_resource == res);
 
@@ -757,7 +757,8 @@ int c2_rm_loan_init(struct c2_rm_loan *loan,
 
 	loan->rl_other = right->ri_owner->ro_creditor;
 	loan->rl_id = 0;
-	c2_cookie_remote_build(loan, &loan->rl_cookie);
+	c2_cookie_new(&loan->rl_gen);
+	c2_cookie_init(&loan->rl_cookie, &loan->rl_gen);
 	c2_rm_right_init(&loan->rl_right, right->ri_owner);
 	c2_rm_loan_bob_init(loan);
 
@@ -861,7 +862,7 @@ int c2_rm_borrow_commit(struct c2_rm_remote_incoming *rem_in)
 	/*
 	 * Store loan cookie for reply processing.
 	 */
-	c2_rm_loan_cookie_get(loan, &rem_in->ri_loan_cookie);
+	c2_cookie_init(&rem_in->ri_loan_cookie, &loan->rl_gen);
 	C2_POST(owner_invariant(owner));
 	return rc;
 }
@@ -2085,56 +2086,6 @@ error:
 	return rc;
 }
 C2_EXPORTED(c2_rm_net_locate);
-
-/*
- * Gets the owner address from a cookie.
- *
- * @ret NULL - if cookie is stale
- *      pointer - if cookie is valid
- */
-struct c2_rm_owner *c2_rm_owner_find(const struct c2_cookie *cookie)
-{
-	struct c2_rm_owner *owner;
-	int		    rc;
-
-	C2_PRE(cookie != NULL);
-
-	rc = c2_cookie_dereference(cookie, (void **)&owner);
-	return rc ? NULL : owner;
-}
-C2_EXPORTED(c2_rm_owner_find);
-
-/*
- * Gets the loan address from a cookie.
- *
- * @ret NULL - if cookie is stale
- *      pointer - if cookie is valid
- */
-struct c2_rm_loan *c2_rm_loan_find(const struct c2_cookie *cookie)
-{
-	struct c2_rm_loan *loan;
-	int		   rc;
-
-	C2_PRE(cookie != NULL);
-
-	rc = c2_cookie_dereference(cookie, (void **)&loan);
-	return rc ? NULL : loan;
-}
-C2_EXPORTED(c2_rm_loan_find);
-
-void c2_rm_owner_cookie_get(const struct c2_rm_owner *owner,
-			    struct c2_cookie *cookie)
-{
-	c2_cookie_remote_build ((void *)owner, cookie);
-}
-C2_EXPORTED(c2_rm_owner_cookie);
-
-void c2_rm_loan_cookie_get(const struct c2_rm_loan *loan,
-		           struct c2_cookie *cookie)
-{
-	c2_cookie_remote_build ((void *)loan, cookie);
-}
-C2_EXPORTED(c2_rm_loan_cookie);
 
 int c2_rm_right_encode(const struct c2_rm_right *right,
 		       struct c2_buf *buf)
