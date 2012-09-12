@@ -103,17 +103,18 @@ ioservice_ut_SOURCES            := bulkio_client.c
 layout_SOURCES                  := layout.c pdclust.c
 
 lib_SOURCES                     := bitstring.c vec.c list.c queue.c refs.c     \
-                                   time.c bitmap.c chan.c misc.c buf.c cond.c  \
-                                   thread.c tlist.c bob.c trace.c finject.c
+                                   time.c bitmap.c chan.c cookie.c misc.c      \
+				   buf.c cond.c thread.c tlist.c bob.c trace.c \
+				   finject.c
 
 lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c   \
                                    kthread.c semaphore.c processor.c kvec.c    \
-                                   ktrace.c finject_init.c ut.c main.c
+                                   ktrace.c finject_init.c ut.c main.c kcookie.c
 
 lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c     \
                                    mutex.c queue.c refs.c tlist.c time.c       \
                                    vec.c zerovec.c thread.c bob.c trace.c      \
-                                   memory.c finject.c
+                                   memory.c finject.c cookie.c
 
 net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c     \
                                    tm.c net_otw_types.c tm_provision.c
