@@ -23,9 +23,10 @@
 #define __COLIBRI_RM_RM_INTERNAL_H__
 
 #include "lib/bob.h"
+#include "lib/cookie.h"
 
 /**
- * Created as a result of remote request which is either BORROW or REVOKE
+ * Created as a result of remote request which is either BORROW ro REVOKE
  * (and CANCEL in future).
  */
 struct c2_rm_remote_incoming {
@@ -98,29 +99,6 @@ int c2_rm_borrow_done(struct c2_rm_outgoing *out, struct c2_rm_loan *loan);
  */
 int c2_rm_revoke_done(struct c2_rm_outgoing *out);
 
-/**
- * Returns a cookie for a given owner.
- */
-void c2_rm_owner_cookie_get(const struct c2_rm_owner *o,
-			    struct c2_cookie *cake);
-
-/**
- * Returns a cookie for a given loan.
- */
-void c2_rm_loan_cookie_get(const struct c2_rm_loan *loan,
-			   struct c2_cookie *cake);
-
-/**
- * Returns the owner corresponding to a given cookie, or NULL when the cookie is
- * stale.
- */
-struct c2_rm_owner *c2_rm_owner_find(const struct c2_cookie *cake);
-
-/**
- * Returns the loan corresponding to a given cookie, or NULL when the cookie is
- * stale.
- */
-struct c2_rm_loan  *c2_rm_loan_find (const struct c2_cookie *cake);
 
 /**
  * Returns the owner locally managing the rights for a given resource.

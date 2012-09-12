@@ -239,7 +239,7 @@ static int reply_prepare(const enum c2_rm_incoming_type type,
 		 * Get the loan pointer for processing reply from the cookie.
 		 */
 		loan = c2_cookie_of(&rfom->rf_in.ri_loan_cookie,
-				    struct c2_rm_loan, rl_gen);
+				    struct c2_rm_loan, rl_id);
 
 		/*
 		 * Memory for the buffer is allocated by the function.
@@ -347,7 +347,7 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		 * don't proceed with the reovke processing.
 		 */
 		rfom->rf_in.ri_loan = c2_cookie_of(lcookie, struct c2_rm_loan,
-						   rl_gen);
+						   rl_id);
 		rc = rfom->rf_in.ri_loan ? 0: -EPROTO;
 		break;
 
@@ -358,8 +358,8 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 
 	if (rc != 0)
 		return rc;
-	owner = c2_cookie_of(&rfom->rf_in.ri_owner_cookie,
-			     struct c2_rm_owner, ro_gen);
+	owner = c2_cookie_of(&rfom->rf_in.ri_owner_cookie, struct c2_rm_owner,
+			     ro_id);
 	rc = owner ? 0 : -EPROTO;
 	if (rc == 0) {
 		in = &rfom->rf_in.ri_incoming;

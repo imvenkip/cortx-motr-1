@@ -915,7 +915,7 @@ struct c2_rm_owner {
 	/**
 	 * Generation count associated with a owner cookie.
 	 */
-	uint64_t	       ro_gen;
+	uint64_t	       ro_id;
 };
 
 enum {
@@ -949,10 +949,6 @@ struct c2_rm_loan {
 	struct c2_cookie     rl_cookie;
 	uint64_t             rl_id;
 	uint64_t             rl_magix;
-	/**
-	 * Generation count associated with a loan cookie
-	 */
-	uint64_t	     rl_gen;
 };
 
 /**

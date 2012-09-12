@@ -141,7 +141,7 @@ static int borrow_fop_fill(struct rm_out *outreq,
 	bfop->bo_creditor.ow_cookie.co_generation = cookie->co_generation;
 
 	/* Copy debtor cookie */
-	c2_cookie_init(&dcookie, &in->rin_want.ri_owner->ro_gen);
+	c2_cookie_init(&dcookie, &in->rin_want.ri_owner->ro_id);
 	bfop->bo_debtor.ow_cookie.co_addr = dcookie.co_addr;
 	bfop->bo_debtor.ow_cookie.co_generation = dcookie.co_generation;
 
@@ -180,8 +180,8 @@ static int revoke_fop_fill(struct rm_out *outreq,
 	rfop->rr_policy = in->rin_policy;
 	rfop->rr_flags = in->rin_flags;
 
-	/* Fetch the loan cookie and then copy it into the FOP */
-	c2_cookie_init(&lcookie, &loan->rl_gen);
+	/* Generate the loan cookie and then copy it into the FOP */
+	c2_cookie_init(&lcookie, &loan->rl_id);
 	rfop->rr_loan.lo_cookie.co_addr = lcookie.co_addr;
 	rfop->rr_loan.lo_cookie.co_generation = lcookie.co_generation;
 
@@ -314,7 +314,6 @@ static void borrow_reply(struct c2_rpc_item *item)
 		rc = c2_rm_loan_init(loan, bright);
 		rc = rc ?: bright->ri_ops->rro_copy(bright, right);
 
-		/* @todo - Process cookie */
 		loan->rl_cookie.co_addr =
 			borrow_reply->br_loan.lo_cookie.co_addr;
 		loan->rl_cookie.co_generation =

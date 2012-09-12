@@ -434,7 +434,7 @@ void c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res,
 
 	owner_init_internal(owner, res);
 	owner->ro_creditor = creditor;
-	c2_cookie_new(&owner->ro_gen);
+	c2_cookie_new(&owner->ro_id);
 
 	C2_POST(owner->ro_resource == res);
 
@@ -757,8 +757,7 @@ int c2_rm_loan_init(struct c2_rm_loan *loan,
 
 	loan->rl_other = right->ri_owner->ro_creditor;
 	loan->rl_id = 0;
-	c2_cookie_new(&loan->rl_gen);
-	c2_cookie_init(&loan->rl_cookie, &loan->rl_gen);
+	c2_cookie_new(&loan->rl_id);
 	c2_rm_right_init(&loan->rl_right, right->ri_owner);
 	c2_rm_loan_bob_init(loan);
 
@@ -862,7 +861,7 @@ int c2_rm_borrow_commit(struct c2_rm_remote_incoming *rem_in)
 	/*
 	 * Store loan cookie for reply processing.
 	 */
-	c2_cookie_init(&rem_in->ri_loan_cookie, &loan->rl_gen);
+	c2_cookie_init(&rem_in->ri_loan_cookie, &loan->rl_id);
 	C2_POST(owner_invariant(owner));
 	return rc;
 }
