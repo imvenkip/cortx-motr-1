@@ -190,7 +190,7 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 
 	rc = c2t1fs_connect_to_all_services(csb);
 	if (rc != 0)
-		goto pool_fini;
+		goto poolmach_fini;
 
 	rc = c2t1fs_container_location_map_init(&csb->csb_cl_map,
 						csb->csb_nr_containers);
@@ -230,7 +230,9 @@ out_map_fini:
 
 disconnect_all:
 	c2t1fs_disconnect_from_all_services(csb);
-
+poolmach_fini:
+	c2_poolmach_fini(csb->csb_pool.po_mach);
+	c2_free(csb->csb_pool.po_mach);
 pool_fini:
 	c2_pool_fini(&csb->csb_pool);
 
