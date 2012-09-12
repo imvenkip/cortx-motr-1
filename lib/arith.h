@@ -183,8 +183,8 @@ static inline uint64_t c2_align(uint64_t val, uint64_t alignment)
 	typeof(v0) __tmp = __a0;			\
 	(void)(&__a0 == &__a1);				\
 							\
-	(v0) = (v1);					\
-	(v1) = (__tmp);					\
+	(v0) = __a1;					\
+	(v1) = __tmp;					\
 })
 
 /** Decrements a counter checking for underflow. */
