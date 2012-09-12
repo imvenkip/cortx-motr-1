@@ -183,16 +183,29 @@ c2_time_t c2_net_test_stats_time_max(struct c2_net_test_stats *stats)
 	return unsigned_long2c2_time_t(c2_net_test_stats_max(stats));
 }
 
-void c2_net_test_timestamp_init(struct c2_net_test_timestamp *t)
+/**
+   @} end of NetTestStatsInternals group
+ */
+
+/**
+   @defgroup NetTestTimestampInternals Timestamp
+   @ingroup NetTestInternals
+
+   @{
+ */
+
+void c2_net_test_timestamp_init(struct c2_net_test_timestamp *t, uint64_t seq)
 {
 	C2_PRE(t != NULL);
 
+	t->ntt_seq   = seq;
 	t->ntt_magic = C2_NET_TEST_TIMESTAMP_MAGIC;
 	t->ntt_time  = c2_time_now();
 }
 
 TYPE_DESCR(c2_net_test_timestamp) = {
 	FIELD_DESCR(struct c2_net_test_timestamp, ntt_time),
+	FIELD_DESCR(struct c2_net_test_timestamp, ntt_seq),
 	FIELD_DESCR(struct c2_net_test_timestamp, ntt_magic),
 };
 
@@ -212,15 +225,8 @@ c2_bcount_t c2_net_test_timestamp_serialize(enum c2_net_test_serialize_op op,
 	       t->ntt_magic == C2_NET_TEST_TIMESTAMP_MAGIC ? len : 0 : len;
 }
 
-c2_time_t c2_net_test_timestamp_get(struct c2_net_test_timestamp *t)
-{
-	C2_PRE(t != NULL);
-
-	return t->ntt_time;
-}
-
 /**
-   @} end of NetTestStatsInternals group
+   @} end of NetTestTimestampInternals group
  */
 
 /**
@@ -231,7 +237,7 @@ c2_time_t c2_net_test_timestamp_get(struct c2_net_test_timestamp *t)
  */
 
 void c2_net_test_mps_init(struct c2_net_test_mps *mps,
-			  c2_bcount_t packets,
+			  uint64_t messages,
 			  c2_time_t timestamp,
 			  c2_time_t interval)
 {
@@ -239,16 +245,16 @@ void c2_net_test_mps_init(struct c2_net_test_mps *mps,
 
 	c2_net_test_stats_reset(&mps->ntmps_stats);
 
-	mps->ntmps_last_nr	 = packets;
+	mps->ntmps_last_nr	 = messages;
 	mps->ntmps_last_time     = timestamp;
 	mps->ntmps_time_interval = interval;
 }
 
 c2_time_t c2_net_test_mps_add(struct c2_net_test_mps *mps,
-			      c2_bcount_t packets,
+			      c2_bcount_t messages,
 			      c2_time_t timestamp)
 {
-	c2_bcount_t   packets_delta;
+	c2_bcount_t   messages_delta;
 	c2_time_t     time_delta;
 	c2_time_t     time_next;
 	uint64_t      time_delta_ns;
@@ -257,45 +263,45 @@ c2_time_t c2_net_test_mps_add(struct c2_net_test_mps *mps,
 	unsigned long M;
 
 	C2_PRE(mps != NULL);
-	C2_PRE(packets >= mps->ntmps_last_nr);
+	C2_PRE(messages >= mps->ntmps_last_nr);
 	C2_PRE(c2_time_after_eq(timestamp, mps->ntmps_last_time));
 
-	packets_delta = packets - mps->ntmps_last_nr;
+	messages_delta = messages - mps->ntmps_last_nr;
 	time_delta  = c2_time_sub(timestamp, mps->ntmps_last_time);
 	time_next   = c2_time_add(timestamp, mps->ntmps_time_interval);
 
 	if (!c2_time_after_eq(timestamp, time_next))
 		return time_next;
 
-	mps->ntmps_last_nr = packets;
+	mps->ntmps_last_nr = messages;
 	/** @todo problem with small mps->ntmps_time_interval can be here */
 	mps->ntmps_last_time  = time_next;
 
 	time_delta_ns = c2_time_seconds(time_delta) * C2_TIME_ONE_BILLION +
 			c2_time_nanoseconds(time_delta);
 	/*
-	   To measure bandwidth in packets/sec it needs to be calculated
-	   (packets_delta / time_delta_ns) * 1'000'000'000 =
-	   (packets_delta * 1'000'000'000) / time_delta_ns =
-	   ((packets_delta * (10^M)) / time_delta_ns) * (10^(9-M)),
+	   To measure bandwidth in messages/sec it needs to be calculated
+	   (messages_delta / time_delta_ns) * 1'000'000'000 =
+	   (messages_delta * 1'000'000'000) / time_delta_ns =
+	   ((messages_delta * (10^M)) / time_delta_ns) * (10^(9-M)),
 	   where M is some parameter. To perform integer division M
 	   should be maximized in range [0, 9] - in case if M < 9
 	   there is a loss of precision.
 	 */
-	if (C2_BCOUNT_MAX / C2_TIME_ONE_BILLION > packets_delta) {
+	if (C2_BCOUNT_MAX / C2_TIME_ONE_BILLION > messages_delta) {
 		/* simple case. M = 9 */
-		m_per_sec = packets_delta * C2_TIME_ONE_BILLION / time_delta_ns;
+		m_per_sec = messages_delta * C2_TIME_ONE_BILLION / time_delta_ns;
 	} else {
 		/* harder case. M is in range [0, 9) */
 		M_10 = 1;
 		for (M = 0; M < 8; ++M) {
-			if (C2_BCOUNT_MAX / (M_10 * 10) > packets_delta)
+			if (C2_BCOUNT_MAX / (M_10 * 10) > messages_delta)
 				M_10 *= 10;
 			else
 				break;
 		}
 		/* M is maximized */
-		m_per_sec = (packets_delta * M_10 / time_delta_ns) *
+		m_per_sec = (messages_delta * M_10 / time_delta_ns) *
 			    (C2_TIME_ONE_BILLION / M_10);
 	}
 	c2_net_test_stats_add(&mps->ntmps_stats, m_per_sec);
@@ -322,7 +328,6 @@ void c2_net_test_msg_nr_add(struct c2_net_test_msg_nr *msg_nr,
 
 	msg_nr->ntmn_total   += msg_nr2->ntmn_total;
 	msg_nr->ntmn_failed  += msg_nr2->ntmn_failed;
-	msg_nr->ntmn_retries += msg_nr2->ntmn_retries;
 }
 
 /**

@@ -82,7 +82,6 @@ TYPE_DESCR(c2_net_test_cmd_init) = {
 TYPE_DESCR(c2_net_test_msg_nr) = {
 	FIELD_DESCR(struct c2_net_test_msg_nr, ntmn_total),
 	FIELD_DESCR(struct c2_net_test_msg_nr, ntmn_failed),
-	FIELD_DESCR(struct c2_net_test_msg_nr, ntmn_retries),
 };
 
 /* c2_net_test_cmd_status_data_descr */
@@ -222,26 +221,6 @@ cmd_ctx_extract(struct c2_net_test_network_ctx *net_ctx)
 	C2_PRE(net_ctx != NULL);
 
 	return container_of(net_ctx, struct c2_net_test_cmd_ctx, ntcc_net);
-}
-
-/**
-   Search for ep_addr in c2_net_test_cmd_ctx.ntcc_net->ntc_ep
-   This function have time complexity
-   of O(number of endpoints in the network context).
-   @return >= 0 endpoint index
-   @return -1 endpoint not found
- */
-static ssize_t ep_search(struct c2_net_test_cmd_ctx *ctx, const char *ep_addr)
-{
-	struct c2_net_end_point **ep_arr = ctx->ntcc_net.ntc_ep;
-	size_t			  ep_nr = ctx->ntcc_net.ntc_ep_nr;
-	size_t			  i;
-	size_t			  addr_len = strlen(ep_addr) + 1;
-
-	for (i = 0; i < ep_nr; ++i)
-		if (strncmp(ep_addr, ep_arr[i]->nep_addr, addr_len) == 0)
-			return i;
-	return -1;
 }
 
 static void commands_tm_event_cb(const struct c2_net_tm_event *ev)
@@ -555,7 +534,8 @@ int c2_net_test_commands_recv(struct c2_net_test_cmd_ctx *ctx,
 
 	/* set c2_net_test_cmd.ntc_ep_index and release endpoint */
 	ep = ctx->ntcc_buf_status[buf_index].ntcbs_ep;
-	cmd->ntc_ep_index = ep_search(ctx, ep->nep_addr);
+	cmd->ntc_ep_index = c2_net_test_network_ep_search(&ctx->ntcc_net,
+							  ep->nep_addr);
 	c2_net_end_point_put(ep);
 
 	/* set c2_net_test_cmd.ntc_buf_index */

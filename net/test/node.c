@@ -730,14 +730,6 @@ void c2_net_test_node_stop(struct c2_net_test_node_ctx *ctx)
 	c2_thread_fini(&ctx->ntnc_thread);
 }
 
-struct c2_net_test_node_ctx
-*c2_net_test_node_ctx_from_net_ctx(struct c2_net_test_network_ctx *net_ctx)
-{
-	return (struct c2_net_test_node_ctx *)
-	       ((char *) net_ctx -
-                offsetof(struct c2_net_test_node_ctx, ntnc_net));
-}
-
 /**
    @} end NetTestNodeInternals group
  */

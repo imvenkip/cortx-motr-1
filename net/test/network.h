@@ -294,9 +294,23 @@ void c2_net_test_network_buf_fill(struct c2_net_test_network_ctx *ctx,
 				  uint32_t buf_index,
 				  uint8_t fill);
 
+/** Accessor for endpoints by index. */
+struct c2_net_end_point *
+c2_net_test_network_ep(struct c2_net_test_network_ctx *ctx, size_t ep_index);
+
+/**
+   Search for ep_addr in c2_net_test_network_ctx.ntc_ep
+   This function have time complexity
+   of O(number of endpoints in the network context).
+   @return >= 0 endpoint index
+   @return -1 endpoint not found
+ */
+ssize_t c2_net_test_network_ep_search(struct c2_net_test_network_ctx *ctx,
+				      const char *ep_addr);
+
 /**
    Return c2_net_test_network_timeouts, filled with C2_TIME_NEVER.
-   Useful because of C2_TIME_NEVER declared as "extern const".
+   Useful because C2_TIME_NEVER is declared as "extern const".
  */
 struct c2_net_test_network_timeouts c2_net_test_network_timeouts_never(void);
 

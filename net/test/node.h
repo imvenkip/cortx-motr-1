@@ -225,12 +225,8 @@ struct c2_net_test_node_cfg {
 struct c2_net_test_node_ctx {
 	/** Commands context. Connected to the test console. */
 	struct c2_net_test_cmd_ctx     ntnc_cmd;
-	/** Network context for testing */
-	struct c2_net_test_network_ctx ntnc_net;
 	/** Test service */
 	struct c2_net_test_service    *ntnc_svc;
-	/** Service private data. Set and used in service implementations. */
-	void			      *ntnc_svc_private;
 	/** Node thread */
 	struct c2_thread	       ntnc_thread;
 	/**
@@ -284,13 +280,6 @@ int c2_net_test_node_start(struct c2_net_test_node_ctx *ctx);
    @see @ref net-test-lspec
  */
 void c2_net_test_node_stop(struct c2_net_test_node_ctx *ctx);
-
-/**
-   Get c2_net_test_node_ctx from c2_net_test_network_ctx.
-   Useful in the network buffer callbacks.
- */
-struct c2_net_test_node_ctx
-*c2_net_test_node_ctx_from_net_ctx(struct c2_net_test_network_ctx *net_ctx);
 
 /**
    @} end of NetTestNodeDFS group

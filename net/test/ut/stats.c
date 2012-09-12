@@ -40,6 +40,7 @@ enum {
 	STATS_BUF_LEN	  = 0x100,
 	STATS_BUF_OFFSET  = 42,
 	TIMESTAMP_BUF_LEN = 0x10,
+	TIMESTAMP_SEQ	  = 123456,
 };
 
 struct stats_expected {
@@ -289,12 +290,13 @@ void c2_net_test_timestamp_ut(void)
 	struct c2_bufvec	     bv = C2_BUFVEC_INIT_BUF(&bv_addr, &bv_len);
 
 	before = c2_time_now();
-	c2_net_test_timestamp_init(&ts);
+	c2_net_test_timestamp_init(&ts, TIMESTAMP_SEQ);
 	after = c2_time_now();
 
 	C2_UT_ASSERT(c2_time_after_eq(ts.ntt_time, before));
 	C2_UT_ASSERT(c2_time_after_eq(after, ts.ntt_time));
 	C2_UT_ASSERT(ts.ntt_magic == C2_NET_TEST_TIMESTAMP_MAGIC);
+	C2_UT_ASSERT(ts.ntt_seq == TIMESTAMP_SEQ);
 
 	serialized_len = c2_net_test_timestamp_serialize(C2_NET_TEST_SERIALIZE,
 							 &ts, &bv, 0);
@@ -306,6 +308,7 @@ void c2_net_test_timestamp_ut(void)
 	C2_UT_ASSERT(c2_time_after_eq(ts.ntt_time, ts1.ntt_time) &&
 		     c2_time_after_eq(ts1.ntt_time, ts.ntt_time));
 	C2_UT_ASSERT(ts1.ntt_magic == ts.ntt_magic);
+	C2_UT_ASSERT(ts1.ntt_seq == ts.ntt_seq);
 }
 
 /*

@@ -31,14 +31,13 @@ enum {
 	SERVICE_ITERATIONS_NR	= 0x1000,
 };
 
-static struct c2_net_test_node_ctx service_ut_node_ctx;
-static struct c2_net_test_cmd	   service_cmd;
-static struct c2_net_test_cmd	   service_reply;
-static bool			   service_init_called;
-static bool			   service_fini_called;
-static bool			   service_step_called;
-static bool			   service_cmd_called[C2_NET_TEST_CMD_NR];
-static int			   service_cmd_errno;
+static struct c2_net_test_cmd service_cmd;
+static struct c2_net_test_cmd service_reply;
+static bool		      service_init_called;
+static bool		      service_fini_called;
+static bool		      service_step_called;
+static bool		      service_cmd_called[C2_NET_TEST_CMD_NR];
+static int		      service_cmd_errno;
 
 static bool *service_func_called[] = {
 	&service_init_called,

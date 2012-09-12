@@ -190,25 +190,33 @@ c2_time_t c2_net_test_stats_time_min(struct c2_net_test_stats *stats);
 c2_time_t c2_net_test_stats_time_max(struct c2_net_test_stats *stats);
 
 /**
-   Timestamp.
+   @} end of NetTestStatsDFS group
+ */
+
+/**
+   @defgroup NetTestTimestampDFS Timestamp
+   @ingroup NetTestDFS
+
    Used to transmit c2_time_t value in ping/bulk buffers.
-   @see c2_net_test_timestamp_init(), c2_net_test_timestamp_serialize(),
-   c2_net_test_timestamp_get().
-   @todo create net/test/timestamp.[ch] and net/test/ut/timestamp.c
+   @see c2_net_test_timestamp_init(), c2_net_test_timestamp_serialize().
  */
 struct c2_net_test_timestamp {
 	/** Current time. Set in c2_net_test_timestamp_init() */
 	c2_time_t ntt_time;
+	/** Sequence number. */
+	uint64_t  ntt_seq;
 	/** Magic. Checked when deserializing. */
 	uint64_t  ntt_magic;
 };
 
 /**
    Initialize timestamp.
-   Set timestamp time to c2_time_now().
+   Set c2_net_test_timestamp.ntt_time to c2_time_now().
+   @param t timestamp structure
+   @param seq sequence number
    @pre t != NULL
  */
-void c2_net_test_timestamp_init(struct c2_net_test_timestamp *t);
+void c2_net_test_timestamp_init(struct c2_net_test_timestamp *t, uint64_t seq);
 
 /**
    Serialize/deserialize timestamp.
@@ -219,21 +227,14 @@ c2_bcount_t c2_net_test_timestamp_serialize(enum c2_net_test_serialize_op op,
 					    struct c2_net_test_timestamp *t,
 					    struct c2_bufvec *bv,
 					    c2_bcount_t bv_offset);
-/**
-   Get time from timestamp.
-   @pre t != NULL
- */
-c2_time_t c2_net_test_timestamp_get(struct c2_net_test_timestamp *t);
 
 /**
-   @} end of NetTestStatsDFS group
+   @} end of NetTestTimestampDFS group
  */
 
 /**
    @defgroup NetTestStatsMPSDFS Messages Per Second Statistics
    @ingroup NetTestDFS
-
-   @todo XXX FIXME adjust doc, s/packets/messages/g
 
    @see
    @ref net-test
@@ -245,8 +246,8 @@ c2_time_t c2_net_test_timestamp_get(struct c2_net_test_timestamp *t);
 struct c2_net_test_mps {
 	/** Statistics */
 	struct c2_net_test_stats ntmps_stats;
-	/** Last check number of packets */
-	c2_bcount_t		 ntmps_last_nr;
+	/** Last check number of messages */
+	uint64_t		 ntmps_last_nr;
 	/** Last check time */
 	c2_time_t		 ntmps_last_time;
 	/** Time interval to check */
@@ -256,17 +257,17 @@ struct c2_net_test_mps {
 /**
    Initialize MPS statistics.
    @param mps MPS statistics structure.
-   @param packets Next call to c2_net_test_mps_add() will use
-		  this value as previous value to measure number of messages
-		  transferred in time interval.
-   @param timestamp The same as packets, but for time difference.
+   @param messages Next call to c2_net_test_mps_add() will use
+		   this value as previous value to measure number of messages
+		   transferred in time interval.
+   @param timestamp The same as messages, but for time difference.
    @param interval MPS measure interval.
 		   c2_net_test_mps_add() will not add sample
 		   to stats if time from last addition to statistics
 		   is less than interval.
  */
 void c2_net_test_mps_init(struct c2_net_test_mps *mps,
-			  c2_bcount_t packets,
+			  uint64_t messages,
 			  c2_time_t timestamp,
 			  c2_time_t interval);
 
@@ -274,15 +275,15 @@ void c2_net_test_mps_init(struct c2_net_test_mps *mps,
    Add sample to the MPS statistics if time interval
    [mps->ntmps_last_time, timestamp] is greater than mps->ntmps_interval.
    This function will use previous call (or initializer) parameters to
-   calculate MPS: number of packets [mps->ntmps_last_nr, packets]
+   calculate MPS: number of messages [mps->ntmps_last_nr, messages]
    in the time range [mps->ntmps_last_time, timestamp].
    @param mps MPS statistics structure.
-   @param packets Total number of packets transferred.
-   @param timestamp Timestamp of packets value.
+   @param messages Total number of messages transferred.
+   @param timestamp Timestamp of messages value.
    @return Value will not be added to the sample before this time.
  */
 c2_time_t c2_net_test_mps_add(struct c2_net_test_mps *mps,
-			      c2_bcount_t packets,
+			      c2_bcount_t messages,
 			      c2_time_t timestamp);
 
 /**
@@ -302,8 +303,6 @@ struct c2_net_test_msg_nr {
 	size_t ntmn_total;
 	/** Number of failed test messages */
 	size_t ntmn_failed;
-	/** Number of retries */
-	size_t ntmn_retries;
 };
 
 /**

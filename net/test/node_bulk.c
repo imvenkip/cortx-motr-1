@@ -26,6 +26,7 @@
 
 #include "net/test/network.h"	/* c2_net_test_network_ctx */
 #include "net/test/node.h"	/* c2_net_test_node_ctx */
+#include "net/test/service.h"	/* c2_net_test_service */
 
 #include "net/test/node_bulk.h"
 
@@ -64,49 +65,51 @@ struct c2_net_test_network_buffer_callbacks node_bulk_buf_cb = {
 	}
 };
 
-static int node_bulk_init_fini(struct c2_net_test_node_ctx *node_ctx, bool init)
+static void *node_bulk_init_fini(struct c2_net_test_service *svc,
+				 void *ctx_,
+				 bool init)
+{
+	return NULL;
+}
+
+static void *node_bulk_init(struct c2_net_test_service *svc)
+{
+	return node_bulk_init_fini(svc, NULL, true);
+}
+
+static void node_bulk_fini(void *ctx_)
+{
+	void *rc = node_bulk_init_fini(NULL, ctx_, false);
+	C2_POST(rc == NULL);
+}
+
+static int node_bulk_step(void *ctx_)
 {
 	return -ENOSYS;
 }
 
-static int node_bulk_init(struct c2_net_test_node_ctx *node_ctx)
-{
-	return node_bulk_init_fini(node_ctx, true);
-}
-
-static void node_bulk_fini(struct c2_net_test_node_ctx *node_ctx)
-{
-	int rc = node_bulk_init_fini(node_ctx, false);
-	C2_POST(rc == 0);
-}
-
-static int node_bulk_step(struct c2_net_test_node_ctx *node_ctx)
-{
-	return -ENOSYS;
-}
-
-static int node_bulk_cmd_init(struct c2_net_test_node_ctx *node_ctx,
+static int node_bulk_cmd_init(void *ctx_,
 			      const struct c2_net_test_cmd *cmd,
 			      struct c2_net_test_cmd *reply)
 {
 	return -ENOSYS;
 }
 
-static int node_bulk_cmd_start(struct c2_net_test_node_ctx *node_ctx,
-				 const struct c2_net_test_cmd *cmd,
-				 struct c2_net_test_cmd *reply)
+static int node_bulk_cmd_start(void *ctx,
+			       const struct c2_net_test_cmd *cmd,
+			       struct c2_net_test_cmd *reply)
 {
 	return -ENOSYS;
 }
 
-static int node_bulk_cmd_stop(struct c2_net_test_node_ctx *node_ctx,
-				const struct c2_net_test_cmd *cmd,
-			        struct c2_net_test_cmd *reply)
+static int node_bulk_cmd_stop(void *ctx,
+			      const struct c2_net_test_cmd *cmd,
+			      struct c2_net_test_cmd *reply)
 {
 	return -ENOSYS;
 }
 
-static int node_bulk_cmd_status(struct c2_net_test_node_ctx *node_ctx,
+static int node_bulk_cmd_status(void *ctx,
 				const struct c2_net_test_cmd *cmd,
 				struct c2_net_test_cmd *reply)
 {

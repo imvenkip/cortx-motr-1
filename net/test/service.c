@@ -79,24 +79,21 @@ static bool state_transition[C2_NET_TEST_SERVICE_NR][C2_NET_TEST_SERVICE_NR] = {
 };
 
 int c2_net_test_service_init(struct c2_net_test_service *svc,
-			     struct c2_net_test_node_ctx *node_ctx,
 			     struct c2_net_test_service_ops *ops)
 {
 	C2_PRE(svc != NULL);
-	C2_PRE(node_ctx != NULL);
 	C2_PRE(ops != NULL);
 
 	C2_SET0(svc);
-	node_ctx->ntnc_svc = svc;
-	svc->nts_node_ctx  = node_ctx;
-	svc->nts_ops	   = ops;
+	svc->nts_ops = ops;
 
-	svc->nts_errno = svc->nts_ops->ntso_init(svc->nts_node_ctx);
-	if (svc->nts_errno == 0)
+	svc->nts_svc_ctx = svc->nts_ops->ntso_init(svc);
+	if (svc->nts_svc_ctx != NULL)
 		c2_net_test_service_state_change(svc,
 				C2_NET_TEST_SERVICE_READY);
 
-	C2_POST(ergo(svc->nts_errno == 0, c2_net_test_service_invariant(svc)));
+	C2_POST(ergo(svc->nts_svc_ctx != NULL,
+		     c2_net_test_service_invariant(svc)));
 
 	return svc->nts_errno;
 }
@@ -106,7 +103,7 @@ void c2_net_test_service_fini(struct c2_net_test_service *svc)
 	C2_PRE(c2_net_test_service_invariant(svc));
 	C2_PRE(svc->nts_state != C2_NET_TEST_SERVICE_UNINITIALIZED);
 
-	svc->nts_ops->ntso_fini(svc->nts_node_ctx);
+	svc->nts_ops->ntso_fini(svc->nts_svc_ctx);
 	c2_net_test_service_state_change(svc,
 			C2_NET_TEST_SERVICE_UNINITIALIZED);
 }
@@ -125,7 +122,7 @@ int c2_net_test_service_step(struct c2_net_test_service *svc)
 	C2_PRE(c2_net_test_service_invariant(svc));
 	C2_PRE(svc->nts_state == C2_NET_TEST_SERVICE_READY);
 
-	svc->nts_errno = svc->nts_ops->ntso_step(svc->nts_node_ctx);
+	svc->nts_errno = svc->nts_ops->ntso_step(svc->nts_svc_ctx);
 	if (svc->nts_errno != 0)
 		c2_net_test_service_state_change(svc,
 				C2_NET_TEST_SERVICE_FAILED);
@@ -151,7 +148,7 @@ int c2_net_test_service_cmd_handle(struct c2_net_test_service *svc,
 		handler = &svc->nts_ops->ntso_cmd_handler[i];
 		if (handler->ntsch_type == cmd->ntc_type) {
 			svc->nts_errno = handler->ntsch_handler(
-					 svc->nts_node_ctx, cmd, reply);
+					 svc->nts_svc_ctx, cmd, reply);
 			break;
 		}
 	}

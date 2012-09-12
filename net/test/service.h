@@ -50,7 +50,7 @@ struct c2_net_test_service_cmd_handler {
 	/** Command type to handle */
 	enum c2_net_test_cmd_type ntsch_type;
 	/** Handler */
-	int (*ntsch_handler)(struct c2_net_test_node_ctx *ctx,
+	int (*ntsch_handler)(void *ctx,
 			     const struct c2_net_test_cmd *cmd,
 			     struct c2_net_test_cmd *reply);
 };
@@ -71,12 +71,12 @@ enum c2_net_test_service_state {
 
 /** Service operations */
 struct c2_net_test_service_ops {
-	/** Service initializer. */
-	int  (*ntso_init)(struct c2_net_test_node_ctx *ctx);
+	/** Service initializer. Returns NULL on failure. */
+	void *(*ntso_init)(struct c2_net_test_service *svc);
 	/** Service finalizer. */
-	void (*ntso_fini)(struct c2_net_test_node_ctx *ctx);
+	void (*ntso_fini)(void *ctx);
 	/** Take on step. Executed if no commands received. */
-	int  (*ntso_step)(struct c2_net_test_node_ctx *ctx);
+	int  (*ntso_step)(void *ctx);
 	/** Command handlers. */
 	struct c2_net_test_service_cmd_handler *ntso_cmd_handler;
 	/** Number of command handlers. */
@@ -85,8 +85,8 @@ struct c2_net_test_service_ops {
 
 /** Service state machine */
 struct c2_net_test_service {
-	/** Test node context. It will be passed to the service ops */
-	struct c2_net_test_node_ctx    *nts_node_ctx;
+	/** Test service context. It will be passed to the service ops */
+	void			       *nts_svc_ctx;
 	/** Service operations */
 	struct c2_net_test_service_ops *nts_ops;
 	/** Service state */

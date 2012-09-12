@@ -778,6 +778,27 @@ void c2_net_test_network_buf_fill(struct c2_net_test_network_ctx *ctx,
 	C2_ASSERT(rc_bool);
 }
 
+struct c2_net_end_point *
+c2_net_test_network_ep(struct c2_net_test_network_ctx *ctx, size_t ep_index)
+{
+	C2_PRE(c2_net_test_network_ctx_invariant(ctx));
+	C2_PRE(ep_index < ctx->ntc_ep_nr);
+
+	return ctx->ntc_ep[ep_index];
+}
+
+ssize_t c2_net_test_network_ep_search(struct c2_net_test_network_ctx *ctx,
+				      const char *ep_addr)
+{
+	size_t addr_len = strlen(ep_addr) + 1;
+	size_t i;
+
+	for (i = 0; i < ctx->ntc_ep_nr; ++i)
+		if (strncmp(ep_addr, ctx->ntc_ep[i]->nep_addr, addr_len) == 0)
+			return i;
+	return -1;
+}
+
 struct c2_net_test_network_timeouts c2_net_test_network_timeouts_never(void)
 {
 	struct c2_net_test_network_timeouts result;
