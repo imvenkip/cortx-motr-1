@@ -137,13 +137,13 @@ static int borrow_fop_fill(struct rm_out *outreq,
 
 	/* Copy creditor cookie */
 	cookie = &in->rin_want.ri_owner->ro_creditor->rem_cookie;
-	bfop->bo_creditor.ow_cookie.co_hi = cookie->cv.u_hi;
-	bfop->bo_creditor.ow_cookie.co_lo = cookie->cv.u_lo;
+	bfop->bo_creditor.ow_cookie.co_addr = cookie->co_addr;
+	bfop->bo_creditor.ow_cookie.co_generation = cookie->co_generation;
 
 	/* Copy debtor cookie */
-	c2_rm_owner_cookie_get(in->rin_want.ri_owner, &dcookie);
-	bfop->bo_debtor.ow_cookie.co_hi = dcookie.cv.u_hi;
-	bfop->bo_debtor.ow_cookie.co_lo = dcookie.cv.u_lo;
+	c2_cookie_init(&dcookie, &in->rin_want.ri_owner->ro_id);
+	bfop->bo_debtor.ow_cookie.co_addr = dcookie.co_addr;
+	bfop->bo_debtor.ow_cookie.co_generation = dcookie.co_generation;
 
 	/*
 	 * Encode right into the BORROW FOP.
@@ -180,18 +180,18 @@ static int revoke_fop_fill(struct rm_out *outreq,
 	rfop->rr_policy = in->rin_policy;
 	rfop->rr_flags = in->rin_flags;
 
-	/* Fetch the loan cookie and then copy it into the FOP */
-	c2_rm_loan_cookie_get(loan, &lcookie);
-	rfop->rr_loan.lo_cookie.co_hi = lcookie.cv.u_hi;
-	rfop->rr_loan.lo_cookie.co_lo = lcookie.cv.u_lo;
+	/* Generate the loan cookie and then copy it into the FOP */
+	c2_cookie_init(&lcookie, &loan->rl_id);
+	rfop->rr_loan.lo_cookie.co_addr = lcookie.co_addr;
+	rfop->rr_loan.lo_cookie.co_generation = lcookie.co_generation;
 
 	/*
 	 * Fill up the debtor cookie so that the other end can identify
 	 * its owner structure.
 	 */
 	ocookie = &loan->rl_other->rem_cookie;
-	rfop->rr_debtor.ow_cookie.co_hi = ocookie->cv.u_hi;
-	rfop->rr_debtor.ow_cookie.co_lo = ocookie->cv.u_lo;
+	rfop->rr_debtor.ow_cookie.co_addr = ocookie->co_addr;
+	rfop->rr_debtor.ow_cookie.co_generation = ocookie->co_generation;
 
 	/*
 	 * Encode rights data into REVOKE FOP
@@ -314,9 +314,10 @@ static void borrow_reply(struct c2_rpc_item *item)
 		rc = c2_rm_loan_init(loan, bright);
 		rc = rc ?: bright->ri_ops->rro_copy(bright, right);
 
-		/* @todo - Process cookie */
-		loan->rl_cookie.cv.u_hi = borrow_reply->br_loan.lo_cookie.co_hi;
-		loan->rl_cookie.cv.u_lo = borrow_reply->br_loan.lo_cookie.co_lo;
+		loan->rl_cookie.co_addr =
+			borrow_reply->br_loan.lo_cookie.co_addr;
+		loan->rl_cookie.co_generation =
+			borrow_reply->br_loan.lo_cookie.co_generation;
 
 		if (rc == 0) {
 			c2_mutex_lock(&owner->ro_lock);
@@ -439,23 +440,6 @@ int c2_rm_fop_init(void)
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY);
 }
 C2_EXPORTED(c2_rm_fop_init);
-
-/*
- * @todo - Stubs. Remove later.
- */
-int c2_cookie_remote_build(void *obj_ptr, struct c2_cookie *out)
-{
-	out->cv.u_hi = (uint64_t) obj_ptr;
-	return 0;
-}
-
-int c2_cookie_dereference(const struct c2_cookie *cookie, void **out)
-{
-	C2_PRE(out != NULL);
-
-	*out = (void *)cookie->cv.u_hi;
-	return 0;
-}
 
 /*
  *  Local variables:

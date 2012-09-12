@@ -19,6 +19,7 @@
  */
 
 #include "lib/chan.h"
+#include "lib/cookie.h"
 #include "lib/errno.h"
 #include "lib/list.h"
 #include "lib/memory.h"
@@ -205,7 +206,7 @@ static size_t rm_locality(const struct c2_fom *fom)
 	struct rm_request_fom *rfom;
 
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
-	return (size_t)(rfom->rf_in.ri_owner_cookie.cv.u_lo >> 32);
+	return (size_t)(rfom->rf_in.ri_owner_cookie.co_generation >> 32);
 }
 
 /*
@@ -228,16 +229,17 @@ static int reply_prepare(const enum c2_rm_incoming_type type,
 	switch (type) {
 	case C2_RIT_BORROW:
 		bfop = c2_fop_data(fom->fo_rep_fop);
-		bfop->br_loan.lo_cookie.co_hi =
-		rfom->rf_in.ri_loan_cookie.cv.u_hi;
-		bfop->br_loan.lo_cookie.co_lo
-		= rfom->rf_in.ri_loan_cookie.cv.u_lo;
+		bfop->br_loan.lo_cookie.co_addr =
+			rfom->rf_in.ri_loan_cookie.co_addr;
+		bfop->br_loan.lo_cookie.co_generation =
+			rfom->rf_in.ri_loan_cookie.co_generation;
 
 		/*
 		 * The loan is consumed by c2_rm_borrow_commit().
 		 * Get the loan pointer for processing reply from the cookie.
 		 */
-		loan = c2_rm_loan_find(&rfom->rf_in.ri_loan_cookie);
+		loan = c2_cookie_of(&rfom->rf_in.ri_loan_cookie,
+				    struct c2_rm_loan, rl_id);
 
 		/*
 		 * Memory for the buffer is allocated by the function.
@@ -307,8 +309,9 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		 * This is used later by rm_locality().
 		 */
 		ccookie = &rfom->rf_in.ri_owner_cookie;
-		ccookie->cv.u_hi = bfop->bo_creditor.ow_cookie.co_hi;
-		ccookie->cv.u_lo = bfop->bo_creditor.ow_cookie.co_lo;
+                ccookie->co_addr = bfop->bo_creditor.ow_cookie.co_addr;
+                ccookie->co_generation =
+			bfop->bo_creditor.ow_cookie.co_generation;
 		/*
 		 * Populate the owner cookie for debtor (remote end).
 		 * (for loan->rl_other->rm_cookie).
@@ -330,19 +333,21 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		 * This is used later by rm_locality().
 		 */
 		dcookie = &rfom->rf_in.ri_owner_cookie;
-		dcookie->cv.u_hi = rfop->rr_debtor.ow_cookie.co_hi;
-		dcookie->cv.u_lo = rfop->rr_debtor.ow_cookie.co_lo;
+		dcookie->co_addr = rfop->rr_debtor.ow_cookie.co_addr;
+		dcookie->co_generation =
+			rfop->rr_debtor.ow_cookie.co_generation;
 		/*
 		 * Populate the loan cookie.
 		 */
 		lcookie = &rfom->rf_in.ri_loan_cookie;
-		lcookie->cv.u_hi = rfop->rr_loan.lo_cookie.co_hi;
-		lcookie->cv.u_lo = rfop->rr_loan.lo_cookie.co_lo;
+		lcookie->co_addr = rfop->rr_loan.lo_cookie.co_addr;
+		lcookie->co_generation = rfop->rr_loan.lo_cookie.co_generation;
 		/*
 		 * Check if the loan cookie stale. If the cookie is stale
 		 * don't proceed with the reovke processing.
 		 */
-		rfom->rf_in.ri_loan = c2_rm_loan_find(lcookie);
+		rfom->rf_in.ri_loan = c2_cookie_of(lcookie, struct c2_rm_loan,
+						   rl_id);
 		rc = rfom->rf_in.ri_loan ? 0: -EPROTO;
 		break;
 
@@ -353,8 +358,8 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 
 	if (rc != 0)
 		return rc;
-
-	owner = c2_rm_owner_find(&rfom->rf_in.ri_owner_cookie);
+	owner = c2_cookie_of(&rfom->rf_in.ri_owner_cookie, struct c2_rm_owner,
+			     ro_id);
 	rc = owner ? 0 : -EPROTO;
 	if (rc == 0) {
 		in = &rfom->rf_in.ri_incoming;
@@ -460,8 +465,8 @@ static int rm_borrow_fom_tick(struct c2_fom *fom)
 	if (fom->fo_phase < C2_FOPH_NR)
 		rc = c2_fom_tick_generic(fom);
 	else {
-		C2_PRE(C2_IN(fom->fo_phase,
-			     (FOPH_RM_BORROW, FOPH_RM_BORROW_WAIT)));
+		C2_PRE(fom->fo_phase == FOPH_RM_BORROW ||
+		       fom->fo_phase == FOPH_RM_BORROW_WAIT);
 
 		if (fom->fo_phase == FOPH_RM_BORROW)
 			rc = request_pre_process(fom, C2_RIT_BORROW,
@@ -490,8 +495,8 @@ static int rm_revoke_fom_tick(struct c2_fom *fom)
 	if (fom->fo_phase < C2_FOPH_NR)
 		rc = c2_fom_tick_generic(fom);
 	else {
-		C2_PRE(C2_IN(fom->fo_phase,
-			     (FOPH_RM_REVOKE, FOPH_RM_REVOKE_WAIT)));
+		C2_PRE(fom->fo_phase == FOPH_RM_REVOKE ||
+		       fom->fo_phase == FOPH_RM_REVOKE_WAIT);
 
 		if (fom->fo_phase == FOPH_RM_REVOKE)
 			rc = request_pre_process(fom, C2_RIT_REVOKE,

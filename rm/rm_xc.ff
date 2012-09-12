@@ -56,8 +56,8 @@
  *
  */
 record {
-	u64 co_hi;
-	u64 co_lo
+	u64 co_addr;
+	u64 co_generation
 } c2_fop_rm_cookie;
 
 sequence {
