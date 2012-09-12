@@ -129,11 +129,11 @@
   outgoing buffer pools (c2_sns_repair_cm::rc_ibp and ::rc_obp) and cobfid_map.
   Both the buffer pools are initialised with colours equal to total number of
   localities in the request handler.
-  Once the cm_setup() is sucessfull, the copy machine transitions to C2_CMS_IDLE
-  state and waits until failure happens. As mentioned in the HLD, failure
-  information is a broadcast to all the replicas in the cluster using TRIGGER
-  FOP. The FOM corresponding to the TRIGGER FOP activates the SNS Repair copy
-  machine by invoking c2_cm_start(), this invokes SNS Repair specific start
+  After cm_setup() is sucessfully called, the copy machine transitions to
+  C2_CMS_IDLE state and waits until failure happens. As mentioned in the HLD,
+  failure information is a broadcast to all the replicas in the cluster using
+  TRIGGER FOP. The FOM corresponding to the TRIGGER FOP activates the SNS Repair
+  copy machine by invoking c2_cm_start(), this invokes SNS Repair specific start
   routine which initialises specific data structures.
 
   @subsection SNSRepairCMDLD-lspec-cm-start Copy machine startup
@@ -143,21 +143,19 @@
   @note Buffer provisioning operation can block.
 
   @subsubsection SNSRepairCMDLD-lspec-cm-start-cp-create Copy packet create
-  Once the buffer pools are provisioned, if resources permit, i.e. if there
-  if there exist a free buffer in the outgoing SNS Repair buffer pool, creates
-  and initialises copy packet. Then by invoking c2_cm_data_next(), a copy
-  packet is assigned an aggregation group and stobid. This can block, although
-  its fine being a startup operation. Once the copy packet is ready, an empty
-  buffer is fetched from the outgoing buffer pool (i.e c2_sns_repair_cm::rc_obp)
-  and attached to the copy packet (c2_cm_cp::c_data). Copy packet FOM viz.
-  c2_cm_cp::c_fom, is then submitted to the request handler for further
-  processing. A copy packet is created initially during startup and during the
-  finalisation of a completed copy packet. A copy packet should be created with
-  c2_cm_lock() held.
+  Once the buffer pools are provisioned, if resources permit (e.g if there
+  exist a free buffer in the outgoing SNS Repair buffer pool), Copy machine
+  creates and initialises copy packets. Then by invoking c2_cm_data_next(),
+  a copy packet is assigned an aggregation group and stobid. Once the copy
+  packet is ready, an empty buffer is fetched from the outgoing buffer pool
+  and attached to the copy packet (c2_cm_cp::c_data). Copy packet FOM
+  (c2_cm_cp::c_fom) is then submitted to the request handler for further
+  processing. Copy packets are created during startup and during finalisation
+  of another completed copy packet.
 
   @see @ref CPDLD "Copy Packet DLD" for more details.
 
-  @subsection SNSRepairCMDLD-lspec-cm-cp-data-next Copy machine data iterator
+  @subsection SNSRepairCMDLD-lspec-cm-data-next Copy machine data iterator
   SNS Repair implements an iterator to efficiently select next data to process.
   This is done by implementing the copy machine specific operation, c2_cm_ops::
   cmo_data_next(). The following pseudo code illustrates the SNS Repair data
@@ -182,7 +180,7 @@
   group) order, so that the copy packet transformation doesn't block.
 
   @subsection SNSRepairCMDLD-lspec-cm-stop Copy machine stop
-  Once all the COBs(i.e. component objects) corresponding to the GOBs
+  Once all the COBs (i.e. component objects) corresponding to the GOBs
   (i.e global file objects) belonging to the failure set are repaired by every
   replica in the cluster, it broadcasts DONE FOPs to all other replicas in the
   cluster. Once every replica receives DONE FOPs from every other replica, the
@@ -287,7 +285,7 @@ void c2_sns_repair_cm_type_deregister(void)
 }
 
 struct c2_net_buffer *c2_sns_repair_buffer_get(struct c2_net_buffer_pool *bp,
-					   size_t colour)
+					       size_t colour)
 {
 	struct c2_net_buffer *buf;
 
