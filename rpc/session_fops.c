@@ -40,13 +40,6 @@
    belonging to rpc-session module
  */
 
-int c2_rpc_fop_noop_execute(struct c2_fop     *fop,
-			    struct c2_fop_ctx *ctx)
-{
-	/* Do nothing */
-	return 0;
-}
-
 static void conn_establish_item_free(struct c2_rpc_item *item)
 {
 	struct c2_rpc_fop_conn_establish_ctx *ctx;
@@ -101,7 +94,6 @@ out:
 }
 
 const struct c2_fop_type_ops c2_rpc_fop_noop_ops = {
-	.fto_execute = c2_rpc_fop_noop_execute
 };
 
 

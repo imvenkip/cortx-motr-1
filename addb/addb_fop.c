@@ -36,7 +36,6 @@ int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
 #endif
 
 static struct c2_fop_type_ops addb_ops = {
-	.fto_execute = NULL,
 };
 
 struct c2_fop_type c2_addb_record_fopt;
