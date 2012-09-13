@@ -571,7 +571,7 @@ static void xcode_cmp_test(void)
 	cmp = c2_xcode_cmp(&obj0, &obj1);
 	C2_UT_ASSERT(cmp < 0);
 	cmp = c2_xcode_cmp(&obj1, &obj0);
-	C2_UT_ASSERT(cmp < 0);
+	C2_UT_ASSERT(cmp > 0);
 	t1->t_v.v_nr--;
 
 	c2_xcode_free(&obj0);
