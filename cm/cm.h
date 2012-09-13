@@ -292,7 +292,7 @@ int c2_cm_stop(struct c2_cm *cm);
  * Configures a copy machine replica.
  * @todo Pass actual configuration fop data structure once configuration
  * interfaces and datastructures are available.
- * @pre C2_IN(c2_cm_state_get(cm),(C2_CMS_IDLE, C2_CMS_DONE))
+ * @pre C2_IN(c2_cm_state_get(cm), (C2_CMS_IDLE, C2_CMS_DONE))
  */
 int c2_cm_configure(struct c2_cm *cm, struct c2_fop *fop);
 

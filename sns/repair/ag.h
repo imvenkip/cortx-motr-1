@@ -36,7 +36,7 @@
 /**
  * Aggregation group identifier to uniquely identify a SNS repair aggregation
  * group. For an SNS repair aggregation group, this id is a combination of
- * a gob-id and correspoinding parity group no.
+ * a gob-id and correspoinding parity group number.
  * SNS repair aggregation group identifiers are ordered lexicographically and
  * they allow a SNS repair copy machine to track overall repair process using
  * the sliding window algorithm.
@@ -44,7 +44,7 @@
 struct c2_sns_repair_ag_id {
 	/** Global fid of the file to be repaired */
 	struct c2_fid	sai_fid;
-	/** Logical no of the parity group in the file */
+	/** Logical number of the parity group in the file */
 	uint64_t 	sai_pg_nr;
 };
 

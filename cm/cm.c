@@ -205,7 +205,7 @@ C2_TL_DESCR_DEFINE(cmtypes, "copy machine types", ,
 C2_TL_DEFINE(cmtypes, static, struct c2_cm_type);
 
 static struct c2_bob_type cmtypes_bob;
-C2_BOB_DEFINE( , &cmtypes_bob, c2_cm_type);
+C2_BOB_DEFINE( static, &cmtypes_bob, c2_cm_type);
 
 
 C2_ADDB_EV_DEFINE(cm_setup_fail, "cm_setup_fail",
@@ -224,8 +224,6 @@ const struct c2_addb_loc c2_cm_addb_loc = {
 const struct c2_addb_ctx_type c2_cm_addb_ctx = {
 	.act_name = "copy machine"
 };
-
-static void failure_exit(struct c2_sm *mach);
 
 const struct c2_sm_state_descr c2_cm_state_descr[C2_CMS_NR] = {
 	[C2_CMS_INIT] = {
@@ -252,8 +250,6 @@ const struct c2_sm_state_descr c2_cm_state_descr[C2_CMS_NR] = {
 	[C2_CMS_FAIL] = {
 		.sd_flags	= C2_SDF_FAILURE,
 		.sd_name	= "cm_fail",
-		.sd_ex		= failure_exit,
-		.sd_ex		= failure_exit,
 		.sd_allowed	= C2_BITS(C2_CMS_IDLE, C2_CMS_FINI)
 	},
 	[C2_CMS_DONE] = {
@@ -284,88 +280,85 @@ void c2_cm_fail(struct c2_cm *cm, enum c2_cm_failure failure, int rc)
 	C2_ENTRY();
 
 	C2_PRE(cm!= NULL);
-	C2_PRE(rc != 0);
+	C2_PRE(rc < 0);
 
 	/*
-	 * Send the addb message corresponding to the failure. A better
-	 * implementation would have been creating a failure descriptor table
-	 * which would contain a ADDB event and an "failure_action" op for each
-	 * failure. However, due to limitations of C2_ADDB_ADD macro, this is
-	 * currently difficult to implement
+	 * Set the corresponding error code in sm and move the copy machine
+	 * to failed state.
+	 */
+	c2_sm_fail(&cm->cm_mach, C2_CMS_FAIL, rc);
+
+	/*
+	 * Send the addb message corresponding to the failure.
+	 * @todo A better implementation would have been creating a failure
+	 * descriptor table which would contain a ADDB event and a
+	 * "failure_action" op for each failure. This would also involve
+	 * modifying the C2_ADDB_ADD macro.
 	 */
 	switch (failure) {
 	case C2_CM_ERR_SETUP:
+		/*
+		 * Send the corresponding ADDB message and keep the copy
+		 * machine in "failed" state. Service specific code will
+		 * ensure that the copy machine is finalised by calling
+		 * c2_cm_fini().
+		 */
 		C2_ADDB_ADD(&cm->cm_addb , &c2_cm_addb_loc, cm_setup_fail,
 		"cm_setup_fail", rc);
 		break;
 
 	case C2_CM_ERR_START:
+		/*
+		 * Reset the rc and move the copy machine to IDLE state.
+		 */
 		C2_ADDB_ADD(&cm->cm_addb , &c2_cm_addb_loc, cm_start_fail,
-		"cm_start_fail", rc);
+			    "cm_start_fail", rc);
+		cm->cm_mach.sm_rc = 0;
+		c2_cm_state_set(cm, C2_CMS_IDLE);
 		break;
 
 	case C2_CM_ERR_STOP:
 		C2_ADDB_ADD(&cm->cm_addb , &c2_cm_addb_loc, cm_stop_fail,
 		"cm_stop_fail", rc);
+		cm->cm_mach.sm_rc = 0;
+		c2_cm_state_set(cm, C2_CMS_IDLE);
 		break;
 
 	default:
 		C2_ASSERT(failure >= C2_CM_ERR_NR);
 	}
-
-	/** Set the corresponding error code in sm */
-	c2_sm_fail(&cm->cm_mach, C2_CMS_FAIL, rc);
 	C2_LEAVE();
 }
 
 void c2_cm_lock(struct c2_cm *cm)
 {
-	C2_ENTRY();
-	C2_PRE(cm != NULL);
-
 	c2_sm_group_lock(&cm->cm_sm_group);
-	C2_LEAVE();
 }
 
 void c2_cm_unlock(struct c2_cm *cm)
 {
-	C2_ENTRY();
-	C2_PRE(cm != NULL);
-
 	c2_sm_group_unlock(&cm->cm_sm_group);
-	C2_LEAVE();
 }
 
 bool c2_cm_is_locked(const struct c2_cm *cm)
 {
-	C2_ENTRY();
-	C2_PRE(cm != NULL);
-
-	C2_LEAVE();
 	return c2_mutex_is_locked(&cm->cm_sm_group.s_lock);
 }
 
 enum c2_cm_state c2_cm_state_get(const struct c2_cm *cm)
 {
-	C2_ENTRY();
-	C2_PRE(cm != NULL);
 	C2_PRE(c2_cm_is_locked(cm));
 
-	C2_LEAVE();
 	return (enum c2_cm_state)cm->cm_mach.sm_state;
 }
 
 void c2_cm_state_set(struct c2_cm *cm, enum c2_cm_state state)
 {
-	C2_ENTRY();
-	C2_PRE(cm != NULL);
 	C2_PRE(c2_cm_is_locked(cm));
 
 	c2_sm_state_set(&cm->cm_mach, state);
-	C2_LOG("CM:%s copy machine:ID: %lu: STATE: %i",
-	      (char *)cm->cm_type->ct_stype.rst_name, cm->cm_id,
-	      c2_cm_state_get(cm));
-	C2_LEAVE();
+	C2_LOG("CM:%s%lu: %i", (char *)cm->cm_type->ct_stype.rst_name,
+	       cm->cm_id, c2_cm_state_get(cm));
 }
 
 bool c2_cm_invariant(const struct c2_cm *cm)
@@ -375,10 +368,19 @@ bool c2_cm_invariant(const struct c2_cm *cm)
 	return
 		/* NULL checks */
 		cm != NULL && cm->cm_ops != NULL && cm->cm_type != NULL &&
+		c2_sm_invariant(&cm->cm_mach) &&
 		/* Copy machine state sanity checks */
 		ergo(C2_IN(state, (C2_CMS_IDLE, C2_CMS_READY, C2_CMS_ACTIVE,
 				   C2_CMS_DONE, C2_CMS_STOP)),
 		     c2_reqh_service_invariant(&cm->cm_service));
+}
+
+static void cm_move(struct c2_cm *cm, int rc, enum c2_cm_state state,
+		    enum c2_cm_failure failure)
+{
+	C2_ENTRY();
+	C2_PRE(rc <= 0);
+	rc != 0 ? c2_cm_fail(cm, failure, rc) : c2_cm_state_set(cm, state);
 }
 
 int c2_cm_setup(struct c2_cm *cm)
@@ -394,12 +396,8 @@ int c2_cm_setup(struct c2_cm *cm)
 	C2_PRE(c2_cm_invariant(cm));
 
 	rc = cm->cm_ops->cmo_setup(cm);
-	if (rc != 0)
-		c2_cm_fail(cm, C2_CM_ERR_SETUP, rc);
-	else {
-		cm->cm_mach.sm_rc = rc;
-		c2_cm_state_set(cm, C2_CMS_IDLE);
-	}
+	cm_move(cm, rc, C2_CMS_IDLE, C2_CM_ERR_SETUP);
+
 	C2_POST(c2_cm_invariant(cm));
 	c2_cm_unlock(cm);
 	C2_LEAVE();
@@ -419,10 +417,8 @@ int c2_cm_start(struct c2_cm *cm)
 	C2_PRE(c2_cm_invariant(cm));
 
 	rc = cm->cm_ops->cmo_start(cm);
-	if (rc != 0)
-		c2_cm_fail(cm, C2_CM_ERR_START, rc);
-	else
-		c2_cm_state_set(cm, C2_CMS_ACTIVE);
+	cm_move(cm, rc, C2_CMS_ACTIVE, C2_CM_ERR_START);
+
 	C2_POST(c2_cm_invariant(cm));
 	c2_cm_unlock(cm);
 	C2_LEAVE();
@@ -440,10 +436,7 @@ int c2_cm_stop(struct c2_cm *cm)
 	C2_PRE(c2_cm_invariant(cm));
 
 	rc = cm->cm_ops->cmo_stop(cm);
-	if (rc != 0)
-		c2_cm_fail(cm, C2_CM_ERR_STOP, rc);
-	else
-		c2_cm_state_set(cm, C2_CMS_STOP);
+	cm_move(cm, rc, C2_CMS_STOP, C2_CM_ERR_STOP);
 
 	C2_POST(c2_cm_invariant(cm));
 	c2_cm_unlock(cm);
@@ -488,24 +481,30 @@ int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
 
 	C2_ENTRY();
 	C2_PRE(cm != NULL && cm_type != NULL && cm_ops != NULL &&
-	       sw_ops!=NULL);
+	       sw_ops != NULL && cmtypes_tlist_contains(&cmtypes, cm_type));
 
 	cm->cm_type = cm_type;
 	cm->cm_ops = cm_ops;
 	rc = c2_cm_sw_init(&cm->cm_sw, sw_ops);
-	if (rc != 0) {
-		goto out;
+	if(rc == 0) {
+		cm->cm_id = cm_id_generate();
+		c2_addb_ctx_init(&cm->cm_addb, &c2_cm_addb_ctx,
+			         &c2_addb_global_ctx);
+		/* State machine initialisation */
+		c2_sm_group_init(&cm->cm_sm_group);
+		c2_sm_init(&cm->cm_mach, &c2_cm_sm_conf, C2_CMS_INIT,
+		   	   &cm->cm_sm_group, &cm->cm_addb);
+		/*
+		 * We lock the copy machine here just to satisfy the
+		 * pre-condition of c2_cm_state_get and not to control
+		 * concurrency to c2_cm_init.
+		 */
+		c2_cm_lock(cm);
+		C2_ASSERT(c2_cm_state_get(cm) == C2_CMS_INIT);
+		c2_cm_unlock(cm);
+
+		C2_POST(c2_cm_invariant(cm));
 	}
-	cm->cm_id = cm_id_generate();
-	c2_addb_ctx_init(&cm->cm_addb, &c2_cm_addb_ctx, &c2_addb_global_ctx);
-	/* State machine initialisation */
-	c2_sm_group_init(&cm->cm_sm_group);
-	cm->cm_mach.sm_grp = &cm->cm_sm_group;
-	c2_sm_init(&cm->cm_mach, &c2_cm_sm_conf, C2_CMS_INIT,
-		   &cm->cm_sm_group, &cm->cm_addb);
-	C2_ASSERT(cm->cm_mach.sm_state == C2_CMS_INIT);
-	C2_POST(c2_cm_invariant(cm));
-out:
 	C2_LEAVE();
 	return rc;
 }
@@ -521,14 +520,17 @@ void c2_cm_fini(struct c2_cm *cm)
 	/* Call ->cmo_fini() only if c2_cm_setup() was successful. */
 	if (C2_IN(cm->cm_mach.sm_state, (C2_CMS_IDLE, C2_CMS_FAIL)))
 		cm->cm_ops->cmo_fini(cm);
-	C2_LOG("CM:Copy Machine: %s:ID: %lu: STATE: %i",
-	       (char *)cm->cm_type->ct_stype.rst_name, cm->cm_id,
-	        cm->cm_mach.sm_state);
+	C2_LOG("CM: %s:%lu: %i", (char *)cm->cm_type->ct_stype.rst_name,
+	       cm->cm_id, cm->cm_mach.sm_state);
 	/*
-	 * Explicitly set state here instead of calling c2_cm_set_state() which
-	 * needs to be protected by the group mutex.
+	 * We lock the copy machne here to satisfy the precondition in
+	 * c2_cm_state_set() and not to control concurrency of calls to
+	 * c2_cm_fini().
 	 */
-	cm->cm_mach.sm_state = C2_CMS_FINI;
+	c2_cm_lock(cm);
+	c2_cm_state_set(cm, C2_CMS_FINI);
+	c2_cm_unlock(cm);
+
 	c2_sm_fini(&cm->cm_mach);
 	c2_sm_group_fini(&cm->cm_sm_group);
 	c2_addb_ctx_fini(&cm->cm_addb);
@@ -541,6 +543,7 @@ int c2_cm_type_register(struct c2_cm_type *cmtype)
 	int	rc;
 
 	C2_PRE(cmtype != NULL);
+	C2_PRE(!cmtypes_tlink_is_in(cmtype));
 	C2_ENTRY();
 
 	rc = c2_reqh_service_type_register(&cmtype->ct_stype);
@@ -557,6 +560,7 @@ int c2_cm_type_register(struct c2_cm_type *cmtype)
 void c2_cm_type_deregister(struct c2_cm_type *cmtype)
 {
 	C2_PRE(cmtype != NULL && c2_cm_type_bob_check(cmtype));
+	C2_PRE(cmtypes_tlist_contains(&cmtypes, cmtype));
 	C2_ENTRY();
 
 	c2_mutex_lock(&cmtypes_mutex);
@@ -565,19 +569,6 @@ void c2_cm_type_deregister(struct c2_cm_type *cmtype)
 	c2_cm_type_bob_fini(cmtype);
 	c2_reqh_service_type_unregister(&cmtype->ct_stype);
 	C2_LEAVE();
-}
-
-/*
- * Currently only resets c2_sm::sm_rc, as failure is already handled and the
- * state machine can now transition to next state.
- * This can be further enhanced to do more better things if required.
- * This is called when the c2_cm::cm_mach leaves C2_CMS_FAIL state.
- */
-static void failure_exit(struct c2_sm *sm)
-{
-	C2_PRE(sm->sm_rc != 0);
-
-	sm->sm_rc = 0;
 }
 
 int c2_cm_done(struct c2_cm *cm)
