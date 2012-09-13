@@ -140,72 +140,61 @@ struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 	return NULL;
 }
 
-enum {
-	UNINITIALISED     = C2_RPC_ITEM_UNINITIALISED,
-	INITIALISED       = C2_RPC_ITEM_INITIALISED,
-	WAITING_IN_STREAM = C2_RPC_ITEM_WAITING_IN_STREAM,
-	ENQUEUED          = C2_RPC_ITEM_ENQUEUED,
-	SENDING           = C2_RPC_ITEM_SENDING,
-	SENT              = C2_RPC_ITEM_SENT,
-	WAITING_FOR_REPLY = C2_RPC_ITEM_WAITING_FOR_REPLY,
-	REPLIED           = C2_RPC_ITEM_REPLIED,
-	ACCEPTED          = C2_RPC_ITEM_ACCEPTED,
-	TIMEDOUT          = C2_RPC_ITEM_TIMEDOUT,
-	FAILED            = C2_RPC_ITEM_FAILED,
-};
-
 static const struct c2_sm_state_descr item_state_descr[] = {
-	[UNINITIALISED] = {
+	[C2_RPC_ITEM_UNINITIALISED] = {
 		.sd_flags   = C2_SDF_TERMINAL,
 		.sd_name    = "UNINITIALISED",
 		.sd_allowed = 0,
 	},
-	[INITIALISED] = {
+	[C2_RPC_ITEM_INITIALISED] = {
 		.sd_flags   = C2_SDF_INITIAL,
 		.sd_name    = "INITIALISED",
-		.sd_allowed = C2_BITS(WAITING_IN_STREAM,
-					ENQUEUED,
-					ACCEPTED,
-					UNINITIALISED),
+		.sd_allowed = C2_BITS(C2_RPC_ITEM_WAITING_IN_STREAM,
+				      C2_RPC_ITEM_ENQUEUED,
+				      C2_RPC_ITEM_ACCEPTED,
+				      C2_RPC_ITEM_UNINITIALISED),
 	},
-	[WAITING_IN_STREAM] = {
+	[C2_RPC_ITEM_WAITING_IN_STREAM] = {
 		.sd_name    = "WAITING_IN_STREAM",
-		.sd_allowed = C2_BITS(ENQUEUED),
+		.sd_allowed = C2_BITS(C2_RPC_ITEM_ENQUEUED),
 	},
-	[ENQUEUED] = {
+	[C2_RPC_ITEM_ENQUEUED] = {
 		.sd_name    = "ENQUEUED",
-		.sd_allowed = C2_BITS(SENDING),
+		.sd_allowed = C2_BITS(C2_RPC_ITEM_SENDING),
 	},
-	[SENDING] = {
+	[C2_RPC_ITEM_SENDING] = {
 		.sd_name    = "SENDING",
-		.sd_allowed = C2_BITS(SENT, FAILED),
+		.sd_allowed = C2_BITS(C2_RPC_ITEM_SENT, C2_RPC_ITEM_FAILED),
 	},
-	[SENT] = {
+	[C2_RPC_ITEM_SENT] = {
 		.sd_name    = "SENT",
 		.sd_in      = item_entered_in_sent_state,
-		.sd_allowed = C2_BITS(WAITING_FOR_REPLY, UNINITIALISED),
+		.sd_allowed = C2_BITS(C2_RPC_ITEM_WAITING_FOR_REPLY,
+				      C2_RPC_ITEM_UNINITIALISED),
 	},
-	[WAITING_FOR_REPLY] = {
+	[C2_RPC_ITEM_WAITING_FOR_REPLY] = {
 		.sd_name    = "WAITING_FOR_REPLY",
-		.sd_allowed = C2_BITS(REPLIED, TIMEDOUT),
+		.sd_allowed = C2_BITS(C2_RPC_ITEM_REPLIED,
+				      C2_RPC_ITEM_TIMEDOUT),
 	},
-	[REPLIED] = {
+	[C2_RPC_ITEM_REPLIED] = {
 		.sd_name    = "REPLIED",
-		.sd_allowed = C2_BITS(UNINITIALISED),
+		.sd_allowed = C2_BITS(C2_RPC_ITEM_UNINITIALISED),
 	},
-	[ACCEPTED] = {
+	[C2_RPC_ITEM_ACCEPTED] = {
 		.sd_name    = "ACCEPTED",
-		.sd_allowed = C2_BITS(REPLIED, UNINITIALISED),
+		.sd_allowed = C2_BITS(C2_RPC_ITEM_REPLIED,
+				      C2_RPC_ITEM_UNINITIALISED),
 	},
-	[TIMEDOUT] = {
+	[C2_RPC_ITEM_TIMEDOUT] = {
 		.sd_name    = "TIMEDOUT",
 		.sd_in      = item_entered_in_timedout_state,
-		.sd_allowed = C2_BITS(FAILED),
+		.sd_allowed = C2_BITS(C2_RPC_ITEM_FAILED),
 	},
-	[FAILED] = {
+	[C2_RPC_ITEM_FAILED] = {
 		.sd_name    = "FAILED",
 		.sd_in      = item_entered_in_failed_state,
-		.sd_allowed = C2_BITS(UNINITIALISED),
+		.sd_allowed = C2_BITS(C2_RPC_ITEM_UNINITIALISED),
 	},
 };
 
@@ -260,7 +249,7 @@ void c2_rpc_item_fini(struct c2_rpc_item *item)
 	 * c2_rpc_item_free() must have already finalised item->ri_sm
 	 * using c2_rpc_item_sm_fini().
 	 */
-	C2_PRE(item->ri_sm.sm_state == UNINITIALISED);
+	C2_PRE(item->ri_sm.sm_state == C2_RPC_ITEM_UNINITIALISED);
 
 	sref = &item->ri_slot_refs[0];
 	sref->sr_slot_id = SLOT_ID_INVALID;
@@ -369,7 +358,7 @@ void c2_rpc_item_sm_init(struct c2_rpc_item *item, struct c2_sm_group *grp)
 	C2_PRE(item != NULL);
 
 	C2_LOG("%p UNINTIALISED -> INITIALISED", item);
-	c2_sm_init(&item->ri_sm, &item_sm_conf, INITIALISED, grp,
+	c2_sm_init(&item->ri_sm, &item_sm_conf, C2_RPC_ITEM_INITIALISED, grp,
 		   NULL /* addb ctx */);
 }
 
@@ -378,7 +367,7 @@ void c2_rpc_item_sm_fini(struct c2_rpc_item *item)
 	C2_PRE(item != NULL);
 
 	if (!item_is_dummy(item))
-		c2_rpc_item_change_state(item, UNINITIALISED);
+		c2_rpc_item_change_state(item, C2_RPC_ITEM_UNINITIALISED);
 	if (item->ri_op_timeout != C2_TIME_NEVER)
 		c2_sm_timeout_fini(&item->ri_timeout);
 	c2_sm_fini(&item->ri_sm);
@@ -403,7 +392,7 @@ void c2_rpc_item_failed(struct c2_rpc_item *item, int32_t rc)
 	C2_PRE(item != NULL && rc != 0);
 
 	item->ri_error = rc;
-	c2_rpc_item_change_state(item, FAILED);
+	c2_rpc_item_change_state(item, C2_RPC_ITEM_FAILED);
 }
 
 int c2_rpc_item_timedwait(struct c2_rpc_item *item,
@@ -428,13 +417,13 @@ int c2_rpc_item_wait_for_reply(struct c2_rpc_item *item, c2_time_t timeout)
 
 	C2_PRE(c2_rpc_item_is_request(item));
 
-	rc = c2_rpc_item_timedwait(item, C2_BITS(REPLIED, FAILED), timeout);
+	rc = c2_rpc_item_timedwait(item, C2_BITS(C2_RPC_ITEM_REPLIED, C2_RPC_ITEM_FAILED), timeout);
 	if (rc == 0) {
-		if (item->ri_sm.sm_state == FAILED)
+		if (item->ri_sm.sm_state == C2_RPC_ITEM_FAILED)
 			rc = item->ri_error;
 	}
 
-	C2_POST(ergo(rc == 0, item->ri_sm.sm_state == REPLIED));
+	C2_POST(ergo(rc == 0, item->ri_sm.sm_state == C2_RPC_ITEM_REPLIED));
 	return rc;
 }
 
@@ -451,7 +440,7 @@ static int item_entered_in_sent_state(struct c2_sm *mach)
 	if (c2_rpc_item_is_request(item)) {
 		C2_LOG("%p [REQUEST/%u] SENT -> WAITING_FOR_REPLY",
 		       item, item->ri_type->rit_opcode);
-		return WAITING_FOR_REPLY;
+		return C2_RPC_ITEM_WAITING_FOR_REPLY;
 	} else {
 		return -1;
 	}
@@ -466,7 +455,7 @@ static int item_entered_in_timedout_state(struct c2_sm *mach)
 	item->ri_error = -ETIMEDOUT;
 	c2_sm_timeout_fini(&item->ri_timeout);
 
-	return FAILED;
+	return C2_RPC_ITEM_FAILED;
 }
 
 static int item_entered_in_failed_state(struct c2_sm *mach)
@@ -495,7 +484,7 @@ int c2_rpc_item_start_timer(struct c2_rpc_item *item)
 	if (item->ri_op_timeout != C2_TIME_NEVER) {
 		C2_LOG("%p Starting timer", item);
 		return c2_sm_timeout(&item->ri_sm, &item->ri_timeout,
-				     item->ri_op_timeout, TIMEDOUT);
+				     item->ri_op_timeout, C2_RPC_ITEM_TIMEDOUT);
 	}
 	return 0;
 }

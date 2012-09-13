@@ -41,7 +41,7 @@ int c2_cons_fop_send(struct c2_fop *fop, struct c2_rpc_session *session,
 
 	item = &fop->f_item;
 	item->ri_deadline   = 0;
-	item->ri_prio       = C2_RPC_ITEM_PRIO_MAX;
+	item->ri_prio       = C2_RPC_ITEM_PRIO_MID;
 	item->ri_session    = session;
 	item->ri_op_timeout = timeout;
 

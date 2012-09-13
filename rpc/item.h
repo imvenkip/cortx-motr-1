@@ -49,14 +49,52 @@ enum c2_rpc_item_priority {
 enum c2_rpc_item_state {
 	C2_RPC_ITEM_UNINITIALISED,
 	C2_RPC_ITEM_INITIALISED,
+	/**
+	 * On sender side when a bound item is posted to RPC, the item
+	 * is kept in slot's item stream. The item remains in this state
+	 * until slot forwards this item to formation.
+	 * @see __slot_balance()
+	 */
 	C2_RPC_ITEM_WAITING_IN_STREAM,
+	/**
+	 * Item is in one of the queues maintained by formation.
+	 * The item is waiting to be selected by formation machine for sending
+	 * on the network.
+	 */
 	C2_RPC_ITEM_ENQUEUED,
+	/**
+	 * Item is serialised in a network buffer and the buffer is submitted
+	 * to network layer for sending.
+	 */
 	C2_RPC_ITEM_SENDING,
+	/**
+	 * The item is successfully placed on the network.
+	 * Note that it does not state anything about whether the item is
+	 * received or not.
+	 */
 	C2_RPC_ITEM_SENT,
+	/**
+	 * Only request items which are successfully sent over the wire
+	 * can be in this state. Request item in this state is expecting a
+	 * reply.
+	 */
 	C2_RPC_ITEM_WAITING_FOR_REPLY,
+	/**
+	 * When a reply is received for a request item, RPC moves the request
+	 * item to REPLIED state.
+	 */
 	C2_RPC_ITEM_REPLIED,
+	/**
+	 * Received item is valid and is accepted.
+	 */
 	C2_RPC_ITEM_ACCEPTED,
+	/**
+	 * Operation is timedout.
+	 */
 	C2_RPC_ITEM_TIMEDOUT,
+	/**
+	 * Item is failed.
+	 */
 	C2_RPC_ITEM_FAILED,
 	C2_RPC_ITEM_NR_STATES,
 };
