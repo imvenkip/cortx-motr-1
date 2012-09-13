@@ -258,8 +258,14 @@ static void net_test_client_server(const char *nid,
 				     C2_NET_TEST_CMD_STATUS);
 	C2_UT_ASSERT(rc == clients_nr);
 	C2_UT_ASSERT(console.ntcc_clients.ntcrc_sd->ntcsd_finished == true);
-	C2_UT_ASSERT(console.ntcc_clients.ntcrc_sd->
-		     ntcsd_msg_nr_send.ntmn_total == clients_nr * msg_nr);
+	LOGD("\nrecv total/failed/bad = %lu/%lu/%lu\n",
+	     console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_recv.ntmn_total,
+	     console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_recv.ntmn_failed,
+	     console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_recv.ntmn_bad);
+	LOGD("send total/failed/bad = %lu/%lu/%lu\n",
+	     console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_send.ntmn_total,
+	     console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_send.ntmn_failed,
+	     console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_send.ntmn_bad);
 	/* send STOP command to the test clients */
 	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_CLIENT,
 				     C2_NET_TEST_CMD_STOP);
@@ -286,7 +292,7 @@ static void net_test_client_server(const char *nid,
 void c2_net_test_client_server_ping_ut(void)
 {
 	net_test_client_server("0@lo", C2_NET_TEST_TYPE_PING,
-			       1, 2, 1, 1, 1, 0x100);
+			       2, 2, 1, 8, 8, 0x100);
 	//net_test_client_server("0@lo", C2_NET_TEST_TYPE_PING,
 	//		       8, 8, 4, 16, 0x100, 0x100);
 }
