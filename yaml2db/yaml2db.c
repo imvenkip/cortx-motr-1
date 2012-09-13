@@ -165,7 +165,7 @@ void c2_yaml_parser_error_detect(const yaml_parser_t *parser)
 	    else
 		fprintf(stderr, "Reader error: %s at %lu\n",
 		        parser->problem, parser->problem_offset);
-		break;
+	    break;
 	case YAML_SCANNER_ERROR:
 	    if (parser->context)
 		fprintf(stderr, "Scanner error: %s at line %lu, column %lu"
@@ -191,12 +191,12 @@ void c2_yaml_parser_error_detect(const yaml_parser_t *parser)
 		fprintf(stderr, "Parser error: %s at line %lu, column %lu\n",
 			parser->problem, parser->problem_mark.line+1,
 			parser->problem_mark.column+1);
-		break;
+	    break;
 	case YAML_COMPOSER_ERROR:
         case YAML_WRITER_ERROR:
         case YAML_EMITTER_ERROR:
         case YAML_NO_ERROR:
-                break;
+	    break;
 	default:
 		C2_IMPOSSIBLE("Invalid error");
 	}
