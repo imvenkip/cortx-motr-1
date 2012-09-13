@@ -512,9 +512,9 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 			   processed yet. Ignore it*/
 			/* do nothing */;
 			break;
-		case RPC_ITEM_STAGE_UNKNOWN:
+		case RPC_ITEM_STAGE_TIMEDOUT:
 		case RPC_ITEM_STAGE_FAILED:
-			C2_IMPOSSIBLE("Original req in UNKNOWN/FAILED stage");
+			C2_IMPOSSIBLE("Original req in TIMEDOUT/FAILED stage");
 		}
 		/*
 		 * Irrespective of any of above cases, we're going to
@@ -589,10 +589,15 @@ int c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		 * XXX find out how to compare two rpc items to be same
 		 */
 		/* Do nothing */;
-	} else if (req->ri_stage == RPC_ITEM_STAGE_UNKNOWN) {
+	} else if (C2_IN(req->ri_stage, (RPC_ITEM_STAGE_TIMEDOUT,
+					 RPC_ITEM_STAGE_FAILED))) {
 		/*
+		 * TIMEDOUT:
 		 * The reply is valid but too late. The req has already
 		 * timedout. Return without setting *req_out.
+		 * FAILED:
+		 * FAILED items are not supposed to receive replies, but
+		 * this might be a result of corruption
 		 */
 		/* Do nothing */
 	} else {
@@ -828,11 +833,13 @@ int c2_rpc_slot_item_received(struct c2_rpc_item *item)
 void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
                       uint32_t rc)
 {
+	C2_ASSERT(item->ri_ops != NULL);
+
 	item->ri_error = rc;
 	item->ri_reply = reply;
 
 	c2_rpc_item_change_state(item, C2_RPC_ITEM_REPLIED);
-	if (item->ri_ops != NULL && item->ri_ops->rio_replied != NULL)
+	if (item->ri_ops->rio_replied != NULL)
 		item->ri_ops->rio_replied(item);
 }
 

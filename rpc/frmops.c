@@ -399,10 +399,10 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 static void item_done(struct c2_rpc_item *item, unsigned long rc)
 {
 	C2_ENTRY("item: %p rc: %lu", item, rc);
-	C2_PRE(item != NULL);
+	C2_PRE(item != NULL && item->ri_ops != NULL);
 
 	item->ri_error = rc;
-	if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
+	if (item->ri_ops->rio_sent != NULL)
 		item->ri_ops->rio_sent(item);
 
 	if (rc == 0) {

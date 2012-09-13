@@ -109,9 +109,9 @@ enum c2_rpc_item_stage {
 	/** the item was sent (i.e., placed into an rpc) and no reply is
 	    received */
 	RPC_ITEM_STAGE_IN_PROGRESS,
-	/** Don't know whether the request has been processed by receiver
-	    or not */
-	RPC_ITEM_STAGE_UNKNOWN,
+	/** Operation is timedout. Uncertain whether receiver has processed
+	    the request or not. */
+	RPC_ITEM_STAGE_TIMEDOUT,
 	/** Failed to send the item */
 	RPC_ITEM_STAGE_FAILED,
 	/** the item is not sent */
@@ -250,8 +250,7 @@ bool c2_rpc_item_is_request(const struct c2_rpc_item *item);
 
 bool c2_rpc_item_is_reply(const struct c2_rpc_item *item);
 
-__attribute__((unused))
-static bool item_is_active(const struct c2_rpc_item *item)
+static inline bool item_is_active(const struct c2_rpc_item *item)
 {
 	return C2_IN(item->ri_stage, (RPC_ITEM_STAGE_IN_PROGRESS,
 				      RPC_ITEM_STAGE_FUTURE));

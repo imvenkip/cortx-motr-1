@@ -1179,7 +1179,7 @@ void c2_rpc_session_item_failed(struct c2_rpc_item *item)
 
 	if (c2_rpc_item_is_request(item)) {
 		if (item->ri_error == -ETIMEDOUT)
-			c2_rpc_item_set_stage(item, RPC_ITEM_STAGE_UNKNOWN);
+			c2_rpc_item_set_stage(item, RPC_ITEM_STAGE_TIMEDOUT);
 		else
 			c2_rpc_item_set_stage(item, RPC_ITEM_STAGE_FAILED);
 	}

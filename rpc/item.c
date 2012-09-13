@@ -328,14 +328,10 @@ bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item)
 void c2_rpc_item_set_stage(struct c2_rpc_item     *item,
 			   enum c2_rpc_item_stage  stage)
 {
-	struct c2_rpc_machine *machine;
 	struct c2_rpc_session *session;
-	struct c2_rpc_slot    *slot;
 	bool                   item_was_active;
 
 	session = item->ri_session;
-	machine = session->s_conn->c_rpc_machine;
-	slot    = item->ri_slot_refs[0].sr_slot;
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	item_was_active = item_is_active(item);
@@ -469,8 +465,8 @@ static int item_entered_in_failed_state(struct c2_sm *mach)
 	C2_PRE(item->ri_error != 0);
 	item->ri_reply = NULL;
 
+	C2_ASSERT(item->ri_ops != NULL);
 	if (c2_rpc_item_is_request(item) &&
-	    item->ri_ops != NULL &&
 	    item->ri_ops->rio_replied != NULL)
 		item->ri_ops->rio_replied(item);
 
