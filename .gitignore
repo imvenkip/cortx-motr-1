@@ -18,8 +18,8 @@ configure
 depcomp
 INSTALL
 install-sh
-Makefile
-Makefile.in
+#Makefile
+#Makefile.in
 missing
 mkinstalldirs
 Module.markers

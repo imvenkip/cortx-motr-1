@@ -311,7 +311,7 @@ clean distclean:
 
 distdir:
        cp $(<MOD.DIR>)/Makefile.in \
-           @top_builddir@/@PACKAGE@-@VERSION@/<mod.name>/linux_kernel
+           @top_builddir@/@PACKAGE@-@PACKAGE_VERSION@/<mod.name>/linux_kernel
 
 Add the following lines into configure.ac:
 In macro AC_CONFIG_FILES:

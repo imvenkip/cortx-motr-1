@@ -1,4 +1,4 @@
-YAML2DBUT_SRCDIR = @SRCDIR@/yaml2db/ut
+YAML2DBUT_SRCDIR = $(top_srcdir)/yaml2db/ut
 
 noinst_PROGRAMS = yaml2db
 

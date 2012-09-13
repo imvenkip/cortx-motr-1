@@ -19,4 +19,4 @@ clean distclean:
 
 distdir:
 	cp $(UT_SRCDIR)/Makefile.in $(UT_SRCDIR)/cob_kernel.c \
-	    @top_builddir@/@PACKAGE@-@VERSION@/ut/linux_kernel
+	    @top_builddir@/@PACKAGE@-@PACKAGE_VERSION@/ut/linux_kernel

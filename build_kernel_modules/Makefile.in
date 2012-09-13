@@ -269,7 +269,7 @@ uninstall:
 dist distdir:
 	cp -v dummy_init_fini.[ch] main.c Makefile.in \
 		lustre_config.h Lustre.symvers \
-		@top_builddir@/@PACKAGE@-@VERSION@/build_kernel_modules
+		@top_builddir@/@PACKAGE@-@PACKAGE_VERSION@/build_kernel_modules
 
 clean distclean:
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd` clean

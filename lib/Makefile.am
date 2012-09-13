@@ -127,7 +127,7 @@ libc2_la_SOURCES     = \
                        vec_xc.c \
                        c2lib.c
 
-libc2_la_LDFLAGS       = @PTHREAD_LIBS@ -lrt
+libc2_la_LDFLAGS       = -pthread
 EXTRA_DIST             = \
                          linux_kernel/assert.h \
                          linux_kernel/atomic64.h \

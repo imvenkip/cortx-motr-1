@@ -14,4 +14,4 @@ distclean clean:
 
 distdir:
 	cp $(KUTC2_SRCDIR)/Makefile.in $(KUTC2_SRCDIR)/main.c \
-@top_builddir@/@PACKAGE@-@VERSION@/utils/linux_kernel
+@top_builddir@/@PACKAGE@-@PACKAGE_VERSION@/utils/linux_kernel

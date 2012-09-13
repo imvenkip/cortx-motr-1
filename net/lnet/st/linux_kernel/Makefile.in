@@ -23,4 +23,4 @@ clean distclean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
 distdir:
-	cp $(dist_src) @top_builddir@/@PACKAGE@-@VERSION@/net/lnet/st/linux_kernel
+	cp $(dist_src) @top_builddir@/@PACKAGE@-@PACKAGE_VERSION@/net/lnet/st/linux_kernel

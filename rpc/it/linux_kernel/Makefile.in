@@ -24,4 +24,4 @@ clean distclean:
 distdir:
 	cp $(PING_SRCDIR)/Makefile.in $(PING_SRCDIR)/kcolibri.symvers \
 	   $(PING_SRCDIR)/rpcping_kernel.c $(PING_SRCDIR)/rpc_ping.h  \
-	   @top_builddir@/@PACKAGE@-@VERSION@/rpc/it/linux_kernel
+	   @top_builddir@/@PACKAGE@-@PACKAGE_VERSION@/rpc/it/linux_kernel

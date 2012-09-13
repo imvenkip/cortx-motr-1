@@ -1,4 +1,4 @@
-UT_SRCDIR=@SRCDIR@/balloc/ut
+UT_SRCDIR=$(top_srcdir)/balloc/ut
 
 noinst_LTLIBRARIES		= libballoc-ut.la
 libballoc_ut_la_SOURCES		= balloc.c

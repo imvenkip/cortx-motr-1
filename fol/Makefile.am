@@ -13,11 +13,11 @@ INCLUDES                   = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdi
 #	    -v source_file=$(CWD)/fol.c \
 #	    -v header_file=$(CWD)/fol.h \
 #	    -v print_file=$(CWD)/fol_print.c \
-#	    -v template_file=$(CWD)/fol_template.0.c < @SRCDIR@/fol/fol.t
+#	    -v template_file=$(CWD)/fol_template.0.c < $(top_srcdir)/fol/fol.t
 
 #INCLUDES                   = -iquote @DB_SRC@
 #EXTRA_DIST	           = fol.t
 
 #clean-local:
-#	cd @SRCDIR@/fol ; \
+#	cd $(top_srcdir)/fol ; \
 #	rm -fr fol.c fol.h fol_print.c fol_template.0.c

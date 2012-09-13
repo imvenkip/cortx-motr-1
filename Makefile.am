@@ -6,6 +6,18 @@ make_verbose_0 = --no-print-directory
 
 MAKEFLAGS = $(make_verbose)
 
+
+
+
+
+
+
+
+
+
+
+
+
 SUBDIRS_BASE = m4 doc man patches
 
 # xcode/ff2c must be built first, because it is used by other modules
@@ -105,9 +117,6 @@ SUBDIR_BIN = console/bin net/test/user_space utils
 
 SUBDIR_SCRIPT = scripts
 
-SUBDIRS = $(SUBDIRS_BASE) $(SUBDIRS_LIBS) colibri $(SUBDIR_IT)    \
-          $(SUBDIR_UT) $(SUBDIR_ST) $(SUBDIR_KERNEL) $(SUBDIR_UB) \
-          $(SUBDIR_BIN) $(SUBDIR_SCRIPT)
 
 # BUILT_SOURCES automake variable is a standard way to execute commands
 # before the main build commands (`make all`), for more information please
@@ -138,7 +147,6 @@ ACLOCAL_AMFLAGS = -I m4
 
 clean-local:
 	rm -f c2.trace.*
-	if test "x@ENABLE_COVERAGE@" = "x1"; \
-	then \
+	if test x@ENABLE_COVERAGE@ = xyes; then \
 		find . -name "*.gcno" | xargs rm -f; \
 	fi
