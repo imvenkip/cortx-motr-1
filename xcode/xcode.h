@@ -381,8 +381,13 @@ struct c2_xcode_cursor {
 		uint64_t                  s_elno;
 		/** Flag, indicating visiting order. */
 		enum c2_xcode_cursor_flag s_flag;
+		/** Datum reserved for cursor users. */
+		uint64_t                  s_datum;
 	} xcu_stack[C2_XCODE_DEPTH_MAX];
 };
+
+void c2_xcode_cursor_init(struct c2_xcode_cursor *it,
+			  const struct c2_xcode_obj *obj);
 
 /**
    Iterates over tree of xcode types.
@@ -514,7 +519,7 @@ struct c2_xcode_ctx {
 	   Allocation function used by decoding to allocate the topmost object
 	   and all its non-inline sub-objects (arrays and opaque sub-objects).
 	 */
-	void                  *(*xcx_alloc)(struct c2_xcode_ctx *ctx, size_t n);
+	void                  *(*xcx_alloc)(struct c2_xcode_cursor *ctx, size_t);
 };
 
 /**
@@ -527,9 +532,60 @@ int c2_xcode_encode(struct c2_xcode_ctx *ctx);
 
 /** Calculates the length of serialized representation. */
 int c2_xcode_length(struct c2_xcode_ctx *ctx);
-void *c2_xcode_alloc(struct c2_xcode_ctx *ctx, size_t nob);
+void *c2_xcode_alloc(struct c2_xcode_cursor *it, size_t nob);
 /** @} xcoding. */
 
+/**
+ * Reads an object from a human-readable string representation.
+ *
+ * String has the following EBNF grammar:
+ *
+ *     S           ::= RECORD | UNION | SEQUENCE | ATOM
+ *     RECORD      ::= '(' [S-LIST] ')'
+ *     S-LIST      ::= S | S-LIST ',' S
+ *     UNION       ::= '{ TAG '|' [S] '}'
+ *     SEQUENCE    ::= STRING | ARRAY
+ *     STRING      ::= '"' CHAR* '"'
+ *     ARRAY       ::= '[' COUNT ':' [S-LIST] ']'
+ *     ATOM        ::= EMPTY | NUMBER
+ *     TAG         ::= ATOM
+ *     COUNT       ::= ATOM
+ *
+ * Where CHAR is any non-NUL character, NUMBER is anything recognizable by
+ * sscanf(3) as a number and EMPTY is the empty string. White-spaces between
+ * tokens are ignored.
+ *
+ * Examples:
+ * @verbatim
+ * (0, 1)
+ * (0, (1, 2))
+ * ()
+ * {1| (1, 2)}
+ * {2| 6}
+ * {3|}               -- a union with invalid discriminant or with a void value
+ * [0:]               -- 0 sized array
+ * [3: 6, 5, 4]
+ * [: 1, 2, 3]        -- fixed size sequence
+ * "incomprehensible" -- a byte (U8) sequence with 16 elements
+ * 10                 -- number 10
+ * 0xa                -- number 10
+ * 012                -- number 10
+ * (0, "katavothron", {42| [3: ("x"), ("y"), ("z")]}, "paradiorthosis")
+ * @endverbatim
+ *
+ * Typedefs and opaque types require no special syntax.
+ *
+ * @retval 0 success
+ * @retval -EPROTO syntax error
+ * @retval -EINVAL garbage in string after end of representation
+ * @retval -ve other error (-ENOMEM, &c.)
+ *
+ * Error or not, the caller should free the (partially) constructed object with
+ * c2_xcode_free().
+ */
+int  c2_xcode_read(struct c2_xcode_obj *obj, const char *str);
+void c2_xcode_free(struct c2_xcode_obj *obj);
+int  c2_xcode_cmp (const struct c2_xcode_obj *o0, const struct c2_xcode_obj *o1);
 
 /**
    Returns the address of a sub-object within an object.
