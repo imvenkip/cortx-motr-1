@@ -23,6 +23,8 @@
 #ifndef __COLIBRI_SNS_REPAIR_AG_H__
 #define __COLIBRI_SNS_REPAIR_AG_H__
 
+#include "fid/fid.h"
+
 #include "cm/cm.h"
 #include "cm/ag.h"
 
@@ -43,9 +45,9 @@
  */
 struct c2_sns_repair_ag_id {
 	/** Global fid of the file to be repaired */
-	struct c2_fid   sai_fid;
+	struct c2_fid   rai_fid;
 	/** Logical no of the parity group in the file */
-	uint64_t        sai_pg_nr;
+	uint64_t        rai_pg_nr;
 };
 
 struct c2_sns_repair_aggr_group {
@@ -59,6 +61,8 @@ struct c2_sns_repair_aggr_group {
 	 */
 	struct c2_sns_repair_ag_id   sag_id;
 };
+
+struct c2_sns_repair_aggr_group *ag2snsag(const struct c2_cm_aggr_group *ag);
 
 /** @} SNSRepairAG */
 /* __COLIBRI_SNS_REPAIR_AG_H__ */

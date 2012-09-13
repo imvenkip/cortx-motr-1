@@ -37,7 +37,6 @@
 
 /** Copy Machine Aggregation Group. */
 struct c2_cm_aggr_group {
-	/** Parent copy machine. */
 	struct c2_cm                      *cag_cm;
 
 	const struct c2_cm_aggr_group_ops *cag_ops;

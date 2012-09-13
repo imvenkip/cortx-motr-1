@@ -78,7 +78,7 @@
 
   - @b r.sns.repair.sliding.window The implementation should efficiently use
     various copy machine resources using sliding window during copy machine
-    operation, e.g. memory, cpu, &c.
+    operation, e.g. memory, cpu, etc.
 
   - @b r.sns.repair.data.next The implementation should efficiently select next
     data to be processed without causing any deadlock or bottle neck.
@@ -129,7 +129,7 @@
   outgoing buffer pools (c2_sns_repair_cm::rc_ibp and ::rc_obp) and cobfid_map.
   Both the buffer pools are initialised with colours equal to total number of
   localities in the request handler.
-  After cm_setup() is sucessfully called, the copy machine transitions to
+  After cm_setup() is successfully called, the copy machine transitions to
   C2_CMS_IDLE state and waits until failure happens. As mentioned in the HLD,
   failure information is a broadcast to all the replicas in the cluster using
   TRIGGER FOP. The FOM corresponding to the TRIGGER FOP activates the SNS Repair
@@ -143,7 +143,7 @@
   @note Buffer provisioning operation can block.
 
   @subsubsection SNSRepairCMDLD-lspec-cm-start-cp-create Copy packet create
-  Once the buffer pools are provisioned, if resources permit (e.g if there
+  Once the buffer pools are provisioned, if resources permit (e.g. if there
   exist a free buffer in the outgoing SNS Repair buffer pool), Copy machine
   creates and initialises copy packets. Then by invoking c2_cm_data_next(),
   a copy packet is assigned an aggregation group and stobid. Once the copy
@@ -169,7 +169,7 @@
        - map group S to COB list
        // determine whether group S needs reconstruction.
        - if no COB.containerid is in the failure set continue to the next group
-       // group has to be resonctructed, create copy packets for all local units
+       // group has to be reconstructed, create copy packets for all local units
        - for each data and parity unit U in S (0 <= U < N + K)
          - map (S, unit) -> (COB, F) by L
          - if COB is local and COB.containerid does not belong to the failure set
@@ -242,7 +242,8 @@
   @section SNSRepairCMDLD-ref References
    Following are the references to the documents from which the design is
    derived,
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1FX-TTaM5VttwoG4wd0Q4-AbyVUi3XL_Oc6cnC4lxLB0/edit">Copy Machine redesign.</a>
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/1FX-TTaM5VttwoG4w
+   d0Q4-AbyVUi3XL_Oc6cnC4lxLB0/edit">Copy Machine redesign.</a>
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1ZlkjayQoXVm-prMx
    Tkzxb1XncB6HU19I19kwrV-8eQc/edit?hl=en_US">HLD of copy machine and agents.</a
    >
@@ -315,11 +316,7 @@ static struct c2_cm_cp *cm_cp_alloc(struct c2_cm *cm)
 	rc = c2_cm_data_next(cm, &rcp->rc_base);
 	if (rc != 0)
 		goto cleanup;
-	/*
-	 * Using copy packet aggregation group id to select specific colour for
-	 * this copy packet to fetch buffer from the outgoing buffer pool.
-	 */
-	colour = rcp->rc_base.c_ag->cag_id.u_lo % rcm->rc_obp.nbp_colours_nr;
+	colour =  cp_home_loc_helper(&rcp->rc_base) % rcm->rc_obp.nbp_colours_nr;
 	buf = c2_sns_repair_buffer_get(&rcm->rc_obp, colour);
 	if (buf == NULL)
 		goto cleanup;
@@ -348,9 +345,9 @@ static int cm_setup(struct c2_cm *cm)
 	reqh = cm->cm_service.rs_reqh;
 	/*
 	 * Total number of colours in incoming and outgoing buffer pools is
-	 * is same as the total number of localities in the reqh fom domain.
+	 * same as the total number of localities in the reqh fom domain.
 	 */
-	colours = reqh->rh_fom_dom.fd_localities_nr;
+	colours = c2_reqh_nr_localities(reqh);
 	ndom = c2_cs_net_domain_locate(c2_cs_ctx_get(reqh),
 				       c2_net_lnet_xprt.nx_name);
 	rc = c2_net_buffer_pool_init(&rcm->rc_ibp, ndom,
