@@ -36,7 +36,7 @@
 /**
  * While copy machine is processing a restructuring request, each replica
  * maintains a "sliding window" (SW), indicating how far it gets. This window is
- * a pair of group identifiers [LO, HI), with LO <= HI. The following invariant
+ * a pair of group identifiers [LO, HI], with LO <= HI. The following invariant
  * is maintained:
  *
  * - the replica already completely processed all groups it had to process

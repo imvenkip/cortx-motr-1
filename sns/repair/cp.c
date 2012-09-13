@@ -15,15 +15,16 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
+ *                  Mandar Sawant <mandar_sawant@xyratex.com>
  * Original creation date: 08/06/2012
  */
 #include "lib/memory.h" /* c2_free() */
-#include "lib/misc.h"   /* c2_forall */
 
 #include "fop/fom.h"
 #include "cm/ag.h"
 #include "sns/repair/cp.h"
 #include "sns/repair/cm.h"
+#include "sns/repair/ag.h"
 
 /**
   @addtogroup SNSRepairCP
@@ -31,13 +32,33 @@
   @{
 */
 
+struct c2_sns_repair_cp *cp2snscp(const struct c2_cm_cp *cp)
+{
+	C2_PRE(c2_cm_cp_invariant(cp));
+
+	return container_of(cp, struct c2_sns_repair_cp, rc_base);
+}
+
 static bool cp_invariant(const struct c2_cm_cp *cp)
 {
-	const struct c2_cm_cp_ops *ops = cp->c_ops;
+	struct c2_sns_repair_cp *sns_cp = cp2snscp(cp);
 
-	return ops != NULL && c2_fom_phase(&cp->c_fom) < SRP_NR &&
-	       c2_forall(i, SRP_NR, i != C2_CCP_NR ? ops->co_action[i] != NULL :
-	       ops->co_action[i] == NULL);
+	return c2_fom_phase(&cp->c_fom) < SRP_NR &&
+	       ergo(c2_fom_phase(&cp->c_fom) > C2_CCP_INIT,
+		    c2_stob_id_is_set(&sns_cp->rc_sid));
+}
+
+/*
+ * Uses GOB fid key and parity group number to generate a scalar to
+ * help select a request handler locality for copy packet FOM.
+ */
+uint64_t cp_home_loc_helper(const struct c2_cm_cp *cp)
+{
+	struct c2_sns_repair_aggr_group *sns_ag;
+
+	sns_ag = ag2snsag(cp->c_ag);
+
+	return sns_ag->sag_id.rai_fid.f_key + sns_ag->sag_id.rai_pg_nr;
 }
 
 static int cp_init(struct c2_cm_cp *cp)
@@ -53,13 +74,9 @@ static int cp_fini(struct c2_cm_cp *cp)
 {
 	struct c2_sns_repair_cp	*rcp;
 
-	rcp = container_of(cp, struct c2_sns_repair_cp, rc_base);
-	/*@todo Release data buffer to buffer pool.*/
-	/* finailise data members.*/
-	c2_cm_cp_fini(cp);
-	/* Free copy packet.*/
-	c2_free(rcp);
-	return C2_FSO_AGAIN;
+	rcp = cp2snscp(cp);
+	/*@todo Release copy packet resource, e.g. data buffer. */
+	return C2_FSO_WAIT;
 }
 
 static int cp_read(struct c2_cm_cp *cp)
@@ -101,6 +118,14 @@ static int cp_io_wait(struct c2_cm_cp *cp)
 	return 0;
 }
 
+static void cp_free(struct c2_cm_cp *cp)
+{
+	struct c2_sns_repair_cp	*rcp;
+
+	rcp = cp2snscp(cp);
+	c2_free(rcp);
+}
+
 const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
 	.co_action = {
 		[C2_CCP_INIT]  = &cp_init,
@@ -112,9 +137,12 @@ const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
 		[C2_CCP_FINI]  = &cp_fini,
 		[SRP_IO_WAIT]  = &cp_io_wait
 	},
+	.co_action_nr          = SRP_NR,
 	.co_complete	       = &cp_complete,
 	.co_phase_next	       = &cp_phase_next,
 	.co_invariant	       = &cp_invariant,
+	.co_home_loc_helper    = &cp_home_loc_helper,
+	.co_free               = &cp_free,
 };
 
 /** @} SNSRepairCP */
@@ -127,4 +155,3 @@ const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
  *  scroll-step: 1
  *  End:
  */
-

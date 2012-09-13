@@ -183,6 +183,9 @@ int c2_reqhs_init(void);
 */
 void c2_reqhs_fini(void);
 
+/** Returns number of localities in request handler FOM domain. */
+uint64_t c2_reqh_nr_localities(const struct c2_reqh *reqh);
+
 /** Descriptor for tlist of request handler services. */
 C2_TL_DESCR_DECLARE(c2_reqh_svc, extern);
 C2_TL_DECLARE(c2_reqh_svc, extern, struct c2_reqh_service);

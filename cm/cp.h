@@ -155,11 +155,25 @@ struct c2_cm_cp_ops {
 	bool (*co_invariant) (const struct c2_cm_cp *cp);
 
 	/**
+	 * Returns a scalar based on copy packet details, used to select a
+	 * request handler home locality for copy packet FOM.
+	 */
+	uint64_t (*co_home_loc_helper) (const struct c2_cm_cp *cp);
+
+	/**
+	 * Copy machine type specific copy packet destructor.
+	 * This is invoked from c2_cm_cp::c_fom::fo_ops::fo_fini().
+	 */
+	void (*co_free)(struct c2_cm_cp *cp);
+
+	/** Size of c2_cm_cp_ops::co_action[]. */
+	uint32_t            co_action_nr;
+
+	/**
          * Per phase action for copy packet. This function should return
 	 * @b C2_FSO_WAIT or @b C2_FSO_AGAIN.
 	 */
 	int  (*co_action[]) (struct c2_cm_cp *cp);
-
 };
 
 /**
@@ -181,7 +195,7 @@ void c2_cm_cp_fini(struct c2_cm_cp *cp);
 /** Submits copy packet FOM to request handler for processing.*/
 void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp);
 
-bool c2_cm_cp_invariant(struct c2_cm_cp *cp);
+bool c2_cm_cp_invariant(const struct c2_cm_cp *cp);
 
 /**
  @}
