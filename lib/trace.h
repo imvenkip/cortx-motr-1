@@ -164,6 +164,22 @@
 #define C2_ENTRY(...) C2_LOG(C2_CALL, "> " __VA_ARGS__)
 #define C2_LEAVE(...) C2_LOG(C2_CALL, "< " __VA_ARGS__)
 
+#define C2_RETURN(rc)					\
+do {							\
+	typeof(rc) __rc = (rc);				\
+	(rc == 0) ? C2_LOG(C2_CALL, "< rc=%d", __rc) :	\
+		    C2_LOG(C2_NOTICE, "< rc=%d", __rc);	\
+	return __rc;					\
+} while (0)
+
+#define C2_RETERR(rc, fmt, ...)					\
+do {								\
+	typeof(rc) __rc = (rc);					\
+	C2_ASSERT(__rc != 0);					\
+	C2_LOG(C2_ERROR, "! rc=%d " fmt, __rc, __VA_ARGS__);	\
+	return __rc;						\
+} while (0)
+
 int  c2_trace_init(void);
 void c2_trace_fini(void);
 
