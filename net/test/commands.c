@@ -82,6 +82,7 @@ TYPE_DESCR(c2_net_test_cmd_init) = {
 TYPE_DESCR(c2_net_test_msg_nr) = {
 	FIELD_DESCR(struct c2_net_test_msg_nr, ntmn_total),
 	FIELD_DESCR(struct c2_net_test_msg_nr, ntmn_failed),
+	FIELD_DESCR(struct c2_net_test_msg_nr, ntmn_bad),
 };
 
 /* c2_net_test_cmd_status_data_descr */

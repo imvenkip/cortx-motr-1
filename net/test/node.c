@@ -28,10 +28,10 @@
 
 /* @todo debug only, remove it */
 #ifndef __KERNEL__
-/*
 #define LOGD(format, ...) printf(format, ##__VA_ARGS__)
-*/
+/*
 #define LOGD(format, ...) do {} while (0)
+*/
 #else
 #define LOGD(format, ...) do {} while (0)
 #endif
@@ -595,7 +595,7 @@ static void node_thread(struct c2_net_test_node_ctx *ctx)
 		c2_net_test_commands_received_free(&cmd);
 		return;
 	}
-	rc = c2_net_test_service_init(&svc, ctx, svc_ops);
+	rc = c2_net_test_service_init(&svc, svc_ops);
 	if (rc != 0) {
 		c2_net_test_commands_received_free(&cmd);
 		return;

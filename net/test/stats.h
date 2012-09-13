@@ -301,8 +301,10 @@ c2_time_t c2_net_test_mps_add(struct c2_net_test_mps *mps,
 struct c2_net_test_msg_nr {
 	/** Total number of test messages */
 	size_t ntmn_total;
-	/** Number of failed test messages */
+	/** Number of failed (network failures) test messages */
 	size_t ntmn_failed;
+	/** Number of bad test messages (invalid message content) */
+	size_t ntmn_bad;
 };
 
 /**

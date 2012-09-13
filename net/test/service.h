@@ -115,13 +115,11 @@ struct c2_net_test_service {
    non-zero result and will be changed to C2_NET_TEST_SERVICE_READY
    otherwise.
 
-   @param svc	   Test service
-   @param node_ctx Node context
-   @param ops	   Service operations
+   @param svc Test service
+   @param ops Service operations
    @post ergo(result == 0, c2_net_test_service_invariant(svc))
  */
 int c2_net_test_service_init(struct c2_net_test_service *svc,
-			     struct c2_net_test_node_ctx *node_ctx,
 			     struct c2_net_test_service_ops *ops);
 
 /**

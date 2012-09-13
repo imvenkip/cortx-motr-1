@@ -31,13 +31,14 @@ enum {
 	SERVICE_ITERATIONS_NR	= 0x1000,
 };
 
-static struct c2_net_test_cmd service_cmd;
-static struct c2_net_test_cmd service_reply;
-static bool		      service_init_called;
-static bool		      service_fini_called;
-static bool		      service_step_called;
-static bool		      service_cmd_called[C2_NET_TEST_CMD_NR];
-static int		      service_cmd_errno;
+static struct c2_net_test_service svc;
+static struct c2_net_test_cmd	  service_cmd;
+static struct c2_net_test_cmd	  service_reply;
+static bool			  service_init_called;
+static bool			  service_fini_called;
+static bool			  service_step_called;
+static bool			  service_cmd_called[C2_NET_TEST_CMD_NR];
+static int			  service_cmd_errno;
 
 static bool *service_func_called[] = {
 	&service_init_called,
@@ -45,58 +46,58 @@ static bool *service_func_called[] = {
 	&service_step_called
 };
 
-static int service_ut_cmd(struct c2_net_test_node_ctx *node_ctx,
+static int service_ut_cmd(void *ctx,
 			  const struct c2_net_test_cmd *cmd,
 			  struct c2_net_test_cmd *reply,
 			  enum c2_net_test_cmd_type cmd_type)
 {
 	service_cmd_called[cmd_type] = true;
-	C2_UT_ASSERT(node_ctx == &service_ut_node_ctx);
 	C2_UT_ASSERT(cmd == &service_cmd);
 	C2_UT_ASSERT(reply == &service_reply);
 	return service_cmd_errno;
 }
 
-static int service_ut_cmd_init(struct c2_net_test_node_ctx *node_ctx,
+static int service_ut_cmd_init(void *ctx_,
 			       const struct c2_net_test_cmd *cmd,
 			       struct c2_net_test_cmd *reply)
 {
-	return service_ut_cmd(node_ctx, cmd, reply, C2_NET_TEST_CMD_INIT);
+	return service_ut_cmd(ctx_, cmd, reply, C2_NET_TEST_CMD_INIT);
 }
 
-static int service_ut_cmd_start(struct c2_net_test_node_ctx *node_ctx,
+static int service_ut_cmd_start(void *ctx_,
 				const struct c2_net_test_cmd *cmd,
 				struct c2_net_test_cmd *reply)
 {
-	return service_ut_cmd(node_ctx, cmd, reply, C2_NET_TEST_CMD_START);
+	return service_ut_cmd(ctx_, cmd, reply, C2_NET_TEST_CMD_START);
 }
 
-static int service_ut_cmd_stop(struct c2_net_test_node_ctx *node_ctx,
+static int service_ut_cmd_stop(void *ctx_,
 			       const struct c2_net_test_cmd *cmd,
 			       struct c2_net_test_cmd *reply)
 {
-	return service_ut_cmd(node_ctx, cmd, reply, C2_NET_TEST_CMD_STOP);
+	return service_ut_cmd(ctx_, cmd, reply, C2_NET_TEST_CMD_STOP);
 }
 
-static int service_ut_cmd_status(struct c2_net_test_node_ctx *node_ctx,
+static int service_ut_cmd_status(void *ctx_,
 				 const struct c2_net_test_cmd *cmd,
 				 struct c2_net_test_cmd *reply)
 {
-	return service_ut_cmd(node_ctx, cmd, reply, C2_NET_TEST_CMD_STATUS);
+	return service_ut_cmd(ctx_, cmd, reply, C2_NET_TEST_CMD_STATUS);
 }
 
-static int service_ut_init(struct c2_net_test_node_ctx *node_ctx)
+static void *service_ut_init(struct c2_net_test_service *svc_)
 {
+	C2_UT_ASSERT(svc_ == &svc);
 	service_init_called = true;
-	return 0;
+	return &svc;
 }
 
-static void service_ut_fini(struct c2_net_test_node_ctx *node_ctx)
+static void service_ut_fini(void *ctx)
 {
 	service_fini_called = true;
 }
 
-static int service_ut_step(struct c2_net_test_node_ctx *node_ctx)
+static int service_ut_step(void *ctx)
 {
 	service_step_called = true;
 	return 0;
@@ -183,7 +184,6 @@ static bool service_can_handle(enum c2_net_test_cmd_type cmd_type)
 
 void c2_net_test_service_ut(void)
 {
-	struct c2_net_test_service svc;
 	enum c2_net_test_cmd_type  cmd_type;
 	int			   rc;
 	uint64_t		   seed = 42;
@@ -191,12 +191,9 @@ void c2_net_test_service_ut(void)
 	int			   cmd_max;
 	int			   cmd_index;
 
-	C2_SET0(&service_ut_node_ctx);
-
 	/* test c2_net_test_service_init() */
 	service_ut_check_reset();
-	rc = c2_net_test_service_init(&svc, &service_ut_node_ctx,
-				      &service_ut_ops);
+	rc = c2_net_test_service_init(&svc, &service_ut_ops);
 	C2_UT_ASSERT(rc == 0);
 	service_ut_checks(&svc, C2_NET_TEST_SERVICE_READY);
 	service_ut_check_called(&service_init_called);

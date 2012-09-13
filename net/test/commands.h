@@ -120,7 +120,9 @@ struct c2_net_test_cmd_init {
    @see c2_net_test_cmd, c2_net_test_msg_nr, c2_net_test_stats
  */
 struct c2_net_test_cmd_status_data {
+	/* number of sent messages (total/failed/bad) */
 	struct c2_net_test_msg_nr ntcsd_msg_nr_send;
+	/* number of received messages (total/failed/bad) */
 	struct c2_net_test_msg_nr ntcsd_msg_nr_recv;
 	/** Test start time */
 	c2_time_t		  ntcsd_time_start;
