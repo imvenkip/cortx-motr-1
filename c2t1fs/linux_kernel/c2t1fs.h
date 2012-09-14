@@ -331,6 +331,30 @@ struct c2t1fs_sb {
 
 	/** Layout for file */
 	struct c2_layout             *csb_file_layout;
+        /**
+         * Flag indicating if c2t1fs mount is active or not.
+         * Flag is set when c2t1fs is mounted and is reset by unmount thread.
+         */
+        bool                          csb_active;
+
+        /**
+         * Instantaneous count of pending io requests.
+         * Every io requests increments this value while initializing
+         * and decrements it while finalizing.
+         */
+        struct c2_atomic64            csb_pending_io;
+
+        /** Special thread which runs ASTs from io requests. */
+        struct c2_thread              csb_astthread;
+
+        /**
+         * Channel on which unmount thread will wait. It will be signalled
+         * by ast thread while exiting.
+         */
+        struct c2_chan                csb_iowait;
+
+        /** State machine group used for all IO requests. */
+        struct c2_sm_group            csb_iogroup;
 
 	/** File layout ID */
 	uint64_t                      csb_layout_id;

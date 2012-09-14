@@ -56,6 +56,9 @@ void c2_ext_add(const struct c2_ext *term0, const struct c2_ext *term1,
 /* what about signed? */
 c2_bindex_t c2_ext_cap(const struct c2_ext *ext2, c2_bindex_t val);
 
+/** Tells if start of extent is less than end of extent. */
+bool c2_ext_is_valid(const struct c2_ext *ext);
+
 /** @} end of ext group */
 
 /* __COLIBRI_LIB_EXT_H__ */

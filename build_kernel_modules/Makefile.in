@@ -117,7 +117,7 @@ lib_SOURCES                     := bitstring.c getopts.c vec.c list.c queue.c  \
 				   refs.c time.c bitmap.c chan.c misc.c buf.c  \
 				   cond.c thread.c tlist.c bob.c trace.c       \
 				   finject.c vec_xc.c vec.c buf_xc.c buf.c     \
-				   c2lib.c cookie.c
+				   c2lib.c cookie.c ext.c
 
 lib_HEADERS                     := vec.h vec_xc.h buf.h buf_xc.h
 
