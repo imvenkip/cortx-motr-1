@@ -841,16 +841,15 @@ void c2_rpc_session_release(struct c2_rpc_session *session)
 	session_idle_x_busy(session);
 }
 
-void c2_rpc_session_inc_nr_active_items(struct c2_rpc_session *session)
+void c2_rpc_session_mod_nr_active_items(struct c2_rpc_session *session,
+					int delta)
 {
-	++session->s_nr_active_items;
-	session_idle_x_busy(session);
-}
+	C2_PRE(session != NULL);
 
-void c2_rpc_session_dec_nr_active_items(struct c2_rpc_session *session)
-{
-	--session->s_nr_active_items;
-	session_idle_x_busy(session);
+	if (delta != 0) {
+		session->s_nr_active_items += delta;
+		session_idle_x_busy(session);
+	}
 }
 
 /** Perform (IDLE -> BUSY) or (BUSY -> IDLE) transition if required */

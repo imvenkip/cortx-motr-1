@@ -389,17 +389,13 @@ void c2_rpc_item_set_stage(struct c2_rpc_item     *item,
 	session = item->ri_session;
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
+
 	item_was_active = item_is_active(item);
 	C2_ASSERT(ergo(item_was_active,
 		       session->s_state == C2_RPC_SESSION_BUSY));
-
 	item->ri_stage = stage;
-
-	if (item_was_active && !item_is_active(item))
-		c2_rpc_session_dec_nr_active_items(session);
-
-	if (!item_was_active && item_is_active(item))
-		c2_rpc_session_inc_nr_active_items(session);
+	c2_rpc_session_mod_nr_active_items(session,
+					item_is_active(item) - item_was_active);
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
 }

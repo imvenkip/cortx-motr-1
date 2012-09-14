@@ -420,7 +420,7 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 	c2_list_add_tail(&slot->sl_item_list, &sref->sr_link);
 	item->ri_stage = RPC_ITEM_STAGE_FUTURE;
 	if (session != NULL)
-		c2_rpc_session_inc_nr_active_items(session);
+		c2_rpc_session_mod_nr_active_items(session, 1);
 
 	__slot_balance(slot, allow_events);
 }
