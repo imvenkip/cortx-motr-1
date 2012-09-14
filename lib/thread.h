@@ -90,6 +90,10 @@ enum c2_thread_state {
    any moment, except for the possible resource leak in the case of running (and
    not yet joined) thread.
  */
+struct c2_thread_data {
+        bool td_is_awkward;
+};
+
 struct c2_thread {
 	enum c2_thread_state    t_state;
 	struct c2_thread_handle t_h;
@@ -239,6 +243,11 @@ void c2_thread_self(struct c2_thread_handle *id);
 */
 bool c2_thread_handle_eq(struct c2_thread_handle *h1,
 			 struct c2_thread_handle *h2);
+
+struct c2_thread_data *c2_thread_getdataptr(void);
+
+void c2_set_awkward(bool flag);
+bool c2_is_awkward(void);
 
 /** @} end of thread group */
 

@@ -45,6 +45,9 @@ enum {
 	C2_THREAD_NAME_LEN = TASK_COMM_LEN
 };
 
+int c2_thread_setspecific(const void *value);
+void *c2_thread_getspecific(void);
+
 /** @} end of thread group */
 
 /* __COLIBRI_LIB_LINUX_KERNEL_THREAD_H__ */

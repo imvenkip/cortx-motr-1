@@ -51,6 +51,8 @@ enum {
 int  c2_threads_init(void);
 void c2_threads_fini(void);
 
+int   c2_thread_setspecific(const void *value);
+void *c2_thread_getspecific(void);
 /**
    Helper macro creating an anonymous function with a given body.
 

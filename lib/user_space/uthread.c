@@ -42,6 +42,7 @@
  */
 
 static pthread_attr_t pthread_attr_default;
+static pthread_key_t pthread_data_key;
 
 int c2_thread_init_impl(struct c2_thread *q, const char *namebuf)
 {
@@ -89,15 +90,27 @@ int c2_threads_init(void)
 	int result;
 
 	result = -pthread_attr_init(&pthread_attr_default);
-	if (result == 0)
-		result = -pthread_attr_setdetachstate(&pthread_attr_default,
-						      PTHREAD_CREATE_JOINABLE);
+	if (result != 0)
+		return result;
+
+	result = -pthread_attr_setdetachstate(&pthread_attr_default,
+					      PTHREAD_CREATE_JOINABLE);
+	if (result != 0)
+		return result;
+
+	result = -pthread_key_create(&pthread_data_key, NULL);
+	if (result != 0) {
+		pthread_attr_destroy(&pthread_attr_default);
+		return result;
+	}
+
 	return result;
 }
 
 void c2_threads_fini(void)
 {
 	pthread_attr_destroy(&pthread_attr_default);
+	pthread_key_delete(pthread_data_key);
 }
 
 void c2_thread_self(struct c2_thread_handle *id)
@@ -111,6 +124,15 @@ bool c2_thread_handle_eq(struct c2_thread_handle *h1,
 	return h1->h_id == h2->h_id;
 }
 
+int c2_thread_setspecific(const void *value)
+{
+	return -pthread_setspecific(pthread_data_key, value);
+}
+
+void *c2_thread_getspecific(void)
+{
+	return pthread_getspecific(pthread_data_key);
+}
 /** @} end of thread group */
 
 /*

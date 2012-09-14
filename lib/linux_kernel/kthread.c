@@ -181,6 +181,16 @@ bool c2_thread_handle_eq(struct c2_thread_handle *h1,
 	return h1->h_t == h2->h_t;
 }
 
+int c2_thread_setspecific(const void *value)
+{
+        return 0;
+}
+
+void *c2_thread_getspecific(void)
+{
+        return NULL;
+}
+
 /** @} end of thread group */
 
 /*

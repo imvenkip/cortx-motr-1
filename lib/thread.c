@@ -24,8 +24,18 @@
 #include <stdio.h>	/* vsnprintf */
 #endif
 
+#include "lib/memory.h"
+#include "lib/errno.h"
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/thread.h"
+
+static int thread_data_init(c2_bcount_t size);
+static void thread_data_fini(void);
+
+#define THREAD_DATA_INIT(ptr)					\
+	((struct c2_thread_data *)ptr)->td_is_awkward = false;
+
+#define THREAD_DATA_SIZE sizeof(struct c2_thread_data)
 
 /**
    @addtogroup thread Thread
@@ -34,7 +44,6 @@
 
    @{
  */
-
 int c2_thread_init(struct c2_thread *q, int (*init)(void *),
 		   void (*func)(void *), void *arg, const char *name, ...)
 {
@@ -58,8 +67,14 @@ int c2_thread_init(struct c2_thread *q, int (*init)(void *),
 	if (result == 0 && q->t_init != NULL) {
 		c2_semaphore_down(&q->t_wait);
 		result = q->t_initrc;
-		if (result != 0)
+		if (result != 0) {
+ 		 	 /* Allocate thread-specific data. */
+			result = thread_data_init(THREAD_DATA_SIZE);
+			if (result != 0)
+				return result;
+
 			c2_thread_join(q);
+		}
 	}
 	if (result != 0)
 		q->t_state = TS_PARKED;
@@ -86,10 +101,51 @@ void *c2_thread_trampoline(void *arg)
 void c2_thread_fini(struct c2_thread *q)
 {
 	C2_PRE(q->t_state == TS_PARKED);
+	thread_data_fini();
 	c2_semaphore_fini(&q->t_wait);
 	C2_SET0(q);
 }
 C2_EXPORTED(c2_thread_fini);
+
+static int thread_data_init(c2_bcount_t size)
+{
+	void *dataptr;
+
+	dataptr = c2_alloc(size);
+	if (dataptr == NULL)
+		return -ENOMEM;
+
+	THREAD_DATA_INIT(dataptr);
+
+	return c2_thread_setspecific(dataptr);
+}
+
+static void thread_data_fini(void)
+{
+	void *ptr = c2_thread_getspecific();
+
+	c2_thread_setspecific(NULL);
+	c2_free(ptr);
+}
+
+struct c2_thread_data *c2_thread_getdataptr()
+{
+	return (struct c2_thread_data *)c2_thread_getspecific();
+}
+
+void c2_set_awkward(bool flag)
+{
+	struct c2_thread_data *thr_dataptr = c2_thread_getdataptr();
+
+	thr_dataptr->td_is_awkward = flag;
+}
+
+bool c2_is_awkward()
+{
+	struct c2_thread_data *thr_dataptr = c2_thread_getdataptr();
+
+	return thr_dataptr->td_is_awkward;
+}
 
 /** @} end of thread group */
 
