@@ -47,14 +47,15 @@
  *   <hr>
  *   @section CPDLD-ovw Overview
  *
- *   Copy packet is the data structure used to describe the packet flowing
- *   between various copy machine replica nodes. It is an entity which has data
- *   as well as operation to work. Copy packets are FOMs of special type,
- *   created when a data re-structuring request is posted to replica.
+ *   Copy packet is the data structure used to describe the movement of a piece
+ *   of re-structured data between various copy machine replica nodes and within
+ *   the same replica. It is an entity which has data as well as operations.
+ *   Copy packets are FOMs of special type, created when a data re-structuring
+ *   request is posted to replica.
  *
- *   Copy packet processing logic is implemented in non-blocking way. Packet has
- *   buffers to carry data and FOM for execution in context of request handler.
- *   It can perform various kind of work which depends on the it's phase
+ *   Copy packet processing logic is implemented in a non-blocking way.
+ *   Packet has buffers to carry data and FOM for execution in context of
+ *   request handler. It can perform different work which depends on its phase
  *   (i.e. FOM phase) in execution.
  *
  *   <hr>
@@ -64,12 +65,12 @@
  *
  *   - <b>Copy packet acknowledgement:</b> Reply received, representing
  *   successful processing of the copy packet. With this acknowledgement, copy
- *   packet release various resources, update its internal state.
+ *   packet releases various resources and updates its internal state.
  *
  *   - <b>Next phase function:</b> Given a copy packet, this identifies the
  *   phase that has to be assigned to this copy packet. The next phase function
- *   determines the routing and execution of copy packets through the copy
- *   machine.
+ *   (c2_cm_cp_ops::co_phase_next()) determines the routing and execution of
+ *   copy packets through the copy machine.
  *
  *   <hr>
  *   @section CPDLD-req Requirements
@@ -135,12 +136,12 @@
  *
  *	- generic functionality, implemented by cm/cp.[hc] and
  *
- *      - copy packet type functionality which based on copy machine type.
+ *      - copy packet type functionality which is based on copy machine type.
  *        (e.g. SNS, Replication, &c).
  *
  *   <b>Copy packet creation:</b>
  *   Given the size of the buffer pool, the replica calculates its initial
- *   sliding window (see c2_cm_sw). Once the replica learns window of every
+ *   sliding window (@see c2_cm_sw). Once the replica learns windows of every
  *   other replica, it can produce copy packets that replicas (including this
  *   one) are ready to process.
  *
@@ -151,14 +152,14 @@
  *        window is checked. If space exists, then copy packets will be created.
  *
  *   <b>Copy Packet destruction:</b>
- *   Copy packet is destroyed by setting its phase to FINI. Following are some
- *   cases where copy packet is finalised.
+ *   Copy packet is destroyed by setting its phase to C2_CCP_FINI.
+ *   Following are some cases where copy packet is finalised.
  *
  *	- On notification of copy packet data written to device/container.
  *
- *	- During transformation, unwanted packets are finalised.
+ *	- During transformation, no longer needed packets are finalised.
  *
- *	- On completion of copy packet transfer over network.
+ *	- On completion of copy packet transfer over the network.
  *
  *   <b>Copy packet cooperation within replica:</b>
  *   Copy packet needs resources (memory, processor, &c.) to do processing:
@@ -170,8 +171,8 @@
  *	- Needs buffers to keep intermediate checksum until all units of an
  *	  aggregation group have been received.
  *
- *   The same copy packet (and its associated buffers) will go through various
- *   phases. In a perticular scenario where data read from device creates a
+ *   The same copy packet (and its associated buffers) goes through various
+ *   phases. In a particular scenario where data read from device creates a
  *   copy packet, then copy packet transitions to data transformation phase,
  *   which, after reconstructing the data, transitions to data write or send,
  *   which submits IO. On IO completion, the copy packet is destroyed.
@@ -183,7 +184,7 @@
  *
  *   Given the size of the buffer pool, the replica calculates its initial
  *   sliding window. Once the replica learns window of every other replica, it
- *   can activates copy packet FOMs. Copy machine replica submits copy packets
+ *   can activate copy packet FOMs. Copy machine replica submits copy packets
  *   FOMs to request handler.
  *
  *   @subsection CPDLD-lspec-state State Specification
@@ -193,6 +194,7 @@
  *   - @b INIT   Copy packet gets initialised with input data. e.g In SNS,
  *		 extent, COB, &c gets initialised. Usually this will be done
  *		 with some iterator over layout info.
+ *		 (c2_cm_cp_phase::C2_CCP_INIT)
  *
  *   - @b READ   Reads data from its associated container or device according
  *		 to the input information, and places the data in a copy packet
@@ -200,10 +202,12 @@
  *		 resources: memory, locks, permissions, CPU/disk bandwidth,
  *		 etc. Data/parity is encapsulated in copy packet, and the copy
  *		 packets are transfered to next phase.
+ *		 (c2_cm_cp_phase::C2_CCP_READ)
  *
  *   - @b WRITE  Writes data from copy packet data buffer to the container or
  *		 device. Spare container and offset to write is identified from
  *		 layout information.
+ *		 (c2_cm_cp_phase::C2_CCP_WRITE)
  *
  *   - @b XFORM  Data restructuring is done in this phase. This phase would
  *		 typically process a lot of local copy packets. E.g., for SNS
@@ -212,22 +216,25 @@
  *		 (and should) calculate "partial parity" of all local units,
  *		 instead of sending each of them separately across the network
  *		 to a remote copy machine replica.
+ *		 (c2_cm_cp_phase::C2_CCP_XFORM)
  *
  *   - @b SEND   Send copy packet over network. Control FOP and bulk transfer
  *		 are used for sending copy packet.
+ *		 (c2_cm_cp_phase::C2_CCP_SEND)
  *
  *   - @b RECV   Copy packet data is received from network. On receipt of
  *		 control FOP, copy packet is created and FOM is submitted for
  *		 execution and phase is set RECV, which will eventually receive
  *		 data using rpc bulk.
+ *		 (c2_cm_cp_phase::C2_CCP_RECV)
  *
- *   - @b FINI  Finalises copy packet.
+ *   - @b FINI   Finalises copy packet.
  *
  *   Specific copy packet can have phases in addition to these phases.
- *   Additional phases may be used to do processing specific copy packet
+ *   Additional phases may be used to do processing for copy packet specific
  *   functionality. Handling of additional phases also can be done using next
- *   phase fuction, as implementaion of next phase function is also specific to
- *   copy packet type.
+ *   phase function, as implementation of next phase function is also specific
+ *   to copy packet type.
  *
  *   Transition between standard phases is done by next phase function. It will
  *   produce the next phase according to the configuration of the copy machine
@@ -260,8 +267,6 @@
  *   It runs in the context of reqh threads. So FOM locality group lock
  *   (i.e c2_cm_cp:c_fom:fo_loc:fl_group:s_lock) is used to serialise access
  *   to c2_cm_cp and its operation.
- *
- *   @enddot
  *
  *   <hr>
  *   @section CPDLD-conformance Conformance
@@ -325,9 +330,7 @@ static struct c2_fom_type cp_fom_type = {
 
 static void cp_fom_fini(struct c2_fom *fom)
 {
-        struct c2_cm_cp *cp;
-
-        cp = container_of(fom, struct c2_cm_cp, c_fom);
+        struct c2_cm_cp *cp = bob_of(fom, struct c2_cm_cp, c_fom, &cp_bob);
 	/*
          * @todo Before freeing copy packet check this is last packet
          * from aggregation group, if yes then free aggregation group along
@@ -338,9 +341,8 @@ static void cp_fom_fini(struct c2_fom *fom)
 
 static uint64_t cp_fom_locality(const struct c2_fom *fom)
 {
-        struct c2_cm_cp *cp;
+        struct c2_cm_cp *cp = bob_of(fom, struct c2_cm_cp, c_fom, &cp_bob);
 
-        cp = container_of(fom, struct c2_cm_cp, c_fom);
         C2_PRE(c2_cm_cp_invariant(cp));
 
         return cp->c_ag->cag_id.u_lo;
@@ -348,7 +350,7 @@ static uint64_t cp_fom_locality(const struct c2_fom *fom)
 
 static int cp_fom_tick(struct c2_fom *fom)
 {
-        struct c2_cm_cp *cp = container_of(fom, struct c2_cm_cp, c_fom);
+        struct c2_cm_cp *cp = bob_of(fom, struct c2_cm_cp, c_fom, &cp_bob);
 	int		 phase = c2_fom_phase(fom);
 
         C2_PRE(c2_cm_cp_invariant(cp));

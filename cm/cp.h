@@ -136,9 +136,6 @@ struct c2_cm_cp {
 
 /**
  * Copy packet operations.
- *
- * A copy machine has a handler which handles FOP requests. A copy machine is
- * responsible to create corresponding copy packet FOMs to do the actual work.
  */
 struct c2_cm_cp_ops {
 	/** Called when copy packet processing is completed successfully. */
