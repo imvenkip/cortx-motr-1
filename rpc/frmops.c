@@ -412,11 +412,10 @@ static void item_done(struct c2_rpc_item *item, unsigned long rc)
 		 * WAITING_FOR_REPLY state.
 		 */
 		if (c2_rpc_item_is_request(item)) {
-			if (item->ri_reply_pending) {
+			if (item->ri_reply != NULL) {
 				/* Reply has already been received when we
 				   were waiting for buffer callback */
 				c2_rpc_slot_process_reply(item);
-				item->ri_reply_pending = false;
 			} else {
 				c2_rpc_item_start_timer(item);
 			}

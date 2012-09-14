@@ -51,8 +51,6 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
 void c2_rpc_slot_process_reply(struct c2_rpc_item *req);
 void c2_rpc_item_set_stage(struct c2_rpc_item     *item,
 			   enum c2_rpc_item_stage  stage);
-void c2_rpc_slot_postpone_reply_processing(struct c2_rpc_item *req,
-					   struct c2_rpc_item *reply);
 int c2_rpc_slot_item_received(struct c2_rpc_item *item);
 
 static struct c2_rpc_machine *
@@ -608,15 +606,16 @@ int c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		C2_ASSERT(slot->sl_in_flight > 0);
 
 		req_state = req->ri_sm.sm_state;
+		req->ri_reply = reply;
 		if (C2_IN(req_state,(C2_RPC_ITEM_ACCEPTED,
 				     C2_RPC_ITEM_WAITING_FOR_REPLY))) {
-			req->ri_reply = reply;
 			c2_rpc_slot_process_reply(req);
 		} else if (req_state == C2_RPC_ITEM_SENDING) {
-			/* buffer sent callback is still pending */
-			c2_rpc_slot_postpone_reply_processing(req, reply);
+			/*
+			 * Buffer sent callback is still pending;
+			 * postpone reply processing.
+			 */
 		} else {
-			/* XXX Remove this assert */
 			C2_ASSERT(false);
 		}
 		*req_out = req;
@@ -644,15 +643,6 @@ void c2_rpc_slot_process_reply(struct c2_rpc_item *req)
 	 * see: rcv_reply_consume(), snd_reply_consume()
 	 */
 	slot->sl_ops->so_reply_consume(req, req->ri_reply);
-}
-
-void c2_rpc_slot_postpone_reply_processing(struct c2_rpc_item *req,
-					   struct c2_rpc_item *reply)
-{
-	C2_PRE(req != NULL && req->ri_sm.sm_state == C2_RPC_ITEM_SENDING);
-
-	req->ri_reply         = reply;
-	req->ri_reply_pending = true;
 }
 
 void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
