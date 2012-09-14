@@ -227,35 +227,48 @@ bool c2_rpc_item_invariant(const struct c2_rpc_item *item)
 		equi(req || rply, item->ri_session != NULL) &&
 		item->ri_ops != NULL &&
 		item->ri_ops->rio_free != NULL &&
+
 		equi(state == C2_RPC_ITEM_FAILED,
-		     item->ri_error != 0) &&
+		     item->ri_error != 0 &&
+		     C2_IN(item->ri_stage, (RPC_ITEM_STAGE_FAILED,
+					    RPC_ITEM_STAGE_TIMEDOUT))) &&
+
 		equi(req && item->ri_error == -ETIMEDOUT,
 		     item->ri_stage == RPC_ITEM_STAGE_TIMEDOUT &&
 		     c2_time_is_in_past(item->ri_op_timeout)) &&
-		equi(item->ri_reply != NULL,
-		     req &&
-		     (state == C2_RPC_ITEM_REPLIED ||
-		      item->ri_reply_pending)) &&
-		ergo(item->ri_reply_pending,
+
+		ergo(item->ri_reply != NULL,
 			req &&
-			item->ri_reply != NULL &&
 			C2_IN(state, (C2_RPC_ITEM_SENDING,
-				      C2_RPC_ITEM_WAITING_FOR_REPLY))) &&
-		equi(C2_IN(item->ri_stage, (RPC_ITEM_STAGE_PAST_COMMITTED,
+				      C2_RPC_ITEM_WAITING_FOR_REPLY,
+				      C2_RPC_ITEM_REPLIED))) &&
+
+		ergo(C2_IN(item->ri_stage, (RPC_ITEM_STAGE_PAST_COMMITTED,
 					    RPC_ITEM_STAGE_PAST_VOLATILE)),
 		     item->ri_reply != NULL) &&
+
+		ergo(C2_IN(item->ri_stage, (RPC_ITEM_STAGE_FUTURE,
+					    RPC_ITEM_STAGE_FAILED,
+					    RPC_ITEM_STAGE_TIMEDOUT)),
+		     item->ri_reply == NULL) &&
+
 		equi(itemq_tlink_is_in(item), state == C2_RPC_ITEM_ENQUEUED) &&
+
 		equi(item->ri_itemq != NULL,  state == C2_RPC_ITEM_ENQUEUED) &&
+
 		equi(packet_item_tlink_is_in(item),
 		     state == C2_RPC_ITEM_SENDING) &&
+
 		ergo(C2_IN(state, (C2_RPC_ITEM_SENDING,
 				   C2_RPC_ITEM_SENT,
 				   C2_RPC_ITEM_WAITING_FOR_REPLY)),
 			ergo(req || rply, bound) &&
 			ergo(req,
 			     item->ri_stage <= RPC_ITEM_STAGE_IN_PROGRESS)) &&
+
 		ergo(state == C2_RPC_ITEM_REPLIED,
 			req && bound &&
+			item->ri_reply != NULL &&
 			item->ri_stage <= RPC_ITEM_STAGE_PAST_VOLATILE);
 }
 
