@@ -18,10 +18,6 @@
  * Original creation date: 08/09/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include <linux/kernel.h> /* printk */
 
 #include "addb/addb.h"

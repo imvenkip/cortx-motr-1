@@ -18,10 +18,6 @@
  * Original creation date: 02/07/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/errno.h"
 #include "lib/memory.h"             /* c2_free(), C2_ALLOC_PTR() */
 #include "fid/fid.h"                /* c2_fid */
@@ -234,7 +230,7 @@ static int cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	C2_PRE(fom != NULL);
 	C2_PRE(cc != NULL);
 
-	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	reqh = c2_fom_reqh(fom);
 	sdom = c2_cs_stob_domain_find(reqh, &cc->fco_stobid);
 	if (sdom == NULL) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
@@ -271,7 +267,7 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	C2_PRE(fom != NULL);
 	C2_PRE(cc != NULL);
 
-	cdom = fom->fo_loc->fl_dom->fd_reqh->rh_cob_domain;
+	cdom = c2_fom_reqh(fom)->rh_cob_domain;
 	C2_ASSERT(cdom != NULL);
 	fop = c2_fop_data(fom->fo_fop);
 
@@ -286,7 +282,8 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	nsrec.cnr_stobid = cc->fco_stobid;
 	nsrec.cnr_nlink = CC_COB_HARDLINK_NR;
 
-	fabrec.cfb_version.vn_lsn = c2_fol_lsn_allocate(fom->fo_fol);
+	fabrec.cfb_version.vn_lsn =
+	             c2_fol_lsn_allocate(c2_fom_reqh(fom)->rh_fol);
 	fabrec.cfb_version.vn_vc = CC_COB_VERSION_INIT;
 
 	rc = c2_cob_create(cdom, nskey, &nsrec, &fabrec, CA_NSKEY_FREE, &cob,
@@ -420,7 +417,7 @@ static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 	C2_PRE(fom != NULL);
 	C2_PRE(cd != NULL);
 
-	cdom = fom->fo_loc->fl_dom->fd_reqh->rh_cob_domain;
+	cdom = c2_fom_reqh(fom)->rh_cob_domain;
 	C2_ASSERT(cdom != NULL);
 
 	rc = c2_cob_locate(cdom, &cd->fco_stobid, &cob, &fom->fo_tx.tx_dbtx);
@@ -453,7 +450,7 @@ static int cd_stob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 	C2_PRE(fom != NULL);
 	C2_PRE(cd != NULL);
 
-	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	reqh = c2_fom_reqh(fom);
 	sdom = c2_cs_stob_domain_find(reqh, &cd->fco_stobid);
 	if (sdom == NULL) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,

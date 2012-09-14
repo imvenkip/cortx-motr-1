@@ -33,6 +33,7 @@
 #include "lib/bob.h"
 #include "ioservice/io_fops.h"
 #include "ioservice/io_fops_ff.h"
+#include "colibri/magic.h"
 
 /* Imports */
 struct c2_net_domain;
@@ -388,13 +389,6 @@ out:
 	return rc;
 }
 
-enum {
-	MAGIC_BUFLSTHD = 0x4255464c53544844, /* "BUFLSTHD" */
-	MAGIC_C2T1BUF  = 0x43325431425546,   /* "C2T1BUF" */
-	MAGIC_RW_DESC  = 0x52575f44455343,   /* "RW_DESC" */
-	MAGIC_RWDLSTHD = 0x5257444c53544844, /* "RWDLSTHD" */
-};
-
 /**
    Read/write descriptor that describes io on cob identified by rd_fid.
  */
@@ -414,12 +408,12 @@ struct rw_desc {
 	/** link within a local list created by c2t1fs_internal_read_write() */
 	struct c2_tlink        rd_link;
 
-	/** magic = MAGIC_RW_DESC */
+	/** magic = C2_T1FS_RW_DESC_MAGIC */
 	uint64_t               rd_magic;
 };
 
 C2_TL_DESCR_DEFINE(rwd, "rw descriptors", static, struct rw_desc, rd_link,
-			rd_magic, MAGIC_RW_DESC, MAGIC_RWDLSTHD);
+		   rd_magic, C2_T1FS_RW_DESC_MAGIC, C2_T1FS_RW_DESC_HEAD_MAGIC);
 
 C2_TL_DEFINE(rwd, static, struct rw_desc);
 
@@ -437,12 +431,12 @@ struct c2t1fs_buf {
 	/** link in rw_desc::rd_buf_list */
 	struct c2_tlink           cb_link;
 
-	/** magic = MAGIC_C2T1BUF */
+	/** magic = C2_T1FS_BUF_MAGIC */
 	uint64_t                  cb_magic;
 };
 
 C2_TL_DESCR_DEFINE(bufs, "buf list", static, struct c2t1fs_buf, cb_link,
-			cb_magic, MAGIC_C2T1BUF, MAGIC_BUFLSTHD);
+		   cb_magic, C2_T1FS_BUF_MAGIC, C2_T1FS_BUF_HEAD_MAGIC);
 
 C2_TL_DEFINE(bufs, static, struct c2t1fs_buf);
 
@@ -458,7 +452,7 @@ static void c2t1fs_buf_init(struct c2t1fs_buf *buf,
 	bufs_tlink_init(buf);
 	buf->cb_off   = off;
 	buf->cb_type  = unit_type;
-	buf->cb_magic = MAGIC_C2T1BUF;
+	buf->cb_magic = C2_T1FS_BUF_MAGIC;
 }
 
 static void c2t1fs_buf_fini(struct c2t1fs_buf *buf)
@@ -492,7 +486,7 @@ static struct rw_desc * rw_desc_get(struct c2_tl        *list,
 	rw_desc->rd_fid     = *fid;
 	rw_desc->rd_count   = 0;
 	rw_desc->rd_session = NULL;
-	rw_desc->rd_magic   = MAGIC_RW_DESC;
+	rw_desc->rd_magic   = C2_T1FS_RW_DESC_MAGIC;
 
 	bufs_tlist_init(&rw_desc->rd_buf_list);
 
@@ -560,7 +554,6 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 	struct rw_desc              *rw_desc;
 	struct c2t1fs_sb            *csb;
 	struct c2_tl                 rw_desc_list;
-	struct c2_fid                gob_fid;
 	struct c2_fid                tgt_fid;
 	struct c2_buf               *data_bufs;
 	struct c2_buf               *parity_bufs;
@@ -585,7 +578,6 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 	pi = c2_layout_instance_to_pdi(ci->ci_layout_instance);
 	pl = pi->pi_layout;
 
-	gob_fid   = ci->ci_fid;
 	unit_size = c2_pdclust_unit_size(pl);
 
 	C2_LOG("Unit size: %lu", (unsigned long)unit_size);
@@ -630,14 +622,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 			pos = tgt_addr.ta_frame * unit_size;
 
-			/*
-			 * 1 must be added to tgt_addr.ta_obj, because ta_obj
-			 * is in range [0, P - 1] inclusive. But our component
-			 * objects are indexed in range [1, P] inclusive.
-			 * For more info see "Containers and component objects"
-			 * section in c2t1fs.h
-			 */
-			tgt_fid = c2t1fs_cob_fid(&gob_fid, tgt_addr.ta_obj + 1);
+			tgt_fid = c2t1fs_cob_fid(ci, tgt_addr.ta_obj);
 
 			rw_desc = rw_desc_get(&rw_desc_list, &tgt_fid);
 			if (rw_desc == NULL) {

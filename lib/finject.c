@@ -18,11 +18,6 @@
  * Original creation date: 02/22/2012
  */
 
-
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #ifdef ENABLE_FAULT_INJECTION
 
 #ifdef __KERNEL__
@@ -39,7 +34,7 @@
 #include "lib/tlist.h"
 #include "lib/finject.h"
 #include "lib/finject_internal.h"
-
+#include "colibri/magic.h"
 
 enum {
 	FI_STATES_ARRAY_SIZE = 64 * 1024,
@@ -55,14 +50,9 @@ struct fi_dynamic_id {
 	char            *fdi_str;
 };
 
-enum {
-	DYNID_LINK_MAGIC = 0x666964796e69646c,
-	DYNID_HEAD_MAGIC = 0x666964796e696468,
-};
-
 C2_TL_DESCR_DEFINE(fi_dynamic_ids, "finject_dynamic_id", static,
 		   struct fi_dynamic_id, fdi_tlink, fdi_magic,
-		   DYNID_LINK_MAGIC, DYNID_HEAD_MAGIC);
+		   C2_FI_DYNAMIC_ID_MAGIC, C2_FI_DYNAMIC_ID_HEAD_MAGIC);
 C2_TL_DEFINE(fi_dynamic_ids, static, struct fi_dynamic_id);
 
 /**

@@ -18,10 +18,6 @@
  * Original creation date: 07/27/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_BALLOC
 #include "lib/trace.h"        /* C2_LOG and C2_ENTRY */
 
@@ -37,6 +33,7 @@
 #include "lib/arith.h"	  /* min_check, c2_is_po2 */
 #include "lib/memory.h"
 #include "balloc.h"
+#include "colibri/magic.h"
 
 /**
    C2 Data Block Allocator.

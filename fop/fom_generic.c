@@ -19,10 +19,6 @@
  * Original creation date: 07/19/2011
  */
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -217,7 +213,7 @@ static int create_loc_ctx(struct c2_fom *fom)
 	int		rc;
 	struct c2_reqh *reqh;
 
-	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	reqh = c2_fom_reqh(fom);
 	rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, reqh->rh_dbenv, 0);
 	if (rc != 0)
 		fom->fo_rc = rc;
@@ -284,10 +280,10 @@ static int fom_success(struct c2_fom *fom)
  */
 static int fom_fol_rec_add(struct c2_fom *fom)
 {
-        c2_fom_block_enter(fom);
-        fom->fo_rc = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
-                                        &fom->fo_tx.tx_dbtx);
-        c2_fom_block_leave(fom);
+	c2_fom_block_enter(fom);
+	fom->fo_rc = c2_fop_fol_rec_add(fom->fo_fop, c2_fom_reqh(fom)->rh_fol,
+	                                &fom->fo_tx.tx_dbtx);
+	c2_fom_block_leave(fom);
 
 	return C2_FSO_AGAIN;
 }
@@ -450,11 +446,11 @@ static const struct fom_phase_desc fpd_table[] = {
 					     "fom_auth_wait",
 					      1 << C2_FOPH_AUTHORISATION_WAIT },
 	[C2_FOPH_TXN_CONTEXT] =		   { &create_loc_ctx,
-					      C2_FOPH_NR + 1,
+					      C2_FOPH_TYPE_SPECIFIC,
 					     "create_loc_ctx",
 					      1 << C2_FOPH_TXN_CONTEXT },
 	[C2_FOPH_TXN_CONTEXT_WAIT] =	   { &create_loc_ctx_wait,
-					      C2_FOPH_NR + 1,
+					      C2_FOPH_TYPE_SPECIFIC,
 					     "create_loc_ctx_wait",
 					      1 << C2_FOPH_TXN_CONTEXT_WAIT },
 	[C2_FOPH_SUCCESS] =		   { &fom_success,
@@ -515,7 +511,7 @@ static const struct c2_sm_state_descr generic_phases[] = {
 				(1 << C2_FOPH_FINISH) |
 				(1 << C2_FOPH_SUCCESS) |
 				(1 << C2_FOPH_FAILURE) |
-				(1 << (C2_FOPH_NR + 1))
+				(1 << C2_FOPH_TYPE_SPECIFIC)
 	},
 	[C2_FOPH_AUTHENTICATE] = {
 		.sd_flags     = 0,
@@ -621,7 +617,7 @@ static const struct c2_sm_state_descr generic_phases[] = {
 		.sd_allowed   = (1 << C2_FOPH_TXN_CONTEXT_WAIT) |
 				(1 << C2_FOPH_SUCCESS) |
 				(1 << C2_FOPH_FAILURE) |
-				(1 << (C2_FOPH_NR + 1))
+				(1 << C2_FOPH_TYPE_SPECIFIC)
 	},
 	[C2_FOPH_TXN_CONTEXT_WAIT] = {
 		.sd_flags     = 0,
@@ -631,7 +627,7 @@ static const struct c2_sm_state_descr generic_phases[] = {
 		.sd_invariant = NULL,
 		.sd_allowed   = (1 << C2_FOPH_SUCCESS) |
 				(1 << C2_FOPH_FAILURE) |
-				(1 << (C2_FOPH_NR + 1))
+				(1 << C2_FOPH_TYPE_SPECIFIC)
 	},
 	[C2_FOPH_SUCCESS] = {
 		.sd_flags     = 0,
@@ -724,9 +720,9 @@ static const struct c2_sm_state_descr generic_phases[] = {
 		.sd_invariant = NULL,
 		.sd_allowed   = 0
 	},
-	[C2_FOPH_NR + 1] = {
+	[C2_FOPH_TYPE_SPECIFIC] = {
 		.sd_flags     = 0,
-		.sd_name      = "dummy specific phase ",
+		.sd_name      = "Specific phase ",
 		.sd_in        = NULL,
 		.sd_ex        = NULL,
 		.sd_invariant = NULL,
@@ -753,11 +749,11 @@ int c2_fom_tick_generic(struct c2_fom *fom)
 
 	rc = fpd_phase->fpd_action(fom);
 
-	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	reqh = c2_fom_reqh(fom);
 	if (rc == C2_FSO_AGAIN) {
 		if (fom->fo_rc != 0 && c2_fom_phase(fom) < C2_FOPH_FAILURE) {
 			c2_fom_phase_set(fom, C2_FOPH_FAILURE);
-			FOM_GEN_ADDB_ADD(reqh->rh_addb, fpd_phase->fpd_name,
+			FOM_GEN_ADDB_ADD(&reqh->rh_addb, fpd_phase->fpd_name,
 					 fom->fo_rc);
 		} else
 			c2_fom_phase_set(fom, fpd_phase->fpd_nextphase);

@@ -19,10 +19,6 @@
  * Original creation date: 04/15/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "net/net.h"        /* c2_net_end_point_get */
@@ -43,13 +39,6 @@
    This file contains definitions of fop types and rpc item types, of fops
    belonging to rpc-session module
  */
-
-int c2_rpc_fop_noop_execute(struct c2_fop     *fop,
-			    struct c2_fop_ctx *ctx)
-{
-	/* Do nothing */
-	return 0;
-}
 
 static void conn_establish_item_free(struct c2_rpc_item *item)
 {
@@ -105,7 +94,6 @@ out:
 }
 
 const struct c2_fop_type_ops c2_rpc_fop_noop_ops = {
-	.fto_execute = c2_rpc_fop_noop_execute
 };
 
 

@@ -10,6 +10,8 @@ libc2_HEADERS        = \
                        atomic.h \
                        bitmap.h \
                        bob.h \
+                       buf.h \
+                       buf_xc.h \
                        cdefs.h \
                        chan.h \
                        cond.h \
@@ -52,7 +54,7 @@ libc2_la_SOURCES     = \
                        bob.h \
                        buf.c \
                        buf.h \
-                       c2lib.c \
+                       buf_xc.c \
                        cdefs.h \
                        chan.c \
                        chan.h \
@@ -115,7 +117,8 @@ libc2_la_SOURCES     = \
                        ut.h \
                        vec.c \
                        vec.h \
-                       vec_xc.c
+                       vec_xc.c \
+                       c2lib.c
 
 libc2_la_LDFLAGS       = @PTHREAD_LIBS@ -lrt
 EXTRA_DIST             = \

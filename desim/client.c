@@ -18,13 +18,11 @@
  *
  * Nikita Danilov.
  */
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
 
 #include <stdio.h>
 
 #include "lib/assert.h"
+#include "colibri/magic.h"
 #include "desim/sim.h"
 #include "desim/net.h"
 #include "desim/client.h"
@@ -48,8 +46,8 @@ struct client_write_ext {
 };
 
 C2_TL_DESCR_DEFINE(cl, "client write extents", static, struct client_write_ext,
-		   cwe_linkage, cwe_magic, 0xFA151F1AB1EA11B1,
-		   0x0B501E5CE0FCACA0);
+		   cwe_linkage, cwe_magic, C2_DESIM_CLIENT_WRITE_EXT_MAGIC,
+		   C2_DESIM_CLIENT_WRITE_EXT_HEAD_MAGIC);
 C2_TL_DEFINE(cl, static, struct client_write_ext);
 
 static void client_pageout(struct sim *s, struct sim_thread *t, void *arg)

@@ -33,6 +33,8 @@
 #include "lib/memory.h" /* c2_pagesize_get */
 #include "lib/trace.h"
 
+#include "colibri/magic.h"
+
 /**
  * @addtogroup trace
  *

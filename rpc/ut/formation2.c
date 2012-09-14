@@ -18,10 +18,6 @@
  * Original creation date: 05/25/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/ut.h"
 #include "lib/mutex.h"
 #include "lib/time.h"

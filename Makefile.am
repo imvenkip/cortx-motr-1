@@ -8,55 +8,82 @@ MAKEFLAGS = $(make_verbose)
 
 SUBDIRS_BASE = m4 doc man patches
 
-# Order is important until fid is reached. Fop needs all libs
-# before it in the built list.
-# Keep this list alphabetically sorted after "net".
+# xcode/ff2c must be built first, because it is used by other modules to compile
+# their .ff files. net/ and addb/addbff must be built next, because their .ff
+# files are used by other modules. The rest can be built in an arbitrary order.
+# Keep the rest sorted lexicographically.
 
-SUBDIRS_LIBS =                     \
-               lib                 \
-               xcode/ff2c          \
-               addb/ut             \
-               fol                 \
-               db                  \
-               fid                 \
-                                   \
-               addb/addbff         \
-               net                 \
-               fop                 \
-               addb                \
-               balloc              \
+SUBDIRS_LIBS = \
+               xcode/ff2c \
+               addb/addbff \
+               net \
+               \
+               addb \
                c2t1fs/linux_kernel \
-               capa                \
-               cfg                 \
-               cm		   \
-	       cob                 \
-               console             \
-               desim               \
-               dtm                 \
-               ioservice           \
-               layout              \
-               mw                  \
-               nrs                 \
-               pool                \
-               reqh                \
-               rpc                 \
-               sm                  \
-               sns                 \
-               sns/repair          \
-               stob                \
-               udb                 \
-               ut                  \
-               xcode               \
+               balloc \
+               capa \
+               cfg \
+               cm \
+	       cob \
+               console \
+               db \
+               desim \
+               dtm \
+               fid \
+               fol \
+               fop \
+               ioservice \
+               layout \
+               lib \
+               mw \
+               nrs \
+               pool \
+               reqh \
+               rpc \
+               sm \
+               sns \
+	       sns/repair \
+               stob \
+               udb \
+               ut \
+               xcode \
                yaml2db
 SUBDIR_IT = rpc/it
 
-SUBDIR_UT = fop/ut fop/ut/long_lock lib/ut stob/ut layout/ut balloc/ut    \
-	    db/ut fol/ut sns/ut desim/ut cob/ut console/ut colibri/ut     \
-	    net/ut net/bulk_emulation/ut net/lnet/ut udb/ut capa/ut       \
-	    ioservice/ut reqh/ut rpc/ut sm/ut xcode/ut yaml2db/ut
+SUBDIR_UT = addb/ut \
+            balloc/ut \
+            c2t1fs/linux_kernel/ut \
+            capa/ut \
+            cob/ut \
+            colibri/ut \
+            console/ut \
+            desim/ut \
+            db/ut \
+            fol/ut \
+            fop/ut \
+            fop/ut/long_lock \
+            ioservice/ut \
+            layout/ut \
+            lib/ut \
+            net/bulk_emulation/ut \
+            net/lnet/ut \
+            net/ut \
+            reqh/ut \
+            rpc/ut \
+            sm/ut \
+            sns/ut \
+            stob/ut \
+            udb/ut \
+            xcode/ut \
+            yaml2db/ut
 
 SUBDIR_KERNEL = build_kernel_modules
-SUBDIR_ST = console/st net/bulk_emulation/st net/lnet/st yaml2db/st
+
+SUBDIR_ST = c2t1fs/linux_kernel/st \
+            console/st \
+            net/bulk_emulation/st \
+            net/lnet/st \
+            yaml2db/st
 
 SUBDIR_UB =
 

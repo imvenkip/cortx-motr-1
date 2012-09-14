@@ -18,10 +18,6 @@
  * Original creation date: 01/06/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/ut.h"    /* C2_UT_ASSERT */
 #include "lib/errno.h"
 #include "lib/tlist.h"

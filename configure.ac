@@ -646,6 +646,9 @@ COLIBRI_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable])
 
 LDFLAGS="-rdynamic $LDFLAGS"
 
+CFLAGS="$CFLAGS -include config.h"
+KCFLAGS="$KCFLAGS -include config.h"
+
 # trim spaces at the end of flags
 CFLAGS=$(echo $CFLAGS | sed 's/[[[:blank:]]]*$//')
 KCFLAGS=$(echo $KCFLAGS | sed 's/[[[:blank:]]]*$//')
@@ -664,8 +667,10 @@ AC_CONFIG_FILES([
                  build_kernel_modules/Makefile
                  capa/Makefile
                  capa/ut/Makefile
-                 c2t1fs/linux_kernel/st/common.sh
                  c2t1fs/linux_kernel/Makefile
+                 c2t1fs/linux_kernel/st/Makefile
+                 c2t1fs/linux_kernel/st/common.sh
+                 c2t1fs/linux_kernel/ut/Makefile
                  cfg/Makefile
 		 cm/Makefile
                  cob/Makefile

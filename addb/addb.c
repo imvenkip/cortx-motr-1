@@ -19,10 +19,6 @@
  * Original creation date: 06/19/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include <stdarg.h>
 
 #include "lib/arith.h"  /* max_check */

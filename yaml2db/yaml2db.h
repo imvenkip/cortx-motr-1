@@ -303,6 +303,13 @@ int c2_yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
 			 const struct c2_yaml2db_section *ysec,
 			 const char *conf_param);
 
+/**
+ * Function to detect and print parsing errors
+ * @param parser - yaml_parser structure
+ */
+void c2_yaml_parser_error_detect(const yaml_parser_t *parser);
+
+
 /** @} end of yaml2db group */
 
 #endif /* __COLIBRI_YAML2DB_H__ */

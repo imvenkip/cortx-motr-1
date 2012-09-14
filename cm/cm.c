@@ -27,6 +27,7 @@
 #include "lib/bob.h"    /* C2_BOB_DEFINE */
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/assert.h" /* C2_PRE, C2_POST */
+#include "colibri/magic.h"
 #include "cm/cm.h"
 #include "cm/ag.h"
 #include "cm/cp.h"
@@ -189,13 +190,6 @@
    @addtogroup CM
    @{
 */
-
-enum {
-	CM_TYPE_HEAD_MAGIX = 0x33DACEFACEBACE77,
-	CM_TYPE_LINK_MAGIX = 0x33BADEDABADEBE77,
-	CM_AG_HEAD_MAGIX = 0x33DEAFBEEFDEAD77,
-	CM_AG_LINK_MAGIX = 0x33FEEDBEEFDEED77,
-};
 
 /** List containing the copy machines registered on a colibri server. */
 static struct c2_tl cmtypes;

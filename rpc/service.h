@@ -31,6 +31,7 @@
 
 #include "lib/tlist.h"
 #include "lib/bob.h"
+#include "colibri/magic.h"
 
 /* Imports */
 struct c2_rpc_conn;
@@ -49,11 +50,6 @@ struct c2_uuid {
 	char u_uuid[40];
 };
 
-enum {
-	/** Value of c2_rpc_service_type::svt_magix */
-	C2_RPC_SERVICE_TYPE_MAGIX = 0x5356435f54595045, /* "SVC_TYPE" */
-};
-
 struct c2_rpc_service_type {
 	/** Numeric id that uniquely identifies a service type */
 	uint32_t                              svt_type_id;
@@ -69,7 +65,7 @@ struct c2_rpc_service_type {
         */
 	struct c2_tlink                       svt_tlink;
 
-	/** magic number. C2_RPC_SERVICE_TYPE_MAGIX */
+	/** magic number. C2_RPC_SERVICE_TYPE_MAGIC */
 	uint64_t                              svt_magix;
 };
 
@@ -101,7 +97,7 @@ scope struct c2_rpc_service_type (obj_name) = {                          \
 	.svt_name     = (hname),                                         \
 	.svt_type_id  = (type_id),                                       \
 	.svt_ops      = (ops),                                           \
-	.svt_magix    = C2_RPC_SERVICE_TYPE_MAGIX,                       \
+	.svt_magix    = C2_RPC_SERVICE_TYPE_MAGIC,                       \
 }
 
 /**
@@ -147,12 +143,6 @@ enum c2_rpc_service_state {
 
 	/** Not a state. Just to mark upper limit of valid state values */
 	C2_RPC_SERVICE_STATE_NR,
-};
-
-enum {
-	/** Value of c2_rpc_service::svc_magix */
-	C2_RPC_SERVICE_MAGIX            = 0x7270635f737663,   /* "rpc_svc"  */
-	C2_RPC_SERVICES_LIST_HEAD_MAGIX = 0x7270637376636864, /* "rpcsvchd" */
 };
 
 /**
@@ -208,7 +198,7 @@ struct c2_rpc_service {
          */
 	struct c2_tlink                  svc_tlink;
 
-	/** magic == C2_RPC_SERVICE_MAGIX */
+	/** magic == C2_RPC_SERVICE_MAGIC */
 	uint64_t                         svc_magix;
 };
 
@@ -333,4 +323,3 @@ void c2_rpc__service_fini(struct c2_rpc_service *service);
  *  scroll-step: 1
  *  End:
  */
-

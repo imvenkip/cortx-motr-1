@@ -25,6 +25,7 @@
 #include "lib/memory.h"
 #include "lib/tlist.h"
 #include "addb/addb.h"
+#include "colibri/magic.h"
 #include "rpc/rpc_machine.h"
 #include "rpc/item.h"
 #include "rpc/formation2.h"
@@ -91,15 +92,9 @@ for (itemq = frm_first_itemq(frm); \
      itemq < frm_end_itemq(frm); \
      ++itemq)
 
-enum {
-	ITEMQ_HEAD_MAGIC = 0x4954454d514844, /* ITEMQHD */
-	/** value of c2_rpc_frm::f_magic */
-	FRM_MAGIC        = 0x5250435f46524d, /* RPC_FRM */
-};
-
 C2_TL_DESCR_DEFINE(itemq, "rpc_itemq", static, struct c2_rpc_item,
-		   ri_iq_link, ri_link_magic, C2_RPC_ITEM_FIELD_MAGIC,
-		   ITEMQ_HEAD_MAGIC);
+		   ri_iq_link, ri_link_magic, C2_RPC_ITEM_MAGIC,
+		   C2_RPC_ITEMQ_HEAD_MAGIC);
 C2_TL_DEFINE(itemq, static, struct c2_rpc_item);
 
 static bool frm_invariant(const struct c2_rpc_frm *frm)
@@ -112,7 +107,7 @@ static bool frm_invariant(const struct c2_rpc_frm *frm)
 	nr_items     = 0;
 
 	return frm != NULL &&
-	       frm->f_magic == FRM_MAGIC &&
+	       frm->f_magic == C2_RPC_FRM_MAGIC &&
 	       frm->f_state > FRM_UNINITIALISED &&
 	       frm->f_state < FRM_NR_STATES &&
 	       frm->f_ops != NULL &&
@@ -204,7 +199,7 @@ void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
 	C2_SET0(frm);
 	frm->f_ops         =  ops;
 	frm->f_constraints = *constraints; /* structure instance copy */
-	frm->f_magic       =  FRM_MAGIC;
+	frm->f_magic       =  C2_RPC_FRM_MAGIC;
 
 	for_each_itemq_in_frm(q, frm) {
 		itemq_tlist_init(q);

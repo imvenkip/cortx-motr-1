@@ -78,12 +78,6 @@ enum {
 };
 C2_BASSERT(C2_NET_LNET_TMID_BITS + C2_NET_LNET_BUFFER_ID_BITS <= 64);
 
-/* Magic numbers */
-enum {
-	C2_NET_LNET_CORE_BUF_MAGIC = 0x436f7265427566ULL, /* CoreBuf */
-	C2_NET_LNET_CORE_TM_MAGIC  = 0x436f7265544dULL,   /* CoreTM */
-};
-
 /**
  * A kernel memory location, in terms of page and offset.
  */

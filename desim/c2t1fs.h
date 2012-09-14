@@ -31,6 +31,7 @@
 #include "lib/types.h"                   /* c2_bcount_t */
 
 #include "pool/pool.h"
+#include "layout/layout.h"
 #include "layout/pdclust.h"
 
 struct net_conf;
@@ -39,10 +40,10 @@ struct c2t1fs_thread;
 struct c2t1fs_client;
 
 struct c2t1fs_thread {
-	struct sim_thread           cth_thread;
-	struct c2t1fs_client       *cth_client;
-	unsigned                    cth_id;
-	struct c2_pdclust_instance *cth_pdclust_instance;
+	struct sim_thread          cth_thread;
+	struct c2t1fs_client      *cth_client;
+	unsigned                   cth_id;
+	struct c2_layout_instance *cth_layout_instance;
 };
 
 struct c2t1fs_client {

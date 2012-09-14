@@ -20,14 +20,12 @@
  * Revision date  : 09/14/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/tlist.h"
 #include "lib/assert.h"
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_IOSERVICE
+#include "lib/trace.h"
 #include "addb/addb.h"
 #include "net/net_internal.h"
 #include "net/buffer_pool.h"
@@ -40,6 +38,7 @@
 #include "ioservice/io_foms.h"
 #include "ioservice/io_service.h"
 #include "ioservice/io_fops_ff.h"
+#include "colibri/magic.h"
 #include "colibri/colibri_setup.h"
 
 /**
@@ -562,7 +561,7 @@ C2_TL_DEFINE(stobio, static, struct c2_stob_io_desc);
 
 C2_TL_DESCR_DEFINE(netbufs, "Aquired net buffers", static,
 		   struct c2_net_buffer, nb_ioservice_linkage, nb_magic,
-		   C2_NET_BUFFER_LINK_MAGIC, C2_NET_BUFFER_HEAD_MAGIC_IOFOM);
+		   C2_NET_BUFFER_LINK_MAGIC, C2_IOS_NET_BUFFER_HEAD_MAGIC);
 C2_TL_DEFINE(netbufs, static, struct c2_net_buffer);
 
 C2_TL_DESCR_DEFINE(rpcbulkbufs, "rpc bulk buffers", static,
@@ -777,7 +776,7 @@ static bool c2_stob_io_desc_invariant(const struct c2_stob_io_desc *stobio_desc)
 
 static bool c2_reqh_io_service_invariant(const struct c2_reqh_io_service *rios)
 {
-        if (rios->rios_magic != C2_REQH_IO_SERVICE_MAGIC)
+        if (rios->rios_magic != C2_IOS_REQH_SVC_MAGIC)
                 return false;
 
         return true;
@@ -1417,7 +1416,7 @@ static int io_launch(struct c2_fom *fom)
 	ffid = &rwfop->crw_fid;
 	io_fom_cob_rw_fid_wire2mem(ffid, &fid);
 	io_fom_cob_rw_fid2stob_map(&fid, &stobid);
-	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	reqh = c2_fom_reqh(fom);
 	fom_stdom = c2_cs_stob_domain_find(reqh, &stobid);
 	if (fom_stdom == NULL) {
 		rc = -EINVAL;
@@ -1486,6 +1485,8 @@ static int io_launch(struct c2_fom *fom)
                  */
                 ivec_count = c2_vec_count(&mem_ivec->iv_vec);
                 fom_obj->fcrw_req_count += ivec_count;
+                C2_LOG("iv_count %d, req_count %d",
+                       (int)ivec_count, (int)fom_obj->fcrw_req_count);
                 rc = align_bufvec(fom, &stio->si_user,
                                                 &nb->nb_buffer,
                                                 ivec_count,
@@ -1592,6 +1593,8 @@ static int io_finish(struct c2_fom *fom)
                         c2_fom_phase_set(fom, C2_FOPH_FAILURE);
                 } else {
                         fom_obj->fcrw_count += stio->si_count;
+                        C2_LOG("rw_count %d, si_count %d",
+                               (int)fom_obj->fcrw_count, (int)stio->si_count);
                 }
 
                 c2_free(stio->si_user.ov_vec.v_count);
@@ -1665,6 +1668,7 @@ static int c2_io_fom_cob_rw_tick(struct c2_fom *fom)
                 rwrep = io_rw_rep_get(fom->fo_rep_fop);
                 rwrep->rwr_rc = fom->fo_rc;
                 rwrep->rwr_count = fom_obj->fcrw_count;
+                C2_LOG("rc %d, count %d", rwrep->rwr_rc, (int)rwrep->rwr_count);
                 return rc;
         }
 

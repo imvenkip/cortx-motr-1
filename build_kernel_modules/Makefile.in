@@ -28,6 +28,7 @@ dirs  = addb                                                                  \
         addb/addbff                                                           \
         addb/linux_kernel                                                     \
         c2t1fs/linux_kernel                                                   \
+        c2t1fs/linux_kernel/ut                                                \
         cob                                                                   \
         colibri                                                               \
         db                                                                    \
@@ -77,6 +78,9 @@ addb_linux_kernel_SOURCES       := addb_console.c
 
 c2t1fs_linux_kernel_SOURCES     := c2t1fs.c super.c inode.c dir.c file.c
 
+c2t1fs_linux_kernel_c2loop_SOURCES     := c2loop.c
+c2t1fs_linux_kernel_ut_c2loop_SOURCES  := c2loop.c
+
 cob_SOURCES                     := cob.c
 
 colibri_SOURCES                 := init.c
@@ -109,9 +113,10 @@ layout_ut_SOURCES               := layout.c
 lib_SOURCES                     := bitstring.c vec.c list.c queue.c refs.c     \
                                    time.c bitmap.c chan.c misc.c buf.c cond.c  \
                                    thread.c tlist.c bob.c trace.c finject.c \
-                                   vec_xc.c cookie.c
+                                   vec_xc.c vec.c buf_xc.c buf.c c2lib.c \
+                                   cookie.c
 
-lib_HEADERS                     := vec.h vec_xc.h
+lib_HEADERS                     := vec.h vec_xc.h buf.h buf_xc.h
 
 lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c   \
                                    kthread.c semaphore.c processor.c kvec.c    \
@@ -120,7 +125,7 @@ lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c   \
 lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c     \
                                    mutex.c queue.c refs.c tlist.c time.c       \
                                    vec.c zerovec.c thread.c bob.c trace.c      \
-                                   memory.c finject.c cookie.c
+                                   memory.c finject.c buf.c cookie.c
 
 net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c     \
                                    tm.c net_otw_types_ff.c tm_provision.c
@@ -159,7 +164,7 @@ stob_SOURCES                    := stob.c stob_id.c
 
 ut_SOURCES                      := rpc.c
 
-xcode_SOURCES                   := bufvec_xcode.c xcode.c
+xcode_SOURCES                   := bufvec_xcode.c xcode.c string.c
 
 xcode_ut_SOURCES                := xcode.c
 
@@ -183,9 +188,15 @@ kcolibri_objects = $(foreach d, $(dirs), $(foreach f,                         \
                         $($(subst /,_,$(d))_SOURCES), $(addprefix $(d)/,      \
                                 $(subst .c,.o, $(notdir $(f))))))
 
-obj-m += kcolibri.o
+c2loop_objects = $(foreach d, $(dirs), $(foreach f,                         \
+                    $($(subst /,_,$(d))_c2loop_SOURCES), $(addprefix $(d)/, \
+                                $(subst .c,.o, $(notdir $(f))))))
+
+obj-m += kcolibri.o c2loop.o
 
 kcolibri-y += main.o dummy_init_fini.o $(kcolibri_objects)
+
+c2loop-y += $(c2loop_objects)
 
 #       Besides the kcolibri.ko, the UT's would be build separately by
 #       recursing into directories specified by $(testdirs)
@@ -212,6 +223,8 @@ all:
 	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_SOURCES),      \
 		$(create_links)))
 	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_HEADERS),      \
+		$(create_links)))
+	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_c2loop_SOURCES),\
 		$(create_links)))
 #       DO NOT append 'modules' target to the following $(MAKE)
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd`

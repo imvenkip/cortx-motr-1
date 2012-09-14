@@ -18,10 +18,6 @@
  * Original creation date: 05/08/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/rwlock.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
@@ -31,6 +27,7 @@
 #include "lib/finject.h" /* C2_FI_ENABLED */
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
+#include "colibri/magic.h"
 
 /**
    @addtogroup reqhservice
@@ -51,7 +48,7 @@ static struct c2_rwlock rstypes_rwlock;
 
 C2_TL_DESCR_DEFINE(rstypes, "reqh service types", static,
                    struct c2_reqh_service_type, rst_linkage, rst_magix,
-                   C2_RHS_TYPE_MAGIX, C2_RHS_TYPE_MAGIX_HEAD);
+                   C2_REQH_SVC_TYPE_MAGIC, C2_REQH_SVC_HEAD_MAGIC);
 
 C2_TL_DEFINE(rstypes, static, struct c2_reqh_service_type);
 
@@ -96,7 +93,7 @@ struct c2_reqh_service_type *c2_reqh_service_type_find(const char *sname)
 }
 
 int c2_reqh_service_allocate(struct c2_reqh_service_type *stype,
-                              struct c2_reqh_service **service)
+			     struct c2_reqh_service **service)
 {
 	int rc;
 
@@ -271,4 +268,3 @@ C2_EXPORTED(c2_reqh_service_find);
  *  scroll-step: 1
  *  End:
  */
-

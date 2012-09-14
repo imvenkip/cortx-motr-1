@@ -18,11 +18,6 @@
  * Original creation date: 06/27/2011
  */
 
-
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "colibri/init.h"
 #include "lib/assert.h"
 #include "lib/errno.h"

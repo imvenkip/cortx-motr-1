@@ -20,10 +20,6 @@
  * Revision date         : 07/31/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/memory.h"		  /* C2_ALLOC_ARR */
 #include "fop/fop.h"		  /* c2_fop */
 

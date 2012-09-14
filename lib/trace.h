@@ -25,10 +25,6 @@
 
 #include <stdarg.h>
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h" /* ENABLE_DEBUG */
-#endif
-
 #include "lib/types.h"
 #include "lib/arith.h"
 
@@ -189,7 +185,8 @@ void c2_trace_fini(void);
   C2_TRACE_SUBSYS(NET,		9)	\
   C2_TRACE_SUBSYS(COB,		10)	\
   C2_TRACE_SUBSYS(BALLOC,	11)	\
-  C2_TRACE_SUBSYS(LAYOUT,       12)
+  C2_TRACE_SUBSYS(LAYOUT,       12)	\
+  C2_TRACE_SUBSYS(IOSERVICE,    13)
 
 #define C2_TRACE_SUBSYS(name, value) C2_TRACE_SUBSYS_ ## name = (1 << value),
 /** The subsystem bitmask definitions */
@@ -213,11 +210,6 @@ extern unsigned long c2_trace_immediate_mask;
 #else
 #  define C2_TRACE_IMMEDIATE_DEBUG (0)
 #endif
-
-/** Magic number to locate the record */
-enum {
-	C2_TRACE_MAGIC = 0xc0de1eafacc01adeULL,
-};
 
 /** Default buffer size, the real buffer size is at c2_logbufsize */
 enum {

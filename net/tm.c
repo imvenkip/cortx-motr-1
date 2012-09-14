@@ -23,6 +23,7 @@
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/misc.h"
+#include "colibri/magic.h"
 #include "net/net_internal.h"
 #include "net/buffer_pool.h"
 

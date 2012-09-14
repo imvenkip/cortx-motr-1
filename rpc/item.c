@@ -20,13 +20,10 @@
  * Original creation date: 06/27/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/tlist.h"
 #include "lib/rwlock.h"
 #include "lib/misc.h"
+#include "colibri/magic.h"
 #include "rpc/rpc2.h"
 #include "rpc/item.h"
 #include "rpc/rpc_onwire.h" /* ITEM_ONWIRE_HEADER_SIZE */
@@ -38,21 +35,14 @@
  */
 
 C2_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", , struct c2_rpc_item, ri_field,
-	           ri_link_magic, C2_RPC_ITEM_FIELD_MAGIC,
+	           ri_link_magic, C2_RPC_ITEM_MAGIC,
 		   C2_RPC_ITEM_HEAD_MAGIC);
 
 C2_TL_DEFINE(rpcitem, , struct c2_rpc_item);
 
-enum {
-	/* Hex ASCII value of "rit_link" */
-	RPC_ITEM_TYPE_LINK_MAGIC = 0x7269745f6c696e6b,
-	/* Hex ASCII value of "rit_head" */
-	RPC_ITEM_TYPE_HEAD_MAGIC = 0x7269745f68656164,
-};
-
 C2_TL_DESCR_DEFINE(rit, "rpc_item_type_descr", static, struct c2_rpc_item_type,
-		   rit_linkage,	rit_magic, RPC_ITEM_TYPE_LINK_MAGIC,
-		   RPC_ITEM_TYPE_HEAD_MAGIC);
+		   rit_linkage,	rit_magic, C2_RPC_ITEM_TYPE_MAGIC,
+		   C2_RPC_ITEM_TYPE_HEAD_MAGIC);
 
 C2_TL_DEFINE(rit, static, struct c2_rpc_item_type);
 
@@ -142,7 +132,7 @@ void c2_rpc_item_init(struct c2_rpc_item *item)
 	C2_SET0(item);
 
 	item->ri_state      = RPC_ITEM_UNINITIALIZED;
-	item->ri_link_magic = C2_RPC_ITEM_FIELD_MAGIC;
+	item->ri_link_magic = C2_RPC_ITEM_MAGIC;
 
 	sref = &item->ri_slot_refs[0];
 

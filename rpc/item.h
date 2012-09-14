@@ -81,11 +81,6 @@ enum {
 	MAX_SLOT_REF    = 1,
 };
 
-enum {
-	C2_RPC_ITEM_FIELD_MAGIC = 0xf12acec12c611111ULL,
-	C2_RPC_ITEM_HEAD_MAGIC = 0x1007c095e511054eULL,
-};
-
 /**
    A single RPC item, such as a FOP or ADDB Record.  This structure should be
    included in every item being sent via RPC layer core to emulate relationship

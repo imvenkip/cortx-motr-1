@@ -17,10 +17,6 @@
  * Original creation date: 11/16/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 /**
  * @addtogroup list_enum
  *
@@ -39,6 +35,7 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
+#include "colibri/magic.h"
 #include "fid/fid.h"  /* c2_fid_is_valid() */
 #include "layout/layout_internal.h"
 #include "layout/list_enum.h"
@@ -46,14 +43,10 @@
 extern const struct c2_addb_loc layout_addb_loc;
 extern struct c2_addb_ctx layout_global_ctx;
 
-enum {
-	LIST_ENUM_MAGIC = 0x4C495354454E554DULL /* LISTENUM */
-};
-
 static const struct c2_bob_type list_bob = {
 	.bt_name         = "list_enum",
 	.bt_magix_offset = offsetof(struct c2_layout_list_enum, lle_magic),
-	.bt_magix        = LIST_ENUM_MAGIC,
+	.bt_magix        = C2_LAYOUT_LIST_ENUM_MAGIC,
 	.bt_check        = NULL
 };
 

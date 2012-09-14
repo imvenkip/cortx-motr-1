@@ -18,10 +18,6 @@
  * Original creation date: 08/03/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #ifndef CONSOLE_UT
 #define CONSOLE_UT
 #endif

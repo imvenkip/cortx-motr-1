@@ -261,9 +261,11 @@ struct c2_pdclust_tgt_addr {
 /**
  * Allocates and builds a layout object with the pdclust layout type.
  * @post ergo(rc == 0, pdclust_invariant(*out))
+ * @post ergo(rc == 0, l->l_ref == 1)
  *
  * @note The object with pdclust layout type is not to be finalised explicitly.
  * It is finalised internally when its last reference is released.
+ * @see c2_layout_put()
  */
 int c2_pdclust_build(struct c2_layout_domain *dom,
 		     uint64_t lid,
@@ -286,21 +288,6 @@ struct c2_layout *c2_pdl_to_layout(struct c2_pdclust_layout *pl);
 enum c2_pdclust_unit_type
 c2_pdclust_unit_classify(const struct c2_pdclust_layout *play,
 			 int unit);
-
-/**
- * Allocates and builds a parity de-clustered layout instance using the
- * supplied pdclust layout 'pl' and acquires an additional referece on
- * 'pl->pl_base.sl_base'.
- * @pre pdclust_invariant(pl)
- * @post ergo(rc == 0, pdclust_instance_invariant(*out) &&
- *                     pl->pl_base.sl_base.l_ref > 0))
- *
- * @note This layout instance object is to be finalised explicitly by the user,
- * using pi->li_ops->lio_fini().
- */
-int c2_pdclust_instance_build(struct c2_pdclust_layout *pl,
-			      const struct c2_fid *fid,
-			      struct c2_pdclust_instance **out);
 
 /** Returns c2_pdclust_instance object given a c2_layout_instance object. */
 struct c2_pdclust_instance *c2_layout_instance_to_pdi(

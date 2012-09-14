@@ -26,10 +26,6 @@
    @{
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
 #include "lib/misc.h"
@@ -37,6 +33,7 @@
 #include "lib/errno.h"
 #include "lib/finject.h"       /* C2_FI_ENABLED */
 #include "addb/addb.h"
+#include "colibri/magic.h"
 #include "net/net.h"
 #include "net/buffer_pool.h"   /* c2_net_buffer_pool_[lock|unlock] */
 #include "rpc/rpc_machine.h"
@@ -96,7 +93,7 @@ C2_ADDB_EV_DEFINE_PUBLIC(c2_rpc_machine_func_fail, "rpc_machine_func_fail",
 static const struct c2_bob_type rpc_machine_bob_type = {
 	.bt_name         = "rpc_machine",
 	.bt_magix_offset = C2_MAGIX_OFFSET(struct c2_rpc_machine, rm_magix),
-	.bt_magix        = C2_RPC_MACHINE_MAGIX,
+	.bt_magix        = C2_RPC_MACHINE_MAGIC,
 	.bt_check        = NULL
 };
 

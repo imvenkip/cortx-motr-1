@@ -20,13 +20,10 @@
  * Original creation date: 06/27/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/tlist.h"
 #include "lib/memory.h"
 #include "lib/errno.h"
+#include "colibri/magic.h"
 #include "net/net.h"
 #include "rpc/bulk.h"
 #include "rpc/session.h"

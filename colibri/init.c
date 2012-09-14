@@ -18,10 +18,6 @@
  * Original creation date: 06/19/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/cdefs.h"
 #include "fop/fop.h"
 
@@ -69,6 +65,9 @@ extern void c2_memory_fini(void);
 extern int  c2_rpc_module_init(void);
 extern void c2_rpc_module_fini(void);
 
+extern int  libc2_init(void);
+extern void libc2_fini(void);
+
 /**
    @addtogroup init
    @{
@@ -88,6 +87,7 @@ struct init_fini_call subsystem[] = {
 	{ &c2_trace_init,       &c2_trace_fini,       "trace" },
 	{ &c2_fi_init,          &c2_fi_fini,          "finject" },
 	{ &c2_memory_init,      &c2_memory_fini,      "memory" },
+	{ &libc2_init,          &libc2_fini,          "libc2" },
 	{ &c2_cookie_global_init, &c2_cookie_global_fini, "cookie" },
 	{ &c2_uts_init,         &c2_uts_fini,         "ut" },
 	{ &c2_processors_init,  &c2_processors_fini,  "processors" },
