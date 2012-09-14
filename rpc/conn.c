@@ -417,6 +417,8 @@ bool c2_rpc_conn_timedwait(struct c2_rpc_conn *conn,
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
 	while ((conn->c_state & state_flags) == 0 && got_event) {
+		/** @todo Needed until rm_mutex is present. */
+		c2_sm_group_unlock(&machine->rm_sm_grp);
 		got_event = c2_cond_timedwait(&conn->c_state_changed,
 					&machine->rm_mutex, abs_timeout);
 		/*
@@ -424,6 +426,8 @@ bool c2_rpc_conn_timedwait(struct c2_rpc_conn *conn,
 		 * break the loop
 		 */
 		C2_ASSERT(c2_rpc_conn_invariant(conn));
+		/** @todo Needed until rm_mutex is present. */
+		c2_sm_group_lock(&machine->rm_sm_grp);
 	}
 	state_reached = ((conn->c_state & state_flags) != 0);
 

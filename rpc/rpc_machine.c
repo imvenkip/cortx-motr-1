@@ -199,10 +199,12 @@ static void __rpc_machine_init(struct c2_rpc_machine *machine)
 	c2_addb_ctx_init(&machine->rm_addb, &rpc_machine_addb_ctx_type,
 			 &c2_addb_global_ctx);
 	c2_rpc_machine_bob_init(machine);
+	c2_sm_group_init(&machine->rm_sm_grp);
 }
 
 static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 {
+	c2_sm_group_fini(&machine->rm_sm_grp);
 	c2_addb_ctx_fini(&machine->rm_addb);
 	c2_mutex_fini(&machine->rm_mutex);
 	c2_rpc_services_tlist_fini(&machine->rm_services);
@@ -389,12 +391,18 @@ static void conn_list_fini(struct c2_list *list)
         }
 }
 
+struct c2_mutex *c2_rpc_machine_mutex(struct c2_rpc_machine *machine)
+{
+	return &machine->rm_sm_grp.s_lock;
+}
+
 void c2_rpc_machine_lock(struct c2_rpc_machine *machine)
 {
 	C2_ENTRY("machine %p", machine);
 
 	C2_PRE(machine != NULL);
 	c2_mutex_lock(&machine->rm_mutex);
+	c2_sm_group_lock(&machine->rm_sm_grp);
 
 	C2_LEAVE();
 }
@@ -404,6 +412,7 @@ void c2_rpc_machine_unlock(struct c2_rpc_machine *machine)
 	C2_ENTRY("machine %p", machine);
 
 	C2_PRE(machine != NULL);
+	c2_sm_group_unlock(&machine->rm_sm_grp);
 	c2_mutex_unlock(&machine->rm_mutex);
 
 	C2_LEAVE();
@@ -412,7 +421,8 @@ void c2_rpc_machine_unlock(struct c2_rpc_machine *machine)
 bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine)
 {
 	C2_PRE(machine != NULL);
-	return c2_mutex_is_locked(&machine->rm_mutex);
+	return c2_mutex_is_locked(&machine->rm_mutex) &&
+	       c2_mutex_is_locked(&machine->rm_sm_grp.s_lock);
 }
 C2_EXPORTED(c2_rpc_machine_is_locked);
 

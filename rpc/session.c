@@ -382,6 +382,8 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session *session,
 	C2_ASSERT(c2_rpc_session_invariant(session));
 
 	while ((session->s_state & state_flags) == 0 && got_event) {
+		/** @todo Needed until rm_mutex is present. */
+		c2_sm_group_unlock(&machine->rm_sm_grp);
 		got_event = c2_cond_timedwait(&session->s_state_changed,
 					      &machine->rm_mutex, abs_timeout);
 		/*
@@ -389,6 +391,8 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session *session,
 		 * break the loop
 		 */
 		C2_ASSERT(c2_rpc_session_invariant(session));
+		/** @todo Needed until rm_mutex is present. */
+		c2_sm_group_lock(&machine->rm_sm_grp);
 	}
 	state_reached = (session->s_state & state_flags) != 0;
 
