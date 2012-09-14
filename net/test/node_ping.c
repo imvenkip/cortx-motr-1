@@ -190,7 +190,11 @@ struct node_ping_ctx {
 	bool				    npc_test_stop;
 	/** All needed statistics */
 	struct c2_net_test_cmd_status_data  npc_status_data;
-	/** @todo use spinlock instead of mutex */
+	/** @todo use spinlock instead of mutex
+	 *  @todo make copy of status data, protect it with mutex.
+	 *  N times per secound update this copy from original status data,
+	 *  but leave original status data updates without mutex.
+	 */
 	struct c2_mutex			    npc_status_data_lock;
 	/**
 	 * Buffer enqueue semaphore.
@@ -599,7 +603,6 @@ static void node_ping_worker(struct node_ping_ctx *ctx)
 	struct buf_state	  *bs;
 	size_t			  buf_index;
 	bool			  failed;
-	size_t			  buf_handled = 0;
 	size_t			  i;
 	c2_time_t		  to_check_interval;
 	c2_time_t		  deadline;
@@ -625,16 +628,14 @@ static void node_ping_worker(struct node_ping_ctx *ctx)
 		LOGD("POP from ringbuf: %lu, role = %d\n",
 		     buf_index, ctx->npc_node_role);
 		/* update total/failed stats */
-		if (buf_handled >= ctx->npc_buf_nr) {
-			failed = bs->bs_errno != 0 || bs->bs_ev.nbe_status != 0;
-			msg_nr = bs->bs_q == C2_NET_QT_MSG_RECV ?
-				 &ctx->npc_status_data.ntcsd_msg_nr_recv :
-				 &ctx->npc_status_data.ntcsd_msg_nr_send;
-			c2_mutex_lock(&ctx->npc_status_data_lock);
-			++msg_nr->ntmn_total;
-			msg_nr->ntmn_failed += failed;
-			c2_mutex_unlock(&ctx->npc_status_data_lock);
-		}
+		failed = bs->bs_errno != 0 || bs->bs_ev.nbe_status != 0;
+		msg_nr = bs->bs_q == C2_NET_QT_MSG_RECV ?
+			 &ctx->npc_status_data.ntcsd_msg_nr_recv :
+			 &ctx->npc_status_data.ntcsd_msg_nr_send;
+		c2_mutex_lock(&ctx->npc_status_data_lock);
+		++msg_nr->ntmn_total;
+		msg_nr->ntmn_failed += failed;
+		c2_mutex_unlock(&ctx->npc_status_data_lock);
 		ep = bs->bs_errno == 0 && bs->bs_ev.nbe_status == 0 &&
 		     bs->bs_q == C2_NET_QT_MSG_RECV ? bs->bs_ev.nbe_ep : NULL;
 		/* handle buffer */
@@ -642,7 +643,6 @@ static void node_ping_worker(struct node_ping_ctx *ctx)
 			node_ping_client_handle(ctx, bs, buf_index);
 		else
 			node_ping_server_handle(ctx, bs, buf_index);
-		buf_handled++;
 		if (ep != NULL)
 			c2_net_end_point_put(ep);
 	}
@@ -976,6 +976,8 @@ static int node_ping_cmd_status(void *ctx_,
 	if (ctx->npc_node_role == C2_NET_TEST_ROLE_CLIENT) {
 		LOGD("ctx->npc_client->npcc_msg_rt = %lu\n",
 		     ctx->npc_client->npcc_msg_rt);
+		LOGD("ctx->npc_client->npcc_msg_sent = %lu\n",
+		     ctx->npc_client->npcc_msg_sent);
 		sd->ntcsd_finished = ctx->npc_client->npcc_msg_rt >=
 				     ctx->npc_client->npcc_msg_rt_max;
 	}
