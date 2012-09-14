@@ -144,15 +144,17 @@
         machine specific code.
    - @b i.cm.generic.specific Copy machine generic routines accordingly
         invoke copy machine specific operations.
-   - @b i.cm.synchronise Copy machine provides synchronised access to the its
+   - @b i.cm.synchronise Copy machine provides synchronised access to its
         members using c2_cm::cm_sm_group::s_mutex.
-   - @b i.cm.failure Copy machine handles various types of failures.
+   - @b i.cm.failure Copy machine handles various types of failures through
+        c2_cm_fail() interface.
    - @b i.cm.resource.manage Copy machine specific resources are managed by copy
         machine specific implementation, e.g. buffer pool, etc.
 
    @section DLD-Agents-addb ADDB events
    - <b>cm_init_fail</b> Copy machine failed to initialise.
-   - <b>cm_start_fail</b> Copy machine failed to start.
+   - <b>cm_setup_fail</b> Copy machine setup failed.
+   - <b>cm_start_fail</b> Copy machine failed to start operation.
 
    <hr>
    @section CMDLD-ut Unit Tests

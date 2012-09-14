@@ -87,18 +87,18 @@
  *   - @b r.cm.cp.bulk_transfer All data packets (except control packets) that
  *	  are sent over RPC should use bulk-interface for communication.
  *
- *   - @b r.cm.cp.fom.locality Copy packets FOMs belonging to the same aggregation
- *        group, should  be assigned same request handler locality.
+ *   - @b r.cm.cp.fom.locality Copy packet FOMs belonging to the same
+ *        aggregation group, should  be assigned same request handler locality.
  *
  *   - @b r.cm.addb Copy packet should have its own addb context, (similar to
- *	  fop), although it uses various different addb locations, this will
- *	  trace the entire path of the copy packet.
+ *	  fop), although it uses different addb locations, this will trace the
+ *	  entire path of the copy packet.
  *
  *   <hr>
  *   @section CPDLD-depends Dependencies
  *
- *   - @b r.cm.service Copy packets FOMs are executed in context of copy machine
- *	  replica service.
+ *   - @b r.cm.service Copy packet FOMs are executed in context of copy machine
+ *	  replica.
  *
  *   - @b r.cm.ops Replica provides operations to create, configure and execute
  *     copy packet FOMs.

@@ -157,7 +157,8 @@ struct c2_cm {
 	/**
 	 * State machine group for this copy machine type.
 	 * Each replica uses the mutex embedded in their state machine group to
-	 * serialise their state transitions and operations (ct_sm_group.s_lock)
+	 * serialise their state transitions and operations (cm_sm_group.s_lock)
+	 * .
 	 */
 	struct c2_sm_group		 cm_sm_group;
 
@@ -180,12 +181,6 @@ struct c2_cm {
 	 * @see struct c2_cm_aggr_group::cag_cm_linkage
 	 */
 	struct c2_tl                     cm_aggr_grps;
-
-	/**
-         * Set true when copy machine shutdown triggered. Every finalisation
-         * operation should check this flag.
-	 */
-	bool				 cm_shutdown;
 };
 
 /** Operations supported by a copy machine. */

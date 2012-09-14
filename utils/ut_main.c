@@ -38,7 +38,6 @@ extern const struct c2_test_suite bulkio_client_ut;
 extern const struct c2_test_suite ios_bufferpool_ut;
 extern const struct c2_test_suite cobfoms_ut;
 extern const struct c2_test_suite capa_ut;
-extern const struct c2_test_suite cm_ut;
 extern const struct c2_test_suite cob_ut;
 extern const struct c2_test_suite console_ut;
 extern const struct c2_test_suite db_ut;
