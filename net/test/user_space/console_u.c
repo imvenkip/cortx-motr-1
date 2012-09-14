@@ -30,8 +30,10 @@
 #include "lib/memory.h"			/* c2_alloc */
 
 #include "net/lnet/lnet.h"		/* C2_NET_LNET_PID */
+#include "colibri/init.h"		/* c2_init */
 
 #include "net/test/slist.h"		/* c2_net_test_slist */
+#include "net/test/stats.h"		/* c2_net_test_stats */
 #include "net/test/console.h"		/* c2_net_test_console_ctx */
 
 /**
@@ -178,6 +180,19 @@ static void print_slist(char *name, struct c2_net_test_slist *slist)
 
 static void print_time(char *name, c2_time_t time)
 {
+	uint64_t ns = c2_time_nanoseconds(time);
+
+	PRINT("%s\t= %lus", name, c2_time_seconds(time));
+	if (ns != 0)
+		PRINT(" %luns", ns);
+	PRINT("\n");
+}
+
+/** perror */
+static void print_error(const char *s, int code)
+{
+	if (code != 0)
+		PRINT("%s, error %d: %s\n", s, code, strerror(-code));
 }
 
 static void config_print(struct c2_net_test_console_cfg *cfg)
@@ -298,8 +313,91 @@ static void config_free(struct c2_net_test_console_cfg *cfg)
 	c2_net_test_slist_fini(&cfg->ntcc_data_clients);
 }
 
+static bool console_step(struct c2_net_test_console_ctx *ctx,
+			 enum c2_net_test_role role,
+			 enum c2_net_test_cmd_type cmd_type,
+			 const char *text_pre,
+			 const char *text_post)
+{
+	int rc;
+
+	if (text_pre != NULL)
+		PRINT("%s\n", text_pre);
+	rc = c2_net_test_console_cmd(ctx, role, cmd_type);
+	if (text_post != NULL)
+		PRINT("%s (%d nodes)\n", text_post, rc);
+	return rc == 0;
+}
+
+static void print_msg_nr(const char *descr, struct c2_net_test_msg_nr *msg_nr)
+{
+	PRINT("%s total/failed/bad = %lu/%lu/%lu messages, ", descr,
+	      msg_nr->ntmn_total, msg_nr->ntmn_failed, msg_nr->ntmn_bad);
+}
+
+static void print_stats(const char *descr,
+			struct c2_net_test_stats *stats,
+			bool print_comma)
+{
+	PRINT("%s count/min/max/avg/stddev = %lu/%lu/%lu/%f/%f", descr,
+	      stats->nts_count, stats->nts_min, stats->nts_max,
+	      c2_net_test_stats_avg(stats), c2_net_test_stats_stddev(stats));
+	if (print_comma)
+		PRINT(", ");
+}
+
+static void print_status_data(struct c2_net_test_cmd_status_data *sd)
+{
+	print_msg_nr("sent", &sd->ntcsd_msg_nr_send);
+	print_msg_nr("received", &sd->ntcsd_msg_nr_recv);
+	print_stats("mps sent", &sd->ntcsd_mps_send.ntmps_stats, true);
+	print_stats("mps recv", &sd->ntcsd_mps_recv.ntmps_stats, true);
+	print_stats("RTT", &sd->ntcsd_rtt, false);
+}
+
+static int console_run(struct c2_net_test_console_ctx *ctx)
+{
+	c2_time_t status_interval = C2_TIME(1, 0);
+
+	if (!console_step(ctx, C2_NET_TEST_ROLE_SERVER, C2_NET_TEST_CMD_INIT,
+			  "INIT => test servers", "test servers => INIT DONE"))
+		return -ENETUNREACH;
+	if (!console_step(ctx, C2_NET_TEST_ROLE_CLIENT, C2_NET_TEST_CMD_INIT,
+			  "INIT => test clients", "test clients => INIT DONE"))
+		return -ENETUNREACH;
+	if (!console_step(ctx, C2_NET_TEST_ROLE_SERVER, C2_NET_TEST_CMD_START,
+			  "START => test servers",
+			  "test servers => START DONE"))
+		return -ENETUNREACH;
+	if (!console_step(ctx, C2_NET_TEST_ROLE_CLIENT, C2_NET_TEST_CMD_START,
+			  "START => test clients",
+			  "test clients => START DONE"))
+		return -ENETUNREACH;
+	do {
+		/** @todo can be interrupted */
+		c2_nanosleep(status_interval, NULL);
+		if (!console_step(ctx, C2_NET_TEST_ROLE_CLIENT,
+				  C2_NET_TEST_CMD_STATUS_DATA, NULL, NULL)) {
+			PRINT("STATUS DATA command failed.\n");
+		} else {
+			print_status_data(ctx->ntcc_clients.ntcrc_sd);
+		}
+	} while (!ctx->ntcc_clients.ntcrc_sd->ntcsd_finished);
+	if (!console_step(ctx, C2_NET_TEST_ROLE_SERVER, C2_NET_TEST_CMD_STOP,
+			  "STOP => test servers",
+			  "test servers => STOP DONE"))
+		return -ENETUNREACH;
+	if (!console_step(ctx, C2_NET_TEST_ROLE_CLIENT, C2_NET_TEST_CMD_STOP,
+			  "STOP => test clients",
+			  "test clients => STOP DONE"))
+		return -ENETUNREACH;
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
+	int rc;
+	struct c2_net_test_console_ctx console;
 	struct c2_net_test_console_cfg cfg = {
 		.ntcc_addr_console4servers = NULL,
 		.ntcc_addr_console4clients = NULL,
@@ -321,9 +419,26 @@ int main(int argc, char *argv[])
 		return -EINVAL;
 	}
 
+	rc = c2_init();
+	print_error("Colibri initialization failed.", rc);
+	if (rc != 0)
+		goto cfg_free;
+
+	rc = c2_net_test_console_init(&console, &cfg);
+	print_error("Test Console initialization failed.", rc);
+	if (rc != 0)
+		goto colibri_fini;
+
+	rc = console_run(&console);
+	print_error("Test Console running failed.", rc);
+
+	c2_net_test_console_fini(&console);
+colibri_fini:
+	c2_fini();
+cfg_free:
 	config_free(&cfg);
 
-	return 0;
+	return rc;
 }
 
 /**
