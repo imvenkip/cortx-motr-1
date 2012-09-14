@@ -123,21 +123,18 @@ void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type)
 
 struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 {
-	struct c2_rpc_item_type         *item_type = NULL;
-	bool                             found = false;
+	struct c2_rpc_item_type *item_type;
 
 	c2_rwlock_read_lock(&rpc_item_types_lock);
 	c2_tl_for(rit, &rpc_item_types_list, item_type) {
 		if (item_type->rit_opcode == opcode) {
-			found = true;
 			break;
 		}
 	} c2_tl_endfor;
 	c2_rwlock_read_unlock(&rpc_item_types_lock);
-	if (found)
-		return item_type;
 
-	return NULL;
+	C2_POST(ergo(item_type != NULL, item_type->rit_opcode == opcode));
+	return item_type;
 }
 
 static const struct c2_sm_state_descr item_state_descr[] = {
@@ -203,6 +200,64 @@ static const struct c2_sm_conf item_sm_conf = {
 	.scf_nr_states = C2_RPC_ITEM_NR_STATES,
 	.scf_state     = item_state_descr,
 };
+
+bool c2_rpc_item_invariant(const struct c2_rpc_item *item)
+{
+	int  state;
+	bool req;
+	bool rply;
+	bool oneway;
+	bool bound;
+
+	if (item == NULL || item->ri_type == NULL)
+		return false;
+
+	state  = item->ri_sm.sm_state;
+	req    = c2_rpc_item_is_request(item);
+	rply   = c2_rpc_item_is_reply(item);
+	oneway = c2_rpc_item_is_unsolicited(item);
+	bound  = c2_rpc_item_is_bound(item);
+
+	return  item->ri_link_magic == C2_RPC_ITEM_FIELD_MAGIC &&
+		item->ri_prio >= C2_RPC_ITEM_PRIO_MIN &&
+		item->ri_prio <= C2_RPC_ITEM_PRIO_MAX &&
+		item->ri_stage >= RPC_ITEM_STAGE_PAST_COMMITTED &&
+		item->ri_stage <= RPC_ITEM_STAGE_FUTURE &&
+		(req + rply + oneway == 1) && /* only one of three is true */
+		equi(req || rply, item->ri_session != NULL) &&
+		item->ri_ops != NULL &&
+		item->ri_ops->rio_free != NULL &&
+		equi(state == C2_RPC_ITEM_FAILED,
+		     item->ri_error != 0) &&
+		equi(req && item->ri_error == -ETIMEDOUT,
+		     item->ri_stage == RPC_ITEM_STAGE_TIMEDOUT &&
+		     c2_time_is_in_past(item->ri_op_timeout)) &&
+		equi(item->ri_reply != NULL,
+		     req &&
+		     (state == C2_RPC_ITEM_REPLIED ||
+		      item->ri_reply_pending)) &&
+		ergo(item->ri_reply_pending,
+			req &&
+			item->ri_reply != NULL &&
+			C2_IN(state, (C2_RPC_ITEM_SENDING,
+				      C2_RPC_ITEM_WAITING_FOR_REPLY))) &&
+		equi(C2_IN(item->ri_stage, (RPC_ITEM_STAGE_PAST_COMMITTED,
+					    RPC_ITEM_STAGE_PAST_VOLATILE)),
+		     item->ri_reply != NULL) &&
+		equi(itemq_tlink_is_in(item), state == C2_RPC_ITEM_ENQUEUED) &&
+		equi(item->ri_itemq != NULL,  state == C2_RPC_ITEM_ENQUEUED) &&
+		equi(packet_item_tlink_is_in(item),
+		     state == C2_RPC_ITEM_SENDING) &&
+		ergo(C2_IN(state, (C2_RPC_ITEM_SENDING,
+				   C2_RPC_ITEM_SENT,
+				   C2_RPC_ITEM_WAITING_FOR_REPLY)),
+			ergo(req || rply, bound) &&
+			ergo(req,
+			     item->ri_stage <= RPC_ITEM_STAGE_IN_PROGRESS)) &&
+		ergo(state == C2_RPC_ITEM_REPLIED,
+			req && bound &&
+			item->ri_stage <= RPC_ITEM_STAGE_PAST_VOLATILE);
+}
 
 void c2_rpc_item_init(struct c2_rpc_item            *item,
 		      const struct c2_rpc_item_type *itype)

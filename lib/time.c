@@ -98,6 +98,11 @@ c2_time_t c2_time_from_now(uint64_t secs, long ns)
 }
 C2_EXPORTED(c2_time_from_now);
 
+bool c2_time_is_in_past(c2_time_t t)
+{
+	return t < c2_time_now();
+}
+
 const c2_time_t C2_TIME_NEVER = ~0ULL;
 C2_EXPORTED(C2_TIME_NEVER);
 

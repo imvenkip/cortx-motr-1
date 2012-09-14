@@ -97,10 +97,10 @@ enum {
 	FRM_MAGIC        = 0x5250435f46524d, /* RPC_FRM */
 };
 
-C2_TL_DESCR_DEFINE(itemq, "rpc_itemq", static, struct c2_rpc_item,
+C2_TL_DESCR_DEFINE(itemq, "rpc_itemq", /* global */, struct c2_rpc_item,
 		   ri_iq_link, ri_link_magic, C2_RPC_ITEM_FIELD_MAGIC,
 		   ITEMQ_HEAD_MAGIC);
-C2_TL_DEFINE(itemq, static, struct c2_rpc_item);
+C2_TL_DEFINE(itemq, /* global */, struct c2_rpc_item);
 
 static bool frm_invariant(const struct c2_rpc_frm *frm)
 {

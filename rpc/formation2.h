@@ -323,4 +323,7 @@ void c2_rpc_frm_packet_done(struct c2_rpc_packet *packet);
  */
 void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm);
 
+C2_TL_DESCR_DECLARE(itemq, extern);
+C2_TL_DECLARE(itemq, extern, struct c2_rpc_item);
+
 #endif /* __COLIBRI_RPC_FORMATION2_H__ */
