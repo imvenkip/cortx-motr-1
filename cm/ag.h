@@ -37,11 +37,7 @@
 
 /** Copy Machine Aggregation Group. */
 struct c2_cm_aggr_group {
-	/** Parent copy machine. */
 	struct c2_cm                      *cag_cm;
-
-	/** Aggregation group id */
-	struct c2_uint128		   cag_id;
 
 	const struct c2_cm_aggr_group_ops *cag_ops;
 
@@ -55,7 +51,7 @@ struct c2_cm_aggr_group {
 
 	/**
 	 * Linkage into the sorted sliding window queue of aggregation groups
-	 * (c2_cm_sw:: sw_aggr_grps), sorted by indentifiers.
+	 * (c2_cm_sw::sw_aggr_grps), sorted by indentifiers.
 	 */
 	struct c2_tlink			   cag_sw_linkage;
 
@@ -77,9 +73,9 @@ struct c2_cm_aggr_group_ops {
 
 	/**
 	 * 3-way comparision function for comparing aggregation groups.
-	 * retval > 0 if ag1 > ag2.
-	 * retval 0   if ag1 = ag2.
-	 * retval < 0 if ag1 < ag2.
+	 * retval -1 if ag1 < ag2.
+	 * retval 0  if ag1 = ag2.
+	 * retval 1  if ag1 > ag2.
 	 */
 	int (*cago_ag_cmp)(const struct c2_cm_aggr_group *ag1,
 			   const struct c2_cm_aggr_group *ag2);

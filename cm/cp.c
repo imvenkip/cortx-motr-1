@@ -75,30 +75,33 @@
  *   <hr>
  *   @section CPDLD-req Requirements
  *
- *   - @b r.cm.cp Copy packet abstraction implemented such that it
- *	  represents the data to be transferred within replica.
+ *   - @b r.cm.cp Copy packet abstraction implemented such that it represents
+ *	  the data to be transferred within replica.
  *
- *   - @b r.cm.cp.async Every read-write (receive-send) by replica
- *	  should follow non-blocking processing model of Colibri design.
+ *   - @b r.cm.cp.async Every read-write (receive-send) by replica should follow
+ *	  the non-blocking processing model of Colibri design.
  *
- *   - @b r.cm.buffer_pool Copy machine should provide a buffer pool, which
- *	  is efficiently used for copy packet data.
+ *   - @b r.cm.buffer_pool Copy machine should provide a buffer pool, which is
+ *	  efficiently used for copy packet data.
  *
- *   - @b r.cm.cp.bulk_transfer All data packets (except control packets)
- *	  that are sent over RPC should use bulk-interface for communication.
+ *   - @b r.cm.cp.bulk_transfer All data packets (except control packets) that
+ *	  are sent over RPC should use bulk-interface for communication.
  *
- *   - @b r.cm.addb Copy packet should have its own addb context, (similar
- *	  to fop), although it uses various different addb locations, this will
+ *   - @b r.cm.cp.fom.locality Copy packets FOMs belonging to the same aggregation
+ *        group, should  be assigned same request handler locality.
+ *
+ *   - @b r.cm.addb Copy packet should have its own addb context, (similar to
+ *	  fop), although it uses various different addb locations, this will
  *	  trace the entire path of the copy packet.
  *
  *   <hr>
  *   @section CPDLD-depends Dependencies
  *
- *   - @b r.cm.service Copy packets FOMs are executed in context of copy
- *	  machine replica service.
+ *   - @b r.cm.service Copy packets FOMs are executed in context of copy machine
+ *	  replica service.
  *
- *   - @b r.cm.ops Replica provides operations to create, configure and
- *	  execute copy packet FOMs.
+ *   - @b r.cm.ops Replica provides operations to create, configure and execute
+ *     copy packet FOMs.
  *
  *   - @b r.layout Data restructuring needs layout info.
  *
@@ -164,28 +167,25 @@
  *   <b>Copy packet cooperation within replica:</b>
  *   Copy packet needs resources (memory, processor, &c.) to do processing:
  *
- *	- Needs buffers to keep data during IO;
+ *	- Needs buffers to keep data during IO.
  *
- *	- Needs buffers to keep data until the transfer is finished;
+ *	- Needs buffers to keep data until the transfer is finished.
  *
  *	- Needs buffers to keep intermediate checksum until all units of an
  *	  aggregation group have been received.
  *
- *   The same copy packet (and its associated buffers) goes through various
+ *   The copy packet (and its associated buffers) will go through various
  *   phases. In a particular scenario where data read from device creates a
  *   copy packet, then copy packet transitions to data transformation phase,
  *   which, after reconstructing the data, transitions to data write or send,
  *   which submits IO. On IO completion, the copy packet is destroyed.
  *
- *   At the re-structuring start time, replica is given a certain (configurable)
- *   amount of memory. This memory is allocated by copy machine buffer pool and
- *   used for copy packet data buffers. Buffers get provisioned when trigger
- *   happens.
- *
- *   Given the size of the buffer pool, the replica calculates its initial
- *   sliding window. Once the replica learns window of every other replica, it
- *   can activate copy packet FOMs. Copy machine replica submits copy packets
- *   FOMs to request handler.
+ *   Copy machine provides and manages resources required by the copy packet.
+ *   e.g. In case of SNS Repair, copy machine creates 2 buffer pools, for
+ *   incoming and outgoing copy packets. Based on the availability of buffers
+ *   in these buffer pools, new copy packets are created. On finalisation of
+ *   a copy packet, the corresponding buffer is released back to the respective
+ *   buffer pool.
  *
  *   @subsection CPDLD-lspec-state State Specification
  *
@@ -282,6 +282,9 @@
  *   - @b i.cm.cp.bulk_transfer All data packets (except control packets)
  *	  that are sent over RPC, use bulk-interface for communication.
  *
+ *   - @b i.cm.cp.fom.locality Copy machine implements its type specific
+ *        c2_cm_cp_ops::co_home_loc_helper().
+ *
  *   - @b i.cm.cp.addb copy packet uses ADDB context of copy machine.
  *
  *   <hr>
@@ -337,6 +340,7 @@ static void cp_fom_fini(struct c2_fom *fom)
          * with copy packet.
          */
 	c2_cm_cp_fini(cp);
+	cp->c_ops->co_free(cp);
 }
 
 static uint64_t cp_fom_locality(const struct c2_fom *fom)
@@ -345,7 +349,7 @@ static uint64_t cp_fom_locality(const struct c2_fom *fom)
 
         C2_PRE(c2_cm_cp_invariant(cp));
 
-        return cp->c_ag->cag_id.u_lo;
+	return cp->c_ops->co_home_loc_helper(cp);
 }
 
 static int cp_fom_tick(struct c2_fom *fom)
@@ -353,6 +357,7 @@ static int cp_fom_tick(struct c2_fom *fom)
         struct c2_cm_cp *cp = bob_of(fom, struct c2_cm_cp, c_fom, &cp_bob);
 	int		 phase = c2_fom_phase(fom);
 
+	C2_PRE(phase < cp->c_ops->co_action_nr);
         C2_PRE(c2_cm_cp_invariant(cp));
 
 	return cp->c_ops->co_action[phase](cp);
@@ -372,11 +377,14 @@ static const struct c2_fom_ops cp_fom_ops = {
    @{
  */
 
-bool c2_cm_cp_invariant(struct c2_cm_cp *cp)
+bool c2_cm_cp_invariant(const struct c2_cm_cp *cp)
 {
-	return c2_cm_cp_bob_check(cp) && cp->c_ops != NULL &&
-	       cp->c_data != NULL && cp->c_ag != NULL &&
-	       c2_fom_phase(&cp->c_fom) >= C2_CCP_INIT &&
+	const struct c2_cm_cp_ops *ops = cp->c_ops;
+
+	return c2_cm_cp_bob_check(cp) && ops != NULL && cp->c_data != NULL &&
+	       cp->c_ag != NULL &&
+	       c2_fom_phase(&cp->c_fom) < cp->c_ops->co_action_nr &&
+               c2_forall(i, ops->co_action_nr, ops->co_action[i] != NULL) &&
 	       cp->c_ops->co_invariant(cp);
 }
 
@@ -384,7 +392,7 @@ void c2_cm_cp_init(struct c2_cm_cp *cp, const struct c2_cm_cp_ops *ops,
 		   struct c2_bufvec *buf)
 {
 	C2_PRE(cp != NULL && ops != NULL && buf != NULL);
-	C2_PRE(c2_forall(i, C2_CCP_NR, ops->co_action[i] != NULL));
+	C2_PRE(c2_forall(i, ops->co_action_nr, ops->co_action[i] != NULL));
 
 	cp->c_ops = ops;
 	cp->c_data = buf;

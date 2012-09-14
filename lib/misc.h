@@ -70,7 +70,7 @@ uint64_t c2_round_down(uint64_t val, uint64_t size);
  * This function is useful for invariant checking.
  *
  * @code
- * bool foo_invariant( struct foo *f)
+ * bool foo_invariant(const struct foo *f)
  * {
  *        return c2_forall(i, ARRAY_SIZE(f->f_nr_bar), f->f_bar[i].b_count > 0);
  * }
@@ -114,28 +114,10 @@ uint64_t c2_round_down(uint64_t val, uint64_t size);
 #define C2_IN_8(x, v, ...) ((x) == (v) || C2_IN_7(x, __VA_ARGS__))
 #define C2_IN_9(x, v, ...) ((x) == (v) || C2_IN_8(x, __VA_ARGS__))
 
-/**
-   C2_BITS(...) returns bitmask of passed bits.
-   e.g.
-@code
-   enum foo_states {
-        FOO_UNINITIALISED,
-        FOO_INITIALISED,
-        FOO_ACTIVE,
-        FOO_FAILED,
-        FOO_NR,
-   };
-@endcode
-
-   then @code C2_BITS(FOO_ACTIVE, FOO_FAILED) @endcode returns
-   (1 << FOO_ACTIVE) | (1 << FOO_FAILED)
-
-   @code C2_BITS() @endcode (C2_BITS) macro with no parameters will cause
-   compilation failure.
-*/
+/** C2_BITS(X, Y, ...) expands to ((1 << X) | (1 << Y) | ...) */
 #define C2_BITS(...) \
 C2_CAT(__C2_BITS_, C2_COUNT_PARAMS(__VA_ARGS__))(__VA_ARGS__)
-#define __C2_BITS_0(i)(1 << (i))
+#define __C2_BITS_0(i) (1 << (i))
 #define __C2_BITS_1(i, ...) ((1 << (i)) | __C2_BITS_0(__VA_ARGS__))
 #define __C2_BITS_2(i, ...) ((1 << (i)) | __C2_BITS_1(__VA_ARGS__))
 #define __C2_BITS_3(i, ...) ((1 << (i)) | __C2_BITS_2(__VA_ARGS__))
@@ -144,6 +126,7 @@ C2_CAT(__C2_BITS_, C2_COUNT_PARAMS(__VA_ARGS__))(__VA_ARGS__)
 #define __C2_BITS_6(i, ...) ((1 << (i)) | __C2_BITS_5(__VA_ARGS__))
 #define __C2_BITS_7(i, ...) ((1 << (i)) | __C2_BITS_6(__VA_ARGS__))
 #define __C2_BITS_8(i, ...) ((1 << (i)) | __C2_BITS_7(__VA_ARGS__))
+#define __C2_BITS_9(i, ...) ((1 << (i)) | __C2_BITS_8(__VA_ARGS__))
 
 const char *c2_bool_to_str(bool b);
 

@@ -23,6 +23,8 @@
 #ifndef __COLIBRI_SNS_REPAIR_AG_H__
 #define __COLIBRI_SNS_REPAIR_AG_H__
 
+#include "fid/fid.h"
+
 #include "cm/cm.h"
 #include "cm/ag.h"
 
@@ -36,29 +38,31 @@
 /**
  * Aggregation group identifier to uniquely identify a SNS repair aggregation
  * group. For an SNS repair aggregation group, this id is a combination of
- * a gob-id and correspoinding parity group no.
- * SNS repair aggregation group identifiers are ordered lexicographically and
- * they allow a SNS repair copy machine to track overall repair process using
- * the sliding window algorithm.
+ * a gob-id and parity group number.
+ * SNS repair aggregation group identifiers are ordered lexicographically in
+ * the sliding window and allow the SNS repair copy machine to track overall
+ * repair process using the sliding window algorithm.
  */
 struct c2_sns_repair_ag_id {
 	/** Global fid of the file to be repaired */
-	struct c2_fid	sai_fid;
-	/** Logical no of the parity group in the file */
-	uint64_t 	sai_pg_nr;
+	struct c2_fid   rai_fid;
+	/** Logical number of the parity group in the file */
+	uint64_t        rai_pg_nr;
 };
 
 struct c2_sns_repair_aggr_group {
 	/** Base aggregation group. */
-	struct c2_cm_aggr_group  	sag_base;
+	struct c2_cm_aggr_group      sag_base;
 	/** Transformed copy packet created by transformation function. */
-	struct c2_cm_cp         	*sag_cp;
+	struct c2_cm_cp             *sag_cp;
 	/**
 	 * Aggregation group identifier to uniquely identify a sns repair
 	 * aggregation group.
 	 */
-	struct c2_sns_repair_ag_id 	 sag_id;
+	struct c2_sns_repair_ag_id   sag_id;
 };
+
+struct c2_sns_repair_aggr_group *ag2snsag(const struct c2_cm_aggr_group *ag);
 
 /** @} SNSRepairAG */
 /* __COLIBRI_SNS_REPAIR_AG_H__ */
