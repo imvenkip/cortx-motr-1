@@ -68,8 +68,10 @@ static void config_print(struct c2_net_test_node_cfg *cfg)
 				 cfg->ntnc_send_timeout);
 }
 
-static bool configure(int argc, char *argv[], struct c2_net_test_node_cfg *cfg)
+static int configure(int argc, char *argv[], struct c2_net_test_node_cfg *cfg)
 {
+	bool list_if = false;
+
 	C2_GETOPTS("ntn", argc, argv,
 		C2_STRINGARG('a', "Test node commands endpoint",
 		LAMBDA(void, (const char *addr) {
@@ -79,10 +81,12 @@ static bool configure(int argc, char *argv[], struct c2_net_test_node_cfg *cfg)
 		LAMBDA(void, (const char *addr) {
 			cfg->ntnc_addr_console = c2_net_test_u_str_copy(addr);
 		})),
+		C2_IFLISTARG(&list_if),
 		C2_HELPARG('?'),
 		);
-	config_print(cfg);
-	return config_check(cfg);
+	if (!list_if)
+		config_print(cfg);
+	return list_if ? 1 : config_check(cfg) ? 0 : -1;
 }
 
 int main(int argc, char *argv[])
@@ -98,7 +102,11 @@ int main(int argc, char *argv[])
 	/** @todo add Ctrl+C handler
 	   c2_net_test_fini()+c2_net_test_config_fini() */
 	/** @todo atexit() */
-	if (!configure(argc, argv, &cfg)) {
+	rc = configure(argc, argv, &cfg);
+	if (rc == 1) {
+		c2_net_test_u_lnet_info();
+		return 0;
+	} else if (rc != 0) {
 		/** @todo where is the error */
 		PRINT("Error in configuration.\n");
 		config_free(&cfg);
@@ -129,6 +137,10 @@ cfg_free:
 	config_free(&cfg);
 
 	return rc;
+}
+
+void c2_net_test_u_if_list(void)
+{
 }
 
 /**

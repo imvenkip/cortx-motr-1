@@ -36,6 +36,8 @@
  */
 
 #define PRINT(...) printf(__VA_ARGS__)
+#define C2_IFLISTARG(pflag) C2_FLAGARG('l', "List available LNET interfaces", \
+				       pflag)
 
 char *c2_net_test_u_str_copy(const char *str);
 void c2_net_test_u_str_free(char *str);
@@ -43,6 +45,7 @@ void c2_net_test_u_str_free(char *str);
 void c2_net_test_u_print_error(const char *s, int code);
 void c2_net_test_u_print_s(const char *fmt, const char *str);
 void c2_net_test_u_print_time(char *name, c2_time_t time);
+void c2_net_test_u_lnet_info(void);
 
 /**
    @} end of NetTestUCommonInternals group

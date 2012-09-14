@@ -187,9 +187,10 @@ static void config_print(struct c2_net_test_console_cfg *cfg)
 	PRINT("ntcc_concurrency_client\t= %lu\n", cfg->ntcc_concurrency_client);
 }
 
-static bool configure(int argc, char *argv[],
-		      struct c2_net_test_console_cfg *cfg)
+static int configure(int argc, char *argv[],
+		     struct c2_net_test_console_cfg *cfg)
 {
+	bool list_if = false;
 	bool success = true;
 	/** @todo single-letter options is very bad */
 	C2_GETOPTS("ntc", argc, argv,
@@ -265,11 +266,13 @@ static bool configure(int argc, char *argv[],
 			else
 				cfg->ntcc_concurrency_client = nr;
 		})),
+		C2_IFLISTARG(&list_if),
 		C2_HELPARG('?'),
 		);
-	config_print(cfg);
+	if (!list_if)
+		config_print(cfg);
 	success &= config_check(cfg);
-	return success;
+	return list_if ? 1 : success ? 0 : -1;
 }
 
 static void config_free(struct c2_net_test_console_cfg *cfg)
@@ -381,7 +384,11 @@ int main(int argc, char *argv[])
 		.ntcc_concurrency_client   = 0,
 	};
 
-	if (!configure(argc, argv, &cfg)) {
+	rc = configure(argc, argv, &cfg);
+	if (rc == 1) {
+		c2_net_test_u_lnet_info();
+		return 0;
+	} else if (rc != 0) {
 		/** @todo where is the error */
 		PRINT("Error in configuration.\n");
 		config_free(&cfg);
