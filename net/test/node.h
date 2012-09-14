@@ -33,8 +33,10 @@
    - @ref net-test-fspec-sub
    - @ref net-test-fspec-cli
      - @ref net-test-fspec-cli-node "Linux kernel module"
-     - @ref net-test-fspec-cli-console "Console"
+     - @subpage net-test-fspec-cli-console "Console"
    - @ref net-test-fspec-usecases
+     - @ref net-test-fspec-usecases-kernel "Linux kernel module"
+     - @ref net-test-fspec-usecases-console "Console"
    - @ref NetTestDFS "Detailed Functional Specification"
    - @ref NetTestInternals "Internals"
 
@@ -117,27 +119,6 @@
 		   endpoint structures.
    - @b console Console hostname. Mandatory option.
 
-   @subsection net-test-fspec-cli-console \
-	   Command line options for the test console.
-
-   Installing/uninstalling test suite (kernel modules, scripts etc.)
-   to/from remote host:
-   - @b --install Install test suite. This means only copying binaries,
-                  scripts etc., but not running something.
-   - @b --uninstall Uninstall test suite.
-   - @b --remote-path Remote path for installing.
-   - @b --targets Comma-separated list of host names for installion.
-
-   Running test:
-   - @b --type Test type. Can be @b bulk or @b ping.
-   - @b --clients Comma-separated list of test client hostnames.
-   - @b --servers Comma-separated list of test server hostnames.
-   - @b --count Number of test messages to exchange between every test
-		client and every test server.
-   - @b --size Size of bulk messages, bytes. Makes sense for bulk test only.
-   - @b --remote-path Path to test suite on remote host.
-   - @b --live Live report update time, seconds.
-
    @section net-test-fspec-usecases Recipes
 
    @subsection net-test-fspec-usecases-kernel Kernel module parameters example
@@ -152,35 +133,6 @@
    @endcode
    Run bulk test as test server with 1Mb bulk message size and
    test clients c1 and c2.
-
-   @subsection net-test-fspec-usecases-console Test console parameters example
-
-   @code
-   --install --remote-path=$HOME/net-test --targets=c1,c2,c3,s1,s2
-   @endcode
-   Install test suite to $HOME/net-test directory on hosts c1, c2, c3,
-   s1 and s2.
-
-   @code
-   --uninstall --remote-path=/tmp/net-test --targets=host1,host2
-   @endcode
-   Uninstall test suite on hosts host1 and host2.
-
-   @code
-   --type=ping --clients=c1,c2,c3 --servers=s1,s2 --count=1024
-   --remote-path=$HOME/net-test
-   @endcode
-   Run ping test with hosts c1, c2 and c3 as clients and s2 and s2 as servers.
-   Ping test should have 1024 test messages and test suite on remote hosts
-   is installed in $HOME/net-test.
-
-   @code
-   --type=bulk --clients=host1 --servers=host2 --count=1000000 --size=1M
-   --remote-path=$HOME/net-test --live=1
-   @endcode
-   Run bulk test with host1 as test client and host2 as test server. Number of
-   bulk packets is one million, size is 1 MiB. Test statistics should be updated
-   every second.
 
    @see @ref net-test
  */

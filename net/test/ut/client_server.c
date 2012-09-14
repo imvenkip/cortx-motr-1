@@ -36,7 +36,6 @@
 
 #include "net/test/node.h"		/* c2_net_test_node_ctx */
 #include "net/test/console.h"		/* c2_net_test_console_ctx */
-#include "net/test/service.h"		/* c2_net_test_service_cmd_handler */
 
 #include "lib/ut.h"			/* C2_UT_ASSERT */
 #include "lib/memory.h"			/* c2_free */
