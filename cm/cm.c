@@ -28,6 +28,7 @@
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/assert.h" /* C2_PRE, C2_POST */
 #include "cm/cm.h"
+#include "cm/ag.h"
 #include "cm/cp.h"
 #include "reqh/reqh.h"
 
@@ -69,7 +70,7 @@
    - @b r.cm.synchronise Copy machine generic should provide synchronised access
         to members of cm.
    - @b r.cm.resource.manage Copy machine specific resources should be managed
-        by copy machine specific implementation, e.g. buffer pool, &c.
+        by copy machine specific implementation, e.g. buffer pool, etc.
    - @b r.cm.failure Copy machine should handle various types of failures.
 
    <hr>
@@ -89,8 +90,9 @@
      and creates copy packets.
   -  The complete data restructuring process of copy machine follows non-blocking
      processing model of Colibri design.
-  -  Copy machine implements sliding window to keep track of restructuring process
-     manage resources efficiently.
+  -  Copy machine maintains the list of aggregation groups being processed and
+     implements a sliding window over this list to keep track of restructuring
+     process and manage resources efficiently.
 
    <hr>
    @section CMDLD-lspec Logical Specification
@@ -146,7 +148,7 @@
         members using c2_cm::cm_sm_group::s_mutex.
    - @b i.cm.failure Copy machine handles various types of failures.
    - @b i.cm.resource.manage Copy machine specific resources are managed by copy
-        machine specific implementation, e.g. buffer pool, &c.
+        machine specific implementation, e.g. buffer pool, etc.
 
    @section DLD-Agents-addb ADDB events
    - <b>cm_init_fail</b> Copy machine failed to initialise.
@@ -172,7 +174,8 @@
    @section CMDLD-ref References
    Following are the references to the documents from which the design is
    derived,
-   - <a href="https://docs.google.com/a/xyratex.com/document/d/1FX-TTaM5VttwoG4wd0Q4-AbyVUi3XL_Oc6cnC4lxLB0/edit">Copy Machine redesign.</a>
+   - <a href="https://docs.google.com/a/xyratex.com/document/d/1FX-TTaM5VttwoG4w
+   d0Q4-AbyVUi3XL_Oc6cnC4lxLB0/edit">Copy Machine redesign.</a>
    - <a href="https://docs.google.com/a/xyratex.com/document/d/1ZlkjayQoXVm-prMx
    Tkzxb1XncB6HU19I19kwrV-8eQc/edit?hl=en_US">HLD of copy machine and agents.</a
    >
@@ -186,10 +189,10 @@
 */
 
 enum {
-	/** Hex value of "CMT_HEAD" */
-	CM_TYPE_HEAD_MAGIX = 0x434D545F48454144,
-	/** Hex value of "CMT_LINK" */
-	CM_TYPE_LINK_MAGIX = 0x434D545F4C494E4B
+	CM_TYPE_HEAD_MAGIX = 0x33DACEFACEBACE77,
+	CM_TYPE_LINK_MAGIX = 0x33BADEDABADEBE77,
+	CM_AG_HEAD_MAGIX = 0x33DEAFBEEFDEAD77,
+	CM_AG_LINK_MAGIX = 0x33FEEDBEEFDEED77,
 };
 
 /** List containing the copy machines registered on a colibri server. */
@@ -198,15 +201,18 @@ static struct c2_tl cmtypes;
 /** Protects access to the list c2_cmtypes. */
 static struct c2_mutex cmtypes_mutex;
 
-C2_TL_DESCR_DEFINE(cmtypes, "copy machine types", ,
+C2_TL_DESCR_DEFINE(cmtypes, "copy machine types", static,
                    struct c2_cm_type, ct_linkage, ct_magix,
                    CM_TYPE_LINK_MAGIX, CM_TYPE_HEAD_MAGIX);
 
 C2_TL_DEFINE(cmtypes, static, struct c2_cm_type);
 
 static struct c2_bob_type cmtypes_bob;
-C2_BOB_DEFINE( static, &cmtypes_bob, c2_cm_type);
+C2_BOB_DEFINE(static, &cmtypes_bob, c2_cm_type);
 
+C2_TL_DESCR_DEFINE(cm_ag, "aggregation groups", static, struct c2_cm_aggr_group,
+		   cag_cm_linkage, cag_magic, CM_AG_LINK_MAGIX, CM_AG_HEAD_MAGIX);
+C2_TL_DEFINE(cm_ag, static, struct c2_cm_aggr_group);
 
 C2_ADDB_EV_DEFINE(cm_setup_fail, "cm_setup_fail",
 		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
@@ -279,7 +285,7 @@ void c2_cm_fail(struct c2_cm *cm, enum c2_cm_failure failure, int rc)
 {
 	C2_ENTRY();
 
-	C2_PRE(cm!= NULL);
+	C2_PRE(cm != NULL);
 	C2_PRE(rc < 0);
 
 	/*
@@ -304,7 +310,7 @@ void c2_cm_fail(struct c2_cm *cm, enum c2_cm_failure failure, int rc)
 		 * c2_cm_fini().
 		 */
 		C2_ADDB_ADD(&cm->cm_addb , &c2_cm_addb_loc, cm_setup_fail,
-		"cm_setup_fail", rc);
+			    "cm_setup_fail", rc);
 		break;
 
 	case C2_CM_ERR_START:
@@ -319,7 +325,7 @@ void c2_cm_fail(struct c2_cm *cm, enum c2_cm_failure failure, int rc)
 
 	case C2_CM_ERR_STOP:
 		C2_ADDB_ADD(&cm->cm_addb , &c2_cm_addb_loc, cm_stop_fail,
-		"cm_stop_fail", rc);
+			    "cm_stop_fail", rc);
 		cm->cm_mach.sm_rc = 0;
 		c2_cm_state_set(cm, C2_CMS_IDLE);
 		break;
@@ -428,6 +434,7 @@ int c2_cm_start(struct c2_cm *cm)
 int c2_cm_stop(struct c2_cm *cm)
 {
 	int	rc;
+
 	C2_ENTRY();
 	C2_PRE(cm != NULL);
 
@@ -474,39 +481,34 @@ static uint64_t cm_id_generate(void)
 }
 
 int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
-	       const struct c2_cm_ops *cm_ops,
-	       const struct c2_cm_sw_ops *sw_ops)
+	       const struct c2_cm_ops *cm_ops)
 {
-	int	 rc;
-
 	C2_ENTRY();
 	C2_PRE(cm != NULL && cm_type != NULL && cm_ops != NULL &&
-	       sw_ops != NULL && cmtypes_tlist_contains(&cmtypes, cm_type));
+	       cmtypes_tlist_contains(&cmtypes, cm_type));
 
 	cm->cm_type = cm_type;
 	cm->cm_ops = cm_ops;
-	rc = c2_cm_sw_init(&cm->cm_sw, sw_ops);
-	if(rc == 0) {
-		cm->cm_id = cm_id_generate();
-		c2_addb_ctx_init(&cm->cm_addb, &c2_cm_addb_ctx,
-			         &c2_addb_global_ctx);
-		/* State machine initialisation */
-		c2_sm_group_init(&cm->cm_sm_group);
-		c2_sm_init(&cm->cm_mach, &c2_cm_sm_conf, C2_CMS_INIT,
-		   	   &cm->cm_sm_group, &cm->cm_addb);
-		/*
-		 * We lock the copy machine here just to satisfy the
-		 * pre-condition of c2_cm_state_get and not to control
-		 * concurrency to c2_cm_init.
-		 */
-		c2_cm_lock(cm);
-		C2_ASSERT(c2_cm_state_get(cm) == C2_CMS_INIT);
-		c2_cm_unlock(cm);
+	cm->cm_id = cm_id_generate();
+	c2_addb_ctx_init(&cm->cm_addb, &c2_cm_addb_ctx,
+			 &c2_addb_global_ctx);
+	c2_sm_group_init(&cm->cm_sm_group);
+	c2_sm_init(&cm->cm_mach, &c2_cm_sm_conf, C2_CMS_INIT,
+		   &cm->cm_sm_group, &cm->cm_addb);
+	/*
+	 * We lock the copy machine here just to satisfy the
+	 * pre-condition of c2_cm_state_get and not to control
+	 * concurrency to c2_cm_init.
+	 */
+	c2_cm_lock(cm);
+	C2_ASSERT(c2_cm_state_get(cm) == C2_CMS_INIT);
+	c2_cm_unlock(cm);
 
-		C2_POST(c2_cm_invariant(cm));
-	}
+	cm_ag_tlist_init(&cm->cm_aggr_grps);
+
+	C2_POST(c2_cm_invariant(cm));
 	C2_LEAVE();
-	return rc;
+	return 0;
 }
 
 void c2_cm_fini(struct c2_cm *cm)
@@ -523,7 +525,7 @@ void c2_cm_fini(struct c2_cm *cm)
 	C2_LOG("CM: %s:%lu: %i", (char *)cm->cm_type->ct_stype.rst_name,
 	       cm->cm_id, cm->cm_mach.sm_state);
 	/*
-	 * We lock the copy machne here to satisfy the precondition in
+	 * We lock the copy machine here to satisfy the precondition in
 	 * c2_cm_state_set() and not to control concurrency of calls to
 	 * c2_cm_fini().
 	 */
@@ -534,7 +536,6 @@ void c2_cm_fini(struct c2_cm *cm)
 	c2_sm_fini(&cm->cm_mach);
 	c2_sm_group_fini(&cm->cm_sm_group);
 	c2_addb_ctx_fini(&cm->cm_addb);
-	c2_cm_sw_fini(&cm->cm_sw);
 	C2_LEAVE();
 }
 
@@ -576,7 +577,7 @@ int c2_cm_done(struct c2_cm *cm)
 	return 0;
 }
 
-void c2_cm_sw_fill(struct c2_cm *cm)
+void c2_cm_ag_fill(struct c2_cm *cm)
 {
 	struct c2_cm_cp *cp;
 
@@ -596,7 +597,7 @@ int c2_cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
 	return cm->cm_ops->cmo_data_next(cm, cp);
 }
 
-/** @} endgroup cm */
+/** @} endgroup CM */
 
 /*
  *  Local variables:

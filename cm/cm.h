@@ -29,7 +29,6 @@
 #include "addb/addb.h"         /* struct c2_addb_ctx */
 #include "reqh/reqh_service.h" /* struct c2_reqh_service_type */
 #include "sm/sm.h"	       /* struct c2_sm */
-#include "cm/sw.h"
 
 /**
    @page CMDLD-fspec Copy Machine Functional Specification
@@ -174,7 +173,12 @@ struct c2_cm {
 	/** ADDB context to log important events and failures. */
 	struct c2_addb_ctx               cm_addb;
 
-	/** List of aggregation groups in process. */
+	/**
+	 * List of aggregation groups in process.
+	 * Copy machine provides various interfaces over this list to implement
+	 * sliding window.
+	 * @see struct c2_cm_aggr_group::cag_cm_linkage
+	 */
 	struct c2_tl                     cm_aggr_grps;
 
 	/**
@@ -203,7 +207,7 @@ struct c2_cm_ops {
 	/** Acknowledges the completion of copy machine operation. */
 	void (*cmo_done)(struct c2_cm *cm);
 
-	/** Invoked from c2_cm_stop (). */
+	/** Invoked from c2_cm_stop(). */
 	int (*cmo_stop)(struct c2_cm *cm);
 
 	/** Creates copy packets only if resources permit. */
@@ -251,8 +255,7 @@ void c2_cms_fini(void);
  * @post ergo(result == 0, c2_cm_state_get(cm) == C2_CMS_INIT)
  */
 int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
-	       const struct c2_cm_ops *cm_ops,
-	       const struct c2_cm_sw_ops *sw_ops);
+	       const struct c2_cm_ops *cm_ops);
 
 /**
  * Finalises a copy machine. This is invoked from copy machine specific
@@ -336,13 +339,21 @@ void c2_cm_state_set(struct c2_cm *cm, enum c2_cm_state state);
 enum c2_cm_state c2_cm_state_get(const struct c2_cm *cm);
 
 /**
- * Creates copy packets and adds aggregation groups to sliding window,
+ * Creates copy packets and adds aggregation groups to c2_cm::cm_aggr_grps,
  * if required.
  */
-void c2_cm_sw_fill(struct c2_cm *cm);
+void c2_cm_ag_fill(struct c2_cm *cm);
+
+/** Iterates over data to be re-structured. */
 int c2_cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp);
 
-/** @} endgroup cm */
+/** Returns last element from the c2_cm::cm_aggr_grps list. */
+struct c2_cm_aggr_group *c2_cm_ag_hi(struct c2_cm *cm);
+
+/** Returns first element from the c2_cm::cm_aggr_grps list. */
+struct c2_cm_aggr_group *c2_cm_ag_lo(struct c2_cm *cm);
+
+/** @} endgroup CM */
 
 /* __COLIBRI_CM_CM_H__ */
 

@@ -275,6 +275,11 @@ enum {
 extern struct c2_net_xprt c2_net_lnet_xprt;
 extern struct c2_cm_type sns_repair_cmt;
 
+struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm)
+{
+	return container_of(cm, struct c2_sns_repair_cm, rc_base);
+}
+
 int c2_sns_repair_cm_type_register(void)
 {
 	return c2_cm_type_register(&sns_repair_cmt);
@@ -402,7 +407,7 @@ static int cm_start(struct c2_cm *cm)
 	 */
 	if (bufs_nr == 0)
 		return -ENOMEM;
-	c2_cm_sw_fill(cm);
+	c2_cm_ag_fill(cm);
 
 	C2_LEAVE();
 	return 0;

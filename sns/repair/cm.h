@@ -96,10 +96,7 @@ struct c2_sns_repair_cm {
 int c2_sns_repair_cm_type_register(void);
 void c2_sns_repair_cm_type_deregister(void);
 
-static inline struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm)
-{
-	return container_of(cm, struct c2_sns_repair_cm, rc_base);
-}
+struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm);
 
 /** @} SNSRepairCM */
 #endif /* __COLIBRI_SNS_REPAIR_CM_H__ */

@@ -77,7 +77,6 @@ static const struct c2_reqh_service_ops service_ops = {
 C2_CM_TYPE_DECLARE(sns_repair, &service_type_ops, "sns_repair");
 
 extern const struct c2_cm_ops cm_ops;
-extern const struct c2_cm_sw_ops sw_ops;
 
 /**
  * Allocates and initialises SNS Repair copy machine.
@@ -104,7 +103,7 @@ static int service_allocate(struct c2_reqh_service_type *stype,
 		(*service)->rs_ops = &service_ops;
 		c2_addb_ctx_init(&cm->cm_addb, &sns_repair_addb_ctx_type,
 		                 &c2_addb_global_ctx);
-		rc = c2_cm_init(cm, cm_type, &cm_ops, &sw_ops);
+		rc = c2_cm_init(cm, cm_type, &cm_ops);
 		if (rc != 0) {
 			C2_ADDB_ADD(&cm->cm_addb, &sns_repair_addb_loc,
 			            svc_init_fail,

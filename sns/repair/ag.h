@@ -28,6 +28,8 @@
 #include "cm/cm.h"
 #include "cm/ag.h"
 
+#include "sns/repair/cm.h"
+
 /**
    @defgroup SNSRepairAG SNS Repair aggregation group
    @ingroup SNSRepairCM
@@ -63,6 +65,13 @@ struct c2_sns_repair_aggr_group {
 };
 
 struct c2_sns_repair_aggr_group *ag2snsag(const struct c2_cm_aggr_group *ag);
+
+/**
+ * Finds aggregation group in the c2_cm::cm_aggr_grps for the given aggregation
+ * group id. Creates new aggregation group if not found.
+ */
+struct c2_sns_repair_aggr_group *
+c2_sns_repair_ag_find(struct c2_sns_repair_cm *rcm, struct c2_sns_repair_ag_id);
 
 /** @} SNSRepairAG */
 /* __COLIBRI_SNS_REPAIR_AG_H__ */

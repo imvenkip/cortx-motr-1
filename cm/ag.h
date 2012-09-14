@@ -51,9 +51,9 @@ struct c2_cm_aggr_group {
 
 	/**
 	 * Linkage into the sorted sliding window queue of aggregation groups
-	 * (c2_cm_sw::sw_aggr_grps), sorted by indentifiers.
+	 * (c2_cm::cm_aggr_grps), sorted by indentifiers.
 	 */
-	struct c2_tlink			   cag_sw_linkage;
+	struct c2_tlink			   cag_cm_linkage;
 
 	uint64_t                           cag_magic;
 };
@@ -80,9 +80,6 @@ struct c2_cm_aggr_group_ops {
 	int (*cago_ag_cmp)(const struct c2_cm_aggr_group *ag1,
 			   const struct c2_cm_aggr_group *ag2);
 };
-
-C2_TL_DESCR_DECLARE(c2_cm_ag, extern);
-C2_TL_DECLARE(c2_cm_ag, extern, struct c2_cm_aggr_group);
 
 /** @} CMAG */
 #endif
