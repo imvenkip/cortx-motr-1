@@ -51,32 +51,14 @@ struct c2_cm_sw {
 
         /** List of aggregation groups being processed by the copy machine.*/
         struct c2_tl                sw_aggr_grps;
-
-        /** Upper bound of this sliding window. */
-        struct c2_cm_aggr_group    *sw_high;
-
-        /** Lower bound of this sliding window. */
-        struct c2_cm_aggr_group    *sw_low;
 };
 
 /** Copy Machine sliding window operations. */
 struct c2_cm_sw_ops {
-	/**
-	 * Increase the sw_high. Such that HI := NEXT (HI).
-	 * Here, NEXT (X) = min{ id | id >= X and aggregation group has packets
-	 * for this replica }
-	 * NEXT (X) will run in a loop until it finds an aggregation group
-	 * that needs processing.
-	 */
-	int  (*swo_advance)(struct c2_cm_sw *sw);
-
-	/**
-	 * Increase the sw_high and sw_low. Such that
-	 * HI := NEXT (HI)
-	 * LO := NEXT (LO + 1)
-	 */
-	int  (*swo_slide)(struct c2_cm_sw *sw);
+	
 };
+
+int c2_cm_sw_update(struct c2_cm_sw *slw
 
 /** Initialises sliding window. */
 int c2_cm_sw_init(struct c2_cm_sw *slw, const struct c2_cm_sw_ops *ops);

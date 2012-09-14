@@ -174,8 +174,8 @@ struct c2_cm {
 	/** ADDB context to log important events and failures. */
 	struct c2_addb_ctx               cm_addb;
 
-	/** Sliding window controlled by this copy machine. */
-	struct c2_cm_sw                  cm_sw;
+	/** List of aggregation groups in process. */
+	struct c2_tl                     cm_aggr_grps;
 
 	/**
          * Set true when copy machine shutdown triggered. Every finalisation
