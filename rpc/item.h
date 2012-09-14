@@ -151,7 +151,6 @@ struct c2_rpc_item {
 	const struct c2_rpc_item_type	*ri_type;
 	/** reply item */
 	struct c2_rpc_item		*ri_reply;
-	bool                             ri_reply_pending;
 	struct c2_sm_timeout             ri_timeout;
 	/** item operations */
 	const struct c2_rpc_item_ops	*ri_ops;
