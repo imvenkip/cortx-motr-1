@@ -107,6 +107,49 @@ static const struct c2_rpc_item_ops conn_terminate_item_ops = {
 	.rio_free    = c2_fop_item_free,
 };
 
+static const struct c2_sm_state_descr conn_states[] = {
+	[C2_RPC_CONN_INITIALISED] = {
+		.sd_flags     = C2_SDF_INITIAL,
+		.sd_name      = "Conn initialise",
+		.sd_allowed   = (1 << C2_RPC_CONN_CONNECTING) |
+				(1 << C2_RPC_CONN_TERMINATED) |
+				(1 << C2_RPC_CONN_FAILED)
+	},
+	[C2_RPC_CONN_CONNECTING] = {
+		.sd_flags     = 0,
+		.sd_name      = "Conn connecting",
+		.sd_allowed   = (1 << C2_RPC_CONN_ACTIVE) |
+				(1 << C2_RPC_CONN_FAILED)
+	},
+	[C2_RPC_CONN_ACTIVE] = {
+		.sd_flags     = 0,
+		.sd_name      = "Conn active",
+		.sd_allowed   = (1 << C2_RPC_CONN_TERMINATING)
+	},
+	[C2_RPC_CONN_TERMINATING] = {
+		.sd_flags     = 0,
+		.sd_name      = "Conn terminating",
+		.sd_allowed   = (1 << C2_RPC_CONN_TERMINATED) |
+				(1 << C2_RPC_CONN_FAILED)
+	},
+	[C2_RPC_CONN_TERMINATED] = {
+		.sd_flags     = C2_SDF_TERMINAL,
+		.sd_name      = "Conn terminated",
+		.sd_allowed   = 0,
+	},
+	[C2_RPC_CONN_FAILED] = {
+		.sd_flags     = 0,
+		.sd_name      = "Conn failed",
+		.sd_allowed   = (1 << C2_RPC_CONN_TERMINATED)
+	},
+};
+
+const struct c2_sm_conf conn_conf = {
+	.scf_name      = "Conn states",
+	.scf_nr_states = ARRAY_SIZE(conn_states),
+	.scf_state     = conn_states
+};
+
 /**
    Checks connection object invariant.
 
@@ -137,7 +180,6 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	     c2_list_contains(conn_list, &conn->c_link) &&
 	     c2_list_invariant(&conn->c_sessions) &&
 	     c2_list_length(&conn->c_sessions) == conn->c_nr_sessions &&
-	     c2_is_po2(conn->c_state) &&
 	     conn->c_state <= C2_RPC_CONN_TERMINATED &&
 	     /*
 	      * Each connection has exactly one session with id SESSION_ID_0.
@@ -274,6 +316,10 @@ static int __conn_init(struct c2_rpc_conn      *conn,
 		__conn_fini(conn);
 		C2_SET0(conn);
 	}
+
+	c2_sm_init(&conn->c_sm, &conn_conf, C2_RPC_CONN_INITIALISED,
+		   &machine->rm_sm_grp, NULL /* addb context */);
+
 	return rc;
 }
 
@@ -317,6 +363,8 @@ static void __conn_fini(struct c2_rpc_conn *conn)
 	c2_list_fini(&conn->c_sessions);
 	c2_cond_fini(&conn->c_state_changed);
 	c2_list_link_fini(&conn->c_link);
+	c2_conn_state_set(conn, C2_RPC_CONN_TERMINATED);
+	c2_sm_fini(&conn->c_sm);
 }
 
 int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
@@ -416,7 +464,7 @@ bool c2_rpc_conn_timedwait(struct c2_rpc_conn *conn,
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
-	while ((conn->c_state & state_flags) == 0 && got_event) {
+	while (((1 << conn->c_state) & state_flags) == 0 && got_event) {
 		/** @todo Needed until rm_mutex is present. */
 		c2_sm_group_unlock(&machine->rm_sm_grp);
 		got_event = c2_cond_timedwait(&conn->c_state_changed,
@@ -429,7 +477,7 @@ bool c2_rpc_conn_timedwait(struct c2_rpc_conn *conn,
 		/** @todo Needed until rm_mutex is present. */
 		c2_sm_group_lock(&machine->rm_sm_grp);
 	}
-	state_reached = ((conn->c_state & state_flags) != 0);
+	state_reached = (((1 << conn->c_state) & state_flags) != 0);
 
 	c2_rpc_machine_unlock(machine);
 
@@ -511,9 +559,9 @@ int c2_rpc_conn_establish_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 	if (rc != 0)
 		return rc;
 
-	state_reached = c2_rpc_conn_timedwait(conn,
-				        C2_RPC_CONN_ACTIVE | C2_RPC_CONN_FAILED,
-					c2_time_from_now(timeout_sec, 0));
+	state_reached = c2_rpc_conn_timedwait(conn, 1 << C2_RPC_CONN_ACTIVE |
+					      1 << C2_RPC_CONN_FAILED,
+					      c2_time_from_now(timeout_sec, 0));
 	/*
 	 * When rpc-layer timeouts will be implemented !state_reached situation
 	 * will never arise. The conn will certainly move to either ACTIVE or
@@ -677,8 +725,8 @@ int c2_rpc_conn_terminate_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 	if (rc != 0)
 		return rc;
 
-	state_reached = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_TERMINATED |
-					      C2_RPC_CONN_FAILED,
+	state_reached = c2_rpc_conn_timedwait(conn, 1 << C2_RPC_CONN_TERMINATED |
+					      1 << C2_RPC_CONN_FAILED,
 					      c2_time_from_now(timeout_sec, 0));
 	/*
 	 * When rpc-layer timeouts will be implemented !state_reached situation

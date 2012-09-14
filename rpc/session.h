@@ -248,6 +248,7 @@ back to sender.
 #include "lib/cond.h"
 #include "lib/mutex.h"
 #include "dtm/verno.h"
+#include "sm/sm.h"       /* c2_sm */
 
 /* Imports */
 struct c2_rpc_item;
@@ -295,25 +296,25 @@ enum c2_rpc_conn_state {
 	  All the fields of conn are initialised locally. But the connection
 	  is not yet established.
 	 */
-	C2_RPC_CONN_INITIALISED = (1 << 0),
+	C2_RPC_CONN_INITIALISED,
 
 	/**
 	   When sender is waiting for receiver reply to get its sender ID it is
 	   in CONNECTING state.
 	 */
-	C2_RPC_CONN_CONNECTING = (1 << 1),
+	C2_RPC_CONN_CONNECTING,
 
 	/**
 	   When initialization is successfull connection enters in ACTIVE state.
 	   It stays in this state for until termination.
 	 */
-	C2_RPC_CONN_ACTIVE = (1 << 2),
+	C2_RPC_CONN_ACTIVE,
 
 	/**
 	   If conn init or terminate fails or time-outs connection enters in
 	   FAILED state. c2_rpc_conn::c_rc gives reason for failure.
 	*/
-	C2_RPC_CONN_FAILED = (1 << 3),
+	C2_RPC_CONN_FAILED,
 
 	/**
 	   When sender calls c2_rpc_conn_terminate() on c2_rpc_conn object
@@ -321,14 +322,14 @@ enum c2_rpc_conn_state {
 	   Until reply is received, c2_rpc_conn object stays in TERMINATING
 	   state
 	 */
-	C2_RPC_CONN_TERMINATING = (1 << 4),
+	C2_RPC_CONN_TERMINATING,
 
 	/**
 	   When sender receives reply for conn_terminate FOP and reply FOP
 	   specifies the conn_terminate operation is successful then
 	   the object of c2_rpc_conn enters in TERMINATED state
 	 */
-	C2_RPC_CONN_TERMINATED = (1 << 5),
+	C2_RPC_CONN_TERMINATED,
 };
 
 /**
@@ -377,15 +378,11 @@ enum c2_rpc_conn_flags {
 
    <B> State transition diagram: </B>
 
-   Note: There is no state named as "UNINITIALISED", it is in the state
-   diagram to specify "before initialisation" and "after finalisation" state,
-   and the contents of object are irrelevant and "unknown".
-
    @verbatim
-   +-------------------------> UNINITIALISED
-         allocated               ^  |
-               c2_rpc_conn_fini()|  |  c2_rpc_conn_init()
-   c2_rpc_conn_establish() != 0  |  V
+   +--------------------------------+
+         allocated                  |
+                                    | c2_rpc_conn_init()
+   c2_rpc_conn_establish() != 0     V
          +---------------------INITIALISED
          |                          |
          |                          |  c2_rpc_conn_establish()
@@ -408,11 +405,10 @@ enum c2_rpc_conn_flags {
          |                          | c2_rpc_conn_terminate_reply_received() &&
          |                          |              rc== 0
 	 |                          V
-	 |                      TERMINATED
-	 |                          |
-	 |                          |  c2_rpc_conn_fini()
-	 | c2_rpc_conn_fini()       V
-	 +--------------------> UNINITIALISED
+	 +--------------------->TERMINATED
+	                            |
+	                            |  c2_rpc_conn_fini()
+                                    V 
 
   @endverbatim
 
@@ -544,6 +540,8 @@ struct c2_rpc_conn {
 	    is broadcast
 	 */
 	struct c2_cond            c_state_changed;
+
+	struct c2_sm		  c_sm;
 };
 
 /**
@@ -1229,6 +1227,16 @@ struct c2_rpc_slot {
 
 	const struct c2_rpc_slot_ops *sl_ops;
 };
+
+static inline void c2_conn_state_set(struct c2_rpc_conn *conn, int state)
+{
+	c2_sm_state_set(&conn->c_sm, state);
+}
+
+static inline int c2_conn_state_get(struct c2_rpc_conn *conn)
+{
+	return conn->c_sm.sm_state;
+}
 
 /** @} end of session group */
 
