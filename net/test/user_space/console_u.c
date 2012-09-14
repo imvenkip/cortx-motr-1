@@ -29,9 +29,9 @@
 #include "lib/errno.h"			/* EINVAL */
 #include "lib/memory.h"			/* c2_alloc */
 
-#include "net/lnet/lnet.h"		/* C2_NET_LNET_PID */
 #include "colibri/init.h"		/* c2_init */
 
+#include "net/test/user_space/common_u.h" /* c2_net_test_u_str_copy */
 #include "net/test/slist.h"		/* c2_net_test_slist */
 #include "net/test/stats.h"		/* c2_net_test_stats */
 #include "net/test/console.h"		/* c2_net_test_console_ctx */
@@ -98,21 +98,6 @@
    @{
  */
 
-#define PRINT(...) printf(__VA_ARGS__)
-
-static char *str_copy(const char *str)
-{
-	size_t  len = strlen(str) + 1;
-	char   *copy = c2_alloc(len);
-
-	return strncpy(copy, str, len);
-}
-
-static void str_free(char *str)
-{
-	c2_free(str);
-}
-
 static bool addr_check(const char *addr)
 {
 	if (addr == NULL)
@@ -162,11 +147,6 @@ static bool config_check(struct c2_net_test_console_cfg *cfg)
 	return true;
 }
 
-static void print_s(const char *fmt, const char *str)
-{
-	PRINT(fmt, str == NULL ? "NULL" : str);
-}
-
 static void print_slist(char *name, struct c2_net_test_slist *slist)
 {
 	size_t i;
@@ -178,38 +158,25 @@ static void print_slist(char *name, struct c2_net_test_slist *slist)
 		PRINT("%lu | %s\n", i, slist->ntsl_list[i]);
 }
 
-static void print_time(char *name, c2_time_t time)
-{
-	uint64_t ns = c2_time_nanoseconds(time);
-
-	PRINT("%s\t= %lus", name, c2_time_seconds(time));
-	if (ns != 0)
-		PRINT(" %luns", ns);
-	PRINT("\n");
-}
-
-/** perror */
-static void print_error(const char *s, int code)
-{
-	if (code != 0)
-		PRINT("%s, error %d: %s\n", s, code, strerror(-code));
-}
-
 static void config_print(struct c2_net_test_console_cfg *cfg)
 {
 	/** @todo write text */
-	print_s("addr_console4servers\t= %s\n",
-		cfg->ntcc_addr_console4servers);
-	print_s("addr_console4clients\t= %s\n",
-		cfg->ntcc_addr_console4clients);
+	c2_net_test_u_print_s("addr_console4servers\t= %s\n",
+			      cfg->ntcc_addr_console4servers);
+	c2_net_test_u_print_s("addr_console4clients\t= %s\n",
+			      cfg->ntcc_addr_console4clients);
 	print_slist("ntcc_servers", &cfg->ntcc_servers);
 	print_slist("ntcc_clients", &cfg->ntcc_clients);
 	print_slist("ntcc_data_servers", &cfg->ntcc_data_servers);
 	print_slist("ntcc_data_clients", &cfg->ntcc_data_clients);
-	print_time("ntcc_cmd_send_timeout", cfg->ntcc_cmd_send_timeout);
-	print_time("ntcc_cmd_recv_timeout", cfg->ntcc_cmd_send_timeout);
-	print_time("ntcc_buf_send_timeout", cfg->ntcc_cmd_send_timeout);
-	print_time("ntcc_buf_recv_timeout", cfg->ntcc_cmd_send_timeout);
+	c2_net_test_u_print_time("ntcc_cmd_send_timeout",
+				 cfg->ntcc_cmd_send_timeout);
+	c2_net_test_u_print_time("ntcc_cmd_recv_timeout",
+				 cfg->ntcc_cmd_send_timeout);
+	c2_net_test_u_print_time("ntcc_buf_send_timeout",
+				 cfg->ntcc_cmd_send_timeout);
+	c2_net_test_u_print_time("ntcc_buf_recv_timeout",
+				 cfg->ntcc_cmd_send_timeout);
 	PRINT("ntcc_test_type\t\t= %s\n",
 	      cfg->ntcc_test_type == C2_NET_TEST_TYPE_PING ? "ping" :
 	      cfg->ntcc_test_type == C2_NET_TEST_TYPE_BULK ? "bulk" :
@@ -253,12 +220,14 @@ static bool configure(int argc, char *argv[],
 		C2_STRINGARG('a', "Console command endpoint address "
 				  "for the test servers",
 		LAMBDA(void, (const char *str) {
-			cfg->ntcc_addr_console4servers = str_copy(str);
+			cfg->ntcc_addr_console4servers =
+				c2_net_test_u_str_copy(str);
 		})),
 		C2_STRINGARG('b', "Console command endpoint address "
 				  "for the test clients",
 		LAMBDA(void, (const char *str) {
-			cfg->ntcc_addr_console4clients = str_copy(str);
+			cfg->ntcc_addr_console4clients =
+				c2_net_test_u_str_copy(str);
 		})),
 		C2_STRINGARG('c', "List of test server command endpoints",
 		LAMBDA(void, (const char *str) {
@@ -305,8 +274,8 @@ static bool configure(int argc, char *argv[],
 
 static void config_free(struct c2_net_test_console_cfg *cfg)
 {
-	str_free(cfg->ntcc_addr_console4servers);
-	str_free(cfg->ntcc_addr_console4clients);
+	c2_net_test_u_str_free(cfg->ntcc_addr_console4servers);
+	c2_net_test_u_str_free(cfg->ntcc_addr_console4clients);
 	c2_net_test_slist_fini(&cfg->ntcc_servers);
 	c2_net_test_slist_fini(&cfg->ntcc_clients);
 	c2_net_test_slist_fini(&cfg->ntcc_data_servers);
@@ -420,17 +389,17 @@ int main(int argc, char *argv[])
 	}
 
 	rc = c2_init();
-	print_error("Colibri initialization failed.", rc);
+	c2_net_test_u_print_error("Colibri initialization failed.", rc);
 	if (rc != 0)
 		goto cfg_free;
 
 	rc = c2_net_test_console_init(&console, &cfg);
-	print_error("Test Console initialization failed.", rc);
+	c2_net_test_u_print_error("Test console initialization failed.", rc);
 	if (rc != 0)
 		goto colibri_fini;
 
 	rc = console_run(&console);
-	print_error("Test Console running failed.", rc);
+	c2_net_test_u_print_error("Test console running failed.", rc);
 
 	c2_net_test_console_fini(&console);
 colibri_fini:

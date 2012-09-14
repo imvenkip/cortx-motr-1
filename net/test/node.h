@@ -33,6 +33,7 @@
    - @ref net-test-fspec-sub
    - @ref net-test-fspec-cli
      - @ref net-test-fspec-cli-node "Linux kernel module"
+     - @subpage net-test-fspec-cli-node-user "Userspace node"
      - @subpage net-test-fspec-cli-console "Console"
    - @ref net-test-fspec-usecases
      - @ref net-test-fspec-usecases-kernel "Linux kernel module"
