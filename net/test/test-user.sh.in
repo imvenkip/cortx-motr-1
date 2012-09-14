@@ -1,6 +1,6 @@
 #! /bin/sh
 
-# Small wrapper to run user-space UT, which depends on kcolibri module
+# Small wrapper to run net-test console, which depends on kcolibri module
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "Must be run as root"
@@ -19,4 +19,4 @@ modprobe_lnet
 modload_galois
 modload || exit $?
 
-@SRCDIR@/net/test/net_test_console "$@"
+@SRCDIR@/net/test/user_space/ntc "$@"

@@ -731,7 +731,7 @@ void c2_net_test_node_stop(struct c2_net_test_node_ctx *ctx)
 }
 
 /**
-   @} end NetTestNodeInternals group
+   @} end of NetTestNodeInternals group
  */
 
 /*

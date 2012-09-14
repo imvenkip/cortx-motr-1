@@ -22,10 +22,16 @@
 #  include "config.h"
 #endif
 
-#include "lib/getopts.h"
+#include <stdio.h>			/* printf */
+#include <string.h>			/* strlen */
+
+#include "lib/getopts.h"		/* c2_getopts */
+#include "lib/errno.h"			/* EINVAL */
+#include "lib/memory.h"			/* c2_alloc */
 
 #include "net/lnet/lnet.h"		/* C2_NET_LNET_PID */
 
+#include "net/test/slist.h"		/* c2_net_test_slist */
 #include "net/test/console.h"		/* c2_net_test_console_ctx */
 
 /**
@@ -78,12 +84,229 @@
    bulk packets is one million, size is 1 MiB. Test statistics should be updated
    every second.
 
+   @see @ref net-test
  */
+
+/**
+   @defgroup NetTestUConsoleInternals Test Console user-space program
+   @ingroup NetTestInternals
+
+   @see @ref net-test
+
+   @{
+ */
+
+#define PRINT(...) printf(__VA_ARGS__)
+
+static char *str_copy(const char *str)
+{
+	size_t  len = strlen(str) + 1;
+	char   *copy = c2_alloc(len);
+
+	return strncpy(copy, str, len);
+}
+
+static void str_free(char *str)
+{
+	c2_free(str);
+}
+
+static bool addr_check(const char *addr)
+{
+	if (addr == NULL)
+		return false;
+	if (strlen(addr) == 0)
+		return false;
+	/** @todo additional checks */
+	return true;
+}
+
+static bool addr_list_check(struct c2_net_test_slist *slist)
+{
+	size_t i;
+
+	if (!c2_net_test_slist_invariant(slist))
+		return false;
+	if (slist->ntsl_nr == 0)
+		return false;
+	for (i = 0; i < slist->ntsl_nr; ++i)
+		if (!addr_check(slist->ntsl_list[i]))
+			return false;
+	return true;
+}
+
+static bool config_check(struct c2_net_test_console_cfg *cfg)
+{
+	if (!addr_check(cfg->ntcc_addr_console4servers) ||
+	    !addr_check(cfg->ntcc_addr_console4clients))
+		return false;
+	if (!addr_list_check(&cfg->ntcc_servers) ||
+	    !addr_list_check(&cfg->ntcc_clients))
+		return false;
+	if (!addr_list_check(&cfg->ntcc_data_servers) ||
+	    !addr_list_check(&cfg->ntcc_data_clients))
+		return false;
+	if (cfg->ntcc_servers.ntsl_nr != cfg->ntcc_data_servers.ntsl_nr)
+		return false;
+	if (cfg->ntcc_clients.ntsl_nr != cfg->ntcc_data_clients.ntsl_nr)
+		return false;
+	if (!(cfg->ntcc_test_type == C2_NET_TEST_TYPE_PING ||
+	      cfg->ntcc_test_type == C2_NET_TEST_TYPE_BULK))
+		return false;
+	if (cfg->ntcc_msg_nr == 0 || cfg->ntcc_msg_size == 0)
+	if (cfg->ntcc_concurrency_server == 0 ||
+	    cfg->ntcc_concurrency_client == 0)
+		return false;
+	return true;
+}
+
+static void print_s(const char *fmt, const char *str)
+{
+	PRINT(fmt, str == NULL ? "NULL" : str);
+}
+
+static void print_slist(char *name, struct c2_net_test_slist *slist)
+{
+	size_t i;
+
+	C2_PRE(slist != NULL);
+
+	PRINT("%s: size\t= %lu\n", name, slist->ntsl_nr);
+	for (i = 0; i < slist->ntsl_nr; ++i)
+		PRINT("%lu | %s\n", i, slist->ntsl_list[i]);
+}
+
+static void print_time(char *name, c2_time_t time)
+{
+}
+
+static void config_print(struct c2_net_test_console_cfg *cfg)
+{
+	/** @todo write text */
+	print_s("addr_console4servers\t= %s\n",
+		cfg->ntcc_addr_console4servers);
+	print_s("addr_console4clients\t= %s\n",
+		cfg->ntcc_addr_console4clients);
+	print_slist("ntcc_servers", &cfg->ntcc_servers);
+	print_slist("ntcc_clients", &cfg->ntcc_clients);
+	print_slist("ntcc_data_servers", &cfg->ntcc_data_servers);
+	print_slist("ntcc_data_clients", &cfg->ntcc_data_clients);
+	print_time("ntcc_cmd_send_timeout", cfg->ntcc_cmd_send_timeout);
+	print_time("ntcc_cmd_recv_timeout", cfg->ntcc_cmd_send_timeout);
+	print_time("ntcc_buf_send_timeout", cfg->ntcc_cmd_send_timeout);
+	print_time("ntcc_buf_recv_timeout", cfg->ntcc_cmd_send_timeout);
+	PRINT("ntcc_test_type\t\t= %s\n",
+	      cfg->ntcc_test_type == C2_NET_TEST_TYPE_PING ? "ping" :
+	      cfg->ntcc_test_type == C2_NET_TEST_TYPE_BULK ? "bulk" :
+	      "UNKNOWN");
+	PRINT("ntcc_msg_nr\t\t= %lu\n", cfg->ntcc_msg_nr);
+	PRINT("ntcc_msg_size\t\t= %lu\n", cfg->ntcc_msg_size);
+	PRINT("ntcc_concurrency_server\t= %lu\n", cfg->ntcc_concurrency_server);
+	PRINT("ntcc_concurrency_client\t= %lu\n", cfg->ntcc_concurrency_client);
+}
+
+static bool configure(int argc, char *argv[],
+		      struct c2_net_test_console_cfg *cfg)
+{
+	bool success = true;
+	/** @todo single-letter options is very bad */
+	C2_GETOPTS("ntc", argc, argv,
+		C2_STRINGARG('t', "Test type, {ping|bulk}",
+		LAMBDA(void, (const char *type) {
+			if (strncmp(type, "ping", 5) == 0)
+				cfg->ntcc_test_type = C2_NET_TEST_TYPE_PING;
+			else if (strncmp(type, "bulk", 5) == 0)
+				cfg->ntcc_test_type = C2_NET_TEST_TYPE_BULK;
+			else
+				success = false;
+		})),
+		C2_NUMBERARG('n', "Number of test messages "
+			      "for the test client",
+		LAMBDA(void, (int64_t nr) {
+			if (nr <= 0)
+				success = false;
+			else
+				cfg->ntcc_msg_nr = nr;
+		})),
+		C2_SCALEDARG('s', "Test message size",
+		LAMBDA(void, (c2_bcount_t size) {
+			if (size <= 0)
+				success = false;
+			else
+				cfg->ntcc_msg_size = size;
+		})),
+		C2_STRINGARG('a', "Console command endpoint address "
+				  "for the test servers",
+		LAMBDA(void, (const char *str) {
+			cfg->ntcc_addr_console4servers = str_copy(str);
+		})),
+		C2_STRINGARG('b', "Console command endpoint address "
+				  "for the test clients",
+		LAMBDA(void, (const char *str) {
+			cfg->ntcc_addr_console4clients = str_copy(str);
+		})),
+		C2_STRINGARG('c', "List of test server command endpoints",
+		LAMBDA(void, (const char *str) {
+			success &= c2_net_test_slist_init(&cfg->ntcc_servers,
+							  str, ',') == 0;
+		})),
+		C2_STRINGARG('d', "List of test client command endpoints",
+		LAMBDA(void, (const char *str) {
+			success &= c2_net_test_slist_init(&cfg->ntcc_clients,
+							  str, ',') == 0;
+		})),
+		C2_STRINGARG('e', "List of test server data endpoints",
+		LAMBDA(void, (const char *str) {
+			success &=
+			c2_net_test_slist_init(&cfg->ntcc_data_servers,
+					       str, ',') == 0;
+		})),
+		C2_STRINGARG('f', "List of test client data endpoints",
+		LAMBDA(void, (const char *str) {
+			success &=
+			c2_net_test_slist_init(&cfg->ntcc_data_clients,
+					       str, ',') == 0;
+		})),
+		C2_NUMBERARG('g', "Test server concurrency",
+		LAMBDA(void, (int64_t nr) {
+			if (nr <= 0)
+				success = false;
+			else
+				cfg->ntcc_concurrency_server = nr;
+		})),
+		C2_NUMBERARG('h', "Test client concurrency",
+		LAMBDA(void, (int64_t nr) {
+			if (nr <= 0)
+				success = false;
+			else
+				cfg->ntcc_concurrency_client = nr;
+		})),
+		C2_HELPARG('?'),
+		);
+	config_print(cfg);
+	success &= config_check(cfg);
+	return success;
+}
+
+static void config_free(struct c2_net_test_console_cfg *cfg)
+{
+	str_free(cfg->ntcc_addr_console4servers);
+	str_free(cfg->ntcc_addr_console4clients);
+	c2_net_test_slist_fini(&cfg->ntcc_servers);
+	c2_net_test_slist_fini(&cfg->ntcc_clients);
+	c2_net_test_slist_fini(&cfg->ntcc_data_servers);
+	c2_net_test_slist_fini(&cfg->ntcc_data_clients);
+}
+
 int main(int argc, char *argv[])
 {
 	struct c2_net_test_console_cfg cfg = {
 		.ntcc_addr_console4servers = NULL,
 		.ntcc_addr_console4clients = NULL,
+		.ntcc_cmd_send_timeout     = C2_TIME(3, 0),
+		.ntcc_cmd_recv_timeout     = C2_TIME(3, 0),
+		.ntcc_buf_send_timeout     = C2_TIME(3, 0),
+		.ntcc_buf_recv_timeout     = C2_TIME(3, 0),
 		.ntcc_test_type		   = C2_NET_TEST_TYPE_PING,
 		.ntcc_msg_nr		   = 0,
 		.ntcc_msg_size		   = 0,
@@ -91,8 +314,21 @@ int main(int argc, char *argv[])
 		.ntcc_concurrency_client   = 0,
 	};
 
+	if (!configure(argc, argv, &cfg)) {
+		/** @todo where is the error */
+		PRINT("Error in configuration.\n");
+		config_free(&cfg);
+		return -EINVAL;
+	}
+
+	config_free(&cfg);
+
 	return 0;
 }
+
+/**
+   @} end of NetTestUConsoleInternals group
+ */
 
 /*
  *  Local variables:
