@@ -50,6 +50,8 @@ bool c2_buf_eq(const struct c2_buf *x, const struct c2_buf *y);
 /**
  * Copies a buffer.
  *
+ * A user is responsible for c2_buf_free()ing `dest'.
+ *
  * @pre   dest->cb_size == 0 && dest->cb_data == NULL
  * @post  ergo(result == 0, c2_buf_eq(dest, src))
  */
