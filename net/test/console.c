@@ -29,10 +29,10 @@
 
 /* @todo debug only, remove it */
 #ifndef __KERNEL__
-/*
 #define LOGD(format, ...) printf(format, ##__VA_ARGS__)
-*/
+/*
 #define LOGD(format, ...) do {} while (0)
+*/
 #else
 #define LOGD(format, ...) do {} while (0)
 #endif
@@ -61,7 +61,7 @@ static int console_role_init_fini(struct c2_net_test_console_role_ctx *ctx,
 {
 	struct c2_net_test_slist *nodes;
 	char			 *addr_console;
-	int			  rc;
+	int			  rc = -ENOMEM;
 
 	if (!init)
 		goto fini;

@@ -297,34 +297,34 @@ static bool console_step(struct c2_net_test_console_ctx *ctx,
 		PRINT("%s\n", text_pre);
 	rc = c2_net_test_console_cmd(ctx, role, cmd_type);
 	if (text_post != NULL)
-		PRINT("%s (%d nodes)\n", text_post, rc);
-	return rc == 0;
+		PRINT("%s (%d node%s)\n", text_post, rc, rc != 1 ? "s" : "");
+	return rc != 0;
 }
 
 static void print_msg_nr(const char *descr, struct c2_net_test_msg_nr *msg_nr)
 {
-	PRINT("%s total/failed/bad = %lu/%lu/%lu messages, ", descr,
+	PRINT("%s = %lu/%lu/%lu", descr,
 	      msg_nr->ntmn_total, msg_nr->ntmn_failed, msg_nr->ntmn_bad);
 }
 
 static void print_stats(const char *descr,
-			struct c2_net_test_stats *stats,
-			bool print_comma)
+			struct c2_net_test_stats *stats)
 {
-	PRINT("%s count/min/max/avg/stddev = %lu/%lu/%lu/%f/%f", descr,
+	PRINT("%s = %lu/%lu/%lu/%.0f/%.0f", descr,
 	      stats->nts_count, stats->nts_min, stats->nts_max,
 	      c2_net_test_stats_avg(stats), c2_net_test_stats_stddev(stats));
-	if (print_comma)
-		PRINT(", ");
 }
 
 static void print_status_data(struct c2_net_test_cmd_status_data *sd)
 {
+	PRINT("messages total/failed/bad: ");
 	print_msg_nr("sent", &sd->ntcsd_msg_nr_send);
-	print_msg_nr("received", &sd->ntcsd_msg_nr_recv);
-	print_stats("mps sent", &sd->ntcsd_mps_send.ntmps_stats, true);
-	print_stats("mps recv", &sd->ntcsd_mps_recv.ntmps_stats, true);
-	print_stats("RTT", &sd->ntcsd_rtt, false);
+	print_msg_nr(", received", &sd->ntcsd_msg_nr_recv);
+	PRINT("; count/min/max/avg/stddev: ");
+	print_stats("MPS, sent", &sd->ntcsd_mps_send.ntmps_stats);
+	print_stats(", MPS, received", &sd->ntcsd_mps_recv.ntmps_stats);
+	print_stats(", RTT", &sd->ntcsd_rtt);
+	PRINT(" ns\n");
 }
 
 static int console_run(struct c2_net_test_console_ctx *ctx)
@@ -349,12 +349,15 @@ static int console_run(struct c2_net_test_console_ctx *ctx)
 		/** @todo can be interrupted */
 		c2_nanosleep(status_interval, NULL);
 		if (!console_step(ctx, C2_NET_TEST_ROLE_CLIENT,
-				  C2_NET_TEST_CMD_STATUS_DATA, NULL, NULL)) {
+				  C2_NET_TEST_CMD_STATUS, NULL, NULL)) {
 			PRINT("STATUS DATA command failed.\n");
 		} else {
 			print_status_data(ctx->ntcc_clients.ntcrc_sd);
 		}
 	} while (!ctx->ntcc_clients.ntcrc_sd->ntcsd_finished);
+	if (!console_step(ctx, C2_NET_TEST_ROLE_SERVER,
+			  C2_NET_TEST_CMD_STATUS, NULL, NULL))
+		return -ENETUNREACH;
 	if (!console_step(ctx, C2_NET_TEST_ROLE_SERVER, C2_NET_TEST_CMD_STOP,
 			  "STOP => test servers",
 			  "test servers => STOP DONE"))
@@ -363,6 +366,10 @@ static int console_run(struct c2_net_test_console_ctx *ctx)
 			  "STOP => test clients",
 			  "test clients => STOP DONE"))
 		return -ENETUNREACH;
+	PRINT("clients: ");
+	print_status_data(ctx->ntcc_clients.ntcrc_sd);
+	PRINT("servers: ");
+	print_status_data(ctx->ntcc_servers.ntcrc_sd);
 	return 0;
 }
 
@@ -384,35 +391,37 @@ int main(int argc, char *argv[])
 		.ntcc_concurrency_client   = 0,
 	};
 
+	rc = c2_init();
+	c2_net_test_u_print_error("Colibri initialization failed", rc);
+	if (rc != 0)
+		return rc;
+
 	rc = configure(argc, argv, &cfg);
-	if (rc == 1) {
-		c2_net_test_u_lnet_info();
-		return 0;
-	} else if (rc != 0) {
-		/** @todo where is the error */
-		PRINT("Error in configuration.\n");
-		config_free(&cfg);
-		return -EINVAL;
+	if (rc != 0) {
+		if (rc == 1) {
+			c2_net_test_u_lnet_info();
+			rc = 0;
+		} else {
+			/** @todo where is the error */
+			PRINT("Error in configuration.\n");
+			config_free(&cfg);
+		}
+		goto colibri_fini;
 	}
 
-	rc = c2_init();
-	c2_net_test_u_print_error("Colibri initialization failed.", rc);
+	rc = c2_net_test_console_init(&console, &cfg);
+	c2_net_test_u_print_error("Test console initialization failed", rc);
 	if (rc != 0)
 		goto cfg_free;
 
-	rc = c2_net_test_console_init(&console, &cfg);
-	c2_net_test_u_print_error("Test console initialization failed.", rc);
-	if (rc != 0)
-		goto colibri_fini;
-
 	rc = console_run(&console);
-	c2_net_test_u_print_error("Test console running failed.", rc);
+	c2_net_test_u_print_error("Test console running failed", rc);
 
 	c2_net_test_console_fini(&console);
-colibri_fini:
-	c2_fini();
 cfg_free:
 	config_free(&cfg);
+colibri_fini:
+	c2_fini();
 
 	return rc;
 }

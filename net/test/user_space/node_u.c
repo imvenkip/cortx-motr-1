@@ -28,6 +28,7 @@
 #include "lib/getopts.h"		/* c2_getopts */
 #include "lib/errno.h"			/* EINVAL */
 #include "lib/memory.h"			/* c2_alloc */
+#include "lib/semaphore.h"		/* c2_semaphore_down */
 
 #include "colibri/init.h"
 
@@ -63,7 +64,7 @@ static void config_print(struct c2_net_test_node_cfg *cfg)
 {
 	c2_net_test_u_print_s("cfg->ntnc_addr\t\t= %s\n", cfg->ntnc_addr);
 	c2_net_test_u_print_s("cfg->ntnc_addr_console\t= %s\n",
-			      cfg->ntnc_addr);
+			      cfg->ntnc_addr_console);
 	c2_net_test_u_print_time("cfg->ntnc_send_timeout",
 				 cfg->ntnc_send_timeout);
 }
@@ -99,48 +100,55 @@ int main(int argc, char *argv[])
 		.ntnc_send_timeout = C2_TIME(3, 0),
 	};
 
+	PRINT("c2_init()\n");
+	rc = c2_init();
+	c2_net_test_u_print_error("Colibri initialization failed.", rc);
+	if (rc != 0)
+		return rc;
+
 	/** @todo add Ctrl+C handler
 	   c2_net_test_fini()+c2_net_test_config_fini() */
 	/** @todo atexit() */
 	rc = configure(argc, argv, &cfg);
-	if (rc == 1) {
-		c2_net_test_u_lnet_info();
-		return 0;
-	} else if (rc != 0) {
-		/** @todo where is the error */
-		PRINT("Error in configuration.\n");
-		config_free(&cfg);
-		return -EINVAL;
+	if (rc != 0) {
+		if (rc == 1) {
+			c2_net_test_u_lnet_info();
+			rc = 0;
+		} else {
+			/** @todo where is the error */
+			PRINT("Error in configuration.\n");
+			config_free(&cfg);
+		}
+		goto colibri_fini;
 	}
 
-	rc = c2_init();
-	c2_net_test_u_print_error("Colibri initialization failed.", rc);
-	if (rc != 0)
-		goto cfg_free;
-
+	PRINT("c2_net_test_node_init()\n");
 	rc = c2_net_test_node_init(&node, &cfg);
 	c2_net_test_u_print_error("Test node initialization failed.", rc);
 	if (rc != 0)
-		goto colibri_fini;
+		goto cfg_free;
 
+	PRINT("c2_net_test_node_start()\n");
 	rc = c2_net_test_node_start(&node);
 	c2_net_test_u_print_error("Test node start failed.", rc);
 	if (rc != 0)
 		goto node_fini;
 
+	PRINT("waiting...\n");
+	c2_semaphore_down(&node.ntnc_thread_finished_sem);
+
+	PRINT("c2_net_test_node_stop()\n");
 	c2_net_test_node_stop(&node);
 node_fini:
+	PRINT("c2_net_test_node_fini()\n");
 	c2_net_test_node_fini(&node);
-colibri_fini:
-	c2_fini();
 cfg_free:
 	config_free(&cfg);
+colibri_fini:
+	PRINT("c2_fini()\n");
+	c2_fini();
 
 	return rc;
-}
-
-void c2_net_test_u_if_list(void)
-{
 }
 
 /**

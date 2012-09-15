@@ -28,10 +28,8 @@
 
 /* @todo debug only, remove it */
 #ifndef __KERNEL__
-#define LOGD(format, ...) printf(format, ##__VA_ARGS__)
-/*
+//#define LOGD(format, ...) printf(format, ##__VA_ARGS__)
 #define LOGD(format, ...) do {} while (0)
-*/
 #else
 #define LOGD(format, ...) do {} while (0)
 #endif
@@ -658,6 +656,8 @@ static int node_init_fini(struct c2_net_test_node_ctx *ctx,
 	C2_PRE(ergo(init, cfg != NULL));
 	if (!init)
 		goto fini;
+
+	C2_SET0(ctx);
 
 	rc = c2_net_test_slist_init(&ep_list, cfg->ntnc_addr_console, '`');
 	if (rc != 0)

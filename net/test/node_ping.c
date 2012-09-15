@@ -29,7 +29,8 @@
 
 /* @todo debug only, remove it */
 #ifndef __KERNEL__
-#define LOGD(format, ...) printf(format, ##__VA_ARGS__)
+//#define LOGD(format, ...) printf(format, ##__VA_ARGS__)
+#define LOGD(format, ...) do {} while (0)
 #else
 #define LOGD(format, ...) do {} while (0)
 #endif

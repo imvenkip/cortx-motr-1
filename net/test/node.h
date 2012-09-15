@@ -222,8 +222,6 @@ bool c2_net_test_node_invariant(struct c2_net_test_node_ctx *ctx);
 
 /**
    Start test node.
-   This function will return only after test node finished or interrupted
-   with c2_net_test_node_stop().
    @see @ref net-test-lspec
  */
 int c2_net_test_node_start(struct c2_net_test_node_ctx *ctx);
