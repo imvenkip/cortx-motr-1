@@ -138,7 +138,7 @@ static const struct c2_sm_state_descr conn_states[] = {
 		.sd_allowed   = 0,
 	},
 	[C2_RPC_CONN_FAILED] = {
-		.sd_flags     = 0,
+		.sd_flags     = C2_SDF_FAILURE,
 		.sd_name      = "Conn failed",
 		.sd_allowed   = (1 << C2_RPC_CONN_TERMINATED)
 	},
@@ -559,7 +559,7 @@ int c2_rpc_conn_establish_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 		return rc;
 
 	state_reached = c2_rpc_conn_timedwait(conn, 1 << C2_RPC_CONN_ACTIVE |
-					      1 << C2_RPC_CONN_FAILED,
+						    1 << C2_RPC_CONN_FAILED,
 					      c2_time_from_now(timeout_sec, 0));
 	/*
 	 * When rpc-layer timeouts will be implemented !state_reached situation
@@ -637,20 +637,12 @@ static void conn_failed(struct c2_rpc_conn *conn, int32_t error)
 {
 	struct c2_rpc_session *session0;
 
-	C2_ASSERT(c2_rpc_machine_is_locked(conn->c_rpc_machine));
-	C2_ASSERT(C2_IN(c2_rpc_conn_state_get(conn), (C2_RPC_CONN_INITIALISED,
-					C2_RPC_CONN_CONNECTING,
-					C2_RPC_CONN_ACTIVE,
-					C2_RPC_CONN_TERMINATING)));
-
-	c2_rpc_conn_state_set(conn, C2_RPC_CONN_FAILED);
-	conn->c_rc    = error;
+	c2_rpc_conn_state_failed(conn, error);
 
 	session0 = c2_rpc_conn_session0(conn);
 	c2_rpc_session_del_slots_from_ready_list(session0);
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
-	C2_POST(c2_rpc_conn_state_get(conn) == C2_RPC_CONN_FAILED);
 }
 
 void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *item)
@@ -727,7 +719,7 @@ int c2_rpc_conn_terminate_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 		return rc;
 
 	state_reached = c2_rpc_conn_timedwait(conn, 1 << C2_RPC_CONN_TERMINATED |
-					      1 << C2_RPC_CONN_FAILED,
+					      	    1 << C2_RPC_CONN_FAILED,
 					      c2_time_from_now(timeout_sec, 0));
 	/*
 	 * When rpc-layer timeouts will be implemented !state_reached situation
@@ -862,7 +854,7 @@ void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *item)
 			/* XXX generate ADDB record here. */
 			rc = -EPROTO;
 	}
-	
+
 	if (rc != 0)
 		conn_failed(conn, rc);
 

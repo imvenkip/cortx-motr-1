@@ -1238,6 +1238,12 @@ static inline int c2_rpc_conn_state_get(const struct c2_rpc_conn *conn)
 	return conn->c_sm.sm_state;
 }
 
+static inline void c2_rpc_conn_state_failed(struct c2_rpc_conn *conn, int32_t rc)
+{
+	c2_sm_fail(&conn->c_sm, C2_RPC_CONN_FAILED, rc);
+	conn->c_rc = rc;
+}
+
 /** @} end of session group */
 
 #endif
