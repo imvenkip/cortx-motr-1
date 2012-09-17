@@ -123,9 +123,10 @@ struct buf_state {
 	uint64_t		   bs_cb_nr;
 	/**
 	 * Index of corresponding recv buffer for send buffer
+	 * and send buffer for recv buffer;
 	 * (test client only).
 	 */
-	size_t			   bs_recv_index;
+	size_t			   bs_index_pair;
 	/** Link for messages timeout list */
 	struct c2_tlink		   bs_link;
 	/** Magic for typed list */
@@ -408,17 +409,19 @@ static void node_ping_client_cb2(struct node_ping_ctx *ctx,
 {
 	struct buf_state *bs = &ctx->npc_buf_state[buf_index];
 
-	if (++bs->bs_cb_nr != 2)
-		return;
+	C2_PRE(bs->bs_cb_nr == 0 || bs->bs_cb_nr == 1);
 
-	/* remove send buffer from timeout list */
-	node_ping_to_del(ctx, buf_index);
-	/* enqueue recv and send buffers */
-	node_ping_buf_enqueue_recv(ctx, bs->bs_recv_index);
-	node_ping_client_send(ctx, buf_index);
+	if (++bs->bs_cb_nr != 2) {
+		node_ping_to_add(ctx, buf_index);
+	} else {
+		node_ping_to_del(ctx, buf_index);
+		/* enqueue recv and send buffers */
+		node_ping_buf_enqueue_recv(ctx, bs->bs_index_pair);
+		node_ping_client_send(ctx, buf_index);
+	}
 }
 
-static void node_ping_client_recv_cb(struct node_ping_ctx *ctx,
+static bool node_ping_client_recv_cb(struct node_ping_ctx *ctx,
 				     struct buf_state *bs,
 				     size_t buf_index)
 {
@@ -452,7 +455,9 @@ static void node_ping_client_recv_cb(struct node_ping_ctx *ctx,
 						     ts.ntt_seq);
 	if (buf_index_send == -1)
 		goto bad_buf;
-	bs_send = &ctx->npc_buf_state[buf_index_send];
+	bs_send		       = &ctx->npc_buf_state[buf_index_send];
+	bs_send->bs_index_pair = buf_index;
+	bs->bs_index_pair      = buf_index_send;
 	/* update RTT statistics */
 	c2_mutex_lock(&ctx->npc_status_data_lock);
 	c2_net_test_stats_time_add(&ctx->npc_status_data.ntcsd_rtt,
@@ -469,10 +474,8 @@ good_buf:
 	/* enqueue recv buffer */
 	if (bs_send == NULL) {
 		node_ping_buf_enqueue_recv(ctx, buf_index);
-	} else {
-		bs_send->bs_recv_index = buf_index;
-		node_ping_client_cb2(ctx, buf_index_send);
 	}
+	return bs_send != NULL;
 }
 
 static void node_ping_msg_cb(struct c2_net_test_network_ctx *net_ctx,
@@ -570,8 +573,6 @@ static void node_ping_client_handle(struct node_ping_ctx *ctx,
 			/* try to send again */
 			node_ping_client_send(ctx, buf_index);
 		} else {
-			/* add to timeout list */
-			node_ping_to_add(ctx, buf_index);
 			node_ping_client_cb2(ctx, buf_index);
 		}
 	} else {
@@ -580,7 +581,8 @@ static void node_ping_client_handle(struct node_ping_ctx *ctx,
 			node_ping_buf_enqueue_recv(ctx, buf_index);
 		} else {
 			/* buffer was successfully received from test server */
-			node_ping_client_recv_cb(ctx, bs, buf_index);
+			if (node_ping_client_recv_cb(ctx, bs, buf_index))
+				node_ping_client_cb2(ctx, bs->bs_index_pair);
 		}
 	}
 }
