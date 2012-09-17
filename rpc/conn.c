@@ -19,6 +19,8 @@
  * Original creation date: 08/24/2011
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
@@ -504,6 +506,7 @@ c2_rpc_session_search(const struct c2_rpc_conn *conn,
 		if (session->s_session_id == session_id) {
 			C2_LEAVE("rpc_session: '%p'", session);
 			return session;
+		}
 	}
 	C2_LEAVE("rpc_session: '(nil)'");
 	return NULL;
@@ -533,7 +536,7 @@ int c2_rpc_conn_create(struct c2_rpc_conn      *conn,
 		if (rc != 0)
 			c2_rpc_conn_fini(conn);
 	}
-	C2_LEAVE("rc: '%p'", rc);
+	C2_LEAVE("rc: '%d'", rc);
 	return rc;
 }
 
@@ -564,7 +567,7 @@ int c2_rpc_conn_establish_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 					C2_RPC_CONN_FAILED)));
 
 	C2_LEAVE("rc: '%d'",
-		 conn->c_state == C2_RPC_CONN_ACTIVE ? 0 : conn->c_rc);
+		 (conn->c_state == C2_RPC_CONN_ACTIVE ? 0 : conn->c_rc));
 	return conn->c_state == C2_RPC_CONN_ACTIVE ? 0 : conn->c_rc;
 }
 C2_EXPORTED(c2_rpc_conn_establish_sync);

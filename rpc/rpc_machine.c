@@ -142,7 +142,7 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 	int		rc;
 
 	C2_ENTRY("rpc_mac: '%p', com_dom: '%p', net_dom: '%p', ep_addr: '%s'"
-		 "reqh:'%p'", machine, dom, net_dom, ep_addr, reqh);
+		 "reqh:'%p'", machine, dom, net_dom, (char *) ep_addr, reqh);
 	C2_PRE(dom	    != NULL);
 	C2_PRE(machine	    != NULL);
 	C2_PRE(ep_addr	    != NULL);
@@ -318,7 +318,7 @@ static int rpc_tm_setup(struct c2_net_transfer_mc *tm,
 	int             rc;
 
 	C2_ENTRY("tm: '%p', net_dom: '%p', ep_addr: '%s'", tm, net_dom,
-		 ep_addr);
+		 (char *) ep_addr);
 	C2_PRE(tm != NULL && net_dom != NULL && ep_addr != NULL);
 	C2_PRE(pool != NULL);
 
@@ -479,7 +479,7 @@ static struct c2_rpc_chan *rpc_chan_locate(struct c2_rpc_machine *machine,
 	bool                found;
 
 	C2_ENTRY("rpc_machine: '%p', dest_ep_addr: '%s'", machine,
-		 dest_ep->nep_addr);
+		 (char *)  dest_ep->nep_addr);
 	C2_PRE(dest_ep != NULL);
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 
@@ -615,7 +615,7 @@ static void net_buf_received(struct c2_net_buffer    *nb,
 
 	C2_ENTRY("net_buf: '%p', offset: '%llu', length: '%llu',"
 		 "ep_addr: '%s'", nb, (unsigned long long)offset,
-		 (unsigned long long) length, from_ep->nep_addr);
+		 (unsigned long long) length, (char *) from_ep->nep_addr);
 
 	machine = tm_to_rpc_machine(nb->nb_tm);
 	c2_rpc_packet_init(&p);
@@ -652,7 +652,7 @@ static void item_received(struct c2_rpc_item      *item,
 			  struct c2_net_end_point *from_ep)
 {
 	C2_ENTRY("rpc_machine: '%p', rpc_item: '%p', ep_addr: '%s'", machine,
-		 item, from_ep->nep_addr);
+		 item, (char *) from_ep->nep_addr);
 
 	if (c2_rpc_item_is_conn_establish(item))
 		c2_rpc_fop_conn_establish_ctx_init(item, from_ep, machine);
