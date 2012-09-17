@@ -324,7 +324,7 @@ static ssize_t node_ping_client_search_seq(struct node_ping_ctx *ctx,
 	for (i = 0; i < concurrency; ++i) {
 		buf_index = concurrency * server_index + i;
 		if (ctx->npc_buf_state[buf_index].bs_seq == seq)
-			return i;
+			return buf_index;
 	}
 	return -1;
 }
