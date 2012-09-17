@@ -53,7 +53,9 @@ static void node_bulk_msg_cb(struct c2_net_test_network_ctx *net_ctx,
 {
 }
 
-// @todo static
+/**
+@todo static
+*/
 struct c2_net_test_network_buffer_callbacks node_bulk_buf_cb = {
 	.ntnbc_cb = {
 		[C2_NET_QT_MSG_RECV]		= node_bulk_msg_cb,
