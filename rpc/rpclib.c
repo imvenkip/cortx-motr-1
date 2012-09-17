@@ -18,6 +18,8 @@
  * Original creation date: 09/28/2011
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
+#include "lib/trace.h"
 #ifndef __KERNEL__
 #include <errno.h> /* errno */
 #include <stdio.h> /* fopen(), fclose() */
@@ -45,12 +47,15 @@ int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx)
 	int  i;
 	int  rc;
 
+	C2_ENTRY("rpc_server_ctx: '%p'", sctx);
 	C2_PRE(sctx->rsx_argv != NULL && sctx->rsx_argc > 0);
 
 	/* Open error log file */
 	sctx->rsx_log_file = fopen(sctx->rsx_log_file_name, "w+");
-	if (sctx->rsx_log_file == NULL)
+	if (sctx->rsx_log_file == NULL) {
+		C2_LEAVE("Open of error log file: FAILED with err: '%d'", errno);
 		return errno;
+	}
 
 	/* Register service types */
 	for (i = 0; i < sctx->rsx_service_types_nr; ++i) {
@@ -72,6 +77,7 @@ int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx)
 
 	rc = c2_cs_start(&sctx->rsx_colibri_ctx);
 
+	C2_LEAVE("rc: '%d'", rc);
 	return rc;
 
 cs_fini:
@@ -81,12 +87,15 @@ service_unreg:
 		c2_reqh_service_type_unregister(sctx->rsx_service_types[i]);
 fclose:
 	fclose(sctx->rsx_log_file);
+	C2_LEAVE("rc: '%d'", rc);
 	return rc;
 }
 
 void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx)
 {
 	int i;
+
+	C2_ENTRY("rpc_server_ctx: '%p'", sctx);
 
 	c2_cs_fini(&sctx->rsx_colibri_ctx);
 
@@ -95,6 +104,7 @@ void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx)
 
 	fclose(sctx->rsx_log_file);
 
+	C2_LEAVE();
 	return;
 }
 #endif
@@ -108,6 +118,8 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	struct c2_net_buffer_pool *buffer_pool;
 	uint32_t		   tms_nr;
 	uint32_t		   bufs_nr;
+
+	C2_ENTRY("rpc_client_ctx: '%p'", cctx);
 
 	ndom	    = cctx->rcx_net_dom;
 	rpc_mach    = &cctx->rcx_rpc_machine;
@@ -150,6 +162,7 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	if (rc != 0)
 		goto conn_destroy;
 
+	C2_LEAVE("rc: '%d'", rc);
 	return rc;
 
 conn_destroy:
@@ -161,6 +174,7 @@ rpcmach_fini:
 pool_fini:
 	c2_rpc_net_buffer_pool_cleanup(buffer_pool);
 	C2_ASSERT(rc != 0);
+	C2_LEAVE("rc: '%d'", rc);
 	return rc;
 }
 
@@ -172,6 +186,7 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 	struct c2_clink     clink;
 	struct c2_rpc_item *item;
 
+	C2_ENTRY("fop: '%p', session: '%p'", fop, session);
 	C2_PRE(fop != NULL);
 	C2_PRE(session != NULL);
 	/*
@@ -203,6 +218,7 @@ clean:
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
 
+	C2_LEAVE("rc: '%d'", rc);
 	return rc;
 }
 C2_EXPORTED(c2_rpc_client_call);
@@ -211,19 +227,25 @@ int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
 {
 	int rc;
 
+	C2_ENTRY("rpc_client_ctx: '%p'", cctx);
 	rc = c2_rpc_session_destroy(&cctx->rcx_session, cctx->rcx_timeout_s);
-	if (rc != 0)
+	if (rc != 0) {
+		C2_LEAVE("rc: '%d'", rc);
 		return rc;
+	}
 
 	rc = c2_rpc_conn_destroy(&cctx->rcx_connection, cctx->rcx_timeout_s);
-	if (rc != 0)
+	if (rc != 0) {
+		C2_LEAVE("rc: '%d'", rc);
 		return rc;
+	}
 
 	c2_net_end_point_put(cctx->rcx_remote_ep);
 	c2_rpc_machine_fini(&cctx->rcx_rpc_machine);
 
 	c2_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
 
+	C2_LEAVE("rc: '%d'", rc);
 	return rc;
 }
 
