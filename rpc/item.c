@@ -20,6 +20,8 @@
  * Original creation date: 06/27/2012
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
+#include "lib/trace.h"
 #include "lib/tlist.h"
 #include "lib/rwlock.h"
 #include "lib/misc.h"
@@ -65,14 +67,20 @@ static bool opcode_is_dup(uint32_t opcode)
 
 int c2_rpc_base_init(void)
 {
+	C2_ENTRY();
+
 	c2_rwlock_init(&rpc_item_types_lock);
 	rit_tlist_init(&rpc_item_types_list);
+
+	C2_LEAVE();
 	return 0;
 }
 
 void c2_rpc_base_fini(void)
 {
 	struct c2_rpc_item_type		*item_type;
+
+	C2_ENTRY();
 
 	c2_rwlock_write_lock(&rpc_item_types_lock);
 	c2_tl_for(rit, &rpc_item_types_list, item_type) {
@@ -81,11 +89,14 @@ void c2_rpc_base_fini(void)
 	rit_tlist_fini(&rpc_item_types_list);
 	c2_rwlock_write_unlock(&rpc_item_types_lock);
 	c2_rwlock_fini(&rpc_item_types_lock);
+
+	C2_LEAVE();
 }
 
 int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
 {
 
+	C2_ENTRY("rpc_item_type: '%p'", item_type);
 	C2_PRE(item_type != NULL);
 	C2_PRE(!opcode_is_dup(item_type->rit_opcode));
 
@@ -93,17 +104,21 @@ int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
 	rit_tlink_init_at(item_type, &rpc_item_types_list);
 	c2_rwlock_write_unlock(&rpc_item_types_lock);
 
+	C2_LEAVE("rc: '0'");
 	return 0;
 }
 
 void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type)
 {
+	C2_ENTRY("rpc_item_type: '%p'", item_type);
 	C2_PRE(item_type != NULL);
 
 	c2_rwlock_write_lock(&rpc_item_types_lock);
 	rit_tlink_del_fini(item_type);
 	item_type->rit_magic = 0;
 	c2_rwlock_write_unlock(&rpc_item_types_lock);
+
+	C2_LEAVE();
 }
 
 struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
@@ -111,6 +126,7 @@ struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 	struct c2_rpc_item_type         *item_type = NULL;
 	bool                             found = false;
 
+	C2_ENTRY("opcode: '%u'", opcode);
 	c2_rwlock_read_lock(&rpc_item_types_lock);
 	c2_tl_for(rit, &rpc_item_types_list, item_type) {
 		if (item_type->rit_opcode == opcode) {
@@ -119,9 +135,12 @@ struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 		}
 	} c2_tl_endfor;
 	c2_rwlock_read_unlock(&rpc_item_types_lock);
-	if (found)
+	if (found) {
+		C2_LEAVE("rc(rpc_item_type): '%p'", item_type);
 		return item_type;
+	}
 
+	C2_LEAVE("rc(rpc_item_type): '(nil)'");
 	return NULL;
 }
 
@@ -129,6 +148,7 @@ void c2_rpc_item_init(struct c2_rpc_item *item)
 {
 	struct c2_rpc_slot_ref	*sref;
 
+	C2_ENTRY();
 	C2_SET0(item);
 
 	item->ri_state      = RPC_ITEM_UNINITIALIZED;
@@ -151,6 +171,7 @@ void c2_rpc_item_init(struct c2_rpc_item *item)
 	rpcitem_tlist_init(&item->ri_compound_items);
 
 	c2_chan_init(&item->ri_chan);
+	C2_LEAVE();
 }
 C2_EXPORTED(c2_rpc_item_init);
 
@@ -159,6 +180,7 @@ void c2_rpc_item_fini(struct c2_rpc_item *item)
 {
 	struct c2_rpc_slot_ref	*sref;
 
+	C2_ENTRY("rpc_item: '%p'", item);
 	c2_chan_fini(&item->ri_chan);
 
 	sref = &item->ri_slot_refs[0];
@@ -176,6 +198,7 @@ void c2_rpc_item_fini(struct c2_rpc_item *item)
 	rpcitem_tlink_fini(item);
 	rpcitem_tlist_fini(&item->ri_compound_items);
 	item->ri_state = RPC_ITEM_FINALIZED;
+	C2_LEAVE();
 }
 C2_EXPORTED(c2_rpc_item_fini);
 
