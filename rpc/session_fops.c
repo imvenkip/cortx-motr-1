@@ -19,6 +19,8 @@
  * Original creation date: 04/15/2011
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "net/net.h"        /* c2_net_end_point_get */
@@ -62,14 +64,18 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 	struct c2_fop                        *fop;
 	int                                   rc;
 
+	C2_ENTRY("rpc_item_type: '%p'", item_type);
 	C2_PRE(item_type != NULL && item != NULL && cur != NULL);
 	C2_PRE(item_type->rit_opcode == C2_RPC_CONN_ESTABLISH_OPCODE);
 
 	*item = NULL;
 
 	C2_ALLOC_PTR(ctx);
-	if (ctx == NULL)
+	if (ctx == NULL){
+		C2_LEAVE("fop_conn_establish_ctx: Memory Allocation: FAILED "
+			 "err: -ENOMEM");
 		return -ENOMEM;
+	}
 
 	ctx->cec_sender_ep = NULL;
 	fop         = &ctx->cec_fop;
@@ -87,6 +93,7 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 	*item           = &fop->f_item;
 	(*item)->ri_ops = &rcv_conn_establish_item_ops;
 
+	C2_LEAVE("rc: '0'");
 	return 0;
 out:
 	c2_free(ctx);
@@ -214,6 +221,8 @@ void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
 {
 	struct c2_rpc_fop_conn_establish_ctx *ctx;
 
+	C2_ENTRY("rpc_item: '%p', ep_addr: '%s', rpc_machine: '%p'", item,
+		 (char *) ep->nep_addr, machine);
 	C2_PRE(item != NULL && ep != NULL && machine != NULL);
 
 	ctx = container_of(item, struct c2_rpc_fop_conn_establish_ctx,
@@ -223,6 +232,7 @@ void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
 	c2_net_end_point_get(ep);
 	ctx->cec_sender_ep = ep;
 	ctx->cec_rpc_machine = machine;
+	C2_LEAVE();
 }
 
 bool c2_rpc_item_is_control_msg(const struct c2_rpc_item *item)
