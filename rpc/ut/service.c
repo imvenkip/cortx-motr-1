@@ -225,7 +225,7 @@ static void conn_attach_detach_test(void)
 	mock_rpc_chan.rc_destep = &mock_destep;
 
 	/* prepare mock rpc connection */
-	mock_conn.c_state       = C2_RPC_CONN_ACTIVE;
+	mock_conn.c_sm.sm_state = C2_RPC_CONN_ACTIVE;
 	mock_conn.c_rpc_machine = &mock_rpc_machine;
 	mock_conn.c_rpcchan     = &mock_rpc_chan;
 

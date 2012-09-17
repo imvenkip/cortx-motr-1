@@ -499,9 +499,6 @@ struct c2_rpc_conn {
 	/** Globally unique ID of rpc connection */
 	struct c2_rpc_sender_uuid c_uuid;
 
-	/** Current state of rpc connection */
-	enum c2_rpc_conn_state    c_state;
-
 	/** @see c2_rpc_conn_flags for list of flags */
 	uint64_t                  c_flags;
 
@@ -541,6 +538,9 @@ struct c2_rpc_conn {
 	 */
 	struct c2_cond            c_state_changed;
 
+	/** State machine of rpc connection having states
+	    enum c2_rpc_conn_state.
+	 */ 
 	struct c2_sm		  c_sm;
 };
 
@@ -1228,12 +1228,12 @@ struct c2_rpc_slot {
 	const struct c2_rpc_slot_ops *sl_ops;
 };
 
-static inline void c2_conn_state_set(struct c2_rpc_conn *conn, int state)
+static inline void c2_rpc_conn_state_set(struct c2_rpc_conn *conn, int state)
 {
 	c2_sm_state_set(&conn->c_sm, state);
 }
 
-static inline int c2_conn_state_get(struct c2_rpc_conn *conn)
+static inline int c2_rpc_conn_state_get(const struct c2_rpc_conn *conn)
 {
 	return conn->c_sm.sm_state;
 }
