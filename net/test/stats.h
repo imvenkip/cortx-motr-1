@@ -299,11 +299,24 @@ c2_time_t c2_net_test_mps_add(struct c2_net_test_mps *mps,
 
 /** Sent/received test messages number. */
 struct c2_net_test_msg_nr {
-	/** Total number of test messages */
+	/**
+	 * Total number of test messages.
+	 * Increased after callback executed for the message buffer.
+	 */
 	size_t ntmn_total;
-	/** Number of failed (network failures) test messages */
+	/**
+	 * Number of failed (network failures) test messages.
+	 * Increased if c2_net_buffer_add() failed or
+	 * (c2_net_buffer_event.nbe_status != 0 &&
+	 *  c2_net_buffer_event.nbe_status != -ECANCELED)
+	 * in buffer completion callback.
+	 */
 	size_t ntmn_failed;
-	/** Number of bad test messages (invalid message content) */
+	/**
+	 * Number of bad test messages (invalid message content)
+	 * Increased if message deserializing failed or message
+	 * contains invalid data.
+	 */
 	size_t ntmn_bad;
 };
 
