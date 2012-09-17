@@ -291,7 +291,7 @@ static void net_test_client_server(const char *nid,
 void c2_net_test_client_server_ping_ut(void)
 {
 	net_test_client_server("0@lo", C2_NET_TEST_TYPE_PING,
-			       2, 2, 1, 8, 8, 0x100);
+			       2, 2, 1, 8, 0x10000, 0x1000);
 	/*
 	net_test_client_server("0@lo", C2_NET_TEST_TYPE_PING,
 			       8, 8, 4, 16, 0x100, 0x100);

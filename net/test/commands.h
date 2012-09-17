@@ -136,7 +136,7 @@ struct c2_net_test_cmd_status_data {
 	struct c2_net_test_mps	  ntcsd_mps_send;
 	/** 'receive' packets per second statistics with 1s interval */
 	struct c2_net_test_mps	  ntcsd_mps_recv;
-	/** RTT statistics (without lost messages) */
+	/** RTT statistics (without lost messages) (test client only) */
 	struct c2_net_test_stats  ntcsd_rtt;
 	/** @todo send/recv RTT
 	   (needs time synchronization over clients/servers) */
