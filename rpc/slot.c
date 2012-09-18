@@ -19,6 +19,8 @@
  * Original creation date: 08/24/2011
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
@@ -129,14 +131,18 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	struct c2_rpc_item     *dummy_item;
 	struct c2_rpc_slot_ref *sref;
 
+	C2_ENTRY("rpc_slot: '%p'", slot);
+
 	/*
 	 * Allocate dummy item.
 	 * The dummy item is used to avoid special cases
 	 * i.e. last_sent == NULL, last_persistent == NULL
 	 */
 	fop = c2_fop_alloc(&c2_rpc_fop_noop_fopt, NULL);
-	if (fop == NULL)
+	if (fop == NULL) {
+		C2_LEAVE("fop: Memory Allocation: FAILED, err: -ENOMEM");
 		return -ENOMEM;
+	}
 
 	c2_list_link_init(&slot->sl_link);
 	/*
@@ -181,6 +187,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 
 	c2_list_link_init(&sref->sr_link);
 	c2_list_add(&slot->sl_item_list, &sref->sr_link);
+	C2_LEAVE("rc: '0'");
 	return 0;
 }
 
@@ -202,6 +209,7 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 	int                  count = 0;
 	bool                 first_item = true;
 
+	C2_ENTRY("rpc_slot: '%p'", slot);
 	/*
 	 * XXX See comments above function prototype
 	 */
@@ -243,6 +251,7 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 
 	slot->sl_last_sent = dummy_item;
 	slot->sl_last_persistent = dummy_item;
+	C2_LEAVE();
 }
 
 void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
@@ -250,6 +259,8 @@ void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 	struct c2_rpc_item  *dummy_item;
 	struct c2_fop       *fop;
 	struct c2_list_link *link;
+
+	C2_ENTRY(" rpc_slot: '%p'", slot);
 
 	slot_item_list_prune(slot);
 	c2_list_link_fini(&slot->sl_link);
@@ -278,6 +289,7 @@ void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 		c2_cob_put(slot->sl_cob);
 	}
 	C2_SET0(slot);
+	C2_LEAVE();
 }
 
 /**
@@ -325,6 +337,7 @@ static void __slot_balance(struct c2_rpc_slot *slot,
 	struct c2_rpc_item  *item;
 	struct c2_list_link *link;
 
+	C2_ENTRY("rpc_slot: '%p'", slot);
 	C2_PRE(c2_rpc_slot_invariant(slot));
 	C2_PRE(c2_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
 
@@ -359,6 +372,7 @@ static void __slot_balance(struct c2_rpc_slot *slot,
 			slot->sl_ops->so_item_consume(item);
 	}
 	C2_POST(c2_rpc_slot_invariant(slot));
+	C2_LEAVE();
 }
 
 /**
@@ -381,6 +395,7 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 	struct c2_rpc_session  *session;
 	struct c2_rpc_machine  *machine;
 
+	C2_ENTRY("rpc_slot: '%p', rpc_item: '%p'", slot, item);
 	C2_PRE(item != NULL);
 	C2_PRE(c2_rpc_slot_invariant(slot));
 	C2_PRE(slot->sl_session == item->ri_session);
@@ -438,17 +453,20 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 	}
 
 	__slot_balance(slot, allow_events);
+	C2_LEAVE();
 }
 
 void c2_rpc_slot_item_add_internal(struct c2_rpc_slot *slot,
 				   struct c2_rpc_item *item)
 {
+	C2_ENTRY("rpc_slot: '%p', rpc_item: '%p'", slot, item);
 	C2_PRE(c2_rpc_slot_invariant(slot) && item != NULL);
 	C2_PRE(c2_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
 	C2_PRE(slot->sl_session == item->ri_session);
 
 	__slot_item_add(slot, item,
 			false);  /* slot is not allowed to trigger events */
+	C2_LEAVE();
 }
 
 int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
@@ -457,13 +475,16 @@ int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
 	struct c2_rpc_item *reply;
 	struct c2_fop      *fop;
 
+	C2_ENTRY("rpc_slot: '%p', rpc_item: '%p'", slot, item);
 	/*
 	 * Send a dummy NOOP fop as reply to report misordered item
 	 * XXX We should've a special fop type to report session error
 	 */
 	fop = c2_fop_alloc(&c2_rpc_fop_noop_fopt, NULL);
-	if (fop == NULL)
+	if (fop == NULL) {
+		C2_LEAVE("fop: Memory Allocation: FAILED, err: -ENOMEM");
 		return -ENOMEM;
+	}
 
 	reply = &fop->f_item;
 
@@ -475,6 +496,7 @@ int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
 	c2_list_link_init(&reply->ri_slot_refs[0].sr_ready_link);
 
 	slot->sl_ops->so_reply_consume(item, reply);
+	C2_LEAVE("rc: '0'");
 	return 0;
 }
 
@@ -485,6 +507,7 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 	int                 redoable;
 	int                 rc = 0;   /* init to 0, required */
 
+	C2_ENTRY("rpc_slot: '%p', rpc_item: '%p'", slot, item);
 	C2_ASSERT(item != NULL);
 	C2_ASSERT(c2_rpc_slot_invariant(slot));
 	C2_PRE(c2_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
@@ -537,6 +560,7 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 		break;
 	}
 	C2_ASSERT(c2_rpc_slot_invariant(slot));
+	C2_LEAVE("rc: '%d'", rc);
 	return rc;
 }
 
@@ -549,6 +573,7 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 	struct c2_rpc_session  *session;
 	struct c2_rpc_machine  *machine;
 
+	C2_ENTRY("rpc_slot: '%p', rpc_item_reply: '%p'", slot, reply);
 	C2_PRE(slot != NULL && reply != NULL && req_out != NULL);
 
 	machine = slot_get_rpc_machine(slot);
@@ -567,6 +592,8 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		 * item is pruned from the item list, or it is a corrupted
 		 * reply
 		 */
+		C2_LEAVE("Duplicate reply & corr. req. item pruned,"
+			 " or corrupted reply");
 		return;
 	}
 	/*
@@ -633,6 +660,7 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		 */
 		slot->sl_ops->so_reply_consume(req, reply);
 	}
+	C2_LEAVE();
 }
 
 void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
@@ -641,6 +669,8 @@ void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
 	struct c2_rpc_item     *item;
 	struct c2_list_link    *link;
 
+	C2_ENTRY("rpc_slot: '%p', lsn_of_last_persistent: '%llu'", slot,
+		 (unsigned long long) last_persistent.vn_lsn); 
 	C2_PRE(c2_rpc_slot_invariant(slot));
 	C2_PRE(c2_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
 
@@ -673,6 +703,7 @@ void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
 	C2_POST(
 	   c2_verno_cmp(&slot->sl_last_persistent->ri_slot_refs[0].sr_verno,
 			&last_persistent) >= 0);
+	C2_LEAVE();
 }
 
 void c2_rpc_slot_reset(struct c2_rpc_slot *slot,
@@ -681,6 +712,8 @@ void c2_rpc_slot_reset(struct c2_rpc_slot *slot,
 	struct c2_rpc_item     *item;
 	struct c2_rpc_slot_ref *sref;
 
+	C2_ENTRY("rpc_slot: '%p', lsn_last_seen: '%llu'", slot,
+		 (unsigned long long) last_seen.vn_lsn);
 	C2_PRE(c2_rpc_slot_invariant(slot));
 	C2_PRE(c2_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
 	C2_PRE(c2_verno_cmp(&slot->sl_verno, &last_seen) >= 0);
@@ -699,6 +732,7 @@ void c2_rpc_slot_reset(struct c2_rpc_slot *slot,
 	C2_ASSERT(c2_verno_cmp(&slot->sl_last_sent->ri_slot_refs[0].sr_verno,
 				&last_seen) == 0);
 	slot_balance(slot);
+	C2_LEAVE();
 }
 
 static struct c2_rpc_conn *
@@ -709,6 +743,8 @@ find_conn(const struct c2_rpc_machine *machine,
 	const struct c2_rpc_slot_ref *sref;
 	struct c2_rpc_conn           *conn;
 	bool                          use_uuid;
+
+	C2_ENTRY("rpc_machine: '%p', rpc_item: '%p'", machine, item);
 
 	conn_list = c2_rpc_item_is_request(item) ?
 			&machine->rm_incoming_conns :
@@ -722,15 +758,20 @@ find_conn(const struct c2_rpc_machine *machine,
 		if (use_uuid) {
 
 			if (c2_rpc_sender_uuid_cmp(&conn->c_uuid,
-						   &sref->sr_uuid) == 0)
+						   &sref->sr_uuid) == 0) {
+				C2_LEAVE("rc(rpc_conn): '%p'", conn);
 				return conn;
+			}
 
 		} else {
 
-			if (conn->c_sender_id == sref->sr_sender_id)
+			if (conn->c_sender_id == sref->sr_sender_id) {
+				C2_LEAVE("rc(rpc_conn): '%p'", conn);
 				return conn;
+			}
 		}
 	}
+	C2_LEAVE("rc(rpc_conn): '(nil)'");
 	return NULL;
 }
 static int associate_session_and_slot(struct c2_rpc_item    *item,
@@ -741,19 +782,26 @@ static int associate_session_and_slot(struct c2_rpc_item    *item,
 	struct c2_rpc_slot     *slot;
 	struct c2_rpc_slot_ref *sref;
 
+	C2_ENTRY("rcp_item: '%p', rpc_machine: '%p'", item, machine);
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 
 	sref = &item->ri_slot_refs[0];
-	if (sref->sr_session_id > SESSION_ID_MAX)
+	if (sref->sr_session_id > SESSION_ID_MAX) {
+		C2_LEAVE("rpc_session_id: INVALID, err: -EINVAL");
 		return -EINVAL;
+	}
 
 	conn = find_conn(machine, item);
-	if (conn == NULL)
+	if (conn == NULL) {
+		C2_LEAVE("rc: '-ENOENT'");
 		return -ENOENT;
+	}
 
 	session = c2_rpc_session_search(conn, sref->sr_session_id);
-	if (session == NULL || sref->sr_slot_id >= session->s_nr_slots)
+	if (session == NULL || sref->sr_slot_id >= session->s_nr_slots){
+		C2_LEAVE("rc: '-ENOENT'");
 		return -ENOENT;
+	}
 
 	slot = session->s_slot_table[sref->sr_slot_id];
 	/* XXX Check generation of slot */
@@ -763,6 +811,7 @@ static int associate_session_and_slot(struct c2_rpc_item    *item,
 	C2_POST(item->ri_session != NULL &&
 		item->ri_slot_refs[0].sr_slot != NULL);
 
+	C2_LEAVE("rc: '0'");
 	return 0;
 }
 
@@ -773,6 +822,7 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 	struct c2_rpc_slot *slot;
 	int                 rc;
 
+	C2_ENTRY("rpc_item: '%p', rpc_machine: '%p'", item, machine);
 	C2_ASSERT(item != NULL);
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 
@@ -784,6 +834,7 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 		 */
 		if (c2_rpc_item_is_conn_establish(item)) {
 			c2_rpc_item_dispatch(item);
+			C2_LEAVE("rc: '0'");
 			return 0;
 		}
 		/*
@@ -793,6 +844,7 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 		 * XXX generate ADDB record
 		 */
 		item->ri_ops->rio_free(item);
+		C2_LEAVE("rc: '%d'", rc);
 		return rc;
 	}
 	C2_ASSERT(item->ri_session != NULL &&
@@ -821,6 +873,7 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 			rpc_item_replied(req, item, 0);
 		}
 	}
+	C2_LEAVE("rc: '0'");
 	return 0;
 }
 
@@ -834,6 +887,7 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
 	struct c2_rpc_machine *machine;
 	struct c2_rpc_session *session;
 
+	C2_ENTRY("req_rpc_item: '%p', rep_rpc_item: '%p'", item, reply);
 	item->ri_error = rc;
 	item->ri_reply = reply;
 
@@ -855,6 +909,7 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
 		c2_rpc_machine_lock(machine);
 		c2_rpc_session_release(session);
 	}
+	C2_LEAVE();
 }
 
 int c2_rpc_slot_cob_lookup(struct c2_cob   *session_cob,
@@ -867,6 +922,8 @@ int c2_rpc_slot_cob_lookup(struct c2_cob   *session_cob,
 	char           name[SESSION_COB_MAX_NAME_LEN];
 	int            rc;
 
+	C2_ENTRY("session_cob: '%p', slot_id: '%u', slot_generation: '%llu'",
+		 session_cob, slot_id, (unsigned long long) slot_generation);
 	C2_PRE(session_cob != NULL && slot_cob != NULL);
 
 	*slot_cob = NULL;
@@ -876,6 +933,7 @@ int c2_rpc_slot_cob_lookup(struct c2_cob   *session_cob,
 					&cob, tx);
 	C2_ASSERT(ergo(rc != 0, cob == NULL));
 	*slot_cob = cob;
+	C2_LEAVE("rc: '%d'", rc);
 	return rc;
 }
 
@@ -889,6 +947,8 @@ int c2_rpc_slot_cob_create(struct c2_cob   *session_cob,
 	char           name[SESSION_COB_MAX_NAME_LEN];
 	int            rc;
 
+	C2_ENTRY("session_cob: '%p', slot_id: '%u', slot_generation: '%llu'",
+		 session_cob, slot_id, (unsigned long long) slot_generation);
 	C2_PRE(session_cob != NULL && slot_cob != NULL);
 
 	*slot_cob = NULL;
@@ -898,6 +958,7 @@ int c2_rpc_slot_cob_create(struct c2_cob   *session_cob,
 					&cob, tx);
 	C2_ASSERT(ergo(rc != 0, cob == NULL));
 	*slot_cob = cob;
+	C2_LEAVE("rc: '%d'", rc);
 	return rc;
 }
 
