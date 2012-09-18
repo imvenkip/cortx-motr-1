@@ -190,8 +190,6 @@ struct node_ping_ctx {
 	c2_time_t			    npc_buf_send_timeout;
 	/** Test was initialized (succesful node_ping_cmd_start() */
 	bool				    npc_test_initialized;
-	/** Test needs to be stopped */
-	bool				    npc_test_stop;
 	/** All needed statistics */
 	struct c2_net_test_cmd_status_data  npc_status_data;
 	/** @todo use spinlock instead of mutex
@@ -363,8 +361,8 @@ static void node_ping_buf_enqueue(struct node_ping_ctx *ctx,
 		  c2_net_test_network_msg_send(nctx, buf_index, ep_index) :
 		  c2_net_test_network_msg_send_ep(nctx, buf_index, ep);
 	if (bs->bs_errno != 0) {
-		c2_semaphore_up(&ctx->npc_buf_q_sem);
 		c2_net_test_ringbuf_push(&ctx->npc_buf_rb, buf_index);
+		c2_semaphore_up(&ctx->npc_buf_q_sem);
 		c2_semaphore_up(&ctx->npc_buf_rb_sem);
 	}
 }
@@ -501,8 +499,10 @@ static void node_ping_msg_cb(struct c2_net_test_network_ctx *net_ctx,
 
 	LOGD("\n");
 
-	if (ev->nbe_status == -ECANCELED)
-		goto buf_q_up;
+	if (ev->nbe_status == -ECANCELED) {
+		c2_semaphore_up(&ctx->npc_buf_q_sem);
+		return;
+	}
 
 	/* save buffer event */
 	bs->bs_ev = *ev;
@@ -514,9 +514,8 @@ static void node_ping_msg_cb(struct c2_net_test_network_ctx *net_ctx,
 	bs->bs_q    = ev->nbe_buffer->nb_qtype;
 
 	c2_net_test_ringbuf_push(&ctx->npc_buf_rb, buf_index);
-	c2_semaphore_up(&ctx->npc_buf_rb_sem);
-buf_q_up:
 	c2_semaphore_up(&ctx->npc_buf_q_sem);
+	c2_semaphore_up(&ctx->npc_buf_rb_sem);
 }
 
 static void node_ping_cb_impossible(struct c2_net_test_network_ctx *ctx,
@@ -542,15 +541,12 @@ static struct c2_net_test_network_buffer_callbacks node_ping_buf_cb = {
 static void node_ping_to_check(struct node_ping_ctx *ctx)
 {
 	struct buf_state *bs;
-	c2_time_t	  now;
+	c2_time_t	  now = c2_time_now();
 	ssize_t		  buf_index;
 
-	now = c2_time_now();
 	while ((buf_index = node_ping_to_peek(ctx)) != -1) {
 		bs = &ctx->npc_buf_state[buf_index];
 		/*
-		LOGD("now: %lu, deadline: %lu\n",
-		     c2_time_now(), bs->bs_deadline);
 		*/
 		if (!c2_time_after(now, bs->bs_deadline))
 			break;
@@ -659,8 +655,13 @@ static void node_ping_worker(struct node_ping_ctx *ctx)
 	/* wait for buffer callbacks */
 	for (i = 0; i < ctx->npc_buf_nr; ++i)
 		c2_semaphore_down(&ctx->npc_buf_q_sem);
-	/* clean ringbuf, put() every saved endpoint */
-	while (c2_semaphore_trydown(&ctx->npc_buf_rb_sem)) {
+	/* clear ringbuf, put() every saved endpoint */
+	/*
+	 * use !c2_net_test_ringbuf_is_empty(&ctx->npc_buf_rb) instead of
+	 * c2_semaphore_trydown(&ctx->npc_buf_rb_sem) because
+	 * ctx->npc_buf_rb_sem may not be up()'ed in buffer callback.
+	 */
+	while (!c2_net_test_ringbuf_is_empty(&ctx->npc_buf_rb)) {
 		buf_index = c2_net_test_ringbuf_pop(&ctx->npc_buf_rb);
 		bs = &ctx->npc_buf_state[buf_index];
 		if (bs->bs_q == C2_NET_QT_MSG_RECV &&
