@@ -546,8 +546,6 @@ static void node_ping_to_check(struct node_ping_ctx *ctx)
 
 	while ((buf_index = node_ping_to_peek(ctx)) != -1) {
 		bs = &ctx->npc_buf_state[buf_index];
-		/*
-		*/
 		if (!c2_time_after(now, bs->bs_deadline))
 			break;
 		/* message timed out */
