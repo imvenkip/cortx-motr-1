@@ -195,7 +195,7 @@ size_t c2_net_test_console_cmd(struct c2_net_test_console_ctx *ctx,
 	struct c2_net_test_console_cfg	    *cfg;
 	struct c2_net_test_cmd_ctx	    *cmd_ctx;
 	struct c2_net_test_cmd		     cmd;
-	struct c2_net_test_cmd_status_data  *sd;
+	struct c2_net_test_cmd_status_data  *sd = NULL;
 	int				     i;
 	int				     j;
 	int				     rc;
