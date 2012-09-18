@@ -200,6 +200,7 @@ size_t c2_net_test_console_cmd(struct c2_net_test_console_ctx *ctx,
 	bool				     role_client;
 	c2_time_t			     deadline;
 	size_t				     success_nr = 0;
+	size_t				     failures_nr = 0;
 	size_t				     rcvd_nr = 0;
 	enum c2_net_test_cmd_type	     answer[] = {
 		[C2_NET_TEST_CMD_INIT]	 = C2_NET_TEST_CMD_INIT_DONE,
@@ -230,7 +231,23 @@ size_t c2_net_test_console_cmd(struct c2_net_test_console_ctx *ctx,
 	rctx	     = role_client ? &ctx->ntcc_clients : &ctx->ntcc_servers;
 	cmd_ctx	     = rctx->ntcrc_cmd;
 
-	/** @todo clear recv queue */
+	/* clear commands receive queue */
+	while ((rc = c2_net_test_commands_recv(cmd_ctx, &cmd, c2_time_now())) !=
+	       -ETIMEDOUT) {
+		/*
+		 * Exit from this loop after nodes->ntsl_nr failures.
+		 * It will prevent from infinite loop if after every
+		 * c2_net_test_commands_recv_enqueue() will be
+		 * unsuccessful c2_net_test_commands_recv().
+		 */
+		failures_nr += rc != 0;
+		if (failures_nr > nodes->ntsl_nr)
+			break;
+		rc = c2_net_test_commands_recv_enqueue(cmd_ctx,
+						       cmd.ntc_buf_index);
+		/** @todo rc != 0 is lost here */
+		c2_net_test_commands_received_free(&cmd);
+	}
 	/* send all commands */
 	for (i = 0; i < nodes->ntsl_nr; ++i) {
 		if (cmd_type == C2_NET_TEST_CMD_INIT)
@@ -267,7 +284,7 @@ size_t c2_net_test_console_cmd(struct c2_net_test_console_ctx *ctx,
 		 * reject command from node, which can't have outgoing cmd
 		 * because c2_net_test_commands_send() to this node failed.
 		 */
-		C2_ASSERT(j < nodes->ntsl_nr);
+		C2_ASSERT(j >= 0 && j < nodes->ntsl_nr);
 		if (rctx->ntcrc_errno[j] != 0)
 			goto reuse_cmd;
 		/* handle incoming command */
@@ -284,9 +301,12 @@ size_t c2_net_test_console_cmd(struct c2_net_test_console_ctx *ctx,
 		 * cmd.ntc_buf_index is lost. use ringbuf to save?
 		 */
 reuse_cmd:
-		rctx->ntcrc_errno[j] =
-			c2_net_test_commands_recv_enqueue(cmd_ctx,
-							  cmd.ntc_buf_index);
+		rc = c2_net_test_commands_recv_enqueue(cmd_ctx,
+						       cmd.ntc_buf_index);
+		if (j != -1) {
+			C2_ASSERT(j >= 0 && j < nodes->ntsl_nr);
+			rctx->ntcrc_errno[j] = rc;
+		}
 		c2_net_test_commands_received_free(&cmd);
 	}
 
