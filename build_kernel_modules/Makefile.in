@@ -140,7 +140,7 @@ net_test_HEADERS		:= commands.h console.h network.h node_bulk.h \
 				   node.h node_ping.h ringbuf.h serialize.h   \
 				   service.h slist.h stats.h str.h
 
-net_test_ut_SOURCES		:= client_server.c commands.c main.c 	      \
+net_test_ut_SOURCES		:= client_server.c commands.c main.c	      \
 				   network.c ringbuf.c serialize.c service.c  \
 				   slist.c stats.c str.c
 
