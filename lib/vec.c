@@ -300,6 +300,43 @@ c2_bcount_t c2_bufvec_cursor_copyfrom(struct c2_bufvec_cursor *scur,
 	return c2_bufvec_cursor_copy(&dcur, scur, num_bytes);
 }
 
+void c2_ivec_cursor_init(struct c2_ivec_cursor *cur,
+                         struct c2_indexvec    *ivec)
+{
+        C2_PRE(cur  != NULL);
+        C2_PRE(ivec != NULL);
+        C2_PRE(ivec->iv_vec.v_nr > 0);
+        C2_PRE(ivec->iv_vec.v_count != NULL && ivec->iv_index != NULL);
+
+        c2_vec_cursor_init(&cur->ic_cur, &ivec->iv_vec);
+}
+
+bool c2_ivec_cursor_move(struct c2_ivec_cursor *cur,
+                         c2_bcount_t            count)
+{
+        C2_PRE(cur != NULL);
+
+        return c2_vec_cursor_move(&cur->ic_cur, count);
+}
+
+c2_bcount_t c2_ivec_cursor_step(const struct c2_ivec_cursor *cur)
+{
+        C2_PRE(cur != NULL);
+
+        return c2_vec_cursor_step(&cur->ic_cur);
+}
+
+c2_bindex_t c2_ivec_cursor_index(struct c2_ivec_cursor *cur)
+{
+        struct c2_indexvec *ivec;
+
+        C2_PRE(cur != NULL);
+	C2_PRE(!c2_vec_cursor_move(&cur->ic_cur, 0));
+
+        ivec = container_of(cur->ic_cur.vc_vec, struct c2_indexvec, iv_vec);
+        return ivec->iv_index[cur->ic_cur.vc_seg] + cur->ic_cur.vc_offset;
+}
+
 void c2_0vec_fini(struct c2_0vec *zvec)
 {
 	if (zvec != NULL) {

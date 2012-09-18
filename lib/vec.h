@@ -282,6 +282,47 @@ c2_bcount_t c2_bufvec_cursor_copyfrom(struct c2_bufvec_cursor *scur,
 				      void *ddata, c2_bcount_t num_bytes);
 
 /**
+   Mechanism to traverse given index vector (c2_indexvec)
+   keeping track of segment counts and vector boundary.
+ */
+struct c2_ivec_cursor {
+        struct c2_vec_cursor ic_cur;
+};
+
+/**
+   Initialize given index vector cursor.
+   @param cur  Given index vector cursor.
+   @param ivec Given index vector to be associated with cursor.
+ */
+void c2_ivec_cursor_init(struct c2_ivec_cursor *cur,
+                         struct c2_indexvec    *ivec);
+
+/**
+   Moves the index vector cursor forward by @count.
+   @param cur   Given index vector cursor.
+   @param count Count by which cursor has to be moved.
+   @ret   true  iff end of vector has been reached while
+   moving cursor by @count. Returns false otherwise.
+ */
+bool c2_ivec_cursor_move(struct c2_ivec_cursor *cur,
+                         c2_bcount_t            count);
+
+/**
+ * Returns the number of bytes needed to move cursor to next segment in given
+ * index vector.
+ * @param cur Index vector to be moved.
+ * @ret   Number of bytes needed to move the cursor to next segment.
+ */
+c2_bcount_t c2_ivec_cursor_step(const struct c2_ivec_cursor *cur);
+
+/**
+ * Returns index at current cursor position.
+ * @param cur Given index vector cursor.
+ * @ret   Index at current cursor position.
+ */
+c2_bindex_t c2_ivec_cursor_index(struct c2_ivec_cursor *cur);
+
+/**
    Zero vector is a full fledged IO vector containing IO extents
    as well as the IO buffers.
    An invariant (c2_0vec_invariant) is maintained for c2_0vec. It
