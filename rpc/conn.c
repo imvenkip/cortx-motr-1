@@ -729,7 +729,7 @@ int c2_rpc_conn_terminate_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 	bool state_reached;
 
 	C2_ENTRY();
- 
+
 	rc = c2_rpc_conn_terminate(conn);
 	if (rc != 0) {
 		C2_LEAVE("rc: '%d'", rc);

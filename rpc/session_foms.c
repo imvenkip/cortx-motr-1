@@ -191,7 +191,7 @@ int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 		/* no reply if conn establish failed.
 		   See [4] at end of this function. */
 		return -ENOMEM;
-	}	
+	}
 
 	machine = ctx->cec_rpc_machine;
 

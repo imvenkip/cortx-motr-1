@@ -670,7 +670,7 @@ void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
 	struct c2_list_link    *link;
 
 	C2_ENTRY("rpc_slot: '%p', lsn_of_last_persistent: '%llu'", slot,
-		 (unsigned long long) last_persistent.vn_lsn); 
+		 (unsigned long long) last_persistent.vn_lsn);
 	C2_PRE(c2_rpc_slot_invariant(slot));
 	C2_PRE(c2_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
 
