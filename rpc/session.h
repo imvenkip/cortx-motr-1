@@ -408,7 +408,7 @@ enum c2_rpc_conn_flags {
 	 +--------------------->TERMINATED
 	                            |
 	                            |  c2_rpc_conn_fini()
-                                    V 
+                                    V
 
   @endverbatim
 
@@ -540,7 +540,7 @@ struct c2_rpc_conn {
 
 	/** State machine of rpc connection having states
 	    enum c2_rpc_conn_state.
-	 */ 
+	 */
 	struct c2_sm		  c_sm;
 };
 

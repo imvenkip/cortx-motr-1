@@ -718,7 +718,7 @@ int c2_rpc_conn_terminate_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 		return rc;
 
 	state_reached = c2_rpc_conn_timedwait(conn, 1 << C2_RPC_CONN_TERMINATED |
-					      	    1 << C2_RPC_CONN_FAILED,
+						    1 << C2_RPC_CONN_FAILED,
 					      c2_time_from_now(timeout_sec, 0));
 	/*
 	 * When rpc-layer timeouts will be implemented !state_reached situation
@@ -778,7 +778,8 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 		c2_fop_free(fop);
 	}
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
-	C2_POST(ergo(rc != 0, c2_rpc_conn_state_get(conn) == C2_RPC_CONN_FAILED));
+	C2_POST(ergo(rc != 0, c2_rpc_conn_state_get(conn) ==
+			      C2_RPC_CONN_FAILED));
 	/*
 	 * CAUTION: Following assertion is not guaranteed as soon as
 	 * rpc_machine is unlocked.
@@ -962,7 +963,7 @@ static int conn_persistent_state_attach(struct c2_rpc_conn *conn,
 	int                    rc;
 
 	C2_PRE(conn != NULL && c2_rpc_conn_invariant(conn) &&
-			c2_rpc_conn_state_get(conn) == C2_RPC_CONN_CONNECTING);
+	       c2_rpc_conn_state_get(conn) == C2_RPC_CONN_CONNECTING);
 
 	dom = conn->c_rpc_machine->rm_dom;
 	rc = conn_persistent_state_create(dom, sender_id,
