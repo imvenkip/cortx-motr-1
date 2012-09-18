@@ -142,6 +142,13 @@ static void node_cfg_fill(struct c2_net_test_node_cfg *ncfg,
 	addr_free(addr_data);
 }
 
+static void msg_nr_print(const char *prefix,
+			 const struct c2_net_test_msg_nr *msg_nr)
+{
+	LOGD("%s total/failed/bad = %lu/%lu/%lu\n", prefix,
+	     msg_nr->ntmn_total, msg_nr->ntmn_failed, msg_nr->ntmn_bad);
+}
+
 /*
  * Real situation - no explicit synchronization
  * between test console and test nodes.
@@ -253,18 +260,17 @@ static void net_test_client_server(const char *nid,
 		C2_UT_ASSERT(rc == clients_nr);
 	} while (!console.ntcc_clients.ntcrc_sd->ntcsd_finished);
 	/* send STATUS command to the test clients */
-	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_CLIENT,
+	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_SERVER,
 				     C2_NET_TEST_CMD_STATUS);
-	C2_UT_ASSERT(rc == clients_nr);
-	C2_UT_ASSERT(console.ntcc_clients.ntcrc_sd->ntcsd_finished == true);
-	LOGD("\nrecv total/failed/bad = %lu/%lu/%lu\n",
-	     console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_recv.ntmn_total,
-	     console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_recv.ntmn_failed,
-	     console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_recv.ntmn_bad);
-	LOGD("send total/failed/bad = %lu/%lu/%lu\n",
-	     console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_send.ntmn_total,
-	     console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_send.ntmn_failed,
-	     console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_send.ntmn_bad);
+	C2_UT_ASSERT(rc == servers_nr);
+	msg_nr_print("client sent",
+		     &console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_send);
+	msg_nr_print("client received",
+		     &console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_recv);
+	msg_nr_print("server sent",
+		     &console.ntcc_servers.ntcrc_sd->ntcsd_msg_nr_send);
+	msg_nr_print("server received",
+		     &console.ntcc_servers.ntcrc_sd->ntcsd_msg_nr_recv);
 	/* send STOP command to the test clients */
 	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_CLIENT,
 				     C2_NET_TEST_CMD_STOP);
