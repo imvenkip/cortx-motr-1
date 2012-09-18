@@ -606,6 +606,7 @@ static void node_ping_worker(struct node_ping_ctx *ctx)
 	c2_time_t		  to_check_interval;
 	c2_time_t		  deadline;
 	struct c2_net_end_point	 *ep;
+	bool			  rb_is_empty;
 
 	C2_PRE(ctx != NULL);
 
@@ -614,12 +615,13 @@ static void node_ping_worker(struct node_ping_ctx *ctx)
 	while (1) {
 		/* get buffer index from ringbuf */
 		deadline = c2_time_add(c2_time_now(), to_check_interval);
-		if (!c2_semaphore_timeddown(&ctx->npc_buf_rb_sem, deadline)) {
-			/* check timeout list */
-			if (ctx->npc_node_role == C2_NET_TEST_ROLE_CLIENT)
-				node_ping_to_check(ctx);
+		rb_is_empty = !c2_semaphore_timeddown(&ctx->npc_buf_rb_sem,
+						      deadline);
+		/* check timeout list */
+		if (ctx->npc_node_role == C2_NET_TEST_ROLE_CLIENT)
+			node_ping_to_check(ctx);
+		if (rb_is_empty)
 			continue;
-		}
 		if (ctx->npc_buf_rb_done)
 			break;
 		buf_index = c2_net_test_ringbuf_pop(&ctx->npc_buf_rb);
