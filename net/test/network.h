@@ -127,8 +127,8 @@ void c2_net_test_network_fini(void);
 /**
    Initialize c2_net_test_network_ctx structure.
    Allocate ping and bulk buffers.
-   @param timeouts Timeouts for each type of tm queue. Can be NULL, in
-   this case it is assumed than all timeouts is C2_TIME_NEVER.
+   @note timeouts parameter can be NULL, in this case it is assumed
+   that all timeouts is C2_TIME_NEVER.
    @see c2_net_test_network_ctx
    @pre ctx     != NULL
    @pre tm_addr != NULL

@@ -38,6 +38,7 @@
 
 /**
    @page net-test-fspec-cli-console Test console command line parameters
+   @todo Now obsolete.
 
    Installing/uninstalling test suite (kernel modules, scripts etc.)
    to/from remote host:
@@ -57,7 +58,7 @@
    - @b --remote-path Path to test suite on remote host.
    - @b --live Live report update time, seconds.
 
-   @subsection net-test-fspec-usecases-console Test console parameters example
+   @section net-test-fspec-usecases-console Test console parameters example
 
    @code
    --install --remote-path=$HOME/net-test --targets=c1,c2,c3,s1,s2

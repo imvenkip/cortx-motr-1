@@ -98,8 +98,8 @@ static void net_test_serialize_reorder(enum c2_net_test_serialize_op op,
    Serialize/deserialize object field to buffer.
    Converts field to little-endian representation while serializing and
    reads field as little-endian from buffer while deserializing.
-   @param bv_length Total length of bv. This value is ignored if bv == NULL.
-	            Must be equivalent to c2_vec_count(&bv->ov_vec).
+   @note bv_length is cached version of c2_vec_count(&bv->ov_vec).
+   This value is ignored if bv == NULL.
    @pre data_len > 0
    @pre plain_data || data_len == 1 || data_len == 2 || data_len == 4 ||
 	data_len == 8

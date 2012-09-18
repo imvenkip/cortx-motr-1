@@ -27,7 +27,7 @@
 #include "lib/time.h"		/* c2_time_t */
 
 /**
-   @defgroup NetTestUCommonInternals Common user-space routines
+   @defgroup NetTestUCommonDFS Common user-space routines
    @ingroup NetTestDFS
 
    @see @ref net-test
@@ -48,7 +48,7 @@ void c2_net_test_u_print_time(char *name, c2_time_t time);
 void c2_net_test_u_lnet_info(void);
 
 /**
-   @} end of NetTestUCommonInternals group
+   @} end of NetTestUCommonDFS group
  */
 
 /*
