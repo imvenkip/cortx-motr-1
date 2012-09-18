@@ -572,8 +572,7 @@ int c2_rpc_conn_establish_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 	C2_ASSERT(C2_IN(c2_rpc_conn_state_get(conn), (C2_RPC_CONN_ACTIVE,
 						      C2_RPC_CONN_FAILED)));
 
-	return c2_rpc_conn_state_get(conn) == C2_RPC_CONN_ACTIVE ? 0 :
-								   conn->c_rc;
+	return conn->c_rc;;
 }
 C2_EXPORTED(c2_rpc_conn_establish_sync);
 
@@ -732,8 +731,7 @@ int c2_rpc_conn_terminate_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec)
 	C2_ASSERT(C2_IN(c2_rpc_conn_state_get(conn), (C2_RPC_CONN_TERMINATED,
 						      C2_RPC_CONN_FAILED)));
 
-	return c2_rpc_conn_state_get(conn) == C2_RPC_CONN_TERMINATED ?
-					      0 : conn->c_rc;
+	return conn->c_rc;;
 }
 C2_EXPORTED(c2_rpc_conn_terminate_sync);
 
@@ -1127,7 +1125,7 @@ void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn)
 	C2_ASSERT(c2_rpc_conn_state_get(conn) == C2_RPC_CONN_TERMINATING);
 
 	c2_rpc_conn_state_set(conn, C2_RPC_CONN_TERMINATED);
-	conn->c_rc    = 0;
+	conn->c_rc = 0;
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
