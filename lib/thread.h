@@ -90,6 +90,7 @@ enum c2_thread_state {
    any moment, except for the possible resource leak in the case of running (and
    not yet joined) thread.
  */
+#define DEFAULT_TD_IS_AWKWARD	false
 struct c2_thread_data {
         bool td_is_awkward;
 };

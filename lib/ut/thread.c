@@ -234,6 +234,44 @@ struct c2_ub_set c2_thread_ub = {
 	}
 };
 
+static void set_and_check_td_is_awkward(bool val)
+{
+	c2_set_awkward(val);
+
+	C2_UT_ASSERT(c2_is_awkward() == val);
+}
+
+static void ut_t0_handler1(int arg)
+{
+	/* check default value */
+	C2_UT_ASSERT(c2_is_awkward() == DEFAULT_TD_IS_AWKWARD);
+
+	/* set and check new value */
+	set_and_check_td_is_awkward(!DEFAULT_TD_IS_AWKWARD);
+}
+
+void test_thread_specific_data_is_awkward(void)
+{
+	int result;
+
+	result = C2_THREAD_INIT(&t[0], int, NULL, &ut_t0_handler1,
+				0, "ut_t0_handler1");
+	C2_UT_ASSERT(result == 0);
+
+	c2_thread_join(&t[0]);
+	c2_thread_fini(&t[0]);
+}
+
+const struct c2_test_suite thread_ut = {
+	.ts_name = "thread-ut",
+	.ts_init = NULL,
+	.ts_fini = NULL,
+	.ts_tests = {
+		{ "thread_specific_data_is_awkward",
+		  test_thread_specific_data_is_awkward },
+		{ NULL, NULL }
+	}
+};
 
 /*
  *  Local variables:

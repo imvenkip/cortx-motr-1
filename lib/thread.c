@@ -33,7 +33,7 @@ static int thread_data_init(c2_bcount_t size);
 static void thread_data_fini(void);
 
 #define THREAD_DATA_INIT(ptr)					\
-	((struct c2_thread_data *)ptr)->td_is_awkward = false;
+	((struct c2_thread_data *)ptr)->td_is_awkward = DEFAULT_TD_IS_AWKWARD;
 
 #define THREAD_DATA_SIZE sizeof(struct c2_thread_data)
 
@@ -67,15 +67,10 @@ int c2_thread_init(struct c2_thread *q, int (*init)(void *),
 	if (result == 0 && q->t_init != NULL) {
 		c2_semaphore_down(&q->t_wait);
 		result = q->t_initrc;
-		if (result != 0) {
- 		 	 /* Allocate thread-specific data. */
-			result = thread_data_init(THREAD_DATA_SIZE);
-			if (result != 0)
-				return result;
-
+		if (result != 0)
 			c2_thread_join(q);
-		}
 	}
+
 	if (result != 0)
 		q->t_state = TS_PARKED;
 	return result;
@@ -89,19 +84,27 @@ void *c2_thread_trampoline(void *arg)
 	C2_ASSERT(t->t_state == TS_RUNNING);
 	C2_ASSERT(t->t_initrc == 0);
 
-	if (t->t_init != NULL) {
+	if (t->t_init != NULL)
 		t->t_initrc = t->t_init(t->t_arg);
-		c2_semaphore_up(&t->t_wait);
-	}
+
+  	/* Allocate thread-specific data. */
+	if (t->t_initrc == 0)
+		t->t_initrc = thread_data_init(THREAD_DATA_SIZE);
+
+	c2_semaphore_up(&t->t_wait);
+
 	if (t->t_initrc == 0)
 		t->t_func(t->t_arg);
+
+	/* Free thread data on exit. */
+	thread_data_fini();
+
 	return NULL;
 }
 
 void c2_thread_fini(struct c2_thread *q)
 {
 	C2_PRE(q->t_state == TS_PARKED);
-	thread_data_fini();
 	c2_semaphore_fini(&q->t_wait);
 	C2_SET0(q);
 }
