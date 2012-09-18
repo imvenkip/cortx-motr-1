@@ -382,7 +382,7 @@ static void conn_list_fini(struct c2_list *list)
         struct c2_rpc_conn *conn_next;
 
         C2_PRE(list != NULL);
-
+//Nachiket: This shall be replaced.
         c2_list_for_each_entry_safe(list, conn, conn_next, struct c2_rpc_conn,
 				    c_link) {
                 c2_rpc_conn_terminate_reply_sent(conn);
@@ -683,6 +683,9 @@ c2_time_t c2_rpc_avg_item_time(struct c2_rpc_machine *machine,
 	return stats->rs_cumu_lat / stats->rs_items_nr;
 }
 
+C2_TL_DEFINE(rpc_conn, "", struct c2_rpc_conn);
+C2_TL_DESCR_DEFINE(rpc_conn, "rpc_conn", "", struct c2_rpc_conn, c_link,
+		   c_magic, C2_RPC_CONN_MAGIC, C2_RPC_CONN_HEAD_MAGIC);
 /** @} end of rpc-layer-core group */
 
 /*

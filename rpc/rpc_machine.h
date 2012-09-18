@@ -38,6 +38,7 @@
 
 #include "addb/addb.h"
 #include "rpc/formation2.h"  /* c2_rpc_frm         */
+#include "rpc/session.h"     /* c2_rpc_conn */
 #include "net/net.h"         /* c2_net_transfer_mc, c2_net_domain */
 
 /**
@@ -97,8 +98,8 @@ struct c2_rpc_machine {
 	/** List of rpc connections
 	    conn is in list if conn->c_state is not in {CONN_UNINITIALIZED,
 	    CONN_FAILED, CONN_TERMINATED} */
-	struct c2_list			  rm_incoming_conns;
-	struct c2_list			  rm_outgoing_conns;
+	struct c2_tl			  rm_incoming_conns;
+	struct c2_tl			  rm_outgoing_conns;
 	/** ADDB context for this rpc_machine */
 	struct c2_addb_ctx		  rm_addb;
 	/** Statistics for both incoming and outgoing paths */
@@ -264,6 +265,9 @@ static bool frm_rmachine_is_locked(const struct c2_rpc_frm *frm)
 }
 
 C2_BOB_DECLARE(extern, c2_rpc_machine);
+
+C2_TL_DESCR_DECLARE(rpc_conn, extern);
+C2_TL_DECLARE(rpc_conn, extern, struct c2_rpc_conn);
 
 /** @} end name stat_ifs */
 

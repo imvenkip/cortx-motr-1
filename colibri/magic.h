@@ -349,6 +349,12 @@ enum c2_magic_satchel {
 	/* packet_item_tl::td_head_magic (falloff eagle) */
 	C2_RPC_PACKET_HEAD_MAGIC = 0x33fa110ffea91e77,
 
+	/* c2_rpc_conn::c_magic (classic alibi) */
+	C2_RPC_CONN_MAGIC = 0x33c1a551ca11b1,
+
+	/* rpc_conn_tl::td_head_magic (bloodless god) */
+	C2_RPC_CONN_HEAD_MAGIC = 0x33b100d1e5590d,
+
 /* Trace */
 	/* c2_trace_rec_header::trh_magic (foldable doll) */
 	C2_TRACE_MAGIC = 0x33f01dab1ed01177,

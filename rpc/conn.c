@@ -115,7 +115,7 @@ static const struct c2_rpc_item_ops conn_terminate_item_ops = {
 bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 {
 	struct c2_rpc_session *session0;
-	struct c2_list        *conn_list;
+	struct c2_tl          *conn_list;
 	int                    s0nr; /* Number of sessions with id == 0 */
 	bool                   sender_end;
 	bool                   recv_end;
@@ -134,7 +134,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 
 	/* conditions that should be true irrespective of conn state */
 	ok = sender_end != recv_end &&
-	     c2_list_contains(conn_list, &conn->c_link) &&
+	     rpc_conn_list_contains(conn_list, &conn->c_link) &&
 	     c2_list_invariant(&conn->c_sessions) &&
 	     c2_list_length(&conn->c_sessions) == conn->c_nr_sessions &&
 	     c2_is_po2(conn->c_state) &&

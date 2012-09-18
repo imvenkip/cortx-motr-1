@@ -716,7 +716,7 @@ find_conn(const struct c2_rpc_machine *machine,
 
 	sref = &item->ri_slot_refs[0];
 	use_uuid = (sref->sr_sender_id == SENDER_ID_INVALID);
-
+//Nachiket: Replace c2_list with c2_tlist
 	c2_list_for_each_entry(conn_list, conn, struct c2_rpc_conn, c_link) {
 
 		if (use_uuid) {

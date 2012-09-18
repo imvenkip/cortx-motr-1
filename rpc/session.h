@@ -544,6 +544,9 @@ struct c2_rpc_conn {
 	    is broadcast
 	 */
 	struct c2_cond            c_state_changed;
+
+	/** Magic number */
+	uint64_t		  c_magic;
 };
 
 /**
