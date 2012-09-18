@@ -32,74 +32,31 @@
    - @ref net-test-fspec-ds
    - @ref net-test-fspec-sub
    - @ref net-test-fspec-cli
-     - @ref net-test-fspec-cli-node "Linux kernel module"
+     - @ref net-test-fspec-cli-node-kernel
      - @subpage net-test-fspec-cli-node-user "Userspace node"
      - @subpage net-test-fspec-cli-console "Console"
    - @ref net-test-fspec-usecases
-     - @ref net-test-fspec-usecases-kernel "Linux kernel module"
+     - @ref net-test-fspec-usecases-kernel
      - @ref net-test-fspec-usecases-console "Console"
    - @ref NetTestDFS "Detailed Functional Specification"
    - @ref NetTestInternals "Internals"
 
    @section net-test-fspec-ds Data Structures
 
-   - c2_net_test_stats
-   - c2_net_test_ctx
+   @see @ref NetTestDFS
 
-   @todo update this section
    @section net-test-fspec-sub Subroutines
-   @todo update this section
+   @see @ref NetTestDFS
 
    @subsection net-test-fspec-sub-cons Constructors and Destructors
 
-   - c2_net_test_main()
-   - c2_net_test_config_init()
-   - c2_net_test_config_fini()
-   - c2_net_test_stats_reset()
-   - c2_net_test_stats_fini()
-   - c2_net_test_client_init()
-   - c2_net_test_client_fini()
-   - c2_net_test_server_init()
-   - c2_net_test_server_fini()
-   - c2_net_test_network_init()
-   - c2_net_test_network_fini()
-   - c2_net_test_network_ctx_init()
-   - c2_net_test_network_ctx_fini()
-
    @subsection net-test-fspec-sub-acc Accessors and Invariants
-
-   - c2_net_test_config_invariant()
 
    @subsection net-test-fspec-sub-opi Operational Interfaces
 
-   - c2_net_test_stats_add()
-   - c2_net_test_stats_add_stats()
-   - c2_net_test_stats_min()
-   - c2_net_test_stats_max()
-   - c2_net_test_stats_avg()
-   - c2_net_test_stats_stddev()
-   - c2_net_test_stats_count()
-
-   - c2_net_test_client_start()
-   - c2_net_test_client_stop()
-   - c2_net_test_server_start()
-   - c2_net_test_server_stop()
-
-   - c2_net_test_network_ep_add()
-   - c2_net_test_network_msg_send()
-   - c2_net_test_network_msg_recv()
-   - c2_net_test_network_bulk_send_passive()
-   - c2_net_test_network_bulk_recv_passive()
-   - c2_net_test_network_bulk_send_active()
-   - c2_net_test_network_bulk_recv_active()
-
-   - c2_net_test_commands_send()
-   - c2_net_test_commands_wait()
-
    @section net-test-fspec-cli Command Usage
 
-   @subsection net-test-fspec-cli-node \
-	   Kernel module options for the test client/server kernel module.
+   @subsection net-test-fspec-cli-node-kernel Kernel module options
 
    - @b node_role Node role. Mandatory option.
      - @b client Program will act as test client.
