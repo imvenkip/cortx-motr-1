@@ -580,12 +580,12 @@ static void node_thread(struct c2_net_test_node_ctx *ctx)
 
 	/* wait for INIT command */
 	C2_SET0(&cmd);
-	rc = node_cmd_wait(ctx, &cmd, C2_NET_TEST_CMD_INIT);
+	ctx->ntnc_errno = node_cmd_wait(ctx, &cmd, C2_NET_TEST_CMD_INIT);
 	if (ctx->ntnc_exit_flag) {
 		c2_net_test_commands_received_free(&cmd);
 		return;
 	}
-	if ((ctx->ntnc_errno = rc) != 0)
+	if (ctx->ntnc_errno != 0)
 		return;
 	/* we have configuration; initialize test service */
 	svc_ops = service_ops_get(&cmd);

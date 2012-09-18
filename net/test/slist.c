@@ -65,6 +65,7 @@ int c2_net_test_slist_init(struct c2_net_test_slist *slist,
 	char  *str1;
 	size_t len = 0;
 	size_t i = 0;
+	bool   allocated;
 
 	C2_PRE(slist != NULL);
 	C2_PRE(str   != NULL);
@@ -78,7 +79,8 @@ int c2_net_test_slist_init(struct c2_net_test_slist *slist,
 	if (len != 0) {
 		slist->ntsl_nr++;
 
-		if (!slist_alloc(slist, slist->ntsl_nr, len + 1))
+		allocated = slist_alloc(slist, slist->ntsl_nr, len + 1);
+		if (!allocated)
 			return -ENOMEM;
 
 		strncpy(slist->ntsl_str, str, len + 1);
@@ -188,6 +190,7 @@ static c2_bcount_t slist_decode(struct c2_net_test_slist *slist,
 	c2_bcount_t	    len;
 	c2_bcount_t	    len_total;
 	size_t		    i;
+	bool		    allocated;
 
 
 	len_total = c2_net_test_serialize(C2_NET_TEST_DESERIALIZE, &sp,
@@ -202,7 +205,8 @@ static c2_bcount_t slist_decode(struct c2_net_test_slist *slist,
 	if (slist->ntsl_nr == 0)
 		return len_total;
 
-	if (!slist_alloc(slist, sp.sp_nr, sp.sp_len + 1))
+	allocated = slist_alloc(slist, sp.sp_nr, sp.sp_len + 1);
+	if (!allocated)
 		return 0;
 
 	len = c2_net_test_serialize_data(C2_NET_TEST_DESERIALIZE, slist->ntsl_str,

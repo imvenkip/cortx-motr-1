@@ -108,11 +108,11 @@ cmd_status_data_serialize(enum c2_net_test_serialize_op op,
 	if (op == C2_NET_TEST_DESERIALIZE)
 		C2_SET0(status_data);
 
-	len = c2_net_test_serialize(op, status_data,
-			USE_TYPE_DESCR(c2_net_test_cmd_status_data),
-			bv, offset);
-	if ((len_total = len) == 0)
-		return len;
+	len_total = len = c2_net_test_serialize(op, status_data,
+			  USE_TYPE_DESCR(c2_net_test_cmd_status_data),
+			  bv, offset);
+	if (len == 0)
+		return 0;
 
 	for (i = 0; i < 2 && len != 0; ++i) {
 		msg_nr = status_data == NULL ? NULL :
@@ -401,17 +401,19 @@ static int commands_initfini(struct c2_net_test_cmd_ctx *ctx,
 	if (rc != 0)
 		goto free_buf_status;
 
-	for (i = 0; i < ep_list->ntsl_nr; ++i)
-		if ((rc = c2_net_test_network_ep_add(&ctx->ntcc_net,
-						ep_list->ntsl_list[i])) < 0)
+	for (i = 0; i < ep_list->ntsl_nr; ++i) {
+		rc = c2_net_test_network_ep_add(&ctx->ntcc_net,
+						ep_list->ntsl_list[i]);
+		if (rc < 0)
 			goto free_net_ctx;
-	for (i = 0; i < ctx->ntcc_ep_nr; ++i)
-		if ((rc = commands_recv_enqueue(ctx,
-						ctx->ntcc_ep_nr + i)) < 0) {
+	}
+	for (i = 0; i < ctx->ntcc_ep_nr; ++i) {
+		rc = commands_recv_enqueue(ctx, ctx->ntcc_ep_nr + i);
+		if (rc != 0) {
 			commands_recv_dequeue_nr(ctx, i);
 			goto free_net_ctx;
 		}
-
+	}
 	C2_POST(c2_net_test_commands_invariant(ctx));
 	rc = 0;
 	goto success;

@@ -38,7 +38,7 @@
 
 /**
    @page net-test-fspec-cli-console Test console command line parameters
-   @todo Now obsolete.
+   @todo Update obsoleted options.
 
    Installing/uninstalling test suite (kernel modules, scripts etc.)
    to/from remote host:
@@ -331,20 +331,27 @@ static void print_status_data(struct c2_net_test_cmd_status_data *sd)
 static int console_run(struct c2_net_test_console_ctx *ctx)
 {
 	c2_time_t status_interval = C2_TIME(1, 0);
+	bool good;
 
-	if (!console_step(ctx, C2_NET_TEST_ROLE_SERVER, C2_NET_TEST_CMD_INIT,
-			  "INIT => test servers", "test servers => INIT DONE"))
+	good = console_step(ctx, C2_NET_TEST_ROLE_SERVER, C2_NET_TEST_CMD_INIT,
+			    "INIT => test servers",
+			    "test servers => INIT DONE");
+	if (!good)
 		return -ENETUNREACH;
-	if (!console_step(ctx, C2_NET_TEST_ROLE_CLIENT, C2_NET_TEST_CMD_INIT,
-			  "INIT => test clients", "test clients => INIT DONE"))
+	good = console_step(ctx, C2_NET_TEST_ROLE_CLIENT, C2_NET_TEST_CMD_INIT,
+			    "INIT => test clients",
+			    "test clients => INIT DONE");
+	if (!good)
 		return -ENETUNREACH;
-	if (!console_step(ctx, C2_NET_TEST_ROLE_SERVER, C2_NET_TEST_CMD_START,
-			  "START => test servers",
-			  "test servers => START DONE"))
+	good = console_step(ctx, C2_NET_TEST_ROLE_SERVER, C2_NET_TEST_CMD_START,
+			    "START => test servers",
+			    "test servers => START DONE");
+	if (!good)
 		return -ENETUNREACH;
-	if (!console_step(ctx, C2_NET_TEST_ROLE_CLIENT, C2_NET_TEST_CMD_START,
-			  "START => test clients",
-			  "test clients => START DONE"))
+	good = console_step(ctx, C2_NET_TEST_ROLE_CLIENT, C2_NET_TEST_CMD_START,
+			    "START => test clients",
+			    "test clients => START DONE");
+	if (!good)
 		return -ENETUNREACH;
 	do {
 		/** @todo can be interrupted */
@@ -356,16 +363,19 @@ static int console_run(struct c2_net_test_console_ctx *ctx)
 			print_status_data(ctx->ntcc_clients.ntcrc_sd);
 		}
 	} while (!ctx->ntcc_clients.ntcrc_sd->ntcsd_finished);
-	if (!console_step(ctx, C2_NET_TEST_ROLE_SERVER,
-			  C2_NET_TEST_CMD_STATUS, NULL, NULL))
+	good = console_step(ctx, C2_NET_TEST_ROLE_SERVER,
+			  C2_NET_TEST_CMD_STATUS, NULL, NULL);
+	if (!good)
 		return -ENETUNREACH;
-	if (!console_step(ctx, C2_NET_TEST_ROLE_SERVER, C2_NET_TEST_CMD_STOP,
-			  "STOP => test servers",
-			  "test servers => STOP DONE"))
+	good = console_step(ctx, C2_NET_TEST_ROLE_SERVER, C2_NET_TEST_CMD_STOP,
+			    "STOP => test servers",
+			    "test servers => STOP DONE");
+	if (!good)
 		return -ENETUNREACH;
-	if (!console_step(ctx, C2_NET_TEST_ROLE_CLIENT, C2_NET_TEST_CMD_STOP,
-			  "STOP => test clients",
-			  "test clients => STOP DONE"))
+	good = console_step(ctx, C2_NET_TEST_ROLE_CLIENT, C2_NET_TEST_CMD_STOP,
+			    "STOP => test clients",
+			    "test clients => STOP DONE");
+	if (!good)
 		return -ENETUNREACH;
 	PRINT("clients: ");
 	print_status_data(ctx->ntcc_clients.ntcrc_sd);

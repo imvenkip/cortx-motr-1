@@ -261,7 +261,8 @@ size_t c2_net_test_console_cmd(struct c2_net_test_console_ctx *ctx,
 			continue;
 		rcvd_nr++;
 		/* reject unknown sender */
-		if ((j = cmd.ntc_ep_index) < 0)
+		j = cmd.ntc_ep_index;
+		if (j < 0)
 			goto reuse_cmd;
 		/* reject unexpected command type */
 		if (cmd.ntc_type != answer[cmd_type])
@@ -274,10 +275,10 @@ size_t c2_net_test_console_cmd(struct c2_net_test_console_ctx *ctx,
 		if (answer[cmd_type] == C2_NET_TEST_CMD_STATUS_DATA) {
 			status_data_add(sd, &cmd.ntc_status_data);
 			success_nr++;
-		} else if ((rctx->ntcrc_status[j] =
-			    cmd.ntc_done.ntcd_errno) == 0) {
-			/* if received errno == 0 */
-			success_nr++;
+		} else {
+			rctx->ntcrc_status[j] = cmd.ntc_done.ntcd_errno;
+			if (rctx->ntcrc_status[j] == 0)
+				success_nr++;
 		}
 		/*
 		 * @todo console user can't recover from this error -

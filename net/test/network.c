@@ -589,6 +589,7 @@ uint32_t c2_net_test_network_bd_count(struct c2_net_test_network_ctx *ctx,
 	c2_bcount_t		buf_len;
 	c2_bcount_t		passive_len;
 	int32_t			desc_len;
+	bool			decoded;
 
 	C2_PRE(c2_net_test_network_ctx_invariant(ctx));
 	C2_PRE(buf_ping_index < ctx->ntc_buf_ping_nr);
@@ -600,8 +601,9 @@ uint32_t c2_net_test_network_bd_count(struct c2_net_test_network_ctx *ctx,
 	offset  = 0;
 	buf_len = buf_ping->nb_length;
 	while (offset < buf_len) {
-		if (!buf_desc_decode(&cur_buf, offset, buf_len, &passive_len,
-				     &desc_len))
+		decoded = buf_desc_decode(&cur_buf, offset, buf_len,
+					  &passive_len, &desc_len);
+		if (!decoded)
 			break;
 		result++;
 		c2_bufvec_cursor_move(&cur_buf, desc_len);
@@ -680,6 +682,7 @@ int c2_net_test_network_bd_decode(struct c2_net_test_network_ctx *ctx,
 	c2_bcount_t		offset;
 	int32_t			desc_len;
 	c2_bcount_t		rc_bcount;
+	bool			decoded;
 
 	C2_PRE(c2_net_test_network_ctx_invariant(ctx));
 	C2_PRE(buf_bulk_index < ctx->ntc_buf_bulk_nr);
@@ -694,8 +697,9 @@ int c2_net_test_network_bd_decode(struct c2_net_test_network_ctx *ctx,
 
 	offset  = buf_ping->nb_offset + buf_ping->nb_length;
 	buf_ping_len = c2_vec_count(&buf_ping->nb_buffer.ov_vec);
-	if (!buf_desc_decode(&cur_buf,
-			offset, buf_ping_len, &passive_len, &desc_len))
+	decoded = buf_desc_decode(&cur_buf, offset, buf_ping_len,
+				  &passive_len, &desc_len);
+	if (!decoded)
 		return -EBADMSG;
 
 	if (passive_len > c2_vec_count(&buf_bulk->nb_buffer.ov_vec))

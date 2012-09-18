@@ -336,10 +336,14 @@ static void node_ping_buf_enqueue(struct node_ping_ctx *ctx,
 {
 	struct c2_net_test_network_ctx *nctx = &ctx->npc_net;
 	struct buf_state	       *bs = &ctx->npc_buf_state[buf_index];
+	bool				decreased;
 
 	C2_PRE(ergo(ep != NULL, q == C2_NET_QT_MSG_SEND));
 
-	if (!c2_semaphore_trydown(&ctx->npc_buf_q_sem)) {
+	decreased = c2_semaphore_trydown(&ctx->npc_buf_q_sem);
+	if (!decreased) {
+		/* worker thread is stopping */
+		C2_ASSERT(ctx->npc_buf_rb_done);
 		bs->bs_errno = -EWOULDBLOCK;
 		return;
 	}
@@ -409,7 +413,8 @@ static void node_ping_client_cb2(struct node_ping_ctx *ctx,
 
 	C2_PRE(bs->bs_cb_nr == 0 || bs->bs_cb_nr == 1);
 
-	if (++bs->bs_cb_nr != 2) {
+	++bs->bs_cb_nr;
+	if (bs->bs_cb_nr != 2) {
 		node_ping_to_add(ctx, buf_index);
 	} else {
 		node_ping_to_del(ctx, buf_index);
@@ -427,6 +432,7 @@ static bool node_ping_client_recv_cb(struct node_ping_ctx *ctx,
 	struct buf_state	     *bs_send = NULL;
 	ssize_t			      server_index;
 	ssize_t			      buf_index_send;
+	bool			      decoded;
 
 	C2_PRE(ctx != NULL && ctx->npc_client != NULL);
 	C2_PRE(buf_index >= ctx->npc_buf_nr / 2 &&
@@ -443,7 +449,8 @@ static bool node_ping_client_recv_cb(struct node_ping_ctx *ctx,
 	if (server_index == -1)
 		goto bad_buf;
 	/* decode buffer */
-	if (!node_ping_timestamp_get(&ctx->npc_net, buf_index, &ts))
+	decoded = node_ping_timestamp_get(&ctx->npc_net, buf_index, &ts);
+	if (!decoded)
 		goto bad_buf;
 	/* check time in received buffer */
 	if (!c2_time_after_eq(bs->bs_time, ts.ntt_time))
@@ -559,6 +566,8 @@ static void node_ping_client_handle(struct node_ping_ctx *ctx,
 				    struct buf_state *bs,
 				    size_t buf_index)
 {
+	bool good_buf;
+
 	C2_PRE(ctx != NULL);
 	C2_PRE(bs != NULL);
 
@@ -575,7 +584,8 @@ static void node_ping_client_handle(struct node_ping_ctx *ctx,
 			node_ping_buf_enqueue_recv(ctx, buf_index);
 		} else {
 			/* buffer was successfully received from test server */
-			if (node_ping_client_recv_cb(ctx, bs, buf_index))
+			good_buf = node_ping_client_recv_cb(ctx, bs, buf_index);
+			if (good_buf)
 				node_ping_client_cb2(ctx, bs->bs_index_pair);
 		}
 	}
@@ -692,9 +702,10 @@ static void node_ping_rb_fill(struct node_ping_ctx *ctx)
 static int node_ping_test_init_fini(struct node_ping_ctx *ctx,
 				    const struct c2_net_test_cmd *cmd)
 {
-	struct c2_net_test_network_timeouts timeouts;
-	int				    rc;
-	int				    i;
+	struct c2_net_test_network_timeouts  timeouts;
+	int				     rc;
+	int				     i;
+	char				    *ep_addr;
 
 	if (cmd == NULL) {
 		rc = 0;
@@ -704,12 +715,14 @@ static int node_ping_test_init_fini(struct node_ping_ctx *ctx,
 			goto exit;
 	}
 
-	if ((rc = c2_semaphore_init(&ctx->npc_buf_q_sem, ctx->npc_buf_nr)) != 0)
+	rc = c2_semaphore_init(&ctx->npc_buf_q_sem, ctx->npc_buf_nr);
+	if (rc != 0)
 		goto exit;
-	if ((rc = c2_semaphore_init(&ctx->npc_buf_rb_sem, 0)) != 0)
+	rc = c2_semaphore_init(&ctx->npc_buf_rb_sem, 0);
+	if (rc != 0)
 		goto free_buf_q_sem;
-	if ((rc = c2_net_test_ringbuf_init(&ctx->npc_buf_rb,
-					   ctx->npc_buf_nr)) != 0)
+	rc = c2_net_test_ringbuf_init(&ctx->npc_buf_rb, ctx->npc_buf_nr);
+	if (rc != 0)
 		goto free_buf_rb_sem;
 	C2_ALLOC_ARR(ctx->npc_buf_state, ctx->npc_buf_nr);
 	if (ctx->npc_buf_state == NULL)
@@ -731,8 +744,9 @@ static int node_ping_test_init_fini(struct node_ping_ctx *ctx,
 		goto free_buf_state;
 	/* add test node endpoints to the network context endpoint list */
 	for (i = 0; i < cmd->ntc_init.ntci_ep.ntsl_nr; ++i) {
-		if ((rc = c2_net_test_network_ep_add(&ctx->npc_net,
-				cmd->ntc_init.ntci_ep.ntsl_list[i])) < 0)
+		ep_addr = cmd->ntc_init.ntci_ep.ntsl_list[i];
+		rc = c2_net_test_network_ep_add(&ctx->npc_net, ep_addr);
+		if (rc < 0)
 			goto fini;
 	}
 	if (ctx->npc_node_role == C2_NET_TEST_ROLE_CLIENT) {
