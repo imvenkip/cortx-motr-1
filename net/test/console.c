@@ -263,7 +263,10 @@ size_t c2_net_test_console_cmd(struct c2_net_test_console_ctx *ctx,
 		/* reject unexpected command type */
 		if (cmd.ntc_type != answer[cmd_type])
 			goto reuse_cmd;
-		/* reject command from node, which can't have incoming cmd */
+		/*
+		 * reject command from node, which can't have outgoing cmd
+		 * because c2_net_test_commands_send() to this node failed.
+		 */
 		C2_ASSERT(j < nodes->ntsl_nr);
 		if (rctx->ntcrc_errno[j] != 0)
 			goto reuse_cmd;
