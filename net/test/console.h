@@ -50,13 +50,28 @@ struct c2_net_test_console_cfg {
 	char			*ntcc_addr_console4servers;
 	/** Console commands endpoint address for the test clients */
 	char			*ntcc_addr_console4clients;
-	/** List of server command endpoints */
+	/**
+	 * List of test server command endpoints.
+	 * Test console will use this endpoints for sending/receiving
+	 * commands to/from test servers.
+	 */
 	struct c2_net_test_slist ntcc_servers;
-	/** List of client command endpoints */
+	/**
+	 * List of test client command endpoints.
+	 * @see c2_net_test_console_cfg.ntcc_servers
+	 */
 	struct c2_net_test_slist ntcc_clients;
-	/** List of server command endpoints */
+	/**
+	 * List of test server data endpoints.
+	 * Every test server will create one transfer machine with endpoint
+	 * from this list. Every test client will send/receive test messages
+	 * to/from all test server data endpoints.
+	 */
 	struct c2_net_test_slist ntcc_data_servers;
-	/** List of client command endpoints */
+	/**
+	 * List of test client data endpoints.
+	 * @see c2_net_test_console_cfg.ntcc_data_servers
+	 */
 	struct c2_net_test_slist ntcc_data_clients;
 	/** Commands send timeout for the test nodes */
 	c2_time_t		 ntcc_cmd_send_timeout;
