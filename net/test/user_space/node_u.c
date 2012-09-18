@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
 	struct c2_net_test_node_cfg cfg = {
 		.ntnc_addr	   = NULL,
 		.ntnc_addr_console = NULL,
-		.ntnc_send_timeout = C2_TIME(3, 0),
+		.ntnc_send_timeout = C2_MKTIME(3, 0),
 	};
 
 	PRINT("c2_init()\n");

@@ -326,7 +326,7 @@ static void print_status_data(struct c2_net_test_cmd_status_data *sd)
 
 static int console_run(struct c2_net_test_console_ctx *ctx)
 {
-	c2_time_t status_interval = C2_TIME(1, 0);
+	c2_time_t status_interval = C2_MKTIME(1, 0);
 	bool good;
 
 	good = console_step(ctx, C2_NET_TEST_ROLE_SERVER, C2_NET_TEST_CMD_INIT,
@@ -387,10 +387,10 @@ int main(int argc, char *argv[])
 	struct c2_net_test_console_cfg cfg = {
 		.ntcc_addr_console4servers = NULL,
 		.ntcc_addr_console4clients = NULL,
-		.ntcc_cmd_send_timeout     = C2_TIME(3, 0),
-		.ntcc_cmd_recv_timeout     = C2_TIME(3, 0),
-		.ntcc_buf_send_timeout     = C2_TIME(3, 0),
-		.ntcc_buf_recv_timeout     = C2_TIME(3, 0),
+		.ntcc_cmd_send_timeout     = C2_MKTIME(3, 0),
+		.ntcc_cmd_recv_timeout     = C2_MKTIME(3, 0),
+		.ntcc_buf_send_timeout     = C2_MKTIME(3, 0),
+		.ntcc_buf_recv_timeout     = C2_MKTIME(3, 0),
 		.ntcc_test_type		   = C2_NET_TEST_TYPE_PING,
 		.ntcc_msg_nr		   = 0,
 		.ntcc_msg_size		   = 0,
