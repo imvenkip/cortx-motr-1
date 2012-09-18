@@ -18,10 +18,6 @@
  * Original creation date: 05/19/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/ut.h"		/* c2_test_suite */
 
 #include "net/test/network.h"	/* c2_net_test_network_init */

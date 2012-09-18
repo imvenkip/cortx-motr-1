@@ -18,10 +18,6 @@
  * Original creation date: 07/05/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/ut.h"		/* C2_UT_ASSERT */
 
 #include "net/test/ringbuf.h"

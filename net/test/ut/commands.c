@@ -18,10 +18,6 @@
  * Original creation date: 06/06/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/ut.h"		/* C2_UT_ASSERT */
 #include "lib/misc.h"		/* C2_SET0 */
 #include "lib/semaphore.h"	/* c2_semaphore */

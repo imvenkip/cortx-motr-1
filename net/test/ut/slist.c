@@ -18,10 +18,6 @@
  * Original creation date: 06/06/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/ut.h"		/* C2_UT_ASSERT */
 #include "lib/types.h"		/* c2_bcount_t */
 #include "lib/vec.h"		/* c2_bufvec */

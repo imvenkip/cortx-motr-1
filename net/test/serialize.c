@@ -18,10 +18,6 @@
  * Original creation date: 06/28/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/cdefs.h"		/* container_of */
 #include "lib/misc.h"		/* C2_SET0 */
 #include "lib/memory.h"		/* c2_alloc */

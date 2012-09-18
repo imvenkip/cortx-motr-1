@@ -18,10 +18,6 @@
  * Original creation date: 09/03/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 /* @todo remove */
 #ifndef __KERNEL__
 #include <stdio.h>		/* printf */

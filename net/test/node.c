@@ -1,3 +1,4 @@
+/* -*- C -*- */
 /*
  * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
@@ -16,10 +17,6 @@
  * Original author: Maxim Medved <max_medved@xyratex.com>
  * Original creation date: 03/22/2012
  */
-
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
 
 /* @todo remove */
 #ifndef __KERNEL__

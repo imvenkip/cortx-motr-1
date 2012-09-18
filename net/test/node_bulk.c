@@ -18,10 +18,6 @@
  * Original creation date: 09/03/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/errno.h"		/* ENOSYS */
 
 #include "net/test/network.h"	/* c2_net_test_network_ctx */

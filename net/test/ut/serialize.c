@@ -18,10 +18,6 @@
  * Original creation date: 06/28/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #ifndef __KERNEL__
 #include <limits.h>		/* CHAR_MAX */
 #else

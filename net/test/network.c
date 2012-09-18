@@ -18,10 +18,6 @@
  * Original creation date: 03/22/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #ifdef __KERNEL__
 #include <linux/kernel.h>	/* snprintf() */
 #else

@@ -18,10 +18,6 @@
  * Original creation date: 03/22/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/misc.h"		/* C2_SET0 */
 #include "lib/arith.h"		/* min_check */
 

@@ -18,10 +18,6 @@
  * Original creation date: 08/18/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include <math.h>	/* sqrt */
 #include "lib/types.h"	/* UINT64_MAX */
 #include "lib/assert.h"	/* C2_PRE */

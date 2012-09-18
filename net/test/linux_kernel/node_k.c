@@ -18,10 +18,6 @@
  * Original creation date: 4/10/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 /* @todo proper kernel module init */
 /* node_config_k.h */
 #if 0

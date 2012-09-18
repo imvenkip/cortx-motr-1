@@ -18,10 +18,6 @@
  * Original creation date: 07/05/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 /** @todo create lib/limits.h */
 #ifndef __KERNEL__
 #include <limits.h>		/* ULONG_MAX */

@@ -18,10 +18,6 @@
  * Original creation date: 09/15/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include <stdio.h>		/* printf */
 
 #include "lib/time.h"		/* c2_time_t */

@@ -18,10 +18,6 @@
  * Original creation date: 07/02/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/errno.h"	/* ENOMEM */
 #include "lib/misc.h"	/* C2_SET0 */
 #include "lib/memory.h"	/* C2_ALLOC_ARR */

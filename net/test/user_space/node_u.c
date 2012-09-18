@@ -18,10 +18,6 @@
  * Original creation date: 04/30/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include <stdio.h>			/* printf */
 #include <string.h>			/* strlen */
 
