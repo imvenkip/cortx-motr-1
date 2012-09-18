@@ -208,7 +208,7 @@ static void net_test_client_server(const char *nid,
 	/* prepare console config */
 	console_cfg.ntcc_addr_console4servers = addr_console4servers;
 	console_cfg.ntcc_addr_console4clients = addr_console4clients;
-	LOGD("addr_console4servers = %s\n", addr_console4servers);
+	LOGD("\naddr_console4servers = %s\n", addr_console4servers);
 	LOGD("addr_console4clients = %s\n", addr_console4clients);
 	LOGD("clients		   = %s\n", clients);
 	LOGD("servers		   = %s\n", servers);
@@ -259,18 +259,21 @@ static void net_test_client_server(const char *nid,
 					     C2_NET_TEST_CMD_STATUS);
 		C2_UT_ASSERT(rc == clients_nr);
 	} while (!console.ntcc_clients.ntcrc_sd->ntcsd_finished);
-	/* send STATUS command to the test clients */
+	/* send STATUS command to the test servers */
 	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_SERVER,
 				     C2_NET_TEST_CMD_STATUS);
 	C2_UT_ASSERT(rc == servers_nr);
-	msg_nr_print("client sent",
+	msg_nr_print("client sent\t",
 		     &console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_send);
-	msg_nr_print("client received",
+	msg_nr_print("client received\t",
 		     &console.ntcc_clients.ntcrc_sd->ntcsd_msg_nr_recv);
-	msg_nr_print("server sent",
+	msg_nr_print("server sent\t",
 		     &console.ntcc_servers.ntcrc_sd->ntcsd_msg_nr_send);
-	msg_nr_print("server received",
+	msg_nr_print("server received\t",
 		     &console.ntcc_servers.ntcrc_sd->ntcsd_msg_nr_recv);
+	C2_UT_ASSERT(
+		console.ntcc_servers.ntcrc_sd->ntcsd_msg_nr_send.ntmn_total ==
+		console.ntcc_servers.ntcrc_sd->ntcsd_msg_nr_recv.ntmn_total);
 	/* send STOP command to the test clients */
 	rc = c2_net_test_console_cmd(&console, C2_NET_TEST_ROLE_CLIENT,
 				     C2_NET_TEST_CMD_STOP);
@@ -297,7 +300,7 @@ static void net_test_client_server(const char *nid,
 void c2_net_test_client_server_ping_ut(void)
 {
 	net_test_client_server("0@lo", C2_NET_TEST_TYPE_PING,
-			       2, 2, 1, 8, 0x10000, 0x1000);
+			       8, 8, 8, 128, 0x1000, 0x1000);
 	/*
 	net_test_client_server("0@lo", C2_NET_TEST_TYPE_PING,
 			       8, 8, 4, 16, 0x100, 0x100);
