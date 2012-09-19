@@ -196,8 +196,7 @@ void c2_net_test_service_ut(void)
 
 	/* test c2_net_test_service_step()/c2_net_test_service_cmd_handle() */
 	cmd_max = ARRAY_SIZE(service_cmd_called) + 1;
-	for (i = 0; i < SERVICE_ITERATIONS_NR; ++i)
-	{
+	for (i = 0; i < SERVICE_ITERATIONS_NR; ++i) {
 		cmd_index = c2_rnd(cmd_max, &seed);
 		if (cmd_index == cmd_max - 1) {
 			/* step */
