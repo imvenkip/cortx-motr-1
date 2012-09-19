@@ -162,14 +162,13 @@ static void net_test_client_server(const char *nid,
 	struct c2_net_test_console_ctx console;
 	int			       rc;
 	int			       i;
-	c2_time_t		       _1s;
+	c2_time_t		       _1s = C2_MKTIME(1, 0);
 
 	C2_PRE(clients_nr <= NTCS_NODES_MAX);
 	C2_PRE(servers_nr <= NTCS_NODES_MAX);
 	/* prepare config for test clients and test servers */
 	timeout_send = ms2time(NTCS_TIMEOUT_SEND_MS);
 	timeout_recv = ms2time(NTCS_TIMEOUT_RECV_MS);
-	c2_time_set(&_1s, 1, 0);
 	addr_console4clients = addr_get(nid, NTCS_TMID_CONSOLE4CLIENTS);
 	addr_console4servers = addr_get(nid, NTCS_TMID_CONSOLE4SERVERS);
 	clients[0] = '\0';

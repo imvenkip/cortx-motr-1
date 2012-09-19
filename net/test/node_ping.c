@@ -903,7 +903,7 @@ static int node_ping_cmd_start(void *ctx_,
 	struct c2_net_test_cmd_status_data *sd;
 	struct node_ping_ctx		   *ctx = ctx_;
 	int				    rc;
-	c2_time_t			    _1s;
+	c2_time_t			    _1s = C2_MKTIME(1, 0);
 
 	C2_PRE(ctx != NULL);
 	C2_PRE(cmd != NULL);
@@ -917,7 +917,6 @@ static int node_ping_cmd_start(void *ctx_,
 	/* fill test start time */
 	sd->ntcsd_time_start = c2_time_now();
 	/* initialize stats */
-	c2_time_set(&_1s, 1, 0);
 	c2_net_test_mps_init(&sd->ntcsd_mps_send, 0, sd->ntcsd_time_start, _1s);
 	c2_net_test_mps_init(&sd->ntcsd_mps_recv, 0, sd->ntcsd_time_start, _1s);
 	c2_net_test_stats_reset(&sd->ntcsd_rtt);

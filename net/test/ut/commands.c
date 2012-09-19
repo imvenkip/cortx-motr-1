@@ -395,7 +395,7 @@ static void commands_ut_send_all_type(size_t nr,
 		cmd_init->ntci_msg_nr	   = 0x10000;
 		cmd_init->ntci_msg_size	   = 0x100000;
 		cmd_init->ntci_concurrency = 0x100;
-		c2_time_set(&cmd_init->ntci_buf_send_timeout, 2, 3);
+		cmd_init->ntci_buf_send_timeout = C2_MKTIME(2, 3);
 		cmd_init->ntci_tm_ep	   = "0@lo:1:2:3";
 		c2_net_test_slist_init(&cmd_init->ntci_ep, "1,2,3", ',');
 	} else if (type != C2_NET_TEST_CMD_START &&

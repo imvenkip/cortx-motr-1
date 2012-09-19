@@ -198,8 +198,7 @@ static void stats_time_ut(void)
 	c2_net_test_stats_reset(&stats);
 	/* sample: .5s, 1.5s, 2.5s, 3.5s, 4.5s */
 	for (i = 0; i < 5; ++i) {
-		c2_time_set(&time, i, 500000000);
-		c2_net_test_stats_time_add(&stats, time);
+		c2_net_test_stats_time_add(&stats, C2_MKTIME(i, 500000000));
 		stats_serialize_ut(&stats);
 	}
 	/* check */

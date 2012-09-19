@@ -78,13 +78,12 @@ double c2_net_test_stats_stddev(const struct c2_net_test_stats *stats)
 
 static c2_time_t double2c2_time_t(double value)
 {
-	c2_time_t time;
-	uint64_t  seconds;
-	uint64_t  nanoseconds;
+	uint64_t seconds;
+	uint64_t nanoseconds;
 
 	seconds	    = (uint64_t) floor(value / C2_TIME_ONE_BILLION);
 	nanoseconds = (uint64_t) (value - seconds * C2_TIME_ONE_BILLION);
-	return c2_time_set(&time, seconds, nanoseconds);
+	return C2_MKTIME(seconds, nanoseconds);
 }
 
 c2_time_t c2_net_test_stats_time_sum(struct c2_net_test_stats *stats)
