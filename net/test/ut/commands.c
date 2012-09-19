@@ -98,14 +98,18 @@ static void fill_addr(uint32_t nr)
 {
 	char    *pos = addr_node;
 	uint32_t i;
+	int	 diff;
 
 	/* console */
 	make_addr(addr_console, NTC_ADDR_LEN_MAX, NTC_PORTAL,
 		  NTC_TMID_CONSOLE, false);
 	/* nodes */
-	for (i = 0; i < nr; ++i)
-		pos += make_addr(pos, NTC_ADDR_LEN_MAX, NTC_PORTAL,
+	for (i = 0; i < nr; ++i) {
+		diff = make_addr(pos, NTC_ADDR_LEN_MAX, NTC_PORTAL,
 				 NTC_TMID_NODE + i, i != nr - 1);
+		C2_ASSERT(diff < NTC_ADDR_LEN_MAX);
+		pos += diff;
+	}
 }
 
 /**
