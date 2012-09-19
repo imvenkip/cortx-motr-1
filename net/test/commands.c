@@ -95,14 +95,14 @@ cmd_status_data_serialize(enum c2_net_test_serialize_op op,
 			  struct c2_bufvec *bv,
 			  c2_bcount_t offset)
 {
-	c2_bcount_t		   len;
-	c2_bcount_t		   len_total;
-	int			   i;
-	struct c2_net_test_msg_nr *msg_nr[] = {
+	c2_bcount_t			 len;
+	c2_bcount_t			 len_total;
+	int				 i;
+	const struct c2_net_test_msg_nr *msg_nr[] = {
 			&sd->ntcsd_msg_nr_send,
 			&sd->ntcsd_msg_nr_recv,
 	};
-	struct c2_net_test_stats  *stats[] = {
+	const struct c2_net_test_stats  *stats[] = {
 			&sd->ntcsd_mps_send.ntmps_stats,
 			&sd->ntcsd_mps_recv.ntmps_stats,
 			&sd->ntcsd_rtt,
@@ -118,13 +118,13 @@ cmd_status_data_serialize(enum c2_net_test_serialize_op op,
 			  bv, offset);
 
 	for (i = 0; i < ARRAY_SIZE(msg_nr) && len != 0; ++i) {
-		len = c2_net_test_serialize(op, msg_nr[i],
+		len = c2_net_test_serialize(op, (void *) msg_nr[i],
 					    USE_TYPE_DESCR(c2_net_test_msg_nr),
 					    bv, offset + len_total);
 		len_total += len;
 	}
 	for (i = 0; i < ARRAY_SIZE(stats) && len != 0; ++i) {
-		len = c2_net_test_stats_serialize(op, stats[i], bv,
+		len = c2_net_test_stats_serialize(op, (void *) stats[i], bv,
 						  offset + len_total);
 		len_total += len;
 	}
