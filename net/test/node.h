@@ -87,9 +87,9 @@
    Run ping test as test client with 10 test messages to servers s1, s2 and s3.
 
    @code
-   node_role=server test_type=bulk target=c1,c2
+   node_role=server test_type=bulk target=c1,c2 size=128k
    @endcode
-   Run bulk test as test server with 1Mb bulk message size and
+   Run bulk test as test server with 128kB (=131072 bytes) bulk message size and
    test clients c1 and c2.
 
    @see @ref net-test
