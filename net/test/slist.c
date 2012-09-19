@@ -32,7 +32,8 @@
  */
 
 enum {
-	SLIST_SERIALIZE_MAGIC =  0x5453494C535F544E, /* NT_SLIST */
+	/** NT_SLIST @todo move to lib/magic.h */
+	SLIST_SERIALIZE_MAGIC =  0x5453494C535F544E,
 };
 
 static bool slist_alloc(struct c2_net_test_slist *slist,

@@ -82,9 +82,9 @@
  */
 
 enum {
-	/** @todo change after merging to master */
+	/** @todo change after merging to master and move to lib/magic.h */
 	BS_LINK_MAGIC	  = 0x1213141516,
-	/** @todo change after merging to master */
+	/** @todo change after merging to master and move to lib/magic.h */
 	BS_HEAD_MAGIC	  = 0x1718191A1B,
 	/** Timeout checking interval, ms */
 	TO_CHECK_INTERVAL = 10,

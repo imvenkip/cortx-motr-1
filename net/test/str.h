@@ -37,7 +37,8 @@
  */
 
 enum {
-	C2_NET_TEST_STR_MAGIC = 0x474e49525453544e,	/**< NTSTRING */
+	/** NTSTRING @todo move to lib/magic.h */
+	C2_NET_TEST_STR_MAGIC = 0x474e49525453544e,
 };
 
 /**

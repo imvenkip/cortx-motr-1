@@ -77,7 +77,7 @@
  */
 
 enum {
-	/** NT_TIMES */
+	/** NT_TIMES @todo move to lib/magic.h */
 	C2_NET_TEST_TIMESTAMP_MAGIC = 0x53454d49545f544e,
 };
 
