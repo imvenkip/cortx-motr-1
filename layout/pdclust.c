@@ -269,7 +269,7 @@ static int pdclust_populate(struct c2_pdclust_layout *pl,
 	C2_PRE(le != NULL);
 
 	if (N + 2 * K > P) {
-		C2_LOG("pl %p, attr %p, Invalid attributes, rc %d",
+		C2_LOG(C2_ERROR, "pl %p, attr %p, Invalid attributes, rc %d",
 		       pl, attr, -EPROTO);
 		return -EPROTO;
 	}
@@ -427,13 +427,13 @@ static int pdclust_decode(struct c2_layout *l,
 	et = l->l_dom->ld_enum[pl_rec->pr_let_id];
 	if (!IS_IN_ARRAY(pl_rec->pr_let_id, l->l_dom->ld_enum) || et == NULL) {
 		rc = -EPROTO;
-		C2_LOG("lid %llu, unregistered enum type, rc %d",
+		C2_LOG(C2_ERROR, "lid %llu, unregistered enum type, rc %d",
 		       (unsigned long long)l->l_id, rc);
 		goto out;
 	}
 	rc = et->let_ops->leto_allocate(l->l_dom, &e);
 	if (rc != 0) {
-		C2_LOG("lid %llu, leto_allocate() failed, rc %d",
+		C2_LOG(C2_ERROR, "lid %llu, leto_allocate() failed, rc %d",
 		       (unsigned long long)l->l_id, rc);
 		goto out;
 	}
@@ -441,7 +441,7 @@ static int pdclust_decode(struct c2_layout *l,
 	if (rc != 0) {
 		/* Finalise the allocated enum object. */
 		e->le_ops->leo_delete(e);
-		C2_LOG("lid %llu, leo_decode() failed, rc %d",
+		C2_LOG(C2_ERROR, "lid %llu, leo_decode() failed, rc %d",
 		       (unsigned long long)l->l_id, rc);
 		goto out;
 	}
@@ -451,7 +451,7 @@ static int pdclust_decode(struct c2_layout *l,
 	if (rc != 0) {
 		/* Finalise the populated enum object. */
 		e->le_ops->leo_fini(e);
-		C2_LOG("lid %llu, pdclust_populate() failed, rc %d",
+		C2_LOG(C2_ERROR, "lid %llu, pdclust_populate() failed, rc %d",
 		       (unsigned long long)l->l_id, rc);
 	}
 out:
@@ -495,7 +495,7 @@ static int pdclust_encode(struct c2_layout *l,
 	e = pl->pl_base.sl_enum;
 	rc = e->le_ops->leo_encode(e, op, tx, out);
 	if (rc != 0)
-		C2_LOG("lid %llu, leo_encode() failed, rc %d",
+		C2_LOG(C2_ERROR, "lid %llu, leo_encode() failed, rc %d",
 		       (unsigned long long)l->l_id, rc);
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
@@ -804,8 +804,8 @@ err3_injected:
 				c2_layout_get(l);
 			}
 			else
-				C2_LOG("pi %p, c2_parity_math_init() failed, "
-				       "rc %d", pi, rc);
+				C2_LOG(C2_ERROR, "pi %p, c2_parity_math_init()"
+						" failed, rc %d", pi, rc);
 		} else
 			rc = -ENOMEM;
 	} else

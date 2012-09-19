@@ -92,7 +92,7 @@ void c2_rpc_packet_add_item(struct c2_rpc_packet *p,
 	++p->rp_nr_items;
 	p->rp_size += c2_rpc_item_size(item);
 
-	C2_LOG("nr_items: %llu packet size: %llu",
+	C2_LOG(C2_DEBUG, "nr_items: %llu packet size: %llu",
 			(unsigned long long)p->rp_nr_items,
 			(unsigned long long)p->rp_size);
 	C2_ASSERT(c2_rpc_packet_invariant(p));
@@ -111,7 +111,7 @@ void c2_rpc_packet_remove_item(struct c2_rpc_packet *p,
 	--p->rp_nr_items;
 	p->rp_size -= c2_rpc_item_size(item);
 
-	C2_LOG("nr_items: %llu packet size: %llu",
+	C2_LOG(C2_DEBUG, "nr_items: %llu packet size: %llu",
 			(unsigned long long)p->rp_nr_items,
 			(unsigned long long)p->rp_size);
 	C2_ASSERT(c2_rpc_packet_invariant(p));
@@ -125,7 +125,7 @@ void c2_rpc_packet_remove_all_items(struct c2_rpc_packet *p)
 
 	C2_ENTRY("packet: %p", p);
 	C2_PRE(c2_rpc_packet_invariant(p));
-	C2_LOG("nr_items: %d", (int)p->rp_nr_items);
+	C2_LOG(C2_DEBUG, "nr_items: %d", (int)p->rp_nr_items);
 
 	for_each_item_in_packet(item, p)
 		c2_rpc_packet_remove_item(p, item);
@@ -343,7 +343,7 @@ void c2_rpc_packet_traverse_items(struct c2_rpc_packet *p,
 
 	C2_ENTRY("p: %p visit: %p", p, visit);
 	C2_ASSERT(c2_rpc_packet_invariant(p));
-	C2_LOG("nr_items: %u", (unsigned int)p->rp_nr_items);
+	C2_LOG(C2_DEBUG, "nr_items: %u", (unsigned int)p->rp_nr_items);
 
 	for_each_item_in_packet(item, p) {
 		visit(item, opaque_data);

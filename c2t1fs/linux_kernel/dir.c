@@ -236,7 +236,7 @@ static int c2t1fs_dir_ent_add(struct inode        *dir,
 	c2t1fs_dir_ent_init(de, name, namelen, fid);
 	dir_ents_tlist_add_tail(&ci->ci_dir_ents, de);
 
-	C2_LOG("Added name: %s[%lu:%lu]", (char *)de->de_name,
+	C2_LOG(C2_INFO, "Added name: %s[%lu:%lu]", (char *)de->de_name,
 					  (unsigned long)fid->f_container,
 					  (unsigned long)fid->f_key);
 	dget(dentry);     /* See comment C2T1FS_DIR_ENT_ADD_FOOTNOTE1 */
@@ -270,7 +270,8 @@ static bool name_eq(const unsigned char *name, const char *buf, int len)
 	if (len <= C2T1FS_MAX_NAME_LEN && buf[len] != '\0') {
 		rc = false;
 	} else {
-		C2_LOG("buf: \"%s\" name: \"%s\" len: %d", buf, name, len);
+		C2_LOG(C2_DEBUG, "buf: \"%s\" name: \"%s\" len: %d", buf, name
+				, len);
 		rc = (memcmp(name, buf, len) == 0);
 	}
 
@@ -290,7 +291,7 @@ static struct c2t1fs_dir_ent *c2t1fs_dir_ent_find(struct inode        *dir,
 
 	C2_ASSERT(name != NULL && dir != NULL);
 
-	C2_LOG("Name: \"%s\"", name);
+	C2_LOG(C2_DEBUG, "Name: \"%s\"", name);
 
 	ci  = C2T1FS_I(dir);
 	csb = C2T1FS_SB(dir->i_sb);
@@ -323,7 +324,7 @@ static struct dentry *c2t1fs_lookup(struct inode     *dir,
 		return ERR_PTR(-ENAMETOOLONG);
 	}
 
-	C2_LOG("Name: \"%s\"", dentry->d_name.name);
+	C2_LOG(C2_DEBUG, "Name: \"%s\"", dentry->d_name.name);
 
 	csb = C2T1FS_SB(dir->i_sb);
 
@@ -372,19 +373,19 @@ static int c2t1fs_readdir(struct file *f,
 	switch (i) {
 	case 0:
 		ino = dir->i_ino;
-		C2_LOG("i = %d ino = %lu", i, (unsigned long)ino);
+		C2_LOG(C2_DEBUG, "i = %d ino = %lu", i, (unsigned long)ino);
 		if (filldir(buf, ".", 1, i, ino, DT_DIR) < 0)
 			break;
-		C2_LOG("filled: \".\"");
+		C2_LOG(C2_DEBUG, "filled: \".\"");
 		f->f_pos++;
 		i++;
 		/* Fallthrough */
 	case 1:
 		ino = parent_ino(dentry);
-		C2_LOG("i = %d ino = %lu", i, (unsigned long)ino);
+		C2_LOG(C2_DEBUG, "i = %d ino = %lu", i, (unsigned long)ino);
 		if (filldir(buf, "..", 2, i, 4, DT_DIR) < 0)
 			break;
-		C2_LOG("filled: \"..\"");
+		C2_LOG(C2_DEBUG, "filled: \"..\"");
 		f->f_pos++;
 		i++;
 		/* Fallthrough */
@@ -404,14 +405,14 @@ static int c2t1fs_readdir(struct file *f,
 			name    = de->de_name;
 			namelen = strlen(name);
 
-			C2_LOG("off %lu ino %lu", (unsigned long)f->f_pos,
+			C2_LOG(C2_DEBUG, "off %lu ino %lu", (unsigned long)f->f_pos,
 					(unsigned long)i + 1);
 
 			rc = filldir(buf, name, namelen, f->f_pos,
 					++i, DT_REG);
 			if (rc < 0)
 				goto out;
-			C2_LOG("filled: \"%s\"", name);
+			C2_LOG(C2_DEBUG, "filled: \"%s\"", name);
 
 			f->f_pos++;
 		} c2_tl_endfor;
@@ -426,7 +427,7 @@ int c2t1fs_dir_ent_remove(struct c2t1fs_dir_ent *de)
 {
 	C2_ENTRY();
 
-	C2_LOG("Name: %s", (char *)de->de_name);
+	C2_LOG(C2_INFO, "Name: %s", (char *)de->de_name);
 	dput(de->de_dentry); /* Why? See comment C2T1FS_DIR_ENT_ADD_FOOTNOTE1 */
 	dir_ents_tlist_del(de);
 	c2t1fs_dir_ent_fini(de);
@@ -446,7 +447,7 @@ static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
 
 	C2_ENTRY();
 
-	C2_LOG("Name: \"%s\"", dentry->d_name.name);
+	C2_LOG(C2_INFO, "Name: \"%s\"", dentry->d_name.name);
 
 	inode = dentry->d_inode;
 	csb   = C2T1FS_SB(inode->i_sb);
@@ -462,7 +463,7 @@ static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
 
 	rc = c2t1fs_component_objects_op(ci, c2t1fs_cob_delete);
 	if (rc != 0) {
-		C2_LOG("Cob_delete fop failed.\n");
+		C2_LOG(C2_ERROR, "Cob_delete fop failed.\n");
 		goto out;
 	}
 
@@ -519,10 +520,10 @@ static int c2t1fs_component_objects_op(struct c2t1fs_inode *ci,
 
 	C2_ENTRY();
 
-	C2_LOG("Component object %s for [%lu:%lu]",
-	       func == c2t1fs_cob_create? "create" : "delete",
-	       (unsigned long)ci->ci_fid.f_container,
-	       (unsigned long)ci->ci_fid.f_key);
+	C2_LOG(C2_DEBUG, "Component object %s for [%lu:%lu]",
+		func == c2t1fs_cob_create? "create" : "delete",
+		(unsigned long)ci->ci_fid.f_container,
+		(unsigned long)ci->ci_fid.f_key);
 
 	csb = C2T1FS_SB(ci->ci_inode.i_sb);
 	pool_width = csb->csb_pool_width;
@@ -532,7 +533,7 @@ static int c2t1fs_component_objects_op(struct c2t1fs_inode *ci,
 		cob_fid = c2t1fs_cob_fid(ci, i);
 		rc      = func(csb, &cob_fid, &ci->ci_fid);
 		if (rc != 0) {
-			C2_LOG("Failed: cob %s : [%lu:%lu]",
+			C2_LOG(C2_ERROR, "Failed: cob %s : [%lu:%lu]",
 				func == c2t1fs_cob_create? "create" : "delete",
 				(unsigned long)cob_fid.f_container,
 				(unsigned long)cob_fid.f_key);
@@ -582,7 +583,8 @@ static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 	fop = c2_fop_alloc(ftype, NULL);
 	if (fop == NULL) {
 		rc = -ENOMEM;
-		C2_LOG("Memory allocation for struct c2_fop_cob_create failed");
+		C2_LOG(C2_ERROR, "Memory allocation for struct"
+				 " c2_fop_cob_create failed");
 		goto out;
 	}
 
@@ -595,7 +597,7 @@ static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 		goto out;
 	}
 
-	C2_LOG("Send %s [%lu:%lu] to session %lu\n",
+	C2_LOG(C2_DEBUG, "Send %s [%lu:%lu] to session %lu\n",
 		cobcreate ? "cob_create" : "cob_delete",
 		(unsigned long)cob_fid->f_container,
 		(unsigned long)cob_fid->f_key,
@@ -652,7 +654,8 @@ static int c2t1fs_cob_fop_populate(struct c2_fop *fop,
 		cc = c2_fop_data(fop);
 		C2_ALLOC_ARR(cc->cc_cobname.cn_name, C2T1FS_COB_ID_STRLEN);
 		if (cc->cc_cobname.cn_name == NULL) {
-			C2_LOG("Memory allocation failed for cob_name.");
+			C2_LOG(C2_ERROR, "Memory allocation failed for"
+					 " cob_name.");
 			C2_LEAVE("%d", -ENOMEM);
 			return -ENOMEM;
 		}

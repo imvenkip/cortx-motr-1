@@ -134,7 +134,7 @@ static bool packet_ready(struct c2_rpc_packet *p)
 	C2_ALLOC_PTR_ADDB(rpcbuf, &c2_rpc_addb_ctx, &c2_rpc_addb_loc);
 	if (rpcbuf == NULL) {
 		rc = -ENOMEM;
-		C2_LOG("Failed to allocate rpcbuf");
+		C2_LOG(C2_ERROR, "Failed to allocate rpcbuf");
 		goto out;
 	}
 	rc = rpc_buffer_init(rpcbuf, p);
@@ -231,13 +231,13 @@ static int net_buffer_allocate(struct c2_net_buffer *netbuf,
 		if (rc == -ENOMEM)
 			C2_ADDB_ADD(&c2_rpc_addb_ctx, &c2_rpc_addb_loc,
 				    c2_addb_oom);
-		C2_LOG("buffer allocation failed");
+		C2_LOG(C2_ERROR, "buffer allocation failed");
 		goto out;
 	}
 
 	rc = c2_net_buffer_register(netbuf, ndom);
 	if (rc != 0) {
-		C2_LOG("net buf registeration failed");
+		C2_LOG(C2_ERROR, "net buf registeration failed");
 		c2_bufvec_free_aligned(&netbuf->nb_buffer, C2_SEG_SHIFT);
 	}
 out:
@@ -267,16 +267,16 @@ static void bufvec_geometry(struct c2_net_domain *ndom,
 	max_segment_size = c2_net_domain_get_max_buffer_segment_size(ndom);
 	max_nr_segments  = c2_net_domain_get_max_buffer_segments(ndom);
 
-	C2_LOG("max_buf_size: %llu max_segment_size: %llu max_nr_seg: %d",
-			(unsigned long long)max_buf_size,
-			(unsigned long long)max_segment_size,
-			max_nr_segments);
+	C2_LOG(C2_DEBUG,
+		"max_buf_size: %llu max_segment_size: %llu max_nr_seg: %d",
+		(unsigned long long)max_buf_size,
+		(unsigned long long)max_segment_size, max_nr_segments);
 
 	C2_ASSERT(buf_size <= max_buf_size);
 
 	/* encoding routine requires buf_size to be 8 byte aligned */
 	buf_size = c2_align(buf_size, 8);
-	C2_LOG("bufsize: 0x%llx", (unsigned long long)buf_size);
+	C2_LOG(C2_DEBUG, "bufsize: 0x%llx", (unsigned long long)buf_size);
 
 	if (buf_size <= max_segment_size) {
 		segment_size = buf_size;

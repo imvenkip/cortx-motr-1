@@ -179,7 +179,8 @@ static int list_populate(struct c2_layout_list_enum *list_enum,
 	C2_PRE(cob_list != NULL);
 
 	if (nr == 0) {
-		C2_LOG("list_enum %p, Invalid attributes (nr = 0), rc %d",
+		C2_LOG(C2_ERROR,
+			"list_enum %p, Invalid attributes (nr = 0), rc %d",
 		       list_enum, -EPROTO);
 		return -EPROTO;
 	}
@@ -443,7 +444,7 @@ err1_injected:
 			  (uint32_t)LDB_MAX_INLINE_COB_ENTRIES);
 	C2_ASSERT(c2_bufvec_cursor_step(cur) >= num_inline * sizeof *cob_id);
 
-	C2_LOG("lid %llu, nr %lu, Start reading inline entries",
+	C2_LOG(C2_DEBUG, "lid %llu, nr %lu, Start reading inline entries",
 	       (unsigned long long)lid, (unsigned long)ce_header->ces_nr);
 	for (i = 0; i < num_inline; ++i) {
 		cob_id = c2_bufvec_cursor_addr(cur);
@@ -453,7 +454,7 @@ err1_injected:
 		if (!c2_fid_is_valid(cob_id)) {
 err2_injected:
 			rc = -EPROTO;
-			C2_LOG("fid invalid, i %lu", (unsigned long)i);
+			C2_LOG(C2_WARN, "fid invalid, i %lu", (unsigned long)i);
 			goto out;
 		}
 		cob_list[i] = *cob_id;
@@ -461,12 +462,13 @@ err2_injected:
 
 	if (ce_header->ces_nr > num_inline) {
 		C2_ASSERT(op == C2_LXO_DB_LOOKUP);
-		C2_LOG("lid %llu, nr %lu, Start reading noninline entries",
+		C2_LOG(C2_DEBUG,
+			"lid %llu, nr %lu, Start reading noninline entries",
 		       (unsigned long long)lid,
 		       (unsigned long)ce_header->ces_nr);
 		rc = noninline_read(cob_list, stl, tx, i, ce_header->ces_nr);
 		if (rc != 0) {
-			C2_LOG("noninline_read() failed");
+			C2_LOG(C2_ERROR, "noninline_read() failed");
 			goto out;
 		}
 	}
@@ -474,7 +476,7 @@ err2_injected:
 	if (C2_FI_ENABLED("attr_err")) { ce_header->ces_nr = 0; }
 	rc = list_populate(list_enum, cob_list, ce_header->ces_nr);
 	if (rc != 0)
-		C2_LOG("list_populate() failed");
+		C2_LOG(C2_ERROR, "list_populate() failed");
 out:
 	if (rc != 0)
 		c2_free(cob_list);
@@ -623,7 +625,7 @@ static int list_encode(const struct c2_layout_enum *e,
 	C2_ASSERT(c2_bufvec_cursor_step(out) >= num_inline *
 					sizeof list_enum->lle_list_of_cobs[0]);
 
-	C2_LOG("lid %llu, nr %lu, Start accepting inline entries",
+	C2_LOG(C2_DEBUG, "lid %llu, nr %lu, Start accepting inline entries",
 	       (unsigned long long)lid, (unsigned long)list_enum->lle_nr);
 	for (i = 0; i < num_inline; ++i) {
 		nbytes = c2_bufvec_cursor_copyto(out,
@@ -639,12 +641,13 @@ static int list_encode(const struct c2_layout_enum *e,
 	 */
 	if (list_enum->lle_nr > num_inline && op != C2_LXO_DB_UPDATE) {
 		C2_ASSERT(op == C2_LXO_DB_ADD || op == C2_LXO_DB_DELETE);
-		C2_LOG("lid %llu, nr %lu, Start writing noninline entries",
+		C2_LOG(C2_DEBUG,
+			"lid %llu, nr %lu, Start writing noninline entries",
 		       (unsigned long long)lid,
 		       (unsigned long)list_enum->lle_nr);
 		rc = noninline_write(e, tx, op, i);
 		if (rc != 0)
-			C2_LOG("noninline_write() failed");
+			C2_LOG(C2_ERROR, "noninline_write() failed");
 	}
 
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);
