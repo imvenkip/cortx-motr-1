@@ -88,13 +88,13 @@ struct c2_net_test_console_cfg {
 	/** Test messages size */
 	c2_bcount_t		 ntcc_msg_size;
 	/**
-	   Test server concurrency.
-	   @see c2_net_test_cmd_init.ntci_concurrency
+	 * Test server concurrency.
+	 * @see c2_net_test_cmd_init.ntci_concurrency
 	 */
 	size_t			 ntcc_concurrency_server;
 	/**
-	   Test client concurrency.
-	   @see c2_net_test_cmd_init.ntci_concurrency
+	 * Test client concurrency.
+	 * @see c2_net_test_cmd_init.ntci_concurrency
 	 */
 	size_t			 ntcc_concurrency_client;
 };
