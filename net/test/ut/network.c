@@ -153,23 +153,23 @@ void c2_net_test_network_ut_ping(void)
 	c2_bcount_t			      buf_size;
 
 	buf_size = NET_TEST_PING_BUF_SIZE;
-	rc = c2_net_test_network_ctx_init(&send, "0@lo:12345:30:4000",
+	rc = c2_net_test_network_ctx_init(&send, "0@lo:12345:42:4000",
 					  &ping_tm_cb, &ping_buf_cb,
 					  buf_size, 1,
 					  0, 0,
 					  1, NULL);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_net_test_network_ctx_init(&recv, "0@lo:12345:30:4001",
+	rc = c2_net_test_network_ctx_init(&recv, "0@lo:12345:42:4001",
 					  &ping_tm_cb, &ping_buf_cb,
 					  buf_size, 1,
 					  0, 0,
 					  1, NULL);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_net_test_network_ep_add(&send, "0@lo:12345:30:4001");
+	rc = c2_net_test_network_ep_add(&send, "0@lo:12345:42:4001");
 	C2_UT_ASSERT(rc == 0);
-	rc = c2_net_test_network_ep_add(&recv, "0@lo:12345:30:4000");
+	rc = c2_net_test_network_ep_add(&recv, "0@lo:12345:42:4000");
 	C2_UT_ASSERT(rc == 0);
 
 	c2_semaphore_init(&recv_sem, 0);
@@ -256,22 +256,22 @@ void c2_net_test_network_ut_bulk(void)
 	int				      i;
 	bool				      rc_bool;
 
-	rc = c2_net_test_network_ctx_init(&client, "0@lo:12345:30:4000",
+	rc = c2_net_test_network_ctx_init(&client, "0@lo:12345:42:4000",
 					  &bulk_tm_cb, &bulk_buf_cb,
 					  NET_TEST_PING_BUF_SIZE, 1,
 					  NET_TEST_BULK_BUF_SIZE, 2,
 					  1, NULL);
 	C2_UT_ASSERT(rc == 0);
-	rc = c2_net_test_network_ctx_init(&server, "0@lo:12345:30:4001",
+	rc = c2_net_test_network_ctx_init(&server, "0@lo:12345:42:4001",
 					  &bulk_tm_cb, &bulk_buf_cb,
 					  NET_TEST_PING_BUF_SIZE, 1,
 					  NET_TEST_BULK_BUF_SIZE, 1,
 					  1, NULL);
 	C2_UT_ASSERT(rc == 0);
 
-	rc = c2_net_test_network_ep_add(&client, "0@lo:12345:30:4001");
+	rc = c2_net_test_network_ep_add(&client, "0@lo:12345:42:4001");
 	C2_UT_ASSERT(rc == 0);
-	rc = c2_net_test_network_ep_add(&server, "0@lo:12345:30:4000");
+	rc = c2_net_test_network_ep_add(&server, "0@lo:12345:42:4000");
 	C2_UT_ASSERT(rc == 0);
 
 	/* start of bulk send/recv */
@@ -453,7 +453,7 @@ void c2_net_test_network_ut_buf_desc(void)
 	int rc;
 	static struct c2_clink tmwait;
 
-	rc = c2_net_test_network_ctx_init(&ctx, "0@lo:12345:30:*",
+	rc = c2_net_test_network_ctx_init(&ctx, "0@lo:12345:42:*",
 					  &tm_cb_empty, &buf_cb_empty,
 					  NET_TEST_PING_BUF_SIZE, 2,
 					  NET_TEST_BULK_BUF_SIZE, 4,

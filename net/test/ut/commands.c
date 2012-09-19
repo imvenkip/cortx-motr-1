@@ -29,7 +29,7 @@
 
 /* NTC_ == NET_TEST_COMMANDS_ */
 enum {
-	NTC_PORTAL	      = 30,
+	NTC_PORTAL	      = 42,
 	NTC_TMID_CONSOLE      = 3000,
 	NTC_TMID_NODE	      = 3001,
 	NTC_MULTIPLE_COMMANDS = 64,
