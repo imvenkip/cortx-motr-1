@@ -69,8 +69,7 @@
 		  Default value is 16.
    - @b size Size of bulk messages, bytes. Makes sense for bulk test only.
 	         Default value is 1048576 (1Mb).
-		 Prefixes K (for kilobyte), M (for megabyte) and
-                 G (for gigabyte) can be used here.
+		 Standard suffixes (kKmMgG) can be added to the number.
    - @b target Test servers list for the test client and vice versa.
 		   Items in list are comma-separated. Mandatory option.
 		   Test clients list for server is used for preallocating
