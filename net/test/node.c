@@ -512,8 +512,8 @@ static const struct c2_net_tm_callbacks node_tm_cb = {
 	.ntc_event_cb = node_tm_event_cb
 };
 
-static struct c2_net_test_service_ops
-*service_ops_get(struct c2_net_test_cmd *cmd)
+static struct c2_net_test_service_ops *
+service_ops_get(struct c2_net_test_cmd *cmd)
 {
 	C2_PRE(cmd->ntc_type == C2_NET_TEST_CMD_INIT);
 
