@@ -171,7 +171,6 @@ static int cmd_serialize(enum c2_net_test_serialize_op op,
 			break;
 		len_total += len;
 
-
 		len = c2_net_test_slist_serialize(op, &cmd->ntc_init.ntci_ep,
 						  bv, offset + len_total);
 		break;
