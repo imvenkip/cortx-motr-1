@@ -146,58 +146,55 @@
    digraph {
      node [style=box];
      label = "Network Benchmark Source File Relationship";
-     nodeU    [label="user_space/node.c"];
-     nodeK    [label="linux_kernel/main.c"];
-     console  [label="user_space/console.c"];
-     server   [label="server.c"];
-     client   [label="client.c"];
-     config   [label="node_config.c"];
-     main     [label="node_main.c"];
-     network  [label="network.c"];
-     stats    [label="stats.c"];
-     commands [label="commands.c"];
-     nodeU    -> main;
-     nodeK    -> main;
-     main     -> client;
-     main     -> server;
-     client   -> network;
-     client   -> stats;
-     client   -> config;
-     client   -> commands;
-     server   -> network;
-     server   -> stats;
-     server   -> config;
-     server   -> commands;
-     console  -> network;
-     console  -> stats;
-     console  -> commands;
-     commands -> network;
+     network	[label="network.c"];
+     service   	[label="service.c"];
+     stats     	[label="stats.c"];
+     node_ping 	[label="node_ping.c"];
+     node_bulk 	[label="node_bulk.c"];
+     node_	[label="node.c"];
+     node_u    	[label="user_space/node_u.c"];
+     node_k    	[label="linux_kernel/node_k.c"];
+     commands  	[label="commands.c"];
+     console   	[label="console.c"];
+     stats_u   	[label="user_space/stats_u.c"];
+     console_u 	[label="user_space/console_u.c"];
+
+     node_ping	-> network;
+     node_ping 	-> service;
+     node_ping 	-> stats;
+     node_bulk 	-> network;
+     node_bulk 	-> service;
+     node_bulk 	-> stats;
+     node_	-> node_ping;
+     node_	-> node_bulk;
+     node_	-> commands;
+     node_u	-> node_;
+     node_k	-> node_;
+     console	-> commands;
+     console_u	-> console;
+     stats_u	-> stats;
+     console_u	-> stats_u;
    }
    @enddot
 
-   Test client/server (PROG) can be run in such a way:
+   Test node can be run in such a way:
 
    @code
    int rc;
-   // wait until INIT command received
-   rc = c2_net_test_PROG_init();
+   struct c2_net_test_node_ctx node;
+   struct c2_net_test_node_cfg cfg;
+   int rc;
+   // prepare config, c2_init() etc.
+   rc = c2_net_test_node_init(&node, &cfg);
    if (rc == 0) {
-	// send INIT DONE command
-	// wait until START command received
-	rc = c2_net_test_PROG_start();
-	// send FINISHED command (if PROG == client)
-	if (rc == 0)
-		c2_net_test_PROG_stop();
+	rc = c2_net_test_node_start(&node);
+	if (rc == 0) {
+		c2_semaphore_down(&node.ntnc_thread_finished_sem);
+		c2_net_test_node_stop(&node);
+	}
+	c2_net_test_node_fini(&node);
    }
-   // wait for FINISHED ACK response (if PROG == client)
-   // send FINISHED ACK response (if PROG == server)
-   c2_net_test_PROG_fini();
    @endcode
-
-   c2_net_test_PROG_start() will be blocked until it's finished or
-   c2_net_test_PROG_stop() called. Test server needs to catch
-   FINISHED command from the test console and run c2_net_test_server_stop()
-   when it is received.
 
    @subsubsection net-test-lspec-ping Ping Test
 
