@@ -46,7 +46,7 @@
    @{
  */
 
-/** Service state transition matrix. @see net-test-lspec-state */
+/** Service state transition matrix. @see @ref net-test-lspec-state */
 const static bool
 state_transition[C2_NET_TEST_SERVICE_NR][C2_NET_TEST_SERVICE_NR] = {
 	[C2_NET_TEST_SERVICE_UNINITIALIZED] = {
