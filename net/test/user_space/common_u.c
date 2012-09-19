@@ -42,6 +42,7 @@ char *c2_net_test_u_str_copy(const char *str)
 	size_t  len = strlen(str) + 1;
 	char   *copy = c2_alloc(len);
 
+	C2_ASSERT(copy != NULL);
 	return strncpy(copy, str, len);
 }
 
