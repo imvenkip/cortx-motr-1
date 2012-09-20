@@ -661,7 +661,7 @@ int c2_rpc_conn_timedwait(struct c2_rpc_conn *conn,
  */
 bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn);
 
-static inline int c2_rpc_conn_state(const struct c2_rpc_conn *conn)
+static inline int conn_state(const struct c2_rpc_conn *conn)
 {
 	return conn->c_sm.sm_state;
 }

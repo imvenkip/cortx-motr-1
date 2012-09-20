@@ -488,7 +488,7 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 	conn = session->s_conn;
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
-	C2_ASSERT(c2_rpc_conn_state(conn) == C2_RPC_CONN_ACTIVE);
+	C2_ASSERT(conn_state(conn) == C2_RPC_CONN_ACTIVE);
 
 	fop  = &ctx->sec_fop;
 	args = c2_fop_data(fop);
@@ -780,7 +780,7 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *item)
 	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
-	C2_ASSERT(c2_rpc_conn_state(conn) == C2_RPC_CONN_ACTIVE);
+	C2_ASSERT(conn_state(conn) == C2_RPC_CONN_ACTIVE);
 
 	reply_item = item->ri_reply;
 	rc         = item->ri_error;
