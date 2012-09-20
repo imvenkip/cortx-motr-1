@@ -207,7 +207,7 @@ int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 			/* See [3] */
 			item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
 
-			C2_ASSERT(c2_rpc_conn_state_get(conn) ==
+			C2_ASSERT(c2_rpc_conn_state(conn) ==
 				  C2_RPC_CONN_ACTIVE);
 			C2_ASSERT(c2_rpc_conn_invariant(conn));
 		} else {
@@ -422,7 +422,7 @@ int c2_rpc_fom_session_terminate_tick(struct c2_fom *fom)
 	c2_rpc_machine_lock(machine);
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
-	C2_ASSERT(c2_rpc_conn_state_get(conn) == C2_RPC_CONN_ACTIVE);
+	C2_ASSERT(c2_rpc_conn_state(conn) == C2_RPC_CONN_ACTIVE);
 
 	session = c2_rpc_session_search(conn, session_id);
 	if (session != NULL) {
@@ -512,7 +512,7 @@ int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
 
 	rc = c2_rpc_rcv_conn_terminate(conn);
 
-	if (c2_rpc_conn_state_get(conn) == C2_RPC_CONN_FAILED) {
+	if (c2_rpc_conn_state(conn) == C2_RPC_CONN_FAILED) {
 		/*
 		 * conn has been moved to FAILED state. fini() and free() it.
 		 * Cannot send reply back to sender. Sender will time-out and
@@ -528,7 +528,7 @@ int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
 		c2_fom_phase_set(fom, C2_FOPH_FINISH);
 		return C2_FSO_WAIT;
 	} else {
-		C2_ASSERT(C2_IN(c2_rpc_conn_state_get(conn),
+		C2_ASSERT(C2_IN(c2_rpc_conn_state(conn),
 				(C2_RPC_CONN_ACTIVE, C2_RPC_CONN_TERMINATING)));
 
 		c2_rpc_machine_unlock(machine);

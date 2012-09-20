@@ -401,6 +401,7 @@ void c2_rpc_machine_lock(struct c2_rpc_machine *machine)
 	C2_ENTRY("machine %p", machine);
 
 	C2_PRE(machine != NULL);
+	/** @todo Needs to remove this statement once rm_mutex is removed. */
 	c2_mutex_lock(&machine->rm_mutex);
 	c2_sm_group_lock(&machine->rm_sm_grp);
 
@@ -413,6 +414,7 @@ void c2_rpc_machine_unlock(struct c2_rpc_machine *machine)
 
 	C2_PRE(machine != NULL);
 	c2_sm_group_unlock(&machine->rm_sm_grp);
+	/** @todo Needs to remove this statement once rm_mutex is removed. */
 	c2_mutex_unlock(&machine->rm_mutex);
 
 	C2_LEAVE();
@@ -421,6 +423,7 @@ void c2_rpc_machine_unlock(struct c2_rpc_machine *machine)
 bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine)
 {
 	C2_PRE(machine != NULL);
+	/** @todo Needs to remove this statement once rm_mutex is removed. */
 	return c2_mutex_is_locked(&machine->rm_mutex) &&
 	       c2_mutex_is_locked(&machine->rm_sm_grp.s_lock);
 }

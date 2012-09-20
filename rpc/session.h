@@ -312,7 +312,7 @@ enum c2_rpc_conn_state {
 
 	/**
 	   If conn init or terminate fails or time-outs connection enters in
-	   FAILED state. c2_rpc_conn::c_rc gives reason for failure.
+	   FAILED state. c2_rpc_conn::c_sm::sm_rc contains reason for failure.
 	*/
 	C2_RPC_CONN_FAILED,
 
@@ -330,6 +330,12 @@ enum c2_rpc_conn_state {
 	   the object of c2_rpc_conn enters in TERMINATED state
 	 */
 	C2_RPC_CONN_TERMINATED,
+
+	/** After connection is failed or terminated RPC connection enters
+	    FINALISED state. Also when connection is initialised and some error
+	    occurs then connection is moved to FINALISED state.
+	 */
+	C2_RPC_CONN_FINALISED,
 };
 
 /**
@@ -337,7 +343,7 @@ enum c2_rpc_conn_state {
  */
 enum c2_rpc_conn_flags {
 	RCF_SENDER_END = 1 << 0,
-	RCF_RECV_END = 1 << 1
+	RCF_RECV_END   = 1 << 1
 };
 
 /**
@@ -405,9 +411,10 @@ enum c2_rpc_conn_flags {
          |                          | c2_rpc_conn_terminate_reply_received() &&
          |                          |              rc== 0
 	 |                          V
-	 +--------------------->TERMINATED
-	                            |
-	                            |  c2_rpc_conn_fini()
+	 |			TERMINATED
+	 |                          |
+	 |c2_rpc_conn_fini()        |  c2_rpc_conn_fini()
+	 +--------------------->FINALISED
                                     V
 
   @endverbatim
@@ -451,9 +458,9 @@ enum c2_rpc_conn_flags {
         // handle the situation and return
   }
   // WAIT UNTIL CONNECTION IS ESTABLISHED
-  flag = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_ACTIVE | C2_RPC_CONN_FAILED,
+  rc = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_ACTIVE | C2_RPC_CONN_FAILED,
 				absolute_timeout);
-  if (flag) {
+  if (!rc) {
 	if (conn->c_state == C2_RPC_CONN_ACTIVE)
 		// connection is established and is ready to be used
 	ele
@@ -472,9 +479,9 @@ enum c2_rpc_conn_flags {
   rc = c2_rpc_conn_terminate(conn);
 
   // WAIT UNTIL CONNECTION IS TERMINATED
-  flag = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_TERMINATED |
+  rc = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_TERMINATED |
 				C2_RPC_CONN_FAILED, absolute_timeout);
-  if (flag) {
+  if (!rc) {
 	if (conn->c_state == C2_RPC_CONN_TERMINATED)
 		// conn is successfully terminated
 	else
@@ -522,9 +529,6 @@ struct c2_rpc_conn {
 
 	struct c2_rpc_service    *c_service;
 
-	/** if c_state == C2_RPC_CONN_FAILED then c_rc contains error code */
-	int32_t                   c_rc;
-
 	/** A c2_rpc_chan structure that will point to the transfer
 	    machine used by this c2_rpc_conn.
 	 */
@@ -532,11 +536,6 @@ struct c2_rpc_conn {
 
 	/** cob representing the connection */
 	struct c2_cob            *c_cob;
-
-	/** Conditional variable on which "connection state changed" signal
-	    is broadcast
-	 */
-	struct c2_cond            c_state_changed;
 
 	/** State machine of rpc connection having states
 	    enum c2_rpc_conn_state.
@@ -648,19 +647,24 @@ int c2_rpc_conn_destroy(struct c2_rpc_conn *conn, uint32_t timeout_sec);
 
     @param abs_timeout should not sleep past abs_timeout waiting for conn
 		to reach in desired state.
-    @return true if @conn reaches in one of the state(s) specified by
+    @return 0 if @conn reaches in one of the state(s) specified by
                 @state_flags
-    @return false if time out has occured before @conn reaches in desired
+    @return -ETIMEDOUT if time out has occured before @conn reaches in desired
                 state.
  */
-bool c2_rpc_conn_timedwait(struct c2_rpc_conn *conn,
-			   uint64_t            state_flags,
-			   const c2_time_t     abs_timeout);
+int c2_rpc_conn_timedwait(struct c2_rpc_conn *conn,
+			  uint64_t            state_flags,
+			  const c2_time_t     abs_timeout);
 
 /**
    checks internal consistency of @conn.
  */
 bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn);
+
+static inline int c2_rpc_conn_state(const struct c2_rpc_conn *conn)
+{
+	return conn->c_sm.sm_state;
+}
 
 /**
    Possible states of a session object
@@ -1227,22 +1231,6 @@ struct c2_rpc_slot {
 
 	const struct c2_rpc_slot_ops *sl_ops;
 };
-
-static inline void c2_rpc_conn_state_set(struct c2_rpc_conn *conn, int state)
-{
-	c2_sm_state_set(&conn->c_sm, state);
-}
-
-static inline int c2_rpc_conn_state_get(const struct c2_rpc_conn *conn)
-{
-	return conn->c_sm.sm_state;
-}
-
-static inline void c2_rpc_conn_state_failed(struct c2_rpc_conn *conn, int32_t rc)
-{
-	c2_sm_fail(&conn->c_sm, C2_RPC_CONN_FAILED, rc);
-	conn->c_rc = rc;
-}
 
 /** @} end of session group */
 
