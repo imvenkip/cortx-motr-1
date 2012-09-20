@@ -53,8 +53,7 @@ int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx)
 	/* Open error log file */
 	sctx->rsx_log_file = fopen(sctx->rsx_log_file_name, "w+");
 	if (sctx->rsx_log_file == NULL) {
-		C2_LEAVE("Open of error log file: FAILED with err: '%d'", errno);
-		return errno;
+		C2_RETERR(errno, "Open of error log file: FAILED");
 	}
 
 	/* Register service types */
@@ -77,8 +76,7 @@ int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx)
 
 	rc = c2_cs_start(&sctx->rsx_colibri_ctx);
 
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 
 cs_fini:
 	c2_cs_fini(&sctx->rsx_colibri_ctx);
@@ -87,8 +85,7 @@ service_unreg:
 		c2_reqh_service_type_unregister(sctx->rsx_service_types[i]);
 fclose:
 	fclose(sctx->rsx_log_file);
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx)
@@ -162,8 +159,7 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	if (rc != 0)
 		goto conn_destroy;
 
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 
 conn_destroy:
 	c2_rpc_conn_destroy(&cctx->rcx_connection, cctx->rcx_timeout_s);
@@ -174,8 +170,7 @@ rpcmach_fini:
 pool_fini:
 	c2_rpc_net_buffer_pool_cleanup(buffer_pool);
 	C2_ASSERT(rc != 0);
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
@@ -218,8 +213,7 @@ clean:
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
 
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 C2_EXPORTED(c2_rpc_client_call);
 
@@ -230,14 +224,12 @@ int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
 	C2_ENTRY("rpc_client_ctx: '%p'", cctx);
 	rc = c2_rpc_session_destroy(&cctx->rcx_session, cctx->rcx_timeout_s);
 	if (rc != 0) {
-		C2_LEAVE("rc: '%d'", rc);
-		return rc;
+		C2_RETURN(rc);
 	}
 
 	rc = c2_rpc_conn_destroy(&cctx->rcx_connection, cctx->rcx_timeout_s);
 	if (rc != 0) {
-		C2_LEAVE("rc: '%d'", rc);
-		return rc;
+		C2_RETURN(rc);
 	}
 
 	c2_net_end_point_put(cctx->rcx_remote_ep);
@@ -245,8 +237,7 @@ int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
 
 	c2_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
 
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 /*

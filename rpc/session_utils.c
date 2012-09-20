@@ -87,8 +87,7 @@ int c2_rpc__fop_post(struct c2_fop                *fop,
 	item->ri_ops      = ops;
 
 	rc = c2_rpc__post_locked(item);
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 static struct c2_uint128 stob_id_alloc(void)
@@ -136,8 +135,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 
 	c2_cob_nskey_make(&key, pfid_hi, pfid_lo, name);
 	if (key == NULL) {
-		C2_LEAVE("nskey: Memory Allocation: FAILED, err: -ENOMEM");
-		return -ENOMEM;
+		C2_RETERR(-ENOMEM, "nskey: Memory Allocation: FAILED");
 	}
 
 	nsrec.cnr_stobid.si_bits = stob_id_alloc();
@@ -154,8 +152,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	if (rc == 0)
 		*out = cob;
 
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 int c2_rpc_cob_lookup_helper(struct c2_cob_domain *dom,
@@ -183,14 +180,12 @@ int c2_rpc_cob_lookup_helper(struct c2_cob_domain *dom,
 
 	c2_cob_nskey_make(&key, pfid_hi, pfid_lo, name);
 	if (key == NULL) {
-		C2_LEAVE("nskey: Memory Allocation: FAILED, err -ENOMEM");
-		return -ENOMEM;
+		C2_RETERR(-ENOMEM, "nskey: Memory Allocation: FAILED");
 	}
 	rc = c2_cob_lookup(dom, key, CA_NSKEY_FREE | CA_FABREC, out, tx);
 
 	C2_POST(ergo(rc == 0, *out != NULL));
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 int c2_rpc_root_session_cob_get(struct c2_cob_domain *dom,

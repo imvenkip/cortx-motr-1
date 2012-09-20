@@ -72,8 +72,7 @@ int c2_rpc_base_init(void)
 	c2_rwlock_init(&rpc_item_types_lock);
 	rit_tlist_init(&rpc_item_types_list);
 
-	C2_LEAVE();
-	return 0;
+	C2_RETURN(0);
 }
 
 void c2_rpc_base_fini(void)
@@ -104,8 +103,7 @@ int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
 	rit_tlink_init_at(item_type, &rpc_item_types_list);
 	c2_rwlock_write_unlock(&rpc_item_types_lock);
 
-	C2_LEAVE("rc: '0'");
-	return 0;
+	C2_RETURN(0);
 }
 
 void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type)

@@ -140,8 +140,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	 */
 	fop = c2_fop_alloc(&c2_rpc_fop_noop_fopt, NULL);
 	if (fop == NULL) {
-		C2_LEAVE("fop: Memory Allocation: FAILED, err: -ENOMEM");
-		return -ENOMEM;
+		C2_RETERR(-ENOMEM, "fop: Memory Allocation: FAILED");
 	}
 
 	c2_list_link_init(&slot->sl_link);
@@ -187,8 +186,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 
 	c2_list_link_init(&sref->sr_link);
 	c2_list_add(&slot->sl_item_list, &sref->sr_link);
-	C2_LEAVE("rc: '0'");
-	return 0;
+	C2_RETURN(0);
 }
 
 /**
@@ -482,8 +480,7 @@ int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
 	 */
 	fop = c2_fop_alloc(&c2_rpc_fop_noop_fopt, NULL);
 	if (fop == NULL) {
-		C2_LEAVE("fop: Memory Allocation: FAILED, err: -ENOMEM");
-		return -ENOMEM;
+		C2_RETERR(-ENOMEM, "fop: Memory Allocation: FAILED");
 	}
 
 	reply = &fop->f_item;
@@ -496,8 +493,7 @@ int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
 	c2_list_link_init(&reply->ri_slot_refs[0].sr_ready_link);
 
 	slot->sl_ops->so_reply_consume(item, reply);
-	C2_LEAVE("rc: '0'");
-	return 0;
+	C2_RETURN(0);
 }
 
 int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
@@ -560,8 +556,7 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 		break;
 	}
 	C2_ASSERT(c2_rpc_slot_invariant(slot));
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
@@ -592,7 +587,7 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		 * item is pruned from the item list, or it is a corrupted
 		 * reply
 		 */
-		C2_LEAVE("Duplicate reply & corr. req. item pruned,"
+		C2_LOG(C2_ERROR, "Duplicate reply & corr. req. item pruned,"
 			 " or corrupted reply");
 		return;
 	}
@@ -787,20 +782,17 @@ static int associate_session_and_slot(struct c2_rpc_item    *item,
 
 	sref = &item->ri_slot_refs[0];
 	if (sref->sr_session_id > SESSION_ID_MAX) {
-		C2_LEAVE("rpc_session_id: INVALID, err: -EINVAL");
-		return -EINVAL;
+		C2_RETERR(-EINVAL, "rpc_session_id: INVALID");
 	}
 
 	conn = find_conn(machine, item);
 	if (conn == NULL) {
-		C2_LEAVE("rc: '-ENOENT'");
-		return -ENOENT;
+		C2_RETURN(-ENOENT);
 	}
 
 	session = c2_rpc_session_search(conn, sref->sr_session_id);
 	if (session == NULL || sref->sr_slot_id >= session->s_nr_slots){
-		C2_LEAVE("rc: '-ENOENT'");
-		return -ENOENT;
+		C2_RETURN(-ENOENT);
 	}
 
 	slot = session->s_slot_table[sref->sr_slot_id];
@@ -811,8 +803,7 @@ static int associate_session_and_slot(struct c2_rpc_item    *item,
 	C2_POST(item->ri_session != NULL &&
 		item->ri_slot_refs[0].sr_slot != NULL);
 
-	C2_LEAVE("rc: '0'");
-	return 0;
+	C2_RETURN(0);
 }
 
 int c2_rpc_item_received(struct c2_rpc_item    *item,
@@ -834,8 +825,7 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 		 */
 		if (c2_rpc_item_is_conn_establish(item)) {
 			c2_rpc_item_dispatch(item);
-			C2_LEAVE("rc: '0'");
-			return 0;
+			C2_RETURN(0);
 		}
 		/*
 		 * If we cannot associate the item with its slot
@@ -844,8 +834,7 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 		 * XXX generate ADDB record
 		 */
 		item->ri_ops->rio_free(item);
-		C2_LEAVE("rc: '%d'", rc);
-		return rc;
+		C2_RETURN(rc);
 	}
 	C2_ASSERT(item->ri_session != NULL &&
 		  item->ri_slot_refs[0].sr_slot != NULL);
@@ -873,8 +862,7 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 			rpc_item_replied(req, item, 0);
 		}
 	}
-	C2_LEAVE("rc: '0'");
-	return 0;
+	C2_RETURN(0);
 }
 
 /**
@@ -933,8 +921,7 @@ int c2_rpc_slot_cob_lookup(struct c2_cob   *session_cob,
 					&cob, tx);
 	C2_ASSERT(ergo(rc != 0, cob == NULL));
 	*slot_cob = cob;
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 int c2_rpc_slot_cob_create(struct c2_cob   *session_cob,
@@ -958,8 +945,7 @@ int c2_rpc_slot_cob_create(struct c2_cob   *session_cob,
 					&cob, tx);
 	C2_ASSERT(ergo(rc != 0, cob == NULL));
 	*slot_cob = cob;
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 /**

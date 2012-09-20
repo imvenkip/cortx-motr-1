@@ -71,8 +71,7 @@ int c2_rpc_post(struct c2_rpc_item *item)
 	rc = c2_rpc__post_locked(item);
 	c2_rpc_machine_unlock(machine);
 
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 C2_EXPORTED(c2_rpc_post);
 
@@ -109,8 +108,7 @@ int c2_rpc__post_locked(struct c2_rpc_item *item)
 
 	item->ri_state = RPC_ITEM_SUBMITTED;
 	c2_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm, item);
-	C2_LEAVE("rc: '0'");
-	return 0;
+	C2_RETURN(0);
 }
 
 int c2_rpc_reply_post(struct c2_rpc_item	*request,
@@ -159,8 +157,7 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	C2_ASSERT(tmp == request);
 
 	c2_rpc_machine_unlock(machine);
-	C2_LEAVE("rc: '0'");
-	return 0;
+	C2_RETURN(0);
 }
 C2_EXPORTED(c2_rpc_reply_post);
 
@@ -179,8 +176,7 @@ int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
 	c2_rpc_frm_enq_item(&conn->c_rpcchan->rc_frm, item);
 
 	c2_rpc_machine_unlock(conn->c_rpc_machine);
-	C2_LEAVE("rc: '0'");
-	return 0;
+	C2_RETURN(0);
 }
 
 int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout)
@@ -191,8 +187,7 @@ int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout)
 	C2_PRE(c2_clink_is_armed(clink));
 
 	rc = c2_chan_timedwait(clink, timeout) ? 0 : -ETIMEDOUT;
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 C2_EXPORTED(c2_rpc_reply_timedwait);
 
@@ -227,15 +222,14 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 				     C2_NET_BUFFER_POOL_THRESHOLD,
 				     segs_nr, seg_size, tm_nr, C2_SEG_SHIFT);
 	if (rc != 0){
-		C2_LEAVE("net_buf_pool: Initialization: FAILED with err: %d", rc);
-		return rc;
+		C2_RETERR(rc, "net_buf_pool: Initialization: FAILED");
 	}
 
 	c2_net_buffer_pool_lock(app_pool);
 	rc = c2_net_buffer_pool_provision(app_pool, bufs_nr);
 	c2_net_buffer_pool_unlock(app_pool);
-	C2_LEAVE("rc: '%d'", rc != bufs_nr ? -ENOMEM : 0);
-	return rc != bufs_nr ? -ENOMEM : 0;
+	rc = rc != bufs_nr ? -ENOMEM : 0;
+	C2_RETURN(rc);
 }
 C2_EXPORTED(c2_rpc_net_buffer_pool_setup);
 

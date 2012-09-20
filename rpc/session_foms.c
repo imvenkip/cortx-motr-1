@@ -72,8 +72,7 @@ static int session_gen_fom_create(struct c2_fop *fop, struct c2_fom **m)
 
 	C2_ALLOC_PTR(fom);
 	if (fom == NULL) {
-		C2_LEAVE("fom: memory allocation: FAILED err: '-ENOMEM'");
-		return -ENOMEM;
+		C2_RETERR(-ENOMEM, "fom: memory allocation: FAILED");
 	}
 
 	if (fop->f_type == &c2_rpc_fop_conn_establish_fopt) {
@@ -122,8 +121,7 @@ out:
 		*m = NULL;
 	}
 
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 const struct c2_fom_ops c2_rpc_fom_conn_establish_ops = {
@@ -187,10 +185,9 @@ int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 
 	C2_ALLOC_PTR(conn);
 	if (conn == NULL){
-		C2_LEAVE("rpc_conn: Memory allocation: FAILED, err: -ENOMEM");
+		C2_RETERR(-ENOMEM, "rpc_conn: Memory allocation: FAILED");
 		/* no reply if conn establish failed.
 		   See [4] at end of this function. */
-		return -ENOMEM;
 	}
 
 	machine = ctx->cec_rpc_machine;
@@ -247,8 +244,7 @@ int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 	}
 
 	c2_fom_phase_set(fom, C2_FOPH_FINISH);
-	C2_LEAVE("rc: 'C2_FSO_WAIT'");
-	return C2_FSO_WAIT;
+	C2_RETURN(C2_FSO_WAIT);
 }
 /*
  * [1]
@@ -379,8 +375,7 @@ out:
 
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	c2_fom_phase_set(fom, C2_FOPH_FINISH);
-	C2_LEAVE("rc: 'C2_FSO_WAIT'");
-	return C2_FSO_WAIT;
+	C2_RETURN(C2_FSO_WAIT);
 }
 
 /*
@@ -470,8 +465,7 @@ int c2_rpc_fom_session_terminate_tick(struct c2_fom *fom)
 	c2_fom_phase_set(fom, C2_FOPH_FINISH);
 	c2_rpc_reply_post(&fom->fo_fop->f_item, &fom->fo_rep_fop->f_item);
 
-	C2_LEAVE("rc: 'C2_FSO_WAIT'");
-	return C2_FSO_WAIT;
+	C2_RETURN(C2_FSO_WAIT);
 }
 
 /*
@@ -542,8 +536,7 @@ int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
 
 		c2_free(conn);
 		c2_fom_phase_set(fom, C2_FOPH_FINISH);
-		C2_LEAVE("rc: 'C2_FSO_WAIT'");
-		return C2_FSO_WAIT;
+		C2_RETURN(C2_FSO_WAIT);
 	} else {
 		C2_ASSERT(C2_IN(conn->c_state, (C2_RPC_CONN_ACTIVE,
 						C2_RPC_CONN_TERMINATING)));
@@ -559,8 +552,7 @@ int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
 		c2_fom_phase_set(fom, C2_FOPH_FINISH);
 		C2_LOG(C2_INFO, "Conn terminate successful: conn [%p]\n", conn);
 		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
-		C2_LEAVE("rc: 'C2_FSO_WAIT'");
-		return C2_FSO_WAIT;
+		C2_RETURN(C2_FSO_WAIT);
 	}
 }
 

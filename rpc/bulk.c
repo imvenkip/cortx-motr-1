@@ -99,9 +99,8 @@ static int rpc_bulk_buf_init(struct c2_rpc_bulk_buf *rbuf, uint32_t segs_nr,
 
 	rc = c2_0vec_init(&rbuf->bb_zerovec, segs_nr);
 	if (rc != 0) {
-		C2_LEAVE("rpc_bulk_buf: Zero vector initialization: FAILED with"
-			 " err: '%d'", rc);
-		return rc;
+		C2_RETERR(rc, "rpc_bulk_buf: Zero vector initialization:"
+			  "FAILED");
 	}
 
 	rbuf->bb_flags = 0;
@@ -109,9 +108,7 @@ static int rpc_bulk_buf_init(struct c2_rpc_bulk_buf *rbuf, uint32_t segs_nr,
 		C2_ALLOC_PTR(rbuf->bb_nbuf);
 		if (rbuf->bb_nbuf == NULL) {
 			c2_0vec_fini(&rbuf->bb_zerovec);
-			C2_LEAVE("net_buf memory allocation: FAILED, "
-				 "err: '-ENOMEM'");
-			return -ENOMEM;
+			C2_RETERR(-ENOMEM, "net_buf memory allocation: FAILED");
 		}
 		rbuf->bb_flags |= C2_RPC_BULK_NETBUF_ALLOCATED;
 		rbuf->bb_nbuf->nb_buffer = rbuf->bb_zerovec.z_bvec;
@@ -128,17 +125,14 @@ static int rpc_bulk_buf_init(struct c2_rpc_bulk_buf *rbuf, uint32_t segs_nr,
 			rc = c2_0vec_cbuf_add(&rbuf->bb_zerovec, &cbuf, &index);
 			if (rc != 0) {
 				c2_0vec_fini(&rbuf->bb_zerovec);
-				C2_LEAVE("Addition of cbuf: FAILED with "
-					 "err: '%d'", rc);
-				return rc;
+				C2_RETERR(rc, "Addition of cbuf: FAILED");
 			}
 		}
 	}
 
 	rpcbulk_tlink_init(rbuf);
 	rbuf->bb_magic = C2_RPC_BULK_BUF_MAGIC;
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 static void rpc_bulk_buf_cb(const struct c2_net_buffer_event *evt)
@@ -263,22 +257,18 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 	C2_PRE(out != NULL);
 
 	if (segs_nr > c2_net_domain_get_max_buffer_segments(netdom)) {
-		C2_LEAVE("Cannot exceed net_max_buf_seg: rc: '-EMSGSIZE'");
-		return -EMSGSIZE;
+		C2_RETERR(-EMSGSIZE, "Cannot exceed net_max_buf_seg");
 	}
 
 	C2_ALLOC_PTR(buf);
 	if (buf == NULL) {
-		C2_LEAVE("rpc_bulk_buf: memory allocation: FAILED:"
-			 " rc: 'ENOMEM'");
-		return -ENOMEM;
+		C2_RETERR(-ENOMEM, "rpc_bulk_buf: memory allocation: FAILED");
 	}
 
 	rc = rpc_bulk_buf_init(buf, segs_nr, nb);
 	if (rc != 0) {
 		c2_free(buf);
-		C2_LEAVE("rc: '%d'", rc);
-		return rc;
+		C2_RETURN(rc);
 	}
 
 	c2_mutex_lock(&rbulk->rb_mutex);
@@ -288,8 +278,7 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 	c2_mutex_unlock(&rbulk->rb_mutex);
 	*out = buf;
 	C2_POST(rpc_bulk_buf_invariant(buf));
-	C2_LEAVE("rc: '0'");
-	return 0;
+	C2_RETURN(0);
 }
 C2_EXPORTED(c2_rpc_bulk_buf_add);
 
@@ -313,8 +302,7 @@ int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
 	if (c2_vec_count(&rbuf->bb_zerovec.z_bvec.ov_vec) + count >
 	    c2_net_domain_get_max_buffer_size(netdom) ||
 	    count > c2_net_domain_get_max_buffer_segment_size(netdom)) {
-		C2_LEAVE("Cannot exceed net_dom_max_buf_segs: rc: -EMSGSIZE");
-		return -EMSGSIZE;
+		C2_RETERR(-EMSGSIZE, "Cannot exceed net_dom_max_buf_segs");
 	}
 
 	cbuf.b_addr = buf;
@@ -322,8 +310,7 @@ int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
 	rbulk = rbuf->bb_rbulk;
 	rc = c2_0vec_cbuf_add(&rbuf->bb_zerovec, &cbuf, &index);
 	if (rc != 0) {
-		C2_LEAVE("Addition of cbuf: FAILED with err: '%d'", rc);
-		return rc;
+		C2_RETERR(rc, "Addition of cbuf: FAILED");
 	}
 
 	rbuf->bb_nbuf->nb_buffer = rbuf->bb_zerovec.z_bvec;
@@ -331,8 +318,7 @@ int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
 	c2_mutex_lock(&rbulk->rb_mutex);
 	C2_POST(rpc_bulk_invariant(rbulk));
 	c2_mutex_unlock(&rbulk->rb_mutex);
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 C2_EXPORTED(c2_rpc_bulk_buf_databuf_add);
 
@@ -459,8 +445,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 	C2_POST(rpc_bulk_invariant(rbulk));
 	c2_mutex_unlock(&rbulk->rb_mutex);
 
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 cleanup:
 	C2_ASSERT(rc != 0);
 	rpcbulk_tlist_del(rbuf);
@@ -471,8 +456,7 @@ cleanup:
 			c2_net_buffer_del(rbuf->bb_nbuf, tm);
 	} c2_tl_endfor;
 	c2_mutex_unlock(&rbulk->rb_mutex);
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk,

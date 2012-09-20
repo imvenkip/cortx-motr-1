@@ -72,9 +72,8 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 
 	C2_ALLOC_PTR(ctx);
 	if (ctx == NULL){
-		C2_LEAVE("fop_conn_establish_ctx: Memory Allocation: FAILED "
-			 "err: -ENOMEM");
-		return -ENOMEM;
+		C2_RETERR(-ENOMEM, "fop_conn_establish_ctx: Memory Allocation:"
+			  "FAILED");
 	}
 
 	ctx->cec_sender_ep = NULL;
@@ -93,11 +92,10 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 	*item           = &fop->f_item;
 	(*item)->ri_ops = &rcv_conn_establish_item_ops;
 
-	C2_LEAVE("rc: '0'");
-	return 0;
+	C2_RETURN(0);
 out:
 	c2_free(ctx);
-	return rc;
+	C2_RETURN(rc);
 }
 
 const struct c2_fop_type_ops c2_rpc_fop_noop_ops = {

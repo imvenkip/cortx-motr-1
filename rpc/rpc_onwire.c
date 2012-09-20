@@ -56,8 +56,7 @@ int c2_rpc_item_header_encdec(struct c2_rpc_item      *item,
 
 	rc = c2_bufvec_uint64(cur, &len, what) ?:
 	     slot_ref_encdec(cur, item->ri_slot_refs, what);
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 static int slot_ref_encdec(struct c2_bufvec_cursor *cur,
@@ -92,12 +91,10 @@ static int slot_ref_encdec(struct c2_bufvec_cursor *cur,
 		c2_bufvec_uint64(cur, &sref->sr_xid, what) ?:
 		c2_bufvec_uint64(cur, &sref->sr_slot_gen, what);
 		if (rc != 0) {
-			C2_LEAVE("rc : '-EFAULT'");
-			return -EFAULT;
+			C2_RETURN(-EFAULT);
 		}
 	}
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 /** Helper functions to serialize uuid and slot references in rpc item header

@@ -229,6 +229,8 @@ void c2_rpc_frm_fini(struct c2_rpc_frm *frm)
 
 	frm->f_state = FRM_UNINITIALISED;
 	frm->f_magic = 0;
+
+	C2_LEAVE();
 }
 
 void c2_rpc_frm_enq_item(struct c2_rpc_frm  *frm,
@@ -289,7 +291,8 @@ frm_which_queue(struct c2_rpc_frm *frm, const struct c2_rpc_item *item)
 	deadline_passed = c2_time_now() >= item->ri_deadline;
 
 	C2_LOG(C2_DEBUG,
-		"deadline: [%llu:%llu] bound: %s oneway: %s deadline_passed: %s",
+		"deadline: [%llu:%llu] bound: %s oneway: %s"
+		"deadline_passed: %s",
 		(unsigned long long)c2_time_seconds(item->ri_deadline),
 		(unsigned long long)c2_time_nanoseconds(item->ri_deadline),
 		c2_bool_to_str(bound), c2_bool_to_str(oneway),

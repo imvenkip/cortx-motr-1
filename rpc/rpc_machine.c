@@ -150,8 +150,8 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 	C2_PRE(receive_pool != NULL);
 
 	if (C2_FI_ENABLED("fake_error")) {
-		C2_LEAVE("rc: -EINVAL");
-		return -EINVAL;
+		rc = -EINVAL;
+		C2_RETURN(rc);
 	}
 
 	C2_SET0(machine);
@@ -165,8 +165,6 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 	rc = C2_THREAD_INIT(&machine->rm_frm_worker, struct c2_rpc_machine *,
 			    NULL, &frm_worker_fn, machine, "frm_worker");
 	if (rc != 0) {
-		C2_LOG("Frm worker thread initialization: FAILED with err:"
-		       "'%d'", rc);
 		goto out_fini;
 	}
 
@@ -182,8 +180,7 @@ int c2_rpc_machine_init(struct c2_rpc_machine     *machine,
 	}
 
 	C2_ASSERT(rc == 0);
-	C2_LEAVE("rc: %d", rc);
-	return rc;
+	C2_RETURN(0);
 
 out_tm_cleanup:
 	rpc_tm_cleanup(machine);
@@ -195,8 +192,7 @@ out_stop_frm_worker:
 out_fini:
 	__rpc_machine_fini(machine);
 	C2_ASSERT(rc != 0);
-	C2_LEAVE("rc: %d", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 C2_EXPORTED(c2_rpc_machine_init);
 
@@ -248,8 +244,7 @@ static int root_session_cob_create(struct c2_cob_domain *dom)
 		}
 	}
 #endif
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 void c2_rpc_machine_fini(struct c2_rpc_machine *machine)
@@ -262,7 +257,7 @@ void c2_rpc_machine_fini(struct c2_rpc_machine *machine)
 	c2_rpc_machine_unlock(machine);
 
 	c2_thread_join(&machine->rm_frm_worker);
-	C2_LOG("Frm worker thread JOINED");
+	C2_LOG(C2_INFO, "Frm worker thread JOINED");
 
 	c2_rpc_machine_lock(machine);
 	C2_PRE(c2_list_is_empty(&machine->rm_outgoing_conns));
@@ -327,9 +322,7 @@ static int rpc_tm_setup(struct c2_net_transfer_mc *tm,
 
 	rc = c2_net_tm_init(tm, net_dom);
 	if (rc < 0) {
-		C2_LOG("TM initialization: FAILED with err: '%d'", rc);
-		C2_LEAVE("rc: '%d'", rc);
-		return rc;
+		C2_RETERR(rc, "TM initialization: FAILED");
 	}
 
 	rc = c2_net_tm_pool_attach(tm, pool,
@@ -338,10 +331,8 @@ static int rpc_tm_setup(struct c2_net_transfer_mc *tm,
 				   c2_rpc_max_recv_msgs(net_dom, msg_size),
 				   qlen);
 	if (rc < 0) {
-		C2_LOG("c2_net_tm_pool_attach: FAILED with err: '%d'", rc);
 		c2_net_tm_fini(tm);
-		C2_LEAVE("rc: '%d'", rc);
-		return rc;
+		C2_RETERR(rc, "c2_net_tm_pool_attach: FAILED");
 	}
 
 	c2_net_tm_colour_set(tm, colour);
@@ -364,12 +355,11 @@ static int rpc_tm_setup(struct c2_net_transfer_mc *tm,
 		/** @todo Find more appropriate err code.
 		    tm does not report cause of failure.
 		 */
-		C2_LOG("TM start: FAILED with err: '%d'", rc);
 		rc = -ENETUNREACH;
 		c2_net_tm_fini(tm);
+		C2_RETERR(rc, "TM start: FAILED");
 	}
-	C2_LEAVE("rc: '%d'", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 static void rpc_tm_cleanup(struct c2_rpc_machine *machine)
@@ -387,12 +377,12 @@ static void rpc_tm_cleanup(struct c2_rpc_machine *machine)
 	rc = c2_net_tm_stop(tm, true);
 
 	if (rc < 0) {
-		C2_LOG("TM stopping: FAILED with err: '%d'", rc);
 		c2_clink_del(&tmwait);
 		c2_clink_fini(&tmwait);
 		C2_ADDB_ADD(&machine->rm_addb, &c2_rpc_machine_addb_loc,
 			    c2_rpc_machine_func_fail, "c2_net_tm_stop", rc);
-		C2_LEAVE("rc: '%d'", rc);
+		C2_LOG(C2_ERROR, "TM stopping: FAILED with err: '%d'", rc);
+		C2_LEAVE();
 		return;
 	}
 	/* Wait for transfer machine to stop. */
@@ -463,7 +453,7 @@ struct c2_rpc_chan *rpc_chan_get(struct c2_rpc_machine *machine,
 
 	chan = rpc_chan_locate(machine, dest_ep);
 	if (chan == NULL) {
-		C2_LOG("New rpc_chan creation for dest_ep_addr: '%s'",
+		C2_LOG(C2_INFO, "New rpc_chan creation for dest_ep_addr: '%s'",
 		       dest_ep->nep_addr);
 		rpc_chan_create(&chan, machine, dest_ep, max_packets_in_flight);
 	}
@@ -519,8 +509,8 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 	C2_ALLOC_PTR_ADDB(ch, &machine->rm_addb, &c2_rpc_machine_addb_loc);
 	if (ch == NULL) {
 		*chan = NULL;
-		C2_LEAVE("ADDB memory allocation: FAILED");
-		return -ENOMEM;
+		C2_RETERR(-ENOMEM, "rpc_machine: ADDB memory allocation:"
+			  "FAILED");
 	}
 
 	ch->rc_rpc_machine = machine;
@@ -540,8 +530,7 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 	c2_rpc_frm_init(&ch->rc_frm, &constraints, &c2_rpc_frm_default_ops);
 	c2_list_add(&machine->rm_chans, &ch->rc_linkage);
 	*chan = ch;
-	C2_LEAVE("rc: 0");
-	return 0;
+	C2_RETURN(0);
 }
 
 void rpc_chan_put(struct c2_rpc_chan *chan)
@@ -710,8 +699,8 @@ void item_exit_stats_set(struct c2_rpc_item *item,
 	struct c2_rpc_stats   *st;
 
 	C2_PRE(item != NULL && item->ri_session != NULL);
-	C2_ENTRY("item: '%p', rpc_item_type_opcode: '%u', session_id: '%llu'", item,
-		 item->ri_type->rit_opcode,
+	C2_ENTRY("item: '%p', rpc_item_type_opcode: '%u', session_id: '%llu'",
+		 item, item->ri_type->rit_opcode,
 		 (unsigned long long) item->ri_session->s_session_id);
 
 	machine = item->ri_session->s_conn->c_rpc_machine;
