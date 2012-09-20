@@ -219,6 +219,13 @@ struct c2_cm_ops {
 	void (*cmo_fini)(struct c2_cm *cm);
 };
 
+struct c2_cm_proxy {
+	uint64_t          px_id;
+	struct c2_uint128 px_lo;
+	struct c2_uint128 px_hi;
+	struct c2_tl      px_q;
+};
+
 int c2_cm_type_register(struct c2_cm_type *cmt);
 void c2_cm_type_deregister(struct c2_cm_type *cmt);
 
