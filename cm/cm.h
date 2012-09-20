@@ -337,7 +337,7 @@ enum c2_cm_state c2_cm_state_get(const struct c2_cm *cm);
  * Creates copy packets and adds aggregation groups to c2_cm::cm_aggr_grps,
  * if required.
  */
-void c2_cm_ag_fill(struct c2_cm *cm);
+void c2_cm_sw_fill(struct c2_cm *cm);
 
 /** Iterates over data to be re-structured. */
 int c2_cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp);
