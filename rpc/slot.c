@@ -529,14 +529,13 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
 }
 
 int c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
-				struct c2_rpc_item  *reply,
-				struct c2_rpc_item **req_out)
+			       struct c2_rpc_item  *reply,
+			       struct c2_rpc_item **req_out)
 {
 	struct c2_rpc_item     *req;
 	struct c2_rpc_slot_ref *sref;
 	struct c2_rpc_machine  *machine;
-	uint64_t                req_state;
-	int                     rc = -EPROTO;
+	int                     rc;
 
 	C2_PRE(slot != NULL && reply != NULL && req_out != NULL);
 
@@ -556,10 +555,26 @@ int c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		 * item is pruned from the item list, or it is a corrupted
 		 * reply
 		 */
-		return rc;
+		return -EPROTO;
 	}
+	rc = __slot_reply_received(slot, req, reply);
+	if (rc == 0)
+		*req_out = req;
+
+	return rc;
+}
+
+int __slot_reply_received(struct c2_rpc_slot *slot,
+			  struct c2_rpc_item *req,
+			  struct c2_rpc_item *reply)
+{
+	uint64_t req_state;
+	int      rc;
+
+	C2_PRE(slot != NULL && req != NULL && reply != NULL);
+
 	/*
-	 * XXX At this point req->ri_slot_refs[0].sr_verno and
+	 * At this point req->ri_slot_refs[0].sr_verno and
 	 * reply->ri_slot_refs[0].sr_verno MUST be same. If they are not,
 	 * then generate ADDB record.
 	 * For now, assert this condition for testing purpose.
@@ -567,6 +582,7 @@ int c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 	C2_ASSERT(c2_verno_cmp(&req->ri_slot_refs[0].sr_verno,
 			       &reply->ri_slot_refs[0].sr_verno) == 0);
 
+	rc = -EPROTO;
 	if (c2_verno_cmp(&req->ri_slot_refs[0].sr_verno,
 			 &slot->sl_last_sent->ri_slot_refs[0].sr_verno) > 0) {
 		/*
@@ -618,7 +634,6 @@ int c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		} else {
 			C2_ASSERT(false);
 		}
-		*req_out = req;
 		rc = 0;
 	}
 	return rc;

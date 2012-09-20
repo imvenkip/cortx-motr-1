@@ -555,6 +555,10 @@ session_machine(const struct c2_rpc_session *s)
 	return s->s_conn->c_rpc_machine;
 }
 
+int __slot_reply_received(struct c2_rpc_slot *slot,
+			  struct c2_rpc_item *req,
+			  struct c2_rpc_item *reply);
+
 /** @}  End of rpc_session group */
 #endif
 

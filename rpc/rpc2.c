@@ -100,19 +100,18 @@ int c2_rpc__post_locked(struct c2_rpc_item *item)
 	c2_rpc_session_hold_busy(session);
 
 	item->ri_rpc_time = c2_time_now();
-
+	item->ri_stage = RPC_ITEM_STAGE_FUTURE;
 	c2_rpc_item_sm_init(item, &session_machine(session)->rm_sm_grp);
 	c2_rpc_frm_enq_item(session_frm(session), item);
 	return 0;
 }
 
-int c2_rpc_reply_post(struct c2_rpc_item	*request,
-		      struct c2_rpc_item	*reply)
+int c2_rpc_reply_post(struct c2_rpc_item *request,
+		      struct c2_rpc_item *reply)
 {
-	struct c2_rpc_slot_ref	*sref;
-	struct c2_rpc_machine   *machine;
-	struct c2_rpc_item	*tmp;
-	struct c2_rpc_slot	*slot;
+	struct c2_rpc_slot_ref *sref;
+	struct c2_rpc_machine  *machine;
+	struct c2_rpc_slot     *slot;
 
 	C2_PRE(request != NULL && reply != NULL);
 	C2_PRE(request->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS);
@@ -147,9 +146,7 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	 * See rpc/frmops.c:item_done()
 	 */
 	c2_rpc_session_hold_busy(reply->ri_session);
-	c2_rpc_slot_reply_received(slot, reply, &tmp);
-	C2_ASSERT(tmp == request);
-
+	__slot_reply_received(slot, request, reply);
 	c2_rpc_machine_unlock(machine);
 	return 0;
 }
