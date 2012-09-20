@@ -71,9 +71,8 @@ static int session_gen_fom_create(struct c2_fop *fop, struct c2_fom **m)
 	C2_ENTRY("fop: '%p'", fop);
 
 	C2_ALLOC_PTR(fom);
-	if (fom == NULL) {
-		C2_RETERR(-ENOMEM, "fom: memory allocation: FAILED");
-	}
+	if (fom == NULL)
+		C2_RETURN(-ENOMEM);
 
 	if (fop->f_type == &c2_rpc_fop_conn_establish_fopt) {
 
@@ -185,7 +184,7 @@ int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 
 	C2_ALLOC_PTR(conn);
 	if (conn == NULL){
-		C2_RETERR(-ENOMEM, "rpc_conn: Memory allocation: FAILED");
+		C2_RETURN(-ENOMEM);
 		/* no reply if conn establish failed.
 		   See [4] at end of this function. */
 	}

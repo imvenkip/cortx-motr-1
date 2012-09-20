@@ -134,9 +134,8 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	}
 
 	c2_cob_nskey_make(&key, pfid_hi, pfid_lo, name);
-	if (key == NULL) {
-		C2_RETERR(-ENOMEM, "nskey: Memory Allocation: FAILED");
-	}
+	if (key == NULL)
+		C2_RETURN(-ENOMEM);
 
 	nsrec.cnr_stobid.si_bits = stob_id_alloc();
 	nsrec.cnr_nlink = 1;
@@ -179,9 +178,8 @@ int c2_rpc_cob_lookup_helper(struct c2_cob_domain *dom,
 	}
 
 	c2_cob_nskey_make(&key, pfid_hi, pfid_lo, name);
-	if (key == NULL) {
-		C2_RETERR(-ENOMEM, "nskey: Memory Allocation: FAILED");
-	}
+	if (key == NULL)
+		C2_RETURN(-ENOMEM);
 	rc = c2_cob_lookup(dom, key, CA_NSKEY_FREE | CA_FABREC, out, tx);
 
 	C2_POST(ergo(rc == 0, *out != NULL));

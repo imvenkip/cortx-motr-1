@@ -71,10 +71,8 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 	*item = NULL;
 
 	C2_ALLOC_PTR(ctx);
-	if (ctx == NULL){
-		C2_RETERR(-ENOMEM, "fop_conn_establish_ctx: Memory Allocation:"
-			  "FAILED");
-	}
+	if (ctx == NULL)
+		C2_RETURN(-ENOMEM);
 
 	ctx->cec_sender_ep = NULL;
 	fop         = &ctx->cec_fop;

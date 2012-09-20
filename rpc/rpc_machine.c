@@ -321,9 +321,8 @@ static int rpc_tm_setup(struct c2_net_transfer_mc *tm,
 	tm->ntm_callbacks = &c2_rpc_tm_callbacks;
 
 	rc = c2_net_tm_init(tm, net_dom);
-	if (rc < 0) {
-		C2_RETERR(rc, "TM initialization: FAILED");
-	}
+	if (rc < 0)
+		C2_RETERR(rc, "TM initialization");
 
 	rc = c2_net_tm_pool_attach(tm, pool,
 				   &c2_rpc_rcv_buf_callbacks,
@@ -332,7 +331,7 @@ static int rpc_tm_setup(struct c2_net_transfer_mc *tm,
 				   qlen);
 	if (rc < 0) {
 		c2_net_tm_fini(tm);
-		C2_RETERR(rc, "c2_net_tm_pool_attach: FAILED");
+		C2_RETERR(rc, "c2_net_tm_pool_attach");
 	}
 
 	c2_net_tm_colour_set(tm, colour);
@@ -357,7 +356,7 @@ static int rpc_tm_setup(struct c2_net_transfer_mc *tm,
 		 */
 		rc = -ENETUNREACH;
 		c2_net_tm_fini(tm);
-		C2_RETERR(rc, "TM start: FAILED");
+		C2_RETERR(rc, "TM start");
 	}
 	C2_RETURN(rc);
 }
@@ -509,8 +508,7 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 	C2_ALLOC_PTR_ADDB(ch, &machine->rm_addb, &c2_rpc_machine_addb_loc);
 	if (ch == NULL) {
 		*chan = NULL;
-		C2_RETERR(-ENOMEM, "rpc_machine: ADDB memory allocation:"
-			  "FAILED");
+		C2_RETURN(-ENOMEM);
 	}
 
 	ch->rc_rpc_machine = machine;

@@ -292,9 +292,8 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 		  c2_rpc_machine_is_locked(conn->c_rpc_machine));
 
 	C2_ALLOC_PTR(session);
-	if (session == NULL) {
-		C2_RETERR(-ENOMEM, "Session Zero: Memory allocation: FAILED");
-	}
+	if (session == NULL)
+		C2_RETURN(-ENOMEM);
 
 	rc = c2_rpc_session_init_locked(session, conn, 1 /* NR_SLOTS */);
 	if (rc != 0) {
@@ -583,8 +582,7 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn)
 		c2_rpc_machine_lock(machine);
 		conn_failed(conn, -ENOMEM);
 		c2_rpc_machine_unlock(machine);
-		C2_RETERR(-ENOMEM, "conn_establish fop: Memory Allocation:"
-			  "FAILED");
+		C2_RETURN(-ENOMEM);
 	}
 
 	c2_rpc_machine_lock(machine);
@@ -766,7 +764,7 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn)
 		rc = -ENOMEM;
 		conn_failed(conn, rc);
 		c2_rpc_machine_unlock(machine);
-		C2_RETERR(rc, "conn_terminate_fop: Memory Allocation: FAILED");
+		C2_RETERR(rc, "conn_terminate_fop: Memory Allocation");
 	}
 	if (conn->c_state == C2_RPC_CONN_TERMINATING) {
 		c2_fop_free(fop);

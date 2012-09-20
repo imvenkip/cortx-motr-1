@@ -52,9 +52,8 @@ int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx)
 
 	/* Open error log file */
 	sctx->rsx_log_file = fopen(sctx->rsx_log_file_name, "w+");
-	if (sctx->rsx_log_file == NULL) {
-		C2_RETERR(errno, "Open of error log file: FAILED");
-	}
+	if (sctx->rsx_log_file == NULL)
+		C2_RETERR(errno, "Open of error log file");
 
 	/* Register service types */
 	for (i = 0; i < sctx->rsx_service_types_nr; ++i) {

@@ -221,9 +221,8 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 	rc = c2_net_buffer_pool_init(app_pool, ndom,
 				     C2_NET_BUFFER_POOL_THRESHOLD,
 				     segs_nr, seg_size, tm_nr, C2_SEG_SHIFT);
-	if (rc != 0){
-		C2_RETERR(rc, "net_buf_pool: Initialization: FAILED");
-	}
+	if (rc != 0)
+		C2_RETERR(rc, "net_buf_pool: Initialization");
 
 	c2_net_buffer_pool_lock(app_pool);
 	rc = c2_net_buffer_pool_provision(app_pool, bufs_nr);

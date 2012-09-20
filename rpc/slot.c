@@ -139,9 +139,8 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	 * i.e. last_sent == NULL, last_persistent == NULL
 	 */
 	fop = c2_fop_alloc(&c2_rpc_fop_noop_fopt, NULL);
-	if (fop == NULL) {
-		C2_RETERR(-ENOMEM, "fop: Memory Allocation: FAILED");
-	}
+	if (fop == NULL)
+		C2_RETURN(-ENOMEM);
 
 	c2_list_link_init(&slot->sl_link);
 	/*
@@ -479,9 +478,8 @@ int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
 	 * XXX We should've a special fop type to report session error
 	 */
 	fop = c2_fop_alloc(&c2_rpc_fop_noop_fopt, NULL);
-	if (fop == NULL) {
-		C2_RETERR(-ENOMEM, "fop: Memory Allocation: FAILED");
-	}
+	if (fop == NULL)
+		C2_RETURN(-ENOMEM);
 
 	reply = &fop->f_item;
 
@@ -781,19 +779,16 @@ static int associate_session_and_slot(struct c2_rpc_item    *item,
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 
 	sref = &item->ri_slot_refs[0];
-	if (sref->sr_session_id > SESSION_ID_MAX) {
-		C2_RETERR(-EINVAL, "rpc_session_id: INVALID");
-	}
+	if (sref->sr_session_id > SESSION_ID_MAX)
+		C2_RETERR(-EINVAL, "rpc_session_id");
 
 	conn = find_conn(machine, item);
-	if (conn == NULL) {
+	if (conn == NULL)
 		C2_RETURN(-ENOENT);
-	}
 
 	session = c2_rpc_session_search(conn, sref->sr_session_id);
-	if (session == NULL || sref->sr_slot_id >= session->s_nr_slots){
+	if (session == NULL || sref->sr_slot_id >= session->s_nr_slots)
 		C2_RETURN(-ENOENT);
-	}
 
 	slot = session->s_slot_table[sref->sr_slot_id];
 	/* XXX Check generation of slot */

@@ -289,9 +289,8 @@ static int slot_table_alloc_and_init(struct c2_rpc_session *session)
 	C2_ENTRY("rpc_session: '%p'", session);
 
 	C2_ALLOC_ARR(session->s_slot_table, session->s_nr_slots);
-	if (session->s_slot_table == NULL) {
-		C2_RETERR(-ENOMEM, "Slot table: Memory Allocation: FAILED");
-	}
+	if (session->s_slot_table == NULL)
+		C2_RETURN(-ENOMEM);
 
 	slot_ops = c2_rpc_conn_is_snd(session->s_conn) ? &snd_slot_ops
 					               : &rcv_slot_ops;
@@ -300,7 +299,7 @@ static int slot_table_alloc_and_init(struct c2_rpc_session *session)
 
 		C2_ALLOC_PTR(slot);
 		if (slot == NULL) {
-			C2_RETERR(-ENOMEM, "Slot: Memory Allocation: FAILED");
+			C2_RETURN(-ENOMEM);
 			/* __session_fini() will do the cleanup */
 		}
 
