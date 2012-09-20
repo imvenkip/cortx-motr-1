@@ -55,7 +55,7 @@ static int rpc_tm_setup(struct c2_net_transfer_mc *tm,
 static void __rpc_machine_init(struct c2_rpc_machine *machine);
 static void __rpc_machine_fini(struct c2_rpc_machine *machine);
 static int root_session_cob_create(struct c2_cob_domain *dom);
-static void conn_list_fini(struct c2_list *list);
+static void conn_list_fini(struct c2_tl *list);
 static void frm_worker_fn(struct c2_rpc_machine *machine);
 static struct c2_rpc_chan *rpc_chan_locate(struct c2_rpc_machine *machine,
 					   struct c2_net_end_point *dest_ep);
@@ -192,8 +192,8 @@ C2_EXPORTED(c2_rpc_machine_init);
 static void __rpc_machine_init(struct c2_rpc_machine *machine)
 {
 	c2_list_init(&machine->rm_chans);
-	c2_list_init(&machine->rm_incoming_conns);
-	c2_list_init(&machine->rm_outgoing_conns);
+	rpc_conn_tlist_init(&machine->rm_incoming_conns);
+	rpc_conn_tlist_init(&machine->rm_outgoing_conns);
 	c2_rpc_services_tlist_init(&machine->rm_services);
 	c2_mutex_init(&machine->rm_mutex);
 	c2_addb_ctx_init(&machine->rm_addb, &rpc_machine_addb_ctx_type,
@@ -206,8 +206,8 @@ static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 	c2_addb_ctx_fini(&machine->rm_addb);
 	c2_mutex_fini(&machine->rm_mutex);
 	c2_rpc_services_tlist_fini(&machine->rm_services);
-	c2_list_fini(&machine->rm_outgoing_conns);
-	c2_list_fini(&machine->rm_incoming_conns);
+	rpc_conn_tlist_fini(&machine->rm_outgoing_conns);
+	rpc_conn_tlist_fini(&machine->rm_incoming_conns);
 	c2_list_fini(&machine->rm_chans);
 	c2_rpc_machine_bob_fini(machine);
 }
@@ -241,7 +241,7 @@ void c2_rpc_machine_fini(struct c2_rpc_machine *machine)
 	c2_thread_join(&machine->rm_frm_worker);
 
 	c2_rpc_machine_lock(machine);
-	C2_PRE(c2_list_is_empty(&machine->rm_outgoing_conns));
+	C2_PRE(rpc_conn_tlist_is_empty(&machine->rm_outgoing_conns));
 	conn_list_fini(&machine->rm_incoming_conns);
 	c2_rpc_machine_unlock(machine);
 
@@ -376,17 +376,15 @@ static void rpc_tm_cleanup(struct c2_rpc_machine *machine)
    is a temporary routine, that cleans up all terminated connections from
    rpc connection list maintained in rpc_machine.
  */
-static void conn_list_fini(struct c2_list *list)
+static void conn_list_fini(struct c2_tl *list)
 {
         struct c2_rpc_conn *conn;
-        struct c2_rpc_conn *conn_next;
 
         C2_PRE(list != NULL);
-//Nachiket: This shall be replaced.
-        c2_list_for_each_entry_safe(list, conn, conn_next, struct c2_rpc_conn,
-				    c_link) {
+
+	c2_tl_for(rpc_conn, list, conn) {
                 c2_rpc_conn_terminate_reply_sent(conn);
-        }
+        } c2_tl_endfor;
 }
 
 void c2_rpc_machine_lock(struct c2_rpc_machine *machine)
@@ -683,8 +681,8 @@ c2_time_t c2_rpc_avg_item_time(struct c2_rpc_machine *machine,
 	return stats->rs_cumu_lat / stats->rs_items_nr;
 }
 
-C2_TL_DEFINE(rpc_conn, "", struct c2_rpc_conn);
-C2_TL_DESCR_DEFINE(rpc_conn, "rpc_conn", "", struct c2_rpc_conn, c_link,
+C2_TL_DEFINE(rpc_conn,, struct c2_rpc_conn);
+C2_TL_DESCR_DEFINE(rpc_conn, "rpc_conn",, struct c2_rpc_conn, c_link,
 		   c_magic, C2_RPC_CONN_MAGIC, C2_RPC_CONN_HEAD_MAGIC);
 /** @} end of rpc-layer-core group */
 

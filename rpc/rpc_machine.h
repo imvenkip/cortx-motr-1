@@ -266,10 +266,10 @@ static bool frm_rmachine_is_locked(const struct c2_rpc_frm *frm)
 
 C2_BOB_DECLARE(extern, c2_rpc_machine);
 
+/** @} end name stat_ifs */
+
 C2_TL_DESCR_DECLARE(rpc_conn, extern);
 C2_TL_DECLARE(rpc_conn, extern, struct c2_rpc_conn);
-
-/** @} end name stat_ifs */
 
 /** @} end of rpc-layer-core group */
 #endif /* __COLIBRI_RPC_MACHINE_H__ */

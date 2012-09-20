@@ -516,7 +516,7 @@ struct c2_rpc_conn {
 	    c2_rpc_machine::rm_incoming_conns or
 	    c2_rpc_machine::rm_outgoing_conns
 	 */
-	struct c2_list_link       c_link;
+	struct c2_tlink		  c_link;
 
 	/** Counts number of sessions (excluding session 0) */
 	uint64_t                  c_nr_sessions;
@@ -525,7 +525,7 @@ struct c2_rpc_conn {
 	    c2_rpc_session objects are placed in this list using
 	    c2_rpc_session::s_link
 	 */
-	struct c2_list            c_sessions;
+	struct c2_tl              c_sessions;
 
 	struct c2_rpc_service    *c_service;
 
@@ -889,7 +889,7 @@ struct c2_rpc_session {
 	struct c2_rpc_conn       *s_conn;
 
 	/** linkage into list of all sessions within a c2_rpc_conn */
-	struct c2_list_link       s_link;
+	struct c2_tlink		  s_link;
 
 	/** Cob representing this session in persistent state */
 	struct c2_cob            *s_cob;
@@ -933,6 +933,9 @@ struct c2_rpc_session {
 	    Link: c2_rpc_slot::sl_link
 	 */
 	struct c2_list            s_ready_slots;
+
+	/** Magic number  */
+	uint64_t		  s_magic;
 };
 
 /**
@@ -1232,6 +1235,9 @@ struct c2_rpc_slot {
 
 	const struct c2_rpc_slot_ops *sl_ops;
 };
+
+C2_TL_DESCR_DECLARE(sessions, extern);
+C2_TL_DECLARE(sessions, extern, struct c2_rpc_session); 
 
 /** @} end of session group */
 

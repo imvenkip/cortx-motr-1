@@ -705,7 +705,7 @@ static struct c2_rpc_conn *
 find_conn(const struct c2_rpc_machine *machine,
 	  const struct c2_rpc_item    *item)
 {
-	const struct c2_list         *conn_list;
+	const struct c2_tl           *conn_list;
 	const struct c2_rpc_slot_ref *sref;
 	struct c2_rpc_conn           *conn;
 	bool                          use_uuid;
@@ -716,8 +716,7 @@ find_conn(const struct c2_rpc_machine *machine,
 
 	sref = &item->ri_slot_refs[0];
 	use_uuid = (sref->sr_sender_id == SENDER_ID_INVALID);
-//Nachiket: Replace c2_list with c2_tlist
-	c2_list_for_each_entry(conn_list, conn, struct c2_rpc_conn, c_link) {
+	c2_tl_for(rpc_conn, conn_list, conn) {
 
 		if (use_uuid) {
 
@@ -730,7 +729,7 @@ find_conn(const struct c2_rpc_machine *machine,
 			if (conn->c_sender_id == sref->sr_sender_id)
 				return conn;
 		}
-	}
+	} c2_tl_endfor;
 	return NULL;
 }
 static int associate_session_and_slot(struct c2_rpc_item    *item,

@@ -25,6 +25,7 @@
 #include "rpc/session.h"
 #include "lib/bitstring.h"
 #include "cob/cob.h"
+#include "colibri/magic.h"
 #include "fop/fop.h"
 #include "lib/arith.h"
 #include "lib/finject.h"
@@ -132,8 +133,8 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 	     session->s_conn != NULL &&
 	     session->s_nr_slots > 0 &&
 	     nr_active_items_count(session) == session->s_nr_active_items &&
-	     c2_list_contains(&session->s_conn->c_sessions,
-			      &session->s_link) &&
+	     sessions_tlist_contains(&session->s_conn->c_sessions,
+			             session) &&
 	     ergo(session->s_session_id != SESSION_ID_0,
 		  session->s_conn->c_nr_sessions > 0);
 
@@ -255,7 +256,7 @@ int c2_rpc_session_init_locked(struct c2_rpc_session *session,
 	session->s_slot_table_capacity = nr_slots;
 	session->s_cob                 = NULL;
 
-	c2_list_link_init(&session->s_link);
+	sessions_tlink_init(session);
 	c2_list_init(&session->s_unbound_items);
 	c2_list_init(&session->s_ready_slots);
 
@@ -333,7 +334,7 @@ static void __session_fini(struct c2_rpc_session *session)
 		c2_free(session->s_slot_table);
 		session->s_slot_table = NULL;
 	}
-	c2_list_link_fini(&session->s_link);
+	sessions_tlink_fini(session);
 	c2_cond_fini(&session->s_state_changed);
 	c2_list_fini(&session->s_ready_slots);
 	c2_list_fini(&session->s_unbound_items);
@@ -1189,6 +1190,10 @@ int c2_rpc_session_items_print(struct c2_rpc_session *session, bool only_active)
 	return count;
 }
 #endif
+
+C2_TL_DEFINE(sessions,, struct c2_rpc_session);
+C2_TL_DESCR_DEFINE(sessions, "rpc-sessions",, struct c2_rpc_session, s_link,
+		   s_magic, C2_RPC_SESSION_MAGIC, C2_RPC_SESSION_HEAD_MAGIC);
 /** @} end of session group */
 
 /*
