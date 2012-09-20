@@ -221,7 +221,7 @@ bool c2_rpc_item_is_bound(const struct c2_rpc_item *item);
 
 bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item);
 
-bool c2_rpc_item_is_unsolicited(const struct c2_rpc_item *item);
+bool c2_rpc_item_is_oneway(const struct c2_rpc_item *item);
 
 void c2_rpc_item_sm_init(struct c2_rpc_item *item, struct c2_sm_group *grp);
 void c2_rpc_item_sm_fini(struct c2_rpc_item *item);
@@ -304,7 +304,7 @@ struct c2_rpc_item_type_ops {
 /**
    Possible values for c2_rpc_item_type::rit_flags.
    Flags C2_RPC_ITEM_TYPE_REQUEST, C2_RPC_ITEM_TYPE_REPLY and
-   C2_RPC_ITEM_TYPE_UNSOLICITED are mutually exclusive.
+   C2_RPC_ITEM_TYPE_ONEWAY are mutually exclusive.
  */
 enum c2_rpc_item_type_flags {
 	/** Receiver of item is expected to send reply to item of this type */
@@ -318,7 +318,7 @@ enum c2_rpc_item_type_flags {
 	  This is a one-way item. There is no reply for this type of
 	  item
 	*/
-	C2_RPC_ITEM_TYPE_UNSOLICITED = (1 << 2),
+	C2_RPC_ITEM_TYPE_ONEWAY = (1 << 2),
 	/**
 	  Item of this type can modify file-system state on receiver.
 	*/

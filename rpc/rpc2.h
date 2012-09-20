@@ -151,7 +151,7 @@ int c2_rpc_post(struct c2_rpc_item *item);
 int c2_rpc_reply_post(struct c2_rpc_item *request,
 		      struct c2_rpc_item *reply);
 
-int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
+int c2_rpc_oneway_item_post(const struct c2_rpc_conn *conn,
 				 struct c2_rpc_item *item);
 
 /**

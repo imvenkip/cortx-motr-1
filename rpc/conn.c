@@ -768,7 +768,7 @@ C2_EXPORTED(c2_rpc_conn_terminate);
  *
  * 2. Move conn to FAILED state.
  *    For this conn the receiver side state will still
- *    continue to exist. And receiver can send unsolicited
+ *    continue to exist. And receiver can send one-way
  *    items, that will be received on sender i.e. current node.
  *    Current code will drop such items. When/how to fini and
  *    cleanup receiver side state? XXX

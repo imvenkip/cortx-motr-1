@@ -155,13 +155,13 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 }
 C2_EXPORTED(c2_rpc_reply_post);
 
-int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
-				 struct c2_rpc_item       *item)
+int c2_rpc_oneway_item_post(const struct c2_rpc_conn *conn,
+			     struct c2_rpc_item       *item)
 {
 	struct c2_rpc_machine *machine;
 
 	C2_PRE(conn != NULL);
-	C2_PRE(item != NULL && c2_rpc_item_is_unsolicited(item));
+	C2_PRE(item != NULL && c2_rpc_item_is_oneway(item));
 
 	item->ri_rpc_time = c2_time_now();
 

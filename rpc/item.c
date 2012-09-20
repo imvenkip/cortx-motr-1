@@ -215,7 +215,7 @@ bool c2_rpc_item_invariant(const struct c2_rpc_item *item)
 	state  = item->ri_sm.sm_state;
 	req    = c2_rpc_item_is_request(item);
 	rply   = c2_rpc_item_is_reply(item);
-	oneway = c2_rpc_item_is_unsolicited(item);
+	oneway = c2_rpc_item_is_oneway(item);
 	bound  = c2_rpc_item_is_bound(item);
 
 	return  item->ri_link_magic == C2_RPC_ITEM_FIELD_MAGIC &&
@@ -373,12 +373,12 @@ bool c2_rpc_item_is_reply(const struct c2_rpc_item *item)
 	return (item->ri_type->rit_flags & C2_RPC_ITEM_TYPE_REPLY) != 0;
 }
 
-bool c2_rpc_item_is_unsolicited(const struct c2_rpc_item *item)
+bool c2_rpc_item_is_oneway(const struct c2_rpc_item *item)
 {
 	C2_PRE(item != NULL);
 	C2_PRE(item->ri_type != NULL);
 
-	return (item->ri_type->rit_flags & C2_RPC_ITEM_TYPE_UNSOLICITED) != 0;
+	return (item->ri_type->rit_flags & C2_RPC_ITEM_TYPE_ONEWAY) != 0;
 }
 
 bool c2_rpc_item_is_bound(const struct c2_rpc_item *item)
@@ -390,7 +390,7 @@ bool c2_rpc_item_is_bound(const struct c2_rpc_item *item)
 
 bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item)
 {
-	return !c2_rpc_item_is_bound(item) && !c2_rpc_item_is_unsolicited(item);
+	return !c2_rpc_item_is_bound(item) && !c2_rpc_item_is_oneway(item);
 }
 
 void c2_rpc_item_set_stage(struct c2_rpc_item     *item,

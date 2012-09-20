@@ -67,10 +67,10 @@ constraints_are_valid(const struct c2_rpc_frm_constraints *constraints);
 static const char *str_qtype[] = {
 	[FRMQ_TIMEDOUT_BOUND]   = "TIMEDOUT_BOUND",
 	[FRMQ_TIMEDOUT_UNBOUND] = "TIMEDOUT_UNBOUND",
-	[FRMQ_TIMEDOUT_ONE_WAY] = "TIMEDOUT_ONE_WAY",
+	[FRMQ_TIMEDOUT_ONEWAY] = "TIMEDOUT_ONEWAY",
 	[FRMQ_WAITING_UNBOUND]  = "WAITING_UNBOUND",
 	[FRMQ_WAITING_BOUND]    = "WAITING_BOUND",
-	[FRMQ_WAITING_ONE_WAY]  = "WAITING_ONE_WAY"
+	[FRMQ_WAITING_ONEWAY]  = "WAITING_ONEWAY"
 };
 
 C2_BASSERT(ARRAY_SIZE(str_qtype) == FRMQ_NR_QUEUES);
@@ -290,7 +290,7 @@ frm_which_queue(struct c2_rpc_frm *frm, const struct c2_rpc_item *item)
 	C2_ENTRY("item: %p", item);
 	C2_PRE(item != NULL);
 
-	oneway          = c2_rpc_item_is_unsolicited(item);
+	oneway          = c2_rpc_item_is_oneway(item);
 	bound           = oneway ? false : c2_rpc_item_is_bound(item);
 	deadline_passed = c2_time_now() >= item->ri_deadline;
 
@@ -301,11 +301,11 @@ frm_which_queue(struct c2_rpc_frm *frm, const struct c2_rpc_item *item)
 		c2_bool_to_str(deadline_passed));
 
 	if (deadline_passed)
-		qtype = oneway ? FRMQ_TIMEDOUT_ONE_WAY
+		qtype = oneway ? FRMQ_TIMEDOUT_ONEWAY
 			       : bound  ? FRMQ_TIMEDOUT_BOUND
 					: FRMQ_TIMEDOUT_UNBOUND;
 	else
-		qtype = oneway ? FRMQ_WAITING_ONE_WAY
+		qtype = oneway ? FRMQ_WAITING_ONEWAY
 			       : bound  ? FRMQ_WAITING_BOUND
 					: FRMQ_WAITING_UNBOUND;
 	C2_LEAVE("qtype: %s", str_qtype[qtype]);
@@ -412,7 +412,7 @@ static void frm_filter_timedout_items(struct c2_rpc_frm *frm)
 	static const enum c2_rpc_frm_itemq_type qtypes[] = {
 		FRMQ_WAITING_BOUND,
 		FRMQ_WAITING_UNBOUND,
-		FRMQ_WAITING_ONE_WAY
+		FRMQ_WAITING_ONEWAY
 	};
 	enum c2_rpc_frm_itemq_type  qtype;
 	struct c2_rpc_item         *item;
@@ -458,7 +458,7 @@ static bool frm_is_ready(const struct c2_rpc_frm *frm)
 	has_timedout_items =
 		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_TIMEDOUT_BOUND]) ||
 		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_TIMEDOUT_UNBOUND]) ||
-		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_TIMEDOUT_ONE_WAY]);
+		!itemq_tlist_is_empty(&frm->f_itemq[FRMQ_TIMEDOUT_ONEWAY]);
 
 	c = &frm->f_constraints;
 	return frm->f_nr_packets_enqed < c->fc_max_nr_packets_enqed &&
@@ -495,7 +495,7 @@ static void frm_fill_packet(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 					continue;
 				}
 			}
-			C2_ASSERT(c2_rpc_item_is_unsolicited(item) ||
+			C2_ASSERT(c2_rpc_item_is_oneway(item) ||
 				  c2_rpc_item_is_bound(item));
 			frm_itemq_remove(frm, item);
 			if (item_supports_merging(item)) {
