@@ -35,9 +35,16 @@
    @{
  */
 
+struct c2_cm_ag_id {
+	struct c2_uint128 ai_hi;
+	struct c2_uint128 ai_lo;
+};
+
 /** Copy Machine Aggregation Group. */
 struct c2_cm_aggr_group {
 	struct c2_cm                      *cag_cm;
+
+	struct c2_cm_ag_id                 cag_id;
 
 	const struct c2_cm_aggr_group_ops *cag_ops;
 
@@ -81,6 +88,14 @@ struct c2_cm_aggr_group_ops {
 			   const struct c2_cm_aggr_group *ag2);
 };
 
+int c2_cm_ag_id_cmp(const struct c2_cm_ag_id *id0, const struct c2_cm_ag_id *id1);
+
+/**
+ * Searches for an aggregation group for the given "id" in c2_cm::cm_aggr_groups,
+ * creates a new one if not found.
+ */
+struct c2_cm_aggr_group *c2_cm_aggr_group_find(const struct c2_cm *cm,
+					       const struct c2_cm_ag_id *id);
 /** @} CMAG */
 #endif
 /*

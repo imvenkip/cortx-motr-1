@@ -208,6 +208,9 @@ struct c2_cm_ops {
 	/** Creates copy packets only if resources permit. */
 	struct c2_cm_cp *(*cmo_cp_alloc)(struct c2_cm *cm);
 
+	/** Creates aggregation group for the given "id". */
+	struct c2_cm_aggr_group *(*cmo_ag_alloc) (struct c2_cm *cm,
+						  struct c2_cm_ag_id *id);
 	/**
 	 * Iterates over the copy machine data set and populates the copy packet
 	 * with meta data of next data object to be restructured, i.e. fid,
@@ -215,15 +218,42 @@ struct c2_cm_ops {
 	 */
 	int (*cmo_data_next)(struct c2_cm *cm, struct c2_cm_cp *cp);
 
+	/** Returns next relevant aggregation group id after "id_curr". */
+	int (*cmo_ag_next)(const struct c2_cm *cm,
+			   const struct c2_cm_ag_id *id_curr,
+			   struct c2_cm_ag_id *id_next);
+
+	/**
+	 * Returns true iff the copy machine has enough space to receive all
+	 * the copy packets from the given relevant group "id".
+	 * e.g. sns repair copy machine checks if the incoming buffer pool has
+	 * enough free buffers to receive all the remote units corresponding
+	 * to a parity group.
+	 */
+	bool (*cmo_has_space)(const struct c2_cm *cm,
+			      const struct c2_cm_ag_id *id);
+
 	/** Copy machine specific finalisation routine. */
 	void (*cmo_fini)(struct c2_cm *cm);
 };
 
+/**
+ * Represents remote replica and stores its details including its sliding
+ * window.
+ */
 struct c2_cm_proxy {
-	uint64_t          px_id;
-	struct c2_uint128 px_lo;
-	struct c2_uint128 px_hi;
-	struct c2_tl      px_q;
+	/** Remote replica's identifier. */
+	uint64_t           px_id;
+
+	/** Remote replica's sliding window. */
+	struct c2_cm_ag_id px_lo;
+	struct c2_cm_ag_id px_hi;
+
+	/**
+	 * Pending list of copy packets to be forwarded to the remote
+	 * replica.
+	 * */
+	struct c2_tl       px_q;
 };
 
 int c2_cm_type_register(struct c2_cm_type *cmt);
@@ -344,7 +374,7 @@ enum c2_cm_state c2_cm_state_get(const struct c2_cm *cm);
  * Creates copy packets and adds aggregation groups to c2_cm::cm_aggr_grps,
  * if required.
  */
-void c2_cm_ag_fill(struct c2_cm *cm);
+void c2_cm_sw_fill(struct c2_cm *cm);
 
 /** Iterates over data to be re-structured. */
 int c2_cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp);

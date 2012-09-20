@@ -407,7 +407,7 @@ static int cm_start(struct c2_cm *cm)
 	 */
 	if (bufs_nr == 0)
 		return -ENOMEM;
-	c2_cm_ag_fill(cm);
+	c2_cm_sw_fill(cm);
 
 	C2_LEAVE();
 	return 0;

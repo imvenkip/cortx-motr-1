@@ -573,7 +573,7 @@ int c2_cm_done(struct c2_cm *cm)
 	return 0;
 }
 
-void c2_cm_ag_fill(struct c2_cm *cm)
+void c2_cm_sw_fill(struct c2_cm *cm)
 {
 	struct c2_cm_cp *cp;
 
