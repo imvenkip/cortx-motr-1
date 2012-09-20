@@ -232,7 +232,7 @@ void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 		C2_ASSERT(ctx != NULL);
 		rpcmach = ctx->cec_rpc_machine;
 	} else
-		rpcmach = item->ri_session->s_conn->c_rpc_machine;
+		rpcmach = item_machine(item);
 
 	C2_ASSERT(rpcmach != NULL);
 

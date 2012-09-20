@@ -82,7 +82,7 @@ static inline struct c2_net_transfer_mc *fop_tm_get(
 {
 	C2_PRE(fop != NULL);
 
-	return &fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm;
+	return &(item_machine(&fop->f_item)->rm_tm);
 }
 
 static void bulkio_stob_fom_fini(struct c2_fom *fom)
@@ -423,8 +423,7 @@ static int check_write_fom_tick(struct c2_fom *fom)
                  * max), so that zero-copy initialisation fails.
                  */
                 saved_segments_count = rwfop->crw_ivecs.cis_ivecs[cdi].ci_nr;
-                netdom =
-                   fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
+                netdom = item_machine(&fop->f_item)->rm_tm.ntm_dom;
                 rwfop->crw_ivecs.cis_ivecs[cdi].ci_nr =
                         c2_net_domain_get_max_buffer_segments(netdom)+1;
 
@@ -888,8 +887,7 @@ static int check_read_fom_tick(struct c2_fom *fom)
                  * max), so that zero-copy initialisation fails.
                  */
                 saved_segments_count = rwfop->crw_ivecs.cis_ivecs[cdi].ci_nr;
-                netdom =
-                   fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
+                netdom = item_machine(&fop->f_item)->rm_tm.ntm_dom;
                 rwfop->crw_ivecs.cis_ivecs[cdi].ci_nr =
                         c2_net_domain_get_max_buffer_segments(netdom)+1;
 

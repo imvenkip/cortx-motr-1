@@ -344,9 +344,9 @@ void c2_rpc_session_fini(struct c2_rpc_session *session)
 
 	C2_PRE(session != NULL &&
 	       session->s_conn != NULL &&
-	       session->s_conn->c_rpc_machine != NULL);
+	       session_machine(session) != NULL);
 
-	machine = session->s_conn->c_rpc_machine;
+	machine = session_machine(session);
 
 	c2_rpc_machine_lock(machine);
 	c2_rpc_session_fini_locked(session);
@@ -370,11 +370,9 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session *session,
 			      uint64_t               state_flags,
 			      const c2_time_t        abs_timeout)
 {
-	struct c2_rpc_machine *machine;
+	struct c2_rpc_machine *machine = session_machine(session);
 	bool                   got_event = true;
 	bool                   state_reached;
-
-	machine = session->s_conn->c_rpc_machine;
 
 	c2_rpc_machine_lock(machine);
 
@@ -468,7 +466,7 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 			c2_free(ctx);
 	}
 
-	machine = session->s_conn->c_rpc_machine;
+	machine = session_machine(session);
 
 	c2_rpc_machine_lock(machine);
 
@@ -571,7 +569,7 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *item)
 	session = ctx->sec_session;
 	C2_ASSERT(session != NULL);
 
-	machine = session->s_conn->c_rpc_machine;
+	machine = session_machine(session);
 	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
@@ -855,9 +853,8 @@ void c2_rpc_session_mod_nr_active_items(struct c2_rpc_session *session,
 /** Perform (IDLE -> BUSY) or (BUSY -> IDLE) transition if required */
 static void session_idle_x_busy(struct c2_rpc_session *session)
 {
-	struct c2_rpc_machine *machine;
+	struct c2_rpc_machine *machine = session_machine(session);
 
-	machine = session->s_conn->c_rpc_machine;
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 	C2_PRE(C2_IN(session->s_state, (C2_RPC_SESSION_IDLE,
 					C2_RPC_SESSION_BUSY)));
@@ -959,7 +956,7 @@ static void snd_slot_idle(struct c2_rpc_slot *slot)
 	C2_PRE(!c2_list_link_is_in(&slot->sl_link));
 
 	c2_list_add_tail(&slot->sl_session->s_ready_slots, &slot->sl_link);
-	frm = &slot->sl_session->s_conn->c_rpcchan->rc_frm;
+	frm = session_frm(slot->sl_session);
 	c2_rpc_frm_run_formation(frm);
 }
 
@@ -987,7 +984,7 @@ bool c2_rpc_session_bind_item(struct c2_rpc_item *item)
 
 static void snd_item_consume(struct c2_rpc_item *item)
 {
-	c2_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm, item);
+	c2_rpc_frm_enq_item(session_frm(item->ri_session), item);
 }
 
 static void snd_reply_consume(struct c2_rpc_item *req,
@@ -1014,7 +1011,7 @@ static void rcv_item_consume(struct c2_rpc_item *item)
 static void rcv_reply_consume(struct c2_rpc_item *req,
 			      struct c2_rpc_item *reply)
 {
-	c2_rpc_frm_enq_item(&req->ri_session->s_conn->c_rpcchan->rc_frm,
+	c2_rpc_frm_enq_item(session_frm(req->ri_session),
 			    reply);
 }
 
@@ -1027,7 +1024,7 @@ int c2_rpc_rcv_session_establish(struct c2_rpc_session *session)
 
 	C2_PRE(session != NULL);
 
-	machine = session->s_conn->c_rpc_machine;
+	machine = session_machine(session);
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_ASSERT(session->s_state == C2_RPC_SESSION_INITIALISED);
@@ -1207,10 +1204,9 @@ void c2_rpc_session_item_failed(struct c2_rpc_item *item)
 void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session)
 {
 	struct c2_rpc_slot    *slot;
-	struct c2_rpc_machine *machine;
+	struct c2_rpc_machine *machine = session_machine(session);
 	int                    i;
 
-	machine = session->s_conn->c_rpc_machine;
 	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 
 	for (i = 0; i < session->s_nr_slots; i++) {

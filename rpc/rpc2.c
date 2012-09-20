@@ -54,14 +54,12 @@ void c2_rpc_module_fini(void)
 
 int c2_rpc_post(struct c2_rpc_item *item)
 {
-	struct c2_rpc_machine *machine;
+	struct c2_rpc_machine *machine = item_machine(item);
 	int                    rc;
 	uint64_t	       item_size;
 
 	C2_PRE(item->ri_session != NULL);
-	C2_PRE(item->ri_op_timeout > c2_time_now());
 
-	machine	  = item->ri_session->s_conn->c_rpc_machine;
 	item_size = c2_rpc_item_size(item);
 
 	c2_rpc_machine_lock(machine);
@@ -94,7 +92,7 @@ int c2_rpc__post_locked(struct c2_rpc_item *item)
 					   C2_RPC_SESSION_BUSY)));
 	C2_ASSERT(c2_rpc_item_size(item) <=
 			c2_rpc_session_get_max_item_size(session));
-	C2_ASSERT(c2_rpc_machine_is_locked(session->s_conn->c_rpc_machine));
+	C2_ASSERT(c2_rpc_machine_is_locked(session_machine(session)));
 	/*
 	 * This hold will be released when the item is SENT or FAILED.
 	 * See rpc/frmops.c:item_done()
@@ -103,8 +101,8 @@ int c2_rpc__post_locked(struct c2_rpc_item *item)
 
 	item->ri_rpc_time = c2_time_now();
 
-	c2_rpc_item_sm_init(item, &session->s_conn->c_rpc_machine->rm_sm_grp);
-	c2_rpc_frm_enq_item(&session->s_conn->c_rpcchan->rc_frm, item);
+	c2_rpc_item_sm_init(item, &session_machine(session)->rm_sm_grp);
+	c2_rpc_frm_enq_item(session_frm(session), item);
 	return 0;
 }
 
@@ -140,7 +138,7 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	reply->ri_error    = 0;
 
 	slot = sref->sr_slot;
-	machine = slot->sl_session->s_conn->c_rpc_machine;
+	machine = session_machine(slot->sl_session);
 
 	c2_rpc_machine_lock(machine);
 	c2_rpc_item_sm_init(reply, &machine->rm_sm_grp);

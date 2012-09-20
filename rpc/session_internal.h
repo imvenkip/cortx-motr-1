@@ -549,6 +549,12 @@ int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active,
 				int count);
 #endif
 
+static inline struct c2_rpc_machine *
+session_machine(const struct c2_rpc_session *s)
+{
+	return s->s_conn->c_rpc_machine;
+}
+
 /** @}  End of rpc_session group */
 #endif
 

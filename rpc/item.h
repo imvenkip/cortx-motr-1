@@ -382,6 +382,12 @@ void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type);
 */
 struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode);
 
+static inline struct c2_rpc_machine *
+item_machine(const struct c2_rpc_item *item)
+{
+	return item->ri_session->s_conn->c_rpc_machine;
+}
+
 #endif
 
 /** @} end of rpc-layer-core group */

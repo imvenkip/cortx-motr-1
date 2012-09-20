@@ -447,6 +447,6 @@ static bool item_bind(struct c2_rpc_item *item)
 
 	result = c2_rpc_session_bind_item(item);
 
-	C2_LEAVE("result: %s", result ? "true" : "false");
+	C2_LEAVE("result: %s", c2_bool_to_str(result));
 	return result;
 }

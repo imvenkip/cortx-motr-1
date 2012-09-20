@@ -381,7 +381,7 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 	C2_PRE(slot->sl_session != NULL);
 
 	session = slot->sl_session;
-	machine = session->s_conn->c_rpc_machine;
+	machine = session_machine(session);
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 
 	sref                = &item->ri_slot_refs[0];

@@ -644,7 +644,7 @@ void item_exit_stats_set(struct c2_rpc_item *item,
 
 	C2_PRE(item != NULL && item->ri_session != NULL);
 
-	machine = item->ri_session->s_conn->c_rpc_machine;
+	machine = item_machine(item);
 	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 
 	C2_PRE(IS_IN_ARRAY(path, machine->rm_rpc_stats));

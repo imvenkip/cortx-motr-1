@@ -651,3 +651,8 @@ void c2_rpc_frm_packet_done(struct c2_rpc_packet *p)
 
 	C2_LEAVE();
 }
+
+struct c2_rpc_frm *session_frm(const struct c2_rpc_session *s)
+{
+	return &s->s_conn->c_rpcchan->rc_frm;
+}

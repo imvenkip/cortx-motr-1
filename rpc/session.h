@@ -1036,7 +1036,7 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session *session,
 
    @pre session->s_state == C2_RPC_SESSION_IDLE ||
 	session->s_state == C2_RPC_SESSION_BUSY
-   @pre c2_rpc_machine_is_locked(session->s_conn->c_rpc_machine)
+   @pre c2_rpc_machine_is_locked(session_machine(session))
    @post session->s_state == C2_RPC_SESSION_BUSY
  */
 void c2_rpc_session_hold_busy(struct c2_rpc_session *session);
@@ -1046,7 +1046,7 @@ void c2_rpc_session_hold_busy(struct c2_rpc_session *session);
 
    @pre session->s_state == C2_RPC_SESSION_BUSY
    @pre session->s_hold_cnt > 0
-   @pre c2_rpc_machine_is_locked(session->s_conn->c_rpc_machine)
+   @pre c2_rpc_machine_is_locked(session_machine(session))
    @post ergo(c2_rpc_session_is_idle(session),
 	      session->s_state == C2_RPC_SESSION_IDLE)
  */

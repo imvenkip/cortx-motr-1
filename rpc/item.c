@@ -459,10 +459,8 @@ int c2_rpc_item_timedwait(struct c2_rpc_item *item,
                           uint64_t            states,
                           c2_time_t           timeout)
 {
-        struct c2_rpc_machine *machine;
+        struct c2_rpc_machine *machine = item_machine(item);
         int                    rc;
-
-        machine = item->ri_session->s_conn->c_rpc_machine;
 
         c2_rpc_machine_lock(machine);
         rc = c2_sm_timedwait(&item->ri_sm, states, timeout);
