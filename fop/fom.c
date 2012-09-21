@@ -65,7 +65,7 @@
  *       locality is initialised;
  *
  *     - as part of c2_fom_block_leave() call, the blocked thread increments
- *       c2_fom_locality::fl_unblocking counter and tries to acquire the group
+ *       c2_fom_locality::fl_unblocking counter and acquires the group
  *       lock. When the group lock is acquired, the thread makes itself the
  *       handler thread;
  *
