@@ -161,11 +161,11 @@ enum c2_magic_satchel {
 	/* c2_fom::fo_magic (leadless less) */
 	C2_FOM_MAGIC = 0x331ead1e551e5577,
 
-	/* runq::td_head_magic (leadless liao) */
-	C2_FOM_RUNQ_MAGIC = 0x331ead1e5511a077,
+	/* c2_fom_locality::fl_runq::td_head_magic (alas albizzia) */
+	C2_FOM_RUNQ_MAGIC = 0x33a1a5a1b1221a77,
 
-	/* wail::td_head_magic (leadless lido) */
-	C2_FOM_WAIL_MAGIC = 0x331ead1e5511d077,
+	/* c2_fom_locality::fl_wail::td_head_magic (baseless bole) */
+	C2_FOM_WAIL_MAGIC = 0x33ba5e1e55501e77,
 
 	/* c2_fom_thread::lt_magix (falsifiable C) */
 	C2_FOM_THREAD_MAGIC = 0x33fa151f1ab1ec77,

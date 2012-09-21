@@ -277,7 +277,8 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 		c2_fom_group_is_locked(fom) &&
 
 		/* fom magic is the same in runq and wail tlists,
-		 * so we can use either one here */
+		 * so we can use either one here.
+		 * @todo replace this with bob_check() */
 		c2_tlink_invariant(&runq_tl, fom) &&
 
 		C2_IN(fom_state(fom), (C2_FOS_READY, C2_FOS_WAITING,
