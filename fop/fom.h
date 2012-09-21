@@ -242,11 +242,11 @@ struct c2_fom_locality {
 	struct c2_fom_domain        *fl_dom;
 
 	/** Run-queue */
-	struct c2_list               fl_runq;
+	struct c2_tl		     fl_runq;
 	size_t			     fl_runq_nr;
 
 	/** Wait list */
-	struct c2_list		     fl_wail;
+	struct c2_tl		     fl_wail;
 	size_t			     fl_wail_nr;
 
 	/**
@@ -460,7 +460,7 @@ struct c2_fom {
 	 *  Every access to the FOM via this linkage is
 	 *  protected by the c2_fom_locality::fl_group.s_lock mutex.
 	 */
-	struct c2_list_link	  fo_linkage;
+	struct c2_tlink		  fo_linkage;
 	/** Transitions counter, coresponds to the number of
 	    c2_fom_ops::fo_state() calls */
 	unsigned		  fo_transitions;
@@ -469,9 +469,9 @@ struct c2_fom {
 	unsigned		  fo_transitions_saved;
 
 	/** State machine for generic and specfic FOM phases. */
-	struct c2_sm		 fo_sm_phase;
+	struct c2_sm		  fo_sm_phase;
 	/** State machine for FOM states. */
-	struct c2_sm		 fo_sm_state;
+	struct c2_sm		  fo_sm_state;
 	/** Result of fom execution, -errno on failure */
 	int32_t			  fo_rc;
 	/** Thread executing current phase transition. */
@@ -480,6 +480,7 @@ struct c2_fom {
 	 * Stack of pending call-backs.
 	 */
 	struct c2_fom_callback   *fo_pending;
+	uint64_t		  fo_magic;
 };
 
 /**
