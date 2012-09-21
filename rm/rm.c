@@ -464,8 +464,8 @@ int c2_rm_owner_selfadd(struct c2_rm_owner *owner, struct c2_rm_right *r)
 			return -ENOMEM;
 		}
 		c2_rm_right_init(right_transfer, owner);
-		rc = right_copy(right_transfer, r);
-		rc = rc ?: c2_rm_loan_init(nominal_capital, r);
+		rc = right_copy(right_transfer, r) ?:
+		     c2_rm_loan_init(nominal_capital, r);
 		if (rc == 0) {
 			nominal_capital->rl_id = C2_RM_LOAN_SELF_ID;
 			/* Add capital to the borrowed list. */
@@ -789,8 +789,8 @@ void c2_rm_remote_fini(struct c2_rm_remote *rem)
 C2_EXPORTED(c2_rm_remote_fini);
 
 /*
- * Flush the OWOS_CAHCED rights. If the right(s) completely intersects the
- * incoming right, remove it(them) from the cache. If the CAHCED right partly
+ * Flush the OWOS_CACHED rights. If the right(s) completely intersects the
+ * incoming right, remove it(them) from the cache. If the CACHED right partly
  * intersects with the incoming right, retain the difference in the CACHE.
  */
 static int rights_integrate(struct c2_rm_incoming *in)
@@ -841,8 +841,7 @@ int c2_rm_borrow_commit(struct c2_rm_remote_incoming *rem_in)
 	/*
 	 * Flush the rights cache and remove incoming rights from the cache.
 	 */
-	rc = rights_integrate(in);
-	rc = rc ?: c2_rm_loan_init(loan, &in->rin_want);
+	rc = rights_integrate(in) ?: c2_rm_loan_init(loan, &in->rin_want);
 	if (rc == 0) {
 		/*
 		 * Store the loan in the sublet list.
@@ -1008,7 +1007,7 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
 }
 
 /*
- * After successful completion of incoming request, move OWOS_CAHCED rights
+ * After successful completion of incoming request, move OWOS_CACHED rights
  * to OWOS_HELD rights.
  */
 static int cached_rights_hold(struct c2_rm_incoming *in)
@@ -1183,8 +1182,8 @@ static void incoming_check(struct c2_rm_incoming *in)
 	 */
 	if (in->rin_rc == 0) {
 		c2_rm_right_init(&rest, in->rin_want.ri_owner);
-		rc = right_copy(&rest, &in->rin_want);
-		rc = rc ?: incoming_check_with(in, &rest);
+		rc = right_copy(&rest, &in->rin_want) ?:
+		     incoming_check_with(in, &rest);
 		c2_rm_right_fini(&rest);
 	} else
 		rc = in->rin_rc;
@@ -1220,7 +1219,7 @@ static void incoming_check(struct c2_rm_incoming *in)
  * Main helper function to incoming_check(), which starts with "rest" set to the
  * wanted right and goes though the sequence of checks, reducing "rest".
  *
- * CHECK logic can be described by means of "want conditions". A wait condition
+ * CHECK logic can be described by means of "wait conditions". A wait condition
  * is something that prevents immediate fulfillment of the request.
  *
  *     - A request with RIF_LOCAL_WAIT bit set can be fulfilled iff the rights
@@ -1302,8 +1301,7 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 			 * @todo use rpc grouping here.
 			 */
 			wait++;
-			rc = revoke_send(in, loan, rest);
-			rc = rc ?: right_diff(rest, r);
+			rc = revoke_send(in, loan, rest) ?: right_diff(rest, r);
 			if (rc != 0)
 				return rc;
 		} c2_tl_endfor;
