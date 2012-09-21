@@ -304,37 +304,41 @@ struct c2_net_buffer *c2_sns_repair_buffer_get(struct c2_net_buffer_pool *bp,
 	return buf;
 }
 
-static struct c2_cm_cp *cm_cp_alloc(struct c2_cm *cm)
+/* This is invoked from cm_data_next. */
+static int cm_buf_attach(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
-	struct c2_sns_repair_cp *rcp;
 	struct c2_sns_repair_cm *rcm;
 	struct c2_net_buffer    *buf;
 	size_t                   colour;
-	int                      rc;
+
+	rcm = cm2sns(cm);
+	colour =  cp_home_loc_helper(cp) % rcm->rc_obp.nbp_colours_nr;
+	buf = c2_sns_repair_buffer_get(&rcm->rc_obp, colour);
+	if (buf == NULL)
+		return -ENOMEM;
+	cp->c_data = &buf->nb_buffer;
+
+	return 0;
+}
+
+static struct c2_cm_cp *cm_cp_alloc(struct c2_cm *cm)
+{
+	struct c2_sns_repair_cp *rcp;
 
 	C2_PRE(c2_cm_invariant(cm));
 
-	rcm = cm2sns(cm);
 	C2_ALLOC_PTR(rcp);
 	if (rcp == NULL)
 		return NULL;
-	rc = c2_cm_data_next(cm, &rcp->rc_base);
-	if (rc != 0)
-		goto cleanup;
-	colour =  cp_home_loc_helper(&rcp->rc_base) % rcm->rc_obp.nbp_colours_nr;
-	buf = c2_sns_repair_buffer_get(&rcm->rc_obp, colour);
-	if (buf == NULL)
-		goto cleanup;
-	c2_cm_cp_init(&rcp->rc_base, &c2_sns_repair_cp_ops, &buf->nb_buffer);
+	rcp->rc_base.c_ops = &c2_sns_repair_cp_ops;
 	return &rcp->rc_base;
-
-cleanup:
-	c2_free(rcp);
-	return NULL;
 }
 
 static int cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
+	/* XXX TODO: Iterate copy machine data. */
+
+	cm_buf_attach(cm, cp);
 	return 0;
 }
 
@@ -407,7 +411,6 @@ static int cm_start(struct c2_cm *cm)
 	 */
 	if (bufs_nr == 0)
 		return -ENOMEM;
-	c2_cm_sw_fill(cm);
 
 	C2_LEAVE();
 	return 0;

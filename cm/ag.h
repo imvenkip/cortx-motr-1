@@ -26,8 +26,6 @@
 #include "lib/types.h"
 #include "lib/tlist.h"
 
-#include "cm/cm.h"
-
 /**
    @defgroup CMAG Copy machine aggregation group
    @ingroup CM

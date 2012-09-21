@@ -42,11 +42,6 @@ struct c2_sns_repair_aggr_group {
 	struct c2_cm_aggr_group      sag_base;
 	/** Transformed copy packet created by transformation function. */
 	struct c2_cm_cp             *sag_cp;
-	/**
-	 * Aggregation group identifier to uniquely identify a sns repair
-	 * aggregation group.
-	 */
-	struct c2_sns_repair_ag_id   sag_id;
 };
 
 struct c2_sns_repair_aggr_group *ag2snsag(const struct c2_cm_aggr_group *ag);

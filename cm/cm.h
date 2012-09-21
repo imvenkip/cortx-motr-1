@@ -29,6 +29,9 @@
 #include "addb/addb.h"         /* struct c2_addb_ctx */
 #include "reqh/reqh_service.h" /* struct c2_reqh_service_type */
 #include "sm/sm.h"	       /* struct c2_sm */
+#include "fop/fom.h"           /* struct c2_fom */
+
+#include "cm/ag.h"
 
 /**
    @page CMDLD-fspec Copy Machine Functional Specification
@@ -103,6 +106,8 @@
 /* Import */
 struct c2_fop;
 
+struct c2_cm_cp_pump;
+
 /**
  * Copy machine states.
  * @see The @ref CMDLD-lspec-state
@@ -132,6 +137,57 @@ enum c2_cm_failure {
 	/** Copy machine stop failure */
 	C2_CM_ERR_STOP,
 	C2_CM_ERR_NR
+};
+
+enum c2_cm_cp_pump_phase {
+	/**
+	 * New copy packets are allocated in this phase.
+	 * c2_cm_cp_pump::p_fom is in CPP_ALLOC phase when it is initialised
+	 * or c2_cm_sw_fill() is invoked from a copy packet FOM, during latter's
+	 * finalisation.
+	 */
+	CPP_ALLOC = C2_FOM_PHASE_INIT,
+	CPP_FINI  = C2_FOM_PHASE_FINISH,
+	/**
+	 * c2_cm_cp_pump::p_fom is transitioned to CPP_IDLE state in case of
+	 * failure and if no more copy packets can be created (in case buffer
+	 * pool is exhausted).
+	 */
+	CPP_IDLE,
+	/**
+	 * Copy packets allocated in CPP_ALLOC phase are configured in this
+	 * phase.
+	 */
+	CPP_DATA_NEXT,
+	CPP_FAIL,
+	CPP_NR
+};
+
+struct c2_cm_cp_pump_ops {
+	uint64_t po_action_nr;
+	int     (*po_action[]) (struct c2_cm_cp_pump *cp_pump);
+};
+
+/**
+ * Represents copy packet pump FOM. New copy packets are created in context
+ * of c2_cm_cp_pump::p_fom. The pump FOM (c2_cm_cp_pump::p_fom) nicely resolves
+ * the issues with creation of new copy packets and configuring them using
+ * c2_cm_data_next(), which may block. The pump FOM is created when copy machine
+ * operation starts and finalised when copy machine operation is complete.
+ * The pump FOM goes to sleep when no more copy packets can be created (the out-
+ * going pool is exhausted). When a copy packet FOM terminates and frees its
+ * buffer in the pool, it wakes the pump up (using c2_cm_sw_fill()) to create
+ * more copy packets.
+ */
+struct c2_cm_cp_pump {
+	/** pump FOM. */
+	struct c2_fom                   p_fom;
+	const struct c2_cm_cp_pump_ops *p_ops;
+	/**
+	 * Saved copy packet, in-case the pump FOM goes into wait due to
+	 * c2_cm_data_next().
+	 */
+	struct c2_cm_cp               *p_cp;
 };
 
 /** Copy Machine type, implemented as a request handler service. */
@@ -181,6 +237,9 @@ struct c2_cm {
 	 * @see struct c2_cm_aggr_group::cag_cm_linkage
 	 */
 	struct c2_tl                     cm_aggr_grps;
+
+	/** Copy packet pump fom. */
+	struct c2_cm_cp_pump             cm_cp_pump;
 };
 
 /** Operations supported by a copy machine. */
@@ -215,6 +274,7 @@ struct c2_cm_ops {
 	 * Iterates over the copy machine data set and populates the copy packet
 	 * with meta data of next data object to be restructured, i.e. fid,
 	 * aggregation group, &c.
+	 * Also attaches data buffer to c2_cm_cp::c_data, if successful.
 	 */
 	int (*cmo_data_next)(struct c2_cm *cm, struct c2_cm_cp *cp);
 
@@ -376,7 +436,15 @@ enum c2_cm_state c2_cm_state_get(const struct c2_cm *cm);
  */
 void c2_cm_sw_fill(struct c2_cm *cm);
 
-/** Iterates over data to be re-structured. */
+/**
+ * Iterates over data to be re-structured.
+ *
+ * @pre c2_cm_invariant(cm)
+ * @pre c2_cm_is_locked(cm)
+ * @pre cp != NULL
+ *
+ * @post ergo(rc == 0, cp->c_data != NULL)
+ */
 int c2_cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp);
 
 /** Returns last element from the c2_cm::cm_aggr_grps list. */

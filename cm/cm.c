@@ -28,6 +28,7 @@
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/assert.h" /* C2_PRE, C2_POST */
 #include "colibri/magic.h"
+
 #include "cm/cm.h"
 #include "cm/ag.h"
 #include "cm/cp.h"
@@ -227,6 +228,152 @@ const struct c2_addb_ctx_type c2_cm_addb_ctx = {
 	.act_name = "copy machine"
 };
 
+static const struct c2_fom_type_ops cm_cp_pump_fom_type_ops = {
+        .fto_create = NULL
+};
+
+static struct c2_fom_type cm_cp_pump_fom_type = {
+        .ft_ops = &cm_cp_pump_fom_type_ops
+};
+
+static void cm_move(struct c2_cm *cm, int rc, enum c2_cm_state state,
+		    enum c2_cm_failure failure);
+
+static uint64_t cm_cp_pump_fom_locality(const struct c2_fom *fom)
+{
+        return 0;
+}
+
+static void cm_cp_pump_fom_fini(struct c2_fom *fom)
+{
+	c2_fom_fini(fom);
+}
+
+void c2_cm_sw_fill(struct c2_cm *cm)
+{
+	struct c2_cm_cp_pump *cp_pump;
+
+	C2_PRE(c2_cm_invariant(cm));
+	C2_PRE(c2_cm_is_locked(cm));
+
+	cp_pump = &cm->cm_cp_pump;
+
+	c2_fom_phase_set(&cm->cm_cp_pump.p_fom, CPP_ALLOC);
+	c2_fom_wakeup(&cm->cm_cp_pump.p_fom);
+}
+
+int c2_cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
+{
+	int rc;
+
+	C2_PRE(c2_cm_invariant(cm));
+	C2_PRE(c2_cm_is_locked(cm));
+	C2_PRE(cp != NULL);
+
+	rc = cm->cm_ops->cmo_data_next(cm, cp);
+
+	C2_POST(ergo(rc == 0, cp->c_data != NULL));
+
+	return rc;
+}
+
+static int cpp_alloc(struct c2_cm_cp_pump *cp_pump)
+{
+	struct c2_cm_cp *cp;
+	struct c2_cm    *cm;
+	struct c2_fom   *fom;
+
+	cm = container_of(cp_pump, struct c2_cm, cm_cp_pump);
+	fom = &cp_pump->p_fom;
+	cp = cm->cm_ops->cmo_cp_alloc(cm);
+	if (cp == NULL)
+		c2_fom_phase_set(fom, CPP_FAIL);
+	else {
+		cp_pump->p_cp = cp;
+		c2_fom_phase_set(fom, CPP_DATA_NEXT);
+	}
+
+	return C2_FSO_AGAIN;
+}
+
+static int cpp_data_next(struct c2_cm_cp_pump *cp_pump)
+{
+	struct c2_cm_cp  *cp;
+	struct c2_cm     *cm;
+	struct c2_fom    *fom;
+	int               rc;
+
+	fom = &cp_pump->p_fom;
+	cm = container_of(cp_pump, struct c2_cm, cm_cp_pump);
+	cp = cp_pump->p_cp;
+	C2_ASSERT(cp != NULL);
+	/*
+	 * Save allocated copy packet, in-case c2_cm_data_next() blocks.
+	 */
+	rc = c2_cm_data_next(cm, cp);
+	if (rc < 0)
+		goto fail;
+	if (rc == C2_FSO_AGAIN) {
+		C2_ASSERT(c2_cm_cp_invariant(cp));
+		c2_cm_cp_init(cp);
+		c2_cm_cp_enqueue(cm, cp);
+		c2_fom_phase_set(fom, CPP_ALLOC);
+	}
+	goto out;
+fail:
+	/* Destroy copy packet allocated in CPP_ALLOC phase. */
+	cp->c_ops->co_free(cp);
+	fom->fo_rc = rc;
+	c2_fom_phase_set(fom, CPP_FAIL);
+	rc = C2_FSO_AGAIN;
+out:
+	return rc;
+}
+
+static int cpp_fail(struct c2_cm_cp_pump *cp_pump)
+{
+	struct c2_cm *cm;
+
+	C2_PRE(cp_pump != NULL);
+
+	cm = container_of(cp_pump, struct c2_cm, cm_cp_pump);
+	cm_move(cm, cp_pump->p_fom.fo_rc, C2_CMS_ACTIVE, C2_CM_ERR_START);
+	c2_fom_phase_set(&cp_pump->p_fom, CPP_IDLE);
+
+	return C2_FSO_WAIT;
+}
+
+static int cpp_fini(struct c2_cm_cp_pump *cp_pump)
+{
+	c2_fom_fini(&cp_pump->p_fom);
+	return C2_FSO_WAIT;
+}
+
+static int cm_cp_pump_fom_tick(struct c2_fom *fom)
+{
+	struct c2_cm_cp_pump *cp_pump;
+        int                   phase = c2_fom_phase(fom);
+
+	cp_pump = container_of(fom, struct c2_cm_cp_pump, p_fom);
+	return cp_pump->p_ops->po_action[phase](cp_pump);
+}
+
+static const struct c2_cm_cp_pump_ops cpp_ops = {
+	.po_action = {
+		[CPP_ALLOC]     = cpp_alloc,
+		[CPP_DATA_NEXT] = cpp_data_next,
+		[CPP_FAIL]      = cpp_fail,
+		[CPP_FINI]      = cpp_fini
+	},
+	.po_action_nr = CPP_NR,
+};
+
+static const struct c2_fom_ops cm_cp_pump_fom_ops = {
+        .fo_fini          = cm_cp_pump_fom_fini,
+        .fo_tick          = cm_cp_pump_fom_tick,
+        .fo_home_locality = cm_cp_pump_fom_locality
+};
+
 const struct c2_sm_state_descr c2_cm_state_descr[C2_CMS_NR] = {
 	[C2_CMS_INIT] = {
 		.sd_flags	= C2_SDF_INITIAL,
@@ -406,6 +553,21 @@ int c2_cm_setup(struct c2_cm *cm)
 	return rc;
 }
 
+static void cm_cp_pump_start(struct c2_cm *cm)
+{
+	cm->cm_cp_pump.p_ops = &cpp_ops;
+	c2_fom_init(&cm->cm_cp_pump.p_fom, &cm_cp_pump_fom_type,
+		    &cm_cp_pump_fom_ops, NULL, NULL);
+	c2_fom_queue(&cm->cm_cp_pump.p_fom, cm->cm_service.rs_reqh);
+}
+
+static void cm_cp_pump_stop(struct c2_cm *cm)
+{
+	C2_PRE(c2_fom_phase(&cm->cm_cp_pump.p_fom) == CPP_IDLE);
+	c2_fom_phase_set(&cm->cm_cp_pump.p_fom, CPP_FINI);
+	c2_fom_wakeup(&cm->cm_cp_pump.p_fom);
+}
+
 int c2_cm_start(struct c2_cm *cm)
 {
 	int	rc;
@@ -420,10 +582,14 @@ int c2_cm_start(struct c2_cm *cm)
 
 	rc = cm->cm_ops->cmo_start(cm);
 	cm_move(cm, rc, C2_CMS_ACTIVE, C2_CM_ERR_START);
+	/* submit c2_cm::cm_cp_pump to reqh, to start creating copy packets. */
+	if (rc == 0)
+		cm_cp_pump_start(cm);
 
 	C2_POST(c2_cm_invariant(cm));
 	c2_cm_unlock(cm);
 	C2_LEAVE();
+
 	return rc;
 }
 
@@ -439,6 +605,8 @@ int c2_cm_stop(struct c2_cm *cm)
 	C2_PRE(c2_cm_invariant(cm));
 
 	rc = cm->cm_ops->cmo_stop(cm);
+	if (rc == 0)
+		cm_cp_pump_stop(cm);
 	cm_move(cm, rc, C2_CMS_STOP, C2_CM_ERR_STOP);
 
 	C2_POST(c2_cm_invariant(cm));
@@ -571,26 +739,6 @@ void c2_cm_type_deregister(struct c2_cm_type *cmtype)
 int c2_cm_done(struct c2_cm *cm)
 {
 	return 0;
-}
-
-void c2_cm_sw_fill(struct c2_cm *cm)
-{
-	struct c2_cm_cp *cp;
-
-	C2_PRE(c2_cm_invariant(cm));
-	C2_PRE(c2_cm_is_locked(cm));
-
-	while ((cp = cm->cm_ops->cmo_cp_alloc(cm)) != NULL)
-		   c2_cm_cp_enqueue(cm, cp);
-}
-
-int c2_cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
-{
-	C2_PRE(c2_cm_invariant(cm));
-	C2_PRE(c2_cm_is_locked(cm));
-	C2_PRE(cp != NULL);
-
-	return cm->cm_ops->cmo_data_next(cm, cp);
 }
 
 /** @} endgroup CM */

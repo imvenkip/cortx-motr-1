@@ -138,18 +138,15 @@ struct c2_cm_cp {
  * Copy packet operations.
  */
 struct c2_cm_cp_ops {
-	/** Called when copy packet processing is completed successfully. */
-	void (*co_complete) (struct c2_cm_cp *cp);
-
 	/**
 	 * Changes copy packet phase based on current phase and layout
 	 * information. This function should set FOM phase internally and return
 	 * @b C2_FSO_WAIT or @b C2_FSO_AGAIN.
 	 */
-	int  (*co_phase_next) (struct c2_cm_cp *cp);
+	int      (*co_phase_next) (struct c2_cm_cp *cp);
 
 	/** Specific copy packet invariant.*/
-	bool (*co_invariant) (const struct c2_cm_cp *cp);
+	bool     (*co_invariant) (const struct c2_cm_cp *cp);
 
 	/**
 	 * Returns a scalar based on copy packet details, used to select a
@@ -157,20 +154,23 @@ struct c2_cm_cp_ops {
 	 */
 	uint64_t (*co_home_loc_helper) (const struct c2_cm_cp *cp);
 
+	/** Called when copy packet processing is completed successfully. */
+	void     (*co_complete) (struct c2_cm_cp *cp);
+
 	/**
 	 * Copy machine type specific copy packet destructor.
 	 * This is invoked from c2_cm_cp::c_fom::fo_ops::fo_fini().
 	 */
-	void (*co_free)(struct c2_cm_cp *cp);
+	void     (*co_free)(struct c2_cm_cp *cp);
 
 	/** Size of c2_cm_cp_ops::co_action[]. */
-	uint32_t            co_action_nr;
+	uint32_t co_action_nr;
 
 	/**
          * Per phase action for copy packet. This function should return
 	 * @b C2_FSO_WAIT or @b C2_FSO_AGAIN.
 	 */
-	int  (*co_action[]) (struct c2_cm_cp *cp);
+	int      (*co_action[]) (struct c2_cm_cp *cp);
 };
 
 /**
@@ -179,8 +179,7 @@ struct c2_cm_cp_ops {
  * @pre cp->c_fom.fo_phase == CCP_INIT
  * @post cp->c_fom.fo_phase == C2_FOPH_INIT
  */
-void c2_cm_cp_init(struct c2_cm_cp *cp, const struct c2_cm_cp_ops *ops,
-		   struct c2_bufvec *buf);
+void c2_cm_cp_init(struct c2_cm_cp *cp);
 
 /**
  * Finalises generic copy packet.

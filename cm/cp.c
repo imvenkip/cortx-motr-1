@@ -388,14 +388,10 @@ bool c2_cm_cp_invariant(const struct c2_cm_cp *cp)
 	       cp->c_ops->co_invariant(cp);
 }
 
-void c2_cm_cp_init(struct c2_cm_cp *cp, const struct c2_cm_cp_ops *ops,
-		   struct c2_bufvec *buf)
+void c2_cm_cp_init(struct c2_cm_cp *cp)
 {
-	C2_PRE(cp != NULL && ops != NULL && buf != NULL);
-	C2_PRE(c2_forall(i, ops->co_action_nr, ops->co_action[i] != NULL));
+	C2_PRE(cp != NULL);
 
-	cp->c_ops = ops;
-	cp->c_data = buf;
 	c2_cm_cp_bob_init(cp);
 	c2_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL);
 
@@ -410,6 +406,12 @@ void c2_cm_cp_fini(struct c2_cm_cp *cp)
 
 void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
+	struct c2_reqh *reqh;
+
+	C2_PRE(c2_cm_cp_invariant(cp));
+
+	reqh = cm->cm_service.rs_reqh;
+	c2_fom_queue(&cp->c_fom, reqh);
 }
 
 /** @} end-of-CPDLD */

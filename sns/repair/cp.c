@@ -54,11 +54,11 @@ static bool cp_invariant(const struct c2_cm_cp *cp)
  */
 uint64_t cp_home_loc_helper(const struct c2_cm_cp *cp)
 {
-	struct c2_sns_repair_aggr_group *sns_ag;
+	struct c2_cm_ag_id *id;
 
-	sns_ag = ag2snsag(cp->c_ag);
-
-	return sns_ag->sag_id.rai_fid.f_key + sns_ag->sag_id.rai_pg_nr;
+	id = &cp->c_ag->cag_id;
+	/* GOB.f_key + parity group number. */
+	return id->ai_hi.u_lo + id->ai_lo.u_lo;
 }
 
 static int cp_init(struct c2_cm_cp *cp)
@@ -75,7 +75,11 @@ static int cp_fini(struct c2_cm_cp *cp)
 	struct c2_sns_repair_cp	*rcp;
 
 	rcp = cp2snscp(cp);
-	/*@todo Release copy packet resource, e.g. data buffer. */
+	/*
+	 * XXX TODO: Release copy packet resource, e.g. data buffer and create
+	 * new copy packets.
+	 */
+
 	return C2_FSO_WAIT;
 }
 
@@ -120,10 +124,9 @@ static int cp_io_wait(struct c2_cm_cp *cp)
 
 static void cp_free(struct c2_cm_cp *cp)
 {
-	struct c2_sns_repair_cp	*rcp;
+	C2_PRE(cp != NULL);
 
-	rcp = cp2snscp(cp);
-	c2_free(rcp);
+	c2_free(cp2snscp(cp));
 }
 
 const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
@@ -138,10 +141,10 @@ const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
 		[SRP_IO_WAIT]  = &cp_io_wait
 	},
 	.co_action_nr          = SRP_NR,
-	.co_complete	       = &cp_complete,
 	.co_phase_next	       = &cp_phase_next,
 	.co_invariant	       = &cp_invariant,
 	.co_home_loc_helper    = &cp_home_loc_helper,
+	.co_complete	       = &cp_complete,
 	.co_free               = &cp_free,
 };
 
