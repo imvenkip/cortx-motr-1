@@ -1187,7 +1187,7 @@ enum c2_rm_incoming_flags {
  *
  * @verbatim
  *                                 SUCCESS
- *
+ *                                    ^
  *             too many iterations    |
  *                  live-lock         |    last completion
  *                +-----------------CHECK<-----------------+
