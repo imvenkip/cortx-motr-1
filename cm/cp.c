@@ -61,7 +61,7 @@
  *
  *   <hr>
  *   @section CPDLD-def Definitions
- *   - <b>Copy Packet:</b> A chunk of input data traversing through the copy
+ *   - <b>Copy Packet:</b> A chunk of data traversing through the copy
  *   machine.
  *
  *   - <b>Copy packet acknowledgement:</b> Reply received, representing
@@ -149,10 +149,11 @@
  *   other replica, it can produce copy packets that replicas (including this
  *   one) are ready to process.
  *
- *      - replica start, it should make sure that sliding window has enough
+ *   Copy packet is created when,
+ *      - replica starts. Tt should be made sure that sliding window has enough
  *        packets for processing by creating them at start.
  *
- *      - has space, after completion of each copy packet, space in sliding
+ *      - has space. After completion of each copy packet, space in sliding
  *        window is checked. If space exists, then copy packets will be created.
  *
  *   <b>Copy Packet destruction:</b>
@@ -161,7 +162,8 @@
  *
  *	- On notification of copy packet data written to device/container.
  *
- *	- During transformation, no longer needed packets are finalised.
+ *	- During transformation, packets that are no longer needed, are
+ *	  finalised.
  *
  *	- On completion of copy packet transfer over the network.
  *
@@ -496,7 +498,7 @@ void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp)
 
         C2_PRE(reqh != NULL);
         C2_PRE(!reqh->rh_shutdown);
-        C2_PRE(c2_fom_phase(&cp->c_fom) == C2_CCP_INIT);
+        C2_PRE(c2_fom_phase(fom) == C2_CCP_INIT);
         C2_PRE(c2_cm_cp_invariant(cp));
 
         c2_fom_queue(fom, reqh);
