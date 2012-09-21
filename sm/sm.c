@@ -146,8 +146,6 @@ bool sm_invariant0(const struct c2_sm *mach)
 
 bool c2_sm_invariant(const struct c2_sm *mach)
 {
-	if (C2_FI_ENABLED("no_lock"))
-		return sm_invariant0(mach);
 	return sm_is_locked(mach) && sm_invariant0(mach);
 }
 
