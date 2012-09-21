@@ -146,13 +146,13 @@ static const struct c2_sm_state_descr conn_states[] = {
 	},
 };
 
-const struct c2_sm_conf conn_conf = {
+static const struct c2_sm_conf conn_conf = {
 	.scf_name      = "Conn states",
 	.scf_nr_states = ARRAY_SIZE(conn_states),
 	.scf_state     = conn_states
 };
 
-static inline void conn_state_set(struct c2_rpc_conn *conn, int state)
+static void conn_state_set(struct c2_rpc_conn *conn, int state)
 {
 	C2_PRE(conn != NULL);
 
@@ -282,9 +282,9 @@ int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
 
 	rc = __conn_init(conn, ep, machine, max_rpcs_in_flight);
 	if (rc == 0) {
+		c2_list_add(&machine->rm_outgoing_conns, &conn->c_link);
 		c2_sm_init(&conn->c_sm, &conn_conf, C2_RPC_CONN_INITIALISED,
 			   &machine->rm_sm_grp, NULL /* addb context */);
-		c2_list_add(&machine->rm_outgoing_conns, &conn->c_link);
 		C2_LOG("%p INITIALISED \n", conn);
 	}
 
@@ -391,9 +391,10 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
 
 	rc = __conn_init(conn, ep, machine, 8 /* max packets in flight */);
 	if (rc == 0) {
+		c2_list_add(&machine->rm_incoming_conns, &conn->c_link);
 		c2_sm_init(&conn->c_sm, &conn_conf, C2_RPC_CONN_INITIALISED,
 			   &machine->rm_sm_grp, NULL /* addb context */);
-		c2_list_add(&machine->rm_incoming_conns, &conn->c_link);
+		C2_LOG("%p INITIALISED \n", conn);
 	}
 
 	C2_POST(ergo(rc == 0, c2_rpc_conn_invariant(conn) &&
@@ -417,7 +418,8 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 
 	session0 = c2_rpc_conn_session0(conn);
 	while (session0->s_state != C2_RPC_SESSION_IDLE)
-		c2_cond_wait(&session0->s_state_changed, &machine->rm_mutex);
+		c2_cond_wait(&session0->s_state_changed,
+			     c2_rpc_machine_mutex(machine));
 
 	c2_rpc_conn_fini_locked(conn);
 	/* Don't look in conn after this point */
@@ -465,16 +467,11 @@ int c2_rpc_conn_timedwait(struct c2_rpc_conn *conn, uint64_t states,
 	int rc;
 
 	c2_rpc_machine_lock(conn->c_rpc_machine);
-
-	/** @todo Needs to remove this statement once rm_mutex is removed. */
-	c2_mutex_unlock(&conn->c_rpc_machine->rm_mutex);
-
-	rc = c2_sm_timedwait(&conn->c_sm, states, timeout);
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 
-	/** @todo Needs to remove this statement once rm_mutex is removed. */
-	c2_mutex_lock(&conn->c_rpc_machine->rm_mutex);
+	rc = c2_sm_timedwait(&conn->c_sm, states, timeout);
 
+	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	c2_rpc_machine_unlock(conn->c_rpc_machine);
 
 	return rc;

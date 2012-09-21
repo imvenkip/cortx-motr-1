@@ -212,7 +212,6 @@ static void conn_attach_detach_test(void)
 
 	/* prepare mock rpc_machine */
 	c2_rpc_services_tlist_init(&mock_rpc_machine.rm_services);
-	c2_mutex_init(&mock_rpc_machine.rm_mutex);
 
 	/* prepare mock_destep */
 	copy_of_foo_ep_addr = c2_alloc(strlen(foo_ep_addr) + 1);
@@ -246,7 +245,6 @@ static void conn_attach_detach_test(void)
 		c2_rpc_services_tlist_is_empty(&mock_rpc_machine.rm_services));
 
 
-	c2_mutex_fini(&mock_rpc_machine.rm_mutex);
 	c2_rpc_services_tlist_fini(&mock_rpc_machine.rm_services);
 
 	c2_free(copy_of_foo_ep_addr);

@@ -87,9 +87,7 @@ struct c2_rpc_stats {
    Several such contexts might be existing simultaneously.
  */
 struct c2_rpc_machine {
-	struct c2_mutex                   rm_mutex;
 	struct c2_sm_group		  rm_sm_grp;
-
 	/** List of c2_rpc_chan structures. */
 	struct c2_list			  rm_chans;
 	/** Transfer machine associated with this endpoint.*/

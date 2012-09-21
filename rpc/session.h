@@ -331,9 +331,8 @@ enum c2_rpc_conn_state {
 	 */
 	C2_RPC_CONN_TERMINATED,
 
-	/** After connection is failed or terminated RPC connection enters
-	    FINALISED state. Also when connection is initialised and some error
-	    occurs then connection is moved to FINALISED state.
+	/** After c2_rpc_conn_fini() the RPC connection instance is moved to
+	    FINALISED state.
 	 */
 	C2_RPC_CONN_FINALISED,
 };
@@ -385,8 +384,6 @@ enum c2_rpc_conn_flags {
    <B> State transition diagram: </B>
 
    @verbatim
-   +--------------------------------+
-         allocated                  |
                                     | c2_rpc_conn_init()
    c2_rpc_conn_establish() != 0     V
          +---------------------INITIALISED
@@ -413,9 +410,8 @@ enum c2_rpc_conn_flags {
 	 |                          V
 	 |			TERMINATED
 	 |                          |
-	 |c2_rpc_conn_fini()        |  c2_rpc_conn_fini()
+	 |c2_rpc_conn_fini()        V  c2_rpc_conn_fini()
 	 +--------------------->FINALISED
-                                    V
 
   @endverbatim
 
@@ -448,7 +444,7 @@ enum c2_rpc_conn_flags {
 
   // INITIALISE CONN
   rc = c2_rpc_conn_init(conn, tgt_end_point, rpc_machine);
-  C2_ASSERT(ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED));
+  C2_ASSERT(ergo(rc == 0, conn_state(conn) == C2_RPC_CONN_INITIALISED));
 
   // ESTABLISH RPC CONNECTION
   rc = c2_rpc_conn_establish(conn);
@@ -458,10 +454,11 @@ enum c2_rpc_conn_flags {
         // handle the situation and return
   }
   // WAIT UNTIL CONNECTION IS ESTABLISHED
-  rc = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_ACTIVE | C2_RPC_CONN_FAILED,
-				absolute_timeout);
-  if (!rc) {
-	if (conn->c_state == C2_RPC_CONN_ACTIVE)
+  rc = c2_rpc_conn_timedwait(conn, C2_BITS(C2_RPC_CONN_ACTIVE,
+					   C2_RPC_CONN_FAILED),
+			     absolute_timeout);
+  if (rc == 0) {
+	if (conn_state(conn) == C2_RPC_CONN_ACTIVE)
 		// connection is established and is ready to be used
 	ele
 		// connection establishing failed
@@ -479,10 +476,11 @@ enum c2_rpc_conn_flags {
   rc = c2_rpc_conn_terminate(conn);
 
   // WAIT UNTIL CONNECTION IS TERMINATED
-  rc = c2_rpc_conn_timedwait(conn, C2_RPC_CONN_TERMINATED |
-				C2_RPC_CONN_FAILED, absolute_timeout);
-  if (!rc) {
-	if (conn->c_state == C2_RPC_CONN_TERMINATED)
+  rc = c2_rpc_conn_timedwait(conn, C2_BITS(C2_RPC_CONN_TERMINATED,
+					   C2_RPC_CONN_FAILED),
+			     absolute_timeout);
+  if (rc == 0) {
+	if (conn_state(conn) == C2_RPC_CONN_TERMINATED)
 		// conn is successfully terminated
 	else
 		// conn terminate has failed
@@ -537,8 +535,8 @@ struct c2_rpc_conn {
 	/** cob representing the connection */
 	struct c2_cob            *c_cob;
 
-	/** State machine of rpc connection having states
-	    enum c2_rpc_conn_state.
+	/** RPC connection state machine
+	    @see c2_rpc_conn_state, conn_conf
 	 */
 	struct c2_sm		  c_sm;
 };
@@ -551,7 +549,7 @@ struct c2_rpc_conn {
 	 if c2_rpc_conn_init() fails, conn is left in undefined state.
 
    @pre conn != NULL && ep != NULL && machine != NULL
-   @post ergo(rc == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
+   @post ergo(rc == 0, conn_state(conn) == C2_RPC_CONN_INITIALISED &&
 			conn->c_machine == machine &&
 			conn->c_sender_id == SENDER_ID_INVALID &&
 			(conn->c_flags & RCF_SENDER_END) != 0)
@@ -566,8 +564,8 @@ int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
     When reply to CONN_ESTABLISH is received,
     c2_rpc_conn_establish_reply_received() is called.
 
-    @pre conn->c_state == C2_RPC_CONN_INITIALISED
-    @post ergo(result != 0, conn->c_state == C2_RPC_CONN_FAILED)
+    @pre conn_state(conn) == C2_RPC_CONN_INITIALISED
+    @post ergo(result != 0, conn_state(conn) == C2_RPC_CONN_FAILED)
  */
 int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
 
@@ -580,8 +578,8 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
  * @param timeout_sec How much time in seconds to wait for connection
  *                    to become active.
  *
- * @pre  conn->c_state == C2_RPC_CONN_INITIALISED
- * @post conn->c_state == C2_RPC_CONN_ACTIVE
+ * @pre  conn_state(conn) == C2_RPC_CONN_INITIALISED
+ * @post conn_state(conn) == C2_RPC_CONN_ACTIVE
  */
 int c2_rpc_conn_establish_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec);
 
@@ -603,10 +601,10 @@ int c2_rpc_conn_create(struct c2_rpc_conn      *conn,
    c2_rpc_conn_terminate_reply_received() is called when reply to
    CONN_TERMINATE is received.
 
-   @pre (conn->c_state == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0 &&
+   @pre (conn_state(conn) == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0 &&
 	 conn->c_service == NULL) ||
-		conn->c_state == C2_RPC_CONN_TERMINATING
-   @post ergo(rc != 0, conn->c_state == C2_RPC_CONN_FAILED)
+	 conn_state(conn) == C2_RPC_CONN_TERMINATING
+   @post ergo(rc != 0, conn_state(conn) == C2_RPC_CONN_FAILED)
  */
 int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
 
@@ -619,18 +617,18 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
  * @param timeout_sec How much time in seconds to wait for connection
  *                    to become terminated.
  *
- * @pre (conn->c_state == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0) ||
- *       conn->c_state == C2_RPC_CONN_TERMINATING
- * @post conn->c_state == C2_RPC_CONN_TERMINATED
+ * @pre (conn_state(conn) == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0) ||
+ *       conn_state(conn) == C2_RPC_CONN_TERMINATING
+ * @post conn_state(conn) == C2_RPC_CONN_TERMINATED
  */
 int c2_rpc_conn_terminate_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec);
 
 /**
    Finalises c2_rpc_conn.
    No network communication involved.
-   @pre conn->c_state == C2_RPC_CONN_FAILED ||
-	conn->c_state == C2_RPC_CONN_INITIALISED ||
-	conn->c_state == C2_RPC_CONN_TERMINATED
+   @pre conn_state(conn) == C2_RPC_CONN_FAILED ||
+	conn_state(conn) == C2_RPC_CONN_INITIALISED ||
+	conn_state(conn) == C2_RPC_CONN_TERMINATED
  */
 void c2_rpc_conn_fini(struct c2_rpc_conn *conn);
 
@@ -958,7 +956,7 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
     SESSION_ESTABLISH fop is received.
 
     @pre session->s_state == C2_RPC_SESSION_INITIALISED
-    @pre session->s_conn->c_state == C2_RPC_CONN_ACTIVE
+    @pre conn_state(session->s_conn) == C2_RPC_CONN_ACTIVE
     @post ergo(result != 0, session->s_state == C2_RPC_SESSION_FAILED)
  */
 int c2_rpc_session_establish(struct c2_rpc_session *session);
@@ -972,7 +970,7 @@ int c2_rpc_session_establish(struct c2_rpc_session *session);
  * @param timeout_sec How much time in seconds to wait for session to become idle.
  *
  * @pre  session->s_state == C2_RPC_SESSION_INITIALISED
- * @pre  session->s_conn->c_state == C2_RPC_CONN_ACTIVE
+ * @pre  conn_state(session->s_conn) == C2_RPC_CONN_ACTIVE
  * @post session->s_state == C2_RPC_SESSION_IDLE
  */
 int c2_rpc_session_establish_sync(struct c2_rpc_session *session,
