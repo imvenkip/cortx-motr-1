@@ -512,6 +512,10 @@ const struct c2_xcode_type C2_XT_U64 = {
 	.xct_nr     = 0
 };
 
+/* XXX Remove these lines */
+C2_EXPORTED(C2_XT_U32);
+C2_EXPORTED(C2_XT_U64);
+
 const struct c2_xcode_type C2_XT_OPAQUE = {
 	.xct_aggr   = C2_XA_OPAQUE,
 	.xct_name   = "opaque",

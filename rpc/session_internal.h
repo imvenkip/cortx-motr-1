@@ -441,13 +441,6 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req);
  */
 void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn);
 
-/**
-   Iterates over all the sessions in rpc connection
- */
-#define c2_rpc_for_each_session(conn, session)  \
-	c2_list_for_each_entry(&(conn)->c_sessions, (session),  \
-		struct c2_rpc_session, s_link)
-
 enum {
 	/**
 	   window size for a sliding-window of slot
@@ -541,6 +534,10 @@ bool c2_rpc_session_bind_item(struct c2_rpc_item *item);
 int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active,
 				int count);
 #endif
+
+/** Descriptor and associated functions for a list of "c2_rpc_session"s embedded in c2_rpc_conn */
+C2_TL_DESCR_DECLARE(sessions, extern);
+C2_TL_DECLARE(sessions, extern, struct c2_rpc_session);
 
 /** @}  End of rpc_session group */
 #endif
