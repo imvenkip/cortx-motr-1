@@ -78,8 +78,8 @@ struct c2_sns_repair_cm {
 	uint64_t                   rc_fdata;
 	struct c2_cobfid_map      *rc_cfm;
 	struct c2_cobfid_map_iter  rc_cfm_it;
-	/*
-	 * XXX Temporary location for server side pdclust layout instance, until
+	/**
+	 * @todo Temporary location for server side pdclust layout instance, until
 	 * the attr_set() and attr_get() for a GOB is implemented.
 	 */
 	struct c2_pdclust_layout   rc_pl;

@@ -241,6 +241,10 @@ static void cm_move(struct c2_cm *cm, int rc, enum c2_cm_state state,
 
 static uint64_t cm_cp_pump_fom_locality(const struct c2_fom *fom)
 {
+	/*
+	 * It doesn't matter which reqh locality the cp pump FOM is put into.
+	 * Thus returning 0 by default.
+	 */
         return 0;
 }
 
@@ -258,7 +262,7 @@ void c2_cm_sw_fill(struct c2_cm *cm)
 
 	cp_pump = &cm->cm_cp_pump;
 
-	c2_fom_phase_set(&cm->cm_cp_pump.p_fom, CPP_ALLOC);
+	c2_fom_phase_set(&cm->cm_cp_pump.p_fom, C2_CPP_ALLOC);
 	c2_fom_wakeup(&cm->cm_cp_pump.p_fom);
 }
 
@@ -287,10 +291,10 @@ static int cpp_alloc(struct c2_cm_cp_pump *cp_pump)
 	fom = &cp_pump->p_fom;
 	cp = cm->cm_ops->cmo_cp_alloc(cm);
 	if (cp == NULL)
-		c2_fom_phase_set(fom, CPP_FAIL);
+		c2_fom_phase_set(fom, C2_CPP_FAIL);
 	else {
 		cp_pump->p_cp = cp;
-		c2_fom_phase_set(fom, CPP_DATA_NEXT);
+		c2_fom_phase_set(fom, C2_CPP_DATA_NEXT);
 	}
 
 	return C2_FSO_AGAIN;
@@ -317,14 +321,14 @@ static int cpp_data_next(struct c2_cm_cp_pump *cp_pump)
 		C2_ASSERT(c2_cm_cp_invariant(cp));
 		c2_cm_cp_init(cp);
 		c2_cm_cp_enqueue(cm, cp);
-		c2_fom_phase_set(fom, CPP_ALLOC);
+		c2_fom_phase_set(fom, C2_CPP_ALLOC);
 	}
 	goto out;
 fail:
-	/* Destroy copy packet allocated in CPP_ALLOC phase. */
+	/* Destroy copy packet allocated in C2_CPP_ALLOC phase. */
 	cp->c_ops->co_free(cp);
 	fom->fo_rc = rc;
-	c2_fom_phase_set(fom, CPP_FAIL);
+	c2_fom_phase_set(fom, C2_CPP_FAIL);
 	rc = C2_FSO_AGAIN;
 out:
 	return rc;
@@ -338,7 +342,7 @@ static int cpp_fail(struct c2_cm_cp_pump *cp_pump)
 
 	cm = container_of(cp_pump, struct c2_cm, cm_cp_pump);
 	cm_move(cm, cp_pump->p_fom.fo_rc, C2_CMS_ACTIVE, C2_CM_ERR_START);
-	c2_fom_phase_set(&cp_pump->p_fom, CPP_IDLE);
+	c2_fom_phase_set(&cp_pump->p_fom, C2_CPP_IDLE);
 
 	return C2_FSO_WAIT;
 }
@@ -360,12 +364,12 @@ static int cm_cp_pump_fom_tick(struct c2_fom *fom)
 
 static const struct c2_cm_cp_pump_ops cpp_ops = {
 	.po_action = {
-		[CPP_ALLOC]     = cpp_alloc,
-		[CPP_DATA_NEXT] = cpp_data_next,
-		[CPP_FAIL]      = cpp_fail,
-		[CPP_FINI]      = cpp_fini
+		[C2_CPP_ALLOC]     = cpp_alloc,
+		[C2_CPP_DATA_NEXT] = cpp_data_next,
+		[C2_CPP_FAIL]      = cpp_fail,
+		[C2_CPP_FINI]      = cpp_fini
 	},
-	.po_action_nr = CPP_NR,
+	.po_action_nr = C2_CPP_NR,
 };
 
 static const struct c2_fom_ops cm_cp_pump_fom_ops = {
@@ -563,8 +567,8 @@ static void cm_cp_pump_start(struct c2_cm *cm)
 
 static void cm_cp_pump_stop(struct c2_cm *cm)
 {
-	C2_PRE(c2_fom_phase(&cm->cm_cp_pump.p_fom) == CPP_IDLE);
-	c2_fom_phase_set(&cm->cm_cp_pump.p_fom, CPP_FINI);
+	C2_PRE(c2_fom_phase(&cm->cm_cp_pump.p_fom) == C2_CPP_IDLE);
+	c2_fom_phase_set(&cm->cm_cp_pump.p_fom, C2_CPP_FINI);
 	c2_fom_wakeup(&cm->cm_cp_pump.p_fom);
 }
 
@@ -582,7 +586,7 @@ int c2_cm_start(struct c2_cm *cm)
 
 	rc = cm->cm_ops->cmo_start(cm);
 	cm_move(cm, rc, C2_CMS_ACTIVE, C2_CM_ERR_START);
-	/* submit c2_cm::cm_cp_pump to reqh, to start creating copy packets. */
+	/* Submit c2_cm::cm_cp_pump to reqh, to start creating copy packets. */
 	if (rc == 0)
 		cm_cp_pump_start(cm);
 

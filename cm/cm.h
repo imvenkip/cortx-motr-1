@@ -146,21 +146,21 @@ enum c2_cm_cp_pump_phase {
 	 * or c2_cm_sw_fill() is invoked from a copy packet FOM, during latter's
 	 * finalisation.
 	 */
-	CPP_ALLOC = C2_FOM_PHASE_INIT,
-	CPP_FINI  = C2_FOM_PHASE_FINISH,
+	C2_CPP_ALLOC = C2_FOM_PHASE_INIT,
+	C2_CPP_FINI  = C2_FOM_PHASE_FINISH,
 	/**
 	 * c2_cm_cp_pump::p_fom is transitioned to CPP_IDLE state in case of
 	 * failure and if no more copy packets can be created (in case buffer
 	 * pool is exhausted).
 	 */
-	CPP_IDLE,
+	C2_CPP_IDLE,
 	/**
 	 * Copy packets allocated in CPP_ALLOC phase are configured in this
 	 * phase.
 	 */
-	CPP_DATA_NEXT,
-	CPP_FAIL,
-	CPP_NR
+	C2_CPP_DATA_NEXT,
+	C2_CPP_FAIL,
+	C2_CPP_NR
 };
 
 struct c2_cm_cp_pump_ops {
@@ -174,8 +174,8 @@ struct c2_cm_cp_pump_ops {
  * the issues with creation of new copy packets and configuring them using
  * c2_cm_data_next(), which may block. The pump FOM is created when copy machine
  * operation starts and finalised when copy machine operation is complete.
- * The pump FOM goes to sleep when no more copy packets can be created (the out-
- * going pool is exhausted). When a copy packet FOM terminates and frees its
+ * The pump FOM goes to sleep when no more copy packets can be created (buffer
+ * pool is exhausted). When a copy packet FOM terminates and frees its
  * buffer in the pool, it wakes the pump up (using c2_cm_sw_fill()) to create
  * more copy packets.
  */
@@ -184,10 +184,10 @@ struct c2_cm_cp_pump {
 	struct c2_fom                   p_fom;
 	const struct c2_cm_cp_pump_ops *p_ops;
 	/**
-	 * Saved copy packet, in-case the pump FOM goes into wait due to
+	 * Saved copy packet, in-case the pump FOM goes into wait state due to
 	 * c2_cm_data_next().
 	 */
-	struct c2_cm_cp               *p_cp;
+	struct c2_cm_cp                *p_cp;
 };
 
 /** Copy Machine type, implemented as a request handler service. */
@@ -237,6 +237,9 @@ struct c2_cm {
 	 * @see struct c2_cm_aggr_group::cag_cm_linkage
 	 */
 	struct c2_tl                     cm_aggr_grps;
+
+	/** List of c2_cm_proxy objects representing remote replicas. */
+	struct c2_tl                     cm_proxies;
 
 	/** Copy packet pump fom. */
 	struct c2_cm_cp_pump             cm_cp_pump;

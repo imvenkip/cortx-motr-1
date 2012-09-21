@@ -55,7 +55,7 @@ struct c2_sns_repair_cp {
 
 struct c2_sns_repair_cp *cp2snscp(const struct c2_cm_cp *cp);
 
-/*
+/**
  * Uses GOB fid key and parity group number to generate a scalar to
  * help select a request handler locality for copy packet FOM.
  */
