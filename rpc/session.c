@@ -1194,6 +1194,7 @@ int c2_rpc_session_items_print(struct c2_rpc_session *session, bool only_active)
 C2_TL_DEFINE(sessions,, struct c2_rpc_session);
 C2_TL_DESCR_DEFINE(sessions, "rpc-sessions",, struct c2_rpc_session, s_link,
 		   s_magic, C2_RPC_SESSION_MAGIC, C2_RPC_SESSION_HEAD_MAGIC);
+
 /** @} end of session group */
 
 /*

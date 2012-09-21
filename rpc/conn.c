@@ -145,9 +145,10 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	      * From c2_rpc_conn_init() to c2_rpc_conn_fini(), this session0 is
 	      * either in IDLE state or BUSY state.
 	      */
-	     c2_list_entry_forall(s, &conn->c_sessions, struct c2_rpc_session,
-				  s_link,
-				  ergo(s->s_session_id == SESSION_ID_0,
+//	     c2_list_entry_forall(s, &conn->c_sessions, struct c2_rpc_session,
+//				  s_link,
+	     c2_tl_forall(sessions, s, &conn->c_sessions,
+			  ergo(s->s_session_id == SESSION_ID_0,
 				       ++s0nr &&
 				       (session0 = s) && /*'=' is intentional */
 				       C2_IN(s->s_state,
@@ -266,7 +267,7 @@ static int __conn_init(struct c2_rpc_conn      *conn,
 	conn->c_nr_sessions = 0;
 	conn->c_rc          = 0;
 
-	c2_list_init(&conn->c_sessions);
+	sessions_tlist_init(&conn->c_sessions);
 	c2_cond_init(&conn->c_state_changed);
 	rpc_conn_tlink_init(conn);
 
@@ -315,7 +316,7 @@ static void __conn_fini(struct c2_rpc_conn *conn)
 
 	rpc_chan_put(conn->c_rpcchan);
 
-	c2_list_fini(&conn->c_sessions);
+	sessions_tlist_fini(&conn->c_sessions);
 	c2_cond_fini(&conn->c_state_changed);
 	rpc_conn_tlink_fini(conn);
 }
@@ -472,10 +473,10 @@ c2_rpc_session_search(const struct c2_rpc_conn *conn,
 
 	C2_ASSERT(conn != NULL);
 
-	c2_rpc_for_each_session(conn, session) {
+	c2_tl_for(sessions, &conn->c_sessions, session) {
 		if (session->s_session_id == session_id)
 			return session;
-	}
+	} c2_tl_endfor;
 	return NULL;
 }
 
