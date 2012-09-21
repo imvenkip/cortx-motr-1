@@ -113,6 +113,10 @@ enum c2_magic_satchel {
 	/* c2_cm_aggr_group::cag_magic (feedbeefdeed) */
 	CM_AG_LINK_MAGIX = 0x33FEEDBEEFDEED77,
 
+/* Copy packet */
+	/* c2_cm_cp::cp_bob (ecobabble ace) */
+	CM_CP_MAGIX = 0x33ec0babb1eace,
+
 /* desim */
 	/* client_write_ext::cwe_magic (abasic access) */
 	C2_DESIM_CLIENT_WRITE_EXT_MAGIC = 0x33aba51cacce5577,

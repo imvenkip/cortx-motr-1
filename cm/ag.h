@@ -52,7 +52,10 @@ struct c2_cm_aggr_group {
 	uint64_t                           cag_cp_nr;
 
 	/** Number of copy packets that are transformed. */
-	uint64_t                           cag_transformed_cp_nr;
+	struct c2_atomic64		   cag_transformed_cp_nr;
+
+	/** Number of copy packets that are freed. */
+	struct c2_atomic64		   cag_freed_cp_nr;
 
 	/**
 	 * Linkage into the sorted sliding window queue of aggregation groups
