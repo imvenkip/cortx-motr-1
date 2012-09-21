@@ -131,7 +131,7 @@ enum c2_cm_state {
  */
 enum c2_cm_failure {
 	/** Copy machine setup failure */
-	C2_CM_ERR_SETUP,
+	C2_CM_ERR_SETUP = 1,
 	/** Copy machine start failure */
 	C2_CM_ERR_START,
 	/** Copy machine stop failure */
@@ -342,7 +342,7 @@ int c2_cms_init(void);
 void c2_cms_fini(void);
 
 /**
- * Initialises a Copy machine. This is invoked from copy machine specific
+ * Initialises a copy machine. This is invoked from copy machine specific
  * service init routine.
  * Transitions copy machine into C2_CMS_INIT state if the initialisation
  * completes without any errors.
