@@ -545,7 +545,7 @@ struct c2_rpc_conn {
 	 */
 	struct c2_cond            c_state_changed;
 
-	/** Magic number */
+	/** Magic constant to verify the sanity of linked rpc connection */
 	uint64_t		  c_magic;
 };
 
@@ -932,7 +932,7 @@ struct c2_rpc_session {
 	/** List of slots, which can be associated with an unbound item.
 	    Link: c2_rpc_slot::sl_link
 	 */
-	struct c2_list            s_ready_slots;
+	struct c2_tl              s_ready_slots;
 
 	/** Magic number  */
 	uint64_t		  s_magic;
@@ -1194,7 +1194,7 @@ struct c2_rpc_slot {
 	struct c2_cob                *sl_cob;
 
 	/** list anchor to put in c2_rpc_session::s_ready_slots */
-	struct c2_list_link           sl_link;
+	struct c2_tlink		      sl_link;
 
 	/** Current version number of slot */
 	struct c2_verno               sl_verno;
@@ -1210,7 +1210,7 @@ struct c2_rpc_slot {
 	/** List of items, starting from oldest. Items are placed using
 	    c2_rpc_item::ri_slot_refs[0].sr_link
 	 */
-	struct c2_list                sl_item_list;
+	struct c2_tl                  sl_item_list;
 
 	/** earliest item that the receiver possibly have seen */
 	struct c2_rpc_item           *sl_last_sent;
@@ -1234,10 +1234,13 @@ struct c2_rpc_slot {
 	struct c2_list                sl_ready_list;
 
 	const struct c2_rpc_slot_ops *sl_ops;
+
+	/** Magic constant to verify sanity of linked rpc slot */
+	uint64_t		      sl_magic;
 };
 
 C2_TL_DESCR_DECLARE(sessions, extern);
-C2_TL_DECLARE(sessions, extern, struct c2_rpc_session); 
+C2_TL_DECLARE(sessions, extern, struct c2_rpc_session);
 
 /** @} end of session group */
 

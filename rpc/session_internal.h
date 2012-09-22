@@ -383,10 +383,13 @@ struct c2_rpc_slot_ref {
 	uint64_t                   sr_slot_gen;
 
 	/** Anchor to put item on c2_rpc_slot::sl_item_list */
-	struct c2_list_link        sr_link;
+	struct c2_tlink            sr_link;
 
 	/** Anchor to put item on c2_rpc_slot::sl_ready_list */
 	struct c2_list_link        sr_ready_link;
+
+	/** Magic constant to check sanity. */
+	uint64_t		   sr_magic;
 };
 
 /**
@@ -535,9 +538,17 @@ int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active,
 				int count);
 #endif
 
-/** Descriptor and associated functions for a list of "c2_rpc_session"s embedded in c2_rpc_conn */
+/** Descriptor and functions associated with a list of "c2_rpc_session"s
+    embedded in c2_rpc_conn.
+ */
 C2_TL_DESCR_DECLARE(sessions, extern);
 C2_TL_DECLARE(sessions, extern, struct c2_rpc_session);
+
+/** Descriptor and functions associated with a list of "c2_rpc_slot"s
+    embedded in c2_rpc_session.
+ */
+C2_TL_DESCR_DECLARE(ready_slots, extern);
+C2_TL_DECLARE(ready_slots, extern, struct c2_rpc_slot);
 
 /** @}  End of rpc_session group */
 #endif

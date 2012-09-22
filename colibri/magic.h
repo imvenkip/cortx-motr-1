@@ -328,7 +328,7 @@ enum c2_magic_satchel {
 	/* itemq_tl::td_head_magic (dazzled cliff) */
 	C2_RPC_ITEMQ_HEAD_MAGIC = 0x33da221edc11ff77,
 
-	/* c2_rpc_item::ri_field (boiled coolie) */
+	/* c2_rpc_item::ri_link_magic (boiled coolie) */
 	C2_RPC_ITEM_MAGIC = 0x33b011edc0011e77,
 
 	/* rpcitem_tl::td_head_magic (disabled disc) */
@@ -360,6 +360,16 @@ enum c2_magic_satchel {
 
 	/* sessions_tl::td_head_magic (sizeable bell) */
 	C2_RPC_SESSION_HEAD_MAGIC = 0x33512eb1ebe1177,
+
+	/* ready_slots_tl::td_head_magic (assoil azzola) */
+	C2_RPC_SLOT_HEAD_MAGIC = 0x33a55011a2201a77,
+
+	/* c2_rpc_slot::sl_link (delible diode) */
+	C2_RPC_SLOT_MAGIC = 0x33de11b1ed10de77,
+
+	/* slot_refs_tl::td_head_magic (efface eiffel) */
+	C2_RPC_SLOT_REF_HEAD_MAGIC = 0x33effacee1ffe177,
+
 /* Trace */
 	/* c2_trace_rec_header::trh_magic (foldable doll) */
 	C2_TRACE_MAGIC = 0x33f01dab1ed01177,

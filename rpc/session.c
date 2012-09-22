@@ -119,6 +119,10 @@ static const struct c2_rpc_item_ops session_terminate_item_ops = {
 	.rio_free    = c2_fop_item_free,
 };
 
+C2_TL_DEFINE(ready_slots,, struct c2_rpc_slot);
+C2_TL_DESCR_DEFINE(ready_slots, "ready-slots",, struct c2_rpc_slot, sl_link,
+		   sl_magic, C2_RPC_SLOT_MAGIC, C2_RPC_SLOT_HEAD_MAGIC);
+
 /**
    The routine is also called from session_foms.c, hence can't be static
  */
@@ -150,7 +154,7 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 				 C2_RPC_SESSION_TERMINATING,
 				 C2_RPC_SESSION_TERMINATED,
 				 C2_RPC_SESSION_FAILED)),
-		          !c2_list_link_is_in(&slot->sl_link));
+		          !ready_slots_tlink_is_in(slot));
 		    /* A slot cannot be on ready slots list if session is
 		       in one of above states */
 		if (!ok)
@@ -202,17 +206,14 @@ static int nr_active_items_count(const struct c2_rpc_session *session)
 
 	for (i = 0; i < session->s_nr_slots; i++) {
 		slot = session->s_slot_table[i];
-
-		c2_list_for_each_entry(&slot->sl_item_list, item,
-				       struct c2_rpc_item,
-				       ri_slot_refs[0].sr_link) {
+		c2_tl_for(slot_refs, &slot->sl_item_list, item){
 
 			if (C2_IN(item->ri_stage, (RPC_ITEM_STAGE_IN_PROGRESS,
 						   RPC_ITEM_STAGE_FUTURE))) {
 				count++;
 			}
 
-		}
+		} c2_tl_endfor;
 	}
 	return count;
 }
@@ -258,7 +259,7 @@ int c2_rpc_session_init_locked(struct c2_rpc_session *session,
 
 	sessions_tlink_init(session);
 	c2_list_init(&session->s_unbound_items);
-	c2_list_init(&session->s_ready_slots);
+	ready_slots_tlist_init(&session->s_ready_slots);
 
 	c2_cond_init(&session->s_state_changed);
 
@@ -336,7 +337,7 @@ static void __session_fini(struct c2_rpc_session *session)
 	}
 	sessions_tlink_fini(session);
 	c2_cond_fini(&session->s_state_changed);
-	c2_list_fini(&session->s_ready_slots);
+	ready_slots_tlist_fini(&session->s_ready_slots);
 	c2_list_fini(&session->s_unbound_items);
 }
 
@@ -936,9 +937,9 @@ static void snd_slot_idle(struct c2_rpc_slot *slot)
 	C2_PRE(slot != NULL);
 	C2_PRE(slot->sl_session != NULL);
 	C2_PRE(slot->sl_in_flight == 0);
-	C2_PRE(!c2_list_link_is_in(&slot->sl_link));
+	C2_PRE(!ready_slots_tlink_is_in(slot));
 
-	c2_list_add_tail(&slot->sl_session->s_ready_slots, &slot->sl_link);
+	ready_slots_tlist_add_tail(&slot->sl_session->s_ready_slots, slot);
 	frm = &slot->sl_session->s_conn->c_rpcchan->rc_frm;
 	c2_rpc_frm_run_formation(frm);
 }
@@ -952,12 +953,11 @@ bool c2_rpc_session_bind_item(struct c2_rpc_item *item)
 
 	session = item->ri_session;
 
-	if (c2_list_is_empty(&session->s_ready_slots)) {
+	if (ready_slots_tlist_is_empty(&session->s_ready_slots)) {
 		return false;
 	}
-	slot = c2_list_entry(c2_list_first(&session->s_ready_slots),
-			     struct c2_rpc_slot, sl_link);
-	c2_list_del(&slot->sl_link);
+	slot = ready_slots_tlist_head(&session->s_ready_slots);
+	ready_slots_tlist_del(slot);
 	c2_rpc_slot_item_add_internal(slot, item);
 
 	C2_POST(c2_rpc_item_is_bound(item));
@@ -1170,8 +1170,8 @@ void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session)
 
 		C2_ASSERT(slot != NULL);
 
-		if (c2_list_link_is_in(&slot->sl_link))
-			c2_list_del(&slot->sl_link);
+		if (ready_slots_tlink_is_in(slot))
+			ready_slots_tlist_del(slot);
 	}
 }
 #ifndef __KERNEL__

@@ -52,6 +52,11 @@ void frm_item_reply_received(struct c2_rpc_item *reply_item,
 void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
                       uint32_t rc);
 
+C2_TL_DEFINE(slot_refs,, struct c2_rpc_item);
+C2_TL_DESCR_DEFINE(slot_refs, "slot-ref-item-list",, struct c2_rpc_item,
+		   ri_slot_refs[0].sr_link, sr_magic, C2_RPC_ITEM_MAGIC,
+		   C2_RPC_SLOT_REF_HEAD_MAGIC);
+
 static struct c2_rpc_machine *
 slot_get_rpc_machine(const struct c2_rpc_slot *slot)
 {
@@ -68,7 +73,7 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 
 	ok = slot != NULL &&
 	     slot->sl_in_flight <= slot->sl_max_in_flight &&
-	     c2_list_invariant(&slot->sl_item_list);
+	     c2_tlist_invariant(&slot_refs_tl, &slot->sl_item_list);
 
 	if (!ok)
 		return false;
@@ -78,8 +83,7 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 	 * item1 will be previous item of item2 i.e.
 	 * next(item1) == item2
 	 */
-	c2_list_for_each_entry(&slot->sl_item_list, item2, struct c2_rpc_item,
-				ri_slot_refs[0].sr_link) {
+	c2_tl_for(slot_refs, &slot->sl_item_list, item2) {
 
 		if (item1 == NULL) {
 			/*
@@ -118,7 +122,7 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 			return false;
 
 		item1 = item2;
-	}
+	} c2_endfor;
 	return true;
 }
 
@@ -138,7 +142,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	if (fop == NULL)
 		return -ENOMEM;
 
-	c2_list_link_init(&slot->sl_link);
+	ready_slots_tlink_init(slot);
 	/*
 	 * XXX temporary value for lsn. This will be set to some proper value
 	 * when sessions will be integrated with FOL
@@ -152,7 +156,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	slot->sl_cob           = NULL;
 	slot->sl_ops           = ops;
 
-	c2_list_init(&slot->sl_item_list);
+	slot_refs_tlist_init(&slot->sl_item_list);
 	c2_list_init(&slot->sl_ready_list);
 
 	/*
@@ -180,7 +184,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	sref->sr_slot_gen     = slot->sl_slot_gen;
 
 	c2_list_link_init(&sref->sr_link);
-	c2_list_add(&slot->sl_item_list, &sref->sr_link);
+	slot_refs_tlist_add(&slot->sl_item_list, sref);
 	return 0;
 }
 
@@ -196,7 +200,6 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 {
 	struct c2_rpc_item  *item;
 	struct c2_rpc_item  *reply;
-	struct c2_rpc_item  *next;
 	struct c2_rpc_item  *dummy_item;
 	struct c2_list_link *link;
 	int                  count = 0;
@@ -207,8 +210,7 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 	 */
 	C2_ASSERT(slot != NULL);
 
-	c2_list_for_each_entry_safe(&slot->sl_item_list, item, next,
-			struct c2_rpc_item, ri_slot_refs[0].sr_link) {
+	c2_tl_for(slot_refs, &slot->sl_item_list, item) {
 
 		if (first_item) {
 			/*
@@ -231,15 +233,11 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 			  item->ri_ops->rio_free != NULL);
 		item->ri_ops->rio_free(item);
 		count++;
-	}
-        C2_ASSERT(c2_list_length(&slot->sl_item_list) == 1);
+	} c2_tl_endfor;
+        C2_ASSERT(slot_refs_tlist_length(&slot->sl_item_list) == 1);
 
-        link = c2_list_first(&slot->sl_item_list);
-        C2_ASSERT(link != NULL);
-
-        dummy_item = c2_list_entry(link, struct c2_rpc_item,
-                                   ri_slot_refs[0].sr_link);
-        C2_ASSERT(c2_list_link_is_in(&dummy_item->ri_slot_refs[0].sr_link));
+        dummy_item = slot_refs_tlist_head(&slot->sl_item_list);
+        C2_ASSERT(slot_refs_tlink_is_in(dummy_item));
 
 	slot->sl_last_sent = dummy_item;
 	slot->sl_last_persistent = dummy_item;
@@ -252,28 +250,24 @@ void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 	struct c2_list_link *link;
 
 	slot_item_list_prune(slot);
-	c2_list_link_fini(&slot->sl_link);
+	ready_slots_tlink_fini(slot);
 	c2_list_fini(&slot->sl_ready_list);
 
 	/*
 	 * Remove the dummy item from the list
 	 */
-	C2_ASSERT(c2_list_length(&slot->sl_item_list) == 1);
+        C2_ASSERT(slot_refs_tlist_length(&slot->sl_item_list) == 1);
 
-	link = c2_list_first(&slot->sl_item_list);
-	C2_ASSERT(link != NULL);
+        dummy_item = slot_refs_tlist_head(&slot->sl_item_list);
+        C2_ASSERT(slot_refs_tlink_is_in(dummy_item));
 
-	dummy_item = c2_list_entry(link, struct c2_rpc_item,
-				ri_slot_refs[0].sr_link);
-	C2_ASSERT(c2_list_link_is_in(&dummy_item->ri_slot_refs[0].sr_link));
-
-	c2_list_del(&dummy_item->ri_slot_refs[0].sr_link);
+	slot_refs_tlist_del(dummy_item);
 	C2_ASSERT(dummy_item->ri_slot_refs[0].sr_xid == 0);
 
 	fop = c2_rpc_item_to_fop(dummy_item);
 	c2_fop_free(fop);
 
-	c2_list_fini(&slot->sl_item_list);
+	slot_refs_tlist_fini(&slot->sl_item_list);
 	if (slot->sl_cob != NULL) {
 		c2_cob_put(slot->sl_cob);
 	}
@@ -290,12 +284,11 @@ static struct c2_rpc_item* item_find(const struct c2_rpc_slot *slot,
 	struct c2_rpc_item *item;
 
 	C2_PRE(slot != NULL);
-	c2_list_for_each_entry(&slot->sl_item_list, item, struct c2_rpc_item,
-				ri_slot_refs[0].sr_link) {
+	c2_tl_for(slot_refs, &slot->sl_item_list, item) {
 
 		if (item->ri_slot_refs[0].sr_xid == xid)
 			return item;
-	}
+	} c2_tl_endfor;
 	return NULL;
 }
 
@@ -331,13 +324,13 @@ static void __slot_balance(struct c2_rpc_slot *slot,
 	while (slot->sl_in_flight < slot->sl_max_in_flight) {
 		/* Is slot->item_list is empty? */
 		link = &slot->sl_last_sent->ri_slot_refs[0].sr_link;
-		if (c2_list_link_is_last(link, &slot->sl_item_list)) {
+		if (slot_refs_tlist_is_empty(&slot->sl_item_list)) {
 			if (allow_events)
 				slot->sl_ops->so_slot_idle(slot);
 			break;
 		}
 		/* Take slot->last_sent->next item for sending */
-		item = c2_list_entry(link->ll_next, struct c2_rpc_item,
+		item = slot_refs_tlist_next(link->ll_next, struct c2_rpc_item,
 				     ri_slot_refs[0].sr_link);
 
 		if (item->ri_stage == RPC_ITEM_STAGE_FUTURE)
