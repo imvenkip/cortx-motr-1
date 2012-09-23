@@ -290,7 +290,8 @@ void c2_net_test_commands_send_wait_all(struct c2_net_test_cmd_ctx *ctx);
 
    @note cmd->ntc_buf_index will be set to buffer index with received command.
    This buffer will be removed from receive queue and should be added using
-   c2_net_test_commands_recv_enqueue().
+   c2_net_test_commands_recv_enqueue(). Buffer will not be removed from receive
+   queue iff function returned -ETIMEDOUT.
    @see c2_net_test_commands_init().
  */
 int c2_net_test_commands_recv(struct c2_net_test_cmd_ctx *ctx,

@@ -524,6 +524,14 @@ int c2_net_test_commands_recv(struct c2_net_test_cmd_ctx *ctx,
 	buf = c2_net_test_network_buf(&ctx->ntcc_net, C2_NET_TEST_BUF_PING,
 				      buf_index);
 
+	/* set c2_net_test_cmd.ntc_buf_index */
+	cmd->ntc_buf_index = buf_index;
+
+	/* check saved c2_net_buffer_event.nbe_status */
+	rc = ctx->ntcc_buf_status[buf_index].ntcbs_buf_status;
+	if (rc != 0)
+		goto done;
+
 	/* deserialize buffer to cmd */
 	rc = cmd_serialize(C2_NET_TEST_DESERIALIZE, cmd, buf, 0, NULL);
 	if (rc != 0)
@@ -531,13 +539,12 @@ int c2_net_test_commands_recv(struct c2_net_test_cmd_ctx *ctx,
 
 	/* set c2_net_test_cmd.ntc_ep_index and release endpoint */
 	ep = ctx->ntcc_buf_status[buf_index].ntcbs_ep;
+	C2_ASSERT(ep != NULL);
 	cmd->ntc_ep_index = c2_net_test_network_ep_search(&ctx->ntcc_net,
 							  ep->nep_addr);
 	c2_net_end_point_put(ep);
 
-	/* set c2_net_test_cmd.ntc_buf_index */
-	cmd->ntc_buf_index = buf_index;
-
+done:
 	/* buffer now not in receive queue */
 	ctx->ntcc_buf_status[buf_index].ntcbs_in_recv_queue = false;
 
