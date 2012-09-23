@@ -246,6 +246,8 @@
 
    @subsubsection net-test-lspec-algo-client Test Client Algorithm
 
+   @todo Outdated and not used now.
+
    @dot
    digraph {
      S0 [label="entry point"];
@@ -312,6 +314,8 @@ finished.up();\l", shape=box];
      - finished.down()
 
    @subsubsection net-test-lspec-algo-server Test Server Algorithm
+
+   @todo Outdated and not used now.
 
    Test server allocates all necessary buffers and initializes transfer
    machine. Then it just works in transfer machine callbacks.

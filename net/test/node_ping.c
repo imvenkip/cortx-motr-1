@@ -429,6 +429,7 @@ static bool node_ping_client_recv_cb(struct node_ping_ctx *ctx,
 	ssize_t			      server_index;
 	ssize_t			      buf_index_send;
 	bool			      decoded;
+	bool			      finished;
 
 	C2_PRE(ctx != NULL && ctx->npc_client != NULL);
 	C2_PRE(buf_index >= ctx->npc_buf_nr / 2 &&
@@ -459,13 +460,20 @@ static bool node_ping_client_recv_cb(struct node_ping_ctx *ctx,
 	bs_send		       = &ctx->npc_buf_state[buf_index_send];
 	bs_send->bs_index_pair = buf_index;
 	bs->bs_index_pair      = buf_index_send;
-	/* update RTT statistics */
-	c2_mutex_lock(&ctx->npc_status_data_lock);
-	c2_net_test_stats_time_add(&ctx->npc_status_data.ntcsd_rtt,
-				   c2_time_sub(bs->bs_time, ts.ntt_time));
-	c2_mutex_unlock(&ctx->npc_status_data_lock);
 	/* successfully received message */
 	++ctx->npc_client->npcc_msg_rt;
+	finished = ctx->npc_client->npcc_msg_rt >=
+		   ctx->npc_client->npcc_msg_rt_max;
+	c2_mutex_lock(&ctx->npc_status_data_lock);
+	/* update RTT statistics */
+	c2_net_test_stats_time_add(&ctx->npc_status_data.ntcsd_rtt,
+				   c2_time_sub(bs->bs_time, ts.ntt_time));
+	/* set 'client is finished' flag */
+	if (equi(finished, !ctx->npc_status_data.ntcsd_finished)) {
+		ctx->npc_status_data.ntcsd_finished = true;
+		ctx->npc_status_data.ntcsd_time_finish = c2_time_now();
+	}
+	c2_mutex_unlock(&ctx->npc_status_data_lock);
 	goto good_buf;
 bad_buf:
 	c2_mutex_lock(&ctx->npc_status_data_lock);
@@ -813,6 +821,7 @@ static int node_ping_step(void *ctx_)
 	struct c2_net_test_msg_nr	    msg_recv;
 	struct node_ping_ctx		   *ctx = ctx_;
 	c2_time_t			    now;
+	bool				    finished;
 
 	C2_PRE(ctx != NULL);
 	sd = &ctx->npc_status_data;
@@ -821,11 +830,21 @@ static int node_ping_step(void *ctx_)
 	c2_mutex_lock(&ctx->npc_status_data_lock);
 	msg_send = sd->ntcsd_msg_nr_send;
 	msg_recv = sd->ntcsd_msg_nr_recv;
+	finished = sd->ntcsd_finished;
 	c2_mutex_unlock(&ctx->npc_status_data_lock);
 
-	now = c2_time_now();
-	c2_net_test_mps_add(&sd->ntcsd_mps_send, msg_send.ntmn_total, now);
-	c2_net_test_mps_add(&sd->ntcsd_mps_recv, msg_recv.ntmn_total, now);
+	if (!finished) {
+		now = c2_time_now();
+		/*
+		 * MPS stats can be updated without lock because
+		 * they are used in node_ping_step() and
+		 * node_ping_cmd_status(), which are serialized.
+		 */
+		c2_net_test_mps_add(&sd->ntcsd_mps_send,
+				    msg_send.ntmn_total, now);
+		c2_net_test_mps_add(&sd->ntcsd_mps_recv,
+				    msg_recv.ntmn_total, now);
+	}
 
 	return 0;
 }
@@ -993,8 +1012,6 @@ static int node_ping_cmd_status(void *ctx_,
 		     ctx->npc_client->npcc_msg_rt);
 		LOGD("ctx->npc_client->npcc_msg_sent = %lu\n",
 		     ctx->npc_client->npcc_msg_sent);
-		sd->ntcsd_finished = ctx->npc_client->npcc_msg_rt >=
-				     ctx->npc_client->npcc_msg_rt_max;
 	}
 
 	return 0;

@@ -247,7 +247,7 @@ struct c2_net_test_mps {
 	/** Statistics */
 	struct c2_net_test_stats ntmps_stats;
 	/** Last check number of messages */
-	uint64_t		 ntmps_last_nr;
+	unsigned long		 ntmps_last_nr;
 	/** Last check time */
 	c2_time_t		 ntmps_last_time;
 	/** Time interval to check */
@@ -267,7 +267,7 @@ struct c2_net_test_mps {
 		   is less than interval.
  */
 void c2_net_test_mps_init(struct c2_net_test_mps *mps,
-			  uint64_t messages,
+			  unsigned long messages,
 			  c2_time_t timestamp,
 			  c2_time_t interval);
 
@@ -283,7 +283,7 @@ void c2_net_test_mps_init(struct c2_net_test_mps *mps,
    @return Value will not be added to the sample before this time.
  */
 c2_time_t c2_net_test_mps_add(struct c2_net_test_mps *mps,
-			      c2_bcount_t messages,
+			      unsigned long messages,
 			      c2_time_t timestamp);
 
 /**

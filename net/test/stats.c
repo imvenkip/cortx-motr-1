@@ -18,6 +18,12 @@
  * Original creation date: 03/22/2012
  */
 
+#ifndef __KERNEL__
+#include <limits.h>		/* CHAR_MAX */
+#else
+#include <linux/kernel.h>	/* INT_MIN */
+#endif
+
 #include "lib/misc.h"		/* C2_SET0 */
 #include "lib/arith.h"		/* min_check */
 
@@ -233,7 +239,7 @@ c2_bcount_t c2_net_test_timestamp_serialize(enum c2_net_test_serialize_op op,
  */
 
 void c2_net_test_mps_init(struct c2_net_test_mps *mps,
-			  uint64_t messages,
+			  unsigned long messages,
 			  c2_time_t timestamp,
 			  c2_time_t interval)
 {
@@ -247,16 +253,30 @@ void c2_net_test_mps_init(struct c2_net_test_mps *mps,
 }
 
 c2_time_t c2_net_test_mps_add(struct c2_net_test_mps *mps,
-			      c2_bcount_t messages,
+			      unsigned long messages,
 			      c2_time_t timestamp)
 {
-	c2_bcount_t   messages_delta;
-	c2_time_t     time_delta;
-	c2_time_t     time_next;
-	uint64_t      time_delta_ns;
-	unsigned long m_per_sec;
-	unsigned long M_10;		/* M^10 */
-	unsigned long M;
+	unsigned long		   messages_delta;
+	c2_time_t		   time_delta;
+	c2_time_t		   time_next;
+	uint64_t		   time_delta_ns;
+	unsigned long		   m_per_sec;
+	unsigned		   i;
+	static const struct {
+		unsigned long pow;
+		unsigned long value;
+	}			   pow10[] = {
+		{ .pow = 1000000000,	.value = ULONG_MAX / 1000000000 },
+		{ .pow = 100000000,	.value = ULONG_MAX / 100000000 },
+		{ .pow = 10000000,	.value = ULONG_MAX / 10000000 },
+		{ .pow = 1000000,	.value = ULONG_MAX / 1000000 },
+		{ .pow = 100000,	.value = ULONG_MAX / 100000 },
+		{ .pow = 10000,		.value = ULONG_MAX / 10000 },
+		{ .pow = 1000,		.value = ULONG_MAX / 1000 },
+		{ .pow = 100,		.value = ULONG_MAX / 100 },
+		{ .pow = 10,		.value = ULONG_MAX / 10 },
+		{ .pow = 1,		.value = ULONG_MAX },
+	};
 
 	C2_PRE(mps != NULL);
 	C2_PRE(messages >= mps->ntmps_last_nr);
@@ -285,22 +305,12 @@ c2_time_t c2_net_test_mps_add(struct c2_net_test_mps *mps,
 	   should be maximized in range [0, 9] - in case if M < 9
 	   there is a loss of precision.
 	 */
-	if (C2_BCOUNT_MAX / C2_TIME_ONE_BILLION > messages_delta) {
-		/* simple case. M = 9 */
-		m_per_sec = messages_delta * C2_TIME_ONE_BILLION / time_delta_ns;
-	} else {
-		/* harder case. M is in range [0, 9) */
-		M_10 = 1;
-		for (M = 0; M < 8; ++M) {
-			if (C2_BCOUNT_MAX / (M_10 * 10) > messages_delta)
-				M_10 *= 10;
-			else
-				break;
-		}
-		/* M is maximized */
-		m_per_sec = (messages_delta * M_10 / time_delta_ns) *
-			    (C2_TIME_ONE_BILLION / M_10);
+	for (i = 0; i < ARRAY_SIZE(pow10); ++i) {
+		if (messages_delta <= pow10[i].value)
+			break;
 	}
+	m_per_sec = (messages_delta * pow10[i].pow / time_delta_ns) *
+		    (C2_TIME_ONE_BILLION / pow10[i].pow);
 	c2_net_test_stats_add(&mps->ntmps_stats, m_per_sec);
 
 	return time_next;
