@@ -57,6 +57,7 @@ SUBDIR_UT = addb/ut \
             cob/ut \
             colibri/ut \
             console/ut \
+            cm/ut \
             desim/ut \
             db/ut \
             fol/ut \

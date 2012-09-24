@@ -673,6 +673,7 @@ AC_CONFIG_FILES([
                  c2t1fs/linux_kernel/ut/Makefile
                  cfg/Makefile
 		 cm/Makefile
+		 cm/ut/Makefile
                  cob/Makefile
                  cob/ut/Makefile
                  colibri/Makefile
