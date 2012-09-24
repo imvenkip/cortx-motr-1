@@ -173,6 +173,8 @@ struct c2_cm_cp_ops {
 	int      (*co_action[]) (struct c2_cm_cp *cp);
 };
 
+void c2_cm_cp_module_init(void);
+
 /**
  * Initialises generic copy packet.
  *

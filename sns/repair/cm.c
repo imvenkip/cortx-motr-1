@@ -112,7 +112,7 @@
   @section SNSRepairCMDLD-lspec Logical specification
   - @ref SNSRepairCMDLD-lspec-cm-setup
   - @ref SNSRepairCMDLD-lspec-cm-start
-  - @ref SNSRepairCMDLD-lspec-cm-start-cp-create
+     - @ref SNSRepairCMDLD-lspec-cm-start-cp-create
   - @ref SNSRepairCMDLD-lspec-cm-cp-data-next
   - @ref SNSRepairCMDLD-lspec-cm-stop
 
@@ -182,8 +182,7 @@
   @subsection SNSRepairCMDLD-lspec-cm-stop Copy machine stop
   Once all the COBs (i.e. component objects) corresponding to the GOBs
   (i.e global file objects) belonging to the failure set are repaired by every
-  replica in the cluster, it broadcasts DONE FOPs to all other replicas in the
-  cluster. Once every replica receives DONE FOPs from every other replica, the
+  replica in the cluster successfully (including updating layouts), the repair
   operation is marked complete.
 
   @subsection SNSRepairCMDLD-lspec-thread Threading and Concurrency Model
@@ -416,16 +415,6 @@ static int cm_start(struct c2_cm *cm)
 	return 0;
 }
 
-static void cm_done(struct c2_cm *cm)
-{
-
-    /*
-     * Broadcast DONE FOPs to other replicas
-     * and wait for DONE FOPs from all the replicas.
-     * Transition cm to IDLE state.
-     */
-}
-
 static int cm_stop(struct c2_cm *cm)
 {
 	C2_PRE(cm != NULL);
@@ -459,7 +448,6 @@ const struct c2_cm_ops cm_ops = {
 	.cmo_start        = cm_start,
 	.cmo_cp_alloc     = cm_cp_alloc,
 	.cmo_data_next    = cm_data_next,
-	.cmo_done         = cm_done,
 	.cmo_stop         = cm_stop,
 	.cmo_fini         = cm_fini
 };

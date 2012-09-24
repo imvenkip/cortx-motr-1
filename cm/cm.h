@@ -81,7 +81,8 @@
    - c2_cm_setup()		     Setup a copy machine.
    - c2_cm_start()                   Starts copy machine operation.
    - c2_cm_fail()		     Handles a copy machine failure.
-   - c2_cm_done()		     Performs copy machine operation fini tasks.
+   - c2_cm_stop()		     Completes and aborts a copy machine
+   				     operation.
 
    @subsection CMDLD-fspec-sub-opi-ext External operational Interfaces
    @todo This would be re-written when configuration api's would be implemented.
@@ -118,7 +119,6 @@ enum c2_cm_state {
 	C2_CMS_READY,
 	C2_CMS_ACTIVE,
 	C2_CMS_FAIL,
-	C2_CMS_DONE,
 	C2_CMS_STOP,
 	C2_CMS_FINI,
 	C2_CMS_NR
@@ -175,9 +175,9 @@ struct c2_cm_cp_pump_ops {
  * c2_cm_data_next(), which may block. The pump FOM is created when copy machine
  * operation starts and finalised when copy machine operation is complete.
  * The pump FOM goes to sleep when no more copy packets can be created (buffer
- * pool is exhausted). When a copy packet FOM terminates and frees its
- * buffer in the pool, it wakes the pump up (using c2_cm_sw_fill()) to create
- * more copy packets.
+ * pool is exhausted). When a copy packet FOM terminates and frees its buffer
+ * in the pool, it wakes up the pump FOM (using c2_cm_sw_fill()) to create more
+ * copy packets.
  */
 struct c2_cm_cp_pump {
 	/** pump FOM. */
@@ -261,9 +261,6 @@ struct c2_cm_ops {
 	 */
 	int (*cmo_start)(struct c2_cm *cm);
 
-	/** Acknowledges the completion of copy machine operation. */
-	void (*cmo_done)(struct c2_cm *cm);
-
 	/** Invoked from c2_cm_stop(). */
 	int (*cmo_stop)(struct c2_cm *cm);
 
@@ -338,8 +335,8 @@ void c2_cm_unlock(struct c2_cm *cm);
  */
 bool c2_cm_is_locked(const struct c2_cm *cm);
 
-int c2_cms_init(void);
-void c2_cms_fini(void);
+int c2_cm_module_init(void);
+void c2_cm_module_fini(void);
 
 /**
  * Initialises a copy machine. This is invoked from copy machine specific
@@ -379,10 +376,14 @@ int c2_cm_setup(struct c2_cm *cm);
 int c2_cm_start(struct c2_cm *cm);
 
 /**
- * Stops the copy machine data restructuring process by sending the "STOP" fop.
- * Invokes copy machine specific stop routine (->cmo_stop()).
+ * Once operation completes successfully, copy machine performs required tasks,
+ * (e.g. updating layouts, etc.) by invoking c2_cm_stop(), this transitions copy
+ * machine back to C2_CMS_IDLE state. Copy machine invokes c2_cm_stop() also in
+ * case of operational failure to broadcast STOP FOPs to its other replicas in
+ * the pool, indicating failure. This is handled specific to the copy machine
+ * type.
  * @pre cm!= NULL && C2_IN(c2_cm_state_get(cm), (C2_CMS_ACTIVE, C2_CMS_IDLE))
- * @post C2_IN(c2_cm_state_get(cm), (C2_CMS_IDLE, C2_CMS_FAIL, C2_CM_STOP))
+ * @post C2_IN(c2_cm_state_get(cm), (C2_CMS_IDLE, C2_CMS_FAIL))
  */
 int c2_cm_stop(struct c2_cm *cm);
 
@@ -390,16 +391,9 @@ int c2_cm_stop(struct c2_cm *cm);
  * Configures a copy machine replica.
  * @todo Pass actual configuration fop data structure once configuration
  * interfaces and datastructures are available.
- * @pre C2_IN(c2_cm_state_get(cm), (C2_CMS_IDLE, C2_CMS_DONE))
+ * @pre c2_cm_state_get(cm) == C2_CMS_IDLE
  */
 int c2_cm_configure(struct c2_cm *cm, struct c2_fop *fop);
-
-/**
- * Marks copy machine operation as complete. Transitions copy machine into
- * C2_CMS_IDLE.
- * @post c2_cm_state_get(cm) == C2_CMS_IDLE
- */
-int c2_cm_done(struct c2_cm *cm);
 
 /**
  * Handles various type of copy machine failures based on the failure code and
