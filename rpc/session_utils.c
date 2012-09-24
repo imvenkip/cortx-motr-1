@@ -78,7 +78,7 @@ int c2_rpc__fop_post(struct c2_fop                *fop,
 {
 	struct c2_rpc_item *item;
 	int                 rc;
-	C2_ENTRY("fop: '%p', rpc_session: '%p'", fop, session);
+	C2_ENTRY("fop: %p, session: %p", fop, session);
 
 	item              = &fop->f_item;
 	item->ri_session  = session;
@@ -121,7 +121,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	uint64_t              pfid_lo;
 	int                   rc;
 
-	C2_ENTRY("cob_dom: '%p', pcob: '%p'", dom, pcob);
+	C2_ENTRY("cob_dom: %p, pcob: %p", dom, pcob);
 	C2_PRE(dom != NULL && name != NULL && out != NULL);
 
 	*out = NULL;
@@ -165,8 +165,8 @@ int c2_rpc_cob_lookup_helper(struct c2_cob_domain *dom,
 	uint64_t             pfid_lo;
 	int                  rc;
 
-	C2_ENTRY("cob_dom: '%p', pcob; '%p', name: '%s'", dom, pcob,
-		 (char *) name);
+	C2_ENTRY("cob_dom: %p, pcob; %p, name: %s", dom, pcob,
+		 (char *)name);
 	C2_PRE(dom != NULL && name != NULL && out != NULL);
 
 	*out = NULL;
@@ -232,7 +232,7 @@ void c2_rpc_item_dispatch(struct c2_rpc_item *item)
         struct c2_rpc_fop_conn_establish_ctx *ctx;
 	struct c2_rpc_machine                *rpcmach;
 
-	C2_ENTRY("rpc_item : '%p'", item);
+	C2_ENTRY("item : %p", item);
 
 	 if (c2_rpc_item_is_conn_establish(item)) {
 

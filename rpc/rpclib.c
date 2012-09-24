@@ -47,7 +47,7 @@ int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx)
 	int  i;
 	int  rc;
 
-	C2_ENTRY("rpc_server_ctx: '%p'", sctx);
+	C2_ENTRY("server_ctx: %p", sctx);
 	C2_PRE(sctx->rsx_argv != NULL && sctx->rsx_argc > 0);
 
 	/* Open error log file */
@@ -91,7 +91,7 @@ void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx)
 {
 	int i;
 
-	C2_ENTRY("rpc_server_ctx: '%p'", sctx);
+	C2_ENTRY("server_ctx: %p", sctx);
 
 	c2_cs_fini(&sctx->rsx_colibri_ctx);
 
@@ -115,7 +115,7 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	uint32_t		   tms_nr;
 	uint32_t		   bufs_nr;
 
-	C2_ENTRY("rpc_client_ctx: '%p'", cctx);
+	C2_ENTRY("client_ctx: %p", cctx);
 
 	ndom	    = cctx->rcx_net_dom;
 	rpc_mach    = &cctx->rcx_rpc_machine;
@@ -180,7 +180,7 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 	struct c2_clink     clink;
 	struct c2_rpc_item *item;
 
-	C2_ENTRY("fop: '%p', session: '%p'", fop, session);
+	C2_ENTRY("fop: %p, session: %p", fop, session);
 	C2_PRE(fop != NULL);
 	C2_PRE(session != NULL);
 	/*
@@ -220,7 +220,7 @@ int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
 {
 	int rc;
 
-	C2_ENTRY("rpc_client_ctx: '%p'", cctx);
+	C2_ENTRY("client_ctx: %p", cctx);
 	rc = c2_rpc_session_destroy(&cctx->rcx_session, cctx->rcx_timeout_s);
 	if (rc != 0) {
 		C2_RETURN(rc);

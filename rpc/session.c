@@ -225,7 +225,7 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
 	struct c2_rpc_machine *machine;
 	int                    rc;
 
-	C2_ENTRY("rpc_session: '%p', rpc_conn: '%p', nr_slots: '%u'", session,
+	C2_ENTRY("session: %p, conn: %p, nr_slots: %u", session,
 		 conn, nr_slots);
 	C2_PRE(session != NULL && conn != NULL && nr_slots >= 1);
 
@@ -248,7 +248,7 @@ int c2_rpc_session_init_locked(struct c2_rpc_session *session,
 {
 	int rc;
 
-	C2_ENTRY("rpc_session: '%p', rpc_conn: '%p', nr_slots: '%u'", session,
+	C2_ENTRY("session: %p, conn: %p, nr_slots: %u", session,
 		 conn, nr_slots);
 	C2_PRE(session != NULL && conn != NULL && nr_slots >= 1);
 	C2_PRE(c2_rpc_machine_is_locked(conn->c_rpc_machine));
@@ -286,7 +286,7 @@ static int slot_table_alloc_and_init(struct c2_rpc_session *session)
 	int                           i;
 	int                           rc;
 
-	C2_ENTRY("rpc_session: '%p'", session);
+	C2_ENTRY("session: %p", session);
 
 	C2_ALLOC_ARR(session->s_slot_table, session->s_nr_slots);
 	if (session->s_slot_table == NULL)
@@ -328,7 +328,7 @@ static void __session_fini(struct c2_rpc_session *session)
 	struct c2_rpc_slot *slot;
 	int                 i;
 
-	C2_ENTRY("rpc_session: '%p'", session);
+	C2_ENTRY("session: %p", session);
 
 	if (session->s_slot_table != NULL) {
 		for (i = 0; i < session->s_nr_slots; i++) {
@@ -355,7 +355,7 @@ void c2_rpc_session_fini(struct c2_rpc_session *session)
 {
 	struct c2_rpc_machine *machine;
 
-	C2_ENTRY("rpc_session: '%p'", session);
+	C2_ENTRY("session: %p", session);
 	C2_PRE(session != NULL &&
 	       session->s_conn != NULL &&
 	       session->s_conn->c_rpc_machine != NULL);
@@ -391,8 +391,10 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session *session,
 	bool                   got_event = true;
 	bool                   state_reached;
 
-	C2_ENTRY("rpc_session: '%p', abs_timeout: '%llu'", session,
-		 (unsigned long long) abs_timeout);
+	C2_ENTRY("session: %p, abs_timeout: [%llu:%llu]", session,
+		 (unsigned long long) c2_time_seconds(abs_timeout),
+		 (unsigned long long) c2_time_nanoseconds(abs_timeout));
+
 	machine = session->s_conn->c_rpc_machine;
 
 	c2_rpc_machine_lock(machine);
@@ -412,8 +414,8 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session *session,
 
 	c2_rpc_machine_unlock(machine);
 
-	C2_LEAVE("rc(state_reached): '%s'",
-		 (char *) c2_bool_to_str(state_reached));
+	C2_LEAVE("state_reached: %s",
+		 (char *)c2_bool_to_str(state_reached));
 	return state_reached;
 }
 C2_EXPORTED(c2_rpc_session_timedwait);
@@ -425,7 +427,7 @@ int c2_rpc_session_create(struct c2_rpc_session *session,
 {
 	int rc;
 
-	C2_ENTRY("rpc_session: '%p', rpc_conn: '%p', nr_slots: '%u'", session,
+	C2_ENTRY("session: %p, conn: %p, nr_slots: %u", session,
 		 conn, nr_slots);
 
 	rc = c2_rpc_session_init(session, conn, nr_slots);
@@ -444,7 +446,7 @@ int c2_rpc_session_establish_sync(struct c2_rpc_session *session,
 	bool state_reached;
 	int  rc;
 
-	C2_ENTRY("rpc_session: '%p', timeout_sec: '%u'", session, timeout_sec);
+	C2_ENTRY("session: %p, timeout_sec: %u", session, timeout_sec);
 	rc = c2_rpc_session_establish(session);
 	if (rc != 0){
 		C2_RETURN(rc);
@@ -477,12 +479,11 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 	struct c2_rpc_machine               *machine;
 	int                                  rc;
 
-	C2_ENTRY("rpc_session: '%p'", session);
+	C2_ENTRY("session: %p", session);
 	C2_PRE(session != NULL);
 
-	if (C2_FI_ENABLED("fake_error")){
+	if (C2_FI_ENABLED("fake_error"))
 		C2_RETURN(-EINVAL);
-	}
 
 	C2_ALLOC_PTR(ctx);
 	if (ctx == NULL) {
@@ -583,7 +584,7 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *item)
 	int32_t                                  rc;
 	int                                      i;
 
-	C2_ENTRY("rpc_item: '%p'", item);
+	C2_ENTRY("item: %p", item);
 	C2_PRE(item != NULL &&
 	       item->ri_session != NULL &&
 	       item->ri_session->s_session_id == SESSION_ID_0);
@@ -661,12 +662,11 @@ int c2_rpc_session_destroy(struct c2_rpc_session *session, uint32_t timeout_sec)
 {
 	int rc;
 
-	C2_ENTRY("rpc_session: '%p'", session);
+	C2_ENTRY("session: %p", session);
 
 	rc = c2_rpc_session_terminate_sync(session, timeout_sec);
 	c2_rpc_session_fini(session);
 
-	/* Amit: What the sender will do with this return value? Is rc really required? */
 	C2_RETURN(rc);
 }
 C2_EXPORTED(c2_rpc_session_destroy);
@@ -677,7 +677,7 @@ int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
 	int rc;
 	bool state_reached;
 
-	C2_ENTRY("rpc_session: '%p'", session);
+	C2_ENTRY("session: %p", session);
 
 	/* Wait for session to become IDLE */
 	c2_rpc_session_timedwait(session, C2_RPC_SESSION_IDLE,
@@ -714,7 +714,7 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session)
 	struct c2_rpc_conn                  *conn;
 	int                                  rc;
 
-	C2_ENTRY("rpc_session: '%p'", session);
+	C2_ENTRY("session: %p", session);
 	C2_PRE(session != NULL && session->s_conn != NULL);
 
 	conn    = session->s_conn;
@@ -801,7 +801,7 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *item)
 	uint64_t                                 session_id;
 	int32_t                                  rc;
 
-	C2_ENTRY("rpc_item: '%p'", item);
+	C2_ENTRY("item: %p", item);
 	C2_PRE(item != NULL &&
 	       item->ri_session != NULL &&
 	       item->ri_session->s_session_id == SESSION_ID_0);
@@ -862,7 +862,7 @@ void c2_rpc_session_hold_busy(struct c2_rpc_session *session)
 {
 	struct c2_rpc_machine *machine;
 
-	C2_ENTRY("rpc_session: '%p'", session);
+	C2_ENTRY("session: %p", session);
 
 	machine = session->s_conn->c_rpc_machine;
 	C2_PRE(c2_rpc_machine_is_locked(machine));
@@ -885,7 +885,7 @@ void c2_rpc_session_release(struct c2_rpc_session *session)
 {
 	struct c2_rpc_machine *machine;
 
-	C2_ENTRY("rpc_session: '%p'", session);
+	C2_ENTRY("session: %p", session);
 
 	machine = session->s_conn->c_rpc_machine;
 	C2_PRE(c2_rpc_machine_is_locked(machine));
@@ -913,8 +913,8 @@ int c2_rpc_session_cob_lookup(struct c2_cob   *conn_cob,
 	char           name[SESSION_COB_MAX_NAME_LEN];
 	int            rc;
 
-	C2_ENTRY("conn_cob: '%p', session_id: '%llu'", conn_cob,
-		 (unsigned long long) session_id);
+	C2_ENTRY("conn_cob: %p, session_id: %llu", conn_cob,
+		 (unsigned long long)session_id);
 	C2_PRE(conn_cob != NULL && session_id <= SESSION_ID_MAX &&
 			session_cob != NULL);
 
@@ -937,8 +937,8 @@ int c2_rpc_session_cob_create(struct c2_cob   *conn_cob,
 	char           name[SESSION_COB_MAX_NAME_LEN];
 	int            rc;
 
-	C2_ENTRY("conn_cob: '%p', session_id: '%llu'", conn_cob,
-		 (unsigned long long) session_id);
+	C2_ENTRY("conn_cob: %p, session_id: %llu", conn_cob,
+		 (unsigned long long)session_id);
 	C2_PRE(conn_cob != NULL && session_id != SESSION_ID_INVALID &&
 			session_cob != NULL);
 
@@ -974,7 +974,7 @@ uint64_t session_id_allocate(void)
 
 	} while (!session_id_is_valid);
 
-	C2_LEAVE("rc(session_id): '%llu'", (unsigned long long) session_id);
+	C2_LEAVE("session_id: %llu", (unsigned long long)session_id);
 	return session_id;
 }
 
@@ -997,13 +997,13 @@ bool c2_rpc_session_bind_item(struct c2_rpc_item *item)
 	struct c2_rpc_session *session;
 	struct c2_rpc_slot    *slot;
 
-	C2_ENTRY("rpc_item: '%p'", item);
+	C2_ENTRY("item: %p", item);
 	C2_PRE(item != NULL && item->ri_session != NULL);
 
 	session = item->ri_session;
 
 	if (c2_list_is_empty(&session->s_ready_slots)) {
-		C2_LEAVE("rc: 'FALSE'");
+		C2_LEAVE("rc: FALSE");
 		return false;
 	}
 	slot = c2_list_entry(c2_list_first(&session->s_ready_slots),
@@ -1013,7 +1013,7 @@ bool c2_rpc_session_bind_item(struct c2_rpc_item *item)
 
 	C2_POST(c2_rpc_item_is_bound(item));
 
-	C2_LEAVE("rc: 'TRUE'");
+	C2_LEAVE("rc: TRUE");
 	return true;
 }
 
@@ -1057,7 +1057,7 @@ int c2_rpc_rcv_session_establish(struct c2_rpc_session *session)
 	uint64_t               session_id;
 	int                    rc;
 
-	C2_ENTRY("rpc_session: '%p'", session);
+	C2_ENTRY("session: %p", session);
 	C2_PRE(session != NULL);
 
 	machine = session->s_conn->c_rpc_machine;
@@ -1093,8 +1093,8 @@ static int session_persistent_state_attach(struct c2_rpc_session *session,
 	int             rc;
 	int             i;
 
-	C2_ENTRY("rpc_session: '%p', session_id: '%llu'", session,
-		 (unsigned long long) session_id);
+	C2_ENTRY("session: %p, session_id: %llu", session,
+		 (unsigned long long)session_id);
 	C2_PRE(session != NULL &&
 	       c2_rpc_session_invariant(session) &&
 	       session->s_state == C2_RPC_SESSION_INITIALISED &&
@@ -1143,7 +1143,7 @@ static int session_persistent_state_destroy(struct c2_rpc_session *session,
 	struct c2_rpc_slot *slot;
 	int                 i;
 
-	C2_ENTRY("rpc_session: '%p'", session);
+	C2_ENTRY("session: %p", session);
 	C2_ASSERT(session != NULL);
 
 	for (i = 0; i < session->s_nr_slots; i++) {
@@ -1174,7 +1174,7 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 	struct c2_db_tx        tx;
 	int                    rc;
 
-	C2_ENTRY("rpc_session: '%p'", session);
+	C2_ENTRY("session: %p", session);
 	C2_PRE(session != NULL);
 
 	conn    = session->s_conn;
@@ -1219,7 +1219,7 @@ void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session)
 	struct c2_rpc_machine *machine;
 	int                    i;
 
-	C2_ENTRY("rpc_session: '%p'", session);
+	C2_ENTRY("session: %p", session);
 
 	machine = session->s_conn->c_rpc_machine;
 	C2_ASSERT(c2_rpc_machine_is_locked(machine));

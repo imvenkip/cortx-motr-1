@@ -74,7 +74,7 @@ static bool rpc_bulk_buf_invariant(const struct c2_rpc_bulk_buf *rbuf)
 
 static void rpc_bulk_buf_fini(struct c2_rpc_bulk_buf *rbuf)
 {
-	C2_ENTRY("rpc_bulk_buf: '%p'", rbuf);
+	C2_ENTRY("bulk_buf: %p", rbuf);
 	C2_PRE(rbuf != NULL);
 
 	c2_net_desc_free(&rbuf->bb_nbuf->nb_desc);
@@ -93,13 +93,13 @@ static int rpc_bulk_buf_init(struct c2_rpc_bulk_buf *rbuf, uint32_t segs_nr,
 	struct c2_buf	cbuf;
 	c2_bindex_t	index = 0;
 
-	C2_ENTRY("rpc_bulk_buf: '%p', net_buf: '%p'", rbuf, nb);
+	C2_ENTRY("bulk_buf: %p, net_buf: %p", rbuf, nb);
 	C2_PRE(rbuf != NULL);
 	C2_PRE(segs_nr > 0);
 
 	rc = c2_0vec_init(&rbuf->bb_zerovec, segs_nr);
 	if (rc != 0)
-		C2_RETERR(rc, "rpc_bulk_buf: Zero vector initialization");
+		C2_RETERR(rc, "bulk_buf: Zero vector initialization");
 
 	rbuf->bb_flags = 0;
 	if (nb == NULL) {
@@ -140,7 +140,7 @@ static void rpc_bulk_buf_cb(const struct c2_net_buffer_event *evt)
 	struct c2_net_buffer	*nb;
 	bool			 receiver = false;
 
-	C2_ENTRY("net_buf_evt: '%p'", evt);
+	C2_ENTRY("net_buf_evt: %p", evt);
 	C2_PRE(evt != NULL);
 	C2_PRE(evt->nbe_buffer != NULL);
 
@@ -197,7 +197,7 @@ const struct c2_net_buffer_callbacks rpc_bulk_cb  = {
 
 void c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk)
 {
-	C2_ENTRY("rpc_bulk: '%p'", rbulk);
+	C2_ENTRY("rbulk: %p", rbulk);
 	C2_PRE(rbulk != NULL);
 
 	rpcbulk_tlist_init(&rbulk->rb_buflist);
@@ -212,7 +212,7 @@ C2_EXPORTED(c2_rpc_bulk_init);
 
 void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk)
 {
-	C2_ENTRY("rpc_bulk: '%p'", rbulk);
+	C2_ENTRY("rbulk: %p", rbulk);
 	C2_PRE(rbulk != NULL);
 	c2_mutex_lock(&rbulk->rb_mutex);
 	C2_PRE(rpc_bulk_invariant(rbulk));
@@ -248,7 +248,7 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 	int			rc;
 	struct c2_rpc_bulk_buf *buf;
 
-	C2_ENTRY("rpc_bulk: '%p', net_dom: '%p', net_buf: '%p'", rbulk, netdom,
+	C2_ENTRY("rbulk: %p, net_dom: %p, net_buf: %p", rbulk, netdom,
 		 nb);
 	C2_PRE(rbulk != NULL);
 	C2_PRE(netdom != NULL);
@@ -288,7 +288,7 @@ int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
 	struct c2_buf		 cbuf;
 	struct c2_rpc_bulk	*rbulk;
 
-	C2_ENTRY("rbuf: '%p', netdom: '%p'", rbuf, netdom);
+	C2_ENTRY("rbuf: %p, netdom: %p", rbuf, netdom);
 	C2_PRE(rbuf != NULL);
 	C2_PRE(rpc_bulk_buf_invariant(rbuf));
 	C2_PRE(buf != NULL);
@@ -297,9 +297,8 @@ int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
 
 	if (c2_vec_count(&rbuf->bb_zerovec.z_bvec.ov_vec) + count >
 	    c2_net_domain_get_max_buffer_size(netdom) ||
-	    count > c2_net_domain_get_max_buffer_segment_size(netdom)) {
+	    count > c2_net_domain_get_max_buffer_segment_size(netdom))
 		C2_RETERR(-EMSGSIZE, "Cannot exceed net_dom_max_buf_segs");
-	}
 
 	cbuf.b_addr = buf;
 	cbuf.b_nob = count;
@@ -321,7 +320,7 @@ void c2_rpc_bulk_qtype(struct c2_rpc_bulk *rbulk, enum c2_net_queue_type q)
 {
 	struct c2_rpc_bulk_buf *rbuf;
 
-	C2_ENTRY("rpc_bulk: '%p', qtype: '%d'", rbulk, q);
+	C2_ENTRY("rpc_bulk: %p, qtype: %d", rbulk, q);
 	C2_PRE(rbulk != NULL);
 	C2_PRE(c2_mutex_is_locked(&rbulk->rb_mutex));
 	C2_PRE(!rpcbulk_tlist_is_empty(&rbulk->rb_buflist));
@@ -349,7 +348,7 @@ static int rpc_bulk_op(struct c2_rpc_bulk *rbulk,
 	struct c2_net_domain		*netdom;
 	struct c2_rpc_machine		*rpcmach;
 
-	C2_ENTRY("rpc_bulk: '%p', rpc_conn: '%p', rpc_bulk_op_type: '%d'",
+	C2_ENTRY("rbulk: %p, rpc_conn: %p, rbulk_op_type: %d",
 		 rbulk, conn, op);
 	C2_PRE(rbulk != NULL);
 	C2_PRE(descs != NULL);

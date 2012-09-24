@@ -95,7 +95,8 @@ void c2_rpc_base_fini(void)
 int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
 {
 
-	C2_ENTRY("rpc_item_type: '%p'", item_type);
+	C2_ENTRY("item_type: %p, item_opcode: %u", item_type,
+		 item_type->rit_opcode);
 	C2_PRE(item_type != NULL);
 	C2_PRE(!opcode_is_dup(item_type->rit_opcode));
 
@@ -108,7 +109,7 @@ int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
 
 void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type)
 {
-	C2_ENTRY("rpc_item_type: '%p'", item_type);
+	C2_ENTRY("item_type: %p", item_type);
 	C2_PRE(item_type != NULL);
 
 	c2_rwlock_write_lock(&rpc_item_types_lock);
@@ -124,7 +125,8 @@ struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 	struct c2_rpc_item_type         *item_type = NULL;
 	bool                             found = false;
 
-	C2_ENTRY("opcode: '%u'", opcode);
+	C2_ENTRY("opcode: %u", opcode);
+
 	c2_rwlock_read_lock(&rpc_item_types_lock);
 	c2_tl_for(rit, &rpc_item_types_list, item_type) {
 		if (item_type->rit_opcode == opcode) {
@@ -134,11 +136,11 @@ struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 	} c2_tl_endfor;
 	c2_rwlock_read_unlock(&rpc_item_types_lock);
 	if (found) {
-		C2_LEAVE("rc(rpc_item_type): '%p'", item_type);
+		C2_LEAVE("item_type: %p", item_type);
 		return item_type;
 	}
 
-	C2_LEAVE("rc(rpc_item_type): '(nil)'");
+	C2_LEAVE("item_type: (nil)");
 	return NULL;
 }
 
@@ -146,7 +148,7 @@ void c2_rpc_item_init(struct c2_rpc_item *item)
 {
 	struct c2_rpc_slot_ref	*sref;
 
-	C2_ENTRY();
+	C2_ENTRY("item: %p", item);
 	C2_SET0(item);
 
 	item->ri_state      = RPC_ITEM_UNINITIALIZED;
@@ -178,7 +180,7 @@ void c2_rpc_item_fini(struct c2_rpc_item *item)
 {
 	struct c2_rpc_slot_ref	*sref;
 
-	C2_ENTRY("rpc_item: '%p'", item);
+	C2_ENTRY("item: %p", item);
 	c2_chan_fini(&item->ri_chan);
 
 	sref = &item->ri_slot_refs[0];

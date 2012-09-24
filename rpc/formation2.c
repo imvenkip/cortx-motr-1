@@ -292,11 +292,11 @@ frm_which_queue(struct c2_rpc_frm *frm, const struct c2_rpc_item *item)
 
 	C2_LOG(C2_DEBUG,
 		"deadline: [%llu:%llu] bound: %s oneway: %s"
-		"deadline_passed: %s",
+		" deadline_passed: %s",
 		(unsigned long long)c2_time_seconds(item->ri_deadline),
 		(unsigned long long)c2_time_nanoseconds(item->ri_deadline),
-		c2_bool_to_str(bound), c2_bool_to_str(oneway),
-		c2_bool_to_str(deadline_passed));
+		(char *)c2_bool_to_str(bound), (char *)c2_bool_to_str(oneway),
+		(char *)c2_bool_to_str(deadline_passed));
 
 	if (deadline_passed)
 		qtype = oneway ? FRMQ_TIMEDOUT_ONE_WAY
@@ -353,7 +353,8 @@ static void frm_balance(struct c2_rpc_frm *frm)
 	C2_PRE(frm_rmachine_is_locked(frm));
 	C2_PRE(frm_invariant(frm));
 
-	C2_LOG(C2_DEBUG, "ready: %s", c2_bool_to_str(frm_is_ready(frm)));
+	C2_LOG(C2_DEBUG, "ready: %s",
+	       (char *)c2_bool_to_str(frm_is_ready(frm)));
 	packet_count = item_count = 0;
 
 	frm_filter_timedout_items(frm);
@@ -560,7 +561,7 @@ frm_try_to_bind_item(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
 	/* See item_bind() in rpc/frmops.c */
 	result = frm->f_ops->fo_item_bind(item);
 
-	C2_LEAVE("result: %s", c2_bool_to_str(result));
+	C2_LEAVE("result: %s", (char *)c2_bool_to_str(result));
 	return result;
 }
 
@@ -611,7 +612,7 @@ static bool frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 	/* See packet_ready() in rpc/frmops.c */
 	packet_enqed = frm->f_ops->fo_packet_ready(p);
 
-	C2_LEAVE("result: %s", c2_bool_to_str(packet_enqed));
+	C2_LEAVE("result: %s", (char *)c2_bool_to_str(packet_enqed));
 	return packet_enqed;
 }
 

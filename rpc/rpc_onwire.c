@@ -46,7 +46,7 @@ int c2_rpc_item_header_encdec(struct c2_rpc_item      *item,
 	int			 rc;
 	struct c2_rpc_item_type *item_type;
 
-	C2_ENTRY("rpc_item: '%p'", item);
+	C2_ENTRY("item: %p", item);
 	C2_PRE(cur != NULL);
 	C2_PRE(item != NULL);
 

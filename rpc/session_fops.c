@@ -64,7 +64,7 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 	struct c2_fop                        *fop;
 	int                                   rc;
 
-	C2_ENTRY("rpc_item_type: '%p'", item_type);
+	C2_ENTRY("item_opcode: %u", item_type->rit_opcode);
 	C2_PRE(item_type != NULL && item != NULL && cur != NULL);
 	C2_PRE(item_type->rit_opcode == C2_RPC_CONN_ESTABLISH_OPCODE);
 
@@ -217,8 +217,8 @@ void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
 {
 	struct c2_rpc_fop_conn_establish_ctx *ctx;
 
-	C2_ENTRY("rpc_item: '%p', ep_addr: '%s', rpc_machine: '%p'", item,
-		 (char *) ep->nep_addr, machine);
+	C2_ENTRY("item: %p, ep_addr: %s, machine: %p", item,
+		 (char *)ep->nep_addr, machine);
 	C2_PRE(item != NULL && ep != NULL && machine != NULL);
 
 	ctx = container_of(item, struct c2_rpc_fop_conn_establish_ctx,

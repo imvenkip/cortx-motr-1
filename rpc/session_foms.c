@@ -68,7 +68,7 @@ static int session_gen_fom_create(struct c2_fop *fop, struct c2_fom **m)
 	struct c2_fop           *reply_fop;
 	int                      rc;
 
-	C2_ENTRY("fop: '%p'", fop);
+	C2_ENTRY("fop: %p", fop);
 
 	C2_ALLOC_PTR(fom);
 	if (fom == NULL)
@@ -158,7 +158,7 @@ int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 	struct c2_rpc_slot                   *slot;
 	int                                   rc;
 
-	C2_ENTRY("fom: '%p'", fom);
+	C2_ENTRY("fom: %p", fom);
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 
@@ -243,7 +243,8 @@ int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 	}
 
 	c2_fom_phase_set(fom, C2_FOPH_FINISH);
-	C2_RETURN(C2_FSO_WAIT);
+	C2_LEAVE();
+	return C2_FSO_WAIT;
 }
 /*
  * [1]
@@ -315,7 +316,7 @@ int c2_rpc_fom_session_establish_tick(struct c2_fom *fom)
 	uint32_t                                 slot_cnt;
 	int                                      rc;
 
-	C2_ENTRY("fom: '%p'", fom);
+	C2_ENTRY("fom: %p", fom);
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 
@@ -374,7 +375,8 @@ out:
 
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	c2_fom_phase_set(fom, C2_FOPH_FINISH);
-	C2_RETURN(C2_FSO_WAIT);
+	C2_LEAVE();
+	return C2_FSO_WAIT;
 }
 
 /*
@@ -406,7 +408,7 @@ int c2_rpc_fom_session_terminate_tick(struct c2_fom *fom)
 	uint64_t                                 session_id;
 	int                                      rc;
 
-	C2_ENTRY("fom: '%p'", fom);
+	C2_ENTRY("fom: %p", fom);
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 
@@ -464,7 +466,8 @@ int c2_rpc_fom_session_terminate_tick(struct c2_fom *fom)
 	c2_fom_phase_set(fom, C2_FOPH_FINISH);
 	c2_rpc_reply_post(&fom->fo_fop->f_item, &fom->fo_rep_fop->f_item);
 
-	C2_RETURN(C2_FSO_WAIT);
+	C2_LEAVE();
+	return C2_FSO_WAIT;
 }
 
 /*
@@ -495,7 +498,7 @@ int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
 	struct c2_rpc_machine                *machine;
 	int                                   rc;
 
-	C2_ENTRY("fom: '%p'", fom);
+	C2_ENTRY("fom: %p", fom);
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 
@@ -535,7 +538,8 @@ int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
 
 		c2_free(conn);
 		c2_fom_phase_set(fom, C2_FOPH_FINISH);
-		C2_RETURN(C2_FSO_WAIT);
+		C2_LEAVE();
+		return C2_FSO_WAIT;
 	} else {
 		C2_ASSERT(C2_IN(conn->c_state, (C2_RPC_CONN_ACTIVE,
 						C2_RPC_CONN_TERMINATING)));
@@ -551,7 +555,8 @@ int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
 		c2_fom_phase_set(fom, C2_FOPH_FINISH);
 		C2_LOG(C2_INFO, "Conn terminate successful: conn [%p]\n", conn);
 		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
-		C2_RETURN(C2_FSO_WAIT);
+		C2_LEAVE();
+		return C2_FSO_WAIT;
 	}
 }
 
