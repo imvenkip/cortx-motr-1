@@ -111,7 +111,6 @@
        READY [label="READY"]
        ACTIVE [label="ACTIVE"]
        FAIL [label="FAIL"]
-       DONE [label="DONE"]
        STOP [label="STOP"]
        INIT -> IDLE [label="Configuration received from confc"]
        IDLE -> READY [label="Initialisation complete.Broadcast READY fop"]
@@ -119,11 +118,8 @@
        READY -> ACTIVE [label="All READY fops received"]
        READY -> FAIL [label="Timed out waiting for READY fops"]
        ACTIVE -> FAIL [label="Operation failure"]
-       ACTIVE -> DONE [label="Broadcast DONE fop"]
-       ACTIVE -> STOP [label="Received ABORT fop"]
+       ACTIVE -> STOP [label="Receive ABORT fop or completed restructuring / failure"]
        FAIL -> IDLE [label="All replies received"]
-       DONE -> IDLE [label="All DONE fops received"]
-       DONE -> FAIL [label="Timed out waiting for DONE fops"]
        STOP -> IDLE [label="All STOP fops received"]
        STOP -> FAIL [label="Timed out waiting for STOP fops"]
    }
@@ -387,8 +383,8 @@ const struct c2_sm_state_descr c2_cm_state_descr[C2_CMS_NR] = {
 	[C2_CMS_IDLE] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_idle",
-		.sd_allowed	= C2_BITS(C2_CMS_FAIL, C2_CMS_READY, C2_CMS_STOP,
-					  C2_CMS_FINI)
+		.sd_allowed	= C2_BITS(C2_CMS_FAIL, C2_CMS_READY,
+					  C2_CMS_STOP, C2_CMS_FINI)
 	},
 	[C2_CMS_READY] = {
 		.sd_flags	= 0,
@@ -398,17 +394,12 @@ const struct c2_sm_state_descr c2_cm_state_descr[C2_CMS_NR] = {
 	[C2_CMS_ACTIVE] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_active",
-		.sd_allowed	= C2_BITS(C2_CMS_DONE, C2_CMS_STOP, C2_CMS_FAIL)
+		.sd_allowed	= C2_BITS(C2_CMS_STOP, C2_CMS_FAIL)
 	},
 	[C2_CMS_FAIL] = {
 		.sd_flags	= C2_SDF_FAILURE,
 		.sd_name	= "cm_fail",
-		.sd_allowed	= C2_BITS(C2_CMS_IDLE, C2_CMS_FINI)
-	},
-	[C2_CMS_DONE] = {
-		.sd_flags	= 0,
-		.sd_name	= "cm_done",
-		.sd_allowed	= C2_BITS(C2_CMS_FAIL, C2_CMS_IDLE)
+		.sd_allowed	= C2_BITS(C2_CMS_IDLE, C2_CMS_FINI, C2_CMS_STOP)
 	},
 	[C2_CMS_STOP] = {
 		.sd_flags	= 0,
@@ -524,7 +515,7 @@ bool c2_cm_invariant(const struct c2_cm *cm)
 		c2_sm_invariant(&cm->cm_mach) &&
 		/* Copy machine state sanity checks */
 		ergo(C2_IN(state, (C2_CMS_IDLE, C2_CMS_READY, C2_CMS_ACTIVE,
-				   C2_CMS_DONE, C2_CMS_STOP)),
+				   C2_CMS_STOP)),
 		     c2_reqh_service_invariant(&cm->cm_service));
 }
 
@@ -608,10 +599,15 @@ int c2_cm_stop(struct c2_cm *cm)
 	C2_PRE(C2_IN(c2_cm_state_get(cm), (C2_CMS_ACTIVE, C2_CMS_IDLE)));
 	C2_PRE(c2_cm_invariant(cm));
 
+	/*
+	 * We set the state here to C2_CMS_STOP and send STOP fop to all other
+	 * replicas and wait for STOP fops from all other replies and move
+	 * the copy machine to C2_CMS_IDLE state if successful.
+	 */
 	rc = cm->cm_ops->cmo_stop(cm);
 	if (rc == 0)
 		cm_cp_pump_stop(cm);
-	cm_move(cm, rc, C2_CMS_STOP, C2_CM_ERR_STOP);
+	cm_move(cm, rc, C2_CMS_IDLE, C2_CM_ERR_STOP);
 
 	C2_POST(c2_cm_invariant(cm));
 	c2_cm_unlock(cm);
@@ -738,11 +734,6 @@ void c2_cm_type_deregister(struct c2_cm_type *cmtype)
 	c2_cm_type_bob_fini(cmtype);
 	c2_reqh_service_type_unregister(&cmtype->ct_stype);
 	C2_LEAVE();
-}
-
-int c2_cm_done(struct c2_cm *cm)
-{
-	return 0;
 }
 
 /** @} endgroup CM */
