@@ -47,11 +47,13 @@ static void fom_phase_set(struct c2_fom *fom, int phase)
 	if (c2_fom_phase(fom) == C2_FOPH_SUCCESS) {
 		c2_fom_phase_set(fom, C2_FOPH_FOL_REC_ADD);
 		c2_fom_phase_set(fom, C2_FOPH_TXN_COMMIT);
-		c2_fom_phase_set(fom, C2_FOPH_QUEUE_REPLY);
 	} else if (c2_fom_phase(fom) == C2_FOPH_FAILURE) {
 		c2_fom_phase_set(fom, C2_FOPH_TXN_ABORT);
-		c2_fom_phase_set(fom, C2_FOPH_QUEUE_REPLY);
 	}
+
+	if (C2_IN(c2_fom_phase(fom), (C2_FOPH_TXN_COMMIT,
+				      C2_FOPH_TXN_ABORT)))
+		c2_fom_phase_set(fom, C2_FOPH_QUEUE_REPLY);
 	c2_fom_phase_set(fom, phase);
 }
 
