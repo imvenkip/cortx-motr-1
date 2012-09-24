@@ -62,12 +62,6 @@ job_id_add() {
 }
 
 run_console() {
-	TEST_TYPE=$1
-	MSG_NR=$2
-	MSG_SIZE=$3
-	CONCUR_SERVER=$4
-	CONCUR_CLIENT=$5
-
 	@SRCDIR@/net/test/user_space/ntc \
 		-t $TEST_TYPE \
 		-n $MSG_NR \
@@ -103,6 +97,12 @@ run_ssh() {
 }
 
 if [ "$ROLE" = "console" ]; then
+	TEST_TYPE=$1
+	MSG_NR=$2
+	MSG_SIZE=$3
+	CONCUR_SERVER=$4
+	CONCUR_CLIENT=$5
+
 	if [ "$CONSOLE_CR" = "$SERVER_CR" ]; then
 		# test server on the host with test console
 		run_server
