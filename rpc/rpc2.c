@@ -129,7 +129,7 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	reply->ri_slot_refs[0] = request->ri_slot_refs[0];
 	sref = &reply->ri_slot_refs[0];
 	/* don't need values of sr_link and sr_ready_link of request item */
-	c2_list_link_init(&sref->sr_link);
+	slot_refs_tlink_init(reply);
 	c2_list_link_init(&sref->sr_ready_link);
 
 	sref->sr_item = reply;

@@ -206,7 +206,7 @@ static int nr_active_items_count(const struct c2_rpc_session *session)
 
 	for (i = 0; i < session->s_nr_slots; i++) {
 		slot = session->s_slot_table[i];
-		c2_tl_for(slot_refs, &slot->sl_item_list, item){
+		c2_tl_for(slot_refs, &slot->sl_item_list, item) {
 
 			if (C2_IN(item->ri_stage, (RPC_ITEM_STAGE_IN_PROGRESS,
 						   RPC_ITEM_STAGE_FUTURE))) {

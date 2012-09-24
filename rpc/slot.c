@@ -33,6 +33,7 @@
 #include "dtm/verno.h"
 #include "rpc/session_fops.h"
 #include "rpc/rpc2.h"
+#include "colibri/magic.h"
 
 /**
    @addtogroup rpc_session
@@ -54,7 +55,7 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
 
 C2_TL_DEFINE(slot_refs,, struct c2_rpc_item);
 C2_TL_DESCR_DEFINE(slot_refs, "slot-ref-item-list",, struct c2_rpc_item,
-		   ri_slot_refs[0].sr_link, sr_magic, C2_RPC_ITEM_MAGIC,
+		   ri_slot_refs[0].sr_link, ri_link_magic, C2_RPC_ITEM_MAGIC,
 		   C2_RPC_SLOT_REF_HEAD_MAGIC);
 
 static struct c2_rpc_machine *
@@ -122,7 +123,7 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 			return false;
 
 		item1 = item2;
-	} c2_endfor;
+	} c2_tl_endfor;
 	return true;
 }
 
@@ -183,8 +184,8 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	sref->sr_verno.vn_vc  = 0;
 	sref->sr_slot_gen     = slot->sl_slot_gen;
 
-	c2_list_link_init(&sref->sr_link);
-	slot_refs_tlist_add(&slot->sl_item_list, sref);
+	slot_refs_tlink_init(dummy_item);
+	slot_refs_tlist_add(&slot->sl_item_list, dummy_item);
 	return 0;
 }
 
@@ -201,7 +202,6 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 	struct c2_rpc_item  *item;
 	struct c2_rpc_item  *reply;
 	struct c2_rpc_item  *dummy_item;
-	struct c2_list_link *link;
 	int                  count = 0;
 	bool                 first_item = true;
 
@@ -227,7 +227,7 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 		}
 		item->ri_reply = NULL;
 
-		c2_list_del(&item->ri_slot_refs[0].sr_link);
+		slot_refs_tlist_del(item);
 
 		C2_ASSERT(item->ri_ops != NULL &&
 			  item->ri_ops->rio_free != NULL);
@@ -247,7 +247,6 @@ void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 {
 	struct c2_rpc_item  *dummy_item;
 	struct c2_fop       *fop;
-	struct c2_list_link *link;
 
 	slot_item_list_prune(slot);
 	ready_slots_tlink_fini(slot);
@@ -316,22 +315,21 @@ static void __slot_balance(struct c2_rpc_slot *slot,
 			   bool                allow_events)
 {
 	struct c2_rpc_item  *item;
-	struct c2_list_link *link;
 
 	C2_PRE(c2_rpc_slot_invariant(slot));
 	C2_PRE(c2_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
 
 	while (slot->sl_in_flight < slot->sl_max_in_flight) {
-		/* Is slot->item_list is empty? */
-		link = &slot->sl_last_sent->ri_slot_refs[0].sr_link;
-		if (slot_refs_tlist_is_empty(&slot->sl_item_list)) {
+		/* Is slot->item_list empty? */
+		if (slot_refs_tlist_next(&slot->sl_item_list,
+					 slot->sl_last_sent) == NULL) {
 			if (allow_events)
 				slot->sl_ops->so_slot_idle(slot);
 			break;
 		}
 		/* Take slot->last_sent->next item for sending */
-		item = slot_refs_tlist_next(link->ll_next, struct c2_rpc_item,
-				     ri_slot_refs[0].sr_link);
+		item = slot_refs_tlist_next(&slot->sl_item_list,
+				             slot->sl_last_sent);
 
 		if (item->ri_stage == RPC_ITEM_STAGE_FUTURE)
 			item->ri_stage = RPC_ITEM_STAGE_IN_PROGRESS;
@@ -414,8 +412,8 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 	sref->sr_slot_gen = slot->sl_slot_gen;
 	sref->sr_slot     = slot;
 	sref->sr_item     = item;
-	c2_list_link_init(&sref->sr_link);
-	c2_list_add_tail(&slot->sl_item_list, &sref->sr_link);
+	slot_refs_tlink_init(item);
+	slot_refs_tlist_add_tail(&slot->sl_item_list, item);
 	if (session != NULL) {
 		session->s_nr_active_items++;
 		if (session->s_state == C2_RPC_SESSION_IDLE) {
@@ -464,7 +462,7 @@ int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
 	reply->ri_error = -EBADR;
 
 	reply->ri_slot_refs[0] = item->ri_slot_refs[0];
-	c2_list_link_init(&reply->ri_slot_refs[0].sr_link);
+	slot_refs_tlink_init(reply);
 	c2_list_link_init(&reply->ri_slot_refs[0].sr_ready_link);
 
 	slot->sl_ops->so_reply_consume(item, reply);
@@ -632,7 +630,6 @@ void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
 			     struct c2_verno     last_persistent)
 {
 	struct c2_rpc_item     *item;
-	struct c2_list_link    *link;
 
 	C2_PRE(c2_rpc_slot_invariant(slot));
 	C2_PRE(c2_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
@@ -644,11 +641,8 @@ void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
 	 *    else
 	 *       break
 	 */
-	link = &slot->sl_last_persistent->ri_slot_refs[0].sr_link;
-	for (; link != (void *)&slot->sl_item_list; link = link->ll_next) {
-
-		item = c2_list_entry(link, struct c2_rpc_item,
-					ri_slot_refs[0].sr_link);
+	for (item = slot->sl_last_persistent; item != NULL;
+	     item = slot_refs_tlist_next(&slot->sl_item_list, item)) {
 
 		if (c2_verno_cmp(&item->ri_slot_refs[0].sr_verno,
 				&last_persistent) <= 0) {
@@ -678,8 +672,7 @@ void c2_rpc_slot_reset(struct c2_rpc_slot *slot,
 	C2_PRE(c2_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
 	C2_PRE(c2_verno_cmp(&slot->sl_verno, &last_seen) >= 0);
 
-	c2_list_for_each_entry(&slot->sl_item_list, item, struct c2_rpc_item,
-				ri_slot_refs[0].sr_link) {
+	c2_tl_for(slot_refs, &slot->sl_item_list, item) {
 
 		sref = &item->ri_slot_refs[0];
 		if (c2_verno_cmp(&sref->sr_verno, &last_seen) == 0) {
@@ -688,7 +681,7 @@ void c2_rpc_slot_reset(struct c2_rpc_slot *slot,
 			break;
 		}
 
-	}
+	} c2_tl_endfor;
 	C2_ASSERT(c2_verno_cmp(&slot->sl_last_sent->ri_slot_refs[0].sr_verno,
 				&last_seen) == 0);
 	slot_balance(slot);
@@ -897,7 +890,8 @@ int c2_rpc_slot_cob_create(struct c2_cob   *session_cob,
    Just for debugging purpose.
  */
 #ifndef __KERNEL__
-int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active, int count)
+int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active,
+		                int count)
 {
 	struct c2_rpc_item *item;
 	bool                first = true;
@@ -909,9 +903,7 @@ int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active, int 
 				"FUTURE"
 			     };
 
-	c2_list_for_each_entry(&slot->sl_item_list, item,
-				struct c2_rpc_item,
-				ri_slot_refs[0].sr_link) {
+	c2_tl_for(slot_refs, &slot->sl_item_list, item) {
 		/* Skip dummy item */
 		if (first) {
 			first = false;
@@ -929,7 +921,7 @@ int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active, int 
 					item->ri_slot_refs[0].sr_xid,
 					str_stage[item->ri_stage]);
 		}
-	}
+	} c2_tl_endfor;
 	return count;
 }
 #endif

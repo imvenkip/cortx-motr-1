@@ -89,11 +89,5 @@ struct c2_cli_slot *c2_slot_find_unused(struct c2_cli_session *sess);
  */
 struct c2_slot_unbusy(struct c2_cli_slot *slot);
 
-/** Descriptor and functions associated with  a list of "c2_rpc_slot_refs"s
-    embedded in c2_rpc_slot.
- */
-C2_TL_DESCR_DECLARE(slot_refs, extern);
-C2_TL_DECLARE(slot_refs, extern, struct c2_rpc_items);
-
 #endif
 

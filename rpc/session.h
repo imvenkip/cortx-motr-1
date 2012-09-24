@@ -1239,9 +1239,6 @@ struct c2_rpc_slot {
 	uint64_t		      sl_magic;
 };
 
-C2_TL_DESCR_DECLARE(sessions, extern);
-C2_TL_DECLARE(sessions, extern, struct c2_rpc_session);
-
 /** @} end of session group */
 
 #endif

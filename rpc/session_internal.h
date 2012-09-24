@@ -550,6 +550,12 @@ C2_TL_DECLARE(sessions, extern, struct c2_rpc_session);
 C2_TL_DESCR_DECLARE(ready_slots, extern);
 C2_TL_DECLARE(ready_slots, extern, struct c2_rpc_slot);
 
+/** Descriptor and functions associated with  a list of "c2_rpc_item"s embedded
+    in c2_rpc_slot.
+ */
+C2_TL_DESCR_DECLARE(slot_refs, extern);
+C2_TL_DECLARE(slot_refs, extern, struct c2_rpc_item);
+
 /** @}  End of rpc_session group */
 #endif
 

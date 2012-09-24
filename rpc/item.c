@@ -140,7 +140,7 @@ void c2_rpc_item_init(struct c2_rpc_item *item)
 	sref->sr_sender_id  = SENDER_ID_INVALID;
 	sref->sr_session_id = SESSION_ID_INVALID;
 
-	c2_list_link_init(&sref->sr_link);
+	slot_refs_tlink_init(item);
 	c2_list_link_init(&sref->sr_ready_link);
 
         c2_list_link_init(&item->ri_unbound_link);
@@ -163,7 +163,7 @@ void c2_rpc_item_fini(struct c2_rpc_item *item)
 
 	sref = &item->ri_slot_refs[0];
 	sref->sr_slot_id = SLOT_ID_INVALID;
-	c2_list_link_fini(&sref->sr_link);
+	slot_refs_tlink_fini(item);
 	c2_list_link_fini(&sref->sr_ready_link);
 
 	sref->sr_sender_id = SENDER_ID_INVALID;
