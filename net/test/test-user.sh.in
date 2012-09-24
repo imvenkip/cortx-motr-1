@@ -56,17 +56,18 @@ SERVER_IF=$6
 CLIENT_IF=$7
 COMMON_PARAMS="$2 $3 $4 $5 $6 $7"
 shift 7
-TEST_TYPE=$1
-MSG_NR=$2
-MSG_SIZE=$3
-CONCUR_SERVER=$4
-CONCUR_CLIENT=$5
 
 job_id_add() {
 	JOB_IDS="$JOB_IDS $!"
 }
 
 run_console() {
+	TEST_TYPE=$1
+	MSG_NR=$2
+	MSG_SIZE=$3
+	CONCUR_SERVER=$4
+	CONCUR_CLIENT=$5
+
 	@SRCDIR@/net/test/user_space/ntc \
 		-t $TEST_TYPE \
 		-n $MSG_NR \
@@ -107,7 +108,7 @@ if [ "$ROLE" = "console" ]; then
 		run_server
 	else
 		# test server on the some other host
-		run_ssh "$SERVER_CR" "$0 server $COMMON_PARAMS"
+		run_ssh "$SERVER_CR" "$SCRIPT server $COMMON_PARAMS"
 	fi
 	if [ "$CONSOLE_CR" = "$CLIENT_CR" ]; then
 		# test client on the host with test console
@@ -116,7 +117,7 @@ if [ "$ROLE" = "console" ]; then
 		# if test client on the node with test server then don't run
 		# script over ssh again
 		if [ "$SERVER_CR" != "$CLIENT_CR" ]; then
-			run_ssh "$CLIENT_CR" "$0 client $COMMON_PARAMS"
+			run_ssh "$CLIENT_CR" "$SCRIPT client $COMMON_PARAMS"
 		fi
 	fi
 	# time to initialize nodes - magic number
