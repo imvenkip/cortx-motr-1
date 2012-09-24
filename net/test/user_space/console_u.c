@@ -438,6 +438,7 @@ static int console_run(struct c2_net_test_console_ctx *ctx)
 	print_status_data_v(ctx->ntcc_clients.ntcrc_sd);
 	c2_net_test_u_printf_v("servers total: ");
 	print_status_data_v(ctx->ntcc_servers.ntcrc_sd);
+	print_status_data(ctx);
 	return 0;
 }
 
