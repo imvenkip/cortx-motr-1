@@ -145,15 +145,13 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	      * From c2_rpc_conn_init() to c2_rpc_conn_fini(), this session0 is
 	      * either in IDLE state or BUSY state.
 	      */
-//	     c2_list_entry_forall(s, &conn->c_sessions, struct c2_rpc_session,
-//				  s_link,
 	     c2_tl_forall(sessions, s, &conn->c_sessions,
 			  ergo(s->s_session_id == SESSION_ID_0,
-				       ++s0nr &&
-				       (session0 = s) && /*'=' is intentional */
-				       C2_IN(s->s_state,
-					     (C2_RPC_SESSION_IDLE,
-					      C2_RPC_SESSION_BUSY)))) &&
+			       ++s0nr &&
+			       (session0 = s) && /*'=' is intentional */
+			       C2_IN(s->s_state,
+				     (C2_RPC_SESSION_IDLE,
+				      C2_RPC_SESSION_BUSY)))) &&
 	     session0 != NULL &&
 	     s0nr == 1;
 

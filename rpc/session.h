@@ -1231,7 +1231,7 @@ struct c2_rpc_slot {
 	/** List of items ready to put in rpc. Items are placed in this
 	    list using c2_rpc_item::ri_slot_refs[0].sr_ready_link
 	 */
-	struct c2_list                sl_ready_list;
+	struct c2_tl                  sl_ready_list;
 
 	const struct c2_rpc_slot_ops *sl_ops;
 

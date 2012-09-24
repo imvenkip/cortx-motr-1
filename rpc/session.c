@@ -119,9 +119,6 @@ static const struct c2_rpc_item_ops session_terminate_item_ops = {
 	.rio_free    = c2_fop_item_free,
 };
 
-C2_TL_DEFINE(ready_slots,, struct c2_rpc_slot);
-C2_TL_DESCR_DEFINE(ready_slots, "ready-slots",, struct c2_rpc_slot, sl_link,
-		   sl_magic, C2_RPC_SLOT_MAGIC, C2_RPC_SLOT_HEAD_MAGIC);
 
 /**
    The routine is also called from session_foms.c, hence can't be static
@@ -1191,9 +1188,13 @@ int c2_rpc_session_items_print(struct c2_rpc_session *session, bool only_active)
 }
 #endif
 
-C2_TL_DEFINE(sessions,, struct c2_rpc_session);
+C2_TL_DESCR_DEFINE(ready_slots, "ready-slots",, struct c2_rpc_slot, sl_link,
+		   sl_magic, C2_RPC_SLOT_MAGIC, C2_RPC_SLOT_HEAD_MAGIC);
+C2_TL_DEFINE(ready_slots,, struct c2_rpc_slot);
+
 C2_TL_DESCR_DEFINE(sessions, "rpc-sessions",, struct c2_rpc_session, s_link,
 		   s_magic, C2_RPC_SESSION_MAGIC, C2_RPC_SESSION_HEAD_MAGIC);
+C2_TL_DEFINE(sessions,, struct c2_rpc_session);
 
 /** @} end of session group */
 

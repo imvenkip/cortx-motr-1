@@ -53,10 +53,6 @@ void frm_item_reply_received(struct c2_rpc_item *reply_item,
 void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
                       uint32_t rc);
 
-C2_TL_DEFINE(slot_refs,, struct c2_rpc_item);
-C2_TL_DESCR_DEFINE(slot_refs, "slot-ref-item-list",, struct c2_rpc_item,
-		   ri_slot_refs[0].sr_link, ri_link_magic, C2_RPC_ITEM_MAGIC,
-		   C2_RPC_SLOT_REF_HEAD_MAGIC);
 
 static struct c2_rpc_machine *
 slot_get_rpc_machine(const struct c2_rpc_slot *slot)
@@ -158,7 +154,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	slot->sl_ops           = ops;
 
 	slot_refs_tlist_init(&slot->sl_item_list);
-	c2_list_init(&slot->sl_ready_list);
+	ready_items_tlist_init(&slot->sl_ready_list);
 
 	/*
 	 * Add a dummy item with very low verno in item_list
@@ -250,7 +246,7 @@ void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 
 	slot_item_list_prune(slot);
 	ready_slots_tlink_fini(slot);
-	c2_list_fini(&slot->sl_ready_list);
+	ready_items_tlist_fini(&slot->sl_ready_list);
 
 	/*
 	 * Remove the dummy item from the list
@@ -463,7 +459,7 @@ int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
 
 	reply->ri_slot_refs[0] = item->ri_slot_refs[0];
 	slot_refs_tlink_init(reply);
-	c2_list_link_init(&reply->ri_slot_refs[0].sr_ready_link);
+	ready_items_tlink_init(reply);
 
 	slot->sl_ops->so_reply_consume(item, reply);
 	return 0;
@@ -929,3 +925,13 @@ bool c2_rpc_slot_can_item_add_internal(const struct c2_rpc_slot *slot)
 {
 	return slot->sl_in_flight < slot->sl_max_in_flight;
 }
+
+C2_TL_DESCR_DEFINE(slot_refs, "slot-ref-item-list",, struct c2_rpc_item,
+		   ri_slot_refs[0].sr_link, ri_link_magic,
+		   C2_RPC_ITEM_MAGIC, C2_RPC_SLOT_REF_HEAD_MAGIC);
+C2_TL_DEFINE(slot_refs,, struct c2_rpc_item);
+
+C2_TL_DESCR_DEFINE(ready_items, "slot-ready-items",, struct c2_rpc_item,
+		   ri_slot_refs[0].sr_ready_link, ri_link_magic,
+		   C2_RPC_ITEM_MAGIC, C2_RPC_READY_ITEM_HEAD_MAGIC);
+C2_TL_DEFINE(ready_items,, struct c2_rpc_item);

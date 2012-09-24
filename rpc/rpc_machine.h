@@ -90,7 +90,7 @@ struct c2_rpc_machine {
 	struct c2_mutex                   rm_mutex;
 
 	/** List of c2_rpc_chan structures. */
-	struct c2_list			  rm_chans;
+	struct c2_tl			  rm_chans;
 	/** Transfer machine associated with this endpoint.*/
 	struct c2_net_transfer_mc	  rm_tm;
 	/** Cob domain in which cobs related to session will be stored */
@@ -161,7 +161,7 @@ struct c2_rpc_machine {
  */
 struct c2_rpc_chan {
 	/** Linkage to the list maintained by c2_rpc_machine.*/
-	struct c2_list_link		  rc_linkage;
+	struct c2_tlink			  rc_linkage;
 	/** Number of c2_rpc_conn structures using this transfer machine.*/
 	struct c2_ref			  rc_ref;
 	/** Formation state machine associated with chan. */
@@ -170,6 +170,8 @@ struct c2_rpc_chan {
 	struct c2_net_end_point		 *rc_destep;
 	/** The rpc_machine, this chan structure is associated with.*/
 	struct c2_rpc_machine		 *rc_rpc_machine;
+	/** Magic constant for sanity check. */
+	uint64_t			  rc_magic;
 };
 
 extern const struct c2_addb_loc c2_rpc_machine_addb_loc;

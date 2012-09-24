@@ -386,7 +386,7 @@ struct c2_rpc_slot_ref {
 	struct c2_tlink            sr_link;
 
 	/** Anchor to put item on c2_rpc_slot::sl_ready_list */
-	struct c2_list_link        sr_ready_link;
+	struct c2_tlink            sr_ready_link;
 
 	/** Magic constant to check sanity. */
 	uint64_t		   sr_magic;
@@ -555,6 +555,13 @@ C2_TL_DECLARE(ready_slots, extern, struct c2_rpc_slot);
  */
 C2_TL_DESCR_DECLARE(slot_refs, extern);
 C2_TL_DECLARE(slot_refs, extern, struct c2_rpc_item);
+
+/** Descriptor and functions associated with  a list of "c2_rpc_item"s ready to
+    put in rpc.
+ */
+C2_TL_DESCR_DECLARE(ready_items, extern);
+C2_TL_DECLARE(ready_items, extern, struct c2_rpc_item);
+
 
 /** @}  End of rpc_session group */
 #endif
