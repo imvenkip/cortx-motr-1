@@ -56,8 +56,7 @@ void c2_net_test_u_str_free(char *str)
 void c2_net_test_u_print_error(const char *s, int code)
 {
 	if (code != 0)
-		c2_net_test_u_printf_v("%s, error %d: %s\n",
-				       s, code, strerror(-code));
+		fprintf(stderr, "%s, error %d: %s\n", s, code, strerror(-code));
 }
 
 void c2_net_test_u_print_s(const char *fmt, const char *str)
