@@ -95,8 +95,8 @@
    - Copy machine type specific event triggers copy machine operation, (e.g.
      TRIGGER FOP for SNS Repair). This allocates copy machine specific resources
      and creates copy packets.
-  -  The complete data restructuring process of copy machine follows non-blocking
-     processing model of Colibri design.
+  -  The complete data restructuring process of copy machine follows
+     non-blocking processing model of Colibri design.
   -  Copy machine maintains the list of aggregation groups being processed and
      implements a sliding window over this list to keep track of restructuring
      process and manage resources efficiently.

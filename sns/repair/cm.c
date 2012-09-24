@@ -415,16 +415,6 @@ static int cm_start(struct c2_cm *cm)
 	return 0;
 }
 
-static void cm_done(struct c2_cm *cm)
-{
-
-    /*
-     * Broadcast DONE FOPs to other replicas
-     * and wait for DONE FOPs from all the replicas.
-     * Transition cm to IDLE state.
-     */
-}
-
 static int cm_stop(struct c2_cm *cm)
 {
 	C2_PRE(cm != NULL);
@@ -458,7 +448,6 @@ const struct c2_cm_ops cm_ops = {
 	.cmo_start        = cm_start,
 	.cmo_cp_alloc     = cm_cp_alloc,
 	.cmo_data_next    = cm_data_next,
-	.cmo_done         = cm_done,
 	.cmo_stop         = cm_stop,
 	.cmo_fini         = cm_fini
 };
