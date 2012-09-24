@@ -48,6 +48,10 @@ C2_TL_DESCR_DEFINE(rpc_chans, "rpc_channels", static, struct c2_rpc_chan,
 		   C2_RPC_CHAN_HEAD_MAGIC);
 C2_TL_DEFINE(rpc_chans, static, struct c2_rpc_chan);
 
+C2_TL_DESCR_DEFINE(rpc_conn, "rpc-conn",, struct c2_rpc_conn, c_link,
+		   c_magic, C2_RPC_CONN_MAGIC, C2_RPC_CONN_HEAD_MAGIC);
+C2_TL_DEFINE(rpc_conn,, struct c2_rpc_conn);
+
 /* Forward declarations. */
 static void rpc_tm_cleanup(struct c2_rpc_machine *machine);
 static int rpc_tm_setup(struct c2_net_transfer_mc *tm,
@@ -685,10 +689,6 @@ c2_time_t c2_rpc_avg_item_time(struct c2_rpc_machine *machine,
 	stats = &machine->rm_rpc_stats[path];
 	return stats->rs_cumu_lat / stats->rs_items_nr;
 }
-
-C2_TL_DESCR_DEFINE(rpc_conn, "rpc-conn",, struct c2_rpc_conn, c_link,
-		   c_magic, C2_RPC_CONN_MAGIC, C2_RPC_CONN_HEAD_MAGIC);
-C2_TL_DEFINE(rpc_conn,, struct c2_rpc_conn);
 
 /** @} end of rpc-layer-core group */
 

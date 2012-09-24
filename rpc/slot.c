@@ -53,6 +53,15 @@ void frm_item_reply_received(struct c2_rpc_item *reply_item,
 void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
                       uint32_t rc);
 
+C2_TL_DESCR_DEFINE(slot_refs, "slot-ref-item-list",, struct c2_rpc_item,
+		   ri_slot_refs[0].sr_link, ri_link_magic,
+		   C2_RPC_ITEM_MAGIC, C2_RPC_SLOT_REF_HEAD_MAGIC);
+C2_TL_DEFINE(slot_refs,, struct c2_rpc_item);
+
+C2_TL_DESCR_DEFINE(ready_items, "slot-ready-items",, struct c2_rpc_item,
+		   ri_slot_refs[0].sr_ready_link, ri_link_magic,
+		   C2_RPC_ITEM_MAGIC, C2_RPC_READY_ITEM_HEAD_MAGIC);
+C2_TL_DEFINE(ready_items,, struct c2_rpc_item);
 
 static struct c2_rpc_machine *
 slot_get_rpc_machine(const struct c2_rpc_slot *slot)
@@ -926,12 +935,12 @@ bool c2_rpc_slot_can_item_add_internal(const struct c2_rpc_slot *slot)
 	return slot->sl_in_flight < slot->sl_max_in_flight;
 }
 
-C2_TL_DESCR_DEFINE(slot_refs, "slot-ref-item-list",, struct c2_rpc_item,
-		   ri_slot_refs[0].sr_link, ri_link_magic,
-		   C2_RPC_ITEM_MAGIC, C2_RPC_SLOT_REF_HEAD_MAGIC);
-C2_TL_DEFINE(slot_refs,, struct c2_rpc_item);
-
-C2_TL_DESCR_DEFINE(ready_items, "slot-ready-items",, struct c2_rpc_item,
-		   ri_slot_refs[0].sr_ready_link, ri_link_magic,
-		   C2_RPC_ITEM_MAGIC, C2_RPC_READY_ITEM_HEAD_MAGIC);
-C2_TL_DEFINE(ready_items,, struct c2_rpc_item);
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
