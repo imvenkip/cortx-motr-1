@@ -44,6 +44,11 @@
    - @subpage CMDLD-fspec
    - @ref CMDLD-lspec
       - @ref CMDLD-lspec-state
+      - @ref CMDLD-lspec-cm-setup
+      - @ref CMDLD-lspec-cm-start
+         - @ref CMDLD-lspec-cm-cp-pump
+         - @ref CMDLD-lspec-cm-active
+      - @ref CMDLD-lspec-cm-stop
       - @ref CMDLD-lspec-thread
    - @ref CMDLD-conformance
    - @ref CMDLD-ut
@@ -100,6 +105,12 @@
    @section CMDLD-lspec Logical Specification
     Please refer to "Logical Specification" section in "HLD of copy machine and
     agents" in @ref CMDLD-ref
+   - @ref CMDLD-lspec-state
+   - @ref CMDLD-lspec-cm-setup
+   - @ref CMDLD-lspec-cm-start
+      - @ref CMDLD-lspec-cm-cp-pump
+      - @ref CMDLD-lspec-cm-active
+   - @ref CMDLD-lspec-cm-stop
 
    @subsection CMDLD-lspec-state Copy Machine State diagram
    @dot
@@ -128,6 +139,51 @@
        STOP -> FAIL [label="Timed out waiting for STOP fops"]
    }
    @enddot
+
+   @subsection CMDLD-lspec-cm-setup Copy machine setup
+   After copy machine is successfully initialised (c2_cm_init()), it is
+   configured as part of the copy machine service startup by invoking
+   c2_cm_setup(). This performs copy machine specific setup by invoking
+   c2_cm_ops::cmo_setup(). Once successfully completed the copy machine
+   is transitioned into C2_CMS_IDLE state. In case of setup failure, copy
+   machine is transitioned to C2_CMS_FAIL state, this also fails copy machine
+   service startup, and thus copy machine is finalised during copy machine
+   service finalisation.
+
+   @subsection CMDLD-lspec-cm-start Copy machine operation start
+   After copy machine service is successfully started, it is ready to perform
+   its respective tasks (e.g. SNS Repair). On receiving a trigger event (i.e
+   failure in case of sns repair) copy machine transitions into C2_CMS_ACTIVE
+   state once copy machine specific startup tasks are complete (c2_cm_start()).
+   In case of copy machine startup failure, copy machine transitions into
+   C2_CMS_FAIL state, once failure is handled, copy machine transitions back
+   into C2_CMS_IDLE state and waits for further events.
+
+   @subsubsection CMDLD-lspec-cm-cp-pump Copy packet pump
+   Copy machine implements a special FOM type, viz. copy packet pump FOM to
+   create copy packets (@see @ref CPDLD). Copy packet pump FOM creates copy
+   packets until resources permit and goes to sleep if no more packets can be
+   created. Using non-blocking FOM infrastructure to create copy packets enables
+   copy machine to handle blocking operations performed while acquiring various
+   resources efficiently. Copy packet pump FOM is created when the copy machine
+   operation starts and is woken up (iff it was IDLE) as the required resources
+   become available (e.g. when a copy packet is finalised and its corresponding
+   buffer is released to copy machine specific buffer pool).
+   @see struct c2_cm_cp_pump
+
+   @subsubsection CMDLD-lspec-cm-active Copy machine activation
+   After creating initial number of copy packets, copy machine broadcasts READY
+   FOPs with its corresponding sliding window information to all its replicas
+   in the pool. Every copy machine replica, after receiving READY FOPs from all
+   its replicas in the pool, transitions into C2_CMS_ACTIVE state.
+
+   @subsection CMDLD-lspec-cm-stop Copy machine stop
+   Once operation completes successfully, copy machine performs required tasks,
+   (e.g. updating layouts, etc.) by invoking c2_cm_stop(), this transitions copy
+   machine back to C2_CMS_IDLE state. Copy machine invokes c2_cm_stop() also in
+   case of operational failure to broadcast STOP FOPs to its other replicas in
+   the pool, indicating failure. This is handled specific to the copy machine
+   type.
 
    @subsection CMDLD-lspec-thread Threading and Concurrency Model
    - Copy machine is implemented as a state machine, and thus do
@@ -228,43 +284,8 @@ const struct c2_addb_ctx_type c2_cm_addb_ctx = {
 	.act_name = "copy machine"
 };
 
-static const struct c2_fom_type_ops cm_cp_pump_fom_type_ops = {
-        .fto_create = NULL
-};
-
-static struct c2_fom_type cm_cp_pump_fom_type = {
-        .ft_ops = &cm_cp_pump_fom_type_ops
-};
-
 static void cm_move(struct c2_cm *cm, int rc, enum c2_cm_state state,
 		    enum c2_cm_failure failure);
-
-static uint64_t cm_cp_pump_fom_locality(const struct c2_fom *fom)
-{
-	/*
-	 * It doesn't matter which reqh locality the cp pump FOM is put into.
-	 * Thus returning 0 by default.
-	 */
-        return 0;
-}
-
-static void cm_cp_pump_fom_fini(struct c2_fom *fom)
-{
-	c2_fom_fini(fom);
-}
-
-void c2_cm_sw_fill(struct c2_cm *cm)
-{
-	struct c2_cm_cp_pump *cp_pump;
-
-	C2_PRE(c2_cm_invariant(cm));
-	C2_PRE(c2_cm_is_locked(cm));
-
-	cp_pump = &cm->cm_cp_pump;
-
-	c2_fom_phase_set(&cm->cm_cp_pump.p_fom, C2_CPP_ALLOC);
-	c2_fom_wakeup(&cm->cm_cp_pump.p_fom);
-}
 
 int c2_cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
@@ -280,6 +301,14 @@ int c2_cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
 
 	return rc;
 }
+
+/* Copy packet pump start */
+
+static const struct c2_fom_type_ops cm_cp_pump_fom_type_ops = {
+        .fto_create = NULL
+};
+
+static struct c2_fom_type cm_cp_pump_fom_type;
 
 static int cpp_alloc(struct c2_cm_cp_pump *cp_pump)
 {
@@ -353,14 +382,39 @@ static int cpp_fini(struct c2_cm_cp_pump *cp_pump)
 	return C2_FSO_WAIT;
 }
 
-static int cm_cp_pump_fom_tick(struct c2_fom *fom)
-{
-	struct c2_cm_cp_pump *cp_pump;
-        int                   phase = c2_fom_phase(fom);
+static const struct c2_sm_state_descr cm_cp_pump_sd[C2_CPP_NR] = {
+	[C2_CPP_ALLOC] = {
+		.sd_flags   = C2_SDF_INITIAL,
+		.sd_name    = "copy packet allocate",
+		.sd_allowed = C2_BITS(C2_CPP_DATA_NEXT, C2_CPP_FAIL)
+	},
+	[C2_CPP_IDLE] = {
+		.sd_flags   = 0,
+		.sd_name    = "copy packet pump idle",
+		.sd_allowed = C2_BITS(C2_CPP_ALLOC, C2_CPP_FINI)
+	},
+	[C2_CPP_DATA_NEXT] = {
+		.sd_flags   = 0,
+		.sd_name    = "copy packet data next",
+		.sd_allowed = C2_BITS(C2_CPP_ALLOC, C2_CPP_FAIL)
+	},
+	[C2_CPP_FAIL] = {
+		.sd_flags   = 0,
+		.sd_name    = "copy packet pump fail",
+		.sd_allowed = C2_BITS(C2_CPP_IDLE)
+	},
+	[C2_CPP_FINI] = {
+		.sd_flags   = C2_SDF_TERMINAL,
+		.sd_name    = "copy packet pump finish",
+		.sd_allowed = 0
+	},
+};
 
-	cp_pump = container_of(fom, struct c2_cm_cp_pump, p_fom);
-	return cp_pump->p_ops->po_action[phase](cp_pump);
-}
+static const struct c2_sm_conf cm_cp_pump_conf = {
+	.scf_name      = "sm: cp pump conf",
+	.scf_nr_states = ARRAY_SIZE(cm_cp_pump_sd),
+	.scf_state     = cm_cp_pump_sd
+};
 
 static const struct c2_cm_cp_pump_ops cpp_ops = {
 	.po_action = {
@@ -372,13 +426,38 @@ static const struct c2_cm_cp_pump_ops cpp_ops = {
 	.po_action_nr = C2_CPP_NR,
 };
 
+static uint64_t cm_cp_pump_fom_locality(const struct c2_fom *fom)
+{
+	/*
+	 * It doesn't matter which reqh locality the cp pump FOM is put into.
+	 * Thus returning 0 by default.
+	 */
+        return 0;
+}
+
+static int cm_cp_pump_fom_tick(struct c2_fom *fom)
+{
+	struct c2_cm_cp_pump *cp_pump;
+        int                   phase = c2_fom_phase(fom);
+
+	cp_pump = container_of(fom, struct c2_cm_cp_pump, p_fom);
+	return cp_pump->p_ops->po_action[phase](cp_pump);
+}
+
+static void cm_cp_pump_fom_fini(struct c2_fom *fom)
+{
+	c2_fom_fini(fom);
+}
+
 static const struct c2_fom_ops cm_cp_pump_fom_ops = {
         .fo_fini          = cm_cp_pump_fom_fini,
         .fo_tick          = cm_cp_pump_fom_tick,
         .fo_home_locality = cm_cp_pump_fom_locality
 };
 
-const struct c2_sm_state_descr c2_cm_state_descr[C2_CMS_NR] = {
+/* Copy packet pump end */
+
+static const struct c2_sm_state_descr cm_state_descr[C2_CMS_NR] = {
 	[C2_CMS_INIT] = {
 		.sd_flags	= C2_SDF_INITIAL,
 		.sd_name	= "cm_init",
@@ -422,10 +501,10 @@ const struct c2_sm_state_descr c2_cm_state_descr[C2_CMS_NR] = {
 	},
 };
 
-const struct c2_sm_conf c2_cm_sm_conf = {
+static const struct c2_sm_conf cm_sm_conf = {
 	.scf_name	= "sm:cm conf",
 	.scf_nr_states  = C2_CMS_NR,
-	.scf_state	= c2_cm_state_descr
+	.scf_state	= cm_state_descr
 };
 
 void c2_cm_fail(struct c2_cm *cm, enum c2_cm_failure failure, int rc)
@@ -619,18 +698,20 @@ int c2_cm_stop(struct c2_cm *cm)
 	return rc;
 }
 
-
-int c2_cms_init(void)
+int c2_cm_module_init(void)
 {
 	C2_ENTRY();
 	cmtypes_tlist_init(&cmtypes);
 	c2_bob_type_tlist_init(&cmtypes_bob, &cmtypes_tl);
 	c2_mutex_init(&cmtypes_mutex);
+	c2_fom_type_init(&cm_cp_pump_fom_type, &cm_cp_pump_fom_type_ops, NULL,
+			 &cm_cp_pump_conf);
+	c2_cm_cp_module_init();
 	C2_LEAVE();
         return 0;
 }
 
-void c2_cms_fini(void)
+void c2_cm_module_fini(void)
 {
 	C2_ENTRY();
 	cmtypes_tlist_fini(&cmtypes);
@@ -661,7 +742,7 @@ int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
 	c2_addb_ctx_init(&cm->cm_addb, &c2_cm_addb_ctx,
 			 &c2_addb_global_ctx);
 	c2_sm_group_init(&cm->cm_sm_group);
-	c2_sm_init(&cm->cm_mach, &c2_cm_sm_conf, C2_CMS_INIT,
+	c2_sm_init(&cm->cm_mach, &cm_sm_conf, C2_CMS_INIT,
 		   &cm->cm_sm_group, &cm->cm_addb);
 	/*
 	 * We lock the copy machine here just to satisfy the
@@ -743,6 +824,19 @@ void c2_cm_type_deregister(struct c2_cm_type *cmtype)
 int c2_cm_done(struct c2_cm *cm)
 {
 	return 0;
+}
+
+void c2_cm_sw_fill(struct c2_cm *cm)
+{
+	struct c2_cm_cp_pump *cp_pump;
+
+	C2_PRE(c2_cm_invariant(cm));
+	C2_PRE(c2_cm_is_locked(cm));
+
+	cp_pump = &cm->cm_cp_pump;
+
+	c2_fom_phase_set(&cm->cm_cp_pump.p_fom, C2_CPP_ALLOC);
+	c2_fom_wakeup(&cm->cm_cp_pump.p_fom);
 }
 
 /** @} endgroup CM */

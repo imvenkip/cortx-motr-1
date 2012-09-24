@@ -112,7 +112,7 @@
   @section SNSRepairCMDLD-lspec Logical specification
   - @ref SNSRepairCMDLD-lspec-cm-setup
   - @ref SNSRepairCMDLD-lspec-cm-start
-  - @ref SNSRepairCMDLD-lspec-cm-start-cp-create
+     - @ref SNSRepairCMDLD-lspec-cm-start-cp-create
   - @ref SNSRepairCMDLD-lspec-cm-cp-data-next
   - @ref SNSRepairCMDLD-lspec-cm-stop
 
@@ -182,8 +182,7 @@
   @subsection SNSRepairCMDLD-lspec-cm-stop Copy machine stop
   Once all the COBs (i.e. component objects) corresponding to the GOBs
   (i.e global file objects) belonging to the failure set are repaired by every
-  replica in the cluster, it broadcasts DONE FOPs to all other replicas in the
-  cluster. Once every replica receives DONE FOPs from every other replica, the
+  replica in the cluster successfully (including updating layouts), the repair
   operation is marked complete.
 
   @subsection SNSRepairCMDLD-lspec-thread Threading and Concurrency Model
