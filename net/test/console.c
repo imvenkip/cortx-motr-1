@@ -160,7 +160,19 @@ static void status_data_reset(struct c2_net_test_cmd_status_data *sd)
 	c2_net_test_stats_reset(&sd->ntcsd_mps_send.ntmps_stats);
 	c2_net_test_stats_reset(&sd->ntcsd_mps_recv.ntmps_stats);
 	c2_net_test_stats_reset(&sd->ntcsd_rtt);
-	sd->ntcsd_finished = true;
+	sd->ntcsd_finished    = true;
+	sd->ntcsd_time_start  = C2_TIME_NEVER;
+	sd->ntcsd_time_finish = C2_MKTIME(0, 0);
+}
+
+static c2_time_t time_min(c2_time_t t1, c2_time_t t2)
+{
+	return c2_time_after(t1, t2) ? t2 : t1;
+}
+
+static c2_time_t time_max(c2_time_t t1, c2_time_t t2)
+{
+	return c2_time_after(t1, t2) ? t1 : t2;
 }
 
 static void status_data_add(struct c2_net_test_cmd_status_data *sd,
@@ -181,6 +193,12 @@ static void status_data_add(struct c2_net_test_cmd_status_data *sd,
 				    &cmd_sd->ntcsd_mps_recv.ntmps_stats);
 	c2_net_test_stats_add_stats(&sd->ntcsd_rtt, &cmd_sd->ntcsd_rtt);
 	sd->ntcsd_finished &= cmd_sd->ntcsd_finished;
+	if (cmd_sd->ntcsd_finished) {
+		sd->ntcsd_time_start = time_min(sd->ntcsd_time_start,
+						cmd_sd->ntcsd_time_start);
+		sd->ntcsd_time_finish = time_max(sd->ntcsd_time_finish,
+						 cmd_sd->ntcsd_time_finish);
+	}
 }
 
 size_t c2_net_test_console_cmd(struct c2_net_test_console_ctx *ctx,
