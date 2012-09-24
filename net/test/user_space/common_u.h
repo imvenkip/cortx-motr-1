@@ -31,7 +31,10 @@
    @{
  */
 
-#define PRINT(...) printf(__VA_ARGS__)
+extern bool c2_net_test_u_printf_verbose;
+
+#define C2_VERBOSEFLAGARG C2_FLAGARG('v', "Verbose output",		      \
+				     &c2_net_test_u_printf_verbose)
 #define C2_IFLISTARG(pflag) C2_FLAGARG('l', "List available LNET interfaces", \
 				       pflag)
 
@@ -42,6 +45,10 @@ void c2_net_test_u_print_error(const char *s, int code);
 void c2_net_test_u_print_s(const char *fmt, const char *str);
 void c2_net_test_u_print_time(char *name, c2_time_t time);
 void c2_net_test_u_lnet_info(void);
+void c2_net_test_u_print_bsize(double bsize);
+
+int c2_net_test_u_printf(const char *fmt, ...);
+int c2_net_test_u_printf_v(const char *fmt, ...);
 
 /**
    @} end of NetTestUCommonDFS group

@@ -1,5 +1,5 @@
 #! /bin/sh
-set -eux
+#set -eux
 
 # Command line example (for one host)
 # sudo ./test-user.sh console localhost localhost localhost \
@@ -129,7 +129,7 @@ if [ "$ROLE" = "server" ]; then
 	run_server
 fi
 
-if [ "$ROLE" -eq "client" ]; then
+if [ "$ROLE" = "client" ]; then
 	run_client
 fi
 

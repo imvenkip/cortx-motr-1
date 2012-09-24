@@ -78,6 +78,7 @@ static int configure(int argc, char *argv[], struct c2_net_test_node_cfg *cfg)
 		LAMBDA(void, (const char *addr) {
 			cfg->ntnc_addr_console = c2_net_test_u_str_copy(addr);
 		})),
+		C2_VERBOSEFLAGARG,
 		C2_IFLISTARG(&list_if),
 		C2_HELPARG('?'),
 		);
@@ -93,10 +94,11 @@ int main(int argc, char *argv[])
 	struct c2_net_test_node_cfg cfg = {
 		.ntnc_addr	   = NULL,
 		.ntnc_addr_console = NULL,
+		/** @todo add to command line parameters */
 		.ntnc_send_timeout = C2_MKTIME(3, 0),
 	};
 
-	PRINT("c2_init()\n");
+	c2_net_test_u_printf_v("c2_init()\n");
 	rc = c2_init();
 	c2_net_test_u_print_error("Colibri initialization failed.", rc);
 	if (rc != 0)
@@ -112,36 +114,36 @@ int main(int argc, char *argv[])
 			rc = 0;
 		} else {
 			/** @todo where is the error */
-			PRINT("Error in configuration.\n");
+			c2_net_test_u_printf("Error in configuration.\n");
 			config_free(&cfg);
 		}
 		goto colibri_fini;
 	}
 
-	PRINT("c2_net_test_node_init()\n");
+	c2_net_test_u_printf_v("c2_net_test_node_init()\n");
 	rc = c2_net_test_node_init(&node, &cfg);
 	c2_net_test_u_print_error("Test node initialization failed.", rc);
 	if (rc != 0)
 		goto cfg_free;
 
-	PRINT("c2_net_test_node_start()\n");
+	c2_net_test_u_printf_v("c2_net_test_node_start()\n");
 	rc = c2_net_test_node_start(&node);
 	c2_net_test_u_print_error("Test node start failed.", rc);
 	if (rc != 0)
 		goto node_fini;
 
-	PRINT("waiting...\n");
+	c2_net_test_u_printf_v("waiting...\n");
 	c2_semaphore_down(&node.ntnc_thread_finished_sem);
 
-	PRINT("c2_net_test_node_stop()\n");
+	c2_net_test_u_printf_v("c2_net_test_node_stop()\n");
 	c2_net_test_node_stop(&node);
 node_fini:
-	PRINT("c2_net_test_node_fini()\n");
+	c2_net_test_u_printf_v("c2_net_test_node_fini()\n");
 	c2_net_test_node_fini(&node);
 cfg_free:
 	config_free(&cfg);
 colibri_fini:
-	PRINT("c2_fini()\n");
+	c2_net_test_u_printf_v("c2_fini()\n");
 	c2_fini();
 
 	return rc;

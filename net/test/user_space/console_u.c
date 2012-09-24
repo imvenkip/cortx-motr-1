@@ -24,6 +24,7 @@
 #include "lib/getopts.h"		/* c2_getopts */
 #include "lib/errno.h"			/* EINVAL */
 #include "lib/memory.h"			/* c2_alloc */
+#include "lib/time.h"			/* c2_time_t */
 
 #include "colibri/init.h"		/* c2_init */
 
@@ -95,6 +96,7 @@
    @{
  */
 
+/** Console printf */
 static bool addr_check(const char *addr)
 {
 	if (addr == NULL)
@@ -150,9 +152,9 @@ static void print_slist(char *name, struct c2_net_test_slist *slist)
 
 	C2_PRE(slist != NULL);
 
-	PRINT("%s: size\t= %lu\n", name, slist->ntsl_nr);
+	c2_net_test_u_printf_v("%s: size\t= %lu\n", name, slist->ntsl_nr);
 	for (i = 0; i < slist->ntsl_nr; ++i)
-		PRINT("%lu | %s\n", i, slist->ntsl_list[i]);
+		c2_net_test_u_printf_v("%lu | %s\n", i, slist->ntsl_list[i]);
 }
 
 static void config_print(struct c2_net_test_console_cfg *cfg)
@@ -174,14 +176,18 @@ static void config_print(struct c2_net_test_console_cfg *cfg)
 				 cfg->ntcc_cmd_send_timeout);
 	c2_net_test_u_print_time("ntcc_buf_recv_timeout",
 				 cfg->ntcc_cmd_send_timeout);
-	PRINT("ntcc_test_type\t\t= %s\n",
+	c2_net_test_u_printf_v("ntcc_test_type\t\t= %s\n",
 	      cfg->ntcc_test_type == C2_NET_TEST_TYPE_PING ? "ping" :
 	      cfg->ntcc_test_type == C2_NET_TEST_TYPE_BULK ? "bulk" :
 	      "UNKNOWN");
-	PRINT("ntcc_msg_nr\t\t= %lu\n", cfg->ntcc_msg_nr);
-	PRINT("ntcc_msg_size\t\t= %lu\n", cfg->ntcc_msg_size);
-	PRINT("ntcc_concurrency_server\t= %lu\n", cfg->ntcc_concurrency_server);
-	PRINT("ntcc_concurrency_client\t= %lu\n", cfg->ntcc_concurrency_client);
+	c2_net_test_u_printf_v("ntcc_msg_nr\t\t= %lu\n",
+			       cfg->ntcc_msg_nr);
+	c2_net_test_u_printf_v("ntcc_msg_size\t\t= %lu\n",
+			       cfg->ntcc_msg_size);
+	c2_net_test_u_printf_v("ntcc_concurrency_server\t= %lu\n",
+			       cfg->ntcc_concurrency_server);
+	c2_net_test_u_printf_v("ntcc_concurrency_client\t= %lu\n",
+			       cfg->ntcc_concurrency_client);
 }
 
 static int configure(int argc, char *argv[],
@@ -263,6 +269,7 @@ static int configure(int argc, char *argv[],
 			else
 				cfg->ntcc_concurrency_client = nr;
 		})),
+		C2_VERBOSEFLAGARG,
 		C2_IFLISTARG(&list_if),
 		C2_HELPARG('?'),
 		);
@@ -291,37 +298,90 @@ static bool console_step(struct c2_net_test_console_ctx *ctx,
 	int rc;
 
 	if (text_pre != NULL)
-		PRINT("%s\n", text_pre);
+		c2_net_test_u_printf_v("%s\n", text_pre);
 	rc = c2_net_test_console_cmd(ctx, role, cmd_type);
 	if (text_post != NULL)
-		PRINT("%s (%d node%s)\n", text_post, rc, rc != 1 ? "s" : "");
+		c2_net_test_u_printf_v("%s (%d node%s)\n",
+				       text_post, rc, rc != 1 ? "s" : "");
 	return rc != 0;
 }
 
 static void print_msg_nr(const char *descr, struct c2_net_test_msg_nr *msg_nr)
 {
-	PRINT("%s = %lu/%lu/%lu", descr,
-	      msg_nr->ntmn_total, msg_nr->ntmn_failed, msg_nr->ntmn_bad);
+	c2_net_test_u_printf_v("%s = %lu/%lu/%lu", descr, msg_nr->ntmn_total,
+			       msg_nr->ntmn_failed, msg_nr->ntmn_bad);
 }
 
 static void print_stats(const char *descr,
 			struct c2_net_test_stats *stats)
 {
-	PRINT("%s = %lu/%lu/%lu/%.0f/%.0f", descr,
-	      stats->nts_count, stats->nts_min, stats->nts_max,
-	      c2_net_test_stats_avg(stats), c2_net_test_stats_stddev(stats));
+	c2_net_test_u_printf_v("%s = %lu/%lu/%lu/%.0f/%.0f", descr,
+			       stats->nts_count, stats->nts_min, stats->nts_max,
+			       c2_net_test_stats_avg(stats),
+			       c2_net_test_stats_stddev(stats));
 }
 
-static void print_status_data(struct c2_net_test_cmd_status_data *sd)
+static void print_status_data_v(struct c2_net_test_cmd_status_data *sd)
 {
-	PRINT("messages total/failed/bad: ");
+	c2_net_test_u_printf_v("messages total/failed/bad: ");
 	print_msg_nr("sent", &sd->ntcsd_msg_nr_send);
 	print_msg_nr(", received", &sd->ntcsd_msg_nr_recv);
-	PRINT("; count/min/max/avg/stddev: ");
+	c2_net_test_u_printf_v("; count/min/max/avg/stddev: ");
 	print_stats("MPS, sent", &sd->ntcsd_mps_send.ntmps_stats);
 	print_stats(", MPS, received", &sd->ntcsd_mps_recv.ntmps_stats);
 	print_stats(", RTT", &sd->ntcsd_rtt);
-	PRINT(" ns\n");
+	c2_net_test_u_printf_v(" ns\n");
+}
+
+static void bsize_print(const char *descr,
+			struct c2_net_test_console_ctx *ctx,
+			double msg_nr)
+{
+	c2_net_test_u_printf(descr);
+	c2_net_test_u_print_bsize(msg_nr * ctx->ntcc_cfg->ntcc_msg_size);
+}
+
+static double avg_total(c2_time_t diff_t, double msg_nr)
+{
+	unsigned long diff = c2_time_seconds(diff_t) * C2_TIME_ONE_BILLION +
+			     c2_time_nanoseconds(diff_t);
+
+	return diff == 0 ? 0. : msg_nr * C2_TIME_ONE_BILLION / diff;
+}
+
+static void print_status_data(struct c2_net_test_console_ctx *ctx)
+{
+	struct c2_net_test_cmd_status_data *sd = ctx->ntcc_clients.ntcrc_sd;
+	c2_time_t			    diff_t;
+	c2_time_t			    rtt_t;
+	unsigned long			    rtt;
+	double				    avg_o;
+	double				    avg_i;
+	double				    total_o;
+	double				    total_i;
+
+	total_o = sd->ntcsd_msg_nr_send.ntmn_total;
+	total_i = sd->ntcsd_msg_nr_recv.ntmn_total;
+	if (sd->ntcsd_finished) {
+		diff_t = c2_time_sub(sd->ntcsd_time_finish,
+				     sd->ntcsd_time_start);
+		avg_o = avg_total(diff_t, total_o);
+		avg_i = avg_total(diff_t, total_i);
+	} else {
+		avg_o = c2_net_test_stats_avg(&sd->ntcsd_mps_recv.ntmps_stats);
+		avg_i = c2_net_test_stats_avg(&sd->ntcsd_mps_send.ntmps_stats);
+	}
+	bsize_print("avg out: ", ctx, avg_o);
+	bsize_print("/s avg in: ", ctx, avg_i);
+	bsize_print("/s total out: ", ctx, total_o);
+	bsize_print(" total in: ", ctx, total_i);
+
+	rtt_t = c2_net_test_stats_avg(&sd->ntcsd_rtt);
+	rtt = c2_time_seconds(rtt_t) * C2_TIME_ONE_BILLION +
+	      c2_time_nanoseconds(rtt_t);
+	c2_net_test_u_printf(" avg RTT: % 10.3f us", rtt / 1000.);
+
+	c2_net_test_u_printf("\n");
 }
 
 static int console_run(struct c2_net_test_console_ctx *ctx)
@@ -354,9 +414,10 @@ static int console_run(struct c2_net_test_console_ctx *ctx)
 		c2_nanosleep(status_interval, NULL);
 		if (!console_step(ctx, C2_NET_TEST_ROLE_CLIENT,
 				  C2_NET_TEST_CMD_STATUS, NULL, NULL)) {
-			PRINT("STATUS DATA command failed.\n");
+			c2_net_test_u_printf("STATUS DATA command failed.\n");
 		} else {
-			print_status_data(ctx->ntcc_clients.ntcrc_sd);
+			print_status_data_v(ctx->ntcc_clients.ntcrc_sd);
+			print_status_data(ctx);
 		}
 	} while (!ctx->ntcc_clients.ntcrc_sd->ntcsd_finished);
 	good = console_step(ctx, C2_NET_TEST_ROLE_SERVER,
@@ -373,10 +434,10 @@ static int console_run(struct c2_net_test_console_ctx *ctx)
 			    "test clients => STOP DONE");
 	if (!good)
 		return -ENETUNREACH;
-	PRINT("clients: ");
-	print_status_data(ctx->ntcc_clients.ntcrc_sd);
-	PRINT("servers: ");
-	print_status_data(ctx->ntcc_servers.ntcrc_sd);
+	c2_net_test_u_printf_v("clients total: ");
+	print_status_data_v(ctx->ntcc_clients.ntcrc_sd);
+	c2_net_test_u_printf_v("servers total: ");
+	print_status_data_v(ctx->ntcc_servers.ntcrc_sd);
 	return 0;
 }
 
@@ -387,6 +448,7 @@ int main(int argc, char *argv[])
 	struct c2_net_test_console_cfg cfg = {
 		.ntcc_addr_console4servers = NULL,
 		.ntcc_addr_console4clients = NULL,
+		/** @todo add to command line parameters */
 		.ntcc_cmd_send_timeout     = C2_MKTIME(3, 0),
 		.ntcc_cmd_recv_timeout     = C2_MKTIME(3, 0),
 		.ntcc_buf_send_timeout     = C2_MKTIME(3, 0),
@@ -410,7 +472,7 @@ int main(int argc, char *argv[])
 			rc = 0;
 		} else {
 			/** @todo where is the error */
-			PRINT("Error in configuration.\n");
+			c2_net_test_u_printf("Error in configuration.\n");
 			config_free(&cfg);
 		}
 		goto colibri_fini;
