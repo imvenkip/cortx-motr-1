@@ -19,6 +19,8 @@
  * Original creation date: 04/15/2011
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
@@ -66,9 +68,11 @@ static int session_gen_fom_create(struct c2_fop *fop, struct c2_fom **m)
 	struct c2_fop           *reply_fop;
 	int                      rc;
 
+	C2_ENTRY("fop: %p", fop);
+
 	C2_ALLOC_PTR(fom);
 	if (fom == NULL)
-		return -ENOMEM;
+		C2_RETURN(-ENOMEM);
 
 	if (fop->f_type == &c2_rpc_fop_conn_establish_fopt) {
 
@@ -115,7 +119,8 @@ out:
 		c2_free(fom);
 		*m = NULL;
 	}
-	return rc;
+
+	C2_RETURN(rc);
 }
 
 const struct c2_fom_ops c2_rpc_fom_conn_establish_ops = {
@@ -153,6 +158,7 @@ int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 	struct c2_rpc_slot                   *slot;
 	int                                   rc;
 
+	C2_ENTRY("fom: %p", fom);
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 
@@ -177,10 +183,11 @@ int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 		  ctx->cec_rpc_machine != NULL);
 
 	C2_ALLOC_PTR(conn);
-	if (conn == NULL)
+	if (conn == NULL){
+		C2_RETURN(-ENOMEM);
 		/* no reply if conn establish failed.
 		   See [4] at end of this function. */
-		return -ENOMEM;
+	}
 
 	machine = ctx->cec_rpc_machine;
 
@@ -236,6 +243,7 @@ int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 	}
 
 	c2_fom_phase_set(fom, C2_FOPH_FINISH);
+	C2_LEAVE();
 	return C2_FSO_WAIT;
 }
 /*
@@ -308,6 +316,7 @@ int c2_rpc_fom_session_establish_tick(struct c2_fom *fom)
 	uint32_t                                 slot_cnt;
 	int                                      rc;
 
+	C2_ENTRY("fom: %p", fom);
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 
@@ -366,6 +375,7 @@ out:
 
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
 	c2_fom_phase_set(fom, C2_FOPH_FINISH);
+	C2_LEAVE();
 	return C2_FSO_WAIT;
 }
 
@@ -398,6 +408,7 @@ int c2_rpc_fom_session_terminate_tick(struct c2_fom *fom)
 	uint64_t                                 session_id;
 	int                                      rc;
 
+	C2_ENTRY("fom: %p", fom);
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 
@@ -455,6 +466,7 @@ int c2_rpc_fom_session_terminate_tick(struct c2_fom *fom)
 	c2_fom_phase_set(fom, C2_FOPH_FINISH);
 	c2_rpc_reply_post(&fom->fo_fop->f_item, &fom->fo_rep_fop->f_item);
 
+	C2_LEAVE();
 	return C2_FSO_WAIT;
 }
 
@@ -486,6 +498,7 @@ int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
 	struct c2_rpc_machine                *machine;
 	int                                   rc;
 
+	C2_ENTRY("fom: %p", fom);
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 
@@ -525,6 +538,7 @@ int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
 
 		c2_free(conn);
 		c2_fom_phase_set(fom, C2_FOPH_FINISH);
+		C2_LEAVE();
 		return C2_FSO_WAIT;
 	} else {
 		C2_ASSERT(C2_IN(conn->c_state, (C2_RPC_CONN_ACTIVE,
@@ -541,6 +555,7 @@ int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
 		c2_fom_phase_set(fom, C2_FOPH_FINISH);
 		C2_LOG(C2_INFO, "Conn terminate successful: conn [%p]\n", conn);
 		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
+		C2_LEAVE();
 		return C2_FSO_WAIT;
 	}
 }

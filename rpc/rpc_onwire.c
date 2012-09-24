@@ -18,6 +18,8 @@
  * Original creation date: 06/25/2011
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "rpc/rpc_onwire.h"
 
@@ -44,6 +46,7 @@ int c2_rpc_item_header_encdec(struct c2_rpc_item      *item,
 	int			 rc;
 	struct c2_rpc_item_type *item_type;
 
+	C2_ENTRY("item: %p", item);
 	C2_PRE(cur != NULL);
 	C2_PRE(item != NULL);
 
@@ -53,7 +56,7 @@ int c2_rpc_item_header_encdec(struct c2_rpc_item      *item,
 
 	rc = c2_bufvec_uint64(cur, &len, what) ?:
 	     slot_ref_encdec(cur, item->ri_slot_refs, what);
-	return rc;
+	C2_RETURN(rc);
 }
 
 static int slot_ref_encdec(struct c2_bufvec_cursor *cur,
@@ -65,6 +68,7 @@ static int slot_ref_encdec(struct c2_bufvec_cursor *cur,
 	int			   slot_ref_cnt;
 	int			   i;
 
+	C2_ENTRY();
 	C2_PRE(slot_ref != NULL);
 	C2_PRE(cur != NULL);
 
@@ -86,10 +90,11 @@ static int slot_ref_encdec(struct c2_bufvec_cursor *cur,
 		c2_bufvec_uint32(cur, &sref->sr_slot_id, what) ?:
 		c2_bufvec_uint64(cur, &sref->sr_xid, what) ?:
 		c2_bufvec_uint64(cur, &sref->sr_slot_gen, what);
-		if (rc != 0)
-			return -EFAULT;
+		if (rc != 0) {
+			C2_RETURN(-EFAULT);
+		}
 	}
-	return rc;
+	C2_RETURN(rc);
 }
 
 /** Helper functions to serialize uuid and slot references in rpc item header

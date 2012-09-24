@@ -176,7 +176,7 @@ do {							\
 do {								\
 	typeof(rc) __rc = (rc);					\
 	C2_ASSERT(__rc != 0);					\
-	C2_LOG(C2_ERROR, "! rc=%d " fmt, __rc, __VA_ARGS__);	\
+	C2_LOG(C2_ERROR, "! rc=%d " fmt, __rc, ## __VA_ARGS__);	\
 	return __rc;						\
 } while (0)
 

@@ -171,8 +171,7 @@ int c2_rpc_packet_encode(struct c2_rpc_packet *p,
 
 	rc = c2_rpc_packet_encode_using_cursor(p, &cur);
 
-	C2_LEAVE("rc: %d", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 int c2_rpc_packet_encode_using_cursor(struct c2_rpc_packet    *packet,
@@ -197,8 +196,7 @@ int c2_rpc_packet_encode_using_cursor(struct c2_rpc_packet    *packet,
 	end_of_bufvec = c2_bufvec_cursor_align(cursor, 8);
 	C2_ASSERT(end_of_bufvec ||
 		  C2_IS_8ALIGNED(c2_bufvec_cursor_addr(cursor)));
-	C2_LEAVE("rc: %d", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 /*
@@ -219,8 +217,7 @@ static int packet_header_encode(struct c2_rpc_packet    *p,
 	rc = c2_bufvec_uint32(cursor, &ver, C2_BUFVEC_ENCODE) ?:
 	     c2_bufvec_uint32(cursor, &p->rp_nr_items, C2_BUFVEC_ENCODE);
 
-	C2_LEAVE("rc: %d", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 static int packet_header_decode(struct c2_bufvec_cursor *cursor,
@@ -246,8 +243,7 @@ static int item_encode(struct c2_rpc_item       *item,
 
 	rc = item->ri_type->rit_ops->rito_encode(item->ri_type, item, cursor);
 
-	C2_LEAVE("rc: %d", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 int c2_rpc_packet_decode(struct c2_rpc_packet *p,
