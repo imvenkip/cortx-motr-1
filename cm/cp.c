@@ -465,8 +465,8 @@ bool c2_cm_cp_invariant(const struct c2_cm_cp *cp)
 	return c2_cm_cp_bob_check(cp) && ops != NULL && cp->c_data != NULL &&
 	       cp->c_ag != NULL &&
 	       c2_fom_phase(&cp->c_fom) < cp->c_ops->co_action_nr &&
-               c2_forall(i, ops->co_action_nr, ops->co_action[i] != NULL) &&
-	       cp->c_ops->co_invariant(cp);
+	       cp->c_ops->co_invariant(cp) &&
+               c2_forall(i, ops->co_action_nr, ops->co_action[i] != NULL);
 }
 
 void c2_cm_cp_init(struct c2_cm_cp *cp)
@@ -477,8 +477,6 @@ void c2_cm_cp_init(struct c2_cm_cp *cp)
 	c2_fom_type_init(&cp_fom_type, &cp_fom_type_ops, NULL,
 			 &c2_cm_cp_sm_conf);
 	c2_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL);
-
-	C2_POST(c2_cm_cp_invariant(cp));
 }
 
 void c2_cm_cp_fini(struct c2_cm_cp *cp)

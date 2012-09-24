@@ -16,6 +16,7 @@
  *
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
  *                  Mandar Sawant <mandar_sawant@xyratex.com>
+ *                  Anup Barve <anup_barve@xyratex.com>
  * Original creation date: 08/06/2012
  */
 #include "lib/memory.h" /* c2_free() */
@@ -34,8 +35,6 @@
 
 struct c2_sns_repair_cp *cp2snscp(const struct c2_cm_cp *cp)
 {
-	C2_PRE(c2_cm_cp_invariant(cp));
-
 	return container_of(cp, struct c2_sns_repair_cp, rc_base);
 }
 
@@ -67,6 +66,7 @@ static int cp_init(struct c2_cm_cp *cp)
 
 	C2_PRE(c2_fom_phase(&cp->c_fom) == C2_CCP_INIT);
 	rcm = cm2sns(cp->c_ag->cag_cm);
+	cp->c_ops->co_phase_next(cp);
 	return C2_FSO_AGAIN;
 }
 
@@ -85,32 +85,49 @@ static int cp_fini(struct c2_cm_cp *cp)
 
 static int cp_read(struct c2_cm_cp *cp)
 {
-        return 0;
+	cp->c_ops->co_phase_next(cp);
+	return C2_FSO_AGAIN;
 }
 
 static int cp_write(struct c2_cm_cp *cp)
 {
-        return 0;
+	cp->c_ops->co_phase_next(cp);
+	return C2_FSO_AGAIN;
 }
 
 static int cp_send(struct c2_cm_cp *cp)
 {
-        return 0;
+	return C2_FSO_AGAIN;
 }
 
 static int cp_recv(struct c2_cm_cp *cp)
 {
-        return 0;
+	return C2_FSO_AGAIN;
 }
 
 static int cp_xform(struct c2_cm_cp *cp)
 {
-        return 0;
+	cp->c_ops->co_phase_next(cp);
+	return C2_FSO_AGAIN;
 }
 
 static int cp_phase_next(struct c2_cm_cp *cp)
 {
-	return 0;
+	switch (c2_fom_phase(&cp->c_fom)) {
+	case C2_CCP_INIT:
+		c2_fom_phase_set(&cp->c_fom, C2_CCP_READ);
+		break;
+	case C2_CCP_READ:
+		c2_fom_phase_set(&cp->c_fom, C2_CCP_XFORM);
+		break;
+	case C2_CCP_XFORM:
+		c2_fom_phase_set(&cp->c_fom, C2_CCP_WRITE);
+		break;
+	case C2_CCP_WRITE:
+		c2_fom_phase_set(&cp->c_fom, C2_CCP_FINI);
+		break;
+	}
+        return C2_FSO_AGAIN;
 }
 
 static void cp_complete(struct c2_cm_cp *cp)
@@ -140,7 +157,7 @@ const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
 		[C2_CCP_FINI]  = &cp_fini,
 		[SRP_IO_WAIT]  = &cp_io_wait
 	},
-	.co_action_nr          = SRP_NR,
+	.co_action_nr          = C2_CCP_NR,
 	.co_phase_next	       = &cp_phase_next,
 	.co_invariant	       = &cp_invariant,
 	.co_home_loc_helper    = &cp_home_loc_helper,
