@@ -330,9 +330,7 @@ static const struct c2_fom_type_ops cp_fom_type_ops = {
         .fto_create = NULL
 };
 
-static struct c2_fom_type cp_fom_type = {
-        .ft_ops = &cp_fom_type_ops
-};
+static struct c2_fom_type cp_fom_type;
 
 static void cp_fom_fini(struct c2_fom *fom)
 {
@@ -395,59 +393,38 @@ static const struct c2_sm_state_descr c2_cm_cp_state_descr[] = {
         [C2_CCP_INIT] = {
                 .sd_flags       = C2_SDF_INITIAL,
                 .sd_name        = "Init",
-                .sd_in          = NULL,
-                .sd_ex          = NULL,
-                .sd_invariant   = NULL,
                 .sd_allowed     = C2_BITS(C2_CCP_READ, C2_CCP_RECV,
 				          C2_CCP_XFORM)
         },
         [C2_CCP_READ] = {
                 .sd_flags       = 0,
                 .sd_name        = "Read",
-                .sd_in          = NULL,
-                .sd_ex          = NULL,
-                .sd_invariant   = NULL,
                 .sd_allowed     = C2_BITS(C2_CCP_XFORM, C2_CCP_SEND)
         },
         [C2_CCP_WRITE] = {
                 .sd_flags       = 0,
                 .sd_name        = "Write",
-                .sd_in          = NULL,
-                .sd_ex          = NULL,
-                .sd_invariant   = NULL,
                 .sd_allowed     = C2_BITS(C2_CCP_FINI)
         },
         [C2_CCP_XFORM] = {
                 .sd_flags       = 0,
                 .sd_name        = "Xform",
-                .sd_in          = NULL,
-                .sd_ex          = NULL,
-                .sd_invariant   = NULL,
                 .sd_allowed     = C2_BITS(C2_CCP_WRITE, C2_CCP_FINI,
 				          C2_CCP_SEND)
         },
         [C2_CCP_SEND] = {
                 .sd_flags       = 0,
                 .sd_name        = "Send",
-                .sd_in          = NULL,
-                .sd_ex          = NULL,
-                .sd_invariant   = NULL,
                 .sd_allowed     = C2_BITS(C2_CCP_FINI)
         },
         [C2_CCP_RECV] = {
                 .sd_flags       = 0,
                 .sd_name        = "Recv",
-                .sd_in          = NULL,
-                .sd_ex          = NULL,
-                .sd_invariant   = NULL,
                 .sd_allowed     = C2_BITS(C2_CCP_WRITE, C2_CCP_XFORM)
         },
         [C2_CCP_FINI] = {
                 .sd_flags       = C2_SDF_TERMINAL,
                 .sd_name        = "Fini",
-                .sd_in          = NULL,
-                .sd_ex          = NULL,
-                .sd_invariant   = NULL,
                 .sd_allowed     = 0
         },
 };
@@ -457,6 +434,12 @@ static const struct c2_sm_conf c2_cm_cp_sm_conf = {
 	.scf_nr_states = ARRAY_SIZE(c2_cm_cp_state_descr),
 	.scf_state = c2_cm_cp_state_descr
 };
+
+void c2_cm_cp_module_init(void)
+{
+	c2_fom_type_init(&cp_fom_type, &cp_fom_type_ops, NULL,
+			 &c2_cm_cp_sm_conf);
+}
 
 bool c2_cm_cp_invariant(const struct c2_cm_cp *cp)
 {
@@ -474,8 +457,6 @@ void c2_cm_cp_init(struct c2_cm_cp *cp)
 	C2_PRE(cp != NULL);
 
 	c2_cm_cp_bob_init(cp);
-	c2_fom_type_init(&cp_fom_type, &cp_fom_type_ops, NULL,
-			 &c2_cm_cp_sm_conf);
 	c2_fom_init(&cp->c_fom, &cp_fom_type, &cp_fom_ops, NULL, NULL);
 
 	C2_POST(c2_cm_cp_invariant(cp));

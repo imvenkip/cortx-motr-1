@@ -175,9 +175,9 @@ struct c2_cm_cp_pump_ops {
  * c2_cm_data_next(), which may block. The pump FOM is created when copy machine
  * operation starts and finalised when copy machine operation is complete.
  * The pump FOM goes to sleep when no more copy packets can be created (buffer
- * pool is exhausted). When a copy packet FOM terminates and frees its
- * buffer in the pool, it wakes the pump up (using c2_cm_sw_fill()) to create
- * more copy packets.
+ * pool is exhausted). When a copy packet FOM terminates and frees its buffer
+ * in the pool, it wakes up the pump FOM (using c2_cm_sw_fill()) to create more
+ * copy packets.
  */
 struct c2_cm_cp_pump {
 	/** pump FOM. */
@@ -338,8 +338,8 @@ void c2_cm_unlock(struct c2_cm *cm);
  */
 bool c2_cm_is_locked(const struct c2_cm *cm);
 
-int c2_cms_init(void);
-void c2_cms_fini(void);
+int c2_cm_module_init(void);
+void c2_cm_module_fini(void);
 
 /**
  * Initialises a copy machine. This is invoked from copy machine specific
