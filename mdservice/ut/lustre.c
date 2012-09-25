@@ -33,8 +33,8 @@
 #include "addb/addb.h"
 #include "cob/cob.h"
 #include "mdstore/mdstore.h"
-#include "mdservice/md_fops_u.h"
 #include "mdservice/md_fops.h"
+#include "mdservice/md_fops_ff.h"
 #include "mdservice/ut/lustre.h"
 
 typedef int (*fop_translate_t)(struct c2_fop *fop, void *data);

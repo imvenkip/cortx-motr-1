@@ -18,10 +18,10 @@
  * Original creation date: 03/29/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_MDSERVICE_MD_FOPS_H__
 #define __COLIBRI_MDSERVICE_MD_FOPS_H__
-
-extern struct c2_fop_type_format c2_fop_fid_tfmt;
 
 extern struct c2_fop_type c2_fop_create_fopt;
 extern struct c2_fop_type c2_fop_link_fopt;  
@@ -42,6 +42,12 @@ extern struct c2_fop_type c2_fop_setattr_rep_fopt;
 extern struct c2_fop_type c2_fop_getattr_rep_fopt;
 extern struct c2_fop_type c2_fop_rename_rep_fopt;
 extern struct c2_fop_type c2_fop_readdir_rep_fopt;
+
+/**
+   Init and fini of mdservice fops code.
+ */
+int c2_mdservice_fop_init(void);
+void c2_mdservice_fop_fini(void);
 
 #endif /* __COLIBRI_MDSERVICE_MD_FOMS_H__ */
 /* 

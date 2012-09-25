@@ -148,16 +148,16 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 
         C2_ALLOC_PTR(ctx);
         if (ctx == NULL) {
-		REQH_ADDB_ADD(reqh->rh_addb, "c2_reqh_fop_handle",
+		REQH_ADDB_ADD(&reqh->rh_addb, "c2_reqh_fop_handle",
                               ENOMEM);
 		return;
         }
+	c2_rwlock_read_lock(&reqh->rh_rwlock);
 
         ctx->fc_fol  = reqh->rh_fol;
         ctx->fc_reqh = reqh;
         ctx->fc_cookie  = cookie;
 
-	c2_rwlock_read_lock(&reqh->rh_rwlock);
 	rsd = reqh->rh_shutdown;
 	if (rsd) {
 		REQH_ADDB_ADD(&reqh->rh_addb, "c2_reqh_fop_handle",

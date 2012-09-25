@@ -61,8 +61,8 @@ static void fop_obj_init(struct c2_fop_iterator_test *fop)
 {
 	int i;
 
-	fop->fit_fid.f_seq = 1;
-	fop->fit_fid.f_oid = 2;
+	fop->fit_fid.ff_seq = 1;
+	fop->fit_fid.ff_oid = 2;
 
 	fop->fit_vec.fv_count = 2;
 	C2_ALLOC_ARR(fop->fit_vec.fv_seg, fop->fit_vec.fv_count);
@@ -81,10 +81,10 @@ static void fop_obj_init(struct c2_fop_iterator_test *fop)
 	fop->fit_topt.fo_fid.ff_seq = 41;
 	fop->fit_topt.fo_fid.ff_oid = 42;
 
-	fop->fit_rec.fr_fid.f_seq = 5;
-	fop->fit_rec.fr_fid.f_oid = 6;
-	fop->fit_rec.fr_seq.fr_fid.f_seq = 7;
-	fop->fit_rec.fr_seq.fr_fid.f_oid = 8;
+	fop->fit_rec.fr_fid.ff_seq = 5;
+	fop->fit_rec.fr_fid.ff_oid = 6;
+	fop->fit_rec.fr_seq.fr_fid.ff_seq = 7;
+	fop->fit_rec.fr_seq.fr_fid.ff_oid = 8;
 	fop->fit_rec.fr_seq.fr_seq.fv_count = 3;
 	C2_ALLOC_ARR(fop->fit_rec.fr_seq.fr_seq.fv_seg,
 		     fop->fit_rec.fr_seq.fr_seq.fv_count);

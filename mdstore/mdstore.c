@@ -39,9 +39,6 @@
 #include "cob/cob.h"
 #include "mdstore/mdstore.h"
 
-#include "mdservice/md_fops_u.h"
-#include "mdservice/md_foms.h"
-
 static const struct c2_addb_ctx_type mdstore_addb_ctx = {
 	.act_name = "mdstore"
 };
@@ -649,6 +646,9 @@ int c2_md_store_lookup(struct c2_md_store       *md,
                              cob, tx);
 }
 
+#define MDSTORE_PATH_MAX 1024
+#define MDSTORE_NAME_MAX 255
+
 int c2_md_store_path(struct c2_md_store *md,
                      struct c2_fid *fid,
                      char **path)
@@ -658,7 +658,7 @@ int c2_md_store_path(struct c2_md_store *md,
         struct c2_db_tx  tx;
         int              rc;
         
-        *path = c2_alloc(PATH_MAX);
+        *path = c2_alloc(MDSTORE_PATH_MAX);
         if (*path == NULL)
                 return -ENOMEM;
 
@@ -667,7 +667,7 @@ restart:
 
         c2_db_tx_init(&tx, md->md_dom.cd_dbenv, 0);
         do {
-                char name[NAME_MAX] = {0,};
+                char name[MDSTORE_NAME_MAX] = {0,};
 
                 rc = c2_md_store_locate(md, &pfid, &cob, C2_MD_LOCATE_STORED, &tx);
                 if (rc != 0)
@@ -690,7 +690,7 @@ out:
         if (rc != 0) {
                 c2_db_tx_abort(&tx);
                 if (rc == -EDEADLK) {
-                        memset(*path, 0, PATH_MAX);
+                        memset(*path, 0, MDSTORE_PATH_MAX);
                         goto restart;
                 }
                 c2_free(*path);

@@ -37,6 +37,7 @@
 #include "net/lnet/lnet.h"
 #include "rpc/rpc2.h"
 #include "reqh/reqh.h"
+#include "cob/cob.h"
 #include "mdstore/mdstore.h"
 #include "colibri/colibri_setup.h"
 #include "colibri/cs_internal.h"

@@ -18,10 +18,10 @@
  * Original creation date: 01/17/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_MDSTORE_MDSTORE_H__
 #define __COLIBRI_MDSTORE_MDSTORE_H__
-
-#include "mdservice/md_fops_u.h"
 
 struct c2_cob_domain_id;
 struct c2_cob_domain;

@@ -17,23 +17,18 @@
  * Original creation date: 03/29/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#  include <config.h>
-#endif
-
+#include <string.h>
 #include "fop/fop.h"
-#include "fop/fop_format_def.h"
+#include "fop/fom_generic.h"
 #include "rpc/rpc_opcodes.h"
-
-#include "mdservice/md_fops_u.h"
 #include "mdservice/md_foms.h"
 #include "mdservice/md_fops.h"
-#include "mdservice/md_fops.ff"
+#include "mdservice/md_fops_ff.h"
 
 static size_t c2_md_fol_pack_size(struct c2_fol_rec_desc *desc)
 {
 	struct c2_fop *fop = desc->rd_type_private;
-	size_t len = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+	size_t len = fop->f_type->ft_xt->xct_sizeof;
 	void *data = c2_fop_data(fop);
 
 	switch (fop->f_type->ft_rpc_item_type.rit_opcode) {
@@ -82,7 +77,7 @@ static size_t c2_md_fol_pack_size(struct c2_fol_rec_desc *desc)
 static void copy(char **buf, struct c2_fop_str *str)
 {
         if (str->s_len > 0) {
-	        memcpy(*buf, str->s_buf, str->s_len);
+	        memcpy(*buf, (char *)str->s_buf, str->s_len);
 	        *buf += str->s_len;
 	}
 }
@@ -91,7 +86,7 @@ static void c2_md_fol_pack(struct c2_fol_rec_desc *desc, void *buf)
 {
 	struct c2_fop *fop = desc->rd_type_private;
 	char *data = c2_fop_data(fop), *ptr;
-	size_t size = fop->f_type->ft_fmt->ftf_layout->fm_sizeof;
+	size_t size = fop->f_type->ft_xt->xct_sizeof;
 
 	memcpy(buf, data, size);
 	ptr = (char *)buf + size;
@@ -140,7 +135,7 @@ static void c2_md_fol_pack(struct c2_fol_rec_desc *desc, void *buf)
 static void map(char **buf, struct c2_fop_str *str)
 {
         if (str->s_len > 0) {
-	        str->s_buf = *buf;
+	        str->s_buf = (uint8_t *)*buf;
 	        *buf += str->s_len;
 	}
 }
@@ -223,33 +218,34 @@ static struct c2_fom_type_ops c2_md_fom_ops = {
         .fto_create   = c2_md_req_fom_create
 };
 
-static struct c2_fop_type *c2_md_fop_fops[] = {
-        &c2_fop_create_fopt,
-        &c2_fop_link_fopt,
-        &c2_fop_unlink_fopt,
-        &c2_fop_rename_fopt,
-        &c2_fop_readdir_fopt,
-        &c2_fop_open_fopt,
-        &c2_fop_close_fopt,
-        &c2_fop_setattr_fopt,
-        &c2_fop_getattr_fopt,
-        &c2_fop_create_rep_fopt,
-        &c2_fop_link_rep_fopt,
-        &c2_fop_unlink_rep_fopt,
-        &c2_fop_rename_rep_fopt,
-        &c2_fop_readdir_rep_fopt,
-        &c2_fop_open_rep_fopt,
-        &c2_fop_close_rep_fopt,
-        &c2_fop_setattr_rep_fopt,
-        &c2_fop_getattr_rep_fopt
-};
+extern struct c2_reqh_service_type c2_mds_type;
+
+struct c2_fop_type c2_fop_create_fopt;
+struct c2_fop_type c2_fop_link_fopt;  
+struct c2_fop_type c2_fop_unlink_fopt;
+struct c2_fop_type c2_fop_open_fopt;
+struct c2_fop_type c2_fop_close_fopt;
+struct c2_fop_type c2_fop_setattr_fopt;
+struct c2_fop_type c2_fop_getattr_fopt;
+struct c2_fop_type c2_fop_rename_fopt;
+struct c2_fop_type c2_fop_readdir_fopt;
+
+struct c2_fop_type c2_fop_create_rep_fopt;
+struct c2_fop_type c2_fop_link_rep_fopt;  
+struct c2_fop_type c2_fop_unlink_rep_fopt;
+struct c2_fop_type c2_fop_open_rep_fopt;
+struct c2_fop_type c2_fop_close_rep_fopt;
+struct c2_fop_type c2_fop_setattr_rep_fopt;
+struct c2_fop_type c2_fop_getattr_rep_fopt;
+struct c2_fop_type c2_fop_rename_rep_fopt;
+struct c2_fop_type c2_fop_readdir_rep_fopt;
 
 int c2_mdservice_fop_init(void)
 {
 	/*
 	 * Provided by ff2c compiler after parsing io_fops_xc.ff
 	 */
-	c2_xc_io_fops_init();
+	c2_xc_md_fops_init();
 
         return  C2_FOP_TYPE_INIT(&c2_fop_create_fopt,
 				 .name      = "Create request",
@@ -263,7 +259,7 @@ int c2_mdservice_fop_init(void)
 				 .sm        = &c2_generic_conf,
 				 .svc_type  = &c2_mds_type,
 #endif
-				 .rpc_ops   = &NULL) ?:
+				 .rpc_ops   = NULL) ?:
 	        C2_FOP_TYPE_INIT(&c2_fop_link_fopt,
 				 .name      = "Hardlink request",
 				 .opcode    = C2_MDSERVICE_LINK_OPCODE,
@@ -276,7 +272,7 @@ int c2_mdservice_fop_init(void)
 				 .sm        = &c2_generic_conf,
 				 .svc_type  = &c2_mds_type,
 #endif
-				 .rpc_ops   = &NULL) ?:
+				 .rpc_ops   = NULL) ?:
 	        C2_FOP_TYPE_INIT(&c2_fop_unlink_fopt,
 				 .name      = "Unlink request",
 				 .opcode    = C2_MDSERVICE_UNLINK_OPCODE,
@@ -289,7 +285,7 @@ int c2_mdservice_fop_init(void)
 				 .sm        = &c2_generic_conf,
 				 .svc_type  = &c2_mds_type,
 #endif
-				 .rpc_ops   = &NULL) ?:
+				 .rpc_ops   = NULL) ?:
 	        C2_FOP_TYPE_INIT(&c2_fop_open_fopt,
 				 .name      = "Open request",
 				 .opcode    = C2_MDSERVICE_OPEN_OPCODE,
@@ -302,7 +298,7 @@ int c2_mdservice_fop_init(void)
 				 .sm        = &c2_generic_conf,
 				 .svc_type  = &c2_mds_type,
 #endif
-				 .rpc_ops   = &NULL) ?:
+				 .rpc_ops   = NULL) ?:
 	        C2_FOP_TYPE_INIT(&c2_fop_close_fopt,
 				 .name      = "Close request",
 				 .opcode    = C2_MDSERVICE_CLOSE_OPCODE,
@@ -315,7 +311,7 @@ int c2_mdservice_fop_init(void)
 				 .sm        = &c2_generic_conf,
 				 .svc_type  = &c2_mds_type,
 #endif
-				 .rpc_ops   = &NULL) ?:
+				 .rpc_ops   = NULL) ?:
 	        C2_FOP_TYPE_INIT(&c2_fop_setattr_fopt,
 				 .name      = "Setattr request",
 				 .opcode    = C2_MDSERVICE_SETATTR_OPCODE,
@@ -328,7 +324,7 @@ int c2_mdservice_fop_init(void)
 				 .sm        = &c2_generic_conf,
 				 .svc_type  = &c2_mds_type,
 #endif
-				 .rpc_ops   = &NULL) ?:
+				 .rpc_ops   = NULL) ?:
 	        C2_FOP_TYPE_INIT(&c2_fop_getattr_fopt,
 				 .name      = "Getattr request",
 				 .opcode    = C2_MDSERVICE_GETATTR_OPCODE,
@@ -340,7 +336,7 @@ int c2_mdservice_fop_init(void)
 				 .sm        = &c2_generic_conf,
 				 .svc_type  = &c2_mds_type,
 #endif
-				 .rpc_ops   = &NULL) ?:
+				 .rpc_ops   = NULL) ?:
 	        C2_FOP_TYPE_INIT(&c2_fop_rename_fopt,
 				 .name      = "Rename request",
 				 .opcode    = C2_MDSERVICE_RENAME_OPCODE,
@@ -353,7 +349,7 @@ int c2_mdservice_fop_init(void)
 				 .sm        = &c2_generic_conf,
 				 .svc_type  = &c2_mds_type,
 #endif
-				 .rpc_ops   = &NULL) ?:
+				 .rpc_ops   = NULL) ?:
 	        C2_FOP_TYPE_INIT(&c2_fop_readdir_fopt,
 				 .name      = "Readdir request",
 				 .opcode    = C2_MDSERVICE_READDIR_OPCODE,
@@ -365,7 +361,7 @@ int c2_mdservice_fop_init(void)
 				 .sm        = &c2_generic_conf,
 				 .svc_type  = &c2_mds_type,
 #endif
-				 .rpc_ops   = &NULL) ?:
+				 .rpc_ops   = NULL) ?:
                 C2_FOP_TYPE_INIT(&c2_fop_create_rep_fopt,
 				 .name      = "Create reply",
 				 .opcode    = C2_MDSERVICE_CREATE_REP_OPCODE,
@@ -416,8 +412,25 @@ C2_EXPORTED(c2_mdservice_fop_init);
 
 void c2_mdservice_fop_fini(void)
 {
-        c2_fop_type_fini_nr(c2_md_fop_fops, ARRAY_SIZE(c2_md_fop_fops));
-	c2_xc_io_fops_fini();
+        c2_fop_type_fini(&c2_fop_create_fopt);
+        c2_fop_type_fini(&c2_fop_link_fopt);
+        c2_fop_type_fini(&c2_fop_unlink_fopt);
+        c2_fop_type_fini(&c2_fop_rename_fopt);
+        c2_fop_type_fini(&c2_fop_readdir_fopt);
+        c2_fop_type_fini(&c2_fop_open_fopt);
+        c2_fop_type_fini(&c2_fop_close_fopt);
+        c2_fop_type_fini(&c2_fop_setattr_fopt);
+        c2_fop_type_fini(&c2_fop_getattr_fopt);
+        c2_fop_type_fini(&c2_fop_create_rep_fopt);
+        c2_fop_type_fini(&c2_fop_link_rep_fopt);
+        c2_fop_type_fini(&c2_fop_unlink_rep_fopt);
+        c2_fop_type_fini(&c2_fop_rename_rep_fopt);
+        c2_fop_type_fini(&c2_fop_readdir_rep_fopt);
+        c2_fop_type_fini(&c2_fop_open_rep_fopt);
+        c2_fop_type_fini(&c2_fop_close_rep_fopt);
+        c2_fop_type_fini(&c2_fop_setattr_rep_fopt);
+        c2_fop_type_fini(&c2_fop_getattr_rep_fopt);
+	c2_xc_md_fops_fini();
 }
 C2_EXPORTED(c2_mdservice_fop_fini);
 

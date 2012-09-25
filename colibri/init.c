@@ -60,6 +60,7 @@
 #include "ioservice/io_service.h"
 #include "cob/cob.h"
 #include "mdservice/md_fops.h"
+#include "mdservice/md_service.h"
 
 extern int  c2_memory_init(void);
 extern void c2_memory_fini(void);

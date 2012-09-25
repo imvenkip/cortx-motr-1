@@ -100,6 +100,18 @@ struct fom_phase_desc {
 };
 
 /**
+ * Checks if transaction context is valid.
+ * We check if c2_db_tx::dt_env is initialised or not.
+ *
+ * @retval bool -> return true, if transaction is initialised
+ *		return false, if transaction is uninitialised
+ */
+static bool is_tx_initialized(const struct c2_db_tx *tx)
+{
+	return tx->dt_env != 0;
+}
+
+/**
  * Begins fom execution, transitions fom to its first
  * standard phase.
  *
@@ -314,18 +326,6 @@ static int fom_txn_commit(struct c2_fom *fom)
 static int fom_txn_commit_wait(struct c2_fom *fom)
 {
 	return C2_FSO_AGAIN;
-}
-
-/**
- * Checks if transaction context is valid.
- * We check if c2_db_tx::dt_env is initialised or not.
- *
- * @retval bool -> return true, if transaction is initialised
- *		return false, if transaction is uninitialised
- */
-static bool is_tx_initialized(const struct c2_db_tx *tx)
-{
-	return tx->dt_env != 0;
 }
 
 /**

@@ -27,15 +27,7 @@
 #include "lib/cdefs.h"         /* C2_EXPORTED */
 #include "lib/assert.h"        /* C2_PRE() */
 #include "fid/fid.h"
-#include "fop/fop_format_def.h"
-
-#ifndef __KERNEL__
-#include "fid/fid_u.h"
-#else
-#include "fid/fid_k.h"
-#endif
-
-#include "fid/fid.ff"
+#include "fid/fid_ff.h"
 
 /**
    @addtogroup fid
@@ -85,21 +77,13 @@ int c2_fid_cmp(const struct c2_fid *fid0, const struct c2_fid *fid1)
         return c2_uint128_cmp(&u0, &u1);
 }
 
-static struct c2_fop_type_format *c2_fid_fmts[] = {
-        &c2_fop_fid_tfmt
-};
-
 void c2_fid_unregister(void)
 {
-        c2_fop_type_format_fini_nr(c2_fid_fmts, ARRAY_SIZE(c2_fid_fmts));
 }
 
 int c2_fid_register(void)
 {
-	int rc;
-
-	rc = c2_fop_type_format_parse_nr(c2_fid_fmts, ARRAY_SIZE(c2_fid_fmts));
-	return rc;
+	return 0;
 }
 
 /** @} end of fid group */

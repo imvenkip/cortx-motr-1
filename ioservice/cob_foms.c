@@ -207,27 +207,15 @@ static int cc_fom_tick(struct c2_fom *fom)
 	if (c2_fom_phase(fom) == C2_FOPH_CC_COB_CREATE) {
 		cc = cob_fom_get(fom);
 
-                if (block)
-                        c2_fom_block_enter(fom);
-
 		rc = cc_stob_create(fom, cc);
-		if (rc != 0) {
-		        if (block)
-                                c2_fom_block_leave(fom);
+		if (rc != 0)
 			goto out;
-	        }
 
 		rc = cc_cob_create(fom, cc);
-		if (rc != 0) {
-		        if (block)
-                                c2_fom_block_leave(fom);
+		if (rc != 0)
 			goto out;
-	        }
 
 		rc = cc_cobfid_map_add(fom, cc);
-
-		if (block)
-                        c2_fom_block_leave(fom);
 	} else
 		C2_IMPOSSIBLE("Invalid phase for cob create fom.");
 
@@ -238,11 +226,6 @@ out:
 	fom->fo_rc = rc;
 	c2_fom_phase_set(fom, (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE);
 	return C2_FSO_AGAIN;
-}
-
-static int cc_fom_state(struct c2_fom *fom)
-{
-	return cc_fom_state_internal(fom, true);
 }
 
 static int cc_stob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
@@ -301,7 +284,7 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
         rc = c2_cob_alloc(cdom, &cob);
         if (rc)
                 return rc;
-	c2_cob_nskey_make(&nskey, &cc->fco_cfid, fop->cc_cobname.cn_name,
+	c2_cob_nskey_make(&nskey, &cc->fco_cfid, (char *)fop->cc_cobname.cn_name,
 	                  fop->cc_cobname.cn_count);
 	if (nskey == NULL) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
@@ -314,7 +297,8 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	nsrec.cnr_nlink = CC_COB_HARDLINK_NR;
 
         c2_cob_fabrec_make(&fabrec, NULL, 0); 
-	fabrec->cfb_version.vn_lsn = c2_fol_lsn_allocate(fom->fo_fol);
+	fabrec->cfb_version.vn_lsn =
+	             c2_fol_lsn_allocate(c2_fom_reqh(fom)->rh_fol);
 	fabrec->cfb_version.vn_vc = CC_COB_VERSION_INIT;
 
         omgrec.cor_uid = 0;
@@ -407,25 +391,15 @@ static int cd_fom_tick(struct c2_fom *fom)
 	if (c2_fom_phase(fom) == C2_FOPH_CD_COB_DEL) {
 		cd = cob_fom_get(fom);
 
-                if (block)
-                        c2_fom_block_enter(fom);
 		rc = cd_cob_delete(fom, cd);
-		if (rc != 0) {
-		        if (block)
-                                c2_fom_block_leave(fom);
+		if (rc != 0)
 			goto out;
-	        }
 
 		rc = cd_stob_delete(fom, cd);
-		if (rc != 0) {
-		        if (block)
-                                c2_fom_block_leave(fom);
+		if (rc != 0)
 			goto out;
-	        }
 
 		rc = cd_cobfid_map_delete(fom, cd);
-		if (block)
-                        c2_fom_block_leave(fom);
 	} else
 		C2_IMPOSSIBLE("Invalid phase for cob delete fom.");
 
@@ -436,11 +410,6 @@ out:
 	fom->fo_rc = rc;
 	c2_fom_phase_set(fom, (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE);
 	return C2_FSO_AGAIN;
-}
-
-static int cd_fom_state(struct c2_fom *fom)
-{
-	return cd_fom_state_internal(fom, true);
 }
 
 static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)

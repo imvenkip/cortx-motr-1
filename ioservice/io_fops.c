@@ -19,20 +19,6 @@
  * Original creation date: 03/21/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
-#include "ioservice/io_fops.h"
-#include "ioservice/io_foms.h"
-#include "ioservice/cob_foms.h"
-
-#ifdef __KERNEL__
-#include "ioservice/io_fops_k.h"
-#else
-#include "ioservice/io_fops_u.h"
-#endif
-
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/vec.h"	/* c2_0vec */

@@ -18,8 +18,12 @@
  * Original creation date: 03/29/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_MDSERVICE_MD_FOMS_H__
 #define __COLIBRI_MDSERVICE_MD_FOMS_H__
+
+#include "mdservice/md_fops_ff.h"
 
 struct c2_fom;
 struct c2_fop;
