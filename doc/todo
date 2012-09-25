@@ -15,8 +15,6 @@ sub-team leads, contact them to add more things here.
             c2_fom_domain_is_idle() function that iterates over all localities
             and checks that queues are empty.
 
-2012-Jul-26 Use type-safe lists in fom.[ch].
-
 2012-Sep-04 Non-atomic trace
 
     lib/trace.c uses a global shared atomic variable to allocate space in the
@@ -28,7 +26,18 @@ sub-team leads, contact them to add more things here.
     space, each buffer should be mapped to a separate file. Modify
     initialisation and parsing code accordingly.
 
+2012-Sep-16  UT memory leaks
+    [Added-by: vvv]
+
+    Plug memory leaks, reported by UT.  Check `Leaked:' lines of UT
+    output; any non-zero value may denote a defect.
+
+    A leakage in test suite "foo-ut" can be investigated with command
+        valgrind --leak-check=full utils/.libs/lt-ut -t foo-ut
+
                           ***** IN-PROGRESS *****
+
+2012-Jul-26 Use type-safe lists in fom.[ch].
 
 2012-Sep-04 External lock in c2_chan.
 

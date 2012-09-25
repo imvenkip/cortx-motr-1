@@ -31,6 +31,7 @@
 #include "lib/arith.h"
 #include "lib/memory.h"
 #include "lib/trace.h"
+#include "lib/trace_internal.h"
 
 #include "colibri/magic.h"
 
@@ -90,20 +91,89 @@ static int logbuf_map()
 	return -errno;
 }
 
-int c2_arch_trace_init()
+int c2_trace_set_print_context(const char *ctx_name)
 {
-	const char *mask;
+	if (ctx_name != NULL) {
+		enum c2_trace_print_context ctx =
+			parse_trace_print_context(ctx_name);
 
-	mask = getenv("C2_TRACE_IMMEDIATE_MASK");
+		if (ctx == C2_TRACE_PCTX_INVALID)
+			return -EINVAL;
+
+		c2_trace_print_context = ctx;
+	}
+
+	return 0;
+}
+
+int c2_trace_set_immediate_mask(const char *mask)
+{
 	if (mask != NULL) {
 		char *endp;
 
 		c2_trace_immediate_mask = strtoul(mask, &endp, 0);
+
+		/*
+		 * if mask string fails to convert to a number cleanly, then
+		 * assume that mask string contains a comma separated list of
+		 * subsystem names, which we use to build a numeric mask
+		 */
 		if (errno != 0 || *endp != 0) {
-			warn("strtoul(\"%s\"), setting mask to 0", mask);
-			c2_trace_immediate_mask = 0;
+			unsigned long  m;
+			int            rc;
+			char          *s = strdup(mask);
+
+			if (s == NULL)
+				return -ENOMEM;
+
+			rc = subsys_list_to_mask(s, &m);
+			free(s);
+
+			if (rc != 0)
+				return rc;
+
+			c2_trace_immediate_mask = m;
 		}
 	}
+
+	return 0;
+}
+
+int c2_trace_set_level(const char *level)
+{
+	if (level != NULL) {
+		char *s = strdup(level);
+		if (s == NULL)
+			return -ENOMEM;
+		c2_trace_level = parse_trace_level(s);
+		free(s);
+		if (c2_trace_level == C2_NONE)
+			return -EINVAL;
+	}
+
+	return 0;
+}
+
+int c2_arch_trace_init()
+{
+	int         rc;
+	const char *var;
+
+	var = getenv("C2_TRACE_IMMEDIATE_MASK");
+	rc = c2_trace_set_immediate_mask(var);
+	if (rc != 0)
+		return rc;
+
+	var = getenv("C2_TRACE_LEVEL");
+	rc = c2_trace_set_level(var);
+	if (rc != 0)
+		return rc;
+
+	var = getenv("C2_TRACE_PRINT_CONTEXT");
+	rc = c2_trace_set_print_context(var);
+	if (rc != 0)
+		return rc;
+
 	return randvspace_check() ?: logbuf_map();
 }
 

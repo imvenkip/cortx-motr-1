@@ -14,34 +14,22 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Andriy Tkachuk <Andriy_Tkachuk@xyratex.com>
- * Original creation date: 01/30/2012
+ * Original author: Dmitriy Chumak <dmitriy_chumak@xyratex.com>
+ * Original creation date: 08/30/2012
  */
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_USERSP_TRACE_H__
-#define __COLIBRI_LIB_USERSP_TRACE_H__
+#ifndef __COLIBRI_LIB_TRACE_INTERNAL_H__
+#define __COLIBRI_LIB_TRACE_INTERNAL_H__
 
-/**
-   @defgroup trace Tracing.
+int subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask);
 
-   User-space specific declarations.
+enum c2_trace_level parse_trace_level(char *str);
 
- */
+enum c2_trace_print_context parse_trace_print_context(const char *ctx_name);
 
-int  c2_trace_parse(void);
-
-int  c2_trace_set_immediate_mask(const char *mask);
-
-int  c2_trace_set_print_context(const char *ctx_name);
-
-int  c2_trace_set_level(const char *level);
-
-/** @} end of trace group */
-
-/* __COLIBRI_LIB_USERSP_TRACE_H__ */
-#endif
+#endif /* __COLIBRI_LIB_TRACE_INTERNAL_H__ */
 
 /*
  *  Local variables:

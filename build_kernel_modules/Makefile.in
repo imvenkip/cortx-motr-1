@@ -164,7 +164,7 @@ stob_SOURCES                    := stob.c stob_id.c
 
 ut_SOURCES                      := rpc.c
 
-xcode_SOURCES                   := bufvec_xcode.c xcode.c
+xcode_SOURCES                   := bufvec_xcode.c xcode.c string.c
 
 xcode_ut_SOURCES                := xcode.c
 

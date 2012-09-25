@@ -14,33 +14,29 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Andriy Tkachuk <Andriy_Tkachuk@xyratex.com>
- * Original creation date: 01/30/2012
+ * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
+ * Original creation date: 01-Sep-2012
  */
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_USERSP_TRACE_H__
-#define __COLIBRI_LIB_USERSP_TRACE_H__
+#ifndef __COLIBRI_LIB_STRING_H__
+#define __COLIBRI_LIB_STRING_H__
 
-/**
-   @defgroup trace Tracing.
-
-   User-space specific declarations.
-
+/*
+ * Define standard string manipulation functions (strcat, strlen, strcmp, &c.)
+ * together with sprintf(3) and snprintf(3).
  */
 
-int  c2_trace_parse(void);
+#ifndef __KERNEL__
+# include <stdio.h>
+# include <string.h>
+#else
+# include <linux/kernel.h>
+# include <linux/string.h>
+#endif
 
-int  c2_trace_set_immediate_mask(const char *mask);
-
-int  c2_trace_set_print_context(const char *ctx_name);
-
-int  c2_trace_set_level(const char *level);
-
-/** @} end of trace group */
-
-/* __COLIBRI_LIB_USERSP_TRACE_H__ */
+/* __COLIBRI_LIB_STRING_H__ */
 #endif
 
 /*

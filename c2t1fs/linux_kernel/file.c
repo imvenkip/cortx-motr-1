@@ -87,7 +87,7 @@ static ssize_t c2t1fs_file_aio_read(struct kiocb       *iocb,
 
 	C2_ENTRY();
 
-	C2_LOG("Read req: file \"%s\" pos %lu nr_segs %lu iov_len %lu",
+	C2_LOG(C2_DEBUG, "Read req: file \"%s\" pos %lu nr_segs %lu iov_len %lu",
 					KIOCB_TO_FILE_NAME(iocb),
 					(unsigned long)pos,
 					nr_segs,
@@ -98,7 +98,7 @@ static ssize_t c2t1fs_file_aio_read(struct kiocb       *iocb,
 
 	result = generic_segment_checks(iov, &nr_segs, &count, VERIFY_WRITE);
 	if (result != 0) {
-		C2_LOG("Generic segment checks failed: %lu",
+		C2_LOG(C2_ERROR, "Generic segment checks failed: %lu",
 						(unsigned long)result);
 		goto out;
 	}
@@ -109,14 +109,14 @@ static ssize_t c2t1fs_file_aio_read(struct kiocb       *iocb,
 	for (i = 0; i < nr_segs; i++) {
 		const struct iovec *vec = &iov[i];
 
-		C2_LOG("iov: base %p len %lu pos %lu", vec->iov_base,
+		C2_LOG(C2_DEBUG, "iov: base %p len %lu pos %lu", vec->iov_base,
 					(unsigned long)vec->iov_len,
 					(unsigned long)iocb->ki_pos);
 
 		result = c2t1fs_read_write(iocb->ki_filp, vec->iov_base,
 					   vec->iov_len, &iocb->ki_pos, READ);
 
-		C2_LOG("result: %ld", (long)result);
+		C2_LOG(C2_DEBUG, "result: %ld", (long)result);
 		if (result <= 0)
 			break;
 
@@ -143,7 +143,7 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb       *iocb,
 
 	C2_ENTRY();
 
-	C2_LOG("WRITE req: file %s pos %lu nr_segs %lu iov_len %lu",
+	C2_LOG(C2_DEBUG, "WRITE req: file %s pos %lu nr_segs %lu iov_len %lu",
 			KIOCB_TO_FILE_NAME(iocb),
 			(unsigned long)pos,
 			nr_segs,
@@ -151,7 +151,7 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb       *iocb,
 
 	result = generic_segment_checks(iov, &nr_segs, &count, VERIFY_READ);
 	if (result != 0) {
-		C2_LOG("Generic segment checks failed: %lu",
+		C2_LOG(C2_ERROR, "Generic segment checks failed: %lu",
 						(unsigned long)result);
 		goto out;
 	}
@@ -159,7 +159,7 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb       *iocb,
 	saved_count = count;
 	result = generic_write_checks(iocb->ki_filp, &pos, &count, 0);
 	if (result != 0) {
-		C2_LOG("generic_write_checks() failed %lu",
+		C2_LOG(C2_ERROR, "generic_write_checks() failed %lu",
 						(unsigned long)result);
 		goto out;
 	}
@@ -169,20 +169,21 @@ static ssize_t c2t1fs_file_aio_write(struct kiocb       *iocb,
 
 	if (count != saved_count) {
 		nr_segs = iov_shorten((struct iovec *)iov, nr_segs, count);
-		C2_LOG("write size changed to %lu", (unsigned long)count);
+		C2_LOG(C2_WARN, "write size changed to %lu",
+				(unsigned long)count);
 	}
 
 	for (i = 0; i < nr_segs; i++) {
 		const struct iovec *vec = &iov[i];
 
-		C2_LOG("iov: base %p len %lu pos %lu", vec->iov_base,
+		C2_LOG(C2_DEBUG, "iov: base %p len %lu pos %lu", vec->iov_base,
 					(unsigned long)vec->iov_len,
 					(unsigned long)iocb->ki_pos);
 
 		result = c2t1fs_read_write(iocb->ki_filp, vec->iov_base,
 					   vec->iov_len, &iocb->ki_pos, WRITE);
 
-		C2_LOG("result: %ld", (long)result);
+		C2_LOG(C2_DEBUG, "result: %ld", (long)result);
 		if (result <= 0)
 			break;
 
@@ -198,7 +199,7 @@ out:
 
 static bool address_is_page_aligned(unsigned long addr)
 {
-	C2_LOG("addr %lx mask %lx", addr, PAGE_CACHE_SIZE - 1);
+	C2_LOG(C2_DEBUG, "addr %lx mask %lx", addr, PAGE_CACHE_SIZE - 1);
 	return (addr & (PAGE_CACHE_SIZE - 1)) == 0;
 }
 
@@ -228,8 +229,8 @@ static bool io_req_spans_full_stripe(struct c2t1fs_inode *ci,
 	 * multiple of stripe width.
 	 * Buffer address must be page aligned.
 	 */
-	C2_LOG("count = %lu", (unsigned long)count);
-	C2_LOG("width %lu count %% width %lu pos %% width %lu",
+	C2_LOG(C2_DEBUG, "count = %lu", (unsigned long)count);
+	C2_LOG(C2_DEBUG, "width %lu count %% width %lu pos %% width %lu",
 			(unsigned long)stripe_width,
 			(unsigned long)(count % stripe_width),
 			(unsigned long)(pos % stripe_width));
@@ -272,7 +273,7 @@ static int c2t1fs_pin_memory_area(char          *buf,
 		goto out;
 	}
 
-	C2_LOG("addr 0x%lx off %d nr_pages %d", addr, off, nr_pages);
+	C2_LOG(C2_DEBUG, "addr 0x%lx off %d nr_pages %d", addr, off, nr_pages);
 
 	if (current->mm != NULL && access_ok(rw == READ, addr, count)) {
 
@@ -295,7 +296,7 @@ static int c2t1fs_pin_memory_area(char          *buf,
 	}
 
 	if (nr_pinned != nr_pages) {
-		C2_LOG("Failed: could pin only %d pages out of %d",
+		C2_LOG(C2_ERROR, "Failed: could pin only %d pages out of %d",
 				rc, nr_pages);
 
 		for (i = 0; i < nr_pinned; i++)
@@ -306,7 +307,7 @@ static int c2t1fs_pin_memory_area(char          *buf,
 		goto out;
 	}
 	for (i = 0; i < nr_pages; i++)
-		C2_LOG("Pinned page[0x%p] buf [0x%p] count [%lu]",
+		C2_LOG(C2_DEBUG, "Pinned page[0x%p] buf [0x%p] count [%lu]",
 				pages[i], buf, (unsigned long)count);
 
 	*pinned_pages    = pages;
@@ -353,13 +354,13 @@ static ssize_t c2t1fs_read_write(struct file *file,
 		/* check if io spans beyond file size */
 		if (pos + count > inode->i_size) {
 			count = inode->i_size - pos;
-			C2_LOG("i_size %lu, read truncated to %lu",
+			C2_LOG(C2_DEBUG, "i_size %lu, read truncated to %lu",
 					(unsigned long)inode->i_size,
 					(unsigned long)count);
 		}
 	}
 
-	C2_LOG("%s %lu bytes at pos %lu to %p",
+	C2_LOG(C2_DEBUG, "%s %lu bytes at pos %lu to %p",
 				(char *)(rw == READ ? "Read" : "Write"),
 				(unsigned long)count,
 				(unsigned long)pos, buf);
@@ -446,7 +447,7 @@ static void c2t1fs_buf_init(struct c2t1fs_buf *buf,
 			    c2_bindex_t        off,
 			    enum c2_pdclust_unit_type unit_type)
 {
-	C2_LOG("buf %p addr %p len %lu", buf, addr, (unsigned long)len);
+	C2_LOG(C2_DEBUG, "buf %p addr %p len %lu", buf, addr, (unsigned long)len);
 
 	c2_buf_init(&buf->cb_buf, addr, len);
 	bufs_tlink_init(buf);
@@ -580,7 +581,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 	unit_size = c2_pdclust_unit_size(pl);
 
-	C2_LOG("Unit size: %lu", (unsigned long)unit_size);
+	C2_LOG(C2_DEBUG, "Unit size: %lu", (unsigned long)unit_size);
 
 	/* unit_size should be multiple of PAGE_CACHE_SIZE */
 	C2_ASSERT((unit_size & (PAGE_CACHE_SIZE - 1)) == 0);
@@ -607,7 +608,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 			unit_type = c2_pdclust_unit_classify(pl, unit);
 			if (unit_type == C2_PUT_SPARE) {
 				/* No need to read/write spare units */
-				C2_LOG("Skipped spare unit %d", unit);
+				C2_LOG(C2_DEBUG, "Skipped spare unit %d", unit);
 				continue;
 			}
 
@@ -615,7 +616,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 
 			c2_pdclust_instance_map(pi, &src_addr, &tgt_addr);
 
-			C2_LOG("src [%lu:%lu] maps to tgt [0:%lu]",
+			C2_LOG(C2_DEBUG, "src [%lu:%lu] maps to tgt [0:%lu]",
 					(unsigned long)src_addr.sa_group,
 					(unsigned long)src_addr.sa_unit,
 					(unsigned long)tgt_addr.ta_obj);
@@ -674,7 +675,8 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 				 */
 				if (parity_index == nr_parity_units - 1 &&
 						rw == WRITE) {
-					C2_LOG("Compute parity of grp %lu",
+					C2_LOG(C2_DEBUG, "Compute parity of"
+							 " grp %lu",
 					     (unsigned long)src_addr.sa_group);
 					c2_parity_math_calculate(&pi->pi_math,
 								 data_bufs,
@@ -724,7 +726,7 @@ static struct page *addr_to_page(void *addr)
 	};
 
 	C2_ENTRY();
-	C2_LOG("addr: %p", addr);
+	C2_LOG(C2_DEBUG, "addr: %p", addr);
 
 	ul_addr = (unsigned long)addr;
 	C2_ASSERT(address_is_page_aligned(ul_addr));
@@ -740,7 +742,8 @@ static struct page *addr_to_page(void *addr)
 		up_read(&current->mm->mmap_sem);
 
 		if (nr_pinned <= 0) {
-			C2_LOG("get_user_pages() failed: [%d]", nr_pinned);
+			C2_LOG(C2_WARN, "get_user_pages() failed: [%d]",
+					nr_pinned);
 			pg = NULL;
 		} else {
 			/*
@@ -802,8 +805,8 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 					max_buf_size / PAGE_CACHE_SIZE);
 		nr_segments = min_type(int, nr_segments, remaining_segments);
 
-		C2_LOG("max_nr_seg [%d] remaining [%d]", max_nr_segments,
-							 remaining_segments);
+		C2_LOG(C2_DEBUG, "max_nr_seg [%d] remaining [%d]",
+					max_nr_segments, remaining_segments);
 
 		rbuf = NULL;
 		rc = c2_rpc_bulk_buf_add(rbulk, nr_segments, ndom, NULL, &rbuf);
@@ -825,7 +828,7 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 
 	C2_ALLOC_PTR(iofop);
 	if (iofop == NULL) {
-		C2_LOG("iofop allocation failed");
+		C2_LOG(C2_ERROR, "iofop allocation failed");
 		rc = -ENOMEM;
 		goto out;
 	}
@@ -834,7 +837,7 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 
 	rc = c2_io_fop_init(iofop, fopt);
 	if (rc != 0) {
-		C2_LOG("io_fop_init() failed rc [%d]", rc);
+		C2_LOG(C2_ERROR, "io_fop_init() failed rc [%d]", rc);
 		goto iofop_free;
 	}
 
@@ -868,7 +871,8 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 				nr_pages_per_buf;
 	C2_ASSERT(remaining_segments > 0);
 
-	C2_LOG("bufsize [%lu] pg/buf [%d] nr_bufs [%d] rem_segments [%d]",
+	C2_LOG(C2_DEBUG, "bufsize [%lu] pg/buf [%d] nr_bufs [%d]"
+			 " rem_segments [%d]",
 			(unsigned long)buf_size, nr_pages_per_buf,
 			(int)bufs_tlist_length(&rw_desc->rd_buf_list),
 			remaining_segments);
@@ -909,7 +913,7 @@ retry:
 				rc = add_rpc_buffer();
 				if (rc != 0)
 					goto buflist_empty;
-				C2_LOG("rpc buffer added");
+				C2_LOG(C2_DEBUG, "rpc buffer added");
 				goto retry;
 			}
 
@@ -923,8 +927,8 @@ retry:
 			seg++;
 			remaining_segments--;
 
-			C2_LOG("Added: pg [0x%p] addr [0x%p] off [%lu] "
-				 "count [%lu] seg [%d] remaining [%d]",
+			C2_LOG(C2_DEBUG, "Added: pg [0x%p] addr [0x%p] off [%lu]"
+				 " count [%lu] seg [%d] remaining [%d]",
 				 page, addr,
 				(unsigned long)offset_in_stob,
 				(unsigned long)count, seg, remaining_segments);
@@ -936,7 +940,7 @@ retry:
 
         rc = c2_io_fop_prepare(&iofop->if_fop);
 	if (rc != 0) {
-		C2_LOG("io_fop_prepare() failed: rc [%d]", rc);
+		C2_LOG(C2_ERROR, "io_fop_prepare() failed: rc [%d]", rc);
 		goto buflist_empty;
 	}
 
@@ -1008,23 +1012,23 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 
 	C2_ENTRY();
 
-	C2_LOG("Operation: %s", (char *)(rw == READ ? "READ" : "WRITE"));
+	C2_LOG(C2_DEBUG, "Operation: %s", (char *)(rw == READ ? "READ" : "WRITE"));
 
 	if (rwd_tlist_is_empty(rw_desc_list))
-		C2_LOG("rw_desc_list is empty");
+		C2_LOG(C2_DEBUG, "rw_desc_list is empty");
 
 	c2_tl_for(rwd, rw_desc_list, rw_desc) {
 
-		C2_LOG("fid: [%lu:%lu] count: %lu",
+		C2_LOG(C2_DEBUG, "fid: [%lu:%lu] count: %lu",
 				(unsigned long)rw_desc->rd_fid.f_container,
 				(unsigned long)rw_desc->rd_fid.f_key,
 				(unsigned long)rw_desc->rd_count);
 
-		C2_LOG("Buf list");
+		C2_LOG(C2_DEBUG, "Buf list");
 
 		c2_tl_for(bufs, &rw_desc->rd_buf_list, buf) {
 
-			C2_LOG("addr %p len %lu type %s",
+			C2_LOG(C2_DEBUG, "addr %p len %lu type %s",
 				buf->cb_buf.b_addr,
 				(unsigned long)buf->cb_buf.b_nob,
 				(char *)(
@@ -1041,7 +1045,8 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 		rc = rw_desc_to_io_fop(rw_desc, rw, &iofop);
 		if (rc != 0) {
 			/* For now, if one io fails, fail entire IO. */
-			C2_LOG("rw_desc_to_io_fop() failed: rc [%d]", rc);
+			C2_LOG(C2_ERROR, "rw_desc_to_io_fop() failed: rc [%d]",
+					rc);
 			C2_LEAVE("%d", rc);
 			return rc;
 		}
@@ -1049,7 +1054,8 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 		rc = io_fop_do_sync_io(iofop, rw_desc->rd_session);
 		if (rc != 0) {
 			/* For now, if one io fails, fail entire IO. */
-			C2_LOG("io_fop_do_sync_io() failed: rc [%d]", rc);
+			C2_LOG(C2_ERROR, "io_fop_do_sync_io() failed: rc [%d]",
+					rc);
 			C2_LEAVE("%d", rc);
 			return rc;
 		}

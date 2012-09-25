@@ -292,7 +292,7 @@ const struct c2_test_suite conn_ut = {
 		{ "conn-terminate", conn_terminate_test},
 		{ "conn-terminate_reply", conn_terminate_reply_test},
 		{ "conn-init-fail", conn_init_fail_test},
-		{ "conn-establish-fail", conn_establish_failtest},
+		{ "conn-establish-fail", conn_establish_fail_test},
 		{ "conn-terminate-fail", conn_terminate_fail_test},
 		{ "conn-establish-reply-fail", conn_establish_reply_fail_test},
 		{ "conn-terminate_reply-fail", conn_terminate_reply_fail_test},
