@@ -18,6 +18,8 @@
  * Original creation date: 07/06/2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LIB_BYTEORDER_H__
 #define __COLIBRI_LIB_BYTEORDER_H__
 

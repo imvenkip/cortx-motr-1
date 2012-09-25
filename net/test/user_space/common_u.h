@@ -18,6 +18,8 @@
  * Original creation date: 09/15/2012
  */
 
+#pragma once
+
 #include <stdio.h>		/* printf */
 
 #include "lib/time.h"		/* c2_time_t */
