@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author Maxim Medved <max_medved@xyratex.com>
+ * Original author: Maxim Medved <max_medved@xyratex.com>
  * Original creation date: 09/03/2012
  */
 
