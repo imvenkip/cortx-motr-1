@@ -167,12 +167,12 @@ static void status_data_reset(struct c2_net_test_cmd_status_data *sd)
 
 static c2_time_t time_min(c2_time_t t1, c2_time_t t2)
 {
-	return c2_time_after(t1, t2) ? t2 : t1;
+	return t1 < t2 ? t1 : t2;
 }
 
 static c2_time_t time_max(c2_time_t t1, c2_time_t t2)
 {
-	return c2_time_after(t1, t2) ? t1 : t2;
+	return t1 > t2 ? t1 : t2;
 }
 
 static void status_data_add(struct c2_net_test_cmd_status_data *sd,
@@ -281,8 +281,7 @@ size_t c2_net_test_console_cmd(struct c2_net_test_console_ctx *ctx,
 		status_data_reset(sd);
 	}
 	deadline = c2_time_add(c2_time_now(), cfg->ntcc_cmd_recv_timeout);
-	while (!c2_time_after(c2_time_now(), deadline) &&
-	       rcvd_nr < nodes->ntsl_nr) {
+	while (deadline <= c2_time_now() && rcvd_nr < nodes->ntsl_nr) {
 		rc = c2_net_test_commands_recv(cmd_ctx, &cmd, deadline);
 		/* deadline reached */
 		if (rc == -ETIMEDOUT)

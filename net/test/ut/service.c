@@ -19,6 +19,7 @@
  */
 
 #include "lib/ut.h"			/* C2_UT_ASSERT */
+#include "lib/arith.h"			/* c2_rnd */
 #include "lib/misc.h"			/* C2_SET0 */
 
 #include "net/test/service.h"

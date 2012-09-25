@@ -280,14 +280,14 @@ c2_time_t c2_net_test_mps_add(struct c2_net_test_mps *mps,
 
 	C2_PRE(mps != NULL);
 	C2_PRE(messages >= mps->ntmps_last_nr);
-	C2_PRE(c2_time_after_eq(timestamp, mps->ntmps_last_time));
+	C2_PRE(timestamp >= mps->ntmps_last_time);
 
 	messages_delta = messages - mps->ntmps_last_nr;
 	time_delta     = c2_time_sub(timestamp, mps->ntmps_last_time);
 	time_next      = c2_time_add(mps->ntmps_last_time,
 				     mps->ntmps_time_interval);
 
-	if (!c2_time_after_eq(timestamp, time_next))
+	if (timestamp < time_next)
 		return time_next;
 
 	mps->ntmps_last_nr = messages;

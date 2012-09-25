@@ -450,7 +450,7 @@ static bool node_ping_client_recv_cb(struct node_ping_ctx *ctx,
 	if (!decoded)
 		goto bad_buf;
 	/* check time in received buffer */
-	if (!c2_time_after_eq(bs->bs_time, ts.ntt_time))
+	if (bs->bs_time < ts.ntt_time)
 		goto bad_buf;
 	/* search sequence number */
 	buf_index_send = node_ping_client_search_seq(ctx, server_index,
@@ -557,7 +557,7 @@ static void node_ping_to_check(struct node_ping_ctx *ctx)
 
 	while ((buf_index = node_ping_to_peek(ctx)) != -1) {
 		bs = &ctx->npc_buf_state[buf_index];
-		if (!c2_time_after(now, bs->bs_deadline))
+		if (bs->bs_deadline > now)
 			break;
 		/* message timed out */
 		node_ping_to_del(ctx, buf_index);

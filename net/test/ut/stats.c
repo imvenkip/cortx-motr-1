@@ -288,8 +288,8 @@ void c2_net_test_timestamp_ut(void)
 	c2_net_test_timestamp_init(&ts, TIMESTAMP_SEQ);
 	after = c2_time_now();
 
-	C2_UT_ASSERT(c2_time_after_eq(ts.ntt_time, before));
-	C2_UT_ASSERT(c2_time_after_eq(after, ts.ntt_time));
+	C2_UT_ASSERT(ts.ntt_time >= before);
+	C2_UT_ASSERT(after >= ts.ntt_time);
 	C2_UT_ASSERT(ts.ntt_magic == C2_NET_TEST_TIMESTAMP_MAGIC);
 	C2_UT_ASSERT(ts.ntt_seq == TIMESTAMP_SEQ);
 
@@ -300,8 +300,7 @@ void c2_net_test_timestamp_ut(void)
 	len = c2_net_test_timestamp_serialize(C2_NET_TEST_DESERIALIZE,
 					      &ts1, &bv, 0);
 	C2_UT_ASSERT(serialized_len = len);
-	C2_UT_ASSERT(c2_time_after_eq(ts.ntt_time, ts1.ntt_time) &&
-		     c2_time_after_eq(ts1.ntt_time, ts.ntt_time));
+	C2_UT_ASSERT(ts.ntt_time == ts1.ntt_time);
 	C2_UT_ASSERT(ts1.ntt_magic == ts.ntt_magic);
 	C2_UT_ASSERT(ts1.ntt_seq == ts.ntt_seq);
 }
