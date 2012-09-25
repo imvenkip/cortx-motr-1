@@ -124,12 +124,12 @@ lib_HEADERS                     := vec.h vec_xc.h buf.h buf_xc.h
 lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c   \
                                    kthread.c semaphore.c processor.c kvec.c    \
                                    ktrace.c finject_init.c ut.c main.c 	       \
-				   kcookie.c misc.c
+				   kcookie.c
 
 lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c     \
                                    mutex.c queue.c refs.c tlist.c time.c       \
                                    vec.c zerovec.c thread.c bob.c trace.c      \
-                                   memory.c finject.c buf.c cookie.c
+                                   memory.c finject.c buf.c cookie.c misc.c
 
 net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c     \
                                    tm.c net_otw_types_ff.c tm_provision.c
