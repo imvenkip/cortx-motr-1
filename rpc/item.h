@@ -171,6 +171,7 @@ bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item);
 
 bool c2_rpc_item_is_unsolicited(const struct c2_rpc_item *item);
 
+c2_bcount_t c2_rpc_item_onwire_header_size(void);
 
 c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item);
 

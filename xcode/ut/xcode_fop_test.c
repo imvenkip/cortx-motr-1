@@ -26,7 +26,6 @@
 #include "lib/ut.h"
 #include "colibri/init.h"
 #include "fop/fop.h"
-#include "xcode/bufvec_xcode.h"
 #include "xcode/ut/xcode_fops_ff.h"
 
 #include "rpc/rpc_opcodes.h"
@@ -125,7 +124,8 @@ static void fop_free(struct c2_fop *fop)
 		c2_free(ccf1->ft_arr.fta_data[i].da_pair);
 
 	c2_free(ccf1->ft_arr.fta_data);
-	c2_fop_free(fop);
+	c2_free(c2_fop_data(fop));
+	c2_free(fop);
 }
 
 /*
@@ -265,11 +265,16 @@ static void test_fop_encdec(void)
 	C2_UT_ASSERT(rc == 0);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
 	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
-
-	/* Allocate a fop for decode. The payload from the bufvec will be
-	   decoded into this fop. */
-	fd1 = c2_fop_alloc(&c2_fop_test_fopt, NULL);
+	/*
+	   Allocate a fop for decode. The payload from the bufvec will be
+	   decoded into this fop.
+	   Since this is a decode fop we do not allocate fop->f_data.fd_data
+	   since this allocation is done by xcode.
+	   For more, see comments in c2_fop_item_type_default_decode()
+	 */
+	C2_ALLOC_PTR(fd1);
 	C2_UT_ASSERT(fd1 != NULL);
+	c2_fop_init(fd1, &c2_fop_test_fopt, NULL);
 	c2_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	cur_addr = c2_bufvec_cursor_addr(&cur);
 	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
@@ -280,13 +285,9 @@ static void test_fop_encdec(void)
 	xctx1.xcx_alloc = c2_xcode_alloc;
 	xctx1.xcx_buf   = cur;
 	rc = c2_xcode_decode(&xctx1);
-	if (rc == 0) {
-		if (fd1->f_data.fd_data != NULL)
-			c2_free(fd1->f_data.fd_data);
-		fd1->f_data.fd_data =
-			xctx1.xcx_it.xcu_stack[0].s_obj.xo_ptr;
-	}
 	C2_UT_ASSERT(rc == 0);
+	fd1->f_data.fd_data = c2_xcode_ctx_to_inmem_obj(&xctx1);
+
 	cur_addr = c2_bufvec_cursor_addr(&cur);
 	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
 

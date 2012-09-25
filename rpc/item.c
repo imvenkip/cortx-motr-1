@@ -29,6 +29,7 @@
 #include "rpc/rpc2.h"
 #include "rpc/item.h"
 #include "rpc/rpc_onwire.h" /* ITEM_ONWIRE_HEADER_SIZE */
+#include "rpc/rpc_onwire_xc.h" /* c2_rpc_onwire_slot_ref_xc */
 #include "rpc/packet.h" /* packet_item_tlink_init() */
 /**
    @addtogroup rpc_layer_core
@@ -157,9 +158,9 @@ void c2_rpc_item_init(struct c2_rpc_item *item)
 
 	sref = &item->ri_slot_refs[0];
 
-	sref->sr_slot_id    = SLOT_ID_INVALID;
-	sref->sr_sender_id  = SENDER_ID_INVALID;
-	sref->sr_session_id = SESSION_ID_INVALID;
+	sref->sr_ow.osr_slot_id    = SLOT_ID_INVALID;
+	sref->sr_ow.osr_sender_id  = SENDER_ID_INVALID;
+	sref->sr_ow.osr_session_id = SESSION_ID_INVALID;
 
 	slot_item_tlink_init(item);
 
@@ -178,17 +179,17 @@ C2_EXPORTED(c2_rpc_item_init);
 
 void c2_rpc_item_fini(struct c2_rpc_item *item)
 {
-	struct c2_rpc_slot_ref	*sref;
+	struct c2_rpc_slot_ref *sref;
 
 	C2_ENTRY("item: %p", item);
 	c2_chan_fini(&item->ri_chan);
 
 	sref = &item->ri_slot_refs[0];
-	sref->sr_slot_id = SLOT_ID_INVALID;
+	sref->sr_ow.osr_slot_id = SLOT_ID_INVALID;
 	slot_item_tlink_fini(item);
 
-	sref->sr_sender_id = SENDER_ID_INVALID;
-	sref->sr_session_id = SESSION_ID_INVALID;
+	sref->sr_ow.osr_sender_id  = SENDER_ID_INVALID;
+	sref->sr_ow.osr_session_id = SESSION_ID_INVALID;
 
         c2_list_link_fini(&item->ri_unbound_link);
 
@@ -201,6 +202,22 @@ void c2_rpc_item_fini(struct c2_rpc_item *item)
 }
 C2_EXPORTED(c2_rpc_item_fini);
 
+c2_bcount_t c2_rpc_item_onwire_header_size(void)
+{
+	struct c2_rpc_item_onwire_header ioh;
+	struct c2_xcode_ctx              ctx;
+	static c2_bcount_t               item_header_size;
+
+	if (item_header_size == 0) {
+		c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){
+					c2_rpc_item_onwire_header_xc,
+					&ioh });
+		item_header_size = c2_xcode_length(&ctx);
+	}
+
+	return item_header_size;
+}
+
 c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item)
 {
 	C2_PRE(item->ri_type != NULL &&
@@ -208,7 +225,7 @@ c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item)
 	       item->ri_type->rit_ops->rito_payload_size != NULL);
 
 	return  item->ri_type->rit_ops->rito_payload_size(item) +
-		ITEM_ONWIRE_HEADER_SIZE;
+		c2_rpc_item_onwire_header_size();
 }
 
 bool c2_rpc_item_is_update(const struct c2_rpc_item *item)

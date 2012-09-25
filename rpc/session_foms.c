@@ -191,7 +191,7 @@ int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 	c2_rpc_machine_lock(machine);
 
 	rc = c2_rpc_rcv_conn_init(conn, ctx->cec_sender_ep, machine,
-				  &item->ri_slot_refs[0].sr_uuid);
+				  &item->ri_slot_refs[0].sr_ow.osr_uuid);
 	/* we won't need ctx->cec_sender_ep after this point */
 	c2_net_end_point_put(ctx->cec_sender_ep);
 	if (rc == 0) {
@@ -206,7 +206,8 @@ int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 			c2_rpc_slot_item_add_internal(slot, item);
 
 			/* See [2] at the end of function */
-			item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
+			item->ri_slot_refs[0].sr_ow.osr_sender_id =
+				SENDER_ID_INVALID;
 
 			C2_ASSERT(conn_state(conn) == C2_RPC_CONN_ACTIVE);
 			C2_ASSERT(c2_rpc_conn_invariant(conn));
@@ -565,4 +566,3 @@ int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
  *  scroll-step: 1
  *  End:
  */
-

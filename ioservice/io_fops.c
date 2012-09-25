@@ -30,7 +30,6 @@
 #include "rpc/item.h"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpc2.h"
-#include "rpc/rpc_onwire.h"
 #include "ioservice/io_fops.h"
 #include "fop/fom_generic.h"
 #include "ioservice/io_fops_ff.h"
@@ -1396,11 +1395,6 @@ static void cob_rpcitem_free(struct c2_rpc_item *item)
 	fop = c2_rpc_item_to_fop(item);
 	C2_ASSERT(c2_is_cob_create_delete_fop(fop));
 
-	if (c2_is_cob_create_fop(fop)) {
-		struct c2_fop_cob_create *cc;
-		cc = c2_fop_data(fop);
-		c2_free(cc->cc_cobname.cn_name);
-	}
 	c2_fop_free(fop);
 }
 
@@ -1438,7 +1432,6 @@ static void io_item_replied(struct c2_rpc_item *item)
 		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
 			    c2_addb_trace,
 			    "Reply received for coalesced io fops.");
-		c2_io_fop_destroy(fop);
 		ritem = rpcitem_tlist_head(&item->ri_compound_items);
 		rpcitem_tlist_del(ritem);
 		bkpfop = c2_rpc_item_to_fop(ritem);
@@ -1546,7 +1539,6 @@ static void io_item_free_internal(struct c2_rpc_item *item)
 
 	fop = c2_rpc_item_to_fop(item);
 	iofop = container_of(fop, struct c2_io_fop, if_fop);
-	c2_io_fop_destroy(&iofop->if_fop);
 	c2_io_fop_fini(iofop);
 	c2_free(iofop);
 }

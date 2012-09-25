@@ -176,7 +176,8 @@ static void **allocp(struct c2_xcode_cursor *it, size_t *out)
 		slot = &obj->xo_ptr;
 	} else {
 		if (pt->xct_aggr == C2_XA_SEQUENCE &&
-		    prev->s_fieldno == 1 && prev->s_elno == 0)
+		    prev->s_fieldno == 1 && prev->s_elno == 0 &&
+		    c2_xcode_tag(par) > 0)
 			/* allocate array */
 			nob = c2_xcode_tag(par) * size;
 		else if (pt->xct_child[prev->s_fieldno].xf_type == &C2_XT_OPAQUE)
@@ -478,6 +479,11 @@ void c2_xcode_bob_type_init(struct c2_bob_type *bt,
 	bt->bt_name         = xt->xct_name;
 	bt->bt_magix        = magix;
 	bt->bt_magix_offset = mf->xf_offset;
+}
+
+void *c2_xcode_ctx_to_inmem_obj(const struct c2_xcode_ctx *ctx)
+{
+	return ctx->xcx_it.xcu_stack[0].s_obj.xo_ptr;
 }
 
 const struct c2_xcode_type C2_XT_VOID = {

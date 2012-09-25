@@ -31,7 +31,6 @@
 #include "rpc/rpc2.h"
 #include "rpc/rpc_opcodes.h"    /* C2_REQH_ERROR_REPLY_OPCODE */
 #include "reqh/reqh.h"
-#include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
 #include "fop/fom_generic.h"
 
 /**

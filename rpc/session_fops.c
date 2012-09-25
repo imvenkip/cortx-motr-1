@@ -31,7 +31,8 @@
 #include "rpc/session_fops.h"
 #include "rpc/session_foms.h"
 #include "rpc/session_internal.h"
-#include "rpc/rpc_onwire.h" /* item_encdec() */
+#include "dtm/verno_xc.h" /* c2_xc_verno_init */
+#include "rpc/rpc_onwire_xc.h" /* c2_xc_rpc_onwire_init */
 
 /**
    @addtogroup rpc_session
@@ -140,6 +141,8 @@ void c2_rpc_session_fop_fini(void)
 	c2_fop_type_fini(&c2_rpc_fop_conn_terminate_fopt);
 	c2_fop_type_fini(&c2_rpc_fop_conn_establish_fopt);
 	c2_xc_session_fini();
+	c2_xc_rpc_onwire_fini();
+	c2_xc_verno_fini();
 }
 
 extern struct c2_fom_type_ops c2_rpc_fom_conn_establish_type_ops;
@@ -149,6 +152,8 @@ extern struct c2_fom_type_ops c2_rpc_fom_session_terminate_type_ops;
 
 int c2_rpc_session_fop_init(void)
 {
+	c2_xc_verno_init();
+	c2_xc_rpc_onwire_init();
 	c2_xc_session_init();
 	return  C2_FOP_TYPE_INIT(&c2_rpc_fop_conn_establish_fopt,
 			 .name      = "Rpc conn establish",
@@ -253,4 +258,3 @@ bool c2_rpc_item_is_control_msg(const struct c2_rpc_item *item)
  *  scroll-step: 1
  *  End:
  */
-

@@ -26,8 +26,9 @@
 #define __COLIBRI_RPC_SESSION_INT_H__
 
 #include "cob/cob.h"
-#include "rpc/session.h"
 #include "dtm/verno.h"
+#include "rpc/session.h"
+#include "rpc/rpc_onwire.h" /* c2_rpc_onwire_slot_ref */
 
 /**
    @addtogroup rpc_session
@@ -346,46 +347,16 @@ void conn_terminate_reply_sent(struct c2_rpc_conn *conn);
  */
 struct c2_rpc_slot_ref {
 	/** sr_slot and sr_item identify two ends of association */
-	struct c2_rpc_slot        *sr_slot;
+	struct c2_rpc_slot           *sr_slot;
 
-	struct c2_rpc_item        *sr_item;
+	struct c2_rpc_item           *sr_item;
 
-	struct c2_rpc_sender_uuid  sr_uuid;
-
-	uint64_t                   sr_sender_id;
-
-	uint64_t                   sr_session_id;
-
-	/** Numeric id of slot. Used when encoding and decoding rpc item to
-	    and from wire-format
-	 */
-	uint32_t                   sr_slot_id;
-
-	/** If slot has verno matching sr_verno, then only the item can be
-	    APPLIED to the slot
-	 */
-	struct c2_verno            sr_verno;
-
-	/** In each reply item, receiver reports to sender, verno of item
-	    whose effects have reached persistent storage, using this field
-	 */
-	struct c2_verno            sr_last_persistent_verno;
-
-	/** Inform the sender about current slot version */
-	struct c2_verno            sr_last_seen_verno;
-
-	/** An identifier that uniquely identifies item within
-	    slot->item_list.
-        */
-	uint64_t                   sr_xid;
-
-	/** Generation number of slot */
-	uint64_t                   sr_slot_gen;
+	struct c2_rpc_onwire_slot_ref sr_ow;
 
 	/** Anchor to put item on c2_rpc_slot::sl_item_list
 	    List descriptor: slot_item
 	 */
-	struct c2_tlink            sr_link;
+	struct c2_tlink               sr_link;
 };
 
 /**

@@ -23,7 +23,7 @@
 #ifndef __COLIBRI_FOP_FOP_ONWIRE_H__
 #define __COLIBRI_FOP_FOP_ONWIRE_H__
 
-#include "xcode/bufvec_xcode.h"
+#include "rpc/rpc_helpers.h"
 
 /**
    @addtogroup fop

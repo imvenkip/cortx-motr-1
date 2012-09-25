@@ -34,11 +34,13 @@
 #include "lib/finject.h"       /* C2_FI_ENABLED */
 #include "addb/addb.h"
 #include "colibri/magic.h"
+#include "db/db.h"
 #include "net/net.h"
 #include "net/buffer_pool.h"   /* c2_net_buffer_pool_[lock|unlock] */
 #include "rpc/rpc_machine.h"
 #include "rpc/formation2.h"    /* c2_rpc_frm_run_formation */
-#include "rpc/rpc_onwire.h"    /* c2_rpc_decode */
+#include "rpc/item.h"
+#include "rpc/session_internal.h"
 #include "rpc/service.h"       /* c2_rpc_services_tlist_.* */
 #include "rpc/packet.h"        /* c2_rpc */
 #include "rpc/rpc2.h"          /* c2_rpc_max_msg_size, c2_rpc_max_recv_msgs */

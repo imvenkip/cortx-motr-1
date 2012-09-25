@@ -60,7 +60,6 @@ extern const struct c2_test_suite snsrepair_xform_ut;
 extern const struct c2_test_suite stobio_ut;
 extern const struct c2_test_suite udb_ut;
 extern const struct c2_test_suite xcode_bufvec_fop_ut;
-extern const struct c2_test_suite xcode_bufvec_ut;
 extern const struct c2_test_suite xcode_ff2c_ut;
 extern const struct c2_test_suite xcode_ut;
 extern const struct c2_test_suite reqh_ut;
@@ -123,7 +122,6 @@ void add_uts(void)
 	c2_ut_add(&stobio_ut);
 	c2_ut_add(&udb_ut);
 	c2_ut_add(&xcode_bufvec_fop_ut);
-	c2_ut_add(&xcode_bufvec_ut);
 	c2_ut_add(&xcode_ut);
 	c2_ut_add(&xcode_ff2c_ut);
 	/* These tests have redirection of messages. */

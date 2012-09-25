@@ -9,12 +9,14 @@ MAKEFLAGS = $(make_verbose)
 SUBDIRS_BASE = m4 doc man patches
 
 # xcode/ff2c must be built first, because it is used by other modules to compile
-# their .ff files. net/ and addb/addbff must be built next, because their .ff
-# files are used by other modules. The rest can be built in an arbitrary order.
+# their .ff files. dtm/, addb/addbff/ and net/ must be built next, because
+# their .ff files are used by other modules. The rest can be built in an
+# arbitrary order.
 # Keep the rest sorted lexicographically.
 
 SUBDIRS_LIBS = \
                xcode/ff2c \
+               dtm \
                addb/addbff \
                net \
                \
@@ -28,7 +30,6 @@ SUBDIRS_LIBS = \
                console \
                db \
                desim \
-               dtm \
                fid \
                fol \
                fop \

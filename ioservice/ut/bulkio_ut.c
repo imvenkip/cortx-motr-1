@@ -31,6 +31,8 @@
 #include "lib/finject.h"
 #include "fop/fom_generic.c"
 
+size_t allocated;
+
 static void bulkio_init();
 static void bulkio_fini();
 
@@ -1533,6 +1535,7 @@ static void bulkio_init(void)
 	const char *caddr = "0@lo:12345:34:*";
 	const char *saddr = "0@lo:12345:34:1";
 
+	allocated = c2_allocated();
 	C2_ALLOC_PTR(bp);
 	C2_ASSERT(bp != NULL);
 	bulkio_params_init(bp);
@@ -1554,6 +1557,8 @@ static void bulkio_fini(void)
 	bulkio_server_stop(bp->bp_sctx);
 	bulkio_params_fini(bp);
 	c2_free(bp);
+
+	C2_UT_ASSERT(allocated = c2_allocated());
 }
 
 /*
