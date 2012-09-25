@@ -24,8 +24,6 @@
 #ifndef __COLIBRI_IOSERVICE_IO_FOPS_H__
 #define __COLIBRI_IOSERVICE_IO_FOPS_H__
 
-#include "fop/fop_base.h"
-#include "fop/fop_format.h"
 #include "lib/list.h"
 #include "fop/fop.h"
 #include "rpc/rpc2.h"
@@ -154,13 +152,6 @@
  */
 
 /**
-   A magic constant to check sanity of struct c2_io_fop.
- */
-enum {
-	C2_IO_FOP_MAGIC = 0x34832752309bdfeaULL,
-};
-
-/**
    This data structure is used to associate an io fop with its
    rpc bulk data. It abstracts the c2_net_buffer and net layer APIs.
    Client side implementations use this structure to represent
@@ -170,6 +161,7 @@ enum {
 struct c2_io_fop {
 	/** Inline fop for a generic IO fop. */
 	struct c2_fop		if_fop;
+	int                     if_bulk_inited;
 	/** Rpc bulk structure containing zero vector for io fop. */
 	struct c2_rpc_bulk	if_rbulk;
 	/** Magic constant for IO fop. */
@@ -235,18 +227,6 @@ struct c2_io_ioseg;
 int c2_ioservice_fop_init(void);
 void c2_ioservice_fop_fini(void);
 
-/**
- * FOP definitions and corresponding fop type formats
- * exported by ioservice.
- */
-extern struct c2_fop_type_format c2_fop_cob_writev_tfmt;
-extern struct c2_fop_type_format c2_fop_cob_readv_tfmt;
-extern struct c2_fop_type_format c2_fop_cob_writev_rep_tfmt;
-extern struct c2_fop_type_format c2_fop_cob_readv_rep_tfmt;
-extern struct c2_fop_type_format c2_fop_file_fid_tfmt;
-extern struct c2_fop_type_format c2_fop_cob_rw_tfmt;
-extern struct c2_fop_type_format c2_fop_cob_rw_reply_tfmt;
-
 extern struct c2_fop_type c2_fop_cob_readv_fopt;
 extern struct c2_fop_type c2_fop_cob_writev_fopt;
 extern struct c2_fop_type c2_fop_cob_readv_rep_fopt;
@@ -261,14 +241,12 @@ extern struct c2_fom_type c2_io_fom_cob_rw_fomt;
 struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
 struct c2_fop_cob_rw_reply *io_rw_rep_get(struct c2_fop *fop);
 
-static inline struct c2_net_transfer_mc *io_fop_tm_get(
-		const struct c2_fop *fop)
+static inline struct c2_net_transfer_mc *io_fop_tm_get(const struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 
 	return &fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm;
 }
-
 
 /* __COLIBRI_IOSERVICE_IO_FOPS_H__ */
 #endif

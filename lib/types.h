@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_TYPES_H_
-#define __COLIBRI_LIB_TYPES_H_
+#ifndef __COLIBRI_LIB_TYPES_H__
+#define __COLIBRI_LIB_TYPES_H__
 
 #ifdef __KERNEL__
 #include "linux_kernel/types.h"
@@ -51,7 +51,7 @@ enum {
 };
 
 
-/* __COLIBRI_LIB_TYPES_H_ */
+/* __COLIBRI_LIB_TYPES_H__ */
 #endif
 
 /*

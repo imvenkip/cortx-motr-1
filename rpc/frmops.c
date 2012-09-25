@@ -25,9 +25,12 @@
 #include "lib/errno.h"
 #include "lib/arith.h"
 #include "lib/bob.h"
+#include "colibri/magic.h"
 #include "rpc/formation2.h"
 #include "rpc/packet.h"
 #include "rpc/rpc2.h"
+#include "rpc/rpc_machine.h"
+#include "rpc/item.h"
 #include "net/net.h"
 #include "rpc/session_internal.h"
 
@@ -56,11 +59,6 @@ const struct c2_rpc_frm_ops c2_rpc_frm_default_ops = {
 	.fo_item_bind    = item_bind,
 };
 
-enum {
-	/** value of rpc_buffer::rb_magic */
-	RPC_BUF_MAGIC = 0x5250435f425546, /* RPC_BUF */
-};
-
 /**
    RPC layer's wrapper on c2_net_buffer. rpc_buffer carries one packet at
    a time.
@@ -76,14 +74,14 @@ enum {
 struct rpc_buffer {
 	struct c2_net_buffer   rb_netbuf;
 	struct c2_rpc_packet  *rb_packet;
-	/** see RPC_BUF_MAGIC */
+	/** see C2_RPC_BUF_MAGIC */
 	uint64_t               rb_magic;
 };
 
 static const struct c2_bob_type rpc_buffer_bob_type = {
 	.bt_name         = "rpc_buffer",
 	.bt_magix_offset = C2_MAGIX_OFFSET(struct rpc_buffer, rb_magic),
-	.bt_magix        = RPC_BUF_MAGIC,
+	.bt_magix        = C2_RPC_BUF_MAGIC,
 	.bt_check        = NULL,
 };
 
@@ -136,7 +134,7 @@ static bool packet_ready(struct c2_rpc_packet *p)
 	C2_ALLOC_PTR_ADDB(rpcbuf, &c2_rpc_addb_ctx, &c2_rpc_addb_loc);
 	if (rpcbuf == NULL) {
 		rc = -ENOMEM;
-		C2_LOG("Failed to allocate rpcbuf");
+		C2_LOG(C2_ERROR, "Failed to allocate rpcbuf");
 		goto out;
 	}
 	rc = rpc_buffer_init(rpcbuf, p);
@@ -198,15 +196,14 @@ static int rpc_buffer_init(struct rpc_buffer    *rpcbuf,
 		goto out;
 	}
 	rchan = frm_rchan(p->rp_frm);
-	netbuf->nb_length = p->rp_size;
+	netbuf->nb_length = c2_vec_count(&netbuf->nb_buffer.ov_vec);
 	netbuf->nb_ep     = rchan->rc_destep;
 
 	rpcbuf->rb_packet = p;
 	rpc_buffer_bob_init(rpcbuf);
 
 out:
-	C2_LEAVE("rc: %d", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 /**
@@ -233,18 +230,17 @@ static int net_buffer_allocate(struct c2_net_buffer *netbuf,
 		if (rc == -ENOMEM)
 			C2_ADDB_ADD(&c2_rpc_addb_ctx, &c2_rpc_addb_loc,
 				    c2_addb_oom);
-		C2_LOG("buffer allocation failed");
+		C2_LOG(C2_ERROR, "buffer allocation failed");
 		goto out;
 	}
 
 	rc = c2_net_buffer_register(netbuf, ndom);
 	if (rc != 0) {
-		C2_LOG("net buf registeration failed");
+		C2_LOG(C2_ERROR, "net buf registeration failed");
 		c2_bufvec_free_aligned(&netbuf->nb_buffer, C2_SEG_SHIFT);
 	}
 out:
-	C2_LEAVE("rc: %d", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 /**
@@ -269,16 +265,16 @@ static void bufvec_geometry(struct c2_net_domain *ndom,
 	max_segment_size = c2_net_domain_get_max_buffer_segment_size(ndom);
 	max_nr_segments  = c2_net_domain_get_max_buffer_segments(ndom);
 
-	C2_LOG("max_buf_size: %llu max_segment_size: %llu max_nr_seg: %d",
-			(unsigned long long)max_buf_size,
-			(unsigned long long)max_segment_size,
-			max_nr_segments);
+	C2_LOG(C2_DEBUG,
+		"max_buf_size: %llu max_segment_size: %llu max_nr_seg: %d",
+		(unsigned long long)max_buf_size,
+		(unsigned long long)max_segment_size, max_nr_segments);
 
 	C2_ASSERT(buf_size <= max_buf_size);
 
 	/* encoding routine requires buf_size to be 8 byte aligned */
 	buf_size = c2_align(buf_size, 8);
-	C2_LOG("bufsize: 0x%llx", (unsigned long long)buf_size);
+	C2_LOG(C2_DEBUG, "bufsize: 0x%llx", (unsigned long long)buf_size);
 
 	if (buf_size <= max_segment_size) {
 		segment_size = buf_size;
@@ -331,8 +327,7 @@ static int rpc_buffer_submit(struct rpc_buffer *rpcbuf)
 	machine = rpc_buffer__rmachine(rpcbuf);
 	rc = c2_net_buffer_add(netbuf, &machine->rm_tm);
 
-	C2_LEAVE("rc: %d", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 static void rpc_buffer_fini(struct rpc_buffer *rpcbuf)
@@ -422,6 +417,6 @@ static bool item_bind(struct c2_rpc_item *item)
 
 	result = c2_rpc_session_bind_item(item);
 
-	C2_LEAVE("result: %s", result ? "true" : "false");
+	C2_LEAVE("result: %s", c2_bool_to_str(result));
 	return result;
 }

@@ -18,11 +18,6 @@
  * Original creation date: 06/19/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
-#include "lib/cdefs.h"
 #include "lib/arith.h"
 #include "lib/misc.h"
 #include "lib/memory.h"
@@ -30,30 +25,48 @@
 #include "fop/fop.h"
 #include "net/net.h"
 #include "addb/addb.h"
-
-#ifdef __KERNEL__
-# include "addb/addbff/addb_k.h"
-# define c2_addb_handler NULL
-#else
-
-int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
-
-# include "addb/addbff/addb_u.h"
-#endif
-
-#include "fop/fop_format_def.h"
-#include "addb/addbff/addb.ff"
+#include "addb/addbff/addb_ff.h"
+#include "colibri/magic.h"
 #include "rpc/rpc_opcodes.h"
 
+#ifdef __KERNEL__
+# define c2_addb_handler NULL
+#else
+int c2_addb_handler(struct c2_fop *fop, struct c2_fop_ctx *ctx);
+#endif
+
 static struct c2_fop_type_ops addb_ops = {
-	.fto_execute = NULL,
 };
 
-C2_FOP_TYPE_DECLARE(c2_addb_record, "addb", &addb_ops,
-		    C2_ADDB_RECORD_REQUEST_OPCODE, C2_RPC_ITEM_TYPE_REQUEST);
+struct c2_fop_type c2_addb_record_fopt;
+struct c2_fop_type c2_addb_reply_fopt;
 
-C2_FOP_TYPE_DECLARE(c2_addb_reply,  "addb reply", NULL, C2_ADDB_REPLY_OPCODE,
-		    C2_RPC_ITEM_TYPE_REPLY);
+int c2_addb_fop_init(void)
+{
+	c2_xc_addb_init();
+
+	return  C2_FOP_TYPE_INIT(&c2_addb_record_fopt,
+				 .name      = "addb record",
+				 .opcode    = C2_ADDB_RECORD_REQUEST_OPCODE,
+				 .xt        = c2_addb_record_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
+				 .fop_ops   = &addb_ops) ?:
+		C2_FOP_TYPE_INIT(&c2_addb_reply_fopt,
+				 .name      = "addb reply",
+				 .opcode    = C2_ADDB_REPLY_OPCODE,
+				 .xt        = c2_addb_reply_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY);
+}
+C2_EXPORTED(c2_addb_fop_init);
+
+void c2_addb_fop_fini(void)
+{
+	c2_fop_type_fini(&c2_addb_record_fopt);
+	c2_fop_type_fini(&c2_addb_reply_fopt);
+	c2_xc_addb_fini();
+}
+C2_EXPORTED(c2_addb_fop_fini);
+
 /**
    ADDB record body for function fail event.
 
@@ -103,12 +116,12 @@ int c2_addb_record_header_pack(struct c2_addb_dp *dp,
 			       struct c2_addb_record_header *header,
 			       int size)
 {
-	header->arh_magic1    = ADDB_REC_HEADER_MAGIC1;
+	header->arh_magic1    = C2_ADDB_REC_HEADER_MAGIC1;
 	header->arh_version   = ADDB_REC_HEADER_VERSION;
 	header->arh_len       = size;
 	header->arh_event_id  = dp->ad_ev->ae_id;
 	header->arh_timestamp = c2_time_now();
-	header->arh_magic2    = ADDB_REC_HEADER_MAGIC2;
+	header->arh_magic2    = C2_ADDB_REC_HEADER_MAGIC2;
 
 	return 0;
 };
@@ -254,9 +267,6 @@ int c2_addb_trace_pack(struct c2_addb_dp *dp,
 	return rc;
 }
 
-extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U32_tfmt;
-extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_U64_tfmt;
-extern const struct c2_fop_type_format C2_FOP_TYPE_FORMAT_BYTE_tfmt;
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

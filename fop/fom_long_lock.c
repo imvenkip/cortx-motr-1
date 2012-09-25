@@ -28,13 +28,7 @@
 #include "lib/arith.h"
 #include "lib/misc.h"
 #include "lib/bob.h"
-
-enum {
-        /** Value of c2_long_lock_link::lll_magix */
-        C2_LONG_LOCK_LINK_MAGIX = 0xB055B1E55EDF01D5,
-        /** Value of c2_longlock::l_magix */
-        C2_LONG_LOCK_MAGIX = 0x0B055B1E55EDBA55
-};
+#include "colibri/magic.h"
 
 /**
  * Descriptor of typed list used in c2_long_lock with
@@ -42,13 +36,13 @@ enum {
  */
 C2_TL_DESCR_DEFINE(c2_lll, "list of lock-links in longlock", ,
                    struct c2_long_lock_link, lll_lock_linkage, lll_magix,
-                   C2_LONG_LOCK_LINK_MAGIX, C2_LONG_LOCK_LINK_MAGIX);
+                   C2_FOM_LL_LINK_MAGIC, C2_FOM_LL_LINK_MAGIC);
 
 C2_TL_DEFINE(c2_lll, , struct c2_long_lock_link);
 
 static const struct c2_bob_type long_lock_bob = {
 	.bt_name         = "LONG_LOCK_BOB",
-	.bt_magix        = C2_LONG_LOCK_MAGIX,
+	.bt_magix        = C2_FOM_LL_MAGIC,
 	.bt_magix_offset = offsetof(struct c2_long_lock, l_magix)
 };
 
@@ -168,7 +162,7 @@ static bool lock(struct c2_long_lock *lock, struct c2_long_lock_link *link,
 		fom->fo_transitions_saved = fom->fo_transitions;
 		c2_lll_tlist_add_tail(&lock->l_waiters, link);
 	}
-	fom->fo_phase = next_phase;
+	c2_fom_phase_set(fom, next_phase);
 	C2_POST(lock_invariant(lock));
 	c2_mutex_unlock(&lock->l_lock);
 	return got_lock;

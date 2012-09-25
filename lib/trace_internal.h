@@ -1,7 +1,6 @@
 /* -*- C -*- */
-
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,12 +14,22 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
- * Original creation date: 12/05/2010
+ * Original author: Dmitriy Chumak <dmitriy_chumak@xyratex.com>
+ * Original creation date: 08/30/2012
  */
 
-DEF(c2_nettest, RECORD,
-    _(siq_rc, U32));
+#pragma once
+
+#ifndef __COLIBRI_LIB_TRACE_INTERNAL_H__
+#define __COLIBRI_LIB_TRACE_INTERNAL_H__
+
+int subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask);
+
+enum c2_trace_level parse_trace_level(char *str);
+
+enum c2_trace_print_context parse_trace_print_context(const char *ctx_name);
+
+#endif /* __COLIBRI_LIB_TRACE_INTERNAL_H__ */
 
 /*
  *  Local variables:

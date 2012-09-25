@@ -149,8 +149,8 @@
    c2_clink_del(chan0, &cl0);
 
    // finalise in any order
-   c2_clink_fini(chan0, &cl0);
-   c2_clink_fini(chan1, &cl1);
+   c2_clink_fini(&cl0);
+   c2_clink_fini(&cl1);
    @endcode
 
    @note An interface similar to c2_chan was a part of historical UNIX kernel
@@ -235,7 +235,7 @@ struct c2_chan {
    in the channel the clink is registered with. It is guaranteed that a
    call-back is executed in the same context where event producer declared new
    event. A per-channel mutex c2_chan::ch_guard is held while call-backs are
-   executed.
+   executed (except the case when c2_clink_signal() is used by producer).
 
    @li once a clink is registered with a channel, it is possible to wait until
    an event happens by calling c2_clink_wait().

@@ -19,7 +19,7 @@ colibri_service()
 
 	start() {
 		prepare
-		$prog $prog_args &
+		$prog $prog_args &>>/dev/null &
 		sleep 1
 		status $exec
 		if [ $? -eq 0 ]; then

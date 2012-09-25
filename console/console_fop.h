@@ -14,10 +14,12 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
+ * Original author       : Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
  * Original creation date: 08/03/2011
+ * Revision              : Manish Honap <Manish_Honap@xyratex.com>
+ * Revision date         : 07/31/2012
  */
-/*
+/**
  * Failure fops should be defined by not yet existing "failure" module. For the
  * time being, it makes sense to put them in cm/ or console/. ioservice is not
  * directly responsible for handling failures, it is intersected by copy-machine
@@ -36,21 +38,12 @@
  * Init console FOP
  */
 int c2_console_fop_init(void);
+
 /**
  * Fini console FOP
  */
 void c2_console_fop_fini(void);
 
-
-/**
- * FOP definitions and corresponding fop type formats
- */
-extern struct c2_fop_type_format c2_cons_fop_disk_tfmt;
-extern struct c2_fop_type_format c2_cons_fop_device_tfmt;
-extern struct c2_fop_type_format c2_cons_fop_reply_tfmt;
-extern struct c2_fop_type_format c2_cons_fop_test_tfmt;
-
-extern struct c2_fop_type c2_cons_fop_disk_fopt;
 extern struct c2_fop_type c2_cons_fop_device_fopt;
 extern struct c2_fop_type c2_cons_fop_reply_fopt;
 extern struct c2_fop_type c2_cons_fop_test_fopt;

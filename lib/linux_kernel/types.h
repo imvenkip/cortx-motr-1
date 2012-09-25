@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_LINUX_KERNEL_TYPES_H_
-#define __COLIBRI_LIB_LINUX_KERNEL_TYPES_H_
+#ifndef __COLIBRI_LIB_LINUX_KERNEL_TYPES_H__
+#define __COLIBRI_LIB_LINUX_KERNEL_TYPES_H__
 
 #include <linux/types.h>
 
@@ -29,7 +29,7 @@
 #define UINT64_MAX ((uint64_t)(~((uint64_t) 0)))  /* 0xFFFFFFFFFFFFFFFF */
 #define INT64_MAX ((int64_t)((~(uint64_t)0) >> 1))  /* 0x3FFFFFFFFFFFFFFF */
 
-/* __COLIBRI_LIB_LINUX_KERNEL_TYPES_H_ */
+/* __COLIBRI_LIB_LINUX_KERNEL_TYPES_H__ */
 #endif
 /*
  *  Local variables:

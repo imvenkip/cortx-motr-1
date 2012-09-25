@@ -229,7 +229,15 @@ enum c2_addb_event_id {
 	C2_ADDB_EVENT_COB_MDEXISTS          = 0x21ULL,
 	C2_ADDB_EVENT_COB_MDDELETE          = 0x22ULL,
 
-	C2_ADDB_EVENT_TRACE		    = 0x30ULL
+	C2_ADDB_EVENT_TRACE		    = 0x30ULL,
+
+	C2_ADDB_EVENT_LAYOUT_DECODE_FAIL    = 0x41ULL,
+	C2_ADDB_EVENT_LAYOUT_ENCODE_FAIL    = 0x42ULL,
+	C2_ADDB_EVENT_LAYOUT_LOOKUP_FAIL    = 0x43ULL,
+	C2_ADDB_EVENT_LAYOUT_ADD_FAIL       = 0x44ULL,
+	C2_ADDB_EVENT_LAYOUT_UPDATE_FAIL    = 0x45ULL,
+	C2_ADDB_EVENT_LAYOUT_DELETE_FAIL    = 0x46ULL,
+	C2_ADDB_EVENT_LAYOUT_TILE_CACHE_HIT = 0x47ULL
 };
 
 /**
@@ -254,8 +262,6 @@ struct c2_addb_ev {
 };
 
 enum {
-	ADDB_REC_HEADER_MAGIC1  = 0xADDB0123ADDB4567ULL,
-	ADDB_REC_HEADER_MAGIC2  = 0xADDB89ABADDBCDEFULL,
 	ADDB_REC_HEADER_VERSION = 0x000000001
 };
 
@@ -280,7 +286,7 @@ void c2_addb_ctx_fini(struct c2_addb_ctx *ctx);
 /**
    Low-level interface posting a data-point to the addb.
 
-   Use this if type-safe interface (C2_ADDB_ADD()) is for some reason
+   Use this, if type-safe interface (C2_ADDB_ADD()) is for some reason
    inadequate.
  */
 void c2_addb_add(struct c2_addb_dp *dp);
@@ -346,7 +352,7 @@ const struct c2_addb_ev var = {						\
 
    Event formal parameters are supplied as variadic arguments. This macro checks
    that their number and types conform to the event definition
-   (C2_ADDB_EV_DEFINE(), which it turns conforms to the event operation vector
+   (C2_ADDB_EV_DEFINE(), which in turn conforms to the event operation vector
    definition in C2_ADDB_OPS_DEFINE()).
 
    "ev" MUST be a variable name, usually introduced by C2_ADDB_EV_DEFINE().
@@ -421,12 +427,11 @@ C2_ADDB_EV_DECLARE(c2_addb_trace, C2_ADDB_TRACE);
     applicable. */
 extern struct c2_addb_ctx c2_addb_global_ctx;
 
-extern struct c2_fop_type c2_addb_record_fopt; /* opcode = 14 */
+extern struct c2_fop_type c2_addb_record_fopt;
 extern struct c2_fop_type c2_addb_reply_fopt;
-extern struct c2_fop_type_format c2_mem_buf_tfmt;
-extern struct c2_fop_type_format c2_addb_record_header_tfmt;
-extern struct c2_fop_type_format c2_addb_record_tfmt;
-extern struct c2_fop_type_format c2_addb_reply_tfmt;
+
+int  c2_addb_fop_init(void);
+void c2_addb_fop_fini(void);
 
 /** @} end of addb group */
 

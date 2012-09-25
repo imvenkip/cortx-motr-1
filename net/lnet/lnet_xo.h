@@ -27,6 +27,7 @@
 
 #include "net/lnet/lnet_core.h"
 #include "lib/thread.h"
+#include "lib/bitmap.h" /* c2_bitmap */
 
 /**
    @defgroup LNetXODFS LNet Transport XO Interface
@@ -40,7 +41,6 @@ struct nlx_xo_ep;
 struct nlx_xo_transfer_mc;
 
 enum {
-	C2_NET_LNET_XE_MAGIC = 0x4c4e6574786570ULL, /* LNetxep */
 	C2_NET_LNET_EVT_SHORT_WAIT_SECS = 1, /**< Event thread short wait */
 	C2_NET_LNET_EVT_LONG_WAIT_SECS = 10, /**< Event thread long wait */
 	C2_NET_LNET_BUF_TIMEOUT_TICK_SECS = 15, /**< Min timeout granularity */

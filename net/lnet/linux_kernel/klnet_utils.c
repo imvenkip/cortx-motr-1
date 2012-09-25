@@ -22,34 +22,41 @@
 /* This file is designed to be included in klnet_core.c. */
 
 #ifdef NLX_DEBUG
+
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LNET
+#include "lib/trace.h"        /* C2_LOG and C2_ENTRY */
+
 static void nlx_kprint_lnet_handle(const char *pre, lnet_handle_any_t h)
 {
 	char buf[32];
 	LNetSnprintHandle(buf, sizeof buf, h);
-	printk("%s: %s (lnet_handle_any_t)\n", pre, buf);
+	C2_LOG(C2_DEBUG, "%s: %s (lnet_handle_any_t)\n", (char*)pre, (char*)buf);
 }
 
 static void nlx_kprint_lnet_process_id(const char *pre, lnet_process_id_t p)
 {
-	printk("%s: NID=%lu PID=%u\n", pre,
+	C2_LOG(C2_DEBUG, "%s: NID=%lu PID=%u\n", (char*)pre,
 	       (long unsigned) p.nid, (unsigned) p.pid);
 }
 
 static void nlx_kprint_lnet_md(const char *pre, const lnet_md_t *md)
 {
-	printk("%s: %p (lnet_md_t)\n", pre, md);
-	printk("\t    start: %p\n", md->start);
-	printk("\t  options: %x\n", md->options);
-	printk("\t   length: %d\n", md->length);
-	printk("\tthreshold: %d\n", md->threshold);
-	printk("\t max_size: %d\n", md->max_size);
-	printk("\t user_ptr: %p\n", md->user_ptr);
+	C2_LOG(C2_DEBUG, "%s: %p (lnet_md_t)\n"
+		"\t    start: %p\n"
+		"\t  options: %x\n"
+		"\t   length: %d\n"
+		"\tthreshold: %d\n"
+		"\t max_size: %d\n"
+		"\t user_ptr: %p\n",
+		(char*)pre, md, md->start, md->options, md->length,
+		md->threshold, md->max_size, md->user_ptr);
+
 	nlx_kprint_lnet_handle("\teq_handle", md->eq_handle);
 #if 0
 	{
 		int i;
 		for(i = 0; i < kcb->kb_kiov_len; ++i) {
-			printk("\t[%d] %p %d %d\n", i,
+			C2_LOG(C2_DEBUG, "\t[%d] %p %d %d\n", i,
 			       kcb->kb_kiov[i].kiov_page,
 			       kcb->kb_kiov[i].kiov_len,
 			       kcb->kb_kiov[i].kiov_offset);
@@ -76,34 +83,46 @@ static void nlx_kprint_lnet_event(const char *pre, const lnet_event_t *e)
 {
 
 	if (e == NULL) {
-		printk("%s: <null> (lnet_event_t)\n", pre);
+		C2_LOG(C2_DEBUG, "%s: <null> (lnet_event_t)\n", (char*) pre);
 		return;
 	}
-	printk("%s: %p (lnet_event_t)\n", pre, e);
+
+	C2_LOG(C2_DEBUG, "%s: %p (lnet_event_t)\n", (char*) pre, e);
+
 	nlx_kprint_lnet_process_id("\t   target:", e->target);
 	nlx_kprint_lnet_process_id("\tinitiator:", e->target);
-	printk("\t    sender: %ld\n", (long unsigned) e->sender);
-	printk("\t      type: %d %s\n", e->type,
-	       nlx_kcore_lnet_event_type_to_string(e->type));
-	printk("\t  pt_index: %u\n", e->pt_index);
-	printk("\tmatch_bits: %lx\n", (long unsigned) e->match_bits);
-	printk("\t   rlength: %u\n", e->rlength);
-	printk("\t   mlength: %u\n", e->mlength);
+
+	C2_LOG(C2_DEBUG,
+	       "\t    sender: %ld\n"
+	       "\t      type: %d %s\n"
+	       "\t  pt_index: %u\n"
+	       "\tmatch_bits: %lx\n"
+	       "\t   rlength: %u\n"
+	       "\t   mlength: %u\n",
+	       (long unsigned) e->sender, e->type,
+	       (char*) nlx_kcore_lnet_event_type_to_string(e->type),
+	       e->pt_index, (long unsigned) e->match_bits,
+	       e->rlength, e->mlength);
+
 	nlx_kprint_lnet_handle("\t md_handle", e->md_handle);
-	printk("\t  hdr_data: %lx\n", (long unsigned) e->hdr_data);
-	printk("\t    status: %d\n", e->status);
-	printk("\t  unlinked: %d\n", e->unlinked);
-	printk("\t    offset: %u\n", e->offset);
+
+	C2_LOG(C2_DEBUG,
+	       "\t  hdr_data: %lx\n"
+	       "\t    status: %d\n"
+	       "\t  unlinked: %d\n"
+	       "\t    offset: %u\n",
+	       (long unsigned) e->hdr_data, e->status, e->unlinked, e->offset);
+
 	nlx_kprint_lnet_md("\t        md", &e->md);
 }
 
 static void nlx_kprint_kcore_tm(const char *pre,
 				const struct nlx_kcore_transfer_mc *ktm)
 {
-	printk("%s: %p (nlx_kcore_transfer_mc)\n", pre, ktm);
+	C2_LOG(C2_DEBUG, "%s: %p (nlx_kcore_transfer_mc)\n", (char*) pre, ktm);
 	if (ktm == NULL)
 		return;
-	printk("\t      magic: %lu\n", (unsigned long) ktm->ktm_magic);
+	C2_LOG(C2_DEBUG, "\t      magic: %lu\n", (unsigned long) ktm->ktm_magic);
 	nlx_kprint_lnet_handle("\t        eqh", ktm->ktm_eqh);
 }
 #endif

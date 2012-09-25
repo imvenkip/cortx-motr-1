@@ -14,19 +14,36 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- * Original creation date: 05/19/2010
+ * Original author: Nachiket Sahasrabudhe <Nachiket_Sahasrabudhe@xyratex.com>
+ * Original creation date: 19/07/2012
  */
 
-#pragma once
+/**
+  @addtogroup cookie
+  @{
+ */
+#include <linux/uaccess.h> /* probe_kernel_address */
 
-#ifndef __COLIBRI_FOP_FOP_USER_H__
-#define __COLIBRI_FOP_FOP_USER_H__
+bool c2_arch_addr_is_sane(const uint64_t *addr)
+{
+	uint64_t dummy;
 
-#include <rpc/rpc.h> /* xdrproc_t */
+	return probe_kernel_address(addr, dummy) == 0;
+}
 
-/* __COLIBRI_FOP_FOP_USER_H__ */
-#endif
+int c2_arch_cookie_global_init(void)
+{
+	return 0;
+}
+
+/**
+ * This function is intentionally kept blank.
+ */
+void c2_arch_cookie_global_fini(void)
+{
+}
+
+/** @} end of cookie group */
 
 /*
  *  Local variables:

@@ -167,7 +167,12 @@ try to adhere to some higher level idioms.
 
       Static names don't have "c2_" prefix. Function pointers within
       "operation" structs count as static. Names of constants are
-      capitalized;
+      capitalized.
+
+      Functions which are not static, not globally exported, and are shared
+      only across multiple files within a module - shall be prefixed with
+      c2_<module-name>__ (that is double _). This rule applies to invariants as
+      well;
 
     * use C99 "designated initializers":
 
@@ -198,6 +203,13 @@ try to adhere to some higher level idioms.
     * inline functions are preferable to macros
 
       (Rationale: type-checking, sane argument evaluation rules.);
+
+    * not inline functions are preferable to inline functions, unless
+      performance measurements show otherwise.
+
+      (Rationale: breakpoint can be placed within a non-inline function. Stack
+      trace is more reliable with non-inline functions. Instruction cache
+      pollution is reduced.);
 
     * macros should be used only when other language constructs cannot
       achieve the required goal. When creating a macro take care to:
@@ -283,8 +295,69 @@ try to adhere to some higher level idioms.
       (Rationale: dead initializations potentially hide errors. If,
       after the code restructuring, the variable remains
       un-initialized in a conditional branch or in a loop that might
-      execute 0 times, the initializer suppresses compiler warning).
+      execute 0 times, the initializer suppresses compiler warning.);
 
+    * all header files should begin with '#pragma once' followed by a
+      conventional '#ifndef' include guard:
+
+        #pragma once
+
+        #ifndef __COLIBRI_SUBSYS_HEADER_H__
+        #define __COLIBRI_SUBSYS_HEADER_H__
+        ...
+        #endif /* __COLIBRI_SUBSYS_HEADER_H__ */
+
+      notice, that include guards should use names conforming to the
+      following regular expression:
+
+              __COLIBRI_\w+_H__
+
+      this is required for a build script which automatically checks
+      correctness of include guards and reports duplicates;
+
+    * specify invariants as a conjunction of positive properties one can rely
+      upon, rather than as a disjunction of exceptions. Use c2_*_forall() macros
+      to build conjunctions over containers and sequences;
+
+    * a header file should include only headers, which are necessary for the
+      header to pass compilation. Forward declarations should be used instead of
+      includes where possible. .c files should include all necessary headers
+      directly, without relaying on headers included in already included
+      headers. Unneeded headers should not be included. When a header is
+      included only for a few definitions (as opposed to for a whole interface
+      defined in this header) these symbols should be mentioned in the comment
+      in #include line.
+
+      (Rationale: reduces dependencies between modules, makes inclusion tree
+      re-structuring easier and compilation faster.).
+
+    * use C2_LOG() from lib/trace.h instead of printf(3)/printk() in
+      all source files which are part of libcolibri.so library or
+      kcolibri.ko module (UT, ST and various helper utilities and
+      modules should use printf(3)/printk()).
+
+    * consider using C2_LOG() with some meaningful information to
+      describe important error conditions; preferably it should be
+      done close to the place where the error is detected:
+
+        reply = c2_fop_alloc(&c2_addb_reply_fopt, NULL);
+        if (reply == NULL)
+            C2_LOG(C2_ERROR, "failed to allocate addb reply fop");
+
+      try to describe error using current context, and not a low-level
+      (which might be already logged by the other func), for example
+      it would be bad to report the above error like this:
+
+            "failed to allocate memory"
+
+    * choose appropriate trace level for each C2_LOG(), a general
+      guidelines for this can be found in lib/trace.h in
+      documentation of c2_trace_level enum.
+
+    * consider using C2_ENTRY()/C2_LEAVE() at function's entry and
+      exit points, as well as C2_RETURN() and C2_RETERR() to
+      explicitly return from function, which conforms to the standard
+      return code convention.
 
 Things to look after:
 

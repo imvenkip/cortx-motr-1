@@ -81,11 +81,6 @@ enum {
 	MAX_SLOT_REF    = 1,
 };
 
-enum {
-	C2_RPC_ITEM_FIELD_MAGIC = 0xf12acec12c611111ULL,
-	C2_RPC_ITEM_HEAD_MAGIC = 0x1007c095e511054eULL,
-};
-
 /**
    A single RPC item, such as a FOP or ADDB Record.  This structure should be
    included in every item being sent via RPC layer core to emulate relationship
@@ -193,9 +188,9 @@ bool c2_rpc_item_is_request(const struct c2_rpc_item *item);
    in update stream */
 struct c2_rpc_item_type_ops {
 	/**
-	   Find out the size of rpc item.
+	   Find out the size of rpc payload.
 	 */
-	c2_bcount_t (*rito_item_size)(const struct c2_rpc_item *item);
+	c2_bcount_t (*rito_payload_size)(const struct c2_rpc_item *item);
 
 	/**
 	  Return true iff item1 and item2 are equal.

@@ -18,10 +18,6 @@
  * Original creation date: 05/08/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <stdio.h>     /* fprintf */
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
@@ -31,7 +27,6 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/getopts.h"
-#include "lib/processor.h"
 #include "lib/misc.h"
 #include "lib/finject.h"    /* C2_FI_ENABLED */
 
@@ -43,6 +38,7 @@
 #include "rpc/rpc2.h"
 #include "reqh/reqh.h"
 #include "colibri/cs_internal.h"
+#include "colibri/magic.h"
 #include "rpc/rpclib.h"
 
 /**
@@ -82,12 +78,12 @@ static int cdom_id;
 
 C2_TL_DESCR_DEFINE(cs_buffer_pools, "buffer pools in the colibri context",
 		   static, struct cs_buffer_pool, cs_bp_linkage, cs_bp_magic,
-		   CS_BUFFER_POOL_MAGIC, CS_BUFFER_POOL_HEAD);
+		   C2_CS_BUFFER_POOL_MAGIC, C2_CS_BUFFER_POOL_HEAD_MAGIC);
 C2_TL_DEFINE(cs_buffer_pools, static, struct cs_buffer_pool);
 
 C2_TL_DESCR_DEFINE(cs_eps, "cs endpoints", static, struct cs_endpoint_and_xprt,
-		   ex_linkage, ex_magix, CS_ENDPOINT_MAGIX,
-		   CS_ENDPOINT_HEAD_MAGIX);
+		   ex_linkage, ex_magix, C2_CS_ENDPOINT_AND_XPRT_MAGIC,
+		   C2_CS_EPS_HEAD_MAGIC);
 
 C2_TL_DEFINE(cs_eps, static, struct cs_endpoint_and_xprt);
 
@@ -103,8 +99,8 @@ static const char *cs_stypes[] = {
 };
 
 C2_TL_DESCR_DEFINE(rhctx, "reqh contexts", static, struct cs_reqh_context,
-		   rc_linkage, rc_magix, CS_REQH_CTX_MAGIX,
-		   CS_REQH_CTX_HEAD_MAGIX);
+		   rc_linkage, rc_magix, C2_CS_REQH_CTX_MAGIC,
+		   C2_CS_REQH_CTX_HEAD_MAGIC);
 
 C2_TL_DEFINE(rhctx, static, struct cs_reqh_context);
 
@@ -112,8 +108,8 @@ static struct c2_bob_type rhctx_bob;
 C2_BOB_DEFINE(static, &rhctx_bob, cs_reqh_context);
 
 C2_TL_DESCR_DEFINE(ndom, "network domains", static, struct c2_net_domain,
-		   nd_app_linkage, nd_magix, C2_NET_DOMAIN_MAGIX,
-		   CS_NET_DOMS_HEAD_MAGIX);
+		   nd_app_linkage, nd_magix, C2_NET_DOMAIN_MAGIC,
+		   C2_CS_NET_DOMAIN_HEAD_MAGIC);
 
 C2_TL_DEFINE(ndom, static, struct c2_net_domain);
 
@@ -121,8 +117,8 @@ static struct c2_bob_type ndom_bob;
 C2_BOB_DEFINE(static, &ndom_bob, c2_net_domain);
 
 C2_TL_DESCR_DEFINE(astob, "ad stob domains", static, struct cs_ad_stob,
-		   as_linkage, as_magix, CS_AD_STOB_MAGIX,
-		   CS_AD_STOB_HEAD_MAGIX);
+		   as_linkage, as_magix, C2_CS_AD_STOB_MAGIC,
+		   C2_CS_AD_STOB_HEAD_MAGIC);
 C2_TL_DEFINE(astob, static, struct cs_ad_stob);
 
 static struct c2_bob_type astob_bob;
@@ -1037,7 +1033,7 @@ static int cs_service_init(const char *service_name, struct c2_reqh *reqh)
         if (stype == NULL)
                 return -EINVAL;
 
-	rc = c2_reqh_service_locate(stype, &service);
+	rc = c2_reqh_service_allocate(stype, &service);
 	if (rc == 0) {
 		c2_reqh_service_init(service, reqh);
 		rc = c2_reqh_service_start(service);
@@ -1458,7 +1454,7 @@ static void cs_colibri_fini(struct c2_colibri *cctx)
 /**
    Displays usage of colibri_setup program.
 
-   @param f File to which the output is written
+   @param out File to which the output is written
  */
 static void cs_usage(FILE *out)
 {
@@ -1478,7 +1474,7 @@ static void cs_usage(FILE *out)
 /**
    Displays help for colibri_setup program.
 
-   @param f File to which the output is written
+   @param out File to which the output is written
  */
 static void cs_help(FILE *out)
 {
@@ -1670,8 +1666,6 @@ static int reqh_ctxs_are_valid(struct c2_colibri *cctx)
    required arguments are provided and valid.
    Every allocated request handler context is added to the list of the same
    in given colibri context.
-
-   @param cctx Colibri context to be setup
  */
 static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
 {
@@ -1857,8 +1851,6 @@ int c2_cs_start(struct c2_colibri *cctx)
 int c2_cs_init(struct c2_colibri *cctx, struct c2_net_xprt **xprts,
 	       size_t xprts_nr, FILE *out)
 {
-        int rc;
-
         C2_PRE(cctx != NULL && xprts != NULL && xprts_nr > 0 && out != NULL);
 
 	if (C2_FI_ENABLED("fake_error"))
@@ -1868,11 +1860,8 @@ int c2_cs_init(struct c2_colibri *cctx, struct c2_net_xprt **xprts,
 	cctx->cc_xprts_nr = xprts_nr;
 	cctx->cc_outfile = out;
 	cs_colibri_init(cctx);
-        rc = c2_processors_init();
-	if (rc != 0)
-		cs_colibri_fini(cctx);
 
-	return rc;
+	return 0;
 }
 
 void c2_cs_fini(struct c2_colibri *cctx)
@@ -1883,7 +1872,6 @@ void c2_cs_fini(struct c2_colibri *cctx)
 	cs_buffer_pool_fini(cctx);
 	cs_net_domains_fini(cctx);
         cs_colibri_fini(cctx);
-	c2_processors_fini();
 }
 
 /** @} endgroup colibri_setup */

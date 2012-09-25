@@ -10,6 +10,7 @@ fi
 . @SRCDIR@/c2t1fs/linux_kernel/st/common.sh
 
 MODLIST="@SRCDIR@/build_kernel_modules/kcolibri.ko \
+         @SRCDIR@/build_kernel_modules/c2loop.ko   \
          @SRCDIR@/utils/linux_kernel/kutc2.ko"
 
 log='/var/log/kern'

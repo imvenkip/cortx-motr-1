@@ -19,14 +19,12 @@
  * Original creation date: 04/12/2011
  * Adapted for LNet: 04/11/2012
  */
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
 
 #include "lib/assert.h"
 #include "lib/chan.h"
 #include "lib/cond.h"
 #include "lib/errno.h"
+#include "lib/arith.h" /* max64u */
 #include "lib/memory.h"
 #include "lib/misc.h" /* C2_SET0 */
 #include "net/net.h"

@@ -263,6 +263,23 @@ void *c2_bufvec_cursor_addr(struct c2_bufvec_cursor *cur);
 c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
 				  struct c2_bufvec_cursor *scur,
 				  c2_bcount_t num_bytes);
+/**
+   Copy data with specified size to a cursor.
+   @param dcur Pointer to the destination buffer cursor positioned
+   appropriately.
+   @param sdata Pointer to area where the data is to be copied from.
+   @param num_bytes The number of bytes to copy.
+ */
+c2_bcount_t c2_bufvec_cursor_copyto(struct c2_bufvec_cursor *dcur,
+				    void *sdata, c2_bcount_t num_bytes);
+/**
+   Copy data with specified size from a cursor.
+   @param scur Pointer to the source buffer cursor positioned appropriately.
+   @param ddata Pointer to area where the data is to be copied to.
+   @num_bytes The number of bytes to copy.
+ */
+c2_bcount_t c2_bufvec_cursor_copyfrom(struct c2_bufvec_cursor *scur,
+				      void *ddata, c2_bcount_t num_bytes);
 
 /**
    Zero vector is a full fledged IO vector containing IO extents
@@ -354,6 +371,16 @@ void c2_0vec_bufs_init(struct c2_0vec *zvec, void **bufs,
  */
 int c2_0vec_cbuf_add(struct c2_0vec *zvec, const struct c2_buf *buf,
 		     const c2_bindex_t *index);
+
+/**
+ * Helper functions to copy opaque data with specified size to and from a
+ * c2_bufvec
+ */
+int c2_data_to_bufvec_copy(struct c2_bufvec_cursor *cur, void *data,
+			   size_t len);
+
+int c2_bufvec_to_data_copy(struct c2_bufvec_cursor *cur, void *data,
+			   size_t len);
 
 /** @} end of vec group */
 

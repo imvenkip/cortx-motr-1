@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -23,38 +23,44 @@
    @{
  */
 
-/** @file fom_io.ff
+/** @file io_fop.ff
  *
  * <b>Simplistic IO fop formats</b>
  *
  */
 
-DEF(stob_io_fop_fid, RECORD,
-	_(f_seq, U64),
-	_(f_oid, U64));
+record {
+	u64 f_seq;
+	u64 f_oid
+} stob_io_fop_fid;
 
-DEF(c2_stob_io_write, RECORD,
-	_(fiw_object, stob_io_fop_fid),
-	_(fiw_value, BYTE));
+record {
+	stob_io_fop_fid fiw_object;
+	u8              fiw_value
+} c2_stob_io_write;
 
-DEF(c2_stob_io_write_rep, RECORD,
-	_(fiwr_rc, U32),
-	_(fiwr_count, U32));
+record {
+	u32 fiwr_rc;
+	u32 fiwr_count
+} c2_stob_io_write_rep;
 
-DEF(c2_stob_io_read, RECORD,
-	_(fir_object, stob_io_fop_fid));
+record {
+	stob_io_fop_fid fir_object
+} c2_stob_io_read;
 
-DEF(c2_stob_io_read_rep, RECORD,
-	_(firr_rc, U32),
-	_(firr_count, U32),
-	_(firr_value, BYTE));
+record {
+	u32 firr_rc;
+	u32 firr_count;
+	u8  firr_value
+} c2_stob_io_read_rep;
 
+record {
+	stob_io_fop_fid fic_object
+} c2_stob_io_create;
 
-DEF(c2_stob_io_create, RECORD,
-	_(fic_object, stob_io_fop_fid));
-
-DEF(c2_stob_io_create_rep, RECORD,
-	_(ficr_rc, U32));
+record {
+	u32 ficr_rc
+} c2_stob_io_create_rep;
 
 /** @} end of reqh group */
 

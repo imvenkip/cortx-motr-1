@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,10 +18,6 @@
  * Original creation date: 12/10/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
@@ -30,18 +26,13 @@
 #include "fop/fop.h"
 #include "fop/fom.h"
 #include "fop/fom_generic.h"
-#include "fop/fop_iterator.h"
 
 #include "rpc/rpc2.h"
 #include "rpc/rpclib.h"
 #include "fop/fop_item_type.h"
-#include "xcode/bufvec_xcode.h"
-
-#include "fop/fop_format_def.h"
 
 #include "cs_fop_foms.h"
-#include "cs_test_fops_u.h"
-#include "cs_test_fops.ff"
+#include "cs_test_fops_ff.h"
 #include "rpc/rpc_opcodes.h"
 
 static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item);
@@ -54,59 +45,10 @@ const struct c2_rpc_item_ops cs_ds_req_fop_rpc_item_ops = {
 	.rio_free    = c2_fop_item_free,
 };
 
-/* DS1 service fop type operations.*/
-static const struct c2_fop_type_ops cs_ds1_req_fop_type_ops = {
-        .fto_fop_replied = NULL,
-        .fto_size_get = c2_xcode_fop_size_get,
-        .fto_io_coalesce = NULL,
-};
-
-static const struct c2_fop_type_ops cs_ds1_rep_fop_type_ops = {
-        .fto_fop_replied = NULL,
-        .fto_size_get = c2_xcode_fop_size_get,
-        .fto_io_coalesce = NULL,
-};
-
-/* DS2 service fop type operations */
-static const struct c2_fop_type_ops cs_ds2_req_fop_type_ops = {
-        .fto_fop_replied = NULL,
-        .fto_size_get = c2_xcode_fop_size_get,
-        .fto_io_coalesce = NULL,
-};
-
-static const struct c2_fop_type_ops cs_ds2_rep_fop_type_ops = {
-        .fto_fop_replied = NULL,
-        .fto_size_get = c2_xcode_fop_size_get,
-        .fto_io_coalesce = NULL,
-};
-
-C2_FOP_TYPE_DECLARE(cs_ds1_req_fop, "ds1 request", &cs_ds1_req_fop_type_ops,
-		    C2_CS_DS1_REQ_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO)
-C2_FOP_TYPE_DECLARE(cs_ds1_rep_fop, "ds1 reply", &cs_ds1_rep_fop_type_ops,
-		    C2_CS_DS1_REP_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
-
-C2_FOP_TYPE_DECLARE(cs_ds2_req_fop, "ds2 request", &cs_ds2_req_fop_type_ops,
-		    C2_CS_DS2_REQ_OPCODE,
-		    C2_RPC_ITEM_TYPE_REQUEST | C2_RPC_ITEM_TYPE_MUTABO)
-C2_FOP_TYPE_DECLARE(cs_ds2_rep_fop, "ds2 reply", &cs_ds2_rep_fop_type_ops,
-		    C2_CS_DS2_REP_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
-
-/*
-  Defines ds1 service fop types array.
- */
-static struct c2_fop_type *cs_ds1_fopts[] = {
-        &cs_ds1_req_fop_fopt,
-        &cs_ds1_rep_fop_fopt
-};
-
-/*
-  Defines ds2 service fop types array.
- */
-static struct c2_fop_type *cs_ds2_fopts[] = {
-        &cs_ds2_req_fop_fopt,
-        &cs_ds2_rep_fop_fopt
-};
+struct c2_fop_type cs_ds1_req_fop_fopt;
+struct c2_fop_type cs_ds1_rep_fop_fopt;
+struct c2_fop_type cs_ds2_req_fop_fopt;
+struct c2_fop_type cs_ds2_rep_fop_fopt;
 
 /*
   Fom specific routines for corresponding fops.
@@ -138,6 +80,11 @@ static const struct c2_fom_ops cs_ds2_req_fop_fom_ops = {
 extern struct c2_reqh_service_type ds1_service_type;
 extern struct c2_reqh_service_type ds2_service_type;
 
+enum ds_phases {
+	C2_FOPH_DS1_REQ = C2_FOPH_NR + 1,
+	C2_FOPH_DS2_REQ = C2_FOPH_NR + 1,
+};
+
 /*
   Fom type operations for ds1 service foms.
  */
@@ -145,16 +92,12 @@ static const struct c2_fom_type_ops cs_ds1_req_fop_fom_type_ops = {
         .fto_create = cs_ds1_req_fop_fom_create,
 };
 
-C2_FOM_TYPE_DECLARE(cs_ds1_req, &cs_ds1_req_fop_fom_type_ops, &ds1_service_type);
-
 /*
   Fom type operations for ds2 service foms.
  */
 static const struct c2_fom_type_ops cs_ds2_req_fop_fom_type_ops = {
         .fto_create = cs_ds2_req_fop_fom_create,
 };
-
-C2_FOM_TYPE_DECLARE(cs_ds2_req, &cs_ds2_req_fop_fom_type_ops, &ds2_service_type);
 
 static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item)
 {
@@ -180,68 +123,74 @@ static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item)
 
 void c2_cs_ut_ds1_fop_fini(void)
 {
-	int i;
-
-        c2_fop_type_fini_nr(cs_ds1_fopts, ARRAY_SIZE(cs_ds1_fopts));
-
-	for (i = 0; i < ARRAY_SIZE(cs_ds1_fopts); ++i)
-		cs_ds1_fopts[i]->ft_top = NULL;
+	c2_fop_type_fini(&cs_ds1_req_fop_fopt);
+	c2_fop_type_fini(&cs_ds1_rep_fop_fopt);
+	c2_xc_cs_test_fops_fini();
 }
 
 int c2_cs_ut_ds1_fop_init(void)
 {
-        int result;
-
         /*
            As we are finalising and initialising fop types multiple times
            per service for various colibri_setup commands, So reinitialise
            fop_type_format for each corresponding service fop types.
          */
-	cs_ds1_fopts[0]->ft_fmt = &cs_ds1_req_fop_tfmt;
-	cs_ds1_fopts[1]->ft_fmt = &cs_ds1_rep_fop_tfmt;
-	cs_ds1_fopts[0]->ft_fom_type = cs_ds1_req_fomt;
-	cs_ds1_fopts[1]->ft_fom_type = cs_ds1_req_fomt;
-
-        result = c2_fop_type_build_nr(cs_ds1_fopts, ARRAY_SIZE(cs_ds1_fopts));
-        if (result != 0)
-                c2_cs_ut_ds1_fop_fini();
-        return result;
+	c2_xc_cs_test_fops_init();
+        return  C2_FOP_TYPE_INIT(&cs_ds1_req_fop_fopt,
+				 .name      = "ds1 request",
+				 .opcode    = C2_CS_DS1_REQ_OPCODE,
+				 .xt        = cs_ds1_req_fop_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
+					      C2_RPC_ITEM_TYPE_MUTABO,
+				 .fom_ops   = &cs_ds1_req_fop_fom_type_ops,
+				 .sm        = &c2_generic_conf,
+				 .svc_type  = &ds1_service_type) ?:
+		C2_FOP_TYPE_INIT(&cs_ds1_rep_fop_fopt,
+				 .name      = "ds1 reply",
+				 .opcode    = C2_CS_DS1_REP_OPCODE,
+				 .xt        = cs_ds1_rep_fop_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
+				 .fom_ops   = &cs_ds1_req_fop_fom_type_ops);
 }
 
 void c2_cs_ut_ds2_fop_fini(void)
 {
-	int i;
-
-        c2_fop_type_fini_nr(cs_ds2_fopts, ARRAY_SIZE(cs_ds2_fopts));
-	for (i = 0; i < ARRAY_SIZE(cs_ds2_fopts); ++i)
-		cs_ds2_fopts[i]->ft_top = NULL;
+	c2_fop_type_fini(&cs_ds2_rep_fop_fopt);
+	c2_fop_type_fini(&cs_ds2_req_fop_fopt);
+	c2_xc_cs_test_fops_fini();
 }
 
 int c2_cs_ut_ds2_fop_init(void)
 {
-        int result;
-
 	/*
 	   As we are finalising and initialising fop types multiple times
 	   per service for various colibri_setup commands, So reinitialise
 	   fop_type_format for each corresponding service fop types.
 	 */
-	cs_ds2_fopts[0]->ft_fmt = &cs_ds2_req_fop_tfmt;
-	cs_ds2_fopts[1]->ft_fmt = &cs_ds2_rep_fop_tfmt;
-	cs_ds2_fopts[0]->ft_fom_type = cs_ds2_req_fomt;
-	cs_ds2_fopts[1]->ft_fom_type = cs_ds2_req_fomt;
-
-        result = c2_fop_type_build_nr(cs_ds2_fopts, ARRAY_SIZE(cs_ds2_fopts));
-        if (result != 0)
-                c2_cs_ut_ds2_fop_fini();
-        return result;
+	c2_xc_cs_test_fops_init();
+	return  C2_FOP_TYPE_INIT(&cs_ds2_req_fop_fopt,
+				 .name      = "ds2 request",
+				 .opcode    = C2_CS_DS2_REQ_OPCODE,
+				 .xt        = cs_ds2_req_fop_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
+					      C2_RPC_ITEM_TYPE_MUTABO,
+				 .fom_ops   = &cs_ds2_req_fop_fom_type_ops,
+				 .sm        = &c2_generic_conf,
+				 .svc_type  = &ds2_service_type) ?:
+		C2_FOP_TYPE_INIT(&cs_ds2_rep_fop_fopt,
+				 .name      = "ds2 reply",
+				 .opcode    = C2_CS_DS2_REP_OPCODE,
+				 .xt        = cs_ds2_rep_fop_xc,
+				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY,
+				 .fom_ops   = &cs_ds2_req_fop_fom_type_ops);
 }
 
 /*
   Allocates and initialises a fom.
  */
 static int cs_ds_req_fop_fom_create(struct c2_fop *fop,
-		const struct c2_fom_ops *ops, struct c2_fom **out)
+				    const struct c2_fom_ops *ops,
+				    struct c2_fom **out)
 {
         struct c2_fom *fom;
 
@@ -310,7 +259,7 @@ static int cs_req_fop_fom_tick(struct c2_fom *fom)
 	       fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
 	       C2_CS_DS2_REQ_OPCODE);
 
-	if (fom->fo_phase < C2_FOPH_NR) {
+	if (c2_fom_phase(fom) < C2_FOPH_NR) {
 		rc = c2_fom_tick_generic(fom);
 	} else {
 		opcode = fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
@@ -318,7 +267,7 @@ static int cs_req_fop_fom_tick(struct c2_fom *fom)
 		case C2_CS_DS1_REQ_OPCODE:
 			rfop = c2_fop_alloc(&cs_ds1_rep_fop_fopt, NULL);
 			if (rfop == NULL) {
-				fom->fo_phase = C2_FOPH_FINISH;
+				c2_fom_phase_set(fom, C2_FOPH_FINISH);
 				return C2_FSO_WAIT;
 			}
 			ds1_reqfop = c2_fop_data(fom->fo_fop);
@@ -326,13 +275,13 @@ static int cs_req_fop_fom_tick(struct c2_fom *fom)
 			ds1_repfop->csr_rc = ds1_reqfop->csr_value;
 			fom->fo_rep_fop = rfop;
 			fom->fo_rc = 0;
-			fom->fo_phase = C2_FOPH_SUCCESS;
+			c2_fom_phase_set(fom, C2_FOPH_SUCCESS);
 			rc = C2_FSO_AGAIN;
 			break;
 		case C2_CS_DS2_REQ_OPCODE:
 			rfop = c2_fop_alloc(&cs_ds2_rep_fop_fopt, NULL);
 			if (rfop == NULL) {
-				fom->fo_phase = C2_FOPH_FINISH;
+				c2_fom_phase_set(fom, C2_FOPH_FINISH);
 				return C2_FSO_WAIT;
 			}
 			ds2_reqfop = c2_fop_data(fom->fo_fop);
@@ -340,7 +289,7 @@ static int cs_req_fop_fom_tick(struct c2_fom *fom)
 			ds2_repfop->csr_rc = ds2_reqfop->csr_value;
 			fom->fo_rep_fop = rfop;
 			fom->fo_rc = 0;
-			fom->fo_phase = C2_FOPH_SUCCESS;
+			c2_fom_phase_set(fom, C2_FOPH_SUCCESS);
 			rc = C2_FSO_AGAIN;
 			break;
 		default:

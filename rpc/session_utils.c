@@ -18,10 +18,9 @@
  *                  Amit Jambure <Amit_Jambure@xyratex.com>
  * Original creation date: 08/24/2011
  */
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
@@ -30,15 +29,8 @@
 #include "lib/bitstring.h"
 #include "cob/cob.h"
 #include "fop/fop.h"
-#include "fop/fop_format_def.h"
 #include "reqh/reqh.h"
-
-#ifdef __KERNEL__
-#include "rpc/session_k.h"
-#else
-#include "rpc/session_u.h"
-#endif
-
+#include "rpc/session_ff.h"
 #include "rpc/session_fops.h"
 #include "rpc/session_internal.h"
 #include "rpc/rpc_machine.h"
@@ -85,6 +77,8 @@ int c2_rpc__fop_post(struct c2_fop                *fop,
 		     const struct c2_rpc_item_ops *ops)
 {
 	struct c2_rpc_item *item;
+	int                 rc;
+	C2_ENTRY("fop: %p, session: %p", fop, session);
 
 	item              = &fop->f_item;
 	item->ri_session  = session;
@@ -92,7 +86,8 @@ int c2_rpc__fop_post(struct c2_fop                *fop,
 	item->ri_deadline = 0;
 	item->ri_ops      = ops;
 
-	return c2_rpc__post_locked(item);
+	rc = c2_rpc__post_locked(item);
+	C2_RETURN(rc);
 }
 
 static struct c2_uint128 stob_id_alloc(void)
@@ -126,6 +121,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	uint64_t              pfid_lo;
 	int                   rc;
 
+	C2_ENTRY("cob_dom: %p, pcob: %p", dom, pcob);
 	C2_PRE(dom != NULL && name != NULL && out != NULL);
 
 	*out = NULL;
@@ -139,7 +135,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 
 	c2_cob_nskey_make(&key, pfid_hi, pfid_lo, name);
 	if (key == NULL)
-		return -ENOMEM;
+		C2_RETURN(-ENOMEM);
 
 	nsrec.cnr_stobid.si_bits = stob_id_alloc();
 	nsrec.cnr_nlink = 1;
@@ -155,7 +151,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	if (rc == 0)
 		*out = cob;
 
-	return rc;
+	C2_RETURN(rc);
 }
 
 int c2_rpc_cob_lookup_helper(struct c2_cob_domain *dom,
@@ -169,6 +165,8 @@ int c2_rpc_cob_lookup_helper(struct c2_cob_domain *dom,
 	uint64_t             pfid_lo;
 	int                  rc;
 
+	C2_ENTRY("cob_dom: %p, pcob; %p, name: %s", dom, pcob,
+		 (char *)name);
 	C2_PRE(dom != NULL && name != NULL && out != NULL);
 
 	*out = NULL;
@@ -181,11 +179,11 @@ int c2_rpc_cob_lookup_helper(struct c2_cob_domain *dom,
 
 	c2_cob_nskey_make(&key, pfid_hi, pfid_lo, name);
 	if (key == NULL)
-		return -ENOMEM;
+		C2_RETURN(-ENOMEM);
 	rc = c2_cob_lookup(dom, key, CA_NSKEY_FREE | CA_FABREC, out, tx);
 
 	C2_POST(ergo(rc == 0, *out != NULL));
-	return rc;
+	C2_RETURN(rc);
 }
 
 int c2_rpc_root_session_cob_get(struct c2_cob_domain *dom,
@@ -234,6 +232,8 @@ void c2_rpc_item_dispatch(struct c2_rpc_item *item)
         struct c2_rpc_fop_conn_establish_ctx *ctx;
 	struct c2_rpc_machine                *rpcmach;
 
+	C2_ENTRY("item : %p", item);
+
 	 if (c2_rpc_item_is_conn_establish(item)) {
 
 		ctx = container_of(item, struct c2_rpc_fop_conn_establish_ctx,
@@ -252,4 +252,5 @@ void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 #ifndef __KERNEL__
 	c2_reqh_fop_handle(reqh, fop);
 #endif
+	C2_LEAVE();
 }

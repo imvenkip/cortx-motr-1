@@ -17,10 +17,6 @@
  * Original creation date: 08/24/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include <stdlib.h>    /* system */
 #include <stdio.h>     /* fopen, fgetc, ... */
 #include <unistd.h>    /* unlink */

@@ -17,10 +17,6 @@
  * Original creation date: 03/30/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "sns/sns.h"
 #include "sns/repair.h"
 

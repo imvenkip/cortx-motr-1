@@ -36,7 +36,7 @@ void c2_cons_fop_name_print(const struct c2_fop_type *ftype);
 /**
  * @brief Builds and send FOP using rpc_post and waits for reply.
  *
- * @param ftype	   FOP to be send.
+ * @param fop	   FOP to be send.
  * @param session  RPC connection session.
  * @param deadline Time to to wait for RPC reply.
  */
@@ -54,7 +54,7 @@ int c2_cons_fop_show(struct c2_fop_type *fopt);
 void c2_cons_fop_list_show(void);
 
 /**
- * @brief Find the fop type equals to @opcode and returns.
+ * @brief Find the fop type equals to opcode and returns.
  *
  * @param opcode FOP opcode.
  *

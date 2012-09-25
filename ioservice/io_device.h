@@ -18,6 +18,8 @@
  * Original creation date: 28/06/2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_IOSERVICE_IO_DEVICE_H__
 #define __COLIBRI_IOSERVICE_IO_DEVICE_H__
 

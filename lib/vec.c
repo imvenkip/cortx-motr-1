@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -272,6 +272,34 @@ c2_bcount_t c2_bufvec_cursor_copy(struct c2_bufvec_cursor *dcur,
 }
 C2_EXPORTED(c2_bufvec_cursor_copy);
 
+c2_bcount_t c2_bufvec_cursor_copyto(struct c2_bufvec_cursor *dcur,
+				    void *sdata, c2_bcount_t num_bytes)
+{
+	struct c2_bufvec_cursor scur;
+	struct c2_bufvec        sbuf = C2_BUFVEC_INIT_BUF(&sdata, &num_bytes);
+
+	C2_PRE(dcur != NULL);
+	C2_PRE(sdata != NULL);
+
+	c2_bufvec_cursor_init(&scur, &sbuf);
+
+	return c2_bufvec_cursor_copy(dcur, &scur, num_bytes);
+}
+
+c2_bcount_t c2_bufvec_cursor_copyfrom(struct c2_bufvec_cursor *scur,
+				      void *ddata, c2_bcount_t num_bytes)
+{
+	struct c2_bufvec_cursor dcur;
+	struct c2_bufvec        dbuf = C2_BUFVEC_INIT_BUF(&ddata, &num_bytes);
+
+	C2_PRE(scur != NULL);
+	C2_PRE(ddata != NULL);
+
+	c2_bufvec_cursor_init(&dcur, &dbuf);
+
+	return c2_bufvec_cursor_copy(&dcur, scur, num_bytes);
+}
+
 void c2_0vec_fini(struct c2_0vec *zvec)
 {
 	if (zvec != NULL) {
@@ -405,6 +433,59 @@ int c2_0vec_cbuf_add(struct c2_0vec *zvec,
 	zvec->z_index[curr_seg] = *index;
 
 	C2_POST(c2_0vec_invariant(zvec));
+	return 0;
+}
+
+/**
+ * Initializes a c2_bufvec containing a single element of specified size
+ */
+static void data_to_bufvec(struct c2_bufvec *src_buf, void **data,
+			   size_t *len)
+{
+	C2_PRE(src_buf != NULL);
+	C2_PRE(len != 0);
+	C2_PRE(data != NULL);
+	C2_CASSERT(sizeof len == sizeof src_buf->ov_vec.v_count);
+
+	src_buf->ov_vec.v_nr = 1;
+	src_buf->ov_vec.v_count = (c2_bcount_t *)len;
+	src_buf->ov_buf = data;
+}
+
+int c2_data_to_bufvec_copy(struct c2_bufvec_cursor *cur, void *data,
+			   size_t len)
+{
+	c2_bcount_t		count;
+	struct c2_bufvec_cursor src_cur;
+	struct c2_bufvec	src_buf;
+
+	C2_PRE(cur  != NULL);
+	C2_PRE(data != NULL);
+
+	data_to_bufvec(&src_buf, &data, &len);
+	c2_bufvec_cursor_init(&src_cur, &src_buf);
+	count = c2_bufvec_cursor_copy(cur, &src_cur, len);
+	if (count != len)
+		return -EFAULT;
+	return 0;
+}
+
+int c2_bufvec_to_data_copy(struct c2_bufvec_cursor *cur, void *data,
+			   size_t len)
+{
+	c2_bcount_t		count;
+	struct c2_bufvec_cursor dcur;
+	struct c2_bufvec	dest_buf;
+
+	C2_PRE(cur  != NULL);
+	C2_PRE(data != NULL);
+	C2_PRE(len  != 0);
+
+	data_to_bufvec(&dest_buf, &data, &len);
+	c2_bufvec_cursor_init(&dcur, &dest_buf);
+	count = c2_bufvec_cursor_copy(&dcur, cur, len);
+	if (count != len)
+		return -EFAULT;
 	return 0;
 }
 

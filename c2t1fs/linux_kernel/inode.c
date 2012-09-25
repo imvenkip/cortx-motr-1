@@ -18,24 +18,41 @@
  * Original creation date: 10/14/2011
  */
 
-#include <linux/slab.h>      /* kmem_cache */
+#include <linux/slab.h>         /* kmem_cache */
 
-#include "layout/pdclust.h"  /* c2_pdclust_build(), c2_pdclust_fini() */
-#include "lib/misc.h"        /* C2_SET0()                             */
-#include "lib/memory.h"      /* C2_ALLOC_PTR(), c2_free()             */
+#include "layout/pdclust.h"     /* c2_pdclust_build(), c2_pdl_to_layout(),
+				 * c2_pdclust_instance_build()           */
+#include "layout/linear_enum.h" /* c2_linear_enum_build()                */
+#include "lib/misc.h"           /* C2_SET0()                             */
+#include "lib/memory.h"         /* C2_ALLOC_PTR(), c2_free()             */
 #include "c2t1fs/linux_kernel/c2t1fs.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
-#include "lib/trace.h"       /* C2_LOG and C2_ENTRY */
+#include "lib/trace.h"          /* C2_LOG and C2_ENTRY */
+#include "colibri/magic.h"
 
 static int c2t1fs_inode_test(struct inode *inode, void *opaque);
 static int c2t1fs_inode_set(struct inode *inode, void *opaque);
 
+static int c2t1fs_build_layout_instance(const uint64_t              layout_id,
+					const struct c2_fid        *fid,
+					struct c2_layout_instance **linst);
+
 static struct kmem_cache *c2t1fs_inode_cachep = NULL;
 
 C2_TL_DESCR_DEFINE(dir_ents, "Dir entries", , struct c2t1fs_dir_ent,
-			de_link, de_magic, MAGIC_DIRENT, MAGIC_DIRENTHD);
+		   de_link, de_magic,
+		   C2_T1FS_DIRENT_MAGIC, C2_T1FS_DIRENT_HEAD_MAGIC);
 
 C2_TL_DEFINE(dir_ents, , struct c2t1fs_dir_ent);
+
+static const struct c2_bob_type c2t1fs_inode_bob = {
+	.bt_name         = "c2t1fs_inode",
+	.bt_magix_offset = offsetof(struct c2t1fs_inode, ci_magic),
+	.bt_magix        = C2_T1FS_INODE_MAGIC,
+	.bt_check        = NULL
+};
+
+C2_BOB_DEFINE(, &c2t1fs_inode_bob, c2t1fs_inode);
 
 bool c2t1fs_inode_is_root(const struct inode *inode)
 {
@@ -92,32 +109,28 @@ void c2t1fs_inode_init(struct c2t1fs_inode *ci)
 	C2_ENTRY("ci: %p", ci);
 
 	C2_SET0(&ci->ci_fid);
-	ci->ci_layout = NULL;
+	ci->ci_layout_instance = NULL;
 
 	dir_ents_tlist_init(&ci->ci_dir_ents);
+	c2t1fs_inode_bob_init(ci);
 
 	C2_LEAVE();
 }
 
 void c2t1fs_inode_fini(struct c2t1fs_inode *ci)
 {
-	struct c2_pdclust_layout *pd_layout;
-	struct c2t1fs_dir_ent    *de;
+	C2_ENTRY("ci: %p, is_root %s, layout_instance %p",
+		 ci, c2_bool_to_str(c2t1fs_inode_is_root(&ci->ci_inode)),
+		 ci->ci_layout_instance);
 
-	C2_ENTRY("ci: %p", ci);
-
-	c2_tl_for(dir_ents, &ci->ci_dir_ents, de) {
-		dir_ents_tlist_del(de);
-
-		c2t1fs_dir_ent_fini(de);
-		c2_free(de);
-	} c2_tl_endfor;
+	C2_PRE(c2t1fs_inode_bob_check(ci));
+	C2_PRE(dir_ents_tlist_is_empty(&ci->ci_dir_ents));
 
 	dir_ents_tlist_fini(&ci->ci_dir_ents);
 
-	pd_layout = container_of(ci->ci_layout, struct c2_pdclust_layout,
-				 pl_layout);
-	c2_pdclust_fini(pd_layout);
+	if (!c2t1fs_inode_is_root(&ci->ci_inode))
+		c2_layout_instance_fini(ci->ci_layout_instance);
+	c2t1fs_inode_bob_fini(ci);
 
 	C2_LEAVE();
 }
@@ -153,7 +166,7 @@ void c2t1fs_destroy_inode(struct inode *inode)
 	C2_ENTRY("inode: %p", inode);
 
 	ci = C2T1FS_I(inode);
-	C2_LOG("fid [%lu:%lu]", (unsigned long)ci->ci_fid.f_container,
+	C2_LOG(C2_DEBUG, "fid [%lu:%lu]", (unsigned long)ci->ci_fid.f_container,
 				(unsigned long)ci->ci_fid.f_key);
 
 	c2t1fs_inode_fini(ci);
@@ -200,7 +213,7 @@ static int c2t1fs_inode_test(struct inode *inode, void *opaque)
 
 	ci = C2T1FS_I(inode);
 
-	C2_LOG("inode(%p) [%lu:%lu] opaque [%lu:%lu]", inode,
+	C2_LOG(C2_DEBUG, "inode(%p) [%lu:%lu] opaque [%lu:%lu]", inode,
 				(unsigned long)ci->ci_fid.f_container,
 				(unsigned long)ci->ci_fid.f_key,
 				(unsigned long)fid->f_container,
@@ -218,7 +231,7 @@ static int c2t1fs_inode_set(struct inode *inode, void *opaque)
 	struct c2_fid       *fid = opaque;
 
 	C2_ENTRY();
-	C2_LOG("inode(%p) [%lu:%lu]", inode,
+	C2_LOG(C2_DEBUG, "inode(%p) [%lu:%lu]", inode,
 			(unsigned long)fid->f_container,
 			(unsigned long)fid->f_key);
 
@@ -334,33 +347,46 @@ out_err:
 	return ERR_PTR(-EIO);
 }
 
-int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci,
-			     struct c2_pool      *pool,
-			     uint32_t             N,
-			     uint32_t             K,
-			     uint64_t             unit_size)
+int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci)
 {
-	struct c2_pdclust_layout *pd_layout;
-	struct c2_uint128         layout_id;
-	struct c2_uint128         seed;
-	int                       rc;
+	struct c2_layout_instance *linst;
+	int                        rc;
 
 	C2_ENTRY();
-	C2_PRE(ci != NULL && pool != NULL && pool->po_width > 0);
-
-	C2_LOG("fid[%lu:%lu]: N: %d K: %d P: %d",
+	C2_LOG(C2_DEBUG, "fid[%lu:%lu]:",
 			(unsigned long)ci->ci_fid.f_container,
-			(unsigned long)ci->ci_fid.f_key,
-			N, K, pool->po_width);
+			(unsigned long)ci->ci_fid.f_key);
 
-	c2_uint128_init(&layout_id, "jinniesisjillous");
-	c2_uint128_init(&seed,      "upjumpandpumpim,");
-
-	rc = c2_pdclust_build(pool, &layout_id, N, K, unit_size,
-				&seed, &pd_layout);
-	ci->ci_layout = rc == 0 ? &pd_layout->pl_layout : NULL;
+	C2_ASSERT(ci->ci_layout_id != 0);
+	rc = c2t1fs_build_layout_instance(ci->ci_layout_id,
+					  &ci->ci_fid, &linst);
+	if (rc == 0)
+		ci->ci_layout_instance = linst;
 
 	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
 
+static int c2t1fs_build_layout_instance(const uint64_t              layout_id,
+					const struct c2_fid        *fid,
+					struct c2_layout_instance **linst)
+{
+	struct c2_layout           *layout;
+	int                         rc;
+
+	C2_ENTRY();
+	C2_PRE(fid != NULL && linst != NULL);
+
+	layout   = c2_layout_find(&c2t1fs_globals.g_layout_dom, layout_id);
+	/**
+	 * During c2t1fs mount we have built a layout, so c2_layout_find
+	 * will always return a registered layout.
+	 */
+	C2_ASSERT(layout != NULL);
+	*linst   = NULL;
+	rc = c2_layout_instance_build(layout, fid, linst);
+	c2_layout_put(layout);
+
+	C2_LEAVE("rc: %d", rc);
+	return rc;
+}

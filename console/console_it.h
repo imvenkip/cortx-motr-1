@@ -27,11 +27,11 @@
 #  include "config.h"
 #endif
 
-#include "fop/fop_iterator.h"	/* c2_fit */
-#include "fop/fop_base.h"	/* c2_fop_field_type */
+#include "fop/fop.h" /* c2_fop_field_type */
+#include "xcode/xcode.h"
 
 /**
-   @addtogroup console console iterator
+   @addtogroup console_it
    @{
  */
 
@@ -43,55 +43,45 @@ enum c2_cons_data_process_type {
 
 /**
  * @struct c2_cons_atom_ops
+ *
  * @brief operation to get/set values of ATOM type (i.e. CHAR, U64 etc).
  */
 struct c2_cons_atom_ops {
-	void (*catom_val_get)(const struct c2_fop_field_type *ftype,
+	void (*catom_val_get)(const struct c2_xcode_type *xct,
 			      const char *name, void *data);
-	void (*catom_val_set)(const struct c2_fop_field_type *ftype,
+	void (*catom_val_set)(const struct c2_xcode_type *xct,
 			      const char *name, void *data);
-	void (*catom_val_show)(const struct c2_fop_field_type *ftype,
+	void (*catom_val_show)(const struct c2_xcode_type *xct,
 			       const char *name, void *data);
-};
-
-/**
- * @struct c2_cons_atom_ops
- * @brief Operation to get/set values of UNION, SEQUENCE, etc.
- */
-struct c2_cons_aggr_ops {
-	void (*caggr_val_process)(const struct c2_fop_field_type *ftype,
-				  const char *name, void *data,
-				  enum c2_cons_data_process_type type,
-				  int depth);
 };
 
 /**
  * @brief Iterate over FOP fields and prints the names.
  *
- * @param it Iterator ref.
+ * @param fop fop object.
  */
 void c2_cons_fop_fields_show(struct c2_fop *fop);
 
 /**
  * @brief Iterate over FOP for Input and output.
  *
- * @param it   Iterator ref.
- * @param output false input, true output.
+ * @param fop Fop object
+ * @param type Data processing operation type
  */
-void c2_cons_fop_obj_input_output(struct c2_fit *it,
+void c2_cons_fop_obj_input_output(struct c2_fop *fop,
 				  enum c2_cons_data_process_type type);
 
 /**
  * @brief Helper function for FOP input
  *
- * @param it Iterator ref.
+ * @param fop fop object.
  */
 void c2_cons_fop_obj_input(struct c2_fop *fop);
 
 /**
  * @brief Helper function for FOP output.
  *
- * @param it Iterator ref.
+ * @param fop fop object.
  */
 void c2_cons_fop_obj_output(struct c2_fop *fop);
 

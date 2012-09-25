@@ -56,7 +56,7 @@
  *
  * Fom operates by moving from "phase" to "phase". Current phase is recorded in
  * c2_fom::fo_phase. Generic code in fom.c pays no attention to this field,
- * except for special C2_FOM_PHASE_INIT and C2_FOM_PHASE_FINI values used to
+ * except for special C2_FOM_PHASE_INIT and C2_FOM_PHASE_FINISH values used to
  * control fom life-time. ->fo_phase value is interpreted by fom-type-specific
  * code. core/reqh/ defines some "standard phases", that a typical fom related
  * to file operation processing passes through.
@@ -86,7 +86,7 @@
  *       performance globally, by selecting the "best" READY fom;
  *
  *     - C2_FSO_WAIT: no phase transitions are possible at the moment. As a
- *       special case, if fom->fo_phase == C2_FOM_PHASE_FINI, request handler
+ *       special case, if c2_fom_phase(fom) == C2_FOM_PHASE_FINISH, request handler
  *       destroys the fom, by calling its c2_fom_ops::fo_fini()
  *       method. Otherwise, the fom is placed in WAITING state.
  *
@@ -112,16 +112,16 @@
  * {
  *         struct foo_fom *obj = container_of(fom, struct foo_fom, ff_base);
  *
- *         if (fom->fo_phase < C2_FOPH_NR)
+ *         if (c2_fom_phase(fom) < C2_FOPH_NR)
  *                 return c2_fom_tick_generic(fom);
- *         else if (fom->fo_phase == FOO_PHASE_0) {
+ *         else if (c2_fom_phase(fom) == FOO_PHASE_0) {
  *                 ...
  *                 if (!ready)
  *                         c2_fom_wait_on(fom, chan, &fom->fo_cb);
  *                 return ready ? C2_FSO_AGAIN : C2_FSO_WAIT;
- *         } else if (fom->fo_phase == FOO_PHASE_1) {
+ *         } else if (c2_fom_phase(fom) == FOO_PHASE_1) {
  *                 ...
- *         } else if (fom->fo_phase == FOO_PHASE_2) {
+ *         } else if (c2_fom_phase(fom) == FOO_PHASE_2) {
  *                 ...
  *         } else
  *                 C2_IMPOSSIBLE("Wrong phase.");
@@ -249,6 +249,13 @@ struct c2_fom_locality {
 	struct c2_list		     fl_wail;
 	size_t			     fl_wail_nr;
 
+	/**
+	 * Total number of active foms in this locality. Equals the length of
+	 * runq plus the length of wail plus the number of C2_FOS_RUNNING foms
+	 * in all locality threads.
+	 */
+	unsigned                     fl_foms;
+
 	/** State Machine (SM) group for AST call-backs */
 	struct c2_sm_group	     fl_group;
 
@@ -298,8 +305,6 @@ struct c2_fom_domain {
 	struct c2_fom_locality		*fd_localities;
 	/** Number of localities in the domain. */
 	size_t				 fd_localities_nr;
-	/** Number of foms under execution in this fom domain. */
-	struct c2_atomic64               fd_foms_nr;
 	/** Domain operations. */
 	const struct c2_fom_domain_ops	*fd_ops;
 	/** Request handler this domain belongs to */
@@ -323,23 +328,17 @@ struct c2_fom_domain_ops {
  * States a fom can be in.
  */
 enum c2_fom_state {
-	/**
-	 * Fom is in C2_FOS_RUNNING state when its state transition function is
-	 * being executed by a locality handler thread.  The fom is not on any
-	 * queue in this state.
-	 */
-	C2_FOS_RUNNING,
-	/**
-	 * Fom is in C2_FOS_READY state when it is on locality runq for
-	 * execution.
-	 */
+	C2_FOS_INIT,
+	/** Fom is dequeued from wait queue and put in run queue. */
 	C2_FOS_READY,
 	/**
-	 * Fom is in C2_FOS_WAITING state when some event must happen before
-	 * the next state transition would become possible.  The fom is on a
-	 * locality wait list in this state.
+	 * Fom state transition function is being executed by a locality handler
+	 * thread.  The fom is not on any queue in this state.
 	 */
+	C2_FOS_RUNNING,
+	/** FOM is enqueued into a locality wait list. */
 	C2_FOS_WAITING,
+	C2_FOS_FINISH,
 };
 
 enum c2_fom_phase {
@@ -369,6 +368,14 @@ int c2_fom_domain_init(struct c2_fom_domain *dom);
  * @pre dom != NULL && dom->fd_localities != NULL
  */
 void c2_fom_domain_fini(struct c2_fom_domain *dom);
+
+/**
+ * True iff no locality in the domain has a fom to execute.
+ *
+ * This function is, by intention, racy. To guarantee that the domain is idle,
+ * the caller must first guarantee that no new foms can be queued.
+ */
+bool c2_fom_domain_is_idle(const struct c2_fom_domain *dom);
 
 /**
  * This function iterates over c2_fom_domain members and checks
@@ -434,17 +441,6 @@ struct c2_fom_callback {
  * @see c2_fom_invariant()
  */
 struct c2_fom {
-	/**
-	 * State a fom can be in at any given instance throughout its life
-	 * cycle. This field is protected by
-	 * c2_fom_locality:fl_group.s_lock mutex, except in reqh handler thread,
-	 * when a fom is dequeued from locality runq list for execution.
-	 *
-	 * @see c2_fom_locality
-	 */
-	enum c2_fom_state	  fo_state;
-	/** FOM phase under execution */
-	int			  fo_phase;
 	/** Locality this fom belongs to */
 	struct c2_fom_locality	 *fo_loc;
 	const struct c2_fom_type *fo_type;
@@ -455,8 +451,6 @@ struct c2_fom {
 	struct c2_fop		 *fo_fop;
 	/** Reply fop object */
 	struct c2_fop		 *fo_rep_fop;
-	/** Fol object for this fom */
-	struct c2_fol		 *fo_fol;
 	/** Transaction object to be used by this fom */
 	struct c2_dtx		  fo_tx;
 	/** Pointer to service instance. */
@@ -474,6 +468,10 @@ struct c2_fom {
 	    while waiting for a longlock. */
 	unsigned		  fo_transitions_saved;
 
+	/** State machine for generic and specfic FOM phases. */
+	struct c2_sm		 fo_sm_phase;
+	/** State machine for FOM states. */
+	struct c2_sm		 fo_sm_state;
 	/** Result of fom execution, -errno on failure */
 	int32_t			  fo_rc;
 	/** Thread executing current phase transition. */
@@ -486,19 +484,25 @@ struct c2_fom {
 
 /**
  * Queues a fom for the execution in a locality runq.
- * Increments the number of foms in execution (c2_fom_domain::fd_foms_nr)
- * in fom domain atomically.
+ *
+ * Increments the number of foms in execution (c2_fom_locality::fl_foms).
+ *
  * The fom is placed in the locality run-queue and scheduled for the execution.
  * Possible errors are reported through fom state and phase, hence the return
  * type is void.
  *
  * @param fom, A fom to be submitted for execution
- * @param reqh, request handler processing the fom given fop
+ * @param reqh, request handler processing the fom
  *
  * @pre is_locked(fom)
- * @pre fom->fo_phase == C2_FOM_PHASE_INIT
+ * @pre c2_fom_phase(fom) == C2_FOM_PHASE_INIT
  */
 void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh);
+
+/**
+ * Returns reqh the fom belongs to
+ */
+struct c2_reqh *c2_fom_reqh(const struct c2_fom *fom);
 
 /**
  * Initialises fom allocated by caller.
@@ -522,13 +526,13 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
 /**
  * Finalises a fom after it completes its execution,
  * i.e success or failure.
- * Also decrements the number of foms under execution in fom domain
- * atomically.
- * Also signals c2_reqh::rh_sd_signal once c2_fom_domain::fd_foms_nr
+ *
+ * Decrements the number of foms under execution in the locality
+ * (c2_fom_locality::fl_foms). Signals c2_reqh::rh_sd_signal once this counter
  * reaches 0.
  *
  * @param fom, A fom to be finalised
- * @pre fom->fo_phase == C2_FOM_PHASE_FINISH
+ * @pre c2_fom_phase(fom) == C2_FOM_PHASE_FINISH
 */
 void c2_fom_fini(struct c2_fom *fom);
 
@@ -543,9 +547,9 @@ bool c2_fom_invariant(const struct c2_fom *fom);
 
 /** Type of fom. c2_fom_type is part of c2_fop_type. */
 struct c2_fom_type {
-	const struct c2_fom_type_ops *ft_ops;
-	/** Service type this FOM type belongs to. */
-	struct c2_reqh_service_type  *ft_rstype;
+	const struct c2_fom_type_ops	  *ft_ops;
+	const struct c2_sm_conf		  *ft_conf;
+	const struct c2_reqh_service_type *ft_rstype;
 };
 
 /**
@@ -695,14 +699,31 @@ bool c2_fom_callback_cancel(struct c2_fom_callback *cb);
  */
 bool c2_fom_group_is_locked(const struct c2_fom *fom);
 
-#define C2_FOM_TYPE_DECLARE(fomt, ops, stype) \
-struct c2_fom_type fomt ## _fomt = {          \
-	.ft_ops = (ops),                      \
-	.ft_rstype = (stype),                 \
-}                                             \
+/**
+ * Initialises FOM state machines for phases and states.
+ * @see c2_fom::fo_sm_phase
+ * @see c2_fom::fo_sm_state
+ *
+ * @pre fom->fo_loc != NULL
+ */
+void c2_fom_sm_init(struct c2_fom *fom);
+
+static inline void c2_fom_phase_set(struct c2_fom *fom, int phase)
+{
+	c2_sm_state_set(&fom->fo_sm_phase, phase);
+}
+
+static inline int c2_fom_phase(struct c2_fom *fom)
+{
+	return fom->fo_sm_phase.sm_state;
+}
+
+void c2_fom_type_init(struct c2_fom_type *type,
+		      const struct c2_fom_type_ops *ops,
+		      const struct c2_reqh_service_type  *svc_type,
+		      const struct c2_sm_conf *sm);
 
 /** @} end of fom group */
-
 /* __COLIBRI_FOP_FOM_H__ */
 #endif
 

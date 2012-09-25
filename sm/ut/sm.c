@@ -18,14 +18,10 @@
  * Original creation date: 28-Oct-2011
  */
 
-
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/ut.h"
 #include "lib/ub.h"
 #include "lib/time.h"
+#include "lib/errno.h"
 #include "lib/arith.h"                    /* c2_rnd */
 #include "lib/misc.h"                     /* C2_IN */
 #include "lib/thread.h"
@@ -79,10 +75,18 @@ static int fini(void) {
  */
 static void transition(void)
 {
-	enum { S_INITIAL, S_TERMINAL, S_NR };
+	enum { S_INITIAL, S_TERMINAL, S_FAILURE, S_NR };
 	const struct c2_sm_state_descr states[S_NR] = {
 		[S_INITIAL] = {
 			.sd_flags     = C2_SDF_INITIAL,
+			.sd_name      = "initial",
+			.sd_in        = NULL,
+			.sd_ex        = NULL,
+			.sd_invariant = NULL,
+			.sd_allowed   = (1 << S_TERMINAL)|(1 << S_FAILURE)
+		},
+		[S_FAILURE] = {
+			.sd_flags     = C2_SDF_FAILURE,
 			.sd_name      = "initial",
 			.sd_in        = NULL,
 			.sd_ex        = NULL,
@@ -107,11 +111,24 @@ static void transition(void)
 	c2_sm_group_lock(&G);
 	c2_sm_init(&m, &conf, S_INITIAL, &G, &actx);
 	C2_UT_ASSERT(m.sm_state == S_INITIAL);
-
 	c2_sm_state_set(&m, S_TERMINAL);
 	C2_UT_ASSERT(m.sm_state == S_TERMINAL);
-
 	c2_sm_fini(&m);
+
+	c2_sm_init(&m, &conf, S_INITIAL, &G, &actx);
+	C2_UT_ASSERT(m.sm_state == S_INITIAL);
+	c2_sm_move(&m, 0, S_TERMINAL);
+	C2_UT_ASSERT(m.sm_state == S_TERMINAL);
+	c2_sm_fini(&m);
+
+	c2_sm_init(&m, &conf, S_INITIAL, &G, &actx);
+	C2_UT_ASSERT(m.sm_state == S_INITIAL);
+	c2_sm_move(&m, -EINVAL, S_FAILURE);
+	C2_UT_ASSERT(m.sm_state == S_FAILURE);
+	C2_UT_ASSERT(m.sm_rc == -EINVAL);
+	c2_sm_state_set(&m, S_TERMINAL);
+	c2_sm_fini(&m);
+
 	c2_sm_group_unlock(&G);
 }
 
@@ -263,7 +280,7 @@ static int genesis_4_8(struct c2_sm *mach)
 
 	s = container_of(mach, struct story, cain);
 	c2_sm_fail(&s->abel, S_TERMINAL, -EINTR);
-	return -1;
+	return C2_SM_BREAK;
 }
 
 /**

@@ -15,43 +15,28 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- * Original creation date: 05/19/2010
+ * Original creation date: 01-Sep-2012
  */
 
 #pragma once
 
-#ifndef __COLIBRI_FOP_FOP_FORMAT_DEF_H__
-#define __COLIBRI_FOP_FOP_FORMAT_DEF_H__
+#ifndef __COLIBRI_LIB_STRING_H__
+#define __COLIBRI_LIB_STRING_H__
 
-/**
-   @addtogroup fop
-
-   @{
-*/
-
-/**
-   @file fop_format_def.h
-
-   Helper macros included before .ff files.
+/*
+ * Define standard string manipulation functions (strcat, strlen, strcmp, &c.)
+ * together with sprintf(3) and snprintf(3).
  */
 
-#define DEF C2_FOP_FORMAT
-#define _  C2_FOP_FIELD
-#define _case C2_FOP_FIELD_TAG
+#ifndef __KERNEL__
+# include <stdio.h>
+# include <string.h>
+#else
+# include <linux/kernel.h>
+# include <linux/string.h>
+#endif
 
-#define U32 C2_FOP_TYPE_FORMAT_U32
-#define U64 C2_FOP_TYPE_FORMAT_U64
-#define BYTE C2_FOP_TYPE_FORMAT_BYTE
-#define VOID C2_FOP_TYPE_FORMAT_VOID
-
-#define RECORD FFA_RECORD
-#define UNION FFA_UNION
-#define SEQUENCE FFA_SEQUENCE
-#define TYPEDEF FFA_TYPEDEF
-
-/** @} end of fop group */
-
-/* __COLIBRI_FOP_FOP_FORMAT_DEF_H__ */
+/* __COLIBRI_LIB_STRING_H__ */
 #endif
 
 /*

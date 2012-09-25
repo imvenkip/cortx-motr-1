@@ -20,15 +20,14 @@
  * Original creation date: 04/28/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
+#include "lib/trace.h"
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/misc.h"     /* C2_IN */
 #include "lib/types.h"
 #include "rpc/rpc2.h"
+#include "rpc/item.h"
 
 int c2_rpc__post_locked(struct c2_rpc_item *item);
 
@@ -61,17 +60,18 @@ int c2_rpc_post(struct c2_rpc_item *item)
 	int                    rc;
 	uint64_t	       item_size;
 
+	C2_ENTRY("item: %p", item);
 	C2_PRE(item->ri_session != NULL);
 
 	machine	  = item->ri_session->s_conn->c_rpc_machine;
-	item_size = item->ri_type->rit_ops->rito_item_size(item);
+	item_size = c2_rpc_item_size(item);
 
 	c2_rpc_machine_lock(machine);
 	C2_ASSERT(item_size <= machine->rm_min_recv_size);
 	rc = c2_rpc__post_locked(item);
 	c2_rpc_machine_unlock(machine);
 
-	return rc;
+	C2_RETURN(rc);
 }
 C2_EXPORTED(c2_rpc_post);
 
@@ -79,6 +79,7 @@ int c2_rpc__post_locked(struct c2_rpc_item *item)
 {
 	struct c2_rpc_session *session;
 
+	C2_ENTRY("item: %p", item);
 	C2_ASSERT(item != NULL && item->ri_type != NULL);
 
 	/*
@@ -107,7 +108,7 @@ int c2_rpc__post_locked(struct c2_rpc_item *item)
 
 	item->ri_state = RPC_ITEM_SUBMITTED;
 	c2_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm, item);
-	return 0;
+	C2_RETURN(0);
 }
 
 int c2_rpc_reply_post(struct c2_rpc_item	*request,
@@ -118,6 +119,7 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	struct c2_rpc_item	*tmp;
 	struct c2_rpc_slot	*slot;
 
+	C2_ENTRY("req_item: %p, rep_item: %p", request, reply);
 	C2_PRE(request != NULL && reply != NULL);
 	C2_PRE(request->ri_stage == RPC_ITEM_STAGE_IN_PROGRESS);
 	C2_PRE(request->ri_session != NULL);
@@ -155,13 +157,14 @@ int c2_rpc_reply_post(struct c2_rpc_item	*request,
 	C2_ASSERT(tmp == request);
 
 	c2_rpc_machine_unlock(machine);
-	return 0;
+	C2_RETURN(0);
 }
 C2_EXPORTED(c2_rpc_reply_post);
 
 int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
 				 struct c2_rpc_item       *item)
 {
+	C2_ENTRY("conn: %p, item: %p", conn, item);
 	C2_PRE(conn != NULL);
 	C2_PRE(item != NULL && c2_rpc_item_is_unsolicited(item));
 
@@ -173,15 +176,20 @@ int c2_rpc_unsolicited_item_post(const struct c2_rpc_conn *conn,
 	c2_rpc_frm_enq_item(&conn->c_rpcchan->rc_frm, item);
 
 	c2_rpc_machine_unlock(conn->c_rpc_machine);
-	return 0;
+	C2_RETURN(0);
 }
 
 int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout)
 {
+	int rc;
+	C2_ENTRY("timeout: [%llu:%llu]",
+		 (unsigned long long)c2_time_seconds(timeout),
+		 (unsigned long long) c2_time_nanoseconds(timeout));
 	C2_PRE(clink != NULL);
 	C2_PRE(c2_clink_is_armed(clink));
 
-	return c2_chan_timedwait(clink, timeout) ? 0 : -ETIMEDOUT;
+	rc = c2_chan_timedwait(clink, timeout) ? 0 : -ETIMEDOUT;
+	C2_RETURN(rc);
 }
 C2_EXPORTED(c2_rpc_reply_timedwait);
 
@@ -204,6 +212,7 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 	uint32_t    segs_nr;
 	c2_bcount_t seg_size;
 
+	C2_ENTRY("net_dom: %p", ndom);
 	C2_PRE(ndom != NULL);
 	C2_PRE(app_pool != NULL);
 	C2_PRE(bufs_nr != 0);
@@ -215,11 +224,13 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 				     C2_NET_BUFFER_POOL_THRESHOLD,
 				     segs_nr, seg_size, tm_nr, C2_SEG_SHIFT);
 	if (rc != 0)
-		return rc;
+		C2_RETERR(rc, "net_buf_pool: Initialization");
+
 	c2_net_buffer_pool_lock(app_pool);
 	rc = c2_net_buffer_pool_provision(app_pool, bufs_nr);
 	c2_net_buffer_pool_unlock(app_pool);
-	return rc != bufs_nr ? -ENOMEM : 0;
+	rc = rc != bufs_nr ? -ENOMEM : 0;
+	C2_RETURN(rc);
 }
 C2_EXPORTED(c2_rpc_net_buffer_pool_setup);
 

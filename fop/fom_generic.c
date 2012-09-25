@@ -15,12 +15,9 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
- * Original creation date: 07/19/2010
+ *		    Madhavrao Vemuri <madhav_vemuri@xyratex.com>
+ * Original creation date: 07/19/2011
  */
-
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
 
 #include "lib/errno.h"
 #include "lib/assert.h"
@@ -29,22 +26,12 @@
 #include "stob/stob.h"
 #include "net/net.h"
 #include "fop/fop.h"
-#include "fop/fom.h"
-#include "fop/fop_iterator.h"
 #include "dtm/dtm.h"
-#include "fop/fop_format_def.h"
+#include "fop/fom_generic_ff.h"
 #include "rpc/rpc2.h"
 #include "rpc/rpc_opcodes.h"    /* C2_REQH_ERROR_REPLY_OPCODE */
 #include "reqh/reqh.h"
 #include "xcode/bufvec_xcode.h" /* c2_xcode_fop_size_get() */
-
-#ifdef __KERNEL__
-# include "fop/fom_generic_k.h"
-#else
-# include "fop/fom_generic_u.h"
-#endif
-
-#include "fop/fom_generic.ff"
 #include "fop/fom_generic.h"
 
 /**
@@ -59,37 +46,31 @@ static const struct c2_addb_loc reqh_gen_addb_loc = {
         .al_name = "reqh generic"
 };
 
-#define REQH_GEN_ADDB_ADD(addb_ctx, name, rc)  \
+#define FOM_GEN_ADDB_ADD(addb_ctx, name, rc)  \
 C2_ADDB_ADD((addb_ctx), &reqh_gen_addb_loc, c2_addb_func_fail, (name), (rc))
 
-static struct c2_fop_type_ops fom_err_fop_ops = {
-	.fto_size_get = c2_xcode_fop_size_get,
-	.fto_execute = NULL,
-};
-
-C2_FOP_TYPE_DECLARE(c2_fom_error_rep, "fom error reply", &fom_err_fop_ops,
-		    C2_REQH_ERROR_REPLY_OPCODE, C2_RPC_ITEM_TYPE_REPLY);
-
-static struct c2_fop_type *fom_fops[] = {
-	&c2_fom_error_rep_fopt,
-};
+struct c2_fop_type c2_fom_error_rep_fopt;
 
 void c2_fom_generic_fini(void)
 {
-	c2_fop_type_fini_nr(fom_fops, ARRAY_SIZE(fom_fops));
+	c2_fop_type_fini(&c2_fom_error_rep_fopt);
 }
 
 int c2_fom_generic_init(void)
 {
-	return c2_fop_type_build_nr(fom_fops, ARRAY_SIZE(fom_fops));
+	return C2_FOP_TYPE_INIT(&c2_fom_error_rep_fopt,
+				.name      = "fom error reply",
+				.opcode    = C2_REQH_ERROR_REPLY_OPCODE,
+				.xt        = c2_fom_error_rep_xc,
+				.rpc_flags = C2_RPC_ITEM_TYPE_REPLY);
 }
 
 
 /**
- * Fom phase operations structure, helps to transition fom
+ * Fom phase descriptor structure, helps to transition fom
  * through its standard phases
  */
-struct fom_phase_ops {
+struct fom_phase_desc {
         /**
 	   Perfoms actions corresponding to a particular standard fom
 	   phase, as defined.
@@ -98,16 +79,16 @@ struct fom_phase_ops {
 
 	   @see c2_fom_tick_generic()
 	 */
-        int (*fpo_action) (struct c2_fom *fom);
+        int (*fpd_action) (struct c2_fom *fom);
         /**
 	   Next phase the fom should transition into, after successfully
 	   completing the current phase execution.
 	 */
-        int		   fpo_nextphase;
+        int		   fpd_nextphase;
 	/**
 	   Fom phase name in user readable format.
 	 */
-	const char	  *fpo_name;
+	const char	  *fpd_name;
 	/**
 	   Bitmap representation of the fom phase.
 	   This is used in pre condition checks before executing
@@ -115,7 +96,7 @@ struct fom_phase_ops {
 
 	   @see c2_fom_tick_generic()
 	 */
-	uint64_t	   fpo_pre_phase;
+	uint64_t	   fpd_pre_phase;
 };
 
 /**
@@ -232,7 +213,7 @@ static int create_loc_ctx(struct c2_fom *fom)
 	int		rc;
 	struct c2_reqh *reqh;
 
-	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	reqh = c2_fom_reqh(fom);
 	rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, reqh->rh_dbenv, 0);
 	if (rc != 0)
 		fom->fo_rc = rc;
@@ -255,8 +236,8 @@ static int create_loc_ctx_wait(struct c2_fom *fom)
  */
 static int set_gen_err_reply(struct c2_fom *fom)
 {
-	struct c2_fop			*rfop;
-	struct c2_fom_error_rep	*out_fop;
+	struct c2_fop           *rfop;
+	struct c2_fom_error_rep *out_fop;
 
 	C2_PRE(fom != NULL);
 
@@ -299,10 +280,10 @@ static int fom_success(struct c2_fom *fom)
  */
 static int fom_fol_rec_add(struct c2_fom *fom)
 {
-        c2_fom_block_enter(fom);
-        fom->fo_rc = c2_fop_fol_rec_add(fom->fo_fop, fom->fo_fol,
-                                        &fom->fo_tx.tx_dbtx);
-        c2_fom_block_leave(fom);
+	c2_fom_block_enter(fom);
+	fom->fo_rc = c2_fop_fol_rec_add(fom->fo_fop, c2_fom_reqh(fom)->rh_fol,
+	                                &fom->fo_tx.tx_dbtx);
+	c2_fom_block_leave(fom);
 
 	return C2_FSO_AGAIN;
 }
@@ -412,14 +393,14 @@ static int fom_timeout(struct c2_fom *fom)
 }
 
 /**
- * Fom phase operations table, this defines a fom_phase_ops object
+ * Fom phase operations table, this defines a fom_phase_desc object
  * for every generic phase of the fom, containing a function pointer
  * to the phase handler, the next phase fom should transition into
  * and a phase name in user visible format inorder to log addb event.
  *
- * @see struct fom_phase_ops
+ * @see struct fom_phase_desc
  */
-static const struct fom_phase_ops fpo_table[] = {
+static const struct fom_phase_desc fpd_table[] = {
 	[C2_FOPH_INIT] =		   { &fom_phase_init,
 					      C2_FOPH_AUTHENTICATE,
 					     "fom_init",
@@ -465,11 +446,11 @@ static const struct fom_phase_ops fpo_table[] = {
 					     "fom_auth_wait",
 					      1 << C2_FOPH_AUTHORISATION_WAIT },
 	[C2_FOPH_TXN_CONTEXT] =		   { &create_loc_ctx,
-					      C2_FOPH_NR+1,
+					      C2_FOPH_TYPE_SPECIFIC,
 					     "create_loc_ctx",
 					      1 << C2_FOPH_TXN_CONTEXT },
 	[C2_FOPH_TXN_CONTEXT_WAIT] =	   { &create_loc_ctx_wait,
-					      C2_FOPH_NR+1,
+					      C2_FOPH_TYPE_SPECIFIC,
 					     "create_loc_ctx_wait",
 					      1 << C2_FOPH_TXN_CONTEXT_WAIT },
 	[C2_FOPH_SUCCESS] =		   { &fom_success,
@@ -514,40 +495,277 @@ static const struct fom_phase_ops fpo_table[] = {
 					      1 << C2_FOPH_QUEUE_REPLY_WAIT }
 };
 
+/**
+ * FOM generic phases, allowed transitions from each phase and their functions
+ * are assigned to a state machine descriptor.
+ * State name is used to log addb event.
+ */
+static const struct c2_sm_state_descr generic_phases[] = {
+	[C2_FOPH_INIT] = {
+		.sd_flags     = C2_SDF_INITIAL,
+		.sd_name      = "SM init",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_AUTHENTICATE) |
+				(1 << C2_FOPH_FINISH) |
+				(1 << C2_FOPH_SUCCESS) |
+				(1 << C2_FOPH_FAILURE) |
+				(1 << C2_FOPH_TYPE_SPECIFIC)
+	},
+	[C2_FOPH_AUTHENTICATE] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom_authen",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_AUTHENTICATE_WAIT) |
+				(1 << C2_FOPH_RESOURCE_LOCAL) |
+				(1 << C2_FOPH_FAILURE)
+	},
+	[C2_FOPH_AUTHENTICATE_WAIT] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom_authen_wait",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_RESOURCE_LOCAL) |
+				(1 << C2_FOPH_FAILURE)
+	},
+	[C2_FOPH_RESOURCE_LOCAL] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom_loc_resource",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_RESOURCE_LOCAL_WAIT) |
+				(1 << C2_FOPH_RESOURCE_DISTRIBUTED) |
+				(1 << C2_FOPH_FAILURE)
+	},
+	[C2_FOPH_RESOURCE_LOCAL_WAIT] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom_loc_resource_wait",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_RESOURCE_DISTRIBUTED) |
+				(1 << C2_FOPH_FAILURE)
+	},
+	[C2_FOPH_RESOURCE_DISTRIBUTED] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom_dist_resource",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_RESOURCE_DISTRIBUTED_WAIT) |
+				(1 << C2_FOPH_OBJECT_CHECK) |
+				(1 << C2_FOPH_FAILURE)
+	},
+	[C2_FOPH_RESOURCE_DISTRIBUTED_WAIT] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom_dist_resource_wait",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_OBJECT_CHECK) |
+				(1 << C2_FOPH_FAILURE)
+	},
+	[C2_FOPH_OBJECT_CHECK] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom_obj_check",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_OBJECT_CHECK_WAIT) |
+				(1 << C2_FOPH_AUTHORISATION) |
+				(1 << C2_FOPH_FAILURE)
+	},
+	[C2_FOPH_OBJECT_CHECK_WAIT] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom_obj_check_wait",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_AUTHORISATION) |
+				(1 << C2_FOPH_FAILURE)
+	},
+	[C2_FOPH_AUTHORISATION] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom_auth",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_AUTHORISATION_WAIT) |
+				(1 << C2_FOPH_TXN_CONTEXT) |
+				(1 << C2_FOPH_FAILURE)
+	},
+	[C2_FOPH_AUTHORISATION_WAIT] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom_auth_wait",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_TXN_CONTEXT) |
+				(1 << C2_FOPH_FAILURE)
+	},
+	[C2_FOPH_TXN_CONTEXT] = {
+		.sd_flags     = 0,
+		.sd_name      = "create_loc_ctx",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_TXN_CONTEXT_WAIT) |
+				(1 << C2_FOPH_SUCCESS) |
+				(1 << C2_FOPH_FAILURE) |
+				(1 << C2_FOPH_TYPE_SPECIFIC)
+	},
+	[C2_FOPH_TXN_CONTEXT_WAIT] = {
+		.sd_flags     = 0,
+		.sd_name      = "create_loc_ctx_wait",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_SUCCESS) |
+				(1 << C2_FOPH_FAILURE) |
+				(1 << C2_FOPH_TYPE_SPECIFIC)
+	},
+	[C2_FOPH_SUCCESS] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom_success",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_FOL_REC_ADD)
+	},
+	[C2_FOPH_FOL_REC_ADD] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom_fol_rec_add",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_TXN_COMMIT)
+	},
+	[C2_FOPH_TXN_COMMIT] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom_txn_commit",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_TXN_COMMIT_WAIT) |
+				(1 << C2_FOPH_QUEUE_REPLY)
+	},
+	[C2_FOPH_TXN_COMMIT_WAIT] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom_txn_commit_wait",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_QUEUE_REPLY)
+	},
+	[C2_FOPH_TIMEOUT] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom_timeout",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_FAILURE)
+	},
+	[C2_FOPH_FAILURE] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom_failure",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_TXN_ABORT)
+	},
+	[C2_FOPH_TXN_ABORT] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom_txn_abort",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_TXN_ABORT_WAIT) |
+				(1 << C2_FOPH_QUEUE_REPLY)
+	},
+	[C2_FOPH_TXN_ABORT_WAIT] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom_txn_abort_wait",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_QUEUE_REPLY)
+	},
+	[C2_FOPH_QUEUE_REPLY] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom_queue_reply",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_QUEUE_REPLY_WAIT) |
+				(1 << C2_FOPH_FINISH)
+	},
+	[C2_FOPH_QUEUE_REPLY_WAIT] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom_queue_reply_wait",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_FINISH)
+	},
+	[C2_FOPH_FINISH] = {
+		.sd_flags     = C2_SDF_TERMINAL,
+		.sd_name      = "SM finish",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = 0
+	},
+	[C2_FOPH_TYPE_SPECIFIC] = {
+		.sd_flags     = 0,
+		.sd_name      = "Specific phase ",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOPH_SUCCESS) |
+				(1 << C2_FOPH_FAILURE) |
+				(1 << C2_FOPH_FINISH)
+	}
+};
+
+const struct c2_sm_conf c2_generic_conf = {
+	.scf_name      = "FOM standard phases",
+	.scf_nr_states = ARRAY_SIZE(generic_phases),
+	.scf_state     = generic_phases
+};
+C2_EXPORTED(c2_generic_conf);
+
 int c2_fom_tick_generic(struct c2_fom *fom)
 {
-	int			    rc;
-	const struct fom_phase_ops *fpo_phase;
-	struct c2_reqh             *reqh;
+	int			     rc;
+	const struct fom_phase_desc *fpd_phase;
+	struct c2_reqh              *reqh;
 
-	C2_PRE(IS_IN_ARRAY(fom->fo_phase, fpo_table));
+	fpd_phase = &fpd_table[c2_fom_phase(fom)];
 
-	fpo_phase = &fpo_table[fom->fo_phase];
+	rc = fpd_phase->fpd_action(fom);
 
-	C2_ASSERT(fpo_phase->fpo_pre_phase == 0 ||
-			(fpo_phase->fpo_pre_phase & (1 << fom->fo_phase)));
-
-	rc = fpo_phase->fpo_action(fom);
-
-	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	reqh = c2_fom_reqh(fom);
 	if (rc == C2_FSO_AGAIN) {
-		if (fom->fo_rc != 0 && fom->fo_phase < C2_FOPH_FAILURE) {
-			fom->fo_phase = C2_FOPH_FAILURE;
-			REQH_GEN_ADDB_ADD(reqh->rh_addb,
-						fpo_phase->fpo_name,
-						fom->fo_rc);
+		if (fom->fo_rc != 0 && c2_fom_phase(fom) < C2_FOPH_FAILURE) {
+			c2_fom_phase_set(fom, C2_FOPH_FAILURE);
+			FOM_GEN_ADDB_ADD(&reqh->rh_addb, fpd_phase->fpd_name,
+					 fom->fo_rc);
 		} else
-			fom->fo_phase = fpo_phase->fpo_nextphase;
+			c2_fom_phase_set(fom, fpd_phase->fpd_nextphase);
 	}
 
-	if (fom->fo_phase == C2_FOPH_FINISH)
+	if (c2_fom_phase(fom) == C2_FOPH_FINISH)
 		rc = C2_FSO_WAIT;
 
 	return rc;
 }
 
-/** @} endgroup fom */
-
+/** @} end of fom group */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

@@ -23,6 +23,8 @@
 #ifndef __COLIBRI_COLIBRI_COLIBRI_SETUP_H__
 #define __COLIBRI_COLIBRI_COLIBRI_SETUP_H__
 
+#include <stdio.h> /* FILE */
+
 #include "lib/tlist.h"
 #include "reqh/reqh_service.h"
 #include "stob/stob.h"

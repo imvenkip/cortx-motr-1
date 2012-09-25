@@ -17,10 +17,6 @@
  * Original creation date: 05/04/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>	/* mkdir */
@@ -28,20 +24,10 @@
 #include <err.h>
 
 #include "lib/ut.h"
-#include "lib/misc.h"
-#include "lib/errno.h"
-#include "lib/assert.h"
-#include "lib/memory.h"
-#include "lib/chan.h"
-#include "lib/processor.h"
-#include "lib/list.h"
 
-#include "colibri/init.h"
 #include "net/net.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
-#include "fop/fom.h"
-#include "fop/fop_iterator.h"
 #include "stob/stob.h"
 #include "stob/ad.h"
 #include "stob/linux.h"
@@ -50,19 +36,9 @@
 #include "fop/fop_item_type.h"
 #include "rpc/item.h"
 #include "xcode/bufvec_xcode.h"
-
-#include "fop/fop_format_def.h"
-
-#ifdef __KERNEL__
-#include "fop/fom_generic_k.h"
-#include "io_fop_k.h"
-#else
-#include "fop/fom_generic_u.h"
-#include "io_fop_u.h"
-#endif
-
+#include "fop/fom_generic_ff.h"
+#include "io_fop_ff.h"
 #include "io_fop.h"
-#include "fop/fom_generic.ff"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpclib.h"
 #include "ut/rpc.h"
@@ -364,16 +340,16 @@ void test_reqh(void)
 {
 	int                    result;
 	char                   opath[64];
-	const char             *path;
-	struct c2_net_xprt     *xprt = &c2_net_lnet_xprt;
-	struct c2_net_domain   net_dom = { };
+	const char            *path;
+	struct c2_net_xprt    *xprt        = &c2_net_lnet_xprt;
+	struct c2_net_domain   net_dom     = { };
 	struct c2_net_domain   srv_net_dom = { };
 	struct c2_dbenv        client_dbenv;
 	struct c2_cob_domain   client_cob_dom;
-	struct c2_stob_domain  *bdom;
+	struct c2_stob_domain *bdom;
 	struct c2_stob_id      backid;
-	struct c2_stob         *bstore;
-	struct c2_stob         *reqh_addb_stob;
+	struct c2_stob        *bstore;
+	struct c2_stob        *reqh_addb_stob;
 
 	struct c2_stob_id      reqh_addb_stob_id = {
 					.si_bits = {
@@ -402,12 +378,6 @@ void test_reqh(void)
 	setbuf(stderr, NULL);
 
 	path = "reqh_ut_stob";
-
-	/* Initialize processors */
-	if (!c2_processor_is_initialized()) {
-		result = c2_processors_init();
-		C2_UT_ASSERT(result == 0);
-	}
 
 	result = c2_stob_io_fop_init();
 	C2_UT_ASSERT(result == 0);
@@ -449,9 +419,6 @@ void test_reqh(void)
 	c2_net_domain_fini(&srv_net_dom);
 	c2_net_xprt_fini(xprt);
 	c2_stob_io_fop_fini();
-
-	if (c2_processor_is_initialized())
-		c2_processors_fini();
 }
 
 const struct c2_test_suite reqh_ut = {

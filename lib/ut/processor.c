@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -257,27 +257,24 @@ static void ub_fini(void)
 
 static void ub_init1(int i)
 {
-	C2_UT_ASSERT(!c2_processor_is_initialized());
 }
 
 static void ub_init2(int i)
 {
 	int rc;
 
+	c2_processors_fini();
 	rc = c2_processors_init();
 	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(c2_processor_is_initialized());
-	c2_processors_fini();
 }
 
 static void ub_init3(int i)
 {
 	int rc;
 
+	c2_processors_fini();
 	rc = c2_processors_init();
 	C2_UT_ASSERT(rc == 0);
-	c2_processors_fini();
-	C2_UT_ASSERT(!c2_processor_is_initialized());
 }
 
 static uint32_t get_num_from_file(const char *file)
@@ -330,7 +327,7 @@ static void maptostr(struct c2_bitmap *map, char **buf)
 	}
 }
 
-static void verify_getcpu()
+static void verify_id_get(void)
 {
 	int	id;
 	int	rc;
@@ -348,7 +345,7 @@ static void verify_getcpu()
 
 	c2_processors_online(&map);
 
-	id = c2_processor_getcpu();
+	id = c2_processor_id_get();
 	if (id != -1) {
 		C2_UT_ASSERT(c2_bitmap_get(&map, id));
 	}
@@ -751,7 +748,6 @@ static void verify_init(void)
 
 	rc = c2_processors_init();
 	C2_UT_ASSERT(rc != 0);
-	C2_UT_ASSERT(!c2_processor_is_initialized());
 }
 
 static void verify_all_params()
@@ -761,15 +757,15 @@ static void verify_all_params()
 	verify_map(AVAIL_MAP);
 	verify_map(ONLN_MAP);
 	verify_processors();
-	verify_getcpu();
+	verify_id_get();
 }
 
 void test_processor(void)
 {
-
 	ub_init1(0);
 	ub_init2(0);
 	ub_init3(0);
+	c2_processors_fini(); /* clean normal data so we can load test data */
 
 	processor_info_dirp = SYSFS_PATH;
 	verify_all_params();
@@ -817,6 +813,7 @@ void test_processor(void)
 	clean_test_dataset();
 
 	unsetenv("C2_PROCESSORS_INFO_DIR");
+	C2_UT_ASSERT(c2_processors_init() == 0); /* restore normal data */
 }
 
 struct c2_ub_set c2_processor_ub = {

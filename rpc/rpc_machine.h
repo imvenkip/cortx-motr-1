@@ -33,6 +33,8 @@
 #include "lib/chan.h"
 #include "lib/refs.h"
 #include "lib/thread.h"
+#include "lib/arith.h"
+#include "lib/bob.h"
 
 #include "addb/addb.h"
 #include "rpc/formation2.h"  /* c2_rpc_frm         */
@@ -49,7 +51,6 @@ struct c2_cob_domain;
 struct c2_reqh;
 
 enum {
-	C2_RPC_MACHINE_MAGIX	    = 0x5250434D414348, /* RPCMACH */
 	/** Default Maximum RPC message size is taken as 128k */
 	C2_RPC_DEF_MAX_RPC_MSG_SIZE = 1 << 17,
 };
