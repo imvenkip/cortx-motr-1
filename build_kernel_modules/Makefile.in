@@ -7,6 +7,7 @@ KBUILD_EXTRA_SYMBOLS = $(BUILD_DIR)/Lustre.symvers @GALOIS_SYMVERS@
 GCOV_PROFILE    = @K_ENABLE_COVERAGE@
 
 testdirs        = ../net/lnet/st/linux_kernel/                  \
+		  ../net/test/linux_kernel/			\
                   ../rpc/it/linux_kernel/                       \
                   ../utils/linux_kernel/
 
@@ -47,6 +48,8 @@ dirs  = addb                                                                  \
         net                                                                   \
         net/bulk_emulation/ut                                                 \
         net/lnet/ut                                                           \
+	net/test							      \
+	net/test/ut							      \
         net/ut                                                                \
         pool                                                                  \
 	reqh                                                                  \
@@ -110,17 +113,18 @@ layout_SOURCES                  := layout.c layout_db.c pdclust.c composite.c \
 
 layout_ut_SOURCES               := layout.c
 
-lib_SOURCES                     := bitstring.c vec.c list.c queue.c refs.c     \
-                                   time.c bitmap.c chan.c misc.c buf.c cond.c  \
-                                   thread.c tlist.c bob.c trace.c finject.c \
-                                   vec_xc.c vec.c buf_xc.c buf.c c2lib.c \
-                                   cookie.c
+lib_SOURCES                     := bitstring.c getopts.c vec.c list.c queue.c  \
+				   refs.c time.c bitmap.c chan.c misc.c buf.c  \
+				   cond.c thread.c tlist.c bob.c trace.c       \
+				   finject.c vec_xc.c vec.c buf_xc.c buf.c     \
+				   c2lib.c cookie.c
 
 lib_HEADERS                     := vec.h vec_xc.h buf.h buf_xc.h
 
 lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c   \
                                    kthread.c semaphore.c processor.c kvec.c    \
-                                   ktrace.c finject_init.c ut.c main.c kcookie.c
+                                   ktrace.c finject_init.c ut.c main.c 	       \
+				   kcookie.c misc.c
 
 lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c     \
                                    mutex.c queue.c refs.c tlist.c time.c       \
@@ -135,6 +139,17 @@ net_HEADERS                     := net_otw_types_ff.h
 net_bulk_emulation_ut_SOURCES   := bulk_mem_ut.c
 
 net_lnet_ut_SOURCES             := lnet_ut.c
+
+net_test_SOURCES		:= commands.c console.c network.c node_bulk.c \
+				   node.c node_ping.c ringbuf.c serialize.c   \
+				   service.c slist.c stats.c str.c
+net_test_HEADERS		:= commands.h console.h network.h node_bulk.h \
+				   node.h node_ping.h ringbuf.h serialize.h   \
+				   service.h slist.h stats.h str.h
+
+net_test_ut_SOURCES		:= client_server.c commands.c main.c	      \
+				   network.c ringbuf.c serialize.c service.c  \
+				   slist.c stats.c str.c
 
 net_ut_SOURCES                  := bulk_if.c buffer_pool_ut.c
 net_ut_HEADERS                  := tm_provision_ut.c
