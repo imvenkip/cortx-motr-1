@@ -830,11 +830,11 @@ static int node_ping_step(void *ctx_)
 	c2_mutex_lock(&ctx->npc_status_data_lock);
 	msg_send = sd->ntcsd_msg_nr_send;
 	msg_recv = sd->ntcsd_msg_nr_recv;
+	now	 = c2_time_now();
 	finished = sd->ntcsd_finished;
 	c2_mutex_unlock(&ctx->npc_status_data_lock);
 
 	if (!finished) {
-		now = c2_time_now();
 		/*
 		 * MPS stats can be updated without lock because
 		 * they are used in node_ping_step() and
