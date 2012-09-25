@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __NET_TEST_STATS_H__
-#define __NET_TEST_STATS_H__
+#ifndef __COLIBRI_NET_TEST_STATS_H__
+#define __COLIBRI_NET_TEST_STATS_H__
 
 #include "lib/time.h"		/* c2_time_t */
 #include "lib/atomic.h"		/* c2_atomic64 */
@@ -338,7 +338,7 @@ void c2_net_test_msg_nr_add(struct c2_net_test_msg_nr *msg_nr,
    @} end of NetTestMsgNRDFS group
  */
 
-#endif /*  __NET_TEST_STATS_H__ */
+#endif /*  __COLIBRI_NET_TEST_STATS_H__ */
 
 /*
  *  Local variables:

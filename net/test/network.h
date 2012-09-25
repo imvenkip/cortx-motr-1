@@ -14,14 +14,14 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author Maxim Medved <max_medved@xyratex.com>
+ * Original author: Maxim Medved <max_medved@xyratex.com>
  * Original creation date: 03/22/2012
  */
 
 #pragma once
 
-#ifndef __NET_TEST_NETWORK_H__
-#define __NET_TEST_NETWORK_H__
+#ifndef __COLIBRI_NET_TEST_NETWORK_H__
+#define __COLIBRI_NET_TEST_NETWORK_H__
 
 #include "net/net.h"
 
@@ -318,7 +318,7 @@ struct c2_net_test_network_timeouts c2_net_test_network_timeouts_never(void);
    @} end of NetTestNetworkDFS group
  */
 
-#endif /*  __NET_TEST_NETWORK_H__ */
+#endif /*  __COLIBRI_NET_TEST_NETWORK_H__ */
 
 /*
  *  Local variables:

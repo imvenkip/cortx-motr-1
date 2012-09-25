@@ -20,6 +20,9 @@
 
 #pragma once
 
+#ifndef __COLIBRI_NET_TEST_USER_SPACE_COMMON_U_H__
+#define __COLIBRI_NET_TEST_USER_SPACE_COMMON_U_H__
+
 #include <stdio.h>		/* printf */
 
 #include "lib/time.h"		/* c2_time_t */
@@ -55,6 +58,8 @@ int c2_net_test_u_printf_v(const char *fmt, ...);
 /**
    @} end of NetTestUCommonDFS group
  */
+
+#endif /* __COLIBRI_NET_TEST_USER_SPACE_COMMON_U_H__ */
 
 /*
  *  Local variables:

@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __NET_TEST_CONSOLE_H__
-#define __NET_TEST_CONSOLE_H__
+#ifndef __COLIBRI_NET_TEST_CONSOLE_H__
+#define __COLIBRI_NET_TEST_CONSOLE_H__
 
 #include "lib/time.h"			/* c2_time_t */
 #include "lib/types.h"			/* c2_bcount_t */
@@ -148,7 +148,7 @@ size_t c2_net_test_console_cmd(struct c2_net_test_console_ctx *ctx,
    @} end of NetTestConsoleDFS group
  */
 
-#endif /*  __NET_TEST_CONSOLE_H__ */
+#endif /*  __COLIBRI_NET_TEST_CONSOLE_H__ */
 
 /*
  *  Local variables:

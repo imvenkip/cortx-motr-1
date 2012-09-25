@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __NET_TEST_NODE_H__
-#define __NET_TEST_NODE_H__
+#ifndef __COLIBRI_NET_TEST_NODE_H__
+#define __COLIBRI_NET_TEST_NODE_H__
 
 #include "net/test/commands.h"	/* c2_net_test_cmd_ctx */
 #include "net/test/network.h"	/* c2_net_test_network_ctx */
@@ -192,7 +192,7 @@ void c2_net_test_node_stop(struct c2_net_test_node_ctx *ctx);
    @} end of NetTestNodeDFS group
  */
 
-#endif /*  __NET_TEST_NODE_H__ */
+#endif /*  __COLIBRI_NET_TEST_NODE_H__ */
 
 /*
  *  Local variables:

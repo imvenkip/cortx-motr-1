@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __NET_TEST_SLIST_H__
-#define __NET_TEST_SLIST_H__
+#ifndef __COLIBRI_NET_TEST_SLIST_H__
+#define __COLIBRI_NET_TEST_SLIST_H__
 
 #include "lib/vec.h"		/* c2_bufvec */
 #include "net/test/serialize.h"	/* c2_net_test_serialize_op */
@@ -101,7 +101,7 @@ c2_bcount_t c2_net_test_slist_serialize(enum c2_net_test_serialize_op op,
    @} end of NetTestSListDFS group
  */
 
-#endif /*  __NET_TEST_SLIST_H__ */
+#endif /*  __COLIBRI_NET_TEST_SLIST_H__ */
 
 /*
  *  Local variables:

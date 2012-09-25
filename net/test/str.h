@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __NET_TEST_STR_H__
-#define __NET_TEST_STR_H__
+#ifndef __COLIBRI_NET_TEST_STR_H__
+#define __COLIBRI_NET_TEST_STR_H__
 
 #include "net/test/serialize.h"
 
@@ -63,7 +63,7 @@ void c2_net_test_str_fini(char **str);
    @} end of NetTestStrDFS group
  */
 
-#endif /*  __NET_TEST_STR_H__ */
+#endif /*  __COLIBRI_NET_TEST_STR_H__ */
 
 /*
  *  Local variables:

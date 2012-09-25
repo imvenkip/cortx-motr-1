@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __NET_TEST_SERIALIZE_H__
-#define __NET_TEST_SERIALIZE_H__
+#ifndef __COLIBRI_NET_TEST_SERIALIZE_H__
+#define __COLIBRI_NET_TEST_SERIALIZE_H__
 
 #include "lib/types.h"	/* c2_bcount_t */
 #include "lib/vec.h"	/* c2_buvfec */
@@ -110,7 +110,7 @@ c2_bcount_t c2_net_test_serialize(enum c2_net_test_serialize_op op,
    @} end of NetTestSerializeDFS group
  */
 
-#endif /*  __NET_TEST_SERIALIZE_H__ */
+#endif /*  __COLIBRI_NET_TEST_SERIALIZE_H__ */
 
 /*
  *  Local variables:

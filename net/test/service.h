@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __NET_TEST_SERVICE_H__
-#define __NET_TEST_SERVICE_H__
+#ifndef __COLIBRI_NET_TEST_SERVICE_H__
+#define __COLIBRI_NET_TEST_SERVICE_H__
 
 #include "lib/time.h"			/* c2_time_t */
 #include "lib/thread.h"			/* c2_thread */
@@ -170,7 +170,7 @@ c2_net_test_service_state_get(struct c2_net_test_service *svc);
    @} end of NetTestServiceDFS group
  */
 
-#endif /*  __NET_TEST_SERVICE_H__ */
+#endif /*  __COLIBRI_NET_TEST_SERVICE_H__ */
 
 /*
  *  Local variables:

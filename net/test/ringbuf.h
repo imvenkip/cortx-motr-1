@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __NET_TEST_RINGBUF_H__
-#define __NET_TEST_RINGBUF_H__
+#ifndef __COLIBRI_NET_TEST_RINGBUF_H__
+#define __COLIBRI_NET_TEST_RINGBUF_H__
 
 #include "lib/types.h"	/* size_t */
 #include "lib/atomic.h"	/* c2_atomic64 */
@@ -85,7 +85,7 @@ bool c2_net_test_ringbuf_is_empty(struct c2_net_test_ringbuf *rb);
    @} end of NetTestRingbufDFS group
  */
 
-#endif /*  __NET_TEST_RINGBUF_H__ */
+#endif /*  __COLIBRI_NET_TEST_RINGBUF_H__ */
 
 /*
  *  Local variables:

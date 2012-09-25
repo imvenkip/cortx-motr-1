@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __NET_TEST_USER_SPACE_STATS_U_H__
-#define __NET_TEST_USER_SPACE_STATS_U_H__
+#ifndef __COLIBRI_NET_TEST_USER_SPACE_STATS_U_H__
+#define __COLIBRI_NET_TEST_USER_SPACE_STATS_U_H__
 
 #include "lib/time.h"		/* c2_time_t */
 #include "net/test/stats.h"	/* c2_net_test_stats */
@@ -71,7 +71,7 @@ c2_time_t c2_net_test_stats_time_stddev(struct c2_net_test_stats *stats);
    @} end of NetTestStatsDFS group
  */
 
-#endif /*  __NET_TEST_USER_SPACE_STATS_U_H__ */
+#endif /*  __COLIBRI_NET_TEST_USER_SPACE_STATS_U_H__ */
 
 /*
  *  Local variables:

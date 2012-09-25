@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __NET_TEST_COMMANDS_H__
-#define __NET_TEST_COMMANDS_H__
+#ifndef __COLIBRI_NET_TEST_COMMANDS_H__
+#define __COLIBRI_NET_TEST_COMMANDS_H__
 
 #include "lib/semaphore.h"		/* c2_semaphore */
 
@@ -313,7 +313,7 @@ void c2_net_test_commands_received_free(struct c2_net_test_cmd *cmd);
    @} end of NetTestCommandsDFS group
  */
 
-#endif /*  __NET_TEST_COMMANDS_H__ */
+#endif /*  __COLIBRI_NET_TEST_COMMANDS_H__ */
 
 /*
  *  Local variables:
