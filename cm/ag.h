@@ -33,6 +33,9 @@
    @{
  */
 
+/**
+ * Aggregation group id.
+ */
 struct c2_cm_ag_id {
 	struct c2_uint128 ai_hi;
 	struct c2_uint128 ai_lo;

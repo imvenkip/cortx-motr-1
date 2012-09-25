@@ -32,6 +32,7 @@
 #include "fop/fom.h"           /* struct c2_fom */
 
 #include "cm/ag.h"
+#include "cm/pump.h"
 
 /**
    @page CMDLD-fspec Copy Machine Functional Specification
@@ -82,7 +83,7 @@
    - c2_cm_start()                   Starts copy machine operation.
    - c2_cm_fail()		     Handles a copy machine failure.
    - c2_cm_stop()		     Completes and aborts a copy machine
-   				     operation.
+                                     operation.
 
    @subsection CMDLD-fspec-sub-opi-ext External operational Interfaces
    @todo This would be re-written when configuration api's would be implemented.
@@ -106,8 +107,6 @@
 
 /* Import */
 struct c2_fop;
-
-struct c2_cm_cp_pump;
 
 /**
  * Copy machine states.
@@ -137,57 +136,6 @@ enum c2_cm_failure {
 	/** Copy machine stop failure */
 	C2_CM_ERR_STOP,
 	C2_CM_ERR_NR
-};
-
-enum c2_cm_cp_pump_phase {
-	/**
-	 * New copy packets are allocated in this phase.
-	 * c2_cm_cp_pump::p_fom is in CPP_ALLOC phase when it is initialised
-	 * or c2_cm_sw_fill() is invoked from a copy packet FOM, during latter's
-	 * finalisation.
-	 */
-	C2_CPP_ALLOC = C2_FOM_PHASE_INIT,
-	C2_CPP_FINI  = C2_FOM_PHASE_FINISH,
-	/**
-	 * c2_cm_cp_pump::p_fom is transitioned to CPP_IDLE state in case of
-	 * failure and if no more copy packets can be created (in case buffer
-	 * pool is exhausted).
-	 */
-	C2_CPP_IDLE,
-	/**
-	 * Copy packets allocated in CPP_ALLOC phase are configured in this
-	 * phase.
-	 */
-	C2_CPP_DATA_NEXT,
-	C2_CPP_FAIL,
-	C2_CPP_NR
-};
-
-struct c2_cm_cp_pump_ops {
-	uint64_t po_action_nr;
-	int     (*po_action[]) (struct c2_cm_cp_pump *cp_pump);
-};
-
-/**
- * Represents copy packet pump FOM. New copy packets are created in context
- * of c2_cm_cp_pump::p_fom. The pump FOM (c2_cm_cp_pump::p_fom) nicely resolves
- * the issues with creation of new copy packets and configuring them using
- * c2_cm_data_next(), which may block. The pump FOM is created when copy machine
- * operation starts and finalised when copy machine operation is complete.
- * The pump FOM goes to sleep when no more copy packets can be created (buffer
- * pool is exhausted). When a copy packet FOM terminates and frees its buffer
- * in the pool, it wakes up the pump FOM (using c2_cm_sw_fill()) to create more
- * copy packets.
- */
-struct c2_cm_cp_pump {
-	/** pump FOM. */
-	struct c2_fom                   p_fom;
-	const struct c2_cm_cp_pump_ops *p_ops;
-	/**
-	 * Saved copy packet, in-case the pump FOM goes into wait state due to
-	 * c2_cm_data_next().
-	 */
-	struct c2_cm_cp                *p_cp;
 };
 
 /** Copy Machine type, implemented as a request handler service. */
@@ -240,8 +188,6 @@ struct c2_cm {
 
 	/** List of c2_cm_proxy objects representing remote replicas. */
 	struct c2_tl                     cm_proxies;
-
-	/** Copy packet pump fom. */
 	struct c2_cm_cp_pump             cm_cp_pump;
 };
 
