@@ -19,6 +19,7 @@
  */
 
 #include <string.h>			/* strlen */
+#include <limits.h>			/* ULONG_MAX */
 
 #include "lib/misc.h"			/* C2_SET0 */
 #include "lib/assert.h"			/* C2_ASSERT */
