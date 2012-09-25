@@ -123,9 +123,6 @@ static void test_mkfs(void)
 
 static void test_init(void)
 {
-        rc = c2_processors_init();
-        C2_ASSERT(rc == 0);
-
 	rc = c2_dbenv_init(&db, db_name, 0);
 	C2_ASSERT(rc == 0);
 

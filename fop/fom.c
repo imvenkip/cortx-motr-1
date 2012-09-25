@@ -426,7 +426,7 @@ void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
 	stype = fom->fo_type->ft_rstype;
 	if (stype != NULL) {
 		fom->fo_service = c2_reqh_service_find(stype, reqh);
-		C2_ASSERT(fom->fo_service != NULL);
+		C2_ASSERT(reqh->rh_svc != NULL || fom->fo_service != NULL);
 	}
 
 	dom = &reqh->rh_fom_dom;
@@ -526,8 +526,8 @@ static void fom_exec(struct c2_fom *fom)
 		   Make sure that ctx is released. It is allocated just before fto_create()
 		   is called. We release it after fo_finish as it may use ctx.
 		 */
-                C2_ASSERT(ctx != NULL);
-                c2_free(ctx);
+		if (ctx != NULL)
+                        c2_free(ctx);
 
 		/*
 		 * Don't touch the fom after this point.
