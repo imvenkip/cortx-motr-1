@@ -281,7 +281,7 @@ size_t c2_net_test_console_cmd(struct c2_net_test_console_ctx *ctx,
 		status_data_reset(sd);
 	}
 	deadline = c2_time_add(c2_time_now(), cfg->ntcc_cmd_recv_timeout);
-	while (deadline <= c2_time_now() && rcvd_nr < nodes->ntsl_nr) {
+	while (c2_time_now() <= deadline && rcvd_nr < nodes->ntsl_nr) {
 		rc = c2_net_test_commands_recv(cmd_ctx, &cmd, deadline);
 		/* deadline reached */
 		if (rc == -ETIMEDOUT)
