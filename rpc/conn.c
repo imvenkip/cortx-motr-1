@@ -124,7 +124,8 @@ static const struct c2_sm_state_descr conn_states[] = {
 	},
 	[C2_RPC_CONN_ACTIVE] = {
 		.sd_name      = "Active",
-		.sd_allowed   = C2_BITS(C2_RPC_CONN_TERMINATING)
+		.sd_allowed   = C2_BITS(C2_RPC_CONN_TERMINATING,
+					C2_RPC_CONN_FAILED)
 	},
 	[C2_RPC_CONN_TERMINATING] = {
 		.sd_name      = "Terminating",

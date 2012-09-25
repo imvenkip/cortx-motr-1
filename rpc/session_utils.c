@@ -23,8 +23,9 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/arith.h"
-#include "rpc/session.h"
 #include "lib/bitstring.h"
+#include "lib/finject.h"       /* C2_FI_ENABLED */
+#include "rpc/session.h"
 #include "cob/cob.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
@@ -75,6 +76,12 @@ int c2_rpc__fop_post(struct c2_fop                *fop,
 		     const struct c2_rpc_item_ops *ops)
 {
 	struct c2_rpc_item *item;
+	
+	if (C2_FI_ENABLED("do_nothing"))
+		return 0;
+	
+	if (C2_FI_ENABLED("fake_error"))
+		return -ETIMEDOUT;
 
 	item              = &fop->f_item;
 	item->ri_session  = session;
