@@ -75,8 +75,9 @@ int c2_rpc__post_locked(struct c2_rpc_item *item)
 {
 	struct c2_rpc_session *session;
 
-	C2_ASSERT(item != NULL && item->ri_type != NULL);
-
+	C2_PRE(item != NULL && item->ri_type != NULL);
+	/* XXX Temporary assertion, until bound item posting is supported */
+	C2_PRE(c2_rpc_item_is_request(item) && !c2_rpc_item_is_bound(item));
 	/*
 	 * It is mandatory to specify item_ops, because rpc layer needs
 	 * implementation of c2_rpc_item_ops::rio_free() in order to free the

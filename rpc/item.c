@@ -228,13 +228,14 @@ bool c2_rpc_item_invariant(const struct c2_rpc_item *item)
 		item->ri_ops != NULL &&
 		item->ri_ops->rio_free != NULL &&
 
+		equi(state == C2_RPC_ITEM_FAILED, item->ri_error != 0) &&
 		equi(state == C2_RPC_ITEM_FAILED,
-		     item->ri_error != 0 &&
 		     C2_IN(item->ri_stage, (RPC_ITEM_STAGE_FAILED,
 					    RPC_ITEM_STAGE_TIMEDOUT))) &&
 
 		equi(req && item->ri_error == -ETIMEDOUT,
-		     item->ri_stage == RPC_ITEM_STAGE_TIMEDOUT &&
+		     item->ri_stage == RPC_ITEM_STAGE_TIMEDOUT) &&
+		equi(req && item->ri_error == -ETIMEDOUT,
 		     c2_time_is_in_past(item->ri_op_timeout)) &&
 
 		ergo(item->ri_reply != NULL,
