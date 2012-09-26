@@ -62,12 +62,10 @@ static int server_start(void)
 
         rc = c2_cs_setup_env(&sctx, ARRAY_SIZE(sns_repair_ut_svc),
                              sns_repair_ut_svc);
-        if (rc != 0) {
+	if (rc == 0)
+		rc = c2_cs_start(&sctx);
+        if (rc != 0)
 		server_stop();
-		return rc;
-	}
-
-        rc = c2_cs_start(&sctx);
 
 	return rc;
 }
@@ -85,9 +83,18 @@ static void test_service_init_failure(void)
 {
 	int rc;
 
+	c2_fi_enable_once("c2_cm_init", "init_failure");
 	rc = server_start();
-	C2_UT_ASSERT(rc == 0);
-	server_stop();
+	C2_UT_ASSERT(rc != 0);
+}
+
+static void test_service_start_failure(void)
+{
+	int rc;
+
+	c2_fi_enable_once("c2_cm_setup", "setup_failure");
+	rc = server_start();
+	C2_UT_ASSERT(rc != 0);
 }
 
 const struct c2_test_suite sns_repair_ut = {
@@ -97,6 +104,7 @@ const struct c2_test_suite sns_repair_ut = {
 	.ts_tests = {
 		{ "service-startstop", test_service_start_success},
 		{ "service-init-fail", test_service_init_failure},
+		{ "service-init-fail", test_service_start_failure},
 		{ NULL, NULL }
 	}
 };

@@ -26,14 +26,7 @@
 #include "cm/cp.h"
 
 static struct c2_reqh  reqh;
-static struct c2_cm_cp    cp;
-
-/*
-struct cm_ut {
-	struct c2_cm 	u_cm;
-};
-*/
-
+static struct c2_cm_cp cp;
 static struct c2_cm cm_ut;
 
 static int cm_ut_service_start(struct c2_reqh_service *service)
@@ -48,7 +41,8 @@ static int cm_ut_service_start(struct c2_reqh_service *service)
 
 static void cm_ut_service_stop(struct c2_reqh_service *service)
 {
-
+	struct c2_cm *cm = container_of(service, struct c2_cm, cm_service);
+	c2_cm_fini(cm);
 }
 
 static void cm_ut_service_fini(struct c2_reqh_service *service)
@@ -77,8 +71,17 @@ static int cm_ut_stop(struct c2_cm *cm)
 	return 0;
 }
 
+static void cm_cp_ut_free(struct c2_cm_cp *cp)
+{
+
+}
+
+static const struct c2_cm_cp_ops cm_cp_ut_ops = {
+	.co_free = cm_cp_ut_free
+};
 static struct c2_cm_cp* cm_ut_cp_alloc(struct c2_cm *cm)
 {
+	cp.c_ops = &cm_cp_ut_ops;
 	return &cp;
 }
 
@@ -86,12 +89,19 @@ static int cm_ut_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
 	return -ENODATA;
 }
+
+static void cm_ut_fini(struct c2_cm *cm)
+{
+
+}
+
 static const struct c2_cm_ops cm_ut_ops = {
 	.cmo_setup     = cm_ut_setup,
 	.cmo_start     = cm_ut_start,
 	.cmo_stop      = cm_ut_stop,
 	.cmo_cp_alloc  = cm_ut_cp_alloc,
-	.cmo_data_next = cm_ut_data_next
+	.cmo_data_next = cm_ut_data_next,
+	.cmo_fini      = cm_ut_fini
 };
 
 static int cm_ut_service_allocate(struct c2_reqh_service_type *stype,
@@ -120,13 +130,13 @@ C2_CM_TYPE_DECLARE(cm_ut, &cm_ut_service_type_ops, "cm_ut");
  * Initialise the request handler since copy packet fom has to be tested using
  * request handler infrastructure.
  */
-static int cm_ut_init(void)
+static int ut_init(void)
 {
 	c2_reqh_init(&reqh, NULL, (void*)1, (void*)1, (void*)1);
 	return 0;
 }
 
-static int cm_ut_fini(void)
+static int ut_fini(void)
 {
         c2_reqh_fini(&reqh);
 
@@ -151,18 +161,20 @@ static void cm_setup_ut(void)
 
 	rc = c2_cm_start(&cm_ut);
 	C2_UT_ASSERT(rc == 0);
-
+	sleep(1);
 	rc = c2_cm_stop(&cm_ut);
 	C2_UT_ASSERT(rc == 0);
 
+	c2_reqh_service_stop(service);
+	c2_reqh_service_fini(service);
 	c2_cm_type_deregister(&cm_ut_cmt);
 
 }
 
 const struct c2_test_suite cm_generic_ut = {
         .ts_name = "cm-ut",
-        .ts_init = &cm_ut_init,
-        .ts_fini = &cm_ut_fini,
+        .ts_init = &ut_init,
+        .ts_fini = &ut_fini,
         .ts_tests = {
                 { "cm_setup_ut", cm_setup_ut },
                 { NULL, NULL }

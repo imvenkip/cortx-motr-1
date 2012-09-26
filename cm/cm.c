@@ -23,10 +23,12 @@
 #include <config.h>
 #endif
 
-#include "lib/trace.h"  /* C2_LOG */
-#include "lib/bob.h"    /* C2_BOB_DEFINE */
-#include "lib/misc.h"   /* C2_SET0 */
-#include "lib/assert.h" /* C2_PRE, C2_POST */
+#include "lib/trace.h"   /* C2_LOG */
+#include "lib/bob.h"     /* C2_BOB_DEFINE */
+#include "lib/misc.h"    /* C2_SET0 */
+#include "lib/assert.h"  /* C2_PRE, C2_POST */
+#include "lib/errno.h"
+#include "lib/finject.h"
 #include "colibri/magic.h"
 
 #include "cm/cm.h"
@@ -317,7 +319,7 @@ static const struct c2_sm_state_descr cm_state_descr[C2_CMS_NR] = {
 	[C2_CMS_STOP] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_stop",
-		.sd_allowed	= C2_BITS(C2_CMS_IDLE)
+		.sd_allowed	= (1 << C2_CMS_IDLE)
 	},
 	[C2_CMS_FINI] = {
 		.sd_flags	= C2_SDF_TERMINAL,
@@ -448,6 +450,9 @@ int c2_cm_setup(struct c2_cm *cm)
 	C2_PRE(cm != NULL);
 	C2_PRE(cm->cm_type != NULL);
 
+	if (C2_FI_ENABLED("setup_failure"))
+		return -EINVAL;
+
 	c2_cm_lock(cm);
 	C2_PRE(c2_cm_state_get(cm) == C2_CMS_INIT);
 	C2_PRE(c2_cm_invariant(cm));
@@ -496,12 +501,13 @@ int c2_cm_stop(struct c2_cm *cm)
 	c2_cm_lock(cm);
 	C2_PRE(c2_cm_state_get(cm) == C2_CMS_ACTIVE);
 	C2_PRE(c2_cm_invariant(cm));
-
 	/*
-	 * We set the state here to C2_CMS_STOP and send STOP fop to all other
-	 * replicas and wait for STOP fops from all other replies and move
-	 * the copy machine to C2_CMS_IDLE state if successful.
+	 * We set the state here to C2_CMS_STOP and once copy machine
+	 * specific resources are released copy machine transitions back to
+	 * C2_CMS_IDLE state as c2_cm_start() expects copy machine to be idle
+	 * before starting new restructuring operation.
 	 */
+	c2_cm_state_set(cm, C2_CMS_STOP);
 	rc = cm->cm_ops->cmo_stop(cm);
 	if (rc == 0)
 		c2_cm_cp_pump_stop(cm);
@@ -549,6 +555,9 @@ int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
 	C2_ENTRY();
 	C2_PRE(cm != NULL && cm_type != NULL && cm_ops != NULL &&
 	       cmtypes_tlist_contains(&cmtypes, cm_type));
+
+	if (C2_FI_ENABLED("init_failure"))
+		return -EINVAL;
 
 	cm->cm_type = cm_type;
 	cm->cm_ops = cm_ops;

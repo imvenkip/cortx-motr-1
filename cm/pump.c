@@ -23,8 +23,9 @@
 #endif
 
 #include "lib/bob.h"
-#include "lib/misc.h" /* C2_BITS */
-#include "lib/errno.h"
+#include "lib/misc.h"  /* C2_BITS */
+#include "lib/errno.h" /*ENOBUFS, ENODATA */
+
 #include "sm/sm.h"
 
 #include "cm/pump.h"
@@ -93,8 +94,7 @@ static struct c2_cm *pump2cm(const struct c2_cm_cp_pump *cp_pump)
 
 static bool cm_cp_pump_invariant(const struct c2_cm_cp_pump *cp_pump)
 {
-	return c2_cm_cp_pump_bob_check(cp_pump) &&
-	       ergo(cp_pump->p_cp != NULL, c2_cm_cp_invariant(cp_pump->p_cp));
+	return c2_cm_cp_pump_bob_check(cp_pump); 
 }
 
 static int cpp_alloc(struct c2_cm_cp_pump *cp_pump)
@@ -116,6 +116,16 @@ static int cpp_alloc(struct c2_cm_cp_pump *cp_pump)
 	return C2_FSO_AGAIN;
 }
 
+static int cpp_idle(struct c2_cm_cp_pump *cp_pump)
+{
+	if (cp_pump->p_shutdown)
+		c2_fom_phase_set(&cp_pump->p_fom, CPP_FINI);
+	else
+		c2_fom_phase_set(&cp_pump->p_fom, CPP_ALLOC);
+
+	return C2_FSO_AGAIN;
+}
+
 static int cpp_data_next(struct c2_cm_cp_pump *cp_pump)
 {
 	struct c2_cm_cp  *cp;
@@ -127,19 +137,25 @@ static int cpp_data_next(struct c2_cm_cp_pump *cp_pump)
 	cm = pump2cm(cp_pump);
 	cp = cp_pump->p_cp;
 	C2_ASSERT(cp != NULL);
+	c2_cm_lock(cm);
 	rc = c2_cm_data_next(cm, cp);
+	c2_cm_unlock(cm);
 	if (rc < 0) {
-		if (rc == -ENOMEM) {
+		/* No more buffers available for copy packet. */
+		if (rc == -ENOBUFS)
+			return C2_FSO_WAIT;
+		else if (rc == -ENODATA) {
+			/* No more data available. */
+			cp->c_ops->co_free(cp);
 			c2_fom_phase_set(fom, CPP_IDLE);
-			rc = C2_FSO_WAIT;
-			goto out;
-		} else
-			goto fail;
+			return C2_FSO_WAIT;
+		}
+		goto fail;
 	}
-
 	if (rc == C2_FSO_AGAIN) {
 		C2_ASSERT(c2_cm_cp_invariant(cp));
 		c2_cm_cp_init(cp);
+		C2_ASSERT(c2_cm_cp_invariant(cp));
 		c2_cm_cp_enqueue(cm, cp);
 		c2_fom_phase_set(fom, CPP_ALLOC);
 	}
@@ -169,7 +185,6 @@ static int cpp_fail(struct c2_cm_cp_pump *cp_pump)
 
 static int cpp_fini(struct c2_cm_cp_pump *cp_pump)
 {
-	c2_fom_fini(&cp_pump->p_fom);
 	return C2_FSO_WAIT;
 }
 
@@ -209,6 +224,7 @@ static const struct c2_sm_conf cm_cp_pump_conf = {
 
 static int (*pump_action[]) (struct c2_cm_cp_pump *cp_pump) = {
 		[CPP_ALLOC]     = cpp_alloc,
+		[CPP_IDLE]	= cpp_idle,
 		[CPP_DATA_NEXT] = cpp_data_next,
 		[CPP_FAIL]      = cpp_fail,
 		[CPP_FINI]      = cpp_fini
@@ -275,7 +291,7 @@ void c2_cm_cp_pump_stop(struct c2_cm *cm)
 
 	cp_pump = &cm->cm_cp_pump;
 	C2_ASSERT(c2_fom_phase(&cp_pump->p_fom) == CPP_IDLE);
-	c2_fom_phase_set(&cp_pump->p_fom, CPP_FINI);
+	cp_pump->p_shutdown = true;
 	c2_fom_wakeup(&cp_pump->p_fom);
 }
 

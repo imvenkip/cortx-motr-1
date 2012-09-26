@@ -264,7 +264,6 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 	return
 		fom != NULL && fom->fo_loc != NULL &&
 		fom->fo_type != NULL && fom->fo_ops != NULL &&
-		fom->fo_fop != NULL &&
 
 		c2_fom_group_is_locked(fom) &&
 		c2_list_link_invariant(&fom->fo_linkage) &&

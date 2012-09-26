@@ -54,6 +54,7 @@ struct c2_cm_cp_pump {
 	 */
 	struct c2_cm_cp *p_cp;
 	uint64_t         p_magix;
+	bool		 p_shutdown;
 };
 
 void c2_cm_cp_pump_init(void);
