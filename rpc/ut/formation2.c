@@ -186,7 +186,7 @@ static struct c2_rpc_item *new_item(int deadline, int kind)
 	C2_ALLOC_PTR(item);
 	C2_UT_ASSERT(item != NULL);
 
-	c2_rpc_item_sm_init(item, &rmachine.rm_sm_grp);
+	c2_rpc_item_sm_init(item, &rmachine.rm_sm_grp, C2_RPC_ITEM_OUTGOING);
 	switch (deadline) {
 	case TIMEDOUT:
 		item->ri_deadline = 0;

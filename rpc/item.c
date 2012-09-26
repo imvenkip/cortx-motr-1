@@ -137,7 +137,7 @@ struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 	return item_type;
 }
 
-static const struct c2_sm_state_descr item_state_descr[] = {
+static const struct c2_sm_state_descr outgoing_item_states[] = {
 	[C2_RPC_ITEM_UNINITIALISED] = {
 		.sd_flags   = C2_SDF_TERMINAL,
 		.sd_name    = "UNINITIALISED",
@@ -148,7 +148,6 @@ static const struct c2_sm_state_descr item_state_descr[] = {
 		.sd_name    = "INITIALISED",
 		.sd_allowed = C2_BITS(C2_RPC_ITEM_WAITING_IN_STREAM,
 				      C2_RPC_ITEM_ENQUEUED,
-				      C2_RPC_ITEM_ACCEPTED,
 				      C2_RPC_ITEM_UNINITIALISED),
 	},
 	[C2_RPC_ITEM_WAITING_IN_STREAM] = {
@@ -178,11 +177,6 @@ static const struct c2_sm_state_descr item_state_descr[] = {
 		.sd_name    = "REPLIED",
 		.sd_allowed = C2_BITS(C2_RPC_ITEM_UNINITIALISED),
 	},
-	[C2_RPC_ITEM_ACCEPTED] = {
-		.sd_name    = "ACCEPTED",
-		.sd_allowed = C2_BITS(C2_RPC_ITEM_REPLIED,
-				      C2_RPC_ITEM_UNINITIALISED),
-	},
 	[C2_RPC_ITEM_TIMEDOUT] = {
 		.sd_name    = "TIMEDOUT",
 		.sd_in      = item_entered_in_timedout_state,
@@ -195,10 +189,39 @@ static const struct c2_sm_state_descr item_state_descr[] = {
 	},
 };
 
-static const struct c2_sm_conf item_sm_conf = {
-	.scf_name      = "RPC-Item-sm",
-	.scf_nr_states = C2_RPC_ITEM_NR_STATES,
-	.scf_state     = item_state_descr,
+static const struct c2_sm_conf outgoing_item_sm_conf = {
+	.scf_name      = "Outgoing-RPC-Item-sm",
+	.scf_nr_states = ARRAY_SIZE(outgoing_item_states),
+	.scf_state     = outgoing_item_states,
+};
+
+static const struct c2_sm_state_descr incoming_item_states[] = {
+	[C2_RPC_ITEM_UNINITIALISED] = {
+		.sd_flags   = C2_SDF_TERMINAL,
+		.sd_name    = "UNINITIALISED",
+		.sd_allowed = 0,
+	},
+	[C2_RPC_ITEM_INITIALISED] = {
+		.sd_flags   = C2_SDF_INITIAL,
+		.sd_name    = "INITIALISED",
+		.sd_allowed = C2_BITS(C2_RPC_ITEM_ACCEPTED,
+				      C2_RPC_ITEM_UNINITIALISED),
+	},
+	[C2_RPC_ITEM_ACCEPTED] = {
+		.sd_name    = "ACCEPTED",
+		.sd_allowed = C2_BITS(C2_RPC_ITEM_REPLIED,
+				      C2_RPC_ITEM_UNINITIALISED),
+	},
+	[C2_RPC_ITEM_REPLIED] = {
+		.sd_name    = "REPLIED",
+		.sd_allowed = C2_BITS(C2_RPC_ITEM_UNINITIALISED),
+	},
+};
+
+static const struct c2_sm_conf incoming_item_sm_conf = {
+	.scf_name      = "Incoming-RPC-Item-sm",
+	.scf_nr_states = ARRAY_SIZE(incoming_item_states),
+	.scf_state     = incoming_item_states,
 };
 
 bool c2_rpc_item_invariant(const struct c2_rpc_item *item)
@@ -271,6 +294,11 @@ bool c2_rpc_item_invariant(const struct c2_rpc_item *item)
 			req && bound &&
 			item->ri_reply != NULL &&
 			item->ri_stage <= RPC_ITEM_STAGE_PAST_VOLATILE);
+}
+
+static const char *item_state_name(const struct c2_rpc_item *item)
+{
+	return item->ri_sm.sm_conf->scf_state[item->ri_sm.sm_state].sd_name;
 }
 
 void c2_rpc_item_init(struct c2_rpc_item            *item,
@@ -414,13 +442,19 @@ void c2_rpc_item_set_stage(struct c2_rpc_item     *item,
 	C2_ASSERT(c2_rpc_session_invariant(session));
 }
 
-void c2_rpc_item_sm_init(struct c2_rpc_item *item, struct c2_sm_group *grp)
+void c2_rpc_item_sm_init(struct c2_rpc_item *item, struct c2_sm_group *grp,
+			 enum c2_rpc_item_dir dir)
 {
+	const struct c2_sm_conf *conf;
+
 	C2_PRE(item != NULL);
 
+	conf = dir == C2_RPC_ITEM_OUTGOING ? &outgoing_item_sm_conf :
+					     &incoming_item_sm_conf;
+
 	C2_LOG("%p UNINTIALISED -> INITIALISED", item);
-	c2_sm_init(&item->ri_sm, &item_sm_conf, C2_RPC_ITEM_INITIALISED, grp,
-		   NULL /* addb ctx */);
+	c2_sm_init(&item->ri_sm, conf, C2_RPC_ITEM_INITIALISED,
+		   grp, NULL /* addb ctx */);
 }
 
 void c2_rpc_item_sm_fini(struct c2_rpc_item *item)
@@ -442,8 +476,8 @@ void c2_rpc_item_change_state(struct c2_rpc_item     *item,
 	C2_LOG("%p[%s/%u] %s -> %s", item,
 	       c2_rpc_item_is_request(item) ? "REQUEST" : "REPLY",
 	       item->ri_type->rit_opcode,
-	       item_state_descr[item->ri_sm.sm_state].sd_name,
-	       item_state_descr[state].sd_name);
+	       item_state_name(item),
+	       item->ri_sm.sm_conf->scf_state[state].sd_name);
 
 	c2_sm_state_set(&item->ri_sm, state);
 }

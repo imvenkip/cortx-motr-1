@@ -102,7 +102,8 @@ int c2_rpc__post_locked(struct c2_rpc_item *item)
 
 	item->ri_rpc_time = c2_time_now();
 	item->ri_stage = RPC_ITEM_STAGE_FUTURE;
-	c2_rpc_item_sm_init(item, &session_machine(session)->rm_sm_grp);
+	c2_rpc_item_sm_init(item, &session_machine(session)->rm_sm_grp,
+			    C2_RPC_ITEM_OUTGOING);
 	c2_rpc_frm_enq_item(session_frm(session), item);
 	return 0;
 }
@@ -141,7 +142,7 @@ int c2_rpc_reply_post(struct c2_rpc_item *request,
 	machine = session_machine(slot->sl_session);
 
 	c2_rpc_machine_lock(machine);
-	c2_rpc_item_sm_init(reply, &machine->rm_sm_grp);
+	c2_rpc_item_sm_init(reply, &machine->rm_sm_grp, C2_RPC_ITEM_OUTGOING);
 	/*
 	 * This hold will be released when the item is SENT or FAILED.
 	 * See rpc/frmops.c:item_done()
@@ -165,7 +166,7 @@ int c2_rpc_oneway_item_post(const struct c2_rpc_conn *conn,
 
 	machine = conn->c_rpc_machine;
 	c2_rpc_machine_lock(machine);
-	c2_rpc_item_sm_init(item, &machine->rm_sm_grp);
+	c2_rpc_item_sm_init(item, &machine->rm_sm_grp, C2_RPC_ITEM_OUTGOING);
 	c2_rpc_frm_enq_item(&conn->c_rpcchan->rc_frm, item);
 	c2_rpc_machine_unlock(machine);
 	return 0;

@@ -129,6 +129,14 @@ enum {
 };
 
 /**
+   RPC item direction.
+ */
+enum c2_rpc_item_dir {
+	C2_RPC_ITEM_INCOMING,
+	C2_RPC_ITEM_OUTGOING,
+};
+
+/**
    A single RPC item, such as a FOP or ADDB Record.  This structure should be
    included in every item being sent via RPC layer core to emulate relationship
    similar to inheritance and to allow extening the set of rpc_items without
@@ -223,7 +231,8 @@ bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item);
 
 bool c2_rpc_item_is_oneway(const struct c2_rpc_item *item);
 
-void c2_rpc_item_sm_init(struct c2_rpc_item *item, struct c2_sm_group *grp);
+void c2_rpc_item_sm_init(struct c2_rpc_item *item, struct c2_sm_group *grp,
+			 enum c2_rpc_item_dir dir);
 void c2_rpc_item_sm_fini(struct c2_rpc_item *item);
 
 void c2_rpc_item_change_state(struct c2_rpc_item     *item,
