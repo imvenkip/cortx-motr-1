@@ -499,8 +499,7 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 				c2_net_domain_get_max_buffer_segments(ndom);
 
 	c2_rpc_frm_init(&ch->rc_frm, &constraints, &c2_rpc_frm_default_ops);
-	rpc_chan_tlink_init(ch);
-	rpc_chan_tlist_add(&machine->rm_chans, ch);
+	rpc_chan_tlink_init_at(ch, &machine->rm_chans);
 	*chan = ch;
 	return 0;
 }
