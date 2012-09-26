@@ -67,6 +67,7 @@ SUBDIR_UT = addb/ut \
             lib/ut \
             net/bulk_emulation/ut \
             net/lnet/ut \
+	    net/test/ut \
             net/ut \
             reqh/ut \
             rpc/ut \
@@ -87,7 +88,7 @@ SUBDIR_ST = c2t1fs/linux_kernel/st \
 
 SUBDIR_UB =
 
-SUBDIR_BIN = console/bin utils
+SUBDIR_BIN = console/bin net/test/user_space utils
 
 SUBDIR_SCRIPT = scripts
 

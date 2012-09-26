@@ -141,9 +141,9 @@ static void test_ep(void)
 	C2_UT_ASSERT(c2_atomic64_get(&ep3->nep_ref.ref_cnt) == 3);
 	C2_UT_ASSERT(ep1 == ep3);
 
-	C2_UT_ASSERT(!c2_net_end_point_put(ep1));
-	C2_UT_ASSERT(!c2_net_end_point_put(ep2));
-	C2_UT_ASSERT(!c2_net_end_point_put(ep3));
+	c2_net_end_point_put(ep1);
+	c2_net_end_point_put(ep2);
+	c2_net_end_point_put(ep3);
 
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait);
 	C2_UT_ASSERT(!c2_net_tm_stop(&d1tm1, false));
@@ -344,7 +344,7 @@ static void test_failure(void)
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
 	C2_UT_ASSERT(!c2_net_buffer_add(&d1nb1, &d1tm1));
-	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	c2_net_end_point_put(ep);
 	c2_chan_wait(&tmwait1);
 	c2_clink_del(&tmwait1);
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_SEND);
@@ -380,7 +380,7 @@ static void test_failure(void)
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
 	C2_UT_ASSERT(!c2_net_buffer_add(&d1nb1, &d1tm1));
-	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	c2_net_end_point_put(ep);
 	c2_chan_wait(&tmwait1);
 	c2_clink_del(&tmwait1);
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_SEND);
@@ -426,7 +426,7 @@ static void test_failure(void)
 	c2_clink_init(&tmwait1, NULL);
 	c2_clink_add(&d1tm1.ntm_chan, &tmwait1);
 	C2_UT_ASSERT(!c2_net_buffer_add(&d1nb1, &d1tm1));
-	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	c2_net_end_point_put(ep);
 	c2_chan_wait(&tmwait1);
 	c2_clink_del(&tmwait1);
 	C2_UT_ASSERT(cb_qt1 == C2_NET_QT_MSG_SEND);
@@ -464,7 +464,7 @@ static void test_failure(void)
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
 	C2_UT_ASSERT(!c2_net_buffer_add(&d2nb1, &d2tm1));
 	C2_UT_ASSERT(d2nb1.nb_desc.nbd_len != 0);
-	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	c2_net_end_point_put(ep);
 
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_ACTIVE_BULK_RECV,
 					  &qs,true));
@@ -516,7 +516,7 @@ static void test_failure(void)
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
 	C2_UT_ASSERT(!c2_net_buffer_add(&d2nb2, &d2tm1));
 	C2_UT_ASSERT(d2nb2.nb_desc.nbd_len != 0);
-	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	c2_net_end_point_put(ep);
 
 	C2_UT_ASSERT(!c2_net_tm_stats_get(&d1tm1,C2_NET_QT_ACTIVE_BULK_SEND,
 					  &qs,true));
@@ -570,7 +570,7 @@ static void test_failure(void)
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
 	C2_UT_ASSERT(!c2_net_buffer_add(&d2nb1, &d2tm1));
 	C2_UT_ASSERT(d2nb1.nb_desc.nbd_len != 0);
-	/* C2_UT_ASSERT(!c2_net_end_point_put(ep)); reuse it on resubmit */
+	/* c2_net_end_point_put(ep); reuse it on resubmit */
 
 	/* copy the desc but don't start the active operation yet */
 	C2_UT_ASSERT(!c2_net_desc_copy(&d2nb1.nb_desc, &d1nb1.nb_desc));
@@ -592,7 +592,7 @@ static void test_failure(void)
 	c2_clink_add(&d2tm1.ntm_chan, &tmwait2);
 	C2_UT_ASSERT(!c2_net_buffer_add(&d2nb1, &d2tm1));
 	C2_UT_ASSERT(d2nb1.nb_desc.nbd_len != 0);
-	C2_UT_ASSERT(!c2_net_end_point_put(ep));
+	c2_net_end_point_put(ep);
 
 	/* descriptors should have changed */
 	C2_UT_ASSERT(d1nb1.nb_desc.nbd_len != d2nb1.nb_desc.nbd_len ||

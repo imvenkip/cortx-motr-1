@@ -60,7 +60,7 @@ void c2_semaphore_up(struct c2_semaphore *semaphore)
 	C2_ASSERT(rc == 0);
 }
 
-int c2_semaphore_trydown(struct c2_semaphore *semaphore)
+bool c2_semaphore_trydown(struct c2_semaphore *semaphore)
 {
 	int rc;
 
