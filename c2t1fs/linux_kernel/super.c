@@ -142,6 +142,20 @@ int c2t1fs_get_sb(struct file_system_type *fstype,
 	return rc;
 }
 
+void ast_thread(struct c2t1fs_sb *csb)
+{
+   while (1) {
+	c2_chan_wait(&csb->csb_iogroup.s_clink);
+	c2_sm_group_lock(&csb->csb_iogroup);
+	c2_sm_asts_run(&csb->csb_iogroup);
+	c2_sm_group_unlock(&csb->csb_iogroup);
+	if (!csb->csb_active && c2_atomic64_get(&csb->csb_pending_io) == 0) {
+		c2_chan_signal(&csb->csb_iowait);
+		break;
+	}
+   }
+}
+
 static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 {
 	struct c2t1fs_mnt_opts *mntopts;
@@ -208,6 +222,10 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	}
 
         io_bob_tlists_init();
+
+	rc = C2_THREAD_INIT(&csb->csb_astthread, struct c2t1fs_sb *, NULL,
+			    &ast_thread, csb, "ast_thread");
+	C2_ASSERT(rc == 0);
 
 	C2_LEAVE("rc: %d", rc);
 	return 0;
@@ -362,6 +380,7 @@ c2t1fs_build_layout(const uint64_t          layout_id,
 void c2t1fs_kill_sb(struct super_block *sb)
 {
 	struct c2t1fs_sb *csb;
+        struct c2_clink   iowait;
 
 	C2_ENTRY();
 
@@ -375,6 +394,15 @@ void c2t1fs_kill_sb(struct super_block *sb)
 	if (csb != NULL) {
 		c2t1fs_destroy_all_dir_ents(sb);
 		c2t1fs_sb_layout_fini(csb);
+		csb->csb_active = false;
+		c2_clink_init(&iowait, NULL);
+		c2_clink_add(&csb->csb_iowait, &iowait);
+		c2_chan_signal(&csb->csb_iogroup.s_chan);
+		c2_chan_wait(&iowait);
+		c2_thread_join(&csb->csb_astthread);
+		c2_clink_del(&iowait);
+		c2_clink_fini(&iowait);
+		c2_chan_fini(&csb->csb_iowait);
 		c2t1fs_container_location_map_fini(&csb->csb_cl_map);
 		c2t1fs_disconnect_from_all_services(csb);
 		c2t1fs_service_contexts_discard(csb);
@@ -435,6 +463,9 @@ static int c2t1fs_sb_init(struct c2t1fs_sb *csb)
 	csb->csb_next_key = c2t1fs_root_fid.f_key + 1;
         c2_sm_group_init(&csb->csb_iogroup);
         c2_addb_ctx_init(&c2t1fs_addb, &c2t1fs_addb_type, &c2_addb_global_ctx);
+	csb->csb_active = true;
+	c2_chan_init(&csb->csb_iowait);
+	c2_atomic64_set(&csb->csb_pending_io, 0);
 
 	C2_LEAVE("rc: 0");
 	return 0;
@@ -446,6 +477,7 @@ static void c2t1fs_sb_fini(struct c2t1fs_sb *csb)
 
 	C2_ASSERT(csb != NULL);
 
+	c2_sm_group_fini(&csb->csb_iogroup);
 	svc_ctx_tlist_fini(&csb->csb_service_contexts);
 	c2_mutex_fini(&csb->csb_mutex);
 	c2t1fs_mnt_opts_fini(&csb->csb_mnt_opts);

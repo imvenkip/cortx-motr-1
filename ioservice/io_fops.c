@@ -54,7 +54,7 @@ static void   item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 int c2_io_fom_cob_rw_init(struct c2_fop *fop, struct c2_fom **m);
 int cob_fom_init(struct c2_fop *fop, struct c2_fom **out);
 
-static void io_item_free(struct c2_rpc_item *item);
+void c2_io_item_free(struct c2_rpc_item *item);
 static void io_fop_replied(struct c2_fop *fop, struct c2_fop *bkpfop);
 static void io_fop_desc_get(struct c2_fop *fop, struct c2_net_buf_desc **desc);
 static int  io_fop_coalesce(struct c2_fop *res_fop, uint64_t size);
@@ -100,7 +100,7 @@ static struct c2_fop_type *ioservice_fops[] = {
 const struct c2_rpc_item_ops io_req_rpc_item_ops = {
 	.rio_sent	= NULL,
 	.rio_replied	= io_item_replied,
-	.rio_free	= io_item_free,
+	.rio_free	= c2_io_item_free,
 };
 
 static const struct c2_rpc_item_type_ops io_item_type_ops = {
@@ -1152,7 +1152,7 @@ void c2_io_fop_destroy(struct c2_fop *fop)
 	io_fop_ivec_dealloc(fop);
 }
 
-static inline size_t io_fop_size_get(struct c2_fop *fop)
+size_t c2_io_fop_size_get(struct c2_fop *fop)
 {
 	struct c2_xcode_ctx  ctx;
 
@@ -1267,7 +1267,7 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 	 * Checks if current size of res_fop fits into the size
 	 * provided as input.
 	 */
-	if (io_fop_size_get(res_fop) > size) {
+	if (c2_io_fop_size_get(res_fop) > size) {
 		C2_ADDB_ADD(&bulkclient_addb, &bulkclient_addb_loc,
 			    bulkclient_func_fail, "Size of coalesced fop"
 			    "exceeded remaining space in send net buffer.",
@@ -1543,7 +1543,7 @@ static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 	}
 }
 
-static void io_item_free_internal(struct c2_rpc_item *item)
+static void io_fop_free_internal(struct c2_rpc_item *item)
 {
 	struct c2_fop    *fop;
 	struct c2_io_fop *iofop;
@@ -1561,7 +1561,7 @@ static void io_item_free_internal(struct c2_rpc_item *item)
  * From bulk client side, IO REQUEST fops are typically bundled in
  * struct c2_io_fop. So c2_io_fop is deallocated from here.
  */
-static void io_item_free(struct c2_rpc_item *item)
+void c2_io_item_free(struct c2_rpc_item *item)
 {
 	struct c2_rpc_item *ri;
 
@@ -1569,10 +1569,10 @@ static void io_item_free(struct c2_rpc_item *item)
 
 	c2_tl_for (rpcitem, &item->ri_compound_items, ri) {
 		rpcitem_tlist_del(ri);
-		io_item_free_internal(ri);
+		io_fop_free_internal(ri);
 	} c2_tl_endfor;
 
-	io_item_free_internal(item);
+	io_fop_free_internal(item);
 }
 
 /*

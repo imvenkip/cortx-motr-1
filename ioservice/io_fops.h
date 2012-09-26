@@ -245,6 +245,10 @@ static inline struct c2_net_transfer_mc *io_fop_tm_get(const struct c2_fop *fop)
 	return &fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm;
 }
 
+size_t c2_io_fop_size_get(struct c2_fop *fop);
+
+void c2_io_item_free(struct c2_rpc_item *item);
+
 /* __COLIBRI_IOSERVICE_IO_FOPS_H__ */
 #endif
 

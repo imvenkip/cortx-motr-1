@@ -643,9 +643,6 @@ extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
         // Callback per IO fop.
         struct c2_sm_ast        irf_ast;
 
-        // Clink registered with c2_rpc_item::ri_chan channel.
-        struct c2_clink         irf_clink;
-
         // Linkage to link in to target_ioreq::tir_iofops list.
         struct c2_tlink         irf_tlink;
 
@@ -655,21 +652,26 @@ extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
    };
    @endcode
 
-   Callback used to tie to io_req_fop::irf_clink which is listening to
-   events on c2_rpc_item::ri_chan channel.
+   Callback used to receive fop reply events.
 
    @code
 
-   bool io_rpc_item_cb(struct c2_clink *link)
+   static void io_rpc_item_cb(struct c2_rpc_item *item)
    {
-           struct io_req_fop  *irfop;
-           struct io_request  *ioreq;
+        struct c2_fop     *fop;
+        struct c2_fop_fop *iofop;
+        struct io_req_fop *reqfop;
+        struct io_request *ioreq;
 
-           irfop = container_of(link, struct io_req_fop, irf_clink);
-           ioreq = container_of(irfop->irf_tioreq->tir_nwxfer,
-                                struct io_request, ir_nwxfer);
+        C2_PRE(item != NULL);
 
-           c2_sm_ast_post(ioreq->ir_sm.sm_grp, &irfop->irf_ast);
+        fop    = container_of(item, c2_fop, f_item);
+        iofop  = container_of(fop, c2_io_fop, if_fop);
+        reqfop = bob_of(iofop, struct io_req_fop, irf_iofop, &iofop_bobtype);
+        ioreq  = bob_of(reqfop->irf_tioreq->ti_nwxfer, struct io_request,
+                        ir_nwxfer, &ioreq_bobtype);
+
+        c2_sm_ast_post(ioreq->ir_sm.sm_grp, &irfop->irf_ast);
    }
 
    @endcode
@@ -1604,6 +1606,9 @@ struct target_ioreq {
         /** Buffer vector corresponding to index vector above. */
         struct c2_bufvec         ti_bufvec;
 
+        /** Array of page attributes. */
+        enum page_attr          *ti_pageattrs;
+
         /* Back link to parent structure nw_xfer_request. */
         struct nw_xfer_request  *ti_nwxfer;
 };
@@ -1628,9 +1633,6 @@ struct io_req_fop {
 
         /** Callback per IO fop. */
         struct c2_sm_ast        irf_ast;
-
-        /** Clink registered with c2_rpc_item::ri_chan channel. */
-        struct c2_clink         irf_clink;
 
         /** Linkage to link in to target_ioreq::ti_iofops list. */
         struct c2_tlink         irf_link;
@@ -1804,6 +1806,20 @@ static struct nw_xfer_ops xfer_ops = {
         .nxo_tioreq_locate = tioreq_locate,
 };
 
+static void io_rpc_item_cb(struct c2_rpc_item *item);
+
+/**
+ * io_rpc_item_cb can not be directly invoked from io fops code since it
+ * leads to build dependency of ioservice code over kernel-only code (c2t1fs).
+ * Hence, a new c2_rpc_item_ops structure is used for fops dispatched
+ * by c2t1fs io requests.
+ */
+static const struct c2_rpc_item_ops c2t1fs_item_ops = {
+        .rio_sent    = NULL,
+        .rio_replied = io_rpc_item_cb,
+        .rio_free    = c2_io_item_free,
+};
+
 static int pargrp_iomap_populate (struct pargrp_iomap      *map,
                                   const struct c2_indexvec *ivec,
                                   struct c2_ivec_cursor    *cursor);
@@ -1882,6 +1898,8 @@ static struct io_request_ops ioreq_ops = {
         .iro_write_complete = io_request_write_commit,
 };
 #endif
+
+static void io_bottom_half(struct c2_sm_group *grp, struct c2_sm_ast *ast);
 
 static int ioreq_iomaps_prepare(struct io_request *req);
 static void ioreq_iomap_locate (struct io_request *req, uint64_t grpid,
@@ -2066,7 +2084,6 @@ static bool io_req_fop_invariant(const struct io_req_fop *fop)
                fop != NULL &&
                fop->irf_tioreq != NULL &&
                fop->irf_ast.sa_cb != NULL &&
-               c2_clink_is_armed(&fop->irf_clink) &&
                iofops_tlink_is_in(fop) &&
                io_req_fop_bob_check(fop);
 }
@@ -3350,6 +3367,10 @@ static int target_ioreq_init(struct target_ioreq    *ti,
         if (ti->ti_bufvec.ov_buf == NULL)
                 goto fail;
 
+        C2_ALLOC_ARR(ti->ti_pageattrs, ti->ti_bufvec.ov_vec.v_nr);
+        if (ti->ti_pageattrs == NULL)
+                goto fail;
+
         C2_POST(target_ioreq_invariant(ti));
         return 0;
 fail:
@@ -3377,9 +3398,11 @@ static void target_ioreq_fini(struct target_ioreq *ti)
         c2_free(ti->ti_ivec.iv_index);
         c2_free(ti->ti_ivec.iv_vec.v_count);
         c2_free(ti->ti_bufvec.ov_buf);
+        c2_free(ti->ti_pageattrs);
         ti->ti_ivec.iv_index       = NULL;
         ti->ti_ivec.iv_vec.v_count = NULL;
         ti->ti_bufvec.ov_buf       = NULL;
+        ti->ti_pageattrs           = NULL;
 }
 
 static struct target_ioreq *target_ioreq_locate(struct nw_xfer_request *xfer,
@@ -3470,6 +3493,7 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
         c2_bindex_t                goff;
         c2_bindex_t                pgstart;
         c2_bindex_t                pgend;
+        struct data_buf           *db;
         struct io_request         *req;
         struct pargrp_iomap       *map;
         struct c2_pdclust_layout  *play;
@@ -3499,14 +3523,15 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
                 COUNT(&ti->ti_ivec, seg) = pgend - pgstart;
 
                 ti->ti_bufvec.ov_vec.v_count[seg] = pgend - pgstart;
+
                 if (unit_type == PUT_DATA)
-                        ti->ti_bufvec.ov_buf[seg] = map->pi_databufs[PAGE_ID(
-                                                    goff - (dtsize *
-                                                    map->pi_grpid))]->db_buf.
-                                                    b_addr;
+                        db = map->pi_databufs[PAGE_ID(goff - dtsize *
+                                        map->pi_grpid)];
                 else
-                        ti->ti_bufvec.ov_buf[seg] = map->pi_paritybufs[unit %
-                                                    play->pl_N]->db_buf.b_addr;
+                        db = map->pi_paritybufs[unit % play->pl_N];
+
+                ti->ti_bufvec.ov_buf[seg] = db->db_buf.b_addr;
+                ti->ti_pageattrs[seg]     = db->db_flags;
 
                 goff += COUNT(&ti->ti_ivec, seg);
                 ++SEG_NR(&ti->ti_ivec);
@@ -3514,7 +3539,6 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
         }
 }
 
-__attribute__((unused))
 static int io_req_fop_init(struct io_req_fop   *fop,
                            struct target_ioreq *ti)
 {
@@ -3526,17 +3550,18 @@ static int io_req_fop_init(struct io_req_fop   *fop,
 
         iofops_tlink_init(fop);
         io_req_fop_bob_init(fop);
-        fop->irf_tioreq = ti;
+        fop->irf_tioreq    = ti;
+        fop->irf_ast.sa_cb = io_bottom_half;
 
         req = bob_of(ti->ti_nwxfer, struct io_request, ir_nwxfer,
                      &ioreq_bobtype);
         rc  = c2_io_fop_init(&fop->irf_iofop, REQ_TO_FOP_TYPE(req));
+        fop->irf_iofop.if_fop.f_item.ri_ops = &c2t1fs_item_ops;
 
-        C2_POST(io_req_fop_invariant(fop));
+        C2_POST(ergo(rc == 0, io_req_fop_invariant(fop)));
         return rc;
 }
 
-__attribute__((unused))
 static void io_req_fop_fini(struct io_req_fop *fop)
 {
         C2_PRE(io_req_fop_invariant(fop));
@@ -3544,7 +3569,7 @@ static void io_req_fop_fini(struct io_req_fop *fop)
         /**
          * IO fop is fini-ed (c2_io_fop_fini()) through rpc sessions code
          * using c2_rpc_item::c2_rpc_item_ops::rio_free().
-         * @see io_item_free().
+         * @see c2_io_item_free().
          */
 
         iofops_tlink_fini(fop);
@@ -3729,3 +3754,419 @@ const struct file_operations c2t1fs_reg_file_operations = {
 	.read      = do_sync_read,          /* provided by linux kernel */
 	.write     = do_sync_write,         /* provided by linux kernel */
 };
+
+static int io_fop_do_async_io(struct c2_io_fop	    *iofop,
+			      struct c2_rpc_session *session)
+{
+	int		      rc;
+	struct c2_fop_cob_rw *rwfop;
+
+	C2_ENTRY();
+
+	C2_PRE(iofop   != NULL);
+        C2_PRE(session != NULL);
+
+	rwfop = io_rw_get(&iofop->if_fop);
+	C2_ASSERT(rwfop != NULL);
+
+	rc = c2_rpc_bulk_store(&iofop->if_rbulk, session->s_conn,
+			       rwfop->crw_desc.id_descs);
+	if (rc != 0)
+		goto out;
+
+        rc = c2_rpc_post(&iofop->if_fop.f_item);
+
+out:
+	C2_LEAVE("rc: %d", rc);
+	return rc;
+}
+
+static void io_rpc_item_cb(struct c2_rpc_item *item)
+{
+        struct c2_fop     *fop;
+        struct c2_io_fop  *iofop;
+	struct io_req_fop *reqfop;
+	struct io_request *ioreq;
+
+        C2_PRE(item != NULL);
+
+        fop    = container_of(item, struct c2_fop, f_item);
+        iofop  = container_of(fop, struct c2_io_fop, if_fop);
+	reqfop = bob_of(iofop, struct io_req_fop, irf_iofop, &iofop_bobtype);
+	ioreq  = bob_of(reqfop->irf_tioreq->ti_nwxfer, struct io_request,
+                        ir_nwxfer, &ioreq_bobtype);
+
+	c2_sm_ast_post(ioreq->ir_sm.sm_grp, &reqfop->irf_ast);
+}
+
+static void io_bottom_half(struct c2_sm_group *grp, struct c2_sm_ast *ast)
+{
+	struct io_req_fop   *irfop;
+        struct io_request   *req;
+	struct target_ioreq *tioreq;
+
+	irfop  = bob_of(ast, struct io_req_fop, irf_ast, &iofop_bobtype);
+	tioreq = irfop->irf_tioreq;
+        req    = bob_of(tioreq->ti_nwxfer, struct io_request, ir_nwxfer,
+                        &ioreq_bobtype);
+
+	if (tioreq->ti_rc == 0)
+		tioreq->ti_rc = irfop->irf_iofop.if_rbulk.rb_rc;
+
+	tioreq->ti_bytes += irfop->irf_iofop.if_rbulk.rb_bytes;
+	C2_CNT_DEC(tioreq->ti_nwxfer->nxr_iofop_nr);
+
+	if (tioreq->ti_nwxfer->nxr_iofop_nr == 0)
+		c2_chan_signal(&req->ir_sm.sm_chan);
+}
+
+static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
+{
+	int		     rc;
+        struct io_req_fop   *req_fop;
+        struct target_ioreq *treq;
+
+	c2_tl_for (tioreqs, &xfer->nxr_tioreqs, treq) {
+		c2_tl_for(iofops, &treq->ti_iofops, req_fop) {
+
+			rc = io_fop_do_async_io(&req_fop->irf_iofop,
+                                                treq->ti_session);
+			if (rc != 0);
+				goto out;
+		} c2_tl_endfor;
+
+	} c2_tl_endfor;
+
+out:
+	return rc;
+}
+
+__attribute__((unused))
+static int nw_xfer_req_complete(struct nw_xfer_request *xfer)
+{
+	int		     rc;
+        struct io_request   *req;
+        struct target_ioreq *treq;
+
+	req = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
+        C2_ASSERT(io_request_invariant(req));
+
+	rc = nw_xfer_req_dispatch(xfer);
+
+	c2_tl_for (tioreqs, &xfer->nxr_tioreqs, treq) {
+		struct io_req_fop *req_fop;
+		c2_tl_for(iofops, &treq->ti_iofops, req_fop) {
+			io_req_fop_fini(req_fop);
+		} c2_tl_endfor;
+        } c2_tl_endfor;
+
+	return req->ir_rc = xfer->nxr_rc;
+}
+
+/*
+ * Used in precomputing of io fop size while adding rpc bulk buffer and
+ * data buffers.
+ */
+static inline uint32_t bulk_buffer_size(const struct c2_rpc_bulk_buf *rbuf)
+{
+	return sizeof(uint32_t) * 2  + /* size of variables ci_nr and nbd_len */
+	       rbuf->bb_nbuf->nb_desc.nbd_len; /* size of nbd_data */
+}
+
+static inline uint32_t bulk_data_buffer_size(void)
+{
+	return sizeof(struct c2_ioseg);
+}
+
+/**
+ * struct target_ioreq per target cob and struct io_request::ir_type,
+ * puts the list of io fops in target_ioreq::ti_iofops.
+ */
+__attribute__((unused))
+int io_request_to_io_fops(struct target_ioreq *tioreq)
+{
+	struct	io_req_fop     *req_fop;
+	struct c2_rpc_bulk_buf *rbuf;
+	uint32_t		max_fop_size;
+	uint32_t		size;
+	struct c2_net_domain   *ndom;
+        struct io_request      *req;
+	c2_bindex_t	       *offsets;
+	c2_bcount_t	       *nob;
+	int		        bufs_nr;
+	int                     rc;
+	int		        i;
+	int		        buf_index;
+        struct data_buf	      **data_bufs;
+	enum io_req_type	rw;
+	enum page_attr          rwflag;
+
+#define SESSION_TO_NDOM(session) \
+	(session)->s_conn->c_rpc_machine->rm_tm.ntm_dom
+#define SESSION_TO_MACHINE(session) \
+	(session)->s_conn->c_rpc_machine
+
+	int rpc_bulk_buffer_add(void)
+	{
+		int segments_nr;
+
+		C2_ENTRY();
+
+		segments_nr = min(bufs_nr,
+				  c2_net_domain_get_max_buffer_segments(ndom));
+		/*
+		 * Adds a c2_rpc_bulk_buf structure to list of such structures
+		 * in c2_rpc_bulk.
+		 */
+		rc = c2_rpc_bulk_buf_add(&req_fop->irf_iofop.if_rbulk,
+					 segments_nr, ndom, NULL, &rbuf);
+		if (rc != 0)
+			return rc;
+
+		C2_ASSERT(rbuf != NULL);
+		rbuf->bb_nbuf->nb_qtype = req->ir_state == IRS_READING ?
+					  C2_NET_QT_PASSIVE_BULK_RECV :
+					  C2_NET_QT_PASSIVE_BULK_SEND;
+
+		size += bulk_buffer_size(rbuf);
+		C2_LEAVE("rc: %d", rc);
+		return rc;
+	}
+
+	C2_ENTRY();
+
+	C2_PRE(tioreq != NULL);
+
+	req = bob_of(tioreq->ti_nwxfer, struct io_request, ir_nwxfer,
+		     &ioreq_bobtype);
+	rw            = req->ir_type;
+	rwflag        = req->ir_state == IRS_READING ? PA_READ : PA_WRITE;
+	ndom          = SESSION_TO_NDOM(tioreq->ti_session);
+	max_fop_size  = c2_max_fop_size(SESSION_TO_MACHINE(tioreq->ti_session));
+	bufs_nr       = tioreq->ti_ivec.iv_vec.v_nr;
+
+	C2_ALLOC_ARR_ADDB(offsets, bufs_nr, &c2t1fs_addb, &io_addb_loc);
+	if (offsets == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
+	C2_ALLOC_ARR_ADDB(nob, bufs_nr, &c2t1fs_addb, &io_addb_loc);
+	if (nob == NULL) {
+		c2_free(offsets);
+		rc = -ENOMEM;
+		goto out;
+	}
+
+	for (i = 0, buf_index = 0; i < tioreq->ti_ivec.iv_vec.v_nr; ++i)
+	{
+		c2_bcount_t rem_count;
+		c2_bindex_t offset;
+
+		rem_count = tioreq->ti_ivec.iv_vec.v_count[i];
+		offset    = tioreq->ti_ivec.iv_index[i];
+
+		while (rem_count > PAGE_CACHE_SIZE) {
+			if (tioreq->ti_pageattrs[i] & rwflag) {
+				nob[buf_index]	    = PAGE_CACHE_SIZE;
+				offsets[buf_index]  = offset;
+				++buf_index;
+			}
+			offset    += PAGE_CACHE_SIZE;
+			rem_count -= PAGE_CACHE_SIZE;
+		}
+		if (tioreq->ti_pageattrs[i] & rwflag) {
+			nob[buf_index] = rem_count;
+			offsets[buf_index]  = offset;
+		}
+	}
+	C2_ASSERT(buf_index <= tioreq->ti_ivec.iv_vec.v_nr);
+
+	C2_ALLOC_ARR_ADDB(data_bufs, buf_index, &c2t1fs_addb, &io_addb_loc);
+	if (data_bufs == NULL) {
+		c2_free(nob);
+		c2_free(offsets);
+		rc = -ENOMEM;
+		goto out;
+	}
+
+	for (i = 0, bufs_nr = 0; i < bufs_nr; ++i)
+	{
+		if (tioreq->ti_pageattrs[i] & rwflag) {
+			data_bufs[bufs_nr] = tioreq->ti_bufvec.ov_buf[i];
+			++bufs_nr;
+		}
+	}
+	C2_ASSERT(bufs_nr == buf_index);
+
+	while (bufs_nr != 0) {
+		i = 0;
+		C2_ALLOC_PTR_ADDB(req_fop, &c2t1fs_addb, &io_addb_loc);
+		if (req_fop == NULL) {
+			C2_LOG("io request fop allocation failed");
+			rc = -ENOMEM;
+			goto buflist_empty;
+		}
+
+		rc = io_req_fop_init(req_fop, tioreq);
+		if (rc != 0)
+			goto buflist_empty;
+
+		size = c2_io_fop_size_get(&req_fop->irf_iofop.if_fop);
+		rc = rpc_bulk_buffer_add();
+		if (rc != 0)
+			goto buflist_empty;
+
+		while (bufs_nr != 0 && size < max_fop_size) {
+			size += bulk_data_buffer_size();
+
+			/* Adds io buffers to c2_rpc_bulk_buf structure. */
+			rc = c2_rpc_bulk_buf_databuf_add(rbuf, data_bufs[i],
+							 nob[i], offsets[i],
+							 ndom);
+			if (rc == -EMSGSIZE) {
+				size -= bulk_data_buffer_size();
+				rc = rpc_bulk_buffer_add();
+				if (rc != 0)
+					goto buflist_empty;
+				continue;
+			}
+			if (rc != 0)
+				goto buflist_empty;
+			--bufs_nr;
+			++i;
+		}
+		rc = c2_io_fop_prepare(&req_fop->irf_iofop.if_fop);
+		if (rc != 0) {
+			C2_LOG("io_fop_prepare() failed: rc [%d]", rc);
+			goto buflist_empty;
+		}
+		C2_ASSERT(size == c2_io_fop_size_get(&req_fop->irf_iofop.if_fop));
+
+		iofops_tlist_add(&tioreq->ti_iofops, req_fop);
+	}
+
+	C2_LEAVE("rc: %d", rc);
+	return rc;
+
+buflist_empty :
+	c2_free(data_bufs);
+	if (req_fop != NULL) {
+		c2_free(req_fop);
+		c2_rpc_bulk_buflist_empty(&req_fop->irf_iofop.if_rbulk);
+		c2_io_fop_fini(&req_fop->irf_iofop);
+		io_req_fop_fini(req_fop);
+	}
+        c2_tl_for (iofops, &tioreq->ti_iofops, req_fop) {
+		c2_rpc_bulk_buflist_empty(&req_fop->irf_iofop.if_rbulk);
+		c2_io_fop_fini(&req_fop->irf_iofop);
+		io_req_fop_fini(req_fop);
+        } c2_tl_endfor;
+out:
+	C2_LEAVE("rc: %d", rc);
+	return rc;
+}
+
+__attribute__((unused))
+static int bulk_buffer_add(struct io_req_fop       *irfop,
+                           struct c2_net_domain    *dom,
+                           struct c2_rpc_bulk_buf **rbuf)
+{
+        int                rc;
+        int                seg_nr;
+        struct io_request *req;
+
+        C2_PRE(irfop != NULL);
+        C2_PRE(dom   != NULL);
+        C2_PRE(rbuf  != NULL);
+
+        req    = bob_of(irfop->irf_tioreq->ti_nwxfer, struct io_request,
+                        ir_nwxfer, &ioreq_bobtype);
+        seg_nr = min32(c2_net_domain_get_max_buffer_segments(dom),
+                       SEG_NR(&irfop->irf_tioreq->ti_ivec));
+
+        rc = c2_rpc_bulk_buf_add(&irfop->irf_iofop.if_rbulk, seg_nr, dom,
+                                 NULL, rbuf);
+        if (rc != 0)
+                return rc;
+
+        C2_ASSERT(*rbuf != NULL);
+        (*rbuf)->bb_nbuf->nb_qtype = req->ir_state == IRS_READING ?
+                                   C2_NET_QT_PASSIVE_BULK_RECV :
+                                   C2_NET_QT_PASSIVE_BULK_SEND;
+        return rc;
+}
+
+__attribute__((unused))
+static int tioreq_iofop_submit(struct target_ioreq *ti)
+{
+        int                   rc;
+        uint32_t              buf = 0;
+        uint32_t              maxsize;
+        enum page_attr        pattr;
+        struct io_request    *req;
+        struct io_req_fop    *irfop;
+        struct c2_net_domain *ndom;
+        struct c2_rpc_bulk_buf *rbuf;
+
+        C2_PRE(target_ioreq_invariant(ti));
+
+        req     = bob_of(ti->ti_nwxfer, struct io_request, ir_nwxfer,
+                         &ioreq_bobtype);
+        C2_ASSERT(req->ir_state == IRS_READING || req->ir_state == IRS_WRITING);
+
+        ndom    = SESSION_TO_NDOM(ti->ti_session);
+        pattr   = req->ir_state == IRS_READING ? PA_READ : PA_WRITE;
+        maxsize = c2_max_fop_size(SESSION_TO_MACHINE(ti->ti_session));
+
+        while (buf < SEG_NR(&ti->ti_ivec)) {
+                C2_ALLOC_PTR_ADDB(irfop, &c2t1fs_addb, &io_addb_loc);
+                if (irfop == NULL)
+                        goto err;
+
+                rc = io_req_fop_init(irfop, ti);
+                if (rc != 0) {
+                        c2_free(irfop);
+                        goto err;
+                }
+
+                rc = bulk_buffer_add(irfop, ndom, &rbuf);
+                if (rc != 0) {
+                        io_req_fop_fini(irfop);
+                        c2_free(irfop);
+                        goto err;
+                }
+
+                while (buf < SEG_NR(&ti->ti_ivec) &&
+                       c2_io_fop_size_get(&irfop->irf_iofop.if_fop) < maxsize) {
+
+                        rc = c2_rpc_bulk_buf_databuf_add(rbuf,
+                                                ti->ti_bufvec.ov_buf[buf],
+                                                COUNT(&ti->ti_ivec, buf),
+                                                INDEX(&ti->ti_ivec, buf), ndom);
+
+                        if (rc == -EMSGSIZE) {
+                                rc = bulk_buffer_add(irfop, ndom, &rbuf);
+                                if (rc != 0)
+                                        goto err;
+                                continue;
+                        }
+                }
+
+                rc = c2_io_fop_prepare(&irfop->irf_iofop.if_fop);
+                if (rc != 0) {
+                        c2_rpc_bulk_buflist_empty(&irfop->irf_iofop.if_rbulk);
+                        goto err;
+                }
+                iofops_tlist_add(&ti->ti_iofops, irfop);
+        }
+
+        return 0;
+err:
+        c2_tlist_for (&iofops_tl, &ti->ti_iofops, irfop) {
+                iofops_tlist_del(irfop);
+                io_req_fop_fini(irfop);
+                c2_free(irfop);
+        } c2_tlist_endfor;
+
+        return rc;
+}

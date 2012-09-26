@@ -40,6 +40,7 @@ V6NzJfMTljbTZ3anhjbg&hl=en
 #include "rpc/rpc_machine.h"
 #include "rpc/bulk.h"
 #include "net/buffer_pool.h"
+#include "rpc/rpc_onwire.h" /* ITEM_ONWIRE_HEADER_SIZE */
 
 /** @todo Add these declarations to some internal header */
 extern const struct c2_addb_ctx_type c2_rpc_addb_ctx_type;
@@ -176,6 +177,11 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 				 uint32_t bufs_nr, uint32_t tm_nr);
 
 void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool);
+
+static inline uint32_t c2_max_fop_size(const struct c2_rpc_machine *mach)
+{
+	return mach->rm_min_recv_size - ITEM_ONWIRE_HEADER_SIZE;
+}
 
 /** @} end group rpc_layer_core */
 
