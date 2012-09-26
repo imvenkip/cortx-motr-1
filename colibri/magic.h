@@ -358,20 +358,17 @@ enum c2_magic_satchel {
 	/* c2_rpc_session::s_magic (azido ballade) */
 	C2_RPC_SESSION_MAGIC = 0x33a21d0ba11ade77,
 
-	/* sessions_tl::td_head_magic (sizeable bell) */
+	/* session_tl::td_head_magic (sizeable bell) */
 	C2_RPC_SESSION_HEAD_MAGIC = 0x33512eb1ebe1177,
 
 	/* c2_rpc_slot::sl_magic (delible diode) */
 	C2_RPC_SLOT_MAGIC = 0x33de11b1ed10de77,
 
-	/* ready_slots_tl::td_head_magic (assoil azzola) */
+	/* ready_slot_tl::td_head_magic (assoil azzola) */
 	C2_RPC_SLOT_HEAD_MAGIC = 0x33a55011a2201a77,
 
-	/* slot_refs_tl::td_head_magic (efface eiffel) */
+	/* slot_item_tl::td_head_magic (efface eiffel) */
 	C2_RPC_SLOT_REF_HEAD_MAGIC = 0x33effacee1ffe177,
-
-	/* ready_items_tl::td_head_magic (soleidae zizz) */
-	C2_RPC_READY_ITEM_HEAD_MAGIC = 0x33501e1dae212277,
 
 	/* c2_rpc_chan::rc_magic (faceless idol) */
 	C2_RPC_CHAN_MAGIC = 0x33face1e551d0177,

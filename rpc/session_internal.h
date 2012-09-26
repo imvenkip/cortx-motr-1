@@ -386,11 +386,6 @@ struct c2_rpc_slot_ref {
 	    List descriptor: slot_item
 	 */
 	struct c2_tlink            sr_link;
-
-	/** Anchor to put item on c2_rpc_slot::sl_ready_list
-	    List descriptor: ready_slot
-	 * */
-	struct c2_tlink            sr_ready_link;
 };
 
 /**
@@ -557,12 +552,11 @@ C2_TL_DECLARE(ready_slot, extern, struct c2_rpc_slot);
 C2_TL_DESCR_DECLARE(slot_item, extern);
 C2_TL_DECLARE(slot_item, extern, struct c2_rpc_item);
 
-/** Descriptor and functions associated with  a list of "c2_rpc_item"s ready to
-    put in rpc.
- */
-C2_TL_DESCR_DECLARE(ready_item, extern);
-C2_TL_DECLARE(ready_item, extern, struct c2_rpc_item);
-
+/** Helper macro to iterate over every item in a slot */
+#define for_each_item_in_slot(item, slot) \
+	        c2_tl_for(slot_item, &slot->sl_item_list, item)
+        
+#define end_for_each_item_in_slot c2_tl_endfor
 
 /** @}  End of rpc_session group */
 #endif

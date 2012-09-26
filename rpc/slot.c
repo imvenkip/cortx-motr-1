@@ -58,12 +58,6 @@ C2_TL_DESCR_DEFINE(slot_item, "slot-ref-item-list", /* global */,
 		   C2_RPC_ITEM_MAGIC, C2_RPC_SLOT_REF_HEAD_MAGIC);
 C2_TL_DEFINE(slot_item, /* global */, struct c2_rpc_item);
 
-C2_TL_DESCR_DEFINE(ready_item, "slot-ready-items", /* global */,
-		   struct c2_rpc_item, ri_slot_refs[0].sr_ready_link,
-		   ri_link_magic, C2_RPC_ITEM_MAGIC,
-		   C2_RPC_READY_ITEM_HEAD_MAGIC);
-C2_TL_DEFINE(ready_item, /* global */, struct c2_rpc_item);
-
 static struct c2_rpc_machine *
 slot_get_rpc_machine(const struct c2_rpc_slot *slot)
 {
@@ -90,7 +84,7 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 	 * item1 will be previous item of item2 i.e.
 	 * next(item1) == item2
 	 */
-	c2_tl_for(slot_item, &slot->sl_item_list, item2) {
+	for_each_item_in_slot(item2, slot) {
 
 		if (item1 == NULL) {
 			/*
@@ -129,7 +123,7 @@ bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot)
 			return false;
 
 		item1 = item2;
-	} c2_tl_endfor;
+	} end_for_each_item_in_slot;
 	return true;
 }
 
@@ -164,7 +158,6 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	slot->sl_ops           = ops;
 
 	slot_item_tlist_init(&slot->sl_item_list);
-	ready_item_tlist_init(&slot->sl_ready_list);
 
 	/*
 	 * Add a dummy item with very low verno in item_list
@@ -190,8 +183,7 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	sref->sr_verno.vn_vc  = 0;
 	sref->sr_slot_gen     = slot->sl_slot_gen;
 
-	slot_item_tlink_init(dummy_item);
-	slot_item_tlist_add(&slot->sl_item_list, dummy_item);
+	slot_item_tlink_init_at(dummy_item, &slot->sl_item_list);
 	return 0;
 }
 
@@ -216,7 +208,7 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 	 */
 	C2_ASSERT(slot != NULL);
 
-	c2_tl_for(slot_item, &slot->sl_item_list, item) {
+	for_each_item_in_slot(item, slot) {
 
 		if (first_item) {
 			/*
@@ -239,7 +231,7 @@ static void slot_item_list_prune(struct c2_rpc_slot *slot)
 			  item->ri_ops->rio_free != NULL);
 		item->ri_ops->rio_free(item);
 		count++;
-	} c2_tl_endfor;
+	} end_for_each_item_in_slot;
         C2_ASSERT(slot_item_tlist_length(&slot->sl_item_list) == 1);
 
         dummy_item = slot_item_tlist_head(&slot->sl_item_list);
@@ -256,7 +248,6 @@ void c2_rpc_slot_fini(struct c2_rpc_slot *slot)
 
 	slot_item_list_prune(slot);
 	ready_slot_tlink_fini(slot);
-	ready_item_tlist_fini(&slot->sl_ready_list);
 
 	/*
 	 * Remove the dummy item from the list
@@ -289,11 +280,11 @@ static struct c2_rpc_item* item_find(const struct c2_rpc_slot *slot,
 	struct c2_rpc_item *item;
 
 	C2_PRE(slot != NULL);
-	c2_tl_for(slot_item, &slot->sl_item_list, item) {
+	for_each_item_in_slot(item, slot) {
 
 		if (item->ri_slot_refs[0].sr_xid == xid)
 			return item;
-	} c2_tl_endfor;
+	} end_for_each_item_in_slot;
 	return NULL;
 }
 
@@ -417,8 +408,7 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 	sref->sr_slot_gen = slot->sl_slot_gen;
 	sref->sr_slot     = slot;
 	sref->sr_item     = item;
-	slot_item_tlink_init(item);
-	slot_item_tlist_add_tail(&slot->sl_item_list, item);
+	slot_item_tlink_init_at_tail(item, &slot->sl_item_list);
 	if (session != NULL) {
 		session->s_nr_active_items++;
 		if (session->s_state == C2_RPC_SESSION_IDLE) {
@@ -468,7 +458,6 @@ int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
 
 	reply->ri_slot_refs[0] = item->ri_slot_refs[0];
 	slot_item_tlink_init(reply);
-	ready_item_tlink_init(reply);
 
 	slot->sl_ops->so_reply_consume(item, reply);
 	return 0;
@@ -677,7 +666,7 @@ void c2_rpc_slot_reset(struct c2_rpc_slot *slot,
 	C2_PRE(c2_rpc_machine_is_locked(slot_get_rpc_machine(slot)));
 	C2_PRE(c2_verno_cmp(&slot->sl_verno, &last_seen) >= 0);
 
-	c2_tl_for(slot_item, &slot->sl_item_list, item) {
+	for_each_item_in_slot(item, slot) {
 
 		sref = &item->ri_slot_refs[0];
 		if (c2_verno_cmp(&sref->sr_verno, &last_seen) == 0) {
@@ -686,7 +675,7 @@ void c2_rpc_slot_reset(struct c2_rpc_slot *slot,
 			break;
 		}
 
-	} c2_tl_endfor;
+	} end_for_each_item_in_slot;
 	C2_ASSERT(c2_verno_cmp(&slot->sl_last_sent->ri_slot_refs[0].sr_verno,
 				&last_seen) == 0);
 	slot_balance(slot);
@@ -908,7 +897,7 @@ int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active,
 				"FUTURE"
 			     };
 
-	c2_tl_for(slot_item, &slot->sl_item_list, item) {
+	for_each_item_in_slot(item, slot) {
 		/* Skip dummy item */
 		if (first) {
 			first = false;
@@ -926,7 +915,7 @@ int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active,
 					item->ri_slot_refs[0].sr_xid,
 					str_stage[item->ri_stage]);
 		}
-	} c2_tl_endfor;
+	} end_for_each_item_in_slot;
 	return count;
 }
 #endif

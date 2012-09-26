@@ -1233,12 +1233,6 @@ struct c2_rpc_slot {
 	    @see SLOT_DEFAULT_MAX_IN_FLIGHT */
 	uint32_t                      sl_max_in_flight;
 
-	/** List of items ready to put in rpc. Items are placed in this
-	    list using c2_rpc_item::ri_slot_refs[0].sr_ready_link.
-	    List descriptor: ready_slot
-	 */
-	struct c2_tl                  sl_ready_list;
-
 	const struct c2_rpc_slot_ops *sl_ops;
 
 	/** Magic constant to verify sanity of linked rpc slot */
