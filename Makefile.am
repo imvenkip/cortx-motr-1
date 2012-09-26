@@ -73,6 +73,7 @@ SUBDIR_UT = addb/ut \
             rpc/ut \
             sm/ut \
             sns/ut \
+            sns/repair/ut \
             stob/ut \
             udb/ut \
             xcode/ut \

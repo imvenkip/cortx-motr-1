@@ -271,6 +271,11 @@ enum {
 	SNS_OUTGOING_BUF_NR = 1 << 16
 };
 
+const struct c2_net_buffer_pool_ops bp_ops = {
+        .nbpo_not_empty       = NULL,
+        .nbpo_below_threshold = NULL,
+};
+
 extern struct c2_net_xprt c2_net_lnet_xprt;
 extern struct c2_cm_type sns_repair_cmt;
 
@@ -358,6 +363,13 @@ static int cm_setup(struct c2_cm *cm)
 	colours = c2_reqh_nr_localities(reqh);
 	ndom = c2_cs_net_domain_locate(c2_cs_ctx_get(reqh),
 				       c2_net_lnet_xprt.nx_name);
+	/*
+	 * XXX This should be fixed, buffer pool ops should be a parameter to
+	 * c2_net_buffer_pool_init() as it is NULL checked in
+	 * c2_net_buffer_pool_invariant().
+	 */
+	rcm->rc_ibp.nbp_ops = &bp_ops;
+	rcm->rc_obp.nbp_ops = &bp_ops;
 	rc = c2_net_buffer_pool_init(&rcm->rc_ibp, ndom,
 				     C2_NET_BUFFER_POOL_THRESHOLD, SNS_SEG_NR,
 				     SNS_SEG_SIZE, colours, C2_0VEC_SHIFT);
@@ -419,11 +431,6 @@ static int cm_stop(struct c2_cm *cm)
 {
 	C2_PRE(cm != NULL);
 
-	/*
-	 * Broadcast STOP FOPs to all other replicas and wait for
-	 * for STOP FOPs from all other replicas.
-	 * Transition CM to IDLE state.
-	 */
 	return 0;
 }
 
@@ -432,7 +439,6 @@ static void cm_fini(struct c2_cm *cm)
 	struct c2_sns_repair_cm *rcm;
 
 	C2_ENTRY();
-	C2_PRE(c2_cm_invariant(cm));
 
 	rcm = cm2sns(cm);
 	c2_net_buffer_pool_fini(&rcm->rc_ibp);

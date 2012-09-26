@@ -109,4 +109,3 @@ struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm);
  *  scroll-step: 1
  *  End:
  */
-

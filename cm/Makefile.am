@@ -1,7 +1,7 @@
 cmdir			 = $(includedir)/cm
-cm_HEADERS               = cm.h cp.h ag.h
+cm_HEADERS               = cm.h cp.h ag.h pump.h
 
 noinst_LTLIBRARIES	 = libcolibri-cm.la
-libcolibri_cm_la_SOURCES = cm.h cm.c cp.h cp.c ag.h
+libcolibri_cm_la_SOURCES = cm.h cm.c cp.h cp.c ag.h pump.c pump.h
 
 INCLUDES		 = -I. -I$(top_srcdir) -I$(top_srcdir)/include

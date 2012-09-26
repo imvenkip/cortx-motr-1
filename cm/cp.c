@@ -447,8 +447,7 @@ bool c2_cm_cp_invariant(const struct c2_cm_cp *cp)
 
 	return c2_cm_cp_bob_check(cp) && ops != NULL && cp->c_data != NULL &&
 	       cp->c_ag != NULL &&
-	       c2_fom_phase(&cp->c_fom) < cp->c_ops->co_action_nr &&
-	       cp->c_ops->co_invariant(cp) &&
+	       c2_fom_phase(&cp->c_fom) < ops->co_action_nr &&
                c2_forall(i, ops->co_action_nr, ops->co_action[i] != NULL);
 }
 

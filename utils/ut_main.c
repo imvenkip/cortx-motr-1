@@ -38,6 +38,7 @@ extern const struct c2_test_suite bulkio_client_ut;
 extern const struct c2_test_suite ios_bufferpool_ut;
 extern const struct c2_test_suite cobfoms_ut;
 extern const struct c2_test_suite capa_ut;
+extern const struct c2_test_suite cm_cp_ut;
 extern const struct c2_test_suite cob_ut;
 extern const struct c2_test_suite console_ut;
 extern const struct c2_test_suite cm_cp_ut;
@@ -71,6 +72,7 @@ extern const struct c2_test_suite rpc_service_ut;
 extern const struct c2_test_suite frm_ut;
 extern const struct c2_test_suite c2_fop_lock_ut;
 extern const struct c2_test_suite layout_ut;
+extern const struct c2_test_suite sns_repair_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -87,6 +89,7 @@ void add_uts(void)
         c2_ut_add(&ios_bufferpool_ut);
 	c2_ut_add(&capa_ut);
 	c2_ut_add(&cfm_ut);
+	c2_ut_add(&cm_cp_ut);
 	c2_ut_add(&cob_ut);
         c2_ut_add(&cobfoms_ut);
 	c2_ut_add(&colibri_setup_ut);
@@ -119,6 +122,7 @@ void add_uts(void)
 	c2_ut_add(&addb_ut);
 	c2_ut_add(&console_ut);
 	c2_ut_add(&yaml2db_ut);
+	c2_ut_add(&sns_repair_ut);
 }
 
 int main(int argc, char *argv[])

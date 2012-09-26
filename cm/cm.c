@@ -283,176 +283,6 @@ const struct c2_addb_ctx_type c2_cm_addb_ctx = {
 static void cm_move(struct c2_cm *cm, int rc, enum c2_cm_state state,
 		    enum c2_cm_failure failure);
 
-int c2_cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
-{
-	int rc;
-
-	C2_PRE(c2_cm_invariant(cm));
-	C2_PRE(c2_cm_is_locked(cm));
-	C2_PRE(cp != NULL);
-
-	rc = cm->cm_ops->cmo_data_next(cm, cp);
-
-	C2_POST(ergo(rc == 0, cp->c_data != NULL));
-
-	return rc;
-}
-
-/* Copy packet pump start */
-
-static const struct c2_fom_type_ops cm_cp_pump_fom_type_ops = {
-        .fto_create = NULL
-};
-
-static struct c2_fom_type cm_cp_pump_fom_type;
-
-static int cpp_alloc(struct c2_cm_cp_pump *cp_pump)
-{
-	struct c2_cm_cp *cp;
-	struct c2_cm    *cm;
-	struct c2_fom   *fom;
-
-	cm = container_of(cp_pump, struct c2_cm, cm_cp_pump);
-	fom = &cp_pump->p_fom;
-	cp = cm->cm_ops->cmo_cp_alloc(cm);
-	if (cp == NULL)
-		c2_fom_phase_set(fom, C2_CPP_FAIL);
-	else {
-		cp_pump->p_cp = cp;
-		c2_fom_phase_set(fom, C2_CPP_DATA_NEXT);
-	}
-
-	return C2_FSO_AGAIN;
-}
-
-static int cpp_data_next(struct c2_cm_cp_pump *cp_pump)
-{
-	struct c2_cm_cp  *cp;
-	struct c2_cm     *cm;
-	struct c2_fom    *fom;
-	int               rc;
-
-	fom = &cp_pump->p_fom;
-	cm = container_of(cp_pump, struct c2_cm, cm_cp_pump);
-	cp = cp_pump->p_cp;
-	C2_ASSERT(cp != NULL);
-	/*
-	 * Save allocated copy packet, in-case c2_cm_data_next() blocks.
-	 */
-	rc = c2_cm_data_next(cm, cp);
-	if (rc < 0)
-		goto fail;
-	if (rc == C2_FSO_AGAIN) {
-		C2_ASSERT(c2_cm_cp_invariant(cp));
-		c2_cm_cp_init(cp);
-		c2_cm_cp_enqueue(cm, cp);
-		c2_fom_phase_set(fom, C2_CPP_ALLOC);
-	}
-	goto out;
-fail:
-	/* Destroy copy packet allocated in C2_CPP_ALLOC phase. */
-	cp->c_ops->co_free(cp);
-	fom->fo_rc = rc;
-	c2_fom_phase_set(fom, C2_CPP_FAIL);
-	rc = C2_FSO_AGAIN;
-out:
-	return rc;
-}
-
-static int cpp_fail(struct c2_cm_cp_pump *cp_pump)
-{
-	struct c2_cm *cm;
-
-	C2_PRE(cp_pump != NULL);
-
-	cm = container_of(cp_pump, struct c2_cm, cm_cp_pump);
-	cm_move(cm, cp_pump->p_fom.fo_rc, C2_CMS_ACTIVE, C2_CM_ERR_START);
-	c2_fom_phase_set(&cp_pump->p_fom, C2_CPP_IDLE);
-
-	return C2_FSO_WAIT;
-}
-
-static int cpp_fini(struct c2_cm_cp_pump *cp_pump)
-{
-	c2_fom_fini(&cp_pump->p_fom);
-	return C2_FSO_WAIT;
-}
-
-static const struct c2_sm_state_descr cm_cp_pump_sd[C2_CPP_NR] = {
-	[C2_CPP_ALLOC] = {
-		.sd_flags   = C2_SDF_INITIAL,
-		.sd_name    = "copy packet allocate",
-		.sd_allowed = C2_BITS(C2_CPP_DATA_NEXT, C2_CPP_FAIL)
-	},
-	[C2_CPP_IDLE] = {
-		.sd_flags   = 0,
-		.sd_name    = "copy packet pump idle",
-		.sd_allowed = C2_BITS(C2_CPP_ALLOC, C2_CPP_FINI)
-	},
-	[C2_CPP_DATA_NEXT] = {
-		.sd_flags   = 0,
-		.sd_name    = "copy packet data next",
-		.sd_allowed = C2_BITS(C2_CPP_ALLOC, C2_CPP_FAIL)
-	},
-	[C2_CPP_FAIL] = {
-		.sd_flags   = 0,
-		.sd_name    = "copy packet pump fail",
-		.sd_allowed = C2_BITS(C2_CPP_IDLE)
-	},
-	[C2_CPP_FINI] = {
-		.sd_flags   = C2_SDF_TERMINAL,
-		.sd_name    = "copy packet pump finish",
-		.sd_allowed = 0
-	},
-};
-
-static const struct c2_sm_conf cm_cp_pump_conf = {
-	.scf_name      = "sm: cp pump conf",
-	.scf_nr_states = ARRAY_SIZE(cm_cp_pump_sd),
-	.scf_state     = cm_cp_pump_sd
-};
-
-static const struct c2_cm_cp_pump_ops cpp_ops = {
-	.po_action = {
-		[C2_CPP_ALLOC]     = cpp_alloc,
-		[C2_CPP_DATA_NEXT] = cpp_data_next,
-		[C2_CPP_FAIL]      = cpp_fail,
-		[C2_CPP_FINI]      = cpp_fini
-	},
-	.po_action_nr = C2_CPP_NR,
-};
-
-static uint64_t cm_cp_pump_fom_locality(const struct c2_fom *fom)
-{
-	/*
-	 * It doesn't matter which reqh locality the cp pump FOM is put into.
-	 * Thus returning 0 by default.
-	 */
-        return 0;
-}
-
-static int cm_cp_pump_fom_tick(struct c2_fom *fom)
-{
-	struct c2_cm_cp_pump *cp_pump;
-        int                   phase = c2_fom_phase(fom);
-
-	cp_pump = container_of(fom, struct c2_cm_cp_pump, p_fom);
-	return cp_pump->p_ops->po_action[phase](cp_pump);
-}
-
-static void cm_cp_pump_fom_fini(struct c2_fom *fom)
-{
-	c2_fom_fini(fom);
-}
-
-static const struct c2_fom_ops cm_cp_pump_fom_ops = {
-        .fo_fini          = cm_cp_pump_fom_fini,
-        .fo_tick          = cm_cp_pump_fom_tick,
-        .fo_home_locality = cm_cp_pump_fom_locality
-};
-
-/* Copy packet pump end */
-
 static const struct c2_sm_state_descr cm_state_descr[C2_CMS_NR] = {
 	[C2_CMS_INIT] = {
 		.sd_flags	= C2_SDF_INITIAL,
@@ -487,7 +317,7 @@ static const struct c2_sm_state_descr cm_state_descr[C2_CMS_NR] = {
 	[C2_CMS_STOP] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_stop",
-		.sd_allowed	= C2_BITS(C2_CMS_FAIL, C2_CMS_IDLE, C2_CMS_FINI)
+		.sd_allowed	= C2_BITS(C2_CMS_IDLE)
 	},
 	[C2_CMS_FINI] = {
 		.sd_flags	= C2_SDF_TERMINAL,
@@ -631,21 +461,6 @@ int c2_cm_setup(struct c2_cm *cm)
 	return rc;
 }
 
-static void cm_cp_pump_start(struct c2_cm *cm)
-{
-	cm->cm_cp_pump.p_ops = &cpp_ops;
-	c2_fom_init(&cm->cm_cp_pump.p_fom, &cm_cp_pump_fom_type,
-		    &cm_cp_pump_fom_ops, NULL, NULL);
-	c2_fom_queue(&cm->cm_cp_pump.p_fom, cm->cm_service.rs_reqh);
-}
-
-static void cm_cp_pump_stop(struct c2_cm *cm)
-{
-	C2_PRE(c2_fom_phase(&cm->cm_cp_pump.p_fom) == C2_CPP_IDLE);
-	c2_fom_phase_set(&cm->cm_cp_pump.p_fom, C2_CPP_FINI);
-	c2_fom_wakeup(&cm->cm_cp_pump.p_fom);
-}
-
 int c2_cm_start(struct c2_cm *cm)
 {
 	int	rc;
@@ -660,9 +475,9 @@ int c2_cm_start(struct c2_cm *cm)
 
 	rc = cm->cm_ops->cmo_start(cm);
 	cm_move(cm, rc, C2_CMS_ACTIVE, C2_CM_ERR_START);
-	/* Submit c2_cm::cm_cp_pump to reqh, to start creating copy packets. */
+	/* Start pump FOM to create copy packets. */
 	if (rc == 0)
-		cm_cp_pump_start(cm);
+		c2_cm_cp_pump_start(cm);
 
 	C2_POST(c2_cm_invariant(cm));
 	c2_cm_unlock(cm);
@@ -679,7 +494,7 @@ int c2_cm_stop(struct c2_cm *cm)
 	C2_PRE(cm != NULL);
 
 	c2_cm_lock(cm);
-	C2_PRE(C2_IN(c2_cm_state_get(cm), (C2_CMS_ACTIVE, C2_CMS_IDLE)));
+	C2_PRE(c2_cm_state_get(cm) == C2_CMS_ACTIVE);
 	C2_PRE(c2_cm_invariant(cm));
 
 	/*
@@ -689,7 +504,7 @@ int c2_cm_stop(struct c2_cm *cm)
 	 */
 	rc = cm->cm_ops->cmo_stop(cm);
 	if (rc == 0)
-		cm_cp_pump_stop(cm);
+		c2_cm_cp_pump_stop(cm);
 	cm_move(cm, rc, C2_CMS_IDLE, C2_CM_ERR_STOP);
 
 	C2_POST(c2_cm_invariant(cm));
@@ -704,8 +519,7 @@ int c2_cm_module_init(void)
 	cmtypes_tlist_init(&cmtypes);
 	c2_bob_type_tlist_init(&cmtypes_bob, &cmtypes_tl);
 	c2_mutex_init(&cmtypes_mutex);
-	c2_fom_type_init(&cm_cp_pump_fom_type, &cm_cp_pump_fom_type_ops, NULL,
-			 &cm_cp_pump_conf);
+	c2_cm_cp_pump_init();
 	c2_cm_cp_module_init();
 	C2_LEAVE();
         return 0;
@@ -769,16 +583,10 @@ void c2_cm_fini(struct c2_cm *cm)
 
 	c2_cm_lock(cm);
 	C2_ASSERT(c2_cm_invariant(cm));
-	/* Call ->cmo_fini() only if c2_cm_setup() was successful. */
-	if (C2_IN(cm->cm_mach.sm_state, (C2_CMS_IDLE, C2_CMS_FAIL)))
-		cm->cm_ops->cmo_fini(cm);
+
+	cm->cm_ops->cmo_fini(cm);
 	C2_LOG("CM: %s:%lu: %i", (char *)cm->cm_type->ct_stype.rst_name,
 	       cm->cm_id, cm->cm_mach.sm_state);
-	/*
-	 * We lock the copy machine here to satisfy the precondition in
-	 * c2_cm_state_set() and not to control concurrency of calls to
-	 * c2_cm_fini().
-	 */
 	c2_cm_state_set(cm, C2_CMS_FINI);
 	c2_cm_unlock(cm);
 
@@ -793,6 +601,7 @@ int c2_cm_type_register(struct c2_cm_type *cmtype)
 	int	rc;
 
 	C2_PRE(cmtype != NULL);
+	C2_PRE(c2_reqh_service_type_find(cmtype->ct_stype.rst_name) == NULL);
 	C2_ENTRY();
 
 	rc = c2_reqh_service_type_register(&cmtype->ct_stype);
@@ -801,6 +610,7 @@ int c2_cm_type_register(struct c2_cm_type *cmtype)
 		c2_mutex_lock(&cmtypes_mutex);
 		cmtypes_tlink_init_at_tail(cmtype, &cmtypes);
 		c2_mutex_unlock(&cmtypes_mutex);
+		C2_PRE(cmtypes_tlink_is_in(cmtype));
 	}
 	C2_LEAVE();
 	return rc;
@@ -822,15 +632,24 @@ void c2_cm_type_deregister(struct c2_cm_type *cmtype)
 
 void c2_cm_sw_fill(struct c2_cm *cm)
 {
-	struct c2_cm_cp_pump *cp_pump;
+	C2_PRE(c2_cm_invariant(cm));
+
+	c2_cm_cp_pump_wakeup(cm);
+}
+
+int c2_cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
+{
+	int rc;
 
 	C2_PRE(c2_cm_invariant(cm));
 	C2_PRE(c2_cm_is_locked(cm));
+	C2_PRE(cp != NULL);
 
-	cp_pump = &cm->cm_cp_pump;
+	rc = cm->cm_ops->cmo_data_next(cm, cp);
 
-	c2_fom_phase_set(&cm->cm_cp_pump.p_fom, C2_CPP_ALLOC);
-	c2_fom_wakeup(&cm->cm_cp_pump.p_fom);
+	C2_POST(ergo(rc == 0, cp->c_data != NULL));
+
+	return rc;
 }
 
 /** @} endgroup CM */

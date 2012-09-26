@@ -23,8 +23,10 @@
 #include "cm/ag.h"
 #include "cm/cm.h"
 #include "reqh/reqh_service.h"
+#include "cm/cp.h"
 
 static struct c2_reqh  reqh;
+static struct c2_cm_cp    cp;
 
 /*
 struct cm_ut {
@@ -70,10 +72,26 @@ static int cm_ut_start(struct c2_cm *cm)
 	return 0;
 }
 
-static const struct c2_cm_ops cm_ut_ops = {
-	.cmo_setup = cm_ut_setup,
-	.cmo_start = cm_ut_start,
+static int cm_ut_stop(struct c2_cm *cm)
+{
+	return 0;
+}
 
+static struct c2_cm_cp* cm_ut_cp_alloc(struct c2_cm *cm)
+{
+	return &cp;
+}
+
+static int cm_ut_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
+{
+	return -ENODATA;
+}
+static const struct c2_cm_ops cm_ut_ops = {
+	.cmo_setup     = cm_ut_setup,
+	.cmo_start     = cm_ut_start,
+	.cmo_stop      = cm_ut_stop,
+	.cmo_cp_alloc  = cm_ut_cp_alloc,
+	.cmo_data_next = cm_ut_data_next
 };
 
 static int cm_ut_service_allocate(struct c2_reqh_service_type *stype,
@@ -133,6 +151,10 @@ static void cm_setup_ut(void)
 
 	rc = c2_cm_start(&cm_ut);
 	C2_UT_ASSERT(rc == 0);
+
+	rc = c2_cm_stop(&cm_ut);
+	C2_UT_ASSERT(rc == 0);
+
 	c2_cm_type_deregister(&cm_ut_cmt);
 
 }
