@@ -37,29 +37,29 @@
 
 bool c2_fid_is_valid(const struct c2_fid *fid)
 {
-	return true;
+        return true;
 }
 
 bool c2_fid_is_set(const struct c2_fid *fid)
 {
-	static const struct c2_fid zero = {
-	        .f_container = 0,
-	        .f_key = 0
-	};
-	return !c2_fid_eq(fid, &zero);
+        static const struct c2_fid zero = {
+                .f_container = 0,
+                .f_key = 0
+        };
+        return !c2_fid_eq(fid, &zero);
 }
 
 void c2_fid_set(struct c2_fid *fid, uint64_t container, uint64_t key)
 {
-	C2_PRE(fid != NULL);
+        C2_PRE(fid != NULL);
 
-	fid->f_container = container;
-	fid->f_key = key;
+        fid->f_container = container;
+        fid->f_key = key;
 }
 
 bool c2_fid_eq(const struct c2_fid *fid0, const struct c2_fid *fid1)
 {
-	return memcmp(fid0, fid1, sizeof *fid0) == 0;
+        return memcmp(fid0, fid1, sizeof *fid0) == 0;
 }
 
 int c2_fid_cmp(const struct c2_fid *fid0, const struct c2_fid *fid1)
@@ -83,7 +83,7 @@ void c2_fid_unregister(void)
 
 int c2_fid_register(void)
 {
-	return 0;
+        return 0;
 }
 
 /** @} end of fid group */

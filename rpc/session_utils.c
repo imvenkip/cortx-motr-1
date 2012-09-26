@@ -131,7 +131,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 
 	*out = NULL;
 	C2_SET0(&nsrec);
-	
+
 	rc = c2_cob_alloc(dom, &cob);
 	if (rc)
 	        return rc;
@@ -153,7 +153,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	nsrec.cnr_fid.f_key = stobid.u_lo;
 	nsrec.cnr_nlink = 1;
 
-        c2_cob_fabrec_make(&fabrec, NULL, 0); 
+        c2_cob_fabrec_make(&fabrec, NULL, 0);
 
 	/*
 	 * Temporary assignment for lsn
@@ -163,7 +163,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 
         omgrec.cor_uid = 0;
         omgrec.cor_gid = 0;
-        omgrec.cor_mode = S_IFDIR | 
+        omgrec.cor_mode = S_IFDIR |
                           S_IRUSR | S_IWUSR | S_IXUSR | /* rwx for owner */
                           S_IRGRP | S_IXGRP |           /* r-x for group */
                           S_IROTH | S_IXOTH;            /* r-x for others */
@@ -232,7 +232,7 @@ int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
 				   struct c2_db_tx      *tx)
 {
 	int rc;
-	
+
 	rc = c2_cob_domain_mkfs(dom, &C2_COB_SLASH_FID, &C2_COB_SESSIONS_FID, tx);
 	if (rc == -EEXIST)
 		rc = 0;

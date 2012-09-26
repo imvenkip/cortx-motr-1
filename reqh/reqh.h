@@ -129,7 +129,7 @@ struct c2_reqh {
         void                    *rh_key[REQH_KEY_MAX];
 	/** Request handler magic. */
 	uint64_t                 rh_magic;
-	
+
 	/** Local service consuming reply. */
 	struct c2_local_service *rh_svc;
 };
@@ -148,8 +148,8 @@ struct c2_reqh {
    @post c2_reqh_invariant()
  */
 int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
-		  struct c2_dbenv *db, struct c2_md_store *mdstore,
-		  struct c2_fol *fol, struct c2_local_service *svc);
+                  struct c2_dbenv *db, struct c2_md_store *mdstore,
+                  struct c2_fol *fol, struct c2_local_service *svc);
 
 bool c2_reqh_invariant(const struct c2_reqh *reqh);
 

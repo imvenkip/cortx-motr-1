@@ -296,14 +296,14 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
         io_fom_cob_rw_stob2fid_map(&cc->fco_stobid, &nsrec.cnr_fid);
 	nsrec.cnr_nlink = CC_COB_HARDLINK_NR;
 
-        c2_cob_fabrec_make(&fabrec, NULL, 0); 
+        c2_cob_fabrec_make(&fabrec, NULL, 0);
 	fabrec->cfb_version.vn_lsn =
 	             c2_fol_lsn_allocate(c2_fom_reqh(fom)->rh_fol);
 	fabrec->cfb_version.vn_vc = CC_COB_VERSION_INIT;
 
         omgrec.cor_uid = 0;
         omgrec.cor_gid = 0;
-        omgrec.cor_mode = S_IFDIR | 
+        omgrec.cor_mode = S_IFDIR |
                           S_IRUSR | S_IWUSR | S_IXUSR | /* rwx for owner */
                           S_IRGRP | S_IXGRP |           /* r-x for group */
                           S_IROTH | S_IXOTH;            /* r-x for others */
@@ -324,7 +324,7 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 			    c2_addb_trace, "Cob created successfully.");
         }
 	c2_cob_put(cob);
-	
+
 	return rc;
 }
 

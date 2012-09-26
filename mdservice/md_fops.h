@@ -50,7 +50,7 @@ int c2_mdservice_fop_init(void);
 void c2_mdservice_fop_fini(void);
 
 #endif /* __COLIBRI_MDSERVICE_MD_FOMS_H__ */
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

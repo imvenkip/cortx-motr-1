@@ -81,7 +81,7 @@ struct c2_db_tx;
    where, in first record, we have key constructed of f0's parent fid (the
    directory fid) and "f0", the filename itself. The namespace record is the
    file "f0" fid with full stat data, plus the link number for this name.
-   
+
    Here "stat data" means that this record contains file attributes that usually
    extracted by stat utility or ls -la.
 
@@ -296,7 +296,7 @@ struct c2_cob_attr {
         char             *ca_link;    /**< symlink */
 };
 
-/** 
+/**
    Namespace table key. For data objects, pfid = cfid and name = ""
  */
 struct c2_cob_nskey {
@@ -306,7 +306,7 @@ struct c2_cob_nskey {
 
 int c2_cob_nskey_size(const struct c2_cob_nskey *nskey);
 
-int c2_cob_nskey_cmp(const struct c2_cob_nskey *k0, 
+int c2_cob_nskey_cmp(const struct c2_cob_nskey *k0,
                      const struct c2_cob_nskey *k1);
 
 /**
@@ -341,7 +341,7 @@ struct c2_cob_oikey {
 
 /** The oi table record is a struct c2_cob_nskey. */
 
-/** 
+/**
    Fileattr_basic table key is c2_cob_fabkey
 
    @note version change at every ns manipulation and data write.
@@ -521,11 +521,11 @@ int c2_cob_create(struct c2_cob         *cob,
    Delete name with statdata, entry in object index and all file
    attributes from fab, omg, etc., tables.
 */
-int c2_cob_delete(struct c2_cob *cob, 
+int c2_cob_delete(struct c2_cob *cob,
                   struct c2_db_tx *tx);
 
 /**
-   Update file attributes of passed cob with @nsrec, @fabrec 
+   Update file attributes of passed cob with @nsrec, @fabrec
    and @omgrec fields.
 */
 int c2_cob_update(struct c2_cob        *cob,
@@ -617,7 +617,7 @@ void c2_cob_put(struct c2_cob *obj);
 
 /**
    Create object index key that is used for operations on object index table.
-   It consists of object fid an linkno depending on what record we want to 
+   It consists of object fid an linkno depending on what record we want to
    find.
 */
 void c2_cob_oikey_make(struct c2_cob_oikey *oikey,

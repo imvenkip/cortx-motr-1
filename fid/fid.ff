@@ -23,7 +23,7 @@ record {
     u64 f_oid
 } c2_fop_fid;
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

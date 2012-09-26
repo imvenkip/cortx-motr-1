@@ -181,7 +181,7 @@ static void c2_cob_max_nskey_make(struct c2_cob_nskey **keyh,
 
 /**
    Key size for iterator in which case we don't know exact length of key
-   and want to allocate it for worst case scenario, that is, for max 
+   and want to allocate it for worst case scenario, that is, for max
    possible name len.
  */
 static int c2_cob_nskey_size_max(const struct c2_cob_nskey *cnk)
@@ -194,7 +194,7 @@ static int c2_cob_nskey_size_max(const struct c2_cob_nskey *cnk)
 */
 static int ns_cmp(struct c2_table *table, const void *key0, const void *key1)
 {
-        return c2_cob_nskey_cmp((const struct c2_cob_nskey *)key0, 
+        return c2_cob_nskey_cmp((const struct c2_cob_nskey *)key0,
                                 (const struct c2_cob_nskey *)key1);
 }
 
@@ -411,7 +411,7 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
 
         omgrec.cor_uid = 0;
         omgrec.cor_gid = 0;
-        omgrec.cor_mode = S_IFDIR | 
+        omgrec.cor_mode = S_IFDIR |
                           S_IRUSR | S_IWUSR | S_IXUSR | /* rwx for owner */
                           S_IRGRP | S_IXGRP |           /* r-x for group */
                           S_IROTH | S_IXOTH;            /* r-x for others */
@@ -450,7 +450,7 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
 
         omgrec.cor_uid = 0;
         omgrec.cor_gid = 0;
-        omgrec.cor_mode = S_IFDIR | 
+        omgrec.cor_mode = S_IFDIR |
                           S_IRUSR | S_IWUSR | S_IXUSR | /* rwx for owner */
                           S_IRGRP | S_IXGRP |           /* r-x for group */
                           S_IROTH | S_IXOTH;            /* r-x for others */
@@ -594,7 +594,7 @@ static int cob_oi_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
                  * We use cursor here because in some situations we need
                  * to find most suitable position instead of exact location.
                  */
-                rc = c2_db_cursor_init(&cursor, 
+                rc = c2_db_cursor_init(&cursor,
                                        &cob->co_dom->cd_object_index, tx, 0);
                 if (rc != 0) {
                         c2_db_pair_fini(&cob->co_oipair);
@@ -850,7 +850,7 @@ int c2_cob_iterator_get(struct c2_cob_iterator *it)
                 return 1;
 
         /*
-         * Nothing found, cursor is on another object key. 
+         * Nothing found, cursor is on another object key.
          */
         if (!c2_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
                 rc = -ENOENT;
@@ -902,7 +902,7 @@ int c2_cob_alloc_omgid(struct c2_cob_domain *dom, struct c2_db_tx *tx,
         struct c2_db_cursor   cursor;
         int                   rc;
 
-        rc = c2_db_cursor_init(&cursor, 
+        rc = c2_db_cursor_init(&cursor,
                                &dom->cd_fileattr_omg, tx, 0);
         if (rc != 0)
                 return rc;
@@ -1020,7 +1020,7 @@ int c2_cob_create(struct c2_cob        *cob,
          */
         omgkey.cok_omgid = nsrec->cnr_omgid;
 
-        /* 
+        /*
          * Now let's update omg attributes. Cache the omgrec.
          */
         cob->co_omgrec = *omgrec;
@@ -1064,15 +1064,15 @@ int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
                 goto out;
 
         if (cob->co_nsrec.cnr_linkno == 0) {
-                /* 
+                /*
                  * Remove from the fileattr_basic table.
                  */
                 fabkey.cfb_fid = *cob->co_fid;
                 c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_basic,
                                  &fabkey, sizeof fabkey, NULL, 0);
 
-                /* 
-                 * Ignore errors; it's a dangling table entry but causes 
+                /*
+                 * Ignore errors; it's a dangling table entry but causes
                  * no harm.
                  */
                 c2_table_delete(tx, &pair);
@@ -1090,7 +1090,7 @@ int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
                 c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_omg,
                                  &omgkey, sizeof omgkey, NULL, 0);
 
-                /* 
+                /*
                  * Ignore errors; it's a dangling table entry but causes
                  * no harm.
                  */

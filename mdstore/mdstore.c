@@ -313,7 +313,7 @@ int c2_md_store_open(struct c2_md_store         *md,
 
         C2_ASSERT(cob != NULL);
 
-        /* 
+        /*
          * @todo: Place cob to open files table.
          */
 
@@ -535,7 +535,7 @@ int c2_md_store_readdir(struct c2_md_store      *md,
 
         rc = c2_cob_iterator_get(&it);
         if (rc == 0) {
-                /* 
+                /*
                  * Not exact position found and we are on least key
                  * let's do one step forward.
                  */

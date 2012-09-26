@@ -434,7 +434,7 @@ void c2_mdservice_fop_fini(void)
 }
 C2_EXPORTED(c2_mdservice_fop_fini);
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

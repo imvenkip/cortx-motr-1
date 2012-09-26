@@ -36,14 +36,14 @@ struct c2_md_store {
         struct c2_cob_domain  md_dom;
         struct c2_cob        *md_root;
 
-        /** 
+        /**
            An ADDB context for events related to this store.
         */
         struct c2_addb_ctx    md_addb;
 };
 
 /**
-   Flags supplied to c2_md_store_locate() to point out where a cob 
+   Flags supplied to c2_md_store_locate() to point out where a cob
    should be found: on store, in opened files table or orhans table.
 */
 enum c2_md_store_locate_flags {
@@ -83,7 +83,7 @@ void c2_md_store_fini(struct c2_md_store        *md);
 
 /**
    Handle link operation described by @pfid and @name. Input
-   cob is so called statdata cob and returned by c2_cob_locate(). 
+   cob is so called statdata cob and returned by c2_cob_locate().
    Error code is returned in error case or zero otherwise.
 */
 int c2_md_store_link(struct c2_md_store         *md,
@@ -179,7 +179,7 @@ int c2_md_store_getattr(struct c2_md_store      *md,
 
 /**
    Handle readdir operation described by @rdpg on @cob. Input @cob
-   is so called statdata cob and returned by c2_cob_locate(). 
+   is so called statdata cob and returned by c2_cob_locate().
 
    Error code is returned in error case or something >= 0 otherwise.
 */
@@ -220,7 +220,7 @@ int c2_md_store_path(struct c2_md_store         *md,
 /* __COLIBRI_MDSTORE_MDSTORE_H__ */
 #endif
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

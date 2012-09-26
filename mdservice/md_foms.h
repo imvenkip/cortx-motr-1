@@ -73,7 +73,7 @@ void c2_md_oikey_make(struct c2_cob_oikey *oikey,
 
 #endif /* __COLIBRI_MDSERVICE_MD_FOMS_H__ */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

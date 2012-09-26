@@ -280,7 +280,7 @@ int c2_md_lustre_fop_alloc(struct c2_fop **fop, void *data)
         return rc;
 }
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

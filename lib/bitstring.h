@@ -62,7 +62,7 @@ int c2_bitstring_cmp(const struct c2_bitstring *c1,
 /**
  Copy @src to @dst.
 */
-void c2_bitstring_copy(struct c2_bitstring *dst, 
+void c2_bitstring_copy(struct c2_bitstring *dst,
                        const char *src, size_t count);
 
 /**

@@ -371,7 +371,7 @@ static int c2_md_unlink_tick(struct c2_fom *fom)
         c2_md_fid_make(&tfid, &body->b_tfid);
 
         c2_fom_block_enter(fom);
-        rc = c2_md_store_locate(md, &tfid, &scob, 
+        rc = c2_md_store_locate(md, &tfid, &scob,
                                 C2_MD_LOCATE_STORED,
                                 tx);
         if (rc != 0) {
@@ -688,9 +688,9 @@ static int c2_md_close_tick(struct c2_fom *fom)
                 goto out;
         }
 
-        rc = c2_md_store_close(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob, 
+        rc = c2_md_store_close(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, cob,
                                &fom->fo_tx.tx_dbtx);
-        if (rc == 0 && 
+        if (rc == 0 &&
             (!(attr.ca_flags & C2_COB_NLINK) || attr.ca_nlink > 0)) {
                 /*
                  * Mode contains open flags that we don't need
@@ -768,7 +768,7 @@ static int c2_md_setattr_tick(struct c2_fom *fom)
          * an object in case there is no target yet. This is why
          * we return quickly if no object is found.
          */
-        rc = c2_md_store_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob, 
+        rc = c2_md_store_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob,
                                 C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
         if (rc != 0) {
                 c2_fom_block_leave(fom);
@@ -837,7 +837,7 @@ static int c2_md_getattr_tick(struct c2_fom *fom)
         c2_md_fid_make(&fid, &body->b_tfid);
 
         c2_fom_block_enter(fom);
-        rc = c2_md_store_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob, 
+        rc = c2_md_store_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob,
                                 C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
         if (rc != 0) {
                 c2_fom_block_leave(fom);
@@ -911,7 +911,7 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
         c2_md_fid_make(&fid, &body->b_tfid);
 
         c2_fom_block_enter(fom);
-        rc = c2_md_store_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob, 
+        rc = c2_md_store_locate(fom->fo_loc->fl_dom->fd_reqh->rh_mdstore, &fid, &cob,
                                 C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
         if (rc != 0) {
                 c2_fom_block_leave(fom);
@@ -925,7 +925,7 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
                 goto out;
         }
 
-        rdpg.r_pos = c2_bitstring_alloc((char *)req->r_pos.s_buf, 
+        rdpg.r_pos = c2_bitstring_alloc((char *)req->r_pos.s_buf,
                                         req->r_pos.s_len);
         if (rdpg.r_pos == NULL) {
                 c2_fom_block_leave(fom);
@@ -1357,7 +1357,7 @@ int c2_md_req_fom_create(struct c2_fop *fop, struct c2_fom **m)
         return 0;
 }
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
