@@ -44,7 +44,6 @@
 #ifndef __KERNEL__
 int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx)
 {
-	int  i;
 	int  rc;
 
 	C2_ENTRY("server_ctx: %p", sctx);
@@ -55,18 +54,17 @@ int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx)
 	if (sctx->rsx_log_file == NULL)
 		C2_RETERR(errno, "Open of error log file");
 
-	/* Register service types */
-	for (i = 0; i < sctx->rsx_service_types_nr; ++i) {
-		rc = c2_reqh_service_type_register(sctx->rsx_service_types[i]);
-		if (rc != 0)
-			goto fclose;
-	}
-
-	/* Start rpc server */
+	/*
+	 * Start rpc server.
+	 * Note: This only starts the services specified in the
+	 * struct c2_rpc_service_ctx, (i.e. c2_rpc_server_ctx::rsx_service_types
+	 * ) and does not register the given service types. The user of
+	 * c2_rpc_server_start() must register the service stypes before.
+	 */
 	rc = c2_cs_init(&sctx->rsx_colibri_ctx, sctx->rsx_xprts,
 			sctx->rsx_xprts_nr, sctx->rsx_log_file);
 	if (rc != 0)
-		goto service_unreg;
+		goto fclose;
 
 	rc = c2_cs_setup_env(&sctx->rsx_colibri_ctx, sctx->rsx_argc,
 			     sctx->rsx_argv);
@@ -79,9 +77,6 @@ int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx)
 
 cs_fini:
 	c2_cs_fini(&sctx->rsx_colibri_ctx);
-service_unreg:
-	for (i = 0; i < sctx->rsx_service_types_nr; ++i)
-		c2_reqh_service_type_unregister(sctx->rsx_service_types[i]);
 fclose:
 	fclose(sctx->rsx_log_file);
 	C2_RETURN(rc);
@@ -89,15 +84,9 @@ fclose:
 
 void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx)
 {
-	int i;
-
 	C2_ENTRY("server_ctx: %p", sctx);
 
 	c2_cs_fini(&sctx->rsx_colibri_ctx);
-
-	for (i = 0; i < sctx->rsx_service_types_nr; ++i)
-		c2_reqh_service_type_unregister(sctx->rsx_service_types[i]);
-
 	fclose(sctx->rsx_log_file);
 
 	C2_LEAVE();

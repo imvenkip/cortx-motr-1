@@ -14,21 +14,42 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Dmitriy Chumak <dmitriy_chumak@xyratex.com>
- * Original creation date: 12/06/2011
+ * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
+ * Original creation date: 09/27/2011
  */
 
-#pragma once
-
-#ifndef __COLIBRI_UT_CS_SERVICE_H__
-#define __COLIBRI_UT_CS_SERVICE_H__
-
+#include "ut/ut.h"
+#include "ut/cs_service.h"
 #include "reqh/reqh_service.h"
 
-extern struct c2_reqh_service_type ds1_service_type;
-extern struct c2_reqh_service_type ds2_service_type;
+int c2_ut_init(void)
+{
+	int i;
+	int rc = 0;
 
-extern struct c2_reqh_service_type *c2_cs_default_stypes[];
-extern size_t c2_cs_default_stypes_nr;
+	for (i = 0; i < c2_cs_default_stypes_nr; ++i) {
+		rc = c2_reqh_service_type_register(c2_cs_default_stypes[i]);
+		if (rc != 0)
+			break;
+	}
 
-#endif /* __COLIBRI_UT_CS_SERVICE_H__ */
+	return rc;
+}
+
+void c2_ut_fini(void)
+{
+	int i;
+
+	for (i = 0; i < c2_cs_default_stypes_nr; ++i)
+		c2_reqh_service_type_unregister(c2_cs_default_stypes[i]);
+}
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

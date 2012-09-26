@@ -188,6 +188,7 @@ void c2_reqh_service_fini(struct c2_reqh_service *service)
 int c2_reqh_service_type_register(struct c2_reqh_service_type *rstype)
 {
         C2_PRE(rstype != NULL);
+	C2_PRE(!c2_reqh_service_is_registered(rstype->rst_name));
 
 	if (C2_FI_ENABLED("fake_error"))
 		return -EINVAL;
