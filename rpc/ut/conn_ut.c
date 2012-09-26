@@ -57,15 +57,17 @@ static struct c2_fop      term_fop;
 static struct c2_rpc_fop_conn_establish_rep est_reply;
 static struct c2_rpc_fop_conn_terminate_rep term_reply;
 
+static struct c2_net_end_point ep;
+
 static void conn_init_fini_test(void)
 {
 	struct c2_rpc_sender_uuid uuid;
 
 	/* Checks for RPC connection initialisation and finalisation. */
-
+	ep.nep_addr = "dummy ep";
 	c2_fi_enable_once("rpc_chan_get", "do_nothing");
 	c2_fi_enable_once("c2_rpc_frm_run_formation", "do_nothing");
-	rc = c2_rpc_conn_init(&conn, (struct c2_net_end_point *)1, &machine,
+	rc = c2_rpc_conn_init(&conn, &ep, &machine,
 			      1 /* max_rpcs_in_flight */ );
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_INITIALISED);
@@ -81,8 +83,7 @@ static void conn_init_fini_test(void)
 	c2_fi_enable_once("rpc_chan_get", "do_nothing");
 	c2_fi_enable_once("c2_rpc_frm_run_formation", "do_nothing");
 	c2_rpc_machine_lock(&machine);
-	rc = c2_rpc_rcv_conn_init(&conn, (struct c2_net_end_point *)1, &machine,
-				  &uuid);
+	rc = c2_rpc_rcv_conn_init(&conn, &ep, &machine, &uuid);
 	c2_rpc_machine_unlock(&machine);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_INITIALISED);
@@ -179,14 +180,14 @@ static void conn_establish_fail_test(void)
 
 	c2_fi_enable_once("rpc_chan_get", "do_nothing");
 	c2_fi_enable_once("c2_rpc_frm_run_formation", "do_nothing");
-	rc = c2_rpc_conn_init(&conn, (struct c2_net_end_point *)1, &machine,
+	rc = c2_rpc_conn_init(&conn, &ep, &machine,
 			      1 /* max_rpcs_in_flight */ );
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_INITIALISED);
 
 	c2_fi_enable_once("c2_rpc__fop_post", "fake_error");
 	rc = c2_rpc_conn_establish(&conn);
-	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc != 0);
 	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_FAILED);
 
 	c2_fi_enable_once("rpc_chan_put", "do_nothing");
@@ -199,7 +200,7 @@ static void conn_establish_reply_fail_test(void)
 
 	c2_fi_enable_once("rpc_chan_get", "do_nothing");
 	c2_fi_enable_once("c2_rpc_frm_run_formation", "do_nothing");
-	rc = c2_rpc_conn_init(&conn, (struct c2_net_end_point *)1, &machine,
+	rc = c2_rpc_conn_init(&conn, &ep, &machine,
 			      1 /* max_rpcs_in_flight */ );
 	C2_UT_ASSERT(rc == 0);
 
@@ -228,7 +229,7 @@ static void conn_terminate_fail_test(void)
 
 	c2_fi_enable_once("rpc_chan_get", "do_nothing");
 	c2_fi_enable_once("c2_rpc_frm_run_formation", "do_nothing");
-	rc = c2_rpc_conn_init(&conn, (struct c2_net_end_point *)1, &machine,
+	rc = c2_rpc_conn_init(&conn, &ep, &machine,
 			      1 /* max_rpcs_in_flight */ );
 	C2_UT_ASSERT(rc == 0);
 
@@ -255,7 +256,7 @@ static void conn_terminate_reply_fail_test(void)
 	/* Checks for Conn C2_RPC_CONN_TERMINATING => C2_RPC_CONN_FAILED */
 	c2_fi_enable_once("rpc_chan_get", "do_nothing");
 	c2_fi_enable_once("c2_rpc_frm_run_formation", "do_nothing");
-	rc = c2_rpc_conn_init(&conn, (struct c2_net_end_point *)1, &machine,
+	rc = c2_rpc_conn_init(&conn, &ep, &machine,
 			      1 /* max_rpcs_in_flight */ );
 	c2_fi_enable_once("c2_rpc__fop_post", "do_nothing");
 	rc = c2_rpc_conn_establish(&conn);
