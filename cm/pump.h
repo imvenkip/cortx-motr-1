@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
- * Original creation date: 25/09/2011
+ * Original creation date: 09/25/2011
  */
 
 #pragma once
@@ -47,8 +47,10 @@ struct c2_cm_cp_pump {
 	/** pump FOM. */
 	struct c2_fom    p_fom;
 	/**
-	 * Saved copy packet, in-case the pump FOM goes into wait state due to
-	 * c2_cm_data_next().
+	 * Every newly allocate Copy packet in CPP_ALLOC phase is saved for the
+	 * further references, until the CPP_DATA_NEXT phase is completed for
+	 * the copy packet. Pump FOM does not free this allocated copy packet,
+	 * it is freed as part of copy packet FOM finalisation.
 	 */
 	struct c2_cm_cp *p_cp;
 	uint64_t         p_magix;

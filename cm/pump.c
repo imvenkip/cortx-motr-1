@@ -15,7 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
- * Original creation date: 25/09/2011
+ * Original creation date: 09/25/2011
  */
 
 #ifdef HAVE_CONFIG_H
@@ -36,19 +36,20 @@
    @{
 */
 
-enum cm_cp_pump_phase {
+enum cm_cp_pump_fom_phase {
 	/**
 	 * New copy packets are allocated in this phase.
-	 * cm_cp_pump::p_fom is in CPP_ALLOC phase when it is initialised
-	 * or c2_cm_sw_fill() is invoked from a copy packet FOM, during latter's
-	 * finalisation.
+	 * c2_cm_cp_pump::p_fom is in CPP_ALLOC phase when it is initialised by
+	 * c2_cm_cp_pump_start() and when c2_cm_sw_fill() is invoked from a copy
+	 * packet FOM, during latter's finalisation, which sets the
+	 * c2_cm_cp_pump::p_fom phase to CPP_ALLOC and calls c2_fom_wakeup().
 	 */
 	CPP_ALLOC = C2_FOM_PHASE_INIT,
 	CPP_FINI  = C2_FOM_PHASE_FINISH,
 	/**
-	 * cm_cp_pump::p_fom is transitioned to CPP_IDLE state in case of
-	 * failure and if no more copy packets can be created (in case buffer
-	 * pool is exhausted).
+	 * c2_cm_cp_pump::p_fom is transitioned to CPP_IDLE state, if no more
+	 * copy packets can be created (in case buffer pool is exhausted) and
+	 * in case of failure.
 	 */
 	CPP_IDLE,
 	/**
@@ -56,6 +57,12 @@ enum cm_cp_pump_phase {
 	 * phase.
 	 */
 	CPP_DATA_NEXT,
+	/**
+	 * Copy machine is notified about the failure, and c2_cm_cp_pump::p_fom
+	 * is transitioned to CPP_IDLE state. Once copy machine handles the
+	 * failure, pump FOM is resumed, else stopped if the copy machine
+	 * operation is to be terminated.
+	 */
 	CPP_FAIL,
 	CPP_NR
 };
@@ -120,9 +127,6 @@ static int cpp_data_next(struct c2_cm_cp_pump *cp_pump)
 	cm = pump2cm(cp_pump);
 	cp = cp_pump->p_cp;
 	C2_ASSERT(cp != NULL);
-	/*
-	 * Save allocated copy packet, in-case c2_cm_data_next() blocks.
-	 */
 	rc = c2_cm_data_next(cm, cp);
 	if (rc < 0)
 		goto fail;
@@ -263,7 +267,7 @@ void c2_cm_cp_pump_stop(struct c2_cm *cm)
 	C2_PRE(c2_cm_is_locked(cm));
 
 	cp_pump = &cm->cm_cp_pump;
-	C2_PRE(c2_fom_phase(&cp_pump->p_fom) == CPP_IDLE);
+	C2_ASSERT(c2_fom_phase(&cp_pump->p_fom) == CPP_IDLE);
 	c2_fom_phase_set(&cp_pump->p_fom, CPP_FINI);
 	c2_fom_wakeup(&cp_pump->p_fom);
 }

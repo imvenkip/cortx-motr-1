@@ -153,8 +153,11 @@ static void service_stop(struct c2_reqh_service *service)
 
         /* XXX Destroy SNS Repair FOP types and finlise copy machine. */
 	cm = container_of(service, struct c2_cm, cm_service);
-	/* Firstly stop and then finalise the copy machine. */
-	c2_cm_stop(cm);
+	/*
+	 * Finalise the copy machine as the copy machine as the service is
+	 * stopped.
+	 */
+	c2_cm_fini(cm);
 
 	C2_LEAVE();
 }
@@ -171,7 +174,6 @@ static void service_fini(struct c2_reqh_service *service)
 	C2_PRE(service != NULL);
 
 	cm = container_of(service, struct c2_cm, cm_service);
-	c2_cm_fini(cm);
 	sns_cm = cm2sns(cm);
 	c2_free(sns_cm);
 

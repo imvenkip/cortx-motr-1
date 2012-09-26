@@ -70,6 +70,7 @@ extern const struct c2_test_suite rpc_service_ut;
 extern const struct c2_test_suite frm_ut;
 extern const struct c2_test_suite c2_fop_lock_ut;
 extern const struct c2_test_suite layout_ut;
+extern const struct c2_test_suite sns_repair_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -117,6 +118,7 @@ void add_uts(void)
 	c2_ut_add(&addb_ut);
 	c2_ut_add(&console_ut);
 	c2_ut_add(&yaml2db_ut);
+	c2_ut_add(&sns_repair_ut);
 }
 
 int main(int argc, char *argv[])

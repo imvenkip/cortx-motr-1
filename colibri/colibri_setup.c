@@ -901,7 +901,7 @@ static void cs_ad_stob_fini(struct cs_stobs *stob)
 	astob_tlist_fini(&stob->s_adoms);
 }
 
-void cs_linux_stob_fini(struct cs_stobs *stob)
+static void cs_linux_stob_fini(struct cs_stobs *stob)
 {
 	C2_PRE(stob != NULL);
 
@@ -1120,7 +1120,7 @@ static void cs_services_fini(struct c2_reqh *reqh)
  */
 static int cs_net_domains_init(struct c2_colibri *cctx)
 {
-	int                          rc;
+	int                          rc = 0;
 	size_t                       xprts_nr;
 	FILE                        *ofd;
 	struct c2_net_xprt         **xprts;

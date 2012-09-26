@@ -20,12 +20,12 @@
 #include "sns/sns.h"
 #include "sns/repair/cm.h"
 
-int sns_init()
+int c2_sns_init()
 {
 	return c2_sns_repair_cm_type_register();
 }
 
-void sns_fini()
+void c2_sns_fini()
 {
 	c2_sns_repair_cm_type_deregister();
 }

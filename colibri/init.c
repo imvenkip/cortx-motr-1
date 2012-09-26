@@ -59,6 +59,7 @@
 #include "ioservice/io_fops.h"
 #include "ioservice/io_service.h"
 
+#include "sns/sns.h"
 #include "cm/cm.h"
 
 extern int  c2_memory_init(void);
@@ -127,6 +128,7 @@ struct init_fini_call subsystem[] = {
 #ifndef __KERNEL__
 	{ &c2_ios_register,     &c2_ios_unregister,   "ioservice" },
 	{ &c2_cm_module_init,   &c2_cm_module_fini,   "copy machine" },
+	{ &c2_sns_init,         &c2_sns_fini,         "sns" },
 #endif /* __KERNEL__ */
 };
 

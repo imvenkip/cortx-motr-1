@@ -34,7 +34,7 @@
  */
 
 /**
- * Aggregation group id.
+ * Aggregation group identifier.
  */
 struct c2_cm_ag_id {
 	struct c2_uint128 ai_hi;
@@ -54,7 +54,7 @@ struct c2_cm_aggr_group {
 	/** Number of copy packets that correspond to this aggregation group. */
 	uint64_t                           cag_cp_nr;
 
-	/** Number of copy packets that are transformed. */
+	/** Number of copy packets that have been transformed. */
 	struct c2_atomic64		   cag_transformed_cp_nr;
 
 	/** Number of copy packets that are freed. */

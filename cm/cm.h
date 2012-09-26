@@ -252,14 +252,14 @@ struct c2_cm_proxy {
 	uint64_t           px_id;
 
 	/** Remote replica's sliding window. */
-	struct c2_cm_ag_id px_lo;
-	struct c2_cm_ag_id px_hi;
+	struct c2_cm_ag_id px_sw_lo;
+	struct c2_cm_ag_id px_sw_hi;
 
 	/**
 	 * Pending list of copy packets to be forwarded to the remote
 	 * replica.
 	 * */
-	struct c2_tl       px_q;
+	struct c2_tl       px_pending_cps;
 };
 
 int c2_cm_type_register(struct c2_cm_type *cmt);

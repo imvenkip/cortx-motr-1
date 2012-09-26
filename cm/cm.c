@@ -313,7 +313,7 @@ static const struct c2_sm_state_descr cm_state_descr[C2_CMS_NR] = {
 	[C2_CMS_STOP] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_stop",
-		.sd_allowed	= C2_BITS(C2_CMS_FAIL, C2_CMS_IDLE, C2_CMS_FINI)
+		.sd_allowed	= C2_BITS(C2_CMS_IDLE)
 	},
 	[C2_CMS_FINI] = {
 		.sd_flags	= C2_SDF_TERMINAL,
@@ -471,7 +471,7 @@ int c2_cm_start(struct c2_cm *cm)
 
 	rc = cm->cm_ops->cmo_start(cm);
 	cm_move(cm, rc, C2_CMS_ACTIVE, C2_CM_ERR_START);
-	/* Submit c2_cm::cm_cp_pump to reqh, to start creating copy packets. */
+	/* Start pump FOM to create copy packets. */
 	if (rc == 0)
 		c2_cm_cp_pump_start(cm);
 
@@ -490,7 +490,7 @@ int c2_cm_stop(struct c2_cm *cm)
 	C2_PRE(cm != NULL);
 
 	c2_cm_lock(cm);
-	C2_PRE(C2_IN(c2_cm_state_get(cm), (C2_CMS_ACTIVE, C2_CMS_IDLE)));
+	C2_PRE(c2_cm_state_get(cm) == C2_CMS_ACTIVE);
 	C2_PRE(c2_cm_invariant(cm));
 
 	/*
@@ -561,11 +561,11 @@ int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
 	 */
 	c2_cm_lock(cm);
 	C2_ASSERT(c2_cm_state_get(cm) == C2_CMS_INIT);
-	c2_cm_unlock(cm);
 
 	cm_ag_tlist_init(&cm->cm_aggr_grps);
 
 	C2_POST(c2_cm_invariant(cm));
+	c2_cm_unlock(cm);
 	C2_LEAVE();
 	return 0;
 }
@@ -577,10 +577,8 @@ void c2_cm_fini(struct c2_cm *cm)
 	C2_PRE(C2_IN(cm->cm_mach.sm_state, (C2_CMS_INIT, C2_CMS_IDLE,
 					    C2_CMS_FAIL)));
 
-	C2_ASSERT(c2_cm_invariant(cm));
-	/* Call ->cmo_fini() only if c2_cm_setup() was successful. */
-	if (C2_IN(cm->cm_mach.sm_state, (C2_CMS_IDLE, C2_CMS_FAIL)))
-		cm->cm_ops->cmo_fini(cm);
+	c2_cm_lock(cm);
+	cm->cm_ops->cmo_fini(cm);
 	C2_LOG("CM: %s:%lu: %i", (char *)cm->cm_type->ct_stype.rst_name,
 	       cm->cm_id, cm->cm_mach.sm_state);
 	/*
@@ -588,7 +586,6 @@ void c2_cm_fini(struct c2_cm *cm)
 	 * c2_cm_state_set() and not to control concurrency of calls to
 	 * c2_cm_fini().
 	 */
-	c2_cm_lock(cm);
 	c2_cm_state_set(cm, C2_CMS_FINI);
 	c2_cm_unlock(cm);
 
@@ -603,7 +600,7 @@ int c2_cm_type_register(struct c2_cm_type *cmtype)
 	int	rc;
 
 	C2_PRE(cmtype != NULL);
-	C2_PRE(!cmtypes_tlink_is_in(cmtype));
+	C2_PRE(c2_reqh_service_type_find(cmtype->ct_stype.rst_name) == NULL);
 	C2_ENTRY();
 
 	rc = c2_reqh_service_type_register(&cmtype->ct_stype);
@@ -612,6 +609,7 @@ int c2_cm_type_register(struct c2_cm_type *cmtype)
 		c2_mutex_lock(&cmtypes_mutex);
 		cmtypes_tlink_init_at_tail(cmtype, &cmtypes);
 		c2_mutex_unlock(&cmtypes_mutex);
+		C2_PRE(cmtypes_tlink_is_in(cmtype));
 	}
 	C2_LEAVE();
 	return rc;
