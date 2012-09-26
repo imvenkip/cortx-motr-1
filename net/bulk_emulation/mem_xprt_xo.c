@@ -700,6 +700,13 @@ static int mem_xo_tm_stop(struct c2_net_transfer_mc *tm, bool cancel)
 	return 0;
 }
 
+static c2_bcount_t mem_xo_get_buffer_desc_size(const struct c2_net_domain *dom)
+{
+	C2_PRE(mem_dom_invariant(dom));
+
+	return sizeof(struct mem_desc);
+}
+
 /* Internal methods of this transport; visible to derived transports. */
 static const struct c2_net_bulk_mem_ops mem_xprt_methods = {
 	.bmo_work_fn = {
@@ -739,6 +746,7 @@ static const struct c2_net_xprt_ops mem_xo_xprt_ops = {
 	.xo_tm_fini                     = mem_xo_tm_fini,
 	.xo_tm_start                    = mem_xo_tm_start,
 	.xo_tm_stop                     = mem_xo_tm_stop,
+	.xo_get_buffer_desc_size        = mem_xo_get_buffer_desc_size,
 };
 
 struct c2_net_xprt c2_net_bulk_mem_xprt = {

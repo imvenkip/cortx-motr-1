@@ -106,6 +106,7 @@ Type c2_net_domain_get_##Fn(struct c2_net_domain *dom)	\
 DOM_GET_PARAM(max_buffer_size, c2_bcount_t);
 DOM_GET_PARAM(max_buffer_segment_size, c2_bcount_t);
 DOM_GET_PARAM(max_buffer_segments, int32_t);
+DOM_GET_PARAM(buffer_desc_size, c2_bcount_t);
 
 /** @} end of net group */
 

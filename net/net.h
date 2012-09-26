@@ -339,6 +339,9 @@ struct c2_net_xprt_ops {
 	   @see c2_net_domain_get_max_buffer_segment_size()
 	 */
 	int32_t (*xo_get_max_buffer_segments)(const struct c2_net_domain *dom);
+
+	/** Retrieves the buffer descriptor size. */
+	c2_bcount_t (*xo_get_buffer_desc_size)(const struct c2_net_domain *dom);
 };
 
 /**
