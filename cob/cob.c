@@ -44,7 +44,7 @@ enum {
    Storage virtual root. All cobs are placed in it.
  */
 struct c2_fid C2_COB_ROOT_FID = {
-        .f_container = 1ULL, 
+        .f_container = 1ULL,
         .f_key       = 1ULL
 };
 
@@ -52,7 +52,7 @@ struct c2_fid C2_COB_ROOT_FID = {
    Metadata hierarchry root fid.
 */
 struct c2_fid C2_COB_SLASH_FID = {
-        .f_container = 1ULL, 
+        .f_container = 1ULL,
         .f_key       = 2ULL
 };
 
@@ -60,7 +60,7 @@ struct c2_fid C2_COB_SLASH_FID = {
    Root session fid. All sessions are placed in it.
 */
 struct c2_fid C2_COB_SESSIONS_FID = {
-        .f_container = 1ULL, 
+        .f_container = 1ULL,
         .f_key       = 3ULL
 };
 
@@ -68,18 +68,18 @@ const char C2_COB_ROOT_NAME[] = "ROOT";
 const char C2_COB_SESSIONS_NAME[] = "SESSIONS";
 
 static const struct c2_addb_ctx_type c2_cob_domain_addb = {
-	.act_name = "cob-domain"
+        .act_name = "cob-domain"
 };
 
 static const struct c2_addb_ctx_type c2_cob_addb = {
-	.act_name = "cob"
+        .act_name = "cob"
 };
 
 static const struct c2_addb_loc cob_addb_loc = {
-	.al_name = "cob"
+        .al_name = "cob"
 };
 
-void c2_cob_oikey_make(struct c2_cob_oikey *oikey, 
+void c2_cob_oikey_make(struct c2_cob_oikey *oikey,
                        const struct c2_fid *fid,
                        int linkno)
 {
@@ -87,9 +87,9 @@ void c2_cob_oikey_make(struct c2_cob_oikey *oikey,
         oikey->cok_linkno = linkno;
 }
 
-void c2_cob_nskey_make(struct c2_cob_nskey **keyh, 
+void c2_cob_nskey_make(struct c2_cob_nskey **keyh,
                        const struct c2_fid *pfid,
-                       const char *name, 
+                       const char *name,
                        int namelen)
 {
         struct c2_cob_nskey *key;
@@ -101,7 +101,7 @@ void c2_cob_nskey_make(struct c2_cob_nskey **keyh,
         *keyh = key;
 }
 
-int c2_cob_nskey_cmp(const struct c2_cob_nskey *k0, 
+int c2_cob_nskey_cmp(const struct c2_cob_nskey *k0,
                      const struct c2_cob_nskey *k1)
 {
         int rc;
@@ -127,11 +127,11 @@ static int c2_cob_fabrec_size(const struct c2_cob_fabrec *rec)
         return sizeof *rec + rec->cfb_linklen;
 }
 
-void c2_cob_fabrec_make(struct c2_cob_fabrec **rech, 
+void c2_cob_fabrec_make(struct c2_cob_fabrec **rech,
                         const char *link, int linklen)
 {
         struct c2_cob_fabrec *rec;
-        
+
         rec = c2_alloc(sizeof(struct c2_cob_fabrec) + linklen);
         C2_ASSERT(rec != NULL);
         rec->cfb_linklen = linklen;
@@ -154,7 +154,7 @@ static int c2_cob_max_fabrec_size(void)
 static void c2_cob_max_fabrec_make(struct c2_cob_fabrec **rech)
 {
         struct c2_cob_fabrec *rec;
-        
+
         rec = c2_alloc(c2_cob_max_fabrec_size());
         C2_ASSERT(rec != NULL);
         rec->cfb_linklen = C2_COB_NAME_MAX;
@@ -165,9 +165,9 @@ static void c2_cob_max_fabrec_make(struct c2_cob_fabrec **rech)
    Make nskey for iterator. Allocate space for max possible name
    but put real string len into the struct.
 */
-static void c2_cob_max_nskey_make(struct c2_cob_nskey **keyh, 
+static void c2_cob_max_nskey_make(struct c2_cob_nskey **keyh,
                                   const struct c2_fid *pfid,
-                                  const char *name, 
+                                  const char *name,
                                   int namelen)
 {
         struct c2_cob_nskey *key;
@@ -199,24 +199,24 @@ static int ns_cmp(struct c2_table *table, const void *key0, const void *key1)
 }
 
 static const struct c2_table_ops cob_ns_ops = {
-	.to = {
-		[TO_KEY] = {
-			.max_size = ~0
-		},
-		[TO_REC] = {
-			.max_size = sizeof(struct c2_cob_nsrec)
-		}
-	},
-	.key_cmp = ns_cmp
+        .to = {
+                [TO_KEY] = {
+                        .max_size = ~0
+                },
+                [TO_REC] = {
+                        .max_size = sizeof(struct c2_cob_nsrec)
+                }
+        },
+        .key_cmp = ns_cmp
 };
 
 /**
-   Object index table definition. 
+   Object index table definition.
 */
 static int oi_cmp(struct c2_table *table, const void *key0, const void *key1)
 {
-	const struct c2_cob_oikey *cok0 = key0;
-	const struct c2_cob_oikey *cok1 = key1;
+        const struct c2_cob_oikey *cok0 = key0;
+        const struct c2_cob_oikey *cok1 = key1;
         int                        rc;
 
         C2_PRE(c2_fid_is_set(&cok0->cok_fid));
@@ -227,21 +227,21 @@ static int oi_cmp(struct c2_table *table, const void *key0, const void *key1)
 }
 
 static const struct c2_table_ops cob_oi_ops = {
-	.to = {
-		[TO_KEY] = {
-			.max_size = sizeof(struct c2_cob_oikey)
-		},
-		[TO_REC] = {
-			.max_size = ~0
-		}
-	},
-	.key_cmp = oi_cmp
+        .to = {
+                [TO_KEY] = {
+                        .max_size = sizeof(struct c2_cob_oikey)
+                },
+                [TO_REC] = {
+                        .max_size = ~0
+                }
+        },
+        .key_cmp = oi_cmp
 };
 
 static int fb_cmp(struct c2_table *table, const void *key0, const void *key1)
 {
-	const struct c2_cob_fabkey *cok0 = key0;
-	const struct c2_cob_fabkey *cok1 = key1;
+        const struct c2_cob_fabkey *cok0 = key0;
+        const struct c2_cob_fabkey *cok1 = key1;
 
         C2_PRE(c2_fid_is_set(&cok0->cfb_fid));
         C2_PRE(c2_fid_is_set(&cok1->cfb_fid));
@@ -250,15 +250,15 @@ static int fb_cmp(struct c2_table *table, const void *key0, const void *key1)
 }
 
 static const struct c2_table_ops cob_fab_ops = {
-	.to = {
-		[TO_KEY] = {
-			.max_size = sizeof(struct c2_cob_fabkey)
-		},
-		[TO_REC] = {
+        .to = {
+                [TO_KEY] = {
+                        .max_size = sizeof(struct c2_cob_fabkey)
+                },
+                [TO_REC] = {
                         .max_size = ~0
-		}
-	},
-	.key_cmp = fb_cmp
+                }
+        },
+        .key_cmp = fb_cmp
 };
 
 /**
@@ -266,21 +266,21 @@ static const struct c2_table_ops cob_fab_ops = {
 */
 static int omg_cmp(struct c2_table *table, const void *key0, const void *key1)
 {
-	const struct c2_cob_omgkey *cok0 = key0;
-	const struct c2_cob_omgkey *cok1 = key1;
+        const struct c2_cob_omgkey *cok0 = key0;
+        const struct c2_cob_omgkey *cok1 = key1;
         return C2_3WAY(cok0->cok_omgid, cok1->cok_omgid);
 }
 
 static const struct c2_table_ops cob_omg_ops = {
-	.to = {
-		[TO_KEY] = {
-			.max_size = sizeof(struct c2_cob_omgkey)
-		},
-		[TO_REC] = {
+        .to = {
+                [TO_KEY] = {
+                        .max_size = sizeof(struct c2_cob_omgkey)
+        },
+                [TO_REC] = {
                         .max_size = sizeof(struct c2_cob_omgrec)
-		}
-	},
-	.key_cmp = omg_cmp
+        }
+        },
+        .key_cmp = omg_cmp
 };
 
 static char *cob_dom_id_make(char *buf, const struct c2_cob_domain_id *id,
@@ -305,7 +305,7 @@ int c2_cob_domain_init(struct c2_cob_domain *dom, struct c2_dbenv *env,
         dom->cd_id = *id;
         C2_PRE(dom->cd_id.id != 0);
 
-	c2_rwlock_init(&dom->cd_guard);
+        c2_rwlock_init(&dom->cd_guard);
         dom->cd_dbenv = env;
 
         /* Locate table based on domain id */
@@ -324,20 +324,20 @@ int c2_cob_domain_init(struct c2_cob_domain *dom, struct c2_dbenv *env,
         rc = c2_table_init(&dom->cd_fileattr_basic, dom->cd_dbenv,
                            cob_dom_id_make(table, &dom->cd_id, "fb"),
                            0, &cob_fab_ops);
-	if (rc != 0) {
+        if (rc != 0) {
                 c2_table_fini(&dom->cd_object_index);
                 c2_table_fini(&dom->cd_namespace);
-		return rc;
+                return rc;
         }
 
         rc = c2_table_init(&dom->cd_fileattr_omg, dom->cd_dbenv,
                            cob_dom_id_make(table, &dom->cd_id, "fo"),
                            0, &cob_omg_ops);
-	if (rc != 0) {
+        if (rc != 0) {
                 c2_table_fini(&dom->cd_fileattr_basic);
                 c2_table_fini(&dom->cd_object_index);
                 c2_table_fini(&dom->cd_namespace);
-		return rc;
+                return rc;
         }
 
         c2_addb_ctx_init(&dom->cd_addb, &c2_cob_domain_addb, &env->d_addb);
@@ -351,8 +351,8 @@ void c2_cob_domain_fini(struct c2_cob_domain *dom)
         c2_table_fini(&dom->cd_fileattr_basic);
         c2_table_fini(&dom->cd_object_index);
         c2_table_fini(&dom->cd_namespace);
-	c2_rwlock_fini(&dom->cd_guard);
-	c2_addb_ctx_fini(&dom->cd_addb);
+        c2_rwlock_fini(&dom->cd_guard);
+        c2_addb_ctx_fini(&dom->cd_addb);
 }
 
 #ifndef __KERNEL__
@@ -375,9 +375,9 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
            Create terminator omgid record with id == ~0ULL.
          */
         omgkey.cok_omgid = ~0ULL;
-        
+
         C2_SET0(&omgrec);
-        
+
         c2_db_pair_setup(&pair, &dom->cd_fileattr_omg,
                          &omgkey, sizeof omgkey, &omgrec, sizeof omgrec);
 
@@ -391,12 +391,12 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
            Create root cob where all namespace is stored.
          */
         C2_SET0(&nsrec);
-        
+
         rc = c2_cob_alloc(dom, &cob);
         if (rc)
                 return rc;
 
-        c2_cob_nskey_make(&nskey, &C2_COB_ROOT_FID, C2_COB_ROOT_NAME, 
+        c2_cob_nskey_make(&nskey, &C2_COB_ROOT_FID, C2_COB_ROOT_NAME,
                           strlen(C2_COB_ROOT_NAME));
 
         nsrec.cnr_omgid = 0;
@@ -435,7 +435,7 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
         if (rc)
                 return rc;
 
-        c2_cob_nskey_make(&nskey, &C2_COB_ROOT_FID, C2_COB_SESSIONS_NAME, 
+        c2_cob_nskey_make(&nskey, &C2_COB_ROOT_FID, C2_COB_SESSIONS_NAME,
                           strlen(C2_COB_SESSIONS_NAME));
 
         nsrec.cnr_omgid = 0;
@@ -456,8 +456,8 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
                           S_IROTH | S_IXOTH;            /* r-x for others */
 
         c2_cob_fabrec_make(&fabrec, NULL, 0);
-	fabrec->cfb_version.vn_lsn = C2_LSN_RESERVED_NR + 2;
-	fabrec->cfb_version.vn_vc = 0;
+        fabrec->cfb_version.vn_lsn = C2_LSN_RESERVED_NR + 2;
+        fabrec->cfb_version.vn_vc = 0;
 
         rc = c2_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
         c2_cob_put(cob);
@@ -474,8 +474,8 @@ static void cob_free_cb(struct c2_ref *ref);
 
 static void cob_init(struct c2_cob_domain *dom, struct c2_cob *cob)
 {
-	c2_addb_ctx_init(&cob->co_addb, &c2_cob_addb, &dom->cd_addb);
-	c2_ref_init(&cob->co_ref, 1, cob_free_cb);
+        c2_addb_ctx_init(&cob->co_addb, &c2_cob_addb, &dom->cd_addb);
+        c2_ref_init(&cob->co_ref, 1, cob_free_cb);
         cob->co_fid = &cob->co_nsrec.cnr_fid;
         cob->co_dom = dom;
         cob->co_valid = 0;
@@ -489,7 +489,7 @@ static void cob_fini(struct c2_cob *cob)
                 c2_db_pair_fini(&cob->co_oipair);
         if (cob->co_valid & CA_FABREC)
                 c2_free(cob->co_fabrec);
-	c2_addb_ctx_fini(&cob->co_addb);
+        c2_addb_ctx_fini(&cob->co_addb);
 }
 
 /**
@@ -497,16 +497,16 @@ static void cob_fini(struct c2_cob *cob)
  */
 static void cob_free_cb(struct c2_ref *ref)
 {
-	struct c2_cob *cob;
+        struct c2_cob *cob;
 
-	cob = container_of(ref, struct c2_cob, co_ref);
+        cob = container_of(ref, struct c2_cob, co_ref);
         cob_fini(cob);
         c2_free(cob);
 }
 
 void c2_cob_get(struct c2_cob *cob)
 {
-	c2_ref_get(&cob->co_ref);
+        c2_ref_get(&cob->co_ref);
 }
 
 void c2_cob_put(struct c2_cob *cob)
@@ -546,12 +546,12 @@ static int cob_ns_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
         int                   rc;
 
         c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
-			 cob->co_nskey, c2_cob_nskey_size(cob->co_nskey),
-			 &cob->co_nsrec, sizeof cob->co_nsrec);
+                         cob->co_nskey, c2_cob_nskey_size(cob->co_nskey),
+                         &cob->co_nsrec, sizeof cob->co_nsrec);
         rc = c2_table_lookup(tx, &pair);
         c2_db_pair_release(&pair);
         c2_db_pair_fini(&pair);
-        
+
         if (rc == 0) {
                 cob->co_valid |= CA_NSREC;
                 C2_ASSERT(cob->co_nsrec.cnr_linkno > 0 ||
@@ -581,13 +581,13 @@ static int cob_oi_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
                 cob->co_valid &= ~CA_NSKEY_DB;
         }
 
-        /* 
+        /*
          * Find the name from the object index table. Note the key buffer
          * is out of scope outside of this function, but the record is good
-         * until c2_db_pair_fini. 
+         * until c2_db_pair_fini.
          */
         c2_db_pair_setup(&cob->co_oipair, &cob->co_dom->cd_object_index,
-			 &cob->co_oikey, sizeof cob->co_oikey, NULL, 0);
+                         &cob->co_oikey, sizeof cob->co_oikey, NULL, 0);
 
         if (cob->co_oikey.cok_linkno != 0) {
                 /*
@@ -609,7 +609,7 @@ static int cob_oi_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
                         return rc;
                 }
 
-                /* 
+                /*
                  * Found position should have same fid and linkno not less
                  * then requested. Otherwise we failed with lookup.
                  */
@@ -655,8 +655,8 @@ static int cob_fab_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
         fabkey.cfb_fid = *cob->co_fid;
         c2_cob_max_fabrec_make(&cob->co_fabrec);
         c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_basic,
-			 &fabkey, sizeof fabkey, cob->co_fabrec,
-			 c2_cob_max_fabrec_size());
+                         &fabkey, sizeof fabkey, cob->co_fabrec,
+                         c2_cob_max_fabrec_size());
         rc = c2_table_lookup(tx, &pair);
         c2_db_pair_release(&pair);
         c2_db_pair_fini(&pair);
@@ -684,8 +684,8 @@ static int cob_omg_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
 
         omgkey.cok_omgid = cob->co_nsrec.cnr_omgid;
         c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_omg,
-			 &omgkey, sizeof omgkey,
-			 &cob->co_omgrec, sizeof cob->co_omgrec);
+                         &omgkey, sizeof omgkey,
+                         &cob->co_omgrec, sizeof cob->co_omgrec);
         rc = c2_table_lookup(tx, &pair);
         c2_db_pair_release(&pair);
         c2_db_pair_fini(&pair);
@@ -705,7 +705,7 @@ static int c2_cob_get_fabomg(struct c2_cob *cob, uint64_t need,
                              struct c2_db_tx *tx)
 {
         int rc = 0;
-        
+
         if (need & CA_FABREC) {
                 rc = cob_fab_lookup(cob, tx);
                 if (rc != 0)
@@ -738,7 +738,7 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
 
         cob->co_nskey = nskey;
         cob->co_valid |= CA_NSKEY;
-        
+
         if (need & CA_NSKEY_FREE)
                 cob->co_valid |= CA_NSKEY_FREE;
 
@@ -755,7 +755,7 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
         }
 
         *out = cob;
-	return rc;
+        return rc;
 }
 
 int c2_cob_locate(struct c2_cob_domain *dom, struct c2_cob_oikey *oikey,
@@ -790,7 +790,7 @@ int c2_cob_locate(struct c2_cob_domain *dom, struct c2_cob_oikey *oikey,
                 c2_cob_put(cob);
                 return rc;
         }
-        
+
         rc = c2_cob_get_fabomg(cob, need, tx);
         if (rc != 0) {
                 c2_cob_put(cob);
@@ -798,10 +798,10 @@ int c2_cob_locate(struct c2_cob_domain *dom, struct c2_cob_oikey *oikey,
         }
 
         *out = cob;
-	return rc;
+        return rc;
 }
 
-int c2_cob_iterator_init(struct c2_cob *cob, 
+int c2_cob_iterator_init(struct c2_cob *cob,
                          struct c2_cob_iterator *it,
                          struct c2_bitstring *name,
                          struct c2_db_tx *tx)
@@ -811,7 +811,7 @@ int c2_cob_iterator_init(struct c2_cob *cob,
         /*
          * Prepare entry key using passed started pos.
          */
-        c2_cob_max_nskey_make(&it->ci_key, cob->co_fid, 
+        c2_cob_max_nskey_make(&it->ci_key, cob->co_fid,
                               c2_bitstring_buf_get(name),
                               c2_bitstring_len_get(name));
 
@@ -819,10 +819,10 @@ int c2_cob_iterator_init(struct c2_cob *cob,
          * Init iterator cursor with max possible key size.
          */
         c2_db_pair_setup(&it->ci_pair, &cob->co_dom->cd_namespace,
-			 it->ci_key, c2_cob_nskey_size_max(it->ci_key), 
-			 &it->ci_rec, sizeof it->ci_rec);
+                         it->ci_key, c2_cob_nskey_size_max(it->ci_key),
+                         &it->ci_rec, sizeof it->ci_rec);
 
-        rc = c2_db_cursor_init(&it->ci_cursor, 
+        rc = c2_db_cursor_init(&it->ci_cursor,
                                &cob->co_dom->cd_namespace, tx, 0);
         if (rc != 0) {
                 c2_db_pair_release(&it->ci_pair);
@@ -880,7 +880,7 @@ int c2_cob_iterator_next(struct c2_cob_iterator *it)
 void c2_cob_iterator_fini(struct c2_cob_iterator *it)
 {
         c2_db_pair_release(&it->ci_pair);
-	c2_db_pair_fini(&it->ci_pair);
+        c2_db_pair_fini(&it->ci_pair);
         c2_db_cursor_fini(&it->ci_cursor);
         c2_free(it->ci_key);
 }
@@ -913,10 +913,10 @@ int c2_cob_alloc_omgid(struct c2_cob_domain *dom, struct c2_db_tx *tx,
            init time (mkfs or else).
          */
         omgkey.cok_omgid = ~0ULL;
-        
+
         c2_db_pair_setup(&pair, &dom->cd_fileattr_omg,
-			 &omgkey, sizeof omgkey, &omgrec,
-			 sizeof omgrec);
+                         &omgkey, sizeof omgkey, &omgrec,
+                         sizeof omgrec);
 
         rc = c2_db_cursor_get(&cursor, &pair);
 
@@ -938,12 +938,12 @@ int c2_cob_alloc_omgid(struct c2_cob_domain *dom, struct c2_db_tx *tx,
                 rc = 0;
         }
         c2_db_pair_release(&pair);
-	c2_db_pair_fini(&pair);
+        c2_db_pair_fini(&pair);
         c2_db_cursor_fini(&cursor);
         return rc;
 }
 
-int c2_cob_create(struct c2_cob        *cob, 
+int c2_cob_create(struct c2_cob        *cob,
                   struct c2_cob_nskey  *nskey,
                   struct c2_cob_nsrec  *nsrec,
                   struct c2_cob_fabrec *fabrec,
@@ -960,7 +960,7 @@ int c2_cob_create(struct c2_cob        *cob,
         C2_PRE(nsrec != NULL);
         C2_PRE(fabrec != NULL);
         C2_PRE(omgrec != NULL);
-	C2_PRE(c2_fid_is_set(&nsrec->cnr_fid));
+        C2_PRE(c2_fid_is_set(&nsrec->cnr_fid));
         C2_PRE(c2_fid_is_set(&nskey->cnk_pfid));
 
         rc = c2_cob_alloc_omgid(cob->co_dom, tx, &nsrec->cnr_omgid);
@@ -997,22 +997,22 @@ int c2_cob_create(struct c2_cob        *cob,
          */
         fabkey.cfb_fid = *cob->co_fid;
 
-        /* 
-         * Now let's update file attributes. Cache the fabrec. 
+        /*
+         * Now let's update file attributes. Cache the fabrec.
          */
         cob->co_fabrec = fabrec;
 
-        /* 
-         * Add to fileattr-basic table. 
+        /*
+         * Add to fileattr-basic table.
          */
         c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_basic,
-			 &fabkey, sizeof fabkey, cob->co_fabrec, 
-			 c2_cob_fabrec_size(cob->co_fabrec));
+                         &fabkey, sizeof fabkey, cob->co_fabrec,
+                         c2_cob_fabrec_size(cob->co_fabrec));
 
         rc = c2_table_insert(tx, &pair);
         c2_db_pair_release(&pair);
-	c2_db_pair_fini(&pair);
-	if (rc != 0)
+        c2_db_pair_fini(&pair);
+        if (rc != 0)
                 goto out;
 
         /*
@@ -1021,27 +1021,27 @@ int c2_cob_create(struct c2_cob        *cob,
         omgkey.cok_omgid = nsrec->cnr_omgid;
 
         /* 
-         * Now let's update omg attributes. Cache the omgrec. 
+         * Now let's update omg attributes. Cache the omgrec.
          */
         cob->co_omgrec = *omgrec;
         cob->co_valid |= CA_OMGREC;
-        
-        /* 
-         * Add to fileattr-omg table. 
+
+        /*
+         * Add to fileattr-omg table.
          */
         c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_omg,
-			 &omgkey, sizeof omgkey,
-			 &cob->co_omgrec, sizeof cob->co_omgrec);
+                         &omgkey, sizeof omgkey,
+                         &cob->co_omgrec, sizeof cob->co_omgrec);
 
         rc = c2_table_insert(tx, &pair);
         c2_db_pair_release(&pair);
-	c2_db_pair_fini(&pair);
-	if (rc != 0)
-	        goto out;
+        c2_db_pair_fini(&pair);
+        if (rc != 0)
+                goto out;
 
         cob->co_valid |= CA_NSKEY_FREE | CA_FABREC;
 out:
-        C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
+        C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc,
                     c2_addb_func_fail, "cob_create", rc);
         return rc;
 }
@@ -1065,18 +1065,18 @@ int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
 
         if (cob->co_nsrec.cnr_linkno == 0) {
                 /* 
-                 * Remove from the fileattr_basic table. 
+                 * Remove from the fileattr_basic table.
                  */
                 fabkey.cfb_fid = *cob->co_fid;
                 c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_basic,
-			         &fabkey, sizeof fabkey, NULL, 0);
-        
+                                 &fabkey, sizeof fabkey, NULL, 0);
+
                 /* 
                  * Ignore errors; it's a dangling table entry but causes 
-                 * no harm. 
+                 * no harm.
                  */
                 c2_table_delete(tx, &pair);
-	        c2_db_pair_fini(&pair);
+                c2_db_pair_fini(&pair);
 
                 /*
                  * @todo: Omgrec may be shared between multiple objects.
@@ -1084,21 +1084,21 @@ int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
                  */
                 omgkey.cok_omgid = cob->co_nsrec.cnr_omgid;
 
-                /* 
-                 * Remove from the fileattr_omg table. 
+                /*
+                 * Remove from the fileattr_omg table.
                  */
                 c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_omg,
-			         &omgkey, sizeof omgkey, NULL, 0);
-        
+                                 &omgkey, sizeof omgkey, NULL, 0);
+
                 /* 
-                 * Ignore errors; it's a dangling table entry but causes 
-                 * no harm. 
+                 * Ignore errors; it's a dangling table entry but causes
+                 * no harm.
                  */
                 c2_table_delete(tx, &pair);
-	        c2_db_pair_fini(&pair);
-	}
+                c2_db_pair_fini(&pair);
+        }
 out:
-        C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
+        C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc,
                     c2_addb_func_fail, "cob_delete", rc);
         return rc;
 }
@@ -1113,7 +1113,7 @@ int c2_cob_update(struct c2_cob         *cob,
         struct c2_cob_fabkey  fabkey;
         struct c2_db_pair     pair;
         int                   rc;
-        
+
         C2_PRE(c2_cob_is_valid(cob));
         C2_PRE(cob->co_valid & CA_NSKEY);
 
@@ -1122,7 +1122,7 @@ int c2_cob_update(struct c2_cob         *cob,
 
                 cob->co_nsrec = *nsrec;
                 cob->co_valid |= CA_NSREC;
-        
+
                 c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
                                  cob->co_nskey, c2_cob_nskey_size(cob->co_nskey),
                                  &cob->co_nsrec, sizeof cob->co_nsrec);
@@ -1132,7 +1132,7 @@ int c2_cob_update(struct c2_cob         *cob,
                 if (rc != 0)
                         goto out;
         }
-        
+
         if (fabrec != NULL) {
                 fabkey.cfb_fid = *cob->co_fid;
                 if (fabrec != cob->co_fabrec) {
@@ -1141,9 +1141,9 @@ int c2_cob_update(struct c2_cob         *cob,
                         cob->co_fabrec = fabrec;
                 }
                 cob->co_valid |= CA_FABREC;
-        
+
                 c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_basic,
-                                 &fabkey, sizeof fabkey, cob->co_fabrec, 
+                                 &fabkey, sizeof fabkey, cob->co_fabrec,
                                  c2_cob_fabrec_size(cob->co_fabrec));
                 rc = c2_table_update(tx, &pair);
                 c2_db_pair_release(&pair);
@@ -1156,10 +1156,10 @@ int c2_cob_update(struct c2_cob         *cob,
                  * We need to take this into account.
                  */
                 omgkey.cok_omgid = cob->co_nsrec.cnr_omgid;
-                
+
                 cob->co_omgrec = *omgrec;
                 cob->co_valid |= CA_OMGREC;
-        
+
                 c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_omg,
                                  &omgkey, sizeof omgkey,
                                  &cob->co_omgrec, sizeof cob->co_omgrec);
@@ -1168,7 +1168,7 @@ int c2_cob_update(struct c2_cob         *cob,
                 c2_db_pair_fini(&pair);
         }
 out:
-        C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
+        C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc,
                     c2_addb_func_fail, "cob_update", rc);
         return rc;
 }
@@ -1180,7 +1180,7 @@ int c2_cob_add_name(struct c2_cob        *cob,
 {
         struct c2_cob_oikey  oikey;
         struct c2_db_pair    pair;
-	int                  rc;
+        int                  rc;
 
         C2_PRE(cob != NULL);
         C2_PRE(nskey != NULL);
@@ -1189,35 +1189,35 @@ int c2_cob_add_name(struct c2_cob        *cob,
 
         /*
          * Add new name to object index table. Table insert should fail
-         * if name already exists. 
+         * if name already exists.
          */
-        c2_cob_oikey_make(&oikey, &nsrec->cnr_fid, 
+        c2_cob_oikey_make(&oikey, &nsrec->cnr_fid,
                           cob->co_nsrec.cnr_cntr);
 
         c2_db_pair_setup(&pair, &cob->co_dom->cd_object_index,
-			 &oikey, sizeof oikey, nskey, 
-			 c2_cob_nskey_size(nskey));
+                         &oikey, sizeof oikey, nskey,
+                         c2_cob_nskey_size(nskey));
 
         rc = c2_table_insert(tx, &pair);
         c2_db_pair_release(&pair);
-	c2_db_pair_fini(&pair);
-	if (rc != 0)
+        c2_db_pair_fini(&pair);
+        if (rc != 0)
                 goto out;
 
         c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
-			 nskey, c2_cob_nskey_size(nskey),
-			 nsrec, sizeof *nsrec);
+                         nskey, c2_cob_nskey_size(nskey),
+                         nsrec, sizeof *nsrec);
 
         rc = c2_table_insert(tx, &pair);
         c2_db_pair_release(&pair);
-	c2_db_pair_fini(&pair);
+        c2_db_pair_fini(&pair);
 out:
-        C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
+        C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc,
                     c2_addb_func_fail, "cob_add_name", rc);
         return rc;
 }
 
-int c2_cob_del_name(struct c2_cob        *cob, 
+int c2_cob_del_name(struct c2_cob        *cob,
                     struct c2_cob_nskey  *nskey,
                     struct c2_db_tx      *tx)
 {
@@ -1234,13 +1234,13 @@ int c2_cob_del_name(struct c2_cob        *cob,
          */
         c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
                          nskey, c2_cob_nskey_size(nskey),
-		         &nsrec, sizeof nsrec);
+                         &nsrec, sizeof nsrec);
         rc = c2_table_lookup(tx, &pair);
         if (rc != 0) {
                 c2_db_pair_fini(&pair);
                 goto out;
         }
-        
+
         rc = c2_table_delete(tx, &pair);
         c2_db_pair_fini(&pair);
         if (rc != 0)
@@ -1256,12 +1256,12 @@ int c2_cob_del_name(struct c2_cob        *cob,
         c2_db_pair_fini(&pair);
 
 out:
-        C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
+        C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc,
                     c2_addb_func_fail, "cob_del_name", rc);
         return rc;
 }
 
-int c2_cob_update_name(struct c2_cob        *cob, 
+int c2_cob_update_name(struct c2_cob        *cob,
                        struct c2_cob_nskey  *srckey,
                        struct c2_cob_nskey  *tgtkey,
                        struct c2_db_tx      *tx)
@@ -1273,13 +1273,13 @@ int c2_cob_update_name(struct c2_cob        *cob,
 
         C2_PRE(c2_cob_is_valid(cob));
         C2_PRE(srckey != NULL && tgtkey != NULL);
-        
+
         /*
          * Insert new record with nsrec found with srckey.
          */
         c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
-	                 srckey, c2_cob_nskey_size(srckey),
-		         &nsrec, sizeof nsrec);
+                         srckey, c2_cob_nskey_size(srckey),
+                         &nsrec, sizeof nsrec);
         rc = c2_table_lookup(tx, &pair);
         c2_db_pair_release(&pair);
         c2_db_pair_fini(&pair);
@@ -1294,7 +1294,7 @@ int c2_cob_update_name(struct c2_cob        *cob,
         c2_db_pair_fini(&pair);
         if (rc != 0)
                 goto out;
-        
+
         /*
          * Kill old record. Error will be returned if
          * nothing found.
@@ -1321,7 +1321,7 @@ int c2_cob_update_name(struct c2_cob        *cob,
 
         /*
          * Update key to new one.
-         */        
+         */
         if (cob->co_valid & CA_NSKEY_FREE)
                 c2_free(cob->co_nskey);
         else if (cob->co_valid & CA_NSKEY_DB)
@@ -1332,7 +1332,7 @@ int c2_cob_update_name(struct c2_cob        *cob,
                           c2_bitstring_len_get(&tgtkey->cnk_name));
         cob->co_valid |= CA_NSKEY_FREE;
 out:
-        C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc, 
+        C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc,
                     c2_addb_func_fail, "cob_update_name", rc);
         return rc;
 }

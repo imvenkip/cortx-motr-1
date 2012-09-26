@@ -114,7 +114,7 @@ struct c2_db_tx;
    next name and we need to find it somehow. In order to do this quickly we need
    to do lookup in object index for second file name with key containing linkno == 1,
    that is, next after 0, and file fid F.
-   
+
    Doing so allows to find the record:
 
    (F, 0)->(a.fid, "f0")
@@ -134,19 +134,19 @@ struct c2_db_tx;
 
    File attributes that are stored in separate tables may also be easily accessed
    using key constructed of (F), where F is file fid.
-   
+
    Rationale:
-   
+
    Hard-links are rare, make common case fast by placing attributes in the file's
    directory entry, make readdir fast by moving other attributes out.
-   
+
    Corner cases:
-   
+
    Rename and unlink. They need to move file attributes from zero name when moving
    it.
-   
+
    Special case:
-   
+
    Using cob api for ioservice to create data objects is special case. The main
    difference is that, parent fid (in nskey) and child fid (in nsrec) are the same.
 
@@ -166,23 +166,23 @@ struct c2_db_tx;
 
    Once iterator is not longer needed, it is fininalized by c2_cob_iterator_fini().
    @see c2_md_store_readdir()
-   
+
    Mkfs.
-   
+
    In order to use cob storage one needs to prepare it by mkfs. @see c2_cob_domain_mkfs()
    In this time the following structures are created in cob tables:
-   
+
    - the main root cob with fid C2_COB_ROOT_FID
-   
+
    - metadata hierarachy root cob (what potencially metadata client can see) with fid
    C2_COB_ROOT_FID and name C2_COB_ROOT_NAME
-   
+
    - sessions root cob (all sessions are created below it) with fid C2_COB_SESSIONS_FID
    and name C2_COB_SESSIONS_NAME
-   
+
    - omgid terminator record with id = ~0ULL. This is used for omgid allocation during
    c2_cob_create()
-   
+
    Cob cannot be used properly without mkfs done. All unit tests that accessing cob
    and also all modules using cobs do c2_cob_domain_mkfs() on startup.
 
@@ -209,7 +209,7 @@ extern struct c2_fid C2_COB_SESSIONS_FID;
    database environment.
  */
 struct c2_cob_domain_id {
-	uint32_t id;
+        uint32_t id;
 };
 
 /**
@@ -317,7 +317,7 @@ int c2_cob_nskey_cmp(const struct c2_cob_nskey *k0,
 struct c2_cob_nsrec {
         struct c2_fid     cnr_fid;     /**< object fid */
         uint32_t          cnr_linkno;  /**< number of link for the name */
-        
+
         /**
            The following fields are only important for 0-nsrec, that is,
            stat data. For other records, only two fields above are valid.
@@ -392,7 +392,7 @@ struct c2_cob_omgrec {
    - c2_cob_locate() - lookup by fid
    - c2_cob_create() - create new cob using passed nskey, nsrec and attrbutes
    The cobs returned by these methods are always populated.
-   
+
    An empty cob is only exposed with c2_cob_alloc() method, which is used
    by request handler and (possibly) others. Such a cob is used as an input
    parameter to c2_cob_create() method.
@@ -417,14 +417,14 @@ struct c2_cob_omgrec {
 
    @note: The c2_cob_nskey is allocated separately because it is variable
    length. Once allocated, the cob can free the memory by using CA_NSKEY_FREE.
-   
+
    <b>Caching and concurrency</b>
    Cobs are not cached by cob domain or even cob API users. Rationale is the
    following:
-   
+
    - we use db[45] for storing metadata and it already has cache that may work
    in a way that satisfies our needs;
-   
+
    - using cache means substantial complications with locking and concurrent
    access. Currently these issues are completely covered by db[45].
  */
@@ -440,7 +440,7 @@ struct c2_cob {
         struct c2_cob_fabrec  *co_fabrec;   /**< fileattr_basic data (acl, etc) */
         struct c2_cob_omgrec   co_omgrec;   /**< permission data */
         struct c2_db_pair      co_oipair;   /**< used for oi accesss */
-	struct c2_addb_ctx     co_addb;     /**< cob private addb ctx. */
+        struct c2_addb_ctx     co_addb;     /**< cob private addb ctx. */
 };
 
 /**
@@ -454,7 +454,7 @@ struct c2_cob_iterator {
         struct c2_db_pair      ci_pair;     /**< used for iterator cursor */
 };
 
-/** 
+/**
    Cob flags and valid attributes.
 */
 enum c2_cob_ca_valid {
@@ -476,10 +476,10 @@ enum c2_cob_ca_valid {
 
    @see c2_cob_locate
  */
-int c2_cob_lookup(struct c2_cob_domain *dom, 
+int c2_cob_lookup(struct c2_cob_domain *dom,
                   struct c2_cob_nskey  *nskey,
-                  uint64_t              need, 
-                  struct c2_cob       **out, 
+                  uint64_t              need,
+                  struct c2_cob       **out,
                   struct c2_db_tx      *tx);
 
 /**
@@ -491,7 +491,7 @@ int c2_cob_lookup(struct c2_cob_domain *dom,
 
    @see c2_cob_lookup
  */
-int c2_cob_locate(struct c2_cob_domain    *dom, 
+int c2_cob_locate(struct c2_cob_domain    *dom,
                   struct c2_cob_oikey     *oikey,
                   uint64_t                 need,
                   struct c2_cob          **out,
@@ -502,7 +502,7 @@ int c2_cob_locate(struct c2_cob_domain    *dom,
 
    This doesn't create a new storage object; just creates
    metadata table entries for it to enable namespace and oi lookup.
-   
+
    cob    - cob instance allocted with c2_cob_alloc()
    nskey  - namespace key made with c2_cob_nskey_make()
    nsrec  - namespace record with all attrbiutes set
@@ -510,7 +510,7 @@ int c2_cob_locate(struct c2_cob_domain    *dom,
    omgrec - owner/mode/group record
    tx     - transaction handle
  */
-int c2_cob_create(struct c2_cob         *cob, 
+int c2_cob_create(struct c2_cob         *cob,
                   struct c2_cob_nskey   *nskey,
                   struct c2_cob_nsrec   *nsrec,
                   struct c2_cob_fabrec  *fabrec,
@@ -536,7 +536,6 @@ int c2_cob_update(struct c2_cob        *cob,
 
 /**
    Add name to namespace and object index.
-      
    cob   - stat data (zero name) cob;
    nskey - new name to add to the file;
    tx    - transaction handle.
@@ -548,24 +547,24 @@ int c2_cob_add_name(struct c2_cob        *cob,
 
 /**
    Delete name from namespace and object index.
-   
+
    cob   - stat data (zero name) cob;
    nskey - name to kill (may be the name of statdata);
    tx    - transaction handle.
 */
-int c2_cob_del_name(struct c2_cob        *cob, 
+int c2_cob_del_name(struct c2_cob        *cob,
                     struct c2_cob_nskey  *nskey,
                     struct c2_db_tx      *tx);
 
 /**
    Rename oldkey with passed newkey.
-   
+
    cob    - stat data (zero name) cob;
    srckey - source name;
    tgtkey - target name;
    tx     - transaction handle
 */
-int c2_cob_update_name(struct c2_cob        *cob, 
+int c2_cob_update_name(struct c2_cob        *cob,
                        struct c2_cob_nskey  *srckey,
                        struct c2_cob_nskey  *tgtkey,
                        struct c2_db_tx      *tx);
@@ -574,7 +573,7 @@ int c2_cob_update_name(struct c2_cob        *cob,
    Init cob iterator on passed @cob and @name as a start position.
 */
 int c2_cob_iterator_init(struct c2_cob          *cob,
-                         struct c2_cob_iterator *it, 
+                         struct c2_cob_iterator *it,
                          struct c2_bitstring    *name,
                          struct c2_db_tx        *tx);
 
@@ -596,7 +595,7 @@ void c2_cob_iterator_fini(struct c2_cob_iterator *it);
 /**
    Allocate a new cob on passed @dom.
  */
-int c2_cob_alloc(struct c2_cob_domain *dom, 
+int c2_cob_alloc(struct c2_cob_domain *dom,
                  struct c2_cob       **out);
 
 /**
@@ -621,7 +620,7 @@ void c2_cob_put(struct c2_cob *obj);
    It consists of object fid an linkno depending on what record we want to 
    find.
 */
-void c2_cob_oikey_make(struct c2_cob_oikey *oikey, 
+void c2_cob_oikey_make(struct c2_cob_oikey *oikey,
                        const struct c2_fid *fid,
                        int linkno);
 
@@ -629,9 +628,9 @@ void c2_cob_oikey_make(struct c2_cob_oikey *oikey,
    Create namespace table key for ns table manipulation. It contains parent fid
    and child name.
 */
-void c2_cob_nskey_make(struct c2_cob_nskey **keyh, 
+void c2_cob_nskey_make(struct c2_cob_nskey **keyh,
                        const struct c2_fid *pfid,
-                       const char *name, 
+                       const char *name,
                        int namelen);
 
 /**
