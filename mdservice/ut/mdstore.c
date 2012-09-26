@@ -22,7 +22,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-              
+
 #include "lib/ut.h"
 #include "lib/ub.h"
 #include "lib/memory.h"
@@ -59,16 +59,16 @@ static void fom_fini(struct c2_local_service *service, struct c2_fom *fom)
         struct c2_fop_ctx *ctx = fom->fo_fop_ctx;
 
         if (ctx->fc_cookie) {
-	        struct c2_fop **ret = ctx->fc_cookie;
-	        *ret = fom->fo_rep_fop;
-	}
-	if (error == 0)
-	        error = fom->fo_rc;
-	locked = 0;
+                struct c2_fop **ret = ctx->fc_cookie;
+                *ret = fom->fo_rep_fop;
+        }
+        if (error == 0)
+                error = fom->fo_rc;
+        locked = 0;
 }
 
 const struct c2_local_service_ops svc_ops = {
-	.lso_fini = fom_fini
+        .lso_fini = fom_fini
 };
 
 static int db_reset(void)
@@ -88,33 +88,33 @@ static void test_mkfs(void)
 
         fd = open(C2_MDSTORE_OPS_DUMP_PATH, O_RDONLY);
         C2_ASSERT(fd > 0);
-        
+
         rc = read(fd, &testroot, sizeof(testroot));
         C2_ASSERT(rc == sizeof(testroot));
         close(fd);
 
-	rc = c2_dbenv_init(&db, db_name, 0);
-	C2_UT_ASSERT(rc == 0);
+        rc = c2_dbenv_init(&db, db_name, 0);
+        C2_UT_ASSERT(rc == 0);
 
         rc = c2_md_store_init(&md, &id, &db, 0);
-	C2_UT_ASSERT(rc == 0);
+        C2_UT_ASSERT(rc == 0);
 
-	rc = c2_db_tx_init(&tx, &db, 0);
-	C2_UT_ASSERT(rc == 0);
+        rc = c2_db_tx_init(&tx, &db, 0);
+        C2_UT_ASSERT(rc == 0);
 
         /* Create root and other structures */
         rootfid.f_container = testroot.f_seq;
         rootfid.f_key = testroot.f_oid;
         rc = c2_cob_domain_mkfs(&md.md_dom, &rootfid, &C2_COB_SESSIONS_FID, &tx);
         C2_UT_ASSERT(rc == 0);
-	c2_db_tx_commit(&tx);
+        c2_db_tx_commit(&tx);
 
         /* Fini old mdstore */
         c2_md_store_fini(&md);
 
         /* Init mdstore with root init flag set to 1 */
         rc = c2_md_store_init(&md, &id, &db, 1);
-	C2_UT_ASSERT(rc == 0);
+        C2_UT_ASSERT(rc == 0);
 
         /* Fini everything */
         c2_md_store_fini(&md);
@@ -123,24 +123,24 @@ static void test_mkfs(void)
 
 static void test_init(void)
 {
-	rc = c2_dbenv_init(&db, db_name, 0);
-	C2_ASSERT(rc == 0);
+        rc = c2_dbenv_init(&db, db_name, 0);
+        C2_ASSERT(rc == 0);
 
-	rc = c2_fol_init(&fol, &db);
-	C2_ASSERT(rc == 0);
+        rc = c2_fol_init(&fol, &db);
+        C2_ASSERT(rc == 0);
 
         rc = c2_md_store_init(&md, &id, &db, 1);
-	C2_ASSERT(rc == 0);
-        
+        C2_ASSERT(rc == 0);
+
         C2_SET0(&svc);
-	svc.s_ops = &svc_ops;
+        svc.s_ops = &svc_ops;
 
         rc = c2_reqh_init(&reqh, NULL, &db, &md, &fol, &svc);
-	C2_ASSERT(rc == 0);
+        C2_ASSERT(rc == 0);
 }
 
 enum {
-	WAIT_FOR_REQH_SHUTDOWN = 1000000,
+        WAIT_FOR_REQH_SHUTDOWN = 1000000,
 };
 
 static void test_mdops(void)
@@ -149,26 +149,26 @@ static void test_mdops(void)
         struct c2_md_lustre_fid root;
         int fd, result, size;
         struct c2_fop *fop;
-	c2_time_t rdelay;
-        
+        c2_time_t rdelay;
+
         fd = open(C2_MDSTORE_OPS_DUMP_PATH, O_RDONLY);
         C2_ASSERT(fd > 0);
-        
+
         result = read(fd, &root, sizeof(root));
         C2_ASSERT(result == sizeof(root));
         error = 0;
-        
+
         while (1) {
                 fop = NULL;
-	        
-                /** 
+
+                /**
                    All fops should be sent in order they stored in dump. This is why we wait here
                    for locked == 0, which is set in ->lso_fini()
                  */
-	        while (locked) {
-		        c2_nanosleep(c2_time_set(&rdelay, 0,
-			             WAIT_FOR_REQH_SHUTDOWN * 1), NULL);
-	        }
+                while (locked) {
+                        c2_nanosleep(c2_time_set(&rdelay, 0,
+                                     WAIT_FOR_REQH_SHUTDOWN * 1), NULL);
+                }
 again:
                 result = read(fd, &size, sizeof(size));
                 if (result < sizeof(size))
@@ -185,25 +185,25 @@ again:
 
                 if (result == -EOPNOTSUPP)
                         continue;
-                
+
                 if (result == -EAGAIN) {
                         /*
                          * Let's get second part of rename fop.
                          */
                         goto again;
                 }
-                        
-	        locked = 1;
+
+                locked = 1;
                 C2_ASSERT(result == 0);
                 c2_reqh_fop_handle(&reqh, fop, NULL);
         }
         close(fd);
 
         /* Make sure that all fops are handled. */
-	while (locked) {
-		c2_nanosleep(c2_time_set(&rdelay, 0,
-			     WAIT_FOR_REQH_SHUTDOWN * 1), NULL);
-	}
+        while (locked) {
+                c2_nanosleep(c2_time_set(&rdelay, 0,
+                             WAIT_FOR_REQH_SHUTDOWN * 1), NULL);
+        }
         C2_ASSERT(error == 0);
 }
 
@@ -217,16 +217,16 @@ static void test_fini(void)
 }
 
 const struct c2_test_suite mdservice_ut = {
-	.ts_name = "mdservice-ut",
-	.ts_init = db_reset,
-	/* .ts_fini = db_reset, */
-	.ts_tests = {
-		{ "mdservice-mkfs", test_mkfs },
-		{ "mdservice-init", test_init },
-		{ "mdservice-ops", test_mdops },
-		{ "mdservice-fini", test_fini },
-		{ NULL, NULL }
-	}
+        .ts_name = "mdservice-ut",
+        .ts_init = db_reset,
+        /* .ts_fini = db_reset, */
+        .ts_tests = {
+                { "mdservice-mkfs", test_mkfs },
+                { "mdservice-init", test_init },
+                { "mdservice-ops", test_mdops },
+                { "mdservice-fini", test_fini },
+                { NULL, NULL }
+        }
 };
 
 /*

@@ -36,16 +36,16 @@ static struct c2_addb_ctx mds_addb_ctx;
 
 /* ADDB location for mds. */
 static const struct c2_addb_loc mds_addb_loc = {
-	.al_name = "md_service",
+        .al_name = "md_service",
 };
 
 /* ADDB context type for mds. */
 static const struct c2_addb_ctx_type mds_addb_ctx_type = {
-	.act_name = "md_service",
+        .act_name = "md_service",
 };
 
 static int mds_allocate(struct c2_reqh_service_type *stype,
-			struct c2_reqh_service **service);
+                        struct c2_reqh_service **service);
 static void mds_fini(struct c2_reqh_service *service);
 
 static int mds_start(struct c2_reqh_service *service);
@@ -92,15 +92,15 @@ void c2_mds_unregister(void)
  * @pre stype != NULL && service != NULL
  */
 static int mds_allocate(struct c2_reqh_service_type *stype,
-			struct c2_reqh_service **service)
+                        struct c2_reqh_service **service)
 {
         struct c2_reqh_service    *serv;
         struct c2_reqh_md_service *serv_obj;
 
         C2_PRE(stype != NULL && service != NULL);
 
-	c2_addb_ctx_init(&mds_addb_ctx, &mds_addb_ctx_type,
-			 &c2_addb_global_ctx);
+        c2_addb_ctx_init(&mds_addb_ctx, &mds_addb_ctx_type,
+                         &c2_addb_global_ctx);
 
         C2_ALLOC_PTR_ADDB(serv_obj, &mds_addb_ctx, &mds_addb_loc);
         if (serv_obj == NULL)
@@ -131,7 +131,7 @@ static void mds_fini(struct c2_reqh_service *service)
 
         C2_PRE(service != NULL);
 
-	c2_addb_ctx_fini(&mds_addb_ctx);
+        c2_addb_ctx_fini(&mds_addb_ctx);
 
         serv_obj = container_of(service, struct c2_reqh_md_service, rmds_gen);
         c2_free(serv_obj);
@@ -147,10 +147,10 @@ static void mds_fini(struct c2_reqh_service *service)
  */
 static int mds_start(struct c2_reqh_service *service)
 {
-        int			rc = 0;
+        int rc = 0;
 
         C2_PRE(service != NULL);
-        
+
         /** TODO: Mount local storage */
 
         return rc;

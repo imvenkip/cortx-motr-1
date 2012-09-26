@@ -39,14 +39,14 @@
 
 typedef int (*fop_translate_t)(struct c2_fop *fop, void *data);
 
-static void lustre_copy_fid(struct c2_fop_fid *bf, 
+static void lustre_copy_fid(struct c2_fop_fid *bf,
                             struct c2_md_lustre_fid *cf)
 {
         bf->f_oid = cf->f_oid;
         bf->f_seq = cf->f_seq;
 }
 
-static int lustre_copy_name(struct c2_fop_str *n, 
+static int lustre_copy_name(struct c2_fop_str *n,
                             struct c2_md_lustre_logrec *rec)
 {
         n->s_len = rec->cr_namelen;
@@ -77,7 +77,7 @@ enum lustre_la_valid {
 static uint16_t lustre_get_valid(uint16_t valid)
 {
         uint16_t result = 0;
-        
+
         if (valid & C2_LA_ATIME)
                 result |= C2_COB_ATIME;
         if (valid & C2_LA_MTIME)
@@ -107,7 +107,7 @@ static uint16_t lustre_get_valid(uint16_t valid)
         return result;
 }
 
-static void lustre_copy_body(struct c2_fop_cob *body, 
+static void lustre_copy_body(struct c2_fop_cob *body,
                              struct c2_md_lustre_logrec *rec)
 {
         body->b_index = rec->cr_index;
@@ -211,7 +211,7 @@ int c2_md_lustre_fop_alloc(struct c2_fop **fop, void *data)
         fop_translate_t translate = NULL;
         struct c2_fop_type *fopt = NULL;
         int rc1, rc = 0;
-        
+
         switch (rec->cr_type) {
         case RT_MARK:
         case RT_IOCTL:
