@@ -555,7 +555,6 @@ C2_TL_DECLARE(slot_item, extern, struct c2_rpc_item);
 /** Helper macro to iterate over every item in a slot */
 #define for_each_item_in_slot(item, slot) \
 	        c2_tl_for(slot_item, &slot->sl_item_list, item)
-        
 #define end_for_each_item_in_slot c2_tl_endfor
 
 /** @}  End of rpc_session group */
