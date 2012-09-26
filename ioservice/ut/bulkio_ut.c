@@ -1451,15 +1451,14 @@ void bulkio_server_read_write_multiple_nb(void)
 	io_fops_destroy(bp);
 }
 
-void bulkio_server_single_write_fv_mismatch(void)
+void bulkio_server_read_write_fv_mismatch(void)
 {
-	int		     j;
-	enum C2_RPC_OPCODES  op;
-	struct thrd_arg      targ;
-	struct c2_bufvec    *buf;
 	struct c2_reqh      *reqh;
 	struct c2_poolmach  *pm;
 	struct c2_pool_event event;
+	struct c2_fop       *wfop;
+	struct c2_fop       *rfop;
+	struct c2_fop_cob_rw_reply *rw_reply;
 	int rc;
 
 	event.pe_type  = C2_POOL_DEVICE;
@@ -1475,25 +1474,36 @@ void bulkio_server_single_write_fv_mismatch(void)
 	rc = c2_poolmach_state_transit(pm, &event);
 	C2_UT_ASSERT(rc == 0);
 
-
-	buf = &bp->bp_iobuf[0]->nb_buffer;
-	for (j = 0; j < IO_SEGS_NR; ++j) {
-		memset(buf->ov_buf[j], 'b', IO_SEG_SIZE);
-	}
-	op = C2_IOSERVICE_WRITEV_OPCODE;
-	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
-	/*
-	 * Here we replace the original ->ft_ops amd ->ft_fom_type as they were
-	 * changed during bulkio_stob_create test.
+	/* This is just a test to detect failure vector mismatch on server
+	 * side. No need to prepare a full write request, e.g. buffer.
 	 */
-	bp->bp_wfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
-	bp->bp_wfops[0]->if_fop.f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
-	targ.ta_index = 0;
-	targ.ta_op = op;
-	targ.ta_bp = bp;
-	io_fops_rpc_submit(&targ);
-	c2_rpc_bulk_buflist_empty(&bp->bp_wfops[0]->if_rbulk);
-	io_fops_destroy(bp);
+	wfop = c2_fop_alloc(&c2_fop_cob_writev_fopt, NULL);
+	C2_UT_ASSERT(wfop != NULL);
+
+	wfop->f_type->ft_ops = &io_fop_rwv_ops;
+        wfop->f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
+
+	rc = c2_rpc_client_call(wfop, &bp->bp_cctx->rcx_session,
+				&c2_fop_default_item_ops,
+				IO_RPC_ITEM_TIMEOUT);
+	C2_ASSERT(rc == 0);
+	rw_reply = io_rw_rep_get(c2_rpc_item_to_fop(wfop->f_item.ri_reply));
+	C2_UT_ASSERT(rw_reply->rwr_rc ==
+			C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH);
+
+	rfop = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
+	C2_UT_ASSERT(rfop != NULL);
+
+	rfop->f_type->ft_ops = &io_fop_rwv_ops;
+        rfop->f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
+
+	rc = c2_rpc_client_call(rfop, &bp->bp_cctx->rcx_session,
+				&c2_fop_default_item_ops,
+				IO_RPC_ITEM_TIMEOUT);
+	C2_ASSERT(rc == 0);
+	rw_reply = io_rw_rep_get(c2_rpc_item_to_fop(rfop->f_item.ri_reply));
+	C2_UT_ASSERT(rw_reply->rwr_rc ==
+			C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH);
 }
 
 
@@ -1551,9 +1561,9 @@ const struct c2_test_suite bulkio_server_ut = {
 		   bulkio_server_read_write_multiple_nb},
 		{ "bulkio_server_rw_state_transition_test",
 		   bulkio_server_rw_state_transition_test},
-/*		{ "bulkio_server_single_write_fv_mismatch",
-		   bulkio_server_single_write_fv_mismatch},
-*/		{ "bulkio_fini", bulkio_fini},
+		{ "bulkio_server_read_write_fv_mismatch",
+		   bulkio_server_read_write_fv_mismatch},
+		{ "bulkio_fini", bulkio_fini},
 		{ NULL, NULL }
 	}
 };
