@@ -87,18 +87,20 @@ void c2_cob_oikey_make(struct c2_cob_oikey *oikey,
         oikey->cok_linkno = linkno;
 }
 
-void c2_cob_nskey_make(struct c2_cob_nskey **keyh,
-                       const struct c2_fid *pfid,
-                       const char *name,
-                       int namelen)
+int c2_cob_nskey_make(struct c2_cob_nskey **keyh,
+                      const struct c2_fid *pfid,
+                      const char *name,
+                      int namelen)
 {
         struct c2_cob_nskey *key;
 
         key = c2_alloc(sizeof *key + namelen);
-        C2_ASSERT(key != NULL);
+        if (key == NULL)
+                return -ENOMEM;
         key->cnk_pfid = *pfid;
         c2_bitstring_copy(&key->cnk_name, name, namelen);
         *keyh = key;
+        return 0;
 }
 
 int c2_cob_nskey_cmp(const struct c2_cob_nskey *k0,
@@ -127,17 +129,19 @@ static int c2_cob_fabrec_size(const struct c2_cob_fabrec *rec)
         return sizeof *rec + rec->cfb_linklen;
 }
 
-void c2_cob_fabrec_make(struct c2_cob_fabrec **rech,
-                        const char *link, int linklen)
+int c2_cob_fabrec_make(struct c2_cob_fabrec **rech,
+                       const char *link, int linklen)
 {
         struct c2_cob_fabrec *rec;
 
         rec = c2_alloc(sizeof(struct c2_cob_fabrec) + linklen);
-        C2_ASSERT(rec != NULL);
+        if (rec == NULL)
+                return -ENOMEM;
         rec->cfb_linklen = linklen;
         if (linklen > 0)
                 memcpy(rec->cfb_link, link, linklen);
         *rech = rec;
+        return 0;
 }
 
 /**
@@ -151,32 +155,37 @@ static int c2_cob_max_fabrec_size(void)
 /**
    Allocate memory for maximal possible size of fabrec.
  */
-static void c2_cob_max_fabrec_make(struct c2_cob_fabrec **rech)
+static int c2_cob_max_fabrec_make(struct c2_cob_fabrec **rech)
 {
         struct c2_cob_fabrec *rec;
 
         rec = c2_alloc(c2_cob_max_fabrec_size());
-        C2_ASSERT(rec != NULL);
+        if (rec == NULL)
+                return -ENOMEM;
         rec->cfb_linklen = C2_COB_NAME_MAX;
         *rech = rec;
+        return 0;
 }
 
 /**
    Make nskey for iterator. Allocate space for max possible name
    but put real string len into the struct.
 */
-static void c2_cob_max_nskey_make(struct c2_cob_nskey **keyh,
-                                  const struct c2_fid *pfid,
-                                  const char *name,
-                                  int namelen)
+static int c2_cob_max_nskey_make(struct c2_cob_nskey **keyh,
+                                 const struct c2_fid *pfid,
+                                 const char *name,
+                                 int namelen)
 {
         struct c2_cob_nskey *key;
 
         key = c2_alloc(sizeof *key + C2_COB_NAME_MAX);
+        if (key == NULL)
+                return -ENOMEM;
         key->cnk_pfid = *pfid;
         memcpy(c2_bitstring_buf_get(&key->cnk_name), name, namelen);
         c2_bitstring_len_set(&key->cnk_name, namelen);
         *keyh = key;
+        return 0;
 }
 
 /**
@@ -358,6 +367,10 @@ void c2_cob_domain_fini(struct c2_cob_domain *dom)
 #ifndef __KERNEL__
 #include <sys/stat.h>    /* S_ISDIR */
 
+#define MKFS_ROOT_SIZE          4096
+#define MKFS_ROOT_BLKSIZE       4096
+#define MKFS_ROOT_BLOCKS        16
+
 int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
                        struct c2_fid *sessfid, struct c2_db_tx *tx)
 {
@@ -403,9 +416,9 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
         nsrec.cnr_fid = *rootfid;
 
         nsrec.cnr_nlink = 1;
-        nsrec.cnr_size = 4096;
-        nsrec.cnr_blksize = 4096;
-        nsrec.cnr_blocks = 16;
+        nsrec.cnr_size = MKFS_ROOT_SIZE;
+        nsrec.cnr_blksize = MKFS_ROOT_BLKSIZE;
+        nsrec.cnr_blocks = MKFS_ROOT_BLOCKS;
         time(&now);
         nsrec.cnr_atime = nsrec.cnr_mtime = nsrec.cnr_ctime = now;
 
@@ -442,9 +455,9 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
         nsrec.cnr_fid = *sessfid;
 
         nsrec.cnr_nlink = 1;
-        nsrec.cnr_size = 4096;
-        nsrec.cnr_blksize = 4096;
-        nsrec.cnr_blocks = 16;
+        nsrec.cnr_size = MKFS_ROOT_SIZE;
+        nsrec.cnr_blksize = MKFS_ROOT_BLKSIZE;
+        nsrec.cnr_blocks = MKFS_ROOT_BLOCKS;
         time(&now);
         nsrec.cnr_atime = nsrec.cnr_mtime = nsrec.cnr_ctime = now;
 
@@ -701,8 +714,8 @@ static int cob_omg_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
 /**
    Load fab and omg records according with @need flags.
  */
-static int c2_cob_get_fabomg(struct c2_cob *cob, uint64_t need,
-                             struct c2_db_tx *tx)
+static int cob_get_fabomg(struct c2_cob *cob, uint64_t need,
+                          struct c2_db_tx *tx)
 {
         int rc = 0;
 
@@ -748,7 +761,7 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
                 return rc;
         }
 
-        rc = c2_cob_get_fabomg(cob, need, tx);
+        rc = cob_get_fabomg(cob, need, tx);
         if (rc != 0) {
                 c2_cob_put(cob);
                 return rc;
@@ -791,7 +804,7 @@ int c2_cob_locate(struct c2_cob_domain *dom, struct c2_cob_oikey *oikey,
                 return rc;
         }
 
-        rc = c2_cob_get_fabomg(cob, need, tx);
+        rc = cob_get_fabomg(cob, need, tx);
         if (rc != 0) {
                 c2_cob_put(cob);
                 return rc;
@@ -849,11 +862,13 @@ int c2_cob_iterator_get(struct c2_cob_iterator *it)
         if (rc == 0)
                 return 1;
 
+#if 0
         /*
          * Nothing found, cursor is on another object key.
          */
         if (!c2_fid_eq(&it->ci_key->cnk_pfid, it->ci_cob->co_fid))
                 rc = -ENOENT;
+#endif
 
         /*
          * Not exact position found.
