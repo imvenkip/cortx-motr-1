@@ -459,10 +459,14 @@ static const struct c2_sm_state_descr cm_state_descr[C2_CMS_NR] = {
 		.sd_name	= "cm_init",
 		.sd_allowed	= C2_BITS(C2_CMS_IDLE, C2_CMS_FAIL, C2_CMS_FINI)
 	},
+	/**
+	 * @todo Transition the state to C2_CMS_READY instead of C2_CMS_ACTIVE
+	 * when "READY" fops are implemented.
+	 */
 	[C2_CMS_IDLE] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_idle",
-		.sd_allowed	= C2_BITS(C2_CMS_FAIL, C2_CMS_READY,
+		.sd_allowed	= C2_BITS(C2_CMS_FAIL, C2_CMS_ACTIVE,
 					  C2_CMS_STOP, C2_CMS_FINI)
 	},
 	[C2_CMS_READY] = {
@@ -747,11 +751,11 @@ int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
 	 */
 	c2_cm_lock(cm);
 	C2_ASSERT(c2_cm_state_get(cm) == C2_CMS_INIT);
-	c2_cm_unlock(cm);
 
 	cm_ag_tlist_init(&cm->cm_aggr_grps);
 
 	C2_POST(c2_cm_invariant(cm));
+	c2_cm_unlock(cm);
 	C2_LEAVE();
 	return 0;
 }
@@ -763,6 +767,7 @@ void c2_cm_fini(struct c2_cm *cm)
 	C2_PRE(C2_IN(cm->cm_mach.sm_state, (C2_CMS_INIT, C2_CMS_IDLE,
 					    C2_CMS_FAIL)));
 
+	c2_cm_lock(cm);
 	C2_ASSERT(c2_cm_invariant(cm));
 	/* Call ->cmo_fini() only if c2_cm_setup() was successful. */
 	if (C2_IN(cm->cm_mach.sm_state, (C2_CMS_IDLE, C2_CMS_FAIL)))
@@ -774,7 +779,6 @@ void c2_cm_fini(struct c2_cm *cm)
 	 * c2_cm_state_set() and not to control concurrency of calls to
 	 * c2_cm_fini().
 	 */
-	c2_cm_lock(cm);
 	c2_cm_state_set(cm, C2_CMS_FINI);
 	c2_cm_unlock(cm);
 
@@ -789,7 +793,6 @@ int c2_cm_type_register(struct c2_cm_type *cmtype)
 	int	rc;
 
 	C2_PRE(cmtype != NULL);
-	C2_PRE(!cmtypes_tlink_is_in(cmtype));
 	C2_ENTRY();
 
 	rc = c2_reqh_service_type_register(&cmtype->ct_stype);
