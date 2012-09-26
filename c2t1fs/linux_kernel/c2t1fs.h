@@ -320,6 +320,8 @@ struct c2t1fs_sb {
 	/** pool width */
 	uint32_t                      csb_pool_width;
 
+	struct c2_pool                csb_pool;
+
 	/** used by temporary implementation of c2t1fs_fid_alloc(). */
 	uint64_t                      csb_next_key;
 

@@ -39,9 +39,11 @@ extern const struct c2_test_suite bulkio_client_ut;
 extern const struct c2_test_suite ios_bufferpool_ut;
 extern const struct c2_test_suite cobfoms_ut;
 extern const struct c2_test_suite capa_ut;
+extern const struct c2_test_suite cm_cp_ut;
 extern const struct c2_test_suite cob_ut;
 extern const struct c2_test_suite mdservice_ut;
 extern const struct c2_test_suite console_ut;
+extern const struct c2_test_suite cm_generic_ut;
 extern const struct c2_test_suite db_ut;
 extern const struct c2_test_suite db_cursor_ut;
 extern const struct c2_test_suite emap_ut;
@@ -53,11 +55,12 @@ extern const struct c2_test_suite c2_net_lnet_ut;
 extern const struct c2_test_suite c2_net_test_ut;
 extern const struct c2_test_suite c2_net_tm_prov_ut;
 extern const struct c2_test_suite parity_math_ut;
+extern const struct c2_test_suite poolmach_ut;
 extern const struct c2_test_suite sm_ut;
+extern const struct c2_test_suite snsrepair_xform_ut;
 extern const struct c2_test_suite stobio_ut;
 extern const struct c2_test_suite udb_ut;
 extern const struct c2_test_suite xcode_bufvec_fop_ut;
-extern const struct c2_test_suite xcode_bufvec_ut;
 extern const struct c2_test_suite xcode_ff2c_ut;
 extern const struct c2_test_suite xcode_ut;
 extern const struct c2_test_suite reqh_ut;
@@ -72,6 +75,8 @@ extern const struct c2_test_suite rpc_service_ut;
 extern const struct c2_test_suite frm_ut;
 extern const struct c2_test_suite c2_fop_lock_ut;
 extern const struct c2_test_suite layout_ut;
+extern const struct c2_test_suite conn_ut;
+extern const struct c2_test_suite sns_repair_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -88,10 +93,13 @@ void add_uts(void)
         c2_ut_add(&ios_bufferpool_ut);
 	c2_ut_add(&capa_ut);
 	c2_ut_add(&cfm_ut);
+	c2_ut_add(&cm_cp_ut);
 	c2_ut_add(&cob_ut);
         c2_ut_add(&cobfoms_ut);
         c2_ut_add(&mdservice_ut);
 	c2_ut_add(&colibri_setup_ut);
+	c2_ut_add(&cm_generic_ut);
+	c2_ut_add(&conn_ut);
 	c2_ut_add(&db_ut);
 	c2_ut_add(&db_cursor_ut);
 	c2_ut_add(&emap_ut);
@@ -105,15 +113,17 @@ void add_uts(void)
 	c2_ut_add(&c2_net_test_ut);
 	c2_ut_add(&c2_net_tm_prov_ut);
 	c2_ut_add(&parity_math_ut);
+	c2_ut_add(&poolmach_ut);
 	c2_ut_add(&frm_ut);
 	c2_ut_add(&reqh_ut);
 	c2_ut_add(&rpclib_ut);
 	c2_ut_add(&rpc_service_ut);
 	c2_ut_add(&sm_ut);
+	c2_ut_add(&sns_repair_ut);
+	c2_ut_add(&snsrepair_xform_ut);
 	c2_ut_add(&stobio_ut);
 	c2_ut_add(&udb_ut);
 	c2_ut_add(&xcode_bufvec_fop_ut);
-	c2_ut_add(&xcode_bufvec_ut);
 	c2_ut_add(&xcode_ut);
 	c2_ut_add(&xcode_ff2c_ut);
 	/* These tests have redirection of messages. */

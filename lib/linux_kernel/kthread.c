@@ -181,6 +181,21 @@ bool c2_thread_handle_eq(struct c2_thread_handle *h1,
 	return h1->h_t == h2->h_t;
 }
 
+void c2_enter_awkward(void)
+{
+	__irq_enter();
+}
+
+void c2_exit_awkward(void)
+{
+	__irq_exit();
+}
+
+bool c2_is_awkward(void)
+{
+	return in_irq();
+}
+
 /** @} end of thread group */
 
 /*

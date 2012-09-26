@@ -61,6 +61,9 @@
 #include "mdservice/md_fops.h"
 #include "mdservice/md_service.h"
 
+#include "sns/sns.h"
+#include "cm/cm.h"
+
 extern int  c2_memory_init(void);
 extern void c2_memory_fini(void);
 
@@ -127,7 +130,9 @@ struct init_fini_call subsystem[] = {
 	{ &c2_fid_register,     &c2_fid_unregister,   "fids" },
 #ifndef __KERNEL__
 	{ &c2_ios_register,     &c2_ios_unregister,   "ioservice" },
-	{ &c2_mds_register,     &c2_mds_unregister,   "mdservice"}
+	{ &c2_mds_register,     &c2_mds_unregister,   "mdservice"},
+	{ &c2_cm_module_init,   &c2_cm_module_fini,   "copy machine" },
+	{ &c2_sns_init,         &c2_sns_fini,         "sns" },
 #endif /* __KERNEL__ */
 };
 

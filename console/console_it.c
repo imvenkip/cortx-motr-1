@@ -205,7 +205,7 @@ void c2_cons_fop_obj_input_output(struct c2_fop *fop,
 	fop_depth = 0;
 	xt = fop->f_type->ft_xt;
 	C2_ASSERT(xt != NULL);
-	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){xt, c2_fop_data(fop)});
+	c2_xcode_ctx_init(&ctx, &C2_FOP_XCODE_OBJ(fop));
 	it = &ctx.xcx_it;
 
 	printf("\n");

@@ -92,7 +92,8 @@ db_SOURCES                      := db_common.c
 
 db_linux_kernel_SOURCES         := db.c
 
-dtm_SOURCES                     := verno.c dtm.c
+dtm_SOURCES                     := verno.c dtm.c verno_xc.c
+dtm_HEADERS                     := verno.h verno_xc.h
 
 fid_SOURCES                     := fid.c fid_ff.c
 fid_HEADERS                     := fid_ff.h
@@ -132,7 +133,7 @@ lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c     \
                                    vec.c zerovec.c thread.c bob.c trace.c      \
                                    memory.c finject.c buf.c cookie.c misc.c
 
-net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c     \
+net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c \
                                    tm.c net_otw_types_ff.c tm_provision.c
 
 net_HEADERS                     := net_otw_types_ff.h
@@ -159,28 +160,28 @@ pool_SOURCES                    := pool.c
 
 reqh_SOURCES                    := reqh.c reqh_service.c
 
-rpc_SOURCES                     := rpc2.c service.c                            \
-                                   session.c session_foms.c conn.c slot.c      \
-                                   session_utils.c session_fops.c              \
-                                   rpc_onwire.c session_ff.c rpclib.c          \
-                                   formation2.c frmops.c packet.c item.c       \
-                                   bulk.c rpc_machine.c
+rpc_SOURCES                     := rpc2.c service.c \
+                                   session.c session_foms.c conn.c slot.c \
+                                   session_utils.c session_fops.c \
+                                   rpc_onwire.c session_ff.c rpclib.c \
+                                   formation2.c frmops.c packet.c item.c \
+                                   bulk.c rpc_machine.c rpc_onwire_xc.c
 
-rpc_HEADERS                     := session_ff.h
+rpc_HEADERS                     := session_ff.h rpc_onwire.h rpc_onwire_xc.h
 
-rpc_ut_SOURCES                  := service.c formation2.c
+rpc_ut_SOURCES                  := service.c formation2.c conn.c
 
 sm_SOURCES                      := sm.c
 sm_ut_SOURCES                   := sm.c
 
-sns_SOURCES                     := ls_solve.c matvec.c parity_math.c           \
-				   parity_ops.c
+sns_SOURCES                     := ls_solve.c matvec.c parity_math.c \
+                                   parity_ops.c
 
 stob_SOURCES                    := stob.c stob_id.c
 
 ut_SOURCES                      := rpc.c
 
-xcode_SOURCES                   := bufvec_xcode.c xcode.c string.c
+xcode_SOURCES                   := xcode.c string.c
 
 xcode_ut_SOURCES                := xcode.c
 

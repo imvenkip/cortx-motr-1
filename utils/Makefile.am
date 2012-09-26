@@ -10,11 +10,14 @@ ut_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/lib/ut/libc2-ut.la $(libstob_ut) \
                $(top_builddir)/cob/ut/libcob-ut.la     \
                $(top_builddir)/db/ut/libdb-ut.la     \
+               $(top_builddir)/cm/ut/libcmcp-ut.la     \
                $(top_builddir)/console/ut/libconsole-ut.la     \
                $(top_builddir)/fol/ut/libfol-ut.la   \
                $(top_builddir)/fop/ut/libfop-ut.la   \
                $(top_builddir)/layout/ut/liblayout-ut.la \
                $(top_builddir)/sns/ut/libparity-ut.la \
+               $(top_builddir)/sns/repair/ut/libsns-repair-ut.la \
+               $(top_builddir)/sns/repair/ut/libxform-ut.la \
                $(top_builddir)/net/ut/libnet-ut.la \
                $(top_builddir)/net/bulk_emulation/ut/libnet-bulkem-ut.la \
                $(top_builddir)/net/lnet/ut/liblnet-ut.la \
@@ -26,6 +29,7 @@ ut_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/reqh/ut/libreqh-ut.la \
                $(top_builddir)/colibri/ut/libcs-ut.la \
                $(top_builddir)/rpc/ut/librpc-ut.la \
+               $(top_builddir)/pool/ut/libpool-ut.la \
                $(top_builddir)/ioservice/ut/libioservice-ut.la \
                $(top_builddir)/mdservice/ut/libmdservice-ut.la \
                $(top_builddir)/yaml2db/ut/libyaml2db-ut.la \

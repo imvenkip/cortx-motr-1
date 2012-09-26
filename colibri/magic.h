@@ -100,6 +100,23 @@ enum c2_magic_satchel {
 	/* ndom_tl::td_head_magic (baffled basis) */
 	C2_CS_NET_DOMAIN_HEAD_MAGIC = 0x33baff1edba51577,
 
+/* Copy machine */
+	/* cmtypes_tl::td_head_magic (dacefacebace) */
+	CM_TYPE_HEAD_MAGIX = 0x33DACEFACEBACE77,
+
+	/* c2_cm_type::ct_magix (badedabadebe) */
+	CM_TYPE_LINK_MAGIX = 0x33BADEDABADEBE77,
+
+	/* cm_ag_tl::td_head_magic (deafbeefdead) */
+	CM_AG_HEAD_MAGIX = 0x33DEAFBEEFDEAD77,
+
+	/* c2_cm_aggr_group::cag_magic (feedbeefdeed) */
+	CM_AG_LINK_MAGIX = 0x33FEEDBEEFDEED77,
+
+/* Copy packet */
+	/* c2_cm_cp::cp_bob (ecobabble ace) */
+	CM_CP_MAGIX = 0x33ec0babb1eace,
+
 /* desim */
 	/* client_write_ext::cwe_magic (abasic access) */
 	C2_DESIM_CLIENT_WRITE_EXT_MAGIC = 0x33aba51cacce5577,
@@ -331,7 +348,7 @@ enum c2_magic_satchel {
 	/* itemq_tl::td_head_magic (dazzled cliff) */
 	C2_RPC_ITEMQ_HEAD_MAGIC = 0x33da221edc11ff77,
 
-	/* c2_rpc_item::ri_field (boiled coolie) */
+	/* c2_rpc_item::ri_magic (boiled coolie) */
 	C2_RPC_ITEM_MAGIC = 0x33b011edc0011e77,
 
 	/* rpcitem_tl::td_head_magic (disabled disc) */
@@ -351,6 +368,33 @@ enum c2_magic_satchel {
 
 	/* packet_item_tl::td_head_magic (falloff eagle) */
 	C2_RPC_PACKET_HEAD_MAGIC = 0x33fa110ffea91e77,
+
+	/* c2_rpc_conn::c_magic (classic alibi) */
+	C2_RPC_CONN_MAGIC = 0x33c1a551ca11b177,
+
+	/* rpc_conn_tl::td_head_magic (bloodless god) */
+	C2_RPC_CONN_HEAD_MAGIC = 0x33b100d1e5590d77,
+
+	/* c2_rpc_session::s_magic (azido ballade) */
+	C2_RPC_SESSION_MAGIC = 0x33a21d0ba11ade77,
+
+	/* session_tl::td_head_magic (sizeable bell) */
+	C2_RPC_SESSION_HEAD_MAGIC = 0x33512eb1ebe1177,
+
+	/* c2_rpc_slot::sl_magic (delible diode) */
+	C2_RPC_SLOT_MAGIC = 0x33de11b1ed10de77,
+
+	/* ready_slot_tl::td_head_magic (assoil azzola) */
+	C2_RPC_SLOT_HEAD_MAGIC = 0x33a55011a2201a77,
+
+	/* slot_item_tl::td_head_magic (efface eiffel) */
+	C2_RPC_SLOT_REF_HEAD_MAGIC = 0x33effacee1ffe177,
+
+	/* c2_rpc_chan::rc_magic (faceless idol) */
+	C2_RPC_CHAN_MAGIC = 0x33face1e551d0177,
+
+	/* rpc_chans_tl::td_head_magic (idesia fossil) */
+	C2_RPC_CHAN_HEAD_MAGIC = 0x331de51af0551177,
 
 /* Trace */
 	/* c2_trace_rec_header::trh_magic (foldable doll) */

@@ -35,7 +35,6 @@
 #include "rpc/rpc2.h"
 #include "fop/fop_item_type.h"
 #include "rpc/item.h"
-#include "xcode/bufvec_xcode.h"
 #include "fop/fom_generic_ff.h"
 #include "io_fop_ff.h"
 #include "io_fop.h"

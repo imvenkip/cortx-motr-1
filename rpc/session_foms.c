@@ -40,9 +40,6 @@
    establish and session terminate fops.
  */
 
-extern void item_exit_stats_set(struct c2_rpc_item   *item,
-				enum c2_rpc_item_path path);
-
 /**
    Common implementation of c2_fom::fo_ops::fo_fini() for conn establish,
    conn terminate, session establish and session terminate foms
@@ -194,7 +191,7 @@ int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 	c2_rpc_machine_lock(machine);
 
 	rc = c2_rpc_rcv_conn_init(conn, ctx->cec_sender_ep, machine,
-				  &item->ri_slot_refs[0].sr_uuid);
+				  &item->ri_slot_refs[0].sr_ow.osr_uuid);
 	/* we won't need ctx->cec_sender_ep after this point */
 	c2_net_end_point_put(ctx->cec_sender_ep);
 	if (rc == 0) {
@@ -209,12 +206,10 @@ int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 			c2_rpc_slot_item_add_internal(slot, item);
 
 			/* See [2] at the end of function */
-			item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
+			item->ri_slot_refs[0].sr_ow.osr_sender_id =
+				SENDER_ID_INVALID;
 
-			/* See [3] */
-			item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
-
-			C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
+			C2_ASSERT(conn_state(conn) == C2_RPC_CONN_ACTIVE);
 			C2_ASSERT(c2_rpc_conn_invariant(conn));
 		} else {
 			/* conn establish failed */
@@ -432,13 +427,13 @@ int c2_rpc_fom_session_terminate_tick(struct c2_fom *fom)
 	c2_rpc_machine_lock(machine);
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
-	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
+	C2_ASSERT(conn_state(conn) == C2_RPC_CONN_ACTIVE);
 
 	session = c2_rpc_session_search(conn, session_id);
 	if (session != NULL) {
 		while (session->s_state != C2_RPC_SESSION_IDLE)
 			c2_cond_wait(&session->s_state_changed,
-				     &machine->rm_mutex);
+				     c2_rpc_machine_mutex(machine));
 
 		C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
 
@@ -524,7 +519,7 @@ int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
 
 	rc = c2_rpc_rcv_conn_terminate(conn);
 
-	if (conn->c_state == C2_RPC_CONN_FAILED) {
+	if (conn_state(conn) == C2_RPC_CONN_FAILED) {
 		/*
 		 * conn has been moved to FAILED state. fini() and free() it.
 		 * Cannot send reply back to sender. Sender will time-out and
@@ -541,8 +536,8 @@ int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
 		C2_LEAVE();
 		return C2_FSO_WAIT;
 	} else {
-		C2_ASSERT(C2_IN(conn->c_state, (C2_RPC_CONN_ACTIVE,
-						C2_RPC_CONN_TERMINATING)));
+		C2_ASSERT(C2_IN(conn_state(conn),
+				(C2_RPC_CONN_ACTIVE, C2_RPC_CONN_TERMINATING)));
 
 		c2_rpc_machine_unlock(machine);
 
@@ -571,4 +566,3 @@ int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
  *  scroll-step: 1
  *  End:
  */
-

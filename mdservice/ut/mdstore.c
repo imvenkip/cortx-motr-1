@@ -63,7 +63,7 @@ static void fom_fini(struct c2_local_service *service, struct c2_fom *fom)
                 *ret = fom->fo_rep_fop;
         }
         if (error == 0)
-                error = fom->fo_rc;
+                error = c2_fom_rc(fom);
         locked = 0;
 }
 

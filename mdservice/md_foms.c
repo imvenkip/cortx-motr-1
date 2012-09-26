@@ -237,7 +237,7 @@ static int c2_md_create_tick(struct c2_fom *fom)
                           &attr, &fom->fo_tx.tx_dbtx);
         c2_fom_block_leave(fom);
 out:
-        fom->fo_rc = rc;
+        c2_fom_err_set(fom, rc);
         c2_fom_phase_set(fom, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
@@ -303,7 +303,7 @@ static int c2_md_link_tick(struct c2_fom *fom)
                           &attr, &fom->fo_tx.tx_dbtx);
         c2_fom_block_leave(fom);
 out:
-        fom->fo_rc = rc;
+        c2_fom_err_set(fom, rc);
         c2_fom_phase_set(fom, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
@@ -386,7 +386,7 @@ static int c2_md_unlink_tick(struct c2_fom *fom)
         c2_cob_put(scob);
         c2_fom_block_leave(fom);
 out:
-        fom->fo_rc = rc;
+        c2_fom_err_set(fom, rc);
         c2_fom_phase_set(fom, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
@@ -527,7 +527,7 @@ static int c2_md_rename_tick(struct c2_fom *fom)
         c2_cob_put(scob);
         c2_fom_block_leave(fom);
 out:
-        fom->fo_rc = rc;
+        c2_fom_err_set(fom, rc);
         c2_fom_phase_set(fom, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
@@ -617,7 +617,7 @@ static int c2_md_open_tick(struct c2_fom *fom)
 
         c2_fom_block_leave(fom);
 out:
-        fom->fo_rc = rc;
+        c2_fom_err_set(fom, rc);
         c2_fom_phase_set(fom, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
@@ -705,7 +705,7 @@ static int c2_md_close_tick(struct c2_fom *fom)
         c2_cob_put(cob);
         c2_fom_block_leave(fom);
 out:
-        fom->fo_rc = rc;
+        c2_fom_err_set(fom, rc);
         c2_fom_phase_set(fom, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
@@ -782,7 +782,7 @@ static int c2_md_setattr_tick(struct c2_fom *fom)
         c2_cob_put(cob);
         c2_fom_block_leave(fom);
 out:
-        fom->fo_rc = rc;
+        c2_fom_err_set(fom, rc);
         c2_fom_phase_set(fom, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
@@ -853,7 +853,7 @@ static int c2_md_getattr_tick(struct c2_fom *fom)
         if (rc == 0)
                 md_fop_attr2cob(&rep->g_body, &attr);
 out:
-        fom->fo_rc = rc;
+        c2_fom_err_set(fom, rc);
         c2_fom_phase_set(fom, rc != 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
@@ -976,7 +976,7 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
         rep->r_buf.b_count = rdpg.r_buf.b_nob;
         rep->r_buf.b_addr = rdpg.r_buf.b_addr;
 out:
-        fom->fo_rc = rc;
+        c2_fom_err_set(fom, rc);
         c2_fom_phase_set(fom, rc < 0 ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
         return C2_FSO_AGAIN;
 finish:
@@ -1203,6 +1203,8 @@ static void c2_md_req_fom_fini(struct c2_fom *fom)
         struct c2_fom_md         *fom_obj;
         struct c2_local_service  *svc;
 
+        fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
+
         /* Let local sevice know that we have finished. */
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
         if (svc && svc->s_ops->lso_fini)
@@ -1210,17 +1212,11 @@ static void c2_md_req_fom_fini(struct c2_fom *fom)
 
         /* Free all fop fields and fop itself. */
         c2_md_fop_free(fom->fo_fop);
-        c2_fop_free(fom->fo_fop);
 
-        /* XXX: Free all rep fop field. */
-
-        /* Free fop_rep as we don't need it anymore. */
-        c2_fop_free(fom->fo_rep_fop);
+        /* XXX: Free all rep fop fields. */
 
         /* Fini fom itself. */
         c2_fom_fini(fom);
-
-        fom_obj = container_of(fom, struct c2_fom_md, fm_fom);
         c2_free(fom_obj);
 }
 

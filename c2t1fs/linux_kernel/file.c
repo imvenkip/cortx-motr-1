@@ -32,6 +32,7 @@
 #include "lib/trace.h"      /* C2_LOG and C2_ENTRY */
 #include "lib/bob.h"
 #include "ioservice/io_fops.h"
+#include "ioservice/io_device.h"
 #include "ioservice/io_fops_ff.h"
 #include "colibri/magic.h"
 
@@ -400,6 +401,9 @@ struct rw_desc {
 	/** fid of component object */
 	struct c2_fid          rd_fid;
 
+	/** owner inode of this i/o. */
+	struct c2t1fs_inode   *rd_inode;
+
 	/** number of bytes to [read from|write to] */
 	size_t                 rd_count;
 
@@ -630,6 +634,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 				rc = -ENOMEM;
 				goto cleanup;
 			}
+			rw_desc->rd_inode   = ci;
 			rw_desc->rd_count  += unit_size;
 			rw_desc->rd_session = c2t1fs_container_id_to_session(
 						     csb, tgt_fid.f_container);
@@ -768,6 +773,7 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 		      int                   rw,
 		      struct c2_io_fop    **out)
 {
+	struct c2t1fs_sb       *csb;
 	struct c2_net_domain   *ndom;
 	struct c2_fop_type     *fopt;
 	struct c2_fop_cob_rw   *rwfop;
@@ -786,6 +792,8 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 	int                     nr_pages_per_buf;
 	int                     rc;
 	int                     i;
+        struct c2_pool_version_numbers  curr;
+        struct c2_pool_version_numbers *cli;
 
 #define SESSION_TO_NDOM(session) \
 	(session)->s_conn->c_rpc_machine->rm_tm.ntm_dom
@@ -844,9 +852,14 @@ int rw_desc_to_io_fop(const struct rw_desc *rw_desc,
 	rwfop = io_rw_get(&iofop->if_fop);
 	C2_ASSERT(rwfop != NULL);
 
+	/* fill in the current client known version */
+	csb = C2T1FS_SB(rw_desc->rd_inode->ci_inode.i_sb);
+	c2_poolmach_current_version_get(csb->csb_pool.po_mach, &curr);
+	cli = (struct c2_pool_version_numbers*)&rwfop->crw_version;
+	*cli = curr;
+
 	rwfop->crw_fid.f_seq = rw_desc->rd_fid.f_container;
 	rwfop->crw_fid.f_oid = rw_desc->rd_fid.f_key;
-
 	cbuf = bufs_tlist_head(&rw_desc->rd_buf_list);
 
 	/*
@@ -913,7 +926,7 @@ retry:
 				rc = add_rpc_buffer();
 				if (rc != 0)
 					goto buflist_empty;
-				C2_LOG(C2_DEBUG, "rpc buffer added");
+				C2_LOG(C2_ERROR, "rpc buffer added");
 				goto retry;
 			}
 
@@ -1052,7 +1065,42 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 		}
 
 		rc = io_fop_do_sync_io(iofop, rw_desc->rd_session);
-		if (rc != 0) {
+		if (rc == C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
+			struct c2_pool_version_numbers *cli;
+			struct c2_pool_version_numbers *srv;
+			struct c2t1fs_sb               *csb;
+			struct c2_fop                  *reply;
+			struct c2_rpc_item             *reply_item;
+			struct c2_fop_cob_rw_reply     *rw_reply;
+			struct c2_fv_version           *reply_version;
+			struct c2_fv_updates           *reply_updates;
+			struct c2_fv_event             *event;
+			uint32_t                        i = 0;
+
+			csb = C2T1FS_SB(rw_desc->rd_inode->ci_inode.i_sb);
+			reply_item    = iofop->if_fop.f_item.ri_reply;
+			reply         = c2_rpc_item_to_fop(reply_item);
+			rw_reply      = io_rw_rep_get(reply);
+			reply_version = &rw_reply->rwr_fv_version;
+			reply_updates = &rw_reply->rwr_fv_updates;
+			srv = (struct c2_pool_version_numbers *)reply_version;
+			cli = &csb->csb_pool.po_mach->pm_state.pst_version;
+
+			/* Retrieve the latest server version and
+			 * updates and apply to the client's copy.
+			 * When -EAGAIN is return, this system
+			 * call will be restarted.
+			 */
+			rc = -EAGAIN;
+			*cli = *srv;
+			while (i < reply_updates->fvu_count) {
+				event = &reply_updates->fvu_events[i];
+				c2_poolmach_state_transit(csb->csb_pool.po_mach,
+						  (struct c2_pool_event*)event);
+				i++;
+			}
+			return rc;
+		} else if (rc != 0) {
 			/* For now, if one io fails, fail entire IO. */
 			C2_LOG(C2_ERROR, "io_fop_do_sync_io() failed: rc [%d]",
 					rc);
