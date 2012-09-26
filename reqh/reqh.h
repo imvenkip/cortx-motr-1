@@ -80,7 +80,7 @@ struct c2_reqh {
 	struct c2_dbenv         *rh_dbenv;
 
 	/** Mdstore for this request handler. */
-	struct c2_md_store      *rh_mdstore;
+	struct c2_mdstore       *rh_mdstore;
 
 	/** Fol pointer for this request handler. */
 	struct c2_fol		*rh_fol;
@@ -148,7 +148,7 @@ struct c2_reqh {
    @post c2_reqh_invariant()
  */
 int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
-                  struct c2_dbenv *db, struct c2_md_store *mdstore,
+                  struct c2_dbenv *db, struct c2_mdstore *mdstore,
                   struct c2_fol *fol, struct c2_local_service *svc);
 
 bool c2_reqh_invariant(const struct c2_reqh *reqh);

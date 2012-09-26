@@ -28,20 +28,19 @@
 #include "lib/arith.h"      /* C2_3WAY */
 #include "lib/memory.h"     /* c2_alloc() */
 
-
 void *c2_bitstring_buf_get(struct c2_bitstring *c)
 {
-	return c->b_data;
+        return c->b_data;
 }
 
 uint32_t c2_bitstring_len_get(const struct c2_bitstring *c)
 {
-	return c->b_len;
+        return c->b_len;
 }
 
 void c2_bitstring_len_set(struct c2_bitstring *c, uint32_t len)
 {
-	c->b_len = len;
+        c->b_len = len;
 }
 
 struct c2_bitstring *c2_bitstring_alloc(const char *name, size_t len)
@@ -49,7 +48,6 @@ struct c2_bitstring *c2_bitstring_alloc(const char *name, size_t len)
         struct c2_bitstring *c = c2_alloc(sizeof(*c) + len);
         if (c == NULL)
                 return NULL;
-        c2_bitstring_len_set(c, len);
         c2_bitstring_copy(c, name, len);
         return c;
 }

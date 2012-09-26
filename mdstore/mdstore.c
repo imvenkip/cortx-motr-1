@@ -47,10 +47,10 @@ static const struct c2_addb_loc mdstore_addb_loc = {
         .al_name = "mdstore"
 };
 
-int c2_md_store_init(struct c2_md_store         *md,
-                     struct c2_cob_domain_id    *id,
-                     struct c2_dbenv            *db,
-                     int                         init_root)
+int c2_mdstore_init(struct c2_mdstore         *md,
+                    struct c2_cob_domain_id    *id,
+                    struct c2_dbenv            *db,
+                    int                         init_root)
 {
         struct c2_db_tx        tx;
         int                    rc;
@@ -69,7 +69,7 @@ int c2_md_store_init(struct c2_md_store         *md,
         }
         if (init_root) {
                 c2_db_tx_init(&tx, db, 0);
-                rc = c2_md_store_lookup(md, NULL, C2_COB_ROOT_NAME,
+                rc = c2_mdstore_lookup(md, NULL, C2_COB_ROOT_NAME,
                                         strlen(C2_COB_ROOT_NAME),
                                         &md->md_root, &tx);
                 C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc,
@@ -89,14 +89,12 @@ int c2_md_store_init(struct c2_md_store         *md,
         }
         C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc,
                     c2_addb_func_fail, "md_store_init", rc);
-        if (rc != 0) {
-                c2_addb_ctx_fini(&md->md_addb);
-                c2_cob_domain_fini(&md->md_dom);
-        }
+        if (rc != 0)
+                c2_mdstore_fini(md);
         return rc;
 }
 
-void c2_md_store_fini(struct c2_md_store *md)
+void c2_mdstore_fini(struct c2_mdstore *md)
 {
         if (md->md_root)
                 c2_cob_put(md->md_root);
@@ -104,11 +102,11 @@ void c2_md_store_fini(struct c2_md_store *md)
         c2_addb_ctx_fini(&md->md_addb);
 }
 
-int c2_md_store_create(struct c2_md_store       *md,
-                       struct c2_fid            *pfid,
-                       struct c2_cob_attr       *attr,
-                       struct c2_cob           **out,
-                       struct c2_db_tx          *tx)
+int c2_mdstore_create(struct c2_mdstore       *md,
+                      struct c2_fid            *pfid,
+                      struct c2_cob_attr       *attr,
+                      struct c2_cob           **out,
+                      struct c2_db_tx          *tx)
 {
         struct c2_cob         *cob;
         struct c2_cob_nskey   *nskey;
@@ -162,12 +160,12 @@ out:
         return rc;
 }
 
-int c2_md_store_link(struct c2_md_store         *md,
-                     struct c2_fid              *pfid,
-                     struct c2_cob              *cob,
-                     const char                 *name,
-                     int                         namelen,
-                     struct c2_db_tx            *tx)
+int c2_mdstore_link(struct c2_mdstore         *md,
+                    struct c2_fid              *pfid,
+                    struct c2_cob              *cob,
+                    const char                 *name,
+                    int                         namelen,
+                    struct c2_db_tx            *tx)
 {
         struct c2_cob_nskey   *nskey;
         struct c2_cob_nsrec    nsrec;
@@ -207,12 +205,12 @@ out:
         return rc;
 }
 
-int c2_md_store_unlink(struct c2_md_store       *md,
-                       struct c2_fid            *pfid,
-                       struct c2_cob            *cob,
-                       const char               *name,
-                       int                       namelen,
-                       struct c2_db_tx          *tx)
+int c2_mdstore_unlink(struct c2_mdstore       *md,
+                      struct c2_fid            *pfid,
+                      struct c2_cob            *cob,
+                      const char               *name,
+                      int                       namelen,
+                      struct c2_db_tx          *tx)
 {
         struct c2_cob         *ncob;
         struct c2_cob_nskey   *nskey;
@@ -290,7 +288,7 @@ int c2_md_store_unlink(struct c2_md_store       *md,
                  * We ignore nlink for dirs and go for killing it.
                  * This is because we don't update parent nlink in
                  * case of killing subdirs. This results in a case
-                 * that dir will have nlink > 0 becasue correct
+                 * that dir will have nlink > 0 because correct
                  * fop that will bring its nlink to zero will come
                  * later.
                  */
@@ -304,10 +302,10 @@ out:
         return rc;
 }
 
-int c2_md_store_open(struct c2_md_store         *md,
-                     struct c2_cob              *cob,
-                     int                         flags,
-                     struct c2_db_tx            *tx)
+int c2_mdstore_open(struct c2_mdstore         *md,
+                    struct c2_cob              *cob,
+                    int                         flags,
+                    struct c2_db_tx            *tx)
 {
         int rc = 0;
 
@@ -322,9 +320,9 @@ int c2_md_store_open(struct c2_md_store         *md,
         return rc;
 }
 
-int c2_md_store_close(struct c2_md_store        *md,
-                      struct c2_cob             *cob,
-                      struct c2_db_tx           *tx)
+int c2_mdstore_close(struct c2_mdstore        *md,
+                     struct c2_cob             *cob,
+                     struct c2_db_tx           *tx)
 {
         int rc = 0;
 
@@ -341,16 +339,16 @@ int c2_md_store_close(struct c2_md_store        *md,
         return rc;
 }
 
-int c2_md_store_rename(struct c2_md_store       *md,
-                       struct c2_fid            *pfid_tgt,
-                       struct c2_fid            *pfid_src,
-                       struct c2_cob            *cob_tgt,
-                       struct c2_cob            *cob_src,
-                       const char               *tname,
-                       int                       tnamelen,
-                       const char               *sname,
-                       int                       snamelen,
-                       struct c2_db_tx          *tx)
+int c2_mdstore_rename(struct c2_mdstore       *md,
+                      struct c2_fid            *pfid_tgt,
+                      struct c2_fid            *pfid_src,
+                      struct c2_cob            *cob_tgt,
+                      struct c2_cob            *cob_src,
+                      const char               *tname,
+                      int                       tnamelen,
+                      const char               *sname,
+                      int                       snamelen,
+                      struct c2_db_tx          *tx)
 {
         struct c2_cob_nskey  *srckey = NULL;
         struct c2_cob_nskey  *tgtkey = NULL;
@@ -366,11 +364,11 @@ int c2_md_store_rename(struct c2_md_store       *md,
         /*
          * Let's kill existing target name.
          */
-        rc = c2_md_store_lookup(md, pfid_tgt, tname, tnamelen,
+        rc = c2_mdstore_lookup(md, pfid_tgt, tname, tnamelen,
                                 &tncob, tx);
         if (!c2_fid_eq(cob_tgt->co_fid, cob_src->co_fid) ||
             (tncob && tncob->co_nsrec.cnr_linkno != 0)) {
-                rc = c2_md_store_unlink(md, pfid_tgt, cob_tgt,
+                rc = c2_mdstore_unlink(md, pfid_tgt, cob_tgt,
                                         tname, tnamelen, tx);
                 if (rc != 0) {
                         if (tncob)
@@ -396,10 +394,10 @@ out:
         return rc;
 }
 
-int c2_md_store_setattr(struct c2_md_store      *md,
-                        struct c2_cob           *cob,
-                        struct c2_cob_attr      *attr,
-                        struct c2_db_tx         *tx)
+int c2_mdstore_setattr(struct c2_mdstore      *md,
+                       struct c2_cob           *cob,
+                       struct c2_cob_attr      *attr,
+                       struct c2_db_tx         *tx)
 {
         struct c2_cob_nsrec   *nsrec = NULL;
         struct c2_cob_fabrec  *fabrec = NULL;
@@ -460,10 +458,10 @@ int c2_md_store_setattr(struct c2_md_store      *md,
         return rc;
 }
 
-int c2_md_store_getattr(struct c2_md_store      *md,
-                        struct c2_cob           *cob,
-                        struct c2_cob_attr      *attr,
-                        struct c2_db_tx         *tx)
+int c2_mdstore_getattr(struct c2_mdstore      *md,
+                       struct c2_cob           *cob,
+                       struct c2_cob_attr      *attr,
+                       struct c2_db_tx         *tx)
 {
         int                rc = 0;
 
@@ -507,10 +505,10 @@ int c2_md_store_getattr(struct c2_md_store      *md,
         return rc;
 }
 
-int c2_md_store_readdir(struct c2_md_store      *md,
-                        struct c2_cob           *cob,
-                        struct c2_rdpg          *rdpg,
-                        struct c2_db_tx         *tx)
+int c2_mdstore_readdir(struct c2_mdstore      *md,
+                       struct c2_cob           *cob,
+                       struct c2_rdpg          *rdpg,
+                       struct c2_db_tx         *tx)
 {
         struct c2_cob_iterator         it;
         struct c2_dirent              *ent;
@@ -603,11 +601,11 @@ out:
         return rc;
 }
 
-int c2_md_store_locate(struct c2_md_store       *md,
-                       const struct c2_fid      *fid,
-                       struct c2_cob           **cob,
-                       int                       flags,
-                       struct c2_db_tx          *tx)
+int c2_mdstore_locate(struct c2_mdstore       *md,
+                      const struct c2_fid      *fid,
+                      struct c2_cob           **cob,
+                      int                       flags,
+                      struct c2_db_tx          *tx)
 {
         struct c2_cob_oikey oikey;
         int                 rc;
@@ -627,7 +625,7 @@ int c2_md_store_locate(struct c2_md_store       *md,
         return rc;
 }
 
-int c2_md_store_lookup(struct c2_md_store       *md,
+int c2_mdstore_lookup(struct c2_mdstore       *md,
                        struct c2_fid            *pfid,
                        const char               *name,
                        int                       namelen,
@@ -649,9 +647,9 @@ int c2_md_store_lookup(struct c2_md_store       *md,
 #define MDSTORE_PATH_MAX 1024
 #define MDSTORE_NAME_MAX 255
 
-int c2_md_store_path(struct c2_md_store *md,
-                     struct c2_fid *fid,
-                     char **path)
+int c2_mdstore_path(struct c2_mdstore             *md,
+                    struct c2_fid                 *fid,
+                    char                         **path)
 {
         struct c2_cob   *cob;
         struct c2_fid    pfid;
@@ -669,7 +667,7 @@ restart:
         do {
                 char name[MDSTORE_NAME_MAX] = {0,};
 
-                rc = c2_md_store_locate(md, &pfid, &cob, C2_MD_LOCATE_STORED, &tx);
+                rc = c2_mdstore_locate(md, &pfid, &cob, C2_MD_LOCATE_STORED, &tx);
                 if (rc != 0)
                         goto out;
 

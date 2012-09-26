@@ -49,11 +49,10 @@ static void lustre_copy_fid(struct c2_fop_fid *bf,
 static int lustre_copy_name(struct c2_fop_str *n,
                             struct c2_md_lustre_logrec *rec)
 {
-        n->s_len = rec->cr_namelen;
         n->s_buf = c2_alloc(rec->cr_namelen);
         if (!n->s_buf)
                 return -ENOMEM;
-
+        n->s_len = rec->cr_namelen;
         memcpy(n->s_buf, rec->cr_name, rec->cr_namelen);
         return 0;
 }

@@ -85,7 +85,7 @@ bool c2_reqh_invariant(const struct c2_reqh *reqh)
 }
 
 int c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm, struct c2_dbenv *db,
-		 struct c2_md_store *mdstore, struct c2_fol *fol,
+		 struct c2_mdstore *mdstore, struct c2_fol *fol,
 		 struct c2_local_service *svc)
 {
 	int result;

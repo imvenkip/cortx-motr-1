@@ -42,7 +42,7 @@ static const char db_name[] = "ut-mdservice";
 static struct c2_cob_domain_id id = { 42 };
 
 static struct c2_dbenv          db;
-static struct c2_md_store       md;
+static struct c2_mdstore        md;
 static struct c2_reqh           reqh;
 static struct c2_local_service  svc;
 static struct c2_fol            fol;
@@ -96,7 +96,7 @@ static void test_mkfs(void)
         rc = c2_dbenv_init(&db, db_name, 0);
         C2_UT_ASSERT(rc == 0);
 
-        rc = c2_md_store_init(&md, &id, &db, 0);
+        rc = c2_mdstore_init(&md, &id, &db, 0);
         C2_UT_ASSERT(rc == 0);
 
         rc = c2_db_tx_init(&tx, &db, 0);
@@ -110,14 +110,14 @@ static void test_mkfs(void)
         c2_db_tx_commit(&tx);
 
         /* Fini old mdstore */
-        c2_md_store_fini(&md);
+        c2_mdstore_fini(&md);
 
         /* Init mdstore with root init flag set to 1 */
-        rc = c2_md_store_init(&md, &id, &db, 1);
+        rc = c2_mdstore_init(&md, &id, &db, 1);
         C2_UT_ASSERT(rc == 0);
 
         /* Fini everything */
-        c2_md_store_fini(&md);
+        c2_mdstore_fini(&md);
         c2_dbenv_fini(&db);
 }
 
@@ -129,7 +129,7 @@ static void test_init(void)
         rc = c2_fol_init(&fol, &db);
         C2_ASSERT(rc == 0);
 
-        rc = c2_md_store_init(&md, &id, &db, 1);
+        rc = c2_mdstore_init(&md, &id, &db, 1);
         C2_ASSERT(rc == 0);
 
         C2_SET0(&svc);
@@ -212,7 +212,7 @@ static void test_fini(void)
         c2_reqh_shutdown_wait(&reqh);
         c2_reqh_fini(&reqh);
         c2_fol_fini(&fol);
-        c2_md_store_fini(&md);
+        c2_mdstore_fini(&md);
         c2_dbenv_fini(&db);
 }
 

@@ -170,7 +170,7 @@ struct c2_db_tx;
    record with another parent fid is found.
 
    Once iterator is not needed, it is fininalized by c2_cob_iterator_fini().
-   @see c2_md_store_readdir()
+   @see c2_mdstore_readdir()
 
    Mkfs.
 

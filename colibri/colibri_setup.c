@@ -1250,7 +1250,7 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 		goto cleanup_stob;
 	}
 	rctx->rc_cdom_id.id = ++cdom_id;
-	rc = c2_md_store_init(&rctx->rc_mdstore, &rctx->rc_cdom_id, &rctx->rc_db, 0);
+	rc = c2_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id, &rctx->rc_db, 0);
 	if (rc != 0) {
 		C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
 			    "c2_cob_domain_init", rc);
@@ -1273,7 +1273,7 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 cleanup_fol:
 	c2_fol_fini(&rctx->rc_fol);
 cleanup_mdstore:
-	c2_md_store_fini(&rctx->rc_mdstore);
+	c2_mdstore_fini(&rctx->rc_mdstore);
 cleanup_stob:
 	cs_storage_fini(&rctx->rc_stob);
 	c2_dbenv_fini(&rctx->rc_db);
@@ -1328,7 +1328,7 @@ static void cs_request_handler_stop(struct cs_reqh_context *rctx)
 	cs_rpc_machines_fini(reqh);
 	c2_reqh_fini(reqh);
 	c2_fol_fini(&rctx->rc_fol);
-	c2_md_store_fini(&rctx->rc_mdstore);
+	c2_mdstore_fini(&rctx->rc_mdstore);
 	cs_storage_fini(&rctx->rc_stob);
 	c2_dbenv_fini(&rctx->rc_db);
 }

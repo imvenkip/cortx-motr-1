@@ -180,7 +180,7 @@ struct cs_reqh_context {
 	struct c2_dbenv              rc_db;
 
 	/** Cob domain to be used by the request handler */
-	struct c2_md_store           rc_mdstore;
+	struct c2_mdstore            rc_mdstore;
 
 	struct c2_cob_domain_id      rc_cdom_id;
 

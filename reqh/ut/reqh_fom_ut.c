@@ -67,7 +67,7 @@ enum {
 };
 
 static struct c2_stob_domain   *sdom;
-static struct c2_md_store      srv_mdstore;
+static struct c2_mdstore       srv_mdstore;
 static struct c2_cob_domain_id srv_cob_dom_id;
 static struct c2_rpc_machine   srv_rpc_mach;
 static struct c2_dbenv         srv_db;
@@ -215,7 +215,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 					  *reqh_addb_stob, NULL);
 
         /* Init the mdstore */
-        rc = c2_md_store_init(&srv_mdstore, &srv_cob_dom_id, &srv_db, 0);
+        rc = c2_mdstore_init(&srv_mdstore, &srv_cob_dom_id, &srv_db, 0);
         C2_UT_ASSERT(rc == 0);
 
 	/* Initialising request handler */
@@ -248,7 +248,7 @@ static void server_fini(struct c2_stob_domain *bdom,
 	c2_rpc_net_buffer_pool_cleanup(&app_pool);
 
         /* Fini the mdstore */
-        c2_md_store_fini(&srv_mdstore);
+        c2_mdstore_fini(&srv_mdstore);
 
 	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
 	c2_stob_put(reqh_addb_stob);
