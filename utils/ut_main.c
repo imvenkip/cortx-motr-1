@@ -41,7 +41,6 @@ extern const struct c2_test_suite capa_ut;
 extern const struct c2_test_suite cm_cp_ut;
 extern const struct c2_test_suite cob_ut;
 extern const struct c2_test_suite console_ut;
-extern const struct c2_test_suite cm_cp_ut;
 extern const struct c2_test_suite cm_generic_ut;
 extern const struct c2_test_suite db_ut;
 extern const struct c2_test_suite db_cursor_ut;
@@ -93,7 +92,6 @@ void add_uts(void)
 	c2_ut_add(&cob_ut);
         c2_ut_add(&cobfoms_ut);
 	c2_ut_add(&colibri_setup_ut);
-	c2_ut_add(&cm_cp_ut);
 	c2_ut_add(&cm_generic_ut);
 	c2_ut_add(&db_ut);
 	c2_ut_add(&db_cursor_ut);
@@ -112,6 +110,7 @@ void add_uts(void)
 	c2_ut_add(&rpclib_ut);
 	c2_ut_add(&rpc_service_ut);
 	c2_ut_add(&sm_ut);
+	c2_ut_add(&sns_repair_ut);
 	c2_ut_add(&stobio_ut);
 	c2_ut_add(&udb_ut);
 	c2_ut_add(&xcode_bufvec_fop_ut);
@@ -122,7 +121,6 @@ void add_uts(void)
 	c2_ut_add(&addb_ut);
 	c2_ut_add(&console_ut);
 	c2_ut_add(&yaml2db_ut);
-	c2_ut_add(&sns_repair_ut);
 }
 
 int main(int argc, char *argv[])
