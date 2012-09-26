@@ -382,14 +382,15 @@ struct c2_rpc_slot_ref {
 	/** Generation number of slot */
 	uint64_t                   sr_slot_gen;
 
-	/** Anchor to put item on c2_rpc_slot::sl_item_list */
+	/** Anchor to put item on c2_rpc_slot::sl_item_list
+	    List descriptor: slot_item
+	 */
 	struct c2_tlink            sr_link;
 
-	/** Anchor to put item on c2_rpc_slot::sl_ready_list */
+	/** Anchor to put item on c2_rpc_slot::sl_ready_list
+	    List descriptor: ready_slot
+	 * */
 	struct c2_tlink            sr_ready_link;
-
-	/** Magic constant to check sanity. */
-	uint64_t		   sr_magic;
 };
 
 /**
@@ -541,26 +542,26 @@ int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active,
 /** Descriptor and functions associated with a list of "c2_rpc_session"s
     embedded in c2_rpc_conn.
  */
-C2_TL_DESCR_DECLARE(sessions, extern);
-C2_TL_DECLARE(sessions, extern, struct c2_rpc_session);
+C2_TL_DESCR_DECLARE(session, extern);
+C2_TL_DECLARE(session, extern, struct c2_rpc_session);
 
 /** Descriptor and functions associated with a list of "c2_rpc_slot"s
     embedded in c2_rpc_session.
  */
-C2_TL_DESCR_DECLARE(ready_slots, extern);
-C2_TL_DECLARE(ready_slots, extern, struct c2_rpc_slot);
+C2_TL_DESCR_DECLARE(ready_slot, extern);
+C2_TL_DECLARE(ready_slot, extern, struct c2_rpc_slot);
 
 /** Descriptor and functions associated with  a list of "c2_rpc_item"s embedded
     in c2_rpc_slot.
  */
-C2_TL_DESCR_DECLARE(slot_refs, extern);
-C2_TL_DECLARE(slot_refs, extern, struct c2_rpc_item);
+C2_TL_DESCR_DECLARE(slot_item, extern);
+C2_TL_DECLARE(slot_item, extern, struct c2_rpc_item);
 
 /** Descriptor and functions associated with  a list of "c2_rpc_item"s ready to
     put in rpc.
  */
-C2_TL_DESCR_DECLARE(ready_items, extern);
-C2_TL_DECLARE(ready_items, extern, struct c2_rpc_item);
+C2_TL_DESCR_DECLARE(ready_item, extern);
+C2_TL_DECLARE(ready_item, extern, struct c2_rpc_item);
 
 
 /** @}  End of rpc_session group */

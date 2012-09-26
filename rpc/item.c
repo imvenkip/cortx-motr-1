@@ -34,11 +34,12 @@
    @{
  */
 
-C2_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", , struct c2_rpc_item, ri_field,
+C2_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", /* global */,
+		   struct c2_rpc_item, ri_field,
 	           ri_link_magic, C2_RPC_ITEM_MAGIC,
 		   C2_RPC_ITEM_HEAD_MAGIC);
 
-C2_TL_DEFINE(rpcitem, , struct c2_rpc_item);
+C2_TL_DEFINE(rpcitem, /* global */, struct c2_rpc_item);
 
 C2_TL_DESCR_DEFINE(rit, "rpc_item_type_descr", static, struct c2_rpc_item_type,
 		   rit_linkage,	rit_magic, C2_RPC_ITEM_TYPE_MAGIC,
@@ -140,8 +141,8 @@ void c2_rpc_item_init(struct c2_rpc_item *item)
 	sref->sr_sender_id  = SENDER_ID_INVALID;
 	sref->sr_session_id = SESSION_ID_INVALID;
 
-	slot_refs_tlink_init(item);
-	ready_items_tlink_init(item);
+	slot_item_tlink_init(item);
+	ready_item_tlink_init(item);
 
         c2_list_link_init(&item->ri_unbound_link);
 
@@ -163,8 +164,8 @@ void c2_rpc_item_fini(struct c2_rpc_item *item)
 
 	sref = &item->ri_slot_refs[0];
 	sref->sr_slot_id = SLOT_ID_INVALID;
-	slot_refs_tlink_fini(item);
-	ready_items_tlink_fini(item);
+	slot_item_tlink_fini(item);
+	ready_item_tlink_fini(item);
 
 	sref->sr_sender_id = SENDER_ID_INVALID;
 	sref->sr_session_id = SESSION_ID_INVALID;

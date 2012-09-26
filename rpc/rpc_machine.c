@@ -43,15 +43,6 @@
 #include "rpc/packet.h"        /* c2_rpc */
 #include "rpc/rpc2.h"          /* c2_rpc_max_msg_size, c2_rpc_max_recv_msgs */
 
-C2_TL_DESCR_DEFINE(rpc_chans, "rpc_channels", static, struct c2_rpc_chan,
-		   rc_linkage, rc_magic, C2_RPC_CHAN_MAGIC,
-		   C2_RPC_CHAN_HEAD_MAGIC);
-C2_TL_DEFINE(rpc_chans, static, struct c2_rpc_chan);
-
-C2_TL_DESCR_DEFINE(rpc_conn, "rpc-conn",, struct c2_rpc_conn, c_link,
-		   c_magic, C2_RPC_CONN_MAGIC, C2_RPC_CONN_HEAD_MAGIC);
-C2_TL_DEFINE(rpc_conn,, struct c2_rpc_conn);
-
 /* Forward declarations. */
 static void rpc_tm_cleanup(struct c2_rpc_machine *machine);
 static int rpc_tm_setup(struct c2_net_transfer_mc *tm,
@@ -117,6 +108,15 @@ const struct c2_net_buffer_callbacks c2_rpc_rcv_buf_callbacks = {
 		[C2_NET_QT_MSG_RECV] = net_buf_event_handler,
 	}
 };
+
+C2_TL_DESCR_DEFINE(rpc_chan, "rpc_channels", static, struct c2_rpc_chan,
+		   rc_linkage, rc_magic, C2_RPC_CHAN_MAGIC,
+		   C2_RPC_CHAN_HEAD_MAGIC);
+C2_TL_DEFINE(rpc_chan, static, struct c2_rpc_chan);
+
+C2_TL_DESCR_DEFINE(rpc_conn, "rpc-conn", /* global */, struct c2_rpc_conn,
+		   c_link, c_magic, C2_RPC_CONN_MAGIC, C2_RPC_CONN_HEAD_MAGIC);
+C2_TL_DEFINE(rpc_conn, /* global */, struct c2_rpc_conn);
 
 static void rpc_tm_event_cb(const struct c2_net_tm_event *ev)
 {
@@ -201,7 +201,7 @@ C2_EXPORTED(c2_rpc_machine_init);
 
 static void __rpc_machine_init(struct c2_rpc_machine *machine)
 {
-	rpc_chans_tlist_init(&machine->rm_chans);
+	rpc_chan_tlist_init(&machine->rm_chans);
 	rpc_conn_tlist_init(&machine->rm_incoming_conns);
 	rpc_conn_tlist_init(&machine->rm_outgoing_conns);
 	c2_rpc_services_tlist_init(&machine->rm_services);
@@ -218,7 +218,7 @@ static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 	c2_rpc_services_tlist_fini(&machine->rm_services);
 	rpc_conn_tlist_fini(&machine->rm_outgoing_conns);
 	rpc_conn_tlist_fini(&machine->rm_incoming_conns);
-	rpc_chans_tlist_fini(&machine->rm_chans);
+	rpc_chan_tlist_fini(&machine->rm_chans);
 	c2_rpc_machine_bob_fini(machine);
 }
 
@@ -280,7 +280,7 @@ static void frm_worker_fn(struct c2_rpc_machine *machine)
 			c2_rpc_machine_unlock(machine);
 			return;
 		}
-		c2_tl_for(rpc_chans, &machine->rm_chans, chan) {
+		c2_tl_for(rpc_chan, &machine->rm_chans, chan) {
 			c2_rpc_frm_run_formation(&chan->rc_frm);
 		} c2_tl_endfor;
 		c2_rpc_machine_unlock(machine);
@@ -450,7 +450,7 @@ static struct c2_rpc_chan *rpc_chan_locate(struct c2_rpc_machine *machine,
 
 	found = false;
 	/* Locate the chan from rpc_machine->chans list. */
-	c2_tl_for(rpc_chans, &machine->rm_chans, chan) {
+	c2_tl_for(rpc_chan, &machine->rm_chans, chan) {
 		C2_ASSERT(chan->rc_destep->nep_tm->ntm_dom ==
 			  dest_ep->nep_tm->ntm_dom);
 		if (chan->rc_destep == dest_ep) {
@@ -499,8 +499,8 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 				c2_net_domain_get_max_buffer_segments(ndom);
 
 	c2_rpc_frm_init(&ch->rc_frm, &constraints, &c2_rpc_frm_default_ops);
-	rpc_chans_tlink_init(ch);
-	rpc_chans_tlist_add(&machine->rm_chans, ch);
+	rpc_chan_tlink_init(ch);
+	rpc_chan_tlist_add(&machine->rm_chans, ch);
 	*chan = ch;
 	return 0;
 }
@@ -528,7 +528,7 @@ static void rpc_chan_ref_release(struct c2_ref *ref)
 	C2_ASSERT(chan != NULL);
 	C2_ASSERT(c2_rpc_machine_is_locked(chan->rc_rpc_machine));
 
-	rpc_chans_tlist_del(chan);
+	rpc_chan_tlist_del(chan);
 	c2_rpc_frm_fini(&chan->rc_frm);
 	c2_free(chan);
 }

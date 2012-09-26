@@ -119,6 +119,15 @@ static const struct c2_rpc_item_ops session_terminate_item_ops = {
 	.rio_free    = c2_fop_item_free,
 };
 
+C2_TL_DESCR_DEFINE(ready_slot, "ready-slots", /* global */, struct c2_rpc_slot,
+		   sl_link, sl_magic, C2_RPC_SLOT_MAGIC,
+		   C2_RPC_SLOT_HEAD_MAGIC);
+C2_TL_DEFINE(ready_slot, /* global */, struct c2_rpc_slot);
+
+C2_TL_DESCR_DEFINE(session, "rpc-sessions", /* global */,
+		   struct c2_rpc_session, s_link, s_magic, C2_RPC_SESSION_MAGIC,
+		   C2_RPC_SESSION_HEAD_MAGIC);
+C2_TL_DEFINE(session, /* global */, struct c2_rpc_session);
 
 /**
    The routine is also called from session_foms.c, hence can't be static
@@ -134,7 +143,7 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 	     session->s_conn != NULL &&
 	     session->s_nr_slots > 0 &&
 	     nr_active_items_count(session) == session->s_nr_active_items &&
-	     sessions_tlist_contains(&session->s_conn->c_sessions,
+	     session_tlist_contains(&session->s_conn->c_sessions,
 			             session) &&
 	     ergo(session->s_session_id != SESSION_ID_0,
 		  session->s_conn->c_nr_sessions > 0);
@@ -151,7 +160,7 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 				 C2_RPC_SESSION_TERMINATING,
 				 C2_RPC_SESSION_TERMINATED,
 				 C2_RPC_SESSION_FAILED)),
-		          !ready_slots_tlink_is_in(slot));
+		          !ready_slot_tlink_is_in(slot));
 		    /* A slot cannot be on ready slots list if session is
 		       in one of above states */
 		if (!ok)
@@ -203,7 +212,7 @@ static int nr_active_items_count(const struct c2_rpc_session *session)
 
 	for (i = 0; i < session->s_nr_slots; i++) {
 		slot = session->s_slot_table[i];
-		c2_tl_for(slot_refs, &slot->sl_item_list, item) {
+		c2_tl_for(slot_item, &slot->sl_item_list, item) {
 
 			if (C2_IN(item->ri_stage, (RPC_ITEM_STAGE_IN_PROGRESS,
 						   RPC_ITEM_STAGE_FUTURE))) {
@@ -254,9 +263,9 @@ int c2_rpc_session_init_locked(struct c2_rpc_session *session,
 	session->s_slot_table_capacity = nr_slots;
 	session->s_cob                 = NULL;
 
-	sessions_tlink_init(session);
+	session_tlink_init(session);
 	c2_list_init(&session->s_unbound_items);
-	ready_slots_tlist_init(&session->s_ready_slots);
+	ready_slot_tlist_init(&session->s_ready_slots);
 
 	c2_cond_init(&session->s_state_changed);
 
@@ -332,9 +341,9 @@ static void __session_fini(struct c2_rpc_session *session)
 		c2_free(session->s_slot_table);
 		session->s_slot_table = NULL;
 	}
-	sessions_tlink_fini(session);
+	session_tlink_fini(session);
 	c2_cond_fini(&session->s_state_changed);
-	ready_slots_tlist_fini(&session->s_ready_slots);
+	ready_slot_tlist_fini(&session->s_ready_slots);
 	c2_list_fini(&session->s_unbound_items);
 }
 
@@ -934,9 +943,9 @@ static void snd_slot_idle(struct c2_rpc_slot *slot)
 	C2_PRE(slot != NULL);
 	C2_PRE(slot->sl_session != NULL);
 	C2_PRE(slot->sl_in_flight == 0);
-	C2_PRE(!ready_slots_tlink_is_in(slot));
+	C2_PRE(!ready_slot_tlink_is_in(slot));
 
-	ready_slots_tlist_add_tail(&slot->sl_session->s_ready_slots, slot);
+	ready_slot_tlist_add_tail(&slot->sl_session->s_ready_slots, slot);
 	frm = &slot->sl_session->s_conn->c_rpcchan->rc_frm;
 	c2_rpc_frm_run_formation(frm);
 }
@@ -950,11 +959,11 @@ bool c2_rpc_session_bind_item(struct c2_rpc_item *item)
 
 	session = item->ri_session;
 
-	if (ready_slots_tlist_is_empty(&session->s_ready_slots)) {
+	if (ready_slot_tlist_is_empty(&session->s_ready_slots)) {
 		return false;
 	}
-	slot = ready_slots_tlist_head(&session->s_ready_slots);
-	ready_slots_tlist_del(slot);
+	slot = ready_slot_tlist_head(&session->s_ready_slots);
+	ready_slot_tlist_del(slot);
 	c2_rpc_slot_item_add_internal(slot, item);
 
 	C2_POST(c2_rpc_item_is_bound(item));
@@ -1150,7 +1159,7 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 
 /**
    For all slots belonging to @session,
-     if slot is in c2_rpc_machine::rm_ready_slots list,
+     if slot is in c2_rpc_session::s_ready_slots list,
      then remove it from the list.
  */
 void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session)
@@ -1167,8 +1176,8 @@ void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session)
 
 		C2_ASSERT(slot != NULL);
 
-		if (ready_slots_tlink_is_in(slot))
-			ready_slots_tlist_del(slot);
+		if (ready_slot_tlink_is_in(slot))
+			ready_slot_tlist_del(slot);
 	}
 }
 #ifndef __KERNEL__
@@ -1188,13 +1197,6 @@ int c2_rpc_session_items_print(struct c2_rpc_session *session, bool only_active)
 }
 #endif
 
-C2_TL_DESCR_DEFINE(ready_slots, "ready-slots",, struct c2_rpc_slot, sl_link,
-		   sl_magic, C2_RPC_SLOT_MAGIC, C2_RPC_SLOT_HEAD_MAGIC);
-C2_TL_DEFINE(ready_slots,, struct c2_rpc_slot);
-
-C2_TL_DESCR_DEFINE(sessions, "rpc-sessions",, struct c2_rpc_session, s_link,
-		   s_magic, C2_RPC_SESSION_MAGIC, C2_RPC_SESSION_HEAD_MAGIC);
-C2_TL_DEFINE(sessions,, struct c2_rpc_session);
 
 /** @} end of session group */
 
