@@ -16,6 +16,8 @@
  *
  * Original author: Nathan Rutman <nathan_rutman@xyratex.com>
  * Original creation date: 10/24/2010
+ *
+ * Mdstore changes: Yuriy Umanets <yuriy_umanets@xyratex.com>
  */
 
 #pragma once

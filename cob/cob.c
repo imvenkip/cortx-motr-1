@@ -14,8 +14,9 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Nathan Rutman <nathan_rutman@xyratex.com>
- *                  Yuriy Umanets <yuriy_umanets@xyratex.com>
  * Original creation date: 10/24/2010
+ *
+ * Mdstore changes: Yuriy Umanets <yuriy_umanets@xyratex.com>
  */
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_COB
