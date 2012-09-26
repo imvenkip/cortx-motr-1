@@ -23,7 +23,8 @@
 #endif
 
 #include "lib/bob.h"
-#include "lib/misc.h" /* C2_BITS */
+#include "lib/misc.h"  /* C2_BITS */
+#include "lib/errno.h" /*ENOBUFS, ENODATA */
 
 #include "sm/sm.h"
 
@@ -128,8 +129,20 @@ static int cpp_data_next(struct c2_cm_cp_pump *cp_pump)
 	cp = cp_pump->p_cp;
 	C2_ASSERT(cp != NULL);
 	rc = c2_cm_data_next(cm, cp);
-	if (rc < 0)
+	if (rc < 0) {
+		/*
+		 * No more buffers available for copy packet.
+		 * XXX Better return code to report buffer unavailability.
+		 */
+		if (rc == -ENOBUFS)
+			return C2_FSO_WAIT;
+		else if (rc == -ENODATA) {
+			/* No more data available. */
+			c2_fom_phase_set(fom, CPP_IDLE);
+			return C2_FSO_WAIT;
+		}
 		goto fail;
+	}
 	if (rc == C2_FSO_AGAIN) {
 		C2_ASSERT(c2_cm_cp_invariant(cp));
 		c2_cm_cp_init(cp);
@@ -180,7 +193,7 @@ static const struct c2_sm_state_descr cm_cp_pump_sd[CPP_NR] = {
 	[CPP_DATA_NEXT] = {
 		.sd_flags   = 0,
 		.sd_name    = "copy packet data next",
-		.sd_allowed = C2_BITS(CPP_ALLOC, CPP_FAIL)
+		.sd_allowed = C2_BITS(CPP_ALLOC, CPP_FAIL, CPP_IDLE)
 	},
 	[CPP_FAIL] = {
 		.sd_flags   = 0,
