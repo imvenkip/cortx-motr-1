@@ -423,7 +423,7 @@ static int check_write_fom_tick(struct c2_fom *fom)
                  * max), so that zero-copy initialisation fails.
                  */
                 saved_segments_count = rwfop->crw_ivecs.cis_ivecs[cdi].ci_nr;
-                netdom = item_machine(&fop->f_item)->rm_tm.ntm_dom;
+                netdom = fop_tm_get(fop)->ntm_dom;
                 rwfop->crw_ivecs.cis_ivecs[cdi].ci_nr =
                         c2_net_domain_get_max_buffer_segments(netdom)+1;
 
@@ -887,7 +887,7 @@ static int check_read_fom_tick(struct c2_fom *fom)
                  * max), so that zero-copy initialisation fails.
                  */
                 saved_segments_count = rwfop->crw_ivecs.cis_ivecs[cdi].ci_nr;
-                netdom = item_machine(&fop->f_item)->rm_tm.ntm_dom;
+                netdom = fop_tm_get(fop)->ntm_dom;
                 rwfop->crw_ivecs.cis_ivecs[cdi].ci_nr =
                         c2_net_domain_get_max_buffer_segments(netdom)+1;
 
