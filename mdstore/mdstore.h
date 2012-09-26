@@ -71,9 +71,9 @@ struct c2_rdpg {
    Init mdstore and get it ready to work. If init_root == !!1
    then root cob is initialized.
 */
-int c2_md_store_init(struct c2_md_store         *md, 
+int c2_md_store_init(struct c2_md_store         *md,
                      struct c2_cob_domain_id    *id,
-                     struct c2_dbenv            *db, 
+                     struct c2_dbenv            *db,
                      int                         init_root);
 
 /**
@@ -86,25 +86,25 @@ void c2_md_store_fini(struct c2_md_store        *md);
    cob is so called statdata cob and returned by c2_cob_locate(). 
    Error code is returned in error case or zero otherwise.
 */
-int c2_md_store_link(struct c2_md_store         *md, 
-                     struct c2_fid              *pfid, 
-                     struct c2_cob              *cob, 
+int c2_md_store_link(struct c2_md_store         *md,
+                     struct c2_fid              *pfid,
+                     struct c2_cob              *cob,
                      const char                 *name,
                      int                         namelen,
                      struct c2_db_tx            *tx);
-                     
+
 /**
    Handle unlink operation described by @pfid and @name. Input
-   cob is so called statdata cob and returned by c2_cob_locate(). 
+   cob is so called statdata cob and returned by c2_cob_locate().
    Error code is returned in error case or zero otherwise.
 */
-int c2_md_store_unlink(struct c2_md_store       *md, 
-                       struct c2_fid            *pfid, 
+int c2_md_store_unlink(struct c2_md_store       *md,
+                       struct c2_fid            *pfid,
                        struct c2_cob            *cob,
                        const char               *name,
                        int                       namelen,
                        struct c2_db_tx          *tx);
-                       
+
 /**
    Handle rename operation described by params. Input cobs are
    statdata cobs and returned by c2_cob_locate(). Rest of the
@@ -112,7 +112,7 @@ int c2_md_store_unlink(struct c2_md_store       *md,
 
    Error code is returned in error case or zero otherwise.
 */
-int c2_md_store_rename(struct c2_md_store       *md, 
+int c2_md_store_rename(struct c2_md_store       *md,
                        struct c2_fid            *pfid_tgt,
                        struct c2_fid            *pfid_src,
                        struct c2_cob            *cob_tgt,
@@ -126,10 +126,10 @@ int c2_md_store_rename(struct c2_md_store       *md,
 /**
    Handle create operation described by @attr on @cob. Input @cob
    is returned by c2_cob_alloc().
-   
+
    Error code is returned in error case or zero otherwise.
 */
-int c2_md_store_create(struct c2_md_store       *md, 
+int c2_md_store_create(struct c2_md_store       *md,
                        struct c2_fid            *pfid,
                        struct c2_cob_attr       *attr,
                        struct c2_cob           **out,
@@ -137,39 +137,39 @@ int c2_md_store_create(struct c2_md_store       *md,
 
 /**
    Handle open operation described by @flags on @cob. Input @cob
-   is so called statdata cob and returned by c2_cob_locate(). 
+   is so called statdata cob and returned by c2_cob_locate().
    Error code is returned in error case or zero otherwise.
 */
-int c2_md_store_open(struct c2_md_store         *md, 
+int c2_md_store_open(struct c2_md_store         *md,
                      struct c2_cob              *cob,
                      int                         flags,
                      struct c2_db_tx            *tx);
 
 /**
    Handle close operation on @cob. Input @cob is so called statdata
-   cob and returned by c2_cob_locate(). 
+   cob and returned by c2_cob_locate().
 
    Error code is returned in error case or zero otherwise.
 */
-int c2_md_store_close(struct c2_md_store        *md, 
+int c2_md_store_close(struct c2_md_store        *md,
                       struct c2_cob             *cob,
                       struct c2_db_tx           *tx);
 
 /**
    Handle setattr operation described by @attr on @cob. Input @cob
-   is so called statdata cob and returned by c2_cob_locate(). 
-   
+   is so called statdata cob and returned by c2_cob_locate().
+
    Error code is returned in error case or zero otherwise.
 */
-int c2_md_store_setattr(struct c2_md_store      *md, 
+int c2_md_store_setattr(struct c2_md_store      *md,
                         struct c2_cob           *cob,
                         struct c2_cob_attr      *attr,
                         struct c2_db_tx         *tx);
 
 /**
    Get attributes of @cob into passed @attr. Input @cob
-   is so called statdata cob and returned by c2_cob_locate(). 
-   
+   is so called statdata cob and returned by c2_cob_locate().
+
    Error code is returned in error case or zero otherwise.
 */
 int c2_md_store_getattr(struct c2_md_store      *md,
@@ -180,10 +180,10 @@ int c2_md_store_getattr(struct c2_md_store      *md,
 /**
    Handle readdir operation described by @rdpg on @cob. Input @cob
    is so called statdata cob and returned by c2_cob_locate(). 
-   
+
    Error code is returned in error case or something >= 0 otherwise.
 */
-int c2_md_store_readdir(struct c2_md_store      *md, 
+int c2_md_store_readdir(struct c2_md_store      *md,
                         struct c2_cob           *cob,
                         struct c2_rdpg          *rdpg,
                         struct c2_db_tx         *tx);
@@ -191,20 +191,20 @@ int c2_md_store_readdir(struct c2_md_store      *md,
 /**
    Find cob by fid.
 */
-int c2_md_store_locate(struct c2_md_store       *md, 
+int c2_md_store_locate(struct c2_md_store       *md,
                        const struct c2_fid      *fid,
-                       struct c2_cob           **cob, 
-                       int                       flags, 
+                       struct c2_cob           **cob,
+                       int                       flags,
                        struct c2_db_tx          *tx);
 
 /**
    Find cob by parent and name.
 */
-int c2_md_store_lookup(struct c2_md_store       *md, 
+int c2_md_store_lookup(struct c2_md_store       *md,
                        struct c2_fid            *pfid,
-                       const char               *name, 
-                       int                       namelen, 
-                       struct c2_cob           **cob, 
+                       const char               *name,
+                       int                       namelen,
+                       struct c2_cob           **cob,
                        struct c2_db_tx          *tx);
 
 /**
