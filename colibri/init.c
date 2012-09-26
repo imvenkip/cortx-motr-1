@@ -58,7 +58,6 @@
 
 #include "ioservice/io_fops.h"
 #include "ioservice/io_service.h"
-#include "cob/cob.h"
 #include "mdservice/md_fops.h"
 #include "mdservice/md_service.h"
 

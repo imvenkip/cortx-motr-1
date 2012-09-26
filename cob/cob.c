@@ -624,7 +624,7 @@ static int cob_oi_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
 
                 /*
                  * Found position should have same fid and linkno not less
-                 * then requested. Otherwise we failed with lookup.
+                 * than requested. Otherwise we failed with lookup.
                  */
                 if (!c2_fid_eq(&oldkey.cok_fid, &cob->co_oikey.cok_fid) ||
                     oldkey.cok_linkno > cob->co_oikey.cok_linkno) {
@@ -634,7 +634,7 @@ static int cob_oi_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
         } else {
                 /*
                  * Let's use lookup that can return meaningful error code
-                 * for case that we need exact position.
+                 * for case when we need exact position.
                  */
                 rc = c2_table_lookup(tx, &cob->co_oipair);
                 if (rc != 0) {
@@ -986,7 +986,7 @@ int c2_cob_create(struct c2_cob        *cob,
         cob->co_valid |= CA_NSKEY;
 
         /*
-         * This is what add_name will use to create new name.
+         * This is what name_add will use to create new name.
          */
         cob->co_nsrec = *nsrec;
         cob->co_valid |= CA_NSREC;
@@ -1003,7 +1003,7 @@ int c2_cob_create(struct c2_cob        *cob,
         /*
          * Let's create name, statdata and object index.
          */
-        rc = c2_cob_add_name(cob, nskey, nsrec, tx);
+        rc = c2_cob_name_add(cob, nskey, nsrec, tx);
         if (rc != 0)
                 goto out;
 
@@ -1074,7 +1074,7 @@ int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
         /*
          * Delete last name from namespace and object index.
          */
-        rc = c2_cob_del_name(cob, cob->co_nskey, tx);
+        rc = c2_cob_name_del(cob, cob->co_nskey, tx);
         if (rc != 0)
                 goto out;
 
@@ -1188,7 +1188,7 @@ out:
         return rc;
 }
 
-int c2_cob_add_name(struct c2_cob        *cob,
+int c2_cob_name_add(struct c2_cob        *cob,
                     struct c2_cob_nskey  *nskey,
                     struct c2_cob_nsrec  *nsrec,
                     struct c2_db_tx      *tx)
@@ -1228,11 +1228,11 @@ int c2_cob_add_name(struct c2_cob        *cob,
         c2_db_pair_fini(&pair);
 out:
         C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc,
-                    c2_addb_func_fail, "cob_add_name", rc);
+                    c2_addb_func_fail, "cob_name_add", rc);
         return rc;
 }
 
-int c2_cob_del_name(struct c2_cob        *cob,
+int c2_cob_name_del(struct c2_cob        *cob,
                     struct c2_cob_nskey  *nskey,
                     struct c2_db_tx      *tx)
 {
@@ -1276,7 +1276,7 @@ out:
         return rc;
 }
 
-int c2_cob_update_name(struct c2_cob        *cob,
+int c2_cob_name_update(struct c2_cob        *cob,
                        struct c2_cob_nskey  *srckey,
                        struct c2_cob_nskey  *tgtkey,
                        struct c2_db_tx      *tx)

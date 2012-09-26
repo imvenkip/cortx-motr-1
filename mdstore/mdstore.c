@@ -189,7 +189,7 @@ int c2_md_store_link(struct c2_md_store         *md,
         nsrec.cnr_fid = cob->co_nsrec.cnr_fid;
         nsrec.cnr_linkno = cob->co_nsrec.cnr_cntr;
 
-        rc = c2_cob_add_name(cob, nskey, &nsrec, tx);
+        rc = c2_cob_name_add(cob, nskey, &nsrec, tx);
         c2_free(nskey);
         if (rc != 0)
                 goto out;
@@ -265,14 +265,14 @@ int c2_md_store_unlink(struct c2_md_store       *md,
                                 goto out;
                         }
 
-                        rc = c2_cob_del_name(cob, nskey, tx);
+                        rc = c2_cob_name_del(cob, nskey, tx);
                         if (rc != 0) {
                                 c2_free(nskey);
                                 goto out;
                         }
                 } else {
                         if (cob->co_nsrec.cnr_nlink > 0) {
-                                rc = c2_cob_del_name(cob, nskey, tx);
+                                rc = c2_cob_name_del(cob, nskey, tx);
                                 if (rc != 0) {
                                         c2_free(nskey);
                                         goto out;
@@ -386,7 +386,7 @@ int c2_md_store_rename(struct c2_md_store       *md,
         c2_cob_nskey_make(&srckey, pfid_src, sname, snamelen);
         c2_cob_nskey_make(&tgtkey, pfid_tgt, tname, tnamelen);
 
-        rc = c2_cob_update_name(cob_src, srckey, tgtkey, tx);
+        rc = c2_cob_name_update(cob_src, srckey, tgtkey, tx);
 
         c2_free(srckey);
         c2_free(tgtkey);

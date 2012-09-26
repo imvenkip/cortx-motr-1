@@ -513,18 +513,18 @@ static void fom_exec(struct c2_fom *fom)
 
 	if (c2_fom_phase(fom) == C2_FOM_PHASE_FINISH) {
 	        /**
-	           Get ctx from fom begore killing fom.
+	         * Get ctx from fom begore killing fom.
 	         */
 	        ctx = fom->fo_fop_ctx;
 
                 /**
-                   Finish fom itself.
+                 * Finish fom itself.
                  */
 		fom->fo_ops->fo_fini(fom);
 
 		/**
-		   Make sure that ctx is released. It is allocated just before fto_create()
-		   is called. We release it after fo_finish as it may use ctx.
+		 * Make sure that ctx is released. It is allocated just before fto_create()
+		 * is called. We release it after fo_finish as it may use ctx.
 		 */
 		if (ctx != NULL)
                         c2_free(ctx);

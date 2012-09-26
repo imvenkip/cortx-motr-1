@@ -159,7 +159,7 @@ struct c2_db_tx;
 
    In order to iterate over all names that "dir" cob contains, cob iterator
    is used. It is simple, cursor based API, that contains four methods:
-   - c2_cob_iterator_init() - init iterator with fid, name position;
+   - c2_cob_iterator_init() - init iterator with cob fid and file name;
    - c2_cob_iterator_get()  - position iterator according with its properies;
    - c2_cob_iterator_next() - move to next position;
    - c2_cob_iterator_fini() - fini iterator.
@@ -541,9 +541,10 @@ int c2_cob_update(struct c2_cob        *cob,
  * Add name to namespace and object index.
  * @param cob   stat data (zero name) cob;
  * @param nskey new name to add to the file;
+ * @param nsrec nsrec that will be added;
  * @param tx    transaction handle.
  */
-int c2_cob_add_name(struct c2_cob        *cob,
+int c2_cob_name_add(struct c2_cob        *cob,
                     struct c2_cob_nskey  *nskey,
                     struct c2_cob_nsrec  *nsrec,
                     struct c2_db_tx      *tx);
@@ -555,7 +556,7 @@ int c2_cob_add_name(struct c2_cob        *cob,
  * @param nskey name to kill (may be the name of statdata);
  * @param tx    transaction handle.
  */
-int c2_cob_del_name(struct c2_cob        *cob,
+int c2_cob_name_del(struct c2_cob        *cob,
                     struct c2_cob_nskey  *nskey,
                     struct c2_db_tx      *tx);
 
@@ -567,7 +568,7 @@ int c2_cob_del_name(struct c2_cob        *cob,
  * @param tgtkey target name;
  * @param tx     transaction handle
 */
-int c2_cob_update_name(struct c2_cob        *cob,
+int c2_cob_name_update(struct c2_cob        *cob,
                        struct c2_cob_nskey  *srckey,
                        struct c2_cob_nskey  *tgtkey,
                        struct c2_db_tx      *tx);
