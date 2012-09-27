@@ -212,7 +212,7 @@ int c2_rpc_cob_lookup_helper(struct c2_cob_domain *dom,
 	c2_cob_nskey_make(&key, &pfid, name, strlen(name));
 	if (key == NULL)
 		C2_RETURN(-ENOMEM);
-	rc = c2_cob_lookup(dom, key, CA_NSKEY_FREE | CA_FABREC, out, tx);
+	rc = c2_cob_lookup(dom, key, C2_CA_NSKEY_FREE | C2_CA_FABREC, out, tx);
 
 	C2_POST(ergo(rc == 0, *out != NULL));
 	C2_RETURN(rc);

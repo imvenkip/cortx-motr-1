@@ -409,7 +409,7 @@ int c2_mdstore_setattr(struct c2_mdstore      *md,
         /*
          * Handle basic stat fields update.
          */
-        if (cob->co_valid & CA_NSREC) {
+        if (cob->co_valid & C2_CA_NSREC) {
                 nsrec = &cob->co_nsrec;
                 if (attr->ca_flags & C2_COB_ATIME)
                         nsrec->cnr_atime = attr->ca_atime;
@@ -435,7 +435,7 @@ int c2_mdstore_setattr(struct c2_mdstore      *md,
         /*
          * Handle uid/gid/mode update.
          */
-        if (cob->co_valid & CA_OMGREC) {
+        if (cob->co_valid & C2_CA_OMGREC) {
                 omgrec = &cob->co_omgrec;
                 if (attr->ca_flags & C2_COB_UID)
                         omgrec->cor_uid = attr->ca_uid;
@@ -448,7 +448,7 @@ int c2_mdstore_setattr(struct c2_mdstore      *md,
         /*
          * @todo: update fabrec.
          */
-        if (cob->co_valid & CA_FABREC)
+        if (cob->co_valid & C2_CA_FABREC)
                 fabrec = cob->co_fabrec;
 
         rc = c2_cob_update(cob, nsrec, fabrec, omgrec, tx);
@@ -472,7 +472,7 @@ int c2_mdstore_getattr(struct c2_mdstore      *md,
         /*
          * Copy permissions and owner info into rep.
          */
-        if (cob->co_valid & CA_OMGREC) {
+        if (cob->co_valid & C2_CA_OMGREC) {
                 attr->ca_flags |= C2_COB_UID | C2_COB_GID | C2_COB_MODE;
                 attr->ca_uid = cob->co_omgrec.cor_uid;
                 attr->ca_gid = cob->co_omgrec.cor_gid;
@@ -482,7 +482,7 @@ int c2_mdstore_getattr(struct c2_mdstore      *md,
         /*
          * Copy nsrec fields into response.
          */
-        if (cob->co_valid & CA_NSREC) {
+        if (cob->co_valid & C2_CA_NSREC) {
                 attr->ca_flags |= C2_COB_ATIME | C2_COB_CTIME | C2_COB_MTIME |
                                   C2_COB_SIZE | C2_COB_BLKSIZE | C2_COB_BLOCKS/* |
                                   C2_COB_RDEV*/;
@@ -614,7 +614,7 @@ int c2_mdstore_locate(struct c2_mdstore       *md,
 
         if (flags == C2_MD_LOCATE_STORED) {
                 rc = c2_cob_locate(&md->md_dom, &oikey,
-                                   (CA_FABREC | CA_OMGREC), cob, tx);
+                                   (C2_CA_FABREC | C2_CA_OMGREC), cob, tx);
         } else {
                 /*
                  * @todo: locate cob in opened cobs table.
@@ -639,7 +639,7 @@ int c2_mdstore_lookup(struct c2_mdstore       *md,
                 pfid = &C2_COB_ROOT_FID;
 
         c2_cob_nskey_make(&nskey, pfid, name, namelen);
-        flags = (CA_NSKEY_FREE | CA_FABREC | CA_OMGREC);
+        flags = (C2_CA_NSKEY_FREE | C2_CA_FABREC | C2_CA_OMGREC);
         return c2_cob_lookup(&md->md_dom, nskey, flags,
                              cob, tx);
 }

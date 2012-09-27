@@ -738,7 +738,7 @@ static void cob_verify(struct c2_fom *fom, const bool exists)
 	if (exists) {
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(test_cob != NULL);
-		C2_UT_ASSERT(test_cob->co_valid & CA_NSREC);
+		C2_UT_ASSERT(test_cob->co_valid & C2_CA_NSREC);
 	} else
 		C2_UT_ASSERT(rc == -ENOENT);
         if (rc != 0)

@@ -239,7 +239,6 @@ struct c2_cob_domain_id {
 */
 struct c2_cob_domain {
         struct c2_cob_domain_id cd_id;
-        struct c2_rwlock        cd_guard;
         struct c2_dbenv        *cd_dbenv;
         struct c2_table         cd_object_index;
         struct c2_table         cd_namespace;
@@ -256,6 +255,10 @@ int c2_cob_domain_init(struct c2_cob_domain *dom, struct c2_dbenv *env,
                        struct c2_cob_domain_id *id);
 void c2_cob_domain_fini(struct c2_cob_domain *dom);
 
+/**
+ * Prepare storage before using. Create root cob for session objects and
+ * root for files hierarchy.
+ */
 int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
                        struct c2_fid *sessfid, struct c2_db_tx *tx);
 
@@ -391,8 +394,8 @@ struct c2_cob_omgrec {
 /**
  * In-memory representation of a component object.
  *
- * A c2_cob is an in-memory structure, populated as needed from database
- * table lookups. The c2_cob is not cached for long time (except for root)
+ * A c2_cob is an in-memory structure, populated from database tables
+ * on demand. The c2_cob is not cached for long time (except for root)
  * and is only used as a temporary handle of database structures for the
  * sake of handyness. This means, we don't need to bother with locking
  * as everytime we pass cob to some function this is new instance of it.
@@ -445,11 +448,11 @@ struct c2_cob {
         struct c2_stob        *co_stob;     /**< underlying storage object */
         struct c2_ref          co_ref;      /**< refcounter for caching cobs */
         uint64_t               co_valid;    /**< @see enum c2_cob_valid_flags */
-        struct c2_fid         *co_fid;      /**< object fid, refers to nsrec fid */
+        struct c2_fid         *co_fid;      /**< object fid, ref to nsrec fid */
         struct c2_cob_nskey   *co_nskey;    /**< cob statdata nskey */
         struct c2_cob_oikey    co_oikey;    /**< object fid, linkno */
         struct c2_cob_nsrec    co_nsrec;    /**< object fid, basic stat data */
-        struct c2_cob_fabrec  *co_fabrec;   /**< fileattr_basic data (acl, etc) */
+        struct c2_cob_fabrec  *co_fabrec;   /**< fileattr_basic data (acl...) */
         struct c2_cob_omgrec   co_omgrec;   /**< permission data */
         struct c2_db_pair      co_oipair;   /**< used for oi accesss */
         struct c2_addb_ctx     co_addb;     /**< cob private addb ctx. */
@@ -470,13 +473,13 @@ struct c2_cob_iterator {
  * Cob flags and valid attributes.
  */
 enum c2_cob_ca_valid {
-        CA_NSKEY      = (1 << 0),  /**< nskey in cob is up-to-date */
-        CA_NSKEY_FREE = (1 << 1),  /**< cob responsible for dealloc of nskey */
-        CA_NSKEY_DB   = (1 << 2),  /**< db responsible for dealloc of nskey */
-        CA_NSREC      = (1 << 3),  /**< nsrec in cob is up-to-date */
-        CA_FABREC     = (1 << 4),  /**< fabrec in cob is up-to-date */
-        CA_OMGREC     = (1 << 5),  /**< omgrec in cob is up-to-date */
-        CA_LAYOUT     = (1 << 6),  /**< layout in cob is up-to-date */
+        C2_CA_NSKEY      = (1 << 0),  /**< nskey in cob is up-to-date */
+        C2_CA_NSKEY_FREE = (1 << 1),  /**< cob will dealloc the nskey */
+        C2_CA_NSKEY_DB   = (1 << 2),  /**< db will dealloc the nskey */
+        C2_CA_NSREC      = (1 << 3),  /**< nsrec in cob is up-to-date */
+        C2_CA_FABREC     = (1 << 4),  /**< fabrec in cob is up-to-date */
+        C2_CA_OMGREC     = (1 << 5),  /**< omgrec in cob is up-to-date */
+        C2_CA_LAYOUT     = (1 << 6),  /**< layout in cob is up-to-date */
 };
 
 /**
@@ -485,6 +488,12 @@ enum c2_cob_ca_valid {
  * Allocate a new cob and populate it with the contents of the
  * namespace record; i.e. the stat data and fid. This function
  * also looks up fab and omg tables, depending on "need" flag.
+ *
+ * @param dom   cob domain to use
+ * @param nskey name to lookup
+ * @param need  flags specifying what parts of cob to populate
+ * @param out   resulting cob is store here
+ * @param tx    db transaction to be used
  *
  * @see c2_cob_locate
  */
@@ -500,6 +509,12 @@ int c2_cob_lookup(struct c2_cob_domain *dom,
  * Create a new cob and populate it with the contents of the
  * a record; i.e. the filename. This also lookups for all attributes,
  * that is, fab, omg, etc., according to @need flags.
+ *
+ * @param dom   cob domain to use
+ * @param oikey oikey (fid) to lookup
+ * @param need  flags specifying what parts of cob to populate
+ * @param out   resulting cob is store here
+ * @param tx    db transaction to be used
  *
  * @see c2_cob_lookup
  */
@@ -532,6 +547,9 @@ int c2_cob_create(struct c2_cob         *cob,
 /**
  * Delete name with statdata, entry in object index and all file
  * attributes from fab, omg, etc., tables.
+ *
+ * @param cob this cob will be deleted
+ * @param tx db transaction to use
  */
 int c2_cob_delete(struct c2_cob *cob,
                   struct c2_db_tx *tx);
@@ -539,6 +557,12 @@ int c2_cob_delete(struct c2_cob *cob,
 /**
  * Update file attributes of passed cob with @nsrec, @fabrec
  * and @omgrec fields.
+ *
+ * @param cob    cob store updates to
+ * @param nsrec  new nsrec to store to cob
+ * @param fabrec fab record to store or null
+ * @param omgrec omg record to store or null
+ * @param tx     db transaction to be used
  */
 int c2_cob_update(struct c2_cob        *cob,
                   struct c2_cob_nsrec  *nsrec,
