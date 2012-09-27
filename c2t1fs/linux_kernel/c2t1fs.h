@@ -194,10 +194,9 @@
   The following requirements should be met:
 
   - @b R.DLD.MDSERVICE - all md operations operations implemented by c2t1fs
-  should talk to mdservice in ordre to provide required functionality
+  should talk to mdservice in order to provide required functionality
 
-  - @b R.DLD.POSIX - c2t1fs should conform to POSIX in a volume not less than
-  Lustre
+  - @b R.DLD.POSIX - implemented operations should conform to POSIX
  */
 
 /** @} end of c2t1fs-metadata-rq group */
@@ -358,6 +357,22 @@
   client-server communication and not just create all metadata in
   memory.
 
+  Not all fops will be used by clients. Only minimal needed set of
+  operations to support persitency between mounts will be added so
+  far.
+
+  The following functionality should be implemented:
+
+  - get mdservice volume information enough for statfs and get root
+  fid in mount time
+  - no hierarchy is needed, that is, no directories support will be
+  added in this work
+  - list of regular files in root directory should be supported
+  - operations with regular files should be supported
+
+  Read bellow on detail of implementation. It covers all the operations,
+  not only those in scope of this work.
+
   @section Initialization
 
   c2t1fs_init() - c2_mdservice_fop_init() is added to initialize md
@@ -456,8 +471,9 @@
 
   @sections Misc changes
 
-  fid_hash() - hash should be gnerated including ->f_container
-  and f_key.
+  fid_hash() - hash should be generated including ->f_container
+  and f_key. This can be used for generating inode numbers in future.
+  Still, changing inode numbers allocation is out of scope of this work.
  */
 
 /** @} end of c2t1fs-metadata-fs group */
@@ -484,8 +500,11 @@
 
   - @b R.DLD.POSIX - following standard linux fs driver callback functions and reqs
   guarantees basic posix conformance. More fine-graned conformance may be met with
-  using "standard" test suites for filessytems, such as dbench, which is mentioned
+  using "standard" test suites for file sytems, such as dbench, which is mentioned
   in Testing section (@ref c2t1fs-metadata-ts).
+
+  @note Not all operations will be implemented in this work to make the file system
+  posix compliant.
  */
 
 /** @} end of c2t1fs-metadata-cf group */
@@ -493,7 +512,11 @@
 /**
   @defgroup c2t1fs-metadata-ts Testing
 
-  c2t1fs should pass standard fs tests such as dbench as part of integration testing.
+  In principle full featured c2t1fs should pass standard fs tests such as dbench
+  as part of integration testing. This work scope testing will cover the basic
+  functionality that includes mount, create files, re-mount and check if files
+  exist and have the same attributes as before re-mount.
+
   As for unit testing, that may run on "before-commit" basis,  small and fast set
   of basic fs operations (10-20 operations) can be added to standard UT framework.
 
