@@ -65,7 +65,7 @@ static struct c2_fom_ops dummy_cp_fom_ops = {
 /**
  * Populates the copy packet and queues it to the request handler
  * for processing.
- */ 
+ */
 static void cp_post(struct c2_sns_repair_cp *sns_cp,
 		    struct c2_cm_aggr_group *ag, struct c2_bufvec *bv)
 {
