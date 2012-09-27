@@ -22,8 +22,7 @@
 #  include <config.h>
 #endif
 
-#include <errno.h>
-
+#include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/cdefs.h"
 #include "lib/misc.h"              /* C2_SET0 */
@@ -40,17 +39,17 @@
 typedef int (*fop_translate_t)(struct c2_fop *fop, void *data);
 
 static void lustre_copy_fid(struct c2_fop_fid *bf,
-                            struct c2_md_lustre_fid *cf)
+                            const struct c2_md_lustre_fid *cf)
 {
         bf->f_oid = cf->f_oid;
         bf->f_seq = cf->f_seq;
 }
 
 static int lustre_copy_name(struct c2_fop_str *n,
-                            struct c2_md_lustre_logrec *rec)
+                            const struct c2_md_lustre_logrec *rec)
 {
         n->s_buf = c2_alloc(rec->cr_namelen);
-        if (!n->s_buf)
+        if (n->s_buf == NULL)
                 return -ENOMEM;
         n->s_len = rec->cr_namelen;
         memcpy(n->s_buf, rec->cr_name, rec->cr_namelen);
@@ -107,7 +106,7 @@ static uint16_t lustre_get_valid(uint16_t valid)
 }
 
 static void lustre_copy_body(struct c2_fop_cob *body,
-                             struct c2_md_lustre_logrec *rec)
+                             const struct c2_md_lustre_logrec *rec)
 {
         body->b_index = rec->cr_index;
         if (rec->cr_valid & C2_LA_SIZE)

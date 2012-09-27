@@ -97,8 +97,8 @@ void c2_mdstore_fini(struct c2_mdstore *md)
 {
         if (md->md_root != NULL)
                 c2_cob_put(md->md_root);
-        c2_cob_domain_fini(&md->md_dom);
         c2_addb_ctx_fini(&md->md_addb);
+        c2_cob_domain_fini(&md->md_dom);
 }
 
 int c2_mdstore_create(struct c2_mdstore        *md,
