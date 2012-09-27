@@ -201,7 +201,7 @@ static void cm_setup_failure_ut(void)
 	int			rc;
 
 	cm_ut_service_alloc_init();
-	c2_fi_enable_once("c2_cm_setup", "setup_failure");
+	c2_fi_enable_once("c2_cm_setup", "setup_failure_2");
 	rc = c2_reqh_service_start(service);
 	C2_UT_ASSERT(rc != 0);
 

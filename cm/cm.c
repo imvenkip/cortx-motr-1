@@ -458,6 +458,8 @@ int c2_cm_setup(struct c2_cm *cm)
 	C2_PRE(c2_cm_invariant(cm));
 
 	rc = cm->cm_ops->cmo_setup(cm);
+	if (C2_FI_ENABLED("setup_failure_2"))
+		rc = -EINVAL;
 	cm_move(cm, rc, C2_CMS_IDLE, C2_CM_ERR_SETUP);
 
 	C2_POST(c2_cm_invariant(cm));
