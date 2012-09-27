@@ -370,6 +370,11 @@ void c2_cob_domain_fini(struct c2_cob_domain *dom)
 #define MKFS_ROOT_BLKSIZE       4096
 #define MKFS_ROOT_BLOCKS        16
 
+/**
+ * Create intial files system structures, such as: entire storage root, root cob
+ * for sessions and root cob for hierarchy. Latter is only one of them visible
+ * to user on client.
+ */
 int c2_cob_domain_mkfs(struct c2_cob_domain *dom, const struct c2_fid *rootfid,
                        const struct c2_fid *sessfid, struct c2_db_tx *tx)
 {
@@ -733,12 +738,12 @@ static int cob_omg_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
 /**
    Load fab and omg records according with @need flags.
  */
-static int cob_get_fabomg(struct c2_cob *cob, uint64_t need,
+static int cob_get_fabomg(struct c2_cob *cob, uint64_t flags,
                           struct c2_db_tx *tx)
 {
         int rc = 0;
 
-        if (need & C2_CA_FABREC) {
+        if (flags & C2_CA_FABREC) {
                 rc = cob_fab_lookup(cob, tx);
                 if (rc != 0)
                         return rc;
@@ -747,7 +752,7 @@ static int cob_get_fabomg(struct c2_cob *cob, uint64_t need,
         /*
          * Get omg attributes as well if we need it.
          */
-        if (need & C2_CA_OMGREC) {
+        if (flags & C2_CA_OMGREC) {
                 rc = cob_omg_lookup(cob, tx);
                 if (rc != 0)
                         return rc;
@@ -756,7 +761,7 @@ static int cob_get_fabomg(struct c2_cob *cob, uint64_t need,
 }
 
 int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
-                  uint64_t need, struct c2_cob **out, struct c2_db_tx *tx)
+                  uint64_t flags, struct c2_cob **out, struct c2_db_tx *tx)
 {
         struct c2_cob *cob;
         int            rc;
@@ -771,7 +776,7 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
         cob->co_nskey = nskey;
         cob->co_valid |= C2_CA_NSKEY;
 
-        if (need & C2_CA_NSKEY_FREE)
+        if (flags & C2_CA_NSKEY_FREE)
                 cob->co_valid |= C2_CA_NSKEY_FREE;
 
         rc = cob_ns_lookup(cob, tx);
@@ -780,7 +785,7 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
                 return rc;
         }
 
-        rc = cob_get_fabomg(cob, need, tx);
+        rc = cob_get_fabomg(cob, flags, tx);
         if (rc != 0) {
                 c2_cob_put(cob);
                 return rc;
@@ -791,7 +796,7 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
 }
 
 int c2_cob_locate(struct c2_cob_domain *dom, struct c2_cob_oikey *oikey,
-                  uint64_t need, struct c2_cob **out, struct c2_db_tx *tx)
+                  uint64_t flags, struct c2_cob **out, struct c2_db_tx *tx)
 {
         struct c2_cob *cob;
         int rc;
@@ -823,7 +828,7 @@ int c2_cob_locate(struct c2_cob_domain *dom, struct c2_cob_oikey *oikey,
                 return rc;
         }
 
-        rc = cob_get_fabomg(cob, need, tx);
+        rc = cob_get_fabomg(cob, flags, tx);
         if (rc != 0) {
                 c2_cob_put(cob);
                 return rc;
