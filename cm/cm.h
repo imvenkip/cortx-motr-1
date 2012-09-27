@@ -258,7 +258,7 @@ struct c2_cm_proxy {
 	/**
 	 * Pending list of copy packets to be forwarded to the remote
 	 * replica.
-	 * */
+	 **/
 	struct c2_tl       px_pending_cps;
 };
 

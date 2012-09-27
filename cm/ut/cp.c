@@ -70,6 +70,12 @@ static void cp_post(struct c2_sns_repair_cp *sns_cp,
 		    struct c2_cm_aggr_group *ag, struct c2_bufvec *bv)
 {
 	struct c2_cm_cp *cp;
+	struct c2_stob_id sid = {
+			.si_bits = {
+				.u_hi = 1,
+				.u_lo = 1
+			}
+		};
 
 	cp = &sns_cp->rc_base;
 	c2_cm_cp_init(cp);
@@ -77,6 +83,7 @@ static void cp_post(struct c2_sns_repair_cp *sns_cp,
         /** Required to pass the fom invariant. */
         cp->c_fom.fo_fop = (void *)1;
 	cp->c_data = bv;
+	sns_cp->rc_sid = sid;
 	cp->c_ops = &c2_sns_repair_cp_ops;
 	/** Over-ride the fom ops. */
 	cp->c_fom.fo_ops = &dummy_cp_fom_ops;

@@ -25,6 +25,8 @@
 #define __COLIBRI_SNS_REPAIR_CP_H__
 
 #include "lib/ext.h"
+
+#include "stob/stob_id.h"
 #include "cm/cp.h"
 
 /**

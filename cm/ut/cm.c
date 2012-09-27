@@ -63,7 +63,13 @@ static void cm_cp_ut_free(struct c2_cm_cp *cp)
 
 }
 
+static bool cm_cp_ut_invariant(const struct c2_cm_cp *cp)
+{
+	return true;
+}
+
 static const struct c2_cm_cp_ops cm_cp_ut_ops = {
+	.co_invariant = cm_cp_ut_invariant,
 	.co_free = cm_cp_ut_free
 };
 

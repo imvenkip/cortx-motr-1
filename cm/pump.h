@@ -54,12 +54,28 @@ struct c2_cm_cp_pump {
 	 */
 	struct c2_cm_cp *p_cp;
 	uint64_t         p_magix;
+	/** Set true by c2_cm_cp_pump_stop() */
 	bool		 p_shutdown;
 };
 
 void c2_cm_cp_pump_init(void);
+
+/**
+ * Initialises pump FOM and submits it to reqh for processing.
+ * This is invoked from c2_cm_start()
+ */
 void c2_cm_cp_pump_start(struct c2_cm *cm);
+
+/**
+ * Stops pump FOM by setting c2_cm_cp_pump::p_shutdown to true and awaking
+ * pump FOM using c2_fom_wakeup().
+ */
 void c2_cm_cp_pump_stop(struct c2_cm *cm);
+
+/**
+ * Wakes up pump FOM, to create more copy packets iff pump FOM is in CPP_IDLE
+ * state.
+ */
 void c2_cm_cp_pump_wakeup(struct c2_cm *cm);
 
 /** @} endgroup CM */
