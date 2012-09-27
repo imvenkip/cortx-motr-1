@@ -37,7 +37,7 @@ static int item_decode(struct c2_bufvec_cursor  *cursor,
 		       struct c2_rpc_item      **item_out);
 
 C2_TL_DESCR_DEFINE(packet_item, "packet_item", /* global */, struct c2_rpc_item,
-                   ri_plink, ri_link_magic, C2_RPC_ITEM_MAGIC,
+                   ri_plink, ri_magic, C2_RPC_ITEM_MAGIC,
                    C2_RPC_PACKET_HEAD_MAGIC);
 C2_TL_DEFINE(packet_item, /* global */, struct c2_rpc_item);
 

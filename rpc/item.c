@@ -36,7 +36,7 @@
 
 C2_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", /* global */,
 		   struct c2_rpc_item, ri_field,
-	           ri_link_magic, C2_RPC_ITEM_MAGIC,
+	           ri_magic, C2_RPC_ITEM_MAGIC,
 		   C2_RPC_ITEM_HEAD_MAGIC);
 
 C2_TL_DEFINE(rpcitem, /* global */, struct c2_rpc_item);
@@ -133,7 +133,7 @@ void c2_rpc_item_init(struct c2_rpc_item *item)
 	C2_SET0(item);
 
 	item->ri_state      = RPC_ITEM_UNINITIALIZED;
-	item->ri_link_magic = C2_RPC_ITEM_MAGIC;
+	item->ri_magic      = C2_RPC_ITEM_MAGIC;
 
 	sref = &item->ri_slot_refs[0];
 

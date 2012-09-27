@@ -163,8 +163,8 @@ struct c2_rpc_machine {
    it is working with.
  */
 struct c2_rpc_chan {
-	/** Link in RPC machine. c2_rpc_machine::rm_chans
-	    List descriptor: rm_chan
+	/** Link in c2_rpc_machine::rm_chans list.
+	    List descriptor: rpc_chan
 	 */
 	struct c2_tlink			  rc_linkage;
 	/** Number of c2_rpc_conn structures using this transfer machine.*/

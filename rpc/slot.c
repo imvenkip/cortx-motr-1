@@ -54,7 +54,7 @@ void rpc_item_replied(struct c2_rpc_item *item, struct c2_rpc_item *reply,
                       uint32_t rc);
 
 C2_TL_DESCR_DEFINE(slot_item, "slot-ref-item-list", /* global */,
-		   struct c2_rpc_item, ri_slot_refs[0].sr_link, ri_link_magic,
+		   struct c2_rpc_item, ri_slot_refs[0].sr_link, ri_magic,
 		   C2_RPC_ITEM_MAGIC, C2_RPC_SLOT_REF_HEAD_MAGIC);
 C2_TL_DEFINE(slot_item, /* global */, struct c2_rpc_item);
 

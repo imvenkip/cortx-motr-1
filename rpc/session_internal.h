@@ -534,21 +534,12 @@ int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active,
 				int count);
 #endif
 
-/** Descriptor and functions associated with a list of "c2_rpc_session"s
-    embedded in c2_rpc_conn.
- */
-C2_TL_DESCR_DECLARE(session, extern);
-C2_TL_DECLARE(session, extern, struct c2_rpc_session);
+C2_TL_DESCR_DECLARE(rpc_session, extern);
+C2_TL_DECLARE(rpc_session, extern, struct c2_rpc_session);
 
-/** Descriptor and functions associated with a list of "c2_rpc_slot"s
-    embedded in c2_rpc_session.
- */
 C2_TL_DESCR_DECLARE(ready_slot, extern);
 C2_TL_DECLARE(ready_slot, extern, struct c2_rpc_slot);
 
-/** Descriptor and functions associated with  a list of "c2_rpc_item"s embedded
-    in c2_rpc_slot.
- */
 C2_TL_DESCR_DECLARE(slot_item, extern);
 C2_TL_DECLARE(slot_item, extern, struct c2_rpc_item);
 

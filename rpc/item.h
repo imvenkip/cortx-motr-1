@@ -130,7 +130,7 @@ struct c2_rpc_item {
 	/** One of c2_rpc_frm::f_itemq[], in which this item is placed. */
 	struct c2_tl                    *ri_itemq;
 	/** C2_RPC_ITEM_MAGIC */
-	uint64_t			 ri_link_magic;
+	uint64_t			 ri_magic;
 };
 
 struct c2_rpc_item_ops {

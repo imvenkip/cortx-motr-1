@@ -512,10 +512,10 @@ struct c2_rpc_conn {
 	/** rpc_machine with which this conn is associated */
 	struct c2_rpc_machine    *c_rpc_machine;
 
-	/** Link in RPC machine, to put c2_rpc_conn in either
+	/** list_link to put c2_rpc_conn in either
 	    c2_rpc_machine::rm_incoming_conns or
 	    c2_rpc_machine::rm_outgoing_conns.
-	    Link descriptor: rpc_conn
+	    List descriptor: rpc_conn
 	 */
 	struct c2_tlink		  c_link;
 
@@ -547,7 +547,7 @@ struct c2_rpc_conn {
 	 */
 	struct c2_cond            c_state_changed;
 
-	/** C2_T1FS_SVC_CTX_MAGIC */
+	/** C2_RPC_CONN_MAGIC */
 	uint64_t		  c_magic;
 };
 

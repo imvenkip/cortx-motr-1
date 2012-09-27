@@ -124,10 +124,10 @@ C2_TL_DESCR_DEFINE(ready_slot, "ready-slots", /* global */, struct c2_rpc_slot,
 		   C2_RPC_SLOT_HEAD_MAGIC);
 C2_TL_DEFINE(ready_slot, /* global */, struct c2_rpc_slot);
 
-C2_TL_DESCR_DEFINE(session, "rpc-sessions", /* global */,
+C2_TL_DESCR_DEFINE(rpc_session, "rpc-sessions", /* global */,
 		   struct c2_rpc_session, s_link, s_magic, C2_RPC_SESSION_MAGIC,
 		   C2_RPC_SESSION_HEAD_MAGIC);
-C2_TL_DEFINE(session, /* global */, struct c2_rpc_session);
+C2_TL_DEFINE(rpc_session, /* global */, struct c2_rpc_session);
 
 /**
    The routine is also called from session_foms.c, hence can't be static
@@ -143,7 +143,7 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 	     session->s_conn != NULL &&
 	     session->s_nr_slots > 0 &&
 	     nr_active_items_count(session) == session->s_nr_active_items &&
-	     session_tlist_contains(&session->s_conn->c_sessions,
+	     rpc_session_tlist_contains(&session->s_conn->c_sessions,
 			             session) &&
 	     ergo(session->s_session_id != SESSION_ID_0,
 		  session->s_conn->c_nr_sessions > 0);
@@ -263,7 +263,7 @@ int c2_rpc_session_init_locked(struct c2_rpc_session *session,
 	session->s_slot_table_capacity = nr_slots;
 	session->s_cob                 = NULL;
 
-	session_tlink_init(session);
+	rpc_session_tlink_init(session);
 	c2_list_init(&session->s_unbound_items);
 	ready_slot_tlist_init(&session->s_ready_slots);
 
@@ -341,7 +341,7 @@ static void __session_fini(struct c2_rpc_session *session)
 		c2_free(session->s_slot_table);
 		session->s_slot_table = NULL;
 	}
-	session_tlink_fini(session);
+	rpc_session_tlink_fini(session);
 	c2_cond_fini(&session->s_state_changed);
 	ready_slot_tlist_fini(&session->s_ready_slots);
 	c2_list_fini(&session->s_unbound_items);
