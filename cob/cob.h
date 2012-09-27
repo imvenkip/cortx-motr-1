@@ -259,8 +259,8 @@ void c2_cob_domain_fini(struct c2_cob_domain *dom);
  * Prepare storage before using. Create root cob for session objects and
  * root for files hierarchy.
  */
-int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
-                       struct c2_fid *sessfid, struct c2_db_tx *tx);
+int c2_cob_domain_mkfs(struct c2_cob_domain *dom, const struct c2_fid *rootfid,
+                       const struct c2_fid *sessfid, struct c2_db_tx *tx);
 
 /**
  * Valid flags for cob attributes.

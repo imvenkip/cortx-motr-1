@@ -370,8 +370,8 @@ void c2_cob_domain_fini(struct c2_cob_domain *dom)
 #define MKFS_ROOT_BLKSIZE       4096
 #define MKFS_ROOT_BLOCKS        16
 
-int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
-                       struct c2_fid *sessfid, struct c2_db_tx *tx)
+int c2_cob_domain_mkfs(struct c2_cob_domain *dom, const struct c2_fid *rootfid,
+                       const struct c2_fid *sessfid, struct c2_db_tx *tx)
 {
         struct c2_cob_nskey  *nskey;
         struct c2_cob_nsrec   nsrec;
@@ -408,8 +408,12 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
         if (rc)
                 return rc;
 
-        c2_cob_nskey_make(&nskey, &C2_COB_ROOT_FID, C2_COB_ROOT_NAME,
-                          strlen(C2_COB_ROOT_NAME));
+        rc = c2_cob_nskey_make(&nskey, &C2_COB_ROOT_FID, C2_COB_ROOT_NAME,
+                               strlen(C2_COB_ROOT_NAME));
+        if (rc != 0) {
+            c2_cob_put(cob);
+            return rc;
+        }
 
         nsrec.cnr_omgid = 0;
         nsrec.cnr_fid = *rootfid;
@@ -428,7 +432,12 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
                           S_IRGRP | S_IXGRP |           /* r-x for group */
                           S_IROTH | S_IXOTH;            /* r-x for others */
 
-        c2_cob_fabrec_make(&fabrec, NULL, 0);
+        rc = c2_cob_fabrec_make(&fabrec, NULL, 0);
+        if (rc != 0) {
+                c2_cob_put(cob);
+                c2_free(nskey);
+                return rc;
+        }
 
         rc = c2_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, tx);
         c2_cob_put(cob);
@@ -444,11 +453,15 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
         C2_SET0(&nsrec);
 
         rc = c2_cob_alloc(dom, &cob);
-        if (rc)
+        if (rc != 0)
                 return rc;
 
-        c2_cob_nskey_make(&nskey, &C2_COB_ROOT_FID, C2_COB_SESSIONS_NAME,
-                          strlen(C2_COB_SESSIONS_NAME));
+        rc = c2_cob_nskey_make(&nskey, &C2_COB_ROOT_FID, C2_COB_SESSIONS_NAME,
+                               strlen(C2_COB_SESSIONS_NAME));
+        if (rc != 0) {
+                c2_cob_put(cob);
+                return rc;
+        }
 
         nsrec.cnr_omgid = 0;
         nsrec.cnr_fid = *sessfid;
@@ -467,7 +480,12 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
                           S_IRGRP | S_IXGRP |           /* r-x for group */
                           S_IROTH | S_IXOTH;            /* r-x for others */
 
-        c2_cob_fabrec_make(&fabrec, NULL, 0);
+        rc = c2_cob_fabrec_make(&fabrec, NULL, 0);
+        if (rc != 0) {
+                c2_cob_put(cob);
+                c2_free(nskey);
+        }
+
         fabrec->cfb_version.vn_lsn = C2_LSN_RESERVED_NR + 2;
         fabrec->cfb_version.vn_vc = 0;
 
@@ -478,7 +496,7 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, struct c2_fid *rootfid,
                 c2_free(fabrec);
                 return rc;
         }
-        return rc;
+        return 0;
 }
 #endif
 

@@ -126,7 +126,7 @@ static void test_mkfs(void)
         /* Create root and other structures */
         rootfid.f_container = testroot.f_seq;
         rootfid.f_key = testroot.f_oid;
-        rc = c2_cob_domain_mkfs(&md.md_dom, &rootfid, &C2_COB_SESSIONS_FID, &tx);
+        rc = c2_cob_domain_mkfs(&md.md_dom, (const struct c2_fid *)&rootfid, &C2_COB_SESSIONS_FID, &tx);
         C2_UT_ASSERT(rc == 0);
         c2_db_tx_commit(&tx);
 
