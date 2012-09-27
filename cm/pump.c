@@ -94,7 +94,7 @@ static struct c2_cm *pump2cm(const struct c2_cm_cp_pump *cp_pump)
 
 static bool cm_cp_pump_invariant(const struct c2_cm_cp_pump *cp_pump)
 {
-	return c2_cm_cp_pump_bob_check(cp_pump); 
+	return c2_cm_cp_pump_bob_check(cp_pump);
 }
 
 static int cpp_alloc(struct c2_cm_cp_pump *cp_pump)
