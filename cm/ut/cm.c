@@ -58,6 +58,21 @@ static const struct c2_reqh_service_ops cm_ut_service_ops = {
 	.rso_fini  = cm_ut_service_fini
 };
 
+static void cm_cp_ut_free(struct c2_cm_cp *cp)
+{
+
+}
+
+static const struct c2_cm_cp_ops cm_cp_ut_ops = {
+	.co_free = cm_cp_ut_free
+};
+
+static struct c2_cm_cp* cm_ut_cp_alloc(struct c2_cm *cm)
+{
+	cp.c_ops = &cm_cp_ut_ops;
+	return &cp;
+}
+
 static int cm_ut_setup(struct c2_cm *cm)
 {
 	return 0;
@@ -73,20 +88,6 @@ static int cm_ut_stop(struct c2_cm *cm)
 	return 0;
 }
 
-static void cm_cp_ut_free(struct c2_cm_cp *cp)
-{
-
-}
-
-static const struct c2_cm_cp_ops cm_cp_ut_ops = {
-	.co_free = cm_cp_ut_free
-};
-
-static struct c2_cm_cp* cm_ut_cp_alloc(struct c2_cm *cm)
-{
-	cp.c_ops = &cm_cp_ut_ops;
-	return &cp;
-}
 
 static int cm_ut_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
@@ -130,16 +131,13 @@ static const struct c2_reqh_service_type_ops cm_ut_service_type_ops = {
 
 C2_CM_TYPE_DECLARE(cm_ut, &cm_ut_service_type_ops, "cm_ut");
 
-/**
- * Initialise the request handler since copy packet fom has to be tested using
- * request handler infrastructure.
- */
 static int ut_init(void)
 {
 	int 	rc;
 	c2_reqh_init(&reqh, NULL, (void*)1, (void*)1, (void*)1);
 	rc = c2_cm_type_register(&cm_ut_cmt);
 	C2_ASSERT(rc == 0);
+
 	return 0;
 }
 
@@ -154,6 +152,7 @@ static int ut_fini(void)
 static void cm_ut_service_alloc_init()
 {
 	int	rc;
+	/* Internally calls c2_cm_init(). */
 	rc = c2_reqh_service_allocate(&cm_ut_cmt.ct_stype, &service);
 	C2_UT_ASSERT(rc == 0);
 
@@ -171,6 +170,8 @@ static void cm_setup_ut(void)
 	int			rc;
 
 	cm_ut_service_alloc_init();
+
+	/* Internally calls c2_cm_setup(). */
 	rc = c2_reqh_service_start(service);
 	C2_UT_ASSERT(rc == 0);
 
@@ -221,7 +222,7 @@ const struct c2_test_suite cm_generic_ut = {
 
 /*
  *  Local variables:
- *  *  c-indentation-style: "K&R"
+ *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
  *  fill-column: 80
