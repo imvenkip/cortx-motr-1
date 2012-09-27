@@ -145,14 +145,14 @@ int c2t1fs_get_sb(struct file_system_type *fstype,
 void ast_thread(struct c2t1fs_sb *csb)
 {
    while (1) {
-	c2_chan_wait(&csb->csb_iogroup.s_clink);
-	c2_sm_group_lock(&csb->csb_iogroup);
-	c2_sm_asts_run(&csb->csb_iogroup);
-	c2_sm_group_unlock(&csb->csb_iogroup);
-	if (!csb->csb_active && c2_atomic64_get(&csb->csb_pending_io) == 0) {
-		c2_chan_signal(&csb->csb_iowait);
-		break;
-	}
+           c2_chan_wait(&csb->csb_iogroup.s_clink);
+           c2_sm_group_lock(&csb->csb_iogroup);
+           c2_sm_asts_run(&csb->csb_iogroup);
+           c2_sm_group_unlock(&csb->csb_iogroup);
+           if (!csb->csb_active && c2_atomic64_get(&csb->csb_pending_io) == 0) {
+                   c2_chan_signal(&csb->csb_iowait);
+                   break;
+           }
    }
 }
 
