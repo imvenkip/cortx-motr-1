@@ -56,7 +56,7 @@ struct c2_net_xprt;
 struct c2_rpc_machine;
 
 enum {
-        REQH_KEY_MAX = 64
+        REQH_KEY_MAX = 128
 };
 
 /**
