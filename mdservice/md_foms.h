@@ -57,20 +57,6 @@ int c2_md_rep_fom_create(struct c2_fop *fop, struct c2_fom **m);
 void c2_md_fid_make(struct c2_fid *fid,
                     const struct c2_fop_fid *wid);
 
-/**
-   Make nskey from passed parent fid and child name.
-*/
-void c2_md_nskey_make(struct c2_cob_nskey **keyh,
-                      const struct c2_fop_fid *fid,
-                      struct c2_fop_str *name);
-
-/**
-   Make oikey from passed child fid and link number.
-*/
-void c2_md_oikey_make(struct c2_cob_oikey *oikey,
-                      const struct c2_fop_fid *fid,
-                      int linkno);
-
 #endif /* __COLIBRI_MDSERVICE_MD_FOMS_H__ */
 
 /*

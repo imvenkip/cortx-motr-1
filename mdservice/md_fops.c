@@ -85,8 +85,9 @@ static void copy(char **buf, struct c2_fop_str *str)
 static void c2_md_fol_pack(struct c2_fol_rec_desc *desc, void *buf)
 {
         struct c2_fop *fop = desc->rd_type_private;
-        char *data = c2_fop_data(fop), *ptr;
         size_t size = fop->f_type->ft_xt->xct_sizeof;
+        char *data = c2_fop_data(fop);
+        char *ptr;
 
         memcpy(buf, data, size);
         ptr = (char *)buf + size;

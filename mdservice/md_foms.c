@@ -50,30 +50,6 @@ void c2_md_fid_make(struct c2_fid *fid, const struct c2_fop_fid *wid)
         fid->f_key = wid->f_oid;
 }
 
-/**
-   Make nskey from passed parent fid and child name.
-*/
-void c2_md_nskey_make(struct c2_cob_nskey **keyh,
-                      const struct c2_fop_fid *fid,
-                      struct c2_fop_str *name)
-{
-        struct c2_fid cfid;
-
-        c2_md_fid_make(&cfid, fid);
-        c2_cob_nskey_make(keyh, &cfid, (char *)name->s_buf, name->s_len);
-}
-
-/**
-   Make oikey from passed child fid and link number.
-*/
-void c2_md_oikey_make(struct c2_cob_oikey *oikey,
-                      const struct c2_fop_fid *fid,
-                      int linkno)
-{
-        c2_md_fid_make(&oikey->cok_fid, fid);
-        oikey->cok_linkno = linkno;
-}
-
 static void c2_md_fop_cob2attr(struct c2_cob_attr *attr,
                                struct c2_fop_cob *body)
 {
@@ -189,13 +165,14 @@ static int c2_md_create_tick(struct c2_fom *fom)
         int                       rc;
         struct c2_local_service  *svc;
 
+        C2_PRE(c2_fom_invariant(fom));
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (c2_fom_phase(fom) < C2_FOPH_NR) {
                 /**
                  * Don't send reply in case there is local reply consumer defined.
                  */
-                if (svc && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
+                if (svc != NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
                         goto finish;
                 rc = c2_fom_tick_generic(fom);
                 return rc;
@@ -259,13 +236,14 @@ static int c2_md_link_tick(struct c2_fom *fom)
         int                       rc;
         struct c2_local_service  *svc;
 
+        C2_PRE(c2_fom_invariant(fom));
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (c2_fom_phase(fom) < C2_FOPH_NR) {
                 /**
                  * Don't send reply in case there is local reply consumer defined.
                  */
-                if (svc && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
+                if (svc != NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
                         goto finish;
                 rc = c2_fom_tick_generic(fom);
                 return rc;
@@ -328,13 +306,14 @@ static int c2_md_unlink_tick(struct c2_fom *fom)
         int                       rc;
         struct c2_local_service  *svc;
 
+        C2_PRE(c2_fom_invariant(fom));
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (c2_fom_phase(fom) < C2_FOPH_NR) {
                 /**
                  * Don't send reply in case there is local reply consumer defined.
                  */
-                if (svc && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
+                if (svc != NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
                         goto finish;
                 rc = c2_fom_tick_generic(fom);
                 return rc;
@@ -453,13 +432,14 @@ static int c2_md_rename_tick(struct c2_fom *fom)
         int                       rc;
         struct c2_local_service  *svc;
 
+        C2_PRE(c2_fom_invariant(fom));
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (c2_fom_phase(fom) < C2_FOPH_NR) {
                 /**
                  * Don't send reply in case there is local reply consumer defined.
                  */
-                if (svc && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
+                if (svc != NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
                         goto finish;
                 rc = c2_fom_tick_generic(fom);
                 return rc;
@@ -550,6 +530,7 @@ static int c2_md_open_tick(struct c2_fom *fom)
         struct c2_local_service  *svc;
         struct c2_mdstore       *md;
 
+        C2_PRE(c2_fom_invariant(fom));
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
         md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
@@ -557,7 +538,7 @@ static int c2_md_open_tick(struct c2_fom *fom)
                 /**
                    Don't send reply in case there is local reply consumer defined.
                  */
-                if (svc && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
+                if (svc != NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
                         goto finish;
                 rc = c2_fom_tick_generic(fom);
                 return rc;
@@ -609,7 +590,7 @@ static int c2_md_open_tick(struct c2_fom *fom)
                  * We don't have to create anything here as file already
                  * should exist, let's just check this.
                  */
-                //C2_ASSERT(!(body->b_flags & C2_MD_OPEN_CREAT));
+                /* C2_ASSERT(!(body->b_flags & C2_MD_OPEN_CREAT)); */
         } else if (rc != 0) {
                 c2_fom_block_leave(fom);
                 goto out;
@@ -640,6 +621,7 @@ static int c2_md_close_tick(struct c2_fom *fom)
         struct c2_local_service  *svc;
         struct c2_mdstore       *md;
 
+        C2_PRE(c2_fom_invariant(fom));
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
         md = fom->fo_loc->fl_dom->fd_reqh->rh_mdstore;
 
@@ -647,7 +629,7 @@ static int c2_md_close_tick(struct c2_fom *fom)
                 /**
                  * Don't send reply in case there is local reply consumer defined.
                  */
-                if (svc && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
+                if (svc != NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
                         goto finish;
                 rc = c2_fom_tick_generic(fom);
                 return rc;
@@ -727,13 +709,14 @@ static int c2_md_setattr_tick(struct c2_fom *fom)
         int                            rc;
         struct c2_local_service       *svc;
 
+        C2_PRE(c2_fom_invariant(fom));
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (c2_fom_phase(fom) < C2_FOPH_NR) {
                 /**
                  * Don't send reply in case there is local reply consumer defined.
                  */
-                if (svc && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
+                if (svc != NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
                         goto finish;
                 rc = c2_fom_tick_generic(fom);
                 return rc;
@@ -804,13 +787,14 @@ static int c2_md_getattr_tick(struct c2_fom *fom)
         int                            rc;
         struct c2_local_service       *svc;
 
+        C2_PRE(c2_fom_invariant(fom));
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (c2_fom_phase(fom) < C2_FOPH_NR) {
                 /**
                  * Don't send reply in case there is local reply consumer defined.
                  */
-                if (svc && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
+                if (svc != NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
                         goto finish;
                 rc = c2_fom_tick_generic(fom);
                 return rc;
@@ -878,13 +862,14 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
         int                            rc;
         struct c2_local_service       *svc;
 
+        C2_PRE(c2_fom_invariant(fom));
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
 
         if (c2_fom_phase(fom) < C2_FOPH_NR) {
                 /**
                  * Don't send reply in case there is local reply consumer defined.
                  */
-                if (svc && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
+                if (svc != NULL && c2_fom_phase(fom) == C2_FOPH_QUEUE_REPLY)
                         goto finish;
                 rc = c2_fom_tick_generic(fom);
                 return rc;
@@ -1207,7 +1192,7 @@ static void c2_md_req_fom_fini(struct c2_fom *fom)
 
         /* Let local sevice know that we have finished. */
         svc = fom->fo_loc->fl_dom->fd_reqh->rh_svc;
-        if (svc && svc->s_ops->lso_fini)
+        if (svc != NULL && svc->s_ops->lso_fini)
                 svc->s_ops->lso_fini(svc, fom);
 
         /* Free all fop fields and fop itself. */
