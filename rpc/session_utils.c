@@ -150,18 +150,22 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	        pfid = pcob->co_nsrec.cnr_fid;
 	}
 
-	c2_cob_nskey_make(&key, &pfid, name, strlen(name));
-	if (key == NULL) {
+	rc = c2_cob_nskey_make(&key, &pfid, name, strlen(name));
+	if (rc != 0) {
 	        c2_cob_put(cob);
-		C2_RETURN(-ENOMEM);
-        }
+		C2_RETURN(rc);
+	}
 
         stobid = stob_id_alloc();
 	nsrec.cnr_fid.f_container = stobid.u_hi;
 	nsrec.cnr_fid.f_key = stobid.u_lo;
 	nsrec.cnr_nlink = 1;
 
-        c2_cob_fabrec_make(&fabrec, NULL, 0);
+        rc = c2_cob_fabrec_make(&fabrec, NULL, 0);
+        if (rc != 0) {
+	        c2_cob_put(cob);
+		C2_RETURN(rc);
+        }
 
 	/*
 	 * Temporary assignment for lsn
@@ -209,7 +213,9 @@ int c2_rpc_cob_lookup_helper(struct c2_cob_domain *dom,
 	        pfid = pcob->co_nsrec.cnr_fid;
 	}
 
-	c2_cob_nskey_make(&key, &pfid, name, strlen(name));
+	rc = c2_cob_nskey_make(&key, &pfid, name, strlen(name));
+	if (rc != 0)
+	        C2_RETURN(rc);
 	if (key == NULL)
 		C2_RETURN(-ENOMEM);
 	rc = c2_cob_lookup(dom, key, C2_CA_NSKEY_FREE | C2_CA_FABREC, out, tx);
