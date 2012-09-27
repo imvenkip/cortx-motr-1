@@ -339,7 +339,7 @@ struct c2t1fs_sb {
 
         /**
          * Instantaneous count of pending io requests.
-         * Every io requests increments this value while initializing
+         * Every io request increments this value while initializing
          * and decrements it while finalizing.
          */
         struct c2_atomic64            csb_pending_io;
@@ -349,7 +349,7 @@ struct c2t1fs_sb {
 
         /**
          * Channel on which unmount thread will wait. It will be signalled
-         * by ast thread while exiting.
+         * by AST thread while exiting.
          */
         struct c2_chan                csb_iowait;
 

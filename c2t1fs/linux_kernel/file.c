@@ -21,7 +21,7 @@
 
 #include <asm/uaccess.h>    /* VERIFY_READ, VERIFY_WRITE */
 #include <linux/mm.h>       /* get_user_pages(), get_page(), put_page() */
-#include <linux/fs.h>
+#include <linux/fs.h>       /* struct file_operations */
 
 #include "lib/memory.h"     /* c2_alloc(), c2_free() */
 #include "lib/misc.h"       /* c2_round_{up/down} */
@@ -92,7 +92,8 @@ extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
    Often, incoming _write_ IO requests do not span whole parity group of
    file data. In such cases, additional data must be read from the same
    parity group to have enough information to compute new parity.
-   Then data is changed as per user request and later sent for write to server.
+   Then data is changed as per the user request and later sent for write to
+   server.
    Such actions are taken only for write IO path.
    Read IO requests do not need any such support.
 
@@ -213,7 +214,7 @@ extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
    with the status and number of bytes read.
 
    - If incoming IO request was write, the pages are modified in-place
-   as per user request.
+   as per the user request.
 
    - And then, write IO is issued for the whole parity group.
 
@@ -262,7 +263,7 @@ extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
    of valid file data and for parity units.
 
    - For missing data units, there is no need to use zeroed out buffers since
-   such buffers does not change parity.
+   such buffers do not change parity.
 
    - Ergo, parity will be calculated from valid data blocks only (falling
    within end-of-file)
@@ -272,7 +273,7 @@ extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
    This way, the wastage of storage space in small IO can be restricted to
    block granularity.
 
-   @todo In future, optimizations could be done in order speed up small file
+   @todo In future, optimizations could be done in order to speed up small file
    IO with the help of client side cache.
 
    @note Present implementation of c2t1fs IO path uses get_user_pages() API
@@ -292,152 +293,29 @@ extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
    structure and its support for chained state transitions.
 
    The c2_sm_group structure is kept as a member of in-memory superblock,
-   struct c2t1fs_sb. @see struct c2t1fs_sb.
+   struct c2t1fs_sb.
    All c2_sm structures are associated with this group.
-
-   @code
-   struct io_request {
-	uint64_t                     ir_magic;
-
-	int                          ir_rc;
-
-        // File identifier.
-        struct c2_fid                ir_fid;
-
-	// Index vector describing file extents and their length.
-        // All segments are in increasing order of file offsets.
-	struct c2_indexvec           ir_ivec;
-
-        // Array of struct pargrp_iomap.
-        // Each pargrp_iomap structure describes the part of parity group
-        // spanned by segments from ::ir_ivec.
-        struct pargrp_iomap        **ir_iomaps;
-
-        // Number of pargrp_iomap structures.
-        // Maximum number is equal to number of parity groups spanned by
-        // io request.
-        uint64_t                     ir_iomap_nr;
-
-        // iovec structure containing user-space buffers.
-        // iovec structure is used as it is since using a new structure
-        // would require conversion.
-        struct iovec                *ir_iovec;
-
-        // Number of segments in ::ir_iovec.
-        unsigned long                ir_seg_nr;
-
-	// Async state machine to handle state transitions.
-	struct c2_sm                 ir_sm;
-
-	enum io_req_type             ir_type;
-
-	const struct io_request_ops *ir_ops;
-
-	struct nw_xfer_request       ir_nwxfer;
-   };
-   @endcode
+   @see struct c2t1fs_sb.
 
    io_req_state - Represents state of IO request call.
    c2_sm_state_descr structure will be defined for description of all
    states mentioned below.
 
-   @code
-   enum io_request_state {
-	IRS_UNINITIALIZED,
-	IRS_INITIALIZED,
-	IRS_READING,
-	IRS_WRITING,
-	IRS_READ_COMPLETE,
-	IRS_WRITE_COMPLETE,
-	IRS_REQ_COMPLETE,
-        IRS_FAILED,
-   };
-   @endcode
-
    io_req_type - Represents type of IO request.
-
-   @code
-   enum io_req_type {
-	IRT_READ,
-	IRT_WRITE,
-	IRT_NR,
-   };
-   @endcode
 
    @todo IO types like fault IO are not supported yet.
 
    io_request_ops - Operation vector for struct io_request.
-   @code
-   struct io_request_ops {
-        int (*iro_iomaps_prepare) (struct io_request  *req);
-        int (*iro_user_data_copy) (struct io_request  *req,
-                                   enum copy_direction dir,
-                                   enum page_attr      filter);
-        void (*iro_iomap_locate)  (struct io_request    *req,
-                                   uint64_t              grpid,
-                                   struct pargrp_iomap **map);
-        int (*iro_parity_recalc)  (struct io_request  *req);
-   };
-   @endcode
 
-   Structure representing the network transfer part for an IO request.
-   This structure keeps track of request IO fops as well as individual
-   completion callbacks and status of whole request.
+   nw_xfer_request - Structure representing the network transfer part for
+   an IO request. This structure keeps track of request IO fops as well as
+   individual completion callbacks and status of whole request.
    Typically, all IO requests are broken down into multiple fixed-size
    requests.
 
-   @code
-   struct nw_xfer_request {
-	uint64_t                  nxr_magic;
+   nw_xfer_state - State of struct nw_xfer_request.
 
-        // Resultant status code for all IO fops issed by this structure.
-	int                       nxr_rc;
-
-        // Resultant number of bytes read/written by this structure.
-        uint64_t                  nxr_bytes;
-
-	enum nw_xfer_state        nxr_state;
-
-	const struct nw_xfer_ops *nxr_ops;
-
-	// List of target_ioreq structures.
-	struct c2_tl              nxr_tioreqs;
-
-        // Number of IO fops issued by all target_ioreq objects belonging
-        // to this nw_xfer_request object.
-        // This number is updated when bottom halves from ASTs are run.
-        // When it reaches zero, state of io_request::ir_sm changes.
-        uint64_t                  nxr_iofops_nr;
-   };
-   @endcode
-
-   State of struct nw_xfer_request.
-
-   @code
-   enum nw_xfer_state {
-	NXS_UNINITIALIZED,
-	NXS_INITIALIZED,
-	NXS_INFLIGHT,
-	NXS_COMPLETE,
-	NXS_NR
-   };
-   @endcode
-
-   Operation vector for struct nw_xfer_request.
-
-   @code
-   struct nw_xfer_ops {
-	int  (*nxo_prepare)       (struct nw_xfer_request  *xfer);
-	int  (*nxo_process)       (struct nw_xfer_request  *xfer);
-	void (*nxo_complete)      (struct nw_xfer_request  *xfer,
-                                   bool                     rmw);
-        int  (*nxo_dispatch)      (struct nw_xfer_request  *xfer);
-        int  (*nxo_tioreq_map)    (struct nw_xfer_request      *xfer,
-                                   struct c2_pdclust_src_addr  *src,
-                                   struct c2_pdclust_tgt_addr  *tgt,
-                                   struct target_ioreq        **out);
-   };
-   @endcode
+   nw_xfer_ops - Operation vector for struct nw_xfer_request.
 
    pargrp_iomap - Represents a map of io extents in given parity group.
    Struct io_request contains as many pargrp_iomap structures as the number
@@ -445,128 +323,19 @@ extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
    Typically, the segments from pargrp_iomap::pi_ivec are round_{up/down}
    to nearest page boundary for segments from io_request::ir_ivec.
 
-   @code
-   struct pargrp_iomap {
-           uint64_t                       pi_magic;
+   pargrp_iomap_rmwtype - Type of read approach used by pargrp_iomap
+   in case of rmw IO.
 
-           // Parity group id.
-           uint64_t                       pi_grpid;
-
-           // Part of io_request::ir_ivec which falls in ::pi_grpid
-           // parity group.
-           // All segments are in increasing order of file offset.
-           struct c2_indexvec             pi_ivec;
-
-           // Type of read approach used in case of rmw IO.
-           // Either read-old or read-rest.
-           enum pargrp_iomap_rmwtype      pi_read;
-
-           // Operation vector.
-           const struct pargrp_iomap_ops *pi_ops;
-
-           struct io_request             *pi_ioreq;
-   };
-   @endcode
-
-   Type of read approach used by pargrp_iomap in case of rmw IO.
-
-   @code
-   enum pargrp_iomap_rmwtype {
-           PIR_NONE,
-           PIR_READOLD,
-           PIR_READREST,
-           PIR_NR,
-   };
-   @endcode
-
-   Operation vector for struct pargrp_iomap.
-
-   @code
-
-   struct pargrp_iomap_ops {
-           // Populates pargrp_iomap::pi_ivec by deciding whether to follow
-           // read-old approach or read-rest approach.
-           // pargrp_iomap::pi_read will be set to PIR_READOLD or PIR_READREST
-           // accordingly.
-           int (*pi_populate)   (struct pargrp_iomap      *iomap,
-                                 const struct c2_indexvec *ivec,
-                                 uint64_t                  cursor);
-
-           // Returns true if given segment is spanned by existing segments
-           // in pargrp_iomap::pi_ivec.
-           bool (*pi_spans_seg) (struct pargrp_iomap *iomap,
-                                 c2_bindex_t index, c2_bcount_t count);
-   };
-   @endcode
+   pargrp_iomap_ops - Operation vector for struct pargrp_iomap.
 
    data_buf - Represents a simple data buffer wrapper object. The embedded
    c2_buf::b_addr points to a kernel page or a user-space buffer in case of
    direct IO.
 
-   @code
-   struct data_buf {
-           uint64_t                  db_magic;
-
-           // Points to a kernel page.
-           struct c2_buf             db_buf;
-
-           // Type of buffer in a parity group (data or parity).
-           enum c2_pdclust_unit_type db_type;
-
-           // Parity group id to which this buffer belongs.
-           uint64_t                  db_pgid;
-
-           // Flags. Can reuse values from enum io_req_type here.
-           // Is used when doing read from read-modify-write since not all
-           // buffers from target_ieoxt need to be read from target.
-           // Can be used later for caching options.
-           uint64_t                  db_flags;
-   }
-   @endcode
-
    target_ioreq - Collection of IO extents and buffers, directed towards each
    of the component objects in a parity group.
    These structures are created by struct io_request dividing the incoming
    struct iovec into members of parity group.
-
-   @code
-   struct target_ioreq {
-	uint64_t                tir_magic;
-
-	// Fid of component object.
-	struct c2_fid           tir_fid;
-
-        // Status code for io operation done for this target_ioreq.
-        int                     tir_rc;
-
-        // Number of bytes read/written for this target_ioreq.
-        uint64_t                tir_bytes;
-
-        // List of struct io_req_fop issued on this target object.
-        struct c2_tl            tir_iofops;
-
-	// Resulting IO fops are sent on this session.
-	struct c2_rpc_session  *tir_session;
-
-	// Linkage to link in to nw_xfer_request::nxr_tioreqs list.
-	struct c2_tlink         tir_link;
-
-        // Index vector describing starting cob offset and its length.
-        struct c2_indexvec      tir_ivec;
-
-        // Number of data_buf structures representing the extent.
-        uint64_t                tir_buf_nr;
-
-        // Array of data_buf structures.
-        // Each element typically refers to one kernel page.
-        // Intentionally kept as array since it makes iterating much easier
-        // as compared to a list, especially while calculating parity.
-        struct data_buf       **tir_buffers;
-
-        // Back link to parent structure nw_xfer_request.
-        struct nw_xfer_request *tir_nwxfer;
-   };
-   @endcode
 
    ast thread - A special thread will be maintained per super block instance
    c2t1fs_sb to wake up on receiving ASTs and execute the bottom halves.
@@ -623,106 +392,28 @@ extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
    Abort is not supported at the moment in c2t1fs io code as it needs same
    functionality from layer beneath.
 
-   io_req_fop - Represents a wrapper over generic IO fop and its callback
-   to keep track of such IO fops issued by same nw_xfer_request.
-
    When bottom halves for c2_sm_ast structures are run, it updates
    target_ioreq::tir_rc and target_ioreq::tir_bytes with data from
    IO reply fop.
    Then it decrements nw_xfer_request::nxr_iofops_nr, number of IO fops.
    When this count reaches zero, io_request::ir_sm changes its state.
 
-   A callback function will be used to associate with c2_rpc_item::ri_chan
-   channel. This callback will be triggered once rpc layer receives the
+   A callback function will be used to associate with c2_rpc_item::ri_ops::
+   rio_replied(). This callback will be invoked once rpc layer receives the
    reply rpc item. This callback will post the io_req_fop::irf_ast and
    will thus wake up the thread which executes the ASTs.
 
-   @code
-   struct io_req_fop {
-        uint64_t                irf_magic;
+   io_req_fop - Represents a wrapper over generic IO fop and its callback
+   to keep track of such IO fops issued by same nw_xfer_request.
 
-        struct c2_io_fop        irf_iofop;
+   io_rpc_item_cb - Callback used to receive fop reply events.
 
-        // Callback per IO fop.
-        struct c2_sm_ast        irf_ast;
-
-        // Linkage to link in to target_ioreq::tir_iofops list.
-        struct c2_tlink         irf_tlink;
-
-        // Backlink to target_ioreq object where rc and number of bytes
-        // are updated.
-        struct target_ioreq    *irf_tioreq;
-   };
-   @endcode
-
-   Callback used to receive fop reply events.
-
-   @code
-
-   static void io_rpc_item_cb(struct c2_rpc_item *item)
-   {
-        struct c2_fop     *fop;
-        struct c2_fop_fop *iofop;
-        struct io_req_fop *reqfop;
-        struct io_request *ioreq;
-
-        C2_PRE(item != NULL);
-
-        fop    = container_of(item, c2_fop, f_item);
-        iofop  = container_of(fop, c2_io_fop, if_fop);
-        reqfop = bob_of(iofop, struct io_req_fop, irf_iofop, &iofop_bobtype);
-        ioreq  = bob_of(reqfop->irf_tioreq->ti_nwxfer, struct io_request,
-                        ir_nwxfer, &ioreq_bobtype);
-
-        c2_sm_ast_post(ioreq->ir_sm.sm_grp, &irfop->irf_ast);
-   }
-
-   @endcode
-
-   Bottom-half function for IO request.
-
-   @code
-
-   void io_bottom_half(struct c2_sm_group *grp, struct c2_sm_ast *ast)
-   {
-           struct io_req_fop   *irfop;
-           struct target_ioreq *tioreq;
-
-           irfop = container_of(ast, struct io_req_fop, irf_ast);
-           tioreq = irfop->irf_tioreq;
-
-           // If rc is non-zero already, don't update it.
-           // This way, first error code is not overwritten by subsequent
-           // non-zero error codes.
-           if (tioreq->tir_rc == 0)
-                   tioreq->tir_rc = irfop->irf_iofop.if_rbulk.rb_rc;
-
-           tioreq->tir_bytes += irfop->irf_iofop.if_rbulk.rb_bytes;
-           tioreq->tir_nwxfer->nxr_iofops_nr--;
-
-           // Thread executing system call will be waiting on a channel
-           // embedded nw_xfer_request::nxr_iowait.
-           if (tioreq->tir_nwxfer->nxr_iofops_nr == 0)
-                   c2_chan_signal((struct c2_chan *)(ast->sa_datum));
-   }
-
-   @endcode
+   io_bottom_half - Bottom-half function for IO request.
 
    Magic value to verify sanity of struct io_request, struct nw_xfer_request,
    struct target_ioreq and struct io_req_fop.
-   The magic values will be used along with static c2_bob_type structures to
+   The magic values are used along with static c2_bob_type structures to
    assert run-time type identification.
-
-   @code
-   enum {
-	IOREQ_MAGIC  = 0xfea2303e31a3ce10ULL, // fearsomestanceto
-	NWREQ_MAGIC  = 0x12ec0ffeea2ab1caULL, // thecoffeearabica
-        TIOREQ_MAGIC = 0xfa1afe1611ab2eadULL, // falafelpitabread
-        IOFOP_MAGIC  = 0xde514ab11117302eULL, // desirabilitymore
-        DTBUF_MAGIC  = 0x191e2c09119e91a1ULL, // intercontinental
-        PGROUP_MAGIC = 0x19ca9de5ce91b21bULL, // incandescentbulb
-   };
-   @endcode
 
    @subsubsection rmw-lspec-sub1 Subcomponent Subroutines
 
@@ -740,247 +431,44 @@ extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
    will be created and populated by c2t1fs code, while in case of ioctl, it
    has to be provided by user-space.
 
-   Invariant for structure io_request.
+   @ref io_request_invariant - Invariant for structure io_request.
 
-   @code
-   static bool io_request_invariant(const struct io_request *req)
-   {
-        uint64_t i;
+   @ref nw_xfer_request_invariant - Invariant for structure nw_xfer_request.
 
-	C2_PRE(req != NULL);
-
-	return
-		req->ir_magic == IOREQ_MAGIC &&
-		req->ir_type  <= IRT_NR &&
-                req->ir_iovec != NULL &&
-                req->ir_iomap_nr > 0 &&
-                c2_fid_is_valid(&req->ir_fid) &&
-
-		ergo(ioreq_sm_state(req) == IRS_READING,
-		     !c2_tlist_is_empty(req->ir_nwxfer.nxr_tioreqs)) &&
-
-		ergo(ioreq_sm_state(req) == IRS_WRITING,
-		     req->ir_type  == IRT_WRITE &&
-		     !c2_tlist_is_empty(req->ir_nwxfer.nxr_tioreqs)) &&
-
-		ergo(ioreq_sm_state(req) == IRS_READ_COMPLETE &&
-                     req->ir_type  == IRT_READ,
-		     c2_tlist_is_empty(req->ir_nwxfer.nxr_tioreqs)) &&
-
-		ergo(ioreq_sm_state(req) == IRS_WRITE_COMPLETE,
-		     c2_tlist_is_empty(req->ir_nwxfer.nxr_tioreqs)) &&
-
-                c2_vec_count(&req->ir_ivec.iv_vec) > 0 &&
-
-                c2_forall(i, req->ir_ivec.iv_vec.v_nr - 1,
-                          req->ir_ivec.iv_index[i] <=
-                          req->ir_ivec.iv_index[i+1]) &&
-
-                pargrp_iomap_invariant_nr(req) &&
-
-                nw_xfer_request_invariant(&req->ir_nwxfer);
-   }
-   @endcode
-
-   Invariant for structure nw_xfer_request.
-
-   @code
-   static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
-   {
-	return
-                xfer != NULL &&
-		xfer->nxr_magic == NWREQ_MAGIC &&
-		xfer->nxr_state <= NXS_NR &&
-
-		ergo(xfer->nxr_state == NXS_INFLIGHT,
-		     !c2_tlist_is_empty(xfer->nxr_tioreqs) &&
-                     xfer->nxr_iofops_nr > 0) &&
-
-		ergo(xfer->nxr_state == NXS_COMPLETE,
-		     c2_tlist_is_empty(xfer->nxr_tioreqs) &&
-                     xfer->nxr_iofops_nr == 0 && xfer->nxr_bytes > 0) &&
-
-                c2_tl_forall(tioreqs, tioreq, &xfer->nxr_tioreqs,
-                             target_ioreq_invariant(tioreq)) &&
-
-                xfer->nxr_iofops_nr == c2_tlist_length(&xfer->nxr_tioreqs);
-   }
-   @endcode
-
-   A helper function to invoke invariant() for all data_buf structures
-   in array target_ioreq::tir_buffers.
+   @ref data_buf_invariant_nr - A helper function to invoke invariant() for
+   all data_buf structures in array pargrp_iomap::tir_databufs.
    It is on similar lines of c2_tl_forall() API.
 
-   @code
-   static bool data_buf_invariant_nr(const struct target_ioreq *tir)
-   {
-           uint64_t i;
+   @ref target_ioreq_invariant - Invariant for structure target_ioreq.
 
-           for (i = 0; i < tir->tir_buffers; ++i)
-                   if (!data_buf_invariant(tir->tir_buffers))
-                           break;
-           return i == tir->tir_buffers;
-   }
-   @endcode
+   @ref pargrp_iomap_invariant - Invariant for structure pargrp_iomap.
 
-   Invariant for structure target_ioreq.
+   @ref pargrp_iomap_invariant_nr - A helper function to invoke
+   pargrp_iomap_invariant() for all such structures in io_request::ir_iomaps.
 
-   @code
-   static bool target_ioreq_invariant(const struct target_ioreq *tir)
-   {
-           uint64_t i;
+   @ref data_buf_invariant - Invariant for structure data_buf.
 
-           return
-                  tir != NULL &&
-                  tir->tir_magic   == TIOREQ_MAGIC &&
-                  tir->tir_session != NULL &&
-                  tir->tir_nwxfer  != NULL &&
-                  c2_fid_is_valid(tir->tir_fid) &&
-                  c2_tlink_is_in(tir->tir_link) &&
-                  tir->tir_buf_nr > 0 &&
-                  tir->tir_buffers != NULL &&
-                  c2_tl_forall(iofops, iofop, &tir->tir_iofops,
-                               io_req_fop_invariant(iofop));
-   }
-   @endcode
+   @ref io_req_fop_invariant - Invariant for structure io_req_fop.
 
-   Invariant for structure pargrp_iomap.
+   @ref io_request_init - Initializes a newly allocated io_request structure.
 
-   @code
-   static bool pargrp_iomap_invariant(const struct pargrp_iomap *map)
-   {
-           return
-                  map != NULL &&
-                  map->pi_magic == PGROUP_MAGIC &&
-                  map->pi_ops   != NULL &&
-                  map->pi_read  <  PIR_NR &&
-                  map->pi_ioreq != NULL &&
-                  c2_vec_count(&map->pi_ivec.iv_vec) > 0;
-   }
-   @endcode
+   @ref io_request_fini - Finalizes the io_request structure.
 
-   A helper function to invoke pargrp_iomap_invariant() for all such
-   structures in io_request::ir_iomaps.
-
-   @code
-   static bool pargrp_iomap_invariant_nr(struct io_request *req)
-   {
-           return c2_forall(i, req->ir_iomap_nr,
-                            pargrp_iomap_invariant(req->ir_iomaps[i]));
-   }
-   @endcode
-
-   Invariant for structure data_buf.
-
-   @code
-   static bool data_buf_invariant(const struct data_buf *db)
-   {
-           return
-                  db != NULL &&
-                  db->db_magic == DTBUF_MAGIC &&
-                  db->db_type  <  PUT_NR &&
-                  db->db_buf.b_addr != NULL &&
-                  db->db_buf.b_nob  > 0;
-   }
-   @endcode
-
-   Invariant for structure io_req_fop.
-
-   @code
-   static bool io_req_fop_invariant(const struct io_req_fop *irf)
-   {
-           return
-                  irf != NULL &&
-                  irf->irf_magic  == IOFOP_MAGIC &&
-                  irf->irf_tioreq != NULL &&
-                  c2_clink_is_armed(&irf->clink) &&
-                  c2_tlink_is_in(irf->irf_tlink);
-   }
-   @endcode
-
-   The APIs that work as members of operation vector struct io_request_ops
-   for struct io_request are as follows.
-
-   Initializes a newly allocated io_request structure.
-
-   @param req    IO request to be issued.
-   @param fid    File identifier.
-   @param iov    Array of user-space buffers.
-   @param pos    Starting file offset.
-   @param rw     Flag indicating Read or write request.
-   @pre   req != NULL
-   @post  io_request_invariant(req) &&
-   @n     c2_fid_eq(&req->ir_fid, fid) && req->ir_iovec == iov &&
-   @n     && req->ir_type == rw && ioreq_sm_state(req) == IRS_INITIALIZED &&
-
-   @code
-   int io_request_init(struct io_request  *req,
-                       struct c2_fid      *fid,
-                       struct iovec       *iov,
-                       struct c2_indexvec *ivec,
-                       enum io_req_type    rw);
-   @endcode
-
-   Finalizes the io_request structure.
-
-   @param req IO request to be processed.
-   @pre   io_request_invariant(req) &&
-   @n     ioreq_sm_state(req) == IRS_REQ_COMPLETE &&
-   @post  c2_tlist_is_empty(req->ir_nwxfer.nxr_tioreqs)
-
-   @code
-   void io_request_fini(struct io_request *req);
-   @endcode
-
-   The APIs that work as member functions for operation vector struct
-   nw_xfer_ops are as follows.
-
-   Creates and populates target_ioreq structures for each member in the
-   parity group.
+   @ref nw_xfer_req_prepare - Creates and populates target_ioreq structures
+   for each member in the parity group.
    Each target_ioreq structure will allocate necessary pages to store
    file data and will create IO fops out of it.
 
-   @param xfer The network transfer request being prepared.
-   @pre   nw_xfer_request_invariant(xfer) &&
-   @n     xfer->nxr_state == UNINITIALIZED
-   @post  nw_xfer_request_invariant(xfer) &&
-   @n     !c2_tlist_is_empty(xfer->nxr_tioreqs) &&
-   @n     xfer->nxr_state == NXS_INITIALIZED.
-
-   @code
-   int nw_xfer_req_prepare(struct nw_xfer_request *xfer);
-   @endcode
-
-   Dispatches the network transfer request and does asynchronous wait for
-   completion. Typically, IO fops from all target_ioreq::tir_iofops
-   contained in nw_xfer_request::nxr_tioreqs list are dispatched at once
+   @ref nw_xfer_req_dispatch - Dispatches the network transfer request and
+   does asynchronous wait for completion. Typically, IO fops from all
+   target_ioreq::tir_iofops contained in nw_xfer_request::nxr_tioreqs list
+   are dispatched at once.
    The network transfer request is considered as complete when callbacks for
    all IO fops from all target_ioreq structures are acknowledged and
    processed.
 
-   @param xfer The network transfer request being dispatched.
-   @pre   nw_xfer_request_invariant(xfer) &&
-   @n     !c2_tlist_is_empty(xfer->nxr_tioreqs) &&
-   @n     xfer->nxr_state == NXS_INITIALIZED.
-   @post  nw_xfer_request_invariant(xfer)
-
-   @code
-   int nw_xfer_req_dispatch(struct nw_xfer_request *xfer);
-   @endcode
-
-   Does post processing for network request completion which is usually
-   notifying struct io_request about completion.
-
-   @param xfer The network transfer request being processed.
-   @pre   nw_xfer_request_invariant(xfer) &&
-   @n     xfer->nxr_state == NXS_INFLIGHT
-   @post  nw_xfer_request_invariant(xfer) &&
-   @n     xfer->nxr_state == NXS_COMPLETE &&
-   @n     c2_tlist_is_empty(xfer->nxr_tioreqs).
-
-   @code
-   void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw);
-   @endcode
+   @ref nw_xfer_req_complete - Does post processing for network request
+   completion which is usually notifying struct io_request about completion.
 
    @subsection rmw-lspec-state State Specification
 
@@ -3135,7 +2623,7 @@ static int nw_xfer_io_process(struct nw_xfer_request *xfer)
 				     C2_TIME_NEVER);
 
 		if (res != 0 || rc != 0) {
-                        rc = res != 0 ?: res;
+                        rc = res != 0 ? res : rc;
 			goto fail;
                 }
 
@@ -3746,7 +3234,8 @@ static void io_bottom_half(struct c2_sm_group *grp, struct c2_sm_ast *ast)
         req    = bob_of(tioreq->ti_nwxfer, struct io_request, ir_nwxfer,
                         &ioreq_bobtype);
 
-	tioreq->ti_rc = tioreq->ti_rc == 0 ?: irfop->irf_iofop.if_rbulk.rb_rc;
+	if (tioreq->ti_rc == 0)
+                tioreq->ti_rc = irfop->irf_iofop.if_rbulk.rb_rc;
 
 	tioreq->ti_bytes += irfop->irf_iofop.if_rbulk.rb_bytes;
 	C2_CNT_DEC(tioreq->ti_nwxfer->nxr_iofop_nr);
@@ -3803,7 +3292,8 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
                 } c2_tl_endfor;
         } c2_tl_endfor;
 
-	!rmw ?: ioreq_sm_state_set(req, IRS_REQ_COMPLETE);
+	if (!rmw)
+                ioreq_sm_state_set(req, IRS_REQ_COMPLETE);
 
 	req->ir_rc = xfer->nxr_rc;
 }
