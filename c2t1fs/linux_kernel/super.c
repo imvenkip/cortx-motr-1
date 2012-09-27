@@ -398,7 +398,7 @@ void c2t1fs_kill_sb(struct super_block *sb)
 		c2_clink_init(&iowait, NULL);
 		c2_clink_add(&csb->csb_iowait, &iowait);
 		c2_chan_signal(&csb->csb_iogroup.s_chan);
-		c2_chan_wait(&iowait);
+                c2_chan_wait(&iowait);
 		c2_thread_join(&csb->csb_astthread);
 		c2_clink_del(&iowait);
 		c2_clink_fini(&iowait);
