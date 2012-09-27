@@ -452,6 +452,9 @@ struct c2_rpc_chan *rpc_chan_get(struct c2_rpc_machine *machine,
 	if (C2_FI_ENABLED("do_nothing"))
 		return (struct c2_rpc_chan *)1;
 
+	if (C2_FI_ENABLED("fake_error"))
+		return NULL;
+
 	chan = rpc_chan_locate(machine, dest_ep);
 	if (chan == NULL)
 		rpc_chan_create(&chan, machine, dest_ep, max_packets_in_flight);
@@ -539,7 +542,7 @@ void rpc_chan_put(struct c2_rpc_chan *chan)
 
 	if (C2_FI_ENABLED("do_nothing"))
 		return;
-	
+
 	machine = chan->rc_rpc_machine;
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 

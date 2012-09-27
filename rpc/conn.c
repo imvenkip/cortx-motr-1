@@ -690,27 +690,23 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *item)
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_PRE(conn_state(conn) == C2_RPC_CONN_CONNECTING);
 
-	if (rc != 0) {
-		conn_failed(conn, rc);
-		goto out;
-	}
-
-	reply_fop = c2_rpc_item_to_fop(reply_item);
-	reply     = c2_fop_data(reply_fop);
-
-	rc = reply->rcer_rc;
 	if (rc == 0) {
-		if (reply->rcer_sender_id != SENDER_ID_INVALID) {
-			conn->c_sender_id = reply->rcer_sender_id;
-			conn_state_set(conn, C2_RPC_CONN_ACTIVE);
-		} else
-			rc = -EPROTO;
+		reply_fop = c2_rpc_item_to_fop(reply_item);
+		reply     = c2_fop_data(reply_fop);
+
+		rc = reply->rcer_rc;
+		if (rc == 0) {
+			if (reply->rcer_sender_id != SENDER_ID_INVALID) {
+				conn->c_sender_id = reply->rcer_sender_id;
+				conn_state_set(conn, C2_RPC_CONN_ACTIVE);
+			} else
+				rc = -EPROTO;
+		}
 	}
 
 	if (rc != 0)
 		conn_failed(conn, rc);
 
-out:
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_ASSERT(C2_IN(conn_state(conn), (C2_RPC_CONN_FAILED,
 					   C2_RPC_CONN_ACTIVE)));
@@ -851,27 +847,23 @@ void c2_rpc_conn_terminate_reply_received(struct c2_rpc_item *item)
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 	C2_PRE(conn_state(conn) == C2_RPC_CONN_TERMINATING);
 
-	if (rc != 0) {
-		conn_failed(conn, rc);
-		goto out;
-	}
-
-	reply_fop = c2_rpc_item_to_fop(reply_item);
-	reply     = c2_fop_data(reply_fop);
-
-	rc = reply->ctr_rc;
 	if (rc == 0) {
-		if (conn->c_sender_id == reply->ctr_sender_id)
-			conn_state_set(conn, C2_RPC_CONN_TERMINATED);
-		else
-			/* XXX generate ADDB record here. */
-			rc = -EPROTO;
+		reply_fop = c2_rpc_item_to_fop(reply_item);
+		reply     = c2_fop_data(reply_fop);
+
+		rc = reply->ctr_rc;
+		if (rc == 0) {
+			if (conn->c_sender_id == reply->ctr_sender_id)
+				conn_state_set(conn, C2_RPC_CONN_TERMINATED);
+			else
+				/* XXX generate ADDB record here. */
+				rc = -EPROTO;
+		}
 	}
 
 	if (rc != 0)
 		conn_failed(conn, rc);
 
-out:
 	C2_POST(c2_rpc_conn_invariant(conn));
 	C2_POST(C2_IN(conn_state(conn), (C2_RPC_CONN_TERMINATED,
 					 C2_RPC_CONN_FAILED)));

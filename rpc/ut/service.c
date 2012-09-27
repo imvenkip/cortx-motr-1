@@ -210,6 +210,7 @@ static void conn_attach_detach_test(void)
 	C2_SET0(&mock_rpc_chan);
 	C2_SET0(&mock_destep);
 
+	c2_sm_group_init(&mock_rpc_machine.rm_sm_grp);
 	/* prepare mock rpc_machine */
 	c2_rpc_services_tlist_init(&mock_rpc_machine.rm_services);
 
@@ -248,6 +249,7 @@ static void conn_attach_detach_test(void)
 	c2_rpc_services_tlist_fini(&mock_rpc_machine.rm_services);
 
 	c2_free(copy_of_foo_ep_addr);
+	c2_sm_group_fini(&mock_rpc_machine.rm_sm_grp);
 }
 
 static void service_free_test(void)

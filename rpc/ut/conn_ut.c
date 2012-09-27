@@ -23,9 +23,8 @@
 #include "lib/finject.h"
 #include "rpc/session.h"
 #include "rpc/rpc2.h"
-#include "net/lnet/lnet.h"
-
-#include "rpc/conn.c"
+#include "rpc/session_ff.h"
+#include "fop/fop.h"
 
 static struct c2_rpc_machine machine;
 
@@ -44,8 +43,11 @@ static int conn_ut_fini(void)
 	c2_sm_group_fini(&machine.rm_sm_grp);
 	c2_fi_disable("rpc_chan_get", "do_nothing");
 	c2_fi_disable("rpc_chan_put", "do_nothing");
+	c2_fi_disable("rpc_chan_get", "fake_error");
 	c2_fi_disable("c2_rpc_frm_run_formation", "do_nothing");
 	c2_fi_disable("c2_alloc", "fail_allocation");
+	c2_fi_disable("c2_rpc__fop_post", "do_nothing");
+	c2_fi_disable("c2_rpc__fop_post", "fake_error");
 	return 0;
 }
 
@@ -94,29 +96,42 @@ static void conn_init_fini_test(void)
 
 static void conn_init_fail_test(void)
 {
-	/* Checks for c2_alloc failure in c2_rpc_conn_init() */
-
+	/* Checks for c2_rpc_conn_init() failure due to allocation failure */
 	c2_fi_enable_once("rpc_chan_get", "do_nothing");
-	c2_fi_enable_once("c2_rpc_frm_run_formation", "do_nothing");
 	c2_fi_enable_once("rpc_chan_put", "do_nothing");
+	c2_fi_enable_once("c2_rpc_frm_run_formation", "do_nothing");
 	c2_fi_enable_once("c2_alloc", "fail_allocation");
+	rc = c2_rpc_conn_init(&conn, &ep, &machine, 1);
+	C2_UT_ASSERT(rc == -ENOMEM);
 
-	rc = c2_rpc_conn_init(&conn, (struct c2_net_end_point *)1, &machine,
-			      1 /* max_rpcs_in_flight */ );
+	/* Checks for c2_alloc failure due to error in rpc_chan_get() */
+	c2_fi_enable_once("rpc_chan_put", "do_nothing");
+	c2_fi_enable_once("c2_rpc_frm_run_formation", "do_nothing");
+	c2_fi_enable_once("rpc_chan_get", "fake_error");
+	rc = c2_rpc_conn_init(&conn, &ep, &machine, 1);
 	C2_UT_ASSERT(rc == -ENOMEM);
 }
 
+static void conn_init(void)
+{
+	c2_fi_enable_once("rpc_chan_get", "do_nothing");
+	c2_fi_enable_once("c2_rpc_frm_run_formation", "do_nothing");
+	rc = c2_rpc_conn_init(&conn, &ep, &machine, 1);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_INITIALISED);
+}
+
+static void conn_fini(void)
+{
+	c2_fi_enable_once("rpc_chan_put", "do_nothing");
+	c2_rpc_conn_fini(&conn);
+}
 
 static void conn_establish_test(void)
 {
 	/* Checks for Conn C2_RPC_CONN_INITIALISED => C2_RPC_CONN_CONNECTING */
 
-	c2_fi_enable_once("rpc_chan_get", "do_nothing");
-	c2_fi_enable_once("c2_rpc_frm_run_formation", "do_nothing");
-	rc = c2_rpc_conn_init(&conn, (struct c2_net_end_point *)1, &machine,
-			      1 /* max_rpcs_in_flight */ );
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_INITIALISED);
+	conn_init();
 
 	c2_fi_enable_once("c2_rpc__fop_post", "do_nothing");
 	rc = c2_rpc_conn_establish(&conn);
@@ -160,7 +175,7 @@ static void conn_terminate_reply_test(void)
 	term_fop.f_item.ri_reply   = &term_fop.f_item;
 	term_fop.f_item.ri_error   = 0;
 
-	term_reply.ctr_sender_id = 1001;
+	term_reply.ctr_sender_id = est_reply.rcer_sender_id;
 	term_reply.ctr_rc        = 0;
 	term_fop.f_data.fd_data  = &term_reply;
 
@@ -178,108 +193,116 @@ static void conn_establish_fail_test(void)
 {
 	/* Checks for Conn C2_RPC_CONN_INITIALISED => C2_RPC_CONN_FAILED */
 
-	c2_fi_enable_once("rpc_chan_get", "do_nothing");
-	c2_fi_enable_once("c2_rpc_frm_run_formation", "do_nothing");
-	rc = c2_rpc_conn_init(&conn, &ep, &machine,
-			      1 /* max_rpcs_in_flight */ );
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_INITIALISED);
+	conn_init();
 
 	c2_fi_enable_once("c2_rpc__fop_post", "fake_error");
 	rc = c2_rpc_conn_establish(&conn);
 	C2_UT_ASSERT(rc != 0);
 	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_FAILED);
 
-	c2_fi_enable_once("rpc_chan_put", "do_nothing");
-	c2_rpc_conn_fini(&conn);
+	conn_fini();
+
+	/* Allocation failure */
+	conn_init();
+
+	c2_fi_enable_once("c2_alloc", "fail_allocation");
+	rc = c2_rpc_conn_establish(&conn);
+	C2_UT_ASSERT(rc != 0);
+	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_FAILED);
+
+	conn_fini();
 }
 
 static void conn_establish_reply_fail_test(void)
 {
 	/* Checks for Conn C2_RPC_CONN_CONNECTING => C2_RPC_CONN_FAILED */
 
-	c2_fi_enable_once("rpc_chan_get", "do_nothing");
-	c2_fi_enable_once("c2_rpc_frm_run_formation", "do_nothing");
-	rc = c2_rpc_conn_init(&conn, &ep, &machine,
-			      1 /* max_rpcs_in_flight */ );
-	C2_UT_ASSERT(rc == 0);
-
-	c2_fi_enable_once("c2_rpc__fop_post", "do_nothing");
-	rc = c2_rpc_conn_establish(&conn);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_CONNECTING);
+	conn_establish_test();
 
 	est_fop.f_item.ri_error = -EINVAL;
 	c2_rpc_machine_lock(&machine);
 	c2_rpc_conn_establish_reply_received(&est_fop.f_item);
+	C2_UT_ASSERT(conn.c_sm.sm_rc != 0);
 	c2_rpc_machine_unlock(&machine);
 	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_FAILED);
 
-	/* Checks for Conn C2_RPC_CONN_FAILED => C2_RPC_CONN_FINALISED */
-
-	c2_fi_enable_once("rpc_chan_put", "do_nothing");
-	c2_rpc_conn_fini(&conn);
-
+	conn_fini();
 	est_fop.f_item.ri_error = 0;
+
+	/* Due to invalid sender id. */
+	conn_establish_test();
+
+	est_reply.rcer_sender_id = SENDER_ID_INVALID;
+	c2_rpc_machine_lock(&machine);
+	c2_rpc_conn_establish_reply_received(&est_fop.f_item);
+	C2_UT_ASSERT(conn.c_sm.sm_rc == -EPROTO);
+	c2_rpc_machine_unlock(&machine);
+	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_FAILED);
+
+	conn_fini();
+	est_reply.rcer_sender_id = 1001; /* sender_id_allocate() */
+
 }
 
 static void conn_terminate_fail_test(void)
 {
-	/* Checks for Conn C2_RPC_CONN_TERMINATING => C2_RPC_CONN_FAILED */
+	/* Checks for Conn C2_RPC_CONN_ACTIVE => C2_RPC_CONN_FAILED */
 
-	c2_fi_enable_once("rpc_chan_get", "do_nothing");
-	c2_fi_enable_once("c2_rpc_frm_run_formation", "do_nothing");
-	rc = c2_rpc_conn_init(&conn, &ep, &machine,
-			      1 /* max_rpcs_in_flight */ );
-	C2_UT_ASSERT(rc == 0);
-
-	c2_fi_enable_once("c2_rpc__fop_post", "do_nothing");
-	rc = c2_rpc_conn_establish(&conn);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_CONNECTING);
-	c2_rpc_machine_lock(&machine);
-	c2_rpc_conn_establish_reply_received(&est_fop.f_item);
-	c2_rpc_machine_unlock(&machine);
-	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_ACTIVE);
+	conn_establish_test();
+	conn_establish_reply_test();
 
 	c2_fi_enable_once("c2_alloc", "fail_allocation");
 	rc = c2_rpc_conn_terminate(&conn);
 	C2_UT_ASSERT(rc != 0);
 	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_FAILED);
 
-	c2_fi_enable_once("rpc_chan_put", "do_nothing");
-	c2_rpc_conn_fini(&conn);
+	conn_fini();
+
+	/* Due to c2_rpc__fop_post() failure. */
+
+	conn_establish_test();
+	conn_establish_reply_test();
+
+	c2_fi_enable_once("c2_rpc__fop_post", "fake_error");
+	rc = c2_rpc_conn_terminate(&conn);
+	C2_UT_ASSERT(rc != 0);
+	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_FAILED);
+
+	conn_fini();
 }
 
 static void conn_terminate_reply_fail_test(void)
 {
 	/* Checks for Conn C2_RPC_CONN_TERMINATING => C2_RPC_CONN_FAILED */
-	c2_fi_enable_once("rpc_chan_get", "do_nothing");
-	c2_fi_enable_once("c2_rpc_frm_run_formation", "do_nothing");
-	rc = c2_rpc_conn_init(&conn, &ep, &machine,
-			      1 /* max_rpcs_in_flight */ );
-	c2_fi_enable_once("c2_rpc__fop_post", "do_nothing");
-	rc = c2_rpc_conn_establish(&conn);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_CONNECTING);
-	c2_rpc_machine_lock(&machine);
-	c2_rpc_conn_establish_reply_received(&est_fop.f_item);
-	c2_rpc_machine_unlock(&machine);
-	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_ACTIVE);
-	C2_UT_ASSERT(rc == 0);
-	c2_fi_enable_once("c2_rpc__fop_post", "do_nothing");
-	rc = c2_rpc_conn_terminate(&conn);
-	C2_UT_ASSERT(rc == 0);
-	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_TERMINATING);
+
+	conn_establish_test();
+	conn_establish_reply_test();
+	conn_terminate_test();
 
 	term_fop.f_item.ri_error = -EINVAL;
 	c2_rpc_machine_lock(&machine);
 	c2_rpc_conn_terminate_reply_received(&term_fop.f_item);
 	c2_rpc_machine_unlock(&machine);
+	C2_UT_ASSERT(conn.c_sm.sm_rc != 0);
 	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_FAILED);
-	c2_fi_enable_once("rpc_chan_put", "do_nothing");
-	c2_rpc_conn_fini(&conn);
+
+	conn_fini();
 	term_fop.f_item.ri_error = 0;
+
+	/* Due to invalid sender id. */
+
+	conn_establish_test();
+	conn_establish_reply_test();
+	conn_terminate_test();
+
+	term_reply.ctr_sender_id = 1002;
+	c2_rpc_machine_lock(&machine);
+	c2_rpc_conn_terminate_reply_received(&term_fop.f_item);
+	c2_rpc_machine_unlock(&machine);
+	C2_UT_ASSERT(conn.c_sm.sm_rc == -EPROTO);
+	C2_UT_ASSERT(conn_state(&conn) == C2_RPC_CONN_FAILED);
+
+	conn_fini();
 }
 
 const struct c2_test_suite conn_ut = {
@@ -297,7 +320,7 @@ const struct c2_test_suite conn_ut = {
 		{ "conn-terminate-fail", conn_terminate_fail_test},
 		{ "conn-establish-reply-fail", conn_establish_reply_fail_test},
 		{ "conn-terminate_reply-fail", conn_terminate_reply_fail_test},
-		{ NULL,        NULL}
+		{ NULL, NULL}
 	}
 };
 C2_EXPORTED(conn_ut);
