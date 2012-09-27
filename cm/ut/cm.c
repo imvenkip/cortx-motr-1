@@ -26,9 +26,9 @@
 #include "cm/cm.h"
 #include "cm/cp.h"
 
-static struct c2_reqh  	reqh;
-static struct c2_cm_cp 	cp;
-static struct c2_cm 	cm_ut;
+static struct c2_reqh   reqh;
+static struct c2_cm_cp  cp;
+static struct c2_cm     cm_ut;
 struct c2_reqh_service *service;
 
 static int cm_ut_service_start(struct c2_reqh_service *service)
@@ -133,7 +133,7 @@ C2_CM_TYPE_DECLARE(cm_ut, &cm_ut_service_type_ops, "cm_ut");
 
 static int ut_init(void)
 {
-	int 	rc;
+	int	rc;
 	c2_reqh_init(&reqh, NULL, (void*)1, (void*)1, (void*)1);
 	rc = c2_cm_type_register(&cm_ut_cmt);
 	C2_ASSERT(rc == 0);
