@@ -23,44 +23,46 @@ EXTRA_CFLAGS    = -DHAVE_CONFIG_H -iquote . -iquote $(CORE_SRCDIR) @KCFLAGS@  \
 #       to $(dirs); then add the names of '.c' files to d_SOURCES and the
 #       headers to d_HEADERS.
 
-#       The $(dirs) list is maintained alphabetically
-
-dirs  = addb                                                                  \
-        addb/addbff                                                           \
-        addb/linux_kernel                                                     \
-        c2t1fs/linux_kernel                                                   \
-        c2t1fs/linux_kernel/ut                                                \
-        cob                                                                   \
-        colibri                                                               \
-        db                                                                    \
-        db/linux_kernel                                                       \
-        dtm                                                                   \
-        fid                                                                   \
-        fol                                                                   \
-        fop                                                                   \
-        ioservice                                                             \
-        ioservice/ut                                                          \
-        layout                                                                \
-        layout/ut                                                             \
-        lib                                                                   \
-        lib/linux_kernel                                                      \
-        lib/ut                                                                \
-        net                                                                   \
-        net/bulk_emulation/ut                                                 \
-        net/lnet/ut                                                           \
-	net/test							      \
-	net/test/ut							      \
-        net/ut                                                                \
-        pool                                                                  \
-	reqh                                                                  \
-        rpc                                                                   \
-        rpc/ut                                                                \
-        sm                                                                    \
-        sm/ut                                                                 \
-        sns                                                                   \
-        stob                                                                  \
-        ut                                                                    \
-        xcode                                                                 \
+# Please maintain the lexicographical order.
+dirs  =                        \
+        addb                   \
+        addb/addbff            \
+        addb/linux_kernel      \
+        c2t1fs/linux_kernel    \
+        c2t1fs/linux_kernel/ut \
+        cob                    \
+        colibri                \
+        conf                   \
+        conf/objs              \
+        db                     \
+        db/linux_kernel        \
+        dtm                    \
+        fid                    \
+        fol                    \
+        fop                    \
+        ioservice              \
+        ioservice/ut           \
+        layout                 \
+        layout/ut              \
+        lib                    \
+        lib/linux_kernel       \
+        lib/ut                 \
+        net                    \
+        net/bulk_emulation/ut  \
+        net/lnet/ut            \
+        net/test               \
+        net/test/ut            \
+        net/ut                 \
+        pool                   \
+        reqh                   \
+        rpc                    \
+        rpc/ut                 \
+        sm                     \
+        sm/ut                  \
+        sns                    \
+        stob                   \
+        ut                     \
+        xcode                  \
         xcode/ut
 
 #       Source Listing
@@ -169,7 +171,8 @@ rpc_SOURCES                     := rpc2.c service.c \
 
 rpc_HEADERS                     := session_ff.h rpc_onwire.h rpc_onwire_xc.h
 
-rpc_ut_SOURCES                  := service.c formation2.c conn.c
+rpc_ut_SOURCES                  := service.c formation2.c conn.c rpc_machine.c \
+				   session.c
 
 sm_SOURCES                      := sm.c
 sm_ut_SOURCES                   := sm.c
@@ -184,6 +187,14 @@ ut_SOURCES                      := rpc.c
 xcode_SOURCES                   := xcode.c string.c
 
 xcode_ut_SOURCES                := xcode.c
+
+conf_objs_SOURCES               := common.c dir.c profile.c filesystem.c       \
+				   service.c node.c nic.c sdev.c partition.c
+
+conf_SOURCES                    := buf_ext.c confc.c obj.c obj_ops.c preload.c \
+                                   reg.c onwire_xc.c reg_debug.c conf_xcode.c
+conf_HEADERS                    := onwire.h onwire_xc.h
+
 
 #       Following lines create the list of objects required for creating
 #       kcolibri by putting %.o for each %.c file listed for each target of

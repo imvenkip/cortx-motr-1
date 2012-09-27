@@ -38,20 +38,16 @@ static struct c2_thread   ath;
 
 static void ast_thread(int __d)
 {
-   while (more) {
-           c2_chan_wait(&G.s_clink);
-           c2_sm_group_lock(&G);
-	   c2_sm_asts_run(&G);
-           c2_sm_group_unlock(&G);
-   }
+	while (more) {
+		c2_chan_wait(&G.s_clink);
+		c2_sm_group_lock(&G);
+		c2_sm_asts_run(&G);
+		c2_sm_group_unlock(&G);
+	}
 }
 
 static int init(void) {
-	int result;
-
 	c2_sm_group_init(&G);
-	result = C2_THREAD_INIT(&ath, int, NULL, &ast_thread, 0, "ast_thread");
-	C2_ASSERT(result == 0);
 	return 0;
 }
 
@@ -225,6 +221,9 @@ static void timeout(void)
 	struct c2_sm_timeout t1;
 	c2_time_t            delta;
 	int                  result;
+
+	result = C2_THREAD_INIT(&ath, int, NULL, &ast_thread, 0, "ast_thread");
+	C2_UT_ASSERT(result == 0);
 
 	c2_time_set(&delta, 0, C2_TIME_ONE_BILLION/100);
 

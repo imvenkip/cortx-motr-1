@@ -29,12 +29,10 @@
    @{
  */
 
-/* export */
-struct fid;
-
 /* import */
 #include "lib/types.h"
 
+/* @todo: add xcode */
 struct c2_fid {
 	uint64_t f_container;
 	uint64_t f_key;

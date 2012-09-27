@@ -205,9 +205,8 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 			  ergo(s->s_session_id == SESSION_ID_0,
 			       ++s0nr &&
 			       (session0 = s) && /*'=' is intentional */
-			       C2_IN(s->s_state,
-				     (C2_RPC_SESSION_IDLE,
-				      C2_RPC_SESSION_BUSY)))) &&
+			       C2_IN(session_state(s), (C2_RPC_SESSION_IDLE,
+							C2_RPC_SESSION_BUSY)))) &&
 	     session0 != NULL &&
 	     s0nr == 1;
 
@@ -218,7 +217,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	case C2_RPC_CONN_INITIALISED:
 		return  conn->c_sender_id == SENDER_ID_INVALID &&
 			conn->c_nr_sessions == 1 &&
-			session0->s_state == C2_RPC_SESSION_IDLE;
+			session_state(session0) == C2_RPC_SESSION_IDLE;
 
 	case C2_RPC_CONN_CONNECTING:
 		return  conn->c_sender_id == SENDER_ID_INVALID &&
@@ -356,7 +355,12 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	}
 
 	session->s_session_id = SESSION_ID_0;
-	session->s_state      = C2_RPC_SESSION_IDLE;
+
+	/* It is done as there is no need to establish session0 explicitly
+	 * and direct transition from INITIALISED => IDLE is not allowed.
+	 */
+	session_state_set(session, C2_RPC_SESSION_ESTABLISHING);
+	session_state_set(session, C2_RPC_SESSION_IDLE);
 
 	slot = session->s_slot_table[0];
 	C2_ASSERT(slot != NULL &&
@@ -426,9 +430,8 @@ void c2_rpc_conn_fini(struct c2_rpc_conn *conn)
 	c2_rpc_machine_lock(machine);
 
 	session0 = c2_rpc_conn_session0(conn);
-	while (session0->s_state != C2_RPC_SESSION_IDLE)
-		c2_cond_wait(&session0->s_state_changed,
-			     c2_rpc_machine_mutex(machine));
+	c2_sm_timedwait(&session0->s_sm, C2_BITS(C2_RPC_SESSION_IDLE),
+			C2_TIME_NEVER);
 
 	c2_rpc_conn_fini_locked(conn);
 	/* Don't look in conn after this point */
@@ -467,10 +470,11 @@ static void session_zero_detach(struct c2_rpc_conn *conn)
 	C2_PRE(c2_rpc_machine_is_locked(conn->c_rpc_machine));
 
 	session = c2_rpc_conn_session0(conn);
-	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
+	C2_ASSERT(session_state(session) == C2_RPC_SESSION_IDLE);
 
+	session_state_set(session, C2_RPC_SESSION_TERMINATING);
 	c2_rpc_session_del_slots_from_ready_list(session);
-	session->s_state = C2_RPC_SESSION_TERMINATED;
+	session_state_set(session, C2_RPC_SESSION_TERMINATED);
 	c2_rpc_session_fini_locked(session);
 	c2_free(session);
 
@@ -495,7 +499,7 @@ int c2_rpc_conn_timedwait(struct c2_rpc_conn *conn, uint64_t states,
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	c2_rpc_machine_unlock(conn->c_rpc_machine);
 
-	C2_RETURN(rc);
+	C2_RETURN(rc ?: conn->c_sm.sm_rc);
 }
 C2_EXPORTED(c2_rpc_conn_timedwait);
 
@@ -1187,7 +1191,7 @@ int c2_rpc_conn_session_list_print(const struct c2_rpc_conn *conn)
 	c2_tl_for(rpc_session, &conn->c_sessions, session) {
 		printf("session %p id %llu state %x\n", session,
 			(unsigned long long)session->s_session_id,
-			session->s_state);
+			session_state(session));
 	} c2_tl_endfor;
 	return 0;
 }

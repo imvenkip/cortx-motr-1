@@ -470,7 +470,6 @@ static int check_write_fom_tick(struct c2_fom *fom)
                 /* Cleanup & restore FOM for next test. */
                 rwfop->crw_ivecs.cis_ivecs[cdi].ci_nr =
                 saved_segments_count;
-                c2_rpc_bulk_fini(&fom_obj->fcrw_bulk);
                 rc = C2_FSO_WAIT;
 
                 /*
@@ -924,7 +923,6 @@ static int check_read_fom_tick(struct c2_fom *fom)
 
                 /* Cleanup & make clean FOM for next test. */
                 rwfop->crw_ivecs.cis_ivecs[cdi].ci_nr = saved_segments_count;
-                c2_rpc_bulk_fini(&fom_obj->fcrw_bulk);
                 rc = C2_FSO_WAIT;
                 fom_phase_set(fom, TEST10);
 

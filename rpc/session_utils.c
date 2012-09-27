@@ -241,6 +241,9 @@ int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
 {
 	int rc;
 
+	if (C2_FI_ENABLED("fake_error"))
+		C2_RETURN(-EINVAL);
+
 	rc = c2_cob_domain_mkfs(dom, &C2_COB_SLASH_FID, &C2_COB_SESSIONS_FID, tx);
 	if (rc == -EEXIST)
 		rc = 0;

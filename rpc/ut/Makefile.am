@@ -9,6 +9,8 @@ librpc_ut_la_SOURCES = rpclib_ut.c            \
 			  ../it/ping_fom.c    \
 			  service.c           \
 			  formation2.c        \
-			  conn.c
+			  conn.c              \
+			  rpc_machine.c       \
+			  session.c
 
 librpc_ut_la_LIBADD = $(top_builddir)/colibri/libcolibri.la

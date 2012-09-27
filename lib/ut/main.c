@@ -21,8 +21,10 @@
 #include "lib/ut.h"
 
 /* sort test suites in alphabetic order */
+extern void c2_ut_lib_buf_test(void);
 extern void test_atomic(void);
 extern void test_bitmap(void);
+extern void test_bob(void);
 extern void test_chan(void);
 extern void test_cookie(void);
 extern void test_finject(void);
@@ -42,8 +44,6 @@ extern void test_tlist(void);
 extern void test_trace(void);
 extern void test_vec(void);
 extern void test_zerovec(void);
-extern void test_bob(void);
-extern void c2_ut_lib_buf_test(void);
 
 const struct c2_test_suite libc2_ut = {
 	.ts_name = "libc2-ut",

@@ -26,7 +26,7 @@
 
 #include "lib/bob.h"
 #include "lib/misc.h"  /* C2_BITS */
-#include "lib/errno.h" /*ENOBUFS, ENODATA */
+#include "lib/errno.h" /* ENOBUFS, ENODATA */
 
 #include "sm/sm.h"
 
@@ -120,12 +120,13 @@ static int cpp_alloc(struct c2_cm_cp_pump *cp_pump)
 
 static int cpp_idle(struct c2_cm_cp_pump *cp_pump)
 {
-	if (cp_pump->p_shutdown)
+	if (cp_pump->p_shutdown) {
 		c2_fom_phase_set(&cp_pump->p_fom, CPP_FINI);
-	else
+		return C2_FSO_WAIT;
+	} else {
 		c2_fom_phase_set(&cp_pump->p_fom, CPP_ALLOC);
-
-	return C2_FSO_AGAIN;
+		return C2_FSO_AGAIN;
+	}
 }
 
 static int cpp_data_next(struct c2_cm_cp_pump *cp_pump)
@@ -184,11 +185,6 @@ static int cpp_fail(struct c2_cm_cp_pump *cp_pump)
 	return C2_FSO_WAIT;
 }
 
-static int cpp_fini(struct c2_cm_cp_pump *cp_pump)
-{
-	return C2_FSO_WAIT;
-}
-
 static const struct c2_sm_state_descr cm_cp_pump_sd[CPP_NR] = {
 	[CPP_ALLOC] = {
 		.sd_flags   = C2_SDF_INITIAL,
@@ -224,11 +220,10 @@ static const struct c2_sm_conf cm_cp_pump_conf = {
 };
 
 static int (*pump_action[]) (struct c2_cm_cp_pump *cp_pump) = {
-		[CPP_ALLOC]     = cpp_alloc,
-		[CPP_IDLE]	= cpp_idle,
-		[CPP_DATA_NEXT] = cpp_data_next,
-		[CPP_FAIL]      = cpp_fail,
-		[CPP_FINI]      = cpp_fini
+	[CPP_ALLOC]     = cpp_alloc,
+	[CPP_IDLE]	= cpp_idle,
+	[CPP_DATA_NEXT] = cpp_data_next,
+	[CPP_FAIL]      = cpp_fail,
 };
 
 static uint64_t cm_cp_pump_fom_locality(const struct c2_fom *fom)
