@@ -51,8 +51,29 @@ static int                      rc;
 int c2_md_lustre_fop_alloc(struct c2_fop **fop, void *data);
 void c2_md_lustre_fop_free(struct c2_fop *fop);
 
+static struct c2_chan test_signal;
+static struct c2_clink clink;
 static int locked = 0;
 static int error = 0;
+
+static void signal_locked()
+{
+        locked = 0;
+        c2_clink_signal(&clink);
+}
+
+static void wait_locked()
+{
+        c2_clink_init(&clink, NULL);
+        c2_clink_add(&test_signal, &clink);
+
+        while (locked)
+                c2_chan_wait(&clink);
+
+        c2_clink_del(&clink);
+        c2_clink_fini(&clink);
+        locked = 1;
+}
 
 static void fom_fini(struct c2_local_service *service, struct c2_fom *fom)
 {
@@ -64,7 +85,7 @@ static void fom_fini(struct c2_local_service *service, struct c2_fom *fom)
         }
         if (error == 0)
                 error = c2_fom_rc(fom);
-        locked = 0;
+        signal_locked();
 }
 
 const struct c2_local_service_ops svc_ops = {
@@ -123,6 +144,8 @@ static void test_mkfs(void)
 
 static void test_init(void)
 {
+        c2_chan_init(&test_signal);
+
         rc = c2_dbenv_init(&db, db_name, 0);
         C2_ASSERT(rc == 0);
 
@@ -139,17 +162,12 @@ static void test_init(void)
         C2_ASSERT(rc == 0);
 }
 
-enum {
-        WAIT_FOR_REQH_SHUTDOWN = 1000000,
-};
-
 static void test_mdops(void)
 {
         struct c2_md_lustre_logrec *rec;
         struct c2_md_lustre_fid root;
         int fd, result, size;
         struct c2_fop *fop;
-        c2_time_t rdelay;
 
         fd = open(C2_MDSTORE_OPS_DUMP_PATH, O_RDONLY);
         C2_ASSERT(fd > 0);
@@ -162,17 +180,16 @@ static void test_mdops(void)
                 fop = NULL;
 
                 /**
-                   All fops should be sent in order they stored in dump. This is why we wait here
-                   for locked == 0, which is set in ->lso_fini()
+                 * All fops should be sent in order they stored in dump. This is why we wait here
+                 * for locked == 0, which is set in ->lso_fini()
                  */
-                while (locked) {
-                        c2_nanosleep(c2_time_set(&rdelay, 0,
-                                     WAIT_FOR_REQH_SHUTDOWN * 1), NULL);
-                }
+                wait_locked();
 again:
                 result = read(fd, &size, sizeof(size));
-                if (result < sizeof(size))
+                if (result < sizeof(size)) {
+                        signal_locked();
                         break;
+                }
 
                 rec = c2_alloc(size);
                 C2_ASSERT(rec != NULL);
@@ -183,8 +200,10 @@ again:
                 result = c2_md_lustre_fop_alloc(&fop, rec);
                 c2_free(rec);
 
-                if (result == -EOPNOTSUPP)
+                if (result == -EOPNOTSUPP) {
+                        signal_locked();
                         continue;
+                }
 
                 if (result == -EAGAIN) {
                         /*
@@ -193,17 +212,13 @@ again:
                         goto again;
                 }
 
-                locked = 1;
                 C2_ASSERT(result == 0);
                 c2_reqh_fop_handle(&reqh, fop, NULL);
         }
         close(fd);
 
         /* Make sure that all fops are handled. */
-        while (locked) {
-                c2_nanosleep(c2_time_set(&rdelay, 0,
-                             WAIT_FOR_REQH_SHUTDOWN * 1), NULL);
-        }
+        wait_locked();
         C2_ASSERT(error == 0);
 }
 
@@ -214,6 +229,7 @@ static void test_fini(void)
         c2_fol_fini(&fol);
         c2_mdstore_fini(&md);
         c2_dbenv_fini(&db);
+        c2_chan_fini(&test_signal);
 }
 
 const struct c2_test_suite mdservice_ut = {

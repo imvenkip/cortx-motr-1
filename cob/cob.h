@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -70,7 +70,7 @@ struct c2_db_tx;
    They store mode/uid/gid file attributes.
 
    For traditional file systems' namespace we need two tables: name space and
-   object index. Namespace and object index tables are used as following:
+   object index. These tables are used as following:
 
    Suppose that there is a file F that has got three names:
 
@@ -392,7 +392,12 @@ struct c2_cob_omgrec {
  * In-memory representation of a component object.
  *
  * A c2_cob is an in-memory structure, populated as needed from database
- * table lookups.  The c2_cob may be cached and should be protected by a lock.
+ * table lookups. The c2_cob is not cached for long time (except for root)
+ * and is only used as a temporary handle of database structures for the
+ * sake of handyness. This means, we don't need to bother with locking
+ * as everytime we pass cob to some function this is new instance of it.
+ * All the concurrency for providing data correctness is done by underlying
+ * database (db[45] or rvm).
  *
  * The exposed methods to get a new cob are:
  * - c2_cob_lookup() - lookup by filename
