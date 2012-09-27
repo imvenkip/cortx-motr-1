@@ -446,7 +446,7 @@ struct c2_cob_omgrec {
  * operations can be executed on persistent storage by calling functions on
  * c2_cob;
  *
- * - it caches certain metadata attributes in memory (controlled by ->co_valid);
+ * - it caches certain metadata attributes in memory (controlled by ->co_flags);
  *
  * <b>Liveness</b>
  * A c2_cob may be freed when the reference count drops to 0.
@@ -469,7 +469,7 @@ struct c2_cob {
         struct c2_cob_domain  *co_dom;
         struct c2_stob        *co_stob;     /**< underlying storage object */
         struct c2_ref          co_ref;      /**< refcounter for caching cobs */
-        uint64_t               co_valid;    /**< @see enum c2_cob_valid_flags */
+        uint64_t               co_flags;    /**< @see enum c2_cob_valid_flags */
         struct c2_fid         *co_fid;      /**< object fid, ref to nsrec fid */
         struct c2_cob_nskey   *co_nskey;    /**< cob statdata nskey */
         struct c2_cob_oikey    co_oikey;    /**< object fid, linkno */

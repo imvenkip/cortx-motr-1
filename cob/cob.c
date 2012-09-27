@@ -183,8 +183,7 @@ static int c2_cob_max_nskey_make(struct c2_cob_nskey **keyh,
         if (key == NULL)
                 return -ENOMEM;
         key->cnk_pfid = *pfid;
-        memcpy(c2_bitstring_buf_get(&key->cnk_name), name, namelen);
-        c2_bitstring_len_set(&key->cnk_name, namelen);
+        c2_bitstring_copy(&key->cnk_name, name, namelen);
         *keyh = key;
         return 0;
 }
@@ -410,7 +409,7 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, const struct c2_fid *rootfid,
         C2_SET0(&nsrec);
 
         rc = c2_cob_alloc(dom, &cob);
-        if (rc)
+        if (rc != 0)
                 return rc;
 
         rc = c2_cob_nskey_make(&nskey, &C2_COB_ROOT_FID, C2_COB_ROOT_NAME,
@@ -427,7 +426,11 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, const struct c2_fid *rootfid,
         nsrec.cnr_size = MKFS_ROOT_SIZE;
         nsrec.cnr_blksize = MKFS_ROOT_BLKSIZE;
         nsrec.cnr_blocks = MKFS_ROOT_BLOCKS;
-        time(&now);
+        if (time(&now) < 0) {
+                c2_cob_put(cob);
+                c2_free(nskey);
+                return errno;
+        }
         nsrec.cnr_atime = nsrec.cnr_mtime = nsrec.cnr_ctime = now;
 
         omgrec.cor_uid = 0;
@@ -475,7 +478,6 @@ int c2_cob_domain_mkfs(struct c2_cob_domain *dom, const struct c2_fid *rootfid,
         nsrec.cnr_size = MKFS_ROOT_SIZE;
         nsrec.cnr_blksize = MKFS_ROOT_BLKSIZE;
         nsrec.cnr_blocks = MKFS_ROOT_BLOCKS;
-        time(&now);
         nsrec.cnr_atime = nsrec.cnr_mtime = nsrec.cnr_ctime = now;
 
         omgrec.cor_uid = 0;
@@ -513,16 +515,16 @@ static void cob_init(struct c2_cob_domain *dom, struct c2_cob *cob)
         c2_ref_init(&cob->co_ref, 1, cob_free_cb);
         cob->co_fid = &cob->co_nsrec.cnr_fid;
         cob->co_dom = dom;
-        cob->co_valid = 0;
+        cob->co_flags = 0;
 }
 
 static void cob_fini(struct c2_cob *cob)
 {
-        if (cob->co_valid & C2_CA_NSKEY_FREE)
+        if (cob->co_flags & C2_CA_NSKEY_FREE)
                 c2_free(cob->co_nskey);
-        if (cob->co_valid & C2_CA_NSKEY_DB)
+        if (cob->co_flags & C2_CA_NSKEY_DB)
                 c2_db_pair_fini(&cob->co_oipair);
-        if (cob->co_valid & C2_CA_FABREC)
+        if (cob->co_flags & C2_CA_FABREC)
                 c2_free(cob->co_fabrec);
         c2_addb_ctx_fini(&cob->co_addb);
 }
@@ -570,7 +572,7 @@ static int cob_fab_lookup(struct c2_cob *cob, struct c2_db_tx *tx);
 /**
    Search for a record in the namespace table
 
-   If the lookup fails, we return error and co_valid accurately reflects
+   If the lookup fails, we return error and co_flags accurately reflects
    the missing fields.
 
    @see cob_oi_lookup
@@ -588,7 +590,7 @@ static int cob_ns_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
         c2_db_pair_fini(&pair);
 
         if (rc == 0) {
-                cob->co_valid |= C2_CA_NSREC;
+                cob->co_flags |= C2_CA_NSREC;
                 C2_ASSERT(cob->co_nsrec.cnr_linkno > 0 ||
                           cob->co_nsrec.cnr_nlink > 0);
                 C2_POST(c2_fid_is_set(cob->co_fid));
@@ -608,12 +610,12 @@ static int cob_oi_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
         struct c2_cob_oikey oldkey;
         int                 rc;
 
-        if (cob->co_valid & C2_CA_NSKEY)
+        if (cob->co_flags & C2_CA_NSKEY)
                 return 0;
 
-        if (cob->co_valid & C2_CA_NSKEY_DB) {
+        if (cob->co_flags & C2_CA_NSKEY_DB) {
                 c2_db_pair_fini(&cob->co_oipair);
-                cob->co_valid &= ~C2_CA_NSKEY_DB;
+                cob->co_flags &= ~C2_CA_NSKEY_DB;
         }
 
         /*
@@ -667,7 +669,7 @@ static int cob_oi_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
 
         cob->co_nskey =
                 (struct c2_cob_nskey *)cob->co_oipair.dp_rec.db_buf.b_addr;
-        cob->co_valid |= C2_CA_NSKEY | C2_CA_NSKEY_DB;
+        cob->co_flags |= C2_CA_NSKEY | C2_CA_NSKEY_DB;
 
         return 0;
 }
@@ -684,7 +686,7 @@ static int cob_fab_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
         struct c2_db_pair    pair;
         int                  rc;
 
-        if (cob->co_valid & C2_CA_FABREC)
+        if (cob->co_flags & C2_CA_FABREC)
                 return 0;
 
         fabkey.cfb_fid = *cob->co_fid;
@@ -699,9 +701,9 @@ static int cob_fab_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
         c2_db_pair_fini(&pair);
 
         if (rc == 0)
-                cob->co_valid |= C2_CA_FABREC;
+                cob->co_flags |= C2_CA_FABREC;
         else
-                cob->co_valid &= ~C2_CA_FABREC;
+                cob->co_flags &= ~C2_CA_FABREC;
 
         return rc;
 }
@@ -716,7 +718,7 @@ static int cob_omg_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
         struct c2_db_pair    pair;
         int                  rc;
 
-        if (cob->co_valid & C2_CA_OMGREC)
+        if (cob->co_flags & C2_CA_OMGREC)
                 return 0;
 
         omgkey.cok_omgid = cob->co_nsrec.cnr_omgid;
@@ -728,9 +730,9 @@ static int cob_omg_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
         c2_db_pair_fini(&pair);
 
         if (rc == 0)
-                cob->co_valid |= C2_CA_OMGREC;
+                cob->co_flags |= C2_CA_OMGREC;
         else
-                cob->co_valid &= ~C2_CA_OMGREC;
+                cob->co_flags &= ~C2_CA_OMGREC;
 
         return rc;
 }
@@ -774,10 +776,10 @@ int c2_cob_lookup(struct c2_cob_domain *dom, struct c2_cob_nskey *nskey,
                 return rc;
 
         cob->co_nskey = nskey;
-        cob->co_valid |= C2_CA_NSKEY;
+        cob->co_flags |= C2_CA_NSKEY;
 
         if (flags & C2_CA_NSKEY_FREE)
-                cob->co_valid |= C2_CA_NSKEY_FREE;
+                cob->co_flags |= C2_CA_NSKEY_FREE;
 
         rc = cob_ns_lookup(cob, tx);
         if (rc != 0) {
@@ -1012,13 +1014,13 @@ int c2_cob_create(struct c2_cob        *cob,
                 goto out;
 
         cob->co_nskey = nskey;
-        cob->co_valid |= C2_CA_NSKEY;
+        cob->co_flags |= C2_CA_NSKEY;
 
         /*
          * This is what name_add will use to create new name.
          */
         cob->co_nsrec = *nsrec;
-        cob->co_valid |= C2_CA_NSREC;
+        cob->co_flags |= C2_CA_NSREC;
         cob->co_nsrec.cnr_cntr = 0;
 
         /*
@@ -1068,7 +1070,7 @@ int c2_cob_create(struct c2_cob        *cob,
          * Now let's update omg attributes. Cache the omgrec.
          */
         cob->co_omgrec = *omgrec;
-        cob->co_valid |= C2_CA_OMGREC;
+        cob->co_flags |= C2_CA_OMGREC;
 
         /*
          * Add to fileattr-omg table.
@@ -1080,10 +1082,8 @@ int c2_cob_create(struct c2_cob        *cob,
         rc = c2_table_insert(tx, &pair);
         c2_db_pair_release(&pair);
         c2_db_pair_fini(&pair);
-        if (rc != 0)
-                goto out;
-
-        cob->co_valid |= C2_CA_NSKEY_FREE | C2_CA_FABREC;
+        if (rc == 0)
+                cob->co_flags |= C2_CA_NSKEY_FREE | C2_CA_FABREC;
 out:
         C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc,
                     c2_addb_func_fail, "cob_create", rc);
@@ -1098,7 +1098,7 @@ int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx)
         int                  rc;
 
         C2_PRE(c2_cob_is_valid(cob));
-        C2_PRE(cob->co_valid & C2_CA_NSKEY);
+        C2_PRE(cob->co_flags & C2_CA_NSKEY);
 
         /*
          * Delete last name from namespace and object index.
@@ -1159,13 +1159,13 @@ int c2_cob_update(struct c2_cob         *cob,
         int                   rc;
 
         C2_PRE(c2_cob_is_valid(cob));
-        C2_PRE(cob->co_valid & C2_CA_NSKEY);
+        C2_PRE(cob->co_flags & C2_CA_NSKEY);
 
         if (nsrec != NULL) {
                 C2_ASSERT(nsrec->cnr_nlink > 0);
 
                 cob->co_nsrec = *nsrec;
-                cob->co_valid |= C2_CA_NSREC;
+                cob->co_flags |= C2_CA_NSREC;
 
                 c2_db_pair_setup(&pair, &cob->co_dom->cd_namespace,
                                  cob->co_nskey, c2_cob_nskey_size(cob->co_nskey),
@@ -1180,11 +1180,11 @@ int c2_cob_update(struct c2_cob         *cob,
         if (fabrec != NULL) {
                 fabkey.cfb_fid = *cob->co_fid;
                 if (fabrec != cob->co_fabrec) {
-                        if (cob->co_valid & C2_CA_FABREC)
+                        if (cob->co_flags & C2_CA_FABREC)
                                 c2_free(cob->co_fabrec);
                         cob->co_fabrec = fabrec;
                 }
-                cob->co_valid |= C2_CA_FABREC;
+                cob->co_flags |= C2_CA_FABREC;
 
                 c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_basic,
                                  &fabkey, sizeof fabkey, cob->co_fabrec,
@@ -1202,7 +1202,7 @@ int c2_cob_update(struct c2_cob         *cob,
                 omgkey.cok_omgid = cob->co_nsrec.cnr_omgid;
 
                 cob->co_omgrec = *omgrec;
-                cob->co_valid |= C2_CA_OMGREC;
+                cob->co_flags |= C2_CA_OMGREC;
 
                 c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_omg,
                                  &omgkey, sizeof omgkey,
@@ -1271,7 +1271,7 @@ int c2_cob_name_del(struct c2_cob        *cob,
         int                 rc;
 
         C2_PRE(c2_cob_is_valid(cob));
-        C2_PRE(cob->co_valid & C2_CA_NSKEY);
+        C2_PRE(cob->co_flags & C2_CA_NSKEY);
 
         /*
          * Kill name from namespace.
@@ -1366,15 +1366,15 @@ int c2_cob_name_update(struct c2_cob        *cob,
         /*
          * Update key to new one.
          */
-        if (cob->co_valid & C2_CA_NSKEY_FREE)
+        if (cob->co_flags & C2_CA_NSKEY_FREE)
                 c2_free(cob->co_nskey);
-        else if (cob->co_valid & C2_CA_NSKEY_DB)
+        else if (cob->co_flags & C2_CA_NSKEY_DB)
                 c2_db_pair_fini(&cob->co_oipair);
-        cob->co_valid &= ~(C2_CA_NSKEY_FREE | C2_CA_NSKEY_DB);
+        cob->co_flags &= ~(C2_CA_NSKEY_FREE | C2_CA_NSKEY_DB);
         c2_cob_nskey_make(&cob->co_nskey, &tgtkey->cnk_pfid,
                           c2_bitstring_buf_get(&tgtkey->cnk_name),
                           c2_bitstring_len_get(&tgtkey->cnk_name));
-        cob->co_valid |= C2_CA_NSKEY_FREE;
+        cob->co_flags |= C2_CA_NSKEY_FREE;
 out:
         C2_ADDB_ADD(&cob->co_dom->cd_addb, &cob_addb_loc,
                     c2_addb_func_fail, "cob_update_name", rc);

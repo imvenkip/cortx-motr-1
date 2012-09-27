@@ -216,12 +216,12 @@ static void test_lookup(void)
         C2_UT_ASSERT(rc == 0);
         C2_UT_ASSERT(cob != NULL);
         C2_UT_ASSERT(cob->co_dom == &dom);
-        C2_UT_ASSERT(cob->co_valid & C2_CA_NSREC);
+        C2_UT_ASSERT(cob->co_flags & C2_CA_NSREC);
         C2_UT_ASSERT(cob->co_nsrec.cnr_fid.f_container == 0xabc);
         C2_UT_ASSERT(cob->co_nsrec.cnr_fid.f_key == 0xdef);
 
         /* We should have cached the key also, unless oom */
-        C2_UT_ASSERT(cob->co_valid & C2_CA_NSKEY);
+        C2_UT_ASSERT(cob->co_flags & C2_CA_NSKEY);
 
         c2_cob_put(cob);
 }
@@ -256,12 +256,12 @@ static void test_locate(void)
         C2_UT_ASSERT(cob->co_dom == &dom);
 
         /* We should have saved the NSKEY */
-        C2_UT_ASSERT(cob->co_valid & C2_CA_NSKEY);
+        C2_UT_ASSERT(cob->co_flags & C2_CA_NSKEY);
         C2_UT_ASSERT(cob->co_nskey->cnk_pfid.f_container == 0x123);
         C2_UT_ASSERT(cob->co_nskey->cnk_pfid.f_key == 0x456);
 
         /* Assuming we looked up the NSREC at the same time */
-        C2_UT_ASSERT(cob->co_valid & C2_CA_NSREC);
+        C2_UT_ASSERT(cob->co_flags & C2_CA_NSREC);
 
         c2_cob_put(cob);
 }
@@ -395,12 +395,12 @@ static void ub_lookup(int i)
         C2_UB_ASSERT(cob != NULL);
         C2_UB_ASSERT(cob->co_dom == &dom);
 
-        C2_UB_ASSERT(cob->co_valid & C2_CA_NSREC);
+        C2_UB_ASSERT(cob->co_flags & C2_CA_NSREC);
         C2_UB_ASSERT(cob->co_nsrec.cnr_fid.f_container == 0xAA);
         C2_UB_ASSERT(cob->co_nsrec.cnr_fid.f_key == i);
 
         /* We should be holding the nskey until the final put */
-        C2_UB_ASSERT(cob->co_valid & C2_CA_NSKEY);
+        C2_UB_ASSERT(cob->co_flags & C2_CA_NSKEY);
 
         c2_cob_put(cob);
 }
