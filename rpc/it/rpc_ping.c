@@ -501,7 +501,8 @@ static int run_server(void)
 		sprintf(rpc_size, "%d" , max_rpc_msg_size);
 
 	C2_RPC_SERVER_CTX_DECLARE(sctx, &xprt, 1, server_argv,
-				  ARRAY_SIZE(server_argv), SERVER_LOG_FILE_NAME);
+				  ARRAY_SIZE(server_argv), c2_cs_default_stypes,
+				  c2_cs_default_stypes_nr, SERVER_LOG_FILE_NAME);
 
 	rc = c2_init();
 	if (rc != 0)

@@ -24,14 +24,14 @@
 #include "lib/memory.h"
 #include "lib/tlist.h"
 
-#include "ut/rpc.h"
+#include "ut/rpc.h"             /* C2_RPC_SERVER_CTX_DECLARE */
+#include "ut/cs_fop_foms.h"
+#include "ut/cs_test_fops_ff.h" /* cs_ds1_{req,rep}_fop, cs_ds2_{req,rep}_fop */
 #include "fop/fop.h"
 #include "net/bulk_mem.h"
 #include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
-#include "ut/cs_fop_foms.h"
-#include "ut/cs_test_fops_ff.h"
 #include "rpc/rpc_opcodes.h"
 
 #include "colibri/colibri_setup.c"
@@ -279,7 +279,9 @@ static int cs_ut_test_helper_success(struct cl_ctx *cctx, size_t cctx_nr,
 	int stype;
 
 	C2_RPC_SERVER_CTX_DECLARE(sctx, cs_xprts, ARRAY_SIZE(cs_xprts),
-				  cs_argv, cs_argc, SERVER_LOG_FILE_NAME);
+				  cs_argv, cs_argc, c2_cs_default_stypes,
+				  c2_cs_default_stypes_nr,
+				  SERVER_LOG_FILE_NAME);
 
 	rc = c2_rpc_server_start(&sctx);
 	C2_UT_ASSERT(rc == 0);
@@ -308,7 +310,9 @@ static void cs_ut_test_helper_failure(char *cs_argv[], int cs_argc)
 	int rc;
 
 	C2_RPC_SERVER_CTX_DECLARE(sctx, cs_xprts, ARRAY_SIZE(cs_xprts),
-				  cs_argv, cs_argc, SERVER_LOG_FILE_NAME);
+				  cs_argv, cs_argc, c2_cs_default_stypes,
+				  c2_cs_default_stypes_nr,
+				  SERVER_LOG_FILE_NAME);
 
 	rc = c2_rpc_server_start(&sctx);
 	C2_UT_ASSERT(rc != 0);
