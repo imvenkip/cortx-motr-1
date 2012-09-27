@@ -18,16 +18,18 @@
  * Original creation date: 09/25/2012
  */
 
+#include "lib/finject.h"
+#include "lib/memory.h"
 #include "lib/ut.h"
 #include "reqh/reqh.h"
-#include "cm/ag.h"
-#include "cm/cm.h"
 #include "reqh/reqh_service.h"
+#include "cm/cm.h"
 #include "cm/cp.h"
 
-static struct c2_reqh  reqh;
-static struct c2_cm_cp cp;
-static struct c2_cm cm_ut;
+static struct c2_reqh  	reqh;
+static struct c2_cm_cp 	cp;
+static struct c2_cm 	cm_ut;
+struct c2_reqh_service *service;
 
 static int cm_ut_service_start(struct c2_reqh_service *service)
 {
@@ -79,6 +81,7 @@ static void cm_cp_ut_free(struct c2_cm_cp *cp)
 static const struct c2_cm_cp_ops cm_cp_ut_ops = {
 	.co_free = cm_cp_ut_free
 };
+
 static struct c2_cm_cp* cm_ut_cp_alloc(struct c2_cm *cm)
 {
 	cp.c_ops = &cm_cp_ut_ops;
@@ -116,6 +119,7 @@ static int cm_ut_service_allocate(struct c2_reqh_service_type *stype,
 	*service = &cm->cm_service;
 	(*service)->rs_type = stype;
 	(*service)->rs_ops = &cm_ut_service_ops;
+	(*service)->rs_state = C2_RST_INITIALISING;
 	rc = c2_cm_init(cm, cm_type, &cm_ut_ops);
 	return rc;
 }
@@ -132,43 +136,75 @@ C2_CM_TYPE_DECLARE(cm_ut, &cm_ut_service_type_ops, "cm_ut");
  */
 static int ut_init(void)
 {
+	int 	rc;
 	c2_reqh_init(&reqh, NULL, (void*)1, (void*)1, (void*)1);
+	rc = c2_cm_type_register(&cm_ut_cmt);
+	C2_ASSERT(rc == 0);
 	return 0;
 }
 
 static int ut_fini(void)
 {
+	c2_cm_type_deregister(&cm_ut_cmt);
         c2_reqh_fini(&reqh);
 
         return 0;
 }
 
-static void cm_setup_ut(void)
+static void cm_ut_service_alloc_init()
 {
-	int			rc;
-	struct c2_reqh_service *service;
-
-	rc = c2_cm_type_register(&cm_ut_cmt);
-	C2_UT_ASSERT(rc == 0);
-
-	/* Calls c2_cm_init() internally. */
+	int	rc;
 	rc = c2_reqh_service_allocate(&cm_ut_cmt.ct_stype, &service);
 	C2_UT_ASSERT(rc == 0);
 
 	c2_reqh_service_init(service, &reqh);
+}
+
+static void cm_ut_service_cleanup()
+{
+	c2_reqh_service_stop(service);
+	c2_reqh_service_fini(service);
+}
+
+static void cm_setup_ut(void)
+{
+	int			rc;
+
+	cm_ut_service_alloc_init();
 	rc = c2_reqh_service_start(service);
 	C2_UT_ASSERT(rc == 0);
 
+	/* Checks if the restructuring process is started successfully. */
 	rc = c2_cm_start(&cm_ut);
 	C2_UT_ASSERT(rc == 0);
 	sleep(1);
+
 	rc = c2_cm_stop(&cm_ut);
 	C2_UT_ASSERT(rc == 0);
+	cm_ut_service_cleanup();
+}
 
-	c2_reqh_service_stop(service);
+static void cm_init_failure_ut(void)
+{
+	int			rc;
+	struct c2_reqh_service *service = NULL;
+
+	c2_fi_enable_once("c2_cm_init", "init_failure");
+	rc = c2_reqh_service_allocate(&cm_ut_cmt.ct_stype, &service);
+	C2_UT_ASSERT(rc != 0);
+
+}
+
+static void cm_setup_failure_ut(void)
+{
+	int			rc;
+
+	cm_ut_service_alloc_init();
+	c2_fi_enable_once("c2_cm_setup", "setup_failure");
+	rc = c2_reqh_service_start(service);
+	C2_UT_ASSERT(rc != 0);
+
 	c2_reqh_service_fini(service);
-	c2_cm_type_deregister(&cm_ut_cmt);
-
 }
 
 const struct c2_test_suite cm_generic_ut = {
@@ -177,13 +213,15 @@ const struct c2_test_suite cm_generic_ut = {
         .ts_fini = &ut_fini,
         .ts_tests = {
                 { "cm_setup_ut", cm_setup_ut },
-                { NULL, NULL }
+		{ "cm_setup_failure_ut", cm_setup_failure_ut },
+		{ "cm_init_failure_ut", cm_init_failure_ut },
+		{ NULL, NULL }
         }
 };
 
 /*
  *  Local variables:
- *  c-indentation-style: "K&R"
+ *  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
  *  fill-column: 80
