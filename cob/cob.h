@@ -316,7 +316,7 @@ struct c2_cob_nskey {
         struct c2_bitstring cnk_name;
 };
 
-int c2_cob_nskey_size(const struct c2_cob_nskey *nskey);
+size_t c2_cob_nskey_size(const struct c2_cob_nskey *nskey);
 
 int c2_cob_nskey_cmp(const struct c2_cob_nskey *k0,
                      const struct c2_cob_nskey *k1);
@@ -413,7 +413,7 @@ struct c2_cob_omgrec {
  * parameter to c2_cob_create() method.
  *
  * Users use c2_cob_get/put to hold/release references; the cob may be destroyed
- * on the last put, or it may be cached for faster future lookup.
+ * on the last put, or it may be cached for some time (just like root cob is).
  * @todo at some point, we may replace the co_ref by taking a reference on the
  * underlying co_stob.  At that point, we will need a callback at last put.
  * We wait to see how cob users will use these references, whether they need
@@ -454,7 +454,7 @@ struct c2_cob {
         struct c2_cob_nsrec    co_nsrec;    /**< object fid, basic stat data */
         struct c2_cob_fabrec  *co_fabrec;   /**< fileattr_basic data (acl...) */
         struct c2_cob_omgrec   co_omgrec;   /**< permission data */
-        struct c2_db_pair      co_oipair;   /**< used for oi accesss */
+        struct c2_db_pair      co_oipair;   /**< used for oi access */
         struct c2_addb_ctx     co_addb;     /**< cob private addb ctx. */
 };
 
@@ -533,7 +533,7 @@ int c2_cob_locate(struct c2_cob_domain    *dom,
  * @param cob    cob instance allocted with c2_cob_alloc()
  * @param nskey  namespace key made with c2_cob_nskey_make()
  * @param nsrec  namespace record with all attrbiutes set
- * @param fabrec symlink record
+ * @param fabrec basic attributes record
  * @param omgrec owner/mode/group record
  * @param tx     transaction handle
  */
@@ -668,14 +668,14 @@ void c2_cob_oikey_make(struct c2_cob_oikey *oikey,
 int c2_cob_nskey_make(struct c2_cob_nskey **keyh,
                       const struct c2_fid *pfid,
                       const char *name,
-                      int namelen);
+                      size_t namelen);
 
 /**
  * Allocate fabrec record according with @link and @linklen and setup record
  * fields.
  */
 int c2_cob_fabrec_make(struct c2_cob_fabrec **rech,
-                       const char *link, int linklen);
+                       const char *link, size_t linklen);
 
 /**
  * Try to allocate new omgid using omg table and terminator record. Save

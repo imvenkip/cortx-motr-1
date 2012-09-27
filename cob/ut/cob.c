@@ -59,7 +59,8 @@ static void test_mkfs(void)
         C2_UT_ASSERT(rc == 0);
 
         /* Create root and other structures */
-        rc = c2_cob_domain_mkfs(&dom, &C2_COB_SLASH_FID, &C2_COB_SESSIONS_FID, &tx);
+        rc = c2_cob_domain_mkfs(&dom, &C2_COB_SLASH_FID,
+                                &C2_COB_SESSIONS_FID, &tx);
         C2_UT_ASSERT(rc == 0);
         c2_db_tx_commit(&tx);
 

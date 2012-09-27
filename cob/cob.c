@@ -91,7 +91,7 @@ void c2_cob_oikey_make(struct c2_cob_oikey *oikey,
 int c2_cob_nskey_make(struct c2_cob_nskey **keyh,
                       const struct c2_fid *pfid,
                       const char *name,
-                      int namelen)
+                      size_t namelen)
 {
         struct c2_cob_nskey *key;
 
@@ -116,7 +116,7 @@ int c2_cob_nskey_cmp(const struct c2_cob_nskey *k0,
         return rc ?: c2_bitstring_cmp(&k0->cnk_name, &k1->cnk_name);
 }
 
-int c2_cob_nskey_size(const struct c2_cob_nskey *cnk)
+size_t c2_cob_nskey_size(const struct c2_cob_nskey *cnk)
 {
         return sizeof *cnk +
                 c2_bitstring_len_get(&cnk->cnk_name);
@@ -125,13 +125,13 @@ int c2_cob_nskey_size(const struct c2_cob_nskey *cnk)
 /**
    Fabrec size taking into account symlink length.
  */
-static int c2_cob_fabrec_size(const struct c2_cob_fabrec *rec)
+static size_t c2_cob_fabrec_size(const struct c2_cob_fabrec *rec)
 {
         return sizeof *rec + rec->cfb_linklen;
 }
 
 int c2_cob_fabrec_make(struct c2_cob_fabrec **rech,
-                       const char *link, int linklen)
+                       const char *link, size_t linklen)
 {
         struct c2_cob_fabrec *rec;
 
@@ -148,7 +148,7 @@ int c2_cob_fabrec_make(struct c2_cob_fabrec **rech,
 /**
    Maximal possible fabrec size.
  */
-static int c2_cob_max_fabrec_size(void)
+static size_t c2_cob_max_fabrec_size(void)
 {
         return sizeof(struct c2_cob_fabrec) + C2_COB_NAME_MAX;
 }
@@ -194,7 +194,7 @@ static int c2_cob_max_nskey_make(struct c2_cob_nskey **keyh,
    and want to allocate it for worst case scenario, that is, for max
    possible name len.
  */
-static int c2_cob_nskey_size_max(const struct c2_cob_nskey *cnk)
+static size_t c2_cob_nskey_size_max(const struct c2_cob_nskey *cnk)
 {
         return sizeof *cnk + C2_COB_NAME_MAX;
 }
@@ -683,7 +683,9 @@ static int cob_fab_lookup(struct c2_cob *cob, struct c2_db_tx *tx)
                 return 0;
 
         fabkey.cfb_fid = *cob->co_fid;
-        c2_cob_max_fabrec_make(&cob->co_fabrec);
+        rc = c2_cob_max_fabrec_make(&cob->co_fabrec);
+        if (rc != 0)
+                return rc;
         c2_db_pair_setup(&pair, &cob->co_dom->cd_fileattr_basic,
                          &fabkey, sizeof fabkey, cob->co_fabrec,
                          c2_cob_max_fabrec_size());
@@ -841,9 +843,11 @@ int c2_cob_iterator_init(struct c2_cob *cob,
         /*
          * Prepare entry key using passed started pos.
          */
-        c2_cob_max_nskey_make(&it->ci_key, cob->co_fid,
-                              c2_bitstring_buf_get(name),
-                              c2_bitstring_len_get(name));
+        rc = c2_cob_max_nskey_make(&it->ci_key, cob->co_fid,
+                                   c2_bitstring_buf_get(name),
+                                   c2_bitstring_len_get(name));
+        if (rc != 0)
+                return rc;
 
         /*
          * Init iterator cursor with max possible key size.
@@ -864,9 +868,6 @@ int c2_cob_iterator_init(struct c2_cob *cob,
         return rc;
 }
 
-/**
-   Position in table according to @it properties.
-*/
 int c2_cob_iterator_get(struct c2_cob_iterator *it)
 {
         int rc;
@@ -960,10 +961,16 @@ int c2_cob_alloc_omgid(struct c2_cob_domain *dom, struct c2_db_tx *tx,
                 rc = c2_db_cursor_prev(&cursor, &pair);
                 if (omgid) {
                         if (rc == 0) {
-                                /** We found last allocated omgid. Bump it by one. */
+                                /**
+                                 * We found last allocated omgid. Bump it
+                                 * by one.
+                                 */
                                 *omgid = ++omgkey.cok_omgid;
                         } else {
-                                /** No last allocated found, this first alloc call. */
+                                /**
+                                 * No last allocated found, this first alloc
+                                 * call.
+                                 */
                                 *omgid = 0;
                         }
                 }
@@ -1219,7 +1226,7 @@ int c2_cob_name_add(struct c2_cob        *cob,
         C2_PRE(c2_fid_is_set(&nskey->cnk_pfid));
         C2_PRE(c2_cob_is_valid(cob));
 
-        /*
+        /**
          * Add new name to object index table. Table insert should fail
          * if name already exists.
          */

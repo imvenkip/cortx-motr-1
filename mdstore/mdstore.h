@@ -55,6 +55,8 @@ enum c2_mdstore_locate_flags {
         C2_MD_LOCATE_ORPHAN  = 1 << 2
 };
 
+typedef enum c2_mdstore_locate_flags c2_mdstore_locate_flags_t;
+
 /**
  * This is all standard readdir related stuff. This is one readdir entry.
  */
@@ -77,10 +79,10 @@ struct c2_rdpg {
  * Init mdstore and get it ready to work. If init_root == !0
  * then root cob is initialized.
 */
-int c2_mdstore_init(struct c2_mdstore           *md,
+int c2_mdstore_init(struct c2_mdstore          *md,
                     struct c2_cob_domain_id    *id,
                     struct c2_dbenv            *db,
-                    int                         init_root);
+                    bool                        init_root);
 
 /**
  * Finalize mdstore instance.
@@ -148,7 +150,7 @@ int c2_mdstore_create(struct c2_mdstore        *md,
 */
 int c2_mdstore_open(struct c2_mdstore          *md,
                     struct c2_cob              *cob,
-                    int                         flags,
+                    c2_mdstore_locate_flags_t   flags,
                     struct c2_db_tx            *tx);
 
 /**

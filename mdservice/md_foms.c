@@ -592,7 +592,7 @@ static int c2_md_open_tick(struct c2_fom *fom)
                                 C2_MD_LOCATE_STORED, &fom->fo_tx.tx_dbtx);
         if (rc == 0) {
                 rc = c2_mdstore_open(md, cob,
-                                      body->b_flags, &fom->fo_tx.tx_dbtx);
+                                     body->b_flags, &fom->fo_tx.tx_dbtx);
                 if (rc == 0 &&
                     (!(attr.ca_flags & C2_COB_NLINK) || attr.ca_nlink > 0)) {
                         /*
