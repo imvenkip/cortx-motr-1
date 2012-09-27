@@ -69,7 +69,7 @@ struct c2_db_tx;
    - One more table is needed for so called "omg" records (owner/mode/group).
    They store mode/uid/gid file attributes.
 
-   For traditional file systems namespace we need two tables: name space and
+   For traditional file systems' namespace we need two tables: name space and
    object index. Namespace and object index tables are used as following:
 
    Suppose that there is a file F that has got three names:
@@ -84,7 +84,8 @@ struct c2_db_tx;
 
    where, in first record, we have "DB key" constructed of f0's parent fid (the
    directory fid) and "f0", the filename itself. The namespace record contains
-   is the file "f0" fid with full stat data, plus the link number for this name.
+   the fid of file "f0" together with with its stat data, plus the link number
+   for this name.
 
    Here "stat data" means that this record contains file attributes that usually
    extracted by stat utility or ls -la.
@@ -99,7 +100,7 @@ struct c2_db_tx;
    When the first file name is deleted, the stat data is migrated to another
    name record of the file (if any). This will be shown below.
 
-   The object index will contain records:
+   The object index contains records:
 
    (F, 0)->(a.fid, "f0")
    (F, 1)->(b.fid, "f1")
@@ -107,23 +108,24 @@ struct c2_db_tx;
 
    where the key is constructed of file fid and its link number. The record
    contains the parent fid plus the file name. That is, the object index
-   enumerates all the names that file has. As we have already noted, the object
-   index table records have the same format as namespace keys and may be used
-   appropriately.
+   enumerates all the names that a file has. As we have already noted, the object
+   index table values have the same format as namespace keys and may be used
+   for getting namespace data and cob object itself using object's fid.
 
    When doing "rm a/f0" we need to kill 1 namespace and 1 object index record.
    That is, we need a key containing (a.fid, "f0"). Using this key we can
-   find its position in namespace table and kill the record. Before killing it,
-   we need to check if this record stores file attributes. This is easy to do
-   as ->linkno field is zero for stat data records. Stat data should be moved
-   to next name and we need to find it somehow. To do this quickly we do lookup
-   in object index for second file name, i.e. - (a.fid, 1).
+   find its position in namespace table and delete the record. Before killing it,
+   we need to check if this record stores stat data. This is easy to do
+   as ->c2_cob_nsrec::cnr_linkno field is zero for stat data records. Stat data
+   should be moved to next name and we need to find it somehow. To do this quickly
+   we do lookup in object index for second file name, i.e. - (a.fid, 1).
 
-   Doing so allows to find the record:
+   To do this quickly, we do lookup in the object index for the name of second
+   file:
 
    (F, 1)->(b.fid, "f1")
 
-   It describes second name of the file. We now can use its record as a key for
+   It describes second name of the file. Now we can use its record as a key for
    namespace and find second name record in namespace table. Having the name,
    we can move stat data of F to it.
 
@@ -139,7 +141,7 @@ struct c2_db_tx;
    should be updated in the store) and kill one record in object index.
 
    File attributes that are stored in separate tables may also be easily accessed
-   using key constructed of (F), where F is file fid.
+   using key constructed of F, where F is file fid.
 
    Rationale:
 
