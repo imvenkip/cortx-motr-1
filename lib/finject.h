@@ -18,8 +18,14 @@
  * Original creation date: 02/22/2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LIB_FINJECT_H__
 #define __COLIBRI_LIB_FINJECT_H__
+
+#ifdef HAVE_CONFIG_H
+#  include "config.h"     /* ENABLE_FAULT_INJECTION */
+#endif
 
 #include "lib/cdefs.h"
 #include "lib/types.h"

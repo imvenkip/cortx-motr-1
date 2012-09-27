@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,8 +18,10 @@
  * Original creation date: 08/14/2010
  */
 
-#ifndef __COLIBRI_LIB_TYPES_H_
-#define __COLIBRI_LIB_TYPES_H_
+#pragma once
+
+#ifndef __COLIBRI_LIB_TYPES_H__
+#define __COLIBRI_LIB_TYPES_H__
 
 #ifdef __KERNEL__
 #include "linux_kernel/types.h"
@@ -32,9 +34,17 @@ struct c2_uint128 {
 	uint64_t u_lo;
 };
 
+#define C2_UINT128(hi, lo) (struct c2_uint128) { .u_hi = (hi), .u_lo = (lo) }
+
 bool c2_uint128_eq (const struct c2_uint128 *u0, const struct c2_uint128 *u1);
 int  c2_uint128_cmp(const struct c2_uint128 *u0, const struct c2_uint128 *u1);
 void c2_uint128_init(struct c2_uint128 *u128, const char *magic);
+/** res = a + b; */
+void c2_uint128_add(struct c2_uint128 *res,
+		    const struct c2_uint128 a,
+		    const struct c2_uint128 b);
+/** res = a * b; */
+void c2_uint128_mul64(struct c2_uint128 *res, uint64_t a, uint64_t b);
 
 /** count of bytes (in extent, IO operation, etc.) */
 typedef uint64_t c2_bcount_t;
@@ -49,7 +59,7 @@ enum {
 };
 
 
-/* __COLIBRI_LIB_TYPES_H_ */
+/* __COLIBRI_LIB_TYPES_H__ */
 #endif
 
 /*

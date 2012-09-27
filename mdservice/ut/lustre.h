@@ -18,6 +18,8 @@
  * Original creation date: 01/17/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_MDSERVICE_UT_LUSTRE_H__
 #define __COLIBRI_MDSERVICE_UT_LUSTRE_H__
 

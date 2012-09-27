@@ -1,17 +1,17 @@
 # fop generated files are required by other directories
 
-addbdir                     = $(includedir)/colibri/addb
+include $(top_srcdir)/Makefile.ff
 
-noinst_LTLIBRARIES          = libcolibri-addbff.la
-libcolibri_addbff_la_SOURCES = addb_u.h addb_u.c
+addbdir                      = $(includedir)/colibri/addb
 
-INCLUDES                    = -iquote . -iquote .. -iquote $(top_srcdir)/include
+ADDB_FOPS                    = addb_ff.h addb_ff.c
 
-EXTRA_DIST                  = addb.ff
+noinst_LTLIBRARIES           = libcolibri-addbff.la
+libcolibri_addbff_la_SOURCES = $(ADDB_FOPS)
 
-addb_u.h addb_u.c: addb.ff \
-                   $(top_builddir)/fop/rt/libc2rt.la $(top_builddir)/fop/fop2c
-	$(top_builddir)/fop/fop2c -uk $<
+INCLUDES                     = -iquote . -iquote .. \
+			       -iquote $(top_srcdir)/include
 
-clean-local:
-	rm -fr addb_[uk].[hc]
+EXTRA_DIST                   = addb.ff
+
+MOSTLYCLEANFILES             = $(ADDB_FOPS)

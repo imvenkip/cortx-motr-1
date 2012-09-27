@@ -18,129 +18,100 @@
  * Original creation date: 06/25/2011
  */
 
-#ifndef C2_RPC_ONWIRE_H_
-#define C2_RPC_ONWIRE_H_
+#pragma once
 
-/**
-   @defgroup rpc_onwire RPC wire format types and interfaces
+#ifndef __COLIBRI_RPC_ONWIRE_H__
+#define __COLIBRI_RPC_ONWIRE_H__
 
-   A C2 RPC is a container for items, FOPs and ADDB records.  The wire
-   format of an RPC consists of a header and a sequence of encoded
-   RPC items.
-
-   The header consists of, in order
-    - version, a uint32_t, currently only C2_RPC_VERSION_1 is supported
-    - the number of RPC items in the RPC
-
-   Each item is encoded as
-    - opcode value which denotes a unique operation code for an rpc item type &
-    is encoded as a uint32_t
-    - length number of bytes in the item payload, encoded as a uint32_t
-    - Various fields related to internal processing of an rpc item.
-    - item payload ( the serialized data for each item )
-
-    Each RPC item is directly serialized/deserialized into a network buffer.
-    using the various bufvec encode/decode functions for atomic types.
-    (see xcode/bufvec_xcode.h).
-
-    XXX : Currently we assume (and check) that the the c2_bufvec-s, supplied to
-    transcode functions have 8-byte aligned buffers with sizes multiple of
-    8 bytes.
-
-    XXX : Current implementation of onwire formats is only for RPC items
-	  which are containers for FOPs.
-   @{
-*/
-
-#include "rpc/rpc2.h"
-#include "xcode/bufvec_xcode.h"
+#include "lib/types.h" /* uint64_t */
+#include "dtm/verno.h" /* c2_verno */
+#include "dtm/verno_xc.h" /* c2_verno_xc */
+#include "xcode/xcode_attr.h" /* C2_XCA_RECORD */
 
 enum {
 	C2_RPC_VERSION_1 = 1,
 };
 
-/** Header information present in an RPC object */
-struct c2_rpc_header {
-	/** RPC version, currently 1 */
-	uint32_t rh_ver;
-	/** No of items present in the RPC object */
-	uint32_t rh_item_count;
-};
+/**
+   Requirements:
+   * UUID must change whenever a storage-less client re-boots.
+   * for a client with persistent state (e.g., a disk) uuid
+     must survive reboots.
+*/
+struct c2_rpc_sender_uuid {
+	/** XXX Temporary */
+	uint64_t su_uuid;
+} C2_XCA_RECORD;
+
+struct c2_rpc_onwire_slot_ref {
+
+	struct c2_rpc_sender_uuid  osr_uuid;
+
+	uint64_t                   osr_sender_id;
+
+	uint64_t                   osr_session_id;
+
+	/** Numeric id of slot. Used when encoding and decoding rpc item to
+	    and from wire-format
+	 */
+	uint32_t                   osr_slot_id;
+
+	/** If slot has verno matching sr_verno, then only the item can be
+	    APPLIED to the slot
+	 */
+	struct c2_verno            osr_verno;
+	/**
+	 * @todo These are temporary fields; there is no need to duplicate
+	 * this information with each and every reply. In the future, special
+	 * 1-way item will be used to transfer this information.
+	 */
+	/** In each reply item, receiver reports to sender, verno of item
+	    whose effects have reached persistent storage, using this field
+	 */
+	struct c2_verno            osr_last_persistent_verno;
+
+	/** Inform the sender about current slot version */
+	struct c2_verno            osr_last_seen_verno;
+
+	/** An identifier that uniquely identifies item within
+	    slot->item_list.
+        */
+	uint64_t                   osr_xid;
+
+	/** Generation number of slot */
+	uint64_t                   osr_slot_gen;
+} C2_XCA_RECORD;
+
+struct c2_rpc_packet_onwire_header {
+	/* Version */
+	uint32_t poh_version;
+
+	/** Number of RPC items in packet */
+	uint32_t poh_nr_items;
+
+	uint64_t poh_magic;
+} C2_XCA_RECORD;
+
+struct c2_rpc_item_onwire_header {
+	/* Item opcode */
+	uint32_t ioh_opcode;
+
+	uint64_t ioh_magic;
+} C2_XCA_RECORD;
+
+int c2_rpc_item_header_encode(struct c2_rpc_item_onwire_header *ioh,
+			      struct c2_bufvec_cursor          *cur);
 
 /**
-   Header information per rpc item in an rpc object. The detailed description
-   of the various fields is present in struct c2_rpc_item /rpc/rpc2.h.
+    Decodes the rpc item header into a bufvec
+    @param ioh RPC item header to be decoded
+    @param cur Current bufvec cursor position
+    @retval 0 (success)
+    @retval -errno  (failure)
 */
-struct c2_rpc_item_header {
-	uint32_t			rih_opcode;
-	uint64_t			rih_item_size;
-	uint64_t			rih_sender_id;
-	uint64_t			rih_session_id;
-	uint32_t			rih_slot_id;
-	struct c2_rpc_sender_uuid	rih_uuid;
-	struct c2_verno			rih_verno;
-	struct c2_verno			rih_last_persistent_ver_no;
-	struct c2_verno			rih_last_seen_ver_no;
-	uint64_t			rih_xid;
-	uint64_t			rih_slot_gen;
-};
-
-/**
-   XXX: Temporary way to find the size of the onwire rpc object header
-   and item header in bytes. The RPC_HEADER_FIELDS and ITEM_HEADER_FIELDS
-   denote no of fields present in each onwire rpc object header and rpc item
-   header respectively ( see struct c2_rpc_item and struct c2_rpc_item_header).
-*/
-enum {
-	/** Count of fields in RPC object header (see struct c2_rpc_header) */
-	RPC_HEADER_FIELDS = 2,
-	/** Count of fields in item header (see struct c2_rpc_item_header) */
-	ITEM_HEADER_FIELDS = 14,
-	/** Onwire header size = RPC_HEADER_FIELDS * BYTES_PER_XCODE_UNIT */
-	RPC_ONWIRE_HEADER_SIZE = 16,
-	/** Onwire item header size = ITEM_HEADER_FIELDS * BYTES_PER_XCODE_UNIT */
-	ITEM_ONWIRE_HEADER_SIZE = 112,
-};
-
-/**
-   This function encodes an c2_rpc object into the supplied network buffer. Each
-   rpc object contains a header and count of rpc items present in that rpc
-   object. These items are serialized directly onto the bufvec present in the
-   network buffer using the various bufvec encode/decode funtions for atomic
-   types.
-   The supplied network buffer is allocated and managed by the caller.
-   @param rpc_obj  pointer to the rpc object which will be serialized
-   into a network buffer
-   @param nb pointer to network buffer on which the rpc object is to be
-   serialized
-   @retval 0 on  success.
-   @retval -errno on failure.
-*/
-int c2_rpc_encode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb);
-
-/**
-   Decodes an onwire rpc object in the network buffer into an incore rpc object.
-   The rpc object in the network buffer is deserialized using the bufvec
-   encode/decode funtions to extract the header. The header contains the count
-   of items present in the rpc object. For each rpc item we :-
-   - Deserialize the opcode and lookup the  corresponding item_type.
-   - Call the corresponding item decode function for that item type and
-     deserialize the item payload.
-   - Add the deserialized item to the r_items list of the rpc_obj.
-   @param rpc_obj The RPC object on which the onwire items would be
-   deserialized.
-   @param nb     The network buffer containing the onwire RPC object.
-   @param len    Length of RPC message received.
-   @param offset offset of the message in the received buffer.
-   @retval 0 on success.
-   @retval -errno on failure.
-*/
-int c2_rpc_decode(struct c2_rpc *rpc_obj, struct c2_net_buffer *nb,
-		  c2_bcount_t len, c2_bcount_t offset);
-
-int item_encdec(struct c2_bufvec_cursor *cur, struct c2_rpc_item *item,
-			enum c2_bufvec_what what);
+int c2_rpc_item_header_decode(struct c2_bufvec_cursor          *cur,
+			      struct c2_rpc_item_onwire_header *ioh);
 
 /** @}  End of rpc_onwire group */
 
-#endif
+#endif /* __COLIBRI_RPC_ONWIRE_H__ */

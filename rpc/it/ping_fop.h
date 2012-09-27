@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,8 +17,11 @@
  * Original author: Anup Barve <Anup_Barve@xyratex.com>
  * Original creation date: 07/07/2011
  */
-#ifndef __COLIBRI_PING_FOP_H__
-#define __COLIBRI_PING_FOP_H__
+
+#pragma once
+
+#ifndef __COLIBRI_RPC_IT_PING_FOP_H__
+#define __COLIBRI_RPC_IT_PING_FOP_H__
 
 #include "fop/fop.h"
 #include "rpc/rpc_opcodes.h"
@@ -29,9 +32,6 @@ void c2_ping_fop_fini(void);
 /**
  * FOP definitions and corresponding fop type formats
  */
-extern struct c2_fop_type_format c2_fop_ping_tfmt;
-extern struct c2_fop_type_format c2_fop_ping_rep_tfmt;
-
 extern struct c2_fop_type c2_fop_ping_fopt;
 extern struct c2_fop_type c2_fop_ping_rep_fopt;
 
@@ -41,7 +41,7 @@ extern const struct c2_fop_type_ops c2_fop_ping_rep_ops;
 extern const struct c2_rpc_item_type c2_rpc_item_type_ping;
 extern const struct c2_rpc_item_type c2_rpc_item_type_ping_rep;
 
-/* __COLIBRI_PING_FOP_H__ */
+/* __COLIBRI_RPC_IT_PING_FOP_H__ */
 #endif
 
 /*

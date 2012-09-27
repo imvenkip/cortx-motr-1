@@ -18,6 +18,8 @@
  * Original creation date: 09/28/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_RPC_RPCLIB_H__
 #define __COLIBRI_RPC_RPCLIB_H__
 
@@ -25,7 +27,8 @@
 #include <stdio.h> /* FILE */
 #endif
 
-#include "rpc/rpc2.h"    /* struct c2_rpc_machine, c2_rpc_item */
+#include "rpc/item.h"    /* struct c2_rpc_machine, c2_rpc_item */
+#include "rpc/rpc2.h"
 #include "rpc/session.h" /* struct c2_rpc_conn, c2_rpc_session */
 #include "db/db.h"       /* struct c2_dbenv */
 #include "cob/cob.h"     /* struct c2_cob_domain */
@@ -52,7 +55,7 @@ struct c2_rpc_server_ctx {
 	/** a pointer to array of transports, which can be used by server */
 	struct c2_net_xprt          **rsx_xprts;
 	/** number of transports in array */
-	int                         rsx_xprts_nr;
+	int                           rsx_xprts_nr;
 
 	/**
 	 * ARGV-like array of CLI options to configure colibri-setup, which is
@@ -60,23 +63,23 @@ struct c2_rpc_server_ctx {
 	 */
 	char                        **rsx_argv;
 	/** number of elements in rsx_argv array */
-	int                         rsx_argc;
+	int                           rsx_argc;
 
 	/** a pointer to array of service types, which can be used by server */
 	struct c2_reqh_service_type **rsx_service_types;
 	/** number of service types in array */
-	int                         rsx_service_types_nr;
+	int                           rsx_service_types_nr;
 
-	const char                  *rsx_log_file_name;
+	const char                   *rsx_log_file_name;
 
 	/** an embedded colibri context structure */
-	struct c2_colibri           rsx_colibri_ctx;
+	struct c2_colibri             rsx_colibri_ctx;
 
 	/**
 	 * this is an internal variable, which is used by c2_rpc_server_stop()
 	 * to close log file; it should not be initialized by a caller
 	 */
-	FILE                        *rsx_log_file;
+	FILE                         *rsx_log_file;
 };
 
 /**
@@ -110,7 +113,7 @@ struct c2_rpc_client_ctx {
 	 * Input parameters.
 	 *
 	 * They are initialized and filled in by a caller of
-	 * c2_rpc_server_start() and c2_rpc_client_stop().
+	 * c2_rpc_client_start().
 	 */
 
 	/**
@@ -157,8 +160,7 @@ struct c2_rpc_client_ctx {
 	/**
 	 * Output parameters.
 	 *
-	 * They are initialized and filled in by c2_rpc_server_init() and
-	 * c2_rpc_client_start().
+	 * They are initialized and filled in by c2_rpc_client_start().
 	 */
 
 	struct c2_rpc_machine	   rcx_rpc_machine;

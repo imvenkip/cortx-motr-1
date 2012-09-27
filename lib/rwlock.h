@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,8 @@
  * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
  * Original creation date: 04/01/2010
  */
+
+#pragma once
 
 #ifndef __COLIBRI_LIB_RWLOCK_H__
 #define __COLIBRI_LIB_RWLOCK_H__
@@ -60,6 +62,10 @@ void c2_rwlock_read_lock(struct c2_rwlock *lock);
    release shared lock
  */
 void c2_rwlock_read_unlock(struct c2_rwlock *lock);
+
+
+/* bool c2_rwlock_write_trylock(struct c2_rwlock *lock); */
+/* bool c2_rwlock_read_trylock(struct c2_rwlock *lock); */
 
 /** @} end of rwlock group */
 

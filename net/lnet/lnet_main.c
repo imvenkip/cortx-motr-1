@@ -768,23 +768,34 @@ RPC Bulk Transfer Task Plan</a>
  */
 
 #ifdef __KERNEL__
-#include "build_kernel_modules/lustre_config.h" /* required by lnet/types.h */
 /* lustre config defines package macros also defined by c2 config */
-#undef PACKAGE
+#undef PACKAGE             /* to avoid conflicts */
 #undef PACKAGE_BUGREPORT
 #undef PACKAGE_NAME
 #undef PACKAGE_STRING
 #undef PACKAGE_TARNAME
 #undef PACKAGE_VERSION
 #undef VERSION
-
+#include "build_kernel_modules/lustre_config.h" /* required by lnet/types.h */
 #include "libcfs/libcfs.h" /* lnet/types.h fails if this is not included */
 #include "lnet/types.h"
+
+#undef PACKAGE             /* suppress lustre specific values */
+#undef PACKAGE_BUGREPORT
+#undef PACKAGE_NAME
+#undef PACKAGE_STRING
+#undef PACKAGE_TARNAME
+#undef PACKAGE_VERSION
+#undef VERSION
+/*
+ * Above values were lustre specific, change them again to colibri specific.
+ * since there are no guard macros around, this will not be a problem.
+ */
+#include "config.h"        /* Colibri specific */
 #endif
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LNET
+#include "lib/trace.h"        /* C2_LOG and C2_ENTRY */
 
 #include "lib/errno.h"
 #include "lib/misc.h"
@@ -793,6 +804,7 @@ RPC Bulk Transfer Task Plan</a>
 #include "net/lnet/lnet_core.h"
 #include "net/lnet/lnet_xo.h"
 #include "net/lnet/lnet_pvt.h"
+#include "colibri/magic.h"
 
 #include <asm/byteorder.h>  /* byte swapping macros */
 
@@ -813,18 +825,14 @@ static struct nlx_debug nlx_debug = {
 }; /* global debug control */
 
 /* note Linux uses the LP64 standard */
-#ifdef __KERNEL__
-#define NLXP(fmt, ...) printk(KERN_ERR fmt, ## __VA_ARGS__)
-#else
-#define NLXP(fmt, ...) fprintf(stderr, fmt, ## __VA_ARGS__)
-#endif
+#define NLXP(fmt, ...) C2_LOG(C2_DEBUG, fmt, ## __VA_ARGS__)
 
-#define NLXDBG(ptr, dbg, stmt)				\
-do {							\
-	if ((ptr)->_debug_ >= (dbg)) {			\
-		NLXP("%s: %d:\n", __FILE__, __LINE__);	\
-		stmt;					\
-	}						\
+#define NLXDBG(ptr, dbg, stmt)						\
+do {									\
+	if ((ptr)->_debug_ >= (dbg)) {					\
+		C2_LOG(C2_DEBUG, "%s: %d:\n", (char*) __FILE__, __LINE__);\
+		stmt;							\
+	}								\
 } while (0)
 
 #define NLXDBGnl(ptr, dbg, stmt)		\
@@ -834,19 +842,18 @@ do {						\
 	}					\
 } while (0)
 
-#define NLXDBGP(ptr, dbg, fmt, ...)			\
-do {							\
-	if ((ptr)->_debug_ >= (dbg)) {			\
-		NLXP("%s: %d:\n", __FILE__, __LINE__);	\
-		NLXP(fmt, ## __VA_ARGS__);		\
-	}						\
+#define NLXDBGP(ptr, dbg, fmt, ...)				\
+do {								\
+	if ((ptr)->_debug_ >= (dbg)) {				\
+		C2_LOG(C2_DEBUG, fmt, ## __VA_ARGS__);		\
+	}							\
 } while (0)
 
-#define NLXDBGPnl(ptr, dbg, fmt, ...)		\
-do {						\
-	if ((ptr)->_debug_ >= (dbg)) {		\
-		NLXP(fmt, ## __VA_ARGS__);	\
-	}					\
+#define NLXDBGPnl(ptr, dbg, fmt, ...)			\
+do {							\
+	if ((ptr)->_debug_ >= (dbg)) {			\
+		C2_LOG(C2_DEBUG, fmt, ## __VA_ARGS__);	\
+	}						\
 } while (0)
 
 #else /* !NLX_DEBUG */

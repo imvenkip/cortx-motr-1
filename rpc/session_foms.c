@@ -19,28 +19,17 @@
  * Original creation date: 04/15/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
-#include "fop/fop.h"
-#include "rpc/session_foms.h"
-#include "rpc/session_fops.h"
-#include "stob/stob.h"
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/trace.h"
+#include "rpc/session_foms.h"
+#include "stob/stob.h"
 #include "net/net.h"
-
-#ifdef __KERNEL__
-#include "rpc/session_k.h"
-#else
-#include "rpc/session_u.h"
-#endif
-
-#include "fop/fop_format_def.h"
 #include "rpc/session_internal.h"
+#include "rpc/rpc2.h"
 
 /**
    @addtogroup rpc_session
@@ -50,9 +39,6 @@
    Definitions of foms that execute conn establish, conn terminate, session
    establish and session terminate fops.
  */
-
-extern void item_exit_stats_set(struct c2_rpc_item   *item,
-				enum c2_rpc_item_path path);
 
 /**
    Common implementation of c2_fom::fo_ops::fo_fini() for conn establish,
@@ -79,9 +65,11 @@ static int session_gen_fom_create(struct c2_fop *fop, struct c2_fom **m)
 	struct c2_fop           *reply_fop;
 	int                      rc;
 
+	C2_ENTRY("fop: %p", fop);
+
 	C2_ALLOC_PTR(fom);
 	if (fom == NULL)
-		return -ENOMEM;
+		C2_RETURN(-ENOMEM);
 
 	if (fop->f_type == &c2_rpc_fop_conn_establish_fopt) {
 
@@ -128,16 +116,17 @@ out:
 		c2_free(fom);
 		*m = NULL;
 	}
-	return rc;
+
+	C2_RETURN(rc);
 }
 
 const struct c2_fom_ops c2_rpc_fom_conn_establish_ops = {
 	.fo_fini = session_gen_fom_fini,
-	.fo_state = c2_rpc_fom_conn_establish_state,
+	.fo_tick = c2_rpc_fom_conn_establish_tick,
 	.fo_home_locality = c2_rpc_session_default_home_locality
 };
 
-static struct c2_fom_type_ops c2_rpc_fom_conn_establish_type_ops = {
+struct c2_fom_type_ops c2_rpc_fom_conn_establish_type_ops = {
 	.fto_create = session_gen_fom_create
 };
 
@@ -152,7 +141,7 @@ size_t c2_rpc_session_default_home_locality(const struct c2_fom *fom)
 	return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
 }
 
-int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
+int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 {
 	struct c2_rpc_fop_conn_establish_rep *reply;
 	struct c2_rpc_fop_conn_establish_ctx *ctx;
@@ -166,6 +155,7 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 	struct c2_rpc_slot                   *slot;
 	int                                   rc;
 
+	C2_ENTRY("fom: %p", fom);
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 
@@ -190,17 +180,18 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 		  ctx->cec_rpc_machine != NULL);
 
 	C2_ALLOC_PTR(conn);
-	if (conn == NULL)
+	if (conn == NULL){
+		C2_RETURN(-ENOMEM);
 		/* no reply if conn establish failed.
 		   See [4] at end of this function. */
-		return -ENOMEM;
+	}
 
 	machine = ctx->cec_rpc_machine;
 
 	c2_rpc_machine_lock(machine);
 
 	rc = c2_rpc_rcv_conn_init(conn, ctx->cec_sender_ep, machine,
-				  &item->ri_slot_refs[0].sr_uuid);
+				  &item->ri_slot_refs[0].sr_ow.osr_uuid);
 	/* we won't need ctx->cec_sender_ep after this point */
 	c2_net_end_point_put(ctx->cec_sender_ep);
 	if (rc == 0) {
@@ -215,12 +206,10 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 			c2_rpc_slot_item_add_internal(slot, item);
 
 			/* See [2] at the end of function */
-			item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
+			item->ri_slot_refs[0].sr_ow.osr_sender_id =
+				SENDER_ID_INVALID;
 
-			/* See [3] */
-			item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
-
-			C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
+			C2_ASSERT(conn_state(conn) == C2_RPC_CONN_ACTIVE);
 			C2_ASSERT(c2_rpc_conn_invariant(conn));
 		} else {
 			/* conn establish failed */
@@ -234,7 +223,7 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 		reply->rcer_sender_id = conn->c_sender_id;
 		reply->rcer_rc        = 0;
 
-		C2_LOG("Conn established: conn [%p] id [%lu]\n", conn,
+		C2_LOG(C2_INFO, "Conn established: conn [%p] id [%lu]\n", conn,
 				(unsigned long)conn->c_sender_id);
 
 		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
@@ -245,10 +234,11 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 		/* No reply is sent if conn establish failed. See [4] */
 		c2_fop_fini(&ctx->cec_fop); /* CONN_ESTABLISH fop */
 		c2_free(ctx);
-		C2_LOG("Conn establish failed: rc [%d]\n", rc);
+		C2_LOG(C2_ERROR, "Conn establish failed: rc [%d]\n", rc);
 	}
 
-	fom->fo_phase = C2_FOPH_FINISH;
+	c2_fom_phase_set(fom, C2_FOPH_FINISH);
+	C2_LEAVE();
 	return C2_FSO_WAIT;
 }
 /*
@@ -296,11 +286,11 @@ int c2_rpc_fom_conn_establish_state(struct c2_fom *fom)
 
 const struct c2_fom_ops c2_rpc_fom_session_establish_ops = {
 	.fo_fini = session_gen_fom_fini,
-	.fo_state = c2_rpc_fom_session_establish_state,
+	.fo_tick = c2_rpc_fom_session_establish_tick,
 	.fo_home_locality = c2_rpc_session_default_home_locality
 };
 
-static struct c2_fom_type_ops c2_rpc_fom_session_establish_type_ops = {
+struct c2_fom_type_ops c2_rpc_fom_session_establish_type_ops = {
 	.fto_create = session_gen_fom_create
 };
 
@@ -308,7 +298,7 @@ struct c2_fom_type c2_rpc_fom_session_establish_type = {
 	.ft_ops = &c2_rpc_fom_session_establish_type_ops
 };
 
-int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
+int c2_rpc_fom_session_establish_tick(struct c2_fom *fom)
 {
 	struct c2_rpc_fop_session_establish_rep *reply;
 	struct c2_rpc_fop_session_establish     *request;
@@ -321,6 +311,7 @@ int c2_rpc_fom_session_establish_state(struct c2_fom *fom)
 	uint32_t                                 slot_cnt;
 	int                                      rc;
 
+	C2_ENTRY("fom: %p", fom);
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 
@@ -378,7 +369,8 @@ out:
 	}
 
 	c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
-	fom->fo_phase = C2_FOPH_FINISH;
+	c2_fom_phase_set(fom, C2_FOPH_FINISH);
+	C2_LEAVE();
 	return C2_FSO_WAIT;
 }
 
@@ -388,11 +380,11 @@ out:
 
 const struct c2_fom_ops c2_rpc_fom_session_terminate_ops = {
 	.fo_fini = session_gen_fom_fini,
-	.fo_state = c2_rpc_fom_session_terminate_state,
+	.fo_tick = c2_rpc_fom_session_terminate_tick,
 	.fo_home_locality = c2_rpc_session_default_home_locality
 };
 
-static struct c2_fom_type_ops c2_rpc_fom_session_terminate_type_ops = {
+struct c2_fom_type_ops c2_rpc_fom_session_terminate_type_ops = {
 	.fto_create = session_gen_fom_create
 };
 
@@ -400,7 +392,7 @@ struct c2_fom_type c2_rpc_fom_session_terminate_type = {
 	.ft_ops = &c2_rpc_fom_session_terminate_type_ops
 };
 
-int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
+int c2_rpc_fom_session_terminate_tick(struct c2_fom *fom)
 {
 	struct c2_rpc_fop_session_terminate_rep *reply;
 	struct c2_rpc_fop_session_terminate     *request;
@@ -411,6 +403,7 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	uint64_t                                 session_id;
 	int                                      rc;
 
+	C2_ENTRY("fom: %p", fom);
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 
@@ -434,21 +427,20 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	c2_rpc_machine_lock(machine);
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
-	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
+	C2_ASSERT(conn_state(conn) == C2_RPC_CONN_ACTIVE);
 
 	session = c2_rpc_session_search(conn, session_id);
 	if (session != NULL) {
-		while (session->s_state != C2_RPC_SESSION_IDLE)
-			c2_cond_wait(&session->s_state_changed,
-				     &machine->rm_mutex);
-
-		C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
+		c2_sm_timedwait(&session->s_sm, C2_BITS(C2_RPC_SESSION_IDLE),
+				C2_TIME_NEVER);
 
 		rc = c2_rpc_rcv_session_terminate(session);
 		C2_ASSERT(ergo(rc != 0,
-			       session->s_state == C2_RPC_SESSION_FAILED));
+			       session_state(session) ==
+					C2_RPC_SESSION_FAILED));
 		C2_ASSERT(ergo(rc == 0,
-			       session->s_state == C2_RPC_SESSION_TERMINATED));
+			       session_state(session) ==
+					C2_RPC_SESSION_TERMINATED));
 
 		c2_rpc_session_fini_locked(session);
 		c2_free(session);
@@ -459,15 +451,16 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
 	c2_rpc_machine_unlock(machine);
 
 	reply->rstr_rc = rc;
-	C2_LOG("Session terminate %s: session [%p] rc [%d]\n",
+	C2_LOG(C2_INFO, "Session terminate %s: session [%p] rc [%d]\n",
 			(rc == 0) ? "successful" : "failed", session, rc);
 	/*
 	 * Note: request is received on SESSION_0, which is different from
 	 * current session being terminated. Reply will also go on SESSION_0.
 	 */
-	fom->fo_phase = C2_FOPH_FINISH;
+	c2_fom_phase_set(fom, C2_FOPH_FINISH);
 	c2_rpc_reply_post(&fom->fo_fop->f_item, &fom->fo_rep_fop->f_item);
 
+	C2_LEAVE();
 	return C2_FSO_WAIT;
 }
 
@@ -476,11 +469,11 @@ int c2_rpc_fom_session_terminate_state(struct c2_fom *fom)
  */
 const struct c2_fom_ops c2_rpc_fom_conn_terminate_ops = {
 	.fo_fini = session_gen_fom_fini,
-	.fo_state = c2_rpc_fom_conn_terminate_state,
+	.fo_tick = c2_rpc_fom_conn_terminate_tick,
 	.fo_home_locality = c2_rpc_session_default_home_locality
 };
 
-static struct c2_fom_type_ops c2_rpc_fom_conn_terminate_type_ops = {
+struct c2_fom_type_ops c2_rpc_fom_conn_terminate_type_ops = {
 	.fto_create = session_gen_fom_create
 };
 
@@ -488,7 +481,7 @@ struct c2_fom_type c2_rpc_fom_conn_terminate_type = {
 	.ft_ops = &c2_rpc_fom_conn_terminate_type_ops
 };
 
-int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
+int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
 {
 	struct c2_rpc_fop_conn_terminate_rep *reply;
 	struct c2_rpc_fop_conn_terminate     *request;
@@ -499,6 +492,7 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 	struct c2_rpc_machine                *machine;
 	int                                   rc;
 
+	C2_ENTRY("fom: %p", fom);
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 
@@ -524,24 +518,25 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 
 	rc = c2_rpc_rcv_conn_terminate(conn);
 
-	if (conn->c_state == C2_RPC_CONN_FAILED) {
+	if (conn_state(conn) == C2_RPC_CONN_FAILED) {
 		/*
 		 * conn has been moved to FAILED state. fini() and free() it.
 		 * Cannot send reply back to sender. Sender will time-out and
 		 * set sender side conn to FAILED state.
 		 * XXX generate ADDB record here.
 		 */
-		C2_LOG("Conn terminate failed: conn [%p]\n", conn);
+		C2_LOG(C2_ERROR, "Conn terminate failed: conn [%p]\n", conn);
 		c2_rpc_conn_fini_locked(conn);
 
 		c2_rpc_machine_unlock(machine);
 
 		c2_free(conn);
-		fom->fo_phase = C2_FOPH_FINISH;
+		c2_fom_phase_set(fom, C2_FOPH_FINISH);
+		C2_LEAVE();
 		return C2_FSO_WAIT;
 	} else {
-		C2_ASSERT(C2_IN(conn->c_state, (C2_RPC_CONN_ACTIVE,
-						C2_RPC_CONN_TERMINATING)));
+		C2_ASSERT(C2_IN(conn_state(conn),
+				(C2_RPC_CONN_ACTIVE, C2_RPC_CONN_TERMINATING)));
 
 		c2_rpc_machine_unlock(machine);
 
@@ -551,9 +546,10 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
 		 * callback of &fop_rep->f_item item.
 		 */
 		reply->ctr_rc = rc; /* rc can be -EBUSY */
-		fom->fo_phase = C2_FOPH_FINISH;
-		C2_LOG("Conn terminate successful: conn [%p]\n", conn);
+		c2_fom_phase_set(fom, C2_FOPH_FINISH);
+		C2_LOG(C2_INFO, "Conn terminate successful: conn [%p]\n", conn);
 		c2_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
+		C2_LEAVE();
 		return C2_FSO_WAIT;
 	}
 }
@@ -569,4 +565,3 @@ int c2_rpc_fom_conn_terminate_state(struct c2_fom *fom)
  *  scroll-step: 1
  *  End:
  */
-

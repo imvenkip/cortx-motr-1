@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,6 +18,8 @@
  * Original creation date: 08/13/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_DB_DB_H__
 #define __COLIBRI_DB_DB_H__
 
@@ -30,7 +32,7 @@
 
    This file defines interfaces for access to a simple indexing mechanism,
    similar to data-base tables with primary index. Currently this interface is
-   implemented on top of Oracle db5 (nee Sleepycat's Berkeley DB) and details of
+   implemented on top of Oracle db5 (see Sleepycat's Berkeley DB) and details of
    this implementation leak into data-structures. In the future, additional
    implementations will be added, specifically a simple memory-only
    implementation for Linux kernel, and the separation between generic and
@@ -323,10 +325,6 @@ struct c2_db_tx_waiter {
 	struct c2_tlink             tw_tx;
 	struct c2_db_tx_waiter_impl tw_i;
 	uint64_t                    tw_magix;
-};
-
-enum {
-	C2_DB_TX_WAITER_MAGIX = 0xab5c155a0fa1bed0 /* abscissa of albedo */
 };
 
 C2_TL_DESCR_DECLARE(txw, extern);

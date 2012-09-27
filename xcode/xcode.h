@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,11 +18,14 @@
  * Original creation date: 25-Dec-2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_XCODE_XCODE_H__
 #define __COLIBRI_XCODE_XCODE_H__
 
 #include "lib/vec.h"                /* c2_bufvec_cursor */
 #include "lib/types.h"              /* c2_bcount_t */
+#include "xcode/xcode_attr.h"       /* C2_XC_ATTR */
 
 /**
    @defgroup xcode
@@ -378,8 +381,13 @@ struct c2_xcode_cursor {
 		uint64_t                  s_elno;
 		/** Flag, indicating visiting order. */
 		enum c2_xcode_cursor_flag s_flag;
+		/** Datum reserved for cursor users. */
+		uint64_t                  s_datum;
 	} xcu_stack[C2_XCODE_DEPTH_MAX];
 };
+
+void c2_xcode_cursor_init(struct c2_xcode_cursor *it,
+			  const struct c2_xcode_obj *obj);
 
 /**
    Iterates over tree of xcode types.
@@ -501,6 +509,11 @@ struct c2_xcode_ctx {
 
 	    The cursor points to the where encoding will write the next byte and
 	    from where decoding will read the next byte.
+
+	    It should be initialised with c2_bufvec_cursor_init() prior to
+	    c2_xcode_encode() or c2_xcode_decode() call. The size of the cursors
+	    buffer should be not less than the size of serialised structure
+	    representation.
 	 */
 	struct c2_bufvec_cursor  xcx_buf;
 	/**
@@ -511,7 +524,7 @@ struct c2_xcode_ctx {
 	   Allocation function used by decoding to allocate the topmost object
 	   and all its non-inline sub-objects (arrays and opaque sub-objects).
 	 */
-	void                  *(*xcx_alloc)(struct c2_xcode_ctx *ctx, size_t n);
+	void                  *(*xcx_alloc)(struct c2_xcode_cursor *ctx, size_t);
 };
 
 /**
@@ -519,22 +532,80 @@ struct c2_xcode_ctx {
  */
 void c2_xcode_ctx_init(struct c2_xcode_ctx *ctx, const struct c2_xcode_obj *obj);
 
+/**
+   @see c2_xcode_ctx::xcx_buf
+ */
 int c2_xcode_decode(struct c2_xcode_ctx *ctx);
+
+/**
+   @see c2_xcode_ctx::xcx_buf
+ */
 int c2_xcode_encode(struct c2_xcode_ctx *ctx);
 
 /** Calculates the length of serialized representation. */
 int c2_xcode_length(struct c2_xcode_ctx *ctx);
-
+void *c2_xcode_alloc(struct c2_xcode_cursor *it, size_t nob);
 /** @} xcoding. */
 
+/**
+ * Reads an object from a human-readable string representation.
+ *
+ * String has the following EBNF grammar:
+ *
+ *     S           ::= RECORD | UNION | SEQUENCE | ATOM
+ *     RECORD      ::= '(' [S-LIST] ')'
+ *     S-LIST      ::= S | S-LIST ',' S
+ *     UNION       ::= '{ TAG '|' [S] '}'
+ *     SEQUENCE    ::= STRING | ARRAY
+ *     STRING      ::= '"' CHAR* '"'
+ *     ARRAY       ::= '[' COUNT ':' [S-LIST] ']'
+ *     ATOM        ::= EMPTY | NUMBER
+ *     TAG         ::= ATOM
+ *     COUNT       ::= ATOM
+ *
+ * Where CHAR is any non-NUL character, NUMBER is anything recognizable by
+ * sscanf(3) as a number and EMPTY is the empty string. White-spaces between
+ * tokens are ignored.
+ *
+ * Examples:
+ * @verbatim
+ * (0, 1)
+ * (0, (1, 2))
+ * ()
+ * {1| (1, 2)}
+ * {2| 6}
+ * {3|}               -- a union with invalid discriminant or with a void value
+ * [0:]               -- 0 sized array
+ * [3: 6, 5, 4]
+ * [: 1, 2, 3]        -- fixed size sequence
+ * "incomprehensible" -- a byte (U8) sequence with 16 elements
+ * 10                 -- number 10
+ * 0xa                -- number 10
+ * 012                -- number 10
+ * (0, "katavothron", {42| [3: ("x"), ("y"), ("z")]}, "paradiorthosis")
+ * @endverbatim
+ *
+ * Typedefs and opaque types require no special syntax.
+ *
+ * @retval 0 success
+ * @retval -EPROTO syntax error
+ * @retval -EINVAL garbage in string after end of representation
+ * @retval -ve other error (-ENOMEM, &c.)
+ *
+ * Error or not, the caller should free the (partially) constructed object with
+ * c2_xcode_free().
+ */
+int  c2_xcode_read(struct c2_xcode_obj *obj, const char *str);
+void c2_xcode_free(struct c2_xcode_obj *obj);
+int  c2_xcode_cmp (const struct c2_xcode_obj *o0, const struct c2_xcode_obj *o1);
 
 /**
    Returns the address of a sub-object within an object.
 
-   @param obj    - typed object
-   @param fileno - ordinal number of field
-   @param elno   - for a SEQUENCE field, index of the element to
-                   return the address of.
+   @param obj     - typed object
+   @param fieldno - ordinal number of field
+   @param elno    - for a SEQUENCE field, index of the element to
+                    return the address of.
 
    The behaviour of this function for SEQUENCE objects depends on "elno"
    value. SEQUENCE objects have the following structure:
@@ -549,7 +620,7 @@ int c2_xcode_length(struct c2_xcode_ctx *ctx);
    where xs_nr stores a number of elements in the sequence and xs_body points to
    an array of the elements.
 
-   With fileno == 1, c2_xcode_addr() returns
+   With fieldno == 1, c2_xcode_addr() returns
 
        - &xseq->xs_body when (elno == ~0ULL) and
 
@@ -601,7 +672,7 @@ extern const struct c2_xcode_type C2_XT_OPAQUE;
 /**
    Void type used by ff2c in places where C syntax requires a type name.
  */
-typedef struct {;} c2_void_t;
+typedef char c2_void_t[0];
 
 /**
    Returns a previously unused "decoration number", which can be used as an
@@ -635,6 +706,13 @@ struct c2_bob_type;
 void c2_xcode_bob_type_init(struct c2_bob_type *bt,
 			    const struct c2_xcode_type *xt,
 			    size_t magix_field, uint64_t magix);
+
+void *c2_xcode_ctx_top(const struct c2_xcode_ctx *ctx);
+
+#define C2_XCODE_OBJ(type, ptr) (struct c2_xcode_obj) {	\
+	.xo_type = type,			        \
+	.xo_ptr  = ptr,	                                \
+}
 
 /** @} end of xcode group */
 

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,8 @@
  * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
  * Original creation date: 03/11/2011
  */
+
+#pragma once
 
 #ifndef __COLIBRI_LIB_SEMAPHORE_H__
 #define __COLIBRI_LIB_SEMAPHORE_H__
@@ -61,7 +63,7 @@ void c2_semaphore_up(struct c2_semaphore *semaphore);
 
    Returns true iff the P-operation succeeded without blocking.
  */
-int c2_semaphore_trydown(struct c2_semaphore *semaphore);
+bool c2_semaphore_trydown(struct c2_semaphore *semaphore);
 
 
 /**

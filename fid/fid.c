@@ -25,16 +25,9 @@
 #endif
 
 #include "lib/cdefs.h"         /* C2_EXPORTED */
+#include "lib/assert.h"        /* C2_PRE() */
 #include "fid/fid.h"
-#include "fop/fop_format_def.h"
-
-#ifndef __KERNEL__
-#include "fid/fid_u.h"
-#else
-#include "fid/fid_k.h"
-#endif
-
-#include "fid/fid.ff"
+#include "fid/fid_ff.h"
 
 /**
    @addtogroup fid
@@ -44,21 +37,29 @@
 
 bool c2_fid_is_valid(const struct c2_fid *fid)
 {
-	return true;
+        return true;
 }
 
 bool c2_fid_is_set(const struct c2_fid *fid)
 {
-	static const struct c2_fid zero = {
-	        .f_container = 0,
-	        .f_key = 0
-	};
-	return !c2_fid_eq(fid, &zero);
+        static const struct c2_fid zero = {
+                .f_container = 0,
+                .f_key = 0
+        };
+        return !c2_fid_eq(fid, &zero);
+}
+
+void c2_fid_set(struct c2_fid *fid, uint64_t container, uint64_t key)
+{
+        C2_PRE(fid != NULL);
+
+        fid->f_container = container;
+        fid->f_key = key;
 }
 
 bool c2_fid_eq(const struct c2_fid *fid0, const struct c2_fid *fid1)
 {
-	return memcmp(fid0, fid1, sizeof *fid0) == 0;
+        return memcmp(fid0, fid1, sizeof *fid0) == 0;
 }
 
 int c2_fid_cmp(const struct c2_fid *fid0, const struct c2_fid *fid1)
@@ -76,21 +77,13 @@ int c2_fid_cmp(const struct c2_fid *fid0, const struct c2_fid *fid1)
         return c2_uint128_cmp(&u0, &u1);
 }
 
-static struct c2_fop_type_format *c2_fid_fmts[] = {
-        &c2_fop_fid_tfmt
-};
-
-void c2_fid_fini(void)
+int c2_fid_register(void)
 {
-        c2_fop_type_format_fini_nr(c2_fid_fmts, ARRAY_SIZE(c2_fid_fmts));
+        return 0;
 }
 
-int c2_fid_init(void)
+void c2_fid_unregister(void)
 {
-	int rc;
-
-	rc = c2_fop_type_format_parse_nr(c2_fid_fmts, ARRAY_SIZE(c2_fid_fmts));
-	return rc;
 }
 
 /** @} end of fid group */

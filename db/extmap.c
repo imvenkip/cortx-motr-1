@@ -17,10 +17,6 @@
  * Original creation date: 08/13/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include <stdio.h>     /* asprintf */
 #include <stdlib.h>
 #include <string.h>

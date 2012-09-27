@@ -18,11 +18,6 @@
  * Original creation date: 06/27/2011
  */
 
-
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "colibri/init.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
@@ -30,8 +25,6 @@
 #include "lib/memory.h"
 #include "lib/misc.h" /* C2_SET0 */
 #include "lib/thread.h"
-#include "lib/processor.h"
-#include "lib/trace.h"
 #include "lib/time.h"
 #include "net/net.h"
 #include "net/lnet/lnet.h"
@@ -40,16 +33,16 @@
 #include "rpc/it/ping_fom.h"
 #include "rpc/rpclib.h" /* c2_rpc_server_start */
 #include "ut/rpc.h"     /* c2_rpc_client_init */
+#include "ut/ut.h"
 #include "fop/fop.h"    /* c2_fop_default_item_ops */
 #include "reqh/reqh.h"  /* c2_reqh_rpc_mach_tl */
+#include "rpc/it/ping_fop_ff.h"
 
 #ifdef __KERNEL__
 #include <linux/kernel.h>
-#include "ping_fop_k.h"
-#include "rpc_ping.h"
+#include "rpc/it/linux_kernel/rpc_ping.h"
 #define printf printk
 #else
-#include "ping_fop_u.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -140,7 +133,7 @@ module_param(tm_recv_queue_len, int, S_IRUGO);
 MODULE_PARM_DESC(tm_recv_queue_len, "minimum TM receive queue length");
 
 module_param(max_rpc_msg_size, int, S_IRUGO);
-MODULE_PARM_DESC(tm_recv_queue_len, "maximum RPC message size");
+MODULE_PARM_DESC(max_rpc_msg_size, "maximum RPC message size");
 #endif
 
 static int build_endpoint_addr(enum ep_type type, char *out_buf, size_t buf_size)
@@ -176,88 +169,29 @@ static int build_endpoint_addr(enum ep_type type, char *out_buf, size_t buf_size
 	return 0;
 }
 
-static void print_rpc_stats(struct c2_rpc_stats *stats)
-{
-	uint64_t nsec;
-#ifdef __KERNEL__
-	uint64_t sec = 0;
-	uint64_t usec = 0;
-	uint64_t thruput;
-	uint64_t packing_density;
-#else
-	double   sec = 0;
-	double   msec = 0;
-	double   thruput;
-	double   packing_density;
-#endif
-
-	printf("                rpcs:   %llu\n",
-			(unsigned long long) stats->rs_rpcs_nr);
-	printf("                items:  %llu\n",
-			(unsigned long long) stats->rs_items_nr);
-	printf("                bytes:  %llu\n",
-			(unsigned long long) stats->rs_bytes_nr);
-#ifndef __KERNEL__
-	packing_density = (double) stats->rs_items_nr /
-			  (double) stats->rs_rpcs_nr;
-	printf("                packing_density: %lf\n", packing_density);
-#else
-	packing_density = (uint64_t) stats->rs_items_nr / stats->rs_rpcs_nr;
-	printf("                packing_density: %llu\n", packing_density);
-#endif
-	sec = 0;
-	sec = c2_time_seconds(stats->rs_min_lat);
-	nsec = c2_time_nanoseconds(stats->rs_min_lat);
-#ifdef __KERNEL__
-	usec = (uint64_t) nsec / 1000;
-	usec += (uint64_t) (sec * 1000000);
-	printf("                min_latency: %llu # usec\n", usec);
-	if (usec != 0) {
-		thruput = (uint64_t)stats->rs_bytes_nr/usec;
-		printf("                max_throughput: %llu # MB/s\n",
-					thruput);
-	}
-#else
-	sec += (double) nsec/1000000000;
-	msec = (double) sec * 1000;
-	printf("                min_latency:\t %lf # msec\n", msec);
-
-	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
-	printf("                max_throughput:\t %lf # MB/s\n", thruput);
-#endif
-
-	sec = 0;
-	sec = c2_time_seconds(stats->rs_max_lat);
-	nsec = c2_time_nanoseconds(stats->rs_max_lat);
-#ifdef __KERNEL__
-	usec = (uint64_t) nsec / 1000;
-	usec += (uint64_t) (sec * 1000000);
-	printf("                max_latency: %llu # usec\n", usec);
-	if (usec != 0) {
-		thruput = (uint64_t)stats->rs_bytes_nr/usec;
-		printf("                min_throughput: %llu # MB/s\n",
-					thruput);
-	}
-#else
-	sec += (double) nsec/1000000000;
-	msec = (double) sec * 1000;
-	printf("                max_latency:\t %lf # msec\n", msec);
-
-	thruput = (double)stats->rs_bytes_nr/(sec*1000000);
-	printf("                min_throughput:\t %lf # MB/s\n", thruput);
-#endif
-}
-
 /* Get stats from rpc_machine and print them */
 static void __print_stats(struct c2_rpc_machine *rpc_mach)
 {
+	struct c2_rpc_stats stats;
 	printf("stats:\n");
 
-	printf("        in:\n");
-	print_rpc_stats(&rpc_mach->rm_rpc_stats[C2_RPC_PATH_INCOMING]);
-
-	printf("        out:\n");
-	print_rpc_stats(&rpc_mach->rm_rpc_stats[C2_RPC_PATH_OUTGOING]);
+	c2_rpc_machine_get_stats(rpc_mach, &stats, false);
+	printf("\treceived_items: %llu\n",
+	       (unsigned long long)stats.rs_nr_rcvd_items);
+	printf("\tsent_items: %llu\n",
+		(unsigned long long)stats.rs_nr_sent_items);
+	printf("\titems_failed: %llu\n",
+		(unsigned long long)stats.rs_nr_failed_items);
+	printf("\treceived_packets: %llu\n",
+	       (unsigned long long)stats.rs_nr_rcvd_packets);
+	printf("\tsent_packets: %llu\n",
+	       (unsigned long long)stats.rs_nr_sent_packets);
+	printf("\tpackets_failed : %llu\n",
+	       (unsigned long long)stats.rs_nr_failed_packets);
+	printf("\tTotal_bytes_sent : %llu\n",
+	       (unsigned long long)stats.rs_nr_sent_bytes);
+	printf("\tTotal_bytes_rcvd : %llu\n",
+	       (unsigned long long)stats.rs_nr_rcvd_bytes);
 }
 
 #ifndef __KERNEL__
@@ -280,11 +214,11 @@ static void print_stats(struct c2_reqh *reqh)
 /* Create a ping fop and post it to rpc layer */
 static void send_ping_fop(struct c2_rpc_session *session)
 {
-	int                rc;
-	int                i;
+	int                 i;
+	int                 rc;
 	struct c2_fop      *fop;
 	struct c2_fop_ping *ping_fop;
-	uint32_t           nr_arr_member;
+	uint32_t            nr_arr_member;
 
 	if (nr_ping_bytes % 8 == 0)
 		nr_arr_member = nr_ping_bytes / 8;
@@ -292,38 +226,22 @@ static void send_ping_fop(struct c2_rpc_session *session)
 		nr_arr_member = nr_ping_bytes / 8 + 1;
 
 	fop = c2_fop_alloc(&c2_fop_ping_fopt, NULL);
-	if (fop == NULL) {
-		rc = -ENOMEM;
-		goto out;
-	}
+	C2_ASSERT(fop != NULL);
 
 	ping_fop = c2_fop_data(fop);
 	ping_fop->fp_arr.f_count = nr_arr_member;
 
 	C2_ALLOC_ARR(ping_fop->fp_arr.f_data, nr_arr_member);
-	if (ping_fop->fp_arr.f_data == NULL) {
-		rc = -ENOMEM;
-		goto free_fop;
-	}
+	C2_ASSERT(ping_fop->fp_arr.f_data != NULL);
 
-	for (i = 0; i < nr_arr_member; i++) {
-		ping_fop->fp_arr.f_data[i] = i+100;
-	}
+	for (i = 0; i < nr_arr_member; i++)
+		ping_fop->fp_arr.f_data[i] = i + 100;
 
 	rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
 				CONNECT_TIMEOUT);
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(fop->f_item.ri_error == 0);
 	C2_ASSERT(fop->f_item.ri_reply != 0);
-
-	c2_free(ping_fop->fp_arr.f_data);
-free_fop:
-	/* FIXME: freeing fop here will lead to endless loop in
-	 * nr_active_items_count(), which is called from
-	 * c2_rpc_session_terminate() */
-	/*c2_fop_free(fop);*/
-out:
-	return;
 }
 
 /*
@@ -403,14 +321,10 @@ static int run_client(void)
 	rc = c2_init();
 	if (rc != 0)
 		return rc;
-
-	rc = c2_processors_init();
-	if (rc != 0)
-		goto c2_fini;
 #endif
 	rc = c2_ping_fop_init();
 	if (rc != 0)
-		goto proc_fini;
+		goto c2_fini;
 
 	rc = c2_net_xprt_init(xprt);
 	if (rc != 0)
@@ -466,10 +380,8 @@ xprt_fini:
 	c2_net_xprt_fini(xprt);
 fop_fini:
 	c2_ping_fop_fini();
-proc_fini:
-#ifndef __KERNEL__
-	c2_processors_fini();
 c2_fini:
+#ifndef __KERNEL__
 	c2_fini();
 #endif
 	return rc;
@@ -513,11 +425,15 @@ static int run_server(void)
 		sprintf(rpc_size, "%d" , max_rpc_msg_size);
 
 	C2_RPC_SERVER_CTX_DECLARE(sctx, &xprt, 1, server_argv,
-				  ARRAY_SIZE(server_argv), SERVER_LOG_FILE_NAME);
+				  ARRAY_SIZE(server_argv), c2_cs_default_stypes,
+				  c2_cs_default_stypes_nr, SERVER_LOG_FILE_NAME);
 
 	rc = c2_init();
 	if (rc != 0)
 		return rc;
+	rc = c2_ut_init();
+	if (rc != 0)
+		goto c2_fini;
 
 	rc = c2_ping_fop_init();
 	if (rc != 0)
@@ -561,6 +477,7 @@ static int run_server(void)
 	c2_rpc_server_stop(&sctx);
 fop_fini:
 	c2_ping_fop_fini();
+	c2_ut_fini();
 c2_fini:
 	c2_fini();
 	return rc;
@@ -596,7 +513,7 @@ int main(int argc, char *argv[])
 		C2_FORMATARG('n', "number of ping items", "%i", &nr_ping_item),
 		C2_FORMATARG('q', "minimum TM receive queue length", "%i",
 						&tm_recv_queue_len),
-		C2_FORMATARG('m', "max rpc msg size", "%i",
+		C2_FORMATARG('m', "maximum RPC msg size", "%i",
 						&max_rpc_msg_size),
 		C2_FLAGARG('v', "verbose", &verbose)
 		);

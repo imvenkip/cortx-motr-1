@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,11 +18,14 @@
  * Original creation date: 10/22/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_DTM_VERNO_H__
 #define __COLIBRI_DTM_VERNO_H__
 
 #include "lib/types.h"            /* uint64_t */
 #include "fol/lsn.h"              /* c2_lsn_t */
+#include "xcode/xcode_attr.h"     /* C2_XCA_RECORD */
 
 /**
    @addtogroup dtm Distributed transaction manager
@@ -63,7 +66,7 @@ struct c2_verno {
 	c2_lsn_t      vn_lsn;
 	/** an ordinal number of this version in the unit's serial history. */
 	c2_vercount_t vn_vc;
-};
+} C2_XCA_RECORD;
 
 /**
    Version number comparison function.

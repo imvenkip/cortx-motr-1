@@ -18,30 +18,20 @@
  * Original creation date: 12/10/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/ut.h"    /* C2_UT_ASSERT */
 #include "lib/misc.h"  /* C2_SET_ARR0 */
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/tlist.h"
 
-#include "ut/rpc.h"
-#include "rpc/rpclib.h"
+#include "ut/rpc.h"             /* C2_RPC_SERVER_CTX_DECLARE */
+#include "ut/cs_fop_foms.h"
+#include "ut/cs_test_fops_ff.h" /* cs_ds1_{req,rep}_fop, cs_ds2_{req,rep}_fop */
 #include "fop/fop.h"
 #include "net/bulk_mem.h"
 #include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
 #include "colibri/colibri_setup.h"
-
-#include "fop/fop_format_def.h"
-
-#include "ut/cs_service.h"
-#include "ut/cs_fop_foms.h"
-#include "ut/cs_test_fops_u.h"
-#include "ut/cs_test_fops.ff"
 #include "rpc/rpc_opcodes.h"
 
 #include "colibri/colibri_setup.c"
@@ -289,7 +279,9 @@ static int cs_ut_test_helper_success(struct cl_ctx *cctx, size_t cctx_nr,
 	int stype;
 
 	C2_RPC_SERVER_CTX_DECLARE(sctx, cs_xprts, ARRAY_SIZE(cs_xprts),
-				  cs_argv, cs_argc, SERVER_LOG_FILE_NAME);
+				  cs_argv, cs_argc, c2_cs_default_stypes,
+				  c2_cs_default_stypes_nr,
+				  SERVER_LOG_FILE_NAME);
 
 	rc = c2_rpc_server_start(&sctx);
 	C2_UT_ASSERT(rc == 0);
@@ -318,7 +310,9 @@ static void cs_ut_test_helper_failure(char *cs_argv[], int cs_argc)
 	int rc;
 
 	C2_RPC_SERVER_CTX_DECLARE(sctx, cs_xprts, ARRAY_SIZE(cs_xprts),
-				  cs_argv, cs_argc, SERVER_LOG_FILE_NAME);
+				  cs_argv, cs_argc, c2_cs_default_stypes,
+				  c2_cs_default_stypes_nr,
+				  SERVER_LOG_FILE_NAME);
 
 	rc = c2_rpc_server_start(&sctx);
 	C2_UT_ASSERT(rc != 0);
@@ -341,9 +335,11 @@ static void test_cs_ut_service_one(void)
 
 static void dev_conf_file_create(void)
 {
+	int   ret;
 	FILE *f;
 
-	system("touch d1 d2");
+	ret = system("touch d1 d2");
+	C2_UT_ASSERT(ret == 0);
 	f = fopen("devices.conf", "w+");
 	C2_UT_ASSERT(f != NULL);
 	fprintf(f, "Devices:\n");
@@ -394,7 +390,10 @@ static void test_cs_ut_opts_jumbled(void)
  */
 static void test_cs_ut_linux_stob_cleanup(void)
 {
-	system("rm -f devices.conf");
+	int ret;
+
+	ret = system("rm -f devices.conf");
+	C2_UT_ASSERT(ret == 0);
 	dev_conf_file_create();
 	c2_fi_enable_once("cs_ad_stob_create", "ad_domain_locate_fail");
 	cs_ut_test_helper_failure(cs_ut_dev_stob_cmd,
@@ -403,7 +402,10 @@ static void test_cs_ut_linux_stob_cleanup(void)
 
 static void test_cs_ut_ad_stob_cleanup(void)
 {
-	system("rm -f devices.conf");
+	int ret;
+
+	ret = system("rm -f devices.conf");
+	C2_UT_ASSERT(ret == 0);
 	dev_conf_file_create();
 	c2_fi_enable_once("cs_ad_stob_create", "ad_stob_setup_fail");
 	cs_ut_test_helper_failure(cs_ut_dev_stob_cmd,

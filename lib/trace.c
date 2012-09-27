@@ -28,10 +28,13 @@
 
 #include "lib/errno.h"
 #include "lib/atomic.h"
-#include "lib/arith.h" /* c2_align */
-#include "lib/misc.h"
+#include "lib/arith.h"  /* c2_align */
+#include "lib/misc.h"   /* c2_short_file_name */
 #include "lib/memory.h" /* c2_pagesize_get */
 #include "lib/trace.h"
+#include "lib/trace_internal.h"
+
+#include "colibri/magic.h"
 
 /**
  * @addtogroup trace
@@ -65,6 +68,9 @@ uint32_t   c2_logbufsize = sizeof bootbuf;
 unsigned long c2_trace_immediate_mask = 0;
 C2_BASSERT(sizeof(c2_trace_immediate_mask) == 8);
 
+unsigned int c2_trace_print_context = C2_TRACE_PCTX_NONE;
+unsigned int c2_trace_level         = C2_WARN | C2_ERROR | C2_FATAL;
+
 static uint32_t           bufmask;
 static struct c2_atomic64 cur;
 
@@ -73,6 +79,28 @@ static struct c2_atomic64 cur;
 /** The array of subsystem names */
 static const char *trace_subsys_str[] = {
 	C2_TRACE_SUBSYSTEMS
+};
+
+/** The array of trace level names */
+static struct {
+	const char          *name;
+	enum c2_trace_level  level;
+} trace_levels[] = {
+	[0] = { .name = "NONE",   .level = C2_NONE   },
+	[1] = { .name = "FATAL",  .level = C2_FATAL  },
+	[2] = { .name = "ERROR",  .level = C2_ERROR  },
+	[3] = { .name = "WARN",   .level = C2_WARN   },
+	[4] = { .name = "NOTICE", .level = C2_NOTICE },
+	[5] = { .name = "INFO",   .level = C2_INFO   },
+	[6] = { .name = "DEBUG",  .level = C2_DEBUG  },
+	[7] = { .name = "CALL",   .level = C2_CALL   },
+};
+
+/** Array of trace print context names */
+static const char *trace_print_ctx_str[] = {
+	[C2_TRACE_PCTX_NONE] = "none",
+	[C2_TRACE_PCTX_FUNC] = "func",
+	[C2_TRACE_PCTX_FULL] = "full",
 };
 
 extern int  c2_arch_trace_init(void);
@@ -165,9 +193,12 @@ void c2_trace_allot(const struct c2_trace_descr *td, const void *body)
 	/** @todo put memory barrier here before writing the magic */
 	header->trh_magic = C2_TRACE_MAGIC;
 	if (C2_TRACE_IMMEDIATE_DEBUG &&
-	    (td->td_subsys & c2_trace_immediate_mask))
+	    (td->td_subsys & c2_trace_immediate_mask ||
+	     td->td_level & (C2_WARN|C2_ERROR|C2_FATAL)) &&
+	    td->td_level & c2_trace_level)
 		c2_trace_record_print(header, body);
 }
+C2_EXPORTED(c2_trace_allot);
 
 static char *subsys_str(uint64_t subsys, char *buf)
 {
@@ -184,6 +215,213 @@ static char *subsys_str(uint64_t subsys, char *buf)
 	return buf;
 }
 
+static inline char *uppercase(char *s)
+{
+	char *p;
+
+	for (p = s; *p != '\0'; ++p)
+		*p = toupper(*p);
+
+	return s;
+}
+
+static inline char *lowercase(char *s)
+{
+	char *p;
+
+	for (p = s; *p != '\0'; ++p)
+		*p = tolower(*p);
+
+	return s;
+}
+
+static unsigned long subsys_name_to_mask(char *subsys_name)
+{
+	int            i;
+	unsigned long  mask;
+
+	/* uppercase subsys_name to match names in trace_subsys_str array */
+	uppercase(subsys_name);
+
+	for (mask = 0, i = 0; i < ARRAY_SIZE(trace_subsys_str); i++)
+		if (strcmp(subsys_name, trace_subsys_str[i]) == 0) {
+			mask = 1 << i;
+			break;
+		}
+
+	return mask;
+}
+
+/**
+ * Produces a numeric bitmask from a comma-separated list of subsystem names.
+ * If '!' is present at the beginning of list, then mask is inverted
+ *
+ * @param subsys_names comma-separated list of subsystem names with optional
+ *                     '!' at the beginning
+ *
+ * @param ret_mask     a pointer to a variable where to store mask, the stored
+ *                     value is valid only if no error is returned
+ *
+ * @return 0 on success
+ * @return -EINVAL on failure
+ */
+int subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask)
+{
+	char          *p;
+	char          *subsys = subsys_names;
+	unsigned long  mask;
+	unsigned long  m;
+
+	/*
+	 * there can be an optional '!' symbol at the beginning of mask,
+	 * skip it if it present
+	 */
+	subsys = subsys_names[0] == '!' ? subsys_names + 1 : subsys_names;
+
+	/*
+	 * a special pseudo-subsystem 'all' represents all available subsystems;
+	 * it's valid only when it's the only subsystem in a list
+	 */
+	if (strcmp(subsys, "all") == 0 || strcmp(subsys, "ALL") == 0) {
+		mask = ~0UL;
+		goto out;
+	}
+
+	mask = 0;
+	p = subsys;
+
+	while (p != NULL) {
+		p = strchr(subsys, ',');
+		if (p != NULL)
+			*p++ = '\0';
+		m = subsys_name_to_mask(subsys);
+		if (m == 0) {
+			c2_console_printf("colibri: failed to initialize trace"
+					  " immediate mask: subsystem '%s' not"
+					  " found\n", lowercase(subsys));
+			return -EINVAL;
+		}
+		mask |= m;
+		subsys = p;
+	}
+out:
+	/* invert mask if there is '!' at the beginning */
+	*ret_mask = subsys_names[0] == '!' ? ~mask : mask;
+
+	return 0;
+}
+
+static const char *trace_level_name(enum c2_trace_level level)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(trace_levels); i++)
+		if (level == trace_levels[i].level)
+			return trace_levels[i].name;
+
+	return NULL;
+}
+
+static enum c2_trace_level trace_level_value(char *level_name)
+{
+	int i;
+
+	/* uppercase level name to match names in trace_levels array */
+	uppercase(level_name);
+
+	for (i = 0; i < ARRAY_SIZE(trace_levels); i++) {
+		if (strcmp(level_name, trace_levels[i].name) == 0)
+			return trace_levels[i].level;
+
+	}
+
+	return C2_NONE;
+}
+
+static enum c2_trace_level trace_level_value_plus(char *level_name)
+{
+	enum c2_trace_level  level = C2_NONE;
+	size_t               n = strlen(level_name);
+	bool                 is_plus_level = false;
+
+	if (level_name[n - 1] == '+') {
+		level_name[n - 1] = '\0';
+		is_plus_level = true;
+	}
+
+	level = trace_level_value(level_name);
+	if (level == C2_NONE)
+		return C2_NONE;
+
+	/*
+	 * enable requested level and all other levels with higher precedance if
+	 * it's a "plus" level, otherwise just the requested level
+	 */
+	return is_plus_level ? level | (level - 1) : level;
+}
+
+/**
+ * Parses textual trace level specification and returns a corresponding
+ * c2_trace_level enum value.
+ *
+ * @param str textual trace level specification in form "level[+][,level[+]]",
+ *            where level is one of "call|debug|info|warn|error|fatal",
+ *            for example: 'warn+' or 'debug', 'trace,warn,error'
+ *
+ * @return c2_trace_level enum value, on success
+ * @return C2_NONE on failure
+ */
+enum c2_trace_level parse_trace_level(char *str)
+{
+	char                *level_str = str;
+	char                *p = level_str;
+	enum c2_trace_level  level = C2_NONE;
+	enum c2_trace_level  l;
+
+	while (p != NULL) {
+		p = strchr(level_str, ',');
+		if (p != NULL)
+			*p++ = '\0';
+		l = trace_level_value_plus(level_str);
+		if (l == C2_NONE) {
+			c2_console_printf("colibri: failed to initialize trace"
+					  " level: no such level '%s'\n",
+					  lowercase(level_str));
+			return C2_NONE;
+		}
+		level |= l;
+		level_str = p;
+	}
+
+	return level;
+}
+
+enum c2_trace_print_context parse_trace_print_context(const char *ctx_name)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(trace_print_ctx_str); ++i)
+		if (strcmp(ctx_name, trace_print_ctx_str[i]) == 0)
+			return i;
+
+	c2_console_printf("colibri: failed to initialize trace print context:"
+			  " invalid value '%s'\n", ctx_name);
+
+	return C2_TRACE_PCTX_INVALID;
+}
+
+void c2_trace_print_subsystems(void)
+{
+	int i;
+
+	c2_console_printf("# YAML\n");
+	c2_console_printf("---\n");
+	c2_console_printf("trace_subsystems:\n");
+
+	for (i = 0; i < ARRAY_SIZE(trace_subsys_str); i++)
+		c2_console_printf("    - %s\n", trace_subsys_str[i]);
+}
+
 void
 c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 {
@@ -197,13 +435,17 @@ c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 	} v[C2_TRACE_ARGC_MAX];
 	char subsys_map_str[sizeof(uint64_t) * CHAR_BIT + 3];
 
-	c2_console_printf("%8.8llu %15.15llu %5.5x %-18s %-20s "
-			  "%15s:%-3i\n\t",
-			  (unsigned long long)trh->trh_no,
-			  (unsigned long long)trh->trh_timestamp,
-			  (unsigned) (trh->trh_sp & 0xfffff),
-			  subsys_str(td->td_subsys, subsys_map_str),
-			  td->td_func, td->td_file, td->td_line);
+	if (c2_trace_print_context == C2_TRACE_PCTX_FULL) {
+		c2_console_printf("%8.8llu %15.15llu %5.5x %-18s %-7s %-20s "
+				  "%15s:%-3i\n\t",
+				  (unsigned long long)trh->trh_no,
+				  (unsigned long long)trh->trh_timestamp,
+				  (unsigned) (trh->trh_sp & 0xfffff),
+				  subsys_str(td->td_subsys, subsys_map_str),
+				  trace_level_name(td->td_level),
+				  td->td_func, c2_short_file_name(td->td_file),
+				  td->td_line);
+	}
 
 	for (i = 0; i < td->td_nr; ++i) {
 		const char *addr;
@@ -228,6 +470,12 @@ c2_trace_record_print(const struct c2_trace_rec_header *trh, const void *buf)
 			C2_IMPOSSIBLE("sizeof");
 		}
 	}
+
+	if (c2_trace_print_context == C2_TRACE_PCTX_FUNC)
+		c2_console_printf("colibri: %s: ", td->td_func);
+	else
+		c2_console_printf("colibri: ");
+
 	c2_console_printf(td->td_fmt, v[0], v[1], v[2], v[3], v[4], v[5], v[6],
 			  v[7], v[8]);
 	c2_console_printf("\n");

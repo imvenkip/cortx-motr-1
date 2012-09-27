@@ -17,9 +17,6 @@
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
  * Original creation date: 08/03/2011
  */
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
 
 #include <signal.h>
 #include <unistd.h>               /* sleep */
@@ -35,7 +32,7 @@
 #include "console/console_fop.h"
 
 /**
-   @addtogroup console main
+   @addtogroup console
    @{
  */
 
@@ -44,6 +41,7 @@
 #define SERVER_DB_FILE_NAME	"cons_server.db"
 #define SERVER_STOB_FILE_NAME	"cons_server.stob"
 #define SERVER_LOG_FILE_NAME	"cons_server.log"
+#define CONSOLE_STR_LEN         16
 
 static int signaled = 0;
 
@@ -63,12 +61,16 @@ static void sig_handler(int num)
 int main(int argc, char **argv)
 {
 	int                 result;
-	struct c2_net_xprt *xprt = &c2_net_lnet_xprt;
+	uint32_t            tm_recv_queue_len = C2_NET_TM_RECV_QUEUE_DEF_LEN;
+	uint32_t            max_rpc_msg_size  = C2_RPC_DEF_MAX_RPC_MSG_SIZE;
+	char                tm_len[CONSOLE_STR_LEN];
+	char                rpc_size[CONSOLE_STR_LEN];
+	struct c2_net_xprt *xprt              = &c2_net_lnet_xprt;
 
 	char *default_server_argv[] = {
 		argv[0], "-r", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 		"-S", SERVER_STOB_FILE_NAME, "-e", SERVER_ENDPOINT,
-		"-s", "ds1", "-s", "ds2"
+		"-s", "ds1", "-s", "ds2", "-q", tm_len, "-m", rpc_size
 	};
 
 	C2_RPC_SERVER_CTX_DECLARE_SIMPLE(sctx, xprt, default_server_argv,
@@ -77,12 +79,19 @@ int main(int argc, char **argv)
 	verbose = false;
 
 	result = C2_GETOPTS("server", argc, argv,
-			C2_FLAGARG('v', "verbose", &verbose));
+			    C2_FLAGARG('v', "verbose", &verbose),
+			    C2_FORMATARG('q', "minimum TM receive queue length",
+					 "%i", &tm_recv_queue_len),
+			    C2_FORMATARG('m', "max rpc msg size", "%i",
+					 &max_rpc_msg_size),);
 
 	if (result != 0) {
 		printf("c2_getopts failed\n");
 		return result;
 	}
+
+	sprintf(tm_len, "%d" , tm_recv_queue_len);
+	sprintf(rpc_size, "%d" , max_rpc_msg_size);
 
 	result = c2_init();
 	if (result != 0) {

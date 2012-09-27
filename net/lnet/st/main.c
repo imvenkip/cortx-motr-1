@@ -19,9 +19,6 @@
  * Original creation date: 04/12/2011
  * Adapted for LNet: 04/11/2012
  */
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
 
 #include <stdlib.h>
 #include <stdio.h>

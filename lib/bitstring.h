@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,8 @@
  * Original author: Nathan Rutman <Nathan_Rutman@xyratex.com>
  * Original creation date: 11/17/2010
  */
+
+#pragma once
 
 #ifndef __COLIBRI_LIB_BITSTRING_H__
 #define __COLIBRI_LIB_BITSTRING_H__
@@ -60,7 +62,7 @@ int c2_bitstring_cmp(const struct c2_bitstring *c1,
 /**
  Copy @src to @dst.
 */
-void c2_bitstring_copy(struct c2_bitstring *dst, 
+void c2_bitstring_copy(struct c2_bitstring *dst,
                        const char *src, size_t count);
 
 /**

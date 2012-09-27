@@ -19,6 +19,9 @@
  *                  Anup Barve <Anup_Barve@xyratex.com>
  * Original creation date: 06/27/2012
  */
+
+#pragma once
+
 #ifndef __COLIBRI_RPC_BULK_H__
 #define __COLIBRI_RPC_BULK_H__
 
@@ -128,14 +131,6 @@ struct c2_net_domain;
 struct c2_net_buf_desc;
 struct c2_rpc_conn;
 enum c2_net_queue_type;
-
-/**
-   Magic constants to check sanity of rpc bulk structures.
- */
-enum {
-	C2_RPC_BULK_BUF_MAGIC = 0xfacade12c3ed1b1eULL, /* facadeincredible */
-	C2_RPC_BULK_MAGIC     = 0xfedcba0123456789ULL,
-};
 
 /**
    Represents attributes of struct c2_rpc_bulk_buf.

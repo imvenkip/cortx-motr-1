@@ -17,10 +17,6 @@
  * Original creation date: 05/04/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>	/* mkdir */
@@ -28,20 +24,10 @@
 #include <err.h>
 
 #include "lib/ut.h"
-#include "lib/misc.h"
-#include "lib/errno.h"
-#include "lib/assert.h"
-#include "lib/memory.h"
-#include "lib/chan.h"
-#include "lib/processor.h"
-#include "lib/list.h"
 
-#include "colibri/init.h"
 #include "net/net.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
-#include "fop/fom.h"
-#include "fop/fop_iterator.h"
 #include "stob/stob.h"
 #include "stob/ad.h"
 #include "stob/linux.h"
@@ -49,20 +35,9 @@
 #include "rpc/rpc2.h"
 #include "fop/fop_item_type.h"
 #include "rpc/item.h"
-#include "xcode/bufvec_xcode.h"
-
-#include "fop/fop_format_def.h"
-
-#ifdef __KERNEL__
-#include "reqh/reqh_fops_k.h"
-#include "io_fop_k.h"
-#else
-#include "reqh/reqh_fops_u.h"
-#include "io_fop_u.h"
-#endif
-
+#include "fop/fom_generic_ff.h"
+#include "io_fop_ff.h"
 #include "io_fop.h"
-#include "reqh/reqh_fops.ff"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpclib.h"
 #include "ut/rpc.h"
@@ -91,7 +66,7 @@ enum {
 };
 
 static struct c2_stob_domain   *sdom;
-static struct c2_md_store      srv_mdstore;
+static struct c2_mdstore       srv_mdstore;
 static struct c2_cob_domain_id srv_cob_dom_id;
 static struct c2_rpc_machine   srv_rpc_mach;
 static struct c2_dbenv         srv_db;
@@ -239,7 +214,7 @@ static int server_init(const char *stob_path, const char *srv_db_name,
 					  *reqh_addb_stob, NULL);
 
         /* Init the mdstore */
-        rc = c2_md_store_init(&srv_mdstore, &srv_cob_dom_id, &srv_db, 0);
+        rc = c2_mdstore_init(&srv_mdstore, &srv_cob_dom_id, &srv_db, 0);
         C2_UT_ASSERT(rc == 0);
 
 	/* Initialising request handler */
@@ -272,7 +247,7 @@ static void server_fini(struct c2_stob_domain *bdom,
 	c2_rpc_net_buffer_pool_cleanup(&app_pool);
 
         /* Fini the mdstore */
-        c2_md_store_fini(&srv_mdstore);
+        c2_mdstore_fini(&srv_mdstore);
 
 	c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
 	c2_stob_put(reqh_addb_stob);
@@ -364,16 +339,16 @@ void test_reqh(void)
 {
 	int                    result;
 	char                   opath[64];
-	const char             *path;
-	struct c2_net_xprt     *xprt = &c2_net_lnet_xprt;
-	struct c2_net_domain   net_dom = { };
+	const char            *path;
+	struct c2_net_xprt    *xprt        = &c2_net_lnet_xprt;
+	struct c2_net_domain   net_dom     = { };
 	struct c2_net_domain   srv_net_dom = { };
 	struct c2_dbenv        client_dbenv;
 	struct c2_cob_domain   client_cob_dom;
-	struct c2_stob_domain  *bdom;
+	struct c2_stob_domain *bdom;
 	struct c2_stob_id      backid;
-	struct c2_stob         *bstore;
-	struct c2_stob         *reqh_addb_stob;
+	struct c2_stob        *bstore;
+	struct c2_stob        *reqh_addb_stob;
 
 	struct c2_stob_id      reqh_addb_stob_id = {
 					.si_bits = {
@@ -402,12 +377,6 @@ void test_reqh(void)
 	setbuf(stderr, NULL);
 
 	path = "reqh_ut_stob";
-
-	/* Initialize processors */
-	if (!c2_processor_is_initialized()) {
-		result = c2_processors_init();
-		C2_UT_ASSERT(result == 0);
-	}
 
 	result = c2_stob_io_fop_init();
 	C2_UT_ASSERT(result == 0);
@@ -449,9 +418,6 @@ void test_reqh(void)
 	c2_net_domain_fini(&srv_net_dom);
 	c2_net_xprt_fini(xprt);
 	c2_stob_io_fop_fini();
-
-	if (c2_processor_is_initialized())
-		c2_processors_fini();
 }
 
 const struct c2_test_suite reqh_ut = {

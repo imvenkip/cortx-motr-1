@@ -18,6 +18,8 @@
  * Original creation date: 09/16/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_DLD_TEMPLATE_H__
 #define __COLIBRI_DLD_TEMPLATE_H__
 

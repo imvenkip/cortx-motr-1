@@ -18,27 +18,25 @@
  * Original creation date: 23/07/2012
  */
 
-#ifndef __COLIBRI_IOSERVICE_MD_SERVICE_H__
-#define __COLIBRI_IOSERVICE_MD_SERVICE_H__
+#pragma once
+
+#ifndef __COLIBRI_MDSERVICE_MD_SERVICE_H__
+#define __COLIBRI_MDSERVICE_MD_SERVICE_H__
 
 /**
  * @defgroup mdservice MD Service Operations
  * @see @ref reqh
  *
  * MD Service defines service operation vector -
- * - MD Service operation @ref c2_mdservice_start()<br>
+ * - MD Service operation @ref c2_mds_start()<br>
  *   Initiate buffer_pool and register I/O FOP with service
- * - MD Service operation @ref c2_mdservice_stop()<br>
+ * - MD Service operation @ref c2_mds_stop()<br>
  *   Free buffer_pool and unregister I/O FOP with service
- * - MD Service operation @ref c2_mdservice_fini)<br>
+ * - MD Service operation @ref c2_mds_fini()<br>
  *   Free MD Service instance.
  *
  *  @{
  */
-
-enum {
-        C2_REQH_MD_SERVICE_MAGIC = 0x6D64736572766963
-};
 
 /**
  * Structure contains generic service structure and
@@ -56,7 +54,7 @@ int c2_mds_register(void);
 
 /** @} end of mdservice */
 
-#endif /* __COLIBRI_IOSERVICE_MD_SERVICE_H__ */
+#endif /* __COLIBRI_MDSERVICE_MD_SERVICE_H__ */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

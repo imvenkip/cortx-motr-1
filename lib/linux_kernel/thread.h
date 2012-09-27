@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,10 +18,13 @@
  * Original creation date: 02/18/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LIB_LINUX_KERNEL_THREAD_H__
 #define __COLIBRI_LIB_LINUX_KERNEL_THREAD_H__
 
 #include <linux/kthread.h>
+#include <linux/hardirq.h>
 
 /**
    @addtogroup thread Thread

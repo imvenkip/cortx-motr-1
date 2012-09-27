@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,8 @@
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
  * Original creation date: 30-Dec-2011
  */
+
+#pragma once
 
 #ifndef __COLIBRI_XCODE_FF2C_LEX_H__
 #define __COLIBRI_XCODE_FF2C_LEX_H__

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,6 +18,8 @@
  * Original creation date: 09/09/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_CONSOLE_MESG_H__
 #define __COLIBRI_CONSOLE_MESG_H__
 
@@ -34,7 +36,7 @@ void c2_cons_fop_name_print(const struct c2_fop_type *ftype);
 /**
  * @brief Builds and send FOP using rpc_post and waits for reply.
  *
- * @param ftype	   FOP to be send.
+ * @param fop	   FOP to be send.
  * @param session  RPC connection session.
  * @param deadline Time to to wait for RPC reply.
  */
@@ -52,7 +54,7 @@ int c2_cons_fop_show(struct c2_fop_type *fopt);
 void c2_cons_fop_list_show(void);
 
 /**
- * @brief Find the fop type equals to @opcode and returns.
+ * @brief Find the fop type equals to opcode and returns.
  *
  * @param opcode FOP opcode.
  *

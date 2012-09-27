@@ -19,6 +19,12 @@ modprobe_lnet
 modload_galois
 modload || exit $?
 
+# allow only 'fatal' and higher trace messages to be printed on console by
+# default, to prevent cluttering of UT output with "fake" error messages,
+# generated while testing various error paths using fault injection;
+# this can be overridden with '-e' CLI option.
+export C2_TRACE_LEVEL='fatal+'
+
 if test x$enable_rpm = xyes; then
     ut "$@"
 else

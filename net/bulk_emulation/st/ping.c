@@ -18,13 +18,11 @@
  *                  Dave Cohrs <Dave_Cohrs@xyratex.com>
  * Original creation date: 04/12/2011
  */
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
 
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "lib/misc.h" /* strlen */
 #include "net/net.h"
 #include "net/bulk_mem.h"
 #include "net/bulk_emulation/st/ping.h"
@@ -533,7 +531,8 @@ void s_m_recv_cb(const struct c2_net_buffer_event *ev)
 		  ev->nbe_buffer->nb_qtype == C2_NET_QT_MSG_RECV);
 	server_event_ident(idbuf, ctx->pc_ident, ev);
 	count = c2_atomic64_add_return(&s_msg_recv_counter, 1);
-	ctx->pc_ops->pf("%s: Msg Recv CB %" PRId64 "\n", idbuf, count);
+	ctx->pc_ops->pf("%s: Msg Recv CB %" PRId64 "\n", idbuf,
+			(long long int) count);
 	if (ev->nbe_status < 0) {
 		if (ev->nbe_status == -ECANCELED && server_stop)
 			ctx->pc_ops->pf("%s: msg recv canceled on shutdown\n",
@@ -648,7 +647,6 @@ void s_m_recv_cb(const struct c2_net_buffer_event *ev)
 void s_m_send_cb(const struct c2_net_buffer_event *ev)
 {
 	struct ping_ctx *ctx = buffer_event_to_ping_ctx(ev);
-	int rc;
 	char idbuf[64];
 
 	C2_ASSERT(ev->nbe_buffer->nb_qtype == C2_NET_QT_MSG_SEND);
@@ -664,8 +662,7 @@ void s_m_send_cb(const struct c2_net_buffer_event *ev)
 					idbuf, ev->nbe_status);
 	}
 
-	rc = c2_net_end_point_put(ev->nbe_buffer->nb_ep);
-	C2_ASSERT(rc == 0);
+	c2_net_end_point_put(ev->nbe_buffer->nb_ep);
 	ev->nbe_buffer->nb_ep = NULL;
 
 	ping_buf_put(ctx, ev->nbe_buffer);
@@ -1298,9 +1295,9 @@ int ping_client_init(struct ping_ctx *ctx, struct c2_net_end_point **server_ep)
 
 int ping_client_fini(struct ping_ctx *ctx, struct c2_net_end_point *server_ep)
 {
-	int rc = c2_net_end_point_put(server_ep);
+	c2_net_end_point_put(server_ep);
 	ping_fini(ctx);
-	return rc;
+	return 0;
 }
 
 /*

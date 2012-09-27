@@ -22,8 +22,7 @@
 #  include <config.h>
 #endif
 
-#include <errno.h>
-
+#include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/cdefs.h"
 #include "lib/misc.h"              /* C2_SET0 */
@@ -33,27 +32,26 @@
 #include "addb/addb.h"
 #include "cob/cob.h"
 #include "mdstore/mdstore.h"
-#include "mdservice/md_fops_u.h"
 #include "mdservice/md_fops.h"
+#include "mdservice/md_fops_ff.h"
 #include "mdservice/ut/lustre.h"
 
 typedef int (*fop_translate_t)(struct c2_fop *fop, void *data);
 
-static void lustre_copy_fid(struct c2_fop_fid *bf, 
-                            struct c2_md_lustre_fid *cf)
+static void lustre_copy_fid(struct c2_fop_fid *bf,
+                            const struct c2_md_lustre_fid *cf)
 {
         bf->f_oid = cf->f_oid;
         bf->f_seq = cf->f_seq;
 }
 
-static int lustre_copy_name(struct c2_fop_str *n, 
-                            struct c2_md_lustre_logrec *rec)
+static int lustre_copy_name(struct c2_fop_str *n,
+                            const struct c2_md_lustre_logrec *rec)
 {
-        n->s_len = rec->cr_namelen;
         n->s_buf = c2_alloc(rec->cr_namelen);
-        if (!n->s_buf)
+        if (n->s_buf == NULL)
                 return -ENOMEM;
-
+        n->s_len = rec->cr_namelen;
         memcpy(n->s_buf, rec->cr_name, rec->cr_namelen);
         return 0;
 }
@@ -77,7 +75,7 @@ enum lustre_la_valid {
 static uint16_t lustre_get_valid(uint16_t valid)
 {
         uint16_t result = 0;
-        
+
         if (valid & C2_LA_ATIME)
                 result |= C2_COB_ATIME;
         if (valid & C2_LA_MTIME)
@@ -107,8 +105,8 @@ static uint16_t lustre_get_valid(uint16_t valid)
         return result;
 }
 
-static void lustre_copy_body(struct c2_fop_cob *body, 
-                             struct c2_md_lustre_logrec *rec)
+static void lustre_copy_body(struct c2_fop_cob *body,
+                             const struct c2_md_lustre_logrec *rec)
 {
         body->b_index = rec->cr_index;
         if (rec->cr_valid & C2_LA_SIZE)
@@ -211,7 +209,7 @@ int c2_md_lustre_fop_alloc(struct c2_fop **fop, void *data)
         fop_translate_t translate = NULL;
         struct c2_fop_type *fopt = NULL;
         int rc1, rc = 0;
-        
+
         switch (rec->cr_type) {
         case RT_MARK:
         case RT_IOCTL:
@@ -280,7 +278,7 @@ int c2_md_lustre_fop_alloc(struct c2_fop **fop, void *data)
         return rc;
 }
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

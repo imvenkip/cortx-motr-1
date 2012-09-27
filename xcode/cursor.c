@@ -28,6 +28,13 @@
    @{
  */
 
+void c2_xcode_cursor_init(struct c2_xcode_cursor *it,
+			  const struct c2_xcode_obj *obj)
+{
+	C2_SET0(it);
+	c2_xcode_cursor_top(it)->s_obj = *obj;
+}
+
 struct c2_xcode_cursor_frame *c2_xcode_cursor_top(struct c2_xcode_cursor *it)
 {
 	C2_PRE(IS_IN_ARRAY(it->xcu_depth, it->xcu_stack));
@@ -60,12 +67,14 @@ int c2_xcode_next(struct c2_xcode_cursor *it)
 			++top->s_fieldno;
 			break;
 		case C2_XA_SEQUENCE:
-			if (top->s_fieldno == 1 &&
-			    ++top->s_elno < c2_xcode_tag(&top->s_obj))
-				; /* nothing */
-			else {
+			if (top->s_fieldno == 0) {
 				top->s_elno = 0;
-				++top->s_fieldno;
+				top->s_fieldno = 1;
+			} else
+				++top->s_elno;
+			if (top->s_elno >= c2_xcode_tag(&top->s_obj)) {
+				top->s_elno = 0;
+				top->s_fieldno = 2;
 			}
 			break;
 		case C2_XA_UNION:
@@ -73,10 +82,10 @@ int c2_xcode_next(struct c2_xcode_cursor *it)
 				top->s_fieldno = nr;
 				break;
 			}
-			for (; top->s_fieldno < nr; ++top->s_fieldno) {
-				if (c2_xcode_tag(&top->s_obj) ==
-				    xt->xct_child[top->s_fieldno].xf_tag)
-					break;
+			while (++top->s_fieldno < nr &&
+			       c2_xcode_tag(&top->s_obj) !=
+			       xt->xct_child[top->s_fieldno].xf_tag) {
+				;
 			}
 			break;
 		case C2_XA_OPAQUE:
@@ -101,6 +110,7 @@ int c2_xcode_next(struct c2_xcode_cursor *it)
 				next->s_fieldno = 0;
 				next->s_elno    = 0;
 				next->s_flag    = C2_XCODE_CURSOR_PRE;
+				next->s_datum   = 0;
 			}
 		} else
 			top->s_flag = C2_XCODE_CURSOR_POST;

@@ -18,33 +18,27 @@
  *                  Amit Jambure <Amit_Jambure@xyratex.com>
  * Original creation date: 08/24/2011
  */
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
 
 #ifndef __KERNEL__
 #include <sys/stat.h>    /* S_ISDIR */
 #endif
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/arith.h"
-#include "rpc/session.h"
 #include "lib/bitstring.h"
+#include "lib/finject.h"       /* C2_FI_ENABLED */
+#include "rpc/session.h"
 #include "cob/cob.h"
 #include "fop/fop.h"
-#include "fop/fop_format_def.h"
 #include "reqh/reqh.h"
-
-#ifdef __KERNEL__
-#include "rpc/session_k.h"
-#else
-#include "rpc/session_u.h"
-#endif
-
+#include "rpc/session_ff.h"
 #include "rpc/session_fops.h"
 #include "rpc/session_internal.h"
+#include "rpc/rpc_machine.h"
 #include "db/db.h"
 
 /**
@@ -88,6 +82,15 @@ int c2_rpc__fop_post(struct c2_fop                *fop,
 		     const struct c2_rpc_item_ops *ops)
 {
 	struct c2_rpc_item *item;
+	int                 rc;
+
+	if (C2_FI_ENABLED("fake_error"))
+		return -ETIMEDOUT;
+
+	if (C2_FI_ENABLED("do_nothing"))
+		return 0;
+
+	C2_ENTRY("fop: %p, session: %p", fop, session);
 
 	item              = &fop->f_item;
 	item->ri_session  = session;
@@ -95,7 +98,8 @@ int c2_rpc__fop_post(struct c2_fop                *fop,
 	item->ri_deadline = 0;
 	item->ri_ops      = ops;
 
-	return c2_rpc__post_locked(item);
+	rc = c2_rpc__post_locked(item);
+	C2_RETURN(rc);
 }
 
 static struct c2_uint128 stob_id_alloc(void)
@@ -130,11 +134,12 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	struct c2_uint128     stobid;
 	int                   rc;
 
+	C2_ENTRY("cob_dom: %p, pcob: %p", dom, pcob);
 	C2_PRE(dom != NULL && name != NULL && out != NULL);
 
 	*out = NULL;
 	C2_SET0(&nsrec);
-	
+
 	rc = c2_cob_alloc(dom, &cob);
 	if (rc)
 	        return rc;
@@ -145,18 +150,22 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 	        pfid = pcob->co_nsrec.cnr_fid;
 	}
 
-	c2_cob_nskey_make(&key, &pfid, name, strlen(name));
-	if (key == NULL) {
+	rc = c2_cob_nskey_make(&key, &pfid, name, strlen(name));
+	if (rc != 0) {
 	        c2_cob_put(cob);
-		return -ENOMEM;
-        }
+		C2_RETURN(rc);
+	}
 
         stobid = stob_id_alloc();
 	nsrec.cnr_fid.f_container = stobid.u_hi;
 	nsrec.cnr_fid.f_key = stobid.u_lo;
 	nsrec.cnr_nlink = 1;
 
-        c2_cob_fabrec_make(&fabrec, NULL, 0); 
+        rc = c2_cob_fabrec_make(&fabrec, NULL, 0);
+        if (rc != 0) {
+	        c2_cob_put(cob);
+		C2_RETURN(rc);
+        }
 
 	/*
 	 * Temporary assignment for lsn
@@ -166,7 +175,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 
         omgrec.cor_uid = 0;
         omgrec.cor_gid = 0;
-        omgrec.cor_mode = S_IFDIR | 
+        omgrec.cor_mode = S_IFDIR |
                           S_IRUSR | S_IWUSR | S_IXUSR | /* rwx for owner */
                           S_IRGRP | S_IXGRP |           /* r-x for group */
                           S_IROTH | S_IXOTH;            /* r-x for others */
@@ -180,7 +189,7 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
                 c2_free(fabrec);
 	}
 
-	return rc;
+	C2_RETURN(rc);
 }
 
 int c2_rpc_cob_lookup_helper(struct c2_cob_domain *dom,
@@ -193,6 +202,8 @@ int c2_rpc_cob_lookup_helper(struct c2_cob_domain *dom,
 	struct c2_fid        pfid;
 	int                  rc;
 
+	C2_ENTRY("cob_dom: %p, pcob; %p, name: %s", dom, pcob,
+		 (char *)name);
 	C2_PRE(dom != NULL && name != NULL && out != NULL);
 
 	*out = NULL;
@@ -202,13 +213,15 @@ int c2_rpc_cob_lookup_helper(struct c2_cob_domain *dom,
 	        pfid = pcob->co_nsrec.cnr_fid;
 	}
 
-	c2_cob_nskey_make(&key, &pfid, name, strlen(name));
+	rc = c2_cob_nskey_make(&key, &pfid, name, strlen(name));
+	if (rc != 0)
+	        C2_RETURN(rc);
 	if (key == NULL)
-		return -ENOMEM;
-	rc = c2_cob_lookup(dom, key, CA_NSKEY_FREE | CA_FABREC, out, tx);
+		C2_RETURN(-ENOMEM);
+	rc = c2_cob_lookup(dom, key, C2_CA_NSKEY_FREE | C2_CA_FABREC, out, tx);
 
 	C2_POST(ergo(rc == 0, *out != NULL));
-	return rc;
+	C2_RETURN(rc);
 }
 
 int c2_rpc_root_session_cob_get(struct c2_cob_domain *dom,
@@ -233,7 +246,10 @@ int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
 				   struct c2_db_tx      *tx)
 {
 	int rc;
-	
+
+	if (C2_FI_ENABLED("fake_error"))
+		C2_RETURN(-EINVAL);
+
 	rc = c2_cob_domain_mkfs(dom, &C2_COB_SLASH_FID, &C2_COB_SESSIONS_FID, tx);
 	if (rc == -EEXIST)
 		rc = 0;
@@ -251,6 +267,8 @@ void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 	struct c2_reqh                       *reqh;
         struct c2_rpc_fop_conn_establish_ctx *ctx;
 	struct c2_rpc_machine                *rpcmach;
+
+	C2_ENTRY("item : %p", item);
 
 	 if (c2_rpc_item_is_conn_establish(item)) {
 
@@ -270,4 +288,5 @@ void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 #ifndef __KERNEL__
 	c2_reqh_fop_handle(reqh, fop, NULL);
 #endif
+	C2_LEAVE();
 }

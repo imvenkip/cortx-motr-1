@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,8 +18,10 @@
  * Original creation date: 08/03/2011
  */
 
-#ifndef __COLIBRI_CONSOLE_H__
-#define __COLIBRI_CONSOLE_H__
+#pragma once
+
+#ifndef __COLIBRI_CONSOLE_CONSOLE_H__
+#define __COLIBRI_CONSOLE_CONSOLE_H__
 
 #include <stdbool.h>
 
@@ -43,7 +45,9 @@
 
 extern bool verbose;
 
-/* __COLIBRI_CONSOLE_H__ */
+/** @} end of console group */
+
+/* __COLIBRI_CONSOLE_CONSOLE_H__ */
 #endif
 
 /*

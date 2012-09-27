@@ -22,6 +22,7 @@
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/time.h"
+#include "colibri/magic.h"
 #include "net/net_internal.h"
 
 /**
@@ -222,7 +223,7 @@ int c2_net__buffer_add(struct c2_net_buffer *buf, struct c2_net_transfer_mc *tm)
 	/* validate that a timeout, if set, is in the future */
 	if (buf->nb_timeout != C2_TIME_NEVER) {
 		/* Don't want to assert here as scheduling is unpredictable. */
-		if (c2_time_after_eq(c2_time_now(), buf->nb_timeout)) {
+		if (c2_time_now() >= buf->nb_timeout) {
 			rc = -ETIME; /* not -ETIMEDOUT */
 			goto m_err_exit;
 		}

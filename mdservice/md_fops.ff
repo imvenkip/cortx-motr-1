@@ -29,115 +29,136 @@
  *
  */
 
-FOPDEP("fid/fid.ff");
+require "fid/fid_ff";
 
-DEF(c2_fop_str, SEQUENCE,
-    _(s_len, U32),
-    _(s_buf, BYTE));
+sequence {
+        u32 s_len;
+        u8  s_buf
+} c2_fop_str;
 
-DEF(c2_fop_cob, RECORD,
-    _(b_index, U64),
-    _(b_version, U64),
-    _(b_flags, U32),
-    _(b_valid, U32),
-    _(b_mode, U32),
-    _(b_size, U64),
-    _(b_blksize, U64),
-    _(b_blocks, U64),
-    _(b_nlink, U32),
-    _(b_uid, U32),
-    _(b_gid, U32),
-    _(b_sid, U32),
-    _(b_nid, U64),
-    _(b_rdev, U32),
-    _(b_atime, U32),
-    _(b_mtime, U32),
-    _(b_ctime, U32),
-    _(b_pfid, c2_fop_fid),
-    _(b_tfid, c2_fop_fid));
+record {
+        u64 b_index;
+        u64 b_version;
+        u32 b_flags;
+        u32 b_valid;
+        u32 b_mode;
+        u64 b_size;
+        u64 b_blksize;
+        u64 b_blocks;
+        u32 b_nlink;
+        u32 b_uid;
+        u32 b_gid;
+        u32 b_sid;
+        u64 b_nid;
+        u32 b_rdev;
+        u32 b_atime;
+        u32 b_mtime;
+        u32 b_ctime;
+        c2_fop_fid b_pfid;
+        c2_fop_fid b_tfid
+} c2_fop_cob;
 
-DEF(c2_fop_create, RECORD,
-    _(c_body,   c2_fop_cob),
-    _(c_target, c2_fop_str), /**< target for symlink case */
-    _(c_path,   c2_fop_str),
-    _(c_name,   c2_fop_str));
+record {
+        c2_fop_cob c_body;
+        c2_fop_str c_target;
+        c2_fop_str c_path;
+        c2_fop_str c_name
+} c2_fop_create;
 
-DEF(c2_fop_create_rep, RECORD,
-    _(c_body, c2_fop_cob));
+record {
+        c2_fop_cob c_body
+} c2_fop_create_rep;
 
-DEF(c2_fop_link, RECORD,
-    _(l_body, c2_fop_cob),
-    _(l_spath, c2_fop_str),
-    _(l_tpath, c2_fop_str),
-    _(l_name, c2_fop_str));
+record {
+        c2_fop_cob l_body;
+        c2_fop_str l_spath;
+        c2_fop_str l_tpath;
+        c2_fop_str l_name
+} c2_fop_link;
 
-DEF(c2_fop_link_rep, RECORD,
-    _(l_body, c2_fop_cob));
+record {
+        c2_fop_cob l_body
+} c2_fop_link_rep;
 
-DEF(c2_fop_unlink, RECORD,
-    _(u_body, c2_fop_cob),
-    _(u_path, c2_fop_str),
-    _(u_name, c2_fop_str));
+record {
+        c2_fop_cob u_body;
+        c2_fop_str u_path;
+        c2_fop_str u_name
+} c2_fop_unlink;
 
-DEF(c2_fop_unlink_rep, RECORD,
-    _(u_body, c2_fop_cob));
+record {
+        c2_fop_cob u_body
+} c2_fop_unlink_rep;
 
-DEF(c2_fop_rename, RECORD,
-    _(r_sbody, c2_fop_cob),
-    _(r_tbody, c2_fop_cob),
-    _(r_spath, c2_fop_str),
-    _(r_tpath, c2_fop_str),
-    _(r_sname, c2_fop_str),
-    _(r_tname, c2_fop_str));
+record {
+        c2_fop_cob r_sbody;
+        c2_fop_cob r_tbody;
+        c2_fop_str r_spath;
+        c2_fop_str r_tpath;
+        c2_fop_str r_sname;
+        c2_fop_str r_tname
+} c2_fop_rename;
 
-DEF(c2_fop_rename_rep, RECORD,
-    _(r_body, c2_fop_cob));
+record {
+        c2_fop_cob r_body
+} c2_fop_rename_rep;
 
-DEF(c2_fop_open, RECORD,
-    _(o_path, c2_fop_str),
-    _(o_body, c2_fop_cob));
+record {
+        c2_fop_str o_path;
+        c2_fop_cob o_body
+} c2_fop_open;
 
-DEF(c2_fop_open_rep, RECORD,
-    _(o_body, c2_fop_cob));
+record {
+        c2_fop_cob o_body
+} c2_fop_open_rep;
 
-DEF(c2_fop_close, RECORD,
-    _(c_body, c2_fop_cob),
-    _(c_path, c2_fop_str));
+record {
+        c2_fop_cob c_body;
+        c2_fop_str c_path
+} c2_fop_close;
 
-DEF(c2_fop_close_rep, RECORD,
-    _(c_body, c2_fop_cob));
+record {
+        c2_fop_cob c_body
+} c2_fop_close_rep;
 
-DEF(c2_fop_setattr, RECORD,
-    _(s_body, c2_fop_cob),
-    _(s_path, c2_fop_str));
+record {
+        c2_fop_cob s_body;
+        c2_fop_str s_path
+} c2_fop_setattr;
 
-DEF(c2_fop_setattr_rep, RECORD,
-    _(s_body, c2_fop_cob));
+record {
+        c2_fop_cob s_body
+} c2_fop_setattr_rep;
 
-DEF(c2_fop_getattr, RECORD,
-    _(g_body, c2_fop_cob),
-    _(g_path, c2_fop_str));
+record {
+        c2_fop_cob g_body;
+        c2_fop_str g_path
+} c2_fop_getattr;
 
-DEF(c2_fop_getattr_rep, RECORD,
-    _(g_body, c2_fop_cob));
+record {
+        c2_fop_cob g_body
+} c2_fop_getattr_rep;
 
-DEF(c2_fop_readdir, RECORD,
-    _(r_body, c2_fop_cob),
-    _(r_path, c2_fop_str),
-    _(r_pos,  c2_fop_str));
+record {
+        c2_fop_cob r_body;
+        c2_fop_str r_path;
+        c2_fop_str r_pos
+} c2_fop_readdir;
 
-DEF(c2_fop_buf, SEQUENCE,
-    _(b_count, U32),
-    _(b_addr, BYTE));
+sequence {
+        u32 b_count;
+        u8  b_addr
+} c2_fop_buf;
 
-DEF(c2_fop_readdir_rep, RECORD,
-    _(r_end,  c2_fop_str),
-    _(r_body, c2_fop_cob),
-    _(r_buf,  c2_fop_buf));
+record {
+        c2_fop_str r_end;
+        c2_fop_cob r_body;
+        c2_fop_buf r_buf
+} c2_fop_readdir_rep;
 
 /** @} end of fop group */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

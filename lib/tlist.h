@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,8 @@
  * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
  * Original creation date: 08/26/2011
  */
+
+#pragma once
 
 #ifndef __COLIBRI_LIB_TLIST_H__
 #define __COLIBRI_LIB_TLIST_H__
@@ -352,7 +354,7 @@ void  *c2_tlist_tail(const struct c2_tl_descr *d, const struct c2_tl *list);
    @pre c2_tlist_contains(d, list, obj)
  */
 void  *c2_tlist_next(const struct c2_tl_descr *d,
-		     const struct c2_tl *list, void *obj);
+		     const struct c2_tl *list, const void *obj);
 
 /**
    Returns the previous element of a list or NULL if @obj is the first element.
@@ -360,7 +362,7 @@ void  *c2_tlist_next(const struct c2_tl_descr *d,
    @pre c2_tlist_contains(d, list, obj)
  */
 void  *c2_tlist_prev(const struct c2_tl_descr *d,
-		     const struct c2_tl *list, void *obj);
+		     const struct c2_tl *list, const void *obj);
 
 /**
    Iterates over elements of list @head of type @descr, assigning them in order
@@ -405,12 +407,12 @@ do {									\
 	for (obj = c2_tlist_head(descr, head);				\
 	     obj != NULL &&						\
              ((void)(__tl = c2_tlist_next(descr, head, obj)), true);	\
-	     obj = __tl) {
+	     obj = __tl)
 
 /**
    Terminates c2_tlist_for() loop.
  */
-#define c2_tlist_endfor ;} (void)__tl; } while (0)
+#define c2_tlist_endfor ;(void)__tl; } while (0)
 
 /**
  * Returns a conjunction (logical AND) of an expression evaluated for each list
@@ -496,8 +498,10 @@ scope void   name ## _tlist_move(struct c2_tl *list, amb_type *amb);	\
 scope void   name ## _tlist_move_tail(struct c2_tl *list, amb_type *amb); \
 scope amb_type *name ## _tlist_head(const struct c2_tl *list);		\
 scope amb_type *name ## _tlist_tail(const struct c2_tl *list);		\
-scope amb_type *name ## _tlist_next(const struct c2_tl *list, amb_type *amb);	\
-scope amb_type *name ## _tlist_prev(const struct c2_tl *list, amb_type *amb)
+scope amb_type *name ## _tlist_next(const struct c2_tl *list,           \
+				    const amb_type *amb);	        \
+scope amb_type *name ## _tlist_prev(const struct c2_tl *list,           \
+				    const amb_type *amb)
 
 #define __AUN __attribute__((unused))
 
@@ -623,13 +627,13 @@ scope __AUN amb_type *name ## _tlist_tail(const struct c2_tl *list)	\
 }									\
 									\
 scope __AUN amb_type *name ## _tlist_next(const struct c2_tl *list,     \
-				     amb_type *amb)			\
+				     const amb_type *amb)			\
 {									\
 	return c2_tlist_next(&name ## _tl, list, amb);			\
 }									\
 									\
 scope __AUN amb_type *name ## _tlist_prev(const struct c2_tl *list,     \
-				     amb_type *amb)                     \
+				     const amb_type *amb)               \
 {									\
 	return c2_tlist_prev(&name ## _tl, list, amb);			\
 }									\

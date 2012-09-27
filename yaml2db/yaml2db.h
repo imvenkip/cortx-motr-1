@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -17,6 +17,8 @@
  * Original author: Anup Barve <Anup_Barve@xyratex.com>
  * Original creation date: 08/13/2011
  */
+
+#pragma once
 
 #ifndef __COLIBRI_YAML2DB_H__
 #define __COLIBRI_YAML2DB_H__
@@ -300,6 +302,13 @@ int c2_yaml2db_conf_load(struct c2_yaml2db_ctx *yctx,
 int c2_yaml2db_conf_emit(struct c2_yaml2db_ctx *yctx,
 			 const struct c2_yaml2db_section *ysec,
 			 const char *conf_param);
+
+/**
+ * Function to detect and print parsing errors
+ * @param parser - yaml_parser structure
+ */
+void c2_yaml_parser_error_detect(const yaml_parser_t *parser);
+
 
 /** @} end of yaml2db group */
 

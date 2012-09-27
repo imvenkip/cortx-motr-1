@@ -2,6 +2,7 @@ init.c
 addb
 c2t1fs
 cob
+conf
 db
 dtm
 fid
@@ -13,6 +14,7 @@ layout
 lib
 net
 pool
+reqh
 rpc
 sm
 sns

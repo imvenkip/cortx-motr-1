@@ -18,11 +18,6 @@
  * Original creation date: 02/29/2012
  */
 
-
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <linux/kernel.h>    /* pr_info */
 
 #ifdef ENABLE_FAULT_INJECTION

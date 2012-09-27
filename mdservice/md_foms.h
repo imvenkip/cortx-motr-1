@@ -18,8 +18,12 @@
  * Original creation date: 03/29/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_MDSERVICE_MD_FOMS_H__
 #define __COLIBRI_MDSERVICE_MD_FOMS_H__
+
+#include "mdservice/md_fops_ff.h"
 
 struct c2_fom;
 struct c2_fop;
@@ -31,7 +35,7 @@ struct c2_cob_nskey;
 struct c2_cob_oikey;
 
 struct c2_fom_md {
-	/** Generic c2_fom object. */
+        /** Generic c2_fom object. */
         struct c2_fom        fm_fom;
 };
 
@@ -50,26 +54,12 @@ int c2_md_rep_fom_create(struct c2_fop *fop, struct c2_fom **m);
 /**
    Make in-memory fid from wire fid (wid).
 */
-void c2_md_fid_make(struct c2_fid *fid, 
+void c2_md_fid_make(struct c2_fid *fid,
                     const struct c2_fop_fid *wid);
-
-/**
-   Make nskey from passed parent fid and child name.
-*/
-void c2_md_nskey_make(struct c2_cob_nskey **keyh, 
-                      const struct c2_fop_fid *fid, 
-                      struct c2_fop_str *name);
-
-/**
-   Make oikey from passed child fid and link number.
-*/
-void c2_md_oikey_make(struct c2_cob_oikey *oikey, 
-                      const struct c2_fop_fid *fid,
-                      int linkno);
 
 #endif /* __COLIBRI_MDSERVICE_MD_FOMS_H__ */
 
-/* 
+/*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8

@@ -18,9 +18,12 @@
  *                  Anand Vidwansa <anand_vidwansa@xyratex.com>
  * Original creation date: 05/08/2011
  */
+#pragma once
 
 #ifndef __COLIBRI_COLIBRI_COLIBRI_SETUP_H__
 #define __COLIBRI_COLIBRI_COLIBRI_SETUP_H__
+
+#include <stdio.h> /* FILE */
 
 #include "lib/tlist.h"
 #include "reqh/reqh_service.h"
@@ -238,6 +241,9 @@ struct c2_reqh *c2_cs_reqh_get(struct c2_colibri *cctx,
  * @pre reqh != NULL.
  */
 struct c2_colibri *c2_cs_ctx_get(struct c2_reqh *reqh);
+
+struct c2_net_domain *c2_cs_net_domain_locate(struct c2_colibri *cctx,
+					      const char *xprt_name);
 
 /** @} endgroup colibri_setup */
 

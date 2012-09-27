@@ -32,6 +32,8 @@ V6NzJfMTljbTZ3anhjbg&hl=en
    @{
 */
 
+#pragma once
+
 #ifndef __COLIBRI_RPC_RPCCORE_H__
 #define __COLIBRI_RPC_RPCCORE_H__
 
@@ -46,6 +48,12 @@ extern       struct c2_addb_ctx      c2_rpc_addb_ctx;
 
 int  c2_rpc_core_init(void);
 void c2_rpc_core_fini(void);
+
+/** Increments item's reference counter. */
+void c2_rpc_item_get(struct c2_rpc_item *item);
+
+/** Decrements item's reference counter. */
+void c2_rpc_item_put(struct c2_rpc_item *item);
 
 /**
  * Calculates the total number of buffers needed in network domain for

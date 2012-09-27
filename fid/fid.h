@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,6 +18,8 @@
  * Original creation date: 09/09/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_FID_FID_H__
 #define __COLIBRI_FID_FID_H__
 
@@ -27,24 +29,23 @@
    @{
  */
 
-/* export */
-struct fid;
-
 /* import */
 #include "lib/types.h"
 
+/* @todo: add xcode */
 struct c2_fid {
-	uint64_t f_container;
-	uint64_t f_key;
+        uint64_t f_container;
+        uint64_t f_key;
 };
 
 bool c2_fid_is_set(const struct c2_fid *fid);
 bool c2_fid_is_valid(const struct c2_fid *fid);
 bool c2_fid_eq(const struct c2_fid *fid0, const struct c2_fid *fid1);
 int c2_fid_cmp(const struct c2_fid *fid0, const struct c2_fid *fid1);
+void c2_fid_set(struct c2_fid *fid, uint64_t container, uint64_t key);
 
-void c2_fid_fini(void);
-int c2_fid_init(void);
+int c2_fid_register(void);
+void c2_fid_unregister(void);
 
 /** @} end of fid group */
 

@@ -18,6 +18,8 @@
  * Original creation date: 11/23/2011
  */
 
+#pragma once
+
 #ifndef __COLIBRI_UT_UT_H__
 #define __COLIBRI_UT_UT_H__
 
@@ -32,19 +34,14 @@
    This library is linked as colibri module and not as colibri -ut library. This
    allows to use it in both - UTs and in standalone programs which don't use CUnit.
 
-   Purpose of this header file is to include all other headers under ut/
-
    @{
 */
 
-#include "ut/rpc.h"
-#include "ut/cs_fop_foms.h"
-#include "ut/cs_service.h"
-#include "ut/cs_test_fops_u.h"
+int c2_ut_init(void);
+void c2_ut_fini(void);
 
 /**
    @} colibri-ut end group
 */
 
 #endif /* __COLIBRI_UT_UT_H__ */
-

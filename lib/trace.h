@@ -18,14 +18,12 @@
  * Original creation date: 08/12/2010
  */
 
+#pragma once
+
 #ifndef __COLIBRI_LIB_TRACE_H__
 #define __COLIBRI_LIB_TRACE_H__
 
 #include <stdarg.h>
-
-#ifdef HAVE_CONFIG_H
-#  include "config.h" /* ENABLE_DEBUG */
-#endif
 
 #include "lib/types.h"
 #include "lib/arith.h"
@@ -72,7 +70,7 @@
    Users produce trace records by calling C2_LOG() macro like
 
    @code
-   C2_LOG("Cached value found: %llx, attempt: %i", foo->f_val, i);
+   C2_LOG(C2_INFO, "Cached value found: %llx, attempt: %i", foo->f_val, i);
    @endcode
 
    These records are placed in a shared cyclic buffer. The buffer can be
@@ -143,14 +141,14 @@
  */
 
 /**
-   C2_LOG(fmt, ...) is the main user interface for the tracing. It accepts
-   the arguments in printf(3) format for the numbers, but there are some
+   C2_LOG(level, fmt, ...) is the main user interface for the tracing. It
+   accepts the arguments in printf(3) format for the numbers, but there are some
    tricks for string arguments.
 
    String arguments should be specified like this:
 
    @code
-   C2_LOG("%s", (char *)"foo");
+   C2_LOG(C2_DEBUG, "%s", (char *)"foo");
    @endcode
 
    i.e. explicitly typecast to the pointer. It is because typeof("foo")
@@ -160,11 +158,27 @@
 
    C2_LOG() counts the number of arguments and calls correspondent C2_LOGx().
  */
-#define C2_LOG(...) \
-	C2_CAT(C2_LOG, C2_COUNT_PARAMS(__VA_ARGS__))(__VA_ARGS__)
+#define C2_LOG(level, ...) \
+	C2_CAT(C2_LOG, C2_COUNT_PARAMS(__VA_ARGS__))(level, __VA_ARGS__)
 
-#define C2_ENTRY(...) C2_LOG("> " __VA_ARGS__)
-#define C2_LEAVE(...) C2_LOG("< " __VA_ARGS__)
+#define C2_ENTRY(...) C2_LOG(C2_CALL, "> " __VA_ARGS__)
+#define C2_LEAVE(...) C2_LOG(C2_CALL, "< " __VA_ARGS__)
+
+#define C2_RETURN(rc)                                    \
+do {                                                     \
+	typeof(rc) __rc = (rc);                          \
+	(__rc == 0) ? C2_LOG(C2_CALL, "< rc=%d", __rc) : \
+		C2_LOG(C2_NOTICE, "< rc=%d", __rc);      \
+	return __rc;                                     \
+} while (0)
+
+#define C2_RETERR(rc, fmt, ...)                                 \
+do {                                                            \
+	typeof(rc) __rc = (rc);                                 \
+	C2_ASSERT(__rc != 0);                                   \
+	C2_LOG(C2_ERROR, "! rc=%d " fmt, __rc, ## __VA_ARGS__); \
+	return __rc;                                            \
+} while (0)
 
 int  c2_trace_init(void);
 void c2_trace_fini(void);
@@ -174,13 +188,24 @@ void c2_trace_fini(void);
  * @note: Such kind of definition (via defines) allow to keep enum
  *        and string array in sync.
  */
-#define C2_TRACE_SUBSYSTEMS		\
-  C2_TRACE_SUBSYS(OTHER,	0)	\
-  C2_TRACE_SUBSYS(UT,		1)	\
-  C2_TRACE_SUBSYS(MEMORY,	2)      \
-  C2_TRACE_SUBSYS(C2T1FS,	3)      \
-  C2_TRACE_SUBSYS(RPC,		4)      \
-  C2_TRACE_SUBSYS(FORMATION,    5)
+#define C2_TRACE_SUBSYSTEMS      \
+  C2_TRACE_SUBSYS(OTHER,     0)  \
+  C2_TRACE_SUBSYS(UT,        1)  \
+  C2_TRACE_SUBSYS(MEMORY,    2)  \
+  C2_TRACE_SUBSYS(C2T1FS,    3)  \
+  C2_TRACE_SUBSYS(RPC,       4)  \
+  C2_TRACE_SUBSYS(FORMATION, 5)  \
+  C2_TRACE_SUBSYS(ADDB,      6)  \
+  C2_TRACE_SUBSYS(LNET,      7)  \
+  C2_TRACE_SUBSYS(SNS,       8)  \
+  C2_TRACE_SUBSYS(NET,       9)  \
+  C2_TRACE_SUBSYS(COB,       10) \
+  C2_TRACE_SUBSYS(BALLOC,    11) \
+  C2_TRACE_SUBSYS(LAYOUT,    12) \
+  C2_TRACE_SUBSYS(IOSERVICE, 13) \
+  C2_TRACE_SUBSYS(CM,        14) \
+  C2_TRACE_SUBSYS(SNSREPAIR, 15) \
+  C2_TRACE_SUBSYS(CONF,      16)
 
 #define C2_TRACE_SUBSYS(name, value) C2_TRACE_SUBSYS_ ## name = (1 << value),
 /** The subsystem bitmask definitions */
@@ -194,21 +219,36 @@ enum c2_trace_subsystem {
  */
 extern unsigned long c2_trace_immediate_mask;
 
+/**
+ * Controls whether to display additional trace point info, like
+ * timestamp, subsystem, file, func, etc.
+ *
+ * Acceptable values are elements of enum c2_trace_print_context.
+ */
+/* XXX: maybe c2_trace_verbose would be a better name? */
+extern unsigned int c2_trace_print_context;
+
+/**
+ * Controls which C2_LOG() messages are displayed on console when
+ * C2_TRACE_IMMEDIATE_DEBUG is enabled.
+ *
+ * If log level of trace point is less or equal to c2_trace_level, then it's
+ * displayed, otherwise not.
+ *
+ * By default c2_trace_level is set to C2_WARN. Also, @see documentation of
+ * C2_CALL log level, it has special meaning.
+ */
+extern unsigned int c2_trace_level;
 
 /*
  * Below is the internal implementation stuff.
  */
 
-#ifdef ENABLE_DEBUG
+#ifdef ENABLE_IMMEDIATE_TRACE
 #  define C2_TRACE_IMMEDIATE_DEBUG (1)
 #else
 #  define C2_TRACE_IMMEDIATE_DEBUG (0)
 #endif
-
-/** Magic number to locate the record */
-enum {
-	C2_TRACE_MAGIC = 0xc0de1eafacc01adeULL,
-};
 
 /** Default buffer size, the real buffer size is at c2_logbufsize */
 enum {
@@ -217,6 +257,7 @@ enum {
 
 extern void      *c2_logbuf;      /**< Trace buffer pointer */
 extern uint32_t   c2_logbufsize;  /**< The real buffer size */
+
 
 /**
  * Record header structure
@@ -235,21 +276,71 @@ struct c2_trace_rec_header {
 	const struct c2_trace_descr *trh_descr;
 };
 
+/**
+ * Trace levels. To be used as a first argument of C2_LOG().
+ */
+enum c2_trace_level {
+	/**
+	 * special level, which represents an invalid trace level,
+	 * should _not_ be used directly with C2_LOG()
+	 */
+	C2_NONE   = 0,
+
+	/** system is unusable and not able to perform it's basic function */
+	C2_FATAL  = 1 << 0,
+	/**
+	 * local error condition, i.e.: resource unavailable, no connectivity,
+	 * incorrect value, etc.
+	 */
+	C2_ERROR  = 1 << 1,
+	/**
+	 * warning condition, i.e.: condition which requires some special
+	 * treatment, something which not happens normally, corner case, etc.
+	 */
+	C2_WARN   = 1 << 2,
+	/** normal but significant condition */
+	C2_NOTICE = 1 << 3,
+	/** some useful information about current system's state */
+	C2_INFO   = 1 << 4,
+	/**
+	 * lower-level, detailed information to aid debugging and analysis of
+	 * incorrect behavior
+	 */
+	C2_DEBUG  = 1 << 5,
+
+	/**
+	 * special level, used only with C2_ENTRY() and C2_LEAVE() to trace
+	 * function calls, should _not_ be used directly with C2_LOG();
+	 */
+	C2_CALL   = 1 << 6,
+};
+
+enum c2_trace_print_context {
+	C2_TRACE_PCTX_NONE = 0,
+	C2_TRACE_PCTX_FUNC = 1,
+	C2_TRACE_PCTX_FULL = 2,
+
+	C2_TRACE_PCTX_INVALID
+};
+
 struct c2_trace_descr {
-	const char *td_fmt;
-	const char *td_func;
-	const char *td_file;
-	uint64_t    td_subsys;
-	int         td_line;
-	int         td_size;
-	int         td_nr;
-	const int  *td_offset;
-	const int  *td_sizeof;
+	const char          *td_fmt;
+	const char          *td_func;
+	const char          *td_file;
+	uint64_t             td_subsys;
+	int                  td_line;
+	int                  td_size;
+	int                  td_nr;
+	const int           *td_offset;
+	const int           *td_sizeof;
+	enum c2_trace_level  td_level;
 };
 
 void c2_trace_allot(const struct c2_trace_descr *td, const void *data);
 void c2_trace_record_print(const struct c2_trace_rec_header *trh,
 			   const void *buf);
+
+void c2_trace_print_subsystems(void);
 
 __attribute__ ((format (printf, 1, 2)))
 void c2_console_printf(const char *fmt, ...);
@@ -267,6 +358,7 @@ void c2_console_vprintf(const char *fmt, va_list ap);
  *
  * Add a fixed-size trace entry into the trace buffer.
  *
+ * @param LEVEL a log level
  * @param NR the number of arguments
  * @param DECL C definition of a trace entry format
  * @param OFFSET the set of offsets of each argument
@@ -275,12 +367,13 @@ void c2_console_vprintf(const char *fmt, va_list ap);
  * @note The variadic arguments must match the number
  *       and types of fields in the format.
  */
-#define C2_TRACE_POINT(NR, DECL, OFFSET, SIZEOF, FMT, ...)		\
+#define C2_TRACE_POINT(LEVEL, NR, DECL, OFFSET, SIZEOF, FMT, ...)	\
 ({									\
 	struct t_body DECL;						\
 	static const int _offset[NR] = OFFSET;				\
 	static const int _sizeof[NR] = SIZEOF;				\
-	static const struct c2_trace_descr td = {			\
+	static const struct c2_trace_descr __trace_descr = {		\
+		.td_level  = (LEVEL),					\
                 .td_fmt    = (FMT),					\
 		.td_func   = __func__,					\
 		.td_file   = __FILE__,					\
@@ -292,7 +385,7 @@ void c2_console_vprintf(const char *fmt, va_list ap);
 		.td_sizeof = _sizeof					\
 	};								\
 	printf_check(FMT , ## __VA_ARGS__);				\
-	c2_trace_allot(&td, &(const struct t_body){ __VA_ARGS__ });	\
+	c2_trace_allot(&__trace_descr, &(const struct t_body){ __VA_ARGS__ });	\
 })
 
 #ifndef C2_TRACE_SUBSYSTEM
@@ -321,34 +414,34 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
  */
 #define LOG_GROUP(...) __VA_ARGS__
 
-#define C2_LOG0(fmt)     C2_TRACE_POINT(0, { ; }, {}, {}, fmt)
+#define C2_LOG0(level, fmt)     C2_TRACE_POINT(level, 0, { ; }, {}, {}, fmt)
 
-#define C2_LOG1(fmt, a0)						\
-({ C2_TRACE_POINT(1,							\
+#define C2_LOG1(level, fmt, a0)						\
+({ C2_TRACE_POINT(level, 1,						\
    { LOG_TYPEOF(a0, v0); },						\
    { LOG_OFFSETOF(v0) },						\
    { LOG_SIZEOF(a0) },							\
    fmt, a0);								\
    LOG_CHECK(a0); })
 
-#define C2_LOG2(fmt, a0, a1)						\
-({ C2_TRACE_POINT(2,							\
+#define C2_LOG2(level, fmt, a0, a1)					\
+({ C2_TRACE_POINT(level, 2,						\
    { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); },				\
    LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1) }),			\
    LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1) }),			\
    fmt, a0, a1);							\
    LOG_CHECK(a0); LOG_CHECK(a1); })
 
-#define C2_LOG3(fmt, a0, a1, a2)					\
-({ C2_TRACE_POINT(3,							\
+#define C2_LOG3(level, fmt, a0, a1, a2)					\
+({ C2_TRACE_POINT(level, 3,						\
    { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2); },	\
    LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1), LOG_OFFSETOF(v2) }),	\
    LOG_GROUP({ LOG_SIZEOF(a0), LOG_SIZEOF(a1), LOG_SIZEOF(a2) }),	\
    fmt, a0, a1, a2);							\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); })
 
-#define C2_LOG4(fmt, a0, a1, a2, a3)					\
-({ C2_TRACE_POINT(4,							\
+#define C2_LOG4(level, fmt, a0, a1, a2, a3)				\
+({ C2_TRACE_POINT(level, 4,						\
    { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2);	\
      LOG_TYPEOF(a3, v3); },						\
    LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1), LOG_OFFSETOF(v2),	\
@@ -358,8 +451,8 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
    fmt, a0, a1, a2, a3);						\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3); })
 
-#define C2_LOG5(fmt, a0, a1, a2, a3, a4)				\
-({ C2_TRACE_POINT(5,							\
+#define C2_LOG5(level, fmt, a0, a1, a2, a3, a4)				\
+({ C2_TRACE_POINT(level, 5,						\
    { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2);	\
      LOG_TYPEOF(a3, v3); LOG_TYPEOF(a4, v4); },				\
    LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1), LOG_OFFSETOF(v2),	\
@@ -370,8 +463,8 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
    LOG_CHECK(a4); })
 
-#define C2_LOG6(fmt, a0, a1, a2, a3, a4, a5)				\
-({ C2_TRACE_POINT(6,							\
+#define C2_LOG6(level, fmt, a0, a1, a2, a3, a4, a5)			\
+({ C2_TRACE_POINT(level, 6,						\
    { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2);	\
      LOG_TYPEOF(a3, v3); LOG_TYPEOF(a4, v4); LOG_TYPEOF(a5, v5); },	\
    LOG_GROUP({ LOG_OFFSETOF(v0), LOG_OFFSETOF(v1), LOG_OFFSETOF(v2),	\
@@ -382,8 +475,8 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
    LOG_CHECK(a4); LOG_CHECK(a5); })
 
-#define C2_LOG7(fmt, a0, a1, a2, a3, a4, a5, a6)			\
-({ C2_TRACE_POINT(7,							\
+#define C2_LOG7(level, fmt, a0, a1, a2, a3, a4, a5, a6)			\
+({ C2_TRACE_POINT(level, 7,						\
    { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2);	\
      LOG_TYPEOF(a3, v3); LOG_TYPEOF(a4, v4); LOG_TYPEOF(a5, v5);	\
      LOG_TYPEOF(a6, v6); },						\
@@ -397,8 +490,8 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
    LOG_CHECK(a4); LOG_CHECK(a5); LOG_CHECK(a6); })
 
-#define C2_LOG8(fmt, a0, a1, a2, a3, a4, a5, a6, a7)			\
-({ C2_TRACE_POINT(8,							\
+#define C2_LOG8(level, fmt, a0, a1, a2, a3, a4, a5, a6, a7)		\
+({ C2_TRACE_POINT(level, 8,						\
    { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2);	\
      LOG_TYPEOF(a3, v3); LOG_TYPEOF(a4, v4); LOG_TYPEOF(a5, v5);	\
      LOG_TYPEOF(a6, v6); LOG_TYPEOF(a7, v7); },				\
@@ -412,8 +505,8 @@ C2_CASSERT(!C2_HAS_TYPE(a, const char []) &&				\
    LOG_CHECK(a0); LOG_CHECK(a1); LOG_CHECK(a2); LOG_CHECK(a3);		\
    LOG_CHECK(a4); LOG_CHECK(a5); LOG_CHECK(a6); LOG_CHECK(a7); })
 
-#define C2_LOG9(fmt, a0, a1, a2, a3, a4, a5, a6, a7, a8)		\
-({ C2_TRACE_POINT(9,							\
+#define C2_LOG9(level, fmt, a0, a1, a2, a3, a4, a5, a6, a7, a8)		\
+({ C2_TRACE_POINT(level, 9,						\
    { LOG_TYPEOF(a0, v0); LOG_TYPEOF(a1, v1); LOG_TYPEOF(a2, v2);	\
      LOG_TYPEOF(a3, v3); LOG_TYPEOF(a4, v4); LOG_TYPEOF(a5, v5);	\
      LOG_TYPEOF(a6, v6); LOG_TYPEOF(a7, v7); LOG_TYPEOF(a8, v8); },	\

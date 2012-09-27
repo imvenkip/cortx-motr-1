@@ -18,10 +18,6 @@
  * Original creation date: 08/03/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #ifndef CONSOLE_UT
 #define CONSOLE_UT
 #endif
@@ -31,11 +27,8 @@
 #include "lib/types.h"            /* uint64_t */
 #include "lib/ut.h"
 #include "lib/assert.h"
-#include "lib/ub.h"
 #include "lib/memory.h"
-#include "fop/fop_iterator.h"
 #include "lib/errno.h"            /* ETIMEDOUT */
-#include "lib/processor.h"        /* c2_processors_init/fini */
 #include "lib/thread.h"		  /* c2_thread */
 #include "lib/trace.h"
 #include "lib/misc.h"		  /* C2_SET0 */
@@ -43,12 +36,12 @@
 #include "ut/rpc.h"               /* c2_rpc_client_init */
 
 #include "console/console.h"
-#include "console/console_u.h"
+#include "console/console_ff.h"
 #include "console/console_fop.h"
 #include "console/console_it.h"
 #include "console/console_yaml.h"
 #include "console/console_mesg.h"
-#include "console/main.c"
+#include "console/console.c"
 
 /**
    @addtogroup console
@@ -114,9 +107,9 @@ static struct c2_rpc_server_ctx sctx = {
 	.rsx_xprts_nr         = 1,
 	.rsx_argv             = server_argv,
 	.rsx_argc             = ARRAY_SIZE(server_argv),
-	.rsx_service_types    = cs_default_stypes,
+	.rsx_service_types    = c2_cs_default_stypes,
 	/*
-	 * can't use cs_default_stypes_nr to initialize rsx_service_types_nr,
+	 * can't use c2_cs_default_stypes_nr to initialize rsx_service_types_nr,
 	 * since it leads to compile-time error 'initializer element is not
 	 * constant', because sctx here is a global/static variable, which not
 	 * allowed to be initialized with non-constant values
@@ -133,12 +126,10 @@ static int cons_init(void)
 	timeout = 10;
 	result = c2_console_fop_init();
         C2_ASSERT(result == 0);
-	/*result = c2_processors_init();*/
-	C2_ASSERT(result == 0);
 
 	/*
 	 * There is no need to initialize xprt explicitly if client and server
-	 * run withing a single process, because in this case transport is
+	 * run within a single process, because in this case transport is
 	 * initialized by c2_rpc_server_start().
 	 */
 
@@ -151,7 +142,6 @@ static int cons_init(void)
 static int cons_fini(void)
 {
 	c2_net_domain_fini(&client_net_dom);
-	/*c2_processors_fini();*/
 	c2_console_fop_fini();
 	return 0;
 }
@@ -217,35 +207,46 @@ static void init_test_fop(struct c2_cons_fop_test *fop)
 
 static void check_values(struct c2_fop *fop)
 {
-	struct c2_fit	     it;
-        struct c2_fit_yield  yield;
-	struct c2_fid	    *fid;
-	char		    *data;
-	uint64_t	    *value;
-	int		     result;
+	struct c2_fid          *fid;
+	char                   *data;
+	uint64_t               *value;
+	int                     result;
+	struct c2_xcode_ctx     ctx;
+	struct c2_xcode_cursor *it;
 
-	c2_fop_all_object_it_init(&it, fop);
-	result = c2_fit_yield(&it, &yield);
-	C2_UT_ASSERT(result != 0);
-	fid = (struct c2_fid *)yield.fy_val.ffi_val;
-	C2_UT_ASSERT(fid->f_container == 1);
-	C2_UT_ASSERT(fid->f_key == 2);
+	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj) {
+			  fop->f_type->ft_xt,
+			  c2_fop_data(fop) });
+	it = &ctx.xcx_it;
+	while ((result = c2_xcode_next(it)) > 0) {
+		const struct c2_xcode_type   *xt;
+		struct c2_xcode_obj          *cur;
+		struct c2_xcode_cursor_frame *top;
 
-	result = c2_fit_yield(&it, &yield);
-	C2_UT_ASSERT(result != 0);
-	data = (char *)yield.fy_val.ffi_val;
-	C2_UT_ASSERT(*data == 'd');
-
-	result = c2_fit_yield(&it, &yield);
-	C2_UT_ASSERT(result != 0);
-	value = (uint64_t *)yield.fy_val.ffi_val;
-	C2_UT_ASSERT(*value == 64);
-	c2_fop_all_object_it_fini(&it);
+		top = c2_xcode_cursor_top(it);
+		if (top->s_flag != C2_XCODE_CURSOR_PRE)
+			continue;
+		cur = &top->s_obj;
+		xt  = cur->xo_type;
+		if (!strcmp(xt->xct_name, "c2_cons_fop_fid")) {
+			fid = cur->xo_ptr;
+			C2_UT_ASSERT(fid->f_container == 1);
+			C2_UT_ASSERT(fid->f_key == 2);
+			c2_xcode_skip(it);
+		} else if (!strcmp(xt->xct_name, "u8")) {
+			data = (char *)cur->xo_ptr;
+			C2_UT_ASSERT(*data == 'd');
+			c2_xcode_skip(it);
+		} else if (!strcmp(xt->xct_name, "u64")) {
+			value = (uint64_t *)cur->xo_ptr;
+			C2_UT_ASSERT(*value == 64);
+			c2_xcode_skip(it);
+		}
+	}
 }
 
 static void fop_iterator_test(void)
 {
-	struct c2_fit		 it;
 	struct c2_fop		*fop;
         struct c2_cons_fop_test *f;
 
@@ -253,12 +254,9 @@ static void fop_iterator_test(void)
         C2_UT_ASSERT(fop != NULL);
 	f = c2_fop_data(fop);
         C2_UT_ASSERT(f != NULL);
-
-        c2_fop_all_object_it_init(&it, fop);
 	init_test_fop(f);
 	check_values(fop);
         c2_fop_free(fop);
-	c2_fop_all_object_it_fini(&it);
 }
 
 static void yaml_basic_test(void)

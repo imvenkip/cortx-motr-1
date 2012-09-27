@@ -5,8 +5,8 @@
 # commands(that use c2-list-print) from this file.
 #
 
-printf "Loading gdb commands for Colibri\n"
-printf "NOTE: Do not forget to load gdbinit.py\n"
+printf "Loading gdb commands for Colibri...\n"
+printf "NOTE: If not already done, DO load gdbinit.py\n"
 
 define __visit_ft
 	set $ft = (struct c2_fop_type *)$arg0

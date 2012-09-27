@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,10 +18,17 @@
  * Original creation date: 03/30/2010
  */
 
-#ifndef __COLIBRI_SNS_H__
-#define __COLIBRI_SNS_H__
+#pragma once
 
-/* __COLIBRI_SNS_H__ */
+#ifndef __COLIBRI_SNS_SNS_H__
+#define __COLIBRI_SNS_SNS_H__
+
+#include "sns/sns.h"
+
+int c2_sns_init(void);
+void c2_sns_fini(void);
+
+/* __COLIBRI_SNS_SNS_H__ */
 #endif
 
 /*

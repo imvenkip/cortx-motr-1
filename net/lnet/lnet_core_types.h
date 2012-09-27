@@ -19,6 +19,8 @@
  * Original creation date: 4/04/2012
  */
 
+#pragma once
+
 #ifndef __COLIBRI_NET_LNET_TYPES_H__
 #define __COLIBRI_NET_LNET_CORE_TYPES_H__
 
@@ -75,12 +77,6 @@ enum {
 	C2_NET_LNET_BUFFER_ID_MASK = C2_NET_LNET_BUFFER_ID_MAX,
 };
 C2_BASSERT(C2_NET_LNET_TMID_BITS + C2_NET_LNET_BUFFER_ID_BITS <= 64);
-
-/* Magic numbers */
-enum {
-	C2_NET_LNET_CORE_BUF_MAGIC = 0x436f7265427566ULL, /* CoreBuf */
-	C2_NET_LNET_CORE_TM_MAGIC  = 0x436f7265544dULL,   /* CoreTM */
-};
 
 /**
  * A kernel memory location, in terms of page and offset.
