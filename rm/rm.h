@@ -191,7 +191,6 @@
 
 /* import */
 struct c2_bufvec_cursor;
-struct c2_cookie;
 
 /* export */
 struct c2_rm_domain;

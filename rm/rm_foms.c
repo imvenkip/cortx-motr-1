@@ -19,7 +19,6 @@
  */
 
 #include "lib/chan.h"
-#include "lib/cookie.h"
 #include "lib/errno.h"
 #include "lib/list.h"
 #include "lib/memory.h"
@@ -229,10 +228,7 @@ static int reply_prepare(const enum c2_rm_incoming_type type,
 	switch (type) {
 	case C2_RIT_BORROW:
 		bfop = c2_fop_data(fom->fo_rep_fop);
-		bfop->br_loan.lo_cookie.co_addr =
-			rfom->rf_in.ri_loan_cookie.co_addr;
-		bfop->br_loan.lo_cookie.co_generation =
-			rfom->rf_in.ri_loan_cookie.co_generation;
+		bfop->br_loan.lo_cookie = rfom->rf_in.ri_loan_cookie;
 
 		/*
 		 * The loan is consumed by c2_rm_borrow_commit().
@@ -289,9 +285,6 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 	struct c2_rm_owner	    *owner;
 	struct rm_request_fom	    *rfom;
 	enum c2_rm_incoming_policy   policy;
-	struct c2_cookie	    *ccookie;
-	struct c2_cookie	    *dcookie;
-	struct c2_cookie	    *lcookie;
 	struct c2_buf		     buf;
 	uint64_t		     flags;
 	int			     rc = 0;
@@ -308,10 +301,8 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		 * Populate the owner cookie for creditor (local)
 		 * This is used later by rm_locality().
 		 */
-		ccookie = &rfom->rf_in.ri_owner_cookie;
-                ccookie->co_addr = bfop->bo_creditor.ow_cookie.co_addr;
-                ccookie->co_generation =
-			bfop->bo_creditor.ow_cookie.co_generation;
+		rfom->rf_in.ri_owner_cookie = bfop->bo_creditor.ow_cookie;
+
 		/*
 		 * Populate the owner cookie for debtor (remote end).
 		 * (for loan->rl_other->rm_cookie).
@@ -332,22 +323,18 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		 * This server is debtor; hence it received REVOKE request.
 		 * This is used later by rm_locality().
 		 */
-		dcookie = &rfom->rf_in.ri_owner_cookie;
-		dcookie->co_addr = rfop->rr_debtor.ow_cookie.co_addr;
-		dcookie->co_generation =
-			rfop->rr_debtor.ow_cookie.co_generation;
+		rfom->rf_in.ri_owner_cookie = rfop->rr_debtor.ow_cookie;
+
 		/*
 		 * Populate the loan cookie.
 		 */
-		lcookie = &rfom->rf_in.ri_loan_cookie;
-		lcookie->co_addr = rfop->rr_loan.lo_cookie.co_addr;
-		lcookie->co_generation = rfop->rr_loan.lo_cookie.co_generation;
+		rfom->rf_in.ri_loan_cookie = rfop->rr_loan.lo_cookie;
 		/*
-		 * Check if the loan cookie stale. If the cookie is stale
+		 * Check if the loan cookie is stale. If the cookie is stale
 		 * don't proceed with the reovke processing.
 		 */
-		rfom->rf_in.ri_loan = c2_cookie_of(lcookie, struct c2_rm_loan,
-						   rl_id);
+		rfom->rf_in.ri_loan = c2_cookie_of(&rfop->rr_debtor.ow_cookie,
+				                   struct c2_rm_loan, rl_id);
 		rc = rfom->rf_in.ri_loan ? 0: -EPROTO;
 		break;
 

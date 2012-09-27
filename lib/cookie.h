@@ -24,6 +24,7 @@
 #define __COLIBRI_LIB_COOKIE_H__
 
 #include "lib/types.h"
+#include "xcode/xcode.h"
 
 /**
   @defgroup cookie Cookie
@@ -53,7 +54,7 @@
 struct c2_cookie {
 	uint64_t co_addr;
 	uint64_t co_generation;
-};
+} C2_XCA_RECORD;
 
 /**
  * Initializes the gencount. Gets called during colibri initialization.

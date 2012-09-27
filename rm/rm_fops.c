@@ -119,8 +119,6 @@ static int borrow_fop_fill(struct rm_out *outreq,
 {
 	struct c2_fop_rm_borrow *bfop;
 	struct c2_fop		*fop;
-	struct c2_cookie	*cookie;
-	struct c2_cookie	 dcookie;
 	struct c2_buf		 buf;
 	int			 rc;
 
@@ -136,14 +134,12 @@ static int borrow_fop_fill(struct rm_out *outreq,
 	bfop->bo_flags = in->rin_flags;
 
 	/* Copy creditor cookie */
-	cookie = &in->rin_want.ri_owner->ro_creditor->rem_cookie;
-	bfop->bo_creditor.ow_cookie.co_addr = cookie->co_addr;
-	bfop->bo_creditor.ow_cookie.co_generation = cookie->co_generation;
+	bfop->bo_creditor.ow_cookie =
+		in->rin_want.ri_owner->ro_creditor->rem_cookie;
 
 	/* Copy debtor cookie */
-	c2_cookie_init(&dcookie, &in->rin_want.ri_owner->ro_id);
-	bfop->bo_debtor.ow_cookie.co_addr = dcookie.co_addr;
-	bfop->bo_debtor.ow_cookie.co_generation = dcookie.co_generation;
+	c2_cookie_init(&bfop->bo_debtor.ow_cookie,
+		       &in->rin_want.ri_owner->ro_id);
 
 	/*
 	 * Encode right into the BORROW FOP.
@@ -164,8 +160,6 @@ static int revoke_fop_fill(struct rm_out *outreq,
 {
 	struct c2_fop_rm_revoke *rfop;
 	struct c2_fop		*fop;
-	struct c2_cookie	*ocookie;
-	struct c2_cookie	 lcookie;
 	struct c2_buf		 buf;
 	int			 rc;
 
@@ -181,17 +175,13 @@ static int revoke_fop_fill(struct rm_out *outreq,
 	rfop->rr_flags = in->rin_flags;
 
 	/* Generate the loan cookie and then copy it into the FOP */
-	c2_cookie_init(&lcookie, &loan->rl_id);
-	rfop->rr_loan.lo_cookie.co_addr = lcookie.co_addr;
-	rfop->rr_loan.lo_cookie.co_generation = lcookie.co_generation;
+	c2_cookie_init(&rfop->rr_loan.lo_cookie, &loan->rl_id);
 
 	/*
 	 * Fill up the debtor cookie so that the other end can identify
 	 * its owner structure.
 	 */
-	ocookie = &loan->rl_other->rem_cookie;
-	rfop->rr_debtor.ow_cookie.co_addr = ocookie->co_addr;
-	rfop->rr_debtor.ow_cookie.co_generation = ocookie->co_generation;
+	rfop->rr_debtor.ow_cookie = loan->rl_other->rem_cookie;
 
 	/*
 	 * Encode rights data into REVOKE FOP
@@ -314,10 +304,7 @@ static void borrow_reply(struct c2_rpc_item *item)
 		rc = c2_rm_loan_init(loan, bright);
 		rc = rc ?: bright->ri_ops->rro_copy(bright, right);
 
-		loan->rl_cookie.co_addr =
-			borrow_reply->br_loan.lo_cookie.co_addr;
-		loan->rl_cookie.co_generation =
-			borrow_reply->br_loan.lo_cookie.co_generation;
+		loan->rl_cookie = borrow_reply->br_loan.lo_cookie;
 
 		if (rc == 0) {
 			c2_mutex_lock(&owner->ro_lock);
@@ -408,6 +395,7 @@ void c2_rm_fop_fini(void)
 	c2_fop_type_fini(&c2_fop_rm_borrow_rep_fopt);
 	c2_fop_type_fini(&c2_fop_rm_borrow_fopt);
 	c2_xc_rm_xc_fini();
+//	c2_xc_cookie_fini();
 }
 C2_EXPORTED(c2_rm_fop_fini);
 
@@ -417,6 +405,7 @@ C2_EXPORTED(c2_rm_fop_fini);
  */
 int c2_rm_fop_init(void)
 {
+//	c2_xc_cookie_init();
 	c2_xc_rm_xc_init();
 	return  C2_FOP_TYPE_INIT(&c2_fop_rm_borrow_fopt,
 				 .name      = "Right Borrow",

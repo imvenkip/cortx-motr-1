@@ -25,7 +25,6 @@
 #include "lib/errno.h"  /* ETIMEDOUT */
 #include "lib/arith.h"  /* C2_CNT_{INC,DEC} */
 #include "lib/bob.h"
-#include "lib/cookie.h"
 #include "sm/sm.h"
 
 #include "rm/rm.h"
