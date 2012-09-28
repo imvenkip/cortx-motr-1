@@ -43,11 +43,6 @@
 const struct inode_operations c2t1fs_reg_inode_operations;
 void iov_iter_advance(struct iov_iter *i, size_t bytes);
 
-static struct c2_pdclust_layout *layout_to_pd_layout(struct c2_layout *l)
-{
-	return container_of(l, struct c2_pdclust_layout, pl_layout);
-}
-
 /* Imports */
 struct c2_net_domain;
 extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
@@ -1142,12 +1137,33 @@ static struct c2_bob_type dtbuf_bobtype = {
 #define EXTENT_PAGE_NR(ext) (PAGE_NR(c2_ext_length((ext))) + 1)
 
 #define PARITY_UNITS_PAGE_NR(play) \
-        (PAGE_NR((play)->pl_unit_size) * play->pl_K)
+        (PAGE_NR(LAYOUT_UNIT_SIZE_GET((play))) * LAYOUT_K_GET((play)))
 
 #define INDEXVEC_PAGE_NR(ivec) (PAGE_NR(c2_vec_count((ivec))))
 
+#define LAYOUT_INSTANCE_GET(ioreq) \
+        (FILE_TO_C2INODE((ioreq)->ir_file)->ci_layout_instance)
+
+#define PDLAYOUT_INSTANCE_GET(lay_inst) \
+        (c2_layout_instance_to_pdi((lay_inst)))
+
 #define LAYOUT_GET(ioreq) \
-        (layout_to_pd_layout(FILE_TO_C2INODE((ioreq)->ir_file)->ci_layout))
+        (PDLAYOUT_INSTANCE_GET(LAYOUT_INSTANCE_GET((ioreq)))->pi_layout)
+
+#define LAYOUT_N_GET(play) ((play)->pl_attr.pa_N)
+
+#define LAYOUT_K_GET(play) ((play)->pl_attr.pa_K)
+
+#define LAYOUT_UNIT_SIZE_GET(play) ((play)->pl_attr.pa_unit_size)
+
+#define DATA_SIZE_GET(play) \
+        (LAYOUT_N_GET((play)) * LAYOUT_UNIT_SIZE_GET((play)))
+
+#define PARITY_SIZE_GET(play) \
+        (LAYOUT_K_GET((play)) * LAYOUT_UNIT_SIZE_GET((play)))
+
+#define PARITY_MATH_GET(ioreq) \
+        (&PDLAYOUT_INSTANCE_GET(LAYOUT_INSTANCE_GET((ioreq)))->pi_math)
 
 #define GRP_ID_GET(index, dtsize) ((index) / (dtsize))
 
@@ -1155,7 +1171,7 @@ static struct c2_bob_type dtbuf_bobtype = {
         ((frame) * (unit_size) + ((gob_offset) % (unit_size)))
 
 #define TGT_FID_GET(req, tgt) \
-        (c2t1fs_cob_fid(FILE_TO_FID((req)->ir_file), tgt->ta_obj + 1))
+        (c2t1fs_cob_fid(FILE_TO_C2INODE((req)->ir_file), tgt->ta_obj + 1))
 
 #define TGT_SESS_GET(req, tfid) \
         (c2t1fs_container_id_to_session(FILE_TO_SB(req->ir_file), \
@@ -1458,12 +1474,12 @@ static bool data_buf_invariant_nr(const struct pargrp_iomap *map)
 
         play = LAYOUT_GET(map->pi_ioreq);
 
-        for (i = 0; i < PAGE_NR(play->pl_unit_size * play->pl_N); ++i)
+        for (i = 0; i < PAGE_NR(DATA_SIZE_GET(play)); ++i)
                 /* Not all data_buf structures are allocated all the time. */
                 if (map->pi_databufs[i] != NULL)
                         if (!data_buf_invariant(map->pi_databufs[i]))
                                 break;
-        return i == PAGE_NR(play->pl_unit_size * play->pl_N);
+        return i == PAGE_NR(DATA_SIZE_GET(play));
 }
 
 static bool io_req_fop_invariant(const struct io_req_fop *fop)
@@ -1591,7 +1607,7 @@ static int user_data_copy(struct pargrp_iomap *map,
         C2_PRE(dir == CD_COPY_FROM_USER || dir == CD_COPY_TO_USER);
 
         play    = LAYOUT_GET(map->pi_ioreq);
-        dtsize  = play->pl_unit_size * play->pl_N;
+        dtsize  = DATA_SIZE_GET(play);
         pgindex = PAGE_ID((start - dtsize * map->pi_grpid));
         page    = map->pi_databufs[pgindex]->db_buf.b_addr;
 
@@ -1645,8 +1661,8 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
         C2_PRE(map->pi_read == PIR_READREST || map->pi_read == PIR_READOLD);
 
         play = LAYOUT_GET(map->pi_ioreq);
-        C2_ALLOC_ARR(dbufs, play->pl_N);
-        C2_ALLOC_ARR(pbufs, play->pl_K);
+        C2_ALLOC_ARR(dbufs, LAYOUT_N_GET(play));
+        C2_ALLOC_ARR(pbufs, LAYOUT_K_GET(play));
 
         if (dbufs == NULL || pbufs == NULL) {
                 c2_free(dbufs);
@@ -1655,25 +1671,26 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
         }
 
         if (map->pi_read == PIR_READREST) {
-                for (u = 0; u < play->pl_N; ++u) {
+                for (u = 0; u < LAYOUT_N_GET(play); ++u) {
                         dbufs[u].b_addr = page_address(map->pi_databufs[u]->
                                           db_buf.b_addr);
                         dbufs[u].b_nob  = PAGE_CACHE_SIZE;
                 }
 
-                for (u = 0; u < play->pl_K; ++u) {
+                for (u = 0; u < LAYOUT_K_GET(play); ++u) {
                         pbufs[u].b_addr = page_address(map->pi_paritybufs[u]->
                                           db_buf.b_addr);
                         pbufs[u].b_nob  = PAGE_CACHE_SIZE;
                 }
 
-                c2_parity_math_calculate(&play->pl_math, dbufs, pbufs);
+                c2_parity_math_calculate(PARITY_MATH_GET(map->pi_ioreq), dbufs,
+                                         pbufs);
         } else {
                 struct c2_buf  zbuf;
                 /* Buffers to store delta parities. */
                 struct c2_buf *deltabufs;
 
-                C2_ALLOC_ARR(deltabufs, play->pl_N);
+                C2_ALLOC_ARR(deltabufs, LAYOUT_N_GET(play));
                 if (deltabufs == NULL)
                         return -ENOMEM;
 
@@ -1684,7 +1701,7 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
                 }
                 zbuf.b_nob  = PAGE_CACHE_SIZE;
 
-                for (u = 0; u < play->pl_N; ++u) {
+                for (u = 0; u < LAYOUT_N_GET(play); ++u) {
                         /*
                          * Calculates parity between old version and
                          * new version of data block.
@@ -1701,38 +1718,41 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
                                                   db_buf.b_addr;
                                 dbufs[1].b_nob  = PAGE_CACHE_SIZE;
 
-                                for (j = 2; j < play->pl_N; ++j)
+                                for (j = 2; j < LAYOUT_N_GET(play); ++j)
                                         dbufs[j] = zbuf;
 
-                                c2_parity_math_calculate(&play->pl_math, dbufs,
+                                c2_parity_math_calculate(PARITY_MATH_GET(map->
+                                                         pi_ioreq), dbufs,
                                                          &deltabufs[u]);
                         }
                 }
 
                 /* Calculates parity amongst delta parities. */
-                for (u = 0; u < play->pl_N; ++u)
+                for (u = 0; u < LAYOUT_N_GET(play); ++u)
                         if (deltabufs[u].b_addr == NULL)
                                 deltabufs[u] = zbuf;
-                c2_parity_math_calculate(&play->pl_math, deltabufs, pbufs);
+                c2_parity_math_calculate(PARITY_MATH_GET(map->pi_ioreq),
+                                deltabufs, pbufs);
 
                 /*
                  * Calculates parity between old version of parity block
                  * and new delta parity.
                  */
-                for (u = 0; u < play->pl_K; ++u) {
-                        if (u < play->pl_K)
+                for (u = 0; u < LAYOUT_K_GET(play); ++u) {
+                        if (u < LAYOUT_K_GET(play))
                                 dbufs[u] = pbufs[u];
-                        else if (u < 2 * play->pl_K)
+                        else if (u < 2 * LAYOUT_K_GET(play))
                                 dbufs[u] = map->pi_paritybufs[u]->db_buf;
-                        else if (u < play->pl_N)
+                        else if (u < LAYOUT_N_GET(play))
                                 if (dbufs[u].b_addr == NULL)
                                         dbufs[u] = zbuf;
                 }
 
-                for (j = 0; j < play->pl_K; ++j)
+                for (j = 0; j < LAYOUT_K_GET(play); ++j)
                         pbufs[j] = map->pi_paritybufs[j]->db_buf;
 
-                c2_parity_math_calculate(&play->pl_math, dbufs, pbufs);
+                c2_parity_math_calculate(PARITY_MATH_GET(map->pi_ioreq), dbufs,
+                                         pbufs);
         }
 
         return 0;
@@ -1778,7 +1798,7 @@ static int ioreq_user_data_copy(struct io_request   *req,
                       c2_vec_count(&req->ir_ivec.iv_vec), 0);
         c2_ivec_cursor_init(&srccur, &req->ir_ivec);
         play   = LAYOUT_GET(req);
-        dtsize = play->pl_unit_size * play->pl_N;
+        dtsize = DATA_SIZE_GET(play);
 
         for (map = 0; map < req->ir_iomap_nr; ++map) {
 
@@ -1907,8 +1927,8 @@ static void pargrp_iomap_fini(struct pargrp_iomap *map)
         C2_PRE(pargrp_iomap_invariant(map));
 
         play    = LAYOUT_GET(map->pi_ioreq);
-        dbuf_nr = PAGE_NR(play->pl_unit_size * play->pl_N);
-        pbuf_nr = PAGE_NR(play->pl_unit_size * play->pl_K);
+        dbuf_nr = PAGE_NR(DATA_SIZE_GET(play));
+        pbuf_nr = PAGE_NR(PARITY_SIZE_GET(play));
 
         pargrp_iomap_bob_fini(map);
         c2_free(map->pi_ivec.iv_index);
@@ -1989,7 +2009,7 @@ static uint64_t pargrp_iomap_fullpages_find(struct pargrp_iomap *map)
 
         play = LAYOUT_GET(map->pi_ioreq);
 
-        for (seg = 0; seg < PAGE_NR(play->pl_unit_size * play->pl_N); ++seg) {
+        for (seg = 0; seg < PAGE_NR(DATA_SIZE_GET(play)); ++seg) {
                 if (map->pi_databufs[seg] && map->pi_databufs[seg]->db_flags &
                                 PA_FULLPAGE_MODIFY)
                         ++nr;
@@ -2091,7 +2111,7 @@ static int pargrp_iomap_pageattr_fill(struct pargrp_iomap      *map,
         C2_PRE(vec != NULL && c2_vec_count(&vec->iv_vec) > 0);
 
         play    = LAYOUT_GET(map->pi_ioreq);
-        grpsize = play->pl_unit_size * play->pl_N;
+        grpsize = DATA_SIZE_GET(play);
 
         if (rmw) {
                 rc = pargrp_iomap_pageattr_helper(map, vec, grpsize);
@@ -2106,45 +2126,8 @@ static int pargrp_iomap_pageattr_fill(struct pargrp_iomap      *map,
                 enum page_attr attr;
 
                 attr = map->pi_ioreq->ir_type == IRT_READ ? PA_READ : PA_WRITE;
-                for (pg = 0; pg < PAGE_NR(play->pl_unit_size * play->pl_N);
+                for (pg = 0; pg < PAGE_NR(DATA_SIZE_GET(play));
                      ++pg)
-                        map->pi_pageattr[pg] |= attr;
-        }
-}
-
-static void pargrp_iomap_readrest(struct pargrp_iomap *map)
-{
-        uint64_t                  i;
-        uint64_t                  seg_nr;
-        c2_bindex_t               pgstartoff;
-        c2_bindex_t               pgendoff;
-        struct c2_pdclust_layout *play;
-        struct c2_indexvec       *ivec;
-
-        C2_PRE(pargrp_iomap_invariant(map));
-
-        map->pi_read = PIR_READREST;
-
-        play   = LAYOUT_GET(map->pi_ioreq);
-        ivec   = &map->pi_ivec;
-        seg_nr = map->pi_ivec.iv_vec.v_nr;
-        pgstartoff = play->pl_unit_size * play->pl_N * map->pi_grpid;
-        pgendoff   = pgstartoff + (play->pl_unit_size * play->pl_N);
-
-        COUNT(ivec, 0) += INDEX(ivec, 0) - pgstartoff;
-        INDEX(ivec, 0)  = pgstartoff;
-
-        COUNT(ivec, seg_nr - 1) += pgendoff - INDEX(ivec, seg_nr - 1);
-
-        /*
-         * All io extents _not_ spanned by pargrp_iomap::pi_ivec
-         * need to be included so that _all_ pages from parity group
-         * are available to do IO.
-         */
-        for (i = 1; i < seg_nr - 2; ++i) {
-                if (INDEX(ivec, i) + COUNT(ivec, i) < INDEX(ivec, i + 1))
-                        COUNT(ivec, i) += INDEX(ivec, i + 1) -
-                                          (INDEX(ivec, i) + COUNT(ivec, i));
                         map->pi_databufs[pg]->db_flags |= attr;
         }
         return 0;
@@ -2235,8 +2218,8 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
         play   = LAYOUT_GET(map->pi_ioreq);
         ivec   = &map->pi_ivec;
         seg_nr = map->pi_ivec.iv_vec.v_nr;
-        pgstartoff = play->pl_unit_size * play->pl_N * map->pi_grpid;
-        pgendoff   = pgstartoff + (play->pl_unit_size * play->pl_N);
+        pgstartoff = DATA_SIZE_GET(play) * map->pi_grpid;
+        pgendoff   = pgstartoff + DATA_SIZE_GET(play);
 
         COUNT(ivec, 0) += INDEX(ivec, 0) - pgstartoff;
         INDEX(ivec, 0)  = pgstartoff;
@@ -2295,7 +2278,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 
         /** @todo Handle unit size > page_size. */
         play    = LAYOUT_GET(map->pi_ioreq);
-        grpsize = play->pl_unit_size * play->pl_N;
+        grpsize = DATA_SIZE_GET(play);
         pgstart = grpsize * map->pi_grpid;
         pgend   = pgstart + grpsize;
 
@@ -2391,7 +2374,7 @@ static int ioreq_iomaps_prepare(struct io_request *req)
         C2_PRE(req != NULL);
 
         play   = LAYOUT_GET(req);
-        dtsize = play->pl_unit_size * play->pl_N;
+        dtsize = DATA_SIZE_GET(play);
 
         for (i = 0; i < SEG_NR(ivec); ++i) {
                 pgstart = GRP_ID_GET(INDEX(ivec, i), dtsize);
@@ -2479,13 +2462,13 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 
         req       = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
         play      = LAYOUT_GET(req);
-        unit_size = play->pl_unit_size;
+        unit_size = LAYOUT_UNIT_SIZE_GET(play);
 
         for (map = 0; map < req->ir_iomap_nr; ++map) {
 
-                pgstart      = unit_size * play->pl_N * req->ir_iomaps[map]->
+                pgstart      = DATA_SIZE_GET(play) * req->ir_iomaps[map]->
                                pi_grpid;
-                pgend        = pgstart + unit_size * play->pl_N;
+                pgend        = pgstart + DATA_SIZE_GET(play);
                 src.sa_group = req->ir_iomaps[map]->pi_grpid;
 
                 /* Cursor for pargrp_iomap::pi_ivec. */
@@ -2509,7 +2492,8 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 
                         count     = c2_ext_length(&rext);
                         unit_type = c2_pdclust_unit_classify(play, unit);
-                        if (unit_type == PUT_SPARE || unit_type == PUT_PARITY)
+                        if (unit_type == C2_PUT_SPARE ||
+                            unit_type == C2_PUT_PARITY)
                                 continue;
 
                         src.sa_unit = unit;
@@ -2524,9 +2508,9 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
                 }
 
                 /* Maps parity units. */
-                for (unit = 0; unit < play->pl_K; ++unit) {
+                for (unit = 0; unit < LAYOUT_K_GET(play); ++unit) {
 
-                        src.sa_unit = play->pl_N + unit;
+                        src.sa_unit = LAYOUT_N_GET(play) + unit;
                         rc = xfer->nxr_ops->nxo_tioreq_map(xfer, &src, &tgt,
                                                            &ti);
                         if (rc != 0)
@@ -2535,7 +2519,7 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
                         /* This call doesn't deal with global file
                          * offset and counts. */
                         ti->ti_ops->tio_seg_add(ti, tgt.ta_frame, 0,
-                                                play->pl_unit_size,
+                                                LAYOUT_UNIT_SIZE_GET(play),
                                                 src.sa_unit);
                 }
         }
@@ -2769,12 +2753,14 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request      *xfer,
         req  = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
         play = LAYOUT_GET(req);
 
-        c2_pdclust_layout_map(play, src, tgt);
-        tfid    = TGT_FID_GET (req, tgt);
-        session = TGT_SESS_GET(req, tfid);
+        c2_pdclust_instance_map(PDLAYOUT_INSTANCE_GET(LAYOUT_INSTANCE_GET(req)),
+                                src, tgt);
+        tfid    = TGT_FID_GET  (req, tgt);
+        session = TGT_SESS_GET (req, tfid);
 
         return nw_xfer_tioreq_get(xfer, &tfid, session,
-                                  play->pl_unit_size * req->ir_iomap_nr, out);
+                                  LAYOUT_UNIT_SIZE_GET(play)* req->ir_iomap_nr,
+                                  out);
 }
 
 static int target_ioreq_init(struct target_ioreq    *ti,
@@ -2956,8 +2942,8 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
         req     = bob_of(ti->ti_nwxfer, struct io_request, ir_nwxfer,
                          &ioreq_bobtype);
         play    = LAYOUT_GET(req);
-        toff    = TGT_OFFSET_GET(frame, play->pl_unit_size, gob_offset);
-        dtsize  = play->pl_unit_size * play->pl_N;
+        toff    = TGT_OFFSET_GET(frame, LAYOUT_UNIT_SIZE_GET(play), gob_offset);
+        dtsize  = DATA_SIZE_GET(play);
         req->ir_ops->iro_iomap_locate(req, GRP_ID_GET(gob_offset, dtsize),
                                       &map);
         C2_ASSERT(map != NULL);
@@ -2965,7 +2951,7 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
         goff    = gob_offset;
 
         unit_type = c2_pdclust_unit_classify(play, unit);
-        C2_ASSERT(unit_type == PUT_DATA || unit_type == PUT_PARITY);
+        C2_ASSERT(unit_type == C2_PUT_DATA || unit_type == C2_PUT_PARITY);
 
         while (pgstart < toff + count) {
                 pgend = min64u(pgstart + PAGE_CACHE_SIZE, toff + count);
@@ -2976,11 +2962,11 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
 
                 ti->ti_bufvec.ov_vec.v_count[seg] = pgend - pgstart;
 
-                if (unit_type == PUT_DATA)
+                if (unit_type == C2_PUT_DATA)
                         db = map->pi_databufs[PAGE_ID(goff - dtsize *
                                         map->pi_grpid)];
                 else
-                        db = map->pi_paritybufs[unit % play->pl_N];
+                        db = map->pi_paritybufs[unit % LAYOUT_N_GET(play)];
 
                 ti->ti_bufvec.ov_buf[seg] = db->db_buf.b_addr;
                 ti->ti_pageattrs[seg]     = db->db_flags;
