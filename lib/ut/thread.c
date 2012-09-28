@@ -29,6 +29,8 @@ enum {
 	NR = 255
 };
 
+void test_is_awkward(void);
+
 static int t0place;
 
 static void t0(int x)
@@ -151,6 +153,9 @@ void test_thread(void)
 	C2_UT_ASSERT(result == 0);
 	c2_thread_join(&t[0]);
 	c2_thread_fini(&t[0]);
+
+	/* test c2_is_awkward() */
+	test_is_awkward();
 }
 C2_EXPORTED(test_thread);
 
@@ -234,23 +239,25 @@ struct c2_ub_set c2_thread_ub = {
 	}
 };
 
-static void set_and_check_td_is_awkward(bool val)
+static void set_and_check_is_awkward(void)
 {
-	c2_set_awkward(val);
+	c2_enter_awkward();
+	C2_UT_ASSERT(c2_is_awkward() == true);
 
-	C2_UT_ASSERT(c2_is_awkward() == val);
+	c2_exit_awkward();
+	C2_UT_ASSERT(c2_is_awkward() == false);
 }
 
 static void ut_t0_handler1(int arg)
 {
-	/* check default value */
-	C2_UT_ASSERT(c2_is_awkward() == DEFAULT_TD_IS_AWKWARD);
+	/* check default */
+	C2_UT_ASSERT(c2_is_awkward() == false);
 
-	/* set and check new value */
-	set_and_check_td_is_awkward(!DEFAULT_TD_IS_AWKWARD);
+	/* set and check is_awkward() */
+	set_and_check_is_awkward();
 }
 
-void test_thread_specific_data_is_awkward(void)
+void test_is_awkward(void)
 {
 	int result;
 
@@ -261,17 +268,6 @@ void test_thread_specific_data_is_awkward(void)
 	c2_thread_join(&t[0]);
 	c2_thread_fini(&t[0]);
 }
-
-const struct c2_test_suite thread_ut = {
-	.ts_name = "thread-ut",
-	.ts_init = NULL,
-	.ts_fini = NULL,
-	.ts_tests = {
-		{ "thread_specific_data_is_awkward",
-		  test_thread_specific_data_is_awkward },
-		{ NULL, NULL }
-	}
-};
 
 /*
  *  Local variables:

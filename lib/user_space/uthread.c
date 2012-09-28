@@ -20,6 +20,8 @@
  */
 
 #include "lib/misc.h"   /* C2_SET0 */
+#include "lib/memory.h"
+#include "lib/errno.h"
 #include "lib/thread.h"
 #include "lib/arith.h"
 #include "lib/bitmap.h"
@@ -41,15 +43,48 @@
    @{
  */
 
+/**
+ * Used to store thread specific data.
+ */
+struct uthread_specific_data {
+	bool tsd_is_awkward; /* Flag to indicate awkward context of thread. */
+};
+
+#define DEFAULT_IS_AWKWARD   false
+#define UTHREAD_SPECIFIC_DATA_SIZE sizeof(struct uthread_specific_data)
+
+#define UTHREAD_SPECIFIC_DATA_INIT(ptr)					\
+	((struct uthread_specific_data *)ptr)->tsd_is_awkward		\
+	= DEFAULT_IS_AWKWARD;
+
 static pthread_attr_t pthread_attr_default;
 static pthread_key_t pthread_data_key;
+
+static int uthread_specific_data_init(c2_bcount_t size);
+static void uthread_specific_data_fini(void);
+
+/*
+ * Used to initialize user thread specific data.
+ */
+static void *uthread_trampoline(void *arg)
+{
+	int rc;
+
+	rc = uthread_specific_data_init(UTHREAD_SPECIFIC_DATA_SIZE);
+	if (rc == 0) {
+		c2_thread_trampoline(arg);
+		uthread_specific_data_fini();
+	}
+
+	return NULL;
+}
 
 int c2_thread_init_impl(struct c2_thread *q, const char *namebuf)
 {
 	C2_PRE(q->t_state == TS_RUNNING);
 
 	return -pthread_create(&q->t_h.h_id, &pthread_attr_default,
-			       c2_thread_trampoline, q);
+			       uthread_trampoline, q);
 }
 
 int c2_thread_join(struct c2_thread *q)
@@ -98,6 +133,7 @@ int c2_threads_init(void)
 	if (result != 0)
 		return result;
 
+	/* Generate key for thread specific data. */
 	result = -pthread_key_create(&pthread_data_key, NULL);
 	if (result != 0) {
 		pthread_attr_destroy(&pthread_attr_default);
@@ -124,14 +160,52 @@ bool c2_thread_handle_eq(struct c2_thread_handle *h1,
 	return h1->h_id == h2->h_id;
 }
 
-int c2_thread_setspecific(const void *value)
+/*
+ * Allocate and set memory pointer to store thread specific data.
+ */
+static int uthread_specific_data_init(c2_bcount_t size)
 {
-	return -pthread_setspecific(pthread_data_key, value);
+	void *ptr = c2_alloc(size);
+	if (ptr == NULL)
+		return -ENOMEM;
+
+	UTHREAD_SPECIFIC_DATA_INIT(ptr);
+	return -pthread_setspecific(pthread_data_key, ptr);
 }
 
-void *c2_thread_getspecific(void)
+/*
+ * Free and unset memory pointer of thread specific data.
+ */
+static void uthread_specific_data_fini(void)
 {
-	return pthread_getspecific(pthread_data_key);
+	void *ptr = pthread_getspecific(pthread_data_key);
+
+	if (ptr != NULL) {
+		pthread_setspecific(pthread_data_key, NULL);
+		c2_free(ptr);
+	}
+}
+
+void c2_enter_awkward(void)
+{
+	void *ptr = pthread_getspecific(pthread_data_key);
+	if (ptr != NULL)
+		((struct uthread_specific_data *)ptr)->tsd_is_awkward = true;
+}
+
+void c2_exit_awkward(void)
+{
+	void *ptr = pthread_getspecific(pthread_data_key);
+	if (ptr != NULL)
+		((struct uthread_specific_data *)ptr)->tsd_is_awkward = false;
+}
+
+bool c2_is_awkward(void)
+{
+	void *ptr = pthread_getspecific(pthread_data_key);
+	if (ptr != NULL)
+		return ((struct uthread_specific_data *)ptr)->tsd_is_awkward;
+	return false;
 }
 /** @} end of thread group */
 

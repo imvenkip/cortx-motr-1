@@ -52,7 +52,6 @@ extern const struct c2_test_suite c2_net_tm_prov_ut;
 extern const struct c2_test_suite parity_math_ut;
 extern const struct c2_test_suite sm_ut;
 extern const struct c2_test_suite stobio_ut;
-extern const struct c2_test_suite thread_ut;
 extern const struct c2_test_suite udb_ut;
 extern const struct c2_test_suite xcode_bufvec_fop_ut;
 extern const struct c2_test_suite xcode_bufvec_ut;
@@ -107,7 +106,6 @@ void add_uts(void)
 	c2_ut_add(&rpc_service_ut);
 	c2_ut_add(&sm_ut);
 	c2_ut_add(&stobio_ut);
-	c2_ut_add(&thread_ut);
 	c2_ut_add(&udb_ut);
 	c2_ut_add(&xcode_bufvec_fop_ut);
 	c2_ut_add(&xcode_bufvec_ut);

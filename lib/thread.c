@@ -29,14 +29,6 @@
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/thread.h"
 
-static int thread_data_init(c2_bcount_t size);
-static void thread_data_fini(void);
-
-#define THREAD_DATA_INIT(ptr)					\
-	((struct c2_thread_data *)ptr)->td_is_awkward = DEFAULT_TD_IS_AWKWARD;
-
-#define THREAD_DATA_SIZE sizeof(struct c2_thread_data)
-
 /**
    @addtogroup thread Thread
 
@@ -44,6 +36,7 @@ static void thread_data_fini(void);
 
    @{
  */
+
 int c2_thread_init(struct c2_thread *q, int (*init)(void *),
 		   void (*func)(void *), void *arg, const char *name, ...)
 {
@@ -70,7 +63,6 @@ int c2_thread_init(struct c2_thread *q, int (*init)(void *),
 		if (result != 0)
 			c2_thread_join(q);
 	}
-
 	if (result != 0)
 		q->t_state = TS_PARKED;
 	return result;
@@ -86,19 +78,10 @@ void *c2_thread_trampoline(void *arg)
 
 	if (t->t_init != NULL)
 		t->t_initrc = t->t_init(t->t_arg);
-
-  	/* Allocate thread-specific data. */
-	if (t->t_initrc == 0)
-		t->t_initrc = thread_data_init(THREAD_DATA_SIZE);
-
 	c2_semaphore_up(&t->t_wait);
 
 	if (t->t_initrc == 0)
 		t->t_func(t->t_arg);
-
-	/* Free thread data on exit. */
-	thread_data_fini();
-
 	return NULL;
 }
 
@@ -109,46 +92,6 @@ void c2_thread_fini(struct c2_thread *q)
 	C2_SET0(q);
 }
 C2_EXPORTED(c2_thread_fini);
-
-static int thread_data_init(c2_bcount_t size)
-{
-	void *dataptr;
-
-	dataptr = c2_alloc(size);
-	if (dataptr == NULL)
-		return -ENOMEM;
-
-	THREAD_DATA_INIT(dataptr);
-
-	return c2_thread_setspecific(dataptr);
-}
-
-static void thread_data_fini(void)
-{
-	void *ptr = c2_thread_getspecific();
-
-	c2_thread_setspecific(NULL);
-	c2_free(ptr);
-}
-
-struct c2_thread_data *c2_thread_getdataptr()
-{
-	return (struct c2_thread_data *)c2_thread_getspecific();
-}
-
-void c2_set_awkward(bool flag)
-{
-	struct c2_thread_data *thr_dataptr = c2_thread_getdataptr();
-
-	thr_dataptr->td_is_awkward = flag;
-}
-
-bool c2_is_awkward()
-{
-	struct c2_thread_data *thr_dataptr = c2_thread_getdataptr();
-
-	return thr_dataptr->td_is_awkward;
-}
 
 /** @} end of thread group */
 

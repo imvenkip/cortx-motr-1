@@ -24,6 +24,7 @@
 #define __COLIBRI_LIB_LINUX_KERNEL_THREAD_H__
 
 #include <linux/kthread.h>
+#include <linux/hardirq.h>
 
 /**
    @addtogroup thread Thread
@@ -44,9 +45,6 @@ struct c2_thread_handle {
 enum {
 	C2_THREAD_NAME_LEN = TASK_COMM_LEN
 };
-
-int c2_thread_setspecific(const void *value);
-void *c2_thread_getspecific(void);
 
 /** @} end of thread group */
 

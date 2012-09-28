@@ -56,7 +56,6 @@
 
 static int kthread_trampoline(void *arg)
 {
-	struct c2_thread *t = arg;
 	/* Required for correct c2_thread_join() behavior in kernel:
 	   kthread_stop() will not stop if the thread has been created but has
 	   not yet started executing.  So, c2_thread_join() blocks on the
@@ -68,8 +67,6 @@ static int kthread_trampoline(void *arg)
 	   calling the thread function so that other kernel code can still
 	   depend on kthread_should_stop().
 	 */
-	if (t->t_init == NULL)
-		c2_semaphore_up(&t->t_wait);
 	c2_thread_trampoline(arg);
 
 	set_current_state(TASK_INTERRUPTIBLE);
@@ -181,14 +178,19 @@ bool c2_thread_handle_eq(struct c2_thread_handle *h1,
 	return h1->h_t == h2->h_t;
 }
 
-int c2_thread_setspecific(const void *value)
+void c2_enter_awkward(void)
 {
-        return 0;
+	__irq_enter();
 }
 
-void *c2_thread_getspecific(void)
+void c2_exit_awkward(void)
 {
-        return NULL;
+	__irq_exit();
+}
+
+bool c2_is_awkward(void)
+{
+	return in_irq();
 }
 
 /** @} end of thread group */
