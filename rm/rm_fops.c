@@ -395,7 +395,7 @@ void c2_rm_fop_fini(void)
 	c2_fop_type_fini(&c2_fop_rm_borrow_rep_fopt);
 	c2_fop_type_fini(&c2_fop_rm_borrow_fopt);
 	c2_xc_rm_xc_fini();
-//	c2_xc_cookie_fini();
+	c2_xc_cookie_fini();
 }
 C2_EXPORTED(c2_rm_fop_fini);
 
@@ -405,7 +405,7 @@ C2_EXPORTED(c2_rm_fop_fini);
  */
 int c2_rm_fop_init(void)
 {
-//	c2_xc_cookie_init();
+	c2_xc_cookie_init();
 	c2_xc_rm_xc_init();
 	return  C2_FOP_TYPE_INIT(&c2_fop_rm_borrow_fopt,
 				 .name      = "Right Borrow",
