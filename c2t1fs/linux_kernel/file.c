@@ -417,7 +417,7 @@ extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
 
    @subsubsection rmw-lspec-sub1 Subcomponent Subroutines
 
-   In order to satisafy the requirement of an ioctl API for fully vectored
+   In order to satisfy the requirement of an ioctl API for fully vectored
    scatter-gather IO (where multiple IO segments are directed at multiple
    file offsets), a new API will be introduced that will use a c2_indexvec
    structure to specify multiple file offsets.
@@ -819,7 +819,7 @@ struct io_request {
 
         /**
          * iovec structure containing user-space buffers.
-         * It is used as it as since using a new structure would require
+         * It is used as it is since using a new structure would require
          * conversion.
          */
         struct iovec                *ir_iovec;
@@ -1094,11 +1094,6 @@ C2_BOB_DEFINE(static, &ioreq_bobtype,   io_request);
 C2_BOB_DEFINE(static, &nwxfer_bobtype,  nw_xfer_request);
 C2_BOB_DEFINE(static, &dtbuf_bobtype,   data_buf);
 
-/**
- * Bob type for struct io_request is manually initialized since it is
- * not associated with any c2_tl_descr.
- * @todo Replace this with the macro for manual initialization of c2_bob_type.
- */
 static struct c2_bob_type ioreq_bobtype = {
         .bt_name         = "io_request_bobtype",
         .bt_magix_offset = offsetof(struct io_request, ir_magic),
