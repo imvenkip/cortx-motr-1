@@ -817,7 +817,7 @@ static int cached_rights_remove(struct c2_rm_incoming *in)
 		right = pin->rp_right;
 		
 		pin_del(pin);
-		rm_transit_tlist_move(remove_list, right);
+		rm_transit_tlist_move(&remove_list, right);
 		if (!right->ri_ops->rro_is_subset(right, &in->rin_want)) {
 			/*
 			 * The cached right does not completely intersect
@@ -837,7 +837,7 @@ static int cached_rights_remove(struct c2_rm_incoming *in)
 			     right_diff(remnant_right, &in->rin_want);
 			if (rc != 0)
 				break;
-			rm_transit_tlist_add(diff_list, remnant_right);
+			rm_transit_tlist_add(&diff_list, remnant_right);
 		}
 
 	} c2_tl_endfor;
@@ -847,15 +847,18 @@ static int cached_rights_remove(struct c2_rm_incoming *in)
 	 * and move the remnant rights to the OWOS_CACHED. Do the opposite
 	 * on failure.
 	 */
-	c2_tl_forall(rm_transit, right, rc ? &diff_list : &remove_list,
-		     rm_transit_tlist_del(right),
-		     c2_rm_right_fini(right),
-		     c2_free(right));
-	c2_tl_forall(rm_transit, right, rc ? &remove_list : &diff_list,
-		     c2_rm_ur_tlist_move(&owner->ro_owned[OWOS_CACHED],
-					 right));
+	c2_tl_for(rm_transit, rc ? &diff_list : &remove_list, right) {
+		     rm_transit_tlist_del(right);
+		     c2_rm_right_fini(right);
+		     c2_free(right);
+		
+	} c2_tl_endfor;
 
-	rm_transit_tlist_fini(&diffs);
+	c2_tl_for(rm_transit, rc ? &remove_list : &diff_list, right) {
+	     c2_rm_ur_tlist_move(&owner->ro_owned[OWOS_CACHED], right);
+	} c2_tl_endfor;
+
+	rm_transit_tlist_fini(&diff_list);
 	return rc;
 }
 
@@ -1129,9 +1132,10 @@ static int cached_rights_hold(struct c2_rm_incoming *in)
 	 * them back OWOS_CACHED list.
 	 */
 	ltype = rc ? OWOS_CACHED : OWOS_HELD;
-	c2_tl_forall(rm_transit, right, &transfers,
-		     rm_transit_tlist_move(&owner->ro_owned[ltype],
-					   right));
+	c2_tl_for(rm_transit, &transfers, right) {
+	     rm_transit_tlist_move(&owner->ro_owned[ltype], right);
+	} c2_tl_endfor;
+
 	rm_transit_tlist_fini(&transfers);
 
 out:
