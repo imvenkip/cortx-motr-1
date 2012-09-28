@@ -113,6 +113,12 @@ C2_TL_DESCR_DEFINE(c2_rm_ur, "usage rights", , struct c2_rm_right,
 		   0xca11ab1e5111c1de /* callable silicide */);
 C2_TL_DEFINE(c2_rm_ur, , struct c2_rm_right);
 
+C2_TL_DESCR_DEFINE(rm_transit, "rights in transit", , struct c2_rm_right,
+		   ri_linkage, ri_magix,
+		   0xc0a1faceba5111ca /* @todo select */,
+		   0xca11ab1e5111c1de /* @todo select */);
+C2_TL_DEFINE(rm_transit, static, struct c2_rm_right);
+
 static struct c2_bob_type us_rgt_tl_bob;
 C2_BOB_DEFINE(, &us_rgt_tl_bob, c2_rm_right);
 
@@ -481,8 +487,7 @@ int c2_rm_owner_selfadd(struct c2_rm_owner *owner, struct c2_rm_right *r)
 	} else
 		rc = -ENOMEM;
 
-	C2_POST(ergo(rc == 0,
-		     owner_invariant(owner)));
+	C2_POST(ergo(rc == 0, owner_invariant(owner)));
 	return rc;
 }
 C2_EXPORTED(c2_rm_owner_selfadd);
@@ -750,7 +755,7 @@ void c2_rm_outgoing_init(struct c2_rm_outgoing *out,
 C2_EXPORTED(c2_rm_outgoing_init);
 
 int c2_rm_loan_init(struct c2_rm_loan *loan,
-		     struct c2_rm_right *right)
+		    const struct c2_rm_right *right)
 {
 	C2_PRE(loan != NULL);
 	C2_PRE(right != NULL);
@@ -789,37 +794,69 @@ void c2_rm_remote_fini(struct c2_rm_remote *rem)
 C2_EXPORTED(c2_rm_remote_fini);
 
 /*
- * Flush the OWOS_CACHED rights. If the right(s) completely intersects the
- * incoming right, remove it(them) from the cache. If the CACHED right partly
- * intersects with the incoming right, retain the difference in the CACHE.
+ * Remove the OWOS_CACHED rights that match incoming rights. If the right(s)
+ * completely intersects the incoming right, remove it(them) from the cache.
+ * If the CACHED right partly intersects with the incoming right, retain the
+ * difference in the CACHE.
  */
-static int rights_integrate(struct c2_rm_incoming *in)
+static int cached_rights_remove(struct c2_rm_incoming *in)
 {
 	struct c2_rm_pin   *pin;
 	struct c2_rm_right *right;
+	struct c2_rm_right *remnant_right;
 	struct c2_rm_owner *owner = in->rin_want.ri_owner;
+	struct c2_tl	    diff_list;
+	struct c2_tl	    remove_list;
 	int		    rc = 0;
 
 	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
 
+	rm_transit_tlist_init(&diff_list);
 	c2_tl_for(pi, &in->rin_pins, pin) {
 		C2_ASSERT(c2_rm_pin_bob_check(pin));
 		C2_ASSERT(pin->rp_flags == C2_RPF_PROTECT);
 		right = pin->rp_right;
-		rc  = right_diff(right, &in->rin_want);
-		if (rc == 0) {
-			if (right_is_empty(right)) {
-				pin_del(pin);
-				c2_rm_ur_tlink_del_fini(right);
-				c2_rm_right_fini(right);
-				c2_free(right);
+		
+		pin_del(pin);
+		rm_transit_tlist_move(remove_list, right);
+		if (!right->ri_ops->rro_is_subset(right, &in->rin_want)) {
+			/*
+			 * The cached right does not completely intersect
+			 * incoming right. 
+			 *
+			 * Make a copy of the cached right and calculate
+			 * the difference with incoming right. Store
+			 * the difference in the remnant right.
+			 */
+			C2_ALLOC_PTR(remnant_right);
+			if (remnant_right == NULL) {
+				rc = - ENOMEM;
+				break;
 			}
-			/* else retain the difference */
-		} else
-			break;
+			c2_rm_right_init(remnant_right, owner);
+			rc = right_copy(remnant_right, right) ?:
+			     right_diff(remnant_right, &in->rin_want);
+			if (rc != 0)
+				break;
+			rm_transit_tlist_add(diff_list, remnant_right);
+		}
 
 	} c2_tl_endfor;
 
+	/*
+	 * On successful completion, remove the rights from the "remove-list"
+	 * and move the remnant rights to the OWOS_CACHED. Do the opposite
+	 * on failure.
+	 */
+	c2_tl_forall(rm_transit, right, rc ? &diff_list : &remove_list,
+		     rm_transit_tlist_del(right),
+		     c2_rm_right_fini(right),
+		     c2_free(right));
+	c2_tl_forall(rm_transit, right, rc ? &remove_list : &diff_list,
+		     c2_rm_ur_tlist_move(&owner->ro_owned[OWOS_CACHED],
+					 right));
+
+	rm_transit_tlist_fini(&diffs);
 	return rc;
 }
 
@@ -839,56 +876,57 @@ int c2_rm_borrow_commit(struct c2_rm_remote_incoming *rem_in)
 	C2_PRE(loan->rl_right.ri_owner == owner);
 
 	/*
+	 * Store the loan in the sublet list.
+	 */
+	C2_ALLOC_PTR(loan->rl_other);
+	if (loan->rl_other == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
+
+	/*
 	 * Flush the rights cache and remove incoming rights from the cache.
 	 */
-	rc = rights_integrate(in) ?: c2_rm_loan_init(loan, &in->rin_want);
+	rc = cached_rights_remove(in) ?: c2_rm_loan_init(loan, &in->rin_want);
 	if (rc == 0) {
-		/*
-		 * Store the loan in the sublet list.
-		 */
-		C2_ALLOC_PTR(loan->rl_other);
-		if (loan->rl_other != NULL) {
-			c2_rm_remote_init(loan->rl_other, owner->ro_resource);
-			loan->rl_other->rem_state = REM_OWNER_LOCATED;
-			loan->rl_other->rem_cookie = rem_in->ri_owner_cookie;
-			c2_rm_ur_tlist_add(&owner->ro_sublet, &loan->rl_right);
-			rem_in->ri_loan = NULL;
-		} else
-			rc = -ENOMEM;
-	}
+		c2_rm_remote_init(loan->rl_other, owner->ro_resource);
+		loan->rl_other->rem_state = REM_OWNER_LOCATED;
+		loan->rl_other->rem_cookie = rem_in->ri_owner_cookie;
+		c2_rm_ur_tlist_add(&owner->ro_sublet, &loan->rl_right);
+		rem_in->ri_loan = NULL;
+	} else
+		c2_free(loan->rl_other);
 
 	/*
 	 * Store loan cookie for reply processing.
 	 */
 	c2_cookie_init(&rem_in->ri_loan_cookie, &loan->rl_id);
 	C2_POST(owner_invariant(owner));
+
+out:
 	return rc;
 }
 C2_EXPORTED(c2_rm_borrow_commit);
 
 int c2_rm_revoke_commit(struct c2_rm_remote_incoming *rem_in)
 {
-	struct c2_rm_incoming *in     = &rem_in->ri_incoming;
-	struct c2_rm_loan     *loan   = rem_in->ri_loan;
-	struct c2_rm_owner    *owner  = in->rin_want.ri_owner;
+	struct c2_rm_incoming *in    = &rem_in->ri_incoming;
+	struct c2_rm_loan     *loan  = rem_in->ri_loan;
+	struct c2_rm_owner    *owner = in->rin_want.ri_owner;
 	int                    rc;
 
 	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
 	C2_PRE(in->rin_type == C2_RIT_REVOKE);
+	/*
+	 * Earlier, FOM verifies stale cookie. Hence we expect
+	 * loan pointer to be valid here.
+	 */
+	C2_PRE(loan != NULL);
+	C2_PRE(c2_rm_ur_tlink_is_in(&loan->rl_right));
 
 	/*
 	 * Flush the rights cache and remove incoming rights from the cache.
-	 */
-	rc = rights_integrate(in);
-
-	/*
-	 * Earlier, FOM verifies stale cookie. Hence we expect
-	 * loan pointer to be valid here
-	 */
-	C2_ASSERT(loan != NULL);
-	C2_ASSERT(c2_rm_ur_tlink_is_in(&loan->rl_right));
-
-	/*
+	 *
 	 * Check the difference between the borrowed rights and the revoke
 	 * rights. If the revoke fully intersects the previously borrowed right,
 	 * remove it from the list and FOM will take care of releasing the
@@ -896,10 +934,11 @@ int c2_rm_revoke_commit(struct c2_rm_remote_incoming *rem_in)
 	 *
 	 * If it's a partial revoke, right_diff() will retain the remnant
 	 * borrowed right. In such case make, rem_in->ri_loan NULL so that
-	 * the loan memory is not released. rights_integrate() will leave
+	 * the loan memory is not released. cached_rights_remove() will leave
 	 * remnant right in the CACHE.
 	 */
-	rc = right_diff(&loan->rl_right, &in->rin_want);
+	rc = cached_rights_remove(in) ?:
+	     right_diff(&loan->rl_right, &in->rin_want);
 	if (rc == 0) {
 		if (right_is_empty(&loan->rl_right)) {
 			c2_rm_ur_tlist_del(&loan->rl_right);
@@ -1012,18 +1051,21 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
  */
 static int cached_rights_hold(struct c2_rm_incoming *in)
 {
-	struct c2_rm_pin   *pin;
-	struct c2_rm_owner *owner = in->rin_want.ri_owner;
-	struct c2_rm_right *right;
-	struct c2_rm_right *held_right;
-	struct c2_rm_right  rest;
-	int		    rc;
+	enum c2_rm_owner_owned_state  ltype;
+	struct c2_rm_pin	     *pin;
+	struct c2_rm_owner	     *owner = in->rin_want.ri_owner;
+	struct c2_rm_right	     *right;
+	struct c2_rm_right	     *held_right;
+	struct c2_rm_right	      rest;
+	struct c2_tl		      transfers;
+	int			      rc;
 
 	c2_rm_right_init(&rest, in->rin_want.ri_owner);
 	rc = right_copy(&rest, &in->rin_want);
 	if (rc != 0)
 		goto out;
 
+	rm_transit_tlist_init(&transfers);
 	c2_tl_for(pi, &in->rin_pins, pin) {
 		C2_ASSERT(pin->rp_flags == C2_RPF_PROTECT);
 		right = pin->rp_right;
@@ -1033,7 +1075,7 @@ static int cached_rights_hold(struct c2_rm_incoming *in)
 
 		/* If the right is already part of HELD list, skip it */
 		if (c2_rm_ur_tlist_contains(&owner->ro_owned[OWOS_HELD],
-		    right)) {
+		    			    right)) {
 			rc = right_diff(&rest, right);
 			if (rc != 0)
 				break;
@@ -1047,14 +1089,16 @@ static int cached_rights_hold(struct c2_rm_incoming *in)
 		 */
 		if (right->ri_ops->rro_is_subset(right, &rest)) {
 			/* Move the subset from CACHED list to HELD list */
-			c2_rm_ur_tlist_move(&owner->ro_owned[OWOS_HELD], right);
+			rm_transit_tlist_move(&transfers, right);
 			rc = right_diff(&rest, right);
 			if (rc != 0)
 				break;
 		} else {
 			C2_ALLOC_PTR(held_right);
-			if (held_right == NULL)
+			if (held_right == NULL) {
+				rc = -ENOMEM;
 				break;
+			}
 
 			c2_rm_right_init(held_right, owner);
 			/*
@@ -1069,8 +1113,7 @@ static int cached_rights_hold(struct c2_rm_incoming *in)
 				c2_free(held_right);
 				break;
 			}
-			c2_rm_ur_tlist_add(&owner->ro_owned[OWOS_HELD],
-					   held_right);
+			rm_transit_tlist_add(&transfers, held_right);
 			rc = right_diff(&rest, held_right);
 			if (rc != 0)
 				break;
@@ -1081,6 +1124,16 @@ static int cached_rights_hold(struct c2_rm_incoming *in)
 	} c2_tl_endfor;
 
 	C2_POST(ergo(rc == 0, right_is_empty(&rest)));
+	/*
+	 * Only cached rights are part of transfer list.
+	 * On success, move the rights to OWOS_HELD list. Otherwise move
+	 * them back OWOS_CACHED list.
+	 */
+	ltype = rc ? OWOS_CACHED : OWOS_HELD;
+	c2_tl_forall(rm_transit, right, &transfers,
+		     rm_transit_tlist_move(&owner->ro_owned[ltype],
+					   right));
+	rm_transit_tlist_fini(&transfers);
 
 out:
 	c2_rm_right_fini(&rest);

@@ -271,7 +271,10 @@ static int loan_create(struct c2_rm_loan **loan,
 	C2_PRE(loan != NULL);
 
 	C2_ALLOC_PTR(*loan);
-	return *loan ? c2_rm_loan_init(*loan, right) : -ENOMEM;
+	if (*loan != NULL)
+		c2_rm_loan_init(*loan, right);
+
+	return *loan ? 0 : -ENOMEM;
 }
 
 static void borrow_reply(struct c2_rpc_item *item)
@@ -290,7 +293,7 @@ static void borrow_reply(struct c2_rpc_item *item)
 
 	borrow_reply = c2_fop_data(c2_rpc_item_to_fop(item->ri_reply));
 	outreq = container_of(c2_rpc_item_to_fop(item), struct rm_out, ou_fop);
-	bright = outreq->ou_req.rog_want.rl_right;
+	bright = &outreq->ou_req.rog_want.rl_right;
 	owner = bright->ri_owner;
 	rc = item->ri_error ?: borrow_reply->br_rc;
 
@@ -329,17 +332,18 @@ out:
 static void revoke_reply(struct c2_rpc_item *item)
 {
 	struct c2_fop_rm_revoke_rep *revoke_reply;
-	struct c2_rm_outgoing	    *og;
+	struct c2_rm_owner	    *owner;
 	struct c2_rm_right	    *right;
 	struct c2_rm_right	    *out_right;
 	struct rm_out		    *outreq;
+	int			     rc;
 
 	C2_PRE(item != NULL);
 	C2_PRE(item->ri_reply != NULL);
 
 	revoke_reply = c2_fop_data(c2_rpc_item_to_fop(item->ri_reply));
 	outreq = container_of(c2_rpc_item_to_fop(item), struct rm_out, ou_fop);
-	out_right = outreq->ou_req.rog_want.rl_right;
+	out_right = &outreq->ou_req.rog_want.rl_right;
 	owner = out_right->ri_owner;
 	rc = item->ri_error ?: revoke_reply->re_rc;
 

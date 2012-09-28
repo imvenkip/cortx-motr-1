@@ -26,7 +26,7 @@
 #include "lib/cookie.h"
 
 /**
- * Created as a result of remote request which is either BORROW ro REVOKE
+ * Created as a result of remote request which is either BORROW or REVOKE
  * (and CANCEL in future).
  */
 struct c2_rm_remote_incoming {
@@ -130,7 +130,7 @@ void c2_rm_outgoing_init(struct c2_rm_outgoing *out,
 /**
  * Initialise the loan
  */
-int c2_rm_loan_init(struct c2_rm_loan *loan, struct c2_rm_right *right);
+int c2_rm_loan_init(struct c2_rm_loan *loan, const struct c2_rm_right *right);
 
 /**
  * Called when an outgoing request completes (possibly with an error, like a
