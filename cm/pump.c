@@ -283,6 +283,16 @@ void c2_cm_cp_pump_start(struct c2_cm *cm)
 	c2_fom_queue(&cp_pump->p_fom, cm->cm_service.rs_reqh);
 }
 
+void c2_cm_cp_pump_wakeup(struct c2_cm *cm)
+{
+	struct c2_cm_cp_pump *cp_pump;
+
+	C2_PRE(c2_cm_is_locked(cm));
+
+	cp_pump = &cm->cm_cp_pump;
+	c2_fom_wakeup(&cp_pump->p_fom);
+}
+
 void c2_cm_cp_pump_stop(struct c2_cm *cm)
 {
 	struct c2_cm_cp_pump *cp_pump;
@@ -292,18 +302,7 @@ void c2_cm_cp_pump_stop(struct c2_cm *cm)
 	cp_pump = &cm->cm_cp_pump;
 	C2_ASSERT(c2_fom_phase(&cp_pump->p_fom) == CPP_IDLE);
 	cp_pump->p_shutdown = true;
-	c2_fom_wakeup(&cp_pump->p_fom);
-}
-
-void c2_cm_cp_pump_wakeup(struct c2_cm *cm)
-{
-	struct c2_cm_cp_pump *cp_pump;
-
-	C2_PRE(c2_cm_is_locked(cm));
-
-	cp_pump = &cm->cm_cp_pump;
-	c2_fom_phase_set(&cp_pump->p_fom, CPP_ALLOC);
-	c2_fom_wakeup(&cp_pump->p_fom);
+	c2_cm_cp_pump_wakeup(cm);
 }
 
 /** @} endgroup CM */

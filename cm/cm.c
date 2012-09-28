@@ -51,8 +51,10 @@
          - @ref CMDLD-lspec-cm-cp-pump
          - @ref CMDLD-lspec-cm-active
       - @ref CMDLD-lspec-cm-stop
+      - @ref CMDLD-lspec-cm-fini
       - @ref CMDLD-lspec-thread
    - @ref CMDLD-conformance
+   - @ref CMDLD-addb
    - @ref CMDLD-ut
    - @ref DLD-O
    - @ref CMDLD-ref
@@ -113,6 +115,7 @@
       - @ref CMDLD-lspec-cm-cp-pump
       - @ref CMDLD-lspec-cm-active
    - @ref CMDLD-lspec-cm-stop
+   - @ref CMDLD-lspec-cm-fini
 
    @subsection CMDLD-lspec-state Copy Machine State diagram
    @dot
@@ -183,6 +186,21 @@
    the pool, indicating failure. This is handled specific to the copy machine
    type.
 
+   @subsection CMDLD-lspec-cm-fini Copy machine finalisation
+   As copy machine is implemented as a c2_reqh_service, the copy machine
+   finalisation path is c2_reqh_service_stop()->rso_stop()->c2_cm_fini(). Now,
+   before invoking c2_reqh_service_stop(), c2_reqh_shutdown_wait() is called,
+   this returns when all the FOMs in the given reqh are finalised. Although
+   there is a possibilty that the copy machine operation is in-progress while
+   the reqh is being shutdown, this situation is taken care by
+   c2_reqh_shutdown() mechanism as mentioned above. Thus the copy machine pump
+   FOM (c2_cm::cm_cp_pump) is created when copy machine operation starts and
+   destroyed when copy machine operation stops, until then it is alive within
+   the reqh. Thus using c2_reqh_shutdown_wait() mechanism we are sure that copy
+   machine is IDLE and operation is completed before the c2_cm_fini() is
+   invoked.
+   @note Presently services are stopped only during reqh shutdown.
+
    @subsection CMDLD-lspec-thread Threading and Concurrency Model
    - Copy machine is implemented as a state machine, and thus do
      not have its own thread. It runs in the context of reqh threads.
@@ -207,7 +225,7 @@
    - @b i.cm.resource.manage Copy machine specific resources are managed by copy
         machine specific implementation, e.g. buffer pool, etc.
 
-   @section DLD-Agents-addb ADDB events
+   @section CMDLD-addb ADDB events
    - <b>cm_init_fail</b> Copy machine failed to initialise.
    - <b>cm_setup_fail</b> Copy machine setup failed.
    - <b>cm_start_fail</b> Copy machine failed to start operation.
@@ -299,7 +317,7 @@ static const struct c2_sm_state_descr cm_state_descr[C2_CMS_NR] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_idle",
 		.sd_allowed	= C2_BITS(C2_CMS_FAIL, C2_CMS_ACTIVE,
-					  C2_CMS_STOP, C2_CMS_FINI)
+					  C2_CMS_FINI)
 	},
 	[C2_CMS_READY] = {
 		.sd_flags	= 0,
@@ -576,7 +594,6 @@ int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
 	 */
 	c2_cm_lock(cm);
 	C2_ASSERT(c2_cm_state_get(cm) == C2_CMS_INIT);
-
 	cm_ag_tlist_init(&cm->cm_aggr_grps);
 
 	C2_POST(c2_cm_invariant(cm));
@@ -589,11 +606,11 @@ void c2_cm_fini(struct c2_cm *cm)
 {
 	C2_ENTRY();
 	C2_PRE(cm != NULL);
-	C2_PRE(C2_IN(cm->cm_mach.sm_state, (C2_CMS_INIT, C2_CMS_IDLE,
-					    C2_CMS_FAIL)));
 
 	c2_cm_lock(cm);
-	C2_ASSERT(c2_cm_invariant(cm));
+	C2_PRE(C2_IN(c2_cm_state_get(cm), (C2_CMS_INIT, C2_CMS_IDLE,
+					   C2_CMS_FAIL)));
+	C2_PRE(c2_cm_invariant(cm));
 
 	cm->cm_ops->cmo_fini(cm);
 	C2_LOG("CM: %s:%lu: %i", (char *)cm->cm_type->ct_stype.rst_name,
@@ -621,7 +638,7 @@ int c2_cm_type_register(struct c2_cm_type *cmtype)
 		c2_mutex_lock(&cmtypes_mutex);
 		cmtypes_tlink_init_at_tail(cmtype, &cmtypes);
 		c2_mutex_unlock(&cmtypes_mutex);
-		C2_PRE(cmtypes_tlink_is_in(cmtype));
+		C2_ASSERT(cmtypes_tlink_is_in(cmtype));
 	}
 	C2_LEAVE();
 	return rc;

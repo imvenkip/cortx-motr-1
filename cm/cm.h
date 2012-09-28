@@ -322,13 +322,14 @@ int c2_cm_setup(struct c2_cm *cm);
 int c2_cm_start(struct c2_cm *cm);
 
 /**
+ * Stops copy machine operation.
  * Once operation completes successfully, copy machine performs required tasks,
  * (e.g. updating layouts, etc.) by invoking c2_cm_stop(), this transitions copy
  * machine back to C2_CMS_IDLE state. Copy machine invokes c2_cm_stop() also in
  * case of operational failure to broadcast STOP FOPs to its other replicas in
  * the pool, indicating failure. This is handled specific to the copy machine
  * type.
- * @pre cm!= NULL && C2_IN(c2_cm_state_get(cm), (C2_CMS_ACTIVE, C2_CMS_IDLE))
+ * @pre cm!= NULL && C2_IN(c2_cm_state_get(cm), (C2_CMS_ACTIVE))
  * @post C2_IN(c2_cm_state_get(cm), (C2_CMS_IDLE, C2_CMS_FAIL))
  */
 int c2_cm_stop(struct c2_cm *cm);
