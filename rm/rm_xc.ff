@@ -23,6 +23,9 @@
    @{
  */
 
+require "lib/cookie";
+require "lib/cookie_xc";
+
 /** @file rm.ff
  *
  * This file defines RM-fops needed for RM-generic layer. All the layers using
@@ -55,10 +58,6 @@
  *     - loan: identified by a 128-bit cookie (c2_rm_cookie).
  *
  */
-record {
-	u64 co_addr;
-	u64 co_generation
-} c2_fop_rm_cookie;
 
 sequence {
 	u64 op_nr;
@@ -66,12 +65,12 @@ sequence {
 } c2_fop_rm_opaque;
 
 record {
-	c2_fop_rm_cookie ow_cookie;
+	c2_cookie ow_cookie;
 	c2_fop_rm_opaque ow_resource
 } c2_fop_rm_owner;
 
 record {
-	c2_fop_rm_cookie lo_cookie
+	c2_cookie lo_cookie
 } c2_fop_rm_loan;
 
 record {

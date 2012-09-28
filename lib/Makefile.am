@@ -60,6 +60,8 @@ libc2_la_SOURCES     = \
                        cond.h \
                        cookie.c \
                        cookie.h \
+		       cookie_xc.c \
+		       cookie_xc.h \
                        errno.h \
                        ext.c \
                        ext.h \
