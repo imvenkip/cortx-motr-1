@@ -481,7 +481,7 @@ void c2_xcode_bob_type_init(struct c2_bob_type *bt,
 	bt->bt_magix_offset = mf->xf_offset;
 }
 
-void *c2_xcode_ctx_to_inmem_obj(const struct c2_xcode_ctx *ctx)
+void *c2_xcode_ctx_top(const struct c2_xcode_ctx *ctx)
 {
 	return ctx->xcx_it.xcu_stack[0].s_obj.xo_ptr;
 }

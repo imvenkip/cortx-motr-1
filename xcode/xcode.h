@@ -695,7 +695,12 @@ void c2_xcode_bob_type_init(struct c2_bob_type *bt,
 			    const struct c2_xcode_type *xt,
 			    size_t magix_field, uint64_t magix);
 
-void *c2_xcode_ctx_to_inmem_obj(const struct c2_xcode_ctx *ctx);
+void *c2_xcode_ctx_top(const struct c2_xcode_ctx *ctx);
+
+#define C2_XCODE_OBJ(type, ptr) (struct c2_xcode_obj) {	\
+		.xo_type = type,			\
+		.xo_ptr  = ptr,	                        \
+}
 
 /** @} end of xcode group */
 

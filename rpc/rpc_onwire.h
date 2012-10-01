@@ -108,7 +108,11 @@ struct c2_rpc_onwire_slot_ref {
 	    APPLIED to the slot
 	 */
 	struct c2_verno            osr_verno;
-
+	/**
+	 * @todo These are temporary fields; there is no need to duplicate
+	 * this information with each and every reply. In the future, special
+	 * 1-way item will be used to transfer this information.
+	 */
 	/** In each reply item, receiver reports to sender, verno of item
 	    whose effects have reached persistent storage, using this field
 	 */
@@ -129,17 +133,18 @@ struct c2_rpc_onwire_slot_ref {
 struct c2_rpc_packet_onwire_header {
 	/* Version */
 	uint32_t poh_version;
+
 	/** Number of RPC items in packet */
 	uint32_t poh_nr_items;
+
+	uint64_t poh_magic;
 } C2_XCA_RECORD;
 
 struct c2_rpc_item_onwire_header {
 	/* Item opcode */
-	uint32_t                      ioh_opcode;
-	/* Item length */
-	uint64_t                      ioh_length;
-	/* Onwire slot reference */
-	struct c2_rpc_onwire_slot_ref ioh_slot_ref;
+	uint32_t ioh_opcode;
+
+	uint64_t ioh_magic;
 } C2_XCA_RECORD;
 
 /** @}  End of rpc_onwire group */

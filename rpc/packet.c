@@ -28,6 +28,7 @@
 #include "rpc/packet.h"
 #include "rpc/rpc2.h"
 #include "rpc/item.h"
+#include "rpc/rpc_helpers.h"
 #include "rpc/rpc_onwire.h" /* C2_RPC_VERSION_1 */
 #include "rpc/rpc_onwire_xc.h" /* c2_rpc_packet_onwire_header_xc */
 #include "xcode/xcode.h"
@@ -54,9 +55,8 @@ c2_bcount_t c2_rpc_packet_onwire_header_size(void)
 	static c2_bcount_t                 packet_header_size;
 
 	if (packet_header_size == 0) {
-		c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){
-					c2_rpc_packet_onwire_header_xc,
-					&oh });
+		c2_xcode_ctx_init(&ctx, &C2_XCODE_OBJ(
+					  c2_rpc_packet_onwire_header_xc, &oh));
 		packet_header_size = c2_xcode_length(&ctx);
 	}
 
@@ -86,6 +86,7 @@ void c2_rpc_packet_init(struct c2_rpc_packet *p)
 	C2_SET0(p);
 
 	p->rp_ow.poh_version = C2_RPC_VERSION_1;
+	p->rp_ow.poh_magic = C2_RPC_PACKET_HEAD_MAGIC;
 	p->rp_size = c2_rpc_packet_onwire_header_size();
 	packet_item_tlist_init(&p->rp_items);
 
@@ -236,9 +237,8 @@ static int packet_header_encode(struct c2_bufvec_cursor            *cursor,
 
 	C2_ENTRY();
 
-	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){
-				c2_rpc_packet_onwire_header_xc,
-				ph });
+	c2_xcode_ctx_init(&ctx,
+			  &C2_XCODE_OBJ(c2_rpc_packet_onwire_header_xc, ph));
 	ctx.xcx_buf = *cursor;
 	rc = c2_xcode_encode(&ctx);
 	if (rc == 0)
@@ -254,31 +254,32 @@ static int packet_header_decode(struct c2_bufvec_cursor            *cursor,
 	struct c2_xcode_ctx                 ctx;
 	int                                 rc;
 
+	C2_ENTRY();
 	C2_PRE(cursor != NULL && ph != NULL);
 
-	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){
-				c2_rpc_packet_onwire_header_xc,
-				oph });
+	c2_xcode_ctx_init(&ctx, &C2_XCODE_OBJ(c2_rpc_packet_onwire_header_xc,
+					      oph));
 	ctx.xcx_buf   = *cursor;
 	ctx.xcx_alloc = c2_xcode_alloc;
 
 	rc = c2_xcode_decode(&ctx);
 	if (rc == 0) {
 		*ph     = *(struct c2_rpc_packet_onwire_header *)
-				c2_xcode_ctx_to_inmem_obj(&ctx);
+				c2_xcode_ctx_top(&ctx);
 		*cursor = ctx.xcx_buf;
 		c2_xcode_free(&(struct c2_xcode_obj){
 				c2_rpc_packet_onwire_header_xc,
 				oph });
 	}
 
-	return rc;
+	C2_RETURN(rc);
 }
 
 static int item_encode(struct c2_rpc_item       *item,
 		       struct c2_bufvec_cursor  *cursor)
 {
-	int rc;
+	struct c2_rpc_item_onwire_header ioh;
+	int                              rc;
 
 	C2_ENTRY("item: %p cursor: %p", item, cursor);
 	C2_PRE(item != NULL && cursor != NULL);
@@ -286,8 +287,15 @@ static int item_encode(struct c2_rpc_item       *item,
 	       item->ri_type->rit_ops != NULL &&
 	       item->ri_type->rit_ops->rito_encode != NULL);
 
-	rc = item->ri_type->rit_ops->rito_encode(item->ri_type, item, cursor);
+	ioh = (struct c2_rpc_item_onwire_header){
+		.ioh_opcode = item->ri_type->rit_opcode,
+		.ioh_magic  = C2_RPC_ITEM_MAGIC,
+	};
 
+	rc = c2_rpc_item_header_encode(&ioh, cursor);
+	if (rc == 0)
+		rc = item->ri_type->rit_ops->rito_encode(item->ri_type,
+							 item, cursor);
 	C2_RETURN(rc);
 }
 
@@ -299,6 +307,7 @@ int c2_rpc_packet_decode(struct c2_rpc_packet *p,
 	struct c2_bufvec_cursor cursor;
 	int                     rc;
 
+	C2_ENTRY();
 	C2_PRE(c2_rpc_packet_invariant(p) && bufvec != NULL && len > 0);
 	C2_PRE(len <= c2_vec_count(&bufvec->ov_vec));
 	C2_PRE(C2_IS_8ALIGNED(off) && C2_IS_8ALIGNED(len));
@@ -310,7 +319,7 @@ int c2_rpc_packet_decode(struct c2_rpc_packet *p,
 	C2_ASSERT(C2_IS_8ALIGNED(c2_bufvec_cursor_addr(&cursor)));
 	rc = c2_rpc_packet_decode_using_cursor(p, &cursor, len);
 	C2_ASSERT(C2_IS_8ALIGNED(c2_bufvec_cursor_addr(&cursor)));
-	return rc;
+	C2_RETURN(rc);
 }
 
 int c2_rpc_packet_decode_using_cursor(struct c2_rpc_packet    *p,
@@ -324,28 +333,29 @@ int c2_rpc_packet_decode_using_cursor(struct c2_rpc_packet    *p,
 	int                                 rc;
 	int                                 i;
 
+	C2_ENTRY();
 	C2_PRE(c2_rpc_packet_invariant(p) && cursor != NULL);
 
 	rc = packet_header_decode(cursor, &poh);
 	if (rc != 0)
-		return rc;
-	if (poh.poh_version != C2_RPC_VERSION_1 || poh.poh_nr_items == 0)
-		return -EPROTO;
+		C2_RETURN(rc);
+	if (poh.poh_version != C2_RPC_VERSION_1 || poh.poh_nr_items == 0 ||
+	    poh.poh_magic != C2_RPC_PACKET_HEAD_MAGIC)
+		C2_RETURN(-EPROTO);
 
-	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){
-				c2_rpc_packet_onwire_header_xc,
-				&p->rp_ow });
+	c2_xcode_ctx_init(&ctx, &C2_XCODE_OBJ(c2_rpc_packet_onwire_header_xc,
+					      &p->rp_ow));
 	count = c2_xcode_length(&ctx);
 	C2_ASSERT(len > count);
 
 	for (i = 0; i < poh.poh_nr_items; ++i) {
 		rc = item_decode(cursor, &item);
 		if (rc != 0)
-			return rc;
+			C2_RETURN(rc);
 
 		count += c2_rpc_item_size(item);
 		if (count > len)
-			return -EMSGSIZE;
+			C2_RETURN(-EMSGSIZE);
 
 		c2_rpc_packet_add_item(p, item);
 		item = NULL;
@@ -353,26 +363,30 @@ int c2_rpc_packet_decode_using_cursor(struct c2_rpc_packet    *p,
 	c2_bufvec_cursor_align(cursor, 8);
 	C2_ASSERT(c2_rpc_packet_invariant(p));
 
-	return 0;
+	C2_RETURN(0);
 }
 
 static int item_decode(struct c2_bufvec_cursor  *cursor,
 		       struct c2_rpc_item      **item_out)
 {
-	struct c2_rpc_item_type *item_type;
-	uint32_t                 opcode;
-	int                      rc;
+	struct c2_rpc_item_type         *item_type;
+	struct c2_rpc_item_onwire_header ioh;
+	int                              rc;
 
+	C2_ENTRY();
 	C2_PRE(cursor != NULL && item_out != NULL);
 
-	*item_out = NULL;
-	rc = c2_bufvec_cursor_copyfrom(cursor, &opcode, sizeof opcode);
-	if (rc != sizeof opcode)
-		return -EPROTO;
+	rc = c2_rpc_item_header_decode(&ioh, cursor);
+	if (rc != 0)
+		C2_RETURN(rc);
 
-	item_type = c2_rpc_item_type_lookup(opcode);
+	C2_ASSERT(ioh.ioh_magic == C2_RPC_ITEM_MAGIC);
+
+	*item_out = NULL;
+
+	item_type = c2_rpc_item_type_lookup(ioh.ioh_opcode);
 	if (item_type == NULL)
-		return -EPROTO;
+		C2_RETURN(-EPROTO);
 
 	C2_ASSERT(item_type->rit_ops != NULL &&
 		  item_type->rit_ops->rito_decode != NULL);

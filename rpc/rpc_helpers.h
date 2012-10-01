@@ -31,8 +31,28 @@ enum c2_bufvec_what {
 	C2_BUFVEC_DECODE = 1,
 };
 
-int c2_rpc_item_header_encdec(struct c2_rpc_item      *item,
-			      struct c2_bufvec_cursor *cur,
-			      enum c2_bufvec_what      what);
+/**
+    Encodes the rpc item header into a bufvec
+    @param ioh RPC item header to be encoded
+    @param cur Current bufvec cursor position
+    @retval 0 (success)
+    @retval -errno  (failure)
+*/
+int c2_rpc_item_header_encode(struct c2_rpc_item_onwire_header *ioh,
+			      struct c2_bufvec_cursor          *cur);
+
+/**
+    Decodes the rpc item header into a bufvec
+    @param ioh RPC item header to be decoded
+    @param cur Current bufvec cursor position
+    @retval 0 (success)
+    @retval -errno  (failure)
+*/
+int c2_rpc_item_header_decode(struct c2_rpc_item_onwire_header *ioh,
+			      struct c2_bufvec_cursor          *cur);
+
+int c2_rpc_item_slot_ref_encdec(struct c2_bufvec_cursor *cur,
+				struct c2_rpc_slot_ref  *slot_ref,
+				enum c2_bufvec_what      what);
 
 #endif /* __COLIBRI_RPC_HELPERS_H__ */

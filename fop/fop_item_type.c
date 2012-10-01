@@ -44,21 +44,10 @@ int c2_fop_item_type_default_encode(struct c2_rpc_item_type *item_type,
 				    struct c2_rpc_item      *item,
 				    struct c2_bufvec_cursor *cur)
 {
-	int	 rc;
-	uint32_t opcode;
-
 	C2_PRE(item != NULL);
 	C2_PRE(cur != NULL);
 
-	item_type = item->ri_type;
-	opcode = item_type->rit_opcode;
-	rc = c2_bufvec_cursor_copyto(cur, &opcode, sizeof opcode);
-	if (rc != sizeof opcode)
-		rc = -EPROTO;
-	else
-		rc = c2_fop_item_encdec(item, cur, C2_BUFVEC_ENCODE);
-
-	return rc;
+	return c2_fop_item_encdec(item, cur, C2_BUFVEC_ENCODE);
 }
 
 int c2_fop_item_type_default_decode(struct c2_rpc_item_type  *item_type,
@@ -114,7 +103,7 @@ int c2_fop_item_encdec(struct c2_rpc_item      *item,
 
 	fop = c2_rpc_item_to_fop(item);
 
-	rc = c2_rpc_item_header_encdec(item, cur, what);
+	rc = c2_rpc_item_slot_ref_encdec(cur, item->ri_slot_refs, what);
 	if (rc != 0)
 		return rc;
 
@@ -128,7 +117,7 @@ int c2_fop_item_encdec(struct c2_rpc_item      *item,
 	if (rc == 0) {
 		if (what == C2_BUFVEC_DECODE)
 			fop->f_data.fd_data =
-				c2_xcode_ctx_to_inmem_obj(&xc_ctx);
+				c2_xcode_ctx_top(&xc_ctx);
 		*cur = xc_ctx.xcx_buf;
 	}
 

@@ -50,6 +50,12 @@ C2_TL_DESCR_DEFINE(rit, "rpc_item_type_descr", static, struct c2_rpc_item_type,
 
 C2_TL_DEFINE(rit, static, struct c2_rpc_item_type);
 
+static const struct c2_rpc_onwire_slot_ref invalid_slot_ref = {
+	.osr_slot_id    = SLOT_ID_INVALID,
+	.osr_sender_id  = SENDER_ID_INVALID,
+	.osr_session_id = SESSION_ID_INVALID,
+};
+
 /** Global rpc item types list. */
 static struct c2_tl        rpc_item_types_list;
 static struct c2_rwlock    rpc_item_types_lock;
@@ -158,9 +164,7 @@ void c2_rpc_item_init(struct c2_rpc_item *item)
 
 	sref = &item->ri_slot_refs[0];
 
-	sref->sr_ow.osr_slot_id    = SLOT_ID_INVALID;
-	sref->sr_ow.osr_sender_id  = SENDER_ID_INVALID;
-	sref->sr_ow.osr_session_id = SESSION_ID_INVALID;
+	sref->sr_ow = invalid_slot_ref;
 
 	slot_item_tlink_init(item);
 
@@ -179,20 +183,15 @@ C2_EXPORTED(c2_rpc_item_init);
 
 void c2_rpc_item_fini(struct c2_rpc_item *item)
 {
-	struct c2_rpc_slot_ref *sref;
+	struct c2_rpc_slot_ref *sref = &item->ri_slot_refs[0];
 
 	C2_ENTRY("item: %p", item);
 	c2_chan_fini(&item->ri_chan);
 
-	sref = &item->ri_slot_refs[0];
-	sref->sr_ow.osr_slot_id = SLOT_ID_INVALID;
+	sref->sr_ow = invalid_slot_ref;
 	slot_item_tlink_fini(item);
 
-	sref->sr_ow.osr_sender_id  = SENDER_ID_INVALID;
-	sref->sr_ow.osr_session_id = SESSION_ID_INVALID;
-
         c2_list_link_fini(&item->ri_unbound_link);
-
         c2_list_link_fini(&item->ri_rpcobject_linkage);
 	packet_item_tlink_fini(item);
 	rpcitem_tlink_fini(item);
@@ -205,14 +204,18 @@ C2_EXPORTED(c2_rpc_item_fini);
 c2_bcount_t c2_rpc_item_onwire_header_size(void)
 {
 	struct c2_rpc_item_onwire_header ioh;
-	struct c2_xcode_ctx              ctx;
+	struct c2_rpc_onwire_slot_ref    sr;
+	struct c2_xcode_ctx              head;
+	struct c2_xcode_ctx              slot_ref;
 	static c2_bcount_t               item_header_size;
 
 	if (item_header_size == 0) {
-		c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){
-					c2_rpc_item_onwire_header_xc,
-					&ioh });
-		item_header_size = c2_xcode_length(&ctx);
+		c2_xcode_ctx_init(&head, &C2_XCODE_OBJ(
+					  c2_rpc_onwire_slot_ref_xc, &sr));
+		c2_xcode_ctx_init(&slot_ref, &C2_XCODE_OBJ(
+					  c2_rpc_item_onwire_header_xc, &ioh));
+		item_header_size = c2_xcode_length(&head) +
+					c2_xcode_length(&slot_ref);
 	}
 
 	return item_header_size;

@@ -23,49 +23,56 @@
 #include "lib/errno.h"
 #include "rpc/rpc_onwire_xc.h"
 #include "rpc/rpc_helpers.h"
+#include "xcode/xcode.h" /* C2_XCODE_OBJ */
 
-static int slot_ref_encdec(struct c2_bufvec_cursor *cur,
-			   struct c2_rpc_slot_ref *slot_ref,
-			   enum c2_bufvec_what what);
-
-/**
-    Encodes/decodes the rpc item header into a bufvec
-    @param cur Current bufvec cursor position
-    @param item RPC item for which the header is to be encoded/decoded
-    @param what Denotes type of operation (Encode or Decode)
-    @retval 0 (success)
-    @retval -errno  (failure)
-*/
-int c2_rpc_item_header_encdec(struct c2_rpc_item      *item,
-			      struct c2_bufvec_cursor *cur,
-			      enum c2_bufvec_what      what)
+int c2_rpc_item_header_encode(struct c2_rpc_item_onwire_header *ioh,
+			      struct c2_bufvec_cursor          *cur)
 {
-	uint64_t		 len;
-	int			 rc;
-	struct c2_rpc_item_type *item_type;
+	struct c2_xcode_ctx ctx;
+	int                 rc;
 
 	C2_ENTRY("item: %p", item);
 	C2_PRE(cur != NULL);
-	C2_PRE(item != NULL);
+	C2_PRE(ioh != NULL);
 
-	item_type = item->ri_type;
-	if (what == C2_BUFVEC_ENCODE) {
-		len = c2_rpc_item_size(item);
-		rc = c2_bufvec_cursor_copyto(cur, &len, sizeof len);
-	} else
-		rc = c2_bufvec_cursor_copyfrom(cur, &len, sizeof len);
+	c2_xcode_ctx_init(&ctx,
+			  &C2_XCODE_OBJ(c2_rpc_item_onwire_header_xc, ioh));
+	ctx.xcx_buf   = *cur;
+	rc = c2_xcode_encode(&ctx);
+	if (rc == 0)
+		*cur = ctx.xcx_buf;
+	return rc;
+}
 
-	if (rc != sizeof len)
-		return -EINVAL;
+int c2_rpc_item_header_decode(struct c2_rpc_item_onwire_header *ioh,
+			      struct c2_bufvec_cursor          *cur)
+{
+	struct c2_rpc_item_onwire_header *ioh_decoded = NULL;
+	struct c2_xcode_ctx               ctx;
+	int                               rc;
 
-	rc = slot_ref_encdec(cur, item->ri_slot_refs, what);
+	C2_PRE(cur != NULL);
+	C2_PRE(ioh != NULL);
 
+	c2_xcode_ctx_init(&ctx,
+			  &C2_XCODE_OBJ(c2_rpc_item_onwire_header_xc,
+					ioh_decoded));
+	ctx.xcx_buf   = *cur;
+	ctx.xcx_alloc = c2_xcode_alloc;
+	rc = c2_xcode_decode(&ctx);
+	if (rc == 0) {
+		*ioh = *(struct c2_rpc_item_onwire_header *)
+			c2_xcode_ctx_top(&ctx);
+		c2_xcode_free(&C2_XCODE_OBJ(c2_rpc_onwire_slot_ref_xc,
+					    ioh_decoded));
+		*cur = ctx.xcx_buf;
+	}
 	C2_RETURN(rc);
 }
 
-static int slot_ref_encdec(struct c2_bufvec_cursor *cur,
-			   struct c2_rpc_slot_ref  *slot_ref,
-			   enum c2_bufvec_what      what)
+int c2_rpc_item_slot_ref_encdec(struct c2_bufvec_cursor *cur,
+				struct c2_rpc_slot_ref  *slot_ref,
+				enum c2_bufvec_what      what)
 {
 	struct c2_rpc_onwire_slot_ref *osr = NULL;
 	struct c2_xcode_ctx            ctx;
@@ -83,24 +90,21 @@ static int slot_ref_encdec(struct c2_bufvec_cursor *cur,
 
 		if (what == C2_BUFVEC_ENCODE)
 			osr = &slot_ref[i].sr_ow;
-		c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){
-					c2_rpc_onwire_slot_ref_xc,
-					osr });
+		c2_xcode_ctx_init(&ctx,
+				  &C2_XCODE_OBJ(c2_rpc_onwire_slot_ref_xc,
+						osr));
 		ctx.xcx_buf   = *cur;
 		ctx.xcx_alloc = c2_xcode_alloc;
 		rc = what == C2_BUFVEC_ENCODE ? c2_xcode_encode(&ctx) :
 						c2_xcode_decode(&ctx);
 		if (rc != 0)
 			break;
-		else {
-			if (what == C2_BUFVEC_DECODE) {
-				slot_ref[i].sr_ow =
-					*(struct c2_rpc_onwire_slot_ref *)
-						c2_xcode_ctx_to_inmem_obj(&ctx);
-				c2_xcode_free(&(struct c2_xcode_obj){
-						c2_rpc_onwire_slot_ref_xc,
-						osr});
-			}
+		else if (what == C2_BUFVEC_DECODE) {
+			slot_ref[i].sr_ow =
+				*(struct c2_rpc_onwire_slot_ref *)
+				c2_xcode_ctx_top(&ctx);
+			c2_xcode_free(&C2_XCODE_OBJ(c2_rpc_onwire_slot_ref_xc,
+						    osr));
 		}
 		*cur = ctx.xcx_buf;
 	}

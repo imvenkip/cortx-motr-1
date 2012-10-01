@@ -286,7 +286,7 @@ static void test_fop_encdec(void)
 	xctx1.xcx_buf   = cur;
 	rc = c2_xcode_decode(&xctx1);
 	C2_UT_ASSERT(rc == 0);
-	fd1->f_data.fd_data = c2_xcode_ctx_to_inmem_obj(&xctx1);
+	fd1->f_data.fd_data = c2_xcode_ctx_top(&xctx1);
 
 	cur_addr = c2_bufvec_cursor_addr(&cur);
 	C2_UT_ASSERT(C2_IS_8ALIGNED(cur_addr));
