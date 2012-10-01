@@ -195,6 +195,7 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 	     c2_list_invariant(&conn->c_sessions) &&
 	     c2_list_length(&conn->c_sessions) == conn->c_nr_sessions &&
 	     conn_state(conn) <= C2_RPC_CONN_TERMINATED &&
+	     conn->c_rpcchan != NULL &&
 	     /*
 	      * Each connection has exactly one session with id SESSION_ID_0.
 	      * From c2_rpc_conn_init() to c2_rpc_conn_fini(), this session0 is
@@ -411,7 +412,6 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
 	C2_POST(c2_rpc_machine_is_locked(machine));
 
 	C2_RETURN(rc);
-	return rc;
 }
 
 void c2_rpc_conn_fini(struct c2_rpc_conn *conn)

@@ -621,7 +621,7 @@ void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm)
 {
 	if (C2_FI_ENABLED("do_nothing"))
 		return;
-	
+
 	C2_ENTRY("frm: %p", frm);
 	C2_ASSERT(frm_invariant(frm));
 	C2_PRE(frm_rmachine_is_locked(frm));

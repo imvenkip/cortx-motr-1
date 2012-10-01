@@ -80,11 +80,11 @@ int c2_rpc__fop_post(struct c2_fop                *fop,
 	struct c2_rpc_item *item;
 	int                 rc;
 
-	if (C2_FI_ENABLED("do_nothing"))
-		return 0;
-
 	if (C2_FI_ENABLED("fake_error"))
 		return -ETIMEDOUT;
+
+	if (C2_FI_ENABLED("do_nothing"))
+		return 0;
 
 	C2_ENTRY("fop: %p, session: %p", fop, session);
 

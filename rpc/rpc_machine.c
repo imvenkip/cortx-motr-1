@@ -449,11 +449,11 @@ struct c2_rpc_chan *rpc_chan_get(struct c2_rpc_machine *machine,
 	C2_PRE(dest_ep != NULL);
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 
-	if (C2_FI_ENABLED("do_nothing"))
-		return (struct c2_rpc_chan *)1;
-
 	if (C2_FI_ENABLED("fake_error"))
 		return NULL;
+
+	if (C2_FI_ENABLED("do_nothing"))
+		return (struct c2_rpc_chan *)1;
 
 	chan = rpc_chan_locate(machine, dest_ep);
 	if (chan == NULL)
