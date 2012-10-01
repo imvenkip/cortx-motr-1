@@ -34,9 +34,17 @@ struct c2_uint128 {
 	uint64_t u_lo;
 };
 
+#define C2_UINT128(hi, lo) (struct c2_uint128) { .u_hi = (hi), .u_lo = (lo) }
+
 bool c2_uint128_eq (const struct c2_uint128 *u0, const struct c2_uint128 *u1);
 int  c2_uint128_cmp(const struct c2_uint128 *u0, const struct c2_uint128 *u1);
 void c2_uint128_init(struct c2_uint128 *u128, const char *magic);
+/** res = a + b; */
+void c2_uint128_add(struct c2_uint128 *res,
+		    const struct c2_uint128 a,
+		    const struct c2_uint128 b);
+/** res = a * b; */
+void c2_uint128_mul64(struct c2_uint128 *res, uint64_t a, uint64_t b);
 
 /** count of bytes (in extent, IO operation, etc.) */
 typedef uint64_t c2_bcount_t;

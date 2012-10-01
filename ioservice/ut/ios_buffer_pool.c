@@ -90,7 +90,9 @@ static int check_buffer_pool_per_domain(char *cs_argv[], int cs_argc, int nbp)
 	int bp_count;
 
 	C2_RPC_SERVER_CTX_DECLARE(sctx, cs_xprts, ARRAY_SIZE(cs_xprts),
-				  cs_argv, cs_argc, SERVER_LOG_FILE_NAME);
+				  cs_argv, cs_argc, c2_cs_default_stypes,
+				  c2_cs_default_stypes_nr,
+				  SERVER_LOG_FILE_NAME);
 
 	rc = c2_rpc_server_start(&sctx);
 	C2_UT_ASSERT(rc == 0);

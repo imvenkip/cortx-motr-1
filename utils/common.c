@@ -35,6 +35,7 @@
 #include "lib/ut.h"
 #include "lib/finject.h"
 #include "lib/finject_internal.h"
+#include "ut/ut.h"
 
 static int reset_sandbox(const char *sandbox)
 {
@@ -74,6 +75,9 @@ int unit_start(const char *sandbox)
 				result = -errno;
 		}
 	}
+	if (result == 0)
+		c2_ut_init();
+
 	return result;
 }
 
@@ -81,6 +85,7 @@ void unit_end(const char *sandbox, bool keep_sandbox)
 {
 	int rc;
 
+	c2_ut_fini();
 	c2_fini();
 
 	rc = chdir("..");

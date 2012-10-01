@@ -37,8 +37,21 @@ struct c2_buf {
 	void       *b_addr;
 } C2_XCA_SEQUENCE;
 
-/*
+/**
  * Initialisers for struct c2_buf.
+ *
+ * @note
+ *
+ *   1. #include "lib/misc.h" for C2_BUF_INITS().
+ *
+ *   2. C2_BUF_INITS() cannot be used with `static' variables.
+ * @code
+ *         // static const struct c2_buf bad = C2_BUF_INITS("foo");
+ *         //  ==> warning: initializer element is not constant
+ *
+ *         static char str[] = "foo";
+ *         static const struct c2_buf good = C2_BUF_INIT(sizeof str, str);
+ * @endcode
  */
 #define C2_BUF_INIT(size, data) { .b_nob = (size), .b_addr = (data) }
 #define C2_BUF_INITS(str)       C2_BUF_INIT(strlen(str), (str))
@@ -49,6 +62,8 @@ bool c2_buf_eq(const struct c2_buf *x, const struct c2_buf *y);
 
 /**
  * Copies a buffer.
+ *
+ * A user is responsible for c2_buf_free()ing `dest'.
  *
  * @pre   dest->cb_size == 0 && dest->cb_data == NULL
  * @post  ergo(result == 0, c2_buf_eq(dest, src))

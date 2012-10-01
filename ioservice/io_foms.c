@@ -1485,7 +1485,7 @@ static int io_launch(struct c2_fom *fom)
                  */
                 ivec_count = c2_vec_count(&mem_ivec->iv_vec);
                 fom_obj->fcrw_req_count += ivec_count;
-                C2_LOG("iv_count %d, req_count %d",
+                C2_LOG(C2_DEBUG, "iv_count %d, req_count %d",
                        (int)ivec_count, (int)fom_obj->fcrw_req_count);
                 rc = align_bufvec(fom, &stio->si_user,
                                                 &nb->nb_buffer,
@@ -1593,7 +1593,7 @@ static int io_finish(struct c2_fom *fom)
                         c2_fom_phase_set(fom, C2_FOPH_FAILURE);
                 } else {
                         fom_obj->fcrw_count += stio->si_count;
-                        C2_LOG("rw_count %d, si_count %d",
+                        C2_LOG(C2_DEBUG, "rw_count %d, si_count %d",
                                (int)fom_obj->fcrw_count, (int)stio->si_count);
                 }
 
@@ -1668,7 +1668,8 @@ static int c2_io_fom_cob_rw_tick(struct c2_fom *fom)
                 rwrep = io_rw_rep_get(fom->fo_rep_fop);
                 rwrep->rwr_rc = fom->fo_rc;
                 rwrep->rwr_count = fom_obj->fcrw_count;
-                C2_LOG("rc %d, count %d", rwrep->rwr_rc, (int)rwrep->rwr_count);
+                C2_LEAVE("rc %d, count %d", rwrep->rwr_rc,
+				(int)rwrep->rwr_count);
                 return rc;
         }
 

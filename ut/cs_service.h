@@ -23,6 +23,8 @@
 #ifndef __COLIBRI_UT_CS_SERVICE_H__
 #define __COLIBRI_UT_CS_SERVICE_H__
 
+#include "reqh/reqh_service.h"
+
 extern struct c2_reqh_service_type ds1_service_type;
 extern struct c2_reqh_service_type ds2_service_type;
 

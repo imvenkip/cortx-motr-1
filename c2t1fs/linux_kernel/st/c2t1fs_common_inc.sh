@@ -35,7 +35,7 @@ load_kernel_module()
 	fi
 
         insmod $colibri_module_path/$colibri_module.ko            \
-               c2_trace_immediate_mask=$COLIBRI_MODULE_TRACE_MASK \
+               trace_immediate_mask=$COLIBRI_MODULE_TRACE_MASK    \
                local_addr=$COLIBRI_C2T1FS_ENDPOINT                \
 	       tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN       \
 	       max_rpc_msg_size=$MAX_RPC_MSG_SIZE

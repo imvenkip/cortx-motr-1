@@ -34,6 +34,7 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @Y
                             $(top_builddir)/lib/libc2.la \
                             $(top_builddir)/net/libcolibri-net.la \
                             $(top_builddir)/net/bulk_emulation/libcolibri-net-bulkmem.la \
+                            $(top_builddir)/net/test/libcolibri-net-test.la \
                             $(top_builddir)/net/lnet/libcolibri-lnet.la \
                             $(top_builddir)/nrs/libcolibri-nrs.la \
                             $(top_builddir)/pool/libcolibri-pool.la \

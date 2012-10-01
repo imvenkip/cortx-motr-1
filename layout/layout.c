@@ -661,7 +661,7 @@ void c2_layout__log(const char *fn_name,
 	addb_add(ctx, ev, err_msg, rc);
 
 	/* Trace record logging. */
-	C2_LOG("%s(): lid %llu, %s, rc %d",
+	C2_LOG(C2_ERROR, "%s(): lid %llu, %s, rc %d",
 	       (const char *)fn_name, (unsigned long long)lid,
 	       (const char *)err_msg, rc);
 }

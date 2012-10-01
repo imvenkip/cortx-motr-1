@@ -1,0 +1,23 @@
+NET_TEST	:= net_test_node
+NET_TEST_DIR	:= @SRCDIR@/net/test/linux_kernel
+
+obj-m		:= $(NET_TEST).o
+
+shared_src	:=
+kernel_src	:= node_k.c
+
+$(NET_TEST)-y	:= $(shared_src:.c=.o) $(kernel_src:.c=.o)
+orig		:= $(shared_src:%=../%)
+
+EXTRA_CFLAGS	= -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
+
+prepare:
+	true
+
+clean distclean:
+	$(RM) $(shared_src) Module.markers Module.symvers modules.order
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
+
+distdir:
+	cp $(NET_TEST_DIR)/Makefile.in \
+	@top_builddir@/@PACKAGE@-@VERSION@/$(NET_TEST)/linux_kernel
