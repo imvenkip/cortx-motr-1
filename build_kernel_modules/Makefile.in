@@ -167,7 +167,7 @@ rpc_SOURCES                     := rpc2.c service.c                            \
 
 rpc_HEADERS                     := session_ff.h
 
-rpc_ut_SOURCES                  := service.c formation2.c conn_ut.c
+rpc_ut_SOURCES                  := service.c formation2.c conn.c
 
 sm_SOURCES                      := sm.c
 sm_ut_SOURCES                   := sm.c
