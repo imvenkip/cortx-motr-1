@@ -434,7 +434,7 @@ void c2_cm_state_set(struct c2_cm *cm, enum c2_cm_state state)
 	C2_PRE(c2_cm_is_locked(cm));
 
 	c2_sm_state_set(&cm->cm_mach, state);
-	C2_LOG("CM:%s%lu: %i", (char *)cm->cm_type->ct_stype.rst_name,
+	C2_LOG(C2_INFO, "CM:%s%lu: %i", (char *)cm->cm_type->ct_stype.rst_name,
 	       cm->cm_id, c2_cm_state_get(cm));
 }
 
