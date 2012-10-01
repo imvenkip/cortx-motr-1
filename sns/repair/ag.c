@@ -18,6 +18,7 @@
  * Original creation date: 12/09/2012
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_SNSREPAIR
 #include "sns/repair/ag.h"
 
 /**

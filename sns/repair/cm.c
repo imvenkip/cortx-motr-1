@@ -22,6 +22,7 @@
 #include "config.h"
 #endif
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_SNSREPAIR
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
@@ -354,6 +355,8 @@ static int cm_setup(struct c2_cm *cm)
 	uint64_t                 colours;
 	int                      rc;
 
+	C2_ENTRY("cm: %p", cm);
+
 	rcm = cm2sns(cm);
 	reqh = cm->cm_service.rs_reqh;
 	/*
@@ -385,6 +388,7 @@ static int cm_setup(struct c2_cm *cm)
 	if (rc == 0)
 		rc = c2_cobfid_map_get(reqh, &rcm->rc_cfm);
 
+	C2_LEAVE();
 	return rc;
 }
 
@@ -407,7 +411,7 @@ static int cm_start(struct c2_cm *cm)
 	struct c2_sns_repair_cm *rcm;
 	int                      bufs_nr;
 
-	C2_ENTRY();
+	C2_ENTRY("cm: %p", cm);
 
 	rcm = cm2sns(cm);
 
@@ -438,7 +442,7 @@ static void cm_fini(struct c2_cm *cm)
 {
 	struct c2_sns_repair_cm *rcm;
 
-	C2_ENTRY();
+	C2_ENTRY("cm: %p", cm);
 
 	rcm = cm2sns(cm);
 	c2_net_buffer_pool_fini(&rcm->rc_ibp);

@@ -19,6 +19,8 @@
  *                  Anup Barve <anup_barve@xyratex.com>
  * Original creation date: 08/06/2012
  */
+
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_SNSREPAIR
 #include "lib/memory.h" /* c2_free() */
 
 #include "fop/fom.h"
