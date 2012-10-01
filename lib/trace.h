@@ -70,7 +70,7 @@
    Users produce trace records by calling C2_LOG() macro like
 
    @code
-   C2_LOG("Cached value found: %llx, attempt: %i", foo->f_val, i);
+   C2_LOG(C2_INFO, "Cached value found: %llx, attempt: %i", foo->f_val, i);
    @endcode
 
    These records are placed in a shared cyclic buffer. The buffer can be
@@ -141,14 +141,14 @@
  */
 
 /**
-   C2_LOG(fmt, ...) is the main user interface for the tracing. It accepts
-   the arguments in printf(3) format for the numbers, but there are some
+   C2_LOG(level, fmt, ...) is the main user interface for the tracing. It
+   accepts the arguments in printf(3) format for the numbers, but there are some
    tricks for string arguments.
 
    String arguments should be specified like this:
 
    @code
-   C2_LOG("%s", (char *)"foo");
+   C2_LOG(C2_DEBUG, "%s", (char *)"foo");
    @endcode
 
    i.e. explicitly typecast to the pointer. It is because typeof("foo")

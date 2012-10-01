@@ -764,18 +764,15 @@ static void test_net_bulk_if(void)
 	C2_UT_ASSERT(c2_atomic64_get(&ep->nep_ref.ref_cnt) == 3);
 
 	C2_UT_ASSERT(ut_end_point_release_called == false);
-	rc = c2_net_end_point_put(ep); /* refcnt=2 */
-	C2_UT_ASSERT(rc == 0);
+	c2_net_end_point_put(ep); /* refcnt=2 */
 	C2_UT_ASSERT(ut_end_point_release_called == false);
 	C2_UT_ASSERT(c2_atomic64_get(&ep->nep_ref.ref_cnt) == 2);
 
-	rc = c2_net_end_point_put(ep); /* refcnt=1 */
-	C2_UT_ASSERT(rc == 0);
+	c2_net_end_point_put(ep); /* refcnt=1 */
 	C2_UT_ASSERT(ut_end_point_release_called == false);
 	C2_UT_ASSERT(c2_atomic64_get(&ep->nep_ref.ref_cnt) == 1);
 
-	rc = c2_net_end_point_put(ep); /* refcnt=0 */
-	C2_UT_ASSERT(rc == 0);
+	c2_net_end_point_put(ep); /* refcnt=0 */
 	C2_UT_ASSERT(ut_end_point_release_called);
 	C2_UT_ASSERT(ut_last_ep_released == ep);
 	ep1 = NULL; /* not valid! */
@@ -1018,8 +1015,7 @@ static void test_net_bulk_if(void)
 
 	/* free end point */
 	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 2);
-	rc = c2_net_end_point_put(ep2);
-	C2_UT_ASSERT(rc == 0);
+	c2_net_end_point_put(ep2);
 
 	/* TM stop */
 	c2_clink_add(&tm->ntm_chan, &tmwait);

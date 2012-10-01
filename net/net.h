@@ -427,7 +427,7 @@ c2_bcount_t c2_net_domain_get_max_buffer_size(struct c2_net_domain *dom);
 /**
    This subroutine is used to determine the maximum buffer segment size.
    @param dom     Pointer to the domain.
-   @retval size    Returns the maximum buffer size.
+   @retval size    Returns the maximum buffer segment size.
  */
 c2_bcount_t c2_net_domain_get_max_buffer_segment_size(struct c2_net_domain
 						      *dom);
@@ -517,10 +517,8 @@ void c2_net_end_point_get(struct c2_net_end_point *ep);
    @pre ep->nep_ref->ref_cnt >= 1
    @note The transfer machine mutex will be obtained internally to synchronize
    the transport provided release() method in case the end point gets released.
-   @retval 0 (success)
-   @retval -errno (failure)
  */
-int c2_net_end_point_put(struct c2_net_end_point *ep);
+void c2_net_end_point_put(struct c2_net_end_point *ep);
 
 /**
     This enumeration describes the types of logical queues in a transfer
