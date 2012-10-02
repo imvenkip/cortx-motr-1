@@ -102,7 +102,7 @@
    desirable state, the latter register a clink with c2_sm::sm_chan.
 
    "Input" events cause state transitions. Typical examples of such events are:
-   completion of a network of storage communication, timeout or a state
+   completion of a network or storage communication, timeout or a state
    transition in a different state machine. Such events often happen in
    "awkward" context: signal and interrupt handlers, timer call-backs and
    similar. Acquiring the group's mutex, necessary for state transition in such
