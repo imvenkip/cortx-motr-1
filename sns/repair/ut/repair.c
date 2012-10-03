@@ -104,7 +104,7 @@ const struct c2_test_suite sns_repair_ut = {
 	.ts_tests = {
 		{ "service-startstop", test_service_start_success},
 		{ "service-init-fail", test_service_init_failure},
-		{ "service-init-fail", test_service_start_failure},
+		{ "service-start-fail", test_service_start_failure},
 		{ NULL, NULL }
 	}
 };
