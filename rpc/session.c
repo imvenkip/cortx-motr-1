@@ -403,7 +403,8 @@ bool c2_rpc_session_timedwait(struct c2_rpc_session *session,
 
 	while ((session->s_state & state_flags) == 0 && got_event) {
 		got_event = c2_cond_timedwait(&session->s_state_changed,
-					      &machine->rm_mutex, abs_timeout);
+					      c2_rpc_machine_mutex(machine),
+					      abs_timeout);
 		/*
 		 * If got_event == false then TIME_OUT has occured.
 		 * break the loop
@@ -513,7 +514,7 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 	conn = session->s_conn;
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
-	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
+	C2_ASSERT(conn_state(conn) == C2_RPC_CONN_ACTIVE);
 
 	fop  = &ctx->sec_fop;
 	args = c2_fop_data(fop);
@@ -536,7 +537,8 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 	C2_POST(c2_rpc_session_invariant(session));
 	C2_POST(c2_rpc_conn_invariant(conn));
 
-	c2_cond_broadcast(&session->s_state_changed, &machine->rm_mutex);
+	c2_cond_broadcast(&session->s_state_changed,
+			  c2_rpc_machine_mutex(machine));
 	c2_rpc_machine_unlock(machine);
 
 	/* see c2_rpc_session_establish_reply_received() */
@@ -642,7 +644,8 @@ out:
 	C2_POST(C2_IN(session->s_state, (C2_RPC_SESSION_IDLE,
 					 C2_RPC_SESSION_FAILED)));
 
-	c2_cond_broadcast(&session->s_state_changed, &machine->rm_mutex);
+	c2_cond_broadcast(&session->s_state_changed,
+			  c2_rpc_machine_mutex(machine));
 
 	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 	C2_LEAVE();
@@ -760,7 +763,8 @@ out_unlock:
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_POST(ergo(rc != 0, session->s_state == C2_RPC_SESSION_FAILED));
 
-	c2_cond_broadcast(&session->s_state_changed, &machine->rm_mutex);
+	c2_cond_broadcast(&session->s_state_changed,
+			  c2_rpc_machine_mutex(machine));
 
 	c2_rpc_machine_unlock(machine);
 
@@ -812,7 +816,7 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *item)
 	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
-	C2_ASSERT(conn->c_state == C2_RPC_CONN_ACTIVE);
+	C2_ASSERT(conn_state(conn) == C2_RPC_CONN_ACTIVE);
 
 	reply_item = item->ri_reply;
 	rc         = item->ri_error;
@@ -845,7 +849,8 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *item)
 	C2_ASSERT(C2_IN(session->s_state, (C2_RPC_SESSION_TERMINATED,
 					   C2_RPC_SESSION_FAILED)));
 
-	c2_cond_broadcast(&session->s_state_changed, &machine->rm_mutex);
+	c2_cond_broadcast(&session->s_state_changed,
+			  c2_rpc_machine_mutex(machine));
 
 	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 	C2_LEAVE();
@@ -874,7 +879,7 @@ void c2_rpc_session_hold_busy(struct c2_rpc_session *session)
 	if (session->s_state == C2_RPC_SESSION_IDLE) {
 		session->s_state = C2_RPC_SESSION_BUSY;
 		c2_cond_broadcast(&session->s_state_changed,
-				  &machine->rm_mutex);
+				  c2_rpc_machine_mutex(machine));
 	}
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_POST(session->s_state == C2_RPC_SESSION_BUSY);
@@ -897,7 +902,7 @@ void c2_rpc_session_release(struct c2_rpc_session *session)
 	if (c2_rpc_session_is_idle(session)) {
 		session->s_state = C2_RPC_SESSION_IDLE;
 		c2_cond_broadcast(&session->s_state_changed,
-				  &machine->rm_mutex);
+				  c2_rpc_machine_mutex(machine));
 	}
 
 	C2_ASSERT(c2_rpc_session_invariant(session));

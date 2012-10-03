@@ -269,7 +269,7 @@ int c2_rpc_slot_cob_create(struct c2_cob   *session_cob,
 /**
    Initalises receiver end of conn object.
 
-   @post ergo(result == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
+   @post ergo(result == 0, conn_state(conn) == C2_RPC_CONN_INITIALISED &&
 			   conn->c_rpc_machine == machine &&
 			   conn->c_sender_id == SENDER_ID_INVALID &&
 			   (conn->c_flags & RCF_RECV_END) != 0)
@@ -281,13 +281,13 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
 /**
    Creates a receiver end of conn.
 
-   @pre conn->c_state == C2_RPC_CONN_INITIALISED
-   @post ergo(result == 0, conn->c_state == C2_RPC_CONN_ACTIVE &&
+   @pre conn_state(conn) == C2_RPC_CONN_INITIALISED
+   @post ergo(result == 0, conn_state(conn) == C2_RPC_CONN_ACTIVE &&
 			   conn->c_sender_id != SENDER_ID_INVALID &&
 			   c2_list_contains(&machine->rm_incoming_conns,
 					    &conn->c_link)
-   @post ergo(result != 0, conn->c_state == C2_RPC_CONN_FAILED)
-   @post ergo(result == 0, conn->c_state == C2_RPC_CONN_ACTIVE)
+   @post ergo(result != 0, conn_state(conn) == C2_RPC_CONN_FAILED)
+   @post ergo(result == 0, conn_state(conn) == C2_RPC_CONN_ACTIVE)
  */
 int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn);
 
@@ -314,10 +314,10 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session);
 /**
    Terminates receiver end of rpc connection.
 
-   @pre conn->c_state == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0
-   @post ergo(result == 0, conn->c_state == C2_RPC_CONN_TERMINATING)
+   @pre conn_state(conn) == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0
+   @post ergo(result == 0, conn_state(conn) == C2_RPC_CONN_TERMINATING)
    @post ergo(result != 0 && result != -EBUSY,
-		conn->c_state == C2_RPC_CONN_FAILED)
+		conn_state(conn) == C2_RPC_CONN_FAILED)
  */
 int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn);
 
@@ -333,7 +333,7 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn);
    slot-0 of the rpc connection being terminated. Hence we cleanup in memory
    state of the conn when conn_terminate_reply has been sent.
 
-   @pre conn->c_state == C2_RPC_CONN_TERMINATING
+   @pre conn_state(conn) == C2_RPC_CONN_TERMINATING
  */
 void conn_terminate_reply_sent(struct c2_rpc_conn *conn);
 
@@ -437,7 +437,7 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req);
   A callback called when conn terminate reply has been put on network.
   Finalizes and frees conn.
 
-  @pre conn->c_state == C2_RPC_CONN_TERMINATING
+  @pre conn_state(conn) == C2_RPC_CONN_TERMINATING
  */
 void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn);
 

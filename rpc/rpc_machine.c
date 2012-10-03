@@ -196,24 +196,22 @@ C2_EXPORTED(c2_rpc_machine_init);
 static void __rpc_machine_init(struct c2_rpc_machine *machine)
 {
 	C2_ENTRY("machine: %p", machine);
-
 	c2_list_init(&machine->rm_chans);
 	c2_list_init(&machine->rm_incoming_conns);
 	c2_list_init(&machine->rm_outgoing_conns);
 	c2_rpc_services_tlist_init(&machine->rm_services);
-	c2_mutex_init(&machine->rm_mutex);
 	c2_addb_ctx_init(&machine->rm_addb, &rpc_machine_addb_ctx_type,
 			 &c2_addb_global_ctx);
 	c2_rpc_machine_bob_init(machine);
-
+	c2_sm_group_init(&machine->rm_sm_grp);
 	C2_LEAVE();
 }
 
 static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 {
 	C2_ENTRY("machine %p", machine);
+	c2_sm_group_fini(&machine->rm_sm_grp);
 	c2_addb_ctx_fini(&machine->rm_addb);
-	c2_mutex_fini(&machine->rm_mutex);
 	c2_rpc_services_tlist_fini(&machine->rm_services);
 	c2_list_fini(&machine->rm_outgoing_conns);
 	c2_list_fini(&machine->rm_incoming_conns);
@@ -416,22 +414,27 @@ static void conn_list_fini(struct c2_list *list)
 	C2_LEAVE();
 }
 
+struct c2_mutex *c2_rpc_machine_mutex(struct c2_rpc_machine *machine)
+{
+	return &machine->rm_sm_grp.s_lock;
+}
+
 void c2_rpc_machine_lock(struct c2_rpc_machine *machine)
 {
 	C2_PRE(machine != NULL);
-	c2_mutex_lock(&machine->rm_mutex);
+	c2_sm_group_lock(&machine->rm_sm_grp);
 }
 
 void c2_rpc_machine_unlock(struct c2_rpc_machine *machine)
 {
 	C2_PRE(machine != NULL);
-	c2_mutex_unlock(&machine->rm_mutex);
+	c2_sm_group_unlock(&machine->rm_sm_grp);
 }
 
 bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine)
 {
 	C2_PRE(machine != NULL);
-	return c2_mutex_is_locked(&machine->rm_mutex);
+	return c2_mutex_is_locked(&machine->rm_sm_grp.s_lock);
 }
 C2_EXPORTED(c2_rpc_machine_is_locked);
 
@@ -445,6 +448,12 @@ struct c2_rpc_chan *rpc_chan_get(struct c2_rpc_machine *machine,
 		 (unsigned long long)max_packets_in_flight);
 	C2_PRE(dest_ep != NULL);
 	C2_PRE(c2_rpc_machine_is_locked(machine));
+
+	if (C2_FI_ENABLED("fake_error"))
+		return NULL;
+
+	if (C2_FI_ENABLED("do_nothing"))
+		return (struct c2_rpc_chan *)1;
 
 	chan = rpc_chan_locate(machine, dest_ep);
 	if (chan == NULL)
@@ -530,6 +539,9 @@ void rpc_chan_put(struct c2_rpc_chan *chan)
 
 	C2_ENTRY();
 	C2_PRE(chan != NULL);
+
+	if (C2_FI_ENABLED("do_nothing"))
+		return;
 
 	machine = chan->rc_rpc_machine;
 	C2_PRE(c2_rpc_machine_is_locked(machine));

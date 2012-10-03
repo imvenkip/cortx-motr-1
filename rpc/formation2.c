@@ -30,6 +30,7 @@
 #include "rpc/item.h"
 #include "rpc/formation2.h"
 #include "rpc/packet.h"
+#include "lib/finject.h"       /* C2_FI_ENABLED */
 
 static bool itemq_invariant(const struct c2_tl *q);
 static c2_bcount_t itemq_nr_bytes_acc(const struct c2_tl *q);
@@ -618,6 +619,9 @@ static bool frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 
 void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm)
 {
+	if (C2_FI_ENABLED("do_nothing"))
+		return;
+
 	C2_ENTRY("frm: %p", frm);
 	C2_ASSERT(frm_invariant(frm));
 	C2_PRE(frm_rmachine_is_locked(frm));

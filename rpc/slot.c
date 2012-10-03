@@ -445,7 +445,7 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 			 */
 			session->s_state = C2_RPC_SESSION_BUSY;
 			c2_cond_broadcast(&session->s_state_changed,
-					  &machine->rm_mutex);
+					  c2_rpc_machine_mutex(machine));
 		}
 	}
 
@@ -642,7 +642,7 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		if (c2_rpc_session_is_idle(session)) {
 			session->s_state = C2_RPC_SESSION_IDLE;
 			c2_cond_broadcast(&session->s_state_changed,
-					  &machine->rm_mutex);
+					  c2_rpc_machine_mutex(machine));
 		}
 		C2_ASSERT(c2_rpc_session_invariant(session));
 
