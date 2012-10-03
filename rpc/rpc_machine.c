@@ -55,7 +55,7 @@ static int rpc_tm_setup(struct c2_net_transfer_mc *tm,
 static void __rpc_machine_init(struct c2_rpc_machine *machine);
 static void __rpc_machine_fini(struct c2_rpc_machine *machine);
 static int root_session_cob_create(struct c2_cob_domain *dom);
-static void conn_list_fini(struct c2_list *list);
+static void conn_list_fini(struct c2_tl *list);
 static void frm_worker_fn(struct c2_rpc_machine *machine);
 static struct c2_rpc_chan *rpc_chan_locate(struct c2_rpc_machine *machine,
 					   struct c2_net_end_point *dest_ep);
@@ -77,6 +77,7 @@ static void item_received(struct c2_rpc_item      *item,
 			  struct c2_rpc_machine   *machine,
 			  struct c2_net_end_point *from_ep);
 static void net_buf_err(struct c2_net_buffer *nb, int32_t status);
+
 
 /* ADDB Instrumentation for rpccore. */
 static const struct c2_addb_ctx_type rpc_machine_addb_ctx_type = {
@@ -107,6 +108,15 @@ const struct c2_net_buffer_callbacks c2_rpc_rcv_buf_callbacks = {
 		[C2_NET_QT_MSG_RECV] = net_buf_event_handler,
 	}
 };
+
+C2_TL_DESCR_DEFINE(rpc_chan, "rpc_channels", static, struct c2_rpc_chan,
+		   rc_linkage, rc_magic, C2_RPC_CHAN_MAGIC,
+		   C2_RPC_CHAN_HEAD_MAGIC);
+C2_TL_DEFINE(rpc_chan, static, struct c2_rpc_chan);
+
+C2_TL_DESCR_DEFINE(rpc_conn, "rpc-conn", /* global */, struct c2_rpc_conn,
+		   c_link, c_magic, C2_RPC_CONN_MAGIC, C2_RPC_CONN_HEAD_MAGIC);
+C2_TL_DEFINE(rpc_conn, /* global */, struct c2_rpc_conn);
 
 static void rpc_tm_event_cb(const struct c2_net_tm_event *ev)
 {
@@ -196,9 +206,9 @@ C2_EXPORTED(c2_rpc_machine_init);
 static void __rpc_machine_init(struct c2_rpc_machine *machine)
 {
 	C2_ENTRY("machine: %p", machine);
-	c2_list_init(&machine->rm_chans);
-	c2_list_init(&machine->rm_incoming_conns);
-	c2_list_init(&machine->rm_outgoing_conns);
+	rpc_chan_tlist_init(&machine->rm_chans);
+	rpc_conn_tlist_init(&machine->rm_incoming_conns);
+	rpc_conn_tlist_init(&machine->rm_outgoing_conns);
 	c2_rpc_services_tlist_init(&machine->rm_services);
 	c2_addb_ctx_init(&machine->rm_addb, &rpc_machine_addb_ctx_type,
 			 &c2_addb_global_ctx);
@@ -213,9 +223,9 @@ static void __rpc_machine_fini(struct c2_rpc_machine *machine)
 	c2_sm_group_fini(&machine->rm_sm_grp);
 	c2_addb_ctx_fini(&machine->rm_addb);
 	c2_rpc_services_tlist_fini(&machine->rm_services);
-	c2_list_fini(&machine->rm_outgoing_conns);
-	c2_list_fini(&machine->rm_incoming_conns);
-	c2_list_fini(&machine->rm_chans);
+	rpc_conn_tlist_fini(&machine->rm_outgoing_conns);
+	rpc_conn_tlist_fini(&machine->rm_incoming_conns);
+	rpc_chan_tlist_fini(&machine->rm_chans);
 	c2_rpc_machine_bob_fini(machine);
 	C2_LEAVE();
 }
@@ -254,7 +264,7 @@ void c2_rpc_machine_fini(struct c2_rpc_machine *machine)
 	c2_thread_join(&machine->rm_frm_worker);
 
 	c2_rpc_machine_lock(machine);
-	C2_PRE(c2_list_is_empty(&machine->rm_outgoing_conns));
+	C2_PRE(rpc_conn_tlist_is_empty(&machine->rm_outgoing_conns));
 	conn_list_fini(&machine->rm_incoming_conns);
 	c2_rpc_machine_unlock(machine);
 
@@ -286,10 +296,9 @@ static void frm_worker_fn(struct c2_rpc_machine *machine)
 			C2_LEAVE("frm worker thread STOPPED");
 			return;
 		}
-		c2_list_for_each_entry(&machine->rm_chans, chan,
-				       struct c2_rpc_chan, rc_linkage) {
+		c2_tl_for(rpc_chan, &machine->rm_chans, chan) {
 			c2_rpc_frm_run_formation(&chan->rc_frm);
-		}
+		} c2_tl_endfor;
 		c2_rpc_machine_unlock(machine);
 		c2_nanosleep(c2_time(0, 100 * MILLI_SEC), NULL);
 	}
@@ -399,18 +408,16 @@ static void rpc_tm_cleanup(struct c2_rpc_machine *machine)
    is a temporary routine, that cleans up all terminated connections from
    rpc connection list maintained in rpc_machine.
  */
-static void conn_list_fini(struct c2_list *list)
+static void conn_list_fini(struct c2_tl *list)
 {
         struct c2_rpc_conn *conn;
-        struct c2_rpc_conn *conn_next;
 
 	C2_ENTRY();
         C2_PRE(list != NULL);
 
-        c2_list_for_each_entry_safe(list, conn, conn_next, struct c2_rpc_conn,
-				    c_link) {
+	c2_tl_for(rpc_conn, list, conn) {
                 c2_rpc_conn_terminate_reply_sent(conn);
-        }
+        } c2_tl_endfor;
 	C2_LEAVE();
 }
 
@@ -476,8 +483,7 @@ static struct c2_rpc_chan *rpc_chan_locate(struct c2_rpc_machine *machine,
 
 	found = false;
 	/* Locate the chan from rpc_machine->chans list. */
-	c2_list_for_each_entry(&machine->rm_chans, chan, struct c2_rpc_chan,
-			       rc_linkage) {
+	c2_tl_for(rpc_chan, &machine->rm_chans, chan) {
 		C2_ASSERT(chan->rc_destep->nep_tm->ntm_dom ==
 			  dest_ep->nep_tm->ntm_dom);
 		if (chan->rc_destep == dest_ep) {
@@ -486,7 +492,7 @@ static struct c2_rpc_chan *rpc_chan_locate(struct c2_rpc_machine *machine,
 			found = true;
 			break;
 		}
-	}
+	} c2_tl_endfor;
 
 	C2_LEAVE("rc: %p", found ? chan : NULL);
 	return found ? chan : NULL;
@@ -528,7 +534,7 @@ static int rpc_chan_create(struct c2_rpc_chan **chan,
 				c2_net_domain_get_max_buffer_segments(ndom);
 
 	c2_rpc_frm_init(&ch->rc_frm, &constraints, &c2_rpc_frm_default_ops);
-	c2_list_add(&machine->rm_chans, &ch->rc_linkage);
+	rpc_chan_tlink_init_at(ch, &machine->rm_chans);
 	*chan = ch;
 	C2_RETURN(0);
 }
@@ -562,7 +568,7 @@ static void rpc_chan_ref_release(struct c2_ref *ref)
 	C2_ASSERT(chan != NULL);
 	C2_ASSERT(c2_rpc_machine_is_locked(chan->rc_rpc_machine));
 
-	c2_list_del(&chan->rc_linkage);
+	rpc_chan_tlist_del(chan);
 	c2_rpc_frm_fini(&chan->rc_frm);
 	c2_free(chan);
 	C2_LEAVE();

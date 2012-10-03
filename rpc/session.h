@@ -512,18 +512,20 @@ struct c2_rpc_conn {
 
 	/** list_link to put c2_rpc_conn in either
 	    c2_rpc_machine::rm_incoming_conns or
-	    c2_rpc_machine::rm_outgoing_conns
+	    c2_rpc_machine::rm_outgoing_conns.
+	    List descriptor: rpc_conn
 	 */
-	struct c2_list_link       c_link;
+	struct c2_tlink		  c_link;
 
 	/** Counts number of sessions (excluding session 0) */
 	uint64_t                  c_nr_sessions;
 
 	/** List of all the sessions created under this rpc connection.
 	    c2_rpc_session objects are placed in this list using
-	    c2_rpc_session::s_link
+	    c2_rpc_session::s_link.
+	    List descriptor: session
 	 */
-	struct c2_list            c_sessions;
+	struct c2_tl              c_sessions;
 
 	struct c2_rpc_service    *c_service;
 
@@ -539,6 +541,9 @@ struct c2_rpc_conn {
 	    @see c2_rpc_conn_state, conn_conf
 	 */
 	struct c2_sm		  c_sm;
+
+	/** C2_RPC_CONN_MAGIC */
+	uint64_t		  c_magic;
 };
 
 /**
@@ -885,8 +890,10 @@ struct c2_rpc_session {
 	/** rpc connection on which this session is created */
 	struct c2_rpc_conn       *s_conn;
 
-	/** linkage into list of all sessions within a c2_rpc_conn */
-	struct c2_list_link       s_link;
+	/** Link in RPC conn. c2_rpc_conn::c_sessions
+	    List descriptor: session
+	 */
+	struct c2_tlink		  s_link;
 
 	/** Cob representing this session in persistent state */
 	struct c2_cob            *s_cob;
@@ -929,7 +936,10 @@ struct c2_rpc_session {
 	/** List of slots, which can be associated with an unbound item.
 	    Link: c2_rpc_slot::sl_link
 	 */
-	struct c2_list            s_ready_slots;
+	struct c2_tl              s_ready_slots;
+
+	/** C2_RPC_SESSION_MAGIC */
+	uint64_t		  s_magic;
 };
 
 /**
@@ -1188,7 +1198,7 @@ struct c2_rpc_slot {
 	struct c2_cob                *sl_cob;
 
 	/** list anchor to put in c2_rpc_session::s_ready_slots */
-	struct c2_list_link           sl_link;
+	struct c2_tlink		      sl_link;
 
 	/** Current version number of slot */
 	struct c2_verno               sl_verno;
@@ -1203,8 +1213,9 @@ struct c2_rpc_slot {
 
 	/** List of items, starting from oldest. Items are placed using
 	    c2_rpc_item::ri_slot_refs[0].sr_link
+	    List descriptor: slot_item
 	 */
-	struct c2_list                sl_item_list;
+	struct c2_tl                  sl_item_list;
 
 	/** earliest item that the receiver possibly have seen */
 	struct c2_rpc_item           *sl_last_sent;
@@ -1222,12 +1233,10 @@ struct c2_rpc_slot {
 	    @see SLOT_DEFAULT_MAX_IN_FLIGHT */
 	uint32_t                      sl_max_in_flight;
 
-	/** List of items ready to put in rpc. Items are placed in this
-	    list using c2_rpc_item::ri_slot_refs[0].sr_ready_link
-	 */
-	struct c2_list                sl_ready_list;
-
 	const struct c2_rpc_slot_ops *sl_ops;
+
+	/** C2_RPC_SLOT_MAGIC */
+	uint64_t		      sl_magic;
 };
 
 /** @} end of session group */

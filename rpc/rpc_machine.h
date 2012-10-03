@@ -26,7 +26,6 @@
 #define __COLIBRI_RPC_MACHINE_H__
 
 #include "lib/types.h"
-#include "lib/list.h"
 #include "lib/tlist.h"
 #include "lib/mutex.h"
 #include "lib/time.h"
@@ -50,6 +49,7 @@
 /* Imports */
 struct c2_cob_domain;
 struct c2_reqh;
+struct c2_rpc_conn;
 
 enum {
 	/** Default Maximum RPC message size is taken as 128k */
@@ -88,17 +88,22 @@ struct c2_rpc_stats {
  */
 struct c2_rpc_machine {
 	struct c2_sm_group		  rm_sm_grp;
-	/** List of c2_rpc_chan structures. */
-	struct c2_list			  rm_chans;
+
+	/** List of c2_rpc_chan objects, linked using rc_linkage.
+	    List descriptor: rpc_chan
+	 */
+	struct c2_tl			  rm_chans;
 	/** Transfer machine associated with this endpoint.*/
 	struct c2_net_transfer_mc	  rm_tm;
 	/** Cob domain in which cobs related to session will be stored */
 	struct c2_cob_domain		 *rm_dom;
-	/** List of rpc connections
+	/** List of c2_rpc_conn objects, linked using c_link.
+	    List descriptor: rpc_conn
 	    conn is in list if conn->c_state is not in {CONN_UNINITIALIZED,
-	    CONN_FAILED, CONN_TERMINATED} */
-	struct c2_list			  rm_incoming_conns;
-	struct c2_list			  rm_outgoing_conns;
+	    CONN_FAILED, CONN_TERMINATED}
+	 */
+	struct c2_tl			  rm_incoming_conns;
+	struct c2_tl			  rm_outgoing_conns;
 	/** ADDB context for this rpc_machine */
 	struct c2_addb_ctx		  rm_addb;
 	/** Statistics for both incoming and outgoing paths */
@@ -159,8 +164,10 @@ struct c2_rpc_machine {
    it is working with.
  */
 struct c2_rpc_chan {
-	/** Linkage to the list maintained by c2_rpc_machine.*/
-	struct c2_list_link		  rc_linkage;
+	/** Link in c2_rpc_machine::rm_chans list.
+	    List descriptor: rpc_chan
+	 */
+	struct c2_tlink			  rc_linkage;
 	/** Number of c2_rpc_conn structures using this transfer machine.*/
 	struct c2_ref			  rc_ref;
 	/** Formation state machine associated with chan. */
@@ -169,6 +176,8 @@ struct c2_rpc_chan {
 	struct c2_net_end_point		 *rc_destep;
 	/** The rpc_machine, this chan structure is associated with.*/
 	struct c2_rpc_machine		 *rc_rpc_machine;
+	/** C2_RPC_CHAN_MAGIC */
+	uint64_t			  rc_magic;
 };
 
 extern const struct c2_addb_loc c2_rpc_machine_addb_loc;
@@ -223,12 +232,6 @@ bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine);
 struct c2_mutex *c2_rpc_machine_mutex(struct c2_rpc_machine *machine);
 
 /**
-   @name stat_ifs STATISTICS IFs
-   Iterfaces, returning different properties of rpc_machine.
-   @{
- */
-
-/**
    Returns average time spent in the cache for one RPC-item
    @note c2_rpc_core_init() and c2_rpc_machine_init() have been called before
    @param machine rpc_machine operation applied to.
@@ -266,7 +269,8 @@ static bool frm_rmachine_is_locked(const struct c2_rpc_frm *frm)
 
 C2_BOB_DECLARE(extern, c2_rpc_machine);
 
-/** @} end name stat_ifs */
+C2_TL_DESCR_DECLARE(rpc_conn, extern);
+C2_TL_DECLARE(rpc_conn, extern, struct c2_rpc_conn);
 
 /** @} end of rpc-layer-core group */
 #endif /* __COLIBRI_RPC_MACHINE_H__ */

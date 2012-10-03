@@ -382,11 +382,10 @@ struct c2_rpc_slot_ref {
 	/** Generation number of slot */
 	uint64_t                   sr_slot_gen;
 
-	/** Anchor to put item on c2_rpc_slot::sl_item_list */
-	struct c2_list_link        sr_link;
-
-	/** Anchor to put item on c2_rpc_slot::sl_ready_list */
-	struct c2_list_link        sr_ready_link;
+	/** Anchor to put item on c2_rpc_slot::sl_item_list
+	    List descriptor: slot_item
+	 */
+	struct c2_tlink            sr_link;
 };
 
 /**
@@ -440,13 +439,6 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req);
   @pre conn_state(conn) == C2_RPC_CONN_TERMINATING
  */
 void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn);
-
-/**
-   Iterates over all the sessions in rpc connection
- */
-#define c2_rpc_for_each_session(conn, session)  \
-	c2_list_for_each_entry(&(conn)->c_sessions, (session),  \
-		struct c2_rpc_session, s_link)
 
 enum {
 	/**
@@ -541,6 +533,20 @@ bool c2_rpc_session_bind_item(struct c2_rpc_item *item);
 int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active,
 				int count);
 #endif
+
+C2_TL_DESCR_DECLARE(rpc_session, extern);
+C2_TL_DECLARE(rpc_session, extern, struct c2_rpc_session);
+
+C2_TL_DESCR_DECLARE(ready_slot, extern);
+C2_TL_DECLARE(ready_slot, extern, struct c2_rpc_slot);
+
+C2_TL_DESCR_DECLARE(slot_item, extern);
+C2_TL_DECLARE(slot_item, extern, struct c2_rpc_item);
+
+/** Helper macro to iterate over every item in a slot */
+#define for_each_item_in_slot(item, slot) \
+	        c2_tl_for(slot_item, &slot->sl_item_list, item)
+#define end_for_each_item_in_slot c2_tl_endfor
 
 /** @}  End of rpc_session group */
 #endif
