@@ -19,6 +19,12 @@
  * Original creation date: 20/09/2012
  */
 
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_CM
+
 #include "cm/ag.h"
 
 /**

@@ -23,6 +23,8 @@
 #include <config.h>
 #endif
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_CM
+
 #include "lib/trace.h"   /* C2_LOG */
 #include "lib/bob.h"     /* C2_BOB_DEFINE */
 #include "lib/misc.h"    /* C2_SET0 */
@@ -613,8 +615,9 @@ void c2_cm_fini(struct c2_cm *cm)
 	C2_PRE(c2_cm_invariant(cm));
 
 	cm->cm_ops->cmo_fini(cm);
-	C2_LOG("CM: %s:%lu: %i", (char *)cm->cm_type->ct_stype.rst_name,
-	       cm->cm_id, cm->cm_mach.sm_state);
+	C2_LOG(C2_INFO, "CM: %s:%lu: %i",
+	      (char *)cm->cm_type->ct_stype.rst_name,
+	      cm->cm_id, cm->cm_mach.sm_state);
 	c2_cm_state_set(cm, C2_CMS_FINI);
 	c2_cm_unlock(cm);
 

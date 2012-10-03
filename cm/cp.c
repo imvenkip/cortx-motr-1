@@ -20,6 +20,8 @@
  * Original creation date: 02/22/2012
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_CM
+
 #include "lib/misc.h"   /* c2_forall */
 #include "colibri/magic.h"
 #include "reqh/reqh.h"
