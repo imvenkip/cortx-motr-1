@@ -328,7 +328,7 @@ enum c2_magic_satchel {
 	/* itemq_tl::td_head_magic (dazzled cliff) */
 	C2_RPC_ITEMQ_HEAD_MAGIC = 0x33da221edc11ff77,
 
-	/* c2_rpc_item::ri_link_magic (boiled coolie) */
+	/* c2_rpc_item::ri_magic (boiled coolie) */
 	C2_RPC_ITEM_MAGIC = 0x33b011edc0011e77,
 
 	/* rpcitem_tl::td_head_magic (disabled disc) */

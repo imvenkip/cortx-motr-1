@@ -938,7 +938,7 @@ struct c2_rpc_session {
 	 */
 	struct c2_tl              s_ready_slots;
 
-	/** Magic number  */
+	/** C2_RPC_SESSION_MAGIC */
 	uint64_t		  s_magic;
 };
 
@@ -1235,7 +1235,7 @@ struct c2_rpc_slot {
 
 	const struct c2_rpc_slot_ops *sl_ops;
 
-	/** Magic constant to verify sanity of linked rpc slot */
+	/** C2_RPC_SLOT_MAGIC */
 	uint64_t		      sl_magic;
 };
 
