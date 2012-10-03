@@ -33,6 +33,7 @@
 #include "rpc/it/ping_fom.h"
 #include "rpc/rpclib.h" /* c2_rpc_server_start */
 #include "ut/rpc.h"     /* c2_rpc_client_init */
+#include "ut/ut.h"
 #include "fop/fop.h"    /* c2_fop_default_item_ops */
 #include "reqh/reqh.h"  /* c2_reqh_rpc_mach_tl */
 #include "rpc/it/ping_fop_ff.h"
@@ -446,6 +447,9 @@ static int run_server(void)
 	rc = c2_init();
 	if (rc != 0)
 		return rc;
+	rc = c2_ut_init();
+	if (rc != 0)
+		goto c2_fini;
 
 	rc = c2_ping_fop_init();
 	if (rc != 0)
@@ -489,6 +493,7 @@ static int run_server(void)
 	c2_rpc_server_stop(&sctx);
 fop_fini:
 	c2_ping_fop_fini();
+	c2_ut_fini();
 c2_fini:
 	c2_fini();
 	return rc;
