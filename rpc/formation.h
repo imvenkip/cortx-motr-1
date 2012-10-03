@@ -223,13 +223,6 @@ struct c2_rpc_frm_sm {
 };
 
 /**
-   A magic constant to varify the sanity of c2_rpc_frm_buffer.
- */
-enum {
-	C2_RPC_FRM_BUFFER_MAGIC = 0x8135797531975313ULL,
-};
-
-/**
    Formation attributes for an rpc.
  */
 struct c2_rpc_frm_buffer {

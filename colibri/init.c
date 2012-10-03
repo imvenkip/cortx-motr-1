@@ -18,10 +18,6 @@
  * Original creation date: 06/19/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/cdefs.h"
 #include "fop/fop.h"
 
@@ -63,11 +59,17 @@
 #include "ioservice/io_fops.h"
 #include "ioservice/io_service.h"
 
+#include "sns/sns.h"
+#include "cm/cm.h"
+
 extern int  c2_memory_init(void);
 extern void c2_memory_fini(void);
 
 extern int  c2_rpc_module_init(void);
 extern void c2_rpc_module_fini(void);
+
+extern int  libc2_init(void);
+extern void libc2_fini(void);
 
 /**
    @addtogroup init
@@ -88,6 +90,7 @@ struct init_fini_call subsystem[] = {
 	{ &c2_trace_init,       &c2_trace_fini,       "trace" },
 	{ &c2_fi_init,          &c2_fi_fini,          "finject" },
 	{ &c2_memory_init,      &c2_memory_fini,      "memory" },
+	{ &libc2_init,          &libc2_fini,          "libc2" },
 	{ &c2_cookie_global_init, &c2_cookie_global_fini, "cookie" },
 	{ &c2_uts_init,         &c2_uts_fini,         "ut" },
 	{ &c2_processors_init,  &c2_processors_fini,  "processors" },
@@ -124,6 +127,8 @@ struct init_fini_call subsystem[] = {
 	{ &c2_reqhs_init,       &c2_reqhs_fini,       "reqh" },
 #ifndef __KERNEL__
 	{ &c2_ios_register,     &c2_ios_unregister,   "ioservice" },
+	{ &c2_cm_module_init,   &c2_cm_module_fini,   "copy machine" },
+	{ &c2_sns_init,         &c2_sns_fini,         "sns" },
 #endif /* __KERNEL__ */
 };
 

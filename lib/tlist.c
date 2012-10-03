@@ -191,7 +191,7 @@ void *c2_tlist_tail(const struct c2_tl_descr *d, const struct c2_tl *list)
 }
 
 void *c2_tlist_next(const struct c2_tl_descr *d,
-		    const struct c2_tl *list, void *obj)
+		    const struct c2_tl *list, const void *obj)
 {
 	struct c2_list_link *next;
 
@@ -200,7 +200,7 @@ void *c2_tlist_next(const struct c2_tl_descr *d,
 }
 
 void *c2_tlist_prev(const struct c2_tl_descr *d,
-		    const struct c2_tl *list, void *obj)
+		    const struct c2_tl *list, const void *obj)
 {
 	struct c2_list_link *prev;
 
@@ -210,8 +210,8 @@ void *c2_tlist_prev(const struct c2_tl_descr *d,
 
 bool c2_tlist_invariant(const struct c2_tl_descr *d, const struct c2_tl *list)
 {
-	struct c2_list_link *head;
-	struct c2_list_link *scan;
+	const struct c2_list_link *head;
+	struct c2_list_link       *scan;
 
 	head = (void *)&list->t_head;
 

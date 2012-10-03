@@ -18,10 +18,6 @@
  * Original creation date: 11/16/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 /**
  * @addtogroup linear_enum
  *
@@ -39,6 +35,7 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
+#include "colibri/magic.h"
 #include "fid/fid.h"    /* c2_fid_set(), c2_fid_is_valid() */
 #include "layout/layout_internal.h"
 #include "layout/linear_enum.h"
@@ -46,14 +43,10 @@
 extern const struct c2_addb_loc layout_addb_loc;
 extern struct c2_addb_ctx layout_global_ctx;
 
-enum {
-	LINEAR_ENUM_MAGIC = 0x4C494E2D454E554DULL /* LIN-ENUM */
-};
-
 static const struct c2_bob_type linear_bob = {
 	.bt_name         = "linear_enum",
 	.bt_magix_offset = offsetof(struct c2_layout_linear_enum, lla_magic),
-	.bt_magix        = LINEAR_ENUM_MAGIC,
+	.bt_magix        = C2_LAYOUT_LINEAR_ENUM_MAGIC,
 	.bt_check        = NULL
 };
 
@@ -133,7 +126,8 @@ static int linear_populate(struct c2_layout_linear_enum *lin_enum,
 	C2_PRE(attr != NULL);
 
 	if (attr->lla_nr == 0 || attr->lla_B == 0) {
-		C2_LOG("lin_enum %p, attr %p,  Invalid attributes, rc %d",
+		C2_LOG(C2_ERROR,
+			"lin_enum %p, attr %p,  Invalid attributes, rc %d",
 		       lin_enum, attr, -EPROTO);
 		return -EPROTO;
 	}
@@ -167,8 +161,8 @@ int c2_linear_enum_build(struct c2_layout_domain *dom,
 	return rc;
 }
 
-static struct c2_layout_linear_enum
-*enum_to_linear_enum(const struct c2_layout_enum *e)
+static struct c2_layout_linear_enum *
+enum_to_linear_enum(const struct c2_layout_enum *e)
 {
 	struct c2_layout_linear_enum *lin_enum;
 
@@ -248,7 +242,7 @@ static int linear_decode(struct c2_layout_enum *e,
 	if (C2_FI_ENABLED("attr_err")) { lin_attr->lla_nr = 0; }
 	rc = linear_populate(lin_enum, lin_attr);
 	if (rc != 0)
-		C2_LOG("linear_populate() failed");
+		C2_LOG(C2_ERROR, "linear_populate() failed");
 	C2_POST(ergo(rc == 0, linear_invariant(lin_enum)));
 	C2_POST(ergo(rc != 0, linear_allocated_invariant(lin_enum)));
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)lid, rc);

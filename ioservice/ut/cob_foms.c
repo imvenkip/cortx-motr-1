@@ -33,7 +33,8 @@ extern const struct c2_rpc_item_ops cob_req_rpc_item_ops;
 extern struct c2_reqh_service_type c2_ios_type;
 
 /* Static instance of struct cobfoms_ut used by all test cases. */
-static struct cobfoms_ut *cut;
+static struct cobfoms_ut      *cut;
+static struct c2_fom_locality  dummy_loc;
 
 static char test_cobname[]     = "cobfom_testcob";
 static struct c2_cob *test_cob = NULL;
@@ -41,7 +42,20 @@ static struct c2_cob *test_cob = NULL;
 static struct c2_fom *cd_fom_alloc();
 static void cd_fom_dealloc(struct c2_fom *fom);
 
-extern void fom_phase_set(struct c2_fom *fom, int phase);
+static void fom_phase_set(struct c2_fom *fom, int phase)
+{
+	if (c2_fom_phase(fom) == C2_FOPH_SUCCESS) {
+		c2_fom_phase_set(fom, C2_FOPH_FOL_REC_ADD);
+		c2_fom_phase_set(fom, C2_FOPH_TXN_COMMIT);
+	} else if (c2_fom_phase(fom) == C2_FOPH_FAILURE) {
+		c2_fom_phase_set(fom, C2_FOPH_TXN_ABORT);
+	}
+
+	if (C2_IN(c2_fom_phase(fom), (C2_FOPH_TXN_COMMIT,
+				      C2_FOPH_TXN_ABORT)))
+		c2_fom_phase_set(fom, C2_FOPH_QUEUE_REPLY);
+	c2_fom_phase_set(fom, phase);
+}
 
 enum cob_fom_type {
 	COB_CREATE = 1,
@@ -433,10 +447,10 @@ static void cobfoms_del_nonexist_cob(void)
  */
 static void fom_create(struct c2_fom **fom, enum cob_fom_type fomtype)
 {
-	struct c2_fom      *base_fom;
-	struct c2_reqh     *reqh;
-	struct c2_fom_type  ft;
-	int		    rc;
+	struct c2_fom          *base_fom;
+	struct c2_reqh         *reqh;
+	struct c2_fom_type      ft;
+	int		        rc;
 
 	rc = cob_op_fom_create(fom);
 	C2_UT_ASSERT(rc == 0);
@@ -446,18 +460,18 @@ static void fom_create(struct c2_fom **fom, enum cob_fom_type fomtype)
 	c2_fom_init(base_fom, &ft,
 		    fomtype == COB_CREATE ? &cc_fom_ops : &cd_fom_ops,
 		    NULL, NULL);
+
 	reqh = c2_cs_reqh_get(&cut->cu_sctx.rsx_colibri_ctx, "ioservice");
 	C2_UT_ASSERT(reqh != NULL);
 
 	base_fom->fo_service = c2_reqh_service_find(ft.ft_rstype, reqh);
 	C2_UT_ASSERT(base_fom->fo_service != NULL);
 
-	base_fom->fo_loc = &reqh->rh_fom_dom.fd_localities[0];
-	c2_atomic64_inc(&base_fom->fo_loc->fl_dom->fd_foms_nr);
+	base_fom->fo_loc = &dummy_loc;
 
-	base_fom->fo_fol = reqh->rh_fol;
-	base_fom->fo_loc->fl_dom->fd_reqh = reqh;
+	C2_CNT_INC(base_fom->fo_loc->fl_foms);
 	base_fom->fo_type = &ft;
+
 	c2_fom_sm_init(base_fom);
 }
 
@@ -661,7 +675,7 @@ static struct c2_fom *cc_fom_alloc()
 	fop_alloc(fom, COB_CREATE);
 	C2_UT_ASSERT(fom->fo_fop != NULL);
 	cob_fom_populate(fom);
-	fom_phase_set(fom, C2_FOPH_CC_COB_CREATE);
+	c2_fom_phase_set(fom, C2_FOPH_CC_COB_CREATE);
 	return fom;
 }
 
@@ -724,8 +738,8 @@ static void cob_verify(struct c2_fom *fom, const bool exists)
 	struct c2_cob_nskey  *nskey;
 	struct c2_dbenv	     *dbenv;
 
-	cobdom = fom->fo_loc->fl_dom->fd_reqh->rh_cob_domain;
-	dbenv = fom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
+	cobdom = c2_fom_reqh(fom)->rh_cob_domain;
+	dbenv = c2_fom_reqh(fom)->rh_dbenv;
 
 	c2_cob_nskey_make(&nskey, COB_TEST_ID, COB_TEST_ID, test_cobname);
 
@@ -768,7 +782,7 @@ static void cc_cob_create_test()
 	 * Set the FOM phase and set transaction context
 	 * Test-case 1: Test successful creation of COB
 	 */
-	dbenv = fom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
+	dbenv = c2_fom_reqh(fom)->rh_dbenv;
 	rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 	rc = cc_cob_create(fom, cc);
@@ -833,7 +847,7 @@ static void cc_cobfid_map_add_test()
 	 * Set the FOM phase and set transaction context
 	 * Test-case 1: Test successful creation of COB
 	 */
-	dbenv = cfom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
+	dbenv = c2_fom_reqh(cfom)->rh_dbenv;
 	rc = c2_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 	rc = cc_cob_create(cfom, cc);
@@ -894,7 +908,7 @@ static void cc_fom_state_test(void)
 	cfom = cc_fom_alloc();
 	C2_UT_ASSERT(cfom != NULL);
 
-	dbenv = cfom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
+	dbenv = c2_fom_reqh(cfom)->rh_dbenv;
 	rc = c2_db_tx_init(&cfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 	rc = cc_fom_tick(cfom);
@@ -978,7 +992,7 @@ static struct c2_fom *cd_fom_alloc()
 	fop_alloc(fom, COB_DELETE);
 	C2_UT_ASSERT(fom->fo_fop != NULL);
 	cob_fom_populate(fom);
-	fom_phase_set(fom, C2_FOPH_CD_COB_DEL);
+	c2_fom_phase_set(fom, C2_FOPH_CD_COB_DEL);
 
 	return fom;
 }
@@ -1042,7 +1056,7 @@ static struct c2_fom *cob_testdata_create()
 	fom = cc_fom_alloc();
 	C2_UT_ASSERT(fom != NULL);
 
-	dbenv = fom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
+	dbenv = c2_fom_reqh(fom)->rh_dbenv;
 	rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 
@@ -1111,7 +1125,7 @@ static void cd_cob_delete_test()
 	C2_UT_ASSERT(dfom != NULL);
 
 	cd = cob_fom_get(dfom);
-	dbenv = dfom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
+	dbenv = c2_fom_reqh(dfom)->rh_dbenv;
 	/*
 	 * Test-case 1: Delete cob. The test should succeed.
 	 */
@@ -1179,7 +1193,7 @@ static void cd_cobfid_map_delete_test()
 	/*
 	 * Test-case 1: Delete cob-fid mapping. The test should succeed.
 	 */
-	dbenv = cfom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
+	dbenv = c2_fom_reqh(cfom)->rh_dbenv;
 	rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 	rc = cd_cobfid_map_delete(dfom, cd);
@@ -1238,7 +1252,7 @@ static void cd_fom_state_test(void)
 	dfom = cd_fom_alloc();
 	C2_UT_ASSERT(dfom != NULL);
 
-	dbenv = cfom->fo_loc->fl_dom->fd_reqh->rh_dbenv;
+	dbenv = c2_fom_reqh(cfom)->rh_dbenv;
 	rc = c2_db_tx_init(&dfom->fo_tx.tx_dbtx, dbenv, 0);
 	C2_UT_ASSERT(rc == 0);
 
@@ -1261,9 +1275,24 @@ static void cd_fom_state_test(void)
 	cob_testdata_cleanup(cfom);
 }
 
+void dummy_locality_setup()
+{
+	struct c2_reqh *reqh;
+
+	reqh = c2_cs_reqh_get(&cut->cu_sctx.rsx_colibri_ctx, "ioservice");
+	C2_UT_ASSERT(reqh != NULL);
+
+	dummy_loc.fl_dom = &reqh->rh_fom_dom;
+	c2_sm_group_init(&dummy_loc.fl_group);
+}
+
 static void cob_create_api_test(void)
 {
-	c2_fi_enable("c2_sm_invariant", "no_lock");
+	/* Dummy locality setup */
+	dummy_locality_setup();
+
+	c2_sm_group_lock(&dummy_loc.fl_group);
+
 	/* Test for cc_fom_create() */
 	cc_fom_create_test();
 
@@ -1287,12 +1316,14 @@ static void cob_create_api_test(void)
 
 	/* Test for cc_fom_tick() */
 	cc_fom_state_test();
-	c2_fi_disable("c2_sm_invariant", "no_lock");
+
+	c2_sm_group_unlock(&dummy_loc.fl_group);
 }
 
 static void cob_delete_api_test(void)
 {
-	c2_fi_enable("c2_sm_invariant", "no_lock");
+	c2_sm_group_lock(&dummy_loc.fl_group);
+
 	/* Test for cd_fom_create() */
 	cd_fom_create_test();
 
@@ -1316,7 +1347,8 @@ static void cob_delete_api_test(void)
 
 	/* Test for cd_fom_tick() */
 	cd_fom_state_test();
-	c2_fi_disable("c2_sm_invariant", "no_lock");
+
+	c2_sm_group_unlock(&dummy_loc.fl_group);
 }
 
 const struct c2_test_suite cobfoms_ut = {

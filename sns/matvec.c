@@ -17,10 +17,6 @@
  * Original creation date: 10/19/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_SNS
 #include "lib/trace.h"        /* C2_LOG and C2_ENTRY */
 
@@ -100,15 +96,15 @@ void c2_matrix_print(const struct c2_matrix *mat)
 	uint32_t x, y;
 	C2_PRE(mat);
 
-	C2_LOG("-----> mat %p\n", mat);
+	C2_LOG(C2_DEBUG, "-----> mat %p\n", mat);
 
 	for (y = 0; y < mat->m_height; ++y) {
                 for (x = 0; x < mat->m_width; ++x)
-			C2_LOG("%6d ", *c2_matrix_elem_get(mat, x, y));
-		C2_LOG("\n");
+			C2_LOG(C2_DEBUG, "%6d ", *c2_matrix_elem_get(mat, x, y));
+		C2_LOG(C2_DEBUG, "\n");
 	}
 
-	C2_LOG("\n");
+	C2_LOG(C2_DEBUG, "\n");
 }
 
 void c2_vector_print(const struct c2_vector *vec)
@@ -116,10 +112,10 @@ void c2_vector_print(const struct c2_vector *vec)
 	uint32_t x;
 	C2_PRE(vec);
 
-	C2_LOG("-----> vec %p\n", vec);
+	C2_LOG(C2_DEBUG, "-----> vec %p\n", vec);
 	for (x = 0; x < vec->v_size; ++x)
-		C2_LOG("%6d\n", *c2_vector_elem_get(vec, x));
-	C2_LOG("\n");
+		C2_LOG(C2_DEBUG, "%6d\n", *c2_vector_elem_get(vec, x));
+	C2_LOG(C2_DEBUG, "\n");
 }
 
 void c2_matrix_swap_row(struct c2_matrix *m, uint32_t r0, uint32_t r1)

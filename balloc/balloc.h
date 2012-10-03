@@ -111,10 +111,6 @@ struct c2_balloc_super_block {
         c2_bcount_t	bsb_stripe_size;      /*< stripe size in blocks */
 };
 
-enum c2_balloc_super_block_magic {
-	C2_BALLOC_SB_MAGIC =  0xC011B21AC08EC08EULL,
-};
-
 enum c2_balloc_super_block_state {
 	C2_BALLOC_SB_DIRTY =  1 << 0,
 };

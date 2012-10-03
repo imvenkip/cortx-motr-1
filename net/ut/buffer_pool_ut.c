@@ -18,9 +18,6 @@
  * Original creation date: 10/12/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
 #include "lib/ut.h"
 #include "lib/memory.h"/* C2_ALLOC_PTR */
 #include "lib/misc.h"  /* C2_SET0 */

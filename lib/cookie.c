@@ -19,8 +19,8 @@
  */
 
 /**
-  @addtogroup cookie
-  @{
+ * @addtogroup cookie
+ *
  * The key data-structure in Lib-Cookie is c2_cookie. It holds the address of
  * an object along with a generation-count which is used to check validity of a
  * cookie.
@@ -42,6 +42,8 @@
  * object. In order to reduce the probability of false validation,
  * the function c2_cookie_global_init initializes the cookie_generation with
  * the system-time during initialisation of Colibri.
+ *
+ * @{
  */
 
 #include "lib/types.h"
@@ -80,7 +82,7 @@ void c2_cookie_init(struct c2_cookie *cookie, uint64_t *obj)
 
 bool c2_addr_is_sane(const uint64_t *addr)
 {
-	return (addr > (uint64_t *)4096) && C2_IS_8ALIGNED(addr) &&
+	return addr > (uint64_t *)4096 && C2_IS_8ALIGNED(addr) &&
 		c2_arch_addr_is_sane(addr);
 }
 

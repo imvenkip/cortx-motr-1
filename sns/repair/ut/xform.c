@@ -59,28 +59,6 @@ struct c2_bufvec src;
 struct c2_bufvec dst;
 struct c2_bufvec xor;
 
-/**
- * Typically, the next phase after C2_CC_XFORM is C2_CCP_WRITE.
- * i.e. after transformation, the copy packet gets written to the
- * device. Hence, mimic this phase change.
- * @todo This function can be removed once actual next phase function
- * is implemented.
- */
-static int next_phase(struct c2_cm_cp *cp)
-{
-	c2_fom_phase_set(&cp->c_fom, C2_CCP_WRITE);
-	return C2_FSO_AGAIN;
-}
-
-/**
- * Dummy copy packet ops in order to get mimicked next_phase() in the
- * code flow.
- */
-static const struct c2_cm_cp_ops cp_ops = {
-	.co_phase                = &next_phase,
-	.co_action[C2_CCP_XFORM] = &c2_repair_cp_xform,
-};
-
 static uint64_t cp_single_get(struct c2_cm_aggr_group *ag)
 {
 	return CP_SINGLE;
@@ -214,8 +192,10 @@ static void cp_prepare(struct c2_cm_cp *cp, struct c2_bufvec *bv,
 
 	bv_populate(bv, data);
 	cp->c_ag = &sns_ag->sag_base;
-	c2_cm_cp_init(cp, &cp_ops, bv);
+	c2_cm_cp_init(cp);
+	cp->c_data = bv;
 	cp->c_fom.fo_ops = cp_fom_ops;
+	cp->c_ops = &c2_sns_repair_cp_ops; 
 	/** Required to pass the fom invariant */
 	cp->c_fom.fo_fop = (void *)1;
 }

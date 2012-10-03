@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
+ *                  Mandar Sawant <mandar_sawant@xyratex.com>
  * Original creation date: 08/06/2012
  */
 
@@ -24,6 +25,8 @@
 #define __COLIBRI_SNS_REPAIR_CP_H__
 
 #include "lib/ext.h"
+
+#include "stob/stob_id.h"
 #include "cm/cp.h"
 
 /**
@@ -34,46 +37,31 @@
 
 /**
  * In addition to c2_cm_cp_phase, these phases can be used. Transition between
- * non-standard phase handled by phase specific code and not by next phase
- * function (co_phase()). This also helps identifying specific operation as
- * follows:
- *
- * @code
- *
- * if (fom->fo_phase == C2_CCP_READ && rcp->rc_phase == SRP_IO_WAIT)
- *	 This helps to identify that wait was for read IO.
- *
- * @endcode
- *
+ * non-standard phases too handled by specific implementation of next phase
+ * function.
  */
 enum c2_sns_repair_phase {
-        SRP_RESOURCE_WAIT = 1,
-	SRP_EXTENT_LOCK_WAIT,
-        SRP_IO_WAIT
+        SRP_IO_WAIT = C2_CCP_NR + 1,
+	SRP_NR
 };
 
 struct c2_sns_repair_cp {
-	struct c2_cm_cp		 rc_base;
+	struct c2_cm_cp    rc_base;
 
-	/** SNS copy packet specific phases.*/
-	enum c2_sns_repair_phase rc_phase;
+	/** Read/write stob id. */
+	struct c2_stob_id  rc_sid;
 
-        /** The gob fid which this data belongs to. */
-        struct c2_fid		 rc_gfid;
-
-        /** The extent in gob, similar to offset in a file. */
-        struct c2_ext		 rc_gext;
-
-        /**
-         * The cob fid which this data belongs to.
-         * - In READ phase, it is where it reads from.
-         * - In WRITE phase, it is where it write to.
-         */
-        struct c2_fid		 rc_cfid;
-
-        /** The extent in cob. */
-        struct c2_ext		 rc_cext;
+	/** Offset within the stob. */
+	c2_bindex_t        rc_index;
 };
+
+struct c2_sns_repair_cp *cp2snscp(const struct c2_cm_cp *cp);
+
+/**
+ * Uses GOB fid key and parity group number to generate a scalar to
+ * help select a request handler locality for copy packet FOM.
+ */
+uint64_t cp_home_loc_helper(const struct c2_cm_cp *cp);
 
 extern const struct c2_cm_cp_ops c2_sns_repair_cp_ops;
 
@@ -90,4 +78,3 @@ int c2_repair_cp_xform(struct c2_cm_cp *cp);
  *  scroll-step: 1
  *  End:
  */
-

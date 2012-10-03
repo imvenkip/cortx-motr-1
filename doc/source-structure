@@ -79,12 +79,6 @@ End the file foo.h with
 How headers should be included in C sources?
 --------------------------------------------
 
-First, your .c files should typically start with
-
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 Include system headers as usual:
 
 #include <unistd.h>
@@ -113,7 +107,7 @@ libcolibri_foo_la_SOURCES     = foo.c foo.h foo_internal.h foo_bar.c ...
 INCLUDES                      = -I. -I$(top_srcdir) -I$(top_srcdir)/include
 
 In core/Makefile.am add "foo" to SUBDIRS_LIBS, and, if necessary,
-"foo/ut", "foo/st" and "foo/ub" to SUBDIRS_{UT,ST,UB} respectively.
+"foo/ut", "foo/st" and "foo/ub" to SUBDIR_{UT,ST,UB} respectively.
 
 Add "core/Makefile" and (if necessary) "core/{ut,st,ub}/Makefile" to
 AC_CONFIG_FILES section at the end of core/configure.ac.

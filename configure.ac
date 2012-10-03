@@ -9,6 +9,7 @@ AH_TEMPLATE([VERSION], [Version of the package.])
 AH_TEMPLATE([ENABLE_SYNC_ATOMIC], [Enable gcc built-in automic functions])
 AH_TEMPLATE([ENABLE_DEBUG], [Enable debug info.])
 AH_TEMPLATE([ENABLE_FAULT_INJECTION], [Enable fault injection.])
+AH_TEMPLATE([ENABLE_IMMEDIATE_TRACE], [Enable immediate tracing.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT], [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV], [Have fops->readv function])
 AH_TEMPLATE([HAVE_FILE_AIO_READ], [Have fops->aio_read function])
@@ -275,6 +276,11 @@ AC_ARG_ENABLE([debug],
 AC_ARG_ENABLE([finject],
         [AC_HELP_STRING([--disable-finject], [disable fault injection support])], [],
         [enable_finject=yes]
+)
+
+AC_ARG_ENABLE([immediate-trace],
+        [AC_HELP_STRING([--disable-immediate-trace], [disable immediate tracing])], [],
+        [enable_immediate_trace=yes]
 )
 
 AC_ARG_ENABLE([mcheck],
@@ -591,6 +597,10 @@ if test x$enable_finject = xyes; then
         AC_DEFINE([ENABLE_FAULT_INJECTION])
 fi
 
+if test x$enable_immediate_trace = xyes; then
+        AC_DEFINE([ENABLE_IMMEDIATE_TRACE])
+fi
+
 if test x$enable_mcheck = xyes; then
 	LDFLAGS="$LDFLAGS -lmcheck"
 fi
@@ -646,6 +656,9 @@ COLIBRI_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable])
 
 LDFLAGS="-rdynamic $LDFLAGS"
 
+CFLAGS="$CFLAGS -include config.h"
+KCFLAGS="$KCFLAGS -include config.h"
+
 # trim spaces at the end of flags
 CFLAGS=$(echo $CFLAGS | sed 's/[[[:blank:]]]*$//')
 KCFLAGS=$(echo $KCFLAGS | sed 's/[[[:blank:]]]*$//')
@@ -664,8 +677,10 @@ AC_CONFIG_FILES([
                  build_kernel_modules/Makefile
                  capa/Makefile
                  capa/ut/Makefile
-                 c2t1fs/linux_kernel/st/common.sh
                  c2t1fs/linux_kernel/Makefile
+                 c2t1fs/linux_kernel/st/Makefile
+                 c2t1fs/linux_kernel/st/common.sh
+                 c2t1fs/linux_kernel/ut/Makefile
                  cfg/Makefile
 		 cm/Makefile
 		 cm/ut/Makefile
@@ -708,6 +723,13 @@ AC_CONFIG_FILES([
 		 net/lnet/st/Makefile
 		 net/lnet/st/linux_kernel/Makefile
 		 net/lnet/ut/Makefile
+		 net/test/Makefile
+		 net/test/linux_kernel/Makefile
+		 net/test/test-user.sh
+		 net/test/ntc.sh
+		 net/test/ntn.sh
+		 net/test/user_space/Makefile
+		 net/test/ut/Makefile
 		 net/ut/Makefile
                  nrs/Makefile
                  patches/Makefile
@@ -723,8 +745,8 @@ AC_CONFIG_FILES([
                  sm/ut/Makefile
                  sns/Makefile
                  sns/repair/Makefile
-                 sns/ut/Makefile
                  sns/repair/ut/Makefile
+                 sns/ut/Makefile
                  stob/Makefile
                  stob/ut/Makefile
                  udb/Makefile
@@ -749,6 +771,9 @@ AC_OUTPUT
 #
 # Set up execute bit for UT scripts.
 #
+chmod +x net/test/ntc.sh
+chmod +x net/test/ntn.sh
+chmod +x net/test/test-user.sh
 chmod +x utils/ut.sh
 chmod +x utils/linux_kernel/ut.sh
 

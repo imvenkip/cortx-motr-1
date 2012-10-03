@@ -14,33 +14,28 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Subhash Arya <subhash_arya@xyratex.com>
- * Original creation date: 30/11/2011
+ * Original author: Subhash Arya  <subhash_arya@xyratex.com>
+ *                  Mandar Sawant <mandar_sawant@xyratex.com>
+ * Original creation date: 20/09/2012
  */
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_CM
+
 #include "cm/ag.h"
 
 /**
    @addtogroup CMAG
-   @{
  */
 
-enum {
-	/** Hex value of "ag_link". */
-	AGGR_GROUP_LINK_MAGIC = 0x61675f6c696e6b,
-	/** Hex value of "ag_head". */
-	AGGR_GROUP_LINK_HEAD = 0x61675f68656164,
-};
-
-C2_TL_DESCR_DEFINE(aggr_grps, "aggr_grp_list_descr", ,
-		   struct c2_cm_aggr_group, cag_sw_linkage, cag_magic,
-		   AGGR_GROUP_LINK_MAGIC, AGGR_GROUP_LINK_HEAD);
-
-C2_TL_DEFINE(aggr_grps, , struct c2_cm_aggr_group);
+int c2_cm_ag_id_cmp(const struct c2_cm_ag_id *id0, const struct c2_cm_ag_id *id1)
+{
+	return c2_uint128_cmp(id0->ai_hi, id1->ai_hi) ?:
+		c2_uint128_cmp(id0->ai_lo, id1->ai_lo);
+}
 
 struct c2_bob_type aggr_grps_bob;
 C2_BOB_DEFINE( , &aggr_grps_bob, c2_cm_aggr_group);
@@ -51,7 +46,7 @@ C2_BOB_DEFINE( , &aggr_grps_bob, c2_cm_aggr_group);
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 80
+ *  fill-column: 79
  *  scroll-step: 1
  *  End:
  */

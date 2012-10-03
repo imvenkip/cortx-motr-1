@@ -17,10 +17,6 @@
  * Original creation date: 01/04/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "capa.h"
 
 /**

@@ -23,7 +23,10 @@
 #ifndef __COLIBRI_SNS_REPAIR_AG_H__
 #define __COLIBRI_SNS_REPAIR_AG_H__
 
+
+#include "cm/cm.h"
 #include "cm/ag.h"
+#include "sns/repair/cm.h"
 
 /**
    @defgroup SNSRepairAG SNS Repair aggregation group
@@ -32,14 +35,15 @@
    @{
  */
 
-/**
- * SNS repair specific aggregation group.
- */
 struct c2_sns_repair_ag {
-	struct c2_cm_aggr_group  sag_base;
+	/** Base aggregation group. */
+	struct c2_cm_aggr_group      sag_base;
+
 	/** Transformed copy packet created by transformation function. */
-	struct c2_cm_cp         *sag_cp;
+	struct c2_cm_cp             *sag_cp;
 };
+
+struct c2_sns_repair_ag *ag2snsag(const struct c2_cm_aggr_group *ag);
 
 /** @} SNSRepairAG */
 

@@ -14,45 +14,23 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
-                    Subhash Arya <subhash_arya@xyratex.com>
- * Original creation date: 30/11/2011
+ * Original author: Dmitriy Chumak <dmitriy_chumak@xyratex.com>
+ * Original creation date: 08/30/2012
  */
 
-#include "lib/assert.h" /* C2_PRE(), C2_POST() */
-#include "lib/trace.h"  /* C2_LOG() */
+#pragma once
 
-#include "cm/sw.h"
-#include "cm/ag.h"
+#ifndef __COLIBRI_LIB_TRACE_INTERNAL_H__
+#define __COLIBRI_LIB_TRACE_INTERNAL_H__
 
-/**
-   @addtogroup CMSW
-   @{
- */
+int subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask);
 
-int c2_cm_sw_init(struct c2_cm_sw *sw, const struct c2_cm_sw_ops *sw_ops)
-{
-        C2_PRE(sw != NULL && sw_ops != NULL);
-        C2_ENTRY();
+enum c2_trace_level parse_trace_level(char *str);
 
-        sw->sw_ops = sw_ops;
-        aggr_grps_tlist_init(&sw->sw_aggr_grps);
-        sw->sw_high = NULL;
-        sw->sw_low = NULL;
-        C2_LEAVE();
-        return 0;
-}
+enum c2_trace_print_context parse_trace_print_context(const char *ctx_name);
 
-void c2_cm_sw_fini(struct c2_cm_sw *sw)
-{
-        C2_PRE(sw != NULL);
-        C2_ENTRY();
+#endif /* __COLIBRI_LIB_TRACE_INTERNAL_H__ */
 
-        aggr_grps_tlist_fini(&sw->sw_aggr_grps);
-        C2_LEAVE();
-}
-
-/** @} CMSW */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
@@ -62,4 +40,3 @@ void c2_cm_sw_fini(struct c2_cm_sw *sw)
  *  scroll-step: 1
  *  End:
  */
-

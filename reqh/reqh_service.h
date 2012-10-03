@@ -58,7 +58,7 @@
    First, we have to define service type operations,
    @code
    static const struct c2_reqh_service_type_ops dummy_service_type_ops = {
-        .rsto_service_allocate = dummy_service_locate
+        .rsto_service_allocate = dummy_service_allocate
    };
    @endcode
 
@@ -136,16 +136,6 @@
 
 enum {
 	C2_REQH_SERVICE_UUID_SIZE = 64,
-};
-
-/**
-   Magic for reqh service
- */
-enum {
-	C2_RHS_MAGIX = 0x52455148535643, /* REQHSVC */
-	C2_RHS_MAGIX_HEAD = 0x5245515356434844, /* REQSVCHD */
-	C2_RHS_TYPE_MAGIX = 0x5248535643545950, /* RHSVCTYP */
-	C2_RHS_TYPE_MAGIX_HEAD =  0x5248535459504844 /* RHSTYPHD */
 };
 
 /**
@@ -321,7 +311,7 @@ struct c2_reqh_service_type_ops {
 	   @param service successfully located service
 	 */
 	int (*rsto_service_allocate)(struct c2_reqh_service_type *stype,
-                                     struct c2_reqh_service **service);
+				     struct c2_reqh_service **service);
 };
 
 /**

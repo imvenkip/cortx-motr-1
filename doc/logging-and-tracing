@@ -68,6 +68,8 @@ failures, unexpected process termination, etc. In user space, this is
 achieved by placing trace records in a cyclic buffer memory mapped
 from a file (or allocated from SysV shared memory).
 
+More detailed information about colibri's tracing facilities
+(configuration and usage) can be found in doc/trace.
 
 
 

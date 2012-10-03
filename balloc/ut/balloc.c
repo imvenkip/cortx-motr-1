@@ -31,6 +31,7 @@
 #include "lib/memory.h"
 #include "lib/thread.h"
 #include "lib/getopts.h"
+#include "colibri/magic.h"
 #include "db/db.h"
 #include "lib/ut.h"
 #include "balloc/balloc.h"

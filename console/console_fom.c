@@ -20,10 +20,6 @@
  * Revision date         : 07/31/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/errno.h"		/* EINVAL */
 #include "lib/memory.h"		/* C2_ALLOC_PTR */
 #include "fop/fom_generic.h"    /* C2_FOPH_FAILURE */

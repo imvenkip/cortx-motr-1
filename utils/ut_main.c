@@ -23,6 +23,7 @@
 
 #include "lib/ut.h"
 #include "lib/trace.h"
+#include "lib/user_space/trace.h" /* c2_trace_set_print_context */
 #include "lib/thread.h"    /* LAMBDA */
 #include "lib/getopts.h"
 #include "lib/finject.h"   /* c2_fi_print_info */
@@ -38,9 +39,10 @@ extern const struct c2_test_suite bulkio_client_ut;
 extern const struct c2_test_suite ios_bufferpool_ut;
 extern const struct c2_test_suite cobfoms_ut;
 extern const struct c2_test_suite capa_ut;
-extern const struct c2_test_suite cm_ut;
+extern const struct c2_test_suite cm_cp_ut;
 extern const struct c2_test_suite cob_ut;
 extern const struct c2_test_suite console_ut;
+extern const struct c2_test_suite cm_generic_ut;
 extern const struct c2_test_suite db_ut;
 extern const struct c2_test_suite db_cursor_ut;
 extern const struct c2_test_suite emap_ut;
@@ -49,6 +51,7 @@ extern const struct c2_test_suite fol_ut;
 extern const struct c2_test_suite c2_net_bulk_if_ut;
 extern const struct c2_test_suite c2_net_bulk_mem_ut;
 extern const struct c2_test_suite c2_net_lnet_ut;
+extern const struct c2_test_suite c2_net_test_ut;
 extern const struct c2_test_suite c2_net_tm_prov_ut;
 extern const struct c2_test_suite parity_math_ut;
 extern const struct c2_test_suite sm_ut;
@@ -71,6 +74,8 @@ extern const struct c2_test_suite rpc_service_ut;
 extern const struct c2_test_suite frm_ut;
 extern const struct c2_test_suite c2_fop_lock_ut;
 extern const struct c2_test_suite layout_ut;
+extern const struct c2_test_suite conn_ut;
+extern const struct c2_test_suite sns_repair_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -87,9 +92,12 @@ void add_uts(void)
         c2_ut_add(&ios_bufferpool_ut);
 	c2_ut_add(&capa_ut);
 	c2_ut_add(&cfm_ut);
+	c2_ut_add(&cm_cp_ut);
 	c2_ut_add(&cob_ut);
         c2_ut_add(&cobfoms_ut);
 	c2_ut_add(&colibri_setup_ut);
+	c2_ut_add(&cm_generic_ut);
+	c2_ut_add(&conn_ut);
 	c2_ut_add(&db_ut);
 	c2_ut_add(&db_cursor_ut);
 	c2_ut_add(&emap_ut);
@@ -100,6 +108,7 @@ void add_uts(void)
 	c2_ut_add(&c2_net_bulk_if_ut);
 	c2_ut_add(&c2_net_bulk_mem_ut);
 	c2_ut_add(&c2_net_lnet_ut);
+	c2_ut_add(&c2_net_test_ut);
 	c2_ut_add(&c2_net_tm_prov_ut);
 	c2_ut_add(&parity_math_ut);
 	c2_ut_add(&frm_ut);
@@ -107,6 +116,7 @@ void add_uts(void)
 	c2_ut_add(&rpclib_ut);
 	c2_ut_add(&rpc_service_ut);
 	c2_ut_add(&sm_ut);
+	c2_ut_add(&sns_repair_ut);
 	c2_ut_add(&snsrepair_xform_ut);
 	c2_ut_add(&stobio_ut);
 	c2_ut_add(&udb_ut);
@@ -122,18 +132,24 @@ void add_uts(void)
 
 int main(int argc, char *argv[])
 {
-	int  result               = EXIT_SUCCESS;
-	bool list_ut              = false;
-	bool with_tests           = false;
-	bool keep_sandbox         = false;
-	bool finject_stats_before = false;
-	bool finject_stats_after  = false;
-	char *test_list_str       = NULL;
-	char *exclude_list_str    = NULL;
-	const char *fault_point   = NULL;
-	const char *fp_file_name  = NULL;
-	struct c2_list test_list;
-	struct c2_list exclude_list;
+	int   result               = EXIT_SUCCESS;
+	bool  list_ut              = false;
+	bool  with_tests           = false;
+	bool  keep_sandbox         = false;
+	bool  finject_stats_before = false;
+	bool  finject_stats_after  = false;
+	bool  parse_trace          = false;
+	char *test_list_str        = NULL;
+	char *exclude_list_str     = NULL;
+
+	const char *fault_point         = NULL;
+	const char *fp_file_name        = NULL;
+	const char *trace_mask          = NULL;
+	const char *trace_level         = NULL;
+	const char *trace_print_context = NULL;
+
+	struct c2_list  test_list;
+	struct c2_list  exclude_list;
 
 	struct c2_ut_run_cfg cfg = {
 		.urc_mode              = C2_UT_BASIC_MODE,
@@ -149,10 +165,34 @@ int main(int argc, char *argv[])
 
 	result = C2_GETOPTS("ut", argc, argv,
 		    C2_HELPARG('h'),
-		    C2_VOIDARG('T', "parse trace log produced earlier",
+		    C2_FLAGARG('T', "parse trace log produced earlier"
+			       " (trace data is read from STDIN)",
+				&parse_trace),
+		    C2_STRINGARG('m', "trace mask, either numeric (HEX/DEC) or"
+			         " comma-separated list of subsystem names"
+				 " (use ! at the beginning to invert)",
+				LAMBDA(void, (const char *str) {
+					trace_mask = strdup(str);
+				})
+				),
+		    C2_VOIDARG('M', "print available trace subsystems",
 				LAMBDA(void, (void) {
-						exit(c2_trace_parse());
+					c2_trace_print_subsystems();
+					exit(EXIT_SUCCESS);
 				})),
+		    C2_STRINGARG('p', "trace print context, values:"
+				 " none, func, full",
+				LAMBDA(void, (const char *str) {
+					trace_print_context = str;
+				})
+				),
+		    C2_STRINGARG('e', "trace level: level[+][,level[+]]"
+				 " where level is one of call|debug|info|"
+				 "notice|warn|error|fatal",
+				LAMBDA(void, (const char *str) {
+					trace_level = str;
+				})
+				),
 		    C2_FLAGARG('k', "keep the sandbox directory",
 				&keep_sandbox),
 		    C2_VOIDARG('i', "CUnit interactive console",
@@ -211,6 +251,26 @@ int main(int argc, char *argv[])
 		    );
 	if (result != 0)
 		goto out;
+
+	result = c2_trace_set_immediate_mask(trace_mask);
+	if (result != 0)
+		goto out;
+
+	result = c2_trace_set_level(trace_level);
+	if (result != 0)
+		goto out;
+
+	result = c2_trace_set_print_context(trace_print_context);
+	if (result != 0) {
+		fprintf(stderr, "Error: invalid value for -p option,"
+				" allowed are: 0, 1, 2\n");
+		goto out;
+	}
+
+	if (parse_trace) {
+		result = c2_trace_parse();
+		goto out;
+	}
 
 	/* enable fault points as early as possible */
 	if (fault_point != NULL) {

@@ -14,69 +14,32 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
- * Original creation date: 02/22/2012
+ * Original author: Maxim Medved <max_medved@xyratex.com>
+ * Original creation date: 09/03/2012
  */
 
-#include "lib/ut.h"
-#include "lib/ub.h"
+#pragma once
+
+#ifndef __COLIBRI_NET_TEST_NODE_PING_H__
+#define __COLIBRI_NET_TEST_NODE_PING_H__
+
+#include "net/test/service.h"		/* c2_net_test_service_ops */
 
 /**
- * @addtogroup cm
- * @{
+   @defgroup NetTestPingNodeDFS Ping Node
+   @ingroup NetTestDFS
+
+   @{
  */
+
+extern struct c2_net_test_service_ops c2_net_test_node_ping_ops;
 
 /**
- *  @name Use cases and unit tests
- *  @{
+   @} end of NetTestPingNodeDFS group
  */
 
-/**
- * <b>Basic infrastructure setup.</b>
- */
-static void basic_test(void)
-{
-}
+#endif /*  __COLIBRI_NET_TEST_NODE_PING_H__ */
 
-const struct c2_test_suite cm_ut = {
-	.ts_name = "libcm-ut",
-	.ts_init = NULL,
-	.ts_fini = NULL,
-	.ts_tests = {
-		{ "basic test", basic_test },
-		{ NULL, NULL }
-	}
-};
-
-
-/** @} end of use cases and unit tests */
-
-/*
- * UB
- */
-
-enum {
-	UB_ITER = 200000,
-};
-
-static void ub_init(void)
-{
-}
-
-static void ub_fini(void)
-{
-}
-
-struct c2_ub_set c2_cm_ub = {
-	.us_name = "cm-ub",
-	.us_init = ub_init,
-	.us_fini = ub_fini,
-	.us_run  = {
-	        { .ut_name = NULL }
-	}
-};
-
-/** @} end of Copy Machine group */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

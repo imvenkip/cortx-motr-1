@@ -22,6 +22,7 @@
 #include "config.h"
 #endif
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_SNSREPAIR
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
@@ -77,7 +78,6 @@ static const struct c2_reqh_service_ops service_ops = {
 C2_CM_TYPE_DECLARE(sns_repair, &service_type_ops, "sns_repair");
 
 extern const struct c2_cm_ops cm_ops;
-extern const struct c2_cm_sw_ops sw_ops;
 
 /**
  * Allocates and initialises SNS Repair copy machine.
@@ -92,7 +92,7 @@ static int service_allocate(struct c2_reqh_service_type *stype,
 	struct c2_cm_type         *cm_type;
 	int                        rc;
 
-	C2_ENTRY();
+	C2_ENTRY("stype: %p", stype);
 	C2_PRE(stype != NULL && service != NULL);
 
 	C2_ALLOC_PTR(rmach);
@@ -104,7 +104,7 @@ static int service_allocate(struct c2_reqh_service_type *stype,
 		(*service)->rs_ops = &service_ops;
 		c2_addb_ctx_init(&cm->cm_addb, &sns_repair_addb_ctx_type,
 		                 &c2_addb_global_ctx);
-		rc = c2_cm_init(cm, cm_type, &cm_ops, &sw_ops);
+		rc = c2_cm_init(cm, cm_type, &cm_ops);
 		if (rc != 0) {
 			C2_ADDB_ADD(&cm->cm_addb, &sns_repair_addb_loc,
 			            svc_init_fail,
@@ -115,7 +115,7 @@ static int service_allocate(struct c2_reqh_service_type *stype,
 	} else
 		rc = -ENOMEM;
 
-	C2_LEAVE();
+	C2_LEAVE("rmach: %p service: %p", rmach, *service);
 	return rc;
 }
 
@@ -127,7 +127,7 @@ static int service_start(struct c2_reqh_service *service)
 	struct c2_cm *cm;
 	int           rc;
 
-	C2_ENTRY();
+	C2_ENTRY("service: %p", service);
 	C2_PRE(service != NULL);
 
         /* XXX Register SNS Repair FOP types */
@@ -149,13 +149,16 @@ static void service_stop(struct c2_reqh_service *service)
 {
 	struct c2_cm *cm;
 
-	C2_ENTRY();
+	C2_ENTRY("service: %p", service);
 	C2_PRE(service != NULL);
 
         /* XXX Destroy SNS Repair FOP types and finlise copy machine. */
 	cm = container_of(service, struct c2_cm, cm_service);
-	/* Firstly stop and then finalise the copy machine. */
-	c2_cm_stop(cm);
+	/*
+	 * Finalise the copy machine as the copy machine as the service is
+	 * stopped.
+	 */
+	c2_cm_fini(cm);
 
 	C2_LEAVE();
 }
@@ -168,11 +171,10 @@ static void service_fini(struct c2_reqh_service *service)
 	struct c2_cm            *cm;
 	struct c2_sns_repair_cm *sns_cm;
 
-	C2_ENTRY();
+	C2_ENTRY("service: %p", service);
 	C2_PRE(service != NULL);
 
 	cm = container_of(service, struct c2_cm, cm_service);
-	c2_cm_fini(cm);
 	sns_cm = cm2sns(cm);
 	c2_free(sns_cm);
 

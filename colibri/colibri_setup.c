@@ -18,10 +18,6 @@
  * Original creation date: 05/08/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <stdio.h>     /* fprintf */
 #include <sys/stat.h>  /* mkdir */
 #include <sys/types.h> /* mkdir */
@@ -42,6 +38,7 @@
 #include "rpc/rpc2.h"
 #include "reqh/reqh.h"
 #include "colibri/cs_internal.h"
+#include "colibri/magic.h"
 #include "rpc/rpclib.h"
 
 /**
@@ -81,12 +78,12 @@ static int cdom_id;
 
 C2_TL_DESCR_DEFINE(cs_buffer_pools, "buffer pools in the colibri context",
 		   static, struct cs_buffer_pool, cs_bp_linkage, cs_bp_magic,
-		   CS_BUFFER_POOL_MAGIC, CS_BUFFER_POOL_HEAD);
+		   C2_CS_BUFFER_POOL_MAGIC, C2_CS_BUFFER_POOL_HEAD_MAGIC);
 C2_TL_DEFINE(cs_buffer_pools, static, struct cs_buffer_pool);
 
 C2_TL_DESCR_DEFINE(cs_eps, "cs endpoints", static, struct cs_endpoint_and_xprt,
-		   ex_linkage, ex_magix, CS_ENDPOINT_MAGIX,
-		   CS_ENDPOINT_HEAD_MAGIX);
+		   ex_linkage, ex_magix, C2_CS_ENDPOINT_AND_XPRT_MAGIC,
+		   C2_CS_EPS_HEAD_MAGIC);
 
 C2_TL_DEFINE(cs_eps, static, struct cs_endpoint_and_xprt);
 
@@ -102,8 +99,8 @@ static const char *cs_stypes[] = {
 };
 
 C2_TL_DESCR_DEFINE(rhctx, "reqh contexts", static, struct cs_reqh_context,
-		   rc_linkage, rc_magix, CS_REQH_CTX_MAGIX,
-		   CS_REQH_CTX_HEAD_MAGIX);
+		   rc_linkage, rc_magix, C2_CS_REQH_CTX_MAGIC,
+		   C2_CS_REQH_CTX_HEAD_MAGIC);
 
 C2_TL_DEFINE(rhctx, static, struct cs_reqh_context);
 
@@ -111,8 +108,8 @@ static struct c2_bob_type rhctx_bob;
 C2_BOB_DEFINE(static, &rhctx_bob, cs_reqh_context);
 
 C2_TL_DESCR_DEFINE(ndom, "network domains", static, struct c2_net_domain,
-		   nd_app_linkage, nd_magix, C2_NET_DOMAIN_MAGIX,
-		   CS_NET_DOMS_HEAD_MAGIX);
+		   nd_app_linkage, nd_magix, C2_NET_DOMAIN_MAGIC,
+		   C2_CS_NET_DOMAIN_HEAD_MAGIC);
 
 C2_TL_DEFINE(ndom, static, struct c2_net_domain);
 
@@ -120,8 +117,8 @@ static struct c2_bob_type ndom_bob;
 C2_BOB_DEFINE(static, &ndom_bob, c2_net_domain);
 
 C2_TL_DESCR_DEFINE(astob, "ad stob domains", static, struct cs_ad_stob,
-		   as_linkage, as_magix, CS_AD_STOB_MAGIX,
-		   CS_AD_STOB_HEAD_MAGIX);
+		   as_linkage, as_magix, C2_CS_AD_STOB_MAGIC,
+		   C2_CS_AD_STOB_HEAD_MAGIC);
 C2_TL_DEFINE(astob, static, struct cs_ad_stob);
 
 static struct c2_bob_type astob_bob;
@@ -904,7 +901,7 @@ static void cs_ad_stob_fini(struct cs_stobs *stob)
 	astob_tlist_fini(&stob->s_adoms);
 }
 
-void cs_linux_stob_fini(struct cs_stobs *stob)
+static void cs_linux_stob_fini(struct cs_stobs *stob)
 {
 	C2_PRE(stob != NULL);
 
@@ -1123,7 +1120,7 @@ static void cs_services_fini(struct c2_reqh *reqh)
  */
 static int cs_net_domains_init(struct c2_colibri *cctx)
 {
-	int                          rc;
+	int                          rc = 0;
 	size_t                       xprts_nr;
 	FILE                        *ofd;
 	struct c2_net_xprt         **xprts;

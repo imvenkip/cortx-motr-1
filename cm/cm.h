@@ -29,7 +29,10 @@
 #include "addb/addb.h"         /* struct c2_addb_ctx */
 #include "reqh/reqh_service.h" /* struct c2_reqh_service_type */
 #include "sm/sm.h"	       /* struct c2_sm */
-#include "cm/sw.h"
+#include "fop/fom.h"           /* struct c2_fom */
+
+#include "cm/ag.h"
+#include "cm/pump.h"
 
 /**
    @page CMDLD-fspec Copy Machine Functional Specification
@@ -55,7 +58,6 @@
 	- Stopping a copy machine.
    - The c2_cm_type represents a copy machine type that a copy machine is an
      instance of.
-   - The c2_cm_stats keeps copy machine operation progress data.
 
    @subsection CMDLD-fspec-if Interfaces
    Every copy machine type implements its own set of routines for type-specific
@@ -79,8 +81,9 @@
    Lists the various external interfaces exported by the copy machine.
    - c2_cm_setup()		     Setup a copy machine.
    - c2_cm_start()                   Starts copy machine operation.
-   - c2_cm_failure_handle()	     Handles a copy machine failure.
-   - c2_cm_done()		     Performs copy machine operation fini tasks.
+   - c2_cm_fail()		     Handles a copy machine failure.
+   - c2_cm_stop()		     Completes and aborts a copy machine
+                                     operation.
 
    @subsection CMDLD-fspec-sub-opi-ext External operational Interfaces
    @todo This would be re-written when configuration api's would be implemented.
@@ -115,26 +118,24 @@ enum c2_cm_state {
 	C2_CMS_READY,
 	C2_CMS_ACTIVE,
 	C2_CMS_FAIL,
-	C2_CMS_DONE,
 	C2_CMS_STOP,
 	C2_CMS_FINI,
 	C2_CMS_NR
 };
 
-/** Various copy machine related error codes. */
-enum c2_cm_rc {
-	C2_CM_SUCCESS,
+/**
+ * Various copy machine failures. c2_cm_fail() uses these to perform failure
+ * specific processing like sending ADDB messages etc.
+ * @see c2_cm_fail()
+ */
+enum c2_cm_failure {
 	/** Copy machine setup failure */
-	C2_CM_ERR_SETUP,
+	C2_CM_ERR_SETUP = 1,
 	/** Copy machine start failure */
 	C2_CM_ERR_START,
-	/** Copy machine configuration failure. */
-	C2_CM_ERR_CONF,
-	/** Copy machine operational failure. */
-	C2_CM_ERR_OP,
 	/** Copy machine stop failure */
 	C2_CM_ERR_STOP,
-	C2_CM_NR
+	C2_CM_ERR_NR
 };
 
 /** Copy Machine type, implemented as a request handler service. */
@@ -160,7 +161,8 @@ struct c2_cm {
 	/**
 	 * State machine group for this copy machine type.
 	 * Each replica uses the mutex embedded in their state machine group to
-	 * serialise their state transitions and operations (ct_sm_group.s_lock)
+	 * serialise their state transitions and operations (cm_sm_group.s_lock)
+	 * .
 	 */
 	struct c2_sm_group		 cm_sm_group;
 
@@ -176,14 +178,17 @@ struct c2_cm {
 	/** ADDB context to log important events and failures. */
 	struct c2_addb_ctx               cm_addb;
 
-	/** Sliding window controlled by this copy machine. */
-	struct c2_cm_sw                  cm_sw;
-
 	/**
-         * Set true when copy machine shutdown triggered. Every finalisation
-         * operation should check this flag.
+	 * List of aggregation groups in process.
+	 * Copy machine provides various interfaces over this list to implement
+	 * sliding window.
+	 * @see struct c2_cm_aggr_group::cag_cm_linkage
 	 */
-	bool				 cm_shutdown;
+	struct c2_tl                     cm_aggr_grps;
+
+	/** List of c2_cm_proxy objects representing remote replicas. */
+	struct c2_tl                     cm_proxies;
+	struct c2_cm_cp_pump             cm_cp_pump;
 };
 
 /** Operations supported by a copy machine. */
@@ -202,51 +207,59 @@ struct c2_cm_ops {
 	 */
 	int (*cmo_start)(struct c2_cm *cm);
 
-	/** Acknowledges the completion of copy machine operation. */
-	void (*cmo_done)(struct c2_cm *cm);
-
-	/** Invoked from c2_cm_stop (). */
+	/** Invoked from c2_cm_stop(). */
 	int (*cmo_stop)(struct c2_cm *cm);
 
-	/** Creates copy packets after consulting sliding window. */
+	/** Creates copy packets only if resources permit. */
 	struct c2_cm_cp *(*cmo_cp_alloc)(struct c2_cm *cm);
 
+	/** Creates aggregation group for the given "id". */
+	struct c2_cm_aggr_group *(*cmo_ag_alloc) (struct c2_cm *cm,
+						  struct c2_cm_ag_id *id);
 	/**
 	 * Iterates over the copy machine data set and populates the copy packet
 	 * with meta data of next data object to be restructured, i.e. fid,
 	 * aggregation group, &c.
+	 * Also attaches data buffer to c2_cm_cp::c_data, if successful.
 	 */
-	int (*cmo_cp_data_next)(struct c2_cm *cm, struct c2_cm_cp *cp);
+	int (*cmo_data_next)(struct c2_cm *cm, struct c2_cm_cp *cp);
+
+	/** Returns next relevant aggregation group id after "id_curr". */
+	int (*cmo_ag_next)(const struct c2_cm *cm,
+			   const struct c2_cm_ag_id *id_curr,
+			   struct c2_cm_ag_id *id_next);
+
+	/**
+	 * Returns true iff the copy machine has enough space to receive all
+	 * the copy packets from the given relevant group "id".
+	 * e.g. sns repair copy machine checks if the incoming buffer pool has
+	 * enough free buffers to receive all the remote units corresponding
+	 * to a parity group.
+	 */
+	bool (*cmo_has_space)(const struct c2_cm *cm,
+			      const struct c2_cm_ag_id *id);
 
 	/** Copy machine specific finalisation routine. */
 	void (*cmo_fini)(struct c2_cm *cm);
 };
 
 /**
- * Represents resource usage and copy machine operation progress
- * 0  : resource/operation is not used/complete at all.
- * 100: resource/operation is used/complete entirely.
- * 0 < value < 100: some fraction of resources/operation is used/complete.
+ * Represents remote replica and stores its details including its sliding
+ * window.
  */
-struct c2_cm_stats {
-	/** Total Progress of copy machine operation. */
-	int       s_progress;
-	/** Start time of copy machine operation. */
-	c2_time_t s_start;
-	/** End time of copy machine operation. */
-	c2_time_t s_end;
-	/** Input set completion status. */
-	int       s_iset;
-	/** Output set completion status. */
-	int       s_oset;
-	/** Memory usage. */
-	int       s_memory;
-	/** CPU usage. */
-	int       s_cpu;
-	/** Network bandwidth usage. */
-	int       s_network;
-	/** Disk bandwidth usage. */
-	int       s_disk;
+struct c2_cm_proxy {
+	/** Remote replica's identifier. */
+	uint64_t           px_id;
+
+	/** Remote replica's sliding window. */
+	struct c2_cm_ag_id px_sw_lo;
+	struct c2_cm_ag_id px_sw_hi;
+
+	/**
+	 * Pending list of copy packets to be forwarded to the remote
+	 * replica.
+	 **/
+	struct c2_tl       px_pending_cps;
 };
 
 int c2_cm_type_register(struct c2_cm_type *cmt);
@@ -256,37 +269,37 @@ void c2_cm_type_deregister(struct c2_cm_type *cmt);
  * Locks copy machine replica. We use a state machine group per copy machine
  * replica.
  */
-void c2_cm_group_lock(struct c2_cm *cm);
+void c2_cm_lock(struct c2_cm *cm);
 
 /** Releases the lock over a copy machine replica. */
-void c2_cm_group_unlock(struct c2_cm *cm);
+void c2_cm_unlock(struct c2_cm *cm);
 
 /**
  * Returns true, iff the copy machine lock is held by the current thread.
  * The lock should be released before returning from a fom state transition
- * function
+ * function. This function is used only in assertions.
  */
-bool c2_cm_group_is_locked(struct c2_cm *cm);
+bool c2_cm_is_locked(const struct c2_cm *cm);
 
-int c2_cms_init(void);
-void c2_cms_fini(void);
+int c2_cm_module_init(void);
+void c2_cm_module_fini(void);
 
 /**
- * Initialises a Copy machine. This is invoked from copy machine specific
+ * Initialises a copy machine. This is invoked from copy machine specific
  * service init routine.
  * Transitions copy machine into C2_CMS_INIT state if the initialisation
  * completes without any errors.
- * @pre cm != NULL;
+ * @pre cm != NULL
+ * @post ergo(result == 0, c2_cm_state_get(cm) == C2_CMS_INIT)
  */
 int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
-	       const struct c2_cm_ops *cm_ops,
-	       const struct c2_cm_sw_ops *sw_ops);
+	       const struct c2_cm_ops *cm_ops);
 
 /**
  * Finalises a copy machine. This is invoked from copy machine specific
  * service fini routine.
- * @pre cm != NULL && cm->cm_mach.sm_state == C2_CMS_IDLE;
- * @post c2_cm_state == C2_CMS_FINI;
+ * @pre cm != NULL && c2_cm_state_get(cm) == C2_CMS_IDLE
+ * @post c2_cm_state_get(cm) == C2_CMS_FINI
  */
 void c2_cm_fini(struct c2_cm *cm);
 
@@ -295,48 +308,56 @@ void c2_cm_fini(struct c2_cm *cm);
  * routine. This is invoked from copy machine specific service start routine.
  * On successful completion of the setup, a copy machine transitions to "IDLE"
  * state where it waits for a data restructuring request.
- * @pre cm!= NULL && cm->mach.sm_state == C2_CMS_INIT;
- * @post c2_cm_state == C2_CMS_IDLE;
+ * @pre cm != NULL && c2_cm_state_get(cm) == C2_CMS_INIT
+ * @post c2_cm_state_get(cm) == C2_CMS_IDLE
  */
 int c2_cm_setup(struct c2_cm *cm);
 
 /**
  * Starts the copy machine data restructuring process on receiving the "POST"
  * fop. Internally invokes copy machine specific start routine.
- * @pre cm!= NULL && cm->mach.sm_state == C2_CMS_IDLE;
- * @post c2_cm_state == C2_CMS_ACTIVE;
+ * @pre cm != NULL && c2_cm_state_get(cm) == C2_CMS_IDLE
+ * @post c2_cm_state_get(cm) == C2_CMS_ACTIVE
  */
 int c2_cm_start(struct c2_cm *cm);
 
 /**
- * Stops the copy machine data restructuring process by sending the "STOP" fop.
- * Invokes copy machine specific stop routine (->cmo_stop()).
- * @pre cm!= NULL && cm->mach &&
- * C2_PRE(C2_IN(cm->mach.sm_state, (C2_CMS_ACTIVE, C2_CMS_IDLE)));
- * @post (C2_IN(cm->mach.sm_state, (C2_CMS_IDLE, C2_CMS_FAIL2_cm_stop)));
+ * Stops copy machine operation.
+ * Once operation completes successfully, copy machine performs required tasks,
+ * (e.g. updating layouts, etc.) by invoking c2_cm_stop(), this transitions copy
+ * machine back to C2_CMS_IDLE state. Copy machine invokes c2_cm_stop() also in
+ * case of operational failure to broadcast STOP FOPs to its other replicas in
+ * the pool, indicating failure. This is handled specific to the copy machine
+ * type.
+ * @pre cm!= NULL && C2_IN(c2_cm_state_get(cm), (C2_CMS_ACTIVE))
+ * @post C2_IN(c2_cm_state_get(cm), (C2_CMS_IDLE, C2_CMS_FAIL))
  */
 int c2_cm_stop(struct c2_cm *cm);
 
 /**
  * Configures a copy machine replica.
- * @pre C2_IN(cm->cm_mach.sm_state,(C2_CMS_IDLE, C2_CMS_DONE));
+ * @todo Pass actual configuration fop data structure once configuration
+ * interfaces and datastructures are available.
+ * @pre c2_cm_state_get(cm) == C2_CMS_IDLE
  */
 int c2_cm_configure(struct c2_cm *cm, struct c2_fop *fop);
 
 /**
- * Marks copy machine operation as complete. Transitions copy machine into
- * C2_CMS_IDLE.
+ * Handles various type of copy machine failures based on the failure code and
+ * errno.
+ * Currently, all this function does is send failure specific addb events and
+ * sets corresponding c2_sm->sm_rc. A better implementation would be creating
+ * a failure descriptor table based on various failures which would contain
+ * an ADDB event for each failure and an "failure_action" op.
+ * However, due to limitations in the current ADDB infrastructure, this is not
+ * feasible.
+ *
+ * @todo Rewrite this function when new ADDB infrastucture is in place.
+ * @param cm Failed copy machine.
+ * @param failure Copy machine failure code.
+ * @param rc errno to which sm rc will be set to.
  */
-int c2_cm_done(struct c2_cm *cm);
-
-/**
- * Handles various type of copy machine failures based on the failure code.
- * In case of non-recoverable failure (eg: copy machine init failure),
- * it transitions the copy machine to C2_CMS_UNDEFINED state. In case of other
- * recoverable failures (configuration failure, restructuring failure) the
- * current operation aborts.
- */
-int c2_cm_failure_handle(struct c2_cm *cm);
+void c2_cm_fail(struct c2_cm *cm, enum c2_cm_failure failure, int rc);
 
 #define C2_CM_TYPE_DECLARE(cmtype, ops, name)     \
 struct c2_cm_type cmtype ## _cmt = {              \
@@ -347,13 +368,36 @@ struct c2_cm_type cmtype ## _cmt = {              \
 }					          \
 
 /** Checks consistency of copy machine. */
-bool c2_cm_invariant(struct c2_cm *cm);
+bool c2_cm_invariant(const struct c2_cm *cm);
 
 /** Copy machine state mutators & accessors */
-void c2_cm_state_set(struct c2_cm *cm, int state);
-int  c2_cm_state_get(struct c2_cm *cm);
+void c2_cm_state_set(struct c2_cm *cm, enum c2_cm_state state);
+enum c2_cm_state c2_cm_state_get(const struct c2_cm *cm);
 
-/** @} endgroup cm */
+/**
+ * Creates copy packets and adds aggregation groups to c2_cm::cm_aggr_grps,
+ * if required.
+ */
+void c2_cm_sw_fill(struct c2_cm *cm);
+
+/**
+ * Iterates over data to be re-structured.
+ *
+ * @pre c2_cm_invariant(cm)
+ * @pre c2_cm_is_locked(cm)
+ * @pre cp != NULL
+ *
+ * @post ergo(rc == 0, cp->c_data != NULL)
+ */
+int c2_cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp);
+
+/** Returns last element from the c2_cm::cm_aggr_grps list. */
+struct c2_cm_aggr_group *c2_cm_ag_hi(struct c2_cm *cm);
+
+/** Returns first element from the c2_cm::cm_aggr_grps list. */
+struct c2_cm_aggr_group *c2_cm_ag_lo(struct c2_cm *cm);
+
+/** @} endgroup CM */
 
 /* __COLIBRI_CM_CM_H__ */
 

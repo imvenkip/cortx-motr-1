@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Subhash Arya  <subhash_arya@xyratex.com>
+ *                  Anup Barve <anup_barve@xyratex.com>
  * Original creation date: 08/08/2012
  */
 
@@ -26,9 +27,6 @@
 #include "lib/atomic.h"
 #include "lib/types.h"
 #include "lib/tlist.h"
-#include "lib/mutex.h"
-
-#include "cm/cm.h"
 
 /**
    @defgroup CMAG Copy machine aggregation group
@@ -37,27 +35,38 @@
    @{
  */
 
+/**
+ * Aggregation group identifier.
+ */
+struct c2_cm_ag_id {
+	struct c2_uint128 ai_hi;
+	struct c2_uint128 ai_lo;
+};
+
 /** Copy Machine Aggregation Group. */
 struct c2_cm_aggr_group {
-	/** Parent copy machine. */
 	struct c2_cm                      *cag_cm;
 
-	/** Aggregation group id */
-	struct c2_uint128		   cag_id;
+	struct c2_cm_ag_id                 cag_id;
 
 	const struct c2_cm_aggr_group_ops *cag_ops;
+
+	struct c2_layout                  *cag_layout;
 
 	/** Number of copy packets that correspond to this aggregation group. */
 	int64_t                            cag_cp_nr;
 
-	/** Number of copy packets that are transformed. */
-	struct c2_atomic64                 cag_transformed_cp_nr;
+	/** Number of copy packets that have been transformed. */
+	struct c2_atomic64		   cag_transformed_cp_nr;
+
+	/** Number of copy packets that are freed. */
+	struct c2_atomic64		   cag_freed_cp_nr;
 
 	/**
-	 * Linkage into the sorted sliding window queue of aggregation group
-	 * ids, Hanging to c2_cm_sw::sw_aggr_grps.
+	 * Linkage into the sorted sliding window queue of aggregation groups
+	 * (c2_cm::cm_aggr_grps), sorted by indentifiers.
 	 */
-	struct c2_tlink			   cag_sw_linkage;
+	struct c2_tlink			   cag_cm_linkage;
 
 	uint64_t                           cag_magic;
 };
@@ -69,7 +78,8 @@ struct c2_cm_aggr_group_ops {
 
 	/**
 	 * Returns number of copy packets corresponding to the aggregation
-	 * group on the local node. Typically this is calculated as,
+	 * group on the local node. For example, for sns repair copy machine,
+	 * this is calculated as
 	 * number of data units per node * unit size / network buffer size.
 	 */
 	uint64_t (*cago_local_cp_nr)(struct c2_cm_aggr_group *ag);
@@ -79,6 +89,14 @@ C2_TL_DESCR_DECLARE(aggr_grps, extern);
 C2_TL_DECLARE(aggr_grps, extern, struct c2_cm_aggr_group);
 extern struct c2_bob_type aggr_grps_bob;
 
+int c2_cm_ag_id_cmp(const struct c2_cm_ag_id *id0, const struct c2_cm_ag_id *id1);
+
+/**
+ * Searches for an aggregation group for the given "id" in c2_cm::cm_aggr_groups,
+ * creates a new one if not found.
+ */
+struct c2_cm_aggr_group *c2_cm_aggr_group_find(const struct c2_cm *cm,
+					       const struct c2_cm_ag_id *id);
 /** @} CMAG */
 #endif
 /*

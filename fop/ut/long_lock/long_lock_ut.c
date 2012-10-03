@@ -17,9 +17,6 @@
  * Original creation date: 08/06/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
 #include "lib/ut.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"

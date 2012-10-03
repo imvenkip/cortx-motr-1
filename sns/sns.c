@@ -17,18 +17,25 @@
  * Original creation date: 03/30/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "sns/sns.h"
 #include "sns/repair/cm.h"
 
-int sns_init()
+int c2_sns_init()
 {
-	return 0;
+	return c2_sns_repair_cm_type_register();
 }
 
-void sns_fini()
+void c2_sns_fini()
 {
+	c2_sns_repair_cm_type_deregister();
 }
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

@@ -214,8 +214,9 @@ struct c2_layout_ops {
 	/**
 	 * Finalises the type specific layout object. It involves finalising
 	 * its enumeration object, if applicable.
-	 * Dual to layout type specific build procedure.
-	 * Called when the last reference on the layout object is released.
+	 * Called implicitly when the last reference on the layout object
+	 * is released. User is not expected to invoke this method explicitly.
+	 * @see c2_layout_put().
 	 */
 	void        (*lo_fini)(struct c2_layout *l);
 
@@ -240,6 +241,13 @@ struct c2_layout_ops {
 	 *            <= l->l_type->lt_ops->lto_max_recsize(l->l_dom);
 	 */
 	c2_bcount_t (*lo_recsize)(const struct c2_layout *l);
+
+	/**
+	 * Allocates and builds a layout instance using the supplied layout
+	 */
+	int         (*lo_instance_build)(struct c2_layout           *l,
+					 const struct c2_fid        *fid,
+					 struct c2_layout_instance **linst);
 
 	/**
 	 * Continues building the in-memory layout object from its
@@ -458,6 +466,17 @@ struct c2_layout_enum_ops {
 };
 
 /**
+ * Finalises the enum object.
+ * Dual to enum type specific build procedure.
+ * The user will not invoke this API explicitly if the enum is used as a part
+ * of some layout object. Layout finalisation will take care of enum
+ * finalisation in that case. This API is expected to be used only in case
+ * the enum could not be made part of any layout for some reason.
+ * @see c2_layout_put()
+ */
+void c2_layout_enum_fini(struct c2_layout_enum *le);
+
+/**
  * Structure specific to a layout enumeration type.
  * There is an instance of c2_layout_enum_type for each one of enumeration
  * types. For example, for LINEAR and LIST enumeration types.
@@ -542,11 +561,41 @@ struct c2_layout_instance_ops {
 	 * Releases a reference on the layout object that was obtained through
 	 * the layout instance type specific build method, for example
 	 * c2_pdclust_instance_init().
-	 *
-	 * Dual to layout type specific instance build procedure.
 	 */
 	void (*lio_fini)(struct c2_layout_instance *li);
+
+	/**
+	 * Returns enum object embedded in the layout referred by
+	 * the layout instance.
+	 */
+	struct c2_layout_enum *
+		(*lio_to_enum)(const struct c2_layout_instance *li);
 };
+
+/**
+ * Returns enum object embedded in the layout referred by the layout instance.
+ */
+struct c2_layout_enum *
+c2_layout_instance_to_enum(const struct c2_layout_instance *li);
+
+/**
+ * Allocates and builds a layout instance using the supplied layout;
+ * Acquires an additional reference on the layout pointed by 'l'.
+ * @post ergo(rc == 0, l->l_ref > 1))
+ *
+ * Dual to c2_layout_instance_fini()
+ */
+int c2_layout_instance_build(struct c2_layout           *l,
+			     const struct c2_fid        *fid,
+			     struct c2_layout_instance **out);
+
+/**
+ * Finalises the layout instance object; Releases reference on the layout
+ * that was obtained through c2_layout_instance_build().
+ *
+ * Dual to c2_layout_instance_build()
+ */
+void c2_layout_instance_fini(struct c2_layout_instance *li);
 
 /**
  * layouts table.
@@ -702,10 +751,9 @@ void c2_layout_put(struct c2_layout *l);
  * - ergo(rc != 0, c2_layout__allocated_invariant(l)
  * - c2_mutex_is_locked(&l->l_lock)
  * - The cursor cur is advanced by the size of the data that is read from it.
+ * - ergo(rc == 0, l->l_ref == 1)
  *
- * @note User is expected to add rererence/s to this layout object while using
- * it. Releasing the last reference will finalise the layout object by freeing
- * it.
+ * @see c2_layout_put()
  */
 int c2_layout_decode(struct c2_layout *l,
 		     struct c2_bufvec_cursor *cur,
@@ -768,8 +816,8 @@ struct c2_striped_layout *c2_layout_to_striped(const struct c2_layout *l);
  * Returns c2_layout_enum object for the specified c2_striped_layout
  * object.
  */
-struct c2_layout_enum
-*c2_striped_layout_to_enum(const struct c2_striped_layout *stl);
+struct c2_layout_enum *
+c2_striped_layout_to_enum(const struct c2_striped_layout *stl);
 
 struct c2_layout_enum *c2_layout_to_enum(const struct c2_layout *l);
 

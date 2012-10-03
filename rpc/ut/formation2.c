@@ -18,10 +18,6 @@
  * Original creation date: 05/25/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/ut.h"
 #include "lib/mutex.h"
 #include "lib/time.h"
@@ -46,15 +42,15 @@ static int frm_ut_init(void)
 {
 	rchan.rc_rpc_machine = &rmachine;
 	frm = &rchan.rc_frm;
-	c2_mutex_init(&rmachine.rm_mutex);
-	c2_mutex_lock(&rmachine.rm_mutex);
+	c2_sm_group_init(&rmachine.rm_sm_grp);
+	c2_rpc_machine_lock(&rmachine);
 	return 0;
 }
 
 static int frm_ut_fini(void)
 {
-	c2_mutex_unlock(&rmachine.rm_mutex);
-	c2_mutex_fini(&rmachine.rm_mutex);
+	c2_rpc_machine_unlock(&rmachine);
+	c2_sm_group_fini(&rmachine.rm_sm_grp);
 	return 0;
 }
 

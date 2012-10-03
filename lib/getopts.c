@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,161 +14,123 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
- * Original creation date: 08/19/2010
+ * Original author: Maxim Medved <Max_Medved@xyratex.com>
+ * Original creation date: 05/19/2012
  */
 
-#define _POSIX_C_SOURCE 2 /* for getopt */
-#include <unistd.h>     /* getopt */
-#include <stdio.h>      /* fprintf, sscanf */
-#include <stdlib.h>     /* strtoull */
-
-/* getopt(3) interface */
-extern char *optarg;
-extern int   optind;
-extern int   optopt;
-extern int   opterr;
-extern int   optreset;
-
-#include "lib/assert.h"
-#include "lib/errno.h"
-#include "lib/memory.h"
 #include "lib/getopts.h"
 
-/**
-   @addtogroup getopts
-   @{
- */
+#ifdef __KERNEL__
+#include <linux/kernel.h>	/* simple_strtoull */
+#include <linux/string.h>	/* strchr */
+#else
+#include <stdlib.h>		/* strtoull */
+#include <string.h>		/* strchr */
+#endif
 
-static void usage(const char *progname,
-		  const struct c2_getopts_opt *opts, unsigned nr)
+#include "lib/errno.h"		/* EINVAL */
+#include "lib/cdefs.h"		/* ARRAY_SIZE */
+#include "lib/assert.h"		/* C2_CASSSERT */
+#include "lib/types.h"		/* UINT64_MAX */
+
+#ifdef __KERNEL__
+#define STRTOULL	simple_strtoull
+#else
+#define STRTOULL	strtoull
+#endif
+
+const char C2_GETOPTS_DECIMAL_POINT = '.';
+
+int c2_bcount_get(const char *arg, c2_bcount_t *out)
 {
-	int i;
+	char		 *end = NULL;
+	char		 *pos;
+	static const char suffix[] = "bkmgKMG";
+	int		  rc = 0;
 
-	fprintf(stderr, "Usage: %s options...\n\nwhere valid options are\n\n",
-			progname);
+	static const uint64_t multiplier[] = {
+		1 << 9,
+		1 << 10,
+		1 << 20,
+		1 << 30,
+		1000,
+		1000 * 1000,
+		1000 * 1000 * 1000
+	};
 
-	for (i = 0; i < nr; ++i) {
-		const struct c2_getopts_opt *o;
+	C2_CASSERT(ARRAY_SIZE(suffix) - 1 == ARRAY_SIZE(multiplier));
 
-		o = &opts[i];
-		fprintf(stderr, "\t -%c %10s: %s\n", o->go_opt,
-			o->go_type == GOT_VOID ? "" :
-			o->go_type == GOT_HELP ? "" :
-			o->go_type == GOT_FLAG ? "" :
-			o->go_type == GOT_FORMAT ? o->go_u.got_fmt.f_string :
-			o->go_type == GOT_NUMBER ? "number" : "string",
-			o->go_desc);
+	*out = STRTOULL(arg, &end, 0);
+
+	if (*end != 0 && rc == 0) {
+		pos = strchr(suffix, *end);
+		if (pos != NULL) {
+			if (*out <= C2_BCOUNT_MAX / multiplier[pos - suffix])
+				*out *= multiplier[pos - suffix];
+			else
+				rc = -EOVERFLOW;
+		} else
+			rc = -EINVAL;
 	}
+	return rc;
 }
 
-static int getnum(const char *arg, const char *desc, int64_t *out)
+int c2_time_get(const char *arg, c2_time_t *out)
 {
-	char *end;
+	char	*end = NULL;
+	uint64_t before;	/* before decimal point */
+	uint64_t after = 0;	/* after decimal point */
+	int	 rc = 0;
+	uint64_t unit_mul = 1000000000;
+	int	 i;
+	uint64_t time_ns;
+	uint64_t pow_of_10 = 1;
 
-	*out = strtoull(arg, &end, 0);
-	if (*end != 0) {
-		fprintf(stderr, "Failed conversion of \"%s\" to %s\n",
-			arg, desc);
-		return -EINVAL;
-	} else
-		return 0;
-}
+	static const char *unit[] = {
+		"s",
+		"ms",
+		"us",
+		"ns",
+	};
+	static const uint64_t multiplier[] = {
+		1000000000,
+		1000000,
+		1000,
+		1,
+	};
 
-int c2_getopts(const char *progname, int argc, char * const *argv,
-	       const struct c2_getopts_opt *opts, unsigned nr)
-{
-	char *optstring;
-	int   i;
-	int   scan;
-	int   ch;
-	int   result;
+	C2_CASSERT(ARRAY_SIZE(unit) == ARRAY_SIZE(multiplier));
 
-	C2_ALLOC_ARR(optstring, 2 * nr + 1);
-	if (optstring == NULL)
-		return -ENOMEM;
-
-	for (scan = i = 0; i < nr; ++i) {
-		/* -W is reserved by POSIX.2 and used by GNU getopts as a long
-                    option escape. */
-		C2_ASSERT(opts[i].go_opt != 'W');
-		optstring[scan++] = opts[i].go_opt;
-		if (opts[i].go_type != GOT_VOID && opts[i].go_type != GOT_FLAG
-		    && opts[i].go_type != GOT_HELP)
-			optstring[scan++] = ':';
-		if (opts[i].go_type == GOT_FLAG)
-			*opts[i].go_u.got_flag = false;
-	}
-
-	result = 0;
-
-	/*
-	 * Re-set global getopt(3) state before calling it.
-	 */
-	optind = 1;
-	opterr = 1;
-
-	while (result == 0 && (ch = getopt(argc, argv, optstring)) != -1) {
-		for (i = 0; i < nr; ++i) {
-			const struct c2_getopts_opt  *o;
-			const union c2_getopts_union *u;
-
-			o = &opts[i];
-			if (ch != o->go_opt)
-				continue;
-
-			u = &o->go_u;
-			switch (o->go_type) {
-			case GOT_VOID:
-				u->got_void();
-				break;
-			case GOT_NUMBER: {
-				int64_t num;
-
-				result = getnum(optarg, o->go_desc, &num);
-				if (result == 0)
-					u->got_number(num);
-				break;
-			}
-			case GOT_STRING:
-				u->got_string(optarg);
-				break;
-			case GOT_FORMAT:
-				result = sscanf(optarg, u->got_fmt.f_string,
-						u->got_fmt.f_out);
-				result = result == 1 ? 0 : -EINVAL;
-				if (result != 0) {
-					fprintf(stderr, "Cannot scan \"%s\" "
-						"as \"%s\" in \"%s\"\n",
-						optarg, u->got_fmt.f_string,
-						o->go_desc);
-				}
-				break;
-			case GOT_FLAG:
-				*u->got_flag = true;
-				break;
-			case GOT_HELP:
-				usage(progname, opts, nr);
-				exit(EXIT_FAILURE);
-				break;
-			default:
-				C2_IMPOSSIBLE("Wrong option type.");
-			}
-			break;
-		}
-		if (i == nr)  {
-			C2_ASSERT(ch == '?');
-			fprintf(stderr, "Unknown option '%c'\n", optopt);
-			usage(progname, opts, nr);
-			result = -EINVAL;
+	before = STRTOULL(arg, &end, 10);
+	if (*end == C2_GETOPTS_DECIMAL_POINT) {
+		arg = ++end;
+		after = STRTOULL(arg, &end, 10);
+		for (i = 0; i < end - arg; ++i) {
+			pow_of_10 = pow_of_10 >= UINT64_MAX / 10 ? UINT64_MAX :
+				    pow_of_10 * 10;
 		}
 	}
+	if (before == UINT64_MAX || after == UINT64_MAX)
+		rc = -E2BIG;
 
-	c2_free(optstring);
-	return result;
+	if (rc == 0 && *end != '\0') {
+		for (i = 0; i < ARRAY_SIZE(unit); ++i) {
+			if (strncmp(end, unit[i], strlen(unit[i]) + 1) == 0) {
+				unit_mul = multiplier[i];
+				break;
+			}
+		}
+		if (i == ARRAY_SIZE(unit))
+			rc = -EINVAL;
+	}
+	if (rc == 0) {
+		time_ns = before * unit_mul +
+			  (after * unit_mul / pow_of_10);
+		c2_time_set(out, time_ns / C2_TIME_ONE_BILLION,
+			    time_ns % C2_TIME_ONE_BILLION);
+	}
+	return rc;
 }
-
-/** @} end of getopts group */
 
 /*
  *  Local variables:

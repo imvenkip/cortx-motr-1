@@ -10,6 +10,9 @@ libc2_HEADERS        = \
                        atomic.h \
                        bitmap.h \
                        bob.h \
+                       buf.h \
+                       buf_xc.h \
+		       byteorder.h \
                        cdefs.h \
                        chan.h \
                        cond.h \
@@ -52,7 +55,8 @@ libc2_la_SOURCES     = \
                        bob.h \
                        buf.c \
                        buf.h \
-                       c2lib.c \
+                       buf_xc.c \
+		       byteorder.h \
                        cdefs.h \
                        chan.c \
                        chan.h \
@@ -95,6 +99,7 @@ libc2_la_SOURCES     = \
                        user_space/assert.h \
                        user_space/cdefs.h \
                        user_space/finject_init.c \
+                       user_space/getopts.h \
                        user_space/memory.c \
                        user_space/mutex.h \
                        user_space/processor.c \
@@ -103,19 +108,21 @@ libc2_la_SOURCES     = \
                        user_space/semaphore.h \
                        user_space/thread.h \
                        user_space/timer.h \
-                       user_space/utrace.c \
                        user_space/trace.h \
                        user_space/types.h \
                        user_space/ucookie.c \
+                       user_space/ugetopts.c \
                        user_space/user_x86_64_atomic.h \
 		       user_space/__sync_atomic.h \
                        user_space/uthread.c \
                        user_space/utime.c \
+                       user_space/utrace.c \
                        ut.c \
                        ut.h \
                        vec.c \
                        vec.h \
-                       vec_xc.c
+                       vec_xc.c \
+                       c2lib.c
 
 libc2_la_LDFLAGS       = @PTHREAD_LIBS@ -lrt
 EXTRA_DIST             = \

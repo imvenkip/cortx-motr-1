@@ -18,11 +18,6 @@
  * Original creation date: 09/28/2011
  */
 
-
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/ut.h"
 #include "lib/memory.h"
 #include "lib/processor.h"
@@ -97,9 +92,6 @@ struct c2_rpc_server_ctx sctx = {
 #ifdef ENABLE_FAULT_INJECTION
 static void test_c2_rpc_server_start(void)
 {
-	c2_fi_enable_once("c2_reqh_service_type_register", "fake_error");
-	C2_UT_ASSERT(c2_rpc_server_start(&sctx) != 0);
-
 	c2_fi_enable_once("c2_cs_init", "fake_error");
 	C2_UT_ASSERT(c2_rpc_server_start(&sctx) != 0);
 

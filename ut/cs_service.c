@@ -18,10 +18,6 @@
  * Original creation date: 12/10/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/errno.h"
 #include "lib/memory.h"
 
@@ -67,6 +63,7 @@ struct c2_reqh_service_type *c2_cs_default_stypes[] = {
 	&ds1_service_type,
 	&ds2_service_type,
 };
+
 size_t c2_cs_default_stypes_nr = ARRAY_SIZE(c2_cs_default_stypes);
 
 static int ds1_service_allocate(struct c2_reqh_service_type *stype,

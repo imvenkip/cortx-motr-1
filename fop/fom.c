@@ -18,10 +18,6 @@
  * Original creation date: 05/04/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/misc.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
@@ -33,6 +29,7 @@
 #include "lib/cdefs.h" /* ergo */
 
 #include "addb/addb.h"
+#include "colibri/magic.h"
 #include "fop/fop.h"
 #include "fop/fom_long_lock.h"
 #include "reqh/reqh.h"
@@ -162,13 +159,8 @@ struct c2_loc_thread {
 	uint64_t                lt_magix;
 };
 
-enum {
-	THREAD_MAGIX = 0xfa151f1ab1ec0b01 /* falsifiable COBOL */
-};
-
 C2_TL_DESCR_DEFINE(thr, "fom thread", static, struct c2_loc_thread, lt_linkage,
-		   lt_magix, THREAD_MAGIX,
-		   0xdec1a551f1edcade /* declassified cade */);
+		   lt_magix, C2_FOM_THREAD_MAGIC, C2_FOM_THREAD_HEAD_MAGIC);
 C2_TL_DEFINE(thr, static, struct c2_loc_thread);
 
 static bool fom_wait_time_is_out(const struct c2_fom_domain *dom,
@@ -239,6 +231,11 @@ bool c2_locality_invariant(const struct c2_fom_locality *loc)
 
 }
 
+struct c2_reqh *c2_fom_reqh(const struct c2_fom *fom)
+{
+	return fom->fo_loc->fl_dom->fd_reqh;
+}
+
 static inline enum c2_fom_state fom_state(const struct c2_fom *fom)
 {
 	return fom->fo_sm_state.sm_state;
@@ -267,7 +264,6 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 	return
 		fom != NULL && fom->fo_loc != NULL &&
 		fom->fo_type != NULL && fom->fo_ops != NULL &&
-		fom->fo_fop != NULL &&
 
 		c2_fom_group_is_locked(fom) &&
 		c2_list_link_invariant(&fom->fo_linkage) &&
@@ -431,13 +427,12 @@ void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
 		C2_ASSERT(fom->fo_service != NULL);
 	}
 
-	fom->fo_fol = reqh->rh_fol;
 	dom = &reqh->rh_fom_dom;
-	c2_atomic64_inc(&dom->fd_foms_nr);
 	loc_idx = fom->fo_ops->fo_home_locality(fom) %
 		dom->fd_localities_nr;
 	C2_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
 	fom->fo_loc = &reqh->rh_fom_dom.fd_localities[loc_idx];
+	C2_CNT_INC(fom->fo_loc->fl_foms);
 	c2_fom_sm_init(fom);
 	fom->fo_cb.fc_ast.sa_cb = queueit;
 	c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
@@ -680,7 +675,7 @@ static int loc_thr_create(struct c2_fom_locality *loc)
 	if (thr == NULL)
 		return -ENOMEM;
 	thr->lt_state = IDLE;
-	thr->lt_magix = THREAD_MAGIX;
+	thr->lt_magix = C2_FOM_THREAD_MAGIC;
 	thr->lt_loc   = loc;
 	thr_tlink_init_at_tail(thr, &loc->fl_threads);
 
@@ -847,21 +842,30 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
 	c2_free(dom->fd_localities);
 }
 
+bool c2_fom_domain_is_idle(const struct c2_fom_domain *dom)
+{
+	return c2_forall(i, dom->fd_localities_nr,
+			 dom->fd_localities[i].fl_foms == 0);
+}
+
 void c2_fom_fini(struct c2_fom *fom)
 {
-	struct c2_fom_domain *fdom;
-	struct c2_reqh       *reqh;
+	struct c2_fom_domain   *fdom;
+	struct c2_fom_locality *loc;
+	struct c2_reqh         *reqh;
 
 	C2_PRE(c2_fom_phase(fom) == C2_FOM_PHASE_FINISH);
 
-	fdom = fom->fo_loc->fl_dom;
+	loc  = fom->fo_loc;
+	fdom = loc->fl_dom;
 	reqh = fdom->fd_reqh;
 	fom_state_set(fom, C2_FOS_FINISH);
 	c2_sm_fini(&fom->fo_sm_phase);
 	c2_sm_fini(&fom->fo_sm_state);
 	c2_list_link_fini(&fom->fo_linkage);
 	c2_fom_callback_init(&fom->fo_cb);
-	if (c2_atomic64_dec_and_test(&fdom->fd_foms_nr))
+	C2_CNT_DEC(loc->fl_foms);
+	if (loc->fl_foms == 0)
 		c2_chan_signal(&reqh->rh_sd_signal);
 }
 C2_EXPORTED(c2_fom_fini);

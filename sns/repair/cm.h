@@ -24,9 +24,10 @@
 #ifndef __COLIBRI_SNS_REPAIR_CM_H__
 #define __COLIBRI_SNS_REPAIR_CM_H__
 
-#include "net/buffer_pool.h"
 #include "cm/cm.h"
 #include "ioservice/cobfid_map.h"
+#include "net/buffer_pool.h"
+#include "layout/pdclust.h"
 
 /**
   @page SNSRepairCMDLD-fspec SNS Repair copy machine functional specification
@@ -78,6 +79,12 @@ struct c2_sns_repair_cm {
 	struct c2_cobfid_map      *rc_cfm;
 	struct c2_cobfid_map_iter  rc_cfm_it;
 	/**
+	 * @todo Temporary location for server side pdclust layout instance, until
+	 * the attr_set() and attr_get() for a GOB is implemented.
+	 */
+	struct c2_pdclust_layout   rc_pl;
+	struct c2_layout_domain    rc_lay_dom;
+	/**
 	 * Buffer pool for incoming copy packets, this is used by sliding
 	 * window.
 	 */
@@ -89,10 +96,7 @@ struct c2_sns_repair_cm {
 int c2_sns_repair_cm_type_register(void);
 void c2_sns_repair_cm_type_deregister(void);
 
-static inline struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm)
-{
-	return container_of(cm, struct c2_sns_repair_cm, rc_base);
-}
+struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm);
 
 /** @} SNSRepairCM */
 #endif /* __COLIBRI_SNS_REPAIR_CM_H__ */
@@ -105,4 +109,3 @@ static inline struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm)
  *  scroll-step: 1
  *  End:
  */
-

@@ -89,7 +89,7 @@ int c2_repair_cp_xform(struct c2_cm_cp *cp)
         C2_PRE(cp != NULL && c2_fom_phase(&cp->c_fom) == C2_CCP_XFORM);
 
         ag = cp->c_ag;
-        sns_ag = bob_of(ag, struct c2_sns_repair_ag, sag_base, &aggr_grps_bob);
+        sns_ag = ag2snsag(ag); 
 	res_cp = sns_ag->sag_cp;
         if (res_cp == NULL) {
                 ag->cag_cp_nr = ag->cag_ops->cago_local_cp_nr(ag);
@@ -98,7 +98,7 @@ int c2_repair_cp_xform(struct c2_cm_cp *cp)
                  * call the next phase of the copy packet fom.
                  */
                 if (ag->cag_cp_nr == 1)
-                        return cp->c_ops->co_phase(cp);
+                        return cp->c_ops->co_phase_next(cp);
 
                 /*
                  * If this is the first copy packet for this aggregation group,
@@ -145,7 +145,7 @@ int c2_repair_cp_xform(struct c2_cm_cp *cp)
                  */
                 if(ag->cag_cp_nr ==
 		   c2_atomic64_get(&ag->cag_transformed_cp_nr)) {
-                        res_cp->c_ops->co_phase(res_cp);
+                        res_cp->c_ops->co_phase_next(res_cp);
 			c2_fom_wakeup(&res_cp->c_fom);
 		}
 		return C2_FSO_AGAIN;
