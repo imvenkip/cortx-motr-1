@@ -438,6 +438,20 @@ bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine)
 }
 C2_EXPORTED(c2_rpc_machine_is_locked);
 
+void c2_rpc_machine_get_stats(struct c2_rpc_machine *machine,
+			      struct c2_rpc_stats *stats, bool reset)
+{
+	C2_PRE(machine != NULL);
+	C2_PRE(stats != NULL);
+
+	c2_rpc_machine_lock(machine);
+	*stats = machine->rm_stats;
+	if(reset)
+		C2_SET0(&machine->rm_stats);
+	c2_rpc_machine_unlock(machine);
+}
+C2_EXPORTED(c2_rpc_machine_get_stats);
+
 struct c2_rpc_chan *rpc_chan_get(struct c2_rpc_machine *machine,
 				 struct c2_net_end_point *dest_ep,
 				 uint64_t max_packets_in_flight)
@@ -629,7 +643,8 @@ static void packet_received(struct c2_rpc_packet    *p,
 
 	C2_ENTRY();
 
-	machine->rm_rpc_stats[C2_RPC_PATH_INCOMING].rs_rpcs_nr++;
+	machine->rm_stats.rs_nr_rcvd_packets++;
+	machine->rm_stats.rs_nr_rcvd_bytes += p->rp_size;
 	/* packet p can also be empty */
 	for_each_item_in_packet(item, p) {
 		c2_rpc_packet_remove_item(p, item);
@@ -688,66 +703,6 @@ static void rpc_recv_pool_buffer_put(struct c2_net_buffer *nb)
 	c2_net_buffer_pool_unlock(tm->ntm_recv_pool);
 
 	C2_LEAVE();
-}
-
-/**
-  Set the stats for outgoing rpc item
-  @param item - incoming or outgoing rpc item
-  @param path - enum distinguishing whether the item is incoming or outgoing
- */
-void item_exit_stats_set(struct c2_rpc_item *item,
-			 enum c2_rpc_item_path path)
-{
-	struct c2_rpc_machine *machine;
-	struct c2_rpc_stats   *st;
-
-	C2_PRE(item != NULL && item->ri_session != NULL);
-	C2_ENTRY("item: %p, item_type_opcode: %u, session_id: %llu",
-		 item, item->ri_type->rit_opcode,
-		 (unsigned long long)item->ri_session->s_session_id);
-
-	machine = item->ri_session->s_conn->c_rpc_machine;
-	C2_ASSERT(c2_rpc_machine_is_locked(machine));
-
-	C2_PRE(IS_IN_ARRAY(path, machine->rm_rpc_stats));
-
-	item->ri_rpc_time = c2_time_sub(c2_time_now(), item->ri_rpc_time);
-
-	st = &machine->rm_rpc_stats[path];
-        st->rs_cumu_lat += item->ri_rpc_time;
-	st->rs_min_lat = st->rs_min_lat ? : item->ri_rpc_time;
-	st->rs_min_lat = min64u(st->rs_min_lat, item->ri_rpc_time);
-	st->rs_max_lat = st->rs_max_lat ? : item->ri_rpc_time;
-	st->rs_max_lat = max64u(st->rs_max_lat, item->ri_rpc_time);
-
-        st->rs_items_nr++;
-        st->rs_bytes_nr += c2_rpc_item_size(item);
-
-	C2_LEAVE();
-}
-
-size_t c2_rpc_bytes_per_sec(struct c2_rpc_machine *machine,
-			    const enum c2_rpc_item_path path)
-{
-	struct c2_rpc_stats *stats;
-
-	C2_PRE(machine != NULL);
-	C2_PRE(IS_IN_ARRAY(path, machine->rm_rpc_stats));
-
-	stats = &machine->rm_rpc_stats[path];
-	return stats->rs_bytes_nr / stats->rs_cumu_lat;
-}
-
-c2_time_t c2_rpc_avg_item_time(struct c2_rpc_machine *machine,
-			       const enum c2_rpc_item_path path)
-{
-	struct c2_rpc_stats *stats;
-
-	C2_PRE(machine != NULL);
-	C2_PRE(IS_IN_ARRAY(path, machine->rm_rpc_stats));
-
-	stats = &machine->rm_rpc_stats[path];
-	return stats->rs_cumu_lat / stats->rs_items_nr;
 }
 
 /** @} end of rpc-layer-core group */

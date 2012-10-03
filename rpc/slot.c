@@ -45,9 +45,6 @@
 
  */
 
-void item_exit_stats_set(struct c2_rpc_item    *item,
-			 enum c2_rpc_item_path  path);
-
 void frm_item_reply_received(struct c2_rpc_item *reply_item,
 			     struct c2_rpc_item *req_item);
 
@@ -812,6 +809,7 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 	C2_ASSERT(item != NULL);
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 
+	machine->rm_stats.rs_nr_rcvd_items++;
 	rc = associate_session_and_slot(item, machine);
 	if (rc != 0) {
 		/*
@@ -833,8 +831,6 @@ int c2_rpc_item_received(struct c2_rpc_item    *item,
 	}
 	C2_ASSERT(item->ri_session != NULL &&
 		  item->ri_slot_refs[0].sr_slot != NULL);
-
-	item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
 
 	slot = item->ri_slot_refs[0].sr_slot;
 	if (c2_rpc_item_is_request(item)) {

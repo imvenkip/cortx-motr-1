@@ -63,23 +63,18 @@ enum c2_rpc_item_path {
 	C2_RPC_PATH_NR
 };
 
-/**
-  Statistical data maintained for each item in the rpc_machine.
-  It is upto the higher level layers to retrieve and process this data
- */
+/** Collection of statistics per rpc machine */
 struct c2_rpc_stats {
-	/** Number of items processed */
-	uint64_t	rs_items_nr;
-	/** Number of bytes processed */
-	uint64_t	rs_bytes_nr;
-	/** Cumulative latency. */
-	c2_time_t	rs_cumu_lat;
-	/** Min Latency */
-	c2_time_t	rs_min_lat;
-	/** Max Latency */
-	c2_time_t	rs_max_lat;
-	/** Number of rpc objects (used to calculate packing density) */
-	uint64_t	rs_rpcs_nr;
+	uint64_t	rs_nr_rcvd_items;
+	uint64_t	rs_nr_sent_items;
+	uint64_t	rs_nr_rcvd_packets;
+	uint64_t	rs_nr_sent_packets;
+	uint64_t	rs_nr_failed_items;
+	uint64_t	rs_nr_failed_packets;
+	uint64_t	rs_nr_timedout_items;
+	uint64_t	rs_nr_dropped_items;
+	uint64_t	rs_nr_sent_bytes;
+	uint64_t	rs_nr_rcvd_bytes;
 };
 
 /**
@@ -101,8 +96,7 @@ struct c2_rpc_machine {
 	struct c2_list			  rm_outgoing_conns;
 	/** ADDB context for this rpc_machine */
 	struct c2_addb_ctx		  rm_addb;
-	/** Statistics for both incoming and outgoing paths */
-	struct c2_rpc_stats		  rm_rpc_stats[C2_RPC_PATH_NR];
+	struct c2_rpc_stats		  rm_stats;
 	/**
 	    Request handler this rpc_machine belongs to.
 	    @todo There needs to be  generic mechanism to register a
@@ -221,6 +215,8 @@ void c2_rpc_machine_lock(struct c2_rpc_machine *machine);
 void c2_rpc_machine_unlock(struct c2_rpc_machine *machine);
 bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine);
 struct c2_mutex *c2_rpc_machine_mutex(struct c2_rpc_machine *machine);
+void c2_rpc_machine_get_stats(struct c2_rpc_machine *machine,
+			      struct c2_rpc_stats *stats, bool reset);
 
 /**
    @name stat_ifs STATISTICS IFs
