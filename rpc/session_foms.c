@@ -40,9 +40,6 @@
    establish and session terminate fops.
  */
 
-extern void item_exit_stats_set(struct c2_rpc_item   *item,
-				enum c2_rpc_item_path path);
-
 /**
    Common implementation of c2_fom::fo_ops::fo_fini() for conn establish,
    conn terminate, session establish and session terminate foms
@@ -210,9 +207,6 @@ int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 
 			/* See [2] at the end of function */
 			item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
-
-			/* See [3] */
-			item_exit_stats_set(item, C2_RPC_PATH_INCOMING);
 
 			C2_ASSERT(conn_state(conn) == C2_RPC_CONN_ACTIVE);
 			C2_ASSERT(c2_rpc_conn_invariant(conn));

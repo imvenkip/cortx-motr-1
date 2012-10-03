@@ -357,6 +357,7 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 	struct c2_net_buffer  *netbuf;
 	struct rpc_buffer     *rpcbuf;
 	struct c2_rpc_machine *machine;
+	struct c2_rpc_stats   *stats;
 	struct c2_rpc_packet  *p;
 
 	C2_ENTRY("ev: %p", ev);
@@ -373,11 +374,18 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 	machine = rpc_buffer__rmachine(rpcbuf);
 	c2_rpc_machine_lock(machine);
 
+	stats = &machine->rm_stats;
 	p = rpcbuf->rb_packet;
 	p->rp_status = ev->nbe_status;
 
 	rpc_buffer_fini(rpcbuf);
 	c2_free(rpcbuf);
+
+	if(p->rp_status == 0) {
+		stats->rs_nr_sent_packets++;
+		stats->rs_nr_sent_bytes += p->rp_size;
+	} else
+		stats->rs_nr_failed_packets++;
 
 	c2_rpc_packet_traverse_items(p, item_done, ev->nbe_status);
 	c2_rpc_frm_packet_done(p);
@@ -391,12 +399,20 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 
 static void item_done(struct c2_rpc_item *item, unsigned long rc)
 {
+	struct c2_rpc_machine *machine;
+
 	C2_ENTRY("item: %p rc: %lu", item, rc);
 	C2_PRE(item != NULL);
 
+	machine = item->ri_session->s_conn->c_rpc_machine;
 	/** @todo XXX implement SENT/FAILED callback */
 	item->ri_state = rc == 0 ? RPC_ITEM_SENT : RPC_ITEM_SEND_FAILED;
 	item->ri_error = rc;
+
+	if(rc == 0)
+		machine->rm_stats.rs_nr_sent_items++;
+	else
+		machine->rm_stats.rs_nr_failed_items++;
 
 	if (c2_rpc_item_is_bound(item))
 		c2_rpc_session_release(item->ri_session);
