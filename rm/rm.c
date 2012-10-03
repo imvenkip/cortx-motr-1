@@ -94,6 +94,8 @@ static void retire_incoming_complete(struct c2_rm_incoming *in,
 				     int32_t rc);
 static void retire_incoming_conflict(struct c2_rm_incoming *in);
 static int cached_rights_hold       (struct c2_rm_incoming *in);
+static bool owner_is_idle	    (struct c2_rm_owner *o);
+static bool incoming_is_complete    (struct c2_rm_incoming *in);
 
 static struct c2_rm_resource *resource_find(const struct c2_rm_resource_type *rt,
 					    const struct c2_rm_resource *res);
@@ -389,8 +391,7 @@ static inline enum c2_rm_owner_state owner_state(const
 
 static void owner_finalisation_check(struct c2_rm_owner *owner)
 {
-	if (owner_state(owner) == ROS_FINALISING &&
-	    owner->ro_in_reqs == 0) {
+	if (owner_state(owner) == ROS_FINALISING && owner_is_idle(owner)) {
 		/*
 		 * These lists may not be empty if some errors occurred
 		 * before the remote requests were sent.
@@ -422,7 +423,6 @@ static void owner_init_internal(struct c2_rm_owner *owner,
 
 	resource_get(res);
 	owner_state_set(owner, ROS_ACTIVE);
-	owner->ro_in_reqs = 0;
 	C2_POST(owner_invariant(owner));
 }
 
@@ -500,9 +500,14 @@ static void retire_incoming_conflict(struct c2_rm_incoming *in)
 
 static void retire_incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 {
-	struct c2_rm_owner *owner = in->rin_want.ri_owner;
+	c2_free(in);
+}
 
-	--owner->ro_in_reqs;
+static bool owner_is_idle (struct c2_rm_owner *o)
+{
+	return c2_forall(i, ARRAY_SIZE(o->ro_incoming),
+			 c2_forall(j, ARRAY_SIZE(o->ro_incoming[i]),
+			   c2_rm_ur_tlist_is_empty(&o->ro_incoming[i][j])));
 }
 
 int c2_rm_owner_retire(struct c2_rm_owner *owner)
@@ -519,8 +524,7 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 	 * or if there are pending incoming requests, return error.
 	 */
 	c2_mutex_lock(&owner->ro_lock);
-	if (owner_state(owner) == ROS_FINALISING ||
-	    owner->ro_in_reqs > 0) {
+	if (owner_state(owner) == ROS_FINALISING || !owner_is_idle(owner)) {
 		c2_mutex_unlock(&owner->ro_lock);
 		return -EBUSY;
 	}
@@ -555,7 +559,6 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 		if (rc == -ENOMEM)
 			return rc;
 		if (rc == 0) {
-			++owner->ro_in_reqs;
 			c2_rm_ur_tlist_add(&owner->ro_incoming\
 						[in->rin_priority][OQS_EXCITED],
 					   &in->rin_want);
@@ -584,7 +587,7 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 	/*
 	 * Retire immediately, if no processing is required.
 	 */
-	if (owner->ro_in_reqs == 0)
+	if (owner_is_idle(owner))
 		owner_state_set(owner, ROS_FINAL);
 	c2_mutex_unlock(&owner->ro_lock);
 
@@ -719,7 +722,6 @@ void c2_rm_incoming_init(struct c2_rm_incoming *in, struct c2_rm_owner *owner,
 	in->rin_policy = policy;
 	in->rin_flags  = flags;
 	pi_tlist_init(&in->rin_pins);
-	c2_chan_init(&in->rin_signal);
 	c2_rm_right_init(&in->rin_want, owner);
 	c2_rm_incoming_bob_init(in);
 	C2_POST(incoming_invariant(in));
@@ -737,7 +739,6 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 	c2_sm_group_unlock(&rm_sm_grp);
 	c2_rm_incoming_bob_fini(in);
 	c2_rm_right_fini(&in->rin_want);
-	c2_chan_fini(&in->rin_signal);
 	pi_tlist_fini(&in->rin_pins);
 }
 C2_EXPORTED(c2_rm_incoming_fini);
@@ -1030,11 +1031,8 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
 {
 	struct c2_rm_owner *owner = in->rin_want.ri_owner;
 
-	C2_PRE(!(in->rin_flags & RIF_INTERNAL));
-
 	c2_mutex_lock(&owner->ro_lock);
 	incoming_release(in);
-	--owner->ro_in_reqs;
 	in->rin_sm_state.sm_state = 0;
 	c2_rm_ur_tlist_del(&in->rin_want);
 	C2_POST(pi_tlist_is_empty(&in->rin_pins));
@@ -1180,8 +1178,6 @@ static void owner_balance(struct c2_rm_owner *o)
 			c2_tl_for(pr, &right->ri_pins, pin) {
 				C2_ASSERT(c2_rm_pin_bob_check(pin));
 				C2_ASSERT(pin->rp_flags == C2_RPF_TRACK);
-				C2_ASSERT(pin->rp_incoming->rin_out_req > 0);
-				--pin->rp_incoming->rin_out_req;
 				/*
 				 * If one outgoing request has set an error,
 				 * then don't overwrite the error code. It's
@@ -1259,16 +1255,33 @@ static void incoming_check(struct c2_rm_incoming *in)
 			rc = cached_rights_hold(in);
 		}
 		/*
-		 * If one of the outgoing requests fails, it sets the
-		 * in->rin_rc. Hence, we will come here while there are
-		 * other pending requests. Make sure we receive all the
-		 * responses before completing the incoming request.
-		 * If we remove incoming here, some (tracking) pins may be
-		 * left with dangling reference.
+		 * Check if incoming request is complete. When there is
+		 * partial failure (with part of the request failing)
+		 * of incoming request, it's necesary to check that it's
+		 * complete (and there are no outstanding outgoing requests
+		 * pending againt it).
 		 */
-		if (in->rin_out_req == 0)
+		if (incoming_is_complete(in))
 			incoming_complete(in, rc);
 	}
+}
+
+/*
+ * Checks if there are outstanding "outgoing requests" for this incoming
+ * requests.
+ */
+static bool incoming_is_complete(struct c2_rm_incoming *in)
+{
+	struct c2_rm_pin   *pin;
+
+	c2_tl_for(pi, &in->rin_pins, pin) {
+		if (pin->rp_flags & C2_RPF_TRACK) {
+			C2_ASSERT(in->rin_rc != 0);
+			return false;
+		}
+	} c2_tl_endfor;
+
+	return true;
 }
 
 /**
@@ -1407,10 +1420,10 @@ static void incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 	struct c2_rm_owner *owner = in->rin_want.ri_owner;
 
 	C2_PRE(c2_mutex_is_locked(&in->rin_want.ri_owner->ro_lock));
+	C2_PRE(ergo(rc == 0, pi_tlist_is_empty(&in->rin_pins)));
 	C2_PRE(in->rin_ops != NULL);
 	C2_PRE(in->rin_ops->rio_complete != NULL);
 	C2_PRE(in->rin_rc == 0);
-	C2_PRE(in->rin_out_req == 0);
 	C2_PRE(rc <= 0);
 
 	in->rin_rc = rc;
@@ -1420,33 +1433,15 @@ static void incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 	 * state when the last tracking pin was removed, shun it back
 	 * into obscurity.
 	 */
-	c2_rm_ur_tlist_move(&owner->ro_incoming[in->rin_priority]\
-						[OQS_GROUND],
+	c2_rm_ur_tlist_move(&owner->ro_incoming[in->rin_priority][OQS_GROUND],
 			    &in->rin_want);
-	in->rin_ops->rio_complete(in, rc);
 	if (rc != 0) {
 		incoming_release(in);
 		c2_rm_ur_tlist_del(&in->rin_want);
-		C2_POST(pi_tlist_is_empty(&in->rin_pins));
-	} else {
-		/*
-		 * For external incoming request, we want to bump the
-		 * incoming requests count on successful completion.
-		 */
-		if (!(in->rin_flags & RIF_INTERNAL))
-			++owner->ro_in_reqs;
-		/**
-		 * @todo : Who moves the right to OWOS_HELD?
-		 */
+		C2_ASSERT(pi_tlist_is_empty(&in->rin_pins));
 	}
+	in->rin_ops->rio_complete(in, rc);
 	C2_POST(owner_invariant(owner));
-	if (in->rin_flags & RIF_INTERNAL)
-		/*
-		 * Only internally allocated requests should be de-allocated.
-		 */
-		c2_free(in);
-	else
-		c2_chan_broadcast(&in->rin_signal);
 }
 
 static void incoming_policy_none(struct c2_rm_incoming *in)
@@ -1504,7 +1499,6 @@ static int outgoing_check(struct c2_rm_incoming *in,
 				 * (priority inheritance)
 				 */
 				rc = pin_add(in, scan, C2_RPF_TRACK);
-				rc ?: ++in->rin_out_req;
 				rc = rc ?: right_diff(right, scan);
 				if (rc != 0)
 					break;
@@ -1550,28 +1544,6 @@ static int borrow_send(struct c2_rm_incoming *in, struct c2_rm_right *right)
 	return rc;
 }
 
-/**
- * Helper function to get right with timed wait (deadline).
- */
-int c2_rm_right_timedwait(struct c2_rm_incoming *in, const c2_time_t deadline)
-{
-	struct c2_clink clink;
-	int             rc;
-
-	c2_clink_init(&clink, NULL);
-	c2_clink_add(&in->rin_signal, &clink);
-	rc = 0;
-
-	while (rc == 0 && incoming_state(in) == RI_WAIT)
-		rc = c2_chan_timedwait(&clink, deadline) ? 0 : -ETIMEDOUT;
-
-	in->rin_rc = in->rin_rc ?: rc;
-	c2_clink_del(&clink);
-	c2_clink_fini(&clink);
-
-	return rc ?: in->rin_rc;
-}
-
 /*
  * 1. If sublet is subset of the right, remove sublet completely.
  * 2. If right is subset of sublet, reduce the right inside loan.
@@ -1599,15 +1571,6 @@ int c2_rm_sublet_remove(struct c2_rm_right *right)
 		}
 	} c2_tl_endfor;
 	return rc;
-}
-
-/**
- * Helper function to get right with infinite wait time.
- */
-int c2_rm_right_get_wait(struct c2_rm_incoming *in)
-{
-	c2_rm_right_get(in);
-	return c2_rm_right_timedwait(in, C2_TIME_NEVER);
 }
 
 /** @} end of Owner state machine group */
@@ -1892,6 +1855,7 @@ static void incoming_release(struct c2_rm_incoming *in)
  * Removes a pin on a resource usage right.
  *
  * If this was a last tracking pin issued by the request---excite the latter.
+ * The function returns true if it excited an incoming request.
  */
 static void pin_del(struct c2_rm_pin *pin)
 {
@@ -1905,7 +1869,7 @@ static void pin_del(struct c2_rm_pin *pin)
 	pi_tlink_del_fini(pin);
 	pr_tlink_del_fini(pin);
 	if (incoming_pin_nr(in, C2_RPF_TRACK) == 0 &&
-	    (pin->rp_flags & C2_RPF_TRACK)) {
+	    pin->rp_flags & C2_RPF_TRACK) {
 		/*
 		 * Last tracking pin removed, excite the request.
 		 */
