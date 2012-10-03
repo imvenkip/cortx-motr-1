@@ -1,0 +1,118 @@
+/* -*- C -*- */
+/*
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Rajesh Bhalerao <Rajesh_Bhalerao@xyratex.com>
+ * Original creation date: 07/04/2011
+ */
+
+/**
+   @addtogroup rm
+   @{
+ */
+
+require "lib/cookie";
+require "lib/cookie_xc";
+
+/** @file rm.ff
+ *
+ * This file defines RM-fops needed for RM-generic layer. All the layers using
+ * RM will have to define their own FOPs to fetch resource data. RM-generic FOPs
+ * provide a facility for resource rights management and to fetch small resource
+ * data.
+ *
+ * <b>RM fop formats</b>
+ *
+ * Various RM data-structures have to be located based on information stored in
+ * fops:
+ *
+ *     - resource type: identified by 64-bit identifier
+ *       (c2_rm_resource_type::rt_id),
+ *
+ *     - resource: resource information is never passed separately, but only to
+ *       identify a resource owner,
+ *
+ *     - owner: when a first request to a remote resource owner is made, the
+ *       owner is identified by the resource
+ *       (c2_rm_resource_type_ops::rto_encode()) it is a responsibility of the
+ *       remote RM to locate the owner. In the subsequent fops for the same
+ *       owner, it is identified by a 128-bit cookie (c2_rm_cookie),
+ *
+ *     - right: identified by an opaque byte array
+ *       (c2_rm_resource_ops::rop_right_decode(),
+ *       c2_rm_right_ops::rro_encode()). A 0-sized array in REVOKE and CANCEL
+ *       fops is interpreted to mean "whole right previously granted",
+ *
+ *     - loan: identified by a 128-bit cookie (c2_rm_cookie).
+ *
+ */
+
+sequence {
+	u64 op_nr;
+	u8  op_bytes
+} c2_fop_rm_opaque;
+
+record {
+	c2_cookie ow_cookie;
+	c2_fop_rm_opaque ow_resource
+} c2_fop_rm_owner;
+
+record {
+	c2_cookie lo_cookie
+} c2_fop_rm_loan;
+
+record {
+	c2_fop_rm_opaque ri_opaque
+} c2_fop_rm_right;
+
+record {
+	c2_fop_rm_owner bo_debtor;
+	c2_fop_rm_owner bo_creditor;
+	c2_fop_rm_right bo_right;
+	u64             bo_policy;
+	u64             bo_flags
+} c2_fop_rm_borrow;
+
+record {
+	u32              br_rc;
+	c2_fop_rm_loan   br_loan;
+	c2_fop_rm_right  br_right;
+	c2_fop_rm_opaque br_lvb
+} c2_fop_rm_borrow_rep;
+
+record {
+	c2_fop_rm_owner rr_debtor;
+	c2_fop_rm_loan  rr_loan;
+	c2_fop_rm_right rr_right;
+	u64             rr_policy;
+	u64             rr_flags
+} c2_fop_rm_revoke;
+
+/* Should we add creditor in reply */
+record {
+	u32 re_rc
+} c2_fop_rm_revoke_rep;
+
+/** @} end of rm group */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

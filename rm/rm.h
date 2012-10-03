@@ -858,7 +858,10 @@ enum c2_rm_owner_queue_state {
  */
 struct c2_rm_owner {
 	/** State machine for owner states */
-	struct c2_sm           ro_sm_state;
+	struct c2_sm           ro_sm;
+
+	/** State machine group for resource owner */
+	struct c2_sm_group     ro_sm_grp;
 	/**
 	 * Tracks incoming requests.
 	 */
@@ -910,7 +913,6 @@ struct c2_rm_owner {
 	 * An array of lists, of outgoing, not yet completed, requests.
 	 */
 	struct c2_tl           ro_outgoing[OQS_NR];
-	struct c2_mutex        ro_lock;
 	/**
 	 * Generation count associated with a owner cookie.
 	 */
@@ -956,12 +958,16 @@ struct c2_rm_loan {
    @dot
    digraph rm_incoming_state {
 	RI_INITIALISED -> RI_CHECK
+	RI_INITIALISED -> RI_FINAL
 	RI_CHECK -> RI_SUCCESS
 	RI_CHECK -> RI_FAILURE [label="Live lock"]
 	RI_CHECK -> RI_WAIT [label="Pins placed"]
 	RI_WAIT -> RI_FAILURE [label="Timeout"]
 	RI_WAIT -> RI_CHECK [label="Last completion"]
 	RI_WAIT -> RI_WAIT [label="Completion"]
+	RI_SUCCESS -> RI_RELEASED [label="Right released"]
+	RI_FAILURE -> RI_FINAL [label="Finalised"]
+	RI_RELEASED -> RI_FINAL
    }
    @enddot
  */
@@ -976,7 +982,15 @@ enum c2_rm_incoming_state {
 	/** Has to wait for some future event, like outgoing request completion
 	 *  or release of a locally held usage right.
 	 */
-	RI_WAIT
+	RI_WAIT,
+	/**
+	 * Right has been released (possibly by c2_rm_right_put()).
+	 */
+	RI_RELEASED,
+	/**
+	 * Request finalised.
+	 */
+	RI_FINAL
 };
 
 /**
@@ -1148,8 +1162,8 @@ enum c2_rm_incoming_flags {
  * of a live-lock is low enough and the advantage of issuing concurrent
  * asynchronous outgoing requests is important.
  *
- * @todo Should live-locks prove to be a practical issue, C2_RPF_BARRIER pins can
- * be used to reduce concurrency and assure state machine progress.
+ * @todo Should live-locks prove to be a practical issue, C2_RPF_BARRIER pins
+ * can be used to reduce concurrency and assure state machine progress.
  *
  * It's a matter of policy - how many outgoing requests are sent out in ISSUE
  * state. The fewer requests are sent, the more CHECK-ISSUE-WAIT loop
@@ -1185,23 +1199,30 @@ enum c2_rm_incoming_flags {
  * blocking (for network communication) are lumped into a single state:
  *
  * @verbatim
- *                                 SUCCESS
- *                                    ^
- *             too many iterations    |
- *                  live-lock         |    last completion
- *                +-----------------CHECK<-----------------+
- *                |                   |                    |
- *                |                   |                    |
- *                V                   |                    |
- *             FAILURE                | pins placed        |
- *                ^                   |                    |
- *                |                   |                    |
- *                |                   V                    |
- *                +----------------WAITING-----------------+
- *                     timeout      ^   |
- *                                  |   | completion
- *                                  |   |
- *                                  +---+
+ *                                 SUCCESS-----------------------+
+ *                                    ^                          |
+ *             too many iterations    |                          |
+ *                  live-lock         |    last completion       |
+ *                +-----------------CHECK<-----------------+     |
+ *                |                   |                    |     |
+ *                |                   |                    |     |
+ *                V                   |                    |     |
+ *        +----FAILURE                | pins placed        |     |
+ *        |       ^                   |                    |     |
+ *        |       |                   |                    |     |
+ *        |       |                   V                    |     |
+ *        |       +----------------WAITING-----------------+     |
+ *        |            timeout      ^   |                        |
+ *        |                         |   | completion             |
+ *        |                         |   |                        |
+ *        |                         +---+                        |
+ *        |                                                      |
+ *        |                         RELEASED<--------------------+
+ *        |                            |
+ *        |                            |
+ *        |                            V
+ *        +------------------------->FINAL
+ *
  * @endverbatim
  *
  * c2_rm_incoming fields and state transitions are protected by the owner's
@@ -1223,13 +1244,11 @@ enum c2_rm_incoming_flags {
 struct c2_rm_incoming {
 	enum c2_rm_incoming_type	 rin_type;
 	/** State machine for incoming states */
-	struct c2_sm                     rin_sm_state;
+	struct c2_sm                     rin_sm;
 	enum c2_rm_incoming_policy	 rin_policy;
 	uint64_t			 rin_flags;
 	/** Number of outgoing, pending requests as a result of this incoming */
 	uint32_t			 rin_out_req;
-	/** Request processing error. Used to propagate it to proper caller */
-	int32_t				 rin_rc;
 	/** The right requested. */
 	struct c2_rm_right		 rin_want;
 	/**
@@ -1253,7 +1272,6 @@ struct c2_rm_incoming {
 	 */
 	int				 rin_priority;
 	const struct c2_rm_incoming_ops *rin_ops;
-	struct c2_chan			 rin_signal;
 	uint64_t                         rin_magix;
 };
 
