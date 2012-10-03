@@ -115,7 +115,7 @@ static int service_allocate(struct c2_reqh_service_type *stype,
 	} else
 		rc = -ENOMEM;
 
-	C2_LEAVE("rmach: %p cm: %p service: %p", rmach, cm, *service);
+	C2_LEAVE("rmach: %p service: %p", rmach, *service);
 	return rc;
 }
 
