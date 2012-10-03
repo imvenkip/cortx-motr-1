@@ -25,6 +25,7 @@
 #include "lib/atomic.h"
 #include "lib/arith.h" /* c2_align */
 #include "lib/trace.h"
+#include "lib/trace_internal.h"
 
 /**
  * @addtogroup trace
@@ -34,17 +35,126 @@
  * @{
  */
 
-module_param(c2_trace_immediate_mask, ulong, 0644);
-MODULE_PARM_DESC(c2_trace_immediate_mask,
-		 "The bitmask of what should be printed immediately to console");
+static char *trace_immediate_mask;
+module_param(trace_immediate_mask, charp, 0644);
+MODULE_PARM_DESC(trace_immediate_mask,
+		 " a bitmask or comma separated list of subsystem names"
+		 " of what should be printed immediately to console");
+
+static char *trace_level;
+module_param(trace_level, charp, 0644);
+MODULE_PARM_DESC(trace_level,
+		 " trace level: level[+][,level[+]] where level is one of"
+		 " call|debug|info|notice|warn|error|fatal");
+
+static char *trace_print_context;
+module_param(trace_print_context, charp, 0644);
+MODULE_PARM_DESC(trace_print_context,
+		 " controls whether to display additional trace point"
+		 " info, like subsystem, file, func, etc.; values:"
+		 " none, func, full");
+
+static int set_trace_immediate_mask(void)
+{
+	int            rc;
+	char          *mask_str;
+	unsigned long  mask;
+
+	/* check if argument was specified for 'trace_immediate_mask' param */
+	if (trace_immediate_mask == NULL)
+		return 0;
+
+	/* first, check if 'trace_immediate_mask' contains a numeric bitmask */
+	rc = strict_strtoul(trace_immediate_mask, 0, &mask);
+	if (rc == 0) {
+		c2_trace_immediate_mask = mask;
+		goto out;
+	}
+
+	/*
+	 * check if 'trace_immediate_mask' contains a comma-separated list of
+	 * valid subsystem names
+	 */
+	mask_str = kstrdup(trace_immediate_mask, GFP_KERNEL);
+	if (mask_str == NULL)
+		return -ENOMEM;
+	rc = subsys_list_to_mask(mask_str, &mask);
+	kfree(mask_str);
+
+	if (rc != 0)
+		return rc;
+
+	c2_trace_immediate_mask = mask;
+out:
+	pr_info("Colibri trace immediate mask: 0x%lx\n",
+			c2_trace_immediate_mask);
+
+	return 0;
+}
+
+static int set_trace_level(void)
+{
+	char *level_str;
+
+	/* check if argument was specified for 'trace_level' param */
+	if (trace_level == NULL)
+		return 0;
+
+	level_str = kstrdup(trace_level, GFP_KERNEL);
+	if (level_str == NULL)
+		return -ENOMEM;
+
+	c2_trace_level = parse_trace_level(level_str);
+	kfree(level_str);
+
+	if (c2_trace_level == C2_NONE)
+		return -EINVAL;
+
+	pr_info("Colibri trace level: %s\n", trace_level);
+
+	return 0;
+}
+
+static int set_trace_print_context(void)
+{
+	enum c2_trace_print_context ctx;
+
+	/* check if argument was specified for 'trace_print_context' param */
+	if (trace_print_context == NULL)
+		return 0;
+
+	ctx = parse_trace_print_context(trace_print_context);
+	if (ctx == C2_TRACE_PCTX_INVALID)
+		return -EINVAL;
+
+	c2_trace_print_context = ctx;
+
+	pr_info("Colibri trace print context: %s\n", trace_print_context);
+
+	return 0;
+}
 
 int c2_arch_trace_init(void)
 {
+	int rc;
+
+	rc = set_trace_immediate_mask();
+	if (rc != 0)
+		return rc;
+
+	rc = set_trace_level();
+	if (rc != 0)
+		return rc;
+
+	rc = set_trace_print_context();
+	if (rc != 0)
+		return rc;
+
 	c2_logbuf = vmalloc(c2_logbufsize);
 	if (c2_logbuf == NULL)
 		return -ENOMEM;
 
-	printk("Colibri trace buffer address: 0x%p\n", c2_logbuf);
+	pr_info("Colibri trace buffer address: 0x%p\n", c2_logbuf);
 
 	return 0;
 }

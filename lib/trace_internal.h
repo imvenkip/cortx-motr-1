@@ -14,55 +14,22 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
- * Original creation date: 05/04/2011
+ * Original author: Dmitriy Chumak <dmitriy_chumak@xyratex.com>
+ * Original creation date: 08/30/2012
  */
 
-/**
-   @addtogroup reqh
-   @{
- */
+#pragma once
 
-/** @file io_fop_xc.ff
- *
- * <b>Simplistic IO fop formats</b>
- *
- */
+#ifndef __COLIBRI_LIB_TRACE_INTERNAL_H__
+#define __COLIBRI_LIB_TRACE_INTERNAL_H__
 
-record {
-	u64 f_seq;
-	u64 f_oid
-} stob_io_fop_fid;
+int subsys_list_to_mask(char *subsys_names, unsigned long *ret_mask);
 
-record {
-	stob_io_fop_fid fiw_object;
-	u8              fiw_value
-} c2_stob_io_write;
+enum c2_trace_level parse_trace_level(char *str);
 
-record {
-	u32 fiwr_rc;
-	u32 fiwr_count
-} c2_stob_io_write_rep;
+enum c2_trace_print_context parse_trace_print_context(const char *ctx_name);
 
-record {
-	stob_io_fop_fid fir_object
-} c2_stob_io_read;
-
-record {
-	u32 firr_rc;
-	u32 firr_count;
-	u8  firr_value
-} c2_stob_io_read_rep;
-
-record {
-	stob_io_fop_fid fic_object
-} c2_stob_io_create;
-
-record {
-	u32 ficr_rc
-} c2_stob_io_create_rep;
-
-/** @} end of reqh group */
+#endif /* __COLIBRI_LIB_TRACE_INTERNAL_H__ */
 
 /*
  *  Local variables:

@@ -43,8 +43,8 @@
  *
  */
 
-require "net/net_otw_types";
-require "addb/addbff/addb";
+require "net/net_otw_types_ff";
+require "addb/addbff/addb_ff";
 
 /**
  * @section IO FOP Definitions

@@ -56,7 +56,7 @@ struct c2_net_xprt;
 struct c2_rpc_machine;
 
 enum {
-        REQH_KEY_MAX = 64
+        REQH_KEY_MAX = 32
 };
 
 /**
@@ -103,7 +103,7 @@ struct c2_reqh {
 	 */
 	bool                     rh_shutdown;
 
-	struct c2_addb_ctx      *rh_addb;
+	struct c2_addb_ctx       rh_addb;
 
 	/**
 	    Channel to wait on for reqh shutdown.
@@ -166,7 +166,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop);
 
 /**
    Waits on c2_reqh::rh_sd_signal using the given clink until
-   until c2_fom_domain::fd_foms_nr is 0.
+   c2_fom_domain_is_idle().
 
    @param reqh request handler to be shutdown
  */
@@ -182,6 +182,9 @@ int c2_reqhs_init(void);
    Finalises global reqh objects, invoked from c2_fini().
 */
 void c2_reqhs_fini(void);
+
+/** Returns number of localities in request handler FOM domain. */
+uint64_t c2_reqh_nr_localities(const struct c2_reqh *reqh);
 
 /** Descriptor for tlist of request handler services. */
 C2_TL_DESCR_DECLARE(c2_reqh_svc, extern);

@@ -55,12 +55,6 @@
 int c2_ios_register(void);
 void c2_ios_unregister(void);
 
-enum {
-        C2_RIOS_BUFFER_POOL_MAGIC = 0x62756666657273,   /* buffers */
-        C2_RIOS_BUFFER_POOL_HEAD = 0x42554646455253,  /* BUFFERS */
-        C2_REQH_IO_SERVICE_MAGIC = 0x72696f736f626a
-};
-
 /**
  * Data structure represents list of buffer pool per network domain.
  */

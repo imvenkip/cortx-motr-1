@@ -9,6 +9,7 @@ AH_TEMPLATE([VERSION], [Version of the package.])
 AH_TEMPLATE([ENABLE_SYNC_ATOMIC], [Enable gcc built-in automic functions])
 AH_TEMPLATE([ENABLE_DEBUG], [Enable debug info.])
 AH_TEMPLATE([ENABLE_FAULT_INJECTION], [Enable fault injection.])
+AH_TEMPLATE([ENABLE_IMMEDIATE_TRACE], [Enable immediate tracing.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT], [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV], [Have fops->readv function])
 AH_TEMPLATE([HAVE_FILE_AIO_READ], [Have fops->aio_read function])
@@ -25,7 +26,8 @@ COLIBRI_MINOR_VERSION=1
 PACKAGE=colibri
 VERSION=$COLIBRI_MAJOR_VERSION.$COLIBRI_MINOR_VERSION
 
-AM_INIT_AUTOMAKE([nostdinc])
+AM_INIT_AUTOMAKE([nostdinc silent-rules])
+AM_SILENT_RULES([yes])
 
 LT_RELEASE=$COLIBRI_MAJOR_VERSION.$COLIBRI_MINOR_VERSION
 AC_SUBST([LT_RELEASE])
@@ -276,6 +278,11 @@ AC_ARG_ENABLE([finject],
         [enable_finject=yes]
 )
 
+AC_ARG_ENABLE([immediate-trace],
+        [AC_HELP_STRING([--disable-immediate-trace], [disable immediate tracing])], [],
+        [enable_immediate_trace=yes]
+)
+
 AC_ARG_ENABLE([mcheck],
         [AC_HELP_STRING([--enable-mcheck], [enable glibc malloc check])], [],
         [enable_mcheck=no]
@@ -332,6 +339,16 @@ found: it can be installed from perl-XML-LibXML package on Red Hat based systems
 
 AX_PROG_PERL_MODULES(List::MoreUtils, , AC_MSG_ERROR(No List::MoreUtils Perl \
 module found: it can be installed from perl-List-MoreUtils package on Red Hat \
+based systems))
+
+# following two perl modules are required for scripts/check-include-guards
+# script
+AX_PROG_PERL_MODULES(File::Find::Rule, , AC_MSG_ERROR(No File::Find::Rule Perl \
+module found: it can be installed from perl-File-Find-Rule package on Red Hat \
+based systems))
+
+AX_PROG_PERL_MODULES(IO::All, , AC_MSG_ERROR(No IO::All Perl \
+module found: it can be installed from perl-IO-All package on Red Hat \
 based systems))
 
 AC_ARG_ENABLE([coverage],
@@ -580,9 +597,20 @@ if test x$enable_finject = xyes; then
         AC_DEFINE([ENABLE_FAULT_INJECTION])
 fi
 
+if test x$enable_immediate_trace = xyes; then
+        AC_DEFINE([ENABLE_IMMEDIATE_TRACE])
+fi
+
 if test x$enable_mcheck = xyes; then
 	LDFLAGS="$LDFLAGS -lmcheck"
 fi
+
+MAKEFLAGS=""
+if test x$enable_silent_rules = xyes; then
+	MAKEFLAGS="--no-print-directory"
+fi
+AC_SUBST([MAKEFLAGS])
+
 
 # Check if gcc option is supported in current gcc version.
 AC_DEFUN([COLIBRI_COMPILER_OPTION_CHECK],
@@ -628,6 +656,9 @@ COLIBRI_COMPILER_OPTION_CHECK([-Wno-unused-but-set-variable])
 
 LDFLAGS="-rdynamic $LDFLAGS"
 
+CFLAGS="$CFLAGS -include config.h"
+KCFLAGS="$KCFLAGS -include config.h"
+
 # trim spaces at the end of flags
 CFLAGS=$(echo $CFLAGS | sed 's/[[[:blank:]]]*$//')
 KCFLAGS=$(echo $KCFLAGS | sed 's/[[[:blank:]]]*$//')
@@ -646,9 +677,13 @@ AC_CONFIG_FILES([
                  build_kernel_modules/Makefile
                  capa/Makefile
                  capa/ut/Makefile
-                 c2t1fs/linux_kernel/st/common.sh
                  c2t1fs/linux_kernel/Makefile
+                 c2t1fs/linux_kernel/st/Makefile
+                 c2t1fs/linux_kernel/st/common.sh
+                 c2t1fs/linux_kernel/ut/Makefile
                  cfg/Makefile
+		 cm/Makefile
+		 cm/ut/Makefile
                  cob/Makefile
                  cob/ut/Makefile
                  colibri/Makefile
@@ -688,6 +723,13 @@ AC_CONFIG_FILES([
 		 net/lnet/st/Makefile
 		 net/lnet/st/linux_kernel/Makefile
 		 net/lnet/ut/Makefile
+		 net/test/Makefile
+		 net/test/linux_kernel/Makefile
+		 net/test/test-user.sh
+		 net/test/ntc.sh
+		 net/test/ntn.sh
+		 net/test/user_space/Makefile
+		 net/test/ut/Makefile
 		 net/ut/Makefile
                  nrs/Makefile
                  patches/Makefile
@@ -700,9 +742,12 @@ AC_CONFIG_FILES([
                  rpc/ut/Makefile
                  rpc/it/Makefile
 		 rpc/it/linux_kernel/Makefile
+		 scripts/Makefile
                  sm/Makefile
                  sm/ut/Makefile
                  sns/Makefile
+                 sns/repair/Makefile
+                 sns/repair/ut/Makefile
                  sns/ut/Makefile
                  stob/Makefile
                  stob/ut/Makefile
@@ -728,6 +773,9 @@ AC_OUTPUT
 #
 # Set up execute bit for UT scripts.
 #
+chmod +x net/test/ntc.sh
+chmod +x net/test/ntn.sh
+chmod +x net/test/test-user.sh
 chmod +x utils/ut.sh
 chmod +x utils/linux_kernel/ut.sh
 

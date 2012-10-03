@@ -17,18 +17,13 @@
  * Original creation date: 01/05/2011
  */
 
-
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/errno.h"
 #include "lib/ut.h"
 #include "lib/cdefs.h"
 #include "lib/memory.h"
 
 #include "fop/fop.h"
-#include "iterator_test_xc.h"
+#include "iterator_test_ff.h"
 #include "rpc/rpc_opcodes.h"
 #include "xcode/xcode.h"
 
@@ -43,12 +38,12 @@ static struct c2_fop_type c2_fop_iterator_test_fopt;
 static void fop_fini(void)
 {
 	c2_fop_type_fini(&c2_fop_iterator_test_fopt);
-	c2_xc_iterator_test_xc_fini();
+	c2_xc_iterator_test_fini();
 }
 
 static int fop_init(void)
 {
-	c2_xc_iterator_test_xc_init();
+	c2_xc_iterator_test_init();
 	return C2_FOP_TYPE_INIT(&c2_fop_iterator_test_fopt,
 				.name   = "FOP Iterator Test",
 				.opcode = C2_FOP_ITERATOR_TEST_OPCODE,

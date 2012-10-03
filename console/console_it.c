@@ -20,17 +20,13 @@
  * Revision date         : 07/31/2012
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/memory.h"		  /* C2_ALLOC_ARR */
 #include "fop/fop.h"		  /* c2_fop */
 
 #include "console/console.h"	  /* verbose */
 #include "console/console_it.h"	  /* c2_fit */
 #include "console/console_yaml.h" /* c2_cons_yaml_get_value */
-#include "console/console_xc.h"
+#include "console/console_ff.h"
 
 /**
    @addtogroup console_it

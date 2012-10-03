@@ -18,10 +18,6 @@
  * Original creation date: 08/03/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #ifndef CONSOLE_UT
 #define CONSOLE_UT
 #endif
@@ -33,7 +29,6 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/errno.h"            /* ETIMEDOUT */
-#include "lib/processor.h"        /* c2_processors_init/fini */
 #include "lib/thread.h"		  /* c2_thread */
 #include "lib/trace.h"
 #include "lib/misc.h"		  /* C2_SET0 */
@@ -41,7 +36,7 @@
 #include "ut/rpc.h"               /* c2_rpc_client_init */
 
 #include "console/console.h"
-#include "console/console_xc.h"
+#include "console/console_ff.h"
 #include "console/console_fop.h"
 #include "console/console_it.h"
 #include "console/console_yaml.h"
@@ -131,8 +126,6 @@ static int cons_init(void)
 	timeout = 10;
 	result = c2_console_fop_init();
         C2_ASSERT(result == 0);
-	/*result = c2_processors_init();*/
-	C2_ASSERT(result == 0);
 
 	/*
 	 * There is no need to initialize xprt explicitly if client and server
@@ -149,7 +142,6 @@ static int cons_init(void)
 static int cons_fini(void)
 {
 	c2_net_domain_fini(&client_net_dom);
-	/*c2_processors_fini();*/
 	c2_console_fop_fini();
 	return 0;
 }

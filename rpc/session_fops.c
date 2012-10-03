@@ -19,17 +19,15 @@
  * Original creation date: 04/15/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "net/net.h"        /* c2_net_end_point_get */
 #include "fop/fom.h"
 #include "fop/fop.h"
 #include "fop/fop_item_type.h"
-#include "rpc/session_xc.h"
+#include "rpc/session_ff.h"
 #include "rpc/session_fops.h"
 #include "rpc/session_foms.h"
 #include "rpc/session_internal.h"
@@ -43,13 +41,6 @@
    This file contains definitions of fop types and rpc item types, of fops
    belonging to rpc-session module
  */
-
-int c2_rpc_fop_noop_execute(struct c2_fop     *fop,
-			    struct c2_fop_ctx *ctx)
-{
-	/* Do nothing */
-	return 0;
-}
 
 static void conn_establish_item_free(struct c2_rpc_item *item)
 {
@@ -73,6 +64,7 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 	struct c2_fop                        *fop;
 	int                                   rc;
 
+	C2_ENTRY("item_opcode: %u", item_type->rit_opcode);
 	C2_PRE(item_type != NULL && item != NULL && cur != NULL);
 	C2_PRE(item_type->rit_opcode == C2_RPC_CONN_ESTABLISH_OPCODE);
 
@@ -80,7 +72,7 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 
 	C2_ALLOC_PTR(ctx);
 	if (ctx == NULL)
-		return -ENOMEM;
+		C2_RETURN(-ENOMEM);
 
 	ctx->cec_sender_ep = NULL;
 	fop         = &ctx->cec_fop;
@@ -98,14 +90,13 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 	*item           = &fop->f_item;
 	(*item)->ri_ops = &rcv_conn_establish_item_ops;
 
-	return 0;
+	C2_RETURN(0);
 out:
 	c2_free(ctx);
-	return rc;
+	C2_RETURN(rc);
 }
 
 const struct c2_fop_type_ops c2_rpc_fop_noop_ops = {
-	.fto_execute = c2_rpc_fop_noop_execute
 };
 
 
@@ -148,24 +139,17 @@ void c2_rpc_session_fop_fini(void)
 	c2_fop_type_fini(&c2_rpc_fop_session_establish_fopt);
 	c2_fop_type_fini(&c2_rpc_fop_conn_terminate_fopt);
 	c2_fop_type_fini(&c2_rpc_fop_conn_establish_fopt);
-	c2_xc_session_xc_fini();
+	c2_xc_session_fini();
 }
+
+extern struct c2_fom_type_ops c2_rpc_fom_conn_establish_type_ops;
+extern struct c2_fom_type_ops c2_rpc_fom_session_establish_type_ops;
+extern struct c2_fom_type_ops c2_rpc_fom_conn_terminate_type_ops;
+extern struct c2_fom_type_ops c2_rpc_fom_session_terminate_type_ops;
 
 int c2_rpc_session_fop_init(void)
 {
-	c2_rpc_fop_conn_establish_fopt.ft_fom_type =
-		c2_rpc_fom_conn_establish_type;
-
-	c2_rpc_fop_conn_terminate_fopt.ft_fom_type =
-		c2_rpc_fom_conn_terminate_type;
-
-	c2_rpc_fop_session_establish_fopt.ft_fom_type =
-		c2_rpc_fom_session_establish_type;
-
-	c2_rpc_fop_session_terminate_fopt.ft_fom_type =
-		c2_rpc_fom_session_terminate_type;
-
-	c2_xc_session_xc_init();
+	c2_xc_session_init();
 	return  C2_FOP_TYPE_INIT(&c2_rpc_fop_conn_establish_fopt,
 			 .name      = "Rpc conn establish",
 			 .opcode    = C2_RPC_CONN_ESTABLISH_OPCODE,
@@ -173,28 +157,32 @@ int c2_rpc_session_fop_init(void)
 			 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
 				      C2_RPC_ITEM_TYPE_MUTABO,
 			 .rpc_ops   = &conn_establish_item_type_ops,
-			 .fom_ops   = c2_rpc_fom_conn_establish_type.ft_ops) ?:
+			 .fom_ops   = &c2_rpc_fom_conn_establish_type_ops,
+			 .sm        = &c2_generic_conf) ?:
 		C2_FOP_TYPE_INIT(&c2_rpc_fop_conn_terminate_fopt,
 			 .name      = "Rpc conn terminate",
 			 .opcode    = C2_RPC_CONN_TERMINATE_OPCODE,
 			 .xt        = c2_rpc_fop_conn_terminate_xc,
 			 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
 				      C2_RPC_ITEM_TYPE_MUTABO,
-			 .fom_ops   = c2_rpc_fom_conn_terminate_type.ft_ops ) ?:
+			 .fom_ops   = &c2_rpc_fom_conn_terminate_type_ops,
+			 .sm        = &c2_generic_conf) ?:
 		C2_FOP_TYPE_INIT(&c2_rpc_fop_session_establish_fopt,
 			 .name      = "Rpc session establish",
 			 .opcode    = C2_RPC_SESSION_ESTABLISH_OPCODE,
 			 .xt        = c2_rpc_fop_session_establish_xc,
 			 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
 				      C2_RPC_ITEM_TYPE_MUTABO,
-			 .fom_ops   = c2_rpc_fom_session_establish_type.ft_ops) ?:
+			 .fom_ops   = &c2_rpc_fom_session_establish_type_ops,
+			 .sm        = &c2_generic_conf) ?:
 		C2_FOP_TYPE_INIT(&c2_rpc_fop_session_terminate_fopt,
 			 .name      = "Rpc session terminate",
 			 .opcode    = C2_RPC_SESSION_TERMINATE_OPCODE,
 			 .xt        = c2_rpc_fop_session_terminate_xc,
 			 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST |
 				      C2_RPC_ITEM_TYPE_MUTABO,
-			 .fom_ops   = c2_rpc_fom_session_terminate_type.ft_ops) ?:
+			 .fom_ops   = &c2_rpc_fom_session_terminate_type_ops,
+			 .sm        = &c2_generic_conf) ?:
 		C2_FOP_TYPE_INIT(&c2_rpc_fop_conn_establish_rep_fopt,
 			 .name      = "Rpc conn establish reply",
 			 .opcode    = C2_RPC_CONN_ESTABLISH_REP_OPCODE,
@@ -229,6 +217,8 @@ void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
 {
 	struct c2_rpc_fop_conn_establish_ctx *ctx;
 
+	C2_ENTRY("item: %p, ep_addr: %s, machine: %p", item,
+		 (char *)ep->nep_addr, machine);
 	C2_PRE(item != NULL && ep != NULL && machine != NULL);
 
 	ctx = container_of(item, struct c2_rpc_fop_conn_establish_ctx,
@@ -238,6 +228,7 @@ void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
 	c2_net_end_point_get(ep);
 	ctx->cec_sender_ep = ep;
 	ctx->cec_rpc_machine = machine;
+	C2_LEAVE();
 }
 
 bool c2_rpc_item_is_control_msg(const struct c2_rpc_item *item)

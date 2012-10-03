@@ -1,7 +1,9 @@
+include $(top_srcdir)/Makefile.ff
+
 netdir                     = $(includedir)/colibri/net
 net_HEADERS                = net.h net_internal.h
 
-SUBDIRS                    = . bulk_emulation lnet
+SUBDIRS                    = . bulk_emulation lnet test
 
 noinst_LTLIBRARIES         = libcolibri-net.la
 libcolibri_net_la_SOURCES  = net.c net.h domain.c ep.c buf.c tm.c \
@@ -10,13 +12,10 @@ libcolibri_net_la_SOURCES  = net.c net.h domain.c ep.c buf.c tm.c \
 
 INCLUDES                   = -iquote . -iquote $(top_srcdir) -iquote $(top_srcdir)/include
 
-OTW_SOURCES                = net_otw_types.h net_otw_types.c
+OTW_SOURCES                = net_otw_types_ff.h net_otw_types_ff.c
 MOSTLYCLEANFILES           = $(OTW_SOURCES)
 
 EXTRA_DIST                 = net_otw_types.ff
 
 net.h net.c : $(OTW_SOURCES)
 tm_provision.c: net.h
-$(OTW_SOURCES): net_otw_types.ff \
-	$(top_builddir)/xcode/ff2c/ff2c
-	$(top_builddir)/xcode/ff2c/ff2c $<

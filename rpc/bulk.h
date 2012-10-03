@@ -133,14 +133,6 @@ struct c2_rpc_conn;
 enum c2_net_queue_type;
 
 /**
-   Magic constants to check sanity of rpc bulk structures.
- */
-enum {
-	C2_RPC_BULK_BUF_MAGIC = 0xfacade12c3ed1b1eULL, /* facadeincredible */
-	C2_RPC_BULK_MAGIC     = 0xfedcba0123456789ULL,
-};
-
-/**
    Represents attributes of struct c2_rpc_bulk_buf.
  */
 enum {

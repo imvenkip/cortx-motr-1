@@ -23,8 +23,8 @@
 
 #pragma once
 
-#ifndef CHS_H
-#define CHS_H
+#ifndef __COLIBRI_DESIM_CHS_H__
+#define __COLIBRI_DESIM_CHS_H__
 
 /**
    @addtogroup desim desim
@@ -96,7 +96,7 @@ void chs_conf_fini(struct chs_conf *conf);
 void chs_dev_init(struct chs_dev *dev, struct sim *sim, struct chs_conf *conf);
 void chs_dev_fini(struct chs_dev *dev);
 
-#endif /* CHS_H */
+#endif /* __COLIBRI_DESIM_CHS_H__ */
 
 /** @} end of desim group */
 

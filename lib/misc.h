@@ -24,9 +24,9 @@
 #define __COLIBRI_LIB_MISC_H__
 
 #ifndef __KERNEL__
-#include <string.h>               /* memset, ffs */
+#include <string.h>               /* memset, ffs, strstr */
 #else
-#include <linux/string.h>         /* memset */
+#include <linux/string.h>         /* memset, strstr */
 #include <linux/bitops.h>         /* ffs */
 #endif
 
@@ -72,7 +72,7 @@ uint64_t c2_round_down(uint64_t val, uint64_t size);
  * @code
  * bool foo_invariant(const struct foo *f)
  * {
- *         return c2_forall(i, ARRAY_SIZE(f->f_nr_bar), f->f_bar[i].b_count > 0);
+ *        return c2_forall(i, ARRAY_SIZE(f->f_nr_bar), f->f_bar[i].b_count > 0);
  * }
  * @endcode
  *
@@ -90,13 +90,13 @@ uint64_t c2_round_down(uint64_t val, uint64_t size);
 })
 
 /**
-   Evaluates to true if x is present in set.
+   Evaluates to true iff x is present in set.
 
    e.g. C2_IN(session->s_state, (C2_RPC_SESSION_IDLE,
                                  C2_RPC_SESSION_BUSY,
                                  C2_RPC_SESSION_TERMINATING))
 
-   Parenthesis around "set" members is mandatory.
+   Parentheses around "set" members are mandatory.
  */
 #define C2_IN(x, set) C2_IN0(x, C2_UNPACK set)
 #define C2_UNPACK(...) __VA_ARGS__
@@ -114,7 +114,73 @@ uint64_t c2_round_down(uint64_t val, uint64_t size);
 #define C2_IN_8(x, v, ...) ((x) == (v) || C2_IN_7(x, __VA_ARGS__))
 #define C2_IN_9(x, v, ...) ((x) == (v) || C2_IN_8(x, __VA_ARGS__))
 
+/**
+   C2_BITS(...) returns bitmask of passed states.
+   e.g.
+@code
+   enum foo_states {
+	FOO_UNINITIALISED,
+	FOO_INITIALISED,
+	FOO_ACTIVE,
+	FOO_FAILED,
+	FOO_NR,
+   };
+@endcode
+
+   then @code C2_BITS(FOO_ACTIVE, FOO_FAILED) @endcode returns
+   (1 << FOO_ACTIVE) | (1 << FOO_FAILED)
+
+   @code C2_BITS() @endcode (C2_BITS macro with no parameters will cause
+   compilation failure.
+ */
+#define C2_BITS(...) \
+	C2_CAT(__C2_BITS_, C2_COUNT_PARAMS(__VA_ARGS__))(__VA_ARGS__)
+
+#define __C2_BITS_0(i)       (1 << (i))
+#define __C2_BITS_1(i, ...)  ((1 << (i)) | __C2_BITS_0(__VA_ARGS__))
+#define __C2_BITS_2(i, ...)  ((1 << (i)) | __C2_BITS_1(__VA_ARGS__))
+#define __C2_BITS_3(i, ...)  ((1 << (i)) | __C2_BITS_2(__VA_ARGS__))
+#define __C2_BITS_4(i, ...)  ((1 << (i)) | __C2_BITS_3(__VA_ARGS__))
+#define __C2_BITS_5(i, ...)  ((1 << (i)) | __C2_BITS_4(__VA_ARGS__))
+#define __C2_BITS_6(i, ...)  ((1 << (i)) | __C2_BITS_5(__VA_ARGS__))
+#define __C2_BITS_7(i, ...)  ((1 << (i)) | __C2_BITS_6(__VA_ARGS__))
+#define __C2_BITS_8(i, ...)  ((1 << (i)) | __C2_BITS_7(__VA_ARGS__))
+
 const char *c2_bool_to_str(bool b);
+
+/**
+ * Extracts the file name, relative to a colibri sources directory, from a
+ * full-path file name. A colibri source directory is detected by a name
+ * "core/".
+ *
+ * For example, given the following full-path file name:
+ *
+ *     /data/colibri/core/lib/ut/finject.c
+ *
+ * A short file name, relative to the "core/" directory, is:
+ *
+ *     lib/ut/finject.c
+ *
+ * If there is a "core/build_kernel_modules/" directory in the file's full path,
+ * then short file name is stripped relative to this directory:
+ *
+ *     /data/colibri/core/build_kernel_modules/rpc/packet.c => rpc/packet.c
+ *
+ * @bug {
+ *     This function doesn't search for the right-most occurrence of "core/"
+ *     in a file path, if "core/" encounters several times in the path the first
+ *     one will be picked up:
+ *
+ *       /prj/core/fs/colibri/core/lib/misc.h => fs/colibri/core/lib/misc.h
+ * }
+ *
+ * @param   fname  full path
+ *
+ * @return  short file name - a pointer inside fname string to the remaining
+ *          file path, after colibri source directory;
+ *          if short file name cannot be found, then full fname is returned.
+ */
+const char *c2_short_file_name(const char *fname);
 
 /* __COLIBRI_LIB_MISC_H__ */
 #endif

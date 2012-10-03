@@ -20,10 +20,15 @@
 
 #pragma once
 
-#ifndef __COLIBRI_SNS_H__
-#define __COLIBRI_SNS_H__
+#ifndef __COLIBRI_SNS_SNS_H__
+#define __COLIBRI_SNS_SNS_H__
 
-/* __COLIBRI_SNS_H__ */
+#include "sns/sns.h"
+
+int c2_sns_init(void);
+void c2_sns_fini(void);
+
+/* __COLIBRI_SNS_SNS_H__ */
 #endif
 
 /*

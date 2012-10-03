@@ -32,12 +32,6 @@
    @{
  */
 
-enum {
-	C2_NET_LNET_UCORE_DOM_MAGIC = 0x55436f7265446f6dULL, /* UCoreDom */
-	C2_NET_LNET_UCORE_TM_MAGIC  = 0x55436f7265544dULL,   /* UCoreTM */
-	C2_NET_LNET_UCORE_BUF_MAGIC = 0x55436f7265427566ULL, /* UCoreBuf */
-};
-
 /**
    Userspace domain private data.
    This structure is pointed to by nlx_core_domain::cd_upvt.

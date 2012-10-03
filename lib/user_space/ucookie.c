@@ -46,8 +46,9 @@ static void sigsegv(int sig)
 }
 
 /**
- * Checks the validity of an address by dereferencing the same. Occerrence of
- * an error in case of an invalid address gets handled by the function sigsegv.
+ * Checks the validity of an address by dereferencing the same. Occurrence of
+ * an error in case of an invalid address gets handled by the
+ * function sigsegv().
  */
 bool c2_arch_addr_is_sane(const void *addr)
 {

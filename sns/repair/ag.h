@@ -14,26 +14,42 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Mandar Sawant <Mandar_Sawant@xyratex.com>
- * Original creation date: 06/21/2011
+ * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
+ * Original creation date: 16/04/2012
  */
 
+#pragma once
+
+#ifndef __COLIBRI_SNS_REPAIR_AG_H__
+#define __COLIBRI_SNS_REPAIR_AG_H__
+
+#include "fid/fid.h"
+
+#include "cm/cm.h"
+#include "cm/ag.h"
+
+#include "sns/repair/cm.h"
+
 /**
-   @addtogroup fom
+   @defgroup SNSRepairAG SNS Repair aggregation group
+   @ingroup SNSRepairCM
+
    @{
- */
+*/
 
-/**
- * @file fom_generic_xc.ff
- *
- * <b>Fom generic error reply</b>
- */
+struct c2_sns_repair_aggr_group {
+	/** Base aggregation group. */
+	struct c2_cm_aggr_group      sag_base;
+	/** Transformed copy packet created by transformation function. */
+	struct c2_cm_cp             *sag_cp;
+};
 
-record {
-	u32 rerr_rc
-} c2_fom_error_rep;
+struct c2_sns_repair_aggr_group *ag2snsag(const struct c2_cm_aggr_group *ag);
 
-/** @} end of fom group */
+/** @} SNSRepairAG */
+/* __COLIBRI_SNS_REPAIR_AG_H__ */
+
+#endif
 
 /*
  *  Local variables:

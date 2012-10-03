@@ -19,10 +19,6 @@
  * Original creation date: 09/27/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/arith.h"
 #include "lib/misc.h"
 #include "cfg/cfg.h"

@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H_
-#define __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H_
+#ifndef __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H__
+#define __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H__
 
 #include <linux/stddef.h> /* offsetof, NULL */
 #include <linux/kernel.h> /* container_of, ARRAY_SIZE */
@@ -31,7 +31,7 @@
 
 #define CHAR_BIT (8)
 
-/* __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H_ */
+/* __COLIBRI_LIB_LINUX_KERNEL_CDEFS_H__ */
 #endif
 
 /*

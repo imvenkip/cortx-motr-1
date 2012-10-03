@@ -17,6 +17,9 @@
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
  * Original creation date: 06/29/2011
  */
+
+#pragma once
+
 #ifndef __COLIBRI_RM_RMPROTO_H__
 #define __COLIBRI_RM_RMPROTO_H__
 
@@ -94,4 +97,3 @@ int c2_rm_remote_resource_locate(struct c2_rm_remote *rem);
  *  scroll-step: 1
  *  End:
  */
-

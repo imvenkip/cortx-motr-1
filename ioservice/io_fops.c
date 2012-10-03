@@ -19,23 +19,21 @@
  * Original creation date: 03/21/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/vec.h"	/* c2_0vec */
 #include "lib/memory.h"
 #include "lib/tlist.h"
 #include "addb/addb.h"
+#include "colibri/magic.h"
 #include "fop/fop_item_type.h"
 #include "rpc/item.h"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpc2.h"
 #include "rpc/rpc_onwire.h"
 #include "ioservice/io_fops.h"
-#include "ioservice/io_fops_xc.h"
+#include "fop/fom_generic.h"
+#include "ioservice/io_fops_ff.h"
 
 /*
  * Cob delete and Cob create fom types.
@@ -140,10 +138,17 @@ void c2_ioservice_fop_fini(void)
 	c2_fop_type_fini(&c2_fop_cob_readv_rep_fopt);
 	c2_fop_type_fini(&c2_fop_cob_writev_fopt);
 	c2_fop_type_fini(&c2_fop_cob_readv_fopt);
-	c2_xc_io_fops_xc_fini();
+	c2_xc_io_fops_fini();
 	c2_addb_ctx_fini(&bulkclient_addb);
 }
 C2_EXPORTED(c2_ioservice_fop_fini);
+
+extern struct c2_reqh_service_type c2_ios_type;
+extern const struct c2_fom_type_ops cob_fom_type_ops;
+extern const struct c2_fom_type_ops io_fom_type_ops;
+
+extern const struct c2_sm_conf io_conf;
+extern struct c2_sm_state_descr io_phases[];
 
 int c2_ioservice_fop_init(void)
 {
@@ -152,13 +157,11 @@ int c2_ioservice_fop_init(void)
 	/*
 	 * Provided by ff2c compiler after parsing io_fops_xc.ff
 	 */
-	c2_xc_io_fops_xc_init();
+	c2_xc_io_fops_init();
 
 #ifndef __KERNEL__
-	c2_fop_cob_readv_fopt.ft_fom_type  = c2_io_fom_cob_rw_fomt;
-	c2_fop_cob_writev_fopt.ft_fom_type = c2_io_fom_cob_rw_fomt;
-	c2_fop_cob_create_fopt.ft_fom_type = cob_create_fomt;
-	c2_fop_cob_delete_fopt.ft_fom_type = cob_delete_fomt;
+	c2_sm_conf_extend(c2_generic_conf.scf_state, io_phases,
+			  c2_generic_conf.scf_nr_states);
 #endif
 	return  C2_FOP_TYPE_INIT(&c2_fop_cob_readv_fopt,
 				 .name      = "Read request",
@@ -167,7 +170,9 @@ int c2_ioservice_fop_init(void)
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
 				 .fop_ops   = &io_fop_rwv_ops,
 #ifndef __KERNEL__
-				 .fom_ops   = c2_io_fom_cob_rw_fomt.ft_ops,
+				 .fom_ops   = &io_fom_type_ops,
+				 .sm        = &io_conf,
+				 .svc_type  = &c2_ios_type,
 #endif
 				 .rpc_ops   = &io_item_type_ops) ?:
 		C2_FOP_TYPE_INIT(&c2_fop_cob_writev_fopt,
@@ -178,7 +183,9 @@ int c2_ioservice_fop_init(void)
 					      C2_RPC_ITEM_TYPE_MUTABO,
 				 .fop_ops   = &io_fop_rwv_ops,
 #ifndef __KERNEL__
-				 .fom_ops   = c2_io_fom_cob_rw_fomt.ft_ops,
+				 .fom_ops   = &io_fom_type_ops,
+				 .sm        = &io_conf,
+				 .svc_type  = &c2_ios_type,
 #endif
 				 .rpc_ops   = &io_item_type_ops) ?:
 		C2_FOP_TYPE_INIT(&c2_fop_cob_readv_rep_fopt,
@@ -197,8 +204,10 @@ int c2_ioservice_fop_init(void)
 				 .xt        = c2_fop_cob_create_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
 #ifndef __KERNEL__
-				 .fom_ops   = cob_create_fomt.ft_ops,
+				 .fom_ops   = &cob_fom_type_ops,
+				 .svc_type  = &c2_ios_type,
 #endif
+				 .sm        = &c2_generic_conf,
 				 .rpc_ops   = &cob_rpc_type_ops) ?:
 		C2_FOP_TYPE_INIT(&c2_fop_cob_delete_fopt,
 				 .name      = "Cob delete request",
@@ -206,8 +215,10 @@ int c2_ioservice_fop_init(void)
 				 .xt        = c2_fop_cob_delete_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST,
 #ifndef __KERNEL__
-				 .fom_ops   = cob_create_fomt.ft_ops,
+				 .fom_ops   = &cob_fom_type_ops,
+				 .svc_type  = &c2_ios_type,
 #endif
+				 .sm        = &c2_generic_conf,
 				 .rpc_ops   = &cob_rpc_type_ops) ?:
 		C2_FOP_TYPE_INIT(&c2_fop_cob_op_reply_fopt,
 				 .name      = "Cob create or delete reply",
@@ -490,11 +501,6 @@ C2_EXPORTED(c2_ioservice_fop_init);
    @{
  */
 
-enum {
-	IO_SEGMENT_MAGIC = 0x293925012f191354ULL,
-	IO_SEGMENT_SET_MAGIC = 0x2ac196c1ee1a1239ULL,
-};
-
 /**
  * Generic io segment that represents a contiguous stream of bytes
  * along with io extent. This structure is typically used by io coalescing
@@ -526,7 +532,7 @@ struct io_seg_set {
 
 C2_TL_DESCR_DEFINE(iosegset, "list of coalesced io segments", static,
 		   struct ioseg, is_linkage, is_magic,
-		   IO_SEGMENT_MAGIC, IO_SEGMENT_SET_MAGIC);
+		   C2_IOS_IO_SEGMENT_MAGIC, C2_IOS_IO_SEGMENT_SET_MAGIC);
 
 C2_TL_DEFINE(iosegset, static, struct ioseg);
 
@@ -1202,7 +1208,7 @@ static int io_fop_coalesce(struct c2_fop *res_fop, uint64_t size)
 	}
 	tm = io_fop_tm_get(res_fop);
 	bkp_fop = &cfop->if_fop;
-	aggr_set.iss_magic = IO_SEGMENT_SET_MAGIC;
+	aggr_set.iss_magic = C2_IOS_IO_SEGMENT_SET_MAGIC;
 	iosegset_tlist_init(&aggr_set.iss_list);
 
 	/*

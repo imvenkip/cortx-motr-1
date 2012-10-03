@@ -386,11 +386,6 @@ static void xcode_cursor_test(void)
 	C2_UT_ASSERT(c2_xcode_next(&it) == 0);
 }
 
-static void *ut_alloc(struct c2_xcode_ctx *ctx, size_t nob)
-{
-	return c2_alloc(nob);
-}
-
 static void xcode_length_test(void)
 {
 	int result;
@@ -423,19 +418,27 @@ static void xcode_opaque_test(void)
 	failure = 0;
 }
 
-static void xcode_decode_test(void)
+static void decode(struct c2_xcode_obj *obj)
 {
 	int result;
-	struct top *TT;
 
 	c2_xcode_ctx_init(&ctx, &(struct c2_xcode_obj){ &xut_top.xt, NULL });
-	ctx.xcx_alloc = ut_alloc;
+	ctx.xcx_alloc = c2_xcode_alloc;
 	c2_bufvec_cursor_init(&ctx.xcx_buf, &bvec);
 
 	result = c2_xcode_decode(&ctx);
 	C2_UT_ASSERT(result == 0);
 
-	TT = ctx.xcx_it.xcu_stack[0].s_obj.xo_ptr;
+	*obj = ctx.xcx_it.xcu_stack[0].s_obj;
+}
+
+static void xcode_decode_test(void)
+{
+	struct c2_xcode_obj decoded;
+	struct top *TT;
+
+	decode(&decoded);
+	TT = decoded.xo_ptr;
 	C2_UT_ASSERT( TT != NULL);
 	C2_UT_ASSERT( TT->t_foo.f_x    ==  T.t_foo.f_x);
 	C2_UT_ASSERT( TT->t_foo.f_y    ==  T.t_foo.f_y);
@@ -447,9 +450,7 @@ static void xcode_decode_test(void)
 	C2_UT_ASSERT( TT->t_un.u.u_y   ==  T.t_un.u.u_y);
 	C2_UT_ASSERT(*TT->t_opaq.o_32  == *T.t_opaq.o_32);
 
-	c2_free(TT->t_opaq.o_32);
-	c2_free(TT->t_v.v_data);
-	c2_free(TT);
+	c2_xcode_free(&decoded);
 }
 
 enum {
@@ -523,6 +524,185 @@ static void xcode_nonstandard_test(void)
 	C2_UT_ASSERT(memcmp(&TD, ebuf, sizeof TD) == 0);
 	foo_xor(ebuf);
 	xcode_decode_test();
+	xut_foo.xt.xct_ops = NULL;
+}
+
+static void xcode_cmp_test(void)
+{
+	struct c2_xcode_obj obj0;
+	struct c2_xcode_obj obj1;
+	struct top *t0;
+	struct top *t1;
+	int    cmp;
+
+	xcode_encode_test();
+
+	decode(&obj0);
+	decode(&obj1);
+
+	t0 = obj0.xo_ptr;
+	t1 = obj1.xo_ptr;
+
+	cmp = c2_xcode_cmp(&obj0, &obj0);
+	C2_UT_ASSERT(cmp == 0);
+
+	cmp = c2_xcode_cmp(&obj0, &obj1);
+	C2_UT_ASSERT(cmp == 0);
+
+	cmp = c2_xcode_cmp(&obj1, &obj0);
+	C2_UT_ASSERT(cmp == 0);
+
+	t1->t_foo.f_x--;
+	cmp = c2_xcode_cmp(&obj0, &obj1);
+	C2_UT_ASSERT(cmp > 0);
+	cmp = c2_xcode_cmp(&obj1, &obj0);
+	C2_UT_ASSERT(cmp < 0);
+
+	t1->t_foo.f_x++;
+	cmp = c2_xcode_cmp(&obj0, &obj1);
+	C2_UT_ASSERT(cmp == 0);
+
+	t1->t_v.v_data[0] = 'J';
+	cmp = c2_xcode_cmp(&obj0, &obj1);
+	C2_UT_ASSERT(cmp < 0);
+	t1->t_v.v_data[0] = t0->t_v.v_data[0];
+
+	t1->t_v.v_nr++;
+	cmp = c2_xcode_cmp(&obj0, &obj1);
+	C2_UT_ASSERT(cmp < 0);
+	cmp = c2_xcode_cmp(&obj1, &obj0);
+	C2_UT_ASSERT(cmp > 0);
+	t1->t_v.v_nr--;
+
+	c2_xcode_free(&obj0);
+	c2_xcode_free(&obj1);
+}
+
+#define OBJ(xt, ptr) (&(struct c2_xcode_obj){ .xo_type = (xt), .xo_ptr = (ptr) })
+
+static void xcode_read_test(void)
+{
+	int        result;
+	struct foo F;
+	struct un  U;
+	struct v   V;
+	struct top T;
+
+	C2_SET0(&F);
+	result = c2_xcode_read(OBJ(&xut_foo.xt, &F), "(10, 0xff)");
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(F.f_x == 10);
+	C2_UT_ASSERT(F.f_y == 0xff);
+
+	C2_SET0(&F);
+	result = c2_xcode_read(OBJ(&xut_foo.xt, &F), " ( 10 , 0xff ) ");
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(F.f_x == 10);
+	C2_UT_ASSERT(F.f_y == 0xff);
+
+	C2_SET0(&F);
+	result = c2_xcode_read(OBJ(&xut_foo.xt, &F), "(10,010)");
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(F.f_x == 10);
+	C2_UT_ASSERT(F.f_y == 8);
+
+	C2_SET0(&F);
+	result = c2_xcode_read(OBJ(&xut_foo.xt, &F), " ( 10 , 0xff ) rest");
+	C2_UT_ASSERT(result == -EINVAL);
+
+	C2_SET0(&F);
+	result = c2_xcode_read(OBJ(&xut_foo.xt, &F), "(10,)");
+	C2_UT_ASSERT(result == -EPROTO);
+
+	C2_SET0(&F);
+	result = c2_xcode_read(OBJ(&xut_foo.xt, &F), "(10 12)");
+	C2_UT_ASSERT(result == -EPROTO);
+
+	C2_SET0(&F);
+	result = c2_xcode_read(OBJ(&xut_foo.xt, &F), "()");
+	C2_UT_ASSERT(result == -EPROTO);
+
+	C2_SET0(&F);
+	result = c2_xcode_read(OBJ(&xut_foo.xt, &F), "");
+	C2_UT_ASSERT(result == -EPROTO);
+
+	C2_SET0(&U);
+	result = c2_xcode_read(OBJ(&xut_un.xt, &U), "{1| 42}");
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(U.u_tag == 1);
+	C2_UT_ASSERT(U.u.u_x == 42);
+
+	C2_SET0(&U);
+	result = c2_xcode_read(OBJ(&xut_un.xt, &U), "{4| 8}");
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(U.u_tag == 4);
+	C2_UT_ASSERT(U.u.u_y == 8);
+
+	C2_SET0(&U);
+	result = c2_xcode_read(OBJ(&xut_un.xt, &U), "{3| 0}");
+	C2_UT_ASSERT(result == -EPROTO);
+
+	C2_SET0(&U);
+	result = c2_xcode_read(OBJ(&xut_un.xt, &U), "{3}");
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(U.u_tag == 3);
+
+	C2_SET0(&V);
+	result = c2_xcode_read(OBJ(&xut_v.xt, &V), "[0]");
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(V.v_nr == 0);
+
+	C2_SET0(&V);
+	result = c2_xcode_read(OBJ(&xut_v.xt, &V), "[1: 42]");
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(V.v_nr == 1);
+	C2_UT_ASSERT(V.v_data[0] == 42);
+
+	result = c2_xcode_read(OBJ(&xut_v.xt, &V), "[3: 42, 43, 44]");
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(V.v_nr == 3);
+	C2_UT_ASSERT(V.v_data[0] == 42);
+	C2_UT_ASSERT(V.v_data[1] == 43);
+	C2_UT_ASSERT(V.v_data[2] == 44);
+
+	C2_SET0(&V);
+	result = c2_xcode_read(OBJ(&xut_v.xt, &V), "\"a\"");
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(V.v_nr == 1);
+	C2_UT_ASSERT(strncmp(V.v_data, "a", 1) == 0);
+
+	C2_SET0(&V);
+	result = c2_xcode_read(OBJ(&xut_v.xt, &V), "\"abcdef\"");
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(V.v_nr == 6);
+	C2_UT_ASSERT(strncmp(V.v_data, "abcdef", 6) == 0);
+
+	C2_SET0(&V);
+	result = c2_xcode_read(OBJ(&xut_v.xt, &V), "\"\"");
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(V.v_nr == 0);
+
+	C2_SET0(&V);
+	result = c2_xcode_read(OBJ(&xut_v.xt, &V), "\"");
+	C2_UT_ASSERT(result == -EPROTO);
+
+	C2_SET0(&T);
+	result = c2_xcode_read(OBJ(&xut_top.xt, &T), ""
+"((1, 2),"
+" 8,"
+" [4: 1, 2, 3, 4],"
+" 4,"
+" {1| 42},"
+" 7)");
+	C2_UT_ASSERT(result == 0);
+	C2_UT_ASSERT(memcmp(&T, &(struct top){
+		.t_foo  = { 1, 2 },
+		.t_flag = 8,
+		.t_v    = { .v_nr = 4, .v_data = T.t_v.v_data },
+		.t_def  = 4,
+		.t_un   = { .u_tag = 1, .u = { .u_x = 42 }},
+		.t_opaq = { .o_32 = T.t_opaq.o_32 }}, sizeof T) == 0);
+
 }
 
 const struct c2_test_suite xcode_ut = {
@@ -536,6 +716,8 @@ const struct c2_test_suite xcode_ut = {
                 { "xcode-opaque", xcode_opaque_test },
                 { "xcode-decode", xcode_decode_test },
                 { "xcode-nonstandard", xcode_nonstandard_test },
+                { "xcode-cmp",    xcode_cmp_test },
+		{ "xcode-read",   xcode_read_test },
                 { NULL, NULL }
         }
 };

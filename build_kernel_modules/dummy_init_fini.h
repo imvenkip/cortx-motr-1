@@ -18,8 +18,10 @@
  * Original creation date: 10/13/2011
  */
 
-#ifndef __C2_DUMMY_INIT_FINI_H
-#define __C2_DUMMY_INIT_FINI_H
+#pragma once
+
+#ifndef __COLIBRI_DUMMY_INIT_FINI_H__
+#define __COLIBRI_DUMMY_INIT_FINI_H__
 
 int c2_trace_init(void);
 void c2_trace_fini(void);
@@ -48,4 +50,4 @@ void c2_reqhs_fini(void);
 int c2_timers_init(void);
 void c2_timers_fini(void);
 
-#endif /* __C2_DUMMY_INIT_FINI_H */
+#endif /* __COLIBRI_DUMMY_INIT_FINI_H__ */

@@ -397,7 +397,7 @@ static int request_pre_process(struct c2_fom *fom,
 	 * If the request either succeeds or fails, follow with the next phase.
 	 * If request is waiting, it will enter the next phase after wake-up.
 	 */
-	fom->fo_phase = next_phase;
+	c2_fom_phase_set(fom, next_phase);
 	if (in->rin_sm_state.sm_state == RI_WAIT) {
 		c2_fom_wait_on(fom, &in->rin_signal, &fom->fo_cb);
 	}
@@ -449,13 +449,13 @@ static int rm_borrow_fom_tick(struct c2_fom *fom)
 {
 	int rc;
 
-	if (fom->fo_phase < C2_FOPH_NR)
+	if (c2_fom_phase(fom) < C2_FOPH_NR)
 		rc = c2_fom_tick_generic(fom);
 	else {
-		C2_PRE(fom->fo_phase == FOPH_RM_BORROW ||
-		       fom->fo_phase == FOPH_RM_BORROW_WAIT);
+		C2_PRE(c2_fom_phase(fom) == FOPH_RM_BORROW ||
+		       c2_fom_phase(fom) == FOPH_RM_BORROW_WAIT);
 
-		if (fom->fo_phase == FOPH_RM_BORROW)
+		if (c2_fom_phase(fom) == FOPH_RM_BORROW)
 			rc = request_pre_process(fom, C2_RIT_BORROW,
 						 FOPH_RM_BORROW_WAIT);
 		else
@@ -479,13 +479,13 @@ static int rm_revoke_fom_tick(struct c2_fom *fom)
 {
 	int rc;
 
-	if (fom->fo_phase < C2_FOPH_NR)
+	if (c2_fom_phase(fom) < C2_FOPH_NR)
 		rc = c2_fom_tick_generic(fom);
 	else {
-		C2_PRE(fom->fo_phase == FOPH_RM_REVOKE ||
-		       fom->fo_phase == FOPH_RM_REVOKE_WAIT);
+		C2_PRE(c2_fom_phase(fom) == FOPH_RM_REVOKE ||
+		       c2_fom_phase(fom) == FOPH_RM_REVOKE_WAIT);
 
-		if (fom->fo_phase == FOPH_RM_REVOKE)
+		if (c2_fom_phase(fom) == FOPH_RM_REVOKE)
 			rc = request_pre_process(fom, C2_RIT_REVOKE,
 						 FOPH_RM_REVOKE_WAIT);
 		else

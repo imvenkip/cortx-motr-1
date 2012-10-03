@@ -30,7 +30,7 @@
 #include "fol/fol.h"
 #include "fop/fom.h"
 #include "rpc/item.h"
-#include "net/net_otw_types.h"
+#include "net/net_otw_types_ff.h"
 
 /**
    @defgroup fop File operation packet
@@ -91,8 +91,6 @@ struct c2_fop {
 	   RPC item for this FOP
 	 */
 	struct c2_rpc_item	 f_item;
-	/** Linkage could be used to have fops in a list. */
-	struct c2_list_link	 f_link;
 };
 
 /**
@@ -118,7 +116,7 @@ void          *c2_fop_data (struct c2_fop *fop);
 /**
    Allocate top level fop data
  */
-int            c2_fop_data_alloc (struct c2_fop *fop);
+int c2_fop_data_alloc(struct c2_fop *fop);
 
 int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
 		       struct c2_db_tx *tx);
@@ -226,9 +224,7 @@ struct c2_fop_type *c2_fop_type_next(struct c2_fop_type *ftype);
 
 /** fop type operations. */
 struct c2_fop_type_ops {
-	/** XXX temporary entry point for threaded fop execution. */
-	int (*fto_execute) (struct c2_fop *fop, struct c2_fop_ctx *ctx);
-	/** fol record type operations for this fop type, or NULL is standard
+	/** fol record type operations for this fop type, or NULL if standard
 	    operations are to be used. */
 	const struct c2_fol_rec_type_ops  *fto_rec_ops;
 	/** Action to be taken on receiving reply of a fop. */
@@ -258,6 +254,8 @@ struct __c2_fop_type_init_args {
 	const struct c2_fol_rec_type_ops  *fol_ops;
 	const struct c2_fom_type_ops      *fom_ops;
 	const struct c2_rpc_item_type_ops *rpc_ops;
+	const struct c2_sm_conf		  *sm;
+	const struct c2_reqh_service_type *svc_type;
 };
 
 int c2_fop_type_init(struct c2_fop_type *ft,

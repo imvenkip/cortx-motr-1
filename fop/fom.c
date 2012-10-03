@@ -18,10 +18,6 @@
  * Original creation date: 05/04/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/misc.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
@@ -30,12 +26,14 @@
 #include "lib/time.h"
 #include "lib/timer.h"
 #include "lib/arith.h"
+#include "lib/cdefs.h" /* ergo */
 
 #include "addb/addb.h"
-#include "fop/fom.h"
+#include "colibri/magic.h"
 #include "fop/fop.h"
 #include "fop/fom_long_lock.h"
 #include "reqh/reqh.h"
+#include "sm/sm.h"
 
 /**
  * @addtogroup fom
@@ -161,13 +159,8 @@ struct c2_loc_thread {
 	uint64_t                lt_magix;
 };
 
-enum {
-	THREAD_MAGIX = 0xfa151f1ab1ec0b01 /* falsifiable COBOL */
-};
-
 C2_TL_DESCR_DEFINE(thr, "fom thread", static, struct c2_loc_thread, lt_linkage,
-		   lt_magix, THREAD_MAGIX,
-		   0xdec1a551f1edcade /* declassified cade */);
+		   lt_magix, C2_FOM_THREAD_MAGIC, C2_FOM_THREAD_HEAD_MAGIC);
 C2_TL_DEFINE(thr, static, struct c2_loc_thread);
 
 static bool fom_wait_time_is_out(const struct c2_fom_domain *dom,
@@ -238,11 +231,32 @@ bool c2_locality_invariant(const struct c2_fom_locality *loc)
 
 }
 
+struct c2_reqh *c2_fom_reqh(const struct c2_fom *fom)
+{
+	return fom->fo_loc->fl_dom->fd_reqh;
+}
+
+static inline enum c2_fom_state fom_state(const struct c2_fom *fom)
+{
+	return fom->fo_sm_state.sm_state;
+}
+
+static inline void fom_state_set(struct c2_fom *fom, enum c2_fom_state state)
+{
+	c2_sm_state_set(&fom->fo_sm_state, state);
+}
+
 static bool fom_is_blocked(const struct c2_fom *fom)
 {
 	return
-		fom->fo_state == C2_FOS_RUNNING &&
+		fom_state(fom) == C2_FOS_RUNNING &&
 		C2_IN(fom->fo_thread->lt_state, (BLOCKED, UNBLOCKING));
+}
+
+/* Returns fom from state machine c2_fom::fo_sm_state */
+static inline struct c2_fom *sm2fom(struct c2_sm *sm)
+{
+	return container_of(sm, struct c2_fom, fo_sm_state);
 }
 
 bool c2_fom_invariant(const struct c2_fom *fom)
@@ -250,21 +264,19 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 	return
 		fom != NULL && fom->fo_loc != NULL &&
 		fom->fo_type != NULL && fom->fo_ops != NULL &&
-		fom->fo_fop != NULL &&
 
 		c2_fom_group_is_locked(fom) &&
-
 		c2_list_link_invariant(&fom->fo_linkage) &&
 
-		C2_IN(fom->fo_state, (C2_FOS_READY, C2_FOS_WAITING,
-				      C2_FOS_RUNNING)) &&
-		(fom->fo_state == C2_FOS_READY) == is_in_runq(fom) &&
-		(fom->fo_state == C2_FOS_WAITING) == is_in_wail(fom) &&
-		ergo(fom->fo_thread != NULL, fom->fo_state == C2_FOS_RUNNING) &&
+		C2_IN(fom_state(fom), (C2_FOS_READY, C2_FOS_WAITING,
+				       C2_FOS_RUNNING, C2_FOS_INIT)) &&
+		(fom_state(fom) == C2_FOS_READY) == is_in_runq(fom) &&
+		(fom_state(fom) == C2_FOS_WAITING) == is_in_wail(fom) &&
+		ergo(fom->fo_thread != NULL, fom_state(fom) == C2_FOS_RUNNING) &&
 		ergo(fom->fo_pending != NULL,
-		     (fom->fo_state == C2_FOS_READY || fom_is_blocked(fom))) &&
+		     (fom_state(fom) == C2_FOS_READY || fom_is_blocked(fom))) &&
 		ergo(fom->fo_cb.fc_state != C2_FCS_DONE,
-		     fom->fo_state == C2_FOS_WAITING);
+		     fom_state(fom) == C2_FOS_WAITING);
 }
 
 static bool fom_wait_time_is_out(const struct c2_fom_domain *dom,
@@ -279,33 +291,29 @@ static bool fom_wait_time_is_out(const struct c2_fom_domain *dom,
  * This function is invoked when a new fom is submitted for
  * execution or a waiting fom is re-scheduled for processing.
  *
- * @pre c2_fom_invariant(fom)
+ * @post c2_fom_invariant(fom)
  */
 static void fom_ready(struct c2_fom *fom)
 {
 	struct c2_fom_locality *loc;
 	bool                    empty;
 
+	fom_state_set(fom, C2_FOS_READY);
 	loc = fom->fo_loc;
-	fom->fo_state = C2_FOS_READY;
 	empty = c2_list_is_empty(&loc->fl_runq);
 	c2_list_add_tail(&loc->fl_runq, &fom->fo_linkage);
 	C2_CNT_INC(loc->fl_runq_nr);
 	if (empty)
 		c2_chan_signal(&loc->fl_runrun);
+	C2_POST(c2_fom_invariant(fom));
 }
 
 void c2_fom_ready(struct c2_fom *fom)
 {
-	struct c2_fom_locality *loc = fom->fo_loc;
-
-	C2_PRE(fom->fo_state == C2_FOS_WAITING);
 	C2_PRE(c2_fom_invariant(fom));
 
-	C2_ASSERT(is_in_wail(fom));
 	c2_list_del(&fom->fo_linkage);
-	C2_CNT_DEC(loc->fl_wail_nr);
-
+	C2_CNT_DEC(fom->fo_loc->fl_wail_nr);
 	fom_ready(fom);
 }
 
@@ -321,7 +329,7 @@ static void queueit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 	struct c2_fom *fom = container_of(ast, struct c2_fom, fo_cb.fc_ast);
 
 	C2_PRE(c2_fom_invariant(fom));
-	C2_PRE(fom->fo_phase == C2_FOM_PHASE_INIT);
+	C2_PRE(c2_fom_phase(fom) == C2_FOM_PHASE_INIT);
 
 	fom_ready(fom);
 }
@@ -338,7 +346,7 @@ void c2_fom_block_enter(struct c2_fom *fom)
 	struct c2_loc_thread   *thr;
 
 	C2_PRE(c2_fom_invariant(fom));
-	C2_PRE(fom->fo_state == C2_FOS_RUNNING);
+	C2_PRE(fom_state(fom) == C2_FOS_RUNNING);
 	C2_PRE(!fom_is_blocked(fom));
 
 	loc = fom->fo_loc;
@@ -406,9 +414,9 @@ void c2_fom_block_leave(struct c2_fom *fom)
 
 void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
 {
-	struct c2_fom_domain        *dom;
-	struct c2_reqh_service_type *stype;
-	size_t			     loc_idx;
+	struct c2_fom_domain		  *dom;
+	const struct c2_reqh_service_type *stype;
+	size_t				   loc_idx;
 
 	C2_PRE(reqh != NULL);
 	C2_PRE(fom != NULL);
@@ -419,14 +427,13 @@ void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
 		C2_ASSERT(fom->fo_service != NULL);
 	}
 
-	fom->fo_fol = reqh->rh_fol;
 	dom = &reqh->rh_fom_dom;
-	c2_atomic64_inc(&dom->fd_foms_nr);
 	loc_idx = fom->fo_ops->fo_home_locality(fom) %
 		dom->fd_localities_nr;
 	C2_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
 	fom->fo_loc = &reqh->rh_fom_dom.fd_localities[loc_idx];
-
+	C2_CNT_INC(fom->fo_loc->fl_foms);
+	c2_fom_sm_init(fom);
 	fom->fo_cb.fc_ast.sa_cb = queueit;
 	c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
 }
@@ -442,18 +449,17 @@ void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
  * This function is invoked from fom_exec(), if the fom is performing a blocking
  * operation and c2_fom_ops::fo_tick() returns C2_FSO_WAIT.
  *
- * @pre fom->fo_state == C2_FOS_RUNNING
+ * @post c2_fom_invariant(fom)
  */
 static void fom_wait(struct c2_fom *fom)
 {
 	struct c2_fom_locality *loc;
 
-	C2_PRE(fom->fo_state == C2_FOS_RUNNING);
-
+	fom_state_set(fom, C2_FOS_WAITING);
 	loc = fom->fo_loc;
-	fom->fo_state = C2_FOS_WAITING;
 	c2_list_add_tail(&loc->fl_wail, &fom->fo_linkage);
 	C2_CNT_INC(loc->fl_wail_nr);
+	C2_POST(c2_fom_invariant(fom));
 }
 
 /**
@@ -473,23 +479,20 @@ static void cb_run(struct c2_fom_callback *cb)
 /**
  * Invokes fom phase transition method, which transitions fom
  * through various phases of its execution without blocking.
- *
- * @pre fom->fo_state == C2_FOS_RUNNING
+ * @post c2_fom_invariant(fom)
  */
 static void fom_exec(struct c2_fom *fom)
 {
 	int			rc;
 	struct c2_fom_locality *loc;
 
-	C2_PRE(fom->fo_state == C2_FOS_READY);
 
 	loc = fom->fo_loc;
 	fom->fo_thread = loc->fl_handler;
-	fom->fo_state = C2_FOS_RUNNING;
-
+	fom_state_set(fom, C2_FOS_RUNNING);
 	do {
 		C2_ASSERT(c2_fom_invariant(fom));
-		C2_ASSERT(fom->fo_phase != C2_FOM_PHASE_FINISH);
+		C2_ASSERT(fom_state(fom) != C2_FOM_PHASE_FINISH);
 		rc = fom->fo_ops->fo_tick(fom);
 		/*
 		 * (rc == C2_FSO_AGAIN) means that next phase transition is
@@ -505,7 +508,7 @@ static void fom_exec(struct c2_fom *fom)
 	C2_ASSERT(rc == C2_FSO_WAIT);
 	C2_ASSERT(c2_fom_group_is_locked(fom));
 
-	if (fom->fo_phase == C2_FOM_PHASE_FINISH) {
+	if (c2_fom_phase(fom) == C2_FOM_PHASE_FINISH) {
 		fom->fo_ops->fo_fini(fom);
 		/*
 		 * Don't touch the fom after this point.
@@ -527,8 +530,8 @@ static void fom_exec(struct c2_fom *fom)
 			/*
 			 * call-back is not allowed to destroy a fom.
 			 */
-			C2_ASSERT(fom->fo_phase != C2_FOM_PHASE_FINISH);
-			if (fom->fo_state != C2_FOS_WAITING)
+			C2_ASSERT(c2_fom_phase(fom) != C2_FOM_PHASE_FINISH);
+			if (fom_state(fom) != C2_FOS_WAITING)
 				break;
 		}
 		C2_ASSERT(c2_fom_invariant(fom));
@@ -672,7 +675,7 @@ static int loc_thr_create(struct c2_fom_locality *loc)
 	if (thr == NULL)
 		return -ENOMEM;
 	thr->lt_state = IDLE;
-	thr->lt_magix = THREAD_MAGIX;
+	thr->lt_magix = C2_FOM_THREAD_MAGIC;
 	thr->lt_loc   = loc;
 	thr_tlink_init_at_tail(thr, &loc->fl_threads);
 
@@ -839,18 +842,30 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
 	c2_free(dom->fd_localities);
 }
 
+bool c2_fom_domain_is_idle(const struct c2_fom_domain *dom)
+{
+	return c2_forall(i, dom->fd_localities_nr,
+			 dom->fd_localities[i].fl_foms == 0);
+}
+
 void c2_fom_fini(struct c2_fom *fom)
 {
-	struct c2_fom_domain *fdom;
-	struct c2_reqh       *reqh;
+	struct c2_fom_domain   *fdom;
+	struct c2_fom_locality *loc;
+	struct c2_reqh         *reqh;
 
-	C2_PRE(fom->fo_phase == C2_FOM_PHASE_FINISH);
+	C2_PRE(c2_fom_phase(fom) == C2_FOM_PHASE_FINISH);
 
-	fdom = fom->fo_loc->fl_dom;
+	loc  = fom->fo_loc;
+	fdom = loc->fl_dom;
 	reqh = fdom->fd_reqh;
+	fom_state_set(fom, C2_FOS_FINISH);
+	c2_sm_fini(&fom->fo_sm_phase);
+	c2_sm_fini(&fom->fo_sm_state);
 	c2_list_link_fini(&fom->fo_linkage);
 	c2_fom_callback_init(&fom->fo_cb);
-	if (c2_atomic64_dec_and_test(&fdom->fd_foms_nr))
+	C2_CNT_DEC(loc->fl_foms);
+	if (loc->fl_foms == 0)
 		c2_chan_signal(&reqh->rh_sd_signal);
 }
 C2_EXPORTED(c2_fom_fini);
@@ -861,9 +876,7 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
 {
 	C2_PRE(fom != NULL);
 
-	fom->fo_phase   = C2_FOM_PHASE_INIT;
-	fom->fo_state   = C2_FOS_RUNNING;
-        fom->fo_rc      = 0;
+	fom->fo_rc      = 0;
 	fom->fo_type	= fom_type;
 	fom->fo_ops	= ops;
 	fom->fo_fop	= fop;
@@ -902,10 +915,10 @@ static void fom_ast_cb(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 	 */
 	C2_PRE(cb->fc_state == C2_FCS_TOP_DONE);
 
-	if (fom->fo_state == C2_FOS_WAITING)
+	if (fom_state(fom) == C2_FOS_WAITING)
 		cb_run(cb);
 	else {
-		C2_ASSERT(fom->fo_state == C2_FOS_READY || fom_is_blocked(fom));
+		C2_ASSERT(fom_state(fom) == C2_FOS_READY || fom_is_blocked(fom));
 		/*
 		 * Call-back arrived while our fom is in READY state (hanging on
 		 * the runqueue, waiting for its turn) or RUNNING state (blocked
@@ -974,8 +987,91 @@ bool c2_fom_callback_cancel(struct c2_fom_callback *cb)
 	return result;
 }
 
-/** @} endgroup fom */
+void c2_fom_type_init(struct c2_fom_type *type,
+		      const struct c2_fom_type_ops *ops,
+		      const struct c2_reqh_service_type  *svc_type,
+		      const struct c2_sm_conf *sm)
+{
+	type->ft_ops    = ops;
+	type->ft_conf   = sm;
+	type->ft_rstype = svc_type;
+}
 
+static const struct c2_sm_state_descr fom_states[] = {
+	[C2_FOS_INIT] = {
+		.sd_flags     = C2_SDF_INITIAL,
+		.sd_name      = "SM init",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOS_FINISH) |
+				(1 << C2_FOS_READY)
+	},
+	[C2_FOS_READY] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom ready",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOS_RUNNING)
+	},
+	[C2_FOS_RUNNING] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom running",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOS_WAITING) |
+				(1 << C2_FOS_READY) |
+				(1 << C2_FOS_FINISH)
+	},
+	[C2_FOS_WAITING] = {
+		.sd_flags     = 0,
+		.sd_name      = "fom wait",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = (1 << C2_FOS_FINISH) |
+				(1 << C2_FOS_READY)
+	},
+	[C2_FOS_FINISH] = {
+		.sd_flags     = C2_SDF_TERMINAL,
+		.sd_name      = "finished",
+		.sd_in        = NULL,
+		.sd_ex        = NULL,
+		.sd_invariant = NULL,
+		.sd_allowed   = 0,
+	}
+};
+
+static const struct c2_sm_conf	fom_conf = {
+	.scf_name      = "FOM states",
+	.scf_nr_states = ARRAY_SIZE(fom_states),
+	.scf_state     = fom_states
+};
+
+void c2_fom_sm_init(struct c2_fom *fom)
+{
+	struct c2_sm_group	*fom_group;
+	struct c2_addb_ctx	*fom_addb_ctx;
+	const struct c2_sm_conf	*conf;
+
+	C2_PRE(fom != NULL);
+	C2_PRE(fom->fo_loc != NULL);
+
+	conf = fom->fo_type->ft_conf;
+	C2_ASSERT(conf->scf_nr_states != 0);
+
+	fom_group    = &fom->fo_loc->fl_group;
+	fom_addb_ctx = &fom->fo_loc->fl_dom->fd_addb_ctx;
+
+	c2_sm_init(&fom->fo_sm_phase, conf, C2_FOM_PHASE_INIT, fom_group,
+		    fom_addb_ctx);
+	c2_sm_init(&fom->fo_sm_state, &fom_conf, C2_FOS_INIT, fom_group,
+		    fom_addb_ctx);
+}
+
+/** @} endgroup fom */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

@@ -23,6 +23,7 @@
 #include <stdio.h>   /* snprintf */
 #include <stdlib.h>  /* strtoull */
 #endif /* __KERNEL__ */
+#include "colibri/magic.h"
 
 /**
    @addtogroup LNetCore
@@ -60,15 +61,15 @@ static void nlx_print_core_buffer_event(const char *pre,
 static void nlx_print_net_buffer_event(const char *pre,
 				       const struct c2_net_buffer_event *nbev)
 {
-	NLXP("%s: %p c2_net_buffer_event\n", pre, nbev);
+	NLXP("%s: %p c2_net_buffer_event\n", (char*) pre, nbev);
 	NLXP("\t  nbe_time: %lx\n", (unsigned long) nbev->nbe_time);
 	NLXP("\tnbe_status: %d\n", nbev->nbe_status);
 	NLXP("\tnbe_length: %ld\n", (unsigned long) nbev->nbe_length);
 	NLXP("\tnbe_offset: %ld\n", (unsigned long) nbev->nbe_offset);
 	if (nbev->nbe_ep != NULL)
-		NLXP("\t    nbe_ep: %s\n", nbev->nbe_ep->nep_addr);
+		NLXP("\t    nbe_ep: %s\n", (char*) nbev->nbe_ep->nep_addr);
 	else
-		NLXP("\t    nbe_ep: %s\n", "NULL");
+		NLXP("\t    nbe_ep: %s\n", (char*) "NULL");
 	NLXP("\tnbe_buffer: %p\n", nbev->nbe_buffer);
 	if (nbev->nbe_buffer != NULL) {
 		struct c2_net_buffer *nb = nbev->nbe_buffer;

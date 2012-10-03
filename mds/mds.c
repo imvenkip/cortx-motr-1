@@ -17,10 +17,6 @@
  * Original creation date: 01/12/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/cdefs.h"
 #include "dtm/dtm.h"
 

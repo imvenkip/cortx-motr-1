@@ -40,7 +40,7 @@
 #include "lib/thread.h"
 #include "lib/vec.h"
 #include "addb/addb.h"
-#include "net/net_otw_types.h"
+#include "net/net_otw_types_ff.h"
 
 /**
    @defgroup net Networking
@@ -104,9 +104,6 @@ enum {
 	    provisioning.
 	 */
 	C2_NET_TM_RECV_QUEUE_DEF_LEN = 2,
-
-	/* Hex value for "NETDOM" */
-	C2_NET_DOMAIN_MAGIX = 0x4E4554444F4D
 };
 
 /** Network transport (e.g. lnet) */
@@ -430,7 +427,7 @@ c2_bcount_t c2_net_domain_get_max_buffer_size(struct c2_net_domain *dom);
 /**
    This subroutine is used to determine the maximum buffer segment size.
    @param dom     Pointer to the domain.
-   @retval size    Returns the maximum buffer size.
+   @retval size    Returns the maximum buffer segment size.
  */
 c2_bcount_t c2_net_domain_get_max_buffer_segment_size(struct c2_net_domain
 						      *dom);
@@ -520,10 +517,8 @@ void c2_net_end_point_get(struct c2_net_end_point *ep);
    @pre ep->nep_ref->ref_cnt >= 1
    @note The transfer machine mutex will be obtained internally to synchronize
    the transport provided release() method in case the end point gets released.
-   @retval 0 (success)
-   @retval -errno (failure)
  */
-int c2_net_end_point_put(struct c2_net_end_point *ep);
+void c2_net_end_point_put(struct c2_net_end_point *ep);
 
 /**
     This enumeration describes the types of logical queues in a transfer
@@ -1702,13 +1697,6 @@ int c2_net_desc_copy(const struct c2_net_buf_desc *from_desc,
    cleared after this operation.
  */
 void c2_net_desc_free(struct c2_net_buf_desc *desc);
-
-enum {
-	/* Hex ASCII value of "nb_lru" */
-	C2_NET_BUFFER_LINK_MAGIC	 = 0x6e625f6c7275,
-	/* Hex ASCII value of "nb_head" */
-	C2_NET_BUFFER_HEAD_MAGIC	 = 0x6e625f68656164,
-};
 
 /** Descriptor for the tlist of buffers. */
 C2_TL_DESCR_DECLARE(c2_net_pool, extern);

@@ -21,6 +21,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h" /* C2_SET0 */
 #include "lib/errno.h"
+#include "colibri/magic.h"
 #include "fop/fop.h"
 #include "fop/fom_long_lock.h" /* c2_fom_ll_global_init */
 
@@ -48,8 +49,7 @@ static struct c2_tl    fop_types_list;
 
 C2_TL_DESCR_DEFINE(ft, "fop types", static, struct c2_fop_type,
 		   ft_linkage,	ft_magix,
-		   0xba11ab1ea5111dae /* bailable asilidae */,
-		   0xd15ea5e0fed1f1ce /* disease of edifice */);
+		   C2_FOP_TYPE_MAGIC, C2_FOP_TYPE_HEAD_MAGIC);
 
 C2_TL_DEFINE(ft, static, struct c2_fop_type);
 
@@ -78,7 +78,6 @@ void c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
 	fop->f_type = fopt;
 	c2_addb_ctx_init(&fop->f_addb, &c2_fop_addb_ctx,
 			 &fopt->ft_addb);
-	c2_list_link_init(&fop->f_link);
 	c2_rpc_item_init(&fop->f_item);
 	fop->f_item.ri_type = &fop->f_type->ft_rpc_item_type;
 	fop->f_item.ri_ops = &c2_fop_default_item_ops;
@@ -118,7 +117,6 @@ void c2_fop_fini(struct c2_fop *fop)
 	c2_addb_ctx_fini(&fop->f_addb);
 	if (fop->f_data.fd_data != NULL)
 		c2_free(fop->f_data.fd_data);
-	c2_list_link_fini(&fop->f_link);
 }
 
 void c2_fop_free(struct c2_fop *fop)
@@ -166,12 +164,13 @@ int c2_fop_type_init(struct c2_fop_type *ft,
 	fol_type->rt_ops    = args->fol_ops ?:
 		&c2_fop_fol_default_ops;
 
-	ft->ft_fom_type.ft_ops = args->fom_ops;
 	rpc_type->rit_opcode   = args->opcode;
 	rpc_type->rit_flags    = args->rpc_flags;
 	rpc_type->rit_ops      = args->rpc_ops ?:
 		&c2_rpc_fop_default_item_type_ops;
 
+	c2_fom_type_init(&ft->ft_fom_type, args->fom_ops, args->svc_type,
+			 args->sm);
 	c2_rpc_item_type_register(&ft->ft_rpc_item_type);
 	c2_fol_rec_type_register(&ft->ft_rec_type);
 	c2_addb_ctx_init(&ft->ft_addb, &c2_fop_type_addb_ctx,

@@ -17,6 +17,9 @@
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
  * Original creation date: 05/12/2011
  */
+
+#pragma once
+
 #ifndef __COLIBRI_RM_RINGS_H__
 #define __COLIBRI_RM_RINGS_H__
 

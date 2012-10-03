@@ -18,10 +18,6 @@
  * Original creation date: 12/10/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/errno.h"
 #include "lib/memory.h"
 
@@ -34,18 +30,18 @@ static int ds1_service_start(struct c2_reqh_service *service);
 static int ds2_service_start(struct c2_reqh_service *service);
 static void ds1_service_stop(struct c2_reqh_service *service);
 static void ds2_service_stop(struct c2_reqh_service *service);
-static int ds1_service_locate(struct c2_reqh_service_type *stype,
+static int ds1_service_allocate(struct c2_reqh_service_type *stype,
                                      struct c2_reqh_service **service);
-static int ds2_service_locate(struct c2_reqh_service_type *stype,
+static int ds2_service_allocate(struct c2_reqh_service_type *stype,
                                      struct c2_reqh_service **service);
 static void ds_service_fini(struct c2_reqh_service *service);
 
 static const struct c2_reqh_service_type_ops ds1_service_type_ops = {
-        .rsto_service_locate = ds1_service_locate
+        .rsto_service_allocate = ds1_service_allocate
 };
 
 static const struct c2_reqh_service_type_ops ds2_service_type_ops = {
-        .rsto_service_locate = ds2_service_locate
+        .rsto_service_allocate = ds2_service_allocate
 };
 
 static const struct c2_reqh_service_ops ds1_service_ops = {
@@ -67,9 +63,10 @@ struct c2_reqh_service_type *c2_cs_default_stypes[] = {
 	&ds1_service_type,
 	&ds2_service_type,
 };
+
 size_t c2_cs_default_stypes_nr = ARRAY_SIZE(c2_cs_default_stypes);
 
-static int ds1_service_locate(struct c2_reqh_service_type *stype,
+static int ds1_service_allocate(struct c2_reqh_service_type *stype,
                                  struct c2_reqh_service **service)
 {
         struct c2_reqh_service      *serv;
@@ -87,7 +84,7 @@ static int ds1_service_locate(struct c2_reqh_service_type *stype,
         return 0;
 }
 
-static int ds2_service_locate(struct c2_reqh_service_type *stype,
+static int ds2_service_allocate(struct c2_reqh_service_type *stype,
                                  struct c2_reqh_service **service)
 {
         struct c2_reqh_service      *serv;

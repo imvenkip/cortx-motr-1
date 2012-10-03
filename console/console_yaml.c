@@ -17,9 +17,6 @@
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
  * Original creation date: 22/03/2011
  */
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
 
 #include "lib/errno.h"
 #include "lib/ut.h"
@@ -27,6 +24,7 @@
 #include "lib/memory.h"
 
 #include "console/console_yaml.h"
+#include "yaml2db/yaml2db.h"
 
 /**
    @addtogroup console_yaml
@@ -34,70 +32,6 @@
 */
 
 static struct c2_cons_yaml_info yaml_info;
-
-/**
- * @brief Function to detect and print parsing errors.
- *
- * @param parser YAML parser ref.
- */
-static void yaml_parser_error_detect(yaml_parser_t *parser)
-{
-        C2_PRE(parser != NULL);
-
-        switch (parser->error) {
-        case YAML_MEMORY_ERROR:
-                fprintf(stderr, "Memory error: Not enough memory for parsing\n");
-                break;
-        case YAML_READER_ERROR:
-                if (parser->problem_value != -1) {
-                        fprintf(stderr, "Reader error: %s: #%X at %lu\n",
-                                parser->problem, parser->problem_value,
-                                parser->problem_offset);
-                }
-                else {
-                        fprintf(stderr, "Reader error: %s at %lu\n",
-                                        parser->problem, parser->problem_offset);
-                }
-                break;
-        case YAML_SCANNER_ERROR:
-                if (parser->context) {
-                        fprintf(stderr, "Scanner error: %s at line %lu,\
-                                column %lu""%s at line %lu, column %lu\n",
-                                parser->context, parser->context_mark.line+1,
-                                parser->context_mark.column+1, parser->problem,
-                                parser->problem_mark.line+1,
-                                parser->problem_mark.column+1);
-                } else {
-                        fprintf(stderr, "Scanner error: %s at line %lu,\
-                                column %lu\n", parser->problem,
-                                parser->problem_mark.line+1,
-                                parser->problem_mark.column+1);
-                }
-                break;
-        case YAML_PARSER_ERROR:
-                if (parser->context) {
-                        fprintf(stderr, "Parser error: %s at line %lu,\
-                                column %lu""%s at line %lu, column %lu\n",
-                                parser->context, parser->context_mark.line+1,
-                                parser->context_mark.column+1,parser->problem,
-                                parser->problem_mark.line+1,
-                                parser->problem_mark.column+1);
-                } else {
-                        fprintf(stderr, "Parser error: %s at line %lu,\
-                                column %lu\n", parser->problem,
-                                parser->problem_mark.line+1,
-                                parser->problem_mark.column+1);
-                }
-                break;
-        case YAML_COMPOSER_ERROR:
-        case YAML_WRITER_ERROR:
-        case YAML_EMITTER_ERROR:
-        case YAML_NO_ERROR:
-                break;
-        default:
-                C2_IMPOSSIBLE("Invalid error");
-        }
-}
 
 int c2_cons_yaml_init(const char *file_path)
 {
@@ -147,7 +81,7 @@ int c2_cons_yaml_init(const char *file_path)
 
 	return 0;
 error:
-	yaml_parser_error_detect(&yaml_info.cyi_parser);
+	c2_yaml_parser_error_detect(&yaml_info.cyi_parser);
 	return -EINVAL;
 }
 

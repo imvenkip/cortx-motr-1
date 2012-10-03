@@ -7,6 +7,7 @@ KBUILD_EXTRA_SYMBOLS = $(BUILD_DIR)/Lustre.symvers @GALOIS_SYMVERS@
 GCOV_PROFILE    = @K_ENABLE_COVERAGE@
 
 testdirs        = ../net/lnet/st/linux_kernel/                  \
+		  ../net/test/linux_kernel/			\
                   ../rpc/it/linux_kernel/                       \
                   ../utils/linux_kernel/
 
@@ -28,6 +29,7 @@ dirs  = addb                                                                  \
         addb/addbff                                                           \
         addb/linux_kernel                                                     \
         c2t1fs/linux_kernel                                                   \
+        c2t1fs/linux_kernel/ut                                                \
         cob                                                                   \
         colibri                                                               \
         db                                                                    \
@@ -39,12 +41,15 @@ dirs  = addb                                                                  \
         ioservice                                                             \
         ioservice/ut                                                          \
         layout                                                                \
+        layout/ut                                                             \
         lib                                                                   \
         lib/linux_kernel                                                      \
         lib/ut                                                                \
         net                                                                   \
         net/bulk_emulation/ut                                                 \
         net/lnet/ut                                                           \
+	net/test							      \
+	net/test/ut							      \
         net/ut                                                                \
         pool                                                                  \
 	reqh                                                                  \
@@ -60,14 +65,14 @@ dirs  = addb                                                                  \
 
 #       Source Listing
 
-#       NOTE: Currently due to the way `.ff' files are processed, a `*_xc.c' file
-#       searches for its corresponding `*_xc.h' in the same directory; So only
+#       NOTE: Currently due to the way `.ff' files are processed, a `*_ff.c' file
+#       searches for its corresponding `*_ff.h' in the same directory; So only
 #       headers that need to be included in following listing are those of
-#       type `*_xc.h'; rest of the headers will be assumed relative to `core/'
+#       type `*_ff.h'; rest of the headers will be assumed relative to `core/'
 
 addb_SOURCES                    := addb.c addb_fop.c
-addb_addbff_SOURCES             := addb.c
-addb_addbff_HEADERS             := addb.h
+addb_addbff_SOURCES             := addb_ff.c
+addb_addbff_HEADERS             := addb_ff.h
 
 addb_linux_kernel_SOURCES       := addb_console.c
 
@@ -75,6 +80,9 @@ addb_linux_kernel_SOURCES       := addb_console.c
 #       for d_SOURCES is relative to $(CORE_SRCDIR)/d;
 
 c2t1fs_linux_kernel_SOURCES     := c2t1fs.c super.c inode.c dir.c file.c
+
+c2t1fs_linux_kernel_c2loop_SOURCES     := c2loop.c
+c2t1fs_linux_kernel_ut_c2loop_SOURCES  := c2loop.c
 
 cob_SOURCES                     := cob.c
 
@@ -91,39 +99,57 @@ fid_SOURCES                     := fid.c
 fol_SOURCES                     := fol.c
 
 fop_SOURCES                     := fop.c fom.c fop_item_type.c fom_long_lock.c \
-				   fom_generic.c fom_generic_xc.c
+				   fom_generic.c fom_generic_ff.c
 
-fop_HEADERS                     := fom_generic_xc.h
+fop_HEADERS                     := fom_generic_ff.h
 
-ioservice_SOURCES               := io_fops.c io_fops_xc.c
-ioservice_HEADERS               := io_fops_xc.h
+ioservice_SOURCES               := io_fops.c io_fops_ff.c
+ioservice_HEADERS               := io_fops_ff.h
 
 ioservice_ut_SOURCES            := bulkio_client.c
 
-layout_SOURCES                  := layout.c pdclust.c
+layout_SOURCES                  := layout.c layout_db.c pdclust.c composite.c \
+                                   list_enum.c linear_enum.c
 
-lib_SOURCES                     := bitstring.c vec.c list.c queue.c refs.c     \
-                                   time.c bitmap.c chan.c cookie.c misc.c      \
-				   buf.c cond.c thread.c tlist.c bob.c trace.c \
-				   finject.c
+layout_ut_SOURCES               := layout.c
+
+lib_SOURCES                     := bitstring.c getopts.c vec.c list.c queue.c  \
+				   refs.c time.c bitmap.c chan.c misc.c buf.c  \
+				   cond.c thread.c tlist.c bob.c trace.c       \
+				   finject.c vec_xc.c vec.c buf_xc.c buf.c     \
+				   c2lib.c cookie.c
+
+lib_HEADERS                     := vec.h vec_xc.h buf.h buf_xc.h
 
 lib_linux_kernel_SOURCES        := memory.c mutex.c rwlock.c ktime.c timer.c   \
                                    kthread.c semaphore.c processor.c kvec.c    \
-                                   ktrace.c finject_init.c ut.c main.c kcookie.c
+                                   ktrace.c finject_init.c ut.c main.c 	       \
+				   kcookie.c
 
 lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c     \
                                    mutex.c queue.c refs.c tlist.c time.c       \
                                    vec.c zerovec.c thread.c bob.c trace.c      \
-                                   memory.c finject.c cookie.c
+                                   memory.c finject.c buf.c cookie.c misc.c
 
 net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c     \
-                                   tm.c net_otw_types.c tm_provision.c
+                                   tm.c net_otw_types_ff.c tm_provision.c
 
-net_HEADERS                     := net_otw_types.h
+net_HEADERS                     := net_otw_types_ff.h
 
 net_bulk_emulation_ut_SOURCES   := bulk_mem_ut.c
 
 net_lnet_ut_SOURCES             := lnet_ut.c
+
+net_test_SOURCES		:= commands.c console.c network.c node_bulk.c \
+				   node.c node_ping.c ringbuf.c serialize.c   \
+				   service.c slist.c stats.c str.c
+net_test_HEADERS		:= commands.h console.h network.h node_bulk.h \
+				   node.h node_ping.h ringbuf.h serialize.h   \
+				   service.h slist.h stats.h str.h
+
+net_test_ut_SOURCES		:= client_server.c commands.c main.c	      \
+				   network.c ringbuf.c serialize.c service.c  \
+				   slist.c stats.c str.c
 
 net_ut_SOURCES                  := bulk_if.c buffer_pool_ut.c
 net_ut_HEADERS                  := tm_provision_ut.c
@@ -135,13 +161,13 @@ reqh_SOURCES                    := reqh.c reqh_service.c
 rpc_SOURCES                     := rpc2.c service.c                            \
                                    session.c session_foms.c conn.c slot.c      \
                                    session_utils.c session_fops.c              \
-                                   rpc_onwire.c session_xc.c rpclib.c          \
+                                   rpc_onwire.c session_ff.c rpclib.c          \
                                    formation2.c frmops.c packet.c item.c       \
                                    bulk.c rpc_machine.c
 
-rpc_HEADERS                     := session_xc.h
+rpc_HEADERS                     := session_ff.h
 
-rpc_ut_SOURCES                  := service.c formation2.c
+rpc_ut_SOURCES                  := service.c formation2.c conn.c
 
 sm_SOURCES                      := sm.c
 sm_ut_SOURCES                   := sm.c
@@ -153,7 +179,7 @@ stob_SOURCES                    := stob.c stob_id.c
 
 ut_SOURCES                      := rpc.c
 
-xcode_SOURCES                   := bufvec_xcode.c xcode.c
+xcode_SOURCES                   := bufvec_xcode.c xcode.c string.c
 
 xcode_ut_SOURCES                := xcode.c
 
@@ -177,9 +203,15 @@ kcolibri_objects = $(foreach d, $(dirs), $(foreach f,                         \
                         $($(subst /,_,$(d))_SOURCES), $(addprefix $(d)/,      \
                                 $(subst .c,.o, $(notdir $(f))))))
 
-obj-m += kcolibri.o
+c2loop_objects = $(foreach d, $(dirs), $(foreach f,                         \
+                    $($(subst /,_,$(d))_c2loop_SOURCES), $(addprefix $(d)/, \
+                                $(subst .c,.o, $(notdir $(f))))))
+
+obj-m += kcolibri.o c2loop.o
 
 kcolibri-y += main.o dummy_init_fini.o $(kcolibri_objects)
+
+c2loop-y += $(c2loop_objects)
 
 #       Besides the kcolibri.ko, the UT's would be build separately by
 #       recursing into directories specified by $(testdirs)
@@ -206,6 +238,8 @@ all:
 	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_SOURCES),      \
 		$(create_links)))
 	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_HEADERS),      \
+		$(create_links)))
+	$(foreach d, $(dirs), $(foreach f, $($(subst /,_,$(d))_c2loop_SOURCES),\
 		$(create_links)))
 #       DO NOT append 'modules' target to the following $(MAKE)
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd`

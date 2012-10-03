@@ -357,7 +357,7 @@ void  *c2_tlist_tail(const struct c2_tl_descr *d, const struct c2_tl *list);
    @pre c2_tlist_contains(d, list, obj)
  */
 void  *c2_tlist_next(const struct c2_tl_descr *d,
-		     const struct c2_tl *list, void *obj);
+		     const struct c2_tl *list, const void *obj);
 
 /**
    Returns the previous element of a list or NULL if @obj is the first element.
@@ -365,7 +365,7 @@ void  *c2_tlist_next(const struct c2_tl_descr *d,
    @pre c2_tlist_contains(d, list, obj)
  */
 void  *c2_tlist_prev(const struct c2_tl_descr *d,
-		     const struct c2_tl *list, void *obj);
+		     const struct c2_tl *list, const void *obj);
 
 /**
    Iterates over elements of list @head of type @descr, assigning them in order
@@ -505,8 +505,10 @@ scope void   name ## _tlist_move(struct c2_tl *list, amb_type *amb);	\
 scope void   name ## _tlist_move_tail(struct c2_tl *list, amb_type *amb); \
 scope amb_type *name ## _tlist_head(const struct c2_tl *list);		\
 scope amb_type *name ## _tlist_tail(const struct c2_tl *list);		\
-scope amb_type *name ## _tlist_next(const struct c2_tl *list, amb_type *amb);	\
-scope amb_type *name ## _tlist_prev(const struct c2_tl *list, amb_type *amb)
+scope amb_type *name ## _tlist_next(const struct c2_tl *list,           \
+				    const amb_type *amb);	        \
+scope amb_type *name ## _tlist_prev(const struct c2_tl *list,           \
+				    const amb_type *amb)
 
 #define __AUN __attribute__((unused))
 
@@ -645,13 +647,13 @@ scope __AUN amb_type *name ## _tlist_tail(const struct c2_tl *list)	\
 }									\
 									\
 scope __AUN amb_type *name ## _tlist_next(const struct c2_tl *list,     \
-				     amb_type *amb)			\
+				     const amb_type *amb)			\
 {									\
 	return c2_tlist_next(&name ## _tl, list, amb);			\
 }									\
 									\
 scope __AUN amb_type *name ## _tlist_prev(const struct c2_tl *list,     \
-				     amb_type *amb)                     \
+				     const amb_type *amb)               \
 {									\
 	return c2_tlist_prev(&name ## _tl, list, amb);			\
 }									\

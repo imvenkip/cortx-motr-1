@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __COLIBRI_ADT_H__
-#define __COLIBRI_ADT_H__
+#ifndef __COLIBRI_LIB_ADT_H__
+#define __COLIBRI_LIB_ADT_H__
 
 #include "lib/types.h"
 #include "lib/cdefs.h"
@@ -46,7 +46,7 @@ bool c2_stack_link_is_in(const struct c2_stack_link *stack);
 /** @} end of adt group */
 
 
-/* __COLIBRI_ADT_H__ */
+/* __COLIBRI_LIB_ADT_H__ */
 #endif
 
 /*

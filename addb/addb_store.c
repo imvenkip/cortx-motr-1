@@ -17,10 +17,6 @@
  * Original creation date: 03/17/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include "lib/arith.h"
 #include "lib/misc.h"
 #include "lib/memory.h"
@@ -30,7 +26,7 @@
 #include "stob/stob.h"
 #include "db/db.h"
 #include "addb/addb.h"
-#include "addb/addbff/addb.h"
+#include "addb/addbff/addb_ff.h"
 
 #ifndef __KERNEL__
 

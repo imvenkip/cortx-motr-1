@@ -22,8 +22,8 @@
 
 #pragma once
 
-#ifndef ELEVATOR_H
-#define ELEVATOR_H
+#ifndef __COLIBRI_DESIM_ELEVATOR_H__
+#define __COLIBRI_DESIM_ELEVATOR_H__
 
 #include "desim/sim.h"
 #include "desim/storage.h"
@@ -47,7 +47,7 @@ void elevator_fini(struct elevator *el);
 void elevator_io(struct elevator *el, enum storage_req_type type,
 		 sector_t sector, unsigned long count);
 
-#endif /* ELEVATOR_H */
+#endif /* __COLIBRI_DESIM_ELEVATOR_H__ */
 
 /** @} end of desim group */
 

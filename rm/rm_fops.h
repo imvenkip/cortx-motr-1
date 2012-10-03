@@ -24,7 +24,7 @@
 #define __COLIBRI_RM_FOPS_H__
 
 #include "fop/fop.h"
-#include "rm/rm_xc.h"
+#include "rm/rm_ff.h"
 
 /**
  * Externs

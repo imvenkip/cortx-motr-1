@@ -45,6 +45,16 @@ enum {
 	C2_TIME_ONE_BILLION = 1000000000ULL
 };
 
+#define C2_MKTIME(secs, ns) ((c2_time_t)				\
+			    ((uint64_t)(secs) * C2_TIME_ONE_BILLION +	\
+			    (uint64_t)(ns)))
+#define C2_MKTIME_HOURS(hours, mins, secs, ns)				\
+		((c2_time_t)						\
+		 ((uint64_t)((hours) * 60 * 60 +			\
+			     (mins) * 60 +				\
+			     (secs)) * C2_TIME_ONE_BILLION +		\
+		  (uint64_t)(ns)))
+
 /**
    Get the current time.  This may or may not relate to wall time.
 

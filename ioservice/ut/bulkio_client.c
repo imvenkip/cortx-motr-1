@@ -22,8 +22,9 @@
 #include "lib/memory.h"
 #include "lib/cdefs.h"
 #include "lib/misc.h"
+#include "colibri/magic.h"
 #include "ioservice/io_fops.h"	/* c2_io_fop */
-#include "ioservice/io_fops_xc.h"
+#include "ioservice/io_fops_ff.h"
 #include "rpc/rpc2.h"		/* c2_rpc_bulk, c2_rpc_bulk_buf */
 #include "net/lnet/lnet.h"
 

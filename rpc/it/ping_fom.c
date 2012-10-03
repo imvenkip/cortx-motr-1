@@ -17,17 +17,13 @@
  * Original creation date: 07/07/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "fop/fop.h"
-#include "fop/fom_generic.h"     /* C2_FOPH_NR */
 #include "rpc/it/ping_fom.h"
-#include "rpc/it/ping_fop_xc.h"
+#include "rpc/it/ping_fop_ff.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "rpc/rpc2.h"
+#include "fop/fom_generic.h"
 
 static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m);
 
@@ -39,13 +35,8 @@ struct c2_fom_ops c2_fom_ping_ops = {
 };
 
 /** FOM type specific functions for ping FOP. */
-static const struct c2_fom_type_ops c2_fom_ping_type_ops = {
+const struct c2_fom_type_ops c2_fom_ping_type_ops = {
 	.fto_create = ping_fop_fom_create
-};
-
-/** Ping specific FOM type operations vector. */
-struct c2_fom_type c2_fom_ping_fomt = {
-        .ft_ops = &c2_fom_ping_type_ops,
 };
 
 size_t c2_fom_ping_home_locality(const struct c2_fom *fom)
@@ -72,8 +63,7 @@ int c2_fom_ping_state(struct c2_fom *fom)
         ping_fop_rep->fpr_rc = true;
 	item = c2_fop_to_rpc_item(fop);
         c2_rpc_reply_post(&fom_obj->fp_fop->f_item, item);
-	fom->fo_phase = C2_FOPH_FINISH;
-
+	c2_fom_phase_set(fom, C2_FOPH_FINISH);
 	return C2_FSO_WAIT;
 }
 
@@ -82,7 +72,6 @@ static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
 {
         struct c2_fom                   *fom;
         struct c2_fom_ping		*fom_obj;
-        struct c2_fom_type              *fom_type;
 
         C2_PRE(fop != NULL);
         C2_PRE(m != NULL);
@@ -90,11 +79,9 @@ static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
         fom_obj= c2_alloc(sizeof(struct c2_fom_ping));
         if (fom_obj == NULL)
                 return -ENOMEM;
-        fom_type = &c2_fom_ping_fomt;
-        C2_ASSERT(fom_type != NULL);
-        fop->f_type->ft_fom_type = *fom_type;
 	fom = &fom_obj->fp_gen;
-	c2_fom_init(fom, fom_type, &c2_fom_ping_ops, fop, NULL);
+	c2_fom_init(fom, &fop->f_type->ft_fom_type, &c2_fom_ping_ops, fop,
+		    NULL);
 	fom_obj->fp_fop = fop;
 	*m = fom;
 	return 0;

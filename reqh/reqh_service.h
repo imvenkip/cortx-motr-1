@@ -58,7 +58,7 @@
    First, we have to define service type operations,
    @code
    static const struct c2_reqh_service_type_ops dummy_service_type_ops = {
-        .rsto_service_locate = dummy_service_locate
+        .rsto_service_allocate = dummy_service_allocate
    };
    @endcode
 
@@ -107,7 +107,7 @@
      cs_service_init()
           |
           v                 allocated
-     rsto_service_locate()+------------>C2_RST_INITIALISING
+     rsto_service_allocate()+------------>C2_RST_INITIALISING
                                             |
                                             | c2_reqh_service_init()
                                             v
@@ -139,16 +139,6 @@ enum {
 };
 
 /**
-   Magic for reqh service
- */
-enum {
-	C2_RHS_MAGIX = 0x52455148535643, /* REQHSVC */
-	C2_RHS_MAGIX_HEAD = 0x5245515356434844, /* REQSVCHD */
-	C2_RHS_TYPE_MAGIX = 0x5248535643545950, /* RHSVCTYP */
-	C2_RHS_TYPE_MAGIX_HEAD =  0x5248535459504844 /* RHSTYPHD */
-};
-
-/**
    Phases through which a service typically passes.
  */
 enum c2_reqh_service_state {
@@ -157,7 +147,7 @@ enum c2_reqh_service_state {
 	   in service specific start routine, once the service specific
 	   initialisation is complete, generic part of service is initialised.
 
-           @see c2_reqh_service_locate()
+           @see c2_reqh_service_allocate()
 	 */
 	C2_RST_INITIALISING,
 	/**
@@ -310,7 +300,6 @@ struct c2_reqh_service_ops {
  */
 struct c2_reqh_service_type_ops {
 	/**
-	   Locates a particular service.
 	   Allocates and initialises a service for the given service type.
 	   This also initialises the corresponding service operations vector.
            This is typically invoked  during colibri setup, but also can be
@@ -321,8 +310,8 @@ struct c2_reqh_service_type_ops {
 	   @param stype Type of service to be located
 	   @param service successfully located service
 	 */
-	int (*rsto_service_locate)(struct c2_reqh_service_type *stype,
-                                     struct c2_reqh_service **service);
+	int (*rsto_service_allocate)(struct c2_reqh_service_type *stype,
+				     struct c2_reqh_service **service);
 };
 
 /**
@@ -365,7 +354,7 @@ struct c2_reqh_service_type {
 
    @see struct c2_reqh_service_type_ops
  */
-int c2_reqh_service_locate(struct c2_reqh_service_type *stype,
+int c2_reqh_service_allocate(struct c2_reqh_service_type *stype,
                               struct c2_reqh_service **service);
 
 /**

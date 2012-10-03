@@ -18,7 +18,7 @@
  * Original creation date: 2/01/2012
  */
 
-#include "addb/addbff/addb.h"
+#include "addb/addbff/addb_ff.h"
 #include "lib/arith.h" /* c2_align */
 
 /* forward references within this file */

@@ -19,10 +19,6 @@
  * Original creation date: 03/04/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include <time.h>	  /* timer_create */
 #include <signal.h>	  /* timer_create */
 #include <unistd.h>	  /* syscall */

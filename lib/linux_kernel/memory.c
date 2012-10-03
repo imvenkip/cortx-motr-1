@@ -17,10 +17,6 @@
  * Original creation date: 08/04/2010
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #include <linux/slab.h>
 #include <linux/module.h>
 

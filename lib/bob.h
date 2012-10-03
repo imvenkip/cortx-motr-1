@@ -41,8 +41,8 @@
  *
  * A couple of helper functions are provided to initialize c2_bob_type:
  *
- *     - c2_bob_type_tl_init(): used when branded object is used as a typed list
- *       link, @see lib/tlist.h.
+ *     - c2_bob_type_tlist_init(): used when branded object is used as a typed
+ *       list link, @see lib/tlist.h.
  *
  *     - c2_xcode_bob_type_init(): used in case where branded object type has an
  *       xcode representation, @see xcode/xcode.h. This function is defined in
@@ -137,7 +137,7 @@ scope bool type ## _bob_check(const struct type *bob)
  */
 #define bob_of(ptr, type, field, bt)			\
 ({							\
-	void *__ptr = (type *)(ptr);			\
+	void *__ptr = (void *)(ptr);			\
 	type *__amb;					\
 							\
 	C2_ASSERT(__ptr != NULL);			\

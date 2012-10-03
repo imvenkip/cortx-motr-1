@@ -27,7 +27,8 @@
 #include "xcode/xcode.h"
 
 /**
-  @defgroup cookie Cookie
+ * @defgroup cookie Cookie
+ *
  * In a network-file-system, when a client queries for an in-memory object to
  * a server, server searches through a set of data-structures to retrieve the
  * object. Multiple queries asking for the same object lead to a repeated
@@ -45,7 +46,7 @@
  * it. On reception of a cookie, before returning a required object,
  * server ensures that value of generation-count in the cookie matches
  * with the one in the object.
-  @{
+ * @{
  */
 
 /**

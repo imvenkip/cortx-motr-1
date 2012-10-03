@@ -22,8 +22,8 @@
 
 #pragma once
 
-#ifndef STORAGE_H
-#define STORAGE_H
+#ifndef __COLIBRI_DESIM_STORAGE_H__
+#define __COLIBRI_DESIM_STORAGE_H__
 
 #include "desim/sim.h"
 
@@ -60,7 +60,7 @@ struct storage_dev {
 	char                *sd_name;
 };
 
-#endif /* STORAGE_H */
+#endif /* __COLIBRI_DESIM_STORAGE_H__ */
 
 /** @} end of desim group */
 

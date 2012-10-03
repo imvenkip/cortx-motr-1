@@ -18,10 +18,6 @@
  * Original creation date: 05/08/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "lib/rwlock.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
@@ -31,6 +27,7 @@
 #include "lib/finject.h" /* C2_FI_ENABLED */
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
+#include "colibri/magic.h"
 
 /**
    @addtogroup reqhservice
@@ -51,7 +48,7 @@ static struct c2_rwlock rstypes_rwlock;
 
 C2_TL_DESCR_DEFINE(rstypes, "reqh service types", static,
                    struct c2_reqh_service_type, rst_linkage, rst_magix,
-                   C2_RHS_TYPE_MAGIX, C2_RHS_TYPE_MAGIX_HEAD);
+                   C2_REQH_SVC_TYPE_MAGIC, C2_REQH_SVC_HEAD_MAGIC);
 
 C2_TL_DEFINE(rstypes, static, struct c2_reqh_service_type);
 
@@ -95,14 +92,14 @@ struct c2_reqh_service_type *c2_reqh_service_type_find(const char *sname)
         return stype;
 }
 
-int c2_reqh_service_locate(struct c2_reqh_service_type *stype,
-                              struct c2_reqh_service **service)
+int c2_reqh_service_allocate(struct c2_reqh_service_type *stype,
+			     struct c2_reqh_service **service)
 {
 	int rc;
 
 	C2_PRE(stype != NULL && service != NULL);
 
-        rc = stype->rst_ops->rsto_service_locate(stype, service);
+        rc = stype->rst_ops->rsto_service_allocate(stype, service);
         if (rc == 0) {
 		c2_reqh_service_bob_init(*service);
 		C2_ASSERT(c2_reqh_service_invariant(*service));
@@ -191,6 +188,7 @@ void c2_reqh_service_fini(struct c2_reqh_service *service)
 int c2_reqh_service_type_register(struct c2_reqh_service_type *rstype)
 {
         C2_PRE(rstype != NULL);
+	C2_PRE(!c2_reqh_service_is_registered(rstype->rst_name));
 
 	if (C2_FI_ENABLED("fake_error"))
 		return -EINVAL;
@@ -271,4 +269,3 @@ C2_EXPORTED(c2_reqh_service_find);
  *  scroll-step: 1
  *  End:
  */
-

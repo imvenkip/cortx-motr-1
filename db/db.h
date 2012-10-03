@@ -327,10 +327,6 @@ struct c2_db_tx_waiter {
 	uint64_t                    tw_magix;
 };
 
-enum {
-	C2_DB_TX_WAITER_MAGIX = 0xab5c155a0fa1bed0 /* abscissa of albedo */
-};
-
 C2_TL_DESCR_DECLARE(txw, extern);
 C2_TL_DEFINE(txw, static inline, struct c2_db_tx_waiter);
 

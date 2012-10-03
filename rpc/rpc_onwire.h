@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef C2_RPC_ONWIRE_H_
-#define C2_RPC_ONWIRE_H_
+#ifndef __COLIBRI_RPC_ONWIRE_H__
+#define __COLIBRI_RPC_ONWIRE_H__
 
 /**
    @defgroup rpc_onwire RPC wire format types and interfaces
