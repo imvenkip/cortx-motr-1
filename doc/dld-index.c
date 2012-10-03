@@ -12,6 +12,10 @@ Detailed designs, ordered alphabetically:
            <!-- cfg/cfg.h -->
 - @subpage c2_long_lock-dld "FOM Long lock DLD"
            <!-- fop/fom_long_lock.h -->
+- @subpage CMDLD "Copy Machine DLD"
+           <!-- cm/cm.c -->
+- @subpage CPDLD "Copy Packet DLD"
+           <!-- cm/cp.c -->
 - @subpage Layout-DB "Layout DB DLD"
            <!-- layout/layout_db.c -->
 - @subpage LNetDLD "LNet Transport DLD"
@@ -22,8 +26,8 @@ Detailed designs, ordered alphabetically:
            <!-- rpc/rpc2.h -->
 - @subpage rpc-slot "RPC Slot"
            <!-- rpc/slot.h -->
-- @subpage snsrepair "SNS repair detailed level design"
-           <!-- sns/repair.h -->
+- @subpage SNSRepairCMDLD "SNS Repair copy machine DLD"
+           <!-- sns/repair/cm.c -->
 - @subpage NetRQProvDLD "Auto-Provisioning of Receive Message Queue Buffers DLD"
 	   <!-- net/tm_provision.c -->
 - @subpage io_bulk_client "IO bulk transfer Detailed Level Design"

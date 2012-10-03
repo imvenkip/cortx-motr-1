@@ -23,7 +23,8 @@ SUBDIRS_LIBS = \
                balloc \
                capa \
                cfg \
-               cob \
+               cm \
+	       cob \
                console \
                db \
                desim \
@@ -41,6 +42,7 @@ SUBDIRS_LIBS = \
                rpc \
                sm \
                sns \
+	       sns/repair \
                stob \
                udb \
                ut \
@@ -55,6 +57,7 @@ SUBDIR_UT = addb/ut \
             cob/ut \
             colibri/ut \
             console/ut \
+            cm/ut \
             desim/ut \
             db/ut \
             fol/ut \
@@ -71,6 +74,7 @@ SUBDIR_UT = addb/ut \
             rpc/ut \
             sm/ut \
             sns/ut \
+            sns/repair/ut \
             stob/ut \
             udb/ut \
             xcode/ut \

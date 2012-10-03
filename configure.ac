@@ -682,6 +682,8 @@ AC_CONFIG_FILES([
                  c2t1fs/linux_kernel/st/common.sh
                  c2t1fs/linux_kernel/ut/Makefile
                  cfg/Makefile
+		 cm/Makefile
+		 cm/ut/Makefile
                  cob/Makefile
                  cob/ut/Makefile
                  colibri/Makefile
@@ -742,6 +744,8 @@ AC_CONFIG_FILES([
                  sm/Makefile
                  sm/ut/Makefile
                  sns/Makefile
+                 sns/repair/Makefile
+                 sns/repair/ut/Makefile
                  sns/ut/Makefile
                  stob/Makefile
                  stob/ut/Makefile

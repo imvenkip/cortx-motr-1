@@ -616,6 +616,8 @@ enum c2_sm_return {
 void c2_sm_conf_extend(const struct c2_sm_state_descr *base,
 		       struct c2_sm_state_descr *sub, uint32_t nr);
 
+bool c2_sm_invariant(const struct c2_sm *mach);
+
 /** @} end of sm group */
 
 /* __COLIBRI_SM_SM_H__ */

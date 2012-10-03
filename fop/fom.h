@@ -713,7 +713,7 @@ static inline void c2_fom_phase_set(struct c2_fom *fom, int phase)
 	c2_sm_state_set(&fom->fo_sm_phase, phase);
 }
 
-static inline int c2_fom_phase(struct c2_fom *fom)
+static inline int c2_fom_phase(const struct c2_fom *fom)
 {
 	return fom->fo_sm_phase.sm_state;
 }

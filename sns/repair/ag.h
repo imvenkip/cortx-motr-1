@@ -14,21 +14,41 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
- * Original creation date: 03/30/2010
+ * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
+ * Original creation date: 16/04/2012
  */
 
 #pragma once
 
-#ifndef __COLIBRI_SNS_SNS_H__
-#define __COLIBRI_SNS_SNS_H__
+#ifndef __COLIBRI_SNS_REPAIR_AG_H__
+#define __COLIBRI_SNS_REPAIR_AG_H__
 
-#include "sns/sns.h"
+#include "fid/fid.h"
 
-int c2_sns_init(void);
-void c2_sns_fini(void);
+#include "cm/cm.h"
+#include "cm/ag.h"
 
-/* __COLIBRI_SNS_SNS_H__ */
+#include "sns/repair/cm.h"
+
+/**
+   @defgroup SNSRepairAG SNS Repair aggregation group
+   @ingroup SNSRepairCM
+
+   @{
+*/
+
+struct c2_sns_repair_aggr_group {
+	/** Base aggregation group. */
+	struct c2_cm_aggr_group      sag_base;
+	/** Transformed copy packet created by transformation function. */
+	struct c2_cm_cp             *sag_cp;
+};
+
+struct c2_sns_repair_aggr_group *ag2snsag(const struct c2_cm_aggr_group *ag);
+
+/** @} SNSRepairAG */
+/* __COLIBRI_SNS_REPAIR_AG_H__ */
+
 #endif
 
 /*

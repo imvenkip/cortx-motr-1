@@ -14,29 +14,31 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
- * Original creation date: 03/30/2010
+ * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
+ * Original creation date: 12/09/2012
  */
 
-#pragma once
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_SNSREPAIR
+#include "sns/repair/ag.h"
 
-#ifndef __COLIBRI_SNS_SNS_H__
-#define __COLIBRI_SNS_SNS_H__
+/**
+   @addtogroup SNSRepairAG
 
-#include "sns/sns.h"
+   @{
+ */
 
-int c2_sns_init(void);
-void c2_sns_fini(void);
+struct c2_sns_repair_aggr_group *ag2snsag(const struct c2_cm_aggr_group *ag)
+{
+	return container_of(ag, struct c2_sns_repair_aggr_group, sag_base);
+}
 
-/* __COLIBRI_SNS_SNS_H__ */
-#endif
-
+/** @} SNSRepairAG */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 80
+ *  fill-column: 79
  *  scroll-step: 1
  *  End:
  */

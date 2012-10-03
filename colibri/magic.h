@@ -100,6 +100,23 @@ enum c2_magic_satchel {
 	/* ndom_tl::td_head_magic (baffled basis) */
 	C2_CS_NET_DOMAIN_HEAD_MAGIC = 0x33baff1edba51577,
 
+/* Copy machine */
+	/* cmtypes_tl::td_head_magic (dacefacebace) */
+	CM_TYPE_HEAD_MAGIX = 0x33DACEFACEBACE77,
+
+	/* c2_cm_type::ct_magix (badedabadebe) */
+	CM_TYPE_LINK_MAGIX = 0x33BADEDABADEBE77,
+
+	/* cm_ag_tl::td_head_magic (deafbeefdead) */
+	CM_AG_HEAD_MAGIX = 0x33DEAFBEEFDEAD77,
+
+	/* c2_cm_aggr_group::cag_magic (feedbeefdeed) */
+	CM_AG_LINK_MAGIX = 0x33FEEDBEEFDEED77,
+
+/* Copy packet */
+	/* c2_cm_cp::cp_bob (ecobabble ace) */
+	CM_CP_MAGIX = 0x33ec0babb1eace,
+
 /* desim */
 	/* client_write_ext::cwe_magic (abasic access) */
 	C2_DESIM_CLIENT_WRITE_EXT_MAGIC = 0x33aba51cacce5577,

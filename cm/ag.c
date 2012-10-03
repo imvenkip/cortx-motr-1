@@ -14,29 +14,36 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
- * Original creation date: 03/30/2010
+ * Original author: Subhash Arya  <subhash_arya@xyratex.com>
+ *                  Mandar Sawant <mandar_sawant@xyratex.com>
+ * Original creation date: 20/09/2012
  */
 
-#pragma once
-
-#ifndef __COLIBRI_SNS_SNS_H__
-#define __COLIBRI_SNS_SNS_H__
-
-#include "sns/sns.h"
-
-int c2_sns_init(void);
-void c2_sns_fini(void);
-
-/* __COLIBRI_SNS_SNS_H__ */
+#ifdef HAVE_CONFIG_H
+#include <config.h>
 #endif
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_CM
+
+#include "cm/ag.h"
+
+/**
+   @addtogroup CMAG
+ */
+
+int c2_cm_ag_id_cmp(const struct c2_cm_ag_id *id0, const struct c2_cm_ag_id *id1)
+{
+	return c2_uint128_cmp(id0->ai_hi, id1->ai_hi) ?:
+		c2_uint128_cmp(id0->ai_lo, id1->ai_lo);
+}
+
+/** @} CMAG */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 80
+ *  fill-column: 79
  *  scroll-step: 1
  *  End:
  */

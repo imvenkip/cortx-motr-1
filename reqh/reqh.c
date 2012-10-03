@@ -184,6 +184,13 @@ void c2_reqh_shutdown_wait(struct c2_reqh *reqh)
 	c2_clink_fini(&clink);
 }
 
+uint64_t c2_reqh_nr_localities(const struct c2_reqh *reqh)
+{
+	C2_PRE(c2_reqh_invariant(reqh));
+
+	return reqh->rh_fom_dom.fd_localities_nr;
+}
+
 static unsigned keymax = 0;
 
 unsigned c2_reqh_key_init()

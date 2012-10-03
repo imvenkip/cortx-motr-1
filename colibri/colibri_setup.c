@@ -124,9 +124,6 @@ C2_TL_DEFINE(astob, static, struct cs_ad_stob);
 static struct c2_bob_type astob_bob;
 C2_BOB_DEFINE(static, &astob_bob, cs_ad_stob);
 
-static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cctx,
-						  const char *xprt);
-
 static int reqh_ctx_args_are_valid(const struct cs_reqh_context *rctx)
 {
 	return rctx->rc_stype != NULL && rctx->rc_stpath != NULL &&
@@ -446,8 +443,8 @@ static void cs_reqh_ctx_free(struct cs_reqh_context *rctx)
 
    @see c2_cs_init()
  */
-static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cctx,
-						  const char *xprt_name)
+struct c2_net_domain *c2_cs_net_domain_locate(struct c2_colibri *cctx,
+					      const char *xprt_name)
 {
 	struct c2_net_domain *ndom;
 
@@ -507,7 +504,7 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 
 	C2_PRE(cctx != NULL && xprt_name != NULL && ep != NULL && reqh != NULL);
 
-	ndom = cs_net_domain_locate(cctx, xprt_name);
+	ndom = c2_cs_net_domain_locate(cctx, xprt_name);
 	if (ndom == NULL)
 		return -EINVAL;
 
@@ -904,7 +901,7 @@ static void cs_ad_stob_fini(struct cs_stobs *stob)
 	astob_tlist_fini(&stob->s_adoms);
 }
 
-void cs_linux_stob_fini(struct cs_stobs *stob)
+static void cs_linux_stob_fini(struct cs_stobs *stob)
 {
 	C2_PRE(stob != NULL);
 
@@ -1123,7 +1120,7 @@ static void cs_services_fini(struct c2_reqh *reqh)
  */
 static int cs_net_domains_init(struct c2_colibri *cctx)
 {
-	int                          rc;
+	int                          rc = 0;
 	size_t                       xprts_nr;
 	FILE                        *ofd;
 	struct c2_net_xprt         **xprts;
@@ -1151,7 +1148,7 @@ static int cs_net_domains_init(struct c2_colibri *cctx)
 				return -EINVAL;
 			}
 
-			ndom = cs_net_domain_locate(cctx, ep->ex_xprt);
+			ndom = c2_cs_net_domain_locate(cctx, ep->ex_xprt);
 			if (ndom != NULL)
 				continue;
 

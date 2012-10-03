@@ -300,7 +300,6 @@ struct c2_reqh_service_ops {
  */
 struct c2_reqh_service_type_ops {
 	/**
-	   Locates a particular service.
 	   Allocates and initialises a service for the given service type.
 	   This also initialises the corresponding service operations vector.
            This is typically invoked  during colibri setup, but also can be
