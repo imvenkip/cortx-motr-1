@@ -87,10 +87,10 @@ static void *uthread_trampoline(void *arg)
 {
 	struct c2_thread	     *t = arg;
 
-	t->t_initrc = uthread_specific_init();
+	t->t_initrc = uthread_specific_data_init();
 	if (t->t_initrc == 0) {
 		c2_thread_trampoline(arg);
-		uthread_specific_fini();
+		uthread_specific_data_fini();
 	}
 
 	return NULL;
@@ -157,13 +157,13 @@ int c2_threads_init(void)
 		return result;
 	}
 
-	return uthread_specific_init();
+	return uthread_specific_data_init();
 }
 
 void c2_threads_fini(void)
 {
 	pthread_attr_destroy(&pthread_attr_default);
-	uthread_specific_fini();
+	uthread_specific_data_fini();
 	pthread_key_delete(pthread_data_key);
 }
 
