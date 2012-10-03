@@ -24,8 +24,6 @@
 #include <stdio.h>	/* vsnprintf */
 #endif
 
-#include "lib/memory.h"
-#include "lib/errno.h"
 #include "lib/misc.h"   /* C2_SET0 */
 #include "lib/thread.h"
 
@@ -76,10 +74,10 @@ void *c2_thread_trampoline(void *arg)
 	C2_ASSERT(t->t_state == TS_RUNNING);
 	C2_ASSERT(t->t_initrc == 0);
 
-	if (t->t_init != NULL)
+	if (t->t_init != NULL) {
 		t->t_initrc = t->t_init(t->t_arg);
-	c2_semaphore_up(&t->t_wait);
-
+		c2_semaphore_up(&t->t_wait);
+	}
 	if (t->t_initrc == 0)
 		t->t_func(t->t_arg);
 	return NULL;
