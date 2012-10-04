@@ -247,11 +247,7 @@ static void state_set(struct c2_sm *mach, int state, int32_t rc)
 	 */
 	do {
 		sd = sm_state(mach);
-		/* Used in UT's where out of order state transitions are done.*/
-		if (C2_FI_ENABLED("skip_sd_allowed_chk"))
-			goto skip_sd_allowed;
 		C2_PRE(sd->sd_allowed & (1ULL << state));
-skip_sd_allowed:
 		if (sd->sd_ex != NULL)
 			sd->sd_ex(mach);
 		mach->sm_state = state;

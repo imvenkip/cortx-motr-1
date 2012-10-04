@@ -29,6 +29,7 @@
 #include "ioservice/io_foms.c"	/* To access static APIs. */
 #include "colibri/colibri_setup.h"
 #include "lib/finject.h"
+#include "fop/fom_generic.c"
 
 static void bulkio_init();
 static void bulkio_fini();
@@ -87,7 +88,7 @@ static inline struct c2_net_transfer_mc *fop_tm_get(
 
 static void bulkio_stob_fom_fini(struct c2_fom *fom)
 {
-	struct c2_io_fom_cob_rw   *fom_obj = NULL;
+	struct c2_io_fom_cob_rw   *fom_obj;
 
 	fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         c2_stob_put(fom_obj->fcrw_stob);
@@ -262,8 +263,41 @@ static void fill_buffers_pool(uint32_t colour)
 
 void fom_phase_set(struct c2_fom *fom, int phase)
 {
-	c2_fi_enable_once("state_set", "skip_sd_allowed_chk");
-	c2_fom_phase_set(fom, phase);
+	if (c2_fom_phase(fom) == C2_FOPH_FAILURE) {
+		const struct fom_phase_desc *fpd_phase;
+		while (c2_fom_phase(fom) != C2_FOPH_FINISH) {
+			fpd_phase = &fpd_table[c2_fom_phase(fom)];
+			c2_fom_phase_set(fom, fpd_phase->fpd_nextphase);
+		}
+
+		c2_sm_fini(&fom->fo_sm_phase);
+		c2_sm_init(&fom->fo_sm_phase, fom->fo_type->ft_conf,
+			   C2_FOM_PHASE_INIT, &fom->fo_loc->fl_group,
+			   &fom->fo_loc->fl_dom->fd_addb_ctx);
+
+		while (c2_fom_phase(fom) != C2_FOPH_TYPE_SPECIFIC) {
+			fpd_phase = &fpd_table[c2_fom_phase(fom)];
+			c2_fom_phase_set(fom, fpd_phase->fpd_nextphase);
+		}
+	}
+
+	while (phase != c2_fom_phase(fom)) {
+		struct c2_io_fom_cob_rw_state_transition  st;
+
+		st = c2_is_read_fop(fom->fo_fop) ?
+			io_fom_read_st[c2_fom_phase(fom)] :
+			io_fom_write_st[c2_fom_phase(fom)];
+
+		if (C2_IN(phase, (st.fcrw_st_next_phase_again,
+				  st.fcrw_st_next_phase_wait))) {
+			c2_fom_phase_set(fom, phase);
+			break;
+		}
+
+		c2_fom_phase_set(fom, st.fcrw_st_next_phase_again != 0 ?
+				      st.fcrw_st_next_phase_again :
+				      st.fcrw_st_next_phase_wait);
+	}
 }
 
 /*
@@ -281,13 +315,13 @@ static int check_write_fom_tick(struct c2_fom *fom)
 {
         int                           rc;
         uint32_t                      colour;
-        int                           acquired_net_bufs = 0;
-        int                           saved_segments_count = 0;
-        int                           saved_ndesc = 0;
+        int                           acquired_net_bufs;
+        int                           saved_segments_count;
+        int                           saved_ndesc;
         struct c2_fop_cob_rw         *rwfop;
-        struct c2_net_domain         *netdom = NULL;
+        struct c2_net_domain         *netdom;
         struct c2_fop                *fop;
-        struct c2_io_fom_cob_rw      *fom_obj = NULL;
+        struct c2_io_fom_cob_rw      *fom_obj;
         struct c2_fop_file_fid        saved_fid;
         struct c2_fop_file_fid        invalid_fid;
         struct c2_stob_io_desc       *saved_stobio_desc;
@@ -426,7 +460,7 @@ static int check_write_fom_tick(struct c2_fom *fom)
                 netdom =
                    fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
                 rwfop->crw_ivecs.cis_ivecs[cdi].ci_nr =
-                        c2_net_domain_get_max_buffer_segments(netdom)+1;
+                        c2_net_domain_get_max_buffer_segments(netdom) + 1;
 
                 fom_phase_set(fom, C2_FOPH_IO_ZERO_COPY_INIT);
 
@@ -643,13 +677,13 @@ static int check_read_fom_tick(struct c2_fom *fom)
 {
         int                           rc;
         uint32_t                      colour;
-        int                           acquired_net_bufs = 0;
-        int                           saved_segments_count = 0;
-        int                           saved_ndesc = 0;
+        int                           acquired_net_bufs;
+        int                           saved_segments_count;
+        int                           saved_ndesc;
         struct c2_fop_cob_rw         *rwfop;
-        struct c2_net_domain         *netdom = NULL;
+        struct c2_net_domain         *netdom;
         struct c2_fop                *fop;
-        struct c2_io_fom_cob_rw      *fom_obj = NULL;
+        struct c2_io_fom_cob_rw      *fom_obj;
         struct c2_fop_file_fid        saved_fid;
         struct c2_fop_file_fid        invalid_fid;
         struct c2_stob_io_desc       *saved_stobio_desc;
@@ -891,7 +925,7 @@ static int check_read_fom_tick(struct c2_fom *fom)
                 netdom =
                    fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
                 rwfop->crw_ivecs.cis_ivecs[cdi].ci_nr =
-                        c2_net_domain_get_max_buffer_segments(netdom)+1;
+                        c2_net_domain_get_max_buffer_segments(netdom) + 1;
 
                 fom_phase_set(fom, C2_FOPH_IO_ZERO_COPY_INIT);
 

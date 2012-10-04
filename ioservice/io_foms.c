@@ -1296,7 +1296,7 @@ static int zero_copy_initiate(struct c2_fom *fom)
                 rc = c2_rpc_bulk_buf_add(rbulk, segs_nr, dom, nb, &rb_buf);
                 if (rc != 0) {
                         fom->fo_rc = rc;
-                        c2_fom_phase_set(fom, C2_FOPH_FAILURE);
+                        c2_fom_phase_move(fom, fom->fo_rc, C2_FOPH_FAILURE);
                         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                                     c2_addb_func_fail,
                                     "zero_copy_initiate", rc);
@@ -1327,7 +1327,7 @@ static int zero_copy_initiate(struct c2_fom *fom)
                 c2_rpc_bulk_buflist_empty(rbulk);
                 c2_rpc_bulk_fini(rbulk);
                 fom->fo_rc = rc;
-                c2_fom_phase_set(fom, C2_FOPH_FAILURE);
+                c2_fom_phase_move(fom, fom->fo_rc, C2_FOPH_FAILURE);
                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                             c2_addb_func_fail,
                             "zero_copy_initiate", rc);
@@ -1364,7 +1364,7 @@ static int zero_copy_finish(struct c2_fom *fom)
         C2_ASSERT(rpcbulkbufs_tlist_is_empty(&rbulk->rb_buflist));
         if (rbulk->rb_rc != 0){
                 fom->fo_rc = rbulk->rb_rc;
-                c2_fom_phase_set(fom, C2_FOPH_FAILURE);
+                c2_fom_phase_move(fom, fom->fo_rc, C2_FOPH_FAILURE);
                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                             c2_addb_func_fail,
                             "zero_copy_finish", fom->fo_rc);
@@ -1562,7 +1562,7 @@ cleanup_st:
 cleanup:
 	C2_ASSERT(rc != 0);
 	fom->fo_rc = rc;
-	c2_fom_phase_set(fom, C2_FOPH_FAILURE);
+	c2_fom_phase_move(fom, fom->fo_rc, C2_FOPH_FAILURE);
         C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc, c2_addb_func_fail,
                     "io_launch", rc);
 	return C2_FSO_AGAIN;
@@ -1600,7 +1600,7 @@ static int io_finish(struct c2_fom *fom)
 
                 if (stio->si_rc != 0) {
                         fom->fo_rc = stio->si_rc;
-                        c2_fom_phase_set(fom, C2_FOPH_FAILURE);
+                        c2_fom_phase_move(fom, fom->fo_rc, C2_FOPH_FAILURE);
                 } else {
                         fom_obj->fcrw_count += stio->si_count;
                         C2_LOG(C2_DEBUG, "rw_count %d, si_count %d",
@@ -1626,7 +1626,7 @@ static int io_finish(struct c2_fom *fom)
                        fom_obj->fcrw_req_count == fom_obj->fcrw_count));
 
         if (fom->fo_rc != 0) {
-	        c2_fom_phase_set(fom, C2_FOPH_FAILURE);
+	        c2_fom_phase_move(fom, fom->fo_rc, C2_FOPH_FAILURE);
                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                             c2_addb_func_fail, "io_finish",
                             fom->fo_rc);
@@ -1676,14 +1676,13 @@ static int c2_io_fom_cob_rw_tick(struct c2_fom *fom)
 	/* Check the client version and server version before any processing */
 	if (!c2_poolmach_version_equal(verp, &curr)) {
 		rc = C2_FSO_AGAIN;
-		c2_fom_phase_set(fom, C2_FOPH_FAILURE);
 		fom->fo_rc = C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH;
-		goto out;
+		c2_fom_phase_move(fom, fom->fo_rc, C2_FOPH_FAILURE);
 	} else {
-		if (c2_is_read_fop(fom->fo_fop))
-			st = io_fom_read_st[c2_fom_phase(fom)];
-		else
-			st = io_fom_write_st[c2_fom_phase(fom)];
+
+		st = c2_is_read_fop(fom->fo_fop) ?
+			io_fom_read_st[c2_fom_phase(fom)] :
+			io_fom_write_st[c2_fom_phase(fom)];
 
 		rc = (*st.fcrw_st_state_function)(fom);
 	}
@@ -1693,9 +1692,6 @@ static int c2_io_fom_cob_rw_tick(struct c2_fom *fom)
         if (c2_fom_phase(fom) == C2_FOPH_SUCCESS ||
             c2_fom_phase(fom) == C2_FOPH_FAILURE) {
 		struct c2_fop_cob_rw_reply *rwrep;
-out:
-		C2_ASSERT(ergo(c2_fom_phase(fom) == C2_FOPH_FAILURE,
-			       fom->fo_rc < 0));
 
 		rwrep = io_rw_rep_get(fom->fo_rep_fop);
 		rwrep->rwr_rc    = fom->fo_rc;
@@ -1707,9 +1703,8 @@ out:
 		return rc;
 	}
 
-	c2_fom_phase_set(fom, rc == C2_FSO_AGAIN ? 
-			st.fcrw_st_next_phase_again :
-			st.fcrw_st_next_phase_wait);
+	c2_fom_phase_set(fom, rc == C2_FSO_AGAIN ? st.fcrw_st_next_phase_again :
+						   st.fcrw_st_next_phase_wait);
 	C2_ASSERT(c2_fom_phase(fom) > C2_FOPH_NR &&
 		  c2_fom_phase(fom) <= C2_FOPH_IO_BUFFER_RELEASE);
 

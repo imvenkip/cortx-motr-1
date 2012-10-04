@@ -671,7 +671,7 @@ static const struct c2_sm_state_descr generic_phases[] = {
 		.sd_allowed   = (1 << C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_FAILURE] = {
-		.sd_flags     = 0,
+		.sd_flags     = C2_SDF_FAILURE,
 		.sd_name      = "fom_failure",
 		.sd_in        = NULL,
 		.sd_ex        = NULL,
