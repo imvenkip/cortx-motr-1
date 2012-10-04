@@ -399,11 +399,8 @@ static int request_pre_process(struct c2_fom *fom,
 	 * If c2_rm_incoming goes in WAIT state, the put the fom in wait
 	 * queue otherwise proceed with the next phase.
 	 */
-	c2_sm_state_set(&fom->fo_sm_state,
-			incoming_state(in) == RI_WAIT ?
-			C2_FSO_WAIT : C2_FSO_AGAIN);
-
-	return C2_FOPH_SUCCESS;
+	return incoming_state(in) == RI_WAIT ?
+		C2_FSO_WAIT : C2_FSO_AGAIN;
 }
 
 static int request_post_process(struct c2_fom *fom)
@@ -433,7 +430,9 @@ static int request_post_process(struct c2_fom *fom)
 	reply_err_set(in->rin_type, fom, rc);
 	c2_rm_right_fini(&in->rin_want);
 
-	return rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS;
+	c2_fom_phase_set(fom, rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
+
+	return C2_FSO_AGAIN;
 }
 
 /**

@@ -320,6 +320,40 @@ enum c2_magic_satchel {
 	/* c2_reqh_rpc_mach_tl::td_head_magic (laissez eifel) */
 	C2_REQH_RPC_MACH_HEAD_MAGIC = 0x331a155e2e1fe177,
 
+/* Resource Manager */
+	/* c2_rm_pin::rp_magix (bellicose bel) */
+	C2_RM_PIN_MAGIC = 0x33be111c05ebe177,
+
+	/* c2_rm_loan::rl_magix (biblical bill) */
+	C2_RM_LOAN_MAGIC = 0x33b1b11ca1b11177,
+
+	/* c2_rm_incoming::rin_magix (cacalia boole) */
+	C2_RM_INCOMING_MAGIC = 0x33caca11ab001e77,
+
+	/* c2_rm_outgoing::rog_magix (calcific call) */
+	C2_RM_OUTGOING_MAGIC = 0x33ca1c1f1cca1177,
+
+	/* pr_tl::td_head_magic (collide colsa) */
+	C2_RM_RIGHT_PIN_HEAD_MAGIC = 0x33c0111dec015a77,
+
+	/* pi_tl::td_head_magic (diabolise del) */
+	C2_RM_INCOMING_PIN_HEAD_MAGIC = 0x33d1ab0115ede177,
+
+	/* c2_rm_resource::r_magix (di doliolidae) */
+	C2_RM_RESOURCE_MAGIC = 0x33d1d011011dae77,
+
+	/* res_tl::td_head_magic (feeble eagles) */
+	C2_RM_RESOURCE_HEAD_MAGIC = 0x33feeb1eea91e577,
+
+	/* c2_rm_right::ri_magix (fizzle fields) */
+	C2_RM_RIGHT_MAGIC = 0x33f1221ef1e1d577,
+
+	/* c2_rm_ur_tl::td_head_magic (idolise iliad) */
+	C2_RM_USAGE_RIGHT_HEAD_MAGIC = 0x331d0115e111ad77,
+
+	/* rm_transit_tl::td_head_magic (offal oldfool) */
+	C2_RM_TRANSIT_RIGHT_HEAD_MAGIC = 0x330ffa101df00177,
+
 /* RPC */
 	/* c2_rpc_service_type::svt_magix (seedless seel) */
 	C2_RPC_SERVICE_TYPE_MAGIC = 0x335eed1e555ee177,

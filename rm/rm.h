@@ -237,7 +237,7 @@ struct c2_rm_domain {
 };
 
 /**
- * c2_rm_resource represents a resource identity (i.e., a name). Multiple
+ * Represents a resource identity (i.e., a name). Multiple
  * copies of the same name may exist in different resource management
  * domains, but no more than a single copy per domain.
  *
@@ -857,10 +857,8 @@ enum c2_rm_owner_queue_state {
  * }
  */
 struct c2_rm_owner {
-	/** State machine for owner states */
 	struct c2_sm           ro_sm;
 
-	/** State machine group for resource owner */
 	struct c2_sm_group     ro_sm_grp;
 	/**
 	 * Resource this owner possesses the rights on.
@@ -979,13 +977,9 @@ enum c2_rm_incoming_state {
 	 *  or release of a locally held usage right.
 	 */
 	RI_WAIT,
-	/**
-	 * Right has been released (possibly by c2_rm_right_put()).
-	 */
+	/** Right has been released (possibly by c2_rm_right_put()). */
 	RI_RELEASED,
-	/**
-	 * Request finalised.
-	 */
+	/** Request finalised. */
 	RI_FINAL
 };
 
@@ -1233,7 +1227,6 @@ enum c2_rm_incoming_flags {
  */
 struct c2_rm_incoming {
 	enum c2_rm_incoming_type	 rin_type;
-	/** State machine for incoming states */
 	struct c2_sm                     rin_sm;
 	enum c2_rm_incoming_policy	 rin_policy;
 	uint64_t			 rin_flags;

@@ -24,7 +24,9 @@
 #include "lib/misc.h"   /* C2_SET_ARR0 */
 #include "lib/errno.h"  /* ETIMEDOUT */
 #include "lib/arith.h"  /* C2_CNT_{INC,DEC} */
+#include "lib/trace.h"
 #include "lib/bob.h"
+#include "colibri/magic.h"
 #include "sm/sm.h"
 
 #include "rm/rm.h"
@@ -102,8 +104,7 @@ resource_find(const struct c2_rm_resource_type *rt,
 
 C2_TL_DESCR_DEFINE(res, "resources", , struct c2_rm_resource,
 		   r_linkage, r_magix,
-		   0xb1f01d5add1eb111 /* bifold saddlebill */,
-		   0xc1a551ca15eedbed /* classical seedbed */);
+		   C2_RM_RESOURCE_MAGIC, C2_RM_RESOURCE_HEAD_MAGIC);
 C2_TL_DEFINE(res, , struct c2_rm_resource);
 
 static struct c2_bob_type resource_bob;
@@ -111,36 +112,25 @@ C2_BOB_DEFINE(static, &resource_bob, c2_rm_resource);
 
 C2_TL_DESCR_DEFINE(c2_rm_ur, "usage rights", , struct c2_rm_right,
 		   ri_linkage, ri_magix,
-		   0xc0a1faceba5111ca /* coalface basilica */,
-		   0xca11ab1e5111c1de /* callable silicide */);
+		   C2_RM_RIGHT_MAGIC, C2_RM_USAGE_RIGHT_HEAD_MAGIC);
 C2_TL_DEFINE(c2_rm_ur, , struct c2_rm_right);
 
 C2_TL_DESCR_DEFINE(rm_transit, "rights in transit", , struct c2_rm_right,
 		   ri_linkage, ri_magix,
-		   0xc0a1faceba5111ca /* @todo select */,
-		   0xca11ab1e5111c1de /* @todo select */);
+		   C2_RM_RIGHT_MAGIC, C2_RM_TRANSIT_RIGHT_HEAD_MAGIC);
 C2_TL_DEFINE(rm_transit, static, struct c2_rm_right);
 
 static struct c2_bob_type right_bob;
 C2_BOB_DEFINE(static, &right_bob, c2_rm_right);
 
-enum {
-	PIN_MAGIX           = 0xD15CA1CED0551C1E, /* discalced ossicle */
-	LOAN_MAGIX          = 0x524D4C4F414E,     /* RMLOAN */
-	INCOMING_MAGIX      = 0x524D494E434D4E47, /* RMINCMNG */
-	OUTGOING_MAGIX      = 0x524D4F5554474E47, /* RMOUTGNG */
-};
-
 C2_TL_DESCR_DEFINE(pr, "pins-of-right", , struct c2_rm_pin,
 		   rp_right_linkage, rp_magix,
-		   PIN_MAGIX,
-		   0x11d1e55c010ca51a /* lidless colocasia */);
+		   C2_RM_PIN_MAGIC, C2_RM_RIGHT_PIN_HEAD_MAGIC);
 C2_TL_DEFINE(pr, , struct c2_rm_pin);
 
 C2_TL_DESCR_DEFINE(pi, "pins-of-incoming", , struct c2_rm_pin,
 		   rp_incoming_linkage, rp_magix,
-		   PIN_MAGIX,
-		   0x11fe512e51da1cea /* lifesize sidalcea */);
+		   C2_RM_PIN_MAGIC, C2_RM_INCOMING_PIN_HEAD_MAGIC);
 C2_TL_DEFINE(pi, , struct c2_rm_pin);
 
 static struct c2_bob_type pin_bob;
@@ -149,7 +139,7 @@ C2_BOB_DEFINE(static, &pin_bob, c2_rm_pin);
 const struct c2_bob_type loan_bob = {
 	.bt_name         = "loan",
 	.bt_magix_offset = offsetof(struct c2_rm_loan, rl_magix),
-	.bt_magix        = LOAN_MAGIX,
+	.bt_magix        = C2_RM_LOAN_MAGIC,
 	.bt_check        = NULL
 };
 C2_BOB_DEFINE(, &loan_bob, c2_rm_loan);
@@ -157,7 +147,7 @@ C2_BOB_DEFINE(, &loan_bob, c2_rm_loan);
 static const struct c2_bob_type incoming_bob = {
 	.bt_name         = "incoming request",
 	.bt_magix_offset = offsetof(struct c2_rm_incoming, rin_magix),
-	.bt_magix        = INCOMING_MAGIX,
+	.bt_magix        = C2_RM_INCOMING_MAGIC,
 	.bt_check        = NULL
 };
 C2_BOB_DEFINE(static, &incoming_bob, c2_rm_incoming);
@@ -165,7 +155,7 @@ C2_BOB_DEFINE(static, &incoming_bob, c2_rm_incoming);
 static const struct c2_bob_type outgoing_bob = {
 	.bt_name         = "outgoing request ",
 	.bt_magix_offset = offsetof(struct c2_rm_outgoing, rog_magix),
-	.bt_magix        = OUTGOING_MAGIX,
+	.bt_magix        = C2_RM_OUTGOING_MAGIC,
 	.bt_check        = NULL
 };
 C2_BOB_DEFINE(, &outgoing_bob, c2_rm_outgoing);
@@ -176,6 +166,8 @@ void c2_rm_domain_init(struct c2_rm_domain *dom)
 
 	C2_SET_ARR0(dom->rd_types);
 	c2_mutex_init(&dom->rd_lock);
+	c2_bob_type_tlist_init(&resource_bob, &res_tl);
+	c2_bob_type_tlist_init(&right_bob, &c2_rm_ur_tl);
 }
 C2_EXPORTED(c2_rm_domain_init);
 
@@ -318,24 +310,20 @@ static const struct c2_sm_state_descr owner_states[] = {
 		.sd_allowed   = C2_BITS(ROS_INITIALISING, ROS_FINAL)
 	},
 	[ROS_INITIALISING] = {
-		.sd_flags     = 0,
 		.sd_name      = "Initialising",
 		.sd_allowed   = C2_BITS(ROS_ACTIVE, ROS_FINAL)
 	},
 	[ROS_ACTIVE] = {
-		.sd_flags     = 0,
 		.sd_name      = "Active",
-		.sd_allowed   = C2_BITS(ROS_FINALISING)
+		.sd_allowed   = (1 << ROS_FINALISING)
 	},
 	[ROS_FINALISING] = {
-		.sd_flags     = 0,
 		.sd_name      = "Finalising",
-		.sd_allowed   = C2_BITS(ROS_FINAL)
+		.sd_allowed   = (1 << ROS_FINAL)
 	},
 	[ROS_FINAL] = {
 		.sd_flags     = C2_SDF_TERMINAL,
-		.sd_name      = "Fini",
-		.sd_allowed   = 0
+		.sd_name      = "Fini"
 	}
 };
 
@@ -348,9 +336,9 @@ static const struct c2_sm_conf owner_conf = {
 static inline void owner_state_set(struct c2_rm_owner *owner,
 				   enum c2_rm_owner_state state)
 {
-	c2_sm_group_lock(&owner->ro_sm_grp);
+	C2_LOG(C2_INFO, "Owner: %p, Owner state: %d, Owner new state: %d\n",
+	       owner, owner->ro_sm.sm_state, state);
 	c2_sm_state_set(&owner->ro_sm, state);
-	c2_sm_group_unlock(&owner->ro_sm_grp);
 }
 
 static void owner_finalisation_check(struct c2_rm_owner *owner)
@@ -565,9 +553,7 @@ void c2_rm_owner_fini(struct c2_rm_owner *owner)
 
 	RM_OWNER_LISTS_FOR(owner, c2_rm_ur_tlist_fini);
 
-	c2_sm_group_lock(&owner->ro_sm_grp);
 	c2_sm_fini(&owner->ro_sm);
-	c2_sm_group_unlock(&owner->ro_sm_grp);
 
 	owner->ro_resource = NULL;
 	c2_sm_group_fini(&owner->ro_sm_grp);
@@ -611,29 +597,25 @@ static const struct c2_sm_state_descr inc_states[] = {
 		.sd_allowed   = C2_BITS(RI_CHECK, RI_FAILURE, RI_FINAL)
 	},
 	[RI_CHECK] = {
-		.sd_flags     = 0,
 		.sd_name      = "Check",
 		.sd_allowed   = C2_BITS(RI_SUCCESS, RI_FAILURE, RI_WAIT)
 	},
 	[RI_SUCCESS] = {
-		.sd_flags     = 0,
 		.sd_name      = "Success",
-		.sd_allowed   = C2_BITS(RI_RELEASED)
+		.sd_allowed   = (1 << RI_RELEASED)
 	},
 	[RI_FAILURE] = {
-		.sd_flags     = 0,
+		.sd_flags     = C2_SDF_FAILURE,
 		.sd_name      = "Failure",
-		.sd_allowed   = C2_BITS(RI_FINAL)
+		.sd_allowed   = (1 << RI_FINAL)
 	},
 	[RI_WAIT] = {
-		.sd_flags     = 0,
 		.sd_name      = "Wait",
 		.sd_allowed   = C2_BITS(RI_WAIT, RI_FAILURE, RI_CHECK)
 	},
 	[RI_RELEASED] = {
-		.sd_flags     = 0,
 		.sd_name      = "Released",
-		.sd_allowed   = C2_BITS(RI_FINAL)
+		.sd_allowed   = (1 << RI_FINAL)
 	},
 	[RI_FINAL] = {
 		.sd_flags     = C2_SDF_TERMINAL,
@@ -651,9 +633,9 @@ static const struct c2_sm_conf inc_conf = {
 static inline void incoming_state_set(struct c2_rm_incoming *in,
 				      enum c2_rm_incoming_state state)
 {
-	c2_sm_group_lock(&in->rin_want.ri_owner->ro_sm_grp);
+	C2_LOG(C2_INFO, "Incoming req: %p, incoming state: %d, new state: %d\n",
+	       in, in->rin_sm.sm_state, state);
 	c2_sm_state_set(&in->rin_sm, state);
-	c2_sm_group_unlock(&in->rin_want.ri_owner->ro_sm_grp);
 }
 
 void c2_rm_incoming_init(struct c2_rm_incoming *in, struct c2_rm_owner *owner,
@@ -679,10 +661,8 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 {
 	C2_PRE(incoming_invariant(in));
 	C2_PRE(C2_IN(incoming_state(in), (RI_RELEASED, RI_INITIALISED)));
-	c2_sm_state_set(&in->rin_sm, RI_FINAL);
-	c2_sm_group_lock(&in->rin_want.ri_owner->ro_sm_grp);
+	incoming_state_set(in, RI_FINAL);
 	c2_sm_fini(&in->rin_sm);
-	c2_sm_group_unlock(&in->rin_want.ri_owner->ro_sm_grp);
 	c2_rm_incoming_bob_fini(in);
 	c2_rm_right_fini(&in->rin_want);
 	pi_tlist_fini(&in->rin_pins);
@@ -974,7 +954,7 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
 
 	c2_sm_group_lock(&owner->ro_sm_grp);
 	incoming_release(in);
-	c2_sm_state_set(&in->rin_sm, RI_RELEASED);
+	incoming_state_set(in, RI_RELEASED);
 	c2_rm_ur_tlist_del(&in->rin_want);
 	C2_POST(pi_tlist_is_empty(&in->rin_pins));
 
@@ -1016,7 +996,7 @@ static int cached_rights_hold(struct c2_rm_incoming *in)
 
 		/* If the right is already part of HELD list, skip it */
 		if (c2_rm_ur_tlist_contains(&owner->ro_owned[OWOS_HELD],
-		    			    right)) {
+					    right)) {
 			rc = right_diff(&rest, right);
 			if (rc != 0)
 				break;
