@@ -270,6 +270,7 @@ static void reply_err_set(enum c2_rm_incoming_type type,
 		C2_IMPOSSIBLE("Unrecognized RM request");
 		break;
 	}
+	c2_fom_phase_set(fom, C2_FOPH_FAILURE);
 }
 
 /*
@@ -387,7 +388,7 @@ static int request_pre_process(struct c2_fom *fom,
 		 * copying of right data fails.
 		 */
 		reply_err_set(type, fom, rc);
-		return C2_FOPH_FAILURE;
+		return C2_FSO_AGAIN;
 	}
 
 	in = &rfom->rf_in.ri_incoming;
@@ -399,8 +400,7 @@ static int request_pre_process(struct c2_fom *fom,
 	 * If c2_rm_incoming goes in WAIT state, the put the fom in wait
 	 * queue otherwise proceed with the next phase.
 	 */
-	return incoming_state(in) == RI_WAIT ?
-		C2_FSO_WAIT : C2_FSO_AGAIN;
+	return incoming_state(in) == RI_WAIT ? C2_FSO_WAIT : C2_FSO_AGAIN;
 }
 
 static int request_post_process(struct c2_fom *fom)

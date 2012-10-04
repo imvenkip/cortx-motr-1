@@ -315,11 +315,11 @@ static const struct c2_sm_state_descr owner_states[] = {
 	},
 	[ROS_ACTIVE] = {
 		.sd_name      = "Active",
-		.sd_allowed   = (1 << ROS_FINALISING)
+		.sd_allowed   = C2_BITS(ROS_FINALISING)
 	},
 	[ROS_FINALISING] = {
 		.sd_name      = "Finalising",
-		.sd_allowed   = (1 << ROS_FINAL)
+		.sd_allowed   = C2_BITS(ROS_FINAL)
 	},
 	[ROS_FINAL] = {
 		.sd_flags     = C2_SDF_TERMINAL,
@@ -333,6 +333,9 @@ static const struct c2_sm_conf owner_conf = {
 	.scf_state     = owner_states
 };
 
+/*
+ * Group lock is held
+ */
 static inline void owner_state_set(struct c2_rm_owner *owner,
 				   enum c2_rm_owner_state state)
 {
@@ -509,9 +512,9 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 		if (rc == -ENOMEM)
 			return rc;
 		if (rc == 0) {
-			c2_rm_ur_tlist_add(&owner->ro_incoming\
-						[in->rin_priority][OQS_EXCITED],
-					   &in->rin_want);
+			c2_rm_ur_tlist_add(
+			    &owner->ro_incoming[in->rin_priority][OQS_EXCITED],
+			    &in->rin_want);
 			owner_balance(owner);
 		}
 	} c2_tl_endfor;
@@ -602,12 +605,12 @@ static const struct c2_sm_state_descr inc_states[] = {
 	},
 	[RI_SUCCESS] = {
 		.sd_name      = "Success",
-		.sd_allowed   = (1 << RI_RELEASED)
+		.sd_allowed   = C2_BITS(RI_RELEASED)
 	},
 	[RI_FAILURE] = {
 		.sd_flags     = C2_SDF_FAILURE,
 		.sd_name      = "Failure",
-		.sd_allowed   = (1 << RI_FINAL)
+		.sd_allowed   = C2_BITS(RI_FINAL)
 	},
 	[RI_WAIT] = {
 		.sd_name      = "Wait",
@@ -615,12 +618,11 @@ static const struct c2_sm_state_descr inc_states[] = {
 	},
 	[RI_RELEASED] = {
 		.sd_name      = "Released",
-		.sd_allowed   = (1 << RI_FINAL)
+		.sd_allowed   = C2_BITS(RI_FINAL)
 	},
 	[RI_FINAL] = {
 		.sd_flags     = C2_SDF_TERMINAL,
 		.sd_name      = "Final",
-		.sd_allowed   = 0
 	}
 };
 
@@ -939,8 +941,9 @@ void c2_rm_right_get(struct c2_rm_incoming *in)
 		 * Mark incoming request "excited". owner_balance() will
 		 * process it.
 		 */
-		c2_rm_ur_tlist_add(&owner->ro_incoming[in->rin_priority]\
-				   [OQS_EXCITED], &in->rin_want);
+		c2_rm_ur_tlist_add(
+			&owner->ro_incoming[in->rin_priority][OQS_EXCITED],
+			&in->rin_want);
 		owner_balance(owner);
 	} else
 		c2_sm_move(&in->rin_sm, -ENODEV, RI_FAILURE);
@@ -952,7 +955,6 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
 {
 	struct c2_rm_owner *owner = in->rin_want.ri_owner;
 
-	c2_sm_group_lock(&owner->ro_sm_grp);
 	incoming_release(in);
 	incoming_state_set(in, RI_RELEASED);
 	c2_rm_ur_tlist_del(&in->rin_want);
@@ -963,7 +965,6 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
 	 * Hence, call owner_balance() to process them.
 	 */
 	owner_balance(owner);
-	c2_sm_group_unlock(&owner->ro_sm_grp);
 }
 
 /*
@@ -1118,9 +1119,9 @@ static void owner_balance(struct c2_rm_owner *o)
 				 * All waits completed, go to CHECK
 				 * state.
 				 */
-				c2_rm_ur_tlist_move(&o->ro_incoming[prio]\
-						    [OQS_GROUND],
-						    &in->rin_want);
+				c2_rm_ur_tlist_move(
+					&o->ro_incoming[prio][OQS_GROUND],
+					&in->rin_want);
 				incoming_state_set(in, RI_CHECK);
 				incoming_check(in);
 			} c2_tl_endfor;
@@ -1398,18 +1399,15 @@ static int outgoing_check(struct c2_rm_incoming *in,
 	int		       rc = 0;
 	struct c2_rm_owner    *owner = in->rin_want.ri_owner;
 	struct c2_rm_right    *scan;
-	struct c2_rm_loan     *loan;
 	struct c2_rm_outgoing *out;
 
 	for (i = 0; i < ARRAY_SIZE(owner->ro_outgoing); ++i) {
 		c2_tl_for(c2_rm_ur, &owner->ro_outgoing[i], scan) {
 			C2_ASSERT(c2_rm_right_bob_check(scan));
-			loan = bob_of(scan, struct c2_rm_loan, rl_right,
-				      &loan_bob);
-			out = bob_of(loan, struct c2_rm_outgoing, rog_want,
-				     &outgoing_bob);
-			if (out->rog_type == otype && right_intersects(scan,
-								       right)) {
+			out = bob_of(scan, struct c2_rm_outgoing,
+				     rog_want.rl_right, &outgoing_bob);
+			if (out->rog_type == otype &&
+			    right_intersects(scan, right)) {
 				C2_ASSERT(out->rog_want.rl_other == other);
 				/**
 				 * @todo adjust outgoing requests priority
