@@ -29,6 +29,7 @@ ut_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/reqh/ut/libreqh-ut.la \
                $(top_builddir)/colibri/ut/libcs-ut.la \
                $(top_builddir)/rpc/ut/librpc-ut.la \
+               $(top_builddir)/pool/ut/libpool-ut.la \
                $(top_builddir)/ioservice/ut/libioservice-ut.la \
                $(top_builddir)/yaml2db/ut/libyaml2db-ut.la \
 	       $(top_builddir)/addb/ut/libaddb-ut.la \

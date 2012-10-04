@@ -94,7 +94,7 @@ for (itemq = frm_first_itemq(frm); \
      ++itemq)
 
 C2_TL_DESCR_DEFINE(itemq, "rpc_itemq", static, struct c2_rpc_item,
-		   ri_iq_link, ri_link_magic, C2_RPC_ITEM_MAGIC,
+		   ri_iq_link, ri_magic, C2_RPC_ITEM_MAGIC,
 		   C2_RPC_ITEMQ_HEAD_MAGIC);
 C2_TL_DEFINE(itemq, static, struct c2_rpc_item);
 

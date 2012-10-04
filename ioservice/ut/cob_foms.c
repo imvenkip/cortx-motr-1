@@ -1351,6 +1351,33 @@ static void cob_delete_api_test(void)
 	c2_sm_group_unlock(&dummy_loc.fl_group);
 }
 
+static void cobfoms_fv_updates(void)
+{
+	struct c2_reqh      *reqh;
+	struct c2_poolmach  *pm;
+	struct c2_pool_event event;
+	int rc;
+
+	event.pe_type  = C2_POOL_DEVICE;
+	event.pe_index = 1;
+	event.pe_state = C2_PNDS_FAILED;
+
+	reqh = c2_cs_reqh_get(&cut->cu_sctx.rsx_colibri_ctx, "ioservice");
+	C2_UT_ASSERT(reqh != NULL);
+
+	pm = c2_ios_poolmach_get(reqh);
+	C2_UT_ASSERT(pm != NULL);
+
+	rc = c2_poolmach_state_transit(pm, &event);
+	C2_UT_ASSERT(rc == 0);
+
+	cobfoms_send_internal(&c2_fop_cob_create_fopt, &c2_fop_cob_delete_fopt,
+			      C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH,
+			      C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH,
+			      COB_FOP_SINGLE);
+}
+
+
 const struct c2_test_suite cobfoms_ut = {
 	.ts_name  = "cob-foms-ut",
 	.ts_init  = NULL,
@@ -1363,6 +1390,7 @@ const struct c2_test_suite cobfoms_ut = {
 		{ "cobfoms_delete_nonexistent_cob", cobfoms_del_nonexist_cob},
 		{ "cobfoms_create_cob_apitest",     cob_create_api_test},
 		{ "cobfoms_delete_cob_apitest",     cob_delete_api_test},
+		{ "single_fop_with_mismatch_fv",    cobfoms_fv_updates},
 		{ "cobfoms_utfini",                 cobfoms_utfini},
 		{ NULL, NULL }
 	}

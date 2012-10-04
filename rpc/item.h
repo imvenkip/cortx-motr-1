@@ -129,8 +129,8 @@ struct c2_rpc_item {
 	struct c2_tlink                  ri_plink;
 	/** One of c2_rpc_frm::f_itemq[], in which this item is placed. */
 	struct c2_tl                    *ri_itemq;
-	/** Magic constatnt to verify sanity of linked rpc items. */
-	uint64_t			 ri_link_magic;
+	/** C2_RPC_ITEM_MAGIC */
+	uint64_t			 ri_magic;
 };
 
 struct c2_rpc_item_ops {
