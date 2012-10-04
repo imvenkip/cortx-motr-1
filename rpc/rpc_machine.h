@@ -94,7 +94,7 @@ struct c2_rpc_machine {
 	struct c2_cob_domain		 *rm_dom;
 	/** List of c2_rpc_conn objects, linked using c_link.
 	    List descriptor: rpc_conn
-	    conn is in list if conn->c_state is not in {CONN_UNINITIALIZED,
+	    conn is in list if connection state is not in {CONN_UNINITIALIZED,
 	    CONN_FAILED, CONN_TERMINATED}
 	 */
 	struct c2_tl			  rm_incoming_conns;

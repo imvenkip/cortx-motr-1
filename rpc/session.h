@@ -528,7 +528,7 @@ struct c2_rpc_conn {
 	struct c2_cob            *c_cob;
 
 	/** RPC connection state machine
-	    @see c2_rpc_conn_state, conn_conf
+	    @see conn_state(), conn_conf
 	 */
 	struct c2_sm		  c_sm;
 
@@ -642,7 +642,7 @@ int c2_rpc_conn_destroy(struct c2_rpc_conn *conn, uint32_t timeout_sec);
 		to reach in desired state.
     @return 0 if @conn reaches in one of the state(s) specified by
                 @state_flags
-    @return -ETIMEDOUT if time out has occured before @conn reaches in desired
+            -ETIMEDOUT if time out has occured before @conn reaches in desired
                 state.
  */
 int c2_rpc_conn_timedwait(struct c2_rpc_conn *conn,
@@ -672,12 +672,12 @@ enum c2_rpc_session_state {
 	   all lists, mutex and channels of session are initialised.
 	   No actual session is established with any end point
 	 */
-	C2_RPC_SESSION_INITIALISED = (1 << 0),
+	C2_RPC_SESSION_INITIALISED,
 	/**
 	   When sender sends a SESSION_ESTABLISH FOP to reciever it
 	   is in CREATING state
 	 */
-	C2_RPC_SESSION_ESTABLISHING = (1 << 1),
+	C2_RPC_SESSION_ESTABLISHING,
 	/**
 	   A session is IDLE if both of following is true
 		- for each slot S in session
@@ -687,7 +687,7 @@ enum c2_rpc_session_state {
 		- session->unbound_items list is empty
 	   A session can be terminated only if it is IDLE.
 	 */
-	C2_RPC_SESSION_IDLE = (1 << 2),
+	C2_RPC_SESSION_IDLE,
 	/**
 	   A session is busy if any of following is true
 		- Any of slots has item to be sent (FUTURE items)
@@ -695,22 +695,26 @@ enum c2_rpc_session_state {
 			(IN_PROGRESS items)
 		- unbound_items list is not empty
 	 */
-	C2_RPC_SESSION_BUSY = (1 << 3),
+	C2_RPC_SESSION_BUSY,
 	/**
 	   Creation/termination of session failed
 	 */
-	C2_RPC_SESSION_FAILED = (1 << 4),
+	C2_RPC_SESSION_FAILED,
 	/**
 	   When sender sends SESSION_TERMINATE fop to receiver and is waiting
 	   for reply, then it is in state TERMINATING.
 	*/
-	C2_RPC_SESSION_TERMINATING = (1 << 5),
+	C2_RPC_SESSION_TERMINATING,
 	/**
 	   When sender gets reply to session_terminate fop and reply informs
 	   the session termination is successful then the session enters in
 	   TERMINATED state
 	 */
-	C2_RPC_SESSION_TERMINATED = (1 << 6)
+	C2_RPC_SESSION_TERMINATED,
+	/** After c2_rpc_session_fini() the RPC session instance is moved to
+	    FINALISED state.
+	 */
+	C2_RPC_SESSION_FINALISED
 };
 
 /**
@@ -753,11 +757,9 @@ enum c2_rpc_session_state {
       need arises then ordering of these two mutex should be decided.)
 
    @verbatim
-
-            +------------------> UNINITIALISED
-                 allocated         ^   |
-                            fini() |   |  c2_rpc_session_init()
-  c2_rpc_session_establish() != 0  |   V
+                                      |
+                                      |c2_rpc_session_init()
+  c2_rpc_session_establish() != 0     V
           +----------------------INITIALISED
           |                           |
           |                           | c2_rpc_session_establish()
@@ -785,7 +787,7 @@ enum c2_rpc_session_state {
 	  |                           |
 	  |                           | fini()
 	  |                           V
-	  +----------------------> UNINITIALISED
+	  +----------------------> FINALISED
 
    @endverbatim
 
@@ -803,16 +805,18 @@ enum c2_rpc_session_state {
 
    nr_slots = 4;
    rc = c2_rpc_session_init(session, conn, nr_slots);
-   C2_ASSERT(ergo(rc == 0, session->s_state == C2_RPC_SESSION_INITIALISED));
+   C2_ASSERT(ergo(rc == 0, session_state(session) ==
+                           C2_RPC_SESSION_INITIALISED));
 
    // ESTABLISH SESSION
 
    rc = c2_rpc_session_establish(session);
 
-   flag = c2_rpc_session_timedwait(session, C2_RPC_SESSION_IDLE |
-					C2_RPC_SESSION_FAILED, timeout);
+   rc = c2_rpc_session_timedwait(session, C2_BITS(C2_RPC_SESSION_IDLE,
+					          C2_RPC_SESSION_FAILED,
+				 timeout);
 
-   if (flag && session->s_state == C2_RPC_SESSION_IDLE) {
+   if (rc == 0) {
 	// Session is successfully established
    } else {
 	// timeout has happend or session establish failed
@@ -832,16 +836,14 @@ enum c2_rpc_session_state {
    // Wait until all the items that were posted on this session, are sent and
    // for all those items either reply is received or reply_timeout has
    // triggered.
-   flag = c2_rpc_session_timedwait(session, C2_RPC_SESSION_IDLE, timeout);
-   if (flag) {
-	C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
-	rc = c2_rpc_session_terminate(session);
-
+   c2_rpc_session_timedwait(session, C2_BITS(C2_RPC_SESSION_IDLE), timeout);
+   C2_ASSERT(session_state == C2_RPC_SESSION_IDLE);
+   rc = c2_rpc_session_terminate(session);
+   if (rc == 0) {
 	// Wait until session is terminated.
-	flag1 = c2_rpc_session_timedwait(session, C2_RPC_SESSION_TERMINATED |
-					C2_RPC_SESSION_FAILED, timeout);
-	C2_ASSERT(ergo(flag1, session->s_state == C2_RPC_SESSION_TERMINATED ||
-			session->s_state == C2_RPC_SESSION_FAILED));
+	rc = c2_rpc_session_timedwait(session, C2_BITS(C2_RPC_SESSION_TERMINATED,
+						       C2_RPC_SESSION_FAILED),
+				      timeout);
    }
 
    // FINALISE SESSION
@@ -873,9 +875,6 @@ struct c2_rpc_session {
 	    to same c2_rpc_conn
 	 */
 	uint64_t                  s_session_id;
-
-	/** Current state of session */
-	enum c2_rpc_session_state s_state;
 
 	/** rpc connection on which this session is created */
 	struct c2_rpc_conn       *s_conn;
@@ -910,7 +909,7 @@ struct c2_rpc_session {
 	/** Array of pointers to slots */
 	struct c2_rpc_slot      **s_slot_table;
 
-	/** if s_state == C2_RPC_SESSION_FAILED then s_rc contains error code
+	/** if session state state is C2_RPC_SESSION_FAILED then s_rc contains error code
 		denoting cause of failure
 	 */
 	int32_t                   s_rc;
@@ -918,15 +917,15 @@ struct c2_rpc_session {
 	/** if > 0, then session is in BUSY state */
 	uint32_t                  s_hold_cnt;
 
-	/** A condition variable on which broadcast is sent whenever state of
-	    session is changed. Associated with s_mutex
-	 */
-	struct c2_cond            s_state_changed;
-
 	/** List of slots, which can be associated with an unbound item.
 	    Link: c2_rpc_slot::sl_link
 	 */
 	struct c2_tl              s_ready_slots;
+
+	/** RPC session state machine
+	    @see session_state(), session_conf
+	 */
+	struct c2_sm		  s_sm;
 
 	/** C2_RPC_SESSION_MAGIC */
 	uint64_t		  s_magic;
@@ -1020,14 +1019,14 @@ int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
     @param state_flags can specify multiple states by ORing
     @param abs_timeout thread does not sleep past abs_timeout waiting for conn
 		to reach in desired state.
-    @return true if session reaches in one of the state(s) specified by
+    @return 0 if session reaches in one of the state(s) specified by
 		@state_flags
-    @return false if time out has occured before session reaches in desired
-		state.
+            -ETIMEDOUT if time out has occured before session reaches in desired
+                state.
  */
-bool c2_rpc_session_timedwait(struct c2_rpc_session *session,
-			      uint64_t               state_flags,
-			      const c2_time_t        abs_timeout);
+int c2_rpc_session_timedwait(struct c2_rpc_session *session,
+			     uint64_t               state_flags,
+			     const c2_time_t        abs_timeout);
 
 /**
    Holds a session in BUSY state.
@@ -1074,6 +1073,13 @@ int c2_rpc_session_destroy(struct c2_rpc_session *session,
  */
 c2_bcount_t
 c2_rpc_session_get_max_item_size(const struct c2_rpc_session *session);
+
+void session_state_set(struct c2_rpc_session *session, int state);
+
+static inline int session_state(const struct c2_rpc_session *session)
+{
+	return session->s_sm.sm_state;
+}
 
 /**
    Returns the number of rpc items that can be bound to this slot
