@@ -1666,8 +1666,7 @@ static int c2_io_fom_cob_rw_tick(struct c2_fom *fom)
         if (c2_fom_phase(fom) < C2_FOPH_NR)
                 return c2_fom_tick_generic(fom);
 
-	reqh = fom->fo_loc->fl_dom->fd_reqh;
-/*	reqh = fom->fo_service->rs_reqh;*//* The same? */
+	reqh = c2_fom_reqh(fom);
 	poolmach = c2_ios_poolmach_get(reqh);
 	c2_poolmach_current_version_get(poolmach, &curr);
 	rwfop = io_rw_get(fom->fo_fop);
