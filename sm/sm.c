@@ -278,6 +278,7 @@ void c2_sm_state_set(struct c2_sm *mach, int state)
 	C2_PRE(c2_sm_invariant(mach));
 	state_set(mach, state, 0);
 }
+C2_EXPORTED(c2_sm_state_set);
 
 void c2_sm_move(struct c2_sm *mach, int32_t rc, int state)
 {
