@@ -273,8 +273,8 @@ static void borrow_reply(struct c2_rpc_item *item)
 
 	if (rc == 0) {
 		/* Get the data for a right from the FOP */
-		c2_buf_init(&buf, borrow_reply->br_right.ri_opaque.op_bytes,
-				  borrow_reply->br_right.ri_opaque.op_nr);
+		c2_buf_init(&buf, borrow_reply->br_right.ri_opaque.b_addr,
+				  borrow_reply->br_right.ri_opaque.b_nob);
 		rc = c2_rm_right_decode(bright, &buf);
 		if (rc != 0)
 			goto out;
@@ -362,6 +362,7 @@ void c2_rm_fop_fini(void)
 	c2_fop_type_fini(&c2_fop_rm_borrow_fopt);
 	c2_xc_rm_fini();
 	c2_xc_cookie_fini();
+	c2_xc_buf_fini();
 }
 C2_EXPORTED(c2_rm_fop_fini);
 
@@ -371,6 +372,7 @@ C2_EXPORTED(c2_rm_fop_fini);
  */
 int c2_rm_fop_init(void)
 {
+	c2_xc_buf_init();
 	c2_xc_cookie_init();
 	c2_xc_rm_init();
 	return  C2_FOP_TYPE_INIT(&c2_fop_rm_borrow_fopt,

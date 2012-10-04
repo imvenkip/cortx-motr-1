@@ -239,8 +239,8 @@ static int reply_prepare(const enum c2_rm_incoming_type type,
 		 * Memory for the buffer is allocated by the function.
 		 */
 		rc = c2_rm_right_encode(&loan->rl_right, &buf);
-		bfop->br_right.ri_opaque.op_bytes = rc ? NULL : buf.b_addr;
-		bfop->br_right.ri_opaque.op_nr = rc ? 0 : buf.b_nob;
+		bfop->br_right.ri_opaque.b_addr = rc ? NULL : buf.b_addr;
+		bfop->br_right.ri_opaque.b_nob = rc ? 0 : buf.b_nob;
 		break;
 	default:
 		break;
@@ -512,7 +512,7 @@ static void rm_borrow_fom_fini(struct c2_fom *fom)
 	 * Free memory allocated by c2_rm_right_encode().
 	 */
 	rply_fop = c2_fop_data(fom->fo_rep_fop);
-	c2_free(rply_fop->br_right.ri_opaque.op_bytes);
+	c2_free(rply_fop->br_right.ri_opaque.b_addr);
 
 	request_fom_fini(fom);
 }
