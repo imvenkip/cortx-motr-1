@@ -725,7 +725,6 @@ static inline int c2_fom_phase(const struct c2_fom *fom)
 
 static inline void c2_fom_err_set(struct c2_fom *fom, int32_t rc)
 {
-	C2_PRE(c2_fom_group_is_locked(fom));
 	fom->fo_sm_phase.sm_rc = rc;
 }
 

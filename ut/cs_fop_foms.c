@@ -274,7 +274,6 @@ static int cs_req_fop_fom_tick(struct c2_fom *fom)
 			ds1_repfop = c2_fop_data(rfop);
 			ds1_repfop->csr_rc = ds1_reqfop->csr_value;
 			fom->fo_rep_fop = rfop;
-			c2_fom_err_set(fom, 0);
 			c2_fom_phase_set(fom, C2_FOPH_SUCCESS);
 			rc = C2_FSO_AGAIN;
 			break;
@@ -288,7 +287,6 @@ static int cs_req_fop_fom_tick(struct c2_fom *fom)
 			ds2_repfop = c2_fop_data(rfop);
 			ds2_repfop->csr_rc = ds2_reqfop->csr_value;
 			fom->fo_rep_fop = rfop;
-			c2_fom_err_set(fom, 0);
 			c2_fom_phase_set(fom, C2_FOPH_SUCCESS);
 			rc = C2_FSO_AGAIN;
 			break;

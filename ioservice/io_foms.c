@@ -26,6 +26,7 @@
 #include "lib/assert.h"
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_IOSERVICE
 #include "lib/trace.h"
+#include "lib/finject.h"
 #include "addb/addb.h"
 #include "net/net_internal.h"
 #include "net/buffer_pool.h"
@@ -1577,10 +1578,14 @@ static int io_finish(struct c2_fom *fom)
 {
         struct c2_io_fom_cob_rw   *fom_obj;
         struct c2_stob_io_desc    *stio_desc;
+	int                        rc = 0;
 
         C2_PRE(fom != NULL);
         C2_PRE(c2_is_io_fop(fom->fo_fop));
         C2_PRE(c2_fom_phase(fom) == C2_FOPH_IO_STOB_WAIT);
+
+	if (C2_FI_ENABLED("fake_error"))
+		rc = -EINVAL;
 
         fom_obj = container_of(fom, struct c2_io_fom_cob_rw, fcrw_gen);
         C2_ASSERT(c2_io_fom_cob_rw_invariant(fom_obj));
@@ -1595,7 +1600,7 @@ static int io_finish(struct c2_fom *fom)
                 stio = &stio_desc->siod_stob_io;
 
                 if (stio->si_rc != 0) {
-                        c2_fom_err_set(fom, stio->si_rc);
+                        rc = stio->si_rc;
                 } else {
                         fom_obj->fcrw_count += stio->si_count;
                         C2_LOG(C2_DEBUG, "rw_count %d, si_count %d",
@@ -1617,11 +1622,11 @@ static int io_finish(struct c2_fom *fom)
 
         c2_stob_put(fom_obj->fcrw_stob);
 
-        C2_ASSERT(ergo(c2_fom_rc(fom) == 0,
+        C2_ASSERT(ergo(rc == 0,
                        fom_obj->fcrw_req_count == fom_obj->fcrw_count));
 
-        if (c2_fom_rc(fom) != 0) {
-	        c2_fom_phase_set(fom, C2_FOPH_FAILURE);
+        if (rc != 0) {
+		c2_fom_phase_move(fom, rc, C2_FOPH_FAILURE);
                 C2_ADDB_ADD(&fom->fo_fop->f_addb, &io_fom_addb_loc,
                             c2_addb_func_fail, "io_finish",
                             c2_fom_rc(fom));
