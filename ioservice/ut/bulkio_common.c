@@ -197,6 +197,9 @@ static void io_fop_populate(struct bulkio_params *bp, int index,
 	C2_ASSERT(io_fops != NULL);
 
 	iofop = io_fops[index];
+	rw    = io_rw_get(&iofop->if_fop);
+	rw->crw_fid = bp->bp_fids[off_index];
+
 	rbulk = &iofop->if_rbulk;
 
 	/*
@@ -206,10 +209,6 @@ static void io_fop_populate(struct bulkio_params *bp, int index,
 	rc = c2_rpc_bulk_buf_add(rbulk, segs_nr, &bp->bp_cnetdom, NULL, &rbuf);
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(rbuf != NULL);
-
-
-	rw          = io_rw_get(&iofop->if_fop);
-	rw->crw_fid = bp->bp_fids[off_index];
 
 	/* Adds io buffers to c2_rpc_bulk_buf structure. */
 	for (i = 0; i < segs_nr; ++i) {

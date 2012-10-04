@@ -49,10 +49,10 @@ static bool rpc_bulk_invariant(const struct c2_rpc_bulk *rbulk)
 {
 	struct c2_rpc_bulk_buf *buf;
 
-	C2_PRE(c2_mutex_is_locked(&rbulk->rb_mutex));
 	if (rbulk == NULL || rbulk->rb_magic != C2_RPC_BULK_MAGIC)
 		return false;
 
+	C2_PRE(c2_mutex_is_locked(&rbulk->rb_mutex));
 	c2_tl_for(rpcbulk, &rbulk->rb_buflist, buf) {
 		if (buf->bb_rbulk != rbulk)
 			return false;

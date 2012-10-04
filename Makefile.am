@@ -70,6 +70,7 @@ SUBDIR_UT = addb/ut \
             net/lnet/ut \
 	    net/test/ut \
             net/ut \
+            pool/ut \
             reqh/ut \
             rpc/ut \
             sm/ut \

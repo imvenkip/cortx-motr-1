@@ -170,6 +170,22 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	if (rc != 0)
 		goto out_fini;
 
+	csb->csb_pool.po_mach = c2_alloc(sizeof (struct c2_poolmach));
+	if (csb->csb_pool.po_mach == NULL) {
+		rc = -ENOMEM;
+		goto pool_fini;
+	}
+
+	rc = c2_poolmach_init(csb->csb_pool.po_mach, NULL);
+	if (rc != 0) {
+		c2_free(csb->csb_pool.po_mach);
+		goto pool_fini;
+	}
+
+	rc = c2t1fs_connect_to_all_services(csb);
+	if (rc != 0)
+		goto poolmach_fini;
+
 	rc = c2t1fs_sb_layout_init(csb);
 	if (rc != 0)
 		goto disconnect_all;
@@ -214,6 +230,11 @@ layout_fini:
 
 disconnect_all:
 	c2t1fs_disconnect_from_all_services(csb);
+poolmach_fini:
+	c2_poolmach_fini(csb->csb_pool.po_mach);
+	c2_free(csb->csb_pool.po_mach);
+pool_fini:
+	c2_pool_fini(&csb->csb_pool);
 
 out_fini:
 	c2t1fs_sb_fini(csb);
@@ -372,6 +393,8 @@ void c2t1fs_kill_sb(struct super_block *sb)
 		c2t1fs_container_location_map_fini(&csb->csb_cl_map);
 		c2t1fs_disconnect_from_all_services(csb);
 		c2t1fs_service_contexts_discard(csb);
+		c2_poolmach_fini(csb->csb_pool.po_mach);
+		c2_pool_fini(&csb->csb_pool);
 		c2t1fs_sb_fini(csb);
 		c2_free(csb);
 	}
