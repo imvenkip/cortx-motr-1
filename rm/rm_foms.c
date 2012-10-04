@@ -291,10 +291,10 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 	switch (type) {
 	case C2_RIT_BORROW:
 		bfop = c2_fop_data(fom->fo_fop);
-		policy = bfop->bo_policy;
-		flags = bfop->bo_flags;
-		c2_buf_init(&buf, bfop->bo_right.ri_opaque.op_bytes,
-				  bfop->bo_right.ri_opaque.op_nr);
+		policy = bfop->bo_base.rrq_policy;
+		flags = bfop->bo_base.rrq_flags;
+		//c2_buf_init(&buf, bfop->bo_right.ri_opaque.op_bytes,
+				  //bfop->bo_right.ri_opaque.op_nr);
 		/*
 		 * Populate the owner cookie for creditor (local)
 		 * This is used later by rm_locality().
@@ -312,16 +312,17 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 
 	case C2_RIT_REVOKE:
 		rfop = c2_fop_data(fom->fo_fop);
-		policy = rfop->rr_policy;
-		flags = rfop->rr_flags;
-		c2_buf_init(&buf, rfop->rr_right.ri_opaque.op_bytes,
-				  rfop->rr_right.ri_opaque.op_nr);
+		policy = rfop->rr_base.rrq_policy;
+		flags = rfop->rr_base.rrq_flags;
+		//c2_buf_init(&buf, rfop->rr_right.ri_opaque.op_bytes,
+				  //rfop->rr_right.ri_opaque.op_nr);
 		/*
 		 * Populate the owner cookie for debtor (local)
 		 * This server is debtor; hence it received REVOKE request.
 		 * This is used later by rm_locality().
 		 */
-		rfom->rf_in.ri_owner_cookie = rfop->rr_debtor.ow_cookie;
+		rfom->rf_in.ri_owner_cookie =
+			rfop->rr_base.rrq_debtor.ow_cookie;
 
 		/*
 		 * Populate the loan cookie.
@@ -331,8 +332,9 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		 * Check if the loan cookie is stale. If the cookie is stale
 		 * don't proceed with the reovke processing.
 		 */
-		rfom->rf_in.ri_loan = c2_cookie_of(&rfop->rr_debtor.ow_cookie,
-				                   struct c2_rm_loan, rl_id);
+		rfom->rf_in.ri_loan =
+			c2_cookie_of(&rfop->rr_base.rrq_debtor.ow_cookie,
+				     struct c2_rm_loan, rl_id);
 		rc = rfom->rf_in.ri_loan ? 0: -EPROTO;
 		break;
 
@@ -391,19 +393,17 @@ static int request_pre_process(struct c2_fom *fom,
 	in = &rfom->rf_in.ri_incoming;
 	c2_rm_right_get(in);
 
-	/*
-	 * If the request either succeeds or fails, follow with the next phase.
-	 * If request is waiting, it will enter the next phase after wake-up.
-	 */
 	c2_fom_phase_set(fom, next_phase);
-	if (in->rin_sm.sm_state == RI_WAIT) {
-		//c2_fom_wait_on(fom, &in->rin_signal, &fom->fo_cb);
-	}
+
 	/*
-	 * In case of failure, we go ahead with post processing to
-	 * prepare a reply.
+	 * If c2_rm_incoming goes in WAIT state, the put the fom in wait
+	 * queue otherwise proceed with the next phase.
 	 */
-	return C2_FSO_WAIT;
+	c2_sm_state_set(&fom->fo_sm_state,
+			incoming_state(in) == RI_WAIT ?
+			C2_FSO_WAIT : C2_FSO_AGAIN);
+
+	return C2_FOPH_SUCCESS;
 }
 
 static int request_post_process(struct c2_fom *fom)
@@ -418,7 +418,7 @@ static int request_post_process(struct c2_fom *fom)
 	in = &rfom->rf_in.ri_incoming;
 
 	rc = in->rin_sm.sm_rc;
-	if (in->rin_sm.sm_state == RI_SUCCESS) {
+	if (incoming_state(in) == RI_SUCCESS) {
 		C2_ASSERT(rc == 0);
 		rc = reply_prepare(in->rin_type, fom);
 		c2_rm_right_put(in);
@@ -450,8 +450,8 @@ static int rm_borrow_fom_tick(struct c2_fom *fom)
 	if (c2_fom_phase(fom) < C2_FOPH_NR)
 		rc = c2_fom_tick_generic(fom);
 	else {
-		C2_PRE(c2_fom_phase(fom) == FOPH_RM_BORROW ||
-		       c2_fom_phase(fom) == FOPH_RM_BORROW_WAIT);
+		C2_PRE(C2_IN(c2_fom_phase(fom), (FOPH_RM_BORROW,
+						 FOPH_RM_BORROW_WAIT)));
 
 		if (c2_fom_phase(fom) == FOPH_RM_BORROW)
 			rc = request_pre_process(fom, C2_RIT_BORROW,
@@ -480,8 +480,8 @@ static int rm_revoke_fom_tick(struct c2_fom *fom)
 	if (c2_fom_phase(fom) < C2_FOPH_NR)
 		rc = c2_fom_tick_generic(fom);
 	else {
-		C2_PRE(c2_fom_phase(fom) == FOPH_RM_REVOKE ||
-		       c2_fom_phase(fom) == FOPH_RM_REVOKE_WAIT);
+		C2_PRE(C2_IN(c2_fom_phase(fom), (FOPH_RM_REVOKE,
+						 FOPH_RM_REVOKE_WAIT)));
 
 		if (c2_fom_phase(fom) == FOPH_RM_REVOKE)
 			rc = request_pre_process(fom, C2_RIT_REVOKE,

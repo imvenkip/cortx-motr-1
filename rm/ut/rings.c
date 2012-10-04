@@ -100,7 +100,7 @@ static void incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 {
 	C2_PRE(in != NULL);
 
-	c2_chan_broadcast(&in->rin_signal);
+	/* c2_chan_broadcast(&in->rin_signal); */
 }
 
 static void incoming_conflict(struct c2_rm_incoming *in)

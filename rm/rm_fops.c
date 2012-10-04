@@ -111,43 +111,49 @@ out:
 	return rc;
 }
 
+static int fop_common_fill(struct rm_out *outreq,
+			   struct c2_rm_incoming *in,
+			   struct c2_rm_right *right,
+			   struct c2_fop_type *fopt,
+			   size_t offset, void **data)
+{
+	struct c2_fop_rm_req *req;
+	struct c2_fop	     *fop;
+	int		      rc;
+
+	fop = &outreq->ou_fop;
+	c2_fop_init(fop, fopt, NULL);
+	rc = c2_fop_data_alloc(fop);
+	if (rc == 0) {
+		*data  = c2_fop_data(fop);
+		req = (struct c2_fop_rm_req *) (char *)*data + offset;
+		req->rrq_policy = in->rin_policy;
+		req->rrq_flags = in->rin_flags;
+		c2_cookie_init(&req->rrq_debtor.ow_cookie,
+			       &in->rin_want.ri_owner->ro_id);
+		//rc = c2_rm_right_encode(right, &req->rrq_right.ri_opaque);
+		if (rc != 0)
+			c2_fop_fini(fop);
+	}
+	return rc;
+}
+
 static int borrow_fop_fill(struct rm_out *outreq,
 			   struct c2_rm_incoming *in,
 			   struct c2_rm_right *right)
 {
 	struct c2_fop_rm_borrow *bfop;
-	struct c2_fop		*fop;
-	struct c2_buf		 buf;
 	int			 rc;
 
-	fop = &outreq->ou_fop;
-	c2_fop_init(fop, &c2_fop_rm_borrow_fopt, NULL);
-	rc = c2_fop_data_alloc(fop);
-	if (rc != 0)
-		return rc;
+	rc = fop_common_fill(outreq, in, right, &c2_fop_rm_borrow_fopt,
+			     offsetof(struct c2_fop_rm_borrow, bo_base),
+			     (void **)&bfop);
 
-	bfop = c2_fop_data(fop);
-	/* Fill up the BORROW FOP. */
-	bfop->bo_policy = in->rin_policy;
-	bfop->bo_flags = in->rin_flags;
-
-	/* Copy creditor cookie */
-	bfop->bo_creditor.ow_cookie =
-		in->rin_want.ri_owner->ro_creditor->rem_cookie;
-
-	/* Copy debtor cookie */
-	c2_cookie_init(&bfop->bo_debtor.ow_cookie,
-		       &in->rin_want.ri_owner->ro_id);
-
-	/*
-	 * Encode right into the BORROW FOP.
-	 */
-	rc = c2_rm_right_encode(right, &buf);
 	if (rc == 0) {
-		bfop->bo_right.ri_opaque.op_bytes = buf.b_addr;
-		bfop->bo_right.ri_opaque.op_nr = buf.b_nob;
+		/* Copy creditor cookie */
+		bfop->bo_creditor.ow_cookie =
+			in->rin_want.ri_owner->ro_creditor->rem_cookie;
 	}
-
 	return rc;
 }
 
@@ -157,38 +163,14 @@ static int revoke_fop_fill(struct rm_out *outreq,
 			   struct c2_rm_right *right)
 {
 	struct c2_fop_rm_revoke *rfop;
-	struct c2_fop		*fop;
-	struct c2_buf		 buf;
 	int			 rc;
 
-	fop = &outreq->ou_fop;
-	c2_fop_init(fop, &c2_fop_rm_revoke_fopt, NULL);
-	rc = c2_fop_data_alloc(fop);
-	if (rc != 0)
-		return rc;
+	rc = fop_common_fill(outreq, in, right, &c2_fop_rm_revoke_fopt,
+			     offsetof(struct c2_fop_rm_revoke, rr_base),
+			     (void **)&rfop);
 
-	rfop = c2_fop_data(fop);
-	/* Fill up the REVOKE FOP. */
-	rfop->rr_policy = in->rin_policy;
-	rfop->rr_flags = in->rin_flags;
-
-	/* Generate the loan cookie and then copy it into the FOP */
-	c2_cookie_init(&rfop->rr_loan.lo_cookie, &loan->rl_id);
-
-	/*
-	 * Fill up the debtor cookie so that the other end can identify
-	 * its owner structure.
-	 */
-	rfop->rr_debtor.ow_cookie = loan->rl_other->rem_cookie;
-
-	/*
-	 * Encode rights data into REVOKE FOP
-	 */
-	rc = c2_rm_right_encode(right, &buf);
-	if (rc == 0) {
-		rfop->rr_right.ri_opaque.op_bytes = buf.b_addr;
-		rfop->rr_right.ri_opaque.op_nr = buf.b_nob;
-	}
+	if (rc == 0)
+		c2_cookie_init(&rfop->rr_loan.lo_cookie, &loan->rl_id);
 
 	return rc;
 }
@@ -233,7 +215,6 @@ int c2_rm_request_out(struct c2_rm_incoming *in,
 	}
 
 	pin_add(in, &outreq->ou_req.rog_want.rl_right, C2_RPF_TRACK);
-	++in->rin_out_req;
 	outreq->ou_fop.f_item.ri_ops = &rm_borrow_rpc_ops;
 	if (C2_FI_ENABLED("no-rpc"))
 		goto out;

@@ -191,6 +191,18 @@ C2_BOB_DECLARE(extern, c2_rm_loan);
 		(expr)(&__o->ro_outgoing[__i]);				\
 })
 
+static inline enum c2_rm_incoming_state
+incoming_state(const struct c2_rm_incoming *in)
+{
+	return in->rin_sm.sm_state;
+}
+
+static inline enum c2_rm_owner_state
+owner_state(const struct c2_rm_owner *owner)
+{
+	return owner->ro_sm.sm_state;
+}
+
 /** @} end of RM lists. */
 
 /* __COLIBRI_RM_RM_INTERNAL_H__ */

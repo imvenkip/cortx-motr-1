@@ -78,11 +78,15 @@ record {
 } c2_fop_rm_right;
 
 record {
-	c2_fop_rm_owner bo_debtor;
-	c2_fop_rm_owner bo_creditor;
-	c2_fop_rm_right bo_right;
-	u64             bo_policy;
-	u64             bo_flags
+	c2_fop_rm_owner rrq_debtor;
+	c2_fop_rm_right rrq_right;
+	u64             rrq_policy;
+	u64             rrq_flags
+} c2_fop_rm_req;
+
+record {
+	c2_fop_rm_req   bo_base;
+	c2_fop_rm_owner bo_creditor
 } c2_fop_rm_borrow;
 
 record {
@@ -93,11 +97,8 @@ record {
 } c2_fop_rm_borrow_rep;
 
 record {
-	c2_fop_rm_owner rr_debtor;
-	c2_fop_rm_loan  rr_loan;
-	c2_fop_rm_right rr_right;
-	u64             rr_policy;
-	u64             rr_flags
+	c2_fop_rm_req  rr_base;
+	c2_fop_rm_loan rr_loan
 } c2_fop_rm_revoke;
 
 /* Should we add creditor in reply */

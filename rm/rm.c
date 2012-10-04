@@ -93,9 +93,13 @@ static void retire_incoming_complete(struct c2_rm_incoming *in,
 				     int32_t rc);
 static void retire_incoming_conflict(struct c2_rm_incoming *in);
 static int cached_rights_hold       (struct c2_rm_incoming *in);
+static bool owner_is_idle	    (struct c2_rm_owner *o);
+static bool incoming_is_complete    (struct c2_rm_incoming *in);
 
-static struct c2_rm_resource *resource_find(const struct c2_rm_resource_type *rt,
-					    const struct c2_rm_resource *res);
+static struct c2_rm_resource *
+resource_find(const struct c2_rm_resource_type *rt,
+	      const struct c2_rm_resource *res);
+
 C2_TL_DESCR_DEFINE(res, "resources", , struct c2_rm_resource,
 		   r_linkage, r_magix,
 		   0xb1f01d5add1eb111 /* bifold saddlebill */,
@@ -166,22 +170,12 @@ static const struct c2_bob_type outgoing_bob = {
 };
 C2_BOB_DEFINE(, &outgoing_bob, c2_rm_outgoing);
 
-const struct c2_addb_ctx_type c2_rm_addb_type = {
-	.act_name = "Resource Manager"
-};
-
-struct c2_addb_ctx rm_addb;
-struct c2_sm_group rm_sm_grp;
-
 void c2_rm_domain_init(struct c2_rm_domain *dom)
 {
 	C2_PRE(dom != NULL);
 
 	C2_SET_ARR0(dom->rd_types);
 	c2_mutex_init(&dom->rd_lock);
-	c2_sm_group_init(&rm_sm_grp);
-	c2_addb_ctx_init(&rm_addb, &c2_rm_addb_type,
-			 &c2_addb_global_ctx);
 }
 C2_EXPORTED(c2_rm_domain_init);
 
@@ -189,8 +183,6 @@ void c2_rm_domain_fini(struct c2_rm_domain *dom)
 {
 	C2_PRE(c2_forall(i, ARRAY_SIZE(dom->rd_types),
 			 dom->rd_types[i] == NULL));
-	c2_addb_ctx_fini(&rm_addb);
-	c2_sm_group_fini(&rm_sm_grp);
 	c2_mutex_fini(&dom->rd_lock);
 }
 C2_EXPORTED(c2_rm_domain_fini);
@@ -356,20 +348,14 @@ static const struct c2_sm_conf owner_conf = {
 static inline void owner_state_set(struct c2_rm_owner *owner,
 				   enum c2_rm_owner_state state)
 {
-	c2_sm_group_lock(&rm_sm_grp);
+	c2_sm_group_lock(&owner->ro_sm_grp);
 	c2_sm_state_set(&owner->ro_sm, state);
-	c2_sm_group_unlock(&rm_sm_grp);
-}
-
-static inline enum c2_rm_owner_state owner_state(const
-						 struct c2_rm_owner *owner)
-{
-	return owner->ro_sm.sm_state;
+	c2_sm_group_unlock(&owner->ro_sm_grp);
 }
 
 static void owner_finalisation_check(struct c2_rm_owner *owner)
 {
-	if (owner_state(owner) == ROS_FINALISING && owner->ro_in_reqs == 0) {
+	if (owner_state(owner) == ROS_FINALISING && owner_is_idle(owner)) {
 		/*
 		 * These lists may not be empty if some errors occurred
 		 * before the remote requests were sent.
@@ -400,7 +386,6 @@ static void owner_init_internal(struct c2_rm_owner *owner,
 
 	resource_get(res);
 	owner_state_set(owner, ROS_ACTIVE);
-	owner->ro_in_reqs = 0;
 	C2_POST(owner_invariant(owner));
 }
 
@@ -412,7 +397,7 @@ void c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res,
 
 	c2_sm_group_init(&owner->ro_sm_grp);
 	c2_sm_init(&owner->ro_sm, &owner_conf, ROS_INITIAL,
-		   &owner->ro_sm_grp, &rm_addb);
+		   &owner->ro_sm_grp, NULL);
 
 	owner_init_internal(owner, res);
 	owner->ro_creditor = creditor;
@@ -477,9 +462,14 @@ static void retire_incoming_conflict(struct c2_rm_incoming *in)
 
 static void retire_incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 {
-	struct c2_rm_owner *owner = in->rin_want.ri_owner;
+	c2_free(in);
+}
 
-	--owner->ro_in_reqs;
+static bool owner_is_idle (struct c2_rm_owner *o)
+{
+	return c2_forall(i, ARRAY_SIZE(o->ro_incoming),
+			 c2_forall(j, ARRAY_SIZE(o->ro_incoming[i]),
+			   c2_rm_ur_tlist_is_empty(&o->ro_incoming[i][j])));
 }
 
 int c2_rm_owner_retire(struct c2_rm_owner *owner)
@@ -496,7 +486,7 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 	 * or if there are pending incoming requests, return error.
 	 */
 	c2_sm_group_lock(&owner->ro_sm_grp);
-	if (owner_state(owner) == ROS_FINALISING || owner->ro_in_reqs > 0) {
+	if (owner_state(owner) == ROS_FINALISING || !owner_is_idle(owner)) {
 		c2_sm_group_unlock(&owner->ro_sm_grp);
 		return -EBUSY;
 	}
@@ -531,7 +521,6 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 		if (rc == -ENOMEM)
 			return rc;
 		if (rc == 0) {
-			++owner->ro_in_reqs;
 			c2_rm_ur_tlist_add(&owner->ro_incoming\
 						[in->rin_priority][OQS_EXCITED],
 					   &in->rin_want);
@@ -560,7 +549,7 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 	/*
 	 * Retire immediately, if no processing is required.
 	 */
-	if (owner->ro_in_reqs == 0)
+	if (owner_is_idle(owner))
 		owner_state_set(owner, ROS_FINAL);
 	c2_sm_group_unlock(&owner->ro_sm_grp);
 
@@ -576,9 +565,9 @@ void c2_rm_owner_fini(struct c2_rm_owner *owner)
 
 	RM_OWNER_LISTS_FOR(owner, c2_rm_ur_tlist_fini);
 
-	c2_sm_group_lock(&rm_sm_grp);
+	c2_sm_group_lock(&owner->ro_sm_grp);
 	c2_sm_fini(&owner->ro_sm);
-	c2_sm_group_unlock(&rm_sm_grp);
+	c2_sm_group_unlock(&owner->ro_sm_grp);
 
 	owner->ro_resource = NULL;
 	c2_sm_group_fini(&owner->ro_sm_grp);
@@ -662,15 +651,9 @@ static const struct c2_sm_conf inc_conf = {
 static inline void incoming_state_set(struct c2_rm_incoming *in,
 				      enum c2_rm_incoming_state state)
 {
-	c2_sm_group_lock(&rm_sm_grp);
+	c2_sm_group_lock(&in->rin_want.ri_owner->ro_sm_grp);
 	c2_sm_state_set(&in->rin_sm, state);
-	c2_sm_group_unlock(&rm_sm_grp);
-}
-
-static inline enum c2_rm_incoming_state
-incoming_state(const struct c2_rm_incoming *in)
-{
-	return in->rin_sm.sm_state;
+	c2_sm_group_unlock(&in->rin_want.ri_owner->ro_sm_grp);
 }
 
 void c2_rm_incoming_init(struct c2_rm_incoming *in, struct c2_rm_owner *owner,
@@ -681,12 +664,11 @@ void c2_rm_incoming_init(struct c2_rm_incoming *in, struct c2_rm_owner *owner,
 
 	C2_SET0(in);
 	c2_sm_init(&in->rin_sm, &inc_conf, RI_INITIALISED,
-		   &rm_sm_grp, &rm_addb);
+		   &owner->ro_sm_grp, NULL);
 	in->rin_type   = type;
 	in->rin_policy = policy;
 	in->rin_flags  = flags;
 	pi_tlist_init(&in->rin_pins);
-	//c2_chan_init(&in->rin_signal);
 	c2_rm_right_init(&in->rin_want, owner);
 	c2_rm_incoming_bob_init(in);
 	C2_POST(incoming_invariant(in));
@@ -698,12 +680,11 @@ void c2_rm_incoming_fini(struct c2_rm_incoming *in)
 	C2_PRE(incoming_invariant(in));
 	C2_PRE(C2_IN(incoming_state(in), (RI_RELEASED, RI_INITIALISED)));
 	c2_sm_state_set(&in->rin_sm, RI_FINAL);
-	c2_sm_group_lock(&rm_sm_grp);
+	c2_sm_group_lock(&in->rin_want.ri_owner->ro_sm_grp);
 	c2_sm_fini(&in->rin_sm);
-	c2_sm_group_unlock(&rm_sm_grp);
+	c2_sm_group_unlock(&in->rin_want.ri_owner->ro_sm_grp);
 	c2_rm_incoming_bob_fini(in);
 	c2_rm_right_fini(&in->rin_want);
-	//c2_chan_fini(&in->rin_signal);
 	pi_tlist_fini(&in->rin_pins);
 }
 C2_EXPORTED(c2_rm_incoming_fini);
@@ -981,10 +962,9 @@ void c2_rm_right_get(struct c2_rm_incoming *in)
 		c2_rm_ur_tlist_add(&owner->ro_incoming[in->rin_priority]\
 				   [OQS_EXCITED], &in->rin_want);
 		owner_balance(owner);
-	} else {
-		in->rin_sm.sm_rc = -ENODEV;
-		incoming_state_set(in, RI_FAILURE);
-	}
+	} else
+		c2_sm_move(&in->rin_sm, -ENODEV, RI_FAILURE);
+
 	c2_sm_group_unlock(&owner->ro_sm_grp);
 }
 
@@ -992,11 +972,8 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
 {
 	struct c2_rm_owner *owner = in->rin_want.ri_owner;
 
-	C2_PRE(!(in->rin_flags & RIF_INTERNAL));
-
 	c2_sm_group_lock(&owner->ro_sm_grp);
 	incoming_release(in);
-	--owner->ro_in_reqs;
 	c2_sm_state_set(&in->rin_sm, RI_RELEASED);
 	c2_rm_ur_tlist_del(&in->rin_want);
 	C2_POST(pi_tlist_is_empty(&in->rin_pins));
@@ -1138,8 +1115,6 @@ static void owner_balance(struct c2_rm_owner *o)
 			c2_tl_for(pr, &right->ri_pins, pin) {
 				C2_ASSERT(c2_rm_pin_bob_check(pin));
 				C2_ASSERT(pin->rp_flags == C2_RPF_TRACK);
-				C2_ASSERT(pin->rp_incoming->rin_out_req > 0);
-				--pin->rp_incoming->rin_out_req;
 				/*
 				 * If one outgoing request has set an error,
 				 * then don't overwrite the error code. It's
@@ -1219,16 +1194,33 @@ static void incoming_check(struct c2_rm_incoming *in)
 			rc = cached_rights_hold(in);
 		}
 		/*
-		 * If one of the outgoing requests fails, it sets the
-		 * in->rin_sm.sm_rc. Hence, we will come here while there are
-		 * other pending requests. Make sure we receive all the
-		 * responses before completing the incoming request.
-		 * If we remove incoming here, some (tracking) pins may be
-		 * left with dangling reference.
+		 * Check if incoming request is complete. When there is
+		 * partial failure (with part of the request failing)
+		 * of incoming request, it's necesary to check that it's
+		 * complete (and there are no outstanding outgoing requests
+		 * pending againt it).
 		 */
-		if (in->rin_out_req == 0)
+		if (incoming_is_complete(in))
 			incoming_complete(in, rc);
 	}
+}
+
+/*
+ * Checks if there are outstanding "outgoing requests" for this incoming
+ * requests.
+ */
+static bool incoming_is_complete(struct c2_rm_incoming *in)
+{
+	struct c2_rm_pin   *pin;
+
+	c2_tl_for(pi, &in->rin_pins, pin) {
+		if (pin->rp_flags & C2_RPF_TRACK) {
+			C2_ASSERT(in->rin_sm.sm_rc != 0);
+			return false;
+		}
+	} c2_tl_endfor;
+
+	return true;
 }
 
 /**
@@ -1306,7 +1298,8 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 				continue;
 			if (!(in->rin_flags & RIF_MAY_REVOKE))
 				return -EREMOTE;
-			loan = bob_of(r, struct c2_rm_loan, rl_right, &loan_bob);
+			loan = bob_of(r, struct c2_rm_loan, rl_right,
+				      &loan_bob);
 			/*
 			 * It is possible that this loop emits multiple
 			 * outgoing requests toward the same remote
@@ -1365,46 +1358,27 @@ static void incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 {
 	struct c2_rm_owner *owner = in->rin_want.ri_owner;
 
+	C2_PRE(ergo(rc == 0, pi_tlist_is_empty(&in->rin_pins)));
 	C2_PRE(in->rin_ops != NULL);
 	C2_PRE(in->rin_ops->rio_complete != NULL);
 	C2_PRE(in->rin_sm.sm_rc == 0);
-	C2_PRE(in->rin_out_req == 0);
 	C2_PRE(rc <= 0);
 
-	in->rin_sm.sm_rc = rc;
-	incoming_state_set(in, rc == 0 ? RI_SUCCESS : RI_FAILURE);
+	c2_sm_move(&in->rin_sm, rc, rc == 0 ? RI_SUCCESS : RI_FAILURE);
 	/*
 	 * incoming_release() might have moved the request into excited
 	 * state when the last tracking pin was removed, shun it back
 	 * into obscurity.
 	 */
-	c2_rm_ur_tlist_move(&owner->ro_incoming[in->rin_priority]\
-						[OQS_GROUND],
+	c2_rm_ur_tlist_move(&owner->ro_incoming[in->rin_priority][OQS_GROUND],
 			    &in->rin_want);
-	in->rin_ops->rio_complete(in, rc);
 	if (rc != 0) {
 		incoming_release(in);
 		c2_rm_ur_tlist_del(&in->rin_want);
-		C2_POST(pi_tlist_is_empty(&in->rin_pins));
-	} else {
-		/*
-		 * For external incoming request, we want to bump the
-		 * incoming requests count on successful completion.
-		 */
-		if (!(in->rin_flags & RIF_INTERNAL))
-			++owner->ro_in_reqs;
-		/**
-		 * @todo : Who moves the right to OWOS_HELD?
-		 */
+		C2_ASSERT(pi_tlist_is_empty(&in->rin_pins));
 	}
+	in->rin_ops->rio_complete(in, rc);
 	C2_POST(owner_invariant(owner));
-	if (in->rin_flags & RIF_INTERNAL)
-		/*
-		 * Only internally allocated requests should be de-allocated.
-		 */
-		c2_free(in);
-	//else
-	//	c2_chan_broadcast(&in->rin_signal);
 }
 
 static void incoming_policy_none(struct c2_rm_incoming *in)
@@ -1462,7 +1436,6 @@ static int outgoing_check(struct c2_rm_incoming *in,
 				 * (priority inheritance)
 				 */
 				rc = pin_add(in, scan, C2_RPF_TRACK);
-				rc ?: ++in->rin_out_req;
 				rc = rc ?: right_diff(right, scan);
 				if (rc != 0)
 					break;
@@ -1508,28 +1481,6 @@ static int borrow_send(struct c2_rm_incoming *in, struct c2_rm_right *right)
 	return rc;
 }
 
-/**
- * Helper function to get right with timed wait (deadline).
- */
-int c2_rm_right_timedwait(struct c2_rm_incoming *in, const c2_time_t deadline)
-{
-	struct c2_clink clink;
-	int             rc;
-
-	c2_clink_init(&clink, NULL);
-	//c2_clink_add(&in->rin_signal, &clink);
-	rc = 0;
-
-	while (rc == 0 && incoming_state(in) == RI_WAIT)
-		rc = c2_chan_timedwait(&clink, deadline) ? 0 : -ETIMEDOUT;
-
-	in->rin_sm.sm_rc = in->rin_sm.sm_rc ?: rc;
-	c2_clink_del(&clink);
-	c2_clink_fini(&clink);
-
-	return rc ?: in->rin_sm.sm_rc;
-}
-
 /*
  * 1. If sublet is subset of the right, remove sublet completely.
  * 2. If right is subset of sublet, reduce the right inside loan.
@@ -1556,15 +1507,6 @@ int c2_rm_sublet_remove(struct c2_rm_right *right)
 		}
 	} c2_tl_endfor;
 	return rc;
-}
-
-/**
- * Helper function to get right with infinite wait time.
- */
-int c2_rm_right_get_wait(struct c2_rm_incoming *in)
-{
-	c2_rm_right_get(in);
-	return c2_rm_right_timedwait(in, C2_TIME_NEVER);
 }
 
 /** @} end of Owner state machine group */
@@ -1694,13 +1636,16 @@ static bool owner_invariant_state(const struct c2_rm_owner *owner,
 	 *    - accumulating total credit and debit.
 	 */
 	is->is_phase = OIS_BORROWED;
-	if (!c2_rm_ur_tlist_invariant_ext(&owner->ro_borrowed, &right_invariant, (void *)is))
+	if (!c2_rm_ur_tlist_invariant_ext(&owner->ro_borrowed,
+					  &right_invariant, (void *)is))
 		return false;
 	is->is_phase = OIS_SUBLET;
-	if (!c2_rm_ur_tlist_invariant_ext(&owner->ro_sublet,   &right_invariant, (void *)is))
+	if (!c2_rm_ur_tlist_invariant_ext(&owner->ro_sublet,
+					  &right_invariant, (void *)is))
 		return false;
 	is->is_phase = OIS_OUTGOING;
-	if (!c2_rm_ur_tlist_invariant_ext(&owner->ro_outgoing[0], &right_invariant, (void *)is))
+	if (!c2_rm_ur_tlist_invariant_ext(&owner->ro_outgoing[0],
+					  &right_invariant, (void *)is))
 		return false;
 
 	is->is_phase = OIS_OWNED;
@@ -1713,7 +1658,8 @@ static bool owner_invariant_state(const struct c2_rm_owner *owner,
 	is->is_phase = OIS_INCOMING;
 	for (i = 0; i < ARRAY_SIZE(owner->ro_incoming); ++i) {
 		for (j = 0; j < ARRAY_SIZE(owner->ro_incoming[i]); ++j) {
-			if (!c2_rm_ur_tlist_invariant(&owner->ro_incoming[i][j]))
+			if (!c2_rm_ur_tlist_invariant(
+				    &owner->ro_incoming[i][j]))
 				return false;
 		}
 	}
@@ -1850,6 +1796,7 @@ static void incoming_release(struct c2_rm_incoming *in)
  * Removes a pin on a resource usage right.
  *
  * If this was a last tracking pin issued by the request---excite the latter.
+ * The function returns true if it excited an incoming request.
  */
 static void pin_del(struct c2_rm_pin *pin)
 {
@@ -1864,13 +1811,13 @@ static void pin_del(struct c2_rm_pin *pin)
 	pr_tlink_del_fini(pin);
 	c2_rm_pin_bob_fini(pin);
 	if (incoming_pin_nr(in, C2_RPF_TRACK) == 0 &&
-	    (pin->rp_flags & C2_RPF_TRACK)) {
+	    pin->rp_flags & C2_RPF_TRACK) {
 		/*
 		 * Last tracking pin removed, excite the request.
 		 */
-		c2_rm_ur_tlist_move(&owner->ro_incoming[in->rin_priority]\
-							[OQS_EXCITED],
-				    &in->rin_want);
+		c2_rm_ur_tlist_move(
+			&owner->ro_incoming[in->rin_priority][OQS_EXCITED],
+			&in->rin_want);
 	}
 	c2_free(pin);
 }
@@ -2069,12 +2016,13 @@ error:
 
 int c2_rm_net_locate(struct c2_rm_right *right, struct c2_rm_remote *other)
 {
-	struct c2_rm_resource_type *rtype = right->ri_owner->ro_resource->r_type;
+	struct c2_rm_resource_type *rtype;
 	struct c2_rm_resource *res;
 	int		       rc;
 
 	C2_PRE(other->rem_state == REM_INITIALISED);
 
+	rtype = right->ri_owner->ro_resource->r_type;
 	other->rem_state = REM_SERVICE_LOCATING;
 	rc = service_locate(rtype, other);
 	if (rc != 0)
