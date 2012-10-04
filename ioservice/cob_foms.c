@@ -240,7 +240,6 @@ out:
 					     &reply->cor_fv_version,
 					     &reply->cor_fv_updates);
 
-	fom->fo_rc = rc;
 	c2_fom_phase_move(fom, rc, rc == 0 ? C2_FOPH_SUCCESS :
 					     C2_FOPH_FAILURE);
 	return C2_FSO_AGAIN;
@@ -453,7 +452,6 @@ out:
 					     &reply->cor_fv_version,
 					     &reply->cor_fv_updates);
 
-	fom->fo_rc = rc;
 	c2_fom_phase_move(fom, rc, rc == 0 ? C2_FOPH_SUCCESS :
 					     C2_FOPH_FAILURE);
 	return C2_FSO_AGAIN;

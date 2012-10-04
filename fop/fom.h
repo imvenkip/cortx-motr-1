@@ -468,12 +468,12 @@ struct c2_fom {
 	    while waiting for a longlock. */
 	unsigned		  fo_transitions_saved;
 
-	/** State machine for generic and specfic FOM phases. */
+	/** State machine for generic and specfic FOM phases.
+	    sm_rc contains result of fom execution, -errno on failure.
+	 */
 	struct c2_sm		 fo_sm_phase;
 	/** State machine for FOM states. */
 	struct c2_sm		 fo_sm_state;
-	/** Result of fom execution, -errno on failure */
-	int32_t			  fo_rc;
 	/** Thread executing current phase transition. */
 	struct c2_loc_thread     *fo_thread;
 	/**
@@ -721,6 +721,17 @@ static inline void c2_fom_phase_move(struct c2_fom *fom, int32_t rc, int phase)
 static inline int c2_fom_phase(const struct c2_fom *fom)
 {
 	return fom->fo_sm_phase.sm_state;
+}
+
+static inline void c2_fom_err_set(struct c2_fom *fom, int32_t rc)
+{
+	C2_PRE(c2_fom_group_is_locked(fom));
+	fom->fo_sm_phase.sm_rc = rc;
+}
+
+static inline int c2_fom_rc(const struct c2_fom *fom)
+{
+	return fom->fo_sm_phase.sm_rc;
 }
 
 void c2_fom_type_init(struct c2_fom_type *type,

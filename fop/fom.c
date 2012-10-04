@@ -876,7 +876,6 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
 {
 	C2_PRE(fom != NULL);
 
-	fom->fo_rc      = 0;
 	fom->fo_type	= fom_type;
 	fom->fo_ops	= ops;
 	fom->fo_fop	= fop;

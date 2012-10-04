@@ -165,8 +165,7 @@ static int cpp_data_next(struct c2_cm_cp_pump *cp_pump)
 fail:
 	/* Destroy copy packet allocated in CPP_ALLOC phase. */
 	cp->c_ops->co_free(cp);
-	fom->fo_rc = rc;
-	c2_fom_phase_set(fom, CPP_FAIL);
+	c2_fom_phase_move(fom, rc, CPP_FAIL);
 	rc = C2_FSO_AGAIN;
 out:
 	return rc;
@@ -179,7 +178,7 @@ static int cpp_fail(struct c2_cm_cp_pump *cp_pump)
 	C2_PRE(cp_pump != NULL);
 
 	cm = pump2cm(cp_pump);
-	c2_cm_fail(cm, C2_CM_ERR_START, cp_pump->p_fom.fo_rc);
+	c2_cm_fail(cm, C2_CM_ERR_START, c2_fom_rc(&cp_pump->p_fom));
 	c2_fom_phase_set(&cp_pump->p_fom, CPP_IDLE);
 
 	return C2_FSO_WAIT;
