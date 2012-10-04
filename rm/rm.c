@@ -397,7 +397,6 @@ static void owner_init_internal(struct c2_rm_owner *owner,
 	c2_rm_ur_tlist_init(&owner->ro_borrowed);
 	c2_rm_ur_tlist_init(&owner->ro_sublet);
 	RM_OWNER_LISTS_FOR(owner, c2_rm_ur_tlist_init);
-	c2_mutex_init(&owner->ro_lock);
 
 	resource_get(res);
 	owner_state_set(owner, ROS_ACTIVE);
@@ -411,8 +410,9 @@ void c2_rm_owner_init(struct c2_rm_owner *owner, struct c2_rm_resource *res,
 	C2_PRE(ergo(creditor != NULL,
 		    creditor->rem_state >= REM_SERVICE_LOCATED));
 
+	c2_sm_group_init(&owner->ro_sm_grp);
 	c2_sm_init(&owner->ro_sm, &owner_conf, ROS_INITIAL,
-		   &rm_sm_grp, &rm_addb);
+		   &owner->ro_sm_grp, &rm_addb);
 
 	owner_init_internal(owner, res);
 	owner->ro_creditor = creditor;
@@ -495,9 +495,9 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 	 * incoming requests on it. If it's already in FINALISING state,
 	 * or if there are pending incoming requests, return error.
 	 */
-	c2_mutex_lock(&owner->ro_lock);
+	c2_sm_group_lock(&owner->ro_sm_grp);
 	if (owner_state(owner) == ROS_FINALISING || owner->ro_in_reqs > 0) {
-		c2_mutex_unlock(&owner->ro_lock);
+		c2_sm_group_unlock(&owner->ro_sm_grp);
 		return -EBUSY;
 	}
 	owner_state_set(owner, ROS_FINALISING);
@@ -562,7 +562,7 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner)
 	 */
 	if (owner->ro_in_reqs == 0)
 		owner_state_set(owner, ROS_FINAL);
-	c2_mutex_unlock(&owner->ro_lock);
+	c2_sm_group_unlock(&owner->ro_sm_grp);
 
 	return rc;
 }
@@ -581,7 +581,7 @@ void c2_rm_owner_fini(struct c2_rm_owner *owner)
 	c2_sm_group_unlock(&rm_sm_grp);
 
 	owner->ro_resource = NULL;
-	c2_mutex_fini(&owner->ro_lock);
+	c2_sm_group_fini(&owner->ro_sm_grp);
 
 	resource_put(res);
 }
@@ -774,8 +774,6 @@ static int cached_rights_remove(struct c2_rm_incoming *in)
 	struct c2_tl	    remove_list;
 	int		    rc = 0;
 
-	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
-
 	rm_transit_tlist_init(&diff_list);
 	c2_tl_for(pi, &in->rin_pins, pin) {
 		C2_ASSERT(c2_rm_pin_bob_check(pin));
@@ -839,7 +837,6 @@ int c2_rm_borrow_commit(struct c2_rm_remote_incoming *rem_in)
 	struct c2_rm_owner    *owner  = in->rin_want.ri_owner;
 	int                    rc;
 
-	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
 	C2_PRE(in->rin_type == C2_RIT_BORROW);
 	C2_PRE(loan->rl_right.ri_owner == owner);
 
@@ -883,7 +880,6 @@ int c2_rm_revoke_commit(struct c2_rm_remote_incoming *rem_in)
 	struct c2_rm_owner    *owner = in->rin_want.ri_owner;
 	int                    rc;
 
-	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
 	C2_PRE(in->rin_type == C2_RIT_REVOKE);
 	/*
 	 * Earlier, FOM verifies stale cookie. Hence we expect
@@ -943,7 +939,7 @@ C2_EXPORTED(c2_rm_revoke_commit);
  *
  * Any event is processed in a uniform manner:
  *
- *     - c2_rm_owner::ro_lock is taken;
+ *     - c2_rm_owner::ro_sm_grp Group lock is taken;
  *
  *     - c2_rm_owner lists are updated to reflect the event, see details
  *       below. This temporarily violates the owner_invariant();
@@ -951,7 +947,7 @@ C2_EXPORTED(c2_rm_revoke_commit);
  *     - owner_balance() is called to restore the invariant, this might create
  *       new imbalances and go through several iterations;
  *
- *     - c2_rm_owner::ro_lock is released.
+ *     - c2_rm_owner::ro_sm_grp Group lock is released.
  *
  * Event handling is serialised by the owner lock. It is not legal to wait for
  * networking or IO events under this lock.
@@ -971,7 +967,7 @@ void c2_rm_right_get(struct c2_rm_incoming *in)
 	C2_PRE(in->rin_sm.sm_rc == 0);
 	C2_PRE(pi_tlist_is_empty(&in->rin_pins));
 
-	c2_mutex_lock(&owner->ro_lock);
+	c2_sm_group_lock(&owner->ro_sm_grp);
 	/*
 	 * This check will make sure that new requests are added
 	 * while owner is in ACTIVE state. This will take care
@@ -989,7 +985,7 @@ void c2_rm_right_get(struct c2_rm_incoming *in)
 		in->rin_sm.sm_rc = -ENODEV;
 		incoming_state_set(in, RI_FAILURE);
 	}
-	c2_mutex_unlock(&owner->ro_lock);
+	c2_sm_group_unlock(&owner->ro_sm_grp);
 }
 
 void c2_rm_right_put(struct c2_rm_incoming *in)
@@ -998,7 +994,7 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
 
 	C2_PRE(!(in->rin_flags & RIF_INTERNAL));
 
-	c2_mutex_lock(&owner->ro_lock);
+	c2_sm_group_lock(&owner->ro_sm_grp);
 	incoming_release(in);
 	--owner->ro_in_reqs;
 	c2_sm_state_set(&in->rin_sm, RI_RELEASED);
@@ -1010,7 +1006,7 @@ void c2_rm_right_put(struct c2_rm_incoming *in)
 	 * Hence, call owner_balance() to process them.
 	 */
 	owner_balance(owner);
-	c2_mutex_unlock(&owner->ro_lock);
+	c2_sm_group_unlock(&owner->ro_sm_grp);
 }
 
 /*
@@ -1124,7 +1120,6 @@ static void owner_balance(struct c2_rm_owner *o)
 	bool                   todo;
 	int                    prio;
 
-	C2_PRE(c2_mutex_is_locked(&o->ro_lock));
 	do {
 		todo = false;
 		c2_tl_for(c2_rm_ur, &o->ro_outgoing[OQS_EXCITED], right) {
@@ -1274,9 +1269,8 @@ static int incoming_check_with(struct c2_rm_incoming *in,
 	int                 wait = 0;
 	int		    rc = 0;
 
-	C2_PRE(c2_mutex_is_locked(&o->ro_lock));
-	C2_PRE(c2_rm_ur_tlist_contains(&o->ro_incoming[in->rin_priority][OQS_GROUND],
-				 want));
+	C2_PRE(c2_rm_ur_tlist_contains(
+		       &o->ro_incoming[in->rin_priority][OQS_GROUND], want));
 	C2_PRE(pi_tlist_is_empty(&in->rin_pins));
 
 	/*
@@ -1371,7 +1365,6 @@ static void incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 {
 	struct c2_rm_owner *owner = in->rin_want.ri_owner;
 
-	C2_PRE(c2_mutex_is_locked(&in->rin_want.ri_owner->ro_lock));
 	C2_PRE(in->rin_ops != NULL);
 	C2_PRE(in->rin_ops->rio_complete != NULL);
 	C2_PRE(in->rin_sm.sm_rc == 0);
@@ -1549,7 +1542,6 @@ int c2_rm_sublet_remove(struct c2_rm_right *right)
 	int		    rc = 0;
 
 	C2_PRE(right != NULL);
-	C2_PRE(c2_mutex_is_locked(&owner->ro_lock));
 
 	c2_tl_for(c2_rm_ur, &owner->ro_sublet, sublet) {
 		if (right->ri_ops->rro_is_subset(sublet, right)) {

@@ -301,7 +301,7 @@ static void borrow_reply(struct c2_rpc_item *item)
 		rc = right_dup(bright, &right) ?: loan_create(&loan, bright);
 		if (rc == 0) {
 			loan->rl_cookie = borrow_reply->br_loan.lo_cookie;
-			c2_mutex_lock(&owner->ro_lock);
+			c2_sm_group_lock(&owner->ro_sm_grp);
 			/* Add loan to the borrowed list. */
 			c2_rm_ur_tlist_add(&owner->ro_borrowed,
 					   &loan->rl_right);
@@ -309,7 +309,7 @@ static void borrow_reply(struct c2_rpc_item *item)
 			/* Add right to the CACHED list. */
 			c2_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
 					   right);
-			c2_mutex_unlock(&owner->ro_lock);
+			c2_sm_group_unlock(&owner->ro_sm_grp);
 		} else {
 			c2_free(loan);
 			c2_free(right);
@@ -317,9 +317,9 @@ static void borrow_reply(struct c2_rpc_item *item)
 	}
 out:
 	outreq->ou_req.rog_rc = rc;
-	c2_mutex_lock(&owner->ro_lock);
+	c2_sm_group_lock(&owner->ro_sm_grp);
 	c2_rm_outgoing_complete(&outreq->ou_req);
-	c2_mutex_unlock(&owner->ro_lock);
+	c2_sm_group_unlock(&owner->ro_sm_grp);
 }
 
 static void revoke_reply(struct c2_rpc_item *item)
@@ -342,21 +342,21 @@ static void revoke_reply(struct c2_rpc_item *item)
 
 	rc = rc ?: right_dup(out_right, &right);
 	if (rc == 0) {
-		c2_mutex_lock(&owner->ro_lock);
+		c2_sm_group_lock(&owner->ro_sm_grp);
 		rc = c2_rm_sublet_remove(out_right);
 		if (rc == 0) {
 			c2_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
 					   right);
-			c2_mutex_unlock(&owner->ro_lock);
+			c2_sm_group_unlock(&owner->ro_sm_grp);
 		} else {
-			c2_mutex_unlock(&owner->ro_lock);
+			c2_sm_group_unlock(&owner->ro_sm_grp);
 			c2_free(right);
 		}
 	}
 	outreq->ou_req.rog_rc = rc;
-	c2_mutex_lock(&owner->ro_lock);
+	c2_sm_group_lock(&owner->ro_sm_grp);
 	c2_rm_outgoing_complete(&outreq->ou_req);
-	c2_mutex_unlock(&owner->ro_lock);
+	c2_sm_group_unlock(&owner->ro_sm_grp);
 }
 
 static void outreq_free(struct c2_rpc_item *item)

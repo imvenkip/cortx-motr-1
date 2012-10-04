@@ -99,8 +99,6 @@ static void remote_incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 	if (rc != 0)
 		return;
 
-	C2_ASSERT(c2_mutex_is_locked(&in->rin_want.ri_owner->ro_lock));
-
 	rem_in = container_of(in, struct c2_rm_remote_incoming, ri_incoming);
 	switch (in->rin_type) {
 	case C2_RIT_BORROW:
@@ -116,7 +114,7 @@ static void remote_incoming_complete(struct c2_rm_incoming *in, int32_t rc)
 	/*
 	 * Override the rc.
 	 */
-	in->rin_rc = rc;
+	in->rin_sm.sm_rc = rc;
 }
 
 /*
@@ -398,8 +396,8 @@ static int request_pre_process(struct c2_fom *fom,
 	 * If request is waiting, it will enter the next phase after wake-up.
 	 */
 	c2_fom_phase_set(fom, next_phase);
-	if (in->rin_sm_state.sm_state == RI_WAIT) {
-		c2_fom_wait_on(fom, &in->rin_signal, &fom->fo_cb);
+	if (in->rin_sm.sm_state == RI_WAIT) {
+		//c2_fom_wait_on(fom, &in->rin_signal, &fom->fo_cb);
 	}
 	/*
 	 * In case of failure, we go ahead with post processing to
@@ -419,8 +417,8 @@ static int request_post_process(struct c2_fom *fom)
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 	in = &rfom->rf_in.ri_incoming;
 
-	rc = in->rin_rc;
-	if (in->rin_sm_state.sm_state == RI_SUCCESS) {
+	rc = in->rin_sm.sm_rc;
+	if (in->rin_sm.sm_state == RI_SUCCESS) {
 		C2_ASSERT(rc == 0);
 		rc = reply_prepare(in->rin_type, fom);
 		c2_rm_right_put(in);
