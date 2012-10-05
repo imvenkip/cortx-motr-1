@@ -1,6 +1,6 @@
-PING_SRCDIR          = @SRCDIR@/rpc/it/linux_kernel
-PINGDIR              = @SRCDIR@/rpc/it
-XCODEDIR             = @SRCDIR@/xcode
+PING_SRCDIR          = @top_srcdir@/rpc/it/linux_kernel
+PINGDIR              = @top_srcdir@/rpc/it
+XCODEDIR             = @top_srcdir@/xcode
 
 KBUILD_EXTRA_SYMBOLS = kcolibri.symvers
 
@@ -11,14 +11,15 @@ krpcping-y          := $(shared_src:.c=.o) $(kernel_src:.c=.o)
 headers             := ping_fop_ff.h
 orig                := $(shared_src:%=../%) $(headers:%=../%) $(XCODEDIR)/xcode.c
 
-EXTRA_CFLAGS = -DHAVE_CONFIG_H -iquote @SRCDIR@ @KCFLAGS@
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -iquote @top_srcdir@ @C2_KCPPFLAGS@ @C2_KCFLAGS@ \
+	       @KCFLAGS@
 
 prepare:
 	ln -fs $(orig) .
 
 clean distclean:
 	$(RM) ping_fop_ff.[ch]
-	$(RM) $(shared_src) Module.markers Module.symvers modules.order
+	$(RM) $(shared_src) xcode.c Module.markers Module.symvers modules.order
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
 distdir:

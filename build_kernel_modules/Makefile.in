@@ -1,4 +1,4 @@
-CORE_SRCDIR     = @SRCDIR@
+CORE_SRCDIR     = @abs_top_srcdir@
 BUILD_DIR       = $(CORE_SRCDIR)/build_kernel_modules
 KERNEL_BUILDDIR = @LINUX_OBJ@
 
@@ -11,7 +11,8 @@ testdirs        = ../net/lnet/st/linux_kernel/                  \
                   ../rpc/it/linux_kernel/                       \
                   ../utils/linux_kernel/
 
-EXTRA_CFLAGS    = -DHAVE_CONFIG_H -iquote . -iquote $(CORE_SRCDIR) @KCFLAGS@  \
+EXTRA_CFLAGS    = -DHAVE_CONFIG_H -iquote . -iquote $(CORE_SRCDIR) \
+		  @C2_KCPPFLAGS@ @C2_KCFLAGS@ @KCFLAGS@ \
 		  -I@LUSTRE@/lnet/include -I@LUSTRE@/libcfs/include
 
 #       NOTE:

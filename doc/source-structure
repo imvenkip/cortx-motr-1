@@ -300,7 +300,7 @@ kernel_src  := <kernel sources>
 ksns-y      := $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig        := $(shared_src:%=../%)
 
-EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@SRCDIR@ @KCFLAGS@
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -I@top_srcdir@ @C2_KCPPFLAGS@ @C2_KCFLAGS@ @KCFLAGS@
 
 prepare:
        ln -fs $(orig) .

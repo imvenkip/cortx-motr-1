@@ -1,4 +1,4 @@
-UT_SRCDIR = @SRCDIR@/ut/linux_kernel
+UT_SRCDIR = @top_srcdir@/ut/linux_kernel
 
 GCOV_PROFILE := @K_ENABLE_COVERAGE@
 
@@ -8,7 +8,8 @@ kernel_src	:=
 kut-y		:= $(shared_src:.c=.o) $(kernel_src:.c=.o)
 orig		:= $(shared_src:%=../%)
 
-EXTRA_CFLAGS = -DHAVE_CONFIG_H -iquote @SRCDIR@ @KCFLAGS@
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -iquote @top_srcdir@ @C2_KCPPFLAGS@ @C2_KCFLAGS@ \
+	       @KCFLAGS@
 
 prepare:
 	ln -fs $(orig) .
