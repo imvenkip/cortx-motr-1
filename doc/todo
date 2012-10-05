@@ -57,6 +57,8 @@ sub-team leads, contact them to add more things here.
     Identify locks protecting existing channels and add such locks when there is
     none.
 
+2012-Sep-05 Usage of c2_*_awkward() with signal handler and intrupt handler.
+
                           ***** DONE *****
 
 2012-Oct-05 [Rajanikant]  Add lib/thread.h:c2_is_awkward(), implement in kernel
@@ -65,6 +67,9 @@ sub-team leads, contact them to add more things here.
             signal handler, timer call-back, chan call-back, &c.).
             In kernel this is in_irq(). In user space, this should be based on
             pthread_getspecific(). Timer and chan call-backs should be handled.
+
+	    Timer & chan call-backs handled.
+	   
 
 2012-May-09 [Dima] Replace all debugging printf-s and printk-s with C2_LOG()-s
 
