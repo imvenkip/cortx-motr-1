@@ -62,7 +62,8 @@ int uthread_specific_data_init(void)
 	struct uthread_specific_data *ptr;
 
 	C2_ALLOC_PTR(ptr);
-	C2_ASSERT(ptr != NULL);
+	if (ptr == NULL)
+		return -ENOMEM;
 
 	ptr->tsd_is_awkward = false;
 	return -pthread_setspecific(pthread_data_key, ptr);
