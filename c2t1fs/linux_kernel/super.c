@@ -182,23 +182,19 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 		goto pool_fini;
 	}
 
-printk("Connect \n");
 	rc = c2t1fs_connect_to_all_services(csb);
 	if (rc != 0)
 		goto poolmach_fini;
 
-printk("Connect 1\n");
 	rc = c2t1fs_sb_layout_init(csb);
 	if (rc != 0)
 		goto disconnect_all;
 
-printk("Connect 2\n");
 	rc = c2t1fs_container_location_map_init(&csb->csb_cl_map,
 						csb->csb_nr_containers);
 	if (rc != 0)
 		goto layout_fini;
 
-printk("Connect 3\n");
 	rc = c2t1fs_container_location_map_build(csb);
 	if (rc != 0)
 		goto out_map_fini;
@@ -210,14 +206,12 @@ printk("Connect 3\n");
 	sb->s_maxbytes       = MAX_LFS_FILESIZE;
 	sb->s_op             = &c2t1fs_super_operations;
 
-printk("Connect root \n");
 	root_inode = c2t1fs_root_iget(sb);
 	if (root_inode == NULL) {
 		rc = -ENOMEM;
 		goto out_map_fini;
 	}
 
-printk("Connect ialloc root\n");
 	sb->s_root = d_alloc_root(root_inode);
 	if (sb->s_root == NULL) {
 		iput(root_inode);
@@ -776,13 +770,10 @@ static int c2t1fs_connect_to_all_services(struct c2t1fs_sb *csb)
 	if (rc != 0)
 		goto out;
 
-printk("Connect service context\n");
 	c2_tl_for(svc_ctx, &csb->csb_service_contexts, ctx) {
 
-printk("Connect context\n");
 		rc = c2t1fs_connect_to_service(ctx);
 		if (rc != 0) {
-printk("Connect failed\n");
 			c2t1fs_disconnect_from_all_services(csb);
 			goto out;
 		}
@@ -883,7 +874,6 @@ static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
 	if (rc != 0)
 		goto out;
 
-printk("Connect ep create\n");
 	conn = &ctx->sc_conn;
 	rc = c2_rpc_conn_create(conn, ep, rpc_mach,
 			C2T1FS_MAX_NR_RPC_IN_FLIGHT, C2T1FS_RPC_TIMEOUT);
@@ -891,15 +881,12 @@ printk("Connect ep create\n");
 	if (rc != 0)
 		goto out;
 
-printk("Connect conn create\n");
-
 	session = &ctx->sc_session;
 	rc = c2_rpc_session_create(session, conn, C2T1FS_NR_SLOTS_PER_SESSION,
 					C2T1FS_RPC_TIMEOUT);
 	if (rc != 0)
 		goto conn_term;
 
-printk("Connect session create\n");
 	ctx->sc_csb->csb_nr_active_contexts++;
 	C2_LOG(C2_INFO, "Connected to [%s] active_ctx %d", ctx->sc_addr,
 				ctx->sc_csb->csb_nr_active_contexts);
