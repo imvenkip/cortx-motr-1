@@ -505,232 +505,126 @@ static const struct fom_phase_desc fpd_table[] = {
 static const struct c2_sm_state_descr generic_phases[] = {
 	[C2_FOPH_INIT] = {
 		.sd_flags     = C2_SDF_INITIAL,
-		.sd_name      = "SM init",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_AUTHENTICATE) |
-				(1 << C2_FOPH_FINISH) |
-				(1 << C2_FOPH_SUCCESS) |
-				(1 << C2_FOPH_FAILURE) |
-				(1 << C2_FOPH_TYPE_SPECIFIC)
+		.sd_name      = "Init",
+		.sd_allowed   = C2_BITS(C2_FOPH_AUTHENTICATE, C2_FOPH_FINISH,
+					C2_FOPH_SUCCESS, C2_FOPH_FAILURE,
+					C2_FOPH_TYPE_SPECIFIC)
 	},
 	[C2_FOPH_AUTHENTICATE] = {
-		.sd_flags     = 0,
 		.sd_name      = "fom_authen",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_AUTHENTICATE_WAIT) |
-				(1 << C2_FOPH_RESOURCE_LOCAL) |
-				(1 << C2_FOPH_FAILURE)
+		.sd_allowed   = C2_BITS(C2_FOPH_AUTHENTICATE_WAIT,
+					C2_FOPH_RESOURCE_LOCAL,
+					C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_AUTHENTICATE_WAIT] = {
-		.sd_flags     = 0,
 		.sd_name      = "fom_authen_wait",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_RESOURCE_LOCAL) |
-				(1 << C2_FOPH_FAILURE)
+		.sd_allowed   = C2_BITS(C2_FOPH_RESOURCE_LOCAL, C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_RESOURCE_LOCAL] = {
-		.sd_flags     = 0,
 		.sd_name      = "fom_loc_resource",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_RESOURCE_LOCAL_WAIT) |
-				(1 << C2_FOPH_RESOURCE_DISTRIBUTED) |
-				(1 << C2_FOPH_FAILURE)
+		.sd_allowed   = C2_BITS(C2_FOPH_RESOURCE_LOCAL_WAIT,
+					C2_FOPH_RESOURCE_DISTRIBUTED,
+					C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_RESOURCE_LOCAL_WAIT] = {
-		.sd_flags     = 0,
 		.sd_name      = "fom_loc_resource_wait",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_RESOURCE_DISTRIBUTED) |
-				(1 << C2_FOPH_FAILURE)
+		.sd_allowed   = C2_BITS(C2_FOPH_RESOURCE_DISTRIBUTED,
+					C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_RESOURCE_DISTRIBUTED] = {
-		.sd_flags     = 0,
 		.sd_name      = "fom_dist_resource",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_RESOURCE_DISTRIBUTED_WAIT) |
-				(1 << C2_FOPH_OBJECT_CHECK) |
-				(1 << C2_FOPH_FAILURE)
+		.sd_allowed   = C2_BITS(C2_FOPH_RESOURCE_DISTRIBUTED_WAIT,
+					C2_FOPH_OBJECT_CHECK,
+					C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_RESOURCE_DISTRIBUTED_WAIT] = {
-		.sd_flags     = 0,
 		.sd_name      = "fom_dist_resource_wait",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_OBJECT_CHECK) |
-				(1 << C2_FOPH_FAILURE)
+		.sd_allowed   = C2_BITS(C2_FOPH_OBJECT_CHECK, C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_OBJECT_CHECK] = {
-		.sd_flags     = 0,
 		.sd_name      = "fom_obj_check",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_OBJECT_CHECK_WAIT) |
-				(1 << C2_FOPH_AUTHORISATION) |
-				(1 << C2_FOPH_FAILURE)
+		.sd_allowed   = C2_BITS(C2_FOPH_OBJECT_CHECK_WAIT,
+					C2_FOPH_AUTHORISATION,
+					C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_OBJECT_CHECK_WAIT] = {
-		.sd_flags     = 0,
 		.sd_name      = "fom_obj_check_wait",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_AUTHORISATION) |
-				(1 << C2_FOPH_FAILURE)
+		.sd_allowed   = C2_BITS(C2_FOPH_AUTHORISATION, C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_AUTHORISATION] = {
-		.sd_flags     = 0,
 		.sd_name      = "fom_auth",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_AUTHORISATION_WAIT) |
-				(1 << C2_FOPH_TXN_CONTEXT) |
-				(1 << C2_FOPH_FAILURE)
+		.sd_allowed   = C2_BITS(C2_FOPH_AUTHORISATION_WAIT,
+					C2_FOPH_TXN_CONTEXT,
+					C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_AUTHORISATION_WAIT] = {
-		.sd_flags     = 0,
 		.sd_name      = "fom_auth_wait",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_TXN_CONTEXT) |
-				(1 << C2_FOPH_FAILURE)
+		.sd_allowed   = C2_BITS(C2_FOPH_TXN_CONTEXT, C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_TXN_CONTEXT] = {
-		.sd_flags     = 0,
 		.sd_name      = "create_loc_ctx",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_TXN_CONTEXT_WAIT) |
-				(1 << C2_FOPH_SUCCESS) |
-				(1 << C2_FOPH_FAILURE) |
-				(1 << C2_FOPH_TYPE_SPECIFIC)
+		.sd_allowed   = C2_BITS(C2_FOPH_TXN_CONTEXT_WAIT,
+					C2_FOPH_SUCCESS,
+					C2_FOPH_FAILURE,
+					C2_FOPH_TYPE_SPECIFIC)
 	},
 	[C2_FOPH_TXN_CONTEXT_WAIT] = {
-		.sd_flags     = 0,
 		.sd_name      = "create_loc_ctx_wait",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_SUCCESS) |
-				(1 << C2_FOPH_FAILURE) |
-				(1 << C2_FOPH_TYPE_SPECIFIC)
+		.sd_allowed   = C2_BITS(C2_FOPH_SUCCESS, C2_FOPH_FAILURE,
+					C2_FOPH_TYPE_SPECIFIC)
 	},
 	[C2_FOPH_SUCCESS] = {
-		.sd_flags     = 0,
 		.sd_name      = "fom_success",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_FOL_REC_ADD)
+		.sd_allowed   = C2_BITS(C2_FOPH_FOL_REC_ADD)
 	},
 	[C2_FOPH_FOL_REC_ADD] = {
-		.sd_flags     = 0,
 		.sd_name      = "fom_fol_rec_add",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_TXN_COMMIT)
+		.sd_allowed   = C2_BITS(C2_FOPH_TXN_COMMIT)
 	},
 	[C2_FOPH_TXN_COMMIT] = {
-		.sd_flags     = 0,
 		.sd_name      = "fom_txn_commit",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_TXN_COMMIT_WAIT) |
-				(1 << C2_FOPH_QUEUE_REPLY)
+		.sd_allowed   = C2_BITS(C2_FOPH_TXN_COMMIT_WAIT,
+					C2_FOPH_QUEUE_REPLY)
 	},
 	[C2_FOPH_TXN_COMMIT_WAIT] = {
-		.sd_flags     = 0,
 		.sd_name      = "fom_txn_commit_wait",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_QUEUE_REPLY)
+		.sd_allowed   = C2_BITS(C2_FOPH_QUEUE_REPLY)
 	},
 	[C2_FOPH_TIMEOUT] = {
-		.sd_flags     = 0,
 		.sd_name      = "fom_timeout",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_FAILURE)
+		.sd_allowed   = C2_BITS(C2_FOPH_FAILURE)
 	},
 	[C2_FOPH_FAILURE] = {
 		.sd_flags     = C2_SDF_FAILURE,
 		.sd_name      = "fom_failure",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_TXN_ABORT)
+		.sd_allowed   = C2_BITS(C2_FOPH_TXN_ABORT)
 	},
 	[C2_FOPH_TXN_ABORT] = {
-		.sd_flags     = 0,
 		.sd_name      = "fom_txn_abort",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_TXN_ABORT_WAIT) |
-				(1 << C2_FOPH_QUEUE_REPLY)
+		.sd_allowed   = C2_BITS(C2_FOPH_TXN_ABORT_WAIT,
+					C2_FOPH_QUEUE_REPLY)
 	},
 	[C2_FOPH_TXN_ABORT_WAIT] = {
-		.sd_flags     = 0,
 		.sd_name      = "fom_txn_abort_wait",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_QUEUE_REPLY)
+		.sd_allowed   = C2_BITS(C2_FOPH_QUEUE_REPLY)
 	},
 	[C2_FOPH_QUEUE_REPLY] = {
-		.sd_flags     = 0,
 		.sd_name      = "fom_queue_reply",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_QUEUE_REPLY_WAIT) |
-				(1 << C2_FOPH_FINISH)
+		.sd_allowed   = C2_BITS(C2_FOPH_QUEUE_REPLY_WAIT,
+					C2_FOPH_FINISH)
 	},
 	[C2_FOPH_QUEUE_REPLY_WAIT] = {
-		.sd_flags     = 0,
 		.sd_name      = "fom_queue_reply_wait",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_FINISH)
+		.sd_allowed   = C2_BITS(C2_FOPH_FINISH)
 	},
 	[C2_FOPH_FINISH] = {
 		.sd_flags     = C2_SDF_TERMINAL,
 		.sd_name      = "SM finish",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = 0
 	},
 	[C2_FOPH_TYPE_SPECIFIC] = {
-		.sd_flags     = 0,
-		.sd_name      = "Specific phase ",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOPH_SUCCESS) |
-				(1 << C2_FOPH_FAILURE) |
-				(1 << C2_FOPH_FINISH)
+		.sd_name      = "Specific phase",
+		.sd_allowed   = C2_BITS(C2_FOPH_SUCCESS, C2_FOPH_FAILURE,
+					C2_FOPH_FINISH)
 	}
 };
 

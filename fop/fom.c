@@ -999,47 +999,25 @@ void c2_fom_type_init(struct c2_fom_type *type,
 static const struct c2_sm_state_descr fom_states[] = {
 	[C2_FOS_INIT] = {
 		.sd_flags     = C2_SDF_INITIAL,
-		.sd_name      = "SM init",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOS_FINISH) |
-				(1 << C2_FOS_READY)
+		.sd_name      = "Init",
+		.sd_allowed   = C2_BITS(C2_FOS_FINISH, C2_FOS_READY)
 	},
 	[C2_FOS_READY] = {
-		.sd_flags     = 0,
-		.sd_name      = "fom ready",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOS_RUNNING)
+		.sd_name      = "Ready",
+		.sd_allowed   = C2_BITS(C2_FOS_RUNNING)
 	},
 	[C2_FOS_RUNNING] = {
-		.sd_flags     = 0,
-		.sd_name      = "fom running",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOS_WAITING) |
-				(1 << C2_FOS_READY) |
-				(1 << C2_FOS_FINISH)
+		.sd_name      = "Running",
+		.sd_allowed   = C2_BITS(C2_FOS_WAITING, C2_FOS_READY,
+					C2_FOS_FINISH)
 	},
 	[C2_FOS_WAITING] = {
-		.sd_flags     = 0,
-		.sd_name      = "fom wait",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOS_FINISH) |
-				(1 << C2_FOS_READY)
+		.sd_name      = "Wait",
+		.sd_allowed   = C2_BITS(C2_FOS_FINISH, C2_FOS_READY)
 	},
 	[C2_FOS_FINISH] = {
 		.sd_flags     = C2_SDF_TERMINAL,
-		.sd_name      = "finished",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = 0,
+		.sd_name      = "Finished",
 	}
 };
 
