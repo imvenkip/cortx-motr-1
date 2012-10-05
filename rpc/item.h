@@ -185,6 +185,14 @@ bool c2_rpc_item_is_update(const struct c2_rpc_item *item);
  */
 bool c2_rpc_item_is_request(const struct c2_rpc_item *item);
 
+/**
+    Encodes the rpc item header into a bufvec
+    @param ioh RPC item header to be encoded
+    @param cur Current bufvec cursor position
+    @retval 0 (success)
+    @retval -errno  (failure)
+*/
+
 /** @todo: different callbacks called on events occured while processing
    in update stream */
 struct c2_rpc_item_type_ops {

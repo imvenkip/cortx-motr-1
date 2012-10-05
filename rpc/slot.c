@@ -174,16 +174,20 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	 * XXX temporary value for lsn. This will be set to some proper value
 	 * when sessions will be integrated with FOL
 	 */
-	slot->sl_verno.vn_lsn    = C2_LSN_RESERVED_NR + 2;
-	slot->sl_verno.vn_vc     = 0;
-	slot->sl_slot_gen        = 0;
-	slot->sl_xid             = 1; /* xid 0 will be taken by dummy item */
-	slot->sl_in_flight       = 0;
-	slot->sl_max_in_flight   = SLOT_DEFAULT_MAX_IN_FLIGHT;
-	slot->sl_cob             = NULL;
-	slot->sl_ops             = ops;
-	slot->sl_last_sent       = dummy_item;
-	slot->sl_last_persistent = dummy_item;
+	*slot = (struct c2_rpc_slot){
+		.sl_verno = {
+			.vn_lsn = C2_LSN_RESERVED_NR + 2,
+			.vn_vc  = 0,
+		},
+		.sl_slot_gen        = 0,
+		.sl_xid             = 1, /* xid 0 will be taken by dummy item */
+		.sl_in_flight       = 0,
+		.sl_max_in_flight   = SLOT_DEFAULT_MAX_IN_FLIGHT,
+		.sl_cob             = NULL,
+		.sl_ops             = ops,
+		.sl_last_sent       = dummy_item,
+		.sl_last_persistent = dummy_item,
+	};
 
 	sref = &dummy_item->ri_slot_refs[0];
 	*sref = (struct c2_rpc_slot_ref){

@@ -201,6 +201,9 @@ void c2_rpc_item_fini(struct c2_rpc_item *item)
 }
 C2_EXPORTED(c2_rpc_item_fini);
 
+#define ITEM_XCODE_OBJ(ptr)     C2_XCODE_OBJ(c2_rpc_onwire_slot_ref_xc, ptr)
+#define SLOT_REF_XCODE_OBJ(ptr) C2_XCODE_OBJ(c2_rpc_item_onwire_header_xc, ptr)
+
 c2_bcount_t c2_rpc_item_onwire_header_size(void)
 {
 	struct c2_rpc_item_onwire_header ioh;
@@ -210,10 +213,8 @@ c2_bcount_t c2_rpc_item_onwire_header_size(void)
 	static c2_bcount_t               item_header_size;
 
 	if (item_header_size == 0) {
-		c2_xcode_ctx_init(&head, &C2_XCODE_OBJ(
-					  c2_rpc_onwire_slot_ref_xc, &sr));
-		c2_xcode_ctx_init(&slot_ref, &C2_XCODE_OBJ(
-					  c2_rpc_item_onwire_header_xc, &ioh));
+		c2_xcode_ctx_init(&head, &ITEM_XCODE_OBJ(&ioh));
+		c2_xcode_ctx_init(&slot_ref, &SLOT_REF_XCODE_OBJ(&sr));
 		item_header_size = c2_xcode_length(&head) +
 					c2_xcode_length(&slot_ref);
 	}
