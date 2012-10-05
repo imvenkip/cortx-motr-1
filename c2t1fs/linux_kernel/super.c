@@ -166,10 +166,6 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	if (rc != 0)
 		goto out_fini;
 
-	rc = c2t1fs_connect_to_all_services(csb);
-	if (rc != 0)
-		goto out_fini;
-
 	csb->csb_pool.po_mach = c2_alloc(sizeof (struct c2_poolmach));
 	if (csb->csb_pool.po_mach == NULL) {
 		rc = -ENOMEM;
@@ -765,6 +761,8 @@ static int c2t1fs_connect_to_all_services(struct c2t1fs_sb *csb)
 	int                            rc;
 
 	C2_ENTRY();
+
+	C2_PRE(svc_ctx_tlist_is_empty(&csb->csb_service_contexts));
 
 	rc = c2t1fs_service_contexts_populate(csb);
 	if (rc != 0)
