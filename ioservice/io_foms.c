@@ -1676,7 +1676,7 @@ static int c2_io_fom_cob_rw_tick(struct c2_fom *fom)
 	if (!c2_poolmach_version_equal(verp, &curr)) {
 		rc = C2_FSO_AGAIN;
 		c2_fom_phase_move(fom,
-				  C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH,
+				  C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH,
 				  C2_FOPH_FAILURE);
 	} else {
 

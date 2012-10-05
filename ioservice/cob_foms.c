@@ -212,7 +212,7 @@ static int cc_fom_tick(struct c2_fom *fom)
 
 	/* Check the client version and server version before any processing */
 	if (!c2_poolmach_version_equal(verp, &curr)) {
-		rc = C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH;
+		rc = C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH;
 		goto out;
 	}
 
@@ -424,7 +424,7 @@ static int cd_fom_tick(struct c2_fom *fom)
 
 	/* Check the client version and server version before any processing */
 	if (!c2_poolmach_version_equal(verp, &curr)) {
-		rc = C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH;
+		rc = C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH;
 		goto out;
 	}
 

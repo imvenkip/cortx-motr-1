@@ -90,7 +90,7 @@ enum {
 	 * i/o reply error code to indicate the client known failure vector
 	 * version is mismatch with the server's.
 	 */
-	C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH = -1001
+	C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH = -1001
 };
 
 /**

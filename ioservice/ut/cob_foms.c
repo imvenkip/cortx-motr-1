@@ -1372,8 +1372,8 @@ static void cobfoms_fv_updates(void)
 	C2_UT_ASSERT(rc == 0);
 
 	cobfoms_send_internal(&c2_fop_cob_create_fopt, &c2_fop_cob_delete_fopt,
-			      C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH,
-			      C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH,
+			      C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH,
+			      C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH,
 			      COB_FOP_SINGLE);
 }
 

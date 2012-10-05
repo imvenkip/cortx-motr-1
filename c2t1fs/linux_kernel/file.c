@@ -1065,7 +1065,7 @@ static ssize_t c2t1fs_rpc_rw(const struct c2_tl *rw_desc_list, int rw)
 		}
 
 		rc = io_fop_do_sync_io(iofop, rw_desc->rd_session);
-		if (rc == C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH) {
+		if (rc == C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
 			struct c2_pool_version_numbers *cli;
 			struct c2_pool_version_numbers *srv;
 			struct c2t1fs_sb               *csb;

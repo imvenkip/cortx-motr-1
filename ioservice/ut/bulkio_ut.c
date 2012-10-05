@@ -1509,7 +1509,7 @@ void bulkio_server_read_write_fv_mismatch(void)
 	C2_ASSERT(rc == 0);
 	rw_reply = io_rw_rep_get(c2_rpc_item_to_fop(wfop->f_item.ri_reply));
 	C2_UT_ASSERT(rw_reply->rwr_rc ==
-			C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH);
+			C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH);
 
 	rfop = c2_fop_alloc(&c2_fop_cob_readv_fopt, NULL);
 	C2_UT_ASSERT(rfop != NULL);
@@ -1523,7 +1523,7 @@ void bulkio_server_read_write_fv_mismatch(void)
 	C2_ASSERT(rc == 0);
 	rw_reply = io_rw_rep_get(c2_rpc_item_to_fop(rfop->f_item.ri_reply));
 	C2_UT_ASSERT(rw_reply->rwr_rc ==
-			C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH);
+			C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH);
 }
 
 

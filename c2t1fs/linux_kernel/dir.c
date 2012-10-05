@@ -618,7 +618,7 @@ static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 	 * given fop type only.
 	 */
 	reply = c2_fop_data(c2_rpc_item_to_fop(fop->f_item.ri_reply));
-	if (reply->cor_rc == C2_IOP_ERROR_FAILURE_VECTOR_VERSION_MISMATCH) {
+	if (reply->cor_rc == C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
 		struct c2_pool_version_numbers *cli;
 		struct c2_pool_version_numbers *srv;
 		struct c2_fv_event             *event;
