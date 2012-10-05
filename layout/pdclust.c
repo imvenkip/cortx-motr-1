@@ -144,16 +144,19 @@ static bool pdclust_invariant(const struct c2_pdclust_layout *pl)
 
 static bool pdclust_instance_invariant(const struct c2_pdclust_instance *pi)
 {
-	uint32_t                 P;
-	const struct tile_cache *tc;
+	uint32_t                  P;
+	struct c2_pdclust_layout *pl;
+	const struct tile_cache  *tc;
 
-	P  = pi->pi_layout->pl_attr.pa_P;
+	pl = bob_of(pi->pi_base.li_l, struct c2_pdclust_layout,
+		    pl_base.sl_base, &pdclust_bob);
+	P  = pl->pl_attr.pa_P;
 	tc = &pi->pi_tile_cache;
 
 	return
 		c2_pdclust_instance_bob_check(pi) &&
 		c2_layout__instance_invariant(&pi->pi_base) &&
-		pdclust_invariant(pi->pi_layout) &&
+		pdclust_invariant(pl) &&
 		/*
 		 * tc->tc_permute[] and tc->tc_inverse[] are mutually inverse
 		 * bijections of {0, ..., P - 1}.
@@ -363,6 +366,22 @@ struct c2_layout *c2_pdl_to_layout(struct c2_pdclust_layout *pl)
 	return &pl->pl_base.sl_base;
 }
 
+struct c2_pdclust_instance *c2_layout_instance_to_pdi(
+					const struct c2_layout_instance *li)
+{
+	struct c2_pdclust_instance *pi;
+	pi = bob_of(li, struct c2_pdclust_instance, pi_base,
+		    &pdclust_instance_bob);
+	C2_POST(pdclust_instance_invariant(pi));
+	return pi;
+}
+
+static struct c2_pdclust_layout *pi_to_pl(struct c2_pdclust_instance *pi)
+{
+	return bob_of(pi->pi_base.li_l, struct c2_pdclust_layout,
+		      pl_base.sl_base, &pdclust_bob);
+}
+
 /** Implementation of lio_to_enum() */
 static struct c2_layout_enum *
 pdclust_instance_to_enum(const struct c2_layout_instance *li)
@@ -370,7 +389,7 @@ pdclust_instance_to_enum(const struct c2_layout_instance *li)
 	struct c2_pdclust_instance *pdi;
 
 	pdi = c2_layout_instance_to_pdi(li);
-	return c2_striped_layout_to_enum(&pdi->pi_layout->pl_base);
+	return c2_layout_to_enum(pdi->pi_base.li_l);
 }
 
 enum c2_pdclust_unit_type
@@ -626,8 +645,12 @@ static uint64_t hash(uint64_t x)
 static uint64_t permute_column(struct c2_pdclust_instance *pi,
 			       uint64_t omega, uint64_t t)
 {
-	struct tile_cache      *tc;
-	struct c2_pdclust_attr  attr = pi->pi_layout->pl_attr;
+	struct tile_cache        *tc;
+	struct c2_pdclust_attr    attr;
+	struct c2_pdclust_layout *pl;
+
+	pl = pi_to_pl(pi);
+	attr = pl->pl_attr;
 
 	C2_ENTRY("t %lu, P %lu", (unsigned long)t, (unsigned long)attr.pa_P);
 	C2_ASSERT(t < attr.pa_P);
@@ -656,7 +679,7 @@ static uint64_t permute_column(struct c2_pdclust_instance *pi,
 		tc->tc_tile_no = omega;
 	}
 
-	C2_ADDB_ADD(&pi->pi_layout->pl_base.sl_base.l_addb, &layout_addb_loc,
+	C2_ADDB_ADD(&pl->pl_base.sl_base.l_addb, &layout_addb_loc,
 		    pdclust_tile_cache_hit, tc->tc_tile_no == omega);
 
 	C2_POST(tc->tc_permute[t] < attr.pa_P);
@@ -669,6 +692,7 @@ void c2_pdclust_instance_map(struct c2_pdclust_instance *pi,
 			     const struct c2_pdclust_src_addr *src,
 			     struct c2_pdclust_tgt_addr *tgt)
 {
+	struct c2_pdclust_layout *pl;
 	uint32_t N;
 	uint32_t K;
 	uint32_t P;
@@ -682,11 +706,13 @@ void c2_pdclust_instance_map(struct c2_pdclust_instance *pi,
 	C2_PRE(pdclust_instance_invariant(pi));
 
 	C2_ENTRY("pi %p", pi);
-	N = pi->pi_layout->pl_attr.pa_N;
-	K = pi->pi_layout->pl_attr.pa_K;
-	P = pi->pi_layout->pl_attr.pa_P;
-	C = pi->pi_layout->pl_C;
-	L = pi->pi_layout->pl_L;
+
+	pl = pi_to_pl(pi);
+	N = pl->pl_attr.pa_N;
+	K = pl->pl_attr.pa_K;
+	P = pl->pl_attr.pa_P;
+	C = pl->pl_C;
+	L = pl->pl_L;
 
 	/*
 	 * First translate source address into a tile number and parity group
@@ -709,6 +735,7 @@ void c2_pdclust_instance_inv(struct c2_pdclust_instance *pi,
 			     const struct c2_pdclust_tgt_addr *tgt,
 			     struct c2_pdclust_src_addr *src)
 {
+	struct c2_pdclust_layout *pl;
 	uint32_t N;
 	uint32_t K;
 	uint32_t P;
@@ -719,11 +746,12 @@ void c2_pdclust_instance_inv(struct c2_pdclust_instance *pi,
 	uint64_t r;
 	uint64_t t;
 
-	N = pi->pi_layout->pl_attr.pa_N;
-	K = pi->pi_layout->pl_attr.pa_K;
-	P = pi->pi_layout->pl_attr.pa_P;
-	C = pi->pi_layout->pl_C;
-	L = pi->pi_layout->pl_L;
+	pl = pi_to_pl(pi);
+	N = pl->pl_attr.pa_N;
+	K = pl->pl_attr.pa_K;
+	P = pl->pl_attr.pa_P;
+	C = pl->pl_C;
+	L = pl->pl_L;
 
 	r = tgt->ta_frame;
 	t = tgt->ta_obj;
@@ -792,9 +820,7 @@ err2_injected:
 		if (tc->tc_lcode != NULL &&
 		    tc->tc_permute != NULL &&
 		    tc->tc_inverse != NULL) {
-			pi->pi_layout = pl;
 			tc->tc_tile_no = 1;
-			permute_column(pi, 0, 0);
 
 			if (C2_FI_ENABLED("parity_math_err"))
 				{ rc = -EPROTO; goto err3_injected; }
@@ -804,6 +830,7 @@ err3_injected:
 				c2_layout__instance_init(&pi->pi_base, fid, l,
 							&pdclust_instance_ops);
 				c2_pdclust_instance_bob_init(pi);
+				permute_column(pi, 0, 0);
 			}
 			else
 				C2_LOG(C2_ERROR, "pi %p, c2_parity_math_init()"
@@ -839,10 +866,7 @@ void pdclust_instance_fini(struct c2_layout_instance *li)
 {
 	struct c2_pdclust_instance *pi;
 
-	pi = bob_of(li, struct c2_pdclust_instance,
-		    pi_base, &pdclust_instance_bob);
-	C2_PRE(pdclust_instance_invariant(pi));
-
+	pi = c2_layout_instance_to_pdi(li);
 	C2_ENTRY("pi %p", pi);
 	c2_layout__instance_fini(&pi->pi_base);
 	c2_pdclust_instance_bob_fini(pi);
@@ -852,16 +876,6 @@ void pdclust_instance_fini(struct c2_layout_instance *li)
 	c2_free(pi->pi_tile_cache.tc_lcode);
 	c2_free(pi);
 	C2_LEAVE();
-}
-
-struct c2_pdclust_instance *c2_layout_instance_to_pdi(
-					const struct c2_layout_instance *li)
-{
-	struct c2_pdclust_instance *pi;
-	pi = bob_of(li, struct c2_pdclust_instance, pi_base,
-		    &pdclust_instance_bob);
-	C2_POST(pdclust_instance_invariant(pi));
-	return pi;
 }
 
 static const struct c2_layout_ops pdclust_ops = {

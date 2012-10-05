@@ -2494,7 +2494,7 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(l->l_ref == 2);
 		pi = c2_layout_instance_to_pdi(li);
-		layout_demo(pi, P, 1, 1, false);
+		layout_demo(pi, pl, 1, 1, false);
 
 		/* Verify c2_layout_instance_to_pdi(). */
 		li = &pi->pi_base;

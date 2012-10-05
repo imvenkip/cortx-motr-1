@@ -157,13 +157,8 @@ struct c2_pdclust_layout {
  * particular parity de-clustered file.
  */
 struct c2_pdclust_instance {
-	/* Super class. */
+	/* Super class, storing pointer to the layout being used. */
 	struct c2_layout_instance    pi_base;
-	/**
-	 * Parity de-clustered layout used for the file referred by
-	 * pi_base.li_fid.
-	 */
-	struct c2_pdclust_layout    *pi_layout;
 	/**
 	 * Caches information about the most recently used tile.
 	 *
@@ -251,13 +246,18 @@ struct c2_pdclust_tgt_addr {
 };
 
 /**
- * Allocates and builds a layout object with the pdclust layout type.
+ * Allocates and builds a layout object with the pdclust layout type,
+ * by setting its intial ref count to 1.
  * @post ergo(rc == 0, pdclust_invariant(*out))
  * @post ergo(rc == 0, l->l_ref == 1)
  *
- * @note The object with pdclust layout type is not to be finalised explicitly.
- * It is finalised internally when its last reference is released.
+ * @note The object with pdclust layout is to be finalised by releasing the
+ * the reference that has been held during its creation that is by using
+ * c2_layout_put().
  * @see c2_layout_put()
+ *
+ * In short:
+ * Dual to c2_layout_put() when it is the last reference being released.
  */
 int c2_pdclust_build(struct c2_layout_domain *dom,
 		     uint64_t lid,

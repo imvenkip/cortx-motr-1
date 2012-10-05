@@ -146,7 +146,7 @@ int main(int argc, char **argv)
 						      &gfid, &li);
 			pi = c2_layout_instance_to_pdi(li);
 			if (rc == 0) {
-				layout_demo(pi, P, R, I, true);
+				layout_demo(pi, play, R, I, true);
 				pi->pi_base.li_ops->lio_fini(&pi->pi_base);
 			}
 			c2_layout_put(c2_pdl_to_layout(play));
