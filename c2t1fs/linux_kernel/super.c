@@ -149,7 +149,8 @@ void ast_thread(struct c2t1fs_sb *csb)
            c2_sm_group_lock(&csb->csb_iogroup);
            c2_sm_asts_run(&csb->csb_iogroup);
            c2_sm_group_unlock(&csb->csb_iogroup);
-           if (!csb->csb_active && c2_atomic64_get(&csb->csb_pending_io) == 0) {
+           if (!csb->csb_active && c2_atomic64_get(&csb->csb_pending_io_nr)
+               == 0) {
                    c2_chan_signal(&csb->csb_iowait);
                    break;
            }
@@ -465,7 +466,7 @@ static int c2t1fs_sb_init(struct c2t1fs_sb *csb)
         c2_addb_ctx_init(&c2t1fs_addb, &c2t1fs_addb_type, &c2_addb_global_ctx);
 	csb->csb_active = true;
 	c2_chan_init(&csb->csb_iowait);
-	c2_atomic64_set(&csb->csb_pending_io, 0);
+	c2_atomic64_set(&csb->csb_pending_io_nr, 0);
 
 	C2_LEAVE("rc: 0");
 	return 0;

@@ -342,7 +342,7 @@ struct c2t1fs_sb {
          * Every io request increments this value while initializing
          * and decrements it while finalizing.
          */
-        struct c2_atomic64            csb_pending_io;
+        struct c2_atomic64            csb_pending_io_nr;
 
         /** Special thread which runs ASTs from io requests. */
         struct c2_thread              csb_astthread;
