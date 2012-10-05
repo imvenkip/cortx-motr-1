@@ -149,7 +149,7 @@ static int composite_decode(struct c2_layout *l,
 			    struct c2_bufvec_cursor *cur,
 			    enum c2_layout_xcode_op op,
 			    struct c2_db_tx *tx,
-			    uint32_t ref_count)
+			    uint32_t user_count)
 {
 	/*
 	@code

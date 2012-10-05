@@ -478,6 +478,8 @@ static int pdclust_l_build(uint64_t lid, uint32_t N, uint32_t K, uint32_t P,
 	else {
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(list_lookup(lid) == &(*pl)->pl_base.sl_base);
+		C2_UT_ASSERT((*pl)->pl_base.sl_base.l_ref == 1);
+		C2_UT_ASSERT((*pl)->pl_base.sl_base.l_user_count == 0);
 	}
 
 	return rc;
@@ -886,8 +888,8 @@ static void buf_build(uint32_t lt_id, struct c2_bufvec_cursor *dcur)
 	struct c2_layout_rec rec;
 	c2_bcount_t          nbytes_copied;
 
-	rec.lr_lt_id     = lt_id;
-	rec.lr_ref_count = 1;
+	rec.lr_lt_id      = lt_id;
+	rec.lr_user_count = 0;
 
 	nbytes_copied = c2_bufvec_cursor_copyto(dcur, &rec, sizeof rec);
 	C2_UT_ASSERT(nbytes_copied == sizeof rec);
@@ -1195,7 +1197,7 @@ static void lbuf_verify(struct c2_bufvec_cursor *cur, uint32_t *lt_id)
 
 	*lt_id = rec->lr_lt_id;
 
-	C2_UT_ASSERT(rec->lr_ref_count == 1);
+	C2_UT_ASSERT(rec->lr_user_count == 0);
 
 	c2_bufvec_cursor_move(cur, sizeof *rec);
 }
@@ -1329,8 +1331,10 @@ static int test_encode_pdclust(uint32_t enum_id, uint64_t lid,
 	C2_UT_ASSERT(rc == 0);
 
 	/* Encode the layout object into a layout buffer. */
+	c2_mutex_lock(&pl->pl_base.sl_base.l_lock);
 	rc  = c2_layout_encode(&pl->pl_base.sl_base, C2_LXO_BUFFER_OP,
 			       NULL, &cur);
+	c2_mutex_unlock(&pl->pl_base.sl_base.l_lock);
 	if (failure_test)
 		C2_UT_ASSERT(rc == LO_ENCODE_ERR);
 	else
@@ -1431,7 +1435,7 @@ static void lbuf_compare(struct c2_bufvec_cursor *cur1,
 	rec2 = c2_bufvec_cursor_addr(cur2);
 
 	C2_UT_ASSERT(rec1->lr_lt_id == rec2->lr_lt_id);
-	C2_UT_ASSERT(rec1->lr_ref_count == rec2->lr_ref_count);
+	C2_UT_ASSERT(rec1->lr_user_count == rec2->lr_user_count);
 
 	c2_bufvec_cursor_move(cur1, sizeof *rec1);
 	c2_bufvec_cursor_move(cur2, sizeof *rec2);
@@ -1598,7 +1602,9 @@ static int test_decode_encode_pdclust(uint32_t enum_id, uint64_t lid,
 	bv2 = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area2, &num_bytes);
 	c2_bufvec_cursor_init(&cur2, &bv2);
 
+	c2_mutex_lock(&l->l_lock);
 	rc = c2_layout_encode(l, C2_LXO_BUFFER_OP, NULL, &cur2);
+	c2_mutex_unlock(&l->l_lock);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Rewind the cursor. */
@@ -1706,6 +1712,7 @@ static void pdclust_layout_compare(uint32_t enum_id,
 		C2_UT_ASSERT(l1->l_ref == l2->l_ref - 1);
 	else
 		C2_UT_ASSERT(l1->l_ref == l2->l_ref);
+	C2_UT_ASSERT(l1->l_user_count == l2->l_user_count);
 	C2_UT_ASSERT(l1->l_ops == l2->l_ops);
 
 	/* Compare PDCLUST layout type specific part of the layout objects. */
@@ -1774,18 +1781,15 @@ static void pdclust_layout_copy(uint32_t enum_id,
 	*l_dest = &pl_dest->pl_base.sl_base;
 
 	/* Copy generic part of the layout object. */
-	(*l_dest)->l_id = l_src->l_id;
-	(*l_dest)->l_type = l_src->l_type;
-	(*l_dest)->l_dom = l_src->l_dom;
-	(*l_dest)->l_ref = l_src->l_ref;
-	(*l_dest)->l_ops = l_src->l_ops;
+	(*l_dest)->l_id         = l_src->l_id;
+	(*l_dest)->l_type       = l_src->l_type;
+	(*l_dest)->l_dom        = l_src->l_dom;
+	(*l_dest)->l_ref        = l_src->l_ref;
+	(*l_dest)->l_user_count = l_src->l_user_count;
+	(*l_dest)->l_ops        = l_src->l_ops;
 
 	/* Copy PDCLUST layout type specific part of the layout objects. */
-	pl_dest->pl_attr.pa_N = pl_src->pl_attr.pa_N;
-	pl_dest->pl_attr.pa_K = pl_src->pl_attr.pa_K;
-	pl_dest->pl_attr.pa_P = pl_src->pl_attr.pa_P;
-	pl_dest->pl_attr.pa_seed.u_hi = pl_src->pl_attr.pa_seed.u_hi;
-	pl_dest->pl_attr.pa_seed.u_lo = pl_src->pl_attr.pa_seed.u_lo;
+	pl_dest->pl_attr = pl_src->pl_attr;
 
 	/* Copy enumeration type specific part of the layout objects. */
 	if (enum_id == LIST_ENUM_ID) {
@@ -1896,8 +1900,10 @@ static int test_encode_decode_pdclust(uint32_t enum_id, uint64_t lid,
 	C2_UT_ASSERT(l_copy != NULL);
 
 	/* Encode the layout object into a layout buffer. */
+	c2_mutex_lock(&pl->pl_base.sl_base.l_lock);
 	rc = c2_layout_encode(&pl->pl_base.sl_base, C2_LXO_BUFFER_OP,
 			      NULL, &cur);
+	c2_mutex_unlock(&pl->pl_base.sl_base.l_lock);
 	C2_UT_ASSERT(rc == 0);
 
 	/* Destroy the layout. */
@@ -2479,12 +2485,14 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 	/* Build pdclust instance. */
 	c2_fid_set(&gfid, 0, 999);
 	l  = c2_pdl_to_layout(pl);
+	C2_UT_ASSERT(l->l_ref == 1);
 	rc = c2_layout_instance_build(l, &gfid, &li);
 	if (failure_test) {
 		C2_UT_ASSERT(rc == -ENOMEM || rc == -EPROTO);
 	}
 	else {
 		C2_UT_ASSERT(rc == 0);
+		C2_UT_ASSERT(l->l_ref == 2);
 		pi = c2_layout_instance_to_pdi(li);
 		layout_demo(pi, P, 1, 1, false);
 
@@ -2505,6 +2513,7 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 		 * acquired on that layout.
 		 */
 		c2_layout_instance_fini(&pi->pi_base);
+		C2_UT_ASSERT(l->l_ref == 1);
 	}
 
 	c2_layout_put(c2_pdl_to_layout(pl));
@@ -2682,10 +2691,8 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 	if (failure_test)
 		C2_UT_ASSERT(rc == -ENOENT || rc == -ENOMEM || rc == -EPROTO ||
 			     rc == LO_DECODE_ERR);
-	else {
+	else
 		C2_UT_ASSERT(rc == 0);
-		c2_layout_put(l3);
-	}
 
 	rc_tmp = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc_tmp == 0);
@@ -2776,7 +2783,9 @@ static int test_lookup_with_ghost_creation(uint32_t enum_id, uint64_t lid,
 	bv_for_encode = (struct c2_bufvec) C2_BUFVEC_INIT_BUF(&area_for_encode,
 						&num_bytes_for_encode);
 	c2_bufvec_cursor_init(&cur_for_encode, &bv_for_encode);
-	rc  = c2_layout_encode(l1, C2_LXO_BUFFER_OP, NULL, &cur_for_encode);
+	c2_mutex_lock(&l1->l_lock);
+	rc = c2_layout_encode(l1, C2_LXO_BUFFER_OP, NULL, &cur_for_encode);
+	c2_mutex_unlock(&l1->l_lock);
 	C2_UT_ASSERT(rc == 0);
 	/* Rewind the cursor. */
 	c2_bufvec_cursor_init(&cur_for_encode, &bv_for_encode);
@@ -3267,13 +3276,13 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 		l1 = &pl->pl_base.sl_base;
 	}
 
-	/* Verify the original reference count is as expected. */
-	C2_UT_ASSERT(l1->l_ref == 1);
+	/* Verify the original user count is as expected. */
+	C2_UT_ASSERT(l1->l_user_count == 0);
 
-	/* Update the layout object - update its reference count. */
-	for (i = 0; i < 99; ++i)
-		c2_layout_get(l1);
-	C2_UT_ASSERT(l1->l_ref == 1 + 99);
+	/* Update the in-memory layout object - update its user count. */
+	for (i = 0; i < 100; ++i)
+		c2_layout_user_count_inc(l1);
+	C2_UT_ASSERT(l1->l_user_count == 100);
 
 	/* Update the layout object in the DB. */
 	rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
@@ -3288,7 +3297,7 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 		C2_UT_ASSERT(rc == 0);
 	/*
 	 * Even a non-existing record can be written to the database using
-	 * the database update operation
+	 * the database update operation.
 	 */
 	if (existing_test && !failure_test)
 		pdclust_layout_copy(enum_id, l1, &l1_copy);
@@ -3296,12 +3305,15 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 	rc_tmp = c2_db_tx_commit(&tx);
 	C2_UT_ASSERT(rc_tmp == 0);
 
-	/* Release all the references obtained here but one. */
-	for (i = 0; i < 99; ++i)
-		c2_layout_put(l1);
-	C2_UT_ASSERT(l1->l_ref == 1);
+	/*
+	 * Update the in-memory layout object - update its user count. This is
+	 * to verify the functioning of c2_layout_user_count_dec().
+	 */
+	for (i = 0; i < 50; ++i)
+		c2_layout_user_count_dec(l1);
+	C2_UT_ASSERT(l1->l_user_count == 50);
 
-	/* Release the last reference so as to delete the layout. */
+	/* Delete the in-memory layout. */
 	c2_layout_put(l1);
 	C2_UT_ASSERT(list_lookup(lid) == NULL);
 
@@ -3318,7 +3330,8 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 		rc = c2_layout_lookup(&domain, lid, &c2_pdclust_layout_type,
 				      &tx, &pair, &l2);
 		C2_UT_ASSERT(rc == 0);
-		C2_UT_ASSERT(l2->l_ref == 99 + 2);
+		C2_UT_ASSERT(l2->l_user_count == 100);
+		C2_UT_ASSERT(l2->l_ref == 1);
 
 		rc = c2_db_tx_commit(&tx);
 		C2_UT_ASSERT(rc == 0);
@@ -3327,15 +3340,10 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 		 * Compare the two layouts - one created earlier here and the
 		 * one that is looked up from the DB.
 		 */
-		pdclust_layout_compare(enum_id, l1_copy, l2, true);
+		pdclust_layout_compare(enum_id, l1_copy, l2, false);
 		pdclust_layout_copy_delete(enum_id, l1_copy);
 
-		/* Release all the references as read from the DB but one. */
-		for (i = 0; i < 99 + 1; ++i)
-			c2_layout_put(l2);
-		C2_UT_ASSERT(l2->l_ref == 1);
-
-		/* Release the last reference so as to delete the layout. */
+		/* Delete the in-memory layout. */
 		c2_layout_put(l2);
 		C2_UT_ASSERT(list_lookup(lid) == NULL);
 	}

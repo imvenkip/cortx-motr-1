@@ -153,8 +153,8 @@ int c2_layout_add(struct c2_layout *l,
 		  struct c2_db_pair *pair);
 
 /**
- * Updates a layout record. Only l_ref can be updated for an existing layout
- * record.
+ * Updates a layout record from the DB. Only user count can be updated for an
+ * existing layout record.
  *
  * @param pair A c2_db_pair sent by the caller along with having set
  * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer
@@ -167,8 +167,8 @@ int c2_layout_add(struct c2_layout *l,
  *
  * @note Even a non-existing record can be written to the database using
  * the database update operation. In other words, not using c2_layout_add()
- * and directly using c2_layout_update() results into the leyout cord being
- * written to the disk.
+ * and directly using c2_layout_update() results into the layout record being
+ * written to the DB.
  */
 int c2_layout_update(struct c2_layout *l,
 		     struct c2_db_tx *tx,

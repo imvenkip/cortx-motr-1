@@ -125,7 +125,8 @@ static bool pdclust_allocated_invariant(const struct c2_pdclust_layout *pl)
 {
 	return
 		pl != NULL &&
-		c2_layout__striped_allocated_invariant(&pl->pl_base);
+		c2_layout__striped_allocated_invariant(&pl->pl_base) &&
+		c2_mutex_is_locked(&pl->pl_base.sl_base.l_lock);
 }
 
 static bool pdclust_invariant(const struct c2_pdclust_layout *pl)
@@ -253,7 +254,7 @@ static void pdclust_delete(struct c2_layout *l)
 static int pdclust_populate(struct c2_pdclust_layout *pl,
 			    const struct c2_pdclust_attr *attr,
 			    struct c2_layout_enum *le,
-			    uint32_t ref_count)
+			    uint32_t user_count)
 {
 	uint64_t lid;
 	uint32_t B;
@@ -277,7 +278,7 @@ static int pdclust_populate(struct c2_pdclust_layout *pl,
 	lid = pl->pl_base.sl_base.l_id;
 	C2_ENTRY("lid %llu", (unsigned long long)lid);
 
-	c2_layout__striped_populate(&pl->pl_base, le, ref_count);
+	c2_layout__striped_populate(&pl->pl_base, le, user_count);
 	pl->pl_attr = *attr;
 
 	/* Select minimal possible B (least common multiple of P and N+2*K). */
@@ -311,7 +312,7 @@ int c2_pdclust_build(struct c2_layout_domain *dom,
 			    pl_base.sl_base, &pdclust_bob);
 		C2_ASSERT(pdclust_allocated_invariant(pl));
 
-		rc = pdclust_populate(pl, attr, le, 1);
+		rc = pdclust_populate(pl, attr, le, 0);
 		if (rc == 0) {
 			*out = pl;
 			c2_mutex_unlock(&l->l_lock);
@@ -362,6 +363,7 @@ struct c2_layout *c2_pdl_to_layout(struct c2_pdclust_layout *pl)
 	return &pl->pl_base.sl_base;
 }
 
+/** Implementation of lio_to_enum() */
 static struct c2_layout_enum *
 pdclust_instance_to_enum(const struct c2_layout_instance *li)
 {
@@ -397,7 +399,7 @@ static int pdclust_decode(struct c2_layout *l,
 			  struct c2_bufvec_cursor *cur,
 			  enum c2_layout_xcode_op op,
 			  struct c2_db_tx *tx,
-			  uint32_t ref_count)
+			  uint32_t user_count)
 {
 	struct c2_pdclust_layout     *pl;
 	struct c2_layout_pdclust_rec *pl_rec;
@@ -447,7 +449,7 @@ static int pdclust_decode(struct c2_layout *l,
 	}
 
 	if (C2_FI_ENABLED("attr_err3")) { pl_rec->pr_attr.pa_P = 1; }
-	rc = pdclust_populate(pl, &pl_rec->pr_attr, e, ref_count);
+	rc = pdclust_populate(pl, &pl_rec->pr_attr, e, user_count);
 	if (rc != 0) {
 		/* Finalise the populated enum object. */
 		e->le_ops->leo_fini(e);
@@ -743,6 +745,7 @@ static const struct c2_layout_instance_ops pdclust_instance_ops;
 void pdclust_instance_fini(struct c2_layout_instance *li);
 
 /**
+ * Implementation of lo_instance_build().
  * Allocates and builds a parity de-clustered layout instance using the
  * supplied pdclust layout 'pl' and acquires an additional reference on
  * 'pl->pl_base.sl_base'.
@@ -798,10 +801,9 @@ err2_injected:
 			rc = c2_parity_math_init(&pi->pi_math, N, K);
 err3_injected:
 			if (rc == 0) {
-				c2_layout__instance_init(&pi->pi_base, fid,
+				c2_layout__instance_init(&pi->pi_base, fid, l,
 							&pdclust_instance_ops);
 				c2_pdclust_instance_bob_init(pi);
-				c2_layout_get(l);
 			}
 			else
 				C2_LOG(C2_ERROR, "pi %p, c2_parity_math_init()"
@@ -814,10 +816,10 @@ err3_injected:
 	if (rc == 0) {
 		*out = &pi->pi_base;
 		C2_POST(pdclust_instance_invariant(pi));
-		C2_POST(l->l_ref > 0);
+		C2_POST(l->l_ref > 1);
 	} else {
 		if (rc == -ENOMEM)
-			c2_layout__log("c2_pdclust_instance_build",
+			c2_layout__log("pdclust_instance_build",
 				       "C2_ALLOC() failed",
 				       &c2_addb_oom, &l->l_addb, l->l_id, rc);
 		if (pi != NULL) {
@@ -842,7 +844,6 @@ void pdclust_instance_fini(struct c2_layout_instance *li)
 	C2_PRE(pdclust_instance_invariant(pi));
 
 	C2_ENTRY("pi %p", pi);
-	c2_layout_put(&pi->pi_layout->pl_base.sl_base);
 	c2_layout__instance_fini(&pi->pi_base);
 	c2_pdclust_instance_bob_fini(pi);
 	c2_parity_math_fini(&pi->pi_math);

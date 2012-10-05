@@ -65,6 +65,7 @@
  */
 
 /* import */
+#include "lib/arith.h" /* C2_IS_8ALIGNED */
 #include "sns/parity_math.h"
 #include "layout/layout.h"
 
@@ -85,8 +86,6 @@ struct c2_pdclust_tgt_addr;
  * These attributes are part of c2_pdclust_layout which is in-memory layout
  * object and are stored in the Layout DB as well, through
  * c2_layout_pdclust_rec.
- *
- * @note This structure needs to be maintained as 8 bytes aligned.
  */
 struct c2_pdclust_attr {
 	/** Number of data units in a parity group. */
@@ -108,9 +107,6 @@ struct c2_pdclust_attr {
 
 	/** A datum used to seed PRNG to generate tile column permutations. */
 	struct c2_uint128  pa_seed;
-
-	/** Padding to make the structure 8 bytes aligned. */
-	uint32_t           pa_pad;
 };
 
 /**
@@ -123,10 +119,8 @@ struct c2_layout_pdclust_rec {
 	uint32_t               pr_let_id;
 
 	struct c2_pdclust_attr pr_attr;
-
-	/** Padding to make the structure 8 bytes aligned. */
-	uint32_t               pr_pad;
 };
+C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct c2_layout_pdclust_rec)));
 
 /**
  * Extension of the generic c2_striped_layout for the parity de-clustered
@@ -136,8 +130,6 @@ struct c2_layout_pdclust_rec {
  *            pdl->pl_L * pdl->pl_attr.pa_P
  * @invariant pdl->pl_base.sl_enum->le_ops->leo_nr(pdl->pl_base.sl_enum) ==
  *            pdl->pl_attr.pa_P
- * @todo liveness rules
- * @todo concurrency control
  */
 struct c2_pdclust_layout {
 	/** Super class */

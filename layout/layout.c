@@ -26,17 +26,24 @@
  * - Arrays from the struct c2_layout_domain, storing registered layout types
  *   and registered enum types viz. ld_type[] and ld_enum[] are protected by
  *   using c2_layout_domain::ld_lock.
- * - Also, the list of layout objects stored in the struct c2_layout_domain
- *   viz. ld_layout_list is protected by using c2_layout_domain::ld_lock.
  * - Reference count is maintained for each of the layout types and enum types.
  *   This is to help verify that no layout type or enum type gets unregistered
- *   while any of the layout object or enum object is using it.
- * - Reference count is maintained for each of the layout object indicating
- *   how many users are associated with a particular layout object. This helps
- *   to confirm that no layout object gets deleted while any user is associated
- *   with it. It also helps to confirm that the layout object gets deleted
- *   while its last reference gets released.
- * - The in-memory c2_layout object is protected by using c2_layout::l_lock.
+ *   while any of the in-memory layout object or enum object is using it.
+ * - The list of the in-memory layout objects stored in the struct
+ *   c2_layout_domain viz. ld_layout_list is protected by using
+ *   c2_layout_domain::ld_lock.
+ * - Reference count viz. c2_layout::l_ref is maintained for each of the
+ *   in-memory layout object.
+ *   - It is initialised to 1 during an in-memory layout object creation.
+ *   - It gets incremented during every c2_layout_find() and c2_layout_lookup()
+ *     operations so that the respective user has a hold on that in-memory
+ *     layout object, during its usage. The user explicitly needs to release
+ *     this reference once done with the usage, by using c2_layout_put().
+ *   - User can explicitly acquire an additional reference on the layout using
+ *     c2_layout_get() and needs to release it using c2_layout_put().
+ *   - Whenever it is the last reference being released, the in-memory layout
+ *     gets deleted.
+ * - The in-memory layout object is protected by using c2_layout::l_lock.
  * - DB takes its own locks internally to guarantee that concurrent calls to
  *   data-base operations for different layouts do not mess with each other.
  * - c2_layout::l_lock is used to serialise data-base operations for a
@@ -46,14 +53,24 @@
  * - c2_layout_domain::ld_lock is held during the following operations:
  *   - Registration and unregistration routines for various layout types and
  *     enum types.
- *   - While adding/deleting an entry to/from the layout list that happens
- *     through c2_layout__init() and c2_layout_put() respectively.
  *   - While increasing/decreasing references on the layout types and enum
  *     types through layout_type_get(), layout_type_put(), enum_type_get()
  *     and enum_type_put().
+ *   - While adding/deleting an entry to/from the layout list that happens
+ *     through c2_layout__populate() and c2_layout_put() respectively.
+ *   - While trying to locate an entry into the layout list using either
+ *     c2_layout_find() or c2_layout_lookup().
  * - c2_layout::l_lock is held during the following operations:
- *   - c2_layout_lookup(), c2_layout_add(), c2_layout_update(),
- *     c2_layout_delete().
+ *   - The in-memory operations: c2_layout_get(), c2_layout_put(),
+ *     c2_layout_user_count_inc() and c2_layout_user_count_dec().
+ *   - The DB operation: c2_layout_lookup(), c2_layout_add()
+ *     c2_layout_update() and c2_layout_delete().
+ *   - The user is required to perform lt->lt_ops->lto_allocate() before
+ *     invoking c2_layout_decode() on a buffer. lt->lt_ops->lto_allocate()
+ *     has the c2_layout::l_lock held for the layout allocated. As an effect,
+ *     c2_layout::l_lock is locked throughout the c2_layout_decode() operation.
+ *   - The user is explicitly required to hold this lock while invoking
+ *     c2_layout_encode().
  */
 
 #include "lib/errno.h"
@@ -154,14 +171,23 @@ bool c2_layout__allocated_invariant(const struct c2_layout *l)
 {
 	return
 		layout_invariant_internal(l) &&
-		l->l_ref == 1;
+		l->l_ref == 1 &&
+		l->l_user_count == 0;
 }
 
 bool c2_layout__invariant(const struct c2_layout *l)
 {
+	/*
+	 * l->l_ref is always going to be > 0 throughout the life of
+	 * an in-memory layout except when 'its last reference is
+	 * released through c2_layout_put() and it gets deleted using
+	 * l->l_ops->lo_fini()'. In that exceptional case, l->l_ref will be
+	 * equal to 0.
+	 */
 	return
 		layout_invariant_internal(l) &&
-		l->l_ref >= 0;
+		l->l_ref >= 0 &&
+		l->l_user_count >= 0;
 }
 
 bool c2_layout__enum_invariant(const struct c2_layout_enum *e)
@@ -264,7 +290,7 @@ static void layout_list_add(struct c2_layout *l)
  * @pre c2_mutex_is_locked(&dom->ld_lock).
  * @param ref_increment Once layout with specified lid is found, an additional
  * reference is acquired on it if value of ref_increment is true.
- * @post ergo(l != NULL, c2_layout__invariant(l) && l->l_ref > 0));
+ * @post ergo(l != NULL && ref_increment, l->l_ref > 1);
  */
 struct c2_layout *c2_layout__list_lookup(const struct c2_layout_domain *dom,
 					 uint64_t lid,
@@ -280,11 +306,16 @@ struct c2_layout *c2_layout__list_lookup(const struct c2_layout_domain *dom,
 			break;
 	} c2_tl_endfor;
 
-	if (l != NULL && ref_increment) {
-		c2_mutex_lock(&l->l_lock);
+	if (l != NULL && ref_increment)
+		/*
+		 * The dom->ld_lock is held at this points that protects
+		 * the deletion of a layout entry from the layout list.
+		 * Hence, it is safe to increment the l->l_ref without
+		 * acquiring the l->l_lock. Acquiring the l->l_lock here would
+		 * have violated the locking sequence that first layout lock
+		 * should be held and then the domain lock.
+		 */
 		C2_CNT_INC(l->l_ref);
-		c2_mutex_unlock(&l->l_lock);
-	}
 	return l;
 }
 
@@ -300,7 +331,10 @@ static struct c2_layout *list_lookup(struct c2_layout_domain *dom,
 	return l;
 }
 
-/** Initialises a layout, adds a reference on the respective layout type. */
+/**
+ * Initialises a layout with initial l_ref as 1, adds a reference on the
+ * respective layout type.
+ */
 void c2_layout__init(struct c2_layout *l,
 		     struct c2_layout_domain *dom,
 		     uint64_t lid,
@@ -318,11 +352,12 @@ void c2_layout__init(struct c2_layout *l,
 	C2_ENTRY("lid %llu, layout-type-id %lu", (unsigned long long)lid,
 		 (unsigned long)lt->lt_id);
 
-	l->l_id   = lid;
-	l->l_dom  = dom;
-	l->l_ref  = 1;
-	l->l_ops  = ops;
-	l->l_type = lt;
+	l->l_id         = lid;
+	l->l_dom        = dom;
+	l->l_ref        = 1;
+	l->l_user_count = 0;
+	l->l_ops        = ops;
+	l->l_type       = lt;
 
 	layout_type_get(lt);
 	c2_mutex_init(&l->l_lock);
@@ -336,13 +371,13 @@ void c2_layout__init(struct c2_layout *l,
 /**
  * @post c2_layout__list_lookup(l->l_dom, l->l_id, false) == l
  */
-void c2_layout__populate(struct c2_layout *l, uint32_t ref_count)
+void c2_layout__populate(struct c2_layout *l, uint32_t user_count)
 {
 	C2_PRE(c2_layout__allocated_invariant(l));
-	C2_PRE(ref_count >= 0);
+	C2_PRE(user_count >= 0);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-	l->l_ref = ref_count;
+	l->l_user_count = user_count;
 	layout_list_add(l);
 	C2_POST(c2_layout__invariant(l));
 	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
@@ -357,11 +392,13 @@ void c2_layout__fini_internal(struct c2_layout *l)
 	c2_layout_bob_fini(l);
 }
 
+/* Used only in case of exceptions or errors. */
 void c2_layout__delete(struct c2_layout *l)
 {
 	C2_PRE(c2_layout__allocated_invariant(l));
 	C2_PRE(list_lookup(l->l_dom, l->l_id) != l);
 	C2_PRE(c2_mutex_is_not_locked(&l->l_lock));
+	C2_PRE(l->l_ref == 1);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	c2_layout__fini_internal(l);
@@ -373,6 +410,7 @@ void c2_layout__fini(struct c2_layout *l)
 {
 	C2_PRE(c2_layout__invariant(l));
 	C2_PRE(list_lookup(l->l_dom, l->l_id) == NULL);
+	C2_PRE(l->l_ref == 0);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
 	layout_tlink_fini(l);
@@ -385,7 +423,6 @@ void c2_layout__striped_init(struct c2_striped_layout *stl,
 			     uint64_t lid,
 			     struct c2_layout_type *type,
 			     const struct c2_layout_ops *ops)
-
 {
 	C2_PRE(stl != NULL);
 	C2_PRE(c2_layout__domain_invariant(dom));
@@ -410,7 +447,7 @@ void c2_layout__striped_init(struct c2_striped_layout *stl,
  */
 void c2_layout__striped_populate(struct c2_striped_layout *str_l,
 				 struct c2_layout_enum *e,
-				 uint32_t ref_count)
+				 uint32_t user_count)
 
 {
 	C2_PRE(c2_layout__striped_allocated_invariant(str_l));
@@ -419,7 +456,7 @@ void c2_layout__striped_populate(struct c2_striped_layout *str_l,
 	C2_ENTRY("lid %llu, enum-type-id %lu",
 		 (unsigned long long)str_l->sl_base.l_id,
 		 (unsigned long)e->le_type->let_id);
-	c2_layout__populate(&str_l->sl_base, ref_count);
+	c2_layout__populate(&str_l->sl_base, user_count);
 	str_l->sl_enum = e;
 	str_l->sl_enum->le_sl_is_set = true;
 	str_l->sl_enum->le_sl = str_l;
@@ -859,11 +896,6 @@ err1_injected:
 	return rc;
 }
 
-/**
- * Unregisters an enumeration type from the enumeration types
- * maintained by c2_layout_domain::ld_enum[] and finalises enum type
- * specific tables, if applicable.
- */
 void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
 				    struct c2_layout_enum_type *let)
 {
@@ -902,7 +934,6 @@ struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid)
 	return l;
 }
 
-/** Adds a reference to the layout. */
 void c2_layout_get(struct c2_layout *l)
 {
 	C2_PRE(c2_layout__invariant(l));
@@ -938,6 +969,32 @@ void c2_layout_put(struct c2_layout *l)
 	if (killme)
 		l->l_ops->lo_fini(l);
 	C2_LEAVE();
+}
+
+void c2_layout_user_count_inc(struct c2_layout *l)
+{
+	C2_PRE(c2_layout__invariant(l));
+
+	C2_ENTRY("lid %llu, user_count %lu", (unsigned long long)l->l_id,
+		 (unsigned long)l->l_user_count);
+	c2_mutex_lock(&l->l_lock);
+	C2_PRE(list_lookup(l->l_dom, l->l_id) == l);
+	C2_CNT_INC(l->l_user_count);
+	c2_mutex_unlock(&l->l_lock);
+	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
+}
+
+void c2_layout_user_count_dec(struct c2_layout *l)
+{
+	C2_PRE(c2_layout__invariant(l));
+
+	C2_ENTRY("lid %llu, user_count %lu", (unsigned long long)l->l_id,
+		 (unsigned long)l->l_user_count);
+	c2_mutex_lock(&l->l_lock);
+	C2_PRE(list_lookup(l->l_dom, l->l_id) == l);
+	C2_CNT_DEC(l->l_user_count);
+	c2_mutex_unlock(&l->l_lock);
+	C2_LEAVE("lid %llu", (unsigned long long)l->l_id);
 }
 
 int c2_layout_decode(struct c2_layout *l,
@@ -980,7 +1037,7 @@ int c2_layout_decode(struct c2_layout *l,
 
 	if (C2_FI_ENABLED("lo_decode_err"))
 		{ rc = LO_DECODE_ERR; goto err1_injected; }
-	rc = l->l_ops->lo_decode(l, cur, op, tx, rec->lr_ref_count);
+	rc = l->l_ops->lo_decode(l, cur, op, tx, rec->lr_user_count);
 err1_injected:
 	if (rc != 0)
 		c2_layout__log("c2_layout_decode", "lo_decode() failed",
@@ -1005,6 +1062,8 @@ int c2_layout_encode(struct c2_layout *l,
 	int                   rc;
 
 	C2_PRE(c2_layout__invariant(l));
+	C2_PRE(c2_mutex_is_locked(&l->l_lock));
+	C2_PRE(list_lookup(l->l_dom, l->l_id) == l);
 	C2_PRE(C2_IN(op, (C2_LXO_DB_ADD, C2_LXO_DB_UPDATE,
 			  C2_LXO_DB_DELETE, C2_LXO_BUFFER_OP)));
 	C2_PRE(ergo(op != C2_LXO_BUFFER_OP, tx != NULL));
@@ -1012,8 +1071,8 @@ int c2_layout_encode(struct c2_layout *l,
 	C2_PRE(c2_bufvec_cursor_step(out) >= sizeof rec);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
-	rec.lr_lt_id     = l->l_type->lt_id;
-	rec.lr_ref_count = l->l_ref;
+	rec.lr_lt_id      = l->l_type->lt_id;
+	rec.lr_user_count = l->l_user_count;
 	nbytes = c2_bufvec_cursor_copyto(out, &rec, sizeof rec);
 	C2_ASSERT(nbytes == sizeof rec);
 
@@ -1025,6 +1084,7 @@ err1_injected:
 		c2_layout__log("c2_layout_encode", "lo_encode() failed",
 			       &layout_encode_fail, &l->l_addb, l->l_id, rc);
 
+	C2_POST(c2_mutex_is_locked(&l->l_lock));
 	C2_LEAVE("lid %llu, rc %d", (unsigned long long)l->l_id, rc);
 	return rc;
 }
@@ -1079,19 +1139,25 @@ void c2_layout_enum_get(const struct c2_layout_enum *e,
 }
 
 void c2_layout__instance_init(struct c2_layout_instance *li,
-                              const struct c2_fid *gfid,
+			      const struct c2_fid *gfid,
+			      struct c2_layout *l,
 			      const struct c2_layout_instance_ops *ops)
 {
 	C2_PRE(li != NULL);
+	C2_PRE(c2_layout__invariant(l));
+
 	li->li_gfid = *gfid;
+	li->li_l = l;
 	li->li_ops = ops;
 	c2_layout_instance_bob_init(li);
+	c2_layout_get(l);
 	C2_POST(c2_layout__instance_invariant(li));
 }
 
 void c2_layout__instance_fini(struct c2_layout_instance *li)
 {
 	C2_PRE(c2_layout__instance_invariant(li));
+	c2_layout_put(li->li_l);
 	c2_layout_instance_bob_fini(li);
 }
 
