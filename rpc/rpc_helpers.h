@@ -48,11 +48,12 @@ int c2_rpc_item_header_encode(struct c2_rpc_item_onwire_header *ioh,
     @retval 0 (success)
     @retval -errno  (failure)
 */
-int c2_rpc_item_header_decode(struct c2_rpc_item_onwire_header *ioh,
-			      struct c2_bufvec_cursor          *cur);
+int c2_rpc_item_header_decode(struct c2_bufvec_cursor          *cur,
+			      struct c2_rpc_item_onwire_header *ioh);
 
 int c2_rpc_item_slot_ref_encdec(struct c2_bufvec_cursor *cur,
 				struct c2_rpc_slot_ref  *slot_ref,
+				int                      nr_slot_refs,
 				enum c2_bufvec_what      what);
 
 #endif /* __COLIBRI_RPC_HELPERS_H__ */

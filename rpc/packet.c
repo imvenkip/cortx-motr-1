@@ -33,8 +33,9 @@
 #include "rpc/rpc_onwire_xc.h" /* c2_rpc_packet_onwire_header_xc */
 #include "xcode/xcode.h"
 
-static int packet_header_encode(struct c2_bufvec_cursor            *cursor,
-				struct c2_rpc_packet_onwire_header *ph);
+static int packet_header_encode(struct c2_rpc_packet_onwire_header *ph,
+				struct c2_bufvec_cursor            *cursor);
+
 static int packet_header_decode(struct c2_bufvec_cursor            *cursor,
 				struct c2_rpc_packet_onwire_header *ph);
 
@@ -73,9 +74,13 @@ bool c2_rpc_packet_invariant(const struct c2_rpc_packet *p)
 		size += c2_rpc_item_size(item)
 	end_for_each_item_in_packet;
 
-	return p != NULL &&
-	      p->rp_ow.poh_nr_items == packet_item_tlist_length(&p->rp_items) &&
-	      p->rp_size == size + c2_rpc_packet_onwire_header_size();
+	return
+		p != NULL &&
+		p->rp_ow.poh_version != 0 &&
+		p->rp_ow.poh_magic == C2_RPC_PACKET_HEAD_MAGIC &&
+		p->rp_ow.poh_nr_items ==
+			packet_item_tlist_length(&p->rp_items) &&
+		p->rp_size == size + c2_rpc_packet_onwire_header_size();
 }
 
 void c2_rpc_packet_init(struct c2_rpc_packet *p)
@@ -210,7 +215,7 @@ int c2_rpc_packet_encode_using_cursor(struct c2_rpc_packet    *packet,
 	C2_PRE(c2_rpc_packet_invariant(packet) && cursor != NULL);
 	C2_PRE(!c2_rpc_packet_is_empty(packet));
 
-	rc = packet_header_encode(cursor, &packet->rp_ow);
+	rc = packet_header_encode(&packet->rp_ow, cursor);
 	if (rc == 0) {
 		for_each_item_in_packet(item, packet) {
 			rc = item_encode(item, cursor);
@@ -224,13 +229,9 @@ int c2_rpc_packet_encode_using_cursor(struct c2_rpc_packet    *packet,
 	C2_RETURN(rc);
 }
 
-/*
- * packet_header_encode() and item_encode() have similar/same counterparts in
- * rpc_onwire.c. This plagiarisation is intentional and needed, until we
- * change all the places in RPC layer using c2_rpc.
- */
-static int packet_header_encode(struct c2_bufvec_cursor            *cursor,
-				struct c2_rpc_packet_onwire_header *ph)
+static int packet_header_encode(struct c2_rpc_packet_onwire_header *ph,
+				struct c2_bufvec_cursor            *cursor)
+
 {
 	struct c2_xcode_ctx ctx;
 	int                 rc;
@@ -327,7 +328,6 @@ int c2_rpc_packet_decode_using_cursor(struct c2_rpc_packet    *p,
 				      c2_bcount_t              len)
 {
 	struct c2_rpc_packet_onwire_header  poh;
-	struct c2_xcode_ctx                 ctx;
 	struct c2_rpc_item                 *item;
 	uint32_t                            count;
 	int                                 rc;
@@ -343,9 +343,7 @@ int c2_rpc_packet_decode_using_cursor(struct c2_rpc_packet    *p,
 	    poh.poh_magic != C2_RPC_PACKET_HEAD_MAGIC)
 		C2_RETURN(-EPROTO);
 
-	c2_xcode_ctx_init(&ctx, &C2_XCODE_OBJ(c2_rpc_packet_onwire_header_xc,
-					      &p->rp_ow));
-	count = c2_xcode_length(&ctx);
+	count = c2_rpc_packet_onwire_header_size();
 	C2_ASSERT(len > count);
 
 	for (i = 0; i < poh.poh_nr_items; ++i) {
@@ -376,11 +374,12 @@ static int item_decode(struct c2_bufvec_cursor  *cursor,
 	C2_ENTRY();
 	C2_PRE(cursor != NULL && item_out != NULL);
 
-	rc = c2_rpc_item_header_decode(&ioh, cursor);
+	rc = c2_rpc_item_header_decode(cursor, &ioh);
 	if (rc != 0)
 		C2_RETURN(rc);
 
-	C2_ASSERT(ioh.ioh_magic == C2_RPC_ITEM_MAGIC);
+	if (ioh.ioh_magic != C2_RPC_ITEM_MAGIC)
+		return -EPROTO;
 
 	*item_out = NULL;
 

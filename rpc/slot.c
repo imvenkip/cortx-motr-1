@@ -186,20 +186,20 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	slot->sl_last_persistent = dummy_item;
 
 	sref = &dummy_item->ri_slot_refs[0];
-	*sref                           = (struct c2_rpc_slot_ref){
-		.sr_slot                = slot,
-		.sr_item                = dummy_item,
-		.sr_ow                  = {
-			.osr_xid        = 0,
+	*sref = (struct c2_rpc_slot_ref){
+		.sr_slot = slot,
+		.sr_item = dummy_item,
+		.sr_ow   = {
+			.osr_xid      = 0,
 			/*
 			 * XXX lsn will be assigned to some proper value once
 			 * sessions code will be integrated with FOL
 			 */
-			.osr_verno      = {
+			.osr_verno    = {
 				.vn_lsn = C2_LSN_DUMMY_ITEM,
 				.vn_vc  = 0,
 			},
-			.osr_slot_gen   = slot->sl_slot_gen,
+			.osr_slot_gen = slot->sl_slot_gen,
 		},
 	};
 
@@ -391,7 +391,6 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 			    struct c2_rpc_item *item,
 			    bool                allow_events)
 {
-	struct c2_rpc_slot_ref *sref;
 	struct c2_rpc_session  *session;
 	struct c2_rpc_machine  *machine;
 
@@ -407,7 +406,7 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 
 	item->ri_stage        = RPC_ITEM_STAGE_FUTURE;
 	item->ri_slot_refs[0] = (struct c2_rpc_slot_ref){
-		.sr_ow = {
+		.sr_ow   = {
 			.osr_session_id = session->s_session_id,
 			.osr_sender_id  = session->s_conn->c_sender_id,
 			.osr_uuid       = session->s_conn->c_uuid,
@@ -418,10 +417,13 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 			 * slot_item_apply() will call this routine only if
 			 * verno of slot and item matches
 			 */
-			.osr_slot_id = slot->sl_slot_id,
-			.osr_verno   = slot->sl_verno,
-			.osr_xid     = slot->sl_xid,
+			.osr_slot_id    = slot->sl_slot_id,
+			.osr_verno      = slot->sl_verno,
+			.osr_xid        = slot->sl_xid,
+			.osr_slot_gen   = slot->sl_slot_gen,
 		},
+		.sr_slot = slot,
+		.sr_item = item,
 	};
 
 	slot->sl_xid++;
@@ -434,11 +436,6 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 		slot->sl_verno.vn_lsn++;
 		slot->sl_verno.vn_vc++;
 	}
-
-	sref = &item->ri_slot_refs[0];
-	sref->sr_ow.osr_slot_gen = slot->sl_slot_gen;
-	sref->sr_slot            = slot;
-	sref->sr_item            = item;
 
 	slot_item_tlink_init_at_tail(item, &slot->sl_item_list);
 	if (session != NULL) {

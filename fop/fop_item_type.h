@@ -66,7 +66,7 @@ int c2_fop_item_type_default_decode(struct c2_rpc_item_type  *item_type,
    @retval Size of the item in bytes.
 */
 c2_bcount_t
-c2_fop_item_type_default_onwire_size(const struct c2_rpc_item *item);
+c2_fop_item_type_default_payload_size(const struct c2_rpc_item *item);
 
 int c2_fop_item_encdec(struct c2_rpc_item      *item,
 		       struct c2_bufvec_cursor *cur,

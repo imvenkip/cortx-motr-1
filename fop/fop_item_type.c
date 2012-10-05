@@ -24,7 +24,7 @@
 #include "fop/fop_item_type.h"
 #include "rpc/rpc_helpers.h"
 
-c2_bcount_t c2_fop_item_type_default_onwire_size(const struct c2_rpc_item *item)
+c2_bcount_t c2_fop_item_type_default_payload_size(const struct c2_rpc_item *item)
 {
 	c2_bcount_t          len;
 	struct c2_fop       *fop;
@@ -103,7 +103,8 @@ int c2_fop_item_encdec(struct c2_rpc_item      *item,
 
 	fop = c2_rpc_item_to_fop(item);
 
-	rc = c2_rpc_item_slot_ref_encdec(cur, item->ri_slot_refs, what);
+	/* Currently MAX slot references in sessions is 1. */
+	rc = c2_rpc_item_slot_ref_encdec(cur, item->ri_slot_refs, 1, what);
 	if (rc != 0)
 		return rc;
 
@@ -128,7 +129,7 @@ int c2_fop_item_encdec(struct c2_rpc_item      *item,
 const struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops = {
 	.rito_encode       = c2_fop_item_type_default_encode,
 	.rito_decode       = c2_fop_item_type_default_decode,
-	.rito_payload_size = c2_fop_item_type_default_onwire_size,
+	.rito_payload_size = c2_fop_item_type_default_payload_size,
 };
 C2_EXPORTED(c2_rpc_fop_default_item_type_ops);
 

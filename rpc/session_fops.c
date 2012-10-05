@@ -104,7 +104,7 @@ const struct c2_fop_type_ops c2_rpc_fop_noop_ops = {
 static struct c2_rpc_item_type_ops conn_establish_item_type_ops = {
 	.rito_encode       = c2_fop_item_type_default_encode,
 	.rito_decode       = conn_establish_item_decode,
-        .rito_payload_size = c2_fop_item_type_default_onwire_size,
+        .rito_payload_size = c2_fop_item_type_default_payload_size,
 };
 
 struct c2_fop_type c2_rpc_fop_conn_establish_fopt;
@@ -152,6 +152,9 @@ extern struct c2_fom_type_ops c2_rpc_fom_session_terminate_type_ops;
 
 int c2_rpc_session_fop_init(void)
 {
+	/**
+	 * @todo This should be done from dtm subsystem init.
+	 */
 	c2_xc_verno_init();
 	c2_xc_rpc_onwire_init();
 	c2_xc_session_init();

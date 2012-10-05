@@ -97,7 +97,7 @@ const struct c2_rpc_item_ops io_req_rpc_item_ops = {
 };
 
 static const struct c2_rpc_item_type_ops io_item_type_ops = {
-        .rito_payload_size   = c2_fop_item_type_default_onwire_size,
+        .rito_payload_size   = c2_fop_item_type_default_payload_size,
         .rito_io_coalesce    = item_io_coalesce,
         .rito_encode	     = c2_fop_item_type_default_encode,
         .rito_decode	     = c2_fop_item_type_default_decode,
@@ -117,7 +117,7 @@ const struct c2_rpc_item_ops cob_req_rpc_item_ops = {
 };
 
 static const struct c2_rpc_item_type_ops cob_rpc_type_ops = {
-	.rito_payload_size   = c2_fop_item_type_default_onwire_size,
+	.rito_payload_size   = c2_fop_item_type_default_payload_size,
 	.rito_io_coalesce    = NULL,
 	.rito_encode         = c2_fop_item_type_default_encode,
 	.rito_decode	     = c2_fop_item_type_default_decode,

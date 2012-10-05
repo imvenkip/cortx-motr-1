@@ -25,8 +25,18 @@
 #include "rpc/rpc_helpers.h"
 #include "xcode/xcode.h" /* C2_XCODE_OBJ */
 
+#define ITEM_HEAD_XCODE_OBJ(ptr) C2_XCODE_OBJ(c2_rpc_item_onwire_header_xc, ptr)
+#define SLOT_REF_XCODE_OBJ(ptr)  C2_XCODE_OBJ(c2_rpc_onwire_slot_ref_xc, ptr)
+
+static int slot_ref_encode(struct c2_rpc_onwire_slot_ref *osr,
+			   struct c2_bufvec_cursor       *cur);
+
+static int slot_ref_decode(struct c2_bufvec_cursor       *cur,
+			   struct c2_rpc_onwire_slot_ref *osr);
+
 int c2_rpc_item_header_encode(struct c2_rpc_item_onwire_header *ioh,
 			      struct c2_bufvec_cursor          *cur)
+
 {
 	struct c2_xcode_ctx ctx;
 	int                 rc;
@@ -35,36 +45,34 @@ int c2_rpc_item_header_encode(struct c2_rpc_item_onwire_header *ioh,
 	C2_PRE(cur != NULL);
 	C2_PRE(ioh != NULL);
 
-	c2_xcode_ctx_init(&ctx,
-			  &C2_XCODE_OBJ(c2_rpc_item_onwire_header_xc, ioh));
+	c2_xcode_ctx_init(&ctx, &ITEM_HEAD_XCODE_OBJ(ioh));
 	ctx.xcx_buf   = *cur;
 	rc = c2_xcode_encode(&ctx);
 	if (rc == 0)
 		*cur = ctx.xcx_buf;
-	return rc;
+	C2_RETURN(rc);
 }
 
-int c2_rpc_item_header_decode(struct c2_rpc_item_onwire_header *ioh,
-			      struct c2_bufvec_cursor          *cur)
+int c2_rpc_item_header_decode(struct c2_bufvec_cursor          *cur,
+			      struct c2_rpc_item_onwire_header *ioh)
 {
-	struct c2_rpc_item_onwire_header *ioh_decoded = NULL;
-	struct c2_xcode_ctx               ctx;
-	int                               rc;
+	struct c2_xcode_ctx ctx;
+	int                 rc;
 
+	C2_ENTRY();
 	C2_PRE(cur != NULL);
 	C2_PRE(ioh != NULL);
 
-	c2_xcode_ctx_init(&ctx,
-			  &C2_XCODE_OBJ(c2_rpc_item_onwire_header_xc,
-					ioh_decoded));
+	c2_xcode_ctx_init(&ctx, &ITEM_HEAD_XCODE_OBJ(NULL));
 	ctx.xcx_buf   = *cur;
 	ctx.xcx_alloc = c2_xcode_alloc;
 	rc = c2_xcode_decode(&ctx);
 	if (rc == 0) {
-		*ioh = *(struct c2_rpc_item_onwire_header *)
-			c2_xcode_ctx_top(&ctx);
-		c2_xcode_free(&C2_XCODE_OBJ(c2_rpc_onwire_slot_ref_xc,
-					    ioh_decoded));
+		struct c2_rpc_item_onwire_header *ioh_decoded;
+
+		ioh_decoded = c2_xcode_ctx_top(&ctx);
+		*ioh = *ioh_decoded;
+		c2_xcode_free(&ITEM_HEAD_XCODE_OBJ(ioh_decoded));
 		*cur = ctx.xcx_buf;
 	}
 	C2_RETURN(rc);
@@ -72,45 +80,60 @@ int c2_rpc_item_header_decode(struct c2_rpc_item_onwire_header *ioh,
 
 int c2_rpc_item_slot_ref_encdec(struct c2_bufvec_cursor *cur,
 				struct c2_rpc_slot_ref  *slot_ref,
+				int                      nr_slot_refs,
 				enum c2_bufvec_what      what)
 {
 	struct c2_rpc_onwire_slot_ref *osr = NULL;
-	struct c2_xcode_ctx            ctx;
 	int                            rc;
-	int                            slot_ref_cnt;
 	int                            i;
 
 	C2_ENTRY();
 	C2_PRE(slot_ref != NULL);
 	C2_PRE(cur != NULL);
 
-	/* Currently MAX slot references in sessions is 1. */
-	slot_ref_cnt = 1;
-	for (i = 0; i < slot_ref_cnt; ++i) {
-
-		if (what == C2_BUFVEC_ENCODE)
-			osr = &slot_ref[i].sr_ow;
-		c2_xcode_ctx_init(&ctx,
-				  &C2_XCODE_OBJ(c2_rpc_onwire_slot_ref_xc,
-						osr));
-		ctx.xcx_buf   = *cur;
-		ctx.xcx_alloc = c2_xcode_alloc;
-		rc = what == C2_BUFVEC_ENCODE ? c2_xcode_encode(&ctx) :
-						c2_xcode_decode(&ctx);
-		if (rc != 0)
-			break;
-		else if (what == C2_BUFVEC_DECODE) {
-			slot_ref[i].sr_ow =
-				*(struct c2_rpc_onwire_slot_ref *)
-				c2_xcode_ctx_top(&ctx);
-			c2_xcode_free(&C2_XCODE_OBJ(c2_rpc_onwire_slot_ref_xc,
-						    osr));
-		}
-		*cur = ctx.xcx_buf;
+	for (i = 0, rc = 0; rc == 0 && i < nr_slot_refs; ++i) {
+		osr = &slot_ref[i].sr_ow;
+		rc = what == C2_BUFVEC_ENCODE ?
+			slot_ref_encode(osr, cur) :
+			slot_ref_decode(cur, osr);
 	}
 
 	C2_RETURN(rc);
-	return rc;
+}
+
+static int slot_ref_encode(struct c2_rpc_onwire_slot_ref *osr,
+			   struct c2_bufvec_cursor       *cur)
+
+{
+	struct c2_xcode_ctx ctx;
+	int                 rc;
+
+	C2_ENTRY();
+	c2_xcode_ctx_init(&ctx, &SLOT_REF_XCODE_OBJ(osr));
+	ctx.xcx_buf = *cur;
+	rc = c2_xcode_encode(&ctx);
+	*cur = ctx.xcx_buf;
+	C2_RETURN(rc);
+}
+
+static int slot_ref_decode(struct c2_bufvec_cursor       *cur,
+			   struct c2_rpc_onwire_slot_ref *osr)
+{
+	struct c2_xcode_ctx ctx;
+	int                 rc;
+
+	C2_ENTRY();
+	c2_xcode_ctx_init(&ctx, &SLOT_REF_XCODE_OBJ(NULL));
+	ctx.xcx_buf   = *cur;
+	ctx.xcx_alloc = c2_xcode_alloc;
+	rc = c2_xcode_decode(&ctx);
+	if (rc == 0) {
+		struct c2_rpc_onwire_slot_ref *osr_top = c2_xcode_ctx_top(&ctx);
+		*osr = *osr_top;
+		c2_xcode_free(&SLOT_REF_XCODE_OBJ(osr_top));
+	}
+	*cur = ctx.xcx_buf;
+	C2_RETURN(rc);
 }
 
 /*
