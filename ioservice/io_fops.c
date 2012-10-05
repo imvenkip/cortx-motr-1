@@ -1554,7 +1554,6 @@ static void io_fop_free_internal(struct c2_rpc_item *item)
 	iofop = container_of(fop, struct c2_io_fop, if_fop);
 	c2_io_fop_destroy(&iofop->if_fop);
 	c2_io_fop_fini(iofop);
-	c2_free(iofop);
 }
 
 /*

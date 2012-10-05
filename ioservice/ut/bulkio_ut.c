@@ -34,6 +34,23 @@ static void bulkio_init();
 static void bulkio_fini();
 
 struct bulkio_params *bp;
+
+/*
+ * This is done in order to bypass the problem of item->ri_ops->rio_free()
+ * not getting invoked until rpc session is finalized.
+ * An IO fop can not be directly deallocated from rio_free() since it
+ * could be statically allocated, it could be an embedded object inside
+ * another object and so on.
+ * Ergo, IO fop has to be deallocated manually _after_ rio_free() is invoked.
+ * But this would not be done until rpc session is finalized.
+ * It would be inappropriate to finalize rpc session after each and every
+ * fop is sent and its reply is received.
+ * Hence this fop array acts as a garbage collector which collects all
+ * submitted fops and deallocates them after rpc session is finalized.
+ */
+static struct c2_io_fop *garb_collect[IO_FOPS_NR * 3];
+static int garb_index;
+
 extern void bulkioapi_test(void);
 static int io_fop_server_write_fom_create(struct c2_fop *fop,
 					  struct c2_fom **m);
@@ -1126,6 +1143,12 @@ static int io_fop_server_read_fom_create(struct c2_fop *fop, struct c2_fom **m)
 	return rc;
 }
 
+static void garb_add(struct c2_io_fop *iofop)
+{
+        garb_collect[garb_index] = iofop;
+        ++garb_index;
+}
+
 void bulkio_stob_create(void)
 {
 	struct c2_fop_cob_rw	*rw;
@@ -1140,6 +1163,7 @@ void bulkio_stob_create(void)
 		C2_ALLOC_PTR(bp->bp_wfops[i]);
                 rc = c2_io_fop_init(bp->bp_wfops[i], &c2_fop_cob_writev_fopt);
 		C2_UT_ASSERT(rc == 0);
+                garb_add(bp->bp_wfops[i]);
 		/*
 		 * We replace the original ->ft_ops amd ->ft_fom_type for
 		 * regular io_fops. This is reset later.
@@ -1159,6 +1183,16 @@ void bulkio_stob_create(void)
 	io_fops_destroy(bp);
 }
 
+static void garb_clear()
+{
+        int cnt;
+
+        for (cnt = 0; cnt < garb_index; ++cnt) {
+                c2_free(garb_collect[cnt]);
+                garb_collect[cnt] = NULL;
+        }
+}
+
 void bulkio_server_single_read_write(void)
 {
 	int		    j;
@@ -1172,6 +1206,7 @@ void bulkio_server_single_read_write(void)
 	}
 	op = C2_IOSERVICE_WRITEV_OPCODE;
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
+        garb_add(bp->bp_wfops[0]);
 	/*
 	 * Here we replace the original ->ft_ops amd ->ft_fom_type as they were
 	 * changed during bulkio_stob_create test.
@@ -1182,6 +1217,7 @@ void bulkio_server_single_read_write(void)
 	targ.ta_op = op;
 	targ.ta_bp = bp;
 	io_fops_rpc_submit(&targ);
+	io_fops_destroy(bp);
 
 	buf = &bp->bp_iobuf[0]->nb_buffer;
 	for (j = 0; j < IO_SEGS_NR; ++j) {
@@ -1189,6 +1225,7 @@ void bulkio_server_single_read_write(void)
 	}
 	op = C2_IOSERVICE_READV_OPCODE;
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
+        garb_add(bp->bp_rfops[0]);
 	bp->bp_rfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
         bp->bp_rfops[0]->if_fop.f_type->ft_fom_type.ft_ops = &io_fom_type_ops;
 	targ.ta_index = 0;
@@ -1215,6 +1252,7 @@ void bulkio_server_read_write_state_test(void)
 	}
 	op = C2_IOSERVICE_WRITEV_OPCODE;
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
+        garb_add(bp->bp_wfops[0]);
         bp->bp_wfops[0]->if_fop.f_type->ft_fom_type.ft_ops =
 	&bulkio_server_write_fomt_ops;
 	bp->bp_wfops[0]->if_fop.f_type->ft_ops =
@@ -1223,6 +1261,7 @@ void bulkio_server_read_write_state_test(void)
 	targ.ta_op = op;
 	targ.ta_bp = bp;
 	io_fops_rpc_submit(&targ);
+	io_fops_destroy(bp);
 
 	buf = &bp->bp_iobuf[0]->nb_buffer;
 	for (j = 0; j < IO_SEGS_NR; ++j) {
@@ -1230,6 +1269,7 @@ void bulkio_server_read_write_state_test(void)
 	}
 	op = C2_IOSERVICE_READV_OPCODE;
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
+        garb_add(bp->bp_rfops[0]);
         bp->bp_rfops[0]->if_fop.f_type->ft_fom_type.ft_ops =
 	&bulkio_server_read_fomt_ops;
 	bp->bp_rfops[0]->if_fop.f_type->ft_ops = &bulkio_server_read_fop_ut_ops;
@@ -1258,6 +1298,7 @@ void bulkio_server_rw_state_transition_test(void)
 	}
 	op = C2_IOSERVICE_WRITEV_OPCODE;
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
+        garb_add(bp->bp_wfops[0]);
         bp->bp_wfops[0]->if_fop.f_type->ft_fom_type.ft_ops =
 	&ut_io_fom_cob_rw_type_ops;
 	bp->bp_wfops[0]->if_fop.f_type->ft_ops =
@@ -1266,6 +1307,7 @@ void bulkio_server_rw_state_transition_test(void)
 	targ.ta_op = op;
 	targ.ta_bp = bp;
 	io_fops_rpc_submit(&targ);
+	io_fops_destroy(bp);
 
 	buf = &bp->bp_iobuf[0]->nb_buffer;
 	for (j = 0; j < IO_SEGS_NR; ++j) {
@@ -1273,6 +1315,7 @@ void bulkio_server_rw_state_transition_test(void)
 	}
 	op = C2_IOSERVICE_READV_OPCODE;
 	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
+        garb_add(bp->bp_rfops[0]);
         bp->bp_rfops[0]->if_fop.f_type->ft_fom_type.ft_ops =
 		&ut_io_fom_cob_rw_type_ops;
 	bp->bp_rfops[0]->if_fop.f_type->ft_ops =
@@ -1310,6 +1353,7 @@ void bulkio_server_multiple_read_write(void)
 		io_fops = (op == C2_IOSERVICE_WRITEV_OPCODE) ? bp->bp_wfops :
 							       bp->bp_rfops;
 		for (i = 0; i < IO_FOPS_NR; ++i) {
+                        garb_add(io_fops[i]);
 			targ[i].ta_index = i;
 			targ[i].ta_op = op;
 			targ[i].ta_bp = bp;
@@ -1328,8 +1372,8 @@ void bulkio_server_multiple_read_write(void)
 				memset(buf->ov_buf[j], 'a', IO_SEG_SIZE);
 			}
 		}
+                io_fops_destroy(bp);
 	}
-	io_fops_destroy(bp);
 }
 
 void fop_create_populate(int index, enum C2_RPC_OPCODES op, int buf_nr)
@@ -1429,11 +1473,13 @@ void bulkio_server_read_write_multiple_nb(void)
 	}
 	op = C2_IOSERVICE_WRITEV_OPCODE;
 	fop_create_populate(0, op, buf_nr);
+        garb_add(bp->bp_wfops[0]);
 	bp->bp_wfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
 	targ.ta_index = 0;
 	targ.ta_op = op;
 	targ.ta_bp = bp;
 	io_fops_rpc_submit(&targ);
+	io_fops_destroy(bp);
 
 	for (i = 0; i < buf_nr; ++i) {
 		buf = &bp->bp_iobuf[i]->nb_buffer;
@@ -1443,7 +1489,9 @@ void bulkio_server_read_write_multiple_nb(void)
 	}
 	op = C2_IOSERVICE_READV_OPCODE;
 	fop_create_populate(0, op, buf_nr);
-	bp->bp_wfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
+        garb_add(bp->bp_rfops[0]);
+        /* XXX Confirm this change! */
+	bp->bp_rfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
 	targ.ta_index = 0;
 	targ.ta_op = op;
 	targ.ta_bp = bp;
@@ -1478,6 +1526,9 @@ static void bulkio_fini(void)
 	bulkio_server_stop(bp->bp_sctx);
 	bulkio_params_fini(bp);
 	c2_free(bp);
+
+        /* Clear the garbage! */
+        garb_clear();
 }
 
 /*
