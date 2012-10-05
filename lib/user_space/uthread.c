@@ -20,6 +20,8 @@
  */
 
 #include "lib/misc.h"   /* C2_SET0 */
+#include "lib/memory.h"
+#include "lib/errno.h"
 #include "lib/thread.h"
 #include "lib/arith.h"
 #include "lib/bitmap.h"
@@ -41,14 +43,66 @@
    @{
  */
 
+/**
+ * Thread specific data.
+ */
+struct uthread_specific_data {
+	/** Flag to indicate thread is in awkward context. */
+	bool tsd_is_awkward;
+};
+
 static pthread_attr_t pthread_attr_default;
+static pthread_key_t pthread_data_key;
+
+/**
+ * Initialize thread specific data.
+ */
+int uthread_specific_data_init(void)
+{
+	struct uthread_specific_data *ptr;
+
+	C2_ALLOC_PTR(ptr);
+	if (ptr == NULL)
+		return -ENOMEM;
+
+	ptr->tsd_is_awkward = false;
+	return -pthread_setspecific(pthread_data_key, ptr);
+}
+
+/**
+ * Finalise thread specific data.
+ */
+void uthread_specific_data_fini(void)
+{
+	struct uthread_specific_data *ptr;
+
+	ptr = pthread_getspecific(pthread_data_key);
+	pthread_setspecific(pthread_data_key, NULL);
+	c2_free(ptr);
+}
+
+/*
+ * Used to initialize user thread specific data.
+ */
+static void *uthread_trampoline(void *arg)
+{
+	struct c2_thread	     *t = arg;
+
+	t->t_initrc = uthread_specific_data_init();
+	if (t->t_initrc == 0) {
+		c2_thread_trampoline(arg);
+		uthread_specific_data_fini();
+	}
+
+	return NULL;
+}
 
 int c2_thread_init_impl(struct c2_thread *q, const char *namebuf)
 {
 	C2_PRE(q->t_state == TS_RUNNING);
 
 	return -pthread_create(&q->t_h.h_id, &pthread_attr_default,
-			       c2_thread_trampoline, q);
+			       uthread_trampoline, q);
 }
 
 int c2_thread_join(struct c2_thread *q)
@@ -89,15 +143,29 @@ int c2_threads_init(void)
 	int result;
 
 	result = -pthread_attr_init(&pthread_attr_default);
-	if (result == 0)
-		result = -pthread_attr_setdetachstate(&pthread_attr_default,
-						      PTHREAD_CREATE_JOINABLE);
-	return result;
+	if (result != 0)
+		return result;
+
+	result = -pthread_attr_setdetachstate(&pthread_attr_default,
+					      PTHREAD_CREATE_JOINABLE);
+	if (result != 0)
+		return result;
+
+	/* Generate key for thread specific data. */
+	result = -pthread_key_create(&pthread_data_key, NULL);
+	if (result != 0) {
+		pthread_attr_destroy(&pthread_attr_default);
+		return result;
+	}
+
+	return uthread_specific_data_init();
 }
 
 void c2_threads_fini(void)
 {
 	pthread_attr_destroy(&pthread_attr_default);
+	uthread_specific_data_fini();
+	pthread_key_delete(pthread_data_key);
 }
 
 void c2_thread_self(struct c2_thread_handle *id)
@@ -111,6 +179,35 @@ bool c2_thread_handle_eq(struct c2_thread_handle *h1,
 	return h1->h_id == h2->h_id;
 }
 
+void c2_enter_awkward(void)
+{
+	struct uthread_specific_data *ptr;
+
+	ptr = pthread_getspecific(pthread_data_key);
+	C2_ASSERT(ptr != NULL);
+
+	ptr->tsd_is_awkward = true;
+}
+
+void c2_exit_awkward(void)
+{
+	struct uthread_specific_data *ptr;
+
+	ptr = pthread_getspecific(pthread_data_key);
+	C2_ASSERT(ptr != NULL);
+
+	ptr->tsd_is_awkward = false;
+}
+
+bool c2_is_awkward(void)
+{
+	struct uthread_specific_data *ptr;
+
+	ptr = pthread_getspecific(pthread_data_key);
+	C2_ASSERT(ptr != NULL);
+
+	return ptr->tsd_is_awkward;
+}
 /** @} end of thread group */
 
 /*
