@@ -61,13 +61,6 @@ const struct c2_rpc_item_ops rm_revoke_rpc_ops = {
 	.rio_free = outreq_free,
 };
 
-struct c2_fop_type *fops[] = {
-	&c2_fop_rm_borrow_fopt,
-	&c2_fop_rm_borrow_rep_fopt,
-	&c2_fop_rm_revoke_fopt,
-	&c2_fop_rm_revoke_rep_fopt,
-};
-
 /**
  * FOP definitions for resource-right borrow request and reply.
  */
