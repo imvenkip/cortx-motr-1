@@ -2196,7 +2196,7 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
         C2_PRE(COUNT(&map->pi_ivec, seg) <= PAGE_CACHE_SIZE);
 
         play  = pdlayout_get(map->pi_ioreq);
-        inode = map->pi_ioreq->ir_file->f_dentry->d_inode; 
+        inode = map->pi_ioreq->ir_file->f_dentry->d_inode;
         page_pos_get(map, INDEX(&map->pi_ivec, seg), &row, &col);
 
         rc = pargrp_iomap_databuf_alloc(map, row, col);
@@ -2217,7 +2217,7 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
                                     map->pi_databufs[row][col]->db_buf.b_nob =
                                             min64u(INDEX(&map->pi_ivec, seg) +
                                                    COUNT(&map->pi_ivec, seg),
-                                                   inode->i_size) - 
+                                                   inode->i_size) -
                                             INDEX(&map->pi_ivec, seg);
                         }
                 }
