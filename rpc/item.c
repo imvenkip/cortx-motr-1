@@ -37,6 +37,7 @@
    @{
  */
 
+static int item_entered_in_urgent_state(struct c2_sm *mach);
 static int item_entered_in_sent_state(struct c2_sm *mach);
 static int item_entered_in_timedout_state(struct c2_sm *mach);
 static int item_entered_in_failed_state(struct c2_sm *mach);
@@ -162,6 +163,7 @@ static const struct c2_sm_state_descr outgoing_item_states[] = {
 		.sd_name    = "INITIALISED",
 		.sd_allowed = C2_BITS(C2_RPC_ITEM_WAITING_IN_STREAM,
 				      C2_RPC_ITEM_ENQUEUED,
+				      C2_RPC_ITEM_URGENT,
 				      C2_RPC_ITEM_UNINITIALISED),
 	},
 	[C2_RPC_ITEM_WAITING_IN_STREAM] = {
@@ -170,6 +172,12 @@ static const struct c2_sm_state_descr outgoing_item_states[] = {
 	},
 	[C2_RPC_ITEM_ENQUEUED] = {
 		.sd_name    = "ENQUEUED",
+		.sd_allowed = C2_BITS(C2_RPC_ITEM_SENDING,
+				      C2_RPC_ITEM_URGENT),
+	},
+	[C2_RPC_ITEM_URGENT] = {
+		.sd_name    = "URGENT",
+		.sd_in      = item_entered_in_urgent_state,
 		.sd_allowed = C2_BITS(C2_RPC_ITEM_SENDING),
 	},
 	[C2_RPC_ITEM_SENDING] = {
@@ -523,6 +531,9 @@ void c2_rpc_item_sm_fini(struct c2_rpc_item *item)
 	 */
 	if (item->ri_timeout.st_ast.sa_mach != NULL)
 		c2_sm_timeout_fini(&item->ri_timeout);
+	if (item->ri_deadline_to.st_ast.sa_mach != NULL)
+		c2_sm_timeout_fini(&item->ri_deadline_to);
+
 	c2_sm_fini(&item->ri_sm);
 }
 
@@ -586,6 +597,25 @@ struct c2_rpc_item *sm_to_item(struct c2_sm *mach)
 	return container_of(mach, struct c2_rpc_item, ri_sm);
 }
 
+static int item_entered_in_urgent_state(struct c2_sm *mach)
+{
+	struct c2_rpc_item *item;
+	struct c2_rpc_frm  *frm;
+
+	item = sm_to_item(mach);
+	frm  = item->ri_frm;
+	if (item_is_in_waiting_queue(item, frm)) {
+		C2_LOG(C2_DEBUG, "%p [%s/%u] ENQUEUED -> URGENT",
+		       item, item_kind(item), item->ri_type->rit_opcode);
+		c2_rpc_frm_item_deadline_passed(frm, item);
+		/*
+		 * c2_rpc_frm_item_deadline_passed() might reenter in
+		 * c2_sm_state_set() and modify item state.
+		 * So at this point the item may or may not be in URGENT state.
+		 */
+	}
+	return -1;
+}
 static int item_entered_in_sent_state(struct c2_sm *mach)
 {
 	struct c2_rpc_item *item;

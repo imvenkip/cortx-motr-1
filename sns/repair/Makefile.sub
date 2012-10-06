@@ -1,6 +1,7 @@
 nobase_colibri_include_HEADERS += sns/repair/ag.h \
                                   sns/repair/cm.h \
-                                  sns/repair/cp.h
+                                  sns/repair/cp.h \
+                                  sns/repair/iter.h
 
 colibri_libcolibri_la_SOURCES  += sns/repair/ag.c \
                                   sns/repair/ag.h \
@@ -8,9 +9,10 @@ colibri_libcolibri_la_SOURCES  += sns/repair/ag.c \
                                   sns/repair/cm.h \
                                   sns/repair/cp.c \
                                   sns/repair/cp.h \
+                                  sns/repair/iter.c \
+                                  sns/repair/iter.h \
                                   sns/repair/service.c \
                                   sns/repair/xform.c \
                                   sns/repair/storage.c
 
 EXTRA_DIST += sns/poolmach.c
-

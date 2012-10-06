@@ -42,6 +42,7 @@
 struct c2_rpc_slot;
 struct c2_rpc_session;
 struct c2_bufvec_cursor;
+struct c2_rpc_frm;
 
 /* Forward declarations */
 struct c2_rpc_item_ops;
@@ -65,11 +66,17 @@ enum c2_rpc_item_state {
 	 */
 	C2_RPC_ITEM_WAITING_IN_STREAM,
 	/**
-	 * Item is in one of the queues maintained by formation.
+	 * Item is in one of the WAITING_ queues maintained by formation.
 	 * The item is waiting to be selected by formation machine for sending
 	 * on the network.
 	 */
 	C2_RPC_ITEM_ENQUEUED,
+	/*
+	 * Deadline of item is expired.
+	 * Item is in one of URGENT_* queues maintained by formation.
+	 * Formation should send the item as early as possible.
+	 */
+	C2_RPC_ITEM_URGENT,
 	/**
 	 * Item is serialised in a network buffer and the buffer is submitted
 	 * to network layer for sending.
@@ -170,7 +177,9 @@ enum c2_rpc_item_dir {
 struct c2_rpc_item {
 	enum c2_rpc_item_priority	 ri_prio;
 	c2_time_t			 ri_deadline;
+	struct c2_sm_timeout             ri_deadline_to;
 	c2_time_t                        ri_op_timeout;
+	struct c2_sm_timeout             ri_timeout;
 	struct c2_sm                     ri_sm;
 	enum c2_rpc_item_stage		 ri_stage;
 	uint64_t			 ri_flags;
@@ -183,7 +192,6 @@ struct c2_rpc_item {
 	const struct c2_rpc_item_type	*ri_type;
 	/** reply item */
 	struct c2_rpc_item		*ri_reply;
-	struct c2_sm_timeout             ri_timeout;
 	/** item operations */
 	const struct c2_rpc_item_ops	*ri_ops;
 	/** Time spent in rpc layer. */
@@ -206,6 +214,7 @@ struct c2_rpc_item {
 	struct c2_tlink                  ri_plink;
 	/** One of c2_rpc_frm::f_itemq[], in which this item is placed. */
 	struct c2_tl                    *ri_itemq;
+	struct c2_rpc_frm               *ri_frm;
 	/** C2_RPC_ITEM_MAGIC */
 	uint64_t			 ri_magic;
 };

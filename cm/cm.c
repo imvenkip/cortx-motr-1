@@ -277,9 +277,6 @@ C2_TL_DEFINE(cmtypes, static, struct c2_cm_type);
 static struct c2_bob_type cmtypes_bob;
 C2_BOB_DEFINE(static, &cmtypes_bob, c2_cm_type);
 
-C2_TL_DESCR_DEFINE(cm_ag, "aggregation groups", static, struct c2_cm_aggr_group,
-		   cag_cm_linkage, cag_magic, CM_AG_LINK_MAGIX, CM_AG_HEAD_MAGIX);
-C2_TL_DEFINE(cm_ag, static, struct c2_cm_aggr_group);
 
 C2_ADDB_EV_DEFINE(cm_setup_fail, "cm_setup_fail",
 		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
@@ -593,7 +590,7 @@ int c2_cm_init(struct c2_cm *cm, struct c2_cm_type *cm_type,
 	 */
 	c2_cm_lock(cm);
 	C2_ASSERT(c2_cm_state_get(cm) == C2_CMS_INIT);
-	cm_ag_tlist_init(&cm->cm_aggr_grps);
+	aggr_grps_tlist_init(&cm->cm_aggr_grps);
 
 	C2_POST(c2_cm_invariant(cm));
 	c2_cm_unlock(cm);
@@ -687,6 +684,13 @@ int c2_cm_data_next(struct c2_cm *cm, struct c2_cm_cp *cp)
 
 	C2_LEAVE("rc: %d", rc);
 	return rc;
+}
+
+bool c2_cm_has_more_data(const struct c2_cm *cm)
+{
+	C2_PRE(c2_cm_invariant(cm));
+
+	return c2_fom_rc(&cm->cm_cp_pump.p_fom) != -ENODATA;
 }
 
 /** @} endgroup CM */

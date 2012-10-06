@@ -68,7 +68,7 @@ static int dummy_cp_xform(struct c2_cm_cp *cp)
 
 static int dummy_cp_init(struct c2_cm_cp *cp)
 {
-	int rc = c2_sns_repair_cp_init(cp);
+	int rc = cp_init(cp);
 	c2_semaphore_up(&sem);
 	return rc;
 }
@@ -82,7 +82,7 @@ const struct c2_cm_cp_ops c2_sns_repair_cp_dummy_ops = {
                 [C2_CCP_XFORM] = &dummy_cp_xform,
                 [C2_CCP_SEND]  = &c2_sns_repair_cp_send,
                 [C2_CCP_RECV]  = &c2_sns_repair_cp_recv,
-                [C2_CCP_FINI]  = &c2_sns_repair_cp_fini,
+                [C2_CCP_FINI]  = &sns_repair_dummy_cp_fini,
         },
         .co_action_nr          = C2_CCP_NR,
         .co_phase_next         = &c2_sns_repair_cp_phase_next,

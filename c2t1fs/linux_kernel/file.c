@@ -2963,7 +2963,7 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 	} c2_tl_endfor;
 
 	c2_tl_for (tioreqs, &xfer->nxr_tioreqs, ti) {
-		c2_tl_for(iofops, &ti->ti_iofops, irfop) {
+		c2_tl_for (iofops, &ti->ti_iofops, irfop) {
 
 			rc = io_fops_async_submit(&irfop->irf_iofop,
 						  ti->ti_session);

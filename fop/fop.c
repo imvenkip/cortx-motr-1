@@ -109,8 +109,7 @@ void c2_fop_fini(struct c2_fop *fop)
 
 	c2_rpc_item_fini(&fop->f_item);
 	c2_addb_ctx_fini(&fop->f_addb);
-	if (fop->f_data.fd_data != NULL)
-		c2_xcode_free(&C2_FOP_XCODE_OBJ(fop));
+	c2_xcode_free(&C2_FOP_XCODE_OBJ(fop));
 }
 
 void c2_fop_free(struct c2_fop *fop)

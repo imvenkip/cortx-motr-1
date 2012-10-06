@@ -52,7 +52,7 @@ struct c2_bufvec src;
 struct c2_bufvec dst;
 struct c2_bufvec xor;
 
-static uint64_t cp_single_get(struct c2_cm_aggr_group *ag)
+static uint64_t cp_single_get(const struct c2_cm_aggr_group *ag)
 {
 	return CP_SINGLE;
 }
@@ -61,7 +61,7 @@ static const struct c2_cm_aggr_group_ops group_single_ops = {
 	.cago_local_cp_nr = &cp_single_get,
 };
 
-static uint64_t cp_multi_get(struct c2_cm_aggr_group *ag)
+static uint64_t cp_multi_get(const struct c2_cm_aggr_group *ag)
 {
 	return CP_MULTI;
 }

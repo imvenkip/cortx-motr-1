@@ -162,7 +162,8 @@ pool_fini:
 }
 
 int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
-		       const struct c2_rpc_item_ops *ri_ops, uint32_t timeout_s)
+		       const struct c2_rpc_item_ops *ri_ops, c2_time_t deadline,
+		       uint32_t timeout_s)
 {
 	struct c2_rpc_item *item;
 	int                 rc;
@@ -183,7 +184,7 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 	item->ri_ops        = ri_ops;
 	item->ri_session    = session;
 	item->ri_prio       = C2_RPC_ITEM_PRIO_MID;
-	item->ri_deadline   = 0;
+	item->ri_deadline   = deadline;
 	item->ri_op_timeout = c2_time_from_now(timeout_s, 0);
 
 	rc = c2_rpc_post(item);

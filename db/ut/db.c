@@ -416,95 +416,12 @@ static void test_cursor_flags_read_only(void)
         dbut_fini(&db, &table1, &tx1, &c2_db_tx_commit);
 }
 
-/*
- * This test is negative test case.
- * First transaction initialise cursor in RW mode.
- * Second transaction tries to get cursor record
- * for RW which is already locked by first transaction.
- */
-static void test_cursor_flags_rmw(void)
-{
-	struct c2_dbenv     db;
-	struct c2_db_tx     tx1;
-	struct c2_db_tx     tx2;
-	struct c2_table     table1;
-	struct c2_table     table2;
-	struct c2_db_pair   pair1;
-	struct c2_db_pair   pair2;
-	struct c2_db_cursor cursor1;
-	struct c2_db_cursor cursor2;
-	int                 result;
-	uint64_t            key;
-	uint64_t            rec;
-
-        /* Insert some records */
-        dbut_init(db_name, test_table, &db, &table1, &tx1);
-
-	key = 22;
-	rec = 16;
-	c2_db_pair_setup(&pair1, &table1, &key, sizeof key, &rec, sizeof rec);
-
-	result = c2_table_insert(&tx1, &pair1);
-	C2_UT_ASSERT(result == 0);
-
-	c2_db_pair_fini(&pair1);
-        dbut_fini(&db, &table1, &tx1, &c2_db_tx_commit);
-
-        dbut_init(db_name, test_table, &db, &table1, &tx1);
-
-	result = c2_db_cursor_init(&cursor1, &table1, &tx1, C2_DB_CURSOR_RMW);
-	C2_UT_ASSERT(result == 0);
-
-	key = 22;
-	c2_db_pair_setup(&pair1, &table1, &key, sizeof key, &rec, sizeof rec);
-
-        result = c2_db_cursor_get(&cursor1, &pair1);
-	C2_UT_ASSERT(result == 0);
-
-        /*
-         * Now initialise read/modify/write cursor on same table and
-         * in same trasaction where table already having read-only cursor.
-         */
-	result = c2_table_init(&table2, &db, test_table, 0, &test_table_ops);
-	C2_UT_ASSERT(result == 0);
-
-	/* lock will not blocks */
-	result = c2_db_tx_init(&tx2, &db, DB_TXN_NOWAIT);
-	C2_UT_ASSERT(result == 0);
-
-	result = c2_db_cursor_init(&cursor2, &table2, &tx2, C2_DB_CURSOR_RMW);
-	C2_UT_ASSERT(result == 0);
-
-	key = 22;
-	c2_db_pair_setup(&pair2, &table2, &key, sizeof key, &rec, sizeof rec);
-
-	/*
-	 * This call should fail since record is locked by
-	 * transaction tx1 for RMW
-	 */
-	result = c2_db_cursor_get(&cursor2, &pair2);
-	C2_UT_ASSERT(result != 0);
-
-	c2_db_cursor_fini(&cursor2);
-	c2_db_pair_fini(&pair2);
-
-	result = c2_db_tx_commit(&tx2);
-	C2_UT_ASSERT(result == 0);
-	c2_table_fini(&table2);
-
-	c2_db_cursor_fini(&cursor1);
-	c2_db_pair_fini(&pair1);
-
-        dbut_fini(&db, &table1, &tx1, &c2_db_tx_commit);
-}
-
 const struct c2_test_suite db_cursor_ut = {
 	.ts_name = "db-cursor-ut",
 	.ts_init = db_reset,
 	.ts_fini = db_reset,
 	.ts_tests = {
 		{ "cursor_flag_read_only", test_cursor_flags_read_only },
-		{ "cursor_flag_rmw", test_cursor_flags_rmw },
 		{ NULL, NULL }
 	}
 };

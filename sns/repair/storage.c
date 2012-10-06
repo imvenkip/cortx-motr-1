@@ -25,6 +25,8 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "colibri/colibri_setup.h"
+
+#include "sns/repair/ag.h"
 #include "sns/repair/cp.h"
 
 /**
@@ -170,8 +172,8 @@ err_stio:
 out:
 	c2_dtx_done(&cp_fom->fo_tx);
 	if (rc != 0) {
-		c2_fom_phase_move(cp_fom, rc, C2_FOPH_FAILURE);
-		return C2_FSO_AGAIN;
+		c2_fom_phase_move(cp_fom, rc, C2_CCP_FINI);
+		return C2_FSO_WAIT;
 	} else {
 		cp->c_ops->co_phase_next(cp);
 		return C2_FSO_WAIT;
@@ -184,9 +186,21 @@ int c2_sns_repair_cp_read(struct c2_cm_cp *cp)
 	return cp_io(cp, SIO_READ);
 }
 
+static void spare_stobid_fill(struct c2_cm_cp *cp)
+{
+	struct c2_sns_repair_ag *sns_ag = ag2snsag(cp->c_ag);
+	struct c2_sns_repair_cp *sns_cp = cp2snscp(cp);
+
+	sns_cp->rc_sid.si_bits.u_hi = sns_ag->sag_spare_cobfid.f_container;
+	sns_cp->rc_sid.si_bits.u_lo = sns_ag->sag_spare_cobfid.f_key;
+	sns_cp->rc_index            = sns_ag->sag_spare_cob_index;
+}
+
 int c2_sns_repair_cp_write(struct c2_cm_cp *cp)
 {
 	cp->c_io_op = C2_CM_CP_WRITE;
+	spare_stobid_fill(cp);
+
 	return cp_io(cp, SIO_WRITE);
 }
 
@@ -196,8 +210,8 @@ int c2_sns_repair_cp_io_wait(struct c2_cm_cp *cp)
 
 	if (sns_cp->rc_stio.si_rc != 0) {
 		c2_fom_phase_move(&cp->c_fom, sns_cp->rc_stio.si_rc,
-				  C2_FOPH_FAILURE);
-		return C2_FSO_AGAIN;
+				  C2_CCP_FINI);
+		return C2_FSO_WAIT;
 	}
 
 	if (sns_cp->rc_stio.si_opcode == SIO_WRITE)

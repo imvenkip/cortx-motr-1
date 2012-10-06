@@ -340,23 +340,25 @@ static void cp_fom_fini(struct c2_fom *fom)
 {
         struct c2_cm_cp *cp = bob_of(fom, struct c2_cm_cp, c_fom, &cp_bob);
 	struct c2_cm_aggr_group *ag = cp->c_ag;
+	struct c2_cm            *cm = ag->cag_cm;
 
-	c2_atomic64_inc(&ag->cag_freed_cp_nr);
 	c2_cm_cp_fini(cp);
 	cp->c_ops->co_free(cp);
-
+	c2_atomic64_inc(&ag->cag_freed_cp_nr);
+	/**
+	 * Try to create a new copy packet since this copy packet is
+	 * making way for new copy packets in sliding window.
+	 */
+	c2_cm_lock(cm);
+	if (c2_cm_has_more_data(cm))
+		c2_cm_sw_fill(cm);
 	/**
 	 * Free the aggregation group if this is the last copy packet
 	 * being finalised for a given aggregation group.
 	 */
 	if(c2_atomic64_get(&ag->cag_freed_cp_nr) == ag->cag_cp_nr)
-		ag->cag_ops->cago_completed(ag);
-
-	/**
-	 * Try to create a new copy packet since this copy packet is
-	 * making way for new copy packets in sliding window.
-	 */
-	c2_cm_sw_fill(ag->cag_cm);
+		ag->cag_ops->cago_fini(ag);
+	c2_cm_unlock(cm);
 }
 
 static uint64_t cp_fom_locality(const struct c2_fom *fom)
@@ -403,12 +405,12 @@ static const struct c2_sm_state_descr c2_cm_cp_state_descr[] = {
         [C2_CCP_READ] = {
                 .sd_flags       = 0,
                 .sd_name        = "Read",
-                .sd_allowed     = C2_BITS(C2_CCP_IO_WAIT)
+                .sd_allowed     = C2_BITS(C2_CCP_IO_WAIT, C2_CCP_FINI)
         },
         [C2_CCP_WRITE] = {
                 .sd_flags       = 0,
                 .sd_name        = "Write",
-                .sd_allowed     = C2_BITS(C2_CCP_IO_WAIT)
+                .sd_allowed     = C2_BITS(C2_CCP_IO_WAIT, C2_CCP_FINI)
         },
 	[C2_CCP_IO_WAIT] = {
 		.sd_flags       = 0,
@@ -459,7 +461,7 @@ bool c2_cm_cp_invariant(const struct c2_cm_cp *cp)
 	       cp->c_ag != NULL &&
 	       c2_fom_phase(&cp->c_fom) < ops->co_action_nr &&
 	       cp->c_ops->co_invariant(cp) &&
-               c2_forall(i, ops->co_action_nr, ops->co_action[i] != NULL);
+	       c2_forall(i, ops->co_action_nr, ops->co_action[i] != NULL);
 }
 
 void c2_cm_cp_init(struct c2_cm_cp *cp)
