@@ -3360,10 +3360,8 @@ static ssize_t file_aio_write(struct kiocb       *kcb,
                               loff_t              pos)
 {
         int                 rc;
-        int                 seg;
         size_t              count = 0;
         size_t              saved_count;
-        struct inode       *inode;
         struct c2_indexvec *ivec;
 
         C2_ENTRY("struct iovec %p position %llu", iov, pos);
@@ -3398,24 +3396,6 @@ static ssize_t file_aio_write(struct kiocb       *kcb,
                 return 0;
         }
 
-        /*
-         * If any segment/s from index vector go beyond EOF, they are dropped
-         * and the index vector is truncated to EOF boundary.
-         */
-        inode = kcb->ki_filp->f_dentry->d_inode;
-        for (seg = 0; seg < SEG_NR(ivec); ++seg) {
-                if (INDEX(ivec, seg) > inode->i_size)
-                        break;
-                if (INDEX(ivec, seg) + COUNT(ivec, seg) > inode->i_size) {
-                        COUNT(ivec, seg) = min64u(inode->i_size,
-                                                  INDEX(ivec, seg_nr) +
-                                                  COUNT(ivec, seg_nr)) -
-                                           INDEX(ivec, seg);
-                        break;
-                }
-        }
-        ivec->iv_vec.v_nr = seg + 1;
-
         C2_LEAVE();
         return c2t1fs_aio(kcb, iov, ivec, IRT_WRITE);
 }
@@ -3425,8 +3405,10 @@ static ssize_t file_aio_read(struct kiocb       *kcb,
                              unsigned long       seg_nr,
                              loff_t              pos)
 {
+        int                 seg;
         ssize_t             count = 0;
         ssize_t             res;
+        struct inode       *inode;
         struct c2_indexvec *ivec;
 
         C2_ENTRY("struct iovec %p position %llu", iov, pos);
@@ -3450,6 +3432,24 @@ static ssize_t file_aio_read(struct kiocb       *kcb,
                 C2_LEAVE();
                 return 0;
         }
+
+        /*
+         * If any segment/s from index vector go beyond EOF, they are dropped
+         * and the index vector is truncated to EOF boundary.
+         */
+        inode = kcb->ki_filp->f_dentry->d_inode;
+        for (seg = 0; seg < SEG_NR(ivec); ++seg) {
+                if (INDEX(ivec, seg) > inode->i_size)
+                        break;
+                if (INDEX(ivec, seg) + COUNT(ivec, seg) > inode->i_size) {
+                        COUNT(ivec, seg) = min64u(inode->i_size,
+                                                  INDEX(ivec, seg_nr) +
+                                                  COUNT(ivec, seg_nr)) -
+                                           INDEX(ivec, seg);
+                        break;
+                }
+        }
+        ivec->iv_vec.v_nr = seg + 1;
 
         C2_LEAVE();
         return c2t1fs_aio(kcb, iov, ivec, IRT_READ);
