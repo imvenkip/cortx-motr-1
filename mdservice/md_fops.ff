@@ -19,7 +19,7 @@
  */
 
 /**
-   @addtogroup fop
+   @addtogroup mdservice-fops-definition Metadata Fops Definition
    @{
  */
 
@@ -30,8 +30,6 @@
  */
 
 require "fid/fid_ff";
-
-@section mdservice-fops-definition Metadata Fops Definition
 
 sequence {
         u32 s_len;
