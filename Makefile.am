@@ -49,6 +49,7 @@ SUBDIRS_LIBS = \
                ut \
                xcode \
                yaml2db
+
 SUBDIR_IT = rpc/it
 
 SUBDIR_UT = addb/ut \

@@ -41,7 +41,7 @@ int c2_rpc_item_header_encode(struct c2_rpc_item_onwire_header *ioh,
 	struct c2_xcode_ctx ctx;
 	int                 rc;
 
-	C2_ENTRY("item: %p", item);
+	C2_ENTRY("item header: %p", ioh);
 	C2_PRE(cur != NULL);
 	C2_PRE(ioh != NULL);
 

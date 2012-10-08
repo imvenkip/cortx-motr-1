@@ -926,7 +926,7 @@ retry:
 				rc = add_rpc_buffer();
 				if (rc != 0)
 					goto buflist_empty;
-				C2_LOG(C2_DEBUG, "rpc buffer added");
+				C2_LOG(C2_ERROR, "rpc buffer added");
 				goto retry;
 			}
 

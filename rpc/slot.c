@@ -159,9 +159,6 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 	if (fop == NULL)
 		C2_RETURN(-ENOMEM);
 
-	ready_slot_tlink_init(slot);
-	slot_item_tlist_init(&slot->sl_item_list);
-
 	/*
 	 * Add a dummy item with very low verno in item_list
 	 */
@@ -188,6 +185,9 @@ int c2_rpc_slot_init(struct c2_rpc_slot           *slot,
 		.sl_last_sent       = dummy_item,
 		.sl_last_persistent = dummy_item,
 	};
+
+	ready_slot_tlink_init(slot);
+	slot_item_tlist_init(&slot->sl_item_list);
 
 	sref = &dummy_item->ri_slot_refs[0];
 	*sref = (struct c2_rpc_slot_ref){
@@ -740,7 +740,7 @@ find_conn(const struct c2_rpc_machine *machine,
 			&machine->rm_outgoing_conns;
 
 	sref = &item->ri_slot_refs[0];
-	use_uuid = (sref->sr_ow_osr_sender_id == SENDER_ID_INVALID);
+	use_uuid = (sref->sr_ow.osr_sender_id == SENDER_ID_INVALID);
 	c2_tl_for(rpc_conn, conn_list, conn) {
 
 		if (use_uuid) {
