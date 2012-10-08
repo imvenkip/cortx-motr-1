@@ -1003,10 +1003,16 @@ struct pargrp_iomap_ops {
          * Process the data buffers in pargrp_iomap::pi_databufs
          * when read-old approach is chosen.
          */
-        int (*pi_readold_process)(struct pargrp_iomap *map);
+        int (*pi_readold_process) (struct pargrp_iomap *map);
 
         /** Recalculates parity for given pargrp_iomap. */
-        int (*pi_parity_recalc)  (struct pargrp_iomap *map);
+        int (*pi_parity_recalc)   (struct pargrp_iomap *map);
+
+        /**
+         * Allocates data_buf structures for pargrp_iomap::pi_paritybufs
+         * and populate db_flags accordingly.
+         */
+        int (*pi_paritybufs_alloc)(struct pargrp_iomap *map);
 };
 
 /**
@@ -1419,14 +1425,17 @@ static uint64_t pargrp_iomap_fullpages_find(struct pargrp_iomap *map);
 
 static int pargrp_iomap_readold_process(struct pargrp_iomap *map);
 
+static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map);
+
 static const struct pargrp_iomap_ops iomap_ops = {
-        .pi_populate        = pargrp_iomap_populate,
-        .pi_spans_seg       = pargrp_iomap_spans_seg,
-        .pi_readrest        = pargrp_iomap_readrest,
-        .pi_fullpages_find  = pargrp_iomap_fullpages_find,
-        .pi_seg_process     = pargrp_iomap_seg_process,
-        .pi_readold_process = pargrp_iomap_readold_process,
-        .pi_parity_recalc   = pargrp_iomap_parity_recalc,
+        .pi_populate         = pargrp_iomap_populate,
+        .pi_spans_seg        = pargrp_iomap_spans_seg,
+        .pi_readrest         = pargrp_iomap_readrest,
+        .pi_fullpages_find   = pargrp_iomap_fullpages_find,
+        .pi_seg_process      = pargrp_iomap_seg_process,
+        .pi_readold_process  = pargrp_iomap_readold_process,
+        .pi_parity_recalc    = pargrp_iomap_parity_recalc,
+        .pi_paritybufs_alloc = pargrp_iomap_paritybufs_alloc,
 };
 
 static bool pargrp_iomap_invariant_nr(const struct io_request *req);
@@ -2365,7 +2374,7 @@ static uint64_t pargrp_iomap_auxbuf_alloc(struct pargrp_iomap *map,
         C2_PRE(map->pi_rtype == PIR_READOLD);
 
         map->pi_databufs[row][col]->db_auxbuf.b_addr = (void *)
-                __get_free_page(GFP_KERNEL);
+                get_zeroed_page(GFP_KERNEL);
 
         if (map->pi_databufs[row][col]->db_auxbuf.b_addr == NULL)
                 return -ENOMEM;
@@ -2540,6 +2549,42 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
         C2_RETURN(0);
 }
 
+static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map)
+{
+        uint64_t                  row;
+        uint64_t                  col;
+        struct c2_pdclust_layout *play;
+
+        C2_ENTRY("map %p", map);
+        C2_PRE(pargrp_iomap_invariant(map));
+
+        play = pdlayout_get(map->pi_ioreq);
+        for (row = 0; row < parity_row_nr(play); ++row) {
+                for (col = 0; col < parity_col_nr(play); ++col) {
+
+                        C2_ALLOC_PTR_ADDB(map->pi_paritybufs[row][col],
+                                          &c2t1fs_addb, &io_addb_loc);
+                        if (map->pi_paritybufs[row][col] == NULL)
+                                goto err;
+
+                        map->pi_paritybufs[row][col]->db_flags |= PA_WRITE;
+
+                        if (map->pi_rtype == PIR_READOLD)
+                                map->pi_paritybufs[row][col]->db_flags |=
+                                        PA_READ;
+                }
+        }
+        C2_RETURN(0);
+err:
+        for (row = 0; row < parity_row_nr(play); ++row) {
+                for (col = 0; col < parity_col_nr(play); ++col) {
+                        c2_free(map->pi_paritybufs[row][col]);
+                        map->pi_paritybufs[row][col] = NULL;
+                }
+        }
+        C2_RETERR(-ENOMEM, "Memory allocation failed for data_buf.");
+}
+
 static int pargrp_iomap_populate(struct pargrp_iomap      *map,
                                  const struct c2_indexvec *ivec,
                                  struct c2_ivec_cursor    *cursor)
@@ -2648,6 +2693,9 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
                         rc = map->pi_ops->pi_readold_process(map);
                 }
         }
+
+        if (map->pi_ioreq->ir_type == IRT_WRITE)
+                rc = pargrp_iomap_paritybufs_alloc(map);
 
         C2_POST(ergo(rc == 0, pargrp_iomap_invariant(map)));
 
@@ -3254,7 +3302,7 @@ static struct data_buf *data_buf_alloc_init(enum page_attr pattr)
         unsigned long    addr;
 
         C2_ENTRY();
-        addr = __get_free_page(GFP_KERNEL);
+        addr = get_zeroed_page(GFP_KERNEL);
         if (addr == 0) {
                 C2_LOG(C2_ERROR, "Failed to get free page");
                 return NULL;
