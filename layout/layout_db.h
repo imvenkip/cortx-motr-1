@@ -154,9 +154,9 @@ int c2_layout_add(struct c2_layout *l,
 
 /**
  * Updates a layout record from the DB. The only field that can be updated for
- * an existing layout in the layout DB is its user count. Though, it is not
- * prevented through the implementation to update any other fields since
- * it was found to be costly through performance perspective.
+ * an existing layout in the layout DB is its user count. It is not prevented
+ * through the implementation to update any other fields since it was found to
+ * be costly through performance perspective.
  *
  * @param pair A c2_db_pair sent by the caller along with having set
  * pair->dp_key.db_buf and pair->dp_rec.db_buf. This is to leave the buffer

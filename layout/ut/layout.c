@@ -3642,7 +3642,7 @@ static void test_delete_failure(void)
 	/*
 	 * Try to delete a layout with PDCLUST layout type and LINEAR
 	 * enum type, that has non-zero user count, to verify that it results
-	 * into the error -EINVAL.
+	 * into the error -EPROTO.
 	 */
 	lid = 13009;
 	c2_fi_enable_once("test_delete_pdclust", "nonzero_user_count_err");

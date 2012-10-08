@@ -83,13 +83,13 @@
  * - Register layout types and enum types using
  *   c2_layout_standard_types_register().
  * - Perform various required operations on the in-memory layouts including
- *   usage of c2_pdclust_build(), c2_layout_get(), c2_layout_put(),
+ *   the usage of c2_pdclust_build(), c2_layout_get(), c2_layout_put(),
  *   c2_layout_encode(), c2_layout_decode(), c2_layout_enum_nr(),
  *   c2_layout_enum_get().
- * - Perform various required operation on the layout-DB including
- *   c2_layout_lookup(), c2_layout_add(), c2_layout_update(),
+ * - Perform various required operation on the layouts in the DB including
+ *   the usage of c2_layout_lookup(), c2_layout_add(), c2_layout_update(),
  *   c2_layout_delete().
- * - Perform various operations on layout instances including usage of
+ * - Perform various operations on layout instances including the usage of
  *   c2_layout_instance_build(), c2_layout_instance_fini() and the relevant
  *   instance type specific operations. (Creating a layout instance is a way
  *   of associating a layout with a particular user, for example a file.)
@@ -98,7 +98,7 @@
  *   the layout DB, even if the resepctive layout types and enum types are to
  *   be unregistered and the domain is to be finalised.)
  * - Unregister layout types and enum types using
- *   c2_layout_iall_types_unregister().
+ *   c2_layout_all_types_unregister().
  * - Finalise c2_layout_domain object.
  *
  * @section layout-client-server-access Client Server Access to APIs
@@ -179,7 +179,7 @@ struct c2_layout_domain {
 	c2_bcount_t                 ld_max_recsize;
 
 	/**
-	 * Lock to protect the instance of c2_layout_domain, including all
+	 * Lock to protect an instance of c2_layout_domain, including all
 	 * its members.
 	 */
 	struct c2_mutex             ld_lock;
@@ -210,8 +210,8 @@ struct c2_layout {
 	uint32_t                     l_user_count;
 
 	/**
-	 * Lock to protect a c2_layout instance and all its direct/indirect
-	 * members.
+	 * Lock to protect a c2_layout instance, including all its direct and
+	 * indirect members.
 	 */
 	struct c2_mutex              l_lock;
 
@@ -248,9 +248,9 @@ struct c2_layout_ops {
 	 * populated. Since it is not populated, it does not contain
 	 * enumeration object.
 	 * Dual to lto_allocate() when an allocated layout object can
-	 * not be populated for some reason. In the success case, dual to the
-	 * sequence of "lto_allocate() followed by the type specific populate
-	 * operation" is lo_fini().
+	 * not be populated for some reason. In the other regular cases, dual
+	 * to the sequence of "lto_allocate() followed by the type specific
+	 * populate operation" is lo_fini().
 	 */
 	void        (*lo_delete)(struct c2_layout *l);
 
