@@ -251,9 +251,8 @@ struct c2_pdclust_tgt_addr {
  * @post ergo(rc == 0, pdclust_invariant(*out))
  * @post ergo(rc == 0, l->l_ref == 1)
  *
- * @note The object with pdclust layout is to be finalised by releasing the
- * the reference that has been held during its creation that is by using
- * c2_layout_put().
+ * @note The layout object built by this API is to be finalised by releasing
+ * 'the reference on it that has been held during its creation'.
  * @see c2_layout_put()
  *
  * In short:

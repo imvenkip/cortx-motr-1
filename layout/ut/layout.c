@@ -3490,6 +3490,9 @@ static int test_delete_pdclust(uint32_t enum_id, uint64_t lid,
 		l = &pl->pl_base.sl_base;
 	}
 
+	if (C2_FI_ENABLED("nonzero_user_count_err"))
+		c2_layout_user_count_inc(l);
+
 	/* Delete the layout object from the DB. */
 	pair_set(&pair, &lid, area, num_bytes);
 
@@ -3499,7 +3502,7 @@ static int test_delete_pdclust(uint32_t enum_id, uint64_t lid,
 	rc = c2_layout_delete(l, &tx, &pair);
 	if (failure_test)
 		C2_UT_ASSERT(rc == -ENOENT || rc == -ENOMEM ||
-			     rc == LO_ENCODE_ERR);
+			     rc == -EPROTO || rc == LO_ENCODE_ERR);
 	else
 		C2_UT_ASSERT(rc == 0);
 
@@ -3635,6 +3638,19 @@ static void test_delete_failure(void)
 				 MORE_THAN_INLINE,
 				 FAILURE_TEST);
 	C2_UT_ASSERT(rc == -ENOMEM);
+
+	/*
+	 * Try to delete a layout with PDCLUST layout type and LINEAR
+	 * enum type, that has non-zero user count, to verify that it results
+	 * into the error -EINVAL.
+	 */
+	lid = 13009;
+	c2_fi_enable_once("test_delete_pdclust", "nonzero_user_count_err");
+	rc = test_delete_pdclust(LINEAR_ENUM_ID, lid,
+				 EXISTING_TEST,
+				 INLINE_NOT_APPLICABLE,
+				 FAILURE_TEST);
+	C2_UT_ASSERT(rc == -EPROTO);
 }
 
 #endif /* __KERNEL__ */

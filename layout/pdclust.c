@@ -775,11 +775,10 @@ void pdclust_instance_fini(struct c2_layout_instance *li);
 /**
  * Implementation of lo_instance_build().
  * Allocates and builds a parity de-clustered layout instance using the
- * supplied pdclust layout 'pl' and acquires an additional reference on
- * 'pl->pl_base.sl_base'.
+ * supplied layout 'l' that is necessarily of the type pdclust. It acquires an
+ * additional reference on that layout.
  * @pre pdclust_invariant(pl)
- * @post ergo(rc == 0, pdclust_instance_invariant(*out) &&
- *                     pl->pl_base.sl_base.l_ref > 0))
+ * @post ergo(rc == 0, pdclust_instance_invariant(*out) && l->l_ref > 1))
  */
 static int pdclust_instance_build(struct c2_layout           *l,
 				  const struct c2_fid        *fid,

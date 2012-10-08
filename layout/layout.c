@@ -47,7 +47,7 @@
  * - DB takes its own locks internally to guarantee that concurrent calls to
  *   data-base operations for different layouts do not mess with each other.
  * - c2_layout::l_lock is used to serialise data-base operations for a
- *   particular layout. This relates to the concept of "key locking" in
+ *   particular layout. This relates to the concept of "key locking" in the
  *   data-base theory.
  *
  * - c2_layout_domain::ld_lock is held during the following operations:

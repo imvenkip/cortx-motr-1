@@ -620,6 +620,13 @@ int c2_layout_delete(struct c2_layout *l,
 	C2_PRE(pair != NULL);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
+	if (l->l_user_count > 0) {
+		C2_LOG(C2_ERROR, "lid %llu, user_count %lu, Invalid "
+		       "user_count, rc %d", (unsigned long long)l->l_id,
+		       (unsigned long)l->l_user_count, -EPROTO);
+		return -EPROTO;
+	}
+
 	c2_mutex_lock(&l->l_lock);
 	recsize = l->l_ops->lo_recsize(l);
 	rc = pair_init(pair, l, tx, C2_LXO_DB_DELETE, recsize);
