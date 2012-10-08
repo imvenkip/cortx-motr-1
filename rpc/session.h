@@ -909,11 +909,6 @@ struct c2_rpc_session {
 	/** Array of pointers to slots */
 	struct c2_rpc_slot      **s_slot_table;
 
-	/** if session state state is C2_RPC_SESSION_FAILED then s_rc contains error code
-		denoting cause of failure
-	 */
-	int32_t                   s_rc;
-
 	/** if > 0, then session is in BUSY state */
 	uint32_t                  s_hold_cnt;
 

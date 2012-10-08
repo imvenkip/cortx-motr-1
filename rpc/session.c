@@ -249,7 +249,7 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 		       session->s_session_id <= SESSION_ID_MAX;
 
 	case C2_RPC_SESSION_FAILED:
-		return session->s_rc != 0;
+		return session->s_sm.sm_rc != 0;
 
 	default:
 		return false;
@@ -276,9 +276,8 @@ static int nr_active_items_count(const struct c2_rpc_session *session)
 		for_each_item_in_slot(item, slot) {
 
 			if (C2_IN(item->ri_stage, (RPC_ITEM_STAGE_IN_PROGRESS,
-						   RPC_ITEM_STAGE_FUTURE))) {
+						   RPC_ITEM_STAGE_FUTURE)))
 				count++;
-			}
 
 		} end_for_each_item_in_slot;
 	}
@@ -608,7 +607,6 @@ static void session_failed(struct c2_rpc_session *session, int32_t error)
 					      C2_RPC_SESSION_BUSY,
 					      C2_RPC_SESSION_TERMINATING)));
 	c2_sm_fail(&session->s_sm, C2_RPC_SESSION_FAILED, error);
-	session->s_rc = error;
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
 }
