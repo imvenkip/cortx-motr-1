@@ -467,6 +467,8 @@ int c2_rpc_session_timedwait(struct c2_rpc_session *session,
 
 	rc = c2_sm_timedwait(&session->s_sm, states, abs_timeout);
 
+	rc = session_state(session) != C2_RPC_SESSION_FAILED ?
+		rc : session->s_sm.sm_rc;
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	c2_rpc_machine_unlock(session->s_conn->c_rpc_machine);
 
@@ -509,8 +511,6 @@ int c2_rpc_session_establish_sync(struct c2_rpc_session *session,
 						       C2_RPC_SESSION_FAILED),
 				      c2_time_from_now(timeout_sec, 0));
 
-	rc = session_state(session) != C2_RPC_SESSION_FAILED ?
-		rc : session->s_sm.sm_rc;
 	C2_ASSERT(C2_IN(session_state(session), (C2_RPC_SESSION_IDLE,
 						 C2_RPC_SESSION_FAILED)));
 	C2_RETURN(rc);
@@ -730,8 +730,6 @@ int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
 					      C2_BITS(C2_RPC_SESSION_TERMINATED,
 						      C2_RPC_SESSION_FAILED),
 					      c2_time_from_now(timeout_sec, 0));
-		rc = session_state(session) != C2_RPC_SESSION_FAILED ?
-			rc : session->s_sm.sm_rc;
 
 		C2_ASSERT(C2_IN(session_state(session), (C2_RPC_SESSION_TERMINATED,
 							 C2_RPC_SESSION_FAILED)));
