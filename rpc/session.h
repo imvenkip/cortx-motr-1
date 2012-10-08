@@ -249,6 +249,7 @@ back to sender.
 #include "lib/mutex.h"
 #include "dtm/verno.h"
 #include "sm/sm.h"       /* c2_sm */
+#include "rpc/rpc_onwire.h"
 
 /* Imports */
 struct c2_rpc_item;
@@ -270,17 +271,6 @@ enum {
 	SESSION_ID_MAX = SESSION_ID_INVALID - 1,
 	SENDER_ID_INVALID = UINT64_MAX,
 	SLOT_ID_INVALID = UINT32_MAX,
-};
-
-/**
-   Requirements:
-   * UUID must change whenever a storage-less client re-boots.
-   * for a client with persistent state (e.g., a disk) uuid
-     must survive reboots.
- */
-struct c2_rpc_sender_uuid {
-	/** XXX Temporary */
-	uint64_t su_uuid;
 };
 
 /**
@@ -460,7 +450,7 @@ enum c2_rpc_conn_flags {
   if (rc == 0) {
 	if (conn_state(conn) == C2_RPC_CONN_ACTIVE)
 		// connection is established and is ready to be used
-	ele
+	else
 		// connection establishing failed
   } else {
 	// timeout

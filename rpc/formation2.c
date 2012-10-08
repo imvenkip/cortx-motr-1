@@ -292,12 +292,11 @@ frm_which_queue(struct c2_rpc_frm *frm, const struct c2_rpc_item *item)
 	deadline_passed = c2_time_now() >= item->ri_deadline;
 
 	C2_LOG(C2_DEBUG,
-		"deadline: [%llu:%llu] bound: %s oneway: %s"
-		" deadline_passed: %s",
-		(unsigned long long)c2_time_seconds(item->ri_deadline),
-		(unsigned long long)c2_time_nanoseconds(item->ri_deadline),
-		(char *)c2_bool_to_str(bound), (char *)c2_bool_to_str(oneway),
-		(char *)c2_bool_to_str(deadline_passed));
+	       "deadline: [%llu:%llu] bound: %s oneway: %s deadline_passed: %s",
+	       (unsigned long long)c2_time_seconds(item->ri_deadline),
+	       (unsigned long long)c2_time_nanoseconds(item->ri_deadline),
+	       c2_bool_to_str(bound), c2_bool_to_str(oneway),
+	       c2_bool_to_str(deadline_passed));
 
 	if (deadline_passed)
 		qtype = oneway ? FRMQ_TIMEDOUT_ONE_WAY
@@ -374,7 +373,7 @@ static void frm_balance(struct c2_rpc_frm *frm)
 			break;
 		}
 		++packet_count;
-		item_count += p->rp_nr_items;
+		item_count += p->rp_ow.poh_nr_items;
 		packet_enqed = frm_packet_ready(frm, p);
 		if (packet_enqed) {
 			++frm->f_nr_packets_enqed;
@@ -607,7 +606,8 @@ static bool frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 
 	C2_PRE(frm != NULL && p != NULL && !c2_rpc_packet_is_empty(p));
 	C2_PRE(frm->f_ops != NULL && frm->f_ops->fo_packet_ready != NULL);
-	C2_LOG(C2_DEBUG, "nr_items: %llu", (unsigned long long)p->rp_nr_items);
+	C2_LOG(C2_DEBUG, "nr_items: %llu",
+	       (unsigned long long)p->rp_ow.poh_nr_items);
 
 	p->rp_frm = frm;
 	/* See packet_ready() in rpc/frmops.c */

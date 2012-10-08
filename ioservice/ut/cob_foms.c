@@ -260,19 +260,14 @@ static void cobfops_destroy(struct c2_fop_type *ftype1,
 	C2_UT_ASSERT(ftype1 == NULL || ftype1 == &c2_fop_cob_create_fopt);
 	C2_UT_ASSERT(ftype2 == NULL || ftype2 == &c2_fop_cob_delete_fopt);
 
-	if (ftype1 == NULL) {
-		struct c2_fop_cob_create *fcc;
-		for (i = 0; i < cut->cu_cobfop_nr; ++i) {
-			fcc = c2_fop_data(cut->cu_createfops[i]);
-			c2_free(fcc->cc_cobname.cn_name);
+	if (ftype1 == NULL)
+		for (i = 0; i < cut->cu_cobfop_nr; ++i)
 			c2_fop_free(cut->cu_createfops[i]);
-		}
-	}
 
-	if (ftype2 == NULL) {
+	if (ftype2 == NULL)
 		for (i = 0; i < cut->cu_cobfop_nr; ++i)
 			c2_fop_free(cut->cu_deletefops[i]);
-	}
+
 	c2_free(cut->cu_createfops);
 	c2_free(cut->cu_deletefops);
 	cut->cu_createfops = NULL;
@@ -534,15 +529,6 @@ static void fop_alloc(struct c2_fom *fom, enum cob_fom_type fomtype)
 }
 
 /*
- * Accept a COB FOM (create/delete). Delete FOP within FOM.
- */
-static void fop_dealloc(struct c2_fom *fom, enum cob_fom_type fomtype)
-{
-	c2_fop_free(fom->fo_fop);
-	c2_fop_free(fom->fo_rep_fop);
-}
-
-/*
  * A generic COB-FOM-delete verification function. Check memory usage.
  */
 static void fom_fini_test(enum cob_fom_type fomtype)
@@ -658,7 +644,6 @@ static void cobfid_map_verify(struct c2_fom *fom, const bool map_exists)
 static void cc_fom_dealloc(struct c2_fom *fom)
 {
 	fom_phase_set(fom, C2_FOPH_FINISH);
-	fop_dealloc(fom, COB_CREATE);
 	cc_fom_fini(fom);
 }
 
@@ -975,7 +960,6 @@ static void cc_fom_populate_test()
 static void cd_fom_dealloc(struct c2_fom *fom)
 {
 	fom_phase_set(fom, C2_FOPH_FINISH);
-	fop_dealloc(fom, COB_DELETE);
 	cd_fom_fini(fom);
 }
 

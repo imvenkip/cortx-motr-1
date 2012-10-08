@@ -30,11 +30,13 @@ libc2_HEADERS        = \
                        refs.h \
                        rwlock.h \
                        semaphore.h \
+		       string.h \
                        thread.h \
                        time.h \
                        timer.h \
                        tlist.h \
                        trace.h \
+		       trace_internal.h \
                        types.h \
                        ub.h \
                        ut.h \

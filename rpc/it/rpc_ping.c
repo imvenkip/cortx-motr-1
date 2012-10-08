@@ -214,11 +214,11 @@ static void print_stats(struct c2_reqh *reqh)
 /* Create a ping fop and post it to rpc layer */
 static void send_ping_fop(struct c2_rpc_session *session)
 {
-	int                rc;
-	int                i;
+	int                 i;
+	int                 rc;
 	struct c2_fop      *fop;
 	struct c2_fop_ping *ping_fop;
-	uint32_t           nr_arr_member;
+	uint32_t            nr_arr_member;
 
 	if (nr_ping_bytes % 8 == 0)
 		nr_arr_member = nr_ping_bytes / 8;
@@ -226,38 +226,22 @@ static void send_ping_fop(struct c2_rpc_session *session)
 		nr_arr_member = nr_ping_bytes / 8 + 1;
 
 	fop = c2_fop_alloc(&c2_fop_ping_fopt, NULL);
-	if (fop == NULL) {
-		rc = -ENOMEM;
-		goto out;
-	}
+	C2_ASSERT(fop != NULL);
 
 	ping_fop = c2_fop_data(fop);
 	ping_fop->fp_arr.f_count = nr_arr_member;
 
 	C2_ALLOC_ARR(ping_fop->fp_arr.f_data, nr_arr_member);
-	if (ping_fop->fp_arr.f_data == NULL) {
-		rc = -ENOMEM;
-		goto free_fop;
-	}
+	C2_ASSERT(ping_fop->fp_arr.f_data != NULL);
 
-	for (i = 0; i < nr_arr_member; i++) {
-		ping_fop->fp_arr.f_data[i] = i+100;
-	}
+	for (i = 0; i < nr_arr_member; i++)
+		ping_fop->fp_arr.f_data[i] = i + 100;
 
 	rc = c2_rpc_client_call(fop, session, &c2_fop_default_item_ops,
 				CONNECT_TIMEOUT);
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(fop->f_item.ri_error == 0);
 	C2_ASSERT(fop->f_item.ri_reply != 0);
-
-	c2_free(ping_fop->fp_arr.f_data);
-free_fop:
-	/* FIXME: freeing fop here will lead to endless loop in
-	 * nr_active_items_count(), which is called from
-	 * c2_rpc_session_terminate() */
-	/*c2_fop_free(fop);*/
-out:
-	return;
 }
 
 /*

@@ -34,7 +34,6 @@
 #include "stob/ad.h"
 #include "stob/linux.h"
 #include "rpc/rpc2.h"
-#include "rpc/rpc_onwire.h"
 #include "rpc/rpc_opcodes.h"
 #include "fop/fop_item_type.h"
 #include "reqh/ut/io_fop_ff.h"

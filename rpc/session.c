@@ -868,7 +868,7 @@ c2_bcount_t
 c2_rpc_session_get_max_item_size(const struct c2_rpc_session *session)
 {
 	return session->s_conn->c_rpc_machine->rm_min_recv_size -
-		C2_RPC_PACKET_OW_HEADER_SIZE;
+		c2_rpc_packet_onwire_header_size();
 }
 
 void c2_rpc_session_hold_busy(struct c2_rpc_session *session)
