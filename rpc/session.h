@@ -743,10 +743,10 @@ enum c2_rpc_session_state {
    protected by session->s_conn->c_mutex.
 
    There is no need to take session->s_mutex while posting item on the session.`
-   When session is in one of UNINITIALISED, INITIALISED, TERMINATED and
+   When session is in one of INITIALISED, TERMINATED, FINALISED and
    FAILED state, user is expected to serialise access to the session object.
-   (It is assumed that session in one of {UNINITIALISED, INITIALISED,
-   TERMINATED, FAILED} state, very likely does not have concurrent users).
+   (It is assumed that session in one of {INITIALISED, TERMINATED, FAILED,
+    FINALISED} state, very likely does not have concurrent users).
 
    Locking order:
     - slot->sl_mutex
@@ -816,7 +816,7 @@ enum c2_rpc_session_state {
 					          C2_RPC_SESSION_FAILED,
 				 timeout);
 
-   if (rc == 0) {
+   if (rc == 0 && session_state(session) == C2_RPC_SESSION_IDLE) {
 	// Session is successfully established
    } else {
 	// timeout has happend or session establish failed
@@ -853,7 +853,7 @@ enum c2_rpc_session_state {
    @endcode
 
    Receiver is not expected to call any of these APIs. Receiver side session
-   structures will be set-up while handling fops \
+   structures will be set-up while handling fops
    c2_rpc_fop_[conn|session]_[establish|terminate].
 
    When receiver needs to post reply, it uses c2_rpc_reply_post().

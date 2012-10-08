@@ -205,9 +205,8 @@ bool c2_rpc_conn_invariant(const struct c2_rpc_conn *conn)
 			  ergo(s->s_session_id == SESSION_ID_0,
 			       ++s0nr &&
 			       (session0 = s) && /*'=' is intentional */
-			       C2_IN(session_state(s),
-				     (C2_RPC_SESSION_IDLE,
-				      C2_RPC_SESSION_BUSY)))) &&
+			       C2_IN(session_state(s), (C2_RPC_SESSION_IDLE,
+							C2_RPC_SESSION_BUSY)))) &&
 	     session0 != NULL &&
 	     s0nr == 1;
 
