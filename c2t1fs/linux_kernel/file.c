@@ -3052,8 +3052,10 @@ static int io_request_init(struct io_request  *req,
                 C2_RETERR(-ENOMEM, "Allocation failed for c2_indexvec");
         }
 
-        memcpy(riv->iv_index, ivec->iv_index, ivec->iv_vec.v_nr);
-        memcpy(riv->iv_vec.v_count, ivec->iv_vec.v_count, ivec->iv_vec.v_nr);
+        memcpy(riv->iv_index, ivec->iv_index, ivec->iv_vec.v_nr *
+               sizeof(c2_bindex_t));
+        memcpy(riv->iv_vec.v_count, ivec->iv_vec.v_count, ivec->iv_vec.v_nr *
+               sizeof(c2_bcount_t));
 
         /* Sorts the index vector in increasing order of file offset. */
         indexvec_sort(riv);
