@@ -43,7 +43,7 @@ static const struct c2_addb_loc mdstore_addb_loc = {
         .al_name = "mdstore"
 };
 
-int c2_mdstore_init(struct c2_mdstore         *md,
+int c2_mdstore_init(struct c2_mdstore          *md,
                     struct c2_cob_domain_id    *id,
                     struct c2_dbenv            *db,
                     bool                        init_root)
@@ -64,8 +64,8 @@ int c2_mdstore_init(struct c2_mdstore         *md,
                 if (rc != 0)
                         goto out;
                 rc = c2_mdstore_lookup(md, NULL, C2_COB_ROOT_NAME,
-                                        strlen(C2_COB_ROOT_NAME),
-                                        &md->md_root, &tx);
+                                       strlen(C2_COB_ROOT_NAME),
+                                       &md->md_root, &tx);
                 C2_ADDB_ADD(&md->md_addb, &mdstore_addb_loc,
                             c2_addb_func_fail, "md_root_lookup", rc);
                 if (rc != 0) {
@@ -371,7 +371,7 @@ int c2_mdstore_rename(struct c2_mdstore       *md,
          * Let's kill existing target name.
          */
         rc = c2_mdstore_lookup(md, pfid_tgt, tname, tnamelen,
-                                &tncob, tx);
+                               &tncob, tx);
         if (!c2_fid_eq(cob_tgt->co_fid, cob_src->co_fid) ||
             (tncob && tncob->co_nsrec.cnr_linkno != 0)) {
                 rc = c2_mdstore_unlink(md, pfid_tgt, cob_tgt,
@@ -464,7 +464,7 @@ int c2_mdstore_setattr(struct c2_mdstore      *md,
         return rc;
 }
 
-int c2_mdstore_getattr(struct c2_mdstore      *md,
+int c2_mdstore_getattr(struct c2_mdstore       *md,
                        struct c2_cob           *cob,
                        struct c2_cob_attr      *attr,
                        struct c2_db_tx         *tx)
@@ -474,6 +474,8 @@ int c2_mdstore_getattr(struct c2_mdstore      *md,
         C2_ASSERT(cob != NULL);
 
         attr->ca_flags = 0;
+        attr->ca_tfid = cob->co_nsrec.cnr_fid;
+        attr->ca_pfid = cob->co_nskey->cnk_pfid;
 
         /*
          * Copy permissions and owner info into rep.
@@ -511,7 +513,7 @@ int c2_mdstore_getattr(struct c2_mdstore      *md,
         return rc;
 }
 
-int c2_mdstore_readdir(struct c2_mdstore      *md,
+int c2_mdstore_readdir(struct c2_mdstore       *md,
                        struct c2_cob           *cob,
                        struct c2_rdpg          *rdpg,
                        struct c2_db_tx         *tx)

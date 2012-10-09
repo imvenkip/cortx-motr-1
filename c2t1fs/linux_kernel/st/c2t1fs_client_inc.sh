@@ -18,7 +18,7 @@ mount_c2t1fs()
 	fi
 
 	echo "Mounting file system..."
-	cmd="mount -t c2t1fs -o $IOS,$STRIPE,unit_size=$stride_size none $c2t1fs_mount_dir"
+	cmd="mount -t c2t1fs -o $SERVICES,$STRIPE,unit_size=$stride_size none $c2t1fs_mount_dir"
 	echo $cmd
 	if ! $cmd
 	then
@@ -199,7 +199,7 @@ c2loop_st_run()
 	echo $cmd && $cmd || return 1
 	echo "Mount c2t1fs file system..."
 	mkdir $COLIBRI_C2T1FS_MOUNT_DIR
-	cmd="mount -t c2t1fs -o $IOS,$STRIPE,unit_size=4096 none \
+	cmd="mount -t c2t1fs -o $SERVICES,$STRIPE,unit_size=4096 none \
 $COLIBRI_C2T1FS_MOUNT_DIR"
 	echo $cmd && $cmd || return 1
 	echo "Create c2t1fs file..."

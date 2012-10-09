@@ -50,19 +50,19 @@ const struct c2_fid C2_COB_ROOT_FID = {
 };
 
 /**
-   Metadata hierarchry root fid.
-*/
-const struct c2_fid C2_COB_SLASH_FID = {
-        .f_container = 1ULL,
-        .f_key       = 3ULL
-};
-
-/**
    Root session fid. All sessions are placed in it.
 */
 const struct c2_fid C2_COB_SESSIONS_FID = {
         .f_container = 1ULL,
         .f_key       = 2ULL
+};
+
+/**
+   Metadata hierarchry root fid.
+*/
+const struct c2_fid C2_COB_SLASH_FID = {
+        .f_container = 1ULL,
+        .f_key       = 3ULL
 };
 
 const char C2_COB_ROOT_NAME[] = "ROOT";

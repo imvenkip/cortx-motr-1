@@ -43,7 +43,7 @@
 #include "colibri/cs_internal.h"
 #include "colibri/magic.h"
 #include "rpc/rpclib.h"
-
+#include "rpc/rpc_internal.h"
 /**
    @addtogroup colibri_setup
    @{
@@ -1204,6 +1204,24 @@ static void cs_net_domains_fini(struct c2_colibri *cctx)
 		c2_net_xprt_fini(xprts[idx]);
 }
 
+static int cs_storage_prepare(struct cs_reqh_context *rctx)
+{
+	struct c2_db_tx tx;
+	int rc;
+
+	rc = c2_db_tx_init(&tx, &rctx->rc_db, 0);
+	if (rc == 0) {
+		rc = c2_rpc_root_session_cob_create(&rctx->rc_mdstore.md_dom, &tx);
+		if (rc == 0) {
+			c2_db_tx_commit(&tx);
+		} else {
+			c2_db_tx_abort(&tx);
+		}
+	}
+	return rc;
+}
+
+
 /**
    Initialises a request handler context.
    A request handler context consists of the storage domain, database,
@@ -1246,8 +1264,32 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 			    "cs_storage_init", rc);
 		goto cleanup_stob;
 	}
+
 	rctx->rc_cdom_id.id = ++cdom_id;
-	rc = c2_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id, &rctx->rc_db, 0);
+
+	/** Mkfs cob domain before using it. */
+        if (rctx->rc_prepare_storage) {
+                /**
+                   Init mdstore without root cob init first. Now we can use its
+                   cob domain for mkfs.
+                 */
+	        rc = c2_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id,
+	                             &rctx->rc_db, 0);
+	        if (rc != 0) {
+		        C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
+			            "c2_mdstore_init", rc);
+		        goto cleanup_stob;
+	        }
+	        rc = cs_storage_prepare(rctx);
+	        if (rc != 0) {
+		        C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
+			            "cs_storage_prepare", rc);
+		        goto cleanup_mdstore;
+		}
+	        c2_mdstore_fini(&rctx->rc_mdstore);
+        }
+
+	rc = c2_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id, &rctx->rc_db, 1);
 	if (rc != 0) {
 		C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
 			    "c2_cob_domain_init", rc);
@@ -1704,6 +1746,15 @@ static int cs_parse_args(struct c2_colibri *cctx, int argc, char **argv)
 				     "%i", &cctx->cc_recv_queue_min_length),
 			C2_FORMATARG('M', "Maximum RPC message size", "%i",
 				     &cctx->cc_max_rpc_msg_size),
+			C2_VOIDARG('p', "Prepare storage (root session, hierarchy root, etc)",
+				LAMBDA(void, (void)
+				{
+					if (rctx == NULL) {
+					        rc = -EINVAL;
+					        return;
+					}
+					rctx->rc_prepare_storage = 1;
+				})),
 			C2_VOIDARG('r', "Start request handler",
 				LAMBDA(void, (void)
 				{

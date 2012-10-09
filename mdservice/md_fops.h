@@ -24,6 +24,7 @@
 #define __COLIBRI_MDSERVICE_MD_FOPS_H__
 
 extern struct c2_fop_type c2_fop_create_fopt;
+extern struct c2_fop_type c2_fop_lookup_fopt;
 extern struct c2_fop_type c2_fop_link_fopt;
 extern struct c2_fop_type c2_fop_unlink_fopt;
 extern struct c2_fop_type c2_fop_open_fopt;
@@ -34,6 +35,7 @@ extern struct c2_fop_type c2_fop_rename_fopt;
 extern struct c2_fop_type c2_fop_readdir_fopt;
 
 extern struct c2_fop_type c2_fop_create_rep_fopt;
+extern struct c2_fop_type c2_fop_lookup_rep_fopt;
 extern struct c2_fop_type c2_fop_link_rep_fopt;
 extern struct c2_fop_type c2_fop_unlink_rep_fopt;
 extern struct c2_fop_type c2_fop_open_rep_fopt;

@@ -37,6 +37,7 @@ sequence {
 } c2_fop_str;
 
 record {
+        u32 b_rc;
         u64 b_index;
         u64 b_version;
         u32 b_flags;
@@ -68,6 +69,16 @@ record {
 record {
         c2_fop_cob c_body
 } c2_fop_create_rep;
+
+record {
+        c2_fop_cob l_body;
+        c2_fop_str l_path;
+        c2_fop_str l_name
+} c2_fop_lookup;
+
+record {
+        c2_fop_cob l_body
+} c2_fop_lookup_rep;
 
 record {
         c2_fop_cob l_body;

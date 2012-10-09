@@ -33,10 +33,11 @@ main()
 
 	for ((i=0; i < ${#EP[*]}; i++)) ; do
 		if ((i != 0)) ; then
-                    IOS="$IOS,"
+                    SERVICES="$SERVICES,"
                 fi
-                IOS="${IOS}ios=${server_nid}:${EP[$i]}"
+                SERVICES="${SERVICES}ios=${server_nid}:${EP[$i]}"
 	done
+        SERVICES="${SERVICES},mds=${server_nid}:${EP[0]}"
 
 	prepare
 

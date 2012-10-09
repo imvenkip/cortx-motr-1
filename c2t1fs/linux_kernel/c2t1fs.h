@@ -36,6 +36,10 @@
 #include "fid/fid.h"
 #include "cob/cob.h"    /* c2_cob_domain_id */
 #include "layout/layout.h" /* c2_layout_domain, c2_layout, c2_layout_instance */
+#include "ioservice/io_fops.h"   /* c2_fop_cob_create_fopt */
+#include "ioservice/io_fops_ff.h" /* c2_fop_cob_create */
+#include "mdservice/md_fops.h"   /* c2_fop_create_fopt */
+#include "mdservice/md_fops_ff.h" /* c2_fop_create */
 
 /**
   @defgroup c2t1fs c2t1fs
@@ -400,7 +404,6 @@
  */
 
 struct c2_pdclust_layout;
-struct c2t1fs_dir_ent;
 
 int  c2t1fs_init(void);
 void c2t1fs_fini(void);
@@ -581,20 +584,12 @@ struct c2t1fs_sb {
 };
 
 /**
-   Directory entry.
+   Metadata operation helper structure.
  */
-struct c2t1fs_dir_ent {
-	char            de_name[C2T1FS_MAX_NAME_LEN + 1];
-	struct c2_fid   de_fid;
-
-	struct dentry  *de_dentry;
-
-	/** Link in c2t1fs_inode::ci_dir_ents list.
-	    List descriptor dir_ents_tl */
-	struct c2_tlink de_link;
-
-	/** magic == C2_T1FS_DIRENT_MAGIC */
-	uint64_t        de_magic;
+struct c2t1fs_mdop {
+        char                      *mo_pos;
+        int                        mo_poslen;
+        struct c2_cob_attr         mo_attr;
 };
 
 /**
@@ -612,11 +607,6 @@ struct c2t1fs_inode {
 
 	/** File layout ID */
 	uint64_t                   ci_layout_id;
-
-	/** List of c2t1fs_dir_ent objects placed using de_link.
-	    List descriptor dir_ents_tl. Valid for only directory inode.
-	    Empty for regular file inodes. */
-	struct c2_tl               ci_dir_ents;
 
 	uint64_t                   ci_magic;
 };
@@ -668,26 +658,15 @@ int  c2t1fs_inode_cache_init(void);
 void c2t1fs_inode_cache_fini(void);
 
 struct inode *c2t1fs_root_iget(struct super_block *sb);
-struct inode *c2t1fs_iget(struct super_block *sb, const struct c2_fid *fid);
+struct inode *c2t1fs_iget(struct super_block *sb, const struct c2_fid *fid,
+                          struct c2_fop_cob *body);
 
 struct inode *c2t1fs_alloc_inode(struct super_block *sb);
 void          c2t1fs_destroy_inode(struct inode *inode);
 
 int c2t1fs_inode_layout_init(struct c2t1fs_inode *ci);
 
-struct c2_fid c2t1fs_cob_fid(const struct c2t1fs_inode *ci, int index);
-
-C2_TL_DESCR_DECLARE(dir_ents, extern);
-C2_TL_DECLARE(dir_ents, extern, struct c2t1fs_dir_ent);
-
-void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
-			 const unsigned char   *name,
-			 int                    namelen,
-			 const struct c2_fid   *fid);
-
-int c2t1fs_dir_ent_remove(struct c2t1fs_dir_ent *de);
-
-void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de);
+struct c2_fid c2t1fs_ios_cob_fid(const struct c2t1fs_inode *ci, int index);
 
 struct io_mem_stats {
 	uint64_t a_ioreq_nr;
@@ -703,5 +682,25 @@ struct io_mem_stats {
 	uint64_t a_page_nr;
 	uint64_t d_page_nr;
 };
+
+int c2t1fs_mds_cob_create(struct c2t1fs_sb          *csb,
+                          struct c2t1fs_mdop        *mo,
+                          struct c2_fop_create_rep **rep);
+
+int c2t1fs_mds_cob_unlink(struct c2t1fs_sb          *csb,
+                          struct c2t1fs_mdop        *mo,
+                          struct c2_fop_unlink_rep **rep);
+
+int c2t1fs_mds_cob_lookup(struct c2t1fs_sb          *csb,
+                          struct c2t1fs_mdop        *mo,
+                          struct c2_fop_lookup_rep **rep);
+
+int c2t1fs_mds_cob_getattr(struct c2t1fs_sb           *csb,
+                           struct c2t1fs_mdop         *mo,
+                           struct c2_fop_getattr_rep **rep);
+
+int c2t1fs_mds_cob_readdir(struct c2t1fs_sb           *csb,
+                           struct c2t1fs_mdop         *mo,
+                           struct c2_fop_readdir_rep **rep);
 
 #endif /* __COLIBRI_C2T1FS_C2T1FS_H__ */

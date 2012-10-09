@@ -218,7 +218,7 @@ static inline uint64_t target_offset(uint64_t		       frame,
 static inline struct c2_fid target_fid(struct io_request	  *req,
 				       struct c2_pdclust_tgt_addr *tgt)
 {
-	return c2t1fs_cob_fid(file_to_c2inode(req->ir_file), tgt->ta_obj);
+	return c2t1fs_ios_cob_fid(file_to_c2inode(req->ir_file), tgt->ta_obj);
 }
 
 static inline struct c2_rpc_session *target_session(struct io_request *req,

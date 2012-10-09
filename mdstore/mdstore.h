@@ -59,24 +59,6 @@ enum c2_mdstore_locate_flags {
 typedef enum c2_mdstore_locate_flags c2_mdstore_locate_flags_t;
 
 /**
- * This is all standard readdir related stuff. This is one readdir entry.
- */
-struct c2_dirent {
-        uint32_t             d_namelen;
-        uint32_t             d_reclen;
-        char                 d_name[0];
-};
-
-/**
- * Readdir page.
- */
-struct c2_rdpg {
-        struct c2_bitstring *r_pos;
-        struct c2_buf        r_buf;
-        struct c2_bitstring *r_end;
-};
-
-/**
  * Init mdstore and get it ready to work. If init_root == !0
  * then root cob is initialized.
 */

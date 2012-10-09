@@ -156,6 +156,9 @@ struct cs_reqh_context {
 	/** Services running in request handler context. */
 	const char                 **rc_services;
 
+        /** Wheather to prepare storage (mkfs) attached to this context. */
+        int                          rc_prepare_storage;
+
 	/** Number of services configured in request handler context. */
 	int                          rc_snr;
 

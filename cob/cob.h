@@ -294,6 +294,11 @@ enum c2_cob_valid_flags {
         C2_COB_BLKSIZE = 1 << 12
 };
 
+#define C2_COB_ALL (C2_COB_ATIME | C2_COB_MTIME | C2_COB_CTIME |                \
+                    C2_COB_SIZE | C2_COB_MODE | C2_COB_UID | C2_COB_GID |       \
+                    C2_COB_BLOCKS | C2_COB_TYPE | C2_COB_FLAGS | C2_COB_NLINK | \
+                    C2_COB_RDEV | C2_COB_BLKSIZE)
+
 /**
  * Attributes describing object that needs to be created or modified.
  * This structure is filled by mdservice and used in mdstore or
@@ -478,6 +483,24 @@ struct c2_cob {
         struct c2_cob_omgrec   co_omgrec;   /**< permission data */
         struct c2_db_pair      co_oipair;   /**< used for object index access */
         struct c2_addb_ctx     co_addb;     /**< cob private addb ctx */
+};
+
+/**
+ * This is all standard readdir related stuff. This is one readdir entry.
+ */
+struct c2_dirent {
+        uint32_t             d_namelen;
+        uint32_t             d_reclen;
+        char                 d_name[0];
+};
+
+/**
+ * Readdir page.
+ */
+struct c2_rdpg {
+        struct c2_bitstring *r_pos;
+        struct c2_buf        r_buf;
+        struct c2_bitstring *r_end;
 };
 
 /**

@@ -14,9 +14,11 @@ COLIBRI_TRACE_LEVEL=call+
 
 COLIBRI_TEST_LOGFILE=`pwd`/bulkio_`date +"%Y-%m-%d_%T"`.log
 
-COLIBRI_SERVICE_NAME=ioservice
+COLIBRI_IOSERVICE_NAME=ioservice
+COLIBRI_MDSERVICE_NAME=mdservice
 COLIBRI_STOB_DOMAIN=linux
 
+PREPARE_STORAGE="-p"
 POOL_WIDTH=4
 NR_DATA=2
 NR_PARITY=1
@@ -24,7 +26,7 @@ MAX_NR_FILES=250
 TM_MIN_RECV_QUEUE_LEN=16
 # Maximum value needed to run current ST is 160k.
 MAX_RPC_MSG_SIZE=163840
-IOS=""
+SERVICES=""
 STRIPE="pool_width=$POOL_WIDTH,nr_data_units=$NR_DATA"
 XPT=lnet
 lnet_nid=0@lo

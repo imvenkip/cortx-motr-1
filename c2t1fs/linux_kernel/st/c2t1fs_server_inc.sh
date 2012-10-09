@@ -8,28 +8,28 @@ colibri_service()
 	start() {
 		prepare
 
-		IOS=""
 		# spawn servers
 		for ((i=0; i < ${#EP[*]}; i++)) ; do
-			if ((i != 0)) ; then
-				IOS="$IOS,"
-		        fi
-		        IOS="${IOS}ios=${lnet_nid}:${EP[$i]}"
+                        SRV="-s $COLIBRI_IOSERVICE_NAME"
+		        if ((i == 0)) ; then
+                            SRV="-s $COLIBRI_MDSERVICE_NAME $SRV"
+                        fi
 			rm -rf $COLIBRI_C2T1FS_TEST_DIR/d$i
 			mkdir $COLIBRI_C2T1FS_TEST_DIR/d$i
 			(cd $COLIBRI_C2T1FS_TEST_DIR/d$i
-			 $prog -r -T $COLIBRI_STOB_DOMAIN \
+			 $prog -r $PREPARE_STORAGE -T $COLIBRI_STOB_DOMAIN \
 			 -D $COLIBRI_C2T1FS_TEST_DIR/d$i/db \
 		         -S $COLIBRI_C2T1FS_TEST_DIR/d$i/stobs \
 			 -e $XPT:${lnet_nid}:${EP[$i]} \
-			 -s $COLIBRI_SERVICE_NAME -m $MAX_RPC_MSG_SIZE \
+			 $SRV -m $MAX_RPC_MSG_SIZE \
 			 -q $TM_MIN_RECV_QUEUE_LEN \
 			     &>>$COLIBRI_C2T1FS_TEST_DIR/servers_started )&
 
 			sleep 1
 			status $exec
 			if [ $? -eq 0 ]; then
-				echo "Colibri service started."
+			        SRV=$(echo $SRV | sed 's/-s //g')
+				echo "Colibri services ($SRV) started."
 			else
 				echo "Colibri service failed to start:"
 				cat $COLIBRI_C2T1FS_TEST_DIR/servers_started
@@ -49,7 +49,7 @@ colibri_service()
 		;;
 	    stop)
 		$1
-		echo "Colibri service stopped."
+		echo "Colibri services stopped."
 		;;
 	    *)
 		echo $"Usage: $0 {start|stop}"
