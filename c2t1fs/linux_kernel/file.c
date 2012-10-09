@@ -1766,6 +1766,7 @@ static int user_data_copy(struct pargrp_iomap *map,
         /* Finds out the page from pargrp_iomap::pi_databufs. */
         play = pdlayout_get(map->pi_ioreq);
         page_pos_get(map, start, &row, &col);
+        C2_ASSERT(map->pi_databufs[row][col] != NULL);
         page = virt_to_page(map->pi_databufs[row][col]->db_buf.b_addr);
 
         if (dir == CD_COPY_FROM_USER) {
@@ -2021,7 +2022,6 @@ static int ioreq_user_data_copy(struct io_request   *req,
         c2_bcount_t               count = 0;
         struct iov_iter           it;
         struct c2_ivec_cursor     srccur;
-        struct c2_ivec_cursor     destcur;
         struct c2_pdclust_layout *play;
 
         C2_ENTRY("io_request : %p, %s filter = %d", req,
@@ -2039,7 +2039,6 @@ static int ioreq_user_data_copy(struct io_request   *req,
 
                 C2_ASSERT(pargrp_iomap_invariant(req->ir_iomaps[map]));
 
-                c2_ivec_cursor_init(&destcur, &req->ir_iomaps[map]->pi_ivec);
                 grpstart = data_size(play) * req->ir_iomaps[map]->pi_grpid;
                 grpend   = grpstart + data_size(play);
                 pgstart  = c2_ivec_cursor_index(&srccur);
@@ -2052,12 +2051,10 @@ static int ioreq_user_data_copy(struct io_request   *req,
                         count = pgend - pgstart;
 
                         /*
-                         * Keeps src and dest cursors in sync so as to help
-                         * copying of user data at correct location.
+                         * This takes care of finding correct page from
+                         * current pargrp_iomap structure from pgstart
+                         * and pgend.
                          */
-                        if (c2_ivec_cursor_move_until(&destcur, pgstart))
-                                break;
-
                         rc = user_data_copy(req->ir_iomaps[map], pgstart, pgend,
                                             &it, dir, filter);
                         if (rc != 0)
@@ -3780,6 +3777,7 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 	} c2_tl_endfor;
 
 out:
+        xfer->nxr_state = NXS_INFLIGHT;
 	C2_RETURN(rc);
 }
 
@@ -3791,6 +3789,7 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
         C2_ENTRY("nw_xfer_request %p, rmw %s", xfer,
                  rmw ? (char *)"true" : (char *)"false");
         C2_PRE(xfer != NULL);
+        xfer->nxr_state = NXS_COMPLETE;
 
 	req = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
         C2_ASSERT(io_request_invariant(req));
