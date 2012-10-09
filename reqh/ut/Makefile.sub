@@ -1,0 +1,11 @@
+ut_libcolibri_ut_la_SOURCES += reqh/ut/reqh_fom_ut.c \
+                               reqh/ut/io_fop.c \
+                               reqh/ut/io_fop.h \
+                               reqh/ut/io_fop_ff.c
+
+FF_FILES   += reqh/ut/io_fop_ff.h
+
+EXTRA_DIST += reqh/ut/io_fop.ff
+
+CLEANFILES += reqh/ut/io_fop_ff.h \
+              reqh/ut/io_fop_ff.c

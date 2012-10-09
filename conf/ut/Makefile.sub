@@ -1,0 +1,9 @@
+ut_libcolibri_ut_la_SOURCES  += conf/ut/confc.c \
+                                conf/ut/main.c \
+                                conf/ut/obj.c \
+                                conf/ut/reg.c \
+                                conf/ut/xread.c
+
+ut_libcolibri_ut_la_CPPFLAGS += \
+    -DCOLIBRI_CONFX_OBJ_CFG=$(abs_top_builddir)/conf/ut/conf_xc.txt \
+    -DCOLIBRI_CONFX_OBJ_CFG_XC=$(abs_top_builddir)/conf/ut/conf_xc.txt

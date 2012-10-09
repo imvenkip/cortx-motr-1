@@ -1,0 +1,27 @@
+ut_libcolibri_ut_la_SOURCES += xcode/ut/xcode_fop_test.c \
+                               xcode/ut/xcode_test.c \
+                               xcode/ut/xcode.c \
+                               xcode/ut/ff2c.c \
+                               xcode/ut/test_gccxml_simple.h    \
+                               xcode/ut/test_gccxml.h \
+                               xcode/ut/test_gccxml_simple_xc.c \
+                               xcode/ut/test_gccxml_xc.c \
+                               xcode/ut/xcode_fops_ff.c
+
+xcode/ut/test_gccxml.h: lib/vec_xc.h xcode/ut/test_gccxml_simple_xc.h
+
+FF_FILES   += xcode/ut/xcode_fops_ff.h
+
+XC_FILES   += xcode/ut/test_gccxml_xc.h \
+              xcode/ut/test_gccxml_simple_xc.h
+
+EXTRA_DIST += xcode/ut/xcode_fops.ff
+
+CLEANFILES += xcode/ut/xcode_fops_ff.c \
+              xcode/ut/xcode_fops_ff.h \
+              xcode/ut/test_gccxml_xc.h \
+              xcode/ut/test_gccxml_xc.c \
+              xcode/ut/test_gccxml.gccxml \
+              xcode/ut/test_gccxml_simple_xc.h \
+              xcode/ut/test_gccxml_simple_xc.c \
+              xcode/ut/test_gccxml_simple.gccxml

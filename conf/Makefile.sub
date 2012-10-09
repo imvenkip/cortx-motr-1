@@ -1,0 +1,35 @@
+colibri_libcolibri_la_SOURCES += conf/onwire.h \
+                                 conf/onwire_xc.c \
+                                 conf/buf_ext.h \
+                                 conf/buf_ext.c \
+                                 conf/confc.h \
+                                 conf/confc.c \
+                                 conf/obj.h \
+                                 conf/obj.c \
+                                 conf/obj_ops.h \
+                                 conf/obj_ops.c \
+                                 conf/preload.h \
+                                 conf/preload.c \
+                                 conf/reg.h \
+                                 conf/reg.c \
+                                 conf/conf_xcode.c \
+                                 conf/conf_xcode.h \
+                                 conf/reg_debug.c \
+                                 conf/objs/common.h \
+                                 conf/objs/common.c \
+                                 conf/objs/dir.c \
+                                 conf/objs/profile.c \
+                                 conf/objs/filesystem.c \
+                                 conf/objs/service.c \
+                                 conf/objs/node.c \
+                                 conf/objs/nic.c \
+                                 conf/objs/sdev.c \
+                                 conf/objs/partition.c
+
+conf/onwire.h: lib/buf_xc.h
+
+XC_FILES   += conf/onwire_xc.h
+
+CLEANFILES += conf/onwire_xc.h \
+              conf/onwire_xc.c \
+              conf/onwire.gccxml
