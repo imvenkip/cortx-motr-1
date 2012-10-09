@@ -71,6 +71,13 @@ struct c2_cm_cp;
 struct c2_cm;
 
 /**
+ * @todo replace this hard coded size with actual number from confc.
+ */
+enum {
+        C2_CP_SIZE = 4096
+};
+
+/**
  * Copy packet priority.
  *
  * Copy packets are assigned a priority (greater numerical value
@@ -194,6 +201,13 @@ void c2_cm_cp_fini(struct c2_cm_cp *cp);
 void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp);
 
 bool c2_cm_cp_invariant(const struct c2_cm_cp *cp);
+
+/**
+ * Returns the size of the bufvec of the copy packet.
+ * Initialized at time of configuration from layout info.
+ * It is also used for buffer pool provisioning.
+ */
+c2_bcount_t c2_cm_cp_data_size(struct c2_cm_cp *cp);
 
 /**
  @}

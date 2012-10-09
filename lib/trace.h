@@ -167,7 +167,7 @@
 #define C2_RETURN(rc)					\
 do {							\
 	typeof(rc) __rc = (rc);				\
-	(rc == 0) ? C2_LOG(C2_CALL, "< rc=%d", __rc) :	\
+	(__rc == 0) ? C2_LOG(C2_CALL, "< rc=%d", __rc) :	\
 		    C2_LOG(C2_NOTICE, "< rc=%d", __rc);	\
 	return __rc;					\
 } while (0)

@@ -14,31 +14,26 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Mandar Sawant <mandar_sawant@xyratex.com>
- * Original creation date: 12/09/2012
+ * Original author: Manish Honap <manish_honap@xyratex.com>
+ * Original creation date: 09/20/2012
  */
 
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_SNSREPAIR
-#include "sns/repair/ag.h"
+#pragma once
 
-/**
-   @addtogroup SNSRepairAG
+#ifndef __COLIBRI_RPC_HELPERS_H__
+#define __COLIBRI_RPC_HELPERS_H__
 
-   @{
- */
+#include "lib/vec.h"
+#include "rpc/item.h"
 
-struct c2_sns_repair_ag *ag2snsag(const struct c2_cm_aggr_group *ag)
-{
-	return container_of(ag, struct c2_sns_repair_ag, sag_base);
-}
+enum c2_bufvec_what {
+	C2_BUFVEC_ENCODE = 0,
+	C2_BUFVEC_DECODE = 1,
+};
 
-/** @} SNSRepairAG */
-/*
- *  Local variables:
- *  c-indentation-style: "K&R"
- *  c-basic-offset: 8
- *  tab-width: 8
- *  fill-column: 79
- *  scroll-step: 1
- *  End:
- */
+int c2_rpc_item_slot_ref_encdec(struct c2_bufvec_cursor *cur,
+				struct c2_rpc_slot_ref  *slot_ref,
+				int                      nr_slot_refs,
+				enum c2_bufvec_what      what);
+
+#endif /* __COLIBRI_RPC_HELPERS_H__ */

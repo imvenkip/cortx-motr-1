@@ -24,6 +24,7 @@
 #include "cm/cp.h"
 #include "cm/cp.c"
 #include "sns/repair/cp.h"
+#include "sns/repair/cp.c"
 #include "cm/ag.h"
 
 static struct c2_reqh  reqh;
@@ -42,11 +43,36 @@ static struct c2_sns_repair_cp m_sns_cp[THREADS_NR];
 static struct c2_cm_aggr_group m_ag[THREADS_NR];
 static struct c2_bufvec m_bv[THREADS_NR];
 
+static int dummy_cp_xform(struct c2_cm_cp *cp)
+{
+	cp->c_ops->co_phase_next(cp);
+	return C2_FSO_AGAIN;
+}
+
+const struct c2_cm_cp_ops c2_sns_repair_cp_dummy_ops = {
+        .co_action = {
+                [C2_CCP_INIT]  = &cp_init,
+                [C2_CCP_READ]  = &cp_read,
+                [C2_CCP_WRITE] = &cp_write,
+                [C2_CCP_XFORM] = &dummy_cp_xform,
+                [C2_CCP_SEND]  = &cp_send,
+                [C2_CCP_RECV]  = &cp_recv,
+                [C2_CCP_FINI]  = &cp_fini,
+                [SRP_IO_WAIT]  = &cp_io_wait
+        },
+        .co_action_nr          = C2_CCP_NR,
+        .co_phase_next         = &cp_phase_next,
+        .co_invariant          = &cp_invariant,
+        .co_home_loc_helper    = &cp_home_loc_helper,
+        .co_complete           = &cp_complete,
+        .co_free               = &cp_free,
+};
+
 /**
  * Dummy fom fini function which finalises the copy packet by skipping the
  * sw_fill functionality.
  */
-static void dummy_cp_fom_fini(struct c2_fom *fom)
+void dummy_cp_fom_fini(struct c2_fom *fom)
 {
 	c2_cm_cp_fini(bob_of(fom, struct c2_cm_cp, c_fom, &cp_bob));
 }
@@ -84,7 +110,7 @@ static void cp_post(struct c2_sns_repair_cp *sns_cp,
         cp->c_fom.fo_fop = (void *)1;
 	cp->c_data = bv;
 	sns_cp->rc_sid = sid;
-	cp->c_ops = &c2_sns_repair_cp_ops;
+	cp->c_ops = &c2_sns_repair_cp_dummy_ops;
 	/** Over-ride the fom ops. */
 	cp->c_fom.fo_ops = &dummy_cp_fom_ops;
 	c2_fom_queue(&cp->c_fom, &reqh);
@@ -144,6 +170,7 @@ static void test_cp_multi_thread(void)
 static int cm_cp_init(void)
 {
         c2_reqh_init(&reqh, NULL, (void*)1, (void*)1, (void*)1);
+	c2_cm_cp_module_init();
         return 0;
 }
 

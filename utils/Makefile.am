@@ -17,6 +17,7 @@ ut_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/layout/ut/liblayout-ut.la \
                $(top_builddir)/sns/ut/libparity-ut.la \
                $(top_builddir)/sns/repair/ut/libsns-repair-ut.la \
+               $(top_builddir)/sns/repair/ut/libxform-ut.la \
                $(top_builddir)/net/ut/libnet-ut.la \
                $(top_builddir)/net/bulk_emulation/ut/libnet-bulkem-ut.la \
                $(top_builddir)/net/lnet/ut/liblnet-ut.la \
@@ -28,6 +29,7 @@ ut_LDADD     = $(top_builddir)/colibri/libcolibri.la \
                $(top_builddir)/reqh/ut/libreqh-ut.la \
                $(top_builddir)/colibri/ut/libcs-ut.la \
                $(top_builddir)/rpc/ut/librpc-ut.la \
+               $(top_builddir)/pool/ut/libpool-ut.la \
                $(top_builddir)/ioservice/ut/libioservice-ut.la \
                $(top_builddir)/yaml2db/ut/libyaml2db-ut.la \
 	       $(top_builddir)/addb/ut/libaddb-ut.la \

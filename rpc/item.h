@@ -129,8 +129,8 @@ struct c2_rpc_item {
 	struct c2_tlink                  ri_plink;
 	/** One of c2_rpc_frm::f_itemq[], in which this item is placed. */
 	struct c2_tl                    *ri_itemq;
-	/** Magic constatnt to verify sanity of linked rpc items. */
-	uint64_t			 ri_link_magic;
+	/** C2_RPC_ITEM_MAGIC */
+	uint64_t			 ri_magic;
 };
 
 struct c2_rpc_item_ops {
@@ -171,6 +171,7 @@ bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item);
 
 bool c2_rpc_item_is_unsolicited(const struct c2_rpc_item *item);
 
+c2_bcount_t c2_rpc_item_onwire_header_size(void);
 
 c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item);
 
@@ -183,6 +184,14 @@ bool c2_rpc_item_is_update(const struct c2_rpc_item *item);
    Returns true if item is request item. False if it is a reply item
  */
 bool c2_rpc_item_is_request(const struct c2_rpc_item *item);
+
+/**
+    Encodes the rpc item header into a bufvec
+    @param ioh RPC item header to be encoded
+    @param cur Current bufvec cursor position
+    @retval 0 (success)
+    @retval -errno  (failure)
+*/
 
 /** @todo: different callbacks called on events occured while processing
    in update stream */

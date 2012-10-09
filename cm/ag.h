@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Subhash Arya  <subhash_arya@xyratex.com>
+ *                  Anup Barve <anup_barve@xyratex.com>
  * Original creation date: 08/08/2012
  */
 
@@ -23,6 +24,7 @@
 #ifndef __COLIBRI_CM_AG_H__
 #define __COLIBRI_CM_AG_H__
 
+#include "lib/atomic.h"
 #include "lib/types.h"
 #include "lib/tlist.h"
 
@@ -52,7 +54,7 @@ struct c2_cm_aggr_group {
 	struct c2_layout                  *cag_layout;
 
 	/** Number of copy packets that correspond to this aggregation group. */
-	uint64_t                           cag_cp_nr;
+	int64_t                            cag_cp_nr;
 
 	/** Number of copy packets that have been transformed. */
 	struct c2_atomic64		   cag_transformed_cp_nr;
@@ -80,8 +82,12 @@ struct c2_cm_aggr_group_ops {
 	 * this is calculated as
 	 * number of data units per node * unit size / network buffer size.
 	 */
-	uint64_t (*cago_cp_nr)(struct c2_cm_aggr_group *ag);
+	uint64_t (*cago_local_cp_nr)(struct c2_cm_aggr_group *ag);
 };
+
+C2_TL_DESCR_DECLARE(aggr_grps, extern);
+C2_TL_DECLARE(aggr_grps, extern, struct c2_cm_aggr_group);
+extern struct c2_bob_type aggr_grps_bob;
 
 int c2_cm_ag_id_cmp(const struct c2_cm_ag_id *id0, const struct c2_cm_ag_id *id1);
 

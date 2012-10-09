@@ -492,7 +492,6 @@ static void fom_exec(struct c2_fom *fom)
 	fom_state_set(fom, C2_FOS_RUNNING);
 	do {
 		C2_ASSERT(c2_fom_invariant(fom));
-		C2_ASSERT(fom_state(fom) != C2_FOM_PHASE_FINISH);
 		rc = fom->fo_ops->fo_tick(fom);
 		/*
 		 * (rc == C2_FSO_AGAIN) means that next phase transition is
@@ -876,7 +875,6 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
 {
 	C2_PRE(fom != NULL);
 
-	fom->fo_rc      = 0;
 	fom->fo_type	= fom_type;
 	fom->fo_ops	= ops;
 	fom->fo_fop	= fop;
@@ -1000,47 +998,25 @@ void c2_fom_type_init(struct c2_fom_type *type,
 static const struct c2_sm_state_descr fom_states[] = {
 	[C2_FOS_INIT] = {
 		.sd_flags     = C2_SDF_INITIAL,
-		.sd_name      = "SM init",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOS_FINISH) |
-				(1 << C2_FOS_READY)
+		.sd_name      = "Init",
+		.sd_allowed   = C2_BITS(C2_FOS_FINISH, C2_FOS_READY)
 	},
 	[C2_FOS_READY] = {
-		.sd_flags     = 0,
-		.sd_name      = "fom ready",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOS_RUNNING)
+		.sd_name      = "Ready",
+		.sd_allowed   = C2_BITS(C2_FOS_RUNNING)
 	},
 	[C2_FOS_RUNNING] = {
-		.sd_flags     = 0,
-		.sd_name      = "fom running",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOS_WAITING) |
-				(1 << C2_FOS_READY) |
-				(1 << C2_FOS_FINISH)
+		.sd_name      = "Running",
+		.sd_allowed   = C2_BITS(C2_FOS_WAITING, C2_FOS_READY,
+					C2_FOS_FINISH)
 	},
 	[C2_FOS_WAITING] = {
-		.sd_flags     = 0,
-		.sd_name      = "fom wait",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOS_FINISH) |
-				(1 << C2_FOS_READY)
+		.sd_name      = "Wait",
+		.sd_allowed   = C2_BITS(C2_FOS_FINISH, C2_FOS_READY)
 	},
 	[C2_FOS_FINISH] = {
 		.sd_flags     = C2_SDF_TERMINAL,
-		.sd_name      = "finished",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = 0,
+		.sd_name      = "Finished",
 	}
 };
 

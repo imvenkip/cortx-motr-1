@@ -37,6 +37,9 @@ int c2_cm_ag_id_cmp(const struct c2_cm_ag_id *id0, const struct c2_cm_ag_id *id1
 		c2_uint128_cmp(id0->ai_lo, id1->ai_lo);
 }
 
+struct c2_bob_type aggr_grps_bob;
+C2_BOB_DEFINE( , &aggr_grps_bob, c2_cm_aggr_group);
+
 /** @} CMAG */
 /*
  *  Local variables:

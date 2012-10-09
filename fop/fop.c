@@ -105,10 +105,6 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 }
 C2_EXPORTED(c2_fop_alloc);
 
-/**
-   @todo Current implementation just frees the top level object;
-   instead traverse and free entire tree of objects.
- */
 void c2_fop_fini(struct c2_fop *fop)
 {
 	C2_ASSERT(fop != NULL);
@@ -116,7 +112,7 @@ void c2_fop_fini(struct c2_fop *fop)
 	c2_rpc_item_fini(&fop->f_item);
 	c2_addb_ctx_fini(&fop->f_addb);
 	if (fop->f_data.fd_data != NULL)
-		c2_free(fop->f_data.fd_data);
+		c2_xcode_free(&C2_FOP_XCODE_OBJ(fop));
 }
 
 void c2_fop_free(struct c2_fop *fop)

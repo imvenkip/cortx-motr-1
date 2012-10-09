@@ -26,8 +26,9 @@
 #define __COLIBRI_RPC_SESSION_INT_H__
 
 #include "cob/cob.h"
-#include "rpc/session.h"
 #include "dtm/verno.h"
+#include "rpc/session.h"
+#include "rpc/rpc_onwire.h" /* c2_rpc_onwire_slot_ref */
 
 /**
    @addtogroup rpc_session
@@ -346,47 +347,16 @@ void conn_terminate_reply_sent(struct c2_rpc_conn *conn);
  */
 struct c2_rpc_slot_ref {
 	/** sr_slot and sr_item identify two ends of association */
-	struct c2_rpc_slot        *sr_slot;
+	struct c2_rpc_slot           *sr_slot;
 
-	struct c2_rpc_item        *sr_item;
+	struct c2_rpc_item           *sr_item;
 
-	struct c2_rpc_sender_uuid  sr_uuid;
+	struct c2_rpc_onwire_slot_ref sr_ow;
 
-	uint64_t                   sr_sender_id;
-
-	uint64_t                   sr_session_id;
-
-	/** Numeric id of slot. Used when encoding and decoding rpc item to
-	    and from wire-format
+	/** Anchor to put item on c2_rpc_slot::sl_item_list
+	    List descriptor: slot_item
 	 */
-	uint32_t                   sr_slot_id;
-
-	/** If slot has verno matching sr_verno, then only the item can be
-	    APPLIED to the slot
-	 */
-	struct c2_verno            sr_verno;
-
-	/** In each reply item, receiver reports to sender, verno of item
-	    whose effects have reached persistent storage, using this field
-	 */
-	struct c2_verno            sr_last_persistent_verno;
-
-	/** Inform the sender about current slot version */
-	struct c2_verno            sr_last_seen_verno;
-
-	/** An identifier that uniquely identifies item within
-	    slot->item_list.
-        */
-	uint64_t                   sr_xid;
-
-	/** Generation number of slot */
-	uint64_t                   sr_slot_gen;
-
-	/** Anchor to put item on c2_rpc_slot::sl_item_list */
-	struct c2_list_link        sr_link;
-
-	/** Anchor to put item on c2_rpc_slot::sl_ready_list */
-	struct c2_list_link        sr_ready_link;
+	struct c2_tlink               sr_link;
 };
 
 /**
@@ -440,13 +410,6 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req);
   @pre conn_state(conn) == C2_RPC_CONN_TERMINATING
  */
 void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn);
-
-/**
-   Iterates over all the sessions in rpc connection
- */
-#define c2_rpc_for_each_session(conn, session)  \
-	c2_list_for_each_entry(&(conn)->c_sessions, (session),  \
-		struct c2_rpc_session, s_link)
 
 enum {
 	/**
@@ -541,6 +504,20 @@ bool c2_rpc_session_bind_item(struct c2_rpc_item *item);
 int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active,
 				int count);
 #endif
+
+C2_TL_DESCR_DECLARE(rpc_session, extern);
+C2_TL_DECLARE(rpc_session, extern, struct c2_rpc_session);
+
+C2_TL_DESCR_DECLARE(ready_slot, extern);
+C2_TL_DECLARE(ready_slot, extern, struct c2_rpc_slot);
+
+C2_TL_DESCR_DECLARE(slot_item, extern);
+C2_TL_DECLARE(slot_item, extern, struct c2_rpc_item);
+
+/** Helper macro to iterate over every item in a slot */
+#define for_each_item_in_slot(item, slot) \
+	        c2_tl_for(slot_item, &slot->sl_item_list, item)
+#define end_for_each_item_in_slot c2_tl_endfor
 
 /** @}  End of rpc_session group */
 #endif

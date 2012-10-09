@@ -25,6 +25,7 @@
 
 #include "lib/types.h"            /* uint64_t */
 #include "fol/lsn.h"              /* c2_lsn_t */
+#include "xcode/xcode_attr.h"     /* C2_XCA_RECORD */
 
 /**
    @addtogroup dtm Distributed transaction manager
@@ -65,7 +66,7 @@ struct c2_verno {
 	c2_lsn_t      vn_lsn;
 	/** an ordinal number of this version in the unit's serial history. */
 	c2_vercount_t vn_vc;
-};
+} C2_XCA_RECORD;
 
 /**
    Version number comparison function.

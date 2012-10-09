@@ -734,6 +734,7 @@ AC_CONFIG_FILES([
                  nrs/Makefile
                  patches/Makefile
                  pool/Makefile
+                 pool/ut/Makefile
                  reqh/Makefile
 		 reqh/ut/Makefile
                  rpc/Makefile

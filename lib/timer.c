@@ -275,8 +275,11 @@ static void timer_sighandler(int signo, siginfo_t *si, void *u_ctx)
  */
 static void c2_timer_working_thread(struct c2_timer *timer)
 {
-	if (!c2_semaphore_timeddown(&timer->t_sleep_sem, timer->t_expire))
+	if (!c2_semaphore_timeddown(&timer->t_sleep_sem, timer->t_expire)) {
+		c2_enter_awkward();
 		timer->t_callback(timer->t_data);
+		c2_exit_awkward();
+	}
 }
 
 static bool timer_invariant(const struct c2_timer *timer)
