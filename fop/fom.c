@@ -433,7 +433,7 @@ void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
 		dom->fd_localities_nr;
 	C2_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
 	fom->fo_loc = &reqh->rh_fom_dom.fd_localities[loc_idx];
-	C2_CNT_INC(fom->fo_loc->fl_foms);
+	c2_atomic64_inc(&fom->fo_loc->fl_foms);
 	c2_fom_sm_init(fom);
 	fom->fo_cb.fc_ast.sa_cb = queueit;
 	c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
@@ -863,7 +863,7 @@ void c2_fom_domain_fini(struct c2_fom_domain *dom)
 bool c2_fom_domain_is_idle(const struct c2_fom_domain *dom)
 {
 	return c2_forall(i, dom->fd_localities_nr,
-			 dom->fd_localities[i].fl_foms == 0);
+			 c2_atomic64_get(&dom->fd_localities[i].fl_foms) == 0);
 }
 
 void c2_fom_fini(struct c2_fom *fom)
@@ -883,8 +883,7 @@ void c2_fom_fini(struct c2_fom *fom)
 	c2_sm_fini(&fom->fo_sm_state);
 	c2_list_link_fini(&fom->fo_linkage);
 	c2_fom_callback_init(&fom->fo_cb);
-	C2_CNT_DEC(loc->fl_foms);
-	if (loc->fl_foms == 0)
+	if (c2_atomic64_dec_and_test(&loc->fl_foms) == 0);
 		c2_chan_signal(&reqh->rh_sd_signal);
 }
 C2_EXPORTED(c2_fom_fini);

@@ -124,7 +124,7 @@ static inline void bv_free(struct c2_bufvec *b)
 static size_t dummy_fom_locality(const struct c2_fom *fom)
 {
 	/* By default, use locality0. */
-        return 0;
+	return 0;
 }
 
 /**
@@ -195,7 +195,7 @@ static void cp_prepare(struct c2_cm_cp *cp, struct c2_bufvec *bv,
 	c2_cm_cp_init(cp);
 	cp->c_data = bv;
 	cp->c_fom.fo_ops = cp_fom_ops;
-	cp->c_ops = &c2_sns_repair_cp_ops; 
+	cp->c_ops = &c2_sns_repair_cp_ops;
 	/** Required to pass the fom invariant */
 	cp->c_fom.fo_fop = (void *)1;
 }

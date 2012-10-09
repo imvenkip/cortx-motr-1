@@ -254,7 +254,7 @@ struct c2_fom_locality {
 	 * runq plus the length of wail plus the number of C2_FOS_RUNNING foms
 	 * in all locality threads.
 	 */
-	unsigned                     fl_foms;
+	struct c2_atomic64           fl_foms;
 
 	/** State Machine (SM) group for AST call-backs */
 	struct c2_sm_group	     fl_group;
