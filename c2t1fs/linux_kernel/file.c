@@ -2233,9 +2233,16 @@ static bool pargrp_iomap_spans_seg(struct pargrp_iomap *map,
 {
         C2_PRE(pargrp_iomap_invariant(map));
 
-        return c2_forall(i, map->pi_ivec.iv_vec.v_nr,
-                         index >= INDEX(&map->pi_ivec, i) &&
-                         count <= COUNT(&map->pi_ivec, i));
+        /*
+         * for nr = 0, c2_forall returns true which will be signify
+         * that seg is already spanned.
+         */
+        if (map->pi_ivec.iv_vec.v_nr == 0)
+                return false;
+        else
+                return c2_forall(i, map->pi_ivec.iv_vec.v_nr,
+                                index >= INDEX(&map->pi_ivec, i) &&
+                                count <= COUNT(&map->pi_ivec, i));
 }
 
 static int pargrp_iomap_databuf_alloc(struct pargrp_iomap *map,
@@ -2652,8 +2659,9 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
                 if (rc != 0)
                         C2_RETERR(rc, "seg_process failed");
                 count -= c2_ivec_cursor_index(cursor);
+                ++map->pi_ivec.iv_vec.v_nr;
         }
-        map->pi_ivec.iv_vec.v_nr = seg;
+        C2_LOG(C2_DEBUG, "%llu segments processed", seg);
 
         /*
          * Decides whether to undertake read-old approach or read-rest for
@@ -2741,6 +2749,8 @@ static int ioreq_iomaps_prepare(struct io_request *req)
                 }
         }
         c2_free(grparray);
+        C2_LOG(C2_DEBUG, "Number of pargrp_iomap structures : %llu",
+               req->ir_iomap_nr);
 
         /* req->ir_iomaps is zeroed out on allocation. */
         C2_ALLOC_ARR_ADDB(req->ir_iomaps, req->ir_iomap_nr, &c2t1fs_addb,
@@ -2778,6 +2788,7 @@ static int ioreq_iomaps_prepare(struct io_request *req)
                                 ir_iomaps[id], &req->ir_ivec, &cursor);
                 if (rc != 0)
                         goto failed;
+                C2_LOG(C2_DEBUG, "pargrp_iomap id : %llu populated", id);
         }
 
         C2_RETURN(0);
