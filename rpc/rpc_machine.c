@@ -426,11 +426,6 @@ static void conn_list_fini(struct c2_tl *list)
 	C2_LEAVE();
 }
 
-struct c2_mutex *c2_rpc_machine_mutex(struct c2_rpc_machine *machine)
-{
-	return &machine->rm_sm_grp.s_lock;
-}
-
 void c2_rpc_machine_lock(struct c2_rpc_machine *machine)
 {
 	C2_PRE(machine != NULL);

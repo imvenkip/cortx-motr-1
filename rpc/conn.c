@@ -355,6 +355,10 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	}
 
 	session->s_session_id = SESSION_ID_0;
+
+	/* It is done as there is no need to establish session0 explicitly
+	 * and direct transition from INITIALISED => IDLE is not allowed.
+	 */
 	session_state_set(session, C2_RPC_SESSION_ESTABLISHING);
 	session_state_set(session, C2_RPC_SESSION_IDLE);
 
@@ -468,8 +472,8 @@ static void session_zero_detach(struct c2_rpc_conn *conn)
 	session = c2_rpc_conn_session0(conn);
 	C2_ASSERT(session_state(session) == C2_RPC_SESSION_IDLE);
 
-	c2_rpc_session_del_slots_from_ready_list(session);
 	session_state_set(session, C2_RPC_SESSION_TERMINATING);
+	c2_rpc_session_del_slots_from_ready_list(session);
 	session_state_set(session, C2_RPC_SESSION_TERMINATED);
 	c2_rpc_session_fini_locked(session);
 	c2_free(session);
@@ -495,7 +499,7 @@ int c2_rpc_conn_timedwait(struct c2_rpc_conn *conn, uint64_t states,
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	c2_rpc_machine_unlock(conn->c_rpc_machine);
 
-	C2_RETURN(rc);
+	C2_RETURN(rc ?: conn->c_sm.sm_rc);
 }
 C2_EXPORTED(c2_rpc_conn_timedwait);
 
