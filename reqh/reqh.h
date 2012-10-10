@@ -56,7 +56,7 @@ struct c2_net_xprt;
 struct c2_rpc_machine;
 
 enum {
-        REQH_KEY_MAX = 64
+        REQH_KEY_MAX = 32
 };
 
 /**
@@ -183,6 +183,9 @@ int c2_reqhs_init(void);
 */
 void c2_reqhs_fini(void);
 
+/** Returns number of localities in request handler FOM domain. */
+uint64_t c2_reqh_nr_localities(const struct c2_reqh *reqh);
+
 /** Descriptor for tlist of request handler services. */
 C2_TL_DESCR_DECLARE(c2_reqh_svc, extern);
 C2_TL_DECLARE(c2_reqh_svc, extern, struct c2_reqh_service);
@@ -203,25 +206,25 @@ C2_TL_DECLARE(c2_reqh_rpc_mach, extern, struct c2_rpc_machine);
 
    Following interfaces are of interest to any request handler service intending
    to store and share its specific data with the corresponding request handler,
-   - c2_cs_reqh_key_init()
+   - c2_reqh_key_init()
      Returns a new request handler key to access the stored data.
      Same key should be used in-order to share the data among multiple request
      handler entities if necessary.
      @note Key cannot exceed beyond REQH_KEY_MAX range for the given request
            handler.
-     @see cs_reqh_context::rc_key
-     @see cs_reqh_context::rc_keymax
+     @see c2_reqh::rh_key
+     @see ::keymax
 
-   - c2_cs_reqh_key_find()
+   - c2_reqh_key_find()
      Locates and returns the data corresponding to the key in the request handler.
-     The key is used to locate the data in cs_reqh_context::rc_key[]. If the data
+     The key is used to locate the data in c2_reqh::rh_key[]. If the data
      is NULL, then size amount of memory is allocated for the data and returned.
      @note As request handler itself does not have any knowledge about the
      purpose and usage of the allocated data, it is the responsibility of the
      caller to initialise the allocated data and verify the consistency of the
      same throughout its existence.
 
-   - c2_cs_reqh_key_fini()
+   - c2_reqh_key_fini()
      Destroys the request handler resource accessed by the given key.
      @note This simply destroys the allocated data without formally looking
      into its contents. Thus the caller must properly finalise the data contents
@@ -245,9 +248,9 @@ C2_TL_DECLARE(c2_reqh_rpc_mach, extern, struct c2_rpc_machine);
 	struct foo *data;
 
 	if (!foo_key_is_initialised)
-		foo_key = c2_cs__init(); //get new reqh data key
+		foo_key = c2_reqh_key_init(); //get new reqh data key
 
-	data = c2_cs_reqh_key_find(reqh, foo_key, sizeof *foo);
+	data = c2_reqh_key_find(reqh, foo_key, sizeof *foo);
 	if (!data->foo_is_initialised)
 		foo_init(data);
 	...
@@ -257,9 +260,9 @@ C2_TL_DECLARE(c2_reqh_rpc_mach, extern, struct c2_rpc_machine);
      {
 	struct foo *data;
 
-	data = c2_cs_reqh_key_find(reqh, foo_key, sizeof *foo);
+	data = c2_reqh_key_find(reqh, foo_key, sizeof *foo);
 	foo_fini(data);
-	c2_cs_reqh_key_fini(reqh, foo_key);
+	c2_reqh_key_fini(reqh, foo_key);
      }
      @endcode
 

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -24,6 +24,10 @@
 #include "lib/arith.h"      /* C2_3WAY */
 #include "lib/misc.h"
 
+#ifndef __KERNEL__
+#include <limits.h>	    /* CHAR_BIT */
+#endif
+
 void __dummy_function(void)
 {
 }
@@ -39,6 +43,37 @@ bool c2_uint128_eq(const struct c2_uint128 *u0, const struct c2_uint128 *u1)
 int c2_uint128_cmp(const struct c2_uint128 *u0, const struct c2_uint128 *u1)
 {
 	return C2_3WAY(u0->u_hi, u1->u_hi) ?: C2_3WAY(u0->u_lo, u1->u_lo);
+}
+
+void c2_uint128_add(struct c2_uint128 *res,
+		    const struct c2_uint128 a,
+		    const struct c2_uint128 b)
+{
+	res->u_lo = a.u_lo + b.u_lo;
+	res->u_hi = a.u_hi + b.u_hi + (res->u_lo < a.u_lo);
+}
+
+void c2_uint128_mul64(struct c2_uint128 *res, uint64_t a, uint64_t b)
+{
+	uint64_t a_lo = a & UINT32_MAX;
+	uint64_t a_hi = a >> 32;
+	uint64_t b_lo = b & UINT32_MAX;
+	uint64_t b_hi = b >> 32;
+	uint64_t c;
+
+	C2_CASSERT((sizeof a) * CHAR_BIT == 64);
+
+	/*
+	 * a * b = a_hi * b_hi * (1 << 64) +
+	 *	   a_lo * b_lo +
+	 *	   a_lo * b_hi * (1 << 32) +
+	 *	   a_hi * b_lo * (1 << 32)
+	 */
+	*res = C2_UINT128(a_hi * b_hi, a_lo * b_lo);
+	c = a_lo * b_hi;
+	c2_uint128_add(res, *res, C2_UINT128(c >> 32, (c & UINT32_MAX) << 32));
+	c = a_hi * b_lo;
+	c2_uint128_add(res, *res, C2_UINT128(c >> 32, (c & UINT32_MAX) << 32));
 }
 
 #if 0

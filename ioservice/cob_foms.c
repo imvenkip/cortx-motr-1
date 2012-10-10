@@ -27,7 +27,9 @@
 #include "ioservice/cob_foms.h"     /* c2_fom_cob_create, c2_fom_cob_delete */
 #include "ioservice/io_fops.h"      /* c2_is_cob_create_fop() */
 #include "ioservice/cobfid_map.h"   /* c2_cobfid_map_get() c2_cobfid_map_put()*/
+#include "ioservice/io_device.h"   /* c2_ios_poolmach_get() */
 #include "reqh/reqh_service.h"
+#include "pool/pool.h"
 #include "colibri/colibri_setup.h"
 #include "ioservice/io_fops_ff.h"
 
@@ -162,7 +164,7 @@ static size_t cob_fom_locality_get(const struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
 
-        return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
+	return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
 }
 
 static void cob_fom_populate(struct c2_fom *fom)
@@ -183,9 +185,15 @@ static void cob_fom_populate(struct c2_fom *fom)
 
 static int cc_fom_tick(struct c2_fom *fom)
 {
-	int                          rc;
-	struct c2_fom_cob_op        *cc;
-	struct c2_fop_cob_op_reply *reply;
+	int                             rc;
+	struct c2_fom_cob_op           *cc;
+	struct c2_fop_cob_op_reply     *reply;
+	struct c2_poolmach             *poolmach;
+	struct c2_reqh                 *reqh;
+	struct c2_pool_version_numbers *verp;
+	struct c2_pool_version_numbers  curr;
+	struct c2_fop_cob_create *fop;
+
 
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_ops != NULL);
@@ -194,6 +202,18 @@ static int cc_fom_tick(struct c2_fom *fom)
 	if (c2_fom_phase(fom) < C2_FOPH_NR) {
 		rc = c2_fom_tick_generic(fom);
 		return rc;
+	}
+
+	fop  = c2_fop_data(fom->fo_fop);
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	poolmach = c2_ios_poolmach_get(reqh);
+	c2_poolmach_current_version_get(poolmach, &curr);
+	verp = (struct c2_pool_version_numbers*)&fop->cc_common.c_version;
+
+	/* Check the client version and server version before any processing */
+	if (!c2_poolmach_version_equal(verp, &curr)) {
+		rc = C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH;
+		goto out;
 	}
 
 	if (c2_fom_phase(fom) == C2_FOPH_CC_COB_CREATE) {
@@ -215,8 +235,13 @@ out:
 	reply = c2_fop_data(fom->fo_rep_fop);
 	reply->cor_rc = rc;
 
-	fom->fo_rc = rc;
-	c2_fom_phase_set(fom, (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE);
+	c2_ios_poolmach_version_updates_pack(poolmach,
+					     &fop->cc_common.c_version,
+					     &reply->cor_fv_version,
+					     &reply->cor_fv_updates);
+
+	c2_fom_phase_move(fom, rc, rc == 0 ? C2_FOPH_SUCCESS :
+					     C2_FOPH_FAILURE);
 	return C2_FSO_AGAIN;
 }
 
@@ -371,17 +396,36 @@ static void cd_fom_fini(struct c2_fom *fom)
 
 static int cd_fom_tick(struct c2_fom *fom)
 {
-	int                         rc;
-	struct c2_fom_cob_op       *cd;
-	struct c2_fop_cob_op_reply *reply;
+	int                             rc;
+	struct c2_fom_cob_op           *cd;
+	struct c2_fop_cob_op_reply     *reply;
+	struct c2_poolmach             *poolmach;
+	struct c2_reqh                 *reqh;
+	struct c2_pool_version_numbers *verp;
+	struct c2_pool_version_numbers  curr;
+	struct c2_fop_cob_delete       *fop;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_ops != NULL);
 	C2_PRE(fom->fo_type != NULL);
 
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
+
 	if (c2_fom_phase(fom) < C2_FOPH_NR) {
 		rc = c2_fom_tick_generic(fom);
 		return rc;
+	}
+
+	fop  = c2_fop_data(fom->fo_fop);
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	poolmach = c2_ios_poolmach_get(reqh);
+	c2_poolmach_current_version_get(poolmach, &curr);
+	verp = (struct c2_pool_version_numbers*)&fop->cd_common.c_version;
+
+	/* Check the client version and server version before any processing */
+	if (!c2_poolmach_version_equal(verp, &curr)) {
+		rc = C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH;
+		goto out;
 	}
 
 	if (c2_fom_phase(fom) == C2_FOPH_CD_COB_DEL) {
@@ -403,8 +447,13 @@ out:
 	reply = c2_fop_data(fom->fo_rep_fop);
 	reply->cor_rc = rc;
 
-	fom->fo_rc = rc;
-	c2_fom_phase_set(fom, (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE);
+	c2_ios_poolmach_version_updates_pack(poolmach,
+					     &fop->cd_common.c_version,
+					     &reply->cor_fv_version,
+					     &reply->cor_fv_updates);
+
+	c2_fom_phase_move(fom, rc, rc == 0 ? C2_FOPH_SUCCESS :
+					     C2_FOPH_FAILURE);
 	return C2_FSO_AGAIN;
 }
 

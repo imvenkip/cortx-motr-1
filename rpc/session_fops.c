@@ -19,6 +19,8 @@
  * Original creation date: 04/15/2011
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "net/net.h"        /* c2_net_end_point_get */
@@ -29,7 +31,8 @@
 #include "rpc/session_fops.h"
 #include "rpc/session_foms.h"
 #include "rpc/session_internal.h"
-#include "rpc/rpc_onwire.h" /* item_encdec() */
+#include "dtm/verno_xc.h" /* c2_xc_verno_init */
+#include "rpc/rpc_onwire_xc.h" /* c2_xc_rpc_onwire_init */
 
 /**
    @addtogroup rpc_session
@@ -62,6 +65,7 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 	struct c2_fop                        *fop;
 	int                                   rc;
 
+	C2_ENTRY("item_opcode: %u", item_type->rit_opcode);
 	C2_PRE(item_type != NULL && item != NULL && cur != NULL);
 	C2_PRE(item_type->rit_opcode == C2_RPC_CONN_ESTABLISH_OPCODE);
 
@@ -69,7 +73,7 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 
 	C2_ALLOC_PTR(ctx);
 	if (ctx == NULL)
-		return -ENOMEM;
+		C2_RETURN(-ENOMEM);
 
 	ctx->cec_sender_ep = NULL;
 	fop         = &ctx->cec_fop;
@@ -87,10 +91,10 @@ static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
 	*item           = &fop->f_item;
 	(*item)->ri_ops = &rcv_conn_establish_item_ops;
 
-	return 0;
+	C2_RETURN(0);
 out:
 	c2_free(ctx);
-	return rc;
+	C2_RETURN(rc);
 }
 
 const struct c2_fop_type_ops c2_rpc_fop_noop_ops = {
@@ -100,7 +104,7 @@ const struct c2_fop_type_ops c2_rpc_fop_noop_ops = {
 static struct c2_rpc_item_type_ops conn_establish_item_type_ops = {
 	.rito_encode       = c2_fop_item_type_default_encode,
 	.rito_decode       = conn_establish_item_decode,
-        .rito_payload_size = c2_fop_item_type_default_onwire_size,
+        .rito_payload_size = c2_fop_item_type_default_payload_size,
 };
 
 struct c2_fop_type c2_rpc_fop_conn_establish_fopt;
@@ -137,6 +141,8 @@ void c2_rpc_session_fop_fini(void)
 	c2_fop_type_fini(&c2_rpc_fop_conn_terminate_fopt);
 	c2_fop_type_fini(&c2_rpc_fop_conn_establish_fopt);
 	c2_xc_session_fini();
+	c2_xc_rpc_onwire_fini();
+	c2_xc_verno_fini();
 }
 
 extern struct c2_fom_type_ops c2_rpc_fom_conn_establish_type_ops;
@@ -146,6 +152,11 @@ extern struct c2_fom_type_ops c2_rpc_fom_session_terminate_type_ops;
 
 int c2_rpc_session_fop_init(void)
 {
+	/**
+	 * @todo This should be done from dtm subsystem init.
+	 */
+	c2_xc_verno_init();
+	c2_xc_rpc_onwire_init();
 	c2_xc_session_init();
 	return  C2_FOP_TYPE_INIT(&c2_rpc_fop_conn_establish_fopt,
 			 .name      = "Rpc conn establish",
@@ -214,6 +225,8 @@ void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
 {
 	struct c2_rpc_fop_conn_establish_ctx *ctx;
 
+	C2_ENTRY("item: %p, ep_addr: %s, machine: %p", item,
+		 (char *)ep->nep_addr, machine);
 	C2_PRE(item != NULL && ep != NULL && machine != NULL);
 
 	ctx = container_of(item, struct c2_rpc_fop_conn_establish_ctx,
@@ -223,6 +236,7 @@ void c2_rpc_fop_conn_establish_ctx_init(struct c2_rpc_item      *item,
 	c2_net_end_point_get(ep);
 	ctx->cec_sender_ep = ep;
 	ctx->cec_rpc_machine = machine;
+	C2_LEAVE();
 }
 
 bool c2_rpc_item_is_control_msg(const struct c2_rpc_item *item)
@@ -247,4 +261,3 @@ bool c2_rpc_item_is_control_msg(const struct c2_rpc_item *item)
  *  scroll-step: 1
  *  End:
  */
-

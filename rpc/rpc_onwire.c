@@ -18,87 +18,122 @@
  * Original creation date: 06/25/2011
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
+#include "lib/trace.h"
 #include "lib/errno.h"
-#include "rpc/rpc_onwire.h"
+#include "rpc/rpc_onwire_xc.h"
+#include "rpc/rpc_helpers.h"
+#include "xcode/xcode.h" /* C2_XCODE_OBJ */
 
-static int slot_ref_encdec(struct c2_bufvec_cursor *cur,
-			   struct c2_rpc_slot_ref *slot_ref,
-			   enum c2_bufvec_what what);
-static int sender_uuid_encdec(struct c2_bufvec_cursor *cur,
-			      struct c2_rpc_sender_uuid *uuid,
-			      enum c2_bufvec_what what);
+#define ITEM_HEAD_XCODE_OBJ(ptr) C2_XCODE_OBJ(c2_rpc_item_onwire_header_xc, ptr)
+#define SLOT_REF_XCODE_OBJ(ptr)  C2_XCODE_OBJ(c2_rpc_onwire_slot_ref_xc, ptr)
 
-/**
-    Encodes/decodes the rpc item header into a bufvec
-    @param cur Current bufvec cursor position
-    @param item RPC item for which the header is to be encoded/decoded
-    @param what Denotes type of operation (Encode or Decode)
-    @retval 0 (success)
-    @retval -errno  (failure)
-*/
-int c2_rpc_item_header_encdec(struct c2_rpc_item      *item,
-			      struct c2_bufvec_cursor *cur,
-			      enum c2_bufvec_what      what)
+static int slot_ref_encode(struct c2_rpc_onwire_slot_ref *osr,
+			   struct c2_bufvec_cursor       *cur);
+
+static int slot_ref_decode(struct c2_bufvec_cursor       *cur,
+			   struct c2_rpc_onwire_slot_ref *osr);
+
+int c2_rpc_item_header_encode(struct c2_rpc_item_onwire_header *ioh,
+			      struct c2_bufvec_cursor          *cur)
+
 {
-	uint64_t		 len;
-	int			 rc;
-	struct c2_rpc_item_type *item_type;
+	struct c2_xcode_ctx ctx;
+	int                 rc;
 
+	C2_ENTRY("item header: %p", ioh);
 	C2_PRE(cur != NULL);
-	C2_PRE(item != NULL);
+	C2_PRE(ioh != NULL);
 
-	item_type = item->ri_type;
-	if (what == C2_BUFVEC_ENCODE)
-		len = c2_rpc_item_size(item);
-
-	rc = c2_bufvec_uint64(cur, &len, what) ?:
-	     slot_ref_encdec(cur, item->ri_slot_refs, what);
-	return rc;
+	c2_xcode_ctx_init(&ctx, &ITEM_HEAD_XCODE_OBJ(ioh));
+	ctx.xcx_buf   = *cur;
+	rc = c2_xcode_encode(&ctx);
+	if (rc == 0)
+		*cur = ctx.xcx_buf;
+	C2_RETURN(rc);
 }
 
-static int slot_ref_encdec(struct c2_bufvec_cursor *cur,
-			   struct c2_rpc_slot_ref *slot_ref,
-			   enum c2_bufvec_what what)
+int c2_rpc_item_header_decode(struct c2_bufvec_cursor          *cur,
+			      struct c2_rpc_item_onwire_header *ioh)
 {
-	struct c2_rpc_slot_ref    *sref;
-	int			   rc;
-	int			   slot_ref_cnt;
-	int			   i;
+	struct c2_xcode_ctx ctx;
+	int                 rc;
 
+	C2_ENTRY();
+	C2_PRE(cur != NULL);
+	C2_PRE(ioh != NULL);
+
+	c2_xcode_ctx_init(&ctx, &ITEM_HEAD_XCODE_OBJ(NULL));
+	ctx.xcx_buf   = *cur;
+	ctx.xcx_alloc = c2_xcode_alloc;
+	rc = c2_xcode_decode(&ctx);
+	if (rc == 0) {
+		struct c2_rpc_item_onwire_header *ioh_decoded;
+
+		ioh_decoded = c2_xcode_ctx_top(&ctx);
+		*ioh = *ioh_decoded;
+		c2_xcode_free(&ITEM_HEAD_XCODE_OBJ(ioh_decoded));
+		*cur = ctx.xcx_buf;
+	}
+	C2_RETURN(rc);
+}
+
+int c2_rpc_item_slot_ref_encdec(struct c2_bufvec_cursor *cur,
+				struct c2_rpc_slot_ref  *slot_ref,
+				int                      nr_slot_refs,
+				enum c2_bufvec_what      what)
+{
+	struct c2_rpc_onwire_slot_ref *osr = NULL;
+	int                            rc;
+	int                            i;
+
+	C2_ENTRY();
 	C2_PRE(slot_ref != NULL);
 	C2_PRE(cur != NULL);
 
-	/* Currently MAX slot references in sessions is 1. */
-	slot_ref_cnt = 1;
-	for (i = 0; i < slot_ref_cnt; ++i) {
-		sref = &slot_ref[i];
-		rc = c2_bufvec_uint64(cur, &sref->sr_verno.vn_lsn, what) ?:
-		c2_bufvec_uint64(cur, &sref->sr_sender_id, what) ?:
-		c2_bufvec_uint64(cur, &sref->sr_session_id, what) ?:
-		c2_bufvec_uint64(cur, &sref->sr_verno.vn_vc, what) ?:
-		sender_uuid_encdec(cur, &sref->sr_uuid, what) ?:
-		c2_bufvec_uint64(cur, &sref->sr_last_persistent_verno.vn_lsn,
-				 what) ?:
-		c2_bufvec_uint64(cur,&sref->sr_last_persistent_verno.vn_vc,
-				 what) ?:
-		c2_bufvec_uint64(cur, &sref->sr_last_seen_verno.vn_lsn, what) ?:
-		c2_bufvec_uint64(cur, &sref->sr_last_seen_verno.vn_vc, what) ?:
-		c2_bufvec_uint32(cur, &sref->sr_slot_id, what) ?:
-		c2_bufvec_uint64(cur, &sref->sr_xid, what) ?:
-		c2_bufvec_uint64(cur, &sref->sr_slot_gen, what);
-		if (rc != 0)
-			return -EFAULT;
+	for (i = 0, rc = 0; rc == 0 && i < nr_slot_refs; ++i) {
+		osr = &slot_ref[i].sr_ow;
+		rc = what == C2_BUFVEC_ENCODE ?
+			slot_ref_encode(osr, cur) :
+			slot_ref_decode(cur, osr);
 	}
-	return rc;
+
+	C2_RETURN(rc);
 }
 
-/** Helper functions to serialize uuid and slot references in rpc item header
-    see rpc/rpc2.h */
-static int sender_uuid_encdec(struct c2_bufvec_cursor *cur,
-			      struct c2_rpc_sender_uuid *uuid,
-			      enum c2_bufvec_what what)
+static int slot_ref_encode(struct c2_rpc_onwire_slot_ref *osr,
+			   struct c2_bufvec_cursor       *cur)
+
 {
-	return c2_bufvec_uint64(cur, &uuid->su_uuid, what);
+	struct c2_xcode_ctx ctx;
+	int                 rc;
+
+	C2_ENTRY();
+	c2_xcode_ctx_init(&ctx, &SLOT_REF_XCODE_OBJ(osr));
+	ctx.xcx_buf = *cur;
+	rc = c2_xcode_encode(&ctx);
+	*cur = ctx.xcx_buf;
+	C2_RETURN(rc);
+}
+
+static int slot_ref_decode(struct c2_bufvec_cursor       *cur,
+			   struct c2_rpc_onwire_slot_ref *osr)
+{
+	struct c2_xcode_ctx ctx;
+	int                 rc;
+
+	C2_ENTRY();
+	c2_xcode_ctx_init(&ctx, &SLOT_REF_XCODE_OBJ(NULL));
+	ctx.xcx_buf   = *cur;
+	ctx.xcx_alloc = c2_xcode_alloc;
+	rc = c2_xcode_decode(&ctx);
+	if (rc == 0) {
+		struct c2_rpc_onwire_slot_ref *osr_top = c2_xcode_ctx_top(&ctx);
+		*osr = *osr_top;
+		c2_xcode_free(&SLOT_REF_XCODE_OBJ(osr_top));
+	}
+	*cur = ctx.xcx_buf;
+	C2_RETURN(rc);
 }
 
 /*

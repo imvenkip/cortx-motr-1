@@ -682,6 +682,8 @@ AC_CONFIG_FILES([
                  c2t1fs/linux_kernel/st/common.sh
                  c2t1fs/linux_kernel/ut/Makefile
                  cfg/Makefile
+		 cm/Makefile
+		 cm/ut/Makefile
                  cob/Makefile
                  cob/ut/Makefile
                  colibri/Makefile
@@ -721,10 +723,18 @@ AC_CONFIG_FILES([
 		 net/lnet/st/Makefile
 		 net/lnet/st/linux_kernel/Makefile
 		 net/lnet/ut/Makefile
+		 net/test/Makefile
+		 net/test/linux_kernel/Makefile
+		 net/test/test-user.sh
+		 net/test/ntc.sh
+		 net/test/ntn.sh
+		 net/test/user_space/Makefile
+		 net/test/ut/Makefile
 		 net/ut/Makefile
                  nrs/Makefile
                  patches/Makefile
                  pool/Makefile
+                 pool/ut/Makefile
                  reqh/Makefile
 		 reqh/ut/Makefile
                  rpc/Makefile
@@ -735,6 +745,8 @@ AC_CONFIG_FILES([
                  sm/Makefile
                  sm/ut/Makefile
                  sns/Makefile
+                 sns/repair/Makefile
+                 sns/repair/ut/Makefile
                  sns/ut/Makefile
                  stob/Makefile
                  stob/ut/Makefile
@@ -760,6 +772,9 @@ AC_OUTPUT
 #
 # Set up execute bit for UT scripts.
 #
+chmod +x net/test/ntc.sh
+chmod +x net/test/ntn.sh
+chmod +x net/test/test-user.sh
 chmod +x utils/ut.sh
 chmod +x utils/linux_kernel/ut.sh
 

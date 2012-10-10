@@ -21,6 +21,7 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @Y
                             $(top_builddir)/balloc/libcolibri-balloc.la \
 			    $(top_builddir)/capa/libcolibri-capa.la \
                             $(top_builddir)/cfg/libcolibri-cfg.la \
+                            $(top_builddir)/cm/libcolibri-cm.la \
                             $(top_builddir)/cob/libcolibri-cob.la \
                             $(top_builddir)/console/libcolibri-console.la \
                             $(top_builddir)/db/libcolibri-db.la \
@@ -33,12 +34,14 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @Y
                             $(top_builddir)/lib/libc2.la \
                             $(top_builddir)/net/libcolibri-net.la \
                             $(top_builddir)/net/bulk_emulation/libcolibri-net-bulkmem.la \
+                            $(top_builddir)/net/test/libcolibri-net-test.la \
                             $(top_builddir)/net/lnet/libcolibri-lnet.la \
                             $(top_builddir)/nrs/libcolibri-nrs.la \
                             $(top_builddir)/pool/libcolibri-pool.la \
                             $(top_builddir)/reqh/libcolibri-reqh.la \
                             $(top_builddir)/sm/libcolibri-sm.la \
                             $(top_builddir)/sns/libcolibri-sns.la \
+                            $(top_builddir)/sns/repair/libcolibri-sns-repair.la \
                             $(top_builddir)/stob/libcolibri-stob.la \
                             $(top_builddir)/udb/libcolibri-udb.la \
                             $(top_builddir)/ut/libcolibri-ut.la \

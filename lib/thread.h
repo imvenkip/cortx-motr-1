@@ -110,7 +110,7 @@ struct c2_thread {
    static void worker(struct foo *arg) { ... }
    static struct c2_thread tcb;
 
-   result = C2_THREAD_INIT(&tcb, struct foo, NULL, worker, arg, "worker");
+   result = C2_THREAD_INIT(&tcb, struct foo *, NULL, &worker, arg, "worker");
    @endcode
 
    C2_THREAD_INIT() checks that type of the argument matches function prototype.
@@ -239,6 +239,21 @@ void c2_thread_self(struct c2_thread_handle *id);
 */
 bool c2_thread_handle_eq(struct c2_thread_handle *h1,
 			 struct c2_thread_handle *h2);
+
+/**
+ * Sets the thread in awkward context.
+ */
+void c2_enter_awkward(void);
+
+/**
+ * Reset thread from awkward context.
+ */
+void c2_exit_awkward(void);
+
+/**
+ * Tells if executing thread is in awkward context.
+ */
+bool c2_is_awkward(void);
 
 /** @} end of thread group */
 

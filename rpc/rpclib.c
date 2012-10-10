@@ -18,6 +18,8 @@
  * Original creation date: 09/28/2011
  */
 
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
+#include "lib/trace.h"
 #ifndef __KERNEL__
 #include <errno.h> /* errno */
 #include <stdio.h> /* fopen(), fclose() */
@@ -42,28 +44,27 @@
 #ifndef __KERNEL__
 int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx)
 {
-	int  i;
 	int  rc;
 
+	C2_ENTRY("server_ctx: %p", sctx);
 	C2_PRE(sctx->rsx_argv != NULL && sctx->rsx_argc > 0);
 
 	/* Open error log file */
 	sctx->rsx_log_file = fopen(sctx->rsx_log_file_name, "w+");
 	if (sctx->rsx_log_file == NULL)
-		return errno;
+		C2_RETERR(errno, "Open of error log file");
 
-	/* Register service types */
-	for (i = 0; i < sctx->rsx_service_types_nr; ++i) {
-		rc = c2_reqh_service_type_register(sctx->rsx_service_types[i]);
-		if (rc != 0)
-			goto fclose;
-	}
-
-	/* Start rpc server */
+	/*
+	 * Start rpc server.
+	 * Note: This only starts the services specified in the
+	 * struct c2_rpc_service_ctx, (i.e. c2_rpc_server_ctx::rsx_service_types
+	 * ) and does not register the given service types. The user of
+	 * c2_rpc_server_start() must register the service stypes before.
+	 */
 	rc = c2_cs_init(&sctx->rsx_colibri_ctx, sctx->rsx_xprts,
 			sctx->rsx_xprts_nr, sctx->rsx_log_file);
 	if (rc != 0)
-		goto service_unreg;
+		goto fclose;
 
 	rc = c2_cs_setup_env(&sctx->rsx_colibri_ctx, sctx->rsx_argc,
 			     sctx->rsx_argv);
@@ -72,29 +73,23 @@ int c2_rpc_server_start(struct c2_rpc_server_ctx *sctx)
 
 	rc = c2_cs_start(&sctx->rsx_colibri_ctx);
 
-	return rc;
+	C2_RETURN(rc);
 
 cs_fini:
 	c2_cs_fini(&sctx->rsx_colibri_ctx);
-service_unreg:
-	for (i = 0; i < sctx->rsx_service_types_nr; ++i)
-		c2_reqh_service_type_unregister(sctx->rsx_service_types[i]);
 fclose:
 	fclose(sctx->rsx_log_file);
-	return rc;
+	C2_RETURN(rc);
 }
 
 void c2_rpc_server_stop(struct c2_rpc_server_ctx *sctx)
 {
-	int i;
+	C2_ENTRY("server_ctx: %p", sctx);
 
 	c2_cs_fini(&sctx->rsx_colibri_ctx);
-
-	for (i = 0; i < sctx->rsx_service_types_nr; ++i)
-		c2_reqh_service_type_unregister(sctx->rsx_service_types[i]);
-
 	fclose(sctx->rsx_log_file);
 
+	C2_LEAVE();
 	return;
 }
 #endif
@@ -108,6 +103,8 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	struct c2_net_buffer_pool *buffer_pool;
 	uint32_t		   tms_nr;
 	uint32_t		   bufs_nr;
+
+	C2_ENTRY("client_ctx: %p", cctx);
 
 	ndom	    = cctx->rcx_net_dom;
 	rpc_mach    = &cctx->rcx_rpc_machine;
@@ -150,7 +147,7 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 	if (rc != 0)
 		goto conn_destroy;
 
-	return rc;
+	C2_RETURN(rc);
 
 conn_destroy:
 	c2_rpc_conn_destroy(&cctx->rcx_connection, cctx->rcx_timeout_s);
@@ -161,7 +158,7 @@ rpcmach_fini:
 pool_fini:
 	c2_rpc_net_buffer_pool_cleanup(buffer_pool);
 	C2_ASSERT(rc != 0);
-	return rc;
+	C2_RETURN(rc);
 }
 
 int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
@@ -172,6 +169,7 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 	struct c2_clink     clink;
 	struct c2_rpc_item *item;
 
+	C2_ENTRY("fop: %p, session: %p", fop, session);
 	C2_PRE(fop != NULL);
 	C2_PRE(session != NULL);
 	/*
@@ -203,7 +201,7 @@ clean:
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
 
-	return rc;
+	C2_RETURN(rc);
 }
 C2_EXPORTED(c2_rpc_client_call);
 
@@ -211,20 +209,23 @@ int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
 {
 	int rc;
 
+	C2_ENTRY("client_ctx: %p", cctx);
 	rc = c2_rpc_session_destroy(&cctx->rcx_session, cctx->rcx_timeout_s);
-	if (rc != 0)
-		return rc;
+	if (rc != 0) {
+		C2_RETURN(rc);
+	}
 
 	rc = c2_rpc_conn_destroy(&cctx->rcx_connection, cctx->rcx_timeout_s);
-	if (rc != 0)
-		return rc;
+	if (rc != 0) {
+		C2_RETURN(rc);
+	}
 
 	c2_net_end_point_put(cctx->rcx_remote_ep);
 	c2_rpc_machine_fini(&cctx->rcx_rpc_machine);
 
 	c2_rpc_net_buffer_pool_cleanup(&cctx->rcx_buffer_pool);
 
-	return rc;
+	C2_RETURN(rc);
 }
 
 /*

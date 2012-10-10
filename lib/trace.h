@@ -70,7 +70,7 @@
    Users produce trace records by calling C2_LOG() macro like
 
    @code
-   C2_LOG("Cached value found: %llx, attempt: %i", foo->f_val, i);
+   C2_LOG(C2_INFO, "Cached value found: %llx, attempt: %i", foo->f_val, i);
    @endcode
 
    These records are placed in a shared cyclic buffer. The buffer can be
@@ -141,14 +141,14 @@
  */
 
 /**
-   C2_LOG(fmt, ...) is the main user interface for the tracing. It accepts
-   the arguments in printf(3) format for the numbers, but there are some
+   C2_LOG(level, fmt, ...) is the main user interface for the tracing. It
+   accepts the arguments in printf(3) format for the numbers, but there are some
    tricks for string arguments.
 
    String arguments should be specified like this:
 
    @code
-   C2_LOG("%s", (char *)"foo");
+   C2_LOG(C2_DEBUG, "%s", (char *)"foo");
    @endcode
 
    i.e. explicitly typecast to the pointer. It is because typeof("foo")
@@ -167,7 +167,7 @@
 #define C2_RETURN(rc)					\
 do {							\
 	typeof(rc) __rc = (rc);				\
-	(rc == 0) ? C2_LOG(C2_CALL, "< rc=%d", __rc) :	\
+	(__rc == 0) ? C2_LOG(C2_CALL, "< rc=%d", __rc) :	\
 		    C2_LOG(C2_NOTICE, "< rc=%d", __rc);	\
 	return __rc;					\
 } while (0)
@@ -176,7 +176,7 @@ do {							\
 do {								\
 	typeof(rc) __rc = (rc);					\
 	C2_ASSERT(__rc != 0);					\
-	C2_LOG(C2_ERROR, "! rc=%d " fmt, __rc, __VA_ARGS__);	\
+	C2_LOG(C2_ERROR, "! rc=%d " fmt, __rc, ## __VA_ARGS__);	\
 	return __rc;						\
 } while (0)
 
@@ -202,7 +202,9 @@ void c2_trace_fini(void);
   C2_TRACE_SUBSYS(COB,		10)	\
   C2_TRACE_SUBSYS(BALLOC,	11)	\
   C2_TRACE_SUBSYS(LAYOUT,       12)	\
-  C2_TRACE_SUBSYS(IOSERVICE,    13)
+  C2_TRACE_SUBSYS(IOSERVICE,    13)     \
+  C2_TRACE_SUBSYS(CM,           14)     \
+  C2_TRACE_SUBSYS(SNSREPAIR,    15)     \
 
 #define C2_TRACE_SUBSYS(name, value) C2_TRACE_SUBSYS_ ## name = (1 << value),
 /** The subsystem bitmask definitions */

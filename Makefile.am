@@ -9,12 +9,14 @@ MAKEFLAGS = $(make_verbose)
 SUBDIRS_BASE = m4 doc man patches
 
 # xcode/ff2c must be built first, because it is used by other modules to compile
-# their .ff files. net/ and addb/addbff must be built next, because their .ff
-# files are used by other modules. The rest can be built in an arbitrary order.
+# their .ff files. dtm/, addb/addbff/ and net/ must be built next, because
+# their .ff files are used by other modules. The rest can be built in an
+# arbitrary order.
 # Keep the rest sorted lexicographically.
 
 SUBDIRS_LIBS = \
                xcode/ff2c \
+               dtm \
                addb/addbff \
                net \
                \
@@ -23,11 +25,11 @@ SUBDIRS_LIBS = \
                balloc \
                capa \
                cfg \
-               cob \
+               cm \
+	       cob \
                console \
                db \
                desim \
-               dtm \
                fid \
                fol \
                fop \
@@ -41,11 +43,13 @@ SUBDIRS_LIBS = \
                rpc \
                sm \
                sns \
+	       sns/repair \
                stob \
                udb \
                ut \
                xcode \
                yaml2db
+
 SUBDIR_IT = rpc/it
 
 SUBDIR_UT = addb/ut \
@@ -55,6 +59,7 @@ SUBDIR_UT = addb/ut \
             cob/ut \
             colibri/ut \
             console/ut \
+            cm/ut \
             desim/ut \
             db/ut \
             fol/ut \
@@ -65,11 +70,14 @@ SUBDIR_UT = addb/ut \
             lib/ut \
             net/bulk_emulation/ut \
             net/lnet/ut \
+	    net/test/ut \
             net/ut \
+            pool/ut \
             reqh/ut \
             rpc/ut \
             sm/ut \
             sns/ut \
+            sns/repair/ut \
             stob/ut \
             udb/ut \
             xcode/ut \
@@ -85,7 +93,7 @@ SUBDIR_ST = c2t1fs/linux_kernel/st \
 
 SUBDIR_UB =
 
-SUBDIR_BIN = console/bin mds utils
+SUBDIR_BIN = console/bin mds net/test/user_space utils
 
 SUBDIR_SCRIPT = scripts
 

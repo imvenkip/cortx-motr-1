@@ -119,6 +119,7 @@ void c2_reqh_fini(struct c2_reqh *reqh)
         c2_fom_domain_fini(&reqh->rh_fom_dom);
         c2_reqh_svc_tlist_fini(&reqh->rh_services);
         c2_reqh_rpc_mach_tlist_fini(&reqh->rh_rpc_machines);
+	c2_chan_fini(&reqh->rh_sd_signal);
 	c2_rwlock_fini(&reqh->rh_rwlock);
 }
 
@@ -181,6 +182,13 @@ void c2_reqh_shutdown_wait(struct c2_reqh *reqh)
 
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
+}
+
+uint64_t c2_reqh_nr_localities(const struct c2_reqh *reqh)
+{
+	C2_PRE(c2_reqh_invariant(reqh));
+
+	return reqh->rh_fom_dom.fd_localities_nr;
 }
 
 static unsigned keymax = 0;

@@ -25,45 +25,37 @@
 
 #include "lib/vec.h"
 #include "lib/tlist.h"
+#include "rpc/rpc_onwire.h"
 
 struct c2_rpc_item;
 struct c2_rpc_frm;
-
-enum {
-	/**
-	   RPC version + number of items in the packet.
-	   NOTE: Current implementation in rpc/rpc_onwire.c encodes
-	         uint32_t as uint64_t. Hence two uint32_t fields
-	         will require 16 bytes.
-	   @todo XXX This is ugly. Define packet header and its size in
-		     .ff format.
-	 */
-	C2_RPC_PACKET_OW_HEADER_SIZE = 16
-};
 
 /**
    RPC Packet (aka RPC) is a collection of RPC items that are sent together
    in same network buffer.
  */
 struct c2_rpc_packet {
-	/** Number of RPC items in packet */
-	uint32_t           rp_nr_items;
+
+	struct c2_rpc_packet_onwire_header rp_ow;
 
 	/** Onwire size of this packet, including header */
-	c2_bcount_t        rp_size;
+	c2_bcount_t                        rp_size;
 
 	/**
 	   List of c2_rpc_item objects placed using ri_plink.
 	   List descriptor: packet_item
 	 */
-	struct c2_tl       rp_items;
+	struct c2_tl                       rp_items;
 
 	/**
 	   Successfully sent (== 0) or was there any error while sending (!= 0)
 	 */
-	int                rp_status;
-	struct c2_rpc_frm *rp_frm;
+	int                                rp_status;
+
+	struct c2_rpc_frm                 *rp_frm;
 };
+
+c2_bcount_t c2_rpc_packet_onwire_header_size(void);
 
 C2_TL_DESCR_DECLARE(packet_item, extern);
 C2_TL_DECLARE(packet_item, extern, struct c2_rpc_item);

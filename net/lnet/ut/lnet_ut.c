@@ -375,6 +375,8 @@ static void ut_test_framework_dom_cleanup(struct ut_data *td,
 		if (c2_list_length(&tm->ntm_end_points) > 1)
 			NLXDBGP(td,0,"Cleanup D:%p T:%p E failed\n", dom, tm);
 	}
+
+	c2_clink_fini(&cl);
 }
 
 #ifdef NLX_DEBUG
@@ -946,6 +948,7 @@ static void test_tm_startstop(void)
 	rc = c2_addb_choose_store_media(C2_ADDB_REC_STORE_NONE);
 	c2_semaphore_fini(&mock_sem);
 	C2_UT_ASSERT(rc == 0);
+	c2_clink_fini(&tmwait1);
 }
 
 /* test_msg_body */
@@ -1113,7 +1116,7 @@ static bool test_msg_send_loop(struct ut_data          *td,
 
 	C2_UT_ASSERT(c2_atomic64_get(&cb_ep1->nep_ref.ref_cnt) == msg_num);
 	while (msg_num-- > 0)
-		zUT(c2_net_end_point_put(cb_ep1), aborted);
+		c2_net_end_point_put(cb_ep1);
 	cb_ep1 = NULL;
 
 	rc = true;
@@ -1246,7 +1249,7 @@ static void test_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
 
 	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 1);
-	zUT(c2_net_end_point_put(ep2), aborted);
+	c2_net_end_point_put(ep2);
 	ep2 = NULL;
 
 	/* TEST
@@ -1293,7 +1296,7 @@ static void test_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(td->qs.nqs_num_dels == 0);
 
 	C2_UT_ASSERT(c2_atomic64_get(&ep2->nep_ref.ref_cnt) == 1);
-	zUT(c2_net_end_point_put(ep2), aborted);
+	c2_net_end_point_put(ep2);
 	ep2 = NULL;
 
  aborted:
