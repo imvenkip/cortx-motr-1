@@ -883,7 +883,7 @@ void c2_fom_fini(struct c2_fom *fom)
 	c2_sm_fini(&fom->fo_sm_state);
 	c2_list_link_fini(&fom->fo_linkage);
 	c2_fom_callback_init(&fom->fo_cb);
-	if (c2_atomic64_dec_and_test(&loc->fl_foms) == 0);
+	if (c2_atomic64_dec_and_test(&loc->fl_foms))
 		c2_chan_signal(&reqh->rh_sd_signal);
 }
 C2_EXPORTED(c2_fom_fini);
