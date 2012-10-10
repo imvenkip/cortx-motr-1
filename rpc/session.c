@@ -184,7 +184,7 @@ void session_state_set(struct c2_rpc_session *session, int state)
 {
 	C2_PRE(session != NULL);
 
-	C2_LOG(C2_INFO, "%p: %s -> %s", session,
+	C2_LOG(C2_INFO, "Session %p: %s -> %s", session,
 		session_states[session->s_sm.sm_state].sd_name,
 		session_states[state].sd_name);
 	c2_sm_state_set(&session->s_sm, state);

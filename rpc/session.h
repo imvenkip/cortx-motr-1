@@ -989,8 +989,8 @@ int c2_rpc_session_create(struct c2_rpc_session *session,
    c2_rpc_session_terminate_reply_received() is called when reply to
    CONN_TERMINATE fop is received.
 
-   @pre session_state(session) == C2_RPC_SESSION_IDLE ||
-	session_state(session) == C2_RPC_SESSION_TERMINATING
+   @pre C2_IN(session_state(session), (C2_RPC_SESSION_IDLE,
+				       C2_RPC_SESSION_TERMINATING))
    @post ergo(rc != 0, session_state(session) == C2_RPC_SESSION_FAILED)
  */
 int c2_rpc_session_terminate(struct c2_rpc_session *session);
@@ -1004,9 +1004,10 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session);
  * @param timeout_sec How much time in seconds to wait for session to become
  *                    terminated.
  *
- * @pre C2_IN(session_state(session). (C2_RPC_SESSION_IDLE,
+ * @pre C2_IN(session_state(session), (C2_RPC_SESSION_IDLE,
  *				       C2_RPC_SESSION_TERMINATING))
- * @post session_state(session) == C2_RPC_SESSION_TERMINATED
+ * @post C2_IN(session_state(session), (C2_RPC_SESSION_TERMINATED,
+ *					C2_RPC_SESSION_FAILED))
  */
 int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
 				  uint32_t timeout_sec);
