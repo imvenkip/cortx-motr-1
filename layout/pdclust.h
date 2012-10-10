@@ -249,7 +249,7 @@ struct c2_pdclust_tgt_addr {
  * Allocates and builds a layout object with the pdclust layout type,
  * by setting its intial ref count to 1.
  * @post ergo(rc == 0, pdclust_invariant(*out))
- * @post ergo(rc == 0, l->l_ref == 1)
+ * @post ergo(rc == 0, c2_ref_read(l->l_ref) == 1)
  *
  * @note The layout object built by this API is to be finalised by releasing
  * 'the reference on it that has been held during its creation'.

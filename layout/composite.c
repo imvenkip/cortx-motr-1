@@ -62,7 +62,7 @@ void c2_composite_build(struct c2_layout_domain *dom,
 }
 
 /** Implementation of lo_fini for COMPOSITE layout type. */
-static void composite_fini(struct c2_layout *l)
+static void composite_fini(struct c2_ref *ref)
 {
 }
 

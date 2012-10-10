@@ -478,7 +478,7 @@ static int pdclust_l_build(uint64_t lid, uint32_t N, uint32_t K, uint32_t P,
 	else {
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(list_lookup(lid) == &(*pl)->pl_base.sl_base);
-		C2_UT_ASSERT((*pl)->pl_base.sl_base.l_ref == 1);
+		C2_UT_ASSERT(c2_ref_read(&(*pl)->pl_base.sl_base.l_ref) == 1);
 		C2_UT_ASSERT((*pl)->pl_base.sl_base.l_user_count == 0);
 	}
 
@@ -569,7 +569,7 @@ static int pdclust_layout_build(uint32_t enum_id,
 static void l_verify(struct c2_layout *l, uint64_t lid)
 {
 	C2_UT_ASSERT(l->l_id == lid);
-	C2_UT_ASSERT(l->l_ref >= 0);
+	C2_UT_ASSERT(c2_ref_read(&l->l_ref) >= 0);
 	C2_UT_ASSERT(l->l_ops != NULL);
 }
 
@@ -698,7 +698,7 @@ static void NKP_assign_and_pool_init(uint32_t enum_id,
 /*
  * Tests the APIs supported for enumeration object build, layout object build
  * and layout dstruction that happens using c2_layout_put(). Verifies that the
- * newly build layout object is added to the list of layout objects maintained
+ * newly built layout object is added to the list of layout objects maintained
  * in the domain object and that c2_layout_find() returns the same object.
  */
 static int test_build_pdclust(uint32_t enum_id, uint64_t lid,
@@ -742,15 +742,10 @@ static int test_build_pdclust(uint32_t enum_id, uint64_t lid,
 		pdclust_layout_verify(enum_id, &pl->pl_base.sl_base, lid,
 				      N, K, P, &seed,
 				      10, 20);
-		/*
-		 * Delete the layout object by reducing the reference that
-		 * c2_layout_find() has acquired on it.
-		 */
+		/* Release the reference acquired by c2_layout_find(). */
 		c2_layout_put(&pl->pl_base.sl_base);
 
-		/*
-		 * Delete the layout object by reducing the last reference.
-		 */
+		/* Delete the layout object by reducing the last reference. */
 		c2_layout_put(&pl->pl_base.sl_base);
 		C2_UT_ASSERT(list_lookup(lid) == NULL);
 	}
@@ -1709,9 +1704,11 @@ static void pdclust_layout_compare(uint32_t enum_id,
 	C2_UT_ASSERT(l1->l_type == l2->l_type);
 	C2_UT_ASSERT(l1->l_dom == l2->l_dom);
 	if (l2_ref_elevated)
-		C2_UT_ASSERT(l1->l_ref == l2->l_ref - 1);
+		C2_UT_ASSERT(c2_ref_read(&l1->l_ref) ==
+			     c2_ref_read(&l2->l_ref) - 1);
 	else
-		C2_UT_ASSERT(l1->l_ref == l2->l_ref);
+		C2_UT_ASSERT(c2_ref_read(&l1->l_ref) ==
+			     c2_ref_read(&l2->l_ref));
 	C2_UT_ASSERT(l1->l_user_count == l2->l_user_count);
 	C2_UT_ASSERT(l1->l_ops == l2->l_ops);
 
@@ -1784,9 +1781,9 @@ static void pdclust_layout_copy(uint32_t enum_id,
 	(*l_dest)->l_id         = l_src->l_id;
 	(*l_dest)->l_type       = l_src->l_type;
 	(*l_dest)->l_dom        = l_src->l_dom;
-	(*l_dest)->l_ref        = l_src->l_ref;
 	(*l_dest)->l_user_count = l_src->l_user_count;
 	(*l_dest)->l_ops        = l_src->l_ops;
+	c2_ref_init(&(*l_dest)->l_ref, 1, l_src->l_ops->lo_fini);
 
 	/* Copy PDCLUST layout type specific part of the layout objects. */
 	pl_dest->pl_attr = pl_src->pl_attr;
@@ -2033,18 +2030,17 @@ static int test_ref_get_put_pdclust(uint32_t enum_id, uint64_t lid)
 	C2_UT_ASSERT(rc == 0);
 
 	/* Verify that the ref count is set to 1. */
-	C2_UT_ASSERT(pl->pl_base.sl_base.l_ref == 1);
+	C2_UT_ASSERT(c2_ref_read(&pl->pl_base.sl_base.l_ref) == 1);
 
 	/* Add multiple references on the layout object. */
 	for (i = 0; i < 123; ++i)
 		c2_layout_get(&pl->pl_base.sl_base);
-	C2_UT_ASSERT(pl->pl_base.sl_base.l_ref ==
-		     1 + 123);
+	C2_UT_ASSERT(c2_ref_read(&pl->pl_base.sl_base.l_ref) == 1 + 123);
 
 	/* Release multiple references on the layout object. */
 	for (i = 0; i < 123; ++i)
 		c2_layout_put(&pl->pl_base.sl_base);
-	C2_UT_ASSERT(pl->pl_base.sl_base.l_ref == 1);
+	C2_UT_ASSERT(c2_ref_read(&pl->pl_base.sl_base.l_ref) == 1);
 
 	/* Release the last reference so as to delete the layout. */
 	c2_layout_put(&pl->pl_base.sl_base);
@@ -2484,15 +2480,15 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 
 	/* Build pdclust instance. */
 	c2_fid_set(&gfid, 0, 999);
-	l  = c2_pdl_to_layout(pl);
-	C2_UT_ASSERT(l->l_ref == 1);
+	l = c2_pdl_to_layout(pl);
+	C2_UT_ASSERT(c2_ref_read(&l->l_ref) == 1);
 	rc = c2_layout_instance_build(l, &gfid, &li);
 	if (failure_test) {
 		C2_UT_ASSERT(rc == -ENOMEM || rc == -EPROTO);
 	}
 	else {
 		C2_UT_ASSERT(rc == 0);
-		C2_UT_ASSERT(l->l_ref == 2);
+		C2_UT_ASSERT(c2_ref_read(&l->l_ref) == 2);
 		pi = c2_layout_instance_to_pdi(li);
 		layout_demo(pi, pl, 1, 1, false);
 
@@ -2507,15 +2503,13 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 		else
 			C2_UT_ASSERT(c2_layout_instance_to_enum(li) ==
 				     &lin_enum->lle_base);
-		/*
-		 * Delete the pdclust instance object. It destroys the layout
-		 * object as well since there has been only one reference
-		 * acquired on that layout.
-		 */
+
+		/* Delete the pdclust instance object. */
 		c2_layout_instance_fini(&pi->pi_base);
-		C2_UT_ASSERT(l->l_ref == 1);
+		C2_UT_ASSERT(c2_ref_read(&l->l_ref) == 1);
 	}
 
+	/* Delete the layout object. */
 	c2_layout_put(c2_pdl_to_layout(pl));
 	C2_UT_ASSERT(list_lookup(lid) == NULL);
 	c2_pool_fini(&pool);
@@ -2664,14 +2658,10 @@ static int test_lookup_pdclust(uint32_t enum_id, uint64_t lid,
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(l2 == l1);
 
-		/*
-		 * Release the reference acquired by c2_layout_lookup().
-		 */
+		/* Release the reference acquired by c2_layout_lookup(). */
 		c2_layout_put(l1);
 
-		/*
-		 * Destroy the layout object.
-		 */
+		/* Destroy the layout object. */
 		c2_layout_put(l1);
 	}
 
@@ -3320,7 +3310,7 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 	if (existing_test && !failure_test) {
 		/*
 		 * Lookup for the layout object from the DB to verify that its
-		 * reference count is indeed updated.
+		 * user count is indeed updated.
 		 */
 		rc = c2_db_tx_init(&tx, &dbenv, DBFLAGS);
 		C2_UT_ASSERT(rc == 0);
@@ -3331,7 +3321,7 @@ static int test_update_pdclust(uint32_t enum_id, uint64_t lid,
 				      &tx, &pair, &l2);
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(l2->l_user_count == 100);
-		C2_UT_ASSERT(l2->l_ref == 1);
+		C2_UT_ASSERT(c2_ref_read(&l2->l_ref) == 1);
 
 		rc = c2_db_tx_commit(&tx);
 		C2_UT_ASSERT(rc == 0);

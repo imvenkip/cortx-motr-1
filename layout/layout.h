@@ -32,6 +32,13 @@
  *   A 'layout' is an attribute of a file. It maps a file onto a set of network
  *   resources. viz. component objects.
  *
+ * - Layout user count @n
+ *   Layout user count is the number of users associated a particular layout.
+ *   For example, files using that layout, other composite layouts using that
+ *   layout. Layout user count does not have any impact on the liveness of a
+ *   layout. A layout with 0 user count may continue to reside in memory or in
+ *   the layout DB.
+ *
  * - Layout type @n
  *   A 'layout type' specifies how a file is stored in a collection of targets.
  *   It provides the <offset-in-gob> to <traget-idx, offset-in-target> mapping.
@@ -116,6 +123,7 @@
 #include "lib/tlist.h"  /* struct c2_tl */
 #include "lib/mutex.h"  /* struct c2_mutex */
 #include "lib/arith.h"  /* C2_IS_8ALIGNED */
+#include "lib/refs.h"   /* struct c2_ref */
 
 #include "fid/fid.h"    /* struct c2_fid */
 #include "db/db.h"      /* struct c2_table */
@@ -199,7 +207,7 @@ struct c2_layout {
 	struct c2_layout_domain     *l_dom;
 
 	/** Reference counter for caching a layout. */
-	uint32_t                     l_ref;
+	struct c2_ref                l_ref;
 
 	/**
 	 * Layout user count, indicating how many users this layout has.
@@ -241,7 +249,7 @@ struct c2_layout_ops {
 	 * on the layout object is released.
 	 * @see c2_layout_put().
 	 */
-	void        (*lo_fini)(struct c2_layout *l);
+	void        (*lo_fini)(struct c2_ref *ref);
 
 	/**
 	 * Finalises the layout object that is only allocated and not
@@ -610,7 +618,7 @@ c2_layout_instance_to_enum(const struct c2_layout_instance *li);
 /**
  * Allocates and builds a layout instance using the supplied layout;
  * Acquires an additional reference on the layout pointed by 'l'.
- * @post ergo(rc == 0, l->l_ref > 1))
+ * @post ergo(rc == 0, c2_ref_read(&l->l_ref) > 1)
  *
  * Dual to c2_layout_instance_fini()
  */
@@ -619,7 +627,7 @@ int c2_layout_instance_build(struct c2_layout           *l,
 			     struct c2_layout_instance **out);
 
 /**
- * Finalises the layout instance object; Releases reference on the layout
+ * Finalises the layout instance object; releases reference on the layout
  * that was obtained through c2_layout_instance_build().
  *
  * Dual to c2_layout_instance_build()
@@ -713,7 +721,7 @@ void c2_layout_enum_type_unregister(struct c2_layout_domain *dom,
  * on it, else returns NULL.
  * This interface does not attempt to read the layout from the layout database.
  *
- * @post ergo(@ret != NULL, l->l_ref > 1)
+ * @post ergo(@ret != NULL, c2_ref_read(l->l_ref) > 1)
  *
  * @note This API is required specifically on the client in the absence of
  * layout DB APIs, c2_layout_lookup() to be specific.
@@ -786,7 +794,7 @@ void c2_layout_user_count_dec(struct c2_layout *l);
  *
  * @pre
  * - c2_layout__allocated_invariant(l) implying:
- *   - l->l_ref == 1 and
+ *   - c2_ref_read(l->l_ref) == 1 and
  *   - c2_mutex_is_locked(&l->l_lock)
  * - The buffer pointed by cur contains serialised representation of the whole
  *   layout in case op is C2_LXO_BUFFER_OP. It contains the data for the
@@ -801,7 +809,7 @@ void c2_layout_user_count_dec(struct c2_layout *l);
  * - ergo(rc != 0, c2_layout__allocated_invariant(l)
  * - c2_mutex_is_locked(&l->l_lock)
  * - The cursor cur is advanced by the size of the data that is read from it.
- * - ergo(rc == 0, l->l_ref == 1)
+ * - ergo(rc == 0, c2_ref_read(l->l_ref) == 1)
  *
  * @see c2_layout_put()
  */

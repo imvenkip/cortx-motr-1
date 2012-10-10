@@ -185,11 +185,12 @@ static void pdclust_unregister(struct c2_layout_domain *dom,
 }
 
 /** Implementation of lo_fini for pdclust layout type. */
-static void pdclust_fini(struct c2_layout *l)
+static void pdclust_fini(struct c2_ref *ref)
 {
+	struct c2_layout         *l;
 	struct c2_pdclust_layout *pl;
 
-	C2_PRE(l != NULL);
+	l = container_of(ref, struct c2_layout, l_ref);
 	C2_PRE(c2_mutex_is_not_locked(&l->l_lock));
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);
@@ -774,11 +775,13 @@ void pdclust_instance_fini(struct c2_layout_instance *li);
 
 /**
  * Implementation of lo_instance_build().
+ *
  * Allocates and builds a parity de-clustered layout instance using the
  * supplied layout 'l' that is necessarily of the type pdclust. It acquires an
  * additional reference on that layout.
  * @pre pdclust_invariant(pl)
- * @post ergo(rc == 0, pdclust_instance_invariant(*out) && l->l_ref > 1))
+ * @post ergo(rc == 0, pdclust_instance_invariant(*out) &&
+		       c2_ref_read(&l->l_ref) > 1))
  */
 static int pdclust_instance_build(struct c2_layout           *l,
 				  const struct c2_fid        *fid,
@@ -842,7 +845,7 @@ err3_injected:
 	if (rc == 0) {
 		*out = &pi->pi_base;
 		C2_POST(pdclust_instance_invariant(pi));
-		C2_POST(l->l_ref > 1);
+		C2_POST(c2_ref_read(&l->l_ref) > 1);
 	} else {
 		if (rc == -ENOMEM)
 			c2_layout__log("pdclust_instance_build",
