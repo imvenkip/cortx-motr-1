@@ -240,6 +240,9 @@ static int root_session_cob_create(struct c2_cob_domain *dom)
 
 	C2_ENTRY("cob_dom: %p", dom);
 
+	if (C2_FI_ENABLED("root session cob create fail"))
+		C2_RETURN(-EINVAL);
+
 	rc = c2_db_tx_init(&tx, dom->cd_dbenv, 0);
 	if (rc == 0) {
 		rc = c2_rpc_root_session_cob_create(dom, &tx);

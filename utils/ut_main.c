@@ -75,6 +75,7 @@ extern const struct c2_test_suite frm_ut;
 extern const struct c2_test_suite c2_fop_lock_ut;
 extern const struct c2_test_suite layout_ut;
 extern const struct c2_test_suite conn_ut;
+extern const struct c2_test_suite rpc_mc_ut;
 extern const struct c2_test_suite sns_repair_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
@@ -98,6 +99,7 @@ void add_uts(void)
 	c2_ut_add(&colibri_setup_ut);
 	c2_ut_add(&cm_generic_ut);
 	c2_ut_add(&conn_ut);
+	c2_ut_add(&rpc_mc_ut);
 	c2_ut_add(&db_ut);
 	c2_ut_add(&db_cursor_ut);
 	c2_ut_add(&emap_ut);

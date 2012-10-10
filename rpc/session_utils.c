@@ -218,6 +218,9 @@ int c2_rpc_root_session_cob_create(struct c2_cob_domain *dom,
 	struct c2_cob *out = NULL;
 	int            rc;
 
+	if (C2_FI_ENABLED("c2_rpc_root_session_cob_create fail"))
+		C2_RETURN(-EINVAL);
+
 	rc = c2_rpc_cob_create_helper(dom, NULL, root_session_cob_name,
 						&out, tx);
 	if (rc == 0)
