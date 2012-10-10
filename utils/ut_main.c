@@ -69,6 +69,7 @@ extern const struct c2_test_suite reqh_ut;
 extern const struct c2_test_suite rpc_mc_ut;
 extern const struct c2_test_suite rpc_service_ut;
 extern const struct c2_test_suite rpclib_ut;
+extern const struct c2_test_suite session_ut;
 extern const struct c2_test_suite sm_ut;
 extern const struct c2_test_suite sns_repair_ut;
 extern const struct c2_test_suite snsrepair_xform_ut;
@@ -121,6 +122,7 @@ void add_uts(void)
 	c2_ut_add(&rpc_mc_ut);
 	c2_ut_add(&rpc_service_ut);
 	c2_ut_add(&rpclib_ut);
+	c2_ut_add(&session_ut);
 	c2_ut_add(&sm_ut);
 	c2_ut_add(&sns_repair_ut);
 	c2_ut_add(&snsrepair_xform_ut);
