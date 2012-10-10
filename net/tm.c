@@ -164,7 +164,7 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 	C2_PRE(tm->ntm_callbacks != NULL &&
 	       tm->ntm_callbacks->ntc_event_cb != NULL);
 
-	if (C2_FI_ENABLED("net tm init fail")) {
+	if (C2_FI_ENABLED("fake_error")) {
 		c2_mutex_unlock(&dom->nd_mutex);
 		C2_RETURN(-EINVAL);
 	}
@@ -267,7 +267,7 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED);
 
-	if (C2_FI_ENABLED("TM failed")) {
+	if (C2_FI_ENABLED("fake_error")) {
 		tm->ntm_state = C2_NET_TM_FAILED;
 		c2_mutex_unlock(&tm->ntm_mutex);
 		C2_RETURN(0);

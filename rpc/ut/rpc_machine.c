@@ -39,28 +39,19 @@ static struct c2_cob_domain_id   cdom_id = {
 static struct c2_dbenv           dbenv;
 static const char               *dbname = "db";
 static struct c2_net_buffer_pool buf_pool;
-static struct c2_net_xprt        *net_xprt = {
-	&c2_net_lnet_xprt
-};
+static struct c2_net_xprt        *net_xprt = &c2_net_lnet_xprt;
 
 static uint32_t tm_recv_queue_min_len = C2_NET_TM_RECV_QUEUE_DEF_LEN;
 
-static int cob_domain_init(void)
+static void cob_domain_init(void)
 {
 	int rc;
 
 	rc = c2_dbenv_init(&dbenv, dbname, 0);
-	if (rc != 0)
-		return rc;
+	C2_ASSERT(rc == 0);
 
 	rc = c2_cob_domain_init(&cdom, &dbenv, &cdom_id);
-	if (rc != 0)
-		goto db_fini;
-	return rc;
-
-db_fini:
-	c2_dbenv_fini(&dbenv);
-	return rc;
+	C2_ASSERT(rc == 0);
 }
 
 static void cob_domain_fini(void)
@@ -79,8 +70,7 @@ static int rpc_mc_ut_init(void)
 	rc = c2_net_domain_init(&ndom, net_xprt);
 	C2_ASSERT(rc == 0);
 
-	rc = cob_domain_init();
-	C2_ASSERT(rc == 0);
+	cob_domain_init();
 
 	bufs_nr = c2_rpc_bufs_nr(tm_recv_queue_min_len, tms_nr);
 	rc = c2_rpc_net_buffer_pool_setup(&ndom, &buf_pool, bufs_nr, tms_nr);
@@ -130,30 +120,28 @@ static void rpc_mc_init_fail_test(void)
 	 *		checks for db_tx_abort code path execution
 	 */
 
-	c2_fi_enable_once("c2_net_tm_init", "net tm init fail");
+	c2_fi_enable_once("c2_net_tm_init", "fake_error");
 	rc = c2_rpc_machine_init(&machine, &cdom, &ndom, ep_addr, NULL,
 				 &buf_pool, C2_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size,
 				 tm_recv_queue_min_len);
 	C2_UT_ASSERT(rc == -EINVAL);
 
-	c2_fi_enable_once("c2_net_tm_start", "TM failed");
+	c2_fi_enable_once("c2_net_tm_start", "fake_error");
 	rc = c2_rpc_machine_init(&machine, &cdom, &ndom, ep_addr, NULL,
 				 &buf_pool, C2_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size,
 				 tm_recv_queue_min_len);
 	C2_UT_ASSERT(rc == -ENETUNREACH);
 #ifndef __KERNEL__
-	c2_fi_enable_once("root_session_cob_create",
-			  "root session cob create fail");
+	c2_fi_enable_once("root_session_cob_create", "fake_error");
 	rc = c2_rpc_machine_init(&machine, &cdom, &ndom, ep_addr, NULL,
 				 &buf_pool, C2_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size,
 				 tm_recv_queue_min_len);
 	C2_UT_ASSERT(rc == -EINVAL);
 
-	c2_fi_enable_once("c2_rpc_root_session_cob_create",
-			  "c2_rpc_root_session_cob_create fail");
+	c2_fi_enable_once("c2_rpc_root_session_cob_create", "fake_error");
 	rc = c2_rpc_machine_init(&machine, &cdom, &ndom, ep_addr, NULL,
 				 &buf_pool, C2_BUFFER_ANY_COLOUR,
 				 max_rpc_msg_size,
