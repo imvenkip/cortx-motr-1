@@ -1,5 +1,4 @@
 ut_libcolibri_ut_la_SOURCES += xcode/ut/xcode_fop_test.c \
-                               xcode/ut/xcode_test.c \
                                xcode/ut/xcode.c \
                                xcode/ut/ff2c.c \
                                xcode/ut/test_gccxml_simple.h    \
