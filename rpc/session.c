@@ -229,6 +229,7 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 
 	switch (session_state(session)) {
 	case C2_RPC_SESSION_INITIALISED:
+		return true;
 	case C2_RPC_SESSION_ESTABLISHING:
 		return session->s_session_id == SESSION_ID_INVALID &&
 		       c2_rpc_session_is_idle(session);
@@ -557,7 +558,6 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 
 	conn = session->s_conn;
 
-	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_ASSERT(conn_state(conn) == C2_RPC_CONN_ACTIVE);
 
 	fop  = &ctx->sec_fop;
@@ -579,7 +579,6 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 
 	C2_POST(ergo(rc != 0, session_state(session) == C2_RPC_SESSION_FAILED));
 	C2_POST(c2_rpc_session_invariant(session));
-	C2_POST(c2_rpc_conn_invariant(conn));
 
 	c2_rpc_machine_unlock(machine);
 
@@ -839,7 +838,6 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *item)
 
 	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 
-	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_ASSERT(conn_state(conn) == C2_RPC_CONN_ACTIVE);
 
 	reply_item = item->ri_reply;
