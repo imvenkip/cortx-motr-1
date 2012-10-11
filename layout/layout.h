@@ -33,11 +33,14 @@
  *   resources. viz. component objects.
  *
  * - Layout user count @n
- *   Layout user count is the number of users associated a particular layout.
- *   For example, files using that layout, other composite layouts using that
- *   layout. Layout user count does not have any impact on the liveness of a
- *   layout. A layout with 0 user count may continue to reside in memory or in
- *   the layout DB.
+ *   Layout user count is the number of users associated with a particular
+ *   layout. For example, files using that layout, other composite layouts
+ *   using that layout.
+ *   - User count of a layout does not have any impact on the liveness of
+ *     an in-memory representation of a layout.
+ *   - A layout with non-zero user count can not be deleted from the layout DB.
+ *   - A layout with zero user count may continue to reside in memory or in
+ *     the layout DB.
  *
  * - Layout type @n
  *   A 'layout type' specifies how a file is stored in a collection of targets.

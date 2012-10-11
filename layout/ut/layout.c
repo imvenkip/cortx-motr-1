@@ -697,7 +697,7 @@ static void NKP_assign_and_pool_init(uint32_t enum_id,
 
 /*
  * Tests the APIs supported for enumeration object build, layout object build
- * and layout dstruction that happens using c2_layout_put(). Verifies that the
+ * and layout destruction that happens using c2_layout_put(). Verifies that the
  * newly built layout object is added to the list of layout objects maintained
  * in the domain object and that c2_layout_find() returns the same object.
  */
@@ -756,7 +756,7 @@ static int test_build_pdclust(uint32_t enum_id, uint64_t lid,
 
 /*
  * Tests the APIs supported for enumeration object build, layout object build
- * and layout dstruction that happens using c2_layout_put().
+ * and layout destruction that happens using c2_layout_put().
  */
 static void test_build(void)
 {

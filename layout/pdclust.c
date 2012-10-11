@@ -291,7 +291,7 @@ static int pdclust_populate(struct c2_pdclust_layout *pl,
 	pl->pl_L = B/P;
 
 	C2_POST(pdclust_invariant(pl));
-	C2_PRE(c2_mutex_is_locked(&pl->pl_base.sl_base.l_lock));
+	C2_POST(c2_mutex_is_locked(&pl->pl_base.sl_base.l_lock));
 	C2_LEAVE("lid %llu", (unsigned long long)lid);
 	return 0;
 }
@@ -367,8 +367,8 @@ struct c2_layout *c2_pdl_to_layout(struct c2_pdclust_layout *pl)
 	return &pl->pl_base.sl_base;
 }
 
-struct c2_pdclust_instance *c2_layout_instance_to_pdi(
-					const struct c2_layout_instance *li)
+struct c2_pdclust_instance *
+c2_layout_instance_to_pdi(const struct c2_layout_instance *li)
 {
 	struct c2_pdclust_instance *pi;
 	pi = bob_of(li, struct c2_pdclust_instance, pi_base,
@@ -694,15 +694,15 @@ void c2_pdclust_instance_map(struct c2_pdclust_instance *pi,
 			     struct c2_pdclust_tgt_addr *tgt)
 {
 	struct c2_pdclust_layout *pl;
-	uint32_t N;
-	uint32_t K;
-	uint32_t P;
-	uint32_t C;
-	uint32_t L;
-	uint64_t omega;
-	uint64_t j;
-	uint64_t r;
-	uint64_t t;
+	uint32_t                  N;
+	uint32_t                  K;
+	uint32_t                  P;
+	uint32_t                  C;
+	uint32_t                  L;
+	uint64_t                  omega;
+	uint64_t                  j;
+	uint64_t                  r;
+	uint64_t                  t;
 
 	C2_PRE(pdclust_instance_invariant(pi));
 
@@ -737,15 +737,15 @@ void c2_pdclust_instance_inv(struct c2_pdclust_instance *pi,
 			     struct c2_pdclust_src_addr *src)
 {
 	struct c2_pdclust_layout *pl;
-	uint32_t N;
-	uint32_t K;
-	uint32_t P;
-	uint32_t C;
-	uint32_t L;
-	uint64_t omega;
-	uint64_t j;
-	uint64_t r;
-	uint64_t t;
+	uint32_t                  N;
+	uint32_t                  K;
+	uint32_t                  P;
+	uint32_t                  C;
+	uint32_t                  L;
+	uint64_t                  omega;
+	uint64_t                  j;
+	uint64_t                  r;
+	uint64_t                  t;
 
 	pl = pi_to_pl(pi);
 	N = pl->pl_attr.pa_N;
