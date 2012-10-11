@@ -212,6 +212,10 @@ static void test_single_cp(void)
 	c2_fom_queue(&s_cp.c_fom, &reqh);
 
 	/**
+	 * Wait till ast gets posted.
+	 */ 
+	sleep(1);
+	/**
 	 * Wait until all the foms in the request handler locality runq are
 	 * processed. This is required for further validity checks.
 	 */
