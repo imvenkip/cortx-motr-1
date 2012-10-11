@@ -377,8 +377,8 @@ extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
    So, while c2t1fs is mounted, the thread will keep running in loop waiting
    for ASTs.
 
-   When unmount is triggered, new io requests will be blocked as
-   c2t1fs_sb::csb_active flag is reset.
+   When unmount is triggered, new io requests will be returned with an error
+   code as c2t1fs_sb::csb_active flag is reset.
    For pending io requests, the ast thread will wait until callbacks
    from all outstanding io requests are acknowledged and executed.
 
@@ -391,7 +391,7 @@ extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
    When bottom halves for c2_sm_ast structures are run, it updates
    target_ioreq::tir_rc and target_ioreq::tir_bytes with data from
    IO reply fop.
-   Then the bottom halfdecrements nw_xfer_request::nxr_iofops_nr,
+   Then the bottom half decrements nw_xfer_request::nxr_iofops_nr,
    number of IO fops.  When this count reaches zero, io_request::ir_sm
    changes its state.
 
@@ -684,7 +684,8 @@ enum page_attr {
          * In such case, changing pargrp_iomap::pi_ivec is costly because
          * it has to be reassessed and changed after read IO is complete.
          * Instead, we use a flag to notify last valid page of a read
-         * request and store the count of this page in data_buf::db_buf::b_nob.
+         * request and store the count of bytes in last page in
+	 * data_buf::db_buf::b_nob.
          */
         PA_READ_EOF        = (1 << 4),
 
@@ -712,6 +713,9 @@ struct nw_xfer_ops {
         /**
          * Prepares subsequent target_ioreq objects as needed and populates
          * target_ioreq::ir_ivec and target_ioreq::ti_bufvec.
+	 * @param xfer Given nw_xfer_request object.
+	 * @pre   nw_xfer_request_invariant(xfer).
+	 * @post  !tioreqs_list_is_empty(xfer->nxr_tioreqs).
          */
         int  (*nxo_prepare)    (struct nw_xfer_request  *xfer);
 
@@ -719,6 +723,10 @@ struct nw_xfer_ops {
          * Does post processing of a network transfer request.
          * Primarily all IO fops submitted by this network transfer request
          * are finalized so that new fops can be created for same request.
+	 * @param xfer Given nw_xfer_request object.
+	 * @param rmw  Boolean telling if current IO request is rmw or not.
+	 * @pre   nw_xfer_request_invariant(xfer).
+	 * @post  xfer->nxr_state == NXS_COMPLETE.
          */
         void (*nxo_complete)   (struct nw_xfer_request  *xfer,
                                 bool                     rmw);
@@ -728,12 +736,22 @@ struct nw_xfer_ops {
          * and sends them to server for processing.
          * The whole process is done in an asynchronous manner and does not
          * block the thread during processing.
+	 * @param xfer Given nw_xfer_request object.
+	 * @pre   nw_xfer_request_invariant(xfer).
+	 * @post  xfer->nxr_state == NXS_INFLIGHT.
          */
         int  (*nxo_dispatch)   (struct nw_xfer_request  *xfer);
 
         /**
          * Locates or creates a target_iroeq object which maps to the given
          * target address.
+	 * @param xfer Given nw_xfer_request object.
+	 * @param src  Source address comprising of parity group number
+	 * and unit number in parity group.
+	 * @param tgt  Target address comprising of frame number and
+	 * target object number.
+	 * @param out  Out parameter containing target_ioreq object.
+	 * @pre   nw_xfer_request_invariant(xfer).
          */
         int  (*nxo_tioreq_map) (struct nw_xfer_request      *xfer,
                                 struct c2_pdclust_src_addr  *src,
@@ -804,12 +822,19 @@ struct io_request_ops {
         /**
          * Prepares pargrp_iomap structures for the parity groups spanned
          * by io_request::ir_ivec.
+	 * @param req Given io_request object.
+	 * @pre   req->ir_iomaps == NULL && req->ir_iomap_nr == 0.
+	 * @post  req->ir_iomaps != NULL && req->ir_iomap_nr > 0.
          */
         int (*iro_iomaps_prepare) (struct io_request  *req);
 
         /**
          * Copies data from/to user-space to/from kernel-space according
          * to given direction and page filter.
+	 * @param req    Given io_request object.
+	 * @param dir    Direction of copy.
+	 * @param filter Only copy pages that match the filter.
+	 * @pre   io_request_invariant(req).
          */
         int (*iro_user_data_copy) (struct io_request  *req,
                                    enum copy_direction dir,
@@ -820,6 +845,9 @@ struct io_request_ops {
          * parity group id from io_request::ir_iomaps.
          * For a valid parity group id, a pargrp_iomap structure must
          * be present.
+	 * @param req   Given io_request object.
+	 * @param grpid Parity group id.
+	 * @param map   Out paramter to return pargrp_iomap.
          */
         void (*iro_iomap_locate)  (struct io_request    *req,
                                    uint64_t              grpid,
@@ -830,12 +858,15 @@ struct io_request_ops {
          * given io_request.
          * Basically, invokes parity_recalc() routine for every
          * pargrp_iomap in io_request::ir_iomaps.
+	 * @param req Given io_request object.
          */
         int (*iro_parity_recalc)  (struct io_request  *req);
 
         /**
          * Handles the state transition, status of request and the
          * intermediate copy_{from/to}_user.
+	 * @param req Given io_request object.
+	 * @ret   Returns 0 for successful IO, return -err otherwise.
          */
         int (*iro_iosm_handle)    (struct io_request  *req);
 };
@@ -874,7 +905,7 @@ struct io_request {
 
         /**
          * Array of iovec structures containing user-space buffers.
-         * It is used as it is since using a new structure would require
+         * It is used as is since using a new structure would require
          * conversion.
          */
         struct iovec                *ir_iovec;
@@ -887,6 +918,30 @@ struct io_request {
         const struct io_request_ops *ir_ops;
 
         struct nw_xfer_request       ir_nwxfer;
+};
+
+/**
+ * Represents a simple data buffer wrapper object. The embedded
+ * c2_buf::b_addr points to a kernel page.
+ */
+struct data_buf {
+        /** Holds C2_T1FS_DTBUF_MAGIC. */
+        uint64_t       db_magic;
+
+        /** Inline buffer pointing to a kernel page. */
+        struct c2_buf  db_buf;
+
+        /**
+         * Auxiliary buffer used in case of read-modify-write IO.
+         * Used when page pointed to by ::db_buf::b_addr is partially spanned
+         * by incoming rmw request.
+         */
+        struct c2_buf  db_auxbuf;
+        /**
+         * Miscellaneous flags.
+         * Can be used later for caching options.
+         */
+        enum page_attr db_flags;
 };
 
 /**
@@ -930,7 +985,7 @@ struct pargrp_iomap {
 
         /**
          * Data units in a parity group.
-         * Unit size could be multiple of PAGE_CACHE_SIZE.
+         * Unit size should be multiple of PAGE_CACHE_SIZE.
          * This is basically a matrix with
          * - number of rows    = Unit_size / PAGE_CACHE_SIZE and
          * - number of columns = N.
@@ -943,7 +998,7 @@ struct pargrp_iomap {
 
         /**
          * Parity units in a parity group.
-         * Unit size could be multiple of PAGE_CACHE_SIZE.
+         * Unit size should be multiple of PAGE_CACHE_SIZE.
          * This is a matrix with
          * - number of rows    = Unit_size / PAGE_CACHE_SIZE and
          * - number of columns = K.
@@ -965,6 +1020,15 @@ struct pargrp_iomap_ops {
          * read-old approach or read-rest approach.
          * pargrp_iomap::pi_rtype will be set to PIR_READOLD or
          * PIR_READREST accordingly.
+	 * @param iomap  Given pargrp_iomap object.
+	 * @param ivec   Source index vector from which pargrp_iomap::pi_ivec
+	 * will be populated. Typically, this is io_request::ir_ivec.
+	 * @param cursor Index vector cursor associated with ivec.
+	 * @pre iomap != NULL && ivec != NULL &&
+	 * c2_vec_count(&ivec->iv_vec) > 0 && cursor != NULL &&
+	 * c2_vec_count(&iomap->iv_vec) == 0
+	 * @post  c2_vec_count(&iomap->iv_vec) > 0 &&
+	 * iomap->pi_databufs != NULL.
          */
         int (*pi_populate)  (struct pargrp_iomap      *iomap,
                              const struct c2_indexvec *ivec,
@@ -973,27 +1037,46 @@ struct pargrp_iomap_ops {
         /**
          * Returns true if the given segment is spanned by existing segments
          * in pargrp_iomap::pi_ivec.
+	 * @param iomap Given pargrp_iomap object.
+	 * @param index Starting index of incoming segment.
+	 * @param count Count of incoming segment.
+	 * @pre   pargrp_iomap_invariant(iomap).
+	 * @ret   true if segment is found in pargrp_iomap::pi_ivec,
+	 * false otherwise.
          */
         bool (*pi_spans_seg) (struct pargrp_iomap *iomap,
-                              c2_bindex_t index, c2_bcount_t count);
+                              c2_bindex_t 	   index,
+			      c2_bcount_t 	   count);
 
         /**
          * Changes pargrp_iomap::pi_ivec to suit read-rest approach
          * for an RMW IO request.
+	 * @param iomap Given pargrp_iomap object.
+	 * @pre   pargrp_iomap_invariant(iomap).
          */
         int (*pi_readrest)   (struct pargrp_iomap *iomap);
 
         /**
-         * Finds out the pages _completely_ spanned by incoming io vector.
-         * Used only in case of read-modify-write IO.
+         * Finds out the number of pages _completely_ spanned by incoming
+         * io vector. Used only in case of read-modify-write IO.
          * This is needed in order to decide the type of read approach
          * {read_old, read_rest} for the given parity group.
+	 * @param map Given pargrp_iomap object.
+	 * @pre pargrp_iomap_invariant(map).
+	 * @ret Number of pages _completely_ spanned by pargrp_iomap::pi_ivec.
          */
         uint64_t (*pi_fullpages_find) (struct pargrp_iomap *map);
 
         /**
-         * Process each segment in pargrp_iomap::pi_ivec and
+         * Process segment pointed to by segid in pargrp_iomap::pi_ivec and
          * allocate data_buf structures correspondingly.
+	 * It also populates data_buf::db_flags for pargrp_iomap::pi_databufs.
+	 * @param map   Given pargrp_iomap object.
+	 * @param segid Segment id which needs to be processed.
+	 * @param rmw   If given pargrp_iomap structure needs rmw.
+	 * @pre   map != NULL.
+	 * @post  pargrp_iomap_invariant(map).
+	 *
          */
         int (*pi_seg_process)    (struct pargrp_iomap *map,
                                   uint64_t             segid,
@@ -1002,41 +1085,27 @@ struct pargrp_iomap_ops {
         /**
          * Process the data buffers in pargrp_iomap::pi_databufs
          * when read-old approach is chosen.
+	 * Auxiliary buffers are allocated here.
+	 * @param map Given pargrp_iomap object.
+	 * @pre pargrp_iomap_invariant(map) && map->pi_rtype == PIR_READOLD.
          */
-        int (*pi_readold_process) (struct pargrp_iomap *map);
+        int (*pi_readold_auxbuf_alloc) (struct pargrp_iomap *map);
 
-        /** Recalculates parity for given pargrp_iomap. */
+        /**
+	 * Recalculates parity for given pargrp_iomap.
+	 * @param map Given pargrp_iomap object.
+	 * @pre map != NULL && map->pi_ioreq->ir_type == IRT_WRITE.
+	 */
         int (*pi_parity_recalc)   (struct pargrp_iomap *map);
 
         /**
          * Allocates data_buf structures for pargrp_iomap::pi_paritybufs
          * and populate db_flags accordingly.
+	 * @param map Given pargrp_iomap object.
+	 * @pre   map->pi_paritybufs == NULL.
+	 * @post  map->pi_paritybufs != NULL && pargrp_iomap_invariant(map).
          */
         int (*pi_paritybufs_alloc)(struct pargrp_iomap *map);
-};
-
-/**
- * Represents a simple data buffer wrapper object. The embedded
- * c2_buf::b_addr points to a kernel page.
- */
-struct data_buf {
-        /** Holds C2_T1FS_DTBUF_MAGIC. */
-        uint64_t       db_magic;
-
-        /** Inline buffer pointing to a kernel page. */
-        struct c2_buf  db_buf;
-
-        /**
-         * Auxiliary buffer used in case of read-modify-write IO.
-         * Used when page pointed to by ::db_buf::b_addr is partially spanned
-         * by incoming rmw request.
-         */
-        struct c2_buf  db_auxbuf;
-        /**
-         * Miscellaneous flags.
-         * Can be used later for caching options.
-         */
-        enum page_attr db_flags;
 };
 
 /** Operations vector for struct target_ioreq. */
@@ -1044,6 +1113,13 @@ struct target_ioreq_ops {
         /**
          * Adds an io segment to index vector and buffer vector in
          * target_ioreq structure.
+	 * @param ti         Given target_ioreq object.
+	 * @param frame      Frame number of target object.
+	 * @param gob_offset Offset in global file.
+	 * @param count      Number of bytes in this segment.
+	 * @param unit       Unit id in parity group.
+	 * @pre   ti != NULL && count > 0.
+	 * @post  c2_vec_count(&ti->ti_ivec.iv_vec) > 0.
          */
         void (*tio_seg_add)        (struct target_ioreq *ti,
                                     uint64_t             frame,
@@ -1051,7 +1127,14 @@ struct target_ioreq_ops {
                                     c2_bcount_t          count,
                                     uint64_t             unit);
 
-        /** Prepare io fops from index vector and buffer vector.*/
+        /**
+	 * Prepares io fops from index vector and buffer vector.
+	 * This API uses rpc bulk API to store net buffer descriptors
+	 * in IO fops.
+	 * @param ti Given target_ioreq object.
+	 * @pre   iofops_tlist_is_empty(ti->ti_iofops).
+	 * @post  !iofops_tlist_is_empty(ti->ti_iofops).
+	 */
         int  (*tio_iofops_prepare) (struct target_ioreq *ti);
 };
 
@@ -1059,7 +1142,7 @@ struct target_ioreq_ops {
  * Collection of IO extents and buffers, directed towards each
  * of target objects (data_unit / parity_unit) in a parity group.
  * These structures are created by struct io_request dividing the incoming
- * struct iovec into members of parity group.
+ * struct iovec into members of a parity group.
  */
 struct target_ioreq {
         /** Holds C2_T1FS_TIOREQ_MAGIC */
@@ -1189,7 +1272,7 @@ static struct c2_bob_type dtbuf_bobtype = {
 
 /*
  * These are used as macros since they are used as lvalues which is
- * not possible by using static line functions.
+ * not possible by using static inline functions.
  */
 #define INDEX(ivec, i) ((ivec)->iv_index[(i)])
 
@@ -1222,7 +1305,7 @@ static inline struct c2_sm_group *file_to_smgroup(struct file *file)
         return &file_to_sb(file)->csb_iogroup;
 }
 
-static inline uint64_t page_nr(uint64_t size)
+static inline uint64_t page_nr(c2_bcount_t size)
 {
         return size >> PAGE_CACHE_SHIFT;
 }
@@ -1278,7 +1361,7 @@ static inline struct c2_parity_math *parity_math(struct io_request *req)
         return &pdlayout_instance(layout_instance(req))->pi_math;
 }
 
-static inline uint64_t group_id(uint64_t index, uint64_t dtsize)
+static inline uint64_t group_id(c2_bindex_t index, c2_bcount_t dtsize)
 {
         return index / dtsize;
 }
@@ -1308,28 +1391,35 @@ static inline uint64_t page_id(c2_bindex_t offset)
         return offset >> PAGE_CACHE_SHIFT;
 }
 
-static inline uint64_t data_row_nr(struct c2_pdclust_layout *play)
+static inline uint32_t data_row_nr(struct c2_pdclust_layout *play)
 {
         return page_nr(layout_unit_size(play));
 }
 
-static inline uint64_t data_col_nr(struct c2_pdclust_layout *play)
+static inline uint32_t data_col_nr(struct c2_pdclust_layout *play)
 {
         return layout_n(play);
 }
 
-static inline uint64_t parity_col_nr(struct c2_pdclust_layout *play)
+static inline uint32_t parity_col_nr(struct c2_pdclust_layout *play)
 {
         return layout_k(play);
 }
 
-static inline uint64_t parity_row_nr(struct c2_pdclust_layout *play)
+static inline uint32_t parity_row_nr(struct c2_pdclust_layout *play)
 {
         return data_row_nr(play);
 }
 
+/**
+ * Returns the position of page in matrix of data buffers.
+ * @param map - Concerned parity group data structure.
+ * @param index - Current file index.
+ * @param row - Out parameter for row id.
+ * @param col - Out parameter for column id.
+ * */
 static void page_pos_get(struct pargrp_iomap *map, c2_bindex_t index,
-                         uint64_t *row, uint64_t *col)
+                         uint32_t *row, uint32_t *col)
 {
         uint64_t                  pg_id;
         struct c2_pdclust_layout *play;
@@ -1421,21 +1511,21 @@ static int  pargrp_iomap_seg_process  (struct pargrp_iomap *map,
 
 static int  pargrp_iomap_parity_recalc(struct pargrp_iomap *map);
 
-static uint64_t pargrp_iomap_fullpages_find(struct pargrp_iomap *map);
+static uint64_t pargrp_iomap_fullpages_count(struct pargrp_iomap *map);
 
-static int pargrp_iomap_readold_process(struct pargrp_iomap *map);
+static int pargrp_iomap_readold_auxbuf_alloc(struct pargrp_iomap *map);
 
 static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map);
 
 static const struct pargrp_iomap_ops iomap_ops = {
-        .pi_populate         = pargrp_iomap_populate,
-        .pi_spans_seg        = pargrp_iomap_spans_seg,
-        .pi_readrest         = pargrp_iomap_readrest,
-        .pi_fullpages_find   = pargrp_iomap_fullpages_find,
-        .pi_seg_process      = pargrp_iomap_seg_process,
-        .pi_readold_process  = pargrp_iomap_readold_process,
-        .pi_parity_recalc    = pargrp_iomap_parity_recalc,
-        .pi_paritybufs_alloc = pargrp_iomap_paritybufs_alloc,
+        .pi_populate             = pargrp_iomap_populate,
+        .pi_spans_seg            = pargrp_iomap_spans_seg,
+        .pi_readrest             = pargrp_iomap_readrest,
+        .pi_fullpages_find       = pargrp_iomap_fullpages_count,
+        .pi_seg_process          = pargrp_iomap_seg_process,
+        .pi_readold_auxbuf_alloc = pargrp_iomap_readold_auxbuf_alloc,
+        .pi_parity_recalc        = pargrp_iomap_parity_recalc,
+        .pi_paritybufs_alloc     = pargrp_iomap_paritybufs_alloc,
 };
 
 static bool pargrp_iomap_invariant_nr(const struct io_request *req);
@@ -1645,8 +1735,6 @@ static bool target_ioreq_invariant(const struct target_ioreq *ti)
                ti->ti_nwxfer        != NULL &&
                ti->ti_bufvec.ov_buf != NULL &&
                c2_fid_is_valid(&ti->ti_fid) &&
-               c2_vec_count(&ti->ti_ivec.iv_vec) > 0 &&
-               tioreqs_tlink_is_in(ti) &&
                c2_tl_forall(iofops, iofop, &ti->ti_iofops,
                             io_req_fop_invariant(iofop));
 }
@@ -1751,8 +1839,8 @@ static int user_data_copy(struct pargrp_iomap *map,
          * Present kernel 2.6.32 has no support for such requirement.
          */
         uint64_t                  bytes;
-        uint64_t                  row;
-        uint64_t                  col;
+        uint32_t                  row;
+        uint32_t                  col;
         struct page              *page;
         struct c2_pdclust_layout *play;
 
@@ -1813,17 +1901,16 @@ static int user_data_copy(struct pargrp_iomap *map,
 static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 {
         int                       rc;
-        uint64_t                  u;
-        uint64_t                  id;
-        uint64_t                  row;
-        uint64_t                  col;
+        uint32_t                  u;
+        uint32_t                  id;
+        uint32_t                  row;
+        uint32_t                  col;
         struct c2_buf            *dbufs;
         struct c2_buf            *pbufs;
         struct c2_pdclust_layout *play;
 
         C2_ENTRY("map = %p", map);
         C2_PRE(pargrp_iomap_invariant(map));
-        C2_PRE(C2_IN(map->pi_rtype, (PIR_READREST, PIR_READOLD)));
 
         play = pdlayout_get(map->pi_ioreq);
         C2_ALLOC_ARR_ADDB(dbufs, layout_n(play), &c2t1fs_addb,
@@ -1853,7 +1940,7 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
                 }
 
         } else {
-                struct data_buf *db;
+                struct data_buf *buf;
                 struct c2_buf    zbuf;
                 /* Array of spare buffers. */
                 struct c2_buf   *spbufs;
@@ -1910,14 +1997,14 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
                          */
                         for (col = 0; col < data_col_nr(play); ++col) {
 
-                                db = map->pi_databufs[row][col];
+                                buf = map->pi_databufs[row][col];
 
-                                if (db != NULL && C2_IN(db->db_flags,
+                                if (buf != NULL && C2_IN(buf->db_flags,
                                     (PA_FULLPAGE_MODIFY, PA_PARTPAGE_MODIFY))) {
 
-                                        dbufs[0].b_addr = db->db_auxbuf.b_addr;
+                                        dbufs[0].b_addr = buf->db_auxbuf.b_addr;
                                         dbufs[0].b_nob  = PAGE_CACHE_SIZE;
-                                        dbufs[1].b_addr = db->db_buf.b_addr;
+                                        dbufs[1].b_addr = buf->db_buf.b_addr;
                                         dbufs[1].b_nob  = PAGE_CACHE_SIZE;
 
                                         for (id = 2; id < data_col_nr(play); ++id)
@@ -1927,12 +2014,12 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
                                          * Reuses the data_buf::db_auxbuf to
                                          * store delta parity.
                                          */
-                                        deltabufs[col]  = db->db_auxbuf;
+                                        deltabufs[col]  = buf->db_auxbuf;
                                         c2_parity_math_calculate(parity_math
                                                         (map->pi_ioreq), dbufs,
                                                         &deltabufs[col]);
                                         C2_LOG(C2_INFO, "Parity calculated for"
-                                               "row: %llu, col: %llu", row, col);
+                                               "row: %d, col: %d", row, col);
                                 }
                         }
 
@@ -2165,7 +2252,7 @@ fail:
                 c2_free(map->pi_databufs);
         }
 
-        if (req->ir_type == IRT_WRITE && map->pi_paritybufs != NULL) {
+        if (map->pi_paritybufs != NULL) {
                 for (pg = 0; pg < parity_row_nr(play); ++pg) {
                         c2_free(map->pi_paritybufs[pg]);
                         map->pi_paritybufs[pg] = NULL;
@@ -2177,8 +2264,8 @@ fail:
 
 static void pargrp_iomap_fini(struct pargrp_iomap *map)
 {
-        int                       pg;
-        uint64_t                  buf;
+        uint32_t                  row;
+        uint32_t		  col;
         struct c2_pdclust_layout *play;
 
         C2_ENTRY("map %p", map);
@@ -2192,29 +2279,29 @@ static void pargrp_iomap_fini(struct pargrp_iomap *map)
         c2_free(map->pi_ivec.iv_index);
         c2_free(map->pi_ivec.iv_vec.v_count);
 
-        for (buf = 0; buf < data_row_nr(play); ++buf) {
-                for (pg = 0; pg < data_col_nr(play); ++pg) {
-                        if (map->pi_databufs[buf][pg] != NULL) {
+        for (row = 0; row < data_row_nr(play); ++row) {
+                for (col = 0; col < data_col_nr(play); ++col) {
+                        if (map->pi_databufs[row][col] != NULL) {
                                 data_buf_dealloc_fini(map->
-                                                pi_databufs[buf][pg]);
-                                map->pi_databufs[buf][pg] = NULL;
+                                                pi_databufs[row][col]);
+                                map->pi_databufs[row][col] = NULL;
                         }
                 }
-                c2_free(map->pi_databufs[buf]);
-                map->pi_databufs[buf] = NULL;
+                c2_free(map->pi_databufs[row]);
+                map->pi_databufs[row] = NULL;
         }
 
         if (map->pi_ioreq->ir_type == IRT_WRITE) {
-                for (buf = 0; buf < parity_row_nr(play); ++buf) {
-                        for (pg = 0; pg < parity_col_nr(play); ++pg) {
-                                if (map->pi_paritybufs[buf][pg] != NULL) {
+                for (row = 0; row < parity_row_nr(play); ++row) {
+                        for (col = 0; col < parity_col_nr(play); ++col) {
+                                if (map->pi_paritybufs[row][col] != NULL) {
                                         data_buf_dealloc_fini(map->
-                                                        pi_paritybufs[buf][pg]);
-                                        map->pi_paritybufs[buf][pg] = NULL;
+                                                        pi_paritybufs[row][col]);
+                                        map->pi_paritybufs[row][col] = NULL;
                                 }
                         }
-                        c2_free(map->pi_paritybufs[buf]);
-                        map->pi_paritybufs[buf] = NULL;
+                        c2_free(map->pi_paritybufs[row]);
+                        map->pi_paritybufs[row] = NULL;
                 }
         }
 
@@ -2231,23 +2318,21 @@ static void pargrp_iomap_fini(struct pargrp_iomap *map)
 static bool pargrp_iomap_spans_seg(struct pargrp_iomap *map,
                                    c2_bindex_t index, c2_bcount_t count)
 {
+	uint32_t seg;
+
         C2_PRE(pargrp_iomap_invariant(map));
 
-        /*
-         * for nr = 0, c2_forall returns true which will be signify
-         * that seg is already spanned.
-         */
-        if (map->pi_ivec.iv_vec.v_nr == 0)
-                return false;
-        else
-                return c2_forall(i, map->pi_ivec.iv_vec.v_nr,
-                                index >= INDEX(&map->pi_ivec, i) &&
-                                count <= COUNT(&map->pi_ivec, i));
+	for (seg = 0; seg < map->pi_ivec.iv_vec.v_nr; ++seg) {
+		if (index >= INDEX(&map->pi_ivec, seg) &&
+		    count <= COUNT(&map->pi_ivec, seg))
+			return true;
+	}
+	return false;
 }
 
 static int pargrp_iomap_databuf_alloc(struct pargrp_iomap *map,
-                                      uint64_t             row,
-                                      uint64_t             col)
+                                      uint32_t             row,
+                                      uint32_t             col)
 {
         C2_PRE(pargrp_iomap_invariant(map));
         C2_PRE(map->pi_databufs[row][col] == NULL);
@@ -2263,13 +2348,13 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
                                     bool                 rmw)
 {
         int                       rc;
-        uint64_t                  row;
-        uint64_t                  col;
+        uint32_t                  row;
+        uint32_t                  col;
         uint64_t                  count = 0;
         c2_bindex_t               start;
         c2_bindex_t               end;
         struct inode             *inode;
-        struct data_buf          *db;
+        struct data_buf          *dbuf;
         struct c2_ivec_cursor     cur;
         struct c2_pdclust_layout *play;
 
@@ -2292,12 +2377,12 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
                 if (rc != 0)
                         goto err;
 
-                db = map->pi_databufs[row][col];
+                dbuf = map->pi_databufs[row][col];
 
                 if (map->pi_ioreq->ir_type == IRT_WRITE) {
-                        db->db_flags |= PA_WRITE;
+                        dbuf->db_flags |= PA_WRITE;
 
-                        db->db_flags |= count == PAGE_CACHE_SIZE ?
+                        dbuf->db_flags |= count == PAGE_CACHE_SIZE ?
                                 PA_FULLPAGE_MODIFY : PA_PARTPAGE_MODIFY;
 
                         /*
@@ -2307,26 +2392,26 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
                          */
                         if (rmw) {
                                 if (end <= inode->i_size) {
-                                        if (!(db->db_flags & PA_FULLPAGE_MODIFY))
-                                                db->db_flags |= PA_READ;
+                                        if (dbuf->db_flags & PA_PARTPAGE_MODIFY)
+                                                dbuf->db_flags |= PA_READ;
                                 } else if (page_id(end) ==
                                            page_id(inode->i_size)) {
                                         /*
                                          * Note the actual length of page
                                          * till EOF in data_buf::c2_buf::b_nob.
                                          */
-                                        db->db_buf.b_nob =
+                                        dbuf->db_buf.b_nob =
                                                 min64u(inode->i_size, end) -
                                                 start;
-                                        db->db_flags |= PA_READ_EOF;
+                                        dbuf->db_flags |= PA_READ_EOF;
                                 }
                         }
                 } else
                         /*
-                         * For read IO requests, file_aio_read() has already delimited
-                         * the index vector to EOF boundary.
+                         * For read IO requests, file_aio_read() has already
+			 * delimited the index vector to EOF boundary.
                          */
-                        db->db_flags |= PA_READ;
+                        dbuf->db_flags |= PA_READ;
         }
 
         C2_RETURN(0);
@@ -2343,10 +2428,10 @@ err:
         C2_RETERR(rc, "databuf_alloc failed");
 }
 
-static uint64_t pargrp_iomap_fullpages_find(struct pargrp_iomap *map)
+static uint64_t pargrp_iomap_fullpages_count(struct pargrp_iomap *map)
 {
-        uint64_t                  row;
-        uint64_t                  col;
+        uint32_t                  row;
+        uint32_t                  col;
         uint64_t                  nr = 0;
         struct c2_pdclust_layout *play;
 
@@ -2369,8 +2454,8 @@ static uint64_t pargrp_iomap_fullpages_find(struct pargrp_iomap *map)
 }
 
 static uint64_t pargrp_iomap_auxbuf_alloc(struct pargrp_iomap *map,
-                                          uint64_t             row,
-                                          uint64_t             col)
+                                          uint32_t             row,
+                                          uint32_t             col)
 {
         C2_PRE(pargrp_iomap_invariant(map));
         C2_PRE(C2_IN(map->pi_databufs[row][col]->db_flags,
@@ -2391,14 +2476,14 @@ static uint64_t pargrp_iomap_auxbuf_alloc(struct pargrp_iomap *map,
  * Allocates auxiliary buffer for data_buf structures in
  * pargrp_iomap structure.
  */
-static int pargrp_iomap_readold_process(struct pargrp_iomap *map)
+static int pargrp_iomap_readold_auxbuf_alloc(struct pargrp_iomap *map)
 {
         int                       rc;
         uint64_t                  start;
         uint64_t                  end;
         uint64_t                  count = 0;
-        uint64_t                  row;
-        uint64_t                  col;
+        uint32_t                  row;
+        uint32_t                  col;
         struct c2_ivec_cursor     cur;
         struct c2_pdclust_layout *play;
 
@@ -2446,19 +2531,6 @@ static int pargrp_iomap_readold_process(struct pargrp_iomap *map)
  *
  * @verbatim
  *
- *  Read-rest approach
- *
- *   a     x
- *   +---+---+---+---+---+---+---+
- *   |   | P'| F | F | F | # | * |  PG#0
- *   +---+---+---+---+---+---+---+
- *   | F | F | F | F | F | # | * |  PG#1
- *   +---+---+---+---+---+---+---+
- *   | F | F | F | P |   | # | * |  PG#2
- *   +---+---+---+---+---+---+---+
- *     N   N   N   N   N   K   P
- *                 y     b
- *
  *   N = 5, P = 1, K = 1, unit_size = 4k
  *   F  => Fully occupied
  *   P' => Partially occupied
@@ -2469,6 +2541,18 @@ static int pargrp_iomap_readold_process(struct pargrp_iomap *map)
  *   a  => Rounded down value of x.
  *   b  => Rounded up value of y.
  *
+ *  Read-rest approach
+ *
+ *   a     x
+ *   +---+---+---+---+---+---+---+
+ *   |   | P'| F | F | F | # | * |  PG#0
+ *   +---+---+---+---+---+---+---+
+ *   | F | F | F | F | F | # | * |  PG#1
+ *   +---+---+---+---+---+---+---+
+ *   | F | F | F | P'|   | # | * |  PG#2
+ *   +---+---+---+---+---+---+---+
+ *     N   N   N   N   N   K   P
+ *                 y     b
  *
  *  Read-old approach
  *
@@ -2483,23 +2567,14 @@ static int pargrp_iomap_readold_process(struct pargrp_iomap *map)
  *     N   N   N   N   N   K   P
  *                 y     b
  *
- *   N = 5, P = 1, K = 1, unit_size = 4k
- *   F  => Fully occupied
- *   P' => Partially occupied
- *   #  => Parity unit
- *   *  => Spare unit
- *   x  => Start of actual file extent.
- *   y  => End of actual file extent.
- *   a  => Rounded down value of x.
- *   b  => Rounded up value of y.
- *
  * @endverbatim
  */
 static int pargrp_iomap_readrest(struct pargrp_iomap *map)
 {
         int                       rc;
-        uint64_t                  row;
-        uint64_t                  seg_nr;
+        uint32_t                  row;
+        uint32_t                  seg;
+        uint32_t                  seg_nr;
         c2_bindex_t               grpstart;
         c2_bindex_t               grpend;
         struct c2_pdclust_layout *play;
@@ -2516,9 +2591,11 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
         grpstart = data_size(play) * map->pi_grpid;
         grpend   = grpstart + data_size(play);
 
+	/* Extends first segment to align with start of parity group. */
         COUNT(ivec, 0) += (INDEX(ivec, 0) - grpstart);
         INDEX(ivec, 0)  = grpstart;
 
+	/* Extends last segment to align with end of parity group. */
         COUNT(ivec, seg_nr - 1) += grpend - INDEX(ivec, seg_nr - 1);
 
         /*
@@ -2526,10 +2603,11 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
          * need to be included so that _all_ pages from parity group
          * are available to do IO.
          */
-        for (row = 1; row < seg_nr - 2; ++row) {
-                if (INDEX(ivec, row) + COUNT(ivec, row) < INDEX(ivec, row + 1))
-                        COUNT(ivec, row) += INDEX(ivec, row + 1) -
-                                          (INDEX(ivec, row) + COUNT(ivec, row));
+        for (seg = 1; seg_nr > 2 && seg <= seg_nr - 2; ++seg) {
+                if (INDEX(ivec, seg) + COUNT(ivec, seg) < INDEX(ivec, seg + 1))
+                        COUNT(ivec, seg) += INDEX(ivec, seg + 1) -
+                                            (INDEX(ivec, seg) +
+					     COUNT(ivec, seg));
         }
 
         /*
@@ -2542,7 +2620,7 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
                                 rc = pargrp_iomap_databuf_alloc(map, row,
                                                                 seg_nr);
                                 if (rc != 0)
-                                        C2_RETERR(-ENOMEM, "databuf_alloc failed");
+                                        C2_RETERR(rc, "databuf_alloc failed");
 
                                 map->pi_databufs[row][seg_nr]->db_flags |=
                                         PA_READ;
@@ -2555,8 +2633,8 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
 
 static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map)
 {
-        uint64_t                  row;
-        uint64_t                  col;
+        uint32_t                  row;
+        uint32_t                  col;
         struct c2_pdclust_layout *play;
 
         C2_ENTRY("map %p", map);
@@ -2566,8 +2644,7 @@ static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map)
         for (row = 0; row < parity_row_nr(play); ++row) {
                 for (col = 0; col < parity_col_nr(play); ++col) {
 
-                        C2_ALLOC_PTR_ADDB(map->pi_paritybufs[row][col],
-                                          &c2t1fs_addb, &io_addb_loc);
+                        map->pi_paritybufs[row][col] = data_buf_alloc_init(0);
                         if (map->pi_paritybufs[row][col] == NULL)
                                 goto err;
 
@@ -2628,6 +2705,9 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 
         for (seg = 0; !c2_ivec_cursor_move(cursor, count) &&
              c2_ivec_cursor_index(cursor) < grpend; ++seg) {
+
+		c2_bindex_t endpos;
+
                 /*
                  * Skips the current segment if it is already spanned by
                  * rounding up/down of earlier segment.
@@ -2638,17 +2718,18 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
                         continue;
                 }
 
-                INDEX(&map->pi_ivec, seg) = c2_round_down(c2_ivec_cursor_index(
-                                            cursor), PAGE_CACHE_SIZE);
+                INDEX(&map->pi_ivec, seg) =
+			c2_round_down(c2_ivec_cursor_index(cursor),
+				      PAGE_CACHE_SIZE);
 
-                count = min64u(grpend, c2_ivec_cursor_index(cursor) +
-                               c2_ivec_cursor_step(cursor));
+                endpos = min64u(grpend, c2_ivec_cursor_index(cursor) +
+                                c2_ivec_cursor_step(cursor));
 
-                COUNT(&map->pi_ivec, seg) = c2_round_up(count,
-                                            PAGE_CACHE_SIZE) -
-                                            INDEX(&map->pi_ivec, seg);
+                COUNT(&map->pi_ivec, seg) =
+			c2_round_up(endpos, PAGE_CACHE_SIZE) -
+			INDEX(&map->pi_ivec, seg);
 
-                /* For read IO request, IO should be not go beyond EOF. */
+                /* For read IO request, IO should not go beyond EOF. */
                 if (map->pi_ioreq->ir_type == IRT_READ &&
                     INDEX(&map->pi_ivec, seg) + COUNT(&map->pi_ivec, seg) >
                     size)
@@ -2658,7 +2739,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
                 rc = map->pi_ops->pi_seg_process(map, seg, rmw);
                 if (rc != 0)
                         C2_RETERR(rc, "seg_process failed");
-                count -= c2_ivec_cursor_index(cursor);
+                count = endpos - c2_ivec_cursor_index(cursor);
                 ++map->pi_ivec.iv_vec.v_nr;
         }
         C2_LOG(C2_DEBUG, "%llu segments processed", seg);
@@ -2672,7 +2753,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
          * is selected.
          */
         if (rmw) {
-                nr = pargrp_iomap_fullpages_find(map);
+                nr = pargrp_iomap_fullpages_count(map);
 
                 /* can use number of data_buf structures instead of using
                  * indexvec_page_nr(). */
@@ -2695,7 +2776,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
                                 C2_RETERR(rc, "readrest failed");
                 } else {
                         map->pi_rtype = PIR_READOLD;
-                        rc = map->pi_ops->pi_readold_process(map);
+                        rc = map->pi_ops->pi_readold_auxbuf_alloc(map);
                 }
         }
 
@@ -2749,6 +2830,7 @@ static int ioreq_iomaps_prepare(struct io_request *req)
                 }
         }
         c2_free(grparray);
+
         C2_LOG(C2_DEBUG, "Number of pargrp_iomap structures : %llu",
                req->ir_iomap_nr);
 
@@ -2820,9 +2902,12 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
         uint64_t                    count = 0;
         uint64_t                    pgstart;
         uint64_t                    pgend;
-        struct c2_ext               unitext;
-        struct c2_ext               rext;
-        struct c2_ext               vecext;
+	/* Extent representing a data unit. */
+        struct c2_ext               u_ext;
+	/* Extent representing resultant extent. */
+        struct c2_ext               r_ext;
+	/* Extent representing a segment from index vector. */
+        struct c2_ext               v_ext;
         struct io_request          *req;
         struct target_ioreq        *ti;
         struct c2_ivec_cursor       cursor;
@@ -2853,18 +2938,18 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
                         unit = (c2_ivec_cursor_index(&cursor) - pgstart) /
                                unit_size;
 
-                        unitext.e_start = pgstart + unit * unit_size;
-                        unitext.e_end   = unitext.e_start + unit_size;
+                        u_ext.e_start = pgstart + unit * unit_size;
+                        u_ext.e_end   = u_ext.e_start + unit_size;
 
-                        vecext.e_start  = c2_ivec_cursor_index(&cursor);
-                        vecext.e_end    = vecext.e_start +
+                        v_ext.e_start  = c2_ivec_cursor_index(&cursor);
+                        v_ext.e_end    = v_ext.e_start +
                                           c2_ivec_cursor_step(&cursor);
 
-                        c2_ext_intersection(&unitext, &vecext, &rext);
-                        if (!c2_ext_is_valid(&rext))
+                        c2_ext_intersection(&u_ext, &v_ext, &r_ext);
+                        if (!c2_ext_is_valid(&r_ext))
                                 continue;
 
-                        count     = c2_ext_length(&rext);
+                        count     = c2_ext_length(&r_ext);
                         unit_type = c2_pdclust_unit_classify(play, unit);
                         if (unit_type == C2_PUT_SPARE ||
                             unit_type == C2_PUT_PARITY)
@@ -2876,8 +2961,8 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
                         if (rc != 0)
                                 goto err;
 
-                        ti->ti_ops->tio_seg_add(ti, tgt.ta_frame, rext.e_start,
-                                                c2_ext_length(&rext),
+                        ti->ti_ops->tio_seg_add(ti, tgt.ta_frame, r_ext.e_start,
+                                                c2_ext_length(&r_ext),
                                                 unit_type);
                 }
 
@@ -2956,7 +3041,7 @@ static int ioreq_iosm_handle(struct io_request *req)
                 if (rc != 0)
                         ioreq_sm_failed(req, rc);
 
-		C2_ASSERT(ioreq_sm_state(req) == IRS_READ_COMPLETE);
+		C2_ASSERT(ioreq_sm_state(req) == state);
 
                 if (state == IRS_READ_COMPLETE) {
                         rc = req->ir_ops->iro_user_data_copy(req,
@@ -3308,7 +3393,7 @@ static int nw_xfer_tioreq_get(struct nw_xfer_request *xfer,
 
 static struct data_buf *data_buf_alloc_init(enum page_attr pattr)
 {
-        struct data_buf *db;
+        struct data_buf *buf;
         unsigned long    addr;
 
         C2_ENTRY();
@@ -3318,17 +3403,17 @@ static struct data_buf *data_buf_alloc_init(enum page_attr pattr)
                 return NULL;
         }
 
-        C2_ALLOC_PTR_ADDB(db, &c2t1fs_addb, &io_addb_loc);
-        if (db == NULL) {
+        C2_ALLOC_PTR_ADDB(buf, &c2t1fs_addb, &io_addb_loc);
+        if (buf == NULL) {
                 free_page(addr);
                 C2_LOG(C2_ERROR, "Failed to allocate data_buf");
                 return NULL;
         }
 
-        data_buf_init(db, (void *)addr, pattr);
-        C2_POST(data_buf_invariant(db));
+        data_buf_init(buf, (void *)addr, pattr);
+        C2_POST(data_buf_invariant(buf));
         C2_LEAVE();
-        return db;
+        return buf;
 }
 
 static void data_buf_dealloc_fini(struct data_buf *buf)
@@ -3358,7 +3443,7 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
         c2_bindex_t                goff;
         c2_bindex_t                pgstart;
         c2_bindex_t                pgend;
-        struct data_buf           *db;
+        struct data_buf           *buf;
         struct io_request         *req;
         struct pargrp_iomap       *map;
         struct c2_pdclust_layout  *play;
@@ -3392,25 +3477,26 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
                 ti->ti_bufvec.ov_vec.v_count[seg] = pgend - pgstart;
 
                 if (unit_type == C2_PUT_DATA) {
-                        uint64_t row;
-                        uint64_t col;
+                        uint32_t row;
+                        uint32_t col;
 
                         page_pos_get(map, goff, &row, &col);
-                        db = map->pi_databufs[row][col];
+                        buf = map->pi_databufs[row][col];
 
-                        if (db->db_flags & PA_READ_EOF)
-                                COUNT(&ti->ti_ivec, seg) = ti->ti_bufvec.
-                                        ov_vec.v_count[seg] = db->db_buf.b_nob;
+                        if (buf->db_flags & PA_READ_EOF)
+                                COUNT(&ti->ti_ivec, seg) =
+					ti->ti_bufvec.ov_vec.v_count[seg] =
+					buf->db_buf.b_nob;
                 }
                 else
-                        db = map->pi_paritybufs[page_id(goff)]
-                             [unit % data_col_nr(play)];
+                        buf = map->pi_paritybufs[page_id(goff)]
+                             		        [unit % data_col_nr(play)];
 
-                ti->ti_bufvec.ov_buf[seg] = db->db_buf.b_addr;
-                ti->ti_pageattrs[seg]     = db->db_flags;
+                ti->ti_bufvec.ov_buf[seg] = buf->db_buf.b_addr;
+                ti->ti_pageattrs[seg]     = buf->db_flags;
 
                 goff += COUNT(&ti->ti_ivec, seg);
-                ++SEG_NR(&ti->ti_ivec);
+                ++ti->ti_ivec.iv_vec.v_nr;
                 pgstart = pgend;
         }
         C2_LEAVE();
@@ -3561,7 +3647,7 @@ static struct c2_indexvec *indexvec_create(unsigned long       seg_nr,
                 return NULL;
         }
 
-        for (i = 0; i < ivec->iv_vec.v_nr; ++i) {
+        for (i = 0; i < seg_nr; ++i) {
                 ivec->iv_index[i] = pos;
                 ivec->iv_vec.v_count[i] = iov[i].iov_len;
                 pos += iov[i].iov_len;
@@ -3666,10 +3752,7 @@ static ssize_t file_aio_read(struct kiocb       *kcb,
                 if (INDEX(ivec, seg) > inode->i_size)
                         break;
                 if (INDEX(ivec, seg) + COUNT(ivec, seg) > inode->i_size) {
-                        COUNT(ivec, seg) = min64u(inode->i_size,
-                                                  INDEX(ivec, seg_nr) +
-                                                  COUNT(ivec, seg_nr)) -
-                                           INDEX(ivec, seg);
+                        COUNT(ivec, seg) = inode->i_size - INDEX(ivec, seg);
                         break;
                 }
         }
@@ -3705,6 +3788,7 @@ static int io_fops_async_submit(struct c2_io_fop      *iofop,
 	if (rc != 0)
 		goto out;
 
+	iofop->if_fop.f_item.ri_session = session;
         rc = c2_rpc_post(&iofop->if_fop.f_item);
 
 out:
@@ -3772,7 +3856,7 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 
 	c2_tl_for (tioreqs, &xfer->nxr_tioreqs, ti) {
 		rc = ti->ti_ops->tio_iofops_prepare(ti);
-		if (rc != 0);
+		if (rc != 0)
 			C2_RETERR(rc, "iofops_prepare failed");
 	} c2_tl_endfor;
 
@@ -3949,6 +4033,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti)
                 if (rc != 0)
                         goto fini_fop;
 
+		C2_CNT_INC(ti->ti_nwxfer->nxr_iofop_nr);
                 iofops_tlist_add(&ti->ti_iofops, irfop);
         }
 
