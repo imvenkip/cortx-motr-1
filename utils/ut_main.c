@@ -75,6 +75,7 @@ extern const struct c2_test_suite c2_fop_lock_ut;
 extern const struct c2_test_suite layout_ut;
 extern const struct c2_test_suite conn_ut;
 extern const struct c2_test_suite sns_repair_ut;
+extern const struct c2_test_suite packet_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -109,6 +110,7 @@ void add_uts(void)
 	c2_ut_add(&c2_net_lnet_ut);
 	c2_ut_add(&c2_net_test_ut);
 	c2_ut_add(&c2_net_tm_prov_ut);
+	c2_ut_add(&packet_ut);
 	c2_ut_add(&parity_math_ut);
 	c2_ut_add(&frm_ut);
 	c2_ut_add(&reqh_ut);
