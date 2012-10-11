@@ -33,19 +33,18 @@ MODULE_LICENSE("proprietary");
 extern const struct c2_test_suite c2_klibc2_ut; /* test lib first */
 extern const struct c2_test_suite buffer_pool_ut;
 extern const struct c2_test_suite bulkio_client_ut;
+extern const struct c2_test_suite c2_loop_ut;
 extern const struct c2_test_suite c2_net_bulk_if_ut;
 extern const struct c2_test_suite c2_net_bulk_mem_ut;
 extern const struct c2_test_suite c2_net_lnet_ut;
 extern const struct c2_test_suite c2_net_tm_prov_ut;
-extern const struct c2_test_suite xcode_ut;
-extern const struct c2_test_suite rpc_service_ut;
-extern const struct c2_test_suite sm_ut;
+extern const struct c2_test_suite conn_ut;
 extern const struct c2_test_suite frm_ut;
 extern const struct c2_test_suite layout_ut;
-extern const struct c2_test_suite conn_ut;
 extern const struct c2_test_suite rpc_mc_ut;
-
-extern const struct c2_test_suite c2_loop_ut; /* c2loop driver */
+extern const struct c2_test_suite rpc_service_ut;
+extern const struct c2_test_suite sm_ut;
+extern const struct c2_test_suite xcode_ut;
 
 static struct c2_thread ut_thread;
 
@@ -58,19 +57,18 @@ static void run_kernel_ut(int ignored)
 	c2_ut_add(&c2_klibc2_ut);  /* test lib first */
 	c2_ut_add(&buffer_pool_ut);
 	c2_ut_add(&bulkio_client_ut);
+	c2_ut_add(&c2_loop_ut);
 	c2_ut_add(&c2_net_bulk_if_ut);
 	c2_ut_add(&c2_net_bulk_mem_ut);
 	c2_ut_add(&c2_net_lnet_ut);
 	c2_ut_add(&c2_net_tm_prov_ut);
-	c2_ut_add(&xcode_ut);
-	c2_ut_add(&rpc_service_ut);
-	c2_ut_add(&sm_ut);
 	c2_ut_add(&conn_ut);
-	c2_ut_add(&rpc_mc_ut);
 	c2_ut_add(&frm_ut);
 	c2_ut_add(&layout_ut);
-
-	c2_ut_add(&c2_loop_ut); /* c2loop driver */
+	c2_ut_add(&rpc_mc_ut);
+	c2_ut_add(&rpc_service_ut);
+	c2_ut_add(&sm_ut);
+	c2_ut_add(&xcode_ut);
 
 	c2_ut_run();
 	c2_uts_fini();
