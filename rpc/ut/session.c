@@ -113,10 +113,11 @@ static void session_init_fini_test(void)
 	c2_rpc_session_fini(&session);
 }
 
-void session_init_and_establish(void)
+static void session_init_and_establish(void)
 {
 	int rc;
 
+	/* Session transition from INITIALISED => ESTABLISHING */
 	session_init();
 
 	conn.c_sm.sm_state = C2_RPC_CONN_ACTIVE;
@@ -135,19 +136,26 @@ void session_init_and_establish(void)
 	est_fop_rep.f_data.fd_data  = &est_reply;
 }
 
-void session_establish_reply(void)
+static void session_establish_reply(void)
 {
+	/* Session transition from ESTABLISHING => IDLE */
 	c2_rpc_machine_lock(&machine);
 	c2_rpc_session_establish_reply_received(&est_ctx.sec_fop.f_item);
 	c2_rpc_machine_unlock(&machine);
 	C2_UT_ASSERT(session_state(&session) == C2_RPC_SESSION_IDLE);
 }
 
-void session_terminate(void)
+static void session_terminate(void)
 {
 	int rc;
 
+	/* Session transition from IDLE => TERMINATING */
 	rc = c2_rpc_session_terminate(&session);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(session_state(&session) == C2_RPC_SESSION_TERMINATING);
+
+	rc = c2_rpc_session_terminate(&session);
+	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(session_state(&session) == C2_RPC_SESSION_TERMINATING);
 
 	term_fop.f_item.ri_error = 0;
@@ -162,8 +170,9 @@ void session_terminate(void)
 	term_fop_rep.f_data.fd_data  = &term_reply;
 }
 
-void session_terminate_reply_and_fini(void)
+static void session_terminate_reply_and_fini(void)
 {
+	/* Session transition from TERMINATING => TERMINATED */
 	c2_rpc_machine_lock(&machine);
 	c2_rpc_session_terminate_reply_received(&term_fop.f_item);
 	c2_rpc_machine_unlock(&machine);
@@ -172,13 +181,26 @@ void session_terminate_reply_and_fini(void)
 	c2_rpc_session_fini(&session);
 }
 
+static void session_hold_release(void)
+{
+	/* Session transition from IDLE => BUSY => IDLE */
+	c2_rpc_machine_lock(&machine);
+	c2_rpc_session_hold_busy(&session);
+	C2_UT_ASSERT(session_state(&session) == C2_RPC_SESSION_BUSY);
+	c2_rpc_session_release(&session);
+	C2_UT_ASSERT(session_state(&session) == C2_RPC_SESSION_IDLE);
+	c2_rpc_machine_unlock(&machine);
+}
+
 static void session_check(void)
 {
 	/* Checks for session states transitions,
-	   INITIALISED => ESTABLISHING => IDLE => TERMINATING => FINALISED.
+	   INITIALISED => ESTABLISHING => IDLE => BUSY => IDLE =>
+	   TERMINATING => FINALISED.
 	 */
 	session_init_and_establish();
 	session_establish_reply();
+	session_hold_release();
 	session_terminate();
 	session_terminate_reply_and_fini();
 }
