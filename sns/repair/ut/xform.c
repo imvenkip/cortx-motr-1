@@ -33,7 +33,7 @@ enum {
 	NR = 16,
 	SEG_SIZE = 256,
 	CP_SINGLE = 1,
-	CP_MULTI = 512,
+	CP_MULTI = 64,
 };
 
 static struct c2_reqh	       reqh;
@@ -213,7 +213,7 @@ static void test_single_cp(void)
 
 	/**
 	 * Wait till ast gets posted.
-	 */ 
+	 */
 	sleep(1);
 	/**
 	 * Wait until all the foms in the request handler locality runq are
@@ -244,6 +244,11 @@ static void test_multiple_cp(void)
 		m_cp[i].c_ag->cag_ops = &group_multi_ops;
 		c2_fom_queue(&m_cp[i].c_fom, &reqh);
 	}
+
+	/**
+	 * Wait till ast gets posted.
+	 */
+	sleep(2);
 
 	/**
 	 * Wait until the fom in the request handler locality runq is
