@@ -464,7 +464,7 @@ static void fom_create(struct c2_fom **fom, enum cob_fom_type fomtype)
 
 	base_fom->fo_loc = &dummy_loc;
 
-	c2_atomic64_inc(&base_fom->fo_loc->fl_foms);
+	C2_CNT_INC(base_fom->fo_loc->fl_foms);
 	base_fom->fo_type = &ft;
 
 	c2_fom_sm_init(base_fom);
