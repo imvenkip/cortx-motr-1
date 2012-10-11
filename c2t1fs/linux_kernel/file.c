@@ -1045,8 +1045,8 @@ struct pargrp_iomap_ops {
 	 * false otherwise.
          */
         bool (*pi_spans_seg) (struct pargrp_iomap *iomap,
-                              c2_bindex_t 	   index,
-			      c2_bcount_t 	   count);
+                              c2_bindex_t          index,
+			      c2_bcount_t          count);
 
         /**
          * Changes pargrp_iomap::pi_ivec to suit read-rest approach
@@ -3490,7 +3490,7 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
                 }
                 else
                         buf = map->pi_paritybufs[page_id(goff)]
-                             		        [unit % data_col_nr(play)];
+				                [unit % data_col_nr(play)];
 
                 ti->ti_bufvec.ov_buf[seg] = buf->db_buf.b_addr;
                 ti->ti_pageattrs[seg]     = buf->db_flags;
