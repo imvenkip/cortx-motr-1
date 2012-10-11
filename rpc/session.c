@@ -102,7 +102,7 @@ static const struct c2_rpc_slot_ops rcv_slot_ops = {
  */
 struct fop_session_establish_ctx
 {
-	/** A fop instance of type c2_rpc_fop_conn_establish_fopt */
+	/** A fop instance of type c2_rpc_fop_session_establish_fopt */
 	struct c2_fop          sec_fop;
 
 	/** sender side session object */
@@ -229,7 +229,6 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session)
 
 	switch (session_state(session)) {
 	case C2_RPC_SESSION_INITIALISED:
-		return true;
 	case C2_RPC_SESSION_ESTABLISHING:
 		return session->s_session_id == SESSION_ID_INVALID &&
 		       c2_rpc_session_is_idle(session);
