@@ -100,8 +100,7 @@ static const struct c2_rpc_slot_ops rcv_slot_ops = {
    Required only on sender to obtain pointer to session being established,
    when reply to session_establish is received.
  */
-struct fop_session_establish_ctx
-{
+struct fop_session_establish_ctx {
 	/** A fop instance of type c2_rpc_fop_session_establish_fopt */
 	struct c2_fop          sec_fop;
 

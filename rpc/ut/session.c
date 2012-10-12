@@ -39,8 +39,7 @@ static struct c2_rpc_session session;
 static struct c2_rpc_session session0;
 
 /* This structure defination is copied from rpc/session.c. */
-static struct fop_session_establish_ctx
-{
+static struct fop_session_establish_ctx {
 	/** A fop instance of type c2_rpc_fop_session_establish_fopt */
 	struct c2_fop          sec_fop;
 	/** sender side session object */
