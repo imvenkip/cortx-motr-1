@@ -713,7 +713,6 @@ struct nw_xfer_ops {
         /**
          * Prepares subsequent target_ioreq objects as needed and populates
          * target_ioreq::ir_ivec and target_ioreq::ti_bufvec.
-	 * @param xfer Given nw_xfer_request object.
 	 * @pre   nw_xfer_request_invariant(xfer).
 	 * @post  !tioreqs_list_is_empty(xfer->nxr_tioreqs).
          */
@@ -723,7 +722,6 @@ struct nw_xfer_ops {
          * Does post processing of a network transfer request.
          * Primarily all IO fops submitted by this network transfer request
          * are finalized so that new fops can be created for same request.
-	 * @param xfer Given nw_xfer_request object.
 	 * @param rmw  Boolean telling if current IO request is rmw or not.
 	 * @pre   nw_xfer_request_invariant(xfer).
 	 * @post  xfer->nxr_state == NXS_COMPLETE.
@@ -736,7 +734,6 @@ struct nw_xfer_ops {
          * and sends them to server for processing.
          * The whole process is done in an asynchronous manner and does not
          * block the thread during processing.
-	 * @param xfer Given nw_xfer_request object.
 	 * @pre   nw_xfer_request_invariant(xfer).
 	 * @post  xfer->nxr_state == NXS_INFLIGHT.
          */
@@ -745,7 +742,6 @@ struct nw_xfer_ops {
         /**
          * Locates or creates a target_iroeq object which maps to the given
          * target address.
-	 * @param xfer Given nw_xfer_request object.
 	 * @param src  Source address comprising of parity group number
 	 * and unit number in parity group.
 	 * @param tgt  Target address comprising of frame number and
@@ -822,7 +818,6 @@ struct io_request_ops {
         /**
          * Prepares pargrp_iomap structures for the parity groups spanned
          * by io_request::ir_ivec.
-	 * @param req Given io_request object.
 	 * @pre   req->ir_iomaps == NULL && req->ir_iomap_nr == 0.
 	 * @post  req->ir_iomaps != NULL && req->ir_iomap_nr > 0.
          */
@@ -831,7 +826,6 @@ struct io_request_ops {
         /**
          * Copies data from/to user-space to/from kernel-space according
          * to given direction and page filter.
-	 * @param req    Given io_request object.
 	 * @param dir    Direction of copy.
 	 * @param filter Only copy pages that match the filter.
 	 * @pre   io_request_invariant(req).
@@ -845,7 +839,6 @@ struct io_request_ops {
          * parity group id from io_request::ir_iomaps.
          * For a valid parity group id, a pargrp_iomap structure must
          * be present.
-	 * @param req   Given io_request object.
 	 * @param grpid Parity group id.
 	 * @param map   Out paramter to return pargrp_iomap.
          */
@@ -858,15 +851,15 @@ struct io_request_ops {
          * given io_request.
          * Basically, invokes parity_recalc() routine for every
          * pargrp_iomap in io_request::ir_iomaps.
-	 * @param req Given io_request object.
+	 * @pre  io_request_invariant(req) && req->ir_type == IRT_WRITE.
+	 * @post io_request_invariant(req).
          */
         int (*iro_parity_recalc)  (struct io_request  *req);
 
         /**
          * Handles the state transition, status of request and the
          * intermediate copy_{from/to}_user.
-	 * @param req Given io_request object.
-	 * @ret   Returns 0 for successful IO, return -err otherwise.
+	 * @pre io_request_invariant(req).
          */
         int (*iro_iosm_handle)    (struct io_request  *req);
 };
@@ -890,7 +883,11 @@ struct io_request {
          */
         struct file                 *ir_file;
 
-        /** Index vector describing file extents and their lengths. */
+        /**
+	 * Index vector describing file extents and their lengths.
+	 * This vector is in sync with the array of iovec structures
+	 * below.
+	 */
         struct c2_indexvec           ir_ivec;
 
         /**
@@ -974,6 +971,8 @@ struct pargrp_iomap {
          * Part of io_request::ir_ivec which falls in ::pi_grpid
          * parity group.
          * All segments are in increasing order of file offset.
+	 * Segment counts in this index vector are multiple of
+	 * PAGE_CACHE_SIZE.
          */
         struct c2_indexvec              pi_ivec;
 
@@ -1020,7 +1019,6 @@ struct pargrp_iomap_ops {
          * read-old approach or read-rest approach.
          * pargrp_iomap::pi_rtype will be set to PIR_READOLD or
          * PIR_READREST accordingly.
-	 * @param iomap  Given pargrp_iomap object.
 	 * @param ivec   Source index vector from which pargrp_iomap::pi_ivec
 	 * will be populated. Typically, this is io_request::ir_ivec.
 	 * @param cursor Index vector cursor associated with ivec.
@@ -1037,7 +1035,6 @@ struct pargrp_iomap_ops {
         /**
          * Returns true if the given segment is spanned by existing segments
          * in pargrp_iomap::pi_ivec.
-	 * @param iomap Given pargrp_iomap object.
 	 * @param index Starting index of incoming segment.
 	 * @param count Count of incoming segment.
 	 * @pre   pargrp_iomap_invariant(iomap).
@@ -1051,8 +1048,8 @@ struct pargrp_iomap_ops {
         /**
          * Changes pargrp_iomap::pi_ivec to suit read-rest approach
          * for an RMW IO request.
-	 * @param iomap Given pargrp_iomap object.
-	 * @pre   pargrp_iomap_invariant(iomap).
+	 * @pre  pargrp_iomap_invariant(iomap).
+	 * @post pargrp_iomap_invariant(iomap).
          */
         int (*pi_readrest)   (struct pargrp_iomap *iomap);
 
@@ -1061,7 +1058,6 @@ struct pargrp_iomap_ops {
          * io vector. Used only in case of read-modify-write IO.
          * This is needed in order to decide the type of read approach
          * {read_old, read_rest} for the given parity group.
-	 * @param map Given pargrp_iomap object.
 	 * @pre pargrp_iomap_invariant(map).
 	 * @ret Number of pages _completely_ spanned by pargrp_iomap::pi_ivec.
          */
@@ -1071,7 +1067,6 @@ struct pargrp_iomap_ops {
          * Process segment pointed to by segid in pargrp_iomap::pi_ivec and
          * allocate data_buf structures correspondingly.
 	 * It also populates data_buf::db_flags for pargrp_iomap::pi_databufs.
-	 * @param map   Given pargrp_iomap object.
 	 * @param segid Segment id which needs to be processed.
 	 * @param rmw   If given pargrp_iomap structure needs rmw.
 	 * @pre   map != NULL.
@@ -1086,14 +1081,12 @@ struct pargrp_iomap_ops {
          * Process the data buffers in pargrp_iomap::pi_databufs
          * when read-old approach is chosen.
 	 * Auxiliary buffers are allocated here.
-	 * @param map Given pargrp_iomap object.
 	 * @pre pargrp_iomap_invariant(map) && map->pi_rtype == PIR_READOLD.
          */
         int (*pi_readold_auxbuf_alloc) (struct pargrp_iomap *map);
 
         /**
 	 * Recalculates parity for given pargrp_iomap.
-	 * @param map Given pargrp_iomap object.
 	 * @pre map != NULL && map->pi_ioreq->ir_type == IRT_WRITE.
 	 */
         int (*pi_parity_recalc)   (struct pargrp_iomap *map);
@@ -1101,7 +1094,6 @@ struct pargrp_iomap_ops {
         /**
          * Allocates data_buf structures for pargrp_iomap::pi_paritybufs
          * and populate db_flags accordingly.
-	 * @param map Given pargrp_iomap object.
 	 * @pre   map->pi_paritybufs == NULL.
 	 * @post  map->pi_paritybufs != NULL && pargrp_iomap_invariant(map).
          */
@@ -1113,7 +1105,6 @@ struct target_ioreq_ops {
         /**
          * Adds an io segment to index vector and buffer vector in
          * target_ioreq structure.
-	 * @param ti         Given target_ioreq object.
 	 * @param frame      Frame number of target object.
 	 * @param gob_offset Offset in global file.
 	 * @param count      Number of bytes in this segment.
@@ -1131,7 +1122,6 @@ struct target_ioreq_ops {
 	 * Prepares io fops from index vector and buffer vector.
 	 * This API uses rpc bulk API to store net buffer descriptors
 	 * in IO fops.
-	 * @param ti Given target_ioreq object.
 	 * @pre   iofops_tlist_is_empty(ti->ti_iofops).
 	 * @post  !iofops_tlist_is_empty(ti->ti_iofops).
 	 */
@@ -1169,10 +1159,14 @@ struct target_ioreq {
         /**
          * Index vector containing IO segments with cob offsets and
          * their length.
+	 * Each segment in this vector is worth PAGE_CACHE_SIZE.
          */
         struct c2_indexvec             ti_ivec;
 
-        /** Buffer vector corresponding to index vector above. */
+        /**
+	 * Buffer vector corresponding to index vector above.
+	 * This buffer is in sync with ::ti_ivec.
+	 */
         struct c2_bufvec               ti_bufvec;
 
         /** Array of page attributes. */
