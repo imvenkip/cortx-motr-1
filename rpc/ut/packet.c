@@ -26,22 +26,33 @@
 #include "rpc/packet.h"
 #include "rpc/it/ping_fop.h"
 
+#define cmp_item(field) item1->field == item2->field
 enum {
 	NR = 255,
 };
-# if 0
-static bool item_compare(struct c2_rpc_item item1, struct c2_rpc_item item2)
+# if 1
+static bool item_compare(struct c2_rpc_item *item1, struct c2_rpc_item *item2)
 {
 	bool rc;
-//	rc = item1.ri_prio == item2.ri_prio &&
-	rc =	item1.ri_deadline == item2.ri_deadline && item1.ri_state ==
-		item2.ri_state && item1.ri_stage == item2.ri_stage &&
-		item1.ri_flags == item2.ri_flags && item1.ri_rpc_time ==
-		item2.ri_rpc_time && item1.ri_magic == item2.ri_magic;
+	rc = cmp_item(ri_flags) && cmp_item(ri_magic) &&
+		cmp_item(ri_type->rit_magic) && cmp_item(ri_type->rit_flags) &&
+		cmp_item(ri_type->rit_opcode) &&
+		cmp_item(ri_slot_refs[0].sr_verno.vn_lsn) &&
+		cmp_item(ri_slot_refs[0].sr_sender_id) &&
+		cmp_item(ri_slot_refs[0].sr_session_id) &&
+		cmp_item(ri_slot_refs[0].sr_verno.vn_vc) &&
+		cmp_item(ri_slot_refs[0].sr_uuid.su_uuid) &&
+		cmp_item(ri_slot_refs[0].sr_last_persistent_verno.vn_lsn) &&
+		cmp_item(ri_slot_refs[0].sr_last_persistent_verno.vn_vc) &&
+		cmp_item(ri_slot_refs[0].sr_last_seen_verno.vn_lsn) &&
+		cmp_item(ri_slot_refs[0].sr_last_seen_verno.vn_vc) &&
+		cmp_item(ri_slot_refs[0].sr_slot_id) &&
+		cmp_item(ri_slot_refs[0].sr_xid) &&
+		cmp_item(ri_slot_refs[0].sr_slot_gen);
 	return rc;
 }
 #endif
-#if 0
+#if 1
 static bool packet_compare(struct c2_rpc_packet *p1, struct c2_rpc_packet *p2)
 {
 	struct c2_rpc_item *item1;
@@ -60,12 +71,12 @@ static bool packet_compare(struct c2_rpc_packet *p1, struct c2_rpc_packet *p2)
 	     item2 = c2_tlist_head(&packet_item_tl, &p2->rp_items);
 	     item1 != NULL && item2 != NULL &&
 	     ((temp_item1 = c2_tlist_next(&packet_item_tl, &p1->rp_items, item1),
-	      true)
+	       true)
 	      && ((temp_item2 = c2_tlist_next(&packet_item_tl, &p2->rp_items,
 				              item2)),
-		  true)) && rc; item1 = temp_item1, item2 = temp_item2) {
+		   true)) && rc; item1 = temp_item1, item2 = temp_item2) {
 
-		rc &= item_compare(*item1, *item2);
+		rc &= item_compare(item1, item2);
 	}
 #endif
 	return rc;
@@ -91,7 +102,7 @@ void test_packet_encode()
 	item = &fop->f_item;
 	item->ri_ops = &c2_fop_default_item_ops;
 	item->ri_session = NULL;
-	item->ri_prio = C2_RPC_ITEM_PRIO_MIN;
+	item->ri_prio = C2_RPC_ITEM_PRIO_MID;
 	item->ri_deadline = 0;
 	item->ri_rpc_time = c2_time_now();
 #endif
@@ -106,16 +117,19 @@ void test_packet_encode()
 #if 1
 	c2_rpc_packet_init(&p_decoded);
 	C2_UT_ASSERT(!c2_rpc_packet_decode(&p_decoded, &bufvec, 0,
-				          bufvec_size));
+				           bufvec_size));
 #endif
-//	C2_UT_ASSERT(packet_compare(&p_for_encd, &p_decoded));
+	C2_UT_ASSERT(packet_compare(&p_for_encd, &p_decoded));
 	c2_bufvec_free_aligned(&bufvec, C2_SEG_SHIFT);
 	c2_rpc_packet_remove_all_items(&p_for_encd);
 	c2_rpc_packet_fini(&p_for_encd);
 	c2_fop_free(fop);
 	c2_ping_fop_fini();
+	item = c2_tlist_head(&packet_item_tl, &p_decoded.rp_items);
+//	item_list = c2_tlist_next(&packet_item_tl, &p_decoded.rp_items, item);
 	c2_rpc_packet_remove_all_items(&p_decoded);
 	c2_rpc_packet_fini(&p_decoded);
+//	c2_rpc_item_fini(item);
 #endif
 }
 
