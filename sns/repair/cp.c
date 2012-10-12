@@ -66,12 +66,8 @@ uint64_t cp_home_loc_helper(const struct c2_cm_cp *cp)
 
 static int cp_init(struct c2_cm_cp *cp)
 {
-	struct c2_sns_repair_cm *rcm;
-
 	C2_PRE(c2_fom_phase(&cp->c_fom) == C2_CCP_INIT);
-	rcm = cm2sns(cp->c_ag->cag_cm);
-	cp->c_ops->co_phase_next(cp);
-	return C2_FSO_AGAIN;
+	return cp->c_ops->co_phase_next(cp);
 }
 
 static int cp_fini(struct c2_cm_cp *cp)
@@ -89,14 +85,12 @@ static int cp_fini(struct c2_cm_cp *cp)
 
 static int cp_read(struct c2_cm_cp *cp)
 {
-	cp->c_ops->co_phase_next(cp);
-	return C2_FSO_AGAIN;
+	return cp->c_ops->co_phase_next(cp);
 }
 
 static int cp_write(struct c2_cm_cp *cp)
 {
-	cp->c_ops->co_phase_next(cp);
-	return C2_FSO_AGAIN;
+	return cp->c_ops->co_phase_next(cp);
 }
 
 static int cp_send(struct c2_cm_cp *cp)
@@ -123,7 +117,7 @@ static int cp_phase_next(struct c2_cm_cp *cp)
 		break;
 	case C2_CCP_WRITE:
 		c2_fom_phase_set(&cp->c_fom, C2_CCP_FINI);
-		break;
+		return C2_FSO_WAIT;
 	}
         return C2_FSO_AGAIN;
 }
