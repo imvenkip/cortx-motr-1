@@ -66,6 +66,8 @@ uint64_t cp_home_loc_helper(const struct c2_cm_cp *cp);
 extern const struct c2_cm_cp_ops c2_sns_repair_cp_ops;
 
 int c2_repair_cp_xform(struct c2_cm_cp *cp);
+int c2_repair_cp_read(struct c2_cm_cp *cp);
+int c2_repair_cp_write(struct c2_cm_cp *cp);
 
 /** @} SNSRepairCP */
 #endif /* __COLIBRI_SNS_REPAIR_CP_H__ */

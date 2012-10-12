@@ -43,6 +43,18 @@ static struct c2_sns_repair_cp m_sns_cp[THREADS_NR];
 static struct c2_cm_aggr_group m_ag[THREADS_NR];
 static struct c2_bufvec m_bv[THREADS_NR];
 
+static int dummy_cp_read(struct c2_cm_cp *cp)
+{
+	cp->c_ops->co_phase_next(cp);
+	return C2_FSO_AGAIN;
+}
+
+static int dummy_cp_write(struct c2_cm_cp *cp)
+{
+	cp->c_ops->co_phase_next(cp);
+	return C2_FSO_AGAIN;
+}
+
 static int dummy_cp_xform(struct c2_cm_cp *cp)
 {
 	cp->c_ops->co_phase_next(cp);
@@ -52,8 +64,8 @@ static int dummy_cp_xform(struct c2_cm_cp *cp)
 const struct c2_cm_cp_ops c2_sns_repair_cp_dummy_ops = {
         .co_action = {
                 [C2_CCP_INIT]  = &cp_init,
-                [C2_CCP_READ]  = &cp_read,
-                [C2_CCP_WRITE] = &cp_write,
+                [C2_CCP_READ]  = &dummy_cp_read,
+                [C2_CCP_WRITE] = &dummy_cp_write,
                 [C2_CCP_XFORM] = &dummy_cp_xform,
                 [C2_CCP_SEND]  = &cp_send,
                 [C2_CCP_RECV]  = &cp_recv,
