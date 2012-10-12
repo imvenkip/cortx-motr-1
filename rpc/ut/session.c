@@ -38,7 +38,8 @@ static struct c2_rpc_conn    conn;
 static struct c2_rpc_session session;
 static struct c2_rpc_session session0;
 
-struct fop_session_establish_ctx
+/* This structure defination is copied from rpc/session.c. */
+static struct fop_session_establish_ctx
 {
 	/** A fop instance of type c2_rpc_fop_session_establish_fopt */
 	struct c2_fop          sec_fop;
@@ -113,6 +114,19 @@ static void session_init_fini_test(void)
 	c2_rpc_session_fini(&session);
 }
 
+static void prepare_fake_est_reply(void)
+{
+	est_ctx.sec_session             = &session;
+	est_ctx.sec_fop.f_data.fd_data  = &est;
+	est_ctx.sec_fop.f_item.ri_error = 0;
+
+	est_reply.rser_session_id = SESSION_ID; /* session_id_allocate() */
+	est_reply.rser_sender_id  = SENDER_ID;  /* sender_id_allocate()  */
+	est_reply.rser_rc         = 0;
+
+	est_fop_rep.f_data.fd_data  = &est_reply;
+}
+
 static void session_init_and_establish(void)
 {
 	int rc;
@@ -125,24 +139,30 @@ static void session_init_and_establish(void)
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(session_state(&session) == C2_RPC_SESSION_ESTABLISHING);
 
-	est_ctx.sec_session             = &session;
-	est_ctx.sec_fop.f_data.fd_data  = &est;
-	est_ctx.sec_fop.f_item.ri_error = 0;
-
-	est_reply.rser_session_id = SESSION_ID; /* session_id_allocate() */
-	est_reply.rser_sender_id  = SENDER_ID;  /* sender_id_allocate()  */
-	est_reply.rser_rc         = 0;
-
-	est_fop_rep.f_data.fd_data  = &est_reply;
+	prepare_fake_est_reply();
 }
 
-static void session_establish_reply(void)
+static void session_establish_reply(int err)
 {
-	/* Session transition from ESTABLISHING => IDLE */
+	/* Session transition from ESTABLISHING => IDLE | FAILED */
+	est_ctx.sec_fop.f_item.ri_error = err;
 	c2_rpc_machine_lock(&machine);
 	c2_rpc_session_establish_reply_received(&est_ctx.sec_fop.f_item);
 	c2_rpc_machine_unlock(&machine);
-	C2_UT_ASSERT(session_state(&session) == C2_RPC_SESSION_IDLE);
+}
+
+static void prepare_fake_term_reply(void)
+{
+	term_fop.f_item.ri_error = 0;
+	term_fop.f_data.fd_data  = &term;
+	term.rst_sender_id       = SENDER_ID;
+	term.rst_session_id      = SESSION_ID;
+
+	term_reply.rstr_session_id = SESSION_ID;
+	term_reply.rstr_sender_id  = SENDER_ID;
+	term_reply.rstr_rc         = 0;
+
+	term_fop_rep.f_data.fd_data  = &term_reply;
 }
 
 static void session_terminate(void)
@@ -158,25 +178,19 @@ static void session_terminate(void)
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(session_state(&session) == C2_RPC_SESSION_TERMINATING);
 
-	term_fop.f_item.ri_error = 0;
-	term_fop.f_data.fd_data  = &term;
-	term.rst_sender_id       = SENDER_ID;
-	term.rst_session_id      = SESSION_ID;
-
-	term_reply.rstr_session_id = SESSION_ID;
-	term_reply.rstr_sender_id  = SENDER_ID;
-	term_reply.rstr_rc         = 0;
-
-	term_fop_rep.f_data.fd_data  = &term_reply;
+	prepare_fake_term_reply();
 }
 
-static void session_terminate_reply_and_fini(void)
+static void session_terminate_reply_and_fini(int err)
 {
-	/* Session transition from TERMINATING => TERMINATED */
+	/* Session transition from TERMINATING => TERMINATED | FAILED */
+	term_fop.f_item.ri_error = err;
 	c2_rpc_machine_lock(&machine);
 	c2_rpc_session_terminate_reply_received(&term_fop.f_item);
 	c2_rpc_machine_unlock(&machine);
-	C2_UT_ASSERT(session_state(&session) == C2_RPC_SESSION_TERMINATED);
+	C2_UT_ASSERT(err == 0 ?
+		     session_state(&session) == C2_RPC_SESSION_TERMINATED :
+		     session_state(&session) == C2_RPC_SESSION_FAILED);
 
 	c2_rpc_session_fini(&session);
 }
@@ -199,10 +213,11 @@ static void session_check(void)
 	   TERMINATING => FINALISED.
 	 */
 	session_init_and_establish();
-	session_establish_reply();
+	session_establish_reply(0);
+	C2_UT_ASSERT(session_state(&session) == C2_RPC_SESSION_IDLE);
 	session_hold_release();
 	session_terminate();
-	session_terminate_reply_and_fini();
+	session_terminate_reply_and_fini(0);
 }
 
 static void session_init_fail_test(void)
@@ -255,29 +270,31 @@ static void session_establish_reply_fail_test(void)
 	 */
 	session_init_and_establish();
 
-	est_ctx.sec_fop.f_item.ri_error = -EINVAL;
-	c2_rpc_machine_lock(&machine);
-	c2_rpc_session_establish_reply_received(&est_ctx.sec_fop.f_item);
+	session_establish_reply(-EINVAL);
 	C2_UT_ASSERT(session.s_sm.sm_rc == -EINVAL);
-	c2_rpc_machine_unlock(&machine);
 	C2_UT_ASSERT(session_state(&session) == C2_RPC_SESSION_FAILED);
 
 	c2_rpc_session_fini(&session);
-	est_ctx.sec_fop.f_item.ri_error = 0;
 
 	/* Due to invalid sender id. */
 	session_init_and_establish();
 
 	est_reply.rser_sender_id = SENDER_ID_INVALID;
-	c2_rpc_machine_lock(&machine);
-	c2_rpc_session_establish_reply_received(&est_ctx.sec_fop.f_item);
+	session_establish_reply(0);
 	C2_UT_ASSERT(session.s_sm.sm_rc == -EPROTO);
-	c2_rpc_machine_unlock(&machine);
 	C2_UT_ASSERT(session_state(&session) == C2_RPC_SESSION_FAILED);
 
 	c2_rpc_session_fini(&session);
-	est_reply.rser_sender_id = SENDER_ID; /* restore */
 
+	/* Due to error in establish reply fop. */
+	session_init_and_establish();
+
+	est_reply.rser_rc = -EINVAL;
+	session_establish_reply(0);
+	C2_UT_ASSERT(session.s_sm.sm_rc == -EINVAL);
+	C2_UT_ASSERT(session_state(&session) == C2_RPC_SESSION_FAILED);
+
+	c2_rpc_session_fini(&session);
 }
 
 static void session_terminate_fail_test(void)
@@ -286,7 +303,7 @@ static void session_terminate_fail_test(void)
 
 	/* Checks for session C2_RPC_SESSION_IDLE => C2_RPC_SESSION_FAILED */
 	session_init_and_establish();
-	session_establish_reply();
+	session_establish_reply(0);
 
 	c2_fi_enable_once("c2_alloc", "fail_allocation");
 	rc = c2_rpc_session_terminate(&session);
@@ -297,7 +314,7 @@ static void session_terminate_fail_test(void)
 
 	/* Due to c2_rpc__fop_post() failure. */
 	session_init_and_establish();
-	session_establish_reply();
+	session_establish_reply(0);
 
 	c2_fi_enable_once("c2_rpc__fop_post", "fake_error");
 	rc = c2_rpc_session_terminate(&session);
@@ -311,18 +328,10 @@ static void session_terminate_reply_fail_test(void)
 {
 	/* Checks for Conn C2_RPC_SESSION_TERMINATING => C2_RPC_SESSION_FAILED */
 	session_init_and_establish();
-	session_establish_reply();
+	session_establish_reply(0);
 	session_terminate();
 
-	term_fop.f_item.ri_error = -EINVAL;
-	c2_rpc_machine_lock(&machine);
-	c2_rpc_session_terminate_reply_received(&term_fop.f_item);
-	c2_rpc_machine_unlock(&machine);
-	C2_UT_ASSERT(session.s_sm.sm_rc == -EINVAL);
-	C2_UT_ASSERT(session_state(&session) == C2_RPC_SESSION_FAILED);
-
-	c2_rpc_session_fini(&session);
-	term_fop.f_item.ri_error = 0;
+	session_terminate_reply_and_fini(-EINVAL);
 }
 
 const struct c2_test_suite session_ut = {

@@ -813,7 +813,7 @@ enum c2_rpc_session_state {
    rc = c2_rpc_session_establish(session);
 
    rc = c2_rpc_session_timedwait(session, C2_BITS(C2_RPC_SESSION_IDLE,
-					          C2_RPC_SESSION_FAILED,
+					          C2_RPC_SESSION_FAILED),
 				 timeout);
 
    if (rc == 0 && session_state(session) == C2_RPC_SESSION_IDLE) {
