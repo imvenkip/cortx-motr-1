@@ -820,6 +820,13 @@ struct io_request_ops {
          */
         int (*iro_iomaps_prepare) (struct io_request  *req);
 
+	/**
+	 * Finalizes and deallocates pargrp_iomap structures.
+	 * @pre  req != NULL && req->ir_iomaps != NULL.
+	 * @post req->ir_iomaps == NULL && req->ir_iomap_nr == 0.
+	 */
+	void (*iro_iomaps_destroy)(struct io_request  *req);
+
         /**
          * Copies data from/to user-space to/from kernel-space according
          * to given direction and page filter.

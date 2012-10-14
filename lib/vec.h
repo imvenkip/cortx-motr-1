@@ -31,6 +31,10 @@
 #include "lib/linux_kernel/vec.h"
 #endif
 
+/* import */
+struct c2_addb_ctx;
+struct c2_addb_loc;
+
 /**
    @defgroup vec Vectors
    @{
@@ -195,6 +199,27 @@ void c2_bufvec_free(struct c2_bufvec *bufvec);
    @see c2_bufvec_alloc_aligned()
  */
 void c2_bufvec_free_aligned(struct c2_bufvec *bufvec, unsigned shift);
+
+/**
+ * Allocate memory for index array and counts array in index vector.
+ * @param len Number of elements to allocate memory for.
+ * @param ctx Addb context to log addb messages in case of failure.
+ * @param loc Addb location to log addb messages in.
+ * @pre   ivec != NULL && len > 0.
+ * @post  ivec->iv_index != NULL && ivec->iv_vec.v_count != NULL &&
+ * 	  ivec->iv_vec.v_nr == len.
+ */
+int c2_indexvec_alloc(struct c2_indexvec *ivec, uint32_t len,
+		      struct c2_addb_ctx *ctx,  const struct c2_addb_loc *loc);
+
+/**
+ * Deallocates the memory buffers pointed to by index array and counts array.
+ * Also sets the array count to zero.
+ * @pre  ivec != NULL && ivec->iv_vec.v_nr > 0.
+ * @post ivec->iv_index == NULL && ivec->iv_vec.v_count == NULL &&
+ *       ivec->iv_vec.v_nr == 0.
+ */
+void c2_indexvec_free(struct c2_indexvec *ivec);
 
 /** Cursor to traverse a bufvec */
 struct c2_bufvec_cursor {

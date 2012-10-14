@@ -158,16 +158,16 @@ bool c2_mod_ge(uint64_t x0, uint64_t x1)
 	return getdelta(x0, x1) >= 0;
 }
 
-uint64_t c2_round_down(uint64_t val, uint64_t size)
-{
-        C2_PRE(size != 0);
-        return (val / size) * size;
-}
-
 uint64_t c2_round_up(uint64_t val, uint64_t size)
 {
-        C2_PRE(size != 0);
-        return (val / size + 1) * size;
+	C2_PRE(c2_is_po2(size));
+	return (val + size - 1) & ~(size - 1) ;
+}
+
+uint64_t c2_round_down(uint64_t val, uint64_t size)
+{
+	C2_PRE(c2_is_po2(size));
+	return val & ~(size - 1);
 }
 
 /*

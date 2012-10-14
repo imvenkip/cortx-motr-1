@@ -193,6 +193,45 @@ void c2_bufvec_free_aligned(struct c2_bufvec *bufvec, unsigned shift)
 }
 C2_EXPORTED(c2_bufvec_free_aligned);
 
+int c2_indexvec_alloc(struct c2_indexvec       *ivec,
+		      uint32_t                  len,
+		      struct c2_addb_ctx       *ctx,
+		      const struct c2_addb_loc *loc)
+{
+	C2_PRE(ivec != NULL);
+	C2_PRE(len   > 0);
+
+	C2_ALLOC_ARR_ADDB(ivec->iv_index, len, ctx, loc);
+	if (ivec->iv_index == NULL)
+		return -ENOMEM;
+
+	C2_ALLOC_ARR_ADDB(ivec->iv_vec.v_count, len, ctx, loc);
+	if (ivec->iv_vec.v_count == NULL) {
+		c2_free(ivec->iv_index);
+		return -ENOMEM;
+	}
+
+	ivec->iv_vec.v_nr = len;
+	return 0;
+}
+
+void c2_indexvec_free(struct c2_indexvec *ivec)
+{
+	C2_PRE(ivec != NULL);
+	C2_PRE(ivec->iv_vec.v_nr > 0);
+
+	if (ivec->iv_index != NULL) {
+		c2_free(ivec->iv_index);
+		ivec->iv_index = NULL;
+	}
+
+	if (ivec->iv_vec.v_count != NULL) {
+		c2_free(ivec->iv_vec.v_count);
+		ivec->iv_vec.v_count = NULL;
+	}
+	ivec->iv_vec.v_nr = 0;
+}
+
 void  c2_bufvec_cursor_init(struct c2_bufvec_cursor *cur,
 			    struct c2_bufvec *bvec)
 {
