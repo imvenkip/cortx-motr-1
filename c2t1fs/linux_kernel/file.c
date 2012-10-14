@@ -1405,6 +1405,30 @@ static inline uint32_t parity_row_nr(struct c2_pdclust_layout *play)
         return data_row_nr(play);
 }
 
+static inline uint64_t round_down(uint64_t val, uint64_t size)
+{
+	C2_PRE(c2_is_po2(size));
+
+	/*
+	 * Returns current value if it is already a multiple of size,
+	 * else c2_round_down() is invoked.
+	 */
+	return (val & (size - 1)) == 0 ?
+	       val : c2_round_down(val, size);
+}
+
+static inline uint64_t round_up(uint64_t val, uint64_t size)
+{
+	C2_PRE(c2_is_po2(size));
+
+	/*
+	 * Returns current value if it is already a multiple of size,
+	 * else c2_round_up() is invoked.
+	 */
+	return (val & (size - 1)) == 0 ?
+	       val : c2_round_up(val, size);
+}
+
 /**
  * Returns the position of page in matrix of data buffers.
  * @param map - Concerned parity group data structure.
@@ -2713,14 +2737,14 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
                 }
 
                 INDEX(&map->pi_ivec, seg) =
-			c2_round_down(c2_ivec_cursor_index(cursor),
-				      PAGE_CACHE_SIZE);
+			round_down(c2_ivec_cursor_index(cursor),
+			           PAGE_CACHE_SIZE);
 
                 endpos = min64u(grpend, c2_ivec_cursor_index(cursor) +
                                 c2_ivec_cursor_step(cursor));
 
                 COUNT(&map->pi_ivec, seg) =
-			c2_round_up(endpos, PAGE_CACHE_SIZE) -
+			round_up(endpos, PAGE_CACHE_SIZE) -
 			INDEX(&map->pi_ivec, seg);
 
                 /* For read IO request, IO should not go beyond EOF. */
