@@ -79,7 +79,8 @@ addb_linux_kernel_SOURCES       := addb_console.c
 #       If there's a directory 'd' in $(dirs) then the listing of files given
 #       for d_SOURCES is relative to $(CORE_SRCDIR)/d;
 
-c2t1fs_linux_kernel_SOURCES     := c2t1fs.c super.c inode.c dir.c file.c
+c2t1fs_linux_kernel_SOURCES     := c2t1fs.c super.c inode.c dir.c
+c2t1fs_linux_kernel_ut_SOURCES  := file.c
 
 c2t1fs_linux_kernel_c2loop_SOURCES     := c2loop.c
 c2t1fs_linux_kernel_ut_c2loop_SOURCES  := c2loop.c
