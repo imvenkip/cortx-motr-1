@@ -1851,9 +1851,10 @@ err:
 
 static int ioreq_iosm_handle(struct io_request *req)
 {
-	int		   rc;
-	int		   res;
-        uint64_t           map;
+	int            rc;
+	int            res;
+        uint64_t       map;
+	struct inode *inode;
 
         C2_ENTRY("io_request %p", req);
         C2_PRE(io_request_invariant(req));
@@ -1885,7 +1886,7 @@ static int ioreq_iosm_handle(struct io_request *req)
                                 goto fail;
 		}
 		ioreq_sm_state_set(req, state);
-		rc = nw_xfer_req_dispatch(&req->ir_nwxfer);
+		rc = req->ir_nwxfer.nxr_ops->nxo_dispatch(&req->ir_nwxfer);
 		if (rc != 0)
 			goto fail;
 
@@ -1905,7 +1906,7 @@ static int ioreq_iosm_handle(struct io_request *req)
                 }
         } else {
 		ioreq_sm_state_set(req, IRS_READING);
-		rc = nw_xfer_req_dispatch(&req->ir_nwxfer);
+		rc = req->ir_nwxfer.nxr_ops->nxo_dispatch(&req->ir_nwxfer);
 		if (rc != 0)
 			goto fail;
 
@@ -1938,7 +1939,7 @@ static int ioreq_iosm_handle(struct io_request *req)
                 if (rc != 0)
                         goto fail;
 
-		rc = nw_xfer_req_dispatch(&req->ir_nwxfer);
+		rc = req->ir_nwxfer.nxr_ops->nxo_dispatch(&req->ir_nwxfer);
 		if (rc != 0)
 			goto fail;
 
@@ -1948,6 +1949,19 @@ static int ioreq_iosm_handle(struct io_request *req)
 			goto fail;
         }
 
+	/*
+	 * Updates file size on successful write IO.
+	 * New file size is maximum value between old file size and
+	 * valid file position written in current write IO call.
+	 */
+	inode = req->ir_file->f_dentry->d_inode;
+	if (req->ir_sm.sm_state == IRS_WRITE_COMPLETE) {
+		inode->i_size = max64u(inode->i_size,
+				       INDEX(&req->ir_ivec,
+					     req->ir_ivec.iv_vec.v_nr - 1) +
+				       COUNT(&req->ir_ivec,
+					     req->ir_ivec.iv_vec.v_nr - 1));
+	}
         req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer, false);
 	C2_RETURN(0);
 fail:

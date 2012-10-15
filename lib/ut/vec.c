@@ -145,7 +145,11 @@ static void test_ivec_cursor(void)
 	C2_UT_ASSERT(cur.ic_cur.vc_seg    == 0);
 	C2_UT_ASSERT(cur.ic_cur.vc_offset == 0);
 
-	C2_UT_ASSERT(c2_ivec_cursor_move(&cur, 4096));
+	C2_UT_ASSERT(c2_ivec_cursor_step(&cur)  == 4096);
+	C2_UT_ASSERT(c2_ivec_cursor_index(&cur) == 0);
+	C2_UT_ASSERT(!c2_ivec_cursor_move(&cur, 2048));
+	C2_UT_ASSERT(c2_ivec_cursor_index(&cur) == 2048);
+	C2_UT_ASSERT(c2_ivec_cursor_move(&cur, 2048));
 
 	c2_ivec_cursor_init(&cur, &ivec);
 	c = 0;
