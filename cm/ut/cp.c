@@ -27,7 +27,8 @@
 #include "sns/repair/cp.c"
 #include "cm/ag.h"
 
-static struct c2_reqh  reqh;
+static struct c2_reqh      reqh;
+static struct c2_semaphore sem;
 
 /** Single thread test vars. */
 static struct c2_sns_repair_cp s_sns_cp;
@@ -49,9 +50,16 @@ static int dummy_cp_xform(struct c2_cm_cp *cp)
 	return C2_FSO_AGAIN;
 }
 
+static int dummy_cp_init(struct c2_cm_cp *cp)
+{
+	int rc = cp_init(cp);
+	c2_semaphore_up(&sem);
+	return rc;
+}
+
 const struct c2_cm_cp_ops c2_sns_repair_cp_dummy_ops = {
         .co_action = {
-                [C2_CCP_INIT]  = &cp_init,
+                [C2_CCP_INIT]  = &dummy_cp_init,
                 [C2_CCP_READ]  = &cp_read,
                 [C2_CCP_WRITE] = &cp_write,
                 [C2_CCP_XFORM] = &dummy_cp_xform,
@@ -114,6 +122,7 @@ static void cp_post(struct c2_sns_repair_cp *sns_cp,
 	/** Over-ride the fom ops. */
 	cp->c_fom.fo_ops = &dummy_cp_fom_ops;
 	c2_fom_queue(&cp->c_fom, &reqh);
+	c2_semaphore_down(&sem);
 }
 
 /**
@@ -122,12 +131,14 @@ static void cp_post(struct c2_sns_repair_cp *sns_cp,
  */
 static void test_cp_single_thread(void)
 {
+	c2_semaphore_init(&sem, 0);
 	cp_post(&s_sns_cp, &s_ag, &s_bv);
         /**
          * Wait until all the foms in the request handler locality runq are
          * processed.
          */
         c2_reqh_shutdown_wait(&reqh);
+	c2_semaphore_fini(&sem);
 }
 
 static void cp_op(const int tid)
@@ -143,6 +154,8 @@ static void test_cp_multi_thread(void)
 {
 	int               i;
 	struct c2_thread *cp_thread;
+
+	c2_semaphore_init(&sem, 0);
 
         C2_ALLOC_ARR(cp_thread, THREADS_NR);
         C2_UT_ASSERT(cp_thread != NULL);
@@ -161,6 +174,7 @@ static void test_cp_multi_thread(void)
          */
         c2_reqh_shutdown_wait(&reqh);
         c2_free(cp_thread);
+	c2_semaphore_fini(&sem);
 }
 
 /**

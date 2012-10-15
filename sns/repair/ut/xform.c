@@ -22,6 +22,7 @@
 #include "config.h"
 #endif
 
+#include "lib/misc.h"
 #include "lib/processor.h"
 #include "lib/ut.h"
 #include "reqh/reqh.h"
@@ -33,10 +34,11 @@ enum {
 	NR = 16,
 	SEG_SIZE = 256,
 	CP_SINGLE = 1,
-	CP_MULTI = 64,
+	CP_MULTI = 512,
 };
 
-static struct c2_reqh	       reqh;
+static struct c2_reqh      reqh;
+static struct c2_semaphore sem;
 
 /**
  * Global structures for single copy packet test.
@@ -137,6 +139,7 @@ static int dummy_fom_tick(struct c2_fom *fom)
 	switch (c2_fom_phase(fom)) {
 	case C2_FOM_PHASE_INIT:
 		c2_fom_phase_set(fom, C2_CCP_XFORM);
+		c2_semaphore_up(&sem);
 		return cp->c_ops->co_action[C2_CCP_XFORM](cp);
 	case C2_CCP_FINI:
                 return C2_FSO_WAIT;
@@ -206,6 +209,7 @@ static void cp_prepare(struct c2_cm_cp *cp, struct c2_bufvec *bv,
  */
 static void test_single_cp(void)
 {
+	c2_semaphore_init(&sem, 0);
 	c2_atomic64_set(&s_sag.sag_base.cag_transformed_cp_nr, 0);
 	cp_prepare(&s_cp, &s_bv, &s_sag, 'e', &single_cp_fom_ops);
 	s_cp.c_ag->cag_ops = &group_single_ops;
@@ -214,7 +218,7 @@ static void test_single_cp(void)
 	/**
 	 * Wait till ast gets posted.
 	 */
-	sleep(1);
+	c2_semaphore_down(&sem);
 	/**
 	 * Wait until all the foms in the request handler locality runq are
 	 * processed. This is required for further validity checks.
@@ -228,6 +232,7 @@ static void test_single_cp(void)
         C2_UT_ASSERT(c2_atomic64_get(&s_sag.sag_base.cag_transformed_cp_nr) ==
 		     0);
         C2_UT_ASSERT(s_sag.sag_base.cag_cp_nr == 1);
+	c2_semaphore_fini(&sem);
 }
 
 /**
@@ -237,18 +242,16 @@ static void test_single_cp(void)
 static void test_multiple_cp(void)
 {
 	int i;
+
+	c2_semaphore_init(&sem, 0);
 	c2_atomic64_set(&m_sag.sag_base.cag_transformed_cp_nr, 0);
 	for (i = 0; i < CP_MULTI; ++i) {
 		cp_prepare(&m_cp[i], &m_bv[i], &m_sag, 'r',
 			   &multiple_cp_fom_ops);
 		m_cp[i].c_ag->cag_ops = &group_multi_ops;
 		c2_fom_queue(&m_cp[i].c_fom, &reqh);
+		c2_semaphore_down(&sem);
 	}
-
-	/**
-	 * Wait till ast gets posted.
-	 */
-	sleep(2);
 
 	/**
 	 * Wait until the fom in the request handler locality runq is
@@ -263,6 +266,7 @@ static void test_multiple_cp(void)
         C2_UT_ASSERT(c2_atomic64_get(&m_sag.sag_base.cag_transformed_cp_nr) ==
 		     CP_MULTI);
 	C2_UT_ASSERT(m_sag.sag_base.cag_cp_nr == CP_MULTI);
+	c2_semaphore_fini(&sem);
 }
 
 /**
