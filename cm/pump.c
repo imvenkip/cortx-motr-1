@@ -185,11 +185,6 @@ static int cpp_fail(struct c2_cm_cp_pump *cp_pump)
 	return C2_FSO_WAIT;
 }
 
-static int cpp_fini(struct c2_cm_cp_pump *cp_pump)
-{
-	return C2_FSO_WAIT;
-}
-
 static const struct c2_sm_state_descr cm_cp_pump_sd[CPP_NR] = {
 	[CPP_ALLOC] = {
 		.sd_flags   = C2_SDF_INITIAL,
@@ -229,7 +224,6 @@ static int (*pump_action[]) (struct c2_cm_cp_pump *cp_pump) = {
 	[CPP_IDLE]	= cpp_idle,
 	[CPP_DATA_NEXT] = cpp_data_next,
 	[CPP_FAIL]      = cpp_fail,
-	[CPP_FINI]      = cpp_fini
 };
 
 static uint64_t cm_cp_pump_fom_locality(const struct c2_fom *fom)

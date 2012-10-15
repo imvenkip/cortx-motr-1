@@ -105,21 +105,16 @@ static int cp_recv(struct c2_cm_cp *cp)
 
 static int cp_phase_next(struct c2_cm_cp *cp)
 {
-	switch (c2_fom_phase(&cp->c_fom)) {
-	case C2_CCP_INIT:
-		c2_fom_phase_set(&cp->c_fom, C2_CCP_READ);
-		break;
-	case C2_CCP_READ:
-		c2_fom_phase_set(&cp->c_fom, C2_CCP_XFORM);
-		break;
-	case C2_CCP_XFORM:
-		c2_fom_phase_set(&cp->c_fom, C2_CCP_WRITE);
-		break;
-	case C2_CCP_WRITE:
-		c2_fom_phase_set(&cp->c_fom, C2_CCP_FINI);
-		return C2_FSO_WAIT;
-	}
-        return C2_FSO_AGAIN;
+	int phase = c2_fom_phase(&cp->c_fom);
+	const int next[] = {
+		[C2_CCP_INIT]  = C2_CCP_READ,
+		[C2_CCP_READ]  = C2_CCP_XFORM,
+		[C2_CCP_XFORM] = C2_CCP_WRITE,
+		[C2_CCP_WRITE] = C2_CCP_FINI
+	};
+
+	c2_fom_phase_set(&cp->c_fom, next[phase]);
+        return next[phase] == C2_CCP_FINI ? C2_FSO_WAIT : C2_FSO_AGAIN;
 }
 
 static void cp_complete(struct c2_cm_cp *cp)
