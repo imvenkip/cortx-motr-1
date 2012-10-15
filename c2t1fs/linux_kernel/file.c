@@ -1851,10 +1851,12 @@ err:
 
 static int ioreq_iosm_handle(struct io_request *req)
 {
-	int            rc;
-	int            res;
-        uint64_t       map;
-	struct inode *inode;
+	int                  rc;
+	int                  res;
+        uint64_t             map;
+	struct inode        *inode;
+	struct io_req_fop   *irfop;
+	struct target_ioreq *ti;
 
         C2_ENTRY("io_request %p", req);
         C2_PRE(io_request_invariant(req));
@@ -1905,10 +1907,23 @@ static int ioreq_iosm_handle(struct io_request *req)
                                 ioreq_sm_failed(req, rc);
                 }
         } else {
-		ioreq_sm_state_set(req, IRS_READING);
-		rc = req->ir_nwxfer.nxr_ops->nxo_dispatch(&req->ir_nwxfer);
-		if (rc != 0)
-			goto fail;
+		c2_bcount_t read_bytes = 0;
+
+		c2_tl_for (tioreqs, &req->ir_nwxfer.nxr_tioreqs, ti) {
+			c2_tl_for (iofops, &ti->ti_iofops, irfop) {
+				read_bytes += c2_io_fop_byte_count(&irfop->
+								   irf_iofop);
+			} c2_tl_endfor;
+		} c2_tl_endfor;
+
+		/* Read IO is issued only if byte count > 0. */
+		if (read_bytes > 0) {
+			ioreq_sm_state_set(req, IRS_READING);
+			rc = req->ir_nwxfer.nxr_ops->nxo_dispatch(&req->
+								  ir_nwxfer);
+			if (rc != 0)
+				goto fail;
+		}
 
                 /*
                  * If fops dispatch fails, we need to wait till all io fop
@@ -1918,13 +1933,16 @@ static int ioreq_iosm_handle(struct io_request *req)
 		res = req->ir_ops->iro_user_data_copy(req, CD_COPY_FROM_USER,
 						      PA_FULLPAGE_MODIFY);
 
-		rc = c2_sm_timedwait(&req->ir_sm, IRS_READ_COMPLETE,
-				     C2_TIME_NEVER);
+		/* Waits for read completion if read IO was issued. */
+		if (read_bytes > 0) {
+			rc = c2_sm_timedwait(&req->ir_sm, IRS_READ_COMPLETE,
+					C2_TIME_NEVER);
 
-		if (res != 0 || rc != 0) {
-                        rc = res != 0 ? res : rc;
-			goto fail;
-                }
+			if (res != 0 || rc != 0) {
+				rc = res != 0 ? res : rc;
+				goto fail;
+			}
+		}
 
 		rc = req->ir_ops->iro_user_data_copy(req, CD_COPY_FROM_USER,
 						     PA_PARTPAGE_MODIFY);
@@ -2169,7 +2187,7 @@ static void target_ioreq_fini(struct target_ioreq *ti)
         ti->ti_session = NULL;
         ti->ti_nwxfer  = NULL;
 
-        c2_free(&ti->ti_ivec);
+        c2_indexvec_free(&ti->ti_ivec);
         c2_free(ti->ti_bufvec.ov_buf);
         c2_free(ti->ti_bufvec.ov_vec.v_count);
         c2_free(ti->ti_pageattrs);
@@ -2384,6 +2402,8 @@ static void io_req_fop_fini(struct io_req_fop *fop)
         iofops_tlink_fini(fop);
         io_req_fop_bob_fini(fop);
         fop->irf_tioreq = NULL;
+	fop->irf_ast.sa_cb = NULL;
+	fop->irf_ast.sa_mach = NULL;
         C2_LEAVE();
 }
 
@@ -2858,20 +2878,32 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti)
                        maxsize) {
 
                         delta += io_seg_size();
-                        rc = c2_rpc_bulk_buf_databuf_add(rbuf,
-                                                ti->ti_bufvec.ov_buf[buf],
-                                                COUNT(&ti->ti_ivec, buf),
-                                                INDEX(&ti->ti_ivec, buf), ndom);
+			/*
+			 * Adds a page to rpc bulk buffer only if it passes
+			 * throught the filter.
+			 */
+			if (ti->ti_pageattrs[buf] & pattr) {
+				rc = c2_rpc_bulk_buf_databuf_add(rbuf,
+						ti->ti_bufvec.ov_buf[buf],
+						COUNT(&ti->ti_ivec, buf),
+						INDEX(&ti->ti_ivec, buf), ndom);
 
-                        if (rc == -EMSGSIZE) {
-                                delta -= io_seg_size();
-                                rc     = bulk_buffer_add(irfop, ndom, &rbuf,
-                                                         &delta, maxsize);
-                                if (rc != 0)
-                                        goto fini_fop;
+				if (rc == -EMSGSIZE) {
+					delta -= io_seg_size();
+					rc     = bulk_buffer_add(irfop, ndom,
+							&rbuf, &delta, maxsize);
+					if (rc != 0)
+						goto fini_fop;
 
-                                continue;
-                        }
+					/*
+					 * Since current bulk buffer is full,
+					 * new bulk buffer is added and
+					 * existing segment is attempted to
+					 * be added to new bulk buffer.
+					 */
+					continue;
+				}
+			}
                         ++buf;
                 }
 

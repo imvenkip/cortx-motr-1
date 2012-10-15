@@ -154,11 +154,13 @@ static void ds_test(void)
         int                   cnt;
 	uint64_t              size;
 	struct c2_fid         cfid;
+	struct data_buf      *dbuf;
         struct io_request     req;
         struct iovec          iovec_arr[IOVEC_NR];
         struct c2_indexvec    ivec;
 	struct pargrp_iomap  *map;
 	struct target_ioreq   ti;
+	struct io_req_fop    *irfop;
 	struct c2_rpc_session session;
 
         C2_ALLOC_ARR(ivec.iv_vec.v_count, IOVEC_NR);
@@ -174,6 +176,7 @@ static void ds_test(void)
                 ivec.iv_vec.v_count[cnt] = IOVEC_BUF_LEN;
         }
 
+	/* io_request attributes test. */
         rc = io_request_init(&req, &lfile, iovec_arr, &ivec, IRT_WRITE);
         C2_UT_ASSERT(rc == 0);
         C2_UT_ASSERT(req.ir_rc == 0);
@@ -201,6 +204,9 @@ static void ds_test(void)
         C2_UT_ASSERT(req.ir_nwxfer.nxr_state == NXS_INITIALIZED);
 
         /* pargrp_iomap attributes test. */
+	rc = ioreq_iomaps_prepare(&req);
+	C2_UT_ASSERT(rc == 0);
+
 	C2_UT_ASSERT(req.ir_iomap_nr == 1);
 	map = req.ir_iomaps[0];
 	C2_UT_ASSERT(map->pi_magic == C2_T1FS_PGROUP_MAGIC);
@@ -211,13 +217,13 @@ static void ds_test(void)
 	C2_UT_ASSERT(map->pi_ivec.iv_index[1] == PAGE_CACHE_SIZE * 5);
 	C2_UT_ASSERT(map->pi_ivec.iv_vec.v_count[0] == PAGE_CACHE_SIZE);
 	C2_UT_ASSERT(map->pi_ivec.iv_vec.v_count[1] == PAGE_CACHE_SIZE);
-	C2_UT_ASSERT(map->pi_rtype == PIR_READOLD);
-	C2_UT_ASSERT(map->pi_databufs != NULL);
+	C2_UT_ASSERT(map->pi_rtype      == PIR_READOLD);
+	C2_UT_ASSERT(map->pi_databufs   != NULL);
 	C2_UT_ASSERT(map->pi_paritybufs != NULL);
-	C2_UT_ASSERT(map->pi_ops != NULL);
-	C2_UT_ASSERT(map->pi_ioreq == &req);
-	C2_UT_ASSERT(map->pi_databufs[1][1] != NULL);
-	C2_UT_ASSERT(map->pi_databufs[1][2] != NULL);
+	C2_UT_ASSERT(map->pi_ops        != NULL);
+	C2_UT_ASSERT(map->pi_ioreq      == &req);
+	C2_UT_ASSERT(map->pi_databufs[1][1]   != NULL);
+	C2_UT_ASSERT(map->pi_databufs[1][2]   != NULL);
 	C2_UT_ASSERT(map->pi_paritybufs[0][0] != NULL);
 	C2_UT_ASSERT(map->pi_paritybufs[1][0] != NULL);
 	C2_UT_ASSERT(map->pi_paritybufs[2][0] != NULL);
@@ -226,17 +232,92 @@ static void ds_test(void)
 	cfid.f_key	 = 5;
 	size             = c2_vec_count(&map->pi_ivec.iv_vec) /
 			   (LAY_N + 2 * LAY_K);
+
+	/* target_ioreq attributes test. */
 	rc = target_ioreq_init(&ti, &req.ir_nwxfer, &cfid, &session, size);
-	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(rc       == 0);
 	C2_UT_ASSERT(ti.ti_rc == 0);
 	C2_UT_ASSERT(c2_fid_eq(&ti.ti_fid, &cfid));
 	C2_UT_ASSERT(ti.ti_bytes   == 0);
 	C2_UT_ASSERT(ti.ti_nwxfer  == &req.ir_nwxfer);
 	C2_UT_ASSERT(ti.ti_session == &session);
 	C2_UT_ASSERT(ti.ti_magic   == C2_T1FS_TIOREQ_MAGIC);
-	C2_UT_ASSERT(ti.ti_ivec.iv_vec.v_nr == ti.ti_bufvec.ov_vec.v_nr);
-	C2_UT_ASSERT(ti.ti_ivec.iv_index != NULL);
+	C2_UT_ASSERT(iofops_tlist_is_empty(&ti.ti_iofops));
+	C2_UT_ASSERT(ti.ti_ivec.iv_vec.v_nr    == ti.ti_bufvec.ov_vec.v_nr);
+	C2_UT_ASSERT(ti.ti_ivec.iv_index       != NULL);
 	C2_UT_ASSERT(ti.ti_ivec.iv_vec.v_count != NULL);
+	C2_UT_ASSERT(ti.ti_pageattrs != NULL);
+	C2_UT_ASSERT(ti.ti_ops       != NULL);
+
+	/* io_req_fop attributes test. */
+	C2_ALLOC_PTR(irfop);
+	C2_UT_ASSERT(irfop != NULL);
+	rc = io_req_fop_init(irfop, &ti); 
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(irfop->irf_magic == C2_T1FS_IOFOP_MAGIC);
+	C2_UT_ASSERT(irfop->irf_tioreq == &ti);
+	C2_UT_ASSERT(irfop->irf_ast.sa_cb == io_bottom_half);
+	C2_UT_ASSERT(irfop->irf_iofop.if_fop.f_item.ri_ops == &c2t1fs_item_ops);
+	C2_UT_ASSERT(irfop->irf_ast.sa_mach == &req.ir_sm);
+
+	/* data_buf attributes test. */
+	dbuf = data_buf_alloc_init(0);
+	C2_UT_ASSERT(dbuf           != NULL);
+	C2_UT_ASSERT(dbuf->db_flags == 0);
+	C2_UT_ASSERT(dbuf->db_magic == C2_T1FS_DTBUF_MAGIC);
+	C2_UT_ASSERT(dbuf->db_buf.b_addr != NULL);
+	C2_UT_ASSERT(dbuf->db_buf.b_nob  == PAGE_CACHE_SIZE);
+	C2_UT_ASSERT(dbuf->db_auxbuf.b_addr == NULL);
+	C2_UT_ASSERT(dbuf->db_auxbuf.b_nob  == 0);
+
+	data_buf_dealloc_fini(dbuf);
+	dbuf = NULL;
+
+	io_req_fop_fini(irfop);
+	C2_UT_ASSERT(irfop->irf_magic       == 0);
+	C2_UT_ASSERT(irfop->irf_tioreq      == NULL);
+	C2_UT_ASSERT(irfop->irf_ast.sa_cb   == NULL);
+	C2_UT_ASSERT(irfop->irf_ast.sa_mach == NULL);
+	c2_free(irfop);
+	irfop = NULL;
+
+	target_ioreq_fini(&ti);
+	C2_UT_ASSERT(ti.ti_magic     == 0);
+	C2_UT_ASSERT(ti.ti_ops       == NULL);
+	C2_UT_ASSERT(ti.ti_session   == NULL);
+	C2_UT_ASSERT(ti.ti_nwxfer    == NULL);
+	C2_UT_ASSERT(ti.ti_pageattrs == NULL);
+	C2_UT_ASSERT(ti.ti_ivec.iv_index         == NULL);
+	C2_UT_ASSERT(ti.ti_ivec.iv_vec.v_count   == NULL);
+	C2_UT_ASSERT(ti.ti_bufvec.ov_buf         == NULL);
+	C2_UT_ASSERT(ti.ti_bufvec.ov_vec.v_count == NULL);
+
+	pargrp_iomap_fini(map);
+	C2_UT_ASSERT(map->pi_ops   == NULL);
+	C2_UT_ASSERT(map->pi_rtype == PIR_NONE);
+	C2_UT_ASSERT(map->pi_magic == 0);
+	C2_UT_ASSERT(map->pi_ivec.iv_index       == NULL);
+	C2_UT_ASSERT(map->pi_ivec.iv_vec.v_count == NULL);
+	C2_UT_ASSERT(map->pi_databufs   == NULL);
+	C2_UT_ASSERT(map->pi_paritybufs == NULL);
+	C2_UT_ASSERT(map->pi_ioreq      == NULL);
+
+	c2_free(map);
+	map = NULL;
+	req.ir_iomaps[0] = NULL;
+	req.ir_iomap_nr  = 0;
+
+	io_request_fini(&req);
+	C2_UT_ASSERT(req.ir_file   == NULL);
+	C2_UT_ASSERT(req.ir_iovec  == NULL);
+	C2_UT_ASSERT(req.ir_iomaps == NULL);
+	C2_UT_ASSERT(req.ir_ops    == NULL);
+	C2_UT_ASSERT(req.ir_ivec.iv_index       == NULL);
+	C2_UT_ASSERT(req.ir_ivec.iv_vec.v_count == NULL);
+	C2_UT_ASSERT(tioreqs_tlist_is_empty(&req.ir_nwxfer.nxr_tioreqs));
+
+	C2_UT_ASSERT(req.ir_nwxfer.nxr_ops == NULL);
+	C2_UT_ASSERT(req.ir_nwxfer.nxr_magic == 0);
 }
 
 static int file_io_ut_fini(void)

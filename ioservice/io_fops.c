@@ -1543,6 +1543,20 @@ static void item_io_coalesce(struct c2_rpc_item *head, struct c2_list *list,
 	}
 }
 
+c2_bcount_t c2_io_fop_byte_count(struct c2_io_fop *iofop)
+{
+	c2_bcount_t             count = 0;
+	struct c2_rpc_bulk_buf *rbuf;
+
+	C2_PRE(iofop != NULL);
+
+	c2_tl_for (rpcbulk, &iofop->if_rbulk.rb_buflist, rbuf) {
+		count += c2_vec_count(&rbuf->bb_zerovec.z_bvec.ov_vec);
+	} c2_tl_endfor;
+
+	return count;
+}
+
 static void io_fop_free_internal(struct c2_rpc_item *item)
 {
 	struct c2_fop    *fop;

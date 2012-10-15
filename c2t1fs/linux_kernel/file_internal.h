@@ -1127,7 +1127,7 @@ struct target_ioreq_ops {
 	 * This API uses rpc bulk API to store net buffer descriptors
 	 * in IO fops.
 	 * @pre   iofops_tlist_is_empty(ti->ti_iofops).
-	 * @post  !iofops_tlist_is_empty(ti->ti_iofops).
+	 * @post !iofops_tlist_is_empty(ti->ti_iofops).
 	 */
         int  (*tio_iofops_prepare) (struct target_ioreq *ti);
 };

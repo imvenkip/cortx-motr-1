@@ -1490,7 +1490,6 @@ void bulkio_server_read_write_multiple_nb(void)
 	op = C2_IOSERVICE_READV_OPCODE;
 	fop_create_populate(0, op, buf_nr);
         garb_add(bp->bp_rfops[0]);
-        /* XXX Confirm this change! */
 	bp->bp_rfops[0]->if_fop.f_type->ft_ops = &io_fop_rwv_ops;
 	targ.ta_index = 0;
 	targ.ta_op = op;
