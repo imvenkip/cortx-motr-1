@@ -1008,8 +1008,8 @@ static int ioreq_user_data_copy(struct io_request   *req,
 
 static void indexvec_sort(struct c2_indexvec *ivec)
 {
-        uint64_t i;
-        uint64_t j;
+        uint32_t i;
+        uint32_t j;
 
         C2_ENTRY("indexvec = %p", ivec);
         C2_PRE(ivec != NULL && c2_vec_count(&ivec->iv_vec) > 0);
@@ -1894,7 +1894,8 @@ static int ioreq_iosm_handle(struct io_request *req)
 
 		state = req->ir_type == IRT_READ ? IRS_READ_COMPLETE:
 						   IRS_WRITE_COMPLETE;
-		rc    = c2_sm_timedwait(&req->ir_sm, state, C2_TIME_NEVER);
+		rc    = c2_sm_timedwait(&req->ir_sm, (1 << state),
+				        C2_TIME_NEVER);
                 if (rc != 0)
                         ioreq_sm_failed(req, rc);
 
@@ -1935,8 +1936,8 @@ static int ioreq_iosm_handle(struct io_request *req)
 
 		/* Waits for read completion if read IO was issued. */
 		if (read_bytes > 0) {
-			rc = c2_sm_timedwait(&req->ir_sm, IRS_READ_COMPLETE,
-					C2_TIME_NEVER);
+			rc = c2_sm_timedwait(&req->ir_sm, (1 << IRS_READ_COMPLETE),
+					     C2_TIME_NEVER);
 
 			if (res != 0 || rc != 0) {
 				rc = res != 0 ? res : rc;
@@ -1961,7 +1962,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 		if (rc != 0)
 			goto fail;
 
-		rc = c2_sm_timedwait(&req->ir_sm, IRS_WRITE_COMPLETE,
+		rc = c2_sm_timedwait(&req->ir_sm, (1 << IRS_WRITE_COMPLETE),
 				     C2_TIME_NEVER);
 		if (rc != 0)
 			goto fail;
@@ -1994,7 +1995,8 @@ static int io_request_init(struct io_request  *req,
                            struct c2_indexvec *ivec,
                            enum io_req_type    rw)
 {
-        int rc;
+        int      rc;
+	uint32_t seg;
 
         C2_ENTRY("io_request %p, rw %d", req, rw);
         C2_PRE(req  != NULL);
@@ -2026,6 +2028,11 @@ static int io_request_init(struct io_request  *req,
 	       ivec->iv_vec.v_nr * sizeof ivec->iv_index[0]);
         memcpy(&req->ir_ivec.iv_vec.v_count, ivec->iv_vec.v_count,
 	       ivec->iv_vec.v_nr * sizeof ivec->iv_vec.v_count[0]);
+
+	for (seg = 0; seg < ivec->iv_vec.v_nr; ++seg) {
+		req->ir_ivec.iv_index[seg] = ivec->iv_index[seg];
+		req->ir_ivec.iv_vec.v_count[seg] = ivec->iv_vec.v_count[seg];
+	}
 
         /* Sorts the index vector in increasing order of file offset. */
         indexvec_sort(&req->ir_ivec);
@@ -2731,7 +2738,7 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 
 			rc = io_fops_async_submit(&irfop->irf_iofop,
                                                   ti->ti_session);
-			if (rc != 0);
+			if (rc != 0)
 				goto out;
 		} c2_tl_endfor;
 
