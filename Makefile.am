@@ -9,14 +9,16 @@ MAKEFLAGS = $(make_verbose)
 SUBDIRS_BASE = m4 doc man patches
 
 # xcode/ff2c must be built first, because it is used by other modules
-# to compile their .ff files.  addb/addbff, dtm/ and net/ are built
-# next, because their .ff files are used by other modules.  The rest
-# of modules can be built in arbitrary order, but please keep them
-# sorted lexicographically.
+# to compile their .ff files.  addb/addbff, dtm, lib, and net are
+# built next, because their .ff files are used by other modules.  The
+# rest of modules can be built in arbitrary order, but please keep
+# them sorted lexicographically.
 SUBDIRS_LIBS =                     \
                xcode/ff2c          \
-               dtm                 \
+                                   \
                addb/addbff         \
+               dtm                 \
+               lib                 \
                net                 \
                                    \
                addb                \
@@ -26,18 +28,17 @@ SUBDIRS_LIBS =                     \
                cfg                 \
                cm                  \
                cob                 \
+               conf                \
                console             \
                db                  \
                desim               \
                fid                 \
                fol                 \
                fop                 \
-               mdservice           \
-               mdstore 		   \
                ioservice           \
                layout              \
-               lib                 \
-               conf                \
+               mdservice           \
+               mdstore             \
                mw                  \
                pool                \
                reqh                \
@@ -104,9 +105,9 @@ SUBDIR_BIN = console/bin net/test/user_space utils
 
 SUBDIR_SCRIPT = scripts
 
-SUBDIRS    = $(SUBDIRS_BASE) $(SUBDIRS_LIBS) colibri $(SUBDIR_IT)    \
-             $(SUBDIR_UT) $(SUBDIR_ST) $(SUBDIR_KERNEL) $(SUBDIR_UB) \
-             $(SUBDIR_BIN) $(SUBDIR_SCRIPT)
+SUBDIRS = $(SUBDIRS_BASE) $(SUBDIRS_LIBS) colibri $(SUBDIR_IT)    \
+          $(SUBDIR_UT) $(SUBDIR_ST) $(SUBDIR_KERNEL) $(SUBDIR_UB) \
+          $(SUBDIR_BIN) $(SUBDIR_SCRIPT)
 
 # BUILT_SOURCES automake variable is a standard way to execute commands
 # before the main build commands (`make all`), for more information please
