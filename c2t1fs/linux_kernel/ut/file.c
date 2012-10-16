@@ -161,6 +161,7 @@ static void ds_test(void)
 	struct io_req_fop    *irfop;
 	struct c2_rpc_session session;
 
+	C2_SET0(&req);
 	rc = c2_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), NULL, NULL);
         C2_UT_ASSERT(rc == 0);
 
@@ -177,18 +178,16 @@ static void ds_test(void)
         C2_UT_ASSERT(rc == 0);
         C2_UT_ASSERT(req.ir_rc       == 0);
         C2_UT_ASSERT(req.ir_file     == &lfile);
-        C2_UT_ASSERT(req.ir_type     == IRT_READ);
+        C2_UT_ASSERT(req.ir_type     == IRT_WRITE);
         C2_UT_ASSERT(req.ir_iovec    == iovec_arr);
         C2_UT_ASSERT(req.ir_magic    == C2_T1FS_IOREQ_MAGIC);
-        C2_UT_ASSERT(req.ir_iomaps   != NULL);
-        C2_UT_ASSERT(req.ir_iomap_nr == 1);
         C2_UT_ASSERT(req.ir_ivec.iv_vec.v_nr    == IOVEC_NR);
         C2_UT_ASSERT(req.ir_sm.sm_state         == IRS_INITIALIZED);
         C2_UT_ASSERT(req.ir_ivec.iv_index       != NULL);
         C2_UT_ASSERT(req.ir_ivec.iv_vec.v_count != NULL);
 
         /* Index array should be sorted in increasing order of file offset. */
-        for (cnt = 0; cnt < IOVEC_NR; ++cnt)
+        for (cnt = 0; cnt < IOVEC_NR - 1; ++cnt)
                 C2_UT_ASSERT(req.ir_ivec.iv_index[cnt] <
                              req.ir_ivec.iv_index[cnt + 1]);
 
@@ -200,6 +199,7 @@ static void ds_test(void)
         C2_UT_ASSERT(req.ir_nwxfer.nxr_state == NXS_INITIALIZED);
 
         /* pargrp_iomap attributes test. */
+	req.ir_iomap_nr = 1;
 	rc = ioreq_iomaps_prepare(&req);
 	C2_UT_ASSERT(rc == 0);
 
@@ -408,17 +408,56 @@ static void pargrp_iomap_test(void)
 	}
 }
 
+static void helpers_test(void)
+{
+	uint32_t            i;
+	uint32_t            j;
+	uint32_t            row;
+	uint32_t            col;
+	c2_bindex_t         start = 0;
+	struct pargrp_iomap map;
+	struct io_request   req;
+
+	C2_UT_ASSERT(parity_units_page_nr(pdlay) ==
+			(UNIT_SIZE >> PAGE_CACHE_SHIFT) * LAY_K);
+
+	C2_UT_ASSERT(data_row_nr(pdlay)   == UNIT_SIZE >> PAGE_CACHE_SHIFT);
+	C2_UT_ASSERT(data_col_nr(pdlay)   == LAY_N);
+	C2_UT_ASSERT(parity_col_nr(pdlay) == LAY_K);
+
+	C2_UT_ASSERT(round_down(1000, 1024) == 0);
+	C2_UT_ASSERT(round_up(2000, 1024)   == 2048);
+	C2_UT_ASSERT(round_down(127, 2)     == 126);
+	C2_UT_ASSERT(round_up(127, 2)       == 128);
+	C2_UT_ASSERT(round_down(127, 256)   == 0);
+	C2_UT_ASSERT(round_up(127, 256)     == 256);
+
+	req.ir_file  = &lfile;
+	map = (struct pargrp_iomap) {
+		.pi_ioreq = &req,
+			.pi_grpid = 0,
+	};
+
+	for (i = 0; i < UNIT_SIZE / PAGE_CACHE_SIZE; ++i) {
+		for (j = 0; j < LAY_N; ++j) {
+			page_pos_get(&map, start, &row, &col);
+			C2_UT_ASSERT(row == j && col == i);
+			start += PAGE_CACHE_SIZE;
+		}
+	}
+}
+
 static int file_io_ut_fini(void)
 {
 	c2_free(lfile.f_dentry);
 	c2_layout_instance_fini(ci.ci_layout_instance);
 
-        c2_addb_ctx_fini(&c2t1fs_addb);
-        c2_sm_group_fini(&csb.csb_iogroup);
-        c2_chan_fini(&csb.csb_iowait);
+	c2_addb_ctx_fini(&c2t1fs_addb);
+	c2_sm_group_fini(&csb.csb_iogroup);
+	c2_chan_fini(&csb.csb_iowait);
 
-        /* Finalizes the c2_pdclust_layout type. */
-        c2_layout_put(&pdlay->pl_base.sl_base);
+	/* Finalizes the c2_pdclust_layout type. */
+	c2_layout_put(&pdlay->pl_base.sl_base);
 	return 0;
 }
 
@@ -428,7 +467,7 @@ const struct c2_test_suite file_io_ut = {
         .ts_fini  = file_io_ut_fini,
         .ts_tests = {
                 {"basic_data_structures_test",  ds_test},
-                //{"helper_routines_test",        helpers_test},
+                {"helper_routines_test",        helpers_test},
                 {"parity_group_test",           pargrp_iomap_test},
                 //{"target_ioreq_test",           target_ioreq_test},
         },

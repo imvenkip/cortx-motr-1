@@ -2027,11 +2027,6 @@ static int io_request_init(struct io_request  *req,
         if (rc != 0)
                 C2_RETERR(-ENOMEM, "Allocation failed for c2_indexvec");
 
-        memcpy(&req->ir_ivec.iv_index, ivec->iv_index,
-	       ivec->iv_vec.v_nr * sizeof ivec->iv_index[0]);
-        memcpy(&req->ir_ivec.iv_vec.v_count, ivec->iv_vec.v_count,
-	       ivec->iv_vec.v_nr * sizeof ivec->iv_vec.v_count[0]);
-
 	for (seg = 0; seg < ivec->iv_vec.v_nr; ++seg) {
 		req->ir_ivec.iv_index[seg] = ivec->iv_index[seg];
 		req->ir_ivec.iv_vec.v_count[seg] = ivec->iv_vec.v_count[seg];
@@ -2890,12 +2885,12 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti)
                        c2_io_fop_size_get(&irfop->irf_iofop.if_fop) + delta <
                        maxsize) {
 
-                        delta += io_seg_size();
 			/*
 			 * Adds a page to rpc bulk buffer only if it passes
 			 * throught the filter.
 			 */
 			if (ti->ti_pageattrs[buf] & pattr) {
+				delta += io_seg_size();
 				rc = c2_rpc_bulk_buf_databuf_add(rbuf,
 						ti->ti_bufvec.ov_buf[buf],
 						COUNT(&ti->ti_ivec, buf),
