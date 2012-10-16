@@ -332,6 +332,7 @@ static void queueit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 	C2_PRE(c2_fom_invariant(fom));
 	C2_PRE(c2_fom_phase(fom) == C2_FOM_PHASE_INIT);
 
+	C2_CNT_INC(fom->fo_loc->fl_foms);
 	fom_ready(fom);
 }
 
@@ -433,7 +434,6 @@ void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
 		dom->fd_localities_nr;
 	C2_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
 	fom->fo_loc = &reqh->rh_fom_dom.fd_localities[loc_idx];
-	C2_CNT_INC(fom->fo_loc->fl_foms);
 	c2_fom_sm_init(fom);
 	fom->fo_cb.fc_ast.sa_cb = queueit;
 	c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
