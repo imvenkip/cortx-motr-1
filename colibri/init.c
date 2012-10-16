@@ -59,6 +59,8 @@
 
 #include "ioservice/io_fops.h"
 #include "ioservice/io_service.h"
+#include "mdservice/md_fops.h"
+#include "mdservice/md_service.h"
 
 #include "sns/sns.h"
 #include "cm/cm.h"
@@ -127,8 +129,10 @@ struct init_fini_call subsystem[] = {
 	{ &c2_ad_stobs_init,    &c2_ad_stobs_fini,    "ad-stob" },
 	{ &sim_global_init,     &sim_global_fini,     "desim" },
 	{ &c2_reqhs_init,       &c2_reqhs_fini,       "reqh" },
+	{ &c2_fid_register,     &c2_fid_unregister,   "fids" },
 #ifndef __KERNEL__
 	{ &c2_ios_register,     &c2_ios_unregister,   "ioservice" },
+	{ &c2_mds_register,     &c2_mds_unregister,   "mdservice"},
 	{ &c2_cm_module_init,   &c2_cm_module_fini,   "copy machine" },
 	{ &c2_sns_init,         &c2_sns_fini,         "sns" },
 #endif /* __KERNEL__ */

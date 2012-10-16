@@ -66,12 +66,8 @@ uint64_t cp_home_loc_helper(const struct c2_cm_cp *cp)
 
 static int cp_init(struct c2_cm_cp *cp)
 {
-	struct c2_sns_repair_cm *rcm;
-
 	C2_PRE(c2_fom_phase(&cp->c_fom) == C2_CCP_INIT);
-	rcm = cm2sns(cp->c_ag->cag_cm);
-	cp->c_ops->co_phase_next(cp);
-	return C2_FSO_AGAIN;
+	return cp->c_ops->co_phase_next(cp);
 }
 
 static int cp_fini(struct c2_cm_cp *cp)
@@ -99,21 +95,16 @@ static int cp_recv(struct c2_cm_cp *cp)
 
 static int cp_phase_next(struct c2_cm_cp *cp)
 {
-	switch (c2_fom_phase(&cp->c_fom)) {
-	case C2_CCP_INIT:
-		c2_fom_phase_set(&cp->c_fom, C2_CCP_READ);
-		break;
-	case C2_CCP_READ:
-		c2_fom_phase_set(&cp->c_fom, C2_CCP_XFORM);
-		break;
-	case C2_CCP_XFORM:
-		c2_fom_phase_set(&cp->c_fom, C2_CCP_WRITE);
-		break;
-	case C2_CCP_WRITE:
-		c2_fom_phase_set(&cp->c_fom, C2_CCP_FINI);
-		break;
-	}
-        return C2_FSO_AGAIN;
+	int phase = c2_fom_phase(&cp->c_fom);
+	const int next[] = {
+		[C2_CCP_INIT]  = C2_CCP_READ,
+		[C2_CCP_READ]  = C2_CCP_XFORM,
+		[C2_CCP_XFORM] = C2_CCP_WRITE,
+		[C2_CCP_WRITE] = C2_CCP_FINI
+	};
+
+	c2_fom_phase_set(&cp->c_fom, next[phase]);
+        return next[phase] == C2_CCP_FINI ? C2_FSO_WAIT : C2_FSO_AGAIN;
 }
 
 static void cp_complete(struct c2_cm_cp *cp)

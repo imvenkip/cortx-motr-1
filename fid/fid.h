@@ -38,10 +38,14 @@ struct c2_fid {
 	uint64_t f_key;
 };
 
+bool c2_fid_is_set(const struct c2_fid *fid);
 bool c2_fid_is_valid(const struct c2_fid *fid);
 bool c2_fid_eq(const struct c2_fid *fid0, const struct c2_fid *fid1);
-
+int c2_fid_cmp(const struct c2_fid *fid0, const struct c2_fid *fid1);
 void c2_fid_set(struct c2_fid *fid, uint64_t container, uint64_t key);
+
+void c2_fid_unregister(void);
+int c2_fid_register(void);
 
 /** @} end of fid group */
 

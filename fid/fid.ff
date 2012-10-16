@@ -1,3 +1,4 @@
+/* -*- C -*- */
 /*
  * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
@@ -13,15 +14,21 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Yuriy Umanets <Yuriy_Umanets@xyratex.com>
- * Original creation date: 01/12/2010
+ * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
+ * Original creation date: 03/29/2011
  */
 
-#include "lib/cdefs.h"
-#include "dtm/dtm.h"
+record {
+    u64 f_seq;
+    u64 f_oid
+} c2_fop_fid;
 
-int main(int argc, char *argv[])
-{
-	return 0;
-}
-
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

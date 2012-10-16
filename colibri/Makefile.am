@@ -37,7 +37,6 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @Y
                             $(top_builddir)/net/bulk_emulation/libcolibri-net-bulkmem.la \
                             $(top_builddir)/net/test/libcolibri-net-test.la \
                             $(top_builddir)/net/lnet/libcolibri-lnet.la \
-                            $(top_builddir)/nrs/libcolibri-nrs.la \
                             $(top_builddir)/pool/libcolibri-pool.la \
                             $(top_builddir)/reqh/libcolibri-reqh.la \
                             $(top_builddir)/sm/libcolibri-sm.la \
@@ -47,6 +46,8 @@ libcolibri_la_LIBADD      = @AIO_LIBS@ @PTHREAD_LIBS@ @DB_LIBS@ @GALOIS_LIBS@ @Y
                             $(top_builddir)/udb/libcolibri-udb.la \
                             $(top_builddir)/ut/libcolibri-ut.la \
                             $(top_builddir)/ioservice/libcolibri-ioservice.la \
+                            $(top_builddir)/mdstore/libcolibri-mdstore.la \
+                            $(top_builddir)/mdservice/libcolibri-mdservice.la \
                             $(top_builddir)/rpc/libcolibri-rpc.la \
                             $(top_builddir)/xcode/libcolibri-xcode.la \
                             $(top_builddir)/xcode/ff2c/libcolibri-xcode-ff2c.la \

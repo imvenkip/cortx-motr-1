@@ -94,8 +94,8 @@ struct c2_rpc_machine {
 	struct c2_cob_domain		 *rm_dom;
 	/** List of c2_rpc_conn objects, linked using c_link.
 	    List descriptor: rpc_conn
-	    conn is in list if conn->c_state is not in {CONN_UNINITIALIZED,
-	    CONN_FAILED, CONN_TERMINATED}
+	    conn is in list if connection is not in {CONN_UNINITIALISED,
+	    CONN_FAILED, CONN_TERMINATED} states.
 	 */
 	struct c2_tl			  rm_incoming_conns;
 	struct c2_tl			  rm_outgoing_conns;
@@ -223,7 +223,6 @@ void c2_rpc_machine_fini(struct c2_rpc_machine *machine);
 void c2_rpc_machine_lock(struct c2_rpc_machine *machine);
 void c2_rpc_machine_unlock(struct c2_rpc_machine *machine);
 bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine);
-struct c2_mutex *c2_rpc_machine_mutex(struct c2_rpc_machine *machine);
 void c2_rpc_machine_get_stats(struct c2_rpc_machine *machine,
 			      struct c2_rpc_stats *stats, bool reset);
 

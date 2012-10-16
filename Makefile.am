@@ -32,12 +32,13 @@ SUBDIRS_LIBS =                     \
                fid                 \
                fol                 \
                fop                 \
+               mdservice           \
+               mdstore 		   \
                ioservice           \
                layout              \
                lib                 \
                conf                \
                mw                  \
-               nrs                 \
                pool                \
                reqh                \
                rpc                 \
@@ -69,6 +70,7 @@ SUBDIR_UT =                        \
             fop/ut                 \
             fop/ut/long_lock       \
             ioservice/ut           \
+            mdservice/ut           \
             layout/ut              \
             lib/ut                 \
             net/bulk_emulation/ut  \
@@ -98,7 +100,7 @@ SUBDIR_ST =                        \
 
 SUBDIR_UB =
 
-SUBDIR_BIN = console/bin mds net/test/user_space utils
+SUBDIR_BIN = console/bin net/test/user_space utils
 
 SUBDIR_SCRIPT = scripts
 

@@ -716,8 +716,11 @@ AC_CONFIG_FILES([
                  lib/ut/Makefile
                  m4/Makefile
                  man/Makefile
-                 mds/Makefile
                  mw/Makefile
+                 mdstore/Makefile
+                 mdservice/Makefile
+                 mdservice/ut/Makefile
+                 mdservice/ut/mdstore.h
                  net/Makefile
                  net/bulk_emulation/Makefile
                  net/bulk_emulation/st/Makefile
@@ -734,7 +737,6 @@ AC_CONFIG_FILES([
                  net/test/user_space/Makefile
                  net/test/ut/Makefile
                  net/ut/Makefile
-                 nrs/Makefile
                  patches/Makefile
                  pool/Makefile
                  pool/ut/Makefile

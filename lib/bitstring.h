@@ -59,6 +59,21 @@ void c2_bitstring_len_set(struct c2_bitstring *c, uint32_t len);
 int c2_bitstring_cmp(const struct c2_bitstring *c1,
                      const struct c2_bitstring *c2);
 
+/**
+ Copy @src to @dst.
+*/
+void c2_bitstring_copy(struct c2_bitstring *dst,
+                       const char *src, size_t count);
+
+/**
+ Alloc memory for a string of passed len and copy name to it.
+*/
+struct c2_bitstring *c2_bitstring_alloc(const char *name, size_t len);
+
+/**
+ Free memory of passed @c.
+*/
+void c2_bitstring_free(struct c2_bitstring *c);
 
 /** @} end of adt group */
 

@@ -97,7 +97,8 @@ db_linux_kernel_SOURCES         := db.c
 dtm_SOURCES                     := verno.c dtm.c verno_xc.c
 dtm_HEADERS                     := verno.h verno_xc.h
 
-fid_SOURCES                     := fid.c
+fid_SOURCES                     := fid.c fid_ff.c
+fid_HEADERS                     := fid_ff.h
 
 fol_SOURCES                     := fol.c
 
@@ -170,7 +171,8 @@ rpc_SOURCES                     := rpc2.c service.c \
 
 rpc_HEADERS                     := session_ff.h rpc_onwire.h rpc_onwire_xc.h
 
-rpc_ut_SOURCES                  := service.c formation2.c conn.c rpc_machine.c
+rpc_ut_SOURCES                  := service.c formation2.c conn.c rpc_machine.c \
+				   session.c
 
 sm_SOURCES                      := sm.c
 sm_ut_SOURCES                   := sm.c

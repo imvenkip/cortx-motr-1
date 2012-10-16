@@ -105,8 +105,8 @@ int c2_rpc__post_locked(struct c2_rpc_item *item)
 
 	session = item->ri_session;
 	C2_ASSERT(c2_rpc_session_invariant(session));
-	C2_ASSERT(C2_IN(session->s_state, (C2_RPC_SESSION_IDLE,
-					   C2_RPC_SESSION_BUSY)));
+	C2_ASSERT(C2_IN(session_state(session), (C2_RPC_SESSION_IDLE,
+						 C2_RPC_SESSION_BUSY)));
 	C2_ASSERT(c2_rpc_item_size(item) <=
 			c2_rpc_session_get_max_item_size(session));
 	C2_ASSERT(c2_rpc_machine_is_locked(session->s_conn->c_rpc_machine));

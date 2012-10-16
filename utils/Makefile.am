@@ -23,6 +23,7 @@ ut_LDADD =                                                           \
            $(top_builddir)/fop/ut/libfop-ut.la                       \
            $(top_builddir)/fop/ut/long_lock/libfop-lock-ut.la        \
            $(top_builddir)/ioservice/ut/libioservice-ut.la           \
+           $(top_builddir)/mdservice/ut/libmdservice-ut.la 	     \
            $(top_builddir)/layout/ut/liblayout-ut.la                 \
            $(top_builddir)/lib/ut/libc2-ut.la $(libstob_ut)          \
            $(top_builddir)/net/bulk_emulation/ut/libnet-bulkem-ut.la \

@@ -43,8 +43,11 @@ extern const struct c2_test_suite frm_ut;
 extern const struct c2_test_suite layout_ut;
 extern const struct c2_test_suite rpc_mc_ut;
 extern const struct c2_test_suite rpc_service_ut;
+extern const struct c2_test_suite session_ut;
 extern const struct c2_test_suite sm_ut;
 extern const struct c2_test_suite xcode_ut;
+
+extern const struct c2_test_suite c2_loop_ut; /* c2loop driver */
 
 static struct c2_thread ut_thread;
 
@@ -63,6 +66,7 @@ static void run_kernel_ut(int ignored)
 	c2_ut_add(&c2_net_lnet_ut);
 	c2_ut_add(&c2_net_tm_prov_ut);
 	c2_ut_add(&conn_ut);
+	c2_ut_add(&session_ut);
 	c2_ut_add(&frm_ut);
 	c2_ut_add(&layout_ut);
 	c2_ut_add(&rpc_mc_ut);

@@ -28,6 +28,7 @@
 #include "lib/arith.h"
 #include "lib/cdefs.h" /* ergo */
 
+#include "db/db_common.h"
 #include "addb/addb.h"
 #include "colibri/magic.h"
 #include "fop/fop.h"
@@ -331,6 +332,7 @@ static void queueit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 	C2_PRE(c2_fom_invariant(fom));
 	C2_PRE(c2_fom_phase(fom) == C2_FOM_PHASE_INIT);
 
+	C2_CNT_INC(fom->fo_loc->fl_foms);
 	fom_ready(fom);
 }
 
@@ -424,7 +426,7 @@ void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
 	stype = fom->fo_type->ft_rstype;
 	if (stype != NULL) {
 		fom->fo_service = c2_reqh_service_find(stype, reqh);
-		C2_ASSERT(fom->fo_service != NULL);
+		C2_ASSERT(reqh->rh_svc != NULL || fom->fo_service != NULL);
 	}
 
 	dom = &reqh->rh_fom_dom;
@@ -432,7 +434,6 @@ void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
 		dom->fd_localities_nr;
 	C2_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
 	fom->fo_loc = &reqh->rh_fom_dom.fd_localities[loc_idx];
-	C2_CNT_INC(fom->fo_loc->fl_foms);
 	c2_fom_sm_init(fom);
 	fom->fo_cb.fc_ast.sa_cb = queueit;
 	c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
@@ -485,6 +486,7 @@ static void fom_exec(struct c2_fom *fom)
 {
 	int			rc;
 	struct c2_fom_locality *loc;
+	struct c2_fop_ctx      *ctx;
 
 
 	loc = fom->fo_loc;
@@ -492,6 +494,7 @@ static void fom_exec(struct c2_fom *fom)
 	fom_state_set(fom, C2_FOS_RUNNING);
 	do {
 		C2_ASSERT(c2_fom_invariant(fom));
+		C2_ASSERT(c2_fom_phase(fom) != C2_FOM_PHASE_FINISH);
 		rc = fom->fo_ops->fo_tick(fom);
 		/*
 		 * (rc == C2_FSO_AGAIN) means that next phase transition is
@@ -508,7 +511,23 @@ static void fom_exec(struct c2_fom *fom)
 	C2_ASSERT(c2_fom_group_is_locked(fom));
 
 	if (c2_fom_phase(fom) == C2_FOM_PHASE_FINISH) {
+	        /**
+	         * Get ctx from fom begore killing fom.
+	         */
+	        ctx = fom->fo_fop_ctx;
+
+                /**
+                 * Finish fom itself.
+                 */
 		fom->fo_ops->fo_fini(fom);
+
+		/**
+		 * Make sure that ctx is released. It is allocated just before fto_create()
+		 * is called. We release it after fo_finish as it may use ctx.
+		 */
+		if (ctx != NULL)
+                        c2_free(ctx);
+
 		/*
 		 * Don't touch the fom after this point.
 		 */
@@ -854,6 +873,7 @@ void c2_fom_fini(struct c2_fom *fom)
 	struct c2_reqh         *reqh;
 
 	C2_PRE(c2_fom_phase(fom) == C2_FOM_PHASE_FINISH);
+        C2_PRE(!c2_db_tx_is_active(&fom->fo_tx.tx_dbtx));
 
 	loc  = fom->fo_loc;
 	fdom = loc->fl_dom;

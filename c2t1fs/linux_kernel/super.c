@@ -756,7 +756,12 @@ static int c2t1fs_config_fetch(struct c2t1fs_sb *csb)
 {
 	extern int c2t1fs_conf_test(const char *buf);
 	C2_ENTRY();
-	C2_RETURN(c2t1fs_conf_test(csb->csb_mnt_opts.mo_localconf));
+
+	/* XXX FIXME: c2t1fs_conf_test() is a misnomer: the function
+	 * doesn't test for anything, so "_test" suffix is not
+	 * applicable. */
+	C2_RETURN(csb->csb_mnt_opts.mo_localconf == NULL ? 0 :
+		  c2t1fs_conf_test(csb->csb_mnt_opts.mo_localconf));
 }
 
 static int c2t1fs_connect_to_all_services(struct c2t1fs_sb *csb)
