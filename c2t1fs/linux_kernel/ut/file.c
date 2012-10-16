@@ -42,6 +42,7 @@
 #include "layout/linear_enum.h" /* c2_layout_linear_enum */
 #include <linux/dcache.h>       /* struct dentry */
 #include "c2t1fs/linux_kernel/file_internal.h" /* io_request */
+#include "c2t1fs/linux_kernel/c2t1fs.h" /* c2t1fs_sb */
 
 enum {
         IOVEC_NR         = 4,
@@ -69,11 +70,10 @@ enum {
 	ATTR_B_CONST	 = 2,
 };
 
+static struct super_block            sb;
 static struct c2t1fs_sb              csb;
 static struct c2_pdclust_attr        pdattr;
 static struct c2_pdclust_layout     *pdlay;
-static struct c2_dbenv               testdb;
-static struct c2_layout_domain       ldom;
 static struct c2_layout_linear_enum *llenum;
 static struct c2_layout_linear_attr  llattr;
 static struct c2t1fs_inode           ci;
@@ -86,16 +86,9 @@ static int file_io_ut_init(void)
 	uint64_t	  random;
 	struct c2_layout *lay;
 
-        rc = c2_dbenv_init(&testdb, "test.db", 0);
-        C2_ASSERT(rc == 0);
-
-        rc = c2_layout_domain_init(&ldom, &testdb);
-        C2_ASSERT(rc == 0);
-
-        rc = c2_layout_standard_types_register(&ldom);
-        C2_ASSERT(rc == 0);
-
+        C2_SET0(&sb);
         C2_SET0(&csb);
+	sb.s_fs_info = &csb;
         c2_addb_ctx_init(&c2t1fs_addb, &c2t1fs_addb_type, &c2_addb_global_ctx);
         c2_sm_group_init(&csb.csb_iogroup);
         csb.csb_active = true;
@@ -109,7 +102,8 @@ static int file_io_ut_init(void)
                 .lla_B  = ATTR_B_CONST,
         };
         llenum = NULL;
-        rc = c2_linear_enum_build(&ldom, &llattr, &llenum);
+        rc = c2_linear_enum_build(&c2t1fs_globals.g_layout_dom, &llattr,
+			          &llenum);
         C2_ASSERT(rc == 0);
 
 	random = c2_time_nanoseconds(c2_time_now());
@@ -122,8 +116,8 @@ static int file_io_ut_init(void)
 
         };
         c2_uint128_init(&pdattr.pa_seed, "upjumpandpumpim,");
-        rc = c2_pdclust_build(&ldom, csb.csb_layout_id, &pdattr,
-                              &llenum->lle_base, &pdlay);
+        rc = c2_pdclust_build(&c2t1fs_globals.g_layout_dom, csb.csb_layout_id,
+			      &pdattr, &llenum->lle_base, &pdlay);
         C2_ASSERT(rc == 0);
         C2_ASSERT(pdlay != NULL);
 
@@ -134,17 +128,17 @@ static int file_io_ut_init(void)
                 .f_key       = FID_KEY,
         };
         ci.ci_layout_id = csb.csb_layout_id;
-	lay = c2_layout_find(&ldom, ci.ci_layout_id);
+	lay = c2_pdl_to_layout(pdlay);
 	C2_ASSERT(lay != NULL);
 
 	rc = c2_layout_instance_build(lay, &ci.ci_fid, &ci.ci_layout_instance);
 	C2_ASSERT(rc == 0);
 	C2_ASSERT(ci.ci_layout_instance != NULL);
-	c2_layout_put(lay);
 
 	C2_ALLOC_PTR(lfile.f_dentry);
 	C2_ASSERT(lfile.f_dentry != NULL);
 	lfile.f_dentry->d_inode = &ci.ci_inode;
+	lfile.f_dentry->d_inode->i_sb = &sb;
 
 	/* Sets the file size in inode. */
 	ci.ci_inode.i_size = DATA_SIZE; 
@@ -425,9 +419,6 @@ static int file_io_ut_fini(void)
 
         /* Finalizes the c2_pdclust_layout type. */
         c2_layout_put(&pdlay->pl_base.sl_base);
-        c2_layout_standard_types_unregister(&ldom);
-        c2_layout_domain_fini(&ldom);
-        c2_dbenv_fini(&testdb);
 	return 0;
 }
 
