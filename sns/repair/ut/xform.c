@@ -40,23 +40,17 @@ enum {
 static struct c2_reqh      reqh;
 static struct c2_semaphore sem;
 
-/**
- * Global structures for single copy packet test.
- */
+/* Global structures for single copy packet test. */
 static struct c2_sns_repair_ag s_sag;
 static struct c2_cm_cp         s_cp;
 static struct c2_bufvec        s_bv;
 
-/**
- * Global structures for multiple copy packet test.
- */
+/* Global structures for multiple copy packet test. */
 static struct c2_sns_repair_ag m_sag;
 static struct c2_cm_cp         m_cp[CP_MULTI];
 static struct c2_bufvec        m_bv[CP_MULTI];
 
-/**
- * Global structures for testing bufvec xor correctness.
- */
+/* Global structures for testing bufvec xor correctness. */
 struct c2_bufvec src;
 struct c2_bufvec dst;
 struct c2_bufvec xor;
@@ -79,9 +73,7 @@ static const struct c2_cm_aggr_group_ops group_multi_ops = {
         .cago_local_cp_nr = &cp_multi_get,
 };
 
-/**
- * Populates the bufvec with a character value.
- */
+/* Populates the bufvec with a character value. */
 static void bv_populate(struct c2_bufvec *b, char data)
 {
 	int i;
@@ -96,9 +88,7 @@ static void bv_populate(struct c2_bufvec *b, char data)
         }
 }
 
-/**
- * Compares 2 bufvecs and asserts if not equal.
- */
+/* Compares 2 bufvecs and asserts if not equal. */
 static void bv_compare(struct c2_bufvec *b1, struct c2_bufvec *b2)
 {
 	int i;
@@ -129,9 +119,7 @@ static size_t dummy_fom_locality(const struct c2_fom *fom)
 	return 0;
 }
 
-/**
- * Dummy fom state routine to emulate only selective copy packet states.
- */
+/* Dummy fom state routine to emulate only selective copy packet states. */
 static int dummy_fom_tick(struct c2_fom *fom)
 {
 	struct c2_cm_cp *cp = container_of(fom, struct c2_cm_cp, c_fom);
@@ -167,18 +155,14 @@ static void multiple_cp_fom_fini(struct c2_fom *fom)
 	c2_cm_cp_fini(cp);
 }
 
-/**
- * Over-ridden copy packet FOM ops.
- */
+/* Over-ridden copy packet FOM ops. */
 static struct c2_fom_ops single_cp_fom_ops = {
         .fo_fini          = single_cp_fom_fini,
         .fo_tick          = dummy_fom_tick,
         .fo_home_locality = dummy_fom_locality
 };
 
-/**
- * Over-ridden copy packet FOM ops.
- */
+/* Over-ridden copy packet FOM ops. */
 static struct c2_fom_ops multiple_cp_fom_ops = {
         .fo_fini          = multiple_cp_fom_fini,
         .fo_tick          = dummy_fom_tick,
@@ -199,11 +183,11 @@ static void cp_prepare(struct c2_cm_cp *cp, struct c2_bufvec *bv,
 	cp->c_data = bv;
 	cp->c_fom.fo_ops = cp_fom_ops;
 	cp->c_ops = &c2_sns_repair_cp_ops;
-	/** Required to pass the fom invariant */
+	/* Required to pass the fom invariant */
 	cp->c_fom.fo_fop = (void *)1;
 }
 
-/**
+/*
  * Test to check that single copy packet is treated as passthrough by the
  * transformation function.
  */
@@ -215,17 +199,15 @@ static void test_single_cp(void)
 	s_cp.c_ag->cag_ops = &group_single_ops;
 	c2_fom_queue(&s_cp.c_fom, &reqh);
 
-	/**
-	 * Wait till ast gets posted.
-	 */
+	/* Wait till ast gets posted. */
 	c2_semaphore_down(&sem);
-	/**
+	/*
 	 * Wait until all the foms in the request handler locality runq are
 	 * processed. This is required for further validity checks.
 	 */
 	c2_reqh_shutdown_wait(&reqh);
 
-	/**
+	/*
 	 * These asserts ensure that the single copy packet has been treated
 	 * as passthrough.
 	 */
@@ -235,7 +217,7 @@ static void test_single_cp(void)
 	c2_semaphore_fini(&sem);
 }
 
-/**
+/*
  * Test to check that multiple copy packets are collected by the
  * transformation function.
  */
@@ -253,13 +235,13 @@ static void test_multiple_cp(void)
 		c2_semaphore_down(&sem);
 	}
 
-	/**
+	/*
 	 * Wait until the fom in the request handler locality runq is
 	 * processed. This is required for further validity checks.
 	 */
 	c2_reqh_shutdown_wait(&reqh);
 
-	/**
+	/*
 	 * These asserts ensure that all the copy packets have been collected
 	 * by the transformation function.
 	 */
@@ -269,8 +251,8 @@ static void test_multiple_cp(void)
 	c2_semaphore_fini(&sem);
 }
 
-/**
- * Initialise the request handler since copy packet fom has to be tested using
+/*
+ * Initialises the request handler since copy packet fom has to be tested using
  * request handler infrastructure.
  */
 static int xform_init(void)
@@ -286,14 +268,12 @@ static int xform_fini(void)
 	return 0;
 }
 
-/**
- * Tests the correctness of the bufvec_xor function.
- */
+/* Tests the correctness of the bufvec_xor function. */
 static void test_bufvec_xor()
 {
 	bv_populate(&src, '4');
 	bv_populate(&dst, 'D');
-	/**
+	/*
 	 * Actual result is anticipated and stored in new bufvec, which is
 	 * used for comparison with xor'ed output.
 	 * 4 XOR D = p
