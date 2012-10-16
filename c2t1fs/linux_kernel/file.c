@@ -2766,6 +2766,7 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
                 struct io_req_fop *irfop;
 
 		c2_tl_for(iofops, &ti->ti_iofops, irfop) {
+			iofops_tlist_del(irfop);
 			io_req_fop_fini(irfop);
                 } c2_tl_endfor;
         } c2_tl_endfor;
@@ -2787,7 +2788,7 @@ static inline uint32_t io_desc_size(struct c2_net_domain *ndom)
                 /* size of variables ci_nr and nbd_len */
 		sizeof(uint32_t) * 2  +
                 /* size of nbd_data */
-		c2_net_domain_get_buffer_desc_size(ndom);
+		c2_net_domain_get_max_buffer_desc_size(ndom);
 }
 
 static inline uint32_t io_seg_size(void)
