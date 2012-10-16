@@ -177,11 +177,13 @@ static inline uint64_t group_id(c2_bindex_t index, c2_bcount_t dtsize)
         return index / dtsize;
 }
 
-static inline uint64_t target_offset(uint64_t    frame,
-                                     uint64_t    unit_size,
-                                     c2_bindex_t gob_offset)
+static inline uint64_t target_offset(uint64_t                  frame,
+                                     struct c2_pdclust_layout *play,
+                                     c2_bindex_t               gob_offset)
 {
-        return frame * unit_size + (gob_offset % unit_size);
+        return frame * layout_unit_size(play) +
+	       (gob_offset % ((layout_n(play) + 2 * layout_k(play))) *
+		layout_unit_size(play));
 }
 
 static inline struct c2_fid target_fid(struct io_request          *req,
@@ -311,12 +313,12 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer,
                                  bool                    rmw);
 static int  nw_xfer_req_dispatch(struct nw_xfer_request *xfer);
 
-static int nw_xfer_tioreq_map   (struct nw_xfer_request      *xfer,
+static int  nw_xfer_tioreq_map  (struct nw_xfer_request      *xfer,
                                  struct c2_pdclust_src_addr  *src,
                                  struct c2_pdclust_tgt_addr  *tgt,
                                  struct target_ioreq        **out);
 
-static int nw_xfer_tioreq_get   (struct nw_xfer_request *xfer,
+static int  nw_xfer_tioreq_get  (struct nw_xfer_request *xfer,
                                  struct c2_fid          *fid,
                                  struct c2_rpc_session  *session,
                                  uint64_t                size,
@@ -1207,6 +1209,7 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
         play  = pdlayout_get(map->pi_ioreq);
         inode = map->pi_ioreq->ir_file->f_dentry->d_inode;
         c2_ivec_cursor_init(&cur, &map->pi_ivec);
+	C2_ASSERT(!c2_ivec_cursor_move_until(&cur, map->pi_ivec.iv_index[seg]));
 
         while (!c2_ivec_cursor_move(&cur, count)) {
 
@@ -2246,8 +2249,10 @@ static int nw_xfer_tioreq_get(struct nw_xfer_request *xfer,
                                   "for target_ioreq");
 
                 rc = target_ioreq_init(ti, xfer, fid, session, size);
-                rc == 0 ? tioreqs_tlist_add(&xfer->nxr_tioreqs, ti) :
-                          c2_free(ti);
+                if (rc == 0)
+			tioreqs_tlist_add(&xfer->nxr_tioreqs, ti);
+		else
+			c2_free(ti);
         }
         *out = ti;
         C2_RETURN(rc);
@@ -2309,7 +2314,7 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
         struct io_request         *req;
         struct pargrp_iomap       *map;
         struct c2_pdclust_layout  *play;
-        enum c2_pdclust_unit_type unit_type;
+        enum c2_pdclust_unit_type  unit_type;
 
         C2_ENTRY("target_ioreq %p, gob_offset %llu, count %llu",
                  ti, gob_offset, count);
@@ -2318,7 +2323,7 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
         req     = bob_of(ti->ti_nwxfer, struct io_request, ir_nwxfer,
                          &ioreq_bobtype);
         play    = pdlayout_get(req);
-        toff    = target_offset(frame, layout_unit_size(play), gob_offset);
+        toff    = target_offset(frame, play, gob_offset);
         dtsize  = data_size(play);
         req->ir_ops->iro_iomap_locate(req, group_id(gob_offset, dtsize),
                                       &map);

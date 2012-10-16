@@ -34,12 +34,13 @@
 #include "lib/ut.h"     /* c2_test_suite */
 #include "lib/cdefs.h"  /* C2_EXPORTED */
 #include "lib/chan.h"   /* c2_chan */
-#include "fid/fid.h"   /* c2_fid */
+#include "lib/vec.h"    /* c2_indexvec */
+#include "fid/fid.h"    /* c2_fid */
 #include "lib/misc.h"   /* c2_rnd */
 #include "lib/time.h"   /* c2_time_nanoseconds */
-#include "layout/layout.h" /* c2_layout_domain_init */
+#include "layout/layout.h"      /* c2_layout_domain_init */
 #include "layout/linear_enum.h" /* c2_layout_linear_enum */
-#include <linux/dcache.h>  /* struct dentry */
+#include <linux/dcache.h>       /* struct dentry */
 #include "c2t1fs/linux_kernel/file_internal.h" /* io_request */
 
 enum {
@@ -52,6 +53,9 @@ enum {
 
 	/* Number of parity units. */
 	LAY_K		 = 1,
+
+	/* Number of members in pool. */
+	LAY_P            = LAY_N + 2 * LAY_K,
 
 	/* Unit Size = 12K. */
 	UNIT_SIZE	 = 12288,
@@ -163,10 +167,8 @@ static void ds_test(void)
 	struct io_req_fop    *irfop;
 	struct c2_rpc_session session;
 
-        C2_ALLOC_ARR(ivec.iv_vec.v_count, IOVEC_NR);
-        C2_UT_ASSERT(ivec.iv_vec.v_count != NULL);
-        C2_ALLOC_ARR(ivec.iv_index, IOVEC_NR);
-        C2_UT_ASSERT(ivec.iv_index != NULL);
+	rc = c2_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), NULL, NULL);
+        C2_UT_ASSERT(rc == 0);
 
         for (cnt = 0; cnt < IOVEC_NR; ++cnt) {
                 iovec_arr[cnt].iov_base = &rc;
@@ -179,16 +181,16 @@ static void ds_test(void)
 	/* io_request attributes test. */
         rc = io_request_init(&req, &lfile, iovec_arr, &ivec, IRT_WRITE);
         C2_UT_ASSERT(rc == 0);
-        C2_UT_ASSERT(req.ir_rc == 0);
-        C2_UT_ASSERT(req.ir_file == &lfile);
-        C2_UT_ASSERT(req.ir_type == IRT_READ);
-        C2_UT_ASSERT(req.ir_iovec == iovec_arr);
-        C2_UT_ASSERT(req.ir_ivec.iv_vec.v_nr == IOVEC_NR);
-        C2_UT_ASSERT(req.ir_magic == C2_T1FS_IOREQ_MAGIC);
-        C2_UT_ASSERT(req.ir_sm.sm_state == IRS_INITIALIZED);
-        C2_UT_ASSERT(req.ir_iomaps != NULL);
+        C2_UT_ASSERT(req.ir_rc       == 0);
+        C2_UT_ASSERT(req.ir_file     == &lfile);
+        C2_UT_ASSERT(req.ir_type     == IRT_READ);
+        C2_UT_ASSERT(req.ir_iovec    == iovec_arr);
+        C2_UT_ASSERT(req.ir_magic    == C2_T1FS_IOREQ_MAGIC);
+        C2_UT_ASSERT(req.ir_iomaps   != NULL);
         C2_UT_ASSERT(req.ir_iomap_nr == 1);
-        C2_UT_ASSERT(req.ir_ivec.iv_index != NULL);
+        C2_UT_ASSERT(req.ir_ivec.iv_vec.v_nr    == IOVEC_NR);
+        C2_UT_ASSERT(req.ir_sm.sm_state         == IRS_INITIALIZED);
+        C2_UT_ASSERT(req.ir_ivec.iv_index       != NULL);
         C2_UT_ASSERT(req.ir_ivec.iv_vec.v_count != NULL);
 
         /* Index array should be sorted in increasing order of file offset. */
@@ -320,6 +322,98 @@ static void ds_test(void)
 	C2_UT_ASSERT(req.ir_nwxfer.nxr_magic == 0);
 }
 
+static void pargrp_iomap_test(void)
+{
+	int                 rc;
+	int                 cnt;
+	uint32_t	    row;
+	uint32_t	    col;
+	uint64_t	    nr;
+	/* iovec array spans the parity group partially. */
+	struct iovec        iovec_arr[LAY_N * UNIT_SIZE / PAGE_CACHE_SIZE];
+	struct io_request   req;
+	struct c2_indexvec  ivec;
+	struct pargrp_iomap map;
+
+	rc = c2_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), NULL, NULL);
+	C2_UT_ASSERT(rc == 0);
+
+	for (cnt = 0; cnt < ARRAY_SIZE(iovec_arr); ++cnt) {
+		iovec_arr[cnt].iov_base  = &rc;
+		iovec_arr[cnt].iov_len   = PAGE_CACHE_SIZE;
+
+		ivec.iv_index[cnt]       = (c2_bindex_t)(cnt * PAGE_CACHE_SIZE);
+		ivec.iv_vec.v_count[cnt] = PAGE_CACHE_SIZE;
+	}
+
+	rc = io_request_init(&req, &lfile, iovec_arr, &ivec, IRT_WRITE);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = pargrp_iomap_init(&map, &req, 0);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = pargrp_iomap_databuf_alloc(&map, 0, 0);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(map.pi_databufs[0][0] != NULL);
+	C2_UT_ASSERT(map.pi_databufs[0][0]->db_buf.b_addr != NULL);
+	C2_UT_ASSERT(map.pi_databufs[0][0]->db_buf.b_nob  == PAGE_CACHE_SIZE);
+	C2_UT_ASSERT(map.pi_databufs[0][0]->db_flags == 0);
+	data_buf_dealloc_fini(map.pi_databufs[0][0]);
+	map.pi_databufs[0][0] = NULL;
+
+	for (cnt = 0; cnt < ARRAY_SIZE(iovec_arr); ++cnt) {
+		map.pi_ivec.iv_index[cnt]       = (c2_bindex_t)
+						  (cnt * PAGE_CACHE_SIZE);
+		map.pi_ivec.iv_vec.v_count[cnt] = PAGE_CACHE_SIZE;
+
+		rc = pargrp_iomap_seg_process(&map, cnt, true);
+		C2_UT_ASSERT(rc == 0);
+		C2_UT_ASSERT(map.pi_databufs[0][0] != NULL);
+		C2_UT_ASSERT(map.pi_databufs[0][0]->db_flags & PA_WRITE);
+		C2_UT_ASSERT(map.pi_databufs[0][0]->db_flags &
+			     PA_FULLPAGE_MODIFY);
+		C2_UT_ASSERT(map.pi_databufs[0][0]->db_flags & ~PA_READ);
+	}
+
+	/* Checks if given segment falls in pargrp_iomap::pi_ivec. */
+	C2_UT_ASSERT(pargrp_iomap_spans_seg(&map, 0, 4096));
+	C2_UT_ASSERT(pargrp_iomap_spans_seg(&map, 1234, 10));
+	C2_UT_ASSERT(!pargrp_iomap_spans_seg(&map, 40960, 4096));
+
+	/*
+	 * Checks if number of pages completely spanned by index vector
+	 * is correct.
+	 */
+	nr = pargrp_iomap_fullpages_count(&map);
+	C2_UT_ASSERT(nr == LAY_N * UNIT_SIZE / PAGE_CACHE_SIZE);
+
+	/* Checks if all parity buffers are allocated properly. */
+	map.pi_rtype = PIR_READOLD;
+	rc = pargrp_iomap_paritybufs_alloc(&map);
+	C2_UT_ASSERT(rc == 0);
+
+	for (row = 0; row < parity_row_nr(pdlay); ++row) {
+		for (col = 0; col < parity_col_nr(pdlay); ++col) {
+			C2_UT_ASSERT(map.pi_paritybufs[row][col] != NULL);
+			C2_UT_ASSERT(map.pi_paritybufs[row][col]->db_flags &
+				     PA_WRITE);
+			C2_UT_ASSERT(map.pi_paritybufs[row][col]->db_flags &
+				     PA_READ);
+		}
+	}
+
+	/* Checks if auxiliary buffers are allocated properly. */
+	rc = pargrp_iomap_readold_auxbuf_alloc(&map);
+	C2_UT_ASSERT(rc == 0);
+
+	for (row = 0; row < data_row_nr(pdlay); ++row) {
+		for (col = 0; col < data_col_nr(pdlay); ++col) {
+			C2_UT_ASSERT(map.pi_databufs[row][col]->db_flags &
+				     ~PA_PARTPAGE_MODIFY);
+		}
+	}
+}
+
 static int file_io_ut_fini(void)
 {
 	c2_free(lfile.f_dentry);
@@ -344,7 +438,7 @@ const struct c2_test_suite file_io_ut = {
         .ts_tests = {
                 {"basic_data_structures_test",  ds_test},
                 //{"helper_routines_test",        helpers_test},
-                //{"parity_group_structure_test", pargrp_iomap_test},
+                {"parity_group_test",           pargrp_iomap_test},
                 //{"target_ioreq_test",           target_ioreq_test},
         },
 };

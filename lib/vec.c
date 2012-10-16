@@ -376,6 +376,24 @@ c2_bindex_t c2_ivec_cursor_index(struct c2_ivec_cursor *cur)
         return ivec->iv_index[cur->ic_cur.vc_seg] + cur->ic_cur.vc_offset;
 }
 
+bool c2_ivec_cursor_move_until(struct c2_ivec_cursor *cur, c2_bindex_t to)
+{
+	c2_bindex_t min;
+	bool        ret;
+
+	C2_PRE(cur != NULL);
+	C2_PRE(to  >= c2_ivec_cursor_index(cur));
+
+	while (c2_ivec_cursor_index(cur) != to) {
+		min = min64u(to, c2_ivec_cursor_index(cur) +
+			     c2_ivec_cursor_step(cur));
+		ret = c2_ivec_cursor_move(cur, min - c2_ivec_cursor_index(cur));
+		if (ret)
+			break;
+	}
+	return ret;
+}
+
 void c2_0vec_fini(struct c2_0vec *zvec)
 {
 	if (zvec != NULL) {
