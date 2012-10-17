@@ -17,10 +17,6 @@
  * Original creation date: 01/17/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#  include <config.h>
-#endif
-
 #include <sys/stat.h>    /* S_ISDIR */
 
 #include "lib/misc.h"    /* C2_SET0 */
