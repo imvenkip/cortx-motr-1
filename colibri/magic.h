@@ -212,6 +212,15 @@ enum c2_magic_satchel {
 	/* fop_types_list::t_magic (baffle bacili) */
 	C2_FOP_TYPE_HEAD_MAGIC = 0x33baff1ebac11177,
 
+	/* c2_fom::fo_magic (leadless less) */
+	C2_FOM_MAGIC = 0x331ead1e551e5577,
+
+	/* c2_fom_locality::fl_runq::td_head_magic (alas albizzia) */
+	C2_FOM_RUNQ_MAGIC = 0x33a1a5a1b1221a77,
+
+	/* c2_fom_locality::fl_wail::td_head_magic (baseless bole) */
+	C2_FOM_WAIL_MAGIC = 0x33ba5e1e55501e77,
+
 	/* c2_fom_thread::lt_magix (falsifiable C) */
 	C2_FOM_THREAD_MAGIC = 0x33fa151f1ab1ec77,
 
