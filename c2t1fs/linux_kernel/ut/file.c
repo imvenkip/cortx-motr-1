@@ -150,7 +150,6 @@ static void ds_test(void)
 {
         int                   rc;
         int                   cnt;
-	uint64_t              size;
 	struct c2_fid         cfid;
 	struct data_buf      *dbuf;
         struct io_request     req;
@@ -187,9 +186,14 @@ static void ds_test(void)
         C2_UT_ASSERT(req.ir_ivec.iv_vec.v_count != NULL);
 
         /* Index array should be sorted in increasing order of file offset. */
-        for (cnt = 0; cnt < IOVEC_NR - 1; ++cnt)
+        for (cnt = 0; cnt < IOVEC_NR - 1; ++cnt) {
+		printk(KERN_EMERG "ioreq ivec seg %d : index = %llu, count = %llu",
+		       cnt, req.ir_ivec.iv_index[cnt], req.ir_ivec.iv_vec.v_count[cnt]);
                 C2_UT_ASSERT(req.ir_ivec.iv_index[cnt] <
                              req.ir_ivec.iv_index[cnt + 1]);
+	}
+	printk(KERN_EMERG "ioreq ivec seg %d : index = %llu, count = %llu",
+	       cnt, req.ir_ivec.iv_index[cnt], req.ir_ivec.iv_vec.v_count[cnt]);
 
         /* nw_xfer_request attributes test. */
         C2_UT_ASSERT(req.ir_nwxfer.nxr_rc == 0);
@@ -199,7 +203,6 @@ static void ds_test(void)
         C2_UT_ASSERT(req.ir_nwxfer.nxr_state == NXS_INITIALIZED);
 
         /* pargrp_iomap attributes test. */
-	req.ir_iomap_nr = 1;
 	rc = ioreq_iomaps_prepare(&req);
 	C2_UT_ASSERT(rc == 0);
 
@@ -213,24 +216,24 @@ static void ds_test(void)
 	C2_UT_ASSERT(map->pi_ivec.iv_index[1] == PAGE_CACHE_SIZE * 5);
 	C2_UT_ASSERT(map->pi_ivec.iv_vec.v_count[0] == PAGE_CACHE_SIZE);
 	C2_UT_ASSERT(map->pi_ivec.iv_vec.v_count[1] == PAGE_CACHE_SIZE);
-	C2_UT_ASSERT(map->pi_rtype      == PIR_READOLD);
 	C2_UT_ASSERT(map->pi_databufs   != NULL);
 	C2_UT_ASSERT(map->pi_paritybufs != NULL);
 	C2_UT_ASSERT(map->pi_ops        != NULL);
 	C2_UT_ASSERT(map->pi_ioreq      == &req);
 	C2_UT_ASSERT(map->pi_databufs[1][1]   != NULL);
-	C2_UT_ASSERT(map->pi_databufs[1][2]   != NULL);
+	C2_UT_ASSERT(map->pi_databufs[2][1]   != NULL);
 	C2_UT_ASSERT(map->pi_paritybufs[0][0] != NULL);
 	C2_UT_ASSERT(map->pi_paritybufs[1][0] != NULL);
 	C2_UT_ASSERT(map->pi_paritybufs[2][0] != NULL);
 
 	cfid.f_container = 0;
 	cfid.f_key	 = 5;
-	size             = c2_vec_count(&map->pi_ivec.iv_vec) /
-			   (LAY_N + 2 * LAY_K);
+
+	/* Initializes bob types for target_ioreq and io_req_fop objects. */
+	io_bob_tlists_init();
 
 	/* target_ioreq attributes test. */
-	rc = target_ioreq_init(&ti, &req.ir_nwxfer, &cfid, &session, size);
+	rc = target_ioreq_init(&ti, &req.ir_nwxfer, &cfid, &session, UNIT_SIZE);
 	C2_UT_ASSERT(rc       == 0);
 	C2_UT_ASSERT(ti.ti_rc == 0);
 	C2_UT_ASSERT(c2_fid_eq(&ti.ti_fid, &cfid));
@@ -239,7 +242,6 @@ static void ds_test(void)
 	C2_UT_ASSERT(ti.ti_session == &session);
 	C2_UT_ASSERT(ti.ti_magic   == C2_T1FS_TIOREQ_MAGIC);
 	C2_UT_ASSERT(iofops_tlist_is_empty(&ti.ti_iofops));
-	C2_UT_ASSERT(ti.ti_ivec.iv_vec.v_nr    == ti.ti_bufvec.ov_vec.v_nr);
 	C2_UT_ASSERT(ti.ti_ivec.iv_index       != NULL);
 	C2_UT_ASSERT(ti.ti_ivec.iv_vec.v_count != NULL);
 	C2_UT_ASSERT(ti.ti_pageattrs != NULL);
@@ -277,6 +279,7 @@ static void ds_test(void)
 	c2_free(irfop);
 	irfop = NULL;
 
+	ti.ti_ivec.iv_vec.v_nr = page_nr(UNIT_SIZE);
 	target_ioreq_fini(&ti);
 	C2_UT_ASSERT(ti.ti_magic     == 0);
 	C2_UT_ASSERT(ti.ti_ops       == NULL);
@@ -303,6 +306,9 @@ static void ds_test(void)
 	req.ir_iomaps[0] = NULL;
 	req.ir_iomap_nr  = 0;
 
+	c2_sm_state_set(&req.ir_sm, IRS_REQ_COMPLETE);
+	req.ir_nwxfer.nxr_state = NXS_COMPLETE;
+	req.ir_nwxfer.nxr_bytes = 1;
 	io_request_fini(&req);
 	C2_UT_ASSERT(req.ir_file   == NULL);
 	C2_UT_ASSERT(req.ir_iovec  == NULL);
@@ -359,14 +365,17 @@ static void pargrp_iomap_test(void)
 		map.pi_ivec.iv_index[cnt]       = (c2_bindex_t)
 						  (cnt * PAGE_CACHE_SIZE);
 		map.pi_ivec.iv_vec.v_count[cnt] = PAGE_CACHE_SIZE;
+		++map.pi_ivec.iv_vec.v_nr;
 
 		rc = pargrp_iomap_seg_process(&map, cnt, true);
 		C2_UT_ASSERT(rc == 0);
-		C2_UT_ASSERT(map.pi_databufs[0][0] != NULL);
-		C2_UT_ASSERT(map.pi_databufs[0][0]->db_flags & PA_WRITE);
-		C2_UT_ASSERT(map.pi_databufs[0][0]->db_flags &
+
+		page_pos_get(&map, map.pi_ivec.iv_index[cnt], &row, &col);
+		C2_UT_ASSERT(map.pi_databufs[row][col] != NULL);
+		C2_UT_ASSERT(map.pi_databufs[row][col]->db_flags & PA_WRITE);
+		C2_UT_ASSERT(map.pi_databufs[row][col]->db_flags &
 			     PA_FULLPAGE_MODIFY);
-		C2_UT_ASSERT(map.pi_databufs[0][0]->db_flags & ~PA_READ);
+		C2_UT_ASSERT(map.pi_databufs[row][col]->db_flags & ~PA_READ);
 	}
 
 	/* Checks if given segment falls in pargrp_iomap::pi_ivec. */

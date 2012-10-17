@@ -55,7 +55,6 @@ static void run_kernel_ut(int ignored)
 	c2_uts_init();
 	/* sort test suites in alphabetic order */
 	c2_ut_add(&file_io_ut);
-	goto last;
 	c2_ut_add(&c2_klibc2_ut);  /* test lib first */
 	c2_ut_add(&buffer_pool_ut);
 	c2_ut_add(&bulkio_client_ut);
@@ -71,7 +70,6 @@ static void run_kernel_ut(int ignored)
 
 	c2_ut_add(&c2_loop_ut); /* c2loop driver */
 
-last:
 	c2_ut_run();
 	c2_uts_fini();
 }

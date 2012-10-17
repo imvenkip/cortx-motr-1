@@ -333,14 +333,14 @@ bool c2_ivec_cursor_move(struct c2_ivec_cursor *cur,
                          c2_bcount_t            count);
 
 /**
- * Moves index vector cursor forward until it reaches index @to.
- * @pre   to >= c2_ivec_cursor_index(cursor).
- * @param to   Index uptil which cursor has to be moved.
+ * Moves index vector cursor forward until it reaches index @dest.
+ * @pre   dest >= c2_ivec_cursor_index(cursor).
+ * @param dest Index uptil which cursor has to be moved.
  * @ret   true iff end of vector has been reached while
  *             moving cursor. Returns false otherwise.
  * @post  c2_ivec_cursor_index(cursor) == to.
 */
-bool c2_ivec_cursor_move_until(struct c2_ivec_cursor *cursor, c2_bindex_t to);
+bool c2_ivec_cursor_move_to(struct c2_ivec_cursor *cursor, c2_bindex_t dest);
 
 /**
  * Returns the number of bytes needed to move cursor to next segment in given
