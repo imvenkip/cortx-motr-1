@@ -47,7 +47,7 @@
  *       main handler loop (loc_handler_thread()), where it waits until there
  *       are foms in runqueue and executes their phase transitions. This thread
  *       keeps group lock (c2_fom_locality::fl_group::s_lock) all the
- *       time. As a result, if phase transitions do not block, group block is
+ *       time. As a result, if phase transitions do not block, group lock is
  *       rarely touched;
  *
  *     - blocked threads: threads that executed a c2_fom_block_enter(), but not
