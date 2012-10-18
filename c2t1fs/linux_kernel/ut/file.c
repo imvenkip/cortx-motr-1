@@ -324,22 +324,29 @@ static void ds_test(void)
 
 	C2_UT_ASSERT(req.ir_nwxfer.nxr_ops == NULL);
 	C2_UT_ASSERT(req.ir_nwxfer.nxr_magic == 0);
+	c2_indexvec_free(&ivec);
+}
+
+static int dummy_readrest(struct pargrp_iomap *map)
+{
+	return 0;
 }
 
 static void pargrp_iomap_test(void)
 {
-	int                   rc;
-	int                   cnt;
-	uint32_t	      row;
-	uint32_t	      col;
-	uint64_t	      nr;
-	//c2_bindex_t           index;
+	int                     rc;
+	int                     cnt;
+	uint32_t	        row;
+	uint32_t	        col;
+	uint64_t	        nr;
+	c2_bindex_t             index;
 	/* iovec array spans the parity group partially. */
-	struct iovec          iovec_arr[LAY_N * UNIT_SIZE / PAGE_CACHE_SIZE];
-	struct io_request     req;
-	struct c2_indexvec    ivec;
-	//struct c2_ivec_cursor cur;
-	struct pargrp_iomap   map;
+	struct iovec            iovec_arr[LAY_N * UNIT_SIZE / PAGE_CACHE_SIZE];
+	struct io_request       req;
+	struct c2_indexvec      ivec;
+	struct c2_ivec_cursor   cur;
+	struct pargrp_iomap     map;
+	struct pargrp_iomap_ops piops;
 
 	rc = c2_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), NULL, NULL);
 	C2_UT_ASSERT(rc == 0);
@@ -422,15 +429,21 @@ static void pargrp_iomap_test(void)
 		}
 	}
 
-	/*
+	/* pargrp_iomap_fini() deallocates all data_buf structures in it. */
 	pargrp_iomap_fini(&map);
 	c2_indexvec_free(&ivec);
+	c2_sm_state_set(&req.ir_sm, IRS_REQ_COMPLETE);
+	req.ir_nwxfer.nxr_state = NXS_COMPLETE;
+	req.ir_nwxfer.nxr_bytes = 1;
 	io_request_fini(&req);
 
 	rc = c2_indexvec_alloc(&ivec, IOVEC_NR, NULL, NULL);
 	C2_UT_ASSERT(rc == 0);
 
 	index = 2000;
+	/*
+	 * Segments {2000, 5000}, {9000, 14000}, {16000, 21000}, {23000, 28000}}
+	 */
 	for (cnt = 0; cnt < IOVEC_NR; ++cnt) {
 
 		iovec_arr[cnt].iov_base  = &rc;
@@ -447,9 +460,53 @@ static void pargrp_iomap_test(void)
 	rc = pargrp_iomap_init(&map, &req, 0);
 	C2_UT_ASSERT(rc == 0);
 
-	c2_ivec_cursor_init(&cur, &req->ir_ivec);
-	rc = pargrp_iomap_populate(&map, &req, &cur);
-	*/
+	piops = (struct pargrp_iomap_ops) {
+		.pi_populate             = pargrp_iomap_populate,
+		.pi_spans_seg            = pargrp_iomap_spans_seg,
+		/* Dummy UT function. */
+		.pi_readrest             = dummy_readrest,
+		.pi_fullpages_find       = pargrp_iomap_fullpages_count,
+		.pi_seg_process          = pargrp_iomap_seg_process,
+		.pi_readold_auxbuf_alloc = pargrp_iomap_readold_auxbuf_alloc,
+		.pi_parity_recalc        = pargrp_iomap_parity_recalc,
+		.pi_paritybufs_alloc     = pargrp_iomap_paritybufs_alloc,
+	};
+	c2_ivec_cursor_init(&cur, &req.ir_ivec);
+	map.pi_ops = &piops;
+	rc = pargrp_iomap_populate(&map, &req.ir_ivec, &cur);
+	C2_UT_ASSERT(map.pi_databufs != NULL);
+	C2_UT_ASSERT(c2_vec_count(&map.pi_ivec.iv_vec) > 0);
+	C2_UT_ASSERT(map.pi_grpid == 0);
+	C2_UT_ASSERT(map.pi_ivec.iv_vec.v_nr == 4);
+
+	C2_UT_ASSERT(map.pi_ivec.iv_index[0] == 0);
+	C2_UT_ASSERT(map.pi_ivec.iv_vec.v_count[0] = 2 * PAGE_CACHE_SIZE);
+	C2_UT_ASSERT(map.pi_databufs[0][0] != NULL);
+	C2_UT_ASSERT(map.pi_databufs[1][0] != NULL);
+
+	C2_UT_ASSERT(map.pi_ivec.iv_index[1] == 2 * PAGE_CACHE_SIZE);
+	C2_UT_ASSERT(map.pi_ivec.iv_vec.v_count[1] == 2 * PAGE_CACHE_SIZE);
+	C2_UT_ASSERT(map.pi_databufs[2][0] != NULL);
+	C2_UT_ASSERT(map.pi_databufs[0][1] != NULL);
+
+	C2_UT_ASSERT(map.pi_ivec.iv_index[2] == 4 * PAGE_CACHE_SIZE);
+	C2_UT_ASSERT(map.pi_ivec.iv_vec.v_count[2] == 2 * PAGE_CACHE_SIZE);
+	C2_UT_ASSERT(map.pi_databufs[1][1] != NULL);
+	C2_UT_ASSERT(map.pi_databufs[2][1] != NULL);
+
+	printk(KERN_EMERG "map.pi_ivec.iv_vec.v_count[3] = %llu", map.pi_ivec.iv_vec.v_count[3]);
+	C2_UT_ASSERT(map.pi_ivec.iv_index[3] == 6 * PAGE_CACHE_SIZE);
+	C2_UT_ASSERT(map.pi_ivec.iv_vec.v_count[3] == PAGE_CACHE_SIZE);
+	C2_UT_ASSERT(map.pi_databufs[0][2] != NULL);
+
+	rc = pargrp_iomap_readrest(&map);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(map.pi_ivec.iv_index[3] + map.pi_ivec.iv_vec.v_count[3] ==
+		     data_size(pdlay));
+	C2_UT_ASSERT(map.pi_databufs[1][2] != NULL);
+	C2_UT_ASSERT(map.pi_databufs[1][2]->db_flags & PA_READ);
+	C2_UT_ASSERT(map.pi_databufs[2][2] != NULL);
+	C2_UT_ASSERT(map.pi_databufs[2][2]->db_flags & PA_READ);
 }
 
 static void helpers_test(void)
@@ -613,8 +670,11 @@ static void target_ioreq_test(void)
 	} c2_tl_endfor;
 
 	c2_tl_for(iofops, &ti.ti_iofops, irfop) {
+		struct c2_io_fop *iofop = &irfop->irf_iofop;
+
                 iofops_tlist_del(irfop);
                 irfop_fini(irfop);
+		c2_io_fop_fini(iofop);
 		C2_CNT_DEC(req.ir_nwxfer.nxr_iofop_nr);
 	} c2_tl_endfor;
 
@@ -629,6 +689,7 @@ static void target_ioreq_test(void)
 	c2_fi_enable_off_n_on_m("c2_alloc", "fail_allocation", 2, 1);
 	rc = target_ioreq_iofops_prepare(&ti);
 	C2_UT_ASSERT(rc == -ENOMEM);
+	c2_fi_disable("c2_alloc", "fail_allocation");
 
 	/* Finalisation */
 	req.ir_nwxfer.nxr_state = NXS_COMPLETE;

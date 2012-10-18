@@ -828,6 +828,7 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
                         c2_parity_math_calculate(parity_math(map->pi_ioreq),
                                                  dbufs, pbufs);
                 }
+		rc = 0;
 
         } else {
                 struct data_buf *buf;
@@ -1486,7 +1487,7 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
         INDEX(ivec, 0)  = grpstart;
 
 	/* Extends last segment to align with end of parity group. */
-        COUNT(ivec, seg_nr - 1) += grpend - INDEX(ivec, seg_nr - 1);
+        COUNT(ivec, seg_nr - 1) = grpend - INDEX(ivec, seg_nr - 1);
 
         /*
          * All io extents _not_ spanned by pargrp_iomap::pi_ivec
@@ -1563,7 +1564,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
         int                       rc;
         bool                      rmw;
         uint64_t                  seg;
-        uint64_t                  size;
+        uint64_t                  size = 0;
         uint64_t                  grpsize;
         c2_bcount_t               count = 0;
         /* Number of pages _completely_ spanned by incoming io vector. */
@@ -1585,12 +1586,13 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
         grpstart = grpsize * map->pi_grpid;
         grpend   = grpstart + grpsize;
 
-        for (size = 0, seg = cursor->ic_cur.vc_seg; INDEX(ivec, seg) < grpend;
-             ++seg)
+        for (seg = cursor->ic_cur.vc_seg; INDEX(ivec, seg) < grpend &&
+	     seg < SEG_NR(ivec); ++seg)
                 size += min64u(grpend - INDEX(ivec, seg), COUNT(ivec, seg));
 
         rmw = size < grpsize && map->pi_ioreq->ir_type == IRT_WRITE;
 
+	printk(KERN_EMERG "Anticipated size = %llu", size);
         size = map->pi_ioreq->ir_file->f_dentry->d_inode->i_size;
 
         for (seg = 0; !c2_ivec_cursor_move(cursor, count) &&
@@ -1622,8 +1624,10 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 		 * pargrp_iomp::pi_ivec, start of segment is rounded up to move to
 		 * next page.
 		 */
-		if (seg > 0 && INDEX(&map->pi_ivec, seg) ==
-		    INDEX(&map->pi_ivec, seg - 1)) {
+		if (seg > 0 &&
+		    INDEX(&map->pi_ivec, seg) <
+		    INDEX(&map->pi_ivec, seg - 1) +
+		    COUNT(&map->pi_ivec, seg - 1)) {
 			INDEX(&map->pi_ivec, seg) = c2_round_up(
 					INDEX(&map->pi_ivec, seg) + 1,
 					PAGE_CACHE_SIZE);
@@ -1731,7 +1735,8 @@ static int ioreq_iomaps_prepare(struct io_request *req)
         for (seg = 0; seg < SEG_NR(&req->ir_ivec); ++seg) {
                 grpstart = group_id(INDEX(&req->ir_ivec, seg), data_size(play));
                 grpend   = group_id(INDEX(&req->ir_ivec, seg) +
-                                    COUNT(&req->ir_ivec, seg), data_size(play));
+                                    COUNT(&req->ir_ivec, seg) - 1,
+				    data_size(play));
                 for (grp = grpstart; grp <= grpend; ++grp) {
                         for (id = 0; id < req->ir_iomap_nr; ++id)
                                 if (grparray[id] == grp)
@@ -1887,7 +1892,7 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 
                         ti->ti_ops->tio_seg_add(ti, tgt.ta_frame, r_ext.e_start,
                                                 c2_ext_length(&r_ext),
-                                                unit_type);
+                                                src.sa_unit);
                 }
 
                 /* Maps parity units. */
@@ -2986,6 +2991,11 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti)
                 rc = c2_io_fop_prepare(&irfop->irf_iofop.if_fop);
                 if (rc != 0)
                         goto fini_fop;
+
+		io_rw_get(&irfop->irf_iofop.if_fop)->crw_fid.f_seq =
+			ti->ti_fid.f_container;
+		io_rw_get(&irfop->irf_iofop.if_fop)->crw_fid.f_oid =
+			ti->ti_fid.f_key;
 
 		C2_CNT_INC(ti->ti_nwxfer->nxr_iofop_nr);
                 iofops_tlist_add(&ti->ti_iofops, irfop);

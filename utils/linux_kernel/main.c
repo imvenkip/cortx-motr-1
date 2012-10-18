@@ -54,8 +54,8 @@ static void run_kernel_ut(int ignored)
 
 	c2_uts_init();
 	/* sort test suites in alphabetic order */
-	c2_ut_add(&file_io_ut);
 	c2_ut_add(&c2_klibc2_ut);  /* test lib first */
+	c2_ut_add(&file_io_ut);
 	c2_ut_add(&buffer_pool_ut);
 	c2_ut_add(&bulkio_client_ut);
 	c2_ut_add(&c2_net_bulk_if_ut);
