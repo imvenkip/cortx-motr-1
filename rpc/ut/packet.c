@@ -19,6 +19,7 @@
  */
 
 #include "colibri/init.h"
+#include "colibri/magic.h"
 #include "lib/vec.h"
 #include "lib/memory.h"
 #include "lib/ut.h"
@@ -27,12 +28,96 @@
 #include "rpc/it/ping_fop.h"
 #include "rpc/it/ping_fop_ff.h"
 #include "rpc/ut/sample.h"
+#include "addb/addbff/addb_ff.h"
 
 #define cmp_item(item1, item2, field) item1->field == item2->field
+#define cmp_header(header1, header2, field) header1->field == header2->field
 
 static inline uint32_t fop_opcode(struct c2_fop *fop)
 {
 return fop->f_type->ft_rec_type.rt_opcode;
+}
+#if 1
+static void fop_fini(struct c2_fop *fop)
+{
+
+	struct c2_fop_ping *ping_fop_data;
+//	struct c2_addb_record *addb_fop_data;
+
+	switch (fop_opcode(fop)) {
+	case C2_RPC_PING_OPCODE:
+		ping_fop_data = c2_fop_data(fop);
+		if (ping_fop_data->fp_arr.f_data != NULL)
+			c2_free(ping_fop_data->fp_arr.f_data);
+		break;
+#if 0
+	case C2_ADDB_RECORD_REQUEST_OPCODE:
+		addb_fop_data = c2_fop_data(fop);
+		if (addb_fop_data->ar_data.cmb_count != 0)
+			c2_free(addb_fop_data->ar_data.cmb_value);
+#endif
+	}
+}
+
+static void packet_ut_fini(struct c2_rpc_packet *packet1,
+		           struct c2_rpc_packet *packet2)
+{
+	struct c2_rpc_item *item1;
+	struct c2_rpc_item *item2;
+	struct c2_fop      *fop;
+
+	for (item1 = c2_tlist_head(&packet_item_tl, &packet1->rp_items),
+	     item2 = c2_tlist_head(&packet_item_tl, &packet2->rp_items);
+	     item1 != NULL && item2 != NULL;
+	     item1 = packet_item_tlist_next(&packet1->rp_items, item1),
+	     item2 = packet_item_tlist_next(&packet2->rp_items, item2)) {
+		fop = c2_rpc_item_to_fop(item1);
+		fop_fini(fop);
+		fop = c2_rpc_item_to_fop(item2);
+		fop_fini(fop);
+	}
+
+	c2_rpc_packet_remove_all_items(packet1);
+	c2_rpc_packet_fini(packet1);
+	c2_rpc_packet_remove_all_items(packet2);
+	c2_rpc_packet_fini(packet2);
+}
+#endif
+static bool cmp_addb_record_header(struct c2_addb_record_header *header1,
+				   struct c2_addb_record_header *header2)
+{
+	return cmp_header(header1, header2, arh_magic1) &&
+		cmp_header(header1, header2, arh_version) &&
+		cmp_header(header1, header2, arh_len) &&
+		cmp_header(header1, header2, arh_event_id) &&
+		cmp_header(header1, header2, arh_timestamp) &&
+		cmp_header(header1, header2, arh_magic2);
+}
+
+static bool cmp_addb_record_buf(struct c2_mem_buf *buf1,
+		                struct c2_mem_buf *buf2)
+{
+	int  i;
+	bool rc = true;
+	if (buf1->cmb_count == buf2->cmb_count) {
+		for (i = 0; i < buf1->cmb_count; ++i) {
+			rc &= buf1->cmb_value[i] == buf2->cmb_value[i];
+		}
+	} else {
+		return false;
+	}
+	return rc;
+}
+
+static void fill_addb_data(struct c2_addb_record_header *header)
+{
+	header->arh_magic1    = C2_ADDB_REC_HEADER_MAGIC1;
+	header->arh_version   = ADDB_REC_HEADER_VERSION;
+	header->arh_len       = 0;
+	/* arbitrary event-id is added */
+	header->arh_event_id  = 1234;
+	header->arh_timestamp = c2_time_now();
+	header->arh_magic2    = C2_ADDB_REC_HEADER_MAGIC2;
 }
 
 static bool fop_data_compare(struct c2_fop *fop1,
@@ -44,6 +129,11 @@ static bool fop_data_compare(struct c2_fop *fop1,
 		struct c2_fop_ping *ping_data2;
 		struct c2_fop_ping_rep *ping_rep_data1;
 		struct c2_fop_ping_rep *ping_rep_data2;
+
+		struct c2_addb_record *addb_data1;
+		struct c2_addb_record *addb_data2;
+
+
 	switch (fop_opcode(fop1)) {
 
 		/* Ping FOPs */
@@ -58,6 +148,13 @@ static bool fop_data_compare(struct c2_fop *fop1,
 
 		return ping_rep_data1->fpr_rc == ping_rep_data2->fpr_rc;
 
+	case C2_ADDB_RECORD_REQUEST_OPCODE:
+		addb_data1 = c2_fop_data(fop1);
+		addb_data2 = c2_fop_data(fop2);
+		return cmp_addb_record_header(&addb_data1->ar_header,
+				              &addb_data2->ar_header) &&
+			cmp_addb_record_buf(&addb_data1->ar_data,
+					    &addb_data2->ar_data);
 	default:
 		return false;
 
@@ -123,19 +220,24 @@ static bool packet_compare(struct c2_rpc_packet *p1, struct c2_rpc_packet *p2)
 
 void test_packet_encode()
 {
+	/* Ping FOP and Ping reply FOP */
 	struct c2_fop          *ping_fop;
-	struct c2_fop          *decoded_ping_fop;
 	struct c2_fop	       *ping_fop_rep;
-	struct c2_fop	       *decoded_ping_fop_rep;
 	struct c2_fop_ping     *ping_fop_data;
 	struct c2_fop_ping_rep *ping_fop_rep_data;
+
+	/* ADDB record request, ADDB reply */
+	struct c2_fop	       *addb_fop;
+	struct c2_addb_record  *addb_fop_data;
+
+	/* RPC objects */
 	struct c2_rpc_item     *item;
 	struct c2_rpc_packet    p_for_encd;
 	struct c2_rpc_packet    p_decoded;
 	struct c2_bufvec        bufvec;
 	c2_bcount_t             bufvec_size;
 
-	/* All initializations */
+	/* Ping FOP and Ping-reply FOP */
 	c2_ping_fop_init();
 	ping_fop = c2_fop_alloc(&c2_fop_ping_fopt, NULL);
 	C2_UT_ASSERT(ping_fop != NULL);
@@ -166,6 +268,22 @@ void test_packet_encode()
 	item->ri_ops = &c2_fop_default_item_ops;
 	c2_rpc_packet_add_item(&p_for_encd, item);
 
+	/* ADDB FOP */
+	c2_addb_fop_init();
+	addb_fop = c2_fop_alloc(&c2_addb_record_fopt, NULL);
+	C2_UT_ASSERT(addb_fop != NULL);
+
+	addb_fop_data = c2_fop_data(addb_fop);
+	fill_addb_data(&addb_fop_data->ar_header);
+	addb_fop_data->ar_data.cmb_count = 10;
+	C2_ALLOC_ARR(addb_fop_data->ar_data.cmb_value,
+		     addb_fop_data->ar_data.cmb_count);
+
+	item = &addb_fop->f_item;
+	item->ri_ops = &c2_fop_default_item_ops;
+	c2_rpc_packet_add_item(&p_for_encd, item);
+
+
 	C2_UT_ASSERT(!c2_rpc_packet_encode(&p_for_encd, &bufvec));
 	bufvec_size = c2_vec_count(&bufvec.ov_vec);
 
@@ -176,24 +294,12 @@ void test_packet_encode()
 
 
 	/* Fini business */
-	item = c2_tlist_head(&packet_item_tl, &p_decoded.rp_items);
-	decoded_ping_fop = c2_rpc_item_to_fop(item);
-	item = packet_item_tlist_next(&p_decoded.rp_items, item);
-	decoded_ping_fop_rep = c2_rpc_item_to_fop(item);
-	c2_bufvec_free_aligned(&bufvec, C2_SEG_SHIFT);
-	c2_rpc_packet_remove_all_items(&p_for_encd);
-	c2_rpc_packet_fini(&p_for_encd);
-	c2_rpc_packet_remove_all_items(&p_decoded);
-	c2_rpc_packet_fini(&p_decoded);
-	c2_free(ping_fop_data->fp_arr.f_data);
-	ping_fop_data = c2_fop_data(decoded_ping_fop);
-	c2_free(ping_fop_data->fp_arr.f_data);
-	c2_fop_free(decoded_ping_fop);
-	c2_fop_free(decoded_ping_fop_rep);
+	packet_ut_fini(&p_for_encd, &p_decoded);
 
-	c2_fop_free(ping_fop);
-	c2_fop_free(ping_fop_rep);
+	c2_bufvec_free_aligned(&bufvec, C2_SEG_SHIFT);
+
 	c2_ping_fop_fini();
+	c2_addb_fop_fini();
 }
 
 const struct c2_test_suite packet_ut = {
