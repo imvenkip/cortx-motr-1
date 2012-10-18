@@ -385,6 +385,7 @@ void c2_layout__populate(struct c2_layout *l, uint32_t user_count)
 
 void c2_layout__fini_internal(struct c2_layout *l)
 {
+	C2_PRE(c2_mutex_is_not_locked(&l->l_lock));
 	c2_addb_ctx_fini(&l->l_addb);
 	c2_mutex_fini(&l->l_lock);
 	layout_type_put(l->l_type);
@@ -397,7 +398,6 @@ void c2_layout__delete(struct c2_layout *l)
 {
 	C2_PRE(c2_layout__allocated_invariant(l));
 	C2_PRE(list_lookup(l->l_dom, l->l_id) != l);
-	C2_PRE(c2_mutex_is_not_locked(&l->l_lock));
 	C2_PRE(c2_ref_read(&l->l_ref) == 1);
 
 	C2_ENTRY("lid %llu", (unsigned long long)l->l_id);

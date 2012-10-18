@@ -295,8 +295,7 @@ static int c2t1fs_sb_layout_init(struct c2t1fs_sb *csb)
 			c2_layout_enum_fini(layout_enum);
 	}
 
-	C2_POST(equi(rc == 0, csb->csb_file_layout != NULL &&
-		     c2_ref_read(&csb->csb_file_layout->l_ref) > 0));
+	C2_POST(ergo(rc == 0, csb->csb_file_layout != NULL));
 	C2_LEAVE("rc: %d", rc);
 	return rc;
 }
