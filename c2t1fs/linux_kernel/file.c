@@ -1237,6 +1237,7 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
                                     bool                 rmw)
 {
         int                       rc;
+	bool                      ret;
         uint32_t                  row;
         uint32_t                  col;
         uint64_t                  count = 0;
@@ -1251,7 +1252,8 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
         play  = pdlayout_get(map->pi_ioreq);
         inode = map->pi_ioreq->ir_file->f_dentry->d_inode;
         c2_ivec_cursor_init(&cur, &map->pi_ivec);
-	C2_ASSERT(!c2_ivec_cursor_move_to(&cur, map->pi_ivec.iv_index[seg]));
+	ret = c2_ivec_cursor_move_to(&cur, map->pi_ivec.iv_index[seg]);
+	C2_ASSERT(!ret);
 
         while (!c2_ivec_cursor_move(&cur, count)) {
 
@@ -1620,8 +1622,8 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 		 * pargrp_iomp::pi_ivec, start of segment is rounded up to move to
 		 * next page.
 		 */
-		if (INDEX(&map->pi_ivec, seg) == INDEX(&map->pi_ivec, seg - 1)
-		    && seg > 0) {
+		if (seg > 0 && INDEX(&map->pi_ivec, seg) ==
+		    INDEX(&map->pi_ivec, seg - 1)) {
 			INDEX(&map->pi_ivec, seg) = c2_round_up(
 					INDEX(&map->pi_ivec, seg) + 1,
 					PAGE_CACHE_SIZE);

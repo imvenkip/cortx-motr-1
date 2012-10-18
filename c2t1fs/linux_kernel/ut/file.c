@@ -38,6 +38,7 @@
 #include "fid/fid.h"    /* c2_fid */
 #include "lib/misc.h"   /* c2_rnd */
 #include "lib/time.h"   /* c2_time_nanoseconds */
+#include "lib/finject.h"
 #include "layout/layout.h"      /* c2_layout_domain_init */
 #include "layout/linear_enum.h" /* c2_layout_linear_enum */
 #include <linux/dcache.h>       /* struct dentry */
@@ -67,7 +68,7 @@ enum {
 	FID_CONTAINER    = 0,
 	FID_KEY		 = 3,
 	ATTR_A_CONST	 = 1,
-	ATTR_B_CONST	 = 2,
+	ATTR_B_CONST	 = 1,
 };
 
 static struct super_block            sb;
@@ -79,6 +80,9 @@ static struct c2_layout_linear_attr  llattr;
 static struct c2t1fs_inode           ci;
 static struct c2_layout_linear_attr  llattr;
 static struct file       	     lfile;
+static struct c2t1fs_service_context ctx;
+
+C2_TL_DESCR_DECLARE(rpcbulk, extern);
 
 static int file_io_ut_init(void)
 {
@@ -92,12 +96,15 @@ static int file_io_ut_init(void)
         c2_addb_ctx_init(&c2t1fs_addb, &c2t1fs_addb_type, &c2_addb_global_ctx);
         c2_sm_group_init(&csb.csb_iogroup);
         csb.csb_active = true;
+	csb.csb_nr_containers = LAY_P + 1;
+	csb.csb_pool_width = LAY_P;
         c2_chan_init(&csb.csb_iowait);
         c2_atomic64_set(&csb.csb_pending_io_nr, 0);
+        io_bob_tlists_init();
 
         /* Tries to build a layout. */
         llattr = (struct c2_layout_linear_attr) {
-                .lla_nr = LAY_N + 2 * LAY_K, 
+                .lla_nr = LAY_N + 2 * LAY_K,
                 .lla_A  = ATTR_A_CONST,
                 .lla_B  = ATTR_B_CONST,
         };
@@ -141,7 +148,7 @@ static int file_io_ut_init(void)
 	lfile.f_dentry->d_inode->i_sb = &sb;
 
 	/* Sets the file size in inode. */
-	ci.ci_inode.i_size = DATA_SIZE; 
+	ci.ci_inode.i_size = DATA_SIZE;
 
 	return 0;
 }
@@ -229,9 +236,6 @@ static void ds_test(void)
 	cfid.f_container = 0;
 	cfid.f_key	 = 5;
 
-	/* Initializes bob types for target_ioreq and io_req_fop objects. */
-	io_bob_tlists_init();
-
 	/* target_ioreq attributes test. */
 	rc = target_ioreq_init(&ti, &req.ir_nwxfer, &cfid, &session, UNIT_SIZE);
 	C2_UT_ASSERT(rc       == 0);
@@ -250,7 +254,7 @@ static void ds_test(void)
 	/* io_req_fop attributes test. */
 	C2_ALLOC_PTR(irfop);
 	C2_UT_ASSERT(irfop != NULL);
-	rc = io_req_fop_init(irfop, &ti); 
+	rc = io_req_fop_init(irfop, &ti);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(irfop->irf_magic == C2_T1FS_IOFOP_MAGIC);
 	C2_UT_ASSERT(irfop->irf_tioreq == &ti);
@@ -324,16 +328,18 @@ static void ds_test(void)
 
 static void pargrp_iomap_test(void)
 {
-	int                 rc;
-	int                 cnt;
-	uint32_t	    row;
-	uint32_t	    col;
-	uint64_t	    nr;
+	int                   rc;
+	int                   cnt;
+	uint32_t	      row;
+	uint32_t	      col;
+	uint64_t	      nr;
+	//c2_bindex_t           index;
 	/* iovec array spans the parity group partially. */
-	struct iovec        iovec_arr[LAY_N * UNIT_SIZE / PAGE_CACHE_SIZE];
-	struct io_request   req;
-	struct c2_indexvec  ivec;
-	struct pargrp_iomap map;
+	struct iovec          iovec_arr[LAY_N * UNIT_SIZE / PAGE_CACHE_SIZE];
+	struct io_request     req;
+	struct c2_indexvec    ivec;
+	//struct c2_ivec_cursor cur;
+	struct pargrp_iomap   map;
 
 	rc = c2_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), NULL, NULL);
 	C2_UT_ASSERT(rc == 0);
@@ -379,8 +385,8 @@ static void pargrp_iomap_test(void)
 	}
 
 	/* Checks if given segment falls in pargrp_iomap::pi_ivec. */
-	C2_UT_ASSERT(pargrp_iomap_spans_seg(&map, 0, 4096));
-	C2_UT_ASSERT(pargrp_iomap_spans_seg(&map, 1234, 10));
+	C2_UT_ASSERT(pargrp_iomap_spans_seg (&map, 0,     4096));
+	C2_UT_ASSERT(pargrp_iomap_spans_seg (&map, 1234,  10));
 	C2_UT_ASSERT(!pargrp_iomap_spans_seg(&map, 40960, 4096));
 
 	/*
@@ -415,6 +421,35 @@ static void pargrp_iomap_test(void)
 				     ~PA_PARTPAGE_MODIFY);
 		}
 	}
+
+	/*
+	pargrp_iomap_fini(&map);
+	c2_indexvec_free(&ivec);
+	io_request_fini(&req);
+
+	rc = c2_indexvec_alloc(&ivec, IOVEC_NR, NULL, NULL);
+	C2_UT_ASSERT(rc == 0);
+
+	index = 2000;
+	for (cnt = 0; cnt < IOVEC_NR; ++cnt) {
+
+		iovec_arr[cnt].iov_base  = &rc;
+		iovec_arr[cnt].iov_len   = 5000;
+
+		ivec.iv_index[cnt]       = index;
+		ivec.iv_vec.v_count[cnt] = 5000;
+		index = ivec.iv_index[cnt] + ivec.iv_vec.v_count[cnt] + 2000;
+	}
+
+	rc = io_request_init(&req, &lfile, iovec_arr, &ivec, IRT_WRITE);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = pargrp_iomap_init(&map, &req, 0);
+	C2_UT_ASSERT(rc == 0);
+
+	c2_ivec_cursor_init(&cur, &req->ir_ivec);
+	rc = pargrp_iomap_populate(&map, &req, &cur);
+	*/
 }
 
 static void helpers_test(void)
@@ -436,10 +471,10 @@ static void helpers_test(void)
 
 	C2_UT_ASSERT(round_down(1000, 1024) == 0);
 	C2_UT_ASSERT(round_up(2000, 1024)   == 2048);
-	C2_UT_ASSERT(round_down(127, 2)     == 126);
-	C2_UT_ASSERT(round_up(127, 2)       == 128);
-	C2_UT_ASSERT(round_down(127, 256)   == 0);
-	C2_UT_ASSERT(round_up(127, 256)     == 256);
+	C2_UT_ASSERT(round_up(0, 2)         == 0);
+	C2_UT_ASSERT(round_down(1023, 1024) == 0);
+	C2_UT_ASSERT(round_up(1025, 1024)   == 2048);
+	C2_UT_ASSERT(round_down(1024, 1024) == round_up(1024, 1024));
 
 	req.ir_file  = &lfile;
 	map = (struct pargrp_iomap) {
@@ -456,6 +491,64 @@ static void helpers_test(void)
 	}
 }
 
+static void nw_xfer_ops_test(void)
+{
+	int                        cnt;
+	int                        rc;
+	struct io_request          req;
+	struct iovec               iovec_arr[IOVEC_NR];
+	struct c2_indexvec         ivec;
+	struct c2_pdclust_src_addr src;
+	struct c2_pdclust_tgt_addr tgt;
+	struct target_ioreq       *ti;
+	struct target_ioreq       *ti1;
+
+	C2_SET0(&req);
+	C2_SET0(&src);
+	C2_SET0(&tgt);
+	rc = c2_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), NULL, NULL);
+	C2_UT_ASSERT(rc == 0);
+
+	for (cnt = 0; cnt < IOVEC_NR; ++cnt) {
+		iovec_arr[cnt].iov_base = &rc;
+		iovec_arr[cnt].iov_len  = IOVEC_BUF_LEN;
+
+		ivec.iv_index[cnt] = FILE_START_INDEX - cnt * IOVEC_BUF_LEN;
+		ivec.iv_vec.v_count[cnt] = IOVEC_BUF_LEN;
+	}
+
+	rc = io_request_init(&req, &lfile, iovec_arr, &ivec, IRT_WRITE);
+	C2_UT_ASSERT(rc == 0);
+
+	csb.csb_cl_map.clm_map[3] = &ctx;
+	src.sa_unit = 0;
+	req.ir_iomap_nr = 1;
+
+	rc = nw_xfer_tioreq_map(&req.ir_nwxfer, &src, &tgt, &ti);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(c2_tlist_length(&tioreqs_tl,
+				&req.ir_nwxfer.nxr_tioreqs) == 1);
+	C2_UT_ASSERT(ti->ti_ivec.iv_index != NULL);
+	C2_UT_ASSERT(ti->ti_ivec.iv_vec.v_count != NULL);
+	C2_UT_ASSERT(ti->ti_bufvec.ov_vec.v_count != NULL);
+	C2_UT_ASSERT(ti->ti_bufvec.ov_buf != NULL);
+	C2_UT_ASSERT(ti->ti_pageattrs != NULL);
+
+	c2_tl_for (tioreqs, &req.ir_nwxfer.nxr_tioreqs, ti1) {
+		tioreqs_tlist_del(ti1);
+	} c2_tl_endfor;
+
+	req.ir_iomap_nr         = 0;
+	req.ir_sm.sm_state      = IRS_REQ_COMPLETE;
+	req.ir_nwxfer.nxr_state = NXS_COMPLETE;
+	ti->ti_ivec.iv_vec.v_nr = page_nr(UNIT_SIZE);
+	req.ir_nwxfer.nxr_bytes = 1;
+	io_request_fini(&req);
+	c2_indexvec_free(&ivec);
+}
+
+
+
 static int file_io_ut_fini(void)
 {
 	c2_free(lfile.f_dentry);
@@ -470,15 +563,92 @@ static int file_io_ut_fini(void)
 	return 0;
 }
 
+static void target_ioreq_test(void)
+{
+	struct target_ioreq   ti;
+        struct io_request     req;
+	uint64_t              size;
+	struct c2_fid         cfid;
+	struct c2_rpc_session session;
+	struct c2_rpc_conn    conn;
+	struct io_req_fop    *irfop;
+	int		      cnt;
+	int                   rc;
+	void		     *aligned_buf;
+	struct c2_net_domain *ndom;
+
+	size = IOVEC_NR * PAGE_CACHE_SIZE;
+	req.ir_sm.sm_state = IRS_READING;
+
+	ndom = &c2t1fs_globals.g_ndom;
+	conn.c_rpc_machine = &c2t1fs_globals.g_rpc_machine;
+	session.s_conn = &conn;
+
+	aligned_buf = c2_alloc_aligned(C2_0VEC_ALIGN, C2_0VEC_SHIFT);
+
+        io_request_bob_init(&req);
+        nw_xfer_request_init(&req.ir_nwxfer);
+
+	rc = target_ioreq_init(&ti, &req.ir_nwxfer, &cfid, &session, size);
+	C2_UT_ASSERT(rc == 0);
+
+        for (cnt = 0; cnt < IOVEC_NR; ++cnt) {
+		ti.ti_bufvec.ov_buf[cnt] = aligned_buf;
+		COUNT(&ti.ti_ivec, cnt)  = PAGE_CACHE_SIZE;
+		INDEX(&ti.ti_ivec, cnt)  = cnt * PAGE_CACHE_SIZE;
+		ti.ti_pageattrs[cnt]     = PA_READ;
+	}
+	SEG_NR(&ti.ti_ivec)  = IOVEC_NR;
+
+	rc = target_ioreq_iofops_prepare(&ti);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(ti.ti_nwxfer->nxr_iofop_nr == 1);
+
+	c2_tl_for(iofops, &ti.ti_iofops, irfop) {
+		struct c2_rpc_bulk *rbulk = &irfop->irf_iofop.if_rbulk;
+		C2_UT_ASSERT(!c2_tlist_is_empty(&rpcbulk_tl,
+						&rbulk->rb_buflist));
+		C2_UT_ASSERT(c2_io_fop_size_get(&irfop->irf_iofop.if_fop) <=
+			     c2_max_fop_size(conn.c_rpc_machine));
+	} c2_tl_endfor;
+
+	c2_tl_for(iofops, &ti.ti_iofops, irfop) {
+                iofops_tlist_del(irfop);
+                irfop_fini(irfop);
+		C2_CNT_DEC(req.ir_nwxfer.nxr_iofop_nr);
+	} c2_tl_endfor;
+
+	/* Checks allocation failure. */
+
+	c2_fi_enable_off_n_on_m("c2_alloc", "fail_allocation", 1, 1);
+	rc = target_ioreq_iofops_prepare(&ti);
+	C2_UT_ASSERT(rc == -ENOMEM);
+
+	/* Checks allocation failure in c2_rpc_bulk_buff_add(). */
+
+	c2_fi_enable_off_n_on_m("c2_alloc", "fail_allocation", 2, 1);
+	rc = target_ioreq_iofops_prepare(&ti);
+	C2_UT_ASSERT(rc == -ENOMEM);
+
+	/* Finalisation */
+	req.ir_nwxfer.nxr_state = NXS_COMPLETE;
+	req.ir_nwxfer.nxr_bytes = 10;
+	nw_xfer_request_fini(&req.ir_nwxfer);
+	target_ioreq_fini(&ti);
+        io_request_bob_fini(&req);
+	c2_free_aligned(aligned_buf, C2_0VEC_ALIGN, C2_0VEC_SHIFT);
+}
+
 const struct c2_test_suite file_io_ut = {
         .ts_name  = "file-io-ut",
         .ts_init  = file_io_ut_init,
         .ts_fini  = file_io_ut_fini,
         .ts_tests = {
-                {"basic_data_structures_test",  ds_test},
-                {"helper_routines_test",        helpers_test},
-                {"parity_group_test",           pargrp_iomap_test},
-                //{"target_ioreq_test",           target_ioreq_test},
+                {"basic_data_structures_test", ds_test},
+                {"helper_routines_test",       helpers_test},
+                {"parity_group_test",          pargrp_iomap_test},
+		{"nw_xfer_ops_test",           nw_xfer_ops_test},
+                {"target_ioreq_test",          target_ioreq_test},
         },
 };
 C2_EXPORTED(file_io_ut);
