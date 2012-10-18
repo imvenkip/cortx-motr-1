@@ -1,10 +1,11 @@
-KUTC2_SRCDIR = @SRCDIR@/utils/linux_kernel
+KUTC2_SRCDIR = @top_srcdir@/utils/linux_kernel
 
 obj-m       := kutc2.o kc2ctl.o
 kutc2-y     := main.o
 kc2ctl-y    := c2ctl.o finject_debugfs.o
 
-EXTRA_CFLAGS = -DHAVE_CONFIG_H -iquote @SRCDIR@ @KCFLAGS@
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -iquote @top_srcdir@ @C2_KCPPFLAGS@ @C2_KCFLAGS@ \
+	       @KCFLAGS@
 
 prepare:
 
@@ -14,4 +15,4 @@ distclean clean:
 
 distdir:
 	cp $(KUTC2_SRCDIR)/Makefile.in $(KUTC2_SRCDIR)/main.c \
-@top_builddir@/@PACKAGE@-@VERSION@/utils/linux_kernel
+@top_builddir@/@PACKAGE@-@PACKAGE_VERSION@/utils/linux_kernel

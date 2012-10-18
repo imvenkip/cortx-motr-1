@@ -1,0 +1,17 @@
+EXTRA_DIST += doc/Doxyfile \
+              doc/coding-style \
+              doc/dld-index.c \
+              doc/dld-sample-uml.png \
+              doc/dld-template.c \
+              doc/dld-template.h \
+              doc/fault-injection \
+              doc/gccxml \
+              doc/gdb-commands-for-colibri \
+              doc/git-policy \
+              doc/logging-and-tracing \
+              doc/profiling \
+              doc/reading-list.html \
+              doc/source-structure \
+              doc/test-coverage \
+              doc/todo \
+              doc/trace

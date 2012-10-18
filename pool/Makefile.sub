@@ -1,0 +1,2 @@
+nobase_colibri_include_HEADERS += pool/pool.h
+colibri_libcolibri_la_SOURCES  += pool/pool.c

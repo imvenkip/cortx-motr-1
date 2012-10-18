@@ -18,10 +18,6 @@
  * Original creation date: 09/25/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_CM
 
 #include "lib/bob.h"

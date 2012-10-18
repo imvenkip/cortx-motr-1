@@ -1,0 +1,8 @@
+xcode_ff2c_libcolibri_xcode_ff2c_la_SOURCES = xcode/ff2c/lex.c \
+                                              xcode/ff2c/lex.h \
+                                              xcode/ff2c/parser.c \
+                                              xcode/ff2c/parser.h \
+                                              xcode/ff2c/sem.c \
+                                              xcode/ff2c/sem.h \
+                                              xcode/ff2c/gen.c \
+                                              xcode/ff2c/gen.h

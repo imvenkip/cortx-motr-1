@@ -1,0 +1,12 @@
+ut_libcolibri_ut_la_SOURCES += fop/ut/iterator_test.c \
+                               fop/ut/iterator_test_ff.c \
+                               fop/ut/long_lock/long_lock_ut.c
+
+FF_FILES   += fop/ut/iterator_test_ff.h
+
+EXTRA_DIST += fop/ut/iterator_test.ff \
+              fop/ut/long_lock/rdwr_test_bench.c \
+              fop/ut/long_lock/rdwr_fom.c
+
+CLEANFILES += fop/ut/iterator_test_ff.h \
+              fop/ut/iterator_test_ff.c
