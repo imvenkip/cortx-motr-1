@@ -633,6 +633,15 @@ static void target_ioreq_test(void)
 	int                   rc;
 	void		     *aligned_buf;
 	struct c2_net_domain *ndom;
+	struct iovec          iovec_arr[IOVEC_NR];
+	struct c2_indexvec   *ivec;
+	struct pargrp_iomap  *map;
+	uint32_t              row;
+	uint32_t              col;
+	struct data_buf      *buf;
+	uint64_t              seg;
+
+	/* Checks working of target_ioreq_iofops_prepare() */
 
 	size = IOVEC_NR * PAGE_CACHE_SIZE;
 	req.ir_sm.sm_state = IRS_READING;
@@ -650,6 +659,8 @@ static void target_ioreq_test(void)
 	C2_UT_ASSERT(rc == 0);
 
         for (cnt = 0; cnt < IOVEC_NR; ++cnt) {
+		iovec_arr[cnt].iov_base  = aligned_buf;
+		iovec_arr[cnt].iov_len   = PAGE_CACHE_SIZE;
 		ti.ti_bufvec.ov_buf[cnt] = aligned_buf;
 		COUNT(&ti.ti_ivec, cnt)  = PAGE_CACHE_SIZE;
 		INDEX(&ti.ti_ivec, cnt)  = cnt * PAGE_CACHE_SIZE;
@@ -684,7 +695,7 @@ static void target_ioreq_test(void)
 	rc = target_ioreq_iofops_prepare(&ti);
 	C2_UT_ASSERT(rc == -ENOMEM);
 
-	/* Checks allocation failure in c2_rpc_bulk_buff_add(). */
+	/* Checks allocation failure in c2_rpc_bulk_buf_add(). */
 
 	c2_fi_enable_off_n_on_m("c2_alloc", "fail_allocation", 2, 1);
 	rc = target_ioreq_iofops_prepare(&ti);
@@ -693,10 +704,60 @@ static void target_ioreq_test(void)
 
 	/* Finalisation */
 	req.ir_nwxfer.nxr_state = NXS_COMPLETE;
-	req.ir_nwxfer.nxr_bytes = 10;
+	req.ir_nwxfer.nxr_bytes = 1;
 	nw_xfer_request_fini(&req.ir_nwxfer);
-	target_ioreq_fini(&ti);
         io_request_bob_fini(&req);
+
+	/* Checks working of target_ioreq_seg_add() */
+	ivec = &ti.ti_ivec;
+	rc = io_request_init(&req, &lfile, iovec_arr, ivec, IRT_WRITE);
+	C2_UT_ASSERT(rc == 0);
+
+	rc = ioreq_iomaps_prepare(&req);
+	C2_UT_ASSERT(rc == 0);
+	map = req.ir_iomaps[0];
+
+	/* Addition of data buffer */
+	page_pos_get(map, 0, &row, &col);
+	buf = map->pi_databufs[row][col];
+	seg = SEG_NR(&ti.ti_ivec);
+
+	target_ioreq_seg_add(&ti, 0, 0, PAGE_CACHE_SIZE, 0);
+	C2_UT_ASSERT(seg + 1 == SEG_NR(&ti.ti_ivec));
+	C2_UT_ASSERT(ti.ti_bufvec.ov_buf[seg] == buf->db_buf.b_addr);
+	C2_UT_ASSERT(ti.ti_pageattrs[seg] == buf->db_flags);
+
+	/* Set gob_offset to COUNT(&ti.ti_ivec, seg) */
+	seg = SEG_NR(&ti.ti_ivec);
+	page_pos_get(map, COUNT(&ti.ti_ivec, seg), &row, &col);
+	buf = map->pi_databufs[row][col];
+
+	target_ioreq_seg_add(&ti, 0, COUNT(&ti.ti_ivec, seg), PAGE_CACHE_SIZE, 0);
+	C2_UT_ASSERT(seg + 1 == SEG_NR(&ti.ti_ivec));
+	C2_UT_ASSERT(ti.ti_bufvec.ov_buf[seg] == buf->db_buf.b_addr);
+	C2_UT_ASSERT(ti.ti_pageattrs[seg] == buf->db_flags);
+
+	/* Addition of parity buffer */
+	seg = SEG_NR(&ti.ti_ivec);
+	buf = map->pi_paritybufs[page_id(0)]
+		[LAY_N % data_col_nr(pdlay)];
+	target_ioreq_seg_add(&ti, 0, 0, PAGE_CACHE_SIZE, LAY_N);
+	C2_UT_ASSERT(seg + 1 == SEG_NR(&ti.ti_ivec));
+	C2_UT_ASSERT(ti.ti_bufvec.ov_buf[seg] == buf->db_buf.b_addr);
+	C2_UT_ASSERT(ti.ti_pageattrs[seg] == buf->db_flags);
+
+	target_ioreq_fini(&ti);
+	pargrp_iomap_fini(map);
+	c2_free(map);
+	map = NULL;
+	req.ir_iomaps[0] = NULL;
+	req.ir_iomap_nr  = 0;
+
+	c2_sm_state_set(&req.ir_sm, IRS_REQ_COMPLETE);
+	req.ir_nwxfer.nxr_state = NXS_COMPLETE;
+	req.ir_nwxfer.nxr_bytes = 1;
+	io_request_fini(&req);
+
 	c2_free_aligned(aligned_buf, C2_0VEC_ALIGN, C2_0VEC_SHIFT);
 }
 
