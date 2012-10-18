@@ -1895,21 +1895,30 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
                                                 src.sa_unit);
                 }
 
-                /* Maps parity units. */
-                for (unit = 0; unit < layout_k(play); ++unit) {
+                /*
+		 * Maps parity units only in case of aligned write OR
+		 * a rmw IO and pargrp_iomap::pi_rtype == READOLD.
+		 */
+		if ((req->ir_type == IRT_WRITE &&
+		     req->ir_iomaps[map]->pi_rtype == PIR_NONE) ||
+		    req->ir_iomaps[map]->pi_rtype == PIR_READOLD) {
+			for (unit = 0; unit < layout_k(play); ++unit) {
 
-                        src.sa_unit = layout_n(play) + unit;
-                        rc = xfer->nxr_ops->nxo_tioreq_map(xfer, &src, &tgt,
-                                                           &ti);
-                        if (rc != 0)
-                                goto err;
+				src.sa_unit = layout_n(play) + unit;
+				rc = xfer->nxr_ops->nxo_tioreq_map(xfer, &src,
+								   &tgt, &ti);
+				if (rc != 0)
+					goto err;
 
-                        /* This call doesn't deal with global file
-                         * offset and counts. */
-                        ti->ti_ops->tio_seg_add(ti, tgt.ta_frame, 0,
-                                                layout_unit_size(play),
-                                                src.sa_unit);
-                }
+				/*
+				 * This call doesn't deal with global file
+				 * offset and counts.
+				 */
+				ti->ti_ops->tio_seg_add(ti, tgt.ta_frame, 0,
+						layout_unit_size(play),
+						src.sa_unit);
+			}
+		}
         }
 
         C2_RETURN(0);
