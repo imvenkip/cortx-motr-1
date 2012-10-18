@@ -132,6 +132,9 @@ static int dummy_fom_tick(struct c2_fom *fom)
 	case C2_CCP_FINI:
                 return C2_FSO_WAIT;
 	case C2_CCP_WRITE:
+		c2_fom_phase_set(fom, C2_CCP_IO_WAIT);
+                return C2_FSO_AGAIN;
+	case C2_CCP_IO_WAIT:
 		c2_fom_phase_set(fom, C2_CCP_FINI);
                 return C2_FSO_WAIT;
 	default:

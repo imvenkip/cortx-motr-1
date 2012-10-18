@@ -41,14 +41,15 @@ static int indexvec_prepare(struct c2_indexvec *iv, c2_bindex_t idx,
 {
 	C2_PRE(iv != NULL);
 
+	/* It is assumed that each copy packet will have single unit. */
 	iv->iv_vec.v_nr = CP_BUF_NR;
 
-	C2_ALLOC_ARR(iv->iv_vec.v_count, CP_BUF_NR); 
+	C2_ALLOC_ARR(iv->iv_vec.v_count, CP_BUF_NR);
 	if (iv->iv_vec.v_count == NULL)
 		return -ENOMEM;
 
-	C2_ALLOC_ARR(iv->iv_vec.v_count, CP_BUF_NR);
-	if (iv->iv_vec.v_count == NULL) {
+	C2_ALLOC_ARR(iv->iv_index, CP_BUF_NR);
+	if (iv->iv_index == NULL) {
 		c2_free(iv->iv_vec.v_count);
 		return -ENOMEM;
 	}
@@ -105,45 +106,37 @@ static int cp_io(struct c2_cm_cp *cp, const enum c2_stob_io_opcode op)
 	struct c2_stob_io       *stio;
 	uint32_t                 bshift;
 	int                      rc;
-	
+
 	sns_cp = cp2snscp(cp);
 	cp_fom = &cp->c_fom;
 	reqh = c2_fom_reqh(cp_fom);
 	stobid = &sns_cp->rc_sid;
+	stob = &sns_cp->rc_stob;
+	stio = &sns_cp->rc_stio;
 	dom = c2_cs_stob_domain_find(reqh, stobid);
+
 	if (dom == NULL) {
 		rc = -EINVAL;
-		goto err;
-	}
-	
-	C2_ALLOC_PTR(stob);
-	if (stob == NULL){
-		rc = -ENOMEM;
-		goto err;
-	}
-
-	C2_ALLOC_PTR(stio);
-	if (stio == NULL) {
-		rc = -ENOMEM;
-		goto err_stob;
+		goto out;
 	}
 
 	rc = c2_stob_find(dom, stobid, &stob);
 	if (rc != 0)
-		goto err_stob;
+		goto out;
 
-	rc = c2_stob_locate(stob, &cp_fom->fo_tx); 
+	rc = c2_stob_locate(stob, &cp_fom->fo_tx);
 	if (rc != 0) {
 		c2_stob_put(stob);
-		goto err_stob;
+		goto out;
 	}
 
 	bshift = stob->so_op->sop_block_shift(stob);
 
 	c2_stob_io_init(stio);
+
 	stio->si_flags = 0;
 	stio->si_opcode = op;
- 
+
 	rc = indexvec_prepare(&stio->si_stob, sns_cp->rc_index, bshift);
 	if (rc != 0)
 		goto err_stio;
@@ -154,39 +147,64 @@ static int cp_io(struct c2_cm_cp *cp, const enum c2_stob_io_opcode op)
 		goto err_stio;
 	}
 
+	c2_fom_wait_on(cp_fom, &stio->si_wait, &cp_fom->fo_cb);
+
 	rc = c2_stob_io_launch(stio, stob, &cp_fom->fo_tx, NULL);
 	if (rc != 0) {
+		bool result;
+		result = c2_fom_callback_cancel(&cp_fom->fo_cb);
+		C2_ASSERT(result);
 		indexvec_free(&stio->si_stob);
 		bufvec_free(&stio->si_user);
 		goto err_stio;
-	}
+	} else
+		goto out;
 
 err_stio:
 	c2_stob_io_fini(stio);
 	c2_stob_put(stob);
-	c2_free(stio);
-err_stob:
-	c2_free(stob);
-err:
-	return rc;
+out:
+	if (rc != 0) {
+		c2_fom_phase_move(cp_fom, rc, C2_FOPH_FAILURE);
+		return C2_FSO_AGAIN;
+	} else {
+		cp->c_ops->co_phase_next(cp);
+		return C2_FSO_WAIT;
+	}
 }
 
 int c2_repair_cp_read(struct c2_cm_cp *cp)
 {
-	int rc;
-
-	rc = cp_io(cp, SIO_READ);	
-        cp->c_ops->co_phase_next(cp);
-        return C2_FSO_AGAIN;
+	cp->c_io_op = C2_CM_CP_READ;
+	return cp_io(cp, SIO_READ);
 }
 
 int c2_repair_cp_write(struct c2_cm_cp *cp)
 {
-	int rc;
+	cp->c_io_op = C2_CM_CP_WRITE;
+	return cp_io(cp, SIO_WRITE);
+}
 
-	rc = cp_io(cp, SIO_WRITE);
-        cp->c_ops->co_phase_next(cp);
-        return C2_FSO_AGAIN;
+int c2_repair_cp_io_wait(struct c2_cm_cp *cp)
+{
+	struct c2_sns_repair_cp *sns_cp = cp2snscp(cp);
+
+	if (sns_cp->rc_stio.si_rc != 0) {
+		c2_fom_phase_move(&cp->c_fom, sns_cp->rc_stio.si_rc,
+				  C2_FOPH_FAILURE);
+		return C2_FSO_AGAIN;
+	}
+
+	if (sns_cp->rc_stio.si_opcode == SIO_WRITE)
+		cp->c_ops->co_complete(cp);
+
+	/* Cleanup before proceeding to next phase. */
+	c2_stob_io_fini(&sns_cp->rc_stio);
+	c2_stob_put(&sns_cp->rc_stob);
+	indexvec_free(&sns_cp->rc_stio.si_stob);
+	bufvec_free(&sns_cp->rc_stio.si_user);
+
+	return cp->c_ops->co_phase_next(cp);
 }
 
 /** @} SNSRepairCP */

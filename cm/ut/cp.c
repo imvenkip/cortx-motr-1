@@ -46,20 +46,24 @@ static struct c2_bufvec m_bv[THREADS_NR];
 
 static int dummy_cp_read(struct c2_cm_cp *cp)
 {
-	cp->c_ops->co_phase_next(cp);
-	return C2_FSO_AGAIN;
+	cp->c_io_op = C2_CM_CP_READ;
+	return cp->c_ops->co_phase_next(cp);
 }
 
 static int dummy_cp_write(struct c2_cm_cp *cp)
 {
-	cp->c_ops->co_phase_next(cp);
-	return C2_FSO_AGAIN;
+	cp->c_io_op = C2_CM_CP_WRITE;
+	return cp->c_ops->co_phase_next(cp);
+}
+
+static int dummy_cp_io_wait(struct c2_cm_cp *cp)
+{
+	return cp->c_ops->co_phase_next(cp);
 }
 
 static int dummy_cp_xform(struct c2_cm_cp *cp)
 {
-	cp->c_ops->co_phase_next(cp);
-	return C2_FSO_AGAIN;
+	return cp->c_ops->co_phase_next(cp);
 }
 
 static int dummy_cp_init(struct c2_cm_cp *cp)
@@ -74,11 +78,11 @@ const struct c2_cm_cp_ops c2_sns_repair_cp_dummy_ops = {
                 [C2_CCP_INIT]  = &dummy_cp_init,
                 [C2_CCP_READ]  = &dummy_cp_read,
                 [C2_CCP_WRITE] = &dummy_cp_write,
+                [C2_CCP_IO_WAIT] = &dummy_cp_io_wait,
                 [C2_CCP_XFORM] = &dummy_cp_xform,
                 [C2_CCP_SEND]  = &cp_send,
                 [C2_CCP_RECV]  = &cp_recv,
                 [C2_CCP_FINI]  = &cp_fini,
-                [SRP_IO_WAIT]  = &cp_io_wait
         },
         .co_action_nr          = C2_CCP_NR,
         .co_phase_next         = &cp_phase_next,
@@ -195,7 +199,8 @@ static void test_cp_multi_thread(void)
  */
 static int cm_cp_init(void)
 {
-        c2_reqh_init(&reqh, NULL, (void*)1, (void*)1, (void*)1, (void*)1);
+        C2_ASSERT(c2_reqh_init(&reqh, NULL, (void*)1, (void*)1, (void*)1,
+			       (void*)1) == 0);
 	c2_cm_cp_module_init();
         return 0;
 }

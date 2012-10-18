@@ -35,16 +35,6 @@
 
  */
 
-/**
- * In addition to c2_cm_cp_phase, these phases can be used. Transition between
- * non-standard phases too handled by specific implementation of next phase
- * function.
- */
-enum c2_sns_repair_phase {
-        SRP_IO_WAIT = C2_CCP_NR + 1,
-	SRP_NR
-};
-
 struct c2_sns_repair_cp {
 	struct c2_cm_cp    rc_base;
 
@@ -53,6 +43,12 @@ struct c2_sns_repair_cp {
 
 	/** Offset within the stob. */
 	c2_bindex_t        rc_index;
+
+	/** Stob IO context. */
+	struct c2_stob_io  rc_stio;
+
+	/** Stob context. */
+	struct c2_stob     rc_stob;
 };
 
 struct c2_sns_repair_cp *cp2snscp(const struct c2_cm_cp *cp);
@@ -65,9 +61,17 @@ uint64_t cp_home_loc_helper(const struct c2_cm_cp *cp);
 
 extern const struct c2_cm_cp_ops c2_sns_repair_cp_ops;
 
+/** Transformation phase function for copy packet. */
 int c2_repair_cp_xform(struct c2_cm_cp *cp);
+
+/** Copy packet read phase function. */
 int c2_repair_cp_read(struct c2_cm_cp *cp);
+
+/** Copy packet write phase function. */
 int c2_repair_cp_write(struct c2_cm_cp *cp);
+
+/** Copy packet IO wait phase function. */
+int c2_repair_cp_io_wait(struct c2_cm_cp *cp);
 
 /** @} SNSRepairCP */
 #endif /* __COLIBRI_SNS_REPAIR_CP_H__ */

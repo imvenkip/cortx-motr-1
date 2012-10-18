@@ -223,6 +223,8 @@
  *		 to a remote copy machine replica.
  *		 (c2_cm_cp_phase::C2_CCP_XFORM)
  *
+ *   - @b IOWAIT Waits for IO to complete. (c2_cm_cp_phase::C2_CCP_IO_WAIT)
+ *
  *   - @b SEND   Send copy packet over network. Control FOP and bulk transfer
  *		 are used for sending copy packet.
  *		 (c2_cm_cp_phase::C2_CCP_SEND)
@@ -256,10 +258,10 @@
  *	   size = "4,4"
  *	   node [shape=ellipse, fontsize=12]
  *	   start -> INIT
- *	   INIT  -> READ -> SEND -> FINI
- *	   INIT  -> RECV -> WRITE -> FINI
+ *	   INIT  -> READ -> IOWAIT -> SEND -> FINI
+ *	   INIT  -> RECV -> WRITE -> IOWAIT -> FINI
  *	   INIT  -> XFORM -> FINI
- *	   READ  -> XFORM -> SEND
+ *	   IOWAIT -> XFORM -> SEND
  *	   RECV  -> XFORM -> WRITE
  *	   FINI  -> end
  *	}
@@ -401,13 +403,19 @@ static const struct c2_sm_state_descr c2_cm_cp_state_descr[] = {
         [C2_CCP_READ] = {
                 .sd_flags       = 0,
                 .sd_name        = "Read",
-                .sd_allowed     = C2_BITS(C2_CCP_XFORM, C2_CCP_SEND)
+                .sd_allowed     = C2_BITS(C2_CCP_IO_WAIT)
         },
         [C2_CCP_WRITE] = {
                 .sd_flags       = 0,
                 .sd_name        = "Write",
-                .sd_allowed     = C2_BITS(C2_CCP_FINI)
+                .sd_allowed     = C2_BITS(C2_CCP_IO_WAIT)
         },
+	[C2_CCP_IO_WAIT] = {
+		.sd_flags       = 0,
+		.sd_name        = "IO Wait",
+		.sd_allowed     = C2_BITS(C2_CCP_XFORM, C2_CCP_SEND,
+					  C2_CCP_FINI)
+	},
         [C2_CCP_XFORM] = {
                 .sd_flags       = 0,
                 .sd_name        = "Xform",
