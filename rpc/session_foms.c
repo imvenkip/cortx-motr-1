@@ -431,17 +431,16 @@ int c2_rpc_fom_session_terminate_tick(struct c2_fom *fom)
 
 	session = c2_rpc_session_search(conn, session_id);
 	if (session != NULL) {
-		while (session->s_state != C2_RPC_SESSION_IDLE)
-			c2_cond_wait(&session->s_state_changed,
-				     c2_rpc_machine_mutex(machine));
-
-		C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
+		c2_sm_timedwait(&session->s_sm, C2_BITS(C2_RPC_SESSION_IDLE),
+				C2_TIME_NEVER);
 
 		rc = c2_rpc_rcv_session_terminate(session);
 		C2_ASSERT(ergo(rc != 0,
-			       session->s_state == C2_RPC_SESSION_FAILED));
+			       session_state(session) ==
+					C2_RPC_SESSION_FAILED));
 		C2_ASSERT(ergo(rc == 0,
-			       session->s_state == C2_RPC_SESSION_TERMINATED));
+			       session_state(session) ==
+					C2_RPC_SESSION_TERMINATED));
 
 		c2_rpc_session_fini_locked(session);
 		c2_free(session);

@@ -240,6 +240,9 @@ static int root_session_cob_create(struct c2_cob_domain *dom)
 
 	C2_ENTRY("cob_dom: %p", dom);
 
+	if (C2_FI_ENABLED("fake_error"))
+		C2_RETURN(-EINVAL);
+
 	rc = c2_db_tx_init(&tx, dom->cd_dbenv, 0);
 	if (rc == 0) {
 		rc = c2_rpc_root_session_cob_create(dom, &tx);
@@ -421,11 +424,6 @@ static void conn_list_fini(struct c2_tl *list)
                 c2_rpc_conn_terminate_reply_sent(conn);
         } c2_tl_endfor;
 	C2_LEAVE();
-}
-
-struct c2_mutex *c2_rpc_machine_mutex(struct c2_rpc_machine *machine)
-{
-	return &machine->rm_sm_grp.s_lock;
 }
 
 void c2_rpc_machine_lock(struct c2_rpc_machine *machine)

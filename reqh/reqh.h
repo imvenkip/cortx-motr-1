@@ -59,6 +59,17 @@ enum {
         REQH_KEY_MAX = 32
 };
 
+struct c2_local_service_ops;
+
+/** Local reply consumer service (testing or replicator) */
+struct c2_local_service {
+	const struct c2_local_service_ops    *s_ops;
+};
+
+struct c2_local_service_ops {
+	void (*lso_fini) (struct c2_local_service *service, struct c2_fom *fom);
+};
+
 /**
    Request handler instance.
  */
@@ -68,8 +79,8 @@ struct c2_reqh {
 	/** Database environment for this request handler. */
 	struct c2_dbenv         *rh_dbenv;
 
-	/** Cob domain for this request handler. */
-	struct c2_cob_domain    *rh_cob_domain;
+	/** Mdstore for this request handler. */
+	struct c2_mdstore       *rh_mdstore;
 
 	/** Fol pointer for this request handler. */
 	struct c2_fol		*rh_fol;
@@ -118,6 +129,9 @@ struct c2_reqh {
         void                    *rh_key[REQH_KEY_MAX];
 	/** Request handler magic. */
 	uint64_t                 rh_magic;
+
+	/** Local service consuming reply. */
+	struct c2_local_service *rh_svc;
 };
 
 /**
@@ -134,8 +148,8 @@ struct c2_reqh {
    @post c2_reqh_invariant()
  */
 int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
-		  struct c2_dbenv *db, struct c2_cob_domain *cdom,
-		  struct c2_fol *fol);
+                  struct c2_dbenv *db, struct c2_mdstore *mdstore,
+                  struct c2_fol *fol, struct c2_local_service *svc);
 
 bool c2_reqh_invariant(const struct c2_reqh *reqh);
 
@@ -162,7 +176,7 @@ void c2_reqh_fini(struct c2_reqh *reqh);
    @pre reqh != null
    @pre fop != null
  */
-void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop);
+void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop, void *cookie);
 
 /**
    Waits on c2_reqh::rh_sd_signal using the given clink until

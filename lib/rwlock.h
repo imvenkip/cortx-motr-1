@@ -63,6 +63,10 @@ void c2_rwlock_read_lock(struct c2_rwlock *lock);
  */
 void c2_rwlock_read_unlock(struct c2_rwlock *lock);
 
+
+/* bool c2_rwlock_write_trylock(struct c2_rwlock *lock); */
+/* bool c2_rwlock_read_trylock(struct c2_rwlock *lock); */
+
 /** @} end of rwlock group */
 
 /* __COLIBRI_LIB_RWLOCK_H__ */

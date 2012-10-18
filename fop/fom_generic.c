@@ -99,6 +99,18 @@ struct fom_phase_desc {
 };
 
 /**
+ * Checks if transaction context is valid.
+ * We check if c2_db_tx::dt_env is initialised or not.
+ *
+ * @retval bool -> return true, if transaction is initialised
+ *		return false, if transaction is uninitialised
+ */
+static bool is_tx_initialized(const struct c2_db_tx *tx)
+{
+	return tx->dt_env != 0;
+}
+
+/**
  * Begins fom execution, transitions fom to its first
  * standard phase.
  *
@@ -212,6 +224,7 @@ static int create_loc_ctx(struct c2_fom *fom)
 	int		rc;
 	struct c2_reqh *reqh;
 
+        C2_PRE(!is_tx_initialized(&fom->fo_tx.tx_dbtx));
 	reqh = c2_fom_reqh(fom);
 	rc = c2_db_tx_init(&fom->fo_tx.tx_dbtx, reqh->rh_dbenv, 0);
 	if (rc != 0)
@@ -317,18 +330,6 @@ static int fom_txn_commit_wait(struct c2_fom *fom)
 }
 
 /**
- * Checks if transaction context is valid.
- * We check if c2_db_tx::dt_env is initialised or not.
- *
- * @retval bool -> return true, if transaction is initialised
- *		return false, if transaction is uninitialised
- */
-static bool is_tx_initialised(const struct c2_db_tx *tx)
-{
-	return tx->dt_env != 0;
-}
-
-/**
  * Aborts db transaction, if fom execution failed.
  * If fom executions fails before even the transaction
  * is initialised, we don't need to abort any transaction.
@@ -337,7 +338,7 @@ static int fom_txn_abort(struct c2_fom *fom)
 {
 	int rc;
 
-	if (is_tx_initialised(&fom->fo_tx.tx_dbtx)) {
+	if (is_tx_initialized(&fom->fo_tx.tx_dbtx)) {
 		rc = c2_db_tx_abort(&fom->fo_tx.tx_dbtx);
 		if (rc != 0)
 			c2_fom_err_set(fom, rc);

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,37 +14,30 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nikita Danilov <Nikita_Danilov@xyratex.com>
- * Original creation date: 07/31/2010
+ * Original author: Anatoliy Bilenko <Anatoliy_Bilenko@xyratex.com>
+ * Original creation date: 05/05/2012
  */
-
 #pragma once
+#ifndef __COLIBRI_CONF_FOM_H__
+#define __COLIBRI_CONF_FOM_H__
 
-#ifndef __COLIBRI_NRS_NRS_H__
-#define __COLIBRI_NRS_NRS_H__
+#include "conf_fop.h"
 
 /**
-   @defgroup nrs Network Request Scheduler
-   @{
+ * State transition function for "c2_conf_fetch" FOP.
  */
+int c2_fom_fetch_state(struct c2_fom *fom);
+size_t c2_fom_fetch_home_locality(const struct c2_fom *fom);
+void c2_fop_fetch_fom_fini(struct c2_fom *fom);
 
-/* import */
-struct c2_fop;
-struct c2_reqh;
+/**
+ * State transition function for "c2_conf_update" FOP.
+ */
+int c2_fom_update_state(struct c2_fom *fom);
+size_t c2_fom_update_home_locality(const struct c2_fom *fom);
+void c2_fop_update_fom_fini(struct c2_fom *fom);
 
-struct c2_nrs {
-	struct c2_reqh *n_reqh;
-};
-
-int  c2_nrs_init(struct c2_nrs *nrs, struct c2_reqh *reqh);
-void c2_nrs_fini(struct c2_nrs *nrs);
-
-void c2_nrs_enqueue(struct c2_nrs *nrs, struct c2_fop *fop);
-
-/** @} end of nrs group */
-
-/* __COLIBRI_NRS_NRS_H__ */
-#endif
+#endif /* __COLIBRI_CONF_FOM_H__ */
 
 /*
  *  Local variables:

@@ -50,6 +50,8 @@ void c2_db_pair_release  (struct c2_db_pair *pair);
 void c2_db_common_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env);
 void c2_db_common_tx_fini(struct c2_db_tx *tx);
 
+int c2_db_tx_is_active(const struct c2_db_tx *tx);
+
 extern const struct c2_addb_loc      db_loc;
 extern const struct c2_addb_ctx_type db_env_ctx_type;
 extern const struct c2_addb_ctx_type db_table_ctx_type;

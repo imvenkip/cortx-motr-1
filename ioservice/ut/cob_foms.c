@@ -722,11 +722,12 @@ static void cob_verify(struct c2_fom *fom, const bool exists)
 	struct c2_cob_domain *cobdom;
 	struct c2_cob_nskey  *nskey;
 	struct c2_dbenv	     *dbenv;
+	struct c2_fid         fid = {COB_TEST_ID, COB_TEST_ID};
 
-	cobdom = c2_fom_reqh(fom)->rh_cob_domain;
+	cobdom = &c2_fom_reqh(fom)->rh_mdstore->md_dom;
 	dbenv = c2_fom_reqh(fom)->rh_dbenv;
 
-	c2_cob_nskey_make(&nskey, COB_TEST_ID, COB_TEST_ID, test_cobname);
+	c2_cob_nskey_make(&nskey, &fid, test_cobname, strlen(test_cobname));
 
 	C2_SET0(&tx);
 	rc = c2_db_tx_init(&tx, dbenv, 0);
@@ -737,10 +738,11 @@ static void cob_verify(struct c2_fom *fom, const bool exists)
 	if (exists) {
 		C2_UT_ASSERT(rc == 0);
 		C2_UT_ASSERT(test_cob != NULL);
-		C2_UT_ASSERT(test_cob->co_valid & CA_NSREC);
+		C2_UT_ASSERT(test_cob->co_flags & C2_CA_NSREC);
 	} else
 		C2_UT_ASSERT(rc == -ENOENT);
-	c2_free(nskey);
+        if (rc != 0)
+	        c2_free(nskey);
 }
 
 /*

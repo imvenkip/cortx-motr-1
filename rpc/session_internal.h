@@ -161,12 +161,6 @@ void c2_rpc_slot_fini(struct c2_rpc_slot *slot);
 bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot);
 
 /**
-   Name of a cob which is root of hierarchy of cobs that represent
-   persistent state maintained by session module.
- */
-static const char root_session_cob_name[] = "SESSIONS";
-
-/**
    Helper to create cob
 
    @param dom cob domain in which cob should be created.
@@ -183,9 +177,6 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 			     const char           *name,
 			     struct c2_cob       **out,
 			     struct c2_db_tx      *tx);
-
-#define COB_GET_PFID_HI(cob)    (cob)->co_nsrec.cnr_stobid.si_bits.u_hi
-#define COB_GET_PFID_LO(cob)    (cob)->co_nsrec.cnr_stobid.si_bits.u_lo
 
 /**
    Lookup a cob named 'name' in parent cob @pcob. If found store reference

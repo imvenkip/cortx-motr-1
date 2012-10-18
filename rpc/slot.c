@@ -444,15 +444,13 @@ static void __slot_item_add(struct c2_rpc_slot *slot,
 	slot_item_tlink_init_at_tail(item, &slot->sl_item_list);
 	if (session != NULL) {
 		session->s_nr_active_items++;
-		if (session->s_state == C2_RPC_SESSION_IDLE) {
+		if (session_state(session) == C2_RPC_SESSION_IDLE) {
 			/*
 			 * XXX When formation adds an item to
 			 * c2_rpc_session::s_unbound_items it should
-			 * set session->s_state as BUSY
+			 * set session state as BUSY
 			 */
-			session->s_state = C2_RPC_SESSION_BUSY;
-			c2_cond_broadcast(&session->s_state_changed,
-					  c2_rpc_machine_mutex(machine));
+			session_state_set(session, C2_RPC_SESSION_BUSY);
 		}
 	}
 
@@ -630,7 +628,7 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		C2_ASSERT(session != NULL);
 
 		C2_ASSERT(c2_rpc_session_invariant(session));
-		C2_ASSERT(session->s_state == C2_RPC_SESSION_BUSY);
+		C2_ASSERT(session_state(session) == C2_RPC_SESSION_BUSY);
 		C2_ASSERT(session->s_nr_active_items > 0);
 
 		req->ri_stage = RPC_ITEM_STAGE_PAST_VOLATILE;
@@ -641,11 +639,9 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 		session->s_nr_active_items--;
 		slot_balance(slot);
 
-		if (c2_rpc_session_is_idle(session)) {
-			session->s_state = C2_RPC_SESSION_IDLE;
-			c2_cond_broadcast(&session->s_state_changed,
-					  c2_rpc_machine_mutex(machine));
-		}
+		if (c2_rpc_session_is_idle(session))
+			session_state_set(session, C2_RPC_SESSION_IDLE);
+
 		C2_ASSERT(c2_rpc_session_invariant(session));
 
 		/*

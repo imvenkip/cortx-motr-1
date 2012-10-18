@@ -225,6 +225,7 @@ struct c2t1fs_mnt_opts {
 	char    *mo_options;
 
 	char    *mo_profile;
+	char    *mo_localconf;
 
 	char    *mo_mgs_ep_addr;
 	char    *mo_mds_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];

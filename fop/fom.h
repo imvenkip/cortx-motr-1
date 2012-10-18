@@ -242,11 +242,11 @@ struct c2_fom_locality {
 	struct c2_fom_domain        *fl_dom;
 
 	/** Run-queue */
-	struct c2_list               fl_runq;
+	struct c2_tl		     fl_runq;
 	size_t			     fl_runq_nr;
 
 	/** Wait list */
-	struct c2_list		     fl_wail;
+	struct c2_tl		     fl_wail;
 	size_t			     fl_wail_nr;
 
 	/**
@@ -447,6 +447,8 @@ struct c2_fom {
 	const struct c2_fom_ops	 *fo_ops;
 	/** AST call-back to wake up the FOM */
 	struct c2_fom_callback	  fo_cb;
+	/** FOP ctx sent by the network service. */
+	struct c2_fop_ctx	*fo_fop_ctx;
 	/** Request fop object, this fom belongs to */
 	struct c2_fop		 *fo_fop;
 	/** Reply fop object */
@@ -460,7 +462,7 @@ struct c2_fom {
 	 *  Every access to the FOM via this linkage is
 	 *  protected by the c2_fom_locality::fl_group.s_lock mutex.
 	 */
-	struct c2_list_link	  fo_linkage;
+	struct c2_tlink		  fo_linkage;
 	/** Transitions counter, coresponds to the number of
 	    c2_fom_ops::fo_state() calls */
 	unsigned		  fo_transitions;
@@ -480,6 +482,7 @@ struct c2_fom {
 	 * Stack of pending call-backs.
 	 */
 	struct c2_fom_callback   *fo_pending;
+	uint64_t		  fo_magic;
 };
 
 /**

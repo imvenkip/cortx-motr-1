@@ -72,6 +72,43 @@ enum c2_magic_satchel {
 	/* bufs_tl::td_head_magic (bedded celiac) */
 	C2_T1FS_BUF_HEAD_MAGIC = 0x33beddedce11ac77,
 
+/* Configuration Caching */
+	/* c2_conf_reg::r_magic (fabled feodal) */
+	C2_CONF_REG_MAGIC = 0x33fab1edfe0da177,
+
+	/* c2_conf_obj::co_gen_magic (selfless cell) */
+	C2_CONF_OBJ_MAGIC = 0x335e1f1e55ce1177,
+
+	/* c2_conf_dir::cd_obj.co_con_magic (old calaboose) */
+	C2_CONF_DIR_MAGIC = 0x3301dca1ab005e77,
+
+	/* c2_conf_profile::cp_obj.co_con_magic (closable seal) */
+	C2_CONF_PROFILE_MAGIC = 0x33c105ab1e5ea177,
+
+	/* c2_conf_filesystem::cf_obj.co_con_magic (food of Colaba) */
+	C2_CONF_FILESYSTEM_MAGIC = 0x33f00d0fc01aba77,
+
+	/* c2_conf_service::cs_obj.co_con_magic (biased locale) */
+	C2_CONF_SERVICE_MAGIC = 0x33b1a5ed10ca1e77,
+
+	/* c2_conf_node::cn_obj.co_con_magic (colossal dosa) */
+	C2_CONF_NODE_MAGIC = 0x33c01055a1d05a77,
+
+	/* c2_conf_nic::ni_obj.co_con_magic (baseball feed) */
+	C2_CONF_NIC_MAGIC = 0x33ba5eba11feed77,
+
+	/* c2_conf_sdev::sd_obj.co_con_magic (allseed salad) */
+	C2_CONF_SDEV_MAGIC = 0x33a115eed5a1ad77,
+
+	/* c2_conf_partition::pa_obj.co_con_magic (bacca is aloof) */
+	C2_CONF_PARTITION_MAGIC = 0x33bacca15a100f77,
+
+	/* c2_confc::cc_magic (zodiac doable) */
+	C2_CONFC_MAGIC = 0x3320d1acd0ab1e77,
+
+	/* c2_confc_ctx::fc_magic (ablaze filial) */
+	C2_CONFC_CTX_MAGIC = 0x33ab1a2ef111a177,
+
 /* Colibri Setup */
 	/* cs_buffer_pool::cs_bp_magic (felicia feliz) */
 	C2_CS_BUFFER_POOL_MAGIC = 0x33fe11c1afe11277,
@@ -175,6 +212,15 @@ enum c2_magic_satchel {
 	/* fop_types_list::t_magic (baffle bacili) */
 	C2_FOP_TYPE_HEAD_MAGIC = 0x33baff1ebac11177,
 
+	/* c2_fom::fo_magic (leadless less) */
+	C2_FOM_MAGIC = 0x331ead1e551e5577,
+
+	/* c2_fom_locality::fl_runq::td_head_magic (alas albizzia) */
+	C2_FOM_RUNQ_MAGIC = 0x33a1a5a1b1221a77,
+
+	/* c2_fom_locality::fl_wail::td_head_magic (baseless bole) */
+	C2_FOM_WAIL_MAGIC = 0x33ba5e1e55501e77,
+
 	/* c2_fom_thread::lt_magix (falsifiable C) */
 	C2_FOM_THREAD_MAGIC = 0x33fa151f1ab1ec77,
 
@@ -205,6 +251,9 @@ enum c2_magic_satchel {
 
 	/* c2_reqh_io_service::rios_magic (cocigeal cell) */
 	C2_IOS_REQH_SVC_MAGIC = 0x33c0c19ea1ce1177,
+
+	/* c2_reqh_md_service::rmds_magic (abscissa cell) */
+	C2_MDS_REQH_SVC_MAGIC = 0x33ab5c155ace1177,
 
 	/* bufferpools_tl::rios_bp_magic (cafe accolade) */
 	C2_IOS_BUFFER_POOL_MAGIC = 0x33cafeacc01ade77,

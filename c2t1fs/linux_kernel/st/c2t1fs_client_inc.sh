@@ -5,6 +5,7 @@ mount_c2t1fs()
 	c2t1fs_mount_dir=$1
 	local stride_size=`expr $2 '*' 1024`
 	io_service=$COLIBRI_IOSERVICE_ENDPOINT
+	c2t1fs_local_conf=$3
 
 	# Create mount directory
 	mkdir $c2t1fs_mount_dir
@@ -22,8 +23,8 @@ mount_c2t1fs()
 
 	echo "Mounting file system..."
 	cmd="mount -t c2t1fs -o ios=$io_service,unit_size=$stride_size,\
-pool_width=$pool_width,nr_data_units=$data_units,nr_parity_units=$parity_units \
-none $c2t1fs_mount_dir"
+pool_width=$pool_width,nr_data_units=$data_units,nr_parity_units=$parity_units\
+$c2t1fs_local_conf none $c2t1fs_mount_dir"
 	echo $cmd
 	if ! $cmd
 	then
