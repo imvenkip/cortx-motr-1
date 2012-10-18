@@ -96,7 +96,7 @@
 
    The only "output" event that a state machine communicates to the external
    world is (from this module's point of view) its state transition. State
-   transitions are announces on a per-machine channel (c2_sm::sm_chan). This
+   transitions are announced on a per-machine channel (c2_sm::sm_chan). This
    mechanism works both for threaded and non-blocking event consumers. The
    formers use c2_sm_timedwait() to wait until the state machine reaches
    desirable state, the latter register a clink with c2_sm::sm_chan.
