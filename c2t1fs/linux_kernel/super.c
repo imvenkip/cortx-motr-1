@@ -104,8 +104,8 @@ static const struct super_operations c2t1fs_super_operations = {
 };
 
 const struct c2_fid c2t1fs_root_fid = {
-	.f_container = 0,
-	.f_key       = 2
+	.f_container = 1ULL,
+	.f_key = 3ULL
 };
 
 /**

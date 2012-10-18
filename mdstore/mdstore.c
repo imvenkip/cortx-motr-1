@@ -643,7 +643,7 @@ int c2_mdstore_lookup(struct c2_mdstore         *md,
         int rc;
 
         if (pfid == NULL)
-                pfid = &C2_COB_ROOT_FID;
+                pfid = (struct c2_fid *)&C2_COB_ROOT_FID;
 
         rc = c2_cob_nskey_make(&nskey, pfid, name, namelen);
         if (rc != 0)
