@@ -2,5 +2,5 @@
 
 #ifndef __COLIBRI_MDSERVICE_UT_MDSTORE_H__
 #define __COLIBRI_MDSERVICE_UT_MDSTORE_H__
-#define C2_MDSTORE_OPS_DUMP_PATH "@SRCDIR@/mdservice/ut/ops.dump"
+#define C2_MDSTORE_OPS_DUMP_PATH "@ABS_SRCDIR@/mdservice/ut/ops.dump"
 #endif

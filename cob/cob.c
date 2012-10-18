@@ -361,6 +361,7 @@ void c2_cob_domain_fini(struct c2_cob_domain *dom)
         c2_table_fini(&dom->cd_namespace);
         c2_addb_ctx_fini(&dom->cd_addb);
 }
+C2_EXPORTED(c2_cob_domain_fini);
 
 #ifndef __KERNEL__
 #include <sys/stat.h>    /* S_ISDIR */

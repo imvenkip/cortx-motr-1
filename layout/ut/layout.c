@@ -2735,7 +2735,7 @@ static int test_lookup_with_ghost_creation(uint32_t enum_id, uint64_t lid,
 {
 	struct c2_layout        *l1;
 	struct c2_layout        *l1_copy;
-	struct ghost_data        g_data;
+	struct ghost_data        g_data = { 0 };
 	void                    *area_for_encode;
 	c2_bcount_t              num_bytes_for_encode;
 	struct c2_bufvec         bv_for_encode;

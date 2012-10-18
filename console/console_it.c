@@ -33,6 +33,8 @@
    @{
  */
 
+bool     verbose;
+
 static struct c2_cons_atom_ops atom_ops[C2_XAT_NR];
 
 static void depth_print(int depth)
