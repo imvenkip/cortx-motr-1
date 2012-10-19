@@ -1,7 +1,0 @@
-io_k.[ch]
-io_fop_init.c
-addb_k.[ch]
-addb_store.c
-io_foms.[ch]
-io_fops.[ch]
-io_fops_k.[ch]

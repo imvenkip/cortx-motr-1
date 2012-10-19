@@ -53,6 +53,7 @@ extern const struct c2_fom_ops c2_rpc_fom_conn_establish_ops;
 size_t c2_rpc_session_default_home_locality(const struct c2_fom *fom);
 int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom);
 void c2_rpc_fom_conn_establish_fini(struct c2_fom *fom);
+
 /*
  * FOM to execute "Session Create" request
  */

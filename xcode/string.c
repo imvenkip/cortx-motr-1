@@ -146,17 +146,6 @@ int c2_xcode_read(struct c2_xcode_obj *obj, const char *str)
 			result = xcode_alloc(&it, c2_xcode_alloc);
 			if (result != 0)
 				return result;
-			if (xt->xct_aggr == C2_XA_SEQUENCE &&
-			    xt->xct_child[1].xf_type == &C2_XT_U8 &&
-			    *str == '"') {
-				/* string literal */
-				result = string_literal(cur, ++str);
-				if (result < 0)
-					return result;
-				str += result + 1;
-				c2_xcode_skip(&it);
-				continue;
-			}
 			if (it.xcu_depth > 0) {
 				int                           order;
 				enum c2_xcode_aggr            par;
@@ -169,6 +158,17 @@ int c2_xcode_read(struct c2_xcode_obj *obj, const char *str)
 						    punctuation[par][order]);
 				if (result != 0)
 					return result;
+			}
+			if (xt->xct_aggr == C2_XA_SEQUENCE &&
+			    xt->xct_child[1].xf_type == &C2_XT_U8 &&
+			    *str == '"') {
+				/* string literal */
+				result = string_literal(cur, ++str);
+				if (result < 0)
+					return result;
+				str += result + 1;
+				c2_xcode_skip(&it);
+				continue;
 			}
 		}
 		ch = structure[aggr][flag];

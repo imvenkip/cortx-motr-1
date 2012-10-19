@@ -509,6 +509,11 @@ struct c2_xcode_ctx {
 
 	    The cursor points to the where encoding will write the next byte and
 	    from where decoding will read the next byte.
+
+	    It should be initialised with c2_bufvec_cursor_init() prior to
+	    c2_xcode_encode() or c2_xcode_decode() call. The size of the cursors
+	    buffer should be not less than the size of serialised structure
+	    representation.
 	 */
 	struct c2_bufvec_cursor  xcx_buf;
 	/**
@@ -527,7 +532,14 @@ struct c2_xcode_ctx {
  */
 void c2_xcode_ctx_init(struct c2_xcode_ctx *ctx, const struct c2_xcode_obj *obj);
 
+/**
+   @see c2_xcode_ctx::xcx_buf
+ */
 int c2_xcode_decode(struct c2_xcode_ctx *ctx);
+
+/**
+   @see c2_xcode_ctx::xcx_buf
+ */
 int c2_xcode_encode(struct c2_xcode_ctx *ctx);
 
 /** Calculates the length of serialized representation. */

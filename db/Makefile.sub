@@ -1,0 +1,12 @@
+nobase_colibri_include_HEADERS += db/db.h \
+                                  db/extmap.h \
+                                  db/extmap_internal.h \
+                                  db/db_impl.h \
+                                  db/db_common.h
+
+colibri_libcolibri_la_SOURCES  += db/db.c \
+                                  db/extmap.c \
+                                  db/db_common.c
+
+EXTRA_DIST += db/linux_kernel/db.c \
+              db/linux_kernel/db_impl.h

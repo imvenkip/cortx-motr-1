@@ -36,8 +36,7 @@
 #include "net/buffer_pool.h"
 #include "fid/fid.h"
 #include "cob/cob.h"    /* c2_cob_domain_id */
-#include "layout/layout.h"  /* c2_layout_domain */
-#include "layout/pdclust.h" /* c2_pdclust_instance */
+#include "layout/layout.h" /* c2_layout_domain, c2_layout, c2_layout_instance */
 
 /**
   @defgroup c2t1fs c2t1fs
@@ -226,6 +225,7 @@ struct c2t1fs_mnt_opts {
 	char    *mo_options;
 
 	char    *mo_profile;
+	char    *mo_localconf;
 
 	char    *mo_mgs_ep_addr;
 	char    *mo_mds_ep_addr[MAX_NR_EP_PER_SERVICE_TYPE];

@@ -89,7 +89,7 @@ int c2_repair_cp_xform(struct c2_cm_cp *cp)
         C2_PRE(cp != NULL && c2_fom_phase(&cp->c_fom) == C2_CCP_XFORM);
 
         ag = cp->c_ag;
-        sns_ag = ag2snsag(ag); 
+        sns_ag = ag2snsag(ag);
 	res_cp = sns_ag->sag_cp;
         if (res_cp == NULL) {
                 ag->cag_cp_nr = ag->cag_ops->cago_local_cp_nr(ag);
@@ -148,7 +148,7 @@ int c2_repair_cp_xform(struct c2_cm_cp *cp)
                         res_cp->c_ops->co_phase_next(res_cp);
 			c2_fom_wakeup(&res_cp->c_fom);
 		}
-		return C2_FSO_AGAIN;
+		return C2_FSO_WAIT;
         }
 }
 

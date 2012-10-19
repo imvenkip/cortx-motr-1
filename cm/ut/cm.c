@@ -140,7 +140,7 @@ C2_CM_TYPE_DECLARE(cm_ut, &cm_ut_service_type_ops, "cm_ut");
 static int ut_init(void)
 {
 	int	rc;
-	c2_reqh_init(&reqh, NULL, (void*)1, (void*)1, (void*)1);
+	c2_reqh_init(&reqh, NULL, (void*)1, (void*)1, (void*)1, (void*)1);
 	rc = c2_cm_type_register(&cm_ut_cmt);
 	C2_ASSERT(rc == 0);
 

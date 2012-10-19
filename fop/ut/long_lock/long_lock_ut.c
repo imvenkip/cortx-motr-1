@@ -64,7 +64,7 @@ static int test_long_lock_init(void)
 	 */
 	for (i = 0; i < REQH_IN_UT_MAX; ++i) {
 		rc = c2_reqh_init(&reqh[i], (void *)1, (void *)1,
-				  (void *)1, (void *)1);
+				  (void *)1, (void *)1, (void *)1);
 		C2_ASSERT(rc == 0);
 	}
 	c2_fom_type_init(&rdwr_fom_type, &fom_rdwr_type_ops, NULL,

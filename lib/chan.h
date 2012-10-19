@@ -145,8 +145,8 @@
    c2_chan_wait(&cl0);
 
    // de-register clinks, head last
-   c2_clink_del(chan1, &cl1);
-   c2_clink_del(chan0, &cl0);
+   c2_clink_del(&cl1);
+   c2_clink_del(&cl0);
 
    // finalise in any order
    c2_clink_fini(&cl0);

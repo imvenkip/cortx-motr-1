@@ -182,6 +182,12 @@ const char *c2_bool_to_str(bool b);
  */
 const char *c2_short_file_name(const char *fname);
 
+/* strtoull for user- and kernel-space */
+uint64_t c2_strtou64(const char *str, char **endptr, int base);
+
+/* strtoul for user- and kernel-space */
+uint32_t c2_strtou32(const char *str, char **endptr, int base);
+
 /* __COLIBRI_LIB_MISC_H__ */
 #endif
 

@@ -1,0 +1,386 @@
+/* -*- c -*- */
+/*
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
+ *
+ * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+ * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+ * LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+ * THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+ * BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+ * USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+ * EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+ *
+ * YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+ * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+ * http://www.xyratex.com/contact
+ *
+ * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+ * Original creation date: 03-Feb-2012
+ */
+
+#include "conf/obj.h"
+
+/**
+ * @page conf DLD of configuration caching
+ *
+ * - @ref conf-ovw
+ * - @ref conf-def
+ * - @ref conf-req
+ * - @ref conf-depends
+ * - @ref conf-highlights
+ * - @ref conf-fspec
+ * - @ref conf-lspec
+ * - @ref conf-conformance
+ * - @ref conf-ut
+ * - @ref conf-st
+ * - @ref conf-O
+ * - @ref conf-scalability
+ * - @ref conf-ref
+ * - @ref conf-impl-plan
+ *
+ * <hr> <!------------------------------------------------------------>
+ * @section conf-ovw Overview
+ *
+ * Configuration is part of Colibri cluster meta-data.  Configuration
+ * client library (confc) provides API for accessing configuration
+ * data.  Confc obtains configuration data from the configuration
+ * server (confd) and caches this data in local memory.
+ *
+ * Confd tries to obtain requested configuration data from its own
+ * cache. In case of cache miss, confd loads data from the
+ * configuration database and updates the cache.
+ *
+ * Confd is a user-space service.  Confc library is implemented in
+ * user space and in the kernel. Applications access configuration
+ * data by linking with confc library and using its API.
+ *
+ * <hr> <!------------------------------------------------------------>
+ * @section conf-def Definitions
+ *
+ * - @b Confc (configuration client library, configuration client):
+ *   a library that provides configuration consumers with API to query
+ *   Colibri configuration.
+ *
+ * - @b Confd (configuration server): a management service that
+ *   provides configuration clients with information obtained from
+ *   configuration database.
+ *
+ * - Configuration @b consumer: any software that uses confc API to
+ *   access Colibri configuration.  Alternative name: @b application.
+ *
+ * - Configuration @b cache: configuration data stored in node’s
+ *   memory.  Confc library maintains such a cache and provides
+ *   configuration consumers with access to its data.  Confd also uses
+ *   configuration cache for faster retrieval of information requested
+ *   by configuration clients.
+ *
+ * - Configuration @b object: a data structure that contains
+ *   configuration information. There are several types of
+ *   configuration objects: filesystem, service, node, etc.
+ *
+ * - @b Identity of a configuration object is a pair of its type and
+ *   identifier.
+ *
+ * - Configuration object is a @b stub if its status is not equal to
+ *   C2_CS_READY.  Stubs contain no meaningful configuration data.
+ *
+ * - A configuration object is said to be @b pinned if its reference
+ *   counter is nonzero; otherwise it is @b unpinned.
+ *
+ * - @b Relation: a pointer from one configuration object to another
+ *   configuration object or to a collection of objects.  In former
+ *   case it is @b one-to-one relation, in the latter case it is @b
+ *   one-to-many relation.
+ *
+ * - @b Downlink: a relation whose destination is located further from
+ *   "profile" object than the origin.
+ *
+ * <hr> <!------------------------------------------------------------>
+ * @section conf-req Requirements
+ *
+ * - @b r.conf.confc.kernel
+ *   Confc library must be implemented for the kernel.
+ * - @b r.conf.confc.user
+ *   Confc library must be implemented for user space.
+ * - @b r.conf.confc.async
+ *   Confc library provides asynchronous interfaces for accessing
+ *   configuration data.
+ * - @b r.conf.cache.data-model
+ *   The implementation should organize configuration information as
+ *   outlined in section 4.1 of the HLD. The same data structures
+ *   should be used for confc and confd caches, if possible.
+ *   Configuration structures must be kept in memory.
+ * - @b r.conf.cache.pinning
+ *   Pinning of an object protects existence of this object in the cache.
+ *   Pinned object can be moved from a stub condition to "ready".
+ * - @b r.conf.cache.unique-objects
+ *   Configuration cache must not contain multiple objects with the
+ *   same identity.
+ *
+ * <hr> <!------------------------------------------------------------>
+ * @section conf-depends Dependencies
+ *
+ * - We assume that the size of configuration database is very small
+ *   compared with other meta-data.  Confd can take advantage of this
+ *   assumption and load the entire contents of configuration database
+ *   into the cache.
+ *
+ * - Colibri database library ("db/db.h") should provide a user-space
+ *   interface for creating in-memory databases. This interface will
+ *   be used by confd and user-space confc; see @ref conf-fspec-reg.
+ *
+ *   See also `Writing In-Memory Berkeley DB Applications'
+ *   [http://docs.oracle.com/cd/E17076_02/html/articles/inmemory/C/index.html].
+ *
+ * - c2_rpc_item_get() and c2_rpc_item_put() should be implemented.
+ *
+ *   Confc implementation schedules a state transition in
+ *   ->rio_replied().  The data of ->ri_reply will be consumed only
+ *   when the new state is being entered to.  The rpc item pointed to
+ *   by ->ri_reply must not be freed (by rpc layer) until confc has
+ *   consumed the data.  Thus the need for c2_rpc_item_get().
+ *
+ * <hr> <!------------------------------------------------------------>
+ * @section conf-highlights Design Highlights
+ *
+ * - The application should not use relations of a configuration
+ *   object to access other objects.
+ *
+ *   Rationale: relations may point to unpinned objects. Confc or
+ *   confd implementation, who owns the cache, is free to convert
+ *   unpinned objects into stubs.  The application cannot use stubs,
+ *   as those contain no valid configuration data.
+ *
+ *   @see @ref conf-fspec-obj-private
+ *
+ * - The registry of cached configuration objects (c2_conf_reg) is
+ *   queried infrequently; it makes sense to base its implementation
+ *   on linked list data structure.
+ *
+ * <hr> <!------------------------------------------------------------>
+ * @section conf-fspec Functional Specification
+ *
+ * - @subpage conf-fspec-obj
+ * - @subpage confc-fspec
+ * - @subpage conf-fspec-preload
+ * - @subpage conf-fspec-objops
+ * - @subpage conf-fspec-reg
+ * - @subpage confd-fspec
+ *
+ * <hr> <!------------------------------------------------------------>
+ * @section conf-lspec Logical Specification
+ *
+ * - @ref conf-lspec-comps
+ * - @subpage confc-lspec
+ * - @ref conf_dlspec_objops
+ * - @ref conf_dlspec_reg
+ * - @subpage confd-lspec-page
+ * - @ref conf-lspec-state
+ * - @ref conf-lspec-thread
+ *
+ * <!---------------------------------------------------------------->
+ * @subsection conf-lspec-comps Components Overview
+ *
+ * Every instance of confc library and confd service maintains a cache
+ * of configuration data.  Configuration cache is represented by 1) a
+ * set of dynamically allocated configuration objects, joined together
+ * by relations into a directed acyclic graph (DAG), and 2) a registry
+ * of cached objects, that maps object identities to memory addresses
+ * of these objects.
+ *
+ * Configuration cache can be pre-loaded from an ASCII string. See
+ * @ref conf-fspec-preload.
+ *
+ * If a confc cache does not have enough data to fulfill a request of
+ * configuration consumer, confc obtains the necessary data from the
+ * confd and adds new configuration data to the cache.
+ *
+ * If a confd cache does not have enough data to fulfill a request of
+ * confc, confd loads the necessary data from the configuration
+ * database and updates the cache.
+ *
+ * <!---------------------------------------------------------------->
+ * @subsection conf-lspec-state State Specification
+ *
+ * - @ref confc-lspec-state "States of a context state machine at confc side"
+ * - @ref confd-lspec-state "States of a FOM at confd side"
+ * - @ref conf-fspec-obj-enum-status
+ * - @ref conf-fspec-obj-pinned
+ *
+ * <!---------------------------------------------------------------->
+ * @subsection conf-lspec-thread Threading and Concurrency Model
+ *
+ * - @ref confc-lspec-thread "confc"
+ * - @ref confd-lspec-thread "confd"
+ *
+ * <hr> <!------------------------------------------------------------>
+ * @section conf-conformance Conformance
+ *
+ * - @b i.conf.confc.kernel
+ *   The implementation of confc uses portable subset of Colibri core
+ *   API, which abstracts away the differences between kernel and
+ *   user-space code.
+ * - @b i.conf.confc.user
+ *   Confc library is implemented for user space.
+ * - @b i.conf.confc.async
+ *   c2_confc_open() and c2_confc_readdir() are asynchronous calls.
+ * - @b i.conf.cache.data-model
+ *   Configuration information is organized as outlined in section 4.1
+ *   of the HLD. One-to-many relationships are represented by
+ *   c2_conf_dir objects.  The same data structures are used for both
+ *   confc and confd.  Configuration structures are kept in memory.
+ * - @b i.conf.cache.pinning
+ *   Confc "pins" configuration object by incrementing its reference
+ *   counter.  c2_confc_fini() asserts (C2_PRE()) that no objects are
+ *   pinned when the cache is being destroyed.
+ * - @b i.conf.cache.unique-objects
+ *   Uniqueness of configuration object identities is achieved by
+ *   using a registry of cached objects (c2_conf_reg).
+ *
+ * <hr> <!------------------------------------------------------------>
+ * @section conf-ut Unit Tests
+ *
+ * Fault Injection mechanism (lib/finject.h) will be used to test
+ * handling of "rare" errors (e.g., allocation errors) and to disable
+ * some of external modules' functionality (e.g., to make c2_rpc_post()
+ * a noop).
+ *
+ * @subsection conf-ut-common Infrastructure Test Suite
+ *
+ *     @test c2_conf_reg operations will be tested.
+ *
+ *     @test Path operations will be tested. This includes checking
+ *           validity of various paths, testing success and failure of
+ *           c2_conf_downlink().
+ *
+ *     @test Object operations will be tested. This includes allocation,
+ *           comparison with on-wire representation, stub enrichment.
+ *
+ *     @test c2_conf_parse() will be tested.
+ *
+ * @subsection conf-ut-confc confc Test Suite
+ *
+ *     Test suite's init routine will create an "ast" thread (search
+ *     for `ast_thread' in sm/ut/sm.c).  This thread will process ASTs
+ *     as they are posted by confc functions.
+ *
+ *     @test path_walk() will be tested.
+ *
+ *     @test c2_confc_open*() and c2_confc_close() will be tested.
+ *
+ *     @test Cache operations will be tested. This includes
+ *           cache_add(), object_enrich(), cache_grow(), and
+ *           cache_preload().
+ *
+ * @subsection confd-ut confd Test Suite
+ *
+ * XXX @todo To be added by Anatoliy.
+ *
+ * <hr> <!------------------------------------------------------------>
+ * @section conf-st System Tests
+ *
+ * System testing procedure consists of three steps:
+ *
+ *   -# Generate configuration.
+ *   -# Run @ref confc-fspec-recipes "use cases".
+ *   -# Compare actual results with expected.
+ *
+ * A special user-space utility -- @b confg, configuration generator --
+ * performs `Generate' step.  It generates random configuration data,
+ * queries to be executed upon this data, and results that are
+ * expected to be obtained by running these queries.
+ *
+ * `Run' step is performed by a confc application, whose input data
+ * are configuration and queries generated by confg. The application
+ * executes the queries, producing output.
+ *
+ * Actual output is compared with expected at `Compare' step.
+ *
+ * @test
+ * -# Generate configuration DB with yaml2db and given yaml file.
+ * -# Run confd, making it use newly generated DB.
+ * -# Run multiple confcs on different threads, requesting the same
+ *    set of configuration objects.
+ * -# In user-space, every confc should dump configuration objects to
+ *    file with name `confc-%d-%d.dump' where the first number is the
+ *    process id, and the second the thread id.
+ *    In kernel-space, the output of confcs will be sent to the
+ *    console for the test script to recover and parse. Test script
+ *    should generate dump-files like in user-space.
+ * -# Compare contents of "dump" files with expected values.
+ *
+ * @subsection conf-st-conf Configuration data
+ *
+ * confg generates "configuration string" --- an ASCII string
+ * introduced in @ref conf-fspec-preload.
+ *
+ * @todo As soon as confd is able to read configuration database and
+ * handle confc's requests, confg will need to be changed to generate
+ * configuration database.
+ *
+ * @subsection conf-st-queries Queries
+ *
+ * System tests cover three use cases (see @ref confc-fspec-recipes):
+ *
+ *   -# Getting configuration data on a filesystem.
+ *   -# Getting data on a service given its type.
+ *   -# Getting list of devices used by specific service on specific node.
+ *
+ * Case 1 takes profile name as input parameter.  Case 2 --- profile
+ * name and service type.  Case 3 --- profile name, service type, and
+ * node identifier.
+ *
+ * A query is the number of use case (1 to 3) and values of input
+ * parameters.
+ *
+ * @subsection conf-st-output Output
+ *
+ * When the confc application from `Run' step (see above) runs a
+ * configuration query, it produces a string with textual
+ * representation of results of this query.  Sequences in such
+ * representations (e.g., a list of filesystem parameters, a list of
+ * partitions) should be sorted, otherwise two semantically equivalent
+ * sequences may have differing representations ("[a,b]" != "[b,a]").
+ *
+ * <hr> <!------------------------------------------------------------>
+ * @section conf-O Analysis
+ *
+ * @todo XXX
+ *
+ * <hr> <!------------------------------------------------------------>
+ * @section conf-scalability Scalability
+ *
+ * Current design imposes no restrictions on the size of configuration
+ * cache.  If a configuration database is huge and the application is
+ * keen to know every aspect of cluster configuration, confc cache may
+ * eventually consume all available memory.  Confc will be unable to
+ * allocate new objects, its state machines will end in S_FAILURE
+ * state, and c2_confc_ctx_error() will return -ENOMEM.  The application
+ * may opt to get rid of configuration cache by issuing c2_confc_fini().
+ *
+ * @todo Implement cache eviction.
+ *
+ * <hr> <!------------------------------------------------------------>
+ * @section conf-ref References
+ *
+ * - <a href="https://docs.google.com/a/xyratex.com/document/d/
+ *1t8osSyFOsdTGYGbnMC3ynB1niVqtm6bCJSzJwh1IUw8/view">
+ *   HLD of configuration caching</a>
+ *
+ * - <a href="https://docs.google.com/a/xyratex.com/document/d/
+ *1JmsVBV8B4R-FrrYyJC_kX2ibzC1F-yTHEdrm3-FLQYk/view">
+ *   HLD of configuration.schema</a>
+ *
+ * - <a href="https://docs.google.com/a/xyratex.com/document/d/
+ *1hnWm6x3UhWIB_9qiR69ScGF57Vcy0D38BBTdpFhe4Bo/view">
+ *   Configuration one-pager</a>
+ *
+ * (@b Hint: To open a document in read/write mode replace 'view' with
+ * 'edit' in its URL.)
+ *
+ * <hr> <!------------------------------------------------------------>
+ * @section conf-impl-plan Implementation Plan
+ *
+ * (@todo Delete this section from the DLD when the feature is landed
+ * into master.)
+ */

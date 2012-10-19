@@ -18,14 +18,22 @@
  * Original creation date: 02/07/2012
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include <sys/stat.h>    /* S_ISDIR */
+
 #include "lib/errno.h"
 #include "lib/memory.h"             /* c2_free(), C2_ALLOC_PTR() */
+#include "lib/misc.h"               /* C2_SET0() */
 #include "fid/fid.h"                /* c2_fid */
 #include "fop/fom_generic.h"        /* c2_fom_tick_generic() */
 #include "ioservice/io_foms.h"      /* io_fom_cob_rw_fid2stob_map */
 #include "ioservice/io_fops.h"      /* c2_cobfop_common_get */
 #include "ioservice/cob_foms.h"     /* c2_fom_cob_create, c2_fom_cob_delete */
 #include "ioservice/io_fops.h"      /* c2_is_cob_create_fop() */
+#include "mdstore/mdstore.h"
 #include "ioservice/cobfid_map.h"   /* c2_cobfid_map_get() c2_cobfid_map_put()*/
 #include "ioservice/io_device.h"   /* c2_ios_poolmach_get() */
 #include "reqh/reqh_service.h"
@@ -287,64 +295,60 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	struct c2_fop_cob_create *fop;
 	struct c2_cob_nskey	 *nskey;
 	struct c2_cob_nsrec	  nsrec;
-	struct c2_cob_fabrec	  fabrec;
+	struct c2_cob_fabrec	 *fabrec;
+	struct c2_cob_omgrec      omgrec;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(cc != NULL);
+	C2_SET0(&nsrec);
 
-	cdom = c2_fom_reqh(fom)->rh_cob_domain;
+	cdom = &fom->fo_loc->fl_dom->fd_reqh->rh_mdstore->md_dom;
 	C2_ASSERT(cdom != NULL);
 	fop = c2_fop_data(fom->fo_fop);
 
-	c2_cob_nskey_make(&nskey, cc->fco_cfid.f_container,
-			  cc->fco_cfid.f_key, (char *)fop->cc_cobname.cn_name);
+        rc = c2_cob_alloc(cdom, &cob);
+        if (rc)
+                return rc;
+	c2_cob_nskey_make(&nskey, &cc->fco_cfid, (char *)fop->cc_cobname.cn_name,
+	                  fop->cc_cobname.cn_count);
 	if (nskey == NULL) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    c2_addb_oom);
+	        c2_cob_put(cob);
 		return -ENOMEM;
 	}
 
-	nsrec.cnr_stobid = cc->fco_stobid;
+        io_fom_cob_rw_stob2fid_map(&cc->fco_stobid, &nsrec.cnr_fid);
 	nsrec.cnr_nlink = CC_COB_HARDLINK_NR;
 
-	fabrec.cfb_version.vn_lsn =
+        c2_cob_fabrec_make(&fabrec, NULL, 0);
+	fabrec->cfb_version.vn_lsn =
 	             c2_fol_lsn_allocate(c2_fom_reqh(fom)->rh_fol);
-	fabrec.cfb_version.vn_vc = CC_COB_VERSION_INIT;
+	fabrec->cfb_version.vn_vc = CC_COB_VERSION_INIT;
 
-	rc = c2_cob_create(cdom, nskey, &nsrec, &fabrec, CA_NSKEY_FREE, &cob,
-			   &fom->fo_tx.tx_dbtx);
+        omgrec.cor_uid = 0;
+        omgrec.cor_gid = 0;
+        omgrec.cor_mode = S_IFDIR |
+                          S_IRUSR | S_IWUSR | S_IXUSR | /* rwx for owner */
+                          S_IRGRP | S_IXGRP |           /* r-x for group */
+                          S_IROTH | S_IXOTH;            /* r-x for others */
 
-	/*
-	 * For all errors except -ENOMEM, cob code puts reference on cob
-	 * which in turn finalizes the in-memory cob object.
-	 * The flag CA_NSKEY_FREE takes care of deallocating memory for
-	 * nskey during cob finalization.
-	 */
-	switch (rc) {
-	case 0:
-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			    c2_addb_trace, "Cob created successfully.");
-		/**
-		 * Since c2_cob_locate() does not cache in-memory cobs,
-		 * it allocates a new c2_cob structure by default every time
-		 * c2_cob_locate() is called.
-		 * Hence releasing reference of cob here which
-		 * otherwise would cause a memory leak.
-		 */
-		c2_cob_put(cob);
-		break;
-
-	case -ENOMEM:
-		c2_free(nskey->cnk_name.b_data);
-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			    cc_fom_func_fail,
-			    "Memory allocation failed in cc_cob_create().", rc);
-		break;
-
-	default:
+	rc = c2_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, &fom->fo_tx.tx_dbtx);
+	if (rc) {
+	        /*
+	         * Cob does not free nskey and fab rec on errors. We need to do so
+	         * ourself. In case cob created successfully, it frees things on
+	         * last put.
+	         */
+		c2_free(nskey);
+		c2_free(fabrec);
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail, "Cob creation failed", rc);
-	}
+	} else {
+		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+			    c2_addb_trace, "Cob created successfully.");
+        }
+	c2_cob_put(cob);
 
 	return rc;
 }
@@ -460,16 +464,20 @@ out:
 static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 {
 	int                   rc;
+	struct c2_cob_oikey   oikey;
 	struct c2_cob        *cob;
 	struct c2_cob_domain *cdom;
+	struct c2_fid         fid;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(cd != NULL);
 
-	cdom = c2_fom_reqh(fom)->rh_cob_domain;
+	cdom = &fom->fo_loc->fl_dom->fd_reqh->rh_mdstore->md_dom;
 	C2_ASSERT(cdom != NULL);
 
-	rc = c2_cob_locate(cdom, &cd->fco_stobid, &cob, &fom->fo_tx.tx_dbtx);
+        io_fom_cob_rw_stob2fid_map(&cd->fco_stobid, &fid);
+        c2_cob_oikey_make(&oikey, &fid, 0);
+	rc = c2_cob_locate(cdom, &oikey, 0, &cob, &fom->fo_tx.tx_dbtx);
 	if (rc != 0) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
 			    cd_fom_func_fail,
