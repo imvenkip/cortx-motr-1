@@ -554,7 +554,7 @@ static void nw_xfer_ops_test(void)
 	int                        rc;
 	c2_bindex_t                index;
 	struct io_request          req;
-	struct iovec               iovec_arr[LAY_N * UNIT_SIZE >> 
+	struct iovec               iovec_arr[LAY_N * UNIT_SIZE >>
 		                             PAGE_CACHE_SHIFT];
 	struct c2_indexvec         ivec;
 	struct target_ioreq       *ti;
