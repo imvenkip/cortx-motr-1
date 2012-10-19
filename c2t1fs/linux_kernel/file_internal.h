@@ -881,6 +881,9 @@ struct io_request {
 
         int                          ir_rc;
 
+	/** Number of data bytes copied to/from user space. */
+	c2_bcount_t                  ir_copied_nr;
+
         /**
          * struct file* can point to c2t1fs inode and hence its
          * associated c2_fid structure.
@@ -1151,6 +1154,8 @@ struct target_ioreq {
         /** Number of bytes read/written for this target_ioreq. */
         uint64_t                       ti_bytes;
 
+	/** Number of file data bytes read/written for this object. */
+	uint64_t                       ti_databytes;
         /** List of io_req_fop structures issued on this target object. */
         struct c2_tl                   ti_iofops;
 

@@ -739,6 +739,7 @@ static int user_data_copy(struct pargrp_iomap *map,
                                         start & (PAGE_CACHE_SIZE - 1),
                                         end - start);
                         pagefault_enable();
+			map->pi_ioreq->ir_copied_nr += bytes;
 
                         if (bytes != end - start)
                                 C2_RETERR(-EFAULT, "Failed to copy_from_user");
@@ -749,6 +750,8 @@ static int user_data_copy(struct pargrp_iomap *map,
                                      db_buf.b_addr +
                                      (start & (PAGE_CACHE_SIZE - 1)),
                                      end - start);
+		map->pi_ioreq->ir_copied_nr += bytes;
+
                 if (bytes != 0)
                         C2_RETERR(-EFAULT, "Failed to copy_to_user");
         }
@@ -2029,6 +2032,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 				       COUNT(&req->ir_ivec,
 					     req->ir_ivec.iv_vec.v_nr - 1));
 	}
+
         req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer, false);
 	C2_RETURN(0);
 fail:
@@ -2053,12 +2057,13 @@ static int io_request_init(struct io_request  *req,
         C2_PRE(ivec != NULL);
         C2_PRE(C2_IN(rw, (IRT_READ, IRT_WRITE)));
 
-        req->ir_rc       = 0;
-        req->ir_ops      = &ioreq_ops;
-        req->ir_file     = file;
-        req->ir_type     = rw;
-        req->ir_iovec    = iov;
-        req->ir_iomap_nr = 0;
+        req->ir_rc        = 0;
+        req->ir_ops       = &ioreq_ops;
+        req->ir_file      = file;
+        req->ir_type      = rw;
+        req->ir_iovec     = iov;
+        req->ir_iomap_nr  = 0;
+	req->ir_copied_nr = 0;
 
         io_request_bob_init(req);
         nw_xfer_request_init(&req->ir_nwxfer);
@@ -2176,12 +2181,13 @@ static int target_ioreq_init(struct target_ioreq    *ti,
         C2_PRE(session != NULL);
         C2_PRE(size    >  0);
 
-        ti->ti_rc      = 0;
-        ti->ti_ops     = &tioreq_ops;
-        ti->ti_fid     = *cobfid;
-        ti->ti_bytes   = 0;
-        ti->ti_nwxfer  = xfer;
-        ti->ti_session = session;
+        ti->ti_rc        = 0;
+        ti->ti_ops       = &tioreq_ops;
+        ti->ti_fid       = *cobfid;
+        ti->ti_bytes     = 0;
+        ti->ti_nwxfer    = xfer;
+        ti->ti_session   = session;
+	ti->ti_databytes = 0;
 
         iofops_tlist_init(&ti->ti_iofops);
         tioreqs_tlink_init(ti);
@@ -2404,6 +2410,7 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
                                 COUNT(&ti->ti_ivec, seg) =
 					ti->ti_bufvec.ov_vec.v_count[seg] =
 					buf->db_buf.b_nob;
+			ti->ti_databytes += pgend - pgstart;
                 }
                 else
                         buf = map->pi_paritybufs[page_id(goff)]
@@ -2528,7 +2535,7 @@ ssize_t c2t1fs_aio(struct kiocb       *kcb,
         }
 
         rc = req->ir_ops->iro_iosm_handle(req);
-        count = req->ir_nwxfer.nxr_bytes;
+        count = min64u(req->ir_nwxfer.nxr_bytes, req->ir_copied_nr);
 	if (req->ir_rc != 0)
                 count = rc;
 
@@ -2820,6 +2827,9 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 
 	c2_tl_for (tioreqs, &xfer->nxr_tioreqs, ti) {
                 struct io_req_fop *irfop;
+
+		if (ti->ti_rc != 0)
+			xfer->nxr_bytes += ti->ti_databytes;
 
 		c2_tl_for(iofops, &ti->ti_iofops, irfop) {
 			iofops_tlist_del(irfop);
