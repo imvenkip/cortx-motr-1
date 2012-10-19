@@ -313,6 +313,8 @@ void c2_matrix_get_submatrix(struct c2_matrix *mat, struct c2_matrix *submat,
         }
 }
 
+#undef C2_TRACE_SUBSYSTEM
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

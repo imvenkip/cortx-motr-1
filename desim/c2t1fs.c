@@ -165,7 +165,7 @@ static void layout_build(struct c2t1fs_conf *conf)
 	C2_ASSERT(result == 0);
 }
 
-static void layout_fini(struct c2t1fs_conf *conf)
+static void c2t1fs_layout_fini(struct c2t1fs_conf *conf)
 {
 	/*
 	 * Delete the reference on the layout object that was acquired in
@@ -269,7 +269,7 @@ void c2t1fs_fini(struct c2t1fs_conf *conf)
 		for (i = 0; i < conf->ct_nr_servers; ++i)
 			net_srv_fini(&conf->ct_srv[i]);
 	}
-	layout_fini(conf);
+	c2t1fs_layout_fini(conf);
 	c2_pool_fini(&conf->ct_pool);
 }
 

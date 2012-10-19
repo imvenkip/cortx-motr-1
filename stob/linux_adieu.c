@@ -592,6 +592,11 @@ int linux_domain_io_init(struct c2_stob_domain *dom)
 	return result;
 }
 
+#undef C2_TRACE_SUBSYSTEM
+#undef ADDB_GLOBAL_ADD
+#undef ADDB_ADD
+#undef ADDB_CALL
+
 /** @} end group stoblinux */
 
 /*

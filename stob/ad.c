@@ -1393,6 +1393,10 @@ void c2_ad_stobs_fini(void)
 	c2_addb_ctx_fini(&ad_stob_ctx);
 }
 
+#undef ADDB_GLOBAL_ADD
+#undef ADDB_ADD
+#undef ADDB_CALL
+
 /** @} end group stobad */
 
 /*

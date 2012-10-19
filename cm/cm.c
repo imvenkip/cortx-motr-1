@@ -693,6 +693,8 @@ bool c2_cm_has_more_data(const struct c2_cm *cm)
 	return c2_fom_rc(&cm->cm_cp_pump.p_fom) != -ENODATA;
 }
 
+#undef C2_TRACE_SUBSYSTEM
+
 /** @} endgroup CM */
 
 /*

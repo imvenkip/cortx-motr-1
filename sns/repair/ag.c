@@ -140,6 +140,8 @@ struct c2_sns_repair_ag *c2_sns_repair_ag_find(struct c2_sns_repair_cm *rcm,
 	return sag;
 }
 
+#undef C2_TRACE_SUBSYSTEM
+
 /** @} SNSRepairAG */
 /*
  *  Local variables:

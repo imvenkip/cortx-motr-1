@@ -709,6 +709,8 @@ static void rpc_recv_pool_buffer_put(struct c2_net_buffer *nb)
 	C2_LEAVE();
 }
 
+#undef C2_TRACE_SUBSYSTEM
+
 /** @} end of rpc group */
 
 /*

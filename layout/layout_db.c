@@ -652,6 +652,7 @@ int c2_layout_delete(struct c2_layout *l,
 	return rc;
 }
 
+#undef C2_TRACE_SUBSYSTEM
 
 /** @} end group LayoutDBDFS */
 

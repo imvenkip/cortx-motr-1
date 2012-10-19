@@ -205,7 +205,8 @@ void c2_trace_fini(void);
   C2_TRACE_SUBSYS(IOSERVICE, 13) \
   C2_TRACE_SUBSYS(CM,        14) \
   C2_TRACE_SUBSYS(SNSREPAIR, 15) \
-  C2_TRACE_SUBSYS(CONF,      16)
+  C2_TRACE_SUBSYS(CONF,      16) \
+  C2_TRACE_SUBSYS(LIB,       17)
 
 #define C2_TRACE_SUBSYS(name, value) C2_TRACE_SUBSYS_ ## name = (1 << value),
 /** The subsystem bitmask definitions */

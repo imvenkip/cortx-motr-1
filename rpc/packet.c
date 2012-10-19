@@ -405,7 +405,10 @@ void c2_rpc_packet_traverse_items(struct c2_rpc_packet *p,
 	C2_LEAVE();
 }
 
+#undef C2_TRACE_SUBSYSTEM
+
 /** @} */
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

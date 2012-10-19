@@ -678,4 +678,6 @@ struct c2_rpc_frm *session_frm(const struct c2_rpc_session *s)
 	return &s->s_conn->c_rpcchan->rc_frm;
 }
 
+#undef C2_TRACE_SUBSYSTEM
+
 /** @} */

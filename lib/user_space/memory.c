@@ -175,6 +175,7 @@ int c2_pagesize_get()
 	return getpagesize();
 }
 
+#undef C2_TRACE_SUBSYSTEM
 
 /** @} end of memory group */
 

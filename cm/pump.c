@@ -362,6 +362,8 @@ void c2_cm_cp_pump_stop(struct c2_cm *cm)
 	c2_cm_cp_pump_wakeup(cm);
 }
 
+#undef C2_TRACE_SUBSYSTEM
+
 /** @} endgroup CM */
 
 /*

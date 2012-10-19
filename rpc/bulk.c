@@ -461,6 +461,8 @@ int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk,
 }
 C2_EXPORTED(c2_rpc_bulk_load);
 
+#undef C2_TRACE_SUBSYSTEM
+
 /** @} end of rpc group */
 
 /*

@@ -1817,6 +1817,8 @@ const char *c2_io_fom_cob_rw_service_name (struct c2_fom *fom)
 	return IOSERVICE_NAME;
 }
 
+#undef C2_TRACE_SUBSYSTEM
+
 /** @} end of io_foms */
 
 /*

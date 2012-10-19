@@ -19,6 +19,7 @@
  * Original creation date: 03/17/2011
  */
 
+#undef C2_TRACE_SUBSYSTEM
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
 #include "lib/errno.h"
@@ -1319,6 +1320,7 @@ int c2_rpc_session_items_print(struct c2_rpc_session *session, bool only_active)
 }
 #endif
 
+#undef C2_TRACE_SUBSYSTEM
 
 /** @} end of session group */
 

@@ -18,7 +18,10 @@
  * Original creation date: 07/20/2010
  */
 
+#ifndef _ISOC99_SOURCE
 #define _ISOC99_SOURCE /* INFINITY */
+#endif
+
 #include <stdio.h>     /* printf */
 #include <sys/time.h>  /* gettimeofday */
 #include <math.h>      /* sqrt */

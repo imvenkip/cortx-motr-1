@@ -679,6 +679,8 @@ int c2_rpc_item_start_timer(struct c2_rpc_item *item)
 	return 0;
 }
 
+#undef SLOT_REF_XCODE_OBJ
+
 /** @} end of rpc group */
 
 /*

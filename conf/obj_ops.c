@@ -51,7 +51,7 @@ bool c2_conf_obj_invariant(const struct c2_conf_obj *obj)
 	return c2_conf_obj_bob_check(obj) && obj->co_ops->coo_invariant(obj);
 }
 
-static bool obj_is_stub(const struct c2_conf_obj *obj)
+static bool __obj_is_stub(const struct c2_conf_obj *obj)
 {
 	return obj->co_status != C2_CS_READY;
 }
@@ -64,7 +64,7 @@ static bool _generic_obj_invariant(const void *bob)
 		c2_buf_is_aimed(&obj->co_id) && obj->co_ops != NULL &&
 		C2_IN(obj->co_status,
 		      (C2_CS_MISSING, C2_CS_LOADING, C2_CS_READY)) &&
-		ergo(obj_is_stub(obj), obj->co_nrefs == 0);
+		ergo(__obj_is_stub(obj), obj->co_nrefs == 0);
 }
 
 struct c2_conf_obj *c2_conf__dir_create(void);
@@ -196,7 +196,7 @@ int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
 
 	C2_PRE(c2_conf_obj_invariant(dest));
 	C2_PRE(confc_is_unset_or_locked(dest));
-	C2_PRE(obj_is_stub(dest) && dest->co_nrefs == 0);
+	C2_PRE(__obj_is_stub(dest) && dest->co_nrefs == 0);
 	C2_PRE(dest->co_type == src->o_conf.u_type);
 	C2_PRE(c2_buf_eq(&dest->co_id, &src->o_id));
 	C2_PRE(confx_object_is_valid(src));
@@ -218,7 +218,7 @@ bool c2_conf_obj_match(const struct c2_conf_obj *cached,
 
 	return cached->co_type == flat->o_conf.u_type &&
 		c2_buf_eq(&cached->co_id, &flat->o_id) &&
-		(obj_is_stub(cached) ||
+		(__obj_is_stub(cached) ||
 		 cached->co_ops->coo_match(cached, flat));
 }
 

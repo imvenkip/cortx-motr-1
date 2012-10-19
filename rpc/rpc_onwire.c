@@ -141,6 +141,9 @@ static int slot_ref_decode(struct c2_bufvec_cursor       *cur,
 	C2_RETURN(rc);
 }
 
+#undef C2_TRACE_SUBSYSTEM
+#undef SLOT_REF_XCODE_OBJ
+
 /** @} */
 
 /*

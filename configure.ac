@@ -469,8 +469,8 @@ AS_IF([test x$enable_rpm != xyes],
 )
 
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
-C2_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -iquote $ABS_BUILDDIR -iquote $SRCDIR \
-             -include config.h $C2_CPPFLAGS"
+C2_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DC2_GLOBAL='' -iquote $ABS_BUILDDIR \
+             -iquote $SRCDIR -include config.h $C2_CPPFLAGS"
 
 # -Wno-attributes is required to suppress warnings about unrecognized
 # __attribute__, such as __attribute__((gccxml(...))). It's important because we
@@ -480,8 +480,8 @@ C2_CFLAGS="-Wall -Werror -Wno-attributes -fno-strict-aliasing $C2_CFLAGS"
 
 C2_LDFLAGS="-rdynamic $C2_LDFLAGS"
 
-C2_KCPPFLAGS="-include $ABS_BUILDDIR/config.h -iquote $ABS_BUILDDIR \
-              $GALOIS_INCLUDES $C2_KCPPFLAGS"
+C2_KCPPFLAGS="-DC2_GLOBAL='' -include $ABS_BUILDDIR/config.h \
+              -iquote $ABS_BUILDDIR $GALOIS_INCLUDES $C2_KCPPFLAGS"
 
 C2_KCFLAGS="-Wall -Werror -Wno-attributes $C2_KCFLAGS"
 

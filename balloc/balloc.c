@@ -2139,6 +2139,8 @@ int c2_balloc_allocate(struct c2_balloc **out)
 	return result;
 }
 
+#undef C2_TRACE_SUBSYSTEM
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

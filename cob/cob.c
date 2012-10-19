@@ -1384,6 +1384,8 @@ out:
 
 /** @} end group cob */
 
+#undef C2_TRACE_SUBSYSTEM
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

@@ -1193,6 +1193,8 @@ c2_layout_instance_to_enum(const struct c2_layout_instance *li)
 	return li->li_ops->lio_to_enum(li);
 }
 
+#undef C2_TRACE_SUBSYSTEM
+
 /** @} end group layout */
 
 /*

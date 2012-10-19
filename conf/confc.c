@@ -28,8 +28,10 @@
 #include "lib/arith.h"     /* C2_CNT_INC, C2_CNT_DEC */
 #include "lib/misc.h"      /* C2_IN */
 #include "lib/errno.h"     /* ENOMEM, EPROTO */
-#include "lib/trace.h"     /* C2_LOG */
 #include "lib/memory.h"    /* C2_ALLOC_ARR, c2_free */
+
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_CONF
+#include "lib/trace.h"     /* C2_LOG */
 
 /**
  * @page confc-lspec confc Internals
@@ -497,8 +499,8 @@ void c2_confc_fini(struct c2_confc *confc)
  * c2_confc_ctx
  * ------------------------------------------------------------------ */
 
-static void group_lock(const struct c2_confc *confc);
-static void group_unlock(const struct c2_confc *confc);
+static void conf_group_lock(const struct c2_confc *confc);
+static void conf_group_unlock(const struct c2_confc *confc);
 static void confc_lock(struct c2_confc *confc);
 static void confc_unlock(struct c2_confc *confc);
 
@@ -509,7 +511,7 @@ void c2_confc_ctx_init(struct c2_confc_ctx *ctx, struct c2_confc *confc)
 	ctx->fc_confc = confc;
 	c2_confc_ctx_bob_init(ctx);
 
-	group_lock(confc); /* needed for c2_sm_init() */
+	conf_group_lock(confc); /* needed for c2_sm_init() */
 	c2_sm_init(&ctx->fc_mach, &confc_ctx_states_conf, S_INITIAL,
 		   confc->cc_group, NULL /* XXX TODO c2_addb_ctx */);
 
@@ -518,7 +520,7 @@ void c2_confc_ctx_init(struct c2_confc_ctx *ctx, struct c2_confc *confc)
 	C2_CNT_INC(confc->cc_nr_ctx);
 	confc_unlock(confc);
 
-	group_unlock(confc);
+	conf_group_unlock(confc);
 
 	ctx->fc_ast.sa_datum = &ctx->fc_ast_datum;
 	ctx->fc_origin = NULL;
@@ -536,7 +538,7 @@ void c2_confc_ctx_fini(struct c2_confc_ctx *ctx)
 
 	c2_clink_fini(&ctx->fc_clink);
 
-	group_lock(confc); /* needed for c2_sm_fini() */
+	conf_group_lock(confc); /* needed for c2_sm_fini() */
 
 	confc_lock(confc);
 	if (ctx->fc_mach.sm_state == S_TERMINAL && ctx->fc_result != NULL)
@@ -545,7 +547,7 @@ void c2_confc_ctx_fini(struct c2_confc_ctx *ctx)
 	confc_unlock(confc);
 
 	c2_sm_fini(&ctx->fc_mach);
-	group_unlock(confc);
+	conf_group_unlock(confc);
 
 	c2_confc_ctx_bob_fini(ctx);
 	ctx->fc_confc = NULL;
@@ -686,7 +688,7 @@ static int path_walk(struct c2_confc_ctx *ctx);
 static bool request_is_valid(const struct c2_conf_fetch *req);
 static struct c2_confc_ctx *mach_to_ctx(struct c2_sm *mach);
 static const struct c2_confc_ctx *const_mach_to_ctx(const struct c2_sm *mach);
-static bool group_is_locked(const struct c2_confc *confc);
+static bool conf_group_is_locked(const struct c2_confc *confc);
 static bool confc_is_locked(const struct c2_confc *confc);
 
 /** Actions to perform on entering S_CHECK state. */
@@ -850,7 +852,7 @@ static int path_walk(struct c2_confc_ctx *ctx)
 	struct c2_conf_obj *obj;
 	size_t              ri;
 
-	C2_PRE(group_is_locked(ctx->fc_confc));
+	C2_PRE(conf_group_is_locked(ctx->fc_confc));
 	C2_PRE(ctx->fc_origin != NULL);
 
 	confc_lock(ctx->fc_confc);
@@ -876,7 +878,7 @@ static int path_walk(struct c2_confc_ctx *ctx)
 	}
 
 	confc_unlock(ctx->fc_confc);
-	C2_POST(group_is_locked(ctx->fc_confc));
+	C2_POST(conf_group_is_locked(ctx->fc_confc));
 	return ret;
 }
 
@@ -893,7 +895,7 @@ static int path_walk(struct c2_confc_ctx *ctx)
 static int
 path_walk_complete(struct c2_confc_ctx *ctx, struct c2_conf_obj *obj, size_t ri)
 {
-	C2_PRE(group_is_locked(ctx->fc_confc));
+	C2_PRE(conf_group_is_locked(ctx->fc_confc));
 	C2_PRE(confc_is_locked(ctx->fc_confc));
 
 	switch (obj->co_status) {
@@ -1093,7 +1095,7 @@ static int object_enrich(struct c2_conf_obj *dest,
 /* 	struct c2_confc     *confc = registry_to_confc(reg); */
 
 /* 	C2_PRE(resp->fr_rc == 0); */
-/* 	C2_PRE(group_is_locked(confc)); */
+/* 	C2_PRE(conf_group_is_locked(confc)); */
 
 /* 	confc_lock(confc); */
 /* 	for (flat in resp->fr_data) { */
@@ -1181,17 +1183,17 @@ request_fill(struct c2_confc_ctx *ctx, const struct c2_conf_obj *org, size_t ri)
  * Locking
  * ------------------------------------------------------------------ */
 
-static void group_lock(const struct c2_confc *confc)
+static void conf_group_lock(const struct c2_confc *confc)
 {
 	c2_mutex_lock(&confc->cc_group->s_lock);
 }
 
-static void group_unlock(const struct c2_confc *confc)
+static void conf_group_unlock(const struct c2_confc *confc)
 {
 	c2_mutex_unlock(&confc->cc_group->s_lock);
 }
 
-static bool group_is_locked(const struct c2_confc *confc)
+static bool conf_group_is_locked(const struct c2_confc *confc)
 {
 	return c2_mutex_is_locked(&confc->cc_group->s_lock);
 }
@@ -1265,5 +1267,7 @@ conf_cleanup:
 	return rc;
 }
 #endif /* __KERNEL__ */
+
+#undef C2_TRACE_SUBSYSTEM
 
 /** @} confc_dlspec */

@@ -119,7 +119,7 @@ int c2_trace_set_immediate_mask(const char *mask)
 		 * subsystem names, which we use to build a numeric mask
 		 */
 		if (errno != 0 || *endp != 0) {
-			unsigned long  m;
+			unsigned long  m = 0;
 			int            rc;
 			char          *s = strdup(mask);
 

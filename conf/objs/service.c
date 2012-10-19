@@ -129,7 +129,7 @@ static void service_delete(struct c2_conf_obj *obj)
 	c2_free(x);
 }
 
-static const struct c2_conf_obj_ops service_ops = {
+static const struct c2_conf_obj_ops conf_service_ops = {
 	.coo_invariant = service_invariant,
 	.coo_fill      = service_fill,
 	.coo_match     = service_match,
@@ -149,6 +149,6 @@ struct c2_conf_obj *c2_conf__service_create(void)
 	c2_conf_service_bob_init(x);
 
 	ret = &x->cs_obj;
-	ret->co_ops = &service_ops;
+	ret->co_ops = &conf_service_ops;
 	return ret;
 }

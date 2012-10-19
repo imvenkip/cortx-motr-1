@@ -18,7 +18,9 @@
  * Original creation date: 08/19/2010
  */
 
+#ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 2 /* for getopt */
+#endif
 #include <unistd.h>     /* getopt */
 #include <stdio.h>      /* fprintf, sscanf */
 #include <stdlib.h>     /* strtoull */

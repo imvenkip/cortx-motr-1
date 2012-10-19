@@ -225,14 +225,14 @@ int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout)
 C2_EXPORTED(c2_rpc_reply_timedwait);
 
 
-static void buffer_pool_low(struct c2_net_buffer_pool *bp)
+static void rpc_buffer_pool_low(struct c2_net_buffer_pool *bp)
 {
 	/* Buffer pool is below threshold.  */
 }
 
 static const struct c2_net_buffer_pool_ops b_ops = {
 	.nbpo_not_empty	      = c2_net_domain_buffer_pool_not_empty,
-	.nbpo_below_threshold = buffer_pool_low,
+	.nbpo_below_threshold = rpc_buffer_pool_low,
 };
 
 int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,

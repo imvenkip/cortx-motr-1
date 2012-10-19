@@ -1054,7 +1054,7 @@ static int cs_service_init(const char *service_name, struct c2_reqh *reqh)
 static int cs_services_init(struct c2_colibri *cctx)
 {
 	int                     idx;
-	int                     rc;
+	int                     rc = 0;
 	struct cs_reqh_context *rctx;
 
 	C2_PRE(cctx != NULL);

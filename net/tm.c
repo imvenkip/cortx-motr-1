@@ -23,6 +23,7 @@
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/misc.h"
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_NET
 #include "lib/trace.h"
 #include "lib/finject.h"
 #include "colibri/magic.h"
@@ -507,6 +508,8 @@ void c2_net_tm_pool_length_set(struct c2_net_transfer_mc *tm, uint32_t len)
 	return;
 }
 C2_EXPORTED(c2_net_tm_pool_length_set);
+
+#undef C2_TRACE_SUBSYSTEM
 
 /** @} end of net group */
 
