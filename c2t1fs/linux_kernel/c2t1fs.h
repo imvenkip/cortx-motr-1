@@ -331,7 +331,8 @@ struct c2t1fs_sb {
 
 	/** Layout for file */
 	struct c2_layout             *csb_file_layout;
-        /**
+
+	/**
          * Flag indicating if c2t1fs mount is active or not.
          * Flag is set when c2t1fs is mounted and is reset by unmount thread.
          */
