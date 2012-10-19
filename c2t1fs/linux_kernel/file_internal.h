@@ -1,3 +1,4 @@
+/* -*- C -*- */
 /*
  * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
@@ -938,6 +939,7 @@ struct data_buf {
          * by incoming rmw request.
          */
         struct c2_buf  db_auxbuf;
+
         /**
          * Miscellaneous flags.
          * Can be used later for caching options.
