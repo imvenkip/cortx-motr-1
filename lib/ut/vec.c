@@ -136,7 +136,7 @@ static void test_ivec_cursor(void)
 	segs[0]   = 0;
 	counts[0] = 4096;
 
-	ivec.iv_index 	    = segs;
+	ivec.iv_index       = segs;
 	ivec.iv_vec.v_nr    = 1;
 	ivec.iv_vec.v_count = counts;
 

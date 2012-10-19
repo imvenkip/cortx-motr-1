@@ -207,7 +207,7 @@ void c2_bufvec_free_aligned(struct c2_bufvec *bufvec, unsigned shift);
  * @param loc Addb location to log addb messages in.
  * @pre   ivec != NULL && len > 0.
  * @post  ivec->iv_index != NULL && ivec->iv_vec.v_count != NULL &&
- * 	  ivec->iv_vec.v_nr == len.
+ *        ivec->iv_vec.v_nr == len.
  */
 int c2_indexvec_alloc(struct c2_indexvec *ivec, uint32_t len,
 		      struct c2_addb_ctx *ctx,  const struct c2_addb_loc *loc);

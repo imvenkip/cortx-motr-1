@@ -79,7 +79,7 @@ static struct c2_layout_linear_enum *llenum;
 static struct c2_layout_linear_attr  llattr;
 static struct c2t1fs_inode           ci;
 static struct c2_layout_linear_attr  llattr;
-static struct file       	     lfile;
+static struct file                   lfile;
 static struct c2t1fs_service_context ctx;
 
 C2_TL_DESCR_DECLARE(rpcbulk, extern);
