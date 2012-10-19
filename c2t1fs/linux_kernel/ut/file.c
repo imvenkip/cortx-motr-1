@@ -552,13 +552,15 @@ static void nw_xfer_ops_test(void)
 {
 	int                        cnt;
 	int                        rc;
+	c2_bindex_t                index;
 	struct io_request          req;
-	struct iovec               iovec_arr[IOVEC_NR];
+	struct iovec               iovec_arr[LAY_N * UNIT_SIZE >> 
+		                             PAGE_CACHE_SHIFT];
 	struct c2_indexvec         ivec;
-	struct c2_pdclust_src_addr src;
-	struct c2_pdclust_tgt_addr tgt;
 	struct target_ioreq       *ti;
 	struct target_ioreq       *ti1;
+	struct c2_pdclust_src_addr src;
+	struct c2_pdclust_tgt_addr tgt;
 
 	C2_SET0(&req);
 	C2_SET0(&src);
@@ -566,21 +568,30 @@ static void nw_xfer_ops_test(void)
 	rc = c2_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr), NULL, NULL);
 	C2_UT_ASSERT(rc == 0);
 
-	for (cnt = 0; cnt < IOVEC_NR; ++cnt) {
-		iovec_arr[cnt].iov_base = &rc;
-		iovec_arr[cnt].iov_len  = IOVEC_BUF_LEN;
+	index = 0;
+	for (cnt = 0; cnt < LAY_N * UNIT_SIZE >> PAGE_CACHE_SHIFT; ++cnt) {
+		iovec_arr[cnt].iov_base  = &rc;
+		iovec_arr[cnt].iov_len   = PAGE_CACHE_SIZE;
 
-		ivec.iv_index[cnt] = FILE_START_INDEX - cnt * IOVEC_BUF_LEN;
-		ivec.iv_vec.v_count[cnt] = IOVEC_BUF_LEN;
+		ivec.iv_index[cnt]       = index;
+		ivec.iv_vec.v_count[cnt] = PAGE_CACHE_SIZE;
+		index += PAGE_CACHE_SIZE;
 	}
 
 	rc = io_request_init(&req, &lfile, iovec_arr, &ivec, IRT_WRITE);
 	C2_UT_ASSERT(rc == 0);
 
-	csb.csb_cl_map.clm_map[3] = &ctx;
-	src.sa_unit = 0;
-	req.ir_iomap_nr = 1;
+	rc = ioreq_iomaps_prepare(&req);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(req.ir_iomap_nr == 1);
+	C2_UT_ASSERT(req.ir_iomaps[0] != NULL);
 
+	for (cnt = 1; cnt <= LAY_P; ++cnt)
+		csb.csb_cl_map.clm_map[cnt] = &ctx;
+
+	src.sa_unit = 0;
+
+	/* Test for nw_xfer_tioreq_map. */
 	rc = nw_xfer_tioreq_map(&req.ir_nwxfer, &src, &tgt, &ti);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(c2_tlist_length(&tioreqs_tl,
@@ -591,20 +602,38 @@ static void nw_xfer_ops_test(void)
 	C2_UT_ASSERT(ti->ti_bufvec.ov_buf != NULL);
 	C2_UT_ASSERT(ti->ti_pageattrs != NULL);
 
+	/* Test for nw_xfer_io_prepare. */
+	rc = nw_xfer_io_prepare(&req.ir_nwxfer);
+	C2_UT_ASSERT(rc == 0);
+	C2_UT_ASSERT(tioreqs_tlist_length(&req.ir_nwxfer.nxr_tioreqs) == LAY_P);
+	printk(KERN_EMERG "tioreqs list length %lu", tioreqs_tlist_length(
+			&req.ir_nwxfer.nxr_tioreqs));
+	c2_tl_for (tioreqs, &req.ir_nwxfer.nxr_tioreqs, ti) {
+		C2_UT_ASSERT(ti->ti_nwxfer == &req.ir_nwxfer);
+		C2_UT_ASSERT(ti->ti_ops != NULL);
+
+		for (cnt = 0; cnt < ti->ti_ivec.iv_vec.v_nr; ++cnt) {
+			printk(KERN_EMERG "seg %d: index = %llu, count = %llu",
+				cnt, ti->ti_ivec.iv_index[cnt],
+				ti->ti_ivec.iv_vec.v_count[cnt]);
+			C2_UT_ASSERT((ti->ti_ivec.iv_index[cnt] &
+				     (PAGE_CACHE_SIZE - 1)) == 0);
+			C2_UT_ASSERT(ti->ti_ivec.iv_vec.v_count[cnt] ==
+				     PAGE_CACHE_SIZE);
+		}
+	} c2_tl_endfor;
+
 	c2_tl_for (tioreqs, &req.ir_nwxfer.nxr_tioreqs, ti1) {
 		tioreqs_tlist_del(ti1);
 	} c2_tl_endfor;
 
-	req.ir_iomap_nr         = 0;
+	ioreq_iomaps_destroy(&req);
 	req.ir_sm.sm_state      = IRS_REQ_COMPLETE;
 	req.ir_nwxfer.nxr_state = NXS_COMPLETE;
-	ti->ti_ivec.iv_vec.v_nr = page_nr(UNIT_SIZE);
 	req.ir_nwxfer.nxr_bytes = 1;
 	io_request_fini(&req);
 	c2_indexvec_free(&ivec);
 }
-
-
 
 static int file_io_ut_fini(void)
 {
@@ -768,9 +797,9 @@ const struct c2_test_suite file_io_ut = {
         .ts_tests = {
                 {"basic_data_structures_test", ds_test},
                 {"helper_routines_test",       helpers_test},
-                {"parity_group_test",          pargrp_iomap_test},
+                {"parity_group_ops_test",      pargrp_iomap_test},
 		{"nw_xfer_ops_test",           nw_xfer_ops_test},
-                {"target_ioreq_test",          target_ioreq_test},
+                {"target_ioreq_ops_test",      target_ioreq_test},
         },
 };
 C2_EXPORTED(file_io_ut);

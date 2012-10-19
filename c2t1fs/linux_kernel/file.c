@@ -13,10 +13,8 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Yuriy Umanets <yuriy_umanets@xyratex.com>
- *                  Huang Hua <hua_huang@xyratex.com>
- *                  Anatoliy Bilenko
- * Original creation date: 05/04/2010
+ * Original author: Anand Vidwansa <anand_vidwansa@xyratex.com>
+ * Original creation date: 07/28/2012
  */
 
 #include "c2t1fs/linux_kernel/file_internal.h"
@@ -522,7 +520,6 @@ static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
                xfer->nxr_state <= NXS_STATE_NR &&
 
                ergo(xfer->nxr_state == NXS_INITIALIZED,
-                    tioreqs_tlist_is_empty(&xfer->nxr_tioreqs) &&
                     (xfer->nxr_rc == xfer->nxr_bytes) ==
                     (xfer->nxr_iofop_nr == 0)) &&
 
@@ -536,10 +533,7 @@ static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
                     xfer->nxr_bytes > 0) &&
 
                c2_tl_forall(tioreqs, tioreq, &xfer->nxr_tioreqs,
-                            target_ioreq_invariant(tioreq)) &&
-
-               xfer->nxr_iofop_nr == c2_tlist_length(&tioreqs_tl,
-                                                     &xfer->nxr_tioreqs);
+                            target_ioreq_invariant(tioreq));
 }
 
 static bool data_buf_invariant(const struct data_buf *db)
@@ -1824,6 +1818,7 @@ static void ioreq_iomaps_destroy(struct io_request *req)
  */
 static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 {
+	int			    i = 0;
         int                         rc;
         uint64_t                    map;
         uint64_t                    unit;
@@ -1893,6 +1888,7 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
                         ti->ti_ops->tio_seg_add(ti, tgt.ta_frame, r_ext.e_start,
                                                 c2_ext_length(&r_ext),
                                                 src.sa_unit);
+			++i;
                 }
 
                 /*
@@ -1902,7 +1898,13 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 		if ((req->ir_type == IRT_WRITE &&
 		     req->ir_iomaps[map]->pi_rtype == PIR_NONE) ||
 		    req->ir_iomaps[map]->pi_rtype == PIR_READOLD) {
-			for (unit = 0; unit < layout_k(play); ++unit) {
+
+			/*
+			 * The loop iterates 2 * layout_k() times since
+			 * number of spare units equal number of parity units.
+			 * In case of spare units, no IO is done.
+			 */
+			for (unit = 0; unit < 2 * layout_k(play); ++unit) {
 
 				src.sa_unit = layout_n(play) + unit;
 				rc = xfer->nxr_ops->nxo_tioreq_map(xfer, &src,
@@ -1910,13 +1912,12 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 				if (rc != 0)
 					goto err;
 
-				/*
-				 * This call doesn't deal with global file
-				 * offset and counts.
-				 */
-				ti->ti_ops->tio_seg_add(ti, tgt.ta_frame, 0,
-						layout_unit_size(play),
-						src.sa_unit);
+				if (c2_pdclust_unit_classify(play,
+				    src.sa_unit) == C2_PUT_PARITY)
+					ti->ti_ops->tio_seg_add(ti,
+							tgt.ta_frame, 0,
+							layout_unit_size(play),
+							src.sa_unit);
 			}
 		}
         }
@@ -2188,6 +2189,8 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request      *xfer,
         c2_pdclust_instance_map(pdlayout_instance(layout_instance(req)),
                                 src, tgt);
         tfid    = target_fid(req, tgt);
+	printk(KERN_EMERG "target fid: %llu:%llu", tfid.f_container,
+			tfid.f_key);
         session = target_session(req, tfid);
 
         rc = nw_xfer_tioreq_get(xfer, &tfid, session,
@@ -2359,16 +2362,26 @@ static struct data_buf *data_buf_alloc_init(enum page_attr pattr)
         return buf;
 }
 
+static void buf_page_free(struct c2_buf *buf)
+{
+	C2_PRE(buf != NULL);
+
+	free_page((unsigned long)buf->b_addr);
+	buf->b_addr = NULL;
+	buf->b_nob  = 0;
+}
+
 static void data_buf_dealloc_fini(struct data_buf *buf)
 {
         C2_ENTRY("data_buf %p", buf);
         C2_PRE(data_buf_invariant(buf));
 
-        if (buf->db_buf.b_addr != NULL) {
-                free_page((unsigned long)buf->db_buf.b_addr);
-                buf->db_buf.b_addr = NULL;
-                buf->db_buf.b_nob  = 0;
-        }
+        if (buf->db_buf.b_addr != NULL)
+		buf_page_free(&buf->db_buf);
+
+	if (buf->db_auxbuf.b_addr != NULL)
+		buf_page_free(&buf->db_auxbuf);
+
         data_buf_fini(buf);
         c2_free(buf);
         C2_LEAVE();
@@ -2408,7 +2421,7 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
         goff    = gob_offset;
 
         unit_type = c2_pdclust_unit_classify(play, unit);
-        C2_ASSERT(unit_type == C2_PUT_DATA || unit_type == C2_PUT_PARITY);
+        C2_ASSERT(C2_IN(unit_type, (C2_PUT_DATA, C2_PUT_PARITY)));
 
         while (pgstart < toff + count) {
                 pgend = min64u(pgstart + PAGE_CACHE_SIZE, toff + count);

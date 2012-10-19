@@ -1163,7 +1163,8 @@ struct target_ioreq {
         /**
          * Index vector containing IO segments with cob offsets and
          * their length.
-	 * Each segment in this vector is worth PAGE_CACHE_SIZE.
+	 * Each segment in this vector is worth PAGE_CACHE_SIZE except
+	 * the very last one.
          */
         struct c2_indexvec             ti_ivec;
 
