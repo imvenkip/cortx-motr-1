@@ -194,13 +194,9 @@ static void ds_test(void)
 
         /* Index array should be sorted in increasing order of file offset. */
         for (cnt = 0; cnt < IOVEC_NR - 1; ++cnt) {
-		printk(KERN_EMERG "ioreq ivec seg %d : index = %llu, count = %llu",
-		       cnt, req.ir_ivec.iv_index[cnt], req.ir_ivec.iv_vec.v_count[cnt]);
                 C2_UT_ASSERT(req.ir_ivec.iv_index[cnt] <
                              req.ir_ivec.iv_index[cnt + 1]);
 	}
-	printk(KERN_EMERG "ioreq ivec seg %d : index = %llu, count = %llu",
-	       cnt, req.ir_ivec.iv_index[cnt], req.ir_ivec.iv_vec.v_count[cnt]);
 
         /* nw_xfer_request attributes test. */
         C2_UT_ASSERT(req.ir_nwxfer.nxr_rc == 0);
@@ -494,7 +490,6 @@ static void pargrp_iomap_test(void)
 	C2_UT_ASSERT(map.pi_databufs[1][1] != NULL);
 	C2_UT_ASSERT(map.pi_databufs[2][1] != NULL);
 
-	printk(KERN_EMERG "map.pi_ivec.iv_vec.v_count[3] = %llu", map.pi_ivec.iv_vec.v_count[3]);
 	C2_UT_ASSERT(map.pi_ivec.iv_index[3] == 6 * PAGE_CACHE_SIZE);
 	C2_UT_ASSERT(map.pi_ivec.iv_vec.v_count[3] == PAGE_CACHE_SIZE);
 	C2_UT_ASSERT(map.pi_databufs[0][2] != NULL);
@@ -606,16 +601,11 @@ static void nw_xfer_ops_test(void)
 	rc = nw_xfer_io_prepare(&req.ir_nwxfer);
 	C2_UT_ASSERT(rc == 0);
 	C2_UT_ASSERT(tioreqs_tlist_length(&req.ir_nwxfer.nxr_tioreqs) == LAY_P);
-	printk(KERN_EMERG "tioreqs list length %lu", tioreqs_tlist_length(
-			&req.ir_nwxfer.nxr_tioreqs));
 	c2_tl_for (tioreqs, &req.ir_nwxfer.nxr_tioreqs, ti) {
 		C2_UT_ASSERT(ti->ti_nwxfer == &req.ir_nwxfer);
 		C2_UT_ASSERT(ti->ti_ops != NULL);
 
 		for (cnt = 0; cnt < ti->ti_ivec.iv_vec.v_nr; ++cnt) {
-			printk(KERN_EMERG "seg %d: index = %llu, count = %llu",
-				cnt, ti->ti_ivec.iv_index[cnt],
-				ti->ti_ivec.iv_vec.v_count[cnt]);
 			C2_UT_ASSERT((ti->ti_ivec.iv_index[cnt] &
 				     (PAGE_CACHE_SIZE - 1)) == 0);
 			C2_UT_ASSERT(ti->ti_ivec.iv_vec.v_count[cnt] ==
@@ -668,7 +658,6 @@ static void target_ioreq_test(void)
 	uint32_t              row;
 	uint32_t              col;
 	struct data_buf      *buf;
-	uint64_t              seg;
 
 	/* Checks working of target_ioreq_iofops_prepare() */
 
@@ -749,31 +738,31 @@ static void target_ioreq_test(void)
 	/* Addition of data buffer */
 	page_pos_get(map, 0, &row, &col);
 	buf = map->pi_databufs[row][col];
-	seg = SEG_NR(&ti.ti_ivec);
+	C2_UT_ASSERT(row == 0);
+	C2_UT_ASSERT(col == 0);
+	SEG_NR(&ti.ti_ivec) = 0;
 
 	target_ioreq_seg_add(&ti, 0, 0, PAGE_CACHE_SIZE, 0);
-	C2_UT_ASSERT(seg + 1 == SEG_NR(&ti.ti_ivec));
-	C2_UT_ASSERT(ti.ti_bufvec.ov_buf[seg] == buf->db_buf.b_addr);
-	C2_UT_ASSERT(ti.ti_pageattrs[seg] == buf->db_flags);
+	C2_UT_ASSERT(1 == SEG_NR(&ti.ti_ivec));
+	C2_UT_ASSERT(ti.ti_bufvec.ov_buf[0] == buf->db_buf.b_addr);
+	C2_UT_ASSERT(ti.ti_pageattrs[0] == buf->db_flags);
 
-	/* Set gob_offset to COUNT(&ti.ti_ivec, seg) */
-	seg = SEG_NR(&ti.ti_ivec);
-	page_pos_get(map, COUNT(&ti.ti_ivec, seg), &row, &col);
+	/* Set gob_offset to COUNT(&ti.ti_ivec, 0) */
+	page_pos_get(map, COUNT(&ti.ti_ivec, 0), &row, &col);
 	buf = map->pi_databufs[row][col];
 
-	target_ioreq_seg_add(&ti, 0, COUNT(&ti.ti_ivec, seg), PAGE_CACHE_SIZE, 0);
-	C2_UT_ASSERT(seg + 1 == SEG_NR(&ti.ti_ivec));
-	C2_UT_ASSERT(ti.ti_bufvec.ov_buf[seg] == buf->db_buf.b_addr);
-	C2_UT_ASSERT(ti.ti_pageattrs[seg] == buf->db_flags);
+	target_ioreq_seg_add(&ti, 0, COUNT(&ti.ti_ivec, 0), PAGE_CACHE_SIZE, 0);
+	C2_UT_ASSERT(2 == SEG_NR(&ti.ti_ivec));
+	C2_UT_ASSERT(ti.ti_bufvec.ov_buf[1] == buf->db_buf.b_addr);
+	C2_UT_ASSERT(ti.ti_pageattrs[1] == buf->db_flags);
 
 	/* Addition of parity buffer */
-	seg = SEG_NR(&ti.ti_ivec);
 	buf = map->pi_paritybufs[page_id(0)]
 		[LAY_N % data_col_nr(pdlay)];
 	target_ioreq_seg_add(&ti, 0, 0, PAGE_CACHE_SIZE, LAY_N);
-	C2_UT_ASSERT(seg + 1 == SEG_NR(&ti.ti_ivec));
-	C2_UT_ASSERT(ti.ti_bufvec.ov_buf[seg] == buf->db_buf.b_addr);
-	C2_UT_ASSERT(ti.ti_pageattrs[seg] == buf->db_flags);
+	C2_UT_ASSERT(3 == SEG_NR(&ti.ti_ivec));
+	C2_UT_ASSERT(ti.ti_bufvec.ov_buf[2] == buf->db_buf.b_addr);
+	C2_UT_ASSERT(ti.ti_pageattrs[2] == buf->db_flags);
 
 	target_ioreq_fini(&ti);
 	pargrp_iomap_fini(map);
