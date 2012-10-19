@@ -147,8 +147,6 @@ bool sm_invariant0(const struct c2_sm *mach)
 
 bool c2_sm_invariant(const struct c2_sm *mach)
 {
-	if (C2_FI_ENABLED("no_lock"))
-		return sm_invariant0(mach);
 	return sm_is_locked(mach) && sm_invariant0(mach);
 }
 
@@ -234,26 +232,23 @@ int c2_sm_timedwait(struct c2_sm *mach, uint64_t states, c2_time_t deadline)
 	return result;
 }
 
-static void state_set(struct c2_sm *mach, int state)
+static void state_set(struct c2_sm *mach, int state, int32_t rc)
 {
 	const struct c2_sm_state_descr *sd;
 
+	mach->sm_rc = rc;
 	/*
 	 * Iterate over a possible chain of state transitions.
 	 *
 	 * State machine invariant can be temporarily violated because ->sm_rc
-	 * is set by c2_sm_fail() before ->sm_state is updated and, similarly,
-	 * ->sd_in() might set ->sm_rc before the next state is entered. In any
-	 * case, the invariant is restored the moment->sm_state is updated and
-	 * must hold on the loop termination.
+	 * is set before ->sm_state is updated and, similarly, ->sd_in() might
+	 * set ->sm_rc before the next state is entered. In any case, the
+	 * invariant is restored the moment->sm_state is updated and must hold
+	 * on the loop termination.
 	 */
 	do {
 		sd = sm_state(mach);
-		/* Used in UT's where out of order state transitions are done.*/
-		if (C2_FI_ENABLED("skip_sd_allowed_chk"))
-			goto skip_sd_allowed;
 		C2_PRE(sd->sd_allowed & (1ULL << state));
-skip_sd_allowed:
 		if (sd->sd_ex != NULL)
 			sd->sd_ex(mach);
 		mach->sm_state = state;
@@ -264,7 +259,6 @@ skip_sd_allowed:
 	} while (state >= 0);
 	C2_POST(c2_sm_invariant(mach));
 }
-C2_EXPORTED(c2_sm_state_set);
 
 void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc)
 {
@@ -273,14 +267,19 @@ void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc)
 	C2_PRE(mach->sm_rc == 0);
 	C2_PRE(state_get(mach, fail_state)->sd_flags & C2_SDF_FAILURE);
 
-	mach->sm_rc = rc;
-	state_set(mach, fail_state);
+	state_set(mach, fail_state, rc);
 }
 
 void c2_sm_state_set(struct c2_sm *mach, int state)
 {
 	C2_PRE(c2_sm_invariant(mach));
-	state_set(mach, state);
+	state_set(mach, state, 0);
+}
+C2_EXPORTED(c2_sm_state_set);
+
+void c2_sm_move(struct c2_sm *mach, int32_t rc, int state)
+{
+	rc == 0 ? c2_sm_state_set(mach, state) : c2_sm_fail(mach, state, rc);
 }
 
 /**

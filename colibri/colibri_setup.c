@@ -37,7 +37,11 @@
 #include "net/lnet/lnet.h"
 #include "rpc/rpc2.h"
 #include "reqh/reqh.h"
+#include "cob/cob.h"
+#include "mdstore/mdstore.h"
+#include "colibri/colibri_setup.h"
 #include "colibri/cs_internal.h"
+#include "colibri/magic.h"
 #include "rpc/rpclib.h"
 
 /**
@@ -77,12 +81,12 @@ static int cdom_id;
 
 C2_TL_DESCR_DEFINE(cs_buffer_pools, "buffer pools in the colibri context",
 		   static, struct cs_buffer_pool, cs_bp_linkage, cs_bp_magic,
-		   CS_BUFFER_POOL_MAGIC, CS_BUFFER_POOL_HEAD);
+		   C2_CS_BUFFER_POOL_MAGIC, C2_CS_BUFFER_POOL_HEAD_MAGIC);
 C2_TL_DEFINE(cs_buffer_pools, static, struct cs_buffer_pool);
 
 C2_TL_DESCR_DEFINE(cs_eps, "cs endpoints", static, struct cs_endpoint_and_xprt,
-		   ex_linkage, ex_magix, CS_ENDPOINT_MAGIX,
-		   CS_ENDPOINT_HEAD_MAGIX);
+		   ex_linkage, ex_magix, C2_CS_ENDPOINT_AND_XPRT_MAGIC,
+		   C2_CS_EPS_HEAD_MAGIC);
 
 C2_TL_DEFINE(cs_eps, static, struct cs_endpoint_and_xprt);
 
@@ -98,8 +102,8 @@ static const char *cs_stypes[] = {
 };
 
 C2_TL_DESCR_DEFINE(rhctx, "reqh contexts", static, struct cs_reqh_context,
-		   rc_linkage, rc_magix, CS_REQH_CTX_MAGIX,
-		   CS_REQH_CTX_HEAD_MAGIX);
+		   rc_linkage, rc_magix, C2_CS_REQH_CTX_MAGIC,
+		   C2_CS_REQH_CTX_HEAD_MAGIC);
 
 C2_TL_DEFINE(rhctx, static, struct cs_reqh_context);
 
@@ -107,8 +111,8 @@ static struct c2_bob_type rhctx_bob;
 C2_BOB_DEFINE(static, &rhctx_bob, cs_reqh_context);
 
 C2_TL_DESCR_DEFINE(ndom, "network domains", static, struct c2_net_domain,
-		   nd_app_linkage, nd_magix, C2_NET_DOMAIN_MAGIX,
-		   CS_NET_DOMS_HEAD_MAGIX);
+		   nd_app_linkage, nd_magix, C2_NET_DOMAIN_MAGIC,
+		   C2_CS_NET_DOMAIN_HEAD_MAGIC);
 
 C2_TL_DEFINE(ndom, static, struct c2_net_domain);
 
@@ -116,15 +120,12 @@ static struct c2_bob_type ndom_bob;
 C2_BOB_DEFINE(static, &ndom_bob, c2_net_domain);
 
 C2_TL_DESCR_DEFINE(astob, "ad stob domains", static, struct cs_ad_stob,
-		   as_linkage, as_magix, CS_AD_STOB_MAGIX,
-		   CS_AD_STOB_HEAD_MAGIX);
+		   as_linkage, as_magix, C2_CS_AD_STOB_MAGIC,
+		   C2_CS_AD_STOB_HEAD_MAGIC);
 C2_TL_DEFINE(astob, static, struct cs_ad_stob);
 
 static struct c2_bob_type astob_bob;
 C2_BOB_DEFINE(static, &astob_bob, cs_ad_stob);
-
-static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cctx,
-						  const char *xprt);
 
 static int reqh_ctx_args_are_valid(const struct cs_reqh_context *rctx)
 {
@@ -445,8 +446,8 @@ static void cs_reqh_ctx_free(struct cs_reqh_context *rctx)
 
    @see c2_cs_init()
  */
-static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cctx,
-						  const char *xprt_name)
+struct c2_net_domain *c2_cs_net_domain_locate(struct c2_colibri *cctx,
+					      const char *xprt_name)
 {
 	struct c2_net_domain *ndom;
 
@@ -506,7 +507,7 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 
 	C2_PRE(cctx != NULL && xprt_name != NULL && ep != NULL && reqh != NULL);
 
-	ndom = cs_net_domain_locate(cctx, xprt_name);
+	ndom = c2_cs_net_domain_locate(cctx, xprt_name);
 	if (ndom == NULL)
 		return -EINVAL;
 
@@ -520,7 +521,7 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 	}
 
 	buffer_pool = cs_buffer_pool_get(cctx, ndom);
-	rc = c2_rpc_machine_init(rpcmach, reqh->rh_cob_domain, ndom, ep, reqh,
+	rc = c2_rpc_machine_init(rpcmach, &reqh->rh_mdstore->md_dom, ndom, ep, reqh,
 				 buffer_pool, tm_colour, max_rpc_msg_size,
 				 recv_queue_min_length);
 	if (rc != 0) {
@@ -903,7 +904,7 @@ static void cs_ad_stob_fini(struct cs_stobs *stob)
 	astob_tlist_fini(&stob->s_adoms);
 }
 
-void cs_linux_stob_fini(struct cs_stobs *stob)
+static void cs_linux_stob_fini(struct cs_stobs *stob)
 {
 	C2_PRE(stob != NULL);
 
@@ -1122,7 +1123,7 @@ static void cs_services_fini(struct c2_reqh *reqh)
  */
 static int cs_net_domains_init(struct c2_colibri *cctx)
 {
-	int                          rc;
+	int                          rc = 0;
 	size_t                       xprts_nr;
 	FILE                        *ofd;
 	struct c2_net_xprt         **xprts;
@@ -1150,7 +1151,7 @@ static int cs_net_domains_init(struct c2_colibri *cctx)
 				return -EINVAL;
 			}
 
-			ndom = cs_net_domain_locate(cctx, ep->ex_xprt);
+			ndom = c2_cs_net_domain_locate(cctx, ep->ex_xprt);
 			if (ndom != NULL)
 				continue;
 
@@ -1246,8 +1247,7 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 		goto cleanup_stob;
 	}
 	rctx->rc_cdom_id.id = ++cdom_id;
-	rc = c2_cob_domain_init(&rctx->rc_cdom, &rctx->rc_db,
-				&rctx->rc_cdom_id);
+	rc = c2_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id, &rctx->rc_db, 0);
 	if (rc != 0) {
 		C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
 			    "c2_cob_domain_init", rc);
@@ -1257,10 +1257,10 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 	if (rc != 0) {
 		C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
 			    "c2_fol_init", rc);
-		goto cleanup_cob;
+		goto cleanup_mdstore;
 	}
-	rc = c2_reqh_init(&rctx->rc_reqh, NULL, &rctx->rc_db, &rctx->rc_cdom,
-			  &rctx->rc_fol);
+	rc = c2_reqh_init(&rctx->rc_reqh, NULL, &rctx->rc_db, &rctx->rc_mdstore,
+			  &rctx->rc_fol, NULL);
 	if (rc != 0)
 		goto cleanup_fol;
 
@@ -1269,8 +1269,8 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 
 cleanup_fol:
 	c2_fol_fini(&rctx->rc_fol);
-cleanup_cob:
-	c2_cob_domain_fini(&rctx->rc_cdom);
+cleanup_mdstore:
+	c2_mdstore_fini(&rctx->rc_mdstore);
 cleanup_stob:
 	cs_storage_fini(&rctx->rc_stob);
 	c2_dbenv_fini(&rctx->rc_db);
@@ -1325,7 +1325,7 @@ static void cs_request_handler_stop(struct cs_reqh_context *rctx)
 	cs_rpc_machines_fini(reqh);
 	c2_reqh_fini(reqh);
 	c2_fol_fini(&rctx->rc_fol);
-	c2_cob_domain_fini(&rctx->rc_cdom);
+	c2_mdstore_fini(&rctx->rc_mdstore);
 	cs_storage_fini(&rctx->rc_stob);
 	c2_dbenv_fini(&rctx->rc_db);
 }

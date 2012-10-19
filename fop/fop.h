@@ -69,6 +69,31 @@ struct c2_fop_data;
 struct c2_fop;
 
 /**
+   A context for fop processing in a service.
+
+   A context is created by a service and passed to
+   c2_fop_type_ops::fto_execute() as an argument. It is used to identify a
+   particular fop execution in a service.
+ */
+struct c2_fop_ctx {
+        /**
+           Request handler for this fop
+        */
+        struct c2_reqh     *fc_reqh;
+	/**
+	   Fol that reqh uses.
+	*/
+	struct c2_fol      *fc_fol;
+
+	void               *fc_cookie;
+
+	/**
+	   Fop execution error code returned by store.
+	*/
+	int                 fc_retval;
+};
+
+/**
     fop storage.
 
     A fop is stored in a buffer vector. XXX not for now.
@@ -91,8 +116,6 @@ struct c2_fop {
 	   RPC item for this FOP
 	 */
 	struct c2_rpc_item	 f_item;
-	/** Linkage could be used to have fops in a list. */
-	struct c2_list_link	 f_link;
 };
 
 /**
@@ -118,7 +141,7 @@ void          *c2_fop_data (struct c2_fop *fop);
 /**
    Allocate top level fop data
  */
-int            c2_fop_data_alloc (struct c2_fop *fop);
+int c2_fop_data_alloc(struct c2_fop *fop);
 
 int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
 		       struct c2_db_tx *tx);
@@ -226,9 +249,7 @@ struct c2_fop_type *c2_fop_type_next(struct c2_fop_type *ftype);
 
 /** fop type operations. */
 struct c2_fop_type_ops {
-	/** XXX temporary entry point for threaded fop execution. */
-	int (*fto_execute) (struct c2_fop *fop, struct c2_fop_ctx *ctx);
-	/** fol record type operations for this fop type, or NULL is standard
+	/** fol record type operations for this fop type, or NULL if standard
 	    operations are to be used. */
 	const struct c2_fol_rec_type_ops  *fto_rec_ops;
 	/** Action to be taken on receiving reply of a fop. */

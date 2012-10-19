@@ -152,13 +152,6 @@
  */
 
 /**
-   A magic constant to check sanity of struct c2_io_fop.
- */
-enum {
-	C2_IO_FOP_MAGIC = 0x34832752309bdfeaULL,
-};
-
-/**
    This data structure is used to associate an io fop with its
    rpc bulk data. It abstracts the c2_net_buffer and net layer APIs.
    Client side implementations use this structure to represent
@@ -168,6 +161,7 @@ enum {
 struct c2_io_fop {
 	/** Inline fop for a generic IO fop. */
 	struct c2_fop		if_fop;
+	int                     if_bulk_inited;
 	/** Rpc bulk structure containing zero vector for io fop. */
 	struct c2_rpc_bulk	if_rbulk;
 	/** Magic constant for IO fop. */
@@ -240,6 +234,8 @@ extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
 extern struct c2_fop_type c2_fop_cob_create_fopt;
 extern struct c2_fop_type c2_fop_cob_delete_fopt;
 extern struct c2_fop_type c2_fop_cob_op_reply_fopt;
+extern struct c2_fop_type c2_fop_fv_notification_fopt;
+
 extern struct c2_fom_type c2_io_fom_cob_rw_fomt;
 
 struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);

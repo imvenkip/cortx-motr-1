@@ -8,14 +8,17 @@ MAKEFLAGS = $(make_verbose)
 
 SUBDIRS_BASE = m4 doc man patches
 
-# xcode/ff2c must be built first, because it is used by other modules to compile
-# their .ff files. net/ and addb/addbff must be built next, because their .ff
-# files are used by other modules. The rest can be built in an arbitrary order.
-# Keep the rest sorted lexicographically.
-
+# xcode/ff2c must be built first, because it is used by other modules
+# to compile their .ff files.  addb/addbff, dtm, lib, and net are
+# built next, because their .ff files are used by other modules.  The
+# rest of modules can be built in arbitrary order, but please keep
+# them sorted lexicographically.
 SUBDIRS_LIBS =                     \
                xcode/ff2c          \
+                                   \
                addb/addbff         \
+               dtm                 \
+               lib                 \
                net                 \
                                    \
                addb                \
@@ -23,48 +26,88 @@ SUBDIRS_LIBS =                     \
                c2t1fs/linux_kernel \
                capa                \
                cfg                 \
+               cm                  \
                cob                 \
+               conf                \
                console             \
                db                  \
                desim               \
-               dtm                 \
                fid                 \
                fol                 \
                fop                 \
                ioservice           \
                layout              \
-               lib                 \
+               mdservice           \
+               mdstore             \
                mw                  \
-               nrs                 \
                pool                \
                reqh                \
                rpc                 \
                sm                  \
                sns                 \
+               sns/repair          \
                stob                \
                udb                 \
                ut                  \
                xcode               \
                yaml2db
+
 SUBDIR_IT = rpc/it
 
-SUBDIR_UT = addb/ut fop/ut fop/ut/long_lock lib/ut stob/ut layout/ut balloc/ut \
-	    db/ut fol/ut sns/ut desim/ut cob/ut console/ut colibri/ut     \
-	    net/ut net/bulk_emulation/ut net/lnet/ut udb/ut capa/ut       \
-	    ioservice/ut reqh/ut rpc/ut sm/ut xcode/ut yaml2db/ut
+# Keep this list alphabetically sorted.
+SUBDIR_UT =                        \
+            addb/ut                \
+            balloc/ut              \
+            c2t1fs/linux_kernel/ut \
+            capa/ut                \
+            cob/ut                 \
+            colibri/ut             \
+            conf/ut                \
+            console/ut             \
+            cm/ut                  \
+            db/ut                  \
+            desim/ut               \
+            fol/ut                 \
+            fop/ut                 \
+            fop/ut/long_lock       \
+            ioservice/ut           \
+            mdservice/ut           \
+            layout/ut              \
+            lib/ut                 \
+            net/bulk_emulation/ut  \
+            net/lnet/ut            \
+            net/test/ut            \
+            net/ut                 \
+            pool/ut                \
+            reqh/ut                \
+            rpc/ut                 \
+            sm/ut                  \
+            sns/ut                 \
+            sns/repair/ut          \
+            stob/ut                \
+            udb/ut                 \
+            xcode/ut               \
+            yaml2db/ut
 
 SUBDIR_KERNEL = build_kernel_modules
-SUBDIR_ST = console/st net/bulk_emulation/st net/lnet/st yaml2db/st
+
+SUBDIR_ST =                        \
+            c2t1fs/linux_kernel/st \
+            conf/st                \
+            console/st             \
+            net/bulk_emulation/st  \
+            net/lnet/st            \
+            yaml2db/st
 
 SUBDIR_UB =
 
-SUBDIR_BIN = console/bin mds utils
+SUBDIR_BIN = console/bin net/test/user_space utils
 
 SUBDIR_SCRIPT = scripts
 
-SUBDIRS    = $(SUBDIRS_BASE) $(SUBDIRS_LIBS) colibri $(SUBDIR_IT)    \
-             $(SUBDIR_UT) $(SUBDIR_ST) $(SUBDIR_KERNEL) $(SUBDIR_UB) \
-             $(SUBDIR_BIN) $(SUBDIR_SCRIPT)
+SUBDIRS = $(SUBDIRS_BASE) $(SUBDIRS_LIBS) colibri $(SUBDIR_IT)    \
+          $(SUBDIR_UT) $(SUBDIR_ST) $(SUBDIR_KERNEL) $(SUBDIR_UB) \
+          $(SUBDIR_BIN) $(SUBDIR_SCRIPT)
 
 # BUILT_SOURCES automake variable is a standard way to execute commands
 # before the main build commands (`make all`), for more information please

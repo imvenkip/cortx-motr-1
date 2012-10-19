@@ -1,15 +1,15 @@
 PING_SRCDIR          = @SRCDIR@/rpc/it/linux_kernel
 PINGDIR              = @SRCDIR@/rpc/it
-FOPDIR               = @SRCDIR@/fop
+XCODEDIR             = @SRCDIR@/xcode
 
 KBUILD_EXTRA_SYMBOLS = kcolibri.symvers
 
 obj-m               := krpcping.o
 shared_src          := rpc_ping.c ping_fop.c ping_fop_ff.c ping_fom.c
-kernel_src          := rpcping_kernel.c
+kernel_src          := rpcping_kernel.c xcode.c
 krpcping-y          := $(shared_src:.c=.o) $(kernel_src:.c=.o)
 headers             := ping_fop_ff.h
-orig                := $(shared_src:%=../%) $(headers:%=../%)
+orig                := $(shared_src:%=../%) $(headers:%=../%) $(XCODEDIR)/xcode.c
 
 EXTRA_CFLAGS = -DHAVE_CONFIG_H -iquote @SRCDIR@ @KCFLAGS@
 

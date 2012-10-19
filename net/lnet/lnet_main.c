@@ -804,6 +804,7 @@ RPC Bulk Transfer Task Plan</a>
 #include "net/lnet/lnet_core.h"
 #include "net/lnet/lnet_xo.h"
 #include "net/lnet/lnet_pvt.h"
+#include "colibri/magic.h"
 
 #include <asm/byteorder.h>  /* byte swapping macros */
 
@@ -824,14 +825,14 @@ static struct nlx_debug nlx_debug = {
 }; /* global debug control */
 
 /* note Linux uses the LP64 standard */
-#define NLXP(fmt, ...) C2_LOG(fmt, ## __VA_ARGS__)
+#define NLXP(fmt, ...) C2_LOG(C2_DEBUG, fmt, ## __VA_ARGS__)
 
-#define NLXDBG(ptr, dbg, stmt)					\
-do {								\
-	if ((ptr)->_debug_ >= (dbg)) {				\
-		C2_LOG("%s: %d:\n", (char*) __FILE__, __LINE__);\
-		stmt;						\
-	}							\
+#define NLXDBG(ptr, dbg, stmt)						\
+do {									\
+	if ((ptr)->_debug_ >= (dbg)) {					\
+		C2_LOG(C2_DEBUG, "%s: %d:\n", (char*) __FILE__, __LINE__);\
+		stmt;							\
+	}								\
 } while (0)
 
 #define NLXDBGnl(ptr, dbg, stmt)		\
@@ -844,15 +845,15 @@ do {						\
 #define NLXDBGP(ptr, dbg, fmt, ...)				\
 do {								\
 	if ((ptr)->_debug_ >= (dbg)) {				\
-		C2_LOG(fmt, ## __VA_ARGS__);			\
+		C2_LOG(C2_DEBUG, fmt, ## __VA_ARGS__);		\
 	}							\
 } while (0)
 
-#define NLXDBGPnl(ptr, dbg, fmt, ...)		\
-do {						\
-	if ((ptr)->_debug_ >= (dbg)) {		\
-		C2_LOG(fmt, ## __VA_ARGS__);	\
-	}					\
+#define NLXDBGPnl(ptr, dbg, fmt, ...)			\
+do {							\
+	if ((ptr)->_debug_ >= (dbg)) {			\
+		C2_LOG(C2_DEBUG, fmt, ## __VA_ARGS__);	\
+	}						\
 } while (0)
 
 #else /* !NLX_DEBUG */

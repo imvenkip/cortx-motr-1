@@ -30,18 +30,18 @@ static void nlx_kprint_lnet_handle(const char *pre, lnet_handle_any_t h)
 {
 	char buf[32];
 	LNetSnprintHandle(buf, sizeof buf, h);
-	C2_LOG("%s: %s (lnet_handle_any_t)\n", (char*)pre, (char*)buf);
+	C2_LOG(C2_DEBUG, "%s: %s (lnet_handle_any_t)\n", (char*)pre, (char*)buf);
 }
 
 static void nlx_kprint_lnet_process_id(const char *pre, lnet_process_id_t p)
 {
-	C2_LOG("%s: NID=%lu PID=%u\n", (char*)pre,
+	C2_LOG(C2_DEBUG, "%s: NID=%lu PID=%u\n", (char*)pre,
 	       (long unsigned) p.nid, (unsigned) p.pid);
 }
 
 static void nlx_kprint_lnet_md(const char *pre, const lnet_md_t *md)
 {
-	C2_LOG("%s: %p (lnet_md_t)\n"
+	C2_LOG(C2_DEBUG, "%s: %p (lnet_md_t)\n"
 		"\t    start: %p\n"
 		"\t  options: %x\n"
 		"\t   length: %d\n"
@@ -56,7 +56,7 @@ static void nlx_kprint_lnet_md(const char *pre, const lnet_md_t *md)
 	{
 		int i;
 		for(i = 0; i < kcb->kb_kiov_len; ++i) {
-			C2_LOG("\t[%d] %p %d %d\n", i,
+			C2_LOG(C2_DEBUG, "\t[%d] %p %d %d\n", i,
 			       kcb->kb_kiov[i].kiov_page,
 			       kcb->kb_kiov[i].kiov_len,
 			       kcb->kb_kiov[i].kiov_offset);
@@ -83,16 +83,17 @@ static void nlx_kprint_lnet_event(const char *pre, const lnet_event_t *e)
 {
 
 	if (e == NULL) {
-		C2_LOG("%s: <null> (lnet_event_t)\n", (char*) pre);
+		C2_LOG(C2_DEBUG, "%s: <null> (lnet_event_t)\n", (char*) pre);
 		return;
 	}
 
-	C2_LOG("%s: %p (lnet_event_t)\n", (char*) pre, e);
+	C2_LOG(C2_DEBUG, "%s: %p (lnet_event_t)\n", (char*) pre, e);
 
 	nlx_kprint_lnet_process_id("\t   target:", e->target);
 	nlx_kprint_lnet_process_id("\tinitiator:", e->target);
 
-	C2_LOG("\t    sender: %ld\n"
+	C2_LOG(C2_DEBUG,
+	       "\t    sender: %ld\n"
 	       "\t      type: %d %s\n"
 	       "\t  pt_index: %u\n"
 	       "\tmatch_bits: %lx\n"
@@ -105,7 +106,8 @@ static void nlx_kprint_lnet_event(const char *pre, const lnet_event_t *e)
 
 	nlx_kprint_lnet_handle("\t md_handle", e->md_handle);
 
-	C2_LOG("\t  hdr_data: %lx\n"
+	C2_LOG(C2_DEBUG,
+	       "\t  hdr_data: %lx\n"
 	       "\t    status: %d\n"
 	       "\t  unlinked: %d\n"
 	       "\t    offset: %u\n",
@@ -117,10 +119,10 @@ static void nlx_kprint_lnet_event(const char *pre, const lnet_event_t *e)
 static void nlx_kprint_kcore_tm(const char *pre,
 				const struct nlx_kcore_transfer_mc *ktm)
 {
-	C2_LOG("%s: %p (nlx_kcore_transfer_mc)\n", (char*) pre, ktm);
+	C2_LOG(C2_DEBUG, "%s: %p (nlx_kcore_transfer_mc)\n", (char*) pre, ktm);
 	if (ktm == NULL)
 		return;
-	C2_LOG("\t      magic: %lu\n", (unsigned long) ktm->ktm_magic);
+	C2_LOG(C2_DEBUG, "\t      magic: %lu\n", (unsigned long) ktm->ktm_magic);
 	nlx_kprint_lnet_handle("\t        eqh", ktm->ktm_eqh);
 }
 #endif

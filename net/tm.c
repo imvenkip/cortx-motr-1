@@ -23,6 +23,9 @@
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/misc.h"
+#include "lib/trace.h"
+#include "lib/finject.h"
+#include "colibri/magic.h"
 #include "net/net_internal.h"
 #include "net/buffer_pool.h"
 
@@ -161,6 +164,10 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom)
 	C2_PRE(tm->ntm_callbacks != NULL &&
 	       tm->ntm_callbacks->ntc_event_cb != NULL);
 
+	if (C2_FI_ENABLED("fake_error")) {
+		c2_mutex_unlock(&dom->nd_mutex);
+		C2_RETURN(-EINVAL);
+	}
 	c2_mutex_init(&tm->ntm_mutex);
 	tm->ntm_callback_counter = 0;
 	tm->ntm_dom = dom;
@@ -259,6 +266,12 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm, const char *addr)
 	c2_mutex_lock(&tm->ntm_mutex);
 	C2_PRE(c2_net__tm_invariant(tm));
 	C2_PRE(tm->ntm_state == C2_NET_TM_INITIALIZED);
+
+	if (C2_FI_ENABLED("fake_error")) {
+		tm->ntm_state = C2_NET_TM_FAILED;
+		c2_mutex_unlock(&tm->ntm_mutex);
+		C2_RETURN(0);
+	}
 
 	tm->ntm_state = C2_NET_TM_STARTING;
 	rc = tm->ntm_dom->nd_xprt->nx_ops->xo_tm_start(tm, addr);

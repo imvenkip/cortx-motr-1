@@ -139,16 +139,6 @@ enum {
 };
 
 /**
-   Magic for reqh service
- */
-enum {
-	C2_RHS_MAGIX = 0x52455148535643, /* REQHSVC */
-	C2_RHS_MAGIX_HEAD = 0x5245515356434844, /* REQSVCHD */
-	C2_RHS_TYPE_MAGIX = 0x5248535643545950, /* RHSVCTYP */
-	C2_RHS_TYPE_MAGIX_HEAD =  0x5248535459504844 /* RHSTYPHD */
-};
-
-/**
    Phases through which a service typically passes.
  */
 enum c2_reqh_service_state {
@@ -310,7 +300,6 @@ struct c2_reqh_service_ops {
  */
 struct c2_reqh_service_type_ops {
 	/**
-	   Locates a particular service.
 	   Allocates and initialises a service for the given service type.
 	   This also initialises the corresponding service operations vector.
            This is typically invoked  during colibri setup, but also can be

@@ -56,7 +56,7 @@ TASK LIFECYCLE
 LANDING TAGS
 ------------
 
-Whenever a topic branch get merged into master, a "landing" tag should be
+Whenever a topic branch gets merged into master, a "landing" tag should be
 created for this merge-point.
 
 The tag has format
@@ -163,10 +163,15 @@ In brief:
            $ git checkout master
            $ git pull --rebase
 
-     (b) if you don't have any merges in the history of your topic branch, then
-         rebase your topic branch on top of master, otherwise skip to step (c)
+     (b) if you don't have any merges[*] in the history of your topic
+         branch, then rebase your topic branch on top of master,
+         otherwise skip to step (c)
 
            $ git rebase master YOUR_BRANCH
+
+         [*] When looking for merge commits, you can use this command:
+
+               $ git log --merges --oneline master..YOUR_BRANCH
 
      (c) merge your branch back to master
 

@@ -144,12 +144,6 @@ struct c2_fid;
 struct c2_fop_file_fid;
 struct c2_io_fom_cob_rw;
 
-enum {
-        C2_STOB_IO_DESC_LINK_MAGIC     = 0x53544f42492f4f,
-        C2_STOB_IO_DESC_HEAD_MAGIC     = 0x73746f62692f6f,
-        C2_NET_BUFFER_HEAD_MAGIC_IOFOM = 0x696f666f6d,
-};
-
 /**
  * Since STOB I/O only launch io for single index vec, I/O service need
  * to launch multiple STOB I/O and wait for all to complete. I/O service
@@ -252,6 +246,8 @@ void io_fom_cob_rw_fid_wire2mem(struct c2_fop_file_fid *in,
  */
 void io_fom_cob_rw_fid2stob_map(const struct c2_fid *in,
                                 struct c2_stob_id *out);
+void io_fom_cob_rw_stob2fid_map(const struct c2_stob_id *in,
+                                struct c2_fid *out);
 
 /** @} end of io_foms */
 

@@ -123,11 +123,6 @@ enum {
 	MAX_SLOT_REF    = 1,
 };
 
-enum {
-	C2_RPC_ITEM_FIELD_MAGIC = 0xf12acec12c611111ULL,
-	C2_RPC_ITEM_HEAD_MAGIC = 0x1007c095e511054eULL,
-};
-
 /**
    RPC item direction.
  */
@@ -182,8 +177,8 @@ struct c2_rpc_item {
 	struct c2_tlink                  ri_plink;
 	/** One of c2_rpc_frm::f_itemq[], in which this item is placed. */
 	struct c2_tl                    *ri_itemq;
-	/** Magic constatnt to verify sanity of linked rpc items. */
-	uint64_t			 ri_link_magic;
+	/** C2_RPC_ITEM_MAGIC */
+	uint64_t			 ri_magic;
 };
 
 struct c2_rpc_item_ops {
@@ -239,6 +234,8 @@ void c2_rpc_item_change_state(struct c2_rpc_item     *item,
 			      enum c2_rpc_item_state  state);
 
 void c2_rpc_item_failed(struct c2_rpc_item *item, int32_t rc);
+
+c2_bcount_t c2_rpc_item_onwire_header_size(void);
 
 c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item);
 
@@ -309,6 +306,22 @@ struct c2_rpc_item_type_ops {
 			       struct c2_rpc_item *component,
 			       c2_bcount_t         limit);
 };
+
+static inline struct c2_verno *
+item_verno(struct c2_rpc_item *item,
+	   int                 idx)
+{
+	C2_PRE(idx < MAX_SLOT_REF);
+	return &item->ri_slot_refs[idx].sr_ow.osr_verno;
+}
+
+static inline uint64_t
+item_xid(struct c2_rpc_item *item,
+	 int                 idx)
+{
+	C2_PRE(idx < MAX_SLOT_REF);
+	return item->ri_slot_refs[idx].sr_ow.osr_xid;
+}
 
 /**
    Possible values for c2_rpc_item_type::rit_flags.

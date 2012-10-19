@@ -803,8 +803,8 @@ static void ktest_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(nlx_core_ep_eq(cepa, &addr));
 	C2_UT_ASSERT(c2_atomic64_get(&cb_ep1->nep_ref.ref_cnt) == 2);
 	C2_UT_ASSERT(c2_list_length(&TM1->ntm_end_points) == 2);
-	zUT(c2_net_end_point_put(cb_ep1), done);
-	zUT(c2_net_end_point_put(cb_ep1), done);
+	c2_net_end_point_put(cb_ep1);
+	c2_net_end_point_put(cb_ep1);
 	C2_UT_ASSERT(c2_list_length(&TM1->ntm_end_points) == 1);
 	cb_ep1 = NULL;
 	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
@@ -831,7 +831,7 @@ static void ktest_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(nlx_core_ep_eq(cepa, &addr));
 	C2_UT_ASSERT(c2_atomic64_get(&cb_ep1->nep_ref.ref_cnt) == 1);
 	C2_UT_ASSERT(c2_list_length(&TM1->ntm_end_points) == 2);
-	zUT(c2_net_end_point_put(cb_ep1), done);
+	c2_net_end_point_put(cb_ep1);
 	C2_UT_ASSERT(c2_list_length(&TM1->ntm_end_points) == 1);
 	cb_ep1 = NULL;
 
@@ -953,7 +953,7 @@ static void ktest_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(nlx_core_ep_eq(cepa, &addr));
 	C2_UT_ASSERT(c2_atomic64_get(&cb_ep1->nep_ref.ref_cnt) == 1);
 	C2_UT_ASSERT(c2_list_length(&TM1->ntm_end_points) == 2);
-	zUT(c2_net_end_point_put(cb_ep1), done);
+	c2_net_end_point_put(cb_ep1);
 	cb_ep1 = NULL;
 
 	/* arrange for ep creation failure */
@@ -1031,7 +1031,7 @@ static void ktest_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
 	/* this transport does not pin the ep, but the network layer does */
 	C2_UT_ASSERT(c2_atomic64_get(&nb1->nb_ep->nep_ref.ref_cnt) == 2);
-	zUT(c2_net_end_point_put(ut_ktest_msg_LNetPut_ep), done);
+	c2_net_end_point_put(ut_ktest_msg_LNetPut_ep);
 	ut_ktest_msg_LNetPut_ep = NULL;
 
 	/* deliver the completion event */
@@ -1082,7 +1082,7 @@ static void ktest_msg_body(struct ut_data *td)
 	C2_UT_ASSERT(nb1->nb_flags & C2_NET_BUF_QUEUED);
 	/* this transport does not pin the ep, but the network layer does */
 	C2_UT_ASSERT(c2_atomic64_get(&nb1->nb_ep->nep_ref.ref_cnt) == 2);
-	zUT(c2_net_end_point_put(ut_ktest_msg_LNetPut_ep), done);
+	c2_net_end_point_put(ut_ktest_msg_LNetPut_ep);
 	ut_ktest_msg_LNetPut_ep = NULL;
 
 	/* deliver the completion event */

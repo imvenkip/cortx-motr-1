@@ -19,7 +19,7 @@
  * Original creation date: 12/10/2010
  */
 
-#include "lib/cdefs.h" /* C2_EXPORTED */
+#include "lib/cdefs.h"	/* C2_EXPORTED */
 #include "lib/assert.h" /* C2_PRE */
 #include "lib/time.h"
 

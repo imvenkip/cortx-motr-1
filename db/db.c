@@ -29,6 +29,7 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 
+#include "colibri/magic.h"
 #include "db/db.h"
 #include "db/db_common.h"
 
@@ -68,8 +69,7 @@ static void dbenv_thread(struct c2_dbenv *env);
 
 C2_TL_DESCR_DEFINE(enw, "env waiters", static, struct c2_db_tx_waiter,
 		   tw_env, tw_magix,
-		   C2_DB_TX_WAITER_MAGIX,
-		   0xda2edc0cc1d10515 /* dazed coccidiosis */);
+		   C2_DB_TX_WAITER_MAGIC, C2_DB_TX_WAITER_HEAD_MAGIC);
 C2_TL_DEFINE(enw, static, struct c2_db_tx_waiter);
 
 
@@ -493,8 +493,10 @@ int c2_db_tx_init(struct c2_db_tx *tx, struct c2_dbenv *env, uint64_t flags)
 		 * to {DBENV,DB}->app_private. Hijack xml_private.
 		 */
 		txn->xml_internal = tx;
-	} else
+	} else {
 		tx->dt_i.dt_txn = NULL;
+		tx->dt_env = NULL;
+        }
 	result = dberr_conv(result);
 	return result;
 }
@@ -662,7 +664,7 @@ int c2_table_lookup(struct c2_db_tx *tx, struct c2_db_pair *pair)
 	 */
 	return WITH_PAIR(pair, TABLE_CALL(pair->dp_table, get, tx->dt_i.dt_txn,
 					  pair_key(pair), pair_rec(pair),
-					  DB_RMW));
+					  0));
 }
 
 int c2_table_delete(struct c2_db_tx *tx, struct c2_db_pair *pair)

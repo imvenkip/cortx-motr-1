@@ -45,7 +45,6 @@ static int frm_ut_init(void)
 	frm = &rchan.rc_frm;
 	c2_sm_group_init(&rmachine.rm_sm_grp);
 	c2_rpc_machine_lock(&rmachine);
-
 	return 0;
 }
 
@@ -53,7 +52,6 @@ static int frm_ut_fini(void)
 {
 	c2_rpc_machine_unlock(&rmachine);
 	c2_sm_group_fini(&rmachine.rm_sm_grp);
-
 	return 0;
 }
 
@@ -417,8 +415,8 @@ static void frm_do_test5(const int N, const int ITEMS_PER_PACKET)
 	saved_max_packet_size = frm->f_constraints.fc_max_packet_size;
 	/* Each packet should carry ITEMS_PER_PACKET items */
 	frm->f_constraints.fc_max_packet_size =
-			ITEMS_PER_PACKET * c2_rpc_item_size(items[0]) +
-			  C2_RPC_PACKET_OW_HEADER_SIZE;
+		ITEMS_PER_PACKET * c2_rpc_item_size(items[0]) +
+		c2_rpc_packet_onwire_header_size();
 	/* trigger formation so that all items are formed */
 	frm->f_constraints.fc_max_nr_bytes_accumulated = 0;
 	c2_rpc_frm_run_formation(frm);
@@ -430,9 +428,10 @@ static void frm_do_test5(const int N, const int ITEMS_PER_PACKET)
 		p = packet_stack[i];
 		if (N % ITEMS_PER_PACKET == 0 ||
 		    i != nr_packets - 1)
-			C2_UT_ASSERT(p->rp_nr_items == ITEMS_PER_PACKET);
+			C2_UT_ASSERT(p->rp_ow.poh_nr_items == ITEMS_PER_PACKET);
 		else
-			C2_UT_ASSERT(p->rp_nr_items == N % ITEMS_PER_PACKET);
+			C2_UT_ASSERT(p->rp_ow.poh_nr_items == N %
+				     ITEMS_PER_PACKET);
 		(void)packet_stack_pop();
 		c2_rpc_frm_packet_done(p);
 		packet_discard(p);
@@ -504,7 +503,8 @@ static void frm_test7(void)
 	/* Only 1 item should be included per packet */
 	saved_max_packet_size = frm->f_constraints.fc_max_packet_size;
 	frm->f_constraints.fc_max_packet_size = c2_rpc_item_size(item1) +
-		C2_RPC_PACKET_OW_HEADER_SIZE + c2_rpc_item_size(item1) / 2;
+					c2_rpc_packet_onwire_header_size() +
+					c2_rpc_item_size(item1) / 2;
 
 	saved_max_nr_packets_enqed = frm->f_constraints.fc_max_nr_packets_enqed;
 	frm->f_constraints.fc_max_nr_packets_enqed = 0; /* disable formation */

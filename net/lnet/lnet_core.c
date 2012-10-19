@@ -23,6 +23,7 @@
 #include <stdio.h>   /* snprintf */
 #include <stdlib.h>  /* strtoull */
 #endif /* __KERNEL__ */
+#include "colibri/magic.h"
 
 /**
    @addtogroup LNetCore

@@ -21,6 +21,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h" /* C2_SET0 */
 #include "lib/errno.h"
+#include "colibri/magic.h"
 #include "fop/fop.h"
 #include "fop/fom_long_lock.h" /* c2_fom_ll_global_init */
 
@@ -48,8 +49,7 @@ static struct c2_tl    fop_types_list;
 
 C2_TL_DESCR_DEFINE(ft, "fop types", static, struct c2_fop_type,
 		   ft_linkage,	ft_magix,
-		   0xba11ab1ea5111dae /* bailable asilidae */,
-		   0xd15ea5e0fed1f1ce /* disease of edifice */);
+		   C2_FOP_TYPE_MAGIC, C2_FOP_TYPE_HEAD_MAGIC);
 
 C2_TL_DEFINE(ft, static, struct c2_fop_type);
 
@@ -76,12 +76,10 @@ void c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
 	C2_PRE(fop != NULL && fopt != NULL);
 
 	fop->f_type = fopt;
-	fop->f_data.fd_data = data;
 	c2_addb_ctx_init(&fop->f_addb, &c2_fop_addb_ctx, &fopt->ft_addb);
-	c2_list_link_init(&fop->f_link);
-
 	c2_rpc_item_init(&fop->f_item, &fopt->ft_rpc_item_type);
 	fop->f_item.ri_ops = &c2_fop_default_item_ops;
+	fop->f_data.fd_data = data;
 }
 
 struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
@@ -105,10 +103,6 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 }
 C2_EXPORTED(c2_fop_alloc);
 
-/**
-   @todo Current implementation just frees the top level object;
-   instead traverse and free entire tree of objects.
- */
 void c2_fop_fini(struct c2_fop *fop)
 {
 	C2_ASSERT(fop != NULL);
@@ -116,8 +110,7 @@ void c2_fop_fini(struct c2_fop *fop)
 	c2_rpc_item_fini(&fop->f_item);
 	c2_addb_ctx_fini(&fop->f_addb);
 	if (fop->f_data.fd_data != NULL)
-		c2_free(fop->f_data.fd_data);
-	c2_list_link_fini(&fop->f_link);
+		c2_xcode_free(&C2_FOP_XCODE_OBJ(fop));
 }
 
 void c2_fop_free(struct c2_fop *fop)

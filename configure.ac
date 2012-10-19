@@ -9,6 +9,7 @@ AH_TEMPLATE([VERSION], [Version of the package.])
 AH_TEMPLATE([ENABLE_SYNC_ATOMIC], [Enable gcc built-in automic functions])
 AH_TEMPLATE([ENABLE_DEBUG], [Enable debug info.])
 AH_TEMPLATE([ENABLE_FAULT_INJECTION], [Enable fault injection.])
+AH_TEMPLATE([ENABLE_IMMEDIATE_TRACE], [Enable immediate tracing.])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT], [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV], [Have fops->readv function])
 AH_TEMPLATE([HAVE_FILE_AIO_READ], [Have fops->aio_read function])
@@ -275,6 +276,11 @@ AC_ARG_ENABLE([debug],
 AC_ARG_ENABLE([finject],
         [AC_HELP_STRING([--disable-finject], [disable fault injection support])], [],
         [enable_finject=yes]
+)
+
+AC_ARG_ENABLE([immediate-trace],
+        [AC_HELP_STRING([--disable-immediate-trace], [disable immediate tracing])], [],
+        [enable_immediate_trace=yes]
 )
 
 AC_ARG_ENABLE([mcheck],
@@ -591,6 +597,10 @@ if test x$enable_finject = xyes; then
         AC_DEFINE([ENABLE_FAULT_INJECTION])
 fi
 
+if test x$enable_immediate_trace = xyes; then
+        AC_DEFINE([ENABLE_IMMEDIATE_TRACE])
+fi
+
 if test x$enable_mcheck = xyes; then
 	LDFLAGS="$LDFLAGS -lmcheck"
 fi
@@ -660,24 +670,31 @@ AC_SUBST([KCFLAGS])
 AC_CONFIG_FILES([
                  Makefile
                  addb/Makefile
-		 addb/addbff/Makefile
-		 addb/ut/Makefile
+                 addb/addbff/Makefile
+                 addb/ut/Makefile
                  balloc/Makefile
                  balloc/ut/Makefile
                  build_kernel_modules/Makefile
+                 c2t1fs/linux_kernel/Makefile
+                 c2t1fs/linux_kernel/st/Makefile
+                 c2t1fs/linux_kernel/st/common.sh
+                 c2t1fs/linux_kernel/ut/Makefile
                  capa/Makefile
                  capa/ut/Makefile
-                 c2t1fs/linux_kernel/st/common.sh
-                 c2t1fs/linux_kernel/Makefile
                  cfg/Makefile
+                 cm/Makefile
+                 cm/ut/Makefile
                  cob/Makefile
                  cob/ut/Makefile
                  colibri/Makefile
                  colibri/ut/Makefile
-		 console/Makefile
+                 conf/Makefile
+                 conf/ut/Makefile
+                 conf/st/Makefile
+                 console/Makefile
                  console/bin/Makefile
-                 console/ut/Makefile
                  console/st/Makefile
+                 console/ut/Makefile
                  db/Makefile
                  db/ut/Makefile
                  desim/Makefile
@@ -699,30 +716,42 @@ AC_CONFIG_FILES([
                  lib/ut/Makefile
                  m4/Makefile
                  man/Makefile
-                 mds/Makefile
                  mw/Makefile
+                 mdstore/Makefile
+                 mdservice/Makefile
+                 mdservice/ut/Makefile
+                 mdservice/ut/mdstore.h
                  net/Makefile
-		 net/bulk_emulation/Makefile
-		 net/bulk_emulation/st/Makefile
-		 net/bulk_emulation/ut/Makefile
-		 net/lnet/Makefile
-		 net/lnet/st/Makefile
-		 net/lnet/st/linux_kernel/Makefile
-		 net/lnet/ut/Makefile
-		 net/ut/Makefile
-                 nrs/Makefile
+                 net/bulk_emulation/Makefile
+                 net/bulk_emulation/st/Makefile
+                 net/bulk_emulation/ut/Makefile
+                 net/lnet/Makefile
+                 net/lnet/st/Makefile
+                 net/lnet/st/linux_kernel/Makefile
+                 net/lnet/ut/Makefile
+                 net/test/Makefile
+                 net/test/linux_kernel/Makefile
+                 net/test/ntc.sh
+                 net/test/ntn.sh
+                 net/test/test-user.sh
+                 net/test/user_space/Makefile
+                 net/test/ut/Makefile
+                 net/ut/Makefile
                  patches/Makefile
                  pool/Makefile
+                 pool/ut/Makefile
                  reqh/Makefile
-		 reqh/ut/Makefile
+                 reqh/ut/Makefile
                  rpc/Makefile
-                 rpc/ut/Makefile
                  rpc/it/Makefile
-		 rpc/it/linux_kernel/Makefile
-		 scripts/Makefile
+                 rpc/it/linux_kernel/Makefile
+                 rpc/ut/Makefile
+                 scripts/Makefile
                  sm/Makefile
                  sm/ut/Makefile
                  sns/Makefile
+                 sns/repair/Makefile
+                 sns/repair/ut/Makefile
                  sns/ut/Makefile
                  stob/Makefile
                  stob/ut/Makefile
@@ -732,22 +761,25 @@ AC_CONFIG_FILES([
                  ut/linux_kernel/Makefile
                  utils/Makefile
                  utils/linux_kernel/Makefile
+                 utils/linux_kernel/ut.sh
                  utils/ploss/Makefile
                  utils/ut.sh
-                 utils/linux_kernel/ut.sh
                  xcode/Makefile
                  xcode/ff2c/Makefile
                  xcode/ut/Makefile
-		 yaml2db/Makefile
-		 yaml2db/ut/Makefile
-		 yaml2db/st/Makefile
-		 colibri.spec
+                 yaml2db/Makefile
+                 yaml2db/st/Makefile
+                 yaml2db/ut/Makefile
+                 colibri.spec
                 ])
 AC_OUTPUT
 
 #
 # Set up execute bit for UT scripts.
 #
+chmod +x net/test/ntc.sh
+chmod +x net/test/ntn.sh
+chmod +x net/test/test-user.sh
 chmod +x utils/ut.sh
 chmod +x utils/linux_kernel/ut.sh
 

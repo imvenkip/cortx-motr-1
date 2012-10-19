@@ -96,13 +96,13 @@
 
    The only "output" event that a state machine communicates to the external
    world is (from this module's point of view) its state transition. State
-   transitions are announces on a per-machine channel (c2_sm::sm_chan). This
+   transitions are announced on a per-machine channel (c2_sm::sm_chan). This
    mechanism works both for threaded and non-blocking event consumers. The
    formers use c2_sm_timedwait() to wait until the state machine reaches
    desirable state, the latter register a clink with c2_sm::sm_chan.
 
    "Input" events cause state transitions. Typical examples of such events are:
-   completion of a network of storage communication, timeout or a state
+   completion of a network or storage communication, timeout or a state
    transition in a different state machine. Such events often happen in
    "awkward" context: signal and interrupt handlers, timer call-backs and
    similar. Acquiring the group's mutex, necessary for state transition in such
@@ -518,6 +518,12 @@ int c2_sm_timedwait(struct c2_sm *mach, uint64_t states, c2_time_t deadline);
 void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc);
 
 /**
+ * Moves a state machine into the next state, calling either c2_sm_state_set()
+ * or c2_sm_fail() depending on "rc".
+ */
+void c2_sm_move(struct c2_sm *mach, int32_t rc, int state);
+
+/**
    Transits a state machine into the indicated state.
 
    Calls ex- and in- methods of the corresponding states (even if the state
@@ -609,6 +615,8 @@ enum c2_sm_return {
  */
 void c2_sm_conf_extend(const struct c2_sm_state_descr *base,
 		       struct c2_sm_state_descr *sub, uint32_t nr);
+
+bool c2_sm_invariant(const struct c2_sm *mach);
 
 /** @} end of sm group */
 

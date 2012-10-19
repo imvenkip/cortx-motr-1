@@ -23,26 +23,29 @@
 #ifndef __COLIBRI_UT_RPC_H__
 #define __COLIBRI_UT_RPC_H__
 
-#include "ut/cs_service.h" /* c2_cs_default_stypes */
+#include "ut/cs_service.h" /* c2_cs_default_stypes, c2_cs_default_stypes_nr */
 #include "rpc/rpclib.h"    /* c2_rpc_server_ctx */
 
 #ifndef __KERNEL__
 #define C2_RPC_SERVER_CTX_DECLARE(name, xprts, xprts_nr, server_argv,	\
-	server_argc, log_file_name)					\
+	server_argc, service_types, service_types_nr, log_file_name)	\
 	struct c2_rpc_server_ctx (name) = {				\
 		.rsx_xprts            = (xprts),			\
 		.rsx_xprts_nr         = (xprts_nr),			\
 		.rsx_argv             = (server_argv),			\
 		.rsx_argc             = (server_argc),			\
-		.rsx_service_types    = c2_cs_default_stypes,		\
-		.rsx_service_types_nr = c2_cs_default_stypes_nr,	\
+		.rsx_service_types    = service_types,		        \
+		.rsx_service_types_nr = service_types_nr,	        \
 		.rsx_log_file_name    = (log_file_name),		\
 	};
 
-#define C2_RPC_SERVER_CTX_DECLARE_SIMPLE(name, xprt_ptr, server_argv,	\
-					 log_file_name)			\
+#define C2_RPC_SERVER_CTX_DECLARE_SIMPLE(name, xprt_ptr, server_argv,	 \
+					 log_file_name)                  \
 	C2_RPC_SERVER_CTX_DECLARE((name), &(xprt_ptr), 1, (server_argv), \
-				  ARRAY_SIZE((server_argv)), (log_file_name))
+				  ARRAY_SIZE((server_argv)),             \
+				  c2_cs_default_stypes,                  \
+				  c2_cs_default_stypes_nr,               \
+				 (log_file_name))
 #endif
 
 struct c2_rpc_client_ctx;

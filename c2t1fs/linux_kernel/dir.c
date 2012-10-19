@@ -28,6 +28,8 @@
 #include "ioservice/io_fops.h"   /* c2_fop_cob_create_fopt */
 #include "ioservice/io_fops_ff.h" /* c2_fop_cob_create */
 #include "rpc/rpclib.h"          /* c2_rpc_client_call */
+#include "ioservice/io_device.h"
+#include "colibri/magic.h"
 
 extern const struct c2_rpc_item_ops cob_req_rpc_item_ops;
 extern void c2t1fs_inode_bob_init(struct c2t1fs_inode *bob);
@@ -70,7 +72,8 @@ static int c2t1fs_cob_delete(struct c2t1fs_sb    *csb,
 			     const struct c2_fid *cob_fid,
 			     const struct c2_fid *gob_fid);
 
-static int c2t1fs_cob_fop_populate(struct c2_fop *fop,
+static int c2t1fs_cob_fop_populate(struct c2t1fs_sb    *csb,
+				   struct c2_fop       *fop,
 				   const struct c2_fid *cob_fid,
 				   const struct c2_fid *gob_fid);
 
@@ -140,17 +143,14 @@ static int c2t1fs_create(struct inode     *dir,
 	inode->i_fop    = &c2t1fs_reg_file_operations;
 	inode->i_mode   = mode;
 
-	ci              = C2T1FS_I(inode);
-	ci->ci_fid      = c2t1fs_fid_alloc(csb);
-	inode->i_ino    = ci->ci_fid.f_key;
+	ci               = C2T1FS_I(inode);
+	ci->ci_fid       = c2t1fs_fid_alloc(csb);
+	ci->ci_layout_id = csb->csb_layout_id;
 
 	insert_inode_hash(inode);
 	mark_inode_dirty(inode);
 
-	rc = c2t1fs_inode_layout_init(ci, &csb->csb_pool,
-					   csb->csb_nr_data_units,
-					   csb->csb_nr_parity_units,
-					   csb->csb_unit_size);
+	rc = c2t1fs_inode_layout_init(ci);
 	if (rc != 0)
 		goto out;
 
@@ -186,7 +186,7 @@ void c2t1fs_dir_ent_init(struct c2t1fs_dir_ent *de,
 	memcpy(&de->de_name, name, namelen);
 	de->de_name[namelen] = '\0';
 	de->de_fid           = *fid;
-	de->de_magic         = MAGIC_DIRENT;
+	de->de_magic         = C2_T1FS_DIRENT_MAGIC;
 
 	dir_ents_tlink_init(de);
 
@@ -238,7 +238,7 @@ static int c2t1fs_dir_ent_add(struct inode        *dir,
 	c2t1fs_dir_ent_init(de, name, namelen, fid);
 	dir_ents_tlist_add_tail(&ci->ci_dir_ents, de);
 
-	C2_LOG("Added name: %s[%lu:%lu]", (char *)de->de_name,
+	C2_LOG(C2_INFO, "Added name: %s[%lu:%lu]", (char *)de->de_name,
 					  (unsigned long)fid->f_container,
 					  (unsigned long)fid->f_key);
 	dget(dentry);     /* See comment C2T1FS_DIR_ENT_ADD_FOOTNOTE1 */
@@ -272,7 +272,8 @@ static bool name_eq(const unsigned char *name, const char *buf, int len)
 	if (len <= C2T1FS_MAX_NAME_LEN && buf[len] != '\0') {
 		rc = false;
 	} else {
-		C2_LOG("buf: \"%s\" name: \"%s\" len: %d", buf, name, len);
+		C2_LOG(C2_DEBUG, "buf: \"%s\" name: \"%s\" len: %d", buf, name
+				, len);
 		rc = (memcmp(name, buf, len) == 0);
 	}
 
@@ -292,7 +293,7 @@ static struct c2t1fs_dir_ent *c2t1fs_dir_ent_find(struct inode        *dir,
 
 	C2_ASSERT(name != NULL && dir != NULL);
 
-	C2_LOG("Name: \"%s\"", name);
+	C2_LOG(C2_DEBUG, "Name: \"%s\"", name);
 
 	ci  = C2T1FS_I(dir);
 	csb = C2T1FS_SB(dir->i_sb);
@@ -325,7 +326,7 @@ static struct dentry *c2t1fs_lookup(struct inode     *dir,
 		return ERR_PTR(-ENAMETOOLONG);
 	}
 
-	C2_LOG("Name: \"%s\"", dentry->d_name.name);
+	C2_LOG(C2_DEBUG, "Name: \"%s\"", dentry->d_name.name);
 
 	csb = C2T1FS_SB(dir->i_sb);
 
@@ -374,19 +375,19 @@ static int c2t1fs_readdir(struct file *f,
 	switch (i) {
 	case 0:
 		ino = dir->i_ino;
-		C2_LOG("i = %d ino = %lu", i, (unsigned long)ino);
+		C2_LOG(C2_DEBUG, "i = %d ino = %lu", i, (unsigned long)ino);
 		if (filldir(buf, ".", 1, i, ino, DT_DIR) < 0)
 			break;
-		C2_LOG("filled: \".\"");
+		C2_LOG(C2_DEBUG, "filled: \".\"");
 		f->f_pos++;
 		i++;
 		/* Fallthrough */
 	case 1:
 		ino = parent_ino(dentry);
-		C2_LOG("i = %d ino = %lu", i, (unsigned long)ino);
+		C2_LOG(C2_DEBUG, "i = %d ino = %lu", i, (unsigned long)ino);
 		if (filldir(buf, "..", 2, i, 4, DT_DIR) < 0)
 			break;
-		C2_LOG("filled: \"..\"");
+		C2_LOG(C2_DEBUG, "filled: \"..\"");
 		f->f_pos++;
 		i++;
 		/* Fallthrough */
@@ -406,14 +407,14 @@ static int c2t1fs_readdir(struct file *f,
 			name    = de->de_name;
 			namelen = strlen(name);
 
-			C2_LOG("off %lu ino %lu", (unsigned long)f->f_pos,
+			C2_LOG(C2_DEBUG, "off %lu ino %lu", (unsigned long)f->f_pos,
 					(unsigned long)i + 1);
 
 			rc = filldir(buf, name, namelen, f->f_pos,
 					++i, DT_REG);
 			if (rc < 0)
 				goto out;
-			C2_LOG("filled: \"%s\"", name);
+			C2_LOG(C2_DEBUG, "filled: \"%s\"", name);
 
 			f->f_pos++;
 		} c2_tl_endfor;
@@ -428,7 +429,7 @@ int c2t1fs_dir_ent_remove(struct c2t1fs_dir_ent *de)
 {
 	C2_ENTRY();
 
-	C2_LOG("Name: %s", (char *)de->de_name);
+	C2_LOG(C2_INFO, "Name: %s", (char *)de->de_name);
 	dput(de->de_dentry); /* Why? See comment C2T1FS_DIR_ENT_ADD_FOOTNOTE1 */
 	dir_ents_tlist_del(de);
 	c2t1fs_dir_ent_fini(de);
@@ -448,7 +449,7 @@ static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
 
 	C2_ENTRY();
 
-	C2_LOG("Name: \"%s\"", dentry->d_name.name);
+	C2_LOG(C2_INFO, "Name: \"%s\"", dentry->d_name.name);
 
 	inode = dentry->d_inode;
 	csb   = C2T1FS_SB(inode->i_sb);
@@ -464,7 +465,7 @@ static int c2t1fs_unlink(struct inode *dir, struct dentry *dentry)
 
 	rc = c2t1fs_component_objects_op(ci, c2t1fs_cob_delete);
 	if (rc != 0) {
-		C2_LOG("Cob_delete fop failed.\n");
+		C2_LOG(C2_ERROR, "Cob_delete fop failed.\n");
 		goto out;
 	}
 
@@ -487,16 +488,18 @@ out:
    See "Containers and component objects" section in c2t1fs.h for
    more information.
  */
-struct c2_fid c2t1fs_cob_fid(const struct c2_fid *gob_fid, int index)
+struct c2_fid c2t1fs_cob_fid(const struct c2t1fs_inode *ci, int index)
 {
-	struct c2_fid fid;
+	struct c2_layout_enum *le;
+	struct c2_fid          fid;
 
-	/* index 0 is currently reserved for gob_fid.f_container */
-	C2_ASSERT(gob_fid->f_container == 0);
-	C2_ASSERT(index > 0);
+	C2_PRE(ci->ci_fid.f_container == 0);
+	C2_PRE(ci->ci_layout_instance != NULL);
+	C2_PRE(index >= 0);
 
-	fid.f_container = index;
-	fid.f_key       = gob_fid->f_key;
+	le = c2_layout_instance_to_enum(ci->ci_layout_instance);
+
+	c2_layout_enum_get(le, index, &ci->ci_fid, &fid);
 
 	C2_LEAVE("fid: [%lu:%lu]", (unsigned long)fid.f_container,
 				   (unsigned long)fid.f_key);
@@ -509,34 +512,30 @@ static int c2t1fs_component_objects_op(struct c2t1fs_inode *ci,
 						   const struct c2_fid *gfid))
 {
 	struct c2t1fs_sb *csb;
-	struct c2_fid     gob_fid;
 	struct c2_fid     cob_fid;
 	int               pool_width;
 	int               i;
-	int rc;
+	int               rc;
 
 	C2_PRE(ci != NULL);
 	C2_PRE(func != NULL);
 
 	C2_ENTRY();
 
-	gob_fid = ci->ci_fid;
-
-	C2_LOG("Component object %s for [%lu:%lu]",
+	C2_LOG(C2_DEBUG, "Component object %s for [%lu:%lu]",
 		func == c2t1fs_cob_create? "create" : "delete",
-		(unsigned long)gob_fid.f_container,
-		(unsigned long)gob_fid.f_key);
+		(unsigned long)ci->ci_fid.f_container,
+		(unsigned long)ci->ci_fid.f_key);
 
 	csb = C2T1FS_SB(ci->ci_inode.i_sb);
-	pool_width = csb->csb_pool.po_width;
+	pool_width = csb->csb_pool_width;
 	C2_ASSERT(pool_width >= 1);
 
-	for (i = 1; i <= pool_width; i++) { /* i = 1 is intentional */
-
-		cob_fid = c2t1fs_cob_fid(&gob_fid, i);
-		rc      = func(csb, &cob_fid, &gob_fid);
+	for (i = 0; i < pool_width; ++i) {
+		cob_fid = c2t1fs_cob_fid(ci, i);
+		rc      = func(csb, &cob_fid, &ci->ci_fid);
 		if (rc != 0) {
-			C2_LOG("Failed: cob %s : [%lu:%lu]",
+			C2_LOG(C2_ERROR, "Failed: cob %s : [%lu:%lu]",
 				func == c2t1fs_cob_create? "create" : "delete",
 				(unsigned long)cob_fid.f_container,
 				(unsigned long)cob_fid.f_key);
@@ -586,20 +585,21 @@ static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 	fop = c2_fop_alloc(ftype, NULL);
 	if (fop == NULL) {
 		rc = -ENOMEM;
-		C2_LOG("Memory allocation for struct c2_fop_cob_create failed");
+		C2_LOG(C2_ERROR, "Memory allocation for struct"
+				 " c2_fop_cob_create failed");
 		goto out;
 	}
 
 	C2_ASSERT(c2_is_cob_create_delete_fop(fop));
 	cobcreate = c2_is_cob_create_fop(fop);
 
-	rc = c2t1fs_cob_fop_populate(fop, cob_fid, gob_fid);
+	rc = c2t1fs_cob_fop_populate(csb, fop, cob_fid, gob_fid);
 	if (rc != 0) {
 		c2_fop_free(fop);
 		goto out;
 	}
 
-	C2_LOG("Send %s [%lu:%lu] to session %lu\n",
+	C2_LOG(C2_DEBUG, "Send %s [%lu:%lu] to session %lu\n",
 		cobcreate ? "cob_create" : "cob_delete",
 		(unsigned long)cob_fid->f_container,
 		(unsigned long)cob_fid->f_key,
@@ -618,7 +618,28 @@ static int c2t1fs_cob_op(struct c2t1fs_sb    *csb,
 	 * given fop type only.
 	 */
 	reply = c2_fop_data(c2_rpc_item_to_fop(fop->f_item.ri_reply));
-	rc = reply->cor_rc;
+	if (reply->cor_rc == C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
+		struct c2_pool_version_numbers *cli;
+		struct c2_pool_version_numbers *srv;
+		struct c2_fv_event             *event;
+		uint32_t                        i = 0;
+
+		/* Retrieve the latest server version and updates and apply
+		 * to the client's copy. When -EAGAIN is return, this system
+		 * call will be restarted.
+		 */
+		rc = -EAGAIN;
+		cli = &csb->csb_pool.po_mach->pm_state.pst_version;
+		srv = (struct c2_pool_version_numbers *)&reply->cor_fv_version;
+		*cli = *srv;
+		while (i < reply->cor_fv_updates.fvu_count) {
+			event = &reply->cor_fv_updates.fvu_events[i];
+			c2_poolmach_state_transit(csb->csb_pool.po_mach,
+						  (struct c2_pool_event*)event);
+			i++;
+		}
+	} else
+		rc = reply->cor_rc;
 
 	/*
 	 * Fop is deallocated by rpc layer using
@@ -630,12 +651,15 @@ out:
 	return rc;
 }
 
-static int c2t1fs_cob_fop_populate(struct c2_fop *fop,
+static int c2t1fs_cob_fop_populate(struct c2t1fs_sb    *csb,
+				   struct c2_fop       *fop,
 				   const struct c2_fid *cob_fid,
 				   const struct c2_fid *gob_fid)
 {
-	struct c2_fop_cob_create *cc;
-	struct c2_fop_cob_common *common;
+	struct c2_fop_cob_create       *cc;
+	struct c2_fop_cob_common       *common;
+	struct c2_pool_version_numbers *cli;
+	struct c2_pool_version_numbers  curr;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(fop->f_type != NULL);
@@ -647,6 +671,11 @@ static int c2t1fs_cob_fop_populate(struct c2_fop *fop,
 	common = c2_cobfop_common_get(fop);
 	C2_ASSERT(common != NULL);
 
+	/* fill in the current client known version */
+	c2_poolmach_current_version_get(csb->csb_pool.po_mach, &curr);
+	cli = (struct c2_pool_version_numbers*)&common->c_version;
+	*cli = curr;
+
 	common->c_gobfid.f_seq = gob_fid->f_container;
 	common->c_gobfid.f_oid = gob_fid->f_key;
 	common->c_cobfid.f_seq = cob_fid->f_container;
@@ -656,7 +685,8 @@ static int c2t1fs_cob_fop_populate(struct c2_fop *fop,
 		cc = c2_fop_data(fop);
 		C2_ALLOC_ARR(cc->cc_cobname.cn_name, C2T1FS_COB_ID_STRLEN);
 		if (cc->cc_cobname.cn_name == NULL) {
-			C2_LOG("Memory allocation failed for cob_name.");
+			C2_LOG(C2_ERROR, "Memory allocation failed for"
+					 " cob_name.");
 			C2_LEAVE("%d", -ENOMEM);
 			return -ENOMEM;
 		}

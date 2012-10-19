@@ -48,7 +48,7 @@
          declare that new asynchronous event happened in the stream.
 
        - consumer interface. It consists of c2_clink_add(), c2_clink_del(),
-         c2_clink_wait() and c2_clink_trywait() functions.
+         c2_chan_wait() and c2_chan_trywait() functions.
 
    When a producer declares an event on a channel, this event is delivered. If
    event is a broadcast (c2_chan_broadcast()) it is delivered to all clinks
@@ -145,8 +145,8 @@
    c2_chan_wait(&cl0);
 
    // de-register clinks, head last
-   c2_clink_del(chan1, &cl1);
-   c2_clink_del(chan0, &cl0);
+   c2_clink_del(&cl1);
+   c2_clink_del(&cl0);
 
    // finalise in any order
    c2_clink_fini(&cl0);
@@ -238,7 +238,7 @@ struct c2_chan {
    executed (except the case when c2_clink_signal() is used by producer).
 
    @li once a clink is registered with a channel, it is possible to wait until
-   an event happens by calling c2_clink_wait().
+   an event happens by calling c2_chan_wait().
 
    See the "Filtered wake-ups" section in the top-level comment on how to
    combine call-backs with waiting.

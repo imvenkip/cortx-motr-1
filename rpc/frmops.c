@@ -25,6 +25,7 @@
 #include "lib/errno.h"
 #include "lib/arith.h"
 #include "lib/bob.h"
+#include "colibri/magic.h"
 #include "rpc/formation2.h"
 #include "rpc/packet.h"
 #include "rpc/rpc2.h"
@@ -58,11 +59,6 @@ const struct c2_rpc_frm_ops c2_rpc_frm_default_ops = {
 	.fo_item_bind    = item_bind,
 };
 
-enum {
-	/** value of rpc_buffer::rb_magic */
-	RPC_BUF_MAGIC = 0x5250435f425546, /* RPC_BUF */
-};
-
 /**
    RPC layer's wrapper on c2_net_buffer. rpc_buffer carries one packet at
    a time.
@@ -78,14 +74,14 @@ enum {
 struct rpc_buffer {
 	struct c2_net_buffer   rb_netbuf;
 	struct c2_rpc_packet  *rb_packet;
-	/** see RPC_BUF_MAGIC */
+	/** see C2_RPC_BUF_MAGIC */
 	uint64_t               rb_magic;
 };
 
 static const struct c2_bob_type rpc_buffer_bob_type = {
 	.bt_name         = "rpc_buffer",
 	.bt_magix_offset = C2_MAGIX_OFFSET(struct rpc_buffer, rb_magic),
-	.bt_magix        = RPC_BUF_MAGIC,
+	.bt_magix        = C2_RPC_BUF_MAGIC,
 	.bt_check        = NULL,
 };
 
@@ -138,7 +134,7 @@ static bool packet_ready(struct c2_rpc_packet *p)
 	C2_ALLOC_PTR_ADDB(rpcbuf, &c2_rpc_addb_ctx, &c2_rpc_addb_loc);
 	if (rpcbuf == NULL) {
 		rc = -ENOMEM;
-		C2_LOG("Failed to allocate rpcbuf");
+		C2_LOG(C2_ERROR, "Failed to allocate rpcbuf");
 		goto out;
 	}
 	rc = rpc_buffer_init(rpcbuf, p);
@@ -207,8 +203,7 @@ static int rpc_buffer_init(struct rpc_buffer    *rpcbuf,
 	rpc_buffer_bob_init(rpcbuf);
 
 out:
-	C2_LEAVE("rc: %d", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 /**
@@ -235,18 +230,17 @@ static int net_buffer_allocate(struct c2_net_buffer *netbuf,
 		if (rc == -ENOMEM)
 			C2_ADDB_ADD(&c2_rpc_addb_ctx, &c2_rpc_addb_loc,
 				    c2_addb_oom);
-		C2_LOG("buffer allocation failed");
+		C2_LOG(C2_ERROR, "buffer allocation failed");
 		goto out;
 	}
 
 	rc = c2_net_buffer_register(netbuf, ndom);
 	if (rc != 0) {
-		C2_LOG("net buf registeration failed");
+		C2_LOG(C2_ERROR, "net buf registeration failed");
 		c2_bufvec_free_aligned(&netbuf->nb_buffer, C2_SEG_SHIFT);
 	}
 out:
-	C2_LEAVE("rc: %d", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 /**
@@ -271,16 +265,16 @@ static void bufvec_geometry(struct c2_net_domain *ndom,
 	max_segment_size = c2_net_domain_get_max_buffer_segment_size(ndom);
 	max_nr_segments  = c2_net_domain_get_max_buffer_segments(ndom);
 
-	C2_LOG("max_buf_size: %llu max_segment_size: %llu max_nr_seg: %d",
-			(unsigned long long)max_buf_size,
-			(unsigned long long)max_segment_size,
-			max_nr_segments);
+	C2_LOG(C2_DEBUG,
+		"max_buf_size: %llu max_segment_size: %llu max_nr_seg: %d",
+		(unsigned long long)max_buf_size,
+		(unsigned long long)max_segment_size, max_nr_segments);
 
 	C2_ASSERT(buf_size <= max_buf_size);
 
 	/* encoding routine requires buf_size to be 8 byte aligned */
 	buf_size = c2_align(buf_size, 8);
-	C2_LOG("bufsize: 0x%llx", (unsigned long long)buf_size);
+	C2_LOG(C2_DEBUG, "bufsize: 0x%llx", (unsigned long long)buf_size);
 
 	if (buf_size <= max_segment_size) {
 		segment_size = buf_size;
@@ -333,8 +327,7 @@ static int rpc_buffer_submit(struct rpc_buffer *rpcbuf)
 	machine = rpc_buffer__rmachine(rpcbuf);
 	rc = c2_net_buffer_add(netbuf, &machine->rm_tm);
 
-	C2_LEAVE("rc: %d", rc);
-	return rc;
+	C2_RETURN(rc);
 }
 
 static void rpc_buffer_fini(struct rpc_buffer *rpcbuf)
@@ -364,6 +357,7 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 	struct c2_net_buffer  *netbuf;
 	struct rpc_buffer     *rpcbuf;
 	struct c2_rpc_machine *machine;
+	struct c2_rpc_stats   *stats;
 	struct c2_rpc_packet  *p;
 
 	C2_ENTRY("ev: %p", ev);
@@ -380,11 +374,18 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 	machine = rpc_buffer__rmachine(rpcbuf);
 	c2_rpc_machine_lock(machine);
 
+	stats = &machine->rm_stats;
 	p = rpcbuf->rb_packet;
 	p->rp_status = ev->nbe_status;
 
 	rpc_buffer_fini(rpcbuf);
 	c2_free(rpcbuf);
+
+	if(p->rp_status == 0) {
+		stats->rs_nr_sent_packets++;
+		stats->rs_nr_sent_bytes += p->rp_size;
+	} else
+		stats->rs_nr_failed_packets++;
 
 	c2_rpc_packet_traverse_items(p, item_done, ev->nbe_status);
 	c2_rpc_frm_packet_done(p);
@@ -398,15 +399,19 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 
 static void item_done(struct c2_rpc_item *item, unsigned long rc)
 {
+	struct c2_rpc_machine *machine;
+
 	C2_ENTRY("item: %p rc: %lu", item, rc);
 	C2_PRE(item != NULL && item->ri_ops != NULL);
 
+	machine = item->ri_session->s_conn->c_rpc_machine;
 	item->ri_error = rc;
 	if (item->ri_ops->rio_sent != NULL)
 		item->ri_ops->rio_sent(item);
 
 	if (rc == 0) {
 		c2_rpc_item_change_state(item, C2_RPC_ITEM_SENT);
+		machine->rm_stats.rs_nr_sent_items++;
 		/*
 		 * request items will automatically move to
 		 * WAITING_FOR_REPLY state.
@@ -422,6 +427,7 @@ static void item_done(struct c2_rpc_item *item, unsigned long rc)
 		}
 	} else {
 		c2_rpc_item_failed(item, (int32_t)rc);
+		machine->rm_stats.rs_nr_failed_items++;
 	}
 	/*
 	 * Request and Reply items take hold on session until

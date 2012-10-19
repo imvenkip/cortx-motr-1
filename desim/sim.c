@@ -28,6 +28,7 @@
 
 #include <execinfo.h>
 
+#include "colibri/magic.h"
 #include "lib/assert.h"
 #include "desim/sim.h"
 
@@ -37,14 +38,14 @@
  */
 
 C2_TL_DESCR_DEFINE(ca, "call-outs", static, struct sim_callout,
-		   sc_linkage, sc_magic, 0xADDED0FF1C1A1E5E,
-		   0xEFFACEAB1E1ADD1E);
+		   sc_linkage, sc_magic, C2_DESIM_SIM_CALLOUT_MAGIC,
+		   C2_DESIM_SIM_CALLOUT_HEAD_MAGIC);
 C2_TL_DEFINE(ca, static, struct sim_callout);
 
-C2_TL_DESCR_DEFINE(thr, "threads", static, struct sim_thread,
-		   st_block, st_magic, 0x10ADEDC0110CA11A,
-		   0xCEA5E1E551CEFA11);
-C2_TL_DEFINE(thr, static, struct sim_thread);
+C2_TL_DESCR_DEFINE(sim_thr, "threads", static, struct sim_thread,
+		   st_block, st_magic, C2_DESIM_SIM_THREAD_MAGIC,
+		   C2_DESIM_SIM_THREAD_HEAD_MAGIC);
+C2_TL_DEFINE(sim_thr, static, struct sim_thread);
 
 extern int vasprintf(char **strp, const char *fmt, va_list ap);
 
@@ -318,7 +319,7 @@ void sim_thread_init(struct sim *state, struct sim_thread *thread,
 	thread->st_ctx.uc_stack.ss_sp    = thread->st_stack = valloc(stacksize);
 	thread->st_ctx.uc_stack.ss_size  = thread->st_size = stacksize;
 	thread->st_ctx.uc_stack.ss_flags = 0;
-	thr_tlink_init(thread);
+	sim_thr_tlink_init(thread);
 	if (thread->st_stack == NULL)
 		err(EX_TEMPFAIL, "malloc(%d) of a stack", stacksize);
 	makecontext(&thread->st_ctx, (void (*)())sim_trampoline,
@@ -337,7 +338,7 @@ void sim_thread_fini(struct sim_thread *thread)
 {
 	C2_PRE(sim_thread_current() != thread);
 	C2_PRE(!ca_tlink_is_in(&thread->st_wake));
-	thr_tlink_fini(thread);
+	sim_thr_tlink_fini(thread);
 	if (thread->st_stack != NULL)
 		sim_free(thread->st_stack);
 }
@@ -387,7 +388,7 @@ void sim_sleep(struct sim_thread *thread, sim_time_t nap)
  */
 void sim_chan_init(struct sim_chan *chan, char *format, ...)
 {
-	thr_tlist_init(&chan->ch_threads);
+	sim_thr_tlist_init(&chan->ch_threads);
 	cnt_init(&chan->ch_cnt_sleep, NULL, "chan#%p", chan);
 	if (format != NULL) {
 		va_list varg;
@@ -402,7 +403,7 @@ void sim_chan_init(struct sim_chan *chan, char *format, ...)
  */
 void sim_chan_fini(struct sim_chan *chan)
 {
-	thr_tlist_fini(&chan->ch_threads);
+	sim_thr_tlist_fini(&chan->ch_threads);
 	cnt_fini(&chan->ch_cnt_sleep);
 }
 
@@ -414,7 +415,7 @@ void sim_chan_fini(struct sim_chan *chan)
 void sim_chan_wait(struct sim_chan *chan, struct sim_thread *thread)
 {
 	C2_ASSERT(sim_current == thread);
-	thr_tlist_add_tail(&chan->ch_threads, thread);
+	sim_thr_tlist_add_tail(&chan->ch_threads, thread);
 	/*
 	 * The simplest way to measure the time threads are blocked on a channel
 	 * is to modify sim_chan::ch_cmt_sleep in this function, right after
@@ -439,8 +440,8 @@ static void sim_chan_wake_head(struct sim_chan *chan)
 {
 	struct sim_thread *t;
 
-	t = thr_tlist_head(&chan->ch_threads);
-	thr_tlist_del(t);
+	t = sim_thr_tlist_head(&chan->ch_threads);
+	sim_thr_tlist_del(t);
 	cnt_mod(&chan->ch_cnt_sleep, t->st_sim->ss_bolt - t->st_blocked);
 	sim_wakeup_post(t->st_sim, t, 0);
 }
@@ -450,7 +451,7 @@ static void sim_chan_wake_head(struct sim_chan *chan)
  */
 void sim_chan_signal(struct sim_chan *chan)
 {
-	if (!thr_tlist_is_empty(&chan->ch_threads))
+	if (!sim_thr_tlist_is_empty(&chan->ch_threads))
 		sim_chan_wake_head(chan);
 }
 
@@ -459,7 +460,7 @@ void sim_chan_signal(struct sim_chan *chan)
  */
 void sim_chan_broadcast(struct sim_chan *chan)
 {
-	while (!thr_tlist_is_empty(&chan->ch_threads))
+	while (!sim_thr_tlist_is_empty(&chan->ch_threads))
 		sim_chan_wake_head(chan);
 }
 

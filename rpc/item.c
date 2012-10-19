@@ -31,6 +31,8 @@
 #include "rpc/rpc_onwire.h"       /* ITEM_ONWIRE_HEADER_SIZE */
 #include "rpc/packet.h"           /* packet_item_tlink_init() */
 #include "rpc/session_internal.h" /* c2_rpc_session_item_timedout() */
+#include "rpc/rpc_onwire_xc.h"    /* c2_rpc_onwire_slot_ref_xc */
+#include "colibri/magic.h"
 
 /**
    @addtogroup rpc_layer_core
@@ -42,24 +44,24 @@ static int item_entered_in_sent_state(struct c2_sm *mach);
 static int item_entered_in_timedout_state(struct c2_sm *mach);
 static int item_entered_in_failed_state(struct c2_sm *mach);
 
-C2_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", , struct c2_rpc_item, ri_field,
-	           ri_link_magic, C2_RPC_ITEM_FIELD_MAGIC,
+C2_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", /* global */,
+		   struct c2_rpc_item, ri_field,
+	           ri_magic, C2_RPC_ITEM_MAGIC,
 		   C2_RPC_ITEM_HEAD_MAGIC);
 
-C2_TL_DEFINE(rpcitem, , struct c2_rpc_item);
-
-enum {
-	/* Hex ASCII value of "rit_link" */
-	RPC_ITEM_TYPE_LINK_MAGIC = 0x7269745f6c696e6b,
-	/* Hex ASCII value of "rit_head" */
-	RPC_ITEM_TYPE_HEAD_MAGIC = 0x7269745f68656164,
-};
+C2_TL_DEFINE(rpcitem, /* global */, struct c2_rpc_item);
 
 C2_TL_DESCR_DEFINE(rit, "rpc_item_type_descr", static, struct c2_rpc_item_type,
-		   rit_linkage,	rit_magic, RPC_ITEM_TYPE_LINK_MAGIC,
-		   RPC_ITEM_TYPE_HEAD_MAGIC);
+		   rit_linkage,	rit_magic, C2_RPC_ITEM_TYPE_MAGIC,
+		   C2_RPC_ITEM_TYPE_HEAD_MAGIC);
 
 C2_TL_DEFINE(rit, static, struct c2_rpc_item_type);
+
+static const struct c2_rpc_onwire_slot_ref invalid_slot_ref = {
+	.osr_slot_id    = SLOT_ID_INVALID,
+	.osr_sender_id  = SENDER_ID_INVALID,
+	.osr_session_id = SESSION_ID_INVALID,
+};
 
 /** Global rpc item types list. */
 static struct c2_tl        rpc_item_types_list;
@@ -80,14 +82,19 @@ static bool opcode_is_dup(uint32_t opcode)
 
 int c2_rpc_base_init(void)
 {
+	C2_ENTRY();
+
 	c2_rwlock_init(&rpc_item_types_lock);
 	rit_tlist_init(&rpc_item_types_list);
-	return 0;
+
+	C2_RETURN(0);
 }
 
 void c2_rpc_base_fini(void)
 {
 	struct c2_rpc_item_type		*item_type;
+
+	C2_ENTRY();
 
 	c2_rwlock_write_lock(&rpc_item_types_lock);
 	c2_tl_for(rit, &rpc_item_types_list, item_type) {
@@ -96,11 +103,15 @@ void c2_rpc_base_fini(void)
 	rit_tlist_fini(&rpc_item_types_list);
 	c2_rwlock_write_unlock(&rpc_item_types_lock);
 	c2_rwlock_fini(&rpc_item_types_lock);
+
+	C2_LEAVE();
 }
 
 int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
 {
 
+	C2_ENTRY("item_type: %p, item_opcode: %u", item_type,
+		 item_type->rit_opcode);
 	C2_PRE(item_type != NULL);
 	C2_PRE(!opcode_is_dup(item_type->rit_opcode));
 
@@ -108,22 +119,27 @@ int c2_rpc_item_type_register(struct c2_rpc_item_type *item_type)
 	rit_tlink_init_at(item_type, &rpc_item_types_list);
 	c2_rwlock_write_unlock(&rpc_item_types_lock);
 
-	return 0;
+	C2_RETURN(0);
 }
 
 void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type)
 {
+	C2_ENTRY("item_type: %p", item_type);
 	C2_PRE(item_type != NULL);
 
 	c2_rwlock_write_lock(&rpc_item_types_lock);
 	rit_tlink_del_fini(item_type);
 	item_type->rit_magic = 0;
 	c2_rwlock_write_unlock(&rpc_item_types_lock);
+
+	C2_LEAVE();
 }
 
 struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 {
 	struct c2_rpc_item_type *item_type;
+
+	C2_ENTRY("opcode: %u", opcode);
 
 	c2_rwlock_read_lock(&rpc_item_types_lock);
 	c2_tl_for(rit, &rpc_item_types_list, item_type) {
@@ -134,6 +150,7 @@ struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode)
 	c2_rwlock_read_unlock(&rpc_item_types_lock);
 
 	C2_POST(ergo(item_type != NULL, item_type->rit_opcode == opcode));
+	C2_LEAVE("item_type: %p", item_type);
 	return item_type;
 }
 
@@ -241,7 +258,7 @@ bool c2_rpc_item_invariant(const struct c2_rpc_item *item)
 	oneway = c2_rpc_item_is_oneway(item);
 	bound  = c2_rpc_item_is_bound(item);
 
-	return  item->ri_link_magic == C2_RPC_ITEM_FIELD_MAGIC &&
+	return  item->ri_magic == C2_RPC_ITEM_MAGIC &&
 		item->ri_prio >= C2_RPC_ITEM_PRIO_MIN &&
 		item->ri_prio <= C2_RPC_ITEM_PRIO_MAX &&
 		item->ri_stage >= RPC_ITEM_STAGE_PAST_COMMITTED &&
@@ -306,22 +323,20 @@ void c2_rpc_item_init(struct c2_rpc_item            *item,
 {
 	struct c2_rpc_slot_ref	*sref;
 
+	C2_ENTRY("item: %p", item);
 	C2_PRE(item != NULL && itype != NULL);
 
 	C2_SET0(item);
 
-	item->ri_link_magic = C2_RPC_ITEM_FIELD_MAGIC;
 	item->ri_type       = itype;
 	item->ri_op_timeout = C2_TIME_NEVER;
+	item->ri_magic      = C2_RPC_ITEM_MAGIC;
 
 	sref = &item->ri_slot_refs[0];
 
-	sref->sr_slot_id    = SLOT_ID_INVALID;
-	sref->sr_sender_id  = SENDER_ID_INVALID;
-	sref->sr_session_id = SESSION_ID_INVALID;
+	sref->sr_ow = invalid_slot_ref;
 
-	c2_list_link_init(&sref->sr_link);
-	c2_list_link_init(&sref->sr_ready_link);
+	slot_item_tlink_init(item);
 
         c2_list_link_init(&item->ri_unbound_link);
 
@@ -329,41 +344,57 @@ void c2_rpc_item_init(struct c2_rpc_item            *item,
         rpcitem_tlink_init(item);
 	rpcitem_tlist_init(&item->ri_compound_items);
 	/* item->ri_sm will be initialised when the item is posted */
+	C2_LEAVE();
 }
 C2_EXPORTED(c2_rpc_item_init);
 
-static bool item_is_dummy(const struct c2_rpc_item *item)
+static bool item_is_dummy(struct c2_rpc_item *item)
 {
-	return item->ri_slot_refs[0].sr_verno.vn_lsn == C2_LSN_DUMMY_ITEM &&
-	       item->ri_slot_refs[0].sr_verno.vn_vc == 0;
+	struct c2_verno *v = item_verno(item, 0);
+	return v->vn_lsn == C2_LSN_DUMMY_ITEM && v->vn_vc == 0;
 }
 
 void c2_rpc_item_fini(struct c2_rpc_item *item)
 {
-	struct c2_rpc_slot_ref	*sref;
+	struct c2_rpc_slot_ref *sref = &item->ri_slot_refs[0];
 
+	C2_ENTRY("item: %p", item);
 	/*
 	 * c2_rpc_item_free() must have already finalised item->ri_sm
 	 * using c2_rpc_item_sm_fini().
 	 */
 	C2_PRE(item->ri_sm.sm_state == C2_RPC_ITEM_UNINITIALISED);
 
-	sref = &item->ri_slot_refs[0];
-	sref->sr_slot_id = SLOT_ID_INVALID;
-	c2_list_link_fini(&sref->sr_link);
-	c2_list_link_fini(&sref->sr_ready_link);
-
-	sref->sr_sender_id = SENDER_ID_INVALID;
-	sref->sr_session_id = SESSION_ID_INVALID;
-
+	sref->sr_ow = invalid_slot_ref;
+	slot_item_tlink_fini(item);
         c2_list_link_fini(&item->ri_unbound_link);
-
 	packet_item_tlink_fini(item);
 	rpcitem_tlink_fini(item);
 	rpcitem_tlist_fini(&item->ri_compound_items);
-
+	C2_LEAVE();
 }
 C2_EXPORTED(c2_rpc_item_fini);
+
+#define ITEM_XCODE_OBJ(ptr)     C2_XCODE_OBJ(c2_rpc_onwire_slot_ref_xc, ptr)
+#define SLOT_REF_XCODE_OBJ(ptr) C2_XCODE_OBJ(c2_rpc_item_onwire_header_xc, ptr)
+
+c2_bcount_t c2_rpc_item_onwire_header_size(void)
+{
+	struct c2_rpc_item_onwire_header ioh;
+	struct c2_rpc_onwire_slot_ref    sr;
+	struct c2_xcode_ctx              head;
+	struct c2_xcode_ctx              slot_ref;
+	static c2_bcount_t               item_header_size;
+
+	if (item_header_size == 0) {
+		c2_xcode_ctx_init(&head, &ITEM_XCODE_OBJ(&ioh));
+		c2_xcode_ctx_init(&slot_ref, &SLOT_REF_XCODE_OBJ(&sr));
+		item_header_size = c2_xcode_length(&head) +
+					c2_xcode_length(&slot_ref);
+	}
+
+	return item_header_size;
+}
 
 c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item)
 {
@@ -372,7 +403,7 @@ c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item)
 	       item->ri_type->rit_ops->rito_payload_size != NULL);
 
 	return  item->ri_type->rit_ops->rito_payload_size(item) +
-		ITEM_ONWIRE_HEADER_SIZE;
+		c2_rpc_item_onwire_header_size();
 }
 
 void c2_rpc_item_free(struct c2_rpc_item *item)
@@ -434,7 +465,7 @@ void c2_rpc_item_set_stage(struct c2_rpc_item     *item,
 
 	item_was_active = item_is_active(item);
 	C2_ASSERT(ergo(item_was_active,
-		       session->s_state == C2_RPC_SESSION_BUSY));
+		       session_state(session) == C2_RPC_SESSION_BUSY));
 	item->ri_stage = stage;
 	c2_rpc_session_mod_nr_active_items(session,
 					item_is_active(item) - item_was_active);
@@ -452,7 +483,7 @@ void c2_rpc_item_sm_init(struct c2_rpc_item *item, struct c2_sm_group *grp,
 	conf = dir == C2_RPC_ITEM_OUTGOING ? &outgoing_item_sm_conf :
 					     &incoming_item_sm_conf;
 
-	C2_LOG("%p UNINTIALISED -> INITIALISED", item);
+	C2_LOG(C2_DEBUG, "%p UNINTIALISED -> INITIALISED", item);
 	c2_sm_init(&item->ri_sm, conf, C2_RPC_ITEM_INITIALISED,
 		   grp, NULL /* addb ctx */);
 }
@@ -473,7 +504,7 @@ void c2_rpc_item_change_state(struct c2_rpc_item     *item,
 {
 	C2_PRE(item != NULL);
 
-	C2_LOG("%p[%s/%u] %s -> %s", item,
+	C2_LOG(C2_DEBUG, "%p[%s/%u] %s -> %s", item,
 	       c2_rpc_item_is_request(item) ? "REQUEST" : "REPLY",
 	       item->ri_type->rit_opcode,
 	       item_state_name(item),
@@ -534,7 +565,7 @@ static int item_entered_in_sent_state(struct c2_sm *mach)
 
 	item = sm_to_item(mach);
 	if (c2_rpc_item_is_request(item)) {
-		C2_LOG("%p [REQUEST/%u] SENT -> WAITING_FOR_REPLY",
+		C2_LOG(C2_DEBUG, "%p [REQUEST/%u] SENT -> WAITING_FOR_REPLY",
 		       item, item->ri_type->rit_opcode);
 		return C2_RPC_ITEM_WAITING_FOR_REPLY;
 	} else {
@@ -547,7 +578,8 @@ static int item_entered_in_timedout_state(struct c2_sm *mach)
 	struct c2_rpc_item *item;
 
 	item = sm_to_item(mach);
-	C2_LOG("%p [%u] -> TIMEDOUT", item, item->ri_type->rit_opcode);
+	C2_LOG(C2_DEBUG, "%p [%u] -> TIMEDOUT", item,
+	       item->ri_type->rit_opcode);
 	item->ri_error = -ETIMEDOUT;
 	c2_sm_timeout_fini(&item->ri_timeout);
 
@@ -559,7 +591,8 @@ static int item_entered_in_failed_state(struct c2_sm *mach)
 	struct c2_rpc_item *item;
 
 	item = sm_to_item(mach);
-	C2_LOG("%p [%u] FAILED rc: %d\n", item, item->ri_type->rit_opcode,
+	C2_LOG(C2_DEBUG, "%p [%u] FAILED rc: %d\n", item,
+	       item->ri_type->rit_opcode,
 	       item->ri_error);
 
 	C2_PRE(item->ri_error != 0);
@@ -578,7 +611,7 @@ static int item_entered_in_failed_state(struct c2_sm *mach)
 int c2_rpc_item_start_timer(struct c2_rpc_item *item)
 {
 	if (item->ri_op_timeout != C2_TIME_NEVER) {
-		C2_LOG("%p Starting timer", item);
+		C2_LOG(C2_DEBUG, "%p Starting timer", item);
 		return c2_sm_timeout(&item->ri_sm, &item->ri_timeout,
 				     item->ri_op_timeout, C2_RPC_ITEM_TIMEDOUT);
 	}

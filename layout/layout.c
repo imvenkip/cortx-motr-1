@@ -66,6 +66,7 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_LAYOUT
 #include "lib/trace.h"
 
+#include "colibri/magic.h"
 #include "layout/layout_internal.h"
 #include "layout/layout_db.h"
 #include "layout/layout.h"
@@ -74,17 +75,10 @@ extern struct c2_layout_type c2_pdclust_layout_type;
 extern struct c2_layout_enum_type c2_list_enum_type;
 extern struct c2_layout_enum_type c2_linear_enum_type;
 
-enum {
-	LAYOUT_MAGIC           = 0x4C41594F55544D41, /* LAYOUTMA */
-	LAYOUT_ENUM_MAGIC      = 0x454E554D4D414749, /* ENUMMAGI */
-	LAYOUT_LIST_HEAD_MAGIC = 0x4C484541444D4147, /* LHEADMAG */
-	LAYOUT_INSTANCE_MAGIC  = 0x4C494E53544D4147  /* LINSTMAG */
-};
-
 static const struct c2_bob_type layout_bob = {
 	.bt_name         = "layout",
 	.bt_magix_offset = offsetof(struct c2_layout, l_magic),
-	.bt_magix        = LAYOUT_MAGIC,
+	.bt_magix        = C2_LAYOUT_MAGIC,
 	.bt_check        = NULL
 };
 C2_BOB_DEFINE(static, &layout_bob, c2_layout);
@@ -92,7 +86,7 @@ C2_BOB_DEFINE(static, &layout_bob, c2_layout);
 static const struct c2_bob_type enum_bob = {
 	.bt_name         = "enum",
 	.bt_magix_offset = offsetof(struct c2_layout_enum, le_magic),
-	.bt_magix        = LAYOUT_ENUM_MAGIC,
+	.bt_magix        = C2_LAYOUT_ENUM_MAGIC,
 	.bt_check        = NULL
 };
 C2_BOB_DEFINE(static, &enum_bob, c2_layout_enum);
@@ -100,7 +94,7 @@ C2_BOB_DEFINE(static, &enum_bob, c2_layout_enum);
 static const struct c2_bob_type layout_instance_bob = {
 	.bt_name         = "layout_instance",
 	.bt_magix_offset = offsetof(struct c2_layout_instance, li_magic),
-	.bt_magix        = LAYOUT_INSTANCE_MAGIC,
+	.bt_magix        = C2_LAYOUT_INSTANCE_MAGIC,
 	.bt_check        = NULL
 };
 C2_BOB_DEFINE(static, &layout_instance_bob, c2_layout_instance);
@@ -135,7 +129,7 @@ C2_ADDB_EV_DEFINE(layout_delete_fail, "layout_delete_fail",
 
 C2_TL_DESCR_DEFINE(layout, "layout-list", static,
 		   struct c2_layout, l_list_linkage, l_magic,
-		   LAYOUT_MAGIC, LAYOUT_LIST_HEAD_MAGIC);
+		   C2_LAYOUT_MAGIC, C2_LAYOUT_HEAD_MAGIC);
 C2_TL_DEFINE(layout, static, struct c2_layout);
 
 bool c2_layout__domain_invariant(const struct c2_layout_domain *dom)
@@ -160,7 +154,7 @@ bool c2_layout__allocated_invariant(const struct c2_layout *l)
 {
 	return
 		layout_invariant_internal(l) &&
-		l->l_ref == 0;
+		l->l_ref == 1;
 }
 
 bool c2_layout__invariant(const struct c2_layout *l)
@@ -326,7 +320,7 @@ void c2_layout__init(struct c2_layout *l,
 
 	l->l_id   = lid;
 	l->l_dom  = dom;
-	l->l_ref  = 0;
+	l->l_ref  = 1;
 	l->l_ops  = ops;
 	l->l_type = lt;
 
@@ -506,6 +500,15 @@ void c2_layout__enum_fini(struct c2_layout_enum *le)
 	C2_LEAVE();
 }
 
+void c2_layout_enum_fini(struct c2_layout_enum *le)
+{
+	C2_PRE(le != NULL);
+	C2_PRE(le->le_ops != NULL);
+	C2_PRE(le->le_ops->leo_fini != NULL);
+
+	le->le_ops->leo_fini(le);
+}
+
 /**
  * Compare layouts table keys.
  * This is a 3WAY comparison.
@@ -658,7 +661,7 @@ void c2_layout__log(const char *fn_name,
 	addb_add(ctx, ev, err_msg, rc);
 
 	/* Trace record logging. */
-	C2_LOG("%s(): lid %llu, %s, rc %d",
+	C2_LOG(C2_ERROR, "%s(): lid %llu, %s, rc %d",
 	       (const char *)fn_name, (unsigned long long)lid,
 	       (const char *)err_msg, rc);
 }
@@ -894,7 +897,7 @@ struct c2_layout *c2_layout_find(struct c2_layout_domain *dom, uint64_t lid)
 	c2_mutex_unlock(&dom->ld_lock);
 
 	C2_POST(ergo(l != NULL, c2_layout__invariant(l) &&
-				l->l_ref > 0));
+				l->l_ref > 1));
 	C2_LEAVE("lid %llu, l_pointer %p", (unsigned long long)lid, l);
 	return l;
 }
@@ -1043,8 +1046,8 @@ struct c2_striped_layout *c2_layout_to_striped(const struct c2_layout *l)
 	return stl;
 }
 
-struct c2_layout_enum
-*c2_striped_layout_to_enum(const struct c2_striped_layout *stl)
+struct c2_layout_enum *
+c2_striped_layout_to_enum(const struct c2_striped_layout *stl)
 {
 	C2_PRE(c2_layout__striped_invariant(stl));
 	return stl->sl_enum;
@@ -1091,6 +1094,35 @@ void c2_layout__instance_fini(struct c2_layout_instance *li)
 	C2_PRE(c2_layout__instance_invariant(li));
 	c2_layout_instance_bob_fini(li);
 }
+
+int c2_layout_instance_build(struct c2_layout           *l,
+			     const struct c2_fid        *fid,
+			     struct c2_layout_instance **out)
+{
+	C2_PRE(c2_layout__invariant(l));
+	C2_PRE(l->l_ops->lo_instance_build != NULL);
+
+	return l->l_ops->lo_instance_build(l, fid, out);
+}
+
+void c2_layout_instance_fini(struct c2_layout_instance *li)
+{
+	C2_PRE(c2_layout__instance_invariant(li));
+	C2_PRE(li->li_ops->lio_fini != NULL);
+
+	/* For example, see pdclust_instance_fini() in layout/pdclust.c */
+	li->li_ops->lio_fini(li);
+}
+
+struct c2_layout_enum *
+c2_layout_instance_to_enum(const struct c2_layout_instance *li)
+{
+	C2_PRE(c2_layout__instance_invariant(li));
+	C2_PRE(li->li_ops->lio_to_enum != NULL);
+
+	return li->li_ops->lio_to_enum(li);
+}
+
 /** @} end group layout */
 
 /*

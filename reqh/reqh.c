@@ -25,6 +25,7 @@
 #include "lib/misc.h"
 #include "lib/atomic.h"
 
+#include "colibri/magic.h"
 #include "stob/stob.h"
 #include "net/net.h"
 #include "fop/fop.h"
@@ -52,15 +53,12 @@ static const struct c2_addb_ctx_type reqh_addb_ctx_type = {
 	.act_name = "reqh"
 };
 
-enum {
-	REQH_RPC_MACH_HEAD_MAGIX = 0x52455152504D4844 /* REQRPMHD */
-};
-
 /**
    Tlist descriptor for reqh services.
  */
 C2_TL_DESCR_DEFINE(c2_reqh_svc, "reqh service", , struct c2_reqh_service,
-                   rs_linkage, rs_magix, C2_RHS_MAGIX, C2_RHS_MAGIX_HEAD);
+                   rs_linkage, rs_magix,
+		   C2_REQH_SVC_MAGIC, C2_REQH_SVC_HEAD_MAGIC);
 
 C2_TL_DEFINE(c2_reqh_svc, , struct c2_reqh_service);
 
@@ -71,8 +69,8 @@ C2_BOB_DEFINE( , &rqsvc_bob, c2_reqh_service);
    Tlist descriptor for rpc machines.
  */
 C2_TL_DESCR_DEFINE(c2_reqh_rpc_mach, "rpc machines", , struct c2_rpc_machine,
-                   rm_rh_linkage, rm_magix, C2_RPC_MACHINE_MAGIX,
-		   REQH_RPC_MACH_HEAD_MAGIX);
+                   rm_rh_linkage, rm_magix, C2_RPC_MACHINE_MAGIC,
+		   C2_REQH_RPC_MACH_HEAD_MAGIC);
 
 C2_TL_DEFINE(c2_reqh_rpc_mach, , struct c2_rpc_machine);
 
@@ -82,12 +80,13 @@ C2_ADDB_ADD((addb_ctx), &reqh_addb_loc, c2_addb_func_fail, (name), (rc))
 bool c2_reqh_invariant(const struct c2_reqh *reqh)
 {
 	return reqh != NULL && reqh->rh_dbenv != NULL &&
-		reqh->rh_cob_domain != NULL && reqh->rh_fol != NULL &&
+		reqh->rh_mdstore != NULL && reqh->rh_fol != NULL &&
 		c2_fom_domain_invariant(&reqh->rh_fom_dom);
 }
 
 int c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm, struct c2_dbenv *db,
-		 struct c2_cob_domain *cdom, struct c2_fol *fol)
+		 struct c2_mdstore *mdstore, struct c2_fol *fol,
+		 struct c2_local_service *svc)
 {
 	int result;
 
@@ -96,13 +95,14 @@ int c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm, struct c2_dbenv *db,
 	result = c2_fom_domain_init(&reqh->rh_fom_dom);
 	if (result != 0)
 		return result;
+        reqh->rh_dtm = dtm;
+        reqh->rh_dbenv = db;
+        reqh->rh_svc = svc;
+        reqh->rh_mdstore = mdstore;
+        reqh->rh_fol = fol;
+        reqh->rh_shutdown = false;
+        reqh->rh_fom_dom.fd_reqh = reqh;
 
-	reqh->rh_dtm = dtm;
-	reqh->rh_dbenv = db;
-	reqh->rh_cob_domain = cdom;
-	reqh->rh_fol = fol;
-	reqh->rh_shutdown = false;
-	reqh->rh_fom_dom.fd_reqh = reqh;
 	c2_addb_ctx_init(&reqh->rh_addb, &reqh_addb_ctx_type,
 			 &c2_addb_global_ctx);
 	c2_reqh_svc_tlist_init(&reqh->rh_services);
@@ -121,6 +121,7 @@ void c2_reqh_fini(struct c2_reqh *reqh)
         c2_fom_domain_fini(&reqh->rh_fom_dom);
         c2_reqh_svc_tlist_fini(&reqh->rh_services);
         c2_reqh_rpc_mach_tlist_fini(&reqh->rh_rpc_machines);
+	c2_chan_fini(&reqh->rh_sd_signal);
 	c2_rwlock_fini(&reqh->rh_rwlock);
 }
 
@@ -136,8 +137,9 @@ int c2_reqhs_init(void)
 	return 0;
 }
 
-void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
+void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 {
+	struct c2_fop_ctx      *ctx;
 	struct c2_fom	       *fom;
 	int			result;
 	bool                    rsd;
@@ -145,11 +147,23 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 	C2_PRE(reqh != NULL);
 	C2_PRE(fop != NULL);
 
+        C2_ALLOC_PTR(ctx);
+        if (ctx == NULL) {
+		REQH_ADDB_ADD(&reqh->rh_addb, "c2_reqh_fop_handle",
+                              ENOMEM);
+		return;
+        }
 	c2_rwlock_read_lock(&reqh->rh_rwlock);
+
+        ctx->fc_fol  = reqh->rh_fol;
+        ctx->fc_reqh = reqh;
+        ctx->fc_cookie  = cookie;
+
 	rsd = reqh->rh_shutdown;
 	if (rsd) {
 		REQH_ADDB_ADD(&reqh->rh_addb, "c2_reqh_fop_handle",
                               ESHUTDOWN);
+                c2_free(ctx);
 		c2_rwlock_read_unlock(&reqh->rh_rwlock);
 		return;
 	}
@@ -159,10 +173,18 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop)
 	C2_ASSERT(fop->f_type->ft_fom_type.ft_ops->fto_create != NULL);
 
 	result = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, &fom);
-	if (result == 0)
+	if (result == 0) {
+                /*
+                 * This is used by fo_state() function and finalized just
+                 * before fo_fini().
+                 */
+                fom->fo_fop_ctx = ctx;
+
 		c2_fom_queue(fom, reqh);
-	else
+	} else {
+                c2_free(ctx);
 		REQH_ADDB_ADD(&reqh->rh_addb, "c2_reqh_fop_handle", result);
+        }
 
 	c2_rwlock_read_unlock(&reqh->rh_rwlock);
 }
@@ -183,6 +205,13 @@ void c2_reqh_shutdown_wait(struct c2_reqh *reqh)
 
 	c2_clink_del(&clink);
 	c2_clink_fini(&clink);
+}
+
+uint64_t c2_reqh_nr_localities(const struct c2_reqh *reqh)
+{
+	C2_PRE(c2_reqh_invariant(reqh));
+
+	return reqh->rh_fom_dom.fd_localities_nr;
 }
 
 static unsigned keymax = 0;

@@ -147,6 +147,7 @@ void c2_layout__instance_init(struct c2_layout_instance *li,
 			      const struct c2_fid *gfid,
 			      const struct c2_layout_instance_ops *ops);
 void c2_layout__instance_fini(struct c2_layout_instance *li);
+bool c2_layout__instance_invariant(const struct c2_layout_instance *li);
 
 /** @} end group layout */
 

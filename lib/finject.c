@@ -34,7 +34,7 @@
 #include "lib/tlist.h"
 #include "lib/finject.h"
 #include "lib/finject_internal.h"
-
+#include "colibri/magic.h"
 
 enum {
 	FI_STATES_ARRAY_SIZE = 64 * 1024,
@@ -50,14 +50,9 @@ struct fi_dynamic_id {
 	char            *fdi_str;
 };
 
-enum {
-	DYNID_LINK_MAGIC = 0x666964796e69646c,
-	DYNID_HEAD_MAGIC = 0x666964796e696468,
-};
-
 C2_TL_DESCR_DEFINE(fi_dynamic_ids, "finject_dynamic_id", static,
 		   struct fi_dynamic_id, fdi_tlink, fdi_magic,
-		   DYNID_LINK_MAGIC, DYNID_HEAD_MAGIC);
+		   C2_FI_DYNAMIC_ID_MAGIC, C2_FI_DYNAMIC_ID_HEAD_MAGIC);
 C2_TL_DEFINE(fi_dynamic_ids, static, struct fi_dynamic_id);
 
 /**
@@ -120,29 +115,6 @@ static void fi_state_info_init(struct c2_fi_fpoint_state_info *si)
 	C2_SET_ARR0(si->si_data);
 }
 
-/**
- * Extracts a "colibri core" file name from a full-path file name.
- *
- * For example, given the following full-path file name:
- *
- *     /data/colibri/core/build_kernel_modules/lib/ut/finject.c
- *
- * The "colibri core" file name is:
- *
- *     build_kernel_modules/lib/ut/finject.c
- */
-static inline const char *core_file_name(const char *fname)
-{
-	static const char  core[] = "core/";
-	const char        *cfn;
-
-	cfn = strstr(fname, core);
-	if (cfn == NULL)
-		return fname;
-
-	return cfn + strlen(core);
-}
-
 void c2_fi_states_get_state_info(const struct c2_fi_fpoint_state *s,
 				 struct c2_fi_fpoint_state_info *si)
 {
@@ -163,7 +135,7 @@ void c2_fi_states_get_state_info(const struct c2_fi_fpoint_state *s,
 	 */
 	if (fp != NULL) {
 		si->si_module = fp->fp_module;
-		si->si_file = core_file_name(fp->fp_file);
+		si->si_file = c2_short_file_name(fp->fp_file);
 		si->si_line_num = fp->fp_line_num;
 	}
 
