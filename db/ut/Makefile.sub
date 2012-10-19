@@ -1,0 +1,2 @@
+ut_libcolibri_ut_la_SOURCES += db/ut/db.c \
+                               db/ut/emap.c

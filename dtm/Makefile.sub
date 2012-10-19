@@ -1,0 +1,13 @@
+nobase_colibri_include_HEADERS += dtm/dtm.h \
+                                  dtm/verno.h \
+                                  dtm/verno_xc.h
+
+colibri_libcolibri_la_SOURCES  += dtm/dtm.c \
+                                  dtm/verno.c \
+                                  dtm/verno_xc.c
+
+XC_FILES   += dtm/verno_xc.h
+
+CLEANFILES += dtm/verno_xc.h \
+              dtm/verno_xc.c \
+              dtm/verno.gccxml

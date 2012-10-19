@@ -1,4 +1,4 @@
-LNETST_SRCDIR     = @SRCDIR@/net/lnet/st/linux_kernel
+LNETST_SRCDIR     = @top_srcdir@/net/lnet/st/linux_kernel
 LNETST_MOD       := klnetst
 
 local_src        := main.c
@@ -12,7 +12,8 @@ $(LNETST_MOD)-y  := $(all_obj)
 
 dist_src         := Makefile.in lnetping.sh $(local_src)
 
-EXTRA_CFLAGS = -DHAVE_CONFIG_H -iquote @SRCDIR@ @KCFLAGS@
+EXTRA_CFLAGS = -DHAVE_CONFIG_H -iquote @top_srcdir@ @C2_KCPPFLAGS@ @C2_KCFLAGS@ \
+	       @KCFLAGS@
 
 prepare:
 	ln -fs $(link_st) .
@@ -23,4 +24,4 @@ clean distclean:
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` clean
 
 distdir:
-	cp $(dist_src) @top_builddir@/@PACKAGE@-@VERSION@/net/lnet/st/linux_kernel
+	cp $(dist_src) @top_builddir@/@PACKAGE@-@PACKAGE_VERSION@/net/lnet/st/linux_kernel

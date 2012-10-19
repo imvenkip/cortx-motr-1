@@ -1,0 +1,3 @@
+ut_libcolibri_ut_la_SOURCES += layout/ut/layout.c
+
+EXTRA_DIST += layout/ut/ldemo_internal.c

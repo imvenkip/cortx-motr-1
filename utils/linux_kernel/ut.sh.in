@@ -7,11 +7,11 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-. @SRCDIR@/c2t1fs/linux_kernel/st/common.sh
+. @abs_top_srcdir@/c2t1fs/linux_kernel/st/common.sh
 
-MODLIST="@SRCDIR@/build_kernel_modules/kcolibri.ko \
-         @SRCDIR@/build_kernel_modules/c2loop.ko   \
-         @SRCDIR@/utils/linux_kernel/kutc2.ko"
+MODLIST="@abs_top_srcdir@/build_kernel_modules/kcolibri.ko \
+         @abs_top_srcdir@/build_kernel_modules/c2loop.ko   \
+         @abs_top_srcdir@/utils/linux_kernel/kutc2.ko"
 
 log='/var/log/kern'
 if [ ! -e "$log" ]; then
@@ -24,7 +24,7 @@ modload_galois
 # currently, kernel UT runs as part of loading kutc2 module
 modload
 # LNet driver UT requires a user space helper
-@SRCDIR@/net/lnet/ut/lut_helper
+@abs_top_srcdir@/net/lnet/ut/lut_helper
 modunload
 modunload_galois
 

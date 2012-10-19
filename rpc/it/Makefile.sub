@@ -1,0 +1,16 @@
+rpc_it_rpcping_SOURCES  = rpc/it/ping_fop.c \
+                          rpc/it/ping_fom.c \
+                          rpc/it/rpc_ping.c \
+                          rpc/it/ping_fop_ff.c \
+                          rpc/it/ping_fop.h \
+                          rpc/it/ping_fom.h
+
+FF_FILES   += rpc/it/ping_fop_ff.h
+
+EXTRA_DIST += rpc/it/ping_fop.ff \
+              rpc/it/linux_kernel/rpc_ping.h \
+              rpc/it/linux_kernel/rpcping_kernel.c \
+              rpc/it/linux_kernel/rpcload.sh
+
+CLEANFILES += rpc/it/ping_fop_ff.h \
+              rpc/it/ping_fop_ff.c
