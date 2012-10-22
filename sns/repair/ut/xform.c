@@ -23,16 +23,11 @@
 #endif
 
 #include "lib/misc.h"
-#include "lib/processor.h"
-#include "lib/ut.h"
 #include "reqh/reqh.h"
-#include "sns/repair/cp.h"
-#include "sns/repair/ag.h"
 #include "sns/repair/xform.c"
+#include "sns/repair/ut/cp_common.h"
 
 enum {
-	NR = 16,
-	SEG_SIZE = 256,
 	CP_SINGLE = 1,
 	CP_MULTI = 512,
 };
@@ -72,46 +67,6 @@ static uint64_t cp_multi_get(struct c2_cm_aggr_group *ag)
 static const struct c2_cm_aggr_group_ops group_multi_ops = {
         .cago_local_cp_nr = &cp_multi_get,
 };
-
-/* Populates the bufvec with a character value. */
-static void bv_populate(struct c2_bufvec *b, char data)
-{
-	int i;
-
-	C2_UT_ASSERT(b != NULL);
-        C2_UT_ASSERT(c2_bufvec_alloc(b, NR, SEG_SIZE) == 0);
-        C2_UT_ASSERT(b->ov_vec.v_nr == NR);
-        for (i = 0; i < NR; ++i) {
-		C2_UT_ASSERT(b->ov_vec.v_count[i] == SEG_SIZE);
-		C2_UT_ASSERT(b->ov_buf[i] != NULL);
-		memset(b->ov_buf[i], data, SEG_SIZE);
-        }
-}
-
-/* Compares 2 bufvecs and asserts if not equal. */
-static void bv_compare(struct c2_bufvec *b1, struct c2_bufvec *b2)
-{
-	int i;
-
-	C2_UT_ASSERT(b1 != NULL);
-	C2_UT_ASSERT(b2 != NULL);
-        C2_UT_ASSERT(b1->ov_vec.v_nr == NR);
-        C2_UT_ASSERT(b2->ov_vec.v_nr == NR);
-
-        for (i = 0; i < NR; ++i) {
-		C2_UT_ASSERT(b1->ov_vec.v_count[i] == SEG_SIZE);
-		C2_UT_ASSERT(b1->ov_buf[i] != NULL);
-		C2_UT_ASSERT(b2->ov_vec.v_count[i] == SEG_SIZE);
-		C2_UT_ASSERT(b2->ov_buf[i] != NULL);
-		C2_UT_ASSERT(memcmp(b1->ov_buf[i], b2->ov_buf[i],
-				    SEG_SIZE) == 0);
-        }
-}
-
-static inline void bv_free(struct c2_bufvec *b)
-{
-        c2_bufvec_free(b);
-}
 
 static size_t dummy_fom_locality(const struct c2_fom *fom)
 {
@@ -171,24 +126,6 @@ static struct c2_fom_ops multiple_cp_fom_ops = {
         .fo_tick          = dummy_fom_tick,
         .fo_home_locality = dummy_fom_locality
 };
-
-static void cp_prepare(struct c2_cm_cp *cp, struct c2_bufvec *bv,
-		       struct c2_sns_repair_ag *sns_ag,
-		       char data, struct c2_fom_ops *cp_fom_ops)
-{
-	C2_UT_ASSERT(cp != NULL);
-	C2_UT_ASSERT(bv != NULL);
-	C2_UT_ASSERT(sns_ag != NULL);
-
-	bv_populate(bv, data);
-	cp->c_ag = &sns_ag->sag_base;
-	c2_cm_cp_init(cp);
-	cp->c_data = bv;
-	cp->c_fom.fo_ops = cp_fom_ops;
-	cp->c_ops = &c2_sns_repair_cp_ops;
-	/* Required to pass the fom invariant */
-	cp->c_fom.fo_fop = (void *)1;
-}
 
 /*
  * Test to check that single copy packet is treated as passthrough by the
@@ -282,7 +219,7 @@ static void test_bufvec_xor()
 	 * 4 XOR D = p
 	 */
 	bv_populate(&xor, 'p');
-	bufvec_xor(&dst, &src, SEG_SIZE * NR);
+	bufvec_xor(&dst, &src, SEG_SIZE * SEG_NR);
 	bv_compare(&dst, &xor);
 	bv_free(&src);
 	bv_free(&dst);
