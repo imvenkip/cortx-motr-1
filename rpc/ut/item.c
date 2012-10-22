@@ -21,27 +21,14 @@
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
 #include "lib/ut.h"
-#include "lib/memory.h"
-#include "lib/processor.h"
-#include "lib/trace.h"
 #include "lib/finject.h"
-#include "lib/time.h"
-#include "addb/addb.h"
-#include "fop/fop.h"
-#include "reqh/reqh.h"
-
-#include "rpc/session.h"
-#include "rpc/it/ping_fop.h"
-#include "rpc/it/ping_fop_ff.h"
+#include "fop/fop.h"               /* c2_fop_alloc */
 #include "rpc/rpclib.h"
-#include "net/lnet/lnet.h"
-
-#include "ut/rpc.h"
-#include "ut/cs_service.h"
-#include "ut/cs_fop_foms.h"
-#include "ut/cs_test_fops_ff.h"
-
-#include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx */
+#include "net/lnet/lnet.h"         /* c2_net_lnet_xprt */
+#include "ut/rpc.h"                /* c2_rpc_client_[init|fini] */
+#include "ut/cs_fop_foms.h"        /* cs_ds2_req_fop_fopt */
+#include "ut/cs_test_fops_ff.h"    /* cs_ds2_req_fop */
+#include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx. NOTE: This is .c file */
 
 static struct c2_fop *fop_alloc(void)
 {
@@ -95,16 +82,17 @@ static bool chk_state(const struct c2_rpc_item *item,
 	return item->ri_sm.sm_state == state;
 }
 
-static void test_transitions(void)
-{
-	struct c2_rpc_machine *machine;
-	struct c2_rpc_stats    saved;
-	struct c2_rpc_stats    stats;
-	struct c2_rpc_item    *item;
-	struct c2_fop         *fop;
-	int                    rc;
+struct c2_rpc_machine *machine;
+struct c2_rpc_stats    saved;
+struct c2_rpc_stats    stats;
+struct c2_rpc_item    *item;
+struct c2_fop         *fop;
 
 #define IS_INCR_BY_1(p) (saved.rs_ ## p + 1 == stats.rs_ ## p)
+static void test_simple_transitions(void)
+{
+	int rc;
+	/* TEST1: Simple request and reply sequence */
 	machine = cctx.rcx_session.s_conn->c_rpc_machine;
 	C2_LOG(C2_DEBUG, "TEST:1:START");
 	c2_rpc_machine_get_stats(machine, &saved, false /* clear stats? */);
@@ -122,13 +110,14 @@ static void test_transitions(void)
 	C2_UT_ASSERT(IS_INCR_BY_1(nr_sent_items) &&
 		     IS_INCR_BY_1(nr_rcvd_items));
 	C2_LOG(C2_DEBUG, "TEST:1:END");
-	/* A reference to item and item->ri_reply is maintained in slot's
-	   item list.
-	   Objects pointed by item and item->ri_reply will be freed during
-	   c2_rpc_session_fini().
-	   Hence we can reuse 'fop*' and 'item*' variables.
-	 */
+}
 
+static void test_timeout(void)
+{
+	int rc;
+	/* Test2: Request item times out before reply reaches to sender.
+		  Delayed reply is then dropped.
+	 */
 	C2_LOG(C2_DEBUG, "TEST:2:START");
 	fop = fop_alloc();
 	item = &fop->f_item;
@@ -154,7 +143,8 @@ const struct c2_test_suite item_ut= {
 	.ts_init = ts_item_init,
 	.ts_fini = ts_item_fini,
 	.ts_tests = {
-		{ "item-transitions", test_transitions},
+		{ "simple-transitions", test_simple_transitions },
+		{ "timeout-transitions", test_timeout },
 		{ NULL, NULL },
 	}
 };
