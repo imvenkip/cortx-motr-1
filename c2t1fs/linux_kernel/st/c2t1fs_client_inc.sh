@@ -242,7 +242,8 @@ none $COLIBRI_C2T1FS_MOUNT_DIR"
 	echo $cmd && $cmd || return 1
 	cmd="rmmod c2loop"
 	echo $cmd && $cmd || return 1
-	rm -r $COLIBRI_C2T1FS_MOUNT_DIR $local_file1 $local_file2
+	rm $local_file1 $local_file2
+	rmdir $COLIBRI_C2T1FS_MOUNT_DIR $ext4fs_mpoint
 	echo "Successfully passed c2loop ST tests."
 	return 0
 }
