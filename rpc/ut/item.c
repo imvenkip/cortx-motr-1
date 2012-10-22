@@ -89,11 +89,6 @@ static int ts_item_fini(void)
 	return rc;
 }
 
-/* static */const char *item_state_name(const struct c2_rpc_item *item)
-{
-	return item->ri_sm.sm_conf->scf_state[item->ri_sm.sm_state].sd_name;
-}
-
 static bool chk_state(const struct c2_rpc_item *item,
 		      enum c2_rpc_item_state    state)
 {
@@ -149,7 +144,8 @@ static void test_transitions(void)
 	c2_nanosleep(c2_time(2, 0), NULL);
 	c2_rpc_machine_get_stats(machine, &stats, true);
 	C2_UT_ASSERT(IS_INCR_BY_1(nr_dropped_items) &&
-		     IS_INCR_BY_1(nr_timedout_items));
+		     IS_INCR_BY_1(nr_timedout_items) &&
+		     IS_INCR_BY_1(nr_failed_items));
 	C2_LOG(C2_DEBUG, "TEST:2:END");
 }
 

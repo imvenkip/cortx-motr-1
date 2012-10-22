@@ -25,13 +25,15 @@
 #include "lib/errno.h"
 #include "lib/arith.h"
 #include "lib/bob.h"
+
 #include "colibri/magic.h"
+#include "net/net.h"
+
 #include "rpc/formation2.h"
 #include "rpc/packet.h"
 #include "rpc/rpc2.h"
 #include "rpc/rpc_machine.h"
 #include "rpc/item.h"
-#include "net/net.h"
 #include "rpc/session_internal.h"
 
 static bool packet_ready(struct c2_rpc_packet *p);
@@ -372,6 +374,7 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 			&rpc_buffer_bob_type);
 
 	machine = rpc_buffer__rmachine(rpcbuf);
+
 	c2_rpc_machine_lock(machine);
 
 	stats = &machine->rm_stats;
@@ -381,7 +384,7 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 	rpc_buffer_fini(rpcbuf);
 	c2_free(rpcbuf);
 
-	if(p->rp_status == 0) {
+	if (p->rp_status == 0) {
 		stats->rs_nr_sent_packets++;
 		stats->rs_nr_sent_bytes += p->rp_size;
 	} else

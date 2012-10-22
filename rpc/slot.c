@@ -656,6 +656,8 @@ int __slot_reply_received(struct c2_rpc_slot *slot,
 			 * Buffer sent callback is still pending;
 			 * postpone reply processing.
 			 */
+			C2_LOG(C2_DEBUG, "req: %p rply: %p rply postponed",
+			       req, reply);
 		} else {
 			C2_ASSERT(false);
 		}
