@@ -680,10 +680,14 @@ static void item_received(struct c2_rpc_item      *item,
 	c2_rpc_machine_lock(machine);
 	c2_rpc_item_sm_init(item, &machine->rm_sm_grp, C2_RPC_ITEM_INCOMING);
 	rc = c2_rpc_item_received(item, machine);
-	if (rc == 0)
+	if (rc == 0) {
 		c2_rpc_item_change_state(item, C2_RPC_ITEM_ACCEPTED);
-	else
+	} else {
+		C2_LOG(C2_DEBUG, "%p [%s/%d] dropped", item, item_kind(item),
+		       item->ri_type->rit_opcode);
 		c2_rpc_item_free(item);
+		machine->rm_stats.rs_nr_dropped_items++;
+	}
 	c2_rpc_machine_unlock(machine);
 
 	C2_LEAVE();

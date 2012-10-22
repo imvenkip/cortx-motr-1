@@ -333,13 +333,10 @@ void c2_rpc_item_init(struct c2_rpc_item            *item,
 	item->ri_magic      = C2_RPC_ITEM_MAGIC;
 
 	sref = &item->ri_slot_refs[0];
-
 	sref->sr_ow = invalid_slot_ref;
 
 	slot_item_tlink_init(item);
-
         c2_list_link_init(&item->ri_unbound_link);
-
 	packet_item_tlink_init(item);
         rpcitem_tlink_init(item);
 	rpcitem_tlist_init(&item->ri_compound_items);
@@ -505,7 +502,7 @@ void c2_rpc_item_change_state(struct c2_rpc_item     *item,
 	C2_PRE(item != NULL);
 
 	C2_LOG(C2_DEBUG, "%p[%s/%u] %s -> %s", item,
-	       c2_rpc_item_is_request(item) ? "REQUEST" : "REPLY",
+	       item_kind(item),
 	       item->ri_type->rit_opcode,
 	       item_state_name(item),
 	       item->ri_sm.sm_conf->scf_state[state].sd_name);
@@ -575,23 +572,27 @@ static int item_entered_in_sent_state(struct c2_sm *mach)
 
 static int item_entered_in_timedout_state(struct c2_sm *mach)
 {
-	struct c2_rpc_item *item;
+	struct c2_rpc_machine *machine;
+	struct c2_rpc_item    *item;
 
 	item = sm_to_item(mach);
-	C2_LOG(C2_DEBUG, "%p [%u] -> TIMEDOUT", item,
+	C2_LOG(C2_DEBUG, "%p [%s/%u] -> TIMEDOUT", item, item_kind(item),
 	       item->ri_type->rit_opcode);
 	item->ri_error = -ETIMEDOUT;
 	c2_sm_timeout_fini(&item->ri_timeout);
+	machine = item_machine(item);
+	machine->rm_stats.rs_nr_timedout_items++;
 
 	return C2_RPC_ITEM_FAILED;
 }
 
 static int item_entered_in_failed_state(struct c2_sm *mach)
 {
-	struct c2_rpc_item *item;
+	struct c2_rpc_machine *machine;
+	struct c2_rpc_item    *item;
 
 	item = sm_to_item(mach);
-	C2_LOG(C2_DEBUG, "%p [%u] FAILED rc: %d\n", item,
+	C2_LOG(C2_DEBUG, "%p [%s/%u] FAILED rc: %d\n", item, item_kind(item),
 	       item->ri_type->rit_opcode,
 	       item->ri_error);
 
@@ -602,6 +603,9 @@ static int item_entered_in_failed_state(struct c2_sm *mach)
 	if (c2_rpc_item_is_request(item) &&
 	    item->ri_ops->rio_replied != NULL)
 		item->ri_ops->rio_replied(item);
+
+	machine = item_machine(item);
+	machine->rm_stats.rs_nr_failed_items++;
 
 	c2_rpc_session_item_failed(item);
 

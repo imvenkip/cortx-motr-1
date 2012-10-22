@@ -323,6 +323,13 @@ item_xid(struct c2_rpc_item *item,
 	return item->ri_slot_refs[idx].sr_ow.osr_xid;
 }
 
+static inline const char *item_kind(const struct c2_rpc_item *item)
+{
+	return  c2_rpc_item_is_request(item) ? "REQUEST" :
+		c2_rpc_item_is_reply(item)   ? "REPLY"   :
+		c2_rpc_item_is_oneway(item)  ? "ONEWAY"  : "INVALID_KIND";
+}
+
 /**
    Possible values for c2_rpc_item_type::rit_flags.
    Flags C2_RPC_ITEM_TYPE_REQUEST, C2_RPC_ITEM_TYPE_REPLY and

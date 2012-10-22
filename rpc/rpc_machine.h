@@ -66,16 +66,21 @@ enum c2_rpc_item_path {
 
 /** Collection of statistics per rpc machine */
 struct c2_rpc_stats {
-	uint64_t	rs_nr_rcvd_items;
-	uint64_t	rs_nr_sent_items;
-	uint64_t	rs_nr_rcvd_packets;
-	uint64_t	rs_nr_sent_packets;
-	uint64_t	rs_nr_failed_items;
-	uint64_t	rs_nr_failed_packets;
-	uint64_t	rs_nr_timedout_items;
-	uint64_t	rs_nr_dropped_items;
-	uint64_t	rs_nr_sent_bytes;
-	uint64_t	rs_nr_rcvd_bytes;
+	/* Items */
+	uint64_t rs_nr_rcvd_items;
+	uint64_t rs_nr_sent_items;
+	uint64_t rs_nr_failed_items;
+	uint64_t rs_nr_dropped_items;
+	uint64_t rs_nr_timedout_items;
+
+	/* Packets */
+	uint64_t rs_nr_rcvd_packets;
+	uint64_t rs_nr_sent_packets;
+	uint64_t rs_nr_failed_packets;
+
+	/* Bytes */
+	uint64_t rs_nr_sent_bytes;
+	uint64_t rs_nr_rcvd_bytes;
 };
 
 /**
