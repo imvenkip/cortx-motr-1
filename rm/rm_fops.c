@@ -26,6 +26,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/finject.h"
+#include "fop/fom_generic.h"
 #include "rm_fops.h"
 #include "rpc/item.h"
 #include "rpc/rpc_opcodes.h"
@@ -74,6 +75,17 @@ struct c2_fop_type c2_fop_rm_revoke_fopt;
 struct c2_fop_type c2_fop_rm_revoke_rep_fopt;
 
 /*
+ * Extern FOM params
+ */
+extern const struct c2_fom_type_ops rm_borrow_fom_type_ops;
+extern struct c2_sm_state_descr borrow_states[];
+extern const struct c2_sm_conf borrow_sm_conf;
+
+extern const struct c2_fom_type_ops rm_revoke_fom_type_ops;
+extern struct c2_sm_state_descr revoke_states[];
+extern const struct c2_sm_conf revoke_sm_conf;
+
+/*
  * Allocate and initialise remote request tracking structure.
  */
 static int rm_out_create(struct rm_out **out,
@@ -95,8 +107,9 @@ static int rm_out_create(struct rm_out **out,
 	if (rc != 0) {
 		c2_free(outreq);
 		goto out;
-	};
+	}
 
+	outreq->ou_req.rog_want.rl_other = right->ri_owner->ro_creditor;
 	c2_rm_outgoing_init(&outreq->ou_req, in->rin_type);
 	*out = outreq;
 
@@ -124,7 +137,7 @@ static int fop_common_fill(struct rm_out *outreq,
 		req->rrq_flags = in->rin_flags;
 		c2_cookie_init(&req->rrq_debtor.ow_cookie,
 			       &in->rin_want.ri_owner->ro_id);
-		//rc = c2_rm_right_encode(right, &req->rrq_right.ri_opaque);
+		rc = c2_rm_right_encode(right, &req->rrq_right.ri_opaque);
 		if (rc != 0)
 			c2_fop_fini(fop);
 	}
@@ -235,13 +248,21 @@ static int right_dup(const struct c2_rm_right *src_right,
 static int loan_create(struct c2_rm_loan **loan,
 		       const struct c2_rm_right *right)
 {
+	int rc = -ENOMEM;
 	C2_PRE(loan != NULL);
 
 	C2_ALLOC_PTR(*loan);
-	if (*loan != NULL)
-		c2_rm_loan_init(*loan, right);
+	if (*loan != NULL) {
+		rc = c2_rm_loan_init(*loan, right);
+		if (rc == 0)
+			(*loan)->rl_other = right->ri_owner->ro_creditor;
+		else {
+			c2_free(*loan);
+			*loan = NULL;
+		}
+	}
 
-	return *loan ? 0 : -ENOMEM;
+	return *loan ? 0 : rc;
 }
 
 static void borrow_reply(struct c2_rpc_item *item)
@@ -368,10 +389,20 @@ int c2_rm_fop_init(void)
 	c2_xc_buf_init();
 	c2_xc_cookie_init();
 	c2_xc_rm_init();
+#ifndef __KERNEL__
+	c2_sm_conf_extend(c2_generic_conf.scf_state, borrow_states,
+			  c2_generic_conf.scf_nr_states);
+	c2_sm_conf_extend(c2_generic_conf.scf_state, revoke_states,
+			  c2_generic_conf.scf_nr_states);
+#endif
 	return  C2_FOP_TYPE_INIT(&c2_fop_rm_borrow_fopt,
 				 .name      = "Right Borrow",
 				 .opcode    = C2_RM_FOP_BORROW,
 				 .xt        = c2_fop_rm_borrow_xc,
+#ifndef __KERNEL__
+				 .sm	    = &borrow_sm_conf,
+				 .fom_ops   = &rm_borrow_fom_type_ops,
+#endif
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST) ?:
 		C2_FOP_TYPE_INIT(&c2_fop_rm_borrow_rep_fopt,
 				 .name      = "Right Borrow Reply",
@@ -382,6 +413,10 @@ int c2_rm_fop_init(void)
 				 .name      = "Right Revoke",
 				 .opcode    = C2_RM_FOP_REVOKE,
 				 .xt        = c2_fop_rm_revoke_xc,
+#ifndef __KERNEL__
+				 .sm	    = &revoke_sm_conf,
+				 .fom_ops   = &rm_revoke_fom_type_ops,
+#endif
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST) ?:
 		C2_FOP_TYPE_INIT(&c2_fop_rm_revoke_rep_fopt,
 				 .name      = "Right Revoke Reply",

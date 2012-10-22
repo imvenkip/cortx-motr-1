@@ -67,16 +67,29 @@ static struct c2_fom_ops rm_fom_borrow_ops = {
 	.fo_home_locality = rm_locality,
 };
 
-static const struct c2_fom_type_ops rm_borrow_fom_type_ops = {
+const struct c2_fom_type_ops rm_borrow_fom_type_ops = {
 	.fto_create = rm_borrow_fom_create,
 };
 
-struct c2_fom_type rm_borow_fom_type = {
-	.ft_ops = &rm_borrow_fom_type_ops,
+const struct c2_sm_state_descr borrow_states[] = {
+	[FOPH_RM_BORROW] = {
+		.sd_name      = "Borrow Begin",
+		.sd_allowed   = C2_BITS(FOPH_RM_BORROW_WAIT, C2_FOPH_FAILURE)
+	},
+	[FOPH_RM_BORROW_WAIT] = {
+		.sd_name      = "Borrow Completion Wait",
+		.sd_allowed   = C2_BITS(C2_FOPH_SUCCESS, C2_FOPH_FAILURE)
+	}
+};
+
+const struct c2_sm_conf borrow_sm_conf = {
+	.scf_name      = "Borrow FOM conf",
+	.scf_nr_states = ARRAY_SIZE(borrow_states),
+	.scf_state     = borrow_states
 };
 
 /*
- * Revoke/Cancel FOM ops.
+ * Revoke FOM ops.
  */
 static struct c2_fom_ops rm_fom_revoke_ops = {
 	.fo_fini          = rm_revoke_fom_fini,
@@ -84,12 +97,25 @@ static struct c2_fom_ops rm_fom_revoke_ops = {
 	.fo_home_locality = rm_locality,
 };
 
-static const struct c2_fom_type_ops rm_revoke_fom_type_ops = {
+const struct c2_fom_type_ops rm_revoke_fom_type_ops = {
 	.fto_create = rm_revoke_fom_create,
 };
 
-struct c2_fom_type rm_revoke_fom_type = {
-	.ft_ops = &rm_revoke_fom_type_ops,
+const struct c2_sm_state_descr revoke_states[] = {
+	[FOPH_RM_REVOKE] = {
+		.sd_name      = "Revoke Begin",
+		.sd_allowed   = C2_BITS(FOPH_RM_REVOKE_WAIT, C2_FOPH_FAILURE)
+	},
+	[FOPH_RM_REVOKE_WAIT] = {
+		.sd_name      = "Revoke Completion Wait",
+		.sd_allowed   = C2_BITS(C2_FOPH_SUCCESS, C2_FOPH_FAILURE)
+	}
+};
+
+const struct c2_sm_conf revoke_sm_conf = {
+	.scf_name      = "Revoke FOM conf",
+	.scf_nr_states = ARRAY_SIZE(revoke_states),
+	.scf_state     = revoke_states
 };
 
 static void remote_incoming_complete(struct c2_rm_incoming *in, int32_t rc)
@@ -194,6 +220,15 @@ static void request_fom_fini(struct c2_fom *fom)
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
 
 	c2_fom_fini(fom);
+	/*
+	 * c2_free() does check for NULL pointer. We are checking for
+	 * NULL pointer because we are calling c2_rm_remote_fini().
+	 */
+	if (rfom->rf_in.ri_loan != NULL &&
+	    rfom->rf_in.ri_loan->rl_other != NULL) {
+		c2_rm_remote_fini(rfom->rf_in.ri_loan->rl_other);
+		c2_free(rfom->rf_in.ri_loan->rl_other);
+	}
 	c2_free(rfom->rf_in.ri_loan);
 	c2_free(rfom);
 }
@@ -218,7 +253,6 @@ static int reply_prepare(const enum c2_rm_incoming_type type,
 	struct c2_fop_rm_borrow_rep *bfop;
 	struct rm_request_fom       *rfom;
 	struct c2_rm_loan	    *loan;
-	struct c2_buf		     buf;
 	int			     rc = 0;
 
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
@@ -238,9 +272,8 @@ static int reply_prepare(const enum c2_rm_incoming_type type,
 		/*
 		 * Memory for the buffer is allocated by the function.
 		 */
-		rc = c2_rm_right_encode(&loan->rl_right, &buf);
-		bfop->br_right.ri_opaque.b_addr = rc ? NULL : buf.b_addr;
-		bfop->br_right.ri_opaque.b_nob = rc ? 0 : buf.b_nob;
+		rc = c2_rm_right_encode(&loan->rl_right,
+					&bfop->br_right.ri_opaque);
 		break;
 	default:
 		break;
@@ -270,7 +303,40 @@ static void reply_err_set(enum c2_rm_incoming_type type,
 		C2_IMPOSSIBLE("Unrecognized RM request");
 		break;
 	}
-	c2_fom_phase_set(fom, C2_FOPH_FAILURE);
+}
+
+static int loan_setup(struct c2_rm_loan *loan,
+		       struct c2_rm_incoming *in,
+		       struct c2_fop_rm_borrow *bfop,
+		       struct c2_cookie *loan_cookie)
+{
+	int rc;
+	/*
+	 * Populate the owner cookie for debtor (remote end).
+	 * (for loan->rl_other->rm_cookie).
+	 * We have got debtor cookie, call ...net_locate()??
+	 * @todo : Once we figure out the RM configuration interfaces,
+	 *         this code will change.
+	 */
+
+	rc = c2_rm_loan_init(loan, &in->rin_want);
+	if (rc == 0) {
+		C2_ALLOC_PTR(loan->rl_other);
+		if (loan->rl_other == NULL)
+			rc = -ENOMEM;
+		else {
+			c2_rm_remote_init(loan->rl_other,
+					  in->rin_want.ri_owner->ro_resource);
+			loan->rl_other->rem_state = REM_SERVICE_LOCATED;
+			loan->rl_other->rem_cookie =
+				bfop->bo_base.rrq_debtor.ow_cookie;
+			/*
+			 * Store loan cookie for reply processing.
+			 */
+			c2_cookie_init(loan_cookie, &loan->rl_id);
+		}
+	}
+	return rc;
 }
 
 /*
@@ -283,8 +349,8 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 	struct c2_rm_incoming	    *in;
 	struct c2_rm_owner	    *owner;
 	struct rm_request_fom	    *rfom;
+	struct c2_buf		    *buf;
 	enum c2_rm_incoming_policy   policy;
-	struct c2_buf		     buf;
 	uint64_t		     flags;
 	int			     rc = 0;
 
@@ -294,29 +360,19 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		bfop = c2_fop_data(fom->fo_fop);
 		policy = bfop->bo_base.rrq_policy;
 		flags = bfop->bo_base.rrq_flags;
-		//c2_buf_init(&buf, bfop->bo_right.ri_opaque.op_bytes,
-				  //bfop->bo_right.ri_opaque.op_nr);
+		buf = &bfop->bo_base.rrq_right.ri_opaque;
 		/*
 		 * Populate the owner cookie for creditor (local)
 		 * This is used later by rm_locality().
 		 */
 		rfom->rf_in.ri_owner_cookie = bfop->bo_creditor.ow_cookie;
-
-		/*
-		 * Populate the owner cookie for debtor (remote end).
-		 * (for loan->rl_other->rm_cookie).
-		 * We have got debtor cookie, call ...net_locate()??
-		 * @todo - How do you set up rl_other??
-		 */
-
 		break;
 
 	case C2_RIT_REVOKE:
 		rfop = c2_fop_data(fom->fo_fop);
 		policy = rfop->rr_base.rrq_policy;
 		flags = rfop->rr_base.rrq_flags;
-		//c2_buf_init(&buf, rfop->rr_right.ri_opaque.op_bytes,
-				  //rfop->rr_right.ri_opaque.op_nr);
+		buf = &rfop->rr_base.rrq_right.ri_opaque;
 		/*
 		 * Populate the owner cookie for debtor (local)
 		 * This server is debtor; hence it received REVOKE request.
@@ -334,7 +390,7 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		 * don't proceed with the reovke processing.
 		 */
 		rfom->rf_in.ri_loan =
-			c2_cookie_of(&rfop->rr_base.rrq_debtor.ow_cookie,
+			c2_cookie_of(&rfop->rr_loan.lo_cookie,
 				     struct c2_rm_loan, rl_id);
 		rc = rfom->rf_in.ri_loan ? 0: -EPROTO;
 		break;
@@ -354,14 +410,17 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		c2_rm_incoming_init(in, owner, type, policy, flags);
 		in->rin_ops = &remote_incoming_ops;
 		c2_rm_right_init(&in->rin_want, owner);
-		rc = c2_rm_right_decode(&in->rin_want, &buf);
+		rc = c2_rm_right_decode(&in->rin_want, buf);
 		if (rc != 0) {
 			c2_rm_right_fini(&in->rin_want);
 		} else
-			if (type == C2_RIT_BORROW)
+			if (type == C2_RIT_BORROW) {
 				c2_rm_right_init(&rfom->rf_in.ri_loan->rl_right,
 						 owner);
+				rc = loan_setup(rfom->rf_in.ri_loan, in, bfop,
+						&rfom->rf_in.ri_loan_cookie);
 
+			}
 	}
 	return rc;
 }
@@ -395,7 +454,6 @@ static int request_pre_process(struct c2_fom *fom,
 	c2_rm_right_get(in);
 
 	c2_fom_phase_set(fom, next_phase);
-
 	/*
 	 * If c2_rm_incoming goes in WAIT state, the put the fom in wait
 	 * queue otherwise proceed with the next phase.
@@ -512,7 +570,7 @@ static void rm_borrow_fom_fini(struct c2_fom *fom)
 	 * Free memory allocated by c2_rm_right_encode().
 	 */
 	rply_fop = c2_fop_data(fom->fo_rep_fop);
-	c2_free(rply_fop->br_right.ri_opaque.b_addr);
+	c2_buf_free(&rply_fop->br_right.ri_opaque);
 
 	request_fom_fini(fom);
 }

@@ -237,9 +237,9 @@ struct c2_rm_domain {
 };
 
 /**
- * Represents a resource identity (i.e., a name). Multiple
- * copies of the same name may exist in different resource management
- * domains, but no more than a single copy per domain.
+ * Represents a resource identity (i.e., a name). Multiple copies of the
+ * same name may exist in different resource management domains, but no more
+ * than a single copy per domain.
  *
  * c2_rm_resource is allocated and destroyed by the appropriate resource
  * type. An instance of c2_rm_resource would be typically embedded into a
@@ -625,6 +625,8 @@ struct c2_rm_remote {
 	 * A resource for which the remote owner is represented.
 	 */
 	struct c2_rm_resource  *rem_resource;
+
+	struct c2_rpc_session  *rem_session;
 	/** A channel to signal state changes. */
 	struct c2_chan          rem_signal;
 	/** A service to be contacted to talk with the remote owner. Valid in
@@ -1218,8 +1220,8 @@ enum c2_rm_incoming_flags {
  * c2_rm_owner::ro_incoming[] lists depending on its priority. It remains on
  * this list until request processing failure or c2_rm_right_put() call.
  *
- * @todo a new type of incoming request C2_RIT_GRANT (C2_RIT_FOIEGRAS?) can be added
- * to forcibly grant new rights to the owner, for example, as part of a
+ * @todo a new type of incoming request C2_RIT_GRANT (C2_RIT_FOIEGRAS?) can be
+ * added to forcibly grant new rights to the owner, for example, as part of a
  * coordinated global distributed resource usage balancing between
  * owners. Processing of requests of this type would be very simple, because
  * adding new rights never blocks. Similarly, a new outgoing request type
