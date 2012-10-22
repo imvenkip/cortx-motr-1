@@ -44,8 +44,7 @@ static struct c2_fop *fop_alloc(void)
 	return fop;
 }
 
-
-static int ts_item_init(void)
+static int ts_item_init(void)   /* ts_ for "test suite" */
 {
 	int rc;
 
@@ -92,6 +91,7 @@ struct c2_fop         *fop;
 static void test_simple_transitions(void)
 {
 	int rc;
+
 	/* TEST1: Simple request and reply sequence */
 	machine = cctx.rcx_session.s_conn->c_rpc_machine;
 	C2_LOG(C2_DEBUG, "TEST:1:START");
@@ -115,6 +115,7 @@ static void test_simple_transitions(void)
 static void test_timeout(void)
 {
 	int rc;
+
 	/* Test2: Request item times out before reply reaches to sender.
 		  Delayed reply is then dropped.
 	 */
@@ -138,7 +139,26 @@ static void test_timeout(void)
 	C2_LOG(C2_DEBUG, "TEST:2:END");
 }
 
-const struct c2_test_suite item_ut= {
+/*
+static void rply_before_sentcb(void)
+{
+	@todo Simulate a case where:
+		- Request item A is serialised in network buffer NB_A;
+		- NB_A is submitted to net layer;
+		- A is in SENDING state;
+		- NB_A.sent() callback is not yet received;
+		- And reply to A is received.
+	     In this case reply processing of A should be postponed until
+	     NB_A.sent() callback is invoked.
+
+	     Tried to simulate this case, by introducing artificial delay in
+	     outgoing_buf_event_handler(). But because there is only one thread
+	     from lnet transport that delivers buffer events, it also blocks
+	     delivery of net_buf_receieved(A.reply) event.
+}
+*/
+
+const struct c2_test_suite item_ut = {
 	.ts_name = "item-ut",
 	.ts_init = ts_item_init,
 	.ts_fini = ts_item_fini,
