@@ -502,6 +502,7 @@ static const struct c2_sm_conf io_sm_conf = {
 
 static bool io_request_invariant(const struct io_request *req)
 {
+	/*
 	return
 	       io_request_bob_check(req) &&
 	       req->ir_type   <= IRT_TYPE_NR &&
@@ -533,6 +534,25 @@ static bool io_request_invariant(const struct io_request *req)
 	       pargrp_iomap_invariant_nr(req) &&
 
 	       nw_xfer_request_invariant(&req->ir_nwxfer);
+	       */
+	C2_ASSERT(io_request_bob_check(req));
+	C2_ASSERT(req->ir_type   <= IRT_TYPE_NR);
+	C2_ASSERT(req->ir_iovec  != NULL);
+	C2_ASSERT(req->ir_ops    != NULL);
+	C2_ASSERT(c2_fid_is_valid(file_to_fid(req->ir_file)));
+	C2_ASSERT(ergo(ioreq_sm_state(req) == IRS_READING,
+		  !tioreqs_tlist_is_empty(&req->ir_nwxfer.nxr_tioreqs)));
+	C2_ASSERT(ergo(ioreq_sm_state(req) == IRS_WRITING,
+		  !tioreqs_tlist_is_empty(&req->ir_nwxfer.nxr_tioreqs)));
+	C2_ASSERT(ergo(ioreq_sm_state(req) == IRS_WRITE_COMPLETE,
+		  tioreqs_tlist_is_empty(&req->ir_nwxfer.nxr_tioreqs)));
+	C2_ASSERT(c2_vec_count(&req->ir_ivec.iv_vec) > 0);
+	C2_ASSERT(c2_forall(i, req->ir_ivec.iv_vec.v_nr - 1,
+		  req->ir_ivec.iv_index[i] + req->ir_ivec.iv_vec.v_count[i] <=
+		  req->ir_ivec.iv_index[i+1]));
+	C2_ASSERT(pargrp_iomap_invariant_nr(req));
+	C2_ASSERT(nw_xfer_request_invariant(&req->ir_nwxfer));
+	return true;
 }
 
 static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
@@ -552,7 +572,6 @@ static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
 		    xfer->nxr_iofop_nr > 0) &&
 
 	       ergo(xfer->nxr_state == NXS_COMPLETE,
-		    tioreqs_tlist_is_empty(&xfer->nxr_tioreqs) &&
 		    xfer->nxr_iofop_nr == 0 &&
 		    xfer->nxr_bytes > 0) &&
 
@@ -568,11 +587,9 @@ static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
 		  (xfer->nxr_iofop_nr == 0)));
 
 	C2_ASSERT(ergo(xfer->nxr_state == NXS_INFLIGHT,
-		  !tioreqs_tlist_is_empty(&xfer->nxr_tioreqs) &&
-		  xfer->nxr_iofop_nr > 0));
+		  !tioreqs_tlist_is_empty(&xfer->nxr_tioreqs)));
 
 	C2_ASSERT(ergo(xfer->nxr_state == NXS_COMPLETE,
-		  tioreqs_tlist_is_empty(&xfer->nxr_tioreqs) &&
 		  xfer->nxr_iofop_nr == 0 && xfer->nxr_bytes > 0));
 
 	C2_ASSERT(c2_tl_forall(tioreqs, tioreq, &xfer->nxr_tioreqs,
@@ -795,10 +812,11 @@ static int user_data_copy(struct pargrp_iomap *map,
 				     db_buf.b_addr +
 				     (start & (PAGE_CACHE_SIZE - 1)),
 				     end - start);
-		map->pi_ioreq->ir_copied_nr += bytes;
+
+		map->pi_ioreq->ir_copied_nr += end - start - bytes;
 
 		C2_LOG(C2_INFO, "%llu bytes copied to user-space from offset\
-		       %llu", bytes, start);
+		       %llu", end - start - bytes, start);
 
 		if (bytes != 0)
 			C2_RETERR(-EFAULT, "Failed to copy_to_user");
@@ -1046,7 +1064,6 @@ static int ioreq_user_data_copy(struct io_request   *req,
 		while (!c2_ivec_cursor_move(&srccur, count) &&
 		       c2_ivec_cursor_index(&srccur) < grpend) {
 
-			C2_LOG(C2_INFO, "Entered loop");
 			pgend = pgstart + min64u(c2_ivec_cursor_step(&srccur),
 						 PAGE_CACHE_SIZE);
 			count = pgend - pgstart;
@@ -2088,6 +2105,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 					     req->ir_ivec.iv_vec.v_nr - 1) +
 				       COUNT(&req->ir_ivec,
 					     req->ir_ivec.iv_vec.v_nr - 1));
+		C2_LOG(C2_INFO, "File size set to %llu", inode->i_size);
 	}
 
 	req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer, rmw);
@@ -2300,6 +2318,10 @@ static void target_ioreq_fini(struct target_ioreq *ti)
 	ti->ti_ops     = NULL;
 	ti->ti_session = NULL;
 	ti->ti_nwxfer  = NULL;
+
+	/* Resets the number of segments in vector. */
+	if (ti->ti_ivec.iv_vec.v_nr == 0)
+		ti->ti_ivec.iv_vec.v_nr = ti->ti_bufvec.ov_vec.v_nr;
 
 	c2_indexvec_free(&ti->ti_ivec);
 	c2_free(ti->ti_bufvec.ov_buf);
@@ -2542,7 +2564,13 @@ static void io_req_fop_fini(struct io_req_fop *fop)
 	 */
 
 	iofops_tlink_fini(fop);
-	io_req_fop_bob_fini(fop);
+
+	/*
+	 * io_req_bob_fini() is not done here so that struct io_req_fop
+	 * can be retrieved from struct c2_rpc_item using bob_of() and
+	 * magic numbers can be checked.
+	 */
+
 	fop->irf_tioreq = NULL;
 	fop->irf_ast.sa_cb = NULL;
 	fop->irf_ast.sa_mach = NULL;
@@ -2587,14 +2615,14 @@ ssize_t c2t1fs_aio(struct kiocb	      *kcb,
 
 	rc = io_request_init(req, kcb->ki_filp, (struct iovec *)iov, ivec, rw);
 	if (rc != 0) {
-		count = rc;
+		count = 0;
 		goto last;
 	}
 
 	rc = req->ir_ops->iro_iomaps_prepare(req);
 	if (rc != 0) {
 		io_request_fini(req);
-		count = rc;
+		count = 0;
 		goto last;
 	}
 
@@ -2602,7 +2630,7 @@ ssize_t c2t1fs_aio(struct kiocb	      *kcb,
 	if (rc != 0) {
 		req->ir_ops->iro_iomaps_destroy(req);
 		io_request_fini(req);
-		count = rc;
+		count = 0;
 		goto last;
 	}
 
@@ -2702,6 +2730,10 @@ static ssize_t file_aio_write(struct kiocb	 *kcb,
 	}
 
 	count = c2t1fs_aio(kcb, iov, ivec, IRT_WRITE);
+
+	/* Updates file position. */
+	kcb->ki_pos = pos + count;
+
 	c2_free(ivec);
 	C2_LEAVE();
 	return count;
@@ -2763,9 +2795,18 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 		}
 	}
 
-	C2_LEAVE();
+	if (c2_vec_count(&ivec->iv_vec) == 0) {
+		c2_free(ivec);
+		return 0;
+	}
+
 	count = c2t1fs_aio(kcb, iov, ivec, IRT_READ);
+
+	/* Updates file position. */
+	kcb->ki_pos = pos + count;
+
 	c2_free(ivec);
+	C2_LEAVE();
 	return count;
 }
 
@@ -2822,6 +2863,8 @@ static void io_req_fop_free(struct c2_rpc_item *item)
 	fop    = container_of(item, struct c2_fop, f_item);
 	iofop  = container_of(fop, struct c2_io_fop, if_fop);
 	reqfop = bob_of(iofop, struct io_req_fop, irf_iofop, &iofop_bobtype);
+	/* see io_req_fop_fini(). */
+	io_req_fop_bob_fini(reqfop);
 
 	c2_io_item_free(item);
 	c2_free(reqfop);
@@ -2929,7 +2972,6 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 	xfer->nxr_state = NXS_COMPLETE;
 
 	req = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
-	C2_ASSERT(io_request_invariant(req));
 
 	c2_tl_for (tioreqs, &xfer->nxr_tioreqs, ti) {
 		struct io_req_fop *irfop;
@@ -2960,6 +3002,7 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 		ioreq_sm_state_set(req, IRS_REQ_COMPLETE);
 
 	req->ir_rc = xfer->nxr_rc;
+	C2_POST(io_request_invariant(req));
 	C2_LEAVE();
 }
 
