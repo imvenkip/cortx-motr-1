@@ -18,7 +18,28 @@
  * Original creation date: 07/28/2012
  */
 
+#include <asm/uaccess.h>    /* VERIFY_READ, VERIFY_WRITE */
+#include <linux/mm.h>       /* get_user_pages(), get_page(), put_page() */
+#include <linux/fs.h>       /* struct file_operations */
+
+#include "lib/memory.h"     /* c2_alloc(), c2_free() */
+#include "lib/misc.h"       /* c2_round_{up/down} */
+#include "lib/bob.h"        /* c2_bob_type */
+#include "lib/ext.h"        /* c2_ext */
+#include "lib/arith.h"      /* min_type() */
+#include "layout/pdclust.h" /* C2_PUT_*, c2_layout_to_pdl(),
+			     * c2_pdclust_instance_map */
+#include "lib/bob.h"        /* c2_bob_type */
+#include "ioservice/io_fops.h"    /* c2_io_fop */
+#include "ioservice/io_fops_ff.h" /* c2_fop_cob_rw */
+#include "colibri/magic.h"  /* C2_T1FS_IOREQ_MAGIC */
+#include "c2t1fs/linux_kernel/c2t1fs.h" /* c2t1fs_sb */
+
 #include "c2t1fs/linux_kernel/file_internal.h"
+
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
+#include "lib/trace.h"      /* C2_LOG, C2_ENTRY */
+
 
 const struct inode_operations c2t1fs_reg_inode_operations;
 void iov_iter_advance(struct iov_iter *i, size_t bytes);
@@ -293,9 +314,10 @@ const struct c2_addb_ctx_type c2t1fs_addb_type = {
 C2_ADDB_EV_DEFINE(io_request_failed, "IO request failed.",
 		  C2_ADDB_EVENT_FUNC_FAIL, C2_ADDB_FUNC_CALL);
 
-static void io_rpc_item_cb(struct c2_rpc_item *item);
+static void io_rpc_item_cb (struct c2_rpc_item *item);
+static void io_req_fop_free(struct c2_rpc_item *item);
 
-/**
+/*
  * io_rpc_item_cb can not be directly invoked from io fops code since it
  * leads to build dependency of ioservice code over kernel-only code (c2t1fs).
  * Hence, a new c2_rpc_item_ops structure is used for fops dispatched
@@ -304,7 +326,7 @@ static void io_rpc_item_cb(struct c2_rpc_item *item);
 static const struct c2_rpc_item_ops c2t1fs_item_ops = {
 	.rio_sent    = NULL,
 	.rio_replied = io_rpc_item_cb,
-	.rio_free    = c2_io_item_free,
+	.rio_free    = io_req_fop_free,
 };
 
 static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer);
@@ -371,7 +393,8 @@ static bool target_ioreq_invariant    (const struct target_ioreq *ti);
 
 static void target_ioreq_fini	      (struct target_ioreq *ti);
 
-static int target_ioreq_iofops_prepare(struct target_ioreq *ti);
+static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
+				       enum page_attr       filter);
 
 static void target_ioreq_seg_add      (struct target_ioreq *ti,
 				       uint64_t		    frame,
@@ -425,6 +448,7 @@ static void ioreq_sm_state_set(struct io_request *req, int state)
 	c2_mutex_lock(&req->ir_sm.sm_grp->s_lock);
 	c2_sm_state_set(&req->ir_sm, state);
 	c2_mutex_unlock(&req->ir_sm.sm_grp->s_lock);
+	C2_LOG(C2_INFO, "IO state machine state changed to %d", state);
 }
 
 static void ioreq_sm_failed(struct io_request *req, int rc)
@@ -478,8 +502,6 @@ static const struct c2_sm_conf io_sm_conf = {
 
 static bool io_request_invariant(const struct io_request *req)
 {
-	C2_PRE(req != NULL);
-
 	return
 	       io_request_bob_check(req) &&
 	       req->ir_type   <= IRT_TYPE_NR &&
@@ -515,6 +537,7 @@ static bool io_request_invariant(const struct io_request *req)
 
 static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
 {
+	/*
 	return
 	       xfer != NULL &&
 	       nw_xfer_request_bob_check(xfer) &&
@@ -535,6 +558,26 @@ static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
 
 	       c2_tl_forall(tioreqs, tioreq, &xfer->nxr_tioreqs,
 			    target_ioreq_invariant(tioreq));
+			    */
+	C2_ASSERT(nw_xfer_request_bob_check(xfer));
+
+	C2_ASSERT(xfer->nxr_state <= NXS_STATE_NR);
+
+	C2_ASSERT(ergo(xfer->nxr_state == NXS_INITIALIZED,
+		  (xfer->nxr_rc == xfer->nxr_bytes) ==
+		  (xfer->nxr_iofop_nr == 0)));
+
+	C2_ASSERT(ergo(xfer->nxr_state == NXS_INFLIGHT,
+		  !tioreqs_tlist_is_empty(&xfer->nxr_tioreqs) &&
+		  xfer->nxr_iofop_nr > 0));
+
+	C2_ASSERT(ergo(xfer->nxr_state == NXS_COMPLETE,
+		  tioreqs_tlist_is_empty(&xfer->nxr_tioreqs) &&
+		  xfer->nxr_iofop_nr == 0 && xfer->nxr_bytes > 0));
+
+	C2_ASSERT(c2_tl_forall(tioreqs, tioreq, &xfer->nxr_tioreqs,
+		  target_ioreq_invariant(tioreq)));
+	return true;
 }
 
 static bool data_buf_invariant(const struct data_buf *db)
@@ -578,7 +621,8 @@ static bool io_req_fop_invariant(const struct io_req_fop *fop)
 	return
 		io_req_fop_bob_check(fop) &&
 		fop->irf_tioreq != NULL &&
-		fop->irf_ast.sa_cb != NULL;
+		fop->irf_ast.sa_cb != NULL &&
+		fop->irf_ast.sa_mach != NULL;
 }
 
 static bool target_ioreq_invariant(const struct target_ioreq *ti)
@@ -713,8 +757,9 @@ static int user_data_copy(struct pargrp_iomap *map,
 
 	if (dir == CD_COPY_FROM_USER) {
 		if (page_copy_filter(start, end, filter)) {
-			C2_ASSERT(map->pi_databufs[row][col]->db_flags &
-				  filter);
+			C2_ASSERT(ergo(filter != PA_NONE,
+				       map->pi_databufs[row][col]->db_flags &
+				       filter));
 
 			/*
 			 * Copies page to auxiliary buffer before it gets
@@ -736,6 +781,9 @@ static int user_data_copy(struct pargrp_iomap *map,
 					end - start);
 			pagefault_enable();
 
+			C2_LOG(C2_INFO, "%llu bytes copied from user-space\
+			       from offset %llu", bytes, start);
+
 			map->pi_ioreq->ir_copied_nr += bytes;
 
 			if (bytes != end - start)
@@ -748,6 +796,9 @@ static int user_data_copy(struct pargrp_iomap *map,
 				     (start & (PAGE_CACHE_SIZE - 1)),
 				     end - start);
 		map->pi_ioreq->ir_copied_nr += bytes;
+
+		C2_LOG(C2_INFO, "%llu bytes copied to user-space from offset\
+		       %llu", bytes, start);
 
 		if (bytes != 0)
 			C2_RETERR(-EFAULT, "Failed to copy_to_user");
@@ -797,6 +848,9 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 						 dbufs, pbufs);
 		}
 		rc = 0;
+		C2_LOG(C2_INFO, "Parity recalculated for %s",
+		       map->pi_rtype == PIR_READREST ? "read-rest" :
+		       "aligned write");
 
 	} else {
 		struct data_buf *buf;
@@ -989,9 +1043,10 @@ static int ioreq_user_data_copy(struct io_request   *req,
 		grpend	 = grpstart + data_size(play);
 		pgstart	 = c2_ivec_cursor_index(&srccur);
 
-		while (c2_ivec_cursor_move(&srccur, count) &&
+		while (!c2_ivec_cursor_move(&srccur, count) &&
 		       c2_ivec_cursor_index(&srccur) < grpend) {
 
+			C2_LOG(C2_INFO, "Entered loop");
 			pgend = pgstart + min64u(c2_ivec_cursor_step(&srccur),
 						 PAGE_CACHE_SIZE);
 			count = pgend - pgstart;
@@ -1227,9 +1282,8 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 	while (!c2_ivec_cursor_move(&cur, count)) {
 
 		start = c2_ivec_cursor_index(&cur);
-		end   = min64u(PAGE_CACHE_SIZE, c2_ivec_cursor_step(&cur)) +
-			start;
-		count = end - start;
+		count = min64u(PAGE_CACHE_SIZE, c2_ivec_cursor_step(&cur));
+		end   = start + count;
 		page_pos_get(map, start, &row, &col);
 
 		rc = pargrp_iomap_databuf_alloc(map, row, col);
@@ -1271,6 +1325,8 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 			 * delimited the index vector to EOF boundary.
 			 */
 			dbuf->db_flags |= PA_READ;
+		C2_LOG(C2_INFO, "Data buffer added for index %llu",
+		       c2_ivec_cursor_index(&cur));
 	}
 
 	C2_RETURN(0);
@@ -1579,9 +1635,9 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 				   PAGE_CACHE_SIZE);
 
 		/*
-		 * If current segment is _partially_ spanned by previous segment in
-		 * pargrp_iomp::pi_ivec, start of segment is rounded up to move to
-		 * next page.
+		 * If current segment is _partially_ spanned by previous
+		 * segment in pargrp_iomp::pi_ivec, start of segment is
+		 * rounded up to move to next page.
 		 */
 		if (seg > 0 &&
 		    INDEX(&map->pi_ivec, seg) <
@@ -1613,7 +1669,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 		count = endpos - c2_ivec_cursor_index(cursor);
 		++seg;
 	}
-	C2_LOG(C2_DEBUG, "%llu segments processed", seg);
+	C2_LOG(C2_INFO, "%llu segments processed", seg);
 
 	/*
 	 * Decides whether to undertake read-old approach or read-rest for
@@ -1624,7 +1680,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 	 * is selected.
 	 */
 	if (rmw) {
-		nr = pargrp_iomap_fullpages_count(map);
+		nr = map->pi_ops->pi_fullpages_find(map);
 
 		/*
 		 * Can use number of data_buf structures instead of using
@@ -1744,7 +1800,7 @@ static int ioreq_iomaps_prepare(struct io_request *req)
 				ir_iomaps[id], &req->ir_ivec, &cursor);
 		if (rc != 0)
 			goto failed;
-		C2_LOG(C2_DEBUG, "pargrp_iomap id : %llu populated", id);
+		C2_LOG(C2_INFO, "pargrp_iomap id : %llu populated", id);
 	}
 
 	C2_RETURN(0);
@@ -1900,6 +1956,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 {
 	int		     rc;
 	int		     res;
+	bool		     rmw;
 	uint64_t	     map;
 	struct inode	    *inode;
 	struct io_req_fop   *irfop;
@@ -1922,6 +1979,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 	if (map == req->ir_iomap_nr) {
 		enum io_req_state state;
 
+		rmw = false;
 		state = req->ir_type == IRT_READ ? IRS_READING :
 						   IRS_WRITING;
 		if (state == IRS_WRITING) {
@@ -1957,6 +2015,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 	} else {
 		c2_bcount_t read_bytes = 0;
 
+		rmw = true;
 		c2_tl_for (tioreqs, &req->ir_nwxfer.nxr_tioreqs, ti) {
 			c2_tl_for (iofops, &ti->ti_iofops, irfop) {
 				read_bytes += c2_io_fop_byte_count(&irfop->
@@ -1998,7 +2057,9 @@ static int ioreq_iosm_handle(struct io_request *req)
 			goto fail;
 
 		/* Finalizes the old read fops. */
-		req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer, true);
+		req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer, rmw);
+		if (req->ir_rc != 0)
+			goto fail;
 
 		ioreq_sm_state_set(req, IRS_WRITING);
 		rc = req->ir_ops->iro_parity_recalc(req);
@@ -2029,7 +2090,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 					     req->ir_ivec.iv_vec.v_nr - 1));
 	}
 
-	req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer, false);
+	req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer, rmw);
 	C2_RETURN(0);
 fail:
 	ioreq_sm_failed(req, rc);
@@ -2053,12 +2114,12 @@ static int io_request_init(struct io_request  *req,
 	C2_PRE(ivec != NULL);
 	C2_PRE(C2_IN(rw, (IRT_READ, IRT_WRITE)));
 
-	req->ir_rc	 = 0;
-	req->ir_ops	 = &ioreq_ops;
-	req->ir_file	 = file;
-	req->ir_type	 = rw;
-	req->ir_iovec	 = iov;
-	req->ir_iomap_nr = 0;
+	req->ir_rc	  = 0;
+	req->ir_ops	  = &ioreq_ops;
+	req->ir_file	  = file;
+	req->ir_type	  = rw;
+	req->ir_iovec	  = iov;
+	req->ir_iomap_nr  = 0;
 	req->ir_copied_nr = 0;
 
 	io_request_bob_init(req);
@@ -2107,6 +2168,7 @@ static void io_request_fini(struct io_request *req)
 		    * are already finalized in nw_xfer_req_complete().
 		    */
 		   target_ioreq_fini(ti);
+		   c2_free(ti);
 	} c2_tl_endfor;
 
 	nw_xfer_request_fini(&req->ir_nwxfer);
@@ -2180,9 +2242,9 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	ti->ti_rc        = 0;
 	ti->ti_ops       = &tioreq_ops;
 	ti->ti_fid       = *cobfid;
-	ti->ti_bytes     = 0;
 	ti->ti_nwxfer    = xfer;
 	ti->ti_session   = session;
+	ti->ti_parbytes  = 0;
 	ti->ti_databytes = 0;
 
 	iofops_tlist_init(&ti->ti_iofops);
@@ -2291,8 +2353,12 @@ static int nw_xfer_tioreq_get(struct nw_xfer_request *xfer,
 				  "for target_ioreq");
 
 		rc = target_ioreq_init(ti, xfer, fid, session, size);
-		if (rc == 0)
+		if (rc == 0) {
 			tioreqs_tlist_add(&xfer->nxr_tioreqs, ti);
+			C2_LOG(C2_INFO, "New target_ioreq added for fid\
+					%llu:%llu", fid->f_container,
+					fid->f_key);
+		}
 		else
 			c2_free(ti);
 	}
@@ -2406,15 +2472,22 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
 				COUNT(&ti->ti_ivec, seg) =
 					ti->ti_bufvec.ov_vec.v_count[seg] =
 					buf->db_buf.b_nob;
-			ti->ti_databytes += pgend - pgstart;
-		}
-		else
+			ti->ti_pageattrs[seg] |= PA_DATA;
+			C2_LOG(C2_INFO, "Data seg added");
+		} else {
 			buf = map->pi_paritybufs[page_id(goff)]
 						[unit % data_col_nr(play)];
+			ti->ti_pageattrs[seg] |= PA_PARITY;
+			C2_LOG(C2_INFO, "Parity seg added");
+		}
 
-		ti->ti_bufvec.ov_buf[seg] = buf->db_buf.b_addr;
-		ti->ti_pageattrs[seg]	  = buf->db_flags;
+		ti->ti_bufvec.ov_buf[seg]  = buf->db_buf.b_addr;
+		ti->ti_pageattrs[seg] |= buf->db_flags;
 
+		C2_LOG(C2_INFO, "Seg [%llu, %llu] added to target_ioreq with\
+		       fid %llu:%llu", INDEX(&ti->ti_ivec, seg),
+		       COUNT(&ti->ti_ivec, seg), ti->ti_fid.f_container,
+		       ti->ti_fid.f_key);
 		goff += COUNT(&ti->ti_ivec, seg);
 		++ti->ti_ivec.iv_vec.v_nr;
 		pgstart = pgend;
@@ -2423,7 +2496,8 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
 }
 
 static int io_req_fop_init(struct io_req_fop   *fop,
-			   struct target_ioreq *ti)
+			   struct target_ioreq *ti,
+			   enum page_attr       pattr)
 {
 	int		   rc;
 	struct io_request *req;
@@ -2431,9 +2505,11 @@ static int io_req_fop_init(struct io_req_fop   *fop,
 	C2_ENTRY("io_req_fop %p, target_ioreq %p", fop, ti);
 	C2_PRE(fop != NULL);
 	C2_PRE(ti  != NULL);
+	C2_PRE(C2_IN(pattr, (PA_DATA, PA_PARITY)));
 
 	io_req_fop_bob_init(fop);
 	iofops_tlink_init(fop);
+	fop->irf_pattr     = pattr;
 	fop->irf_tioreq	   = ti;
 	fop->irf_ast.sa_cb = io_bottom_half;
 
@@ -2445,7 +2521,7 @@ static int io_req_fop_init(struct io_req_fop   *fop,
 			     IRS_READING ? &c2_fop_cob_readv_fopt :
 			     &c2_fop_cob_writev_fopt);
 	/*
-	 * Change ri_ops of rpc item so as to execute c2t1fs's own
+	 * Changes ri_ops of rpc item so as to execute c2t1fs's own
 	 * callback on receiving a reply.
 	 */
 	fop->irf_iofop.if_fop.f_item.ri_ops = &c2t1fs_item_ops;
@@ -2459,10 +2535,10 @@ static void io_req_fop_fini(struct io_req_fop *fop)
 	C2_ENTRY("io_req_fop %p", fop);
 	C2_PRE(io_req_fop_invariant(fop));
 
-	/**
+	/*
 	 * IO fop is finalized (c2_io_fop_fini()) through rpc sessions code
 	 * using c2_rpc_item::c2_rpc_item_ops::rio_free().
-	 * @see c2_io_item_free().
+	 * see c2_io_item_free().
 	 */
 
 	iofops_tlink_fini(fop);
@@ -2530,15 +2606,14 @@ ssize_t c2t1fs_aio(struct kiocb	      *kcb,
 		goto last;
 	}
 
-	rc = req->ir_ops->iro_iosm_handle(req);
-        count = min64u(req->ir_nwxfer.nxr_bytes, req->ir_copied_nr);
-	if (req->ir_rc != 0)
-		count = rc;
+	rc    = req->ir_ops->iro_iosm_handle(req);
+	count = min64u(req->ir_nwxfer.nxr_bytes, req->ir_copied_nr);
 
 	req->ir_ops->iro_iomaps_destroy(req);
 	io_request_fini(req);
 last:
 	c2_free(req);
+	C2_LOG(C2_INFO, "io request returned %lu bytes", count);
 	C2_LEAVE();
 
 	return count;
@@ -2548,6 +2623,7 @@ static struct c2_indexvec *indexvec_create(unsigned long       seg_nr,
 					   const struct iovec *iov,
 					   loff_t	       pos)
 {
+	int		    rc;
 	uint32_t	    i;
 	struct c2_indexvec *ivec;
 
@@ -2566,16 +2642,9 @@ static struct c2_indexvec *indexvec_create(unsigned long       seg_nr,
 		return NULL;
 	}
 
-	ivec->iv_vec.v_nr = seg_nr;
-	C2_ALLOC_ARR_ADDB(ivec->iv_index, seg_nr, &c2t1fs_addb, &io_addb_loc);
-	C2_ALLOC_ARR_ADDB(ivec->iv_vec.v_count, seg_nr, &c2t1fs_addb,
-			  &io_addb_loc);
-
-	if (ivec->iv_index == NULL || ivec->iv_vec.v_count == NULL) {
-		c2_free(ivec->iv_index);
-		c2_free(ivec->iv_vec.v_count);
+	rc = c2_indexvec_alloc(ivec, seg_nr, &c2t1fs_addb, &io_addb_loc);
+	if (rc != 0) {
 		c2_free(ivec);
-		C2_LEAVE();
 		return NULL;
 	}
 
@@ -2632,8 +2701,10 @@ static ssize_t file_aio_write(struct kiocb	 *kcb,
 		return 0;
 	}
 
+	count = c2t1fs_aio(kcb, iov, ivec, IRT_WRITE);
+	c2_free(ivec);
 	C2_LEAVE();
-	return c2t1fs_aio(kcb, iov, ivec, IRT_WRITE);
+	return count;
 }
 
 static ssize_t file_aio_read(struct kiocb	*kcb,
@@ -2681,17 +2752,21 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 	 */
 	inode = kcb->ki_filp->f_dentry->d_inode;
 	for (seg = 0; seg < SEG_NR(ivec); ++seg) {
-		if (INDEX(ivec, seg) > inode->i_size)
+		if (INDEX(ivec, seg) > inode->i_size) {
+			ivec->iv_vec.v_nr = seg + 1;
 			break;
+		}
 		if (INDEX(ivec, seg) + COUNT(ivec, seg) > inode->i_size) {
 			COUNT(ivec, seg) = inode->i_size - INDEX(ivec, seg);
+			ivec->iv_vec.v_nr = seg + 1;
 			break;
 		}
 	}
-	ivec->iv_vec.v_nr = seg + 1;
 
 	C2_LEAVE();
-	return c2t1fs_aio(kcb, iov, ivec, IRT_READ);
+	count = c2t1fs_aio(kcb, iov, ivec, IRT_READ);
+	c2_free(ivec);
+	return count;
 }
 
 const struct file_operations c2t1fs_reg_file_operations = {
@@ -2722,9 +2797,34 @@ static int io_fops_async_submit(struct c2_io_fop      *iofop,
 
 	iofop->if_fop.f_item.ri_session = session;
 	rc = c2_rpc_post(&iofop->if_fop.f_item);
+	C2_LOG(C2_INFO, "IO fops submitted to rpc, rc = %d", rc);
 
 out:
 	C2_RETURN(rc);
+}
+
+/*
+ * There is no periodical rpc item pruning mechanism in rpc sessions.
+ * The only time rpc items are pruned is when the rpc session is finalized.
+ *
+ * Hence such fops will keep occupying memory until rpc session is finalized,
+ * which is done only when c2t1fs instance is unmounted.
+ */
+static void io_req_fop_free(struct c2_rpc_item *item)
+{
+	struct c2_fop	  *fop;
+	struct c2_io_fop  *iofop;
+	struct io_req_fop *reqfop;
+
+	C2_ENTRY("rpc_item %p", item);
+	C2_PRE(item != NULL);
+
+	fop    = container_of(item, struct c2_fop, f_item);
+	iofop  = container_of(fop, struct c2_io_fop, if_fop);
+	reqfop = bob_of(iofop, struct io_req_fop, irf_iofop, &iofop_bobtype);
+
+	c2_io_item_free(item);
+	c2_free(reqfop);
 }
 
 static void io_rpc_item_cb(struct c2_rpc_item *item)
@@ -2762,19 +2862,25 @@ static void io_bottom_half(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 	req    = bob_of(tioreq->ti_nwxfer, struct io_request, ir_nwxfer,
 			&ioreq_bobtype);
 
+	C2_ASSERT(C2_IN(irfop->irf_pattr, (PA_DATA, PA_PARITY)));
+	C2_ASSERT(C2_IN(ioreq_sm_state(req), (IRS_READING, IRS_WRITING)));
+
 	if (tioreq->ti_rc == 0)
 		tioreq->ti_rc = irfop->irf_iofop.if_rbulk.rb_rc;
 
-	tioreq->ti_bytes += irfop->irf_iofop.if_rbulk.rb_bytes;
+	if (irfop->irf_pattr == PA_DATA)
+		tioreq->ti_databytes += irfop->irf_iofop.if_rbulk.rb_bytes;
+	else
+		tioreq->ti_parbytes  += irfop->irf_iofop.if_rbulk.rb_bytes;
+
 	C2_CNT_DEC(tioreq->ti_nwxfer->nxr_iofop_nr);
+	C2_LOG(C2_INFO, "Due io fops = %llu", tioreq->ti_nwxfer->nxr_iofop_nr);
 
-	if (tioreq->ti_nwxfer->nxr_iofop_nr == 0) {
-		uint32_t state;
+	if (tioreq->ti_nwxfer->nxr_iofop_nr == 0)
+		c2_sm_state_set(&req->ir_sm,
+				ioreq_sm_state(req) == IRS_READING ?
+				IRS_READ_COMPLETE : IRS_WRITE_COMPLETE);
 
-		state = ioreq_sm_state(req) == IRS_READING ? IRS_READ_COMPLETE :
-							    IRS_WRITE_COMPLETE;
-		c2_sm_state_set(&req->ir_sm, state);
-	}
 	C2_LEAVE();
 }
 
@@ -2787,9 +2893,13 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 	C2_PRE(xfer != NULL);
 
 	c2_tl_for (tioreqs, &xfer->nxr_tioreqs, ti) {
-		rc = ti->ti_ops->tio_iofops_prepare(ti);
+		rc = ti->ti_ops->tio_iofops_prepare(ti, PA_DATA);
 		if (rc != 0)
-			C2_RETERR(rc, "iofops_prepare failed");
+			C2_RETERR(rc, "data fop failed");
+
+		rc = ti->ti_ops->tio_iofops_prepare(ti, PA_PARITY);
+		if (rc != 0)
+			C2_RETERR(rc, "parity fop failed");
 	} c2_tl_endfor;
 
 	c2_tl_for (tioreqs, &xfer->nxr_tioreqs, ti) {
@@ -2824,14 +2934,27 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 	c2_tl_for (tioreqs, &xfer->nxr_tioreqs, ti) {
 		struct io_req_fop *irfop;
 
-		if (ti->ti_rc != 0)
-			xfer->nxr_bytes += ti->ti_databytes;
+		/* Maintains only the first error encountered. */
+		if (xfer->nxr_rc == 0)
+			xfer->nxr_rc = ti->ti_rc;
+
+		xfer->nxr_bytes += ti->ti_databytes;
+		ti->ti_databytes = 0;
 
 		c2_tl_for(iofops, &ti->ti_iofops, irfop) {
 			iofops_tlist_del(irfop);
 			io_req_fop_fini(irfop);
+			/*
+			 * io_req_fop structures are deallocated using a
+			 * rpc session method - rio_free().
+			 * see io_req_fop_free().
+			 */
 		} c2_tl_endfor;
 	} c2_tl_endfor;
+
+	C2_LOG(C2_INFO, "Number of bytes %s = %llu",
+	       req->ir_sm.sm_state == IRS_READ_COMPLETE ? "read" : "written",
+	       xfer->nxr_bytes);
 
 	if (!rmw)
 		ioreq_sm_state_set(req, IRS_REQ_COMPLETE);
@@ -2841,7 +2964,7 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 }
 
 /*
- * Used in precomputing of io fop size while adding rpc bulk buffer and
+ * Used in precomputing io fop size while adding rpc bulk buffer and
  * data buffers.
  */
 static inline uint32_t io_desc_size(struct c2_net_domain *ndom)
@@ -2896,13 +3019,14 @@ static int bulk_buffer_add(struct io_req_fop	   *irfop,
 	C2_RETURN(rc);
 }
 
-static int target_ioreq_iofops_prepare(struct target_ioreq *ti)
+static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
+				       enum page_attr       filter)
 {
 	int			rc;
 	uint32_t		buf = 0;
 	uint32_t		maxsize;
 	uint32_t		delta = 0;
-	enum page_attr		pattr;
+	enum page_attr		rw;
 	struct io_request      *req;
 	struct io_req_fop      *irfop;
 	struct c2_net_domain   *ndom;
@@ -2910,22 +3034,28 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti)
 
 	C2_ENTRY("target_ioreq %p", ti);
 	C2_PRE(target_ioreq_invariant(ti));
+	C2_PRE(C2_IN(filter, (PA_DATA, PA_PARITY)));
 
 	req	= bob_of(ti->ti_nwxfer, struct io_request, ir_nwxfer,
 			 &ioreq_bobtype);
 	C2_ASSERT(C2_IN(ioreq_sm_state(req), (IRS_READING, IRS_WRITING)));
 
 	ndom	= ti->ti_session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
-	pattr	= ioreq_sm_state(req) == IRS_READING ? PA_READ : PA_WRITE;
+	rw      = ioreq_sm_state(req) == IRS_READING ? PA_READ : PA_WRITE;
 	maxsize = c2_max_fop_size(ti->ti_session->s_conn->c_rpc_machine);
 
 	while (buf < SEG_NR(&ti->ti_ivec)) {
+
+		if (!(ti->ti_pageattrs[buf] & filter)) {
+			++buf;
+			continue;
+		}
 
 		C2_ALLOC_PTR_ADDB(irfop, &c2t1fs_addb, &io_addb_loc);
 		if (irfop == NULL)
 			goto err;
 
-		rc = io_req_fop_init(irfop, ti);
+		rc = io_req_fop_init(irfop, ti, filter);
 		if (rc != 0) {
 			c2_free(irfop);
 			goto err;
@@ -2949,9 +3079,10 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti)
 
 			/*
 			 * Adds a page to rpc bulk buffer only if it passes
-			 * throught the filter.
+			 * through the filter.
 			 */
-			if (ti->ti_pageattrs[buf] & pattr) {
+			if (ti->ti_pageattrs[buf] & rw &&
+			    ti->ti_pageattrs[buf] & filter) {
 				delta += io_seg_size();
 				rc = c2_rpc_bulk_buf_databuf_add(rbuf,
 						ti->ti_bufvec.ov_buf[buf],
@@ -2987,9 +3118,14 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti)
 			ti->ti_fid.f_key;
 
 		C2_CNT_INC(ti->ti_nwxfer->nxr_iofop_nr);
+		C2_LOG(C2_INFO, "Number of io fops = %llu",
+		       ti->ti_nwxfer->nxr_iofop_nr);
 		iofops_tlist_add(&ti->ti_iofops, irfop);
 	}
 
+	C2_LOG(C2_INFO, "%s iofops prepared for target_ioreq %llu:%llu",
+	       filter == PA_DATA ? "data" : "parity", ti->ti_fid.f_container,
+	       ti->ti_fid.f_key);
 	C2_RETURN(0);
 fini_fop:
 	irfop_fini(irfop);

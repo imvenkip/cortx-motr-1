@@ -23,27 +23,6 @@
 #ifndef __COLIBRI_C2T1FS_FILE_INTERNAL_H__
 #define __COLIBRI_C2T1FS_FILE_INTERNAL_H__
 
-#include <asm/uaccess.h>    /* VERIFY_READ, VERIFY_WRITE */
-#include <linux/mm.h>       /* get_user_pages(), get_page(), put_page() */
-#include <linux/fs.h>       /* struct file_operations */
-
-#include "lib/memory.h"     /* c2_alloc(), c2_free() */
-#include "lib/misc.h"       /* c2_round_{up/down} */
-#include "lib/bob.h"        /* c2_bob_type */
-#include "lib/ext.h"        /* c2_ext */
-#include "lib/bitmap.h"     /* c2_bitmap */
-#include "lib/arith.h"      /* min_type() */
-#include "layout/pdclust.h" /* C2_PUT_*, c2_layout_to_pdl(),
-			     * c2_pdclust_instance_map */
-#include "c2t1fs/linux_kernel/c2t1fs.h" /* c2t1fs_sb */
-#include "lib/bob.h"        /* c2_bob_type */
-#include "ioservice/io_fops.h"    /* c2_io_fop */
-#include "ioservice/io_fops_ff.h" /* c2_fop_cob_rw */
-#include "colibri/magic.h"  /* C2_T1FS_IOREQ_MAGIC */
-
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_C2T1FS
-#include "lib/trace.h"      /* C2_LOG, C2_ENTRY */
-
 /**
    @page rmw_io_dld Detailed Level Design for read-modify-write IO requests.
 
@@ -678,6 +657,12 @@ enum page_attr {
         /** Page needs to be written. */
         PA_WRITE           = (1 << 3),
 
+	/** Page contails file data. */
+	PA_DATA		   = (1 << 4),
+
+	/** Page contains parity. */
+	PA_PARITY	   = (1 << 5),
+
         /**
          * pargrp_iomap::pi_ivec is shared for read and write state for an
          * rmw IO request. Read IO can not go past EOF but write IO can.
@@ -687,9 +672,9 @@ enum page_attr {
          * request and store the count of bytes in last page in
 	 * data_buf::db_buf::b_nob.
          */
-        PA_READ_EOF        = (1 << 4),
+        PA_READ_EOF        = (1 << 6),
 
-        PA_NR              = 6,
+        PA_NR              = 7,
 };
 
 /** Enum representing direction of data copy in IO. */
@@ -1134,7 +1119,8 @@ struct target_ioreq_ops {
 	 * @pre   iofops_tlist_is_empty(ti->ti_iofops).
 	 * @post !iofops_tlist_is_empty(ti->ti_iofops).
 	 */
-        int  (*tio_iofops_prepare) (struct target_ioreq *ti);
+        int  (*tio_iofops_prepare) (struct target_ioreq *ti,
+				    enum page_attr       filter);
 };
 
 /**
@@ -1153,11 +1139,12 @@ struct target_ioreq {
         /** Status code for io operation done for this target_ioreq. */
         int                            ti_rc;
 
-        /** Number of bytes read/written for this target_ioreq. */
-        uint64_t                       ti_bytes;
+        /** Number of parity bytes read/written for this target_ioreq. */
+        uint64_t                       ti_parbytes;
 
 	/** Number of file data bytes read/written for this object. */
 	uint64_t                       ti_databytes;
+
         /** List of io_req_fop structures issued on this target object. */
         struct c2_tl                   ti_iofops;
 
@@ -1205,10 +1192,11 @@ struct io_req_fop {
         /** Holds C2_T1FS_IOFOP_MAGIC */
         uint64_t                irf_magic;
 
-        /**
-         * In-memory handle for IO fop.
-         */
+        /** In-memory handle for IO fop. */
         struct c2_io_fop        irf_iofop;
+
+	/** Type of pages {PA_DATA, PA_PARITY} carried by io fop. */
+	enum page_attr		irf_pattr;
 
         /** Callback per IO fop. */
         struct c2_sm_ast        irf_ast;
