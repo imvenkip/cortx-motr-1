@@ -19,10 +19,6 @@
  * Original creation date: 30/11/2011
  */
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_CM
 
 #include "lib/trace.h"   /* C2_LOG */

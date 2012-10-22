@@ -36,8 +36,7 @@
 #include "net/buffer_pool.h"
 #include "fid/fid.h"
 #include "cob/cob.h"    /* c2_cob_domain_id */
-#include "layout/layout.h"  /* c2_layout_domain */
-#include "layout/pdclust.h" /* c2_pdclust_instance */
+#include "layout/layout.h" /* c2_layout_domain, c2_layout, c2_layout_instance */
 
 /**
   @defgroup c2t1fs c2t1fs

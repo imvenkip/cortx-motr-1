@@ -104,8 +104,8 @@ static const struct super_operations c2t1fs_super_operations = {
 };
 
 const struct c2_fid c2t1fs_root_fid = {
-	.f_container = 0,
-	.f_key       = 2
+	.f_container = 1ULL,
+	.f_key = 3ULL
 };
 
 /**
@@ -286,8 +286,7 @@ static int c2t1fs_sb_layout_init(struct c2t1fs_sb *csb)
 			c2_layout_enum_fini(layout_enum);
 	}
 
-	C2_POST(equi(rc == 0, csb->csb_file_layout != NULL &&
-		     csb->csb_file_layout->l_ref > 0));
+	C2_POST(ergo(rc == 0, csb->csb_file_layout != NULL));
 	C2_RETURN(rc);
 }
 

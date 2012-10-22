@@ -1,5 +1,5 @@
-Name:    colibri
-Version: @VERSION@
+Name:    @PACKAGE@
+Version: @PACKAGE_VERSION@
 Release: 1
 Summary: Colibri filesystem and development libraries
 Group: System Environment/Base

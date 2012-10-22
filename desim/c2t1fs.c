@@ -41,6 +41,7 @@ static void thread_loop(struct sim *s, struct sim_thread *t, void *arg)
 	struct c2t1fs_client       *cl   = cth->cth_client;
 	struct c2t1fs_conf         *conf = cl->cc_conf;
 	struct c2_pdclust_instance *pi;
+	struct c2_pdclust_layout   *pl;
 	uint32_t                    pl_N;
 	uint32_t                    pl_K;
 	struct c2_layout_enum      *le;
@@ -51,15 +52,16 @@ static void thread_loop(struct sim *s, struct sim_thread *t, void *arg)
 	C2_ASSERT(t == &cth->cth_thread);
 
 	pi   = c2_layout_instance_to_pdi(cth->cth_layout_instance);
-	pl_N = pi->pi_layout->pl_attr.pa_N;
-	pl_K = pi->pi_layout->pl_attr.pa_K;
+	pl   = c2_layout_to_pdl(pi->pi_base.li_l);
+	pl_N = pl->pl_attr.pa_N;
+	pl_K = pl->pl_attr.pa_K;
 	sim_log(s, SLL_TRACE, "thread [%i:%i]: seed: [%16lx:%16lx]\n",
-		cl->cc_id, cth->cth_id, pi->pi_layout->pl_attr.pa_seed.u_hi,
-		pi->pi_layout->pl_attr.pa_seed.u_lo);
+		cl->cc_id, cth->cth_id, pl->pl_attr.pa_seed.u_hi,
+		pl->pl_attr.pa_seed.u_lo);
 
 	nob  = conf->ct_total;
 	unit = conf->ct_unitsize;
-	le = c2_striped_layout_to_enum(&pi->pi_layout->pl_base);
+	le = c2_striped_layout_to_enum(&pl->pl_base);
 	for (nob = conf->ct_total, grp = 0; nob > 0;
 	     nob -= unit * (pl_N + pl_K), grp++) {
 		unsigned idx;
@@ -91,8 +93,7 @@ static void thread_loop(struct sim *s, struct sim_thread *t, void *arg)
 
 			sim_log(s, SLL_TRACE,
 				"%c [%3i:%3i] -> %4u@%3u [%4lu:%4lu] %6lu\n",
-				"DPS"[c2_pdclust_unit_classify(pi->pi_layout,
-							       idx)],
+				"DPS"[c2_pdclust_unit_classify(pl, idx)],
 				cl->cc_id, cth->cth_id, obj, srv,
 				stob_id.si_bits.u_hi, stob_id.si_bits.u_lo,
 				tgt.ta_frame);

@@ -220,7 +220,7 @@ static bool io_req_spans_full_stripe(struct c2t1fs_inode *ci,
 	addr = (unsigned long)buf;
 
 	pi = c2_layout_instance_to_pdi(ci->ci_layout_instance);
-	pl = pi->pi_layout;
+	pl = c2_layout_to_pdl(ci->ci_layout_instance->li_l);
 
 	/* stripe width = number of data units * size of each unit */
 	stripe_width = c2_pdclust_N(pl) * c2_pdclust_unit_size(pl);
@@ -581,7 +581,7 @@ static ssize_t c2t1fs_internal_read_write(struct c2t1fs_inode *ci,
 	csb = C2T1FS_SB(ci->ci_inode.i_sb);
 
 	pi = c2_layout_instance_to_pdi(ci->ci_layout_instance);
-	pl = pi->pi_layout;
+	pl = c2_layout_to_pdl(ci->ci_layout_instance->li_l);
 
 	unit_size = c2_pdclust_unit_size(pl);
 

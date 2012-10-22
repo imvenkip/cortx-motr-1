@@ -32,7 +32,8 @@
  */
 
 /* import */
-#include "db/db.h" /* struct c2_table */
+#include "lib/arith.h"     /* C2_IS_8ALIGNED */
+#include "db/db.h"         /* struct c2_table */
 #include "layout/layout.h"
 
 struct c2_fid;
@@ -104,6 +105,7 @@ struct cob_entries_header {
 	 */
 	char      ces_cobs[0];
 };
+C2_BASSERT(C2_IS_8ALIGNED(sizeof(struct cob_entries_header)));
 
 /* __COLIBRI_LAYOUT_LIST_ENUM_H__ */
 #endif

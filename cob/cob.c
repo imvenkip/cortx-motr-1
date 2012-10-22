@@ -44,7 +44,7 @@ enum {
 /**
    Storage virtual root. All cobs are placed in it.
  */
-struct c2_fid C2_COB_ROOT_FID = {
+const struct c2_fid C2_COB_ROOT_FID = {
         .f_container = 1ULL,
         .f_key       = 1ULL
 };
@@ -52,17 +52,17 @@ struct c2_fid C2_COB_ROOT_FID = {
 /**
    Metadata hierarchry root fid.
 */
-struct c2_fid C2_COB_SLASH_FID = {
+const struct c2_fid C2_COB_SLASH_FID = {
         .f_container = 1ULL,
-        .f_key       = 2ULL
+        .f_key       = 3ULL
 };
 
 /**
    Root session fid. All sessions are placed in it.
 */
-struct c2_fid C2_COB_SESSIONS_FID = {
+const struct c2_fid C2_COB_SESSIONS_FID = {
         .f_container = 1ULL,
-        .f_key       = 3ULL
+        .f_key       = 2ULL
 };
 
 const char C2_COB_ROOT_NAME[] = "ROOT";
@@ -361,6 +361,7 @@ void c2_cob_domain_fini(struct c2_cob_domain *dom)
         c2_table_fini(&dom->cd_namespace);
         c2_addb_ctx_fini(&dom->cd_addb);
 }
+C2_EXPORTED(c2_cob_domain_fini);
 
 #ifndef __KERNEL__
 #include <sys/stat.h>    /* S_ISDIR */

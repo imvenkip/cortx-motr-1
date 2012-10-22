@@ -138,7 +138,7 @@ int main(int argc, char **argv)
 	out_c = fmt("%s_ff.c", scratch);
 
 	bname = basename(scratch);
-	gname = fmt("__COLIBRI_%s_%s_H__", basename(dirname(scratch)), bname);
+	gname = fmt("__COLIBRI_%s_%s_FF_H__", basename(dirname(scratch)), bname);
 
 	for (ch = gname; *ch != 0; ch++) {
 		*ch = toupper(*ch);

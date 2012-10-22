@@ -1,6 +1,0 @@
-bin/c2console
-console_xc.[ch]
-st/server
-rm/
-../rm/
-bin/console.c
