@@ -64,13 +64,13 @@ uint64_t cp_home_loc_helper(const struct c2_cm_cp *cp)
 	return id->ai_hi.u_lo + id->ai_lo.u_lo;
 }
 
-static int cp_init(struct c2_cm_cp *cp)
+static int c2_sns_repair_cp_init(struct c2_cm_cp *cp)
 {
 	C2_PRE(c2_fom_phase(&cp->c_fom) == C2_CCP_INIT);
 	return cp->c_ops->co_phase_next(cp);
 }
 
-static int cp_fini(struct c2_cm_cp *cp)
+static int c2_sns_repair_cp_fini(struct c2_cm_cp *cp)
 {
 	struct c2_sns_repair_cp	*rcp;
 
@@ -82,12 +82,12 @@ static int cp_fini(struct c2_cm_cp *cp)
 	return C2_FSO_AGAIN;
 }
 
-static int cp_send(struct c2_cm_cp *cp)
+static int c2_sns_repair_cp_send(struct c2_cm_cp *cp)
 {
 	return C2_FSO_AGAIN;
 }
 
-static int cp_recv(struct c2_cm_cp *cp)
+static int c2_sns_repair_cp_recv(struct c2_cm_cp *cp)
 {
 	return C2_FSO_AGAIN;
 }
@@ -127,14 +127,14 @@ static void cp_free(struct c2_cm_cp *cp)
 
 const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
 	.co_action = {
-		[C2_CCP_INIT]    = &cp_init,
-		[C2_CCP_READ]    = &c2_repair_cp_read,
-		[C2_CCP_WRITE]   = &c2_repair_cp_write,
-		[C2_CCP_IO_WAIT] = &c2_repair_cp_io_wait,
-		[C2_CCP_XFORM]   = &c2_repair_cp_xform,
-		[C2_CCP_SEND]    = &cp_send,
-		[C2_CCP_RECV]    = &cp_recv,
-		[C2_CCP_FINI]    = &cp_fini,
+		[C2_CCP_INIT]    = &c2_sns_repair_cp_init,
+		[C2_CCP_READ]    = &c2_sns_repair_cp_read,
+		[C2_CCP_WRITE]   = &c2_sns_repair_cp_write,
+		[C2_CCP_IO_WAIT] = &c2_sns_repair_cp_io_wait,
+		[C2_CCP_XFORM]   = &c2_sns_repair_cp_xform,
+		[C2_CCP_SEND]    = &c2_sns_repair_cp_send,
+		[C2_CCP_RECV]    = &c2_sns_repair_cp_recv,
+		[C2_CCP_FINI]    = &c2_sns_repair_cp_fini,
 	},
 	.co_action_nr            = C2_CCP_NR,
 	.co_phase_next	         = &cp_phase_next,

@@ -68,7 +68,7 @@ static int dummy_cp_xform(struct c2_cm_cp *cp)
 
 static int dummy_cp_init(struct c2_cm_cp *cp)
 {
-	int rc = cp_init(cp);
+	int rc = c2_sns_repair_cp_init(cp);
 	c2_semaphore_up(&sem);
 	return rc;
 }
@@ -80,9 +80,9 @@ const struct c2_cm_cp_ops c2_sns_repair_cp_dummy_ops = {
                 [C2_CCP_WRITE] = &dummy_cp_write,
                 [C2_CCP_IO_WAIT] = &dummy_cp_io_wait,
                 [C2_CCP_XFORM] = &dummy_cp_xform,
-                [C2_CCP_SEND]  = &cp_send,
-                [C2_CCP_RECV]  = &cp_recv,
-                [C2_CCP_FINI]  = &cp_fini,
+                [C2_CCP_SEND]  = &c2_sns_repair_cp_send,
+                [C2_CCP_RECV]  = &c2_sns_repair_cp_recv,
+                [C2_CCP_FINI]  = &c2_sns_repair_cp_fini,
         },
         .co_action_nr          = C2_CCP_NR,
         .co_phase_next         = &cp_phase_next,
@@ -199,8 +199,11 @@ static void test_cp_multi_thread(void)
  */
 static int cm_cp_init(void)
 {
-        C2_ASSERT(c2_reqh_init(&reqh, NULL, (void*)1, (void*)1, (void*)1,
-			       (void*)1) == 0);
+	int rc;
+
+        rc = c2_reqh_init(&reqh, NULL, (void*)1, (void*)1, (void*)1, (void*)1);
+	C2_ASSERT(rc == 0);
+
 	c2_cm_cp_module_init();
         return 0;
 }
