@@ -273,7 +273,6 @@ static void ds_test(void)
 	dbuf = NULL;
 
 	io_req_fop_fini(irfop);
-	C2_UT_ASSERT(irfop->irf_magic       == 0);
 	C2_UT_ASSERT(irfop->irf_tioreq      == NULL);
 	C2_UT_ASSERT(irfop->irf_ast.sa_cb   == NULL);
 	C2_UT_ASSERT(irfop->irf_ast.sa_mach == NULL);
@@ -743,7 +742,7 @@ static void target_ioreq_test(void)
 	C2_UT_ASSERT(col == 0);
 	SEG_NR(&ti.ti_ivec) = 0;
 
-	target_ioreq_seg_add(&ti, 0, 0, PAGE_CACHE_SIZE, 0);
+	target_ioreq_seg_add(&ti, 0, 0, 0, PAGE_CACHE_SIZE, 0);
 	C2_UT_ASSERT(1 == SEG_NR(&ti.ti_ivec));
 	C2_UT_ASSERT(ti.ti_bufvec.ov_buf[0] == buf->db_buf.b_addr);
 	C2_UT_ASSERT(ti.ti_pageattrs[0] & PA_DATA);
@@ -752,7 +751,8 @@ static void target_ioreq_test(void)
 	page_pos_get(map, COUNT(&ti.ti_ivec, 0), &row, &col);
 	buf = map->pi_databufs[row][col];
 
-	target_ioreq_seg_add(&ti, 0, COUNT(&ti.ti_ivec, 0), PAGE_CACHE_SIZE, 0);
+	target_ioreq_seg_add(&ti, 0, COUNT(&ti.ti_ivec, 0), 0,
+			     PAGE_CACHE_SIZE, 0);
 	C2_UT_ASSERT(2 == SEG_NR(&ti.ti_ivec));
 	C2_UT_ASSERT(ti.ti_bufvec.ov_buf[1] == buf->db_buf.b_addr);
 	C2_UT_ASSERT(ti.ti_pageattrs[1] & PA_DATA);
@@ -760,7 +760,7 @@ static void target_ioreq_test(void)
 	/* Addition of parity buffer */
 	buf = map->pi_paritybufs[page_id(0)]
 		[LAY_N % data_col_nr(pdlay)];
-	target_ioreq_seg_add(&ti, 0, 0, PAGE_CACHE_SIZE, LAY_N);
+	target_ioreq_seg_add(&ti, 0, 0, 0, PAGE_CACHE_SIZE, LAY_N);
 	C2_UT_ASSERT(3 == SEG_NR(&ti.ti_ivec));
 	C2_UT_ASSERT(ti.ti_bufvec.ov_buf[2] == buf->db_buf.b_addr);
 	C2_UT_ASSERT(ti.ti_pageattrs[2] & PA_DATA);

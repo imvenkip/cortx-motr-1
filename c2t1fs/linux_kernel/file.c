@@ -202,8 +202,7 @@ static inline uint64_t target_offset(uint64_t		       frame,
 				     c2_bindex_t	       gob_offset)
 {
 	return frame * layout_unit_size(play) +
-	       (gob_offset % ((layout_n(play) + 2 * layout_k(play))) *
-		layout_unit_size(play));
+	       (gob_offset % layout_unit_size(play));
 }
 
 static inline struct c2_fid target_fid(struct io_request	  *req,
@@ -399,6 +398,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 static void target_ioreq_seg_add      (struct target_ioreq *ti,
 				       uint64_t		    frame,
 				       c2_bindex_t	    gob_offset,
+				       c2_bindex_t	    par_offset,
 				       c2_bcount_t	    count,
 				       uint64_t		    unit);
 
@@ -1921,7 +1921,7 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 				goto err;
 
 			ti->ti_ops->tio_seg_add(ti, tgt.ta_frame, r_ext.e_start,
-						c2_ext_length(&r_ext),
+						0, c2_ext_length(&r_ext),
 						src.sa_unit);
 			++i;
 		}
@@ -1939,6 +1939,8 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 			 * number of spare units equal number of parity units.
 			 * In case of spare units, no IO is done.
 			 */
+			c2_bindex_t par_offset = 0;
+
 			for (unit = 0; unit < 2 * layout_k(play); ++unit) {
 
 				src.sa_unit = layout_n(play) + unit;
@@ -1950,9 +1952,11 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 				if (c2_pdclust_unit_classify(play,
 				    src.sa_unit) == C2_PUT_PARITY)
 					ti->ti_ops->tio_seg_add(ti,
-							tgt.ta_frame, 0,
+							tgt.ta_frame, pgstart,
+							0,
 							layout_unit_size(play),
 							src.sa_unit);
+				par_offset += layout_unit_size(play);
 			}
 		}
 	}
@@ -2441,11 +2445,11 @@ static void data_buf_dealloc_fini(struct data_buf *buf)
 static void target_ioreq_seg_add(struct target_ioreq *ti,
 				 uint64_t	      frame,
 				 c2_bindex_t	      gob_offset,
+				 c2_bindex_t	      par_offset,
 				 c2_bcount_t	      count,
 				 uint64_t	      unit)
 {
 	uint64_t		   seg;
-	uint64_t		   dtsize;
 	c2_bindex_t		   toff;
 	c2_bindex_t		   goff;
 	c2_bindex_t		   pgstart;
@@ -2463,16 +2467,16 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
 	req	= bob_of(ti->ti_nwxfer, struct io_request, ir_nwxfer,
 			 &ioreq_bobtype);
 	play	= pdlayout_get(req);
-	toff	= target_offset(frame, play, gob_offset);
-	dtsize	= data_size(play);
-	req->ir_ops->iro_iomap_locate(req, group_id(gob_offset, dtsize),
-				      &map);
-	C2_ASSERT(map != NULL);
-	pgstart = toff;
-	goff	= gob_offset;
 
 	unit_type = c2_pdclust_unit_classify(play, unit);
 	C2_ASSERT(C2_IN(unit_type, (C2_PUT_DATA, C2_PUT_PARITY)));
+
+	toff	= target_offset(frame, play, gob_offset);
+	req->ir_ops->iro_iomap_locate(req, group_id(gob_offset,
+				      data_size(play)), &map);
+	C2_ASSERT(map != NULL);
+	pgstart = toff;
+	goff    = unit_type == C2_PUT_DATA ? gob_offset : par_offset;
 
 	while (pgstart < toff + count) {
 		pgend = min64u(pgstart + PAGE_CACHE_SIZE, toff + count);
@@ -2917,6 +2921,7 @@ static void io_bottom_half(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 		tioreq->ti_parbytes  += irfop->irf_iofop.if_rbulk.rb_bytes;
 
 	C2_CNT_DEC(tioreq->ti_nwxfer->nxr_iofop_nr);
+	c2_atomic64_dec(&file_to_sb(req->ir_file)->csb_pending_io_nr);
 	C2_LOG(C2_INFO, "Due io fops = %llu", tioreq->ti_nwxfer->nxr_iofop_nr);
 
 	if (tioreq->ti_nwxfer->nxr_iofop_nr == 0)
@@ -2931,9 +2936,11 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 {
 	int		     rc = 0;
 	struct io_req_fop   *irfop;
+	struct io_request   *req;
 	struct target_ioreq *ti;
 
 	C2_PRE(xfer != NULL);
+	req = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
 
 	c2_tl_for (tioreqs, &xfer->nxr_tioreqs, ti) {
 		rc = ti->ti_ops->tio_iofops_prepare(ti, PA_DATA);
@@ -2952,6 +2959,9 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 						  ti->ti_session);
 			if (rc != 0)
 				goto out;
+			else
+				c2_atomic64_inc(&file_to_sb(req->ir_file)->
+						csb_pending_io_nr);
 		} c2_tl_endfor;
 
 	} c2_tl_endfor;
