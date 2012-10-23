@@ -190,24 +190,24 @@ static void rm_out_fini(struct rm_out *out)
 }
 
 int c2_rm_request_out(struct c2_rm_incoming *in,
-		     struct c2_rm_loan *loan,
-		     struct c2_rm_right *right)
+		      struct c2_rm_loan *loan,
+		      struct c2_rm_right *right)
 {
-	struct rm_out		*outreq;
-	int			 rc;
+	struct rm_out *outreq;
+	int	       rc;
 
-	C2_PRE(C2_IN(in->rin_type, (C2_RIT_BORROW, C2_RIT_REVOKE)));
+	C2_PRE(C2_IN(in->rin_flags, (RIF_MAY_BORROW, RIF_MAY_REVOKE)));
 
 	rc = rm_out_create(&outreq, in, right);
 	if (rc != 0)
 		goto out;
 
-	switch (in->rin_type) {
-	case C2_RIT_BORROW:
+	switch (in->rin_flags) {
+	case RIF_MAY_BORROW:
 		C2_ASSERT(loan == NULL);
 		rc = borrow_fop_fill(outreq, in, right);
 		break;
-	case C2_RIT_REVOKE:
+	case RIF_MAY_REVOKE:
 		rc = revoke_fop_fill(outreq, in, loan, right);
 		break;
 	default:
@@ -221,10 +221,14 @@ int c2_rm_request_out(struct c2_rm_incoming *in,
 	}
 
 	pin_add(in, &outreq->ou_req.rog_want.rl_right, C2_RPF_TRACK);
+	c2_rm_ur_tlist_add(&in->rin_want.ri_owner->ro_outgoing[OQS_GROUND],
+			   &outreq->ou_req.rog_want.rl_right);
 	outreq->ou_fop.f_item.ri_ops = &rm_borrow_rpc_ops;
 	if (C2_FI_ENABLED("no-rpc"))
 		goto out;
 
+	outreq->ou_fop.f_item.ri_session =
+		in->rin_want.ri_owner->ro_creditor->rem_session;
 	c2_rpc_post(&outreq->ou_fop.f_item);
 
 out:

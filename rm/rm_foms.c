@@ -303,6 +303,7 @@ static void reply_err_set(enum c2_rm_incoming_type type,
 		C2_IMPOSSIBLE("Unrecognized RM request");
 		break;
 	}
+	c2_fom_phase_set(fom, rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
 }
 
 static int loan_setup(struct c2_rm_loan *loan,
@@ -487,8 +488,6 @@ static int request_post_process(struct c2_fom *fom)
 
 	reply_err_set(in->rin_type, fom, rc);
 	c2_rm_right_fini(&in->rin_want);
-
-	c2_fom_phase_set(fom, rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
 
 	return C2_FSO_AGAIN;
 }
