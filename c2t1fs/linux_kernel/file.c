@@ -111,6 +111,9 @@ static const struct c2_bob_type dtbuf_bobtype = {
 
 #define SEG_NR(vec)    ((vec)->iv_vec.v_nr)
 
+#define SEG_ENDPOS(ivec, i) \
+	((ivec)->iv_index[(i)] + (ivec)->iv_vec.v_count[(i)])
+
 static inline struct inode *file_to_inode(struct file *file)
 {
 	return file->f_dentry->d_inode;
@@ -938,7 +941,8 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 					dbufs[1].b_addr = buf->db_buf.b_addr;
 					dbufs[1].b_nob	= PAGE_CACHE_SIZE;
 
-					for (id = 2; id < data_col_nr(play); ++id)
+					for (id = 2; id < data_col_nr(play);
+					     ++id)
 						dbufs[id] = zbuf;
 
 					/*
@@ -965,7 +969,8 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 			}
 			c2_parity_math_calculate(parity_math(map->
 						 pi_ioreq), dbufs, spbufs);
-			C2_LOG(C2_INFO, "Calculated parity amongst delta parities");
+			C2_LOG(C2_INFO, "Calculated parity amongst"
+			       "delta parities");
 
 			/*
 			 * Calculates parity amongst spbufs array and old
@@ -1253,8 +1258,7 @@ static bool pargrp_iomap_spans_seg(struct pargrp_iomap *map,
 
 	for (seg = 0; seg < map->pi_ivec.iv_vec.v_nr; ++seg) {
 		if (index >= INDEX(&map->pi_ivec, seg) &&
-		    index + count <= INDEX(&map->pi_ivec, seg) +
-		    COUNT(&map->pi_ivec, seg))
+		    index + count <= SEG_ENDPOS(&map->pi_ivec, seg))
 			return true;
 	}
 	return false;
@@ -1330,9 +1334,7 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 					 * Note the actual length of page
 					 * till EOF in data_buf::c2_buf::b_nob.
 					 */
-					dbuf->db_buf.b_nob =
-						min64u(inode->i_size, end) -
-						start;
+					dbuf->db_buf.b_nob = end - start;
 					dbuf->db_flags |= PA_READ_EOF;
 				}
 			}
@@ -1533,10 +1535,9 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
 	 * are available to do IO.
 	 */
 	for (seg = 1; seg_nr > 2 && seg <= seg_nr - 2; ++seg) {
-		if (INDEX(ivec, seg) + COUNT(ivec, seg) < INDEX(ivec, seg + 1))
+		if (SEG_ENDPOS(ivec, seg) < INDEX(ivec, seg + 1))
 			COUNT(ivec, seg) += INDEX(ivec, seg + 1) -
-					    (INDEX(ivec, seg) +
-					     COUNT(ivec, seg));
+					    SEG_ENDPOS(ivec, seg);
 	}
 
 	/*
@@ -1658,8 +1659,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 		 */
 		if (seg > 0 &&
 		    INDEX(&map->pi_ivec, seg) <
-		    INDEX(&map->pi_ivec, seg - 1) +
-		    COUNT(&map->pi_ivec, seg - 1)) {
+		    SEG_ENDPOS(&map->pi_ivec, seg - 1)) {
 			INDEX(&map->pi_ivec, seg) = c2_round_up(
 					INDEX(&map->pi_ivec, seg) + 1,
 					PAGE_CACHE_SIZE);
@@ -1674,8 +1674,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 
 		/* For read IO request, IO should not go beyond EOF. */
 		if (map->pi_ioreq->ir_type == IRT_READ &&
-		    INDEX(&map->pi_ivec, seg) + COUNT(&map->pi_ivec, seg) >
-		    size)
+		    SEG_ENDPOS(&map->pi_ivec, seg) > size)
 			COUNT(&map->pi_ivec, seg) = size - INDEX(&map->pi_ivec,
 								 seg);
 
@@ -1763,8 +1762,7 @@ static int ioreq_iomaps_prepare(struct io_request *req)
 	 */
 	for (seg = 0; seg < SEG_NR(&req->ir_ivec); ++seg) {
 		grpstart = group_id(INDEX(&req->ir_ivec, seg), data_size(play));
-		grpend	 = group_id(INDEX(&req->ir_ivec, seg) +
-				    COUNT(&req->ir_ivec, seg) - 1,
+		grpend	 = group_id(SEG_ENDPOS(&req->ir_ivec, seg) - 1,
 				    data_size(play));
 		for (grp = grpstart; grp <= grpend; ++grp) {
 			for (id = 0; id < req->ir_iomap_nr; ++id)
@@ -2105,9 +2103,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 	inode = req->ir_file->f_dentry->d_inode;
 	if (req->ir_sm.sm_state == IRS_WRITE_COMPLETE) {
 		inode->i_size = max64u(inode->i_size,
-				       INDEX(&req->ir_ivec,
-					     req->ir_ivec.iv_vec.v_nr - 1) +
-				       COUNT(&req->ir_ivec,
+				       SEG_ENDPOS(&req->ir_ivec,
 					     req->ir_ivec.iv_vec.v_nr - 1));
 		C2_LOG(C2_INFO, "File size set to %llu", inode->i_size);
 	}
@@ -2792,7 +2788,7 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 			ivec->iv_vec.v_nr = seg + 1;
 			break;
 		}
-		if (INDEX(ivec, seg) + COUNT(ivec, seg) > inode->i_size) {
+		if (SEG_ENDPOS(ivec, seg) > inode->i_size) {
 			COUNT(ivec, seg) = inode->i_size - INDEX(ivec, seg);
 			ivec->iv_vec.v_nr = seg + 1;
 			break;

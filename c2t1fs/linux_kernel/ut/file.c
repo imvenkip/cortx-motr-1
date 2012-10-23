@@ -60,7 +60,7 @@ enum {
 	LAY_P            = LAY_N + 2 * LAY_K,
 
 	/* Unit Size = 12K. */
-	UNIT_SIZE	 = 12288,
+	UNIT_SIZE	 = 3 * PAGE_CACHE_SIZE,
 
 	/* Data size for parity group = 12K * 3 = 36K. */
 	DATA_SIZE        = UNIT_SIZE * LAY_N,
@@ -175,8 +175,8 @@ static void ds_test(void)
                 iovec_arr[cnt].iov_base = &rc;
                 iovec_arr[cnt].iov_len  = IOVEC_BUF_LEN;
 
-                ivec.iv_index[cnt] = FILE_START_INDEX - cnt * IOVEC_BUF_LEN;
-                ivec.iv_vec.v_count[cnt] = IOVEC_BUF_LEN;
+                INDEX(&ivec, cnt) = FILE_START_INDEX - cnt * IOVEC_BUF_LEN;
+                COUNT(&ivec, cnt) = IOVEC_BUF_LEN;
         }
 
 	/* io_request attributes test. */
@@ -213,6 +213,11 @@ static void ds_test(void)
 	map = req.ir_iomaps[0];
 	C2_UT_ASSERT(map->pi_magic == C2_T1FS_PGROUP_MAGIC);
 	C2_UT_ASSERT(map->pi_grpid == 0);
+
+	/*
+	 * Input index vector :
+	 * {{21340, 1024}, {20316, 1024}, {19292, 1024}, {18268, 1024}}
+	 */
 	C2_UT_ASSERT(c2_vec_count(&map->pi_ivec.iv_vec) ==
 		     PAGE_CACHE_SIZE * 2);
 	C2_UT_ASSERT(map->pi_ivec.iv_index[0] == PAGE_CACHE_SIZE * 4);
@@ -223,8 +228,15 @@ static void ds_test(void)
 	C2_UT_ASSERT(map->pi_paritybufs != NULL);
 	C2_UT_ASSERT(map->pi_ops        != NULL);
 	C2_UT_ASSERT(map->pi_ioreq      == &req);
+	C2_UT_ASSERT(map->pi_databufs[0][0]   == NULL);
+	C2_UT_ASSERT(map->pi_databufs[1][0]   == NULL);
+	C2_UT_ASSERT(map->pi_databufs[2][0]   == NULL);
+	C2_UT_ASSERT(map->pi_databufs[0][1]   == NULL);
 	C2_UT_ASSERT(map->pi_databufs[1][1]   != NULL);
 	C2_UT_ASSERT(map->pi_databufs[2][1]   != NULL);
+	C2_UT_ASSERT(map->pi_databufs[0][2]   == NULL);
+	C2_UT_ASSERT(map->pi_databufs[1][2]   == NULL);
+	C2_UT_ASSERT(map->pi_databufs[2][2]   == NULL);
 	C2_UT_ASSERT(map->pi_paritybufs[0][0] != NULL);
 	C2_UT_ASSERT(map->pi_paritybufs[1][0] != NULL);
 	C2_UT_ASSERT(map->pi_paritybufs[2][0] != NULL);
@@ -336,7 +348,6 @@ static void pargrp_iomap_test(void)
 	uint32_t	        col;
 	uint64_t	        nr;
 	c2_bindex_t             index;
-	/* iovec array spans the parity group partially. */
 	struct iovec            iovec_arr[LAY_N * UNIT_SIZE / PAGE_CACHE_SIZE];
 	struct io_request       req;
 	struct c2_indexvec      ivec;
@@ -351,8 +362,8 @@ static void pargrp_iomap_test(void)
 		iovec_arr[cnt].iov_base  = &rc;
 		iovec_arr[cnt].iov_len   = PAGE_CACHE_SIZE;
 
-		ivec.iv_index[cnt]       = (c2_bindex_t)(cnt * PAGE_CACHE_SIZE);
-		ivec.iv_vec.v_count[cnt] = PAGE_CACHE_SIZE;
+		INDEX(&ivec, cnt) = (c2_bindex_t)(cnt * PAGE_CACHE_SIZE);
+		COUNT(&ivec, cnt) = PAGE_CACHE_SIZE;
 	}
 
 	rc = io_request_init(&req, &lfile, iovec_arr, &ivec, IRT_WRITE);
@@ -371,15 +382,14 @@ static void pargrp_iomap_test(void)
 	map.pi_databufs[0][0] = NULL;
 
 	for (cnt = 0; cnt < ARRAY_SIZE(iovec_arr); ++cnt) {
-		map.pi_ivec.iv_index[cnt]       = (c2_bindex_t)
-						  (cnt * PAGE_CACHE_SIZE);
-		map.pi_ivec.iv_vec.v_count[cnt] = PAGE_CACHE_SIZE;
+		INDEX(&map.pi_ivec, cnt) = (c2_bindex_t)(cnt * PAGE_CACHE_SIZE);
+		COUNT(&map.pi_ivec, cnt) = PAGE_CACHE_SIZE;
 		++map.pi_ivec.iv_vec.v_nr;
 
 		rc = pargrp_iomap_seg_process(&map, cnt, true);
 		C2_UT_ASSERT(rc == 0);
 
-		page_pos_get(&map, map.pi_ivec.iv_index[cnt], &row, &col);
+		page_pos_get(&map, INDEX(&map.pi_ivec, cnt), &row, &col);
 		C2_UT_ASSERT(map.pi_databufs[row][col] != NULL);
 		C2_UT_ASSERT(map.pi_databufs[row][col]->db_flags & PA_WRITE);
 		C2_UT_ASSERT(map.pi_databufs[row][col]->db_flags &
@@ -388,9 +398,9 @@ static void pargrp_iomap_test(void)
 	}
 
 	/* Checks if given segment falls in pargrp_iomap::pi_ivec. */
-	C2_UT_ASSERT(pargrp_iomap_spans_seg (&map, 0,     4096));
+	C2_UT_ASSERT(pargrp_iomap_spans_seg (&map, 0,     PAGE_CACHE_SIZE));
 	C2_UT_ASSERT(pargrp_iomap_spans_seg (&map, 1234,  10));
-	C2_UT_ASSERT(!pargrp_iomap_spans_seg(&map, 40960, 4096));
+	C2_UT_ASSERT(!pargrp_iomap_spans_seg(&map, 40960, PAGE_CACHE_SIZE));
 
 	/*
 	 * Checks if number of pages completely spanned by index vector
@@ -414,7 +424,10 @@ static void pargrp_iomap_test(void)
 		}
 	}
 
-	/* Checks if auxiliary buffers are allocated properly. */
+	/*
+	 * Checks if any auxiliary buffers are allocated.
+	 * There should be no auxiliary buffers at all.
+	 */
 	rc = pargrp_iomap_readold_auxbuf_alloc(&map);
 	C2_UT_ASSERT(rc == 0);
 
@@ -438,15 +451,15 @@ static void pargrp_iomap_test(void)
 
 	index = 2000;
 	/*
-	 * Segments {2000, 5000}, {9000, 14000}, {16000, 21000}, {23000, 28000}}
+	 * Segments {2000, 7000}, {9000, 14000}, {16000, 21000}, {23000, 28000}}
 	 */
 	for (cnt = 0; cnt < IOVEC_NR; ++cnt) {
 
 		iovec_arr[cnt].iov_base  = &rc;
 		iovec_arr[cnt].iov_len   = 5000;
 
-		ivec.iv_index[cnt]       = index;
-		ivec.iv_vec.v_count[cnt] = 5000;
+		INDEX(&ivec, cnt) = index;
+		COUNT(&ivec, cnt) = 5000;
 		index = ivec.iv_index[cnt] + ivec.iv_vec.v_count[cnt] + 2000;
 	}
 
