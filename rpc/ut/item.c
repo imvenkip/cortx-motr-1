@@ -44,6 +44,14 @@ static struct c2_fop *fop_alloc(void)
 	return fop;
 }
 
+static struct c2_rpc_machine *machine;
+static struct c2_rpc_stats    saved;
+static struct c2_rpc_stats    stats;
+static struct c2_rpc_item    *item;
+static struct c2_fop         *fop;
+
+#define IS_INCR_BY_1(p) (saved.rs_ ## p + 1 == stats.rs_ ## p)
+
 static int ts_item_init(void)   /* ts_ for "test suite" */
 {
 	int rc;
@@ -59,6 +67,8 @@ static int ts_item_init(void)   /* ts_ for "test suite" */
 
 	rc = c2_rpc_client_init(&cctx);
 	C2_ASSERT(rc == 0);
+
+	machine = cctx.rcx_session.s_conn->c_rpc_machine;
 
 	return rc;
 }
@@ -81,19 +91,11 @@ static bool chk_state(const struct c2_rpc_item *item,
 	return item->ri_sm.sm_state == state;
 }
 
-struct c2_rpc_machine *machine;
-struct c2_rpc_stats    saved;
-struct c2_rpc_stats    stats;
-struct c2_rpc_item    *item;
-struct c2_fop         *fop;
-
-#define IS_INCR_BY_1(p) (saved.rs_ ## p + 1 == stats.rs_ ## p)
 static void test_simple_transitions(void)
 {
 	int rc;
 
 	/* TEST1: Simple request and reply sequence */
-	machine = cctx.rcx_session.s_conn->c_rpc_machine;
 	C2_LOG(C2_DEBUG, "TEST:1:START");
 	c2_rpc_machine_get_stats(machine, &saved, false /* clear stats? */);
 	fop = fop_alloc();
