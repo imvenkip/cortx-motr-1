@@ -639,6 +639,8 @@ int __slot_reply_received(struct c2_rpc_slot *slot,
 		 * this might be a result of corruption
 		 */
 		/* Do nothing */
+		C2_LOG(C2_DEBUG, "rply rcvd, timedout/failed req %p [%s/%u]",
+			req, item_kind(req), req->ri_type->rit_opcode);
 	} else {
 		/*
 		 * This is valid reply case.

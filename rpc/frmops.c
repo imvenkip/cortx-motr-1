@@ -18,13 +18,14 @@
  * Original creation date: 06/04/2012
  */
 
-#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_FORMATION
+#define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/errno.h"
 #include "lib/arith.h"
 #include "lib/bob.h"
+#include "lib/finject.h"
 
 #include "colibri/magic.h"
 #include "net/net.h"
@@ -381,6 +382,9 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 	p = rpcbuf->rb_packet;
 	p->rp_status = ev->nbe_status;
 
+	if (C2_FI_ENABLED("fake_err")) {
+		p->rp_status = -EINVAL;
+	}
 	rpc_buffer_fini(rpcbuf);
 	c2_free(rpcbuf);
 
@@ -390,7 +394,7 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 	} else
 		stats->rs_nr_failed_packets++;
 
-	c2_rpc_packet_traverse_items(p, item_done, ev->nbe_status);
+	c2_rpc_packet_traverse_items(p, item_done, p->rp_status);
 	c2_rpc_frm_packet_done(p);
 	c2_rpc_packet_remove_all_items(p);
 	c2_rpc_packet_fini(p);
@@ -402,19 +406,15 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 
 static void item_done(struct c2_rpc_item *item, unsigned long rc)
 {
-	struct c2_rpc_machine *machine;
-
 	C2_ENTRY("item: %p rc: %lu", item, rc);
 	C2_PRE(item != NULL && item->ri_ops != NULL);
 
-	machine = item->ri_session->s_conn->c_rpc_machine;
 	item->ri_error = rc;
 	if (item->ri_ops->rio_sent != NULL)
 		item->ri_ops->rio_sent(item);
 
 	if (rc == 0) {
 		c2_rpc_item_change_state(item, C2_RPC_ITEM_SENT);
-		machine->rm_stats.rs_nr_sent_items++;
 		/*
 		 * request items will automatically move to
 		 * WAITING_FOR_REPLY state.
@@ -430,7 +430,6 @@ static void item_done(struct c2_rpc_item *item, unsigned long rc)
 		}
 	} else {
 		c2_rpc_item_failed(item, (int32_t)rc);
-		machine->rm_stats.rs_nr_failed_items++;
 	}
 	/*
 	 * Request and Reply items take hold on session until

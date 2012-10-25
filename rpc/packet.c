@@ -24,6 +24,7 @@
 #include "lib/misc.h"
 #include "lib/vec.h"
 #include "lib/errno.h"
+#include "lib/finject.h"
 #include "colibri/magic.h"
 #include "rpc/packet.h"
 #include "rpc/rpc2.h"
@@ -189,6 +190,9 @@ int c2_rpc_packet_encode(struct c2_rpc_packet *p,
 	C2_ENTRY("packet: %p bufvec: %p", p, bufvec);
 	C2_PRE(c2_rpc_packet_invariant(p) && bufvec != NULL);
 	C2_PRE(!c2_rpc_packet_is_empty(p));
+
+	if (C2_FI_ENABLED("fake_error"))
+		return -EFAULT;
 
 	bufvec_size = c2_vec_count(&bufvec->ov_vec);
 
