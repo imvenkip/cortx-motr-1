@@ -781,6 +781,7 @@ static int c2t1fs_connect_to_all_services(struct c2t1fs_sb *csb)
 		rc = c2t1fs_connect_to_service(ctx);
 		if (rc != 0) {
 			c2t1fs_disconnect_from_all_services(csb);
+			c2t1fs_service_contexts_discard(csb);
 			goto out;
 		}
 	} c2_tl_endfor;
@@ -930,9 +931,9 @@ static void c2t1fs_disconnect_from_all_services(struct c2t1fs_sb *csb)
 	C2_ENTRY();
 
 	c2_tl_for(svc_ctx, &csb->csb_service_contexts, ctx) {
-		c2t1fs_disconnect_from_service(ctx);
 		if (csb->csb_nr_active_contexts == 0)
 			break;
+		c2t1fs_disconnect_from_service(ctx);
 	} c2_tl_endfor;
 
 	C2_LEAVE();

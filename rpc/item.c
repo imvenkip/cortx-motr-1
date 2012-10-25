@@ -491,7 +491,11 @@ void c2_rpc_item_sm_fini(struct c2_rpc_item *item)
 
 	if (!item_is_dummy(item))
 		c2_rpc_item_change_state(item, C2_RPC_ITEM_UNINITIALISED);
-	if (item->ri_op_timeout != C2_TIME_NEVER)
+	/* ri_timeout gets initialised only after item enters in
+	   WAITING_FOR_REPLY state. If item fails before that we shouldn't
+	   try to fini ri_timeout.
+	 */
+	if (item->ri_timeout.st_ast.sa_mach != NULL)
 		c2_sm_timeout_fini(&item->ri_timeout);
 	c2_sm_fini(&item->ri_sm);
 }
