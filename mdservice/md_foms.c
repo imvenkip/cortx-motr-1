@@ -775,7 +775,7 @@ finish:
 
 static int c2_md_getattr_tick(struct c2_fom *fom)
 {
-        struct c2_cob_attr             attr;
+        struct c2_cob_attr             attr = { { 0 } };
         struct c2_fop_cob             *body;
         struct c2_cob                 *cob;
         struct c2_fop_getattr         *req;
@@ -857,7 +857,7 @@ static int c2_md_readdir_tick(struct c2_fom *fom)
         struct c2_fop                 *fop_rep;
         struct c2_fop_ctx             *ctx;
         struct c2_fid                  fid;
-        struct c2_rdpg                 rdpg;
+        struct c2_rdpg                 rdpg = { 0 };
         void                          *addr;
         int                            rc;
         struct c2_local_service       *svc;
