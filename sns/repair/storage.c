@@ -124,6 +124,11 @@ static int cp_io(struct c2_cm_cp *cp, const enum c2_stob_io_opcode op)
 	if (rc != 0)
 		goto out;
 
+	c2_dtx_init(&cp_fom->fo_tx);
+        rc = dom->sd_ops->sdo_tx_make(dom, &cp_fom->fo_tx);
+	if (rc != 0)
+		goto out;
+
 	rc = c2_stob_locate(stob, &cp_fom->fo_tx);
 	if (rc != 0) {
 		c2_stob_put(stob);
@@ -164,6 +169,7 @@ err_stio:
 	c2_stob_io_fini(stio);
 	c2_stob_put(stob);
 out:
+	c2_dtx_done(&cp_fom->fo_tx);
 	if (rc != 0) {
 		c2_fom_phase_move(cp_fom, rc, C2_FOPH_FAILURE);
 		return C2_FSO_AGAIN;
@@ -200,7 +206,6 @@ int c2_sns_repair_cp_io_wait(struct c2_cm_cp *cp)
 
 	/* Cleanup before proceeding to next phase. */
 	c2_stob_io_fini(&sns_cp->rc_stio);
-	c2_stob_put(&sns_cp->rc_stob);
 	indexvec_free(&sns_cp->rc_stio.si_stob);
 	bufvec_free(&sns_cp->rc_stio.si_user);
 

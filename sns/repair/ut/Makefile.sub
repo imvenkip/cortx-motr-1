@@ -2,5 +2,5 @@ ut_libcolibri_ut_la_SOURCES += sns/repair/ut/repair.c \
                                sns/repair/ut/cp_common.h \
                                sns/repair/ut/cp_common.c \
                                sns/repair/ut/xform.c \
-                               sns/repair/ut/storage.c
+			       sns/repair/ut/storage.c
 

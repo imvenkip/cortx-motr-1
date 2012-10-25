@@ -92,7 +92,7 @@ static int c2_sns_repair_cp_recv(struct c2_cm_cp *cp)
 	return C2_FSO_AGAIN;
 }
 
-static int cp_phase_next(struct c2_cm_cp *cp)
+int c2_sns_repair_cp_phase_next(struct c2_cm_cp *cp)
 {
 	int phase = c2_fom_phase(&cp->c_fom);
 	int next[] = {
@@ -137,7 +137,7 @@ const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
 		[C2_CCP_FINI]    = &c2_sns_repair_cp_fini,
 	},
 	.co_action_nr            = C2_CCP_NR,
-	.co_phase_next	         = &cp_phase_next,
+	.co_phase_next	         = &c2_sns_repair_cp_phase_next,
 	.co_invariant	         = &cp_invariant,
 	.co_home_loc_helper      = &cp_home_loc_helper,
 	.co_complete	         = &cp_complete,

@@ -85,7 +85,7 @@ const struct c2_cm_cp_ops c2_sns_repair_cp_dummy_ops = {
                 [C2_CCP_FINI]  = &c2_sns_repair_cp_fini,
         },
         .co_action_nr          = C2_CCP_NR,
-        .co_phase_next         = &cp_phase_next,
+        .co_phase_next         = &c2_sns_repair_cp_phase_next,
         .co_invariant          = &cp_invariant,
         .co_home_loc_helper    = &cp_home_loc_helper,
         .co_complete           = &cp_complete,

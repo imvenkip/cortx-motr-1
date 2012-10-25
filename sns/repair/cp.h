@@ -73,6 +73,8 @@ int c2_sns_repair_cp_write(struct c2_cm_cp *cp);
 /** Copy packet IO wait phase function. */
 int c2_sns_repair_cp_io_wait(struct c2_cm_cp *cp);
 
+int c2_sns_repair_cp_phase_next(struct c2_cm_cp *cp);
+
 /** @} SNSRepairCP */
 #endif /* __COLIBRI_SNS_REPAIR_CP_H__ */
 /*
