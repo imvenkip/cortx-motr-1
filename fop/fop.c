@@ -131,6 +131,7 @@ uint32_t c2_fop_opcode(const struct c2_fop *fop)
 {
 	return fop->f_type->ft_rpc_item_type.rit_opcode;
 }
+C2_EXPORTED(c2_fop_opcode);
 
 void c2_fop_type_fini(struct c2_fop_type *fopt)
 {
