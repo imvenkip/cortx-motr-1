@@ -29,7 +29,7 @@
 #include "cob/cob.h"
 #include "colibri/magic.h"
 #include "fop/fop.h"
-#include "lib/arith.h"
+#include "lib/arith.h"             /* C2_CNT_DEC */
 #include "lib/finject.h"
 #include "rpc/session_ff.h"
 #include "rpc/session_internal.h"
@@ -81,6 +81,7 @@ static int nr_active_items_count(const struct c2_rpc_session *session);
 static int slot_table_alloc_and_init(struct c2_rpc_session *session);
 static void __session_fini(struct c2_rpc_session *session);
 static void session_failed(struct c2_rpc_session *session, int32_t error);
+static void session_idle_x_busy(struct c2_rpc_session *session);
 
 static const struct c2_rpc_slot_ops snd_slot_ops = {
 	.so_slot_idle = snd_slot_idle,
@@ -272,15 +273,13 @@ static int nr_active_items_count(const struct c2_rpc_session *session)
 	for (i = 0; i < session->s_nr_slots; i++) {
 		slot = session->s_slot_table[i];
 		for_each_item_in_slot(item, slot) {
-
-			if (C2_IN(item->ri_stage, (RPC_ITEM_STAGE_IN_PROGRESS,
-						   RPC_ITEM_STAGE_FUTURE)))
+			if (item_is_active(item))
 				count++;
-
 		} end_for_each_item_in_slot;
 	}
 	return count;
 }
+
 
 int c2_rpc_session_init(struct c2_rpc_session *session,
 			struct c2_rpc_conn    *conn,
@@ -423,9 +422,9 @@ void c2_rpc_session_fini(struct c2_rpc_session *session)
 	C2_ENTRY("session: %p", session);
 	C2_PRE(session != NULL &&
 	       session->s_conn != NULL &&
-	       session->s_conn->c_rpc_machine != NULL);
+	       session_machine(session) != NULL);
 
-	machine = session->s_conn->c_rpc_machine;
+	machine = session_machine(session);
 
 	c2_rpc_machine_lock(machine);
 	c2_rpc_session_fini_locked(session);
@@ -455,18 +454,18 @@ int c2_rpc_session_timedwait(struct c2_rpc_session *session,
 			     uint64_t              states,
 			     const c2_time_t       abs_timeout)
 {
-	int rc;
+	struct c2_rpc_machine *machine = session_machine(session);
+	int                    rc;
+
 	C2_ENTRY("session: %p, abs_timeout: [%llu:%llu]", session,
 		 (unsigned long long)c2_time_seconds(abs_timeout),
 		 (unsigned long long)c2_time_nanoseconds(abs_timeout));
 
-	c2_rpc_machine_lock(session->s_conn->c_rpc_machine);
+	c2_rpc_machine_lock(machine);
 	C2_ASSERT(c2_rpc_session_invariant(session));
-
 	rc = c2_sm_timedwait(&session->s_sm, states, abs_timeout);
-
 	C2_ASSERT(c2_rpc_session_invariant(session));
-	c2_rpc_machine_unlock(session->s_conn->c_rpc_machine);
+	c2_rpc_machine_unlock(machine);
 
 	C2_RETURN(rc ?: session->s_sm.sm_rc);
 }
@@ -541,7 +540,7 @@ int c2_rpc_session_establish(struct c2_rpc_session *session)
 			c2_free(ctx);
 	}
 
-	machine = session->s_conn->c_rpc_machine;
+	machine = session_machine(session);
 
 	c2_rpc_machine_lock(machine);
 
@@ -638,7 +637,7 @@ void c2_rpc_session_establish_reply_received(struct c2_rpc_item *item)
 	session = ctx->sec_session;
 	C2_ASSERT(session != NULL);
 
-	machine = session->s_conn->c_rpc_machine;
+	machine = session_machine(session);
 	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
@@ -679,7 +678,6 @@ out:
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_POST(C2_IN(session_state(session), (C2_RPC_SESSION_IDLE,
 					       C2_RPC_SESSION_FAILED)));
-
 	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 	C2_LEAVE();
 }
@@ -690,6 +688,7 @@ static void fop_session_establish_item_free(struct c2_rpc_item *item)
 	struct c2_fop                    *fop;
 
 	fop = c2_rpc_item_to_fop(item);
+	c2_fop_fini(fop);
 	ctx = container_of(fop, struct fop_session_establish_ctx, sec_fop);
 	c2_free(ctx);
 }
@@ -725,8 +724,9 @@ int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
 						      C2_RPC_SESSION_FAILED),
 					      c2_time_from_now(timeout_sec, 0));
 
-		C2_ASSERT(C2_IN(session_state(session), (C2_RPC_SESSION_TERMINATED,
-							 C2_RPC_SESSION_FAILED)));
+		C2_ASSERT(C2_IN(session_state(session),
+				(C2_RPC_SESSION_TERMINATED,
+				 C2_RPC_SESSION_FAILED)));
 	}
 	C2_RETURN(rc);
 }
@@ -804,7 +804,7 @@ C2_EXPORTED(c2_rpc_session_terminate);
  *
  * 2. Move session to FAILED state.
  *    For this session the receiver side state will still
- *    continue to exist. And receiver can send unsolicited
+ *    continue to exist. And receiver can send one-way
  *    items, that will be received on sender i.e. current node.
  *    Current code will drop such items. When/how to fini and
  *    cleanup receiver side state? XXX
@@ -868,7 +868,6 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *item)
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_ASSERT(C2_IN(session_state(session), (C2_RPC_SESSION_TERMINATED,
 						 C2_RPC_SESSION_FAILED)));
-
 	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 	C2_LEAVE();
 }
@@ -882,43 +881,47 @@ c2_rpc_session_get_max_item_size(const struct c2_rpc_session *session)
 
 void c2_rpc_session_hold_busy(struct c2_rpc_session *session)
 {
-	struct c2_rpc_machine *machine;
-
-	C2_ENTRY("session: %p", session);
-
-	machine = session->s_conn->c_rpc_machine;
-	C2_PRE(c2_rpc_machine_is_locked(machine));
-	C2_ASSERT(c2_rpc_session_invariant(session));
-	C2_PRE(C2_IN(session_state(session), (C2_RPC_SESSION_IDLE,
-					      C2_RPC_SESSION_BUSY)));
-
 	++session->s_hold_cnt;
-	if (session_state(session) == C2_RPC_SESSION_IDLE)
-		session_state_set(session, C2_RPC_SESSION_BUSY);
-
-	C2_ASSERT(c2_rpc_session_invariant(session));
-	C2_POST(session_state(session) == C2_RPC_SESSION_BUSY);
-	C2_LEAVE();
+	session_idle_x_busy(session);
 }
 
 void c2_rpc_session_release(struct c2_rpc_session *session)
 {
-	struct c2_rpc_machine *machine;
-
-	C2_ENTRY("session: %p", session);
-
-	machine = session->s_conn->c_rpc_machine;
-	C2_PRE(c2_rpc_machine_is_locked(machine));
-	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_PRE(session_state(session) == C2_RPC_SESSION_BUSY);
 	C2_PRE(session->s_hold_cnt > 0);
 
 	--session->s_hold_cnt;
-	if (c2_rpc_session_is_idle(session))
+	session_idle_x_busy(session);
+}
+
+void c2_rpc_session_mod_nr_active_items(struct c2_rpc_session *session,
+					int delta)
+{
+	C2_PRE(session != NULL);
+
+	if (delta != 0) {
+		session->s_nr_active_items += delta;
+		session_idle_x_busy(session);
+	}
+}
+
+/** Perform (IDLE -> BUSY) or (BUSY -> IDLE) transition if required */
+static void session_idle_x_busy(struct c2_rpc_session *session)
+{
+	int  state = session_state(session);
+	bool idle  = c2_rpc_session_is_idle(session);
+
+	C2_PRE(C2_IN(state, (C2_RPC_SESSION_IDLE, C2_RPC_SESSION_BUSY)));
+
+	if (state == C2_RPC_SESSION_IDLE && !idle) {
+		session_state_set(session, C2_RPC_SESSION_BUSY);
+	} else if (state == C2_RPC_SESSION_BUSY && idle) {
 		session_state_set(session, C2_RPC_SESSION_IDLE);
+	}
 
 	C2_ASSERT(c2_rpc_session_invariant(session));
-	C2_LEAVE();
+	C2_POST(C2_IN(session_state(session), (C2_RPC_SESSION_IDLE,
+					       C2_RPC_SESSION_BUSY)));
 }
 
 int c2_rpc_session_cob_lookup(struct c2_cob   *conn_cob,
@@ -1005,7 +1008,7 @@ static void snd_slot_idle(struct c2_rpc_slot *slot)
 	C2_PRE(!ready_slot_tlink_is_in(slot));
 
 	ready_slot_tlist_add_tail(&slot->sl_session->s_ready_slots, slot);
-	frm = &slot->sl_session->s_conn->c_rpcchan->rc_frm;
+	frm = session_frm(slot->sl_session);
 	c2_rpc_frm_run_formation(frm);
 }
 
@@ -1035,7 +1038,7 @@ bool c2_rpc_session_bind_item(struct c2_rpc_item *item)
 
 static void snd_item_consume(struct c2_rpc_item *item)
 {
-	c2_rpc_frm_enq_item(&item->ri_session->s_conn->c_rpcchan->rc_frm, item);
+	c2_rpc_frm_enq_item(session_frm(item->ri_session), item);
 }
 
 static void snd_reply_consume(struct c2_rpc_item *req,
@@ -1062,7 +1065,7 @@ static void rcv_item_consume(struct c2_rpc_item *item)
 static void rcv_reply_consume(struct c2_rpc_item *req,
 			      struct c2_rpc_item *reply)
 {
-	c2_rpc_frm_enq_item(&req->ri_session->s_conn->c_rpcchan->rc_frm,
+	c2_rpc_frm_enq_item(session_frm(req->ri_session),
 			    reply);
 }
 
@@ -1076,7 +1079,7 @@ int c2_rpc_rcv_session_establish(struct c2_rpc_session *session)
 	C2_ENTRY("session: %p", session);
 	C2_PRE(session != NULL);
 
-	machine = session->s_conn->c_rpc_machine;
+	machine = session_machine(session);
 	C2_PRE(c2_rpc_machine_is_locked(machine));
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_ASSERT(session_state(session) == C2_RPC_SESSION_INITIALISED);
@@ -1226,6 +1229,34 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 	C2_RETURN(rc);
 }
 
+void c2_rpc_session_item_failed(struct c2_rpc_item *item)
+{
+	C2_PRE(item != NULL && item->ri_error != 0);
+	C2_PRE(item->ri_sm.sm_state == C2_RPC_ITEM_FAILED);
+
+	if (c2_rpc_item_is_request(item)) {
+		if (item->ri_error == -ETIMEDOUT)
+			c2_rpc_item_set_stage(item, RPC_ITEM_STAGE_TIMEDOUT);
+		else
+			c2_rpc_item_set_stage(item, RPC_ITEM_STAGE_FAILED);
+	}
+	/*
+	 * Note that the slot is not marked as idle. Because we cannot
+	 * use this slot to send more items.
+	 * When session->s_nr_slots number of items fail then there will be
+	 * no slot left to send further items.
+	 *
+	 * @todo Replay mechanism should bring items from UNKNOWN stage to
+	 *       some known stage e.g. {PAST_VOLATILE, PAST_COMMITTED}
+	 * @todo If item is failed _before_ placing on network, then we
+	 *       can keep the slot in usable state, by performing inverse
+	 *       operation of c2_rpc_slot_item_apply(). But this will
+	 *       require reference counting implemented for RPC items.
+	 *       Otherwise how the item (which was removed from slot) will
+	 *       be freed?
+	 */
+}
+
 /**
    For all slots belonging to @session,
      if slot is in c2_rpc_session::s_ready_slots list,
@@ -1234,12 +1265,11 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session)
 void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session)
 {
 	struct c2_rpc_slot    *slot;
-	struct c2_rpc_machine *machine;
+	struct c2_rpc_machine *machine = session_machine(session);
 	int                    i;
 
 	C2_ENTRY("session: %p", session);
 
-	machine = session->s_conn->c_rpc_machine;
 	C2_ASSERT(c2_rpc_machine_is_locked(machine));
 
 	for (i = 0; i < session->s_nr_slots; i++) {

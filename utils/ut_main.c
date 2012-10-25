@@ -71,6 +71,7 @@ extern const struct c2_test_suite rpc_mc_ut;
 extern const struct c2_test_suite rpc_service_ut;
 extern const struct c2_test_suite rpclib_ut;
 extern const struct c2_test_suite session_ut;
+extern const struct c2_test_suite item_ut;
 extern const struct c2_test_suite sm_ut;
 extern const struct c2_test_suite sns_repair_ut;
 extern const struct c2_test_suite snsrepair_xform_ut;
@@ -118,6 +119,7 @@ void add_uts(void)
 	c2_ut_add(&frm_ut);
 	c2_ut_add(&ios_bufferpool_ut);
 	c2_ut_add(&layout_ut);
+	c2_ut_add(&item_ut);
 	c2_ut_add(&parity_math_ut);
 	c2_ut_add(&poolmach_ut);
 	c2_ut_add(&reqh_ut);

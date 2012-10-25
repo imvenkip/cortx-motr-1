@@ -40,9 +40,9 @@ c2_bcount_t c2_fop_item_type_default_payload_size(const struct c2_rpc_item *item
 	return len;
 }
 
-int c2_fop_item_type_default_encode(struct c2_rpc_item_type *item_type,
-				    struct c2_rpc_item      *item,
-				    struct c2_bufvec_cursor *cur)
+int c2_fop_item_type_default_encode(const struct c2_rpc_item_type *item_type,
+				    struct c2_rpc_item            *item,
+				    struct c2_bufvec_cursor       *cur)
 {
 	C2_PRE(item != NULL);
 	C2_PRE(cur != NULL);
@@ -50,9 +50,9 @@ int c2_fop_item_type_default_encode(struct c2_rpc_item_type *item_type,
 	return c2_fop_item_encdec(item, cur, C2_BUFVEC_ENCODE);
 }
 
-int c2_fop_item_type_default_decode(struct c2_rpc_item_type  *item_type,
-				    struct c2_rpc_item      **item_out,
-				    struct c2_bufvec_cursor  *cur)
+int c2_fop_item_type_default_decode(const struct c2_rpc_item_type  *item_type,
+				    struct c2_rpc_item            **item_out,
+				    struct c2_bufvec_cursor        *cur)
 {
 	int			 rc;
 	struct c2_fop		*fop;

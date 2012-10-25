@@ -22,6 +22,8 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/chan.h"
+#include "lib/finject.h"
+#include "lib/time.h"
 
 #include "fop/fop.h"
 #include "fop/fom.h"
@@ -99,26 +101,28 @@ static const struct c2_fom_type_ops cs_ds2_req_fop_fom_type_ops = {
         .fto_create = cs_ds2_req_fop_fom_create,
 };
 
+static uint32_t opcode(const struct c2_fop *fop)
+{
+	return fop->f_type->ft_rpc_item_type.rit_opcode;
+}
+
 static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item)
 {
 	struct c2_fop *req_fop;
 	struct c2_fop *rep_fop;
 
         C2_PRE(item != NULL);
-	C2_PRE(c2_chan_has_waiters(&item->ri_chan));
 
 	req_fop = c2_rpc_item_to_fop(item);
-	rep_fop = c2_rpc_item_to_fop(item->ri_reply);
 
-	C2_ASSERT(req_fop->f_type->ft_rpc_item_type.rit_opcode ==
-		    C2_CS_DS1_REQ_OPCODE ||
-		    req_fop->f_type->ft_rpc_item_type.rit_opcode ==
-		    C2_CS_DS2_REQ_OPCODE);
+	C2_ASSERT(C2_IN(opcode(req_fop), (C2_CS_DS1_REQ_OPCODE,
+					  C2_CS_DS2_REQ_OPCODE)));
 
-	C2_ASSERT(rep_fop->f_type->ft_rpc_item_type.rit_opcode ==
-		     C2_CS_DS1_REP_OPCODE ||
-		     rep_fop->f_type->ft_rpc_item_type.rit_opcode ==
-		     C2_CS_DS2_REP_OPCODE);
+	if (item->ri_error == 0) {
+		rep_fop = c2_rpc_item_to_fop(item->ri_reply);
+		C2_ASSERT(C2_IN(opcode(rep_fop), (C2_CS_DS1_REP_OPCODE,
+						  C2_CS_DS2_REP_OPCODE)));
+	}
 }
 
 void c2_cs_ut_ds1_fop_fini(void)
@@ -294,7 +298,9 @@ static int cs_req_fop_fom_tick(struct c2_fom *fom)
 			 C2_ASSERT("Invalid fop" == 0);
 		}
 	}
-
+	if (C2_FI_ENABLED("inject_delay")) {
+		c2_nanosleep(c2_time(2, 0), NULL);
+	}
 	return rc;
 }
 

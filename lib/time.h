@@ -122,6 +122,8 @@ uint64_t c2_time_seconds(const c2_time_t time);
  */
 uint64_t c2_time_nanoseconds(const c2_time_t time);
 
+bool c2_time_is_in_past(c2_time_t time);
+
 /**
    The largest time that is never reached in system life.
  */

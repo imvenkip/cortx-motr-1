@@ -433,7 +433,6 @@ int c2_rpc_fom_session_terminate_tick(struct c2_fom *fom)
 	if (session != NULL) {
 		c2_sm_timedwait(&session->s_sm, C2_BITS(C2_RPC_SESSION_IDLE),
 				C2_TIME_NEVER);
-
 		rc = c2_rpc_rcv_session_terminate(session);
 		C2_ASSERT(ergo(rc != 0,
 			       session_state(session) ==

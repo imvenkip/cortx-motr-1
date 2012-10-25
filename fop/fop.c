@@ -76,10 +76,8 @@ void c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
 	C2_PRE(fop != NULL && fopt != NULL);
 
 	fop->f_type = fopt;
-	c2_addb_ctx_init(&fop->f_addb, &c2_fop_addb_ctx,
-			 &fopt->ft_addb);
-	c2_rpc_item_init(&fop->f_item);
-	fop->f_item.ri_type = &fop->f_type->ft_rpc_item_type;
+	c2_addb_ctx_init(&fop->f_addb, &c2_fop_addb_ctx, &fopt->ft_addb);
+	c2_rpc_item_init(&fop->f_item, &fopt->ft_rpc_item_type);
 	fop->f_item.ri_ops = &c2_fop_default_item_ops;
 	fop->f_data.fd_data = data;
 }

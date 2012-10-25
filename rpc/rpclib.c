@@ -164,10 +164,8 @@ pool_fini:
 int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 		       const struct c2_rpc_item_ops *ri_ops, uint32_t timeout_s)
 {
-	int                 rc;
-	c2_time_t           timeout;
-	struct c2_clink     clink;
 	struct c2_rpc_item *item;
+	int                 rc;
 
 	C2_ENTRY("fop: %p, session: %p", fop, session);
 	C2_PRE(fop != NULL);
@@ -181,26 +179,17 @@ int c2_rpc_client_call(struct c2_fop *fop, struct c2_rpc_session *session,
 	 */
 	C2_PRE(ri_ops != NULL);
 
-	item              = &fop->f_item;
-	item->ri_ops      = ri_ops;
-	item->ri_session  = session;
-	item->ri_prio     = C2_RPC_ITEM_PRIO_MAX;
-	item->ri_deadline = 0;
-
-	c2_clink_init(&clink, NULL);
-	c2_clink_add(&item->ri_chan, &clink);
-	c2_time_set(&timeout, timeout_s, 0);
-	timeout = c2_time_add(c2_time_now(), timeout);
+	item                = &fop->f_item;
+	item->ri_ops        = ri_ops;
+	item->ri_session    = session;
+	item->ri_prio       = C2_RPC_ITEM_PRIO_MID;
+	item->ri_deadline   = 0;
+	item->ri_op_timeout = c2_time_from_now(timeout_s, 0);
 
 	rc = c2_rpc_post(item);
-	if (rc != 0 || timeout_s == 0)
-		goto clean;
-
-	rc = c2_rpc_reply_timedwait(&clink, timeout);
-clean:
-	c2_clink_del(&clink);
-	c2_clink_fini(&clink);
-
+	if (rc == 0 && timeout_s > 0) {
+		rc = c2_rpc_item_wait_for_reply(item, C2_TIME_NEVER);
+	}
 	C2_RETURN(rc);
 }
 C2_EXPORTED(c2_rpc_client_call);

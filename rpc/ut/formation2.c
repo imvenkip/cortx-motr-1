@@ -30,6 +30,7 @@
 #include "rpc/rpc2.h"
 #include "rpc/packet.h"
 #include "rpc/item.h"
+#include "sm/sm.h"
 
 static struct c2_rpc_frm             *frm;
 static struct c2_rpc_frm_constraints  constraints;
@@ -154,7 +155,7 @@ static struct c2_rpc_item_type_ops oneway_item_type_ops = {
 };
 
 static struct c2_rpc_item_type oneway_item_type = {
-	.rit_flags = C2_RPC_ITEM_TYPE_UNSOLICITED,
+	.rit_flags = C2_RPC_ITEM_TYPE_ONEWAY,
 	.rit_ops   = &oneway_item_type_ops,
 };
 
@@ -165,7 +166,7 @@ enum {
 
 	BOUND    = 1,
 	UNBOUND  = 2,
-	ONE_WAY  = 3,
+	ONEWAY  = 3,
 };
 
 static uint64_t timeout; /* nano seconds */
@@ -178,11 +179,12 @@ static struct c2_rpc_item *new_item(int deadline, int kind)
 {
 	struct c2_rpc_item *item;
 	C2_UT_ASSERT(C2_IN(deadline, (TIMEDOUT, WAITING, NEVER)));
-	C2_UT_ASSERT(C2_IN(kind,     (BOUND, UNBOUND, ONE_WAY)));
+	C2_UT_ASSERT(C2_IN(kind,     (BOUND, UNBOUND, ONEWAY)));
 
 	C2_ALLOC_PTR(item);
 	C2_UT_ASSERT(item != NULL);
 
+	c2_rpc_item_sm_init(item, &rmachine.rm_sm_grp, C2_RPC_ITEM_OUTGOING);
 	switch (deadline) {
 	case TIMEDOUT:
 		item->ri_deadline = 0;
@@ -195,7 +197,7 @@ static struct c2_rpc_item *new_item(int deadline, int kind)
 		break;
 	}
 	item->ri_prio = C2_RPC_ITEM_PRIO_MAX;
-	item->ri_type = kind == ONE_WAY ? &oneway_item_type :
+	item->ri_type = kind == ONEWAY ? &oneway_item_type :
 					  &twoway_item_type;
 	item->ri_slot_refs[0].sr_slot = kind == BOUND ? &slot : NULL;
 	item->ri_session = &session;
@@ -266,10 +268,10 @@ static void frm_test1(void)
 
 	perform_test(TIMEDOUT, BOUND);
 	perform_test(TIMEDOUT, UNBOUND);
-	perform_test(TIMEDOUT, ONE_WAY);
+	perform_test(TIMEDOUT, ONEWAY);
 	perform_test(WAITING,  BOUND);
 	perform_test(WAITING,  UNBOUND);
-	perform_test(WAITING,  ONE_WAY);
+	perform_test(WAITING,  ONEWAY);
 
 	C2_LEAVE();
 }
@@ -330,7 +332,7 @@ static void frm_test2(void)
 
 	perform_test(BOUND);
 	perform_test(UNBOUND);
-	perform_test(ONE_WAY);
+	perform_test(ONEWAY);
 
 	C2_LEAVE();
 }

@@ -25,13 +25,15 @@
 #include "lib/errno.h"
 #include "lib/arith.h"
 #include "lib/bob.h"
+
 #include "colibri/magic.h"
+#include "net/net.h"
+
 #include "rpc/formation2.h"
 #include "rpc/packet.h"
 #include "rpc/rpc2.h"
 #include "rpc/rpc_machine.h"
 #include "rpc/item.h"
-#include "net/net.h"
 #include "rpc/session_internal.h"
 
 static bool packet_ready(struct c2_rpc_packet *p);
@@ -372,6 +374,7 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 			&rpc_buffer_bob_type);
 
 	machine = rpc_buffer__rmachine(rpcbuf);
+
 	c2_rpc_machine_lock(machine);
 
 	stats = &machine->rm_stats;
@@ -381,7 +384,7 @@ static void outgoing_buf_event_handler(const struct c2_net_buffer_event *ev)
 	rpc_buffer_fini(rpcbuf);
 	c2_free(rpcbuf);
 
-	if(p->rp_status == 0) {
+	if (p->rp_status == 0) {
 		stats->rs_nr_sent_packets++;
 		stats->rs_nr_sent_bytes += p->rp_size;
 	} else
@@ -402,18 +405,38 @@ static void item_done(struct c2_rpc_item *item, unsigned long rc)
 	struct c2_rpc_machine *machine;
 
 	C2_ENTRY("item: %p rc: %lu", item, rc);
-	C2_PRE(item != NULL);
+	C2_PRE(item != NULL && item->ri_ops != NULL);
 
 	machine = item->ri_session->s_conn->c_rpc_machine;
-	/** @todo XXX implement SENT/FAILED callback */
-	item->ri_state = rc == 0 ? RPC_ITEM_SENT : RPC_ITEM_SEND_FAILED;
 	item->ri_error = rc;
+	if (item->ri_ops->rio_sent != NULL)
+		item->ri_ops->rio_sent(item);
 
-	if(rc == 0)
+	if (rc == 0) {
+		c2_rpc_item_change_state(item, C2_RPC_ITEM_SENT);
 		machine->rm_stats.rs_nr_sent_items++;
-	else
+		/*
+		 * request items will automatically move to
+		 * WAITING_FOR_REPLY state.
+		 */
+		if (c2_rpc_item_is_request(item)) {
+			if (item->ri_reply != NULL) {
+				/* Reply has already been received when we
+				   were waiting for buffer callback */
+				c2_rpc_slot_process_reply(item);
+			} else {
+				c2_rpc_item_start_timer(item);
+			}
+		}
+	} else {
+		c2_rpc_item_failed(item, (int32_t)rc);
 		machine->rm_stats.rs_nr_failed_items++;
-
+	}
+	/*
+	 * Request and Reply items take hold on session until
+	 * they are SENT/FAILED.
+	 * See: c2_rpc__post_locked(), c2_rpc_reply_post()
+	 */
 	if (c2_rpc_item_is_bound(item))
 		c2_rpc_session_release(item->ri_session);
 

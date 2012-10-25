@@ -92,11 +92,12 @@ int c2_rpc__fop_post(struct c2_fop                *fop,
 
 	C2_ENTRY("fop: %p, session: %p", fop, session);
 
-	item              = &fop->f_item;
-	item->ri_session  = session;
-	item->ri_prio     = C2_RPC_ITEM_PRIO_MAX;
-	item->ri_deadline = 0;
-	item->ri_ops      = ops;
+	item                = &fop->f_item;
+	item->ri_session    = session;
+	item->ri_prio       = C2_RPC_ITEM_PRIO_MAX;
+	item->ri_deadline   = 0;
+	item->ri_ops        = ops;
+	item->ri_op_timeout = c2_time_from_now(10, 0);
 
 	rc = c2_rpc__post_locked(item);
 	C2_RETURN(rc);
@@ -277,7 +278,7 @@ void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 		C2_ASSERT(ctx != NULL);
 		rpcmach = ctx->cec_rpc_machine;
 	} else
-		rpcmach = item->ri_session->s_conn->c_rpc_machine;
+		rpcmach = item_machine(item);
 
 	C2_ASSERT(rpcmach != NULL);
 

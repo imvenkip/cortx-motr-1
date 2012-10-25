@@ -335,9 +335,12 @@ static int run_client(void)
 		goto xprt_fini;
 
 	rc = c2_rpc_client_init(&cctx);
-	if (rc != 0)
+	if (rc != 0) {
+#ifndef __KERNEL__
+		printf("rpcping: client init failed \"%s\"\n", strerror(-rc));
+#endif
 		goto net_dom_fini;
-
+	}
 	C2_ALLOC_ARR(client_thread, nr_client_threads);
 
 	for (i = 0; i < nr_client_threads; i++) {

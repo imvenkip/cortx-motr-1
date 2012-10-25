@@ -20,7 +20,7 @@
  */
 
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_RPC
-#include "lib/trace.h"   /* C2_LOG */
+#include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"    /* C2_BITS */
@@ -680,7 +680,6 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *item)
 
 	reply_item = item->ri_reply;
 	rc         = item->ri_error;
-
 	C2_PRE(ergo(rc == 0, reply_item != NULL &&
 			     item->ri_session == reply_item->ri_session));
 
@@ -711,6 +710,7 @@ void c2_rpc_conn_establish_reply_received(struct c2_rpc_item *item)
 	C2_ASSERT(c2_rpc_conn_invariant(conn));
 	C2_ASSERT(C2_IN(conn_state(conn), (C2_RPC_CONN_FAILED,
 					   C2_RPC_CONN_ACTIVE)));
+	C2_LEAVE();
 }
 
 int c2_rpc_conn_destroy(struct c2_rpc_conn *conn, uint32_t timeout_sec)
@@ -812,7 +812,7 @@ C2_EXPORTED(c2_rpc_conn_terminate);
  *
  * 2. Move conn to FAILED state.
  *    For this conn the receiver side state will still
- *    continue to exist. And receiver can send unsolicited
+ *    continue to exist. And receiver can send one-way
  *    items, that will be received on sender i.e. current node.
  *    Current code will drop such items. When/how to fini and
  *    cleanup receiver side state? XXX
