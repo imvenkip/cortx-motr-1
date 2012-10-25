@@ -138,7 +138,7 @@ size_t c2_rpc_session_default_home_locality(const struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
 
-	return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
+	return c2_fop_opcode(fom->fo_fop);
 }
 
 int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)

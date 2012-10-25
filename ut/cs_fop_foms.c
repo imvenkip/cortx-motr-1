@@ -101,11 +101,6 @@ static const struct c2_fom_type_ops cs_ds2_req_fop_fom_type_ops = {
         .fto_create = cs_ds2_req_fop_fom_create,
 };
 
-static uint32_t opcode(const struct c2_fop *fop)
-{
-	return fop->f_type->ft_rpc_item_type.rit_opcode;
-}
-
 static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item)
 {
 	struct c2_fop *req_fop;
@@ -115,13 +110,14 @@ static void cs_ut_rpc_item_reply_cb(struct c2_rpc_item *item)
 
 	req_fop = c2_rpc_item_to_fop(item);
 
-	C2_ASSERT(C2_IN(opcode(req_fop), (C2_CS_DS1_REQ_OPCODE,
-					  C2_CS_DS2_REQ_OPCODE)));
+	C2_ASSERT(C2_IN(c2_fop_opcode(req_fop), (C2_CS_DS1_REQ_OPCODE,
+						 C2_CS_DS2_REQ_OPCODE)));
 
 	if (item->ri_error == 0) {
 		rep_fop = c2_rpc_item_to_fop(item->ri_reply);
-		C2_ASSERT(C2_IN(opcode(rep_fop), (C2_CS_DS1_REP_OPCODE,
-						  C2_CS_DS2_REP_OPCODE)));
+		C2_ASSERT(C2_IN(c2_fop_opcode(rep_fop),
+				(C2_CS_DS1_REP_OPCODE,
+				 C2_CS_DS2_REP_OPCODE)));
 	}
 }
 
@@ -241,7 +237,7 @@ static size_t cs_ut_find_fom_home_locality(const struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
 
-	return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
+	return c2_fop_opcode(fom->fo_fop);
 }
 
 /*
@@ -258,15 +254,12 @@ static int cs_req_fop_fom_tick(struct c2_fom *fom)
 	struct cs_ds2_rep_fop *ds2_repfop;
 	uint64_t               opcode;
 
-	C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
-	       C2_CS_DS1_REQ_OPCODE ||
-	       fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
-	       C2_CS_DS2_REQ_OPCODE);
-
+	C2_PRE(C2_IN(c2_fop_opcode(fom->fo_fop), (C2_CS_DS1_REQ_OPCODE,
+						  C2_CS_DS2_REQ_OPCODE)));
 	if (c2_fom_phase(fom) < C2_FOPH_NR) {
 		rc = c2_fom_tick_generic(fom);
 	} else {
-		opcode = fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
+		opcode = c2_fop_opcode(fom->fo_fop);
 		switch (opcode) {
 		case C2_CS_DS1_REQ_OPCODE:
 			rfop = c2_fop_alloc(&cs_ds1_rep_fop_fopt, NULL);

@@ -127,6 +127,11 @@ void *c2_fop_data(struct c2_fop *fop)
 }
 C2_EXPORTED(c2_fop_data);
 
+uint32_t c2_fop_opcode(const struct c2_fop *fop)
+{
+	return fop->f_type->ft_rpc_item_type.rit_opcode;
+}
+
 void c2_fop_type_fini(struct c2_fop_type *fopt)
 {
 	c2_fol_rec_type_unregister(&fopt->ft_rec_type);

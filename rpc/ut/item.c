@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Amit Jambure<amit_jambure@xyratex.com>
+ * Original author: Amit Jambure <amit_jambure@xyratex.com>
  * Original creation date: 10/19/2012
  */
 

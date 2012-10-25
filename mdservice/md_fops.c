@@ -31,7 +31,7 @@ static size_t c2_md_fol_pack_size(struct c2_fol_rec_desc *desc)
         size_t len = fop->f_type->ft_xt->xct_sizeof;
         void *data = c2_fop_data(fop);
 
-        switch (fop->f_type->ft_rpc_item_type.rit_opcode) {
+        switch (c2_fop_opcode(fop)) {
         case C2_MDSERVICE_CREATE_OPCODE:
                 len += ((struct c2_fop_create *)data)->c_name.s_len;
                 len += ((struct c2_fop_create *)data)->c_target.s_len;
@@ -92,7 +92,7 @@ static void c2_md_fol_pack(struct c2_fol_rec_desc *desc, void *buf)
         memcpy(buf, data, size);
         ptr = (char *)buf + size;
 
-        switch (fop->f_type->ft_rpc_item_type.rit_opcode) {
+        switch (c2_fop_opcode(fop)) {
         case C2_MDSERVICE_CREATE_OPCODE:
                 copy(&ptr, &((struct c2_fop_create *)data)->c_name);
                 copy(&ptr, &((struct c2_fop_create *)data)->c_target);
@@ -148,7 +148,7 @@ static int c2_md_fol_open(const struct c2_fol_rec_type *type,
         void *data = desc->rd_data;
         char *ptr;
 
-        switch (fop->f_type->ft_rpc_item_type.rit_opcode) {
+        switch (c2_fop_opcode(fop)) {
         case C2_MDSERVICE_CREATE_OPCODE:
                 ptr = (char *)((struct c2_fop_create *)data + 1);
                 map(&ptr, &((struct c2_fop_create *)data)->c_name);

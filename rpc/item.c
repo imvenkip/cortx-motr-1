@@ -576,24 +576,21 @@ static int item_entered_in_sent_state(struct c2_sm *mach)
 
 static int item_entered_in_timedout_state(struct c2_sm *mach)
 {
-	struct c2_rpc_machine *machine;
-	struct c2_rpc_item    *item;
+	struct c2_rpc_item *item;
 
 	item = sm_to_item(mach);
 	C2_LOG(C2_DEBUG, "%p [%s/%u] -> TIMEDOUT", item, item_kind(item),
 	       item->ri_type->rit_opcode);
 	item->ri_error = -ETIMEDOUT;
 	c2_sm_timeout_fini(&item->ri_timeout);
-	machine = item_machine(item);
-	machine->rm_stats.rs_nr_timedout_items++;
+	item_machine(item)->rm_stats.rs_nr_timedout_items++;
 
 	return C2_RPC_ITEM_FAILED;
 }
 
 static int item_entered_in_failed_state(struct c2_sm *mach)
 {
-	struct c2_rpc_machine *machine;
-	struct c2_rpc_item    *item;
+	struct c2_rpc_item *item;
 
 	item = sm_to_item(mach);
 	C2_LOG(C2_DEBUG, "%p [%s/%u] FAILED rc: %d\n", item, item_kind(item),
@@ -608,8 +605,7 @@ static int item_entered_in_failed_state(struct c2_sm *mach)
 	    item->ri_ops->rio_replied != NULL)
 		item->ri_ops->rio_replied(item);
 
-	machine = item_machine(item);
-	machine->rm_stats.rs_nr_failed_items++;
+	item_machine(item)->rm_stats.rs_nr_failed_items++;
 
 	c2_rpc_session_item_failed(item);
 

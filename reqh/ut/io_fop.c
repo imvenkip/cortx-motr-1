@@ -275,7 +275,7 @@ static size_t stob_find_fom_home_locality(const struct c2_fom *fom)
 	if (fom == NULL)
 		return -EINVAL;
 
-	switch (fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode) {
+	switch (c2_fop_opcode(fom->fo_fop)) {
 	case C2_STOB_IO_CREATE_REQ_OPCODE: {
 		struct c2_stob_io_create *fop;
 		uint64_t oid;
@@ -319,8 +319,7 @@ static int stob_create_fom_tick(struct c2_fom *fom)
 	struct c2_fop                   *fop;
 	int                             result;
 
-	C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
-			C2_STOB_IO_CREATE_REQ_OPCODE);
+	C2_PRE(c2_fop_opcode(fom->fo_fop) == C2_STOB_IO_CREATE_REQ_OPCODE);
 
 	fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
 	if (c2_fom_phase(fom) < C2_FOPH_NR) {
@@ -373,8 +372,7 @@ static int stob_read_fom_tick(struct c2_fom *fom)
         uint32_t                         bshift;
         int                              result = 0;
 
-        C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
-			C2_STOB_IO_READ_REQ_OPCODE);
+        C2_PRE(c2_fop_opcode(fom->fo_fop) == C2_STOB_IO_READ_REQ_OPCODE);
 
         fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
         stio = &fom_obj->sif_stio;
@@ -479,8 +477,7 @@ static int stob_write_fom_tick(struct c2_fom *fom)
         uint32_t                         bshift;
         int                              result = 0;
 
-        C2_PRE(fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode ==
-			C2_STOB_IO_WRITE_REQ_OPCODE);
+        C2_PRE(c2_fop_opcode(fom->fo_fop) == C2_STOB_IO_WRITE_REQ_OPCODE);
 
         fom_obj = container_of(fom, struct c2_stob_io_fom, sif_fom);
         stio = &fom_obj->sif_stio;
