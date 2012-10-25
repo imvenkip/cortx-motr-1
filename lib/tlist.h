@@ -260,26 +260,30 @@ struct c2_tlink {
 	struct c2_list_link t_link;
 };
 
-void c2_tlist_init(const struct c2_tl_descr *d, struct c2_tl *list);
-void c2_tlist_fini(const struct c2_tl_descr *d, struct c2_tl *list);
+C2_INTERNAL void c2_tlist_init(const struct c2_tl_descr *d, struct c2_tl *list);
+C2_INTERNAL void c2_tlist_fini(const struct c2_tl_descr *d, struct c2_tl *list);
 
-void c2_tlink_init(const struct c2_tl_descr *d, void *obj);
-void c2_tlink_fini(const struct c2_tl_descr *d, void *obj);
-void c2_tlink_init_at(const struct c2_tl_descr *d,
-		      void *obj, struct c2_tl *list);
-void c2_tlink_init_at_tail(const struct c2_tl_descr *d,
-			   void *obj, struct c2_tl *list);
-void c2_tlink_del_fini(const struct c2_tl_descr *d, void *obj);
+C2_INTERNAL void c2_tlink_init(const struct c2_tl_descr *d, void *obj);
+C2_INTERNAL void c2_tlink_fini(const struct c2_tl_descr *d, void *obj);
+C2_INTERNAL void c2_tlink_init_at(const struct c2_tl_descr *d,
+				  void *obj, struct c2_tl *list);
+C2_INTERNAL void c2_tlink_init_at_tail(const struct c2_tl_descr *d,
+				       void *obj, struct c2_tl *list);
+C2_INTERNAL void c2_tlink_del_fini(const struct c2_tl_descr *d, void *obj);
 
-bool c2_tlist_invariant(const struct c2_tl_descr *d, const struct c2_tl *list);
-bool c2_tlink_invariant(const struct c2_tl_descr *d, const void *obj);
+C2_INTERNAL bool c2_tlist_invariant(const struct c2_tl_descr *d,
+				    const struct c2_tl *list);
+C2_INTERNAL bool c2_tlink_invariant(const struct c2_tl_descr *d,
+				    const void *obj);
 
-bool   c2_tlist_is_empty(const struct c2_tl_descr *d, const struct c2_tl *list);
-bool   c2_tlink_is_in   (const struct c2_tl_descr *d, const void *obj);
+C2_INTERNAL bool c2_tlist_is_empty(const struct c2_tl_descr *d,
+				   const struct c2_tl *list);
+C2_INTERNAL bool c2_tlink_is_in(const struct c2_tl_descr *d, const void *obj);
 
-bool   c2_tlist_contains(const struct c2_tl_descr *d, const struct c2_tl *list,
-			 const void *obj);
-size_t c2_tlist_length(const struct c2_tl_descr *d, const struct c2_tl *list);
+C2_INTERNAL bool c2_tlist_contains(const struct c2_tl_descr *d,
+				   const struct c2_tl *list, const void *obj);
+C2_INTERNAL size_t c2_tlist_length(const struct c2_tl_descr *d,
+				   const struct c2_tl *list);
 
 /**
    Adds an element to the beginning of a list.
@@ -287,7 +291,8 @@ size_t c2_tlist_length(const struct c2_tl_descr *d, const struct c2_tl *list);
    @pre !c2_tlink_is_in(d, obj)
    @post c2_tlink_is_in(d, obj)
  */
-void   c2_tlist_add(const struct c2_tl_descr *d, struct c2_tl *list, void *obj);
+C2_INTERNAL void c2_tlist_add(const struct c2_tl_descr *d, struct c2_tl *list,
+			      void *obj);
 
 /**
    Adds an element to the end of a list.
@@ -295,8 +300,8 @@ void   c2_tlist_add(const struct c2_tl_descr *d, struct c2_tl *list, void *obj);
    @pre !c2_tlink_is_in(d, obj)
    @post c2_tlink_is_in(d, obj)
  */
-void   c2_tlist_add_tail(const struct c2_tl_descr *d,
-			 struct c2_tl *list, void *obj);
+C2_INTERNAL void c2_tlist_add_tail(const struct c2_tl_descr *d,
+				   struct c2_tl *list, void *obj);
 
 /**
    Adds an element after another element of the list.
@@ -304,7 +309,8 @@ void   c2_tlist_add_tail(const struct c2_tl_descr *d,
    @pre !c2_tlink_is_in(d, new)
    @post c2_tlink_is_in(d, new)
  */
-void   c2_tlist_add_after(const struct c2_tl_descr *d, void *obj, void *new);
+C2_INTERNAL void c2_tlist_add_after(const struct c2_tl_descr *d, void *obj,
+				    void *new);
 
 /**
    Adds an element before another element of the list.
@@ -312,7 +318,8 @@ void   c2_tlist_add_after(const struct c2_tl_descr *d, void *obj, void *new);
    @pre !c2_tlink_is_in(d, new)
    @post c2_tlink_is_in(d, new)
  */
-void   c2_tlist_add_before(const struct c2_tl_descr *d, void *obj, void *new);
+C2_INTERNAL void c2_tlist_add_before(const struct c2_tl_descr *d, void *obj,
+				     void *new);
 
 /**
    Deletes an element from the list.
@@ -320,7 +327,7 @@ void   c2_tlist_add_before(const struct c2_tl_descr *d, void *obj, void *new);
    @pre   c2_tlink_is_in(d, obj)
    @post !c2_tlink_is_in(d, obj)
  */
-void   c2_tlist_del(const struct c2_tl_descr *d, void *obj);
+C2_INTERNAL void c2_tlist_del(const struct c2_tl_descr *d, void *obj);
 
 /**
    Moves an element from a list to the head of (possibly the same) list.
@@ -328,7 +335,8 @@ void   c2_tlist_del(const struct c2_tl_descr *d, void *obj);
    @pre  c2_tlink_is_in(d, obj)
    @post c2_tlink_is_in(d, obj)
  */
-void   c2_tlist_move(const struct c2_tl_descr *d, struct c2_tl *list, void *obj);
+C2_INTERNAL void c2_tlist_move(const struct c2_tl_descr *d, struct c2_tl *list,
+			       void *obj);
 
 /**
    Moves an element from a list to the tail of (possibly the same) list.
@@ -336,33 +344,35 @@ void   c2_tlist_move(const struct c2_tl_descr *d, struct c2_tl *list, void *obj)
    @pre  c2_tlink_is_in(d, obj)
    @post c2_tlink_is_in(d, obj)
  */
-void   c2_tlist_move_tail(const struct c2_tl_descr *d,
-			  struct c2_tl *list, void *obj);
+C2_INTERNAL void c2_tlist_move_tail(const struct c2_tl_descr *d,
+				    struct c2_tl *list, void *obj);
 /**
    Returns the first element of a list or NULL if the list is empty.
  */
-void  *c2_tlist_head(const struct c2_tl_descr *d, const struct c2_tl *list);
+C2_INTERNAL void *c2_tlist_head(const struct c2_tl_descr *d,
+				const struct c2_tl *list);
 
 /**
    Returns the last element of a list or NULL if the list is empty.
  */
-void  *c2_tlist_tail(const struct c2_tl_descr *d, const struct c2_tl *list);
+C2_INTERNAL void *c2_tlist_tail(const struct c2_tl_descr *d,
+				const struct c2_tl *list);
 
 /**
    Returns the next element of a list or NULL if @obj is the last element.
 
    @pre c2_tlist_contains(d, list, obj)
  */
-void  *c2_tlist_next(const struct c2_tl_descr *d,
-		     const struct c2_tl *list, const void *obj);
+C2_INTERNAL void *c2_tlist_next(const struct c2_tl_descr *d,
+				const struct c2_tl *list, const void *obj);
 
 /**
    Returns the previous element of a list or NULL if @obj is the first element.
 
    @pre c2_tlist_contains(d, list, obj)
  */
-void  *c2_tlist_prev(const struct c2_tl_descr *d,
-		     const struct c2_tl *list, const void *obj);
+C2_INTERNAL void *c2_tlist_prev(const struct c2_tl_descr *d,
+				const struct c2_tl *list, const void *obj);
 
 /**
    Iterates over elements of list @head of type @descr, assigning them in order

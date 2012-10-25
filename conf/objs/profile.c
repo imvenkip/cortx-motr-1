@@ -103,7 +103,7 @@ static const struct c2_conf_obj_ops profile_ops = {
 	.coo_delete    = profile_delete
 };
 
-struct c2_conf_obj *c2_conf__profile_create(void)
+C2_INTERNAL struct c2_conf_obj *c2_conf__profile_create(void)
 {
 	struct c2_conf_profile *x;
 	struct c2_conf_obj     *ret;

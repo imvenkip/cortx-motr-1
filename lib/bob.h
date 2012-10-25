@@ -83,24 +83,24 @@ struct c2_bob_type {
 /**
  * Partially initializes a branded object type from a typed list descriptor.
  */
-void c2_bob_type_tlist_init(struct c2_bob_type *bt,
-			    const struct c2_tl_descr *td);
+C2_INTERNAL void c2_bob_type_tlist_init(struct c2_bob_type *bt,
+					const struct c2_tl_descr *td);
 
 /**
  *  Initializes a branded object, by setting the magic field.
  */
-void c2_bob_init(const struct c2_bob_type *bt, void *bob);
+C2_INTERNAL void c2_bob_init(const struct c2_bob_type *bt, void *bob);
 
 /**
  *  Finalizes a branded object, by re-setting the magic field to 0.
  */
-void c2_bob_fini(const struct c2_bob_type *bt, void *bob);
+C2_INTERNAL void c2_bob_fini(const struct c2_bob_type *bt, void *bob);
 
 /**
  * Returns true iff a branded object has the required magic value and check
  * function, if any, returns true.
  */
-bool c2_bob_check(const struct c2_bob_type *bt, const void *bob);
+C2_INTERNAL bool c2_bob_check(const struct c2_bob_type *bt, const void *bob);
 
 /**
  * Produces a type-safe versions of c2_bob_init(), c2_bob_fini() and

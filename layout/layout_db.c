@@ -424,12 +424,12 @@ static int pair_init(struct c2_db_pair *pair,
  * @{
  */
 
-int c2_layout_lookup(struct c2_layout_domain *dom,
-		     uint64_t lid,
-		     struct c2_layout_type *lt,
-		     struct c2_db_tx *tx,
-		     struct c2_db_pair *pair,
-		     struct c2_layout **out)
+C2_INTERNAL int c2_layout_lookup(struct c2_layout_domain *dom,
+				 uint64_t lid,
+				 struct c2_layout_type *lt,
+				 struct c2_db_tx *tx,
+				 struct c2_db_pair *pair,
+				 struct c2_layout **out)
 {
 	int                      rc;
 	struct c2_bufvec         bv;
@@ -542,9 +542,8 @@ out:
 	return rc;
 }
 
-int c2_layout_add(struct c2_layout *l,
-		  struct c2_db_tx *tx,
-		  struct c2_db_pair *pair)
+C2_INTERNAL int c2_layout_add(struct c2_layout *l,
+			      struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
 	c2_bcount_t recsize;
 	int         rc;
@@ -575,9 +574,8 @@ int c2_layout_add(struct c2_layout *l,
 	return rc;
 }
 
-int c2_layout_update(struct c2_layout *l,
-		     struct c2_db_tx *tx,
-		     struct c2_db_pair *pair)
+C2_INTERNAL int c2_layout_update(struct c2_layout *l,
+				 struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
 	c2_bcount_t recsize;
 	int         rc;
@@ -611,9 +609,8 @@ err1_injected:
 	return rc;
 }
 
-int c2_layout_delete(struct c2_layout *l,
-		     struct c2_db_tx *tx,
-		     struct c2_db_pair *pair)
+C2_INTERNAL int c2_layout_delete(struct c2_layout *l,
+				 struct c2_db_tx *tx, struct c2_db_pair *pair)
 {
 	c2_bcount_t recsize;
 	int         rc;

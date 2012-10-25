@@ -140,7 +140,7 @@ static void buffer_pool_low(struct c2_net_buffer_pool *bp)
  * Registers I/O service with colibri node.
  * Colibri setup calls this function.
  */
-int c2_ios_register(void)
+C2_INTERNAL int c2_ios_register(void)
 {
 	/* The onwire version-number structure is declared as a struct,
 	 * not a sequence (which is more like an array.
@@ -156,7 +156,7 @@ int c2_ios_register(void)
 /**
  * Unregisters I/O service from colibri node.
  */
-void c2_ios_unregister(void)
+C2_INTERNAL void c2_ios_unregister(void)
 {
 	c2_reqh_service_type_unregister(&c2_ios_type);
 	c2_ioservice_fop_fini();

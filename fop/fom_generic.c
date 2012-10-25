@@ -50,12 +50,12 @@ C2_ADDB_ADD((addb_ctx), &reqh_gen_addb_loc, c2_addb_func_fail, (name), (rc))
 
 struct c2_fop_type c2_fom_error_rep_fopt;
 
-void c2_fom_generic_fini(void)
+C2_INTERNAL void c2_fom_generic_fini(void)
 {
 	c2_fop_type_fini(&c2_fom_error_rep_fopt);
 }
 
-int c2_fom_generic_init(void)
+C2_INTERNAL int c2_fom_generic_init(void)
 {
 	return C2_FOP_TYPE_INIT(&c2_fom_error_rep_fopt,
 				.name      = "fom error reply",
@@ -635,7 +635,7 @@ const struct c2_sm_conf c2_generic_conf = {
 };
 C2_EXPORTED(c2_generic_conf);
 
-int c2_fom_tick_generic(struct c2_fom *fom)
+C2_INTERNAL int c2_fom_tick_generic(struct c2_fom *fom)
 {
 	int			     rc;
 	const struct fom_phase_desc *fpd_phase;

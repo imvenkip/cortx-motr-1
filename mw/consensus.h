@@ -45,29 +45,34 @@ struct c2_consensus_acceptor_ops {
 			     struct c2_tx *tx, const struct c2_consensus *cons);
 };
 
-int  c2_consensus_domain_init(struct c2_consensus_domain **domain);
-void c2_consensus_domain_fini(struct c2_consensus_domain *domain);
-int  c2_consensus_domain_add(struct c2_consensus_domain *domain,
-			     struct c2_server *server);
+C2_INTERNAL int c2_consensus_domain_init(struct c2_consensus_domain **domain);
+C2_INTERNAL void c2_consensus_domain_fini(struct c2_consensus_domain *domain);
+C2_INTERNAL int c2_consensus_domain_add(struct c2_consensus_domain *domain,
+					struct c2_server *server);
 
-int  c2_consensus_proposer_init(struct c2_consensus_proposer **proposer,
-				struct c2_id_factory *idgen);
-void c2_consensus_proposer_fini(struct c2_consensus_proposer *proposer);
+C2_INTERNAL int c2_consensus_proposer_init(struct c2_consensus_proposer
+					   **proposer,
+					   struct c2_id_factory *idgen);
+C2_INTERNAL void c2_consensus_proposer_fini(struct c2_consensus_proposer
+					    *proposer);
 
-int  c2_consensus_acceptor_init(struct c2_consensus_acceptor **acceptor,
-				struct c2_m_container *store,
-				const struct c2_consensus_acceptor_ops *ops);
-void c2_consensus_acceptor_fini(struct c2_consensus_acceptor *acceptor);
+C2_INTERNAL int c2_consensus_acceptor_init(struct c2_consensus_acceptor
+					   **acceptor,
+					   struct c2_m_container *store,
+					   const struct
+					   c2_consensus_acceptor_ops *ops);
+C2_INTERNAL void c2_consensus_acceptor_fini(struct c2_consensus_acceptor
+					    *acceptor);
 
-int  c2_consensus_init(struct c2_consensus **cons,
-		       struct c2_consensus_proposer *prop,
-		       const struct c2_buf *val);
-void c2_consensus_fini(struct c2_consensus *cons);
+C2_INTERNAL int c2_consensus_init(struct c2_consensus **cons,
+				  struct c2_consensus_proposer *prop,
+				  const struct c2_buf *val);
+C2_INTERNAL void c2_consensus_fini(struct c2_consensus *cons);
 
-int  c2_consensus_establish(struct c2_consensus_proposer *proposer,
-			    struct c2_consensus *cons);
+C2_INTERNAL int c2_consensus_establish(struct c2_consensus_proposer *proposer,
+				       struct c2_consensus *cons);
 
-struct c2_buf *c2_consensus_value(const struct c2_consensus *cons);
+C2_INTERNAL struct c2_buf *c2_consensus_value(const struct c2_consensus *cons);
 
 /** @} end of consensus group */
 

@@ -66,9 +66,9 @@ enum c2_update_state {
 	C2_US_NR
 };
 
-void c2_dtx_init(struct c2_dtx *tx);
-int  c2_dtx_open(struct c2_dtx *tx, struct c2_dbenv *env);
-void c2_dtx_done(struct c2_dtx *tx);
+C2_INTERNAL void c2_dtx_init(struct c2_dtx *tx);
+C2_INTERNAL int c2_dtx_open(struct c2_dtx *tx, struct c2_dbenv *env);
+C2_INTERNAL void c2_dtx_done(struct c2_dtx *tx);
 
 /** @} end of dtm group */
 

@@ -67,19 +67,21 @@ enum {
 	ADDB_CUSTOM_MSG_SIZE = 256,
 };
 
-int c2_addb_init(void)
+C2_INTERNAL int c2_addb_init(void)
 {
 	return 0;
 }
 
-void c2_addb_fini(void)
+C2_INTERNAL void c2_addb_fini(void)
 {
 }
 
 /**
    Choose default addb event level, return the original level.
 */
-enum c2_addb_ev_level c2_addb_choose_default_level(enum c2_addb_ev_level level)
+C2_INTERNAL enum c2_addb_ev_level c2_addb_choose_default_level(enum
+							       c2_addb_ev_level
+							       level)
 {
 	enum c2_addb_ev_level orig = c2_addb_level_default;
 
@@ -94,8 +96,8 @@ C2_EXPORTED(c2_addb_choose_default_level);
    Choose default addb event level for displaying output on the console,
    return the original level.
 */
-enum c2_addb_ev_level c2_addb_choose_default_level_console(
-	    enum c2_addb_ev_level level)
+C2_INTERNAL enum c2_addb_ev_level
+c2_addb_choose_default_level_console(enum c2_addb_ev_level level)
 {
 	enum c2_addb_ev_level orig = c2_addb_level_default_console;
 
@@ -105,21 +107,23 @@ enum c2_addb_ev_level c2_addb_choose_default_level_console(
 	return orig;
 }
 
-void c2_addb_ctx_init(struct c2_addb_ctx *ctx, const struct c2_addb_ctx_type *t,
-		      struct c2_addb_ctx *parent)
+C2_INTERNAL void c2_addb_ctx_init(struct c2_addb_ctx *ctx,
+				  const struct c2_addb_ctx_type *t,
+				  struct c2_addb_ctx *parent)
 {
 	ctx->ac_type = t;
 	ctx->ac_parent = parent;
 }
 
-void c2_addb_ctx_fini(struct c2_addb_ctx *ctx)
+C2_INTERNAL void c2_addb_ctx_fini(struct c2_addb_ctx *ctx)
 {
 }
 
 /* defined in {,linux_kernel/}addb_console.c */
-void c2_addb_console(enum c2_addb_ev_level lev, struct c2_addb_dp *dp);
+C2_INTERNAL void c2_addb_console(enum c2_addb_ev_level lev,
+				 struct c2_addb_dp *dp);
 
-void c2_addb_add(struct c2_addb_dp *dp)
+C2_INTERNAL void c2_addb_add(struct c2_addb_dp *dp)
 {
 	enum c2_addb_ev_level     lev;
 	const struct c2_addb_ev  *ev;
@@ -197,31 +201,31 @@ const struct c2_addb_ev_ops C2_ADDB_SYSCALL = {
 };
 
 /** get size for data point opaque data */
-extern int c2_addb_func_fail_getsize(struct c2_addb_dp *dp);
+C2_INTERNAL int c2_addb_func_fail_getsize(struct c2_addb_dp *dp);
 
-extern int c2_addb_func_fail_pack(struct c2_addb_dp *dp,
+C2_INTERNAL int c2_addb_func_fail_pack(struct c2_addb_dp *dp,
+				       struct c2_addb_record *rec);
+
+C2_INTERNAL int c2_addb_call_getsize(struct c2_addb_dp *dp);
+C2_INTERNAL int c2_addb_call_pack(struct c2_addb_dp *dp,
 				  struct c2_addb_record *rec);
 
-extern int c2_addb_call_getsize(struct c2_addb_dp *dp);
-extern int c2_addb_call_pack(struct c2_addb_dp *dp,
-			     struct c2_addb_record *rec);
+C2_INTERNAL int c2_addb_flag_getsize(struct c2_addb_dp *dp);
+C2_INTERNAL int c2_addb_flag_pack(struct c2_addb_dp *dp,
+				  struct c2_addb_record *rec);
 
-extern int c2_addb_flag_getsize(struct c2_addb_dp *dp);
-extern int c2_addb_flag_pack(struct c2_addb_dp *dp,
-			     struct c2_addb_record *rec);
+C2_INTERNAL int c2_addb_inval_getsize(struct c2_addb_dp *dp);
+C2_INTERNAL int c2_addb_inval_pack(struct c2_addb_dp *dp,
+				   struct c2_addb_record *rec);
 
-extern int c2_addb_inval_getsize(struct c2_addb_dp *dp);
-extern int c2_addb_inval_pack(struct c2_addb_dp *dp,
-			      struct c2_addb_record *rec);
+C2_INTERNAL int c2_addb_empty_getsize(struct c2_addb_dp *dp);
+C2_INTERNAL int c2_addb_empty_pack(struct c2_addb_dp *dp,
+				   struct c2_addb_record *rec);
 
-extern int c2_addb_empty_getsize(struct c2_addb_dp *dp);
-extern int c2_addb_empty_pack(struct c2_addb_dp *dp,
-			      struct c2_addb_record *rec);
+C2_INTERNAL int c2_addb_trace_getsize(struct c2_addb_dp *dp);
 
-extern int c2_addb_trace_getsize(struct c2_addb_dp *dp);
-
-extern int c2_addb_trace_pack(struct c2_addb_dp *dp,
-			      struct c2_addb_record *rec);
+C2_INTERNAL int c2_addb_trace_pack(struct c2_addb_dp *dp,
+				   struct c2_addb_record *rec);
 
 const struct c2_addb_ev_ops C2_ADDB_FUNC_CALL = {
 	.aeo_subst   = (c2_addb_ev_subst_t)subst_name_int,
@@ -297,7 +301,8 @@ struct c2_addb_ctx c2_addb_global_ctx = {
 	.ac_parent = NULL
 };
 
-int c2_addb_choose_store_media(enum c2_addb_rec_store_type type, ...)
+C2_INTERNAL int c2_addb_choose_store_media(enum c2_addb_rec_store_type type,
+					   ...)
 {
 	va_list varargs;
 

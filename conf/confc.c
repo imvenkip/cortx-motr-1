@@ -435,8 +435,9 @@ static const char *prefix_skip(const char *prefix, const char *str)
 	return *prefix == 0 ? str : NULL;
 }
 
-int c2_confc_init(struct c2_confc *confc, const char *conf_source,
-		  const struct c2_buf *profile, struct c2_sm_group *sm_group)
+C2_INTERNAL int c2_confc_init(struct c2_confc *confc, const char *conf_source,
+			      const struct c2_buf *profile,
+			      struct c2_sm_group *sm_group)
 {
 	const char *s;
 	int         rc;
@@ -478,7 +479,7 @@ int c2_confc_init(struct c2_confc *confc, const char *conf_source,
 	return rc;
 }
 
-void c2_confc_fini(struct c2_confc *confc)
+C2_INTERNAL void c2_confc_fini(struct c2_confc *confc)
 {
 	C2_PRE(confc->cc_nr_ctx == 0);
 
@@ -504,7 +505,8 @@ static void conf_group_unlock(const struct c2_confc *confc);
 static void confc_lock(struct c2_confc *confc);
 static void confc_unlock(struct c2_confc *confc);
 
-void c2_confc_ctx_init(struct c2_confc_ctx *ctx, struct c2_confc *confc)
+C2_INTERNAL void c2_confc_ctx_init(struct c2_confc_ctx *ctx,
+				   struct c2_confc *confc)
 {
 	C2_PRE(confc_invariant(confc));
 
@@ -531,7 +533,7 @@ void c2_confc_ctx_init(struct c2_confc_ctx *ctx, struct c2_confc *confc)
 	C2_POST(ctx_invariant(ctx));
 }
 
-void c2_confc_ctx_fini(struct c2_confc_ctx *ctx)
+C2_INTERNAL void c2_confc_ctx_fini(struct c2_confc_ctx *ctx)
 {
 	struct c2_confc *confc = ctx->fc_confc;
 	C2_PRE(ctx_invariant(ctx));
@@ -553,19 +555,19 @@ void c2_confc_ctx_fini(struct c2_confc_ctx *ctx)
 	ctx->fc_confc = NULL;
 }
 
-bool c2_confc_ctx_is_completed(const struct c2_confc_ctx *ctx)
+C2_INTERNAL bool c2_confc_ctx_is_completed(const struct c2_confc_ctx *ctx)
 {
 	C2_PRE(ctx_invariant(ctx));
 	return C2_IN(ctx->fc_mach.sm_state, (S_TERMINAL, S_FAILURE));
 }
 
-int32_t c2_confc_ctx_error(const struct c2_confc_ctx *ctx)
+C2_INTERNAL int32_t c2_confc_ctx_error(const struct c2_confc_ctx *ctx)
 {
 	C2_PRE(c2_confc_ctx_is_completed(ctx));
 	return ctx->fc_mach.sm_rc;
 }
 
-struct c2_conf_obj *c2_confc_ctx_result(struct c2_confc_ctx *ctx)
+C2_INTERNAL struct c2_conf_obj *c2_confc_ctx_result(struct c2_confc_ctx *ctx)
 {
 	struct c2_conf_obj *res = ctx->fc_result;
 
@@ -583,8 +585,9 @@ struct c2_conf_obj *c2_confc_ctx_result(struct c2_confc_ctx *ctx)
 
 static void ast_state_set(struct c2_sm_ast *ast, enum confc_ctx_state state);
 
-int c2_confc__open(struct c2_confc_ctx *ctx, struct c2_conf_obj *origin,
-		   const struct c2_buf path[])
+C2_INTERNAL int c2_confc__open(struct c2_confc_ctx *ctx,
+			       struct c2_conf_obj *origin,
+			       const struct c2_buf path[])
 {
 	C2_PRE(ctx_invariant(ctx));
 	C2_PRE(ergo(origin != NULL, origin->co_confc == ctx->fc_confc));
@@ -608,8 +611,9 @@ static bool sm_filter(struct c2_clink *link)
 							w_clink)->w_ctx);
 }
 
-int c2_confc__open_sync(struct c2_conf_obj **result, struct c2_conf_obj *origin,
-			const struct c2_buf path[])
+C2_INTERNAL int c2_confc__open_sync(struct c2_conf_obj **result,
+				    struct c2_conf_obj *origin,
+				    const struct c2_buf path[])
 {
 	struct sm_waiter w;
 	int              rc;
@@ -638,7 +642,7 @@ int c2_confc__open_sync(struct c2_conf_obj **result, struct c2_conf_obj *origin,
 	return rc;
 }
 
-void c2_confc_close(struct c2_conf_obj *obj)
+C2_INTERNAL void c2_confc_close(struct c2_conf_obj *obj)
 {
 	if (obj != NULL) {
 		confc_lock(obj->co_confc);
@@ -651,8 +655,9 @@ void c2_confc_close(struct c2_conf_obj *obj)
  * readdir
  * ------------------------------------------------------------------ */
 
-int c2_confc_readdir(struct c2_confc_ctx *ctx, struct c2_conf_obj *dir,
-		     struct c2_conf_obj **pptr)
+C2_INTERNAL int c2_confc_readdir(struct c2_confc_ctx *ctx,
+				 struct c2_conf_obj *dir,
+				 struct c2_conf_obj **pptr)
 {
 	int rc;
 
@@ -668,7 +673,8 @@ int c2_confc_readdir(struct c2_confc_ctx *ctx, struct c2_conf_obj *dir,
 	return rc;
 }
 
-int c2_confc_readdir_sync(struct c2_conf_obj *dir, struct c2_conf_obj **pptr)
+C2_INTERNAL int c2_confc_readdir_sync(struct c2_conf_obj *dir,
+				      struct c2_conf_obj **pptr)
 {
 	(void)dir;
 	(void)pptr;
@@ -990,7 +996,7 @@ static void ast_state_set(struct c2_sm_ast *ast, enum confc_ctx_state state)
 }
 
 /** Posts an AST that will move the state machine to S_FAILURE state. */
-/* XXX static */ void ast_fail(struct c2_sm_ast *ast, int32_t rc)
+/* XXX static */ C2_INTERNAL void ast_fail(struct c2_sm_ast *ast, int32_t rc)
 {
 	_ast_post(ast, _fail, rc);
 }
@@ -1220,7 +1226,7 @@ static bool confc_is_locked(const struct c2_confc *confc)
 #ifdef __KERNEL__
 int c2t1fs_conf_test(const char *buf)
 {
-	extern void c2_conf__reg2dot(const struct c2_conf_reg *reg);
+	C2_INTERNAL void c2_conf__reg2dot(const struct c2_conf_reg *reg);
 	int                  i;
 	int                  n;
 	int                  rc;

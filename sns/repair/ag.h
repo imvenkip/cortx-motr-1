@@ -61,13 +61,18 @@ struct c2_sns_repair_ag {
  * this function.
  * @pre c2_cm_is_locked(cm) == true
  */
-struct c2_sns_repair_ag * c2_sns_repair_ag_find(struct c2_sns_repair_cm *rcm,
-						const struct c2_cm_ag_id *id);
+C2_INTERNAL struct c2_sns_repair_ag *c2_sns_repair_ag_find(struct
+							   c2_sns_repair_cm
+							   *rcm,
+							   const struct
+							   c2_cm_ag_id *id);
 
-struct c2_sns_repair_ag *ag2snsag(const struct c2_cm_aggr_group *ag);
+C2_INTERNAL struct c2_sns_repair_ag *ag2snsag(const struct c2_cm_aggr_group
+					      *ag);
 
-void agid2fid(const struct c2_cm_aggr_group *ag, struct c2_fid *fid);
-uint64_t agid2group(const struct c2_cm_aggr_group *ag);
+C2_INTERNAL void agid2fid(const struct c2_cm_aggr_group *ag,
+			  struct c2_fid *fid);
+C2_INTERNAL uint64_t agid2group(const struct c2_cm_aggr_group *ag);
 
 /** @} SNSRepairAG */
 

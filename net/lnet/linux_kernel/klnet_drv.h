@@ -155,9 +155,9 @@
    Initialise the C2 LNet Transport device.
    Registers the device as a miscellaneous character device.
  */
-int nlx_dev_init(void);
+C2_INTERNAL int nlx_dev_init(void);
 /** Finalise the C2 LNet device. */
-void nlx_dev_fini(void);
+C2_INTERNAL void nlx_dev_fini(void);
 
 /** @} */ /* LNetDev */
 

@@ -42,7 +42,8 @@ static const struct c2_addb_loc c2_pool_addb_loc = {
 static bool pool_colour_check(const struct c2_net_buffer_pool *pool);
 static bool pool_lru_buffer_check(const struct c2_net_buffer_pool *pool);
 
-bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool *pool)
+C2_INTERNAL bool c2_net_buffer_pool_invariant(const struct c2_net_buffer_pool
+					      *pool)
 {
 	return pool != NULL &&
 		/* domain must be set and initialized */
@@ -71,10 +72,11 @@ static bool pool_lru_buffer_check(const struct c2_net_buffer_pool *pool)
 			    (nb->nb_flags & C2_NET_BUF_REGISTERED));
 }
 
-int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
-			    struct c2_net_domain *ndom, uint32_t threshold,
-			    uint32_t seg_nr, c2_bcount_t seg_size,
-			    uint32_t colours, unsigned shift)
+C2_INTERNAL int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
+					struct c2_net_domain *ndom,
+					uint32_t threshold, uint32_t seg_nr,
+					c2_bcount_t seg_size, uint32_t colours,
+					unsigned shift)
 {
 	int i;
 
@@ -114,8 +116,8 @@ int c2_net_buffer_pool_init(struct c2_net_buffer_pool *pool,
 static bool net_buffer_pool_grow(struct c2_net_buffer_pool *pool);
 
 
-int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
-				 uint32_t buf_nr)
+C2_INTERNAL int c2_net_buffer_pool_provision(struct c2_net_buffer_pool *pool,
+					     uint32_t buf_nr)
 {
 	int buffers = 0;
 	C2_PRE(c2_net_buffer_pool_invariant(pool));
@@ -144,7 +146,7 @@ static void buffer_remove(struct c2_net_buffer_pool *pool,
 	C2_POST(c2_net_buffer_pool_invariant(pool));
 }
 
-void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool)
+C2_INTERNAL void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool)
 {
 	int		      i;
 	struct c2_net_buffer *nb;
@@ -176,28 +178,31 @@ void c2_net_buffer_pool_fini(struct c2_net_buffer_pool *pool)
 	c2_mutex_fini(&pool->nbp_mutex);
 }
 
-void c2_net_buffer_pool_lock(struct c2_net_buffer_pool *pool)
+C2_INTERNAL void c2_net_buffer_pool_lock(struct c2_net_buffer_pool *pool)
 {
 	c2_mutex_lock(&pool->nbp_mutex);
 }
 
-bool c2_net_buffer_pool_is_locked(const struct c2_net_buffer_pool *pool)
+C2_INTERNAL bool c2_net_buffer_pool_is_locked(const struct c2_net_buffer_pool
+					      *pool)
 {
 	return c2_mutex_is_locked(&pool->nbp_mutex);
 }
 
-bool c2_net_buffer_pool_is_not_locked(const struct c2_net_buffer_pool *pool)
+C2_INTERNAL bool c2_net_buffer_pool_is_not_locked(const struct
+						  c2_net_buffer_pool *pool)
 {
 	return c2_mutex_is_not_locked(&pool->nbp_mutex);
 }
 
-void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool)
+C2_INTERNAL void c2_net_buffer_pool_unlock(struct c2_net_buffer_pool *pool)
 {
 	c2_mutex_unlock(&pool->nbp_mutex);
 }
 
-struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
-					     uint32_t colour)
+C2_INTERNAL struct c2_net_buffer *c2_net_buffer_pool_get(struct
+							 c2_net_buffer_pool
+							 *pool, uint32_t colour)
 {
 	struct c2_net_buffer *nb;
 
@@ -224,8 +229,9 @@ struct c2_net_buffer *c2_net_buffer_pool_get(struct c2_net_buffer_pool *pool,
 	return nb;
 }
 
-void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
-			    struct c2_net_buffer *buf, uint32_t colour)
+C2_INTERNAL void c2_net_buffer_pool_put(struct c2_net_buffer_pool *pool,
+					struct c2_net_buffer *buf,
+					uint32_t colour)
 {
 	C2_PRE(buf != NULL);
 	C2_PRE(c2_net_buffer_pool_invariant(pool));
@@ -279,7 +285,7 @@ clean:
 	return false;
 }
 
-bool c2_net_buffer_pool_prune(struct c2_net_buffer_pool *pool)
+C2_INTERNAL bool c2_net_buffer_pool_prune(struct c2_net_buffer_pool *pool)
 {
 	struct c2_net_buffer *nb;
 

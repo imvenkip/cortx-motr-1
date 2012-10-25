@@ -34,7 +34,7 @@
    @{
  */
 
-struct c2_sns_repair_ag *ag2snsag(const struct c2_cm_aggr_group *ag)
+C2_INTERNAL struct c2_sns_repair_ag *ag2snsag(const struct c2_cm_aggr_group *ag)
 {
 	return container_of(ag, struct c2_sns_repair_ag, sag_base);
 }
@@ -57,7 +57,7 @@ static int ag_fini(struct c2_cm_aggr_group *ag)
 	return 0;
 }
 
-void agid2fid(const struct c2_cm_aggr_group *ag, struct c2_fid *fid)
+C2_INTERNAL void agid2fid(const struct c2_cm_aggr_group *ag, struct c2_fid *fid)
 {
 	C2_PRE(ag != NULL);
 	C2_PRE(fid != NULL);
@@ -66,7 +66,7 @@ void agid2fid(const struct c2_cm_aggr_group *ag, struct c2_fid *fid)
 	fid->f_key       = ag->cag_id.ai_hi.u_lo;
 }
 
-uint64_t agid2group(const struct c2_cm_aggr_group *ag)
+C2_INTERNAL uint64_t agid2group(const struct c2_cm_aggr_group *ag)
 {
 	C2_PRE(ag != NULL);
 
@@ -99,8 +99,11 @@ static const struct c2_cm_aggr_group_ops repair_ag_ops = {
 	.cago_local_cp_nr = ag_local_cp_nr
 };
 
-struct c2_sns_repair_ag *c2_sns_repair_ag_find(struct c2_sns_repair_cm *rcm,
-					       const struct c2_cm_ag_id *id)
+C2_INTERNAL struct c2_sns_repair_ag *c2_sns_repair_ag_find(struct
+							   c2_sns_repair_cm
+							   *rcm,
+							   const struct
+							   c2_cm_ag_id *id)
 {
 	struct c2_cm            *cm;
 	struct c2_cm_aggr_group *ag;

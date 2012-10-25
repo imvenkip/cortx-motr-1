@@ -138,7 +138,7 @@ static const struct c2_conf_obj_ops conf_service_ops = {
 	.coo_delete    = service_delete
 };
 
-struct c2_conf_obj *c2_conf__service_create(void)
+C2_INTERNAL struct c2_conf_obj *c2_conf__service_create(void)
 {
 	struct c2_conf_service *x;
 	struct c2_conf_obj     *ret;

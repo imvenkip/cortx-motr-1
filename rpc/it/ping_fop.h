@@ -26,8 +26,8 @@
 #include "fop/fop.h"
 #include "rpc/rpc_opcodes.h"
 
-int c2_ping_fop_init(void);
-void c2_ping_fop_fini(void);
+C2_INTERNAL int c2_ping_fop_init(void);
+C2_INTERNAL void c2_ping_fop_fini(void);
 
 /**
  * FOP definitions and corresponding fop type formats

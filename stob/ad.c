@@ -244,10 +244,12 @@ static int ad_stob_type_domain_locate(struct c2_stob_type *type,
 	return result;
 }
 
-int c2_ad_stob_setup(struct c2_stob_domain *dom, struct c2_dbenv *dbenv,
-		     struct c2_stob *bstore, struct c2_ad_balloc *ballroom,
-		     c2_bcount_t container_size, c2_bcount_t bshift,
-		     c2_bcount_t blocks_per_group, c2_bcount_t res_groups)
+C2_INTERNAL int c2_ad_stob_setup(struct c2_stob_domain *dom,
+				 struct c2_dbenv *dbenv, struct c2_stob *bstore,
+				 struct c2_ad_balloc *ballroom,
+				 c2_bcount_t container_size, c2_bcount_t bshift,
+				 c2_bcount_t blocks_per_group,
+				 c2_bcount_t res_groups)
 {
 	int			 result;
 	c2_bcount_t		 groupsize;
@@ -555,7 +557,7 @@ static int ad_bfree(struct ad_domain *adom, struct c2_dtx *tx,
 
    Allocates private IO state structure.
  */
-int ad_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
+C2_INTERNAL int ad_stob_io_init(struct c2_stob *stob, struct c2_stob_io *io)
 {
 	struct ad_stob_io *aio;
 	int                result;
@@ -1380,14 +1382,14 @@ const struct c2_addb_ctx_type ad_stob_ctx_type = {
 	.act_name = "adstob"
 };
 
-int c2_ad_stobs_init(void)
+C2_INTERNAL int c2_ad_stobs_init(void)
 {
 	c2_addb_ctx_init(&ad_stob_ctx, &ad_stob_ctx_type,
 			 &c2_addb_global_ctx);
 	return C2_STOB_TYPE_OP(&c2_ad_stob_type, sto_init);
 }
 
-void c2_ad_stobs_fini(void)
+C2_INTERNAL void c2_ad_stobs_fini(void)
 {
 	C2_STOB_TYPE_OP(&c2_ad_stob_type, sto_fini);
 	c2_addb_ctx_fini(&ad_stob_ctx);

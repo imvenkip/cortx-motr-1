@@ -58,7 +58,7 @@ static size_t fop_data_size(const struct c2_fop *fop)
 	return fop->f_type->ft_xt->xct_sizeof;
 }
 
-int c2_fop_data_alloc(struct c2_fop *fop)
+C2_INTERNAL int c2_fop_data_alloc(struct c2_fop *fop)
 {
 	size_t nob;
 
@@ -70,7 +70,8 @@ int c2_fop_data_alloc(struct c2_fop *fop)
 	return fop->f_data.fd_data == NULL ? -ENOMEM : 0;
 }
 
-void c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
+C2_INTERNAL void c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt,
+			     void *data)
 {
 
 	C2_PRE(fop != NULL && fopt != NULL);
@@ -82,7 +83,7 @@ void c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
 	fop->f_data.fd_data = data;
 }
 
-struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
+C2_INTERNAL struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 {
 	struct c2_fop *fop;
 	int            err;
@@ -103,7 +104,7 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 }
 C2_EXPORTED(c2_fop_alloc);
 
-void c2_fop_fini(struct c2_fop *fop)
+C2_INTERNAL void c2_fop_fini(struct c2_fop *fop)
 {
 	C2_ASSERT(fop != NULL);
 
@@ -112,7 +113,7 @@ void c2_fop_fini(struct c2_fop *fop)
 	c2_xcode_free(&C2_FOP_XCODE_OBJ(fop));
 }
 
-void c2_fop_free(struct c2_fop *fop)
+C2_INTERNAL void c2_fop_free(struct c2_fop *fop)
 {
 	if (fop != NULL) {
 		c2_fop_fini(fop);
@@ -120,19 +121,19 @@ void c2_fop_free(struct c2_fop *fop)
 	}
 }
 
-void *c2_fop_data(struct c2_fop *fop)
+C2_INTERNAL void *c2_fop_data(struct c2_fop *fop)
 {
 	return fop->f_data.fd_data;
 }
 C2_EXPORTED(c2_fop_data);
 
-uint32_t c2_fop_opcode(const struct c2_fop *fop)
+C2_INTERNAL uint32_t c2_fop_opcode(const struct c2_fop *fop)
 {
 	return fop->f_type->ft_rpc_item_type.rit_opcode;
 }
 C2_EXPORTED(c2_fop_opcode);
 
-void c2_fop_type_fini(struct c2_fop_type *fopt)
+C2_INTERNAL void c2_fop_type_fini(struct c2_fop_type *fopt)
 {
 	c2_fol_rec_type_unregister(&fopt->ft_rec_type);
 	c2_mutex_lock(&fop_types_lock);
@@ -144,8 +145,8 @@ void c2_fop_type_fini(struct c2_fop_type *fopt)
 }
 C2_EXPORTED(c2_fop_type_fini);
 
-int c2_fop_type_init(struct c2_fop_type *ft,
-		     const struct __c2_fop_type_init_args *args)
+C2_INTERNAL int c2_fop_type_init(struct c2_fop_type *ft,
+				 const struct __c2_fop_type_init_args *args)
 {
 	struct c2_fol_rec_type  *fol_type;
 	struct c2_rpc_item_type *rpc_type;
@@ -181,7 +182,7 @@ int c2_fop_type_init(struct c2_fop_type *ft,
 }
 C2_EXPORTED(c2_fop_type_init);
 
-int c2_fop_type_init_nr(const struct c2_fop_type_batch *batch)
+C2_INTERNAL int c2_fop_type_init_nr(const struct c2_fop_type_batch *batch)
 {
 	int result = 0;
 
@@ -192,7 +193,7 @@ int c2_fop_type_init_nr(const struct c2_fop_type_batch *batch)
 	return result;
 }
 
-void c2_fop_type_fini_nr(const struct c2_fop_type_batch *batch)
+C2_INTERNAL void c2_fop_type_fini_nr(const struct c2_fop_type_batch *batch)
 {
 	for (; batch->tb_type != NULL; ++batch) {
 		if (batch->tb_type->ft_magix != 0)
@@ -200,7 +201,7 @@ void c2_fop_type_fini_nr(const struct c2_fop_type_batch *batch)
 	}
 }
 
-struct c2_fop_type *c2_fop_type_next(struct c2_fop_type *ftype)
+C2_INTERNAL struct c2_fop_type *c2_fop_type_next(struct c2_fop_type *ftype)
 {
 	struct c2_fop_type *rtype;
 
@@ -216,7 +217,7 @@ struct c2_fop_type *c2_fop_type_next(struct c2_fop_type *ftype)
 	return rtype;
 }
 
-int c2_fops_init(void)
+C2_INTERNAL int c2_fops_init(void)
 {
 	ft_tlist_init(&fop_types_list);
 	c2_mutex_init(&fop_types_lock);
@@ -224,7 +225,7 @@ int c2_fops_init(void)
 	return 0;
 }
 
-void c2_fops_fini(void)
+C2_INTERNAL void c2_fops_fini(void)
 {
 	c2_mutex_fini(&fop_types_lock);
 	ft_tlist_fini(&fop_types_list);
@@ -238,17 +239,17 @@ void c2_fops_fini(void)
 
 /* XXX for now */
 
-int fop_fol_type_init(struct c2_fop_type *fopt)
+C2_INTERNAL int fop_fol_type_init(struct c2_fop_type *fopt)
 {
 	return 0;
 }
 
-void fop_fol_type_fini(struct c2_fop_type *fopt)
+C2_INTERNAL void fop_fol_type_fini(struct c2_fop_type *fopt)
 {
 }
 
-int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
-		       struct c2_db_tx *tx)
+C2_INTERNAL int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
+				   struct c2_db_tx *tx)
 {
 	return 0;
 }
@@ -257,7 +258,7 @@ int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
 
 static const struct c2_fol_rec_type_ops c2_fop_fol_default_ops;
 
-int fop_fol_type_init(struct c2_fop_type *fopt)
+C2_INTERNAL int fop_fol_type_init(struct c2_fop_type *fopt)
 {
 	struct c2_fol_rec_type *rtype;
 
@@ -274,13 +275,13 @@ int fop_fol_type_init(struct c2_fop_type *fopt)
 	return c2_fol_rec_type_register(rtype);
 }
 
-void fop_fol_type_fini(struct c2_fop_type *fopt)
+C2_INTERNAL void fop_fol_type_fini(struct c2_fop_type *fopt)
 {
 	c2_fol_rec_type_unregister(&fopt->ft_rec_type);
 }
 
-int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
-		       struct c2_db_tx *tx)
+C2_INTERNAL int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
+				   struct c2_db_tx *tx)
 {
 	struct c2_fop_type    *fopt;
 	struct c2_fol_rec_desc desc;
@@ -328,20 +329,19 @@ static const struct c2_fol_rec_type_ops c2_fop_fol_default_ops = {
 
 #endif /* __KERNEL__ */
 
-struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *fop)
+C2_INTERNAL struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *fop)
 {
 	return &fop->f_item;
 }
 C2_EXPORTED(c2_fop_to_rpc_item);
 
-struct c2_fop *c2_rpc_item_to_fop(const struct c2_rpc_item *item)
+C2_INTERNAL struct c2_fop *c2_rpc_item_to_fop(const struct c2_rpc_item *item)
 {
 	return container_of(item, struct c2_fop, f_item);
 }
 
-struct c2_fop_type *c2_item_type_to_fop_type
-		    (const struct c2_rpc_item_type *item_type)
-{
+C2_INTERNAL struct c2_fop_type *c2_item_type_to_fop_type
+    (const struct c2_rpc_item_type *item_type) {
 	C2_PRE(item_type != NULL);
 
 	return container_of(item_type, struct c2_fop_type, ft_rpc_item_type);
@@ -350,7 +350,7 @@ struct c2_fop_type *c2_item_type_to_fop_type
 /*
    See declaration for more information.
  */
-void c2_fop_item_free(struct c2_rpc_item *item)
+C2_INTERNAL void c2_fop_item_free(struct c2_rpc_item *item)
 {
 	struct c2_fop *fop;
 

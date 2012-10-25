@@ -189,13 +189,14 @@ struct c2_colibri {
    @param xprts_nr Size of xprts array
    @param out File descriptor to which output is written
  */
-int c2_cs_init(struct c2_colibri *cs_colibri, struct c2_net_xprt **xprts,
-	       size_t xprts_nr, FILE *out);
+C2_INTERNAL int c2_cs_init(struct c2_colibri *cs_colibri,
+			   struct c2_net_xprt **xprts, size_t xprts_nr,
+			   FILE * out);
 
 /**
    Finalises colibri context.
  */
-void c2_cs_fini(struct c2_colibri *cs_colibri);
+C2_INTERNAL void c2_cs_fini(struct c2_colibri *cs_colibri);
 
 /**
    Configures colibri context before starting the services.
@@ -208,7 +209,8 @@ void c2_cs_fini(struct c2_colibri *cs_colibri);
 
    @param cs_colibri Colibri context to be initialised
  */
-int c2_cs_setup_env(struct c2_colibri *cs_colibri, int argc, char **argv);
+C2_INTERNAL int c2_cs_setup_env(struct c2_colibri *cs_colibri, int argc,
+				char **argv);
 
 /**
    Starts all the specified services in the colibri context.
@@ -217,10 +219,11 @@ int c2_cs_setup_env(struct c2_colibri *cs_colibri, int argc, char **argv);
 
    @param cs_colibri Colibri context in which services are started
  */
-int c2_cs_start(struct c2_colibri *cs_colibri);
+C2_INTERNAL int c2_cs_start(struct c2_colibri *cs_colibri);
 
-struct c2_stob_domain *c2_cs_stob_domain_find(struct c2_reqh *reqh,
-					      const struct c2_stob_id *stob_id);
+C2_INTERNAL struct c2_stob_domain *c2_cs_stob_domain_find(struct c2_reqh *reqh,
+							  const struct
+							  c2_stob_id *stob_id);
 
 /**
    Find a request handler service within a given Colibri instance.
@@ -232,18 +235,20 @@ struct c2_stob_domain *c2_cs_stob_domain_find(struct c2_reqh *reqh,
 
    @retval  NULL of reqh instnace.
  */
-struct c2_reqh *c2_cs_reqh_get(struct c2_colibri *cctx,
-			       const char *service_name);
+C2_INTERNAL struct c2_reqh *c2_cs_reqh_get(struct c2_colibri *cctx,
+					   const char *service_name);
 
 /**
  * Returns instance of struct c2_colibri given a
  * request handler instance.
  * @pre reqh != NULL.
  */
-struct c2_colibri *c2_cs_ctx_get(struct c2_reqh *reqh);
+C2_INTERNAL struct c2_colibri *c2_cs_ctx_get(struct c2_reqh *reqh);
 
-struct c2_net_domain *c2_cs_net_domain_locate(struct c2_colibri *cctx,
-					      const char *xprt_name);
+C2_INTERNAL struct c2_net_domain *c2_cs_net_domain_locate(struct c2_colibri
+							  *cctx,
+							  const char
+							  *xprt_name);
 
 /** @} endgroup colibri_setup */
 

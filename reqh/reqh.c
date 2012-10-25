@@ -77,16 +77,16 @@ C2_TL_DEFINE(c2_reqh_rpc_mach, , struct c2_rpc_machine);
 #define REQH_ADDB_ADD(addb_ctx, name, rc)  \
 C2_ADDB_ADD((addb_ctx), &reqh_addb_loc, c2_addb_func_fail, (name), (rc))
 
-bool c2_reqh_invariant(const struct c2_reqh *reqh)
+C2_INTERNAL bool c2_reqh_invariant(const struct c2_reqh *reqh)
 {
 	return reqh != NULL && reqh->rh_dbenv != NULL &&
 		reqh->rh_mdstore != NULL && reqh->rh_fol != NULL &&
 		c2_fom_domain_invariant(&reqh->rh_fom_dom);
 }
 
-int c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm, struct c2_dbenv *db,
-		 struct c2_mdstore *mdstore, struct c2_fol *fol,
-		 struct c2_local_service *svc)
+C2_INTERNAL int c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
+			     struct c2_dbenv *db, struct c2_mdstore *mdstore,
+			     struct c2_fol *fol, struct c2_local_service *svc)
 {
 	int result;
 
@@ -114,7 +114,7 @@ int c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm, struct c2_dbenv *db,
 	return result;
 }
 
-void c2_reqh_fini(struct c2_reqh *reqh)
+C2_INTERNAL void c2_reqh_fini(struct c2_reqh *reqh)
 {
         C2_PRE(reqh != NULL);
 	c2_addb_ctx_fini(&reqh->rh_addb);
@@ -125,19 +125,20 @@ void c2_reqh_fini(struct c2_reqh *reqh)
 	c2_rwlock_fini(&reqh->rh_rwlock);
 }
 
-void c2_reqhs_fini(void)
+C2_INTERNAL void c2_reqhs_fini(void)
 {
 	c2_reqh_service_types_fini();
 }
 
-int c2_reqhs_init(void)
+C2_INTERNAL int c2_reqhs_init(void)
 {
 	c2_reqh_service_types_init();
 	c2_bob_type_tlist_init(&rqsvc_bob, &c2_reqh_svc_tl);
 	return 0;
 }
 
-void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
+C2_INTERNAL void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop,
+				    void *cookie)
 {
 	struct c2_fop_ctx      *ctx;
 	struct c2_fom	       *fom;
@@ -189,7 +190,7 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop, void *cookie)
 	c2_rwlock_read_unlock(&reqh->rh_rwlock);
 }
 
-void c2_reqh_shutdown_wait(struct c2_reqh *reqh)
+C2_INTERNAL void c2_reqh_shutdown_wait(struct c2_reqh *reqh)
 {
 	struct c2_clink clink;
 
@@ -207,7 +208,7 @@ void c2_reqh_shutdown_wait(struct c2_reqh *reqh)
 	c2_clink_fini(&clink);
 }
 
-uint64_t c2_reqh_nr_localities(const struct c2_reqh *reqh)
+C2_INTERNAL uint64_t c2_reqh_nr_localities(const struct c2_reqh *reqh)
 {
 	C2_PRE(c2_reqh_invariant(reqh));
 
@@ -216,13 +217,14 @@ uint64_t c2_reqh_nr_localities(const struct c2_reqh *reqh)
 
 static unsigned keymax = 0;
 
-unsigned c2_reqh_key_init()
+C2_INTERNAL unsigned c2_reqh_key_init()
 {
 	C2_PRE(keymax < REQH_KEY_MAX - 1);
 	return keymax++;
 }
 
-void *c2_reqh_key_find(struct c2_reqh *reqh, unsigned key, c2_bcount_t size)
+C2_INTERNAL void *c2_reqh_key_find(struct c2_reqh *reqh, unsigned key,
+				   c2_bcount_t size)
 {
 	void **data;
 
@@ -234,7 +236,7 @@ void *c2_reqh_key_find(struct c2_reqh *reqh, unsigned key, c2_bcount_t size)
 	return *data;
 }
 
-void c2_reqh_key_fini(struct c2_reqh *reqh, unsigned key)
+C2_INTERNAL void c2_reqh_key_fini(struct c2_reqh *reqh, unsigned key)
 {
 	C2_PRE(IS_IN_ARRAY(key, reqh->rh_key));
 	c2_free(reqh->rh_key[key]);

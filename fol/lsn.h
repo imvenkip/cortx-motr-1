@@ -68,10 +68,10 @@ enum {
 };
 
 /** True iff the argument might be an lsn of an existing fol record. */
-bool     c2_lsn_is_valid(c2_lsn_t lsn);
+C2_INTERNAL bool c2_lsn_is_valid(c2_lsn_t lsn);
 /** 3-way comparison (-1, 0, +1) of lsns, compatible with record
     dependencies. */
-int      c2_lsn_cmp     (c2_lsn_t lsn0, c2_lsn_t lsn1);
+C2_INTERNAL int c2_lsn_cmp(c2_lsn_t lsn0, c2_lsn_t lsn1);
 
 /* __COLIBRI_FOL_LSN_H__ */
 #endif

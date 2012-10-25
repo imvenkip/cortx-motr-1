@@ -37,17 +37,17 @@ C2_TL_DESCR_DEFINE(poolmach_events, "pool machine events list", ,
 C2_TL_DEFINE(poolmach_events, , struct c2_pool_event_link);
 
 
-int c2_pool_init(struct c2_pool *pool, uint32_t width)
+C2_INTERNAL int c2_pool_init(struct c2_pool *pool, uint32_t width)
 {
 	pool->po_width = width;
 	return 0;
 }
 
-void c2_pool_fini(struct c2_pool *pool)
+C2_INTERNAL void c2_pool_fini(struct c2_pool *pool)
 {
 }
 
-int c2_pool_alloc(struct c2_pool *pool, struct c2_stob_id *id)
+C2_INTERNAL int c2_pool_alloc(struct c2_pool *pool, struct c2_stob_id *id)
 {
 	static uint64_t seq = 3;
 
@@ -57,27 +57,29 @@ int c2_pool_alloc(struct c2_pool *pool, struct c2_stob_id *id)
 	return 0;
 }
 
-void c2_pool_put(struct c2_pool *pool, struct c2_stob_id *id)
+C2_INTERNAL void c2_pool_put(struct c2_pool *pool, struct c2_stob_id *id)
 {
 	C2_PRE(c2_stob_id_is_set(id));
 }
 
-int c2_pools_init(void)
+C2_INTERNAL int c2_pools_init(void)
 {
 	return 0;
 }
 
-void c2_pools_fini(void)
+C2_INTERNAL void c2_pools_fini(void)
 {
 }
 
-bool c2_poolmach_version_equal(const struct c2_pool_version_numbers *v1,
-			       const struct c2_pool_version_numbers *v2)
+C2_INTERNAL bool c2_poolmach_version_equal(const struct c2_pool_version_numbers
+					   *v1,
+					   const struct c2_pool_version_numbers
+					   *v2)
 {
 	return !memcmp(v1, v2, sizeof *v1);
 }
 
-int  c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm)
+C2_INTERNAL int c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm)
 {
 	uint32_t i;
 	C2_PRE(!pm->pm_is_initialised);
@@ -119,7 +121,7 @@ int  c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm)
 	return 0;
 }
 
-void c2_poolmach_fini(struct c2_poolmach *pm)
+C2_INTERNAL void c2_poolmach_fini(struct c2_poolmach *pm)
 {
 	struct c2_pool_event_link *scan;
 
@@ -142,8 +144,8 @@ void c2_poolmach_fini(struct c2_poolmach *pm)
 	c2_rwlock_fini(&pm->pm_lock);
 }
 
-int c2_poolmach_state_transit(struct c2_poolmach *pm,
-			      struct c2_pool_event *event)
+C2_INTERNAL int c2_poolmach_state_transit(struct c2_poolmach *pm,
+					  struct c2_pool_event *event)
 {
 	struct c2_poolmach_state  *pm_state;
 	struct c2_pool_event      *new_event;
@@ -206,10 +208,11 @@ out_unlock:
 	return rc;
 }
 
-int c2_poolmach_state_query(struct c2_poolmach *pm,
-			    const struct c2_pool_version_numbers *from,
-			    const struct c2_pool_version_numbers *to,
-			    struct c2_tl *event_list_head)
+C2_INTERNAL int c2_poolmach_state_query(struct c2_poolmach *pm,
+					const struct c2_pool_version_numbers
+					*from,
+					const struct c2_pool_version_numbers
+					*to, struct c2_tl *event_list_head)
 {
 	struct c2_pool_version_numbers zero = { {0, 0} };
 	struct c2_pool_event_link     *scan;
@@ -270,8 +273,9 @@ int c2_poolmach_state_query(struct c2_poolmach *pm,
 }
 
 
-int c2_poolmach_current_version_get(struct c2_poolmach *pm,
-				    struct c2_pool_version_numbers *curr)
+C2_INTERNAL int c2_poolmach_current_version_get(struct c2_poolmach *pm,
+						struct c2_pool_version_numbers
+						*curr)
 {
 	C2_PRE(pm != NULL && curr != NULL);
 
@@ -281,14 +285,15 @@ int c2_poolmach_current_version_get(struct c2_poolmach *pm,
 	return 0;
 }
 
-int c2_poolmach_current_state_get(struct c2_poolmach *pm,
-				  struct c2_poolmach_state **state_copy)
+C2_INTERNAL int c2_poolmach_current_state_get(struct c2_poolmach *pm,
+					      struct c2_poolmach_state
+					      **state_copy)
 {
 	return -ENOENT;
 }
 
-void c2_poolmach_state_free(struct c2_poolmach *pm,
-			   struct c2_poolmach_state *state)
+C2_INTERNAL void c2_poolmach_state_free(struct c2_poolmach *pm,
+					struct c2_poolmach_state *state)
 {
 }
 

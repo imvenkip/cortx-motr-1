@@ -91,13 +91,13 @@ struct c2_net_qstats;
 /**
  constructor for the network library
  */
-int c2_net_init(void);
+C2_INTERNAL int c2_net_init(void);
 
 /**
  destructor for the network library.
  release all allocated resources
  */
-void c2_net_fini(void);
+C2_INTERNAL void c2_net_fini(void);
 
 enum {
 	/** Default minimum number of receive queue buffers for automatic
@@ -351,7 +351,7 @@ struct c2_net_xprt_ops {
  @retval 0 (success)
  @retval -errno (failure)
  */
-int  c2_net_xprt_init(struct c2_net_xprt *xprt);
+C2_INTERNAL int c2_net_xprt_init(struct c2_net_xprt *xprt);
 
 /**
  Shuts down the transport software.
@@ -359,7 +359,7 @@ int  c2_net_xprt_init(struct c2_net_xprt *xprt);
  @pre Network domains should have been finalized.
  @param xprt Tranport pointer.
  */
-void c2_net_xprt_fini(struct c2_net_xprt *xprt);
+C2_INTERNAL void c2_net_xprt_fini(struct c2_net_xprt *xprt);
 
 /** @}
  @addtogroup net
@@ -410,14 +410,15 @@ struct c2_net_domain {
  @retval 0 (success)
  @retval -errno (failure)
  */
-int c2_net_domain_init(struct c2_net_domain *dom, struct c2_net_xprt *xprt);
+C2_INTERNAL int c2_net_domain_init(struct c2_net_domain *dom,
+				   struct c2_net_xprt *xprt);
 
 /**
    Releases resources related to a domain.
    @pre All end points, registered buffers and transfer machines released.
    @param dom Domain pointer.
  */
-void c2_net_domain_fini(struct c2_net_domain *dom);
+C2_INTERNAL void c2_net_domain_fini(struct c2_net_domain *dom);
 
 /**
    This subroutine is used to determine the maximum buffer size.
@@ -425,15 +426,16 @@ void c2_net_domain_fini(struct c2_net_domain *dom);
    @param dom     Pointer to the domain.
    @retval size    Returns the maximum buffer size.
  */
-c2_bcount_t c2_net_domain_get_max_buffer_size(struct c2_net_domain *dom);
+C2_INTERNAL c2_bcount_t c2_net_domain_get_max_buffer_size(struct c2_net_domain
+							  *dom);
 
 /**
    This subroutine is used to determine the maximum buffer segment size.
    @param dom     Pointer to the domain.
    @retval size    Returns the maximum buffer segment size.
  */
-c2_bcount_t c2_net_domain_get_max_buffer_segment_size(struct c2_net_domain
-						      *dom);
+C2_INTERNAL c2_bcount_t c2_net_domain_get_max_buffer_segment_size(struct c2_net_domain
+								  *dom);
 
 /**
    This subroutine is used to determine the size of c2_net_buf_desc
@@ -442,7 +444,9 @@ c2_bcount_t c2_net_domain_get_max_buffer_segment_size(struct c2_net_domain
    @retval size Size of c2_net_buf_desc for the transport associated
    with given net domain.
  */
-c2_bcount_t c2_net_domain_get_max_buffer_desc_size(struct c2_net_domain *dom);
+C2_INTERNAL c2_bcount_t c2_net_domain_get_max_buffer_desc_size(struct
+							       c2_net_domain
+							       *dom);
 
 /**
    This subroutine is used to determine the maximum number of
@@ -450,7 +454,8 @@ c2_bcount_t c2_net_domain_get_max_buffer_desc_size(struct c2_net_domain *dom);
    @param dom      Pointer to the domain.
    @retval num_segs Returns the number of segments.
  */
-int32_t c2_net_domain_get_max_buffer_segments(struct c2_net_domain *dom);
+C2_INTERNAL int32_t c2_net_domain_get_max_buffer_segments(struct c2_net_domain
+							  *dom);
 
 /**
    This represents an addressable network end point. Memory for this data
@@ -506,9 +511,9 @@ struct c2_net_end_point {
    @retval 0 on success
    @retval -errno on failure
  */
-int c2_net_end_point_create(struct c2_net_end_point  **epp,
-			    struct c2_net_transfer_mc *tm,
-			    const char                *addr);
+C2_INTERNAL int c2_net_end_point_create(struct c2_net_end_point **epp,
+					struct c2_net_transfer_mc *tm,
+					const char *addr);
 
 /**
    Increments the reference count of an end point data structure.
@@ -519,7 +524,7 @@ int c2_net_end_point_create(struct c2_net_end_point  **epp,
    @param ep End point data structure pointer.
    @pre ep->nep_ref->ref_cnt >= 1
  */
-void c2_net_end_point_get(struct c2_net_end_point *ep);
+C2_INTERNAL void c2_net_end_point_get(struct c2_net_end_point *ep);
 
 /**
    Decrements the reference count of an end point data structure.
@@ -530,7 +535,7 @@ void c2_net_end_point_get(struct c2_net_end_point *ep);
    @note The transfer machine mutex will be obtained internally to synchronize
    the transport provided release() method in case the end point gets released.
  */
-void c2_net_end_point_put(struct c2_net_end_point *ep);
+C2_INTERNAL void c2_net_end_point_put(struct c2_net_end_point *ep);
 
 /**
     This enumeration describes the types of logical queues in a transfer
@@ -921,7 +926,8 @@ struct c2_net_transfer_mc {
    @retval 0 (success)
    @retval -errno (failure)
  */
-int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom);
+C2_INTERNAL int c2_net_tm_init(struct c2_net_transfer_mc *tm,
+			       struct c2_net_domain *dom);
 
 /**
    Finalizes a transfer machine, releasing any associated
@@ -939,7 +945,7 @@ int c2_net_tm_init(struct c2_net_transfer_mc *tm, struct c2_net_domain *dom);
      c2_atomic64_get(tm->ntm_ep->nep_ref.ref_cnt) == 1))
    @param tm Transfer machine pointer.
  */
-void c2_net_tm_fini(struct c2_net_transfer_mc *tm);
+C2_INTERNAL void c2_net_tm_fini(struct c2_net_transfer_mc *tm);
 
 /**
    Sets the processor affinity of the threads of a transfer machine.
@@ -954,8 +960,8 @@ void c2_net_tm_fini(struct c2_net_transfer_mc *tm);
    @see @ref Processor "Processor API"
    @see @ref bitmap "Bitmap API"
  */
-int c2_net_tm_confine(struct c2_net_transfer_mc *tm,
-		      const struct c2_bitmap *processors);
+C2_INTERNAL int c2_net_tm_confine(struct c2_net_transfer_mc *tm,
+				  const struct c2_bitmap *processors);
 
 /**
    Starts a transfer machine.
@@ -979,7 +985,8 @@ int c2_net_tm_confine(struct c2_net_transfer_mc *tm,
    @retval -errno (failure)
    @see c2_net_end_point_create()
  */
-int c2_net_tm_start(struct c2_net_transfer_mc *tm, const char *addr);
+C2_INTERNAL int c2_net_tm_start(struct c2_net_transfer_mc *tm,
+				const char *addr);
 
 /**
    Initiates the shutdown of a transfer machine.  New messages will
@@ -1009,7 +1016,7 @@ int c2_net_tm_start(struct c2_net_transfer_mc *tm, const char *addr);
    @retval 0 (success)
    @retval -errno (failure)
  */
-int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort);
+C2_INTERNAL int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort);
 
 /**
    Retrieves transfer machine statistics for all or for a single logical queue,
@@ -1029,10 +1036,9 @@ int c2_net_tm_stop(struct c2_net_transfer_mc *tm, bool abort);
    @retval 0 (success)
    @retval -errno (failure)
  */
-int c2_net_tm_stats_get(struct c2_net_transfer_mc *tm,
-			enum c2_net_queue_type qtype,
-			struct c2_net_qstats *qs,
-			bool reset);
+C2_INTERNAL int c2_net_tm_stats_get(struct c2_net_transfer_mc *tm,
+				    enum c2_net_queue_type qtype,
+				    struct c2_net_qstats *qs, bool reset);
 
 /**
    A transfer machine is notified of non-buffer related events of interest
@@ -1056,7 +1062,7 @@ int c2_net_tm_stats_get(struct c2_net_transfer_mc *tm,
 
    @see c2_net_tm_buffer_post()
  */
-void c2_net_tm_event_post(const struct c2_net_tm_event *ev);
+C2_INTERNAL void c2_net_tm_event_post(const struct c2_net_tm_event *ev);
 
 /**
    Associate a buffer pool color with a transfer machine.  This helps establish
@@ -1076,14 +1082,15 @@ void c2_net_tm_event_post(const struct c2_net_tm_event *ev);
     tm->ntm_state == C2_NET_TM_STARTED)
    @see c2_net_tm_colour_get(), c2_net_tm_pool_attach()
  */
-void c2_net_tm_colour_set(struct c2_net_transfer_mc *tm, uint32_t colour);
+C2_INTERNAL void c2_net_tm_colour_set(struct c2_net_transfer_mc *tm,
+				      uint32_t colour);
 
 /**
    Recover the buffer pool color associated with a transfer machine.
    @param tm Pointer to an initialized transfer machine.
    @see c2_net_tm_colour_set()
  */
-uint32_t c2_net_tm_colour_get(struct c2_net_transfer_mc *tm);
+C2_INTERNAL uint32_t c2_net_tm_colour_get(struct c2_net_transfer_mc *tm);
 
 /**
    Enable the automatic provisioning of network buffers to the receive
@@ -1115,11 +1122,12 @@ uint32_t c2_net_tm_colour_get(struct c2_net_transfer_mc *tm);
    @see c2_net_tm_colour_set(), c2_net_domain_buffer_pool_not_empty(),
         c2_net_tm_pool_length_set()
  */
-int c2_net_tm_pool_attach(struct c2_net_transfer_mc *tm,
-			  struct c2_net_buffer_pool *bufpool,
-			  const struct c2_net_buffer_callbacks *callbacks,
-			  c2_bcount_t min_recv_size, uint32_t max_recv_msgs,
-			  uint32_t min_recv_queue_len);
+C2_INTERNAL int c2_net_tm_pool_attach(struct c2_net_transfer_mc *tm,
+				      struct c2_net_buffer_pool *bufpool,
+				      const struct c2_net_buffer_callbacks
+				      *callbacks, c2_bcount_t min_recv_size,
+				      uint32_t max_recv_msgs,
+				      uint32_t min_recv_queue_len);
 
 /**
    Set the minimum number of network buffers that should be present on the
@@ -1132,7 +1140,8 @@ int c2_net_tm_pool_attach(struct c2_net_transfer_mc *tm,
    C2_NET_TM_RECV_QUEUE_DEF_LEN.
    @see c2_net_tm_pool_attach()
  */
-void c2_net_tm_pool_length_set(struct c2_net_transfer_mc *tm, uint32_t len);
+C2_INTERNAL void c2_net_tm_pool_length_set(struct c2_net_transfer_mc *tm,
+					   uint32_t len);
 
 /**
    This subroutine will reprovision all transfer machines in the network domain
@@ -1146,7 +1155,8 @@ void c2_net_tm_pool_length_set(struct c2_net_transfer_mc *tm, uint32_t len);
    @param pool A network buffer pool.
    @see c2_net_tm_pool_attach()
  */
-void c2_net_domain_buffer_pool_not_empty(struct c2_net_buffer_pool *pool);
+C2_INTERNAL void c2_net_domain_buffer_pool_not_empty(struct c2_net_buffer_pool
+						     *pool);
 
 /**
    Buffer completion events are described by this data structure.
@@ -1487,8 +1497,8 @@ c2_vec_count(&buf->nb_buffer.ov_vec) > 0
    @retval 0 (success)
    @retval -errno (failure)
  */
-int c2_net_buffer_register(struct c2_net_buffer *buf,
-			   struct c2_net_domain *dom);
+C2_INTERNAL int c2_net_buffer_register(struct c2_net_buffer *buf,
+				       struct c2_net_domain *dom);
 
 /**
    Deregisters a previously registered buffer and releases any transport
@@ -1501,8 +1511,8 @@ int c2_net_buffer_register(struct c2_net_buffer *buf,
    @param buf Specify the buffer pointer.
    @param dom Specify the domain pointer.
  */
-void c2_net_buffer_deregister(struct c2_net_buffer *buf,
-			      struct c2_net_domain *dom);
+C2_INTERNAL void c2_net_buffer_deregister(struct c2_net_buffer *buf,
+					  struct c2_net_domain *dom);
 
 /**
    Adds a registered buffer to a transfer machine's logical queue specified
@@ -1560,8 +1570,8 @@ ergo(buf->nb_qtype == C2_NET_QT_MSG_SEND ||
    transport reported the operation was successfully executed.  See the
    transport documentation for details.
  */
-int c2_net_buffer_add(struct c2_net_buffer *buf,
-		      struct c2_net_transfer_mc *tm);
+C2_INTERNAL int c2_net_buffer_add(struct c2_net_buffer *buf,
+				  struct c2_net_transfer_mc *tm);
 
 /**
    Removes a registered buffer from a logical queue, if possible,
@@ -1584,8 +1594,8 @@ int c2_net_buffer_add(struct c2_net_buffer *buf,
    @param buf Specify the buffer pointer.
    @param tm  Specify the transfer machine pointer.
  */
-void c2_net_buffer_del(struct c2_net_buffer *buf,
-		       struct c2_net_transfer_mc *tm);
+C2_INTERNAL void c2_net_buffer_del(struct c2_net_buffer *buf,
+				   struct c2_net_transfer_mc *tm);
 
 /**
    A transfer machine is notified of buffer related events with this
@@ -1632,7 +1642,7 @@ void c2_net_buffer_del(struct c2_net_buffer *buf,
 
    @see c2_net_tm_event_post()
  */
-void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev);
+C2_INTERNAL void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev);
 
 /**
    Deliver all pending network buffer events.  Should be called periodically
@@ -1644,7 +1654,7 @@ void c2_net_buffer_event_post(const struct c2_net_buffer_event *ev);
    c2_net_buffer_event_pending(), c2_net_buffer_event_notify()
    @pre tm->ntm_bev_auto_deliver is not set.
  */
-void c2_net_buffer_event_deliver_all(struct c2_net_transfer_mc *tm);
+C2_INTERNAL void c2_net_buffer_event_deliver_all(struct c2_net_transfer_mc *tm);
 
 /**
    This subroutine disables the automatic delivery of network buffer events.
@@ -1664,7 +1674,9 @@ void c2_net_buffer_event_deliver_all(struct c2_net_transfer_mc *tm);
    @see c2_net_buffer_event_pending(), c2_net_buffer_event_deliver_all(),
    c2_net_buffer_event_notify()
  */
-int c2_net_buffer_event_deliver_synchronously(struct c2_net_transfer_mc *tm);
+C2_INTERNAL int c2_net_buffer_event_deliver_synchronously(struct
+							  c2_net_transfer_mc
+							  *tm);
 
 /**
    This subroutine determines if there are pending network buffer events that
@@ -1674,7 +1686,7 @@ int c2_net_buffer_event_deliver_synchronously(struct c2_net_transfer_mc *tm);
    @see c2_net_buffer_event_deliver_synchronously()
    @pre tm->ntm_bev_auto_deliver is not set.
  */
-bool c2_net_buffer_event_pending(struct c2_net_transfer_mc *tm);
+C2_INTERNAL bool c2_net_buffer_event_pending(struct c2_net_transfer_mc *tm);
 
 /**
    This subroutine arranges for notification of the arrival of the next network
@@ -1690,8 +1702,8 @@ bool c2_net_buffer_event_pending(struct c2_net_transfer_mc *tm);
    @see c2_net_buffer_event_deliver_synchronously()
    @pre tm->ntm_bev_auto_deliver is not set.
  */
-void c2_net_buffer_event_notify(struct c2_net_transfer_mc *tm,
-				struct c2_chan *chan);
+C2_INTERNAL void c2_net_buffer_event_notify(struct c2_net_transfer_mc *tm,
+					    struct c2_chan *chan);
 
 /**
    Copies a network buffer descriptor.
@@ -1700,15 +1712,15 @@ void c2_net_buffer_event_notify(struct c2_net_transfer_mc *tm,
    @retval 0 (success)
    @retval -errno (failure)
  */
-int c2_net_desc_copy(const struct c2_net_buf_desc *from_desc,
-		     struct c2_net_buf_desc *to_desc);
+C2_INTERNAL int c2_net_desc_copy(const struct c2_net_buf_desc *from_desc,
+				 struct c2_net_buf_desc *to_desc);
 
 /**
    Frees a network buffer descriptor.
    @param desc Specify the network buffer descriptor. Its fields will be
    cleared after this operation.
  */
-void c2_net_desc_free(struct c2_net_buf_desc *desc);
+C2_INTERNAL void c2_net_desc_free(struct c2_net_buf_desc *desc);
 
 /** Descriptor for the tlist of buffers. */
 C2_TL_DESCR_DECLARE(c2_net_pool, extern);

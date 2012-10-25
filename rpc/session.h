@@ -545,9 +545,9 @@ struct c2_rpc_session {
 		       session->s_conn == conn &&
 		       session->s_session_id == SESSION_ID_INVALID)
  */
-int c2_rpc_session_init(struct c2_rpc_session *session,
-			struct c2_rpc_conn    *conn,
-			uint32_t               nr_slots);
+C2_INTERNAL int c2_rpc_session_init(struct c2_rpc_session *session,
+				    struct c2_rpc_conn *conn,
+				    uint32_t nr_slots);
 
 /**
     Sends a SESSION_ESTABLISH fop across pre-defined session-0 in
@@ -559,7 +559,7 @@ int c2_rpc_session_init(struct c2_rpc_session *session,
     @pre conn_state(session->s_conn) == C2_RPC_CONN_ACTIVE
     @post ergo(result != 0, session_state(session) == C2_RPC_SESSION_FAILED)
  */
-int c2_rpc_session_establish(struct c2_rpc_session *session);
+C2_INTERNAL int c2_rpc_session_establish(struct c2_rpc_session *session);
 
 /**
  * Same as c2_rpc_session_establish(), but in addition uses
@@ -573,18 +573,17 @@ int c2_rpc_session_establish(struct c2_rpc_session *session);
  * @pre  conn_state(session->s_conn) == C2_RPC_CONN_ACTIVE
  * @post session_state(session) == C2_RPC_SESSION_IDLE
  */
-int c2_rpc_session_establish_sync(struct c2_rpc_session *session,
-				  uint32_t timeout_sec);
+C2_INTERNAL int c2_rpc_session_establish_sync(struct c2_rpc_session *session,
+					      uint32_t timeout_sec);
 
 /**
  * A combination of c2_rpc_session_init() and c2_rpc_session_establish_sync() in
  * a single routine - initialize session object, establish a session and wait
  * until it become idle.
  */
-int c2_rpc_session_create(struct c2_rpc_session *session,
-			  struct c2_rpc_conn    *conn,
-			  uint32_t               nr_slots,
-			  uint32_t               timeout_sec);
+C2_INTERNAL int c2_rpc_session_create(struct c2_rpc_session *session,
+				      struct c2_rpc_conn *conn,
+				      uint32_t nr_slots, uint32_t timeout_sec);
 
 /**
    Sends terminate session fop to receiver.
@@ -596,7 +595,7 @@ int c2_rpc_session_create(struct c2_rpc_session *session,
 				       C2_RPC_SESSION_TERMINATING))
    @post ergo(rc != 0, session_state(session) == C2_RPC_SESSION_FAILED)
  */
-int c2_rpc_session_terminate(struct c2_rpc_session *session);
+C2_INTERNAL int c2_rpc_session_terminate(struct c2_rpc_session *session);
 
 /**
  * Same as c2_rpc_session_terminate(), but in addition uses
@@ -612,8 +611,8 @@ int c2_rpc_session_terminate(struct c2_rpc_session *session);
  * @post C2_IN(session_state(session), (C2_RPC_SESSION_TERMINATED,
  *					C2_RPC_SESSION_FAILED))
  */
-int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
-				  uint32_t timeout_sec);
+C2_INTERNAL int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
+					      uint32_t timeout_sec);
 
 /**
     Waits until @session object reaches in one of states given by @state_flags.
@@ -626,9 +625,9 @@ int c2_rpc_session_terminate_sync(struct c2_rpc_session *session,
             -ETIMEDOUT if time out has occured before session reaches in desired
                 state.
  */
-int c2_rpc_session_timedwait(struct c2_rpc_session *session,
-			     uint64_t               state_flags,
-			     const c2_time_t        abs_timeout);
+C2_INTERNAL int c2_rpc_session_timedwait(struct c2_rpc_session *session,
+					 uint64_t state_flags,
+					 const c2_time_t abs_timeout);
 
 /**
    Finalises session object
@@ -637,24 +636,24 @@ int c2_rpc_session_timedwait(struct c2_rpc_session *session,
 				       C2_RPC_SESSION_FAILED,
 				       C2_RPC_SESSION_INITIALISED))
  */
-void c2_rpc_session_fini(struct c2_rpc_session *session);
+C2_INTERNAL void c2_rpc_session_fini(struct c2_rpc_session *session);
 
 /**
  * A combination of c2_rpc_session_terminate_sync() and c2_rpc_session_fini() in
  * a single routine - terminate the session, wait until it switched to
  * terminated state and finalize session object.
  */
-int c2_rpc_session_destroy(struct c2_rpc_session *session,
-			   uint32_t               timeout_sec);
+C2_INTERNAL int c2_rpc_session_destroy(struct c2_rpc_session *session,
+				       uint32_t timeout_sec);
 
 /**
    Returns maximum size of an RPC item allowed on this session.
  */
-c2_bcount_t
+C2_INTERNAL c2_bcount_t
 c2_rpc_session_get_max_item_size(const struct c2_rpc_session *session);
 
 /** Returns maximum possible size of RPC item payload. */
-c2_bcount_t
+C2_INTERNAL c2_bcount_t
 c2_rpc_session_get_max_item_payload_size(const struct c2_rpc_session *session);
 
 /** @} end of session group */

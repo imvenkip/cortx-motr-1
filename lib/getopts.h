@@ -52,7 +52,7 @@ extern const char C2_GETOPTS_DECIMAL_POINT;
    - @b M = 1000 * 1000
    - @b G = 1000 * 1000 * 1000
  */
-int c2_bcount_get(const char *arg, c2_bcount_t *out);
+C2_INTERNAL int c2_bcount_get(const char *arg, c2_bcount_t * out);
 
 /**
    Convert numerical argument, followed by a optional multiplier suffix, to an
@@ -72,7 +72,7 @@ int c2_bcount_get(const char *arg, c2_bcount_t *out);
    @note C2_GETOPTS_DECIMAL_POINT is used as decimal point in numerical
    argument to this function.
  */
-int c2_time_get(const char *arg, c2_time_t *out);
+C2_INTERNAL int c2_time_get(const char *arg, c2_time_t * out);
 
 /** @} end of getopts group */
 

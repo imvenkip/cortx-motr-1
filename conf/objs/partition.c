@@ -91,7 +91,7 @@ static const struct c2_conf_obj_ops partition_ops = {
 	.coo_delete    = partition_delete
 };
 
-struct c2_conf_obj *c2_conf__partition_create(void)
+C2_INTERNAL struct c2_conf_obj *c2_conf__partition_create(void)
 {
 	struct c2_conf_partition *x;
 	struct c2_conf_obj       *ret;

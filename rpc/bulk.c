@@ -197,7 +197,7 @@ const struct c2_net_buffer_callbacks rpc_bulk_cb  = {
 	}
 };
 
-void c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk)
+C2_INTERNAL void c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk)
 {
 	C2_ENTRY("rbulk: %p", rbulk);
 	C2_PRE(rbulk != NULL);
@@ -212,7 +212,7 @@ void c2_rpc_bulk_init(struct c2_rpc_bulk *rbulk)
 }
 C2_EXPORTED(c2_rpc_bulk_init);
 
-void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk)
+C2_INTERNAL void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk)
 {
 	C2_ENTRY("rbulk: %p", rbulk);
 	C2_PRE(rbulk != NULL);
@@ -228,7 +228,7 @@ void c2_rpc_bulk_fini(struct c2_rpc_bulk *rbulk)
 }
 C2_EXPORTED(c2_rpc_bulk_fini);
 
-void c2_rpc_bulk_buflist_empty(struct c2_rpc_bulk *rbulk)
+C2_INTERNAL void c2_rpc_bulk_buflist_empty(struct c2_rpc_bulk *rbulk)
 {
 	struct c2_rpc_bulk_buf *buf;
 
@@ -241,11 +241,11 @@ void c2_rpc_bulk_buflist_empty(struct c2_rpc_bulk *rbulk)
 	c2_mutex_unlock(&rbulk->rb_mutex);
 }
 
-int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
-			uint32_t segs_nr,
-			struct c2_net_domain *netdom,
-			struct c2_net_buffer *nb,
-			struct c2_rpc_bulk_buf **out)
+C2_INTERNAL int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
+				    uint32_t segs_nr,
+				    struct c2_net_domain *netdom,
+				    struct c2_net_buffer *nb,
+				    struct c2_rpc_bulk_buf **out)
 {
 	int			rc;
 	struct c2_rpc_bulk_buf *buf;
@@ -280,11 +280,11 @@ int c2_rpc_bulk_buf_add(struct c2_rpc_bulk *rbulk,
 }
 C2_EXPORTED(c2_rpc_bulk_buf_add);
 
-int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
-			        void *buf,
-			        c2_bcount_t count,
-			        c2_bindex_t index,
-				struct c2_net_domain *netdom)
+C2_INTERNAL int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
+					    void *buf,
+					    c2_bcount_t count,
+					    c2_bindex_t index,
+					    struct c2_net_domain *netdom)
 {
 	int			 rc;
 	struct c2_buf		 cbuf;
@@ -320,7 +320,8 @@ int c2_rpc_bulk_buf_databuf_add(struct c2_rpc_bulk_buf *rbuf,
 }
 C2_EXPORTED(c2_rpc_bulk_buf_databuf_add);
 
-void c2_rpc_bulk_qtype(struct c2_rpc_bulk *rbulk, enum c2_net_queue_type q)
+C2_INTERNAL void c2_rpc_bulk_qtype(struct c2_rpc_bulk *rbulk,
+				   enum c2_net_queue_type q)
 {
 	struct c2_rpc_bulk_buf *rbuf;
 
@@ -445,17 +446,17 @@ cleanup:
 	C2_RETURN(rc);
 }
 
-int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk,
-		      const struct c2_rpc_conn *conn,
-		      struct c2_net_buf_desc *to_desc)
+C2_INTERNAL int c2_rpc_bulk_store(struct c2_rpc_bulk *rbulk,
+				  const struct c2_rpc_conn *conn,
+				  struct c2_net_buf_desc *to_desc)
 {
 	return rpc_bulk_op(rbulk, conn, to_desc, C2_RPC_BULK_STORE);
 }
 C2_EXPORTED(c2_rpc_bulk_store);
 
-int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk,
-		     const struct c2_rpc_conn *conn,
-		     struct c2_net_buf_desc *from_desc)
+C2_INTERNAL int c2_rpc_bulk_load(struct c2_rpc_bulk *rbulk,
+				 const struct c2_rpc_conn *conn,
+				 struct c2_net_buf_desc *from_desc)
 {
 	return rpc_bulk_op(rbulk, conn, from_desc, C2_RPC_BULK_LOAD);
 }

@@ -39,7 +39,7 @@ const struct c2_fom_type_ops c2_fom_ping_type_ops = {
 	.fto_create = ping_fop_fom_create
 };
 
-size_t c2_fom_ping_home_locality(const struct c2_fom *fom)
+C2_INTERNAL size_t c2_fom_ping_home_locality(const struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
 
@@ -49,7 +49,7 @@ size_t c2_fom_ping_home_locality(const struct c2_fom *fom)
 /**
  * State function for ping request
  */
-int c2_fom_ping_state(struct c2_fom *fom)
+C2_INTERNAL int c2_fom_ping_state(struct c2_fom *fom)
 {
 	struct c2_fop			*fop;
         struct c2_fop_ping_rep		*ping_fop_rep;
@@ -87,7 +87,7 @@ static int ping_fop_fom_create(struct c2_fop *fop, struct c2_fom **m)
 	return 0;
 }
 
-void c2_fop_ping_fom_fini(struct c2_fom *fom)
+C2_INTERNAL void c2_fop_ping_fom_fini(struct c2_fom *fom)
 {
 	struct c2_fom_ping *fom_obj;
 

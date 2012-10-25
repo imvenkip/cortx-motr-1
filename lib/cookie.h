@@ -57,14 +57,14 @@ struct c2_cookie {
 /**
  * Initializes the gencount. Gets called during colibri initialization.
  */
-int c2_cookie_global_init(void);
+C2_INTERNAL int c2_cookie_global_init(void);
 
-void c2_cookie_global_fini(void);
+C2_INTERNAL void c2_cookie_global_fini(void);
 
 /**
  * Increments generation-count by one and assigns the same to *gen.
  */
-void c2_cookie_new(uint64_t *gen);
+C2_INTERNAL void c2_cookie_new(uint64_t * gen);
 
 /**
  * Embeds address of an object along with a generation-count in a cookie.
@@ -72,7 +72,7 @@ void c2_cookie_new(uint64_t *gen);
  * @param obj (in)	 address of an object
  * @param cookie (out)   address of a cookie in which obj gets embedded
  */
-void c2_cookie_init(struct c2_cookie *cookie, uint64_t *obj);
+C2_INTERNAL void c2_cookie_init(struct c2_cookie *cookie, uint64_t * obj);
 
 /**
  * Retrieves address of an object from a cookie.
@@ -81,13 +81,14 @@ void c2_cookie_init(struct c2_cookie *cookie, uint64_t *obj);
  * @param addr (out)    pointer to a memory location which holds retrieved
  *                      address
  */
-int c2_cookie_dereference(const struct c2_cookie *cookie, uint64_t **addr);
+C2_INTERNAL int c2_cookie_dereference(const struct c2_cookie *cookie,
+				      uint64_t ** addr);
 
 /**
  * Checks if address is aligned to 8-byte address and is pointing to a valid
  * memory location.
  */
-bool c2_addr_is_sane(const uint64_t *addr);
+C2_INTERNAL bool c2_addr_is_sane(const uint64_t * addr);
 
 /**
  * A macro to retrive address of a parent structure, associated with an object

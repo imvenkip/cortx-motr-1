@@ -36,7 +36,7 @@
 extern ssize_t xcode_alloc(struct c2_xcode_cursor *it,
 			   void *(*alloc)(struct c2_xcode_cursor *, size_t));
 
-const const char *space_skip(const char *str)
+C2_INTERNAL const const char *space_skip(const char *str)
 {
 	static const char space[] = " \t\v\n\r";
 
@@ -97,7 +97,7 @@ static int char_check(const char **str, char ch)
 	return result;
 }
 
-int c2_xcode_read(struct c2_xcode_obj *obj, const char *str)
+C2_INTERNAL int c2_xcode_read(struct c2_xcode_obj *obj, const char *str)
 {
 	struct c2_xcode_cursor it;
 	int                    result;

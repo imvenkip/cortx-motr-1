@@ -270,8 +270,8 @@ struct c2_clink {
 	uint64_t            cl_magic;
 };
 
-void c2_chan_init(struct c2_chan *chan);
-void c2_chan_fini(struct c2_chan *chan);
+C2_INTERNAL void c2_chan_init(struct c2_chan *chan);
+C2_INTERNAL void c2_chan_fini(struct c2_chan *chan);
 
 /**
    Notifies a clink currently registered with the channel that a new event
@@ -279,7 +279,7 @@ void c2_chan_fini(struct c2_chan *chan);
 
    @see c2_chan_broadcast()
  */
-void c2_chan_signal(struct c2_chan *chan);
+C2_INTERNAL void c2_chan_signal(struct c2_chan *chan);
 
 /**
    Notifies all clinks currently registered with the channel that a new event
@@ -294,7 +294,7 @@ void c2_chan_signal(struct c2_chan *chan);
 
    @see c2_chan_signal()
  */
-void c2_chan_broadcast(struct c2_chan *chan);
+C2_INTERNAL void c2_chan_broadcast(struct c2_chan *chan);
 
 /**
    Notifies a given clink that a new event happened.
@@ -307,7 +307,7 @@ void c2_chan_broadcast(struct c2_chan *chan);
    @see c2_chan_signal()
    @see c2_chan_broadcast()
  */
-void c2_clink_signal(struct c2_clink *clink);
+C2_INTERNAL void c2_clink_signal(struct c2_clink *clink);
 
 /**
    True iff there are clinks registered with the chan.
@@ -316,16 +316,16 @@ void c2_clink_signal(struct c2_clink *clink);
    time it returns. It is up to the user to provide concurrency control
    mechanisms that would make this function useful.
  */
-bool c2_chan_has_waiters(struct c2_chan *chan);
+C2_INTERNAL bool c2_chan_has_waiters(struct c2_chan *chan);
 
-void c2_clink_init(struct c2_clink *link, c2_chan_cb_t cb);
-void c2_clink_fini(struct c2_clink *link);
+C2_INTERNAL void c2_clink_init(struct c2_clink *link, c2_chan_cb_t cb);
+C2_INTERNAL void c2_clink_fini(struct c2_clink *link);
 
 /**
    Attaches @link to a clink group. @group is the original clink in the group.
  */
-void c2_clink_attach(struct c2_clink *link,
-		     struct c2_clink *group, c2_chan_cb_t cb);
+C2_INTERNAL void c2_clink_attach(struct c2_clink *link,
+				 struct c2_clink *group, c2_chan_cb_t cb);
 
 /**
    Registers the clink with the channel.
@@ -333,7 +333,7 @@ void c2_clink_attach(struct c2_clink *link,
    @pre !c2_clink_is_armed(link)
    @post c2_clink_is_armed(link)
  */
-void c2_clink_add     (struct c2_chan *chan, struct c2_clink *link);
+C2_INTERNAL void c2_clink_add(struct c2_chan *chan, struct c2_clink *link);
 
 /**
    Un-registers the clink from the channel.
@@ -341,12 +341,12 @@ void c2_clink_add     (struct c2_chan *chan, struct c2_clink *link);
    @pre   c2_clink_is_armed(link)
    @post !c2_clink_is_armed(link)
  */
-void c2_clink_del     (struct c2_clink *link);
+C2_INTERNAL void c2_clink_del(struct c2_clink *link);
 
 /**
    True iff the clink is registered with a channel.
  */
-bool c2_clink_is_armed(const struct c2_clink *link);
+C2_INTERNAL bool c2_clink_is_armed(const struct c2_clink *link);
 
 /**
    Returns when there is an event pending in the clink. The event is consumed
@@ -358,13 +358,13 @@ bool c2_clink_is_armed(const struct c2_clink *link);
 
    User must guarantee that no more than one thread waits on the clink.
  */
-void c2_chan_wait(struct c2_clink *link);
+C2_INTERNAL void c2_chan_wait(struct c2_clink *link);
 
 /**
    True there is an event pending in the clink. When this function returns true,
    the event is consumed, exactly like if c2_chan_wait() were called instead.
  */
-bool c2_chan_trywait(struct c2_clink *link);
+C2_INTERNAL bool c2_chan_trywait(struct c2_clink *link);
 
 /**
    This is the same as c2_chan_wait, except that it has an expire time. If the
@@ -374,8 +374,8 @@ bool c2_chan_trywait(struct c2_clink *link);
    @return true if the there is an event pending before timeout;
    @return false if there is no events pending and timeout expires;
  */
-bool c2_chan_timedwait(struct c2_clink *link,
-		       const c2_time_t abs_timeout);
+C2_INTERNAL bool c2_chan_timedwait(struct c2_clink *link,
+				   const c2_time_t abs_timeout);
 
 
 /** @} end of chan group */

@@ -35,12 +35,12 @@
 
    @see c2_fini().
  */
-int  c2_init(void);
+C2_INTERNAL int c2_init(void);
 
 /**
    Finalizes all sub-systems initialised by c2_init().
  */
-void c2_fini(void);
+C2_INTERNAL void c2_fini(void);
 
 /** @} end of init group */
 

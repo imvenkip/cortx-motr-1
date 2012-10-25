@@ -98,8 +98,8 @@ struct c2_cond {
 	struct c2_chan c_chan;
 };
 
-void c2_cond_init(struct c2_cond *cond);
-void c2_cond_fini(struct c2_cond *cond);
+C2_INTERNAL void c2_cond_init(struct c2_cond *cond);
+C2_INTERNAL void c2_cond_fini(struct c2_cond *cond);
 
 /**
    Atomically unlocks the mutex, waits on the condition variable and locks the
@@ -108,7 +108,7 @@ void c2_cond_fini(struct c2_cond *cond);
    @pre  c2_mutex_is_locked(mutex)
    @post c2_mutex_is_locked(mutex)
  */
-void c2_cond_wait(struct c2_cond *cond, struct c2_mutex *mutex);
+C2_INTERNAL void c2_cond_wait(struct c2_cond *cond, struct c2_mutex *mutex);
 
 /**
    This is the same as c2_cond_wait, except that it has a timeout value. If the
@@ -124,22 +124,23 @@ void c2_cond_wait(struct c2_cond *cond, struct c2_mutex *mutex);
    @return false if condition variable is not signaled but timeout expires.
 	   errno is ETIMEDOUT;
  */
-bool c2_cond_timedwait(struct c2_cond *cond, struct c2_mutex *mutex,
-		       const c2_time_t abs_timeout);
+C2_INTERNAL bool c2_cond_timedwait(struct c2_cond *cond, struct c2_mutex *mutex,
+				   const c2_time_t abs_timeout);
 
 /**
    Wakes up no more than one thread waiting on the condition variable.
 
    @pre c2_mutex_is_locked(mutex)
  */
-void c2_cond_signal(struct c2_cond *cond, struct c2_mutex *mutex);
+C2_INTERNAL void c2_cond_signal(struct c2_cond *cond, struct c2_mutex *mutex);
 
 /**
    Wakes up all threads waiting on the condition variable.
 
    @pre c2_mutex_is_locked(mutex)
  */
-void c2_cond_broadcast(struct c2_cond *cond, struct c2_mutex *mutex);
+C2_INTERNAL void c2_cond_broadcast(struct c2_cond *cond,
+				   struct c2_mutex *mutex);
 
 /** @} end of cond group */
 

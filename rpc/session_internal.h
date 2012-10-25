@@ -42,7 +42,7 @@ enum {
 /**
    checks internal consistency of session
  */
-bool c2_rpc_session_invariant(const struct c2_rpc_session *session);
+C2_INTERNAL bool c2_rpc_session_invariant(const struct c2_rpc_session *session);
 
 /**
    Holds a session in BUSY state.
@@ -54,7 +54,7 @@ bool c2_rpc_session_invariant(const struct c2_rpc_session *session);
    @pre c2_rpc_machine_is_locked(session_machine(session))
    @post session_state(session) == C2_RPC_SESSION_BUSY
  */
-void c2_rpc_session_hold_busy(struct c2_rpc_session *session);
+C2_INTERNAL void c2_rpc_session_hold_busy(struct c2_rpc_session *session);
 
 /**
    Decrements hold count. Moves session to IDLE state if it becomes idle.
@@ -65,38 +65,38 @@ void c2_rpc_session_hold_busy(struct c2_rpc_session *session);
    @post ergo(c2_rpc_session_is_idle(session),
 	      session_state(session) == C2_RPC_SESSION_IDLE)
  */
-void c2_rpc_session_release(struct c2_rpc_session *session);
+C2_INTERNAL void c2_rpc_session_release(struct c2_rpc_session *session);
 
-void session_state_set(struct c2_rpc_session *session, int state);
-int session_state(const struct c2_rpc_session *session);
+C2_INTERNAL void session_state_set(struct c2_rpc_session *session, int state);
+C2_INTERNAL int session_state(const struct c2_rpc_session *session);
 
-int c2_rpc_session_init_locked(struct c2_rpc_session *session,
-			       struct c2_rpc_conn    *conn,
-			       uint32_t               nr_slots);
-void c2_rpc_session_fini_locked(struct c2_rpc_session *session);
+C2_INTERNAL int c2_rpc_session_init_locked(struct c2_rpc_session *session,
+					   struct c2_rpc_conn *conn,
+					   uint32_t nr_slots);
+C2_INTERNAL void c2_rpc_session_fini_locked(struct c2_rpc_session *session);
 
 /**
    Generates UUID
  */
-uint64_t uuid_generate(void);
+C2_INTERNAL uint64_t uuid_generate(void);
 
 /**
    Lookup for a cob named "SESSION_$session_id" that represents rpc session
    within a given @conn_cob (cob that identifies rpc connection)
  */
-int c2_rpc_session_cob_lookup(struct c2_cob   *conn_cob,
-			      uint64_t         session_id,
-			      struct c2_cob  **session_cob,
-			      struct c2_db_tx *tx);
+C2_INTERNAL int c2_rpc_session_cob_lookup(struct c2_cob *conn_cob,
+					  uint64_t session_id,
+					  struct c2_cob **session_cob,
+					  struct c2_db_tx *tx);
 
 /**
    Creates a cob named "SESSION_$session_id" that represents rpc session
    within a given @conn_cob (cob that identifies rpc connection)
  */
-int c2_rpc_session_cob_create(struct c2_cob   *conn_cob,
-			      uint64_t         session_id,
-			      struct c2_cob  **session_cob,
-			      struct c2_db_tx *tx);
+C2_INTERNAL int c2_rpc_session_cob_create(struct c2_cob *conn_cob,
+					  uint64_t session_id,
+					  struct c2_cob **session_cob,
+					  struct c2_db_tx *tx);
 
 /**
    Creates receiver end of session object.
@@ -106,7 +106,7 @@ int c2_rpc_session_cob_create(struct c2_cob   *conn_cob,
    @post ergo(result == 0, session->s_state == C2_RPC_SESSION_ALIVE)
    @post ergo(result != 0, session->s_state == C2_RPC_SESSION_FAILED)
  */
-int c2_rpc_rcv_session_establish(struct c2_rpc_session *session);
+C2_INTERNAL int c2_rpc_rcv_session_establish(struct c2_rpc_session *session);
 
 /**
    Terminates receiver end of session.
@@ -116,39 +116,43 @@ int c2_rpc_rcv_session_establish(struct c2_rpc_session *session);
    @post ergo(result != 0 && session->s_rc != 0, session->s_state ==
 	      C2_RPC_SESSION_FAILED)
  */
-int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session);
+C2_INTERNAL int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session);
 
 /**
    Callback routine called through item->ri_ops->rio_replied().
 
    The routine is executed when reply to session create fop is received
  */
-void c2_rpc_session_establish_reply_received(struct c2_rpc_item *req);
+C2_INTERNAL void c2_rpc_session_establish_reply_received(struct c2_rpc_item
+							 *req);
 
 /**
    Callback routine called through item->ri_ops->rio_replied().
 
    The routine is executed when reply to session terminate fop is received
  */
-void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req);
+C2_INTERNAL void c2_rpc_session_terminate_reply_received(struct c2_rpc_item
+							 *req);
 
 /**
    For all slots belonging to @session,
      if slot is in c2_rpc_machine::rm_ready_slots list,
      then remove it from the list.
  */
-void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session *session);
+C2_INTERNAL void c2_rpc_session_del_slots_from_ready_list(struct c2_rpc_session
+							  *session);
 
-bool c2_rpc_session_is_idle(const struct c2_rpc_session *session);
+C2_INTERNAL bool c2_rpc_session_is_idle(const struct c2_rpc_session *session);
 
-bool c2_rpc_session_bind_item(struct c2_rpc_item *item);
+C2_INTERNAL bool c2_rpc_session_bind_item(struct c2_rpc_item *item);
 
-void c2_rpc_session_item_failed(struct c2_rpc_item *item);
+C2_INTERNAL void c2_rpc_session_item_failed(struct c2_rpc_item *item);
 
-void c2_rpc_session_mod_nr_active_items(struct c2_rpc_session *session,
-					int delta);
+C2_INTERNAL void c2_rpc_session_mod_nr_active_items(struct c2_rpc_session
+						    *session, int delta);
 
-struct c2_rpc_machine *session_machine(const struct c2_rpc_session *s);
+C2_INTERNAL struct c2_rpc_machine *session_machine(const struct c2_rpc_session
+						   *s);
 
 C2_TL_DESCR_DECLARE(rpc_session, extern);
 C2_TL_DECLARE(rpc_session, extern, struct c2_rpc_session);

@@ -241,7 +241,7 @@ struct c2_fop_type c2_fop_getattr_rep_fopt;
 struct c2_fop_type c2_fop_rename_rep_fopt;
 struct c2_fop_type c2_fop_readdir_rep_fopt;
 
-int c2_mdservice_fop_init(void)
+C2_INTERNAL int c2_mdservice_fop_init(void)
 {
         /*
          * Provided by ff2c compiler after parsing io_fops_xc.ff
@@ -411,7 +411,7 @@ int c2_mdservice_fop_init(void)
 }
 C2_EXPORTED(c2_mdservice_fop_init);
 
-void c2_mdservice_fop_fini(void)
+C2_INTERNAL void c2_mdservice_fop_fini(void)
 {
         c2_fop_type_fini(&c2_fop_create_fopt);
         c2_fop_type_fini(&c2_fop_link_fopt);

@@ -138,7 +138,7 @@ struct c2_thread {
    @retval 0 thread created
    @retval -errno failed
  */
-int  c2_thread_init_impl(struct c2_thread *q, const char *name);
+C2_INTERNAL int c2_thread_init_impl(struct c2_thread *q, const char *name);
 
 /**
    Threads created by c2_thread_init_impl execute this function to
@@ -149,7 +149,7 @@ int  c2_thread_init_impl(struct c2_thread *q, const char *name);
    pthread_create function argument.
    @retval NULL
  */
-void *c2_thread_trampoline(void *t);
+C2_INTERNAL void *c2_thread_trampoline(void *t);
 
 /**
    Creates a new thread.
@@ -181,7 +181,7 @@ int  c2_thread_init(struct c2_thread *q, int (*init)(void *),
 
    @pre q->t_state == TS_PARKED
  */
-void c2_thread_fini(struct c2_thread *q);
+C2_INTERNAL void c2_thread_fini(struct c2_thread *q);
 
 /**
    Waits until the thread exits.
@@ -199,12 +199,12 @@ void c2_thread_fini(struct c2_thread *q);
    @retval 0 thread joined (thread is terminated)
    @retval -errno failed to join, not exit status of thread
  */
-int  c2_thread_join(struct c2_thread *q);
+C2_INTERNAL int c2_thread_join(struct c2_thread *q);
 
 /**
    Send specified signal to this thread.
 */
-int  c2_thread_signal(struct c2_thread *q, int sig);
+C2_INTERNAL int c2_thread_signal(struct c2_thread *q, int sig);
 
 struct c2_bitmap;
 
@@ -224,36 +224,37 @@ struct c2_bitmap;
    @retval 0 success
    @retval !0 failed to set affinity, -errno
  */
-int c2_thread_confine(struct c2_thread *q, const struct c2_bitmap *processors);
+C2_INTERNAL int c2_thread_confine(struct c2_thread *q,
+				  const struct c2_bitmap *processors);
 
 /**
    Returns the handle of the current thread.
    @pre The kernel code will assert !in_interrupt().
 */
-void c2_thread_self(struct c2_thread_handle *id);
+C2_INTERNAL void c2_thread_self(struct c2_thread_handle *id);
 
 /**
    Tests whether two thread handles are identical.
    @ret true if h1 == h2
    @ret false if h1 != h2
 */
-bool c2_thread_handle_eq(struct c2_thread_handle *h1,
-			 struct c2_thread_handle *h2);
+C2_INTERNAL bool c2_thread_handle_eq(struct c2_thread_handle *h1,
+				     struct c2_thread_handle *h2);
 
 /**
  * Sets the thread in awkward context.
  */
-void c2_enter_awkward(void);
+C2_INTERNAL void c2_enter_awkward(void);
 
 /**
  * Reset thread from awkward context.
  */
-void c2_exit_awkward(void);
+C2_INTERNAL void c2_exit_awkward(void);
 
 /**
  * Tells if executing thread is in awkward context.
  */
-bool c2_is_awkward(void);
+C2_INTERNAL bool c2_is_awkward(void);
 
 /** @} end of thread group */
 

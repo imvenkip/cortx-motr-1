@@ -59,7 +59,7 @@ void c2_ref_init(struct c2_ref *ref, int init_num,
 
  @return none
  */
-void c2_ref_get(struct c2_ref *ref);
+C2_INTERNAL void c2_ref_get(struct c2_ref *ref);
 
 /**
  release one reference from the object.
@@ -69,7 +69,7 @@ void c2_ref_get(struct c2_ref *ref);
 
  @return none
 */
-void c2_ref_put(struct c2_ref *ref);
+C2_INTERNAL void c2_ref_put(struct c2_ref *ref);
 
 /**
  Read the current value of the reference count from the c2_ref object
@@ -78,7 +78,7 @@ void c2_ref_put(struct c2_ref *ref);
 
  @return current value of the reference count
  */
-int64_t c2_ref_read(const struct c2_ref *ref);
+C2_INTERNAL int64_t c2_ref_read(const struct c2_ref *ref);
 #endif
 /*
  *  Local variables:

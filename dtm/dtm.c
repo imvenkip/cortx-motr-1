@@ -26,13 +26,13 @@
 #include "lib/misc.h"              /* C2_SET0 */
 #include "dtm/dtm.h"
 
-void c2_dtx_init(struct c2_dtx *tx)
+C2_INTERNAL void c2_dtx_init(struct c2_dtx *tx)
 {
 	C2_SET0(tx);
 	tx->tx_state = C2_DTX_INIT;
 }
 
-int c2_dtx_open(struct c2_dtx *tx, struct c2_dbenv *env)
+C2_INTERNAL int c2_dtx_open(struct c2_dtx *tx, struct c2_dbenv *env)
 {
 	int result;
 
@@ -44,7 +44,7 @@ int c2_dtx_open(struct c2_dtx *tx, struct c2_dbenv *env)
 	return result;
 }
 
-void c2_dtx_done(struct c2_dtx *tx)
+C2_INTERNAL void c2_dtx_done(struct c2_dtx *tx)
 {
 	C2_PRE(tx->tx_state == C2_DTX_INIT || tx->tx_state == C2_DTX_OPEN);
 

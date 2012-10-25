@@ -30,8 +30,8 @@
  * @{
  */
 
-int c2_conf_fops_init(void);
-void c2_conf_fops_fini(void);
+C2_INTERNAL int c2_conf_fops_init(void);
+C2_INTERNAL void c2_conf_fops_fini(void);
 
 /*
  * Confd fetch reply and request FOP definitions.

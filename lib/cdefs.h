@@ -44,7 +44,7 @@
 #define equi(a, b) (!(a) == !(b))
 #endif
 
-extern void __dummy_function(void);
+void __dummy_function(void);
 
 /**
  * A macro used with if-statements without `else' clause to assure proper

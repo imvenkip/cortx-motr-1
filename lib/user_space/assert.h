@@ -31,7 +31,8 @@
    @{
 */
 
-void c2_panic(const char *expr, const char *func, const char *file, int lineno)
+C2_INTERNAL void
+c2_panic(const char *expr, const char *func, const char *file, int lineno)
 	__attribute__((noreturn));
 
 /**

@@ -312,10 +312,10 @@ struct c2_rpc_conn {
 			conn->c_sender_id == SENDER_ID_INVALID &&
 			(conn->c_flags & RCF_SENDER_END) != 0)
  */
-int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
-		     struct c2_net_end_point *ep,
-		     struct c2_rpc_machine   *machine,
-		     uint64_t max_rpcs_in_flight);
+C2_INTERNAL int c2_rpc_conn_init(struct c2_rpc_conn *conn,
+				 struct c2_net_end_point *ep,
+				 struct c2_rpc_machine *machine,
+				 uint64_t max_rpcs_in_flight);
 
 /**
     Sends handshake CONN_ESTABLISH fop to the remote end.
@@ -325,7 +325,7 @@ int c2_rpc_conn_init(struct c2_rpc_conn      *conn,
     @pre conn_state(conn) == C2_RPC_CONN_INITIALISED
     @post ergo(result != 0, conn_state(conn) == C2_RPC_CONN_FAILED)
  */
-int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
+C2_INTERNAL int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
 
 /**
  * Same as c2_rpc_conn_establish(), but in addition uses c2_rpc_conn_timedwait()
@@ -339,18 +339,19 @@ int c2_rpc_conn_establish(struct c2_rpc_conn *conn);
  * @pre  conn_state(conn) == C2_RPC_CONN_INITIALISED
  * @post conn_state(conn) == C2_RPC_CONN_ACTIVE
  */
-int c2_rpc_conn_establish_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec);
+C2_INTERNAL int c2_rpc_conn_establish_sync(struct c2_rpc_conn *conn,
+					   uint32_t timeout_sec);
 
 /**
  * A combination of c2_rpc_conn_init() and c2_rpc_conn_establish_sync() in a
  * single routine - initialize connection object, establish a connection and
  * wait until it become active.
  */
-int c2_rpc_conn_create(struct c2_rpc_conn      *conn,
-		       struct c2_net_end_point *ep,
-		       struct c2_rpc_machine   *rpc_machine,
-		       uint64_t			max_rpcs_in_flight,
-		       uint32_t			timeout_sec);
+C2_INTERNAL int c2_rpc_conn_create(struct c2_rpc_conn *conn,
+				   struct c2_net_end_point *ep,
+				   struct c2_rpc_machine *rpc_machine,
+				   uint64_t max_rpcs_in_flight,
+				   uint32_t timeout_sec);
 
 /**
    Sends "conn_terminate" FOP to receiver.
@@ -364,7 +365,7 @@ int c2_rpc_conn_create(struct c2_rpc_conn      *conn,
 	 conn_state(conn) == C2_RPC_CONN_TERMINATING
    @post ergo(rc != 0, conn_state(conn) == C2_RPC_CONN_FAILED)
  */
-int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
+C2_INTERNAL int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
 
 /**
  * Same as c2_rpc_conn_terminate(), but in addition uses c2_rpc_conn_timedwait()
@@ -379,7 +380,8 @@ int c2_rpc_conn_terminate(struct c2_rpc_conn *conn);
  *       conn_state(conn) == C2_RPC_CONN_TERMINATING
  * @post conn_state(conn) == C2_RPC_CONN_TERMINATED
  */
-int c2_rpc_conn_terminate_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec);
+C2_INTERNAL int c2_rpc_conn_terminate_sync(struct c2_rpc_conn *conn,
+					   uint32_t timeout_sec);
 
 /**
    Finalises c2_rpc_conn.
@@ -388,14 +390,15 @@ int c2_rpc_conn_terminate_sync(struct c2_rpc_conn *conn, uint32_t timeout_sec);
 	conn_state(conn) == C2_RPC_CONN_INITIALISED ||
 	conn_state(conn) == C2_RPC_CONN_TERMINATED
  */
-void c2_rpc_conn_fini(struct c2_rpc_conn *conn);
+C2_INTERNAL void c2_rpc_conn_fini(struct c2_rpc_conn *conn);
 
 /**
  * A combination of c2_rpc_conn_terminate_sync() and c2_rpc_conn_fini() in a
  * single routine - terminate the connection, wait until it switched to
  * terminated state and finalize connection object.
  */
-int c2_rpc_conn_destroy(struct c2_rpc_conn *conn, uint32_t timeout_sec);
+C2_INTERNAL int c2_rpc_conn_destroy(struct c2_rpc_conn *conn,
+				    uint32_t timeout_sec);
 
 /**
     Waits until @conn reaches in any one of states specified by @state_flags.
@@ -408,9 +411,9 @@ int c2_rpc_conn_destroy(struct c2_rpc_conn *conn, uint32_t timeout_sec);
             -ETIMEDOUT if time out has occured before @conn reaches in desired
                 state.
  */
-int c2_rpc_conn_timedwait(struct c2_rpc_conn *conn,
-			  uint64_t            state_flags,
-			  const c2_time_t     abs_timeout);
+C2_INTERNAL int c2_rpc_conn_timedwait(struct c2_rpc_conn *conn,
+				      uint64_t state_flags,
+				      const c2_time_t abs_timeout);
 
 /** @}  End of rpc_session group */
 #endif /* __COLIBRI_RPC_CONN_H__ */

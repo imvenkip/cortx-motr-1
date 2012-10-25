@@ -35,12 +35,12 @@
    @{
  */
 
-bool c2_fid_is_valid(const struct c2_fid *fid)
+C2_INTERNAL bool c2_fid_is_valid(const struct c2_fid *fid)
 {
         return true;
 }
 
-bool c2_fid_is_set(const struct c2_fid *fid)
+C2_INTERNAL bool c2_fid_is_set(const struct c2_fid *fid)
 {
         static const struct c2_fid zero = {
                 .f_container = 0,
@@ -49,7 +49,8 @@ bool c2_fid_is_set(const struct c2_fid *fid)
         return !c2_fid_eq(fid, &zero);
 }
 
-void c2_fid_set(struct c2_fid *fid, uint64_t container, uint64_t key)
+C2_INTERNAL void c2_fid_set(struct c2_fid *fid, uint64_t container,
+			    uint64_t key)
 {
         C2_PRE(fid != NULL);
 
@@ -57,12 +58,12 @@ void c2_fid_set(struct c2_fid *fid, uint64_t container, uint64_t key)
         fid->f_key = key;
 }
 
-bool c2_fid_eq(const struct c2_fid *fid0, const struct c2_fid *fid1)
+C2_INTERNAL bool c2_fid_eq(const struct c2_fid *fid0, const struct c2_fid *fid1)
 {
         return memcmp(fid0, fid1, sizeof *fid0) == 0;
 }
 
-int c2_fid_cmp(const struct c2_fid *fid0, const struct c2_fid *fid1)
+C2_INTERNAL int c2_fid_cmp(const struct c2_fid *fid0, const struct c2_fid *fid1)
 {
         const struct c2_uint128 u0 = {
                 .u_hi = fid0->f_container,
@@ -77,11 +78,11 @@ int c2_fid_cmp(const struct c2_fid *fid0, const struct c2_fid *fid1)
         return c2_uint128_cmp(&u0, &u1);
 }
 
-void c2_fid_unregister(void)
+C2_INTERNAL void c2_fid_unregister(void)
 {
 }
 
-int c2_fid_register(void)
+C2_INTERNAL int c2_fid_register(void)
 {
         return 0;
 }

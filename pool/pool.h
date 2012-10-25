@@ -48,25 +48,25 @@ struct c2_pool {
 	struct c2_poolmach *po_mach;
 };
 
-int  c2_pool_init(struct c2_pool *pool, uint32_t width);
-void c2_pool_fini(struct c2_pool *pool);
+C2_INTERNAL int c2_pool_init(struct c2_pool *pool, uint32_t width);
+C2_INTERNAL void c2_pool_fini(struct c2_pool *pool);
 
 /**
    Allocates object id in the pool.
 
    @post ergo(result == 0, c2_stob_id_is_set(id))
  */
-int c2_pool_alloc(struct c2_pool *pool, struct c2_stob_id *id);
+C2_INTERNAL int c2_pool_alloc(struct c2_pool *pool, struct c2_stob_id *id);
 
 /**
    Releases object id back to the pool.
 
    @pre c2_stob_id_is_set(id)
  */
-void c2_pool_put(struct c2_pool *pool, struct c2_stob_id *id);
+C2_INTERNAL void c2_pool_put(struct c2_pool *pool, struct c2_stob_id *id);
 
-int  c2_pools_init(void);
-void c2_pools_fini(void);
+C2_INTERNAL int c2_pools_init(void);
+C2_INTERNAL void c2_pools_fini(void);
 
 /** @} end group pool */
 
@@ -266,11 +266,13 @@ struct c2_poolmach {
 	struct c2_rwlock         pm_lock;
 };
 
-bool c2_poolmach_version_equal(const struct c2_pool_version_numbers *v1,
-			       const struct c2_pool_version_numbers *v2);
+C2_INTERNAL bool c2_poolmach_version_equal(const struct c2_pool_version_numbers
+					   *v1,
+					   const struct c2_pool_version_numbers
+					   *v2);
 
-int  c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm);
-void c2_poolmach_fini(struct c2_poolmach *pm);
+C2_INTERNAL int c2_poolmach_init(struct c2_poolmach *pm, struct c2_dtm *dtm);
+C2_INTERNAL void c2_poolmach_fini(struct c2_poolmach *pm);
 
 /**
  * Change the pool machine state according to this event.
@@ -279,8 +281,8 @@ void c2_poolmach_fini(struct c2_poolmach *pm);
  *        will be copied into pool machine state, and it can
  *        be used or released by caller after call.
  */
-int c2_poolmach_state_transit(struct c2_poolmach *pm,
-			      struct c2_pool_event *event);
+C2_INTERNAL int c2_poolmach_state_transit(struct c2_poolmach *pm,
+					  struct c2_pool_event *event);
 
 /**
  * Query the state changes between the "from" and "to" version.
@@ -292,18 +294,20 @@ int c2_poolmach_state_transit(struct c2_poolmach *pm,
  * @param event_list_head the state changes in this region will be represented
  *        by events linked in this list.
  */
-int c2_poolmach_state_query(struct c2_poolmach *pm,
-			    const struct c2_pool_version_numbers *from,
-			    const struct c2_pool_version_numbers *to,
-			    struct c2_tl *event_list_head);
+C2_INTERNAL int c2_poolmach_state_query(struct c2_poolmach *pm,
+					const struct c2_pool_version_numbers
+					*from,
+					const struct c2_pool_version_numbers
+					*to, struct c2_tl *event_list_head);
 
 /**
  * Query the current version of a pool state.
  *
  * @param curr the returned current version number stored here.
  */
-int c2_poolmach_current_version_get(struct c2_poolmach *pm,
-				    struct c2_pool_version_numbers *curr);
+C2_INTERNAL int c2_poolmach_current_version_get(struct c2_poolmach *pm,
+						struct c2_pool_version_numbers
+						*curr);
 
 /**
  * Return a copy of current pool machine state.
@@ -316,13 +320,14 @@ int c2_poolmach_current_version_get(struct c2_poolmach *pm,
  *
  * @param state_copy the returned state stored here.
  */
-int c2_poolmach_current_state_get(struct c2_poolmach *pm,
-				  struct c2_poolmach_state **state_copy);
+C2_INTERNAL int c2_poolmach_current_state_get(struct c2_poolmach *pm,
+					      struct c2_poolmach_state
+					      **state_copy);
 /**
  * Frees the state copy returned from c2_poolmach_current_state_get().
  */
-void c2_poolmach_state_free(struct c2_poolmach *pm,
-			    struct c2_poolmach_state *state);
+C2_INTERNAL void c2_poolmach_state_free(struct c2_poolmach *pm,
+					struct c2_poolmach_state *state);
 
 C2_TL_DESCR_DECLARE(poolmach_events, extern);
 C2_TL_DECLARE(poolmach_events, extern, struct c2_pool_event_link);
@@ -362,16 +367,17 @@ struct c2_poolserver {
 	struct c2_rlimit	ps_rl_usage; /**< the current resource usage */
 };
 
-int  c2_poolserver_init(struct c2_poolserver *srv);
-void c2_poolserver_fini(struct c2_poolserver *srv);
-int  c2_poolserver_reset(struct c2_poolserver *srv);
-int  c2_poolserver_on(struct c2_poolserver *srv);
-int  c2_poolserver_off(struct c2_poolserver *srv);
-int  c2_poolserver_io_req(struct c2_poolserver *srv, struct c2_io_req *req);
-int  c2_poolserver_device_join(struct c2_poolserver *srv,
-			       struct c2_pooldev *dev);
-int  c2_poolserver_device_leave(struct c2_poolserver *srv,
-				struct c2_pooldev *dev);
+C2_INTERNAL int c2_poolserver_init(struct c2_poolserver *srv);
+C2_INTERNAL void c2_poolserver_fini(struct c2_poolserver *srv);
+C2_INTERNAL int c2_poolserver_reset(struct c2_poolserver *srv);
+C2_INTERNAL int c2_poolserver_on(struct c2_poolserver *srv);
+C2_INTERNAL int c2_poolserver_off(struct c2_poolserver *srv);
+C2_INTERNAL int c2_poolserver_io_req(struct c2_poolserver *srv,
+				     struct c2_io_req *req);
+C2_INTERNAL int c2_poolserver_device_join(struct c2_poolserver *srv,
+					  struct c2_pooldev *dev);
+C2_INTERNAL int c2_poolserver_device_leave(struct c2_poolserver *srv,
+					   struct c2_pooldev *dev);
 
 /** @} end of servermachine group */
 

@@ -43,10 +43,9 @@ static const struct c2_addb_loc mdstore_addb_loc = {
         .al_name = "mdstore"
 };
 
-int c2_mdstore_init(struct c2_mdstore         *md,
-                    struct c2_cob_domain_id    *id,
-                    struct c2_dbenv            *db,
-                    bool                        init_root)
+C2_INTERNAL int c2_mdstore_init(struct c2_mdstore *md,
+				struct c2_cob_domain_id *id,
+				struct c2_dbenv *db, bool init_root)
 {
         struct c2_db_tx        tx;
         int                    rc;
@@ -89,7 +88,7 @@ out:
         return rc;
 }
 
-void c2_mdstore_fini(struct c2_mdstore *md)
+C2_INTERNAL void c2_mdstore_fini(struct c2_mdstore *md)
 {
         if (md->md_root != NULL)
                 c2_cob_put(md->md_root);
@@ -97,11 +96,10 @@ void c2_mdstore_fini(struct c2_mdstore *md)
         c2_cob_domain_fini(&md->md_dom);
 }
 
-int c2_mdstore_create(struct c2_mdstore        *md,
-                      struct c2_fid            *pfid,
-                      struct c2_cob_attr       *attr,
-                      struct c2_cob           **out,
-                      struct c2_db_tx          *tx)
+C2_INTERNAL int c2_mdstore_create(struct c2_mdstore *md,
+				  struct c2_fid *pfid,
+				  struct c2_cob_attr *attr,
+				  struct c2_cob **out, struct c2_db_tx *tx)
 {
         struct c2_cob         *cob;
         struct c2_cob_nskey   *nskey;
@@ -162,12 +160,11 @@ out:
         return rc;
 }
 
-int c2_mdstore_link(struct c2_mdstore          *md,
-                    struct c2_fid              *pfid,
-                    struct c2_cob              *cob,
-                    const char                 *name,
-                    int                         namelen,
-                    struct c2_db_tx            *tx)
+C2_INTERNAL int c2_mdstore_link(struct c2_mdstore *md,
+				struct c2_fid *pfid,
+				struct c2_cob *cob,
+				const char *name,
+				int namelen, struct c2_db_tx *tx)
 {
         struct c2_cob_nskey   *nskey;
         struct c2_cob_nsrec    nsrec;
@@ -209,12 +206,11 @@ out:
         return rc;
 }
 
-int c2_mdstore_unlink(struct c2_mdstore        *md,
-                      struct c2_fid            *pfid,
-                      struct c2_cob            *cob,
-                      const char               *name,
-                      int                       namelen,
-                      struct c2_db_tx          *tx)
+C2_INTERNAL int c2_mdstore_unlink(struct c2_mdstore *md,
+				  struct c2_fid *pfid,
+				  struct c2_cob *cob,
+				  const char *name,
+				  int namelen, struct c2_db_tx *tx)
 {
         struct c2_cob         *ncob;
         struct c2_cob_nskey   *nskey;
@@ -308,10 +304,10 @@ out:
         return rc;
 }
 
-int c2_mdstore_open(struct c2_mdstore         *md,
-                    struct c2_cob              *cob,
-                    c2_mdstore_locate_flags_t   flags,
-                    struct c2_db_tx            *tx)
+C2_INTERNAL int c2_mdstore_open(struct c2_mdstore *md,
+				struct c2_cob *cob,
+				c2_mdstore_locate_flags_t flags,
+				struct c2_db_tx *tx)
 {
         int rc = 0;
 
@@ -326,9 +322,8 @@ int c2_mdstore_open(struct c2_mdstore         *md,
         return rc;
 }
 
-int c2_mdstore_close(struct c2_mdstore        *md,
-                     struct c2_cob             *cob,
-                     struct c2_db_tx           *tx)
+C2_INTERNAL int c2_mdstore_close(struct c2_mdstore *md,
+				 struct c2_cob *cob, struct c2_db_tx *tx)
 {
         int rc = 0;
 
@@ -345,16 +340,15 @@ int c2_mdstore_close(struct c2_mdstore        *md,
         return rc;
 }
 
-int c2_mdstore_rename(struct c2_mdstore       *md,
-                      struct c2_fid            *pfid_tgt,
-                      struct c2_fid            *pfid_src,
-                      struct c2_cob            *cob_tgt,
-                      struct c2_cob            *cob_src,
-                      const char               *tname,
-                      int                       tnamelen,
-                      const char               *sname,
-                      int                       snamelen,
-                      struct c2_db_tx          *tx)
+C2_INTERNAL int c2_mdstore_rename(struct c2_mdstore *md,
+				  struct c2_fid *pfid_tgt,
+				  struct c2_fid *pfid_src,
+				  struct c2_cob *cob_tgt,
+				  struct c2_cob *cob_src,
+				  const char *tname,
+				  int tnamelen,
+				  const char *sname,
+				  int snamelen, struct c2_db_tx *tx)
 {
         struct c2_cob_nskey  *srckey = NULL;
         struct c2_cob_nskey  *tgtkey = NULL;
@@ -400,10 +394,10 @@ out:
         return rc;
 }
 
-int c2_mdstore_setattr(struct c2_mdstore      *md,
-                       struct c2_cob           *cob,
-                       struct c2_cob_attr      *attr,
-                       struct c2_db_tx         *tx)
+C2_INTERNAL int c2_mdstore_setattr(struct c2_mdstore *md,
+				   struct c2_cob *cob,
+				   struct c2_cob_attr *attr,
+				   struct c2_db_tx *tx)
 {
         struct c2_cob_nsrec   *nsrec = NULL;
         struct c2_cob_fabrec  *fabrec = NULL;
@@ -464,10 +458,10 @@ int c2_mdstore_setattr(struct c2_mdstore      *md,
         return rc;
 }
 
-int c2_mdstore_getattr(struct c2_mdstore      *md,
-                       struct c2_cob           *cob,
-                       struct c2_cob_attr      *attr,
-                       struct c2_db_tx         *tx)
+C2_INTERNAL int c2_mdstore_getattr(struct c2_mdstore *md,
+				   struct c2_cob *cob,
+				   struct c2_cob_attr *attr,
+				   struct c2_db_tx *tx)
 {
         int                rc = 0;
 
@@ -511,10 +505,9 @@ int c2_mdstore_getattr(struct c2_mdstore      *md,
         return rc;
 }
 
-int c2_mdstore_readdir(struct c2_mdstore      *md,
-                       struct c2_cob           *cob,
-                       struct c2_rdpg          *rdpg,
-                       struct c2_db_tx         *tx)
+C2_INTERNAL int c2_mdstore_readdir(struct c2_mdstore *md,
+				   struct c2_cob *cob,
+				   struct c2_rdpg *rdpg, struct c2_db_tx *tx)
 {
         struct c2_cob_iterator         it;
         struct c2_dirent              *ent;
@@ -607,11 +600,10 @@ out:
         return rc;
 }
 
-int c2_mdstore_locate(struct c2_mdstore        *md,
-                      const struct c2_fid      *fid,
-                      struct c2_cob           **cob,
-                      int                       flags,
-                      struct c2_db_tx          *tx)
+C2_INTERNAL int c2_mdstore_locate(struct c2_mdstore *md,
+				  const struct c2_fid *fid,
+				  struct c2_cob **cob,
+				  int flags, struct c2_db_tx *tx)
 {
         struct c2_cob_oikey oikey;
         int                 rc;
@@ -631,12 +623,11 @@ int c2_mdstore_locate(struct c2_mdstore        *md,
         return rc;
 }
 
-int c2_mdstore_lookup(struct c2_mdstore         *md,
-                       struct c2_fid            *pfid,
-                       const char               *name,
-                       int                       namelen,
-                       struct c2_cob           **cob,
-                       struct c2_db_tx          *tx)
+C2_INTERNAL int c2_mdstore_lookup(struct c2_mdstore *md,
+				  struct c2_fid *pfid,
+				  const char *name,
+				  int namelen,
+				  struct c2_cob **cob, struct c2_db_tx *tx)
 {
         struct c2_cob_nskey *nskey;
         int flags;
@@ -656,9 +647,8 @@ int c2_mdstore_lookup(struct c2_mdstore         *md,
 #define MDSTORE_PATH_MAX 1024
 #define MDSTORE_NAME_MAX 255
 
-int c2_mdstore_path(struct c2_mdstore             *md,
-                    struct c2_fid                 *fid,
-                    char                         **path)
+C2_INTERNAL int c2_mdstore_path(struct c2_mdstore *md, struct c2_fid *fid,
+				char **path)
 {
         struct c2_cob   *cob;
         struct c2_fid    pfid;

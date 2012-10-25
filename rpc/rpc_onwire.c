@@ -39,9 +39,8 @@ static int slot_ref_encode(struct c2_rpc_onwire_slot_ref *osr,
 static int slot_ref_decode(struct c2_bufvec_cursor       *cur,
 			   struct c2_rpc_onwire_slot_ref *osr);
 
-int c2_rpc_item_header_encode(struct c2_rpc_item_onwire_header *ioh,
-			      struct c2_bufvec_cursor          *cur)
-
+C2_INTERNAL int c2_rpc_item_header_encode(struct c2_rpc_item_onwire_header *ioh,
+					  struct c2_bufvec_cursor *cur)
 {
 	struct c2_xcode_ctx ctx;
 	int                 rc;
@@ -58,8 +57,8 @@ int c2_rpc_item_header_encode(struct c2_rpc_item_onwire_header *ioh,
 	C2_RETURN(rc);
 }
 
-int c2_rpc_item_header_decode(struct c2_bufvec_cursor          *cur,
-			      struct c2_rpc_item_onwire_header *ioh)
+C2_INTERNAL int c2_rpc_item_header_decode(struct c2_bufvec_cursor *cur,
+					  struct c2_rpc_item_onwire_header *ioh)
 {
 	struct c2_xcode_ctx ctx;
 	int                 rc;
@@ -83,10 +82,10 @@ int c2_rpc_item_header_decode(struct c2_bufvec_cursor          *cur,
 	C2_RETURN(rc);
 }
 
-int c2_rpc_item_slot_ref_encdec(struct c2_bufvec_cursor *cur,
-				struct c2_rpc_slot_ref  *slot_ref,
-				int                      nr_slot_refs,
-				enum c2_bufvec_what      what)
+C2_INTERNAL int c2_rpc_item_slot_ref_encdec(struct c2_bufvec_cursor *cur,
+					    struct c2_rpc_slot_ref *slot_ref,
+					    int nr_slot_refs,
+					    enum c2_bufvec_what what)
 {
 	struct c2_rpc_onwire_slot_ref *osr = NULL;
 	int                            rc;

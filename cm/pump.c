@@ -320,13 +320,13 @@ static void pump_wakeup(struct c2_cm_cp_pump *cp_pump)
 	c2_fom_wakeup(&cp_pump->p_fom);
 }
 
-void c2_cm_cp_pump_init(void)
+C2_INTERNAL void c2_cm_cp_pump_init(void)
 {
 	c2_fom_type_init(&cm_cp_pump_fom_type, &cm_cp_pump_fom_type_ops, NULL,
 			 &cm_cp_pump_conf);
 }
 
-void c2_cm_cp_pump_start(struct c2_cm *cm)
+C2_INTERNAL void c2_cm_cp_pump_start(struct c2_cm *cm)
 {
 	struct c2_cm_cp_pump *cp_pump;
 
@@ -339,7 +339,7 @@ void c2_cm_cp_pump_start(struct c2_cm *cm)
 	c2_fom_queue(&cp_pump->p_fom, cm->cm_service.rs_reqh);
 }
 
-void c2_cm_cp_pump_wakeup(struct c2_cm *cm)
+C2_INTERNAL void c2_cm_cp_pump_wakeup(struct c2_cm *cm)
 {
 	struct c2_cm_cp_pump *cp_pump;
 
@@ -350,7 +350,7 @@ void c2_cm_cp_pump_wakeup(struct c2_cm *cm)
 		pump_wakeup(cp_pump);
 }
 
-void c2_cm_cp_pump_stop(struct c2_cm *cm)
+C2_INTERNAL void c2_cm_cp_pump_stop(struct c2_cm *cm)
 {
 	struct c2_cm_cp_pump *cp_pump;
 

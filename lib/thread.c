@@ -67,7 +67,7 @@ int c2_thread_init(struct c2_thread *q, int (*init)(void *),
 }
 C2_EXPORTED(c2_thread_init);
 
-void *c2_thread_trampoline(void *arg)
+C2_INTERNAL void *c2_thread_trampoline(void *arg)
 {
 	struct c2_thread *t = arg;
 
@@ -83,7 +83,7 @@ void *c2_thread_trampoline(void *arg)
 	return NULL;
 }
 
-void c2_thread_fini(struct c2_thread *q)
+C2_INTERNAL void c2_thread_fini(struct c2_thread *q)
 {
 	C2_PRE(q->t_state == TS_PARKED);
 	c2_semaphore_fini(&q->t_wait);

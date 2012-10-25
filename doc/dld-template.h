@@ -193,7 +193,7 @@ extern unsigned int dld_bad_example;
    @pre Pre-condition, preferably expressed in code.
    @post Post-condition, preferably expressed in code.
  */
-int dld_sample_sub1(struct dld_sample_ds1 *param1, bool read_only);
+C2_INTERNAL int dld_sample_sub1(struct dld_sample_ds1 *param1, bool read_only);
 
 /** @} */ /* DLDDFS end group */
 

@@ -45,11 +45,11 @@
 struct io_mem_stats iommstats;
 
 const struct inode_operations c2t1fs_reg_inode_operations;
-void iov_iter_advance(struct iov_iter *i, size_t bytes);
+C2_INTERNAL void iov_iter_advance(struct iov_iter *i, size_t bytes);
 
 /* Imports */
 struct c2_net_domain;
-extern bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
+C2_INTERNAL bool c2t1fs_inode_bob_check(struct c2t1fs_inode *bob);
 
 C2_TL_DESCR_DEFINE(tioreqs, "List of target_ioreq objects", static,
 		   struct target_ioreq, ti_link, ti_magic,
@@ -296,7 +296,7 @@ static void page_pos_get(struct pargrp_iomap *map, c2_bindex_t index,
 }
 
 /* Invoked during c2t1fs mount. */
-void io_bob_tlists_init(void)
+C2_INTERNAL void io_bob_tlists_init(void)
 {
 	c2_bob_type_tlist_init(&tioreq_bobtype, &tioreqs_tl);
 	C2_ASSERT(tioreq_bobtype.bt_magix == C2_T1FS_TIOREQ_MAGIC);
@@ -2546,10 +2546,9 @@ static void irfop_fini(struct io_req_fop *irfop)
  * aligned with user buffers in struct iovec array.
  * This function is also used by file->f_op->aio_{read/write} path.
  */
-ssize_t c2t1fs_aio(struct kiocb	      *kcb,
-		   const struct iovec *iov,
-		   struct c2_indexvec *ivec,
-		   enum io_req_type    rw)
+C2_INTERNAL ssize_t c2t1fs_aio(struct kiocb *kcb,
+			       const struct iovec *iov,
+			       struct c2_indexvec *ivec, enum io_req_type rw)
 {
 	int		   rc;
 	ssize_t		   count;

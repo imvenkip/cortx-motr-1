@@ -166,25 +166,27 @@ struct c2_conf_obj_ops {
  * @post  ergo(retval != NULL,
  *             !retval->co_mounted && retval->co_status == C2_CS_MISSING)
  */
-struct c2_conf_obj *c2_conf_obj_create(enum c2_conf_objtype type,
-				       const struct c2_buf *id);
+C2_INTERNAL struct c2_conf_obj *c2_conf_obj_create(enum c2_conf_objtype type,
+						   const struct c2_buf *id);
 
 /**
  * Finds registered object with given identity or, if no object is
  * found, creates and registers a stub.
  */
-int c2_conf_obj_find(struct c2_conf_reg *reg, enum c2_conf_objtype type,
-		     const struct c2_buf *id, struct c2_conf_obj **out);
+C2_INTERNAL int c2_conf_obj_find(struct c2_conf_reg *reg,
+				 enum c2_conf_objtype type,
+				 const struct c2_buf *id,
+				 struct c2_conf_obj **out);
 
 /**
  * Finalises and frees configuration object.
  *
  * @pre  obj->co_nrefs == 0 && obj->co_status != C2_CS_LOADING
  */
-void c2_conf_obj_delete(struct c2_conf_obj *obj);
+C2_INTERNAL void c2_conf_obj_delete(struct c2_conf_obj *obj);
 
 /** Validates given configuration object. */
-bool c2_conf_obj_invariant(const struct c2_conf_obj *obj);
+C2_INTERNAL bool c2_conf_obj_invariant(const struct c2_conf_obj *obj);
 
 /**
  * Increments reference counter of given configuration object.
@@ -192,7 +194,7 @@ bool c2_conf_obj_invariant(const struct c2_conf_obj *obj);
  * @pre   obj->co_status == C2_CS_READY
  * @post  obj->co_nrefs > 0
  */
-void c2_conf_obj_get(struct c2_conf_obj *obj);
+C2_INTERNAL void c2_conf_obj_get(struct c2_conf_obj *obj);
 
 /**
  * Decrements reference counter of given configuration object.
@@ -202,7 +204,7 @@ void c2_conf_obj_get(struct c2_conf_obj *obj);
  *
  * @pre  obj->co_nrefs > 0 && obj->co_status == C2_CS_READY
  */
-void c2_conf_obj_put(struct c2_conf_obj *obj);
+C2_INTERNAL void c2_conf_obj_put(struct c2_conf_obj *obj);
 
 /**
  * Enriches a stub with configuration data.
@@ -224,8 +226,9 @@ void c2_conf_obj_put(struct c2_conf_obj *obj);
  * @post  c2_mutex_is_locked(&dest->co_confc->cc_lock)
  * @post  ergo(retval == 0, dest->co_status == C2_CS_READY && dest->co_mounted)
  */
-int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
-		     struct c2_conf_reg *reg);
+C2_INTERNAL int c2_conf_obj_fill(struct c2_conf_obj *dest,
+				 const struct confx_object *src,
+				 struct c2_conf_reg *reg);
 
 /**
  * Returns false iff cached configuration object and on-wire object
@@ -237,8 +240,8 @@ int c2_conf_obj_fill(struct c2_conf_obj *dest, const struct confx_object *src,
  * @pre  cached->co_mounted
  * @pre  `flat' is valid
  */
-bool c2_conf_obj_match(const struct c2_conf_obj *cached,
-		       const struct confx_object *flat);
+C2_INTERNAL bool c2_conf_obj_match(const struct c2_conf_obj *cached,
+				   const struct confx_object *flat);
 
 /** @} conf_dfspec_objops */
 #endif /* __COLIBRI_CONF_OBJOPS_H__ */

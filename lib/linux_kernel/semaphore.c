@@ -33,38 +33,39 @@
    @{
  */
 
-int c2_semaphore_init(struct c2_semaphore *semaphore, unsigned value)
+C2_INTERNAL int c2_semaphore_init(struct c2_semaphore *semaphore,
+				  unsigned value)
 {
 	sema_init(&semaphore->s_sem, value);
 	return 0;
 }
 
-void c2_semaphore_fini(struct c2_semaphore *semaphore)
+C2_INTERNAL void c2_semaphore_fini(struct c2_semaphore *semaphore)
 {
 }
 
-void c2_semaphore_down(struct c2_semaphore *semaphore)
+C2_INTERNAL void c2_semaphore_down(struct c2_semaphore *semaphore)
 {
 	down(&semaphore->s_sem);
 }
 
-bool c2_semaphore_trydown(struct c2_semaphore *semaphore)
+C2_INTERNAL bool c2_semaphore_trydown(struct c2_semaphore *semaphore)
 {
 	return !down_trylock(&semaphore->s_sem);
 }
 
-void c2_semaphore_up(struct c2_semaphore *semaphore)
+C2_INTERNAL void c2_semaphore_up(struct c2_semaphore *semaphore)
 {
 	up(&semaphore->s_sem);
 }
 
-unsigned c2_semaphore_value(struct c2_semaphore *semaphore)
+C2_INTERNAL unsigned c2_semaphore_value(struct c2_semaphore *semaphore)
 {
 	return semaphore->s_sem.count;
 }
 
-bool c2_semaphore_timeddown(struct c2_semaphore *semaphore,
-			    const c2_time_t abs_timeout)
+C2_INTERNAL bool c2_semaphore_timeddown(struct c2_semaphore *semaphore,
+					const c2_time_t abs_timeout)
 {
 	c2_time_t nowtime = c2_time_now();
 	c2_time_t reltime;

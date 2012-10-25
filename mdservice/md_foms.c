@@ -44,7 +44,8 @@
 /**
    Make in-memory fid from wire fid (wid).
 */
-void c2_md_fid_make(struct c2_fid *fid, const struct c2_fop_fid *wid)
+C2_INTERNAL void c2_md_fid_make(struct c2_fid *fid,
+				const struct c2_fop_fid *wid)
 {
         fid->f_container = wid->f_seq;
         fid->f_key = wid->f_oid;
@@ -989,7 +990,7 @@ static inline struct c2_fid *c2_md_fid_get(struct c2_fop_fid *fid)
         return &fid_fop2mem;
 }
 
-int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
+C2_INTERNAL int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
 {
         struct c2_fop_create    *create;
         struct c2_fop_unlink    *unlink;
@@ -1104,7 +1105,7 @@ int c2_md_fop_init(struct c2_fop *fop, struct c2_fom *fom)
         return rc;
 }
 
-void c2_md_fop_free(struct c2_fop *fop)
+C2_INTERNAL void c2_md_fop_free(struct c2_fop *fop)
 {
         struct c2_fop_create    *create;
         struct c2_fop_unlink    *unlink;
@@ -1267,12 +1268,12 @@ static const struct c2_fom_ops c2_md_fom_readdir_ops = {
         .fo_fini   = c2_md_req_fom_fini
 };
 
-int c2_md_rep_fom_create(struct c2_fop *fop, struct c2_fom **m)
+C2_INTERNAL int c2_md_rep_fom_create(struct c2_fop *fop, struct c2_fom **m)
 {
         return 0;
 }
 
-int c2_md_req_fom_create(struct c2_fop *fop, struct c2_fom **m)
+C2_INTERNAL int c2_md_req_fom_create(struct c2_fop *fop, struct c2_fom **m)
 {
         struct c2_fom           *fom;
         struct c2_fom_md        *fom_obj;

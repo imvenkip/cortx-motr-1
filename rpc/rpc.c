@@ -35,7 +35,7 @@
  * @{
  */
 
-int c2_rpc__post_locked(struct c2_rpc_item *item);
+C2_INTERNAL int c2_rpc__post_locked(struct c2_rpc_item *item);
 
 const struct c2_addb_ctx_type c2_rpc_addb_ctx_type = {
 	.act_name = "rpc"
@@ -48,7 +48,7 @@ const struct c2_addb_loc c2_rpc_addb_loc = {
 struct c2_addb_ctx c2_rpc_addb_ctx;
 
 
-int c2_rpc_init(void)
+C2_INTERNAL int c2_rpc_init(void)
 {
 	int rc;
 
@@ -63,7 +63,7 @@ int c2_rpc_init(void)
 	C2_RETURN(rc);
 }
 
-void c2_rpc_fini(void)
+C2_INTERNAL void c2_rpc_fini(void)
 {
 	C2_ENTRY();
 
@@ -75,7 +75,7 @@ void c2_rpc_fini(void)
 	C2_LEAVE();
 }
 
-int c2_rpc_post(struct c2_rpc_item *item)
+C2_INTERNAL int c2_rpc_post(struct c2_rpc_item *item)
 {
 	struct c2_rpc_machine *machine = item_machine(item);
 	int                    rc;
@@ -95,19 +95,19 @@ int c2_rpc_post(struct c2_rpc_item *item)
 }
 C2_EXPORTED(c2_rpc_post);
 
-void c2_rpc_item_get(struct c2_rpc_item *item)
+C2_INTERNAL void c2_rpc_item_get(struct c2_rpc_item *item)
 {
 	/* XXX TODO */
 }
 C2_EXPORTED(c2_rpc_item_get);
 
-void c2_rpc_item_put(struct c2_rpc_item *item)
+C2_INTERNAL void c2_rpc_item_put(struct c2_rpc_item *item)
 {
 	/* XXX TODO */
 }
 C2_EXPORTED(c2_rpc_item_put);
 
-int c2_rpc__post_locked(struct c2_rpc_item *item)
+C2_INTERNAL int c2_rpc__post_locked(struct c2_rpc_item *item)
 {
 	struct c2_rpc_session *session;
 
@@ -145,8 +145,8 @@ int c2_rpc__post_locked(struct c2_rpc_item *item)
 	C2_RETURN(0);
 }
 
-int c2_rpc_reply_post(struct c2_rpc_item *request,
-		      struct c2_rpc_item *reply)
+C2_INTERNAL int c2_rpc_reply_post(struct c2_rpc_item *request,
+				  struct c2_rpc_item *reply)
 {
 	struct c2_rpc_slot_ref *sref;
 	struct c2_rpc_machine  *machine;
@@ -191,8 +191,8 @@ int c2_rpc_reply_post(struct c2_rpc_item *request,
 }
 C2_EXPORTED(c2_rpc_reply_post);
 
-int c2_rpc_oneway_item_post(const struct c2_rpc_conn *conn,
-			     struct c2_rpc_item      *item)
+C2_INTERNAL int c2_rpc_oneway_item_post(const struct c2_rpc_conn *conn,
+					struct c2_rpc_item *item)
 {
 	struct c2_rpc_machine *machine;
 
@@ -210,7 +210,8 @@ int c2_rpc_oneway_item_post(const struct c2_rpc_conn *conn,
 	C2_RETURN(0);
 }
 
-int c2_rpc_reply_timedwait(struct c2_clink *clink, const c2_time_t timeout)
+C2_INTERNAL int c2_rpc_reply_timedwait(struct c2_clink *clink,
+				       const c2_time_t timeout)
 {
 	int rc;
 	C2_ENTRY("timeout: [%llu:%llu]",
@@ -235,9 +236,10 @@ static const struct c2_net_buffer_pool_ops b_ops = {
 	.nbpo_below_threshold = rpc_buffer_pool_low,
 };
 
-int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
-				 struct c2_net_buffer_pool *app_pool,
-				 uint32_t bufs_nr, uint32_t tm_nr)
+C2_INTERNAL int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
+					     struct c2_net_buffer_pool
+					     *app_pool, uint32_t bufs_nr,
+					     uint32_t tm_nr)
 {
 	int	    rc;
 	uint32_t    segs_nr;
@@ -265,7 +267,8 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 }
 C2_EXPORTED(c2_rpc_net_buffer_pool_setup);
 
-void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool)
+C2_INTERNAL void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool
+						*app_pool)
 {
 	C2_PRE(app_pool != NULL);
 

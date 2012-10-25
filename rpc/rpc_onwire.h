@@ -104,8 +104,8 @@ struct c2_rpc_item_onwire_header {
 	uint64_t ioh_magic;
 } C2_XCA_RECORD;
 
-int c2_rpc_item_header_encode(struct c2_rpc_item_onwire_header *ioh,
-			      struct c2_bufvec_cursor          *cur);
+C2_INTERNAL int c2_rpc_item_header_encode(struct c2_rpc_item_onwire_header *ioh,
+					  struct c2_bufvec_cursor *cur);
 
 /**
     Decodes the rpc item header into a bufvec
@@ -114,8 +114,9 @@ int c2_rpc_item_header_encode(struct c2_rpc_item_onwire_header *ioh,
     @retval 0 (success)
     @retval -errno  (failure)
 */
-int c2_rpc_item_header_decode(struct c2_bufvec_cursor          *cur,
-			      struct c2_rpc_item_onwire_header *ioh);
+C2_INTERNAL int c2_rpc_item_header_decode(struct c2_bufvec_cursor *cur,
+					  struct c2_rpc_item_onwire_header
+					  *ioh);
 
 /** @}  End of rpc group */
 

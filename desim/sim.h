@@ -112,7 +112,7 @@ struct sim_callout;
 struct sim_thread;
 
 typedef unsigned long long sim_time_t;
-typedef int  sim_call_t(struct sim_callout *);
+typedef int sim_call_t(struct sim_callout *);
 typedef void sim_func_t(struct sim *, struct sim_thread *, void *);
 
 /**
@@ -244,39 +244,43 @@ struct sim_chan {
 	struct cnt          ch_cnt_sleep;
 };
 
-void sim_init(struct sim *state);
-void sim_fini(struct sim *state);
-void sim_run (struct sim *state);
+C2_INTERNAL void sim_init(struct sim *state);
+C2_INTERNAL void sim_fini(struct sim *state);
+C2_INTERNAL void sim_run(struct sim *state);
 
-void sim_timer_add   (struct sim *state, sim_time_t delta,
-		      sim_call_t *cfunc, void *datum);
-void sim_timer_rearm (struct sim_callout *call, sim_time_t delta,
-		      sim_call_t *cfunc, void *datum);
-void *sim_alloc(size_t size);
-void  sim_free (void *ptr);
+C2_INTERNAL void sim_timer_add(struct sim *state, sim_time_t delta,
+			       sim_call_t * cfunc, void *datum);
+C2_INTERNAL void sim_timer_rearm(struct sim_callout *call, sim_time_t delta,
+				 sim_call_t * cfunc, void *datum);
+C2_INTERNAL void *sim_alloc(size_t size);
+C2_INTERNAL void sim_free(void *ptr);
 
-void sim_chan_init(struct sim_chan *chan, char *format, ...)
+C2_INTERNAL void sim_chan_init(struct sim_chan *chan, char *format, ...)
 	__attribute__((format(printf, 2, 3)));
-void sim_chan_fini(struct sim_chan *chan);
-void sim_chan_wait(struct sim_chan *chan, struct sim_thread *thread);
-void sim_chan_signal(struct sim_chan *chan);
-void sim_chan_broadcast(struct sim_chan *chan);
+C2_INTERNAL void sim_chan_fini(struct sim_chan *chan);
+C2_INTERNAL void sim_chan_wait(struct sim_chan *chan,
+			       struct sim_thread *thread);
+C2_INTERNAL void sim_chan_signal(struct sim_chan *chan);
+C2_INTERNAL void sim_chan_broadcast(struct sim_chan *chan);
 
-void sim_thread_init(struct sim *state, struct sim_thread *thread,
-		     unsigned stacksize, sim_func_t func, void *arg);
-void sim_thread_fini(struct sim_thread *thread);
-void sim_thread_exit(struct sim_thread *thread);
+C2_INTERNAL void sim_thread_init(struct sim *state, struct sim_thread *thread,
+				 unsigned stacksize, sim_func_t func,
+				 void *arg);
+C2_INTERNAL void sim_thread_fini(struct sim_thread *thread);
+C2_INTERNAL void sim_thread_exit(struct sim_thread *thread);
 
-void sim_sleep(struct sim_thread *thread, sim_time_t nap);
-struct sim_thread *sim_thread_current(void);
+C2_INTERNAL void sim_sleep(struct sim_thread *thread, sim_time_t nap);
+C2_INTERNAL struct sim_thread *sim_thread_current(void);
 
 /* get a pseudo-random number in the interval [a, b] */
-unsigned long long sim_rnd(unsigned long long a, unsigned long long b);
+C2_INTERNAL unsigned long long sim_rnd(unsigned long long a,
+				       unsigned long long b);
 
-void sim_name_set(char **name, const char *format, ...)
+C2_INTERNAL void sim_name_set(char **name, const char *format, ...)
 	__attribute__((format(printf, 2, 3)));
 
-void sim_name_vaset(char **name, const char *format, va_list valist);
+C2_INTERNAL void sim_name_vaset(char **name, const char *format,
+				va_list valist);
 
 enum sim_log_level {
 	SLL_WARN,
@@ -287,11 +291,12 @@ enum sim_log_level {
 
 extern enum sim_log_level sim_log_level;
 
-void sim_log(struct sim *s, enum sim_log_level level, const char *format, ...)
+C2_INTERNAL void
+sim_log(struct sim *s, enum sim_log_level level, const char *format, ...)
 	__attribute__((format(printf, 3, 4)));
 
-int  sim_global_init(void);
-void sim_global_fini(void);
+C2_INTERNAL int sim_global_init(void);
+C2_INTERNAL void sim_global_fini(void);
 
 #endif /* __COLIBRI_DESIM_SIM_H__ */
 

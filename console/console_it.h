@@ -60,7 +60,7 @@ struct c2_cons_atom_ops {
  *
  * @param fop fop object.
  */
-void c2_cons_fop_fields_show(struct c2_fop *fop);
+C2_INTERNAL void c2_cons_fop_fields_show(struct c2_fop *fop);
 
 /**
  * @brief Iterate over FOP for Input and output.
@@ -68,22 +68,23 @@ void c2_cons_fop_fields_show(struct c2_fop *fop);
  * @param fop Fop object
  * @param type Data processing operation type
  */
-void c2_cons_fop_obj_input_output(struct c2_fop *fop,
-				  enum c2_cons_data_process_type type);
+C2_INTERNAL void c2_cons_fop_obj_input_output(struct c2_fop *fop,
+					      enum c2_cons_data_process_type
+					      type);
 
 /**
  * @brief Helper function for FOP input
  *
  * @param fop fop object.
  */
-void c2_cons_fop_obj_input(struct c2_fop *fop);
+C2_INTERNAL void c2_cons_fop_obj_input(struct c2_fop *fop);
 
 /**
  * @brief Helper function for FOP output.
  *
  * @param fop fop object.
  */
-void c2_cons_fop_obj_output(struct c2_fop *fop);
+C2_INTERNAL void c2_cons_fop_obj_output(struct c2_fop *fop);
 
 /** @} end of console_it */
 

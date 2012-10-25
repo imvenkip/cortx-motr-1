@@ -27,21 +27,21 @@
 #include "lib/types.h"
 #include "sns/matvec.h"
 
-int c2_vector_init(struct c2_vector *v, uint32_t sz)
+C2_INTERNAL int c2_vector_init(struct c2_vector *v, uint32_t sz)
 {
 	v->v_size = sz;
 	C2_ALLOC_ARR(v->v_vector, sz);
 	return v->v_vector == NULL ? -ENOMEM : 0;
 }
 
-void c2_vector_fini(struct c2_vector *v)
+C2_INTERNAL void c2_vector_fini(struct c2_vector *v)
 {
 	c2_free(v->v_vector);
 	v->v_vector = NULL;
 	v->v_size = 0;
 }
 
-int c2_matrix_init(struct c2_matrix *m, uint32_t w, uint32_t h)
+C2_INTERNAL int c2_matrix_init(struct c2_matrix *m, uint32_t w, uint32_t h)
 {
 	uint32_t i;
 	m->m_height = h;
@@ -62,7 +62,7 @@ int c2_matrix_init(struct c2_matrix *m, uint32_t w, uint32_t h)
 	return 0;
 }
 
-void c2_matrix_fini(struct c2_matrix *m)
+C2_INTERNAL void c2_matrix_fini(struct c2_matrix *m)
 {
 	uint32_t i;
 
@@ -91,7 +91,7 @@ c2_parity_elem_t* c2_matrix_elem_get(const struct c2_matrix *m, uint32_t x, uint
 	return &m->m_matrix[y][x];
 }
 
-void c2_matrix_print(const struct c2_matrix *mat)
+C2_INTERNAL void c2_matrix_print(const struct c2_matrix *mat)
 {
 	uint32_t x, y;
 	C2_PRE(mat);
@@ -107,7 +107,7 @@ void c2_matrix_print(const struct c2_matrix *mat)
 	C2_LOG(C2_DEBUG, "\n");
 }
 
-void c2_vector_print(const struct c2_vector *vec)
+C2_INTERNAL void c2_vector_print(const struct c2_vector *vec)
 {
 	uint32_t x;
 	C2_PRE(vec);
@@ -118,7 +118,8 @@ void c2_vector_print(const struct c2_vector *vec)
 	C2_LOG(C2_DEBUG, "\n");
 }
 
-void c2_matrix_swap_row(struct c2_matrix *m, uint32_t r0, uint32_t r1)
+C2_INTERNAL void c2_matrix_swap_row(struct c2_matrix *m, uint32_t r0,
+				    uint32_t r1)
 {
 	c2_parity_elem_t *temp;
 	C2_PRE(r0 < m->m_height && r1 < m->m_height);
@@ -128,7 +129,8 @@ void c2_matrix_swap_row(struct c2_matrix *m, uint32_t r0, uint32_t r1)
 	m->m_matrix[r1] = temp;
 }
 
-void c2_vector_swap_row(struct c2_vector *v, uint32_t r0, uint32_t r1)
+C2_INTERNAL void c2_vector_swap_row(struct c2_vector *v, uint32_t r0,
+				    uint32_t r1)
 {
 	c2_parity_elem_t temp;
 	C2_PRE(r0 < v->v_size && r1 < v->v_size);
@@ -138,8 +140,9 @@ void c2_vector_swap_row(struct c2_vector *v, uint32_t r0, uint32_t r1)
 	v->v_vector[r1] = temp;
 }
 
-void c2_matrix_row_operate(struct c2_matrix *m, uint32_t row, c2_parity_elem_t c,
-			   c2_vector_matrix_binary_operator_t f)
+C2_INTERNAL void c2_matrix_row_operate(struct c2_matrix *m, uint32_t row,
+				       c2_parity_elem_t c,
+				       c2_vector_matrix_binary_operator_t f)
 {
 	uint32_t x;
 	C2_PRE(m);
@@ -150,8 +153,9 @@ void c2_matrix_row_operate(struct c2_matrix *m, uint32_t row, c2_parity_elem_t c
 	}
 }
 
-void c2_vector_row_operate(struct c2_vector *v, uint32_t row, c2_parity_elem_t c,
-			   c2_vector_matrix_binary_operator_t f)
+C2_INTERNAL void c2_vector_row_operate(struct c2_vector *v, uint32_t row,
+				       c2_parity_elem_t c,
+				       c2_vector_matrix_binary_operator_t f)
 {
 	c2_parity_elem_t *e = c2_vector_elem_get(v, row);
 	C2_PRE(v);
@@ -159,10 +163,13 @@ void c2_vector_row_operate(struct c2_vector *v, uint32_t row, c2_parity_elem_t c
 	*e = f(*e, c);
 }
 
-void c2_matrix_rows_operate(struct c2_matrix *m, uint32_t row0, uint32_t row1,
-			    c2_vector_matrix_binary_operator_t f0, c2_parity_elem_t c0,
-			    c2_vector_matrix_binary_operator_t f1, c2_parity_elem_t c1,
-			    c2_vector_matrix_binary_operator_t f)
+C2_INTERNAL void c2_matrix_rows_operate(struct c2_matrix *m, uint32_t row0,
+					uint32_t row1,
+					c2_vector_matrix_binary_operator_t f0,
+					c2_parity_elem_t c0,
+					c2_vector_matrix_binary_operator_t f1,
+					c2_parity_elem_t c1,
+					c2_vector_matrix_binary_operator_t f)
 {
 	uint32_t x;
 	C2_PRE(m);
@@ -174,9 +181,11 @@ void c2_matrix_rows_operate(struct c2_matrix *m, uint32_t row0, uint32_t row1,
 	}
 }
 
-void c2_matrix_rows_operate2(struct c2_matrix *m, uint32_t row0, uint32_t row1,
-			     c2_vector_matrix_binary_operator_t f0, c2_parity_elem_t c0,
-			     c2_vector_matrix_binary_operator_t f)
+C2_INTERNAL void c2_matrix_rows_operate2(struct c2_matrix *m, uint32_t row0,
+					 uint32_t row1,
+					 c2_vector_matrix_binary_operator_t f0,
+					 c2_parity_elem_t c0,
+					 c2_vector_matrix_binary_operator_t f)
 {
 	uint32_t x;
 	C2_PRE(m);
@@ -188,9 +197,11 @@ void c2_matrix_rows_operate2(struct c2_matrix *m, uint32_t row0, uint32_t row1,
 	}
 }
 
-void c2_matrix_rows_operate1(struct c2_matrix *m, uint32_t row0, uint32_t row1,
-			     c2_vector_matrix_binary_operator_t f1, c2_parity_elem_t c1,
-			     c2_vector_matrix_binary_operator_t f)
+C2_INTERNAL void c2_matrix_rows_operate1(struct c2_matrix *m, uint32_t row0,
+					 uint32_t row1,
+					 c2_vector_matrix_binary_operator_t f1,
+					 c2_parity_elem_t c1,
+					 c2_vector_matrix_binary_operator_t f)
 {
 	uint32_t x;
 	C2_PRE(m);
@@ -202,10 +213,13 @@ void c2_matrix_rows_operate1(struct c2_matrix *m, uint32_t row0, uint32_t row1,
 	}
 }
 
-void c2_matrix_cols_operate(struct c2_matrix *m, uint32_t col0, uint32_t col1,
-			    c2_vector_matrix_binary_operator_t f0, c2_parity_elem_t c0,
-			    c2_vector_matrix_binary_operator_t f1, c2_parity_elem_t c1,
-			    c2_vector_matrix_binary_operator_t f)
+C2_INTERNAL void c2_matrix_cols_operate(struct c2_matrix *m, uint32_t col0,
+					uint32_t col1,
+					c2_vector_matrix_binary_operator_t f0,
+					c2_parity_elem_t c0,
+					c2_vector_matrix_binary_operator_t f1,
+					c2_parity_elem_t c1,
+					c2_vector_matrix_binary_operator_t f)
 {
 	uint32_t y;
 
@@ -218,8 +232,9 @@ void c2_matrix_cols_operate(struct c2_matrix *m, uint32_t col0, uint32_t col1,
 	}
 }
 
-void c2_matrix_col_operate(struct c2_matrix *m, uint32_t col, c2_parity_elem_t c,
-			   c2_vector_matrix_binary_operator_t f)
+C2_INTERNAL void c2_matrix_col_operate(struct c2_matrix *m, uint32_t col,
+				       c2_parity_elem_t c,
+				       c2_vector_matrix_binary_operator_t f)
 {
 	uint32_t y;
 	C2_PRE(m);
@@ -230,10 +245,13 @@ void c2_matrix_col_operate(struct c2_matrix *m, uint32_t col, c2_parity_elem_t c
 	}
 }
 
-void c2_vector_rows_operate(struct c2_vector *v, uint32_t row0, uint32_t row1,
-			    c2_vector_matrix_binary_operator_t f0, c2_parity_elem_t c0,
-			    c2_vector_matrix_binary_operator_t f1, c2_parity_elem_t c1,
-			    c2_vector_matrix_binary_operator_t f)
+C2_INTERNAL void c2_vector_rows_operate(struct c2_vector *v, uint32_t row0,
+					uint32_t row1,
+					c2_vector_matrix_binary_operator_t f0,
+					c2_parity_elem_t c0,
+					c2_vector_matrix_binary_operator_t f1,
+					c2_parity_elem_t c1,
+					c2_vector_matrix_binary_operator_t f)
 {
 	c2_parity_elem_t *e0;
 	c2_parity_elem_t *e1;
@@ -245,9 +263,11 @@ void c2_vector_rows_operate(struct c2_vector *v, uint32_t row0, uint32_t row1,
 	*e0 = f(f0(*e0, c0), f1(*e1, c1));
 }
 
-void c2_vector_rows_operate1(struct c2_vector *v, uint32_t row0, uint32_t row1,
-			     c2_vector_matrix_binary_operator_t f1, c2_parity_elem_t c1,
-			     c2_vector_matrix_binary_operator_t f)
+C2_INTERNAL void c2_vector_rows_operate1(struct c2_vector *v, uint32_t row0,
+					 uint32_t row1,
+					 c2_vector_matrix_binary_operator_t f1,
+					 c2_parity_elem_t c1,
+					 c2_vector_matrix_binary_operator_t f)
 {
 	c2_parity_elem_t *e0;
 	c2_parity_elem_t *e1;
@@ -259,9 +279,11 @@ void c2_vector_rows_operate1(struct c2_vector *v, uint32_t row0, uint32_t row1,
 	*e0 = f(*e0, f1(*e1, c1));
 }
 
-void c2_vector_rows_operate2(struct c2_vector *v, uint32_t row0, uint32_t row1,
-			     c2_vector_matrix_binary_operator_t f0, c2_parity_elem_t c0,
-			     c2_vector_matrix_binary_operator_t f)
+C2_INTERNAL void c2_vector_rows_operate2(struct c2_vector *v, uint32_t row0,
+					 uint32_t row1,
+					 c2_vector_matrix_binary_operator_t f0,
+					 c2_parity_elem_t c0,
+					 c2_vector_matrix_binary_operator_t f)
 {
 	c2_parity_elem_t *e0;
 	c2_parity_elem_t *e1;
@@ -274,9 +296,11 @@ void c2_vector_rows_operate2(struct c2_vector *v, uint32_t row0, uint32_t row1,
 }
 
 
-void c2_matrix_vec_multiply(struct c2_matrix *m, struct c2_vector *v, struct c2_vector *r,
-			    c2_vector_matrix_binary_operator_t mul,
-			    c2_vector_matrix_binary_operator_t add)
+C2_INTERNAL void c2_matrix_vec_multiply(struct c2_matrix *m,
+					struct c2_vector *v,
+					struct c2_vector *r,
+					c2_vector_matrix_binary_operator_t mul,
+					c2_vector_matrix_binary_operator_t add)
 {
 	uint32_t y;
 	uint32_t x;
@@ -296,8 +320,9 @@ void c2_matrix_vec_multiply(struct c2_matrix *m, struct c2_vector *v, struct c2_
 	}
 }
 
-void c2_matrix_get_submatrix(struct c2_matrix *mat, struct c2_matrix *submat,
-			     uint32_t x_off, uint32_t y_off)
+C2_INTERNAL void c2_matrix_get_submatrix(struct c2_matrix *mat,
+					 struct c2_matrix *submat,
+					 uint32_t x_off, uint32_t y_off)
 {
 	uint32_t x;
 	uint32_t y;

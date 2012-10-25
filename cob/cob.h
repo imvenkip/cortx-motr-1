@@ -264,16 +264,19 @@ struct c2_cob_domain {
         struct c2_addb_ctx      cd_addb;
 };
 
-int c2_cob_domain_init(struct c2_cob_domain *dom, struct c2_dbenv *env,
-                       struct c2_cob_domain_id *id);
-void c2_cob_domain_fini(struct c2_cob_domain *dom);
+C2_INTERNAL int c2_cob_domain_init(struct c2_cob_domain *dom,
+				   struct c2_dbenv *env,
+				   struct c2_cob_domain_id *id);
+C2_INTERNAL void c2_cob_domain_fini(struct c2_cob_domain *dom);
 
 /**
  * Prepare storage before using. Create root cob for session objects and
  * root for files hierarchy.
  */
-int c2_cob_domain_mkfs(struct c2_cob_domain *dom, const struct c2_fid *rootfid,
-                       const struct c2_fid *sessfid, struct c2_db_tx *tx);
+C2_INTERNAL int c2_cob_domain_mkfs(struct c2_cob_domain *dom,
+				   const struct c2_fid *rootfid,
+				   const struct c2_fid *sessfid,
+				   struct c2_db_tx *tx);
 
 /**
  * Flags for cob attributes.
@@ -329,13 +332,13 @@ struct c2_cob_nskey {
         struct c2_bitstring cnk_name;
 };
 
-size_t c2_cob_nskey_size(const struct c2_cob_nskey *nskey);
+C2_INTERNAL size_t c2_cob_nskey_size(const struct c2_cob_nskey *nskey);
 
 /**
  * Compare two keys. Return: k0 > k1: +1, k0 < k1: -1, 0 - otherwise.
  */
-int c2_cob_nskey_cmp(const struct c2_cob_nskey *k0,
-                     const struct c2_cob_nskey *k1);
+C2_INTERNAL int c2_cob_nskey_cmp(const struct c2_cob_nskey *k0,
+				 const struct c2_cob_nskey *k1);
 
 /**
  * Namespace table record "value" part. For each file there may exist
@@ -519,11 +522,10 @@ enum c2_cob_flags {
  *
  * @see c2_cob_locate
  */
-int c2_cob_lookup(struct c2_cob_domain *dom,
-                  struct c2_cob_nskey  *nskey,
-                  uint64_t              flags,
-                  struct c2_cob       **out,
-                  struct c2_db_tx      *tx);
+C2_INTERNAL int c2_cob_lookup(struct c2_cob_domain *dom,
+			      struct c2_cob_nskey *nskey,
+			      uint64_t flags,
+			      struct c2_cob **out, struct c2_db_tx *tx);
 
 /**
  * Locate cob by object index key.
@@ -540,11 +542,10 @@ int c2_cob_lookup(struct c2_cob_domain *dom,
  *
  * @see c2_cob_lookup
  */
-int c2_cob_locate(struct c2_cob_domain    *dom,
-                  struct c2_cob_oikey     *oikey,
-                  uint64_t                 flags,
-                  struct c2_cob          **out,
-                  struct c2_db_tx         *tx);
+C2_INTERNAL int c2_cob_locate(struct c2_cob_domain *dom,
+			      struct c2_cob_oikey *oikey,
+			      uint64_t flags,
+			      struct c2_cob **out, struct c2_db_tx *tx);
 
 /**
  * Add a cob to the namespace.
@@ -559,12 +560,12 @@ int c2_cob_locate(struct c2_cob_domain    *dom,
  * @param omgrec owner/mode/group record
  * @param tx     transaction handle
  */
-int c2_cob_create(struct c2_cob         *cob,
-                  struct c2_cob_nskey   *nskey,
-                  struct c2_cob_nsrec   *nsrec,
-                  struct c2_cob_fabrec  *fabrec,
-                  struct c2_cob_omgrec  *omgrec,
-                  struct c2_db_tx       *tx);
+C2_INTERNAL int c2_cob_create(struct c2_cob *cob,
+			      struct c2_cob_nskey *nskey,
+			      struct c2_cob_nsrec *nsrec,
+			      struct c2_cob_fabrec *fabrec,
+			      struct c2_cob_omgrec *omgrec,
+			      struct c2_db_tx *tx);
 
 /**
  * Delete name with stat data, entry in object index and all file
@@ -573,8 +574,7 @@ int c2_cob_create(struct c2_cob         *cob,
  * @param cob this cob will be deleted
  * @param tx db transaction to use
  */
-int c2_cob_delete(struct c2_cob *cob,
-                  struct c2_db_tx *tx);
+C2_INTERNAL int c2_cob_delete(struct c2_cob *cob, struct c2_db_tx *tx);
 
 /**
  * Update file attributes of passed cob with @nsrec, @fabrec
@@ -586,11 +586,11 @@ int c2_cob_delete(struct c2_cob *cob,
  * @param omgrec omg record to store or null
  * @param tx     db transaction to be used
  */
-int c2_cob_update(struct c2_cob        *cob,
-                  struct c2_cob_nsrec  *nsrec,
-                  struct c2_cob_fabrec *fabrec,
-                  struct c2_cob_omgrec *omgrec,
-                  struct c2_db_tx      *tx);
+C2_INTERNAL int c2_cob_update(struct c2_cob *cob,
+			      struct c2_cob_nsrec *nsrec,
+			      struct c2_cob_fabrec *fabrec,
+			      struct c2_cob_omgrec *omgrec,
+			      struct c2_db_tx *tx);
 
 /**
  * Add name to namespace and object index.
@@ -599,10 +599,10 @@ int c2_cob_update(struct c2_cob        *cob,
  * @param nsrec nsrec that will be added;
  * @param tx    transaction handle.
  */
-int c2_cob_name_add(struct c2_cob        *cob,
-                    struct c2_cob_nskey  *nskey,
-                    struct c2_cob_nsrec  *nsrec,
-                    struct c2_db_tx      *tx);
+C2_INTERNAL int c2_cob_name_add(struct c2_cob *cob,
+				struct c2_cob_nskey *nskey,
+				struct c2_cob_nsrec *nsrec,
+				struct c2_db_tx *tx);
 
 /**
  * Delete name from namespace and object index.
@@ -611,9 +611,9 @@ int c2_cob_name_add(struct c2_cob        *cob,
  * @param nskey name to kill (may be the name of statdata);
  * @param tx    transaction handle.
  */
-int c2_cob_name_del(struct c2_cob        *cob,
-                    struct c2_cob_nskey  *nskey,
-                    struct c2_db_tx      *tx);
+C2_INTERNAL int c2_cob_name_del(struct c2_cob *cob,
+				struct c2_cob_nskey *nskey,
+				struct c2_db_tx *tx);
 
 /**
  * Rename old record with new record.
@@ -623,46 +623,45 @@ int c2_cob_name_del(struct c2_cob        *cob,
  * @param tgtkey target name;
  * @param tx     transaction handle
 */
-int c2_cob_name_update(struct c2_cob        *cob,
-                       struct c2_cob_nskey  *srckey,
-                       struct c2_cob_nskey  *tgtkey,
-                       struct c2_db_tx      *tx);
+C2_INTERNAL int c2_cob_name_update(struct c2_cob *cob,
+				   struct c2_cob_nskey *srckey,
+				   struct c2_cob_nskey *tgtkey,
+				   struct c2_db_tx *tx);
 
 /**
  * Init cob iterator on passed @cob and @name as a start position.
  */
-int c2_cob_iterator_init(struct c2_cob          *cob,
-                         struct c2_cob_iterator *it,
-                         struct c2_bitstring    *name,
-                         struct c2_db_tx        *tx);
+C2_INTERNAL int c2_cob_iterator_init(struct c2_cob *cob,
+				     struct c2_cob_iterator *it,
+				     struct c2_bitstring *name,
+				     struct c2_db_tx *tx);
 
 /**
  * Position to next name in a dir cob.
  */
-int c2_cob_iterator_next(struct c2_cob_iterator *it);
+C2_INTERNAL int c2_cob_iterator_next(struct c2_cob_iterator *it);
 
 /**
  * Position in table according with @it properties.
  */
-int c2_cob_iterator_get(struct c2_cob_iterator *it);
+C2_INTERNAL int c2_cob_iterator_get(struct c2_cob_iterator *it);
 
 /**
  * Finish cob iterator.
  */
-void c2_cob_iterator_fini(struct c2_cob_iterator *it);
+C2_INTERNAL void c2_cob_iterator_fini(struct c2_cob_iterator *it);
 
 /**
  * Allocate a new cob on passed @dom.
  */
-int c2_cob_alloc(struct c2_cob_domain *dom,
-                 struct c2_cob       **out);
+C2_INTERNAL int c2_cob_alloc(struct c2_cob_domain *dom, struct c2_cob **out);
 
 /**
  * Acquires an additional reference on the object.
  *
  * @see c2_cob_put()
  */
-void c2_cob_get(struct c2_cob *obj);
+C2_INTERNAL void c2_cob_get(struct c2_cob *obj);
 
 /**
  * Releases a reference on the object.
@@ -672,40 +671,37 @@ void c2_cob_get(struct c2_cob *obj);
  *
  * @see c2_cob_get()
  */
-void c2_cob_put(struct c2_cob *obj);
+C2_INTERNAL void c2_cob_put(struct c2_cob *obj);
 
 /**
  * Create object index key that is used for operations on object index table.
  * It consists of object fid an linkno depending on what record we want to
  * find.
  */
-void c2_cob_oikey_make(struct c2_cob_oikey *oikey,
-                       const struct c2_fid *fid,
-                       int linkno);
+C2_INTERNAL void c2_cob_oikey_make(struct c2_cob_oikey *oikey,
+				   const struct c2_fid *fid, int linkno);
 
 /**
  * Create namespace table key for ns table manipulation. It contains parent fid
  * and child name.
  */
-int c2_cob_nskey_make(struct c2_cob_nskey **keyh,
-                      const struct c2_fid *pfid,
-                      const char *name,
-                      size_t namelen);
+C2_INTERNAL int c2_cob_nskey_make(struct c2_cob_nskey **keyh,
+				  const struct c2_fid *pfid,
+				  const char *name, size_t namelen);
 
 /**
  * Allocate fabrec record according with @link and @linklen and setup record
  * fields.
  */
-int c2_cob_fabrec_make(struct c2_cob_fabrec **rech,
-                       const char *link, size_t linklen);
+C2_INTERNAL int c2_cob_fabrec_make(struct c2_cob_fabrec **rech,
+				   const char *link, size_t linklen);
 
 /**
  * Try to allocate new omgid using omg table and terminator record. Save
  * allocated id in @omgid if not NULL.
  */
-int c2_cob_alloc_omgid(struct c2_cob_domain *dom,
-                       struct c2_db_tx *tx,
-                       uint64_t *omgid);
+C2_INTERNAL int c2_cob_alloc_omgid(struct c2_cob_domain *dom,
+				   struct c2_db_tx *tx, uint64_t * omgid);
 
 /** @} end group cob */
 

@@ -29,9 +29,9 @@
  @{
 */
 
-bool c2_net__ep_invariant(struct c2_net_end_point   *ep,
-			  struct c2_net_transfer_mc *tm,
-			  bool                       under_tm_mutex)
+C2_INTERNAL bool c2_net__ep_invariant(struct c2_net_end_point *ep,
+				      struct c2_net_transfer_mc *tm,
+				      bool under_tm_mutex)
 {
 	if (ep == NULL)
 		return false;
@@ -49,9 +49,9 @@ bool c2_net__ep_invariant(struct c2_net_end_point   *ep,
 	return true;
 }
 
-int c2_net_end_point_create(struct c2_net_end_point  **epp,
-			    struct c2_net_transfer_mc *tm,
-			    const char                *addr)
+C2_INTERNAL int c2_net_end_point_create(struct c2_net_end_point **epp,
+					struct c2_net_transfer_mc *tm,
+					const char *addr)
 {
 	int rc;
 	struct c2_net_domain *dom;
@@ -83,7 +83,7 @@ int c2_net_end_point_create(struct c2_net_end_point  **epp,
 }
 C2_EXPORTED(c2_net_end_point_create);
 
-void c2_net_end_point_get(struct c2_net_end_point *ep)
+C2_INTERNAL void c2_net_end_point_get(struct c2_net_end_point *ep)
 {
 	struct c2_ref *ref = &ep->nep_ref;
 	C2_PRE(ep != NULL);
@@ -93,7 +93,7 @@ void c2_net_end_point_get(struct c2_net_end_point *ep)
 }
 C2_EXPORTED(c2_net_end_point_get);
 
-void c2_net_end_point_put(struct c2_net_end_point *ep)
+C2_INTERNAL void c2_net_end_point_put(struct c2_net_end_point *ep)
 {
 	struct c2_ref *ref = &ep->nep_ref;
 	struct c2_net_transfer_mc *tm;

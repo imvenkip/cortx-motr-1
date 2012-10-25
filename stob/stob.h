@@ -92,14 +92,14 @@ struct c2_stob_type_op {
 				 struct c2_stob_domain **dom);
 };
 
-int  c2_stob_type_init(struct c2_stob_type *kind);
-void c2_stob_type_fini(struct c2_stob_type *kind);
+C2_INTERNAL int c2_stob_type_init(struct c2_stob_type *kind);
+C2_INTERNAL void c2_stob_type_fini(struct c2_stob_type *kind);
 
 #define C2_STOB_TYPE_OP(type, op, ...) (type)->st_op->op((type) , ## __VA_ARGS__)
 
-int c2_stob_domain_locate(struct c2_stob_type *type,
-			  const char *domain_name,
-			  struct c2_stob_domain **dom);
+C2_INTERNAL int c2_stob_domain_locate(struct c2_stob_type *type,
+				      const char *domain_name,
+				      struct c2_stob_domain **dom);
 /**
    stob domain
 
@@ -152,8 +152,9 @@ struct c2_stob_domain_op {
 	uint32_t (*sdo_block_shift)(struct c2_stob_domain *stob_domain);
 };
 
-void c2_stob_domain_init(struct c2_stob_domain *dom, struct c2_stob_type *t);
-void c2_stob_domain_fini(struct c2_stob_domain *dom);
+C2_INTERNAL void c2_stob_domain_init(struct c2_stob_domain *dom,
+				     struct c2_stob_type *t);
+C2_INTERNAL void c2_stob_domain_fini(struct c2_stob_domain *dom);
 
 /**
    c2_stob state specifying its relationship with the underlying storage object.
@@ -312,16 +313,16 @@ struct c2_stob_op {
 
    On success, this function acquires a reference on the returned object.
  */
-int  c2_stob_find  (struct c2_stob_domain *dom, const struct c2_stob_id *id,
-		    struct c2_stob **out);
+C2_INTERNAL int c2_stob_find(struct c2_stob_domain *dom,
+			     const struct c2_stob_id *id, struct c2_stob **out);
 /**
    Initialise generic c2_stob fields.
 
    @post obj->so_state == CSS_UNKNOWN
  */
-void c2_stob_init  (struct c2_stob *obj, const struct c2_stob_id *id,
-		    struct c2_stob_domain *dom);
-void c2_stob_fini  (struct c2_stob *obj);
+C2_INTERNAL void c2_stob_init(struct c2_stob *obj, const struct c2_stob_id *id,
+			      struct c2_stob_domain *dom);
+C2_INTERNAL void c2_stob_fini(struct c2_stob *obj);
 
 /**
    Locate a storage object for this c2_stob.
@@ -330,7 +331,7 @@ void c2_stob_fini  (struct c2_stob *obj);
    @post ergo(result == 0, stob->so_state == CSS_EXISTS)
    @post ergo(result == -ENOENT, stob->so_state == CSS_NOENT)
  */
-int  c2_stob_locate(struct c2_stob *obj, struct c2_dtx *tx);
+C2_INTERNAL int c2_stob_locate(struct c2_stob *obj, struct c2_dtx *tx);
 
 /**
    Create an object.
@@ -340,7 +341,7 @@ int  c2_stob_locate(struct c2_stob *obj, struct c2_dtx *tx);
    @return 0 success, other values mean error.
    @post ergo(result == 0, stob->so_state == CSS_EXISTS)
  */
-int  c2_stob_create(struct c2_stob *obj, struct c2_dtx *tx);
+C2_INTERNAL int c2_stob_create(struct c2_stob *obj, struct c2_dtx *tx);
 
 /**
    Acquires an additional reference on the object.
@@ -348,7 +349,7 @@ int  c2_stob_create(struct c2_stob *obj, struct c2_dtx *tx);
    @see c2_stob_put()
    @see c2_stob_find()
  */
-void c2_stob_get(struct c2_stob *obj);
+C2_INTERNAL void c2_stob_get(struct c2_stob *obj);
 
 /**
    Releases a reference on the object.
@@ -361,7 +362,7 @@ void c2_stob_get(struct c2_stob *obj);
    @see c2_stob_get()
    @see c2_stob_find()
  */
-void c2_stob_put(struct c2_stob *obj);
+C2_INTERNAL void c2_stob_put(struct c2_stob *obj);
 
 /**
  * A helper function to create a new stob, if one doesn't exists.
@@ -374,10 +375,10 @@ void c2_stob_put(struct c2_stob *obj);
  *
  * If object existed of was created successfully, it is stored in "out".
  */
-int c2_stob_create_helper(struct c2_stob_domain    *dom,
-			  struct c2_dtx            *dtx,
-			  const struct c2_stob_id  *stob_id,
-			  struct c2_stob          **out);
+C2_INTERNAL int c2_stob_create_helper(struct c2_stob_domain *dom,
+				      struct c2_dtx *dtx,
+				      const struct c2_stob_id *stob_id,
+				      struct c2_stob **out);
 
 /**
    @name adieu
@@ -725,12 +726,12 @@ struct c2_stob_io_op {
 /**
    @post io->si_state == SIS_IDLE
  */
-void c2_stob_io_init  (struct c2_stob_io *io);
+C2_INTERNAL void c2_stob_io_init(struct c2_stob_io *io);
 
 /**
    @pre io->si_state == SIS_IDLE
  */
-void c2_stob_io_fini  (struct c2_stob_io *io);
+C2_INTERNAL void c2_stob_io_fini(struct c2_stob_io *io);
 
 /**
    @pre obj->so_state == CSS_EXISTS
@@ -747,38 +748,38 @@ void c2_stob_io_fini  (struct c2_stob_io *io);
    finishes. Because of this no post-conditions for io->si_state are imposed in
    the successful return case.
  */
-int  c2_stob_io_launch (struct c2_stob_io *io, struct c2_stob *obj,
-			struct c2_dtx *tx, struct c2_io_scope *scope);
+C2_INTERNAL int c2_stob_io_launch(struct c2_stob_io *io, struct c2_stob *obj,
+				  struct c2_dtx *tx, struct c2_io_scope *scope);
 
 /**
    Returns true if user is a valid vector of user IO buffers.
  */
-bool c2_stob_io_user_is_valid(const struct c2_bufvec *user);
+C2_INTERNAL bool c2_stob_io_user_is_valid(const struct c2_bufvec *user);
 /**
    Returns true if stob is a valid vector of target IO extents.
  */
-bool c2_stob_io_stob_is_valid(const struct c2_indexvec *stob);
+C2_INTERNAL bool c2_stob_io_stob_is_valid(const struct c2_indexvec *stob);
 
 /**
    Scale buffer address into block-sized units.
 
    @see c2_stob_addr_open()
  */
-void *c2_stob_addr_pack(const void *buf, uint32_t shift);
+C2_INTERNAL void *c2_stob_addr_pack(const void *buf, uint32_t shift);
 
 /**
    Scale buffer address back from block-sized units.
 
    @see c2_stob_addr_pack()
  */
-void *c2_stob_addr_open(const void *buf, uint32_t shift);
+C2_INTERNAL void *c2_stob_addr_open(const void *buf, uint32_t shift);
 
 /**
  * Sorts index vecs from stob. It also move buffer vecs while sorting.
  *
  * @param stob storage object from which index vecs needs to sort.
  */
-void c2_stob_iovec_sort(struct c2_stob_io *stob);
+C2_INTERNAL void c2_stob_iovec_sort(struct c2_stob_io *stob);
 
 /** @} end member group adieu */
 

@@ -454,7 +454,8 @@ static void tm_provision_recv_q(struct c2_net_transfer_mc *tm)
 	return;
 }
 
-void c2_net_domain_buffer_pool_not_empty(struct c2_net_buffer_pool *pool)
+C2_INTERNAL void c2_net_domain_buffer_pool_not_empty(struct c2_net_buffer_pool
+						     *pool)
 {
 	struct c2_net_domain	  *dom;
 	struct c2_net_transfer_mc *tm;
@@ -477,7 +478,7 @@ void c2_net_domain_buffer_pool_not_empty(struct c2_net_buffer_pool *pool)
 }
 C2_EXPORTED(c2_net_domain_buffer_pool_not_empty);
 
-void c2_net__tm_provision_recv_q(struct c2_net_transfer_mc *tm)
+C2_INTERNAL void c2_net__tm_provision_recv_q(struct c2_net_transfer_mc *tm)
 {
 	C2_PRE(c2_mutex_is_not_locked(&tm->ntm_mutex));
 	C2_PRE(tm->ntm_callback_counter > 0);

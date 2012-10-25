@@ -288,7 +288,7 @@ extern const struct c2_rpc_frm_ops c2_rpc_frm_default_ops;
    Load default values for various constraints, that just works.
    Useful for unit tests.
  */
-void
+C2_INTERNAL void
 c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *constraint);
 
 /**
@@ -299,9 +299,9 @@ c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *constraint);
    @pre  frm->f_state == FRM_UNINITIALISED
    @post frm->f_state == FRM_IDLE
  */
-void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
-		     struct c2_rpc_frm_constraints *constraints,
-		     const struct c2_rpc_frm_ops   *ops);
+C2_INTERNAL void c2_rpc_frm_init(struct c2_rpc_frm *frm,
+				 struct c2_rpc_frm_constraints *constraints,
+				 const struct c2_rpc_frm_ops *ops);
 
 /**
    Finalises c2_rpc_frm instance.
@@ -309,37 +309,37 @@ void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
    @pre  frm->f_state == FRM_IDLE
    @post frm->f_state == FRM_UNINITIALISED
  */
-void c2_rpc_frm_fini(struct c2_rpc_frm *frm);
+C2_INTERNAL void c2_rpc_frm_fini(struct c2_rpc_frm *frm);
 
 /**
    Enqueue an item for sending.
  */
-void c2_rpc_frm_enq_item(struct c2_rpc_frm  *frm,
-			 struct c2_rpc_item *item);
-
-void c2_rpc_frm_item_deadline_passed(struct c2_rpc_frm  *frm,
+C2_INTERNAL void c2_rpc_frm_enq_item(struct c2_rpc_frm *frm,
 				     struct c2_rpc_item *item);
+
+C2_INTERNAL void c2_rpc_frm_item_deadline_passed(struct c2_rpc_frm *frm,
+						 struct c2_rpc_item *item);
 
 /**
    Callback for a packet which was previously enqueued.
  */
-void c2_rpc_frm_packet_done(struct c2_rpc_packet *packet);
+C2_INTERNAL void c2_rpc_frm_packet_done(struct c2_rpc_packet *packet);
 
 /**
    Runs formation algorithm.
  */
-void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm);
+C2_INTERNAL void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm);
 
-struct c2_rpc_frm *session_frm(const struct c2_rpc_session *s);
+C2_INTERNAL struct c2_rpc_frm *session_frm(const struct c2_rpc_session *s);
 
 C2_TL_DESCR_DECLARE(itemq, extern);
 C2_TL_DECLARE(itemq, extern, struct c2_rpc_item);
 
-struct c2_rpc_chan    *frm_rchan(const struct c2_rpc_frm *frm);
-struct c2_rpc_machine *frm_rmachine(const struct c2_rpc_frm *frm);
+C2_INTERNAL struct c2_rpc_chan *frm_rchan(const struct c2_rpc_frm *frm);
+C2_INTERNAL struct c2_rpc_machine *frm_rmachine(const struct c2_rpc_frm *frm);
 
-bool item_is_in_waiting_queue(const struct c2_rpc_item *item,
-			      const struct c2_rpc_frm  *frm);
+C2_INTERNAL bool item_is_in_waiting_queue(const struct c2_rpc_item *item,
+					  const struct c2_rpc_frm *frm);
 
 /** @} */
 #endif /* __COLIBRI_RPC_FORMATION2_H__ */

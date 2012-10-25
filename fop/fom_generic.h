@@ -189,10 +189,10 @@ enum c2_fom_standard_phase {
    @todo standard fom phases implementation, depends on the support routines for
 	handling various standard operations on fop as mentioned above
  */
-int c2_fom_tick_generic(struct c2_fom *fom);
+C2_INTERNAL int c2_fom_tick_generic(struct c2_fom *fom);
 
-void c2_fom_generic_fini(void);
-int  c2_fom_generic_init(void);
+C2_INTERNAL void c2_fom_generic_fini(void);
+C2_INTERNAL int c2_fom_generic_init(void);
 
 extern const struct c2_sm_conf c2_generic_conf;
 

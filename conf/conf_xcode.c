@@ -94,8 +94,8 @@ static void *confx_alloc(struct c2_xcode_cursor *ctx __attribute__((unused)),
 	return c2_alloc(nob);
 }
 
-int c2_confx_decode(struct c2_conf_xcode_pair *kv,
-		    struct confx_object *obj_out)
+C2_INTERNAL int c2_confx_decode(struct c2_conf_xcode_pair *kv,
+				struct confx_object *obj_out)
 {
 	struct c2_xcode_ctx ctx;
 	struct c2_bufvec    bvec = C2_BUFVEC_INIT_BUF(&kv->xp_val.b_addr,
@@ -154,8 +154,8 @@ int c2_confx_decode(struct c2_conf_xcode_pair *kv,
 	return result;
 }
 
-int c2_confx_encode(struct confx_object *obj,
-		    struct c2_conf_xcode_pair *out_kv)
+C2_INTERNAL int c2_confx_encode(struct confx_object *obj,
+				struct c2_conf_xcode_pair *out_kv)
 {
 	void                *vec;
 	c2_bcount_t          count;
@@ -191,13 +191,13 @@ int c2_confx_encode(struct confx_object *obj,
 	return 0;
 }
 
-int c2_confx_types_init(void)
+C2_INTERNAL int c2_confx_types_init(void)
 {
 	c2_xc_onwire_init();
 	return 0;
 }
 
-void c2_confx_types_fini(void)
+C2_INTERNAL void c2_confx_types_fini(void)
 {
 	c2_xc_onwire_fini();
 }
@@ -306,8 +306,8 @@ tab_fini:
 	return result;
 }
 
-int c2_confx_db_create(const char *db_name,
-		       struct confx_object *obj, size_t obj_nr)
+C2_INTERNAL int c2_confx_db_create(const char *db_name,
+				   struct confx_object *obj, size_t obj_nr)
 {
 	struct c2_dbenv   db;
         struct c2_table	  table[ARRAY_SIZE(db_tables)];
@@ -415,7 +415,7 @@ static int c2_confx_db_obj_count(struct c2_table *tables, struct c2_db_tx *tx)
 	return result == 0 ? obj_nr : result;
 }
 
-int c2_confx_db_read(const char *db_name, struct confx_object **obj)
+C2_INTERNAL int c2_confx_db_read(const char *db_name, struct confx_object **obj)
 {
 	struct c2_dbenv		  db;
         struct c2_table		  tables[ARRAY_SIZE(db_tables)];

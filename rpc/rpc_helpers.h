@@ -35,10 +35,10 @@ enum c2_bufvec_what {
 	C2_BUFVEC_DECODE = 1,
 };
 
-int c2_rpc_item_slot_ref_encdec(struct c2_bufvec_cursor *cur,
-				struct c2_rpc_slot_ref  *slot_ref,
-				int                      nr_slot_refs,
-				enum c2_bufvec_what      what);
+C2_INTERNAL int c2_rpc_item_slot_ref_encdec(struct c2_bufvec_cursor *cur,
+					    struct c2_rpc_slot_ref *slot_ref,
+					    int nr_slot_refs,
+					    enum c2_bufvec_what what);
 
 /** @} */
 

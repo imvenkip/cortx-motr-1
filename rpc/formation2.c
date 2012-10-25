@@ -163,12 +163,12 @@ static c2_bcount_t itemq_nr_bytes_acc(const struct c2_tl *q)
 	return size;
 }
 
-struct c2_rpc_chan *frm_rchan(const struct c2_rpc_frm *frm)
+C2_INTERNAL struct c2_rpc_chan *frm_rchan(const struct c2_rpc_frm *frm)
 {
 	return container_of(frm, struct c2_rpc_chan, rc_frm);
 }
 
-struct c2_rpc_machine *frm_rmachine(const struct c2_rpc_frm *frm)
+C2_INTERNAL struct c2_rpc_machine *frm_rmachine(const struct c2_rpc_frm *frm)
 {
 	return frm_rchan(frm)->rc_rpc_machine;
 }
@@ -178,7 +178,8 @@ static bool frm_rmachine_is_locked(const struct c2_rpc_frm *frm)
 	return c2_rpc_machine_is_locked(frm_rmachine(frm));
 }
 
-void c2_rpc_frm_constraints_get_defaults(struct c2_rpc_frm_constraints *c)
+C2_INTERNAL void c2_rpc_frm_constraints_get_defaults(struct
+						     c2_rpc_frm_constraints *c)
 {
 	C2_ENTRY();
 
@@ -203,9 +204,9 @@ static bool frm_is_idle(const struct c2_rpc_frm *frm)
 	return frm->f_nr_items == 0 && frm->f_nr_packets_enqed == 0;
 }
 
-void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
-		     struct c2_rpc_frm_constraints *constraints,
-		     const struct c2_rpc_frm_ops   *ops)
+C2_INTERNAL void c2_rpc_frm_init(struct c2_rpc_frm *frm,
+				 struct c2_rpc_frm_constraints *constraints,
+				 const struct c2_rpc_frm_ops *ops)
 {
 	struct c2_tl *q;
 
@@ -231,7 +232,7 @@ void c2_rpc_frm_init(struct c2_rpc_frm             *frm,
 	C2_LEAVE();
 }
 
-void c2_rpc_frm_fini(struct c2_rpc_frm *frm)
+C2_INTERNAL void c2_rpc_frm_fini(struct c2_rpc_frm *frm)
 {
 	struct c2_tl *q;
 
@@ -251,8 +252,8 @@ void c2_rpc_frm_fini(struct c2_rpc_frm *frm)
 	C2_LEAVE();
 }
 
-void c2_rpc_frm_enq_item(struct c2_rpc_frm  *frm,
-			 struct c2_rpc_item *item)
+C2_INTERNAL void c2_rpc_frm_enq_item(struct c2_rpc_frm *frm,
+				     struct c2_rpc_item *item)
 {
 	C2_ENTRY("frm: %p item: %p", frm, item);
 	C2_PRE(frm_rmachine_is_locked(frm));
@@ -301,8 +302,8 @@ static void frm_insert(struct c2_rpc_frm *frm, struct c2_rpc_item *item)
 			(unsigned long long)frm->f_nr_bytes_accumulated);
 }
 
-bool item_is_in_waiting_queue(const struct c2_rpc_item *item,
-			      const struct c2_rpc_frm  *frm)
+C2_INTERNAL bool item_is_in_waiting_queue(const struct c2_rpc_item *item,
+					  const struct c2_rpc_frm *frm)
 {
 	return  C2_IN(item->ri_itemq, (&frm->f_itemq[FRMQ_WAITING_BOUND],
 				       &frm->f_itemq[FRMQ_WAITING_UNBOUND],
@@ -374,8 +375,8 @@ static void __itemq_insert(struct c2_tl *q, struct c2_rpc_item *new_item)
 	C2_LEAVE();
 }
 
-void c2_rpc_frm_item_deadline_passed(struct c2_rpc_frm  *frm,
-				     struct c2_rpc_item *item)
+C2_INTERNAL void c2_rpc_frm_item_deadline_passed(struct c2_rpc_frm *frm,
+						 struct c2_rpc_item *item)
 {
 	enum c2_rpc_frm_itemq_type  qtype;
 	struct c2_tl               *q;
@@ -636,7 +637,7 @@ static bool frm_packet_ready(struct c2_rpc_frm *frm, struct c2_rpc_packet *p)
 	return packet_enqed;
 }
 
-void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm)
+C2_INTERNAL void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm)
 {
 	if (C2_FI_ENABLED("do_nothing"))
 		return;
@@ -650,7 +651,7 @@ void c2_rpc_frm_run_formation(struct c2_rpc_frm *frm)
 	C2_LEAVE();
 }
 
-void c2_rpc_frm_packet_done(struct c2_rpc_packet *p)
+C2_INTERNAL void c2_rpc_frm_packet_done(struct c2_rpc_packet *p)
 {
 	struct c2_rpc_frm *frm;
 
@@ -673,7 +674,7 @@ void c2_rpc_frm_packet_done(struct c2_rpc_packet *p)
 	C2_LEAVE();
 }
 
-struct c2_rpc_frm *session_frm(const struct c2_rpc_session *s)
+C2_INTERNAL struct c2_rpc_frm *session_frm(const struct c2_rpc_session *s)
 {
 	return &s->s_conn->c_rpcchan->rc_frm;
 }

@@ -25,10 +25,9 @@
 #include "sns/parity_ops.h"
 #include "sns/ls_solve.h"
 
-void c2_linsys_init(struct c2_linsys* lynsys,
-                    struct c2_matrix* m,
-                    struct c2_vector* v,
-                    struct c2_vector* r)
+C2_INTERNAL void c2_linsys_init(struct c2_linsys *lynsys,
+				struct c2_matrix *m,
+				struct c2_vector *v, struct c2_vector *r)
 {
 	C2_PRE(m != NULL && v != NULL && r != NULL);
 	C2_PRE(m->m_height > 0 && m->m_width > 0);
@@ -39,7 +38,7 @@ void c2_linsys_init(struct c2_linsys* lynsys,
 	lynsys->l_vec = v;
 }
 
-void c2_linsys_fini(struct c2_linsys* lynsys)
+C2_INTERNAL void c2_linsys_fini(struct c2_linsys *lynsys)
 {
 	lynsys->l_mat = NULL;
 	lynsys->l_res = NULL;
@@ -118,7 +117,7 @@ static void substitute(struct c2_matrix *m, struct c2_vector *v, struct c2_vecto
 	}
 }
 
-void c2_linsys_solve(struct c2_linsys *lynsys)
+C2_INTERNAL void c2_linsys_solve(struct c2_linsys *lynsys)
 {
 	struct c2_matrix *m = lynsys->l_mat;
 	struct c2_vector *v = lynsys->l_vec;

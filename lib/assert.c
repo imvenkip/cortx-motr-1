@@ -50,7 +50,8 @@ enum {
    <execinfo.h> header (checked for by ./configure). Object files should be
    compiled with -rdynamic for this to work in the presence of dynamic linking.
  */
-void c2_panic(const char *expr, const char *func, const char *file, int lineno)
+C2_INTERNAL void c2_panic(const char *expr, const char *func, const char *file,
+			  int lineno)
 {
 	fprintf(stderr, "Assertion failure: %s at %s() %s:%i (errno: %i)\n",
 		expr, func, file, lineno, errno);

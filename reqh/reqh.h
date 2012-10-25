@@ -147,11 +147,11 @@ struct c2_reqh {
    @see c2_reqh
    @post c2_reqh_invariant()
  */
-int  c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
-                  struct c2_dbenv *db, struct c2_mdstore *mdstore,
-                  struct c2_fol *fol, struct c2_local_service *svc);
+C2_INTERNAL int c2_reqh_init(struct c2_reqh *reqh, struct c2_dtm *dtm,
+			     struct c2_dbenv *db, struct c2_mdstore *mdstore,
+			     struct c2_fol *fol, struct c2_local_service *svc);
 
-bool c2_reqh_invariant(const struct c2_reqh *reqh);
+C2_INTERNAL bool c2_reqh_invariant(const struct c2_reqh *reqh);
 
 /**
    Destructor for request handler, no fop will be further executed
@@ -161,7 +161,7 @@ bool c2_reqh_invariant(const struct c2_reqh *reqh);
 
    @pre reqh != NULL
  */
-void c2_reqh_fini(struct c2_reqh *reqh);
+C2_INTERNAL void c2_reqh_fini(struct c2_reqh *reqh);
 
 /**
    Submit fop for request handler processing.
@@ -176,7 +176,8 @@ void c2_reqh_fini(struct c2_reqh *reqh);
    @pre reqh != null
    @pre fop != null
  */
-void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop, void *cookie);
+C2_INTERNAL void c2_reqh_fop_handle(struct c2_reqh *reqh, struct c2_fop *fop,
+				    void *cookie);
 
 /**
    Waits on c2_reqh::rh_sd_signal using the given clink until
@@ -184,21 +185,21 @@ void c2_reqh_fop_handle(struct c2_reqh *reqh,  struct c2_fop *fop, void *cookie)
 
    @param reqh request handler to be shutdown
  */
-void c2_reqh_shutdown_wait(struct c2_reqh *reqh);
+C2_INTERNAL void c2_reqh_shutdown_wait(struct c2_reqh *reqh);
 
 /**
     Initializes global reqh objects like reqh fops and addb context,
     invoked from c2_init().
  */
-int c2_reqhs_init(void);
+C2_INTERNAL int c2_reqhs_init(void);
 
 /**
    Finalises global reqh objects, invoked from c2_fini().
 */
-void c2_reqhs_fini(void);
+C2_INTERNAL void c2_reqhs_fini(void);
 
 /** Returns number of localities in request handler FOM domain. */
-uint64_t c2_reqh_nr_localities(const struct c2_reqh *reqh);
+C2_INTERNAL uint64_t c2_reqh_nr_localities(const struct c2_reqh *reqh);
 
 /** Descriptor for tlist of request handler services. */
 C2_TL_DESCR_DECLARE(c2_reqh_svc, extern);
@@ -285,9 +286,10 @@ C2_TL_DECLARE(c2_reqh_rpc_mach, extern, struct c2_rpc_machine);
  */
 /** @{ reqhkey */
 
-unsigned c2_reqh_key_init(void);
-void    *c2_reqh_key_find(struct c2_reqh *reqh, unsigned key, c2_bcount_t size);
-void     c2_reqh_key_fini(struct c2_reqh *reqh, unsigned key);
+C2_INTERNAL unsigned c2_reqh_key_init(void);
+C2_INTERNAL void *c2_reqh_key_find(struct c2_reqh *reqh, unsigned key,
+				   c2_bcount_t size);
+C2_INTERNAL void c2_reqh_key_fini(struct c2_reqh *reqh, unsigned key);
 
 /** @} reqhkey */
 

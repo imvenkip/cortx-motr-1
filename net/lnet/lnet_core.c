@@ -181,8 +181,9 @@ static void nlx_core_bev_free_cb(struct nlx_core_bev_link *ql)
 	}
 }
 
-int nlx_core_bevq_provision(struct nlx_core_domain *lcdom,
-			    struct nlx_core_transfer_mc *lctm, size_t need)
+C2_INTERNAL int nlx_core_bevq_provision(struct nlx_core_domain *lcdom,
+					struct nlx_core_transfer_mc *lctm,
+					size_t need)
 {
 	size_t have;
 	int num_to_alloc;
@@ -209,7 +210,8 @@ int nlx_core_bevq_provision(struct nlx_core_domain *lcdom,
 	return rc;
 }
 
-void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm, size_t release)
+C2_INTERNAL void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm,
+				       size_t release)
 {
 	C2_PRE(nlx_core_tm_is_locked(lctm));
 	C2_PRE(release > 0);
@@ -219,8 +221,8 @@ void nlx_core_bevq_release(struct nlx_core_transfer_mc *lctm, size_t release)
 	return;
 }
 
-bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
-			    struct nlx_core_buffer_event *lcbe)
+C2_INTERNAL bool nlx_core_buf_event_get(struct nlx_core_transfer_mc *lctm,
+					struct nlx_core_buffer_event *lcbe)
 {
 	struct nlx_core_bev_link *link;
 	struct nlx_core_buffer_event *bev;
@@ -296,9 +298,9 @@ static inline uint64_t nlx_core_buf_desc_checksum(const struct nlx_core_buf_desc
 	return __cpu_to_le64(checksum);
 }
 
-void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
-			      struct nlx_core_buffer *lcbuf,
-			      struct nlx_core_buf_desc *cbd)
+C2_INTERNAL void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
+					  struct nlx_core_buffer *lcbuf,
+					  struct nlx_core_buf_desc *cbd)
 {
 	C2_PRE(nlx_core_tm_is_locked(lctm));
 	C2_PRE(nlx_core_tm_invariant(lctm));
@@ -334,9 +336,9 @@ void nlx_core_buf_desc_encode(struct nlx_core_transfer_mc *lctm,
 	return;
 }
 
-int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
-			     struct nlx_core_buffer *lcbuf,
-			     struct nlx_core_buf_desc *cbd)
+C2_INTERNAL int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
+					 struct nlx_core_buffer *lcbuf,
+					 struct nlx_core_buf_desc *cbd)
 {
 	uint64_t i64;
 	uint32_t i32;
@@ -454,12 +456,14 @@ void nlx_core_ep_addr_encode(struct nlx_core_domain *lcdom,
 		 cepa->cepa_pid, cepa->cepa_portal, cepa->cepa_tmid);
 }
 
-void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom, unsigned dbg)
+C2_INTERNAL void nlx_core_dom_set_debug(struct nlx_core_domain *lcdom,
+					unsigned dbg)
 {
 	lcdom->_debug_ = dbg;
 }
 
-void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm, unsigned dbg)
+C2_INTERNAL void nlx_core_tm_set_debug(struct nlx_core_transfer_mc *lctm,
+				       unsigned dbg)
 {
 	lctm->_debug_ = dbg;
 }

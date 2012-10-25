@@ -354,8 +354,8 @@ struct c2_reqh_service_type {
 
    @see struct c2_reqh_service_type_ops
  */
-int c2_reqh_service_allocate(struct c2_reqh_service_type *stype,
-                              struct c2_reqh_service **service);
+C2_INTERNAL int c2_reqh_service_allocate(struct c2_reqh_service_type *stype,
+					 struct c2_reqh_service **service);
 
 /**
    Searches a particular type of service by traversing global list of service
@@ -368,7 +368,8 @@ int c2_reqh_service_allocate(struct c2_reqh_service_type *stype,
    @see c2_reqh_service_init()
 
  */
-struct c2_reqh_service_type *c2_reqh_service_type_find(const char *sname);
+C2_INTERNAL struct c2_reqh_service_type *c2_reqh_service_type_find(const char
+								   *sname);
 
 /**
    Starts a particular service.
@@ -383,7 +384,7 @@ struct c2_reqh_service_type *c2_reqh_service_type_find(const char *sname);
 
    @see struct c2_reqh_service_ops
  */
-int c2_reqh_service_start(struct c2_reqh_service *service);
+C2_INTERNAL int c2_reqh_service_start(struct c2_reqh_service *service);
 
 /**
    Stops a particular service.
@@ -398,7 +399,7 @@ int c2_reqh_service_start(struct c2_reqh_service *service);
    @see struct c2_reqh_service_ops
    @see cs_service_fini()
  */
-void c2_reqh_service_stop(struct c2_reqh_service *service);
+C2_INTERNAL void c2_reqh_service_stop(struct c2_reqh_service *service);
 
 /**
    Performs generic part of service initialisation.
@@ -412,7 +413,8 @@ void c2_reqh_service_stop(struct c2_reqh_service *service);
    @see struct c2_reqh_service_type_ops
    @see cs_service_init()
  */
-void c2_reqh_service_init(struct c2_reqh_service *service, struct c2_reqh *reqh);
+C2_INTERNAL void c2_reqh_service_init(struct c2_reqh_service *service,
+				      struct c2_reqh *reqh);
 
 /**
    Performs generic part of service finalisation.
@@ -425,7 +427,7 @@ void c2_reqh_service_init(struct c2_reqh_service *service, struct c2_reqh *reqh)
    @see struct c2_reqh_service_ops
    @see cs_service_fini()
  */
-void c2_reqh_service_fini(struct c2_reqh_service *service);
+C2_INTERNAL void c2_reqh_service_fini(struct c2_reqh_service *service);
 
 #define C2_REQH_SERVICE_TYPE_DECLARE(stype, ops, name) \
 struct c2_reqh_service_type stype = {                  \
@@ -439,31 +441,34 @@ struct c2_reqh_service_type stype = {                  \
 
    @pre rstype != NULL && rstype->rst_magix == C2_RHS_MAGIC
  */
-int c2_reqh_service_type_register(struct c2_reqh_service_type *rstype);
+C2_INTERNAL int c2_reqh_service_type_register(struct c2_reqh_service_type
+					      *rstype);
 
 /**
    Unregisters a service type from a global service types list, i.e. rstypes.
 
    @pre rstype != NULL
  */
-void c2_reqh_service_type_unregister(struct c2_reqh_service_type *rstype);
+C2_INTERNAL void c2_reqh_service_type_unregister(struct c2_reqh_service_type
+						 *rstype);
 
 /**
    Initialises global list of service types.
    This is invoked from c2_reqhs_init().
  */
-int c2_reqh_service_types_init(void);
+C2_INTERNAL int c2_reqh_service_types_init(void);
 
 /**
    Finalises global list of service types.
    This is invoked from c2_reqhs_fini();
  */
-void c2_reqh_service_types_fini(void);
+C2_INTERNAL void c2_reqh_service_types_fini(void);
 
 /**
    Checks consistency of a particular service.
  */
-bool c2_reqh_service_invariant(const struct c2_reqh_service *service);
+C2_INTERNAL bool c2_reqh_service_invariant(const struct c2_reqh_service
+					   *service);
 
 /**
    Returns service intance of the given service type using the reqhkey
@@ -471,13 +476,14 @@ bool c2_reqh_service_invariant(const struct c2_reqh_service *service);
 
    @see c2_reqh::rh_key
  */
-struct c2_reqh_service *
-c2_reqh_service_find(const struct c2_reqh_service_type *st,
-		     struct c2_reqh *reqh);
+C2_INTERNAL struct c2_reqh_service *c2_reqh_service_find(const struct
+							 c2_reqh_service_type
+							 *st,
+							 struct c2_reqh *reqh);
 
-int c2_reqh_service_types_length(void);
-bool c2_reqh_service_is_registered(const char *sname);
-void c2_reqh_service_list_print(void);
+C2_INTERNAL int c2_reqh_service_types_length(void);
+C2_INTERNAL bool c2_reqh_service_is_registered(const char *sname);
+C2_INTERNAL void c2_reqh_service_list_print(void);
 
 /** @} endgroup reqhservice */
 

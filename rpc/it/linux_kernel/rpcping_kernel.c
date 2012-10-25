@@ -21,12 +21,12 @@
 
 #include "rpc_ping.h"
 
-int init_module(void)
+C2_INTERNAL int init_module(void)
 {
 	return c2_rpc_ping_init();
 }
 
-void cleanup_module(void)
+C2_INTERNAL void cleanup_module(void)
 {
 	c2_rpc_ping_fini();
 }

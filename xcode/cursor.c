@@ -28,20 +28,22 @@
    @{
  */
 
-void c2_xcode_cursor_init(struct c2_xcode_cursor *it,
-			  const struct c2_xcode_obj *obj)
+C2_INTERNAL void c2_xcode_cursor_init(struct c2_xcode_cursor *it,
+				      const struct c2_xcode_obj *obj)
 {
 	C2_SET0(it);
 	c2_xcode_cursor_top(it)->s_obj = *obj;
 }
 
-struct c2_xcode_cursor_frame *c2_xcode_cursor_top(struct c2_xcode_cursor *it)
+C2_INTERNAL struct c2_xcode_cursor_frame *c2_xcode_cursor_top(struct
+							      c2_xcode_cursor
+							      *it)
 {
 	C2_PRE(IS_IN_ARRAY(it->xcu_depth, it->xcu_stack));
 	return &it->xcu_stack[it->xcu_depth];
 }
 
-int c2_xcode_next(struct c2_xcode_cursor *it)
+C2_INTERNAL int c2_xcode_next(struct c2_xcode_cursor *it)
 {
 	struct c2_xcode_cursor_frame *top;
 	struct c2_xcode_cursor_frame *next;
@@ -128,7 +130,7 @@ int c2_xcode_next(struct c2_xcode_cursor *it)
 	return +1;
 }
 
-void c2_xcode_skip(struct c2_xcode_cursor *it)
+C2_INTERNAL void c2_xcode_skip(struct c2_xcode_cursor *it)
 {
 	c2_xcode_cursor_top(it)->s_flag = C2_XCODE_CURSOR_POST;
 }

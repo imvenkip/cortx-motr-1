@@ -152,7 +152,8 @@ struct confx_object;
  *
  * @see c2_confx_fini()
  */
-int c2_conf_parse(const char *src, struct confx_object *dest, size_t n);
+C2_INTERNAL int c2_conf_parse(const char *src, struct confx_object *dest,
+			      size_t n);
 
 /**
  * Frees the memory, dynamically allocated by c2_conf_parse().
@@ -163,7 +164,7 @@ int c2_conf_parse(const char *src, struct confx_object *dest, size_t n);
  *
  * @see c2_conf_parse()
  */
-void c2_confx_fini(struct confx_object *xobjs, size_t n);
+C2_INTERNAL void c2_confx_fini(struct confx_object *xobjs, size_t n);
 
 /**
  * Counts confx_objects obtained from a string.
@@ -172,7 +173,7 @@ void c2_confx_fini(struct confx_object *xobjs, size_t n);
  *
  * @returns	     The number of confx_objects found.
  */
-size_t c2_confx_obj_nr(const char *src);
+C2_INTERNAL size_t c2_confx_obj_nr(const char *src);
 
 /** @} conf_dfspec_preload */
 #endif /* __COLIBRI_CONF_PRELOAD_H__ */

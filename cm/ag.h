@@ -86,11 +86,13 @@ struct c2_cm_aggr_group_ops {
 
 extern struct c2_bob_type aggr_grps_bob;
 
-void c2_cm_aggr_group_init(struct c2_cm_aggr_group *ag, struct c2_cm *cm,
-			   const struct c2_cm_ag_id *id,
-			   const struct c2_cm_aggr_group_ops *ag_ops);
+C2_INTERNAL void c2_cm_aggr_group_init(struct c2_cm_aggr_group *ag,
+				       struct c2_cm *cm,
+				       const struct c2_cm_ag_id *id,
+				       const struct c2_cm_aggr_group_ops
+				       *ag_ops);
 
-void c2_cm_aggr_group_fini(struct c2_cm_aggr_group *ag);
+C2_INTERNAL void c2_cm_aggr_group_fini(struct c2_cm_aggr_group *ag);
 
 /**
  * 3-way comparision function to compare two aggregation group IDs.
@@ -99,14 +101,15 @@ void c2_cm_aggr_group_fini(struct c2_cm_aggr_group *ag);
  * @retval < 0 if id0 < id1.
  * @retval > 0 if id0 > id1.
  */
-int c2_cm_ag_id_cmp(const struct c2_cm_ag_id *id0,
-		    const struct c2_cm_ag_id *id1);
+C2_INTERNAL int c2_cm_ag_id_cmp(const struct c2_cm_ag_id *id0,
+				const struct c2_cm_ag_id *id1);
 /**
  * Searches for an aggregation group for the given "id" in
  * c2_cm::cm_aggr_groups, creates a new one if not found and returns it.
  */
-struct c2_cm_aggr_group *c2_cm_aggr_group_find(struct c2_cm *cm,
-					       const struct c2_cm_ag_id *id);
+C2_INTERNAL struct c2_cm_aggr_group *c2_cm_aggr_group_find(struct c2_cm *cm,
+							   const struct
+							   c2_cm_ag_id *id);
 
 /**
  * Adds an aggregation group to a copy machine's list of aggregation groups -
@@ -116,7 +119,8 @@ struct c2_cm_aggr_group *c2_cm_aggr_group_find(struct c2_cm *cm,
  * @pre c2_cm_is_locked(cm) == true
  *
 */
-void c2_cm_aggr_group_add(struct c2_cm *cm, struct c2_cm_aggr_group *ag);
+C2_INTERNAL void c2_cm_aggr_group_add(struct c2_cm *cm,
+				      struct c2_cm_aggr_group *ag);
 
 /**
  * Returns the aggregation group with the highest aggregation group id from the
@@ -124,7 +128,7 @@ void c2_cm_aggr_group_add(struct c2_cm *cm, struct c2_cm_aggr_group *ag);
  *
  * @pre cm != NULL && c2_cm_is_locked == true
  */
-struct c2_cm_aggr_group *c2_cm_ag_hi(struct c2_cm *cm);
+C2_INTERNAL struct c2_cm_aggr_group *c2_cm_ag_hi(struct c2_cm *cm);
 
 /**
  * Returns the aggregation group with the lowest aggregation grou id from the
@@ -132,7 +136,7 @@ struct c2_cm_aggr_group *c2_cm_ag_hi(struct c2_cm *cm);
  *
  * @pre cm != NULL && c2_cm_is_locked == true
  */
-struct c2_cm_aggr_group *c2_cm_ag_lo(struct c2_cm *cm);
+C2_INTERNAL struct c2_cm_aggr_group *c2_cm_ag_lo(struct c2_cm *cm);
 
 C2_TL_DESCR_DECLARE(aggr_grps, extern);
 C2_TL_DECLARE(aggr_grps, extern, struct c2_cm_aggr_group);

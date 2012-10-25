@@ -31,87 +31,88 @@
 #define DUMMY_IMPLEMENTATION \
 	printk("dummy implementation of %s called\n", __FUNCTION__)
 
-int c2_memory_init(void)
+C2_INTERNAL int c2_memory_init(void)
 {
 	DUMMY_IMPLEMENTATION;
 	return 0;
 }
 
-void c2_memory_fini(void)
+C2_INTERNAL void c2_memory_fini(void)
 {
 
 }
 
-int c2_threads_init(void)
-{
-	DUMMY_IMPLEMENTATION;
-	return 0;
-}
-
-void c2_threads_fini(void)
-{
-
-}
-
-int c2_db_init(void)
+C2_INTERNAL int c2_threads_init(void)
 {
 	DUMMY_IMPLEMENTATION;
 	return 0;
 }
 
-void c2_db_fini(void)
+C2_INTERNAL void c2_threads_fini(void)
 {
 
 }
 
-int c2_linux_stobs_init(void)
-{
-	DUMMY_IMPLEMENTATION;
-	return 0;
-}
-
-void c2_linux_stobs_fini(void)
-{
-
-}
-
-int c2_ad_stobs_init(void)
+C2_INTERNAL int c2_db_init(void)
 {
 	DUMMY_IMPLEMENTATION;
 	return 0;
 }
 
-void c2_ad_stobs_fini(void)
+C2_INTERNAL void c2_db_fini(void)
 {
 
 }
 
-int sim_global_init(void)
-{
-	DUMMY_IMPLEMENTATION;
-	return 0;
-}
-
-void sim_global_fini(void)
-{
-
-}
-
-int c2_timers_init(void)
+C2_INTERNAL int c2_linux_stobs_init(void)
 {
 	DUMMY_IMPLEMENTATION;
 	return 0;
 }
 
-void c2_timers_fini(void)
+C2_INTERNAL void c2_linux_stobs_fini(void)
+{
+
+}
+
+C2_INTERNAL int c2_ad_stobs_init(void)
+{
+	DUMMY_IMPLEMENTATION;
+	return 0;
+}
+
+C2_INTERNAL void c2_ad_stobs_fini(void)
+{
+
+}
+
+C2_INTERNAL int sim_global_init(void)
+{
+	DUMMY_IMPLEMENTATION;
+	return 0;
+}
+
+C2_INTERNAL void sim_global_fini(void)
+{
+
+}
+
+C2_INTERNAL int c2_timers_init(void)
+{
+	DUMMY_IMPLEMENTATION;
+	return 0;
+}
+
+C2_INTERNAL void c2_timers_fini(void)
 {
 
 }
 
 struct c2_reqh_service;
 struct c2_reqh;
-struct c2_reqh_service *c2_reqh_service_get(const char *service_name,
-                                            struct c2_reqh *reqh)
+C2_INTERNAL struct c2_reqh_service *c2_reqh_service_get(const char
+							*service_name,
+							struct c2_reqh *reqh)
 {
 	return NULL;
 }

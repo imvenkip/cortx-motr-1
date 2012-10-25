@@ -286,23 +286,24 @@ enum {
 extern struct c2_net_xprt c2_net_lnet_xprt;
 extern struct c2_cm_type  sns_repair_cmt;
 
-struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm)
+C2_INTERNAL struct c2_sns_repair_cm *cm2sns(struct c2_cm *cm)
 {
 	return container_of(cm, struct c2_sns_repair_cm, rc_base);
 }
 
-int c2_sns_repair_cm_type_register(void)
+C2_INTERNAL int c2_sns_repair_cm_type_register(void)
 {
 	return c2_cm_type_register(&sns_repair_cmt);
 }
 
-void c2_sns_repair_cm_type_deregister(void)
+C2_INTERNAL void c2_sns_repair_cm_type_deregister(void)
 {
 	c2_cm_type_deregister(&sns_repair_cmt);
 }
 
-struct c2_net_buffer *c2_sns_repair_buffer_get(struct c2_net_buffer_pool *bp,
-					       uint64_t colour)
+C2_INTERNAL struct c2_net_buffer *c2_sns_repair_buffer_get(struct
+							   c2_net_buffer_pool
+							   *bp, uint64_t colour)
 {
 	struct c2_net_buffer *buf;
 	int                   i;
@@ -319,8 +320,9 @@ struct c2_net_buffer *c2_sns_repair_buffer_get(struct c2_net_buffer_pool *bp,
 	return buf;
 }
 
-void c2_sns_repair_buffer_put(struct c2_net_buffer_pool *bp,
-			      struct c2_net_buffer *buf, uint64_t colour)
+C2_INTERNAL void c2_sns_repair_buffer_put(struct c2_net_buffer_pool *bp,
+					  struct c2_net_buffer *buf,
+					  uint64_t colour)
 {
 	c2_net_buffer_pool_lock(bp);
 	c2_net_buffer_pool_put(bp, buf, colour);

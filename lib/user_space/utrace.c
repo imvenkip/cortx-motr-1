@@ -91,7 +91,7 @@ static int logbuf_map()
 	return -errno;
 }
 
-int c2_trace_set_print_context(const char *ctx_name)
+C2_INTERNAL int c2_trace_set_print_context(const char *ctx_name)
 {
 	if (ctx_name != NULL) {
 		enum c2_trace_print_context ctx =
@@ -106,7 +106,7 @@ int c2_trace_set_print_context(const char *ctx_name)
 	return 0;
 }
 
-int c2_trace_set_immediate_mask(const char *mask)
+C2_INTERNAL int c2_trace_set_immediate_mask(const char *mask)
 {
 	if (mask != NULL) {
 		char *endp;
@@ -139,7 +139,7 @@ int c2_trace_set_immediate_mask(const char *mask)
 	return 0;
 }
 
-int c2_trace_set_level(const char *level)
+C2_INTERNAL int c2_trace_set_level(const char *level)
 {
 	if (level != NULL) {
 		char *s = strdup(level);
@@ -154,7 +154,7 @@ int c2_trace_set_level(const char *level)
 	return 0;
 }
 
-int c2_arch_trace_init()
+C2_INTERNAL int c2_arch_trace_init()
 {
 	int         rc;
 	const char *var;
@@ -177,7 +177,7 @@ int c2_arch_trace_init()
 	return randvspace_check() ?: logbuf_map();
 }
 
-void c2_arch_trace_fini(void)
+C2_INTERNAL void c2_arch_trace_fini(void)
 {
 	munmap(c2_logbuf, c2_logbufsize);
 	close(logfd);
@@ -199,7 +199,7 @@ static unsigned align(unsigned align, unsigned pos)
  *
  * Returns sysexits.h error codes.
  */
-int c2_trace_parse(void)
+C2_INTERNAL int c2_trace_parse(void)
 {
 	struct c2_trace_rec_header   trh;
 	const struct c2_trace_descr *td;
@@ -253,7 +253,7 @@ int c2_trace_parse(void)
 	return EX_OK;
 }
 
-void c2_console_vprintf(const char *fmt, va_list args)
+C2_INTERNAL void c2_console_vprintf(const char *fmt, va_list args)
 {
 	vprintf(fmt, args);
 }

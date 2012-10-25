@@ -178,7 +178,7 @@ static void c2t1fs_layout_fini(struct c2t1fs_conf *conf)
 	c2_dbenv_fini(&conf->ct_dbenv);
 }
 
-void c2t1fs_init(struct sim *s, struct c2t1fs_conf *conf)
+C2_INTERNAL void c2t1fs_init(struct sim *s, struct c2t1fs_conf *conf)
 {
 	unsigned      i;
 	unsigned      j;
@@ -237,7 +237,7 @@ void c2t1fs_init(struct sim *s, struct c2t1fs_conf *conf)
 	sim_timer_add(s, 0, threads_start, conf);
 }
 
-void c2t1fs_fini(struct c2t1fs_conf *conf)
+C2_INTERNAL void c2t1fs_fini(struct c2t1fs_conf *conf)
 {
 	unsigned                    i;
 	unsigned                    j;

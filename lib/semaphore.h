@@ -45,25 +45,26 @@
 
 /* struct c2_semaphore is defined by headers above. */
 
-int  c2_semaphore_init(struct c2_semaphore *semaphore, unsigned value);
-void c2_semaphore_fini(struct c2_semaphore *semaphore);
+C2_INTERNAL int c2_semaphore_init(struct c2_semaphore *semaphore,
+				  unsigned value);
+C2_INTERNAL void c2_semaphore_fini(struct c2_semaphore *semaphore);
 
 /**
    Downs the semaphore (P-operation).
  */
-void c2_semaphore_down(struct c2_semaphore *semaphore);
+C2_INTERNAL void c2_semaphore_down(struct c2_semaphore *semaphore);
 
 /**
    Ups the semaphore (V-operation).
  */
-void c2_semaphore_up(struct c2_semaphore *semaphore);
+C2_INTERNAL void c2_semaphore_up(struct c2_semaphore *semaphore);
 
 /**
    Tries to down a semaphore without blocking.
 
    Returns true iff the P-operation succeeded without blocking.
  */
-bool c2_semaphore_trydown(struct c2_semaphore *semaphore);
+C2_INTERNAL bool c2_semaphore_trydown(struct c2_semaphore *semaphore);
 
 
 /**
@@ -75,7 +76,7 @@ bool c2_semaphore_trydown(struct c2_semaphore *semaphore);
    @note that the parameter is not const. This is because of POSIX
    sem_getvalue() prototype.
  */
-unsigned c2_semaphore_value(struct c2_semaphore *semaphore);
+C2_INTERNAL unsigned c2_semaphore_value(struct c2_semaphore *semaphore);
 
 /**
    Downs the semaphore, blocking for not longer than the (absolute) timeout
@@ -86,8 +87,8 @@ unsigned c2_semaphore_value(struct c2_semaphore *semaphore);
    @return false otherwise.
 
  */
-bool c2_semaphore_timeddown(struct c2_semaphore *semaphore,
-			    const c2_time_t abs_timeout);
+C2_INTERNAL bool c2_semaphore_timeddown(struct c2_semaphore *semaphore,
+					const c2_time_t abs_timeout);
 
 /** @} end of semaphore group */
 

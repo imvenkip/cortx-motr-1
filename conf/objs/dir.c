@@ -189,7 +189,7 @@ static const struct c2_conf_obj_ops dir_ops = {
 	.coo_delete    = dir_delete
 };
 
-struct c2_conf_obj *c2_conf__dir_create(void)
+C2_INTERNAL struct c2_conf_obj *c2_conf__dir_create(void)
 {
 	struct c2_conf_dir *x;
 	struct c2_conf_obj *ret;

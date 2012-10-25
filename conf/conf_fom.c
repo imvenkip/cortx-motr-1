@@ -38,7 +38,7 @@ static void fop_fom_fini(struct c2_fom *fom)
 {
 }
 
-size_t fom_locality(const struct c2_fom *fom)
+C2_INTERNAL size_t fom_locality(const struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
 	return c2_fop_opcode(fom->fo_fop);
@@ -51,7 +51,7 @@ size_t fom_locality(const struct c2_fom *fom)
 /**
  * State function for c2_conf_fetch_resp
  */
-int c2_fom_fetch_state(struct c2_fom *fom)
+C2_INTERNAL int c2_fom_fetch_state(struct c2_fom *fom)
 {
 }
 
@@ -79,7 +79,7 @@ struct c2_fom_type c2_fom_fetch_mopt = {
 /**
  * State function for c2_conf_update request
  */
-int c2_fom_update_state(struct c2_fom *fom)
+C2_INTERNAL int c2_fom_update_state(struct c2_fom *fom)
 {
 }
 
