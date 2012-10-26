@@ -348,7 +348,7 @@ const struct c2_test_suite snsrepair_storage_ut = {
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
-		{ "test_cp_write_read", test_cp_write_read },
+		{ "cp_write_read", test_cp_write_read },
 		{ NULL, NULL }
 	}
 };

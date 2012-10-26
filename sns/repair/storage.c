@@ -125,7 +125,7 @@ static int cp_io(struct c2_cm_cp *cp, const enum c2_stob_io_opcode op)
 		goto out;
 
 	c2_dtx_init(&cp_fom->fo_tx);
-        rc = dom->sd_ops->sdo_tx_make(dom, &cp_fom->fo_tx);
+	rc = dom->sd_ops->sdo_tx_make(dom, &cp_fom->fo_tx);
 	if (rc != 0)
 		goto out;
 
