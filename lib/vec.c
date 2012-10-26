@@ -25,6 +25,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"      /* C2_SET0, memcpy */
 #include "lib/errno.h"
+#include "lib/finject.h"
 
 /**
    @addtogroup vec Vectors
@@ -155,6 +156,9 @@ int c2_bufvec_alloc_aligned(struct c2_bufvec *bufvec,
 		            c2_bcount_t       seg_size,
 		            unsigned	      shift)
 {
+	if (C2_FI_ENABLED("oom"))
+		return -ENOMEM;
+
 	return c2__bufvec_alloc(bufvec, num_segs, seg_size, shift);
 }
 C2_EXPORTED(c2_bufvec_alloc_aligned);

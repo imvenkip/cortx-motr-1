@@ -565,6 +565,7 @@ static int item_entered_in_sent_state(struct c2_sm *mach)
 	struct c2_rpc_item *item;
 
 	item = sm_to_item(mach);
+	item_machine(item)->rm_stats.rs_nr_sent_items++;
 	if (c2_rpc_item_is_request(item)) {
 		C2_LOG(C2_DEBUG, "%p [REQUEST/%u] SENT -> WAITING_FOR_REPLY",
 		       item, item->ri_type->rit_opcode);

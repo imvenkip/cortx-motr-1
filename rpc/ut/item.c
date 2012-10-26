@@ -30,6 +30,8 @@
 #include "ut/cs_test_fops_ff.h"    /* cs_ds2_req_fop */
 #include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx. NOTE: This is .c file */
 
+static int __test(void);
+
 static struct c2_fop *fop_alloc(void)
 {
 	struct cs_ds2_req_fop *cs_ds2_fop;
@@ -141,6 +143,68 @@ static void test_timeout(void)
 	C2_LOG(C2_DEBUG, "TEST:2:END");
 }
 
+static void test_failure_before_sending(void)
+{
+	int rc;
+	int i;
+	struct /* anonymous */ {
+		const char *func;
+		const char *tag;
+		int         rc;
+	} fp[] = {
+		{"c2_bufvec_alloc_aligned", "oom",        -ENOMEM},
+		{"c2_net_buffer_register",  "fake_error", -EINVAL},
+		{"c2_rpc_packet_encode",    "fake_error", -EFAULT},
+		{"c2_net_buffer_add",       "fake_error", -EMSGSIZE},
+	};
+
+	/* TEST3: packet_ready() routine failed.
+		  The item should move to FAILED state.
+	 */
+	for (i = 0; i < ARRAY_SIZE(fp); ++i) {
+		C2_LOG(C2_DEBUG, "TEST:3.%d:START", i + 1);
+		c2_fi_enable_once(fp[i].func, fp[i].tag);
+		rc = __test();
+		C2_UT_ASSERT(rc == fp[i].rc);
+		C2_UT_ASSERT(item->ri_error == fp[i].rc);
+		C2_LOG(C2_DEBUG, "TEST:3.%d:END", i + 1);
+	}
+	/* TEST4: Network layer reported buffer send failure.
+		  The item should move to FAILED state.
+		  NOTE: Buffer sending is successful, hence reply will be
+		  received but reply will be dropped.
+	 */
+	C2_LOG(C2_DEBUG, "TEST:4:START");
+	c2_fi_enable("outgoing_buf_event_handler", "fake_err");
+	rc = __test();
+	C2_UT_ASSERT(rc == -EINVAL);
+	C2_UT_ASSERT(item->ri_error == -EINVAL);
+	/* Wait for reply */
+	c2_nanosleep(c2_time(0, 10000000), 0); /* sleep 10 milli seconds */
+	c2_rpc_machine_get_stats(machine, &stats, false);
+	C2_UT_ASSERT(IS_INCR_BY_1(nr_dropped_items));
+	c2_fi_disable("outgoing_buf_event_handler", "fake_err");
+	C2_LOG(C2_DEBUG, "TEST:4:END");
+}
+
+static int __test(void)
+{
+	int rc;
+
+	/* Check SENDING -> FAILED transition */
+	c2_rpc_machine_get_stats(machine, &saved, false);
+	fop  = fop_alloc();
+	item = &fop->f_item;
+	rc = c2_rpc_client_call(fop, &cctx.rcx_session,
+				&cs_ds_req_fop_rpc_item_ops,
+				CONNECT_TIMEOUT);
+	C2_UT_ASSERT(item->ri_reply == NULL);
+	C2_UT_ASSERT(chk_state(item, C2_RPC_ITEM_FAILED));
+	c2_rpc_machine_get_stats(machine, &stats, false);
+	C2_UT_ASSERT(IS_INCR_BY_1(nr_failed_items));
+	return rc;
+}
+
 /*
 static void rply_before_sentcb(void)
 {
@@ -165,8 +229,9 @@ const struct c2_test_suite item_ut = {
 	.ts_init = ts_item_init,
 	.ts_fini = ts_item_fini,
 	.ts_tests = {
-		{ "simple-transitions", test_simple_transitions },
-		{ "timeout-transitions", test_timeout },
+		{ "simple-transitions",     test_simple_transitions     },
+		{ "timeout-transitions",    test_timeout                },
+		{ "failure-before-sending", test_failure_before_sending },
 		{ NULL, NULL },
 	}
 };
