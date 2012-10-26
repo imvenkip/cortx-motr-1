@@ -47,11 +47,20 @@ enum c2_rm_fom_phases {
  * FOM to execute resource right request. The request could either be borrow,
  * revoke or cancel.
  */
+union c2_rm_req_rep {
+	struct c2_fom_error_rep     rr_req_rep;
+	struct c2_fop_rm_borrow_rep rr_borrow_rep;
+};
+
 struct rm_request_fom {
 	/** Generic c2_fom object */
-	struct c2_fom	rf_fom;
+	struct c2_fom		     rf_fom;
 	/** Incoming request */
 	struct c2_rm_remote_incoming rf_in;
+	/** Reply FOP */
+	struct c2_fop		     rf_rep_fop;
+	/** Reply FOP */
+	union c2_rm_req_rep	     rf_rep_fop_data;
 };
 
 /** @} */

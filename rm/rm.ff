@@ -27,6 +27,7 @@ require "lib/cookie";
 require "lib/cookie_xc";
 require "lib/buf";
 require "lib/buf_xc";
+require "fop/fom_generic_ff";
 
 /** @file rm.ff
  *
@@ -75,7 +76,7 @@ record {
 } c2_fop_rm_right;
 
 record {
-	c2_fop_rm_owner rrq_debtor;
+	c2_fop_rm_owner rrq_owner; /* Could either be debtor or creditor */
 	c2_fop_rm_right rrq_right;
 	u64             rrq_policy;
 	u64             rrq_flags
@@ -87,7 +88,7 @@ record {
 } c2_fop_rm_borrow;
 
 record {
-	u32              br_rc;
+	c2_fom_error_rep br_rc;
 	c2_fop_rm_loan   br_loan;
 	c2_fop_rm_right  br_right;
 	c2_buf           br_lvb
@@ -97,11 +98,6 @@ record {
 	c2_fop_rm_req  rr_base;
 	c2_fop_rm_loan rr_loan
 } c2_fop_rm_revoke;
-
-/* Should we add creditor in reply */
-record {
-	u32 re_rc
-} c2_fop_rm_revoke_rep;
 
 /** @} end of rm group */
 

@@ -157,9 +157,9 @@ static int request_fom_create(enum c2_rm_incoming_type type,
 			      struct c2_fop *fop, struct c2_fom **out)
 {
 	struct rm_request_fom *rqfom;
-	struct c2_fop	      *rep_fop;
 	struct c2_fop_type    *fopt;
 	struct c2_fom_ops     *fom_ops;
+	void		      *fop_data;
 
 	C2_PRE(fop != NULL);
 	C2_PRE(fop->f_type != NULL);
@@ -183,25 +183,21 @@ static int request_fom_create(enum c2_rm_incoming_type type,
 		}
 		fopt = &c2_fop_rm_borrow_rep_fopt;
 		fom_ops = &rm_fom_borrow_ops;
+		fop_data = &rqfom->rf_rep_fop_data.rr_borrow_rep;
 		break;
 	case C2_RIT_REVOKE:
-		fopt = &c2_fop_rm_revoke_rep_fopt;
+		fopt = &c2_fom_error_rep_fopt;
 		fom_ops = &rm_fom_revoke_ops;
+		fop_data = &rqfom->rf_rep_fop_data.rr_req_rep;
 		break;
 	default:
 		C2_IMPOSSIBLE("Unrecognised RM request");
 		break;
 	}
 
-	rep_fop = c2_fop_alloc(fopt, NULL);
-	if (rep_fop == NULL) {
-		c2_free(rqfom->rf_in.ri_loan);
-		c2_free(rqfom);
-		return -ENOMEM;
-	}
-
+	c2_fop_init(&rqfom->rf_rep_fop, fopt, fop_data);
 	c2_fom_init(&rqfom->rf_fom, &fop->f_type->ft_fom_type,
-		    fom_ops, fop, rep_fop);
+		    fom_ops, fop, &rqfom->rf_rep_fop);
 	*out = &rqfom->rf_fom;
 
 	return 0;
@@ -288,21 +284,21 @@ static void reply_err_set(enum c2_rm_incoming_type type,
 			 struct c2_fom *fom, int rc)
 {
 	struct c2_fop_rm_borrow_rep *bfop;
-	struct c2_fop_rm_revoke_rep *rfop;
+	struct c2_fom_error_rep *rfop;
 
 	switch (type) {
 	case C2_RIT_BORROW:
 		bfop = c2_fop_data(fom->fo_rep_fop);
-		bfop->br_rc = rc;
+		rfop = &bfop->br_rc;
 		break;
 	case C2_RIT_REVOKE:
 		rfop = c2_fop_data(fom->fo_rep_fop);
-		rfop->re_rc = rc;
 		break;
 	default:
 		C2_IMPOSSIBLE("Unrecognized RM request");
 		break;
 	}
+	rfop->rerr_rc = rc;
 	c2_fom_phase_set(fom, rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
 }
 
@@ -330,7 +326,7 @@ static int loan_setup(struct c2_rm_loan *loan,
 					  in->rin_want.ri_owner->ro_resource);
 			loan->rl_other->rem_state = REM_SERVICE_LOCATED;
 			loan->rl_other->rem_cookie =
-				bfop->bo_base.rrq_debtor.ow_cookie;
+				bfop->bo_base.rrq_owner.ow_cookie;
 			/*
 			 * Store loan cookie for reply processing.
 			 */
@@ -377,7 +373,7 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		 * This is used later by locality().
 		 */
 		rfom->rf_in.ri_owner_cookie =
-			rfop->rr_base.rrq_debtor.ow_cookie;
+			rfop->rr_base.rrq_owner.ow_cookie;
 
 		/*
 		 * Populate the loan cookie.
@@ -403,6 +399,7 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 
 	if (rc != 0)
 		return rc;
+
 	owner = c2_cookie_of(&rfom->rf_in.ri_owner_cookie, struct c2_rm_owner,
 			     ro_id);
 	rc = owner ? 0 : -EPROTO;
@@ -495,24 +492,29 @@ static int request_post_process(struct c2_fom *fom)
 
 static int request_fom_tick(struct c2_fom *fom,
 			    enum c2_rm_incoming_type type,
-			    enum c2_rm_fom_phases next_phase);
+			    enum c2_rm_fom_phases next_phase)
 {
 	int rc;
 
 	if (c2_fom_phase(fom) < C2_FOPH_NR)
 		rc = c2_fom_tick_generic(fom);
 	else {
+		/*
+		 * The same code is executed for REVOKE. The cases statements
+		 * for REVOKE have not been added because, they have same
+		 * phase values as BORROW. It causes compilation error.
+		 * In future, if the phase values of REVOKE change, please
+		 * add the appropriate case statements below.
+		 */
 		switch (c2_fom_phase(fom)) {
 		case FOPH_RM_BORROW:
-		case FOPH_RM_REVOKE:
 			rc = request_pre_process(fom, type, next_phase);
 			break;
 		case FOPH_RM_BORROW_WAIT:
-		case FOPH_RM_REVOKE_WAIT:
 			rc = request_post_process(fom);
 			break;
 		default:
-			C2_IMPOSSIBLE();
+			C2_IMPOSSIBLE("Unrecognized RM FOM phase");
 			break;
 		}
 

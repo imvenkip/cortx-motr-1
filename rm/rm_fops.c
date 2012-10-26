@@ -72,7 +72,7 @@ struct c2_fop_type c2_fop_rm_borrow_rep_fopt;
  * FOP definitions for resource-right revoke request and reply.
  */
 struct c2_fop_type c2_fop_rm_revoke_fopt;
-struct c2_fop_type c2_fop_rm_revoke_rep_fopt;
+struct c2_fop_type c2_fom_error_rep_fopt;
 
 /*
  * Extern FOM params
@@ -135,7 +135,7 @@ static int fop_common_fill(struct rm_out *outreq,
 		req = (struct c2_fop_rm_req *) (char *)*data + offset;
 		req->rrq_policy = in->rin_policy;
 		req->rrq_flags = in->rin_flags;
-		c2_cookie_init(&req->rrq_debtor.ow_cookie,
+		c2_cookie_init(&req->rrq_owner.ow_cookie,
 			       &in->rin_want.ri_owner->ro_id);
 		rc = c2_rm_right_encode(right, &req->rrq_right.ri_opaque);
 		if (rc != 0)
@@ -287,7 +287,7 @@ static void borrow_reply(struct c2_rpc_item *item)
 	outreq = container_of(c2_rpc_item_to_fop(item), struct rm_out, ou_fop);
 	bright = &outreq->ou_req.rog_want.rl_right;
 	owner = bright->ri_owner;
-	rc = item->ri_error ?: borrow_reply->br_rc;
+	rc = item->ri_error ?: borrow_reply->br_rc.rerr_rc;
 
 	if (rc == 0) {
 		/* Get the data for a right from the FOP */
@@ -323,12 +323,12 @@ out:
 
 static void revoke_reply(struct c2_rpc_item *item)
 {
-	struct c2_fop_rm_revoke_rep *revoke_reply;
-	struct c2_rm_owner	    *owner;
-	struct c2_rm_right	    *right;
-	struct c2_rm_right	    *out_right;
-	struct rm_out		    *outreq;
-	int			     rc;
+	struct c2_fom_error_rep *revoke_reply;
+	struct c2_rm_owner	*owner;
+	struct c2_rm_right	*right;
+	struct c2_rm_right	*out_right;
+	struct rm_out		*outreq;
+	int			rc;
 
 	C2_PRE(item != NULL);
 	C2_PRE(item->ri_reply != NULL);
@@ -337,7 +337,7 @@ static void revoke_reply(struct c2_rpc_item *item)
 	outreq = container_of(c2_rpc_item_to_fop(item), struct rm_out, ou_fop);
 	out_right = &outreq->ou_req.rog_want.rl_right;
 	owner = out_right->ri_owner;
-	rc = item->ri_error ?: revoke_reply->re_rc;
+	rc = item->ri_error ?: revoke_reply->rerr_rc;
 
 	rc = rc ?: right_dup(out_right, &right);
 	if (rc == 0) {
@@ -374,7 +374,7 @@ static void outreq_free(struct c2_rpc_item *item)
 
 void c2_rm_fop_fini(void)
 {
-	c2_fop_type_fini(&c2_fop_rm_revoke_rep_fopt);
+	c2_fop_type_fini(&c2_fom_error_rep_fopt);
 	c2_fop_type_fini(&c2_fop_rm_revoke_fopt);
 	c2_fop_type_fini(&c2_fop_rm_borrow_rep_fopt);
 	c2_fop_type_fini(&c2_fop_rm_borrow_fopt);
@@ -422,10 +422,10 @@ int c2_rm_fop_init(void)
 				 .fom_ops   = &rm_revoke_fom_type_ops,
 #endif
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REQUEST) ?:
-		C2_FOP_TYPE_INIT(&c2_fop_rm_revoke_rep_fopt,
+		C2_FOP_TYPE_INIT(&c2_fom_error_rep_fopt,
 				 .name      = "Right Revoke Reply",
 				 .opcode    = C2_RM_FOP_REVOKE_REPLY,
-				 .xt        = c2_fop_rm_revoke_rep_xc,
+				 .xt        = c2_fom_error_rep_xc,
 				 .rpc_flags = C2_RPC_ITEM_TYPE_REPLY);
 }
 C2_EXPORTED(c2_rm_fop_init);
