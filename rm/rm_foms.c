@@ -18,7 +18,6 @@
  * Original creation date: 07/18/2011
  */
 
-#include "lib/chan.h"
 #include "lib/errno.h"
 #include "lib/list.h"
 #include "lib/memory.h"
@@ -38,13 +37,13 @@
 /**
  * Forward declaration
  */
-static int rm_borrow_fom_create(struct c2_fop *fop, struct c2_fom **out);
-static void rm_borrow_fom_fini(struct c2_fom *fom);
-static int rm_revoke_fom_create(struct c2_fop *fop, struct c2_fom **out);
-static void rm_revoke_fom_fini(struct c2_fom *fom);
-static int rm_borrow_fom_tick(struct c2_fom *);
-static int rm_revoke_fom_tick(struct c2_fom *);
-static size_t rm_locality(const struct c2_fom *fom);
+static int borrow_fom_create(struct c2_fop *fop, struct c2_fom **out);
+static void borrow_fom_fini(struct c2_fom *fom);
+static int revoke_fom_create(struct c2_fop *fop, struct c2_fom **out);
+static void revoke_fom_fini(struct c2_fom *fom);
+static int borrow_fom_tick(struct c2_fom *);
+static int reovke_fom_tick(struct c2_fom *);
+static size_t locality(const struct c2_fom *fom);
 
 static void remote_incoming_complete(struct c2_rm_incoming *in, int32_t rc);
 static void remote_incoming_conflict(struct c2_rm_incoming *in);
@@ -62,13 +61,13 @@ static struct c2_rm_incoming_ops remote_incoming_ops = {
  * Borrow FOM ops.
  */
 static struct c2_fom_ops rm_fom_borrow_ops = {
-	.fo_fini          = rm_borrow_fom_fini,
-	.fo_tick          = rm_borrow_fom_tick,
-	.fo_home_locality = rm_locality,
+	.fo_fini          = borrow_fom_fini,
+	.fo_tick          = borrow_fom_tick,
+	.fo_home_locality = locality,
 };
 
 const struct c2_fom_type_ops rm_borrow_fom_type_ops = {
-	.fto_create = rm_borrow_fom_create,
+	.fto_create = borrow_fom_create,
 };
 
 const struct c2_sm_state_descr borrow_states[] = {
@@ -92,13 +91,13 @@ const struct c2_sm_conf borrow_sm_conf = {
  * Revoke FOM ops.
  */
 static struct c2_fom_ops rm_fom_revoke_ops = {
-	.fo_fini          = rm_revoke_fom_fini,
-	.fo_tick          = rm_revoke_fom_tick,
-	.fo_home_locality = rm_locality,
+	.fo_fini          = revoke_fom_fini,
+	.fo_tick          = reovke_fom_tick,
+	.fo_home_locality = locality,
 };
 
 const struct c2_fom_type_ops rm_revoke_fom_type_ops = {
-	.fto_create = rm_revoke_fom_create,
+	.fto_create = revoke_fom_create,
 };
 
 const struct c2_sm_state_descr revoke_states[] = {
@@ -214,18 +213,19 @@ static int request_fom_create(enum c2_rm_incoming_type type,
 static void request_fom_fini(struct c2_fom *fom)
 {
 	struct rm_request_fom *rfom;
+	struct c2_rm_loan     *loan;
 
 	C2_PRE(fom != NULL);
 
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
+	loan = rfom->rf_in.ri_loan;
 
 	c2_fom_fini(fom);
 	/*
 	 * c2_free() does check for NULL pointer. We are checking for
 	 * NULL pointer because we are calling c2_rm_remote_fini().
 	 */
-	if (rfom->rf_in.ri_loan != NULL &&
-	    rfom->rf_in.ri_loan->rl_other != NULL) {
+	if (loan != NULL && loan->rl_other != NULL) {
 		c2_rm_remote_fini(rfom->rf_in.ri_loan->rl_other);
 		c2_free(rfom->rf_in.ri_loan->rl_other);
 	}
@@ -233,7 +233,7 @@ static void request_fom_fini(struct c2_fom *fom)
 	c2_free(rfom);
 }
 
-static size_t rm_locality(const struct c2_fom *fom)
+static size_t locality(const struct c2_fom *fom)
 {
 	struct rm_request_fom *rfom;
 
@@ -347,6 +347,7 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 {
 	struct c2_fop_rm_borrow     *bfop;
 	struct c2_fop_rm_revoke     *rfop;
+	struct c2_fop_rm_req	    *basefop;
 	struct c2_rm_incoming	    *in;
 	struct c2_rm_owner	    *owner;
 	struct rm_request_fom	    *rfom;
@@ -359,25 +360,21 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 	switch (type) {
 	case C2_RIT_BORROW:
 		bfop = c2_fop_data(fom->fo_fop);
-		policy = bfop->bo_base.rrq_policy;
-		flags = bfop->bo_base.rrq_flags;
-		buf = &bfop->bo_base.rrq_right.ri_opaque;
+		basefop = &bfop->bo_base;
 		/*
 		 * Populate the owner cookie for creditor (local)
-		 * This is used later by rm_locality().
+		 * This is used later by locality().
 		 */
 		rfom->rf_in.ri_owner_cookie = bfop->bo_creditor.ow_cookie;
 		break;
 
 	case C2_RIT_REVOKE:
 		rfop = c2_fop_data(fom->fo_fop);
-		policy = rfop->rr_base.rrq_policy;
-		flags = rfop->rr_base.rrq_flags;
-		buf = &rfop->rr_base.rrq_right.ri_opaque;
+		basefop = &rfop->rr_base;
 		/*
 		 * Populate the owner cookie for debtor (local)
 		 * This server is debtor; hence it received REVOKE request.
-		 * This is used later by rm_locality().
+		 * This is used later by locality().
 		 */
 		rfom->rf_in.ri_owner_cookie =
 			rfop->rr_base.rrq_debtor.ow_cookie;
@@ -400,6 +397,9 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		C2_IMPOSSIBLE("Unrecognized RM request");
 		break;
 	}
+	policy = basefop->rrq_policy;
+	flags = basefop->rrq_flags;
+	buf = &basefop->rrq_right.ri_opaque;
 
 	if (rc != 0)
 		return rc;
@@ -414,6 +414,7 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		rc = c2_rm_right_decode(&in->rin_want, buf);
 		if (rc != 0) {
 			c2_rm_right_fini(&in->rin_want);
+			c2_rm_incoming_fini(in);
 		} else
 			if (type == C2_RIT_BORROW) {
 				c2_rm_right_init(&rfom->rf_in.ri_loan->rl_right,
@@ -492,6 +493,33 @@ static int request_post_process(struct c2_fom *fom)
 	return C2_FSO_AGAIN;
 }
 
+static int request_fom_tick(struct c2_fom *fom,
+			    enum c2_rm_incoming_type type,
+			    enum c2_rm_fom_phases next_phase);
+{
+	int rc;
+
+	if (c2_fom_phase(fom) < C2_FOPH_NR)
+		rc = c2_fom_tick_generic(fom);
+	else {
+		switch (c2_fom_phase(fom)) {
+		case FOPH_RM_BORROW:
+		case FOPH_RM_REVOKE:
+			rc = request_pre_process(fom, type, next_phase);
+			break;
+		case FOPH_RM_BORROW_WAIT:
+		case FOPH_RM_REVOKE_WAIT:
+			rc = request_post_process(fom);
+			break;
+		default:
+			C2_IMPOSSIBLE();
+			break;
+		}
+
+	}/* else - process RM phases */
+	return rc;
+}
+
 /**
  * This function handles the request to borrow a right to a resource on
  * a server ("creditor").
@@ -499,25 +527,10 @@ static int request_post_process(struct c2_fom *fom)
  * @param fom -> fom processing the RIGHT_BORROW request on the server
  *
  */
-static int rm_borrow_fom_tick(struct c2_fom *fom)
+static int borrow_fom_tick(struct c2_fom *fom)
 {
-	int rc;
-
-	if (c2_fom_phase(fom) < C2_FOPH_NR)
-		rc = c2_fom_tick_generic(fom);
-	else {
-		C2_PRE(C2_IN(c2_fom_phase(fom), (FOPH_RM_BORROW,
-						 FOPH_RM_BORROW_WAIT)));
-
-		if (c2_fom_phase(fom) == FOPH_RM_BORROW)
-			rc = request_pre_process(fom, C2_RIT_BORROW,
-						 FOPH_RM_BORROW_WAIT);
-		else
-			rc = request_post_process(fom);
-
-	}/* else - process RM phases */
-
-	return rc;
+	C2_PRE(C2_IN(c2_fom_phase(fom), (FOPH_RM_BORROW, FOPH_RM_BORROW_WAIT)));
+	return request_fom_tick(fom, C2_RIT_BORROW, FOPH_RM_BORROW_WAIT);
 }
 
 /**
@@ -529,31 +542,16 @@ static int rm_borrow_fom_tick(struct c2_fom *fom)
  * @param fom -> fom processing the RIGHT_REVOKE request on the server
  *
  */
-static int rm_revoke_fom_tick(struct c2_fom *fom)
+static int reovke_fom_tick(struct c2_fom *fom)
 {
-	int rc;
-
-	if (c2_fom_phase(fom) < C2_FOPH_NR)
-		rc = c2_fom_tick_generic(fom);
-	else {
-		C2_PRE(C2_IN(c2_fom_phase(fom), (FOPH_RM_REVOKE,
-						 FOPH_RM_REVOKE_WAIT)));
-
-		if (c2_fom_phase(fom) == FOPH_RM_REVOKE)
-			rc = request_pre_process(fom, C2_RIT_REVOKE,
-						 FOPH_RM_REVOKE_WAIT);
-		else
-			rc = request_post_process(fom);
-
-	}/* else - process RM phases */
-
-	return rc;
+	C2_PRE(C2_IN(c2_fom_phase(fom), (FOPH_RM_REVOKE, FOPH_RM_REVOKE_WAIT)));
+	return request_fom_tick(fom, C2_RIT_REVOKE, FOPH_RM_REVOKE_WAIT);
 }
 
 /*
  * A borrow FOM constructor.
  */
-static int rm_borrow_fom_create(struct c2_fop *fop, struct c2_fom **out)
+static int borrow_fom_create(struct c2_fop *fop, struct c2_fom **out)
 {
 	return request_fom_create(C2_RIT_BORROW, fop, out);
 }
@@ -561,7 +559,7 @@ static int rm_borrow_fom_create(struct c2_fop *fop, struct c2_fom **out)
 /*
  * A borrow FOM destructor.
  */
-static void rm_borrow_fom_fini(struct c2_fom *fom)
+static void borrow_fom_fini(struct c2_fom *fom)
 {
 	struct c2_fop_rm_borrow_rep *rply_fop;
 
@@ -577,7 +575,7 @@ static void rm_borrow_fom_fini(struct c2_fom *fom)
 /*
  * A revoke FOM constructor.
  */
-static int rm_revoke_fom_create(struct c2_fop *fop, struct c2_fom **out)
+static int revoke_fom_create(struct c2_fop *fop, struct c2_fom **out)
 {
 	return request_fom_create(C2_RIT_REVOKE, fop, out);
 }
@@ -585,7 +583,7 @@ static int rm_revoke_fom_create(struct c2_fop *fop, struct c2_fom **out)
 /*
  * A revoke FOM destructor.
  */
-static void rm_revoke_fom_fini(struct c2_fom *fom)
+static void revoke_fom_fini(struct c2_fom *fom)
 {
 	request_fom_fini(fom);
 }

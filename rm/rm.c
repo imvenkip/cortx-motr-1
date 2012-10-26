@@ -16,10 +16,9 @@
  *
  * Original author: Nikita Danilov <nikita_danilov@xyratex.com>
  * Original author: Dipak Dudhabhate <dipak_dudhabhate@xyratex.com>
+ * Original author: Rajesh Bhalerao <rajesh_bhalerao@xyratex.com>
  * Original creation date: 04/28/2011
  */
-#include <stdio.h>      /* fprintf */
-
 #include "lib/memory.h" /* C2_ALLOC_PTR */
 #include "lib/misc.h"   /* C2_SET_ARR0 */
 #include "lib/errno.h"  /* ETIMEDOUT */
@@ -803,10 +802,6 @@ static int cached_rights_remove(struct c2_rm_incoming *in)
 	return rc;
 }
 
-/*
- * Commit the remote borrow request. It will result in updates
- * to various owner queues and lists.
- */
 int c2_rm_borrow_commit(struct c2_rm_remote_incoming *rem_in)
 {
 	struct c2_rm_incoming *in    = &rem_in->ri_incoming;
@@ -993,8 +988,7 @@ static int cached_rights_hold(struct c2_rm_incoming *in)
 		C2_ASSERT(right->ri_ops->rro_is_subset != NULL);
 
 		/* If the right is already part of HELD list, skip it */
-		if (c2_rm_ur_tlist_contains(&owner->ro_owned[OWOS_HELD],
-					    right)) {
+		if (right_pin_nr(right, C2_RPF_PROTECT) > 1) {
 			rc = right_diff(&rest, right);
 			if (rc != 0)
 				break;
@@ -1029,6 +1023,7 @@ static int cached_rights_hold(struct c2_rm_incoming *in)
 			rc = right->ri_ops->rro_disjoin(right, &rest,
 							held_right);
 			if (rc != 0) {
+				c2_rm_right_fini(held_right);
 				c2_free(held_right);
 				break;
 			}
@@ -1189,16 +1184,7 @@ static void incoming_check(struct c2_rm_incoming *in)
  */
 static bool incoming_is_complete(struct c2_rm_incoming *in)
 {
-	struct c2_rm_pin   *pin;
-
-	c2_tl_for(pi, &in->rin_pins, pin) {
-		if (pin->rp_flags & C2_RPF_TRACK) {
-			C2_ASSERT(in->rin_sm.sm_rc != 0);
-			return false;
-		}
-	} c2_tl_endfor;
-
-	return true;
+	return incoming_pin_nr(in, C2_RPF_TRACK) == 0;
 }
 
 /**
@@ -1409,8 +1395,8 @@ static int outgoing_check(struct c2_rm_incoming *in,
 				 * @todo adjust outgoing requests priority
 				 * (priority inheritance)
 				 */
-				rc = pin_add(in, scan, C2_RPF_TRACK);
-				rc = rc ?: right_diff(right, scan);
+				rc = pin_add(in, scan, C2_RPF_TRACK) ?:
+				     right_diff(right, scan);
 				if (rc != 0)
 					break;
 			}
@@ -1936,7 +1922,7 @@ static int service_locate(struct c2_rm_resource_type *rtype,
 	 */
 	rc = c2_rm_db_service_query(rtype->rt_name, rem);
 	if (rc != 0) {
-		fprintf(stderr, "c2_rm_db_service_query failed!\n");
+		C2_LOG(C2_ERROR, "c2_rm_db_service_query failed!\n");
 		goto error;
 	}
 	if (rem->rem_state != REM_SERVICE_LOCATED)
@@ -1973,7 +1959,7 @@ static int resource_locate(struct c2_rm_resource_type *rtype,
 	 */
 	rc = c2_rm_remote_resource_locate(rem);
 	if (rc != 0) {
-		fprintf(stderr, "c2_rm_remote_resource_find failed!\n");
+		C2_LOG(C2_ERROR, "c2_rm_remote_resource_find failed!\n");
 		goto error;
 	}
 	if (rem->rem_state != REM_OWNER_LOCATED)
