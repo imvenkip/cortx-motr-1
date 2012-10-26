@@ -179,7 +179,7 @@ static int rpc_buffer_init(struct rpc_buffer    *rpcbuf,
 	struct c2_net_domain  *ndom;
 	struct c2_rpc_machine *machine;
 	struct c2_rpc_chan    *rchan;
-	int                   rc;
+	int                    rc;
 
 	C2_ENTRY("rbuf: %p packet: %p", rpcbuf, p);
 	C2_PRE(rpcbuf != NULL && p != NULL);

@@ -30,6 +30,8 @@
 #include "ut/cs_test_fops_ff.h"    /* cs_ds2_req_fop */
 #include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx. NOTE: This is .c file */
 
+static int __test(void);
+
 static struct c2_fop *fop_alloc(void)
 {
 	struct cs_ds2_req_fop *cs_ds2_fop;
@@ -144,20 +146,7 @@ static void test_timeout(void)
 static void test_failure_before_sending(void)
 {
 	int rc;
-	/* Check SENDING -> FAILED transition */
-	void __test(void)
-	{
-		c2_rpc_machine_get_stats(machine, &saved, false);
-		fop = fop_alloc();
-		item = &fop->f_item;
-		rc = c2_rpc_client_call(fop, &cctx.rcx_session,
-					&cs_ds_req_fop_rpc_item_ops,
-					CONNECT_TIMEOUT);
-		C2_UT_ASSERT(item->ri_reply == NULL);
-		C2_UT_ASSERT(chk_state(item, C2_RPC_ITEM_FAILED));
-		c2_rpc_machine_get_stats(machine, &stats, false);
-		C2_UT_ASSERT(IS_INCR_BY_1(nr_failed_items));
-	}
+	int i;
 	struct /* anonymous */ {
 		const char *func;
 		const char *tag;
@@ -168,7 +157,6 @@ static void test_failure_before_sending(void)
 		{"c2_rpc_packet_encode",    "fake_error", -EFAULT},
 		{"c2_net_buffer_add",       "fake_error", -EMSGSIZE},
 	};
-	int i;
 
 	/* TEST3: packet_ready() routine failed.
 		  The item should move to FAILED state.
@@ -176,7 +164,7 @@ static void test_failure_before_sending(void)
 	for (i = 0; i < ARRAY_SIZE(fp); ++i) {
 		C2_LOG(C2_DEBUG, "TEST:3.%d:START", i + 1);
 		c2_fi_enable_once(fp[i].func, fp[i].tag);
-		__test();
+		rc = __test();
 		C2_UT_ASSERT(rc == fp[i].rc);
 		C2_UT_ASSERT(item->ri_error == fp[i].rc);
 		C2_LOG(C2_DEBUG, "TEST:3.%d:END", i + 1);
@@ -188,7 +176,7 @@ static void test_failure_before_sending(void)
 	 */
 	C2_LOG(C2_DEBUG, "TEST:4:START");
 	c2_fi_enable("outgoing_buf_event_handler", "fake_err");
-	__test();
+	rc = __test();
 	C2_UT_ASSERT(rc == -EINVAL);
 	C2_UT_ASSERT(item->ri_error == -EINVAL);
 	/* Wait for reply */
@@ -197,6 +185,24 @@ static void test_failure_before_sending(void)
 	C2_UT_ASSERT(IS_INCR_BY_1(nr_dropped_items));
 	c2_fi_disable("outgoing_buf_event_handler", "fake_err");
 	C2_LOG(C2_DEBUG, "TEST:4:END");
+}
+
+static int __test(void)
+{
+	int rc;
+
+	/* Check SENDING -> FAILED transition */
+	c2_rpc_machine_get_stats(machine, &saved, false);
+	fop  = fop_alloc();
+	item = &fop->f_item;
+	rc = c2_rpc_client_call(fop, &cctx.rcx_session,
+				&cs_ds_req_fop_rpc_item_ops,
+				CONNECT_TIMEOUT);
+	C2_UT_ASSERT(item->ri_reply == NULL);
+	C2_UT_ASSERT(chk_state(item, C2_RPC_ITEM_FAILED));
+	c2_rpc_machine_get_stats(machine, &stats, false);
+	C2_UT_ASSERT(IS_INCR_BY_1(nr_failed_items));
+	return rc;
 }
 
 /*
