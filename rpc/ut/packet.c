@@ -14,7 +14,7 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Nachiket Sahasrabuddhe<nachiket_sahasrabuddhe@xyratex.com>
+ * Original author: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
  * Original creation date: 10/04/2012
  */
 
@@ -23,6 +23,7 @@
 #include "colibri/magic.h"
 #include "lib/vec.h"
 #include "lib/memory.h"		/* C2_ALLOC_ARR */
+#include "lib/misc.h"
 #include "lib/ut.h"
 #include "fop/fop.h"
 #include "rpc/packet.h"
@@ -39,16 +40,16 @@ enum {
 
 static inline uint32_t fop_opcode(struct c2_fop *fop)
 {
-return fop->f_type->ft_rec_type.rt_opcode;
+	return fop->f_type->ft_rec_type.rt_opcode;
 }
 
 static void fop_fini(struct c2_fop *fop)
 {
-	C2_PRE(fop != NULL);
-	C2_PRE(c2_fop_data(fop) != NULL);
-
 	struct c2_fop_ping    *ping_fop_data;
 	struct c2_addb_record *addb_fop_data;
+
+	C2_UT_ASSERT(fop != NULL);
+	C2_UT_ASSERT(c2_fop_data(fop) != NULL);
 
 	switch (fop_opcode(fop)) {
 	case C2_RPC_PING_OPCODE:
@@ -68,10 +69,10 @@ static void fop_fini(struct c2_fop *fop)
 
 static void packet_fini(struct c2_rpc_packet *packet)
 {
-	C2_PRE(packet != NULL);
-
 	struct c2_rpc_item *item;
 	struct c2_fop      *fop;
+
+	C2_UT_ASSERT(packet != NULL);
 
 	c2_tl_for(packet_item, &packet->rp_items, item) {
 		fop = c2_rpc_item_to_fop(item);
@@ -83,28 +84,23 @@ static void packet_fini(struct c2_rpc_packet *packet)
 static bool cmp_addb_record_header(struct c2_addb_record_header *header1,
 				   struct c2_addb_record_header *header2)
 {
-	return cmp_obj(header1, header2, arh_magic1)    &&
-		cmp_obj(header1, header2, arh_version)  &&
-		cmp_obj(header1, header2, arh_len)      &&
-		cmp_obj(header1, header2, arh_event_id) &&
-		cmp_obj(header1, header2, arh_timestamp)&&
+	return  cmp_obj(header1, header2, arh_magic1)     &&
+		cmp_obj(header1, header2, arh_version)    &&
+		cmp_obj(header1, header2, arh_len)        &&
+		cmp_obj(header1, header2, arh_event_id)   &&
+		cmp_obj(header1, header2, arh_timestamp)  &&
 		cmp_obj(header1, header2, arh_magic2);
 }
 
 static bool cmp_addb_record_buf(struct c2_mem_buf *buf1,
 		                struct c2_mem_buf *buf2)
 {
-	C2_PRE(buf1->cmb_count == buf2->cmb_count);
-	C2_PRE(buf1->cmb_value != NULL);
-	C2_PRE(buf2->cmb_value != NULL);
+	C2_UT_ASSERT(buf1->cmb_count == buf2->cmb_count);
+	C2_UT_ASSERT(buf1->cmb_value != NULL);
+	C2_UT_ASSERT(buf2->cmb_value != NULL);
 
-	int  i;
-	bool rc = true;
-
-	for (i = 0; i < buf1->cmb_count; ++i) {
-		rc &= buf1->cmb_value[i] == buf2->cmb_value[i];
-	}
-	return rc;
+	return c2_forall(i, buf1->cmb_count,
+			 buf1->cmb_value[i] == buf2->cmb_value[i]);
 }
 
 static void fill_addb_header(struct c2_addb_record_header *header)
@@ -119,10 +115,10 @@ static void fill_addb_header(struct c2_addb_record_header *header)
 
 static void fill_addb_data(struct c2_mem_buf *addb_data)
 {
-	C2_PRE(addb_data->cmb_count != 0);
-	C2_PRE(addb_data->cmb_value != NULL);
-
 	int i;
+
+	C2_UT_ASSERT(addb_data->cmb_count != 0);
+	C2_UT_ASSERT(addb_data->cmb_value != NULL);
 
 	for (i = 0; i < addb_data->cmb_count; ++i) {
 		addb_data->cmb_value[i] = i % UCHAR_MAX;
@@ -131,8 +127,6 @@ static void fill_addb_data(struct c2_mem_buf *addb_data)
 
 static bool fop_data_compare(struct c2_fop *fop1, struct c2_fop *fop2)
 {
-	C2_PRE(fop_opcode(fop1) == fop_opcode(fop2));
-
 	/* Ping fop objects */
 	struct c2_fop_ping     *ping_data1;
 	struct c2_fop_ping     *ping_data2;
@@ -143,13 +137,16 @@ static bool fop_data_compare(struct c2_fop *fop1, struct c2_fop *fop2)
 	struct c2_addb_record  *addb_data1;
 	struct c2_addb_record  *addb_data2;
 
+	C2_UT_ASSERT(fop_opcode(fop1) == fop_opcode(fop2));
+
 	switch (fop_opcode(fop1)) {
 
 	case C2_RPC_PING_OPCODE:
 		ping_data1 = c2_fop_data(fop1);
 		ping_data2 = c2_fop_data(fop2);
 
-		return *ping_data1->fp_arr.f_data == *ping_data2->fp_arr.f_data;
+		return *ping_data1->fp_arr.f_data ==
+		       *ping_data2->fp_arr.f_data;
 
 	case C2_RPC_PING_REPLY_OPCODE:
 		ping_rep_data1 = c2_fop_data(fop1);
@@ -171,7 +168,7 @@ static bool fop_data_compare(struct c2_fop *fop1, struct c2_fop *fop2)
 static bool item_compare(struct c2_rpc_item *item1, struct c2_rpc_item *item2)
 {
 
-	return  cmp_obj(item1, item2, ri_flags)                           &&
+	return   cmp_obj(item1, item2, ri_flags)                          &&
 		 cmp_obj(item1, item2, ri_magic)                          &&
 		 cmp_obj(item1, item2, ri_type->rit_magic)                &&
 		 cmp_obj(item1, item2, ri_type->rit_flags)                &&
@@ -194,20 +191,18 @@ static bool item_compare(struct c2_rpc_item *item1, struct c2_rpc_item *item2)
 		 cmp_obj(item1, item2,
 			 ri_slot_refs[0].sr_xid)                          &&
 		 cmp_obj(item1, item2, ri_slot_refs[0].sr_slot_gen);
-
 }
 
 static bool packet_compare(struct c2_rpc_packet *p1, struct c2_rpc_packet *p2)
 {
 	struct c2_rpc_item *item1;
 	struct c2_rpc_item *item2;
-	struct c2_fop	   *fop1;
-	struct c2_fop	   *fop2;
-
-	bool		    rc = true;
+	struct c2_fop      *fop1;
+	struct c2_fop      *fop2;
+	bool                rc = true;
 
 	if (p1->rp_nr_items != p2->rp_nr_items || p1->rp_size != p2->rp_size ||
-			p1->rp_status != p2->rp_status)
+	    p1->rp_status != p2->rp_status)
 		return false;
 	for (item1 = c2_tlist_head(&packet_item_tl, &p1->rp_items),
 	     item2 = c2_tlist_head(&packet_item_tl, &p2->rp_items);
@@ -226,7 +221,7 @@ void test_packet_encode()
 {
 	/* Ping FOP and Ping reply FOP */
 	struct c2_fop          *ping_fop;
-	struct c2_fop	       *ping_fop_rep;
+	struct c2_fop          *ping_fop_rep;
 	struct c2_fop_ping     *ping_fop_data;
 	struct c2_fop_ping_rep *ping_fop_rep_data;
 
@@ -294,7 +289,7 @@ void test_packet_encode()
 
 	c2_rpc_packet_init(&p_decoded);
 	C2_UT_ASSERT(!c2_rpc_packet_decode(&p_decoded, &bufvec, 0,
-				bufvec_size));
+					   bufvec_size));
 	C2_UT_ASSERT(packet_compare(&p_for_encd, &p_decoded));
 
 
