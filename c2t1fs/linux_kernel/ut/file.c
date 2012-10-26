@@ -61,6 +61,8 @@ enum {
 
 	/* Unit Size = 12K. */
 	UNIT_SIZE	 = 3 * PAGE_CACHE_SIZE,
+	INDEXPG          = 2000,
+	INDEXPG_STEP     = 5000,
 
 	/* Data size for parity group = 12K * 3 = 36K. */
 	DATA_SIZE        = UNIT_SIZE * LAY_N,
@@ -220,10 +222,18 @@ static void ds_test(void)
 	 */
 	C2_UT_ASSERT(c2_vec_count(&map->pi_ivec.iv_vec) ==
 		     PAGE_CACHE_SIZE * 2);
+
+        /*
+         * Given input index vector results into 2 pages.
+         * {{16384, 4096}, {20480, 4096}}
+         * The data matrix in this case is 3 x 3.
+         * Since these indices map to page id
+         * 5(maps to element [1][1]) and 6(maps to element [2][1])
+         * in the data matrix.
+         * Rest all pages in data matrix will be NULL.
+         */
 	C2_UT_ASSERT(map->pi_ivec.iv_index[0] == PAGE_CACHE_SIZE * 4);
-	C2_UT_ASSERT(map->pi_ivec.iv_index[1] == PAGE_CACHE_SIZE * 5);
-	C2_UT_ASSERT(map->pi_ivec.iv_vec.v_count[0] == PAGE_CACHE_SIZE);
-	C2_UT_ASSERT(map->pi_ivec.iv_vec.v_count[1] == PAGE_CACHE_SIZE);
+	C2_UT_ASSERT(map->pi_ivec.iv_vec.v_count[0] == 2 * PAGE_CACHE_SIZE);
 	C2_UT_ASSERT(map->pi_databufs   != NULL);
 	C2_UT_ASSERT(map->pi_paritybufs != NULL);
 	C2_UT_ASSERT(map->pi_ops        != NULL);
@@ -400,7 +410,8 @@ static void pargrp_iomap_test(void)
 	/* Checks if given segment falls in pargrp_iomap::pi_ivec. */
 	C2_UT_ASSERT(pargrp_iomap_spans_seg (&map, 0,     PAGE_CACHE_SIZE));
 	C2_UT_ASSERT(pargrp_iomap_spans_seg (&map, 1234,  10));
-	C2_UT_ASSERT(!pargrp_iomap_spans_seg(&map, 40960, PAGE_CACHE_SIZE));
+	C2_UT_ASSERT(!pargrp_iomap_spans_seg(&map, PAGE_CACHE_SIZE * 10,
+				             PAGE_CACHE_SIZE));
 
 	/*
 	 * Checks if number of pages completely spanned by index vector
@@ -449,18 +460,18 @@ static void pargrp_iomap_test(void)
 	rc = c2_indexvec_alloc(&ivec, IOVEC_NR, NULL, NULL);
 	C2_UT_ASSERT(rc == 0);
 
-	index = 2000;
+	index = INDEXPG;
 	/*
 	 * Segments {2000, 7000}, {9000, 14000}, {16000, 21000}, {23000, 28000}}
 	 */
 	for (cnt = 0; cnt < IOVEC_NR; ++cnt) {
 
 		iovec_arr[cnt].iov_base  = &rc;
-		iovec_arr[cnt].iov_len   = 5000;
+		iovec_arr[cnt].iov_len   = INDEXPG_STEP;
 
 		INDEX(&ivec, cnt) = index;
-		COUNT(&ivec, cnt) = 5000;
-		index = ivec.iv_index[cnt] + ivec.iv_vec.v_count[cnt] + 2000;
+		COUNT(&ivec, cnt) = INDEXPG_STEP;
+		index += COUNT(&ivec, cnt) + INDEXPG;
 	}
 
 	rc = io_request_init(&req, &lfile, iovec_arr, &ivec, IRT_WRITE);

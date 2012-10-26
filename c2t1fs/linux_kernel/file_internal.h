@@ -1061,7 +1061,8 @@ struct pargrp_iomap_ops {
          * Process segment pointed to by segid in pargrp_iomap::pi_ivec and
          * allocate data_buf structures correspondingly.
 	 * It also populates data_buf::db_flags for pargrp_iomap::pi_databufs.
-	 * @param segid Segment id which needs to be processed.
+	 * @param segid Segment id which needs to be processed. Given seg id
+	 * should point to last segment in pargrp_iomap::pi_ivec when invoked.
 	 * @param rmw   If given pargrp_iomap structure needs rmw.
 	 * @pre   map != NULL.
 	 * @post  pargrp_iomap_invariant(map).
