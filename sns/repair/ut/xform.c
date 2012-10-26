@@ -30,6 +30,8 @@
 enum {
 	CP_SINGLE = 1,
 	CP_MULTI = 512,
+	SEG_NR = 16,
+	SEG_SIZE = 256,
 };
 
 static struct c2_reqh      reqh;
@@ -56,7 +58,7 @@ static uint64_t cp_single_get(struct c2_cm_aggr_group *ag)
 }
 
 static const struct c2_cm_aggr_group_ops group_single_ops = {
-        .cago_local_cp_nr = &cp_single_get,
+	.cago_local_cp_nr = &cp_single_get,
 };
 
 static uint64_t cp_multi_get(struct c2_cm_aggr_group *ag)
@@ -65,7 +67,7 @@ static uint64_t cp_multi_get(struct c2_cm_aggr_group *ag)
 }
 
 static const struct c2_cm_aggr_group_ops group_multi_ops = {
-        .cago_local_cp_nr = &cp_multi_get,
+	.cago_local_cp_nr = &cp_multi_get,
 };
 
 static size_t dummy_fom_locality(const struct c2_fom *fom)
@@ -85,13 +87,13 @@ static int dummy_fom_tick(struct c2_fom *fom)
 		c2_semaphore_up(&sem);
 		return cp->c_ops->co_action[C2_CCP_XFORM](cp);
 	case C2_CCP_FINI:
-                return C2_FSO_WAIT;
+		return C2_FSO_WAIT;
 	case C2_CCP_WRITE:
 		c2_fom_phase_set(fom, C2_CCP_IO_WAIT);
-                return C2_FSO_AGAIN;
+		return C2_FSO_AGAIN;
 	case C2_CCP_IO_WAIT:
 		c2_fom_phase_set(fom, C2_CCP_FINI);
-                return C2_FSO_WAIT;
+		return C2_FSO_WAIT;
 	default:
 		C2_IMPOSSIBLE("Bad State");
 	}
@@ -115,16 +117,16 @@ static void multiple_cp_fom_fini(struct c2_fom *fom)
 
 /* Over-ridden copy packet FOM ops. */
 static struct c2_fom_ops single_cp_fom_ops = {
-        .fo_fini          = single_cp_fom_fini,
-        .fo_tick          = dummy_fom_tick,
-        .fo_home_locality = dummy_fom_locality
+	.fo_fini          = single_cp_fom_fini,
+	.fo_tick          = dummy_fom_tick,
+	.fo_home_locality = dummy_fom_locality
 };
 
 /* Over-ridden copy packet FOM ops. */
 static struct c2_fom_ops multiple_cp_fom_ops = {
-        .fo_fini          = multiple_cp_fom_fini,
-        .fo_tick          = dummy_fom_tick,
-        .fo_home_locality = dummy_fom_locality
+	.fo_fini          = multiple_cp_fom_fini,
+	.fo_tick          = dummy_fom_tick,
+	.fo_home_locality = dummy_fom_locality
 };
 
 /*
@@ -135,7 +137,8 @@ static void test_single_cp(void)
 {
 	c2_semaphore_init(&sem, 0);
 	c2_atomic64_set(&s_sag.sag_base.cag_transformed_cp_nr, 0);
-	cp_prepare(&s_cp, &s_bv, &s_sag, 'e', &single_cp_fom_ops);
+	cp_prepare(&s_cp, &s_bv, SEG_NR, SEG_SIZE, &s_sag, 'e',
+		   &single_cp_fom_ops);
 	s_cp.c_ag->cag_ops = &group_single_ops;
 	c2_fom_queue(&s_cp.c_fom, &reqh);
 
@@ -151,9 +154,9 @@ static void test_single_cp(void)
 	 * These asserts ensure that the single copy packet has been treated
 	 * as passthrough.
 	 */
-        C2_UT_ASSERT(c2_atomic64_get(&s_sag.sag_base.cag_transformed_cp_nr) ==
+	C2_UT_ASSERT(c2_atomic64_get(&s_sag.sag_base.cag_transformed_cp_nr) ==
 		     0);
-        C2_UT_ASSERT(s_sag.sag_base.cag_cp_nr == 1);
+	C2_UT_ASSERT(s_sag.sag_base.cag_cp_nr == 1);
 	c2_semaphore_fini(&sem);
 }
 
@@ -168,7 +171,7 @@ static void test_multiple_cp(void)
 	c2_semaphore_init(&sem, 0);
 	c2_atomic64_set(&m_sag.sag_base.cag_transformed_cp_nr, 0);
 	for (i = 0; i < CP_MULTI; ++i) {
-		cp_prepare(&m_cp[i], &m_bv[i], &m_sag, 'r',
+		cp_prepare(&m_cp[i], &m_bv[i], SEG_NR, SEG_SIZE, &m_sag, 'r',
 			   &multiple_cp_fom_ops);
 		m_cp[i].c_ag->cag_ops = &group_multi_ops;
 		c2_fom_queue(&m_cp[i].c_fom, &reqh);
@@ -185,7 +188,7 @@ static void test_multiple_cp(void)
 	 * These asserts ensure that all the copy packets have been collected
 	 * by the transformation function.
 	 */
-        C2_UT_ASSERT(c2_atomic64_get(&m_sag.sag_base.cag_transformed_cp_nr) ==
+	C2_UT_ASSERT(c2_atomic64_get(&m_sag.sag_base.cag_transformed_cp_nr) ==
 		     CP_MULTI);
 	C2_UT_ASSERT(m_sag.sag_base.cag_cp_nr == CP_MULTI);
 	c2_semaphore_fini(&sem);
@@ -211,31 +214,31 @@ static int xform_fini(void)
 /* Tests the correctness of the bufvec_xor function. */
 static void test_bufvec_xor()
 {
-	bv_populate(&src, '4');
-	bv_populate(&dst, 'D');
+	bv_populate(&src, '4', SEG_NR, SEG_SIZE);
+	bv_populate(&dst, 'D', SEG_NR, SEG_SIZE);
 	/*
 	 * Actual result is anticipated and stored in new bufvec, which is
 	 * used for comparison with xor'ed output.
 	 * 4 XOR D = p
 	 */
-	bv_populate(&xor, 'p');
+	bv_populate(&xor, 'p', SEG_NR, SEG_SIZE);
 	bufvec_xor(&dst, &src, SEG_SIZE * SEG_NR);
-	bv_compare(&dst, &xor);
+	bv_compare(&dst, &xor, SEG_NR, SEG_SIZE);
 	bv_free(&src);
 	bv_free(&dst);
 	bv_free(&xor);
 }
 
 const struct c2_test_suite snsrepair_xform_ut = {
-        .ts_name = "snsrepair_xform-ut",
-        .ts_init = &xform_init,
-        .ts_fini = &xform_fini,
-        .ts_tests = {
-                { "single_cp_passthrough", test_single_cp },
-                { "multiple_cp_bufvec_xor", test_multiple_cp },
-                { "bufvec_xor_correctness", test_bufvec_xor },
-                { NULL, NULL }
-        }
+	.ts_name = "snsrepair_xform-ut",
+	.ts_init = &xform_init,
+	.ts_fini = &xform_fini,
+	.ts_tests = {
+		{ "single_cp_passthrough", test_single_cp },
+		{ "multiple_cp_bufvec_xor", test_multiple_cp },
+		{ "bufvec_xor_correctness", test_bufvec_xor },
+		{ NULL, NULL }
+	}
 };
 
 /*

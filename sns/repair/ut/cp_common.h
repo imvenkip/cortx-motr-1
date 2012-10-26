@@ -27,20 +27,18 @@
 #include "sns/repair/cp.h"
 #include "sns/repair/ag.h"
 
-enum {
-        SEG_NR = 16,
-        SEG_SIZE = 256,
-};
-
 /* Populates the bufvec with a character value. */
-void bv_populate(struct c2_bufvec *b, char data);
+void bv_populate(struct c2_bufvec *b, char data, uint32_t seg_nr,
+		 uint32_t seg_size);
 
 /* Compares 2 bufvecs and asserts if not equal. */
-void bv_compare(struct c2_bufvec *b1, struct c2_bufvec *b2);
+void bv_compare(struct c2_bufvec *b1, struct c2_bufvec *b2, uint32_t seg_nr,
+		uint32_t seg_size);
 
 inline void bv_free(struct c2_bufvec *b);
 
 void cp_prepare(struct c2_cm_cp *cp, struct c2_bufvec *bv,
+		uint32_t bv_seg_nr, uint32_t bv_seg_size,
                 struct c2_sns_repair_ag *sns_ag,
                 char data, struct c2_fom_ops *cp_fom_ops);
 

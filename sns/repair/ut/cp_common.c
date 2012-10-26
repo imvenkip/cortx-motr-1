@@ -25,37 +25,39 @@
 #include "sns/repair/ut/cp_common.h"
 
 /* Populates the bufvec with a character value. */
-void bv_populate(struct c2_bufvec *b, char data)
+void bv_populate(struct c2_bufvec *b, char data, uint32_t seg_nr,
+		 uint32_t seg_size)
 {
         int i;
 
         C2_UT_ASSERT(b != NULL);
-        C2_UT_ASSERT(c2_bufvec_alloc(b, SEG_NR, SEG_SIZE) == 0);
-        C2_UT_ASSERT(b->ov_vec.v_nr == SEG_NR);
-        for (i = 0; i < SEG_NR; ++i) {
-                C2_UT_ASSERT(b->ov_vec.v_count[i] == SEG_SIZE);
+        C2_UT_ASSERT(c2_bufvec_alloc(b, seg_nr, seg_size) == 0);
+        C2_UT_ASSERT(b->ov_vec.v_nr == seg_nr);
+        for (i = 0; i < seg_nr; ++i) {
+                C2_UT_ASSERT(b->ov_vec.v_count[i] == seg_size);
                 C2_UT_ASSERT(b->ov_buf[i] != NULL);
-                memset(b->ov_buf[i], data, SEG_SIZE);
+                memset(b->ov_buf[i], data, seg_size);
         }
 }
 
 /* Compares 2 bufvecs and asserts if not equal. */
-void bv_compare(struct c2_bufvec *b1, struct c2_bufvec *b2)
+void bv_compare(struct c2_bufvec *b1, struct c2_bufvec *b2, uint32_t seg_nr,
+		uint32_t seg_size)
 {
         int i;
 
         C2_UT_ASSERT(b1 != NULL);
         C2_UT_ASSERT(b2 != NULL);
-        C2_UT_ASSERT(b1->ov_vec.v_nr == SEG_NR);
-        C2_UT_ASSERT(b2->ov_vec.v_nr == SEG_NR);
+        C2_UT_ASSERT(b1->ov_vec.v_nr == seg_nr);
+        C2_UT_ASSERT(b2->ov_vec.v_nr == seg_nr);
 
-        for (i = 0; i < SEG_NR; ++i) {
-                C2_UT_ASSERT(b1->ov_vec.v_count[i] == SEG_SIZE);
+        for (i = 0; i < seg_nr; ++i) {
+                C2_UT_ASSERT(b1->ov_vec.v_count[i] == seg_size);
                 C2_UT_ASSERT(b1->ov_buf[i] != NULL);
-                C2_UT_ASSERT(b2->ov_vec.v_count[i] == SEG_SIZE);
+                C2_UT_ASSERT(b2->ov_vec.v_count[i] == seg_size);
                 C2_UT_ASSERT(b2->ov_buf[i] != NULL);
                 C2_UT_ASSERT(memcmp(b1->ov_buf[i], b2->ov_buf[i],
-                                    SEG_SIZE) == 0);
+                                    seg_size) == 0);
         }
 }
 
@@ -65,6 +67,7 @@ inline void bv_free(struct c2_bufvec *b)
 }
 
 void cp_prepare(struct c2_cm_cp *cp, struct c2_bufvec *bv,
+		uint32_t bv_seg_nr, uint32_t bv_seg_size,
 		struct c2_sns_repair_ag *sns_ag,
 		char data, struct c2_fom_ops *cp_fom_ops)
 {
@@ -72,7 +75,7 @@ void cp_prepare(struct c2_cm_cp *cp, struct c2_bufvec *bv,
         C2_UT_ASSERT(bv != NULL);
         C2_UT_ASSERT(sns_ag != NULL);
 
-        bv_populate(bv, data);
+        bv_populate(bv, data, bv_seg_nr, bv_seg_size);
         cp->c_ag = &sns_ag->sag_base;
         c2_cm_cp_init(cp);
         cp->c_data = bv;
