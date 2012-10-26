@@ -135,12 +135,11 @@ static int cp_io(struct c2_cm_cp *cp, const enum c2_stob_io_opcode op)
 		goto out;
 	}
 
-	bshift = stob->so_op->sop_block_shift(stob);
-
 	c2_stob_io_init(stio);
-
 	stio->si_flags = 0;
 	stio->si_opcode = op;
+
+	bshift = stob->so_op->sop_block_shift(stob);
 
 	rc = indexvec_prepare(&stio->si_stob, sns_cp->rc_index, bshift);
 	if (rc != 0)

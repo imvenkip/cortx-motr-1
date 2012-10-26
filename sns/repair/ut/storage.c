@@ -190,10 +190,9 @@ static int dummy_cp_fini(struct c2_cm_cp *cp)
  */
 static int dummy_cp_read_io_wait(struct c2_cm_cp *cp)
 {
-	if (cp->c_io_op == C2_CM_CP_READ)
-		return cp->c_ops->co_phase_next(cp);
-	else
-		return c2_sns_repair_cp_io_wait(cp);
+	return cp->c_io_op == C2_CM_CP_READ ?
+	       cp->c_ops->co_phase_next(cp) :
+	       c2_sns_repair_cp_io_wait(cp);
 }
 
 /*
@@ -203,10 +202,9 @@ static int dummy_cp_read_io_wait(struct c2_cm_cp *cp)
  */
 static int dummy_cp_write_io_wait(struct c2_cm_cp *cp)
 {
-	if (cp->c_io_op == C2_CM_CP_WRITE)
-		return cp->c_ops->co_phase_next(cp);
-	else
-		return c2_sns_repair_cp_io_wait(cp);
+	return cp->c_io_op == C2_CM_CP_WRITE ?
+	       cp->c_ops->co_phase_next(cp) :
+	       c2_sns_repair_cp_io_wait(cp);
 }
 
 const struct c2_cm_cp_ops write_cp_dummy_ops = {
@@ -216,16 +214,11 @@ const struct c2_cm_cp_ops write_cp_dummy_ops = {
 		[C2_CCP_WRITE]   = &c2_sns_repair_cp_write,
 		[C2_CCP_IO_WAIT] = &dummy_cp_read_io_wait,
 		[C2_CCP_XFORM]   = &dummy_cp_xform,
-		[C2_CCP_SEND]    = NULL,
-		[C2_CCP_RECV]    = NULL,
 		[C2_CCP_FINI]    = &dummy_cp_fini,
 	},
 	.co_action_nr            = C2_CCP_NR,
 	.co_phase_next           = &c2_sns_repair_cp_phase_next,
-	.co_invariant            = NULL,
-	.co_home_loc_helper      = NULL,
 	.co_complete             = &dummy_cp_complete,
-	.co_free                 = NULL,
 };
 
 static void write_post(void)
@@ -275,16 +268,11 @@ const struct c2_cm_cp_ops read_cp_dummy_ops = {
 		[C2_CCP_WRITE]   = &dummy_cp_write,
 		[C2_CCP_IO_WAIT] = &dummy_cp_write_io_wait,
 		[C2_CCP_XFORM]   = &dummy_cp_xform,
-		[C2_CCP_SEND]    = NULL,
-		[C2_CCP_RECV]    = NULL,
 		[C2_CCP_FINI]    = &dummy_cp_fini,
 	},
 	.co_action_nr            = C2_CCP_NR,
 	.co_phase_next           = &c2_sns_repair_cp_phase_next,
-	.co_invariant            = NULL,
-	.co_home_loc_helper      = NULL,
 	.co_complete             = &dummy_cp_complete,
-	.co_free                 = NULL,
 };
 
 static void read_post(void)
