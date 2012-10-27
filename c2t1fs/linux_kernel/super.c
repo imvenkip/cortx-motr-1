@@ -112,6 +112,9 @@ const struct c2_fid c2t1fs_root_fid = {
 	.f_key       = 2
 };
 
+/* Default timeout for waiting on sm_group:c2_clink if ast thread is idle. */
+static const uint64_t ast_thread_timeout = 10;
+
 /**
    tlist descriptor for list of c2t1fs_service_context objects placed in
    c2t1fs_sb::csb_service_contexts list using sc_link.
@@ -144,8 +147,11 @@ int c2t1fs_get_sb(struct file_system_type *fstype,
 
 void ast_thread(struct c2t1fs_sb *csb)
 {
+	c2_time_t delta = c2_time_set(&delta, ast_thread_timeout, 0);
+
 	while (1) {
-		c2_chan_wait(&csb->csb_iogroup.s_clink);
+		c2_chan_timedwait(&csb->csb_iogroup.s_clink,
+				  c2_time_add(c2_time_now(), delta));
 		c2_sm_group_lock(&csb->csb_iogroup);
 		c2_sm_asts_run(&csb->csb_iogroup);
 		c2_sm_group_unlock(&csb->csb_iogroup);
