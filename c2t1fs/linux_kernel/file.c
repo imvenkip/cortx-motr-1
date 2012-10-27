@@ -860,7 +860,6 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 {
 	int			  rc;
 	uint32_t		  u;
-	uint32_t		  id;
 	uint32_t		  row;
 	uint32_t		  col;
 	struct c2_buf		 *dbufs;
@@ -886,18 +885,12 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 
 		for (row = 0; row < data_row_nr(play); ++row) {
 			for (u = 0, col = 0; col < data_col_nr(play);
-			     ++u, ++col) {
+			     ++u, ++col)
 				dbufs[u] = map->pi_databufs[row][col]->db_buf;
-				if (dbufs[u].b_nob != PAGE_CACHE_SIZE)
-					dbufs[u].b_nob = PAGE_CACHE_SIZE;
-			}
 
-			for (col = 0; col < layout_k(play); ++col) {
+			for (col = 0; col < layout_k(play); ++col)
 				pbufs[col] = map->pi_paritybufs[row][col]->
 					     db_buf;
-				if (pbufs[u].b_nob != PAGE_CACHE_SIZE)
-					pbufs[u].b_nob = PAGE_CACHE_SIZE;
-			}
 
 			c2_parity_math_calculate(parity_math(map->pi_ioreq),
 						 dbufs, pbufs);
@@ -908,139 +901,32 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 		       "aligned write");
 
 	} else {
-		struct data_buf *buf;
-		struct c2_buf	 zbuf;
-		/* Array of spare buffers. */
-		struct c2_buf	*spbufs;
-		/* Buffers to store delta parities. */
-		struct c2_buf	*deltabufs;
+		struct c2_buf *old;
 
-		C2_ALLOC_ARR_ADDB(deltabufs, layout_n(play), &c2t1fs_addb,
+		C2_ALLOC_ARR_ADDB(old, layout_n(play), &c2t1fs_addb,
 				  &io_addb_loc);
-		if (deltabufs == NULL) {
+
+		if (old == NULL) {
 			rc = -ENOMEM;
-			goto last;
-		}
-
-		zbuf.b_addr = (void *)get_zeroed_page(GFP_KERNEL);
-		if (zbuf.b_addr == NULL) {
-			c2_free(deltabufs);
-			rc = -ENOMEM;
-			goto last;
-		}
-		zbuf.b_nob  = PAGE_CACHE_SIZE;
-
-		C2_ALLOC_ARR_ADDB(spbufs, layout_k(play), &c2t1fs_addb,
-				  &io_addb_loc);
-		if (spbufs == NULL) {
-			c2_free(deltabufs);
-			free_page((unsigned long)zbuf.b_addr);
-			rc = -ENOMEM;
-			goto last;
-		}
-
-		for (id = 0; id < layout_k(play); ++id) {
-			spbufs[id].b_addr = (void *)get_zeroed_page(GFP_KERNEL);
-			if (spbufs[id].b_addr == NULL) {
-				rc = -ENOMEM;
-				break;
-			}
-			spbufs[id].b_nob = PAGE_CACHE_SIZE;
-		}
-
-		if (rc != 0) {
-			for (id = 0; id < layout_k(play); ++id) {
-				free_page((unsigned long)spbufs[id].b_addr);
-				spbufs[id].b_addr = NULL;
-			}
-			c2_free(deltabufs);
-			free_page((unsigned long)zbuf.b_addr);
 			goto last;
 		}
 
 		for (row = 0; row < data_row_nr(play); ++row) {
-			/*
-			 * Calculates parity between old version and
-			 * new version of every data block.
-			 */
 			for (col = 0; col < data_col_nr(play); ++col) {
+				if (map->pi_databufs[row][col] == NULL)
+					continue;
 
-				buf = map->pi_databufs[row][col];
+				dbufs[col] = map->pi_databufs[row][col]->db_buf;
+				old[col]   = map->pi_databufs[row][col]->
+					     db_auxbuf;
+				pbufs[0]   = map->pi_paritybufs[row][0]->db_buf;
 
-				if (buf != NULL && C2_IN(buf->db_flags,
-				    (PA_FULLPAGE_MODIFY, PA_PARTPAGE_MODIFY))) {
-
-					dbufs[0].b_addr = buf->db_auxbuf.b_addr;
-					dbufs[0].b_nob	= PAGE_CACHE_SIZE;
-					dbufs[1].b_addr = buf->db_buf.b_addr;
-					dbufs[1].b_nob	= PAGE_CACHE_SIZE;
-
-					for (id = 2; id < data_col_nr(play);
-					     ++id)
-						dbufs[id] = zbuf;
-
-					/*
-					 * Reuses the data_buf::db_auxbuf to
-					 * store delta parity.
-					 */
-					deltabufs[col]	= buf->db_auxbuf;
-					c2_parity_math_calculate(parity_math
-							(map->pi_ioreq), dbufs,
-							&deltabufs[col]);
-					C2_LOG(C2_INFO, "Parity calculated for"
-					       "row: %d, col: %d", row, col);
-				}
+				c2_parity_math_diff(parity_math(map->pi_ioreq),
+						    old, dbufs, pbufs, row);
 			}
-
-			/* Calculates parity amongst delta parity buffers. */
-			for (col = 0; col < data_col_nr(play); ++col) {
-				if (map->pi_databufs[row][col]->
-				    db_auxbuf.b_addr != NULL)
-					dbufs[col] = map->pi_databufs
-						     [row][col]->db_auxbuf;
-				else
-					dbufs[col] = zbuf;
-			}
-			c2_parity_math_calculate(parity_math(map->
-						 pi_ioreq), dbufs, spbufs);
-			C2_LOG(C2_INFO, "Calculated parity amongst"
-			       "delta parities");
-
-			/*
-			 * Calculates parity amongst spbufs array and old
-			 * version of parity block.
-			 */
-			for (col = 0; col < parity_col_nr(play); ++col)
-				pbufs[col] = map->pi_paritybufs[row][col]->
-					     db_buf;
-
-			/*
-			 * Assigns valid buffers (spbufs array and old version
-			 * of parity block) and use zero buffers elsewhere.
-			 * Zero buffers are used to satisafy requirement
-			 * of c2_parity_math_calculate() API.
-			 * Zero buffers have no effect on parity.
-			 */
-			for (id = 0; id < parity_col_nr(play); ++id) {
-				dbufs[0] = spbufs[id];
-				dbufs[1] = map->pi_paritybufs[row][id]->db_buf;
-				for (col = 2; col < data_col_nr(play); ++col)
-					dbufs[col] = zbuf;
-
-				c2_parity_math_calculate(parity_math(map->
-							 pi_ioreq), dbufs,
-							 &pbufs[id]);
-			}
-			C2_LOG(C2_INFO, "Calculated parity with "
-			       "old version of parity block");
 		}
-
-		free_page((unsigned long)zbuf.b_addr);
-		for (id = 0; id < parity_col_nr(play); ++id)
-			free_page((unsigned long)spbufs[id].b_addr);
-
-		c2_free(spbufs);
-		c2_free(deltabufs);
+		c2_free(old);
+		rc = 0;
 	}
 last:
 	c2_free(dbufs);
@@ -1369,7 +1255,8 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 			 */
 			if (rmw && dbuf->db_flags & PA_PARTPAGE_MODIFY &&
 			    (end <= inode->i_size ||
-			     page_id(end) == page_id(inode->i_size))) {
+			     (page_id(end) == page_id(inode->i_size) &&
+			      inode->i_size > 0))) {
 						dbuf->db_flags |= PA_READ;
 						printk(KERN_ERR "PA_PARTPAGE_MODIFY and PA_READ set");
 			}

@@ -590,6 +590,27 @@ static int c2t1fs_mnt_opts_validate(const struct c2t1fs_mnt_opts *mnt_opts)
 		goto invalid;
 	}
 
+	/*
+	 * In parity groups, parity is calculated using 2 approaches.
+	 * - read old
+	 * - read rest.
+	 * In read old approach, parity is calculated using differential parity
+	 * between old and new version of data along with old version of
+	 * parity block. This needs support from parity math component to
+	 * calculate differential parity.
+	 * At the moment, only XOR has such support.
+	 * Parity math component choses the algorithm for parity calculation
+	 * based on number of parity units. If K == 1, XOR is chosen, otherwise
+	 * Reed-Solomon is chosen.
+	 * Since Reed-Solomon does not support differential parity calculation
+	 * at the moment, number of parity units are restricted to 1 for now.
+	 */
+	if (mnt_opts->mo_nr_parity_units > 1) {
+		C2_LOG(C2_ERROR, "ERROR:"
+				"Number of parity units must be 1");
+		goto invalid;
+	}
+
 	C2_LEAVE("rc: 0");
 	return 0;
 
