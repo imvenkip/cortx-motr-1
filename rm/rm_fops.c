@@ -103,7 +103,8 @@ static int rm_out_create(struct rm_out **out,
 		goto out;
 	}
 
-	rc = c2_rm_loan_init(&outreq->ou_req.rog_want, right);
+	rc = c2_rm_loan_init(&outreq->ou_req.rog_want, right,
+			     in->rin_want.ri_owner->ro_creditor);
 	if (rc != 0) {
 		c2_free(outreq);
 		goto out;
@@ -186,6 +187,7 @@ static int revoke_fop_fill(struct rm_out *outreq,
  */
 static void rm_out_fini(struct rm_out *out)
 {
+	c2_rm_outgoing_fini(&out->ou_req);
 	c2_free(out);
 }
 
@@ -236,39 +238,6 @@ out:
 }
 C2_EXPORTED(c2_rm_borrow_out);
 
-static int right_dup(const struct c2_rm_right *src_right,
-		     struct c2_rm_right **dest_right)
-{
-	C2_PRE(dest_right != NULL);
-
-	C2_ALLOC_PTR(*dest_right);
-	if (*dest_right == NULL)
-		return -ENOMEM;
-
-	c2_rm_right_init(*dest_right, src_right->ri_owner);
-	return src_right->ri_ops->rro_copy(*dest_right, src_right);
-}
-
-static int loan_create(struct c2_rm_loan **loan,
-		       const struct c2_rm_right *right)
-{
-	int rc = -ENOMEM;
-	C2_PRE(loan != NULL);
-
-	C2_ALLOC_PTR(*loan);
-	if (*loan != NULL) {
-		rc = c2_rm_loan_init(*loan, right);
-		if (rc == 0)
-			(*loan)->rl_other = right->ri_owner->ro_creditor;
-		else {
-			c2_free(*loan);
-			*loan = NULL;
-		}
-	}
-
-	return *loan ? 0 : rc;
-}
-
 static void borrow_reply(struct c2_rpc_item *item)
 {
 	struct c2_fop_rm_borrow_rep *borrow_reply;
@@ -297,10 +266,11 @@ static void borrow_reply(struct c2_rpc_item *item)
 		if (rc != 0)
 			goto out;
 
-		rc = right_dup(bright, &right) ?: loan_create(&loan, bright);
+		rc = c2_rm_right_dup(bright, &right) ?:
+			c2_rm_loan_alloc(&loan, bright, owner->ro_creditor);
 		if (rc == 0) {
 			loan->rl_cookie = borrow_reply->br_loan.lo_cookie;
-			c2_sm_group_lock(&owner->ro_sm_grp);
+			c2_rm_owner_lock(owner);
 			/* Add loan to the borrowed list. */
 			c2_rm_ur_tlist_add(&owner->ro_borrowed,
 					   &loan->rl_right);
@@ -308,7 +278,7 @@ static void borrow_reply(struct c2_rpc_item *item)
 			/* Add right to the CACHED list. */
 			c2_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
 					   right);
-			c2_sm_group_unlock(&owner->ro_sm_grp);
+			c2_rm_owner_unlock(owner);
 		} else {
 			c2_free(loan);
 			c2_free(right);
@@ -316,9 +286,9 @@ static void borrow_reply(struct c2_rpc_item *item)
 	}
 out:
 	outreq->ou_req.rog_rc = rc;
-	c2_sm_group_lock(&owner->ro_sm_grp);
+	c2_rm_owner_lock(owner);
 	c2_rm_outgoing_complete(&outreq->ou_req);
-	c2_sm_group_unlock(&owner->ro_sm_grp);
+	c2_rm_owner_unlock(owner);
 }
 
 static void revoke_reply(struct c2_rpc_item *item)
@@ -339,23 +309,23 @@ static void revoke_reply(struct c2_rpc_item *item)
 	owner = out_right->ri_owner;
 	rc = item->ri_error ?: revoke_reply->rerr_rc;
 
-	rc = rc ?: right_dup(out_right, &right);
+	rc = rc ?: c2_rm_right_dup(out_right, &right);
 	if (rc == 0) {
-		c2_sm_group_lock(&owner->ro_sm_grp);
+		c2_rm_owner_lock(owner);
 		rc = c2_rm_sublet_remove(out_right);
 		if (rc == 0) {
 			c2_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
 					   right);
-			c2_sm_group_unlock(&owner->ro_sm_grp);
+			c2_rm_owner_unlock(owner);
 		} else {
-			c2_sm_group_unlock(&owner->ro_sm_grp);
+			c2_rm_owner_unlock(owner);
 			c2_free(right);
 		}
 	}
 	outreq->ou_req.rog_rc = rc;
-	c2_sm_group_lock(&owner->ro_sm_grp);
+	c2_rm_owner_lock(owner);
 	c2_rm_outgoing_complete(&outreq->ou_req);
-	c2_sm_group_unlock(&owner->ro_sm_grp);
+	c2_rm_owner_unlock(owner);
 }
 
 static void outreq_free(struct c2_rpc_item *item)

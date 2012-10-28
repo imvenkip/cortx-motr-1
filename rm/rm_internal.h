@@ -34,7 +34,6 @@ struct c2_rm_remote_incoming {
 	/* This cookie is used to determine locality */
 	struct c2_cookie      ri_owner_cookie;
 	struct c2_cookie      ri_loan_cookie;
-	struct c2_rm_loan    *ri_loan;
 };
 
 /**
@@ -122,15 +121,45 @@ int c2_rm_request_out(struct c2_rm_incoming *in,
 		      struct c2_rm_right *right);
 
 /**
- * Initialises the fields of outgoing.
+ * Initialises the fields of for incoming structure.
+ * This creates an incoming request with an empty c2_rm_incoming::rin_want
+ * right.
+ *
+ * @param out - outgoing (remote) right request structure
+ * @param type - outgoing request type
+ * @see c2_rm_outgoing_fini
  */
 void c2_rm_outgoing_init(struct c2_rm_outgoing *out,
-			 enum c2_rm_outgoing_type type);
+			 enum c2_rm_outgoing_type req_type);
+
+/**
+ * Finalises the fields of
+ * @param out
+ * @see c2_rm_outgoing_init
+ */
+void c2_rm_outgoing_fini(struct c2_rm_outgoing *out);
 
 /**
  * Initialise the loan
  */
-int c2_rm_loan_init(struct c2_rm_loan *loan, const struct c2_rm_right *right);
+int c2_rm_loan_init(struct c2_rm_loan *loan, const struct c2_rm_right *right,
+		    struct c2_rm_remote *creditor);
+
+/**
+ * Finalise the lona. Release ref count of remote owner.
+ */
+void c2_rm_loan_fini(struct c2_rm_loan *loan);
+
+/**
+ * Initialise the loan
+ *
+ * @param loan - On success, this will contain an allocated and initialised
+ *               loan strucutre
+ * @param right - the rights for which loan is being aloocated/created.
+ */
+int c2_rm_loan_alloc(struct c2_rm_loan **loan,
+		     const struct c2_rm_right *right,
+		     struct c2_rm_remote *creditor);
 
 /**
  * Called when an outgoing request completes (possibly with an error, like a

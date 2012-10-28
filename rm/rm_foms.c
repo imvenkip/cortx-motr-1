@@ -169,18 +169,8 @@ static int request_fom_create(enum c2_rm_incoming_type type,
 	if (rqfom == NULL)
 		return -ENOMEM;
 
-
 	switch (type) {
 	case C2_RIT_BORROW:
-		/*
-		 * The loan may be consumed by c2_rm_borrow_commit().
-		 * It's de-allocated otherwise by the FOM.
-		 */
-		C2_ALLOC_PTR(rqfom->rf_in.ri_loan);
-		if (rqfom->rf_in.ri_loan == NULL) {
-			c2_free(rqfom);
-			return -ENOMEM;
-		}
 		fopt = &c2_fop_rm_borrow_rep_fopt;
 		fom_ops = &rm_fom_borrow_ops;
 		fop_data = &rqfom->rf_rep_fop_data.rr_borrow_rep;
@@ -199,7 +189,6 @@ static int request_fom_create(enum c2_rm_incoming_type type,
 	c2_fom_init(&rqfom->rf_fom, &fop->f_type->ft_fom_type,
 		    fom_ops, fop, &rqfom->rf_rep_fop);
 	*out = &rqfom->rf_fom;
-
 	return 0;
 }
 
@@ -209,23 +198,11 @@ static int request_fom_create(enum c2_rm_incoming_type type,
 static void request_fom_fini(struct c2_fom *fom)
 {
 	struct rm_request_fom *rfom;
-	struct c2_rm_loan     *loan;
 
 	C2_PRE(fom != NULL);
 
 	rfom = container_of(fom, struct rm_request_fom, rf_fom);
-	loan = rfom->rf_in.ri_loan;
-
 	c2_fom_fini(fom);
-	/*
-	 * c2_free() does check for NULL pointer. We are checking for
-	 * NULL pointer because we are calling c2_rm_remote_fini().
-	 */
-	if (loan != NULL && loan->rl_other != NULL) {
-		c2_rm_remote_fini(rfom->rf_in.ri_loan->rl_other);
-		c2_free(rfom->rf_in.ri_loan->rl_other);
-	}
-	c2_free(rfom->rf_in.ri_loan);
 	c2_free(rfom);
 }
 
@@ -259,12 +236,14 @@ static int reply_prepare(const enum c2_rm_incoming_type type,
 		bfop->br_loan.lo_cookie = rfom->rf_in.ri_loan_cookie;
 
 		/*
-		 * The loan is consumed by c2_rm_borrow_commit().
 		 * Get the loan pointer for processing reply from the cookie.
+		 * It's safe to access loan as this get called when
+		 * c2_right_get() succeeds. Hence loan cookie is valid.
 		 */
 		loan = c2_cookie_of(&rfom->rf_in.ri_loan_cookie,
 				    struct c2_rm_loan, rl_id);
 
+		C2_ASSERT(loan != NULL);
 		/*
 		 * Memory for the buffer is allocated by the function.
 		 */
@@ -300,40 +279,6 @@ static void reply_err_set(enum c2_rm_incoming_type type,
 	}
 	rfop->rerr_rc = rc;
 	c2_fom_phase_set(fom, rc ? C2_FOPH_FAILURE : C2_FOPH_SUCCESS);
-}
-
-static int loan_setup(struct c2_rm_loan *loan,
-		       struct c2_rm_incoming *in,
-		       struct c2_fop_rm_borrow *bfop,
-		       struct c2_cookie *loan_cookie)
-{
-	int rc;
-	/*
-	 * Populate the owner cookie for debtor (remote end).
-	 * (for loan->rl_other->rm_cookie).
-	 * We have got debtor cookie, call ...net_locate()??
-	 * @todo : Once we figure out the RM configuration interfaces,
-	 *         this code will change.
-	 */
-
-	rc = c2_rm_loan_init(loan, &in->rin_want);
-	if (rc == 0) {
-		C2_ALLOC_PTR(loan->rl_other);
-		if (loan->rl_other == NULL)
-			rc = -ENOMEM;
-		else {
-			c2_rm_remote_init(loan->rl_other,
-					  in->rin_want.ri_owner->ro_resource);
-			loan->rl_other->rem_state = REM_SERVICE_LOCATED;
-			loan->rl_other->rem_cookie =
-				bfop->bo_base.rrq_owner.ow_cookie;
-			/*
-			 * Store loan cookie for reply processing.
-			 */
-			c2_cookie_init(loan_cookie, &loan->rl_id);
-		}
-	}
-	return rc;
 }
 
 /*
@@ -379,14 +324,6 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		 * Populate the loan cookie.
 		 */
 		rfom->rf_in.ri_loan_cookie = rfop->rr_loan.lo_cookie;
-		/*
-		 * Check if the loan cookie is stale. If the cookie is stale
-		 * don't proceed with the reovke processing.
-		 */
-		rfom->rf_in.ri_loan =
-			c2_cookie_of(&rfop->rr_loan.lo_cookie,
-				     struct c2_rm_loan, rl_id);
-		rc = rfom->rf_in.ri_loan ? 0: -EPROTO;
 		break;
 
 	default:
@@ -412,14 +349,7 @@ static int incoming_prepare(enum c2_rm_incoming_type type, struct c2_fom *fom)
 		if (rc != 0) {
 			c2_rm_right_fini(&in->rin_want);
 			c2_rm_incoming_fini(in);
-		} else
-			if (type == C2_RIT_BORROW) {
-				c2_rm_right_init(&rfom->rf_in.ri_loan->rl_right,
-						 owner);
-				rc = loan_setup(rfom->rf_in.ri_loan, in, bfop,
-						&rfom->rf_in.ri_loan_cookie);
-
-			}
+		}
 	}
 	return rc;
 }
@@ -476,13 +406,7 @@ static int request_post_process(struct c2_fom *fom)
 		C2_ASSERT(rc == 0);
 		rc = reply_prepare(in->rin_type, fom);
 		c2_rm_right_put(in);
-	} else
-		/*
-		 * This will happen if request fails for a valid loan.
-		 * We should not free up the loan in this case.
-		 */
-		if (in->rin_type == C2_RIT_REVOKE)
-			rfom->rf_in.ri_loan = NULL;
+	}
 
 	reply_err_set(in->rin_type, fom, rc);
 	c2_rm_right_fini(&in->rin_want);
@@ -500,7 +424,7 @@ static int request_fom_tick(struct c2_fom *fom,
 		rc = c2_fom_tick_generic(fom);
 	else {
 		/*
-		 * The same code is executed for REVOKE. The cases statements
+		 * The same code is executed for REVOKE. The case statements
 		 * for REVOKE have not been added because, they have same
 		 * phase values as BORROW. It causes compilation error.
 		 * In future, if the phase values of REVOKE change, please

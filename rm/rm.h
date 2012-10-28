@@ -1540,6 +1540,15 @@ int c2_rm_owner_retire(struct c2_rm_owner *owner);
 void c2_rm_owner_fini(struct c2_rm_owner *owner);
 
 /**
+ * Locks state machine group of an owner
+ */
+void c2_rm_owner_lock(struct c2_rm_owner *owner);
+/**
+ * Unlocks state machine group of an owner
+ */
+void c2_rm_owner_unlock(struct c2_rm_owner *owner);
+
+/**
  * Initialises generic fields in struct c2_rm_right.
  *
  * This is called by generic RM code to initialise an empty right of any
@@ -1554,6 +1563,15 @@ void c2_rm_right_init(struct c2_rm_right *right, struct c2_rm_owner *owner);
  * Finalised generic fields in struct c2_rm_right. Dual to c2_rm_right_init().
  */
 void c2_rm_right_fini(struct c2_rm_right *right);
+
+/**
+ * @param src_right - A source right which is to be duplicated.
+ * @param dest_right - A destination right. This right will be allocated,
+ *                     initialised and then filled with src_right.
+ * Allocates and duplicates a right.
+ */
+int c2_rm_right_dup(const struct c2_rm_right *src_right,
+		    struct c2_rm_right **dest_right);
 
 /**
  * Initialises the fields of for incoming structure.
