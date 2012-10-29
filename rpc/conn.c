@@ -339,6 +339,7 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	struct c2_rpc_slot    *slot;
 	struct c2_rpc_session *session;
 	int                    rc;
+	int                    i;
 
 	C2_ENTRY("conn: %p", conn);
 	C2_ASSERT(conn != NULL &&
@@ -348,7 +349,7 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	if (session == NULL)
 		C2_RETURN(-ENOMEM);
 
-	rc = c2_rpc_session_init_locked(session, conn, 1 /* NR_SLOTS */);
+	rc = c2_rpc_session_init_locked(session, conn, 10 /* NR_SLOTS */);
 	if (rc != 0) {
 		c2_free(session);
 		C2_RETURN(rc);
@@ -362,11 +363,13 @@ static int session_zero_attach(struct c2_rpc_conn *conn)
 	session_state_set(session, C2_RPC_SESSION_ESTABLISHING);
 	session_state_set(session, C2_RPC_SESSION_IDLE);
 
-	slot = session->s_slot_table[0];
-	C2_ASSERT(slot != NULL &&
-		  slot->sl_ops != NULL &&
-		  slot->sl_ops->so_slot_idle != NULL);
-	slot->sl_ops->so_slot_idle(slot);
+	for (i = 0; i < session->s_nr_slots; ++i) {
+		slot = session->s_slot_table[i];
+		C2_ASSERT(slot != NULL &&
+			  slot->sl_ops != NULL &&
+			  slot->sl_ops->so_slot_idle != NULL);
+		slot->sl_ops->so_slot_idle(slot);
+	}
 	C2_ASSERT(c2_rpc_session_invariant(session));
 	C2_RETURN(0);
 }

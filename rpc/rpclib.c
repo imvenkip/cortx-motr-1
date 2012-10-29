@@ -138,19 +138,19 @@ int c2_rpc_client_start(struct c2_rpc_client_ctx *cctx)
 
 	rc = c2_rpc_conn_create(&cctx->rcx_connection, cctx->rcx_remote_ep,
 				rpc_mach, cctx->rcx_max_rpcs_in_flight,
-				cctx->rcx_timeout_s);
+				C2_TIME_NEVER);
 	if (rc != 0)
 		goto ep_put;
 
 	rc = c2_rpc_session_create(&cctx->rcx_session, &cctx->rcx_connection,
-				   cctx->rcx_nr_slots, cctx->rcx_timeout_s);
+				   cctx->rcx_nr_slots, C2_TIME_NEVER);
 	if (rc != 0)
 		goto conn_destroy;
 
 	C2_RETURN(rc);
 
 conn_destroy:
-	c2_rpc_conn_destroy(&cctx->rcx_connection, cctx->rcx_timeout_s);
+	c2_rpc_conn_destroy(&cctx->rcx_connection, C2_TIME_NEVER);
 ep_put:
 	c2_net_end_point_put(cctx->rcx_remote_ep);
 rpcmach_fini:
@@ -199,12 +199,12 @@ int c2_rpc_client_stop(struct c2_rpc_client_ctx *cctx)
 	int rc;
 
 	C2_ENTRY("client_ctx: %p", cctx);
-	rc = c2_rpc_session_destroy(&cctx->rcx_session, cctx->rcx_timeout_s);
+	rc = c2_rpc_session_destroy(&cctx->rcx_session, C2_TIME_NEVER);
 	if (rc != 0) {
 		C2_RETURN(rc);
 	}
 
-	rc = c2_rpc_conn_destroy(&cctx->rcx_connection, cctx->rcx_timeout_s);
+	rc = c2_rpc_conn_destroy(&cctx->rcx_connection, C2_TIME_NEVER);
 	if (rc != 0) {
 		C2_RETURN(rc);
 	}

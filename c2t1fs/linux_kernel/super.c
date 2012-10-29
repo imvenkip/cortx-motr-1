@@ -880,14 +880,14 @@ static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
 
 	conn = &ctx->sc_conn;
 	rc = c2_rpc_conn_create(conn, ep, rpc_mach, C2T1FS_MAX_NR_RPC_IN_FLIGHT,
-				C2T1FS_RPC_TIMEOUT);
+				C2_TIME_NEVER);
 	c2_net_end_point_put(ep);
 	if (rc != 0)
 		goto out;
 
 	session = &ctx->sc_session;
 	rc = c2_rpc_session_create(session, conn, C2T1FS_NR_SLOTS_PER_SESSION,
-				   C2T1FS_RPC_TIMEOUT);
+				   C2_TIME_NEVER);
 	if (rc != 0)
 		goto conn_term;
 
@@ -897,7 +897,7 @@ static int c2t1fs_connect_to_service(struct c2t1fs_service_context *ctx)
 	C2_RETURN(rc);
 
 conn_term:
-	(void)c2_rpc_conn_terminate_sync(conn, C2T1FS_RPC_TIMEOUT);
+	(void)c2_rpc_conn_terminate_sync(conn, C2_TIME_NEVER);
 	c2_rpc_conn_fini(conn);
 out:
 	C2_ASSERT(rc != 0);
@@ -908,15 +908,12 @@ static void c2t1fs_disconnect_from_service(struct c2t1fs_service_context *ctx)
 {
 	C2_ENTRY();
 
-	(void)c2_rpc_session_terminate_sync(&ctx->sc_session,
-					    C2T1FS_RPC_TIMEOUT);
-
+	(void)c2_rpc_session_terminate_sync(&ctx->sc_session, C2_TIME_NEVER);
 	/* session_fini() before conn_terminate is necessary, to detach
 	   session from connection */
 	c2_rpc_session_fini(&ctx->sc_session);
 
-	(void)c2_rpc_conn_terminate_sync(&ctx->sc_conn, C2T1FS_RPC_TIMEOUT);
-
+	(void)c2_rpc_conn_terminate_sync(&ctx->sc_conn, C2_TIME_NEVER);
 	c2_rpc_conn_fini(&ctx->sc_conn);
 
 	ctx->sc_csb->csb_nr_active_contexts--;
