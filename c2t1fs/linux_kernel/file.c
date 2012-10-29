@@ -445,17 +445,9 @@ static const struct io_request_ops ioreq_ops = {
 	.iro_iosm_handle    = ioreq_iosm_handle,
 };
 
-static int ioreq_sm_state(const struct io_request *req)
+static inline uint32_t ioreq_sm_state(const struct io_request *req)
 {
 	return req->ir_sm.sm_state;
-}
-
-static void ioreq_sm_state_set(struct io_request *req, int state)
-{
-	c2_mutex_lock(&req->ir_sm.sm_grp->s_lock);
-	c2_sm_state_set(&req->ir_sm, state);
-	c2_mutex_unlock(&req->ir_sm.sm_grp->s_lock);
-	C2_LOG(C2_INFO, "IO state machine state changed to %d", state);
 }
 
 static void ioreq_sm_failed(struct io_request *req, int rc)
@@ -506,6 +498,17 @@ static const struct c2_sm_conf io_sm_conf = {
 	.scf_nr_states = ARRAY_SIZE(io_states),
 	.scf_state     = io_states,
 };
+
+static void ioreq_sm_state_set(struct io_request *req, int state)
+{
+	C2_LOG(C2_INFO, "IO request %p current state = %s",
+	       req, io_states[ioreq_sm_state(req)].sd_name);
+	c2_mutex_lock(&req->ir_sm.sm_grp->s_lock);
+	c2_sm_state_set(&req->ir_sm, state);
+	c2_mutex_unlock(&req->ir_sm.sm_grp->s_lock);
+	C2_LOG(C2_INFO, "IO request state changed to %s",
+	       io_states[ioreq_sm_state(req)].sd_name);
+}
 
 static bool io_request_invariant(const struct io_request *req)
 {
@@ -1997,6 +2000,22 @@ err:
 	C2_RETERR(rc, "io_prepare failed");
 }
 
+static inline int ioreq_sm_timedwait(struct io_request *req,
+			             uint64_t           state)
+{
+	int rc;
+
+	C2_ENTRY("ioreq = %p, current state = %d, waiting for state %llu",
+		 req, ioreq_sm_state(req), state);
+	C2_PRE(req != NULL);
+
+	c2_mutex_lock(&req->ir_sm.sm_grp->s_lock);
+	rc = c2_sm_timedwait(&req->ir_sm, (1 << state), C2_TIME_NEVER);
+	c2_mutex_unlock(&req->ir_sm.sm_grp->s_lock);
+
+	C2_RETURN(rc);
+}
+
 static int ioreq_iosm_handle(struct io_request *req)
 {
 	int		     rc;
@@ -2043,8 +2062,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 
 		state = req->ir_type == IRT_READ ? IRS_READ_COMPLETE:
 						   IRS_WRITE_COMPLETE;
-		rc    = c2_sm_timedwait(&req->ir_sm, (1 << state),
-					C2_TIME_NEVER);
+		rc    = ioreq_sm_timedwait(req, state);
 		if (rc != 0)
 			ioreq_sm_failed(req, rc);
 
@@ -2086,8 +2104,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 
 		/* Waits for read completion if read IO was issued. */
 		if (read_pages > 0) {
-			rc = c2_sm_timedwait(&req->ir_sm, (1 << IRS_READ_COMPLETE),
-					     C2_TIME_NEVER);
+			rc = ioreq_sm_timedwait(req, IRS_READ_COMPLETE);
 
 			if (res != 0 || rc != 0) {
 				rc = res != 0 ? res : rc;
@@ -2114,8 +2131,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 		if (rc != 0)
 			goto fail;
 
-		rc = c2_sm_timedwait(&req->ir_sm, (1 << IRS_WRITE_COMPLETE),
-				     C2_TIME_NEVER);
+		rc = ioreq_sm_timedwait(req, IRS_WRITE_COMPLETE);
 		if (rc != 0)
 			goto fail;
 	}
@@ -2126,7 +2142,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 	 * valid file position written in current write IO call.
 	 */
 	inode = req->ir_file->f_dentry->d_inode;
-	if (req->ir_sm.sm_state == IRS_WRITE_COMPLETE) {
+	if (ioreq_sm_state(req) == IRS_WRITE_COMPLETE) {
 		inode->i_size = max64u(inode->i_size,
 				       seg_endpos(&req->ir_ivec,
 					          req->ir_ivec.iv_vec.v_nr - 1));
@@ -2575,7 +2591,7 @@ static int io_req_fop_init(struct io_req_fop   *fop,
 		     &ioreq_bobtype);
 	fop->irf_ast.sa_mach = &req->ir_sm;
 
-	rc  = c2_io_fop_init(&fop->irf_iofop, req->ir_sm.sm_state ==
+	rc  = c2_io_fop_init(&fop->irf_iofop, ioreq_sm_state(req) ==
 			     IRS_READING ? &c2_fop_cob_readv_fopt :
 			     &c2_fop_cob_writev_fopt);
 	/*
@@ -3046,12 +3062,12 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 	} c2_tl_endfor;
 
 	C2_LOG(C2_INFO, "Number of bytes %s = %llu",
-	       req->ir_sm.sm_state == IRS_READ_COMPLETE ? "read" : "written",
+	       ioreq_sm_state(req) == IRS_READ_COMPLETE ? "read" : "written",
 	       xfer->nxr_bytes);
 
 	if (!rmw)
 		ioreq_sm_state_set(req, IRS_REQ_COMPLETE);
-	else if (req->ir_sm.sm_state == IRS_READ_COMPLETE)
+	else if (ioreq_sm_state(req) == IRS_READ_COMPLETE)
 		xfer->nxr_bytes = 0;
 
 	req->ir_rc = xfer->nxr_rc;
