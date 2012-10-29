@@ -925,7 +925,7 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 				pbufs[0]   = map->pi_paritybufs[row][0]->db_buf;
 
 				c2_parity_math_diff(parity_math(map->pi_ioreq),
-						    old, dbufs, pbufs, row);
+						    old, dbufs, pbufs, col);
 			}
 		}
 		c2_free(old);
@@ -1319,8 +1319,6 @@ static uint64_t pargrp_iomap_auxbuf_alloc(struct pargrp_iomap *map,
 					  uint32_t	       col)
 {
 	C2_PRE(pargrp_iomap_invariant(map));
-	C2_PRE(C2_IN(map->pi_databufs[row][col]->db_flags,
-	       (PA_PARTPAGE_MODIFY, PA_FULLPAGE_MODIFY)));
 	C2_PRE(map->pi_rtype == PIR_READOLD);
 
 	map->pi_databufs[row][col]->db_auxbuf.b_addr = (void *)
@@ -1362,13 +1360,9 @@ static int pargrp_iomap_readold_auxbuf_alloc(struct pargrp_iomap *map)
 		count = end - start;
 		page_pos_get(map, start, &row, &col);
 
-		if (count < PAGE_CACHE_SIZE) {
-			map->pi_databufs[row][col]->db_flags |=
-				PA_PARTPAGE_MODIFY;
-			rc = pargrp_iomap_auxbuf_alloc(map, row, col);
-			if (rc != 0)
-				C2_RETERR(rc, "auxbuf_alloc failed");
-		}
+		rc = pargrp_iomap_auxbuf_alloc(map, row, col);
+		if (rc != 0)
+			C2_RETERR(rc, "auxbuf_alloc failed");
 	}
 	C2_RETURN(rc);
 }
@@ -1507,7 +1501,9 @@ static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map)
 
 			map->pi_paritybufs[row][col]->db_flags |= PA_WRITE;
 
-			if (map->pi_rtype == PIR_READOLD)
+			if (map->pi_rtype == PIR_READOLD &&
+			    file_to_inode(map->pi_ioreq->ir_file)->i_size >
+			    data_size(play) * map->pi_grpid)
 				map->pi_paritybufs[row][col]->db_flags |=
 					PA_READ;
 		}
@@ -3135,7 +3131,7 @@ static int bulk_buffer_add(struct io_req_fop	   *irfop,
 static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				       enum page_attr       filter)
 {
-	int			rc;
+	int			rc = 0;
 	uint32_t		buf = 0;
 	/* Number of segments in one c2_rpc_bulk_buf structure. */
 	uint32_t		bbsegs;
@@ -3240,6 +3236,12 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			} else
 				C2_LOG(C2_INFO, "inner if not entered");
 			++buf;
+		}
+
+		if (c2_io_fop_byte_count(&irfop->irf_iofop) == 0) {
+			printk(KERN_ERR "Zero size fop rejected.");
+			irfop_fini(irfop);
+			continue;
 		}
 
 		rbuf->bb_nbuf->nb_buffer.ov_vec.v_nr = bbsegs;
