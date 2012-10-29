@@ -657,7 +657,7 @@ enum page_attr {
         /** Page needs to be written. */
         PA_WRITE           = (1 << 3),
 
-	/** Page contails file data. */
+	/** Page contains file data. */
 	PA_DATA		   = (1 << 4),
 
 	/** Page contains parity. */

@@ -233,6 +233,7 @@ static void ds_test(void)
          * Rest all pages in data matrix will be NULL.
          */
 	C2_UT_ASSERT(map->pi_ivec.iv_index[0] == PAGE_CACHE_SIZE * 4);
+	printk(KERN_ERR "v_count[0] = %llu", map->pi_ivec.iv_vec.v_count[0]);
 	C2_UT_ASSERT(map->pi_ivec.iv_vec.v_count[0] == 2 * PAGE_CACHE_SIZE);
 	C2_UT_ASSERT(map->pi_databufs   != NULL);
 	C2_UT_ASSERT(map->pi_paritybufs != NULL);
@@ -766,6 +767,9 @@ static void target_ioreq_test(void)
 	C2_UT_ASSERT(col == 0);
 	SEG_NR(&ti.ti_ivec) = 0;
 
+	for (cnt = 0; cnt < IOVEC_NR; ++cnt)
+		ti.ti_pageattrs[cnt] &= ~(PA_DATA | PA_PARITY);
+
 	target_ioreq_seg_add(&ti, 0, 0, 0, PAGE_CACHE_SIZE, 0);
 	C2_UT_ASSERT(1 == SEG_NR(&ti.ti_ivec));
 	C2_UT_ASSERT(ti.ti_bufvec.ov_buf[0] == buf->db_buf.b_addr);
@@ -787,7 +791,7 @@ static void target_ioreq_test(void)
 	target_ioreq_seg_add(&ti, 0, 0, 0, PAGE_CACHE_SIZE, LAY_N);
 	C2_UT_ASSERT(3 == SEG_NR(&ti.ti_ivec));
 	C2_UT_ASSERT(ti.ti_bufvec.ov_buf[2] == buf->db_buf.b_addr);
-	C2_UT_ASSERT(ti.ti_pageattrs[2] & PA_DATA);
+	C2_UT_ASSERT(ti.ti_pageattrs[2] & PA_PARITY);
 
 	target_ioreq_fini(&ti);
 	pargrp_iomap_fini(map);

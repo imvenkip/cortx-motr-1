@@ -962,7 +962,7 @@ static int ioreq_user_data_copy(struct io_request   *req,
 	c2_bindex_t		  grpend;
 	c2_bindex_t		  pgstart;
 	c2_bindex_t		  pgend;
-	c2_bcount_t		  count = 0;
+	c2_bcount_t		  count;
 	struct iov_iter		  it;
 	struct c2_ivec_cursor	  srccur;
 	struct c2_pdclust_layout *play;
@@ -982,9 +982,12 @@ static int ioreq_user_data_copy(struct io_request   *req,
 
 		C2_ASSERT(pargrp_iomap_invariant(req->ir_iomaps[map]));
 
+		count    = 0;
 		grpstart = data_size(play) * req->ir_iomaps[map]->pi_grpid;
 		grpend	 = grpstart + data_size(play);
 		pgstart	 = c2_ivec_cursor_index(&srccur);
+		printk(KERN_ERR "copy for parity group id %llu",
+			req->ir_iomaps[map]->pi_grpid);
 
 		while (!c2_ivec_cursor_move(&srccur, count) &&
 		       c2_ivec_cursor_index(&srccur) < grpend) {
@@ -1189,7 +1192,6 @@ static int pargrp_iomap_databuf_alloc(struct pargrp_iomap *map,
 				      uint32_t		   col)
 {
 	C2_PRE(map != NULL);
-	printk(KERN_ERR "row = %d, col = %d", row, col);
 	C2_PRE(map->pi_databufs[row][col] == NULL);
 
 	map->pi_databufs[row][col] = data_buf_alloc_init(0);
@@ -1254,11 +1256,11 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 			 * allocated until ::pi_rtype is selected.
 			 */
 			if (rmw && dbuf->db_flags & PA_PARTPAGE_MODIFY &&
-			    (end <= inode->i_size ||
-			     (page_id(end) == page_id(inode->i_size) &&
-			      inode->i_size > 0))) {
-						dbuf->db_flags |= PA_READ;
-						printk(KERN_ERR "PA_PARTPAGE_MODIFY and PA_READ set");
+			    (end < inode->i_size ||
+			     (inode->i_size > 0 &&
+			      page_id(end) == page_id(inode->i_size - 1)))) {
+				dbuf->db_flags |= PA_READ;
+				printk(KERN_ERR "PA_PARTPAGE_MODIFY and PA_READ set");
 			}
 		} else {
 			/*
@@ -1518,6 +1520,54 @@ err:
 	C2_RETERR(-ENOMEM, "Memory allocation failed for data_buf.");
 }
 
+static c2_bcount_t seg_collate(struct pargrp_iomap   *map,
+			       struct c2_ivec_cursor *cursor)
+{
+	uint32_t                  seg;
+	uint32_t                  cnt;
+	c2_bindex_t               start;
+	c2_bindex_t               grpend;
+	c2_bcount_t               segcount;
+	struct c2_pdclust_layout *play;
+
+	C2_PRE(map    != NULL);
+	C2_PRE(cursor != NULL);
+
+	cnt    = 0;
+	play   = pdlayout_get(map->pi_ioreq);
+	grpend = map->pi_grpid * data_size(play) + data_size(play); 
+	start  = c2_ivec_cursor_index(cursor);
+
+	for (seg = cursor->ic_cur.vc_seg; start < grpend &&
+	     seg < cursor->ic_cur.vc_vec->v_nr - 1; ++seg) {
+
+		segcount = seg == cursor->ic_cur.vc_seg ?
+			 c2_ivec_cursor_step(cursor) :
+			 cursor->ic_cur.vc_vec->v_count[seg];
+
+		if (start + segcount ==
+		    map->pi_ioreq->ir_ivec.iv_index[seg + 1]) {
+
+			if (start + segcount >= grpend) {
+				start = grpend - 1;
+				break;
+			}
+			start += segcount;
+		} else
+			break;
+		++cnt;
+	}
+
+	if (cnt == 0)
+		return 0;
+
+	/* If this was last segment in vector, add its count too. */
+	if (seg == cursor->ic_cur.vc_vec->v_nr - 1)
+		start += cursor->ic_cur.vc_vec->v_count[seg];
+
+	return start - c2_ivec_cursor_index(cursor);
+}
+
 static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 				 const struct c2_indexvec *ivec,
 				 struct c2_ivec_cursor	  *cursor)
@@ -1527,10 +1577,10 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 	uint64_t		  seg;
 	uint64_t		  size = 0;
 	uint64_t		  grpsize;
-	uint32_t                  rseg;
+	//uint32_t                  rseg;
 	c2_bcount_t		  count = 0;
 	c2_bindex_t               endpos;
-	c2_bindex_t               reqindex;
+	//c2_bindex_t               reqindex;
 	c2_bcount_t               segcount = 0;
 	/* Number of pages _completely_ spanned by incoming io vector. */
 	uint64_t		  nr = 0;
@@ -1577,6 +1627,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 				c2_ivec_cursor_step(cursor));
 
 		/* Merges contiguous segments into one. */
+		/*
 		reqindex = c2_ivec_cursor_index(cursor);
 		for (rseg = cursor->ic_cur.vc_seg; reqindex < grpend &&
 		     rseg < cursor->ic_cur.vc_vec->v_nr - 1; ++rseg) {
@@ -1586,7 +1637,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 				   cursor->ic_cur.vc_offset :
 				   cursor->ic_cur.vc_vec->v_count[rseg];
 
-			printk(KERN_ERR "reqindex = %llu, segcount = %llu, next seg index = %llu", reqindex, segcount, map->pi_ioreq->ir_ivec.iv_index[rseg + 1]);
+			printk(KERN_EMERG "reqindex = %llu, segcount = %llu, next seg index = %llu", reqindex, segcount, map->pi_ioreq->ir_ivec.iv_index[rseg + 1]);
 
 			if (reqindex + segcount ==
 			    map->pi_ioreq->ir_ivec.iv_index[rseg + 1])
@@ -1598,11 +1649,15 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 			reqindex += cursor->ic_cur.vc_vec->v_count[rseg];
 		else if (rseg == cursor->ic_cur.vc_seg)
 			reqindex += segcount;
+			*/
+		segcount = seg_collate(map, cursor);
+		if (segcount > 0)
+			endpos = INDEX(&map->pi_ivec, seg) + segcount;
 
-		endpos = reqindex;
+		//endpos = reqindex;
 
 		printk(KERN_ERR "After merge: index = %llu, count = %llu",
-			INDEX(&map->pi_ivec, seg), reqindex - INDEX(&map->pi_ivec, seg));
+			INDEX(&map->pi_ivec, seg), segcount);
 
 		COUNT(&map->pi_ivec, seg) = endpos - INDEX(&map->pi_ivec, seg);
 
@@ -1826,7 +1881,7 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 	uint64_t		    map;
 	uint64_t		    unit;
 	uint64_t		    unit_size;
-	uint64_t		    count = 0;
+	uint64_t		    count;
 	uint64_t		    pgstart;
 	uint64_t		    pgend;
 	/* Extent representing a data unit. */
@@ -1852,6 +1907,7 @@ static int nw_xfer_io_prepare(struct nw_xfer_request *xfer)
 
 	for (map = 0; map < req->ir_iomap_nr; ++map) {
 
+		count        = 0;
 		pgstart	     = data_size(play) * req->ir_iomaps[map]->
 			       pi_grpid;
 		pgend	     = pgstart + data_size(play);
@@ -2073,7 +2129,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 	if (req->ir_sm.sm_state == IRS_WRITE_COMPLETE) {
 		inode->i_size = max64u(inode->i_size,
 				       seg_endpos(&req->ir_ivec,
-					     req->ir_ivec.iv_vec.v_nr - 1));
+					          req->ir_ivec.iv_vec.v_nr - 1));
 		C2_LOG(C2_INFO, "File size set to %llu", inode->i_size);
 	}
 
@@ -2418,7 +2474,7 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
 				 c2_bcount_t	      count,
 				 uint64_t	      unit)
 {
-	uint64_t		   seg;
+	uint32_t		   seg;
 	c2_bindex_t		   toff;
 	c2_bindex_t		   goff;
 	c2_bindex_t		   pgstart;
@@ -2485,10 +2541,11 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
 		ti->ti_bufvec.ov_buf[seg]  = buf->db_buf.b_addr;
 		ti->ti_pageattrs[seg] |= buf->db_flags;
 
-		C2_LOG(C2_INFO, "Seg [%llu, %llu] added to target_ioreq with\
-		       fid %llu:%llu", INDEX(&ti->ti_ivec, seg),
-		       COUNT(&ti->ti_ivec, seg), ti->ti_fid.f_container,
-		       ti->ti_fid.f_key);
+		C2_LOG(C2_INFO, "Seg id %d [%llu, %llu] added to target_ioreq"
+		       "with fid %llu:%llu with flags %d", seg,
+		       INDEX(&ti->ti_ivec, seg), COUNT(&ti->ti_ivec, seg),
+		       ti->ti_fid.f_container, ti->ti_fid.f_key,
+		       ti->ti_pageattrs[seg]);
 		goff += COUNT(&ti->ti_ivec, seg);
 		++ti->ti_ivec.iv_vec.v_nr;
 		pgstart = pgend;
@@ -2614,6 +2671,8 @@ ssize_t c2t1fs_aio(struct kiocb	      *kcb,
 	}
 
 	rc    = req->ir_ops->iro_iosm_handle(req);
+	printk(KERN_ERR "nxr_bytes = %llu, copied_nr = %llu",
+		req->ir_nwxfer.nxr_bytes, req->ir_copied_nr);
 	count = min64u(req->ir_nwxfer.nxr_bytes, req->ir_copied_nr);
 
 	req->ir_ops->iro_iomaps_destroy(req);
@@ -2708,6 +2767,7 @@ static ssize_t file_aio_write(struct kiocb	 *kcb,
 		return 0;
 	}
 
+	C2_LOG(C2_INFO, "Write vec-count = %llu", c2_vec_count(&ivec->iv_vec));
 	count = c2t1fs_aio(kcb, iov, ivec, IRT_WRITE);
 
 	/* Updates file position. */
@@ -2779,6 +2839,7 @@ static ssize_t file_aio_read(struct kiocb	*kcb,
 		return 0;
 	}
 
+	C2_LOG(C2_INFO, "Read vec-count = %llu", c2_vec_count(&ivec->iv_vec));
 	count = c2t1fs_aio(kcb, iov, ivec, IRT_READ);
 
 	/* Updates file position. */
@@ -2890,8 +2951,10 @@ static void io_bottom_half(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 	if (tioreq->ti_rc == 0)
 		tioreq->ti_rc = irfop->irf_iofop.if_rbulk.rb_rc;
 
-	if (irfop->irf_pattr == PA_DATA)
+	if (irfop->irf_pattr == PA_DATA) {
 		tioreq->ti_databytes += irfop->irf_iofop.if_rbulk.rb_bytes;
+		printk(KERN_ERR "%llu no of bytes IO", irfop->irf_iofop.if_rbulk.rb_bytes);
+	}
 	else
 		tioreq->ti_parbytes  += irfop->irf_iofop.if_rbulk.rb_bytes;
 
@@ -3004,7 +3067,8 @@ static inline uint32_t io_desc_size(struct c2_net_domain *ndom)
 {
 	return
 		/* size of variables ci_nr and nbd_len */
-		sizeof(uint32_t) * 2  +
+		C2_MEMBER_SIZE(struct c2_io_indexvec, ci_nr) +
+		C2_MEMBER_SIZE(struct c2_net_buf_desc, nbd_len) +
 		/* size of nbd_data */
 		c2_net_domain_get_max_buffer_desc_size(ndom);
 }
@@ -3057,6 +3121,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 {
 	int			rc;
 	uint32_t		buf = 0;
+	/* Number of segments in one c2_rpc_bulk_buf structure. */
+	uint32_t		bbsegs;
 	uint32_t		maxsize;
 	uint32_t		delta = 0;
 	enum page_attr		rw;
@@ -3079,6 +3145,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 	while (buf < SEG_NR(&ti->ti_ivec)) {
 
+		bbsegs = 0;
 		if (!(ti->ti_pageattrs[buf] & filter)) {
 			++buf;
 			C2_LOG(C2_INFO, "Got kicked from here, filter = %d",
@@ -3111,7 +3178,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		while (buf < SEG_NR(&ti->ti_ivec) &&
 		       c2_io_fop_size_get(&irfop->irf_iofop.if_fop) + delta <
 		       maxsize) {
-			C2_LOG(C2_INFO, "Entered inner loop");
 
 			/*
 			 * Adds a page to rpc bulk buffer only if it passes
@@ -3119,7 +3185,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			 */
 			if (ti->ti_pageattrs[buf] & rw &&
 			    ti->ti_pageattrs[buf] & filter) {
-				C2_LOG(C2_INFO, "Entered inner if");
 				delta += io_seg_size();
 
 				rc = c2_rpc_bulk_buf_databuf_add(rbuf,
@@ -3128,6 +3193,19 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 						INDEX(&ti->ti_ivec, buf), ndom);
 
 				if (rc == -EMSGSIZE) {
+
+					/*
+					 * Fix the number of segments in
+					 * current c2_rpc_bulk_buf structure.
+					 */
+					rbuf->bb_nbuf->nb_buffer.ov_vec.v_nr =
+						bbsegs;
+					rbuf->bb_zerovec.z_bvec.ov_vec.v_nr =
+						bbsegs;
+					printk(KERN_ERR "No of segs in bulk buffer = %d",
+							bbsegs);
+					bbsegs = 0;
+
 					delta -= io_seg_size();
 					rc     = bulk_buffer_add(irfop, ndom,
 							&rbuf, &delta, maxsize);
@@ -3141,12 +3219,16 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					 * be added to new bulk buffer.
 					 */
 					continue;
-				}
-			}
-			else
-				C2_LOG(C2_INFO, "Enter inner if");
+				} else if (rc == 0)
+					++bbsegs;
+			} else
+				C2_LOG(C2_INFO, "inner if not entered");
 			++buf;
 		}
+
+		rbuf->bb_nbuf->nb_buffer.ov_vec.v_nr = bbsegs;
+		rbuf->bb_zerovec.z_bvec.ov_vec.v_nr = bbsegs;
+		printk(KERN_ERR "No of segs in bulk buffer = %d", bbsegs);
 
 		rc = c2_io_fop_prepare(&irfop->irf_iofop.if_fop);
 		if (rc != 0)
