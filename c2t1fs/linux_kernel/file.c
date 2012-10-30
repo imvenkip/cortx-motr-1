@@ -41,6 +41,8 @@
 #include "lib/trace.h"      /* C2_LOG, C2_ENTRY */
 
 
+struct io_mem_stats iommstats;
+
 const struct inode_operations c2t1fs_reg_inode_operations;
 void iov_iter_advance(struct iov_iter *i, size_t bytes);
 
@@ -512,7 +514,6 @@ static void ioreq_sm_state_set(struct io_request *req, int state)
 
 static bool io_request_invariant(const struct io_request *req)
 {
-	/*
 	return
 	       io_request_bob_check(req) &&
 	       req->ir_type   <= IRT_TYPE_NR &&
@@ -526,13 +527,8 @@ static bool io_request_invariant(const struct io_request *req)
 	       ergo(ioreq_sm_state(req) == IRS_WRITING,
 		    !tioreqs_tlist_is_empty(&req->ir_nwxfer.nxr_tioreqs)) &&
 
-	       ergo(ioreq_sm_state(req) == IRS_READ_COMPLETE,
-		    ergo(req->ir_type == IRT_READ,
-			 tioreqs_tlist_is_empty(
-				 &req->ir_nwxfer.nxr_tioreqs))) &&
-
 	       ergo(ioreq_sm_state(req) == IRS_WRITE_COMPLETE,
-		    tioreqs_tlist_is_empty(&req->ir_nwxfer.nxr_tioreqs)) &&
+		    req->ir_nwxfer.nxr_iofop_nr == 0) &&
 
 	       c2_vec_count(&req->ir_ivec.iv_vec) > 0 &&
 
@@ -544,7 +540,7 @@ static bool io_request_invariant(const struct io_request *req)
 	       pargrp_iomap_invariant_nr(req) &&
 
 	       nw_xfer_request_invariant(&req->ir_nwxfer);
-	       */
+	/*
 	C2_ASSERT(io_request_bob_check(req));
 	C2_ASSERT(req->ir_type   <= IRT_TYPE_NR);
 	C2_ASSERT(req->ir_iovec  != NULL);
@@ -563,13 +559,12 @@ static bool io_request_invariant(const struct io_request *req)
 	C2_ASSERT(pargrp_iomap_invariant_nr(req));
 	C2_ASSERT(nw_xfer_request_invariant(&req->ir_nwxfer));
 	return true;
+	*/
 }
 
 static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
 {
-	/*
 	return
-	       xfer != NULL &&
 	       nw_xfer_request_bob_check(xfer) &&
 	       xfer->nxr_state <= NXS_STATE_NR &&
 
@@ -578,16 +573,14 @@ static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
 		    (xfer->nxr_iofop_nr == 0)) &&
 
 	       ergo(xfer->nxr_state == NXS_INFLIGHT,
-		    !tioreqs_tlist_is_empty(&xfer->nxr_tioreqs) &&
-		    xfer->nxr_iofop_nr > 0) &&
+		    !tioreqs_tlist_is_empty(&xfer->nxr_tioreqs)) &&
 
 	       ergo(xfer->nxr_state == NXS_COMPLETE,
-		    xfer->nxr_iofop_nr == 0 &&
-		    xfer->nxr_bytes > 0) &&
+		    xfer->nxr_iofop_nr == 0) &&
 
 	       c2_tl_forall(tioreqs, tioreq, &xfer->nxr_tioreqs,
 			    target_ioreq_invariant(tioreq));
-			    */
+	       /*
 	C2_ASSERT(nw_xfer_request_bob_check(xfer));
 
 	C2_ASSERT(xfer->nxr_state <= NXS_STATE_NR);
@@ -605,6 +598,7 @@ static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer)
 	C2_ASSERT(c2_tl_forall(tioreqs, tioreq, &xfer->nxr_tioreqs,
 		  target_ioreq_invariant(tioreq)));
 	return true;
+	*/
 }
 
 static bool data_buf_invariant(const struct data_buf *db)
@@ -666,9 +660,7 @@ static bool target_ioreq_invariant(const struct target_ioreq *ti)
 
 static bool pargrp_iomap_invariant(const struct pargrp_iomap *map)
 {
-	/*
 	return
-	       map != NULL &&
 	       pargrp_iomap_bob_check(map) &&
 	       map->pi_ops	!= NULL &&
 	       map->pi_rtype	 < PIR_NR &&
@@ -681,7 +673,7 @@ static bool pargrp_iomap_invariant(const struct pargrp_iomap *map)
 			      map->pi_ivec.iv_vec.v_count[i] <=
 			      map->pi_ivec.iv_index[i+1])) &&
 	       data_buf_invariant_nr(map);
-	       */
+	/*
         if (!pargrp_iomap_bob_check(map))
                 C2_ASSERT(0);
         if (map->pi_ops == NULL)
@@ -704,6 +696,7 @@ static bool pargrp_iomap_invariant(const struct pargrp_iomap *map)
         if (!data_buf_invariant_nr(map))
                 C2_ASSERT(0);
         return true;
+	*/
 }
 
 static bool pargrp_iomap_invariant_nr(const struct io_request *req)
@@ -988,8 +981,6 @@ static int ioreq_user_data_copy(struct io_request   *req,
 		count    = 0;
 		grpstart = data_size(play) * req->ir_iomaps[map]->pi_grpid;
 		grpend	 = grpstart + data_size(play);
-		printk(KERN_ERR "copy for parity group id %llu",
-			req->ir_iomaps[map]->pi_grpid);
 
 		while (!c2_ivec_cursor_move(&srccur, count) &&
 		       c2_ivec_cursor_index(&srccur) < grpend) {
@@ -1328,6 +1319,7 @@ static uint64_t pargrp_iomap_auxbuf_alloc(struct pargrp_iomap *map,
 
 	if (map->pi_databufs[row][col]->db_auxbuf.b_addr == NULL)
 		return -ENOMEM;
+	++iommstats.a_page_nr;
 	map->pi_databufs[row][col]->db_auxbuf.b_nob = PAGE_CACHE_SIZE;
 
 	return 0;
@@ -1469,10 +1461,6 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
 					    seg_endpos(ivec, seg);
 	}
 
-	for (seg = 0; seg < seg_nr; ++seg)
-		printk(KERN_ERR "readrest: seg = %d, index = %llu, count = %llu",
-		       seg, INDEX(ivec, seg), COUNT(ivec, seg));
-
 	/*
 	 * For read-rest approach, all data units from a parity group
 	 * are read. Ergo, mark them as to be read.
@@ -1493,7 +1481,6 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
 	}
 	*/
 	inode = file_to_inode(map->pi_ioreq->ir_file);
-	printk(KERN_ERR "readrest: filesize = %llu", inode->i_size);
 	c2_ivec_cursor_init(&cur, &map->pi_ivec);
 
 	while (!c2_ivec_cursor_move(&cur, count)) {
@@ -1503,15 +1490,11 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
 		count = end - start;
 		page_pos_get(map, start, &row, &col);
 
-		printk(KERN_ERR "readrest: start = %llu, end = %llu, dbuf = %p",
-		       start, end, map->pi_databufs[row][col]);
 		if (map->pi_databufs[row][col] == NULL) {
 			rc = pargrp_iomap_databuf_alloc(map, row, col);
 			if (rc != 0)
 				C2_RETERR(rc, "databuf_alloc failed");
 
-			printk(KERN_ERR "readrest: dbuf allocated for [%d][%d]",
-			       row, col);
 			if (end <= inode->i_size || (inode->i_size > 0 &&
 			    page_id(end - 1) == page_id(inode->i_size - 1)))
 				map->pi_databufs[row][col]->db_flags |=
@@ -1588,7 +1571,8 @@ static c2_bcount_t seg_collate(struct pargrp_iomap   *map,
 		    map->pi_ioreq->ir_ivec.iv_index[seg + 1]) {
 
 			if (start + segcount >= grpend) {
-				start = grpend - 1;
+				//start = grpend - 1;
+				start = grpend;
 				break;
 			}
 			start += segcount;
@@ -1875,6 +1859,7 @@ static int ioreq_iomaps_prepare(struct io_request *req)
 			goto failed;
 		}
 
+		++iommstats.a_pargrp_iomap_nr;
 		rc = pargrp_iomap_init(req->ir_iomaps[id], req,
 				       group_id(c2_ivec_cursor_index(&cursor),
 						data_size(play)));
@@ -1909,6 +1894,7 @@ static void ioreq_iomaps_destroy(struct io_request *req)
 			pargrp_iomap_fini(req->ir_iomaps[id]);
 			c2_free(req->ir_iomaps[id]);
 			req->ir_iomaps[id] = NULL;
+			++iommstats.d_pargrp_iomap_nr;
 		}
 	}
 	c2_free(req->ir_iomaps);
@@ -2275,6 +2261,7 @@ static void io_request_fini(struct io_request *req)
 		    */
 		   target_ioreq_fini(ti);
 		   c2_free(ti);
+		   ++iommstats.d_target_ioreq_nr;
 	} c2_tl_endfor;
 
 	nw_xfer_request_fini(&req->ir_nwxfer);
@@ -2462,6 +2449,7 @@ static int nw_xfer_tioreq_get(struct nw_xfer_request *xfer,
 			C2_RETERR(-ENOMEM, "Failed to allocate memory"
 				  "for target_ioreq");
 
+		++iommstats.a_target_ioreq_nr;
 		rc = target_ioreq_init(ti, xfer, fid, session, size);
 		if (rc == 0) {
 			tioreqs_tlist_add(&xfer->nxr_tioreqs, ti);
@@ -2488,6 +2476,7 @@ static struct data_buf *data_buf_alloc_init(enum page_attr pattr)
 		return NULL;
 	}
 
+	++iommstats.a_page_nr;
 	C2_ALLOC_PTR_ADDB(buf, &c2t1fs_addb, &io_addb_loc);
 	if (buf == NULL) {
 		free_page(addr);
@@ -2495,6 +2484,7 @@ static struct data_buf *data_buf_alloc_init(enum page_attr pattr)
 		return NULL;
 	}
 
+	++iommstats.a_data_buf_nr;
 	data_buf_init(buf, (void *)addr, pattr);
 	C2_POST(data_buf_invariant(buf));
 	C2_LEAVE();
@@ -2506,6 +2496,7 @@ static void buf_page_free(struct c2_buf *buf)
 	C2_PRE(buf != NULL);
 
 	free_page((unsigned long)buf->b_addr);
+	++iommstats.d_page_nr;
 	buf->b_addr = NULL;
 	buf->b_nob  = 0;
 }
@@ -2523,6 +2514,7 @@ static void data_buf_dealloc_fini(struct data_buf *buf)
 
 	data_buf_fini(buf);
 	c2_free(buf);
+	++iommstats.d_data_buf_nr;
 	C2_LEAVE();
 }
 
@@ -2707,6 +2699,7 @@ ssize_t c2t1fs_aio(struct kiocb	      *kcb,
 	C2_ALLOC_PTR_ADDB(req, &c2t1fs_addb, &io_addb_loc);
 	if (req == NULL)
 		C2_RETERR(-ENOMEM, "Failed to allocate memory for io_request");
+	++iommstats.a_ioreq_nr;
 
 	rc = io_request_init(req, kcb->ki_filp, (struct iovec *)iov, ivec, rw);
 	if (rc != 0) {
@@ -2738,6 +2731,7 @@ ssize_t c2t1fs_aio(struct kiocb	      *kcb,
 	io_request_fini(req);
 last:
 	c2_free(req);
+	++iommstats.d_ioreq_nr;
 	C2_LOG(C2_INFO, "io request returned %lu bytes", count);
 	C2_LEAVE();
 
@@ -2967,6 +2961,7 @@ static void io_req_fop_free(struct c2_rpc_item *item)
 
 	c2_io_item_free(item);
 	c2_free(reqfop);
+	++iommstats.d_io_req_fop_nr;
 }
 
 static void io_rpc_item_cb(struct c2_rpc_item *item)
@@ -3207,8 +3202,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		bbsegs = 0;
 		if (!(ti->ti_pageattrs[buf] & filter)) {
 			++buf;
-			C2_LOG(C2_INFO, "Got kicked from here, filter = %d",
-			       filter);
 			continue;
 		}
 
@@ -3221,6 +3214,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			c2_free(irfop);
 			goto err;
 		}
+		++iommstats.a_io_req_fop_nr;
 
 		rc = bulk_buffer_add(irfop, ndom, &rbuf, &delta, maxsize);
 		if (rc != 0) {
@@ -3261,8 +3255,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 						bbsegs;
 					rbuf->bb_zerovec.z_bvec.ov_vec.v_nr =
 						bbsegs;
-					printk(KERN_ERR "No of segs in bulk buffer = %d",
-							bbsegs);
 					bbsegs = 0;
 
 					delta -= io_seg_size();
@@ -3280,20 +3272,17 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					continue;
 				} else if (rc == 0)
 					++bbsegs;
-			} else
-				C2_LOG(C2_INFO, "inner if not entered");
+			}
 			++buf;
 		}
 
 		if (c2_io_fop_byte_count(&irfop->irf_iofop) == 0) {
-			printk(KERN_ERR "Zero size fop rejected.");
 			irfop_fini(irfop);
 			continue;
 		}
 
 		rbuf->bb_nbuf->nb_buffer.ov_vec.v_nr = bbsegs;
 		rbuf->bb_zerovec.z_bvec.ov_vec.v_nr = bbsegs;
-		printk(KERN_ERR "No of segs in bulk buffer = %d", bbsegs);
 
 		rc = c2_io_fop_prepare(&irfop->irf_iofop.if_fop);
 		if (rc != 0)

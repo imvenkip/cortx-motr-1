@@ -163,6 +163,8 @@ void ast_thread(struct c2t1fs_sb *csb)
 	}
 }
 
+extern struct io_mem_stats iommstats;
+
 static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 {
 	struct c2t1fs_mnt_opts *mntopts;
@@ -233,6 +235,7 @@ static int c2t1fs_fill_super(struct super_block *sb, void *data, int silent)
 	rc = C2_THREAD_INIT(&csb->csb_astthread, struct c2t1fs_sb *, NULL,
 			    &ast_thread, csb, "ast_thread");
 	C2_ASSERT(rc == 0);
+	C2_SET0(&iommstats);
 
 	C2_LEAVE("rc: %d", rc);
 	return 0;
@@ -417,6 +420,19 @@ void c2t1fs_kill_sb(struct super_block *sb)
 		c2_free(csb);
 	}
 	kill_anon_super(sb);
+
+	printk(KERN_ERR "mem stats :\n a_ioreq_nr = %llu, d_ioreq_nr = %llu,"
+	       "a_pargrp_iomap_nr = %llu, d_pargrp_iomap_nr = %llu"
+	       "a_target_ioreq_nr = %llu, d_target_ioreq_nr = %llu,"
+	       "a_io_req_fop_nr = %llu, d_io_req_fop_nr = %llu,"
+	       "a_data_buf_nr = %llu, d_data_buf_nr = %llu,"
+	       "a_page_nr = %llu, d_page_nr = %llu",
+	       iommstats.a_ioreq_nr, iommstats.d_ioreq_nr,
+	       iommstats.a_pargrp_iomap_nr, iommstats.d_pargrp_iomap_nr,
+	       iommstats.a_target_ioreq_nr, iommstats.d_target_ioreq_nr,
+	       iommstats.a_io_req_fop_nr, iommstats.d_io_req_fop_nr,
+	       iommstats.a_data_buf_nr, iommstats.d_data_buf_nr,
+	       iommstats.a_page_nr, iommstats.d_page_nr);
 
 	C2_LEAVE();
 }

@@ -470,4 +470,19 @@ int c2t1fs_dir_ent_remove(struct c2t1fs_dir_ent *de);
 
 void c2t1fs_dir_ent_fini(struct c2t1fs_dir_ent *de);
 
+struct io_mem_stats {
+	uint64_t a_ioreq_nr;
+	uint64_t d_ioreq_nr;
+	uint64_t a_pargrp_iomap_nr;
+	uint64_t d_pargrp_iomap_nr;
+	uint64_t a_target_ioreq_nr;
+	uint64_t d_target_ioreq_nr;
+	uint64_t a_io_req_fop_nr;
+	uint64_t d_io_req_fop_nr;
+	uint64_t a_data_buf_nr;
+	uint64_t d_data_buf_nr;
+	uint64_t a_page_nr;
+	uint64_t d_page_nr;
+};
+
 #endif /* __COLIBRI_C2T1FS_C2T1FS_H__ */
