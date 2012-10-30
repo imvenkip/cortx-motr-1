@@ -988,15 +988,17 @@ static int ioreq_user_data_copy(struct io_request   *req,
 		count    = 0;
 		grpstart = data_size(play) * req->ir_iomaps[map]->pi_grpid;
 		grpend	 = grpstart + data_size(play);
-		pgstart	 = c2_ivec_cursor_index(&srccur);
 		printk(KERN_ERR "copy for parity group id %llu",
 			req->ir_iomaps[map]->pi_grpid);
 
 		while (!c2_ivec_cursor_move(&srccur, count) &&
 		       c2_ivec_cursor_index(&srccur) < grpend) {
 
-			pgend = pgstart + min64u(c2_ivec_cursor_step(&srccur),
-						 PAGE_CACHE_SIZE);
+			//pgend = pgstart + min64u(c2_ivec_cursor_step(&srccur),
+						 //PAGE_CACHE_SIZE);
+			pgstart	 = c2_ivec_cursor_index(&srccur);
+			pgend = min64u(c2_round_up(pgstart + 1, PAGE_CACHE_SIZE),
+				       pgstart + c2_ivec_cursor_step(&srccur));
 			count = pgend - pgstart;
 
 			/*
@@ -1010,7 +1012,7 @@ static int ioreq_user_data_copy(struct io_request   *req,
 				C2_RETERR(rc, "Copy failed");
 
 			iov_iter_advance(&it, count);
-			pgstart += count;
+			//pgstart += count;
 		}
 	}
 
@@ -1261,7 +1263,7 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 			if (rmw && dbuf->db_flags & PA_PARTPAGE_MODIFY &&
 			    (end < inode->i_size ||
 			     (inode->i_size > 0 &&
-			      page_id(end) == page_id(inode->i_size - 1)))) {
+			      page_id(end - 1) == page_id(inode->i_size - 1)))) {
 				dbuf->db_flags |= PA_READ;
 				printk(KERN_ERR "PA_PARTPAGE_MODIFY and PA_READ set");
 			}
@@ -1511,7 +1513,7 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
 			printk(KERN_ERR "readrest: dbuf allocated for [%d][%d]",
 			       row, col);
 			if (end <= inode->i_size || (inode->i_size > 0 &&
-			    page_id(end) == page_id(inode->i_size - 1)))
+			    page_id(end - 1) == page_id(inode->i_size - 1)))
 				map->pi_databufs[row][col]->db_flags |=
 					PA_READ;
 		}
