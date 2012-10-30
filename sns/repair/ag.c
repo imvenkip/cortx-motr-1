@@ -27,9 +27,9 @@
    @{
  */
 
-struct c2_sns_repair_aggr_group *ag2snsag(const struct c2_cm_aggr_group *ag)
+struct c2_sns_repair_ag *ag2snsag(const struct c2_cm_aggr_group *ag)
 {
-	return container_of(ag, struct c2_sns_repair_aggr_group, sag_base);
+	return container_of(ag, struct c2_sns_repair_ag, sag_base);
 }
 
 /** @} SNSRepairAG */

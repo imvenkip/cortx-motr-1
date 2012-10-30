@@ -76,10 +76,8 @@ void c2_fop_init(struct c2_fop *fop, struct c2_fop_type *fopt, void *data)
 	C2_PRE(fop != NULL && fopt != NULL);
 
 	fop->f_type = fopt;
-	c2_addb_ctx_init(&fop->f_addb, &c2_fop_addb_ctx,
-			 &fopt->ft_addb);
-	c2_rpc_item_init(&fop->f_item);
-	fop->f_item.ri_type = &fop->f_type->ft_rpc_item_type;
+	c2_addb_ctx_init(&fop->f_addb, &c2_fop_addb_ctx, &fopt->ft_addb);
+	c2_rpc_item_init(&fop->f_item, &fopt->ft_rpc_item_type);
 	fop->f_item.ri_ops = &c2_fop_default_item_ops;
 	fop->f_data.fd_data = data;
 }
@@ -105,10 +103,6 @@ struct c2_fop *c2_fop_alloc(struct c2_fop_type *fopt, void *data)
 }
 C2_EXPORTED(c2_fop_alloc);
 
-/**
-   @todo Current implementation just frees the top level object;
-   instead traverse and free entire tree of objects.
- */
 void c2_fop_fini(struct c2_fop *fop)
 {
 	C2_ASSERT(fop != NULL);
@@ -116,7 +110,7 @@ void c2_fop_fini(struct c2_fop *fop)
 	c2_rpc_item_fini(&fop->f_item);
 	c2_addb_ctx_fini(&fop->f_addb);
 	if (fop->f_data.fd_data != NULL)
-		c2_free(fop->f_data.fd_data);
+		c2_xcode_free(&C2_FOP_XCODE_OBJ(fop));
 }
 
 void c2_fop_free(struct c2_fop *fop)
@@ -132,6 +126,12 @@ void *c2_fop_data(struct c2_fop *fop)
 	return fop->f_data.fd_data;
 }
 C2_EXPORTED(c2_fop_data);
+
+uint32_t c2_fop_opcode(const struct c2_fop *fop)
+{
+	return fop->f_type->ft_rpc_item_type.rit_opcode;
+}
+C2_EXPORTED(c2_fop_opcode);
 
 void c2_fop_type_fini(struct c2_fop_type *fopt)
 {

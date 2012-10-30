@@ -138,7 +138,7 @@ size_t c2_rpc_session_default_home_locality(const struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
 
-	return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
+	return c2_fop_opcode(fom->fo_fop);
 }
 
 int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
@@ -191,7 +191,7 @@ int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 	c2_rpc_machine_lock(machine);
 
 	rc = c2_rpc_rcv_conn_init(conn, ctx->cec_sender_ep, machine,
-				  &item->ri_slot_refs[0].sr_uuid);
+				  &item->ri_slot_refs[0].sr_ow.osr_uuid);
 	/* we won't need ctx->cec_sender_ep after this point */
 	c2_net_end_point_put(ctx->cec_sender_ep);
 	if (rc == 0) {
@@ -206,7 +206,8 @@ int c2_rpc_fom_conn_establish_tick(struct c2_fom *fom)
 			c2_rpc_slot_item_add_internal(slot, item);
 
 			/* See [2] at the end of function */
-			item->ri_slot_refs[0].sr_sender_id = SENDER_ID_INVALID;
+			item->ri_slot_refs[0].sr_ow.osr_sender_id =
+				SENDER_ID_INVALID;
 
 			C2_ASSERT(conn_state(conn) == C2_RPC_CONN_ACTIVE);
 			C2_ASSERT(c2_rpc_conn_invariant(conn));
@@ -430,17 +431,15 @@ int c2_rpc_fom_session_terminate_tick(struct c2_fom *fom)
 
 	session = c2_rpc_session_search(conn, session_id);
 	if (session != NULL) {
-		while (session->s_state != C2_RPC_SESSION_IDLE)
-			c2_cond_wait(&session->s_state_changed,
-				     c2_rpc_machine_mutex(machine));
-
-		C2_ASSERT(session->s_state == C2_RPC_SESSION_IDLE);
-
+		c2_sm_timedwait(&session->s_sm, C2_BITS(C2_RPC_SESSION_IDLE),
+				C2_TIME_NEVER);
 		rc = c2_rpc_rcv_session_terminate(session);
 		C2_ASSERT(ergo(rc != 0,
-			       session->s_state == C2_RPC_SESSION_FAILED));
+			       session_state(session) ==
+					C2_RPC_SESSION_FAILED));
 		C2_ASSERT(ergo(rc == 0,
-			       session->s_state == C2_RPC_SESSION_TERMINATED));
+			       session_state(session) ==
+					C2_RPC_SESSION_TERMINATED));
 
 		c2_rpc_session_fini_locked(session);
 		c2_free(session);
@@ -565,4 +564,3 @@ int c2_rpc_fom_conn_terminate_tick(struct c2_fom *fom)
  *  scroll-step: 1
  *  End:
  */
-

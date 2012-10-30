@@ -468,6 +468,11 @@ void c2_cm_cp_fini(struct c2_cm_cp *cp)
 	c2_cm_cp_bob_fini(cp);
 }
 
+c2_bcount_t c2_cm_cp_data_size(struct c2_cm_cp *cp)
+{
+	return C2_CP_SIZE;
+}
+
 void c2_cm_cp_enqueue(struct c2_cm *cm, struct c2_cm_cp *cp)
 {
         struct c2_fom  *fom = &cp->c_fom;

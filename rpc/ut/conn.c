@@ -47,7 +47,6 @@ C2_TL_DESCR_DEFINE(rpc_conn_ut, "rpc-conn", static, struct c2_rpc_conn,
 		   c_link, c_magic, C2_RPC_CONN_MAGIC, C2_RPC_CONN_HEAD_MAGIC);
 C2_TL_DEFINE(rpc_conn_ut, static, struct c2_rpc_conn);
 
-
 static int conn_ut_init(void)
 {
 	ep.nep_addr = "dummy ep";

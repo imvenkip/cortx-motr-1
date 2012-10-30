@@ -35,6 +35,7 @@
 #include "lib/arith.h"
 #include "lib/bob.h"
 
+#include "sm/sm.h"           /* c2_sm_group */
 #include "addb/addb.h"
 #include "rpc/formation2.h"  /* c2_rpc_frm         */
 #include "net/net.h"         /* c2_net_transfer_mc, c2_net_domain */
@@ -65,16 +66,21 @@ enum c2_rpc_item_path {
 
 /** Collection of statistics per rpc machine */
 struct c2_rpc_stats {
-	uint64_t	rs_nr_rcvd_items;
-	uint64_t	rs_nr_sent_items;
-	uint64_t	rs_nr_rcvd_packets;
-	uint64_t	rs_nr_sent_packets;
-	uint64_t	rs_nr_failed_items;
-	uint64_t	rs_nr_failed_packets;
-	uint64_t	rs_nr_timedout_items;
-	uint64_t	rs_nr_dropped_items;
-	uint64_t	rs_nr_sent_bytes;
-	uint64_t	rs_nr_rcvd_bytes;
+	/* Items */
+	uint64_t rs_nr_rcvd_items;
+	uint64_t rs_nr_sent_items;
+	uint64_t rs_nr_failed_items;
+	uint64_t rs_nr_dropped_items;
+	uint64_t rs_nr_timedout_items;
+
+	/* Packets */
+	uint64_t rs_nr_rcvd_packets;
+	uint64_t rs_nr_sent_packets;
+	uint64_t rs_nr_failed_packets;
+
+	/* Bytes */
+	uint64_t rs_nr_sent_bytes;
+	uint64_t rs_nr_rcvd_bytes;
 };
 
 /**
@@ -82,8 +88,7 @@ struct c2_rpc_stats {
    Several such contexts might be existing simultaneously.
  */
 struct c2_rpc_machine {
-	struct c2_sm_group		  rm_sm_grp;
-
+	struct c2_sm_group                rm_sm_grp;
 	/** List of c2_rpc_chan objects, linked using rc_linkage.
 	    List descriptor: rpc_chan
 	 */
@@ -94,8 +99,8 @@ struct c2_rpc_machine {
 	struct c2_cob_domain		 *rm_dom;
 	/** List of c2_rpc_conn objects, linked using c_link.
 	    List descriptor: rpc_conn
-	    conn is in list if conn->c_state is not in {CONN_UNINITIALIZED,
-	    CONN_FAILED, CONN_TERMINATED}
+	    conn is in list if connection is not in {CONN_UNINITIALISED,
+	    CONN_FAILED, CONN_TERMINATED} states.
 	 */
 	struct c2_tl			  rm_incoming_conns;
 	struct c2_tl			  rm_outgoing_conns;
@@ -214,36 +219,12 @@ int  c2_rpc_machine_init(struct c2_rpc_machine	   *machine,
 			 c2_bcount_t		    msg_size,
 			 uint32_t		    queue_len);
 
-/**
-   Destruct rpc_machine
-   @param machine rpc_machine operation applied to.
- */
 void c2_rpc_machine_fini(struct c2_rpc_machine *machine);
-
 void c2_rpc_machine_lock(struct c2_rpc_machine *machine);
 void c2_rpc_machine_unlock(struct c2_rpc_machine *machine);
 bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine);
-struct c2_mutex *c2_rpc_machine_mutex(struct c2_rpc_machine *machine);
 void c2_rpc_machine_get_stats(struct c2_rpc_machine *machine,
 			      struct c2_rpc_stats *stats, bool reset);
-
-/**
-   Returns average time spent in the cache for one RPC-item
-   @note c2_rpc_core_init() and c2_rpc_machine_init() have been called before
-   @param machine rpc_machine operation applied to.
-   @param path Incoming or outgoing path of rpc item.
- */
-c2_time_t c2_rpc_avg_item_time(struct c2_rpc_machine *machine,
-			       const enum c2_rpc_item_path path);
-
-/**
-   Returns transmission speed in bytes per second.
-   @note c2_rpc_core_init() and c2_rpc_machine_init() have been called before
-   @param machine rpc_machine operation applied to.
-   @param path Incoming or outgoing path of rpc item.
- */
-size_t c2_rpc_bytes_per_sec(struct c2_rpc_machine *machine,
-			    const enum c2_rpc_item_path path);
 
 static struct c2_rpc_chan *frm_rchan(const struct c2_rpc_frm *frm)
 {

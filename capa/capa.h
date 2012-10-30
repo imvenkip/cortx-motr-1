@@ -99,7 +99,6 @@ struct c2_object_capa {
 	char			 oc_opaque[C2_CAPA_HMAC_MAX_LEN];
 };
 
-
 /**
    Colibri Capability Context
 

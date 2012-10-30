@@ -57,24 +57,6 @@ record {
 } c2_fop_file_fid;
 
 /**
- * A common sub structure to be referred by read and write reply fops.
- */
-record {
-        /** Status code of operation. */
-	u32 rwr_rc;
-	/** Number of bytes read or written. */
-	u64 rwr_count
-} c2_fop_cob_rw_reply;
-
-/**
- * Reply FOP for a readv request.
- */
-record {
-	/** Common read/write reply. */
-	c2_fop_cob_rw_reply c_rep
-} c2_fop_cob_readv_rep;
-
-/**
  * Represents the extent information for an io segment. c2_ioseg typically
  * represents a user space data buffer or a kernel page.
  */
@@ -115,9 +97,79 @@ sequence {
 } c2_io_descs;
 
 /**
+ * Failure vector (pool machine state) version numbers.
+ * This is declared as a record, not a sequence (which is more like an
+ * array, such that to avoid dynamic memory allocation for every
+ * request and reply fop. The size of this struct will be assert to
+ * be the same of struct c2_pool_version_numbers.
+ */
+record {
+	u64 fvv_read;
+	u64 fvv_write
+} c2_fv_version;
+
+record {
+	u32 fve_type;
+	u32 fve_index;
+	u32 fve_state
+} c2_fv_event;
+
+/**
+ * Failure vector updates.
+ * This update is represented as an array of chars. This is the serialized
+ * representation of failure vector.
+ */
+sequence {
+	u32 fvu_count;
+	c2_fv_event fvu_events
+} c2_fv_updates;
+
+/**
+ * A common sub structure to be referred by read and write reply fops.
+ */
+record {
+        /** Status code of operation. */
+	u32 rwr_rc;
+
+	/** Number of bytes read or written. */
+	u64 rwr_count;
+
+	/** latest version number */
+	c2_fv_version rwr_fv_version;
+
+	/**
+	 * Failure vector updates. This field is valid  iff rc is some
+	 * defined special code.
+	 */
+	c2_fv_updates rwr_fv_updates
+} c2_fop_cob_rw_reply;
+
+/**
+ * Reply FOP for a readv request.
+ */
+record {
+	/** Common read/write reply. */
+	c2_fop_cob_rw_reply c_rep
+} c2_fop_cob_readv_rep;
+
+/**
+ * Reply FOP for writev FOPs.
+ * The c2_fop_cob_writev_rep FOP is sent as a response by the
+ * Data server to a client.
+ * It contains the status code and number of bytes written.
+ */
+record {
+	/** Common read/write reply structure. */
+	c2_fop_cob_rw_reply c_rep
+} c2_fop_cob_writev_rep;
+
+/**
  * Common structure for read and write request fops.
  */
 record {
+	/** Client known failure vector version number */
+	c2_fv_version crw_version;
+
 	/** File identifier of read/write request. */
 
 	c2_fop_file_fid    crw_fid;
@@ -152,17 +204,6 @@ record {
 } c2_fop_cob_readv;
 
 /**
- * Reply FOP for writev FOPs.
- * The c2_fop_cob_writev_rep FOP is sent as a response by the
- * Data server to a client.
- * It contains the status code and number of bytes written.
- */
-record {
-	/** Common read/write reply structure. */
-	c2_fop_cob_rw_reply c_rep
-} c2_fop_cob_writev_rep;
-
-/**
  * The c2_fop_cob_writev FOP is used to send write requests by a
  * client to a Data server.
  * The FOP supplies the stob id on which the write has to be performed.
@@ -176,9 +217,6 @@ record {
 	c2_fop_cob_rw c_rwv
 } c2_fop_cob_writev;
 
-/**
- * Fops referring other remote fops (not present in this file).
- */
 record {
 	u64             if_st;
 	c2_net_buf_desc if_nbd
@@ -190,10 +228,14 @@ record {
 } c2_test_io_addb;
 
 record {
+	/** Client known failure vector version number */
+	c2_fv_version c_version;
+
 	/**
 	 * Fid of global file.
 	 */
 	c2_fop_file_fid c_gobfid;
+
 	/**
 	 * Fid of component object.
 	 */
@@ -235,8 +277,30 @@ record {
  * requests.
  */
 record {
-	u32 cor_rc
+	u32 cor_rc;
+
+	/** latest version number */
+	c2_fv_version cor_fv_version;
+
+	/**
+	 * Failure vector updates. This field is valid  iff rc is some
+	 * defined special code.
+	 */
+	c2_fv_updates cor_fv_updates
 } c2_fop_cob_op_reply;
+
+/**
+ * Fop to notify the failure vector version number if changed.
+ * This fop itself contains the latest failure vector version number.
+ */
+record {
+	/** the pool id of this failure vector */
+	u64 fvn_poolid;
+
+	/** its latest failure vector version */
+	c2_fv_version fvn_version
+} c2_fop_fv_notification;
+
 
 /** @} end of FOP_data_ops */
 

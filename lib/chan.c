@@ -18,6 +18,7 @@
  * Original creation date: 05/13/2010
  */
 
+#include "lib/thread.h"
 #include "lib/errno.h"
 #include "lib/chan.h"
 #include "lib/assert.h"
@@ -122,7 +123,13 @@ static struct c2_clink *chan_head(struct c2_chan *chan)
 
 static void clink_signal(struct c2_clink *clink)
 {
-	if (clink->cl_cb == NULL || !clink->cl_cb(clink))
+	bool rc = false;
+	if (clink->cl_cb != NULL) {
+		c2_enter_awkward();
+		rc = clink->cl_cb(clink);
+		c2_exit_awkward();
+	}
+	if (!rc)
 		c2_semaphore_up(&clink->cl_group->cl_wait);
 }
 

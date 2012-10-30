@@ -230,6 +230,17 @@
   <hr>
   @section SNSRepairCMDLD-ut Unit tests
 
+  @subsection SNSRepairCMDLD-ut-cp Copy packet specific tests
+
+  @test Test01: If an aggregation group is having a single copy packet, then
+  transformation function should be a NO-OP.
+
+  @test Test02: Test if all copy packets of an aggregation group get collected.
+
+  @test Test03: Test the transformation function.
+  Input: 2 bufvec's src and dest to be XORed.
+  Output: XORed output stored in dest bufvec.
+
   <hr>
   @section SNSRepairCMDLD-st System tests
   N/A

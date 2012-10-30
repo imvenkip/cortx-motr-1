@@ -20,11 +20,11 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "fop/fop.h"
 #include "fop/fop_item_type.h"
-#include "rpc/rpc_onwire.h"
-#include "xcode/bufvec_xcode.h"
+#include "rpc/rpc_helpers.h"
 
-c2_bcount_t c2_fop_item_type_default_onwire_size(const struct c2_rpc_item *item)
+c2_bcount_t c2_fop_item_type_default_payload_size(const struct c2_rpc_item *item)
 {
 	c2_bcount_t          len;
 	struct c2_fop       *fop;
@@ -40,27 +40,19 @@ c2_bcount_t c2_fop_item_type_default_onwire_size(const struct c2_rpc_item *item)
 	return len;
 }
 
-int c2_fop_item_type_default_encode(struct c2_rpc_item_type *item_type,
-				    struct c2_rpc_item      *item,
-				    struct c2_bufvec_cursor *cur)
+int c2_fop_item_type_default_encode(const struct c2_rpc_item_type *item_type,
+				    struct c2_rpc_item            *item,
+				    struct c2_bufvec_cursor       *cur)
 {
-	int	 rc;
-	uint32_t opcode;
-
 	C2_PRE(item != NULL);
 	C2_PRE(cur != NULL);
 
-	item_type = item->ri_type;
-	opcode = item_type->rit_opcode;
-	rc = c2_bufvec_uint32(cur, &opcode, C2_BUFVEC_ENCODE) ?:
-	     c2_fop_item_encdec(item, cur, C2_BUFVEC_ENCODE);
-
-	return rc;
+	return c2_fop_item_encdec(item, cur, C2_BUFVEC_ENCODE);
 }
 
-int c2_fop_item_type_default_decode(struct c2_rpc_item_type  *item_type,
-				    struct c2_rpc_item      **item_out,
-				    struct c2_bufvec_cursor  *cur)
+int c2_fop_item_type_default_decode(const struct c2_rpc_item_type  *item_type,
+				    struct c2_rpc_item            **item_out,
+				    struct c2_bufvec_cursor        *cur)
 {
 	int			 rc;
 	struct c2_fop		*fop;
@@ -94,11 +86,6 @@ int c2_fop_item_type_default_decode(struct c2_rpc_item_type  *item_type,
 	return rc;
 }
 
-static void *xcode_top_obj(struct c2_xcode_ctx *ctx)
-{
-	return ctx->xcx_it.xcu_stack[0].s_obj.xo_ptr;
-}
-
 /**
    Helper function used by encode/decode ops of each item type (rito_encode,
    rito_decode) for decoding an rpc item into/from a bufvec
@@ -116,8 +103,9 @@ int c2_fop_item_encdec(struct c2_rpc_item      *item,
 
 	fop = c2_rpc_item_to_fop(item);
 
-	rc = c2_rpc_item_header_encdec(item, cur, what);
-	if(rc != 0)
+	/* Currently MAX slot references in sessions is 1. */
+	rc = c2_rpc_item_slot_ref_encdec(cur, item->ri_slot_refs, 1, what);
+	if (rc != 0)
 		return rc;
 
 	c2_xcode_ctx_init(&xc_ctx, &C2_FOP_XCODE_OBJ(fop));
@@ -129,7 +117,8 @@ int c2_fop_item_encdec(struct c2_rpc_item      *item,
 					c2_xcode_decode(&xc_ctx);
 	if (rc == 0) {
 		if (what == C2_BUFVEC_DECODE)
-			fop->f_data.fd_data = xcode_top_obj(&xc_ctx);
+			fop->f_data.fd_data =
+				c2_xcode_ctx_top(&xc_ctx);
 		*cur = xc_ctx.xcx_buf;
 	}
 
@@ -140,7 +129,7 @@ int c2_fop_item_encdec(struct c2_rpc_item      *item,
 const struct c2_rpc_item_type_ops c2_rpc_fop_default_item_type_ops = {
 	.rito_encode       = c2_fop_item_type_default_encode,
 	.rito_decode       = c2_fop_item_type_default_decode,
-	.rito_payload_size = c2_fop_item_type_default_onwire_size,
+	.rito_payload_size = c2_fop_item_type_default_payload_size,
 };
 C2_EXPORTED(c2_rpc_fop_default_item_type_ops);
 

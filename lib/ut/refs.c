@@ -48,8 +48,11 @@ void test_refs(void)
 	free_done = 0;
 	c2_ref_init(&t->ref, 1, test_destructor);
 
+	C2_UT_ASSERT(c2_ref_read(&t->ref) == 1);
 	c2_ref_get(&t->ref);
+	C2_UT_ASSERT(c2_ref_read(&t->ref) == 2);
 	c2_ref_put(&t->ref);
+	C2_UT_ASSERT(c2_ref_read(&t->ref) == 1);
 	c2_ref_put(&t->ref);
 
 	C2_UT_ASSERT(free_done);

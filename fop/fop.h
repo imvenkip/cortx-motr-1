@@ -69,6 +69,31 @@ struct c2_fop_data;
 struct c2_fop;
 
 /**
+   A context for fop processing in a service.
+
+   A context is created by a service and passed to
+   c2_fop_type_ops::fto_execute() as an argument. It is used to identify a
+   particular fop execution in a service.
+ */
+struct c2_fop_ctx {
+        /**
+           Request handler for this fop
+        */
+        struct c2_reqh     *fc_reqh;
+	/**
+	   Fol that reqh uses.
+	*/
+	struct c2_fol      *fc_fol;
+
+	void               *fc_cookie;
+
+	/**
+	   Fop execution error code returned by store.
+	*/
+	int                 fc_retval;
+};
+
+/**
     fop storage.
 
     A fop is stored in a buffer vector. XXX not for now.
@@ -122,7 +147,8 @@ int c2_fop_fol_rec_add(struct c2_fop *fop, struct c2_fol *fol,
 		       struct c2_db_tx *tx);
 
 struct c2_rpc_item *c2_fop_to_rpc_item(struct c2_fop *fop);
-struct c2_fop *c2_rpc_item_to_fop(const struct c2_rpc_item *item);
+struct c2_fop      *c2_rpc_item_to_fop(const struct c2_rpc_item *item);
+uint32_t            c2_fop_opcode(const struct c2_fop *fop);
 
 /**  Returns a fop type associated with an rpc item type */
 struct c2_fop_type *c2_item_type_to_fop_type

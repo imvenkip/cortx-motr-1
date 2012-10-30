@@ -31,9 +31,9 @@
 #include "lib/ub.h"
 #include "lib/ut.h"
 
-#include "matvec.h"
-#include "ls_solve.h"
-#include "parity_math.h"
+#include "sns/matvec.h"
+#include "sns/ls_solve.h"
+#include "sns/parity_math.h"
 
 struct tb_cfg {
 	uint32_t  tc_data_count;

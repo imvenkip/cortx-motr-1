@@ -28,6 +28,7 @@
 #include "lib/arith.h"
 #include "lib/cdefs.h" /* ergo */
 
+#include "db/db_common.h"
 #include "addb/addb.h"
 #include "colibri/magic.h"
 #include "fop/fop.h"
@@ -46,7 +47,7 @@
  *       main handler loop (loc_handler_thread()), where it waits until there
  *       are foms in runqueue and executes their phase transitions. This thread
  *       keeps group lock (c2_fom_locality::fl_group::s_lock) all the
- *       time. As a result, if phase transitions do not block, group block is
+ *       time. As a result, if phase transitions do not block, group lock is
  *       rarely touched;
  *
  *     - blocked threads: threads that executed a c2_fom_block_enter(), but not
@@ -143,7 +144,7 @@ enum loc_thread_state {
  *
  * Instances of this structure are allocated by loc_thr_create() and freed by
  * loc_thr_fini(). At any time c2_loc_thread::lt_linkage is in
- * c2_fom_locality::fl_threads list and c2_loc_thread::lt_link is registered
+ * c2_fom_locality::fl_threads list and c2_loc_thread::lt_clink is registered
  * with some channel.
  *
  * ->lt_linkage is protected by the locality's group lock. ->lt_state is updated
@@ -162,6 +163,14 @@ struct c2_loc_thread {
 C2_TL_DESCR_DEFINE(thr, "fom thread", static, struct c2_loc_thread, lt_linkage,
 		   lt_magix, C2_FOM_THREAD_MAGIC, C2_FOM_THREAD_HEAD_MAGIC);
 C2_TL_DEFINE(thr, static, struct c2_loc_thread);
+
+C2_TL_DESCR_DEFINE(runq, "runq fom", static, struct c2_fom, fo_linkage,
+		   fo_magic, C2_FOM_MAGIC, C2_FOM_RUNQ_MAGIC);
+C2_TL_DEFINE(runq, static, struct c2_fom);
+
+C2_TL_DESCR_DEFINE(wail, "wail fom", static, struct c2_fom, fo_linkage,
+		   fo_magic, C2_FOM_MAGIC, C2_FOM_WAIL_MAGIC);
+C2_TL_DEFINE(wail, static, struct c2_fom);
 
 static bool fom_wait_time_is_out(const struct c2_fom_domain *dom,
                                  const struct c2_fom *fom);
@@ -193,12 +202,12 @@ bool c2_fom_group_is_locked(const struct c2_fom *fom)
 
 static bool is_in_runq(const struct c2_fom *fom)
 {
-	return c2_list_contains(&fom->fo_loc->fl_runq, &fom->fo_linkage);
+	return runq_tlist_contains(&fom->fo_loc->fl_runq, fom);
 }
 
 static bool is_in_wail(const struct c2_fom *fom)
 {
-	return c2_list_contains(&fom->fo_loc->fl_wail, &fom->fo_linkage);
+	return wail_tlist_contains(&fom->fo_loc->fl_wail, fom);
 }
 
 static bool thread_invariant(const struct c2_loc_thread *t)
@@ -222,8 +231,8 @@ bool c2_locality_invariant(const struct c2_fom_locality *loc)
 {
 	return	loc != NULL && loc->fl_dom != NULL &&
 		c2_mutex_is_locked(&loc->fl_group.s_lock) &&
-		c2_list_invariant(&loc->fl_runq) &&
-		c2_list_invariant(&loc->fl_wail) &&
+		c2_tlist_invariant(&runq_tl, &loc->fl_runq) &&
+		c2_tlist_invariant(&wail_tl, &loc->fl_wail) &&
 		c2_tl_forall(thr, t, &loc->fl_threads,
 			     t->lt_loc == loc && thread_invariant(t)) &&
 		ergo(loc->fl_handler != NULL,
@@ -266,13 +275,18 @@ bool c2_fom_invariant(const struct c2_fom *fom)
 		fom->fo_type != NULL && fom->fo_ops != NULL &&
 
 		c2_fom_group_is_locked(fom) &&
-		c2_list_link_invariant(&fom->fo_linkage) &&
+
+		/* fom magic is the same in runq and wail tlists,
+		 * so we can use either one here.
+		 * @todo replace this with bob_check() */
+		c2_tlink_invariant(&runq_tl, fom) &&
 
 		C2_IN(fom_state(fom), (C2_FOS_READY, C2_FOS_WAITING,
 				       C2_FOS_RUNNING, C2_FOS_INIT)) &&
 		(fom_state(fom) == C2_FOS_READY) == is_in_runq(fom) &&
 		(fom_state(fom) == C2_FOS_WAITING) == is_in_wail(fom) &&
-		ergo(fom->fo_thread != NULL, fom_state(fom) == C2_FOS_RUNNING) &&
+		ergo(fom->fo_thread != NULL,
+		     fom_state(fom) == C2_FOS_RUNNING) &&
 		ergo(fom->fo_pending != NULL,
 		     (fom_state(fom) == C2_FOS_READY || fom_is_blocked(fom))) &&
 		ergo(fom->fo_cb.fc_state != C2_FCS_DONE,
@@ -300,8 +314,8 @@ static void fom_ready(struct c2_fom *fom)
 
 	fom_state_set(fom, C2_FOS_READY);
 	loc = fom->fo_loc;
-	empty = c2_list_is_empty(&loc->fl_runq);
-	c2_list_add_tail(&loc->fl_runq, &fom->fo_linkage);
+	empty = runq_tlist_is_empty(&loc->fl_runq);
+	runq_tlist_add_tail(&loc->fl_runq, fom);
 	C2_CNT_INC(loc->fl_runq_nr);
 	if (empty)
 		c2_chan_signal(&loc->fl_runrun);
@@ -312,7 +326,7 @@ void c2_fom_ready(struct c2_fom *fom)
 {
 	C2_PRE(c2_fom_invariant(fom));
 
-	c2_list_del(&fom->fo_linkage);
+	wail_tlist_del(fom);
 	C2_CNT_DEC(fom->fo_loc->fl_wail_nr);
 	fom_ready(fom);
 }
@@ -331,6 +345,7 @@ static void queueit(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 	C2_PRE(c2_fom_invariant(fom));
 	C2_PRE(c2_fom_phase(fom) == C2_FOM_PHASE_INIT);
 
+	C2_CNT_INC(fom->fo_loc->fl_foms);
 	fom_ready(fom);
 }
 
@@ -424,7 +439,7 @@ void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
 	stype = fom->fo_type->ft_rstype;
 	if (stype != NULL) {
 		fom->fo_service = c2_reqh_service_find(stype, reqh);
-		C2_ASSERT(fom->fo_service != NULL);
+		C2_ASSERT(reqh->rh_svc != NULL || fom->fo_service != NULL);
 	}
 
 	dom = &reqh->rh_fom_dom;
@@ -432,7 +447,6 @@ void c2_fom_queue(struct c2_fom *fom, struct c2_reqh *reqh)
 		dom->fd_localities_nr;
 	C2_ASSERT(loc_idx >= 0 && loc_idx < dom->fd_localities_nr);
 	fom->fo_loc = &reqh->rh_fom_dom.fd_localities[loc_idx];
-	C2_CNT_INC(fom->fo_loc->fl_foms);
 	c2_fom_sm_init(fom);
 	fom->fo_cb.fc_ast.sa_cb = queueit;
 	c2_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
@@ -457,7 +471,7 @@ static void fom_wait(struct c2_fom *fom)
 
 	fom_state_set(fom, C2_FOS_WAITING);
 	loc = fom->fo_loc;
-	c2_list_add_tail(&loc->fl_wail, &fom->fo_linkage);
+	wail_tlist_add_tail(&loc->fl_wail, fom);
 	C2_CNT_INC(loc->fl_wail_nr);
 	C2_POST(c2_fom_invariant(fom));
 }
@@ -485,6 +499,7 @@ static void fom_exec(struct c2_fom *fom)
 {
 	int			rc;
 	struct c2_fom_locality *loc;
+	struct c2_fop_ctx      *ctx;
 
 
 	loc = fom->fo_loc;
@@ -492,7 +507,7 @@ static void fom_exec(struct c2_fom *fom)
 	fom_state_set(fom, C2_FOS_RUNNING);
 	do {
 		C2_ASSERT(c2_fom_invariant(fom));
-		C2_ASSERT(fom_state(fom) != C2_FOM_PHASE_FINISH);
+		C2_ASSERT(c2_fom_phase(fom) != C2_FOM_PHASE_FINISH);
 		rc = fom->fo_ops->fo_tick(fom);
 		/*
 		 * (rc == C2_FSO_AGAIN) means that next phase transition is
@@ -509,7 +524,23 @@ static void fom_exec(struct c2_fom *fom)
 	C2_ASSERT(c2_fom_group_is_locked(fom));
 
 	if (c2_fom_phase(fom) == C2_FOM_PHASE_FINISH) {
+	        /**
+	         * Get ctx from fom begore killing fom.
+	         */
+	        ctx = fom->fo_fop_ctx;
+
+                /**
+                 * Finish fom itself.
+                 */
 		fom->fo_ops->fo_fini(fom);
+
+		/**
+		 * Make sure that ctx is released. It is allocated just before fto_create()
+		 * is called. We release it after fo_finish as it may use ctx.
+		 */
+		if (ctx != NULL)
+                        c2_free(ctx);
+
 		/*
 		 * Don't touch the fom after this point.
 		 */
@@ -545,13 +576,11 @@ static void fom_exec(struct c2_fom *fom)
  */
 static struct c2_fom *fom_dequeue(struct c2_fom_locality *loc)
 {
-	struct c2_list_link	*fom_link;
 	struct c2_fom		*fom = NULL;
 
-	fom_link = c2_list_first(&loc->fl_runq);
-	if (fom_link != NULL) {
-		c2_list_del(fom_link);
-		fom = container_of(fom_link, struct c2_fom, fo_linkage);
+	fom = runq_tlist_head(&loc->fl_runq);
+	if (fom != NULL) {
+		runq_tlist_del(fom);
 		C2_CNT_DEC(loc->fl_runq_nr);
 	}
 
@@ -709,10 +738,10 @@ static void loc_fini(struct c2_fom_locality *loc)
 	}
 	group_unlock(loc);
 
-	c2_list_fini(&loc->fl_runq);
+	runq_tlist_fini(&loc->fl_runq);
 	C2_ASSERT(loc->fl_runq_nr == 0);
 
-	c2_list_fini(&loc->fl_wail);
+	wail_tlist_fini(&loc->fl_wail);
 	C2_ASSERT(loc->fl_wail_nr == 0);
 
 	c2_sm_group_fini(&loc->fl_group);
@@ -745,10 +774,10 @@ static int loc_init(struct c2_fom_locality *loc, size_t cpu, size_t cpu_max)
 
 	C2_PRE(loc != NULL);
 
-	c2_list_init(&loc->fl_runq);
+	runq_tlist_init(&loc->fl_runq);
 	loc->fl_runq_nr = 0;
 
-	c2_list_init(&loc->fl_wail);
+	wail_tlist_init(&loc->fl_wail);
 	loc->fl_wail_nr = 0;
 
 	c2_sm_group_init(&loc->fl_group);
@@ -855,6 +884,7 @@ void c2_fom_fini(struct c2_fom *fom)
 	struct c2_reqh         *reqh;
 
 	C2_PRE(c2_fom_phase(fom) == C2_FOM_PHASE_FINISH);
+        C2_PRE(!c2_db_tx_is_active(&fom->fo_tx.tx_dbtx));
 
 	loc  = fom->fo_loc;
 	fdom = loc->fl_dom;
@@ -862,7 +892,7 @@ void c2_fom_fini(struct c2_fom *fom)
 	fom_state_set(fom, C2_FOS_FINISH);
 	c2_sm_fini(&fom->fo_sm_phase);
 	c2_sm_fini(&fom->fo_sm_state);
-	c2_list_link_fini(&fom->fo_linkage);
+	runq_tlink_fini(fom);
 	c2_fom_callback_init(&fom->fo_cb);
 	C2_CNT_DEC(loc->fl_foms);
 	if (loc->fl_foms == 0)
@@ -876,13 +906,12 @@ void c2_fom_init(struct c2_fom *fom, struct c2_fom_type *fom_type,
 {
 	C2_PRE(fom != NULL);
 
-	fom->fo_rc      = 0;
 	fom->fo_type	= fom_type;
 	fom->fo_ops	= ops;
 	fom->fo_fop	= fop;
 	fom->fo_rep_fop = reply;
 	c2_fom_callback_init(&fom->fo_cb);
-	c2_list_link_init(&fom->fo_linkage);
+	runq_tlink_init(fom);
 
 	fom->fo_transitions = 0;
 }
@@ -1000,47 +1029,25 @@ void c2_fom_type_init(struct c2_fom_type *type,
 static const struct c2_sm_state_descr fom_states[] = {
 	[C2_FOS_INIT] = {
 		.sd_flags     = C2_SDF_INITIAL,
-		.sd_name      = "SM init",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOS_FINISH) |
-				(1 << C2_FOS_READY)
+		.sd_name      = "Init",
+		.sd_allowed   = C2_BITS(C2_FOS_FINISH, C2_FOS_READY)
 	},
 	[C2_FOS_READY] = {
-		.sd_flags     = 0,
-		.sd_name      = "fom ready",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOS_RUNNING)
+		.sd_name      = "Ready",
+		.sd_allowed   = C2_BITS(C2_FOS_RUNNING)
 	},
 	[C2_FOS_RUNNING] = {
-		.sd_flags     = 0,
-		.sd_name      = "fom running",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOS_WAITING) |
-				(1 << C2_FOS_READY) |
-				(1 << C2_FOS_FINISH)
+		.sd_name      = "Running",
+		.sd_allowed   = C2_BITS(C2_FOS_WAITING, C2_FOS_READY,
+					C2_FOS_FINISH)
 	},
 	[C2_FOS_WAITING] = {
-		.sd_flags     = 0,
-		.sd_name      = "fom wait",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = (1 << C2_FOS_FINISH) |
-				(1 << C2_FOS_READY)
+		.sd_name      = "Wait",
+		.sd_allowed   = C2_BITS(C2_FOS_FINISH, C2_FOS_READY)
 	},
 	[C2_FOS_FINISH] = {
 		.sd_flags     = C2_SDF_TERMINAL,
-		.sd_name      = "finished",
-		.sd_in        = NULL,
-		.sd_ex        = NULL,
-		.sd_invariant = NULL,
-		.sd_allowed   = 0,
+		.sd_name      = "Finished",
 	}
 };
 

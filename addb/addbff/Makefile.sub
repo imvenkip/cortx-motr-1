@@ -1,0 +1,9 @@
+colibri_libcolibri_la_SOURCES  += addb/addbff/addb_ff.h \
+                                  addb/addbff/addb_ff.c
+
+FF_FILES   += addb/addbff/addb_ff.h
+
+EXTRA_DIST += addb/addbff/addb.ff
+
+CLEANFILES += addb/addbff/addb_ff.h \
+              addb/addbff/addb_ff.c

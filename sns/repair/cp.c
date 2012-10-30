@@ -20,7 +20,9 @@
  * Original creation date: 08/06/2012
  */
 
+#ifndef C2_TRACE_SUBSYSTEM
 #define C2_TRACE_SUBSYSTEM C2_TRACE_SUBSYS_SNSREPAIR
+#endif
 #include "lib/memory.h" /* c2_free() */
 
 #include "fop/fom.h"
@@ -64,12 +66,8 @@ uint64_t cp_home_loc_helper(const struct c2_cm_cp *cp)
 
 static int cp_init(struct c2_cm_cp *cp)
 {
-	struct c2_sns_repair_cm *rcm;
-
 	C2_PRE(c2_fom_phase(&cp->c_fom) == C2_CCP_INIT);
-	rcm = cm2sns(cp->c_ag->cag_cm);
-	cp->c_ops->co_phase_next(cp);
-	return C2_FSO_AGAIN;
+	return cp->c_ops->co_phase_next(cp);
 }
 
 static int cp_fini(struct c2_cm_cp *cp)
@@ -87,14 +85,12 @@ static int cp_fini(struct c2_cm_cp *cp)
 
 static int cp_read(struct c2_cm_cp *cp)
 {
-	cp->c_ops->co_phase_next(cp);
-	return C2_FSO_AGAIN;
+	return cp->c_ops->co_phase_next(cp);
 }
 
 static int cp_write(struct c2_cm_cp *cp)
 {
-	cp->c_ops->co_phase_next(cp);
-	return C2_FSO_AGAIN;
+	return cp->c_ops->co_phase_next(cp);
 }
 
 static int cp_send(struct c2_cm_cp *cp)
@@ -107,29 +103,18 @@ static int cp_recv(struct c2_cm_cp *cp)
 	return C2_FSO_AGAIN;
 }
 
-static int cp_xform(struct c2_cm_cp *cp)
-{
-	cp->c_ops->co_phase_next(cp);
-	return C2_FSO_AGAIN;
-}
-
 static int cp_phase_next(struct c2_cm_cp *cp)
 {
-	switch (c2_fom_phase(&cp->c_fom)) {
-	case C2_CCP_INIT:
-		c2_fom_phase_set(&cp->c_fom, C2_CCP_READ);
-		break;
-	case C2_CCP_READ:
-		c2_fom_phase_set(&cp->c_fom, C2_CCP_XFORM);
-		break;
-	case C2_CCP_XFORM:
-		c2_fom_phase_set(&cp->c_fom, C2_CCP_WRITE);
-		break;
-	case C2_CCP_WRITE:
-		c2_fom_phase_set(&cp->c_fom, C2_CCP_FINI);
-		break;
-	}
-        return C2_FSO_AGAIN;
+	int phase = c2_fom_phase(&cp->c_fom);
+	const int next[] = {
+		[C2_CCP_INIT]  = C2_CCP_READ,
+		[C2_CCP_READ]  = C2_CCP_XFORM,
+		[C2_CCP_XFORM] = C2_CCP_WRITE,
+		[C2_CCP_WRITE] = C2_CCP_FINI
+	};
+
+	c2_fom_phase_set(&cp->c_fom, next[phase]);
+        return next[phase] == C2_CCP_FINI ? C2_FSO_WAIT : C2_FSO_AGAIN;
 }
 
 static void cp_complete(struct c2_cm_cp *cp)
@@ -153,7 +138,7 @@ const struct c2_cm_cp_ops c2_sns_repair_cp_ops = {
 		[C2_CCP_INIT]  = &cp_init,
 		[C2_CCP_READ]  = &cp_read,
 		[C2_CCP_WRITE] = &cp_write,
-		[C2_CCP_XFORM] = &cp_xform,
+		[C2_CCP_XFORM] = &c2_repair_cp_xform,
 		[C2_CCP_SEND]  = &cp_send,
 		[C2_CCP_RECV]  = &cp_recv,
 		[C2_CCP_FINI]  = &cp_fini,
