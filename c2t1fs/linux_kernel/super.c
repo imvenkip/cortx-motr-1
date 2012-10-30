@@ -421,15 +421,16 @@ void c2t1fs_kill_sb(struct super_block *sb)
 	}
 	kill_anon_super(sb);
 
-	printk(KERN_ERR "mem stats :\n a_ioreq_nr = %llu, d_ioreq_nr = %llu,"
-	       "a_pargrp_iomap_nr = %llu, d_pargrp_iomap_nr = %llu"
-	       "a_target_ioreq_nr = %llu, d_target_ioreq_nr = %llu,"
-	       "a_io_req_fop_nr = %llu, d_io_req_fop_nr = %llu,"
-	       "a_data_buf_nr = %llu, d_data_buf_nr = %llu,"
-	       "a_page_nr = %llu, d_page_nr = %llu",
+	C2_LOG(C2_INFO, "mem stats :\n a_ioreq_nr = %llu, d_ioreq_nr = %llu\n"
+			"a_pargrp_iomap_nr = %llu, d_pargrp_iomap_nr = %llu\n"
+			"a_target_ioreq_nr = %llu, d_target_ioreq_nr = %llu\n",
 	       iommstats.a_ioreq_nr, iommstats.d_ioreq_nr,
 	       iommstats.a_pargrp_iomap_nr, iommstats.d_pargrp_iomap_nr,
-	       iommstats.a_target_ioreq_nr, iommstats.d_target_ioreq_nr,
+	       iommstats.a_target_ioreq_nr, iommstats.d_target_ioreq_nr);
+
+	C2_LOG(C2_INFO, "a_io_req_fop_nr = %llu, d_io_req_fop_nr = %llu\n"
+			"a_data_buf_nr = %llu, d_data_buf_nr = %llu\n"
+			"a_page_nr = %llu, d_page_nr = %llu\n",
 	       iommstats.a_io_req_fop_nr, iommstats.d_io_req_fop_nr,
 	       iommstats.a_data_buf_nr, iommstats.d_data_buf_nr,
 	       iommstats.a_page_nr, iommstats.d_page_nr);
