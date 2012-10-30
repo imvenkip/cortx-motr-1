@@ -38,12 +38,7 @@ enum {
 	NR = 255
 };
 
-static inline uint32_t fop_opcode(struct c2_fop *fop)
-{
-	return fop->f_type->ft_rec_type.rt_opcode;
-}
-
-static void fop_fini(struct c2_fop *fop)
+static void fop_fini_and_free(struct c2_fop *fop)
 {
 	struct c2_fop_ping    *ping_fop_data;
 	struct c2_addb_record *addb_fop_data;
@@ -51,7 +46,7 @@ static void fop_fini(struct c2_fop *fop)
 	C2_UT_ASSERT(fop != NULL);
 	C2_UT_ASSERT(c2_fop_data(fop) != NULL);
 
-	switch (fop_opcode(fop)) {
+	switch (c2_fop_opcode(fop)) {
 	case C2_RPC_PING_OPCODE:
 		ping_fop_data = c2_fop_data(fop);
 		if (ping_fop_data->fp_arr.f_data != NULL)
@@ -74,11 +69,11 @@ static void packet_fini(struct c2_rpc_packet *packet)
 
 	C2_UT_ASSERT(packet != NULL);
 
-	c2_tl_for(packet_item, &packet->rp_items, item) {
+	for_each_item_in_packet(item, packet) {
 		fop = c2_rpc_item_to_fop(item);
 	        c2_rpc_packet_remove_item(packet, item);
-		fop_fini(fop);
-	} c2_tl_endfor;
+		fop_fini_and_free(fop);
+	} end_for_each_item_in_packet;
 }
 
 static bool cmp_addb_record_header(struct c2_addb_record_header *header1,
@@ -137,9 +132,9 @@ static bool fop_data_compare(struct c2_fop *fop1, struct c2_fop *fop2)
 	struct c2_addb_record  *addb_data1;
 	struct c2_addb_record  *addb_data2;
 
-	C2_UT_ASSERT(fop_opcode(fop1) == fop_opcode(fop2));
+	C2_UT_ASSERT(c2_fop_opcode(fop1) == c2_fop_opcode(fop2));
 
-	switch (fop_opcode(fop1)) {
+	switch (c2_fop_opcode(fop1)) {
 
 	case C2_RPC_PING_OPCODE:
 		ping_data1 = c2_fop_data(fop1);
