@@ -1425,12 +1425,18 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
 {
 	int			  rc;
 	uint32_t		  row;
+	uint32_t		  col;
 	uint32_t		  seg;
 	uint32_t		  seg_nr;
 	c2_bindex_t		  grpstart;
 	c2_bindex_t		  grpend;
-	struct c2_pdclust_layout *play;
+	c2_bindex_t		  start;
+	c2_bindex_t		  end;
+	c2_bcount_t               count = 0;
+	struct inode             *inode;
 	struct c2_indexvec	 *ivec;
+	struct c2_ivec_cursor	  cur;
+	struct c2_pdclust_layout *play;
 
 	C2_ENTRY("map %p", map);
 	C2_PRE(pargrp_iomap_invariant(map));
@@ -1461,10 +1467,15 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
 					    seg_endpos(ivec, seg);
 	}
 
+	for (seg = 0; seg < seg_nr; ++seg)
+		printk(KERN_ERR "readrest: seg = %d, index = %llu, count = %llu",
+		       seg, INDEX(ivec, seg), COUNT(ivec, seg));
+
 	/*
 	 * For read-rest approach, all data units from a parity group
 	 * are read. Ergo, mark them as to be read.
 	 */
+	/*
 	for (row = 0; row < data_row_nr(play); ++row) {
 		for (seg_nr = 0; seg_nr < data_col_nr(play); ++seg_nr) {
 			if (map->pi_databufs[row][seg_nr] == NULL) {
@@ -1476,6 +1487,33 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
 				map->pi_databufs[row][seg_nr]->db_flags |=
 					PA_READ;
 			}
+		}
+	}
+	*/
+	inode = file_to_inode(map->pi_ioreq->ir_file);
+	printk(KERN_ERR "readrest: filesize = %llu", inode->i_size);
+	c2_ivec_cursor_init(&cur, &map->pi_ivec);
+
+	while (!c2_ivec_cursor_move(&cur, count)) {
+		start = c2_ivec_cursor_index(&cur);
+		end   = min64u(PAGE_CACHE_SIZE, c2_ivec_cursor_step(&cur)) +
+			start;
+		count = end - start;
+		page_pos_get(map, start, &row, &col);
+
+		printk(KERN_ERR "readrest: start = %llu, end = %llu, dbuf = %p",
+		       start, end, map->pi_databufs[row][col]);
+		if (map->pi_databufs[row][col] == NULL) {
+			rc = pargrp_iomap_databuf_alloc(map, row, col);
+			if (rc != 0)
+				C2_RETERR(rc, "databuf_alloc failed");
+
+			printk(KERN_ERR "readrest: dbuf allocated for [%d][%d]",
+			       row, col);
+			if (end <= inode->i_size || (inode->i_size > 0 &&
+			    page_id(end) == page_id(inode->i_size - 1)))
+				map->pi_databufs[row][col]->db_flags |=
+					PA_READ;
 		}
 	}
 
@@ -1578,7 +1616,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 	uint64_t		  grpsize;
 	//uint32_t                  rseg;
 	c2_bcount_t		  count = 0;
-	c2_bindex_t               endpos;
+	c2_bindex_t               endpos = 0;
 	//c2_bindex_t               reqindex;
 	c2_bcount_t               segcount = 0;
 	/* Number of pages _completely_ spanned by incoming io vector. */
@@ -1599,12 +1637,18 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 	grpsize	 = data_size(play);
 	grpstart = grpsize * map->pi_grpid;
 	grpend	 = grpstart + grpsize;
+	endpos   = c2_ivec_cursor_index(cursor);
 
-	for (seg = cursor->ic_cur.vc_seg; INDEX(ivec, seg) < grpend &&
-	     seg < SEG_NR(ivec); ++seg)
-		size += min64u(grpend - INDEX(ivec, seg), COUNT(ivec, seg));
+	for (seg = cursor->ic_cur.vc_seg; seg < SEG_NR(ivec) &&
+	     INDEX(ivec, seg) < grpend; ++seg)
+		//size += min64u(grpend - INDEX(ivec, seg), COUNT(ivec, seg));
+		size += seg == cursor->ic_cur.vc_seg ?
+			c2_ivec_cursor_step(cursor) :
+			cursor->ic_cur.vc_vec->v_count[seg];
 
 	rmw = size < grpsize && map->pi_ioreq->ir_type == IRT_WRITE;
+	printk(KERN_ERR "Group id %llu is %s", map->pi_grpid,
+	       rmw ? "rmw" : "aligned");
 
 	size = map->pi_ioreq->ir_file->f_dentry->d_inode->i_size;
 
@@ -1839,7 +1883,8 @@ static int ioreq_iomaps_prepare(struct io_request *req)
 				ir_iomaps[id], &req->ir_ivec, &cursor);
 		if (rc != 0)
 			goto failed;
-		C2_LOG(C2_INFO, "pargrp_iomap id : %llu populated", id);
+		C2_LOG(C2_INFO, "pargrp_iomap id : %llu populated",
+		       req->ir_iomaps[id]->pi_grpid);
 	}
 
 	C2_RETURN(0);
