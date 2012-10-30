@@ -895,7 +895,6 @@ int c2_rm_borrow_commit(struct c2_rm_remote_incoming *rem_in)
 	int                    rc;
 
 	C2_PRE(in->rin_type == C2_RIT_BORROW);
-	C2_PRE(loan->rl_right.ri_owner == owner);
 
 	/*
 	 * Allocate loan and copy the right (to be borrowed).
@@ -1606,7 +1605,7 @@ int c2_rm_sublet_remove(struct c2_rm_right *right)
 	 */
 	c2_tl_for(c2_rm_ur, rc ? &diff_list : &remove_list, right) {
 		c2_rm_ur_tlist_del(right);
-		loan = bob_of(sublet, struct c2_rm_loan, rl_right, &loan_bob);
+		loan = bob_of(right, struct c2_rm_loan, rl_right, &loan_bob);
 		c2_rm_loan_fini(loan);
 		c2_free(loan);
 
