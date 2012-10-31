@@ -113,7 +113,7 @@ static const struct c2_bob_type dtbuf_bobtype = {
 
 #define SEG_NR(vec)    ((vec)->iv_vec.v_nr)
 
-static inline c2_bcount_t seg_endpos(struct c2_indexvec *ivec, uint32_t i)
+static inline c2_bcount_t seg_endpos(const struct c2_indexvec *ivec, uint32_t i)
 {
 	C2_PRE(ivec != NULL);
 
@@ -1528,6 +1528,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 	uint64_t		  rr_page_nr;
 	c2_bindex_t		  grpstart;
 	c2_bindex_t		  grpend;
+	c2_bindex_t		  currindex;
 	struct c2_pdclust_layout *play;
 
 	C2_ENTRY("map %p, indexvec %p", map, ivec);
@@ -1541,10 +1542,11 @@ static int pargrp_iomap_populate(struct pargrp_iomap	  *map,
 	endpos   = c2_ivec_cursor_index(cursor);
 
 	for (seg = cursor->ic_cur.vc_seg; seg < SEG_NR(ivec) &&
-	     INDEX(ivec, seg) < grpend; ++seg)
-		size += seg == cursor->ic_cur.vc_seg ?
-			c2_ivec_cursor_step(cursor) :
-			cursor->ic_cur.vc_vec->v_count[seg];
+	     INDEX(ivec, seg) < grpend; ++seg) {
+		currindex = seg == cursor->ic_cur.vc_seg ?
+			    c2_ivec_cursor_index(cursor) : INDEX(ivec, seg);
+		size += min64u(seg_endpos(ivec, seg), grpend) - currindex;
+	}
 
 	rmw = size < grpsize && map->pi_ioreq->ir_type == IRT_WRITE;
 	C2_LOG(C2_INFO, "Group id %llu is %s", map->pi_grpid,
@@ -2016,9 +2018,12 @@ static int ioreq_iosm_handle(struct io_request *req)
 			goto fail;
 
 		/* Finalizes the old read fops. */
-		req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer, rmw);
-		if (req->ir_rc != 0)
-			goto fail;
+		if (read_pages > 0) {
+			req->ir_nwxfer.nxr_ops->nxo_complete(&req->ir_nwxfer,
+							     rmw);
+			if (req->ir_rc != 0)
+				goto fail;
+		}
 
 		ioreq_sm_state_set(req, IRS_WRITING);
 		rc = req->ir_ops->iro_parity_recalc(req);

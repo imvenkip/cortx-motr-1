@@ -233,7 +233,6 @@ static void ds_test(void)
          * Rest all pages in data matrix will be NULL.
          */
 	C2_UT_ASSERT(map->pi_ivec.iv_index[0] == PAGE_CACHE_SIZE * 4);
-	printk(KERN_ERR "v_count[0] = %llu", map->pi_ivec.iv_vec.v_count[0]);
 	C2_UT_ASSERT(map->pi_ivec.iv_vec.v_count[0] == 2 * PAGE_CACHE_SIZE);
 	C2_UT_ASSERT(map->pi_databufs   != NULL);
 	C2_UT_ASSERT(map->pi_paritybufs != NULL);
