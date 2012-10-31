@@ -111,8 +111,6 @@ static void fop_data_compare(struct c2_fop *fop1, struct c2_fop *fop2)
 		ping_data1 = c2_fop_data(fop1);
 		ping_data2 = c2_fop_data(fop2);
 		cmp_ping_fop_data(&ping_data1->fp_arr, &ping_data2->fp_arr);
-	//	C2_UT_ASSERT(*ping_data1->fp_arr.f_data ==
-	//		     *ping_data2->fp_arr.f_data);
 		break;
 
 	case C2_RPC_PING_REPLY_OPCODE:
