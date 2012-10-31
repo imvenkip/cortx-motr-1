@@ -255,14 +255,13 @@ static int packet_header_encode(struct c2_rpc_packet_onwire_header *ph,
 static int packet_header_decode(struct c2_bufvec_cursor            *cursor,
 				struct c2_rpc_packet_onwire_header *ph)
 {
-	struct c2_rpc_packet_onwire_header *oph = NULL;
-	struct c2_xcode_ctx                 ctx;
-	int                                 rc;
+	struct c2_xcode_ctx ctx;
+	int                 rc;
 
 	C2_ENTRY();
 	C2_PRE(cursor != NULL && ph != NULL);
 
-	c2_xcode_ctx_init(&ctx, &PACKHD_XCODE_OBJ(oph));
+	c2_xcode_ctx_init(&ctx, &PACKHD_XCODE_OBJ(NULL));
 	ctx.xcx_buf   = *cursor;
 	ctx.xcx_alloc = c2_xcode_alloc;
 
@@ -271,7 +270,7 @@ static int packet_header_decode(struct c2_bufvec_cursor            *cursor,
 		*ph     = *(struct c2_rpc_packet_onwire_header *)
 				c2_xcode_ctx_top(&ctx);
 		*cursor = ctx.xcx_buf;
-		c2_xcode_free(&PACKHD_XCODE_OBJ(oph));
+		c2_xcode_free(&PACKHD_XCODE_OBJ(c2_xcode_ctx_top(&ctx)));
 	}
 
 	C2_RETURN(rc);

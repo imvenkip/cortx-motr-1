@@ -17,8 +17,6 @@
  * Original author: Nachiket Sahasrabuddhe <nachiket_sahasrabuddhe@xyratex.com>
  * Original creation date: 10/04/2012
  */
-
-#include <limits.h>		 /* UCHAR_MAX */
 #include "colibri/init.h"
 #include "colibri/magic.h"
 #include "lib/vec.h"
@@ -31,6 +29,9 @@
 #include "rpc/it/ping_fop_ff.h"
 #include "addb/addbff/addb_ff.h"
 #include "rpc/rpc_opcodes.h"
+#include "rpc/it/ping_fop.c"
+#include "rpc/it/ping_fop_ff.c"
+#include "rpc/it/ping_fom.c"
 
 #define cmp_field(obj1, obj2, field)((obj1)->field == (obj2)->field)
 
@@ -51,27 +52,7 @@ static int packet_ut_fini(void)
 	c2_addb_fop_fini();
 	return 0;
 }
-static void fop_fini(struct c2_fop *fop)
-{
 
-	struct c2_fop_ping    *ping_fop_data;
-	struct c2_addb_record *addb_fop_data;
-
-	switch (c2_fop_opcode(fop)) {
-	case C2_RPC_PING_OPCODE:
-		ping_fop_data = c2_fop_data(fop);
-		if (ping_fop_data->fp_arr.f_data != NULL)
-			c2_free(ping_fop_data->fp_arr.f_data);
-		break;
-
-	case C2_ADDB_RECORD_REQUEST_OPCODE:
-		addb_fop_data = c2_fop_data(fop);
-		if (addb_fop_data->ar_data.cmb_count != 0)
-			c2_free(addb_fop_data->ar_data.cmb_value);
-		break;
-}
-	c2_fop_free(fop);
-}
 static void packet_fini(struct c2_rpc_packet *packet)
 {
 	struct c2_rpc_item *item;
@@ -82,14 +63,13 @@ static void packet_fini(struct c2_rpc_packet *packet)
 	for_each_item_in_packet(item, packet) {
 		fop = c2_rpc_item_to_fop(item);
 		c2_rpc_packet_remove_item(packet, item);
-//		c2_fop_free(fop);
-		fop_fini(fop);
+		c2_fop_free(fop);
 	} end_for_each_item_in_packet;
 }
 
 
 static void cmp_addb_record_header(struct c2_addb_record_header *header1,
-		struct c2_addb_record_header *header2)
+				   struct c2_addb_record_header *header2)
 {
 	C2_UT_ASSERT(cmp_field(header1, header2, arh_magic1));
 	C2_UT_ASSERT(cmp_field(header1, header2, arh_version));
@@ -100,15 +80,16 @@ static void cmp_addb_record_header(struct c2_addb_record_header *header1,
 }
 
 static void cmp_addb_record_buf(struct c2_mem_buf *buf1,
-		struct c2_mem_buf *buf2)
+				struct c2_mem_buf *buf2)
 {
 	bool rc;
+
 	C2_UT_ASSERT(buf1->cmb_count == buf2->cmb_count);
 	C2_UT_ASSERT(buf1->cmb_value != NULL);
 	C2_UT_ASSERT(buf2->cmb_value != NULL);
 
 	rc = c2_forall(i, buf1->cmb_count,
-			buf1->cmb_value[i] == buf2->cmb_value[i]);
+		       buf1->cmb_value[i] == buf2->cmb_value[i]);
 	C2_UT_ASSERT(rc);
 }
 
@@ -130,7 +111,7 @@ static void fill_addb_data(struct c2_mem_buf *addb_data)
 	C2_UT_ASSERT(addb_data->cmb_value != NULL);
 
 	for (i = 0; i < addb_data->cmb_count; ++i) {
-		addb_data->cmb_value[i] = i % UCHAR_MAX;
+		addb_data->cmb_value[i] = i % UINT8_MAX;
 	}
 }
 
@@ -141,7 +122,6 @@ static void fop_data_compare(struct c2_fop *fop1, struct c2_fop *fop2)
 	struct c2_fop_ping     *ping_data2;
 	struct c2_fop_ping_rep *ping_rep_data1;
 	struct c2_fop_ping_rep *ping_rep_data2;
-
 	/* ADDB fop objects */
 	struct c2_addb_record  *addb_data1;
 	struct c2_addb_record  *addb_data2;
@@ -155,7 +135,7 @@ static void fop_data_compare(struct c2_fop *fop1, struct c2_fop *fop2)
 		ping_data2 = c2_fop_data(fop2);
 
 		C2_UT_ASSERT(*ping_data1->fp_arr.f_data ==
-				*ping_data2->fp_arr.f_data);
+			     *ping_data2->fp_arr.f_data);
 		break;
 
 	case C2_RPC_PING_REPLY_OPCODE:
@@ -170,40 +150,31 @@ static void fop_data_compare(struct c2_fop *fop1, struct c2_fop *fop2)
 		addb_data2 = c2_fop_data(fop2);
 		cmp_addb_record_header(&addb_data1->ar_header,
 				       &addb_data2->ar_header);
-		cmp_addb_record_buf(&addb_data1->ar_data,
-				    &addb_data2->ar_data);
+		cmp_addb_record_buf(&addb_data1->ar_data, &addb_data2->ar_data);
 	}
 }
 
 static void item_compare(struct c2_rpc_item *item1, struct c2_rpc_item *item2)
 {
+
+	struct c2_rpc_onwire_slot_ref *sr_ow1 = &item1->ri_slot_refs[0].sr_ow;
+	struct c2_rpc_onwire_slot_ref *sr_ow2 = &item2->ri_slot_refs[0].sr_ow;
+
 	C2_UT_ASSERT(cmp_field(item1, item2, ri_type->rit_opcode));
-	C2_UT_ASSERT(cmp_field(item1, item2,
-		     ri_slot_refs[0].sr_ow.osr_verno.vn_lsn));
-	C2_UT_ASSERT(cmp_field(item1, item2,
-		     ri_slot_refs[0].sr_ow.osr_sender_id));
-	C2_UT_ASSERT(cmp_field(item1, item2,
-		     ri_slot_refs[0].sr_ow.osr_session_id));
-	C2_UT_ASSERT(cmp_field(item1, item2,
-		     ri_slot_refs[0].sr_ow.osr_verno.vn_vc));
-	C2_UT_ASSERT(cmp_field(item1, item2,
-		     ri_slot_refs[0].sr_ow.osr_uuid.su_uuid));
-	C2_UT_ASSERT(cmp_field(item1, item2,
-		     ri_slot_refs[0].sr_ow.osr_last_persistent_verno.
-		     vn_lsn));
-	C2_UT_ASSERT(cmp_field(item1, item2,
-		     ri_slot_refs[0].sr_ow.osr_last_persistent_verno.
-		     vn_vc));
-	C2_UT_ASSERT(cmp_field(item1, item2,
-		     ri_slot_refs[0].sr_ow.osr_last_seen_verno.vn_lsn));
-	C2_UT_ASSERT(cmp_field(item1, item2,
-		     ri_slot_refs[0].sr_ow.osr_last_seen_verno.vn_vc));
-	C2_UT_ASSERT(cmp_field(item1, item2,
-		     ri_slot_refs[0].sr_ow.osr_slot_id));
-	C2_UT_ASSERT(cmp_field(item1, item2,
-		     ri_slot_refs[0].sr_ow.osr_xid));
-	C2_UT_ASSERT(cmp_field(item1, item2,
-		     ri_slot_refs[0].sr_ow.osr_slot_gen));
+	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2, osr_verno.vn_lsn));
+	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2, osr_sender_id));
+	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2, osr_session_id));
+	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2, osr_verno.vn_vc));
+	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2, osr_uuid.su_uuid));
+	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2,
+			       osr_last_persistent_verno.vn_lsn));
+	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2,
+			       osr_last_persistent_verno.vn_vc));
+	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2, osr_last_seen_verno.vn_lsn));
+	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2, osr_last_seen_verno.vn_vc));
+	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2, osr_slot_id));
+	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2, osr_xid));
+	C2_UT_ASSERT(cmp_field(sr_ow1, sr_ow2, osr_slot_gen));
 }
 
 static void packet_compare(struct c2_rpc_packet *p1, struct c2_rpc_packet *p2)
@@ -245,9 +216,9 @@ static void populate_item(struct c2_rpc_item *item)
 }
 
 static void prepare_ping_fop_item(struct c2_rpc_item **item,
-		struct c2_fop **ping_fop)
+				  struct c2_fop **ping_fop)
 {
-	struct c2_fop_ping     *ping_fop_data;
+	struct c2_fop_ping *ping_fop_data;
 
 	*ping_fop = c2_fop_alloc(&c2_fop_ping_fopt, NULL);
 	C2_UT_ASSERT(*ping_fop != NULL);
@@ -261,7 +232,7 @@ static void prepare_ping_fop_item(struct c2_rpc_item **item,
 }
 
 static void prepare_ping_rep_fop_item(struct c2_rpc_item **item,
-		struct c2_fop **ping_fop_rep)
+				      struct c2_fop **ping_fop_rep)
 {
 	struct c2_fop_ping_rep *ping_fop_rep_data;
 
@@ -275,9 +246,9 @@ static void prepare_ping_rep_fop_item(struct c2_rpc_item **item,
 }
 
 static void prepare_addb_fop_item(struct c2_rpc_item **item,
-		struct c2_fop **addb_fop)
+				  struct c2_fop **addb_fop)
 {
-	struct c2_addb_record  *addb_fop_data;
+	struct c2_addb_record *addb_fop_data;
 
 	*addb_fop = c2_fop_alloc(&c2_addb_record_fopt, NULL);
 	C2_UT_ASSERT(*addb_fop != NULL);
@@ -293,27 +264,23 @@ static void prepare_addb_fop_item(struct c2_rpc_item **item,
 	populate_item(item[0]);
 }
 
-void test_packet_encode()
+void test_packet_encode(void)
 {
 	/* Ping FOP and Ping reply FOP */
-	struct c2_fop          *ping_fop;
-	struct c2_fop          *ping_fop_rep;
-
+	struct c2_fop         *ping_fop;
+	struct c2_fop         *ping_fop_rep;
 	/* ADDB record request */
-	struct c2_fop	       *addb_fop;
-	struct c2_addb_record  *addb_fop_data;
-
+	struct c2_fop	      *addb_fop;
+	struct c2_addb_record *addb_fop_data;
 	/* RPC objects */
-	struct c2_rpc_item     *item;
-	struct c2_rpc_packet    p_for_encd;
-	struct c2_rpc_packet    p_decoded;
-	struct c2_bufvec        bufvec;
-	c2_bcount_t             bufvec_size;
+	struct c2_rpc_item    *item;
+	struct c2_rpc_packet   p_for_encd;
+	struct c2_rpc_packet   p_decoded;
+	struct c2_bufvec       bufvec;
+	c2_bcount_t            bufvec_size;
+	int		       rc;
 
-	int			rc;
-
-	rc = c2_bufvec_alloc_aligned(&bufvec, NR,
-			             C2_SEG_SIZE, C2_SEG_SHIFT);
+	rc = c2_bufvec_alloc_aligned(&bufvec, NR, C2_SEG_SIZE, C2_SEG_SHIFT);
 	C2_UT_ASSERT(rc == 0);
 	c2_rpc_packet_init(&p_for_encd);
 
@@ -323,23 +290,19 @@ void test_packet_encode()
 
 	prepare_ping_rep_fop_item(&item, &ping_fop_rep);
 	c2_rpc_packet_add_item(&p_for_encd, item);
-
 	/* ADDB FOP */
 	prepare_addb_fop_item(&item, &addb_fop);
 	addb_fop_data = c2_fop_data(addb_fop);
 	c2_rpc_packet_add_item(&p_for_encd, item);
-
 	/* Encode, Decode, Compare */
 	rc = c2_rpc_packet_encode(&p_for_encd, &bufvec);
 	C2_UT_ASSERT(rc == 0);
 	bufvec_size = c2_vec_count(&bufvec.ov_vec);
 
 	c2_rpc_packet_init(&p_decoded);
-	rc = c2_rpc_packet_decode(&p_decoded, &bufvec, 0,
-			          bufvec_size);
+	rc = c2_rpc_packet_decode(&p_decoded, &bufvec, 0, bufvec_size);
 	C2_UT_ASSERT(rc == 0);
 	packet_compare(&p_for_encd, &p_decoded);
-
 	/* Fini business */
 	packet_fini(&p_for_encd);
 	packet_fini(&p_decoded);

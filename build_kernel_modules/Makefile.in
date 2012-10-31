@@ -173,7 +173,7 @@ rpc_SOURCES                     := rpc2.c service.c \
 rpc_HEADERS                     := session_ff.h rpc_onwire.h rpc_onwire_xc.h
 
 rpc_ut_SOURCES                  := service.c formation2.c conn.c rpc_machine.c \
-				   session.c
+				   session.c packet.c
 
 sm_SOURCES                      := sm.c
 sm_ut_SOURCES                   := sm.c
