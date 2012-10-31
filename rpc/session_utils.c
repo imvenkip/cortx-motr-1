@@ -31,15 +31,13 @@
 #include "lib/arith.h"
 #include "lib/bitstring.h"
 #include "lib/finject.h"       /* C2_FI_ENABLED */
-#include "rpc/session.h"
 #include "cob/cob.h"
 #include "fop/fop.h"
 #include "reqh/reqh.h"
-#include "rpc/session_ff.h"
-#include "rpc/session_fops.h"
-#include "rpc/session_internal.h"
-#include "rpc/rpc_machine.h"
 #include "db/db.h"
+
+#include "rpc/rpc2.h"
+#include "rpc/rpc2_internal.h"
 
 /**
    @addtogroup rpc_session

@@ -21,9 +21,8 @@
 #include "lib/ut.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
-#include "rpc/service.h"
-#include "rpc/session.h"
 #include "rpc/rpc2.h"
+#include "rpc/rpc2_internal.h"
 
 enum {
 	C2_RPC_SERVICE_TYPE_FOO = 1,

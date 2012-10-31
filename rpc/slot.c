@@ -24,18 +24,16 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
-#include "rpc/session.h"
 #include "lib/bitstring.h"
 #include "cob/cob.h"
 #include "fop/fop.h"
 #include "lib/arith.h"
-#include "rpc/session_ff.h"
-#include "rpc/session_internal.h"
 #include "db/db.h"
 #include "dtm/verno.h"
-#include "rpc/session_fops.h"
-#include "rpc/rpc2.h"
 #include "colibri/magic.h"
+
+#include "rpc/rpc2.h"
+#include "rpc/rpc2_internal.h"
 
 /**
    @addtogroup rpc_session
@@ -978,11 +976,6 @@ int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot,
 	return count;
 }
 #endif
-
-bool c2_rpc_slot_can_item_add_internal(const struct c2_rpc_slot *slot)
-{
-	return slot->sl_in_flight < slot->sl_max_in_flight;
-}
 
 /*
  *  Local variables:

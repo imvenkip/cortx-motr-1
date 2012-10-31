@@ -29,8 +29,9 @@
 #include "colibri/magic.h"
 #include "net/net.h"
 #include "rpc/bulk.h"
-#include "rpc/session.h"
+
 #include "rpc/rpc2.h"
+#include "rpc/rpc2_internal.h"
 
 /**
    @addtogroup rpc_layer_core

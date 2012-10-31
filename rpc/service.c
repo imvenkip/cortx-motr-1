@@ -21,13 +21,13 @@
 #include <linux/string.h>
 #include <linux/errno.h>
 
-#include "rpc/service.h"
-#include "rpc/session.h"
-#include "rpc/rpc2.h"
 #include "lib/tlist.h"
 #include "lib/bob.h"
 #include "lib/rwlock.h"
 #include "lib/memory.h"   /* c2_alloc() */
+
+#include "rpc/rpc2.h"
+#include "rpc/rpc2_internal.h"
 
 /**
    @addtogroup rpc_service

@@ -24,7 +24,7 @@
 #include "lib/chan.h"
 #include "lib/finject.h"
 #include "lib/time.h"
-
+#include "lib/misc.h"           /* C2_IN() */
 #include "fop/fop.h"
 #include "fop/fom.h"
 #include "fop/fom_generic.h"

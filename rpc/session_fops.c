@@ -27,12 +27,10 @@
 #include "fop/fom.h"
 #include "fop/fop.h"
 #include "fop/fop_item_type.h"
-#include "rpc/session_ff.h"
-#include "rpc/session_fops.h"
-#include "rpc/session_foms.h"
-#include "rpc/session_internal.h"
 #include "dtm/verno_xc.h" /* c2_xc_verno_init */
-#include "rpc/rpc_onwire_xc.h" /* c2_xc_rpc_onwire_init */
+
+#include "rpc/rpc2.h"
+#include "rpc/rpc2_internal.h"
 
 /**
    @addtogroup rpc_session

@@ -24,21 +24,17 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
-#include "rpc/session.h"
 #include "lib/bitstring.h"
 #include "cob/cob.h"
 #include "colibri/magic.h"
 #include "fop/fop.h"
 #include "lib/arith.h"             /* C2_CNT_DEC */
 #include "lib/finject.h"
-#include "rpc/session_ff.h"
-#include "rpc/session_internal.h"
 #include "db/db.h"
 #include "dtm/verno.h"
-#include "rpc/session_fops.h"
+
 #include "rpc/rpc2.h"
-#include "rpc/packet.h"      /* C2_RPC_PACKET_OW_HEADER_SIZE */
-#include "rpc/formation2.h"
+#include "rpc/rpc2_internal.h"
 
 /**
    @addtogroup rpc_session
@@ -188,6 +184,16 @@ void session_state_set(struct c2_rpc_session *session, int state)
 		session_states[session->s_sm.sm_state].sd_name,
 		session_states[state].sd_name);
 	c2_sm_state_set(&session->s_sm, state);
+}
+
+int session_state(const struct c2_rpc_session *session)
+{
+	return session->s_sm.sm_state;
+}
+
+struct c2_rpc_machine *session_machine(const struct c2_rpc_session *s)
+{
+	return s->s_conn->c_rpc_machine;
 }
 
 /**

@@ -327,4 +327,7 @@ struct c2_rpc_frm *session_frm(const struct c2_rpc_session *s);
 C2_TL_DESCR_DECLARE(itemq, extern);
 C2_TL_DECLARE(itemq, extern, struct c2_rpc_item);
 
+struct c2_rpc_chan    *frm_rchan(const struct c2_rpc_frm *frm);
+struct c2_rpc_machine *frm_rmachine(const struct c2_rpc_frm *frm);
+
 #endif /* __COLIBRI_RPC_FORMATION2_H__ */

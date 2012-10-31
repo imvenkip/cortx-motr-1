@@ -25,11 +25,11 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/trace.h"
-#include "rpc/session_foms.h"
 #include "stob/stob.h"
 #include "net/net.h"
-#include "rpc/session_internal.h"
+
 #include "rpc/rpc2.h"
+#include "rpc/rpc2_internal.h"
 
 /**
    @addtogroup rpc_session

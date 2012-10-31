@@ -7,8 +7,8 @@ nobase_colibri_include_HEADERS += rpc/session.h \
                                   rpc/rpc2.h \
                                   rpc/rpc_machine.h \
                                   rpc/bulk.h \
-                                  rpc/formation2.h \
-                                  rpc/packet.h \
+                                  rpc/formation2_internal.h \
+                                  rpc/packet_internal.h \
                                   rpc/rpclib.h \
                                   rpc/rpc_onwire.h \
                                   rpc/rpc_onwire_xc.h \

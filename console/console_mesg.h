@@ -25,7 +25,6 @@
 
 #include "fop/fop.h"
 #include "rpc/rpc2.h"
-#include "rpc/session.h"
 
 /**
  *  Prints name and opcode of FOP.

@@ -25,15 +25,23 @@
 #ifndef __COLIBRI_RPC_ITEM_H__
 #define __COLIBRI_RPC_ITEM_H__
 
-#include "lib/misc.h"              /* C2_IN() */
-#include "rpc/session_internal.h"
+#include "lib/types.h"             /* c2_bcount_t */
+#include "lib/tlist.h"
+#include "lib/list.h"
+#include "lib/time.h"
 #include "sm/sm.h"                 /* c2_sm */
+#include "rpc/rpc_onwire.h"        /* c2_rpc_onwire_slot_ref */
 
 /**
    @addtogroup rpc_layer_core
 
    @{
  */
+
+/* Imports */
+struct c2_rpc_slot;
+struct c2_rpc_session;
+struct c2_bufvec_cursor;
 
 /* Forward declarations */
 struct c2_rpc_item_ops;
@@ -121,6 +129,27 @@ enum c2_rpc_item_stage {
 enum {
 	/** Maximum number of slots to which an rpc item can be associated */
 	MAX_SLOT_REF    = 1,
+};
+
+/**
+   slot_ref object establishes association between c2_rpc_item and
+   c2_rpc_slot. Upto MAX_SLOT_REF number of c2_rpc_slot_ref objects are
+   embeded with c2_rpc_item.
+   At the time item is associated with a slot, values of few slot fields are
+   copied into slot_ref.
+ */
+struct c2_rpc_slot_ref {
+	/** sr_slot and sr_item identify two ends of association */
+	struct c2_rpc_slot           *sr_slot;
+
+	struct c2_rpc_item           *sr_item;
+
+	struct c2_rpc_onwire_slot_ref sr_ow;
+
+	/** Anchor to put item on c2_rpc_slot::sl_item_list
+	    List descriptor: slot_item
+	 */
+	struct c2_tlink               sr_link;
 };
 
 /**
@@ -220,46 +249,10 @@ void c2_rpc_item_init(struct c2_rpc_item *item,
 
 void c2_rpc_item_fini(struct c2_rpc_item *item);
 
-bool c2_rpc_item_is_bound(const struct c2_rpc_item *item);
-
-bool c2_rpc_item_is_unbound(const struct c2_rpc_item *item);
-
-bool c2_rpc_item_is_oneway(const struct c2_rpc_item *item);
-
-void c2_rpc_item_sm_init(struct c2_rpc_item *item, struct c2_sm_group *grp,
-			 enum c2_rpc_item_dir dir);
-void c2_rpc_item_sm_fini(struct c2_rpc_item *item);
-
-void c2_rpc_item_change_state(struct c2_rpc_item     *item,
-			      enum c2_rpc_item_state  state);
-
-void c2_rpc_item_failed(struct c2_rpc_item *item, int32_t rc);
-
 c2_bcount_t c2_rpc_item_onwire_header_size(void);
 
 c2_bcount_t c2_rpc_item_size(const struct c2_rpc_item *item);
-
-int c2_rpc_item_start_timer(struct c2_rpc_item *item);
-
-void c2_rpc_item_set_stage(struct c2_rpc_item *item, enum c2_rpc_item_stage s);
-
-/**
-   Returns true if item modifies file system state, false otherwise
- */
-bool c2_rpc_item_is_update(const struct c2_rpc_item *item);
-
-/**
-   Returns true if item is request item. False if it is a reply item
- */
-bool c2_rpc_item_is_request(const struct c2_rpc_item *item);
-
-bool c2_rpc_item_is_reply(const struct c2_rpc_item *item);
-
-static inline bool item_is_active(const struct c2_rpc_item *item)
-{
-	return C2_IN(item->ri_stage, (RPC_ITEM_STAGE_IN_PROGRESS,
-				      RPC_ITEM_STAGE_FUTURE));
-}
+struct c2_rpc_machine *item_machine(const struct c2_rpc_item *item);
 
 int c2_rpc_item_timedwait(struct c2_rpc_item *item,
 			  uint64_t            states,
@@ -306,29 +299,6 @@ struct c2_rpc_item_type_ops {
 			       struct c2_rpc_item *component,
 			       c2_bcount_t         limit);
 };
-
-static inline struct c2_verno *
-item_verno(struct c2_rpc_item *item,
-	   int                 idx)
-{
-	C2_PRE(idx < MAX_SLOT_REF);
-	return &item->ri_slot_refs[idx].sr_ow.osr_verno;
-}
-
-static inline uint64_t
-item_xid(struct c2_rpc_item *item,
-	 int                 idx)
-{
-	C2_PRE(idx < MAX_SLOT_REF);
-	return item->ri_slot_refs[idx].sr_ow.osr_xid;
-}
-
-static inline const char *item_kind(const struct c2_rpc_item *item)
-{
-	return  c2_rpc_item_is_request(item) ? "REQUEST" :
-		c2_rpc_item_is_reply(item)   ? "REPLY"   :
-		c2_rpc_item_is_oneway(item)  ? "ONEWAY"  : "INVALID_KIND";
-}
 
 /**
    Possible values for c2_rpc_item_type::rit_flags.
@@ -378,15 +348,6 @@ struct c2_rpc_item_type (itype) = {                      \
 	.rit_ops = (ops)                                 \
 };
 
-/** Initialises the rpc item types list and lock */
-int c2_rpc_base_init(void);
-
-/**
-  Finalizes and destroys the rpc item type list by traversing the list and
-  deleting and finalizing each element.
-*/
-void c2_rpc_base_fini(void);
-
 /**
   Registers a new rpc item type by adding an entry to the rpc item types list.
   Asserts when an entry for that opcode already exists in the item types
@@ -410,12 +371,6 @@ void c2_rpc_item_type_deregister(struct c2_rpc_item_type *item_type);
   @retval NULL if the item type is not registered.
 */
 struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode);
-
-static inline struct c2_rpc_machine *
-item_machine(const struct c2_rpc_item *item)
-{
-	return item->ri_session->s_conn->c_rpc_machine;
-}
 
 #endif
 

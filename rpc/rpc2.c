@@ -26,8 +26,9 @@
 #include "lib/errno.h"
 #include "lib/misc.h"     /* C2_IN */
 #include "lib/types.h"
+
 #include "rpc/rpc2.h"
-#include "rpc/item.h"
+#include "rpc/rpc2_internal.h"
 
 int c2_rpc__post_locked(struct c2_rpc_item *item);
 
@@ -42,16 +43,31 @@ const struct c2_addb_loc c2_rpc_addb_loc = {
 struct c2_addb_ctx c2_rpc_addb_ctx;
 
 
-int c2_rpc_module_init(void)
+int c2_rpc_init(void)
 {
+	int rc;
+
+	C2_ENTRY();
+
 	c2_addb_ctx_init(&c2_rpc_addb_ctx, &c2_rpc_addb_ctx_type,
 			 &c2_addb_global_ctx);
-	return 0;
+	rc = c2_rpc_item_type_list_init() ?:
+	     c2_rpc_service_module_init() ?:
+	     c2_rpc_session_module_init();
+
+	C2_RETURN(rc);
 }
 
-void c2_rpc_module_fini(void)
+void c2_rpc_fini(void)
 {
+	C2_ENTRY();
+
+	c2_rpc_session_module_fini();
+	c2_rpc_service_module_fini();
+	c2_rpc_item_type_list_fini();
 	c2_addb_ctx_fini(&c2_rpc_addb_ctx);
+
+	C2_LEAVE();
 }
 
 int c2_rpc_post(struct c2_rpc_item *item)
