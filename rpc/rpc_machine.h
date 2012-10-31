@@ -33,7 +33,7 @@
 #include "net/net.h"   /* c2_net_transfer_mc, c2_net_domain */
 
 /**
-   @addtogroup rpc_layer_core
+   @addtogroup rpc
 
    @{
  */
@@ -179,7 +179,7 @@ void c2_rpc_machine_get_stats(struct c2_rpc_machine *machine,
 
 C2_BOB_DECLARE(extern, c2_rpc_machine);
 
-/** @} end of rpc-layer-core group */
+/** @} end of rpc group */
 #endif /* __COLIBRI_RPC_MACHINE_H__ */
 
 /*

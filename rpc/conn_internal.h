@@ -31,6 +31,12 @@ struct c2_db_tx;
 struct c2_rpc_item;
 struct c2_cob_domain;
 
+/**
+   @addtogroup rpc_session
+
+   @{
+ */
+
 enum {
 	SENDER_ID_INVALID = UINT64_MAX,
 };
@@ -193,4 +199,5 @@ void c2_rpc_conn_add_session(struct c2_rpc_conn    *conn,
                              struct c2_rpc_session *session);
 void c2_rpc_conn_remove_session(struct c2_rpc_session *session);
 
+/** @}  End of rpc_session group */
 #endif /* __COLIBRI_RPC_CONN_INT_H__ */

@@ -37,6 +37,11 @@
 #include "rpc/rpc_onwire_xc.h"
 
 /**
+ * @addtogroup rpc
+ * @{
+ */
+
+/**
    Initialises all the session related fop types
  */
 int c2_rpc_session_module_init(void);
@@ -114,5 +119,7 @@ int c2_rpc__fop_post(struct c2_fop                *fop,
 void c2_rpc_item_dispatch(struct c2_rpc_item *item);
 
 bool c2_rpc_item_is_control_msg(const struct c2_rpc_item *item);
+
+/** @} */
 
 #endif /* __COLIBRI_RPC_INT_H__ */

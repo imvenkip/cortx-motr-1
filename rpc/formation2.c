@@ -30,6 +30,10 @@
 
 #include "rpc/rpc2_internal.h"
 
+/**
+ * @addtogroup rpc
+ * @{
+ */
 static bool itemq_invariant(const struct c2_tl *q);
 static c2_bcount_t itemq_nr_bytes_acc(const struct c2_tl *q);
 
@@ -673,3 +677,5 @@ struct c2_rpc_frm *session_frm(const struct c2_rpc_session *s)
 {
 	return &s->s_conn->c_rpcchan->rc_frm;
 }
+
+/** @} */

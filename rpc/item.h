@@ -33,7 +33,7 @@
 #include "rpc/rpc_onwire.h"        /* c2_rpc_onwire_slot_ref */
 
 /**
-   @addtogroup rpc_layer_core
+   @addtogroup rpc
 
    @{
  */
@@ -283,7 +283,7 @@ struct c2_rpc_item_type_ops {
 				 struct c2_list *list, uint64_t size);
 
 	/**
-	   Serialise @item on provided xdr stream @xdrs
+	   Serialise item at location given by cur.
 	 */
 	int (*rito_encode)(const struct c2_rpc_item_type *item_type,
 		           struct c2_rpc_item *item,
@@ -333,7 +333,7 @@ struct c2_rpc_item_type {
 	uint32_t			   rit_opcode;
 	/** Operations that can be performed on the type */
 	const struct c2_rpc_item_type_ops *rit_ops;
-	/** see @c2_rpc_item_type_flags */
+	/** @see c2_rpc_item_type_flags */
 	uint64_t			   rit_flags;
 	/** Linkage into rpc item types list (c2_rpc_item_types_list) */
 	struct c2_tlink			   rit_linkage;
@@ -374,7 +374,7 @@ struct c2_rpc_item_type *c2_rpc_item_type_lookup(uint32_t opcode);
 
 #endif
 
-/** @} end of rpc-layer-core group */
+/** @} end of rpc group */
 
 /*
  *  Local variables:

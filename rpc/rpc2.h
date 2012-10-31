@@ -21,7 +21,7 @@
  */
 
 /**
-   @defgroup rpc_layer_core RPC layer core
+   @defgroup rpc RPC
    @page rpc-layer-core-dld RPC layer core DLD
    @section Overview
    RPC layer core is used to transmit rpc items and groups of them.
@@ -171,7 +171,7 @@ int c2_rpc_net_buffer_pool_setup(struct c2_net_domain *ndom,
 
 void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool);
 
-/** @} end group rpc_layer_core */
+/** @} end group rpc */
 
 #endif /* __COLIBRI_RPC_RPCCORE_H__  */
 

@@ -38,6 +38,12 @@ struct c2_net_end_point;
 /* Exports */
 struct c2_rpc_conn;
 
+/**
+   @addtogroup rpc_session
+
+   @{
+ */
+
 enum c2_rpc_conn_state {
 	/**
 	  All the fields of conn are initialised locally. But the connection
@@ -406,4 +412,5 @@ int c2_rpc_conn_timedwait(struct c2_rpc_conn *conn,
 			  uint64_t            state_flags,
 			  const c2_time_t     abs_timeout);
 
+/** @}  End of rpc_session group */
 #endif /* __COLIBRI_RPC_CONN_H__ */

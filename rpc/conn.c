@@ -1196,4 +1196,6 @@ int c2_rpc_conn_session_list_print(const struct c2_rpc_conn *conn)
 	} c2_tl_endfor;
 	return 0;
 }
+
+/** @} */
 #endif

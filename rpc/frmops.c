@@ -33,6 +33,11 @@
 #include "rpc/rpc2.h"
 #include "rpc/rpc2_internal.h"
 
+/**
+ * @addtogroup rpc
+ * @{
+ */
+
 static bool packet_ready(struct c2_rpc_packet *p);
 static bool item_bind(struct c2_rpc_item *item);
 
@@ -454,3 +459,4 @@ static bool item_bind(struct c2_rpc_item *item)
 	C2_LEAVE("result: %s", c2_bool_to_str(result));
 	return result;
 }
+/** @} */

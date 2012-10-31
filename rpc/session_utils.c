@@ -289,3 +289,5 @@ void c2_rpc_item_dispatch(struct c2_rpc_item *item)
 #endif
 	C2_LEAVE();
 }
+
+/** @} */

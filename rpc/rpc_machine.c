@@ -21,7 +21,7 @@
  */
 
 /**
-   @addtogroup rpc_layer_core
+   @addtogroup rpc
 
    @{
  */
@@ -720,7 +720,7 @@ static void rpc_recv_pool_buffer_put(struct c2_net_buffer *nb)
 	C2_LEAVE();
 }
 
-/** @} end of rpc-layer-core group */
+/** @} end of rpc group */
 
 /*
  *  Local variables:

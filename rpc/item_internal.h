@@ -25,6 +25,12 @@
 
 #include "rpc/item.h"
 
+/**
+   @addtogroup rpc
+
+   @{
+ */
+
 /** Initialises the rpc item types list and lock */
 int c2_rpc_item_type_list_init(void);
 
@@ -78,4 +84,5 @@ C2_TL_DECLARE(slot_item, extern, struct c2_rpc_item);
 	        c2_tl_for(slot_item, &slot->sl_item_list, item)
 #define end_for_each_item_in_slot c2_tl_endfor
 
+/** @} */
 #endif /* __COLIBRI_RPC_ITEM_INT_H__ */

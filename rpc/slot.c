@@ -977,6 +977,7 @@ int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot,
 }
 #endif
 
+/** @} */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

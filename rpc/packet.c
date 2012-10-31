@@ -31,6 +31,11 @@
 #include "rpc/rpc2.h"
 #include "rpc/rpc2_internal.h"
 
+/**
+ * @addtogroup rpc
+ * @{
+ */
+
 #define PACKHD_XCODE_OBJ(ptr) C2_XCODE_OBJ(c2_rpc_packet_onwire_header_xc, ptr)
 
 static int packet_header_encode(struct c2_rpc_packet_onwire_header *ph,
@@ -400,6 +405,7 @@ void c2_rpc_packet_traverse_items(struct c2_rpc_packet *p,
 	C2_LEAVE();
 }
 
+/** @} */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

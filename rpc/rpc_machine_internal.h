@@ -32,6 +32,12 @@ struct c2_net_end_point;
 struct c2_rpc_machine;
 
 /**
+   @addtogroup rpc
+
+   @{
+ */
+
+/**
    Struct c2_rpc_chan provides information about a target network endpoint.
    An rpc machine (struct c2_rpc_machine) contains list of c2_rpc_chan
    structures targeting different net endpoints.
@@ -68,4 +74,5 @@ bool c2_rpc_machine_is_locked(const struct c2_rpc_machine *machine);
 C2_TL_DESCR_DECLARE(rpc_conn, extern);
 C2_TL_DECLARE(rpc_conn, extern, struct c2_rpc_conn);
 
+/** @} */
 #endif /* __COLIBRI_RPC_MACHINE_INT_H__ */

@@ -30,6 +30,11 @@
 #include "rpc/rpc2.h"
 #include "rpc/rpc2_internal.h"
 
+/**
+ * @addtogroup rpc
+ * @{
+ */
+
 int c2_rpc__post_locked(struct c2_rpc_item *item);
 
 const struct c2_addb_ctx_type c2_rpc_addb_ctx_type = {
@@ -267,6 +272,8 @@ void c2_rpc_net_buffer_pool_cleanup(struct c2_net_buffer_pool *app_pool)
 	c2_net_buffer_pool_fini(app_pool);
 }
 C2_EXPORTED(c2_rpc_net_buffer_pool_cleanup);
+
+/** @} */
 
 /*
  *  Local variables:

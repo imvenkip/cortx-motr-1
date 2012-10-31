@@ -52,6 +52,12 @@ struct c2_rpc_session;
 struct c2_cob;
 struct c2_db_tx;
 
+/**
+   @addtogroup rpc_session
+
+   @{
+ */
+
 enum {
 	/**
 	   window size for a sliding-window of slot
@@ -320,5 +326,6 @@ int __slot_reply_received(struct c2_rpc_slot *slot,
 C2_TL_DESCR_DECLARE(ready_slot, extern);
 C2_TL_DECLARE(ready_slot, extern, struct c2_rpc_slot);
 
+/** @}  End of rpc_session group */
 #endif /* __COLIBRI_RPC_SLOT_INT_H__ */
 
