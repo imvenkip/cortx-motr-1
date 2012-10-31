@@ -63,7 +63,9 @@ extern const struct c2_test_suite fit_ut;
 extern const struct c2_test_suite fol_ut;
 extern const struct c2_test_suite frm_ut;
 extern const struct c2_test_suite ios_bufferpool_ut;
+extern const struct c2_test_suite item_ut;
 extern const struct c2_test_suite layout_ut;
+extern const struct c2_test_suite packet_encdec_ut;
 extern const struct c2_test_suite parity_math_ut;
 extern const struct c2_test_suite poolmach_ut;
 extern const struct c2_test_suite reqh_ut;
@@ -71,7 +73,6 @@ extern const struct c2_test_suite rpc_mc_ut;
 extern const struct c2_test_suite rpc_service_ut;
 extern const struct c2_test_suite rpclib_ut;
 extern const struct c2_test_suite session_ut;
-extern const struct c2_test_suite item_ut;
 extern const struct c2_test_suite sm_ut;
 extern const struct c2_test_suite sns_repair_ut;
 extern const struct c2_test_suite snsrepair_xform_ut;
@@ -81,7 +82,6 @@ extern const struct c2_test_suite xcode_bufvec_fop_ut;
 extern const struct c2_test_suite xcode_ff2c_ut;
 extern const struct c2_test_suite xcode_ut;
 extern const struct c2_test_suite yaml2db_ut;
-extern const struct c2_test_suite packet_ut;
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -119,9 +119,9 @@ void add_uts(void)
 	c2_ut_add(&fol_ut);
 	c2_ut_add(&frm_ut);
 	c2_ut_add(&ios_bufferpool_ut);
-	c2_ut_add(&layout_ut);
-	c2_ut_add(&packet_ut);
 	c2_ut_add(&item_ut);
+	c2_ut_add(&layout_ut);
+	c2_ut_add(&packet_encdec_ut);
 	c2_ut_add(&parity_math_ut);
 	c2_ut_add(&poolmach_ut);
 	c2_ut_add(&reqh_ut);
