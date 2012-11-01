@@ -2849,8 +2849,56 @@ static void io_rpc_item_cb(struct c2_rpc_item *item)
 	C2_LEAVE();
 }
 
+static int failure_vector_mismatch(struct io_req_fop *irfop)
+{
+	int                             rc;
+	struct c2_pool_version_numbers *cli;
+	struct c2_pool_version_numbers *srv;
+	struct c2t1fs_sb               *csb;
+	struct c2_fop                  *reply;
+	struct c2_rpc_item             *reply_item;
+	struct c2_fop_cob_rw_reply     *rw_reply;
+	struct c2_fv_version           *reply_version;
+	struct c2_fv_updates           *reply_updates;
+	struct c2_fv_event             *event;
+	struct io_request              *req;
+	uint32_t                        i = 0;
+
+	C2_PRE(irfop != NULL);
+
+	req = bob_of(irfop->irf_tioreq->ti_nwxfer, struct io_request, ir_nwxfer,
+		     &ioreq_bobtype);
+	csb = file_to_sb(req->ir_file);
+
+	reply_item = irfop->irf_iofop.if_fop.f_item.ri_reply;
+	reply      = c2_rpc_item_to_fop(reply_item);
+	rw_reply   = io_rw_rep_get(reply);
+	reply_version = &rw_reply->rwr_fv_version;
+	reply_updates = &rw_reply->rwr_fv_updates;
+	srv = (struct c2_pool_version_numbers *)reply_version;
+	cli = &csb->csb_pool.po_mach->pm_state.pst_version;
+
+	/*
+	 * Retrieve the latest server version and
+	 * updates and apply to the client's copy.
+	 * When -EAGAIN is return, this system
+	 * call will be restarted.
+	 */
+	rc = -EAGAIN;
+	*cli = *srv;
+
+	while (i < reply_updates->fvu_count) {
+		event = &reply_updates->fvu_events[i];
+		c2_poolmach_state_transit(csb->csb_pool.po_mach,
+				(struct c2_pool_event*)event);
+		i++;
+	}
+	return rc;
+}
+
 static void io_bottom_half(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 {
+	int                  rc;
 	struct io_req_fop   *irfop;
 	struct io_request   *req;
 	struct target_ioreq *tioreq;
@@ -2866,6 +2914,13 @@ static void io_bottom_half(struct c2_sm_group *grp, struct c2_sm_ast *ast)
 
 	C2_ASSERT(C2_IN(irfop->irf_pattr, (PA_DATA, PA_PARITY)));
 	C2_ASSERT(C2_IN(ioreq_sm_state(req), (IRS_READING, IRS_WRITING)));
+
+	if (irfop->irf_iofop.if_rbulk.rb_rc ==
+	    C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
+		rc = failure_vector_mismatch(irfop);
+		if (rc != 0)
+			tioreq->ti_rc = rc;
+	}
 
 	if (tioreq->ti_rc == 0)
 		tioreq->ti_rc = irfop->irf_iofop.if_rbulk.rb_rc;
@@ -3032,17 +3087,19 @@ static int bulk_buffer_add(struct io_req_fop	   *irfop,
 static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				       enum page_attr       filter)
 {
-	int			rc = 0;
-	uint32_t		buf = 0;
+	int			        rc = 0;
+	uint32_t		        buf = 0;
 	/* Number of segments in one c2_rpc_bulk_buf structure. */
-	uint32_t		bbsegs;
-	uint32_t		maxsize;
-	uint32_t		delta = 0;
-	enum page_attr		rw;
-	struct io_request      *req;
-	struct io_req_fop      *irfop;
-	struct c2_net_domain   *ndom;
-	struct c2_rpc_bulk_buf *rbuf;
+	uint32_t		        bbsegs;
+	uint32_t		        maxsize;
+	uint32_t		        delta = 0;
+	enum page_attr		        rw;
+	struct io_request              *req;
+	struct io_req_fop              *irfop;
+	struct c2_net_domain           *ndom;
+	struct c2_rpc_bulk_buf         *rbuf;
+	struct c2_pool_version_numbers  curr;
+	struct c2_pool_version_numbers *cli;
 
 	C2_ENTRY("target_ioreq %p", ti);
 	C2_PRE(target_ioreq_invariant(ti));
@@ -3074,6 +3131,12 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			goto err;
 		}
 		++iommstats.a_io_req_fop_nr;
+
+		c2_poolmach_current_version_get(file_to_sb(req->ir_file)->
+				                csb_pool.po_mach, &curr);
+		cli = (struct c2_pool_version_numbers *)
+		      &(io_rw_get(&irfop->irf_iofop.if_fop)->crw_version);
+		*cli = curr;
 
 		rc = bulk_buffer_add(irfop, ndom, &rbuf, &delta, maxsize);
 		if (rc != 0) {

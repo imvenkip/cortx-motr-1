@@ -83,6 +83,7 @@ static struct c2t1fs_inode           ci;
 static struct c2_layout_linear_attr  llattr;
 static struct file                   lfile;
 static struct c2t1fs_service_context ctx;
+static struct c2_poolmach            poolmach;
 
 C2_TL_DESCR_DECLARE(rpcbulk, extern);
 
@@ -151,6 +152,12 @@ static int file_io_ut_init(void)
 
 	/* Sets the file size in inode. */
 	ci.ci_inode.i_size = DATA_SIZE;
+
+	C2_SET0(&poolmach);
+	csb.csb_pool.po_mach = &poolmach;
+
+	rc = c2_poolmach_init(csb.csb_pool.po_mach, NULL);
+	C2_ASSERT(rc == 0);
 
 	return 0;
 }
@@ -660,6 +667,7 @@ static int file_io_ut_fini(void)
 
 	/* Finalizes the c2_pdclust_layout type. */
 	c2_layout_put(&pdlay->pl_base.sl_base);
+	c2_poolmach_fini(csb.csb_pool.po_mach);
 	return 0;
 }
 
@@ -696,6 +704,7 @@ static void target_ioreq_test(void)
 
         io_request_bob_init(&req);
         nw_xfer_request_init(&req.ir_nwxfer);
+	req.ir_file = &lfile;
 
 	rc = target_ioreq_init(&ti, &req.ir_nwxfer, &cfid, &session, size);
 	C2_UT_ASSERT(rc == 0);
