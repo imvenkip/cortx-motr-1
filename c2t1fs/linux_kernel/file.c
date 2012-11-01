@@ -2996,7 +2996,7 @@ static int bulk_buffer_add(struct io_req_fop	   *irfop,
 			   uint32_t		   *delta,
 			   uint32_t		    maxsize)
 {
-	int		   rc;
+	int		   rc = 0;
 	int		   seg_nr;
 	struct io_request *req;
 
@@ -3024,7 +3024,7 @@ static int bulk_buffer_add(struct io_req_fop	   *irfop,
 		}
 	}
 
-	C2_POST(*rbuf != NULL);
+	C2_POST(ergo(rc == 0, *rbuf != NULL));
 	C2_RETURN(rc);
 }
 
