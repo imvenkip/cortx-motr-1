@@ -319,7 +319,8 @@ int c2_rpc_packet_decode(struct c2_rpc_packet *p,
 	c2_bufvec_cursor_move(&cursor, off);
 	C2_ASSERT(C2_IS_8ALIGNED(c2_bufvec_cursor_addr(&cursor)));
 	rc = c2_rpc_packet_decode_using_cursor(p, &cursor, len);
-	C2_ASSERT(C2_IS_8ALIGNED(c2_bufvec_cursor_addr(&cursor)));
+	C2_ASSERT(c2_bufvec_cursor_move(&cursor, 0) ||
+		  C2_IS_8ALIGNED(c2_bufvec_cursor_addr(&cursor)));
 	C2_RETURN(rc);
 }
 
