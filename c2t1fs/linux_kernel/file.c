@@ -31,6 +31,7 @@
 			     * c2_pdclust_instance_map */
 #include "lib/bob.h"        /* c2_bob_type */
 #include "ioservice/io_fops.h"    /* c2_io_fop */
+#include "ioservice/io_device.h"
 #include "ioservice/io_fops_ff.h" /* c2_fop_cob_rw */
 #include "colibri/magic.h"  /* C2_T1FS_IOREQ_MAGIC */
 #include "c2t1fs/linux_kernel/c2t1fs.h" /* c2t1fs_sb */
@@ -163,7 +164,7 @@ static inline struct c2_pdclust_instance *pdlayout_instance(struct
 
 static inline struct c2_pdclust_layout *pdlayout_get(struct io_request *req)
 {
-	return pdlayout_instance(layout_instance(req))->pi_layout;
+	return c2_layout_to_pdl(layout_instance(req)->li_l);
 }
 
 static inline uint32_t layout_n(struct c2_pdclust_layout *play)

@@ -164,20 +164,20 @@
 #define C2_ENTRY(...) C2_LOG(C2_CALL, "> " __VA_ARGS__)
 #define C2_LEAVE(...) C2_LOG(C2_CALL, "< " __VA_ARGS__)
 
-#define C2_RETURN(rc)					\
-do {							\
-	typeof(rc) __rc = (rc);				\
-	(rc == 0) ? C2_LOG(C2_CALL, "< rc=%d", __rc) :	\
-		    C2_LOG(C2_NOTICE, "< rc=%d", __rc);	\
-	return __rc;					\
+#define C2_RETURN(rc)                                    \
+do {                                                     \
+	typeof(rc) __rc = (rc);                          \
+	(__rc == 0) ? C2_LOG(C2_CALL, "< rc=%d", __rc) : \
+		C2_LOG(C2_NOTICE, "< rc=%d", __rc);      \
+	return __rc;                                     \
 } while (0)
 
-#define C2_RETERR(rc, fmt, ...)					\
-do {								\
-	typeof(rc) __rc = (rc);					\
-	C2_ASSERT(__rc != 0);					\
-	C2_LOG(C2_ERROR, "! rc=%d " fmt, __rc, ## __VA_ARGS__);	\
-	return __rc;						\
+#define C2_RETERR(rc, fmt, ...)                                 \
+do {                                                            \
+	typeof(rc) __rc = (rc);                                 \
+	C2_ASSERT(__rc != 0);                                   \
+	C2_LOG(C2_ERROR, "! rc=%d " fmt, __rc, ## __VA_ARGS__); \
+	return __rc;                                            \
 } while (0)
 
 int  c2_trace_init(void);
@@ -188,21 +188,24 @@ void c2_trace_fini(void);
  * @note: Such kind of definition (via defines) allow to keep enum
  *        and string array in sync.
  */
-#define C2_TRACE_SUBSYSTEMS		\
-  C2_TRACE_SUBSYS(OTHER,	0)	\
-  C2_TRACE_SUBSYS(UT,		1)	\
-  C2_TRACE_SUBSYS(MEMORY,	2)      \
-  C2_TRACE_SUBSYS(C2T1FS,	3)      \
-  C2_TRACE_SUBSYS(RPC,		4)      \
-  C2_TRACE_SUBSYS(FORMATION,    5)	\
-  C2_TRACE_SUBSYS(ADDB,		6)	\
-  C2_TRACE_SUBSYS(LNET,		7)	\
-  C2_TRACE_SUBSYS(SNS,		8)	\
-  C2_TRACE_SUBSYS(NET,		9)	\
-  C2_TRACE_SUBSYS(COB,		10)	\
-  C2_TRACE_SUBSYS(BALLOC,	11)	\
-  C2_TRACE_SUBSYS(LAYOUT,       12)	\
-  C2_TRACE_SUBSYS(IOSERVICE,    13)
+#define C2_TRACE_SUBSYSTEMS      \
+  C2_TRACE_SUBSYS(OTHER,     0)  \
+  C2_TRACE_SUBSYS(UT,        1)  \
+  C2_TRACE_SUBSYS(MEMORY,    2)  \
+  C2_TRACE_SUBSYS(C2T1FS,    3)  \
+  C2_TRACE_SUBSYS(RPC,       4)  \
+  C2_TRACE_SUBSYS(FORMATION, 5)  \
+  C2_TRACE_SUBSYS(ADDB,      6)  \
+  C2_TRACE_SUBSYS(LNET,      7)  \
+  C2_TRACE_SUBSYS(SNS,       8)  \
+  C2_TRACE_SUBSYS(NET,       9)  \
+  C2_TRACE_SUBSYS(COB,       10) \
+  C2_TRACE_SUBSYS(BALLOC,    11) \
+  C2_TRACE_SUBSYS(LAYOUT,    12) \
+  C2_TRACE_SUBSYS(IOSERVICE, 13) \
+  C2_TRACE_SUBSYS(CM,        14) \
+  C2_TRACE_SUBSYS(SNSREPAIR, 15) \
+  C2_TRACE_SUBSYS(CONF,      16)
 
 #define C2_TRACE_SUBSYS(name, value) C2_TRACE_SUBSYS_ ## name = (1 << value),
 /** The subsystem bitmask definitions */

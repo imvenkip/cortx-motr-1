@@ -161,6 +161,7 @@
 struct c2_io_fop {
 	/** Inline fop for a generic IO fop. */
 	struct c2_fop		if_fop;
+	int                     if_bulk_inited;
 	/** Rpc bulk structure containing zero vector for io fop. */
 	struct c2_rpc_bulk	if_rbulk;
 	/** Magic constant for IO fop. */
@@ -233,6 +234,8 @@ extern struct c2_fop_type c2_fop_cob_writev_rep_fopt;
 extern struct c2_fop_type c2_fop_cob_create_fopt;
 extern struct c2_fop_type c2_fop_cob_delete_fopt;
 extern struct c2_fop_type c2_fop_cob_op_reply_fopt;
+extern struct c2_fop_type c2_fop_fv_notification_fopt;
+
 extern struct c2_fom_type c2_io_fom_cob_rw_fomt;
 
 struct c2_fop_cob_rw *io_rw_get(struct c2_fop *fop);
@@ -242,7 +245,7 @@ static inline struct c2_net_transfer_mc *io_fop_tm_get(const struct c2_fop *fop)
 {
 	C2_PRE(fop != NULL);
 
-	return &fop->f_item.ri_session->s_conn->c_rpc_machine->rm_tm;
+	return &(item_machine(&fop->f_item)->rm_tm);
 }
 
 size_t c2_io_fop_size_get(struct c2_fop *fop);

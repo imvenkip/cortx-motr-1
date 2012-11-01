@@ -1,4 +1,4 @@
-CORE_SRCDIR     = @SRCDIR@
+CORE_SRCDIR     = @abs_top_srcdir@
 BUILD_DIR       = $(CORE_SRCDIR)/build_kernel_modules
 KERNEL_BUILDDIR = @LINUX_OBJ@
 
@@ -11,7 +11,8 @@ testdirs        = ../net/lnet/st/linux_kernel/                  \
                   ../rpc/it/linux_kernel/                       \
                   ../utils/linux_kernel/
 
-EXTRA_CFLAGS    = -DHAVE_CONFIG_H -iquote . -iquote $(CORE_SRCDIR) @KCFLAGS@  \
+EXTRA_CFLAGS    = -DHAVE_CONFIG_H -iquote . -iquote $(CORE_SRCDIR) \
+		  @C2_KCPPFLAGS@ @C2_KCFLAGS@ @KCFLAGS@ \
 		  -I@LUSTRE@/lnet/include -I@LUSTRE@/libcfs/include
 
 #       NOTE:
@@ -23,44 +24,46 @@ EXTRA_CFLAGS    = -DHAVE_CONFIG_H -iquote . -iquote $(CORE_SRCDIR) @KCFLAGS@  \
 #       to $(dirs); then add the names of '.c' files to d_SOURCES and the
 #       headers to d_HEADERS.
 
-#       The $(dirs) list is maintained alphabetically
-
-dirs  = addb                                                                  \
-        addb/addbff                                                           \
-        addb/linux_kernel                                                     \
-        c2t1fs/linux_kernel                                                   \
-        c2t1fs/linux_kernel/ut                                                \
-        cob                                                                   \
-        colibri                                                               \
-        db                                                                    \
-        db/linux_kernel                                                       \
-        dtm                                                                   \
-        fid                                                                   \
-        fol                                                                   \
-        fop                                                                   \
-        ioservice                                                             \
-        ioservice/ut                                                          \
-        layout                                                                \
-        layout/ut                                                             \
-        lib                                                                   \
-        lib/linux_kernel                                                      \
-        lib/ut                                                                \
-        net                                                                   \
-        net/bulk_emulation/ut                                                 \
-        net/lnet/ut                                                           \
-	net/test							      \
-	net/test/ut							      \
-        net/ut                                                                \
-        pool                                                                  \
-	reqh                                                                  \
-        rpc                                                                   \
-        rpc/ut                                                                \
-        sm                                                                    \
-        sm/ut                                                                 \
-        sns                                                                   \
-        stob                                                                  \
-        ut                                                                    \
-        xcode                                                                 \
+# Please maintain the lexicographical order.
+dirs  =                        \
+        addb                   \
+        addb/addbff            \
+        addb/linux_kernel      \
+        c2t1fs/linux_kernel    \
+        c2t1fs/linux_kernel/ut \
+        cob                    \
+        colibri                \
+        conf                   \
+        conf/objs              \
+        db                     \
+        db/linux_kernel        \
+        dtm                    \
+        fid                    \
+        fol                    \
+        fop                    \
+        ioservice              \
+        ioservice/ut           \
+        layout                 \
+        layout/ut              \
+        lib                    \
+        lib/linux_kernel       \
+        lib/ut                 \
+        net                    \
+        net/bulk_emulation/ut  \
+        net/lnet/ut            \
+        net/test               \
+        net/test/ut            \
+        net/ut                 \
+        pool                   \
+        reqh                   \
+        rpc                    \
+        rpc/ut                 \
+        sm                     \
+        sm/ut                  \
+        sns                    \
+        stob                   \
+        ut                     \
+        xcode                  \
         xcode/ut
 
 #       Source Listing
@@ -93,9 +96,11 @@ db_SOURCES                      := db_common.c
 
 db_linux_kernel_SOURCES         := db.c
 
-dtm_SOURCES                     := verno.c dtm.c
+dtm_SOURCES                     := verno.c dtm.c verno_xc.c
+dtm_HEADERS                     := verno.h verno_xc.h
 
-fid_SOURCES                     := fid.c
+fid_SOURCES                     := fid.c fid_ff.c
+fid_HEADERS                     := fid_ff.h
 
 fol_SOURCES                     := fol.c
 
@@ -132,7 +137,7 @@ lib_ut_SOURCES                  := rwlock.c bitmap.c tlist.c chan.c list.c     \
                                    vec.c zerovec.c thread.c bob.c trace.c      \
                                    memory.c finject.c buf.c cookie.c misc.c
 
-net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c     \
+net_SOURCES                     := buf.c buffer_pool.c domain.c ep.c net.c \
                                    tm.c net_otw_types_ff.c tm_provision.c
 
 net_HEADERS                     := net_otw_types_ff.h
@@ -159,30 +164,39 @@ pool_SOURCES                    := pool.c
 
 reqh_SOURCES                    := reqh.c reqh_service.c
 
-rpc_SOURCES                     := rpc2.c service.c                            \
-                                   session.c session_foms.c conn.c slot.c      \
-                                   session_utils.c session_fops.c              \
-                                   rpc_onwire.c session_ff.c rpclib.c          \
-                                   formation2.c frmops.c packet.c item.c       \
-                                   bulk.c rpc_machine.c
+rpc_SOURCES                     := rpc2.c service.c \
+                                   session.c session_foms.c conn.c slot.c \
+                                   session_utils.c session_fops.c \
+                                   rpc_onwire.c session_ff.c rpclib.c \
+                                   formation2.c frmops.c packet.c item.c \
+                                   bulk.c rpc_machine.c rpc_onwire_xc.c
 
-rpc_HEADERS                     := session_ff.h
+rpc_HEADERS                     := session_ff.h rpc_onwire.h rpc_onwire_xc.h
 
-rpc_ut_SOURCES                  := service.c formation2.c
+rpc_ut_SOURCES                  := service.c formation2.c conn.c rpc_machine.c \
+				   session.c
 
 sm_SOURCES                      := sm.c
 sm_ut_SOURCES                   := sm.c
 
-sns_SOURCES                     := ls_solve.c matvec.c parity_math.c           \
-				   parity_ops.c
+sns_SOURCES                     := ls_solve.c matvec.c parity_math.c \
+                                   parity_ops.c
 
 stob_SOURCES                    := stob.c stob_id.c
 
 ut_SOURCES                      := rpc.c
 
-xcode_SOURCES                   := bufvec_xcode.c xcode.c string.c
+xcode_SOURCES                   := xcode.c string.c
 
 xcode_ut_SOURCES                := xcode.c
+
+conf_objs_SOURCES               := common.c dir.c profile.c filesystem.c       \
+				   service.c node.c nic.c sdev.c partition.c
+
+conf_SOURCES                    := buf_ext.c confc.c obj.c obj_ops.c preload.c \
+                                   reg.c onwire_xc.c reg_debug.c conf_xcode.c
+conf_HEADERS                    := onwire.h onwire_xc.h
+
 
 #       Following lines create the list of objects required for creating
 #       kcolibri by putting %.o for each %.c file listed for each target of
@@ -257,7 +271,7 @@ uninstall:
 dist distdir:
 	cp -v dummy_init_fini.[ch] main.c Makefile.in \
 		lustre_config.h Lustre.symvers \
-		@top_builddir@/@PACKAGE@-@VERSION@/build_kernel_modules
+		@top_builddir@/@PACKAGE@-@PACKAGE_VERSION@/build_kernel_modules
 
 clean distclean:
 	$(MAKE) -C $(KERNEL_BUILDDIR) M=`pwd` clean

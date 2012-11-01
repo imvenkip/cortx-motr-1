@@ -78,7 +78,25 @@ void c2_rwlock_read_unlock(struct c2_rwlock *lock)
 	rc = pthread_rwlock_unlock(&lock->rw_lock);
 	C2_ASSERT(rc == 0);
 }
+/*
+bool c2_rwlock_read_trylock(struct c2_rwlock *lock)
+{
+	int rc;
 
+	rc = pthread_rwlock_tryrdlock(&lock->rw_lock);
+	C2_ASSERT(rc == EBUSY || rc == 0);
+	return rc == 0;
+}
+
+bool c2_rwlock_write_trylock(struct c2_rwlock *lock)
+{
+	int rc;
+
+	rc = pthread_rwlock_tryrdlock(&lock->rw_lock);
+	C2_ASSERT(rc == EBUSY || rc == 0);
+	return rc == 0;	
+}
+*/
 /** @} end of rwlock group */
 
 

@@ -18,16 +18,26 @@
  * Original creation date: 02/07/2012
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include <sys/stat.h>    /* S_ISDIR */
+
 #include "lib/errno.h"
 #include "lib/memory.h"             /* c2_free(), C2_ALLOC_PTR() */
+#include "lib/misc.h"               /* C2_SET0() */
 #include "fid/fid.h"                /* c2_fid */
 #include "fop/fom_generic.h"        /* c2_fom_tick_generic() */
 #include "ioservice/io_foms.h"      /* io_fom_cob_rw_fid2stob_map */
 #include "ioservice/io_fops.h"      /* c2_cobfop_common_get */
 #include "ioservice/cob_foms.h"     /* c2_fom_cob_create, c2_fom_cob_delete */
 #include "ioservice/io_fops.h"      /* c2_is_cob_create_fop() */
+#include "mdstore/mdstore.h"
 #include "ioservice/cobfid_map.h"   /* c2_cobfid_map_get() c2_cobfid_map_put()*/
+#include "ioservice/io_device.h"   /* c2_ios_poolmach_get() */
 #include "reqh/reqh_service.h"
+#include "pool/pool.h"
 #include "colibri/colibri_setup.h"
 #include "ioservice/io_fops_ff.h"
 
@@ -162,7 +172,7 @@ static size_t cob_fom_locality_get(const struct c2_fom *fom)
 {
 	C2_PRE(fom != NULL);
 
-        return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
+	return c2_fop_opcode(fom->fo_fop);
 }
 
 static void cob_fom_populate(struct c2_fom *fom)
@@ -183,9 +193,15 @@ static void cob_fom_populate(struct c2_fom *fom)
 
 static int cc_fom_tick(struct c2_fom *fom)
 {
-	int                          rc;
-	struct c2_fom_cob_op        *cc;
-	struct c2_fop_cob_op_reply *reply;
+	int                             rc;
+	struct c2_fom_cob_op           *cc;
+	struct c2_fop_cob_op_reply     *reply;
+	struct c2_poolmach             *poolmach;
+	struct c2_reqh                 *reqh;
+	struct c2_pool_version_numbers *verp;
+	struct c2_pool_version_numbers  curr;
+	struct c2_fop_cob_create *fop;
+
 
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_ops != NULL);
@@ -194,6 +210,18 @@ static int cc_fom_tick(struct c2_fom *fom)
 	if (c2_fom_phase(fom) < C2_FOPH_NR) {
 		rc = c2_fom_tick_generic(fom);
 		return rc;
+	}
+
+	fop  = c2_fop_data(fom->fo_fop);
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	poolmach = c2_ios_poolmach_get(reqh);
+	c2_poolmach_current_version_get(poolmach, &curr);
+	verp = (struct c2_pool_version_numbers*)&fop->cc_common.c_version;
+
+	/* Check the client version and server version before any processing */
+	if (!c2_poolmach_version_equal(verp, &curr)) {
+		rc = C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH;
+		goto out;
 	}
 
 	if (c2_fom_phase(fom) == C2_FOPH_CC_COB_CREATE) {
@@ -215,8 +243,13 @@ out:
 	reply = c2_fop_data(fom->fo_rep_fop);
 	reply->cor_rc = rc;
 
-	fom->fo_rc = rc;
-	c2_fom_phase_set(fom, (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE);
+	c2_ios_poolmach_version_updates_pack(poolmach,
+					     &fop->cc_common.c_version,
+					     &reply->cor_fv_version,
+					     &reply->cor_fv_updates);
+
+	c2_fom_phase_move(fom, rc, rc == 0 ? C2_FOPH_SUCCESS :
+					     C2_FOPH_FAILURE);
 	return C2_FSO_AGAIN;
 }
 
@@ -262,64 +295,60 @@ static int cc_cob_create(struct c2_fom *fom, struct c2_fom_cob_op *cc)
 	struct c2_fop_cob_create *fop;
 	struct c2_cob_nskey	 *nskey;
 	struct c2_cob_nsrec	  nsrec;
-	struct c2_cob_fabrec	  fabrec;
+	struct c2_cob_fabrec	 *fabrec;
+	struct c2_cob_omgrec      omgrec;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(cc != NULL);
+	C2_SET0(&nsrec);
 
-	cdom = c2_fom_reqh(fom)->rh_cob_domain;
+	cdom = &fom->fo_loc->fl_dom->fd_reqh->rh_mdstore->md_dom;
 	C2_ASSERT(cdom != NULL);
 	fop = c2_fop_data(fom->fo_fop);
 
-	c2_cob_nskey_make(&nskey, cc->fco_cfid.f_container,
-			  cc->fco_cfid.f_key, (char *)fop->cc_cobname.cn_name);
+        rc = c2_cob_alloc(cdom, &cob);
+        if (rc)
+                return rc;
+	c2_cob_nskey_make(&nskey, &cc->fco_cfid, (char *)fop->cc_cobname.cn_name,
+	                  fop->cc_cobname.cn_count);
 	if (nskey == NULL) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    c2_addb_oom);
+	        c2_cob_put(cob);
 		return -ENOMEM;
 	}
 
-	nsrec.cnr_stobid = cc->fco_stobid;
+        io_fom_cob_rw_stob2fid_map(&cc->fco_stobid, &nsrec.cnr_fid);
 	nsrec.cnr_nlink = CC_COB_HARDLINK_NR;
 
-	fabrec.cfb_version.vn_lsn =
+        c2_cob_fabrec_make(&fabrec, NULL, 0);
+	fabrec->cfb_version.vn_lsn =
 	             c2_fol_lsn_allocate(c2_fom_reqh(fom)->rh_fol);
-	fabrec.cfb_version.vn_vc = CC_COB_VERSION_INIT;
+	fabrec->cfb_version.vn_vc = CC_COB_VERSION_INIT;
 
-	rc = c2_cob_create(cdom, nskey, &nsrec, &fabrec, CA_NSKEY_FREE, &cob,
-			   &fom->fo_tx.tx_dbtx);
+        omgrec.cor_uid = 0;
+        omgrec.cor_gid = 0;
+        omgrec.cor_mode = S_IFDIR |
+                          S_IRUSR | S_IWUSR | S_IXUSR | /* rwx for owner */
+                          S_IRGRP | S_IXGRP |           /* r-x for group */
+                          S_IROTH | S_IXOTH;            /* r-x for others */
 
-	/*
-	 * For all errors except -ENOMEM, cob code puts reference on cob
-	 * which in turn finalizes the in-memory cob object.
-	 * The flag CA_NSKEY_FREE takes care of deallocating memory for
-	 * nskey during cob finalization.
-	 */
-	switch (rc) {
-	case 0:
-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			    c2_addb_trace, "Cob created successfully.");
-		/**
-		 * Since c2_cob_locate() does not cache in-memory cobs,
-		 * it allocates a new c2_cob structure by default every time
-		 * c2_cob_locate() is called.
-		 * Hence releasing reference of cob here which
-		 * otherwise would cause a memory leak.
-		 */
-		c2_cob_put(cob);
-		break;
-
-	case -ENOMEM:
-		c2_free(nskey->cnk_name.b_data);
-		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
-			    cc_fom_func_fail,
-			    "Memory allocation failed in cc_cob_create().", rc);
-		break;
-
-	default:
+	rc = c2_cob_create(cob, nskey, &nsrec, fabrec, &omgrec, &fom->fo_tx.tx_dbtx);
+	if (rc) {
+	        /*
+	         * Cob does not free nskey and fab rec on errors. We need to do so
+	         * ourself. In case cob created successfully, it frees things on
+	         * last put.
+	         */
+		c2_free(nskey);
+		c2_free(fabrec);
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
 			    cc_fom_func_fail, "Cob creation failed", rc);
-	}
+	} else {
+		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cc_fom_addb_loc,
+			    c2_addb_trace, "Cob created successfully.");
+        }
+	c2_cob_put(cob);
 
 	return rc;
 }
@@ -371,17 +400,36 @@ static void cd_fom_fini(struct c2_fom *fom)
 
 static int cd_fom_tick(struct c2_fom *fom)
 {
-	int                         rc;
-	struct c2_fom_cob_op       *cd;
-	struct c2_fop_cob_op_reply *reply;
+	int                             rc;
+	struct c2_fom_cob_op           *cd;
+	struct c2_fop_cob_op_reply     *reply;
+	struct c2_poolmach             *poolmach;
+	struct c2_reqh                 *reqh;
+	struct c2_pool_version_numbers *verp;
+	struct c2_pool_version_numbers  curr;
+	struct c2_fop_cob_delete       *fop;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(fom->fo_ops != NULL);
 	C2_PRE(fom->fo_type != NULL);
 
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
+
 	if (c2_fom_phase(fom) < C2_FOPH_NR) {
 		rc = c2_fom_tick_generic(fom);
 		return rc;
+	}
+
+	fop  = c2_fop_data(fom->fo_fop);
+	reqh = fom->fo_loc->fl_dom->fd_reqh;
+	poolmach = c2_ios_poolmach_get(reqh);
+	c2_poolmach_current_version_get(poolmach, &curr);
+	verp = (struct c2_pool_version_numbers*)&fop->cd_common.c_version;
+
+	/* Check the client version and server version before any processing */
+	if (!c2_poolmach_version_equal(verp, &curr)) {
+		rc = C2_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH;
+		goto out;
 	}
 
 	if (c2_fom_phase(fom) == C2_FOPH_CD_COB_DEL) {
@@ -403,24 +451,33 @@ out:
 	reply = c2_fop_data(fom->fo_rep_fop);
 	reply->cor_rc = rc;
 
-	fom->fo_rc = rc;
-	c2_fom_phase_set(fom, (rc == 0) ? C2_FOPH_SUCCESS : C2_FOPH_FAILURE);
+	c2_ios_poolmach_version_updates_pack(poolmach,
+					     &fop->cd_common.c_version,
+					     &reply->cor_fv_version,
+					     &reply->cor_fv_updates);
+
+	c2_fom_phase_move(fom, rc, rc == 0 ? C2_FOPH_SUCCESS :
+					     C2_FOPH_FAILURE);
 	return C2_FSO_AGAIN;
 }
 
 static int cd_cob_delete(struct c2_fom *fom, struct c2_fom_cob_op *cd)
 {
 	int                   rc;
+	struct c2_cob_oikey   oikey;
 	struct c2_cob        *cob;
 	struct c2_cob_domain *cdom;
+	struct c2_fid         fid;
 
 	C2_PRE(fom != NULL);
 	C2_PRE(cd != NULL);
 
-	cdom = c2_fom_reqh(fom)->rh_cob_domain;
+	cdom = &fom->fo_loc->fl_dom->fd_reqh->rh_mdstore->md_dom;
 	C2_ASSERT(cdom != NULL);
 
-	rc = c2_cob_locate(cdom, &cd->fco_stobid, &cob, &fom->fo_tx.tx_dbtx);
+        io_fom_cob_rw_stob2fid_map(&cd->fco_stobid, &fid);
+        c2_cob_oikey_make(&oikey, &fid, 0);
+	rc = c2_cob_locate(cdom, &oikey, 0, &cob, &fom->fo_tx.tx_dbtx);
 	if (rc != 0) {
 		C2_ADDB_ADD(&fom->fo_fop->f_addb, &cd_fom_addb_loc,
 			    cd_fom_func_fail,

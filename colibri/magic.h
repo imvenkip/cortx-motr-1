@@ -90,6 +90,43 @@ enum c2_magic_satchel {
         /* pargrp_iomap::pi_magic (incandescent) */
         C2_T1FS_PGROUP_MAGIC = 0x3319ca9de5ce9177,
 
+/* Configuration Caching */
+	/* c2_conf_reg::r_magic (fabled feodal) */
+	C2_CONF_REG_MAGIC = 0x33fab1edfe0da177,
+
+	/* c2_conf_obj::co_gen_magic (selfless cell) */
+	C2_CONF_OBJ_MAGIC = 0x335e1f1e55ce1177,
+
+	/* c2_conf_dir::cd_obj.co_con_magic (old calaboose) */
+	C2_CONF_DIR_MAGIC = 0x3301dca1ab005e77,
+
+	/* c2_conf_profile::cp_obj.co_con_magic (closable seal) */
+	C2_CONF_PROFILE_MAGIC = 0x33c105ab1e5ea177,
+
+	/* c2_conf_filesystem::cf_obj.co_con_magic (food of Colaba) */
+	C2_CONF_FILESYSTEM_MAGIC = 0x33f00d0fc01aba77,
+
+	/* c2_conf_service::cs_obj.co_con_magic (biased locale) */
+	C2_CONF_SERVICE_MAGIC = 0x33b1a5ed10ca1e77,
+
+	/* c2_conf_node::cn_obj.co_con_magic (colossal dosa) */
+	C2_CONF_NODE_MAGIC = 0x33c01055a1d05a77,
+
+	/* c2_conf_nic::ni_obj.co_con_magic (baseball feed) */
+	C2_CONF_NIC_MAGIC = 0x33ba5eba11feed77,
+
+	/* c2_conf_sdev::sd_obj.co_con_magic (allseed salad) */
+	C2_CONF_SDEV_MAGIC = 0x33a115eed5a1ad77,
+
+	/* c2_conf_partition::pa_obj.co_con_magic (bacca is aloof) */
+	C2_CONF_PARTITION_MAGIC = 0x33bacca15a100f77,
+
+	/* c2_confc::cc_magic (zodiac doable) */
+	C2_CONFC_MAGIC = 0x3320d1acd0ab1e77,
+
+	/* c2_confc_ctx::fc_magic (ablaze filial) */
+	C2_CONFC_CTX_MAGIC = 0x33ab1a2ef111a177,
+
 /* Colibri Setup */
 	/* cs_buffer_pool::cs_bp_magic (felicia feliz) */
 	C2_CS_BUFFER_POOL_MAGIC = 0x33fe11c1afe11277,
@@ -117,6 +154,23 @@ enum c2_magic_satchel {
 
 	/* ndom_tl::td_head_magic (baffled basis) */
 	C2_CS_NET_DOMAIN_HEAD_MAGIC = 0x33baff1edba51577,
+
+/* Copy machine */
+	/* cmtypes_tl::td_head_magic (dacefacebace) */
+	CM_TYPE_HEAD_MAGIX = 0x33DACEFACEBACE77,
+
+	/* c2_cm_type::ct_magix (badedabadebe) */
+	CM_TYPE_LINK_MAGIX = 0x33BADEDABADEBE77,
+
+	/* cm_ag_tl::td_head_magic (deafbeefdead) */
+	CM_AG_HEAD_MAGIX = 0x33DEAFBEEFDEAD77,
+
+	/* c2_cm_aggr_group::cag_magic (feedbeefdeed) */
+	CM_AG_LINK_MAGIX = 0x33FEEDBEEFDEED77,
+
+/* Copy packet */
+	/* c2_cm_cp::cp_bob (ecobabble ace) */
+	CM_CP_MAGIX = 0x33ec0babb1eace,
 
 /* desim */
 	/* client_write_ext::cwe_magic (abasic access) */
@@ -176,6 +230,15 @@ enum c2_magic_satchel {
 	/* fop_types_list::t_magic (baffle bacili) */
 	C2_FOP_TYPE_HEAD_MAGIC = 0x33baff1ebac11177,
 
+	/* c2_fom::fo_magic (leadless less) */
+	C2_FOM_MAGIC = 0x331ead1e551e5577,
+
+	/* c2_fom_locality::fl_runq::td_head_magic (alas albizzia) */
+	C2_FOM_RUNQ_MAGIC = 0x33a1a5a1b1221a77,
+
+	/* c2_fom_locality::fl_wail::td_head_magic (baseless bole) */
+	C2_FOM_WAIL_MAGIC = 0x33ba5e1e55501e77,
+
 	/* c2_fom_thread::lt_magix (falsifiable C) */
 	C2_FOM_THREAD_MAGIC = 0x33fa151f1ab1ec77,
 
@@ -206,6 +269,9 @@ enum c2_magic_satchel {
 
 	/* c2_reqh_io_service::rios_magic (cocigeal cell) */
 	C2_IOS_REQH_SVC_MAGIC = 0x33c0c19ea1ce1177,
+
+	/* c2_reqh_md_service::rmds_magic (abscissa cell) */
+	C2_MDS_REQH_SVC_MAGIC = 0x33ab5c155ace1177,
 
 	/* bufferpools_tl::rios_bp_magic (cafe accolade) */
 	C2_IOS_BUFFER_POOL_MAGIC = 0x33cafeacc01ade77,
@@ -346,7 +412,7 @@ enum c2_magic_satchel {
 	/* itemq_tl::td_head_magic (dazzled cliff) */
 	C2_RPC_ITEMQ_HEAD_MAGIC = 0x33da221edc11ff77,
 
-	/* c2_rpc_item::ri_field (boiled coolie) */
+	/* c2_rpc_item::ri_magic (boiled coolie) */
 	C2_RPC_ITEM_MAGIC = 0x33b011edc0011e77,
 
 	/* rpcitem_tl::td_head_magic (disabled disc) */
@@ -366,6 +432,33 @@ enum c2_magic_satchel {
 
 	/* packet_item_tl::td_head_magic (falloff eagle) */
 	C2_RPC_PACKET_HEAD_MAGIC = 0x33fa110ffea91e77,
+
+	/* c2_rpc_conn::c_magic (classic alibi) */
+	C2_RPC_CONN_MAGIC = 0x33c1a551ca11b177,
+
+	/* rpc_conn_tl::td_head_magic (bloodless god) */
+	C2_RPC_CONN_HEAD_MAGIC = 0x33b100d1e5590d77,
+
+	/* c2_rpc_session::s_magic (azido ballade) */
+	C2_RPC_SESSION_MAGIC = 0x33a21d0ba11ade77,
+
+	/* session_tl::td_head_magic (sizeable bell) */
+	C2_RPC_SESSION_HEAD_MAGIC = 0x33512eb1ebe1177,
+
+	/* c2_rpc_slot::sl_magic (delible diode) */
+	C2_RPC_SLOT_MAGIC = 0x33de11b1ed10de77,
+
+	/* ready_slot_tl::td_head_magic (assoil azzola) */
+	C2_RPC_SLOT_HEAD_MAGIC = 0x33a55011a2201a77,
+
+	/* slot_item_tl::td_head_magic (efface eiffel) */
+	C2_RPC_SLOT_REF_HEAD_MAGIC = 0x33effacee1ffe177,
+
+	/* c2_rpc_chan::rc_magic (faceless idol) */
+	C2_RPC_CHAN_MAGIC = 0x33face1e551d0177,
+
+	/* rpc_chans_tl::td_head_magic (idesia fossil) */
+	C2_RPC_CHAN_HEAD_MAGIC = 0x331de51af0551177,
 
 /* Trace */
 	/* c2_trace_rec_header::trh_magic (foldable doll) */

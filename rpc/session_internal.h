@@ -26,8 +26,9 @@
 #define __COLIBRI_RPC_SESSION_INT_H__
 
 #include "cob/cob.h"
-#include "rpc/session.h"
 #include "dtm/verno.h"
+#include "rpc/session.h"
+#include "rpc/rpc_onwire.h" /* c2_rpc_onwire_slot_ref */
 
 /**
    @addtogroup rpc_session
@@ -127,9 +128,9 @@ int c2_rpc_slot_item_apply(struct c2_rpc_slot *slot,
    Takes care of duplicate replies. Sets *req_out to NULL if @reply is
    duplicate or unexpected.
  */
-void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
-				struct c2_rpc_item  *reply,
-				struct c2_rpc_item **req_out);
+int c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
+			       struct c2_rpc_item  *reply,
+			       struct c2_rpc_item **req_out);
 
 /**
    Reports slot that effects of item with verno <= @last_pesistent, are
@@ -141,7 +142,7 @@ void c2_rpc_slot_reply_received(struct c2_rpc_slot  *slot,
 void c2_rpc_slot_persistence(struct c2_rpc_slot *slot,
 			     struct c2_verno     last_persistent);
 
-int c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
+void c2_rpc_slot_misordered_item_received(struct c2_rpc_slot *slot,
                                          struct c2_rpc_item *item);
 
 /**
@@ -160,12 +161,6 @@ void c2_rpc_slot_fini(struct c2_rpc_slot *slot);
 bool c2_rpc_slot_invariant(const struct c2_rpc_slot *slot);
 
 /**
-   Name of a cob which is root of hierarchy of cobs that represent
-   persistent state maintained by session module.
- */
-static const char root_session_cob_name[] = "SESSIONS";
-
-/**
    Helper to create cob
 
    @param dom cob domain in which cob should be created.
@@ -182,9 +177,6 @@ int c2_rpc_cob_create_helper(struct c2_cob_domain *dom,
 			     const char           *name,
 			     struct c2_cob       **out,
 			     struct c2_db_tx      *tx);
-
-#define COB_GET_PFID_HI(cob)    (cob)->co_nsrec.cnr_stobid.si_bits.u_hi
-#define COB_GET_PFID_LO(cob)    (cob)->co_nsrec.cnr_stobid.si_bits.u_lo
 
 /**
    Lookup a cob named 'name' in parent cob @pcob. If found store reference
@@ -269,7 +261,7 @@ int c2_rpc_slot_cob_create(struct c2_cob   *session_cob,
 /**
    Initalises receiver end of conn object.
 
-   @post ergo(result == 0, conn->c_state == C2_RPC_CONN_INITIALISED &&
+   @post ergo(result == 0, conn_state(conn) == C2_RPC_CONN_INITIALISED &&
 			   conn->c_rpc_machine == machine &&
 			   conn->c_sender_id == SENDER_ID_INVALID &&
 			   (conn->c_flags & RCF_RECV_END) != 0)
@@ -281,13 +273,13 @@ int c2_rpc_rcv_conn_init(struct c2_rpc_conn              *conn,
 /**
    Creates a receiver end of conn.
 
-   @pre conn->c_state == C2_RPC_CONN_INITIALISED
-   @post ergo(result == 0, conn->c_state == C2_RPC_CONN_ACTIVE &&
+   @pre conn_state(conn) == C2_RPC_CONN_INITIALISED
+   @post ergo(result == 0, conn_state(conn) == C2_RPC_CONN_ACTIVE &&
 			   conn->c_sender_id != SENDER_ID_INVALID &&
 			   c2_list_contains(&machine->rm_incoming_conns,
 					    &conn->c_link)
-   @post ergo(result != 0, conn->c_state == C2_RPC_CONN_FAILED)
-   @post ergo(result == 0, conn->c_state == C2_RPC_CONN_ACTIVE)
+   @post ergo(result != 0, conn_state(conn) == C2_RPC_CONN_FAILED)
+   @post ergo(result == 0, conn_state(conn) == C2_RPC_CONN_ACTIVE)
  */
 int c2_rpc_rcv_conn_establish(struct c2_rpc_conn *conn);
 
@@ -314,10 +306,10 @@ int c2_rpc_rcv_session_terminate(struct c2_rpc_session *session);
 /**
    Terminates receiver end of rpc connection.
 
-   @pre conn->c_state == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0
-   @post ergo(result == 0, conn->c_state == C2_RPC_CONN_TERMINATING)
+   @pre conn_state(conn) == C2_RPC_CONN_ACTIVE && conn->c_nr_sessions == 0
+   @post ergo(result == 0, conn_state(conn) == C2_RPC_CONN_TERMINATING)
    @post ergo(result != 0 && result != -EBUSY,
-		conn->c_state == C2_RPC_CONN_FAILED)
+		conn_state(conn) == C2_RPC_CONN_FAILED)
  */
 int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn);
 
@@ -333,7 +325,7 @@ int c2_rpc_rcv_conn_terminate(struct c2_rpc_conn *conn);
    slot-0 of the rpc connection being terminated. Hence we cleanup in memory
    state of the conn when conn_terminate_reply has been sent.
 
-   @pre conn->c_state == C2_RPC_CONN_TERMINATING
+   @pre conn_state(conn) == C2_RPC_CONN_TERMINATING
  */
 void conn_terminate_reply_sent(struct c2_rpc_conn *conn);
 
@@ -346,47 +338,16 @@ void conn_terminate_reply_sent(struct c2_rpc_conn *conn);
  */
 struct c2_rpc_slot_ref {
 	/** sr_slot and sr_item identify two ends of association */
-	struct c2_rpc_slot        *sr_slot;
+	struct c2_rpc_slot           *sr_slot;
 
-	struct c2_rpc_item        *sr_item;
+	struct c2_rpc_item           *sr_item;
 
-	struct c2_rpc_sender_uuid  sr_uuid;
+	struct c2_rpc_onwire_slot_ref sr_ow;
 
-	uint64_t                   sr_sender_id;
-
-	uint64_t                   sr_session_id;
-
-	/** Numeric id of slot. Used when encoding and decoding rpc item to
-	    and from wire-format
+	/** Anchor to put item on c2_rpc_slot::sl_item_list
+	    List descriptor: slot_item
 	 */
-	uint32_t                   sr_slot_id;
-
-	/** If slot has verno matching sr_verno, then only the item can be
-	    APPLIED to the slot
-	 */
-	struct c2_verno            sr_verno;
-
-	/** In each reply item, receiver reports to sender, verno of item
-	    whose effects have reached persistent storage, using this field
-	 */
-	struct c2_verno            sr_last_persistent_verno;
-
-	/** Inform the sender about current slot version */
-	struct c2_verno            sr_last_seen_verno;
-
-	/** An identifier that uniquely identifies item within
-	    slot->item_list.
-        */
-	uint64_t                   sr_xid;
-
-	/** Generation number of slot */
-	uint64_t                   sr_slot_gen;
-
-	/** Anchor to put item on c2_rpc_slot::sl_item_list */
-	struct c2_list_link        sr_link;
-
-	/** Anchor to put item on c2_rpc_slot::sl_ready_list */
-	struct c2_list_link        sr_ready_link;
+	struct c2_tlink               sr_link;
 };
 
 /**
@@ -437,16 +398,9 @@ void c2_rpc_session_terminate_reply_received(struct c2_rpc_item *req);
   A callback called when conn terminate reply has been put on network.
   Finalizes and frees conn.
 
-  @pre conn->c_state == C2_RPC_CONN_TERMINATING
+  @pre conn_state(conn) == C2_RPC_CONN_TERMINATING
  */
 void c2_rpc_conn_terminate_reply_sent(struct c2_rpc_conn *conn);
-
-/**
-   Iterates over all the sessions in rpc connection
- */
-#define c2_rpc_for_each_session(conn, session)  \
-	c2_list_for_each_entry(&(conn)->c_sessions, (session),  \
-		struct c2_rpc_session, s_link)
 
 enum {
 	/**
@@ -537,10 +491,41 @@ bool c2_rpc_session_is_idle(const struct c2_rpc_session *session);
 
 bool c2_rpc_session_bind_item(struct c2_rpc_item *item);
 
+void c2_rpc_session_item_failed(struct c2_rpc_item *item);
+
+void c2_rpc_session_mod_nr_active_items(struct c2_rpc_session *session,
+					int delta);
+
+void c2_rpc_slot_process_reply(struct c2_rpc_item *req);
+
 #ifndef __KERNEL__
 int c2_rpc_slot_item_list_print(struct c2_rpc_slot *slot, bool only_active,
 				int count);
 #endif
+
+static inline struct c2_rpc_machine *
+session_machine(const struct c2_rpc_session *s)
+{
+	return s->s_conn->c_rpc_machine;
+}
+
+int __slot_reply_received(struct c2_rpc_slot *slot,
+			  struct c2_rpc_item *req,
+			  struct c2_rpc_item *reply);
+
+C2_TL_DESCR_DECLARE(rpc_session, extern);
+C2_TL_DECLARE(rpc_session, extern, struct c2_rpc_session);
+
+C2_TL_DESCR_DECLARE(ready_slot, extern);
+C2_TL_DECLARE(ready_slot, extern, struct c2_rpc_slot);
+
+C2_TL_DESCR_DECLARE(slot_item, extern);
+C2_TL_DECLARE(slot_item, extern, struct c2_rpc_item);
+
+/** Helper macro to iterate over every item in a slot */
+#define for_each_item_in_slot(item, slot) \
+	        c2_tl_for(slot_item, &slot->sl_item_list, item)
+#define end_for_each_item_in_slot c2_tl_endfor
 
 /** @}  End of rpc_session group */
 #endif

@@ -242,11 +242,11 @@ struct c2_fom_locality {
 	struct c2_fom_domain        *fl_dom;
 
 	/** Run-queue */
-	struct c2_list               fl_runq;
+	struct c2_tl		     fl_runq;
 	size_t			     fl_runq_nr;
 
 	/** Wait list */
-	struct c2_list		     fl_wail;
+	struct c2_tl		     fl_wail;
 	size_t			     fl_wail_nr;
 
 	/**
@@ -447,6 +447,8 @@ struct c2_fom {
 	const struct c2_fom_ops	 *fo_ops;
 	/** AST call-back to wake up the FOM */
 	struct c2_fom_callback	  fo_cb;
+	/** FOP ctx sent by the network service. */
+	struct c2_fop_ctx	*fo_fop_ctx;
 	/** Request fop object, this fom belongs to */
 	struct c2_fop		 *fo_fop;
 	/** Reply fop object */
@@ -460,7 +462,7 @@ struct c2_fom {
 	 *  Every access to the FOM via this linkage is
 	 *  protected by the c2_fom_locality::fl_group.s_lock mutex.
 	 */
-	struct c2_list_link	  fo_linkage;
+	struct c2_tlink		  fo_linkage;
 	/** Transitions counter, coresponds to the number of
 	    c2_fom_ops::fo_state() calls */
 	unsigned		  fo_transitions;
@@ -468,18 +470,19 @@ struct c2_fom {
 	    while waiting for a longlock. */
 	unsigned		  fo_transitions_saved;
 
-	/** State machine for generic and specfic FOM phases. */
+	/** State machine for generic and specfic FOM phases.
+	    sm_rc contains result of fom execution, -errno on failure.
+	 */
 	struct c2_sm		 fo_sm_phase;
 	/** State machine for FOM states. */
 	struct c2_sm		 fo_sm_state;
-	/** Result of fom execution, -errno on failure */
-	int32_t			  fo_rc;
 	/** Thread executing current phase transition. */
 	struct c2_loc_thread     *fo_thread;
 	/**
 	 * Stack of pending call-backs.
 	 */
 	struct c2_fom_callback   *fo_pending;
+	uint64_t		  fo_magic;
 };
 
 /**
@@ -713,9 +716,24 @@ static inline void c2_fom_phase_set(struct c2_fom *fom, int phase)
 	c2_sm_state_set(&fom->fo_sm_phase, phase);
 }
 
-static inline int c2_fom_phase(struct c2_fom *fom)
+static inline void c2_fom_phase_move(struct c2_fom *fom, int32_t rc, int phase)
+{
+	c2_sm_move(&fom->fo_sm_phase, rc, phase);
+}
+
+static inline int c2_fom_phase(const struct c2_fom *fom)
 {
 	return fom->fo_sm_phase.sm_state;
+}
+
+static inline void c2_fom_err_set(struct c2_fom *fom, int32_t rc)
+{
+	fom->fo_sm_phase.sm_rc = rc;
+}
+
+static inline int c2_fom_rc(const struct c2_fom *fom)
+{
+	return fom->fo_sm_phase.sm_rc;
 }
 
 void c2_fom_type_init(struct c2_fom_type *type,

@@ -231,8 +231,8 @@ static void test_buffer_xor(void)
 
 	c2_buf_init(&data_buf[0], data[0], buff_size);
 	c2_buf_init(&parity_buf[0], parity[0], buff_size);
-	c2_parity_math_buffer_xor(parity_buf, data_buf);
 	c2_parity_math_buffer_xor(data_buf, parity_buf);
+	c2_parity_math_buffer_xor(parity_buf, data_buf);
 
 	if (!expected_cmp(data_count, buff_size))
 		C2_UT_ASSERT(0 && "Recovered data is unexpected");

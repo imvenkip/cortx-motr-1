@@ -31,7 +31,8 @@
 #include "rpc/session_fops.h"
 #include "rpc/session_foms.h"
 #include "rpc/session_internal.h"
-#include "rpc/rpc_onwire.h" /* item_encdec() */
+#include "dtm/verno_xc.h" /* c2_xc_verno_init */
+#include "rpc/rpc_onwire_xc.h" /* c2_xc_rpc_onwire_init */
 
 /**
    @addtogroup rpc_session
@@ -48,6 +49,7 @@ static void conn_establish_item_free(struct c2_rpc_item *item)
 	struct c2_fop                        *fop;
 
 	fop = c2_rpc_item_to_fop(item);
+	c2_fop_fini(fop);
 	ctx = container_of(fop, struct c2_rpc_fop_conn_establish_ctx, cec_fop);
 	c2_free(ctx);
 }
@@ -56,9 +58,9 @@ static const struct c2_rpc_item_ops rcv_conn_establish_item_ops = {
 	.rio_free = conn_establish_item_free,
 };
 
-static int conn_establish_item_decode(struct c2_rpc_item_type *item_type,
-				      struct c2_rpc_item     **item,
-				      struct c2_bufvec_cursor *cur)
+static int conn_establish_item_decode(const struct c2_rpc_item_type *item_type,
+				      struct c2_rpc_item           **item,
+				      struct c2_bufvec_cursor       *cur)
 {
 	struct c2_rpc_fop_conn_establish_ctx *ctx;
 	struct c2_fop                        *fop;
@@ -99,11 +101,10 @@ out:
 const struct c2_fop_type_ops c2_rpc_fop_noop_ops = {
 };
 
-
 static struct c2_rpc_item_type_ops conn_establish_item_type_ops = {
 	.rito_encode       = c2_fop_item_type_default_encode,
 	.rito_decode       = conn_establish_item_decode,
-        .rito_payload_size = c2_fop_item_type_default_onwire_size,
+        .rito_payload_size = c2_fop_item_type_default_payload_size,
 };
 
 struct c2_fop_type c2_rpc_fop_conn_establish_fopt;
@@ -140,6 +141,8 @@ void c2_rpc_session_fop_fini(void)
 	c2_fop_type_fini(&c2_rpc_fop_conn_terminate_fopt);
 	c2_fop_type_fini(&c2_rpc_fop_conn_establish_fopt);
 	c2_xc_session_fini();
+	c2_xc_rpc_onwire_fini();
+	c2_xc_verno_fini();
 }
 
 extern struct c2_fom_type_ops c2_rpc_fom_conn_establish_type_ops;
@@ -149,6 +152,11 @@ extern struct c2_fom_type_ops c2_rpc_fom_session_terminate_type_ops;
 
 int c2_rpc_session_fop_init(void)
 {
+	/**
+	 * @todo This should be done from dtm subsystem init.
+	 */
+	c2_xc_verno_init();
+	c2_xc_rpc_onwire_init();
 	c2_xc_session_init();
 	return  C2_FOP_TYPE_INIT(&c2_rpc_fop_conn_establish_fopt,
 			 .name      = "Rpc conn establish",
@@ -253,4 +261,3 @@ bool c2_rpc_item_is_control_msg(const struct c2_rpc_item *item)
  *  scroll-step: 1
  *  End:
  */
-

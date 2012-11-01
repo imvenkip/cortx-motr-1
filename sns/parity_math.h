@@ -162,11 +162,11 @@ void c2_parity_math_fail_index_recover(struct c2_parity_math *math,
 /**
  * XORs the source and destination buffers and stores the output in destination
  * buffer.
- * @param src - source buffer, treated as uint8_t block with b_nob elements.
  * @param dest - destination buffer, treated as uint8_t block with
  *               b_nob elements, containing the output of src XOR dest.
+ * @param src - source buffer, treated as uint8_t block with b_nob elements.
  */
-void c2_parity_math_buffer_xor(const struct c2_buf *src, struct c2_buf *dest);
+void c2_parity_math_buffer_xor(struct c2_buf *dest, const struct c2_buf *src);
 
 /** @} end group parity_math */
 

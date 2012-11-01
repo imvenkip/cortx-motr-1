@@ -94,6 +94,7 @@ void c2_sm_asts_run(struct c2_sm_group *grp)
 		if (ast == NULL)
 			break;
 
+		ast->sa_next = NULL;
 		ast->sa_cb(grp, ast);
 	}
 }
@@ -247,11 +248,7 @@ static void state_set(struct c2_sm *mach, int state, int32_t rc)
 	 */
 	do {
 		sd = sm_state(mach);
-		/* Used in UT's where out of order state transitions are done.*/
-		if (C2_FI_ENABLED("skip_sd_allowed_chk"))
-			goto skip_sd_allowed;
 		C2_PRE(sd->sd_allowed & (1ULL << state));
-skip_sd_allowed:
 		if (sd->sd_ex != NULL)
 			sd->sd_ex(mach);
 		mach->sm_state = state;
@@ -262,7 +259,6 @@ skip_sd_allowed:
 	} while (state >= 0);
 	C2_POST(c2_sm_invariant(mach));
 }
-C2_EXPORTED(c2_sm_state_set);
 
 void c2_sm_fail(struct c2_sm *mach, int fail_state, int32_t rc)
 {
@@ -279,6 +275,7 @@ void c2_sm_state_set(struct c2_sm *mach, int state)
 	C2_PRE(c2_sm_invariant(mach));
 	state_set(mach, state, 0);
 }
+C2_EXPORTED(c2_sm_state_set);
 
 void c2_sm_move(struct c2_sm *mach, int32_t rc, int state)
 {

@@ -37,6 +37,9 @@
 #include "net/lnet/lnet.h"
 #include "rpc/rpc2.h"
 #include "reqh/reqh.h"
+#include "cob/cob.h"
+#include "mdstore/mdstore.h"
+#include "colibri/colibri_setup.h"
 #include "colibri/cs_internal.h"
 #include "colibri/magic.h"
 #include "rpc/rpclib.h"
@@ -123,9 +126,6 @@ C2_TL_DEFINE(astob, static, struct cs_ad_stob);
 
 static struct c2_bob_type astob_bob;
 C2_BOB_DEFINE(static, &astob_bob, cs_ad_stob);
-
-static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cctx,
-						  const char *xprt);
 
 static int reqh_ctx_args_are_valid(const struct cs_reqh_context *rctx)
 {
@@ -446,8 +446,8 @@ static void cs_reqh_ctx_free(struct cs_reqh_context *rctx)
 
    @see c2_cs_init()
  */
-static struct c2_net_domain *cs_net_domain_locate(struct c2_colibri *cctx,
-						  const char *xprt_name)
+struct c2_net_domain *c2_cs_net_domain_locate(struct c2_colibri *cctx,
+					      const char *xprt_name)
 {
 	struct c2_net_domain *ndom;
 
@@ -507,7 +507,7 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 
 	C2_PRE(cctx != NULL && xprt_name != NULL && ep != NULL && reqh != NULL);
 
-	ndom = cs_net_domain_locate(cctx, xprt_name);
+	ndom = c2_cs_net_domain_locate(cctx, xprt_name);
 	if (ndom == NULL)
 		return -EINVAL;
 
@@ -521,7 +521,7 @@ static int cs_rpc_machine_init(struct c2_colibri *cctx, const char *xprt_name,
 	}
 
 	buffer_pool = cs_buffer_pool_get(cctx, ndom);
-	rc = c2_rpc_machine_init(rpcmach, reqh->rh_cob_domain, ndom, ep, reqh,
+	rc = c2_rpc_machine_init(rpcmach, &reqh->rh_mdstore->md_dom, ndom, ep, reqh,
 				 buffer_pool, tm_colour, max_rpc_msg_size,
 				 recv_queue_min_length);
 	if (rc != 0) {
@@ -904,7 +904,7 @@ static void cs_ad_stob_fini(struct cs_stobs *stob)
 	astob_tlist_fini(&stob->s_adoms);
 }
 
-void cs_linux_stob_fini(struct cs_stobs *stob)
+static void cs_linux_stob_fini(struct cs_stobs *stob)
 {
 	C2_PRE(stob != NULL);
 
@@ -1123,7 +1123,7 @@ static void cs_services_fini(struct c2_reqh *reqh)
  */
 static int cs_net_domains_init(struct c2_colibri *cctx)
 {
-	int                          rc;
+	int                          rc = 0;
 	size_t                       xprts_nr;
 	FILE                        *ofd;
 	struct c2_net_xprt         **xprts;
@@ -1151,7 +1151,7 @@ static int cs_net_domains_init(struct c2_colibri *cctx)
 				return -EINVAL;
 			}
 
-			ndom = cs_net_domain_locate(cctx, ep->ex_xprt);
+			ndom = c2_cs_net_domain_locate(cctx, ep->ex_xprt);
 			if (ndom != NULL)
 				continue;
 
@@ -1247,8 +1247,7 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 		goto cleanup_stob;
 	}
 	rctx->rc_cdom_id.id = ++cdom_id;
-	rc = c2_cob_domain_init(&rctx->rc_cdom, &rctx->rc_db,
-				&rctx->rc_cdom_id);
+	rc = c2_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id, &rctx->rc_db, 0);
 	if (rc != 0) {
 		C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
 			    "c2_cob_domain_init", rc);
@@ -1258,10 +1257,10 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 	if (rc != 0) {
 		C2_ADDB_ADD(addb, &cs_addb_loc, reqh_init_fail,
 			    "c2_fol_init", rc);
-		goto cleanup_cob;
+		goto cleanup_mdstore;
 	}
-	rc = c2_reqh_init(&rctx->rc_reqh, NULL, &rctx->rc_db, &rctx->rc_cdom,
-			  &rctx->rc_fol);
+	rc = c2_reqh_init(&rctx->rc_reqh, NULL, &rctx->rc_db, &rctx->rc_mdstore,
+			  &rctx->rc_fol, NULL);
 	if (rc != 0)
 		goto cleanup_fol;
 
@@ -1270,8 +1269,8 @@ static int cs_request_handler_start(struct cs_reqh_context *rctx)
 
 cleanup_fol:
 	c2_fol_fini(&rctx->rc_fol);
-cleanup_cob:
-	c2_cob_domain_fini(&rctx->rc_cdom);
+cleanup_mdstore:
+	c2_mdstore_fini(&rctx->rc_mdstore);
 cleanup_stob:
 	cs_storage_fini(&rctx->rc_stob);
 	c2_dbenv_fini(&rctx->rc_db);
@@ -1326,7 +1325,7 @@ static void cs_request_handler_stop(struct cs_reqh_context *rctx)
 	cs_rpc_machines_fini(reqh);
 	c2_reqh_fini(reqh);
 	c2_fol_fini(&rctx->rc_fol);
-	c2_cob_domain_fini(&rctx->rc_cdom);
+	c2_mdstore_fini(&rctx->rc_mdstore);
 	cs_storage_fini(&rctx->rc_stob);
 	c2_dbenv_fini(&rctx->rc_db);
 }

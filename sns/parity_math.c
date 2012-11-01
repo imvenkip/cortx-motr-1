@@ -608,7 +608,7 @@ void c2_parity_math_fail_index_recover(struct c2_parity_math *math,
 	(*fidx_recover[math->pmi_parity_algo])(math, data, parity, fidx);
 }
 
-void c2_parity_math_buffer_xor(const struct c2_buf *src, struct c2_buf *dest)
+void c2_parity_math_buffer_xor(struct c2_buf *dest, const struct c2_buf *src)
 {
         uint32_t  ei; /* block element index. */
 

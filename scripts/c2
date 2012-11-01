@@ -1,0 +1,113 @@
+#!/bin/sh
+set -e
+
+### --------------------------------------------------------------------
+### Colibri helper script
+###
+### Installation:
+###     ln -s /path/to/colibri/core/scripts/c2 ~/bin/c2
+###
+### Type `c2 help' for usage.
+### --------------------------------------------------------------------
+
+RUNDIR=$HOME/XXX  # CAUTION! This directory will be removed by superuser.
+PROG="${0##*/}"
+SRC="$(readlink -f $0)"
+SRC="${SRC%/*/*}"
+
+MAKE=make
+## Note, that make command is expected to perform better if `-j'
+## option is used.  The recommended number of jobs (the value after
+## `-j') is twice the number of CPUs.  Thus, the recommended setting
+## for a DevVM with 2 cores would be
+## MAKE='make -j4'
+
+clean() {
+    $MAKE distclean || true
+    [ "$1" = '-f' ] && git clean -fdx || true
+}
+
+build() {
+    sh autogen.sh
+    ./configure
+    $MAKE
+}
+
+_reset() {
+    sudo rm -rf "$RUNDIR"  # Ouch!
+    mkdir "$RUNDIR"
+    cd "$RUNDIR"
+}
+
+run_ut()  { _reset; sudo "$SRC/utils/ut.sh" "$@"; }
+run_kut() { _reset; sudo "$SRC/utils/linux_kernel/ut.sh"; }
+run_st()  { _reset; sudo "$SRC/c2t1fs/linux_kernel/st/c2t1fs_test.sh"; }
+
+dist_check() {
+    local DIST=colibri-0.1.0
+
+    cd "$SRC"
+    $MAKE dist
+
+    cd ..
+    tar -xzf "$OLDPWD/$DIST.tar.gz"
+
+    cd $DIST
+    build
+
+    cd ..
+    rm -r $DIST
+}
+
+help() {
+    [ $1 -eq 0 ] && _usage || _usage >&2
+    exit $1
+}
+
+_usage() {
+    cat <<EOF
+Usage: $PROG COMMAND [OPTION]...
+
+Commands:
+    rebuild             Clean and build the whole Colibri anew.
+
+    run-ut [OPTION]...  Run user-space unit tests.
+                        OPTIONs are passed to utils/ut.sh.
+
+    run-kut             Run kernel unit tests.
+
+    run-st              Run system tests.
+
+    run-all             Run unit and system tests.
+
+    dist-check    Create and validate Colibri distribution archive.
+
+    clean [-f]    Call 'make distclean' in C2 sources directory.
+                  '-f' will also remove untracked files and
+                  directories (i.e. those not added to the git
+                  repository).
+		  *CAUTION*: You do not want to use '-f' option if
+                  there are any untracked files you care about.
+
+    help    Show this help and exit.
+
+C2 sources: $SRC
+UT output:  $RUNDIR
+EOF
+}
+
+case "$1" in
+    rebuild) cd "$SRC"; clean; build;;
+    run-ut)  run_ut "$@";;
+    run-kut) run_kut;;
+    run-st)  run_st;;
+    run-all)
+	run_ut "$@"
+	echo 'Running kernel UT ...'
+	run_kut
+	run_st;;
+    dist-check) dist_check;;
+    clean) cd "$SRC"; shift; clean "$@";;
+    help)  help 0;;
+    *)     help 1;;
+esac

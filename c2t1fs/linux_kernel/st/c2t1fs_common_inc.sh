@@ -79,13 +79,15 @@ unprepare()
 {
 	if mount | grep ^c2t1fs > /dev/null; then
 		umount $COLIBRI_C2T1FS_MOUNT_DIR
-		rm -r $COLIBRI_C2T1FS_MOUNT_DIR
+		rmdir $COLIBRI_C2T1FS_MOUNT_DIR
 	fi
 
 	if lsmod | grep kcolibri > /dev/null; then
 		unload_kernel_module
 	fi
 	modunload_galois
+
+	rm -rf $COLIBRI_C2T1FS_TEST_DIR
 }
 
 export  COLIBRI_CORE_ROOT         \

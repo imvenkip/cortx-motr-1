@@ -24,6 +24,7 @@
 #define __COLIBRI_LIB_LINUX_KERNEL_THREAD_H__
 
 #include <linux/kthread.h>
+#include <linux/hardirq.h>
 
 /**
    @addtogroup thread Thread

@@ -32,7 +32,7 @@
 
    This file defines interfaces for access to a simple indexing mechanism,
    similar to data-base tables with primary index. Currently this interface is
-   implemented on top of Oracle db5 (nee Sleepycat's Berkeley DB) and details of
+   implemented on top of Oracle db5 (see Sleepycat's Berkeley DB) and details of
    this implementation leak into data-structures. In the future, additional
    implementations will be added, specifically a simple memory-only
    implementation for Linux kernel, and the separation between generic and

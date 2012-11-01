@@ -37,7 +37,7 @@ static size_t home_locality(const struct c2_fom *fom)
 {
         C2_PRE(fom != NULL);
 
-        return fom->fo_fop->f_type->ft_rpc_item_type.rit_opcode;
+        return c2_fop_opcode(fom->fo_fop);
 }
 
 static void default_fom_fini(struct c2_fom *fom)

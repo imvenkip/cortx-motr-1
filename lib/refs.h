@@ -71,6 +71,14 @@ void c2_ref_get(struct c2_ref *ref);
 */
 void c2_ref_put(struct c2_ref *ref);
 
+/**
+ Read the current value of the reference count from the c2_ref object
+
+ @param ref pointer to c2_ref object
+
+ @return current value of the reference count
+ */
+int64_t c2_ref_read(const struct c2_ref *ref);
 #endif
 /*
  *  Local variables:

@@ -52,6 +52,7 @@ static bool field_invariant(const struct c2_xcode_type *xt,
 bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
 {
 	size_t   i;
+	size_t   prev;
 	uint32_t offset;
 
 	static const size_t min[C2_XA_NR] = {
@@ -78,7 +79,7 @@ bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
 	if (xt->xct_nr < min[xt->xct_aggr] || xt->xct_nr > max[xt->xct_aggr])
 		return false;
 
-	for (i = 0, offset = 0; i < xt->xct_nr; ++i) {
+	for (i = 0, offset = 0, prev = 0; i < xt->xct_nr; ++i) {
 		const struct c2_xcode_field *f;
 
 		f = &xt->xct_child[i];
@@ -86,12 +87,14 @@ bool c2_xcode_type_invariant(const struct c2_xcode_type *xt)
 			return false;
 		/* field doesn't overlap with the previous one */
 		if (i > 0 && offset +
-		    xt->xct_child[i - 1].xf_type->xct_sizeof > f->xf_offset)
+		    xt->xct_child[prev].xf_type->xct_sizeof > f->xf_offset)
 			return false;
 		/* update the previous field offset: for UNION all branches
 		   follow the first field. */
-		if (i == 0 || xt->xct_aggr != C2_XA_UNION)
+		if (i == 0 || xt->xct_aggr != C2_XA_UNION) {
 			offset = f->xf_offset;
+			prev   = i;
+		}
 	}
 	switch (xt->xct_aggr) {
 	case C2_XA_RECORD:
@@ -176,7 +179,8 @@ static void **allocp(struct c2_xcode_cursor *it, size_t *out)
 		slot = &obj->xo_ptr;
 	} else {
 		if (pt->xct_aggr == C2_XA_SEQUENCE &&
-		    prev->s_fieldno == 1 && prev->s_elno == 0)
+		    prev->s_fieldno == 1 && prev->s_elno == 0 &&
+		    c2_xcode_tag(par) > 0)
 			/* allocate array */
 			nob = c2_xcode_tag(par) * size;
 		else if (pt->xct_child[prev->s_fieldno].xf_type == &C2_XT_OPAQUE)
@@ -307,8 +311,6 @@ static int ctx_walk(struct c2_xcode_ctx *ctx, enum xcode_op op)
 		if (result < 0)
 			break;
 	}
-	if (result > 0)
-		result = 0;
 	if (op == XO_LEN)
 		result = result ?: length;
 	return result;
@@ -478,6 +480,11 @@ void c2_xcode_bob_type_init(struct c2_bob_type *bt,
 	bt->bt_name         = xt->xct_name;
 	bt->bt_magix        = magix;
 	bt->bt_magix_offset = mf->xf_offset;
+}
+
+void *c2_xcode_ctx_top(const struct c2_xcode_ctx *ctx)
+{
+	return ctx->xcx_it.xcu_stack[0].s_obj.xo_ptr;
 }
 
 const struct c2_xcode_type C2_XT_VOID = {
